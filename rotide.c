@@ -5,23 +5,35 @@
 #include <termios.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
+#include <string.h>
 
 #define CTRL_KEY(k) ((k) & 0x1f)
+#define ROTIDE_VERSION "0.0.1"
 
 struct editorConfig {
 	int windowRows;
 	int windowCols;
+	int cx;
+	int cy;
 	struct termios orig_attrs;
 };
 
 struct editorConfig E;
 
+/*** Terminal ***/
+
+#define VT100_CLEAR_SCREEN_4  "\x1b[2J"
+#define VT100_CLEAR_ROW_3 "\x1b[K"
+#define VT100_RESET_CURSOR_POS_3 "\x1b[H"
+#define VT100_HIDE_CURSOR_6 "\x1b[?25l"
+#define VT100_SHOW_CURSOR_6 "\x1b[?25h"
+
 int editorClearScreen() {
-	return write(STDOUT_FILENO, "\x1b[2J", 4);
+	return write(STDOUT_FILENO, VT100_CLEAR_SCREEN_4, 4);
 }
 
 int editorResetCursorPos() {
-	return write(STDOUT_FILENO, "\x1b[H", 3);
+	return write(STDOUT_FILENO, VT100_RESET_CURSOR_POS_3, 3);
 }
 
 void panic(const char *s) {
@@ -87,6 +99,34 @@ char editorReadKey() {
 			panic("read");
 		}
 	}
+
+	// arrow keys
+	if (c == '\x1b') {
+		char seq[3];
+
+		if (read(STDIN_FILENO, &seq[0], 1) != 1) {
+			return '\x1b';
+		}
+		if (read(STDIN_FILENO, &seq[1], 1) != 1) {
+			return '\x1b';
+		}
+
+		if (seq[0] == '[') {
+			switch (seq[1]) {
+				case 'A':
+					return 'k';
+				case 'B':
+					return 'j';
+				case 'C':
+					return 'l';
+				case 'D':
+					return 'h';
+			}
+		}
+
+		return '\x1b';
+	}
+
 	return c;
 }
 
@@ -134,25 +174,106 @@ int readWindowSize(int *rows, int *cols) {
 	return 0;
 }
 
-void editorDrawRows() {
+/*** Write buffer ***/
+
+struct writeBuf {
+	char *b;
+	int len;	
+};
+
+#define WRITEBUF_INIT {NULL, 0}
+
+int wbAppend(struct writeBuf *wb, const char *s, int len) {
+	char *new = realloc(wb->b, wb->len + len);
+
+	if (new == NULL) {
+		return 0;
+	}
+
+	memcpy(&new[wb->len], s, len);
+	wb->b = new;
+	wb->len += len;
+
+	return len;
+}
+
+void wbFree(struct writeBuf *wb) {
+	free(wb->b);
+}
+
+/*** Output ***/
+
+void editorDrawGreeting(struct writeBuf *wb) {
+	char greet[80];
+	int greetlen = snprintf(greet, sizeof(greet),
+				"RotIDE editor - version %s", ROTIDE_VERSION);
+	if (greetlen > E.windowCols) {
+		greetlen = E.windowCols;
+	}
+	int pad = (E.windowCols - greetlen) / 2;
+	if (pad) {
+		wbAppend(wb, "~", 1);
+		pad--;
+	}
+	while(pad--) {
+		wbAppend(wb, " ", 1);
+	}
+	wbAppend(wb, greet, greetlen);
+}
+
+void editorDrawRows(struct writeBuf *wb) {
 	int y;
 	for (y = 0; y < E.windowRows; y++) {
-		write(STDOUT_FILENO, "~", 1);
+		if (y == E.windowRows / 3) {
+			editorDrawGreeting(wb);
+		} else {
+			wbAppend(wb, "~", 1);
+		}
+		wbAppend(wb, VT100_CLEAR_ROW_3, 3);
+
 		if (y < E.windowRows - 1) {
-			write(STDOUT_FILENO, "\r\n", 2);
+			wbAppend(wb, "\r\n", 2);
 		}
 	}
 }
 
+// TODO: more beautiful appending vs. writing to stdout
 void editorRefreshScreen() {
-	editorClearScreen();
-	editorResetCursorPos();
-	
-	editorDrawRows();
+	struct writeBuf wb = WRITEBUF_INIT;
 
-	editorResetCursorPos();
+	wbAppend(&wb, VT100_HIDE_CURSOR_6, 6);
+	wbAppend(&wb, VT100_RESET_CURSOR_POS_3, 3);
+	
+	editorDrawRows(&wb);
+
+	char buf[32];
+	int buflen = snprintf(buf, sizeof(buf), "\x1b[%d;%dH", E.cy + 1, E.cx + 1);
+	wbAppend(&wb, buf, (buflen > E.windowCols) ? E.windowCols : buflen);
+
+	wbAppend(&wb, VT100_SHOW_CURSOR_6, 6);
+
+	write(STDOUT_FILENO, wb.b, wb.len);
+	wbFree(&wb);
 }
 
+/*** Input ***/
+
+void editorMoveCursor(char k) {
+	switch (k) {
+		case 'h':
+			E.cx--;
+			break;
+		case 'l':
+			E.cx++;
+			break;
+		case 'j':
+			E.cy++;
+			break;
+		case 'k':
+			E.cy--;
+			break;
+	}
+}
 
 void editorProcessKeypress() {
 	char c = editorReadKey();
@@ -161,10 +282,19 @@ void editorProcessKeypress() {
 		case CTRL_KEY('q'):
 			quit();
 			break;
+		case 'h':
+		case 'j':
+		case 'k':
+		case 'l':
+			editorMoveCursor(c);
+			break;
 	}
 }
 
 void initEditor() {
+	E.cx = 0;
+	E.cy = 0;
+
 	if (readWindowSize(&E.windowRows, &E.windowCols) == -1) {
 		panic("readWindowSize");
 	}
