@@ -14,11 +14,13 @@
 
 #define CTRL_KEY(k) ((k) & 0x1f)
 #define ROTIDE_VERSION "0.0.1"
-
+#define ROTIDE_TAB_WIDTH 8
 
 struct erow {
 	int size;
+	int rsize;
 	char *chars;
+	char *render;
 };
 
 struct editorConfig {
@@ -26,6 +28,9 @@ struct editorConfig {
 	int window_cols;
 	int cx;
 	int cy;
+	int rx;
+	int rowoff;
+	int coloff;
 	int numrows;
 	struct erow *rows;
 	struct termios orig_attrs;
@@ -238,6 +243,42 @@ int readWindowSize(int *rows, int *cols) {
 
 /*** File io ***/
 
+int editorRowCxToRx(struct erow *row, int cx) {
+	int rx = 0;
+	for (int j = 0; j < cx; j++) {
+		if (row->chars[j] == '\t') {
+			rx += (ROTIDE_TAB_WIDTH - 1) - (rx % ROTIDE_TAB_WIDTH);
+		}
+		rx++;
+	}
+	return rx;
+}
+
+void editorUpdateRow(struct erow *row) {
+	int tabs = 0;
+	for (int i = 0; i < row->size; i++) {
+		if (row->chars[i] == '\t') {
+			tabs++;
+		}
+	}
+
+	free(row->render);
+	row->render = malloc(row->size + tabs * (ROTIDE_TAB_WIDTH - 1) + 1);
+	
+	int idx = 0;
+	for (int i = 0; i < row->size; i++) {
+		if (row->chars[i] == '\t') {
+			do {
+				row->render[idx++] = ' ';
+			} while (idx % ROTIDE_TAB_WIDTH != 0);
+			continue;
+		}
+		row->render[idx++] = row->chars[i];
+	}
+	row->render[idx] = '\0';
+	row->rsize = idx;
+}
+
 void editorAppendRow(char *s, size_t len) {
 	E.rows = realloc(E.rows, sizeof(struct erow) * (E.numrows + 1));
 	
@@ -247,6 +288,10 @@ void editorAppendRow(char *s, size_t len) {
 	memcpy(E.rows[i].chars, s, len);
 	E.rows[i].chars[len] = '\0';
 	E.numrows++;
+
+	E.rows[i].rsize = 0;
+	E.rows[i].render = NULL;
+	editorUpdateRow(&E.rows[i]);
 }
 
 void editorOpen(char *filename) {
@@ -317,15 +362,24 @@ void editorDrawGreeting(struct writeBuf *wb) {
 	wbAppend(wb, greet, greetlen);
 }
 
+void editorDrawFileRow(struct writeBuf *wb, size_t i) {
+	int len = E.rows[i].rsize - E.coloff;
+	if (len < 0) {
+		len = 0;
+	}
+	if (E.window_cols < len) {
+		len = E.window_cols;
+	}
+	wbAppend(wb, &E.rows[i].render[E.coloff], len);
+}
+
 void editorDrawRows(struct writeBuf *wb) {
 	int y;
 	for (y = 0; y < E.window_rows; y++) {
-		if (y < E.numrows) {
-			wbAppend(
-				wb,
-				E.rows[y].chars,
-				(E.rows[y].size > E.window_cols) ? E.window_cols : E.rows[y].size
-			);
+		int y_offset = y + E.rowoff;
+		
+		if (y_offset < E.numrows) {
+			editorDrawFileRow(wb, y_offset);
 		} else if (E.numrows == 0 && y == E.window_rows / 3) {
 			editorDrawGreeting(wb);
 		} else {
@@ -340,8 +394,29 @@ void editorDrawRows(struct writeBuf *wb) {
 	}
 }
 
+void editorScroll() {
+	E.rx = 0;
+	if (E.cy < E.numrows) {
+		E.rx = editorRowCxToRx(&E.rows[E.cy], E.cx);
+	}
+
+	if (E.cy < E.rowoff) {
+		E.rowoff = E.cy;
+	} else if (E.cy >= E.rowoff + E.window_rows) {
+		E.rowoff = E.cy - E.window_rows + 1;
+	}
+
+	if (E.rx < E.coloff) {
+		E.coloff = E.rx;
+	} else if (E.rx >= E.coloff + E.window_cols) {
+		E.coloff = E.rx - E.window_cols + 1;
+	}
+}
+
 // TODO: more beautiful appending vs. writing to stdout
 void editorRefreshScreen() {
+	editorScroll();
+
 	struct writeBuf wb = WRITEBUF_INIT;
 
 	wbAppend(&wb, VT100_HIDE_CURSOR_6, 6);
@@ -350,7 +425,8 @@ void editorRefreshScreen() {
 	editorDrawRows(&wb);
 
 	char buf[32];
-	int buflen = snprintf(buf, sizeof(buf), "\x1b[%d;%dH", E.cy + 1, E.cx + 1);
+	int buflen = snprintf(buf, sizeof(buf), "\x1b[%d;%dH",
+			(E.cy - E.rowoff) + 1, (E.rx - E.coloff) + 1);
 	wbAppend(&wb, buf, (buflen > E.window_cols) ? E.window_cols : buflen);
 
 	wbAppend(&wb, VT100_SHOW_CURSOR_6, 6);
@@ -361,20 +437,38 @@ void editorRefreshScreen() {
 
 /*** Input ***/
 
+// Prevents cursor going past the row end when navigating to shorter line
+void editorAlignCursorWithRowEnd() {
+	int rowlen = 0;
+	if (E.numrows > E.cy) {
+		rowlen = E.rows[E.cy].size;
+	}
+	if (E.cx > rowlen) {
+		E.cx = rowlen;
+	}
+
+}
+
 void editorMoveCursor(int k) {
 	switch (k) {
 		case ARROW_LEFT:
 			if (E.cx != 0) {
 				E.cx--;
+			} else if (E.cy > 0) {
+				E.cy--;
+				E.cx = E.rows[E.cy].size;
 			}
 			break;
 		case ARROW_RIGHT:
-			if (E.cx != E.window_cols - 1) {
+			if (E.numrows > E.cy && E.cx < E.rows[E.cy].size) {
 				E.cx++;
+			} else if (E.numrows > E.cy && E.cx == E.rows[E.cy].size) {
+				E.cy++;
+				E.cx = 0;
 			}
 			break;
 		case ARROW_DOWN:
-			if (E.cy != E.window_rows - 1) {
+			if (E.cy < E.numrows) {
 				E.cy++;
 			}
 			break;
@@ -384,6 +478,8 @@ void editorMoveCursor(int k) {
 			}
 			break;
 	}
+
+	editorAlignCursorWithRowEnd();
 }
 
 void editorProcessKeypress() {
@@ -417,6 +513,9 @@ void editorProcessKeypress() {
 void initEditor() {
 	E.cx = 0;
 	E.cy = 0;
+	E.rx = 0;
+	E.rowoff = 0;
+	E.coloff = 0;
 	E.numrows = 0;
 	E.rows = NULL;
 
