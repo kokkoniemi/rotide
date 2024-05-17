@@ -20,6 +20,18 @@ struct editorConfig {
 
 struct editorConfig E;
 
+enum editorKey {
+	ARROW_LEFT = 90000,
+	ARROW_DOWN,
+	ARROW_UP,
+	ARROW_RIGHT,
+	PAGE_UP,
+	PAGE_DOWN,
+	HOME_KEY,
+	END_KEY,
+	DEL_KEY
+};
+
 /*** Terminal ***/
 
 #define VT100_CLEAR_SCREEN_4  "\x1b[2J"
@@ -91,7 +103,7 @@ void setRawMode() {
 	};
 }
 
-char editorReadKey() {
+int editorReadKey() {
 	int nread;
 	char c;
 	while ((nread = read(STDIN_FILENO, &c, 1)) != 1) {
@@ -100,7 +112,7 @@ char editorReadKey() {
 		}
 	}
 
-	// arrow keys
+	// arrow keys and page up/down
 	if (c == '\x1b') {
 		char seq[3];
 
@@ -112,15 +124,52 @@ char editorReadKey() {
 		}
 
 		if (seq[0] == '[') {
+			if (seq[1] >= '0' && seq[1] <= '9') {
+				if (read(STDIN_FILENO, &seq[2], 1) != 1) {
+					return '\x1b';
+				}
+				if (seq[2] == '~') {
+					switch (seq[1]) {
+						case '1':    // seq "<esc>[1~"
+							return HOME_KEY;
+						case '3':    // seq "<esc>[3~"
+							return DEL_KEY;
+						case '4':    // seq "<esc>[4~"
+							return END_KEY;
+						case '5':    // seq "<esc>[5~"
+							return PAGE_UP;
+						case '6':    // seq "<esc>[6~"
+							return PAGE_DOWN;
+						case '7':    // seq "<esc>[7~"
+							return HOME_KEY;
+						case '8':    // seq "<esc>[8~"
+							return END_KEY;
+					}
+				}
+			}
+
 			switch (seq[1]) {
-				case 'A':
-					return 'k';
-				case 'B':
-					return 'j';
-				case 'C':
-					return 'l';
-				case 'D':
-					return 'h';
+				case 'A':    // seq "<esc>[A"
+					return ARROW_UP;
+				case 'B':    // seq "<esc>[B"
+					return ARROW_DOWN;
+				case 'C':    // seq "<esc>[C"
+					return ARROW_RIGHT;
+				case 'D':    // seq "<esc>[D"
+					return ARROW_LEFT;
+				case 'H':    // seq "<esc>[H"
+					return HOME_KEY;
+				case 'F':    // seq "<esc>[F"
+					return END_KEY;
+			}
+		}
+
+		if (seq[0] == 'O') {
+			switch (seq[1]) {
+				case 'H': // seq "<esc>OH"
+					return HOME_KEY;
+				case 'F': // seq "<esc>OF"
+					return END_KEY;
 			}
 		}
 
@@ -258,34 +307,54 @@ void editorRefreshScreen() {
 
 /*** Input ***/
 
-void editorMoveCursor(char k) {
+void editorMoveCursor(int k) {
 	switch (k) {
-		case 'h':
-			E.cx--;
+		case ARROW_LEFT:
+			if (E.cx != 0) {
+				E.cx--;
+			}
 			break;
-		case 'l':
-			E.cx++;
+		case ARROW_RIGHT:
+			if (E.cx != E.windowCols - 1) {
+				E.cx++;
+			}
 			break;
-		case 'j':
-			E.cy++;
+		case ARROW_DOWN:
+			if (E.cy != E.windowRows - 1) {
+				E.cy++;
+			}
 			break;
-		case 'k':
-			E.cy--;
+		case ARROW_UP:
+			if (E.cy != 0) {
+				E.cy--;
+			}
 			break;
 	}
 }
 
 void editorProcessKeypress() {
-	char c = editorReadKey();
+	int c = editorReadKey();
 	
 	switch (c) {
 		case CTRL_KEY('q'):
 			quit();
 			break;
-		case 'h':
-		case 'j':
-		case 'k':
-		case 'l':
+		case HOME_KEY:
+			E.cy = 0;
+			break;
+		case END_KEY:
+			E.cy = E.windowRows - 1;
+			break;
+		case PAGE_UP:
+		case PAGE_DOWN:
+			for (int i = 0; i < E.windowRows; i++) {
+				editorMoveCursor(c == PAGE_UP ? ARROW_UP : ARROW_DOWN);
+			}
+			break;
+		case ARROW_UP:
+		case ARROW_DOWN:
+		case ARROW_LEFT:
+		case ARROW_RIGHT:
 			editorMoveCursor(c);
 			break;
 	}
