@@ -1,3 +1,7 @@
+#define _DEFAULT_SOURCE
+#define _BSD_SOURCE
+#define _GNU_SOURCE
+
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
@@ -5,16 +9,25 @@
 #include <termios.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
+#include <sys/types.h>
 #include <string.h>
 
 #define CTRL_KEY(k) ((k) & 0x1f)
 #define ROTIDE_VERSION "0.0.1"
 
+
+struct erow {
+	int size;
+	char *chars;
+};
+
 struct editorConfig {
-	int windowRows;
-	int windowCols;
+	int window_rows;
+	int window_cols;
 	int cx;
 	int cy;
+	int numrows;
+	struct erow *rows;
 	struct termios orig_attrs;
 };
 
@@ -223,6 +236,40 @@ int readWindowSize(int *rows, int *cols) {
 	return 0;
 }
 
+/*** File io ***/
+
+void editorAppendRow(char *s, size_t len) {
+	E.rows = realloc(E.rows, sizeof(struct erow) * (E.numrows + 1));
+	
+	int i = E.numrows;	
+	E.rows[i].size = len;
+	E.rows[i].chars = malloc(len + 1);
+	memcpy(E.rows[i].chars, s, len);
+	E.rows[i].chars[len] = '\0';
+	E.numrows++;
+}
+
+void editorOpen(char *filename) {
+	FILE *fp = fopen(filename, "r");
+	if (!fp) {
+		panic("fopen");
+	}
+
+	char *l = NULL;
+	size_t lcap = 0;
+	ssize_t llen;
+	while ((llen = getline(&l, &lcap, fp)) != -1) {
+		while(llen > 0 && (l[llen - 1] == '\n' || l[llen - 1] == '\r')) {
+			llen--;
+		}
+
+		editorAppendRow(l, llen);
+	}
+
+	free(l);
+	fclose(fp);
+}
+
 /*** Write buffer ***/
 
 struct writeBuf {
@@ -256,10 +303,10 @@ void editorDrawGreeting(struct writeBuf *wb) {
 	char greet[80];
 	int greetlen = snprintf(greet, sizeof(greet),
 				"RotIDE editor - version %s", ROTIDE_VERSION);
-	if (greetlen > E.windowCols) {
-		greetlen = E.windowCols;
+	if (greetlen > E.window_cols) {
+		greetlen = E.window_cols;
 	}
-	int pad = (E.windowCols - greetlen) / 2;
+	int pad = (E.window_cols - greetlen) / 2;
 	if (pad) {
 		wbAppend(wb, "~", 1);
 		pad--;
@@ -272,15 +319,22 @@ void editorDrawGreeting(struct writeBuf *wb) {
 
 void editorDrawRows(struct writeBuf *wb) {
 	int y;
-	for (y = 0; y < E.windowRows; y++) {
-		if (y == E.windowRows / 3) {
+	for (y = 0; y < E.window_rows; y++) {
+		if (y < E.numrows) {
+			wbAppend(
+				wb,
+				E.rows[y].chars,
+				(E.rows[y].size > E.window_cols) ? E.window_cols : E.rows[y].size
+			);
+		} else if (E.numrows == 0 && y == E.window_rows / 3) {
 			editorDrawGreeting(wb);
 		} else {
 			wbAppend(wb, "~", 1);
 		}
+
 		wbAppend(wb, VT100_CLEAR_ROW_3, 3);
 
-		if (y < E.windowRows - 1) {
+		if (y < E.window_rows - 1) {
 			wbAppend(wb, "\r\n", 2);
 		}
 	}
@@ -297,7 +351,7 @@ void editorRefreshScreen() {
 
 	char buf[32];
 	int buflen = snprintf(buf, sizeof(buf), "\x1b[%d;%dH", E.cy + 1, E.cx + 1);
-	wbAppend(&wb, buf, (buflen > E.windowCols) ? E.windowCols : buflen);
+	wbAppend(&wb, buf, (buflen > E.window_cols) ? E.window_cols : buflen);
 
 	wbAppend(&wb, VT100_SHOW_CURSOR_6, 6);
 
@@ -315,12 +369,12 @@ void editorMoveCursor(int k) {
 			}
 			break;
 		case ARROW_RIGHT:
-			if (E.cx != E.windowCols - 1) {
+			if (E.cx != E.window_cols - 1) {
 				E.cx++;
 			}
 			break;
 		case ARROW_DOWN:
-			if (E.cy != E.windowRows - 1) {
+			if (E.cy != E.window_rows - 1) {
 				E.cy++;
 			}
 			break;
@@ -343,11 +397,11 @@ void editorProcessKeypress() {
 			E.cy = 0;
 			break;
 		case END_KEY:
-			E.cy = E.windowRows - 1;
+			E.cy = E.window_rows - 1;
 			break;
 		case PAGE_UP:
 		case PAGE_DOWN:
-			for (int i = 0; i < E.windowRows; i++) {
+			for (int i = 0; i < E.window_rows; i++) {
 				editorMoveCursor(c == PAGE_UP ? ARROW_UP : ARROW_DOWN);
 			}
 			break;
@@ -363,15 +417,20 @@ void editorProcessKeypress() {
 void initEditor() {
 	E.cx = 0;
 	E.cy = 0;
+	E.numrows = 0;
+	E.rows = NULL;
 
-	if (readWindowSize(&E.windowRows, &E.windowCols) == -1) {
+	if (readWindowSize(&E.window_rows, &E.window_cols) == -1) {
 		panic("readWindowSize");
 	}
 }
 
-int main() {
+int main(int argc, char *argv[]) {
 	setRawMode();
 	initEditor();
+	if (argc >= 2) {
+		editorOpen(argv[1]);
+	}
 
 	while(1) {
 		editorRefreshScreen();
