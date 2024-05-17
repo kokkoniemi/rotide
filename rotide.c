@@ -11,6 +11,8 @@
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <string.h>
+#include <time.h>
+#include <stdarg.h>
 
 #define CTRL_KEY(k) ((k) & 0x1f)
 #define ROTIDE_VERSION "0.0.1"
@@ -33,6 +35,9 @@ struct editorConfig {
 	int coloff;
 	int numrows;
 	struct erow *rows;
+	char *filename;
+	char statusmsg[80];
+	time_t statusmsg_time;
 	struct termios orig_attrs;
 };
 
@@ -57,6 +62,8 @@ enum editorKey {
 #define VT100_RESET_CURSOR_POS_3 "\x1b[H"
 #define VT100_HIDE_CURSOR_6 "\x1b[?25l"
 #define VT100_SHOW_CURSOR_6 "\x1b[?25h"
+#define VT100_INVERTED_COLORS_4 "\x1b[7m"
+#define VT100_NORMAL_COLORS_3 "\x1b[m"
 
 int editorClearScreen() {
 	return write(STDOUT_FILENO, VT100_CLEAR_SCREEN_4, 4);
@@ -295,6 +302,10 @@ void editorAppendRow(char *s, size_t len) {
 }
 
 void editorOpen(char *filename) {
+	free(E.filename);
+	E.filename = strdup(filename);
+
+
 	FILE *fp = fopen(filename, "r");
 	if (!fp) {
 		panic("fopen");
@@ -310,7 +321,7 @@ void editorOpen(char *filename) {
 
 		editorAppendRow(l, llen);
 	}
-
+	
 	free(l);
 	fclose(fp);
 }
@@ -388,10 +399,35 @@ void editorDrawRows(struct writeBuf *wb) {
 
 		wbAppend(wb, VT100_CLEAR_ROW_3, 3);
 
-		if (y < E.window_rows - 1) {
-			wbAppend(wb, "\r\n", 2);
-		}
+		wbAppend(wb, "\r\n", 2);
 	}
+}
+
+// TODO: Draw similar ruler than vim has
+void editorDrawStatusBar(struct writeBuf *wb) {
+	wbAppend(wb, VT100_INVERTED_COLORS_4, 4);
+	char leftbuf[80], rightbuf[80];
+	char *filename = E.filename;
+	if (filename == NULL) {
+		filename = "[No Name]";
+	}
+	
+	int llen = snprintf(leftbuf, sizeof(leftbuf), "%.20s",
+			filename);
+	int rlen = snprintf(rightbuf, sizeof(rightbuf), "%d,%d    %d%%",
+				E.cy + 1, E.cx + 1, (int)((float)E.cy / (E.numrows - 1) * 100));
+	if (llen > E.window_cols) {
+		llen = E.window_cols;
+	}
+	wbAppend(wb, leftbuf, llen);
+
+	for (; llen < E.window_cols - rlen; llen++) {
+		wbAppend(wb, " ", 1);
+	}
+
+	wbAppend(wb, rightbuf, rlen);
+	wbAppend(wb, VT100_NORMAL_COLORS_3, 3);
+	wbAppend(wb, "\r\n", 2);
 }
 
 void editorScroll() {
@@ -413,6 +449,18 @@ void editorScroll() {
 	}
 }
 
+void editorDrawMessageBar(struct writeBuf *wb) {
+	wbAppend(wb, VT100_CLEAR_ROW_3, 3);
+	int msglen = strlen(E.statusmsg);
+	if (msglen > E.window_cols) {
+		msglen = E.window_cols;
+	}
+	if (msglen && time(NULL) - E.statusmsg_time < 5) {
+		wbAppend(wb, E.statusmsg, msglen);
+	}
+}
+
+
 // TODO: more beautiful appending vs. writing to stdout
 void editorRefreshScreen() {
 	editorScroll();
@@ -423,6 +471,8 @@ void editorRefreshScreen() {
 	wbAppend(&wb, VT100_RESET_CURSOR_POS_3, 3);
 	
 	editorDrawRows(&wb);
+	editorDrawStatusBar(&wb);
+	editorDrawMessageBar(&wb);
 
 	char buf[32];
 	int buflen = snprintf(buf, sizeof(buf), "\x1b[%d;%dH",
@@ -433,6 +483,14 @@ void editorRefreshScreen() {
 
 	write(STDOUT_FILENO, wb.b, wb.len);
 	wbFree(&wb);
+}
+
+void editorSetStatusMsg(const char *fmt, ...) {
+	va_list ap;
+	va_start(ap, fmt);
+	vsnprintf(E.statusmsg, sizeof(E.statusmsg), fmt, ap);
+	va_end(ap);
+	E.statusmsg_time = time(NULL);
 }
 
 /*** Input ***/
@@ -490,15 +548,26 @@ void editorProcessKeypress() {
 			quit();
 			break;
 		case HOME_KEY:
-			E.cy = 0;
+			E.cx = 0;
 			break;
 		case END_KEY:
-			E.cy = E.window_rows - 1;
+			if (E.cy < E.numrows) {
+				E.cx = E.rows[E.cy].size;
+			}
 			break;
 		case PAGE_UP:
-		case PAGE_DOWN:
+			E.cy = E.rowoff;
 			for (int i = 0; i < E.window_rows; i++) {
-				editorMoveCursor(c == PAGE_UP ? ARROW_UP : ARROW_DOWN);
+				editorMoveCursor(ARROW_UP);
+			}
+			break;
+		case PAGE_DOWN:
+			E.cy = E.rowoff + E.window_rows - 1;
+			if (E.cy > E.numrows) {
+				E.cy = E.numrows;
+			}
+			for (int i = 0; i < E.window_rows; i++) {
+				editorMoveCursor(ARROW_DOWN);
 			}
 			break;
 		case ARROW_UP:
@@ -518,10 +587,14 @@ void initEditor() {
 	E.coloff = 0;
 	E.numrows = 0;
 	E.rows = NULL;
+	E.filename = NULL;
+	E.statusmsg[0] = '\0';
+	E.statusmsg_time = 0;
 
 	if (readWindowSize(&E.window_rows, &E.window_cols) == -1) {
 		panic("readWindowSize");
 	}
+	E.window_rows -= 2;
 }
 
 int main(int argc, char *argv[]) {
@@ -530,6 +603,8 @@ int main(int argc, char *argv[]) {
 	if (argc >= 2) {
 		editorOpen(argv[1]);
 	}
+
+	editorSetStatusMsg("Ctrl-Q = quit");
 
 	while(1) {
 		editorRefreshScreen();
