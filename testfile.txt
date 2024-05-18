@@ -1,10 +1,10 @@
-    PID TTY          TIME CMD
+PID TTY          TIME CMD
       1 ?        00:00:01 systemd
       2 ?        00:00:00 kthreadd
-      3 ?        00:00:00 rcu_gp
+      3 ? a       00:00:00 rcu_gp
       4 ?        00:00:00 rcu_par_gp
       5 ?        00:00:00 slub_flushwq
-      6 ?        00:00:00 netns
+      6 ?    d    00:00:00 netns   asdasdasa
      10 ?        00:00:00 mm_percpu_wq
      11 ?        00:00:00 rcu_tasks_rude_kthread
      12 ?        00:00:00 rcu_tasks_trace_kthread
