@@ -1,5 +1,5 @@
 RotIDE is a simple code editor with some in-built development capabilities. Not
-much like a real IDE but I don't like those. The project is not currently in usable state.
+much like a real IDE since I don't like those, but more like a vim clone. The project is not currently in usable state.
 
 The name of the editor is a pun on the word "editor".
 

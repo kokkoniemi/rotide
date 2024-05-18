@@ -1,1 +1,10 @@
+-Wall
+-Wextra
+-Werror
+-Wshadow
+-Wdouble-promotion
+-Wundef
+-fno-common
+-pedantic
 -std=c2x
+

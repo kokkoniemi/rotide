@@ -1,3 +1,4 @@
+#include <stddef.h>
 #define _DEFAULT_SOURCE
 #define _BSD_SOURCE
 #define _GNU_SOURCE
@@ -22,6 +23,8 @@
 // TODO: split to separate .c and .h files
 
 void editorSetStatusMsg(const char *fmt, ...); 
+void editorRefreshScreen();
+char *editorPrompt(char *prompt);
 
 struct erow {
 	int size;
@@ -476,7 +479,10 @@ void editorSetStatusMsg(const char *fmt, ...) {
 // when write succeed
 void editorSave() {
 	if (E.filename == NULL) {
-		return;
+		if ((E.filename = editorPrompt("Save as: %s")) == NULL) {
+			editorSetStatusMsg("Save aborted");
+			return;
+		}
 	}
 
 	int len;
@@ -682,6 +688,42 @@ void editorAlignCursorWithRowEnd() {
 		E.cx = rowlen;
 	}
 
+}
+
+char *editorPrompt(char *prompt) {
+	size_t bufmax = 128;
+	char *buf = malloc(bufmax);
+	
+	size_t buflen = 0;
+	buf[0] = '\0';
+
+	while (1) {
+		editorSetStatusMsg(prompt, buf);
+		editorRefreshScreen();
+
+		int c = editorReadKey();
+		if (c == DEL_KEY || c == CTRL_KEY('h') || c == BACKSPACE) {
+			if (buflen != 0) {
+				buflen--;
+				buf[buflen] = '\0';
+			}
+		} else if (c == '\x1b') {
+			editorSetStatusMsg("");
+			free(buf);
+			return NULL;
+		} else if (c == '\r' && buflen != 0) {
+			editorSetStatusMsg("");
+			return buf;
+		} else if (!iscntrl(c) && c < 128) {
+			if (buflen == bufmax - 1) {
+				bufmax *= 2;
+				buf = realloc(buf, bufmax);
+			}
+			buf[buflen] = c;
+			buflen++;
+			buf[buflen] = '\0';
+		}
+	}
 }
 
 void editorMoveCursor(int k) {
