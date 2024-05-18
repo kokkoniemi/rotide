@@ -328,20 +328,37 @@ void editorUpdateRow(struct erow *row) {
 }
 
 
-void editorAppendRow(char *s, size_t len) {
+void editorInsertRow(int idx, char *s, size_t len) {
+	if (idx < 0 || idx > E.numrows) {
+		return;
+	}
+
 	E.rows = realloc(E.rows, sizeof(struct erow) * (E.numrows + 1));
-	
-	int i = E.numrows;	
-	E.rows[i].size = len;
-	E.rows[i].chars = malloc(len + 1);
-	memcpy(E.rows[i].chars, s, len);
-	E.rows[i].chars[len] = '\0';
+	memmove(&E.rows[idx +1], &E.rows[idx], sizeof(struct erow) * (E.numrows - idx));
+
+	E.rows[idx].size = len;
+	E.rows[idx].chars = malloc(len + 1);
+	memcpy(E.rows[idx].chars, s, len);
+	E.rows[idx].chars[len] = '\0';
 	E.numrows++;
 	E.dirty++;
 
-	E.rows[i].rsize = 0;
-	E.rows[i].render = NULL;
-	editorUpdateRow(&E.rows[i]);
+	E.rows[idx].rsize = 0;
+	E.rows[idx].render = NULL;
+	editorUpdateRow(&E.rows[idx]);
+}
+
+void editorDeleteRow(int idx) {
+	if (idx < 0 || idx > E.numrows) {
+		return;
+	}
+	struct erow *row = &E.rows[idx];
+	free(row->render);
+	free(row->chars);
+
+	memmove(row, &E.rows[idx + 1], sizeof(struct erow) * (E.numrows - idx - 1));
+	E.numrows--;
+	E.dirty++;
 }
 
 void editorInsertCharAt(struct erow *row, int idx, int c) {
@@ -357,6 +374,16 @@ void editorInsertCharAt(struct erow *row, int idx, int c) {
 	E.dirty++;
 }
 
+void editorRowAppendString(struct erow *row, char *s, size_t len) {
+	row->chars = realloc(row->chars, row->size + len + 1);
+	memcpy(&row->chars[row->size], s, len);
+	row->size += len;
+	row->chars[row->size] = '\0';
+	editorUpdateRow(row);
+	E.dirty++;
+}
+
+// TODO: rename to editerDelCharAt etc.
 void editorDeleteCharAt(struct erow *row, int idx) {
 	if (idx < 0 || row->size < idx) {
 		return;
@@ -370,21 +397,45 @@ void editorDeleteCharAt(struct erow *row, int idx) {
 
 void editorInsertChar(int c) {
 	if (E.cy == E.numrows) {
-		editorAppendRow("", 0);
+		editorInsertRow(E.numrows, "", 0);
 	}
 	editorInsertCharAt(&E.rows[E.cy], E.cx, c);
 	E.cx++;
 }
 
+void editorInsertNewline() {
+	if (E.cx == 0) {
+		editorInsertRow(E.cy, "", 0);
+		E.cy++;
+		return;
+	}
+
+	struct erow *row = &E.rows[E.cy];
+	editorInsertRow(E.cy + 1, &row->chars[E.cx], row->size - E.cx);
+	row = &E.rows[E.cy]; // reassign needed because of realloc in editorInsertRow
+	row->size = E.cx;
+	row->chars[row->size] = '\0';
+	editorUpdateRow(row);
+	E.cy++;
+	E.cx = 0;
+}
+
 void editorDelChar() {
-	if (E.cy == E.numrows) {
+	if (E.cy == E.numrows || (E.cx == 0 && E.cy == 0)) {
 		return;
 	}
 	struct erow *row = &E.rows[E.cy];
+	
 	if (E.cx > 0) {
 		editorDeleteCharAt(row, E.cx - 1);
 		E.cx--;
+		return;
 	}
+	
+	E.cx = E.rows[E.cy - 1].size;
+	editorRowAppendString(&E.rows[E.cy - 1], row->chars, row->size);
+	editorDeleteRow(E.cy);
+	E.cy--;
 }
 
 void editorOpen(char *filename) {
@@ -405,7 +456,7 @@ void editorOpen(char *filename) {
 			llen--;
 		}
 
-		editorAppendRow(l, llen);
+		editorInsertRow(E.numrows, l, llen);
 	}
 	
 	free(l);
@@ -706,6 +757,8 @@ void editorProcessKeypress() {
 			editorMoveCursor(c);
 			break;
 		case '\r':
+			editorInsertNewline();
+			break;
 		case '\x1b':
 		case CTRL_KEY('l'):
 			break;
@@ -713,7 +766,6 @@ void editorProcessKeypress() {
 			editorMoveCursor(ARROW_RIGHT);
 			[[fallthrough]];
 		case BACKSPACE:
-			[[fallthrough]];
 		case CTRL_KEY('h'):
 			editorDelChar();
 			break;
