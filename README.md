@@ -3,8 +3,8 @@ capabilities. It is inspired by antirez/kilo[^1] and is not yet in usable
 state.
 
 The name of the editor is a pun on the word "editor". It implies my preference
-of using text-based editors over full-blown IDEs. The name is designed
-tongue-in-cheeck and in reality I wish only good for the incredible IDE
+of using text-based editors over full-blown IDEs. The name is selected
+tongue-in-cheeck, and in reality I wish only good for the incredible IDE
 projects out there.
 
 I try to keep the syntax as simple as possible and prefer readability over
