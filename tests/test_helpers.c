@@ -4,6 +4,11 @@
 #include "input.h"
 #include "output.h"
 #include "terminal.h"
+#include <errno.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 void clear_editor_state(void) {
 	for (int i = 0; i < E.numrows; i++) {

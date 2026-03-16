@@ -38,8 +38,3 @@
 - Run `make`.
 - Run `make test`.
 - Keep tests updated when behavior changes.
-
-## Known Constraints
-
-- Cursor movement and deletion are grapheme-cluster-aware for combining marks, variation selectors, emoji modifiers, ZWJ emoji sequences, and RI flag pairs.
-- TODO in source: `editorSave()` should ideally write to a temp file and rename on success.

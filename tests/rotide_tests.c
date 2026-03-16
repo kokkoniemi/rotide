@@ -5,8 +5,51 @@
 #include "output.h"
 #include "terminal.h"
 #include "test_helpers.h"
+#include <dirent.h>
+#include <locale.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 struct editorConfig E;
+
+static int count_tmp_save_artifacts(const char *target_path) {
+	const char *base = strrchr(target_path, '/');
+	if (base != NULL) {
+		base++;
+	} else {
+		base = target_path;
+	}
+
+	static const char suffix[] = ".rotide-tmp-";
+	size_t base_len = strlen(base);
+	size_t prefix_len = base_len + sizeof(suffix) - 1;
+	char *prefix = malloc(prefix_len + 1);
+	if (prefix == NULL) {
+		return -1;
+	}
+
+	memcpy(prefix, base, base_len);
+	memcpy(prefix + base_len, suffix, sizeof(suffix));
+
+	DIR *dir = opendir("/tmp");
+	if (dir == NULL) {
+		free(prefix);
+		return -1;
+	}
+
+	int count = 0;
+	struct dirent *entry;
+	while ((entry = readdir(dir)) != NULL) {
+		if (strncmp(entry->d_name, prefix, prefix_len) == 0) {
+			count++;
+		}
+	}
+
+	closedir(dir);
+	free(prefix);
+	return count;
+}
 
 static int test_utf8_decode_valid_sequences(void) {
 	unsigned int cp = 0;
@@ -353,6 +396,51 @@ static int test_editor_save_prompts_for_filename(void) {
 	return 0;
 }
 
+static int test_editor_save_removes_temp_file_on_success(void) {
+	char path[] = "/tmp/rotide-test-save-atomic-success-XXXXXX";
+	int fd = mkstemp(path);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(close(fd) == 0);
+
+	ASSERT_EQ_INT(0, count_tmp_save_artifacts(path));
+
+	add_row("alpha");
+	add_row("beta");
+	E.dirty = 1;
+	E.filename = strdup(path);
+	ASSERT_TRUE(E.filename != NULL);
+
+	editorSave();
+
+	ASSERT_EQ_INT(0, E.dirty);
+	ASSERT_EQ_INT(0, count_tmp_save_artifacts(path));
+
+	unlink(path);
+	return 0;
+}
+
+static int test_editor_save_failure_cleans_temp_file(void) {
+	char dir_template[] = "/tmp/rotide-test-save-target-dir-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	ASSERT_EQ_INT(0, count_tmp_save_artifacts(dir_path));
+
+	add_row("alpha");
+	E.dirty = 1;
+	E.filename = strdup(dir_path);
+	ASSERT_TRUE(E.filename != NULL);
+
+	editorSave();
+
+	ASSERT_EQ_INT(1, E.dirty);
+	ASSERT_TRUE(strstr(E.statusmsg, "Save failed!") != NULL);
+	ASSERT_EQ_INT(0, count_tmp_save_artifacts(dir_path));
+
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 static int test_editor_prompt_accept_and_cancel(void) {
 	char ok_input[] = "name\r";
 	char esc_input[] = "\x1b";
@@ -579,6 +667,9 @@ int main(void) {
 		{"editor_open_reads_rows_and_clears_dirty", test_editor_open_reads_rows_and_clears_dirty},
 		{"editor_save_writes_file_and_clears_dirty", test_editor_save_writes_file_and_clears_dirty},
 		{"editor_save_prompts_for_filename", test_editor_save_prompts_for_filename},
+		{"editor_save_removes_temp_file_on_success",
+			test_editor_save_removes_temp_file_on_success},
+		{"editor_save_failure_cleans_temp_file", test_editor_save_failure_cleans_temp_file},
 		{"editor_prompt_accept_and_cancel", test_editor_prompt_accept_and_cancel},
 		{"editor_read_key_sequences", test_editor_read_key_sequences},
 		{"read_cursor_position_and_window_size_fallback", test_read_cursor_position_and_window_size_fallback},

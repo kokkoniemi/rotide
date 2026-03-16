@@ -2,6 +2,16 @@
 
 #include "input.h"
 #include "terminal.h"
+#include <errno.h>
+#include <fcntl.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <wchar.h>
 
 /*** File io ***/
 
@@ -479,6 +489,54 @@ void editorSetStatusMsg(const char *fmt, ...) {
 	E.statusmsg_time = time(NULL);
 }
 
+static int editorWriteAll(int fd, const char *buf, int len) {
+	int total = 0;
+	while (total < len) {
+		ssize_t written = write(fd, buf + total, (size_t)(len - total));
+		if (written == -1) {
+			if (errno == EINTR) {
+				continue;
+			}
+			return -1;
+		}
+		total += (int)written;
+	}
+	return 0;
+}
+
+static char *editorTempPathForTarget(const char *target) {
+	const char *slash = strrchr(target, '/');
+	const char *basename = target;
+	size_t dir_len = 0;
+	static const char suffix[] = ".rotide-tmp-XXXXXX";
+
+	if (slash != NULL) {
+		basename = slash + 1;
+		dir_len = (size_t)(slash - target + 1);
+	}
+
+	size_t base_len = strlen(basename);
+	size_t total_len = dir_len + base_len + sizeof(suffix);
+	char *tmp_path = malloc(total_len);
+	if (tmp_path == NULL) {
+		return NULL;
+	}
+
+	if (dir_len > 0) {
+		memcpy(tmp_path, target, dir_len);
+	}
+	memcpy(tmp_path + dir_len, basename, base_len);
+	memcpy(tmp_path + dir_len + base_len, suffix, sizeof(suffix));
+
+	return tmp_path;
+}
+
+static mode_t editorDefaultCreateMode(void) {
+	mode_t mask = umask(0);
+	umask(mask);
+	return 0644 & ~mask;
+}
+
 void editorSave(void) {
 	if (E.filename == NULL) {
 		if ((E.filename = editorPrompt("Save as: %s")) == NULL) {
@@ -489,28 +547,61 @@ void editorSave(void) {
 
 	int len;
 	char *buf = editorRowsToStr(&len);
+	char *tmp_path = editorTempPathForTarget(E.filename);
+	int fd = -1;
+	mode_t mode = editorDefaultCreateMode();
+	struct stat st;
 
-	int fd = open(E.filename, O_RDWR | O_CREAT, 0644);
+	if (buf == NULL && len > 0) {
+		goto err;
+	}
+
+	if (stat(E.filename, &st) == 0) {
+		mode = st.st_mode & 0777;
+	}
+
+	if (tmp_path == NULL) {
+		goto err;
+	}
+
+	fd = mkstemp(tmp_path);
 	if (fd == -1) {
-		goto err_free_buf;
+		goto err;
 	}
-	if (ftruncate(fd, len) == -1) {
-		goto err_close_fd;
+	if (fchmod(fd, mode) == -1) {
+		goto err;
 	}
-	if (write(fd, buf, len) == -1) {
-		goto err_close_fd;
+	if (editorWriteAll(fd, buf, len) == -1) {
+		goto err;
+	}
+	if (fsync(fd) == -1) {
+		goto err;
+	}
+	if (close(fd) == -1) {
+		fd = -1;
+		goto err;
+	}
+	fd = -1;
+	if (rename(tmp_path, E.filename) == -1) {
+		goto err;
 	}
 
 	E.dirty = 0;
-	close(fd);
+	free(tmp_path);
 	free(buf);
 	editorSetStatusMsg("%d bytes written to disk", len);
 	return;
 
-err_close_fd:
-	close(fd);
-err_free_buf:
+err: {
+	int saved_errno = errno;
+	if (fd != -1) {
+		close(fd);
+	}
+	if (tmp_path != NULL) {
+		unlink(tmp_path);
+	}
+	free(tmp_path);
 	free(buf);
-
-	editorSetStatusMsg("Save failed! Error: %s", strerror(errno));
+	editorSetStatusMsg("Save failed! Error: %s", strerror(saved_errno));
+}
 }

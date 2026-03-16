@@ -1,5 +1,8 @@
 #include "rotide.h"
 
+#include <locale.h>
+#include <stdlib.h>
+
 #include "buffer.h"
 #include "input.h"
 #include "output.h"

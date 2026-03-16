@@ -2,6 +2,7 @@
 #define BUFFER_H
 
 #include "rotide.h"
+#include <stddef.h>
 
 char *editorRowsToStr(int *buflen);
 int editorIsUtf8ContinuationByte(unsigned char c);

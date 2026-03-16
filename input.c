@@ -1,5 +1,8 @@
 #include "input.h"
 
+#include <ctype.h>
+#include <stdlib.h>
+
 #include "buffer.h"
 #include "output.h"
 #include "terminal.h"
