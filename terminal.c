@@ -83,6 +83,8 @@ int editorReadKey(void) {
 	if (c == '\x1b') {
 		char seq[3];
 
+		// Parse common ANSI escape sequences used by arrow/home/end/page keys.
+		// If the sequence is incomplete, treat it as a plain Escape keypress.
 		if (read(STDIN_FILENO, &seq[0], 1) != 1) {
 			return '\x1b';
 		}
@@ -149,6 +151,7 @@ int editorReadKey(void) {
 int readCursorPosition(int *rows, int *cols) {
 	char buf[32];
 
+	// Ask terminal for cursor position: ESC [ rows ; cols R
 	if (write(STDOUT_FILENO, "\x1b[6n", 4) != 4) {
 		return -1;
 	}
@@ -175,6 +178,8 @@ int readWindowSize(int *rows, int *cols) {
 	struct winsize ws;
 
 	if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
+		// Fallback for terminals where TIOCGWINSZ is unavailable or unset:
+		// move cursor to bottom-right and query resulting coordinates.
 		if (write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12) != 12) {
 			return -1;
 		}

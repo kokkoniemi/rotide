@@ -28,6 +28,7 @@ static void editorAlignCursorWithRowEnd(void) {
 	int rowlen = 0;
 	if (E.numrows > E.cy) {
 		struct erow *row = &E.rows[E.cy];
+		// Never leave the cursor in the middle of a UTF-8 grapheme.
 		rowlen = row->size;
 		E.cx = editorRowClampCxToClusterBoundary(row, E.cx);
 	}
@@ -61,6 +62,7 @@ char *editorPrompt(char *prompt) {
 			editorSetStatusMsg("");
 			return buf;
 		} else if (!iscntrl(c) && c < 128) {
+			// Prompt currently accepts printable ASCII input.
 			if (buflen == bufmax - 1) {
 				bufmax *= 2;
 				buf = realloc(buf, bufmax);
@@ -77,6 +79,7 @@ static void editorMoveCursor(int k) {
 		case ARROW_LEFT:
 			if (E.cx != 0) {
 				if (E.cy < E.numrows) {
+					// Step by grapheme cluster instead of byte index.
 					E.cx = editorRowPrevClusterIdx(&E.rows[E.cy], E.cx);
 				} else {
 					E.cx--;
@@ -88,6 +91,7 @@ static void editorMoveCursor(int k) {
 			break;
 		case ARROW_RIGHT:
 			if (E.numrows > E.cy && E.cx < E.rows[E.cy].size) {
+				// Step by grapheme cluster instead of byte index.
 				E.cx = editorRowNextClusterIdx(&E.rows[E.cy], E.cx);
 			} else if (E.numrows > E.cy && E.cx == E.rows[E.cy].size) {
 				E.cy++;
@@ -129,6 +133,7 @@ void editorProcessKeypress(void) {
 			break;
 		case PAGE_UP:
 			E.cy = E.rowoff;
+			// Reuse arrow movement so cursor clamping behavior stays consistent.
 			for (int i = 0; i < E.window_rows; i++) {
 				editorMoveCursor(ARROW_UP);
 			}
@@ -138,6 +143,7 @@ void editorProcessKeypress(void) {
 			if (E.cy > E.numrows) {
 				E.cy = E.numrows;
 			}
+			// Reuse arrow movement so cursor clamping behavior stays consistent.
 			for (int i = 0; i < E.window_rows; i++) {
 				editorMoveCursor(ARROW_DOWN);
 			}

@@ -23,6 +23,7 @@ char *editorRowsToStr(int *buflen) {
 		total += E.rows[i].size + NEWLINE_CHAR_WIDTH;
 	}
 
+	// Save format is a plain newline-terminated concatenation of rows.
 	char *buf = malloc(total);
 	char *p = buf;
 	for (int i = 0; i < E.numrows; i++) {
@@ -140,6 +141,8 @@ int editorCharDisplayWidth(const char *s, int len) {
 	if (c < 0x80) {
 		return 1;
 	}
+	// Continuation bytes are part of a previous codepoint and should not
+	// advance visual columns when scanning byte-by-byte.
 	if (editorIsUtf8ContinuationByte(c)) {
 		return 0;
 	}
@@ -212,6 +215,7 @@ int editorRowNextClusterIdx(struct erow *row, int idx) {
 	}
 	idx += cp_len;
 
+	// Pair regional indicators into one cluster so flag emojis step as one unit.
 	if (editorIsRegionalIndicatorCodepoint(cp)) {
 		if (idx < row->size) {
 			unsigned int next_cp = 0;
@@ -238,6 +242,7 @@ int editorRowNextClusterIdx(struct erow *row, int idx) {
 			continue;
 		}
 
+		// Keep ZWJ-linked emoji sequences in a single grapheme cluster.
 		if (next_cp == 0x200D) {
 			int after_zwj = idx + next_len;
 			idx = after_zwj;
@@ -326,6 +331,7 @@ void editorUpdateRow(struct erow *row) {
 	int rx = 0;
 	for (int i = 0; i < row->size; i++) {
 		if (row->chars[i] == '\t') {
+			// Expand tabs to the next visual tab stop, not a fixed byte count.
 			do {
 				row->render[idx++] = ' ';
 				rx++;
@@ -567,6 +573,8 @@ void editorSave(void) {
 		goto err;
 	}
 
+	// Write to a sibling temp file and atomically replace the target on success.
+	// This avoids leaving a partially written file if the save path fails midway.
 	fd = mkstemp(tmp_path);
 	if (fd == -1) {
 		goto err;

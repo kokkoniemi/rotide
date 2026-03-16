@@ -70,6 +70,9 @@ static void editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int col
 	int start = -1;
 	int end = row->rsize;
 
+	// Map display columns back to byte offsets in row->render.
+	// This keeps horizontal scrolling aligned even when wide/zero-width
+	// codepoints appear in the rendered data.
 	for (int i = 0; i < row->rsize; i++) {
 		int width = editorCharDisplayWidth(&row->render[i], row->rsize - i);
 
@@ -143,6 +146,8 @@ static void editorDrawStatusBar(struct writeBuf *wb) {
 		int target = editorRowClampCxToClusterBoundary(row, E.cx);
 		int scan = 0;
 		int logical_col = 1;
+		// Convert byte cursor index to user-facing column by counting
+		// grapheme clusters. This avoids reporting multibyte offsets.
 		while (scan < target) {
 			int next = editorRowNextClusterIdx(row, scan);
 			if (next <= scan) {
@@ -175,6 +180,8 @@ void editorScroll(void) {
 		E.rx = editorRowCxToRx(&E.rows[E.cy], E.cx);
 	}
 
+	// Keep the cursor visible vertically and horizontally by moving
+	// the window origin just enough to include the current position.
 	if (E.cy < E.rowoff) {
 		E.rowoff = E.cy;
 	} else if (E.cy >= E.rowoff + E.window_rows) {
@@ -204,6 +211,7 @@ void editorRefreshScreen(void) {
 
 	struct writeBuf wb = WRITEBUF_INIT;
 
+	// Build a full frame in memory and write once to reduce terminal flicker.
 	wbAppend(&wb, VT100_HIDE_CURSOR_6, 6);
 	wbAppend(&wb, VT100_RESET_CURSOR_POS_3, 3);
 
