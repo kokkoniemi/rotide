@@ -188,6 +188,17 @@ static int test_editor_update_row_expands_tabs(void) {
 	return 0;
 }
 
+static int test_editor_update_row_tab_alignment_after_multibyte(void) {
+	const char text[] = "\xC3\xB6\tX";
+	add_row_bytes(text, sizeof(text) - 1);
+	struct erow *row = &E.rows[0];
+
+	const char expected[] = "\xC3\xB6       X";
+	ASSERT_EQ_INT((int)sizeof(expected) - 1, row->rsize);
+	ASSERT_MEM_EQ(expected, row->render, (size_t)row->rsize);
+	return 0;
+}
+
 static int test_insert_and_delete_row_updates_dirty(void) {
 	ASSERT_EQ_INT(0, E.dirty);
 	add_row("one");
@@ -797,6 +808,8 @@ int main(void) {
 		{"row_cluster_boundaries_regional_indicators", test_row_cluster_boundaries_regional_indicators},
 		{"row_cx_to_rx_with_tabs", test_row_cx_to_rx_with_tabs},
 		{"editor_update_row_expands_tabs", test_editor_update_row_expands_tabs},
+		{"editor_update_row_tab_alignment_after_multibyte",
+			test_editor_update_row_tab_alignment_after_multibyte},
 		{"insert_and_delete_row_updates_dirty", test_insert_and_delete_row_updates_dirty},
 		{"editor_delete_row_rejects_idx_at_numrows",
 			test_editor_delete_row_rejects_idx_at_numrows},

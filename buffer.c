@@ -323,14 +323,17 @@ void editorUpdateRow(struct erow *row) {
 	row->render = malloc(row->size + tabs * (ROTIDE_TAB_WIDTH - 1) + 1);
 
 	int idx = 0;
+	int rx = 0;
 	for (int i = 0; i < row->size; i++) {
 		if (row->chars[i] == '\t') {
 			do {
 				row->render[idx++] = ' ';
-			} while (idx % ROTIDE_TAB_WIDTH != 0);
+				rx++;
+			} while (rx % ROTIDE_TAB_WIDTH != 0);
 			continue;
 		}
 		row->render[idx++] = row->chars[i];
+		rx += editorCharDisplayWidth(&row->chars[i], row->size - i);
 	}
 	row->render[idx] = '\0';
 	row->rsize = idx;
