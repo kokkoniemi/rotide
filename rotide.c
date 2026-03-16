@@ -21,6 +21,8 @@
 #define ROTIDE_TAB_WIDTH 8
 
 // TODO: split to separate .c and .h files
+// TODO: fix bug where special characters wider than default ascii chars move cursor wrong position.
+//       UTF-8 and smileys do work but cursor moves too much
 
 void editorSetStatusMsg(const char *fmt, ...); 
 void editorRefreshScreen();
@@ -386,8 +388,7 @@ void editorRowAppendString(struct erow *row, char *s, size_t len) {
 	E.dirty++;
 }
 
-// TODO: rename to editerDelCharAt etc.
-void editorDeleteCharAt(struct erow *row, int idx) {
+void editorDelCharAt(struct erow *row, int idx) {
 	if (idx < 0 || row->size < idx) {
 		return;
 	}
@@ -430,7 +431,7 @@ void editorDelChar() {
 	struct erow *row = &E.rows[E.cy];
 	
 	if (E.cx > 0) {
-		editorDeleteCharAt(row, E.cx - 1);
+		editorDelCharAt(row, E.cx - 1);
 		E.cx--;
 		return;
 	}
