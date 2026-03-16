@@ -1,6 +1,7 @@
 #include "input.h"
 
 #include <ctype.h>
+#include <limits.h>
 #include <stdlib.h>
 
 #include "buffer.h"
@@ -61,15 +62,18 @@ char *editorPrompt(char *prompt) {
 		} else if (c == '\r' && buflen != 0) {
 			editorSetStatusMsg("");
 			return buf;
-		} else if (!iscntrl(c) && c < 128) {
-			// Prompt currently accepts printable ASCII input.
-			if (buflen == bufmax - 1) {
-				bufmax *= 2;
-				buf = realloc(buf, bufmax);
+		} else if (c >= CHAR_MIN && c <= CHAR_MAX) {
+			unsigned char byte = (unsigned char)c;
+			// Keep non-ASCII bytes verbatim; only filter ASCII control bytes.
+			if (byte >= 0x80 || !iscntrl(byte)) {
+				if (buflen == bufmax - 1) {
+					bufmax *= 2;
+					buf = realloc(buf, bufmax);
+				}
+				buf[buflen] = (char)byte;
+				buflen++;
+				buf[buflen] = '\0';
 			}
-			buf[buflen] = c;
-			buflen++;
-			buf[buflen] = '\0';
 		}
 	}
 }

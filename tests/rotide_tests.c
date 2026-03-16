@@ -568,6 +568,17 @@ static int test_editor_prompt_accepts_utf8_input(void) {
 	return 0;
 }
 
+static int test_editor_prompt_filters_ascii_controls_but_keeps_non_ascii_bytes(void) {
+	const unsigned char input[] = {'a', 'b', 0x01, 0x02, 0xC3, 0xB6, 0x80, '\r'};
+	const unsigned char expected[] = {'a', 'b', 0xC3, 0xB6, 0x80, '\0'};
+
+	char *answer = editor_prompt_with_input((const char *)input, sizeof(input), "Name: %s");
+	ASSERT_TRUE(answer != NULL);
+	ASSERT_MEM_EQ(expected, answer, sizeof(expected));
+	free(answer);
+	return 0;
+}
+
 static int test_editor_read_key_sequences(void) {
 	int key = 0;
 	char plain[] = "x";
@@ -876,6 +887,8 @@ int main(void) {
 		{"editor_save_failure_cleans_temp_file", test_editor_save_failure_cleans_temp_file},
 		{"editor_prompt_accept_and_cancel", test_editor_prompt_accept_and_cancel},
 		{"editor_prompt_accepts_utf8_input", test_editor_prompt_accepts_utf8_input},
+		{"editor_prompt_filters_ascii_controls_but_keeps_non_ascii_bytes",
+			test_editor_prompt_filters_ascii_controls_but_keeps_non_ascii_bytes},
 		{"editor_read_key_sequences", test_editor_read_key_sequences},
 		{"read_cursor_position_and_window_size_fallback", test_read_cursor_position_and_window_size_fallback},
 		{"read_cursor_position_rejects_malformed_responses",

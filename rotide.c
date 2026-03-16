@@ -1,4 +1,3 @@
-// TODO(stability): In prompt input handling, avoid ctype UB by only classifying bytes as unsigned char (0..255), and handle non-ASCII input explicitly.
 // TODO(stability): Make filename prompt UTF-8-byte friendly so multibyte filenames can be entered consistently.
 // TODO(stability): In screen refresh, always emit the full cursor-position escape sequence; never truncate it based on window width.
 // TODO(stability): In readCursorPosition(), initialize buffers and strictly validate ESC[row;colR before parsing.
