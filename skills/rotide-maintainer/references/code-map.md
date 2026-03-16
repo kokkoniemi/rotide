@@ -30,5 +30,5 @@
 
 ## Known Constraints
 
-- TODO in source: cursor positioning is not fully correct for wider UTF-8 glyphs.
+- UTF-8 cursor column/render width handling exists, but editing operations still work on bytes rather than grapheme clusters.
 - TODO in source: `editorSave()` should ideally write to a temp file and rename on success.

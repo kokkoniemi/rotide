@@ -15,14 +15,15 @@
 #include <time.h>
 #include <stdarg.h>
 #include <fcntl.h>
+#include <locale.h>
+#include <wchar.h>
 
 #define CTRL_KEY(k) ((k) & 0x1f)
 #define ROTIDE_VERSION "0.0.1"
 #define ROTIDE_TAB_WIDTH 8
 
 // TODO: split to separate .c and .h files
-// TODO: fix bug where special characters wider than default ascii chars move cursor wrong position.
-//       UTF-8 and smileys do work but cursor moves too much
+// TODO: improve UTF-8 editing ergonomics (movement and deletion are still byte-based)
 
 void editorSetStatusMsg(const char *fmt, ...); 
 void editorRefreshScreen();
@@ -53,6 +54,9 @@ struct editorConfig {
 };
 
 struct editorConfig E;
+
+int editorCharDisplayWidth(const char *s, int len);
+int editorIsUtf8ContinuationByte(unsigned char c);
 
 enum editorKey {
 	BACKSPACE = 127,
@@ -295,13 +299,44 @@ char* editorRowsToStr(int *buflen) {
 	return buf;
 }
 
+int editorIsUtf8ContinuationByte(unsigned char c) {
+	return (c & 0xC0) == 0x80;
+}
+
+int editorCharDisplayWidth(const char *s, int len) {
+	unsigned char c = s[0];
+	if (c < 0x80) {
+		return 1;
+	}
+	if (editorIsUtf8ContinuationByte(c)) {
+		return 0;
+	}
+
+	mbstate_t ps = {0};
+	wchar_t wc;
+	size_t read = mbrtowc(&wc, s, len, &ps);
+	if (read == (size_t)-1 || read == (size_t)-2) {
+		return 1;
+	}
+	int width = wcwidth(wc);
+	if (width < 0) {
+		return 1;
+	}
+	return width;
+}
+
 int editorRowCxToRx(struct erow *row, int cx) {
 	int rx = 0;
+	if (cx > row->size) {
+		cx = row->size;
+	}
 	for (int j = 0; j < cx; j++) {
 		if (row->chars[j] == '\t') {
 			rx += (ROTIDE_TAB_WIDTH - 1) - (rx % ROTIDE_TAB_WIDTH);
+			rx++;
+			continue;
 		}
-		rx++;
+		rx += editorCharDisplayWidth(&row->chars[j], row->size - j);
 	}
 	return rx;
 }
@@ -561,15 +596,37 @@ void editorDrawGreeting(struct writeBuf *wb) {
 	wbAppend(wb, greet, greetlen);
 }
 
+void editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int coloff, int cols) {
+	if (cols <= 0 || coloff < 0 || row->rsize <= 0) {
+		return;
+	}
+
+	int rx = 0;
+	int start = -1;
+	int end = row->rsize;
+
+	for (int i = 0; i < row->rsize; i++) {
+		int width = editorCharDisplayWidth(&row->render[i], row->rsize - i);
+
+		if (start == -1 && rx + width > coloff) {
+			start = i;
+		}
+		if (start != -1 && width > 0 && rx + width > coloff + cols) {
+			end = i;
+			break;
+		}
+
+		rx += width;
+	}
+
+	if (start == -1 || end <= start) {
+		return;
+	}
+	wbAppend(wb, &row->render[start], end - start);
+}
+
 void editorDrawFileRow(struct writeBuf *wb, size_t i) {
-	int len = E.rows[i].rsize - E.coloff;
-	if (len < 0) {
-		len = 0;
-	}
-	if (E.window_cols < len) {
-		len = E.window_cols;
-	}
-	wbAppend(wb, &E.rows[i].render[E.coloff], len);
+	editorDrawRenderSlice(wb, &E.rows[i], E.coloff, E.window_cols);
 }
 
 void editorDrawRows(struct writeBuf *wb) {
@@ -840,6 +897,7 @@ void initEditor() {
 }
 
 int main(int argc, char *argv[]) {
+	setlocale(LC_CTYPE, "");
 	setRawMode();
 	initEditor();
 	if (argc >= 2) {
@@ -855,4 +913,3 @@ int main(int argc, char *argv[]) {
 
 	return EXIT_SUCCESS;
 }
-
