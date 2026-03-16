@@ -9,6 +9,7 @@
 #include <locale.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 struct editorConfig E;
@@ -205,6 +206,17 @@ static int test_insert_and_delete_row_updates_dirty(void) {
 	return 0;
 }
 
+static int test_editor_delete_row_rejects_idx_at_numrows(void) {
+	add_row("only");
+	E.dirty = 0;
+
+	editorDeleteRow(E.numrows);
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_STR("only", E.rows[0].chars);
+	ASSERT_EQ_INT(0, E.dirty);
+	return 0;
+}
+
 static int test_insert_and_delete_chars(void) {
 	add_row("abc");
 	E.dirty = 0;
@@ -225,6 +237,18 @@ static int test_insert_and_delete_chars(void) {
 	editorDelCharsAt(row, 1, 0);
 	ASSERT_EQ_STR("a", row->chars);
 	ASSERT_EQ_INT(3, E.dirty);
+	return 0;
+}
+
+static int test_editor_del_char_at_rejects_idx_at_row_size(void) {
+	add_row("abc");
+	E.dirty = 0;
+
+	struct erow *row = &E.rows[0];
+	editorDelCharAt(row, row->size);
+	ASSERT_EQ_INT(3, row->size);
+	ASSERT_EQ_STR("abc", row->chars);
+	ASSERT_EQ_INT(0, E.dirty);
 	return 0;
 }
 
@@ -396,6 +420,74 @@ static int test_editor_save_prompts_for_filename(void) {
 	return 0;
 }
 
+static int test_editor_save_aborts_when_prompt_cancelled(void) {
+	add_row("foo");
+	E.dirty = 5;
+	ASSERT_TRUE(E.filename == NULL);
+
+	char esc_input[] = "\x1b";
+	int saved_stdin;
+	int saved_stdout;
+	ASSERT_TRUE(setup_stdin_bytes(esc_input, sizeof(esc_input) - 1, &saved_stdin) == 0);
+	ASSERT_TRUE(redirect_stdout_to_devnull(&saved_stdout) == 0);
+
+	editorSave();
+
+	ASSERT_TRUE(restore_stdout(saved_stdout) == 0);
+	ASSERT_TRUE(restore_stdin(saved_stdin) == 0);
+
+	ASSERT_TRUE(E.filename == NULL);
+	ASSERT_EQ_INT(5, E.dirty);
+	ASSERT_EQ_STR("Save aborted", E.statusmsg);
+	return 0;
+}
+
+static int test_editor_save_truncates_existing_file_with_empty_buffer(void) {
+	char path[] = "/tmp/rotide-test-save-empty-XXXXXX";
+	int fd = mkstemp(path);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(write_all(fd, "stale-data", 10) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	E.filename = strdup(path);
+	ASSERT_TRUE(E.filename != NULL);
+	E.dirty = 1;
+
+	editorSave();
+
+	size_t content_len = 0;
+	char *contents = read_file_contents(path, &content_len);
+	ASSERT_TRUE(contents != NULL);
+	ASSERT_EQ_INT(0, content_len);
+	ASSERT_EQ_INT(0, E.dirty);
+
+	free(contents);
+	unlink(path);
+	return 0;
+}
+
+static int test_editor_save_preserves_existing_file_mode(void) {
+	char path[] = "/tmp/rotide-test-save-mode-XXXXXX";
+	int fd = mkstemp(path);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(chmod(path, 0600) == 0);
+
+	add_row("content");
+	E.filename = strdup(path);
+	ASSERT_TRUE(E.filename != NULL);
+	E.dirty = 1;
+
+	editorSave();
+
+	struct stat st;
+	ASSERT_TRUE(stat(path, &st) == 0);
+	ASSERT_EQ_INT(0600, st.st_mode & 0777);
+
+	unlink(path);
+	return 0;
+}
+
 static int test_editor_save_removes_temp_file_on_success(void) {
 	char path[] = "/tmp/rotide-test-save-atomic-success-XXXXXX";
 	int fd = mkstemp(path);
@@ -504,6 +596,37 @@ static int test_read_cursor_position_and_window_size_fallback(void) {
 	ASSERT_TRUE(strstr(stdout_bytes, "\x1b[6n") != NULL);
 
 	free(stdout_bytes);
+	return 0;
+}
+
+static int test_read_cursor_position_rejects_malformed_responses(void) {
+	struct {
+		const char *response;
+		size_t len;
+	} cases[] = {
+		{"24;80R", sizeof("24;80R") - 1},
+		{"\x1b[24R", sizeof("\x1b[24R") - 1},
+		{"\x1b[24;xxR", sizeof("\x1b[24;xxR") - 1},
+		{"\x1b[;80R", sizeof("\x1b[;80R") - 1},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		int rows = -1;
+		int cols = -1;
+		int saved_stdin;
+		size_t stdout_len = 0;
+		struct stdoutCapture capture;
+
+		ASSERT_TRUE(start_stdout_capture(&capture) == 0);
+		ASSERT_TRUE(setup_stdin_bytes(cases[i].response, cases[i].len, &saved_stdin) == 0);
+		ASSERT_EQ_INT(-1, readCursorPosition(&rows, &cols));
+		ASSERT_TRUE(restore_stdin(saved_stdin) == 0);
+		char *stdout_bytes = stop_stdout_capture(&capture, &stdout_len);
+		ASSERT_TRUE(stdout_bytes != NULL);
+		ASSERT_TRUE(strstr(stdout_bytes, "\x1b[6n") != NULL);
+		free(stdout_bytes);
+	}
+
 	return 0;
 }
 
@@ -637,6 +760,23 @@ static int test_editor_refresh_screen_updates_horizontal_scroll(void) {
 	return 0;
 }
 
+static int test_editor_refresh_screen_status_bar_single_row_percent(void) {
+	add_row("single");
+	E.window_rows = 3;
+	E.window_cols = 40;
+	E.cy = 0;
+	E.cx = 0;
+	E.filename = strdup("single.txt");
+	ASSERT_TRUE(E.filename != NULL);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "1,1    100%") != NULL);
+	free(output);
+	return 0;
+}
+
 struct testCase {
 	const char *name;
 	int (*run)(void);
@@ -658,7 +798,11 @@ int main(void) {
 		{"row_cx_to_rx_with_tabs", test_row_cx_to_rx_with_tabs},
 		{"editor_update_row_expands_tabs", test_editor_update_row_expands_tabs},
 		{"insert_and_delete_row_updates_dirty", test_insert_and_delete_row_updates_dirty},
+		{"editor_delete_row_rejects_idx_at_numrows",
+			test_editor_delete_row_rejects_idx_at_numrows},
 		{"insert_and_delete_chars", test_insert_and_delete_chars},
+		{"editor_del_char_at_rejects_idx_at_row_size",
+			test_editor_del_char_at_rejects_idx_at_row_size},
 		{"editor_insert_char_creates_initial_row", test_editor_insert_char_creates_initial_row},
 		{"editor_insert_newline_splits_row", test_editor_insert_newline_splits_row},
 		{"editor_insert_newline_at_row_start", test_editor_insert_newline_at_row_start},
@@ -667,12 +811,19 @@ int main(void) {
 		{"editor_open_reads_rows_and_clears_dirty", test_editor_open_reads_rows_and_clears_dirty},
 		{"editor_save_writes_file_and_clears_dirty", test_editor_save_writes_file_and_clears_dirty},
 		{"editor_save_prompts_for_filename", test_editor_save_prompts_for_filename},
+		{"editor_save_aborts_when_prompt_cancelled", test_editor_save_aborts_when_prompt_cancelled},
+		{"editor_save_truncates_existing_file_with_empty_buffer",
+			test_editor_save_truncates_existing_file_with_empty_buffer},
+		{"editor_save_preserves_existing_file_mode",
+			test_editor_save_preserves_existing_file_mode},
 		{"editor_save_removes_temp_file_on_success",
 			test_editor_save_removes_temp_file_on_success},
 		{"editor_save_failure_cleans_temp_file", test_editor_save_failure_cleans_temp_file},
 		{"editor_prompt_accept_and_cancel", test_editor_prompt_accept_and_cancel},
 		{"editor_read_key_sequences", test_editor_read_key_sequences},
 		{"read_cursor_position_and_window_size_fallback", test_read_cursor_position_and_window_size_fallback},
+		{"read_cursor_position_rejects_malformed_responses",
+			test_read_cursor_position_rejects_malformed_responses},
 		{"editor_process_keypress_insert_move_and_backspace",
 			test_editor_process_keypress_insert_move_and_backspace},
 		{"editor_process_keypress_delete_key", test_editor_process_keypress_delete_key},
@@ -682,6 +833,8 @@ int main(void) {
 		{"editor_refresh_screen_hides_expired_message", test_editor_refresh_screen_hides_expired_message},
 		{"editor_refresh_screen_updates_horizontal_scroll",
 			test_editor_refresh_screen_updates_horizontal_scroll},
+		{"editor_refresh_screen_status_bar_single_row_percent",
+			test_editor_refresh_screen_status_bar_single_row_percent},
 	};
 
 	int total = (int)(sizeof(tests) / sizeof(tests[0]));

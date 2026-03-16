@@ -125,8 +125,20 @@ static void editorDrawStatusBar(struct writeBuf *wb) {
 
 	int llen = snprintf(leftbuf, sizeof(leftbuf), "%.20s %s",
 			filename, dirtyflag);
+	int progress = 0;
+	if (E.numrows == 1) {
+		progress = 100;
+	} else if (E.numrows > 1) {
+		progress = (int)((float)E.cy / (E.numrows - 1) * 100);
+	}
+	if (progress < 0) {
+		progress = 0;
+	}
+	if (progress > 100) {
+		progress = 100;
+	}
 	int rlen = snprintf(rightbuf, sizeof(rightbuf), "%d,%d    %d%%",
-				E.cy + 1, E.cx + 1, (int)((float)E.cy / (E.numrows - 1) * 100));
+				E.cy + 1, E.cx + 1, progress);
 	if (llen > E.window_cols) {
 		llen = E.window_cols;
 	}

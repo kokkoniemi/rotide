@@ -357,7 +357,7 @@ void editorInsertRow(int idx, char *s, size_t len) {
 }
 
 void editorDeleteRow(int idx) {
-	if (idx < 0 || idx > E.numrows) {
+	if (idx < 0 || idx >= E.numrows) {
 		return;
 	}
 	struct erow *row = &E.rows[idx];
@@ -392,7 +392,7 @@ void editorRowAppendString(struct erow *row, char *s, size_t len) {
 }
 
 void editorDelCharAt(struct erow *row, int idx) {
-	if (idx < 0 || row->size < idx) {
+	if (idx < 0 || row->size <= idx) {
 		return;
 	}
 	memmove(&row->chars[idx], &row->chars[idx + 1], row->size - idx);
