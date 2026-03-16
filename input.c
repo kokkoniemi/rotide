@@ -12,6 +12,26 @@
 
 static int quit_confirmed = 0;
 
+static size_t editorPromptPrevDeleteIdx(const char *buf, size_t buflen) {
+	if (buflen == 0) {
+		return 0;
+	}
+
+	size_t seq_start = buflen - 1;
+	while (seq_start > 0 &&
+			editorIsUtf8ContinuationByte((unsigned char)buf[seq_start])) {
+		seq_start--;
+	}
+
+	unsigned int cp = 0;
+	int seq_len = editorUtf8DecodeCodepoint(&buf[seq_start], (int)(buflen - seq_start), &cp);
+	if (seq_len > 1 && seq_start + (size_t)seq_len == buflen) {
+		return seq_start;
+	}
+
+	return buflen - 1;
+}
+
 static void quit(void) {
 	if (E.dirty && !quit_confirmed) {
 		editorSetStatusMsg("File has unsaved changes. Press Ctrl-Q again to quit");
@@ -52,7 +72,7 @@ char *editorPrompt(char *prompt) {
 		int c = editorReadKey();
 		if (c == DEL_KEY || c == CTRL_KEY('h') || c == BACKSPACE) {
 			if (buflen != 0) {
-				buflen--;
+				buflen = editorPromptPrevDeleteIdx(buf, buflen);
 				buf[buflen] = '\0';
 			}
 		} else if (c == '\x1b') {

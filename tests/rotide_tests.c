@@ -453,6 +453,28 @@ static int test_editor_save_aborts_when_prompt_cancelled(void) {
 	return 0;
 }
 
+static int test_editor_save_rejects_empty_filename_prompt(void) {
+	add_row("foo");
+	E.dirty = 5;
+	ASSERT_TRUE(E.filename == NULL);
+
+	char input[] = "\r\x1b";
+	int saved_stdin;
+	int saved_stdout;
+	ASSERT_TRUE(setup_stdin_bytes(input, sizeof(input) - 1, &saved_stdin) == 0);
+	ASSERT_TRUE(redirect_stdout_to_devnull(&saved_stdout) == 0);
+
+	editorSave();
+
+	ASSERT_TRUE(restore_stdout(saved_stdout) == 0);
+	ASSERT_TRUE(restore_stdin(saved_stdin) == 0);
+
+	ASSERT_TRUE(E.filename == NULL);
+	ASSERT_EQ_INT(5, E.dirty);
+	ASSERT_EQ_STR("Save aborted", E.statusmsg);
+	return 0;
+}
+
 static int test_editor_save_truncates_existing_file_with_empty_buffer(void) {
 	char path[] = "/tmp/rotide-test-save-empty-XXXXXX";
 	int fd = mkstemp(path);
@@ -575,6 +597,26 @@ static int test_editor_prompt_filters_ascii_controls_but_keeps_non_ascii_bytes(v
 	char *answer = editor_prompt_with_input((const char *)input, sizeof(input), "Name: %s");
 	ASSERT_TRUE(answer != NULL);
 	ASSERT_MEM_EQ(expected, answer, sizeof(expected));
+	free(answer);
+	return 0;
+}
+
+static int test_editor_prompt_backspace_removes_entire_utf8_codepoint(void) {
+	const unsigned char input[] = {'a', 0xC3, 0xB6, BACKSPACE, '\r'};
+
+	char *answer = editor_prompt_with_input((const char *)input, sizeof(input), "Name: %s");
+	ASSERT_TRUE(answer != NULL);
+	ASSERT_EQ_STR("a", answer);
+	free(answer);
+	return 0;
+}
+
+static int test_editor_prompt_delete_key_removes_entire_utf8_codepoint(void) {
+	const unsigned char input[] = {'a', 0xC3, 0xB6, 0x1b, '[', '3', '~', '\r'};
+
+	char *answer = editor_prompt_with_input((const char *)input, sizeof(input), "Name: %s");
+	ASSERT_TRUE(answer != NULL);
+	ASSERT_EQ_STR("a", answer);
 	free(answer);
 	return 0;
 }
@@ -878,6 +920,8 @@ int main(void) {
 		{"editor_save_writes_file_and_clears_dirty", test_editor_save_writes_file_and_clears_dirty},
 		{"editor_save_prompts_for_filename", test_editor_save_prompts_for_filename},
 		{"editor_save_aborts_when_prompt_cancelled", test_editor_save_aborts_when_prompt_cancelled},
+		{"editor_save_rejects_empty_filename_prompt",
+			test_editor_save_rejects_empty_filename_prompt},
 		{"editor_save_truncates_existing_file_with_empty_buffer",
 			test_editor_save_truncates_existing_file_with_empty_buffer},
 		{"editor_save_preserves_existing_file_mode",
@@ -889,6 +933,10 @@ int main(void) {
 		{"editor_prompt_accepts_utf8_input", test_editor_prompt_accepts_utf8_input},
 		{"editor_prompt_filters_ascii_controls_but_keeps_non_ascii_bytes",
 			test_editor_prompt_filters_ascii_controls_but_keeps_non_ascii_bytes},
+		{"editor_prompt_backspace_removes_entire_utf8_codepoint",
+			test_editor_prompt_backspace_removes_entire_utf8_codepoint},
+		{"editor_prompt_delete_key_removes_entire_utf8_codepoint",
+			test_editor_prompt_delete_key_removes_entire_utf8_codepoint},
 		{"editor_read_key_sequences", test_editor_read_key_sequences},
 		{"read_cursor_position_and_window_size_fallback", test_read_cursor_position_and_window_size_fallback},
 		{"read_cursor_position_rejects_malformed_responses",
