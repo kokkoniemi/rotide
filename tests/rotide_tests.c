@@ -559,6 +559,15 @@ static int test_editor_prompt_accept_and_cancel(void) {
 	return 0;
 }
 
+static int test_editor_prompt_accepts_utf8_input(void) {
+	const char input[] = "t\xC3\xB6st.txt\r";
+	char *answer = editor_prompt_with_input(input, sizeof(input) - 1, "Name: %s");
+	ASSERT_TRUE(answer != NULL);
+	ASSERT_EQ_STR("t\xC3\xB6st.txt", answer);
+	free(answer);
+	return 0;
+}
+
 static int test_editor_read_key_sequences(void) {
 	int key = 0;
 	char plain[] = "x";
@@ -771,6 +780,22 @@ static int test_editor_refresh_screen_updates_horizontal_scroll(void) {
 	return 0;
 }
 
+static int test_editor_refresh_screen_slice_after_multibyte_scroll(void) {
+	add_row("\xC3\xB6XYZ");
+	E.window_rows = 3;
+	E.window_cols = 5;
+	E.cy = 0;
+	E.cx = 2;
+	E.coloff = 1;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "XYZ") != NULL);
+	free(output);
+	return 0;
+}
+
 static int test_editor_refresh_screen_status_bar_single_row_percent(void) {
 	add_row("single");
 	E.window_rows = 3;
@@ -784,6 +809,23 @@ static int test_editor_refresh_screen_status_bar_single_row_percent(void) {
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, "1,1    100%") != NULL);
+	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_status_bar_cursor_multibyte_col(void) {
+	add_row("\xC3\xB6" "a");
+	E.window_rows = 3;
+	E.window_cols = 40;
+	E.cy = 0;
+	E.cx = 2;
+	E.filename = strdup("multi.txt");
+	ASSERT_TRUE(E.filename != NULL);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "1,2    100%") != NULL);
 	free(output);
 	return 0;
 }
@@ -833,6 +875,7 @@ int main(void) {
 			test_editor_save_removes_temp_file_on_success},
 		{"editor_save_failure_cleans_temp_file", test_editor_save_failure_cleans_temp_file},
 		{"editor_prompt_accept_and_cancel", test_editor_prompt_accept_and_cancel},
+		{"editor_prompt_accepts_utf8_input", test_editor_prompt_accepts_utf8_input},
 		{"editor_read_key_sequences", test_editor_read_key_sequences},
 		{"read_cursor_position_and_window_size_fallback", test_read_cursor_position_and_window_size_fallback},
 		{"read_cursor_position_rejects_malformed_responses",
@@ -846,8 +889,12 @@ int main(void) {
 		{"editor_refresh_screen_hides_expired_message", test_editor_refresh_screen_hides_expired_message},
 		{"editor_refresh_screen_updates_horizontal_scroll",
 			test_editor_refresh_screen_updates_horizontal_scroll},
+		{"editor_refresh_screen_slice_after_multibyte_scroll",
+			test_editor_refresh_screen_slice_after_multibyte_scroll},
 		{"editor_refresh_screen_status_bar_single_row_percent",
 			test_editor_refresh_screen_status_bar_single_row_percent},
+		{"editor_refresh_screen_status_bar_cursor_multibyte_col",
+			test_editor_refresh_screen_status_bar_cursor_multibyte_col},
 	};
 
 	int total = (int)(sizeof(tests) / sizeof(tests[0]));
