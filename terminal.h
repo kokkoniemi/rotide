@@ -1,0 +1,15 @@
+#ifndef TERMINAL_H
+#define TERMINAL_H
+
+#include "rotide.h"
+
+int editorClearScreen(void);
+int editorResetCursorPos(void);
+void panic(const char *s);
+void setDefaultMode(void);
+void setRawMode(void);
+int editorReadKey(void);
+int readCursorPosition(int *rows, int *cols);
+int readWindowSize(int *rows, int *cols);
+
+#endif
