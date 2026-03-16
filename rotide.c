@@ -22,7 +22,7 @@
 #define ROTIDE_VERSION "0.0.1"
 #define ROTIDE_TAB_WIDTH 8
 
-// TODO: split to separate .c and .h files
+// TODO: split to separate .c and .h files by the function of the code
 
 void editorSetStatusMsg(const char *fmt, ...); 
 void editorRefreshScreen();
@@ -56,9 +56,15 @@ struct editorConfig E;
 
 int editorCharDisplayWidth(const char *s, int len);
 int editorIsUtf8ContinuationByte(unsigned char c);
+int editorUtf8DecodeCodepoint(const char *s, int len, unsigned int *cp);
+int editorIsGraphemeExtendCodepoint(unsigned int cp);
+int editorIsRegionalIndicatorCodepoint(unsigned int cp);
 int editorRowClampCxToCharBoundary(struct erow *row, int cx);
 int editorRowPrevCharIdx(struct erow *row, int idx);
 int editorRowNextCharIdx(struct erow *row, int idx);
+int editorRowNextClusterIdx(struct erow *row, int idx);
+int editorRowPrevClusterIdx(struct erow *row, int idx);
+int editorRowClampCxToClusterBoundary(struct erow *row, int cx);
 
 enum editorKey {
 	BACKSPACE = 127,
@@ -305,6 +311,93 @@ int editorIsUtf8ContinuationByte(unsigned char c) {
 	return (c & 0xC0) == 0x80;
 }
 
+int editorUtf8DecodeCodepoint(const char *s, int len, unsigned int *cp) {
+	if (len <= 0) {
+		*cp = 0;
+		return 0;
+	}
+
+	unsigned char b0 = (unsigned char)s[0];
+	if (b0 < 0x80) {
+		*cp = b0;
+		return 1;
+	}
+
+	int expected_len = 0;
+	unsigned int codepoint = 0;
+	unsigned int min_codepoint = 0;
+
+	if ((b0 & 0xE0) == 0xC0) {
+		expected_len = 2;
+		codepoint = b0 & 0x1F;
+		min_codepoint = 0x80;
+	} else if ((b0 & 0xF0) == 0xE0) {
+		expected_len = 3;
+		codepoint = b0 & 0x0F;
+		min_codepoint = 0x800;
+	} else if ((b0 & 0xF8) == 0xF0) {
+		expected_len = 4;
+		codepoint = b0 & 0x07;
+		min_codepoint = 0x10000;
+	} else {
+		*cp = b0;
+		return 1;
+	}
+
+	if (len < expected_len) {
+		*cp = b0;
+		return 1;
+	}
+
+	for (int i = 1; i < expected_len; i++) {
+		unsigned char bx = (unsigned char)s[i];
+		if (!editorIsUtf8ContinuationByte(bx)) {
+			*cp = b0;
+			return 1;
+		}
+		codepoint = (codepoint << 6) | (unsigned int)(bx & 0x3F);
+	}
+
+	if (codepoint < min_codepoint || codepoint > 0x10FFFF ||
+			(codepoint >= 0xD800 && codepoint <= 0xDFFF)) {
+		*cp = b0;
+		return 1;
+	}
+
+	*cp = codepoint;
+	return expected_len;
+}
+
+int editorIsRegionalIndicatorCodepoint(unsigned int cp) {
+	return cp >= 0x1F1E6 && cp <= 0x1F1FF;
+}
+
+int editorIsGraphemeExtendCodepoint(unsigned int cp) {
+	if ((cp >= 0x0300 && cp <= 0x036F) ||
+			(cp >= 0x1AB0 && cp <= 0x1AFF) ||
+			(cp >= 0x1DC0 && cp <= 0x1DFF) ||
+			(cp >= 0x20D0 && cp <= 0x20FF) ||
+			(cp >= 0xFE20 && cp <= 0xFE2F)) {
+		return 1;
+	}
+	if ((cp >= 0xFE00 && cp <= 0xFE0F) ||
+			(cp >= 0xE0100 && cp <= 0xE01EF)) {
+		return 1;
+	}
+	if (cp >= 0x1F3FB && cp <= 0x1F3FF) {
+		return 1;
+	}
+	if (cp == 0x200C) {
+		return 1;
+	}
+	if (cp > (unsigned int)WCHAR_MAX) {
+		return 0;
+	}
+	wchar_t wc = (wchar_t)cp;
+	int width = wcwidth(wc);
+	return width == 0 && cp != 0x200D;
+}
+
 int editorCharDisplayWidth(const char *s, int len) {
 	unsigned char c = s[0];
 	if (c < 0x80) {
@@ -358,17 +451,118 @@ int editorRowNextCharIdx(struct erow *row, int idx) {
 		return row->size;
 	}
 	idx = editorRowClampCxToCharBoundary(row, idx);
-	idx++;
-	while (idx < row->size &&
-			editorIsUtf8ContinuationByte((unsigned char)row->chars[idx])) {
-		idx++;
+	unsigned int cp = 0;
+	int step = editorUtf8DecodeCodepoint(&row->chars[idx], row->size - idx, &cp);
+	if (step <= 0) {
+		step = 1;
 	}
+	if (idx + step > row->size) {
+		return row->size;
+	}
+	return idx + step;
+}
+
+int editorRowNextClusterIdx(struct erow *row, int idx) {
+	idx = editorRowClampCxToCharBoundary(row, idx);
+	if (idx >= row->size) {
+		return row->size;
+	}
+
+	unsigned int cp = 0;
+	int cp_len = editorUtf8DecodeCodepoint(&row->chars[idx], row->size - idx, &cp);
+	if (cp_len <= 0) {
+		cp_len = 1;
+	}
+	idx += cp_len;
+
+	if (editorIsRegionalIndicatorCodepoint(cp)) {
+		if (idx < row->size) {
+			unsigned int next_cp = 0;
+			int next_len = editorUtf8DecodeCodepoint(&row->chars[idx], row->size - idx, &next_cp);
+			if (next_len <= 0) {
+				next_len = 1;
+			}
+			if (editorIsRegionalIndicatorCodepoint(next_cp)) {
+				idx += next_len;
+			}
+		}
+		return idx;
+	}
+
+	while (idx < row->size) {
+		unsigned int next_cp = 0;
+		int next_len = editorUtf8DecodeCodepoint(&row->chars[idx], row->size - idx, &next_cp);
+		if (next_len <= 0) {
+			next_len = 1;
+		}
+
+		if (editorIsGraphemeExtendCodepoint(next_cp)) {
+			idx += next_len;
+			continue;
+		}
+
+		if (next_cp == 0x200D) {
+			int after_zwj = idx + next_len;
+			idx = after_zwj;
+			if (idx >= row->size) {
+				return row->size;
+			}
+
+			int linked_len = editorUtf8DecodeCodepoint(
+					&row->chars[idx], row->size - idx, &next_cp);
+			if (linked_len <= 0) {
+				linked_len = 1;
+			}
+			idx += linked_len;
+			continue;
+		}
+
+		break;
+	}
+
 	return idx;
+}
+
+int editorRowPrevClusterIdx(struct erow *row, int idx) {
+	idx = editorRowClampCxToCharBoundary(row, idx);
+	if (idx <= 0) {
+		return 0;
+	}
+
+	int prev = 0;
+	int scan = 0;
+	while (scan < idx) {
+		prev = scan;
+		scan = editorRowNextClusterIdx(row, scan);
+		if (scan <= prev) {
+			return prev;
+		}
+	}
+
+	return prev;
+}
+
+int editorRowClampCxToClusterBoundary(struct erow *row, int cx) {
+	cx = editorRowClampCxToCharBoundary(row, cx);
+	if (cx <= 0) {
+		return 0;
+	}
+
+	int boundary = 0;
+	while (boundary < cx) {
+		int next_boundary = editorRowNextClusterIdx(row, boundary);
+		if (next_boundary > cx || next_boundary <= boundary) {
+			break;
+		}
+		boundary = next_boundary;
+	}
+
+	return boundary;
 }
 
 int editorRowCxToRx(struct erow *row, int cx) {
 	int rx = 0;
-	cx = editorRowClampCxToCharBoundary(row, cx);
+	cx = editorRowClampCxToClusterBoundary(row, cx);
 	for (int j = 0; j < cx; j++) {
 		if (row->chars[j] == '\t') {
 			rx += (ROTIDE_TAB_WIDTH - 1) - (rx % ROTIDE_TAB_WIDTH);
@@ -499,7 +693,7 @@ void editorInsertNewline() {
 	}
 
 	struct erow *row = &E.rows[E.cy];
-	int split_idx = editorRowClampCxToCharBoundary(row, E.cx);
+	int split_idx = editorRowClampCxToClusterBoundary(row, E.cx);
 	editorInsertRow(E.cy + 1, &row->chars[split_idx], row->size - split_idx);
 	row = &E.rows[E.cy]; // reassign needed because of realloc in editorInsertRow
 	row->size = split_idx;
@@ -516,7 +710,7 @@ void editorDelChar() {
 	struct erow *row = &E.rows[E.cy];
 	
 	if (E.cx > 0) {
-		int prev_cx = editorRowPrevCharIdx(row, E.cx);
+		int prev_cx = editorRowPrevClusterIdx(row, E.cx);
 		editorDelCharsAt(row, prev_cx, E.cx - prev_cx);
 		E.cx = prev_cx;
 		return;
@@ -793,7 +987,7 @@ void editorAlignCursorWithRowEnd() {
 	if (E.numrows > E.cy) {
 		struct erow *row = &E.rows[E.cy];
 		rowlen = row->size;
-		E.cx = editorRowClampCxToCharBoundary(row, E.cx);
+		E.cx = editorRowClampCxToClusterBoundary(row, E.cx);
 	}
 	if (E.cx > rowlen) {
 		E.cx = rowlen;
@@ -842,7 +1036,7 @@ void editorMoveCursor(int k) {
 		case ARROW_LEFT:
 			if (E.cx != 0) {
 				if (E.cy < E.numrows) {
-					E.cx = editorRowPrevCharIdx(&E.rows[E.cy], E.cx);
+					E.cx = editorRowPrevClusterIdx(&E.rows[E.cy], E.cx);
 				} else {
 					E.cx--;
 				}
@@ -853,7 +1047,7 @@ void editorMoveCursor(int k) {
 			break;
 		case ARROW_RIGHT:
 			if (E.numrows > E.cy && E.cx < E.rows[E.cy].size) {
-				E.cx = editorRowNextCharIdx(&E.rows[E.cy], E.cx);
+				E.cx = editorRowNextClusterIdx(&E.rows[E.cy], E.cx);
 			} else if (E.numrows > E.cy && E.cx == E.rows[E.cy].size) {
 				E.cy++;
 				E.cx = 0;

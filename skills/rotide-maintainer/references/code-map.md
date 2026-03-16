@@ -30,5 +30,5 @@
 
 ## Known Constraints
 
-- Cursor movement and deletion are UTF-8 codepoint-aware, but full grapheme-cluster editing is not implemented (for example, combining marks and ZWJ sequences).
+- Cursor movement and deletion are grapheme-cluster-aware for combining marks, variation selectors, emoji modifiers, ZWJ emoji sequences, and RI flag pairs.
 - TODO in source: `editorSave()` should ideally write to a temp file and rename on success.
