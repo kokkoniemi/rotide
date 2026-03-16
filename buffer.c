@@ -46,6 +46,7 @@ int editorUtf8DecodeCodepoint(const char *s, int len, unsigned int *cp) {
 	unsigned int codepoint = 0;
 	unsigned int min_codepoint = 0;
 
+	// Determine UTF-8 sequence length and initial payload bits from leading byte.
 	if ((b0 & 0xE0) == 0xC0) {
 		expected_len = 2;
 		codepoint = b0 & 0x1F;
@@ -63,6 +64,7 @@ int editorUtf8DecodeCodepoint(const char *s, int len, unsigned int *cp) {
 		return 1;
 	}
 
+	// If sequence is truncated or malformed, treat first byte as standalone.
 	if (len < expected_len) {
 		*cp = b0;
 		return 1;
@@ -74,9 +76,10 @@ int editorUtf8DecodeCodepoint(const char *s, int len, unsigned int *cp) {
 			*cp = b0;
 			return 1;
 		}
-		codepoint = (codepoint << 6) | (unsigned int)(bx & 0x3F);
+			codepoint = (codepoint << 6) | (unsigned int)(bx & 0x3F);
 	}
 
+	// Reject overlong forms, surrogate range, and out-of-range codepoints.
 	if (codepoint < min_codepoint || codepoint > 0x10FFFF ||
 			(codepoint >= 0xD800 && codepoint <= 0xDFFF)) {
 		*cp = b0;
@@ -92,6 +95,7 @@ int editorIsRegionalIndicatorCodepoint(unsigned int cp) {
 }
 
 int editorIsGraphemeExtendCodepoint(unsigned int cp) {
+	// Unicode combining mark blocks that should stay in the same grapheme.
 	if ((cp >= 0x0300 && cp <= 0x036F) ||
 			(cp >= 0x1AB0 && cp <= 0x1AFF) ||
 			(cp >= 0x1DC0 && cp <= 0x1DFF) ||
@@ -99,19 +103,23 @@ int editorIsGraphemeExtendCodepoint(unsigned int cp) {
 			(cp >= 0xFE20 && cp <= 0xFE2F)) {
 		return 1;
 	}
+	// Variation selectors modify the previous glyph and should not split clusters.
 	if ((cp >= 0xFE00 && cp <= 0xFE0F) ||
 			(cp >= 0xE0100 && cp <= 0xE01EF)) {
 		return 1;
 	}
+	// Emoji skin-tone modifiers are attached to the previous emoji.
 	if (cp >= 0x1F3FB && cp <= 0x1F3FF) {
 		return 1;
 	}
+	// Keep ZWNJ with the current cluster for cursor stepping consistency.
 	if (cp == 0x200C) {
 		return 1;
 	}
 	if (cp > (unsigned int)WCHAR_MAX) {
 		return 0;
 	}
+	// Fallback: many libc locales report combining marks with width 0.
 	wchar_t wc = (wchar_t)cp;
 	int width = wcwidth(wc);
 	return width == 0 && cp != 0x200D;

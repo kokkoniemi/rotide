@@ -33,16 +33,19 @@ void setRawMode(void) {
 	if (tcgetattr(STDIN_FILENO, &E.orig_attrs) == -1) {
 		panic("tcgetattr");
 	}
+	// Always restore terminal settings on exit so the shell stays usable.
 	atexit(setDefaultMode);
 
 	struct termios attrs = E.orig_attrs;
 
+	// lflag: disable cooked-mode line editing and signal-generating shortcuts.
 	attrs.c_lflag &= ~(
 		ECHO |
 		ICANON |
 		ISIG |
 		IEXTEN
 	);
+	// iflag: keep byte stream unmodified (no flow control or CR/LF rewriting).
 	attrs.c_iflag &= ~(
 		IXON |
 		ICRNL |
@@ -50,9 +53,11 @@ void setRawMode(void) {
 		INPCK |
 		ISTRIP
 	);
+	// oflag: disable post-processing so writes are emitted exactly as provided.
 	attrs.c_oflag &= ~(
 		OPOST
 	);
+	// cflag: force 8-bit bytes and non-blocking-ish reads with short timeout.
 	attrs.c_cflag |= (CS8);
 	attrs.c_cc[VMIN] = 0;
 	attrs.c_cc[VTIME] = 1;
