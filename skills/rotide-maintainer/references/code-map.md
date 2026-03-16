@@ -30,5 +30,5 @@
 
 ## Known Constraints
 
-- UTF-8 cursor column/render width handling exists, but editing operations still work on bytes rather than grapheme clusters.
+- Cursor movement and deletion are UTF-8 codepoint-aware, but full grapheme-cluster editing is not implemented (for example, combining marks and ZWJ sequences).
 - TODO in source: `editorSave()` should ideally write to a temp file and rename on success.

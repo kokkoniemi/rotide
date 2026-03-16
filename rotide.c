@@ -23,7 +23,6 @@
 #define ROTIDE_TAB_WIDTH 8
 
 // TODO: split to separate .c and .h files
-// TODO: improve UTF-8 editing ergonomics (movement and deletion are still byte-based)
 
 void editorSetStatusMsg(const char *fmt, ...); 
 void editorRefreshScreen();
@@ -57,6 +56,9 @@ struct editorConfig E;
 
 int editorCharDisplayWidth(const char *s, int len);
 int editorIsUtf8ContinuationByte(unsigned char c);
+int editorRowClampCxToCharBoundary(struct erow *row, int cx);
+int editorRowPrevCharIdx(struct erow *row, int idx);
+int editorRowNextCharIdx(struct erow *row, int idx);
 
 enum editorKey {
 	BACKSPACE = 127,
@@ -325,11 +327,48 @@ int editorCharDisplayWidth(const char *s, int len) {
 	return width;
 }
 
-int editorRowCxToRx(struct erow *row, int cx) {
-	int rx = 0;
+int editorRowClampCxToCharBoundary(struct erow *row, int cx) {
+	if (cx < 0) {
+		return 0;
+	}
 	if (cx > row->size) {
 		cx = row->size;
 	}
+	while (cx > 0 && cx < row->size &&
+			editorIsUtf8ContinuationByte((unsigned char)row->chars[cx])) {
+		cx--;
+	}
+	return cx;
+}
+
+int editorRowPrevCharIdx(struct erow *row, int idx) {
+	if (idx <= 0) {
+		return 0;
+	}
+	idx = editorRowClampCxToCharBoundary(row, idx);
+	idx--;
+	while (idx > 0 && editorIsUtf8ContinuationByte((unsigned char)row->chars[idx])) {
+		idx--;
+	}
+	return idx;
+}
+
+int editorRowNextCharIdx(struct erow *row, int idx) {
+	if (idx >= row->size) {
+		return row->size;
+	}
+	idx = editorRowClampCxToCharBoundary(row, idx);
+	idx++;
+	while (idx < row->size &&
+			editorIsUtf8ContinuationByte((unsigned char)row->chars[idx])) {
+		idx++;
+	}
+	return idx;
+}
+
+int editorRowCxToRx(struct erow *row, int cx) {
+	int rx = 0;
+	cx = editorRowClampCxToCharBoundary(row, cx);
 	for (int j = 0; j < cx; j++) {
 		if (row->chars[j] == '\t') {
 			rx += (ROTIDE_TAB_WIDTH - 1) - (rx % ROTIDE_TAB_WIDTH);
@@ -433,6 +472,16 @@ void editorDelCharAt(struct erow *row, int idx) {
 	E.dirty++;
 }
 
+void editorDelCharsAt(struct erow *row, int idx, int len) {
+	if (idx < 0 || len <= 0 || idx + len > row->size) {
+		return;
+	}
+	memmove(&row->chars[idx], &row->chars[idx + len], row->size - idx - len + 1);
+	row->size -= len;
+	editorUpdateRow(row);
+	E.dirty++;
+}
+
 
 void editorInsertChar(int c) {
 	if (E.cy == E.numrows) {
@@ -450,9 +499,10 @@ void editorInsertNewline() {
 	}
 
 	struct erow *row = &E.rows[E.cy];
-	editorInsertRow(E.cy + 1, &row->chars[E.cx], row->size - E.cx);
+	int split_idx = editorRowClampCxToCharBoundary(row, E.cx);
+	editorInsertRow(E.cy + 1, &row->chars[split_idx], row->size - split_idx);
 	row = &E.rows[E.cy]; // reassign needed because of realloc in editorInsertRow
-	row->size = E.cx;
+	row->size = split_idx;
 	row->chars[row->size] = '\0';
 	editorUpdateRow(row);
 	E.cy++;
@@ -466,8 +516,9 @@ void editorDelChar() {
 	struct erow *row = &E.rows[E.cy];
 	
 	if (E.cx > 0) {
-		editorDelCharAt(row, E.cx - 1);
-		E.cx--;
+		int prev_cx = editorRowPrevCharIdx(row, E.cx);
+		editorDelCharsAt(row, prev_cx, E.cx - prev_cx);
+		E.cx = prev_cx;
 		return;
 	}
 	
@@ -740,7 +791,9 @@ void editorRefreshScreen() {
 void editorAlignCursorWithRowEnd() {
 	int rowlen = 0;
 	if (E.numrows > E.cy) {
-		rowlen = E.rows[E.cy].size;
+		struct erow *row = &E.rows[E.cy];
+		rowlen = row->size;
+		E.cx = editorRowClampCxToCharBoundary(row, E.cx);
 	}
 	if (E.cx > rowlen) {
 		E.cx = rowlen;
@@ -788,7 +841,11 @@ void editorMoveCursor(int k) {
 	switch (k) {
 		case ARROW_LEFT:
 			if (E.cx != 0) {
-				E.cx--;
+				if (E.cy < E.numrows) {
+					E.cx = editorRowPrevCharIdx(&E.rows[E.cy], E.cx);
+				} else {
+					E.cx--;
+				}
 			} else if (E.cy > 0) {
 				E.cy--;
 				E.cx = E.rows[E.cy].size;
@@ -796,7 +853,7 @@ void editorMoveCursor(int k) {
 			break;
 		case ARROW_RIGHT:
 			if (E.numrows > E.cy && E.cx < E.rows[E.cy].size) {
-				E.cx++;
+				E.cx = editorRowNextCharIdx(&E.rows[E.cy], E.cx);
 			} else if (E.numrows > E.cy && E.cx == E.rows[E.cy].size) {
 				E.cy++;
 				E.cx = 0;
