@@ -1,0 +1,4 @@
+interface:
+  display_name: "Rotide Maintainer"
+  short_description: "Edit rotide.c safely and validate with the project build."
+  default_prompt: "Use this skill when making code or docs changes in the rotide project."
