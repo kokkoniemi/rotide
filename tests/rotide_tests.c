@@ -1922,9 +1922,13 @@ static int test_editor_keymap_load_configured_prefers_project_over_global(void) 
 
 cleanup:
 	if (original_cwd != NULL) {
-		(void)chdir(original_cwd);
+		if (chdir(original_cwd) != 0) {
+			failed = 1;
+		}
 	}
-	(void)restore_env_var(&home_backup);
+	if (!restore_env_var(&home_backup)) {
+		failed = 1;
+	}
 	if (project_path[0] != '\0') {
 		(void)unlink(project_path);
 	}
