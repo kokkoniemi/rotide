@@ -121,6 +121,11 @@ static int editor_process_keypress_with_input_silent(const char *input, size_t l
 	return ret;
 }
 
+static int editor_process_single_key(int key) {
+	char c = (char)key;
+	return editor_process_keypress_with_input(&c, 1);
+}
+
 static int test_utf8_decode_valid_sequences(void) {
 	unsigned int cp = 0;
 	const char e_acute[] = "\xC3\xA9";
@@ -1477,6 +1482,159 @@ static int test_editor_process_keypress_ctrl_f_no_match_preserves_cursor_and_set
 	return 0;
 }
 
+static int test_editor_process_keypress_ctrl_z_ctrl_y_roundtrip_typed_run(void) {
+	ASSERT_TRUE(editor_process_single_key('a') == 0);
+	ASSERT_TRUE(editor_process_single_key('b') == 0);
+	ASSERT_TRUE(editor_process_single_key('c') == 0);
+
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_STR("abc", E.rows[0].chars);
+	int dirty_after_insert = E.dirty;
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
+	ASSERT_EQ_INT(0, E.numrows);
+	ASSERT_EQ_INT(0, E.dirty);
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('y')) == 0);
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_STR("abc", E.rows[0].chars);
+	ASSERT_EQ_INT(dirty_after_insert, E.dirty);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_z_group_break_on_navigation(void) {
+	ASSERT_TRUE(editor_process_single_key('a') == 0);
+	ASSERT_TRUE(editor_process_single_key('b') == 0);
+
+	char arrow_left[] = "\x1b[D";
+	ASSERT_TRUE(editor_process_keypress_with_input(arrow_left, sizeof(arrow_left) - 1) == 0);
+	ASSERT_TRUE(editor_process_single_key('c') == 0);
+	ASSERT_EQ_STR("acb", E.rows[0].chars);
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
+	ASSERT_EQ_STR("ab", E.rows[0].chars);
+	ASSERT_EQ_INT(1, E.cx);
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
+	ASSERT_EQ_INT(0, E.numrows);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_z_for_delete_and_newline_steps(void) {
+	add_row("ab");
+	E.cy = 0;
+	E.cx = 2;
+
+	ASSERT_TRUE(editor_process_single_key(BACKSPACE) == 0);
+	ASSERT_EQ_STR("a", E.rows[0].chars);
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
+	ASSERT_EQ_STR("ab", E.rows[0].chars);
+	ASSERT_EQ_INT(2, E.cx);
+
+	E.cx = 1;
+	ASSERT_TRUE(editor_process_single_key('\r') == 0);
+	ASSERT_EQ_INT(2, E.numrows);
+	ASSERT_EQ_STR("a", E.rows[0].chars);
+	ASSERT_EQ_STR("b", E.rows[1].chars);
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_STR("ab", E.rows[0].chars);
+	ASSERT_EQ_INT(1, E.cx);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_y_clears_after_new_edit(void) {
+	ASSERT_TRUE(editor_process_single_key('a') == 0);
+	ASSERT_TRUE(editor_process_single_key('b') == 0);
+	ASSERT_TRUE(editor_process_single_key('c') == 0);
+	ASSERT_EQ_STR("abc", E.rows[0].chars);
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
+	ASSERT_EQ_INT(0, E.numrows);
+
+	ASSERT_TRUE(editor_process_single_key('x') == 0);
+	ASSERT_EQ_STR("x", E.rows[0].chars);
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('y')) == 0);
+	ASSERT_EQ_STR("x", E.rows[0].chars);
+	ASSERT_EQ_STR("Nothing to redo", E.statusmsg);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_z_ctrl_y_empty_stack_status(void) {
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
+	ASSERT_EQ_STR("Nothing to undo", E.statusmsg);
+	ASSERT_EQ_INT(0, E.numrows);
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('y')) == 0);
+	ASSERT_EQ_STR("Nothing to redo", E.statusmsg);
+	ASSERT_EQ_INT(0, E.numrows);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_z_history_cap_eviction(void) {
+	char text[ROTIDE_UNDO_HISTORY_LIMIT + 2];
+	memset(text, 'x', ROTIDE_UNDO_HISTORY_LIMIT + 1);
+	text[ROTIDE_UNDO_HISTORY_LIMIT + 1] = '\0';
+
+	add_row(text);
+	E.cy = 0;
+	E.cx = ROTIDE_UNDO_HISTORY_LIMIT + 1;
+
+	for (int i = 0; i < ROTIDE_UNDO_HISTORY_LIMIT + 1; i++) {
+		ASSERT_TRUE(editor_process_single_key(BACKSPACE) == 0);
+	}
+	ASSERT_EQ_STR("", E.rows[0].chars);
+
+	for (int i = 0; i < ROTIDE_UNDO_HISTORY_LIMIT; i++) {
+		ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
+	}
+	ASSERT_EQ_INT(ROTIDE_UNDO_HISTORY_LIMIT, E.rows[0].size);
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
+	ASSERT_EQ_INT(ROTIDE_UNDO_HISTORY_LIMIT, E.rows[0].size);
+	ASSERT_EQ_STR("Nothing to undo", E.statusmsg);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_z_capture_oom_preserves_state(void) {
+	add_row("hello");
+	E.cy = 0;
+	E.cx = 5;
+
+	ASSERT_TRUE(editor_process_single_key(BACKSPACE) == 0);
+	ASSERT_EQ_STR("hell", E.rows[0].chars);
+
+	editorTestAllocFailAfter(0);
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
+	ASSERT_EQ_STR("hell", E.rows[0].chars);
+	ASSERT_EQ_STR("Out of memory", E.statusmsg);
+
+	editorTestAllocReset();
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
+	ASSERT_EQ_STR("hello", E.rows[0].chars);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_z_restore_oom_preserves_state(void) {
+	add_row("hello");
+	E.cy = 0;
+	E.cx = 5;
+
+	ASSERT_TRUE(editor_process_single_key(BACKSPACE) == 0);
+	ASSERT_EQ_STR("hell", E.rows[0].chars);
+
+	editorTestAllocFailAfter(1);
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
+	ASSERT_EQ_STR("hell", E.rows[0].chars);
+	ASSERT_EQ_STR("Out of memory", E.statusmsg);
+
+	editorTestAllocReset();
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
+	ASSERT_EQ_STR("hello", E.rows[0].chars);
+	return 0;
+}
+
 static int test_editor_refresh_screen_highlights_active_search_match(void) {
 	add_row("prefix alpha suffix");
 	E.window_rows = 3;
@@ -1755,6 +1913,22 @@ int main(void) {
 			test_editor_process_keypress_ctrl_f_enter_keeps_active_match},
 		{"editor_process_keypress_ctrl_f_no_match_preserves_cursor_and_sets_status",
 			test_editor_process_keypress_ctrl_f_no_match_preserves_cursor_and_sets_status},
+		{"editor_process_keypress_ctrl_z_ctrl_y_roundtrip_typed_run",
+			test_editor_process_keypress_ctrl_z_ctrl_y_roundtrip_typed_run},
+		{"editor_process_keypress_ctrl_z_group_break_on_navigation",
+			test_editor_process_keypress_ctrl_z_group_break_on_navigation},
+		{"editor_process_keypress_ctrl_z_for_delete_and_newline_steps",
+			test_editor_process_keypress_ctrl_z_for_delete_and_newline_steps},
+		{"editor_process_keypress_ctrl_y_clears_after_new_edit",
+			test_editor_process_keypress_ctrl_y_clears_after_new_edit},
+		{"editor_process_keypress_ctrl_z_ctrl_y_empty_stack_status",
+			test_editor_process_keypress_ctrl_z_ctrl_y_empty_stack_status},
+		{"editor_process_keypress_ctrl_z_history_cap_eviction",
+			test_editor_process_keypress_ctrl_z_history_cap_eviction},
+		{"editor_process_keypress_ctrl_z_capture_oom_preserves_state",
+			test_editor_process_keypress_ctrl_z_capture_oom_preserves_state},
+		{"editor_process_keypress_ctrl_z_restore_oom_preserves_state",
+			test_editor_process_keypress_ctrl_z_restore_oom_preserves_state},
 		{"editor_refresh_screen_contains_expected_sequences",
 			test_editor_refresh_screen_contains_expected_sequences},
 		{"editor_refresh_screen_highlights_active_search_match",

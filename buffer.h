@@ -35,4 +35,12 @@ void editorOpen(const char *filename);
 void editorSetStatusMsg(const char *fmt, ...);
 void editorSave(void);
 
+void editorHistoryReset(void);
+void editorHistoryBreakGroup(void);
+void editorHistoryBeginEdit(enum editorEditKind kind);
+void editorHistoryCommitEdit(enum editorEditKind kind, int changed);
+void editorHistoryDiscardEdit(void);
+int editorUndo(void);
+int editorRedo(void);
+
 #endif

@@ -399,6 +399,328 @@ static int editorBuildRender(const char *chars, int size, char **render_out, int
 	return 1;
 }
 
+/*** History ***/
+
+static void editorSnapshotFree(struct editorSnapshot *snapshot) {
+	free(snapshot->text);
+	snapshot->text = NULL;
+	snapshot->textlen = 0;
+	snapshot->cx = 0;
+	snapshot->cy = 0;
+	snapshot->dirty = 0;
+}
+
+static void editorHistoryClear(struct editorHistory *history) {
+	for (int i = 0; i < history->len; i++) {
+		int idx = (history->start + i) % ROTIDE_UNDO_HISTORY_LIMIT;
+		editorSnapshotFree(&history->entries[idx]);
+	}
+	history->start = 0;
+	history->len = 0;
+}
+
+static void editorHistoryPushNewest(struct editorHistory *history, struct editorSnapshot *snapshot) {
+	int slot = 0;
+	if (history->len < ROTIDE_UNDO_HISTORY_LIMIT) {
+		slot = (history->start + history->len) % ROTIDE_UNDO_HISTORY_LIMIT;
+		history->len++;
+	} else {
+		slot = history->start;
+		editorSnapshotFree(&history->entries[slot]);
+		history->start = (history->start + 1) % ROTIDE_UNDO_HISTORY_LIMIT;
+	}
+
+	history->entries[slot] = *snapshot;
+	snapshot->text = NULL;
+	snapshot->textlen = 0;
+	snapshot->cx = 0;
+	snapshot->cy = 0;
+	snapshot->dirty = 0;
+}
+
+static int editorHistoryPopNewest(struct editorHistory *history, struct editorSnapshot *snapshot) {
+	if (history->len == 0) {
+		return 0;
+	}
+
+	int idx = (history->start + history->len - 1) % ROTIDE_UNDO_HISTORY_LIMIT;
+	*snapshot = history->entries[idx];
+	history->entries[idx].text = NULL;
+	history->entries[idx].textlen = 0;
+	history->entries[idx].cx = 0;
+	history->entries[idx].cy = 0;
+	history->entries[idx].dirty = 0;
+	history->len--;
+	if (history->len == 0) {
+		history->start = 0;
+	}
+	return 1;
+}
+
+static int editorSnapshotCaptureCurrent(struct editorSnapshot *snapshot) {
+	memset(snapshot, 0, sizeof(*snapshot));
+
+	int textlen = 0;
+	char *text = editorRowsToStr(&textlen);
+	if (text == NULL && textlen > 0) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+
+	snapshot->text = text;
+	snapshot->textlen = textlen;
+	snapshot->cx = E.cx;
+	snapshot->cy = E.cy;
+	snapshot->dirty = E.dirty;
+	return 1;
+}
+
+static void editorFreeRowArray(struct erow *rows, int numrows) {
+	for (int i = 0; i < numrows; i++) {
+		free(rows[i].chars);
+		free(rows[i].render);
+	}
+	free(rows);
+}
+
+static int editorAppendRestoredRow(struct erow **rows, int *numrows, const char *s, int len) {
+	char *row_chars = editorMalloc((size_t)len + 1);
+	if (row_chars == NULL) {
+		return 0;
+	}
+	memcpy(row_chars, s, (size_t)len);
+	row_chars[len] = '\0';
+
+	char *row_render = NULL;
+	int row_rsize = 0;
+	if (!editorBuildRender(row_chars, len, &row_render, &row_rsize)) {
+		free(row_chars);
+		return 0;
+	}
+
+	struct erow *new_rows = editorRealloc(*rows, sizeof(struct erow) * (size_t)(*numrows + 1));
+	if (new_rows == NULL) {
+		free(row_render);
+		free(row_chars);
+		return 0;
+	}
+
+	*rows = new_rows;
+	(*rows)[*numrows].size = len;
+	(*rows)[*numrows].rsize = row_rsize;
+	(*rows)[*numrows].chars = row_chars;
+	(*rows)[*numrows].render = row_render;
+	(*numrows)++;
+	return 1;
+}
+
+static int editorSnapshotBuildRows(const struct editorSnapshot *snapshot, struct erow **rows_out,
+		int *numrows_out) {
+	struct erow *rows = NULL;
+	int numrows = 0;
+	int line_start = 0;
+
+	for (int i = 0; i < snapshot->textlen; i++) {
+		if (snapshot->text[i] != '\n') {
+			continue;
+		}
+
+		int line_len = i - line_start;
+		if (!editorAppendRestoredRow(&rows, &numrows, &snapshot->text[line_start], line_len)) {
+			editorFreeRowArray(rows, numrows);
+			return 0;
+		}
+		line_start = i + 1;
+	}
+
+	if (line_start < snapshot->textlen) {
+		int line_len = snapshot->textlen - line_start;
+		if (!editorAppendRestoredRow(&rows, &numrows, &snapshot->text[line_start], line_len)) {
+			editorFreeRowArray(rows, numrows);
+			return 0;
+		}
+	}
+
+	*rows_out = rows;
+	*numrows_out = numrows;
+	return 1;
+}
+
+static void editorSnapshotClampCursor(const struct editorSnapshot *snapshot) {
+	if (snapshot->cy < 0) {
+		E.cy = 0;
+	} else if (snapshot->cy > E.numrows) {
+		E.cy = E.numrows;
+	} else {
+		E.cy = snapshot->cy;
+	}
+
+	if (E.cy < E.numrows) {
+		struct erow *row = &E.rows[E.cy];
+		int cx = snapshot->cx;
+		if (cx < 0) {
+			cx = 0;
+		}
+		if (cx > row->size) {
+			cx = row->size;
+		}
+		E.cx = editorRowClampCxToClusterBoundary(row, cx);
+		if (E.cx > row->size) {
+			E.cx = row->size;
+		}
+		if (E.cx < 0) {
+			E.cx = 0;
+		}
+	} else {
+		E.cx = 0;
+	}
+}
+
+static int editorSnapshotRestore(const struct editorSnapshot *snapshot) {
+	struct erow *new_rows = NULL;
+	int new_numrows = 0;
+	if (!editorSnapshotBuildRows(snapshot, &new_rows, &new_numrows)) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+
+	struct erow *old_rows = E.rows;
+	int old_numrows = E.numrows;
+
+	E.rows = new_rows;
+	E.numrows = new_numrows;
+	editorSnapshotClampCursor(snapshot);
+	E.dirty = snapshot->dirty;
+
+	editorFreeRowArray(old_rows, old_numrows);
+	return 1;
+}
+
+void editorHistoryReset(void) {
+	editorHistoryClear(&E.undo_history);
+	editorHistoryClear(&E.redo_history);
+	editorSnapshotFree(&E.edit_pending_snapshot);
+	E.edit_group_kind = EDITOR_EDIT_NONE;
+	E.edit_pending_kind = EDITOR_EDIT_NONE;
+	E.edit_pending_mode = EDITOR_EDIT_PENDING_NONE;
+}
+
+void editorHistoryBreakGroup(void) {
+	E.edit_group_kind = EDITOR_EDIT_NONE;
+}
+
+void editorHistoryDiscardEdit(void);
+
+void editorHistoryBeginEdit(enum editorEditKind kind) {
+	editorHistoryDiscardEdit();
+	E.edit_pending_kind = kind;
+
+	if (kind != EDITOR_EDIT_INSERT_TEXT) {
+		E.edit_group_kind = EDITOR_EDIT_NONE;
+	}
+
+	if (kind == EDITOR_EDIT_INSERT_TEXT && E.edit_group_kind == EDITOR_EDIT_INSERT_TEXT) {
+		E.edit_pending_mode = EDITOR_EDIT_PENDING_GROUPED;
+		return;
+	}
+
+	if (!editorSnapshotCaptureCurrent(&E.edit_pending_snapshot)) {
+		E.edit_pending_mode = EDITOR_EDIT_PENDING_SKIPPED;
+		E.edit_group_kind = EDITOR_EDIT_NONE;
+		return;
+	}
+
+	E.edit_pending_mode = EDITOR_EDIT_PENDING_CAPTURED;
+}
+
+void editorHistoryCommitEdit(enum editorEditKind kind, int changed) {
+	(void)kind;
+
+	enum editorEditPendingMode mode = E.edit_pending_mode;
+	if (!changed) {
+		editorHistoryDiscardEdit();
+		E.edit_group_kind = EDITOR_EDIT_NONE;
+		return;
+	}
+
+	editorHistoryClear(&E.redo_history);
+
+	if (mode == EDITOR_EDIT_PENDING_CAPTURED) {
+		editorHistoryPushNewest(&E.undo_history, &E.edit_pending_snapshot);
+	}
+
+	if (E.edit_pending_kind == EDITOR_EDIT_INSERT_TEXT &&
+			mode != EDITOR_EDIT_PENDING_SKIPPED &&
+			mode != EDITOR_EDIT_PENDING_NONE) {
+		E.edit_group_kind = EDITOR_EDIT_INSERT_TEXT;
+	} else {
+		E.edit_group_kind = EDITOR_EDIT_NONE;
+	}
+
+	E.edit_pending_kind = EDITOR_EDIT_NONE;
+	E.edit_pending_mode = EDITOR_EDIT_PENDING_NONE;
+}
+
+void editorHistoryDiscardEdit(void) {
+	editorSnapshotFree(&E.edit_pending_snapshot);
+	E.edit_pending_kind = EDITOR_EDIT_NONE;
+	E.edit_pending_mode = EDITOR_EDIT_PENDING_NONE;
+}
+
+int editorUndo(void) {
+	editorHistoryBreakGroup();
+	editorHistoryDiscardEdit();
+
+	struct editorSnapshot target = {0};
+	if (!editorHistoryPopNewest(&E.undo_history, &target)) {
+		editorSetStatusMsg("Nothing to undo");
+		return 0;
+	}
+
+	struct editorSnapshot current = {0};
+	if (!editorSnapshotCaptureCurrent(&current)) {
+		editorHistoryPushNewest(&E.undo_history, &target);
+		return -1;
+	}
+
+	if (!editorSnapshotRestore(&target)) {
+		editorSnapshotFree(&current);
+		editorHistoryPushNewest(&E.undo_history, &target);
+		return -1;
+	}
+
+	editorHistoryPushNewest(&E.redo_history, &current);
+	editorSnapshotFree(&target);
+	return 1;
+}
+
+int editorRedo(void) {
+	editorHistoryBreakGroup();
+	editorHistoryDiscardEdit();
+
+	struct editorSnapshot target = {0};
+	if (!editorHistoryPopNewest(&E.redo_history, &target)) {
+		editorSetStatusMsg("Nothing to redo");
+		return 0;
+	}
+
+	struct editorSnapshot current = {0};
+	if (!editorSnapshotCaptureCurrent(&current)) {
+		editorHistoryPushNewest(&E.redo_history, &target);
+		return -1;
+	}
+
+	if (!editorSnapshotRestore(&target)) {
+		editorSnapshotFree(&current);
+		editorHistoryPushNewest(&E.redo_history, &target);
+		return -1;
+	}
+
+	editorHistoryPushNewest(&E.undo_history, &current);
+	editorSnapshotFree(&target);
+	return 1;
+}
+
 static int editorRebuildRowRender(struct erow *row) {
 	char *new_render = NULL;
 	int new_rsize = 0;
@@ -638,6 +960,7 @@ void editorDelChar(void) {
 }
 
 void editorOpen(const char *filename) {
+	editorHistoryReset();
 	free(E.filename);
 	E.filename = strdup(filename);
 

@@ -13,6 +13,8 @@
 #include <unistd.h>
 
 void clear_editor_state(void) {
+	editorHistoryReset();
+
 	for (int i = 0; i < E.numrows; i++) {
 		free(E.rows[i].chars);
 		free(E.rows[i].render);

@@ -11,12 +11,41 @@
 #define CTRL_KEY(k) ((k) & 0x1f)
 #define ROTIDE_VERSION "0.0.1"
 #define ROTIDE_TAB_WIDTH 8
+#define ROTIDE_UNDO_HISTORY_LIMIT 200
 
 struct erow {
 	int size;
 	int rsize;
 	char *chars;
 	char *render;
+};
+
+enum editorEditKind {
+	EDITOR_EDIT_NONE = 0,
+	EDITOR_EDIT_INSERT_TEXT,
+	EDITOR_EDIT_DELETE_TEXT,
+	EDITOR_EDIT_NEWLINE
+};
+
+enum editorEditPendingMode {
+	EDITOR_EDIT_PENDING_NONE = 0,
+	EDITOR_EDIT_PENDING_CAPTURED,
+	EDITOR_EDIT_PENDING_GROUPED,
+	EDITOR_EDIT_PENDING_SKIPPED
+};
+
+struct editorSnapshot {
+	char *text;
+	int textlen;
+	int cx;
+	int cy;
+	int dirty;
+};
+
+struct editorHistory {
+	struct editorSnapshot entries[ROTIDE_UNDO_HISTORY_LIMIT];
+	int start;
+	int len;
 };
 
 struct editorConfig {
@@ -40,6 +69,12 @@ struct editorConfig {
 	int search_direction;
 	int search_saved_cx;
 	int search_saved_cy;
+	struct editorHistory undo_history;
+	struct editorHistory redo_history;
+	struct editorSnapshot edit_pending_snapshot;
+	enum editorEditKind edit_group_kind;
+	enum editorEditKind edit_pending_kind;
+	enum editorEditPendingMode edit_pending_mode;
 	struct termios orig_attrs;
 };
 

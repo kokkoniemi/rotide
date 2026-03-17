@@ -430,23 +430,41 @@ void editorProcessKeypress(void) {
 
 	switch (c) {
 		case CTRL_KEY('q'):
+			editorHistoryBreakGroup();
 			quit();
 			return;
 		case CTRL_KEY('s'):
+			editorHistoryBreakGroup();
 			editorSave();
 			break;
 		case CTRL_KEY('f'):
+			editorHistoryBreakGroup();
 			editorFind();
 			break;
+		case CTRL_KEY('z'):
+			editorHistoryBreakGroup();
+			if (editorUndo() == 1) {
+				editorClearSearchState();
+			}
+			break;
+		case CTRL_KEY('y'):
+			editorHistoryBreakGroup();
+			if (editorRedo() == 1) {
+				editorClearSearchState();
+			}
+			break;
 		case HOME_KEY:
+			editorHistoryBreakGroup();
 			E.cx = 0;
 			break;
 		case END_KEY:
+			editorHistoryBreakGroup();
 			if (E.cy < E.numrows) {
 				E.cx = E.rows[E.cy].size;
 			}
 			break;
 		case PAGE_UP:
+			editorHistoryBreakGroup();
 			E.cy = E.rowoff;
 			// Reuse arrow movement so cursor clamping behavior stays consistent.
 			for (int i = 0; i < E.window_rows; i++) {
@@ -454,6 +472,7 @@ void editorProcessKeypress(void) {
 			}
 			break;
 		case PAGE_DOWN:
+			editorHistoryBreakGroup();
 			E.cy = E.rowoff + E.window_rows - 1;
 			if (E.cy > E.numrows) {
 				E.cy = E.numrows;
@@ -467,24 +486,39 @@ void editorProcessKeypress(void) {
 		case ARROW_DOWN:
 		case ARROW_LEFT:
 		case ARROW_RIGHT:
+			editorHistoryBreakGroup();
 			editorMoveCursor(c);
 			break;
-		case '\r':
+		case '\r': {
+			editorHistoryBeginEdit(EDITOR_EDIT_NEWLINE);
+			int dirty_before = E.dirty;
 			editorInsertNewline();
+			editorHistoryCommitEdit(EDITOR_EDIT_NEWLINE, E.dirty != dirty_before);
 			break;
+		}
 		case '\x1b':
 		case CTRL_KEY('l'):
+			editorHistoryBreakGroup();
 			break;
 		case DEL_KEY:
-			editorMoveCursor(ARROW_RIGHT);
-			[[fallthrough]];
 		case BACKSPACE:
-		case CTRL_KEY('h'):
+		case CTRL_KEY('h'): {
+			editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
+			int dirty_before = E.dirty;
+			if (c == DEL_KEY) {
+				editorMoveCursor(ARROW_RIGHT);
+			}
 			editorDelChar();
+			editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
 			break;
-		default:
+		}
+		default: {
+			editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+			int dirty_before = E.dirty;
 			editorInsertChar(c);
+			editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
 			break;
+		}
 	}
 
 	quit_confirmed = 0;
