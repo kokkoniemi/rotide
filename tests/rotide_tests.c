@@ -107,6 +107,20 @@ static int remove_tmp_save_artifacts(const char *target_path) {
 	return failures == 0 ? 0 : -1;
 }
 
+static int editor_process_keypress_with_input_silent(const char *input, size_t len) {
+	int saved_stdout;
+	if (redirect_stdout_to_devnull(&saved_stdout) == -1) {
+		return -1;
+	}
+
+	int ret = editor_process_keypress_with_input(input, len);
+	if (restore_stdout(saved_stdout) == -1) {
+		return -1;
+	}
+
+	return ret;
+}
+
 static int test_utf8_decode_valid_sequences(void) {
 	unsigned int cp = 0;
 	const char e_acute[] = "\xC3\xA9";
@@ -1363,6 +1377,124 @@ static int test_editor_process_keypress_ctrl_s_saves_file(void) {
 	return 0;
 }
 
+static int test_editor_process_keypress_ctrl_f_incremental_find_first_match(void) {
+	add_row("zz alpha");
+	add_row("alpha later");
+	E.cy = 1;
+	E.cx = 2;
+
+	const char input[] = {CTRL_KEY('f'), 'a', 'l', 'p', 'h', 'a', '\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+
+	ASSERT_TRUE(E.search_query != NULL);
+	ASSERT_EQ_STR("alpha", E.search_query);
+	ASSERT_EQ_INT(0, E.search_match_row);
+	ASSERT_EQ_INT(3, E.search_match_start);
+	ASSERT_EQ_INT(5, E.search_match_len);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(3, E.cx);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_f_arrow_navigation_wraps(void) {
+	add_row("alpha one");
+	add_row("middle alpha");
+	add_row("tail alpha");
+	E.cy = 0;
+	E.cx = 0;
+
+	const char input[] = {
+		CTRL_KEY('f'), 'a', 'l', 'p', 'h', 'a',
+		'\x1b', '[', 'B',
+		'\x1b', '[', 'B',
+		'\x1b', '[', 'B',
+		'\x1b', '[', 'A',
+		'\r'
+	};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+
+	ASSERT_TRUE(E.search_query != NULL);
+	ASSERT_EQ_STR("alpha", E.search_query);
+	ASSERT_EQ_INT(2, E.search_match_row);
+	ASSERT_EQ_INT(5, E.search_match_start);
+	ASSERT_EQ_INT(5, E.search_match_len);
+	ASSERT_EQ_INT(2, E.cy);
+	ASSERT_EQ_INT(5, E.cx);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_f_escape_restores_cursor_and_clears_match(void) {
+	add_row("alpha row");
+	add_row("other");
+	E.cy = 1;
+	E.cx = 2;
+
+	const char input[] = {CTRL_KEY('f'), 'a', 'l', 'p', 'h', 'a', '\x1b'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_TRUE(E.search_query == NULL);
+	ASSERT_EQ_INT(-1, E.search_match_row);
+	ASSERT_EQ_INT(0, E.search_match_len);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_f_enter_keeps_active_match(void) {
+	add_row("xx alpha");
+	add_row("alpha second");
+	E.cy = 1;
+	E.cx = 4;
+
+	const char input[] = {CTRL_KEY('f'), 'a', 'l', 'p', 'h', 'a', '\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+
+	ASSERT_TRUE(E.search_query != NULL);
+	ASSERT_EQ_STR("alpha", E.search_query);
+	ASSERT_EQ_INT(0, E.search_match_row);
+	ASSERT_EQ_INT(3, E.search_match_start);
+	ASSERT_EQ_INT(5, E.search_match_len);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(3, E.cx);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_f_no_match_preserves_cursor_and_sets_status(void) {
+	add_row("hello world");
+	add_row("second line");
+	E.cy = 0;
+	E.cx = 5;
+
+	const char input[] = {CTRL_KEY('f'), 'z', 'z', 'z', '\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(5, E.cx);
+	ASSERT_TRUE(E.search_query != NULL);
+	ASSERT_EQ_STR("zzz", E.search_query);
+	ASSERT_EQ_INT(-1, E.search_match_row);
+	ASSERT_EQ_STR("No matches for \"zzz\"", E.statusmsg);
+	return 0;
+}
+
+static int test_editor_refresh_screen_highlights_active_search_match(void) {
+	add_row("prefix alpha suffix");
+	E.window_rows = 3;
+	E.window_cols = 40;
+	E.cy = 0;
+	E.cx = 0;
+	E.search_match_row = 0;
+	E.search_match_start = 7;
+	E.search_match_len = 5;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "prefix \x1b[7malpha\x1b[m suffix") != NULL);
+	free(output);
+	return 0;
+}
+
 static int test_editor_refresh_screen_contains_expected_sequences(void) {
 	add_row("first line");
 	add_row("second line");
@@ -1613,8 +1745,20 @@ int main(void) {
 		{"editor_process_keypress_arrow_down_keeps_visual_column",
 			test_editor_process_keypress_arrow_down_keeps_visual_column},
 		{"editor_process_keypress_ctrl_s_saves_file", test_editor_process_keypress_ctrl_s_saves_file},
+		{"editor_process_keypress_ctrl_f_incremental_find_first_match",
+			test_editor_process_keypress_ctrl_f_incremental_find_first_match},
+		{"editor_process_keypress_ctrl_f_arrow_navigation_wraps",
+			test_editor_process_keypress_ctrl_f_arrow_navigation_wraps},
+		{"editor_process_keypress_ctrl_f_escape_restores_cursor_and_clears_match",
+			test_editor_process_keypress_ctrl_f_escape_restores_cursor_and_clears_match},
+		{"editor_process_keypress_ctrl_f_enter_keeps_active_match",
+			test_editor_process_keypress_ctrl_f_enter_keeps_active_match},
+		{"editor_process_keypress_ctrl_f_no_match_preserves_cursor_and_sets_status",
+			test_editor_process_keypress_ctrl_f_no_match_preserves_cursor_and_sets_status},
 		{"editor_refresh_screen_contains_expected_sequences",
 			test_editor_refresh_screen_contains_expected_sequences},
+		{"editor_refresh_screen_highlights_active_search_match",
+			test_editor_refresh_screen_highlights_active_search_match},
 		{"editor_refresh_screen_hides_expired_message", test_editor_refresh_screen_hides_expired_message},
 		{"editor_refresh_screen_updates_horizontal_scroll",
 			test_editor_refresh_screen_updates_horizontal_scroll},

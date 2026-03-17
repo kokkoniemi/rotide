@@ -23,6 +23,8 @@ void clear_editor_state(void) {
 
 	free(E.filename);
 	E.filename = NULL;
+	free(E.search_query);
+	E.search_query = NULL;
 }
 
 void reset_editor_state(void) {
@@ -32,6 +34,8 @@ void reset_editor_state(void) {
 	memset(&E, 0, sizeof(E));
 	E.window_rows = 8;
 	E.window_cols = 40;
+	E.search_match_row = -1;
+	E.search_direction = 1;
 }
 
 void add_row(const char *s) {

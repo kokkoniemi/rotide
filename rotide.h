@@ -33,6 +33,13 @@ struct editorConfig {
 	char *filename;
 	char statusmsg[80];
 	time_t statusmsg_time;
+	char *search_query;
+	int search_match_row;
+	int search_match_start;
+	int search_match_len;
+	int search_direction;
+	int search_saved_cx;
+	int search_saved_cy;
 	struct termios orig_attrs;
 };
 

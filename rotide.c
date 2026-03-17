@@ -1,4 +1,3 @@
-// TODO(feature): Add Ctrl-F incremental search with live match navigation and highlight.
 // TODO(feature): Add search next/previous keybindings (Ctrl-N / Ctrl-P) after initial search.
 // TODO(feature): Add Ctrl-G go-to-line prompt and cursor jump.
 // TODO(feature): Add undo/redo stack support (Ctrl-Z / Ctrl-Y).
@@ -33,6 +32,13 @@ void initEditor(void) {
 	E.filename = NULL;
 	E.statusmsg[0] = '\0';
 	E.statusmsg_time = 0;
+	E.search_query = NULL;
+	E.search_match_row = -1;
+	E.search_match_start = 0;
+	E.search_match_len = 0;
+	E.search_direction = 1;
+	E.search_saved_cx = 0;
+	E.search_saved_cy = 0;
 
 	if (readWindowSize(&E.window_rows, &E.window_cols) == -1) {
 		panic("readWindowSize");
@@ -48,7 +54,7 @@ int main(int argc, char *argv[]) {
 		editorOpen(argv[1]);
 	}
 
-	editorSetStatusMsg("Help: Ctrl-S = save; Ctrl-Q = quit");
+	editorSetStatusMsg("Help: Ctrl-S = save; Ctrl-Q = quit; Ctrl-F = find");
 
 	while (1) {
 		editorRefreshScreen();

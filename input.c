@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <limits.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "buffer.h"
 #include "output.h"
@@ -12,6 +13,7 @@
 /*** Input ***/
 
 static int quit_confirmed = 0;
+typedef void (*editorPromptCallback)(const char *query, int key);
 
 static size_t editorPromptPrevDeleteIdx(const char *buf, size_t buflen) {
 	if (buflen == 0) {
@@ -59,7 +61,239 @@ static void editorAlignCursorWithRowEnd(void) {
 	}
 }
 
-char *editorPrompt(const char *prompt) {
+static void editorClearActiveSearchMatch(void) {
+	E.search_match_row = -1;
+	E.search_match_start = 0;
+	E.search_match_len = 0;
+}
+
+static void editorClearSearchState(void) {
+	free(E.search_query);
+	E.search_query = NULL;
+	E.search_direction = 1;
+	editorClearActiveSearchMatch();
+}
+
+static int editorFindForwardInRow(const struct erow *row, const char *query, int from_idx,
+		int *out_idx) {
+	if (from_idx < 0) {
+		from_idx = 0;
+	}
+	if (from_idx > row->size) {
+		return 0;
+	}
+
+	const char *match = strstr(&row->chars[from_idx], query);
+	if (match == NULL) {
+		return 0;
+	}
+	*out_idx = (int)(match - row->chars);
+	return 1;
+}
+
+static int editorFindLastInRowBefore(const struct erow *row, const char *query, int before_idx,
+		int *out_idx) {
+	if (before_idx <= 0) {
+		return 0;
+	}
+
+	int last = -1;
+	const char *scan = row->chars;
+	while (1) {
+		const char *match = strstr(scan, query);
+		if (match == NULL) {
+			break;
+		}
+
+		int idx = (int)(match - row->chars);
+		if (idx >= before_idx) {
+			break;
+		}
+
+		last = idx;
+		scan = match + 1;
+	}
+
+	if (last == -1) {
+		return 0;
+	}
+
+	*out_idx = last;
+	return 1;
+}
+
+static int editorFindLastInRowAfter(const struct erow *row, const char *query, int after_idx,
+		int *out_idx) {
+	int last = -1;
+	const char *scan = row->chars;
+	while (1) {
+		const char *match = strstr(scan, query);
+		if (match == NULL) {
+			break;
+		}
+
+		int idx = (int)(match - row->chars);
+		if (idx > after_idx) {
+			last = idx;
+		}
+
+		scan = match + 1;
+	}
+
+	if (last == -1) {
+		return 0;
+	}
+
+	*out_idx = last;
+	return 1;
+}
+
+static int editorFindForward(const char *query, int start_row, int start_col, int *out_row,
+		int *out_col) {
+	if (E.numrows == 0) {
+		return 0;
+	}
+	if (start_row < 0 || start_row >= E.numrows) {
+		start_row = 0;
+		start_col = -1;
+	}
+
+	int col = 0;
+	if (editorFindForwardInRow(&E.rows[start_row], query, start_col + 1, &col)) {
+		*out_row = start_row;
+		*out_col = col;
+		return 1;
+	}
+
+	for (int offset = 1; offset < E.numrows; offset++) {
+		int row = (start_row + offset) % E.numrows;
+		if (editorFindForwardInRow(&E.rows[row], query, 0, &col)) {
+			*out_row = row;
+			*out_col = col;
+			return 1;
+		}
+	}
+
+	if (editorFindForwardInRow(&E.rows[start_row], query, 0, &col) && col <= start_col) {
+		*out_row = start_row;
+		*out_col = col;
+		return 1;
+	}
+
+	return 0;
+}
+
+static int editorFindBackward(const char *query, int start_row, int start_col, int *out_row,
+		int *out_col) {
+	if (E.numrows == 0) {
+		return 0;
+	}
+	if (start_row < 0 || start_row >= E.numrows) {
+		start_row = E.numrows - 1;
+		start_col = E.rows[start_row].size;
+	}
+
+	int col = 0;
+	if (editorFindLastInRowBefore(&E.rows[start_row], query, start_col, &col)) {
+		*out_row = start_row;
+		*out_col = col;
+		return 1;
+	}
+
+	for (int offset = 1; offset < E.numrows; offset++) {
+		int row = (start_row - offset + E.numrows) % E.numrows;
+		if (editorFindLastInRowBefore(&E.rows[row], query, E.rows[row].size + 1, &col)) {
+			*out_row = row;
+			*out_col = col;
+			return 1;
+		}
+	}
+
+	if (editorFindLastInRowAfter(&E.rows[start_row], query, start_col, &col)) {
+		*out_row = start_row;
+		*out_col = col;
+		return 1;
+	}
+
+	return 0;
+}
+
+static void editorMoveCursorToSearchMatch(int row_idx, int match_col, int match_len) {
+	E.search_match_row = row_idx;
+	E.search_match_start = match_col;
+	E.search_match_len = match_len;
+	E.cy = row_idx;
+
+	struct erow *row = &E.rows[row_idx];
+	int cx = editorRowClampCxToCharBoundary(row, match_col);
+	E.cx = editorRowClampCxToClusterBoundary(row, cx);
+	editorAlignCursorWithRowEnd();
+}
+
+static void editorRestoreCursorToSavedSearchPosition(void) {
+	E.cy = E.search_saved_cy;
+	E.cx = E.search_saved_cx;
+	editorAlignCursorWithRowEnd();
+}
+
+static void editorFindCallback(const char *query, int key) {
+	if (key == '\x1b') {
+		editorRestoreCursorToSavedSearchPosition();
+		editorClearSearchState();
+		return;
+	}
+	if (key == '\r') {
+		return;
+	}
+	if (query[0] == '\0') {
+		editorRestoreCursorToSavedSearchPosition();
+		editorClearActiveSearchMatch();
+		E.search_direction = 1;
+		return;
+	}
+
+	int match_row = -1;
+	int match_col = -1;
+	int direction = 1;
+	int start_row = 0;
+	int start_col = -1;
+
+	if (key == ARROW_RIGHT || key == ARROW_DOWN) {
+		direction = 1;
+		if (E.search_match_row != -1) {
+			start_row = E.search_match_row;
+			start_col = E.search_match_start;
+		} else {
+			start_row = E.search_saved_cy;
+			start_col = E.search_saved_cx - 1;
+		}
+	} else if (key == ARROW_LEFT || key == ARROW_UP) {
+		direction = -1;
+		if (E.search_match_row != -1) {
+			start_row = E.search_match_row;
+			start_col = E.search_match_start;
+		} else {
+			start_row = E.search_saved_cy;
+			start_col = E.search_saved_cx;
+		}
+	}
+
+	E.search_direction = direction;
+	int found = direction == 1 ?
+			editorFindForward(query, start_row, start_col, &match_row, &match_col) :
+			editorFindBackward(query, start_row, start_col, &match_row, &match_col);
+
+	if (!found) {
+		editorRestoreCursorToSavedSearchPosition();
+		editorClearActiveSearchMatch();
+		return;
+	}
+
+	editorMoveCursorToSearchMatch(match_row, match_col, (int)strlen(query));
+}
+
+static char *editorPromptWithCallback(const char *prompt, int allow_empty,
+		editorPromptCallback callback) {
 	size_t bufmax = 128;
 	char *buf = editorMalloc(bufmax);
 	if (buf == NULL) {
@@ -81,10 +315,16 @@ char *editorPrompt(const char *prompt) {
 				buf[buflen] = '\0';
 			}
 		} else if (c == '\x1b') {
+			if (callback != NULL) {
+				callback(buf, c);
+			}
 			editorSetStatusMsg("");
 			free(buf);
 			return NULL;
-		} else if (c == '\r' && buflen != 0) {
+		} else if (c == '\r' && (allow_empty || buflen != 0)) {
+			if (callback != NULL) {
+				callback(buf, c);
+			}
 			editorSetStatusMsg("");
 			return buf;
 		} else if (c >= CHAR_MIN && c <= CHAR_MAX) {
@@ -107,6 +347,33 @@ char *editorPrompt(const char *prompt) {
 				buf[buflen] = '\0';
 			}
 		}
+
+		if (callback != NULL) {
+			callback(buf, c);
+		}
+	}
+}
+
+char *editorPrompt(const char *prompt) {
+	return editorPromptWithCallback(prompt, 0, NULL);
+}
+
+static void editorFind(void) {
+	E.search_saved_cx = E.cx;
+	E.search_saved_cy = E.cy;
+	E.search_direction = 1;
+	editorClearActiveSearchMatch();
+
+	char *query = editorPromptWithCallback(
+			"Search: %s (Use ESC/Arrows/Enter)", 1, editorFindCallback);
+	if (query == NULL) {
+		return;
+	}
+
+	free(E.search_query);
+	E.search_query = query;
+	if (E.search_match_row == -1) {
+		editorSetStatusMsg("No matches for \"%s\"", query);
 	}
 }
 
@@ -167,6 +434,9 @@ void editorProcessKeypress(void) {
 			return;
 		case CTRL_KEY('s'):
 			editorSave();
+			break;
+		case CTRL_KEY('f'):
+			editorFind();
 			break;
 		case HOME_KEY:
 			E.cx = 0;
