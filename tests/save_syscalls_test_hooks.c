@@ -7,19 +7,23 @@ static struct {
 	int fsync_calls;
 	int open_dir_calls;
 	int close_calls;
+	int unlink_calls;
 	int fail_rename_on_call;
 	int fail_fsync_on_call;
 	int fail_open_dir_on_call;
 	int fail_close_on_call;
+	int fail_unlink_on_call;
 } editor_save_syscall_test_state = {
 	.rename_calls = 0,
 	.fsync_calls = 0,
 	.open_dir_calls = 0,
 	.close_calls = 0,
+	.unlink_calls = 0,
 	.fail_rename_on_call = -1,
 	.fail_fsync_on_call = -1,
 	.fail_open_dir_on_call = -1,
-	.fail_close_on_call = -1
+	.fail_close_on_call = -1,
+	.fail_unlink_on_call = -1
 };
 
 static int editorTestSaveSyscallsFailureProbe(enum editorSaveSyscallOp op) {
@@ -44,6 +48,11 @@ static int editorTestSaveSyscallsFailureProbe(enum editorSaveSyscallOp op) {
 			return editor_save_syscall_test_state.fail_close_on_call > 0 &&
 					editor_save_syscall_test_state.close_calls ==
 					editor_save_syscall_test_state.fail_close_on_call;
+		case EDITOR_SAVE_SYSCALL_UNLINK:
+			editor_save_syscall_test_state.unlink_calls++;
+			return editor_save_syscall_test_state.fail_unlink_on_call > 0 &&
+					editor_save_syscall_test_state.unlink_calls ==
+					editor_save_syscall_test_state.fail_unlink_on_call;
 	}
 
 	return 0;
@@ -54,6 +63,7 @@ static void editorTestSaveSyscallsClearCounters(void) {
 	editor_save_syscall_test_state.fsync_calls = 0;
 	editor_save_syscall_test_state.open_dir_calls = 0;
 	editor_save_syscall_test_state.close_calls = 0;
+	editor_save_syscall_test_state.unlink_calls = 0;
 }
 
 void editorTestSaveSyscallsReset(void) {
@@ -62,6 +72,7 @@ void editorTestSaveSyscallsReset(void) {
 	editor_save_syscall_test_state.fail_fsync_on_call = -1;
 	editor_save_syscall_test_state.fail_open_dir_on_call = -1;
 	editor_save_syscall_test_state.fail_close_on_call = -1;
+	editor_save_syscall_test_state.fail_unlink_on_call = -1;
 	editorSaveSyscallsClearFailureProbe();
 }
 
@@ -71,6 +82,7 @@ void editorTestSaveSyscallsInstallNoFail(void) {
 	editor_save_syscall_test_state.fail_fsync_on_call = -1;
 	editor_save_syscall_test_state.fail_open_dir_on_call = -1;
 	editor_save_syscall_test_state.fail_close_on_call = -1;
+	editor_save_syscall_test_state.fail_unlink_on_call = -1;
 	editorSaveSyscallsSetFailureProbe(editorTestSaveSyscallsFailureProbe);
 }
 
@@ -92,4 +104,9 @@ void editorTestSaveSyscallsFailCloseOnCall(int call_idx) {
 void editorTestSaveSyscallsFailRenameOnCall(int call_idx) {
 	editorTestSaveSyscallsInstallNoFail();
 	editor_save_syscall_test_state.fail_rename_on_call = call_idx;
+}
+
+void editorTestSaveSyscallsFailUnlinkOnCall(int call_idx) {
+	editorTestSaveSyscallsInstallNoFail();
+	editor_save_syscall_test_state.fail_unlink_on_call = call_idx;
 }

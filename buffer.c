@@ -735,6 +735,36 @@ static int editorOpenParentDirForTarget(const char *target) {
 	return dir_fd;
 }
 
+static int editorSaveCleanupOnError(int *fd, int *dir_fd, const char *tmp_path,
+		int tmp_created, int tmp_renamed, int *cleanup_errno) {
+	int first_cleanup_errno = 0;
+
+	if (*fd != -1) {
+		if (editorSaveClose(*fd) == -1 && first_cleanup_errno == 0) {
+			first_cleanup_errno = errno;
+		}
+		*fd = -1;
+	}
+	if (*dir_fd != -1) {
+		if (editorSaveClose(*dir_fd) == -1 && first_cleanup_errno == 0) {
+			first_cleanup_errno = errno;
+		}
+		*dir_fd = -1;
+	}
+
+	if (tmp_path != NULL && tmp_created && !tmp_renamed) {
+		if (editorSaveUnlink(tmp_path) == -1 && errno != ENOENT &&
+				first_cleanup_errno == 0) {
+			first_cleanup_errno = errno;
+		}
+	}
+
+	if (cleanup_errno != NULL) {
+		*cleanup_errno = first_cleanup_errno;
+	}
+	return first_cleanup_errno == 0 ? 0 : -1;
+}
+
 static mode_t editorDefaultCreateMode(void) {
 	mode_t mask = umask(0);
 	umask(mask);
@@ -756,6 +786,8 @@ void editorSave(void) {
 	char *tmp_path = editorTempPathForTarget(E.filename);
 	int fd = -1;
 	int dir_fd = -1;
+	int tmp_created = 0;
+	int tmp_renamed = 0;
 	mode_t mode = editorDefaultCreateMode();
 	struct stat st;
 
@@ -781,6 +813,7 @@ void editorSave(void) {
 	if (fd == -1) {
 		goto err;
 	}
+	tmp_created = 1;
 	if (fchmod(fd, mode) == -1) {
 		goto err;
 	}
@@ -798,6 +831,7 @@ void editorSave(void) {
 	if (editorSaveRename(tmp_path, E.filename) == -1) {
 		goto err;
 	}
+	tmp_renamed = 1;
 
 	dir_fd = editorOpenParentDirForTarget(E.filename);
 	if (dir_fd == -1) {
@@ -820,17 +854,16 @@ void editorSave(void) {
 
 err: {
 	int saved_errno = errno;
-	if (fd != -1) {
-		(void)editorSaveClose(fd);
-	}
-	if (dir_fd != -1) {
-		(void)editorSaveClose(dir_fd);
-	}
-	if (tmp_path != NULL) {
-		unlink(tmp_path);
-	}
+	int cleanup_errno = 0;
+	(void)editorSaveCleanupOnError(&fd, &dir_fd, tmp_path, tmp_created, tmp_renamed,
+			&cleanup_errno);
 	free(tmp_path);
 	free(buf);
+	if (cleanup_errno != 0) {
+		editorSetStatusMsg("Save failed! Error: %s (temp cleanup errno %d)",
+				strerror(saved_errno), cleanup_errno);
+		return;
+	}
 	editorSetStatusMsg("Save failed! Error: %s", strerror(saved_errno));
 }
 }

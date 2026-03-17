@@ -9,6 +9,7 @@
 #include "test_helpers.h"
 #include <dirent.h>
 #include <locale.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -52,6 +53,57 @@ static int count_tmp_save_artifacts(const char *target_path) {
 	closedir(dir);
 	free(prefix);
 	return count;
+}
+
+static int remove_tmp_save_artifacts(const char *target_path) {
+	const char *base = strrchr(target_path, '/');
+	if (base != NULL) {
+		base++;
+	} else {
+		base = target_path;
+	}
+
+	static const char suffix[] = ".rotide-tmp-";
+	size_t base_len = strlen(base);
+	size_t prefix_len = base_len + sizeof(suffix) - 1;
+	char *prefix = malloc(prefix_len + 1);
+	if (prefix == NULL) {
+		return -1;
+	}
+
+	memcpy(prefix, base, base_len);
+	memcpy(prefix + base_len, suffix, sizeof(suffix));
+
+	DIR *dir = opendir("/tmp");
+	if (dir == NULL) {
+		free(prefix);
+		return -1;
+	}
+
+	int failures = 0;
+	struct dirent *entry;
+	while ((entry = readdir(dir)) != NULL) {
+		if (strncmp(entry->d_name, prefix, prefix_len) != 0) {
+			continue;
+		}
+
+		size_t path_len = sizeof("/tmp/") - 1 + strlen(entry->d_name) + 1;
+		char *full_path = malloc(path_len);
+		if (full_path == NULL) {
+			failures++;
+			continue;
+		}
+
+		snprintf(full_path, path_len, "/tmp/%s", entry->d_name);
+		if (unlink(full_path) == -1) {
+			failures++;
+		}
+		free(full_path);
+	}
+
+	closedir(dir);
+	free(prefix);
+	return failures == 0 ? 0 : -1;
 }
 
 static int test_utf8_decode_valid_sequences(void) {
@@ -579,6 +631,122 @@ static int test_editor_save_failure_cleans_temp_file(void) {
 	return 0;
 }
 
+static int test_editor_save_temp_fsync_failure_cleans_temp_file(void) {
+	char path[] = "/tmp/rotide-test-save-temp-fsync-fail-XXXXXX";
+	int fd = mkstemp(path);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(close(fd) == 0);
+
+	ASSERT_EQ_INT(0, count_tmp_save_artifacts(path));
+
+	add_row("alpha");
+	E.dirty = 1;
+	E.filename = strdup(path);
+	ASSERT_TRUE(E.filename != NULL);
+
+	editorTestSaveSyscallsFailFsyncOnCall(1);
+	editorSave();
+
+	ASSERT_EQ_INT(1, E.dirty);
+	ASSERT_TRUE(strstr(E.statusmsg, "Save failed! Error:") != NULL);
+	ASSERT_EQ_INT(0, count_tmp_save_artifacts(path));
+
+	size_t content_len = 0;
+	char *contents = read_file_contents(path, &content_len);
+	ASSERT_TRUE(contents != NULL);
+	ASSERT_EQ_INT(0, content_len);
+
+	free(contents);
+	unlink(path);
+	return 0;
+}
+
+static int test_editor_save_temp_close_failure_cleans_temp_file(void) {
+	char path[] = "/tmp/rotide-test-save-temp-close-fail-XXXXXX";
+	int fd = mkstemp(path);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(close(fd) == 0);
+
+	ASSERT_EQ_INT(0, count_tmp_save_artifacts(path));
+
+	add_row("alpha");
+	E.dirty = 1;
+	E.filename = strdup(path);
+	ASSERT_TRUE(E.filename != NULL);
+
+	editorTestSaveSyscallsFailCloseOnCall(1);
+	editorSave();
+
+	ASSERT_EQ_INT(1, E.dirty);
+	ASSERT_TRUE(strstr(E.statusmsg, "Save failed! Error:") != NULL);
+	ASSERT_EQ_INT(0, count_tmp_save_artifacts(path));
+
+	size_t content_len = 0;
+	char *contents = read_file_contents(path, &content_len);
+	ASSERT_TRUE(contents != NULL);
+	ASSERT_EQ_INT(0, content_len);
+
+	free(contents);
+	unlink(path);
+	return 0;
+}
+
+static int test_editor_save_rename_failure_cleans_temp_file_deterministic(void) {
+	char path[] = "/tmp/rotide-test-save-rename-fail-XXXXXX";
+	int fd = mkstemp(path);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(close(fd) == 0);
+
+	ASSERT_EQ_INT(0, count_tmp_save_artifacts(path));
+
+	add_row("alpha");
+	E.dirty = 1;
+	E.filename = strdup(path);
+	ASSERT_TRUE(E.filename != NULL);
+
+	editorTestSaveSyscallsFailRenameOnCall(1);
+	editorSave();
+
+	ASSERT_EQ_INT(1, E.dirty);
+	ASSERT_TRUE(strstr(E.statusmsg, "Save failed! Error:") != NULL);
+	ASSERT_EQ_INT(0, count_tmp_save_artifacts(path));
+
+	size_t content_len = 0;
+	char *contents = read_file_contents(path, &content_len);
+	ASSERT_TRUE(contents != NULL);
+	ASSERT_EQ_INT(0, content_len);
+
+	free(contents);
+	unlink(path);
+	return 0;
+}
+
+static int test_editor_save_reports_temp_cleanup_failure(void) {
+	char dir_template[] = "/tmp/rotide-test-save-cleanup-fail-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	ASSERT_EQ_INT(0, count_tmp_save_artifacts(dir_path));
+
+	add_row("alpha");
+	E.dirty = 1;
+	E.filename = strdup(dir_path);
+	ASSERT_TRUE(E.filename != NULL);
+
+	editorTestSaveSyscallsFailUnlinkOnCall(1);
+	editorSave();
+
+	ASSERT_EQ_INT(1, E.dirty);
+	ASSERT_TRUE(strstr(E.statusmsg, "Save failed! Error:") != NULL);
+	ASSERT_TRUE(strstr(E.statusmsg, "temp cleanup errno") != NULL);
+	ASSERT_TRUE(count_tmp_save_artifacts(dir_path) > 0);
+
+	ASSERT_EQ_INT(0, remove_tmp_save_artifacts(dir_path));
+	ASSERT_EQ_INT(0, count_tmp_save_artifacts(dir_path));
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 static int test_editor_prompt_accept_and_cancel(void) {
 	char ok_input[] = "name\r";
 	char esc_input[] = "\x1b";
@@ -808,6 +976,7 @@ static int test_editor_save_parent_dir_fsync_failure_after_rename_reports_failur
 	E.filename = strdup(path);
 	ASSERT_TRUE(E.filename != NULL);
 	E.dirty = 1;
+	ASSERT_EQ_INT(0, count_tmp_save_artifacts(path));
 
 	editorTestSaveSyscallsFailFsyncOnCall(2);
 	editorSave();
@@ -820,6 +989,7 @@ static int test_editor_save_parent_dir_fsync_failure_after_rename_reports_failur
 	ASSERT_TRUE(contents != NULL);
 	ASSERT_EQ_INT(6, content_len);
 	ASSERT_MEM_EQ("alpha\n", contents, content_len);
+	ASSERT_EQ_INT(0, count_tmp_save_artifacts(path));
 
 	free(contents);
 	unlink(path);
@@ -836,6 +1006,7 @@ static int test_editor_save_parent_dir_open_failure_reports_failure(void) {
 	E.filename = strdup(path);
 	ASSERT_TRUE(E.filename != NULL);
 	E.dirty = 1;
+	ASSERT_EQ_INT(0, count_tmp_save_artifacts(path));
 
 	editorTestSaveSyscallsFailOpenDirOnCall(1);
 	editorSave();
@@ -848,6 +1019,7 @@ static int test_editor_save_parent_dir_open_failure_reports_failure(void) {
 	ASSERT_TRUE(contents != NULL);
 	ASSERT_EQ_INT(6, content_len);
 	ASSERT_MEM_EQ("alpha\n", contents, content_len);
+	ASSERT_EQ_INT(0, count_tmp_save_artifacts(path));
 
 	free(contents);
 	unlink(path);
@@ -864,6 +1036,7 @@ static int test_editor_save_parent_dir_close_failure_reports_failure(void) {
 	E.filename = strdup(path);
 	ASSERT_TRUE(E.filename != NULL);
 	E.dirty = 1;
+	ASSERT_EQ_INT(0, count_tmp_save_artifacts(path));
 
 	editorTestSaveSyscallsFailCloseOnCall(2);
 	editorSave();
@@ -876,6 +1049,7 @@ static int test_editor_save_parent_dir_close_failure_reports_failure(void) {
 	ASSERT_TRUE(contents != NULL);
 	ASSERT_EQ_INT(6, content_len);
 	ASSERT_MEM_EQ("alpha\n", contents, content_len);
+	ASSERT_EQ_INT(0, count_tmp_save_artifacts(path));
 
 	free(contents);
 	unlink(path);
@@ -1287,6 +1461,14 @@ int main(void) {
 		{"editor_save_removes_temp_file_on_success",
 			test_editor_save_removes_temp_file_on_success},
 		{"editor_save_failure_cleans_temp_file", test_editor_save_failure_cleans_temp_file},
+		{"editor_save_temp_fsync_failure_cleans_temp_file",
+			test_editor_save_temp_fsync_failure_cleans_temp_file},
+		{"editor_save_temp_close_failure_cleans_temp_file",
+			test_editor_save_temp_close_failure_cleans_temp_file},
+		{"editor_save_rename_failure_cleans_temp_file_deterministic",
+			test_editor_save_rename_failure_cleans_temp_file_deterministic},
+		{"editor_save_reports_temp_cleanup_failure",
+			test_editor_save_reports_temp_cleanup_failure},
 		{"editor_prompt_accept_and_cancel", test_editor_prompt_accept_and_cancel},
 		{"editor_prompt_accepts_utf8_input", test_editor_prompt_accepts_utf8_input},
 		{"editor_prompt_filters_ascii_controls_but_keeps_non_ascii_bytes",

@@ -57,3 +57,12 @@ int editorSaveClose(int fd) {
 
 	return close(fd);
 }
+
+int editorSaveUnlink(const char *path) {
+	if (editorSaveSyscallsShouldFail(EDITOR_SAVE_SYSCALL_UNLINK)) {
+		errno = EIO;
+		return -1;
+	}
+
+	return unlink(path);
+}
