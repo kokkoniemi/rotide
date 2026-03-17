@@ -378,6 +378,63 @@ static void editorFind(void) {
 	}
 }
 
+static int editorParsePositiveLineNumber(const char *query, long *out_line) {
+	if (query[0] == '\0') {
+		return 0;
+	}
+
+	long line = 0;
+	for (size_t i = 0; query[i] != '\0'; i++) {
+		unsigned char ch = (unsigned char)query[i];
+		if (!isdigit(ch)) {
+			return 0;
+		}
+
+		int digit = query[i] - '0';
+		if (line > (LONG_MAX - digit) / 10) {
+			return 0;
+		}
+		line = line * 10 + digit;
+	}
+
+	if (line <= 0) {
+		return 0;
+	}
+
+	*out_line = line;
+	return 1;
+}
+
+static void editorGoToLine(void) {
+	char *query = editorPrompt("Go to line: %s");
+	if (query == NULL) {
+		return;
+	}
+
+	long line = 0;
+	int valid = editorParsePositiveLineNumber(query, &line);
+	free(query);
+	if (!valid) {
+		editorSetStatusMsg("Invalid line number");
+		return;
+	}
+
+	if (E.numrows == 0) {
+		E.cy = 0;
+		E.cx = 0;
+		editorSetStatusMsg("Buffer is empty");
+		return;
+	}
+
+	if (line > E.numrows) {
+		line = E.numrows;
+	}
+
+	E.cy = (int)(line - 1);
+	E.cx = 0;
+	editorAlignCursorWithRowEnd();
+}
+
 static void editorMoveCursor(int k) {
 	int target_rx = 0;
 	if ((k == ARROW_UP || k == ARROW_DOWN) && E.cy < E.numrows) {
@@ -441,6 +498,10 @@ void editorProcessKeypress(void) {
 		case CTRL_KEY('f'):
 			editorHistoryBreakGroup();
 			editorFind();
+			break;
+		case CTRL_KEY('g'):
+			editorHistoryBreakGroup();
+			editorGoToLine();
 			break;
 		case CTRL_KEY('z'):
 			editorHistoryBreakGroup();

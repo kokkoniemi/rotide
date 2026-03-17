@@ -1,4 +1,4 @@
-rot(IDE) is a simple and fast code editor with some in-built development
+RotIDE editor is a simple and fast code editor with some in-built development
 capabilities. It is inspired by antirez/kilo[^1] and is not yet in usable
 state.
 

@@ -1,4 +1,3 @@
-// TODO(feature): Add Ctrl-G go-to-line prompt and cursor jump.
 // TODO(feature): Add selection mode (anchor + cursor) with cut/copy/delete operations.
 // TODO(feature): Add clipboard support (internal buffer first, then OSC52 terminal clipboard).
 // TODO(feature): Add mouse click support for cursor placement and wheel scrolling.
@@ -64,7 +63,8 @@ int main(int argc, char *argv[]) {
 		editorOpen(argv[1]);
 	}
 
-	editorSetStatusMsg("Help: Ctrl-S = save; Ctrl-Q = quit; Ctrl-F = find; Ctrl-Z/Y = undo/redo");
+	editorSetStatusMsg(
+			"Help: Ctrl-S = save; Ctrl-Q = quit; Ctrl-F = find; Ctrl-G = go-to-line; Ctrl-Z/Y = undo/redo");
 
 	while (1) {
 		editorRefreshScreen();

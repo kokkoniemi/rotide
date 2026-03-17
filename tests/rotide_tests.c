@@ -1409,6 +1409,116 @@ static int test_editor_process_keypress_ctrl_s_saves_file(void) {
 	return 0;
 }
 
+static int test_editor_process_keypress_ctrl_g_jumps_to_line_and_sets_col_zero(void) {
+	add_row("one");
+	add_row("two");
+	add_row("three");
+	E.cy = 2;
+	E.cx = 4;
+
+	const char input[] = {CTRL_KEY('g'), '2', '\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(0, E.cx);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_g_clamps_to_last_line(void) {
+	add_row("first");
+	add_row("last");
+	E.cy = 0;
+	E.cx = 2;
+
+	const char input[] = {CTRL_KEY('g'), '9', '\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(0, E.cx);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_g_rejects_invalid_input(void) {
+	add_row("alpha");
+	add_row("beta");
+	E.cy = 1;
+	E.cx = 2;
+
+	const char letters[] = {CTRL_KEY('g'), 'a', 'b', 'c', '\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(letters, sizeof(letters)) == 0);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_EQ_STR("Invalid line number", E.statusmsg);
+
+	const char zero[] = {CTRL_KEY('g'), '0', '\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(zero, sizeof(zero)) == 0);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_EQ_STR("Invalid line number", E.statusmsg);
+
+	char overflow[66];
+	overflow[0] = CTRL_KEY('g');
+	for (size_t i = 1; i < sizeof(overflow) - 1; i++) {
+		overflow[i] = '9';
+	}
+	overflow[sizeof(overflow) - 1] = '\r';
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(overflow, sizeof(overflow)) == 0);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_EQ_STR("Invalid line number", E.statusmsg);
+
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_g_escape_cancels(void) {
+	add_row("alpha");
+	add_row("beta");
+	E.cy = 1;
+	E.cx = 2;
+
+	const char input[] = {CTRL_KEY('g'), '1', '2', '\x1b'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_g_empty_buffer_sets_status(void) {
+	E.cy = 0;
+	E.cx = 0;
+
+	const char input[] = {CTRL_KEY('g'), '1', '\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(0, E.cx);
+	ASSERT_EQ_STR("Buffer is empty", E.statusmsg);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_g_breaks_undo_typed_run_group(void) {
+	ASSERT_TRUE(editor_process_single_key('a') == 0);
+	ASSERT_TRUE(editor_process_single_key('b') == 0);
+	ASSERT_EQ_STR("ab", E.rows[0].chars);
+
+	const char goto_first_line[] = {CTRL_KEY('g'), '1', '\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(
+				goto_first_line, sizeof(goto_first_line)) == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(0, E.cx);
+
+	ASSERT_TRUE(editor_process_single_key('z') == 0);
+	ASSERT_EQ_STR("zab", E.rows[0].chars);
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
+	ASSERT_EQ_STR("ab", E.rows[0].chars);
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
+	ASSERT_EQ_INT(0, E.numrows);
+	return 0;
+}
+
 static int test_editor_process_keypress_ctrl_q_exits_promptly(void) {
 	pid_t pid = fork();
 	ASSERT_TRUE(pid != -1);
@@ -2006,6 +2116,18 @@ int main(void) {
 		{"editor_process_keypress_arrow_down_keeps_visual_column",
 			test_editor_process_keypress_arrow_down_keeps_visual_column},
 		{"editor_process_keypress_ctrl_s_saves_file", test_editor_process_keypress_ctrl_s_saves_file},
+		{"editor_process_keypress_ctrl_g_jumps_to_line_and_sets_col_zero",
+			test_editor_process_keypress_ctrl_g_jumps_to_line_and_sets_col_zero},
+		{"editor_process_keypress_ctrl_g_clamps_to_last_line",
+			test_editor_process_keypress_ctrl_g_clamps_to_last_line},
+		{"editor_process_keypress_ctrl_g_rejects_invalid_input",
+			test_editor_process_keypress_ctrl_g_rejects_invalid_input},
+		{"editor_process_keypress_ctrl_g_escape_cancels",
+			test_editor_process_keypress_ctrl_g_escape_cancels},
+		{"editor_process_keypress_ctrl_g_empty_buffer_sets_status",
+			test_editor_process_keypress_ctrl_g_empty_buffer_sets_status},
+		{"editor_process_keypress_ctrl_g_breaks_undo_typed_run_group",
+			test_editor_process_keypress_ctrl_g_breaks_undo_typed_run_group},
 		{"editor_process_keypress_ctrl_q_exits_promptly",
 			test_editor_process_keypress_ctrl_q_exits_promptly},
 		{"editor_process_keypress_ctrl_q_dirty_requires_second_press",
