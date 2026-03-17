@@ -1309,9 +1309,11 @@ static int test_editor_read_key_sgr_mouse_events(void) {
 	int key = 0;
 	struct editorMouseEvent event;
 	char left_click[] = "\x1b[<0;5;3M";
+	char left_drag[] = "\x1b[<32;6;4M";
+	char left_release[] = "\x1b[<0;6;4m";
 	char wheel_up[] = "\x1b[<64;7;2M";
 	char wheel_down[] = "\x1b[<65;4;9M";
-	char release_then_plain[] = "\x1b[<0;1;1mX";
+	char modifier_drag_then_plain[] = "\x1b[<36;1;1MZ";
 	char unsupported_then_plain[] = "\x1b[<2;1;1MY";
 
 	ASSERT_TRUE(editor_read_key_with_input(left_click, sizeof(left_click) - 1, &key) == 0);
@@ -1321,6 +1323,20 @@ static int test_editor_read_key_sgr_mouse_events(void) {
 	ASSERT_EQ_INT(5, event.x);
 	ASSERT_EQ_INT(3, event.y);
 	ASSERT_EQ_INT(0, editorConsumeMouseEvent(&event));
+
+	ASSERT_TRUE(editor_read_key_with_input(left_drag, sizeof(left_drag) - 1, &key) == 0);
+	ASSERT_EQ_INT(MOUSE_EVENT, key);
+	ASSERT_TRUE(editorConsumeMouseEvent(&event) == 1);
+	ASSERT_EQ_INT(EDITOR_MOUSE_EVENT_LEFT_DRAG, event.kind);
+	ASSERT_EQ_INT(6, event.x);
+	ASSERT_EQ_INT(4, event.y);
+
+	ASSERT_TRUE(editor_read_key_with_input(left_release, sizeof(left_release) - 1, &key) == 0);
+	ASSERT_EQ_INT(MOUSE_EVENT, key);
+	ASSERT_TRUE(editorConsumeMouseEvent(&event) == 1);
+	ASSERT_EQ_INT(EDITOR_MOUSE_EVENT_LEFT_RELEASE, event.kind);
+	ASSERT_EQ_INT(6, event.x);
+	ASSERT_EQ_INT(4, event.y);
 
 	ASSERT_TRUE(editor_read_key_with_input(wheel_up, sizeof(wheel_up) - 1, &key) == 0);
 	ASSERT_EQ_INT(MOUSE_EVENT, key);
@@ -1336,9 +1352,9 @@ static int test_editor_read_key_sgr_mouse_events(void) {
 	ASSERT_EQ_INT(4, event.x);
 	ASSERT_EQ_INT(9, event.y);
 
-	ASSERT_TRUE(editor_read_key_with_input(release_then_plain,
-				sizeof(release_then_plain) - 1, &key) == 0);
-	ASSERT_EQ_INT('X', key);
+	ASSERT_TRUE(editor_read_key_with_input(modifier_drag_then_plain,
+				sizeof(modifier_drag_then_plain) - 1, &key) == 0);
+	ASSERT_EQ_INT('Z', key);
 	ASSERT_EQ_INT(0, editorConsumeMouseEvent(&event));
 
 	ASSERT_TRUE(editor_read_key_with_input(unsupported_then_plain,
@@ -1572,12 +1588,163 @@ static int test_editor_process_keypress_mouse_click_keeps_selection_anchor(void)
 	return 0;
 }
 
+static int test_editor_process_keypress_mouse_drag_starts_selection_without_ctrl_b(void) {
+	add_row("abcdef");
+	E.window_rows = 3;
+	E.window_cols = 20;
+	E.cy = 0;
+	E.cx = 0;
+
+	const char press[] = "\x1b[<0;2;1M";
+	const char drag[] = "\x1b[<32;6;1M";
+	ASSERT_TRUE(editor_process_keypress_with_input(press, sizeof(press) - 1) == 0);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+	ASSERT_TRUE(editor_process_keypress_with_input(drag, sizeof(drag) - 1) == 0);
+	ASSERT_EQ_INT(1, E.selection_mode_active);
+	ASSERT_EQ_INT(1, E.selection_anchor_cx);
+	ASSERT_EQ_INT(0, E.selection_anchor_cy);
+
+	struct editorSelectionRange range;
+	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
+	ASSERT_EQ_INT(0, range.start_cy);
+	ASSERT_EQ_INT(1, range.start_cx);
+	ASSERT_EQ_INT(0, range.end_cy);
+	ASSERT_EQ_INT(5, range.end_cx);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_press_without_drag_keeps_click_behavior(void) {
+	add_row("abcdef");
+	E.window_rows = 3;
+	E.window_cols = 20;
+	E.cy = 0;
+	E.cx = 0;
+
+	const char press[] = "\x1b[<0;4;1M";
+	ASSERT_TRUE(editor_process_keypress_with_input(press, sizeof(press) - 1) == 0);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(3, E.cx);
+	ASSERT_EQ_INT(1, E.mouse_left_button_down);
+
+	const char release[] = "\x1b[<0;4;1m";
+	ASSERT_TRUE(editor_process_keypress_with_input(release, sizeof(release) - 1) == 0);
+	ASSERT_EQ_INT(0, E.mouse_left_button_down);
+	ASSERT_EQ_INT(0, E.mouse_drag_started);
+
+	struct editorSelectionRange range;
+	ASSERT_EQ_INT(0, editorGetSelectionRange(&range));
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drag_resets_existing_selection_anchor(void) {
+	add_row("abcdef");
+	E.cy = 0;
+	E.cx = 1;
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	E.cx = 4;
+
+	const char press[] = "\x1b[<0;6;1M";
+	const char drag[] = "\x1b[<32;3;1M";
+	ASSERT_TRUE(editor_process_keypress_with_input(press, sizeof(press) - 1) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(drag, sizeof(drag) - 1) == 0);
+
+	ASSERT_EQ_INT(1, E.selection_mode_active);
+	ASSERT_EQ_INT(5, E.selection_anchor_cx);
+	ASSERT_EQ_INT(0, E.selection_anchor_cy);
+
+	struct editorSelectionRange range;
+	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
+	ASSERT_EQ_INT(2, range.start_cx);
+	ASSERT_EQ_INT(5, range.end_cx);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drag_clamps_to_viewport_without_autoscroll(void) {
+	for (int i = 0; i < 6; i++) {
+		add_row("0123456789");
+	}
+	E.window_rows = 3;
+	E.window_cols = 5;
+	E.rowoff = 2;
+	E.coloff = 1;
+	E.cy = 0;
+	E.cx = 0;
+
+	const char press[] = "\x1b[<0;3;2M";
+	const char drag[] = "\x1b[<32;50;9M";
+	ASSERT_TRUE(editor_process_keypress_with_input(press, sizeof(press) - 1) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(drag, sizeof(drag) - 1) == 0);
+
+	ASSERT_EQ_INT(1, E.selection_mode_active);
+	ASSERT_EQ_INT(3, E.selection_anchor_cy);
+	ASSERT_EQ_INT(3, E.selection_anchor_cx);
+	ASSERT_EQ_INT(4, E.cy);
+	ASSERT_EQ_INT(5, E.cx);
+	ASSERT_EQ_INT(2, E.rowoff);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drag_honors_rowoff_and_coloff(void) {
+	add_row("0123456789");
+	add_row("abcdefghij");
+	add_row("klmnopqrst");
+	E.window_rows = 4;
+	E.window_cols = 20;
+	E.rowoff = 1;
+	E.coloff = 2;
+
+	const char press[] = "\x1b[<0;2;1M";
+	const char drag[] = "\x1b[<32;4;2M";
+	ASSERT_TRUE(editor_process_keypress_with_input(press, sizeof(press) - 1) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(drag, sizeof(drag) - 1) == 0);
+
+	ASSERT_EQ_INT(2, E.cy);
+	ASSERT_EQ_INT(5, E.cx);
+	ASSERT_EQ_INT(1, E.selection_mode_active);
+
+	struct editorSelectionRange range;
+	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
+	ASSERT_EQ_INT(1, range.start_cy);
+	ASSERT_EQ_INT(3, range.start_cx);
+	ASSERT_EQ_INT(2, range.end_cy);
+	ASSERT_EQ_INT(5, range.end_cx);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_release_stops_drag_session(void) {
+	add_row("abcdef");
+	E.window_rows = 3;
+	E.window_cols = 20;
+	E.cy = 0;
+	E.cx = 0;
+
+	const char press[] = "\x1b[<0;2;1M";
+	const char drag[] = "\x1b[<32;5;1M";
+	const char release[] = "\x1b[<0;5;1m";
+	const char drag_after_release[] = "\x1b[<32;6;1M";
+	ASSERT_TRUE(editor_process_keypress_with_input(press, sizeof(press) - 1) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(drag, sizeof(drag) - 1) == 0);
+	ASSERT_EQ_INT(4, E.cx);
+	ASSERT_TRUE(editor_process_keypress_with_input(release, sizeof(release) - 1) == 0);
+	ASSERT_EQ_INT(0, E.mouse_left_button_down);
+	ASSERT_TRUE(editor_process_keypress_with_input(drag_after_release,
+				sizeof(drag_after_release) - 1) == 0);
+	ASSERT_EQ_INT(4, E.cx);
+
+	struct editorSelectionRange range;
+	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
+	ASSERT_EQ_INT(1, range.start_cx);
+	ASSERT_EQ_INT(4, range.end_cx);
+	return 0;
+}
+
 static int test_editor_prompt_ignores_mouse_events(void) {
 	add_row("abcdef");
 	E.cy = 0;
 	E.cx = 2;
 
-	const char input[] = "\x1b[<0;6;1M\x1b";
+	const char input[] = "\x1b[<0;6;1M\x1b[<32;6;1M\x1b[<0;6;1m\x1b";
 	char *result = editor_prompt_with_input(input, sizeof(input) - 1, "Prompt: %s");
 	ASSERT_TRUE(result == NULL);
 	ASSERT_EQ_INT(0, E.cy);
@@ -2879,6 +3046,18 @@ int main(void) {
 			test_editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps},
 		{"editor_process_keypress_mouse_click_keeps_selection_anchor",
 			test_editor_process_keypress_mouse_click_keeps_selection_anchor},
+		{"editor_process_keypress_mouse_drag_starts_selection_without_ctrl_b",
+			test_editor_process_keypress_mouse_drag_starts_selection_without_ctrl_b},
+		{"editor_process_keypress_mouse_press_without_drag_keeps_click_behavior",
+			test_editor_process_keypress_mouse_press_without_drag_keeps_click_behavior},
+		{"editor_process_keypress_mouse_drag_resets_existing_selection_anchor",
+			test_editor_process_keypress_mouse_drag_resets_existing_selection_anchor},
+		{"editor_process_keypress_mouse_drag_clamps_to_viewport_without_autoscroll",
+			test_editor_process_keypress_mouse_drag_clamps_to_viewport_without_autoscroll},
+		{"editor_process_keypress_mouse_drag_honors_rowoff_and_coloff",
+			test_editor_process_keypress_mouse_drag_honors_rowoff_and_coloff},
+		{"editor_process_keypress_mouse_release_stops_drag_session",
+			test_editor_process_keypress_mouse_release_stops_drag_session},
 		{"editor_prompt_ignores_mouse_events", test_editor_prompt_ignores_mouse_events},
 		{"editor_process_keypress_ctrl_b_toggles_selection_mode",
 			test_editor_process_keypress_ctrl_b_toggles_selection_mode},

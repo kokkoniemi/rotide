@@ -15,8 +15,8 @@
 #define VT100_RESET_CURSOR_POS_3 "\x1b[H"
 #define VT100_SHOW_CURSOR_6 "\x1b[?25h"
 #define VT100_CURSOR_DEFAULT_5 "\x1b[0 q"
-#define VT100_ENABLE_MOUSE_16 "\x1b[?1000h\x1b[?1006h"
-#define VT100_DISABLE_MOUSE_16 "\x1b[?1000l\x1b[?1006l"
+#define VT100_ENABLE_MOUSE "\x1b[?1000h\x1b[?1002h\x1b[?1006h"
+#define VT100_DISABLE_MOUSE "\x1b[?1000l\x1b[?1002l\x1b[?1006l"
 #define OSC52_PLAIN_PREFIX "\x1b]52;c;"
 #define OSC52_PLAIN_SUFFIX "\a"
 #define OSC52_TMUX_PREFIX "\x1bPtmux;\x1b\x1b]52;c;"
@@ -87,19 +87,32 @@ static int editorDecodeSgrMousePayload(const char *payload, struct editorMouseEv
 	if (cx <= 0 || cy <= 0) {
 		return 1;
 	}
-
-	// SGR uses lowercase 'm' for release; we only dispatch press/wheel events.
-	if (suffix != 'M') {
+	if (cb & ~((3) | (4 | 8 | 16) | 32 | 64)) {
 		return 1;
 	}
-	// Motion bit marks drag/repeat reports which are out of scope for now.
-	if (cb & 32) {
+
+	int button = cb & 0x03;
+	int has_modifiers = cb & (4 | 8 | 16);
+	int has_motion = cb & 32;
+	int has_wheel = cb & 64;
+	if (has_modifiers) {
+		return 1;
+	}
+
+	// SGR uses lowercase 'm' for release.
+	if (suffix == 'm') {
+		if (!has_motion && !has_wheel && button == 0) {
+			event_out->kind = EDITOR_MOUSE_EVENT_LEFT_RELEASE;
+		}
+		return 1;
+	}
+	if (suffix != 'M') {
 		return 1;
 	}
 
 	// Wheel events set bit 6 and encode direction in the low two bits.
-	if (cb & 64) {
-		int wheel_button = cb & 0x03;
+	if (has_wheel) {
+		int wheel_button = button;
 		if (wheel_button == 0) {
 			event_out->kind = EDITOR_MOUSE_EVENT_WHEEL_UP;
 		} else if (wheel_button == 1) {
@@ -108,7 +121,13 @@ static int editorDecodeSgrMousePayload(const char *payload, struct editorMouseEv
 		return 1;
 	}
 
-	int button = cb & 0x03;
+	if (has_motion) {
+		if (button == 0) {
+			event_out->kind = EDITOR_MOUSE_EVENT_LEFT_DRAG;
+		}
+		return 1;
+	}
+
 	if (button == 0) {
 		event_out->kind = EDITOR_MOUSE_EVENT_LEFT_PRESS;
 	}
@@ -270,7 +289,7 @@ static void editorRestoreTerminalInternal(void) {
 			terminal_raw_enabled = 0;
 		}
 	}
-	(void)editorWriteAll(STDOUT_FILENO, VT100_DISABLE_MOUSE_16, 16);
+	(void)editorWriteAll(STDOUT_FILENO, VT100_DISABLE_MOUSE, sizeof(VT100_DISABLE_MOUSE) - 1);
 	editorRestoreCursorVisualState();
 	// Drop any queued event so a later key read cannot consume stale mouse data.
 	pending_mouse_event.kind = EDITOR_MOUSE_EVENT_NONE;
@@ -385,7 +404,7 @@ void setRawMode(void) {
 		panic("tcsetattr");
 	}
 	// Mouse enable is best-effort: unsupported terminals simply ignore the control sequence.
-	(void)editorWriteAll(STDOUT_FILENO, VT100_ENABLE_MOUSE_16, 16);
+	(void)editorWriteAll(STDOUT_FILENO, VT100_ENABLE_MOUSE, sizeof(VT100_ENABLE_MOUSE) - 1);
 	terminal_raw_enabled = 1;
 	editorInstallTerminationHandlers();
 }

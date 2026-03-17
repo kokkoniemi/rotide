@@ -633,23 +633,51 @@ static void editorMoveCursor(int k) {
 	editorAlignCursorWithRowEnd();
 }
 
-static void editorHandleMouseClick(const struct editorMouseEvent *event) {
+static int editorResolveMouseToBufferPosition(const struct editorMouseEvent *event,
+		int clamp_to_viewport, int *row_idx_out, int *cx_out) {
+	if (event == NULL || row_idx_out == NULL || cx_out == NULL || E.numrows == 0) {
+		return 0;
+	}
+
 	// SGR mouse coordinates are terminal-absolute and 1-based.
 	int mouse_row = event->y - 1;
-	// Ignore clicks outside the text viewport (status/message bars are below window_rows).
-	if (mouse_row < 0 || mouse_row >= E.window_rows) {
-		return;
+	int mouse_col = event->x - 1;
+	if (clamp_to_viewport) {
+		if (E.window_rows <= 0 || E.window_cols <= 0) {
+			return 0;
+		}
+		if (mouse_row < 0) {
+			mouse_row = 0;
+		}
+		if (mouse_row >= E.window_rows) {
+			mouse_row = E.window_rows - 1;
+		}
+		if (mouse_col < 0) {
+			mouse_col = 0;
+		}
+		if (mouse_col >= E.window_cols) {
+			mouse_col = E.window_cols - 1;
+		}
+	} else {
+		// Ignore clicks outside the text viewport (status/message bars are below window_rows).
+		if (mouse_row < 0 || mouse_row >= E.window_rows || mouse_col < 0) {
+			return 0;
+		}
 	}
 
 	int row_idx = E.rowoff + mouse_row;
-	// Ignore filler rows beyond the end of file.
-	if (row_idx < 0 || row_idx >= E.numrows) {
-		return;
-	}
-
-	int mouse_col = event->x - 1;
-	if (mouse_col < 0) {
-		return;
+	if (clamp_to_viewport) {
+		if (row_idx < 0) {
+			row_idx = 0;
+		}
+		if (row_idx >= E.numrows) {
+			row_idx = E.numrows - 1;
+		}
+	} else {
+		// Ignore filler rows beyond the end of file.
+		if (row_idx < 0 || row_idx >= E.numrows) {
+			return 0;
+		}
 	}
 
 	int target_rx = E.coloff + mouse_col;
@@ -658,9 +686,57 @@ static void editorHandleMouseClick(const struct editorMouseEvent *event) {
 	}
 
 	// Convert rendered column -> buffer byte index while respecting grapheme boundaries.
+	*row_idx_out = row_idx;
+	*cx_out = editorRowRxToCx(&E.rows[row_idx], target_rx);
+	return 1;
+}
+
+static int editorMoveCursorToMouse(const struct editorMouseEvent *event, int clamp_to_viewport) {
+	int row_idx = 0;
+	int cx = 0;
+	if (!editorResolveMouseToBufferPosition(event, clamp_to_viewport, &row_idx, &cx)) {
+		return 0;
+	}
+
 	E.cy = row_idx;
-	E.cx = editorRowRxToCx(&E.rows[row_idx], target_rx);
+	E.cx = cx;
 	editorAlignCursorWithRowEnd();
+	return 1;
+}
+
+static void editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
+	if (!editorMoveCursorToMouse(event, 0)) {
+		E.mouse_left_button_down = 0;
+		E.mouse_drag_started = 0;
+		return;
+	}
+
+	E.mouse_left_button_down = 1;
+	E.mouse_drag_anchor_cx = E.cx;
+	E.mouse_drag_anchor_cy = E.cy;
+	E.mouse_drag_started = 0;
+}
+
+static void editorHandleMouseLeftDrag(const struct editorMouseEvent *event) {
+	if (!E.mouse_left_button_down) {
+		return;
+	}
+	if (!editorMoveCursorToMouse(event, 1)) {
+		return;
+	}
+
+	if (!E.mouse_drag_started) {
+		// A new drag always starts a fresh selection anchored at the initial press point.
+		E.selection_mode_active = 1;
+		E.selection_anchor_cx = E.mouse_drag_anchor_cx;
+		E.selection_anchor_cy = E.mouse_drag_anchor_cy;
+		E.mouse_drag_started = 1;
+	}
+}
+
+static void editorHandleMouseLeftRelease(void) {
+	E.mouse_left_button_down = 0;
+	E.mouse_drag_started = 0;
 }
 
 static void editorHandleMouseWheel(const struct editorMouseEvent *event) {
@@ -680,7 +756,13 @@ static void editorHandleMouseEvent(void) {
 
 	switch (event.kind) {
 		case EDITOR_MOUSE_EVENT_LEFT_PRESS:
-			editorHandleMouseClick(&event);
+			editorHandleMouseLeftPress(&event);
+			break;
+		case EDITOR_MOUSE_EVENT_LEFT_DRAG:
+			editorHandleMouseLeftDrag(&event);
+			break;
+		case EDITOR_MOUSE_EVENT_LEFT_RELEASE:
+			editorHandleMouseLeftRelease();
 			break;
 		case EDITOR_MOUSE_EVENT_WHEEL_UP:
 		case EDITOR_MOUSE_EVENT_WHEEL_DOWN:
@@ -780,7 +862,7 @@ void editorProcessKeypress(void) {
 			editorMoveCursor(c);
 			break;
 		case MOUSE_EVENT:
-			// Mouse input is navigation only; it should break typed-run grouping but not create edits.
+			// Mouse input can move cursor/selection, but it should not create edit history entries.
 			editorHistoryBreakGroup();
 			editorHandleMouseEvent();
 			break;

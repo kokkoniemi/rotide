@@ -42,6 +42,10 @@ void reset_editor_state(void) {
 	E.selection_mode_active = 0;
 	E.selection_anchor_cx = 0;
 	E.selection_anchor_cy = 0;
+	E.mouse_left_button_down = 0;
+	E.mouse_drag_anchor_cx = 0;
+	E.mouse_drag_anchor_cy = 0;
+	E.mouse_drag_started = 0;
 }
 
 void add_row(const char *s) {

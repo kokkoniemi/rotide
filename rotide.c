@@ -1,4 +1,3 @@
-// TODO(feature): Add mouse drag support for text selection.
 // TODO(feature): Add support for custom keymap that reads and saves the settings to project root folder
 
 
@@ -36,6 +35,10 @@ void initEditor(void) {
 	E.selection_mode_active = 0;
 	E.selection_anchor_cx = 0;
 	E.selection_anchor_cy = 0;
+	E.mouse_left_button_down = 0;
+	E.mouse_drag_anchor_cx = 0;
+	E.mouse_drag_anchor_cy = 0;
+	E.mouse_drag_started = 0;
 	E.clipboard_text = NULL;
 	E.clipboard_textlen = 0;
 	E.clipboard_external_sink = NULL;

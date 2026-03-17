@@ -19,6 +19,8 @@ typedef void (*editorClipboardExternalSink)(const char *text, int len);
 enum editorMouseEventKind {
 	EDITOR_MOUSE_EVENT_NONE = 0,
 	EDITOR_MOUSE_EVENT_LEFT_PRESS,
+	EDITOR_MOUSE_EVENT_LEFT_DRAG,
+	EDITOR_MOUSE_EVENT_LEFT_RELEASE,
 	EDITOR_MOUSE_EVENT_WHEEL_UP,
 	EDITOR_MOUSE_EVENT_WHEEL_DOWN
 };
@@ -95,6 +97,10 @@ struct editorConfig {
 	int selection_mode_active;
 	int selection_anchor_cx;
 	int selection_anchor_cy;
+	int mouse_left_button_down;
+	int mouse_drag_anchor_cx;
+	int mouse_drag_anchor_cy;
+	int mouse_drag_started;
 	char *clipboard_text;
 	int clipboard_textlen;
 	editorClipboardExternalSink clipboard_external_sink;
