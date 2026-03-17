@@ -1,5 +1,6 @@
 #include "buffer.h"
 
+#include "alloc.h"
 #include "input.h"
 #include "terminal.h"
 #include <errno.h>
@@ -17,6 +18,10 @@
 
 #define NEWLINE_CHAR_WIDTH 1
 
+static void editorSetAllocFailureStatus(void) {
+	editorSetStatusMsg("Out of memory");
+}
+
 char *editorRowsToStr(int *buflen) {
 	int total = 0;
 	for (int i = 0; i < E.numrows; i++) {
@@ -24,7 +29,14 @@ char *editorRowsToStr(int *buflen) {
 	}
 
 	// Save format is a plain newline-terminated concatenation of rows.
-	char *buf = malloc(total);
+	char *buf = NULL;
+	if (total > 0) {
+		buf = editorMalloc((size_t)total);
+		if (buf == NULL) {
+			*buflen = total;
+			return NULL;
+		}
+	}
 	char *p = buf;
 	for (int i = 0; i < E.numrows; i++) {
 		memcpy(p, E.rows[i].chars, E.rows[i].size);
@@ -351,33 +363,57 @@ int editorRowRxToCx(struct erow *row, int rx) {
 	return row->size;
 }
 
-void editorUpdateRow(struct erow *row) {
+static int editorBuildRender(const char *chars, int size, char **render_out, int *rsize_out) {
 	int tabs = 0;
-	for (int i = 0; i < row->size; i++) {
-		if (row->chars[i] == '\t') {
+	for (int i = 0; i < size; i++) {
+		if (chars[i] == '\t') {
 			tabs++;
 		}
 	}
 
-	free(row->render);
-	row->render = malloc(row->size + tabs * (ROTIDE_TAB_WIDTH - 1) + 1);
+	size_t render_cap = (size_t)size + (size_t)tabs * (ROTIDE_TAB_WIDTH - 1) + 1;
+	char *render = editorMalloc(render_cap);
+	if (render == NULL) {
+		return 0;
+	}
 
 	int idx = 0;
 	int rx = 0;
-	for (int i = 0; i < row->size; i++) {
-		if (row->chars[i] == '\t') {
+	for (int i = 0; i < size; i++) {
+		if (chars[i] == '\t') {
 			// Expand tabs to the next visual tab stop, not a fixed byte count.
 			do {
-				row->render[idx++] = ' ';
+				render[idx++] = ' ';
 				rx++;
 			} while (rx % ROTIDE_TAB_WIDTH != 0);
 			continue;
 		}
-		row->render[idx++] = row->chars[i];
-		rx += editorCharDisplayWidth(&row->chars[i], row->size - i);
+		render[idx++] = chars[i];
+		rx += editorCharDisplayWidth(&chars[i], size - i);
 	}
-	row->render[idx] = '\0';
-	row->rsize = idx;
+	render[idx] = '\0';
+
+	*render_out = render;
+	*rsize_out = idx;
+	return 1;
+}
+
+static int editorRebuildRowRender(struct erow *row) {
+	char *new_render = NULL;
+	int new_rsize = 0;
+	if (!editorBuildRender(row->chars, row->size, &new_render, &new_rsize)) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+
+	free(row->render);
+	row->render = new_render;
+	row->rsize = new_rsize;
+	return 1;
+}
+
+void editorUpdateRow(struct erow *row) {
+	(void)editorRebuildRowRender(row);
 }
 
 void editorInsertRow(int idx, char *s, size_t len) {
@@ -385,19 +421,42 @@ void editorInsertRow(int idx, char *s, size_t len) {
 		return;
 	}
 
-	E.rows = realloc(E.rows, sizeof(struct erow) * (E.numrows + 1));
+	char *row_chars = editorMalloc(len + 1);
+	if (row_chars == NULL) {
+		editorSetAllocFailureStatus();
+		return;
+	}
+	memcpy(row_chars, s, len);
+	row_chars[len] = '\0';
+
+	struct erow *new_rows = editorRealloc(E.rows, sizeof(struct erow) * (E.numrows + 1));
+	if (new_rows == NULL) {
+		free(row_chars);
+		editorSetAllocFailureStatus();
+		return;
+	}
+
+	E.rows = new_rows;
 	memmove(&E.rows[idx + 1], &E.rows[idx], sizeof(struct erow) * (E.numrows - idx));
 
-	E.rows[idx].size = len;
-	E.rows[idx].chars = malloc(len + 1);
-	memcpy(E.rows[idx].chars, s, len);
-	E.rows[idx].chars[len] = '\0';
-	E.numrows++;
-	E.dirty++;
-
+	E.rows[idx].size = (int)len;
+	E.rows[idx].chars = row_chars;
 	E.rows[idx].rsize = 0;
 	E.rows[idx].render = NULL;
-	editorUpdateRow(&E.rows[idx]);
+	if (!editorRebuildRowRender(&E.rows[idx])) {
+		free(E.rows[idx].chars);
+		memmove(&E.rows[idx], &E.rows[idx + 1], sizeof(struct erow) * (E.numrows - idx));
+		if (E.numrows > 0) {
+			struct erow *shrunk = editorRealloc(E.rows, sizeof(struct erow) * E.numrows);
+			if (shrunk != NULL) {
+				E.rows = shrunk;
+			}
+		}
+		return;
+	}
+
+	E.numrows++;
+	E.dirty++;
 }
 
 void editorDeleteRow(int idx) {
@@ -418,20 +477,40 @@ void editorInsertCharAt(struct erow *row, int idx, int c) {
 		idx = row->size;
 	}
 
-	row->chars = realloc(row->chars, row->size + 2);
+	char *new_chars = editorRealloc(row->chars, (size_t)row->size + 2);
+	if (new_chars == NULL) {
+		editorSetAllocFailureStatus();
+		return;
+	}
+	row->chars = new_chars;
 	memmove(&row->chars[idx + 1], &row->chars[idx], row->size - idx + 1);
 	row->size++;
-	row->chars[idx] = c;
-	editorUpdateRow(row);
+	row->chars[idx] = (char)c;
+	if (!editorRebuildRowRender(row)) {
+		memmove(&row->chars[idx], &row->chars[idx + 1], row->size - idx);
+		row->size--;
+		row->chars[row->size] = '\0';
+		return;
+	}
 	E.dirty++;
 }
 
 void editorRowAppendString(struct erow *row, char *s, size_t len) {
-	row->chars = realloc(row->chars, row->size + len + 1);
+	int old_size = row->size;
+	char *new_chars = editorRealloc(row->chars, (size_t)row->size + len + 1);
+	if (new_chars == NULL) {
+		editorSetAllocFailureStatus();
+		return;
+	}
+	row->chars = new_chars;
 	memcpy(&row->chars[row->size], s, len);
-	row->size += len;
+	row->size += (int)len;
 	row->chars[row->size] = '\0';
-	editorUpdateRow(row);
+	if (!editorRebuildRowRender(row)) {
+		row->size = old_size;
+		row->chars[row->size] = '\0';
+		return;
+	}
 	E.dirty++;
 }
 
@@ -439,9 +518,16 @@ void editorDelCharAt(struct erow *row, int idx) {
 	if (idx < 0 || row->size <= idx) {
 		return;
 	}
+
+	char deleted = row->chars[idx];
 	memmove(&row->chars[idx], &row->chars[idx + 1], row->size - idx);
 	row->size--;
-	editorUpdateRow(row);
+	if (!editorRebuildRowRender(row)) {
+		memmove(&row->chars[idx + 1], &row->chars[idx], row->size - idx + 1);
+		row->chars[idx] = deleted;
+		row->size++;
+		return;
+	}
 	E.dirty++;
 }
 
@@ -449,34 +535,75 @@ void editorDelCharsAt(struct erow *row, int idx, int len) {
 	if (idx < 0 || len <= 0 || idx + len > row->size) {
 		return;
 	}
+
+	char *removed = editorMalloc((size_t)len);
+	if (removed == NULL) {
+		editorSetAllocFailureStatus();
+		return;
+	}
+	memcpy(removed, &row->chars[idx], (size_t)len);
+
 	memmove(&row->chars[idx], &row->chars[idx + len], row->size - idx - len + 1);
 	row->size -= len;
-	editorUpdateRow(row);
+	if (!editorRebuildRowRender(row)) {
+		memmove(&row->chars[idx + len], &row->chars[idx], row->size - idx + 1);
+		memcpy(&row->chars[idx], removed, (size_t)len);
+		row->size += len;
+		free(removed);
+		return;
+	}
+	free(removed);
 	E.dirty++;
 }
 
 void editorInsertChar(int c) {
 	if (E.cy == E.numrows) {
+		int prev_numrows = E.numrows;
 		editorInsertRow(E.numrows, "", 0);
+		if (E.numrows == prev_numrows) {
+			return;
+		}
 	}
+
+	int dirty_before = E.dirty;
 	editorInsertCharAt(&E.rows[E.cy], E.cx, c);
-	E.cx++;
+	if (E.dirty != dirty_before) {
+		E.cx++;
+	}
 }
 
 void editorInsertNewline(void) {
 	if (E.cx == 0) {
+		int prev_numrows = E.numrows;
 		editorInsertRow(E.cy, "", 0);
-		E.cy++;
+		if (E.numrows != prev_numrows) {
+			E.cy++;
+		}
 		return;
 	}
 
 	struct erow *row = &E.rows[E.cy];
 	int split_idx = editorRowClampCxToClusterBoundary(row, E.cx);
-	editorInsertRow(E.cy + 1, &row->chars[split_idx], row->size - split_idx);
+	char *prefix_render = NULL;
+	int prefix_rsize = 0;
+	if (!editorBuildRender(row->chars, split_idx, &prefix_render, &prefix_rsize)) {
+		editorSetAllocFailureStatus();
+		return;
+	}
+
+	int prev_numrows = E.numrows;
+	editorInsertRow(E.cy + 1, &row->chars[split_idx], (size_t)(row->size - split_idx));
+	if (E.numrows == prev_numrows) {
+		free(prefix_render);
+		return;
+	}
+
 	row = &E.rows[E.cy];
 	row->size = split_idx;
 	row->chars[row->size] = '\0';
-	editorUpdateRow(row);
+	free(row->render);
+	row->render = prefix_render;
+	row->rsize = prefix_rsize;
 	E.cy++;
 	E.cx = 0;
 }
@@ -489,13 +616,22 @@ void editorDelChar(void) {
 
 	if (E.cx > 0) {
 		int prev_cx = editorRowPrevClusterIdx(row, E.cx);
+		int dirty_before = E.dirty;
 		editorDelCharsAt(row, prev_cx, E.cx - prev_cx);
-		E.cx = prev_cx;
+		if (E.dirty != dirty_before) {
+			E.cx = prev_cx;
+		}
 		return;
 	}
 
+	int old_cx = E.cx;
 	E.cx = E.rows[E.cy - 1].size;
+	int dirty_before = E.dirty;
 	editorRowAppendString(&E.rows[E.cy - 1], row->chars, row->size);
+	if (E.dirty == dirty_before) {
+		E.cx = old_cx;
+		return;
+	}
 	editorDeleteRow(E.cy);
 	E.cy--;
 }
@@ -561,7 +697,7 @@ static char *editorTempPathForTarget(const char *target) {
 
 	size_t base_len = strlen(basename);
 	size_t total_len = dir_len + base_len + sizeof(suffix);
-	char *tmp_path = malloc(total_len);
+	char *tmp_path = editorMalloc(total_len);
 	if (tmp_path == NULL) {
 		return NULL;
 	}
@@ -584,7 +720,9 @@ static mode_t editorDefaultCreateMode(void) {
 void editorSave(void) {
 	if (E.filename == NULL) {
 		if ((E.filename = editorPrompt("Save as: %s")) == NULL) {
-			editorSetStatusMsg("Save aborted");
+			if (E.statusmsg[0] == '\0') {
+				editorSetStatusMsg("Save aborted");
+			}
 			return;
 		}
 	}
@@ -597,7 +735,9 @@ void editorSave(void) {
 	struct stat st;
 
 	if (buf == NULL && len > 0) {
-		goto err;
+		free(tmp_path);
+		editorSetAllocFailureStatus();
+		return;
 	}
 
 	if (stat(E.filename, &st) == 0) {
@@ -605,7 +745,9 @@ void editorSave(void) {
 	}
 
 	if (tmp_path == NULL) {
-		goto err;
+		free(buf);
+		editorSetAllocFailureStatus();
+		return;
 	}
 
 	// Write to a sibling temp file and atomically replace the target on success.

@@ -1,5 +1,6 @@
 #include "output.h"
 
+#include "alloc.h"
 #include "buffer.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,7 +24,11 @@ struct writeBuf {
 #define VT100_NORMAL_COLORS_3 "\x1b[m"
 
 static int wbAppend(struct writeBuf *wb, const char *s, int len) {
-	char *new = realloc(wb->b, wb->len + len);
+	if (len <= 0) {
+		return 1;
+	}
+
+	char *new = editorRealloc(wb->b, (size_t)wb->len + (size_t)len);
 
 	if (new == NULL) {
 		return 0;
@@ -33,7 +38,7 @@ static int wbAppend(struct writeBuf *wb, const char *s, int len) {
 	wb->b = new;
 	wb->len += len;
 
-	return len;
+	return 1;
 }
 
 static void wbFree(struct writeBuf *wb) {
@@ -42,7 +47,7 @@ static void wbFree(struct writeBuf *wb) {
 
 /*** Output ***/
 
-static void editorDrawGreeting(struct writeBuf *wb) {
+static int editorDrawGreeting(struct writeBuf *wb) {
 	char greet[80];
 	int greetlen = snprintf(greet, sizeof(greet),
 				"RotIDE editor - version %s", ROTIDE_VERSION);
@@ -51,19 +56,23 @@ static void editorDrawGreeting(struct writeBuf *wb) {
 	}
 	int pad = (E.window_cols - greetlen) / 2;
 	if (pad) {
-		wbAppend(wb, "~", 1);
+		if (!wbAppend(wb, "~", 1)) {
+			return 0;
+		}
 		pad--;
 	}
 	while (pad--) {
-		wbAppend(wb, " ", 1);
+		if (!wbAppend(wb, " ", 1)) {
+			return 0;
+		}
 	}
-	wbAppend(wb, greet, greetlen);
+	return wbAppend(wb, greet, greetlen);
 }
 
-static void editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int coloff,
+static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int coloff,
 		int cols) {
 	if (cols <= 0 || coloff < 0 || row->rsize <= 0) {
-		return;
+		return 1;
 	}
 
 	int rx = 0;
@@ -88,34 +97,48 @@ static void editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int col
 	}
 
 	if (start == -1 || end <= start) {
-		return;
+		return 1;
 	}
-	wbAppend(wb, &row->render[start], end - start);
+	return wbAppend(wb, &row->render[start], end - start);
 }
 
-static void editorDrawFileRow(struct writeBuf *wb, size_t i) {
-	editorDrawRenderSlice(wb, &E.rows[i], E.coloff, E.window_cols);
+static int editorDrawFileRow(struct writeBuf *wb, size_t i) {
+	return editorDrawRenderSlice(wb, &E.rows[i], E.coloff, E.window_cols);
 }
 
-static void editorDrawRows(struct writeBuf *wb) {
+static int editorDrawRows(struct writeBuf *wb) {
 	for (int y = 0; y < E.window_rows; y++) {
 		int y_offset = y + E.rowoff;
 
 		if (y_offset < E.numrows) {
-			editorDrawFileRow(wb, y_offset);
+			if (!editorDrawFileRow(wb, y_offset)) {
+				return 0;
+			}
 		} else if (E.numrows == 0 && y == E.window_rows / 3) {
-			editorDrawGreeting(wb);
+			if (!editorDrawGreeting(wb)) {
+				return 0;
+			}
 		} else {
-			wbAppend(wb, "~", 1);
+			if (!wbAppend(wb, "~", 1)) {
+				return 0;
+			}
 		}
 
-		wbAppend(wb, VT100_CLEAR_ROW_3, 3);
-		wbAppend(wb, "\r\n", 2);
+		if (!wbAppend(wb, VT100_CLEAR_ROW_3, 3)) {
+			return 0;
+		}
+		if (!wbAppend(wb, "\r\n", 2)) {
+			return 0;
+		}
 	}
+
+	return 1;
 }
 
-static void editorDrawStatusBar(struct writeBuf *wb) {
-	wbAppend(wb, VT100_INVERTED_COLORS_4, 4);
+static int editorDrawStatusBar(struct writeBuf *wb) {
+	if (!wbAppend(wb, VT100_INVERTED_COLORS_4, 4)) {
+		return 0;
+	}
 	char leftbuf[80], rightbuf[80];
 	char *filename = E.filename;
 	if (filename == NULL) {
@@ -149,15 +172,23 @@ static void editorDrawStatusBar(struct writeBuf *wb) {
 	if (llen > E.window_cols) {
 		llen = E.window_cols;
 	}
-	wbAppend(wb, leftbuf, llen);
-
-	for (; llen < E.window_cols - rlen; llen++) {
-		wbAppend(wb, " ", 1);
+	if (!wbAppend(wb, leftbuf, llen)) {
+		return 0;
 	}
 
-	wbAppend(wb, rightbuf, rlen);
-	wbAppend(wb, VT100_NORMAL_COLORS_3, 3);
-	wbAppend(wb, "\r\n", 2);
+	for (; llen < E.window_cols - rlen; llen++) {
+		if (!wbAppend(wb, " ", 1)) {
+			return 0;
+		}
+	}
+
+	if (!wbAppend(wb, rightbuf, rlen)) {
+		return 0;
+	}
+	if (!wbAppend(wb, VT100_NORMAL_COLORS_3, 3)) {
+		return 0;
+	}
+	return wbAppend(wb, "\r\n", 2);
 }
 
 void editorScroll(void) {
@@ -181,15 +212,21 @@ void editorScroll(void) {
 	}
 }
 
-static void editorDrawMessageBar(struct writeBuf *wb) {
-	wbAppend(wb, VT100_CLEAR_ROW_3, 3);
+static int editorDrawMessageBar(struct writeBuf *wb) {
+	if (!wbAppend(wb, VT100_CLEAR_ROW_3, 3)) {
+		return 0;
+	}
 	int msglen = strlen(E.statusmsg);
 	if (msglen > E.window_cols) {
 		msglen = E.window_cols;
 	}
 	if (msglen && time(NULL) - E.statusmsg_time < 5) {
-		wbAppend(wb, E.statusmsg, msglen);
+		if (!wbAppend(wb, E.statusmsg, msglen)) {
+			return 0;
+		}
 	}
+
+	return 1;
 }
 
 void editorRefreshScreen(void) {
@@ -198,21 +235,36 @@ void editorRefreshScreen(void) {
 	struct writeBuf wb = WRITEBUF_INIT;
 
 	// Build a full frame in memory and write once to reduce terminal flicker.
-	wbAppend(&wb, VT100_HIDE_CURSOR_6, 6);
-	wbAppend(&wb, VT100_RESET_CURSOR_POS_3, 3);
+	if (!wbAppend(&wb, VT100_HIDE_CURSOR_6, 6) ||
+			!wbAppend(&wb, VT100_RESET_CURSOR_POS_3, 3)) {
+		wbFree(&wb);
+		editorSetStatusMsg("Out of memory");
+		return;
+	}
 
-	editorDrawRows(&wb);
-	editorDrawStatusBar(&wb);
-	editorDrawMessageBar(&wb);
+	if (!editorDrawRows(&wb) || !editorDrawStatusBar(&wb) ||
+			!editorDrawMessageBar(&wb)) {
+		wbFree(&wb);
+		editorSetStatusMsg("Out of memory");
+		return;
+	}
 
 	char buf[32];
 	int buflen = snprintf(buf, sizeof(buf), "\x1b[%d;%dH",
 			(E.cy - E.rowoff) + 1, (E.rx - E.coloff) + 1);
 	if (buflen > 0 && buflen < (int)sizeof(buf)) {
-		wbAppend(&wb, buf, buflen);
+		if (!wbAppend(&wb, buf, buflen)) {
+			wbFree(&wb);
+			editorSetStatusMsg("Out of memory");
+			return;
+		}
 	}
 
-	wbAppend(&wb, VT100_SHOW_CURSOR_6, 6);
+	if (!wbAppend(&wb, VT100_SHOW_CURSOR_6, 6)) {
+		wbFree(&wb);
+		editorSetStatusMsg("Out of memory");
+		return;
+	}
 
 	write(STDOUT_FILENO, wb.b, wb.len);
 	wbFree(&wb);

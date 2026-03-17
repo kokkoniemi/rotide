@@ -1,5 +1,6 @@
 #include "input.h"
 
+#include "alloc.h"
 #include <ctype.h>
 #include <limits.h>
 #include <stdlib.h>
@@ -60,7 +61,11 @@ static void editorAlignCursorWithRowEnd(void) {
 
 char *editorPrompt(char *prompt) {
 	size_t bufmax = 128;
-	char *buf = malloc(bufmax);
+	char *buf = editorMalloc(bufmax);
+	if (buf == NULL) {
+		editorSetStatusMsg("Out of memory");
+		return NULL;
+	}
 
 	size_t buflen = 0;
 	buf[0] = '\0';
@@ -87,8 +92,15 @@ char *editorPrompt(char *prompt) {
 			// Keep non-ASCII bytes verbatim; only filter ASCII control bytes.
 			if (byte >= 0x80 || !iscntrl(byte)) {
 				if (buflen == bufmax - 1) {
-					bufmax *= 2;
-					buf = realloc(buf, bufmax);
+					size_t new_bufmax = bufmax * 2;
+					char *new_buf = editorRealloc(buf, new_bufmax);
+					if (new_buf == NULL) {
+						free(buf);
+						editorSetStatusMsg("Out of memory");
+						return NULL;
+					}
+					buf = new_buf;
+					bufmax = new_bufmax;
 				}
 				buf[buflen] = (char)byte;
 				buflen++;

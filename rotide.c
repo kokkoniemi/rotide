@@ -1,4 +1,3 @@
-// TODO(stability): Add allocation-failure guards in prompt buffer growth and row/render allocation paths; preserve state and show a status error.
 // TODO(stability): After atomic save rename, fsync the parent directory to improve crash durability guarantees.
 // TODO(stability): Keep temp-file cleanup exhaustive on all save failure paths (no leftover .rotide-tmp-* files).
 // TODO(stability): Normalize save failure status messages to surface actionable errno context (permission, missing path, read-only FS).

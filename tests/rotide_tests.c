@@ -4,6 +4,7 @@
 #include "input.h"
 #include "output.h"
 #include "terminal.h"
+#include "alloc_test_hooks.h"
 #include "test_helpers.h"
 #include <dirent.h>
 #include <locale.h>
@@ -632,6 +633,187 @@ static int test_editor_prompt_delete_key_removes_entire_utf8_codepoint(void) {
 	return 0;
 }
 
+static int test_editor_prompt_fails_on_initial_alloc(void) {
+	char *answer;
+	char input[] = "name\r";
+
+	editorTestAllocFailAfter(0);
+	answer = editor_prompt_with_input(input, sizeof(input) - 1, "Name: %s");
+	ASSERT_TRUE(answer == NULL);
+	ASSERT_EQ_STR("Out of memory", E.statusmsg);
+	return 0;
+}
+
+static int test_editor_prompt_fails_on_growth_alloc(void) {
+	char *answer;
+	char input[129];
+
+	memset(input, 'a', sizeof(input) - 1);
+	input[sizeof(input) - 1] = '\r';
+
+	editorTestAllocFailAfter(1);
+	answer = editor_prompt_with_input(input, sizeof(input), "Name: %s");
+	ASSERT_TRUE(answer == NULL);
+	ASSERT_EQ_STR("Out of memory", E.statusmsg);
+	return 0;
+}
+
+static int test_editor_insert_row_render_alloc_failure_preserves_state(void) {
+	add_row("abc");
+	E.dirty = 0;
+
+	editorTestAllocFailAfter(2);
+	editorInsertRow(1, "xyz", 3);
+
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_INT(3, E.rows[0].size);
+	ASSERT_EQ_STR("abc", E.rows[0].chars);
+	ASSERT_EQ_STR("abc", E.rows[0].render);
+	ASSERT_EQ_INT(0, E.dirty);
+	ASSERT_EQ_STR("Out of memory", E.statusmsg);
+	return 0;
+}
+
+static int test_editor_insert_char_render_alloc_failure_preserves_state(void) {
+	add_row("ab");
+	E.dirty = 0;
+
+	editorTestAllocFailAfter(1);
+	editorInsertCharAt(&E.rows[0], 1, 'X');
+
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_INT(2, E.rows[0].size);
+	ASSERT_EQ_STR("ab", E.rows[0].chars);
+	ASSERT_EQ_STR("ab", E.rows[0].render);
+	ASSERT_EQ_INT(0, E.dirty);
+	ASSERT_EQ_STR("Out of memory", E.statusmsg);
+	return 0;
+}
+
+static int test_editor_del_char_merge_alloc_failure_preserves_state(void) {
+	add_row("abc");
+	add_row("def");
+	E.cy = 1;
+	E.cx = 0;
+	E.dirty = 0;
+
+	editorTestAllocFailAfter(1);
+	editorDelChar();
+
+	ASSERT_EQ_INT(2, E.numrows);
+	ASSERT_EQ_STR("abc", E.rows[0].chars);
+	ASSERT_EQ_STR("def", E.rows[1].chars);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(0, E.cx);
+	ASSERT_EQ_INT(0, E.dirty);
+	ASSERT_EQ_STR("Out of memory", E.statusmsg);
+	return 0;
+}
+
+static int test_editor_insert_newline_alloc_failure_preserves_state(void) {
+	add_row("hello");
+	E.cy = 0;
+	E.cx = 2;
+	E.dirty = 0;
+
+	editorTestAllocFailAfter(3);
+	editorInsertNewline();
+
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_STR("hello", E.rows[0].chars);
+	ASSERT_EQ_STR("hello", E.rows[0].render);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_EQ_INT(0, E.dirty);
+	ASSERT_EQ_STR("Out of memory", E.statusmsg);
+	return 0;
+}
+
+static int test_editor_save_preserves_prompt_oom_status(void) {
+	add_row("foo");
+	E.dirty = 5;
+	ASSERT_TRUE(E.filename == NULL);
+
+	editorTestAllocFailAfter(0);
+	editorSave();
+
+	ASSERT_TRUE(E.filename == NULL);
+	ASSERT_EQ_INT(5, E.dirty);
+	ASSERT_EQ_STR("Out of memory", E.statusmsg);
+	return 0;
+}
+
+static int test_editor_save_rows_to_str_alloc_failure_preserves_state(void) {
+	char path[] = "/tmp/rotide-test-save-oom-rows-XXXXXX";
+	int fd = mkstemp(path);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(close(fd) == 0);
+
+	add_row("alpha");
+	E.filename = strdup(path);
+	ASSERT_TRUE(E.filename != NULL);
+	E.dirty = 1;
+
+	editorTestAllocFailAfter(0);
+	editorSave();
+
+	ASSERT_EQ_INT(1, E.dirty);
+	ASSERT_EQ_STR("Out of memory", E.statusmsg);
+
+	size_t content_len = 0;
+	char *contents = read_file_contents(path, &content_len);
+	ASSERT_TRUE(contents != NULL);
+	ASSERT_EQ_INT(0, content_len);
+
+	free(contents);
+	unlink(path);
+	return 0;
+}
+
+static int test_editor_save_tmp_path_alloc_failure_preserves_state(void) {
+	char path[] = "/tmp/rotide-test-save-oom-path-XXXXXX";
+	int fd = mkstemp(path);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(close(fd) == 0);
+
+	add_row("alpha");
+	E.filename = strdup(path);
+	ASSERT_TRUE(E.filename != NULL);
+	E.dirty = 1;
+
+	editorTestAllocFailAfter(1);
+	editorSave();
+
+	ASSERT_EQ_INT(1, E.dirty);
+	ASSERT_EQ_STR("Out of memory", E.statusmsg);
+
+	size_t content_len = 0;
+	char *contents = read_file_contents(path, &content_len);
+	ASSERT_TRUE(contents != NULL);
+	ASSERT_EQ_INT(0, content_len);
+
+	free(contents);
+	unlink(path);
+	return 0;
+}
+
+static int test_editor_refresh_screen_reports_oom_without_crash(void) {
+	add_row("line");
+	E.window_rows = 3;
+	E.window_cols = 20;
+
+	editorTestAllocFailAfter(0);
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+
+	ASSERT_TRUE(output != NULL);
+	ASSERT_EQ_INT(0, output_len);
+	ASSERT_EQ_STR("Out of memory", E.statusmsg);
+
+	free(output);
+	return 0;
+}
+
 static int test_editor_read_key_sequences(void) {
 	int key = 0;
 	char plain[] = "x";
@@ -1000,6 +1182,22 @@ int main(void) {
 			test_editor_prompt_backspace_removes_entire_utf8_codepoint},
 		{"editor_prompt_delete_key_removes_entire_utf8_codepoint",
 			test_editor_prompt_delete_key_removes_entire_utf8_codepoint},
+		{"editor_prompt_fails_on_initial_alloc", test_editor_prompt_fails_on_initial_alloc},
+		{"editor_prompt_fails_on_growth_alloc", test_editor_prompt_fails_on_growth_alloc},
+		{"editor_insert_row_render_alloc_failure_preserves_state",
+			test_editor_insert_row_render_alloc_failure_preserves_state},
+		{"editor_insert_char_render_alloc_failure_preserves_state",
+			test_editor_insert_char_render_alloc_failure_preserves_state},
+		{"editor_del_char_merge_alloc_failure_preserves_state",
+			test_editor_del_char_merge_alloc_failure_preserves_state},
+		{"editor_insert_newline_alloc_failure_preserves_state",
+			test_editor_insert_newline_alloc_failure_preserves_state},
+		{"editor_save_preserves_prompt_oom_status",
+			test_editor_save_preserves_prompt_oom_status},
+		{"editor_save_rows_to_str_alloc_failure_preserves_state",
+			test_editor_save_rows_to_str_alloc_failure_preserves_state},
+		{"editor_save_tmp_path_alloc_failure_preserves_state",
+			test_editor_save_tmp_path_alloc_failure_preserves_state},
 		{"editor_read_key_sequences", test_editor_read_key_sequences},
 		{"read_cursor_position_and_window_size_fallback", test_read_cursor_position_and_window_size_fallback},
 		{"read_cursor_position_rejects_malformed_responses",
@@ -1025,6 +1223,8 @@ int main(void) {
 			test_editor_refresh_screen_status_bar_cursor_multibyte_col},
 		{"editor_refresh_screen_status_bar_cursor_tab_display_col",
 			test_editor_refresh_screen_status_bar_cursor_tab_display_col},
+		{"editor_refresh_screen_reports_oom_without_crash",
+			test_editor_refresh_screen_reports_oom_without_crash},
 	};
 
 	int total = (int)(sizeof(tests) / sizeof(tests[0]));
