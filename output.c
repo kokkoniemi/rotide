@@ -2,6 +2,7 @@
 
 #include "alloc.h"
 #include "buffer.h"
+#include "size_utils.h"
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,7 +13,7 @@
 
 struct writeBuf {
 	char *b;
-	int len;
+	size_t len;
 };
 
 #define WRITEBUF_INIT {NULL, 0}
@@ -25,12 +26,17 @@ struct writeBuf {
 #define VT100_INVERTED_COLORS_4 "\x1b[7m"
 #define VT100_NORMAL_COLORS_3 "\x1b[m"
 
-static int wbAppend(struct writeBuf *wb, const char *s, int len) {
-	if (len <= 0) {
+static int wbAppend(struct writeBuf *wb, const char *s, size_t len) {
+	if (len == 0) {
 		return 1;
 	}
 
-	char *new = editorRealloc(wb->b, (size_t)wb->len + (size_t)len);
+	size_t new_len = 0;
+	if (!editorSizeAdd(wb->len, len, &new_len) || new_len > ROTIDE_MAX_TEXT_BYTES) {
+		return 0;
+	}
+
+	char *new = editorRealloc(wb->b, new_len);
 
 	if (new == NULL) {
 		return 0;
@@ -49,15 +55,15 @@ static void wbFree(struct writeBuf *wb) {
 
 /*** Output ***/
 
-static int editorWriteAllToStdout(const char *buf, int len) {
-	if (len <= 0) {
+static int editorWriteAllToStdout(const char *buf, size_t len) {
+	if (len == 0) {
 		return 1;
 	}
 
 	errno = 0;
-	int total = 0;
+	size_t total = 0;
 	while (total < len) {
-		ssize_t written = write(STDOUT_FILENO, buf + total, (size_t)(len - total));
+		ssize_t written = write(STDOUT_FILENO, buf + total, len - total);
 		if (written == -1) {
 			if (errno == EINTR) {
 				continue;
@@ -68,7 +74,7 @@ static int editorWriteAllToStdout(const char *buf, int len) {
 			errno = 0;
 			return 0;
 		}
-		total += (int)written;
+		total += (size_t)written;
 	}
 	return 1;
 }

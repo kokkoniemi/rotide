@@ -5,6 +5,8 @@
 #define _BSD_SOURCE
 #define _GNU_SOURCE
 
+#include <limits.h>
+#include <stddef.h>
 #include <termios.h>
 #include <time.h>
 
@@ -12,9 +14,10 @@
 #define ROTIDE_VERSION "0.0.1"
 #define ROTIDE_TAB_WIDTH 8
 #define ROTIDE_UNDO_HISTORY_LIMIT 200
-#define ROTIDE_OSC52_MAX_COPY_BYTES 100000
+#define ROTIDE_OSC52_MAX_COPY_BYTES ((size_t)100000)
+#define ROTIDE_MAX_TEXT_BYTES ((size_t)INT_MAX)
 
-typedef void (*editorClipboardExternalSink)(const char *text, int len);
+typedef void (*editorClipboardExternalSink)(const char *text, size_t len);
 
 enum editorMouseEventKind {
 	EDITOR_MOUSE_EVENT_NONE = 0,
@@ -61,7 +64,7 @@ enum editorEditPendingMode {
 
 struct editorSnapshot {
 	char *text;
-	int textlen;
+	size_t textlen;
 	int cx;
 	int cy;
 	int dirty;
@@ -102,7 +105,7 @@ struct editorConfig {
 	int mouse_drag_anchor_cy;
 	int mouse_drag_started;
 	char *clipboard_text;
-	int clipboard_textlen;
+	size_t clipboard_textlen;
 	editorClipboardExternalSink clipboard_external_sink;
 	struct editorHistory undo_history;
 	struct editorHistory redo_history;

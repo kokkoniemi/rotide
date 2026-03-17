@@ -4,7 +4,7 @@
 #include "rotide.h"
 #include <stddef.h>
 
-char *editorRowsToStr(int *buflen);
+char *editorRowsToStr(size_t *buflen);
 int editorIsUtf8ContinuationByte(unsigned char c);
 int editorUtf8DecodeCodepoint(const char *s, int len, unsigned int *cp);
 int editorIsGraphemeExtendCodepoint(unsigned int cp);
@@ -37,11 +37,11 @@ void editorSetStatusMsg(const char *fmt, ...);
 void editorSave(void);
 
 int editorGetSelectionRange(struct editorSelectionRange *range_out);
-int editorExtractRangeText(const struct editorSelectionRange *range, char **text_out, int *len_out);
+int editorExtractRangeText(const struct editorSelectionRange *range, char **text_out, size_t *len_out);
 int editorDeleteRange(const struct editorSelectionRange *range);
 
-int editorClipboardSet(const char *text, int len);
-const char *editorClipboardGet(int *len_out);
+int editorClipboardSet(const char *text, size_t len);
+const char *editorClipboardGet(size_t *len_out);
 void editorClipboardClear(void);
 void editorClipboardSetExternalSink(editorClipboardExternalSink sink);
 

@@ -94,9 +94,9 @@ static void editorToggleSelectionMode(void) {
 	E.selection_anchor_cy = E.cy;
 }
 
-static int editorCopyRangeToClipboard(const struct editorSelectionRange *range, int *copied_len_out) {
+static int editorCopyRangeToClipboard(const struct editorSelectionRange *range, size_t *copied_len_out) {
 	char *copied = NULL;
-	int copied_len = 0;
+	size_t copied_len = 0;
 	int extracted = editorExtractRangeText(range, &copied, &copied_len);
 	if (extracted <= 0) {
 		return extracted;
@@ -121,7 +121,7 @@ static void editorCopySelection(void) {
 		return;
 	}
 
-	int copied_len = 0;
+	size_t copied_len = 0;
 	int copied = editorCopyRangeToClipboard(&range, &copied_len);
 	if (copied <= 0) {
 		if (copied == 0) {
@@ -131,7 +131,7 @@ static void editorCopySelection(void) {
 	}
 
 	editorClearSelectionMode();
-	editorSetStatusMsg("Copied %d bytes", copied_len);
+	editorSetStatusMsg("Copied %zu bytes", copied_len);
 }
 
 static void editorCutSelection(void) {
@@ -141,7 +141,7 @@ static void editorCutSelection(void) {
 		return;
 	}
 
-	int copied_len = 0;
+	size_t copied_len = 0;
 	int copied = editorCopyRangeToClipboard(&range, &copied_len);
 	if (copied <= 0) {
 		if (copied == 0) {
@@ -162,7 +162,7 @@ static void editorCutSelection(void) {
 	}
 
 	editorClearSelectionMode();
-	editorSetStatusMsg("Cut %d bytes", copied_len);
+	editorSetStatusMsg("Cut %zu bytes", copied_len);
 }
 
 static void editorDeleteSelection(void) {
@@ -187,7 +187,7 @@ static void editorDeleteSelection(void) {
 }
 
 static void editorPasteClipboard(void) {
-	int clip_len = 0;
+	size_t clip_len = 0;
 	const char *clip = editorClipboardGet(&clip_len);
 	if (clip_len <= 0) {
 		editorSetStatusMsg("Clipboard is empty");
@@ -197,9 +197,9 @@ static void editorPasteClipboard(void) {
 	editorClearSelectionMode();
 	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
 	int dirty_before = E.dirty;
-	int inserted = 0;
+	size_t inserted = 0;
 	int failed = 0;
-	for (int i = 0; i < clip_len; i++) {
+	for (size_t i = 0; i < clip_len; i++) {
 		int step_dirty_before = E.dirty;
 		if (clip[i] == '\n') {
 			editorInsertNewline();
@@ -217,7 +217,7 @@ static void editorPasteClipboard(void) {
 	editorHistoryBreakGroup();
 
 	if (!failed) {
-		editorSetStatusMsg("Pasted %d bytes", inserted);
+		editorSetStatusMsg("Pasted %zu bytes", inserted);
 	}
 }
 

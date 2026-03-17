@@ -128,6 +128,28 @@ static int editor_process_single_key(int key) {
 	return editor_process_keypress_with_input(&c, 1);
 }
 
+static int install_synthetic_single_row(int size, int rsize) {
+	struct erow *rows = calloc(1, sizeof(*rows));
+	if (rows == NULL) {
+		return 0;
+	}
+
+	rows[0].size = size;
+	rows[0].rsize = rsize;
+	rows[0].chars = strdup("");
+	rows[0].render = strdup("");
+	if (rows[0].chars == NULL || rows[0].render == NULL) {
+		free(rows[0].chars);
+		free(rows[0].render);
+		free(rows);
+		return 0;
+	}
+
+	E.rows = rows;
+	E.numrows = 1;
+	return 1;
+}
+
 static int wait_for_child_exit_with_timeout(pid_t pid, int timeout_ms, int *status_out) {
 	const int poll_interval_us = 10000;
 	int waited_us = 0;
@@ -542,12 +564,24 @@ static int test_editor_rows_to_str(void) {
 	add_row("bc");
 	add_row("");
 
-	int buflen = 0;
+	size_t buflen = 0;
 	char *joined = editorRowsToStr(&buflen);
 	ASSERT_TRUE(joined != NULL);
 	ASSERT_EQ_INT(6, buflen);
 	ASSERT_MEM_EQ("a\nbc\n\n", joined, (size_t)buflen);
 	free(joined);
+	return 0;
+}
+
+static int test_editor_rows_to_str_rejects_oversized_total(void) {
+	ASSERT_TRUE(install_synthetic_single_row(INT_MAX, 0));
+
+	size_t buflen = 0;
+	errno = 0;
+	char *joined = editorRowsToStr(&buflen);
+	ASSERT_TRUE(joined == NULL);
+	ASSERT_EQ_INT(0, buflen);
+	ASSERT_EQ_INT(EOVERFLOW, errno);
 	return 0;
 }
 
@@ -1095,6 +1129,31 @@ static int test_editor_insert_char_render_alloc_failure_preserves_state(void) {
 	return 0;
 }
 
+static int test_editor_insert_char_rejects_size_overflow(void) {
+	ASSERT_TRUE(install_synthetic_single_row(INT_MAX, 0));
+	E.dirty = 0;
+
+	editorInsertCharAt(&E.rows[0], 0, 'X');
+
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_INT(INT_MAX, E.rows[0].size);
+	ASSERT_EQ_INT(0, E.dirty);
+	ASSERT_EQ_STR("Operation too large", E.statusmsg);
+	return 0;
+}
+
+static int test_editor_insert_row_rejects_size_overflow(void) {
+	char c = 'x';
+	E.dirty = 0;
+
+	editorInsertRow(0, &c, (size_t)INT_MAX + 1);
+
+	ASSERT_EQ_INT(0, E.numrows);
+	ASSERT_EQ_INT(0, E.dirty);
+	ASSERT_EQ_STR("Operation too large", E.statusmsg);
+	return 0;
+}
+
 static int test_editor_del_char_merge_alloc_failure_preserves_state(void) {
 	add_row("abc");
 	add_row("def");
@@ -1164,6 +1223,32 @@ static int test_editor_save_rows_to_str_alloc_failure_preserves_state(void) {
 
 	ASSERT_EQ_INT(1, E.dirty);
 	ASSERT_EQ_STR("Out of memory", E.statusmsg);
+
+	size_t content_len = 0;
+	char *contents = read_file_contents(path, &content_len);
+	ASSERT_TRUE(contents != NULL);
+	ASSERT_EQ_INT(0, content_len);
+
+	free(contents);
+	unlink(path);
+	return 0;
+}
+
+static int test_editor_save_rejects_oversized_buffer(void) {
+	char path[] = "/tmp/rotide-test-save-too-large-XXXXXX";
+	int fd = mkstemp(path);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(close(fd) == 0);
+
+	ASSERT_TRUE(install_synthetic_single_row(INT_MAX, 0));
+	E.filename = strdup(path);
+	ASSERT_TRUE(E.filename != NULL);
+	E.dirty = 1;
+
+	editorSave();
+
+	ASSERT_EQ_INT(1, E.dirty);
+	ASSERT_EQ_STR("File too large", E.statusmsg);
 
 	size_t content_len = 0;
 	char *contents = read_file_contents(path, &content_len);
@@ -1966,6 +2051,42 @@ static int test_editor_selection_range_tracks_cursor_movement(void) {
 	return 0;
 }
 
+static int test_editor_extract_range_text_rejects_oversized_operation(void) {
+	ASSERT_TRUE(install_synthetic_single_row(INT_MAX, 0));
+
+	struct editorSelectionRange range = {
+		.start_cy = 0,
+		.start_cx = 0,
+		.end_cy = 1,
+		.end_cx = 0
+	};
+	char *text = (char *)1;
+	size_t len = 123;
+	int extracted = editorExtractRangeText(&range, &text, &len);
+	ASSERT_EQ_INT(-1, extracted);
+	ASSERT_TRUE(text == NULL);
+	ASSERT_EQ_INT(0, len);
+	ASSERT_EQ_STR("Operation too large", E.statusmsg);
+	return 0;
+}
+
+static int test_editor_delete_range_rejects_oversized_operation(void) {
+	ASSERT_TRUE(install_synthetic_single_row(INT_MAX, 0));
+
+	struct editorSelectionRange range = {
+		.start_cy = 0,
+		.start_cx = 0,
+		.end_cy = 1,
+		.end_cx = 0
+	};
+	int deleted = editorDeleteRange(&range);
+	ASSERT_EQ_INT(-1, deleted);
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_INT(INT_MAX, E.rows[0].size);
+	ASSERT_EQ_STR("Operation too large", E.statusmsg);
+	return 0;
+}
+
 static int test_editor_process_keypress_ctrl_c_copies_single_line_selection(void) {
 	add_row("hello");
 	E.cy = 0;
@@ -1976,7 +2097,7 @@ static int test_editor_process_keypress_ctrl_c_copies_single_line_selection(void
 
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('c')) == 0);
 
-	int clip_len = 0;
+	size_t clip_len = 0;
 	const char *clip = editorClipboardGet(&clip_len);
 	ASSERT_EQ_INT(5, clip_len);
 	ASSERT_MEM_EQ("hello", clip, (size_t)clip_len);
@@ -1997,7 +2118,7 @@ static int test_editor_process_keypress_ctrl_c_copies_multiline_selection(void) 
 
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('c')) == 0);
 
-	int clip_len = 0;
+	size_t clip_len = 0;
 	const char *clip = editorClipboardGet(&clip_len);
 	ASSERT_EQ_INT(9, clip_len);
 	ASSERT_MEM_EQ("bc\ndef\ngh", clip, (size_t)clip_len);
@@ -2024,7 +2145,7 @@ static int test_editor_process_keypress_ctrl_x_cuts_selection_and_updates_clipbo
 	ASSERT_TRUE(E.dirty > dirty_before);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 
-	int clip_len = 0;
+	size_t clip_len = 0;
 	const char *clip = editorClipboardGet(&clip_len);
 	ASSERT_EQ_INT(7, clip_len);
 	ASSERT_MEM_EQ("llo\nwor", clip, (size_t)clip_len);
@@ -2048,7 +2169,7 @@ static int test_editor_process_keypress_ctrl_d_deletes_selection_without_overwri
 	ASSERT_EQ_STR("held", E.rows[0].chars);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 
-	int clip_len = 0;
+	size_t clip_len = 0;
 	const char *clip = editorClipboardGet(&clip_len);
 	ASSERT_EQ_INT(4, clip_len);
 	ASSERT_MEM_EQ("keep", clip, (size_t)clip_len);
@@ -2254,10 +2375,10 @@ static int test_editor_clipboard_sync_osc52_payload_cap_skips_external_write(voi
 	ASSERT_TRUE(unsetenv("TMUX") == 0);
 	ASSERT_TRUE(unsetenv("STY") == 0);
 
-	int payload_len = ROTIDE_OSC52_MAX_COPY_BYTES + 1;
-	char *payload = malloc((size_t)payload_len);
+	size_t payload_len = ROTIDE_OSC52_MAX_COPY_BYTES + 1;
+	char *payload = malloc(payload_len);
 	ASSERT_TRUE(payload != NULL);
-	memset(payload, 'a', (size_t)payload_len);
+	memset(payload, 'a', payload_len);
 
 	editorClipboardSetExternalSink(editorClipboardSyncOsc52);
 	struct stdoutCapture capture;
@@ -2269,10 +2390,10 @@ static int test_editor_clipboard_sync_osc52_payload_cap_skips_external_write(voi
 	ASSERT_TRUE(output != NULL);
 	ASSERT_EQ_INT(0, output_len);
 
-	int clip_len = 0;
+	size_t clip_len = 0;
 	const char *clip = editorClipboardGet(&clip_len);
 	ASSERT_EQ_INT(payload_len, clip_len);
-	ASSERT_MEM_EQ(payload, clip, (size_t)payload_len);
+	ASSERT_MEM_EQ(payload, clip, payload_len);
 
 	free(output);
 	free(payload);
@@ -3214,9 +3335,11 @@ int main(void) {
 		{"editor_insert_char_creates_initial_row", test_editor_insert_char_creates_initial_row},
 		{"editor_insert_newline_splits_row", test_editor_insert_newline_splits_row},
 		{"editor_insert_newline_at_row_start", test_editor_insert_newline_at_row_start},
-		{"editor_del_char_cluster_and_merge", test_editor_del_char_cluster_and_merge},
-		{"editor_rows_to_str", test_editor_rows_to_str},
-		{"editor_open_reads_rows_and_clears_dirty", test_editor_open_reads_rows_and_clears_dirty},
+			{"editor_del_char_cluster_and_merge", test_editor_del_char_cluster_and_merge},
+			{"editor_rows_to_str", test_editor_rows_to_str},
+			{"editor_rows_to_str_rejects_oversized_total",
+				test_editor_rows_to_str_rejects_oversized_total},
+			{"editor_open_reads_rows_and_clears_dirty", test_editor_open_reads_rows_and_clears_dirty},
 		{"editor_save_writes_file_and_clears_dirty", test_editor_save_writes_file_and_clears_dirty},
 		{"editor_save_prompts_for_filename", test_editor_save_prompts_for_filename},
 		{"editor_save_aborts_when_prompt_cancelled", test_editor_save_aborts_when_prompt_cancelled},
@@ -3255,18 +3378,24 @@ int main(void) {
 		{"editor_prompt_fails_on_growth_alloc", test_editor_prompt_fails_on_growth_alloc},
 		{"editor_insert_row_render_alloc_failure_preserves_state",
 			test_editor_insert_row_render_alloc_failure_preserves_state},
-		{"editor_insert_char_render_alloc_failure_preserves_state",
-			test_editor_insert_char_render_alloc_failure_preserves_state},
-		{"editor_del_char_merge_alloc_failure_preserves_state",
-			test_editor_del_char_merge_alloc_failure_preserves_state},
+			{"editor_insert_char_render_alloc_failure_preserves_state",
+				test_editor_insert_char_render_alloc_failure_preserves_state},
+			{"editor_insert_char_rejects_size_overflow",
+				test_editor_insert_char_rejects_size_overflow},
+			{"editor_insert_row_rejects_size_overflow",
+				test_editor_insert_row_rejects_size_overflow},
+			{"editor_del_char_merge_alloc_failure_preserves_state",
+				test_editor_del_char_merge_alloc_failure_preserves_state},
 		{"editor_insert_newline_alloc_failure_preserves_state",
 			test_editor_insert_newline_alloc_failure_preserves_state},
 		{"editor_save_preserves_prompt_oom_status",
 			test_editor_save_preserves_prompt_oom_status},
-		{"editor_save_rows_to_str_alloc_failure_preserves_state",
-			test_editor_save_rows_to_str_alloc_failure_preserves_state},
-		{"editor_save_tmp_path_alloc_failure_preserves_state",
-			test_editor_save_tmp_path_alloc_failure_preserves_state},
+			{"editor_save_rows_to_str_alloc_failure_preserves_state",
+				test_editor_save_rows_to_str_alloc_failure_preserves_state},
+			{"editor_save_rejects_oversized_buffer",
+				test_editor_save_rejects_oversized_buffer},
+			{"editor_save_tmp_path_alloc_failure_preserves_state",
+				test_editor_save_tmp_path_alloc_failure_preserves_state},
 		{"editor_save_parent_dir_fsync_failure_after_rename_reports_failure",
 			test_editor_save_parent_dir_fsync_failure_after_rename_reports_failure},
 		{"editor_save_parent_dir_open_failure_reports_failure",
@@ -3318,10 +3447,14 @@ int main(void) {
 		{"editor_prompt_ignores_resize_events", test_editor_prompt_ignores_resize_events},
 		{"editor_process_keypress_ctrl_b_toggles_selection_mode",
 			test_editor_process_keypress_ctrl_b_toggles_selection_mode},
-		{"editor_selection_range_tracks_cursor_movement",
-			test_editor_selection_range_tracks_cursor_movement},
-		{"editor_process_keypress_ctrl_c_copies_single_line_selection",
-			test_editor_process_keypress_ctrl_c_copies_single_line_selection},
+			{"editor_selection_range_tracks_cursor_movement",
+				test_editor_selection_range_tracks_cursor_movement},
+			{"editor_extract_range_text_rejects_oversized_operation",
+				test_editor_extract_range_text_rejects_oversized_operation},
+			{"editor_delete_range_rejects_oversized_operation",
+				test_editor_delete_range_rejects_oversized_operation},
+			{"editor_process_keypress_ctrl_c_copies_single_line_selection",
+				test_editor_process_keypress_ctrl_c_copies_single_line_selection},
 		{"editor_process_keypress_ctrl_c_copies_multiline_selection",
 			test_editor_process_keypress_ctrl_c_copies_multiline_selection},
 		{"editor_process_keypress_ctrl_x_cuts_selection_and_updates_clipboard",

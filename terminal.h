@@ -5,7 +5,7 @@
 
 int editorClearScreen(void);
 int editorResetCursorPos(void);
-void editorClipboardSyncOsc52(const char *text, int len);
+void editorClipboardSyncOsc52(const char *text, size_t len);
 int editorConsumeMouseEvent(struct editorMouseEvent *out);
 int editorRefreshWindowSize(void);
 void editorQueueResizeEvent(void);

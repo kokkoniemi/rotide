@@ -9,6 +9,8 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
+#include "size_utils.h"
+
 /*** Terminal ***/
 
 #define VT100_CLEAR_SCREEN_4 "\x1b[2J"
@@ -168,22 +170,35 @@ static int editorReadSgrMouseEvent(struct editorMouseEvent *event_out) {
 	return editorDecodeSgrMousePayload(payload, event_out);
 }
 
-static char *editorBase64Encode(const unsigned char *bytes, int len, size_t *out_len) {
+static char *editorBase64Encode(const unsigned char *bytes, size_t len, size_t *out_len) {
 	static const char base64_table[] =
 			"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-	if (len < 0 || out_len == NULL) {
+	if (out_len == NULL) {
 		return NULL;
 	}
 
-	size_t encoded_len = ((size_t)len + 2) / 3 * 4;
-	char *encoded = malloc(encoded_len + 1);
+	size_t group_bytes = 0;
+	size_t groups = 0;
+	size_t encoded_len = 0;
+	size_t encoded_cap = 0;
+	if (!editorSizeAdd(len, 2, &group_bytes)) {
+		return NULL;
+	}
+	groups = group_bytes / 3;
+	if (!editorSizeMul(groups, 4, &encoded_len) ||
+			!editorSizeAdd(encoded_len, 1, &encoded_cap) ||
+			encoded_len > ROTIDE_MAX_TEXT_BYTES) {
+		return NULL;
+	}
+
+	char *encoded = malloc(encoded_cap);
 	if (encoded == NULL) {
 		return NULL;
 	}
 
 	size_t out_idx = 0;
-	for (int i = 0; i < len; i += 3) {
-		int remaining = len - i;
+	for (size_t i = 0; i < len; i += 3) {
+		size_t remaining = len - i;
 		unsigned int octet_a = bytes[i];
 		unsigned int octet_b = remaining > 1 ? bytes[i + 1] : 0;
 		unsigned int octet_c = remaining > 2 ? bytes[i + 2] : 0;
@@ -214,7 +229,7 @@ static enum editorOsc52Mode editorGetOsc52Mode(void) {
 	return EDITOR_OSC52_MODE_AUTO;
 }
 
-static int editorCanUseOsc52(enum editorOsc52Mode mode, int len) {
+static int editorCanUseOsc52(enum editorOsc52Mode mode, size_t len) {
 	if (mode == EDITOR_OSC52_MODE_OFF) {
 		return 0;
 	}
@@ -234,8 +249,8 @@ static int editorCanUseOsc52(enum editorOsc52Mode mode, int len) {
 	return 1;
 }
 
-void editorClipboardSyncOsc52(const char *text, int len) {
-	if (len < 0 || (len > 0 && text == NULL)) {
+void editorClipboardSyncOsc52(const char *text, size_t len) {
+	if (len > 0 && text == NULL) {
 		return;
 	}
 
