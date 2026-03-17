@@ -153,6 +153,43 @@ static int wait_for_child_exit_with_timeout(pid_t pid, int timeout_ms, int *stat
 	return -1;
 }
 
+struct envVarBackup {
+	const char *name;
+	char *value;
+	int was_set;
+};
+
+static int backup_env_var(struct envVarBackup *backup, const char *name) {
+	backup->name = name;
+	backup->value = NULL;
+	backup->was_set = 0;
+
+	const char *current = getenv(name);
+	if (current == NULL) {
+		return 1;
+	}
+
+	backup->value = strdup(current);
+	if (backup->value == NULL) {
+		return 0;
+	}
+	backup->was_set = 1;
+	return 1;
+}
+
+static int restore_env_var(struct envVarBackup *backup) {
+	int ok = 0;
+	if (backup->was_set) {
+		ok = setenv(backup->name, backup->value, 1) == 0;
+	} else {
+		ok = unsetenv(backup->name) == 0;
+	}
+	free(backup->value);
+	backup->value = NULL;
+	backup->was_set = 0;
+	return ok;
+}
+
 static int test_utf8_decode_valid_sequences(void) {
 	unsigned int cp = 0;
 	const char e_acute[] = "\xC3\xA9";
@@ -1588,6 +1625,188 @@ static int test_editor_process_keypress_ctrl_v_empty_clipboard_is_noop(void) {
 	return 0;
 }
 
+static int test_editor_clipboard_sync_osc52_plain_sequence(void) {
+	struct envVarBackup osc52_backup;
+	struct envVarBackup tmux_backup;
+	struct envVarBackup sty_backup;
+	ASSERT_TRUE(backup_env_var(&osc52_backup, "ROTIDE_OSC52"));
+	ASSERT_TRUE(backup_env_var(&tmux_backup, "TMUX"));
+	ASSERT_TRUE(backup_env_var(&sty_backup, "STY"));
+	ASSERT_TRUE(setenv("ROTIDE_OSC52", "force", 1) == 0);
+	ASSERT_TRUE(unsetenv("TMUX") == 0);
+	ASSERT_TRUE(unsetenv("STY") == 0);
+
+	editorClipboardSetExternalSink(editorClipboardSyncOsc52);
+	struct stdoutCapture capture;
+	ASSERT_TRUE(start_stdout_capture(&capture) == 0);
+	ASSERT_TRUE(editorClipboardSet("hello", 5));
+
+	size_t output_len = 0;
+	char *output = stop_stdout_capture(&capture, &output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(output_len > 0);
+	ASSERT_TRUE(strstr(output, "\x1b]52;c;aGVsbG8=\a") != NULL);
+	free(output);
+
+	ASSERT_TRUE(restore_env_var(&sty_backup));
+	ASSERT_TRUE(restore_env_var(&tmux_backup));
+	ASSERT_TRUE(restore_env_var(&osc52_backup));
+	return 0;
+}
+
+static int test_editor_clipboard_sync_osc52_tmux_wrapped_sequence(void) {
+	struct envVarBackup osc52_backup;
+	struct envVarBackup tmux_backup;
+	struct envVarBackup sty_backup;
+	ASSERT_TRUE(backup_env_var(&osc52_backup, "ROTIDE_OSC52"));
+	ASSERT_TRUE(backup_env_var(&tmux_backup, "TMUX"));
+	ASSERT_TRUE(backup_env_var(&sty_backup, "STY"));
+	ASSERT_TRUE(setenv("ROTIDE_OSC52", "force", 1) == 0);
+	ASSERT_TRUE(setenv("TMUX", "tmux-session", 1) == 0);
+	ASSERT_TRUE(unsetenv("STY") == 0);
+
+	editorClipboardSetExternalSink(editorClipboardSyncOsc52);
+	struct stdoutCapture capture;
+	ASSERT_TRUE(start_stdout_capture(&capture) == 0);
+	ASSERT_TRUE(editorClipboardSet("hi", 2));
+
+	size_t output_len = 0;
+	char *output = stop_stdout_capture(&capture, &output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(output_len > 0);
+	ASSERT_TRUE(strstr(output, "\x1bPtmux;\x1b\x1b]52;c;aGk=\a\x1b\\") != NULL);
+	free(output);
+
+	ASSERT_TRUE(restore_env_var(&sty_backup));
+	ASSERT_TRUE(restore_env_var(&tmux_backup));
+	ASSERT_TRUE(restore_env_var(&osc52_backup));
+	return 0;
+}
+
+static int test_editor_clipboard_sync_osc52_screen_wrapped_sequence(void) {
+	struct envVarBackup osc52_backup;
+	struct envVarBackup tmux_backup;
+	struct envVarBackup sty_backup;
+	ASSERT_TRUE(backup_env_var(&osc52_backup, "ROTIDE_OSC52"));
+	ASSERT_TRUE(backup_env_var(&tmux_backup, "TMUX"));
+	ASSERT_TRUE(backup_env_var(&sty_backup, "STY"));
+	ASSERT_TRUE(setenv("ROTIDE_OSC52", "force", 1) == 0);
+	ASSERT_TRUE(unsetenv("TMUX") == 0);
+	ASSERT_TRUE(setenv("STY", "screen-session", 1) == 0);
+
+	editorClipboardSetExternalSink(editorClipboardSyncOsc52);
+	struct stdoutCapture capture;
+	ASSERT_TRUE(start_stdout_capture(&capture) == 0);
+	ASSERT_TRUE(editorClipboardSet("hi", 2));
+
+	size_t output_len = 0;
+	char *output = stop_stdout_capture(&capture, &output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(output_len > 0);
+	ASSERT_TRUE(strstr(output, "\x1bP\x1b]52;c;aGk=\a\x1b\\") != NULL);
+	free(output);
+
+	ASSERT_TRUE(restore_env_var(&sty_backup));
+	ASSERT_TRUE(restore_env_var(&tmux_backup));
+	ASSERT_TRUE(restore_env_var(&osc52_backup));
+	return 0;
+}
+
+static int test_editor_clipboard_sync_osc52_mode_off_emits_nothing(void) {
+	struct envVarBackup osc52_backup;
+	struct envVarBackup tmux_backup;
+	struct envVarBackup sty_backup;
+	ASSERT_TRUE(backup_env_var(&osc52_backup, "ROTIDE_OSC52"));
+	ASSERT_TRUE(backup_env_var(&tmux_backup, "TMUX"));
+	ASSERT_TRUE(backup_env_var(&sty_backup, "STY"));
+	ASSERT_TRUE(setenv("ROTIDE_OSC52", "off", 1) == 0);
+	ASSERT_TRUE(unsetenv("TMUX") == 0);
+	ASSERT_TRUE(unsetenv("STY") == 0);
+
+	editorClipboardSetExternalSink(editorClipboardSyncOsc52);
+	struct stdoutCapture capture;
+	ASSERT_TRUE(start_stdout_capture(&capture) == 0);
+	ASSERT_TRUE(editorClipboardSet("hello", 5));
+
+	size_t output_len = 0;
+	char *output = stop_stdout_capture(&capture, &output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_EQ_INT(0, output_len);
+	free(output);
+
+	ASSERT_TRUE(restore_env_var(&sty_backup));
+	ASSERT_TRUE(restore_env_var(&tmux_backup));
+	ASSERT_TRUE(restore_env_var(&osc52_backup));
+	return 0;
+}
+
+static int test_editor_clipboard_sync_osc52_auto_mode_skips_non_tty(void) {
+	struct envVarBackup osc52_backup;
+	struct envVarBackup tmux_backup;
+	struct envVarBackup sty_backup;
+	ASSERT_TRUE(backup_env_var(&osc52_backup, "ROTIDE_OSC52"));
+	ASSERT_TRUE(backup_env_var(&tmux_backup, "TMUX"));
+	ASSERT_TRUE(backup_env_var(&sty_backup, "STY"));
+	ASSERT_TRUE(setenv("ROTIDE_OSC52", "auto", 1) == 0);
+	ASSERT_TRUE(unsetenv("TMUX") == 0);
+	ASSERT_TRUE(unsetenv("STY") == 0);
+
+	editorClipboardSetExternalSink(editorClipboardSyncOsc52);
+	struct stdoutCapture capture;
+	ASSERT_TRUE(start_stdout_capture(&capture) == 0);
+	ASSERT_TRUE(editorClipboardSet("hello", 5));
+
+	size_t output_len = 0;
+	char *output = stop_stdout_capture(&capture, &output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_EQ_INT(0, output_len);
+	free(output);
+
+	ASSERT_TRUE(restore_env_var(&sty_backup));
+	ASSERT_TRUE(restore_env_var(&tmux_backup));
+	ASSERT_TRUE(restore_env_var(&osc52_backup));
+	return 0;
+}
+
+static int test_editor_clipboard_sync_osc52_payload_cap_skips_external_write(void) {
+	struct envVarBackup osc52_backup;
+	struct envVarBackup tmux_backup;
+	struct envVarBackup sty_backup;
+	ASSERT_TRUE(backup_env_var(&osc52_backup, "ROTIDE_OSC52"));
+	ASSERT_TRUE(backup_env_var(&tmux_backup, "TMUX"));
+	ASSERT_TRUE(backup_env_var(&sty_backup, "STY"));
+	ASSERT_TRUE(setenv("ROTIDE_OSC52", "force", 1) == 0);
+	ASSERT_TRUE(unsetenv("TMUX") == 0);
+	ASSERT_TRUE(unsetenv("STY") == 0);
+
+	int payload_len = ROTIDE_OSC52_MAX_COPY_BYTES + 1;
+	char *payload = malloc((size_t)payload_len);
+	ASSERT_TRUE(payload != NULL);
+	memset(payload, 'a', (size_t)payload_len);
+
+	editorClipboardSetExternalSink(editorClipboardSyncOsc52);
+	struct stdoutCapture capture;
+	ASSERT_TRUE(start_stdout_capture(&capture) == 0);
+	ASSERT_TRUE(editorClipboardSet(payload, payload_len));
+
+	size_t output_len = 0;
+	char *output = stop_stdout_capture(&capture, &output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_EQ_INT(0, output_len);
+
+	int clip_len = 0;
+	const char *clip = editorClipboardGet(&clip_len);
+	ASSERT_EQ_INT(payload_len, clip_len);
+	ASSERT_MEM_EQ(payload, clip, (size_t)payload_len);
+
+	free(output);
+	free(payload);
+	ASSERT_TRUE(restore_env_var(&sty_backup));
+	ASSERT_TRUE(restore_env_var(&tmux_backup));
+	ASSERT_TRUE(restore_env_var(&osc52_backup));
+	return 0;
+}
+
 static int test_editor_process_keypress_ctrl_v_clears_selection_mode(void) {
 	ASSERT_TRUE(editorClipboardSet("Z", 1));
 	add_row("ab");
@@ -2530,6 +2749,18 @@ int main(void) {
 			test_editor_process_keypress_ctrl_v_pastes_multiline_clipboard_text},
 		{"editor_process_keypress_ctrl_v_empty_clipboard_is_noop",
 			test_editor_process_keypress_ctrl_v_empty_clipboard_is_noop},
+		{"editor_clipboard_sync_osc52_plain_sequence",
+			test_editor_clipboard_sync_osc52_plain_sequence},
+		{"editor_clipboard_sync_osc52_tmux_wrapped_sequence",
+			test_editor_clipboard_sync_osc52_tmux_wrapped_sequence},
+		{"editor_clipboard_sync_osc52_screen_wrapped_sequence",
+			test_editor_clipboard_sync_osc52_screen_wrapped_sequence},
+		{"editor_clipboard_sync_osc52_mode_off_emits_nothing",
+			test_editor_clipboard_sync_osc52_mode_off_emits_nothing},
+		{"editor_clipboard_sync_osc52_auto_mode_skips_non_tty",
+			test_editor_clipboard_sync_osc52_auto_mode_skips_non_tty},
+		{"editor_clipboard_sync_osc52_payload_cap_skips_external_write",
+			test_editor_clipboard_sync_osc52_payload_cap_skips_external_write},
 		{"editor_process_keypress_ctrl_v_clears_selection_mode",
 			test_editor_process_keypress_ctrl_v_clears_selection_mode},
 		{"editor_process_keypress_ctrl_v_undo_roundtrip_single_step",

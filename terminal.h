@@ -5,6 +5,7 @@
 
 int editorClearScreen(void);
 int editorResetCursorPos(void);
+void editorClipboardSyncOsc52(const char *text, int len);
 void editorRestoreTerminal(void);
 void panic(const char *s);
 void setDefaultMode(void);

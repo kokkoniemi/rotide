@@ -12,6 +12,7 @@
 #define ROTIDE_VERSION "0.0.1"
 #define ROTIDE_TAB_WIDTH 8
 #define ROTIDE_UNDO_HISTORY_LIMIT 200
+#define ROTIDE_OSC52_MAX_COPY_BYTES 100000
 
 typedef void (*editorClipboardExternalSink)(const char *text, int len);
 

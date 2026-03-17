@@ -15,11 +15,148 @@
 #define VT100_RESET_CURSOR_POS_3 "\x1b[H"
 #define VT100_SHOW_CURSOR_6 "\x1b[?25h"
 #define VT100_CURSOR_DEFAULT_5 "\x1b[0 q"
+#define OSC52_PLAIN_PREFIX "\x1b]52;c;"
+#define OSC52_PLAIN_SUFFIX "\a"
+#define OSC52_TMUX_PREFIX "\x1bPtmux;\x1b\x1b]52;c;"
+#define OSC52_TMUX_SUFFIX "\a\x1b\\"
+#define OSC52_SCREEN_PREFIX "\x1bP\x1b]52;c;"
+#define OSC52_SCREEN_SUFFIX "\a\x1b\\"
 
 static volatile sig_atomic_t terminal_attrs_captured = 0;
 static volatile sig_atomic_t terminal_raw_enabled = 0;
 static volatile sig_atomic_t terminal_handlers_installed = 0;
 static volatile sig_atomic_t terminal_restore_atexit_registered = 0;
+
+enum editorOsc52Mode {
+	EDITOR_OSC52_MODE_AUTO = 0,
+	EDITOR_OSC52_MODE_OFF,
+	EDITOR_OSC52_MODE_FORCE
+};
+
+static int editorWriteAll(int fd, const char *buf, size_t len) {
+	while (len > 0) {
+		ssize_t written = write(fd, buf, len);
+		if (written == -1) {
+			if (errno == EINTR) {
+				continue;
+			}
+			return 0;
+		}
+		if (written == 0) {
+			return 0;
+		}
+		buf += written;
+		len -= (size_t)written;
+	}
+	return 1;
+}
+
+static char *editorBase64Encode(const unsigned char *bytes, int len, size_t *out_len) {
+	static const char base64_table[] =
+			"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+	if (len < 0 || out_len == NULL) {
+		return NULL;
+	}
+
+	size_t encoded_len = ((size_t)len + 2) / 3 * 4;
+	char *encoded = malloc(encoded_len + 1);
+	if (encoded == NULL) {
+		return NULL;
+	}
+
+	size_t out_idx = 0;
+	for (int i = 0; i < len; i += 3) {
+		int remaining = len - i;
+		unsigned int octet_a = bytes[i];
+		unsigned int octet_b = remaining > 1 ? bytes[i + 1] : 0;
+		unsigned int octet_c = remaining > 2 ? bytes[i + 2] : 0;
+
+		encoded[out_idx++] = base64_table[(octet_a >> 2) & 0x3F];
+		encoded[out_idx++] = base64_table[((octet_a & 0x03) << 4) | ((octet_b >> 4) & 0x0F)];
+		encoded[out_idx++] = remaining > 1 ?
+				base64_table[((octet_b & 0x0F) << 2) | ((octet_c >> 6) & 0x03)] : '=';
+		encoded[out_idx++] = remaining > 2 ? base64_table[octet_c & 0x3F] : '=';
+	}
+
+	encoded[out_idx] = '\0';
+	*out_len = out_idx;
+	return encoded;
+}
+
+static enum editorOsc52Mode editorGetOsc52Mode(void) {
+	const char *mode = getenv("ROTIDE_OSC52");
+	if (mode == NULL || mode[0] == '\0' || strcmp(mode, "auto") == 0) {
+		return EDITOR_OSC52_MODE_AUTO;
+	}
+	if (strcmp(mode, "off") == 0) {
+		return EDITOR_OSC52_MODE_OFF;
+	}
+	if (strcmp(mode, "force") == 0) {
+		return EDITOR_OSC52_MODE_FORCE;
+	}
+	return EDITOR_OSC52_MODE_AUTO;
+}
+
+static int editorCanUseOsc52(enum editorOsc52Mode mode, int len) {
+	if (mode == EDITOR_OSC52_MODE_OFF) {
+		return 0;
+	}
+	if (len > ROTIDE_OSC52_MAX_COPY_BYTES) {
+		return 0;
+	}
+	if (mode == EDITOR_OSC52_MODE_FORCE) {
+		return 1;
+	}
+	if (!isatty(STDOUT_FILENO)) {
+		return 0;
+	}
+	const char *term = getenv("TERM");
+	if (term != NULL && strcmp(term, "dumb") == 0) {
+		return 0;
+	}
+	return 1;
+}
+
+void editorClipboardSyncOsc52(const char *text, int len) {
+	if (len < 0 || (len > 0 && text == NULL)) {
+		return;
+	}
+
+	enum editorOsc52Mode mode = editorGetOsc52Mode();
+	if (!editorCanUseOsc52(mode, len)) {
+		return;
+	}
+
+	size_t encoded_len = 0;
+	char *encoded = editorBase64Encode((const unsigned char *)text, len, &encoded_len);
+	if (encoded == NULL) {
+		return;
+	}
+
+	const char *tmux = getenv("TMUX");
+	const char *screen = getenv("STY");
+
+	if (tmux != NULL && tmux[0] != '\0') {
+		(void)editorWriteAll(STDOUT_FILENO, OSC52_TMUX_PREFIX, sizeof(OSC52_TMUX_PREFIX) - 1);
+		(void)editorWriteAll(STDOUT_FILENO, encoded, encoded_len);
+		(void)editorWriteAll(STDOUT_FILENO, OSC52_TMUX_SUFFIX, sizeof(OSC52_TMUX_SUFFIX) - 1);
+		free(encoded);
+		return;
+	}
+
+	if (screen != NULL && screen[0] != '\0') {
+		(void)editorWriteAll(STDOUT_FILENO, OSC52_SCREEN_PREFIX, sizeof(OSC52_SCREEN_PREFIX) - 1);
+		(void)editorWriteAll(STDOUT_FILENO, encoded, encoded_len);
+		(void)editorWriteAll(STDOUT_FILENO, OSC52_SCREEN_SUFFIX, sizeof(OSC52_SCREEN_SUFFIX) - 1);
+		free(encoded);
+		return;
+	}
+
+	(void)editorWriteAll(STDOUT_FILENO, OSC52_PLAIN_PREFIX, sizeof(OSC52_PLAIN_PREFIX) - 1);
+	(void)editorWriteAll(STDOUT_FILENO, encoded, encoded_len);
+	(void)editorWriteAll(STDOUT_FILENO, OSC52_PLAIN_SUFFIX, sizeof(OSC52_PLAIN_SUFFIX) - 1);
+	free(encoded);
+}
 
 static void editorRestoreCursorVisualState(void) {
 	(void)write(STDOUT_FILENO, VT100_CURSOR_DEFAULT_5, 5);
