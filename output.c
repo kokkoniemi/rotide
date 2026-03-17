@@ -222,7 +222,9 @@ void editorRefreshScreen(void) {
 	char buf[32];
 	int buflen = snprintf(buf, sizeof(buf), "\x1b[%d;%dH",
 			(E.cy - E.rowoff) + 1, (E.rx - E.coloff) + 1);
-	wbAppend(&wb, buf, (buflen > E.window_cols) ? E.window_cols : buflen);
+	if (buflen > 0 && buflen < (int)sizeof(buf)) {
+		wbAppend(&wb, buf, buflen);
+	}
 
 	wbAppend(&wb, VT100_SHOW_CURSOR_6, 6);
 

@@ -849,6 +849,23 @@ static int test_editor_refresh_screen_slice_after_multibyte_scroll(void) {
 	return 0;
 }
 
+static int test_editor_refresh_screen_cursor_sequence_not_truncated_by_window_width(void) {
+	add_row("x");
+	E.window_rows = 3;
+	E.window_cols = 1;
+	E.cy = 0;
+	E.cx = 0;
+	E.rowoff = 0;
+	E.coloff = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[1;1H") != NULL);
+	free(output);
+	return 0;
+}
+
 static int test_editor_refresh_screen_status_bar_single_row_percent(void) {
 	add_row("single");
 	E.window_rows = 3;
@@ -952,6 +969,8 @@ int main(void) {
 			test_editor_refresh_screen_updates_horizontal_scroll},
 		{"editor_refresh_screen_slice_after_multibyte_scroll",
 			test_editor_refresh_screen_slice_after_multibyte_scroll},
+		{"editor_refresh_screen_cursor_sequence_not_truncated_by_window_width",
+			test_editor_refresh_screen_cursor_sequence_not_truncated_by_window_width},
 		{"editor_refresh_screen_status_bar_single_row_percent",
 			test_editor_refresh_screen_status_bar_single_row_percent},
 		{"editor_refresh_screen_status_bar_cursor_multibyte_col",

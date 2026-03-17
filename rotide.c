@@ -1,4 +1,3 @@
-// TODO(stability): In screen refresh, always emit the full cursor-position escape sequence; never truncate it based on window width.
 // TODO(stability): In readCursorPosition(), initialize buffers and strictly validate ESC[row;colR before parsing.
 // TODO(stability): In readCursorPosition(), fail deterministically on short/malformed terminal responses without reading uninitialized data.
 // TODO(stability): Add allocation-failure guards in prompt buffer growth and row/render allocation paths; preserve state and show a status error.
