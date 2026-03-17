@@ -2,6 +2,7 @@
 
 #include "alloc.h"
 #include "buffer.h"
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -46,6 +47,30 @@ static void wbFree(struct writeBuf *wb) {
 }
 
 /*** Output ***/
+
+static int editorWriteAllToStdout(const char *buf, int len) {
+	if (len <= 0) {
+		return 1;
+	}
+
+	errno = 0;
+	int total = 0;
+	while (total < len) {
+		ssize_t written = write(STDOUT_FILENO, buf + total, (size_t)(len - total));
+		if (written == -1) {
+			if (errno == EINTR) {
+				continue;
+			}
+			return 0;
+		}
+		if (written == 0) {
+			errno = 0;
+			return 0;
+		}
+		total += (int)written;
+	}
+	return 1;
+}
 
 static int editorDrawGreeting(struct writeBuf *wb) {
 	char greet[80];
@@ -266,6 +291,16 @@ void editorRefreshScreen(void) {
 		return;
 	}
 
-	write(STDOUT_FILENO, wb.b, wb.len);
+	if (!editorWriteAllToStdout(wb.b, wb.len)) {
+		int saved_errno = errno;
+		wbFree(&wb);
+		if (saved_errno != 0) {
+			editorSetStatusMsg("Output write failed: %s", strerror(saved_errno));
+		} else {
+			editorSetStatusMsg("Output write failed");
+		}
+		return;
+	}
+
 	wbFree(&wb);
 }
