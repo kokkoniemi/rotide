@@ -150,66 +150,72 @@ int editorReadKey(void) {
 }
 
 int readCursorPosition(int *rows, int *cols) {
-	char buf[32] = {0};
+	enum { CURSOR_POS_MAX_RESPONSE = 31 };
 	size_t i = 0;
-	size_t p = 2;
+	char c = '\0';
 	int row = 0;
 	int col = 0;
+	int saw_row_digit = 0;
+	int saw_col_digit = 0;
+	int phase = 0;
 
 	// Ask terminal for cursor position: ESC [ rows ; cols R
 	if (write(STDOUT_FILENO, "\x1b[6n", 4) != 4) {
 		return -1;
 	}
-	for (; i < sizeof(buf) - 1; i++) {
-		if (read(STDIN_FILENO, &buf[i], 1) != 1) {
+	for (; i < CURSOR_POS_MAX_RESPONSE; i++) {
+		if (read(STDIN_FILENO, &c, 1) != 1) {
 			return -1;
 		}
-		if (buf[i] == 'R') {
-			break;
+
+		switch (phase) {
+			case 0:
+				if (c != '\x1b') {
+					return -1;
+				}
+				phase = 1;
+				break;
+			case 1:
+				if (c != '[') {
+					return -1;
+				}
+				phase = 2;
+				break;
+			case 2:
+				if (c >= '0' && c <= '9') {
+					int digit = c - '0';
+					if (row > (INT_MAX - digit) / 10) {
+						return -1;
+					}
+					row = row * 10 + digit;
+					saw_row_digit = 1;
+					break;
+				}
+				if (c == ';' && saw_row_digit) {
+					phase = 3;
+					break;
+				}
+				return -1;
+			default:
+				if (c >= '0' && c <= '9') {
+					int digit = c - '0';
+					if (col > (INT_MAX - digit) / 10) {
+						return -1;
+					}
+					col = col * 10 + digit;
+					saw_col_digit = 1;
+					break;
+				}
+				if (c == 'R' && saw_col_digit) {
+					*rows = row;
+					*cols = col;
+					return 0;
+				}
+				return -1;
 		}
 	}
 
-	if (i == sizeof(buf) - 1 || buf[i] != 'R') {
-		return -1;
-	}
-	if (buf[0] != '\x1b' || buf[1] != '[') {
-		return -1;
-	}
-
-	if (buf[p] < '0' || buf[p] > '9') {
-		return -1;
-	}
-	while (buf[p] >= '0' && buf[p] <= '9') {
-		int digit = buf[p] - '0';
-		if (row > (INT_MAX - digit) / 10) {
-			return -1;
-		}
-		row = row * 10 + digit;
-		p++;
-	}
-	if (buf[p] != ';') {
-		return -1;
-	}
-	p++;
-	if (buf[p] < '0' || buf[p] > '9') {
-		return -1;
-	}
-	while (buf[p] >= '0' && buf[p] <= '9') {
-		int digit = buf[p] - '0';
-		if (col > (INT_MAX - digit) / 10) {
-			return -1;
-		}
-		col = col * 10 + digit;
-		p++;
-	}
-	if (buf[p] != 'R' || buf[p + 1] != '\0') {
-		return -1;
-	}
-
-	*rows = row;
-	*cols = col;
-
-	return 0;
+	return -1;
 }
 
 int readWindowSize(int *rows, int *cols) {

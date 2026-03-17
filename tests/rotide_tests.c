@@ -678,7 +678,9 @@ static int test_read_cursor_position_rejects_malformed_responses(void) {
 		size_t len;
 	} cases[] = {
 		{"\x1b[", sizeof("\x1b[") - 1},
+		{"\x1b[R", sizeof("\x1b[R") - 1},
 		{"\x1b[24;80", sizeof("\x1b[24;80") - 1},
+		{"\x1b[24;R", sizeof("\x1b[24;R") - 1},
 		{"24;80R", sizeof("24;80R") - 1},
 		{"\x1b[24R", sizeof("\x1b[24R") - 1},
 		{"\x1b[24;xxR", sizeof("\x1b[24;xxR") - 1},
