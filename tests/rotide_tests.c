@@ -5,6 +5,7 @@
 #include "output.h"
 #include "terminal.h"
 #include "alloc_test_hooks.h"
+#include "save_syscalls_test_hooks.h"
 #include "test_helpers.h"
 #include <dirent.h>
 #include <locale.h>
@@ -797,6 +798,118 @@ static int test_editor_save_tmp_path_alloc_failure_preserves_state(void) {
 	return 0;
 }
 
+static int test_editor_save_parent_dir_fsync_failure_after_rename_reports_failure(void) {
+	char path[] = "/tmp/rotide-test-save-dir-fsync-fail-XXXXXX";
+	int fd = mkstemp(path);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(close(fd) == 0);
+
+	add_row("alpha");
+	E.filename = strdup(path);
+	ASSERT_TRUE(E.filename != NULL);
+	E.dirty = 1;
+
+	editorTestSaveSyscallsFailFsyncOnCall(2);
+	editorSave();
+
+	ASSERT_EQ_INT(1, E.dirty);
+	ASSERT_TRUE(strstr(E.statusmsg, "Save failed! Error:") != NULL);
+
+	size_t content_len = 0;
+	char *contents = read_file_contents(path, &content_len);
+	ASSERT_TRUE(contents != NULL);
+	ASSERT_EQ_INT(6, content_len);
+	ASSERT_MEM_EQ("alpha\n", contents, content_len);
+
+	free(contents);
+	unlink(path);
+	return 0;
+}
+
+static int test_editor_save_parent_dir_open_failure_reports_failure(void) {
+	char path[] = "/tmp/rotide-test-save-dir-open-fail-XXXXXX";
+	int fd = mkstemp(path);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(close(fd) == 0);
+
+	add_row("alpha");
+	E.filename = strdup(path);
+	ASSERT_TRUE(E.filename != NULL);
+	E.dirty = 1;
+
+	editorTestSaveSyscallsFailOpenDirOnCall(1);
+	editorSave();
+
+	ASSERT_EQ_INT(1, E.dirty);
+	ASSERT_TRUE(strstr(E.statusmsg, "Save failed! Error:") != NULL);
+
+	size_t content_len = 0;
+	char *contents = read_file_contents(path, &content_len);
+	ASSERT_TRUE(contents != NULL);
+	ASSERT_EQ_INT(6, content_len);
+	ASSERT_MEM_EQ("alpha\n", contents, content_len);
+
+	free(contents);
+	unlink(path);
+	return 0;
+}
+
+static int test_editor_save_parent_dir_close_failure_reports_failure(void) {
+	char path[] = "/tmp/rotide-test-save-dir-close-fail-XXXXXX";
+	int fd = mkstemp(path);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(close(fd) == 0);
+
+	add_row("alpha");
+	E.filename = strdup(path);
+	ASSERT_TRUE(E.filename != NULL);
+	E.dirty = 1;
+
+	editorTestSaveSyscallsFailCloseOnCall(2);
+	editorSave();
+
+	ASSERT_EQ_INT(1, E.dirty);
+	ASSERT_TRUE(strstr(E.statusmsg, "Save failed! Error:") != NULL);
+
+	size_t content_len = 0;
+	char *contents = read_file_contents(path, &content_len);
+	ASSERT_TRUE(contents != NULL);
+	ASSERT_EQ_INT(6, content_len);
+	ASSERT_MEM_EQ("alpha\n", contents, content_len);
+
+	free(contents);
+	unlink(path);
+	return 0;
+}
+
+static int test_editor_save_parent_dir_fsync_success_clears_dirty(void) {
+	char path[] = "/tmp/rotide-test-save-dir-fsync-success-XXXXXX";
+	int fd = mkstemp(path);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(close(fd) == 0);
+
+	add_row("alpha");
+	E.filename = strdup(path);
+	ASSERT_TRUE(E.filename != NULL);
+	E.dirty = 1;
+
+	editorTestSaveSyscallsInstallNoFail();
+	editorSave();
+
+	ASSERT_EQ_INT(0, E.dirty);
+	ASSERT_TRUE(strstr(E.statusmsg, "bytes written to disk") != NULL);
+
+	size_t content_len = 0;
+	char *contents = read_file_contents(path, &content_len);
+	ASSERT_TRUE(contents != NULL);
+	ASSERT_EQ_INT(6, content_len);
+	ASSERT_MEM_EQ("alpha\n", contents, content_len);
+
+	free(contents);
+	unlink(path);
+	return 0;
+}
+
 static int test_editor_refresh_screen_reports_oom_without_crash(void) {
 	add_row("line");
 	E.window_rows = 3;
@@ -1198,6 +1311,14 @@ int main(void) {
 			test_editor_save_rows_to_str_alloc_failure_preserves_state},
 		{"editor_save_tmp_path_alloc_failure_preserves_state",
 			test_editor_save_tmp_path_alloc_failure_preserves_state},
+		{"editor_save_parent_dir_fsync_failure_after_rename_reports_failure",
+			test_editor_save_parent_dir_fsync_failure_after_rename_reports_failure},
+		{"editor_save_parent_dir_open_failure_reports_failure",
+			test_editor_save_parent_dir_open_failure_reports_failure},
+		{"editor_save_parent_dir_close_failure_reports_failure",
+			test_editor_save_parent_dir_close_failure_reports_failure},
+		{"editor_save_parent_dir_fsync_success_clears_dirty",
+			test_editor_save_parent_dir_fsync_success_clears_dirty},
 		{"editor_read_key_sequences", test_editor_read_key_sequences},
 		{"read_cursor_position_and_window_size_fallback", test_read_cursor_position_and_window_size_fallback},
 		{"read_cursor_position_rejects_malformed_responses",

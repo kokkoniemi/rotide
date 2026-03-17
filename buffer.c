@@ -2,6 +2,7 @@
 
 #include "alloc.h"
 #include "input.h"
+#include "save_syscalls.h"
 #include "terminal.h"
 #include <errno.h>
 #include <fcntl.h>
@@ -711,6 +712,29 @@ static char *editorTempPathForTarget(const char *target) {
 	return tmp_path;
 }
 
+static int editorOpenParentDirForTarget(const char *target) {
+	const char *slash = strrchr(target, '/');
+	if (slash == NULL) {
+		return editorSaveOpenDir(".");
+	}
+	if (slash == target) {
+		return editorSaveOpenDir("/");
+	}
+
+	size_t dir_len = (size_t)(slash - target);
+	char *dir_path = editorMalloc(dir_len + 1);
+	if (dir_path == NULL) {
+		errno = ENOMEM;
+		return -1;
+	}
+
+	memcpy(dir_path, target, dir_len);
+	dir_path[dir_len] = '\0';
+	int dir_fd = editorSaveOpenDir(dir_path);
+	free(dir_path);
+	return dir_fd;
+}
+
 static mode_t editorDefaultCreateMode(void) {
 	mode_t mask = umask(0);
 	umask(mask);
@@ -731,6 +755,7 @@ void editorSave(void) {
 	char *buf = editorRowsToStr(&len);
 	char *tmp_path = editorTempPathForTarget(E.filename);
 	int fd = -1;
+	int dir_fd = -1;
 	mode_t mode = editorDefaultCreateMode();
 	struct stat st;
 
@@ -762,17 +787,30 @@ void editorSave(void) {
 	if (editorWriteAll(fd, buf, len) == -1) {
 		goto err;
 	}
-	if (fsync(fd) == -1) {
+	if (editorSaveFsync(fd) == -1) {
 		goto err;
 	}
-	if (close(fd) == -1) {
+	if (editorSaveClose(fd) == -1) {
 		fd = -1;
 		goto err;
 	}
 	fd = -1;
-	if (rename(tmp_path, E.filename) == -1) {
+	if (editorSaveRename(tmp_path, E.filename) == -1) {
 		goto err;
 	}
+
+	dir_fd = editorOpenParentDirForTarget(E.filename);
+	if (dir_fd == -1) {
+		goto err;
+	}
+	if (editorSaveFsync(dir_fd) == -1) {
+		goto err;
+	}
+	if (editorSaveClose(dir_fd) == -1) {
+		dir_fd = -1;
+		goto err;
+	}
+	dir_fd = -1;
 
 	E.dirty = 0;
 	free(tmp_path);
@@ -783,7 +821,10 @@ void editorSave(void) {
 err: {
 	int saved_errno = errno;
 	if (fd != -1) {
-		close(fd);
+		(void)editorSaveClose(fd);
+	}
+	if (dir_fd != -1) {
+		(void)editorSaveClose(dir_fd);
 	}
 	if (tmp_path != NULL) {
 		unlink(tmp_path);

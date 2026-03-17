@@ -1,4 +1,3 @@
-// TODO(stability): After atomic save rename, fsync the parent directory to improve crash durability guarantees.
 // TODO(stability): Keep temp-file cleanup exhaustive on all save failure paths (no leftover .rotide-tmp-* files).
 // TODO(stability): Normalize save failure status messages to surface actionable errno context (permission, missing path, read-only FS).
 // TODO(maintainability): Apply const-correctness to internal row/string helper APIs where source buffers are read-only.

@@ -4,6 +4,7 @@
 #include "buffer.h"
 #include "input.h"
 #include "output.h"
+#include "save_syscalls_test_hooks.h"
 #include "terminal.h"
 #include <errno.h>
 #include <fcntl.h>
@@ -26,6 +27,7 @@ void clear_editor_state(void) {
 
 void reset_editor_state(void) {
 	editorTestAllocReset();
+	editorTestSaveSyscallsReset();
 	clear_editor_state();
 	memset(&E, 0, sizeof(E));
 	E.window_rows = 8;
