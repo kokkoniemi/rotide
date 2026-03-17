@@ -3,6 +3,7 @@
 #include "alloc_test_hooks.h"
 #include "buffer.h"
 #include "input.h"
+#include "keymap.h"
 #include "output.h"
 #include "save_syscalls_test_hooks.h"
 #include "terminal.h"
@@ -46,6 +47,7 @@ void reset_editor_state(void) {
 	E.mouse_drag_anchor_cx = 0;
 	E.mouse_drag_anchor_cy = 0;
 	E.mouse_drag_started = 0;
+	editorKeymapInitDefaults(&E.keymap);
 }
 
 void add_row(const char *s) {

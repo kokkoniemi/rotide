@@ -16,6 +16,7 @@
 #define ROTIDE_UNDO_HISTORY_LIMIT 200
 #define ROTIDE_OSC52_MAX_COPY_BYTES ((size_t)100000)
 #define ROTIDE_MAX_TEXT_BYTES ((size_t)INT_MAX)
+#define ROTIDE_KEYMAP_MAX_BINDINGS 64
 
 typedef void (*editorClipboardExternalSink)(const char *text, size_t len);
 
@@ -46,6 +47,44 @@ struct editorSelectionRange {
 	int start_cx;
 	int end_cy;
 	int end_cx;
+};
+
+enum editorAction {
+	EDITOR_ACTION_QUIT = 0,
+	EDITOR_ACTION_SAVE,
+	EDITOR_ACTION_FIND,
+	EDITOR_ACTION_GOTO_LINE,
+	EDITOR_ACTION_TOGGLE_SELECTION,
+	EDITOR_ACTION_COPY_SELECTION,
+	EDITOR_ACTION_CUT_SELECTION,
+	EDITOR_ACTION_DELETE_SELECTION,
+	EDITOR_ACTION_PASTE,
+	EDITOR_ACTION_UNDO,
+	EDITOR_ACTION_REDO,
+	EDITOR_ACTION_MOVE_HOME,
+	EDITOR_ACTION_MOVE_END,
+	EDITOR_ACTION_PAGE_UP,
+	EDITOR_ACTION_PAGE_DOWN,
+	EDITOR_ACTION_MOVE_UP,
+	EDITOR_ACTION_MOVE_DOWN,
+	EDITOR_ACTION_MOVE_LEFT,
+	EDITOR_ACTION_MOVE_RIGHT,
+	EDITOR_ACTION_NEWLINE,
+	EDITOR_ACTION_ESCAPE,
+	EDITOR_ACTION_REDRAW,
+	EDITOR_ACTION_DELETE_CHAR,
+	EDITOR_ACTION_BACKSPACE,
+	EDITOR_ACTION_COUNT
+};
+
+struct editorKeyBinding {
+	int key;
+	enum editorAction action;
+};
+
+struct editorKeymap {
+	struct editorKeyBinding bindings[ROTIDE_KEYMAP_MAX_BINDINGS];
+	size_t len;
 };
 
 enum editorEditKind {
@@ -113,6 +152,7 @@ struct editorConfig {
 	enum editorEditKind edit_group_kind;
 	enum editorEditKind edit_pending_kind;
 	enum editorEditPendingMode edit_pending_mode;
+	struct editorKeymap keymap;
 	struct termios orig_attrs;
 };
 

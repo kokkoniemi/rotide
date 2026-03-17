@@ -1,6 +1,3 @@
-// TODO(feature): Add support for custom keymap that reads and saves the settings to project root folder
-
-
 #include "rotide.h"
 
 #include <locale.h>
@@ -8,6 +5,7 @@
 
 #include "buffer.h"
 #include "input.h"
+#include "keymap.h"
 #include "output.h"
 #include "terminal.h"
 
@@ -54,6 +52,7 @@ void initEditor(void) {
 	E.edit_group_kind = EDITOR_EDIT_NONE;
 	E.edit_pending_kind = EDITOR_EDIT_NONE;
 	E.edit_pending_mode = EDITOR_EDIT_PENDING_NONE;
+	editorKeymapInitDefaults(&E.keymap);
 	editorClipboardSetExternalSink(editorClipboardSyncOsc52);
 
 	if (!editorRefreshWindowSize()) {
@@ -65,12 +64,23 @@ int main(int argc, char *argv[]) {
 	setlocale(LC_CTYPE, "");
 	setRawMode();
 	initEditor();
+
+	enum editorKeymapLoadStatus keymap_status = editorKeymapLoadConfigured(&E.keymap);
 	if (argc >= 2) {
 		editorOpen(argv[1]);
 	}
 
-	editorSetStatusMsg(
-			"Help: Ctrl-S save; Ctrl-Q quit; Ctrl-F find; Ctrl-G goto; Ctrl-B/C/X/D select; Ctrl-V paste; Ctrl-Z/Y undo/redo");
+	if (keymap_status == EDITOR_KEYMAP_LOAD_INVALID_PROJECT) {
+		editorSetStatusMsg("Invalid keymap config, using defaults");
+	} else if (keymap_status == EDITOR_KEYMAP_LOAD_INVALID_GLOBAL) {
+		editorSetStatusMsg("Invalid global keymap config, ignoring ~/.rotide/config.toml");
+	} else if (keymap_status == EDITOR_KEYMAP_LOAD_OUT_OF_MEMORY) {
+		editorSetStatusMsg("Out of memory");
+	} else {
+		char help_msg[160];
+		editorKeymapBuildHelpStatus(&E.keymap, help_msg, sizeof(help_msg));
+		editorSetStatusMsg("%s", help_msg);
+	}
 
 	while (1) {
 		editorRefreshScreen();

@@ -2,6 +2,7 @@
 
 #include "buffer.h"
 #include "input.h"
+#include "keymap.h"
 #include "output.h"
 #include "terminal.h"
 #include "alloc_test_hooks.h"
@@ -9,6 +10,7 @@
 #include "test_helpers.h"
 #include <dirent.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <locale.h>
 #include <signal.h>
 #include <stdio.h>
@@ -210,6 +212,23 @@ static int restore_env_var(struct envVarBackup *backup) {
 	backup->value = NULL;
 	backup->was_set = 0;
 	return ok;
+}
+
+static int write_text_file(const char *path, const char *text) {
+	int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+	if (fd == -1) {
+		return 0;
+	}
+
+	size_t len = strlen(text);
+	int write_ok = write_all(fd, text, len) == 0;
+	int close_ok = close(fd) == 0;
+	return write_ok && close_ok;
+}
+
+static int path_join(char *buf, size_t bufsz, const char *dir, const char *name) {
+	int written = snprintf(buf, bufsz, "%s/%s", dir, name);
+	return written >= 0 && (size_t)written < bufsz;
 }
 
 static int test_utf8_decode_valid_sequences(void) {
@@ -1622,6 +1641,355 @@ static int test_editor_refresh_window_size_failure_keeps_previous_dimensions(voi
 	ASSERT_EQ_INT(7, E.window_rows);
 	ASSERT_EQ_INT(22, E.window_cols);
 	free(stdout_bytes);
+	return 0;
+}
+
+static int test_editor_keymap_load_valid_project_overrides_defaults(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-valid-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[keymap]\n"
+				"save = \"ctrl+a\"\n"
+				"redraw = \"ctrl+s\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('a'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SAVE, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('s'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_REDRAW, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('q'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_QUIT, action);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_load_unknown_action_falls_back_to_defaults(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-bad-action-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[keymap]\n"
+				"not_a_real_action = \"ctrl+a\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_INVALID_PROJECT, status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('s'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SAVE, action);
+	ASSERT_TRUE(!editorKeymapLookupAction(&keymap, CTRL_KEY('a'), &action));
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_load_unknown_keyspec_falls_back_to_defaults(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-bad-key-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[keymap]\n"
+				"save = \"meta+s\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_INVALID_PROJECT, status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('s'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SAVE, action);
+	ASSERT_TRUE(!editorKeymapLookupAction(&keymap, CTRL_KEY('a'), &action));
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_load_duplicate_binding_falls_back_to_defaults(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-dup-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[keymap]\n"
+				"save = \"ctrl+a\"\n"
+				"quit = \"ctrl+a\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_INVALID_PROJECT, status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('s'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SAVE, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('q'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_QUIT, action);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_load_malformed_toml_falls_back_to_defaults(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-malformed-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[keymap\n"
+				"save = \"ctrl+a\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_INVALID_PROJECT, status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('s'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SAVE, action);
+	ASSERT_TRUE(!editorKeymapLookupAction(&keymap, CTRL_KEY('a'), &action));
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_global_then_project_precedence(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-precedence-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char global_path[512];
+	char project_path[512];
+	ASSERT_TRUE(path_join(global_path, sizeof(global_path), dir_path, "global.toml"));
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
+
+	ASSERT_TRUE(write_text_file(global_path,
+				"[keymap]\n"
+				"save = \"ctrl+a\"\n"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[keymap]\n"
+				"save = \"ctrl+t\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status =
+			editorKeymapLoadFromPaths(&keymap, global_path, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('t'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SAVE, action);
+	if (editorKeymapLookupAction(&keymap, CTRL_KEY('a'), &action)) {
+		ASSERT_TRUE(action != EDITOR_ACTION_SAVE);
+	}
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(unlink(global_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_invalid_global_ignored_when_project_valid(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-invalid-global-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char global_path[512];
+	char project_path[512];
+	ASSERT_TRUE(path_join(global_path, sizeof(global_path), dir_path, "global.toml"));
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
+
+	ASSERT_TRUE(write_text_file(global_path,
+				"[keymap\n"
+				"save = \"ctrl+a\"\n"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[keymap]\n"
+				"save = \"ctrl+t\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status =
+			editorKeymapLoadFromPaths(&keymap, global_path, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_INVALID_GLOBAL, status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('t'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SAVE, action);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(unlink(global_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_load_configured_prefers_project_over_global(void) {
+	int failed = 1;
+	struct envVarBackup home_backup;
+	char *original_cwd = NULL;
+	char home_dir[512] = "";
+	char dot_rotide_dir[512] = "";
+	char global_path[512] = "";
+	char project_path[512] = "";
+	char root_template[] = "/tmp/rotide-test-keymap-configured-XXXXXX";
+
+	if (!backup_env_var(&home_backup, "HOME")) {
+		return 1;
+	}
+
+	original_cwd = getcwd(NULL, 0);
+	if (original_cwd == NULL) {
+		(void)restore_env_var(&home_backup);
+		return 1;
+	}
+
+	char *root_path = mkdtemp(root_template);
+	if (root_path == NULL) {
+		goto cleanup;
+	}
+
+	if (!path_join(home_dir, sizeof(home_dir), root_path, "home")) {
+		goto cleanup;
+	}
+	if (mkdir(home_dir, 0700) == -1) {
+		goto cleanup;
+	}
+	if (!path_join(dot_rotide_dir, sizeof(dot_rotide_dir), home_dir, ".rotide")) {
+		goto cleanup;
+	}
+	if (mkdir(dot_rotide_dir, 0700) == -1) {
+		goto cleanup;
+	}
+	if (!path_join(global_path, sizeof(global_path), dot_rotide_dir, "config.toml")) {
+		goto cleanup;
+	}
+	if (!path_join(project_path, sizeof(project_path), root_path, ".rotide.toml")) {
+		goto cleanup;
+	}
+	if (!write_text_file(global_path,
+				"[keymap]\n"
+				"save = \"ctrl+t\"\n")) {
+		goto cleanup;
+	}
+	if (!write_text_file(project_path,
+				"[keymap]\n"
+				"save = \"ctrl+a\"\n")) {
+		goto cleanup;
+	}
+	if (setenv("HOME", home_dir, 1) != 0) {
+		goto cleanup;
+	}
+	if (chdir(root_path) != 0) {
+		goto cleanup;
+	}
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status = editorKeymapLoadConfigured(&keymap);
+	if (status != EDITOR_KEYMAP_LOAD_OK) {
+		goto cleanup;
+	}
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	if (!editorKeymapLookupAction(&keymap, CTRL_KEY('a'), &action) ||
+			action != EDITOR_ACTION_SAVE) {
+		goto cleanup;
+	}
+	if (editorKeymapLookupAction(&keymap, CTRL_KEY('t'), &action) &&
+			action == EDITOR_ACTION_SAVE) {
+		goto cleanup;
+	}
+
+	failed = 0;
+
+cleanup:
+	if (original_cwd != NULL) {
+		(void)chdir(original_cwd);
+	}
+	(void)restore_env_var(&home_backup);
+	if (project_path[0] != '\0') {
+		(void)unlink(project_path);
+	}
+	if (global_path[0] != '\0') {
+		(void)unlink(global_path);
+	}
+	if (dot_rotide_dir[0] != '\0') {
+		(void)rmdir(dot_rotide_dir);
+	}
+	if (home_dir[0] != '\0') {
+		(void)rmdir(home_dir);
+	}
+	(void)rmdir(root_template);
+	free(original_cwd);
+	return failed;
+}
+
+static int test_editor_process_keypress_keymap_remap_changes_dispatch(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-dispatch-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[keymap]\n"
+				"save = \"ctrl+a\"\n"
+				"redraw = \"ctrl+s\"\n"));
+
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&E.keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
+
+	char save_path[] = "/tmp/rotide-test-keymap-dispatch-save-XXXXXX";
+	int fd = mkstemp(save_path);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(close(fd) == 0);
+
+	add_row("line1");
+	E.filename = strdup(save_path);
+	ASSERT_TRUE(E.filename != NULL);
+	E.dirty = 1;
+
+	char ctrl_s[] = {CTRL_KEY('s')};
+	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_s, sizeof(ctrl_s)) == 0);
+	ASSERT_EQ_INT(1, E.dirty);
+
+	size_t first_read_len = 0;
+	char *first_contents = read_file_contents(save_path, &first_read_len);
+	ASSERT_TRUE(first_contents != NULL);
+	ASSERT_EQ_INT(0, first_read_len);
+	free(first_contents);
+
+	char ctrl_a[] = {CTRL_KEY('a')};
+	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_a, sizeof(ctrl_a)) == 0);
+	ASSERT_EQ_INT(0, E.dirty);
+
+	size_t second_read_len = 0;
+	char *second_contents = read_file_contents(save_path, &second_read_len);
+	ASSERT_TRUE(second_contents != NULL);
+	ASSERT_MEM_EQ("line1\n", second_contents, second_read_len);
+	free(second_contents);
+
+	ASSERT_TRUE(unlink(save_path) == 0);
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
 	return 0;
 }
 
@@ -3415,6 +3783,24 @@ int main(void) {
 			test_editor_refresh_window_size_clamps_tiny_terminal},
 		{"editor_refresh_window_size_failure_keeps_previous_dimensions",
 			test_editor_refresh_window_size_failure_keeps_previous_dimensions},
+		{"editor_keymap_load_valid_project_overrides_defaults",
+			test_editor_keymap_load_valid_project_overrides_defaults},
+		{"editor_keymap_load_unknown_action_falls_back_to_defaults",
+			test_editor_keymap_load_unknown_action_falls_back_to_defaults},
+		{"editor_keymap_load_unknown_keyspec_falls_back_to_defaults",
+			test_editor_keymap_load_unknown_keyspec_falls_back_to_defaults},
+		{"editor_keymap_load_duplicate_binding_falls_back_to_defaults",
+			test_editor_keymap_load_duplicate_binding_falls_back_to_defaults},
+		{"editor_keymap_load_malformed_toml_falls_back_to_defaults",
+			test_editor_keymap_load_malformed_toml_falls_back_to_defaults},
+		{"editor_keymap_global_then_project_precedence",
+			test_editor_keymap_global_then_project_precedence},
+		{"editor_keymap_invalid_global_ignored_when_project_valid",
+			test_editor_keymap_invalid_global_ignored_when_project_valid},
+		{"editor_keymap_load_configured_prefers_project_over_global",
+			test_editor_keymap_load_configured_prefers_project_over_global},
+		{"editor_process_keypress_keymap_remap_changes_dispatch",
+			test_editor_process_keypress_keymap_remap_changes_dispatch},
 		{"editor_process_keypress_insert_move_and_backspace",
 			test_editor_process_keypress_insert_move_and_backspace},
 		{"editor_process_keypress_delete_key", test_editor_process_keypress_delete_key},

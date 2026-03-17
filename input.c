@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "buffer.h"
+#include "keymap.h"
 #include "output.h"
 #include "terminal.h"
 
@@ -36,9 +37,20 @@ static size_t editorPromptPrevDeleteIdx(const char *buf, size_t buflen) {
 	return buflen - 1;
 }
 
+static void editorSetQuitConfirmStatus(void) {
+	char quit_binding[24];
+	if (editorKeymapFormatBinding(&E.keymap, EDITOR_ACTION_QUIT, quit_binding,
+				sizeof(quit_binding))) {
+		editorSetStatusMsg("File has unsaved changes. Press %s again to quit", quit_binding);
+		return;
+	}
+
+	editorSetStatusMsg("File has unsaved changes. Press quit key again to quit");
+}
+
 static void quit(void) {
 	if (E.dirty && !quit_confirmed) {
-		editorSetStatusMsg("File has unsaved changes. Press Ctrl-Q again to quit");
+		editorSetQuitConfirmStatus();
 		quit_confirmed = 1;
 		return;
 	}
@@ -777,80 +789,75 @@ static void editorHandleMouseEvent(void) {
 	}
 }
 
-void editorProcessKeypress(void) {
-	int c = editorReadKey();
-
-	switch (c) {
-		case RESIZE_EVENT:
-			(void)editorRefreshWindowSize();
-			return;
-		case CTRL_KEY('q'):
+static int editorProcessMappedAction(enum editorAction action) {
+	switch (action) {
+		case EDITOR_ACTION_QUIT:
 			editorHistoryBreakGroup();
 			quit();
-			return;
-		case CTRL_KEY('s'):
+			return 1;
+		case EDITOR_ACTION_SAVE:
 			editorHistoryBreakGroup();
 			editorSave();
-			break;
-		case CTRL_KEY('f'):
+			return 0;
+		case EDITOR_ACTION_FIND:
 			editorHistoryBreakGroup();
 			editorFind();
-			break;
-		case CTRL_KEY('g'):
+			return 0;
+		case EDITOR_ACTION_GOTO_LINE:
 			editorHistoryBreakGroup();
 			editorGoToLine();
-			break;
-		case CTRL_KEY('b'):
+			return 0;
+		case EDITOR_ACTION_TOGGLE_SELECTION:
 			editorHistoryBreakGroup();
 			editorToggleSelectionMode();
-			break;
-		case CTRL_KEY('c'):
+			return 0;
+		case EDITOR_ACTION_COPY_SELECTION:
 			editorHistoryBreakGroup();
 			editorCopySelection();
-			break;
-		case CTRL_KEY('x'):
+			return 0;
+		case EDITOR_ACTION_CUT_SELECTION:
 			editorHistoryBreakGroup();
 			editorCutSelection();
-			break;
-		case CTRL_KEY('d'):
+			return 0;
+		case EDITOR_ACTION_DELETE_SELECTION:
 			editorHistoryBreakGroup();
 			editorDeleteSelection();
-			break;
-		case CTRL_KEY('v'):
+			return 0;
+		case EDITOR_ACTION_PASTE:
 			editorHistoryBreakGroup();
 			editorPasteClipboard();
-			break;
-		case CTRL_KEY('z'):
+			return 0;
+		case EDITOR_ACTION_UNDO:
 			editorHistoryBreakGroup();
 			if (editorUndo() == 1) {
 				editorClearSearchState();
 			}
-			break;
-		case CTRL_KEY('y'):
+			return 0;
+		case EDITOR_ACTION_REDO:
 			editorHistoryBreakGroup();
 			if (editorRedo() == 1) {
 				editorClearSearchState();
 			}
-			break;
-		case HOME_KEY:
+			return 0;
+		case EDITOR_ACTION_MOVE_HOME:
 			editorHistoryBreakGroup();
 			E.cx = 0;
-			break;
-		case END_KEY:
+			return 0;
+		case EDITOR_ACTION_MOVE_END:
 			editorHistoryBreakGroup();
 			if (E.cy < E.numrows) {
 				E.cx = E.rows[E.cy].size;
 			}
-			break;
-		case PAGE_UP:
+			return 0;
+		case EDITOR_ACTION_PAGE_UP:
 			editorHistoryBreakGroup();
 			E.cy = E.rowoff;
 			// Reuse arrow movement so cursor clamping behavior stays consistent.
 			for (int i = 0; i < E.window_rows; i++) {
 				editorMoveCursor(ARROW_UP);
 			}
-			break;
-		case PAGE_DOWN:
+			return 0;
+		case EDITOR_ACTION_PAGE_DOWN:
 			editorHistoryBreakGroup();
 			E.cy = E.rowoff + E.window_rows - 1;
 			if (E.cy > E.numrows) {
@@ -860,56 +867,87 @@ void editorProcessKeypress(void) {
 			for (int i = 0; i < E.window_rows; i++) {
 				editorMoveCursor(ARROW_DOWN);
 			}
-			break;
-		case ARROW_UP:
-		case ARROW_DOWN:
-		case ARROW_LEFT:
-		case ARROW_RIGHT:
+			return 0;
+		case EDITOR_ACTION_MOVE_UP:
 			editorHistoryBreakGroup();
-			editorMoveCursor(c);
-			break;
-		case MOUSE_EVENT:
-			// Mouse input can move cursor/selection, but it should not create edit history entries.
+			editorMoveCursor(ARROW_UP);
+			return 0;
+		case EDITOR_ACTION_MOVE_DOWN:
 			editorHistoryBreakGroup();
-			editorHandleMouseEvent();
-			break;
-		case '\r': {
+			editorMoveCursor(ARROW_DOWN);
+			return 0;
+		case EDITOR_ACTION_MOVE_LEFT:
+			editorHistoryBreakGroup();
+			editorMoveCursor(ARROW_LEFT);
+			return 0;
+		case EDITOR_ACTION_MOVE_RIGHT:
+			editorHistoryBreakGroup();
+			editorMoveCursor(ARROW_RIGHT);
+			return 0;
+		case EDITOR_ACTION_NEWLINE: {
 			editorClearSelectionMode();
 			editorHistoryBeginEdit(EDITOR_EDIT_NEWLINE);
 			int dirty_before = E.dirty;
 			editorInsertNewline();
 			editorHistoryCommitEdit(EDITOR_EDIT_NEWLINE, E.dirty != dirty_before);
-			break;
+			return 0;
 		}
-		case '\x1b':
-			// In normal editor mode Escape only clears transient selection state; quit is Ctrl-Q.
+		case EDITOR_ACTION_ESCAPE:
+			// In normal editor mode Escape only clears transient selection state; quit is configurable.
 			editorHistoryBreakGroup();
 			editorClearSelectionMode();
-			break;
-		case CTRL_KEY('l'):
+			return 0;
+		case EDITOR_ACTION_REDRAW:
 			editorHistoryBreakGroup();
-			break;
-		case DEL_KEY:
-		case BACKSPACE:
-		case CTRL_KEY('h'): {
+			return 0;
+		case EDITOR_ACTION_DELETE_CHAR: {
 			editorClearSelectionMode();
 			editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
 			int dirty_before = E.dirty;
-			if (c == DEL_KEY) {
-				// DEL deletes under cursor; editorDelChar() implements backspace semantics.
-				editorMoveCursor(ARROW_RIGHT);
-			}
+			// DEL deletes under cursor; editorDelChar() implements backspace semantics.
+			editorMoveCursor(ARROW_RIGHT);
 			editorDelChar();
 			editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
-			break;
+			return 0;
 		}
-		default: {
+		case EDITOR_ACTION_BACKSPACE: {
+			editorClearSelectionMode();
+			editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
+			int dirty_before = E.dirty;
+			editorDelChar();
+			editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+			return 0;
+		}
+		case EDITOR_ACTION_COUNT:
+		default:
+			return 0;
+	}
+}
+
+void editorProcessKeypress(void) {
+	int c = editorReadKey();
+
+	if (c == RESIZE_EVENT) {
+		(void)editorRefreshWindowSize();
+		return;
+	}
+
+	if (c == MOUSE_EVENT) {
+		// Mouse input can move cursor/selection, but it should not create edit history entries.
+		editorHistoryBreakGroup();
+		editorHandleMouseEvent();
+	} else {
+		enum editorAction action = EDITOR_ACTION_COUNT;
+		if (editorKeymapLookupAction(&E.keymap, c, &action)) {
+			if (editorProcessMappedAction(action)) {
+				return;
+			}
+		} else {
 			editorClearSelectionMode();
 			editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
 			int dirty_before = E.dirty;
 			editorInsertChar(c);
 			editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
-			break;
 		}
 	}
 

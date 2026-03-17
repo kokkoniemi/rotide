@@ -1,0 +1,565 @@
+#include "keymap.h"
+
+#include "alloc.h"
+#include "size_utils.h"
+#include <ctype.h>
+#include <errno.h>
+#include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+struct editorActionName {
+	const char *name;
+	enum editorAction action;
+};
+
+struct editorNamedKey {
+	const char *name;
+	int key;
+};
+
+enum editorKeymapFileStatus {
+	EDITOR_KEYMAP_FILE_APPLIED = 0,
+	EDITOR_KEYMAP_FILE_MISSING,
+	EDITOR_KEYMAP_FILE_INVALID,
+	EDITOR_KEYMAP_FILE_OUT_OF_MEMORY
+};
+
+static const struct editorActionName editor_action_names[] = {
+	{"quit", EDITOR_ACTION_QUIT},
+	{"save", EDITOR_ACTION_SAVE},
+	{"find", EDITOR_ACTION_FIND},
+	{"goto_line", EDITOR_ACTION_GOTO_LINE},
+	{"toggle_selection", EDITOR_ACTION_TOGGLE_SELECTION},
+	{"copy_selection", EDITOR_ACTION_COPY_SELECTION},
+	{"cut_selection", EDITOR_ACTION_CUT_SELECTION},
+	{"delete_selection", EDITOR_ACTION_DELETE_SELECTION},
+	{"paste", EDITOR_ACTION_PASTE},
+	{"undo", EDITOR_ACTION_UNDO},
+	{"redo", EDITOR_ACTION_REDO},
+	{"move_home", EDITOR_ACTION_MOVE_HOME},
+	{"move_end", EDITOR_ACTION_MOVE_END},
+	{"page_up", EDITOR_ACTION_PAGE_UP},
+	{"page_down", EDITOR_ACTION_PAGE_DOWN},
+	{"move_up", EDITOR_ACTION_MOVE_UP},
+	{"move_down", EDITOR_ACTION_MOVE_DOWN},
+	{"move_left", EDITOR_ACTION_MOVE_LEFT},
+	{"move_right", EDITOR_ACTION_MOVE_RIGHT},
+	{"newline", EDITOR_ACTION_NEWLINE},
+	{"escape", EDITOR_ACTION_ESCAPE},
+	{"redraw", EDITOR_ACTION_REDRAW},
+	{"delete_char", EDITOR_ACTION_DELETE_CHAR},
+	{"backspace", EDITOR_ACTION_BACKSPACE},
+};
+
+static const struct editorNamedKey editor_named_keys[] = {
+	{"left", ARROW_LEFT},
+	{"right", ARROW_RIGHT},
+	{"up", ARROW_UP},
+	{"down", ARROW_DOWN},
+	{"home", HOME_KEY},
+	{"end", END_KEY},
+	{"page_up", PAGE_UP},
+	{"page_down", PAGE_DOWN},
+	{"enter", '\r'},
+	{"esc", '\x1b'},
+	{"backspace", BACKSPACE},
+	{"del", DEL_KEY},
+};
+
+static char *editorTrimLeft(char *s) {
+	while (*s != '\0' && isspace((unsigned char)*s)) {
+		s++;
+	}
+	return s;
+}
+
+static void editorTrimRight(char *s) {
+	size_t len = strlen(s);
+	while (len > 0 && isspace((unsigned char)s[len - 1])) {
+		len--;
+	}
+	s[len] = '\0';
+}
+
+static void editorStripInlineComment(char *line) {
+	int in_quote = 0;
+
+	for (size_t i = 0; line[i] != '\0'; i++) {
+		if (line[i] == '"' && (i == 0 || line[i - 1] != '\\')) {
+			in_quote = !in_quote;
+			continue;
+		}
+		if (!in_quote && line[i] == '#') {
+			line[i] = '\0';
+			break;
+		}
+	}
+}
+
+static int editorKeymapHasBindingForKey(const struct editorKeymap *keymap, int key) {
+	for (size_t i = 0; i < keymap->len; i++) {
+		if (keymap->bindings[i].key == key) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static void editorKeymapRemoveActionBindings(struct editorKeymap *keymap, enum editorAction action) {
+	size_t write_idx = 0;
+	for (size_t read_idx = 0; read_idx < keymap->len; read_idx++) {
+		if (keymap->bindings[read_idx].action == action) {
+			continue;
+		}
+		keymap->bindings[write_idx] = keymap->bindings[read_idx];
+		write_idx++;
+	}
+	keymap->len = write_idx;
+}
+
+static int editorKeymapAppendBinding(struct editorKeymap *keymap, int key, enum editorAction action) {
+	if (keymap->len >= ROTIDE_KEYMAP_MAX_BINDINGS) {
+		return 0;
+	}
+	if (editorKeymapHasBindingForKey(keymap, key)) {
+		return 0;
+	}
+
+	keymap->bindings[keymap->len].key = key;
+	keymap->bindings[keymap->len].action = action;
+	keymap->len++;
+	return 1;
+}
+
+static int editorKeymapSetActionBinding(struct editorKeymap *keymap, enum editorAction action, int key) {
+	struct editorKeymap updated = *keymap;
+
+	editorKeymapRemoveActionBindings(&updated, action);
+	if (!editorKeymapAppendBinding(&updated, key, action)) {
+		return 0;
+	}
+
+	*keymap = updated;
+	return 1;
+}
+
+static int editorKeymapResolveActionName(const char *name, enum editorAction *action_out) {
+	for (size_t i = 0; i < sizeof(editor_action_names) / sizeof(editor_action_names[0]); i++) {
+		if (strcmp(editor_action_names[i].name, name) == 0) {
+			*action_out = editor_action_names[i].action;
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static int editorKeymapParseCtrlKeySpec(const char *spec, int *key_out) {
+	if (strncmp(spec, "ctrl+", 5) != 0 || spec[5] == '\0' || spec[6] != '\0') {
+		return 0;
+	}
+
+	unsigned char ch = (unsigned char)spec[5];
+	if (!isalpha(ch)) {
+		return 0;
+	}
+
+	ch = (unsigned char)tolower(ch);
+	if (ch < 'a' || ch > 'z') {
+		return 0;
+	}
+
+	*key_out = CTRL_KEY((int)ch);
+	return 1;
+}
+
+static int editorKeymapParseKeySpec(const char *spec, int *key_out) {
+	if (editorKeymapParseCtrlKeySpec(spec, key_out)) {
+		return 1;
+	}
+
+	for (size_t i = 0; i < sizeof(editor_named_keys) / sizeof(editor_named_keys[0]); i++) {
+		if (strcmp(editor_named_keys[i].name, spec) == 0) {
+			*key_out = editor_named_keys[i].key;
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
+static int editorKeymapParseQuotedValue(const char *value, char *buf, size_t bufsize) {
+	if (bufsize == 0 || value[0] != '"') {
+		return 0;
+	}
+
+	size_t write_idx = 0;
+	size_t i = 1;
+	while (value[i] != '\0') {
+		char ch = value[i];
+		if (ch == '"') {
+			i++;
+			break;
+		}
+
+		if (ch == '\\') {
+			i++;
+			if (value[i] == '\0') {
+				return 0;
+			}
+			ch = value[i];
+			if (ch != '"' && ch != '\\') {
+				return 0;
+			}
+		}
+
+		if (write_idx + 1 >= bufsize) {
+			return 0;
+		}
+		buf[write_idx++] = ch;
+		i++;
+	}
+
+	if (value[i - 1] != '"') {
+		return 0;
+	}
+
+	buf[write_idx] = '\0';
+	const char *tail = editorTrimLeft((char *)&value[i]);
+	return tail[0] == '\0';
+}
+
+static enum editorKeymapFileStatus editorKeymapApplyConfigFile(struct editorKeymap *keymap,
+		const char *path) {
+	FILE *fp = fopen(path, "r");
+	if (fp == NULL) {
+		if (errno == ENOENT) {
+			return EDITOR_KEYMAP_FILE_MISSING;
+		}
+		return EDITOR_KEYMAP_FILE_INVALID;
+	}
+
+	struct editorKeymap updated = *keymap;
+	int in_keymap_table = 0;
+	char line[1024];
+	while (fgets(line, sizeof(line), fp) != NULL) {
+		size_t line_len = strlen(line);
+		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
+			fclose(fp);
+			return EDITOR_KEYMAP_FILE_INVALID;
+		}
+
+		editorStripInlineComment(line);
+		editorTrimRight(line);
+		char *trimmed = editorTrimLeft(line);
+		if (trimmed[0] == '\0') {
+			continue;
+		}
+
+		if (trimmed[0] == '[') {
+			char *close = strchr(trimmed, ']');
+			if (close == NULL) {
+				fclose(fp);
+				return EDITOR_KEYMAP_FILE_INVALID;
+			}
+			*close = '\0';
+			char *table = editorTrimLeft(trimmed + 1);
+			editorTrimRight(table);
+			char *tail = editorTrimLeft(close + 1);
+			if (tail[0] != '\0') {
+				fclose(fp);
+				return EDITOR_KEYMAP_FILE_INVALID;
+			}
+
+			in_keymap_table = strcmp(table, "keymap") == 0;
+			continue;
+		}
+
+		if (!in_keymap_table) {
+			continue;
+		}
+
+		char *eq = strchr(trimmed, '=');
+		if (eq == NULL) {
+			fclose(fp);
+			return EDITOR_KEYMAP_FILE_INVALID;
+		}
+
+		*eq = '\0';
+		char *action_name = editorTrimLeft(trimmed);
+		editorTrimRight(action_name);
+		char *value = editorTrimLeft(eq + 1);
+		if (action_name[0] == '\0') {
+			fclose(fp);
+			return EDITOR_KEYMAP_FILE_INVALID;
+		}
+
+		enum editorAction action = EDITOR_ACTION_COUNT;
+		if (!editorKeymapResolveActionName(action_name, &action)) {
+			fclose(fp);
+			return EDITOR_KEYMAP_FILE_INVALID;
+		}
+
+		char key_spec[64];
+		if (!editorKeymapParseQuotedValue(value, key_spec, sizeof(key_spec))) {
+			fclose(fp);
+			return EDITOR_KEYMAP_FILE_INVALID;
+		}
+
+		int key = 0;
+		if (!editorKeymapParseKeySpec(key_spec, &key)) {
+			fclose(fp);
+			return EDITOR_KEYMAP_FILE_INVALID;
+		}
+
+		if (!editorKeymapSetActionBinding(&updated, action, key)) {
+			fclose(fp);
+			return EDITOR_KEYMAP_FILE_INVALID;
+		}
+	}
+
+	if (ferror(fp)) {
+		fclose(fp);
+		return EDITOR_KEYMAP_FILE_INVALID;
+	}
+
+	fclose(fp);
+	*keymap = updated;
+	return EDITOR_KEYMAP_FILE_APPLIED;
+}
+
+static int editorKeymapFormatKey(int key, char *buf, size_t bufsize) {
+	if (bufsize == 0) {
+		return 0;
+	}
+
+	if (key >= 1 && key <= 26) {
+		return snprintf(buf, bufsize, "Ctrl-%c", 'A' + key - 1) > 0;
+	}
+
+	switch (key) {
+		case ARROW_LEFT:
+			return snprintf(buf, bufsize, "Left") > 0;
+		case ARROW_RIGHT:
+			return snprintf(buf, bufsize, "Right") > 0;
+		case ARROW_UP:
+			return snprintf(buf, bufsize, "Up") > 0;
+		case ARROW_DOWN:
+			return snprintf(buf, bufsize, "Down") > 0;
+		case HOME_KEY:
+			return snprintf(buf, bufsize, "Home") > 0;
+		case END_KEY:
+			return snprintf(buf, bufsize, "End") > 0;
+		case PAGE_UP:
+			return snprintf(buf, bufsize, "PageUp") > 0;
+		case PAGE_DOWN:
+			return snprintf(buf, bufsize, "PageDown") > 0;
+		case DEL_KEY:
+			return snprintf(buf, bufsize, "Del") > 0;
+		case BACKSPACE:
+			return snprintf(buf, bufsize, "Backspace") > 0;
+		case '\r':
+			return snprintf(buf, bufsize, "Enter") > 0;
+		case '\x1b':
+			return snprintf(buf, bufsize, "Esc") > 0;
+		default:
+			break;
+	}
+
+	if (key >= CHAR_MIN && key <= CHAR_MAX && isprint((unsigned char)key)) {
+		return snprintf(buf, bufsize, "%c", key) > 0;
+	}
+
+	return snprintf(buf, bufsize, "Key%d", key) > 0;
+}
+
+static char *editorBuildGlobalConfigPath(void) {
+	const char *home = getenv("HOME");
+	if (home == NULL || home[0] == '\0') {
+		return NULL;
+	}
+
+	static const char suffix[] = "/.rotide/config.toml";
+	size_t total_len = 0;
+	if (!editorSizeAdd(strlen(home), sizeof(suffix), &total_len)) {
+		return NULL;
+	}
+
+	char *path = editorMalloc(total_len);
+	if (path == NULL) {
+		return NULL;
+	}
+
+	int written = snprintf(path, total_len, "%s%s", home, suffix);
+	if (written < 0 || (size_t)written >= total_len) {
+		free(path);
+		return NULL;
+	}
+	return path;
+}
+
+void editorKeymapInitDefaults(struct editorKeymap *keymap) {
+	keymap->len = 0;
+	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('q'), EDITOR_ACTION_QUIT);
+	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('s'), EDITOR_ACTION_SAVE);
+	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('f'), EDITOR_ACTION_FIND);
+	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('g'), EDITOR_ACTION_GOTO_LINE);
+	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('b'), EDITOR_ACTION_TOGGLE_SELECTION);
+	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('c'), EDITOR_ACTION_COPY_SELECTION);
+	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('x'), EDITOR_ACTION_CUT_SELECTION);
+	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('d'), EDITOR_ACTION_DELETE_SELECTION);
+	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('v'), EDITOR_ACTION_PASTE);
+	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('z'), EDITOR_ACTION_UNDO);
+	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('y'), EDITOR_ACTION_REDO);
+	(void)editorKeymapAppendBinding(keymap, HOME_KEY, EDITOR_ACTION_MOVE_HOME);
+	(void)editorKeymapAppendBinding(keymap, END_KEY, EDITOR_ACTION_MOVE_END);
+	(void)editorKeymapAppendBinding(keymap, PAGE_UP, EDITOR_ACTION_PAGE_UP);
+	(void)editorKeymapAppendBinding(keymap, PAGE_DOWN, EDITOR_ACTION_PAGE_DOWN);
+	(void)editorKeymapAppendBinding(keymap, ARROW_UP, EDITOR_ACTION_MOVE_UP);
+	(void)editorKeymapAppendBinding(keymap, ARROW_DOWN, EDITOR_ACTION_MOVE_DOWN);
+	(void)editorKeymapAppendBinding(keymap, ARROW_LEFT, EDITOR_ACTION_MOVE_LEFT);
+	(void)editorKeymapAppendBinding(keymap, ARROW_RIGHT, EDITOR_ACTION_MOVE_RIGHT);
+	(void)editorKeymapAppendBinding(keymap, '\r', EDITOR_ACTION_NEWLINE);
+	(void)editorKeymapAppendBinding(keymap, '\x1b', EDITOR_ACTION_ESCAPE);
+	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('l'), EDITOR_ACTION_REDRAW);
+	(void)editorKeymapAppendBinding(keymap, DEL_KEY, EDITOR_ACTION_DELETE_CHAR);
+	(void)editorKeymapAppendBinding(keymap, BACKSPACE, EDITOR_ACTION_BACKSPACE);
+	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('h'), EDITOR_ACTION_BACKSPACE);
+}
+
+int editorKeymapLookupAction(const struct editorKeymap *keymap, int key,
+		enum editorAction *action_out) {
+	for (size_t i = 0; i < keymap->len; i++) {
+		if (keymap->bindings[i].key == key) {
+			*action_out = keymap->bindings[i].action;
+			return 1;
+		}
+	}
+	return 0;
+}
+
+int editorKeymapFormatBinding(const struct editorKeymap *keymap, enum editorAction action,
+		char *buf, size_t bufsize) {
+	for (size_t i = 0; i < keymap->len; i++) {
+		if (keymap->bindings[i].action == action) {
+			return editorKeymapFormatKey(keymap->bindings[i].key, buf, bufsize);
+		}
+	}
+
+	if (bufsize != 0) {
+		buf[0] = '\0';
+	}
+	return 0;
+}
+
+void editorKeymapBuildHelpStatus(const struct editorKeymap *keymap, char *buf, size_t bufsize) {
+	char save[24];
+	char quit[24];
+	char find[24];
+	char go_to[24];
+	char select[24];
+	char copy[24];
+	char cut[24];
+	char delete_sel[24];
+	char paste[24];
+	char undo[24];
+	char redo[24];
+
+	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_SAVE, save, sizeof(save))) {
+		snprintf(save, sizeof(save), "Save");
+	}
+	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_QUIT, quit, sizeof(quit))) {
+		snprintf(quit, sizeof(quit), "Quit");
+	}
+	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_FIND, find, sizeof(find))) {
+		snprintf(find, sizeof(find), "Find");
+	}
+	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_GOTO_LINE, go_to, sizeof(go_to))) {
+		snprintf(go_to, sizeof(go_to), "Goto");
+	}
+	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_TOGGLE_SELECTION, select, sizeof(select))) {
+		snprintf(select, sizeof(select), "Select");
+	}
+	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_COPY_SELECTION, copy, sizeof(copy))) {
+		snprintf(copy, sizeof(copy), "Copy");
+	}
+	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_CUT_SELECTION, cut, sizeof(cut))) {
+		snprintf(cut, sizeof(cut), "Cut");
+	}
+	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_DELETE_SELECTION, delete_sel,
+				sizeof(delete_sel))) {
+		snprintf(delete_sel, sizeof(delete_sel), "Del");
+	}
+	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_PASTE, paste, sizeof(paste))) {
+		snprintf(paste, sizeof(paste), "Paste");
+	}
+	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_UNDO, undo, sizeof(undo))) {
+		snprintf(undo, sizeof(undo), "Undo");
+	}
+	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_REDO, redo, sizeof(redo))) {
+		snprintf(redo, sizeof(redo), "Redo");
+	}
+
+	snprintf(buf, bufsize,
+			"Help: %s save; %s quit; %s find; %s goto; %s/%s/%s/%s select; %s paste; %s/%s undo/redo",
+			save, quit, find, go_to, select, copy, cut, delete_sel, paste, undo, redo);
+}
+
+enum editorKeymapLoadStatus editorKeymapLoadFromPaths(struct editorKeymap *keymap,
+		const char *global_path, const char *project_path) {
+	if (keymap == NULL) {
+		return EDITOR_KEYMAP_LOAD_OUT_OF_MEMORY;
+	}
+
+	editorKeymapInitDefaults(keymap);
+	enum editorKeymapLoadStatus status = EDITOR_KEYMAP_LOAD_OK;
+
+	if (global_path != NULL) {
+		enum editorKeymapFileStatus global_status = editorKeymapApplyConfigFile(keymap, global_path);
+		if (global_status == EDITOR_KEYMAP_FILE_OUT_OF_MEMORY) {
+			editorKeymapInitDefaults(keymap);
+			return EDITOR_KEYMAP_LOAD_OUT_OF_MEMORY;
+		}
+		if (global_status == EDITOR_KEYMAP_FILE_INVALID) {
+			editorKeymapInitDefaults(keymap);
+			status = EDITOR_KEYMAP_LOAD_INVALID_GLOBAL;
+		}
+	}
+
+	if (project_path != NULL) {
+		enum editorKeymapFileStatus project_status = editorKeymapApplyConfigFile(keymap, project_path);
+		if (project_status == EDITOR_KEYMAP_FILE_OUT_OF_MEMORY) {
+			editorKeymapInitDefaults(keymap);
+			return EDITOR_KEYMAP_LOAD_OUT_OF_MEMORY;
+		}
+		if (project_status == EDITOR_KEYMAP_FILE_INVALID) {
+			editorKeymapInitDefaults(keymap);
+			return EDITOR_KEYMAP_LOAD_INVALID_PROJECT;
+		}
+	}
+
+	return status;
+}
+
+enum editorKeymapLoadStatus editorKeymapLoadConfigured(struct editorKeymap *keymap) {
+	if (keymap == NULL) {
+		return EDITOR_KEYMAP_LOAD_OUT_OF_MEMORY;
+	}
+
+	const char *home = getenv("HOME");
+	if (home == NULL || home[0] == '\0') {
+		return editorKeymapLoadFromPaths(keymap, NULL, ".rotide.toml");
+	}
+
+	char *global_path = editorBuildGlobalConfigPath();
+	if (global_path == NULL) {
+		editorKeymapInitDefaults(keymap);
+		return EDITOR_KEYMAP_LOAD_OUT_OF_MEMORY;
+	}
+
+	enum editorKeymapLoadStatus status =
+			editorKeymapLoadFromPaths(keymap, global_path, ".rotide.toml");
+	free(global_path);
+	return status;
+}

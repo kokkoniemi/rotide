@@ -1,0 +1,30 @@
+# Rotide example project config.
+# Current configurable section: [keymap]
+# Key spec format: "ctrl+<a-z>" or one of
+# left/right/up/down/home/end/page_up/page_down/enter/esc/backspace/del
+
+[keymap]
+quit = "ctrl+q"
+save = "ctrl+s"
+find = "ctrl+f"
+goto_line = "ctrl+g"
+toggle_selection = "ctrl+b"
+copy_selection = "ctrl+c"
+cut_selection = "ctrl+x"
+delete_selection = "ctrl+d"
+paste = "ctrl+v"
+undo = "ctrl+z"
+redo = "ctrl+y"
+move_home = "home"
+move_end = "end"
+page_up = "page_up"
+page_down = "page_down"
+move_up = "up"
+move_down = "down"
+move_left = "left"
+move_right = "right"
+newline = "enter"
+escape = "esc"
+redraw = "ctrl+l"
+delete_char = "del"
+backspace = "backspace"
