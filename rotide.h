@@ -16,6 +16,19 @@
 
 typedef void (*editorClipboardExternalSink)(const char *text, int len);
 
+enum editorMouseEventKind {
+	EDITOR_MOUSE_EVENT_NONE = 0,
+	EDITOR_MOUSE_EVENT_LEFT_PRESS,
+	EDITOR_MOUSE_EVENT_WHEEL_UP,
+	EDITOR_MOUSE_EVENT_WHEEL_DOWN
+};
+
+struct editorMouseEvent {
+	enum editorMouseEventKind kind;
+	int x;
+	int y;
+};
+
 struct erow {
 	int size;
 	int rsize;
@@ -106,7 +119,8 @@ enum editorKey {
 	PAGE_DOWN,
 	HOME_KEY,
 	END_KEY,
-	DEL_KEY
+	DEL_KEY,
+	MOUSE_EVENT
 };
 
 #endif

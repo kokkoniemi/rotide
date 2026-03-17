@@ -14,6 +14,7 @@
 
 static int quit_confirmed = 0;
 typedef void (*editorPromptCallback)(const char *query, int key);
+enum { MOUSE_WHEEL_SCROLL_LINES = 3 };
 
 static size_t editorPromptPrevDeleteIdx(const char *buf, size_t buflen) {
 	if (buflen == 0) {
@@ -455,6 +456,9 @@ static char *editorPromptWithCallback(const char *prompt, int allow_empty,
 		editorRefreshScreen();
 
 		int c = editorReadKey();
+		if (c == MOUSE_EVENT) {
+			continue;
+		}
 		if (c == DEL_KEY || c == CTRL_KEY('h') || c == BACKSPACE) {
 			if (buflen != 0) {
 				buflen = editorPromptPrevDeleteIdx(buf, buflen);
@@ -628,6 +632,58 @@ static void editorMoveCursor(int k) {
 	editorAlignCursorWithRowEnd();
 }
 
+static void editorHandleMouseClick(const struct editorMouseEvent *event) {
+	int mouse_row = event->y - 1;
+	if (mouse_row < 0 || mouse_row >= E.window_rows) {
+		return;
+	}
+
+	int row_idx = E.rowoff + mouse_row;
+	if (row_idx < 0 || row_idx >= E.numrows) {
+		return;
+	}
+
+	int mouse_col = event->x - 1;
+	if (mouse_col < 0) {
+		return;
+	}
+
+	int target_rx = E.coloff + mouse_col;
+	if (target_rx < 0) {
+		target_rx = 0;
+	}
+
+	E.cy = row_idx;
+	E.cx = editorRowRxToCx(&E.rows[row_idx], target_rx);
+	editorAlignCursorWithRowEnd();
+}
+
+static void editorHandleMouseWheel(const struct editorMouseEvent *event) {
+	int direction = event->kind == EDITOR_MOUSE_EVENT_WHEEL_UP ? ARROW_UP : ARROW_DOWN;
+	for (int i = 0; i < MOUSE_WHEEL_SCROLL_LINES; i++) {
+		editorMoveCursor(direction);
+	}
+}
+
+static void editorHandleMouseEvent(void) {
+	struct editorMouseEvent event;
+	if (!editorConsumeMouseEvent(&event)) {
+		return;
+	}
+
+	switch (event.kind) {
+		case EDITOR_MOUSE_EVENT_LEFT_PRESS:
+			editorHandleMouseClick(&event);
+			break;
+		case EDITOR_MOUSE_EVENT_WHEEL_UP:
+		case EDITOR_MOUSE_EVENT_WHEEL_DOWN:
+			editorHandleMouseWheel(&event);
+			break;
+		default:
+			break;
+	}
+}
+
 void editorProcessKeypress(void) {
 	int c = editorReadKey();
 
@@ -715,6 +771,10 @@ void editorProcessKeypress(void) {
 		case ARROW_RIGHT:
 			editorHistoryBreakGroup();
 			editorMoveCursor(c);
+			break;
+		case MOUSE_EVENT:
+			editorHistoryBreakGroup();
+			editorHandleMouseEvent();
 			break;
 		case '\r': {
 			editorClearSelectionMode();

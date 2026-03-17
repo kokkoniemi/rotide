@@ -1,4 +1,3 @@
-// TODO(feature): Add mouse click support for cursor placement and wheel scrolling.
 // TODO(feature): Add mouse drag support for text selection.
 // TODO(feature): Add support for custom keymap that reads and saves the settings to project root folder
 

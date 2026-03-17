@@ -15,17 +15,22 @@
 #define VT100_RESET_CURSOR_POS_3 "\x1b[H"
 #define VT100_SHOW_CURSOR_6 "\x1b[?25h"
 #define VT100_CURSOR_DEFAULT_5 "\x1b[0 q"
+#define VT100_ENABLE_MOUSE_16 "\x1b[?1000h\x1b[?1006h"
+#define VT100_DISABLE_MOUSE_16 "\x1b[?1000l\x1b[?1006l"
 #define OSC52_PLAIN_PREFIX "\x1b]52;c;"
 #define OSC52_PLAIN_SUFFIX "\a"
 #define OSC52_TMUX_PREFIX "\x1bPtmux;\x1b\x1b]52;c;"
 #define OSC52_TMUX_SUFFIX "\a\x1b\\"
 #define OSC52_SCREEN_PREFIX "\x1bP\x1b]52;c;"
 #define OSC52_SCREEN_SUFFIX "\a\x1b\\"
+#define SGR_MOUSE_MAX_PAYLOAD 64
 
 static volatile sig_atomic_t terminal_attrs_captured = 0;
 static volatile sig_atomic_t terminal_raw_enabled = 0;
 static volatile sig_atomic_t terminal_handlers_installed = 0;
 static volatile sig_atomic_t terminal_restore_atexit_registered = 0;
+static struct editorMouseEvent pending_mouse_event = {EDITOR_MOUSE_EVENT_NONE, 0, 0};
+static int has_pending_mouse_event = 0;
 
 enum editorOsc52Mode {
 	EDITOR_OSC52_MODE_AUTO = 0,
@@ -49,6 +54,84 @@ static int editorWriteAll(int fd, const char *buf, size_t len) {
 		len -= (size_t)written;
 	}
 	return 1;
+}
+
+static int editorReadSeqByte(char *out) {
+	ssize_t nread = read(STDIN_FILENO, out, 1);
+	if (nread == 1) {
+		return 1;
+	}
+	if (nread == -1 && errno != EAGAIN) {
+		panic("read");
+	}
+	return 0;
+}
+
+static int editorDecodeSgrMousePayload(const char *payload, struct editorMouseEvent *event_out) {
+	int cb = 0;
+	int cx = 0;
+	int cy = 0;
+	char suffix = '\0';
+	int consumed = 0;
+	if (sscanf(payload, "%d;%d;%d%c%n", &cb, &cx, &cy, &suffix, &consumed) != 4) {
+		return 0;
+	}
+	if (payload[consumed] != '\0') {
+		return 0;
+	}
+
+	event_out->kind = EDITOR_MOUSE_EVENT_NONE;
+	event_out->x = cx;
+	event_out->y = cy;
+	if (cx <= 0 || cy <= 0) {
+		return 1;
+	}
+
+	if (suffix != 'M') {
+		return 1;
+	}
+	if (cb & 32) {
+		return 1;
+	}
+
+	if (cb & 64) {
+		int wheel_button = cb & 0x03;
+		if (wheel_button == 0) {
+			event_out->kind = EDITOR_MOUSE_EVENT_WHEEL_UP;
+		} else if (wheel_button == 1) {
+			event_out->kind = EDITOR_MOUSE_EVENT_WHEEL_DOWN;
+		}
+		return 1;
+	}
+
+	int button = cb & 0x03;
+	if (button == 0) {
+		event_out->kind = EDITOR_MOUSE_EVENT_LEFT_PRESS;
+	}
+	return 1;
+}
+
+static int editorReadSgrMouseEvent(struct editorMouseEvent *event_out) {
+	char payload[SGR_MOUSE_MAX_PAYLOAD];
+	int payload_len = 0;
+	char term = '\0';
+
+	while (payload_len < (int)sizeof(payload) - 1) {
+		if (!editorReadSeqByte(&term)) {
+			return 0;
+		}
+		payload[payload_len++] = term;
+		if (term == 'M' || term == 'm') {
+			break;
+		}
+	}
+
+	if (payload_len == (int)sizeof(payload) - 1 && term != 'M' && term != 'm') {
+		return 0;
+	}
+
+	payload[payload_len] = '\0';
+	return editorDecodeSgrMousePayload(payload, event_out);
 }
 
 static char *editorBase64Encode(const unsigned char *bytes, int len, size_t *out_len) {
@@ -158,6 +241,19 @@ void editorClipboardSyncOsc52(const char *text, int len) {
 	free(encoded);
 }
 
+int editorConsumeMouseEvent(struct editorMouseEvent *out) {
+	if (out == NULL || !has_pending_mouse_event) {
+		return 0;
+	}
+
+	*out = pending_mouse_event;
+	pending_mouse_event.kind = EDITOR_MOUSE_EVENT_NONE;
+	pending_mouse_event.x = 0;
+	pending_mouse_event.y = 0;
+	has_pending_mouse_event = 0;
+	return 1;
+}
+
 static void editorRestoreCursorVisualState(void) {
 	(void)write(STDOUT_FILENO, VT100_CURSOR_DEFAULT_5, 5);
 	(void)write(STDOUT_FILENO, VT100_SHOW_CURSOR_6, 6);
@@ -169,7 +265,12 @@ static void editorRestoreTerminalInternal(void) {
 			terminal_raw_enabled = 0;
 		}
 	}
+	(void)editorWriteAll(STDOUT_FILENO, VT100_DISABLE_MOUSE_16, 16);
 	editorRestoreCursorVisualState();
+	pending_mouse_event.kind = EDITOR_MOUSE_EVENT_NONE;
+	pending_mouse_event.x = 0;
+	pending_mouse_event.y = 0;
+	has_pending_mouse_event = 0;
 }
 
 static void editorRestoreTerminalAtExit(void) {
@@ -277,38 +378,57 @@ void setRawMode(void) {
 	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &attrs) == -1) {
 		panic("tcsetattr");
 	}
+	(void)editorWriteAll(STDOUT_FILENO, VT100_ENABLE_MOUSE_16, 16);
 	terminal_raw_enabled = 1;
 	editorInstallTerminationHandlers();
 }
 
 int editorReadKey(void) {
-	int nread;
-	char c;
-	while ((nread = read(STDIN_FILENO, &c, 1)) != 1) {
-		if (nread == -1 && errno != EAGAIN) {
-			panic("read");
+	while (1) {
+		int nread;
+		char c;
+		while ((nread = read(STDIN_FILENO, &c, 1)) != 1) {
+			if (nread == -1 && errno != EAGAIN) {
+				panic("read");
+			}
 		}
-	}
 
-	if (c == '\x1b') {
-		char seq[3];
+		if (c != '\x1b') {
+			return c;
+		}
 
+		char first = '\0';
+		char second = '\0';
 		// Parse common ANSI escape sequences used by arrow/home/end/page keys.
 		// If the sequence is incomplete, treat it as a plain Escape keypress.
-		if (read(STDIN_FILENO, &seq[0], 1) != 1) {
+		if (!editorReadSeqByte(&first)) {
 			return '\x1b';
 		}
-		if (read(STDIN_FILENO, &seq[1], 1) != 1) {
+		if (!editorReadSeqByte(&second)) {
 			return '\x1b';
 		}
 
-		if (seq[0] == '[') {
-			if (seq[1] >= '0' && seq[1] <= '9') {
-				if (read(STDIN_FILENO, &seq[2], 1) != 1) {
+		if (first == '[') {
+			if (second == '<') {
+				struct editorMouseEvent event;
+				if (!editorReadSgrMouseEvent(&event)) {
 					return '\x1b';
 				}
-				if (seq[2] == '~') {
-					switch (seq[1]) {
+				if (event.kind == EDITOR_MOUSE_EVENT_NONE) {
+					continue;
+				}
+				pending_mouse_event = event;
+				has_pending_mouse_event = 1;
+				return MOUSE_EVENT;
+			}
+
+			if (second >= '0' && second <= '9') {
+				char third = '\0';
+				if (!editorReadSeqByte(&third)) {
+					return '\x1b';
+				}
+				if (third == '~') {
+					switch (second) {
 						case '1':
 							return HOME_KEY;
 						case '3':
@@ -327,7 +447,7 @@ int editorReadKey(void) {
 				}
 			}
 
-			switch (seq[1]) {
+			switch (second) {
 				case 'A':
 					return ARROW_UP;
 				case 'B':
@@ -343,8 +463,8 @@ int editorReadKey(void) {
 			}
 		}
 
-		if (seq[0] == 'O') {
-			switch (seq[1]) {
+		if (first == 'O') {
+			switch (second) {
 				case 'H':
 					return HOME_KEY;
 				case 'F':
@@ -354,8 +474,6 @@ int editorReadKey(void) {
 
 		return '\x1b';
 	}
-
-	return c;
 }
 
 int readCursorPosition(int *rows, int *cols) {

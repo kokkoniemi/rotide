@@ -1305,6 +1305,49 @@ static int test_editor_read_key_sequences(void) {
 	return 0;
 }
 
+static int test_editor_read_key_sgr_mouse_events(void) {
+	int key = 0;
+	struct editorMouseEvent event;
+	char left_click[] = "\x1b[<0;5;3M";
+	char wheel_up[] = "\x1b[<64;7;2M";
+	char wheel_down[] = "\x1b[<65;4;9M";
+	char release_then_plain[] = "\x1b[<0;1;1mX";
+	char unsupported_then_plain[] = "\x1b[<2;1;1MY";
+
+	ASSERT_TRUE(editor_read_key_with_input(left_click, sizeof(left_click) - 1, &key) == 0);
+	ASSERT_EQ_INT(MOUSE_EVENT, key);
+	ASSERT_TRUE(editorConsumeMouseEvent(&event) == 1);
+	ASSERT_EQ_INT(EDITOR_MOUSE_EVENT_LEFT_PRESS, event.kind);
+	ASSERT_EQ_INT(5, event.x);
+	ASSERT_EQ_INT(3, event.y);
+	ASSERT_EQ_INT(0, editorConsumeMouseEvent(&event));
+
+	ASSERT_TRUE(editor_read_key_with_input(wheel_up, sizeof(wheel_up) - 1, &key) == 0);
+	ASSERT_EQ_INT(MOUSE_EVENT, key);
+	ASSERT_TRUE(editorConsumeMouseEvent(&event) == 1);
+	ASSERT_EQ_INT(EDITOR_MOUSE_EVENT_WHEEL_UP, event.kind);
+	ASSERT_EQ_INT(7, event.x);
+	ASSERT_EQ_INT(2, event.y);
+
+	ASSERT_TRUE(editor_read_key_with_input(wheel_down, sizeof(wheel_down) - 1, &key) == 0);
+	ASSERT_EQ_INT(MOUSE_EVENT, key);
+	ASSERT_TRUE(editorConsumeMouseEvent(&event) == 1);
+	ASSERT_EQ_INT(EDITOR_MOUSE_EVENT_WHEEL_DOWN, event.kind);
+	ASSERT_EQ_INT(4, event.x);
+	ASSERT_EQ_INT(9, event.y);
+
+	ASSERT_TRUE(editor_read_key_with_input(release_then_plain,
+				sizeof(release_then_plain) - 1, &key) == 0);
+	ASSERT_EQ_INT('X', key);
+	ASSERT_EQ_INT(0, editorConsumeMouseEvent(&event));
+
+	ASSERT_TRUE(editor_read_key_with_input(unsupported_then_plain,
+				sizeof(unsupported_then_plain) - 1, &key) == 0);
+	ASSERT_EQ_INT('Y', key);
+	ASSERT_EQ_INT(0, editorConsumeMouseEvent(&event));
+	return 0;
+}
+
 static int test_read_cursor_position_and_window_size_fallback(void) {
 	char response[] = "\x1b[24;80R";
 	int rows = 0;
@@ -1443,6 +1486,102 @@ static int test_editor_process_keypress_ctrl_s_saves_file(void) {
 
 	free(contents);
 	unlink(path);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_left_click_places_cursor_with_offsets(void) {
+	add_row("0123456789");
+	add_row("abcdefghij");
+	add_row("klmnopqrst");
+	E.window_rows = 4;
+	E.window_cols = 20;
+	E.rowoff = 1;
+	E.coloff = 2;
+	E.cy = 0;
+	E.cx = 0;
+
+	const char click[] = "\x1b[<0;4;1M";
+	ASSERT_TRUE(editor_process_keypress_with_input(click, sizeof(click) - 1) == 0);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(5, E.cx);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_left_click_ignores_non_text_rows(void) {
+	add_row("abc");
+	E.window_rows = 4;
+	E.window_cols = 20;
+	E.rowoff = 0;
+	E.coloff = 0;
+	E.cy = 0;
+	E.cx = 1;
+
+	const char click_status_bar[] = "\x1b[<0;2;5M";
+	ASSERT_TRUE(editor_process_keypress_with_input(click_status_bar,
+				sizeof(click_status_bar) - 1) == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(1, E.cx);
+
+	const char click_filler_row[] = "\x1b[<0;2;3M";
+	ASSERT_TRUE(editor_process_keypress_with_input(click_filler_row,
+				sizeof(click_filler_row) - 1) == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(1, E.cx);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps(void) {
+	for (int i = 0; i < 10; i++) {
+		add_row("line");
+	}
+	E.window_rows = 5;
+	E.window_cols = 20;
+	E.cy = 0;
+	E.cx = 0;
+
+	const char wheel_down[] = "\x1b[<65;1;1M";
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_down, sizeof(wheel_down) - 1) == 0);
+	ASSERT_EQ_INT(3, E.cy);
+
+	E.cy = 8;
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_down, sizeof(wheel_down) - 1) == 0);
+	ASSERT_EQ_INT(10, E.cy);
+
+	const char wheel_up[] = "\x1b[<64;1;1M";
+	E.cy = 1;
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_up, sizeof(wheel_up) - 1) == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_click_keeps_selection_anchor(void) {
+	add_row("abcdef");
+	E.cy = 0;
+	E.cx = 1;
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+
+	const char click[] = "\x1b[<0;5;1M";
+	ASSERT_TRUE(editor_process_keypress_with_input(click, sizeof(click) - 1) == 0);
+	ASSERT_EQ_INT(1, E.selection_mode_active);
+	ASSERT_EQ_INT(1, E.selection_anchor_cx);
+
+	struct editorSelectionRange range;
+	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
+	ASSERT_EQ_INT(1, range.start_cx);
+	ASSERT_EQ_INT(4, range.end_cx);
+	return 0;
+}
+
+static int test_editor_prompt_ignores_mouse_events(void) {
+	add_row("abcdef");
+	E.cy = 0;
+	E.cx = 2;
+
+	const char input[] = "\x1b[<0;6;1M\x1b";
+	char *result = editor_prompt_with_input(input, sizeof(input) - 1, "Prompt: %s");
+	ASSERT_TRUE(result == NULL);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
 	return 0;
 }
 
@@ -2722,6 +2861,7 @@ int main(void) {
 		{"editor_save_parent_dir_fsync_success_clears_dirty",
 			test_editor_save_parent_dir_fsync_success_clears_dirty},
 		{"editor_read_key_sequences", test_editor_read_key_sequences},
+		{"editor_read_key_sgr_mouse_events", test_editor_read_key_sgr_mouse_events},
 		{"read_cursor_position_and_window_size_fallback", test_read_cursor_position_and_window_size_fallback},
 		{"read_cursor_position_rejects_malformed_responses",
 			test_read_cursor_position_rejects_malformed_responses},
@@ -2731,6 +2871,15 @@ int main(void) {
 		{"editor_process_keypress_arrow_down_keeps_visual_column",
 			test_editor_process_keypress_arrow_down_keeps_visual_column},
 		{"editor_process_keypress_ctrl_s_saves_file", test_editor_process_keypress_ctrl_s_saves_file},
+		{"editor_process_keypress_mouse_left_click_places_cursor_with_offsets",
+			test_editor_process_keypress_mouse_left_click_places_cursor_with_offsets},
+		{"editor_process_keypress_mouse_left_click_ignores_non_text_rows",
+			test_editor_process_keypress_mouse_left_click_ignores_non_text_rows},
+		{"editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps",
+			test_editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps},
+		{"editor_process_keypress_mouse_click_keeps_selection_anchor",
+			test_editor_process_keypress_mouse_click_keeps_selection_anchor},
+		{"editor_prompt_ignores_mouse_events", test_editor_prompt_ignores_mouse_events},
 		{"editor_process_keypress_ctrl_b_toggles_selection_mode",
 			test_editor_process_keypress_ctrl_b_toggles_selection_mode},
 		{"editor_selection_range_tracks_cursor_movement",
