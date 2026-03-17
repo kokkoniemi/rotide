@@ -904,6 +904,23 @@ static int test_editor_refresh_screen_status_bar_cursor_multibyte_col(void) {
 	return 0;
 }
 
+static int test_editor_refresh_screen_status_bar_cursor_tab_display_col(void) {
+	add_row("a\tb");
+	E.window_rows = 3;
+	E.window_cols = 40;
+	E.cy = 0;
+	E.cx = 2;
+	E.filename = strdup("tabs.txt");
+	ASSERT_TRUE(E.filename != NULL);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "1,9    100%") != NULL);
+	free(output);
+	return 0;
+}
+
 struct testCase {
 	const char *name;
 	int (*run)(void);
@@ -979,6 +996,8 @@ int main(void) {
 			test_editor_refresh_screen_status_bar_single_row_percent},
 		{"editor_refresh_screen_status_bar_cursor_multibyte_col",
 			test_editor_refresh_screen_status_bar_cursor_multibyte_col},
+		{"editor_refresh_screen_status_bar_cursor_tab_display_col",
+			test_editor_refresh_screen_status_bar_cursor_tab_display_col},
 	};
 
 	int total = (int)(sizeof(tests) / sizeof(tests[0]));

@@ -140,23 +140,9 @@ static void editorDrawStatusBar(struct writeBuf *wb) {
 	if (progress > 100) {
 		progress = 100;
 	}
-	int cursor_col = E.cx + 1;
-	if (E.cy < E.numrows) {
-		struct erow *row = &E.rows[E.cy];
-		int target = editorRowClampCxToClusterBoundary(row, E.cx);
-		int scan = 0;
-		int logical_col = 1;
-		// Convert byte cursor index to user-facing column by counting
-		// grapheme clusters. This avoids reporting multibyte offsets.
-		while (scan < target) {
-			int next = editorRowNextClusterIdx(row, scan);
-			if (next <= scan) {
-				break;
-			}
-			scan = next;
-			logical_col++;
-		}
-		cursor_col = logical_col;
+	int cursor_col = E.rx + 1;
+	if (cursor_col < 1) {
+		cursor_col = 1;
 	}
 	int rlen = snprintf(rightbuf, sizeof(rightbuf), "%d,%d    %d%%",
 				E.cy + 1, cursor_col, progress);
