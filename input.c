@@ -75,6 +75,151 @@ static void editorClearSearchState(void) {
 	editorClearActiveSearchMatch();
 }
 
+static void editorClearSelectionMode(void) {
+	E.selection_mode_active = 0;
+	E.selection_anchor_cx = 0;
+	E.selection_anchor_cy = 0;
+}
+
+static void editorToggleSelectionMode(void) {
+	if (E.selection_mode_active) {
+		editorClearSelectionMode();
+		return;
+	}
+
+	editorAlignCursorWithRowEnd();
+	E.selection_mode_active = 1;
+	E.selection_anchor_cx = E.cx;
+	E.selection_anchor_cy = E.cy;
+}
+
+static int editorCopyRangeToClipboard(const struct editorSelectionRange *range, int *copied_len_out) {
+	char *copied = NULL;
+	int copied_len = 0;
+	int extracted = editorExtractRangeText(range, &copied, &copied_len);
+	if (extracted <= 0) {
+		return extracted;
+	}
+
+	if (!editorClipboardSet(copied, copied_len)) {
+		free(copied);
+		return -1;
+	}
+	free(copied);
+
+	if (copied_len_out != NULL) {
+		*copied_len_out = copied_len;
+	}
+	return 1;
+}
+
+static void editorCopySelection(void) {
+	struct editorSelectionRange range;
+	if (!editorGetSelectionRange(&range)) {
+		editorSetStatusMsg("No selection");
+		return;
+	}
+
+	int copied_len = 0;
+	int copied = editorCopyRangeToClipboard(&range, &copied_len);
+	if (copied <= 0) {
+		if (copied == 0) {
+			editorSetStatusMsg("No selection");
+		}
+		return;
+	}
+
+	editorClearSelectionMode();
+	editorSetStatusMsg("Copied %d bytes", copied_len);
+}
+
+static void editorCutSelection(void) {
+	struct editorSelectionRange range;
+	if (!editorGetSelectionRange(&range)) {
+		editorSetStatusMsg("No selection");
+		return;
+	}
+
+	int copied_len = 0;
+	int copied = editorCopyRangeToClipboard(&range, &copied_len);
+	if (copied <= 0) {
+		if (copied == 0) {
+			editorSetStatusMsg("No selection");
+		}
+		return;
+	}
+
+	editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
+	int dirty_before = E.dirty;
+	int deleted = editorDeleteRange(&range);
+	editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+	if (deleted <= 0) {
+		if (deleted == 0) {
+			editorSetStatusMsg("No selection");
+		}
+		return;
+	}
+
+	editorClearSelectionMode();
+	editorSetStatusMsg("Cut %d bytes", copied_len);
+}
+
+static void editorDeleteSelection(void) {
+	struct editorSelectionRange range;
+	if (!editorGetSelectionRange(&range)) {
+		editorSetStatusMsg("No selection");
+		return;
+	}
+
+	editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
+	int dirty_before = E.dirty;
+	int deleted = editorDeleteRange(&range);
+	editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+	if (deleted <= 0) {
+		if (deleted == 0) {
+			editorSetStatusMsg("No selection");
+		}
+		return;
+	}
+
+	editorClearSelectionMode();
+}
+
+static void editorPasteClipboard(void) {
+	int clip_len = 0;
+	const char *clip = editorClipboardGet(&clip_len);
+	if (clip_len <= 0) {
+		editorSetStatusMsg("Clipboard is empty");
+		return;
+	}
+
+	editorClearSelectionMode();
+	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+	int dirty_before = E.dirty;
+	int inserted = 0;
+	int failed = 0;
+	for (int i = 0; i < clip_len; i++) {
+		int step_dirty_before = E.dirty;
+		if (clip[i] == '\n') {
+			editorInsertNewline();
+		} else {
+			editorInsertChar((unsigned char)clip[i]);
+		}
+		if (E.dirty == step_dirty_before) {
+			failed = 1;
+			break;
+		}
+		inserted++;
+	}
+
+	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+	editorHistoryBreakGroup();
+
+	if (!failed) {
+		editorSetStatusMsg("Pasted %d bytes", inserted);
+	}
+}
+
 static int editorFindForwardInRow(const struct erow *row, const char *query, int from_idx,
 		int *out_idx) {
 	if (from_idx < 0) {
@@ -503,6 +648,26 @@ void editorProcessKeypress(void) {
 			editorHistoryBreakGroup();
 			editorGoToLine();
 			break;
+		case CTRL_KEY('b'):
+			editorHistoryBreakGroup();
+			editorToggleSelectionMode();
+			break;
+		case CTRL_KEY('c'):
+			editorHistoryBreakGroup();
+			editorCopySelection();
+			break;
+		case CTRL_KEY('x'):
+			editorHistoryBreakGroup();
+			editorCutSelection();
+			break;
+		case CTRL_KEY('d'):
+			editorHistoryBreakGroup();
+			editorDeleteSelection();
+			break;
+		case CTRL_KEY('v'):
+			editorHistoryBreakGroup();
+			editorPasteClipboard();
+			break;
 		case CTRL_KEY('z'):
 			editorHistoryBreakGroup();
 			if (editorUndo() == 1) {
@@ -552,6 +717,7 @@ void editorProcessKeypress(void) {
 			editorMoveCursor(c);
 			break;
 		case '\r': {
+			editorClearSelectionMode();
 			editorHistoryBeginEdit(EDITOR_EDIT_NEWLINE);
 			int dirty_before = E.dirty;
 			editorInsertNewline();
@@ -559,12 +725,16 @@ void editorProcessKeypress(void) {
 			break;
 		}
 		case '\x1b':
+			editorHistoryBreakGroup();
+			editorClearSelectionMode();
+			break;
 		case CTRL_KEY('l'):
 			editorHistoryBreakGroup();
 			break;
 		case DEL_KEY:
 		case BACKSPACE:
 		case CTRL_KEY('h'): {
+			editorClearSelectionMode();
 			editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
 			int dirty_before = E.dirty;
 			if (c == DEL_KEY) {
@@ -575,6 +745,7 @@ void editorProcessKeypress(void) {
 			break;
 		}
 		default: {
+			editorClearSelectionMode();
 			editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
 			int dirty_before = E.dirty;
 			editorInsertChar(c);

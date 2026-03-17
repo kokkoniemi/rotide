@@ -1409,6 +1409,359 @@ static int test_editor_process_keypress_ctrl_s_saves_file(void) {
 	return 0;
 }
 
+static int test_editor_process_keypress_ctrl_b_toggles_selection_mode(void) {
+	add_row("abcd");
+	E.cy = 0;
+	E.cx = 2;
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	ASSERT_EQ_INT(1, E.selection_mode_active);
+	ASSERT_EQ_INT(0, E.selection_anchor_cy);
+	ASSERT_EQ_INT(2, E.selection_anchor_cx);
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+
+	struct editorSelectionRange range;
+	ASSERT_EQ_INT(0, editorGetSelectionRange(&range));
+	return 0;
+}
+
+static int test_editor_selection_range_tracks_cursor_movement(void) {
+	add_row("abcd");
+	E.cy = 0;
+	E.cx = 1;
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+
+	char arrow_right[] = "\x1b[C";
+	ASSERT_TRUE(editor_process_keypress_with_input(arrow_right, sizeof(arrow_right) - 1) == 0);
+
+	struct editorSelectionRange range;
+	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
+	ASSERT_EQ_INT(0, range.start_cy);
+	ASSERT_EQ_INT(1, range.start_cx);
+	ASSERT_EQ_INT(0, range.end_cy);
+	ASSERT_EQ_INT(2, range.end_cx);
+
+	ASSERT_TRUE(editor_process_keypress_with_input(arrow_right, sizeof(arrow_right) - 1) == 0);
+	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
+	ASSERT_EQ_INT(3, range.end_cx);
+
+	char arrow_left[] = "\x1b[D";
+	ASSERT_TRUE(editor_process_keypress_with_input(arrow_left, sizeof(arrow_left) - 1) == 0);
+	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
+	ASSERT_EQ_INT(2, range.end_cx);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_c_copies_single_line_selection(void) {
+	add_row("hello");
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	E.cx = 5;
+	int dirty_before = E.dirty;
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('c')) == 0);
+
+	int clip_len = 0;
+	const char *clip = editorClipboardGet(&clip_len);
+	ASSERT_EQ_INT(5, clip_len);
+	ASSERT_MEM_EQ("hello", clip, (size_t)clip_len);
+	ASSERT_EQ_INT(dirty_before, E.dirty);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_c_copies_multiline_selection(void) {
+	add_row("abc");
+	add_row("def");
+	add_row("ghi");
+	E.cy = 0;
+	E.cx = 1;
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	E.cy = 2;
+	E.cx = 2;
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('c')) == 0);
+
+	int clip_len = 0;
+	const char *clip = editorClipboardGet(&clip_len);
+	ASSERT_EQ_INT(9, clip_len);
+	ASSERT_MEM_EQ("bc\ndef\ngh", clip, (size_t)clip_len);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_x_cuts_selection_and_updates_clipboard(void) {
+	add_row("hello");
+	add_row("world");
+	E.cy = 0;
+	E.cx = 2;
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	E.cy = 1;
+	E.cx = 3;
+	int dirty_before = E.dirty;
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('x')) == 0);
+
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_STR("held", E.rows[0].chars);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_TRUE(E.dirty > dirty_before);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+
+	int clip_len = 0;
+	const char *clip = editorClipboardGet(&clip_len);
+	ASSERT_EQ_INT(7, clip_len);
+	ASSERT_MEM_EQ("llo\nwor", clip, (size_t)clip_len);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_d_deletes_selection_without_overwriting_clipboard(void) {
+	ASSERT_TRUE(editorClipboardSet("keep", 4));
+
+	add_row("hello");
+	add_row("world");
+	E.cy = 0;
+	E.cx = 2;
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	E.cy = 1;
+	E.cx = 3;
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('d')) == 0);
+
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_STR("held", E.rows[0].chars);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+
+	int clip_len = 0;
+	const char *clip = editorClipboardGet(&clip_len);
+	ASSERT_EQ_INT(4, clip_len);
+	ASSERT_MEM_EQ("keep", clip, (size_t)clip_len);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_v_pastes_clipboard_text(void) {
+	ASSERT_TRUE(editorClipboardSet("XYZ", 3));
+	add_row("ab");
+	E.cy = 0;
+	E.cx = 1;
+	int dirty_before = E.dirty;
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('v')) == 0);
+	ASSERT_EQ_STR("aXYZb", E.rows[0].chars);
+	ASSERT_EQ_INT(4, E.cx);
+	ASSERT_TRUE(E.dirty > dirty_before);
+	ASSERT_EQ_STR("Pasted 3 bytes", E.statusmsg);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_v_pastes_multiline_clipboard_text(void) {
+	ASSERT_TRUE(editorClipboardSet("A\nB", 3));
+	add_row("xy");
+	E.cy = 0;
+	E.cx = 1;
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('v')) == 0);
+	ASSERT_EQ_INT(2, E.numrows);
+	ASSERT_EQ_STR("xA", E.rows[0].chars);
+	ASSERT_EQ_STR("By", E.rows[1].chars);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(1, E.cx);
+	ASSERT_EQ_STR("Pasted 3 bytes", E.statusmsg);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_v_empty_clipboard_is_noop(void) {
+	add_row("abc");
+	E.cy = 0;
+	E.cx = 2;
+	int dirty_before = E.dirty;
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('v')) == 0);
+	ASSERT_EQ_STR("abc", E.rows[0].chars);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_EQ_INT(dirty_before, E.dirty);
+	ASSERT_EQ_STR("Clipboard is empty", E.statusmsg);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_v_clears_selection_mode(void) {
+	ASSERT_TRUE(editorClipboardSet("Z", 1));
+	add_row("ab");
+	E.cy = 0;
+	E.cx = 1;
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	ASSERT_EQ_INT(1, E.selection_mode_active);
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('v')) == 0);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+	ASSERT_EQ_STR("aZb", E.rows[0].chars);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_v_undo_roundtrip_single_step(void) {
+	ASSERT_TRUE(editorClipboardSet("XY", 2));
+	add_row("ab");
+	E.cy = 0;
+	E.cx = 1;
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('v')) == 0);
+	ASSERT_EQ_STR("aXYb", E.rows[0].chars);
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
+	ASSERT_EQ_STR("ab", E.rows[0].chars);
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('y')) == 0);
+	ASSERT_EQ_STR("aXYb", E.rows[0].chars);
+	return 0;
+}
+
+static int test_editor_process_keypress_selection_ops_noop_without_selection(void) {
+	add_row("abc");
+	E.cy = 0;
+	E.cx = 1;
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	ASSERT_EQ_INT(1, E.selection_mode_active);
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('c')) == 0);
+	ASSERT_EQ_STR("No selection", E.statusmsg);
+	ASSERT_EQ_STR("abc", E.rows[0].chars);
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('x')) == 0);
+	ASSERT_EQ_STR("No selection", E.statusmsg);
+	ASSERT_EQ_STR("abc", E.rows[0].chars);
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('d')) == 0);
+	ASSERT_EQ_STR("No selection", E.statusmsg);
+	ASSERT_EQ_STR("abc", E.rows[0].chars);
+	ASSERT_EQ_INT(1, E.selection_mode_active);
+	return 0;
+}
+
+static int test_editor_process_keypress_escape_clears_selection_mode(void) {
+	add_row("abcd");
+	E.cy = 0;
+	E.cx = 1;
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	E.cx = 3;
+	ASSERT_EQ_INT(1, E.selection_mode_active);
+
+	ASSERT_TRUE(editor_process_single_key('\x1b') == 0);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+
+	struct editorSelectionRange range;
+	ASSERT_EQ_INT(0, editorGetSelectionRange(&range));
+	return 0;
+}
+
+static int test_editor_process_keypress_edit_ops_clear_selection_mode(void) {
+	add_row("ab");
+	E.cy = 0;
+	E.cx = 1;
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	ASSERT_TRUE(editor_process_single_key('Z') == 0);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+	ASSERT_EQ_STR("aZb", E.rows[0].chars);
+
+	reset_editor_state();
+	add_row("ab");
+	E.cy = 0;
+	E.cx = 2;
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	ASSERT_TRUE(editor_process_single_key(BACKSPACE) == 0);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+	ASSERT_EQ_STR("a", E.rows[0].chars);
+
+	reset_editor_state();
+	add_row("ab");
+	E.cy = 0;
+	E.cx = 1;
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	ASSERT_TRUE(editor_process_single_key('\r') == 0);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+	ASSERT_EQ_INT(2, E.numrows);
+	ASSERT_EQ_STR("a", E.rows[0].chars);
+	ASSERT_EQ_STR("b", E.rows[1].chars);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_z_ctrl_y_roundtrip_after_cut(void) {
+	add_row("abcde");
+	E.cy = 0;
+	E.cx = 1;
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	E.cx = 3;
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('x')) == 0);
+	ASSERT_EQ_STR("ade", E.rows[0].chars);
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
+	ASSERT_EQ_STR("abcde", E.rows[0].chars);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('y')) == 0);
+	ASSERT_EQ_STR("ade", E.rows[0].chars);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+	return 0;
+}
+
+static int test_editor_refresh_screen_highlights_active_selection_spans(void) {
+	add_row("prefix alpha suffix");
+	E.window_rows = 3;
+	E.window_cols = 40;
+	E.cy = 0;
+	E.cx = 12;
+	E.selection_mode_active = 1;
+	E.selection_anchor_cy = 0;
+	E.selection_anchor_cx = 7;
+	E.search_match_row = 0;
+	E.search_match_start = 0;
+	E.search_match_len = 6;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "prefix \x1b[7malpha\x1b[m suffix") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[7mprefix\x1b[m") == NULL);
+	free(output);
+
+	reset_editor_state();
+	add_row("abc");
+	add_row("def");
+	E.window_rows = 4;
+	E.window_cols = 20;
+	E.cy = 1;
+	E.cx = 2;
+	E.selection_mode_active = 1;
+	E.selection_anchor_cy = 0;
+	E.selection_anchor_cx = 1;
+
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "a\x1b[7mbc\x1b[m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[7mde\x1b[mf") != NULL);
+	free(output);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_c_oom_preserves_buffer(void) {
+	add_row("hello");
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	E.cx = 5;
+
+	editorTestAllocFailAfter(0);
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('c')) == 0);
+	ASSERT_EQ_STR("hello", E.rows[0].chars);
+	ASSERT_EQ_STR("Out of memory", E.statusmsg);
+	ASSERT_EQ_INT(1, E.selection_mode_active);
+	editorTestAllocReset();
+	return 0;
+}
+
 static int test_editor_process_keypress_ctrl_g_jumps_to_line_and_sets_col_zero(void) {
 	add_row("one");
 	add_row("two");
@@ -2116,6 +2469,38 @@ int main(void) {
 		{"editor_process_keypress_arrow_down_keeps_visual_column",
 			test_editor_process_keypress_arrow_down_keeps_visual_column},
 		{"editor_process_keypress_ctrl_s_saves_file", test_editor_process_keypress_ctrl_s_saves_file},
+		{"editor_process_keypress_ctrl_b_toggles_selection_mode",
+			test_editor_process_keypress_ctrl_b_toggles_selection_mode},
+		{"editor_selection_range_tracks_cursor_movement",
+			test_editor_selection_range_tracks_cursor_movement},
+		{"editor_process_keypress_ctrl_c_copies_single_line_selection",
+			test_editor_process_keypress_ctrl_c_copies_single_line_selection},
+		{"editor_process_keypress_ctrl_c_copies_multiline_selection",
+			test_editor_process_keypress_ctrl_c_copies_multiline_selection},
+		{"editor_process_keypress_ctrl_x_cuts_selection_and_updates_clipboard",
+			test_editor_process_keypress_ctrl_x_cuts_selection_and_updates_clipboard},
+		{"editor_process_keypress_ctrl_d_deletes_selection_without_overwriting_clipboard",
+			test_editor_process_keypress_ctrl_d_deletes_selection_without_overwriting_clipboard},
+		{"editor_process_keypress_ctrl_v_pastes_clipboard_text",
+			test_editor_process_keypress_ctrl_v_pastes_clipboard_text},
+		{"editor_process_keypress_ctrl_v_pastes_multiline_clipboard_text",
+			test_editor_process_keypress_ctrl_v_pastes_multiline_clipboard_text},
+		{"editor_process_keypress_ctrl_v_empty_clipboard_is_noop",
+			test_editor_process_keypress_ctrl_v_empty_clipboard_is_noop},
+		{"editor_process_keypress_ctrl_v_clears_selection_mode",
+			test_editor_process_keypress_ctrl_v_clears_selection_mode},
+		{"editor_process_keypress_ctrl_v_undo_roundtrip_single_step",
+			test_editor_process_keypress_ctrl_v_undo_roundtrip_single_step},
+		{"editor_process_keypress_selection_ops_noop_without_selection",
+			test_editor_process_keypress_selection_ops_noop_without_selection},
+		{"editor_process_keypress_escape_clears_selection_mode",
+			test_editor_process_keypress_escape_clears_selection_mode},
+		{"editor_process_keypress_edit_ops_clear_selection_mode",
+			test_editor_process_keypress_edit_ops_clear_selection_mode},
+		{"editor_process_keypress_ctrl_z_ctrl_y_roundtrip_after_cut",
+			test_editor_process_keypress_ctrl_z_ctrl_y_roundtrip_after_cut},
+		{"editor_process_keypress_ctrl_c_oom_preserves_buffer",
+			test_editor_process_keypress_ctrl_c_oom_preserves_buffer},
 		{"editor_process_keypress_ctrl_g_jumps_to_line_and_sets_col_zero",
 			test_editor_process_keypress_ctrl_g_jumps_to_line_and_sets_col_zero},
 		{"editor_process_keypress_ctrl_g_clamps_to_last_line",
@@ -2164,6 +2549,8 @@ int main(void) {
 			test_editor_refresh_screen_contains_expected_sequences},
 		{"editor_refresh_screen_highlights_active_search_match",
 			test_editor_refresh_screen_highlights_active_search_match},
+		{"editor_refresh_screen_highlights_active_selection_spans",
+			test_editor_refresh_screen_highlights_active_selection_spans},
 		{"editor_refresh_screen_hides_expired_message", test_editor_refresh_screen_hides_expired_message},
 		{"editor_refresh_screen_updates_horizontal_scroll",
 			test_editor_refresh_screen_updates_horizontal_scroll},

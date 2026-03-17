@@ -13,11 +13,20 @@
 #define ROTIDE_TAB_WIDTH 8
 #define ROTIDE_UNDO_HISTORY_LIMIT 200
 
+typedef void (*editorClipboardExternalSink)(const char *text, int len);
+
 struct erow {
 	int size;
 	int rsize;
 	char *chars;
 	char *render;
+};
+
+struct editorSelectionRange {
+	int start_cy;
+	int start_cx;
+	int end_cy;
+	int end_cx;
 };
 
 enum editorEditKind {
@@ -69,6 +78,12 @@ struct editorConfig {
 	int search_direction;
 	int search_saved_cx;
 	int search_saved_cy;
+	int selection_mode_active;
+	int selection_anchor_cx;
+	int selection_anchor_cy;
+	char *clipboard_text;
+	int clipboard_textlen;
+	editorClipboardExternalSink clipboard_external_sink;
 	struct editorHistory undo_history;
 	struct editorHistory redo_history;
 	struct editorSnapshot edit_pending_snapshot;

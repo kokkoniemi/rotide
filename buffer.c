@@ -399,6 +399,273 @@ static int editorBuildRender(const char *chars, int size, char **render_out, int
 	return 1;
 }
 
+static void editorFreeRowArray(struct erow *rows, int numrows);
+static int editorSnapshotBuildRows(const struct editorSnapshot *snapshot, struct erow **rows_out,
+		int *numrows_out);
+static void editorSnapshotClampCursor(const struct editorSnapshot *snapshot);
+
+/*** Selection and clipboard ***/
+
+static void editorClearSelectionState(void) {
+	E.selection_mode_active = 0;
+	E.selection_anchor_cx = 0;
+	E.selection_anchor_cy = 0;
+}
+
+static int editorPosComesBefore(int left_cy, int left_cx, int right_cy, int right_cx) {
+	if (left_cy != right_cy) {
+		return left_cy < right_cy;
+	}
+	return left_cx < right_cx;
+}
+
+static void editorClampPositionToBuffer(int *cy, int *cx) {
+	if (*cy < 0) {
+		*cy = 0;
+	}
+	if (*cy > E.numrows) {
+		*cy = E.numrows;
+	}
+
+	if (*cy == E.numrows) {
+		*cx = 0;
+		return;
+	}
+
+	struct erow *row = &E.rows[*cy];
+	if (*cx < 0) {
+		*cx = 0;
+	}
+	if (*cx > row->size) {
+		*cx = row->size;
+	}
+	*cx = editorRowClampCxToClusterBoundary(row, *cx);
+	if (*cx > row->size) {
+		*cx = row->size;
+	}
+}
+
+static int editorNormalizeRange(const struct editorSelectionRange *range,
+		struct editorSelectionRange *out) {
+	if (range == NULL || out == NULL) {
+		return 0;
+	}
+
+	int start_cy = range->start_cy;
+	int start_cx = range->start_cx;
+	int end_cy = range->end_cy;
+	int end_cx = range->end_cx;
+	editorClampPositionToBuffer(&start_cy, &start_cx);
+	editorClampPositionToBuffer(&end_cy, &end_cx);
+
+	if (editorPosComesBefore(end_cy, end_cx, start_cy, start_cx)) {
+		int tmp_cy = start_cy;
+		int tmp_cx = start_cx;
+		start_cy = end_cy;
+		start_cx = end_cx;
+		end_cy = tmp_cy;
+		end_cx = tmp_cx;
+	}
+
+	if (start_cy == end_cy && start_cx == end_cx) {
+		return 0;
+	}
+
+	out->start_cy = start_cy;
+	out->start_cx = start_cx;
+	out->end_cy = end_cy;
+	out->end_cx = end_cx;
+	return 1;
+}
+
+static int editorPosToLinearOffset(int cy, int cx) {
+	int offset = 0;
+	for (int row = 0; row < cy; row++) {
+		offset += E.rows[row].size + 1;
+	}
+	return offset + cx;
+}
+
+int editorGetSelectionRange(struct editorSelectionRange *range_out) {
+	if (range_out == NULL || !E.selection_mode_active) {
+		return 0;
+	}
+
+	struct editorSelectionRange range = {
+		.start_cy = E.selection_anchor_cy,
+		.start_cx = E.selection_anchor_cx,
+		.end_cy = E.cy,
+		.end_cx = E.cx
+	};
+	if (!editorNormalizeRange(&range, range_out)) {
+		return 0;
+	}
+
+	return 1;
+}
+
+int editorExtractRangeText(const struct editorSelectionRange *range, char **text_out,
+		int *len_out) {
+	if (text_out == NULL || len_out == NULL) {
+		return 0;
+	}
+	*text_out = NULL;
+	*len_out = 0;
+
+	struct editorSelectionRange normalized;
+	if (!editorNormalizeRange(range, &normalized)) {
+		return 0;
+	}
+
+	int full_len = 0;
+	char *full_text = editorRowsToStr(&full_len);
+	if (full_text == NULL && full_len > 0) {
+		editorSetAllocFailureStatus();
+		return -1;
+	}
+
+	int start_offset = editorPosToLinearOffset(normalized.start_cy, normalized.start_cx);
+	int end_offset = editorPosToLinearOffset(normalized.end_cy, normalized.end_cx);
+	int selected_len = end_offset - start_offset;
+	if (selected_len <= 0) {
+		free(full_text);
+		return 0;
+	}
+
+	char *selected = editorMalloc((size_t)selected_len + 1);
+	if (selected == NULL) {
+		free(full_text);
+		editorSetAllocFailureStatus();
+		return -1;
+	}
+	memcpy(selected, &full_text[start_offset], (size_t)selected_len);
+	selected[selected_len] = '\0';
+	free(full_text);
+
+	*text_out = selected;
+	*len_out = selected_len;
+	return 1;
+}
+
+int editorDeleteRange(const struct editorSelectionRange *range) {
+	struct editorSelectionRange normalized;
+	if (!editorNormalizeRange(range, &normalized)) {
+		return 0;
+	}
+
+	int full_len = 0;
+	char *full_text = editorRowsToStr(&full_len);
+	if (full_text == NULL && full_len > 0) {
+		editorSetAllocFailureStatus();
+		return -1;
+	}
+
+	int start_offset = editorPosToLinearOffset(normalized.start_cy, normalized.start_cx);
+	int end_offset = editorPosToLinearOffset(normalized.end_cy, normalized.end_cx);
+	int removed_len = end_offset - start_offset;
+	if (removed_len <= 0) {
+		free(full_text);
+		return 0;
+	}
+
+	int new_len = full_len - removed_len;
+	char *new_text = NULL;
+	if (new_len > 0) {
+		new_text = editorMalloc((size_t)new_len + 1);
+		if (new_text == NULL) {
+			free(full_text);
+			editorSetAllocFailureStatus();
+			return -1;
+		}
+
+		memcpy(new_text, full_text, (size_t)start_offset);
+		memcpy(&new_text[start_offset], &full_text[end_offset], (size_t)(full_len - end_offset));
+		new_text[new_len] = '\0';
+	}
+	free(full_text);
+
+	struct editorSnapshot replacement = {
+		.text = new_text,
+		.textlen = new_len,
+		.cx = normalized.start_cx,
+		.cy = normalized.start_cy,
+		.dirty = E.dirty + 1
+	};
+	struct erow *new_rows = NULL;
+	int new_numrows = 0;
+	if (!editorSnapshotBuildRows(&replacement, &new_rows, &new_numrows)) {
+		free(new_text);
+		editorSetAllocFailureStatus();
+		return -1;
+	}
+
+	struct erow *old_rows = E.rows;
+	int old_numrows = E.numrows;
+
+	E.rows = new_rows;
+	E.numrows = new_numrows;
+	editorSnapshotClampCursor(&replacement);
+	E.dirty = replacement.dirty;
+
+	editorFreeRowArray(old_rows, old_numrows);
+	free(new_text);
+	return 1;
+}
+
+int editorClipboardSet(const char *text, int len) {
+	if (len < 0) {
+		len = 0;
+	}
+
+	char *new_text = NULL;
+	if (len > 0) {
+		if (text == NULL) {
+			return 0;
+		}
+		new_text = editorMalloc((size_t)len + 1);
+		if (new_text == NULL) {
+			editorSetAllocFailureStatus();
+			return 0;
+		}
+		memcpy(new_text, text, (size_t)len);
+		new_text[len] = '\0';
+	}
+
+	free(E.clipboard_text);
+	E.clipboard_text = new_text;
+	E.clipboard_textlen = len;
+
+	if (E.clipboard_external_sink != NULL) {
+		const char *sink_text = E.clipboard_text;
+		if (sink_text == NULL) {
+			sink_text = "";
+		}
+		E.clipboard_external_sink(sink_text, E.clipboard_textlen);
+	}
+
+	return 1;
+}
+
+const char *editorClipboardGet(int *len_out) {
+	if (len_out != NULL) {
+		*len_out = E.clipboard_textlen;
+	}
+	if (E.clipboard_text != NULL) {
+		return E.clipboard_text;
+	}
+	return "";
+}
+
+void editorClipboardClear(void) {
+	free(E.clipboard_text);
+	E.clipboard_text = NULL;
+	E.clipboard_textlen = 0;
+}
+
+void editorClipboardSetExternalSink(editorClipboardExternalSink sink) {
+	E.clipboard_external_sink = sink;
+}
+
 /*** History ***/
 
 static void editorSnapshotFree(struct editorSnapshot *snapshot) {
@@ -591,6 +858,7 @@ static int editorSnapshotRestore(const struct editorSnapshot *snapshot) {
 	E.numrows = new_numrows;
 	editorSnapshotClampCursor(snapshot);
 	E.dirty = snapshot->dirty;
+	editorClearSelectionState();
 
 	editorFreeRowArray(old_rows, old_numrows);
 	return 1;
@@ -603,6 +871,7 @@ void editorHistoryReset(void) {
 	E.edit_group_kind = EDITOR_EDIT_NONE;
 	E.edit_pending_kind = EDITOR_EDIT_NONE;
 	E.edit_pending_mode = EDITOR_EDIT_PENDING_NONE;
+	editorClearSelectionState();
 }
 
 void editorHistoryBreakGroup(void) {
@@ -961,6 +1230,7 @@ void editorDelChar(void) {
 
 void editorOpen(const char *filename) {
 	editorHistoryReset();
+	editorClearSelectionState();
 	free(E.filename);
 	E.filename = strdup(filename);
 

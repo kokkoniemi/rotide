@@ -35,6 +35,15 @@ void editorOpen(const char *filename);
 void editorSetStatusMsg(const char *fmt, ...);
 void editorSave(void);
 
+int editorGetSelectionRange(struct editorSelectionRange *range_out);
+int editorExtractRangeText(const struct editorSelectionRange *range, char **text_out, int *len_out);
+int editorDeleteRange(const struct editorSelectionRange *range);
+
+int editorClipboardSet(const char *text, int len);
+const char *editorClipboardGet(int *len_out);
+void editorClipboardClear(void);
+void editorClipboardSetExternalSink(editorClipboardExternalSink sink);
+
 void editorHistoryReset(void);
 void editorHistoryBreakGroup(void);
 void editorHistoryBeginEdit(enum editorEditKind kind);

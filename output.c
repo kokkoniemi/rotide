@@ -181,6 +181,42 @@ static void editorMatchCharsToRenderSpan(const struct erow *row, int match_start
 	*render_end_out = render_end;
 }
 
+static int editorSelectionSpanForRow(int row_idx, int *start_out, int *end_out) {
+	if (row_idx < 0 || row_idx >= E.numrows) {
+		return 0;
+	}
+
+	struct editorSelectionRange selection;
+	if (!editorGetSelectionRange(&selection)) {
+		return 0;
+	}
+	if (row_idx < selection.start_cy || row_idx > selection.end_cy) {
+		return 0;
+	}
+
+	int start = 0;
+	int end = E.rows[row_idx].size;
+	if (selection.start_cy == selection.end_cy) {
+		start = selection.start_cx;
+		end = selection.end_cx;
+	} else {
+		if (row_idx == selection.start_cy) {
+			start = selection.start_cx;
+		}
+		if (row_idx == selection.end_cy && selection.end_cy < E.numrows) {
+			end = selection.end_cx;
+		}
+	}
+
+	if (end <= start) {
+		return 0;
+	}
+
+	*start_out = start;
+	*end_out = end;
+	return 1;
+}
+
 static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_idx, int coloff,
 		int cols) {
 	if (cols <= 0 || coloff < 0 || row->rsize <= 0) {
@@ -194,13 +230,26 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 		return 1;
 	}
 
-	if (E.search_match_row != row_idx || E.search_match_len <= 0) {
+	int highlight_start_chars = -1;
+	int highlight_len_chars = 0;
+
+	int selection_start = 0;
+	int selection_end = 0;
+	if (editorSelectionSpanForRow(row_idx, &selection_start, &selection_end)) {
+		highlight_start_chars = selection_start;
+		highlight_len_chars = selection_end - selection_start;
+	} else if (E.search_match_row == row_idx && E.search_match_len > 0) {
+		highlight_start_chars = E.search_match_start;
+		highlight_len_chars = E.search_match_len;
+	}
+
+	if (highlight_len_chars <= 0) {
 		return wbAppend(wb, &row->render[start], end - start);
 	}
 
 	int match_render_start = 0;
 	int match_render_end = 0;
-	editorMatchCharsToRenderSpan(row, E.search_match_start, E.search_match_len,
+	editorMatchCharsToRenderSpan(row, highlight_start_chars, highlight_len_chars,
 			&match_render_start, &match_render_end);
 	if (match_render_end <= match_render_start) {
 		return wbAppend(wb, &row->render[start], end - start);

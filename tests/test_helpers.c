@@ -27,6 +27,7 @@ void clear_editor_state(void) {
 	E.filename = NULL;
 	free(E.search_query);
 	E.search_query = NULL;
+	editorClipboardClear();
 }
 
 void reset_editor_state(void) {
@@ -38,6 +39,9 @@ void reset_editor_state(void) {
 	E.window_cols = 40;
 	E.search_match_row = -1;
 	E.search_direction = 1;
+	E.selection_mode_active = 0;
+	E.selection_anchor_cx = 0;
+	E.selection_anchor_cy = 0;
 }
 
 void add_row(const char *s) {

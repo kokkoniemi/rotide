@@ -1,4 +1,3 @@
-// TODO(feature): Add selection mode (anchor + cursor) with cut/copy/delete operations.
 // TODO(feature): Add clipboard support (internal buffer first, then OSC52 terminal clipboard).
 // TODO(feature): Add mouse click support for cursor placement and wheel scrolling.
 // TODO(feature): Add mouse drag support for text selection.
@@ -36,6 +35,12 @@ void initEditor(void) {
 	E.search_direction = 1;
 	E.search_saved_cx = 0;
 	E.search_saved_cy = 0;
+	E.selection_mode_active = 0;
+	E.selection_anchor_cx = 0;
+	E.selection_anchor_cy = 0;
+	E.clipboard_text = NULL;
+	E.clipboard_textlen = 0;
+	E.clipboard_external_sink = NULL;
 	E.undo_history.start = 0;
 	E.undo_history.len = 0;
 	E.redo_history.start = 0;
@@ -64,7 +69,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	editorSetStatusMsg(
-			"Help: Ctrl-S = save; Ctrl-Q = quit; Ctrl-F = find; Ctrl-G = go-to-line; Ctrl-Z/Y = undo/redo");
+			"Help: Ctrl-S save; Ctrl-Q quit; Ctrl-F find; Ctrl-G goto; Ctrl-B/C/X/D select; Ctrl-V paste; Ctrl-Z/Y undo/redo");
 
 	while (1) {
 		editorRefreshScreen();
