@@ -9,9 +9,19 @@
 
 static editorSaveSyscallFailureProbe editor_save_syscall_failure_probe = NULL;
 
-static int editorSaveSyscallsShouldFail(enum editorSaveSyscallOp op) {
-	return editor_save_syscall_failure_probe != NULL &&
-			editor_save_syscall_failure_probe(op);
+static int editorSaveSyscallsShouldFail(enum editorSaveSyscallOp op, int *failure_errno) {
+	int probe_errno = 0;
+
+	if (editor_save_syscall_failure_probe == NULL) {
+		return 0;
+	}
+	if (!editor_save_syscall_failure_probe(op, &probe_errno)) {
+		return 0;
+	}
+	if (failure_errno != NULL) {
+		*failure_errno = probe_errno;
+	}
+	return 1;
 }
 
 void editorSaveSyscallsSetFailureProbe(editorSaveSyscallFailureProbe probe) {
@@ -23,8 +33,9 @@ void editorSaveSyscallsClearFailureProbe(void) {
 }
 
 int editorSaveRename(const char *oldpath, const char *newpath) {
-	if (editorSaveSyscallsShouldFail(EDITOR_SAVE_SYSCALL_RENAME)) {
-		errno = EIO;
+	int failure_errno = 0;
+	if (editorSaveSyscallsShouldFail(EDITOR_SAVE_SYSCALL_RENAME, &failure_errno)) {
+		errno = failure_errno != 0 ? failure_errno : EIO;
 		return -1;
 	}
 
@@ -32,8 +43,9 @@ int editorSaveRename(const char *oldpath, const char *newpath) {
 }
 
 int editorSaveFsync(int fd) {
-	if (editorSaveSyscallsShouldFail(EDITOR_SAVE_SYSCALL_FSYNC)) {
-		errno = EIO;
+	int failure_errno = 0;
+	if (editorSaveSyscallsShouldFail(EDITOR_SAVE_SYSCALL_FSYNC, &failure_errno)) {
+		errno = failure_errno != 0 ? failure_errno : EIO;
 		return -1;
 	}
 
@@ -41,8 +53,9 @@ int editorSaveFsync(int fd) {
 }
 
 int editorSaveOpenDir(const char *path) {
-	if (editorSaveSyscallsShouldFail(EDITOR_SAVE_SYSCALL_OPEN_DIR)) {
-		errno = EIO;
+	int failure_errno = 0;
+	if (editorSaveSyscallsShouldFail(EDITOR_SAVE_SYSCALL_OPEN_DIR, &failure_errno)) {
+		errno = failure_errno != 0 ? failure_errno : EIO;
 		return -1;
 	}
 
@@ -50,8 +63,9 @@ int editorSaveOpenDir(const char *path) {
 }
 
 int editorSaveClose(int fd) {
-	if (editorSaveSyscallsShouldFail(EDITOR_SAVE_SYSCALL_CLOSE)) {
-		errno = EIO;
+	int failure_errno = 0;
+	if (editorSaveSyscallsShouldFail(EDITOR_SAVE_SYSCALL_CLOSE, &failure_errno)) {
+		errno = failure_errno != 0 ? failure_errno : EIO;
 		return -1;
 	}
 
@@ -59,8 +73,9 @@ int editorSaveClose(int fd) {
 }
 
 int editorSaveUnlink(const char *path) {
-	if (editorSaveSyscallsShouldFail(EDITOR_SAVE_SYSCALL_UNLINK)) {
-		errno = EIO;
+	int failure_errno = 0;
+	if (editorSaveSyscallsShouldFail(EDITOR_SAVE_SYSCALL_UNLINK, &failure_errno)) {
+		errno = failure_errno != 0 ? failure_errno : EIO;
 		return -1;
 	}
 

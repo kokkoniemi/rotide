@@ -8,6 +8,7 @@
 #include "save_syscalls_test_hooks.h"
 #include "test_helpers.h"
 #include <dirent.h>
+#include <errno.h>
 #include <locale.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -624,7 +625,7 @@ static int test_editor_save_failure_cleans_temp_file(void) {
 	editorSave();
 
 	ASSERT_EQ_INT(1, E.dirty);
-	ASSERT_TRUE(strstr(E.statusmsg, "Save failed!") != NULL);
+	ASSERT_TRUE(strstr(E.statusmsg, "Save failed:") != NULL);
 	ASSERT_EQ_INT(0, count_tmp_save_artifacts(dir_path));
 
 	ASSERT_TRUE(rmdir(dir_path) == 0);
@@ -648,7 +649,7 @@ static int test_editor_save_temp_fsync_failure_cleans_temp_file(void) {
 	editorSave();
 
 	ASSERT_EQ_INT(1, E.dirty);
-	ASSERT_TRUE(strstr(E.statusmsg, "Save failed! Error:") != NULL);
+	ASSERT_TRUE(strstr(E.statusmsg, "Save failed:") != NULL);
 	ASSERT_EQ_INT(0, count_tmp_save_artifacts(path));
 
 	size_t content_len = 0;
@@ -678,7 +679,7 @@ static int test_editor_save_temp_close_failure_cleans_temp_file(void) {
 	editorSave();
 
 	ASSERT_EQ_INT(1, E.dirty);
-	ASSERT_TRUE(strstr(E.statusmsg, "Save failed! Error:") != NULL);
+	ASSERT_TRUE(strstr(E.statusmsg, "Save failed:") != NULL);
 	ASSERT_EQ_INT(0, count_tmp_save_artifacts(path));
 
 	size_t content_len = 0;
@@ -708,7 +709,100 @@ static int test_editor_save_rename_failure_cleans_temp_file_deterministic(void) 
 	editorSave();
 
 	ASSERT_EQ_INT(1, E.dirty);
-	ASSERT_TRUE(strstr(E.statusmsg, "Save failed! Error:") != NULL);
+	ASSERT_TRUE(strstr(E.statusmsg, "Save failed: system error") != NULL);
+	ASSERT_EQ_INT(0, count_tmp_save_artifacts(path));
+
+	size_t content_len = 0;
+	char *contents = read_file_contents(path, &content_len);
+	ASSERT_TRUE(contents != NULL);
+	ASSERT_EQ_INT(0, content_len);
+
+	free(contents);
+	unlink(path);
+	return 0;
+}
+
+static int test_editor_save_rename_failure_reports_permission_denied_class(void) {
+	char path[] = "/tmp/rotide-test-save-rename-eacces-XXXXXX";
+	int fd = mkstemp(path);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(close(fd) == 0);
+
+	ASSERT_EQ_INT(0, count_tmp_save_artifacts(path));
+
+	add_row("alpha");
+	E.dirty = 1;
+	E.filename = strdup(path);
+	ASSERT_TRUE(E.filename != NULL);
+
+	editorTestSaveSyscallsInstallNoFail();
+	editorTestSaveSyscallsFailRenameOnCallWithErrno(1, EACCES);
+	editorSave();
+
+	ASSERT_EQ_INT(1, E.dirty);
+	ASSERT_TRUE(strstr(E.statusmsg, "Save failed: permission denied") != NULL);
+	ASSERT_EQ_INT(0, count_tmp_save_artifacts(path));
+
+	size_t content_len = 0;
+	char *contents = read_file_contents(path, &content_len);
+	ASSERT_TRUE(contents != NULL);
+	ASSERT_EQ_INT(0, content_len);
+
+	free(contents);
+	unlink(path);
+	return 0;
+}
+
+static int test_editor_save_rename_failure_reports_missing_path_class(void) {
+	char path[] = "/tmp/rotide-test-save-rename-enoent-XXXXXX";
+	int fd = mkstemp(path);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(close(fd) == 0);
+
+	ASSERT_EQ_INT(0, count_tmp_save_artifacts(path));
+
+	add_row("alpha");
+	E.dirty = 1;
+	E.filename = strdup(path);
+	ASSERT_TRUE(E.filename != NULL);
+
+	editorTestSaveSyscallsInstallNoFail();
+	editorTestSaveSyscallsFailRenameOnCallWithErrno(1, ENOENT);
+	editorSave();
+
+	ASSERT_EQ_INT(1, E.dirty);
+	ASSERT_TRUE(strstr(E.statusmsg, "Save failed: missing path") != NULL);
+	ASSERT_EQ_INT(0, count_tmp_save_artifacts(path));
+
+	size_t content_len = 0;
+	char *contents = read_file_contents(path, &content_len);
+	ASSERT_TRUE(contents != NULL);
+	ASSERT_EQ_INT(0, content_len);
+
+	free(contents);
+	unlink(path);
+	return 0;
+}
+
+static int test_editor_save_rename_failure_reports_read_only_fs_class(void) {
+	char path[] = "/tmp/rotide-test-save-rename-erofs-XXXXXX";
+	int fd = mkstemp(path);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(close(fd) == 0);
+
+	ASSERT_EQ_INT(0, count_tmp_save_artifacts(path));
+
+	add_row("alpha");
+	E.dirty = 1;
+	E.filename = strdup(path);
+	ASSERT_TRUE(E.filename != NULL);
+
+	editorTestSaveSyscallsInstallNoFail();
+	editorTestSaveSyscallsFailRenameOnCallWithErrno(1, EROFS);
+	editorSave();
+
+	ASSERT_EQ_INT(1, E.dirty);
+	ASSERT_TRUE(strstr(E.statusmsg, "Save failed: read-only filesystem") != NULL);
 	ASSERT_EQ_INT(0, count_tmp_save_artifacts(path));
 
 	size_t content_len = 0;
@@ -733,12 +827,14 @@ static int test_editor_save_reports_temp_cleanup_failure(void) {
 	E.filename = strdup(dir_path);
 	ASSERT_TRUE(E.filename != NULL);
 
-	editorTestSaveSyscallsFailUnlinkOnCall(1);
+	editorTestSaveSyscallsInstallNoFail();
+	editorTestSaveSyscallsFailRenameOnCallWithErrno(1, EACCES);
+	editorTestSaveSyscallsFailUnlinkOnCallWithErrno(1, EIO);
 	editorSave();
 
 	ASSERT_EQ_INT(1, E.dirty);
-	ASSERT_TRUE(strstr(E.statusmsg, "Save failed! Error:") != NULL);
-	ASSERT_TRUE(strstr(E.statusmsg, "temp cleanup errno") != NULL);
+	ASSERT_TRUE(strstr(E.statusmsg, "Save failed: permission denied") != NULL);
+	ASSERT_TRUE(strstr(E.statusmsg, "cleanup failed (") != NULL);
 	ASSERT_TRUE(count_tmp_save_artifacts(dir_path) > 0);
 
 	ASSERT_EQ_INT(0, remove_tmp_save_artifacts(dir_path));
@@ -982,7 +1078,7 @@ static int test_editor_save_parent_dir_fsync_failure_after_rename_reports_failur
 	editorSave();
 
 	ASSERT_EQ_INT(1, E.dirty);
-	ASSERT_TRUE(strstr(E.statusmsg, "Save failed! Error:") != NULL);
+	ASSERT_TRUE(strstr(E.statusmsg, "Save failed:") != NULL);
 
 	size_t content_len = 0;
 	char *contents = read_file_contents(path, &content_len);
@@ -1012,7 +1108,7 @@ static int test_editor_save_parent_dir_open_failure_reports_failure(void) {
 	editorSave();
 
 	ASSERT_EQ_INT(1, E.dirty);
-	ASSERT_TRUE(strstr(E.statusmsg, "Save failed! Error:") != NULL);
+	ASSERT_TRUE(strstr(E.statusmsg, "Save failed:") != NULL);
 
 	size_t content_len = 0;
 	char *contents = read_file_contents(path, &content_len);
@@ -1042,7 +1138,7 @@ static int test_editor_save_parent_dir_close_failure_reports_failure(void) {
 	editorSave();
 
 	ASSERT_EQ_INT(1, E.dirty);
-	ASSERT_TRUE(strstr(E.statusmsg, "Save failed! Error:") != NULL);
+	ASSERT_TRUE(strstr(E.statusmsg, "Save failed:") != NULL);
 
 	size_t content_len = 0;
 	char *contents = read_file_contents(path, &content_len);
@@ -1467,6 +1563,12 @@ int main(void) {
 			test_editor_save_temp_close_failure_cleans_temp_file},
 		{"editor_save_rename_failure_cleans_temp_file_deterministic",
 			test_editor_save_rename_failure_cleans_temp_file_deterministic},
+		{"editor_save_rename_failure_reports_permission_denied_class",
+			test_editor_save_rename_failure_reports_permission_denied_class},
+		{"editor_save_rename_failure_reports_missing_path_class",
+			test_editor_save_rename_failure_reports_missing_path_class},
+		{"editor_save_rename_failure_reports_read_only_fs_class",
+			test_editor_save_rename_failure_reports_read_only_fs_class},
 		{"editor_save_reports_temp_cleanup_failure",
 			test_editor_save_reports_temp_cleanup_failure},
 		{"editor_prompt_accept_and_cancel", test_editor_prompt_accept_and_cancel},

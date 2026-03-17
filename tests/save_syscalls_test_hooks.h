@@ -8,5 +8,10 @@ void editorTestSaveSyscallsFailOpenDirOnCall(int call_idx);
 void editorTestSaveSyscallsFailCloseOnCall(int call_idx);
 void editorTestSaveSyscallsFailRenameOnCall(int call_idx);
 void editorTestSaveSyscallsFailUnlinkOnCall(int call_idx);
+void editorTestSaveSyscallsFailFsyncOnCallWithErrno(int call_idx, int errnum);
+void editorTestSaveSyscallsFailOpenDirOnCallWithErrno(int call_idx, int errnum);
+void editorTestSaveSyscallsFailCloseOnCallWithErrno(int call_idx, int errnum);
+void editorTestSaveSyscallsFailRenameOnCallWithErrno(int call_idx, int errnum);
+void editorTestSaveSyscallsFailUnlinkOnCallWithErrno(int call_idx, int errnum);
 
 #endif

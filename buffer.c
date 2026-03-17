@@ -765,6 +765,39 @@ static int editorSaveCleanupOnError(int *fd, int *dir_fd, const char *tmp_path,
 	return first_cleanup_errno == 0 ? 0 : -1;
 }
 
+static const char *editorSaveFailureClass(int errnum) {
+	switch (errnum) {
+		case EACCES:
+		case EPERM:
+			return "permission denied";
+		case ENOENT:
+		case ENOTDIR:
+			return "missing path";
+		case EROFS:
+			return "read-only filesystem";
+		case ENOSPC:
+#ifdef EDQUOT
+		case EDQUOT:
+#endif
+			return "no space left";
+		default:
+			return "system error";
+	}
+}
+
+static void editorSetSaveFailureStatus(int saved_errno, int cleanup_errno) {
+	const char *error_class = editorSaveFailureClass(saved_errno);
+	const char *error_text = strerror(saved_errno);
+
+	if (cleanup_errno != 0) {
+		editorSetStatusMsg("Save failed: %s (%s); cleanup failed (%s)", error_class,
+				error_text, strerror(cleanup_errno));
+		return;
+	}
+
+	editorSetStatusMsg("Save failed: %s (%s)", error_class, error_text);
+}
+
 static mode_t editorDefaultCreateMode(void) {
 	mode_t mask = umask(0);
 	umask(mask);
@@ -859,11 +892,6 @@ err: {
 			&cleanup_errno);
 	free(tmp_path);
 	free(buf);
-	if (cleanup_errno != 0) {
-		editorSetStatusMsg("Save failed! Error: %s (temp cleanup errno %d)",
-				strerror(saved_errno), cleanup_errno);
-		return;
-	}
-	editorSetStatusMsg("Save failed! Error: %s", strerror(saved_errno));
+	editorSetSaveFailureStatus(saved_errno, cleanup_errno);
 }
 }

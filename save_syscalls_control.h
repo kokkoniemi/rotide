@@ -9,7 +9,8 @@ enum editorSaveSyscallOp {
 	EDITOR_SAVE_SYSCALL_UNLINK
 };
 
-typedef int (*editorSaveSyscallFailureProbe)(enum editorSaveSyscallOp op);
+typedef int (*editorSaveSyscallFailureProbe)(enum editorSaveSyscallOp op,
+		int *failure_errno);
 
 void editorSaveSyscallsSetFailureProbe(editorSaveSyscallFailureProbe probe);
 void editorSaveSyscallsClearFailureProbe(void);

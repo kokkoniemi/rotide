@@ -1,4 +1,3 @@
-// TODO(stability): Normalize save failure status messages to surface actionable errno context (permission, missing path, read-only FS).
 // TODO(maintainability): Apply const-correctness to internal row/string helper APIs where source buffers are read-only.
 // TODO(quality): Add CI sanitizer job (ASan + UBSan) in addition to current build/test job.
 // TODO(quality): Add README regression checklist for Unicode editing, scrolling, and save/quit smoke scenarios.
