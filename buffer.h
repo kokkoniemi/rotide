@@ -18,6 +18,7 @@ int editorRowPrevClusterIdx(const struct erow *row, int idx);
 int editorRowClampCxToClusterBoundary(const struct erow *row, int cx);
 int editorRowCxToRx(const struct erow *row, int cx);
 int editorRowRxToCx(const struct erow *row, int rx);
+int editorRowCxToRenderIdx(const struct erow *row, int cx);
 
 void editorUpdateRow(struct erow *row);
 void editorInsertRow(int idx, const char *s, size_t len);

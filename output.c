@@ -122,64 +122,82 @@ static void editorRenderSliceBounds(const struct erow *row, int coloff, int cols
 	*end_out = end;
 }
 
-static void editorMatchCharsToRenderSpan(const struct erow *row, int match_start, int match_len,
-		int *render_start_out, int *render_end_out) {
-	if (match_start < 0) {
-		match_start = 0;
+static char editorHexUpperDigit(unsigned int value) {
+	return value < 10 ? (char)('0' + value) : (char)('A' + (value - 10));
+}
+
+// Sanitize untrusted UI text (filename/status/message) using the same control
+// escaping policy as file rows. Tabs intentionally become "^I" here instead of
+// visual tab expansion so these bars keep deterministic layout.
+static int editorAppendSanitizedText(struct writeBuf *wb, const char *text, int max_cols,
+		int *written_cols_out) {
+	if (written_cols_out != NULL) {
+		*written_cols_out = 0;
 	}
-	if (match_start > row->size) {
-		match_start = row->size;
+	if (text == NULL) {
+		return 1;
 	}
 
-	int match_end = match_start + match_len;
-	if (match_end < match_start) {
-		match_end = match_start;
-	}
-	if (match_end > row->size) {
-		match_end = row->size;
-	}
-
-	int chars_idx = 0;
-	int render_idx = 0;
-	int rx = 0;
-	int render_start = -1;
-	int render_end = -1;
-
-	while (chars_idx < row->size) {
-		if (chars_idx == match_start) {
-			render_start = render_idx;
+	int text_len = (int)strlen(text);
+	int written_cols = 0;
+	for (int idx = 0; idx < text_len;) {
+		unsigned int cp = 0;
+		int src_len = editorUtf8DecodeCodepoint(&text[idx], text_len - idx, &cp);
+		if (src_len <= 0) {
+			src_len = 1;
 		}
-		if (chars_idx == match_end) {
-			render_end = render_idx;
+		if (src_len > text_len - idx) {
+			src_len = text_len - idx;
+		}
+
+		char escaped[4];
+		const char *token = &text[idx];
+		int token_len = src_len;
+		int token_cols = editorCharDisplayWidth(&text[idx], text_len - idx);
+
+		if (cp == '\t') {
+			escaped[0] = '^';
+			escaped[1] = 'I';
+			token = escaped;
+			token_len = 2;
+			token_cols = 2;
+		} else if (cp <= 0x1F) {
+			escaped[0] = '^';
+			escaped[1] = (char)('@' + (int)cp);
+			token = escaped;
+			token_len = 2;
+			token_cols = 2;
+		} else if (cp == 0x7F) {
+			escaped[0] = '^';
+			escaped[1] = '?';
+			token = escaped;
+			token_len = 2;
+			token_cols = 2;
+		} else if (cp >= 0x80 && cp <= 0x9F) {
+			escaped[0] = '\\';
+			escaped[1] = 'x';
+			escaped[2] = editorHexUpperDigit((cp >> 4) & 0x0F);
+			escaped[3] = editorHexUpperDigit(cp & 0x0F);
+			token = escaped;
+			token_len = 4;
+			token_cols = 4;
+		}
+
+		if (max_cols >= 0 && written_cols + token_cols > max_cols) {
 			break;
 		}
-
-		if (row->chars[chars_idx] == '\t') {
-			do {
-				render_idx++;
-				rx++;
-			} while (rx % ROTIDE_TAB_WIDTH != 0);
-			chars_idx++;
-			continue;
+		if (!wbAppend(wb, token, token_len)) {
+			return 0;
 		}
 
-		render_idx++;
-		rx += editorCharDisplayWidth(&row->chars[chars_idx], row->size - chars_idx);
-		chars_idx++;
+		written_cols += token_cols;
+		idx += src_len;
 	}
 
-	if (render_start == -1) {
-		render_start = render_idx;
+	if (written_cols_out != NULL) {
+		*written_cols_out = written_cols;
 	}
-	if (render_end == -1) {
-		render_end = render_idx;
-	}
-	if (render_end < render_start) {
-		render_end = render_start;
-	}
-
-	*render_start_out = render_start;
-	*render_end_out = render_end;
+	return 1;
 }
 
 static int editorSelectionSpanForRow(int row_idx, int *start_out, int *end_out) {
@@ -248,10 +266,26 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 		return wbAppend(wb, &row->render[start], end - start);
 	}
 
-	int match_render_start = 0;
-	int match_render_end = 0;
-	editorMatchCharsToRenderSpan(row, highlight_start_chars, highlight_len_chars,
-			&match_render_start, &match_render_end);
+	int match_start_chars = highlight_start_chars;
+	if (match_start_chars < 0) {
+		match_start_chars = 0;
+	}
+	if (match_start_chars > row->size) {
+		match_start_chars = row->size;
+	}
+	long long match_end_ll = (long long)match_start_chars + (long long)highlight_len_chars;
+	if (match_end_ll < match_start_chars) {
+		match_end_ll = match_start_chars;
+	}
+	if (match_end_ll > row->size) {
+		match_end_ll = row->size;
+	}
+	int match_end_chars = (int)match_end_ll;
+
+	// Convert char-space selection/search boundaries into render byte indices
+	// with the same mapper used by row rendering and cursor calculations.
+	int match_render_start = editorRowCxToRenderIdx(row, match_start_chars);
+	int match_render_end = editorRowCxToRenderIdx(row, match_end_chars);
 	if (match_render_end <= match_render_start) {
 		return wbAppend(wb, &row->render[start], end - start);
 	}
@@ -320,18 +354,16 @@ static int editorDrawStatusBar(struct writeBuf *wb) {
 	if (!wbAppend(wb, VT100_INVERTED_COLORS_4, 4)) {
 		return 0;
 	}
-	char leftbuf[80], rightbuf[80];
-	char *filename = E.filename;
+	char rightbuf[80];
+	const char *filename = E.filename;
 	if (filename == NULL) {
 		filename = "[No Name]";
 	}
-	char *dirtyflag = "";
+	const char *dirtyflag = "";
 	if (E.dirty) {
 		dirtyflag = "[+]";
 	}
 
-	int llen = snprintf(leftbuf, sizeof(leftbuf), "%.20s %s",
-			filename, dirtyflag);
 	int progress = 0;
 	if (E.numrows == 1) {
 		progress = 100;
@@ -349,15 +381,30 @@ static int editorDrawStatusBar(struct writeBuf *wb) {
 		cursor_col = 1;
 	}
 	int rlen = snprintf(rightbuf, sizeof(rightbuf), "%d,%d    %d%%",
-				E.cy + 1, cursor_col, progress);
-	if (llen > E.window_cols) {
-		llen = E.window_cols;
-	}
-	if (!wbAppend(wb, leftbuf, llen)) {
-		return 0;
+			E.cy + 1, cursor_col, progress);
+	if (rlen < 0) {
+		rlen = 0;
 	}
 
-	for (; llen < E.window_cols - rlen; llen++) {
+	int left_cols = 0;
+	// Keep left side both sanitized and display-width bounded before alignment.
+	if (!editorAppendSanitizedText(wb, filename, 20, &left_cols)) {
+		return 0;
+	}
+	if (left_cols < E.window_cols) {
+		if (!wbAppend(wb, " ", 1)) {
+			return 0;
+		}
+		left_cols++;
+	}
+	for (int i = 0; dirtyflag[i] != '\0' && left_cols < E.window_cols; i++) {
+		if (!wbAppend(wb, &dirtyflag[i], 1)) {
+			return 0;
+		}
+		left_cols++;
+	}
+
+	for (; left_cols < E.window_cols - rlen; left_cols++) {
 		if (!wbAppend(wb, " ", 1)) {
 			return 0;
 		}
@@ -397,12 +444,9 @@ static int editorDrawMessageBar(struct writeBuf *wb) {
 	if (!wbAppend(wb, VT100_CLEAR_ROW_3, 3)) {
 		return 0;
 	}
-	int msglen = strlen(E.statusmsg);
-	if (msglen > E.window_cols) {
-		msglen = E.window_cols;
-	}
-	if (msglen && time(NULL) - E.statusmsg_time < 5) {
-		if (!wbAppend(wb, E.statusmsg, msglen)) {
+	if (E.statusmsg[0] != '\0' && time(NULL) - E.statusmsg_time < 5) {
+		// Truncate by display columns after escaping, not by raw byte count.
+		if (!editorAppendSanitizedText(wb, E.statusmsg, E.window_cols, NULL)) {
 			return 0;
 		}
 	}

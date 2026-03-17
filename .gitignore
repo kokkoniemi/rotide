@@ -53,3 +53,5 @@ dkms.conf
 rotide
 *.swp
 tests/rotide_tests
+# Local security planning notes
+SECURITY_IMPROVEMENTS.md

@@ -348,6 +348,63 @@ static int test_editor_update_row_tab_alignment_after_multibyte(void) {
 	return 0;
 }
 
+static int test_editor_update_row_escapes_c0_and_esc_in_render(void) {
+	const char text[] = "A\x1b\x7f";
+	add_row_bytes(text, sizeof(text) - 1);
+	struct erow *row = &E.rows[0];
+
+	const char expected[] = "A^[^?";
+	ASSERT_EQ_INT((int)sizeof(expected) - 1, row->rsize);
+	ASSERT_MEM_EQ(expected, row->render, (size_t)row->rsize);
+	return 0;
+}
+
+static int test_editor_update_row_escapes_c1_codepoints_in_render(void) {
+	const char text[] = "\xC2\x9BZ";
+	add_row_bytes(text, sizeof(text) - 1);
+	struct erow *row = &E.rows[0];
+
+	const char expected[] = "\\x9BZ";
+	ASSERT_EQ_INT((int)sizeof(expected) - 1, row->rsize);
+	ASSERT_MEM_EQ(expected, row->render, (size_t)row->rsize);
+	return 0;
+}
+
+static int test_editor_update_row_preserves_printable_utf8_with_80_9f_continuations(void) {
+	const char text[] = "\xC4\x80X";
+	add_row_bytes(text, sizeof(text) - 1);
+	struct erow *row = &E.rows[0];
+
+	ASSERT_EQ_INT((int)sizeof(text) - 1, row->rsize);
+	ASSERT_MEM_EQ(text, row->render, (size_t)row->rsize);
+	return 0;
+}
+
+static int test_row_cx_to_rx_with_escaped_controls(void) {
+	const char text[] = "A\x1b" "B";
+	add_row_bytes(text, sizeof(text) - 1);
+	struct erow *row = &E.rows[0];
+
+	ASSERT_EQ_INT(0, editorRowCxToRx(row, 0));
+	ASSERT_EQ_INT(1, editorRowCxToRx(row, 1));
+	ASSERT_EQ_INT(3, editorRowCxToRx(row, 2));
+	ASSERT_EQ_INT(4, editorRowCxToRx(row, 3));
+	return 0;
+}
+
+static int test_row_rx_to_cx_with_escaped_controls(void) {
+	const char text[] = "A\x1b" "B";
+	add_row_bytes(text, sizeof(text) - 1);
+	struct erow *row = &E.rows[0];
+
+	ASSERT_EQ_INT(0, editorRowRxToCx(row, 0));
+	ASSERT_EQ_INT(1, editorRowRxToCx(row, 1));
+	ASSERT_EQ_INT(1, editorRowRxToCx(row, 2));
+	ASSERT_EQ_INT(2, editorRowRxToCx(row, 3));
+	ASSERT_EQ_INT(3, editorRowRxToCx(row, 4));
+	return 0;
+}
+
 static int test_insert_and_delete_row_updates_dirty(void) {
 	ASSERT_EQ_INT(0, E.dirty);
 	add_row("one");
@@ -2898,6 +2955,77 @@ static int test_editor_refresh_screen_highlights_active_search_match(void) {
 	return 0;
 }
 
+static int test_editor_refresh_screen_highlight_alignment_with_escaped_controls(void) {
+	const char text[] = "A\x1b" "BC";
+	add_row_bytes(text, sizeof(text) - 1);
+	E.window_rows = 3;
+	E.window_cols = 40;
+	E.cy = 0;
+	E.cx = 0;
+	E.search_match_row = 0;
+	E.search_match_start = 2;
+	E.search_match_len = 1;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "A^[\x1b[7mB\x1b[mC") != NULL);
+	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_escapes_filename_controls(void) {
+	add_row("line");
+	E.window_rows = 4;
+	E.window_cols = 60;
+	E.cy = 0;
+	E.cx = 0;
+	E.filename = strdup("bad\x1b[31mname.txt");
+	ASSERT_TRUE(E.filename != NULL);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "bad^[[31mname.txt") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[31m") == NULL);
+	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_escapes_status_controls(void) {
+	add_row("line");
+	E.window_rows = 4;
+	E.window_cols = 60;
+	E.cy = 0;
+	E.cx = 0;
+	editorSetStatusMsg("warn:\x1b]52;c;Zm9v\a");
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "warn:^[]52;c;Zm9v^G") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b]52;c;") == NULL);
+	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_escapes_file_content_controls(void) {
+	const char text[] = "A\x1b[2JB";
+	add_row_bytes(text, sizeof(text) - 1);
+	E.window_rows = 3;
+	E.window_cols = 40;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "A^[[2JB") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[2J") == NULL);
+	free(output);
+	return 0;
+}
+
 static int test_editor_refresh_screen_contains_expected_sequences(void) {
 	add_row("first line");
 	add_row("second line");
@@ -3065,13 +3193,21 @@ int main(void) {
 		{"row_cluster_boundaries_zwj_sequence", test_row_cluster_boundaries_zwj_sequence},
 		{"row_cluster_boundaries_regional_indicators", test_row_cluster_boundaries_regional_indicators},
 		{"row_cx_to_rx_with_tabs", test_row_cx_to_rx_with_tabs},
-		{"row_rx_to_cx_with_tabs", test_row_rx_to_cx_with_tabs},
-		{"editor_update_row_expands_tabs", test_editor_update_row_expands_tabs},
-		{"editor_update_row_tab_alignment_after_multibyte",
-			test_editor_update_row_tab_alignment_after_multibyte},
-		{"insert_and_delete_row_updates_dirty", test_insert_and_delete_row_updates_dirty},
-		{"editor_delete_row_rejects_idx_at_numrows",
-			test_editor_delete_row_rejects_idx_at_numrows},
+			{"row_rx_to_cx_with_tabs", test_row_rx_to_cx_with_tabs},
+			{"editor_update_row_expands_tabs", test_editor_update_row_expands_tabs},
+			{"editor_update_row_tab_alignment_after_multibyte",
+				test_editor_update_row_tab_alignment_after_multibyte},
+			{"editor_update_row_escapes_c0_and_esc_in_render",
+				test_editor_update_row_escapes_c0_and_esc_in_render},
+			{"editor_update_row_escapes_c1_codepoints_in_render",
+				test_editor_update_row_escapes_c1_codepoints_in_render},
+			{"editor_update_row_preserves_printable_utf8_with_80_9f_continuations",
+				test_editor_update_row_preserves_printable_utf8_with_80_9f_continuations},
+			{"row_cx_to_rx_with_escaped_controls", test_row_cx_to_rx_with_escaped_controls},
+			{"row_rx_to_cx_with_escaped_controls", test_row_rx_to_cx_with_escaped_controls},
+			{"insert_and_delete_row_updates_dirty", test_insert_and_delete_row_updates_dirty},
+			{"editor_delete_row_rejects_idx_at_numrows",
+				test_editor_delete_row_rejects_idx_at_numrows},
 		{"insert_and_delete_chars", test_insert_and_delete_chars},
 		{"editor_del_char_at_rejects_idx_at_row_size",
 			test_editor_del_char_at_rejects_idx_at_row_size},
@@ -3270,12 +3406,20 @@ int main(void) {
 			test_editor_process_keypress_ctrl_z_capture_oom_preserves_state},
 		{"editor_process_keypress_ctrl_z_restore_oom_preserves_state",
 			test_editor_process_keypress_ctrl_z_restore_oom_preserves_state},
-		{"editor_refresh_screen_contains_expected_sequences",
-			test_editor_refresh_screen_contains_expected_sequences},
-		{"editor_refresh_screen_highlights_active_search_match",
-			test_editor_refresh_screen_highlights_active_search_match},
-		{"editor_refresh_screen_highlights_active_selection_spans",
-			test_editor_refresh_screen_highlights_active_selection_spans},
+			{"editor_refresh_screen_contains_expected_sequences",
+				test_editor_refresh_screen_contains_expected_sequences},
+			{"editor_refresh_screen_highlights_active_search_match",
+				test_editor_refresh_screen_highlights_active_search_match},
+			{"editor_refresh_screen_highlight_alignment_with_escaped_controls",
+				test_editor_refresh_screen_highlight_alignment_with_escaped_controls},
+			{"editor_refresh_screen_escapes_filename_controls",
+				test_editor_refresh_screen_escapes_filename_controls},
+			{"editor_refresh_screen_escapes_status_controls",
+				test_editor_refresh_screen_escapes_status_controls},
+			{"editor_refresh_screen_escapes_file_content_controls",
+				test_editor_refresh_screen_escapes_file_content_controls},
+			{"editor_refresh_screen_highlights_active_selection_spans",
+				test_editor_refresh_screen_highlights_active_selection_spans},
 		{"editor_refresh_screen_hides_expired_message", test_editor_refresh_screen_hides_expired_message},
 		{"editor_refresh_screen_updates_horizontal_scroll",
 			test_editor_refresh_screen_updates_horizontal_scroll},
