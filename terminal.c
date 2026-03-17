@@ -260,8 +260,8 @@ int editorConsumeMouseEvent(struct editorMouseEvent *out) {
 }
 
 static void editorRestoreCursorVisualState(void) {
-	(void)write(STDOUT_FILENO, VT100_CURSOR_DEFAULT_5, 5);
-	(void)write(STDOUT_FILENO, VT100_SHOW_CURSOR_6, 6);
+	(void)editorWriteAll(STDOUT_FILENO, VT100_CURSOR_DEFAULT_5, sizeof(VT100_CURSOR_DEFAULT_5) - 1);
+	(void)editorWriteAll(STDOUT_FILENO, VT100_SHOW_CURSOR_6, sizeof(VT100_SHOW_CURSOR_6) - 1);
 }
 
 static void editorRestoreTerminalInternal(void) {
