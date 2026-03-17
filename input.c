@@ -59,7 +59,7 @@ static void editorAlignCursorWithRowEnd(void) {
 	}
 }
 
-char *editorPrompt(char *prompt) {
+char *editorPrompt(const char *prompt) {
 	size_t bufmax = 128;
 	char *buf = editorMalloc(bufmax);
 	if (buf == NULL) {

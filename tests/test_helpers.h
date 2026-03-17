@@ -67,7 +67,7 @@ char *read_file_contents(const char *path, size_t *len_out);
 
 int editor_read_key_with_input(const char *input, size_t len, int *key_out);
 int editor_process_keypress_with_input(const char *input, size_t len);
-char *editor_prompt_with_input(const char *input, size_t len, char *prompt);
+char *editor_prompt_with_input(const char *input, size_t len, const char *prompt);
 char *refresh_screen_and_capture(size_t *len_out);
 
 #endif

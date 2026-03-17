@@ -35,11 +35,11 @@ void reset_editor_state(void) {
 }
 
 void add_row(const char *s) {
-	editorInsertRow(E.numrows, (char *)s, strlen(s));
+	editorInsertRow(E.numrows, s, strlen(s));
 }
 
 void add_row_bytes(const char *s, size_t len) {
-	editorInsertRow(E.numrows, (char *)s, len);
+	editorInsertRow(E.numrows, s, len);
 }
 
 int write_all(int fd, const char *buf, size_t len) {
@@ -250,7 +250,7 @@ int editor_process_keypress_with_input(const char *input, size_t len) {
 	return 0;
 }
 
-char *editor_prompt_with_input(const char *input, size_t len, char *prompt) {
+char *editor_prompt_with_input(const char *input, size_t len, const char *prompt) {
 	int saved_stdin;
 	int saved_stdout;
 	if (setup_stdin_bytes(input, len, &saved_stdin) == -1) {

@@ -173,7 +173,7 @@ int editorCharDisplayWidth(const char *s, int len) {
 	return width;
 }
 
-int editorRowClampCxToCharBoundary(struct erow *row, int cx) {
+int editorRowClampCxToCharBoundary(const struct erow *row, int cx) {
 	if (cx < 0) {
 		return 0;
 	}
@@ -187,7 +187,7 @@ int editorRowClampCxToCharBoundary(struct erow *row, int cx) {
 	return cx;
 }
 
-int editorRowPrevCharIdx(struct erow *row, int idx) {
+int editorRowPrevCharIdx(const struct erow *row, int idx) {
 	if (idx <= 0) {
 		return 0;
 	}
@@ -199,7 +199,7 @@ int editorRowPrevCharIdx(struct erow *row, int idx) {
 	return idx;
 }
 
-int editorRowNextCharIdx(struct erow *row, int idx) {
+int editorRowNextCharIdx(const struct erow *row, int idx) {
 	if (idx >= row->size) {
 		return row->size;
 	}
@@ -215,7 +215,7 @@ int editorRowNextCharIdx(struct erow *row, int idx) {
 	return idx + step;
 }
 
-int editorRowNextClusterIdx(struct erow *row, int idx) {
+int editorRowNextClusterIdx(const struct erow *row, int idx) {
 	idx = editorRowClampCxToCharBoundary(row, idx);
 	if (idx >= row->size) {
 		return row->size;
@@ -278,7 +278,7 @@ int editorRowNextClusterIdx(struct erow *row, int idx) {
 	return idx;
 }
 
-int editorRowPrevClusterIdx(struct erow *row, int idx) {
+int editorRowPrevClusterIdx(const struct erow *row, int idx) {
 	idx = editorRowClampCxToCharBoundary(row, idx);
 	if (idx <= 0) {
 		return 0;
@@ -297,7 +297,7 @@ int editorRowPrevClusterIdx(struct erow *row, int idx) {
 	return prev;
 }
 
-int editorRowClampCxToClusterBoundary(struct erow *row, int cx) {
+int editorRowClampCxToClusterBoundary(const struct erow *row, int cx) {
 	cx = editorRowClampCxToCharBoundary(row, cx);
 	if (cx <= 0) {
 		return 0;
@@ -315,7 +315,7 @@ int editorRowClampCxToClusterBoundary(struct erow *row, int cx) {
 	return boundary;
 }
 
-int editorRowCxToRx(struct erow *row, int cx) {
+int editorRowCxToRx(const struct erow *row, int cx) {
 	int rx = 0;
 	cx = editorRowClampCxToClusterBoundary(row, cx);
 	for (int j = 0; j < cx; j++) {
@@ -329,7 +329,7 @@ int editorRowCxToRx(struct erow *row, int cx) {
 	return rx;
 }
 
-int editorRowRxToCx(struct erow *row, int rx) {
+int editorRowRxToCx(const struct erow *row, int rx) {
 	if (rx <= 0) {
 		return 0;
 	}
@@ -417,7 +417,7 @@ void editorUpdateRow(struct erow *row) {
 	(void)editorRebuildRowRender(row);
 }
 
-void editorInsertRow(int idx, char *s, size_t len) {
+void editorInsertRow(int idx, const char *s, size_t len) {
 	if (idx < 0 || idx > E.numrows) {
 		return;
 	}
@@ -496,7 +496,7 @@ void editorInsertCharAt(struct erow *row, int idx, int c) {
 	E.dirty++;
 }
 
-void editorRowAppendString(struct erow *row, char *s, size_t len) {
+void editorRowAppendString(struct erow *row, const char *s, size_t len) {
 	int old_size = row->size;
 	char *new_chars = editorRealloc(row->chars, (size_t)row->size + len + 1);
 	if (new_chars == NULL) {
@@ -637,7 +637,7 @@ void editorDelChar(void) {
 	E.cy--;
 }
 
-void editorOpen(char *filename) {
+void editorOpen(const char *filename) {
 	free(E.filename);
 	E.filename = strdup(filename);
 

@@ -1,6 +1,4 @@
-// TODO(maintainability): Apply const-correctness to internal row/string helper APIs where source buffers are read-only.
 // TODO(quality): Add CI sanitizer job (ASan + UBSan) in addition to current build/test job.
-// TODO(quality): Add README regression checklist for Unicode editing, scrolling, and save/quit smoke scenarios.
 // TODO(feature): Add Ctrl-F incremental search with live match navigation and highlight.
 // TODO(feature): Add search next/previous keybindings (Ctrl-N / Ctrl-P) after initial search.
 // TODO(feature): Add Ctrl-G go-to-line prompt and cursor jump.

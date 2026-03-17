@@ -3,7 +3,7 @@
 
 #include "rotide.h"
 
-char *editorPrompt(char *prompt);
+char *editorPrompt(const char *prompt);
 void editorProcessKeypress(void);
 
 #endif
