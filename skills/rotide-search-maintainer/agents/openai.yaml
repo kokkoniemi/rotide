@@ -1,0 +1,4 @@
+interface:
+  display_name: "Rotide Search Maintainer"
+  short_description: "Implement incremental search in rotide safely."
+  default_prompt: "Use $rotide-search-maintainer to add or refine Ctrl-F incremental search behavior in rotide."

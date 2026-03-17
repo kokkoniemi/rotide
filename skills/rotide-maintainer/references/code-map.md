@@ -7,6 +7,8 @@
 - `buffer.c`: row/buffer mutations, UTF-8 and grapheme helpers, open/save, status message updates.
 - `output.c`: write buffer, draw rows/status/message, scrolling, screen refresh.
 - `input.c`: prompt handling, movement logic, key dispatch and quit flow.
+- `alloc.c`: allocator wrappers used by editor code and tests.
+- `save_syscalls.c`: syscall wrapper layer for atomic save path and test fault injection.
 - `tests/rotide_tests.c`: test cases.
 - `tests/test_helpers.c`: reusable test fixtures/assertions and fd redirection helpers.
 
@@ -22,7 +24,7 @@
 ### Modify text mutation behavior
 
 1. Touch one of `editorInsertCharAt()`, `editorDelCharAt()`, `editorInsertRow()`, `editorDeleteRow()`, or `editorRowAppendString()`.
-2. Ensure `editorUpdateRow()` is called for affected rows.
+2. Ensure affected rows rebuild render cache (`editorRebuildRowRender()` in current mutation paths; `editorUpdateRow()` is the public wrapper).
 3. Ensure `E.dirty` increments for user-visible buffer changes.
 4. Add/adjust tests for row content, cursor effects, and dirty state.
 
@@ -37,4 +39,5 @@
 
 - Run `make`.
 - Run `make test`.
+- Run `make test-sanitize` when touching CI/build or memory/UB-sensitive paths.
 - Keep tests updated when behavior changes.

@@ -7,7 +7,7 @@ description: Maintain and evolve the rotide terminal editor project. Use when wo
 
 ## Quick Start Workflow
 
-1. Read `README.md`, `Makefile`, and the touched areas in the relevant module files (`rotide.c`, `terminal.c`, `buffer.c`, `output.c`, `input.c`).
+1. Read `README.md`, `Makefile`, and the touched areas in the relevant module files (`rotide.c`, `terminal.c`, `buffer.c`, `output.c`, `input.c`, `alloc.c`, `save_syscalls.c`).
 2. Check workspace state with `git status --short`; keep unrelated user changes intact.
 3. Implement the smallest viable change while matching current code style (tabs, C2x, sectioned layout).
 4. Update or add tests in `tests/rotide_tests.c` when behavior changes.
@@ -20,7 +20,7 @@ description: Maintain and evolve the rotide terminal editor project. Use when wo
 - Keep the lightweight module architecture unless the user asks for major structural changes.
 - Preserve editor row invariants:
   - Keep `row->chars` NUL-terminated with `row->size` as visible length.
-  - Recompute rendered content with `editorUpdateRow()` after row text mutations.
+  - Recompute rendered content after row text mutations (current mutation paths use `editorRebuildRowRender()`, and `editorUpdateRow()` is a wrapper).
 - Preserve dirty-state behavior: increment `E.dirty` on text-buffer mutations.
 - Keep keyboard behavior stable unless explicitly asked to change key mappings.
 - Keep status messaging user-facing and concise through `editorSetStatusMsg()`.
@@ -29,6 +29,7 @@ description: Maintain and evolve the rotide terminal editor project. Use when wo
 
 - Always run `make` after code edits.
 - Always run `make test` after code edits.
+- If changing build/CI or sanitizer behavior, run `make test-sanitize` (if LeakSanitizer is blocked locally, rerun with `ASAN_OPTIONS=detect_leaks=0` and call out the limitation).
 - If behavior changes, ensure tests are updated or added to cover the new behavior.
 - If editing cursor movement, rendering, or file operations, run an interactive smoke check:
   1. `./rotide README.md`

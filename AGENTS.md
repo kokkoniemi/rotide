@@ -3,7 +3,7 @@
 ## Project context
 
 - `rotide` is a small terminal text editor inspired by kilo.
-- Core code is split across focused modules (`terminal.c`, `buffer.c`, `output.c`, `input.c`, `rotide.c`).
+- Core code is split across focused modules (`terminal.c`, `buffer.c`, `output.c`, `input.c`, `rotide.c`) with supporting utility/save backend modules (`alloc.c`, `save_syscalls.c`).
 - Prioritize readability and simple control flow over micro-optimizations.
 
 ## Repository layout
@@ -13,16 +13,19 @@
 - `buffer.c`/`buffer.h`: buffer model, UTF-8/grapheme helpers, file open/save.
 - `output.c`/`output.h`: rendering pipeline and screen refresh.
 - `input.c`/`input.h`: prompt and keypress processing.
+- `alloc.c`/`alloc.h`: allocation wrappers and test-hook integration.
+- `save_syscalls.c`/`save_syscalls.h`: save-related syscall wrappers and failure injection hooks.
 - `tests/rotide_tests.c`: test cases.
 - `tests/test_helpers.c`/`tests/test_helpers.h`: shared test helpers/assertions.
 - `Makefile`: canonical build command and compiler flags.
 - `README.md`: brief project description.
-- `.github/workflows/ci.yml`: CI build + test workflow.
+- `.github/workflows/ci.yml`: CI build/test workflow plus sanitizer coverage (`make test-sanitize`).
 
 ## Build and validation
 
 - Build with `make`.
 - Run tests with `make test`.
+- Run sanitizer checks with `make test-sanitize` when touching build/CI, memory safety, or undefined-behavior sensitive code paths.
 - Treat warnings as errors (`-Werror` is enabled via Makefile flags).
 - After code edits, always run `make`.
 - After code edits, always run `make test`.
@@ -39,7 +42,7 @@
   - section markers like `/*** Output ***/`
 - Keep architecture lightweight unless user explicitly asks for splitting into more files.
 - Preserve core invariants:
-  - Row mutations refresh render cache via `editorUpdateRow()`.
+  - Row mutations refresh render cache (current mutation paths call `editorRebuildRowRender()`, and `editorUpdateRow()` is a wrapper).
   - Buffer mutations update `E.dirty`.
   - `row->chars` remains NUL-terminated.
 - Do not revert unrelated local changes.
