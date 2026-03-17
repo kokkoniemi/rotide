@@ -452,13 +452,17 @@ static char *editorPromptWithCallback(const char *prompt, int allow_empty,
 	buf[0] = '\0';
 
 	while (1) {
-		editorSetStatusMsg(prompt, buf);
-		editorRefreshScreen();
+			editorSetStatusMsg(prompt, buf);
+			editorRefreshScreen();
 
-		int c = editorReadKey();
-		// Prompt editing is keyboard-only; ignore mouse packets without invoking callbacks.
-		if (c == MOUSE_EVENT) {
-			continue;
+			int c = editorReadKey();
+			if (c == RESIZE_EVENT) {
+				(void)editorRefreshWindowSize();
+				continue;
+			}
+			// Prompt editing is keyboard-only; ignore mouse packets without invoking callbacks.
+			if (c == MOUSE_EVENT) {
+				continue;
 		}
 		if (c == DEL_KEY || c == CTRL_KEY('h') || c == BACKSPACE) {
 			if (buflen != 0) {
@@ -777,6 +781,9 @@ void editorProcessKeypress(void) {
 	int c = editorReadKey();
 
 	switch (c) {
+		case RESIZE_EVENT:
+			(void)editorRefreshWindowSize();
+			return;
 		case CTRL_KEY('q'):
 			editorHistoryBreakGroup();
 			quit();

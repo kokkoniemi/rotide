@@ -56,10 +56,9 @@ void initEditor(void) {
 	E.edit_pending_mode = EDITOR_EDIT_PENDING_NONE;
 	editorClipboardSetExternalSink(editorClipboardSyncOsc52);
 
-	if (readWindowSize(&E.window_rows, &E.window_cols) == -1) {
+	if (!editorRefreshWindowSize()) {
 		panic("readWindowSize");
 	}
-	E.window_rows -= 2;
 }
 
 int main(int argc, char *argv[]) {

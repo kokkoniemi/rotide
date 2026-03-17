@@ -28,7 +28,9 @@
 static volatile sig_atomic_t terminal_attrs_captured = 0;
 static volatile sig_atomic_t terminal_raw_enabled = 0;
 static volatile sig_atomic_t terminal_handlers_installed = 0;
+static volatile sig_atomic_t terminal_resize_handler_installed = 0;
 static volatile sig_atomic_t terminal_restore_atexit_registered = 0;
+static volatile sig_atomic_t terminal_resize_pending = 0;
 static struct editorMouseEvent pending_mouse_event = {EDITOR_MOUSE_EVENT_NONE, 0, 0};
 static int has_pending_mouse_event = 0;
 
@@ -61,10 +63,18 @@ static int editorReadSeqByte(char *out) {
 	if (nread == 1) {
 		return 1;
 	}
-	if (nread == -1 && errno != EAGAIN) {
+	if (nread == -1 && errno != EAGAIN && errno != EINTR) {
 		panic("read");
 	}
 	return 0;
+}
+
+static int editorTakeResizeEvent(void) {
+	if (!terminal_resize_pending) {
+		return 0;
+	}
+	terminal_resize_pending = 0;
+	return 1;
 }
 
 static int editorDecodeSgrMousePayload(const char *payload, struct editorMouseEvent *event_out) {
@@ -278,6 +288,31 @@ int editorConsumeMouseEvent(struct editorMouseEvent *out) {
 	return 1;
 }
 
+void editorQueueResizeEvent(void) {
+	terminal_resize_pending = 1;
+}
+
+int editorRefreshWindowSize(void) {
+	int rows = 0;
+	int cols = 0;
+	if (readWindowSize(&rows, &cols) == -1) {
+		return 0;
+	}
+
+	if (cols < 1) {
+		cols = 1;
+	}
+
+	int text_rows = rows - 2;
+	if (text_rows < 1) {
+		text_rows = 1;
+	}
+
+	E.window_cols = cols;
+	E.window_rows = text_rows;
+	return 1;
+}
+
 static void editorRestoreCursorVisualState(void) {
 	(void)editorWriteAll(STDOUT_FILENO, VT100_CURSOR_DEFAULT_5, sizeof(VT100_CURSOR_DEFAULT_5) - 1);
 	(void)editorWriteAll(STDOUT_FILENO, VT100_SHOW_CURSOR_6, sizeof(VT100_SHOW_CURSOR_6) - 1);
@@ -296,6 +331,7 @@ static void editorRestoreTerminalInternal(void) {
 	pending_mouse_event.x = 0;
 	pending_mouse_event.y = 0;
 	has_pending_mouse_event = 0;
+	terminal_resize_pending = 0;
 }
 
 static void editorRestoreTerminalAtExit(void) {
@@ -331,6 +367,25 @@ static void editorInstallTerminationHandlers(void) {
 	}
 
 	terminal_handlers_installed = 1;
+}
+
+static void editorHandleResizeSignal(int signo) {
+	(void)signo;
+	terminal_resize_pending = 1;
+}
+
+static void editorInstallResizeHandler(void) {
+	if (terminal_resize_handler_installed) {
+		return;
+	}
+
+	struct sigaction sa;
+	memset(&sa, 0, sizeof(sa));
+	sa.sa_handler = editorHandleResizeSignal;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = 0;
+	(void)sigaction(SIGWINCH, &sa, NULL);
+	terminal_resize_handler_installed = 1;
 }
 
 int editorClearScreen(void) {
@@ -407,14 +462,22 @@ void setRawMode(void) {
 	(void)editorWriteAll(STDOUT_FILENO, VT100_ENABLE_MOUSE, sizeof(VT100_ENABLE_MOUSE) - 1);
 	terminal_raw_enabled = 1;
 	editorInstallTerminationHandlers();
+	editorInstallResizeHandler();
 }
 
 int editorReadKey(void) {
 	while (1) {
+		if (editorTakeResizeEvent()) {
+			return RESIZE_EVENT;
+		}
+
 		int nread;
 		char c;
 		while ((nread = read(STDIN_FILENO, &c, 1)) != 1) {
-			if (nread == -1 && errno != EAGAIN) {
+			if (editorTakeResizeEvent()) {
+				return RESIZE_EVENT;
+			}
+			if (nread == -1 && errno != EAGAIN && errno != EINTR) {
 				panic("read");
 			}
 		}
@@ -425,22 +488,31 @@ int editorReadKey(void) {
 
 		char first = '\0';
 		char second = '\0';
-		// Parse common ANSI escape sequences used by arrow/home/end/page keys.
-		// If the sequence is incomplete, treat it as a plain Escape keypress.
-		if (!editorReadSeqByte(&first)) {
-			return '\x1b';
-		}
-		if (!editorReadSeqByte(&second)) {
-			return '\x1b';
-		}
-
-		if (first == '[') {
-			if (second == '<') {
-				struct editorMouseEvent event;
-				if (!editorReadSgrMouseEvent(&event)) {
-					return '\x1b';
+			// Parse common ANSI escape sequences used by arrow/home/end/page keys.
+			// If the sequence is incomplete, treat it as a plain Escape keypress.
+			if (!editorReadSeqByte(&first)) {
+				if (editorTakeResizeEvent()) {
+					return RESIZE_EVENT;
 				}
-				if (event.kind == EDITOR_MOUSE_EVENT_NONE) {
+				return '\x1b';
+			}
+			if (!editorReadSeqByte(&second)) {
+				if (editorTakeResizeEvent()) {
+					return RESIZE_EVENT;
+				}
+				return '\x1b';
+			}
+
+			if (first == '[') {
+				if (second == '<') {
+					struct editorMouseEvent event;
+					if (!editorReadSgrMouseEvent(&event)) {
+						if (editorTakeResizeEvent()) {
+							return RESIZE_EVENT;
+						}
+						return '\x1b';
+					}
+					if (event.kind == EDITOR_MOUSE_EVENT_NONE) {
 					// Valid mouse packet we intentionally ignore (release/drag/unsupported button).
 					continue;
 				}
@@ -449,11 +521,14 @@ int editorReadKey(void) {
 				return MOUSE_EVENT;
 			}
 
-			if (second >= '0' && second <= '9') {
-				char third = '\0';
-				if (!editorReadSeqByte(&third)) {
-					return '\x1b';
-				}
+				if (second >= '0' && second <= '9') {
+					char third = '\0';
+					if (!editorReadSeqByte(&third)) {
+						if (editorTakeResizeEvent()) {
+							return RESIZE_EVENT;
+						}
+						return '\x1b';
+					}
 				if (third == '~') {
 					switch (second) {
 						case '1':

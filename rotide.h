@@ -126,7 +126,8 @@ enum editorKey {
 	HOME_KEY,
 	END_KEY,
 	DEL_KEY,
-	MOUSE_EVENT
+	MOUSE_EVENT,
+	RESIZE_EVENT
 };
 
 #endif

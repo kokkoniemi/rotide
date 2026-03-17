@@ -1364,6 +1364,19 @@ static int test_editor_read_key_sgr_mouse_events(void) {
 	return 0;
 }
 
+static int test_editor_read_key_returns_resize_event_when_queued(void) {
+	int key = 0;
+	char plain[] = "x";
+
+	editorQueueResizeEvent();
+	ASSERT_TRUE(editor_read_key_with_input(plain, sizeof(plain) - 1, &key) == 0);
+	ASSERT_EQ_INT(RESIZE_EVENT, key);
+
+	ASSERT_TRUE(editor_read_key_with_input(plain, sizeof(plain) - 1, &key) == 0);
+	ASSERT_EQ_INT('x', key);
+	return 0;
+}
+
 static int test_read_cursor_position_and_window_size_fallback(void) {
 	char response[] = "\x1b[24;80R";
 	int rows = 0;
@@ -1422,6 +1435,51 @@ static int test_read_cursor_position_rejects_malformed_responses(void) {
 		free(stdout_bytes);
 	}
 
+	return 0;
+}
+
+static int test_editor_refresh_window_size_clamps_tiny_terminal(void) {
+	char response[] = "\x1b[1;5R";
+	int saved_stdin;
+	size_t stdout_len = 0;
+	struct stdoutCapture capture;
+
+	E.window_rows = 8;
+	E.window_cols = 40;
+
+	ASSERT_TRUE(start_stdout_capture(&capture) == 0);
+	ASSERT_TRUE(setup_stdin_bytes(response, sizeof(response) - 1, &saved_stdin) == 0);
+	ASSERT_EQ_INT(1, editorRefreshWindowSize());
+	ASSERT_TRUE(restore_stdin(saved_stdin) == 0);
+	char *stdout_bytes = stop_stdout_capture(&capture, &stdout_len);
+	ASSERT_TRUE(stdout_bytes != NULL);
+
+	ASSERT_EQ_INT(1, E.window_rows);
+	ASSERT_EQ_INT(5, E.window_cols);
+	ASSERT_TRUE(strstr(stdout_bytes, "\x1b[6n") != NULL);
+	free(stdout_bytes);
+	return 0;
+}
+
+static int test_editor_refresh_window_size_failure_keeps_previous_dimensions(void) {
+	char malformed[] = "\x1b[";
+	int saved_stdin;
+	size_t stdout_len = 0;
+	struct stdoutCapture capture;
+
+	E.window_rows = 7;
+	E.window_cols = 22;
+
+	ASSERT_TRUE(start_stdout_capture(&capture) == 0);
+	ASSERT_TRUE(setup_stdin_bytes(malformed, sizeof(malformed) - 1, &saved_stdin) == 0);
+	ASSERT_EQ_INT(0, editorRefreshWindowSize());
+	ASSERT_TRUE(restore_stdin(saved_stdin) == 0);
+	char *stdout_bytes = stop_stdout_capture(&capture, &stdout_len);
+	ASSERT_TRUE(stdout_bytes != NULL);
+
+	ASSERT_EQ_INT(7, E.window_rows);
+	ASSERT_EQ_INT(22, E.window_cols);
+	free(stdout_bytes);
 	return 0;
 }
 
@@ -1502,6 +1560,33 @@ static int test_editor_process_keypress_ctrl_s_saves_file(void) {
 
 	free(contents);
 	unlink(path);
+	return 0;
+}
+
+static int test_editor_process_keypress_resize_event_updates_window_size(void) {
+	char response[] = "\x1b[9;33R";
+	int saved_stdin;
+	size_t stdout_len = 0;
+	struct stdoutCapture capture;
+
+	E.window_rows = 8;
+	E.window_cols = 40;
+	E.undo_history.len = 0;
+	E.redo_history.len = 0;
+
+	editorQueueResizeEvent();
+	ASSERT_TRUE(start_stdout_capture(&capture) == 0);
+	ASSERT_TRUE(setup_stdin_bytes(response, sizeof(response) - 1, &saved_stdin) == 0);
+	editorProcessKeypress();
+	ASSERT_TRUE(restore_stdin(saved_stdin) == 0);
+	char *stdout_bytes = stop_stdout_capture(&capture, &stdout_len);
+	ASSERT_TRUE(stdout_bytes != NULL);
+
+	ASSERT_EQ_INT(7, E.window_rows);
+	ASSERT_EQ_INT(33, E.window_cols);
+	ASSERT_EQ_INT(0, E.undo_history.len);
+	ASSERT_EQ_INT(0, E.redo_history.len);
+	free(stdout_bytes);
 	return 0;
 }
 
@@ -1749,6 +1834,33 @@ static int test_editor_prompt_ignores_mouse_events(void) {
 	ASSERT_TRUE(result == NULL);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(2, E.cx);
+	return 0;
+}
+
+static int test_editor_prompt_ignores_resize_events(void) {
+	const char input[] = "\x1b[8;20Rok\r";
+	int saved_stdin;
+	size_t stdout_len = 0;
+	struct stdoutCapture capture;
+
+	E.window_rows = 4;
+	E.window_cols = 10;
+	editorQueueResizeEvent();
+
+	ASSERT_TRUE(start_stdout_capture(&capture) == 0);
+	ASSERT_TRUE(setup_stdin_bytes(input, sizeof(input) - 1, &saved_stdin) == 0);
+	char *result = editorPrompt("Prompt: %s");
+	ASSERT_TRUE(restore_stdin(saved_stdin) == 0);
+	char *stdout_bytes = stop_stdout_capture(&capture, &stdout_len);
+	ASSERT_TRUE(stdout_bytes != NULL);
+
+	ASSERT_TRUE(result != NULL);
+	ASSERT_EQ_STR("ok", result);
+	ASSERT_EQ_INT(6, E.window_rows);
+	ASSERT_EQ_INT(20, E.window_cols);
+
+	free(result);
+	free(stdout_bytes);
 	return 0;
 }
 
@@ -3029,15 +3141,23 @@ int main(void) {
 			test_editor_save_parent_dir_fsync_success_clears_dirty},
 		{"editor_read_key_sequences", test_editor_read_key_sequences},
 		{"editor_read_key_sgr_mouse_events", test_editor_read_key_sgr_mouse_events},
+		{"editor_read_key_returns_resize_event_when_queued",
+			test_editor_read_key_returns_resize_event_when_queued},
 		{"read_cursor_position_and_window_size_fallback", test_read_cursor_position_and_window_size_fallback},
 		{"read_cursor_position_rejects_malformed_responses",
 			test_read_cursor_position_rejects_malformed_responses},
+		{"editor_refresh_window_size_clamps_tiny_terminal",
+			test_editor_refresh_window_size_clamps_tiny_terminal},
+		{"editor_refresh_window_size_failure_keeps_previous_dimensions",
+			test_editor_refresh_window_size_failure_keeps_previous_dimensions},
 		{"editor_process_keypress_insert_move_and_backspace",
 			test_editor_process_keypress_insert_move_and_backspace},
 		{"editor_process_keypress_delete_key", test_editor_process_keypress_delete_key},
 		{"editor_process_keypress_arrow_down_keeps_visual_column",
 			test_editor_process_keypress_arrow_down_keeps_visual_column},
 		{"editor_process_keypress_ctrl_s_saves_file", test_editor_process_keypress_ctrl_s_saves_file},
+		{"editor_process_keypress_resize_event_updates_window_size",
+			test_editor_process_keypress_resize_event_updates_window_size},
 		{"editor_process_keypress_mouse_left_click_places_cursor_with_offsets",
 			test_editor_process_keypress_mouse_left_click_places_cursor_with_offsets},
 		{"editor_process_keypress_mouse_left_click_ignores_non_text_rows",
@@ -3059,6 +3179,7 @@ int main(void) {
 		{"editor_process_keypress_mouse_release_stops_drag_session",
 			test_editor_process_keypress_mouse_release_stops_drag_session},
 		{"editor_prompt_ignores_mouse_events", test_editor_prompt_ignores_mouse_events},
+		{"editor_prompt_ignores_resize_events", test_editor_prompt_ignores_resize_events},
 		{"editor_process_keypress_ctrl_b_toggles_selection_mode",
 			test_editor_process_keypress_ctrl_b_toggles_selection_mode},
 		{"editor_selection_range_tracks_cursor_movement",
