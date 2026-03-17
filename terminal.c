@@ -2,8 +2,10 @@
 
 #include <errno.h>
 #include <limits.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
 
@@ -11,6 +13,58 @@
 
 #define VT100_CLEAR_SCREEN_4 "\x1b[2J"
 #define VT100_RESET_CURSOR_POS_3 "\x1b[H"
+
+static volatile sig_atomic_t terminal_attrs_captured = 0;
+static volatile sig_atomic_t terminal_raw_enabled = 0;
+static volatile sig_atomic_t terminal_handlers_installed = 0;
+static volatile sig_atomic_t terminal_restore_atexit_registered = 0;
+
+static void editorRestoreTerminalInternal(void) {
+	if (!terminal_attrs_captured || !terminal_raw_enabled) {
+		return;
+	}
+
+	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_attrs) == -1) {
+		return;
+	}
+
+	terminal_raw_enabled = 0;
+}
+
+static void editorRestoreTerminalAtExit(void) {
+	editorRestoreTerminalInternal();
+}
+
+static void editorHandleTerminationSignal(int signo) {
+	editorRestoreTerminalInternal();
+
+	struct sigaction sa;
+	memset(&sa, 0, sizeof(sa));
+	sa.sa_handler = SIG_DFL;
+	sigemptyset(&sa.sa_mask);
+	(void)sigaction(signo, &sa, NULL);
+	(void)raise(signo);
+	_exit(128 + signo);
+}
+
+static void editorInstallTerminationHandlers(void) {
+	if (terminal_handlers_installed) {
+		return;
+	}
+
+	const int signals[] = {SIGHUP, SIGINT, SIGTERM, SIGQUIT};
+	struct sigaction sa;
+	memset(&sa, 0, sizeof(sa));
+	sa.sa_handler = editorHandleTerminationSignal;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = SA_RESTART;
+
+	for (size_t i = 0; i < sizeof(signals) / sizeof(signals[0]); i++) {
+		(void)sigaction(signals[i], &sa, NULL);
+	}
+
+	terminal_handlers_installed = 1;
+}
 
 int editorClearScreen(void) {
 	return write(STDOUT_FILENO, VT100_CLEAR_SCREEN_4, 4);
@@ -20,7 +74,12 @@ int editorResetCursorPos(void) {
 	return write(STDOUT_FILENO, VT100_RESET_CURSOR_POS_3, 3);
 }
 
+void editorRestoreTerminal(void) {
+	editorRestoreTerminalInternal();
+}
+
 void panic(const char *s) {
+	editorRestoreTerminalInternal();
 	editorClearScreen();
 	editorResetCursorPos();
 
@@ -29,17 +88,24 @@ void panic(const char *s) {
 }
 
 void setDefaultMode(void) {
-	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_attrs) == -1) {
-		panic("tcsetattr");
-	}
+	editorRestoreTerminalInternal();
 }
 
 void setRawMode(void) {
+	if (terminal_raw_enabled) {
+		return;
+	}
+
 	if (tcgetattr(STDIN_FILENO, &E.orig_attrs) == -1) {
 		panic("tcgetattr");
 	}
+	terminal_attrs_captured = 1;
 	// Always restore terminal settings on exit so the shell stays usable.
-	atexit(setDefaultMode);
+	if (!terminal_restore_atexit_registered) {
+		if (atexit(editorRestoreTerminalAtExit) == 0) {
+			terminal_restore_atexit_registered = 1;
+		}
+	}
 
 	struct termios attrs = E.orig_attrs;
 
@@ -70,6 +136,8 @@ void setRawMode(void) {
 	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &attrs) == -1) {
 		panic("tcsetattr");
 	}
+	terminal_raw_enabled = 1;
+	editorInstallTerminationHandlers();
 }
 
 int editorReadKey(void) {

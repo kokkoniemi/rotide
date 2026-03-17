@@ -42,6 +42,7 @@ static void quit(void) {
 		return;
 	}
 
+	editorRestoreTerminal();
 	editorClearScreen();
 	editorResetCursorPos();
 

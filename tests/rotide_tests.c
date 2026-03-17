@@ -10,10 +10,12 @@
 #include <dirent.h>
 #include <errno.h>
 #include <locale.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 struct editorConfig E;
@@ -124,6 +126,31 @@ static int editor_process_keypress_with_input_silent(const char *input, size_t l
 static int editor_process_single_key(int key) {
 	char c = (char)key;
 	return editor_process_keypress_with_input(&c, 1);
+}
+
+static int wait_for_child_exit_with_timeout(pid_t pid, int timeout_ms, int *status_out) {
+	const int poll_interval_us = 10000;
+	int waited_us = 0;
+
+	while (waited_us <= timeout_ms * 1000) {
+		pid_t waited = waitpid(pid, status_out, WNOHANG);
+		if (waited == pid) {
+			return 0;
+		}
+		if (waited == -1) {
+			return -1;
+		}
+
+		if (usleep((useconds_t)poll_interval_us) == -1 && errno != EINTR) {
+			return -1;
+		}
+		waited_us += poll_interval_us;
+	}
+
+	(void)kill(pid, SIGKILL);
+	(void)waitpid(pid, status_out, 0);
+	errno = ETIMEDOUT;
+	return -1;
 }
 
 static int test_utf8_decode_valid_sequences(void) {
@@ -1382,6 +1409,82 @@ static int test_editor_process_keypress_ctrl_s_saves_file(void) {
 	return 0;
 }
 
+static int test_editor_process_keypress_ctrl_q_exits_promptly(void) {
+	pid_t pid = fork();
+	ASSERT_TRUE(pid != -1);
+
+	if (pid == 0) {
+		int saved_stdout;
+		if (redirect_stdout_to_devnull(&saved_stdout) == -1) {
+			_exit(91);
+		}
+
+		char ctrl_q[] = {CTRL_KEY('q')};
+		if (editor_process_keypress_with_input(ctrl_q, sizeof(ctrl_q)) == -1) {
+			_exit(92);
+		}
+		_exit(93);
+	}
+
+	int status = 0;
+	ASSERT_TRUE(wait_for_child_exit_with_timeout(pid, 1500, &status) == 0);
+	ASSERT_TRUE(WIFEXITED(status));
+	ASSERT_EQ_INT(EXIT_SUCCESS, WEXITSTATUS(status));
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_q_dirty_requires_second_press(void) {
+	pid_t pid = fork();
+	ASSERT_TRUE(pid != -1);
+
+	if (pid == 0) {
+		int saved_stdout;
+		if (redirect_stdout_to_devnull(&saved_stdout) == -1) {
+			_exit(101);
+		}
+
+		add_row("unsaved");
+		E.dirty = 1;
+
+		char ctrl_q[] = {CTRL_KEY('q')};
+		if (editor_process_keypress_with_input(ctrl_q, sizeof(ctrl_q)) == -1) {
+			_exit(102);
+		}
+		if (strcmp(E.statusmsg, "File has unsaved changes. Press Ctrl-Q again to quit") != 0) {
+			_exit(103);
+		}
+		if (editor_process_keypress_with_input(ctrl_q, sizeof(ctrl_q)) == -1) {
+			_exit(104);
+		}
+
+		_exit(105);
+	}
+
+	int status = 0;
+	ASSERT_TRUE(wait_for_child_exit_with_timeout(pid, 1500, &status) == 0);
+	ASSERT_TRUE(WIFEXITED(status));
+	ASSERT_EQ_INT(EXIT_SUCCESS, WEXITSTATUS(status));
+	return 0;
+}
+
+static int test_process_terminates_promptly_on_sigterm(void) {
+	pid_t pid = fork();
+	ASSERT_TRUE(pid != -1);
+
+	if (pid == 0) {
+		for (;;) {
+			pause();
+		}
+	}
+
+	ASSERT_TRUE(kill(pid, SIGTERM) == 0);
+	int status = 0;
+	ASSERT_TRUE(wait_for_child_exit_with_timeout(pid, 1500, &status) == 0);
+	ASSERT_TRUE(WIFSIGNALED(status));
+	ASSERT_EQ_INT(SIGTERM, WTERMSIG(status));
+	return 0;
+}
+
 static int test_editor_process_keypress_ctrl_f_incremental_find_first_match(void) {
 	add_row("zz alpha");
 	add_row("alpha later");
@@ -1903,6 +2006,12 @@ int main(void) {
 		{"editor_process_keypress_arrow_down_keeps_visual_column",
 			test_editor_process_keypress_arrow_down_keeps_visual_column},
 		{"editor_process_keypress_ctrl_s_saves_file", test_editor_process_keypress_ctrl_s_saves_file},
+		{"editor_process_keypress_ctrl_q_exits_promptly",
+			test_editor_process_keypress_ctrl_q_exits_promptly},
+		{"editor_process_keypress_ctrl_q_dirty_requires_second_press",
+			test_editor_process_keypress_ctrl_q_dirty_requires_second_press},
+		{"process_terminates_promptly_on_sigterm",
+			test_process_terminates_promptly_on_sigterm},
 		{"editor_process_keypress_ctrl_f_incremental_find_first_match",
 			test_editor_process_keypress_ctrl_f_incremental_find_first_match},
 		{"editor_process_keypress_ctrl_f_arrow_navigation_wraps",

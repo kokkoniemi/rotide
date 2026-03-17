@@ -5,6 +5,7 @@
 
 int editorClearScreen(void);
 int editorResetCursorPos(void);
+void editorRestoreTerminal(void);
 void panic(const char *s);
 void setDefaultMode(void);
 void setRawMode(void);
