@@ -1,4 +1,3 @@
-// TODO(quality): Add CI sanitizer job (ASan + UBSan) in addition to current build/test job.
 // TODO(feature): Add Ctrl-F incremental search with live match navigation and highlight.
 // TODO(feature): Add search next/previous keybindings (Ctrl-N / Ctrl-P) after initial search.
 // TODO(feature): Add Ctrl-G go-to-line prompt and cursor jump.
