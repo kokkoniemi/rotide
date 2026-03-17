@@ -99,6 +99,11 @@ char *editorPrompt(char *prompt) {
 }
 
 static void editorMoveCursor(int k) {
+	int target_rx = 0;
+	if ((k == ARROW_UP || k == ARROW_DOWN) && E.cy < E.numrows) {
+		target_rx = editorRowCxToRx(&E.rows[E.cy], E.cx);
+	}
+
 	switch (k) {
 		case ARROW_LEFT:
 			if (E.cx != 0) {
@@ -132,6 +137,10 @@ static void editorMoveCursor(int k) {
 				E.cy--;
 			}
 			break;
+	}
+
+	if ((k == ARROW_UP || k == ARROW_DOWN) && E.cy < E.numrows) {
+		E.cx = editorRowRxToCx(&E.rows[E.cy], target_rx);
 	}
 
 	editorAlignCursorWithRowEnd();

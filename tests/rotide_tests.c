@@ -180,6 +180,17 @@ static int test_row_cx_to_rx_with_tabs(void) {
 	return 0;
 }
 
+static int test_row_rx_to_cx_with_tabs(void) {
+	add_row("a\tb");
+	struct erow *row = &E.rows[0];
+	ASSERT_EQ_INT(0, editorRowRxToCx(row, 0));
+	ASSERT_EQ_INT(1, editorRowRxToCx(row, 1));
+	ASSERT_EQ_INT(1, editorRowRxToCx(row, 7));
+	ASSERT_EQ_INT(2, editorRowRxToCx(row, 8));
+	ASSERT_EQ_INT(3, editorRowRxToCx(row, 9));
+	return 0;
+}
+
 static int test_editor_update_row_expands_tabs(void) {
 	add_row("a\tb");
 	struct erow *row = &E.rows[0];
@@ -748,6 +759,19 @@ static int test_editor_process_keypress_delete_key(void) {
 	return 0;
 }
 
+static int test_editor_process_keypress_arrow_down_keeps_visual_column(void) {
+	add_row("a\t\tb");
+	add_row("0123456789ABCDEFGHI");
+	E.cy = 0;
+	E.cx = 3;
+
+	char arrow_down[] = "\x1b[B";
+	ASSERT_TRUE(editor_process_keypress_with_input(arrow_down, sizeof(arrow_down) - 1) == 0);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(16, E.cx);
+	return 0;
+}
+
 static int test_editor_process_keypress_ctrl_s_saves_file(void) {
 	char path[] = "/tmp/rotide-test-ctrls-XXXXXX";
 	int fd = mkstemp(path);
@@ -940,6 +964,7 @@ int main(void) {
 		{"row_cluster_boundaries_zwj_sequence", test_row_cluster_boundaries_zwj_sequence},
 		{"row_cluster_boundaries_regional_indicators", test_row_cluster_boundaries_regional_indicators},
 		{"row_cx_to_rx_with_tabs", test_row_cx_to_rx_with_tabs},
+		{"row_rx_to_cx_with_tabs", test_row_rx_to_cx_with_tabs},
 		{"editor_update_row_expands_tabs", test_editor_update_row_expands_tabs},
 		{"editor_update_row_tab_alignment_after_multibyte",
 			test_editor_update_row_tab_alignment_after_multibyte},
@@ -982,6 +1007,8 @@ int main(void) {
 		{"editor_process_keypress_insert_move_and_backspace",
 			test_editor_process_keypress_insert_move_and_backspace},
 		{"editor_process_keypress_delete_key", test_editor_process_keypress_delete_key},
+		{"editor_process_keypress_arrow_down_keeps_visual_column",
+			test_editor_process_keypress_arrow_down_keeps_visual_column},
 		{"editor_process_keypress_ctrl_s_saves_file", test_editor_process_keypress_ctrl_s_saves_file},
 		{"editor_refresh_screen_contains_expected_sequences",
 			test_editor_refresh_screen_contains_expected_sequences},

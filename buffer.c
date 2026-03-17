@@ -316,6 +316,41 @@ int editorRowCxToRx(struct erow *row, int cx) {
 	return rx;
 }
 
+int editorRowRxToCx(struct erow *row, int rx) {
+	if (rx <= 0) {
+		return 0;
+	}
+
+	int cx = 0;
+	int cur_rx = 0;
+	while (cx < row->size) {
+		int next_cx = editorRowNextClusterIdx(row, cx);
+		if (next_cx <= cx) {
+			break;
+		}
+
+		int cluster_width = 0;
+		for (int j = cx; j < next_cx; j++) {
+			if (row->chars[j] == '\t') {
+				cluster_width += (ROTIDE_TAB_WIDTH - 1) -
+						((cur_rx + cluster_width) % ROTIDE_TAB_WIDTH);
+				cluster_width++;
+				continue;
+			}
+			cluster_width += editorCharDisplayWidth(&row->chars[j], row->size - j);
+		}
+
+		if (cur_rx + cluster_width > rx) {
+			return cx;
+		}
+
+		cur_rx += cluster_width;
+		cx = next_cx;
+	}
+
+	return row->size;
+}
+
 void editorUpdateRow(struct erow *row) {
 	int tabs = 0;
 	for (int i = 0; i < row->size; i++) {
