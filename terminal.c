@@ -83,17 +83,21 @@ static int editorDecodeSgrMousePayload(const char *payload, struct editorMouseEv
 	event_out->kind = EDITOR_MOUSE_EVENT_NONE;
 	event_out->x = cx;
 	event_out->y = cy;
+	// Parsed packet but unusable coordinates: ignore without treating it as parse failure.
 	if (cx <= 0 || cy <= 0) {
 		return 1;
 	}
 
+	// SGR uses lowercase 'm' for release; we only dispatch press/wheel events.
 	if (suffix != 'M') {
 		return 1;
 	}
+	// Motion bit marks drag/repeat reports which are out of scope for now.
 	if (cb & 32) {
 		return 1;
 	}
 
+	// Wheel events set bit 6 and encode direction in the low two bits.
 	if (cb & 64) {
 		int wheel_button = cb & 0x03;
 		if (wheel_button == 0) {
@@ -116,6 +120,7 @@ static int editorReadSgrMouseEvent(struct editorMouseEvent *event_out) {
 	int payload_len = 0;
 	char term = '\0';
 
+	// Bound payload length so malformed streams cannot grow indefinitely.
 	while (payload_len < (int)sizeof(payload) - 1) {
 		if (!editorReadSeqByte(&term)) {
 			return 0;
@@ -267,6 +272,7 @@ static void editorRestoreTerminalInternal(void) {
 	}
 	(void)editorWriteAll(STDOUT_FILENO, VT100_DISABLE_MOUSE_16, 16);
 	editorRestoreCursorVisualState();
+	// Drop any queued event so a later key read cannot consume stale mouse data.
 	pending_mouse_event.kind = EDITOR_MOUSE_EVENT_NONE;
 	pending_mouse_event.x = 0;
 	pending_mouse_event.y = 0;
@@ -378,6 +384,7 @@ void setRawMode(void) {
 	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &attrs) == -1) {
 		panic("tcsetattr");
 	}
+	// Mouse enable is best-effort: unsupported terminals simply ignore the control sequence.
 	(void)editorWriteAll(STDOUT_FILENO, VT100_ENABLE_MOUSE_16, 16);
 	terminal_raw_enabled = 1;
 	editorInstallTerminationHandlers();
@@ -415,6 +422,7 @@ int editorReadKey(void) {
 					return '\x1b';
 				}
 				if (event.kind == EDITOR_MOUSE_EVENT_NONE) {
+					// Valid mouse packet we intentionally ignore (release/drag/unsupported button).
 					continue;
 				}
 				pending_mouse_event = event;

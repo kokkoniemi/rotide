@@ -456,6 +456,7 @@ static char *editorPromptWithCallback(const char *prompt, int allow_empty,
 		editorRefreshScreen();
 
 		int c = editorReadKey();
+		// Prompt editing is keyboard-only; ignore mouse packets without invoking callbacks.
 		if (c == MOUSE_EVENT) {
 			continue;
 		}
@@ -633,12 +634,15 @@ static void editorMoveCursor(int k) {
 }
 
 static void editorHandleMouseClick(const struct editorMouseEvent *event) {
+	// SGR mouse coordinates are terminal-absolute and 1-based.
 	int mouse_row = event->y - 1;
+	// Ignore clicks outside the text viewport (status/message bars are below window_rows).
 	if (mouse_row < 0 || mouse_row >= E.window_rows) {
 		return;
 	}
 
 	int row_idx = E.rowoff + mouse_row;
+	// Ignore filler rows beyond the end of file.
 	if (row_idx < 0 || row_idx >= E.numrows) {
 		return;
 	}
@@ -653,6 +657,7 @@ static void editorHandleMouseClick(const struct editorMouseEvent *event) {
 		target_rx = 0;
 	}
 
+	// Convert rendered column -> buffer byte index while respecting grapheme boundaries.
 	E.cy = row_idx;
 	E.cx = editorRowRxToCx(&E.rows[row_idx], target_rx);
 	editorAlignCursorWithRowEnd();
@@ -660,6 +665,7 @@ static void editorHandleMouseClick(const struct editorMouseEvent *event) {
 
 static void editorHandleMouseWheel(const struct editorMouseEvent *event) {
 	int direction = event->kind == EDITOR_MOUSE_EVENT_WHEEL_UP ? ARROW_UP : ARROW_DOWN;
+	// Reuse arrow movement so cursor clamping/desired-column rules stay centralized.
 	for (int i = 0; i < MOUSE_WHEEL_SCROLL_LINES; i++) {
 		editorMoveCursor(direction);
 	}
@@ -667,6 +673,7 @@ static void editorHandleMouseWheel(const struct editorMouseEvent *event) {
 
 static void editorHandleMouseEvent(void) {
 	struct editorMouseEvent event;
+	// terminal.c queues one decoded event per MOUSE_EVENT keycode.
 	if (!editorConsumeMouseEvent(&event)) {
 		return;
 	}
@@ -773,6 +780,7 @@ void editorProcessKeypress(void) {
 			editorMoveCursor(c);
 			break;
 		case MOUSE_EVENT:
+			// Mouse input is navigation only; it should break typed-run grouping but not create edits.
 			editorHistoryBreakGroup();
 			editorHandleMouseEvent();
 			break;
@@ -785,6 +793,7 @@ void editorProcessKeypress(void) {
 			break;
 		}
 		case '\x1b':
+			// In normal editor mode Escape only clears transient selection state; quit is Ctrl-Q.
 			editorHistoryBreakGroup();
 			editorClearSelectionMode();
 			break;
@@ -798,6 +807,7 @@ void editorProcessKeypress(void) {
 			editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
 			int dirty_before = E.dirty;
 			if (c == DEL_KEY) {
+				// DEL deletes under cursor; editorDelChar() implements backspace semantics.
 				editorMoveCursor(ARROW_RIGHT);
 			}
 			editorDelChar();
