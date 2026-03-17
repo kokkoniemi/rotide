@@ -13,22 +13,26 @@
 
 #define VT100_CLEAR_SCREEN_4 "\x1b[2J"
 #define VT100_RESET_CURSOR_POS_3 "\x1b[H"
+#define VT100_SHOW_CURSOR_6 "\x1b[?25h"
+#define VT100_CURSOR_DEFAULT_5 "\x1b[0 q"
 
 static volatile sig_atomic_t terminal_attrs_captured = 0;
 static volatile sig_atomic_t terminal_raw_enabled = 0;
 static volatile sig_atomic_t terminal_handlers_installed = 0;
 static volatile sig_atomic_t terminal_restore_atexit_registered = 0;
 
+static void editorRestoreCursorVisualState(void) {
+	(void)write(STDOUT_FILENO, VT100_CURSOR_DEFAULT_5, 5);
+	(void)write(STDOUT_FILENO, VT100_SHOW_CURSOR_6, 6);
+}
+
 static void editorRestoreTerminalInternal(void) {
-	if (!terminal_attrs_captured || !terminal_raw_enabled) {
-		return;
+	if (terminal_attrs_captured && terminal_raw_enabled) {
+		if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_attrs) == 0) {
+			terminal_raw_enabled = 0;
+		}
 	}
-
-	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_attrs) == -1) {
-		return;
-	}
-
-	terminal_raw_enabled = 0;
+	editorRestoreCursorVisualState();
 }
 
 static void editorRestoreTerminalAtExit(void) {

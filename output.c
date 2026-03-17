@@ -21,6 +21,7 @@ struct writeBuf {
 #define VT100_RESET_CURSOR_POS_3 "\x1b[H"
 #define VT100_HIDE_CURSOR_6 "\x1b[?25l"
 #define VT100_SHOW_CURSOR_6 "\x1b[?25h"
+#define VT100_CURSOR_STEADY_BAR_5 "\x1b[6 q"
 #define VT100_INVERTED_COLORS_4 "\x1b[7m"
 #define VT100_NORMAL_COLORS_3 "\x1b[m"
 
@@ -416,6 +417,7 @@ void editorRefreshScreen(void) {
 
 	// Build a full frame in memory and write once to reduce terminal flicker.
 	if (!wbAppend(&wb, VT100_HIDE_CURSOR_6, 6) ||
+			!wbAppend(&wb, VT100_CURSOR_STEADY_BAR_5, 5) ||
 			!wbAppend(&wb, VT100_RESET_CURSOR_POS_3, 3)) {
 		wbFree(&wb);
 		editorSetStatusMsg("Out of memory");

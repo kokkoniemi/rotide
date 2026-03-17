@@ -1896,6 +1896,48 @@ static int test_editor_process_keypress_ctrl_q_exits_promptly(void) {
 	return 0;
 }
 
+static int test_editor_process_keypress_ctrl_q_restores_cursor_shape(void) {
+	int pipefd[2];
+	ASSERT_TRUE(pipe(pipefd) == 0);
+
+	pid_t pid = fork();
+	ASSERT_TRUE(pid != -1);
+
+	if (pid == 0) {
+		if (close(pipefd[0]) == -1) {
+			_exit(111);
+		}
+		if (dup2(pipefd[1], STDOUT_FILENO) == -1) {
+			_exit(112);
+		}
+		if (close(pipefd[1]) == -1) {
+			_exit(113);
+		}
+
+		char ctrl_q[] = {CTRL_KEY('q')};
+		if (editor_process_keypress_with_input(ctrl_q, sizeof(ctrl_q)) == -1) {
+			_exit(114);
+		}
+		_exit(115);
+	}
+
+	ASSERT_TRUE(close(pipefd[1]) == 0);
+	int status = 0;
+	ASSERT_TRUE(wait_for_child_exit_with_timeout(pid, 1500, &status) == 0);
+	ASSERT_TRUE(WIFEXITED(status));
+	ASSERT_EQ_INT(EXIT_SUCCESS, WEXITSTATUS(status));
+
+	size_t output_len = 0;
+	char *output = read_all_fd(pipefd[0], &output_len);
+	ASSERT_TRUE(close(pipefd[0]) == 0);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(output_len > 0);
+	ASSERT_TRUE(strstr(output, "\x1b[0 q") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[?25h") != NULL);
+	free(output);
+	return 0;
+}
+
 static int test_editor_process_keypress_ctrl_q_dirty_requires_second_press(void) {
 	pid_t pid = fork();
 	ASSERT_TRUE(pid != -1);
@@ -2238,6 +2280,7 @@ static int test_editor_refresh_screen_contains_expected_sequences(void) {
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(output_len > 0);
 	ASSERT_TRUE(strstr(output, "\x1b[?25l") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[6 q") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[?25h") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[7m") != NULL);
 	ASSERT_TRUE(strstr(output, "first line") != NULL);
@@ -2515,6 +2558,8 @@ int main(void) {
 			test_editor_process_keypress_ctrl_g_breaks_undo_typed_run_group},
 		{"editor_process_keypress_ctrl_q_exits_promptly",
 			test_editor_process_keypress_ctrl_q_exits_promptly},
+		{"editor_process_keypress_ctrl_q_restores_cursor_shape",
+			test_editor_process_keypress_ctrl_q_restores_cursor_shape},
 		{"editor_process_keypress_ctrl_q_dirty_requires_second_press",
 			test_editor_process_keypress_ctrl_q_dirty_requires_second_press},
 		{"process_terminates_promptly_on_sigterm",
