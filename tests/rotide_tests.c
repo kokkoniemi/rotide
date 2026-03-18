@@ -264,7 +264,9 @@ static void cleanup_recovery_test_env(struct recoveryTestEnv *env) {
 	editorRecoveryShutdown();
 
 	if (env->original_cwd != NULL) {
-		(void)chdir(env->original_cwd);
+		if (chdir(env->original_cwd) != 0) {
+			/* Best-effort cleanup in tests; continue tearing down temp paths. */
+		}
 	}
 	if (env->home_backup.name != NULL) {
 		(void)restore_env_var(&env->home_backup);
