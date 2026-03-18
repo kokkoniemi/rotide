@@ -4,6 +4,8 @@
 - FEATURE: Make cursor style configurable via TOML (for example block/bar/underline), including config validation and sensible fallback defaults.
 - FEATURE: Integrate Tree-sitter for C files and maintain an incremental syntax tree per buffer (foundation for highlighting, folding, and symbol-aware actions).
 - FEATURE: Integrate Tree-sitter for HTML files with the same incremental-parse pipeline used for C.
+- FEATURE: Add "Go to definition" for functions (jump from call site to declaration/definition), including keyboard action and a fallback picker when multiple matches exist.
+- FEATURE: Add Language Server Protocol (LSP) client support (server lifecycle, document sync, and `textDocument/definition`) to enable accurate cross-file "Go to definition" and future language features.
 - FEATURE: Add drawer-local file search by filename/path (via `find`/`fzf`) with live filtering, keyboard navigation, and open-on-select behavior.
 - FEATURE: Add project-wide text search (via `grep`/`rg`) with a results list that supports jump-to-match and next/previous result navigation.
 - FEATURE: Add syntax highlighting driven by language detection + Tree-sitter scopes, with a themeable color mapping.
