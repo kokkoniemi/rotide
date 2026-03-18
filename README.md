@@ -7,13 +7,14 @@ clear control flow, and safety-oriented behavior.
 ## Current status
 
 RotIDE is an active project and still evolving. Core editing, navigation,
-search, save, undo/redo, selection, and keymap configuration are implemented.
+search, save, undo/redo, selection, tabs, and keymap configuration are implemented.
 
 ## Features
 
 - Terminal-native editor loop with raw mode input handling.
 - UTF-8 aware row operations and grapheme-safe cursor movement.
 - Incremental search, go-to-line, and selection mode.
+- Multi-tab file buffers with a top tab bar and mouse tab switching.
 - Clipboard copy/cut/paste with optional OSC52 terminal sync.
 - Undo/redo history for insert/delete/newline edit flows.
 - Mouse support (click, drag selection, wheel scroll).
@@ -38,13 +39,22 @@ Run:
 ./rotide README.md
 ```
 
-If no file path is provided, RotIDE starts with an empty buffer and prompts for
-a filename on first save.
+You can pass multiple files and RotIDE opens each one in its own tab:
+
+```bash
+./rotide README.md rotide.c tests/rotide_tests.c
+```
+
+If no file path is provided, RotIDE starts with an empty tab and prompts for a
+filename on first save.
 
 ## Default keybindings
 
 - Save: `Ctrl-S`
 - Quit: `Ctrl-Q`
+- New tab: `Ctrl-N`
+- Close tab: `Ctrl-W` (second press required for dirty tab)
+- Next/previous tab: `Alt-Right` / `Alt-Left`
 - Find: `Ctrl-F`
 - Go to line: `Ctrl-G`
 - Selection toggle: `Ctrl-B`
@@ -81,6 +91,7 @@ quit = "ctrl+q"
 
 Supported key specs:
 - `ctrl+<a-z>`
+- `alt+left`, `alt+right`
 - Named keys: `left`, `right`, `up`, `down`, `home`, `end`, `page_up`,
   `page_down`, `enter`, `esc`, `backspace`, `del`
 

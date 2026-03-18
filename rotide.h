@@ -17,6 +17,8 @@
 #define ROTIDE_OSC52_MAX_COPY_BYTES ((size_t)100000)
 #define ROTIDE_MAX_TEXT_BYTES ((size_t)INT_MAX)
 #define ROTIDE_KEYMAP_MAX_BINDINGS 64
+#define ROTIDE_MAX_TABS 128
+#define ROTIDE_TAB_SLOT_WIDTH 16
 
 typedef void (*editorClipboardExternalSink)(const char *text, size_t len);
 
@@ -52,6 +54,10 @@ struct editorSelectionRange {
 enum editorAction {
 	EDITOR_ACTION_QUIT = 0,
 	EDITOR_ACTION_SAVE,
+	EDITOR_ACTION_NEW_TAB,
+	EDITOR_ACTION_CLOSE_TAB,
+	EDITOR_ACTION_NEXT_TAB,
+	EDITOR_ACTION_PREV_TAB,
 	EDITOR_ACTION_FIND,
 	EDITOR_ACTION_GOTO_LINE,
 	EDITOR_ACTION_TOGGLE_SELECTION,
@@ -115,6 +121,38 @@ struct editorHistory {
 	int len;
 };
 
+struct editorTabState {
+	int cx;
+	int cy;
+	int rx;
+	int rowoff;
+	int coloff;
+	int numrows;
+	struct erow *rows;
+	int dirty;
+	char *filename;
+	char *search_query;
+	int search_match_row;
+	int search_match_start;
+	int search_match_len;
+	int search_direction;
+	int search_saved_cx;
+	int search_saved_cy;
+	int selection_mode_active;
+	int selection_anchor_cx;
+	int selection_anchor_cy;
+	int mouse_left_button_down;
+	int mouse_drag_anchor_cx;
+	int mouse_drag_anchor_cy;
+	int mouse_drag_started;
+	struct editorHistory undo_history;
+	struct editorHistory redo_history;
+	struct editorSnapshot edit_pending_snapshot;
+	enum editorEditKind edit_group_kind;
+	enum editorEditKind edit_pending_kind;
+	enum editorEditPendingMode edit_pending_mode;
+};
+
 struct editorConfig {
 	int window_rows;
 	int window_cols;
@@ -152,6 +190,12 @@ struct editorConfig {
 	enum editorEditKind edit_group_kind;
 	enum editorEditKind edit_pending_kind;
 	enum editorEditPendingMode edit_pending_mode;
+	struct editorTabState *tabs;
+	int tab_count;
+	int tab_capacity;
+	int active_tab;
+	int tab_view_start;
+	int close_confirmed;
 	struct editorKeymap keymap;
 	struct termios orig_attrs;
 };
@@ -164,6 +208,8 @@ enum editorKey {
 	ARROW_DOWN,
 	ARROW_UP,
 	ARROW_RIGHT,
+	ALT_ARROW_LEFT,
+	ALT_ARROW_RIGHT,
 	PAGE_UP,
 	PAGE_DOWN,
 	HOME_KEY,

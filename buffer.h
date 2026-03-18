@@ -36,6 +36,22 @@ void editorOpen(const char *filename);
 void editorSetStatusMsg(const char *fmt, ...);
 void editorSave(void);
 
+int editorTabsInit(void);
+void editorTabsFreeAll(void);
+int editorTabNewEmpty(void);
+int editorTabOpenFileAsNew(const char *filename);
+int editorTabSwitchToIndex(int idx);
+int editorTabSwitchByDelta(int delta);
+int editorTabCloseActive(void);
+int editorTabCount(void);
+int editorTabActiveIndex(void);
+int editorTabAnyDirty(void);
+const char *editorTabFilenameAt(int idx);
+int editorTabDirtyAt(int idx);
+int editorTabVisibleSlotsForWidth(int cols);
+void editorTabsAlignViewToActive(int cols);
+int editorTabHitTestColumn(int col, int cols);
+
 int editorGetSelectionRange(struct editorSelectionRange *range_out);
 int editorExtractRangeText(const struct editorSelectionRange *range, char **text_out, size_t *len_out);
 int editorDeleteRange(const struct editorSelectionRange *range);

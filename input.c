@@ -48,8 +48,19 @@ static void editorSetQuitConfirmStatus(void) {
 	editorSetStatusMsg("File has unsaved changes. Press quit key again to quit");
 }
 
+static void editorSetCloseTabConfirmStatus(void) {
+	char close_binding[24];
+	if (editorKeymapFormatBinding(&E.keymap, EDITOR_ACTION_CLOSE_TAB, close_binding,
+				sizeof(close_binding))) {
+		editorSetStatusMsg("Tab has unsaved changes. Press %s again to close tab", close_binding);
+		return;
+	}
+
+	editorSetStatusMsg("Tab has unsaved changes. Press close key again to close tab");
+}
+
 static void quit(void) {
-	if (E.dirty && !quit_confirmed) {
+	if (editorTabAnyDirty() && !quit_confirmed) {
 		editorSetQuitConfirmStatus();
 		quit_confirmed = 1;
 		return;
@@ -60,6 +71,18 @@ static void quit(void) {
 	editorResetCursorPos();
 
 	exit(EXIT_SUCCESS);
+}
+
+static void editorCloseTab(void) {
+	if (E.dirty && !E.close_confirmed) {
+		editorSetCloseTabConfirmStatus();
+		E.close_confirmed = 1;
+		return;
+	}
+
+	if (editorTabCloseActive()) {
+		E.close_confirmed = 0;
+	}
 }
 
 static void editorExitOnInputShutdown(void) {
@@ -669,7 +692,8 @@ static int editorResolveMouseToBufferPosition(const struct editorMouseEvent *eve
 	}
 
 	// SGR mouse coordinates are terminal-absolute and 1-based.
-	int mouse_row = event->y - 1;
+	// Row 1 is the tab bar; text viewport starts on row 2.
+	int mouse_row = event->y - 2;
 	int mouse_col = event->x - 1;
 	if (clamp_to_viewport) {
 		if (E.window_rows <= 0 || E.window_cols <= 0) {
@@ -688,7 +712,7 @@ static int editorResolveMouseToBufferPosition(const struct editorMouseEvent *eve
 			mouse_col = E.window_cols - 1;
 		}
 	} else {
-		// Ignore clicks outside the text viewport (status/message bars are below window_rows).
+		// Ignore clicks outside text rows (tab/status/message bars are excluded).
 		if (mouse_row < 0 || mouse_row >= E.window_rows || mouse_col < 0) {
 			return 0;
 		}
@@ -734,6 +758,16 @@ static int editorMoveCursorToMouse(const struct editorMouseEvent *event, int cla
 }
 
 static void editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
+	if (event->y == 1) {
+		int tab_idx = editorTabHitTestColumn(event->x - 1, E.window_cols);
+		if (tab_idx >= 0) {
+			(void)editorTabSwitchToIndex(tab_idx);
+		}
+		E.mouse_left_button_down = 0;
+		E.mouse_drag_started = 0;
+		return;
+	}
+
 	if (!editorMoveCursorToMouse(event, 0)) {
 		E.mouse_left_button_down = 0;
 		E.mouse_drag_started = 0;
@@ -811,6 +845,22 @@ static int editorProcessMappedAction(enum editorAction action) {
 		case EDITOR_ACTION_SAVE:
 			editorHistoryBreakGroup();
 			editorSave();
+			return 0;
+		case EDITOR_ACTION_NEW_TAB:
+			editorHistoryBreakGroup();
+			(void)editorTabNewEmpty();
+			return 0;
+		case EDITOR_ACTION_CLOSE_TAB:
+			editorHistoryBreakGroup();
+			editorCloseTab();
+			return 0;
+		case EDITOR_ACTION_NEXT_TAB:
+			editorHistoryBreakGroup();
+			(void)editorTabSwitchByDelta(1);
+			return 0;
+		case EDITOR_ACTION_PREV_TAB:
+			editorHistoryBreakGroup();
+			(void)editorTabSwitchByDelta(-1);
 			return 0;
 		case EDITOR_ACTION_FIND:
 			editorHistoryBreakGroup();
@@ -939,6 +989,8 @@ static int editorProcessMappedAction(enum editorAction action) {
 
 void editorProcessKeypress(void) {
 	int c = editorReadKey();
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	int mapped_action = 0;
 
 	if (c == INPUT_EOF_EVENT) {
 		editorExitOnInputShutdown();
@@ -954,12 +1006,12 @@ void editorProcessKeypress(void) {
 		editorHistoryBreakGroup();
 		editorHandleMouseEvent();
 	} else {
-		enum editorAction action = EDITOR_ACTION_COUNT;
 		if (editorKeymapLookupAction(&E.keymap, c, &action)) {
+			mapped_action = 1;
 			if (editorProcessMappedAction(action)) {
 				return;
 			}
-		} else {
+		} else if (c >= CHAR_MIN && c <= CHAR_MAX) {
 			editorClearSelectionMode();
 			editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
 			int dirty_before = E.dirty;
@@ -968,5 +1020,10 @@ void editorProcessKeypress(void) {
 		}
 	}
 
-	quit_confirmed = 0;
+	if (!mapped_action || action != EDITOR_ACTION_CLOSE_TAB) {
+		E.close_confirmed = 0;
+	}
+	if (!mapped_action || action != EDITOR_ACTION_QUIT) {
+		quit_confirmed = 0;
+	}
 }

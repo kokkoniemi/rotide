@@ -1,5 +1,6 @@
 #include "rotide.h"
 
+#include <errno.h>
 #include <locale.h>
 #include <stdlib.h>
 
@@ -52,8 +53,18 @@ void initEditor(void) {
 	E.edit_group_kind = EDITOR_EDIT_NONE;
 	E.edit_pending_kind = EDITOR_EDIT_NONE;
 	E.edit_pending_mode = EDITOR_EDIT_PENDING_NONE;
+	E.tabs = NULL;
+	E.tab_count = 0;
+	E.tab_capacity = 0;
+	E.active_tab = 0;
+	E.tab_view_start = 0;
+	E.close_confirmed = 0;
 	editorKeymapInitDefaults(&E.keymap);
 	editorClipboardSetExternalSink(editorClipboardSyncOsc52);
+	if (!editorTabsInit()) {
+		errno = ENOMEM;
+		panic("editorTabsInit");
+	}
 
 	if (!editorRefreshWindowSize()) {
 		panic("readWindowSize");
@@ -68,6 +79,12 @@ int main(int argc, char *argv[]) {
 	enum editorKeymapLoadStatus keymap_status = editorKeymapLoadConfigured(&E.keymap);
 	if (argc >= 2) {
 		editorOpen(argv[1]);
+		for (int i = 2; i < argc; i++) {
+			if (!editorTabOpenFileAsNew(argv[i])) {
+				break;
+			}
+		}
+		(void)editorTabSwitchToIndex(0);
 	}
 
 	if (keymap_status == EDITOR_KEYMAP_LOAD_INVALID_PROJECT) {

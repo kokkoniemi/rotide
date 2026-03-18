@@ -327,6 +327,107 @@ static int editorDrawFileRow(struct writeBuf *wb, size_t i) {
 	return editorDrawRenderSlice(wb, &E.rows[i], (int)i, E.coloff, E.window_cols);
 }
 
+static const char *editorTabLabelFromFilename(const char *filename) {
+	if (filename == NULL) {
+		return "[No Name]";
+	}
+	const char *slash = strrchr(filename, '/');
+	if (slash != NULL && slash[1] != '\0') {
+		return slash + 1;
+	}
+	return filename;
+}
+
+static int editorDrawTabBar(struct writeBuf *wb) {
+	if (E.window_cols <= 0) {
+		return wbAppend(wb, "\r\n", 2);
+	}
+
+	editorTabsAlignViewToActive(E.window_cols);
+	int tab_count = editorTabCount();
+	int active = editorTabActiveIndex();
+	int visible_slots = editorTabVisibleSlotsForWidth(E.window_cols);
+	int draw_slot_width = ROTIDE_TAB_SLOT_WIDTH;
+	if (E.window_cols < draw_slot_width) {
+		draw_slot_width = E.window_cols;
+	}
+
+	for (int slot = 0; slot < visible_slots; slot++) {
+		int tab_idx = E.tab_view_start + slot;
+		int slot_cols = 0;
+		int is_active = tab_idx == active;
+		int show_left_overflow = slot == 0 && E.tab_view_start > 0;
+		int show_right_overflow = slot == visible_slots - 1 &&
+				E.tab_view_start + visible_slots < tab_count;
+
+		if (is_active && !wbAppend(wb, VT100_INVERTED_COLORS_4, 4)) {
+			return 0;
+		}
+
+		char marker = show_left_overflow ? '<' : ' ';
+		if (!wbAppend(wb, &marker, 1)) {
+			return 0;
+		}
+		slot_cols++;
+
+		char dirty = ' ';
+		if (tab_idx >= 0 && tab_idx < tab_count && editorTabDirtyAt(tab_idx)) {
+			dirty = '*';
+		}
+		if (slot_cols < draw_slot_width && !wbAppend(wb, &dirty, 1)) {
+			return 0;
+		}
+		if (slot_cols < draw_slot_width) {
+			slot_cols++;
+		}
+
+		if (slot_cols < draw_slot_width && !wbAppend(wb, " ", 1)) {
+			return 0;
+		}
+		if (slot_cols < draw_slot_width) {
+			slot_cols++;
+		}
+
+		if (tab_idx >= 0 && tab_idx < tab_count && slot_cols < draw_slot_width) {
+			const char *label = editorTabLabelFromFilename(editorTabFilenameAt(tab_idx));
+			int remaining = draw_slot_width - slot_cols;
+			int written = 0;
+			if (!editorAppendSanitizedText(wb, label, remaining, &written)) {
+				return 0;
+			}
+			slot_cols += written;
+		}
+
+		while (slot_cols < draw_slot_width) {
+			char pad = ' ';
+			if (show_right_overflow && slot_cols == draw_slot_width - 1) {
+				pad = '>';
+			}
+			if (!wbAppend(wb, &pad, 1)) {
+				return 0;
+			}
+			slot_cols++;
+		}
+
+		if (is_active && !wbAppend(wb, VT100_NORMAL_COLORS_3, 3)) {
+			return 0;
+		}
+	}
+
+	int drawn_cols = visible_slots * draw_slot_width;
+	while (drawn_cols < E.window_cols) {
+		if (!wbAppend(wb, " ", 1)) {
+			return 0;
+		}
+		drawn_cols++;
+	}
+
+	if (!wbAppend(wb, VT100_CLEAR_ROW_3, 3)) {
+		return 0;
+	}
+	return wbAppend(wb, "\r\n", 2);
+}
+
 static int editorDrawRows(struct writeBuf *wb) {
 	for (int y = 0; y < E.window_rows; y++) {
 		int y_offset = y + E.rowoff;
@@ -474,7 +575,7 @@ void editorRefreshScreen(void) {
 		return;
 	}
 
-	if (!editorDrawRows(&wb) || !editorDrawStatusBar(&wb) ||
+	if (!editorDrawTabBar(&wb) || !editorDrawRows(&wb) || !editorDrawStatusBar(&wb) ||
 			!editorDrawMessageBar(&wb)) {
 		wbFree(&wb);
 		editorSetStatusMsg("Out of memory");
@@ -483,7 +584,7 @@ void editorRefreshScreen(void) {
 
 	char buf[32];
 	int buflen = snprintf(buf, sizeof(buf), "\x1b[%d;%dH",
-			(E.cy - E.rowoff) + 1, (E.rx - E.coloff) + 1);
+			(E.cy - E.rowoff) + 2, (E.rx - E.coloff) + 1);
 	if (buflen > 0 && buflen < (int)sizeof(buf)) {
 		if (!wbAppend(&wb, buf, buflen)) {
 			wbFree(&wb);

@@ -1,11 +1,15 @@
 # Rotide example project config.
 # Current configurable section: [keymap]
-# Key spec format: "ctrl+<a-z>" or one of
+# Key spec format: "ctrl+<a-z>", "alt+left", "alt+right", or one of
 # left/right/up/down/home/end/page_up/page_down/enter/esc/backspace/del
 
 [keymap]
 quit = "ctrl+q"
 save = "ctrl+s"
+new_tab = "ctrl+n"
+close_tab = "ctrl+w"
+next_tab = "alt+right"
+prev_tab = "alt+left"
 find = "ctrl+f"
 goto_line = "ctrl+g"
 toggle_selection = "ctrl+b"

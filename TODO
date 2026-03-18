@@ -1,0 +1,4 @@
+- FEATURE: Add a file drawer pane rooted at the startup directory (or opened file directory), listing files/folders and supporting expand/collapse for nested folders.
+- FEATURE: Allow opening a selected file from the drawer in a new tab without replacing the current tab.
+- FEATURE: Add multi-threading support for heavy background work (for example directory scanning/search indexing), with thread-safe state handling and unchanged editor behavior.
+- FEATURE: Make cursor style configurable via TOML (for example block/bar/underline), including config validation and sensible fallback defaults.

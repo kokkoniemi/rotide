@@ -29,6 +29,10 @@ enum editorKeymapFileStatus {
 static const struct editorActionName editor_action_names[] = {
 	{"quit", EDITOR_ACTION_QUIT},
 	{"save", EDITOR_ACTION_SAVE},
+	{"new_tab", EDITOR_ACTION_NEW_TAB},
+	{"close_tab", EDITOR_ACTION_CLOSE_TAB},
+	{"next_tab", EDITOR_ACTION_NEXT_TAB},
+	{"prev_tab", EDITOR_ACTION_PREV_TAB},
 	{"find", EDITOR_ACTION_FIND},
 	{"goto_line", EDITOR_ACTION_GOTO_LINE},
 	{"toggle_selection", EDITOR_ACTION_TOGGLE_SELECTION},
@@ -174,8 +178,23 @@ static int editorKeymapParseCtrlKeySpec(const char *spec, int *key_out) {
 	return 1;
 }
 
+static int editorKeymapParseAltKeySpec(const char *spec, int *key_out) {
+	if (strcmp(spec, "alt+left") == 0) {
+		*key_out = ALT_ARROW_LEFT;
+		return 1;
+	}
+	if (strcmp(spec, "alt+right") == 0) {
+		*key_out = ALT_ARROW_RIGHT;
+		return 1;
+	}
+	return 0;
+}
+
 static int editorKeymapParseKeySpec(const char *spec, int *key_out) {
 	if (editorKeymapParseCtrlKeySpec(spec, key_out)) {
+		return 1;
+	}
+	if (editorKeymapParseAltKeySpec(spec, key_out)) {
 		return 1;
 	}
 
@@ -339,6 +358,10 @@ static int editorKeymapFormatKey(int key, char *buf, size_t bufsize) {
 	}
 
 	switch (key) {
+		case ALT_ARROW_LEFT:
+			return snprintf(buf, bufsize, "Alt-Left") > 0;
+		case ALT_ARROW_RIGHT:
+			return snprintf(buf, bufsize, "Alt-Right") > 0;
 		case ARROW_LEFT:
 			return snprintf(buf, bufsize, "Left") > 0;
 		case ARROW_RIGHT:
@@ -403,6 +426,10 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 	keymap->len = 0;
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('q'), EDITOR_ACTION_QUIT);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('s'), EDITOR_ACTION_SAVE);
+	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('n'), EDITOR_ACTION_NEW_TAB);
+	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('w'), EDITOR_ACTION_CLOSE_TAB);
+	(void)editorKeymapAppendBinding(keymap, ALT_ARROW_RIGHT, EDITOR_ACTION_NEXT_TAB);
+	(void)editorKeymapAppendBinding(keymap, ALT_ARROW_LEFT, EDITOR_ACTION_PREV_TAB);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('f'), EDITOR_ACTION_FIND);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('g'), EDITOR_ACTION_GOTO_LINE);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('b'), EDITOR_ACTION_TOGGLE_SELECTION);
@@ -456,6 +483,10 @@ int editorKeymapFormatBinding(const struct editorKeymap *keymap, enum editorActi
 void editorKeymapBuildHelpStatus(const struct editorKeymap *keymap, char *buf, size_t bufsize) {
 	char save[24];
 	char quit[24];
+	char new_tab[24];
+	char close_tab[24];
+	char next_tab[24];
+	char prev_tab[24];
 	char find[24];
 	char go_to[24];
 	char select[24];
@@ -471,6 +502,18 @@ void editorKeymapBuildHelpStatus(const struct editorKeymap *keymap, char *buf, s
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_QUIT, quit, sizeof(quit))) {
 		snprintf(quit, sizeof(quit), "Quit");
+	}
+	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_NEW_TAB, new_tab, sizeof(new_tab))) {
+		snprintf(new_tab, sizeof(new_tab), "NewTab");
+	}
+	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_CLOSE_TAB, close_tab, sizeof(close_tab))) {
+		snprintf(close_tab, sizeof(close_tab), "CloseTab");
+	}
+	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_NEXT_TAB, next_tab, sizeof(next_tab))) {
+		snprintf(next_tab, sizeof(next_tab), "NextTab");
+	}
+	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_PREV_TAB, prev_tab, sizeof(prev_tab))) {
+		snprintf(prev_tab, sizeof(prev_tab), "PrevTab");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_FIND, find, sizeof(find))) {
 		snprintf(find, sizeof(find), "Find");
@@ -502,8 +545,8 @@ void editorKeymapBuildHelpStatus(const struct editorKeymap *keymap, char *buf, s
 	}
 
 	snprintf(buf, bufsize,
-			"Help: %s save; %s quit; %s find; %s goto; %s/%s/%s/%s select; %s paste; %s/%s undo/redo",
-			save, quit, find, go_to, select, copy, cut, delete_sel, paste, undo, redo);
+			"Help: %s save; %s quit; %s new; %s close; %s/%s tabs; %s find; %s goto",
+			save, quit, new_tab, close_tab, prev_tab, next_tab, find, go_to);
 }
 
 enum editorKeymapLoadStatus editorKeymapLoadFromPaths(struct editorKeymap *keymap,

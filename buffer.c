@@ -1158,6 +1158,444 @@ static int editorSnapshotRestore(const struct editorSnapshot *snapshot) {
 	return 1;
 }
 
+static void editorTabStateInitEmpty(struct editorTabState *tab) {
+	memset(tab, 0, sizeof(*tab));
+	tab->search_match_row = -1;
+	tab->search_direction = 1;
+}
+
+static void editorResetActiveBufferFields(void) {
+	E.cx = 0;
+	E.cy = 0;
+	E.rx = 0;
+	E.rowoff = 0;
+	E.coloff = 0;
+	E.numrows = 0;
+	E.rows = NULL;
+	E.dirty = 0;
+	E.filename = NULL;
+	E.search_query = NULL;
+	E.search_match_row = -1;
+	E.search_match_start = 0;
+	E.search_match_len = 0;
+	E.search_direction = 1;
+	E.search_saved_cx = 0;
+	E.search_saved_cy = 0;
+	E.selection_mode_active = 0;
+	E.selection_anchor_cx = 0;
+	E.selection_anchor_cy = 0;
+	E.mouse_left_button_down = 0;
+	E.mouse_drag_anchor_cx = 0;
+	E.mouse_drag_anchor_cy = 0;
+	E.mouse_drag_started = 0;
+	E.undo_history.start = 0;
+	E.undo_history.len = 0;
+	E.redo_history.start = 0;
+	E.redo_history.len = 0;
+	E.edit_pending_snapshot.text = NULL;
+	E.edit_pending_snapshot.textlen = 0;
+	E.edit_pending_snapshot.cx = 0;
+	E.edit_pending_snapshot.cy = 0;
+	E.edit_pending_snapshot.dirty = 0;
+	E.edit_group_kind = EDITOR_EDIT_NONE;
+	E.edit_pending_kind = EDITOR_EDIT_NONE;
+	E.edit_pending_mode = EDITOR_EDIT_PENDING_NONE;
+}
+
+static void editorFreeTabRows(struct editorTabState *tab) {
+	for (int i = 0; i < tab->numrows; i++) {
+		free(tab->rows[i].chars);
+		free(tab->rows[i].render);
+	}
+	free(tab->rows);
+	tab->rows = NULL;
+	tab->numrows = 0;
+}
+
+static void editorTabStateFree(struct editorTabState *tab) {
+	editorFreeTabRows(tab);
+	free(tab->filename);
+	tab->filename = NULL;
+	free(tab->search_query);
+	tab->search_query = NULL;
+	editorHistoryClear(&tab->undo_history);
+	editorHistoryClear(&tab->redo_history);
+	editorSnapshotFree(&tab->edit_pending_snapshot);
+	editorTabStateInitEmpty(tab);
+}
+
+static void editorFreeActiveBufferState(void) {
+	for (int i = 0; i < E.numrows; i++) {
+		free(E.rows[i].chars);
+		free(E.rows[i].render);
+	}
+	free(E.rows);
+	E.rows = NULL;
+	E.numrows = 0;
+
+	free(E.filename);
+	E.filename = NULL;
+	free(E.search_query);
+	E.search_query = NULL;
+	editorHistoryClear(&E.undo_history);
+	editorHistoryClear(&E.redo_history);
+	editorSnapshotFree(&E.edit_pending_snapshot);
+	editorResetActiveBufferFields();
+}
+
+static void editorTabStateCaptureActive(struct editorTabState *tab) {
+	editorTabStateFree(tab);
+
+	tab->cx = E.cx;
+	tab->cy = E.cy;
+	tab->rx = E.rx;
+	tab->rowoff = E.rowoff;
+	tab->coloff = E.coloff;
+	tab->numrows = E.numrows;
+	tab->rows = E.rows;
+	tab->dirty = E.dirty;
+	tab->filename = E.filename;
+	tab->search_query = E.search_query;
+	tab->search_match_row = E.search_match_row;
+	tab->search_match_start = E.search_match_start;
+	tab->search_match_len = E.search_match_len;
+	tab->search_direction = E.search_direction;
+	tab->search_saved_cx = E.search_saved_cx;
+	tab->search_saved_cy = E.search_saved_cy;
+	tab->selection_mode_active = E.selection_mode_active;
+	tab->selection_anchor_cx = E.selection_anchor_cx;
+	tab->selection_anchor_cy = E.selection_anchor_cy;
+	tab->mouse_left_button_down = E.mouse_left_button_down;
+	tab->mouse_drag_anchor_cx = E.mouse_drag_anchor_cx;
+	tab->mouse_drag_anchor_cy = E.mouse_drag_anchor_cy;
+	tab->mouse_drag_started = E.mouse_drag_started;
+	tab->undo_history = E.undo_history;
+	tab->redo_history = E.redo_history;
+	tab->edit_pending_snapshot = E.edit_pending_snapshot;
+	tab->edit_group_kind = E.edit_group_kind;
+	tab->edit_pending_kind = E.edit_pending_kind;
+	tab->edit_pending_mode = E.edit_pending_mode;
+
+	editorResetActiveBufferFields();
+}
+
+static void editorTabStateLoadActive(struct editorTabState *tab) {
+	E.cx = tab->cx;
+	E.cy = tab->cy;
+	E.rx = tab->rx;
+	E.rowoff = tab->rowoff;
+	E.coloff = tab->coloff;
+	E.numrows = tab->numrows;
+	E.rows = tab->rows;
+	E.dirty = tab->dirty;
+	E.filename = tab->filename;
+	E.search_query = tab->search_query;
+	E.search_match_row = tab->search_match_row;
+	E.search_match_start = tab->search_match_start;
+	E.search_match_len = tab->search_match_len;
+	E.search_direction = tab->search_direction;
+	E.search_saved_cx = tab->search_saved_cx;
+	E.search_saved_cy = tab->search_saved_cy;
+	E.selection_mode_active = tab->selection_mode_active;
+	E.selection_anchor_cx = tab->selection_anchor_cx;
+	E.selection_anchor_cy = tab->selection_anchor_cy;
+	E.mouse_left_button_down = tab->mouse_left_button_down;
+	E.mouse_drag_anchor_cx = tab->mouse_drag_anchor_cx;
+	E.mouse_drag_anchor_cy = tab->mouse_drag_anchor_cy;
+	E.mouse_drag_started = tab->mouse_drag_started;
+	E.undo_history = tab->undo_history;
+	E.redo_history = tab->redo_history;
+	E.edit_pending_snapshot = tab->edit_pending_snapshot;
+	E.edit_group_kind = tab->edit_group_kind;
+	E.edit_pending_kind = tab->edit_pending_kind;
+	E.edit_pending_mode = tab->edit_pending_mode;
+
+	editorTabStateInitEmpty(tab);
+}
+
+static int editorEnsureTabCapacity(int needed) {
+	if (needed <= E.tab_capacity) {
+		return 1;
+	}
+
+	int new_capacity = E.tab_capacity > 0 ? E.tab_capacity : 4;
+	while (new_capacity < needed) {
+		if (new_capacity >= ROTIDE_MAX_TABS) {
+			new_capacity = ROTIDE_MAX_TABS;
+			break;
+		}
+		new_capacity *= 2;
+		if (new_capacity > ROTIDE_MAX_TABS) {
+			new_capacity = ROTIDE_MAX_TABS;
+		}
+	}
+	if (new_capacity < needed) {
+		return 0;
+	}
+
+	size_t cap_size = 0;
+	size_t tabs_bytes = 0;
+	if (!editorIntToSize(new_capacity, &cap_size) ||
+			!editorSizeMul(sizeof(struct editorTabState), cap_size, &tabs_bytes)) {
+		return 0;
+	}
+
+	struct editorTabState *new_tabs = editorRealloc(E.tabs, tabs_bytes);
+	if (new_tabs == NULL) {
+		return 0;
+	}
+
+	for (int i = E.tab_capacity; i < new_capacity; i++) {
+		editorTabStateInitEmpty(&new_tabs[i]);
+	}
+
+	E.tabs = new_tabs;
+	E.tab_capacity = new_capacity;
+	return 1;
+}
+
+static void editorStoreActiveTab(void) {
+	if (E.tabs == NULL || E.tab_count <= 0 ||
+			E.active_tab < 0 || E.active_tab >= E.tab_count) {
+		return;
+	}
+	editorTabStateCaptureActive(&E.tabs[E.active_tab]);
+}
+
+static void editorLoadActiveTab(int tab_idx) {
+	if (E.tabs == NULL || tab_idx < 0 || tab_idx >= E.tab_count) {
+		editorResetActiveBufferFields();
+		return;
+	}
+	editorTabStateLoadActive(&E.tabs[tab_idx]);
+}
+
+int editorTabsInit(void) {
+	editorTabsFreeAll();
+	if (!editorEnsureTabCapacity(1)) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+
+	E.tab_count = 1;
+	E.active_tab = 0;
+	E.tab_view_start = 0;
+	editorTabStateInitEmpty(&E.tabs[0]);
+	editorLoadActiveTab(0);
+	return 1;
+}
+
+void editorTabsFreeAll(void) {
+	editorFreeActiveBufferState();
+
+	if (E.tabs != NULL) {
+		for (int i = 0; i < E.tab_count; i++) {
+			editorTabStateFree(&E.tabs[i]);
+		}
+	}
+	free(E.tabs);
+	E.tabs = NULL;
+	E.tab_count = 0;
+	E.tab_capacity = 0;
+	E.active_tab = 0;
+	E.tab_view_start = 0;
+}
+
+int editorTabNewEmpty(void) {
+	if (E.tab_count >= ROTIDE_MAX_TABS) {
+		editorSetStatusMsg("Tab limit reached (%d)", ROTIDE_MAX_TABS);
+		return 0;
+	}
+	if (E.tab_count == 0) {
+		return editorTabsInit();
+	}
+
+	editorStoreActiveTab();
+	int new_idx = E.tab_count;
+	if (!editorEnsureTabCapacity(E.tab_count + 1)) {
+		editorLoadActiveTab(E.active_tab);
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+
+	editorTabStateInitEmpty(&E.tabs[new_idx]);
+	E.tab_count++;
+	E.active_tab = new_idx;
+	editorLoadActiveTab(E.active_tab);
+	return 1;
+}
+
+int editorTabOpenFileAsNew(const char *filename) {
+	if (!editorTabNewEmpty()) {
+		return 0;
+	}
+	editorOpen(filename);
+	return 1;
+}
+
+int editorTabSwitchToIndex(int idx) {
+	if (idx < 0 || idx >= E.tab_count) {
+		return 0;
+	}
+	if (idx == E.active_tab) {
+		return 1;
+	}
+
+	editorStoreActiveTab();
+	E.active_tab = idx;
+	editorLoadActiveTab(E.active_tab);
+	return 1;
+}
+
+int editorTabSwitchByDelta(int delta) {
+	if (E.tab_count <= 0) {
+		return 0;
+	}
+	if (delta == 0 || E.tab_count == 1) {
+		return 1;
+	}
+
+	int target = (E.active_tab + delta) % E.tab_count;
+	if (target < 0) {
+		target += E.tab_count;
+	}
+	return editorTabSwitchToIndex(target);
+}
+
+int editorTabCloseActive(void) {
+	if (E.tab_count <= 0 || E.tabs == NULL) {
+		return 0;
+	}
+
+	editorStoreActiveTab();
+	int closing = E.active_tab;
+	editorTabStateFree(&E.tabs[closing]);
+
+	if (E.tab_count == 1) {
+		editorTabStateInitEmpty(&E.tabs[0]);
+		E.active_tab = 0;
+		E.tab_count = 1;
+		E.tab_view_start = 0;
+		editorLoadActiveTab(0);
+		return 1;
+	}
+
+	memmove(&E.tabs[closing], &E.tabs[closing + 1],
+			sizeof(struct editorTabState) * (size_t)(E.tab_count - closing - 1));
+	E.tab_count--;
+	if (closing >= E.tab_count) {
+		closing = E.tab_count - 1;
+	}
+	E.active_tab = closing;
+	editorLoadActiveTab(E.active_tab);
+	return 1;
+}
+
+int editorTabCount(void) {
+	return E.tab_count;
+}
+
+int editorTabActiveIndex(void) {
+	return E.active_tab;
+}
+
+int editorTabAnyDirty(void) {
+	if (E.tab_count <= 0) {
+		return E.dirty != 0;
+	}
+	if (E.dirty) {
+		return 1;
+	}
+	for (int i = 0; i < E.tab_count; i++) {
+		if (i == E.active_tab) {
+			continue;
+		}
+		if (E.tabs[i].dirty) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+const char *editorTabFilenameAt(int idx) {
+	if (idx < 0 || idx >= E.tab_count) {
+		return NULL;
+	}
+	if (idx == E.active_tab) {
+		return E.filename;
+	}
+	return E.tabs[idx].filename;
+}
+
+int editorTabDirtyAt(int idx) {
+	if (idx < 0 || idx >= E.tab_count) {
+		return 0;
+	}
+	if (idx == E.active_tab) {
+		return E.dirty != 0;
+	}
+	return E.tabs[idx].dirty != 0;
+}
+
+int editorTabVisibleSlotsForWidth(int cols) {
+	int slots = cols / ROTIDE_TAB_SLOT_WIDTH;
+	if (slots < 1) {
+		slots = 1;
+	}
+	return slots;
+}
+
+void editorTabsAlignViewToActive(int cols) {
+	if (E.tab_count <= 0) {
+		E.tab_view_start = 0;
+		return;
+	}
+
+	int visible = editorTabVisibleSlotsForWidth(cols);
+	int max_start = E.tab_count - visible;
+	if (max_start < 0) {
+		max_start = 0;
+	}
+
+	if (E.tab_view_start > max_start) {
+		E.tab_view_start = max_start;
+	}
+	if (E.tab_view_start < 0) {
+		E.tab_view_start = 0;
+	}
+	if (E.active_tab < E.tab_view_start) {
+		E.tab_view_start = E.active_tab;
+	}
+	if (E.active_tab >= E.tab_view_start + visible) {
+		E.tab_view_start = E.active_tab - visible + 1;
+	}
+	if (E.tab_view_start > max_start) {
+		E.tab_view_start = max_start;
+	}
+	if (E.tab_view_start < 0) {
+		E.tab_view_start = 0;
+	}
+}
+
+int editorTabHitTestColumn(int col, int cols) {
+	if (col < 0 || col >= cols || E.tab_count <= 0) {
+		return -1;
+	}
+
+	editorTabsAlignViewToActive(cols);
+	int visible = editorTabVisibleSlotsForWidth(cols);
+	int slot = col / ROTIDE_TAB_SLOT_WIDTH;
+	if (slot < 0 || slot >= visible) {
+		return -1;
+	}
+
+	int tab_idx = E.tab_view_start + slot;
+	if (tab_idx < 0 || tab_idx >= E.tab_count) {
+		return -1;
+	}
+	return tab_idx;
+}
+
 void editorHistoryReset(void) {
 	editorHistoryClear(&E.undo_history);
 	editorHistoryClear(&E.redo_history);

@@ -14,20 +14,7 @@
 #include <unistd.h>
 
 void clear_editor_state(void) {
-	editorHistoryReset();
-
-	for (int i = 0; i < E.numrows; i++) {
-		free(E.rows[i].chars);
-		free(E.rows[i].render);
-	}
-	free(E.rows);
-	E.rows = NULL;
-	E.numrows = 0;
-
-	free(E.filename);
-	E.filename = NULL;
-	free(E.search_query);
-	E.search_query = NULL;
+	editorTabsFreeAll();
 	editorClipboardClear();
 }
 

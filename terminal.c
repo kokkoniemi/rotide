@@ -364,7 +364,7 @@ int editorRefreshWindowSize(void) {
 		cols = 1;
 	}
 
-	int text_rows = rows - 2;
+	int text_rows = rows - 3;
 	if (text_rows < 1) {
 		text_rows = 1;
 	}
@@ -572,6 +572,27 @@ int editorReadKey(void) {
 			return '\x1b';
 		}
 
+		if (first == '\x1b' && second == '[') {
+			char third = '\0';
+			read_status = editorReadSeqByte(&third);
+			if (read_status == EDITOR_READ_EOF) {
+				return INPUT_EOF_EVENT;
+			}
+			if (read_status != EDITOR_READ_BYTE) {
+				if (editorTakeResizeEvent()) {
+					return RESIZE_EVENT;
+				}
+				return '\x1b';
+			}
+			if (third == 'C') {
+				return ALT_ARROW_RIGHT;
+			}
+			if (third == 'D') {
+				return ALT_ARROW_LEFT;
+			}
+			return '\x1b';
+		}
+
 		if (first == '[') {
 			if (second == '<') {
 				struct editorMouseEvent event;
@@ -606,8 +627,8 @@ int editorReadKey(void) {
 					}
 					return '\x1b';
 				}
-				if (third == '~') {
-					switch (second) {
+					if (third == '~') {
+						switch (second) {
 						case '1':
 							return HOME_KEY;
 						case '3':
@@ -622,9 +643,42 @@ int editorReadKey(void) {
 							return HOME_KEY;
 						case '8':
 							return END_KEY;
+						}
+					}
+					if (third == ';') {
+						char modifier = '\0';
+						char final = '\0';
+						read_status = editorReadSeqByte(&modifier);
+						if (read_status == EDITOR_READ_EOF) {
+							return INPUT_EOF_EVENT;
+						}
+						if (read_status != EDITOR_READ_BYTE) {
+							if (editorTakeResizeEvent()) {
+								return RESIZE_EVENT;
+							}
+							return '\x1b';
+						}
+						read_status = editorReadSeqByte(&final);
+						if (read_status == EDITOR_READ_EOF) {
+							return INPUT_EOF_EVENT;
+						}
+						if (read_status != EDITOR_READ_BYTE) {
+							if (editorTakeResizeEvent()) {
+								return RESIZE_EVENT;
+							}
+							return '\x1b';
+						}
+
+						if (modifier == '3') {
+							if (final == 'C') {
+								return ALT_ARROW_RIGHT;
+							}
+							if (final == 'D') {
+								return ALT_ARROW_LEFT;
+							}
+						}
 					}
 				}
-			}
 
 			switch (second) {
 				case 'A':
