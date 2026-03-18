@@ -2,6 +2,7 @@
 
 #include <errno.h>
 #include <limits.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -60,15 +61,53 @@ static int editorWriteAll(int fd, const char *buf, size_t len) {
 	return 1;
 }
 
-static int editorReadSeqByte(char *out) {
+enum editorReadByteResult {
+	EDITOR_READ_BYTE = 1,
+	EDITOR_READ_RETRY = 0,
+	EDITOR_READ_EOF = -1
+};
+
+static int editorIsTtyInputClosed(void) {
+	struct pollfd pfd;
+	pfd.fd = STDIN_FILENO;
+	pfd.events = POLLIN;
+	pfd.revents = 0;
+
+	int polled;
+	do {
+		polled = poll(&pfd, 1, 0);
+	} while (polled == -1 && errno == EINTR);
+
+	if (polled == -1) {
+		panic("poll");
+		return 1;
+	}
+	if (polled == 0) {
+		return 0;
+	}
+	return (pfd.revents & (POLLHUP | POLLERR | POLLNVAL)) != 0;
+}
+
+static enum editorReadByteResult editorReadInputByte(char *out) {
 	ssize_t nread = read(STDIN_FILENO, out, 1);
 	if (nread == 1) {
-		return 1;
+		return EDITOR_READ_BYTE;
+	}
+	if (nread == 0) {
+		if (!isatty(STDIN_FILENO)) {
+			return EDITOR_READ_EOF;
+		}
+		return editorIsTtyInputClosed() ? EDITOR_READ_EOF : EDITOR_READ_RETRY;
 	}
 	if (nread == -1 && errno != EAGAIN && errno != EINTR) {
 		panic("read");
+		return EDITOR_READ_RETRY;
 	}
-	return 0;
+	return EDITOR_READ_RETRY;
+}
+
+static enum editorReadByteResult editorReadSeqByte(char *out) {
+	return editorReadInputByte(out);
 }
 
 static int editorTakeResizeEvent(void) {
@@ -146,15 +185,19 @@ static int editorDecodeSgrMousePayload(const char *payload, struct editorMouseEv
 	return 1;
 }
 
-static int editorReadSgrMouseEvent(struct editorMouseEvent *event_out) {
+static enum editorReadByteResult editorReadSgrMouseEvent(struct editorMouseEvent *event_out) {
 	char payload[SGR_MOUSE_MAX_PAYLOAD];
 	int payload_len = 0;
 	char term = '\0';
 
 	// Bound payload length so malformed streams cannot grow indefinitely.
 	while (payload_len < (int)sizeof(payload) - 1) {
-		if (!editorReadSeqByte(&term)) {
-			return 0;
+		enum editorReadByteResult byte_status = editorReadSeqByte(&term);
+		if (byte_status == EDITOR_READ_EOF) {
+			return EDITOR_READ_EOF;
+		}
+		if (byte_status != EDITOR_READ_BYTE) {
+			return EDITOR_READ_RETRY;
 		}
 		payload[payload_len++] = term;
 		if (term == 'M' || term == 'm') {
@@ -163,11 +206,14 @@ static int editorReadSgrMouseEvent(struct editorMouseEvent *event_out) {
 	}
 
 	if (payload_len == (int)sizeof(payload) - 1 && term != 'M' && term != 'm') {
-		return 0;
+		return EDITOR_READ_RETRY;
 	}
 
 	payload[payload_len] = '\0';
-	return editorDecodeSgrMousePayload(payload, event_out);
+	if (!editorDecodeSgrMousePayload(payload, event_out)) {
+		return EDITOR_READ_RETRY;
+	}
+	return EDITOR_READ_BYTE;
 }
 
 static char *editorBase64Encode(const unsigned char *bytes, size_t len, size_t *out_len) {
@@ -486,14 +532,14 @@ int editorReadKey(void) {
 			return RESIZE_EVENT;
 		}
 
-		int nread;
 		char c;
-		while ((nread = read(STDIN_FILENO, &c, 1)) != 1) {
+		enum editorReadByteResult read_status;
+		while ((read_status = editorReadInputByte(&c)) != EDITOR_READ_BYTE) {
 			if (editorTakeResizeEvent()) {
 				return RESIZE_EVENT;
 			}
-			if (nread == -1 && errno != EAGAIN && errno != EINTR) {
-				panic("read");
+			if (read_status == EDITOR_READ_EOF) {
+				return INPUT_EOF_EVENT;
 			}
 		}
 
@@ -503,31 +549,43 @@ int editorReadKey(void) {
 
 		char first = '\0';
 		char second = '\0';
-			// Parse common ANSI escape sequences used by arrow/home/end/page keys.
-			// If the sequence is incomplete, treat it as a plain Escape keypress.
-			if (!editorReadSeqByte(&first)) {
-				if (editorTakeResizeEvent()) {
-					return RESIZE_EVENT;
-				}
-				return '\x1b';
+		// Parse common ANSI escape sequences used by arrow/home/end/page keys.
+		// If the sequence is incomplete, treat it as a plain Escape keypress.
+		read_status = editorReadSeqByte(&first);
+		if (read_status == EDITOR_READ_EOF) {
+			return INPUT_EOF_EVENT;
+		}
+		if (read_status != EDITOR_READ_BYTE) {
+			if (editorTakeResizeEvent()) {
+				return RESIZE_EVENT;
 			}
-			if (!editorReadSeqByte(&second)) {
-				if (editorTakeResizeEvent()) {
-					return RESIZE_EVENT;
-				}
-				return '\x1b';
+			return '\x1b';
+		}
+		read_status = editorReadSeqByte(&second);
+		if (read_status == EDITOR_READ_EOF) {
+			return INPUT_EOF_EVENT;
+		}
+		if (read_status != EDITOR_READ_BYTE) {
+			if (editorTakeResizeEvent()) {
+				return RESIZE_EVENT;
 			}
+			return '\x1b';
+		}
 
-			if (first == '[') {
-				if (second == '<') {
-					struct editorMouseEvent event;
-					if (!editorReadSgrMouseEvent(&event)) {
-						if (editorTakeResizeEvent()) {
-							return RESIZE_EVENT;
-						}
-						return '\x1b';
+		if (first == '[') {
+			if (second == '<') {
+				struct editorMouseEvent event;
+				enum editorReadByteResult mouse_status = editorReadSgrMouseEvent(&event);
+				if (mouse_status == EDITOR_READ_EOF) {
+					return INPUT_EOF_EVENT;
+				}
+				if (mouse_status != EDITOR_READ_BYTE) {
+					if (editorTakeResizeEvent()) {
+						return RESIZE_EVENT;
 					}
-					if (event.kind == EDITOR_MOUSE_EVENT_NONE) {
+					return '\x1b';
+				}
+				if (event.kind == EDITOR_MOUSE_EVENT_NONE) {
 					// Valid mouse packet we intentionally ignore (release/drag/unsupported button).
 					continue;
 				}
@@ -536,14 +594,18 @@ int editorReadKey(void) {
 				return MOUSE_EVENT;
 			}
 
-				if (second >= '0' && second <= '9') {
-					char third = '\0';
-					if (!editorReadSeqByte(&third)) {
-						if (editorTakeResizeEvent()) {
-							return RESIZE_EVENT;
-						}
-						return '\x1b';
+			if (second >= '0' && second <= '9') {
+				char third = '\0';
+				read_status = editorReadSeqByte(&third);
+				if (read_status == EDITOR_READ_EOF) {
+					return INPUT_EOF_EVENT;
+				}
+				if (read_status != EDITOR_READ_BYTE) {
+					if (editorTakeResizeEvent()) {
+						return RESIZE_EVENT;
 					}
+					return '\x1b';
+				}
 				if (third == '~') {
 					switch (second) {
 						case '1':

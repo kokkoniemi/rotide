@@ -170,7 +170,8 @@ enum editorKey {
 	END_KEY,
 	DEL_KEY,
 	MOUSE_EVENT,
-	RESIZE_EVENT
+	RESIZE_EVENT,
+	INPUT_EOF_EVENT
 };
 
 #endif

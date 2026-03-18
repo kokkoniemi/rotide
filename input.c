@@ -62,6 +62,14 @@ static void quit(void) {
 	exit(EXIT_SUCCESS);
 }
 
+static void editorExitOnInputShutdown(void) {
+	editorRestoreTerminal();
+	editorClearScreen();
+	editorResetCursorPos();
+
+	exit(EXIT_FAILURE);
+}
+
 static void editorAlignCursorWithRowEnd(void) {
 	int rowlen = 0;
 	if (E.numrows > E.cy) {
@@ -464,17 +472,22 @@ static char *editorPromptWithCallback(const char *prompt, int allow_empty,
 	buf[0] = '\0';
 
 	while (1) {
-			editorSetStatusMsg(prompt, buf);
-			editorRefreshScreen();
+		editorSetStatusMsg(prompt, buf);
+		editorRefreshScreen();
 
-			int c = editorReadKey();
-			if (c == RESIZE_EVENT) {
-				(void)editorRefreshWindowSize();
-				continue;
-			}
-			// Prompt editing is keyboard-only; ignore mouse packets without invoking callbacks.
-			if (c == MOUSE_EVENT) {
-				continue;
+		int c = editorReadKey();
+		if (c == INPUT_EOF_EVENT) {
+			free(buf);
+			editorExitOnInputShutdown();
+			return NULL;
+		}
+		if (c == RESIZE_EVENT) {
+			(void)editorRefreshWindowSize();
+			continue;
+		}
+		// Prompt editing is keyboard-only; ignore mouse packets without invoking callbacks.
+		if (c == MOUSE_EVENT) {
+			continue;
 		}
 		if (c == DEL_KEY || c == CTRL_KEY('h') || c == BACKSPACE) {
 			if (buflen != 0) {
@@ -927,6 +940,10 @@ static int editorProcessMappedAction(enum editorAction action) {
 void editorProcessKeypress(void) {
 	int c = editorReadKey();
 
+	if (c == INPUT_EOF_EVENT) {
+		editorExitOnInputShutdown();
+		return;
+	}
 	if (c == RESIZE_EVENT) {
 		(void)editorRefreshWindowSize();
 		return;

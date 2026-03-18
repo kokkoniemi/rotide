@@ -695,7 +695,7 @@ static int test_editor_save_aborts_when_prompt_cancelled(void) {
 	E.dirty = 5;
 	ASSERT_TRUE(E.filename == NULL);
 
-	char esc_input[] = "\x1b";
+	char esc_input[] = "\x1b[x";
 	int saved_stdin;
 	int saved_stdout;
 	ASSERT_TRUE(setup_stdin_bytes(esc_input, sizeof(esc_input) - 1, &saved_stdin) == 0);
@@ -717,7 +717,7 @@ static int test_editor_save_rejects_empty_filename_prompt(void) {
 	E.dirty = 5;
 	ASSERT_TRUE(E.filename == NULL);
 
-	char input[] = "\r\x1b";
+	char input[] = "\r\x1b[x";
 	int saved_stdin;
 	int saved_stdout;
 	ASSERT_TRUE(setup_stdin_bytes(input, sizeof(input) - 1, &saved_stdin) == 0);
@@ -1041,7 +1041,7 @@ static int test_editor_save_reports_temp_cleanup_failure(void) {
 
 static int test_editor_prompt_accept_and_cancel(void) {
 	char ok_input[] = "name\r";
-	char esc_input[] = "\x1b";
+	char esc_input[] = "\x1b[x";
 
 	char *answer = editor_prompt_with_input(ok_input, sizeof(ok_input) - 1, "Name: %s");
 	ASSERT_TRUE(answer != NULL);
@@ -1450,7 +1450,7 @@ static int test_editor_read_key_sequences(void) {
 	char up[] = "\x1b[A";
 	char pgup[] = "\x1b[5~";
 	char end_key[] = "\x1bOF";
-	char incomplete[] = "\x1b[";
+	char plain_escape[] = "\x1b[x";
 
 	ASSERT_TRUE(editor_read_key_with_input(plain, sizeof(plain) - 1, &key) == 0);
 	ASSERT_EQ_INT('x', key);
@@ -1464,7 +1464,7 @@ static int test_editor_read_key_sequences(void) {
 	ASSERT_TRUE(editor_read_key_with_input(end_key, sizeof(end_key) - 1, &key) == 0);
 	ASSERT_EQ_INT(END_KEY, key);
 
-	ASSERT_TRUE(editor_read_key_with_input(incomplete, sizeof(incomplete) - 1, &key) == 0);
+	ASSERT_TRUE(editor_read_key_with_input(plain_escape, sizeof(plain_escape) - 1, &key) == 0);
 	ASSERT_EQ_INT('\x1b', key);
 	return 0;
 }
@@ -1525,6 +1525,21 @@ static int test_editor_read_key_sgr_mouse_events(void) {
 				sizeof(unsupported_then_plain) - 1, &key) == 0);
 	ASSERT_EQ_INT('Y', key);
 	ASSERT_EQ_INT(0, editorConsumeMouseEvent(&event));
+	return 0;
+}
+
+static int test_editor_read_key_returns_input_eof_event_on_closed_stdin(void) {
+	int key = 0;
+	ASSERT_TRUE(editor_read_key_with_input("", 0, &key) == 0);
+	ASSERT_EQ_INT(INPUT_EOF_EVENT, key);
+	return 0;
+}
+
+static int test_editor_read_key_escape_parse_eof_returns_input_eof_event(void) {
+	int key = 0;
+	char incomplete[] = "\x1b[";
+	ASSERT_TRUE(editor_read_key_with_input(incomplete, sizeof(incomplete) - 1, &key) == 0);
+	ASSERT_EQ_INT(INPUT_EOF_EVENT, key);
 	return 0;
 }
 
@@ -2346,7 +2361,7 @@ static int test_editor_prompt_ignores_mouse_events(void) {
 	E.cy = 0;
 	E.cx = 2;
 
-	const char input[] = "\x1b[<0;6;1M\x1b[<32;6;1M\x1b[<0;6;1m\x1b";
+	const char input[] = "\x1b[<0;6;1M\x1b[<32;6;1M\x1b[<0;6;1m\x1b[x";
 	char *result = editor_prompt_with_input(input, sizeof(input) - 1, "Prompt: %s");
 	ASSERT_TRUE(result == NULL);
 	ASSERT_EQ_INT(0, E.cy);
@@ -2839,7 +2854,8 @@ static int test_editor_process_keypress_escape_clears_selection_mode(void) {
 	E.cx = 3;
 	ASSERT_EQ_INT(1, E.selection_mode_active);
 
-	ASSERT_TRUE(editor_process_single_key('\x1b') == 0);
+	const char esc_input[] = "\x1b[x";
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(esc_input, sizeof(esc_input) - 1) == 0);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 
 	struct editorSelectionRange range;
@@ -3019,7 +3035,7 @@ static int test_editor_process_keypress_ctrl_g_escape_cancels(void) {
 	E.cy = 1;
 	E.cx = 2;
 
-	const char input[] = {CTRL_KEY('g'), '1', '2', '\x1b'};
+	const char input[] = {CTRL_KEY('g'), '1', '2', '\x1b', '[', 'x'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
 
 	ASSERT_EQ_INT(1, E.cy);
@@ -3162,6 +3178,99 @@ static int test_editor_process_keypress_ctrl_q_dirty_requires_second_press(void)
 	return 0;
 }
 
+static int test_editor_process_keypress_eof_exits_promptly_with_failure(void) {
+	pid_t pid = fork();
+	ASSERT_TRUE(pid != -1);
+
+	if (pid == 0) {
+		int saved_stdout;
+		if (redirect_stdout_to_devnull(&saved_stdout) == -1) {
+			_exit(121);
+		}
+
+		add_row("unsaved");
+		E.dirty = 1;
+
+		if (editor_process_keypress_with_input("", 0) == -1) {
+			_exit(122);
+		}
+		_exit(123);
+	}
+
+	int status = 0;
+	ASSERT_TRUE(wait_for_child_exit_with_timeout(pid, 1500, &status) == 0);
+	ASSERT_TRUE(WIFEXITED(status));
+	ASSERT_EQ_INT(EXIT_FAILURE, WEXITSTATUS(status));
+	return 0;
+}
+
+static int test_editor_process_keypress_eof_restores_terminal_visual_state(void) {
+	int pipefd[2];
+	ASSERT_TRUE(pipe(pipefd) == 0);
+
+	pid_t pid = fork();
+	ASSERT_TRUE(pid != -1);
+
+	if (pid == 0) {
+		if (close(pipefd[0]) == -1) {
+			_exit(131);
+		}
+		if (dup2(pipefd[1], STDOUT_FILENO) == -1) {
+			_exit(132);
+		}
+		if (close(pipefd[1]) == -1) {
+			_exit(133);
+		}
+
+		if (editor_process_keypress_with_input("", 0) == -1) {
+			_exit(134);
+		}
+		_exit(135);
+	}
+
+	ASSERT_TRUE(close(pipefd[1]) == 0);
+	int status = 0;
+	ASSERT_TRUE(wait_for_child_exit_with_timeout(pid, 1500, &status) == 0);
+	ASSERT_TRUE(WIFEXITED(status));
+	ASSERT_EQ_INT(EXIT_FAILURE, WEXITSTATUS(status));
+
+	size_t output_len = 0;
+	char *output = read_all_fd(pipefd[0], &output_len);
+	ASSERT_TRUE(close(pipefd[0]) == 0);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(output_len > 0);
+	ASSERT_TRUE(strstr(output, "\x1b[0 q") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[?25h") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[2J") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[H") != NULL);
+	free(output);
+	return 0;
+}
+
+static int test_editor_process_keypress_prompt_eof_exits_with_failure(void) {
+	pid_t pid = fork();
+	ASSERT_TRUE(pid != -1);
+
+	if (pid == 0) {
+		int saved_stdout;
+		if (redirect_stdout_to_devnull(&saved_stdout) == -1) {
+			_exit(141);
+		}
+
+		char input[] = {CTRL_KEY('f')};
+		if (editor_process_keypress_with_input(input, sizeof(input)) == -1) {
+			_exit(142);
+		}
+		_exit(143);
+	}
+
+	int status = 0;
+	ASSERT_TRUE(wait_for_child_exit_with_timeout(pid, 1500, &status) == 0);
+	ASSERT_TRUE(WIFEXITED(status));
+	ASSERT_EQ_INT(EXIT_FAILURE, WEXITSTATUS(status));
+	return 0;
+}
+
 static int test_process_terminates_promptly_on_sigterm(void) {
 	pid_t pid = fork();
 	ASSERT_TRUE(pid != -1);
@@ -3232,7 +3341,7 @@ static int test_editor_process_keypress_ctrl_f_escape_restores_cursor_and_clears
 	E.cy = 1;
 	E.cx = 2;
 
-	const char input[] = {CTRL_KEY('f'), 'a', 'l', 'p', 'h', 'a', '\x1b'};
+	const char input[] = {CTRL_KEY('f'), 'a', 'l', 'p', 'h', 'a', '\x1b', '[', 'x'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
 
 	ASSERT_EQ_INT(1, E.cy);
@@ -3781,6 +3890,10 @@ int main(void) {
 			test_editor_save_parent_dir_fsync_success_clears_dirty},
 		{"editor_read_key_sequences", test_editor_read_key_sequences},
 		{"editor_read_key_sgr_mouse_events", test_editor_read_key_sgr_mouse_events},
+		{"editor_read_key_returns_input_eof_event_on_closed_stdin",
+			test_editor_read_key_returns_input_eof_event_on_closed_stdin},
+		{"editor_read_key_escape_parse_eof_returns_input_eof_event",
+			test_editor_read_key_escape_parse_eof_returns_input_eof_event},
 		{"editor_read_key_returns_resize_event_when_queued",
 			test_editor_read_key_returns_resize_event_when_queued},
 		{"read_cursor_position_and_window_size_fallback", test_read_cursor_position_and_window_size_fallback},
@@ -3904,6 +4017,12 @@ int main(void) {
 			test_editor_process_keypress_ctrl_q_restores_cursor_shape},
 		{"editor_process_keypress_ctrl_q_dirty_requires_second_press",
 			test_editor_process_keypress_ctrl_q_dirty_requires_second_press},
+		{"editor_process_keypress_eof_exits_promptly_with_failure",
+			test_editor_process_keypress_eof_exits_promptly_with_failure},
+		{"editor_process_keypress_eof_restores_terminal_visual_state",
+			test_editor_process_keypress_eof_restores_terminal_visual_state},
+		{"editor_process_keypress_prompt_eof_exits_with_failure",
+			test_editor_process_keypress_prompt_eof_exits_with_failure},
 		{"process_terminates_promptly_on_sigterm",
 			test_process_terminates_promptly_on_sigterm},
 		{"editor_process_keypress_ctrl_f_incremental_find_first_match",
