@@ -776,7 +776,10 @@ static int test_editor_save_preserves_existing_file_mode(void) {
 	ASSERT_TRUE(stat(path, &st) == 0);
 	ASSERT_EQ_INT(0600, st.st_mode & 0777);
 
-	unlink(path);
+	char *unlink_path = strdup(path);
+	ASSERT_TRUE(unlink_path != NULL);
+	unlink(unlink_path);
+	free(unlink_path);
 	return 0;
 }
 
