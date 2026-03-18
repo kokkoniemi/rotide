@@ -59,6 +59,8 @@ void initEditor(void) {
 	E.active_tab = 0;
 	E.tab_view_start = 0;
 	E.close_confirmed = 0;
+	E.recovery_path = NULL;
+	E.recovery_last_autosave_time = 0;
 	editorKeymapInitDefaults(&E.keymap);
 	editorClipboardSetExternalSink(editorClipboardSyncOsc52);
 	if (!editorTabsInit()) {
@@ -77,23 +79,20 @@ int main(int argc, char *argv[]) {
 	initEditor();
 
 	enum editorKeymapLoadStatus keymap_status = editorKeymapLoadConfigured(&E.keymap);
-	if (argc >= 2) {
-		editorOpen(argv[1]);
-		for (int i = 2; i < argc; i++) {
-			if (!editorTabOpenFileAsNew(argv[i])) {
-				break;
-			}
-		}
-		(void)editorTabSwitchToIndex(0);
+	if (!editorRecoveryInitForCurrentDir()) {
+		editorSetStatusMsg("Recovery disabled (path setup failed)");
 	}
-
 	if (keymap_status == EDITOR_KEYMAP_LOAD_INVALID_PROJECT) {
 		editorSetStatusMsg("Invalid keymap config, using defaults");
 	} else if (keymap_status == EDITOR_KEYMAP_LOAD_INVALID_GLOBAL) {
 		editorSetStatusMsg("Invalid global keymap config, ignoring ~/.rotide/config.toml");
 	} else if (keymap_status == EDITOR_KEYMAP_LOAD_OUT_OF_MEMORY) {
 		editorSetStatusMsg("Out of memory");
-	} else {
+	}
+
+	(void)editorStartupLoadRecoveryOrOpenArgs(argc, argv);
+
+	if (keymap_status == EDITOR_KEYMAP_LOAD_OK && E.statusmsg[0] == '\0') {
 		char help_msg[160];
 		editorKeymapBuildHelpStatus(&E.keymap, help_msg, sizeof(help_msg));
 		editorSetStatusMsg("%s", help_msg);

@@ -213,6 +213,8 @@ struct editorConfig {
 	int active_tab;
 	int tab_view_start;
 	int close_confirmed;
+	char *recovery_path;
+	time_t recovery_last_autosave_time;
 	struct editorKeymap keymap;
 	struct termios orig_attrs;
 };

@@ -231,6 +231,124 @@ static int path_join(char *buf, size_t bufsz, const char *dir, const char *name)
 	return written >= 0 && (size_t)written < bufsz;
 }
 
+struct recoveryTestEnv {
+	struct envVarBackup home_backup;
+	char *original_cwd;
+	char root_dir[512];
+	char home_dir[512];
+	char project_dir[512];
+};
+
+static void remove_files_in_dir(const char *dir_path) {
+	DIR *dir = opendir(dir_path);
+	if (dir == NULL) {
+		return;
+	}
+
+	struct dirent *entry;
+	while ((entry = readdir(dir)) != NULL) {
+		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+			continue;
+		}
+		char full_path[1024];
+		if (!path_join(full_path, sizeof(full_path), dir_path, entry->d_name)) {
+			continue;
+		}
+		(void)unlink(full_path);
+	}
+
+	closedir(dir);
+}
+
+static void cleanup_recovery_test_env(struct recoveryTestEnv *env) {
+	editorRecoveryShutdown();
+
+	if (env->original_cwd != NULL) {
+		(void)chdir(env->original_cwd);
+	}
+	if (env->home_backup.name != NULL) {
+		(void)restore_env_var(&env->home_backup);
+	}
+
+	char dot_rotide_dir[512];
+	char recovery_dir[512];
+	if (env->home_dir[0] != '\0' &&
+			path_join(dot_rotide_dir, sizeof(dot_rotide_dir), env->home_dir, ".rotide") &&
+			path_join(recovery_dir, sizeof(recovery_dir), dot_rotide_dir, "recovery")) {
+		remove_files_in_dir(recovery_dir);
+		(void)rmdir(recovery_dir);
+		remove_files_in_dir(dot_rotide_dir);
+		(void)rmdir(dot_rotide_dir);
+	}
+
+	if (env->home_dir[0] != '\0') {
+		remove_files_in_dir(env->home_dir);
+		(void)rmdir(env->home_dir);
+	}
+	if (env->project_dir[0] != '\0') {
+		remove_files_in_dir(env->project_dir);
+		(void)rmdir(env->project_dir);
+	}
+	if (env->root_dir[0] != '\0') {
+		(void)rmdir(env->root_dir);
+	}
+
+	free(env->original_cwd);
+	env->original_cwd = NULL;
+	env->root_dir[0] = '\0';
+	env->home_dir[0] = '\0';
+	env->project_dir[0] = '\0';
+	env->home_backup.name = NULL;
+}
+
+static int setup_recovery_test_env(struct recoveryTestEnv *env) {
+	memset(env, 0, sizeof(*env));
+	if (!backup_env_var(&env->home_backup, "HOME")) {
+		return 0;
+	}
+
+	env->original_cwd = getcwd(NULL, 0);
+	if (env->original_cwd == NULL) {
+		cleanup_recovery_test_env(env);
+		return 0;
+	}
+
+	char root_template[] = "/tmp/rotide-test-recovery-XXXXXX";
+	char *root_path = mkdtemp(root_template);
+	if (root_path == NULL) {
+		cleanup_recovery_test_env(env);
+		return 0;
+	}
+	if (snprintf(env->root_dir, sizeof(env->root_dir), "%s", root_path) >=
+			(int)sizeof(env->root_dir)) {
+		cleanup_recovery_test_env(env);
+		return 0;
+	}
+
+	if (!path_join(env->home_dir, sizeof(env->home_dir), env->root_dir, "home") ||
+			!path_join(env->project_dir, sizeof(env->project_dir), env->root_dir, "project")) {
+		cleanup_recovery_test_env(env);
+		return 0;
+	}
+	if (mkdir(env->home_dir, 0700) == -1 || mkdir(env->project_dir, 0700) == -1) {
+		cleanup_recovery_test_env(env);
+		return 0;
+	}
+	if (setenv("HOME", env->home_dir, 1) != 0) {
+		cleanup_recovery_test_env(env);
+		return 0;
+	}
+	if (chdir(env->project_dir) != 0) {
+		cleanup_recovery_test_env(env);
+		return 0;
+	}
+	if (!editorRecoveryInitForCurrentDir()) {
+		cleanup_recovery_test_env(env);
+		return 0;
+	}
+	return 1;
+}
+
 static int test_utf8_decode_valid_sequences(void) {
 	unsigned int cp = 0;
 	const char e_acute[] = "\xC3\xA9";
@@ -1424,6 +1542,333 @@ static int test_editor_save_parent_dir_fsync_success_clears_dirty(void) {
 
 	free(contents);
 	unlink(path);
+	return 0;
+}
+
+static int test_editor_recovery_autosave_activity_debounce(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorTabsInit());
+
+	add_row("a");
+	E.cy = 0;
+	E.cx = 1;
+	E.dirty = 1;
+	E.recovery_last_autosave_time = 0;
+	editorRecoveryMaybeAutosaveOnActivity();
+
+	const char *recovery_path = editorRecoveryPath();
+	ASSERT_TRUE(recovery_path != NULL);
+	struct stat first_stat;
+	ASSERT_TRUE(stat(recovery_path, &first_stat) == 0);
+
+	editorInsertChar('b');
+	E.recovery_last_autosave_time = time(NULL);
+	editorRecoveryMaybeAutosaveOnActivity();
+	struct stat second_stat;
+	ASSERT_TRUE(stat(recovery_path, &second_stat) == 0);
+	ASSERT_EQ_INT(first_stat.st_size, second_stat.st_size);
+
+	E.recovery_last_autosave_time = time(NULL) - 5;
+	editorRecoveryMaybeAutosaveOnActivity();
+	struct stat third_stat;
+	ASSERT_TRUE(stat(recovery_path, &third_stat) == 0);
+	ASSERT_TRUE(third_stat.st_size > second_stat.st_size);
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_recovery_cleans_snapshot_when_all_tabs_clean(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorTabsInit());
+
+	add_row("dirty");
+	E.dirty = 1;
+	E.recovery_last_autosave_time = 0;
+	editorRecoveryMaybeAutosaveOnActivity();
+
+	const char *recovery_path = editorRecoveryPath();
+	ASSERT_TRUE(recovery_path != NULL);
+	ASSERT_TRUE(access(recovery_path, F_OK) == 0);
+
+	E.dirty = 0;
+	editorRecoveryMaybeAutosaveOnActivity();
+	ASSERT_TRUE(access(recovery_path, F_OK) == -1);
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_recovery_roundtrip_restores_tabs_and_cursor_state(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorTabsInit());
+
+	add_row("alpha");
+	E.filename = strdup("one.c");
+	ASSERT_TRUE(E.filename != NULL);
+	E.cy = 0;
+	E.cx = 3;
+	E.rowoff = 0;
+	E.coloff = 2;
+	E.dirty = 1;
+
+	ASSERT_TRUE(editorTabNewEmpty());
+	add_row("beta");
+	add_row("gamma");
+	E.filename = strdup("two.c");
+	ASSERT_TRUE(E.filename != NULL);
+	E.cy = 1;
+	E.cx = 2;
+	E.rowoff = 1;
+	E.coloff = 4;
+	E.dirty = 1;
+
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+	E.recovery_last_autosave_time = 0;
+	editorRecoveryMaybeAutosaveOnActivity();
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorRecoveryRestoreSnapshot());
+
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(0, editorTabActiveIndex());
+	ASSERT_TRUE(editorTabDirtyAt(0));
+	ASSERT_TRUE(editorTabDirtyAt(1));
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_EQ_STR("one.c", E.filename);
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_STR("alpha", E.rows[0].chars);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(3, E.cx);
+	ASSERT_EQ_INT(0, E.rowoff);
+	ASSERT_EQ_INT(2, E.coloff);
+
+	ASSERT_TRUE(editorTabSwitchToIndex(1));
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_EQ_STR("two.c", E.filename);
+	ASSERT_EQ_INT(2, E.numrows);
+	ASSERT_EQ_STR("beta", E.rows[0].chars);
+	ASSERT_EQ_STR("gamma", E.rows[1].chars);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_EQ_INT(1, E.rowoff);
+	ASSERT_EQ_INT(4, E.coloff);
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_startup_restore_choice_ignores_cli_args(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorTabsInit());
+
+	add_row("recovered");
+	E.filename = strdup("recovered.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	E.dirty = 1;
+	E.recovery_last_autosave_time = 0;
+	editorRecoveryMaybeAutosaveOnActivity();
+
+	char cli_path[512];
+	ASSERT_TRUE(path_join(cli_path, sizeof(cli_path), env.project_dir, "cli.txt"));
+	ASSERT_TRUE(write_text_file(cli_path, "cli-line\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+
+	int saved_stdin;
+	int saved_stdout;
+	const char input[] = {'y'};
+	ASSERT_TRUE(setup_stdin_bytes(input, sizeof(input), &saved_stdin) == 0);
+	ASSERT_TRUE(redirect_stdout_to_devnull(&saved_stdout) == 0);
+	char *argv[] = {"rotide", cli_path, NULL};
+	int restored = editorStartupLoadRecoveryOrOpenArgs(2, argv);
+	ASSERT_TRUE(restore_stdout(saved_stdout) == 0);
+	ASSERT_TRUE(restore_stdin(saved_stdin) == 0);
+
+	ASSERT_EQ_INT(1, restored);
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_EQ_STR("recovered.txt", E.filename);
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_STR("recovered", E.rows[0].chars);
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_startup_discard_choice_opens_cli_args(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorTabsInit());
+
+	add_row("recovered");
+	E.filename = strdup("recovered.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	E.dirty = 1;
+	E.recovery_last_autosave_time = 0;
+	editorRecoveryMaybeAutosaveOnActivity();
+
+	const char *recovery_path = editorRecoveryPath();
+	ASSERT_TRUE(recovery_path != NULL);
+	ASSERT_TRUE(access(recovery_path, F_OK) == 0);
+
+	char cli_path[512];
+	ASSERT_TRUE(path_join(cli_path, sizeof(cli_path), env.project_dir, "cli.txt"));
+	ASSERT_TRUE(write_text_file(cli_path, "cli-line\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+
+	int saved_stdin;
+	int saved_stdout;
+	const char input[] = {'n'};
+	ASSERT_TRUE(setup_stdin_bytes(input, sizeof(input), &saved_stdin) == 0);
+	ASSERT_TRUE(redirect_stdout_to_devnull(&saved_stdout) == 0);
+	char *argv[] = {"rotide", cli_path, NULL};
+	int restored = editorStartupLoadRecoveryOrOpenArgs(2, argv);
+	ASSERT_TRUE(restore_stdout(saved_stdout) == 0);
+	ASSERT_TRUE(restore_stdin(saved_stdin) == 0);
+
+	ASSERT_EQ_INT(0, restored);
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_EQ_STR(cli_path, E.filename);
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_STR("cli-line", E.rows[0].chars);
+	ASSERT_TRUE(access(recovery_path, F_OK) == -1);
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_startup_invalid_recovery_discards_and_opens_cli_args(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	const char *recovery_path = editorRecoveryPath();
+	ASSERT_TRUE(recovery_path != NULL);
+	ASSERT_TRUE(write_text_file(recovery_path, "bad-recovery-data"));
+
+	char cli_path[512];
+	ASSERT_TRUE(path_join(cli_path, sizeof(cli_path), env.project_dir, "cli.txt"));
+	ASSERT_TRUE(write_text_file(cli_path, "cli-line\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+
+	int saved_stdin;
+	int saved_stdout;
+	const char input[] = {'y'};
+	ASSERT_TRUE(setup_stdin_bytes(input, sizeof(input), &saved_stdin) == 0);
+	ASSERT_TRUE(redirect_stdout_to_devnull(&saved_stdout) == 0);
+	char *argv[] = {"rotide", cli_path, NULL};
+	int restored = editorStartupLoadRecoveryOrOpenArgs(2, argv);
+	ASSERT_TRUE(restore_stdout(saved_stdout) == 0);
+	ASSERT_TRUE(restore_stdin(saved_stdin) == 0);
+
+	ASSERT_EQ_INT(0, restored);
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_EQ_STR(cli_path, E.filename);
+	ASSERT_TRUE(strstr(E.statusmsg, "invalid") != NULL);
+	ASSERT_TRUE(access(recovery_path, F_OK) == -1);
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_recovery_snapshot_permissions_are_0600(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorTabsInit());
+
+	add_row("perm-check");
+	E.dirty = 1;
+	E.recovery_last_autosave_time = 0;
+	editorRecoveryMaybeAutosaveOnActivity();
+
+	const char *recovery_path = editorRecoveryPath();
+	ASSERT_TRUE(recovery_path != NULL);
+	struct stat st;
+	ASSERT_TRUE(stat(recovery_path, &st) == 0);
+	ASSERT_EQ_INT(0600, st.st_mode & 0777);
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_recovery_clean_quit_removes_snapshot(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorTabsInit());
+
+	add_row("quit-cleanup");
+	E.dirty = 1;
+	E.recovery_last_autosave_time = 0;
+	editorRecoveryMaybeAutosaveOnActivity();
+
+	const char *recovery_path = editorRecoveryPath();
+	ASSERT_TRUE(recovery_path != NULL);
+	ASSERT_TRUE(access(recovery_path, F_OK) == 0);
+
+	E.dirty = 0;
+	pid_t pid = fork();
+	ASSERT_TRUE(pid != -1);
+	if (pid == 0) {
+		int saved_stdout;
+		if (redirect_stdout_to_devnull(&saved_stdout) == -1) {
+			_exit(151);
+		}
+		char ctrl_q[] = {CTRL_KEY('q')};
+		if (editor_process_keypress_with_input(ctrl_q, sizeof(ctrl_q)) == -1) {
+			_exit(152);
+		}
+		_exit(153);
+	}
+
+	int status = 0;
+	ASSERT_TRUE(wait_for_child_exit_with_timeout(pid, 1500, &status) == 0);
+	ASSERT_TRUE(WIFEXITED(status));
+	ASSERT_EQ_INT(EXIT_SUCCESS, WEXITSTATUS(status));
+	ASSERT_TRUE(access(recovery_path, F_OK) == -1);
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_recovery_failure_exit_keeps_snapshot(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorTabsInit());
+
+	add_row("keep-on-failure");
+	E.dirty = 1;
+	E.recovery_last_autosave_time = 0;
+	editorRecoveryMaybeAutosaveOnActivity();
+
+	const char *recovery_path = editorRecoveryPath();
+	ASSERT_TRUE(recovery_path != NULL);
+	ASSERT_TRUE(access(recovery_path, F_OK) == 0);
+
+	pid_t pid = fork();
+	ASSERT_TRUE(pid != -1);
+	if (pid == 0) {
+		int saved_stdout;
+		if (redirect_stdout_to_devnull(&saved_stdout) == -1) {
+			_exit(161);
+		}
+		if (editor_process_keypress_with_input("", 0) == -1) {
+			_exit(162);
+		}
+		_exit(163);
+	}
+
+	int status = 0;
+	ASSERT_TRUE(wait_for_child_exit_with_timeout(pid, 1500, &status) == 0);
+	ASSERT_TRUE(WIFEXITED(status));
+	ASSERT_EQ_INT(EXIT_FAILURE, WEXITSTATUS(status));
+	ASSERT_TRUE(access(recovery_path, F_OK) == 0);
+
+	cleanup_recovery_test_env(&env);
 	return 0;
 }
 
@@ -4289,8 +4734,26 @@ int main(void) {
 			test_editor_save_parent_dir_close_failure_reports_failure},
 			{"editor_save_parent_dir_fsync_success_clears_dirty",
 				test_editor_save_parent_dir_fsync_success_clears_dirty},
-			{"editor_read_key_sequences", test_editor_read_key_sequences},
-			{"editor_read_key_alt_arrow_sequences", test_editor_read_key_alt_arrow_sequences},
+			{"editor_recovery_autosave_activity_debounce",
+				test_editor_recovery_autosave_activity_debounce},
+			{"editor_recovery_cleans_snapshot_when_all_tabs_clean",
+				test_editor_recovery_cleans_snapshot_when_all_tabs_clean},
+			{"editor_recovery_roundtrip_restores_tabs_and_cursor_state",
+				test_editor_recovery_roundtrip_restores_tabs_and_cursor_state},
+			{"editor_startup_restore_choice_ignores_cli_args",
+				test_editor_startup_restore_choice_ignores_cli_args},
+			{"editor_startup_discard_choice_opens_cli_args",
+				test_editor_startup_discard_choice_opens_cli_args},
+			{"editor_startup_invalid_recovery_discards_and_opens_cli_args",
+				test_editor_startup_invalid_recovery_discards_and_opens_cli_args},
+			{"editor_recovery_snapshot_permissions_are_0600",
+				test_editor_recovery_snapshot_permissions_are_0600},
+			{"editor_recovery_clean_quit_removes_snapshot",
+				test_editor_recovery_clean_quit_removes_snapshot},
+			{"editor_recovery_failure_exit_keeps_snapshot",
+				test_editor_recovery_failure_exit_keeps_snapshot},
+				{"editor_read_key_sequences", test_editor_read_key_sequences},
+				{"editor_read_key_alt_arrow_sequences", test_editor_read_key_alt_arrow_sequences},
 			{"editor_read_key_sgr_mouse_events", test_editor_read_key_sgr_mouse_events},
 			{"editor_read_key_returns_input_eof_event_on_closed_stdin",
 				test_editor_read_key_returns_input_eof_event_on_closed_stdin},

@@ -66,6 +66,7 @@ static void quit(void) {
 		return;
 	}
 
+	editorRecoveryCleanupOnCleanExit();
 	editorRestoreTerminal();
 	editorClearScreen();
 	editorResetCursorPos();
@@ -1026,4 +1027,6 @@ void editorProcessKeypress(void) {
 	if (!mapped_action || action != EDITOR_ACTION_QUIT) {
 		quit_confirmed = 0;
 	}
+
+	editorRecoveryMaybeAutosaveOnActivity();
 }

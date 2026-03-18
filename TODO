@@ -12,5 +12,4 @@
 - FEATURE: Add find-and-replace workflows (current file and project scope) with preview, replace-one, replace-all, and undo-safe behavior.
 - FEATURE: Add configurable auto-indentation (tabs/spaces + indent width) for newline insertion and pasted blocks.
 - FEATURE: Add bracket/quote pair assistance: auto-close pairs, skip-over closing pairs, and jump to matching bracket.
-- FEATURE: Add autosave + crash recovery (swap/recovery files), including restore prompt on startup and cleanup on clean exit.
 - FEATURE: Add line numbers and current-line highlight (toggleable) to improve code navigation and context.

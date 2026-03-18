@@ -19,6 +19,7 @@ search, save, undo/redo, selection, tabs, and keymap configuration are implement
 - Undo/redo history for insert/delete/newline edit flows.
 - Mouse support (click, drag selection, wheel scroll).
 - Atomic save path with temp-file + rename strategy and cleanup handling.
+- Crash recovery via autosaved per-project recovery session files.
 - Configurable keymap via TOML (`~/.rotide/config.toml` and `./.rotide.toml`).
 
 ## Build and run
@@ -99,6 +100,15 @@ Supported key specs:
 
 A full example with all configurable actions is included at project root:
 `./.rotide.toml`.
+
+## Autosave and recovery
+
+- RotIDE writes recovery snapshots to swap/recovery data (not directly to edited files).
+- Autosave is activity-triggered with a short debounce while unsaved changes exist.
+- Recovery files are scoped per working directory.
+- On startup, if recovery data exists, RotIDE prompts once to restore or discard it.
+- If you restore a session, startup file arguments are ignored for that launch.
+- Recovery data is deleted on clean exit and when the session becomes fully clean.
 
 ## Clipboard integration (OSC52)
 
