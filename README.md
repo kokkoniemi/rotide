@@ -90,8 +90,10 @@ quit = "ctrl+q"
 ```
 
 Supported key specs:
-- `ctrl+<a-z>`
-- `alt+left`, `alt+right`
+- Modifiers are case-insensitive and can be in any order.
+- Letter combos: `ctrl+<a-z>`, `alt+<a-z>`, `ctrl+alt+<a-z>`
+- Arrow combos: `ctrl+left/right/up/down`, `alt+left/right/up/down`,
+  `ctrl+alt+left/right/up/down`
 - Named keys: `left`, `right`, `up`, `down`, `home`, `end`, `page_up`,
   `page_down`, `enter`, `esc`, `backspace`, `del`
 

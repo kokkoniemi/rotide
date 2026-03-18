@@ -178,31 +178,186 @@ static int editorKeymapParseCtrlKeySpec(const char *spec, int *key_out) {
 	return 1;
 }
 
-static int editorKeymapParseAltKeySpec(const char *spec, int *key_out) {
-	if (strcmp(spec, "alt+left") == 0) {
-		*key_out = ALT_ARROW_LEFT;
+enum editorKeymapModifierFlags {
+	EDITOR_KEYMAP_MOD_NONE = 0,
+	EDITOR_KEYMAP_MOD_CTRL = 1 << 0,
+	EDITOR_KEYMAP_MOD_ALT = 1 << 1
+};
+
+static int editorKeymapParseLetterToken(const char *token, char *letter_out) {
+	if (token[0] == '\0' || token[1] != '\0') {
+		return 0;
+	}
+	unsigned char ch = (unsigned char)token[0];
+	if (!isalpha(ch)) {
+		return 0;
+	}
+	*letter_out = (char)tolower(ch);
+	return 1;
+}
+
+static int editorKeymapParseArrowToken(const char *token, int *arrow_out) {
+	if (strcmp(token, "left") == 0) {
+		*arrow_out = ARROW_LEFT;
 		return 1;
 	}
-	if (strcmp(spec, "alt+right") == 0) {
-		*key_out = ALT_ARROW_RIGHT;
+	if (strcmp(token, "right") == 0) {
+		*arrow_out = ARROW_RIGHT;
+		return 1;
+	}
+	if (strcmp(token, "up") == 0) {
+		*arrow_out = ARROW_UP;
+		return 1;
+	}
+	if (strcmp(token, "down") == 0) {
+		*arrow_out = ARROW_DOWN;
 		return 1;
 	}
 	return 0;
+}
+
+static int editorKeymapArrowWithModifiers(int arrow, int modifiers, int *key_out) {
+	switch (modifiers) {
+		case EDITOR_KEYMAP_MOD_ALT:
+			switch (arrow) {
+				case ARROW_LEFT:
+					*key_out = ALT_ARROW_LEFT;
+					return 1;
+				case ARROW_RIGHT:
+					*key_out = ALT_ARROW_RIGHT;
+					return 1;
+				case ARROW_DOWN:
+					*key_out = ALT_ARROW_DOWN;
+					return 1;
+				case ARROW_UP:
+					*key_out = ALT_ARROW_UP;
+					return 1;
+				default:
+					return 0;
+			}
+		case EDITOR_KEYMAP_MOD_CTRL:
+			switch (arrow) {
+				case ARROW_LEFT:
+					*key_out = CTRL_ARROW_LEFT;
+					return 1;
+				case ARROW_RIGHT:
+					*key_out = CTRL_ARROW_RIGHT;
+					return 1;
+				case ARROW_DOWN:
+					*key_out = CTRL_ARROW_DOWN;
+					return 1;
+				case ARROW_UP:
+					*key_out = CTRL_ARROW_UP;
+					return 1;
+				default:
+					return 0;
+			}
+		case EDITOR_KEYMAP_MOD_CTRL | EDITOR_KEYMAP_MOD_ALT:
+			switch (arrow) {
+				case ARROW_LEFT:
+					*key_out = CTRL_ALT_ARROW_LEFT;
+					return 1;
+				case ARROW_RIGHT:
+					*key_out = CTRL_ALT_ARROW_RIGHT;
+					return 1;
+				case ARROW_DOWN:
+					*key_out = CTRL_ALT_ARROW_DOWN;
+					return 1;
+				case ARROW_UP:
+					*key_out = CTRL_ALT_ARROW_UP;
+					return 1;
+				default:
+					return 0;
+			}
+		default:
+			return 0;
+	}
 }
 
 static int editorKeymapParseKeySpec(const char *spec, int *key_out) {
 	if (editorKeymapParseCtrlKeySpec(spec, key_out)) {
 		return 1;
 	}
-	if (editorKeymapParseAltKeySpec(spec, key_out)) {
-		return 1;
+
+	char normalized[64];
+	size_t spec_len = strlen(spec);
+	if (spec_len == 0 || spec_len >= sizeof(normalized)) {
+		return 0;
+	}
+	for (size_t i = 0; i < spec_len; i++) {
+		normalized[i] = (char)tolower((unsigned char)spec[i]);
+	}
+	normalized[spec_len] = '\0';
+
+	int modifiers = EDITOR_KEYMAP_MOD_NONE;
+	char *key_token = NULL;
+	char *cursor = normalized;
+	while (1) {
+		char *sep = strchr(cursor, '+');
+		if (sep != NULL) {
+			*sep = '\0';
+		}
+		if (cursor[0] == '\0') {
+			return 0;
+		}
+
+		if (strcmp(cursor, "ctrl") == 0) {
+			if (modifiers & EDITOR_KEYMAP_MOD_CTRL) {
+				return 0;
+			}
+			modifiers |= EDITOR_KEYMAP_MOD_CTRL;
+		} else if (strcmp(cursor, "alt") == 0) {
+			if (modifiers & EDITOR_KEYMAP_MOD_ALT) {
+				return 0;
+			}
+			modifiers |= EDITOR_KEYMAP_MOD_ALT;
+		} else {
+			if (key_token != NULL) {
+				return 0;
+			}
+			key_token = cursor;
+		}
+
+		if (sep == NULL) {
+			break;
+		}
+		cursor = sep + 1;
 	}
 
-	for (size_t i = 0; i < sizeof(editor_named_keys) / sizeof(editor_named_keys[0]); i++) {
-		if (strcmp(editor_named_keys[i].name, spec) == 0) {
-			*key_out = editor_named_keys[i].key;
+	if (key_token == NULL) {
+		return 0;
+	}
+
+	if (modifiers == EDITOR_KEYMAP_MOD_NONE) {
+		for (size_t i = 0; i < sizeof(editor_named_keys) / sizeof(editor_named_keys[0]); i++) {
+			if (strcmp(editor_named_keys[i].name, key_token) == 0) {
+				*key_out = editor_named_keys[i].key;
+				return 1;
+			}
+		}
+		return 0;
+	}
+
+	char letter = '\0';
+	if (editorKeymapParseLetterToken(key_token, &letter)) {
+		if (modifiers == EDITOR_KEYMAP_MOD_CTRL) {
+			*key_out = CTRL_KEY((int)letter);
 			return 1;
 		}
+		if (modifiers == EDITOR_KEYMAP_MOD_ALT) {
+			*key_out = EDITOR_ALT_LETTER_KEY(letter);
+			return 1;
+		}
+		if (modifiers == (EDITOR_KEYMAP_MOD_CTRL | EDITOR_KEYMAP_MOD_ALT)) {
+			*key_out = EDITOR_CTRL_ALT_LETTER_KEY(letter);
+			return 1;
+		}
+		return 0;
+	}
+
+	int arrow = 0;
+	if (editorKeymapParseArrowToken(key_token, &arrow)) {
+		return editorKeymapArrowWithModifiers(arrow, modifiers, key_out);
 	}
 
 	return 0;
@@ -356,12 +511,40 @@ static int editorKeymapFormatKey(int key, char *buf, size_t bufsize) {
 	if (key >= 1 && key <= 26) {
 		return snprintf(buf, bufsize, "Ctrl-%c", 'A' + key - 1) > 0;
 	}
+	if (EDITOR_IS_ALT_LETTER_KEY(key)) {
+		return snprintf(buf, bufsize, "Alt-%c",
+				'A' + (int)(EDITOR_ALT_LETTER_FROM_KEY(key) - 'a')) > 0;
+	}
+	if (EDITOR_IS_CTRL_ALT_LETTER_KEY(key)) {
+		return snprintf(buf, bufsize, "Ctrl-Alt-%c",
+				'A' + (int)(EDITOR_CTRL_ALT_LETTER_FROM_KEY(key) - 'a')) > 0;
+	}
 
 	switch (key) {
 		case ALT_ARROW_LEFT:
 			return snprintf(buf, bufsize, "Alt-Left") > 0;
 		case ALT_ARROW_RIGHT:
 			return snprintf(buf, bufsize, "Alt-Right") > 0;
+		case ALT_ARROW_DOWN:
+			return snprintf(buf, bufsize, "Alt-Down") > 0;
+		case ALT_ARROW_UP:
+			return snprintf(buf, bufsize, "Alt-Up") > 0;
+		case CTRL_ARROW_LEFT:
+			return snprintf(buf, bufsize, "Ctrl-Left") > 0;
+		case CTRL_ARROW_RIGHT:
+			return snprintf(buf, bufsize, "Ctrl-Right") > 0;
+		case CTRL_ARROW_DOWN:
+			return snprintf(buf, bufsize, "Ctrl-Down") > 0;
+		case CTRL_ARROW_UP:
+			return snprintf(buf, bufsize, "Ctrl-Up") > 0;
+		case CTRL_ALT_ARROW_LEFT:
+			return snprintf(buf, bufsize, "Ctrl-Alt-Left") > 0;
+		case CTRL_ALT_ARROW_RIGHT:
+			return snprintf(buf, bufsize, "Ctrl-Alt-Right") > 0;
+		case CTRL_ALT_ARROW_DOWN:
+			return snprintf(buf, bufsize, "Ctrl-Alt-Down") > 0;
+		case CTRL_ALT_ARROW_UP:
+			return snprintf(buf, bufsize, "Ctrl-Alt-Up") > 0;
 		case ARROW_LEFT:
 			return snprintf(buf, bufsize, "Left") > 0;
 		case ARROW_RIGHT:

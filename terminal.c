@@ -1,5 +1,6 @@
 #include "terminal.h"
 
+#include <ctype.h>
 #include <errno.h>
 #include <limits.h>
 #include <poll.h>
@@ -548,8 +549,7 @@ int editorReadKey(void) {
 		}
 
 		char first = '\0';
-		char second = '\0';
-		// Parse common ANSI escape sequences used by arrow/home/end/page keys.
+		// Parse common ANSI escape sequences used by arrows/home/end/page keys.
 		// If the sequence is incomplete, treat it as a plain Escape keypress.
 		read_status = editorReadSeqByte(&first);
 		if (read_status == EDITOR_READ_EOF) {
@@ -561,20 +561,11 @@ int editorReadKey(void) {
 			}
 			return '\x1b';
 		}
-		read_status = editorReadSeqByte(&second);
-		if (read_status == EDITOR_READ_EOF) {
-			return INPUT_EOF_EVENT;
-		}
-		if (read_status != EDITOR_READ_BYTE) {
-			if (editorTakeResizeEvent()) {
-				return RESIZE_EVENT;
-			}
-			return '\x1b';
-		}
 
-		if (first == '\x1b' && second == '[') {
+		if (first == '\x1b') {
+			char second = '\0';
 			char third = '\0';
-			read_status = editorReadSeqByte(&third);
+			read_status = editorReadSeqByte(&second);
 			if (read_status == EDITOR_READ_EOF) {
 				return INPUT_EOF_EVENT;
 			}
@@ -584,16 +575,44 @@ int editorReadKey(void) {
 				}
 				return '\x1b';
 			}
-			if (third == 'C') {
-				return ALT_ARROW_RIGHT;
-			}
-			if (third == 'D') {
-				return ALT_ARROW_LEFT;
+			if (second == '[') {
+				read_status = editorReadSeqByte(&third);
+				if (read_status == EDITOR_READ_EOF) {
+					return INPUT_EOF_EVENT;
+				}
+				if (read_status != EDITOR_READ_BYTE) {
+					if (editorTakeResizeEvent()) {
+						return RESIZE_EVENT;
+					}
+					return '\x1b';
+				}
+				switch (third) {
+					case 'A':
+						return ALT_ARROW_UP;
+					case 'B':
+						return ALT_ARROW_DOWN;
+					case 'C':
+						return ALT_ARROW_RIGHT;
+					case 'D':
+						return ALT_ARROW_LEFT;
+				}
 			}
 			return '\x1b';
 		}
 
 		if (first == '[') {
+			char second = '\0';
+			read_status = editorReadSeqByte(&second);
+			if (read_status == EDITOR_READ_EOF) {
+				return INPUT_EOF_EVENT;
+			}
+			if (read_status != EDITOR_READ_BYTE) {
+				if (editorTakeResizeEvent()) {
+					return RESIZE_EVENT;
+				}
+				return '\x1b';
+			}
+
 			if (second == '<') {
 				struct editorMouseEvent event;
 				enum editorReadByteResult mouse_status = editorReadSgrMouseEvent(&event);
@@ -627,8 +646,8 @@ int editorReadKey(void) {
 					}
 					return '\x1b';
 				}
-					if (third == '~') {
-						switch (second) {
+				if (third == '~') {
+					switch (second) {
 						case '1':
 							return HOME_KEY;
 						case '3':
@@ -643,42 +662,72 @@ int editorReadKey(void) {
 							return HOME_KEY;
 						case '8':
 							return END_KEY;
-						}
 					}
-					if (third == ';') {
-						char modifier = '\0';
-						char final = '\0';
-						read_status = editorReadSeqByte(&modifier);
-						if (read_status == EDITOR_READ_EOF) {
-							return INPUT_EOF_EVENT;
+				}
+				if (third == ';') {
+					char modifier = '\0';
+					char final = '\0';
+					read_status = editorReadSeqByte(&modifier);
+					if (read_status == EDITOR_READ_EOF) {
+						return INPUT_EOF_EVENT;
+					}
+					if (read_status != EDITOR_READ_BYTE) {
+						if (editorTakeResizeEvent()) {
+							return RESIZE_EVENT;
 						}
-						if (read_status != EDITOR_READ_BYTE) {
-							if (editorTakeResizeEvent()) {
-								return RESIZE_EVENT;
-							}
-							return '\x1b';
+						return '\x1b';
+					}
+					read_status = editorReadSeqByte(&final);
+					if (read_status == EDITOR_READ_EOF) {
+						return INPUT_EOF_EVENT;
+					}
+					if (read_status != EDITOR_READ_BYTE) {
+						if (editorTakeResizeEvent()) {
+							return RESIZE_EVENT;
 						}
-						read_status = editorReadSeqByte(&final);
-						if (read_status == EDITOR_READ_EOF) {
-							return INPUT_EOF_EVENT;
-						}
-						if (read_status != EDITOR_READ_BYTE) {
-							if (editorTakeResizeEvent()) {
-								return RESIZE_EVENT;
-							}
-							return '\x1b';
-						}
+						return '\x1b';
+					}
 
+					if (second == '1') {
 						if (modifier == '3') {
-							if (final == 'C') {
-								return ALT_ARROW_RIGHT;
+							switch (final) {
+								case 'A':
+									return ALT_ARROW_UP;
+								case 'B':
+									return ALT_ARROW_DOWN;
+								case 'C':
+									return ALT_ARROW_RIGHT;
+								case 'D':
+									return ALT_ARROW_LEFT;
 							}
-							if (final == 'D') {
-								return ALT_ARROW_LEFT;
+						}
+						if (modifier == '5') {
+							switch (final) {
+								case 'A':
+									return CTRL_ARROW_UP;
+								case 'B':
+									return CTRL_ARROW_DOWN;
+								case 'C':
+									return CTRL_ARROW_RIGHT;
+								case 'D':
+									return CTRL_ARROW_LEFT;
+							}
+						}
+						if (modifier == '7') {
+							switch (final) {
+								case 'A':
+									return CTRL_ALT_ARROW_UP;
+								case 'B':
+									return CTRL_ALT_ARROW_DOWN;
+								case 'C':
+									return CTRL_ALT_ARROW_RIGHT;
+								case 'D':
+									return CTRL_ALT_ARROW_LEFT;
 							}
 						}
 					}
 				}
+			}
 
 			switch (second) {
 				case 'A':
@@ -697,12 +746,33 @@ int editorReadKey(void) {
 		}
 
 		if (first == 'O') {
+			char second = '\0';
+			read_status = editorReadSeqByte(&second);
+			if (read_status == EDITOR_READ_EOF) {
+				return INPUT_EOF_EVENT;
+			}
+			if (read_status != EDITOR_READ_BYTE) {
+				if (editorTakeResizeEvent()) {
+					return RESIZE_EVENT;
+				}
+				return EDITOR_ALT_LETTER_KEY('o');
+			}
 			switch (second) {
 				case 'H':
 					return HOME_KEY;
 				case 'F':
 					return END_KEY;
 			}
+			return EDITOR_ALT_LETTER_KEY('o');
+		}
+
+		if (isalpha((unsigned char)first)) {
+			char lower = (char)tolower((unsigned char)first);
+			return EDITOR_ALT_LETTER_KEY(lower);
+		}
+		if (first >= 1 && first <= 26) {
+			char lower = (char)('a' + first - 1);
+			return EDITOR_CTRL_ALT_LETTER_KEY(lower);
 		}
 
 		return '\x1b';

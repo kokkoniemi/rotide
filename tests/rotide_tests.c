@@ -1473,18 +1473,67 @@ static int test_editor_read_key_alt_arrow_sequences(void) {
 	int key = 0;
 	const char csi_alt_left[] = "\x1b[1;3D";
 	const char csi_alt_right[] = "\x1b[1;3C";
+	const char csi_alt_down[] = "\x1b[1;3B";
+	const char csi_alt_up[] = "\x1b[1;3A";
+	const char csi_ctrl_left[] = "\x1b[1;5D";
+	const char csi_ctrl_right[] = "\x1b[1;5C";
+	const char csi_ctrl_down[] = "\x1b[1;5B";
+	const char csi_ctrl_up[] = "\x1b[1;5A";
+	const char csi_ctrl_alt_left[] = "\x1b[1;7D";
+	const char csi_ctrl_alt_right[] = "\x1b[1;7C";
+	const char csi_ctrl_alt_down[] = "\x1b[1;7B";
+	const char csi_ctrl_alt_up[] = "\x1b[1;7A";
 	const char fallback_alt_left[] = "\x1b\x1b[D";
 	const char fallback_alt_right[] = "\x1b\x1b[C";
+	const char fallback_alt_down[] = "\x1b\x1b[B";
+	const char fallback_alt_up[] = "\x1b\x1b[A";
+	const char alt_letter_lower[] = "\x1b" "a";
+	const char alt_letter_upper[] = "\x1b" "A";
+	const char ctrl_alt_letter[] = {'\x1b', CTRL_KEY('b')};
 
 	ASSERT_TRUE(editor_read_key_with_input(csi_alt_left, sizeof(csi_alt_left) - 1, &key) == 0);
 	ASSERT_EQ_INT(ALT_ARROW_LEFT, key);
 	ASSERT_TRUE(editor_read_key_with_input(csi_alt_right, sizeof(csi_alt_right) - 1, &key) == 0);
 	ASSERT_EQ_INT(ALT_ARROW_RIGHT, key);
+	ASSERT_TRUE(editor_read_key_with_input(csi_alt_down, sizeof(csi_alt_down) - 1, &key) == 0);
+	ASSERT_EQ_INT(ALT_ARROW_DOWN, key);
+	ASSERT_TRUE(editor_read_key_with_input(csi_alt_up, sizeof(csi_alt_up) - 1, &key) == 0);
+	ASSERT_EQ_INT(ALT_ARROW_UP, key);
+
+	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_left, sizeof(csi_ctrl_left) - 1, &key) == 0);
+	ASSERT_EQ_INT(CTRL_ARROW_LEFT, key);
+	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_right, sizeof(csi_ctrl_right) - 1, &key) == 0);
+	ASSERT_EQ_INT(CTRL_ARROW_RIGHT, key);
+	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_down, sizeof(csi_ctrl_down) - 1, &key) == 0);
+	ASSERT_EQ_INT(CTRL_ARROW_DOWN, key);
+	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_up, sizeof(csi_ctrl_up) - 1, &key) == 0);
+	ASSERT_EQ_INT(CTRL_ARROW_UP, key);
+
+	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_alt_left, sizeof(csi_ctrl_alt_left) - 1, &key) == 0);
+	ASSERT_EQ_INT(CTRL_ALT_ARROW_LEFT, key);
+	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_alt_right, sizeof(csi_ctrl_alt_right) - 1, &key) == 0);
+	ASSERT_EQ_INT(CTRL_ALT_ARROW_RIGHT, key);
+	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_alt_down, sizeof(csi_ctrl_alt_down) - 1, &key) == 0);
+	ASSERT_EQ_INT(CTRL_ALT_ARROW_DOWN, key);
+	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_alt_up, sizeof(csi_ctrl_alt_up) - 1, &key) == 0);
+	ASSERT_EQ_INT(CTRL_ALT_ARROW_UP, key);
+
 	ASSERT_TRUE(editor_read_key_with_input(fallback_alt_left, sizeof(fallback_alt_left) - 1, &key) == 0);
 	ASSERT_EQ_INT(ALT_ARROW_LEFT, key);
 	ASSERT_TRUE(editor_read_key_with_input(fallback_alt_right,
 				sizeof(fallback_alt_right) - 1, &key) == 0);
 	ASSERT_EQ_INT(ALT_ARROW_RIGHT, key);
+	ASSERT_TRUE(editor_read_key_with_input(fallback_alt_down, sizeof(fallback_alt_down) - 1, &key) == 0);
+	ASSERT_EQ_INT(ALT_ARROW_DOWN, key);
+	ASSERT_TRUE(editor_read_key_with_input(fallback_alt_up, sizeof(fallback_alt_up) - 1, &key) == 0);
+	ASSERT_EQ_INT(ALT_ARROW_UP, key);
+
+	ASSERT_TRUE(editor_read_key_with_input(alt_letter_lower, sizeof(alt_letter_lower) - 1, &key) == 0);
+	ASSERT_EQ_INT(EDITOR_ALT_LETTER_KEY('a'), key);
+	ASSERT_TRUE(editor_read_key_with_input(alt_letter_upper, sizeof(alt_letter_upper) - 1, &key) == 0);
+	ASSERT_EQ_INT(EDITOR_ALT_LETTER_KEY('a'), key);
+	ASSERT_TRUE(editor_read_key_with_input(ctrl_alt_letter, sizeof(ctrl_alt_letter), &key) == 0);
+	ASSERT_EQ_INT(EDITOR_CTRL_ALT_LETTER_KEY('b'), key);
 	return 0;
 }
 
@@ -2005,8 +2054,8 @@ cleanup:
 	return failed;
 }
 
-static int test_editor_keymap_load_alt_arrow_specs_for_tab_actions(void) {
-	char dir_template[] = "/tmp/rotide-test-keymap-alt-tabs-XXXXXX";
+static int test_editor_keymap_load_modifier_combo_specs_case_insensitive(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-combos-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
 	ASSERT_TRUE(dir_path != NULL);
 
@@ -2014,18 +2063,70 @@ static int test_editor_keymap_load_alt_arrow_specs_for_tab_actions(void) {
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
 	ASSERT_TRUE(write_text_file(project_path,
 				"[keymap]\n"
-				"next_tab = \"alt+right\"\n"
-				"prev_tab = \"alt+left\"\n"));
+				"next_tab = \"CTRL+ALT+RIGHT\"\n"
+				"prev_tab = \"ctrl+UP\"\n"
+				"move_left = \"AlT+b\"\n"
+				"move_right = \"cTrL+aLt+z\"\n"));
 
 	struct editorKeymap keymap;
 	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
 	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
 
 	enum editorAction action = EDITOR_ACTION_COUNT;
-	ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_ARROW_RIGHT, &action));
+	ASSERT_TRUE(!editorKeymapLookupAction(&keymap, ALT_ARROW_RIGHT, &action));
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_ALT_ARROW_RIGHT, &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_NEXT_TAB, action);
-	ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_ARROW_LEFT, &action));
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_ARROW_UP, &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_PREV_TAB, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('b'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_MOVE_LEFT, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_CTRL_ALT_LETTER_KEY('z'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_MOVE_RIGHT, action);
+
+	char binding[24];
+	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_MOVE_LEFT, binding, sizeof(binding)));
+	ASSERT_EQ_STR("Alt-B", binding);
+	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_MOVE_RIGHT, binding, sizeof(binding)));
+	ASSERT_EQ_STR("Ctrl-Alt-Z", binding);
+	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_PREV_TAB, binding, sizeof(binding)));
+	ASSERT_EQ_STR("Ctrl-Up", binding);
+	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_NEXT_TAB, binding, sizeof(binding)));
+	ASSERT_EQ_STR("Ctrl-Alt-Right", binding);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_load_invalid_modifier_combos_fall_back_to_defaults(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-bad-combos-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+
+	const char *invalid_lines[] = {
+		"next_tab = \"ctrl+ctrl+right\"\n",
+		"next_tab = \"shift+right\"\n",
+		"next_tab = \"alt+home\"\n",
+		"next_tab = \"ctrl+alt+a+b\"\n",
+	};
+	for (size_t i = 0; i < sizeof(invalid_lines) / sizeof(invalid_lines[0]); i++) {
+		char content[256];
+		int written = snprintf(content, sizeof(content), "[keymap]\n%s", invalid_lines[i]);
+		ASSERT_TRUE(written > 0 && (size_t)written < sizeof(content));
+		ASSERT_TRUE(write_text_file(project_path, content));
+
+		struct editorKeymap keymap;
+		enum editorKeymapLoadStatus status =
+				editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+		ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_INVALID_PROJECT, status);
+
+		enum editorAction action = EDITOR_ACTION_COUNT;
+		ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_ARROW_RIGHT, &action));
+		ASSERT_EQ_INT(EDITOR_ACTION_NEXT_TAB, action);
+	}
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(rmdir(dir_path) == 0);
@@ -2094,6 +2195,32 @@ static int test_editor_process_keypress_keymap_remap_changes_dispatch(void) {
 	free(second_contents);
 
 	ASSERT_TRUE(unlink(save_path) == 0);
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped_action(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-ctrl-alt-dispatch-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[keymap]\n"
+				"new_tab = \"ctrl+alt+n\"\n"));
+
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&E.keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_EQ_INT(1, editorTabCount());
+
+	char input[] = {'\x1b', CTRL_KEY('n')};
+	ASSERT_TRUE(editor_process_keypress_with_input(input, sizeof(input)) == 0);
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(rmdir(dir_path) == 0);
 	return 0;
@@ -4196,12 +4323,16 @@ int main(void) {
 			test_editor_keymap_invalid_global_ignored_when_project_valid},
 			{"editor_keymap_load_configured_prefers_project_over_global",
 				test_editor_keymap_load_configured_prefers_project_over_global},
-			{"editor_keymap_load_alt_arrow_specs_for_tab_actions",
-				test_editor_keymap_load_alt_arrow_specs_for_tab_actions},
+			{"editor_keymap_load_modifier_combo_specs_case_insensitive",
+				test_editor_keymap_load_modifier_combo_specs_case_insensitive},
+			{"editor_keymap_load_invalid_modifier_combos_fall_back_to_defaults",
+				test_editor_keymap_load_invalid_modifier_combos_fall_back_to_defaults},
 			{"editor_keymap_defaults_include_tab_actions",
 				test_editor_keymap_defaults_include_tab_actions},
 			{"editor_process_keypress_keymap_remap_changes_dispatch",
 				test_editor_process_keypress_keymap_remap_changes_dispatch},
+			{"editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped_action",
+				test_editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped_action},
 			{"editor_tabs_switch_restores_per_tab_state",
 				test_editor_tabs_switch_restores_per_tab_state},
 			{"editor_tab_close_last_tab_keeps_one_empty_tab",

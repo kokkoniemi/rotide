@@ -1,6 +1,11 @@
 # Rotide example project config.
 # Current configurable section: [keymap]
-# Key spec format: "ctrl+<a-z>", "alt+left", "alt+right", or one of
+# Key spec format:
+# - "ctrl+<a-z>", "alt+<a-z>", "ctrl+alt+<a-z>"
+# - "ctrl+left/right/up/down", "alt+left/right/up/down",
+#   "ctrl+alt+left/right/up/down"
+# - Modifiers are case-insensitive and can be in any order
+# - or one of
 # left/right/up/down/home/end/page_up/page_down/enter/esc/backspace/del
 
 [keymap]
