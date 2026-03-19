@@ -6638,6 +6638,33 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_html_with_
 	return 0;
 }
 
+static int test_editor_refresh_screen_html_text_apostrophe_not_javascript_string(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-html-apostrophe-XXXXXX.html";
+	int fd = mkstemps(path, 5);
+	ASSERT_TRUE(fd != -1);
+	const char *source =
+			"<p>Let's keep this plain text.</p>\n";
+	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	editorOpen(path);
+	E.window_rows = 4;
+	E.window_cols = 80;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "Let's keep this plain text.") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32mLet's keep this plain text.\x1b[39m") == NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32m's keep this plain text.") == NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_javascript_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-js-XXXXXX.js";
 	int fd = mkstemps(path, 3);
@@ -8204,6 +8231,8 @@ int main(void) {
 				test_editor_refresh_screen_applies_syntax_highlighting_for_shell_tokens},
 			{"editor_refresh_screen_applies_syntax_highlighting_for_html_with_injections",
 				test_editor_refresh_screen_applies_syntax_highlighting_for_html_with_injections},
+			{"editor_refresh_screen_html_text_apostrophe_not_javascript_string",
+				test_editor_refresh_screen_html_text_apostrophe_not_javascript_string},
 			{"editor_refresh_screen_applies_syntax_highlighting_for_javascript_tokens",
 				test_editor_refresh_screen_applies_syntax_highlighting_for_javascript_tokens},
 			{"editor_refresh_screen_applies_syntax_highlighting_for_css_tokens",

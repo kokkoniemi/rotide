@@ -2589,12 +2589,26 @@ static int editorSyntaxStateParseHtmlInjections(struct editorSyntaxState *state,
 		return 0;
 	}
 
-	int incremental = incremental_edit != NULL &&
-			state->javascript_injection.tree != NULL &&
-			state->css_injection.tree != NULL;
-	int ok = editorSyntaxParsedTreeParse(&state->javascript_injection, NULL, source, len,
-			incremental) &&
-			editorSyntaxParsedTreeParse(&state->css_injection, NULL, source, len, incremental);
+	if (javascript_ranges.count == 0) {
+		editorSyntaxParsedTreeResetTree(&state->javascript_injection);
+	}
+	if (css_ranges.count == 0) {
+		editorSyntaxParsedTreeResetTree(&state->css_injection);
+	}
+
+	int ok = 1;
+	if (javascript_ranges.count > 0) {
+		int incremental = incremental_edit != NULL &&
+				state->javascript_injection.tree != NULL;
+		ok = editorSyntaxParsedTreeParse(&state->javascript_injection, NULL, source, len,
+				incremental);
+	}
+	if (ok && css_ranges.count > 0) {
+		int incremental = incremental_edit != NULL &&
+				state->css_injection.tree != NULL;
+		ok = editorSyntaxParsedTreeParse(&state->css_injection, NULL, source, len,
+				incremental);
+	}
 
 	editorSyntaxRangeVecFree(&javascript_ranges);
 	editorSyntaxRangeVecFree(&css_ranges);
