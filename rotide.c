@@ -73,6 +73,7 @@ void initEditor(void) {
 	E.drawer_width_user_set = 0;
 	E.drawer_resize_active = 0;
 	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;
+	editorSyntaxThemeInitDefaults(E.syntax_theme);
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
 	E.pane_focus = EDITOR_PANE_TEXT;
 	editorKeymapInitDefaults(&E.keymap);
@@ -95,6 +96,8 @@ int main(int argc, char *argv[]) {
 	enum editorKeymapLoadStatus keymap_status = editorKeymapLoadConfigured(&E.keymap);
 	enum editorCursorStyleLoadStatus cursor_style_status =
 			editorCursorStyleLoadConfigured(&E.cursor_style);
+	enum editorSyntaxThemeLoadStatus syntax_theme_status =
+			editorSyntaxThemeLoadConfigured(E.syntax_theme);
 	if (!editorRecoveryInitForCurrentDir()) {
 		editorSetStatusMsg("Recovery disabled (path setup failed)");
 	}
@@ -103,7 +106,8 @@ int main(int argc, char *argv[]) {
 	} else if (keymap_status == EDITOR_KEYMAP_LOAD_INVALID_GLOBAL) {
 		editorSetStatusMsg("Invalid global keymap config, ignoring ~/.rotide/config.toml");
 	} else if (keymap_status == EDITOR_KEYMAP_LOAD_OUT_OF_MEMORY ||
-			(cursor_style_status & EDITOR_CURSOR_STYLE_LOAD_OUT_OF_MEMORY) != 0) {
+			(cursor_style_status & EDITOR_CURSOR_STYLE_LOAD_OUT_OF_MEMORY) != 0 ||
+			(syntax_theme_status & EDITOR_SYNTAX_THEME_LOAD_OUT_OF_MEMORY) != 0) {
 		editorSetStatusMsg("Out of memory");
 	} else if ((cursor_style_status & EDITOR_CURSOR_STYLE_LOAD_INVALID_GLOBAL) != 0 &&
 			(cursor_style_status & EDITOR_CURSOR_STYLE_LOAD_INVALID_PROJECT) != 0) {
@@ -112,6 +116,13 @@ int main(int argc, char *argv[]) {
 		editorSetStatusMsg("Invalid cursor_style in ./.rotide.toml, using bar");
 	} else if ((cursor_style_status & EDITOR_CURSOR_STYLE_LOAD_INVALID_GLOBAL) != 0) {
 		editorSetStatusMsg("Invalid cursor_style in ~/.rotide/config.toml, using bar");
+	} else if ((syntax_theme_status & EDITOR_SYNTAX_THEME_LOAD_INVALID_GLOBAL) != 0 &&
+			(syntax_theme_status & EDITOR_SYNTAX_THEME_LOAD_INVALID_PROJECT) != 0) {
+		editorSetStatusMsg("Invalid [theme.syntax] in global/project config, using defaults");
+	} else if ((syntax_theme_status & EDITOR_SYNTAX_THEME_LOAD_INVALID_PROJECT) != 0) {
+		editorSetStatusMsg("Invalid [theme.syntax] in ./.rotide.toml, using defaults");
+	} else if ((syntax_theme_status & EDITOR_SYNTAX_THEME_LOAD_INVALID_GLOBAL) != 0) {
+		editorSetStatusMsg("Invalid [theme.syntax] in ~/.rotide/config.toml, using defaults");
 	}
 
 	int restored_session = editorStartupLoadRecoveryOrOpenArgs(argc, argv);

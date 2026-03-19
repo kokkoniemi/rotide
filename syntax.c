@@ -1,5 +1,6 @@
 #include "syntax.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -14,8 +15,238 @@ struct editorSyntaxState {
 	TSTree *tree;
 };
 
+struct editorSyntaxQueryCacheEntry {
+	int load_attempted;
+	TSQuery *query;
+	enum editorSyntaxHighlightClass *capture_classes;
+	uint32_t capture_count;
+};
+
+static struct editorSyntaxQueryCacheEntry g_c_highlight_query_cache = {
+	.load_attempted = 0,
+	.query = NULL,
+	.capture_classes = NULL,
+	.capture_count = 0
+};
+
+static const char editor_builtin_c_highlights_query[] =
+		"(comment) @comment\n"
+		"(string_literal) @string\n"
+		"(char_literal) @string\n"
+		"(number_literal) @number\n"
+		"[(true) (false)] @constant\n"
+		"(primitive_type) @type\n"
+		"(type_identifier) @type\n"
+		"(call_expression function: (identifier) @function)\n"
+		"(function_declarator (identifier) @function)\n"
+		"[(preproc_include) (preproc_def) (preproc_function_def) (preproc_call)] @preprocessor\n"
+		"[\"if\" \"else\" \"switch\" \"case\" \"default\" \"while\" \"for\" \"do\"\n"
+		" \"return\" \"break\" \"continue\" \"goto\" \"typedef\" \"struct\" \"enum\" \"union\"\n"
+		" \"sizeof\" \"static\" \"extern\" \"inline\" \"const\" \"volatile\"] @keyword\n";
+
+static const TSLanguage *editorSyntaxLanguageObject(enum editorSyntaxLanguage language);
+
 static int editorSyntaxLengthFitsTreeSitter(size_t len) {
 	return len <= UINT32_MAX;
+}
+
+static int editorSyntaxCaptureNameHasPrefix(const char *name, size_t len, const char *prefix) {
+	size_t prefix_len = strlen(prefix);
+	if (len < prefix_len) {
+		return 0;
+	}
+	return strncmp(name, prefix, prefix_len) == 0;
+}
+
+static enum editorSyntaxHighlightClass editorSyntaxClassFromCaptureName(const char *name,
+		size_t len) {
+	if (name == NULL || len == 0) {
+		return EDITOR_SYNTAX_HL_NONE;
+	}
+
+	if (editorSyntaxCaptureNameHasPrefix(name, len, "comment")) {
+		return EDITOR_SYNTAX_HL_COMMENT;
+	}
+	if (editorSyntaxCaptureNameHasPrefix(name, len, "keyword")) {
+		return EDITOR_SYNTAX_HL_KEYWORD;
+	}
+	if (editorSyntaxCaptureNameHasPrefix(name, len, "type")) {
+		return EDITOR_SYNTAX_HL_TYPE;
+	}
+	if (editorSyntaxCaptureNameHasPrefix(name, len, "function")) {
+		return EDITOR_SYNTAX_HL_FUNCTION;
+	}
+	if (editorSyntaxCaptureNameHasPrefix(name, len, "string") ||
+			editorSyntaxCaptureNameHasPrefix(name, len, "character")) {
+		return EDITOR_SYNTAX_HL_STRING;
+	}
+	if (editorSyntaxCaptureNameHasPrefix(name, len, "number") ||
+			editorSyntaxCaptureNameHasPrefix(name, len, "float")) {
+		return EDITOR_SYNTAX_HL_NUMBER;
+	}
+	if (editorSyntaxCaptureNameHasPrefix(name, len, "constant") ||
+			editorSyntaxCaptureNameHasPrefix(name, len, "boolean")) {
+		return EDITOR_SYNTAX_HL_CONSTANT;
+	}
+	if (editorSyntaxCaptureNameHasPrefix(name, len, "preproc") ||
+			editorSyntaxCaptureNameHasPrefix(name, len, "preprocessor")) {
+		return EDITOR_SYNTAX_HL_PREPROCESSOR;
+	}
+	if (editorSyntaxCaptureNameHasPrefix(name, len, "operator")) {
+		return EDITOR_SYNTAX_HL_OPERATOR;
+	}
+	if (editorSyntaxCaptureNameHasPrefix(name, len, "punctuation")) {
+		return EDITOR_SYNTAX_HL_PUNCTUATION;
+	}
+
+	return EDITOR_SYNTAX_HL_NONE;
+}
+
+static char *editorSyntaxReadFileDup(const char *path, size_t *len_out) {
+	if (len_out != NULL) {
+		*len_out = 0;
+	}
+	FILE *fp = fopen(path, "rb");
+	if (fp == NULL) {
+		return NULL;
+	}
+
+	size_t cap = 1024;
+	size_t len = 0;
+	char *buf = malloc(cap);
+	if (buf == NULL) {
+		fclose(fp);
+		return NULL;
+	}
+
+	for (;;) {
+		if (len + 1 >= cap) {
+			size_t new_cap = cap * 2;
+			if (new_cap <= cap) {
+				free(buf);
+				fclose(fp);
+				return NULL;
+			}
+			char *grown = realloc(buf, new_cap);
+			if (grown == NULL) {
+				free(buf);
+				fclose(fp);
+				return NULL;
+			}
+			buf = grown;
+			cap = new_cap;
+		}
+
+		size_t remaining = cap - len - 1;
+		size_t nread = fread(buf + len, 1, remaining, fp);
+		len += nread;
+		if (nread < remaining) {
+			if (ferror(fp)) {
+				free(buf);
+				fclose(fp);
+				return NULL;
+			}
+			break;
+		}
+	}
+
+	fclose(fp);
+	buf[len] = '\0';
+	if (len_out != NULL) {
+		*len_out = len;
+	}
+	return buf;
+}
+
+static int editorSyntaxCompileQuery(enum editorSyntaxLanguage language, const char *query_source,
+		size_t query_len, TSQuery **query_out) {
+	const TSLanguage *ts_language = editorSyntaxLanguageObject(language);
+	if (ts_language == NULL || query_source == NULL || query_out == NULL ||
+			!editorSyntaxLengthFitsTreeSitter(query_len)) {
+		return 0;
+	}
+
+	uint32_t error_offset = 0;
+	TSQueryError error_type = TSQueryErrorNone;
+	TSQuery *query = ts_query_new(ts_language, query_source, (uint32_t)query_len, &error_offset,
+			&error_type);
+	if (query == NULL) {
+		(void)error_offset;
+		(void)error_type;
+		return 0;
+	}
+
+	*query_out = query;
+	return 1;
+}
+
+static int editorSyntaxEnsureHighlightQueryForC(void) {
+	if (g_c_highlight_query_cache.load_attempted) {
+		return g_c_highlight_query_cache.query != NULL;
+	}
+	g_c_highlight_query_cache.load_attempted = 1;
+
+	TSQuery *query = NULL;
+	size_t file_len = 0;
+	char *file_query = editorSyntaxReadFileDup("vendor/tree_sitter/grammars/c/queries/highlights.scm",
+			&file_len);
+	if (file_query != NULL) {
+		(void)editorSyntaxCompileQuery(EDITOR_SYNTAX_C, file_query, file_len, &query);
+		free(file_query);
+	}
+
+	if (query == NULL) {
+		(void)editorSyntaxCompileQuery(EDITOR_SYNTAX_C, editor_builtin_c_highlights_query,
+				strlen(editor_builtin_c_highlights_query), &query);
+	}
+	if (query == NULL) {
+		return 0;
+	}
+
+	uint32_t capture_count = ts_query_capture_count(query);
+	enum editorSyntaxHighlightClass *capture_classes = NULL;
+	if (capture_count > 0) {
+		size_t bytes = (size_t)capture_count * sizeof(*capture_classes);
+		capture_classes = malloc(bytes);
+		if (capture_classes == NULL) {
+			ts_query_delete(query);
+			return 0;
+		}
+		for (uint32_t i = 0; i < capture_count; i++) {
+			capture_classes[i] = EDITOR_SYNTAX_HL_NONE;
+		}
+		for (uint32_t i = 0; i < capture_count; i++) {
+			uint32_t name_len = 0;
+			const char *name = ts_query_capture_name_for_id(query, i, &name_len);
+			capture_classes[i] = editorSyntaxClassFromCaptureName(name, name_len);
+		}
+	}
+
+	g_c_highlight_query_cache.query = query;
+	g_c_highlight_query_cache.capture_classes = capture_classes;
+	g_c_highlight_query_cache.capture_count = capture_count;
+	return 1;
+}
+
+static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) {
+	switch (language) {
+		case EDITOR_SYNTAX_C:
+			return editorSyntaxEnsureHighlightQueryForC();
+		case EDITOR_SYNTAX_NONE:
+		default:
+			return 0;
+	}
+}
+
+static const struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheForLanguage(
+		enum editorSyntaxLanguage language) {
+	switch (language) {
+		case EDITOR_SYNTAX_C:
+			return &g_c_highlight_query_cache;
+		case EDITOR_SYNTAX_NONE:
+		default:
+			return NULL;
+	}
 }
 
 static const TSLanguage *editorSyntaxLanguageObject(enum editorSyntaxLanguage language) {
@@ -146,4 +377,92 @@ enum editorSyntaxLanguage editorSyntaxStateLanguage(const struct editorSyntaxSta
 		return EDITOR_SYNTAX_NONE;
 	}
 	return state->language;
+}
+
+int editorSyntaxStateCollectCapturesForRange(const struct editorSyntaxState *state,
+		uint32_t start_byte, uint32_t end_byte,
+		struct editorSyntaxCapture *captures, int max_captures, int *count_out) {
+	if (count_out != NULL) {
+		*count_out = 0;
+	}
+	if (state == NULL || state->tree == NULL || start_byte >= end_byte || max_captures < 0 ||
+			(max_captures > 0 && captures == NULL)) {
+		return 0;
+	}
+
+	if (!editorSyntaxEnsureHighlightQuery(state->language)) {
+		return 1;
+	}
+	const struct editorSyntaxQueryCacheEntry *cache =
+			editorSyntaxQueryCacheForLanguage(state->language);
+	if (cache == NULL || cache->query == NULL) {
+		return 1;
+	}
+
+	TSQueryCursor *cursor = ts_query_cursor_new();
+	if (cursor == NULL) {
+		return 0;
+	}
+
+	ts_query_cursor_set_byte_range(cursor, start_byte, end_byte);
+	TSNode root = ts_tree_root_node(state->tree);
+	ts_query_cursor_exec(cursor, cache->query, root);
+
+	int count = 0;
+	TSQueryMatch match;
+	uint32_t capture_idx = 0;
+	while (ts_query_cursor_next_capture(cursor, &match, &capture_idx)) {
+		TSQueryCapture capture = match.captures[capture_idx];
+		if (capture.index >= cache->capture_count || cache->capture_classes == NULL) {
+			continue;
+		}
+		enum editorSyntaxHighlightClass highlight_class =
+				cache->capture_classes[capture.index];
+		if (highlight_class == EDITOR_SYNTAX_HL_NONE) {
+			continue;
+		}
+
+		uint32_t capture_start = ts_node_start_byte(capture.node);
+		uint32_t capture_end = ts_node_end_byte(capture.node);
+		if (capture_end <= capture_start) {
+			continue;
+		}
+		if (capture_end <= start_byte || capture_start >= end_byte) {
+			continue;
+		}
+
+		if (capture_start < start_byte) {
+			capture_start = start_byte;
+		}
+		if (capture_end > end_byte) {
+			capture_end = end_byte;
+		}
+		if (capture_end <= capture_start) {
+			continue;
+		}
+
+		if (count < max_captures) {
+			captures[count].start_byte = capture_start;
+			captures[count].end_byte = capture_end;
+			captures[count].highlight_class = highlight_class;
+		}
+		count++;
+	}
+
+	ts_query_cursor_delete(cursor);
+	if (count_out != NULL) {
+		*count_out = count > max_captures ? max_captures : count;
+	}
+	return 1;
+}
+
+void editorSyntaxReleaseSharedResources(void) {
+	if (g_c_highlight_query_cache.query != NULL) {
+		ts_query_delete(g_c_highlight_query_cache.query);
+		g_c_highlight_query_cache.query = NULL;
+	}
+	free(g_c_highlight_query_cache.capture_classes);
+	g_c_highlight_query_cache.capture_classes = NULL;
+	g_c_highlight_query_cache.capture_count = 0;
+	g_c_highlight_query_cache.load_attempted = 0;
 }

@@ -44,6 +44,7 @@ void reset_editor_state(void) {
 	E.drawer_width_user_set = 0;
 	E.drawer_resize_active = 0;
 	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;
+	editorSyntaxThemeInitDefaults(E.syntax_theme);
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
 	editorKeymapInitDefaults(&E.keymap);
 }

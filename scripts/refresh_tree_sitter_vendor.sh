@@ -163,5 +163,10 @@ cp "${GRAMMAR_SRC}/package.json" "${GRAMMAR_VENDOR}/package.json"
 cp "${GRAMMAR_SRC}/LICENSE" "${GRAMMAR_VENDOR}/LICENSE"
 cp "${GRAMMAR_SRC}/README.md" "${GRAMMAR_VENDOR}/README.upstream.md"
 
+mkdir -p "${GRAMMAR_VENDOR}/queries"
+if [[ -f "${GRAMMAR_SRC}/queries/highlights.scm" ]]; then
+	cp "${GRAMMAR_SRC}/queries/highlights.scm" "${GRAMMAR_VENDOR}/queries/highlights.scm"
+fi
+
 echo "Tree-sitter vendor refresh complete." >&2
 echo "If you changed refs/releases, update vendor/tree_sitter/VERSIONS.env and VERSIONS.md." >&2

@@ -17,6 +17,13 @@ enum editorCursorStyleLoadStatus {
 	EDITOR_CURSOR_STYLE_LOAD_OUT_OF_MEMORY = 1 << 2
 };
 
+enum editorSyntaxThemeLoadStatus {
+	EDITOR_SYNTAX_THEME_LOAD_OK = 0,
+	EDITOR_SYNTAX_THEME_LOAD_INVALID_GLOBAL = 1 << 0,
+	EDITOR_SYNTAX_THEME_LOAD_INVALID_PROJECT = 1 << 1,
+	EDITOR_SYNTAX_THEME_LOAD_OUT_OF_MEMORY = 1 << 2
+};
+
 void editorKeymapInitDefaults(struct editorKeymap *keymap);
 int editorKeymapLookupAction(const struct editorKeymap *keymap, int key,
 		enum editorAction *action_out);
@@ -30,5 +37,12 @@ enum editorKeymapLoadStatus editorKeymapLoadConfigured(struct editorKeymap *keym
 enum editorCursorStyleLoadStatus editorCursorStyleLoadFromPaths(enum editorCursorStyle *style_out,
 		const char *global_path, const char *project_path);
 enum editorCursorStyleLoadStatus editorCursorStyleLoadConfigured(enum editorCursorStyle *style_out);
+void editorSyntaxThemeInitDefaults(
+		enum editorThemeColor theme_out[EDITOR_SYNTAX_HL_CLASS_COUNT]);
+enum editorSyntaxThemeLoadStatus editorSyntaxThemeLoadFromPaths(
+		enum editorThemeColor theme_out[EDITOR_SYNTAX_HL_CLASS_COUNT],
+		const char *global_path, const char *project_path);
+enum editorSyntaxThemeLoadStatus editorSyntaxThemeLoadConfigured(
+		enum editorThemeColor theme_out[EDITOR_SYNTAX_HL_CLASS_COUNT]);
 
 #endif

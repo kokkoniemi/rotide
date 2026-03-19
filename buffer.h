@@ -85,6 +85,8 @@ int editorSyntaxEnabled(void);
 int editorSyntaxTreeExists(void);
 enum editorSyntaxLanguage editorSyntaxLanguageActive(void);
 const char *editorSyntaxRootType(void);
+int editorSyntaxRowRenderSpans(int row_idx, struct editorRowSyntaxSpan *spans, int max_spans,
+		int *count_out);
 
 int editorGetSelectionRange(struct editorSelectionRange *range_out);
 int editorExtractRangeText(const struct editorSelectionRange *range, char **text_out, size_t *len_out);

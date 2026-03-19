@@ -22,6 +22,12 @@ struct editorSyntaxEdit {
 	struct editorSyntaxPoint new_end_point;
 };
 
+struct editorSyntaxCapture {
+	uint32_t start_byte;
+	uint32_t end_byte;
+	enum editorSyntaxHighlightClass highlight_class;
+};
+
 enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *filename);
 
 struct editorSyntaxState *editorSyntaxStateCreate(enum editorSyntaxLanguage language);
@@ -36,5 +42,9 @@ int editorSyntaxStateApplyEditAndParse(struct editorSyntaxState *state,
 int editorSyntaxStateHasTree(const struct editorSyntaxState *state);
 const char *editorSyntaxStateRootType(const struct editorSyntaxState *state);
 enum editorSyntaxLanguage editorSyntaxStateLanguage(const struct editorSyntaxState *state);
+int editorSyntaxStateCollectCapturesForRange(const struct editorSyntaxState *state,
+		uint32_t start_byte, uint32_t end_byte,
+		struct editorSyntaxCapture *captures, int max_captures, int *count_out);
+void editorSyntaxReleaseSharedResources(void);
 
 #endif

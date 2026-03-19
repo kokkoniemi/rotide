@@ -1577,6 +1577,7 @@ void editorTabsFreeAll(void) {
 	E.tab_capacity = 0;
 	E.active_tab = 0;
 	E.tab_view_start = 0;
+	editorSyntaxReleaseSharedResources();
 }
 
 int editorTabNewEmpty(void) {
@@ -1777,6 +1778,101 @@ const char *editorSyntaxRootType(void) {
 		return NULL;
 	}
 	return editorSyntaxStateRootType(E.syntax_state);
+}
+
+int editorSyntaxRowRenderSpans(int row_idx, struct editorRowSyntaxSpan *spans, int max_spans,
+		int *count_out) {
+	if (count_out != NULL) {
+		*count_out = 0;
+	}
+	if (row_idx < 0 || row_idx >= E.numrows || max_spans < 0 ||
+			(max_spans > 0 && spans == NULL)) {
+		return 0;
+	}
+	if (max_spans == 0 || E.syntax_state == NULL || E.syntax_language == EDITOR_SYNTAX_NONE) {
+		return 1;
+	}
+
+	size_t row_start_offset = 0;
+	if (!editorPosToLinearOffset(row_idx, 0, &row_start_offset)) {
+		return 0;
+	}
+
+	size_t row_size = 0;
+	size_t row_end_offset = row_start_offset;
+	if (!editorIntToSize(E.rows[row_idx].size, &row_size) ||
+			!editorSizeAdd(row_end_offset, row_size, &row_end_offset)) {
+		return 0;
+	}
+
+	uint32_t start_byte = 0;
+	uint32_t end_byte = 0;
+	if (!editorSyntaxOffsetToU32(row_start_offset, &start_byte) ||
+			!editorSyntaxOffsetToU32(row_end_offset, &end_byte) ||
+			start_byte >= end_byte) {
+		return 1;
+	}
+
+	int capture_limit = max_spans;
+	if (capture_limit > ROTIDE_MAX_SYNTAX_SPANS_PER_ROW) {
+		capture_limit = ROTIDE_MAX_SYNTAX_SPANS_PER_ROW;
+	}
+
+	struct editorSyntaxCapture captures[ROTIDE_MAX_SYNTAX_SPANS_PER_ROW];
+	int capture_count = 0;
+	if (!editorSyntaxStateCollectCapturesForRange(E.syntax_state, start_byte, end_byte, captures,
+				capture_limit, &capture_count)) {
+		return 0;
+	}
+
+	struct erow *row = &E.rows[row_idx];
+	int out_count = 0;
+	for (int i = 0; i < capture_count && out_count < max_spans; i++) {
+		if (captures[i].highlight_class == EDITOR_SYNTAX_HL_NONE ||
+				captures[i].end_byte <= captures[i].start_byte) {
+			continue;
+		}
+
+		int local_start = (int)(captures[i].start_byte - start_byte);
+		int local_end = (int)(captures[i].end_byte - start_byte);
+		if (local_start < 0) {
+			local_start = 0;
+		}
+		if (local_start > row->size) {
+			local_start = row->size;
+		}
+		if (local_end < 0) {
+			local_end = 0;
+		}
+		if (local_end > row->size) {
+			local_end = row->size;
+		}
+
+		local_start = editorRowClampCxToCharBoundary(row, local_start);
+		local_end = editorRowClampCxToCharBoundary(row, local_end);
+		if (local_end <= local_start && local_end < row->size) {
+			local_end = editorRowNextCharIdx(row, local_end);
+		}
+		if (local_end <= local_start) {
+			continue;
+		}
+
+		int render_start = editorRowCxToRenderIdx(row, local_start);
+		int render_end = editorRowCxToRenderIdx(row, local_end);
+		if (render_end <= render_start) {
+			continue;
+		}
+
+		spans[out_count].start_render_idx = render_start;
+		spans[out_count].end_render_idx = render_end;
+		spans[out_count].highlight_class = captures[i].highlight_class;
+		out_count++;
+	}
+
+	if (count_out != NULL) {
+		*count_out = out_count;
+	}
+	return 1;
 }
 
 static const char *editorTabLabelFromFilename(const char *filename) {

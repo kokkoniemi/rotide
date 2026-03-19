@@ -24,6 +24,7 @@ search, save, undo/redo, selection, tabs, and keymap configuration are implement
 - Atomic save path with temp-file + rename strategy and cleanup handling.
 - Crash recovery via autosaved per-project recovery session files.
 - Tree-sitter foundation for C buffers (`.c`, `.h`) with per-tab incremental parse state.
+- Tree-sitter-driven syntax highlighting for C buffers with themeable ANSI color mapping.
 - Configurable keymap via TOML (`~/.rotide/config.toml` and `./.rotide.toml`).
 - Status bar path rendering that prioritizes keeping the full basename visible.
 
@@ -90,6 +91,7 @@ Behavior on invalid config:
 - Invalid global config: ignored, then defaults/project continue.
 - Invalid project config: full fallback to defaults.
 - Invalid `cursor_style`: falls back to `bar` with a warning (other valid config still applies).
+- Invalid `[theme.syntax]` entries: ignored with warning; defaults remain for invalid entries.
 
 Editor section format:
 
@@ -102,6 +104,32 @@ Accepted `cursor_style` values (case-insensitive):
 - `block`
 - `bar`
 - `underline`
+
+Syntax theme section format:
+
+```toml
+[theme.syntax]
+comment = "gray"
+keyword = "bright_blue"
+type = "bright_cyan"
+function = "bright_yellow"
+string = "green"
+number = "magenta"
+constant = "bright_magenta"
+preprocessor = "bright_red"
+operator = "bright_white"
+punctuation = "default"
+```
+
+Supported semantic class keys:
+- `comment`, `keyword`, `type`, `function`, `string`, `number`,
+  `constant`, `preprocessor`, `operator`, `punctuation`
+
+Supported color values (case-insensitive):
+- `default`, `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white`
+- `bright_black`, `bright_red`, `bright_green`, `bright_yellow`,
+  `bright_blue`, `bright_magenta`, `bright_cyan`, `bright_white`
+- aliases: `gray` / `grey` = `bright_black`
 
 Keymap section format:
 
@@ -138,12 +166,12 @@ A full example with all configurable actions is included at project root:
 - If you restore a session, startup file arguments are ignored for that launch.
 - Recovery data is deleted on clean exit and when the session becomes fully clean.
 
-## Tree-sitter foundation (C)
+## Tree-sitter integration (C)
 
 - RotIDE embeds vendored Tree-sitter runtime + C grammar sources; builds do not require a system Tree-sitter install.
 - Syntax state is per tab/buffer and currently enabled for `.c` and `.h` files.
 - Text edits update the parse tree incrementally; open/restore/undo-redo snapshot loads trigger full reparse.
-- This is parser-state groundwork only in this step (no Tree-sitter-driven highlighting/folding yet).
+- Syntax highlighting is driven by Tree-sitter scope captures mapped to semantic classes and theme colors.
 
 ### Vendor/regen workflow
 

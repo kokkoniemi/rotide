@@ -32,8 +32,22 @@ struct writeBuf {
 #define VT100_BOLD_OFF_5 "\x1b[22m"
 #define VT100_INVERTED_COLORS_4 "\x1b[7m"
 #define VT100_NORMAL_COLORS_3 "\x1b[m"
-#define VT100_FG_GRAY_5 "\x1b[90m"
+#define VT100_FG_BLACK_5 "\x1b[30m"
+#define VT100_FG_RED_5 "\x1b[31m"
+#define VT100_FG_GREEN_5 "\x1b[32m"
+#define VT100_FG_YELLOW_5 "\x1b[33m"
+#define VT100_FG_BLUE_5 "\x1b[34m"
+#define VT100_FG_MAGENTA_5 "\x1b[35m"
+#define VT100_FG_CYAN_5 "\x1b[36m"
 #define VT100_FG_WHITE_5 "\x1b[37m"
+#define VT100_FG_GRAY_5 "\x1b[90m"
+#define VT100_FG_BRIGHT_RED_5 "\x1b[91m"
+#define VT100_FG_BRIGHT_GREEN_5 "\x1b[92m"
+#define VT100_FG_BRIGHT_YELLOW_5 "\x1b[93m"
+#define VT100_FG_BRIGHT_BLUE_5 "\x1b[94m"
+#define VT100_FG_BRIGHT_MAGENTA_5 "\x1b[95m"
+#define VT100_FG_BRIGHT_CYAN_5 "\x1b[96m"
+#define VT100_FG_BRIGHT_WHITE_5 "\x1b[97m"
 #define VT100_FG_DEFAULT_5 "\x1b[39m"
 #define DRAWER_SPLITTER_UTF8 "\xE2\x94\x82"
 #define DRAWER_CARET_EXPANDED_UTF8 "\xE2\x96\xBE"
@@ -689,6 +703,153 @@ static int editorSelectionSpanForRow(int row_idx, int *start_out, int *end_out) 
 	return 1;
 }
 
+static const char *editorThemeColorSequence(enum editorThemeColor color, size_t *len_out) {
+	const char *sequence = VT100_FG_DEFAULT_5;
+	switch (color) {
+		case EDITOR_THEME_COLOR_BLACK:
+			sequence = VT100_FG_BLACK_5;
+			break;
+		case EDITOR_THEME_COLOR_RED:
+			sequence = VT100_FG_RED_5;
+			break;
+		case EDITOR_THEME_COLOR_GREEN:
+			sequence = VT100_FG_GREEN_5;
+			break;
+		case EDITOR_THEME_COLOR_YELLOW:
+			sequence = VT100_FG_YELLOW_5;
+			break;
+		case EDITOR_THEME_COLOR_BLUE:
+			sequence = VT100_FG_BLUE_5;
+			break;
+		case EDITOR_THEME_COLOR_MAGENTA:
+			sequence = VT100_FG_MAGENTA_5;
+			break;
+		case EDITOR_THEME_COLOR_CYAN:
+			sequence = VT100_FG_CYAN_5;
+			break;
+		case EDITOR_THEME_COLOR_WHITE:
+			sequence = VT100_FG_WHITE_5;
+			break;
+		case EDITOR_THEME_COLOR_BRIGHT_BLACK:
+			sequence = VT100_FG_GRAY_5;
+			break;
+		case EDITOR_THEME_COLOR_BRIGHT_RED:
+			sequence = VT100_FG_BRIGHT_RED_5;
+			break;
+		case EDITOR_THEME_COLOR_BRIGHT_GREEN:
+			sequence = VT100_FG_BRIGHT_GREEN_5;
+			break;
+		case EDITOR_THEME_COLOR_BRIGHT_YELLOW:
+			sequence = VT100_FG_BRIGHT_YELLOW_5;
+			break;
+		case EDITOR_THEME_COLOR_BRIGHT_BLUE:
+			sequence = VT100_FG_BRIGHT_BLUE_5;
+			break;
+		case EDITOR_THEME_COLOR_BRIGHT_MAGENTA:
+			sequence = VT100_FG_BRIGHT_MAGENTA_5;
+			break;
+		case EDITOR_THEME_COLOR_BRIGHT_CYAN:
+			sequence = VT100_FG_BRIGHT_CYAN_5;
+			break;
+		case EDITOR_THEME_COLOR_BRIGHT_WHITE:
+			sequence = VT100_FG_BRIGHT_WHITE_5;
+			break;
+		case EDITOR_THEME_COLOR_DEFAULT:
+		default:
+			sequence = VT100_FG_DEFAULT_5;
+			break;
+	}
+
+	if (len_out != NULL) {
+		*len_out = strlen(sequence);
+	}
+	return sequence;
+}
+
+static enum editorSyntaxHighlightClass editorSyntaxClassAtRenderIdx(
+		const struct editorRowSyntaxSpan *spans, int span_count, int render_idx) {
+	enum editorSyntaxHighlightClass highlight_class = EDITOR_SYNTAX_HL_NONE;
+	for (int i = 0; i < span_count; i++) {
+		if (spans[i].end_render_idx <= spans[i].start_render_idx) {
+			continue;
+		}
+		if (render_idx >= spans[i].start_render_idx && render_idx < spans[i].end_render_idx) {
+			highlight_class = spans[i].highlight_class;
+		}
+	}
+	return highlight_class;
+}
+
+static int editorDrawRenderSliceWithSyntax(struct writeBuf *wb, const struct erow *row,
+		int segment_start, int segment_end, const struct editorRowSyntaxSpan *spans, int span_count) {
+	if (segment_end <= segment_start) {
+		return 1;
+	}
+	if (spans == NULL || span_count <= 0 || E.syntax_state == NULL ||
+			E.syntax_language == EDITOR_SYNTAX_NONE) {
+		return wbAppend(wb, &row->render[segment_start], (size_t)(segment_end - segment_start));
+	}
+
+	enum editorThemeColor active_color = EDITOR_THEME_COLOR_DEFAULT;
+	int pos = segment_start;
+	while (pos < segment_end) {
+		enum editorSyntaxHighlightClass highlight_class =
+				editorSyntaxClassAtRenderIdx(spans, span_count, pos);
+		enum editorThemeColor next_color = EDITOR_THEME_COLOR_DEFAULT;
+		if (highlight_class > EDITOR_SYNTAX_HL_NONE &&
+				highlight_class < EDITOR_SYNTAX_HL_CLASS_COUNT) {
+			next_color = E.syntax_theme[highlight_class];
+		}
+
+		if (next_color != active_color) {
+			size_t seq_len = 0;
+			const char *seq = editorThemeColorSequence(next_color, &seq_len);
+			if (!wbAppend(wb, seq, seq_len)) {
+				return 0;
+			}
+			active_color = next_color;
+		}
+
+		int next = segment_end;
+		for (int i = 0; i < span_count; i++) {
+			int span_start = spans[i].start_render_idx;
+			int span_end = spans[i].end_render_idx;
+			if (span_end <= span_start) {
+				continue;
+			}
+			if (span_start > pos && span_start < next) {
+				next = span_start;
+			}
+			if (span_end > pos && span_end < next) {
+				next = span_end;
+			}
+		}
+		if (next <= pos) {
+			unsigned int cp = 0;
+			int step = editorUtf8DecodeCodepoint(&row->render[pos], segment_end - pos, &cp);
+			(void)cp;
+			if (step <= 0) {
+				step = 1;
+			}
+			if (step > segment_end - pos) {
+				step = segment_end - pos;
+			}
+			next = pos + step;
+		}
+
+		if (!wbAppend(wb, &row->render[pos], (size_t)(next - pos))) {
+			return 0;
+		}
+		pos = next;
+	}
+
+	if (active_color != EDITOR_THEME_COLOR_DEFAULT &&
+			!wbAppend(wb, VT100_FG_DEFAULT_5, 5)) {
+		return 0;
+	}
+	return 1;
+}
+
 static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_idx, int coloff,
 		int cols) {
 	if (cols <= 0 || coloff < 0 || row->rsize <= 0) {
@@ -715,8 +876,15 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 		highlight_len_chars = E.search_match_len;
 	}
 
+	struct editorRowSyntaxSpan syntax_spans[ROTIDE_MAX_SYNTAX_SPANS_PER_ROW];
+	int syntax_span_count = 0;
+	if (!editorSyntaxRowRenderSpans(row_idx, syntax_spans, ROTIDE_MAX_SYNTAX_SPANS_PER_ROW,
+				&syntax_span_count)) {
+		syntax_span_count = 0;
+	}
+
 	if (highlight_len_chars <= 0) {
-		return wbAppend(wb, &row->render[start], end - start);
+		return editorDrawRenderSliceWithSyntax(wb, row, start, end, syntax_spans, syntax_span_count);
 	}
 
 	int match_start_chars = highlight_start_chars;
@@ -740,17 +908,18 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 	int match_render_start = editorRowCxToRenderIdx(row, match_start_chars);
 	int match_render_end = editorRowCxToRenderIdx(row, match_end_chars);
 	if (match_render_end <= match_render_start) {
-		return wbAppend(wb, &row->render[start], end - start);
+		return editorDrawRenderSliceWithSyntax(wb, row, start, end, syntax_spans, syntax_span_count);
 	}
 
 	int highlight_start = start > match_render_start ? start : match_render_start;
 	int highlight_end = end < match_render_end ? end : match_render_end;
 	if (highlight_end <= highlight_start) {
-		return wbAppend(wb, &row->render[start], end - start);
+		return editorDrawRenderSliceWithSyntax(wb, row, start, end, syntax_spans, syntax_span_count);
 	}
 
 	if (highlight_start > start &&
-			!wbAppend(wb, &row->render[start], highlight_start - start)) {
+			!editorDrawRenderSliceWithSyntax(wb, row, start, highlight_start, syntax_spans,
+					syntax_span_count)) {
 		return 0;
 	}
 	if (!wbAppend(wb, VT100_INVERTED_COLORS_4, 4)) {
@@ -763,7 +932,8 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 		return 0;
 	}
 	if (highlight_end < end &&
-			!wbAppend(wb, &row->render[highlight_end], end - highlight_end)) {
+			!editorDrawRenderSliceWithSyntax(wb, row, highlight_end, end, syntax_spans,
+					syntax_span_count)) {
 		return 0;
 	}
 

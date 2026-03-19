@@ -3306,6 +3306,85 @@ static int test_editor_cursor_style_invalid_setting_does_not_break_keymap_loadin
 	return 0;
 }
 
+static int test_editor_syntax_theme_load_global_project_precedence(void) {
+	char dir_template[] = "/tmp/rotide-test-syntax-theme-precedence-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char global_path[512];
+	char project_path[512];
+	ASSERT_TRUE(path_join(global_path, sizeof(global_path), dir_path, "global.toml"));
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
+
+	ASSERT_TRUE(write_text_file(global_path,
+				"[theme.syntax]\n"
+				"comment = \"red\"\n"
+				"keyword = \"blue\"\n"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[theme.syntax]\n"
+				"keyword = \"bright_yellow\"\n"
+				"string = \"green\"\n"));
+
+	enum editorThemeColor theme[EDITOR_SYNTAX_HL_CLASS_COUNT];
+	enum editorSyntaxThemeLoadStatus status =
+			editorSyntaxThemeLoadFromPaths(theme, global_path, project_path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_THEME_LOAD_OK, status);
+	ASSERT_EQ_INT(EDITOR_THEME_COLOR_RED, theme[EDITOR_SYNTAX_HL_COMMENT]);
+	ASSERT_EQ_INT(EDITOR_THEME_COLOR_BRIGHT_YELLOW, theme[EDITOR_SYNTAX_HL_KEYWORD]);
+	ASSERT_EQ_INT(EDITOR_THEME_COLOR_GREEN, theme[EDITOR_SYNTAX_HL_STRING]);
+	ASSERT_EQ_INT(EDITOR_THEME_COLOR_BRIGHT_CYAN, theme[EDITOR_SYNTAX_HL_TYPE]);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(unlink(global_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_theme_invalid_entries_nonfatal_and_keymap_still_loads(void) {
+	char dir_template[] = "/tmp/rotide-test-syntax-theme-invalid-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char global_path[512];
+	char project_path[512];
+	ASSERT_TRUE(path_join(global_path, sizeof(global_path), dir_path, "global.toml"));
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
+
+	ASSERT_TRUE(write_text_file(global_path,
+				"[theme.syntax]\n"
+				"comment = \"not-a-color\"\n"
+				"keyword = \"bright_blue\"\n"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[theme.syntax]\n"
+				"unknown_scope = \"red\"\n"
+				"string = \"green\"\n"
+				"[keymap]\n"
+				"save = \"ctrl+a\"\n"));
+
+	enum editorThemeColor theme[EDITOR_SYNTAX_HL_CLASS_COUNT];
+	enum editorSyntaxThemeLoadStatus theme_status =
+			editorSyntaxThemeLoadFromPaths(theme, global_path, project_path);
+	ASSERT_EQ_INT(
+			EDITOR_SYNTAX_THEME_LOAD_INVALID_GLOBAL | EDITOR_SYNTAX_THEME_LOAD_INVALID_PROJECT,
+			theme_status);
+	ASSERT_EQ_INT(EDITOR_THEME_COLOR_BRIGHT_BLACK, theme[EDITOR_SYNTAX_HL_COMMENT]);
+	ASSERT_EQ_INT(EDITOR_THEME_COLOR_BRIGHT_BLUE, theme[EDITOR_SYNTAX_HL_KEYWORD]);
+	ASSERT_EQ_INT(EDITOR_THEME_COLOR_GREEN, theme[EDITOR_SYNTAX_HL_STRING]);
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus keymap_status =
+			editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, keymap_status);
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('a'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SAVE, action);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(unlink(global_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 static int test_editor_keymap_load_modifier_combo_specs_case_insensitive(void) {
 	char dir_template[] = "/tmp/rotide-test-keymap-combos-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -5743,6 +5822,112 @@ static int test_editor_refresh_screen_highlights_active_search_match(void) {
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_c_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-c-XXXXXX.c";
+	int fd = mkstemps(path, 2);
+	ASSERT_TRUE(fd != -1);
+	const char *source =
+			"int main(void) {\n"
+			"  // comment\n"
+			"  const char *s = \"txt\";\n"
+			"  return 42;\n"
+			"}\n";
+	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	editorOpen(path);
+	E.window_rows = 8;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96mint\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[93mmain\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m// comment\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"txt\"\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mreturn\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m42\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_plain_text_file_has_no_syntax_highlighting(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-txt-XXXXXX.txt";
+	int fd = mkstemps(path, 4);
+	ASSERT_TRUE(fd != -1);
+	const char *source = "int main(void) { return 42; }\n";
+	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	editorOpen(path);
+	E.window_rows = 4;
+	E.window_cols = 80;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96mint\x1b[39m") == NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mreturn\x1b[39m") == NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m42\x1b[39m") == NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_selection_and_search_override_syntax_colors(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-priority-XXXXXX.c";
+	int fd = mkstemps(path, 2);
+	ASSERT_TRUE(fd != -1);
+	const char *source = "return 42;\n";
+	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	editorOpen(path);
+	E.window_rows = 4;
+	E.window_cols = 60;
+	E.cy = 0;
+	E.cx = 0;
+
+	E.selection_mode_active = 1;
+	E.selection_anchor_cy = 0;
+	E.selection_anchor_cx = 0;
+	E.cy = 0;
+	E.cx = 6;
+	E.search_match_row = 0;
+	E.search_match_start = 7;
+	E.search_match_len = 2;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[7mreturn\x1b[m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[7m\x1b[94m") == NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m42\x1b[39m") != NULL);
+	free(output);
+
+	E.selection_mode_active = 0;
+	E.search_match_row = 0;
+	E.search_match_start = 0;
+	E.search_match_len = 6;
+
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[7mreturn\x1b[m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m42\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_highlight_alignment_with_escaped_controls(void) {
 	const char text[] = "A\x1b" "BC";
 	add_row_bytes(text, sizeof(text) - 1);
@@ -6761,6 +6946,10 @@ int main(void) {
 				test_editor_cursor_style_load_configured_prefers_project_over_global},
 			{"editor_cursor_style_invalid_setting_does_not_break_keymap_loading",
 				test_editor_cursor_style_invalid_setting_does_not_break_keymap_loading},
+			{"editor_syntax_theme_load_global_project_precedence",
+				test_editor_syntax_theme_load_global_project_precedence},
+			{"editor_syntax_theme_invalid_entries_nonfatal_and_keymap_still_loads",
+				test_editor_syntax_theme_invalid_entries_nonfatal_and_keymap_still_loads},
 			{"editor_keymap_load_modifier_combo_specs_case_insensitive",
 				test_editor_keymap_load_modifier_combo_specs_case_insensitive},
 			{"editor_keymap_load_invalid_modifier_combos_fall_back_to_defaults",
@@ -6953,6 +7142,12 @@ int main(void) {
 				test_editor_refresh_screen_uses_configured_cursor_style},
 			{"editor_refresh_screen_highlights_active_search_match",
 				test_editor_refresh_screen_highlights_active_search_match},
+			{"editor_refresh_screen_applies_syntax_highlighting_for_c_tokens",
+				test_editor_refresh_screen_applies_syntax_highlighting_for_c_tokens},
+			{"editor_refresh_screen_plain_text_file_has_no_syntax_highlighting",
+				test_editor_refresh_screen_plain_text_file_has_no_syntax_highlighting},
+			{"editor_refresh_screen_selection_and_search_override_syntax_colors",
+				test_editor_refresh_screen_selection_and_search_override_syntax_colors},
 			{"editor_refresh_screen_highlight_alignment_with_escaped_controls",
 				test_editor_refresh_screen_highlight_alignment_with_escaped_controls},
 			{"editor_refresh_screen_escapes_filename_controls",

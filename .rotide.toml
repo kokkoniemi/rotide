@@ -3,6 +3,14 @@
 # Editor:
 # - cursor_style = "block" | "bar" | "underline" (case-insensitive)
 # - Invalid cursor_style values fall back to "bar" with a warning
+# Theme:
+# - [theme.syntax] supports semantic classes:
+#   comment|keyword|type|function|string|number|constant|preprocessor|operator|punctuation
+# - values are ANSI 16-color names:
+#   default|black|red|green|yellow|blue|magenta|cyan|white|
+#   bright_black|bright_red|bright_green|bright_yellow|bright_blue|bright_magenta|bright_cyan|bright_white
+# - aliases: gray/grey => bright_black
+# - Invalid [theme.syntax] entries are ignored with a warning; defaults remain in effect.
 # Key spec format:
 # - "ctrl+<a-z>", "alt+<a-z>", "ctrl+alt+<a-z>"
 # - "ctrl+left/right/up/down", "alt+left/right/up/down",
@@ -16,6 +24,18 @@
 
 [editor]
 cursor_style = "bar"
+
+[theme.syntax]
+comment = "gray"
+keyword = "bright_blue"
+type = "bright_cyan"
+function = "bright_yellow"
+string = "green"
+number = "magenta"
+constant = "bright_magenta"
+preprocessor = "bright_red"
+operator = "bright_white"
+punctuation = "default"
 
 [keymap]
 quit = "ctrl+q"
