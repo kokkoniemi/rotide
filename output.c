@@ -135,6 +135,226 @@ static char editorHexUpperDigit(unsigned int value) {
 	return value < 10 ? (char)('0' + value) : (char)('A' + (value - 10));
 }
 
+static void editorGetSanitizedToken(const char *text, int text_len, int idx, const char **token_out,
+		int *token_len_out, int *token_cols_out, int *src_len_out, char escaped[4]) {
+	unsigned int cp = 0;
+	int src_len = editorUtf8DecodeCodepoint(&text[idx], text_len - idx, &cp);
+	if (src_len <= 0) {
+		src_len = 1;
+	}
+	if (src_len > text_len - idx) {
+		src_len = text_len - idx;
+	}
+
+	const char *token = &text[idx];
+	int token_len = src_len;
+	int token_cols = editorCharDisplayWidth(&text[idx], text_len - idx);
+	if (cp == '\t') {
+		escaped[0] = '^';
+		escaped[1] = 'I';
+		token = escaped;
+		token_len = 2;
+		token_cols = 2;
+	} else if (cp <= 0x1F) {
+		escaped[0] = '^';
+		escaped[1] = (char)('@' + (int)cp);
+		token = escaped;
+		token_len = 2;
+		token_cols = 2;
+	} else if (cp == 0x7F) {
+		escaped[0] = '^';
+		escaped[1] = '?';
+		token = escaped;
+		token_len = 2;
+		token_cols = 2;
+	} else if (cp >= 0x80 && cp <= 0x9F) {
+		escaped[0] = '\\';
+		escaped[1] = 'x';
+		escaped[2] = editorHexUpperDigit((cp >> 4) & 0x0F);
+		escaped[3] = editorHexUpperDigit(cp & 0x0F);
+		token = escaped;
+		token_len = 4;
+		token_cols = 4;
+	}
+
+	*token_out = token;
+	*token_len_out = token_len;
+	*token_cols_out = token_cols;
+	*src_len_out = src_len;
+}
+
+static int editorDisplayTextCols(const char *text) {
+	if (text == NULL) {
+		return 0;
+	}
+
+	int cols = 0;
+	int text_len = (int)strlen(text);
+	for (int idx = 0; idx < text_len;) {
+		unsigned int cp = 0;
+		int src_len = editorUtf8DecodeCodepoint(&text[idx], text_len - idx, &cp);
+		if (src_len <= 0) {
+			src_len = 1;
+		}
+		if (src_len > text_len - idx) {
+			src_len = text_len - idx;
+		}
+		cols += editorCharDisplayWidth(&text[idx], text_len - idx);
+		idx += src_len;
+	}
+
+	return cols;
+}
+
+static int editorAppendDisplayPrefix(struct writeBuf *wb, const char *text, int max_cols,
+		int *written_cols_out) {
+	if (written_cols_out != NULL) {
+		*written_cols_out = 0;
+	}
+	if (text == NULL || max_cols <= 0) {
+		return 1;
+	}
+
+	int text_len = (int)strlen(text);
+	int written_cols = 0;
+	for (int idx = 0; idx < text_len;) {
+		unsigned int cp = 0;
+		int src_len = editorUtf8DecodeCodepoint(&text[idx], text_len - idx, &cp);
+		if (src_len <= 0) {
+			src_len = 1;
+		}
+		if (src_len > text_len - idx) {
+			src_len = text_len - idx;
+		}
+		int token_cols = editorCharDisplayWidth(&text[idx], text_len - idx);
+		if (written_cols + token_cols > max_cols) {
+			break;
+		}
+		if (!wbAppend(wb, &text[idx], (size_t)src_len)) {
+			return 0;
+		}
+		written_cols += token_cols;
+		idx += src_len;
+	}
+
+	if (written_cols_out != NULL) {
+		*written_cols_out = written_cols;
+	}
+	return 1;
+}
+
+static int editorAppendDisplaySuffix(struct writeBuf *wb, const char *text, int max_cols,
+		int *written_cols_out) {
+	if (written_cols_out != NULL) {
+		*written_cols_out = 0;
+	}
+	if (text == NULL || max_cols <= 0) {
+		return 1;
+	}
+
+	int total_cols = editorDisplayTextCols(text);
+	if (total_cols <= max_cols) {
+		int text_len = (int)strlen(text);
+		if (text_len > 0 && !wbAppend(wb, text, (size_t)text_len)) {
+			return 0;
+		}
+		if (written_cols_out != NULL) {
+			*written_cols_out = total_cols;
+		}
+		return 1;
+	}
+
+	int text_len = (int)strlen(text);
+	int remaining_cols = total_cols;
+	int start_idx = 0;
+	while (start_idx < text_len && remaining_cols > max_cols) {
+		unsigned int cp = 0;
+		int src_len = editorUtf8DecodeCodepoint(&text[start_idx], text_len - start_idx, &cp);
+		if (src_len <= 0) {
+			src_len = 1;
+		}
+		if (src_len > text_len - start_idx) {
+			src_len = text_len - start_idx;
+		}
+		remaining_cols -= editorCharDisplayWidth(&text[start_idx], text_len - start_idx);
+		start_idx += src_len;
+	}
+
+	if (start_idx < text_len && !wbAppend(wb, &text[start_idx], (size_t)(text_len - start_idx))) {
+		return 0;
+	}
+
+	if (written_cols_out != NULL) {
+		*written_cols_out = remaining_cols;
+	}
+	return 1;
+}
+
+static char *editorSanitizeTextRangeDup(const char *text, int text_len, int *cols_out) {
+	if (cols_out != NULL) {
+		*cols_out = 0;
+	}
+
+	char *out = editorMalloc(1);
+	if (out == NULL) {
+		return NULL;
+	}
+	out[0] = '\0';
+
+	if (text == NULL || text_len <= 0) {
+		return out;
+	}
+
+	size_t out_len = 0;
+	int total_cols = 0;
+	for (int idx = 0; idx < text_len;) {
+		char escaped[4];
+		const char *token = NULL;
+		int token_len = 0;
+		int token_cols = 0;
+		int src_len = 0;
+		editorGetSanitizedToken(text, text_len, idx, &token, &token_len, &token_cols, &src_len,
+				escaped);
+
+		size_t token_len_sz = 0;
+		size_t new_len = 0;
+		size_t alloc_len = 0;
+		if (!editorIntToSize(token_len, &token_len_sz) ||
+				!editorSizeAdd(out_len, token_len_sz, &new_len) ||
+				new_len > ROTIDE_MAX_TEXT_BYTES ||
+				!editorSizeAdd(new_len, 1, &alloc_len)) {
+			free(out);
+			return NULL;
+		}
+
+		char *grown = editorRealloc(out, alloc_len);
+		if (grown == NULL) {
+			free(out);
+			return NULL;
+		}
+		out = grown;
+		memcpy(&out[out_len], token, token_len_sz);
+		out_len = new_len;
+		out[out_len] = '\0';
+
+		total_cols += token_cols;
+		idx += src_len;
+	}
+
+	if (cols_out != NULL) {
+		*cols_out = total_cols;
+	}
+	return out;
+}
+
+static char *editorSanitizeTextDup(const char *text, int *cols_out) {
+	if (text == NULL) {
+		return editorSanitizeTextRangeDup("", 0, cols_out);
+	}
+	int text_len = (int)strlen(text);
+	return editorSanitizeTextRangeDup(text, text_len, cols_out);
+}
+
 // Sanitize untrusted UI text (filename/status/message) using the same control
 // escaping policy as file rows. Tabs intentionally become "^I" here instead of
 // visual tab expansion so these bars keep deterministic layout.
@@ -150,52 +370,18 @@ static int editorAppendSanitizedText(struct writeBuf *wb, const char *text, int 
 	int text_len = (int)strlen(text);
 	int written_cols = 0;
 	for (int idx = 0; idx < text_len;) {
-		unsigned int cp = 0;
-		int src_len = editorUtf8DecodeCodepoint(&text[idx], text_len - idx, &cp);
-		if (src_len <= 0) {
-			src_len = 1;
-		}
-		if (src_len > text_len - idx) {
-			src_len = text_len - idx;
-		}
-
 		char escaped[4];
-		const char *token = &text[idx];
-		int token_len = src_len;
-		int token_cols = editorCharDisplayWidth(&text[idx], text_len - idx);
-
-		if (cp == '\t') {
-			escaped[0] = '^';
-			escaped[1] = 'I';
-			token = escaped;
-			token_len = 2;
-			token_cols = 2;
-		} else if (cp <= 0x1F) {
-			escaped[0] = '^';
-			escaped[1] = (char)('@' + (int)cp);
-			token = escaped;
-			token_len = 2;
-			token_cols = 2;
-		} else if (cp == 0x7F) {
-			escaped[0] = '^';
-			escaped[1] = '?';
-			token = escaped;
-			token_len = 2;
-			token_cols = 2;
-		} else if (cp >= 0x80 && cp <= 0x9F) {
-			escaped[0] = '\\';
-			escaped[1] = 'x';
-			escaped[2] = editorHexUpperDigit((cp >> 4) & 0x0F);
-			escaped[3] = editorHexUpperDigit(cp & 0x0F);
-			token = escaped;
-			token_len = 4;
-			token_cols = 4;
-		}
+		const char *token = NULL;
+		int token_len = 0;
+		int token_cols = 0;
+		int src_len = 0;
+		editorGetSanitizedToken(text, text_len, idx, &token, &token_len, &token_cols, &src_len,
+				escaped);
 
 		if (max_cols >= 0 && written_cols + token_cols > max_cols) {
 			break;
 		}
-		if (!wbAppend(wb, token, token_len)) {
+		if (!wbAppend(wb, token, (size_t)token_len)) {
 			return 0;
 		}
 
@@ -203,6 +389,193 @@ static int editorAppendSanitizedText(struct writeBuf *wb, const char *text, int 
 		idx += src_len;
 	}
 
+	if (written_cols_out != NULL) {
+		*written_cols_out = written_cols;
+	}
+	return 1;
+}
+
+static int editorAppendSanitizedMiddleTruncated(struct writeBuf *wb, const char *text, int max_cols,
+		int *written_cols_out) {
+	if (written_cols_out != NULL) {
+		*written_cols_out = 0;
+	}
+	if (max_cols <= 0) {
+		return 1;
+	}
+
+	int sanitized_cols = 0;
+	char *sanitized = editorSanitizeTextDup(text, &sanitized_cols);
+	if (sanitized == NULL) {
+		return 0;
+	}
+
+	int written_cols = 0;
+	if (sanitized_cols <= max_cols) {
+		size_t len = strlen(sanitized);
+		if (len > 0 && !wbAppend(wb, sanitized, len)) {
+			free(sanitized);
+			return 0;
+		}
+		written_cols = sanitized_cols;
+	} else {
+		const char *marker = ROTIDE_TAB_TRUNC_MARKER;
+		int marker_cols = editorDisplayTextCols(marker);
+		if (max_cols <= marker_cols) {
+			if (!editorAppendDisplayPrefix(wb, marker, max_cols, &written_cols)) {
+				free(sanitized);
+				return 0;
+			}
+		} else {
+			int prefix_cols = (max_cols - marker_cols + 1) / 2;
+			int suffix_cols = max_cols - marker_cols - prefix_cols;
+
+			int prefix_written = 0;
+			int suffix_written = 0;
+			if (!editorAppendDisplayPrefix(wb, sanitized, prefix_cols, &prefix_written)) {
+				free(sanitized);
+				return 0;
+			}
+			if (!wbAppend(wb, marker, strlen(marker))) {
+				free(sanitized);
+				return 0;
+			}
+			if (!editorAppendDisplaySuffix(wb, sanitized, suffix_cols, &suffix_written)) {
+				free(sanitized);
+				return 0;
+			}
+			written_cols = prefix_written + marker_cols + suffix_written;
+		}
+	}
+
+	free(sanitized);
+	if (written_cols_out != NULL) {
+		*written_cols_out = written_cols;
+	}
+	return 1;
+}
+
+static int editorAppendSanitizedStatusPath(struct writeBuf *wb, const char *path, int max_cols,
+		int *written_cols_out) {
+	if (written_cols_out != NULL) {
+		*written_cols_out = 0;
+	}
+	if (path == NULL || max_cols <= 0) {
+		return 1;
+	}
+
+	int full_cols = 0;
+	char *sanitized_full = editorSanitizeTextDup(path, &full_cols);
+	if (sanitized_full == NULL) {
+		return 0;
+	}
+	if (full_cols <= max_cols) {
+		size_t full_len = strlen(sanitized_full);
+		int ok = full_len == 0 || wbAppend(wb, sanitized_full, full_len);
+		free(sanitized_full);
+		if (!ok) {
+			return 0;
+		}
+		if (written_cols_out != NULL) {
+			*written_cols_out = full_cols;
+		}
+		return 1;
+	}
+
+	const char *basename = path;
+	const char *slash = strrchr(path, '/');
+	if (slash != NULL && slash[1] != '\0') {
+		basename = slash + 1;
+	}
+	size_t dir_len_sz = (size_t)(basename - path);
+	if (dir_len_sz > (size_t)INT_MAX) {
+		free(sanitized_full);
+		return 0;
+	}
+	int dir_len = (int)dir_len_sz;
+
+	int basename_cols = 0;
+	char *sanitized_basename = editorSanitizeTextDup(basename, &basename_cols);
+	if (sanitized_basename == NULL) {
+		free(sanitized_full);
+		return 0;
+	}
+
+	const char *marker = ROTIDE_TAB_TRUNC_MARKER;
+	int marker_cols = editorDisplayTextCols(marker);
+	int written_cols = 0;
+	if (basename_cols >= max_cols) {
+		if (max_cols <= marker_cols) {
+			if (!editorAppendDisplayPrefix(wb, marker, max_cols, &written_cols)) {
+				free(sanitized_basename);
+				free(sanitized_full);
+				return 0;
+			}
+		} else {
+			int suffix_written = 0;
+			if (!wbAppend(wb, marker, strlen(marker)) ||
+					!editorAppendDisplaySuffix(wb, sanitized_basename, max_cols - marker_cols,
+							&suffix_written)) {
+				free(sanitized_basename);
+				free(sanitized_full);
+				return 0;
+			}
+			written_cols = marker_cols + suffix_written;
+		}
+	} else {
+		int prefix_budget = max_cols - basename_cols;
+		int prefix_written = 0;
+		if (prefix_budget > 0 && dir_len > 0) {
+			int dir_cols = 0;
+			char *sanitized_dir = editorSanitizeTextRangeDup(path, dir_len, &dir_cols);
+			if (sanitized_dir == NULL) {
+				free(sanitized_basename);
+				free(sanitized_full);
+				return 0;
+			}
+
+			if (dir_cols <= prefix_budget) {
+				if (!editorAppendDisplayPrefix(wb, sanitized_dir, prefix_budget, &prefix_written)) {
+					free(sanitized_dir);
+					free(sanitized_basename);
+					free(sanitized_full);
+					return 0;
+				}
+			} else if (prefix_budget <= marker_cols) {
+				if (!editorAppendDisplaySuffix(wb, sanitized_dir, prefix_budget, &prefix_written)) {
+					free(sanitized_dir);
+					free(sanitized_basename);
+					free(sanitized_full);
+					return 0;
+				}
+			} else {
+				int suffix_written = 0;
+				if (!wbAppend(wb, marker, strlen(marker)) ||
+						!editorAppendDisplaySuffix(wb, sanitized_dir, prefix_budget - marker_cols,
+								&suffix_written)) {
+					free(sanitized_dir);
+					free(sanitized_basename);
+					free(sanitized_full);
+					return 0;
+				}
+				prefix_written = marker_cols + suffix_written;
+			}
+
+			free(sanitized_dir);
+		}
+
+		int basename_written = 0;
+		if (!editorAppendDisplayPrefix(wb, sanitized_basename, max_cols - prefix_written,
+					&basename_written)) {
+			free(sanitized_basename);
+			free(sanitized_full);
+			return 0;
+		}
+		written_cols = prefix_written + basename_written;
+	}
+
+	free(sanitized_basename);
+	free(sanitized_full);
 	if (written_cols_out != NULL) {
 		*written_cols_out = written_cols;
 	}
@@ -349,67 +722,78 @@ static int editorDrawTabSlots(struct writeBuf *wb, int cols) {
 		return 1;
 	}
 
-	editorTabsAlignViewToActive(cols);
-	int tab_count = editorTabCount();
-	int active = editorTabActiveIndex();
-	int visible_slots = editorTabVisibleSlotsForWidth(cols);
-	int draw_slot_width = ROTIDE_TAB_SLOT_WIDTH;
-	if (cols < draw_slot_width) {
-		draw_slot_width = cols;
+	struct editorTabLayoutEntry layout[ROTIDE_MAX_TABS];
+	int layout_count = 0;
+	if (!editorTabBuildLayoutForWidth(cols, layout, ROTIDE_MAX_TABS, &layout_count)) {
+		return 0;
 	}
 
-	for (int slot = 0; slot < visible_slots; slot++) {
-		int tab_idx = E.tab_view_start + slot;
-		int slot_cols = 0;
+	int active = editorTabActiveIndex();
+	int drawn_cols = 0;
+	for (int i = 0; i < layout_count; i++) {
+		const struct editorTabLayoutEntry *entry = &layout[i];
+		int tab_idx = entry->tab_idx;
+		int slot_width = entry->width_cols;
+		if (slot_width <= 0) {
+			continue;
+		}
 		int is_active = tab_idx == active;
-		int show_left_overflow = slot == 0 && E.tab_view_start > 0;
-		int show_right_overflow = slot == visible_slots - 1 &&
-				E.tab_view_start + visible_slots < tab_count;
-
 		if (is_active && !wbAppend(wb, VT100_INVERTED_COLORS_4, 4)) {
 			return 0;
 		}
 
-		char marker = show_left_overflow ? '<' : ' ';
-		if (!wbAppend(wb, &marker, 1)) {
+		int content_width = slot_width;
+		if (entry->show_right_overflow && content_width > 0) {
+			content_width--;
+		}
+
+		int slot_cols = 0;
+		char marker = entry->show_left_overflow ? '<' : ' ';
+		if (slot_cols < content_width && !wbAppend(wb, &marker, 1)) {
 			return 0;
 		}
-		slot_cols++;
+		if (slot_cols < content_width) {
+			slot_cols++;
+		}
 
 		char dirty = ' ';
-		if (tab_idx >= 0 && tab_idx < tab_count && editorTabDirtyAt(tab_idx)) {
+		if (editorTabDirtyAt(tab_idx)) {
 			dirty = '*';
 		}
-		if (slot_cols < draw_slot_width && !wbAppend(wb, &dirty, 1)) {
+		if (slot_cols < content_width && !wbAppend(wb, &dirty, 1)) {
 			return 0;
 		}
-		if (slot_cols < draw_slot_width) {
+		if (slot_cols < content_width) {
 			slot_cols++;
 		}
 
-		if (slot_cols < draw_slot_width && !wbAppend(wb, " ", 1)) {
+		if (slot_cols < content_width && !wbAppend(wb, " ", 1)) {
 			return 0;
 		}
-		if (slot_cols < draw_slot_width) {
+		if (slot_cols < content_width) {
 			slot_cols++;
 		}
 
-		if (tab_idx >= 0 && tab_idx < tab_count && slot_cols < draw_slot_width) {
+		if (slot_cols < content_width) {
 			const char *label = editorTabLabelFromFilename(editorTabFilenameAt(tab_idx));
-			int remaining = draw_slot_width - slot_cols;
+			int label_cols = content_width - slot_cols;
 			int written = 0;
-			if (!editorAppendSanitizedText(wb, label, remaining, &written)) {
+			if (!editorAppendSanitizedMiddleTruncated(wb, label, label_cols, &written)) {
 				return 0;
 			}
 			slot_cols += written;
 		}
 
-		while (slot_cols < draw_slot_width) {
+		while (slot_cols < content_width) {
 			char pad = ' ';
-			if (show_right_overflow && slot_cols == draw_slot_width - 1) {
-				pad = '>';
-			}
 			if (!wbAppend(wb, &pad, 1)) {
+				return 0;
+			}
+			slot_cols++;
+		}
+		if (entry->show_right_overflow) {
+			char overflow = '>';
+			if (!wbAppend(wb, &overflow, 1)) {
 				return 0;
 			}
 			slot_cols++;
@@ -418,9 +802,10 @@ static int editorDrawTabSlots(struct writeBuf *wb, int cols) {
 		if (is_active && !wbAppend(wb, VT100_NORMAL_COLORS_3, 3)) {
 			return 0;
 		}
+
+		drawn_cols += slot_width;
 	}
 
-	int drawn_cols = visible_slots * draw_slot_width;
 	while (drawn_cols < cols) {
 		if (!wbAppend(wb, " ", 1)) {
 			return 0;
@@ -606,31 +991,57 @@ static int editorDrawStatusBar(struct writeBuf *wb) {
 		rlen = 0;
 	}
 
+	int right_start_col = E.window_cols - rlen;
+	if (right_start_col < 0) {
+		right_start_col = 0;
+	}
+
+	int dirty_cols = (int)strlen(dirtyflag);
+	int left_budget = right_start_col;
+	int reserved_for_dirty = 0;
+	int include_dirty_sep = 0;
+	if (dirty_cols > 0) {
+		if (left_budget >= dirty_cols + 1) {
+			reserved_for_dirty = dirty_cols + 1;
+			include_dirty_sep = 1;
+		} else if (left_budget >= dirty_cols) {
+			reserved_for_dirty = dirty_cols;
+		}
+	}
+
+	int path_budget = left_budget - reserved_for_dirty;
+	if (path_budget < 0) {
+		path_budget = 0;
+	}
+
 	int left_cols = 0;
-	// Keep left side both sanitized and display-width bounded before alignment.
-	if (!editorAppendSanitizedText(wb, filename, 20, &left_cols)) {
+	if (!editorAppendSanitizedStatusPath(wb, filename, path_budget, &left_cols)) {
 		return 0;
 	}
-	if (left_cols < E.window_cols) {
-		if (!wbAppend(wb, " ", 1)) {
-			return 0;
-		}
-		left_cols++;
-	}
-	for (int i = 0; dirtyflag[i] != '\0' && left_cols < E.window_cols; i++) {
-		if (!wbAppend(wb, &dirtyflag[i], 1)) {
-			return 0;
-		}
-		left_cols++;
-	}
 
-	for (; left_cols < E.window_cols - rlen; left_cols++) {
-		if (!wbAppend(wb, " ", 1)) {
-			return 0;
+	if (reserved_for_dirty > 0) {
+		if (include_dirty_sep && left_cols < right_start_col) {
+			if (!wbAppend(wb, " ", 1)) {
+				return 0;
+			}
+			left_cols++;
+		}
+
+		for (int i = 0; dirtyflag[i] != '\0' && left_cols < right_start_col; i++) {
+			if (!wbAppend(wb, &dirtyflag[i], 1)) {
+				return 0;
+			}
+			left_cols++;
 		}
 	}
 
-	if (!wbAppend(wb, rightbuf, rlen)) {
+	for (; left_cols < right_start_col; left_cols++) {
+		if (!wbAppend(wb, " ", 1)) {
+			return 0;
+		}
+	}
+
+	if (rlen > 0 && !wbAppend(wb, rightbuf, (size_t)rlen)) {
 		return 0;
 	}
 	if (!wbAppend(wb, VT100_NORMAL_COLORS_3, 3)) {

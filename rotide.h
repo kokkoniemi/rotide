@@ -18,7 +18,8 @@
 #define ROTIDE_MAX_TEXT_BYTES ((size_t)INT_MAX)
 #define ROTIDE_KEYMAP_MAX_BINDINGS 64
 #define ROTIDE_MAX_TABS 128
-#define ROTIDE_TAB_SLOT_WIDTH 16
+#define ROTIDE_TAB_TITLE_MAX_COLS 25
+#define ROTIDE_TAB_TRUNC_MARKER "..."
 #define ROTIDE_DRAWER_DEFAULT_WIDTH 24
 #define ROTIDE_ALT_LETTER_KEY_BASE 91000
 #define ROTIDE_CTRL_ALT_LETTER_KEY_BASE 91026
@@ -90,6 +91,14 @@ struct editorDrawerEntryView {
 	int is_selected;
 	int has_scan_error;
 	int is_root;
+};
+
+struct editorTabLayoutEntry {
+	int tab_idx;
+	int start_col;
+	int width_cols;
+	int show_left_overflow;
+	int show_right_overflow;
 };
 
 enum editorAction {

@@ -1585,63 +1585,242 @@ int editorTabDirtyAt(int idx) {
 	return E.tabs[idx].dirty != 0;
 }
 
-int editorTabVisibleSlotsForWidth(int cols) {
-	int slots = cols / ROTIDE_TAB_SLOT_WIDTH;
-	if (slots < 1) {
-		slots = 1;
+static const char *editorTabLabelFromFilename(const char *filename) {
+	if (filename == NULL) {
+		return "[No Name]";
 	}
-	return slots;
+	const char *slash = strrchr(filename, '/');
+	if (slash != NULL && slash[1] != '\0') {
+		return slash + 1;
+	}
+	return filename;
 }
 
-void editorTabsAlignViewToActive(int cols) {
+static int editorSanitizedTokenDisplayCols(const char *text, int text_len, int *src_len_out) {
+	unsigned int cp = 0;
+	int src_len = editorUtf8DecodeCodepoint(text, text_len, &cp);
+	if (src_len <= 0) {
+		src_len = 1;
+	}
+	if (src_len > text_len) {
+		src_len = text_len;
+	}
+	if (src_len_out != NULL) {
+		*src_len_out = src_len;
+	}
+
+	if (cp == '\t' || cp <= 0x1F || cp == 0x7F) {
+		return 2;
+	}
+	if (cp >= 0x80 && cp <= 0x9F) {
+		return 4;
+	}
+	return editorCharDisplayWidth(text, text_len);
+}
+
+static int editorSanitizedTextDisplayCols(const char *text, int max_cols) {
+	if (text == NULL) {
+		return 0;
+	}
+
+	int text_len = (int)strlen(text);
+	int total_cols = 0;
+	for (int idx = 0; idx < text_len;) {
+		int src_len = 0;
+		int token_cols = editorSanitizedTokenDisplayCols(&text[idx], text_len - idx, &src_len);
+		if (max_cols >= 0 && total_cols + token_cols > max_cols) {
+			break;
+		}
+		total_cols += token_cols;
+		idx += src_len;
+	}
+
+	return total_cols;
+}
+
+static int editorTabLabelColsAt(int tab_idx) {
+	const char *label = editorTabLabelFromFilename(editorTabFilenameAt(tab_idx));
+	int cols = editorSanitizedTextDisplayCols(label, ROTIDE_TAB_TITLE_MAX_COLS);
+	if (cols < 1) {
+		cols = 1;
+	}
+	return cols;
+}
+
+static int editorTabWidthColsAt(int tab_idx) {
+	return 3 + editorTabLabelColsAt(tab_idx);
+}
+
+static void editorTabVisibleRangeFromStart(int start_idx, int cols, int *last_idx_out) {
+	int last_idx = start_idx - 1;
+	if (E.tab_count <= 0 || cols <= 0 || start_idx < 0 || start_idx >= E.tab_count) {
+		*last_idx_out = last_idx;
+		return;
+	}
+
+	int used_cols = 0;
+	for (int tab_idx = start_idx; tab_idx < E.tab_count; tab_idx++) {
+		int width_cols = editorTabWidthColsAt(tab_idx);
+		if (width_cols < 1) {
+			width_cols = 1;
+		}
+		if (tab_idx == start_idx && width_cols > cols) {
+			width_cols = cols;
+		}
+		if (tab_idx > start_idx && used_cols + width_cols > cols) {
+			break;
+		}
+		if (width_cols <= 0) {
+			break;
+		}
+
+		used_cols += width_cols;
+		last_idx = tab_idx;
+		if (used_cols >= cols) {
+			break;
+		}
+	}
+
+	if (last_idx < start_idx && cols > 0) {
+		last_idx = start_idx;
+	}
+	*last_idx_out = last_idx;
+}
+
+static void editorTabsAlignViewToActiveForWidth(int cols) {
 	if (E.tab_count <= 0) {
 		E.tab_view_start = 0;
 		return;
 	}
-
-	int visible = editorTabVisibleSlotsForWidth(cols);
-	int max_start = E.tab_count - visible;
-	if (max_start < 0) {
-		max_start = 0;
+	if (E.active_tab < 0) {
+		E.active_tab = 0;
+	}
+	if (E.active_tab >= E.tab_count) {
+		E.active_tab = E.tab_count - 1;
 	}
 
-	if (E.tab_view_start > max_start) {
-		E.tab_view_start = max_start;
-	}
 	if (E.tab_view_start < 0) {
 		E.tab_view_start = 0;
 	}
+	if (E.tab_view_start >= E.tab_count) {
+		E.tab_view_start = E.tab_count - 1;
+	}
+
+	if (cols <= 0) {
+		if (E.active_tab < E.tab_view_start) {
+			E.tab_view_start = E.active_tab;
+		}
+		return;
+	}
+
 	if (E.active_tab < E.tab_view_start) {
 		E.tab_view_start = E.active_tab;
 	}
-	if (E.active_tab >= E.tab_view_start + visible) {
-		E.tab_view_start = E.active_tab - visible + 1;
-	}
-	if (E.tab_view_start > max_start) {
-		E.tab_view_start = max_start;
-	}
-	if (E.tab_view_start < 0) {
-		E.tab_view_start = 0;
+
+	int last_visible = E.tab_view_start;
+	editorTabVisibleRangeFromStart(E.tab_view_start, cols, &last_visible);
+	while (E.active_tab > last_visible && E.tab_view_start < E.active_tab) {
+		E.tab_view_start++;
+		editorTabVisibleRangeFromStart(E.tab_view_start, cols, &last_visible);
 	}
 }
 
+int editorTabBuildLayoutForWidth(int cols, struct editorTabLayoutEntry *entries, int max_entries,
+		int *count_out) {
+	if (count_out != NULL) {
+		*count_out = 0;
+	}
+	if (E.tab_count <= 0 || cols <= 0 || max_entries == 0) {
+		if (E.tab_count <= 0) {
+			E.tab_view_start = 0;
+		}
+		return 1;
+	}
+	if (entries == NULL || max_entries < 0) {
+		return 0;
+	}
+
+	editorTabsAlignViewToActiveForWidth(cols);
+	int start_idx = E.tab_view_start;
+	if (start_idx < 0) {
+		start_idx = 0;
+	}
+	if (start_idx >= E.tab_count) {
+		start_idx = E.tab_count - 1;
+	}
+
+	int used_cols = 0;
+	int count = 0;
+	for (int tab_idx = start_idx; tab_idx < E.tab_count && used_cols < cols; tab_idx++) {
+		if (count >= max_entries) {
+			break;
+		}
+
+		int width_cols = editorTabWidthColsAt(tab_idx);
+		if (width_cols < 1) {
+			width_cols = 1;
+		}
+		if (count == 0 && width_cols > cols) {
+			width_cols = cols;
+		}
+		if (count > 0 && used_cols + width_cols > cols) {
+			break;
+		}
+		if (width_cols <= 0) {
+			break;
+		}
+
+		struct editorTabLayoutEntry *entry = &entries[count];
+		entry->tab_idx = tab_idx;
+		entry->start_col = used_cols;
+		entry->width_cols = width_cols;
+		entry->show_left_overflow = 0;
+		entry->show_right_overflow = 0;
+
+		used_cols += width_cols;
+		count++;
+	}
+
+	if (count == 0) {
+		struct editorTabLayoutEntry *entry = &entries[0];
+		entry->tab_idx = start_idx;
+		entry->start_col = 0;
+		entry->width_cols = cols;
+		entry->show_left_overflow = 0;
+		entry->show_right_overflow = 0;
+		count = 1;
+	}
+
+	if (count > 0) {
+		entries[0].show_left_overflow = entries[0].tab_idx > 0;
+		entries[count - 1].show_right_overflow =
+				entries[count - 1].tab_idx < E.tab_count - 1;
+	}
+
+	if (count_out != NULL) {
+		*count_out = count;
+	}
+	return 1;
+}
+
 int editorTabHitTestColumn(int col, int cols) {
-	if (col < 0 || col >= cols || E.tab_count <= 0) {
+	if (col < 0 || col >= cols || E.tab_count <= 0 || cols <= 0) {
 		return -1;
 	}
 
-	editorTabsAlignViewToActive(cols);
-	int visible = editorTabVisibleSlotsForWidth(cols);
-	int slot = col / ROTIDE_TAB_SLOT_WIDTH;
-	if (slot < 0 || slot >= visible) {
+	struct editorTabLayoutEntry layout[ROTIDE_MAX_TABS];
+	int layout_count = 0;
+	if (!editorTabBuildLayoutForWidth(cols, layout, ROTIDE_MAX_TABS, &layout_count)) {
 		return -1;
 	}
-
-	int tab_idx = E.tab_view_start + slot;
-	if (tab_idx < 0 || tab_idx >= E.tab_count) {
-		return -1;
+	for (int i = 0; i < layout_count; i++) {
+		int start_col = layout[i].start_col;
+		int end_col = start_col + layout[i].width_cols;
+		if (col >= start_col && col < end_col) {
+			return layout[i].tab_idx;
+		}
 	}
-	return tab_idx;
+	return -1;
 }
 
 /*** Drawer ***/

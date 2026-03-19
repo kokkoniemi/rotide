@@ -75,8 +75,8 @@ int editorTabActiveIndex(void);
 int editorTabAnyDirty(void);
 const char *editorTabFilenameAt(int idx);
 int editorTabDirtyAt(int idx);
-int editorTabVisibleSlotsForWidth(int cols);
-void editorTabsAlignViewToActive(int cols);
+int editorTabBuildLayoutForWidth(int cols, struct editorTabLayoutEntry *entries, int max_entries,
+		int *count_out);
 int editorTabHitTestColumn(int col, int cols);
 
 int editorGetSelectionRange(struct editorSelectionRange *range_out);

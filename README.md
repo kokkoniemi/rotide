@@ -15,6 +15,7 @@ search, save, undo/redo, selection, tabs, and keymap configuration are implement
 - UTF-8 aware row operations and grapheme-safe cursor movement.
 - Incremental search, go-to-line, and selection mode.
 - Multi-tab file buffers with a top tab bar and mouse tab switching.
+- Variable-width tab titles that grow to content, with middle truncation after 25 columns.
 - Always-visible file drawer rooted to the startup project directory.
 - Clipboard copy/cut/paste with optional OSC52 terminal sync.
 - Undo/redo history for insert/delete/newline edit flows.
@@ -22,6 +23,7 @@ search, save, undo/redo, selection, tabs, and keymap configuration are implement
 - Atomic save path with temp-file + rename strategy and cleanup handling.
 - Crash recovery via autosaved per-project recovery session files.
 - Configurable keymap via TOML (`~/.rotide/config.toml` and `./.rotide.toml`).
+- Status bar path rendering that prioritizes keeping the full basename visible.
 
 ## Build and run
 

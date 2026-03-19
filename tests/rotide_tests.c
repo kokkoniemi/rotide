@@ -3772,6 +3772,51 @@ static int test_editor_process_keypress_mouse_top_row_click_switches_tab(void) {
 	return 0;
 }
 
+static int test_editor_process_keypress_mouse_top_row_click_uses_variable_tab_layout(void) {
+	ASSERT_TRUE(editorTabsInit());
+	free(E.filename);
+	E.filename = strdup("/tmp/aaaaaaaaaaabbbbbbbbbbbccccccccccc");
+	ASSERT_TRUE(E.filename != NULL);
+	add_row("zero");
+
+	ASSERT_TRUE(editorTabNewEmpty());
+	free(E.filename);
+	E.filename = strdup("/tmp/one.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	add_row("one");
+
+	ASSERT_TRUE(editorTabNewEmpty());
+	free(E.filename);
+	E.filename = strdup("/tmp/two.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	add_row("two");
+
+	E.window_cols = 90;
+	int text_cols = editorDrawerTextViewportCols(E.window_cols);
+	struct editorTabLayoutEntry layout[ROTIDE_MAX_TABS];
+	int layout_count = 0;
+	ASSERT_TRUE(editorTabBuildLayoutForWidth(text_cols, layout, ROTIDE_MAX_TABS, &layout_count));
+	ASSERT_TRUE(layout_count >= 2);
+
+	int second_tab_col = -1;
+	for (int i = 0; i < layout_count; i++) {
+		if (layout[i].tab_idx == 1) {
+			second_tab_col = layout[i].start_col + 1;
+			break;
+		}
+	}
+	ASSERT_TRUE(second_tab_col >= 0);
+
+	int text_start = editorDrawerTextStartColForCols(E.window_cols);
+	char click_second_tab[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click_second_tab, sizeof(click_second_tab), 0,
+				text_start + second_tab_col + 1, 1, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_second_tab, strlen(click_second_tab)) == 0);
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_EQ_STR("one", E.rows[0].chars);
+	return 0;
+}
+
 static int test_editor_process_keypress_mouse_drag_on_splitter_resizes_drawer(void) {
 	add_row("abcdef");
 	E.window_rows = 4;
@@ -5325,7 +5370,7 @@ static int test_editor_refresh_screen_renders_tab_bar_with_overflow_and_sanitize
 
 	ASSERT_TRUE(editorTabSwitchToIndex(0));
 	E.window_rows = 3;
-	E.window_cols = 64;
+	E.window_cols = 50;
 	E.cy = 0;
 	E.cx = 0;
 
@@ -5334,10 +5379,70 @@ static int test_editor_refresh_screen_renders_tab_bar_with_overflow_and_sanitize
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[7m") != NULL);
 	ASSERT_TRUE(strstr(output, "* a^[[31m.txt") != NULL);
-	ASSERT_TRUE(strstr(output, "beta.txt") != NULL);
+	ASSERT_TRUE(strstr(output, "beta.txt") == NULL);
 	ASSERT_TRUE(strstr(output, "gamma.txt") == NULL);
 	ASSERT_TRUE(strstr(output, ">") != NULL);
 	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_tab_labels_middle_truncate_at_25_cols(void) {
+	ASSERT_TRUE(editorTabsInit());
+	free(E.filename);
+	E.filename = strdup("/tmp/aaaaaaaaaaabbbbbbbbbbbccccccccccc");
+	ASSERT_TRUE(E.filename != NULL);
+	E.window_rows = 3;
+	E.window_cols = 80;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "aaaaaaaaaaa...ccccccccccc") != NULL);
+	free(output);
+	return 0;
+}
+
+static int test_editor_tabs_align_view_keeps_active_visible_with_variable_widths(void) {
+	ASSERT_TRUE(editorTabsInit());
+	free(E.filename);
+	E.filename = strdup("/tmp/first_tab_with_a_long_name_001.txt");
+	ASSERT_TRUE(E.filename != NULL);
+
+	ASSERT_TRUE(editorTabNewEmpty());
+	free(E.filename);
+	E.filename = strdup("/tmp/second_tab_with_a_long_name_002.txt");
+	ASSERT_TRUE(E.filename != NULL);
+
+	ASSERT_TRUE(editorTabNewEmpty());
+	free(E.filename);
+	E.filename = strdup("/tmp/third_tab_with_a_long_name_003.txt");
+	ASSERT_TRUE(E.filename != NULL);
+
+	ASSERT_TRUE(editorTabNewEmpty());
+	free(E.filename);
+	E.filename = strdup("/tmp/fourth_tab_with_a_long_name_004.txt");
+	ASSERT_TRUE(E.filename != NULL);
+
+	ASSERT_TRUE(editorTabSwitchToIndex(3));
+	E.window_cols = 46;
+	int text_cols = editorDrawerTextViewportCols(E.window_cols);
+
+	struct editorTabLayoutEntry layout[ROTIDE_MAX_TABS];
+	int layout_count = 0;
+	ASSERT_TRUE(editorTabBuildLayoutForWidth(text_cols, layout, ROTIDE_MAX_TABS, &layout_count));
+	ASSERT_TRUE(layout_count >= 1);
+	ASSERT_TRUE(E.tab_view_start > 0);
+
+	int active_visible = 0;
+	for (int i = 0; i < layout_count; i++) {
+		if (layout[i].tab_idx == 3) {
+			active_visible = 1;
+			break;
+		}
+	}
+	ASSERT_TRUE(active_visible);
 	return 0;
 }
 
@@ -5635,6 +5740,43 @@ static int test_editor_refresh_screen_status_bar_cursor_tab_display_col(void) {
 	return 0;
 }
 
+static int test_editor_refresh_screen_status_bar_shows_full_path_when_space_allows(void) {
+	add_row("line");
+	E.window_rows = 3;
+	E.window_cols = 110;
+	E.cy = 0;
+	E.cx = 0;
+	E.filename = strdup("/project/src/modules/editor/very_long_filename.c");
+	ASSERT_TRUE(E.filename != NULL);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "/project/src/modules/editor/very_long_filename.c") != NULL);
+	ASSERT_TRUE(strstr(output, "1,1    100%") != NULL);
+	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_status_bar_truncates_prefix_keeps_basename_visible(void) {
+	add_row("line");
+	E.window_rows = 3;
+	E.window_cols = 45;
+	E.cy = 0;
+	E.cx = 0;
+	E.filename = strdup("/very/long/prefix/that/keeps/growing/path/target_file_name.c");
+	ASSERT_TRUE(E.filename != NULL);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "target_file_name.c") != NULL);
+	ASSERT_TRUE(strstr(output, "...") != NULL);
+	ASSERT_TRUE(strstr(output, "1,1    100%") != NULL);
+	free(output);
+	return 0;
+}
+
 struct testCase {
 	const char *name;
 	int (*run)(void);
@@ -5867,6 +6009,8 @@ int main(void) {
 					test_editor_process_keypress_mouse_drawer_double_click_file_opens_tab},
 				{"editor_process_keypress_mouse_top_row_click_switches_tab",
 					test_editor_process_keypress_mouse_top_row_click_switches_tab},
+				{"editor_process_keypress_mouse_top_row_click_uses_variable_tab_layout",
+					test_editor_process_keypress_mouse_top_row_click_uses_variable_tab_layout},
 			{"editor_process_keypress_mouse_drag_on_splitter_resizes_drawer",
 				test_editor_process_keypress_mouse_drag_on_splitter_resizes_drawer},
 			{"editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps",
@@ -5999,10 +6143,14 @@ int main(void) {
 				test_editor_refresh_screen_escapes_filename_controls},
 			{"editor_refresh_screen_escapes_status_controls",
 				test_editor_refresh_screen_escapes_status_controls},
-				{"editor_refresh_screen_escapes_file_content_controls",
-					test_editor_refresh_screen_escapes_file_content_controls},
+			{"editor_refresh_screen_escapes_file_content_controls",
+				test_editor_refresh_screen_escapes_file_content_controls},
 			{"editor_refresh_screen_renders_tab_bar_with_overflow_and_sanitized_labels",
 				test_editor_refresh_screen_renders_tab_bar_with_overflow_and_sanitized_labels},
+			{"editor_refresh_screen_tab_labels_middle_truncate_at_25_cols",
+				test_editor_refresh_screen_tab_labels_middle_truncate_at_25_cols},
+			{"editor_tabs_align_view_keeps_active_visible_with_variable_widths",
+				test_editor_tabs_align_view_keeps_active_visible_with_variable_widths},
 			{"editor_refresh_screen_renders_drawer_entries_and_selection",
 				test_editor_refresh_screen_renders_drawer_entries_and_selection},
 			{"editor_refresh_screen_drawer_splitter_spans_editor_rows",
@@ -6025,6 +6173,10 @@ int main(void) {
 			test_editor_refresh_screen_status_bar_cursor_multibyte_col},
 		{"editor_refresh_screen_status_bar_cursor_tab_display_col",
 			test_editor_refresh_screen_status_bar_cursor_tab_display_col},
+		{"editor_refresh_screen_status_bar_shows_full_path_when_space_allows",
+			test_editor_refresh_screen_status_bar_shows_full_path_when_space_allows},
+		{"editor_refresh_screen_status_bar_truncates_prefix_keeps_basename_visible",
+			test_editor_refresh_screen_status_bar_truncates_prefix_keeps_basename_visible},
 		{"editor_refresh_screen_reports_oom_without_crash",
 			test_editor_refresh_screen_reports_oom_without_crash},
 	};
