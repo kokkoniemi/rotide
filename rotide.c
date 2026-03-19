@@ -61,6 +61,11 @@ void initEditor(void) {
 	E.close_confirmed = 0;
 	E.recovery_path = NULL;
 	E.recovery_last_autosave_time = 0;
+	E.drawer_root_path = NULL;
+	E.drawer_root = NULL;
+	E.drawer_selected_index = 0;
+	E.drawer_rowoff = 0;
+	E.pane_focus = EDITOR_PANE_TEXT;
 	editorKeymapInitDefaults(&E.keymap);
 	editorClipboardSetExternalSink(editorClipboardSyncOsc52);
 	if (!editorTabsInit()) {
@@ -90,7 +95,10 @@ int main(int argc, char *argv[]) {
 		editorSetStatusMsg("Out of memory");
 	}
 
-	(void)editorStartupLoadRecoveryOrOpenArgs(argc, argv);
+	int restored_session = editorStartupLoadRecoveryOrOpenArgs(argc, argv);
+	if (!editorDrawerInitForStartup(argc, argv, restored_session)) {
+		editorSetStatusMsg("Drawer disabled (init failed)");
+	}
 
 	if (keymap_status == EDITOR_KEYMAP_LOAD_OK && E.statusmsg[0] == '\0') {
 		char help_msg[160];

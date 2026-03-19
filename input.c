@@ -695,9 +695,12 @@ static int editorResolveMouseToBufferPosition(const struct editorMouseEvent *eve
 	// SGR mouse coordinates are terminal-absolute and 1-based.
 	// Row 1 is the tab bar; text viewport starts on row 2.
 	int mouse_row = event->y - 2;
-	int mouse_col = event->x - 1;
+	int raw_col = event->x - 1;
+	int text_cols = editorDrawerTextViewportCols(E.window_cols);
+	int text_start_col = editorDrawerTextStartColForCols(E.window_cols);
+	int mouse_col = raw_col - text_start_col;
 	if (clamp_to_viewport) {
-		if (E.window_rows <= 0 || E.window_cols <= 0) {
+		if (E.window_rows <= 0 || text_cols <= 0) {
 			return 0;
 		}
 		if (mouse_row < 0) {
@@ -709,12 +712,13 @@ static int editorResolveMouseToBufferPosition(const struct editorMouseEvent *eve
 		if (mouse_col < 0) {
 			mouse_col = 0;
 		}
-		if (mouse_col >= E.window_cols) {
-			mouse_col = E.window_cols - 1;
+		if (mouse_col >= text_cols) {
+			mouse_col = text_cols - 1;
 		}
 	} else {
 		// Ignore clicks outside text rows (tab/status/message bars are excluded).
-		if (mouse_row < 0 || mouse_row >= E.window_rows || mouse_col < 0) {
+		if (mouse_row < 0 || mouse_row >= E.window_rows || mouse_col < 0 ||
+				mouse_col >= text_cols) {
 			return 0;
 		}
 	}
@@ -759,11 +763,40 @@ static int editorMoveCursorToMouse(const struct editorMouseEvent *event, int cla
 }
 
 static void editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
+	int mouse_col = event->x - 1;
+	int drawer_cols = editorDrawerWidthForCols(E.window_cols);
+	int separator_cols = editorDrawerSeparatorWidthForCols(E.window_cols);
+	int text_start_col = editorDrawerTextStartColForCols(E.window_cols);
+	int text_cols = editorDrawerTextViewportCols(E.window_cols);
+	int drawer_view_rows = E.window_rows + 1;
+
+	int drawer_row = event->y - 1;
+	if (drawer_row >= 0 && drawer_row < drawer_view_rows &&
+			mouse_col >= 0 && mouse_col < drawer_cols) {
+		int visible_idx = E.drawer_rowoff + drawer_row;
+		if (editorDrawerSelectVisibleIndex(visible_idx, drawer_view_rows) &&
+				editorDrawerSelectedIsDirectory()) {
+			(void)editorDrawerToggleSelectionExpanded(drawer_view_rows);
+		}
+		E.pane_focus = EDITOR_PANE_DRAWER;
+		E.mouse_left_button_down = 0;
+		E.mouse_drag_started = 0;
+		return;
+	}
+
 	if (event->y == 1) {
-		int tab_idx = editorTabHitTestColumn(event->x - 1, E.window_cols);
+		int tab_col = mouse_col - text_start_col;
+		int tab_idx = editorTabHitTestColumn(tab_col, text_cols);
 		if (tab_idx >= 0) {
 			(void)editorTabSwitchToIndex(tab_idx);
 		}
+		E.mouse_left_button_down = 0;
+		E.mouse_drag_started = 0;
+		return;
+	}
+
+	if (drawer_row >= 0 && drawer_row < drawer_view_rows &&
+			separator_cols == 1 && mouse_col == drawer_cols) {
 		E.mouse_left_button_down = 0;
 		E.mouse_drag_started = 0;
 		return;
@@ -775,6 +808,7 @@ static void editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 		return;
 	}
 
+	E.pane_focus = EDITOR_PANE_TEXT;
 	E.mouse_left_button_down = 1;
 	E.mouse_drag_anchor_cx = E.cx;
 	E.mouse_drag_anchor_cy = E.cy;
@@ -859,14 +893,18 @@ static int editorProcessMappedAction(enum editorAction action) {
 			editorHistoryBreakGroup();
 			(void)editorTabSwitchByDelta(1);
 			return 0;
-		case EDITOR_ACTION_PREV_TAB:
-			editorHistoryBreakGroup();
-			(void)editorTabSwitchByDelta(-1);
-			return 0;
-		case EDITOR_ACTION_FIND:
-			editorHistoryBreakGroup();
-			editorFind();
-			return 0;
+			case EDITOR_ACTION_PREV_TAB:
+				editorHistoryBreakGroup();
+				(void)editorTabSwitchByDelta(-1);
+				return 0;
+			case EDITOR_ACTION_FOCUS_DRAWER:
+				editorHistoryBreakGroup();
+				E.pane_focus = EDITOR_PANE_DRAWER;
+				return 0;
+			case EDITOR_ACTION_FIND:
+				editorHistoryBreakGroup();
+				editorFind();
+				return 0;
 		case EDITOR_ACTION_GOTO_LINE:
 			editorHistoryBreakGroup();
 			editorGoToLine();
@@ -932,22 +970,38 @@ static int editorProcessMappedAction(enum editorAction action) {
 				editorMoveCursor(ARROW_DOWN);
 			}
 			return 0;
-		case EDITOR_ACTION_MOVE_UP:
-			editorHistoryBreakGroup();
-			editorMoveCursor(ARROW_UP);
-			return 0;
-		case EDITOR_ACTION_MOVE_DOWN:
-			editorHistoryBreakGroup();
-			editorMoveCursor(ARROW_DOWN);
-			return 0;
-		case EDITOR_ACTION_MOVE_LEFT:
-			editorHistoryBreakGroup();
-			editorMoveCursor(ARROW_LEFT);
-			return 0;
-		case EDITOR_ACTION_MOVE_RIGHT:
-			editorHistoryBreakGroup();
-			editorMoveCursor(ARROW_RIGHT);
-			return 0;
+			case EDITOR_ACTION_MOVE_UP:
+				editorHistoryBreakGroup();
+				if (E.pane_focus == EDITOR_PANE_DRAWER) {
+					(void)editorDrawerMoveSelectionBy(-1, E.window_rows + 1);
+				} else {
+					editorMoveCursor(ARROW_UP);
+				}
+				return 0;
+			case EDITOR_ACTION_MOVE_DOWN:
+				editorHistoryBreakGroup();
+				if (E.pane_focus == EDITOR_PANE_DRAWER) {
+					(void)editorDrawerMoveSelectionBy(1, E.window_rows + 1);
+				} else {
+					editorMoveCursor(ARROW_DOWN);
+				}
+				return 0;
+			case EDITOR_ACTION_MOVE_LEFT:
+				editorHistoryBreakGroup();
+				if (E.pane_focus == EDITOR_PANE_DRAWER) {
+					(void)editorDrawerCollapseSelection(E.window_rows + 1);
+				} else {
+					editorMoveCursor(ARROW_LEFT);
+				}
+				return 0;
+			case EDITOR_ACTION_MOVE_RIGHT:
+				editorHistoryBreakGroup();
+				if (E.pane_focus == EDITOR_PANE_DRAWER) {
+					(void)editorDrawerExpandSelection(E.window_rows + 1);
+				} else {
+					editorMoveCursor(ARROW_RIGHT);
+				}
+				return 0;
 		case EDITOR_ACTION_NEWLINE: {
 			editorClearSelectionMode();
 			editorHistoryBeginEdit(EDITOR_EDIT_NEWLINE);
@@ -956,11 +1010,15 @@ static int editorProcessMappedAction(enum editorAction action) {
 			editorHistoryCommitEdit(EDITOR_EDIT_NEWLINE, E.dirty != dirty_before);
 			return 0;
 		}
-		case EDITOR_ACTION_ESCAPE:
-			// In normal editor mode Escape only clears transient selection state; quit is configurable.
-			editorHistoryBreakGroup();
-			editorClearSelectionMode();
-			return 0;
+			case EDITOR_ACTION_ESCAPE:
+				// In normal editor mode Escape only clears transient selection state; quit is configurable.
+				editorHistoryBreakGroup();
+				if (E.pane_focus == EDITOR_PANE_DRAWER) {
+					E.pane_focus = EDITOR_PANE_TEXT;
+					return 0;
+				}
+				editorClearSelectionMode();
+				return 0;
 		case EDITOR_ACTION_REDRAW:
 			editorHistoryBreakGroup();
 			return 0;
@@ -1007,19 +1065,21 @@ void editorProcessKeypress(void) {
 		editorHistoryBreakGroup();
 		editorHandleMouseEvent();
 	} else {
-		if (editorKeymapLookupAction(&E.keymap, c, &action)) {
-			mapped_action = 1;
-			if (editorProcessMappedAction(action)) {
-				return;
+			if (editorKeymapLookupAction(&E.keymap, c, &action)) {
+				mapped_action = 1;
+				if (editorProcessMappedAction(action)) {
+					return;
+				}
+			} else if (c >= CHAR_MIN && c <= CHAR_MAX) {
+				if (E.pane_focus != EDITOR_PANE_DRAWER) {
+					editorClearSelectionMode();
+					editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+					int dirty_before = E.dirty;
+					editorInsertChar(c);
+					editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+				}
 			}
-		} else if (c >= CHAR_MIN && c <= CHAR_MAX) {
-			editorClearSelectionMode();
-			editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
-			int dirty_before = E.dirty;
-			editorInsertChar(c);
-			editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
 		}
-	}
 
 	if (!mapped_action || action != EDITOR_ACTION_CLOSE_TAB) {
 		E.close_confirmed = 0;

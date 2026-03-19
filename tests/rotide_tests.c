@@ -130,6 +130,11 @@ static int editor_process_single_key(int key) {
 	return editor_process_keypress_with_input(&c, 1);
 }
 
+static int format_sgr_mouse_event(char *buf, size_t bufsz, int cb, int x, int y, char suffix) {
+	int written = snprintf(buf, bufsz, "\x1b[<%d;%d;%d%c", cb, x, y, suffix);
+	return written > 0 && (size_t)written < bufsz;
+}
+
 static int install_synthetic_single_row(int size, int rsize) {
 	struct erow *rows = calloc(1, sizeof(*rows));
 	if (rows == NULL) {
@@ -229,6 +234,10 @@ static int write_text_file(const char *path, const char *text) {
 static int path_join(char *buf, size_t bufsz, const char *dir, const char *name) {
 	int written = snprintf(buf, bufsz, "%s/%s", dir, name);
 	return written >= 0 && (size_t)written < bufsz;
+}
+
+static int make_dir(const char *path) {
+	return mkdir(path, 0700) == 0 || errno == EEXIST;
 }
 
 struct recoveryTestEnv {
@@ -1778,6 +1787,150 @@ static int test_editor_startup_invalid_recovery_discards_and_opens_cli_args(void
 	return 0;
 }
 
+static int find_drawer_entry(const char *name, int *idx_out, struct editorDrawerEntryView *view_out) {
+	int visible = editorDrawerVisibleCount();
+	for (int i = 0; i < visible; i++) {
+		struct editorDrawerEntryView view;
+		if (!editorDrawerGetVisibleEntry(i, &view)) {
+			continue;
+		}
+		if (strcmp(view.name, name) == 0) {
+			if (idx_out != NULL) {
+				*idx_out = i;
+			}
+			if (view_out != NULL) {
+				*view_out = view;
+			}
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static int test_editor_drawer_root_selection_modes(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	const char *root_path = editorDrawerRootPath();
+	ASSERT_TRUE(root_path != NULL);
+	ASSERT_EQ_STR(env.project_dir, root_path);
+
+	char src_dir[512];
+	char cli_file[512];
+	ASSERT_TRUE(path_join(src_dir, sizeof(src_dir), env.project_dir, "src"));
+	ASSERT_TRUE(make_dir(src_dir));
+	ASSERT_TRUE(path_join(cli_file, sizeof(cli_file), src_dir, "main.c"));
+	ASSERT_TRUE(write_text_file(cli_file, "int main(void) { return 0; }\n"));
+
+	char *argv[] = {"rotide", cli_file, NULL};
+	ASSERT_TRUE(editorDrawerInitForStartup(2, argv, 0));
+	root_path = editorDrawerRootPath();
+	ASSERT_TRUE(root_path != NULL);
+	ASSERT_EQ_STR(src_dir, root_path);
+
+	ASSERT_TRUE(editorDrawerInitForStartup(2, argv, 1));
+	root_path = editorDrawerRootPath();
+	ASSERT_TRUE(root_path != NULL);
+	ASSERT_EQ_STR(env.project_dir, root_path);
+
+	ASSERT_TRUE(unlink(cli_file) == 0);
+	ASSERT_TRUE(rmdir(src_dir) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_tree_lists_dotfiles_sorted_and_symlink_as_file(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char src_dir[512];
+	char env_file[512];
+	char ignore_file[512];
+	char main_file[512];
+	char link_path[512];
+	ASSERT_TRUE(path_join(src_dir, sizeof(src_dir), env.project_dir, "src"));
+	ASSERT_TRUE(path_join(env_file, sizeof(env_file), env.project_dir, ".env"));
+	ASSERT_TRUE(path_join(ignore_file, sizeof(ignore_file), env.project_dir, ".gitignore"));
+	ASSERT_TRUE(path_join(main_file, sizeof(main_file), env.project_dir, "main.c"));
+	ASSERT_TRUE(path_join(link_path, sizeof(link_path), env.project_dir, "link_to_src"));
+
+	ASSERT_TRUE(make_dir(src_dir));
+	ASSERT_TRUE(write_text_file(env_file, "A=1\n"));
+	ASSERT_TRUE(write_text_file(ignore_file, "*.o\n"));
+	ASSERT_TRUE(write_text_file(main_file, "int x;\n"));
+	ASSERT_TRUE(symlink("src", link_path) == 0);
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows));
+
+	int src_idx = -1;
+	int env_idx = -1;
+	int ignore_idx = -1;
+	int main_idx = -1;
+	int link_idx = -1;
+	struct editorDrawerEntryView link_view;
+	ASSERT_TRUE(find_drawer_entry("src", &src_idx, NULL));
+	ASSERT_TRUE(find_drawer_entry(".env", &env_idx, NULL));
+	ASSERT_TRUE(find_drawer_entry(".gitignore", &ignore_idx, NULL));
+	ASSERT_TRUE(find_drawer_entry("main.c", &main_idx, NULL));
+	ASSERT_TRUE(find_drawer_entry("link_to_src", &link_idx, &link_view));
+
+	ASSERT_TRUE(src_idx >= 0);
+	ASSERT_TRUE(src_idx < env_idx);
+	ASSERT_TRUE(env_idx < ignore_idx);
+	ASSERT_TRUE(ignore_idx < link_idx);
+	ASSERT_TRUE(link_idx < main_idx);
+	ASSERT_EQ_INT(0, link_view.is_dir);
+
+	ASSERT_TRUE(unlink(link_path) == 0);
+	ASSERT_TRUE(unlink(main_file) == 0);
+	ASSERT_TRUE(unlink(ignore_file) == 0);
+	ASSERT_TRUE(unlink(env_file) == 0);
+	ASSERT_TRUE(rmdir(src_dir) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_expand_collapse_reuses_cached_children(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char src_dir[512];
+	char child_file[512];
+	ASSERT_TRUE(path_join(src_dir, sizeof(src_dir), env.project_dir, "src"));
+	ASSERT_TRUE(path_join(child_file, sizeof(child_file), src_dir, "child.txt"));
+	ASSERT_TRUE(make_dir(src_dir));
+	ASSERT_TRUE(write_text_file(child_file, "child\n"));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows));
+
+	int src_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("src", &src_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(src_idx, E.window_rows));
+	ASSERT_EQ_INT(src_idx, E.drawer_selected_index);
+
+	int collapsed_count = editorDrawerVisibleCount();
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows));
+	int expanded_count = editorDrawerVisibleCount();
+	ASSERT_TRUE(expanded_count > collapsed_count);
+	ASSERT_TRUE(find_drawer_entry("child.txt", NULL, NULL));
+
+	ASSERT_TRUE(editorDrawerCollapseSelection(E.window_rows));
+	ASSERT_EQ_INT(collapsed_count, editorDrawerVisibleCount());
+	ASSERT_EQ_INT(src_idx, E.drawer_selected_index);
+
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows));
+	ASSERT_EQ_INT(expanded_count, editorDrawerVisibleCount());
+	ASSERT_EQ_INT(src_idx, E.drawer_selected_index);
+
+	ASSERT_TRUE(unlink(child_file) == 0);
+	ASSERT_TRUE(rmdir(src_dir) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_recovery_snapshot_permissions_are_0600(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -2593,6 +2746,8 @@ static int test_editor_keymap_defaults_include_tab_actions(void) {
 	ASSERT_EQ_INT(EDITOR_ACTION_NEXT_TAB, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_ARROW_LEFT, &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_PREV_TAB, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('e'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_FOCUS_DRAWER, action);
 	return 0;
 }
 
@@ -2805,6 +2960,60 @@ static int test_editor_process_keypress_tab_actions_new_next_prev(void) {
 	return 0;
 }
 
+static int test_editor_process_keypress_focus_drawer_and_arrow_navigation(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char src_dir[512];
+	char child_file[512];
+	ASSERT_TRUE(path_join(src_dir, sizeof(src_dir), env.project_dir, "src"));
+	ASSERT_TRUE(path_join(child_file, sizeof(child_file), src_dir, "child.txt"));
+	ASSERT_TRUE(make_dir(src_dir));
+	ASSERT_TRUE(write_text_file(child_file, "child\n"));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows));
+
+	add_row("line");
+	E.cy = 0;
+	E.cx = 2;
+	int initial_cy = E.cy;
+	int initial_cx = E.cx;
+
+	char focus_drawer[] = {CTRL_KEY('e')};
+	ASSERT_TRUE(editor_process_keypress_with_input(focus_drawer, sizeof(focus_drawer)) == 0);
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+
+	const char arrow_down[] = "\x1b[B";
+	ASSERT_TRUE(editor_process_keypress_with_input(arrow_down, sizeof(arrow_down) - 1) == 0);
+	ASSERT_TRUE(E.drawer_selected_index > 0);
+	ASSERT_EQ_INT(initial_cy, E.cy);
+	ASSERT_EQ_INT(initial_cx, E.cx);
+
+	int src_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("src", &src_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(src_idx, E.window_rows));
+	int collapsed_count = editorDrawerVisibleCount();
+
+	const char arrow_right[] = "\x1b[C";
+	ASSERT_TRUE(editor_process_keypress_with_input(arrow_right, sizeof(arrow_right) - 1) == 0);
+	ASSERT_TRUE(editorDrawerVisibleCount() > collapsed_count);
+	ASSERT_TRUE(find_drawer_entry("child.txt", NULL, NULL));
+
+	const char arrow_left[] = "\x1b[D";
+	ASSERT_TRUE(editor_process_keypress_with_input(arrow_left, sizeof(arrow_left) - 1) == 0);
+	ASSERT_EQ_INT(collapsed_count, editorDrawerVisibleCount());
+
+	const char esc_input[] = "\x1b[x";
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(esc_input, sizeof(esc_input) - 1) == 0);
+	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+
+	ASSERT_TRUE(unlink(child_file) == 0);
+	ASSERT_TRUE(rmdir(src_dir) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_process_keypress_insert_move_and_backspace(void) {
 	add_row("ab");
 	E.cy = 0;
@@ -2923,8 +3132,10 @@ static int test_editor_process_keypress_mouse_left_click_places_cursor_with_offs
 	E.cy = 0;
 	E.cx = 0;
 
-	const char click[] = "\x1b[<0;4;2M";
-	ASSERT_TRUE(editor_process_keypress_with_input(click, sizeof(click) - 1) == 0);
+	int text_start = editorDrawerTextStartColForCols(E.window_cols);
+	char click[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click, sizeof(click), 0, text_start + 4, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click, strlen(click)) == 0);
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(5, E.cx);
 	return 0;
@@ -2945,11 +3156,44 @@ static int test_editor_process_keypress_mouse_left_click_ignores_non_text_rows(v
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(1, E.cx);
 
-	const char click_filler_row[] = "\x1b[<0;2;4M";
-	ASSERT_TRUE(editor_process_keypress_with_input(click_filler_row,
-				sizeof(click_filler_row) - 1) == 0);
+	int text_start = editorDrawerTextStartColForCols(E.window_cols);
+	char click_filler_row[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click_filler_row, sizeof(click_filler_row), 0,
+				text_start + 2, 4, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_filler_row, strlen(click_filler_row)) == 0);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(1, E.cx);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char src_dir[512];
+	char child_file[512];
+	ASSERT_TRUE(path_join(src_dir, sizeof(src_dir), env.project_dir, "src"));
+	ASSERT_TRUE(path_join(child_file, sizeof(child_file), src_dir, "child.txt"));
+	ASSERT_TRUE(make_dir(src_dir));
+	ASSERT_TRUE(write_text_file(child_file, "child\n"));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows));
+	ASSERT_TRUE(find_drawer_entry("src", NULL, NULL));
+	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+
+	char click_src[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click_src, sizeof(click_src), 0, 2, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_src, strlen(click_src)) == 0);
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_TRUE(find_drawer_entry("child.txt", NULL, NULL));
+
+	ASSERT_TRUE(editor_process_keypress_with_input(click_src, strlen(click_src)) == 0);
+	ASSERT_EQ_INT(0, find_drawer_entry("child.txt", NULL, NULL));
+
+	ASSERT_TRUE(unlink(child_file) == 0);
+	ASSERT_TRUE(rmdir(src_dir) == 0);
+	cleanup_recovery_test_env(&env);
 	return 0;
 }
 
@@ -2963,9 +3207,12 @@ static int test_editor_process_keypress_mouse_top_row_click_switches_tab(void) {
 	ASSERT_EQ_INT(3, editorTabCount());
 	ASSERT_EQ_INT(2, editorTabActiveIndex());
 
-	E.window_cols = 48;
-	const char click_first_tab[] = "\x1b[<0;1;1M";
-	ASSERT_TRUE(editor_process_keypress_with_input(click_first_tab, sizeof(click_first_tab) - 1) == 0);
+	E.window_cols = 80;
+	int text_start = editorDrawerTextStartColForCols(E.window_cols);
+	char click_first_tab[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click_first_tab, sizeof(click_first_tab), 0,
+				text_start + 1, 1, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_first_tab, strlen(click_first_tab)) == 0);
 	ASSERT_EQ_INT(0, editorTabActiveIndex());
 	ASSERT_EQ_INT(1, E.numrows);
 	ASSERT_EQ_STR("zero", E.rows[0].chars);
@@ -3000,12 +3247,15 @@ static int test_editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clam
 
 static int test_editor_process_keypress_mouse_click_keeps_selection_anchor(void) {
 	add_row("abcdef");
+	E.window_cols = 20;
 	E.cy = 0;
 	E.cx = 1;
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
 
-	const char click[] = "\x1b[<0;5;2M";
-	ASSERT_TRUE(editor_process_keypress_with_input(click, sizeof(click) - 1) == 0);
+	int text_start = editorDrawerTextStartColForCols(E.window_cols);
+	char click[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click, sizeof(click), 0, text_start + 5, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click, strlen(click)) == 0);
 	ASSERT_EQ_INT(1, E.selection_mode_active);
 	ASSERT_EQ_INT(1, E.selection_anchor_cx);
 
@@ -3023,11 +3273,14 @@ static int test_editor_process_keypress_mouse_drag_starts_selection_without_ctrl
 	E.cy = 0;
 	E.cx = 0;
 
-	const char press[] = "\x1b[<0;2;2M";
-	const char drag[] = "\x1b[<32;6;2M";
-	ASSERT_TRUE(editor_process_keypress_with_input(press, sizeof(press) - 1) == 0);
+	int text_start = editorDrawerTextStartColForCols(E.window_cols);
+	char press[32];
+	char drag[32];
+	ASSERT_TRUE(format_sgr_mouse_event(press, sizeof(press), 0, text_start + 2, 2, 'M'));
+	ASSERT_TRUE(format_sgr_mouse_event(drag, sizeof(drag), 32, text_start + 6, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
-	ASSERT_TRUE(editor_process_keypress_with_input(drag, sizeof(drag) - 1) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(drag, strlen(drag)) == 0);
 	ASSERT_EQ_INT(1, E.selection_mode_active);
 	ASSERT_EQ_INT(1, E.selection_anchor_cx);
 	ASSERT_EQ_INT(0, E.selection_anchor_cy);
@@ -3048,15 +3301,18 @@ static int test_editor_process_keypress_mouse_press_without_drag_keeps_click_beh
 	E.cy = 0;
 	E.cx = 0;
 
-	const char press[] = "\x1b[<0;4;2M";
-	ASSERT_TRUE(editor_process_keypress_with_input(press, sizeof(press) - 1) == 0);
+	int text_start = editorDrawerTextStartColForCols(E.window_cols);
+	char press[32];
+	char release[32];
+	ASSERT_TRUE(format_sgr_mouse_event(press, sizeof(press), 0, text_start + 4, 2, 'M'));
+	ASSERT_TRUE(format_sgr_mouse_event(release, sizeof(release), 0, text_start + 4, 2, 'm'));
+	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(3, E.cx);
 	ASSERT_EQ_INT(1, E.mouse_left_button_down);
 
-	const char release[] = "\x1b[<0;4;2m";
-	ASSERT_TRUE(editor_process_keypress_with_input(release, sizeof(release) - 1) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(release, strlen(release)) == 0);
 	ASSERT_EQ_INT(0, E.mouse_left_button_down);
 	ASSERT_EQ_INT(0, E.mouse_drag_started);
 
@@ -3067,15 +3323,19 @@ static int test_editor_process_keypress_mouse_press_without_drag_keeps_click_beh
 
 static int test_editor_process_keypress_mouse_drag_resets_existing_selection_anchor(void) {
 	add_row("abcdef");
+	E.window_cols = 20;
 	E.cy = 0;
 	E.cx = 1;
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
 	E.cx = 4;
 
-	const char press[] = "\x1b[<0;6;2M";
-	const char drag[] = "\x1b[<32;3;2M";
-	ASSERT_TRUE(editor_process_keypress_with_input(press, sizeof(press) - 1) == 0);
-	ASSERT_TRUE(editor_process_keypress_with_input(drag, sizeof(drag) - 1) == 0);
+	int text_start = editorDrawerTextStartColForCols(E.window_cols);
+	char press[32];
+	char drag[32];
+	ASSERT_TRUE(format_sgr_mouse_event(press, sizeof(press), 0, text_start + 6, 2, 'M'));
+	ASSERT_TRUE(format_sgr_mouse_event(drag, sizeof(drag), 32, text_start + 3, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(drag, strlen(drag)) == 0);
 
 	ASSERT_EQ_INT(1, E.selection_mode_active);
 	ASSERT_EQ_INT(5, E.selection_anchor_cx);
@@ -3093,16 +3353,19 @@ static int test_editor_process_keypress_mouse_drag_clamps_to_viewport_without_au
 		add_row("0123456789");
 	}
 	E.window_rows = 3;
-	E.window_cols = 5;
+	E.window_cols = 10;
 	E.rowoff = 2;
 	E.coloff = 1;
 	E.cy = 0;
 	E.cx = 0;
 
-	const char press[] = "\x1b[<0;3;3M";
-	const char drag[] = "\x1b[<32;50;9M";
-	ASSERT_TRUE(editor_process_keypress_with_input(press, sizeof(press) - 1) == 0);
-	ASSERT_TRUE(editor_process_keypress_with_input(drag, sizeof(drag) - 1) == 0);
+	int text_start = editorDrawerTextStartColForCols(E.window_cols);
+	char press[32];
+	char drag[32];
+	ASSERT_TRUE(format_sgr_mouse_event(press, sizeof(press), 0, text_start + 3, 3, 'M'));
+	ASSERT_TRUE(format_sgr_mouse_event(drag, sizeof(drag), 32, text_start + 50, 9, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(drag, strlen(drag)) == 0);
 
 	ASSERT_EQ_INT(1, E.selection_mode_active);
 	ASSERT_EQ_INT(3, E.selection_anchor_cy);
@@ -3122,10 +3385,13 @@ static int test_editor_process_keypress_mouse_drag_honors_rowoff_and_coloff(void
 	E.rowoff = 1;
 	E.coloff = 2;
 
-	const char press[] = "\x1b[<0;2;2M";
-	const char drag[] = "\x1b[<32;4;3M";
-	ASSERT_TRUE(editor_process_keypress_with_input(press, sizeof(press) - 1) == 0);
-	ASSERT_TRUE(editor_process_keypress_with_input(drag, sizeof(drag) - 1) == 0);
+	int text_start = editorDrawerTextStartColForCols(E.window_cols);
+	char press[32];
+	char drag[32];
+	ASSERT_TRUE(format_sgr_mouse_event(press, sizeof(press), 0, text_start + 2, 2, 'M'));
+	ASSERT_TRUE(format_sgr_mouse_event(drag, sizeof(drag), 32, text_start + 4, 3, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(drag, strlen(drag)) == 0);
 
 	ASSERT_EQ_INT(2, E.cy);
 	ASSERT_EQ_INT(5, E.cx);
@@ -3147,17 +3413,22 @@ static int test_editor_process_keypress_mouse_release_stops_drag_session(void) {
 	E.cy = 0;
 	E.cx = 0;
 
-	const char press[] = "\x1b[<0;2;2M";
-	const char drag[] = "\x1b[<32;5;2M";
-	const char release[] = "\x1b[<0;5;2m";
-	const char drag_after_release[] = "\x1b[<32;6;2M";
-	ASSERT_TRUE(editor_process_keypress_with_input(press, sizeof(press) - 1) == 0);
-	ASSERT_TRUE(editor_process_keypress_with_input(drag, sizeof(drag) - 1) == 0);
+	int text_start = editorDrawerTextStartColForCols(E.window_cols);
+	char press[32];
+	char drag[32];
+	char release[32];
+	char drag_after_release[32];
+	ASSERT_TRUE(format_sgr_mouse_event(press, sizeof(press), 0, text_start + 2, 2, 'M'));
+	ASSERT_TRUE(format_sgr_mouse_event(drag, sizeof(drag), 32, text_start + 5, 2, 'M'));
+	ASSERT_TRUE(format_sgr_mouse_event(release, sizeof(release), 0, text_start + 5, 2, 'm'));
+	ASSERT_TRUE(format_sgr_mouse_event(drag_after_release, sizeof(drag_after_release), 32,
+				text_start + 6, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(drag, strlen(drag)) == 0);
 	ASSERT_EQ_INT(4, E.cx);
-	ASSERT_TRUE(editor_process_keypress_with_input(release, sizeof(release) - 1) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(release, strlen(release)) == 0);
 	ASSERT_EQ_INT(0, E.mouse_left_button_down);
-	ASSERT_TRUE(editor_process_keypress_with_input(drag_after_release,
-				sizeof(drag_after_release) - 1) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(drag_after_release, strlen(drag_after_release)) == 0);
 	ASSERT_EQ_INT(4, E.cx);
 
 	struct editorSelectionRange range;
@@ -4463,7 +4734,7 @@ static int test_editor_refresh_screen_renders_tab_bar_with_overflow_and_sanitize
 
 	ASSERT_TRUE(editorTabSwitchToIndex(0));
 	E.window_rows = 3;
-	E.window_cols = 32;
+	E.window_cols = 64;
 	E.cy = 0;
 	E.cx = 0;
 
@@ -4476,6 +4747,81 @@ static int test_editor_refresh_screen_renders_tab_bar_with_overflow_and_sanitize
 	ASSERT_TRUE(strstr(output, "gamma.txt") == NULL);
 	ASSERT_TRUE(strstr(output, ">") != NULL);
 	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_renders_drawer_entries_and_selection(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char src_dir[512];
+	char child_file[512];
+	ASSERT_TRUE(path_join(src_dir, sizeof(src_dir), env.project_dir, "src"));
+	ASSERT_TRUE(path_join(child_file, sizeof(child_file), src_dir, "child.txt"));
+	ASSERT_TRUE(make_dir(src_dir));
+	ASSERT_TRUE(write_text_file(child_file, "child\n"));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows));
+	int src_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("src", &src_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(src_idx, E.window_rows));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows));
+
+	E.pane_focus = EDITOR_PANE_DRAWER;
+	E.window_rows = 4;
+	E.window_cols = 40;
+	add_row("body");
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, ">v   src") != NULL);
+	ASSERT_TRUE(strstr(output, "child.txt") != NULL);
+	ASSERT_TRUE(strstr(output, "|body") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[2;1H") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(child_file) == 0);
+	ASSERT_TRUE(rmdir(src_dir) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_refresh_screen_cursor_column_offsets_for_drawer(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	add_row("abc");
+	E.window_rows = 3;
+	E.window_cols = 20;
+	E.cy = 0;
+	E.cx = 1;
+	E.rowoff = 0;
+	E.coloff = 0;
+	E.pane_focus = EDITOR_PANE_TEXT;
+
+	int expected_col = editorDrawerTextStartColForCols(E.window_cols) + 2;
+	char expected_cursor[32];
+	ASSERT_TRUE(snprintf(expected_cursor, sizeof(expected_cursor), "\x1b[2;%dH", expected_col) > 0);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, expected_cursor) != NULL);
+	free(output);
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_layout_clamps_tiny_widths(void) {
+	ASSERT_EQ_INT(0, editorDrawerWidthForCols(1));
+	ASSERT_EQ_INT(1, editorDrawerTextViewportCols(1));
+	ASSERT_EQ_INT(1, editorDrawerWidthForCols(2));
+	ASSERT_EQ_INT(1, editorDrawerTextViewportCols(2));
+	ASSERT_EQ_INT(0, editorDrawerSeparatorWidthForCols(2));
 	return 0;
 }
 
@@ -4546,7 +4892,7 @@ static int test_editor_refresh_screen_updates_horizontal_scroll(void) {
 static int test_editor_refresh_screen_slice_after_multibyte_scroll(void) {
 	add_row("\xC3\xB6XYZ");
 	E.window_rows = 3;
-	E.window_cols = 5;
+	E.window_cols = 10;
 	E.cy = 0;
 	E.cx = 2;
 	E.coloff = 1;
@@ -4748,6 +5094,11 @@ int main(void) {
 				test_editor_startup_discard_choice_opens_cli_args},
 			{"editor_startup_invalid_recovery_discards_and_opens_cli_args",
 				test_editor_startup_invalid_recovery_discards_and_opens_cli_args},
+			{"editor_drawer_root_selection_modes", test_editor_drawer_root_selection_modes},
+			{"editor_drawer_tree_lists_dotfiles_sorted_and_symlink_as_file",
+				test_editor_drawer_tree_lists_dotfiles_sorted_and_symlink_as_file},
+			{"editor_drawer_expand_collapse_reuses_cached_children",
+				test_editor_drawer_expand_collapse_reuses_cached_children},
 			{"editor_recovery_snapshot_permissions_are_0600",
 				test_editor_recovery_snapshot_permissions_are_0600},
 			{"editor_recovery_clean_quit_removes_snapshot",
@@ -4810,6 +5161,8 @@ int main(void) {
 				test_editor_process_keypress_ctrl_q_checks_dirty_tabs_globally},
 			{"editor_process_keypress_tab_actions_new_next_prev",
 				test_editor_process_keypress_tab_actions_new_next_prev},
+			{"editor_process_keypress_focus_drawer_and_arrow_navigation",
+				test_editor_process_keypress_focus_drawer_and_arrow_navigation},
 			{"editor_process_keypress_insert_move_and_backspace",
 				test_editor_process_keypress_insert_move_and_backspace},
 		{"editor_process_keypress_delete_key", test_editor_process_keypress_delete_key},
@@ -4818,10 +5171,12 @@ int main(void) {
 		{"editor_process_keypress_ctrl_s_saves_file", test_editor_process_keypress_ctrl_s_saves_file},
 		{"editor_process_keypress_resize_event_updates_window_size",
 			test_editor_process_keypress_resize_event_updates_window_size},
-		{"editor_process_keypress_mouse_left_click_places_cursor_with_offsets",
-			test_editor_process_keypress_mouse_left_click_places_cursor_with_offsets},
+			{"editor_process_keypress_mouse_left_click_places_cursor_with_offsets",
+				test_editor_process_keypress_mouse_left_click_places_cursor_with_offsets},
 			{"editor_process_keypress_mouse_left_click_ignores_non_text_rows",
 				test_editor_process_keypress_mouse_left_click_ignores_non_text_rows},
+			{"editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory",
+				test_editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory},
 			{"editor_process_keypress_mouse_top_row_click_switches_tab",
 				test_editor_process_keypress_mouse_top_row_click_switches_tab},
 			{"editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps",
@@ -4956,8 +5311,13 @@ int main(void) {
 					test_editor_refresh_screen_escapes_file_content_controls},
 			{"editor_refresh_screen_renders_tab_bar_with_overflow_and_sanitized_labels",
 				test_editor_refresh_screen_renders_tab_bar_with_overflow_and_sanitized_labels},
-				{"editor_refresh_screen_highlights_active_selection_spans",
-					test_editor_refresh_screen_highlights_active_selection_spans},
+			{"editor_refresh_screen_renders_drawer_entries_and_selection",
+				test_editor_refresh_screen_renders_drawer_entries_and_selection},
+			{"editor_refresh_screen_cursor_column_offsets_for_drawer",
+				test_editor_refresh_screen_cursor_column_offsets_for_drawer},
+			{"editor_drawer_layout_clamps_tiny_widths", test_editor_drawer_layout_clamps_tiny_widths},
+			{"editor_refresh_screen_highlights_active_selection_spans",
+				test_editor_refresh_screen_highlights_active_selection_spans},
 		{"editor_refresh_screen_hides_expired_message", test_editor_refresh_screen_hides_expired_message},
 		{"editor_refresh_screen_updates_horizontal_scroll",
 			test_editor_refresh_screen_updates_horizontal_scroll},

@@ -19,6 +19,7 @@
 #define ROTIDE_KEYMAP_MAX_BINDINGS 64
 #define ROTIDE_MAX_TABS 128
 #define ROTIDE_TAB_SLOT_WIDTH 16
+#define ROTIDE_DRAWER_DEFAULT_WIDTH 24
 #define ROTIDE_ALT_LETTER_KEY_BASE 91000
 #define ROTIDE_CTRL_ALT_LETTER_KEY_BASE 91026
 
@@ -68,6 +69,23 @@ struct editorSelectionRange {
 	int end_cx;
 };
 
+struct editorDrawerNode;
+
+enum editorPaneFocus {
+	EDITOR_PANE_TEXT = 0,
+	EDITOR_PANE_DRAWER
+};
+
+struct editorDrawerEntryView {
+	const char *name;
+	int depth;
+	int is_dir;
+	int is_expanded;
+	int is_selected;
+	int has_scan_error;
+	int is_root;
+};
+
 enum editorAction {
 	EDITOR_ACTION_QUIT = 0,
 	EDITOR_ACTION_SAVE,
@@ -75,6 +93,7 @@ enum editorAction {
 	EDITOR_ACTION_CLOSE_TAB,
 	EDITOR_ACTION_NEXT_TAB,
 	EDITOR_ACTION_PREV_TAB,
+	EDITOR_ACTION_FOCUS_DRAWER,
 	EDITOR_ACTION_FIND,
 	EDITOR_ACTION_GOTO_LINE,
 	EDITOR_ACTION_TOGGLE_SELECTION,
@@ -215,6 +234,11 @@ struct editorConfig {
 	int close_confirmed;
 	char *recovery_path;
 	time_t recovery_last_autosave_time;
+	char *drawer_root_path;
+	struct editorDrawerNode *drawer_root;
+	int drawer_selected_index;
+	int drawer_rowoff;
+	enum editorPaneFocus pane_focus;
 	struct editorKeymap keymap;
 	struct termios orig_attrs;
 };

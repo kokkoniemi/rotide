@@ -33,6 +33,7 @@ static const struct editorActionName editor_action_names[] = {
 	{"close_tab", EDITOR_ACTION_CLOSE_TAB},
 	{"next_tab", EDITOR_ACTION_NEXT_TAB},
 	{"prev_tab", EDITOR_ACTION_PREV_TAB},
+	{"focus_drawer", EDITOR_ACTION_FOCUS_DRAWER},
 	{"find", EDITOR_ACTION_FIND},
 	{"goto_line", EDITOR_ACTION_GOTO_LINE},
 	{"toggle_selection", EDITOR_ACTION_TOGGLE_SELECTION},
@@ -613,6 +614,7 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('w'), EDITOR_ACTION_CLOSE_TAB);
 	(void)editorKeymapAppendBinding(keymap, ALT_ARROW_RIGHT, EDITOR_ACTION_NEXT_TAB);
 	(void)editorKeymapAppendBinding(keymap, ALT_ARROW_LEFT, EDITOR_ACTION_PREV_TAB);
+	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('e'), EDITOR_ACTION_FOCUS_DRAWER);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('f'), EDITOR_ACTION_FIND);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('g'), EDITOR_ACTION_GOTO_LINE);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('b'), EDITOR_ACTION_TOGGLE_SELECTION);
@@ -670,6 +672,7 @@ void editorKeymapBuildHelpStatus(const struct editorKeymap *keymap, char *buf, s
 	char close_tab[24];
 	char next_tab[24];
 	char prev_tab[24];
+	char focus_drawer[24];
 	char find[24];
 	char go_to[24];
 	char select[24];
@@ -697,6 +700,10 @@ void editorKeymapBuildHelpStatus(const struct editorKeymap *keymap, char *buf, s
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_PREV_TAB, prev_tab, sizeof(prev_tab))) {
 		snprintf(prev_tab, sizeof(prev_tab), "PrevTab");
+	}
+	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_FOCUS_DRAWER, focus_drawer,
+				sizeof(focus_drawer))) {
+		snprintf(focus_drawer, sizeof(focus_drawer), "Drawer");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_FIND, find, sizeof(find))) {
 		snprintf(find, sizeof(find), "Find");
@@ -728,8 +735,8 @@ void editorKeymapBuildHelpStatus(const struct editorKeymap *keymap, char *buf, s
 	}
 
 	snprintf(buf, bufsize,
-			"Help: %s save; %s quit; %s new; %s close; %s/%s tabs; %s find; %s goto",
-			save, quit, new_tab, close_tab, prev_tab, next_tab, find, go_to);
+			"Help: %s save; %s quit; %s new; %s close; %s/%s tabs; %s drawer; %s find; %s goto",
+			save, quit, new_tab, close_tab, prev_tab, next_tab, focus_drawer, find, go_to);
 }
 
 enum editorKeymapLoadStatus editorKeymapLoadFromPaths(struct editorKeymap *keymap,

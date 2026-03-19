@@ -15,6 +15,7 @@ search, save, undo/redo, selection, tabs, and keymap configuration are implement
 - UTF-8 aware row operations and grapheme-safe cursor movement.
 - Incremental search, go-to-line, and selection mode.
 - Multi-tab file buffers with a top tab bar and mouse tab switching.
+- Always-visible file drawer rooted to the startup project directory.
 - Clipboard copy/cut/paste with optional OSC52 terminal sync.
 - Undo/redo history for insert/delete/newline edit flows.
 - Mouse support (click, drag selection, wheel scroll).
@@ -56,6 +57,7 @@ filename on first save.
 - New tab: `Ctrl-N`
 - Close tab: `Ctrl-W` (second press required for dirty tab)
 - Next/previous tab: `Alt-Right` / `Alt-Left`
+- Focus drawer: `Ctrl-E` (`Up/Down/Left/Right` navigate tree, `Esc` returns to text pane)
 - Find: `Ctrl-F`
 - Go to line: `Ctrl-G`
 - Selection toggle: `Ctrl-B`
@@ -88,6 +90,7 @@ Keymap section format:
 [keymap]
 save = "ctrl+s"
 quit = "ctrl+q"
+focus_drawer = "ctrl+e"
 ```
 
 Supported key specs:

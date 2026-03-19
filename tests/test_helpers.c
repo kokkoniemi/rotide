@@ -14,6 +14,7 @@
 #include <unistd.h>
 
 void clear_editor_state(void) {
+	editorDrawerShutdown();
 	editorRecoveryShutdown();
 	editorTabsFreeAll();
 	editorClipboardClear();

@@ -79,14 +79,14 @@ static int editorWriteAllToStdout(const char *buf, size_t len) {
 	return 1;
 }
 
-static int editorDrawGreeting(struct writeBuf *wb) {
+static int editorDrawGreeting(struct writeBuf *wb, int cols) {
 	char greet[80];
 	int greetlen = snprintf(greet, sizeof(greet),
 				"RotIDE editor - version %s", ROTIDE_VERSION);
-	if (greetlen > E.window_cols) {
-		greetlen = E.window_cols;
+	if (greetlen > cols) {
+		greetlen = cols;
 	}
-	int pad = (E.window_cols - greetlen) / 2;
+	int pad = (cols - greetlen) / 2;
 	if (pad) {
 		if (!wbAppend(wb, "~", 1)) {
 			return 0;
@@ -323,8 +323,8 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 	return 1;
 }
 
-static int editorDrawFileRow(struct writeBuf *wb, size_t i) {
-	return editorDrawRenderSlice(wb, &E.rows[i], (int)i, E.coloff, E.window_cols);
+static int editorDrawFileRow(struct writeBuf *wb, size_t i, int text_cols) {
+	return editorDrawRenderSlice(wb, &E.rows[i], (int)i, E.coloff, text_cols);
 }
 
 static const char *editorTabLabelFromFilename(const char *filename) {
@@ -338,18 +338,20 @@ static const char *editorTabLabelFromFilename(const char *filename) {
 	return filename;
 }
 
-static int editorDrawTabBar(struct writeBuf *wb) {
-	if (E.window_cols <= 0) {
-		return wbAppend(wb, "\r\n", 2);
+static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols);
+
+static int editorDrawTabSlots(struct writeBuf *wb, int cols) {
+	if (cols <= 0) {
+		return 1;
 	}
 
-	editorTabsAlignViewToActive(E.window_cols);
+	editorTabsAlignViewToActive(cols);
 	int tab_count = editorTabCount();
 	int active = editorTabActiveIndex();
-	int visible_slots = editorTabVisibleSlotsForWidth(E.window_cols);
+	int visible_slots = editorTabVisibleSlotsForWidth(cols);
 	int draw_slot_width = ROTIDE_TAB_SLOT_WIDTH;
-	if (E.window_cols < draw_slot_width) {
-		draw_slot_width = E.window_cols;
+	if (cols < draw_slot_width) {
+		draw_slot_width = cols;
 	}
 
 	for (int slot = 0; slot < visible_slots; slot++) {
@@ -415,11 +417,33 @@ static int editorDrawTabBar(struct writeBuf *wb) {
 	}
 
 	int drawn_cols = visible_slots * draw_slot_width;
-	while (drawn_cols < E.window_cols) {
+	while (drawn_cols < cols) {
 		if (!wbAppend(wb, " ", 1)) {
 			return 0;
 		}
 		drawn_cols++;
+	}
+
+	return 1;
+}
+
+static int editorDrawTabBar(struct writeBuf *wb) {
+	if (E.window_cols <= 0) {
+		return wbAppend(wb, "\r\n", 2);
+	}
+
+	int drawer_cols = editorDrawerWidthForCols(E.window_cols);
+	int separator_cols = editorDrawerSeparatorWidthForCols(E.window_cols);
+	int text_cols = editorDrawerTextViewportCols(E.window_cols);
+
+	if (!editorDrawDrawerRow(wb, 0, drawer_cols)) {
+		return 0;
+	}
+	if (separator_cols == 1 && !wbAppend(wb, "|", 1)) {
+		return 0;
+	}
+	if (!editorDrawTabSlots(wb, text_cols)) {
+		return 0;
 	}
 
 	if (!wbAppend(wb, VT100_CLEAR_ROW_3, 3)) {
@@ -428,16 +452,96 @@ static int editorDrawTabBar(struct writeBuf *wb) {
 	return wbAppend(wb, "\r\n", 2);
 }
 
+static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols) {
+	if (drawer_cols <= 0) {
+		return 1;
+	}
+
+	struct editorDrawerEntryView entry;
+	int visible_idx = E.drawer_rowoff + row_idx;
+	int written_cols = 0;
+	if (editorDrawerGetVisibleEntry(visible_idx, &entry)) {
+		char selected_marker = entry.is_selected ? '>' : ' ';
+		if (!wbAppend(wb, &selected_marker, 1)) {
+			return 0;
+		}
+		written_cols++;
+
+		char dir_marker = ' ';
+		if (entry.is_dir) {
+			dir_marker = entry.is_expanded ? 'v' : '>';
+		}
+		if (entry.has_scan_error) {
+			dir_marker = '!';
+		}
+		if (written_cols < drawer_cols && !wbAppend(wb, &dir_marker, 1)) {
+			return 0;
+		}
+		if (written_cols < drawer_cols) {
+			written_cols++;
+		}
+
+		if (written_cols < drawer_cols && !wbAppend(wb, " ", 1)) {
+			return 0;
+		}
+		if (written_cols < drawer_cols) {
+			written_cols++;
+		}
+
+		int indent = entry.depth * 2;
+		while (indent > 0 && written_cols < drawer_cols) {
+			if (!wbAppend(wb, " ", 1)) {
+				return 0;
+			}
+			written_cols++;
+			indent--;
+		}
+
+		if (written_cols < drawer_cols) {
+			int remaining = drawer_cols - written_cols;
+			int wrote = 0;
+			if (!editorAppendSanitizedText(wb, entry.name, remaining, &wrote)) {
+				return 0;
+			}
+			written_cols += wrote;
+		}
+	}
+
+	while (written_cols < drawer_cols) {
+		if (!wbAppend(wb, " ", 1)) {
+			return 0;
+		}
+		written_cols++;
+	}
+
+	return 1;
+}
+
 static int editorDrawRows(struct writeBuf *wb) {
+	(void)editorDrawerMoveSelectionBy(0, E.window_rows + 1);
+
+	int drawer_cols = editorDrawerWidthForCols(E.window_cols);
+	int separator_cols = editorDrawerSeparatorWidthForCols(E.window_cols);
+	int text_cols = editorDrawerTextViewportCols(E.window_cols);
+
 	for (int y = 0; y < E.window_rows; y++) {
 		int y_offset = y + E.rowoff;
 
+		if (!editorDrawDrawerRow(wb, y + 1, drawer_cols)) {
+			return 0;
+		}
+		if (separator_cols == 1) {
+			if (!wbAppend(wb, "|", 1)) {
+				return 0;
+			}
+		}
+
 		if (y_offset < E.numrows) {
-			if (!editorDrawFileRow(wb, y_offset)) {
+			if (!editorDrawFileRow(wb, y_offset, text_cols)) {
 				return 0;
 			}
 		} else if (E.numrows == 0 && y == E.window_rows / 3) {
-			if (!editorDrawGreeting(wb)) {
+			if (!editorDrawGreeting(wb, text_cols)) {
 				return 0;
 			}
 		} else {
@@ -531,6 +635,10 @@ void editorScroll(void) {
 	if (E.cy < E.numrows) {
 		E.rx = editorRowCxToRx(&E.rows[E.cy], E.cx);
 	}
+	int text_cols = editorDrawerTextViewportCols(E.window_cols);
+	if (text_cols < 1) {
+		text_cols = 1;
+	}
 
 	// Keep the cursor visible vertically and horizontally by moving
 	// the window origin just enough to include the current position.
@@ -542,8 +650,8 @@ void editorScroll(void) {
 
 	if (E.rx < E.coloff) {
 		E.coloff = E.rx;
-	} else if (E.rx >= E.coloff + E.window_cols) {
-		E.coloff = E.rx - E.window_cols + 1;
+	} else if (E.rx >= E.coloff + text_cols) {
+		E.coloff = E.rx - text_cols + 1;
 	}
 }
 
@@ -582,9 +690,28 @@ void editorRefreshScreen(void) {
 		return;
 	}
 
+	int cursor_row = (E.cy - E.rowoff) + 2;
+	int cursor_col = editorDrawerTextStartColForCols(E.window_cols) + (E.rx - E.coloff) + 1;
+	if (E.pane_focus == EDITOR_PANE_DRAWER && editorDrawerWidthForCols(E.window_cols) > 0) {
+		int drawer_row = E.drawer_selected_index - E.drawer_rowoff;
+		if (drawer_row < 0) {
+			drawer_row = 0;
+		}
+		if (drawer_row > E.window_rows) {
+			drawer_row = E.window_rows;
+		}
+		cursor_row = drawer_row + 1;
+		cursor_col = 1;
+	}
+	if (cursor_row < 1) {
+		cursor_row = 1;
+	}
+	if (cursor_col < 1) {
+		cursor_col = 1;
+	}
+
 	char buf[32];
-	int buflen = snprintf(buf, sizeof(buf), "\x1b[%d;%dH",
-			(E.cy - E.rowoff) + 2, (E.rx - E.coloff) + 1);
+	int buflen = snprintf(buf, sizeof(buf), "\x1b[%d;%dH", cursor_row, cursor_col);
 	if (buflen > 0 && buflen < (int)sizeof(buf)) {
 		if (!wbAppend(&wb, buf, buflen)) {
 			wbFree(&wb);
