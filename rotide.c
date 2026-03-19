@@ -65,6 +65,8 @@ void initEditor(void) {
 	E.drawer_root = NULL;
 	E.drawer_selected_index = 0;
 	E.drawer_rowoff = 0;
+	E.drawer_last_click_visible_idx = -1;
+	E.drawer_last_click_ms = 0;
 	E.pane_focus = EDITOR_PANE_TEXT;
 	editorKeymapInitDefaults(&E.keymap);
 	editorClipboardSetExternalSink(editorClipboardSyncOsc52);

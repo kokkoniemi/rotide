@@ -1439,6 +1439,48 @@ int editorTabOpenFileAsNew(const char *filename) {
 	return 1;
 }
 
+static const char *editorTabPathAt(int idx) {
+	if (idx < 0 || idx >= E.tab_count) {
+		return NULL;
+	}
+	if (idx == E.active_tab) {
+		return E.filename;
+	}
+	return E.tabs[idx].filename;
+}
+
+static int editorPathsReferToSameFile(const char *left, const char *right) {
+	if (left == NULL || right == NULL) {
+		return 0;
+	}
+
+	struct stat left_st;
+	struct stat right_st;
+	if (stat(left, &left_st) == 0 && stat(right, &right_st) == 0) {
+		return left_st.st_dev == right_st.st_dev && left_st.st_ino == right_st.st_ino;
+	}
+
+	return strcmp(left, right) == 0;
+}
+
+static int editorTabFindOpenFileIndex(const char *path) {
+	if (path == NULL || path[0] == '\0') {
+		return -1;
+	}
+
+	for (int tab_idx = 0; tab_idx < E.tab_count; tab_idx++) {
+		const char *tab_path = editorTabPathAt(tab_idx);
+		if (tab_path == NULL || tab_path[0] == '\0') {
+			continue;
+		}
+		if (editorPathsReferToSameFile(path, tab_path)) {
+			return tab_idx;
+		}
+	}
+
+	return -1;
+}
+
 int editorTabSwitchToIndex(int idx) {
 	if (idx < 0 || idx >= E.tab_count) {
 		return 0;
@@ -2180,6 +2222,23 @@ int editorDrawerSelectedIsDirectory(void) {
 	return lookup.node->is_dir;
 }
 
+int editorDrawerOpenSelectedFileInTab(void) {
+	struct editorDrawerLookup lookup;
+	if (!editorDrawerLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
+		return 0;
+	}
+	if (lookup.node->is_dir || lookup.node->path == NULL || lookup.node->path[0] == '\0') {
+		return 0;
+	}
+
+	int existing_tab = editorTabFindOpenFileIndex(lookup.node->path);
+	if (existing_tab >= 0) {
+		return editorTabSwitchToIndex(existing_tab);
+	}
+
+	return editorTabOpenFileAsNew(lookup.node->path);
+}
+
 const char *editorDrawerRootPath(void) {
 	return E.drawer_root_path;
 }
@@ -2191,6 +2250,8 @@ void editorDrawerShutdown(void) {
 	E.drawer_root_path = NULL;
 	E.drawer_selected_index = 0;
 	E.drawer_rowoff = 0;
+	E.drawer_last_click_visible_idx = -1;
+	E.drawer_last_click_ms = 0;
 	E.pane_focus = EDITOR_PANE_TEXT;
 }
 
@@ -2222,6 +2283,8 @@ int editorDrawerInitForStartup(int argc, char *argv[], int restored_session) {
 	E.drawer_root = root;
 	E.drawer_selected_index = 0;
 	E.drawer_rowoff = 0;
+	E.drawer_last_click_visible_idx = -1;
+	E.drawer_last_click_ms = 0;
 	E.pane_focus = EDITOR_PANE_TEXT;
 	editorDrawerClampSelectionAndScroll(E.window_rows + 1);
 	return 1;

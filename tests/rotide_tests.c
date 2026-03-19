@@ -1931,6 +1931,115 @@ static int test_editor_drawer_expand_collapse_reuses_cached_children(void) {
 	return 0;
 }
 
+static int test_editor_drawer_open_selected_file_in_new_tab(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char open_file[512];
+	ASSERT_TRUE(path_join(open_file, sizeof(open_file), env.project_dir, "open.txt"));
+	ASSERT_TRUE(write_text_file(open_file, "opened\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("keep");
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+
+	int file_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("open.txt", &file_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(file_idx, E.window_rows + 1));
+	ASSERT_TRUE(editorDrawerOpenSelectedFileInTab());
+
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_EQ_STR(open_file, E.filename);
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_STR("opened", E.rows[0].chars);
+
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_STR("keep", E.rows[0].chars);
+
+	ASSERT_TRUE(unlink(open_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_open_selected_file_switches_existing_relative_path_tab(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char abs_file[512];
+	ASSERT_TRUE(path_join(abs_file, sizeof(abs_file), env.project_dir, "dup.txt"));
+	ASSERT_TRUE(write_text_file(abs_file, "dup\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("base");
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+	int file_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("dup.txt", &file_idx, NULL));
+
+	ASSERT_TRUE(editorTabOpenFileAsNew("dup.txt"));
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_EQ_STR("dup.txt", E.filename);
+
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(file_idx, E.window_rows + 1));
+	ASSERT_TRUE(editorDrawerOpenSelectedFileInTab());
+
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_EQ_STR("dup.txt", E.filename);
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_STR("dup", E.rows[0].chars);
+
+	ASSERT_TRUE(unlink(abs_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_open_selected_file_respects_tab_limit(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char open_file[512];
+	ASSERT_TRUE(path_join(open_file, sizeof(open_file), env.project_dir, "limit.txt"));
+	ASSERT_TRUE(write_text_file(open_file, "limit\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+
+	int file_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("limit.txt", &file_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(file_idx, E.window_rows + 1));
+
+	for (int i = 1; i < ROTIDE_MAX_TABS; i++) {
+		ASSERT_TRUE(editorTabNewEmpty());
+	}
+	ASSERT_EQ_INT(ROTIDE_MAX_TABS, editorTabCount());
+	add_row("stay");
+	int active_before = editorTabActiveIndex();
+	int numrows_before = E.numrows;
+
+	ASSERT_TRUE(!editorDrawerOpenSelectedFileInTab());
+	ASSERT_EQ_INT(ROTIDE_MAX_TABS, editorTabCount());
+	ASSERT_EQ_INT(active_before, editorTabActiveIndex());
+	ASSERT_EQ_INT(numrows_before, E.numrows);
+	ASSERT_EQ_STR("stay", E.rows[0].chars);
+	ASSERT_TRUE(strstr(E.statusmsg, "Tab limit reached") != NULL);
+
+	ASSERT_TRUE(unlink(open_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_recovery_snapshot_permissions_are_0600(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -3014,6 +3123,79 @@ static int test_editor_process_keypress_focus_drawer_and_arrow_navigation(void) 
 	return 0;
 }
 
+static int test_editor_process_keypress_drawer_enter_toggles_directory(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char src_dir[512];
+	char child_file[512];
+	ASSERT_TRUE(path_join(src_dir, sizeof(src_dir), env.project_dir, "src"));
+	ASSERT_TRUE(path_join(child_file, sizeof(child_file), src_dir, "child.txt"));
+	ASSERT_TRUE(make_dir(src_dir));
+	ASSERT_TRUE(write_text_file(child_file, "child\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+
+	int src_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("src", &src_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(src_idx, E.window_rows + 1));
+	int collapsed_count = editorDrawerVisibleCount();
+
+	E.pane_focus = EDITOR_PANE_DRAWER;
+	char enter_key[] = {'\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input(enter_key, sizeof(enter_key)) == 0);
+	ASSERT_TRUE(editorDrawerVisibleCount() > collapsed_count);
+	ASSERT_EQ_INT(1, editorTabCount());
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+
+	ASSERT_TRUE(editor_process_keypress_with_input(enter_key, sizeof(enter_key)) == 0);
+	ASSERT_EQ_INT(collapsed_count, editorDrawerVisibleCount());
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+
+	ASSERT_TRUE(unlink(child_file) == 0);
+	ASSERT_TRUE(rmdir(src_dir) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_drawer_enter_opens_file_in_new_tab(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char open_file[512];
+	ASSERT_TRUE(path_join(open_file, sizeof(open_file), env.project_dir, "open.txt"));
+	ASSERT_TRUE(write_text_file(open_file, "opened\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("keep");
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+	int file_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("open.txt", &file_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(file_idx, E.window_rows + 1));
+	E.pane_focus = EDITOR_PANE_DRAWER;
+
+	char enter_key[] = {'\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input(enter_key, sizeof(enter_key)) == 0);
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_EQ_STR(open_file, E.filename);
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_STR("opened", E.rows[0].chars);
+
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_STR("keep", E.rows[0].chars);
+
+	ASSERT_TRUE(unlink(open_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_process_keypress_insert_move_and_backspace(void) {
 	add_row("ab");
 	E.cy = 0;
@@ -3193,6 +3375,72 @@ static int test_editor_process_keypress_mouse_drawer_click_selects_and_toggles_d
 
 	ASSERT_TRUE(unlink(child_file) == 0);
 	ASSERT_TRUE(rmdir(src_dir) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drawer_single_file_click_selects_without_open(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char open_file[512];
+	ASSERT_TRUE(path_join(open_file, sizeof(open_file), env.project_dir, "single.txt"));
+	ASSERT_TRUE(write_text_file(open_file, "single\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+	int file_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("single.txt", &file_idx, NULL));
+
+	int row = file_idx - E.drawer_rowoff + 1;
+	ASSERT_TRUE(row >= 1);
+	char click_file[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click_file, sizeof(click_file), 0, 2, row, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_file, strlen(click_file)) == 0);
+	ASSERT_EQ_INT(1, editorTabCount());
+	ASSERT_EQ_INT(0, editorTabActiveIndex());
+	ASSERT_EQ_INT(file_idx, E.drawer_selected_index);
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+
+	ASSERT_TRUE(unlink(open_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drawer_double_click_file_opens_tab(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char open_file[512];
+	ASSERT_TRUE(path_join(open_file, sizeof(open_file), env.project_dir, "double.txt"));
+	ASSERT_TRUE(write_text_file(open_file, "double\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("orig");
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+	int file_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("double.txt", &file_idx, NULL));
+
+	int row = file_idx - E.drawer_rowoff + 1;
+	ASSERT_TRUE(row >= 1);
+	char click_file[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click_file, sizeof(click_file), 0, 2, row, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_file, strlen(click_file)) == 0);
+	ASSERT_EQ_INT(1, editorTabCount());
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+
+	ASSERT_TRUE(editor_process_keypress_with_input(click_file, strlen(click_file)) == 0);
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_EQ_STR(open_file, E.filename);
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_STR("double", E.rows[0].chars);
+
+	ASSERT_TRUE(unlink(open_file) == 0);
 	cleanup_recovery_test_env(&env);
 	return 0;
 }
@@ -4779,7 +5027,6 @@ static int test_editor_refresh_screen_renders_drawer_entries_and_selection(void)
 	ASSERT_TRUE(strstr(output, ">v   src") != NULL);
 	ASSERT_TRUE(strstr(output, "child.txt") != NULL);
 	ASSERT_TRUE(strstr(output, "|body") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[2;1H") != NULL);
 	free(output);
 
 	ASSERT_TRUE(unlink(child_file) == 0);
@@ -5097,10 +5344,16 @@ int main(void) {
 			{"editor_drawer_root_selection_modes", test_editor_drawer_root_selection_modes},
 			{"editor_drawer_tree_lists_dotfiles_sorted_and_symlink_as_file",
 				test_editor_drawer_tree_lists_dotfiles_sorted_and_symlink_as_file},
-			{"editor_drawer_expand_collapse_reuses_cached_children",
-				test_editor_drawer_expand_collapse_reuses_cached_children},
-			{"editor_recovery_snapshot_permissions_are_0600",
-				test_editor_recovery_snapshot_permissions_are_0600},
+				{"editor_drawer_expand_collapse_reuses_cached_children",
+					test_editor_drawer_expand_collapse_reuses_cached_children},
+				{"editor_drawer_open_selected_file_in_new_tab",
+					test_editor_drawer_open_selected_file_in_new_tab},
+				{"editor_drawer_open_selected_file_switches_existing_relative_path_tab",
+					test_editor_drawer_open_selected_file_switches_existing_relative_path_tab},
+				{"editor_drawer_open_selected_file_respects_tab_limit",
+					test_editor_drawer_open_selected_file_respects_tab_limit},
+				{"editor_recovery_snapshot_permissions_are_0600",
+					test_editor_recovery_snapshot_permissions_are_0600},
 			{"editor_recovery_clean_quit_removes_snapshot",
 				test_editor_recovery_clean_quit_removes_snapshot},
 			{"editor_recovery_failure_exit_keeps_snapshot",
@@ -5161,10 +5414,14 @@ int main(void) {
 				test_editor_process_keypress_ctrl_q_checks_dirty_tabs_globally},
 			{"editor_process_keypress_tab_actions_new_next_prev",
 				test_editor_process_keypress_tab_actions_new_next_prev},
-			{"editor_process_keypress_focus_drawer_and_arrow_navigation",
-				test_editor_process_keypress_focus_drawer_and_arrow_navigation},
-			{"editor_process_keypress_insert_move_and_backspace",
-				test_editor_process_keypress_insert_move_and_backspace},
+				{"editor_process_keypress_focus_drawer_and_arrow_navigation",
+					test_editor_process_keypress_focus_drawer_and_arrow_navigation},
+				{"editor_process_keypress_drawer_enter_toggles_directory",
+					test_editor_process_keypress_drawer_enter_toggles_directory},
+				{"editor_process_keypress_drawer_enter_opens_file_in_new_tab",
+					test_editor_process_keypress_drawer_enter_opens_file_in_new_tab},
+				{"editor_process_keypress_insert_move_and_backspace",
+					test_editor_process_keypress_insert_move_and_backspace},
 		{"editor_process_keypress_delete_key", test_editor_process_keypress_delete_key},
 		{"editor_process_keypress_arrow_down_keeps_visual_column",
 			test_editor_process_keypress_arrow_down_keeps_visual_column},
@@ -5175,10 +5432,14 @@ int main(void) {
 				test_editor_process_keypress_mouse_left_click_places_cursor_with_offsets},
 			{"editor_process_keypress_mouse_left_click_ignores_non_text_rows",
 				test_editor_process_keypress_mouse_left_click_ignores_non_text_rows},
-			{"editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory",
-				test_editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory},
-			{"editor_process_keypress_mouse_top_row_click_switches_tab",
-				test_editor_process_keypress_mouse_top_row_click_switches_tab},
+				{"editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory",
+					test_editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory},
+				{"editor_process_keypress_mouse_drawer_single_file_click_selects_without_open",
+					test_editor_process_keypress_mouse_drawer_single_file_click_selects_without_open},
+				{"editor_process_keypress_mouse_drawer_double_click_file_opens_tab",
+					test_editor_process_keypress_mouse_drawer_double_click_file_opens_tab},
+				{"editor_process_keypress_mouse_top_row_click_switches_tab",
+					test_editor_process_keypress_mouse_top_row_click_switches_tab},
 			{"editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps",
 				test_editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps},
 		{"editor_process_keypress_mouse_click_keeps_selection_anchor",

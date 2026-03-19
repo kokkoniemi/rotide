@@ -1,4 +1,3 @@
-- FEATURE: Allow opening a selected file from the drawer in a new tab without replacing the current tab.
 - FEATURE: Add multi-threading support for heavy background work (for example directory scanning/search indexing), with thread-safe state handling and unchanged editor behavior.
 - FEATURE: Make cursor style configurable via TOML (for example block/bar/underline), including config validation and sensible fallback defaults.
 - FEATURE: Integrate Tree-sitter for C files and maintain an incremental syntax tree per buffer (foundation for highlighting, folding, and symbol-aware actions).

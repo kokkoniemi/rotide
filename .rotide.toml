@@ -7,6 +7,8 @@
 # - Modifiers are case-insensitive and can be in any order
 # - or one of
 # left/right/up/down/home/end/page_up/page_down/enter/esc/backspace/del
+# - In drawer focus, enter toggles directories and opens files in tabs
+#   (reusing an already-open file tab when possible)
 
 [keymap]
 quit = "ctrl+q"

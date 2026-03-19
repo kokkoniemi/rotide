@@ -238,6 +238,8 @@ struct editorConfig {
 	struct editorDrawerNode *drawer_root;
 	int drawer_selected_index;
 	int drawer_rowoff;
+	int drawer_last_click_visible_idx;
+	long long drawer_last_click_ms;
 	enum editorPaneFocus pane_focus;
 	struct editorKeymap keymap;
 	struct termios orig_attrs;

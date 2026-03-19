@@ -58,6 +58,7 @@ int editorDrawerCollapseSelection(int viewport_rows);
 int editorDrawerToggleSelectionExpanded(int viewport_rows);
 int editorDrawerSelectVisibleIndex(int visible_idx, int viewport_rows);
 int editorDrawerSelectedIsDirectory(void);
+int editorDrawerOpenSelectedFileInTab(void);
 const char *editorDrawerRootPath(void);
 
 int editorTabsInit(void);

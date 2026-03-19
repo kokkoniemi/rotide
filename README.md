@@ -57,7 +57,7 @@ filename on first save.
 - New tab: `Ctrl-N`
 - Close tab: `Ctrl-W` (second press required for dirty tab)
 - Next/previous tab: `Alt-Right` / `Alt-Left`
-- Focus drawer: `Ctrl-E` (`Up/Down/Left/Right` navigate tree, `Esc` returns to text pane)
+- Focus drawer: `Ctrl-E` (`Up/Down/Left/Right` navigate tree; `Enter` toggles folders or opens files in tabs; double-click also opens files; open reuses an already-open file tab; `Esc` returns to text pane)
 - Find: `Ctrl-F`
 - Go to line: `Ctrl-G`
 - Selection toggle: `Ctrl-B`
