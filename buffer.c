@@ -2348,12 +2348,22 @@ int editorDrawerGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *v
 	}
 
 	view_out->name = lookup.node->name;
+	view_out->path = lookup.node->path;
 	view_out->depth = lookup.depth;
 	view_out->is_dir = lookup.node->is_dir;
 	view_out->is_expanded = lookup.node->is_expanded;
 	view_out->is_selected = visible_idx == E.drawer_selected_index;
 	view_out->has_scan_error = lookup.node->scan_error;
 	view_out->is_root = lookup.node == E.drawer_root;
+	view_out->parent_visible_idx = lookup.parent_visible_idx;
+	if (lookup.node->parent != NULL && lookup.node->parent->child_count > 0 &&
+			lookup.node->parent->children[lookup.node->parent->child_count - 1] == lookup.node) {
+		view_out->is_last_sibling = 1;
+	} else {
+		view_out->is_last_sibling = lookup.node->parent == NULL;
+	}
+	view_out->is_active_file = !lookup.node->is_dir && E.filename != NULL &&
+			editorPathsReferToSameFile(lookup.node->path, E.filename);
 	return 1;
 }
 
@@ -2384,6 +2394,13 @@ int editorDrawerExpandSelection(int viewport_rows) {
 		return 0;
 	}
 
+	if (lookup.node == E.drawer_root) {
+		lookup.node->is_expanded = 1;
+		(void)editorDrawerEnsureScanned(lookup.node);
+		editorDrawerClampSelectionAndScroll(viewport_rows);
+		return 1;
+	}
+
 	lookup.node->is_expanded = 1;
 	(void)editorDrawerEnsureScanned(lookup.node);
 	editorDrawerClampSelectionAndScroll(viewport_rows);
@@ -2393,6 +2410,12 @@ int editorDrawerExpandSelection(int viewport_rows) {
 int editorDrawerCollapseSelection(int viewport_rows) {
 	struct editorDrawerLookup lookup;
 	if (!editorDrawerLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
+		return 0;
+	}
+
+	if (lookup.node == E.drawer_root) {
+		lookup.node->is_expanded = 1;
+		editorDrawerClampSelectionAndScroll(viewport_rows);
 		return 0;
 	}
 
@@ -2417,6 +2440,11 @@ int editorDrawerToggleSelectionExpanded(int viewport_rows) {
 		return 0;
 	}
 	if (!lookup.node->is_dir) {
+		return 0;
+	}
+	if (lookup.node == E.drawer_root) {
+		lookup.node->is_expanded = 1;
+		editorDrawerClampSelectionAndScroll(viewport_rows);
 		return 0;
 	}
 

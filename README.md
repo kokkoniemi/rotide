@@ -17,6 +17,7 @@ search, save, undo/redo, selection, tabs, and keymap configuration are implement
 - Multi-tab file buffers with a top tab bar and mouse tab switching.
 - Variable-width tab titles that grow to content, with middle truncation after 25 columns.
 - Always-visible file drawer rooted to the startup project directory.
+- Drawer tree rendering with Unicode branches/carets, focus-only row highlight, and italic active-file label.
 - Clipboard copy/cut/paste with optional OSC52 terminal sync.
 - Undo/redo history for insert/delete/newline edit flows.
 - Mouse support (click, drag selection, wheel scroll).

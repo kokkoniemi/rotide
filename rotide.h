@@ -90,12 +90,16 @@ enum editorViewportMode {
 
 struct editorDrawerEntryView {
 	const char *name;
+	const char *path;
 	int depth;
 	int is_dir;
 	int is_expanded;
 	int is_selected;
 	int has_scan_error;
 	int is_root;
+	int parent_visible_idx;
+	int is_last_sibling;
+	int is_active_file;
 };
 
 struct editorTabLayoutEntry {

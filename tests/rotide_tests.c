@@ -1931,6 +1931,37 @@ static int test_editor_drawer_expand_collapse_reuses_cached_children(void) {
 	return 0;
 }
 
+static int test_editor_drawer_root_is_not_collapsible(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char src_dir[512];
+	ASSERT_TRUE(path_join(src_dir, sizeof(src_dir), env.project_dir, "src"));
+	ASSERT_TRUE(make_dir(src_dir));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_EQ_INT(0, E.drawer_selected_index);
+
+	int visible_before = editorDrawerVisibleCount();
+	ASSERT_TRUE(visible_before >= 2);
+
+	ASSERT_EQ_INT(0, editorDrawerCollapseSelection(E.window_rows));
+	ASSERT_EQ_INT(visible_before, editorDrawerVisibleCount());
+	ASSERT_EQ_INT(0, E.drawer_selected_index);
+
+	ASSERT_EQ_INT(0, editorDrawerToggleSelectionExpanded(E.window_rows));
+	ASSERT_EQ_INT(visible_before, editorDrawerVisibleCount());
+	ASSERT_EQ_INT(0, E.drawer_selected_index);
+
+	ASSERT_EQ_INT(1, editorDrawerExpandSelection(E.window_rows));
+	ASSERT_EQ_INT(visible_before, editorDrawerVisibleCount());
+	ASSERT_EQ_INT(0, E.drawer_selected_index);
+
+	ASSERT_TRUE(rmdir(src_dir) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_drawer_open_selected_file_in_new_tab(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -5565,17 +5596,197 @@ static int test_editor_refresh_screen_renders_drawer_entries_and_selection(void)
 	E.window_rows = 4;
 	E.window_cols = 40;
 	add_row("body");
+	struct editorDrawerEntryView root_view;
+	ASSERT_TRUE(editorDrawerGetVisibleEntry(0, &root_view));
+	char expected_root_bold[256];
+	ASSERT_TRUE(snprintf(expected_root_bold, sizeof(expected_root_bold),
+				"\x1b[1m\x1b[37m%s\x1b[39m\x1b[22m",
+				root_view.name) > 0);
 
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, ">v   src") != NULL);
+	ASSERT_TRUE(strstr(output, expected_root_bold) != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[7m \xE2\x96\xBE src") != NULL);
+	ASSERT_TRUE(strstr(output, "\xE2\x94\x9C src") == NULL);
+	ASSERT_TRUE(strstr(output, "\xE2\x94\x94 src") == NULL);
+	ASSERT_TRUE(strstr(output, "\xE2\x96\xBE") != NULL);
+	ASSERT_TRUE(strstr(output, "src") != NULL);
+	ASSERT_TRUE(strstr(output, "\xE2\x94\x94") != NULL);
+	ASSERT_TRUE(strstr(output, "\xE2\x94\x80") != NULL);
 	ASSERT_TRUE(strstr(output, "child.txt") != NULL);
 	ASSERT_TRUE(strstr(output, "\xE2\x94\x82" "body") != NULL);
 	free(output);
 
 	ASSERT_TRUE(unlink(child_file) == 0);
 	ASSERT_TRUE(rmdir(src_dir) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_refresh_screen_drawer_hides_selection_marker_when_unfocused(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char src_dir[512];
+	ASSERT_TRUE(path_join(src_dir, sizeof(src_dir), env.project_dir, "src"));
+	ASSERT_TRUE(make_dir(src_dir));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows));
+	int src_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("src", &src_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(src_idx, E.window_rows));
+
+	E.window_rows = 4;
+	E.window_cols = 40;
+	add_row("body");
+
+	E.pane_focus = EDITOR_PANE_DRAWER;
+	size_t focused_len = 0;
+	char *focused = refresh_screen_and_capture(&focused_len);
+	ASSERT_TRUE(focused != NULL);
+	ASSERT_TRUE(strstr(focused, "\x1b[7m \xE2\x96\xB8 src") != NULL);
+	free(focused);
+
+	E.pane_focus = EDITOR_PANE_TEXT;
+	size_t unfocused_len = 0;
+	char *unfocused = refresh_screen_and_capture(&unfocused_len);
+	ASSERT_TRUE(unfocused != NULL);
+	ASSERT_TRUE(strstr(unfocused, "\xE2\x97\x8F") == NULL);
+	ASSERT_TRUE(strstr(unfocused, "\x1b[7m \xE2\x96\xB8 src") == NULL);
+	free(unfocused);
+
+	ASSERT_TRUE(rmdir(src_dir) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_refresh_screen_drawer_active_file_uses_italic(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char active_file[512];
+	ASSERT_TRUE(path_join(active_file, sizeof(active_file), env.project_dir, "active.txt"));
+	ASSERT_TRUE(write_text_file(active_file, "active\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTabOpenFileAsNew(active_file));
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+
+	E.pane_focus = EDITOR_PANE_TEXT;
+	E.window_rows = 6;
+	E.window_cols = 60;
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[3mactive.txt\x1b[23m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(active_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_refresh_screen_drawer_renders_unicode_tree_connectors(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char src_dir[512];
+	char zzz_dir[512];
+	char alloc_file[512];
+	char rotide_file[512];
+	char helpers_file[512];
+	ASSERT_TRUE(path_join(src_dir, sizeof(src_dir), env.project_dir, "src"));
+	ASSERT_TRUE(path_join(zzz_dir, sizeof(zzz_dir), env.project_dir, "zzz"));
+	ASSERT_TRUE(path_join(alloc_file, sizeof(alloc_file), src_dir, "alloc_test_hooks.c"));
+	ASSERT_TRUE(path_join(rotide_file, sizeof(rotide_file), src_dir, "rotide_tests.c"));
+	ASSERT_TRUE(path_join(helpers_file, sizeof(helpers_file), src_dir, "test_helpers.c"));
+	ASSERT_TRUE(make_dir(src_dir));
+	ASSERT_TRUE(make_dir(zzz_dir));
+	ASSERT_TRUE(write_text_file(alloc_file, "a\n"));
+	ASSERT_TRUE(write_text_file(rotide_file, "b\n"));
+	ASSERT_TRUE(write_text_file(helpers_file, "c\n"));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+	int src_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("src", &src_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(src_idx, E.window_rows + 1));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+
+	E.window_rows = 8;
+	E.window_cols = 80;
+	(void)editorDrawerSetWidthForCols(40, E.window_cols);
+	E.pane_focus = EDITOR_PANE_TEXT;
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\xE2\x96\xBE src") != NULL);
+	ASSERT_TRUE(strstr(output, "\xE2\x96\xB8 zzz") != NULL);
+	ASSERT_TRUE(strstr(output, "\xE2\x94\x9C src") == NULL);
+	ASSERT_TRUE(strstr(output, "\xE2\x94\x94 src") == NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m\xE2\x94\x9C\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m\xE2\x94\x94\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m\xE2\x94\x80\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "alloc_test_hooks.c") != NULL);
+	ASSERT_TRUE(strstr(output, "rotide_tests.c") != NULL);
+	ASSERT_TRUE(strstr(output, "test_helpers.c") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(alloc_file) == 0);
+	ASSERT_TRUE(unlink(rotide_file) == 0);
+	ASSERT_TRUE(unlink(helpers_file) == 0);
+	ASSERT_TRUE(rmdir(src_dir) == 0);
+	ASSERT_TRUE(rmdir(zzz_dir) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_refresh_screen_drawer_selected_overflow_spills_into_text_area(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char long_dir[512];
+	const char *dirname = "drawer_item_with_overflow_tail_segment";
+	ASSERT_TRUE(path_join(long_dir, sizeof(long_dir), env.project_dir, dirname));
+	ASSERT_TRUE(make_dir(long_dir));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	int long_idx = -1;
+	ASSERT_TRUE(find_drawer_entry(dirname, &long_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(long_idx, E.window_rows + 1));
+
+	E.pane_focus = EDITOR_PANE_DRAWER;
+	E.window_rows = 4;
+	E.window_cols = 60;
+	ASSERT_TRUE(editorDrawerSetWidthForCols(12, E.window_cols));
+	add_row("body");
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "overflow_tail_segment") != NULL);
+
+	int highlighted_tail = 0;
+	const char *scan = output;
+	while ((scan = strstr(scan, "\x1b[7m")) != NULL) {
+		const char *normal = strstr(scan + 4, "\x1b[m");
+		if (normal == NULL) {
+			break;
+		}
+		const char *tail = strstr(scan, "overflow_tail_segment");
+		if (tail != NULL && tail < normal) {
+			highlighted_tail = 1;
+			break;
+		}
+		scan = normal + 3;
+	}
+	ASSERT_TRUE(highlighted_tail);
+
+	free(output);
+	ASSERT_TRUE(rmdir(long_dir) == 0);
 	cleanup_recovery_test_env(&env);
 	return 0;
 }
@@ -5631,6 +5842,30 @@ static int test_editor_refresh_screen_cursor_column_offsets_for_drawer(void) {
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, expected_cursor) != NULL);
+	free(output);
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_refresh_screen_hides_cursor_when_drawer_focused(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	add_row("abc");
+	E.window_rows = 3;
+	E.window_cols = 20;
+	E.cy = 0;
+	E.cx = 1;
+	E.rowoff = 0;
+	E.coloff = 0;
+	E.pane_focus = EDITOR_PANE_DRAWER;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[?25h") == NULL);
 	free(output);
 
 	cleanup_recovery_test_env(&env);
@@ -6024,6 +6259,8 @@ int main(void) {
 				test_editor_drawer_tree_lists_dotfiles_sorted_and_symlink_as_file},
 				{"editor_drawer_expand_collapse_reuses_cached_children",
 					test_editor_drawer_expand_collapse_reuses_cached_children},
+				{"editor_drawer_root_is_not_collapsible",
+					test_editor_drawer_root_is_not_collapsible},
 				{"editor_drawer_open_selected_file_in_new_tab",
 					test_editor_drawer_open_selected_file_in_new_tab},
 				{"editor_drawer_open_selected_file_switches_existing_relative_path_tab",
@@ -6282,12 +6519,22 @@ int main(void) {
 				test_editor_tabs_align_view_keeps_active_visible_with_variable_widths},
 			{"editor_refresh_screen_renders_drawer_entries_and_selection",
 				test_editor_refresh_screen_renders_drawer_entries_and_selection},
-			{"editor_refresh_screen_drawer_splitter_spans_editor_rows",
-				test_editor_refresh_screen_drawer_splitter_spans_editor_rows},
-			{"editor_refresh_screen_cursor_column_offsets_for_drawer",
-				test_editor_refresh_screen_cursor_column_offsets_for_drawer},
-			{"editor_refresh_screen_hides_cursor_when_offscreen_in_free_scroll",
-				test_editor_refresh_screen_hides_cursor_when_offscreen_in_free_scroll},
+			{"editor_refresh_screen_drawer_hides_selection_marker_when_unfocused",
+				test_editor_refresh_screen_drawer_hides_selection_marker_when_unfocused},
+			{"editor_refresh_screen_drawer_active_file_uses_italic",
+				test_editor_refresh_screen_drawer_active_file_uses_italic},
+			{"editor_refresh_screen_drawer_renders_unicode_tree_connectors",
+				test_editor_refresh_screen_drawer_renders_unicode_tree_connectors},
+			{"editor_refresh_screen_drawer_selected_overflow_spills_into_text_area",
+				test_editor_refresh_screen_drawer_selected_overflow_spills_into_text_area},
+				{"editor_refresh_screen_drawer_splitter_spans_editor_rows",
+					test_editor_refresh_screen_drawer_splitter_spans_editor_rows},
+				{"editor_refresh_screen_cursor_column_offsets_for_drawer",
+					test_editor_refresh_screen_cursor_column_offsets_for_drawer},
+				{"editor_refresh_screen_hides_cursor_when_drawer_focused",
+					test_editor_refresh_screen_hides_cursor_when_drawer_focused},
+				{"editor_refresh_screen_hides_cursor_when_offscreen_in_free_scroll",
+					test_editor_refresh_screen_hides_cursor_when_offscreen_in_free_scroll},
 			{"editor_drawer_layout_clamps_tiny_widths", test_editor_drawer_layout_clamps_tiny_widths},
 			{"editor_refresh_screen_highlights_active_selection_spans",
 				test_editor_refresh_screen_highlights_active_selection_spans},

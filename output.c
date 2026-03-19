@@ -25,9 +25,21 @@ struct writeBuf {
 #define VT100_CURSOR_STEADY_BLOCK_5 "\x1b[2 q"
 #define VT100_CURSOR_STEADY_UNDERLINE_5 "\x1b[4 q"
 #define VT100_CURSOR_STEADY_BAR_5 "\x1b[6 q"
+#define VT100_ITALIC_ON_4 "\x1b[3m"
+#define VT100_ITALIC_OFF_5 "\x1b[23m"
+#define VT100_BOLD_ON_4 "\x1b[1m"
+#define VT100_BOLD_OFF_5 "\x1b[22m"
 #define VT100_INVERTED_COLORS_4 "\x1b[7m"
 #define VT100_NORMAL_COLORS_3 "\x1b[m"
+#define VT100_FG_GRAY_5 "\x1b[90m"
+#define VT100_FG_WHITE_5 "\x1b[37m"
+#define VT100_FG_DEFAULT_5 "\x1b[39m"
 #define DRAWER_SPLITTER_UTF8 "\xE2\x94\x82"
+#define DRAWER_CARET_EXPANDED_UTF8 "\xE2\x96\xBE"
+#define DRAWER_CARET_COLLAPSED_UTF8 "\xE2\x96\xB8"
+#define DRAWER_TREE_BRANCH_MID_UTF8 "\xE2\x94\x9C"
+#define DRAWER_TREE_BRANCH_LAST_UTF8 "\xE2\x94\x94"
+#define DRAWER_TREE_HORIZONTAL_UTF8 "\xE2\x94\x80"
 
 static int wbAppend(struct writeBuf *wb, const char *s, size_t len) {
 	if (len == 0) {
@@ -286,6 +298,57 @@ static int editorAppendDisplaySuffix(struct writeBuf *wb, const char *text, int 
 
 	if (written_cols_out != NULL) {
 		*written_cols_out = remaining_cols;
+	}
+	return 1;
+}
+
+static int editorAppendDisplaySlice(struct writeBuf *wb, const char *text, int start_col, int max_cols,
+		int *written_cols_out) {
+	if (written_cols_out != NULL) {
+		*written_cols_out = 0;
+	}
+	if (text == NULL || max_cols <= 0) {
+		return 1;
+	}
+	if (start_col < 0) {
+		start_col = 0;
+	}
+
+	int text_len = (int)strlen(text);
+	int cursor_col = 0;
+	int written_cols = 0;
+	for (int idx = 0; idx < text_len;) {
+		unsigned int cp = 0;
+		int src_len = editorUtf8DecodeCodepoint(&text[idx], text_len - idx, &cp);
+		if (src_len <= 0) {
+			src_len = 1;
+		}
+		if (src_len > text_len - idx) {
+			src_len = text_len - idx;
+		}
+
+		int token_cols = editorCharDisplayWidth(&text[idx], text_len - idx);
+		if (token_cols < 0) {
+			token_cols = 0;
+		}
+
+		int token_end = cursor_col + token_cols;
+		if (token_end > start_col && written_cols + token_cols <= max_cols) {
+			if (!wbAppend(wb, &text[idx], (size_t)src_len)) {
+				return 0;
+			}
+			written_cols += token_cols;
+		}
+		if (written_cols >= max_cols) {
+			break;
+		}
+
+		cursor_col += token_cols;
+		idx += src_len;
+	}
+
+	if (written_cols_out != NULL) {
+		*written_cols_out = written_cols;
 	}
 	return 1;
 }
@@ -716,6 +779,8 @@ static const char *editorTabLabelFromFilename(const char *filename) {
 
 static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols);
 static int editorDrawDrawerSeparatorCell(struct writeBuf *wb, int separator_cols);
+static int editorDrawDrawerSelectionOverflow(struct writeBuf *wb, int row_idx, int drawer_cols,
+		int separator_cols, int text_cols, int terminal_row, int *overlay_drawn_out);
 
 static int editorDrawTabSlots(struct writeBuf *wb, int cols) {
 	if (cols <= 0) {
@@ -848,6 +913,197 @@ static int editorDrawDrawerSeparatorCell(struct writeBuf *wb, int separator_cols
 	return wbAppend(wb, DRAWER_SPLITTER_UTF8, sizeof(DRAWER_SPLITTER_UTF8) - 1);
 }
 
+static int editorDrawerAppendCell(struct writeBuf *wb, const char *text, size_t len, int *written_cols,
+		int drawer_cols) {
+	if (written_cols == NULL || *written_cols >= drawer_cols) {
+		return 1;
+	}
+	if (!wbAppend(wb, text, len)) {
+		return 0;
+	}
+	(*written_cols)++;
+	return 1;
+}
+
+static int editorDrawerAppendGrayCell(struct writeBuf *wb, const char *text, size_t len,
+		int *written_cols, int drawer_cols) {
+	if (written_cols == NULL || *written_cols >= drawer_cols) {
+		return 1;
+	}
+	if (!wbAppend(wb, VT100_FG_GRAY_5, 5) || !wbAppend(wb, text, len) ||
+			!wbAppend(wb, VT100_FG_DEFAULT_5, 5)) {
+		return 0;
+	}
+	(*written_cols)++;
+	return 1;
+}
+
+static int editorDrawerAppendConnectorCell(struct writeBuf *wb, const char *text, size_t len,
+		int *written_cols, int drawer_cols, int use_gray) {
+	if (use_gray) {
+		return editorDrawerAppendGrayCell(wb, text, len, written_cols, drawer_cols);
+	}
+	return editorDrawerAppendCell(wb, text, len, written_cols, drawer_cols);
+}
+
+static int editorDrawDrawerAncestorGuides(struct writeBuf *wb, int parent_visible_idx, int *written_cols,
+		int drawer_cols, int gray_connectors) {
+	if (parent_visible_idx < 0) {
+		return 1;
+	}
+
+	struct editorDrawerEntryView parent_entry;
+	if (!editorDrawerGetVisibleEntry(parent_visible_idx, &parent_entry)) {
+		return 1;
+	}
+
+	if (parent_entry.depth >= 2) {
+		if (!editorDrawDrawerAncestorGuides(wb, parent_entry.parent_visible_idx, written_cols,
+					drawer_cols, gray_connectors)) {
+			return 0;
+		}
+		if (parent_entry.is_last_sibling) {
+			if (!editorDrawerAppendCell(wb, " ", 1, written_cols, drawer_cols)) {
+				return 0;
+			}
+		} else {
+			if (!editorDrawerAppendConnectorCell(wb, DRAWER_SPLITTER_UTF8,
+						sizeof(DRAWER_SPLITTER_UTF8) - 1,
+						written_cols, drawer_cols, gray_connectors)) {
+				return 0;
+			}
+		}
+		if (!editorDrawerAppendCell(wb, " ", 1, written_cols, drawer_cols)) {
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
+static int editorBuildDrawerAncestorGuidesPlain(struct writeBuf *wb, int parent_visible_idx) {
+	if (parent_visible_idx < 0) {
+		return 1;
+	}
+
+	struct editorDrawerEntryView parent_entry;
+	if (!editorDrawerGetVisibleEntry(parent_visible_idx, &parent_entry)) {
+		return 1;
+	}
+
+	if (parent_entry.depth >= 2) {
+		if (!editorBuildDrawerAncestorGuidesPlain(wb, parent_entry.parent_visible_idx)) {
+			return 0;
+		}
+		if (parent_entry.is_last_sibling) {
+			if (!wbAppend(wb, "  ", 2)) {
+				return 0;
+			}
+		} else if (!wbAppend(wb, DRAWER_SPLITTER_UTF8 " ", sizeof(DRAWER_SPLITTER_UTF8) + 1 - 1)) {
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
+static int editorBuildDrawerRowPlain(struct writeBuf *wb, int visible_idx) {
+	struct editorDrawerEntryView entry;
+	if (!editorDrawerGetVisibleEntry(visible_idx, &entry)) {
+		return 1;
+	}
+
+	if (!entry.is_root && !wbAppend(wb, " ", 1)) {
+		return 0;
+	}
+
+	if (entry.depth > 1) {
+		const char *branch = entry.is_last_sibling ? DRAWER_TREE_BRANCH_LAST_UTF8 :
+				DRAWER_TREE_BRANCH_MID_UTF8;
+		size_t branch_len = entry.is_last_sibling ? sizeof(DRAWER_TREE_BRANCH_LAST_UTF8) - 1 :
+				sizeof(DRAWER_TREE_BRANCH_MID_UTF8) - 1;
+		if (!editorBuildDrawerAncestorGuidesPlain(wb, entry.parent_visible_idx) ||
+				!wbAppend(wb, branch, branch_len) ||
+				!wbAppend(wb, DRAWER_TREE_HORIZONTAL_UTF8 " ",
+						sizeof(DRAWER_TREE_HORIZONTAL_UTF8 " ") - 1)) {
+			return 0;
+		}
+	}
+
+	if (entry.is_dir && !entry.is_root) {
+		if (entry.has_scan_error) {
+			if (!wbAppend(wb, "! ", 2)) {
+				return 0;
+			}
+		} else {
+			const char *caret = entry.is_expanded ? DRAWER_CARET_EXPANDED_UTF8 :
+					DRAWER_CARET_COLLAPSED_UTF8;
+			size_t caret_len = entry.is_expanded ? sizeof(DRAWER_CARET_EXPANDED_UTF8) - 1 :
+					sizeof(DRAWER_CARET_COLLAPSED_UTF8) - 1;
+			if (!wbAppend(wb, caret, caret_len) || !wbAppend(wb, " ", 1)) {
+				return 0;
+			}
+		}
+	}
+
+	return editorAppendSanitizedText(wb, entry.name, -1, NULL);
+}
+
+static int editorDrawDrawerSelectionOverflow(struct writeBuf *wb, int row_idx, int drawer_cols,
+		int separator_cols, int text_cols, int terminal_row, int *overlay_drawn_out) {
+	if (overlay_drawn_out != NULL) {
+		*overlay_drawn_out = 0;
+	}
+	if (separator_cols + text_cols <= 0 || E.pane_focus != EDITOR_PANE_DRAWER) {
+		return 1;
+	}
+
+	int visible_idx = E.drawer_rowoff + row_idx;
+	struct editorDrawerEntryView entry;
+	if (!editorDrawerGetVisibleEntry(visible_idx, &entry) || !entry.is_selected) {
+		return 1;
+	}
+
+	struct writeBuf plain = WRITEBUF_INIT;
+	if (!editorBuildDrawerRowPlain(&plain, visible_idx)) {
+		wbFree(&plain);
+		return 0;
+	}
+	if (!wbAppend(&plain, "\0", 1)) {
+		wbFree(&plain);
+		return 0;
+	}
+
+	int total_cols = editorDisplayTextCols(plain.b != NULL ? plain.b : "");
+	if (total_cols <= drawer_cols) {
+		wbFree(&plain);
+		return 1;
+	}
+
+	int overlay_budget = separator_cols + text_cols;
+	int overlay_written = 0;
+	char move_buf[32];
+	int move_len = snprintf(move_buf, sizeof(move_buf), "\x1b[%d;%dH", terminal_row, drawer_cols + 1);
+	if (move_len <= 0 || move_len >= (int)sizeof(move_buf)) {
+		wbFree(&plain);
+		return 0;
+	}
+	if (!wbAppend(wb, move_buf, (size_t)move_len) ||
+			!wbAppend(wb, VT100_INVERTED_COLORS_4, 4) ||
+			!editorAppendDisplaySlice(wb, plain.b != NULL ? plain.b : "", drawer_cols, overlay_budget,
+					&overlay_written) ||
+			!wbAppend(wb, VT100_NORMAL_COLORS_3, 3)) {
+		wbFree(&plain);
+		return 0;
+	}
+
+	wbFree(&plain);
+	if (overlay_drawn_out != NULL) {
+		*overlay_drawn_out = 1;
+	}
+	return 1;
+}
+
 static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols) {
 	if (drawer_cols <= 0) {
 		return 1;
@@ -856,51 +1112,91 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 	struct editorDrawerEntryView entry;
 	int visible_idx = E.drawer_rowoff + row_idx;
 	int written_cols = 0;
+	int selected_with_focus = 0;
 	if (editorDrawerGetVisibleEntry(visible_idx, &entry)) {
-		char selected_marker = entry.is_selected ? '>' : ' ';
-		if (!wbAppend(wb, &selected_marker, 1)) {
+		selected_with_focus = entry.is_selected && E.pane_focus == EDITOR_PANE_DRAWER;
+		int gray_connectors = !selected_with_focus;
+		if (selected_with_focus && !wbAppend(wb, VT100_INVERTED_COLORS_4, 4)) {
 			return 0;
 		}
-		written_cols++;
 
-		char dir_marker = ' ';
-		if (entry.is_dir) {
-			dir_marker = entry.is_expanded ? 'v' : '>';
-		}
-		if (entry.has_scan_error) {
-			dir_marker = '!';
-		}
-		if (written_cols < drawer_cols && !wbAppend(wb, &dir_marker, 1)) {
+		if (!entry.is_root && !editorDrawerAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
 			return 0;
 		}
-		if (written_cols < drawer_cols) {
-			written_cols++;
-		}
 
-		if (written_cols < drawer_cols && !wbAppend(wb, " ", 1)) {
-			return 0;
-		}
-		if (written_cols < drawer_cols) {
-			written_cols++;
-		}
-
-		int indent = entry.depth * 2;
-		while (indent > 0 && written_cols < drawer_cols) {
-			if (!wbAppend(wb, " ", 1)) {
+		if (entry.depth > 1) {
+			if (!editorDrawDrawerAncestorGuides(wb, entry.parent_visible_idx, &written_cols,
+						drawer_cols, gray_connectors)) {
 				return 0;
 			}
-			written_cols++;
-			indent--;
+			const char *branch = entry.is_last_sibling ?
+					DRAWER_TREE_BRANCH_LAST_UTF8 : DRAWER_TREE_BRANCH_MID_UTF8;
+			size_t branch_len = entry.is_last_sibling ?
+					sizeof(DRAWER_TREE_BRANCH_LAST_UTF8) - 1 :
+					sizeof(DRAWER_TREE_BRANCH_MID_UTF8) - 1;
+			if (!editorDrawerAppendConnectorCell(wb, branch, branch_len, &written_cols, drawer_cols,
+						gray_connectors)) {
+				return 0;
+			}
+			if (!editorDrawerAppendConnectorCell(wb, DRAWER_TREE_HORIZONTAL_UTF8,
+						sizeof(DRAWER_TREE_HORIZONTAL_UTF8) - 1, &written_cols, drawer_cols,
+						gray_connectors)) {
+				return 0;
+			}
+			if (!editorDrawerAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
+				return 0;
+			}
+		}
+
+		if (entry.is_dir && !entry.is_root) {
+			if (entry.has_scan_error) {
+				if (!editorDrawerAppendCell(wb, "!", 1, &written_cols, drawer_cols)) {
+					return 0;
+				}
+			} else if (entry.is_expanded) {
+				if (!editorDrawerAppendCell(wb, DRAWER_CARET_EXPANDED_UTF8,
+							sizeof(DRAWER_CARET_EXPANDED_UTF8) - 1, &written_cols, drawer_cols)) {
+					return 0;
+				}
+			} else if (!editorDrawerAppendCell(wb, DRAWER_CARET_COLLAPSED_UTF8,
+							sizeof(DRAWER_CARET_COLLAPSED_UTF8) - 1, &written_cols, drawer_cols)) {
+				return 0;
+			}
+			if (!editorDrawerAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
+				return 0;
+			}
 		}
 
 		if (written_cols < drawer_cols) {
 			int remaining = drawer_cols - written_cols;
 			int wrote = 0;
+			int active_file = entry.is_active_file && !entry.is_dir;
+			int root_bold = entry.is_root;
+			int root_white = entry.is_root;
+			if (root_bold && !wbAppend(wb, VT100_BOLD_ON_4, 4)) {
+				return 0;
+			}
+			if (root_white && !wbAppend(wb, VT100_FG_WHITE_5, 5)) {
+				return 0;
+			}
+			if (active_file && !wbAppend(wb, VT100_ITALIC_ON_4, 4)) {
+				return 0;
+			}
 			if (!editorAppendSanitizedText(wb, entry.name, remaining, &wrote)) {
+				return 0;
+			}
+			if (active_file && !wbAppend(wb, VT100_ITALIC_OFF_5, 5)) {
+				return 0;
+			}
+			if (root_white && !wbAppend(wb, VT100_FG_DEFAULT_5, 5)) {
+				return 0;
+			}
+			if (root_bold && !wbAppend(wb, VT100_BOLD_OFF_5, 5)) {
 				return 0;
 			}
 			written_cols += wrote;
 		}
+
 	}
 
 	while (written_cols < drawer_cols) {
@@ -908,6 +1204,10 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 			return 0;
 		}
 		written_cols++;
+	}
+
+	if (selected_with_focus && !wbAppend(wb, VT100_NORMAL_COLORS_3, 3)) {
+		return 0;
 	}
 
 	return 1;
@@ -926,6 +1226,7 @@ static int editorDrawRows(struct writeBuf *wb) {
 		if (!editorDrawDrawerRow(wb, y + 1, drawer_cols)) {
 			return 0;
 		}
+
 		if (!editorDrawDrawerSeparatorCell(wb, separator_cols)) {
 			return 0;
 		}
@@ -945,6 +1246,11 @@ static int editorDrawRows(struct writeBuf *wb) {
 		}
 
 		if (!wbAppend(wb, VT100_CLEAR_ROW_3, 3)) {
+			return 0;
+		}
+		int overlay_drawn = 0;
+		if (!editorDrawDrawerSelectionOverflow(wb, y + 1, drawer_cols, separator_cols, text_cols, y + 2,
+					&overlay_drawn)) {
 			return 0;
 		}
 		if (!wbAppend(wb, "\r\n", 2)) {
@@ -1194,15 +1500,7 @@ void editorRefreshScreen(void) {
 	int cursor_col = editorDrawerTextStartColForCols(E.window_cols) + (E.rx - E.coloff) + 1;
 	int cursor_visible = 1;
 	if (E.pane_focus == EDITOR_PANE_DRAWER && editorDrawerWidthForCols(E.window_cols) > 0) {
-		int drawer_row = E.drawer_selected_index - E.drawer_rowoff;
-		if (drawer_row < 0) {
-			drawer_row = 0;
-		}
-		if (drawer_row > E.window_rows) {
-			drawer_row = E.window_rows;
-		}
-		cursor_row = drawer_row + 1;
-		cursor_col = 1;
+		cursor_visible = 0;
 	} else {
 		int text_row_min = 2;
 		int text_row_max = E.window_rows + 1;
