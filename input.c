@@ -21,6 +21,12 @@ enum {
 	DRAWER_RESIZE_STEP = 1
 };
 
+enum editorKeypressEffect {
+	EDITOR_KEYPRESS_EFFECT_NONE = 0,
+	EDITOR_KEYPRESS_EFFECT_VIEWPORT_SCROLL = 1 << 0,
+	EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT = 1 << 1
+};
+
 static long long editorMonotonicMillis(void) {
 	struct timespec ts;
 	if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
@@ -779,7 +785,7 @@ static int editorMoveCursorToMouse(const struct editorMouseEvent *event, int cla
 	return 1;
 }
 
-static void editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
+static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 	int mouse_col = event->x - 1;
 	int drawer_cols = editorDrawerWidthForCols(E.window_cols);
 	int separator_cols = editorDrawerSeparatorWidthForCols(E.window_cols);
@@ -796,7 +802,7 @@ static void editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 		(void)editorDrawerSetWidthForCols(mouse_col, E.window_cols);
 		E.mouse_left_button_down = 0;
 		E.mouse_drag_started = 0;
-		return;
+		return EDITOR_KEYPRESS_EFFECT_NONE;
 	}
 	E.drawer_resize_active = 0;
 
@@ -807,7 +813,7 @@ static void editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 			editorResetDrawerClickTracking();
 			E.mouse_left_button_down = 0;
 			E.mouse_drag_started = 0;
-			return;
+			return EDITOR_KEYPRESS_EFFECT_NONE;
 		}
 		if (editorDrawerSelectedIsDirectory()) {
 			(void)editorDrawerToggleSelectionExpanded(drawer_view_rows);
@@ -815,7 +821,7 @@ static void editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 			E.pane_focus = EDITOR_PANE_DRAWER;
 			E.mouse_left_button_down = 0;
 			E.mouse_drag_started = 0;
-			return;
+			return EDITOR_KEYPRESS_EFFECT_NONE;
 		}
 
 		int should_open_file = E.drawer_last_click_visible_idx == visible_idx &&
@@ -832,7 +838,7 @@ static void editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 		}
 		E.mouse_left_button_down = 0;
 		E.mouse_drag_started = 0;
-		return;
+		return EDITOR_KEYPRESS_EFFECT_NONE;
 	}
 
 	editorResetDrawerClickTracking();
@@ -845,13 +851,13 @@ static void editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 		}
 		E.mouse_left_button_down = 0;
 		E.mouse_drag_started = 0;
-		return;
+		return EDITOR_KEYPRESS_EFFECT_NONE;
 	}
 
 	if (!editorMoveCursorToMouse(event, 0)) {
 		E.mouse_left_button_down = 0;
 		E.mouse_drag_started = 0;
-		return;
+		return EDITOR_KEYPRESS_EFFECT_NONE;
 	}
 
 	E.pane_focus = EDITOR_PANE_TEXT;
@@ -859,19 +865,20 @@ static void editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 	E.mouse_drag_anchor_cx = E.cx;
 	E.mouse_drag_anchor_cy = E.cy;
 	E.mouse_drag_started = 0;
+	return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 }
 
-static void editorHandleMouseLeftDrag(const struct editorMouseEvent *event) {
+static int editorHandleMouseLeftDrag(const struct editorMouseEvent *event) {
 	if (E.drawer_resize_active) {
 		int mouse_col = event->x - 1;
 		(void)editorDrawerSetWidthForCols(mouse_col, E.window_cols);
-		return;
+		return EDITOR_KEYPRESS_EFFECT_NONE;
 	}
 	if (!E.mouse_left_button_down) {
-		return;
+		return EDITOR_KEYPRESS_EFFECT_NONE;
 	}
 	if (!editorMoveCursorToMouse(event, 1)) {
-		return;
+		return EDITOR_KEYPRESS_EFFECT_NONE;
 	}
 
 	if (!E.mouse_drag_started) {
@@ -881,245 +888,273 @@ static void editorHandleMouseLeftDrag(const struct editorMouseEvent *event) {
 		E.selection_anchor_cy = E.mouse_drag_anchor_cy;
 		E.mouse_drag_started = 1;
 	}
+	return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 }
 
-static void editorHandleMouseLeftRelease(void) {
+static int editorHandleMouseLeftRelease(void) {
 	E.drawer_resize_active = 0;
 	E.mouse_left_button_down = 0;
 	E.mouse_drag_started = 0;
+	return EDITOR_KEYPRESS_EFFECT_NONE;
 }
 
-static void editorHandleMouseWheel(const struct editorMouseEvent *event) {
-	int direction = event->kind == EDITOR_MOUSE_EVENT_WHEEL_UP ? ARROW_UP : ARROW_DOWN;
-	// Reuse arrow movement so cursor clamping/desired-column rules stay centralized.
-	for (int i = 0; i < MOUSE_WHEEL_SCROLL_LINES; i++) {
-		editorMoveCursor(direction);
-	}
+static int editorHandleMouseWheel(const struct editorMouseEvent *event) {
+	int delta = event->kind == EDITOR_MOUSE_EVENT_WHEEL_UP ?
+			-MOUSE_WHEEL_SCROLL_LINES : MOUSE_WHEEL_SCROLL_LINES;
+	editorViewportScrollByRows(delta);
+	return EDITOR_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 }
 
-static void editorHandleMouseEvent(void) {
+static int editorHandleMouseEvent(void) {
 	struct editorMouseEvent event;
 	// terminal.c queues one decoded event per MOUSE_EVENT keycode.
 	if (!editorConsumeMouseEvent(&event)) {
-		return;
+		return EDITOR_KEYPRESS_EFFECT_NONE;
 	}
 
 	switch (event.kind) {
 		case EDITOR_MOUSE_EVENT_LEFT_PRESS:
-			editorHandleMouseLeftPress(&event);
-			break;
+			return editorHandleMouseLeftPress(&event);
 		case EDITOR_MOUSE_EVENT_LEFT_DRAG:
-			editorHandleMouseLeftDrag(&event);
-			break;
+			return editorHandleMouseLeftDrag(&event);
 		case EDITOR_MOUSE_EVENT_LEFT_RELEASE:
-			editorHandleMouseLeftRelease();
-			break;
+			return editorHandleMouseLeftRelease();
 		case EDITOR_MOUSE_EVENT_WHEEL_UP:
 		case EDITOR_MOUSE_EVENT_WHEEL_DOWN:
-			editorHandleMouseWheel(&event);
-			break;
+			return editorHandleMouseWheel(&event);
 		default:
-			break;
+			return EDITOR_KEYPRESS_EFFECT_NONE;
 	}
 }
 
-static int editorProcessMappedAction(enum editorAction action) {
+static int editorProcessMappedAction(enum editorAction action, int *effects_out) {
+	int effects = EDITOR_KEYPRESS_EFFECT_NONE;
+
 	switch (action) {
 		case EDITOR_ACTION_QUIT:
 			editorHistoryBreakGroup();
 			quit();
+			if (effects_out != NULL) {
+				*effects_out = effects;
+			}
 			return 1;
 		case EDITOR_ACTION_SAVE:
 			editorHistoryBreakGroup();
 			editorSave();
-			return 0;
+			break;
 		case EDITOR_ACTION_NEW_TAB:
 			editorHistoryBreakGroup();
 			(void)editorTabNewEmpty();
-			return 0;
+			break;
 		case EDITOR_ACTION_CLOSE_TAB:
 			editorHistoryBreakGroup();
 			editorCloseTab();
-			return 0;
+			break;
 		case EDITOR_ACTION_NEXT_TAB:
 			editorHistoryBreakGroup();
 			(void)editorTabSwitchByDelta(1);
-			return 0;
-			case EDITOR_ACTION_PREV_TAB:
-				editorHistoryBreakGroup();
-				(void)editorTabSwitchByDelta(-1);
-				return 0;
-			case EDITOR_ACTION_FOCUS_DRAWER:
-				editorHistoryBreakGroup();
-				E.pane_focus = EDITOR_PANE_DRAWER;
-				return 0;
-			case EDITOR_ACTION_RESIZE_DRAWER_NARROW:
-				editorHistoryBreakGroup();
-				(void)editorDrawerResizeByDeltaForCols(-DRAWER_RESIZE_STEP, E.window_cols);
-				return 0;
-			case EDITOR_ACTION_RESIZE_DRAWER_WIDEN:
-				editorHistoryBreakGroup();
-				(void)editorDrawerResizeByDeltaForCols(DRAWER_RESIZE_STEP, E.window_cols);
-				return 0;
-			case EDITOR_ACTION_FIND:
-				editorHistoryBreakGroup();
-				editorFind();
-				return 0;
+			break;
+		case EDITOR_ACTION_PREV_TAB:
+			editorHistoryBreakGroup();
+			(void)editorTabSwitchByDelta(-1);
+			break;
+		case EDITOR_ACTION_FOCUS_DRAWER:
+			editorHistoryBreakGroup();
+			E.pane_focus = EDITOR_PANE_DRAWER;
+			break;
+		case EDITOR_ACTION_RESIZE_DRAWER_NARROW:
+			editorHistoryBreakGroup();
+			(void)editorDrawerResizeByDeltaForCols(-DRAWER_RESIZE_STEP, E.window_cols);
+			break;
+		case EDITOR_ACTION_RESIZE_DRAWER_WIDEN:
+			editorHistoryBreakGroup();
+			(void)editorDrawerResizeByDeltaForCols(DRAWER_RESIZE_STEP, E.window_cols);
+			break;
+		case EDITOR_ACTION_FIND:
+			editorHistoryBreakGroup();
+			editorFind();
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			break;
 		case EDITOR_ACTION_GOTO_LINE:
 			editorHistoryBreakGroup();
 			editorGoToLine();
-			return 0;
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			break;
 		case EDITOR_ACTION_TOGGLE_SELECTION:
 			editorHistoryBreakGroup();
 			editorToggleSelectionMode();
-			return 0;
+			break;
 		case EDITOR_ACTION_COPY_SELECTION:
 			editorHistoryBreakGroup();
 			editorCopySelection();
-			return 0;
+			break;
 		case EDITOR_ACTION_CUT_SELECTION:
 			editorHistoryBreakGroup();
 			editorCutSelection();
-			return 0;
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			break;
 		case EDITOR_ACTION_DELETE_SELECTION:
 			editorHistoryBreakGroup();
 			editorDeleteSelection();
-			return 0;
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			break;
 		case EDITOR_ACTION_PASTE:
 			editorHistoryBreakGroup();
 			editorPasteClipboard();
-			return 0;
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			break;
 		case EDITOR_ACTION_UNDO:
 			editorHistoryBreakGroup();
 			if (editorUndo() == 1) {
 				editorClearSearchState();
+				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			}
-			return 0;
+			break;
 		case EDITOR_ACTION_REDO:
 			editorHistoryBreakGroup();
 			if (editorRedo() == 1) {
 				editorClearSearchState();
+				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			}
-			return 0;
+			break;
 		case EDITOR_ACTION_MOVE_HOME:
 			editorHistoryBreakGroup();
 			E.cx = 0;
-			return 0;
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			break;
 		case EDITOR_ACTION_MOVE_END:
 			editorHistoryBreakGroup();
 			if (E.cy < E.numrows) {
 				E.cx = E.rows[E.cy].size;
 			}
-			return 0;
-		case EDITOR_ACTION_PAGE_UP:
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			break;
+		case EDITOR_ACTION_PAGE_UP: {
 			editorHistoryBreakGroup();
-			E.cy = E.rowoff;
-			// Reuse arrow movement so cursor clamping behavior stays consistent.
-			for (int i = 0; i < E.window_rows; i++) {
+			int page_rows = E.window_rows;
+			if (page_rows < 1) {
+				page_rows = 1;
+			}
+			editorViewportScrollByRows(-page_rows);
+			effects |= EDITOR_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
+			break;
+		}
+		case EDITOR_ACTION_PAGE_DOWN: {
+			editorHistoryBreakGroup();
+			int page_rows = E.window_rows;
+			if (page_rows < 1) {
+				page_rows = 1;
+			}
+			editorViewportScrollByRows(page_rows);
+			effects |= EDITOR_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
+			break;
+		}
+		case EDITOR_ACTION_MOVE_UP:
+			editorHistoryBreakGroup();
+			if (E.pane_focus == EDITOR_PANE_DRAWER) {
+				(void)editorDrawerMoveSelectionBy(-1, E.window_rows + 1);
+			} else {
 				editorMoveCursor(ARROW_UP);
+				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			}
-			return 0;
-		case EDITOR_ACTION_PAGE_DOWN:
+			break;
+		case EDITOR_ACTION_MOVE_DOWN:
 			editorHistoryBreakGroup();
-			E.cy = E.rowoff + E.window_rows - 1;
-			if (E.cy > E.numrows) {
-				E.cy = E.numrows;
-			}
-			// Reuse arrow movement so cursor clamping behavior stays consistent.
-			for (int i = 0; i < E.window_rows; i++) {
+			if (E.pane_focus == EDITOR_PANE_DRAWER) {
+				(void)editorDrawerMoveSelectionBy(1, E.window_rows + 1);
+			} else {
 				editorMoveCursor(ARROW_DOWN);
+				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			}
-			return 0;
-			case EDITOR_ACTION_MOVE_UP:
+			break;
+		case EDITOR_ACTION_MOVE_LEFT:
+			editorHistoryBreakGroup();
+			if (E.pane_focus == EDITOR_PANE_DRAWER) {
+				(void)editorDrawerCollapseSelection(E.window_rows + 1);
+			} else {
+				editorMoveCursor(ARROW_LEFT);
+				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			}
+			break;
+		case EDITOR_ACTION_MOVE_RIGHT:
+			editorHistoryBreakGroup();
+			if (E.pane_focus == EDITOR_PANE_DRAWER) {
+				(void)editorDrawerExpandSelection(E.window_rows + 1);
+			} else {
+				editorMoveCursor(ARROW_RIGHT);
+				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			}
+			break;
+		case EDITOR_ACTION_NEWLINE:
+			if (E.pane_focus == EDITOR_PANE_DRAWER) {
 				editorHistoryBreakGroup();
-				if (E.pane_focus == EDITOR_PANE_DRAWER) {
-					(void)editorDrawerMoveSelectionBy(-1, E.window_rows + 1);
-				} else {
-					editorMoveCursor(ARROW_UP);
+				editorResetDrawerClickTracking();
+				if (editorDrawerSelectedIsDirectory()) {
+					(void)editorDrawerToggleSelectionExpanded(E.window_rows + 1);
+				} else if (editorDrawerOpenSelectedFileInTab()) {
+					E.pane_focus = EDITOR_PANE_TEXT;
 				}
-				return 0;
-			case EDITOR_ACTION_MOVE_DOWN:
-				editorHistoryBreakGroup();
-				if (E.pane_focus == EDITOR_PANE_DRAWER) {
-					(void)editorDrawerMoveSelectionBy(1, E.window_rows + 1);
-				} else {
-					editorMoveCursor(ARROW_DOWN);
-				}
-				return 0;
-			case EDITOR_ACTION_MOVE_LEFT:
-				editorHistoryBreakGroup();
-				if (E.pane_focus == EDITOR_PANE_DRAWER) {
-					(void)editorDrawerCollapseSelection(E.window_rows + 1);
-				} else {
-					editorMoveCursor(ARROW_LEFT);
-				}
-				return 0;
-				case EDITOR_ACTION_MOVE_RIGHT:
-					editorHistoryBreakGroup();
-					if (E.pane_focus == EDITOR_PANE_DRAWER) {
-						(void)editorDrawerExpandSelection(E.window_rows + 1);
-					} else {
-						editorMoveCursor(ARROW_RIGHT);
-					}
-					return 0;
-			case EDITOR_ACTION_NEWLINE: {
-				if (E.pane_focus == EDITOR_PANE_DRAWER) {
-					editorHistoryBreakGroup();
-					editorResetDrawerClickTracking();
-					if (editorDrawerSelectedIsDirectory()) {
-						(void)editorDrawerToggleSelectionExpanded(E.window_rows + 1);
-					} else if (editorDrawerOpenSelectedFileInTab()) {
-						E.pane_focus = EDITOR_PANE_TEXT;
-					}
-					return 0;
-				}
-				editorClearSelectionMode();
-				editorHistoryBeginEdit(EDITOR_EDIT_NEWLINE);
+				break;
+			}
+			editorClearSelectionMode();
+			editorHistoryBeginEdit(EDITOR_EDIT_NEWLINE);
+			{
 				int dirty_before = E.dirty;
 				editorInsertNewline();
 				editorHistoryCommitEdit(EDITOR_EDIT_NEWLINE, E.dirty != dirty_before);
-			return 0;
-		}
-			case EDITOR_ACTION_ESCAPE:
-				// In normal editor mode Escape only clears transient selection state; quit is configurable.
-				editorHistoryBreakGroup();
-				if (E.pane_focus == EDITOR_PANE_DRAWER) {
-					E.pane_focus = EDITOR_PANE_TEXT;
-					return 0;
-				}
-				editorClearSelectionMode();
-				return 0;
+			}
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			break;
+		case EDITOR_ACTION_ESCAPE:
+			// In normal editor mode Escape only clears transient selection state; quit is configurable.
+			editorHistoryBreakGroup();
+			if (E.pane_focus == EDITOR_PANE_DRAWER) {
+				E.pane_focus = EDITOR_PANE_TEXT;
+				break;
+			}
+			editorClearSelectionMode();
+			break;
 		case EDITOR_ACTION_REDRAW:
 			editorHistoryBreakGroup();
-			return 0;
-		case EDITOR_ACTION_DELETE_CHAR: {
+			break;
+		case EDITOR_ACTION_DELETE_CHAR:
 			editorClearSelectionMode();
 			editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
-			int dirty_before = E.dirty;
-			// DEL deletes under cursor; editorDelChar() implements backspace semantics.
-			editorMoveCursor(ARROW_RIGHT);
-			editorDelChar();
-			editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
-			return 0;
-		}
-		case EDITOR_ACTION_BACKSPACE: {
+			{
+				int dirty_before = E.dirty;
+				// DEL deletes under cursor; editorDelChar() implements backspace semantics.
+				editorMoveCursor(ARROW_RIGHT);
+				editorDelChar();
+				editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+			}
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			break;
+		case EDITOR_ACTION_BACKSPACE:
 			editorClearSelectionMode();
 			editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
-			int dirty_before = E.dirty;
-			editorDelChar();
-			editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
-			return 0;
-		}
+			{
+				int dirty_before = E.dirty;
+				editorDelChar();
+				editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+			}
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			break;
 		case EDITOR_ACTION_COUNT:
 		default:
-			return 0;
+			break;
 	}
+
+	if (effects_out != NULL) {
+		*effects_out = effects;
+	}
+	return 0;
 }
 
 void editorProcessKeypress(void) {
 	int c = editorReadKey();
 	enum editorAction action = EDITOR_ACTION_COUNT;
 	int mapped_action = 0;
+	int effects = EDITOR_KEYPRESS_EFFECT_NONE;
 
 	if (c == INPUT_EOF_EVENT) {
 		editorExitOnInputShutdown();
@@ -1133,29 +1168,35 @@ void editorProcessKeypress(void) {
 	if (c == MOUSE_EVENT) {
 		// Mouse input can move cursor/selection, but it should not create edit history entries.
 		editorHistoryBreakGroup();
-		editorHandleMouseEvent();
+		effects |= editorHandleMouseEvent();
 	} else {
-			if (editorKeymapLookupAction(&E.keymap, c, &action)) {
-				mapped_action = 1;
-				if (editorProcessMappedAction(action)) {
-					return;
-				}
-			} else if (c >= CHAR_MIN && c <= CHAR_MAX) {
-				if (E.pane_focus != EDITOR_PANE_DRAWER) {
-					editorClearSelectionMode();
-					editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
-					int dirty_before = E.dirty;
-					editorInsertChar(c);
-					editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
-				}
+		if (editorKeymapLookupAction(&E.keymap, c, &action)) {
+			int mapped_effects = EDITOR_KEYPRESS_EFFECT_NONE;
+			mapped_action = 1;
+			if (editorProcessMappedAction(action, &mapped_effects)) {
+				return;
+			}
+			effects |= mapped_effects;
+		} else if (c >= CHAR_MIN && c <= CHAR_MAX) {
+			if (E.pane_focus != EDITOR_PANE_DRAWER) {
+				editorClearSelectionMode();
+				editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+				int dirty_before = E.dirty;
+				editorInsertChar(c);
+				editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			}
 		}
+	}
 
 	if (!mapped_action || action != EDITOR_ACTION_CLOSE_TAB) {
 		E.close_confirmed = 0;
 	}
 	if (!mapped_action || action != EDITOR_ACTION_QUIT) {
 		quit_confirmed = 0;
+	}
+	if ((effects & EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT) != 0) {
+		editorViewportEnsureCursorVisible();
 	}
 
 	editorRecoveryMaybeAutosaveOnActivity();

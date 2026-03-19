@@ -4,5 +4,8 @@
 #include "rotide.h"
 
 void editorRefreshScreen(void);
+void editorViewportSetMode(enum editorViewportMode mode);
+void editorViewportScrollByRows(int delta_rows);
+void editorViewportEnsureCursorVisible(void);
 
 #endif

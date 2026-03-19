@@ -71,6 +71,7 @@ void initEditor(void) {
 	E.drawer_width_user_set = 0;
 	E.drawer_resize_active = 0;
 	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;
+	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
 	E.pane_focus = EDITOR_PANE_TEXT;
 	editorKeymapInitDefaults(&E.keymap);
 	editorClipboardSetExternalSink(editorClipboardSyncOsc52);

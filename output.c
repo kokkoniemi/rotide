@@ -1050,11 +1050,27 @@ static int editorDrawStatusBar(struct writeBuf *wb) {
 	return wbAppend(wb, "\r\n", 2);
 }
 
-void editorScroll(void) {
+static void editorClampViewportOffsets(void) {
+	if (E.rowoff < 0) {
+		E.rowoff = 0;
+	}
+	int max_rowoff = E.numrows > 0 ? E.numrows - 1 : 0;
+	if (E.rowoff > max_rowoff) {
+		E.rowoff = max_rowoff;
+	}
+	if (E.coloff < 0) {
+		E.coloff = 0;
+	}
+}
+
+static void editorUpdateRenderXFromCursor(void) {
 	E.rx = 0;
 	if (E.cy < E.numrows) {
 		E.rx = editorRowCxToRx(&E.rows[E.cy], E.cx);
 	}
+}
+
+static void editorFollowCursorViewport(void) {
 	int text_cols = editorDrawerTextViewportCols(E.window_cols);
 	if (text_cols < 1) {
 		text_cols = 1;
@@ -1073,6 +1089,47 @@ void editorScroll(void) {
 	} else if (E.rx >= E.coloff + text_cols) {
 		E.coloff = E.rx - text_cols + 1;
 	}
+}
+
+void editorViewportSetMode(enum editorViewportMode mode) {
+	if (mode == EDITOR_VIEWPORT_FREE_SCROLL) {
+		E.viewport_mode = EDITOR_VIEWPORT_FREE_SCROLL;
+	} else {
+		E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
+	}
+}
+
+void editorViewportScrollByRows(int delta_rows) {
+	if (delta_rows == 0) {
+		return;
+	}
+
+	long long target = (long long)E.rowoff + (long long)delta_rows;
+	if (target < 0) {
+		target = 0;
+	}
+	long long max_rowoff = E.numrows > 0 ? (long long)E.numrows - 1 : 0;
+	if (target > max_rowoff) {
+		target = max_rowoff;
+	}
+	E.rowoff = (int)target;
+	E.viewport_mode = EDITOR_VIEWPORT_FREE_SCROLL;
+	editorClampViewportOffsets();
+}
+
+void editorViewportEnsureCursorVisible(void) {
+	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
+	editorUpdateRenderXFromCursor();
+	editorFollowCursorViewport();
+	editorClampViewportOffsets();
+}
+
+void editorScroll(void) {
+	editorUpdateRenderXFromCursor();
+	if (E.viewport_mode == EDITOR_VIEWPORT_FOLLOW_CURSOR) {
+		editorFollowCursorViewport();
+	}
+	editorClampViewportOffsets();
 }
 
 static int editorDrawMessageBar(struct writeBuf *wb) {
@@ -1135,6 +1192,7 @@ void editorRefreshScreen(void) {
 
 	int cursor_row = (E.cy - E.rowoff) + 2;
 	int cursor_col = editorDrawerTextStartColForCols(E.window_cols) + (E.rx - E.coloff) + 1;
+	int cursor_visible = 1;
 	if (E.pane_focus == EDITOR_PANE_DRAWER && editorDrawerWidthForCols(E.window_cols) > 0) {
 		int drawer_row = E.drawer_selected_index - E.drawer_rowoff;
 		if (drawer_row < 0) {
@@ -1145,28 +1203,60 @@ void editorRefreshScreen(void) {
 		}
 		cursor_row = drawer_row + 1;
 		cursor_col = 1;
-	}
-	if (cursor_row < 1) {
-		cursor_row = 1;
-	}
-	if (cursor_col < 1) {
-		cursor_col = 1;
-	}
+	} else {
+		int text_row_min = 2;
+		int text_row_max = E.window_rows + 1;
+		if (text_row_max < text_row_min) {
+			text_row_max = text_row_min;
+		}
 
-	char buf[32];
-	int buflen = snprintf(buf, sizeof(buf), "\x1b[%d;%dH", cursor_row, cursor_col);
-	if (buflen > 0 && buflen < (int)sizeof(buf)) {
-		if (!wbAppend(&wb, buf, buflen)) {
+		int text_col_min = editorDrawerTextStartColForCols(E.window_cols) + 1;
+		int text_col_max = text_col_min + editorDrawerTextViewportCols(E.window_cols) - 1;
+		if (text_col_max < text_col_min) {
+			text_col_max = text_col_min;
+		}
+		if (E.viewport_mode == EDITOR_VIEWPORT_FREE_SCROLL &&
+				(cursor_row < text_row_min || cursor_row > text_row_max || cursor_col < text_col_min ||
+						cursor_col > text_col_max)) {
+			cursor_visible = 0;
+		} else {
+			if (cursor_row < text_row_min) {
+				cursor_row = text_row_min;
+			}
+			if (cursor_row > text_row_max) {
+				cursor_row = text_row_max;
+			}
+			if (cursor_col < text_col_min) {
+				cursor_col = text_col_min;
+			}
+			if (cursor_col > text_col_max) {
+				cursor_col = text_col_max;
+			}
+		}
+	}
+	if (cursor_visible) {
+		if (cursor_row < 1) {
+			cursor_row = 1;
+		}
+		if (cursor_col < 1) {
+			cursor_col = 1;
+		}
+
+		char buf[32];
+		int buflen = snprintf(buf, sizeof(buf), "\x1b[%d;%dH", cursor_row, cursor_col);
+		if (buflen > 0 && buflen < (int)sizeof(buf)) {
+			if (!wbAppend(&wb, buf, buflen)) {
+				wbFree(&wb);
+				editorSetStatusMsg("Out of memory");
+				return;
+			}
+		}
+
+		if (!wbAppend(&wb, VT100_SHOW_CURSOR_6, 6)) {
 			wbFree(&wb);
 			editorSetStatusMsg("Out of memory");
 			return;
 		}
-	}
-
-	if (!wbAppend(&wb, VT100_SHOW_CURSOR_6, 6)) {
-		wbFree(&wb);
-		editorSetStatusMsg("Out of memory");
-		return;
 	}
 
 	if (!editorWriteAllToStdout(wb.b, wb.len)) {

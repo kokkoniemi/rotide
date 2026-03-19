@@ -83,6 +83,11 @@ enum editorCursorStyle {
 	EDITOR_CURSOR_STYLE_UNDERLINE
 };
 
+enum editorViewportMode {
+	EDITOR_VIEWPORT_FOLLOW_CURSOR = 0,
+	EDITOR_VIEWPORT_FREE_SCROLL
+};
+
 struct editorDrawerEntryView {
 	const char *name;
 	int depth;
@@ -261,6 +266,7 @@ struct editorConfig {
 	int drawer_width_user_set;
 	int drawer_resize_active;
 	enum editorCursorStyle cursor_style;
+	enum editorViewportMode viewport_mode;
 	enum editorPaneFocus pane_focus;
 	struct editorKeymap keymap;
 	struct termios orig_attrs;

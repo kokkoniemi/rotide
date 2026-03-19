@@ -1371,9 +1371,11 @@ static void editorStoreActiveTab(void) {
 static void editorLoadActiveTab(int tab_idx) {
 	if (E.tabs == NULL || tab_idx < 0 || tab_idx >= E.tab_count) {
 		editorResetActiveBufferFields();
+		editorViewportSetMode(EDITOR_VIEWPORT_FOLLOW_CURSOR);
 		return;
 	}
 	editorTabStateLoadActive(&E.tabs[tab_idx]);
+	editorViewportSetMode(EDITOR_VIEWPORT_FOLLOW_CURSOR);
 }
 
 int editorTabsInit(void) {

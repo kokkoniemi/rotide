@@ -3863,21 +3863,118 @@ static int test_editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clam
 	}
 	E.window_rows = 5;
 	E.window_cols = 20;
-	E.cy = 0;
+	E.cy = 4;
 	E.cx = 0;
+	E.rowoff = 0;
 
 	const char wheel_down[] = "\x1b[<65;1;1M";
 	ASSERT_TRUE(editor_process_keypress_with_input(wheel_down, sizeof(wheel_down) - 1) == 0);
-	ASSERT_EQ_INT(3, E.cy);
+	ASSERT_EQ_INT(4, E.cy);
+	ASSERT_EQ_INT(3, E.rowoff);
+	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
 
-	E.cy = 8;
+	E.rowoff = 8;
 	ASSERT_TRUE(editor_process_keypress_with_input(wheel_down, sizeof(wheel_down) - 1) == 0);
-	ASSERT_EQ_INT(10, E.cy);
+	ASSERT_EQ_INT(9, E.rowoff);
+	ASSERT_EQ_INT(4, E.cy);
 
 	const char wheel_up[] = "\x1b[<64;1;1M";
-	E.cy = 1;
+	E.rowoff = 1;
 	ASSERT_TRUE(editor_process_keypress_with_input(wheel_up, sizeof(wheel_up) - 1) == 0);
-	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(0, E.rowoff);
+	ASSERT_EQ_INT(4, E.cy);
+	return 0;
+}
+
+static int test_editor_process_keypress_page_up_down_scroll_viewport_without_moving_cursor(void) {
+	for (int i = 0; i < 20; i++) {
+		add_row("line");
+	}
+	E.window_rows = 5;
+	E.window_cols = 20;
+	E.cy = 10;
+	E.cx = 2;
+	E.rowoff = 4;
+
+	const char page_down[] = "\x1b[6~";
+	ASSERT_TRUE(editor_process_keypress_with_input(page_down, sizeof(page_down) - 1) == 0);
+	ASSERT_EQ_INT(10, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_EQ_INT(9, E.rowoff);
+	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
+
+	const char page_up[] = "\x1b[5~";
+	ASSERT_TRUE(editor_process_keypress_with_input(page_up, sizeof(page_up) - 1) == 0);
+	ASSERT_EQ_INT(10, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_EQ_INT(4, E.rowoff);
+	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
+	return 0;
+}
+
+static int test_editor_process_keypress_free_scroll_can_leave_cursor_offscreen(void) {
+	for (int i = 0; i < 12; i++) {
+		add_row("line");
+	}
+	E.window_rows = 4;
+	E.window_cols = 20;
+	E.cy = 0;
+	E.cx = 0;
+	E.rowoff = 0;
+
+	const char wheel_down[] = "\x1b[<65;1;1M";
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_down, sizeof(wheel_down) - 1) == 0);
+	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
+	ASSERT_TRUE(E.cy < E.rowoff);
+	return 0;
+}
+
+static int test_editor_process_keypress_cursor_move_resyncs_follow_scroll(void) {
+	for (int i = 0; i < 12; i++) {
+		add_row("line");
+	}
+	E.window_rows = 4;
+	E.window_cols = 20;
+	E.cy = 0;
+	E.cx = 0;
+	E.rowoff = 0;
+
+	const char wheel_down[] = "\x1b[<65;1;1M";
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_down, sizeof(wheel_down) - 1) == 0);
+	ASSERT_TRUE(E.cy < E.rowoff);
+	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
+
+	const char arrow_down[] = "\x1b[B";
+	ASSERT_TRUE(editor_process_keypress_with_input(arrow_down, sizeof(arrow_down) - 1) == 0);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(1, E.rowoff);
+	ASSERT_EQ_INT(EDITOR_VIEWPORT_FOLLOW_CURSOR, E.viewport_mode);
+	ASSERT_TRUE(E.cy >= E.rowoff);
+	ASSERT_TRUE(E.cy < E.rowoff + E.window_rows);
+	return 0;
+}
+
+static int test_editor_process_keypress_edit_resyncs_follow_scroll(void) {
+	for (int i = 0; i < 12; i++) {
+		add_row("line");
+	}
+	E.window_rows = 4;
+	E.window_cols = 20;
+	E.cy = 0;
+	E.cx = 0;
+	E.rowoff = 0;
+
+	const char wheel_down[] = "\x1b[<65;1;1M";
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_down, sizeof(wheel_down) - 1) == 0);
+	ASSERT_TRUE(E.cy < E.rowoff);
+	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
+
+	const char insert_char[] = {'x'};
+	ASSERT_TRUE(editor_process_keypress_with_input(insert_char, sizeof(insert_char)) == 0);
+	ASSERT_EQ_INT(EDITOR_VIEWPORT_FOLLOW_CURSOR, E.viewport_mode);
+	ASSERT_EQ_INT(0, E.rowoff);
+	ASSERT_EQ_INT(1, E.cx);
+	ASSERT_TRUE(E.rows[0].chars[0] == 'x');
 	return 0;
 }
 
@@ -5540,6 +5637,30 @@ static int test_editor_refresh_screen_cursor_column_offsets_for_drawer(void) {
 	return 0;
 }
 
+static int test_editor_refresh_screen_hides_cursor_when_offscreen_in_free_scroll(void) {
+	add_row("line1");
+	add_row("line2");
+	add_row("line3");
+	add_row("line4");
+	add_row("line5");
+	add_row("line6");
+	E.window_rows = 3;
+	E.window_cols = 20;
+	E.cy = 0;
+	E.cx = 0;
+	E.rowoff = 4;
+	E.coloff = 0;
+	E.pane_focus = EDITOR_PANE_TEXT;
+	editorViewportSetMode(EDITOR_VIEWPORT_FREE_SCROLL);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[?25h") == NULL);
+	free(output);
+	return 0;
+}
+
 static int test_editor_drawer_layout_clamps_tiny_widths(void) {
 	ASSERT_EQ_INT(0, editorDrawerWidthForCols(1));
 	ASSERT_EQ_INT(1, editorDrawerTextViewportCols(1));
@@ -6015,6 +6136,14 @@ int main(void) {
 				test_editor_process_keypress_mouse_drag_on_splitter_resizes_drawer},
 			{"editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps",
 				test_editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps},
+			{"editor_process_keypress_page_up_down_scroll_viewport_without_moving_cursor",
+				test_editor_process_keypress_page_up_down_scroll_viewport_without_moving_cursor},
+			{"editor_process_keypress_free_scroll_can_leave_cursor_offscreen",
+				test_editor_process_keypress_free_scroll_can_leave_cursor_offscreen},
+			{"editor_process_keypress_cursor_move_resyncs_follow_scroll",
+				test_editor_process_keypress_cursor_move_resyncs_follow_scroll},
+			{"editor_process_keypress_edit_resyncs_follow_scroll",
+				test_editor_process_keypress_edit_resyncs_follow_scroll},
 		{"editor_process_keypress_mouse_click_keeps_selection_anchor",
 			test_editor_process_keypress_mouse_click_keeps_selection_anchor},
 		{"editor_process_keypress_mouse_drag_starts_selection_without_ctrl_b",
@@ -6157,6 +6286,8 @@ int main(void) {
 				test_editor_refresh_screen_drawer_splitter_spans_editor_rows},
 			{"editor_refresh_screen_cursor_column_offsets_for_drawer",
 				test_editor_refresh_screen_cursor_column_offsets_for_drawer},
+			{"editor_refresh_screen_hides_cursor_when_offscreen_in_free_scroll",
+				test_editor_refresh_screen_hides_cursor_when_offscreen_in_free_scroll},
 			{"editor_drawer_layout_clamps_tiny_widths", test_editor_drawer_layout_clamps_tiny_widths},
 			{"editor_refresh_screen_highlights_active_selection_spans",
 				test_editor_refresh_screen_highlights_active_selection_spans},
