@@ -5,7 +5,10 @@ LDFLAGS ?=
 SANITIZER_CFLAGS ?= -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer
 SANITIZER_LDFLAGS ?= -fsanitize=address,undefined -fno-omit-frame-pointer
 TREE_SITTER_CPPFLAGS = $(CPPFLAGS) -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_GNU_SOURCE
-TREE_SITTER_CFLAGS = $(filter-out -Werror -Wundef -Wshadow -Wdouble-promotion -pedantic,$(CFLAGS))
+TREE_SITTER_WARNING_CFLAGS = -Wno-unused-parameter -Wno-unused-value -Wno-sign-compare \
+	-Wno-implicit-fallthrough
+TREE_SITTER_CFLAGS = $(filter-out -Werror -Wundef -Wshadow -Wdouble-promotion -pedantic,$(CFLAGS)) \
+	$(TREE_SITTER_WARNING_CFLAGS)
 
 TREE_SITTER_SRCS = vendor/tree_sitter/runtime/src/lib.c \
 	vendor/tree_sitter/grammars/c/src/parser.c \

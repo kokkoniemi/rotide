@@ -55,3 +55,5 @@ rotide
 tests/rotide_tests
 # Local security planning notes
 SECURITY_IMPROVEMENTS.md
+# Local performance planning notes
+PERFORMANCE_IMPROVEMENTS.md

@@ -28,6 +28,13 @@ struct editorSyntaxCapture {
 	enum editorSyntaxHighlightClass highlight_class;
 };
 
+enum editorSyntaxPerformanceMode {
+	EDITOR_SYNTAX_PERF_NORMAL = 0,
+	EDITOR_SYNTAX_PERF_DEGRADED_PREDICATES,
+	EDITOR_SYNTAX_PERF_DEGRADED_INJECTIONS,
+	EDITOR_SYNTAX_PERF_DISABLED
+};
+
 enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *filename);
 enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilenameAndFirstLine(
 		const char *filename, const char *first_line);
@@ -40,11 +47,19 @@ int editorSyntaxStateApplyEditAndParse(struct editorSyntaxState *state,
 		const struct editorSyntaxEdit *edit,
 		const char *source,
 		size_t len);
+int editorSyntaxStateApplyEditAndParseWithInsertedText(struct editorSyntaxState *state,
+		const struct editorSyntaxEdit *edit,
+		const char *inserted_text,
+		size_t inserted_len);
+int editorSyntaxStateConfigureForSourceLength(struct editorSyntaxState *state, size_t source_len);
+enum editorSyntaxPerformanceMode editorSyntaxStatePerformanceMode(
+		const struct editorSyntaxState *state);
+size_t editorSyntaxStateSourceLength(const struct editorSyntaxState *state);
 
 int editorSyntaxStateHasTree(const struct editorSyntaxState *state);
 const char *editorSyntaxStateRootType(const struct editorSyntaxState *state);
 enum editorSyntaxLanguage editorSyntaxStateLanguage(const struct editorSyntaxState *state);
-int editorSyntaxStateCollectCapturesForRange(const struct editorSyntaxState *state,
+int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 		uint32_t start_byte, uint32_t end_byte,
 		struct editorSyntaxCapture *captures, int max_captures, int *count_out);
 void editorSyntaxReleaseSharedResources(void);

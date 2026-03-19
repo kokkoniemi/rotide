@@ -62,6 +62,7 @@ struct editorMouseEvent {
 struct erow {
 	int size;
 	int rsize;
+	int render_display_cols;
 	char *chars;
 	char *render;
 };
@@ -248,6 +249,11 @@ struct editorTabState {
 	int coloff;
 	int numrows;
 	struct erow *rows;
+	size_t *row_start_bytes;
+	int row_start_bytes_count;
+	int row_start_bytes_valid;
+	int max_render_cols;
+	int max_render_cols_valid;
 	int dirty;
 	char *filename;
 	enum editorSyntaxLanguage syntax_language;
@@ -284,6 +290,11 @@ struct editorConfig {
 	int coloff;
 	int numrows;
 	struct erow *rows;
+	size_t *row_start_bytes;
+	int row_start_bytes_count;
+	int row_start_bytes_valid;
+	int max_render_cols;
+	int max_render_cols_valid;
 	int dirty;
 	char *filename;
 	enum editorSyntaxLanguage syntax_language;

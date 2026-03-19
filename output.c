@@ -1469,6 +1469,7 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 
 static int editorDrawRows(struct writeBuf *wb) {
 	(void)editorDrawerMoveSelectionBy(0, E.window_rows + 1);
+	(void)editorSyntaxPrepareVisibleRowSpans(E.rowoff, E.window_rows);
 
 	int drawer_cols = editorDrawerWidthForCols(E.window_cols);
 	int separator_cols = editorDrawerSeparatorWidthForCols(E.window_cols);
@@ -1621,31 +1622,7 @@ static void editorClampViewportOffsets(void) {
 		E.coloff = 0;
 	}
 	if (E.coloff > 0) {
-		int max_coloff = 0;
-		for (int i = 0; i < E.numrows; i++) {
-			int row_cols = 0;
-			for (int j = 0; j < E.rows[i].rsize;) {
-				int width = editorCharDisplayWidth(&E.rows[i].render[j], E.rows[i].rsize - j);
-				if (width < 0) {
-					width = 0;
-				}
-				row_cols += width;
-
-				unsigned int cp = 0;
-				int char_len = editorUtf8DecodeCodepoint(&E.rows[i].render[j], E.rows[i].rsize - j, &cp);
-				(void)cp;
-				if (char_len <= 0) {
-					char_len = 1;
-				}
-				if (char_len > E.rows[i].rsize - j) {
-					char_len = E.rows[i].rsize - j;
-				}
-				j += char_len;
-			}
-			if (row_cols > max_coloff) {
-				max_coloff = row_cols;
-			}
-		}
+		int max_coloff = editorBufferMaxRenderCols();
 		if (max_coloff > 0) {
 			max_coloff--;
 		}
