@@ -42,6 +42,8 @@ static const struct editorActionName editor_action_names[] = {
 	{"next_tab", EDITOR_ACTION_NEXT_TAB},
 	{"prev_tab", EDITOR_ACTION_PREV_TAB},
 	{"focus_drawer", EDITOR_ACTION_FOCUS_DRAWER},
+	{"resize_drawer_narrow", EDITOR_ACTION_RESIZE_DRAWER_NARROW},
+	{"resize_drawer_widen", EDITOR_ACTION_RESIZE_DRAWER_WIDEN},
 	{"find", EDITOR_ACTION_FIND},
 	{"goto_line", EDITOR_ACTION_GOTO_LINE},
 	{"toggle_selection", EDITOR_ACTION_TOGGLE_SELECTION},
@@ -190,7 +192,8 @@ static int editorKeymapParseCtrlKeySpec(const char *spec, int *key_out) {
 enum editorKeymapModifierFlags {
 	EDITOR_KEYMAP_MOD_NONE = 0,
 	EDITOR_KEYMAP_MOD_CTRL = 1 << 0,
-	EDITOR_KEYMAP_MOD_ALT = 1 << 1
+	EDITOR_KEYMAP_MOD_ALT = 1 << 1,
+	EDITOR_KEYMAP_MOD_SHIFT = 1 << 2
 };
 
 static int editorKeymapParseLetterToken(const char *token, char *letter_out) {
@@ -240,6 +243,23 @@ static int editorKeymapArrowWithModifiers(int arrow, int modifiers, int *key_out
 					return 1;
 				case ARROW_UP:
 					*key_out = ALT_ARROW_UP;
+					return 1;
+				default:
+					return 0;
+			}
+		case EDITOR_KEYMAP_MOD_ALT | EDITOR_KEYMAP_MOD_SHIFT:
+			switch (arrow) {
+				case ARROW_LEFT:
+					*key_out = ALT_SHIFT_ARROW_LEFT;
+					return 1;
+				case ARROW_RIGHT:
+					*key_out = ALT_SHIFT_ARROW_RIGHT;
+					return 1;
+				case ARROW_DOWN:
+					*key_out = ALT_SHIFT_ARROW_DOWN;
+					return 1;
+				case ARROW_UP:
+					*key_out = ALT_SHIFT_ARROW_UP;
 					return 1;
 				default:
 					return 0;
@@ -320,6 +340,11 @@ static int editorKeymapParseKeySpec(const char *spec, int *key_out) {
 				return 0;
 			}
 			modifiers |= EDITOR_KEYMAP_MOD_ALT;
+		} else if (strcmp(cursor, "shift") == 0) {
+			if (modifiers & EDITOR_KEYMAP_MOD_SHIFT) {
+				return 0;
+			}
+			modifiers |= EDITOR_KEYMAP_MOD_SHIFT;
 		} else {
 			if (key_token != NULL) {
 				return 0;
@@ -646,6 +671,14 @@ static int editorKeymapFormatKey(int key, char *buf, size_t bufsize) {
 			return snprintf(buf, bufsize, "Alt-Down") > 0;
 		case ALT_ARROW_UP:
 			return snprintf(buf, bufsize, "Alt-Up") > 0;
+		case ALT_SHIFT_ARROW_LEFT:
+			return snprintf(buf, bufsize, "Alt-Shift-Left") > 0;
+		case ALT_SHIFT_ARROW_RIGHT:
+			return snprintf(buf, bufsize, "Alt-Shift-Right") > 0;
+		case ALT_SHIFT_ARROW_DOWN:
+			return snprintf(buf, bufsize, "Alt-Shift-Down") > 0;
+		case ALT_SHIFT_ARROW_UP:
+			return snprintf(buf, bufsize, "Alt-Shift-Up") > 0;
 		case CTRL_ARROW_LEFT:
 			return snprintf(buf, bufsize, "Ctrl-Left") > 0;
 		case CTRL_ARROW_RIGHT:
@@ -731,6 +764,10 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 	(void)editorKeymapAppendBinding(keymap, ALT_ARROW_RIGHT, EDITOR_ACTION_NEXT_TAB);
 	(void)editorKeymapAppendBinding(keymap, ALT_ARROW_LEFT, EDITOR_ACTION_PREV_TAB);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('e'), EDITOR_ACTION_FOCUS_DRAWER);
+	(void)editorKeymapAppendBinding(keymap, ALT_SHIFT_ARROW_LEFT,
+			EDITOR_ACTION_RESIZE_DRAWER_NARROW);
+	(void)editorKeymapAppendBinding(keymap, ALT_SHIFT_ARROW_RIGHT,
+			EDITOR_ACTION_RESIZE_DRAWER_WIDEN);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('f'), EDITOR_ACTION_FIND);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('g'), EDITOR_ACTION_GOTO_LINE);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('b'), EDITOR_ACTION_TOGGLE_SELECTION);

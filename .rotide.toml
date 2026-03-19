@@ -7,6 +7,7 @@
 # - "ctrl+<a-z>", "alt+<a-z>", "ctrl+alt+<a-z>"
 # - "ctrl+left/right/up/down", "alt+left/right/up/down",
 #   "ctrl+alt+left/right/up/down"
+# - "alt+shift+left/right/up/down"
 # - Modifiers are case-insensitive and can be in any order
 # - or one of
 # left/right/up/down/home/end/page_up/page_down/enter/esc/backspace/del
@@ -24,6 +25,8 @@ close_tab = "ctrl+w"
 next_tab = "alt+right"
 prev_tab = "alt+left"
 focus_drawer = "ctrl+e"
+resize_drawer_narrow = "alt+shift+left"
+resize_drawer_widen = "alt+shift+right"
 find = "ctrl+f"
 goto_line = "ctrl+g"
 toggle_selection = "ctrl+b"

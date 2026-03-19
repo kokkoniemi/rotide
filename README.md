@@ -57,6 +57,7 @@ filename on first save.
 - New tab: `Ctrl-N`
 - Close tab: `Ctrl-W` (second press required for dirty tab)
 - Next/previous tab: `Alt-Right` / `Alt-Left`
+- Resize drawer: `Alt-Shift-Left` / `Alt-Shift-Right` (or drag the splitter border with mouse)
 - Focus drawer: `Ctrl-E` (`Up/Down/Left/Right` navigate tree; `Enter` toggles folders or opens files in tabs; double-click also opens files; open reuses an already-open file tab; `Esc` returns to text pane)
 - Find: `Ctrl-F`
 - Go to line: `Ctrl-G`
@@ -114,6 +115,7 @@ Supported key specs:
 - Letter combos: `ctrl+<a-z>`, `alt+<a-z>`, `ctrl+alt+<a-z>`
 - Arrow combos: `ctrl+left/right/up/down`, `alt+left/right/up/down`,
   `ctrl+alt+left/right/up/down`
+- Shifted arrow combos: `alt+shift+left/right/up/down`
 - Named keys: `left`, `right`, `up`, `down`, `home`, `end`, `page_up`,
   `page_down`, `enter`, `esc`, `backspace`, `del`
 

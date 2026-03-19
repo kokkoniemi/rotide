@@ -2184,6 +2184,10 @@ static int test_editor_read_key_alt_arrow_sequences(void) {
 	const char csi_alt_right[] = "\x1b[1;3C";
 	const char csi_alt_down[] = "\x1b[1;3B";
 	const char csi_alt_up[] = "\x1b[1;3A";
+	const char csi_alt_shift_left[] = "\x1b[1;4D";
+	const char csi_alt_shift_right[] = "\x1b[1;4C";
+	const char csi_alt_shift_down[] = "\x1b[1;4B";
+	const char csi_alt_shift_up[] = "\x1b[1;4A";
 	const char csi_ctrl_left[] = "\x1b[1;5D";
 	const char csi_ctrl_right[] = "\x1b[1;5C";
 	const char csi_ctrl_down[] = "\x1b[1;5B";
@@ -2208,6 +2212,18 @@ static int test_editor_read_key_alt_arrow_sequences(void) {
 	ASSERT_EQ_INT(ALT_ARROW_DOWN, key);
 	ASSERT_TRUE(editor_read_key_with_input(csi_alt_up, sizeof(csi_alt_up) - 1, &key) == 0);
 	ASSERT_EQ_INT(ALT_ARROW_UP, key);
+	ASSERT_TRUE(editor_read_key_with_input(csi_alt_shift_left,
+				sizeof(csi_alt_shift_left) - 1, &key) == 0);
+	ASSERT_EQ_INT(ALT_SHIFT_ARROW_LEFT, key);
+	ASSERT_TRUE(editor_read_key_with_input(csi_alt_shift_right,
+				sizeof(csi_alt_shift_right) - 1, &key) == 0);
+	ASSERT_EQ_INT(ALT_SHIFT_ARROW_RIGHT, key);
+	ASSERT_TRUE(editor_read_key_with_input(csi_alt_shift_down,
+				sizeof(csi_alt_shift_down) - 1, &key) == 0);
+	ASSERT_EQ_INT(ALT_SHIFT_ARROW_DOWN, key);
+	ASSERT_TRUE(editor_read_key_with_input(csi_alt_shift_up,
+				sizeof(csi_alt_shift_up) - 1, &key) == 0);
+	ASSERT_EQ_INT(ALT_SHIFT_ARROW_UP, key);
 
 	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_left, sizeof(csi_ctrl_left) - 1, &key) == 0);
 	ASSERT_EQ_INT(CTRL_ARROW_LEFT, key);
@@ -3018,6 +3034,8 @@ static int test_editor_keymap_load_modifier_combo_specs_case_insensitive(void) {
 				"[keymap]\n"
 				"next_tab = \"CTRL+ALT+RIGHT\"\n"
 				"prev_tab = \"ctrl+UP\"\n"
+				"resize_drawer_narrow = \"SHIFT+ALT+LEFT\"\n"
+				"resize_drawer_widen = \"aLt+ShIfT+RiGhT\"\n"
 				"move_left = \"AlT+b\"\n"
 				"move_right = \"cTrL+aLt+z\"\n"));
 
@@ -3035,6 +3053,10 @@ static int test_editor_keymap_load_modifier_combo_specs_case_insensitive(void) {
 	ASSERT_EQ_INT(EDITOR_ACTION_MOVE_LEFT, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_CTRL_ALT_LETTER_KEY('z'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_MOVE_RIGHT, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_SHIFT_ARROW_LEFT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_RESIZE_DRAWER_NARROW, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_SHIFT_ARROW_RIGHT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_RESIZE_DRAWER_WIDEN, action);
 
 	char binding[24];
 	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_MOVE_LEFT, binding, sizeof(binding)));
@@ -3045,6 +3067,12 @@ static int test_editor_keymap_load_modifier_combo_specs_case_insensitive(void) {
 	ASSERT_EQ_STR("Ctrl-Up", binding);
 	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_NEXT_TAB, binding, sizeof(binding)));
 	ASSERT_EQ_STR("Ctrl-Alt-Right", binding);
+	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_RESIZE_DRAWER_NARROW, binding,
+				sizeof(binding)));
+	ASSERT_EQ_STR("Alt-Shift-Left", binding);
+	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_RESIZE_DRAWER_WIDEN, binding,
+				sizeof(binding)));
+	ASSERT_EQ_STR("Alt-Shift-Right", binding);
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(rmdir(dir_path) == 0);
@@ -3062,6 +3090,7 @@ static int test_editor_keymap_load_invalid_modifier_combos_fall_back_to_defaults
 	const char *invalid_lines[] = {
 		"next_tab = \"ctrl+ctrl+right\"\n",
 		"next_tab = \"shift+right\"\n",
+		"next_tab = \"ctrl+shift+right\"\n",
 		"next_tab = \"alt+home\"\n",
 		"next_tab = \"ctrl+alt+a+b\"\n",
 	};
@@ -3101,6 +3130,10 @@ static int test_editor_keymap_defaults_include_tab_actions(void) {
 	ASSERT_EQ_INT(EDITOR_ACTION_PREV_TAB, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('e'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_FOCUS_DRAWER, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_SHIFT_ARROW_LEFT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_RESIZE_DRAWER_NARROW, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_SHIFT_ARROW_RIGHT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_RESIZE_DRAWER_WIDEN, action);
 	return 0;
 }
 
@@ -3178,6 +3211,32 @@ static int test_editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_resize_drawer_shortcuts(void) {
+	E.window_cols = 40;
+	E.drawer_width_cols = 10;
+
+	const char alt_shift_right[] = "\x1b[1;4C";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_right,
+				sizeof(alt_shift_right) - 1) == 0);
+	ASSERT_EQ_INT(11, editorDrawerWidthForCols(E.window_cols));
+
+	const char alt_shift_left[] = "\x1b[1;4D";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_left,
+				sizeof(alt_shift_left) - 1) == 0);
+	ASSERT_EQ_INT(10, editorDrawerWidthForCols(E.window_cols));
+
+	E.pane_focus = EDITOR_PANE_DRAWER;
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_left,
+				sizeof(alt_shift_left) - 1) == 0);
+	ASSERT_EQ_INT(9, editorDrawerWidthForCols(E.window_cols));
+
+	E.drawer_width_cols = 1;
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_left,
+				sizeof(alt_shift_left) - 1) == 0);
+	ASSERT_EQ_INT(1, editorDrawerWidthForCols(E.window_cols));
 	return 0;
 }
 
@@ -3708,6 +3767,46 @@ static int test_editor_process_keypress_mouse_top_row_click_switches_tab(void) {
 	ASSERT_EQ_INT(0, editorTabActiveIndex());
 	ASSERT_EQ_INT(1, E.numrows);
 	ASSERT_EQ_STR("zero", E.rows[0].chars);
+	ASSERT_EQ_INT(0, E.mouse_left_button_down);
+	ASSERT_EQ_INT(0, E.mouse_drag_started);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drag_on_splitter_resizes_drawer(void) {
+	add_row("abcdef");
+	E.window_rows = 4;
+	E.window_cols = 40;
+	E.drawer_width_cols = 12;
+	E.cy = 0;
+	E.cx = 3;
+	E.pane_focus = EDITOR_PANE_TEXT;
+
+	int separator_x = editorDrawerWidthForCols(E.window_cols) + 1;
+	char press[32];
+	ASSERT_TRUE(format_sgr_mouse_event(press, sizeof(press), 0, separator_x, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
+	ASSERT_EQ_INT(1, E.drawer_resize_active);
+	ASSERT_EQ_INT(0, E.mouse_left_button_down);
+	ASSERT_EQ_INT(0, E.mouse_drag_started);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(3, E.cx);
+
+	char drag_smaller[32];
+	ASSERT_TRUE(format_sgr_mouse_event(drag_smaller, sizeof(drag_smaller), 32, 6, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(drag_smaller, strlen(drag_smaller)) == 0);
+	ASSERT_EQ_INT(5, editorDrawerWidthForCols(E.window_cols));
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(3, E.cx);
+
+	char drag_larger[32];
+	ASSERT_TRUE(format_sgr_mouse_event(drag_larger, sizeof(drag_larger), 32, 200, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(drag_larger, strlen(drag_larger)) == 0);
+	ASSERT_EQ_INT(38, editorDrawerWidthForCols(E.window_cols));
+
+	char release[32];
+	ASSERT_TRUE(format_sgr_mouse_event(release, sizeof(release), 0, 200, 2, 'm'));
+	ASSERT_TRUE(editor_process_keypress_with_input(release, strlen(release)) == 0);
+	ASSERT_EQ_INT(0, E.drawer_resize_active);
 	ASSERT_EQ_INT(0, E.mouse_left_button_down);
 	ASSERT_EQ_INT(0, E.mouse_drag_started);
 	return 0;
@@ -5270,11 +5369,40 @@ static int test_editor_refresh_screen_renders_drawer_entries_and_selection(void)
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, ">v   src") != NULL);
 	ASSERT_TRUE(strstr(output, "child.txt") != NULL);
-	ASSERT_TRUE(strstr(output, "|body") != NULL);
+	ASSERT_TRUE(strstr(output, "\xE2\x94\x82" "body") != NULL);
 	free(output);
 
 	ASSERT_TRUE(unlink(child_file) == 0);
 	ASSERT_TRUE(rmdir(src_dir) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_refresh_screen_drawer_splitter_spans_editor_rows(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	E.window_rows = 4;
+	E.window_cols = 40;
+	E.drawer_width_cols = 10;
+	add_row("body");
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+
+	const char *separator = "\xE2\x94\x82";
+	size_t separator_len = strlen(separator);
+	int separator_count = 0;
+	const char *cursor = output;
+	while ((cursor = strstr(cursor, separator)) != NULL) {
+		separator_count++;
+		cursor += separator_len;
+	}
+	ASSERT_EQ_INT(E.window_rows + 1, separator_count);
+
+	free(output);
 	cleanup_recovery_test_env(&env);
 	return 0;
 }
@@ -5313,6 +5441,28 @@ static int test_editor_drawer_layout_clamps_tiny_widths(void) {
 	ASSERT_EQ_INT(1, editorDrawerWidthForCols(2));
 	ASSERT_EQ_INT(1, editorDrawerTextViewportCols(2));
 	ASSERT_EQ_INT(0, editorDrawerSeparatorWidthForCols(2));
+
+	E.drawer_width_cols = 24;
+	E.drawer_width_user_set = 0;
+	ASSERT_EQ_INT(4, editorDrawerWidthForCols(10));
+	ASSERT_EQ_INT(1, editorDrawerSeparatorWidthForCols(10));
+	ASSERT_EQ_INT(5, editorDrawerTextViewportCols(10));
+
+	ASSERT_TRUE(editorDrawerSetWidthForCols(24, 10));
+	ASSERT_EQ_INT(8, editorDrawerWidthForCols(10));
+	ASSERT_EQ_INT(1, editorDrawerTextViewportCols(10));
+
+	ASSERT_TRUE(editorDrawerSetWidthForCols(3, 10));
+	ASSERT_EQ_INT(3, editorDrawerWidthForCols(10));
+	ASSERT_EQ_INT(6, editorDrawerTextViewportCols(10));
+
+	ASSERT_TRUE(editorDrawerResizeByDeltaForCols(-10, 10));
+	ASSERT_EQ_INT(1, editorDrawerWidthForCols(10));
+	ASSERT_EQ_INT(8, editorDrawerTextViewportCols(10));
+
+	ASSERT_TRUE(editorDrawerResizeByDeltaForCols(50, 10));
+	ASSERT_EQ_INT(8, editorDrawerWidthForCols(10));
+	ASSERT_EQ_INT(1, editorDrawerTextViewportCols(10));
 	return 0;
 }
 
@@ -5677,6 +5827,8 @@ int main(void) {
 				test_editor_process_keypress_keymap_remap_changes_dispatch},
 			{"editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped_action",
 				test_editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped_action},
+			{"editor_process_keypress_resize_drawer_shortcuts",
+				test_editor_process_keypress_resize_drawer_shortcuts},
 			{"editor_tabs_switch_restores_per_tab_state",
 				test_editor_tabs_switch_restores_per_tab_state},
 			{"editor_tab_close_last_tab_keeps_one_empty_tab",
@@ -5715,6 +5867,8 @@ int main(void) {
 					test_editor_process_keypress_mouse_drawer_double_click_file_opens_tab},
 				{"editor_process_keypress_mouse_top_row_click_switches_tab",
 					test_editor_process_keypress_mouse_top_row_click_switches_tab},
+			{"editor_process_keypress_mouse_drag_on_splitter_resizes_drawer",
+				test_editor_process_keypress_mouse_drag_on_splitter_resizes_drawer},
 			{"editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps",
 				test_editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps},
 		{"editor_process_keypress_mouse_click_keeps_selection_anchor",
@@ -5851,6 +6005,8 @@ int main(void) {
 				test_editor_refresh_screen_renders_tab_bar_with_overflow_and_sanitized_labels},
 			{"editor_refresh_screen_renders_drawer_entries_and_selection",
 				test_editor_refresh_screen_renders_drawer_entries_and_selection},
+			{"editor_refresh_screen_drawer_splitter_spans_editor_rows",
+				test_editor_refresh_screen_drawer_splitter_spans_editor_rows},
 			{"editor_refresh_screen_cursor_column_offsets_for_drawer",
 				test_editor_refresh_screen_cursor_column_offsets_for_drawer},
 			{"editor_drawer_layout_clamps_tiny_widths", test_editor_drawer_layout_clamps_tiny_widths},

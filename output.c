@@ -27,6 +27,7 @@ struct writeBuf {
 #define VT100_CURSOR_STEADY_BAR_5 "\x1b[6 q"
 #define VT100_INVERTED_COLORS_4 "\x1b[7m"
 #define VT100_NORMAL_COLORS_3 "\x1b[m"
+#define DRAWER_SPLITTER_UTF8 "\xE2\x94\x82"
 
 static int wbAppend(struct writeBuf *wb, const char *s, size_t len) {
 	if (len == 0) {
@@ -341,6 +342,7 @@ static const char *editorTabLabelFromFilename(const char *filename) {
 }
 
 static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols);
+static int editorDrawDrawerSeparatorCell(struct writeBuf *wb, int separator_cols);
 
 static int editorDrawTabSlots(struct writeBuf *wb, int cols) {
 	if (cols <= 0) {
@@ -441,7 +443,7 @@ static int editorDrawTabBar(struct writeBuf *wb) {
 	if (!editorDrawDrawerRow(wb, 0, drawer_cols)) {
 		return 0;
 	}
-	if (separator_cols == 1 && !wbAppend(wb, "|", 1)) {
+	if (!editorDrawDrawerSeparatorCell(wb, separator_cols)) {
 		return 0;
 	}
 	if (!editorDrawTabSlots(wb, text_cols)) {
@@ -452,6 +454,13 @@ static int editorDrawTabBar(struct writeBuf *wb) {
 		return 0;
 	}
 	return wbAppend(wb, "\r\n", 2);
+}
+
+static int editorDrawDrawerSeparatorCell(struct writeBuf *wb, int separator_cols) {
+	if (separator_cols != 1) {
+		return 1;
+	}
+	return wbAppend(wb, DRAWER_SPLITTER_UTF8, sizeof(DRAWER_SPLITTER_UTF8) - 1);
 }
 
 static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols) {
@@ -532,10 +541,8 @@ static int editorDrawRows(struct writeBuf *wb) {
 		if (!editorDrawDrawerRow(wb, y + 1, drawer_cols)) {
 			return 0;
 		}
-		if (separator_cols == 1) {
-			if (!wbAppend(wb, "|", 1)) {
-				return 0;
-			}
+		if (!editorDrawDrawerSeparatorCell(wb, separator_cols)) {
+			return 0;
 		}
 
 		if (y_offset < E.numrows) {

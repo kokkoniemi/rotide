@@ -50,6 +50,8 @@ int editorDrawerWidthForCols(int total_cols);
 int editorDrawerSeparatorWidthForCols(int total_cols);
 int editorDrawerTextStartColForCols(int total_cols);
 int editorDrawerTextViewportCols(int total_cols);
+int editorDrawerSetWidthForCols(int width, int total_cols);
+int editorDrawerResizeByDeltaForCols(int delta, int total_cols);
 int editorDrawerVisibleCount(void);
 int editorDrawerGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *view_out);
 int editorDrawerMoveSelectionBy(int delta, int viewport_rows);

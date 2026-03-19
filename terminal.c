@@ -701,6 +701,18 @@ int editorReadKey(void) {
 									return ALT_ARROW_LEFT;
 							}
 						}
+						if (modifier == '4') {
+							switch (final) {
+								case 'A':
+									return ALT_SHIFT_ARROW_UP;
+								case 'B':
+									return ALT_SHIFT_ARROW_DOWN;
+								case 'C':
+									return ALT_SHIFT_ARROW_RIGHT;
+								case 'D':
+									return ALT_SHIFT_ARROW_LEFT;
+							}
+						}
 						if (modifier == '5') {
 							switch (final) {
 								case 'A':

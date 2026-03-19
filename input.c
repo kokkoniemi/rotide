@@ -15,7 +15,11 @@
 
 static int quit_confirmed = 0;
 typedef void (*editorPromptCallback)(const char *query, int key);
-enum { MOUSE_WHEEL_SCROLL_LINES = 3, DRAWER_DOUBLE_CLICK_THRESHOLD_MS = 400 };
+enum {
+	MOUSE_WHEEL_SCROLL_LINES = 3,
+	DRAWER_DOUBLE_CLICK_THRESHOLD_MS = 400,
+	DRAWER_RESIZE_STEP = 1
+};
 
 static long long editorMonotonicMillis(void) {
 	struct timespec ts;
@@ -786,6 +790,17 @@ static void editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 
 	int drawer_row = event->y - 1;
 	if (drawer_row >= 0 && drawer_row < drawer_view_rows &&
+			separator_cols == 1 && mouse_col == drawer_cols) {
+		editorResetDrawerClickTracking();
+		E.drawer_resize_active = 1;
+		(void)editorDrawerSetWidthForCols(mouse_col, E.window_cols);
+		E.mouse_left_button_down = 0;
+		E.mouse_drag_started = 0;
+		return;
+	}
+	E.drawer_resize_active = 0;
+
+	if (drawer_row >= 0 && drawer_row < drawer_view_rows &&
 			mouse_col >= 0 && mouse_col < drawer_cols) {
 		int visible_idx = E.drawer_rowoff + drawer_row;
 		if (!editorDrawerSelectVisibleIndex(visible_idx, drawer_view_rows)) {
@@ -833,13 +848,6 @@ static void editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 		return;
 	}
 
-	if (drawer_row >= 0 && drawer_row < drawer_view_rows &&
-			separator_cols == 1 && mouse_col == drawer_cols) {
-		E.mouse_left_button_down = 0;
-		E.mouse_drag_started = 0;
-		return;
-	}
-
 	if (!editorMoveCursorToMouse(event, 0)) {
 		E.mouse_left_button_down = 0;
 		E.mouse_drag_started = 0;
@@ -854,6 +862,11 @@ static void editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 }
 
 static void editorHandleMouseLeftDrag(const struct editorMouseEvent *event) {
+	if (E.drawer_resize_active) {
+		int mouse_col = event->x - 1;
+		(void)editorDrawerSetWidthForCols(mouse_col, E.window_cols);
+		return;
+	}
 	if (!E.mouse_left_button_down) {
 		return;
 	}
@@ -871,6 +884,7 @@ static void editorHandleMouseLeftDrag(const struct editorMouseEvent *event) {
 }
 
 static void editorHandleMouseLeftRelease(void) {
+	E.drawer_resize_active = 0;
 	E.mouse_left_button_down = 0;
 	E.mouse_drag_started = 0;
 }
@@ -938,6 +952,14 @@ static int editorProcessMappedAction(enum editorAction action) {
 			case EDITOR_ACTION_FOCUS_DRAWER:
 				editorHistoryBreakGroup();
 				E.pane_focus = EDITOR_PANE_DRAWER;
+				return 0;
+			case EDITOR_ACTION_RESIZE_DRAWER_NARROW:
+				editorHistoryBreakGroup();
+				(void)editorDrawerResizeByDeltaForCols(-DRAWER_RESIZE_STEP, E.window_cols);
+				return 0;
+			case EDITOR_ACTION_RESIZE_DRAWER_WIDEN:
+				editorHistoryBreakGroup();
+				(void)editorDrawerResizeByDeltaForCols(DRAWER_RESIZE_STEP, E.window_cols);
 				return 0;
 			case EDITOR_ACTION_FIND:
 				editorHistoryBreakGroup();

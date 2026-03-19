@@ -100,6 +100,8 @@ enum editorAction {
 	EDITOR_ACTION_NEXT_TAB,
 	EDITOR_ACTION_PREV_TAB,
 	EDITOR_ACTION_FOCUS_DRAWER,
+	EDITOR_ACTION_RESIZE_DRAWER_NARROW,
+	EDITOR_ACTION_RESIZE_DRAWER_WIDEN,
 	EDITOR_ACTION_FIND,
 	EDITOR_ACTION_GOTO_LINE,
 	EDITOR_ACTION_TOGGLE_SELECTION,
@@ -246,6 +248,9 @@ struct editorConfig {
 	int drawer_rowoff;
 	int drawer_last_click_visible_idx;
 	long long drawer_last_click_ms;
+	int drawer_width_cols;
+	int drawer_width_user_set;
+	int drawer_resize_active;
 	enum editorCursorStyle cursor_style;
 	enum editorPaneFocus pane_focus;
 	struct editorKeymap keymap;
@@ -264,6 +269,10 @@ enum editorKey {
 	ALT_ARROW_RIGHT,
 	ALT_ARROW_DOWN,
 	ALT_ARROW_UP,
+	ALT_SHIFT_ARROW_LEFT,
+	ALT_SHIFT_ARROW_RIGHT,
+	ALT_SHIFT_ARROW_DOWN,
+	ALT_SHIFT_ARROW_UP,
 	CTRL_ARROW_LEFT,
 	CTRL_ARROW_RIGHT,
 	CTRL_ARROW_DOWN,
