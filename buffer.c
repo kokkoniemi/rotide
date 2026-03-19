@@ -18,6 +18,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 #include <wchar.h>
 
@@ -27,8 +28,15 @@
 
 static char *editorPathJoin(const char *left, const char *right);
 static int editorPosToLinearOffset(int cy, int cx, size_t *offset_out);
+static int editorRowIndexForByteOffset(size_t offset);
+static int editorSyntaxByteRangeToVisibleRows(size_t start_byte, size_t end_byte,
+		int *start_row_out, int *end_row_exclusive_out);
+static int editorSyntaxVisibleCacheInvalidateChangedRowsFromState(void);
+static void editorSyntaxVisibleCacheInvalidateRowsForEdit(const struct editorSyntaxEdit *edit);
 static void editorSyntaxDisableWithStatus(const char *message);
 static void editorSyntaxVisibleCacheInvalidate(void);
+static void editorSyntaxVisibleCacheInvalidateRows(int start_row, int end_row_exclusive);
+static void editorSyntaxReportBudgetStatusIfNeeded(void);
 
 static void editorSetAllocFailureStatus(void) {
 	editorSetStatusMsg("Out of memory");
@@ -78,6 +86,34 @@ static int editorSyntaxConfigurePerformanceForLength(size_t source_len, int set_
 	}
 
 	return 1;
+}
+
+static void editorSyntaxReportBudgetStatusIfNeeded(void) {
+	if (E.syntax_state == NULL) {
+		return;
+	}
+
+	int parse_budget_exceeded = 0;
+	int query_budget_exceeded = 0;
+	if (!editorSyntaxStateConsumeBudgetEvents(E.syntax_state, &parse_budget_exceeded,
+				&query_budget_exceeded)) {
+		return;
+	}
+
+	static time_t last_report_time = 0;
+	time_t now = time(NULL);
+	if (last_report_time != 0 && now - last_report_time < 2) {
+		return;
+	}
+	last_report_time = now;
+
+	if (parse_budget_exceeded && query_budget_exceeded) {
+		editorSetStatusMsg("Tree-sitter throttled (parse/query budget)");
+	} else if (parse_budget_exceeded) {
+		editorSetStatusMsg("Tree-sitter parse throttled (budget)");
+	} else if (query_budget_exceeded) {
+		editorSetStatusMsg("Tree-sitter highlight throttled (budget)");
+	}
 }
 
 static void editorSyntaxDeactivateActive(void) {
@@ -188,6 +224,8 @@ static int editorSyntaxParseFullActive(void) {
 		editorSyntaxDisableWithStatus("Tree-sitter disabled (parse failed)");
 		return 0;
 	}
+	editorSyntaxReportBudgetStatusIfNeeded();
+	editorSyntaxVisibleCacheInvalidate();
 	return 1;
 }
 
@@ -208,16 +246,21 @@ static int editorSyntaxApplyIncrementalEditActive(const struct editorSyntaxEdit 
 				(size_t)edit->old_end_byte <= old_len) {
 			size_t removed_len = (size_t)(edit->old_end_byte - edit->start_byte);
 			if (removed_len <= old_len) {
-				size_t new_len = old_len - removed_len + inserted_len;
-				if (!editorSyntaxConfigurePerformanceForLength(new_len, 1)) {
-					return 0;
-				}
-				if (editorSyntaxStateApplyEditAndParseWithInsertedText(E.syntax_state, edit,
-						inserted_text != NULL ? inserted_text : "", inserted_len)) {
-					return 1;
+					size_t new_len = old_len - removed_len + inserted_len;
+					if (!editorSyntaxConfigurePerformanceForLength(new_len, 1)) {
+						return 0;
+					}
+					if (editorSyntaxStateApplyEditAndParseWithInsertedText(E.syntax_state, edit,
+							inserted_text != NULL ? inserted_text : "", inserted_len)) {
+						editorSyntaxVisibleCacheInvalidateRowsForEdit(edit);
+						if (!editorSyntaxVisibleCacheInvalidateChangedRowsFromState()) {
+							editorSyntaxVisibleCacheInvalidate();
+						}
+						editorSyntaxReportBudgetStatusIfNeeded();
+						return 1;
+					}
 				}
 			}
-		}
 	}
 
 	char *source = NULL;
@@ -243,6 +286,8 @@ static int editorSyntaxApplyIncrementalEditActive(const struct editorSyntaxEdit 
 		editorSyntaxDisableWithStatus("Tree-sitter disabled (parse failed)");
 		return 0;
 	}
+	editorSyntaxReportBudgetStatusIfNeeded();
+	editorSyntaxVisibleCacheInvalidate();
 	return 1;
 }
 
@@ -918,10 +963,12 @@ struct editorVisibleSyntaxCache {
 	int row_count;
 	int row_capacity;
 	int *span_counts;
+	uint8_t *row_dirty;
 	struct editorRowSyntaxSpan *spans;
 };
 
 static struct editorVisibleSyntaxCache g_visible_syntax_cache = {0};
+static int g_visible_syntax_row_recompute_count = 0;
 
 static void editorSyntaxVisibleCacheInvalidate(void) {
 	g_visible_syntax_cache.prepared = 0;
@@ -929,8 +976,33 @@ static void editorSyntaxVisibleCacheInvalidate(void) {
 	g_visible_syntax_cache.row_count = 0;
 }
 
+static void editorSyntaxVisibleCacheInvalidateRows(int start_row, int end_row_exclusive) {
+	if (!g_visible_syntax_cache.prepared || g_visible_syntax_cache.row_dirty == NULL ||
+			start_row >= end_row_exclusive) {
+		return;
+	}
+
+	int cache_start = g_visible_syntax_cache.first_row;
+	int cache_end = g_visible_syntax_cache.first_row + g_visible_syntax_cache.row_count;
+	if (end_row_exclusive <= cache_start || start_row >= cache_end) {
+		return;
+	}
+	if (start_row < cache_start) {
+		start_row = cache_start;
+	}
+	if (end_row_exclusive > cache_end) {
+		end_row_exclusive = cache_end;
+	}
+
+	for (int row = start_row; row < end_row_exclusive; row++) {
+		int rel_row = row - cache_start;
+		g_visible_syntax_cache.row_dirty[rel_row] = 1;
+	}
+}
+
 static void editorSyntaxVisibleCacheFree(void) {
 	free(g_visible_syntax_cache.span_counts);
+	free(g_visible_syntax_cache.row_dirty);
 	free(g_visible_syntax_cache.spans);
 	memset(&g_visible_syntax_cache, 0, sizeof(g_visible_syntax_cache));
 }
@@ -944,10 +1016,12 @@ static int editorSyntaxVisibleCacheEnsureCapacity(int row_count) {
 	}
 
 	size_t counts_bytes = 0;
+	size_t dirty_bytes = 0;
 	size_t span_rows = 0;
 	size_t spans_bytes = 0;
 	if (!editorIntToSize(row_count, &span_rows) ||
 			!editorSizeMul(sizeof(*g_visible_syntax_cache.span_counts), span_rows, &counts_bytes) ||
+			!editorSizeMul(sizeof(*g_visible_syntax_cache.row_dirty), span_rows, &dirty_bytes) ||
 			!editorSizeMul(span_rows, ROTIDE_MAX_SYNTAX_SPANS_PER_ROW, &span_rows) ||
 			!editorSizeMul(sizeof(*g_visible_syntax_cache.spans), span_rows, &spans_bytes)) {
 		return 0;
@@ -957,12 +1031,17 @@ static int editorSyntaxVisibleCacheEnsureCapacity(int row_count) {
 	if (new_counts == NULL) {
 		return 0;
 	}
+	uint8_t *new_dirty = editorRealloc(g_visible_syntax_cache.row_dirty, dirty_bytes);
+	if (new_dirty == NULL) {
+		return 0;
+	}
 	struct editorRowSyntaxSpan *new_spans = editorRealloc(g_visible_syntax_cache.spans, spans_bytes);
 	if (new_spans == NULL) {
 		return 0;
 	}
 
 	g_visible_syntax_cache.span_counts = new_counts;
+	g_visible_syntax_cache.row_dirty = new_dirty;
 	g_visible_syntax_cache.spans = new_spans;
 	g_visible_syntax_cache.row_capacity = row_count;
 	return 1;
@@ -1104,11 +1183,183 @@ static int editorPosToLinearOffset(int cy, int cx, size_t *offset_out) {
 	return 1;
 }
 
-static int editorSyntaxBuildVisibleSpanCache(int first_row, int row_count) {
-	editorSyntaxVisibleCacheInvalidate();
+static int editorRowIndexForByteOffset(size_t offset) {
+	if (E.numrows <= 0) {
+		return 0;
+	}
+	if (!editorRowByteIndexEnsureBuilt() || E.row_start_bytes == NULL ||
+			E.row_start_bytes_count != E.numrows + 1) {
+		return -1;
+	}
 
+	size_t total = E.row_start_bytes[E.numrows];
+	if (offset >= total) {
+		return E.numrows - 1;
+	}
+
+	int lo = 0;
+	int hi = E.numrows;
+	while (lo + 1 < hi) {
+		int mid = lo + (hi - lo) / 2;
+		if (E.row_start_bytes[mid] <= offset) {
+			lo = mid;
+		} else {
+			hi = mid;
+		}
+	}
+	return lo;
+}
+
+static int editorSyntaxByteRangeToVisibleRows(size_t start_byte, size_t end_byte,
+		int *start_row_out, int *end_row_exclusive_out) {
+	if (start_row_out == NULL || end_row_exclusive_out == NULL) {
+		return 0;
+	}
+	*start_row_out = 0;
+	*end_row_exclusive_out = 0;
+
+	if (E.numrows <= 0) {
+		return 1;
+	}
+	if (!editorRowByteIndexEnsureBuilt() || E.row_start_bytes == NULL ||
+			E.row_start_bytes_count != E.numrows + 1) {
+		return 0;
+	}
+
+	size_t total = E.row_start_bytes[E.numrows];
+	if (start_byte > total) {
+		start_byte = total;
+	}
+	if (end_byte > total) {
+		end_byte = total;
+	}
+	if (end_byte < start_byte) {
+		end_byte = start_byte;
+	}
+
+	size_t end_lookup = end_byte > start_byte ? end_byte - 1 : start_byte;
+	int start_row = editorRowIndexForByteOffset(start_byte);
+	int end_row = editorRowIndexForByteOffset(end_lookup);
+	if (start_row < 0 || end_row < 0) {
+		return 0;
+	}
+
+	int end_row_exclusive = end_row + 1;
+	if (start_row < 0) {
+		start_row = 0;
+	}
+	if (start_row > E.numrows) {
+		start_row = E.numrows;
+	}
+	if (end_row_exclusive < start_row) {
+		end_row_exclusive = start_row;
+	}
+	if (end_row_exclusive > E.numrows) {
+		end_row_exclusive = E.numrows;
+	}
+
+	*start_row_out = start_row;
+	*end_row_exclusive_out = end_row_exclusive;
+	return 1;
+}
+
+static int editorSyntaxVisibleCacheInvalidateChangedRowsFromState(void) {
+	if (E.syntax_state == NULL || E.numrows <= 0) {
+		return 1;
+	}
+
+	int range_count = 0;
+	if (!editorSyntaxStateCopyLastChangedRanges(E.syntax_state, NULL, 0, &range_count)) {
+		return 0;
+	}
+	if (range_count <= 0) {
+		return 1;
+	}
+
+	size_t range_count_size = 0;
+	size_t range_bytes = 0;
+	if (!editorIntToSize(range_count, &range_count_size) ||
+			!editorSizeMul(sizeof(struct editorSyntaxByteRange), range_count_size, &range_bytes)) {
+		return 0;
+	}
+
+	struct editorSyntaxByteRange *ranges = editorMalloc(range_bytes);
+	if (ranges == NULL) {
+		return 0;
+	}
+
+	int copied_total = 0;
+	if (!editorSyntaxStateCopyLastChangedRanges(E.syntax_state, ranges, range_count,
+				&copied_total)) {
+		free(ranges);
+		return 0;
+	}
+	int copied = range_count;
+	if (copied_total < copied) {
+		copied = copied_total;
+	}
+
+	for (int i = 0; i < copied; i++) {
+		int start_row = 0;
+		int end_row_exclusive = 0;
+		if (!editorSyntaxByteRangeToVisibleRows((size_t)ranges[i].start_byte,
+					(size_t)ranges[i].end_byte, &start_row, &end_row_exclusive)) {
+			free(ranges);
+			return 0;
+		}
+		if (start_row > 0) {
+			start_row--;
+		}
+		if (end_row_exclusive < E.numrows) {
+			end_row_exclusive++;
+		}
+		editorSyntaxVisibleCacheInvalidateRows(start_row, end_row_exclusive);
+	}
+
+	free(ranges);
+	return 1;
+}
+
+static void editorSyntaxVisibleCacheInvalidateRowsForEdit(const struct editorSyntaxEdit *edit) {
+	if (edit == NULL || E.numrows <= 0) {
+		return;
+	}
+
+	int start_row = (int)edit->start_point.row;
+	int old_end_row = (int)edit->old_end_point.row;
+	int new_end_row = (int)edit->new_end_point.row;
+
+	int min_row = start_row;
+	if (old_end_row < min_row) {
+		min_row = old_end_row;
+	}
+	if (new_end_row < min_row) {
+		min_row = new_end_row;
+	}
+	int max_row = start_row;
+	if (old_end_row > max_row) {
+		max_row = old_end_row;
+	}
+	if (new_end_row > max_row) {
+		max_row = new_end_row;
+	}
+
+	if (min_row < 0) {
+		min_row = 0;
+	}
+	if (max_row < min_row) {
+		max_row = min_row;
+	}
+	if (max_row >= E.numrows) {
+		max_row = E.numrows - 1;
+	}
+	editorSyntaxVisibleCacheInvalidateRows(min_row, max_row + 1);
+}
+
+static int editorSyntaxBuildVisibleSpanCache(int first_row, int row_count) {
 	if (row_count <= 0 || E.syntax_state == NULL || E.syntax_language == EDITOR_SYNTAX_NONE ||
 			E.numrows <= 0) {
+		editorSyntaxVisibleCacheInvalidate();
 		g_visible_syntax_cache.prepared = 1;
 		return 1;
 	}
@@ -1118,6 +1369,7 @@ static int editorSyntaxBuildVisibleSpanCache(int first_row, int row_count) {
 		first_row = 0;
 	}
 	if (first_row >= E.numrows || row_count <= 0) {
+		editorSyntaxVisibleCacheInvalidate();
 		g_visible_syntax_cache.prepared = 1;
 		return 1;
 	}
@@ -1125,6 +1377,7 @@ static int editorSyntaxBuildVisibleSpanCache(int first_row, int row_count) {
 		row_count = E.numrows - first_row;
 	}
 	if (row_count <= 0) {
+		editorSyntaxVisibleCacheInvalidate();
 		g_visible_syntax_cache.prepared = 1;
 		return 1;
 	}
@@ -1132,60 +1385,66 @@ static int editorSyntaxBuildVisibleSpanCache(int first_row, int row_count) {
 		return 0;
 	}
 
-	memset(g_visible_syntax_cache.span_counts, 0, sizeof(*g_visible_syntax_cache.span_counts) *
-			(size_t)row_count);
-
-	int last_row = first_row + row_count - 1;
-	size_t range_start = E.row_start_bytes[first_row];
-	size_t range_end = E.row_start_bytes[last_row] + (size_t)E.rows[last_row].size;
-	uint32_t start_byte = 0;
-	uint32_t end_byte = 0;
-	if (!editorSyntaxOffsetToU32(range_start, &start_byte) ||
-			!editorSyntaxOffsetToU32(range_end, &end_byte) ||
-			start_byte >= end_byte) {
+	if (!g_visible_syntax_cache.prepared ||
+			g_visible_syntax_cache.first_row != first_row ||
+			g_visible_syntax_cache.row_count != row_count) {
+		memset(g_visible_syntax_cache.span_counts, 0, sizeof(*g_visible_syntax_cache.span_counts) *
+				(size_t)row_count);
+		memset(g_visible_syntax_cache.row_dirty, 1, sizeof(*g_visible_syntax_cache.row_dirty) *
+				(size_t)row_count);
 		g_visible_syntax_cache.prepared = 1;
 		g_visible_syntax_cache.first_row = first_row;
 		g_visible_syntax_cache.row_count = row_count;
-		return 1;
 	}
 
-	int capture_capacity = row_count * ROTIDE_MAX_SYNTAX_SPANS_PER_ROW;
-	if (capture_capacity <= 0) {
-		capture_capacity = ROTIDE_MAX_SYNTAX_SPANS_PER_ROW;
-	}
-	size_t cap_size = 0;
-	size_t cap_bytes = 0;
-	if (!editorIntToSize(capture_capacity, &cap_size) ||
-			!editorSizeMul(sizeof(struct editorSyntaxCapture), cap_size, &cap_bytes)) {
-		return 0;
-	}
-	struct editorSyntaxCapture *captures = editorMalloc(cap_bytes);
-	if (captures == NULL) {
-		return 0;
-	}
-
-	int capture_count = 0;
-	if (!editorSyntaxStateCollectCapturesForRange(E.syntax_state, start_byte, end_byte, captures,
-				capture_capacity, &capture_count)) {
-		free(captures);
-		return 0;
-	}
-
-	for (int cap_idx = 0; cap_idx < capture_count; cap_idx++) {
-		struct editorSyntaxCapture capture = captures[cap_idx];
-		if (capture.highlight_class == EDITOR_SYNTAX_HL_NONE ||
-				capture.end_byte <= capture.start_byte) {
+	for (int rel_row = 0; rel_row < row_count; rel_row++) {
+		if (!g_visible_syntax_cache.row_dirty[rel_row]) {
 			continue;
 		}
 
-		for (int rel_row = 0; rel_row < row_count; rel_row++) {
-			int row_idx = first_row + rel_row;
-			size_t row_start = E.row_start_bytes[row_idx];
-			size_t row_end = row_start + (size_t)E.rows[row_idx].size;
-			if ((size_t)capture.end_byte <= row_start) {
-				break;
-			}
-			if ((size_t)capture.start_byte >= row_end) {
+		int row_idx = first_row + rel_row;
+		struct erow *row = &E.rows[row_idx];
+		int span_base = rel_row * ROTIDE_MAX_SYNTAX_SPANS_PER_ROW;
+		g_visible_syntax_cache.span_counts[rel_row] = 0;
+
+		size_t row_start_offset = E.row_start_bytes[row_idx];
+		size_t row_end_offset = row_start_offset + (size_t)row->size;
+		uint32_t start_byte = 0;
+		uint32_t end_byte = 0;
+		if (!editorSyntaxOffsetToU32(row_start_offset, &start_byte) ||
+				!editorSyntaxOffsetToU32(row_end_offset, &end_byte) ||
+				start_byte >= end_byte) {
+			g_visible_syntax_cache.row_dirty[rel_row] = 0;
+			continue;
+		}
+
+		int capture_limit = ROTIDE_MAX_SYNTAX_SPANS_PER_ROW * 3;
+		if (capture_limit < ROTIDE_MAX_SYNTAX_SPANS_PER_ROW) {
+			capture_limit = ROTIDE_MAX_SYNTAX_SPANS_PER_ROW;
+		}
+		size_t cap_size = 0;
+		size_t cap_bytes = 0;
+		if (!editorIntToSize(capture_limit, &cap_size) ||
+				!editorSizeMul(sizeof(struct editorSyntaxCapture), cap_size, &cap_bytes)) {
+			return 0;
+		}
+
+		struct editorSyntaxCapture *captures = editorMalloc(cap_bytes);
+		if (captures == NULL) {
+			return 0;
+		}
+
+		int capture_count = 0;
+		if (!editorSyntaxStateCollectCapturesForRange(E.syntax_state, start_byte, end_byte, captures,
+					capture_limit, &capture_count)) {
+			free(captures);
+			return 0;
+		}
+
+		for (int cap_idx = 0; cap_idx < capture_count; cap_idx++) {
+			struct editorSyntaxCapture capture = captures[cap_idx];
+			if (capture.highlight_class == EDITOR_SYNTAX_HL_NONE ||
+					capture.end_byte <= capture.start_byte) {
 				continue;
 			}
 
@@ -1194,13 +1453,16 @@ static int editorSyntaxBuildVisibleSpanCache(int first_row, int row_count) {
 				continue;
 			}
 
-			int local_start = (int)((size_t)capture.start_byte > row_start ?
-					(size_t)capture.start_byte - row_start : 0);
-			int local_end = (int)((size_t)capture.end_byte < row_end ?
-					(size_t)capture.end_byte - row_start : row_end - row_start);
-			struct erow *row = &E.rows[row_idx];
+			int local_start = (int)(capture.start_byte - start_byte);
+			int local_end = (int)(capture.end_byte - start_byte);
+			if (local_start < 0) {
+				local_start = 0;
+			}
 			if (local_start > row->size) {
 				local_start = row->size;
+			}
+			if (local_end < 0) {
+				local_end = 0;
 			}
 			if (local_end > row->size) {
 				local_end = row->size;
@@ -1221,18 +1483,18 @@ static int editorSyntaxBuildVisibleSpanCache(int first_row, int row_count) {
 				continue;
 			}
 
-			int span_idx = rel_row * ROTIDE_MAX_SYNTAX_SPANS_PER_ROW + slot;
-			g_visible_syntax_cache.spans[span_idx].start_render_idx = render_start;
-			g_visible_syntax_cache.spans[span_idx].end_render_idx = render_end;
-			g_visible_syntax_cache.spans[span_idx].highlight_class = capture.highlight_class;
+			g_visible_syntax_cache.spans[span_base + slot].start_render_idx = render_start;
+			g_visible_syntax_cache.spans[span_base + slot].end_render_idx = render_end;
+			g_visible_syntax_cache.spans[span_base + slot].highlight_class = capture.highlight_class;
 			g_visible_syntax_cache.span_counts[rel_row] = slot + 1;
 		}
+
+		free(captures);
+		g_visible_syntax_cache.row_dirty[rel_row] = 0;
+		g_visible_syntax_row_recompute_count++;
 	}
 
-	free(captures);
-	g_visible_syntax_cache.prepared = 1;
-	g_visible_syntax_cache.first_row = first_row;
-	g_visible_syntax_cache.row_count = row_count;
+	editorSyntaxReportBudgetStatusIfNeeded();
 	return 1;
 }
 
@@ -2223,6 +2485,14 @@ const char *editorSyntaxRootType(void) {
 
 int editorSyntaxPrepareVisibleRowSpans(int first_row, int row_count) {
 	return editorSyntaxBuildVisibleSpanCache(first_row, row_count);
+}
+
+void editorSyntaxTestResetVisibleRowRecomputeCount(void) {
+	g_visible_syntax_row_recompute_count = 0;
+}
+
+int editorSyntaxTestVisibleRowRecomputeCount(void) {
+	return g_visible_syntax_row_recompute_count;
 }
 
 int editorSyntaxRowRenderSpans(int row_idx, struct editorRowSyntaxSpan *spans, int max_spans,
@@ -3599,7 +3869,7 @@ void editorInsertCharAt(struct erow *row, int idx, int c) {
 		return;
 	}
 	editorRowByteIndexAdjustRowSizeDelta(row_idx, 1);
-	editorSyntaxVisibleCacheInvalidate();
+	editorSyntaxVisibleCacheInvalidateRows(row_idx, row_idx + 1);
 	E.dirty++;
 }
 
@@ -3633,7 +3903,7 @@ void editorRowAppendString(struct erow *row, const char *s, size_t len) {
 		return;
 	}
 	editorRowByteIndexAdjustRowSizeDelta(row_idx, (int)len);
-	editorSyntaxVisibleCacheInvalidate();
+	editorSyntaxVisibleCacheInvalidateRows(row_idx, row_idx + 1);
 	E.dirty++;
 }
 
@@ -3653,7 +3923,7 @@ void editorDelCharAt(struct erow *row, int idx) {
 		return;
 	}
 	editorRowByteIndexAdjustRowSizeDelta(row_idx, -1);
-	editorSyntaxVisibleCacheInvalidate();
+	editorSyntaxVisibleCacheInvalidateRows(row_idx, row_idx + 1);
 	E.dirty++;
 }
 
@@ -3681,7 +3951,7 @@ void editorDelCharsAt(struct erow *row, int idx, int len) {
 	}
 	free(removed);
 	editorRowByteIndexAdjustRowSizeDelta(row_idx, -len);
-	editorSyntaxVisibleCacheInvalidate();
+	editorSyntaxVisibleCacheInvalidateRows(row_idx, row_idx + 1);
 	E.dirty++;
 }
 

@@ -6,6 +6,7 @@
 #include "keymap.h"
 #include "output.h"
 #include "save_syscalls_test_hooks.h"
+#include "syntax.h"
 #include "terminal.h"
 #include <errno.h>
 #include <fcntl.h>
@@ -17,6 +18,7 @@ void clear_editor_state(void) {
 	editorDrawerShutdown();
 	editorRecoveryShutdown();
 	editorTabsFreeAll();
+	editorOutputTestResetFrameCache();
 	editorClipboardClear();
 }
 
@@ -45,6 +47,7 @@ void reset_editor_state(void) {
 	E.drawer_resize_active = 0;
 	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;
 	editorSyntaxThemeInitDefaults(E.syntax_theme);
+	editorSyntaxTestResetBudgetOverrides();
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
 	editorKeymapInitDefaults(&E.keymap);
 }

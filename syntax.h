@@ -28,6 +28,11 @@ struct editorSyntaxCapture {
 	enum editorSyntaxHighlightClass highlight_class;
 };
 
+struct editorSyntaxByteRange {
+	uint32_t start_byte;
+	uint32_t end_byte;
+};
+
 enum editorSyntaxPerformanceMode {
 	EDITOR_SYNTAX_PERF_NORMAL = 0,
 	EDITOR_SYNTAX_PERF_DEGRADED_PREDICATES,
@@ -55,6 +60,11 @@ int editorSyntaxStateConfigureForSourceLength(struct editorSyntaxState *state, s
 enum editorSyntaxPerformanceMode editorSyntaxStatePerformanceMode(
 		const struct editorSyntaxState *state);
 size_t editorSyntaxStateSourceLength(const struct editorSyntaxState *state);
+int editorSyntaxStateCopyLastChangedRanges(const struct editorSyntaxState *state,
+		struct editorSyntaxByteRange *ranges, int max_ranges, int *count_out);
+int editorSyntaxStateConsumeBudgetEvents(struct editorSyntaxState *state,
+		int *parse_budget_exceeded_out,
+		int *query_budget_exceeded_out);
 
 int editorSyntaxStateHasTree(const struct editorSyntaxState *state);
 const char *editorSyntaxStateRootType(const struct editorSyntaxState *state);
@@ -62,6 +72,14 @@ enum editorSyntaxLanguage editorSyntaxStateLanguage(const struct editorSyntaxSta
 int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 		uint32_t start_byte, uint32_t end_byte,
 		struct editorSyntaxCapture *captures, int max_captures, int *count_out);
+
+/* Test hooks for deterministic budget-path tests. */
+void editorSyntaxTestSetBudgetOverrides(int enabled,
+		uint32_t query_match_limit,
+		uint64_t query_time_budget_ns,
+		uint64_t parse_time_budget_ns);
+void editorSyntaxTestResetBudgetOverrides(void);
+
 void editorSyntaxReleaseSharedResources(void);
 
 #endif

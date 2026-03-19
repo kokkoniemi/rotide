@@ -4,6 +4,7 @@
 #include "input.h"
 #include "keymap.h"
 #include "output.h"
+#include "syntax.h"
 #include "terminal.h"
 #include "alloc_test_hooks.h"
 #include "save_syscalls_test_hooks.h"
@@ -14,6 +15,7 @@
 #include <locale.h>
 #include <signal.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -229,6 +231,31 @@ static int write_text_file(const char *path, const char *text) {
 	int write_ok = write_all(fd, text, len) == 0;
 	int close_ok = close(fd) == 0;
 	return write_ok && close_ok;
+}
+
+static char *build_repeated_text(const char *line, int repeats, size_t *len_out) {
+	if (line == NULL || repeats < 0 || len_out == NULL) {
+		return NULL;
+	}
+
+	size_t line_len = strlen(line);
+	if (line_len > 0 && (size_t)repeats > SIZE_MAX / line_len) {
+		return NULL;
+	}
+	size_t total_len = line_len * (size_t)repeats;
+	char *text = malloc(total_len + 1);
+	if (text == NULL) {
+		return NULL;
+	}
+
+	char *out = text;
+	for (int i = 0; i < repeats; i++) {
+		memcpy(out, line, line_len);
+		out += line_len;
+	}
+	text[total_len] = '\0';
+	*len_out = total_len;
+	return text;
 }
 
 static int path_join(char *buf, size_t bufsz, const char *dir, const char *name) {
@@ -1330,6 +1357,99 @@ static int test_editor_syntax_incremental_edits_keep_css_tree_valid(void) {
 	E.cx = E.rows[0].size;
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_query_budget_match_limit_is_graceful(void) {
+	size_t source_len = 0;
+	char *source = build_repeated_text("const value = document + window;\n", 512, &source_len);
+	ASSERT_TRUE(source != NULL);
+	ASSERT_TRUE(source_len <= UINT32_MAX);
+
+	editorSyntaxTestSetBudgetOverrides(1, 1, 0, 2000000000ULL);
+	struct editorSyntaxState *state = editorSyntaxStateCreate(EDITOR_SYNTAX_JAVASCRIPT);
+	ASSERT_TRUE(state != NULL);
+	ASSERT_TRUE(editorSyntaxStateParseFull(state, source, source_len));
+
+	int parse_budget = 0;
+	int query_budget = 0;
+	(void)editorSyntaxStateConsumeBudgetEvents(state, &parse_budget, &query_budget);
+
+	struct editorSyntaxCapture captures[1024];
+	int capture_count = 0;
+	ASSERT_TRUE(editorSyntaxStateCollectCapturesForRange(state, 0, (uint32_t)source_len, captures,
+				(int)(sizeof(captures) / sizeof(captures[0])), &capture_count));
+	ASSERT_TRUE(editorSyntaxStateConsumeBudgetEvents(state, &parse_budget, &query_budget));
+	ASSERT_EQ_INT(0, parse_budget);
+	ASSERT_EQ_INT(1, query_budget);
+
+	editorSyntaxStateDestroy(state);
+	editorSyntaxTestResetBudgetOverrides();
+	free(source);
+	return 0;
+}
+
+static int test_editor_syntax_parse_budget_is_graceful(void) {
+	size_t source_len = 0;
+	char *source = build_repeated_text("function item(){ return 1; }\n", 120000, &source_len);
+	ASSERT_TRUE(source != NULL);
+	ASSERT_TRUE(source_len <= UINT32_MAX);
+
+	editorSyntaxTestSetBudgetOverrides(1, 8192, 2000000000ULL, 1);
+	struct editorSyntaxState *state = editorSyntaxStateCreate(EDITOR_SYNTAX_JAVASCRIPT);
+	ASSERT_TRUE(state != NULL);
+	ASSERT_TRUE(editorSyntaxStateParseFull(state, source, source_len));
+
+	int parse_budget = 0;
+	int query_budget = 0;
+	ASSERT_TRUE(editorSyntaxStateConsumeBudgetEvents(state, &parse_budget, &query_budget));
+	ASSERT_EQ_INT(1, parse_budget);
+	ASSERT_EQ_INT(0, query_budget);
+
+	editorSyntaxStateDestroy(state);
+	editorSyntaxTestResetBudgetOverrides();
+	free(source);
+	return 0;
+}
+
+static int test_editor_syntax_visible_cache_recomputes_only_changed_rows(void) {
+	char path[] = "/tmp/rotide-test-syntax-visible-cache-XXXXXX.c";
+	int fd = mkstemps(path, 2);
+	ASSERT_TRUE(fd != -1);
+	const char *source =
+			"int alpha(void) {\n"
+			"  return 1;\n"
+			"}\n"
+			"int beta(void) {\n"
+			"  return 2;\n"
+			"}\n"
+			"int gamma(void) {\n"
+			"  return 3;\n"
+			"}\n";
+	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	editorOpen(path);
+	E.window_rows = 6;
+	E.window_cols = 100;
+	E.rowoff = 0;
+	E.coloff = 0;
+	E.cy = 1;
+	E.cx = 2;
+
+	editorSyntaxTestResetVisibleRowRecomputeCount();
+	ASSERT_TRUE(editorSyntaxPrepareVisibleRowSpans(E.rowoff, E.window_rows));
+	int full_recompute = editorSyntaxTestVisibleRowRecomputeCount();
+	ASSERT_TRUE(full_recompute > 0);
+
+	editorSyntaxTestResetVisibleRowRecomputeCount();
+	editorInsertChar('x');
+	ASSERT_TRUE(editorSyntaxPrepareVisibleRowSpans(E.rowoff, E.window_rows));
+	int incremental_recompute = editorSyntaxTestVisibleRowRecomputeCount();
+	ASSERT_TRUE(incremental_recompute > 0);
+	ASSERT_TRUE(incremental_recompute < full_recompute);
 
 	ASSERT_TRUE(unlink(path) == 0);
 	return 0;
@@ -6607,6 +6727,77 @@ static int test_editor_refresh_screen_javascript_predicates_and_locals(void) {
 	return 0;
 }
 
+static int test_editor_refresh_screen_javascript_predicates_repeat_refresh(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-js-repeat-XXXXXX.js";
+	int fd = mkstemps(path, 3);
+	ASSERT_TRUE(fd != -1);
+	const char *source =
+			"function demo() {\n"
+			"  const window = 1;\n"
+			"  window;\n"
+			"}\n"
+			"document;\n";
+	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	editorOpen(path);
+	E.window_rows = 8;
+	E.window_cols = 120;
+	E.cy = 0;
+	E.cx = 0;
+
+	editorOutputTestResetFrameCache();
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mdocument\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mwindow\x1b[39m") == NULL);
+	free(output);
+
+	editorOutputTestResetFrameCache();
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mdocument\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mwindow\x1b[39m") == NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_reports_query_budget_throttle_status(void) {
+	char path[] = "/tmp/rotide-test-syntax-budget-query-XXXXXX.js";
+	int fd = mkstemps(path, 3);
+	ASSERT_TRUE(fd != -1);
+
+	size_t source_len = 0;
+	char *source = build_repeated_text("const value = document + window;\n", 800, &source_len);
+	ASSERT_TRUE(source != NULL);
+	ASSERT_TRUE(write_all(fd, source, source_len) == 0);
+	free(source);
+	ASSERT_TRUE(close(fd) == 0);
+
+	editorSyntaxTestSetBudgetOverrides(1, 1, 0, 2000000000ULL);
+	editorOpen(path);
+	E.window_rows = 10;
+	E.window_cols = 120;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	free(output);
+
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(strstr(E.statusmsg, "Tree-sitter highlight throttled (budget)") != NULL ||
+			strstr(E.statusmsg, "Tree-sitter throttled (parse/query budget)") != NULL);
+
+	editorSyntaxTestResetBudgetOverrides();
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_plain_text_file_has_no_syntax_highlighting(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-txt-XXXXXX.txt";
 	int fd = mkstemps(path, 4);
@@ -6669,6 +6860,7 @@ static int test_editor_refresh_screen_shell_selection_and_search_override_syntax
 	E.search_match_start = 0;
 	E.search_match_len = 2;
 
+	editorOutputTestResetFrameCache();
 	output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[7mif\x1b[m") != NULL);
@@ -6715,6 +6907,7 @@ static int test_editor_refresh_screen_selection_and_search_override_syntax_color
 	E.search_match_start = 0;
 	E.search_match_len = 6;
 
+	editorOutputTestResetFrameCache();
 	output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[7mreturn\x1b[m") != NULL);
@@ -7283,6 +7476,40 @@ static int test_editor_refresh_screen_contains_expected_sequences(void) {
 	return 0;
 }
 
+static int test_editor_refresh_screen_file_row_frame_diff_updates_only_changed_rows(void) {
+	add_row("alpha");
+	add_row("beta");
+	add_row("gamma");
+	E.window_rows = 4;
+	E.window_cols = 40;
+	E.cy = 0;
+	E.cx = 0;
+
+	editorOutputTestResetFrameCache();
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	free(output);
+	ASSERT_EQ_INT(E.window_rows, editorOutputTestLastRefreshFileRowDrawCount());
+
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	free(output);
+	ASSERT_EQ_INT(0, editorOutputTestLastRefreshFileRowDrawCount());
+
+	E.cy = 1;
+	E.cx = 2;
+	editorInsertChar('X');
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	free(output);
+
+	int changed_rows = editorOutputTestLastRefreshFileRowDrawCount();
+	ASSERT_TRUE(changed_rows > 0);
+	ASSERT_TRUE(changed_rows < E.window_rows);
+	return 0;
+}
+
 static int test_editor_refresh_screen_uses_configured_cursor_style(void) {
 	add_row("cursor style");
 	E.window_rows = 4;
@@ -7610,12 +7837,18 @@ int main(void) {
 				test_editor_syntax_incremental_edits_keep_shell_tree_valid},
 			{"editor_syntax_incremental_edits_keep_html_tree_valid",
 				test_editor_syntax_incremental_edits_keep_html_tree_valid},
-			{"editor_syntax_incremental_edits_keep_javascript_tree_valid",
-				test_editor_syntax_incremental_edits_keep_javascript_tree_valid},
-			{"editor_syntax_incremental_edits_keep_css_tree_valid",
-				test_editor_syntax_incremental_edits_keep_css_tree_valid},
-			{"editor_syntax_undo_redo_preserves_tree",
-				test_editor_syntax_undo_redo_preserves_tree},
+				{"editor_syntax_incremental_edits_keep_javascript_tree_valid",
+					test_editor_syntax_incremental_edits_keep_javascript_tree_valid},
+				{"editor_syntax_incremental_edits_keep_css_tree_valid",
+					test_editor_syntax_incremental_edits_keep_css_tree_valid},
+				{"editor_syntax_query_budget_match_limit_is_graceful",
+					test_editor_syntax_query_budget_match_limit_is_graceful},
+				{"editor_syntax_parse_budget_is_graceful",
+					test_editor_syntax_parse_budget_is_graceful},
+				{"editor_syntax_visible_cache_recomputes_only_changed_rows",
+					test_editor_syntax_visible_cache_recomputes_only_changed_rows},
+				{"editor_syntax_undo_redo_preserves_tree",
+					test_editor_syntax_undo_redo_preserves_tree},
 			{"editor_syntax_undo_redo_preserves_shell_tree",
 				test_editor_syntax_undo_redo_preserves_shell_tree},
 			{"editor_tabs_keep_independent_syntax_states",
@@ -7957,10 +8190,12 @@ int main(void) {
 			test_editor_process_keypress_ctrl_z_capture_oom_preserves_state},
 		{"editor_process_keypress_ctrl_z_restore_oom_preserves_state",
 			test_editor_process_keypress_ctrl_z_restore_oom_preserves_state},
-			{"editor_refresh_screen_contains_expected_sequences",
-				test_editor_refresh_screen_contains_expected_sequences},
-			{"editor_refresh_screen_uses_configured_cursor_style",
-				test_editor_refresh_screen_uses_configured_cursor_style},
+				{"editor_refresh_screen_contains_expected_sequences",
+					test_editor_refresh_screen_contains_expected_sequences},
+				{"editor_refresh_screen_file_row_frame_diff_updates_only_changed_rows",
+					test_editor_refresh_screen_file_row_frame_diff_updates_only_changed_rows},
+				{"editor_refresh_screen_uses_configured_cursor_style",
+					test_editor_refresh_screen_uses_configured_cursor_style},
 			{"editor_refresh_screen_highlights_active_search_match",
 				test_editor_refresh_screen_highlights_active_search_match},
 			{"editor_refresh_screen_applies_syntax_highlighting_for_c_tokens",
@@ -7973,8 +8208,12 @@ int main(void) {
 				test_editor_refresh_screen_applies_syntax_highlighting_for_javascript_tokens},
 			{"editor_refresh_screen_applies_syntax_highlighting_for_css_tokens",
 				test_editor_refresh_screen_applies_syntax_highlighting_for_css_tokens},
-			{"editor_refresh_screen_javascript_predicates_and_locals",
-				test_editor_refresh_screen_javascript_predicates_and_locals},
+				{"editor_refresh_screen_javascript_predicates_and_locals",
+					test_editor_refresh_screen_javascript_predicates_and_locals},
+				{"editor_refresh_screen_javascript_predicates_repeat_refresh",
+					test_editor_refresh_screen_javascript_predicates_repeat_refresh},
+				{"editor_refresh_screen_reports_query_budget_throttle_status",
+					test_editor_refresh_screen_reports_query_budget_throttle_status},
 			{"editor_refresh_screen_plain_text_file_has_no_syntax_highlighting",
 				test_editor_refresh_screen_plain_text_file_has_no_syntax_highlighting},
 			{"editor_refresh_screen_selection_and_search_override_syntax_colors",

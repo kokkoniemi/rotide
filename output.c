@@ -92,6 +92,19 @@ static int editorAppendGrayBytes(struct writeBuf *wb, const char *text, size_t l
 
 /*** Output ***/
 
+struct editorFileRowFrameCache {
+	int valid;
+	int row_capacity;
+	int row_count;
+	int window_rows;
+	int window_cols;
+	char **rows;
+	size_t *row_lens;
+};
+
+static struct editorFileRowFrameCache g_file_row_frame_cache = {0};
+static int g_editor_output_last_refresh_file_row_draw_count = 0;
+
 static int editorWriteAllToStdout(const char *buf, size_t len) {
 	if (len == 0) {
 		return 1;
@@ -114,6 +127,101 @@ static int editorWriteAllToStdout(const char *buf, size_t len) {
 		total += (size_t)written;
 	}
 	return 1;
+}
+
+static void editorFileRowFrameCacheClearRowsFrom(int start_row) {
+	if (start_row < 0) {
+		start_row = 0;
+	}
+	if (start_row > g_file_row_frame_cache.row_capacity) {
+		start_row = g_file_row_frame_cache.row_capacity;
+	}
+	for (int i = start_row; i < g_file_row_frame_cache.row_capacity; i++) {
+		free(g_file_row_frame_cache.rows[i]);
+		g_file_row_frame_cache.rows[i] = NULL;
+		g_file_row_frame_cache.row_lens[i] = 0;
+	}
+	if (g_file_row_frame_cache.row_count < start_row) {
+		g_file_row_frame_cache.row_count = start_row;
+	}
+}
+
+static void editorFileRowFrameCacheReset(void) {
+	editorFileRowFrameCacheClearRowsFrom(0);
+	g_file_row_frame_cache.valid = 0;
+	g_file_row_frame_cache.row_count = 0;
+	g_file_row_frame_cache.window_rows = 0;
+	g_file_row_frame_cache.window_cols = 0;
+}
+
+static int editorFileRowFrameCacheEnsureCapacity(int needed_rows) {
+	if (needed_rows <= g_file_row_frame_cache.row_capacity) {
+		return 1;
+	}
+	if (needed_rows <= 0) {
+		return 1;
+	}
+
+	size_t cap_size = 0;
+	size_t rows_bytes = 0;
+	if (!editorIntToSize(needed_rows, &cap_size) ||
+			!editorSizeMul(sizeof(*g_file_row_frame_cache.rows), cap_size, &rows_bytes)) {
+		return 0;
+	}
+
+	int old_capacity = g_file_row_frame_cache.row_capacity;
+	char **new_rows = editorRealloc(g_file_row_frame_cache.rows, rows_bytes);
+	if (new_rows == NULL) {
+		return 0;
+	}
+	g_file_row_frame_cache.rows = new_rows;
+
+	size_t lens_bytes = 0;
+	if (!editorSizeMul(sizeof(*g_file_row_frame_cache.row_lens), cap_size, &lens_bytes)) {
+		return 0;
+	}
+	size_t *new_lens = editorRealloc(g_file_row_frame_cache.row_lens, lens_bytes);
+	if (new_lens == NULL) {
+		return 0;
+	}
+	g_file_row_frame_cache.row_lens = new_lens;
+
+	for (int i = old_capacity; i < needed_rows; i++) {
+		g_file_row_frame_cache.rows[i] = NULL;
+		g_file_row_frame_cache.row_lens[i] = 0;
+	}
+
+	g_file_row_frame_cache.row_capacity = needed_rows;
+	return 1;
+}
+
+static int editorFileRowFrameCacheStoreRow(int row_idx, const char *row_data, size_t row_len) {
+	if (row_idx < 0 || row_data == NULL || row_idx >= g_file_row_frame_cache.row_capacity) {
+		return 0;
+	}
+
+	char *copy = NULL;
+	if (row_len > 0) {
+		copy = editorMalloc(row_len);
+		if (copy == NULL) {
+			return 0;
+		}
+		memcpy(copy, row_data, row_len);
+	}
+
+	free(g_file_row_frame_cache.rows[row_idx]);
+	g_file_row_frame_cache.rows[row_idx] = copy;
+	g_file_row_frame_cache.row_lens[row_idx] = row_len;
+	return 1;
+}
+
+static int editorAppendCursorMove(struct writeBuf *wb, int row, int col) {
+	char buf[32];
+	int len = snprintf(buf, sizeof(buf), "\x1b[%d;%dH", row, col);
+	if (len <= 0 || len >= (int)sizeof(buf)) {
+		return 0;
+	}
+	return wbAppend(wb, buf, (size_t)len);
 }
 
 static int editorDrawGreeting(struct writeBuf *wb, int cols) {
@@ -1467,6 +1575,41 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 	return 1;
 }
 
+static int editorBuildFileRowLine(struct writeBuf *wb, int y, int drawer_cols, int separator_cols,
+		int text_cols) {
+	int y_offset = y + E.rowoff;
+
+	if (!editorDrawDrawerRow(wb, y + 1, drawer_cols)) {
+		return 0;
+	}
+
+	if (!editorDrawDrawerSeparatorCell(wb, separator_cols)) {
+		return 0;
+	}
+
+	if (y_offset < E.numrows) {
+		if (!editorDrawFileRow(wb, (size_t)y_offset, text_cols)) {
+			return 0;
+		}
+	} else if (E.numrows == 0 && y == E.window_rows / 3) {
+		if (!editorDrawGreeting(wb, text_cols)) {
+			return 0;
+		}
+	} else if (!editorAppendGrayBytes(wb, "~", 1)) {
+		return 0;
+	}
+
+	if (!wbAppend(wb, VT100_CLEAR_ROW_3, 3)) {
+		return 0;
+	}
+	if (!editorDrawDrawerSelectionOverflow(wb, y + 1, drawer_cols, separator_cols, text_cols, y + 2,
+				NULL)) {
+		return 0;
+	}
+
+	return 1;
+}
+
 static int editorDrawRows(struct writeBuf *wb) {
 	(void)editorDrawerMoveSelectionBy(0, E.window_rows + 1);
 	(void)editorSyntaxPrepareVisibleRowSpans(E.rowoff, E.window_rows);
@@ -1474,43 +1617,58 @@ static int editorDrawRows(struct writeBuf *wb) {
 	int drawer_cols = editorDrawerWidthForCols(E.window_cols);
 	int separator_cols = editorDrawerSeparatorWidthForCols(E.window_cols);
 	int text_cols = editorDrawerTextViewportCols(E.window_cols);
+	int file_row_draw_count = 0;
+	int force_full = 0;
+	if (!g_file_row_frame_cache.valid || g_file_row_frame_cache.window_rows != E.window_rows ||
+			g_file_row_frame_cache.window_cols != E.window_cols) {
+		force_full = 1;
+	}
+
+	if (!editorFileRowFrameCacheEnsureCapacity(E.window_rows)) {
+		return 0;
+	}
 
 	for (int y = 0; y < E.window_rows; y++) {
-		int y_offset = y + E.rowoff;
-
-		if (!editorDrawDrawerRow(wb, y + 1, drawer_cols)) {
+		struct writeBuf row_buf = WRITEBUF_INIT;
+		if (!editorBuildFileRowLine(&row_buf, y, drawer_cols, separator_cols, text_cols)) {
+			wbFree(&row_buf);
 			return 0;
 		}
 
-		if (!editorDrawDrawerSeparatorCell(wb, separator_cols)) {
-			return 0;
-		}
-
-		if (y_offset < E.numrows) {
-			if (!editorDrawFileRow(wb, y_offset, text_cols)) {
-				return 0;
-			}
-		} else if (E.numrows == 0 && y == E.window_rows / 3) {
-			if (!editorDrawGreeting(wb, text_cols)) {
-				return 0;
-			}
+		int changed = force_full;
+		if (!changed && y < g_file_row_frame_cache.row_count &&
+				g_file_row_frame_cache.rows[y] != NULL &&
+				g_file_row_frame_cache.row_lens[y] == row_buf.len &&
+				(row_buf.len == 0 ||
+						memcmp(g_file_row_frame_cache.rows[y], row_buf.b, row_buf.len) == 0)) {
+			changed = 0;
 		} else {
-			if (!editorAppendGrayBytes(wb, "~", 1)) {
-				return 0;
-			}
+			changed = 1;
 		}
 
-		if (!wbAppend(wb, VT100_CLEAR_ROW_3, 3)) {
-			return 0;
+		if (changed) {
+			if (!editorAppendCursorMove(wb, y + 2, 1) || !wbAppend(wb, row_buf.b, row_buf.len)) {
+				wbFree(&row_buf);
+				return 0;
+			}
+			if (!editorFileRowFrameCacheStoreRow(y, row_buf.b, row_buf.len)) {
+				wbFree(&row_buf);
+				return 0;
+			}
+			file_row_draw_count++;
 		}
-		if (!editorDrawDrawerSelectionOverflow(wb, y + 1, drawer_cols, separator_cols, text_cols, y + 2,
-					NULL)) {
-			return 0;
-		}
-		if (!wbAppend(wb, "\r\n", 2)) {
-			return 0;
-		}
+
+		wbFree(&row_buf);
 	}
+
+	if (g_file_row_frame_cache.row_count > E.window_rows) {
+		editorFileRowFrameCacheClearRowsFrom(E.window_rows);
+	}
+	g_file_row_frame_cache.row_count = E.window_rows;
+	g_file_row_frame_cache.window_rows = E.window_rows;
+	g_file_row_frame_cache.window_cols = E.window_cols;
+	g_file_row_frame_cache.valid = 1;
+	g_editor_output_last_refresh_file_row_draw_count = file_row_draw_count;
 
 	return 1;
 }
@@ -1754,6 +1912,7 @@ static const char *editorCursorStyleSequence(enum editorCursorStyle style, size_
 
 void editorRefreshScreen(void) {
 	editorScroll();
+	g_editor_output_last_refresh_file_row_draw_count = 0;
 
 	struct writeBuf wb = WRITEBUF_INIT;
 	size_t cursor_style_len = 0;
@@ -1769,8 +1928,11 @@ void editorRefreshScreen(void) {
 		return;
 	}
 
-	if (!editorDrawTabBar(&wb) || !editorDrawRows(&wb) || !editorDrawStatusBar(&wb) ||
-			!editorDrawMessageBar(&wb)) {
+	int status_row = E.window_rows + 2;
+	int message_row = E.window_rows + 3;
+	if (!editorDrawTabBar(&wb) || !editorDrawRows(&wb) ||
+			!editorAppendCursorMove(&wb, status_row, 1) || !editorDrawStatusBar(&wb) ||
+			!editorAppendCursorMove(&wb, message_row, 1) || !editorDrawMessageBar(&wb)) {
 		wbFree(&wb);
 		editorSetStatusMsg("Out of memory");
 		return;
@@ -1849,4 +2011,13 @@ void editorRefreshScreen(void) {
 	}
 
 	wbFree(&wb);
+}
+
+void editorOutputTestResetFrameCache(void) {
+	editorFileRowFrameCacheReset();
+	g_editor_output_last_refresh_file_row_draw_count = 0;
+}
+
+int editorOutputTestLastRefreshFileRowDrawCount(void) {
+	return g_editor_output_last_refresh_file_row_draw_count;
 }

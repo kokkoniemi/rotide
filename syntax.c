@@ -1,11 +1,14 @@
 #include "syntax.h"
 
 #include <ctype.h>
+#include <limits.h>
 #include <regex.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
 #include <string.h>
+#include <time.h>
 
 #include "tree_sitter/api.h"
 
@@ -27,6 +30,18 @@ enum editorSyntaxCaptureRole {
 #define ROTIDE_SYNTAX_PERF_DEGRADED_PREDICATES_BYTES ((size_t)(512 * 1024))
 #define ROTIDE_SYNTAX_PERF_DEGRADED_INJECTIONS_BYTES ((size_t)(2 * 1024 * 1024))
 #define ROTIDE_SYNTAX_PERF_DISABLED_BYTES ((size_t)(8 * 1024 * 1024))
+
+#define ROTIDE_SYNTAX_QUERY_MATCH_LIMIT_NORMAL 8192U
+#define ROTIDE_SYNTAX_QUERY_MATCH_LIMIT_DEGRADED 4096U
+#define ROTIDE_SYNTAX_QUERY_MATCH_LIMIT_DEGRADED_INJECTIONS 2048U
+
+#define ROTIDE_SYNTAX_QUERY_BUDGET_NS_NORMAL (8000000ULL)
+#define ROTIDE_SYNTAX_QUERY_BUDGET_NS_DEGRADED (6000000ULL)
+#define ROTIDE_SYNTAX_QUERY_BUDGET_NS_DEGRADED_INJECTIONS (5000000ULL)
+
+#define ROTIDE_SYNTAX_PARSE_BUDGET_NS_NORMAL (16000000ULL)
+#define ROTIDE_SYNTAX_PARSE_BUDGET_NS_DEGRADED (12000000ULL)
+#define ROTIDE_SYNTAX_PARSE_BUDGET_NS_DEGRADED_INJECTIONS (9000000ULL)
 
 struct editorSyntaxLocalMark {
 	TSNode node;
@@ -62,6 +77,11 @@ struct editorSyntaxState {
 	int perf_disable_predicates;
 	int perf_disable_injections;
 	enum editorSyntaxPerformanceMode perf_mode;
+	struct editorSyntaxByteRange *last_changed_ranges;
+	int last_changed_range_count;
+	int last_changed_range_cap;
+	int budget_parse_exceeded;
+	int budget_query_exceeded;
 	char *source_snapshot;
 	size_t source_snapshot_len;
 };
@@ -74,6 +94,10 @@ struct editorSyntaxQueryCacheEntry {
 	char **pattern_injection_languages;
 	uint32_t capture_count;
 	uint32_t pattern_count;
+	regex_t *compiled_regexes;
+	uint8_t *compiled_regex_compiled;
+	uint8_t *compiled_regex_failed;
+	uint32_t string_count;
 };
 
 struct editorSyntaxScopeInfo {
@@ -96,6 +120,22 @@ struct editorSyntaxRangeVec {
 	uint32_t cap;
 };
 
+struct editorSyntaxBudgetConfig {
+	uint32_t query_match_limit;
+	uint64_t query_budget_ns;
+	uint64_t parse_budget_ns;
+};
+
+struct editorSyntaxDeadlineContext {
+	uint64_t deadline_ns;
+	int exceeded;
+};
+
+struct editorSyntaxSourceInput {
+	const char *source;
+	size_t len;
+};
+
 struct editorSyntaxPredicateContext {
 	const char *source;
 	size_t source_len;
@@ -109,6 +149,13 @@ static struct editorSyntaxQueryCacheEntry g_javascript_highlight_query_cache = {
 static struct editorSyntaxQueryCacheEntry g_css_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_javascript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_html_injection_query_cache = {0};
+
+static struct {
+	int enabled;
+	uint32_t query_match_limit;
+	uint64_t query_time_budget_ns;
+	uint64_t parse_time_budget_ns;
+} g_editor_syntax_budget_overrides = {0};
 
 static const char editor_builtin_c_highlights_query[] =
 		"(comment) @comment\n"
@@ -231,6 +278,107 @@ static int editorSyntaxStringEqualsNoCase(const char *s, size_t len, const char 
 
 static int editorSyntaxLengthFitsTreeSitter(size_t len) {
 	return len <= UINT32_MAX;
+}
+
+static uint64_t editorSyntaxMonotonicNanos(void) {
+	struct timespec ts;
+	if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+		return 0;
+	}
+	return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
+}
+
+static uint64_t editorSyntaxComputeDeadlineNs(uint64_t budget_ns) {
+	if (budget_ns == 0) {
+		return 0;
+	}
+	uint64_t now = editorSyntaxMonotonicNanos();
+	if (now == 0 || budget_ns > UINT64_MAX - now) {
+		return 0;
+	}
+	return now + budget_ns;
+}
+
+static bool editorSyntaxParseProgressCallback(TSParseState *state) {
+	if (state == NULL || state->payload == NULL) {
+		return false;
+	}
+	struct editorSyntaxDeadlineContext *deadline = state->payload;
+	if (deadline->deadline_ns == 0) {
+		return false;
+	}
+	uint64_t now = editorSyntaxMonotonicNanos();
+	if (now != 0 && now >= deadline->deadline_ns) {
+		deadline->exceeded = 1;
+		return true;
+	}
+	return false;
+}
+
+static bool editorSyntaxQueryProgressCallback(TSQueryCursorState *state) {
+	if (state == NULL || state->payload == NULL) {
+		return false;
+	}
+	struct editorSyntaxDeadlineContext *deadline = state->payload;
+	if (deadline->deadline_ns == 0) {
+		return false;
+	}
+	uint64_t now = editorSyntaxMonotonicNanos();
+	if (now != 0 && now >= deadline->deadline_ns) {
+		deadline->exceeded = 1;
+		return true;
+	}
+	return false;
+}
+
+static const char *editorSyntaxSourceRead(void *payload, uint32_t byte_index,
+		TSPoint position, uint32_t *bytes_read) {
+	(void)position;
+	if (bytes_read == NULL) {
+		return NULL;
+	}
+	*bytes_read = 0;
+	if (payload == NULL) {
+		return NULL;
+	}
+	struct editorSyntaxSourceInput *input = payload;
+	if (input->source == NULL || byte_index >= input->len) {
+		return NULL;
+	}
+
+	size_t remaining = input->len - byte_index;
+	if (remaining > UINT32_MAX) {
+		remaining = UINT32_MAX;
+	}
+	*bytes_read = (uint32_t)remaining;
+	return input->source + byte_index;
+}
+
+static struct editorSyntaxBudgetConfig editorSyntaxBudgetConfigForMode(
+		enum editorSyntaxPerformanceMode mode) {
+	struct editorSyntaxBudgetConfig config = {
+		.query_match_limit = ROTIDE_SYNTAX_QUERY_MATCH_LIMIT_NORMAL,
+		.query_budget_ns = ROTIDE_SYNTAX_QUERY_BUDGET_NS_NORMAL,
+		.parse_budget_ns = ROTIDE_SYNTAX_PARSE_BUDGET_NS_NORMAL
+	};
+
+	if (mode == EDITOR_SYNTAX_PERF_DEGRADED_PREDICATES) {
+		config.query_match_limit = ROTIDE_SYNTAX_QUERY_MATCH_LIMIT_DEGRADED;
+		config.query_budget_ns = ROTIDE_SYNTAX_QUERY_BUDGET_NS_DEGRADED;
+		config.parse_budget_ns = ROTIDE_SYNTAX_PARSE_BUDGET_NS_DEGRADED;
+	} else if (mode == EDITOR_SYNTAX_PERF_DEGRADED_INJECTIONS) {
+		config.query_match_limit = ROTIDE_SYNTAX_QUERY_MATCH_LIMIT_DEGRADED_INJECTIONS;
+		config.query_budget_ns = ROTIDE_SYNTAX_QUERY_BUDGET_NS_DEGRADED_INJECTIONS;
+		config.parse_budget_ns = ROTIDE_SYNTAX_PARSE_BUDGET_NS_DEGRADED_INJECTIONS;
+	}
+
+	if (g_editor_syntax_budget_overrides.enabled) {
+		config.query_match_limit = g_editor_syntax_budget_overrides.query_match_limit;
+		config.query_budget_ns = g_editor_syntax_budget_overrides.query_time_budget_ns;
+		config.parse_budget_ns = g_editor_syntax_budget_overrides.parse_time_budget_ns;
+	}
+
+	return config;
 }
 
 static int editorSyntaxCaptureNameHasPrefix(const char *name, size_t len, const char *prefix) {
@@ -639,6 +787,21 @@ static void editorSyntaxClearQueryCacheEntry(struct editorSyntaxQueryCacheEntry 
 	if (cache == NULL) {
 		return;
 	}
+	if (cache->compiled_regexes != NULL && cache->compiled_regex_compiled != NULL) {
+		for (uint32_t i = 0; i < cache->string_count; i++) {
+			if (cache->compiled_regex_compiled[i]) {
+				regfree(&cache->compiled_regexes[i]);
+			}
+		}
+	}
+	free(cache->compiled_regexes);
+	cache->compiled_regexes = NULL;
+	free(cache->compiled_regex_compiled);
+	cache->compiled_regex_compiled = NULL;
+	free(cache->compiled_regex_failed);
+	cache->compiled_regex_failed = NULL;
+	cache->string_count = 0;
+
 	if (cache->query != NULL) {
 		ts_query_delete(cache->query);
 		cache->query = NULL;
@@ -696,6 +859,10 @@ static int editorSyntaxEnsureQueryCache(struct editorSyntaxQueryCacheEntry *cach
 	char **pattern_languages = NULL;
 	uint32_t capture_count = 0;
 	uint32_t pattern_count = 0;
+	uint32_t string_count = ts_query_string_count(query);
+	regex_t *compiled_regexes = NULL;
+	uint8_t *compiled_regex_compiled = NULL;
+	uint8_t *compiled_regex_failed = NULL;
 
 	if (want_capture_classes &&
 			!editorSyntaxPopulateCaptureClasses(query, &capture_classes, &capture_count)) {
@@ -726,12 +893,39 @@ static int editorSyntaxEnsureQueryCache(struct editorSyntaxQueryCacheEntry *cach
 		return 0;
 	}
 
+	if (string_count > 0) {
+		size_t strings_bytes = (size_t)string_count;
+		compiled_regexes = calloc(string_count, sizeof(*compiled_regexes));
+		compiled_regex_compiled = calloc(strings_bytes, sizeof(*compiled_regex_compiled));
+		compiled_regex_failed = calloc(strings_bytes, sizeof(*compiled_regex_failed));
+		if (compiled_regexes == NULL || compiled_regex_compiled == NULL ||
+				compiled_regex_failed == NULL) {
+			free(compiled_regexes);
+			free(compiled_regex_compiled);
+			free(compiled_regex_failed);
+			free(capture_classes);
+			free(capture_roles);
+			if (pattern_languages != NULL) {
+				for (uint32_t i = 0; i < pattern_count; i++) {
+					free(pattern_languages[i]);
+				}
+			}
+			free(pattern_languages);
+			ts_query_delete(query);
+			return 0;
+		}
+	}
+
 	cache->query = query;
 	cache->capture_classes = capture_classes;
 	cache->capture_roles = capture_roles;
 	cache->pattern_injection_languages = pattern_languages;
 	cache->capture_count = capture_count;
 	cache->pattern_count = pattern_count;
+	cache->compiled_regexes = compiled_regexes;
+	cache->compiled_regex_compiled = compiled_regex_compiled;
+	cache->compiled_regex_failed = compiled_regex_failed;
+	cache->string_count = string_count;
 	return 1;
 }
 
@@ -826,6 +1020,29 @@ static const struct editorSyntaxQueryCacheEntry *editorSyntaxLocalsQueryCacheFor
 		enum editorSyntaxLanguage language) {
 	if (language == EDITOR_SYNTAX_JAVASCRIPT) {
 		return &g_javascript_locals_query_cache;
+	}
+	return NULL;
+}
+
+static struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(const TSQuery *query) {
+	if (query == NULL) {
+		return NULL;
+	}
+
+	struct editorSyntaxQueryCacheEntry *all[] = {
+		&g_c_highlight_query_cache,
+		&g_shell_highlight_query_cache,
+		&g_html_highlight_query_cache,
+		&g_javascript_highlight_query_cache,
+		&g_css_highlight_query_cache,
+		&g_javascript_locals_query_cache,
+		&g_html_injection_query_cache
+	};
+
+	for (size_t i = 0; i < sizeof(all) / sizeof(all[0]); i++) {
+		if (all[i]->query == query) {
+			return all[i];
+		}
 	}
 	return NULL;
 }
@@ -1055,6 +1272,107 @@ static void editorSyntaxParsedTreeResetTree(struct editorSyntaxParsedTree *parse
 	parsed->revision++;
 }
 
+static void editorSyntaxStateClearChangedRanges(struct editorSyntaxState *state) {
+	if (state == NULL) {
+		return;
+	}
+	state->last_changed_range_count = 0;
+}
+
+static int editorSyntaxStateEnsureChangedRangeCapacity(struct editorSyntaxState *state, int needed) {
+	if (state == NULL || needed < 0) {
+		return 0;
+	}
+	if (needed <= state->last_changed_range_cap) {
+		return 1;
+	}
+
+	int new_cap = state->last_changed_range_cap == 0 ? 16 : state->last_changed_range_cap;
+	while (new_cap < needed) {
+		if (new_cap > INT_MAX / 2) {
+			return 0;
+		}
+		new_cap *= 2;
+	}
+	size_t bytes = (size_t)new_cap * sizeof(*state->last_changed_ranges);
+	struct editorSyntaxByteRange *grown = realloc(state->last_changed_ranges, bytes);
+	if (grown == NULL) {
+		return 0;
+	}
+	state->last_changed_ranges = grown;
+	state->last_changed_range_cap = new_cap;
+	return 1;
+}
+
+static int editorSyntaxStateAppendChangedRange(struct editorSyntaxState *state,
+		uint32_t start_byte, uint32_t end_byte) {
+	if (state == NULL || end_byte <= start_byte) {
+		return 1;
+	}
+
+	if (state->last_changed_range_count > 0) {
+		struct editorSyntaxByteRange *last =
+				&state->last_changed_ranges[state->last_changed_range_count - 1];
+		if (start_byte <= last->end_byte) {
+			if (end_byte > last->end_byte) {
+				last->end_byte = end_byte;
+			}
+			return 1;
+		}
+	}
+
+	if (!editorSyntaxStateEnsureChangedRangeCapacity(state, state->last_changed_range_count + 1)) {
+		return 0;
+	}
+	state->last_changed_ranges[state->last_changed_range_count].start_byte = start_byte;
+	state->last_changed_ranges[state->last_changed_range_count].end_byte = end_byte;
+	state->last_changed_range_count++;
+	return 1;
+}
+
+static int editorSyntaxStateSetChangedRangesFull(struct editorSyntaxState *state, size_t source_len) {
+	if (state == NULL) {
+		return 0;
+	}
+	editorSyntaxStateClearChangedRanges(state);
+	if (source_len == 0) {
+		return 1;
+	}
+	if (source_len > UINT32_MAX) {
+		source_len = UINT32_MAX;
+	}
+	return editorSyntaxStateAppendChangedRange(state, 0, (uint32_t)source_len);
+}
+
+static int editorSyntaxStateSetChangedRangesFromTrees(struct editorSyntaxState *state,
+		const TSTree *old_tree,
+		const TSTree *new_tree) {
+	if (state == NULL) {
+		return 0;
+	}
+	editorSyntaxStateClearChangedRanges(state);
+	if (old_tree == NULL || new_tree == NULL) {
+		return 1;
+	}
+
+	uint32_t range_count = 0;
+	TSRange *ranges = ts_tree_get_changed_ranges(old_tree, new_tree, &range_count);
+	if (ranges == NULL && range_count > 0) {
+		return 0;
+	}
+
+	int ok = 1;
+	for (uint32_t i = 0; i < range_count; i++) {
+		if (!editorSyntaxStateAppendChangedRange(state, ranges[i].start_byte,
+					ranges[i].end_byte)) {
+			ok = 0;
+			break;
+		}
+	}
+	free(ranges);
+	return ok;
+}
+
 static int editorSyntaxParsedTreeSetIncludedRanges(struct editorSyntaxParsedTree *parsed,
 		const TSRange *ranges,
 		uint32_t range_count) {
@@ -1084,6 +1402,7 @@ static int editorSyntaxParsedTreeSetIncludedRanges(struct editorSyntaxParsedTree
 }
 
 static int editorSyntaxParsedTreeParse(struct editorSyntaxParsedTree *parsed,
+		struct editorSyntaxState *state,
 		const char *source,
 		size_t len,
 		int incremental) {
@@ -1093,9 +1412,47 @@ static int editorSyntaxParsedTreeParse(struct editorSyntaxParsedTree *parsed,
 	}
 
 	TSTree *old_tree = incremental ? parsed->tree : NULL;
-	TSTree *new_tree = ts_parser_parse_string(parsed->parser, old_tree, source, (uint32_t)len);
+	struct editorSyntaxBudgetConfig budget =
+			editorSyntaxBudgetConfigForMode(state != NULL ? state->perf_mode :
+					EDITOR_SYNTAX_PERF_NORMAL);
+	struct editorSyntaxSourceInput input_ctx = {
+		.source = source,
+		.len = len
+	};
+	TSInput input = {
+		.payload = &input_ctx,
+		.read = editorSyntaxSourceRead,
+		.encoding = TSInputEncodingUTF8,
+		.decode = NULL
+	};
+
+	TSTree *new_tree = NULL;
+	if (budget.parse_budget_ns > 0) {
+		struct editorSyntaxDeadlineContext parse_deadline = {0};
+		parse_deadline.deadline_ns = editorSyntaxComputeDeadlineNs(budget.parse_budget_ns);
+		TSParseOptions options = {
+			.payload = &parse_deadline,
+			.progress_callback = editorSyntaxParseProgressCallback
+		};
+		new_tree = ts_parser_parse_with_options(parsed->parser, old_tree, input, options);
+		if (new_tree == NULL && parse_deadline.exceeded) {
+			if (state != NULL) {
+				state->budget_parse_exceeded = 1;
+			}
+			return 1;
+		}
+	} else {
+		new_tree = ts_parser_parse(parsed->parser, old_tree, input);
+	}
 	if (new_tree == NULL) {
 		return 0;
+	}
+
+	if (state != NULL) {
+		if (!editorSyntaxStateSetChangedRangesFromTrees(state, old_tree, new_tree)) {
+			ts_tree_delete(new_tree);
+			return 0;
+		}
 	}
 
 	if (parsed->tree != NULL) {
@@ -1537,32 +1894,97 @@ static int editorSyntaxPredicateArgText(const TSQuery *query,
 	return 0;
 }
 
+static int editorSyntaxRegexMatchCompiled(const char *text, size_t text_len, regex_t *regex) {
+	if (text == NULL || regex == NULL) {
+		return 0;
+	}
+
+	char *text_buf = malloc(text_len + 1);
+	if (text_buf == NULL) {
+		free(text_buf);
+		return 0;
+	}
+	memcpy(text_buf, text, text_len);
+	text_buf[text_len] = '\0';
+	int matched = regexec(regex, text_buf, 0, NULL, 0) == 0;
+	free(text_buf);
+	return matched;
+}
+
 static int editorSyntaxRegexMatch(const char *text, size_t text_len,
 		const char *pattern, size_t pattern_len) {
+	if (text == NULL || pattern == NULL) {
+		return 0;
+	}
+
 	char *pattern_buf = malloc(pattern_len + 1);
-	char *text_buf = malloc(text_len + 1);
-	if (pattern_buf == NULL || text_buf == NULL) {
-		free(pattern_buf);
-		free(text_buf);
+	if (pattern_buf == NULL) {
 		return 0;
 	}
 	memcpy(pattern_buf, pattern, pattern_len);
 	pattern_buf[pattern_len] = '\0';
-	memcpy(text_buf, text, text_len);
-	text_buf[text_len] = '\0';
 
 	regex_t regex;
 	int compiled = regcomp(&regex, pattern_buf, REG_EXTENDED | REG_NOSUB);
 	free(pattern_buf);
 	if (compiled != 0) {
-		free(text_buf);
 		return 0;
 	}
 
-	int matched = regexec(&regex, text_buf, 0, NULL, 0) == 0;
+	int matched = editorSyntaxRegexMatchCompiled(text, text_len, &regex);
 	regfree(&regex);
-	free(text_buf);
 	return matched;
+}
+
+static int editorSyntaxRegexMatchCached(const TSQuery *query,
+		uint32_t string_id,
+		const char *text,
+		size_t text_len) {
+	if (query == NULL || text == NULL) {
+		return 0;
+	}
+
+	struct editorSyntaxQueryCacheEntry *cache = editorSyntaxQueryCacheEntryForQuery(query);
+	if (cache == NULL || cache->compiled_regexes == NULL || cache->compiled_regex_compiled == NULL ||
+			cache->compiled_regex_failed == NULL || string_id >= cache->string_count) {
+		uint32_t pattern_len = 0;
+		const char *pattern = ts_query_string_value_for_id(query, string_id, &pattern_len);
+		if (pattern == NULL) {
+			return 0;
+		}
+		return editorSyntaxRegexMatch(text, text_len, pattern, (size_t)pattern_len);
+	}
+
+	if (!cache->compiled_regex_compiled[string_id] &&
+			!cache->compiled_regex_failed[string_id]) {
+		uint32_t pattern_len = 0;
+		const char *pattern = ts_query_string_value_for_id(query, string_id, &pattern_len);
+		if (pattern == NULL) {
+			cache->compiled_regex_failed[string_id] = 1;
+			return 0;
+		}
+
+		char *pattern_buf = malloc((size_t)pattern_len + 1);
+		if (pattern_buf == NULL) {
+			return 0;
+		}
+		memcpy(pattern_buf, pattern, pattern_len);
+		pattern_buf[pattern_len] = '\0';
+
+		if (regcomp(&cache->compiled_regexes[string_id], pattern_buf,
+					REG_EXTENDED | REG_NOSUB) == 0) {
+			cache->compiled_regex_compiled[string_id] = 1;
+		} else {
+			cache->compiled_regex_failed[string_id] = 1;
+		}
+		free(pattern_buf);
+	}
+
+	if (!cache->compiled_regex_compiled[string_id]) {
+		return 0;
+	}
+
+	return editorSyntaxRegexMatchCompiled(text, text_len, &cache->compiled_regexes[string_id]);
 }
 
 static int editorSyntaxPredicateTargetNode(const TSQuery *query,
@@ -1670,7 +2092,12 @@ static int editorSyntaxEvaluatePredicate(const TSQuery *query,
 						&pattern_len)) {
 			return 0;
 		}
-		int matched = editorSyntaxRegexMatch(text, text_len, pattern, pattern_len);
+		int matched = 0;
+		if (args[1].type == TSQueryPredicateStepTypeString) {
+			matched = editorSyntaxRegexMatchCached(query, args[1].value_id, text, text_len);
+		} else {
+			matched = editorSyntaxRegexMatch(text, text_len, pattern, pattern_len);
+		}
 		if (editorSyntaxStringEquals(command, command_len, "match?")) {
 			return matched;
 		}
@@ -1804,25 +2231,8 @@ static void editorSyntaxCaptureVecFree(struct editorSyntaxCaptureVec *vec) {
 	vec->cap = 0;
 }
 
-static int editorSyntaxCompareCapture(const void *a, const void *b) {
-	const struct editorSyntaxCapture *left = a;
-	const struct editorSyntaxCapture *right = b;
-	if (left->start_byte < right->start_byte) {
-		return -1;
-	}
-	if (left->start_byte > right->start_byte) {
-		return 1;
-	}
-	if (left->end_byte < right->end_byte) {
-		return -1;
-	}
-	if (left->end_byte > right->end_byte) {
-		return 1;
-	}
-	return 0;
-}
-
-static int editorSyntaxCollectCapturesFromTree(const TSTree *tree,
+static int editorSyntaxCollectCapturesFromTree(struct editorSyntaxState *state,
+		const TSTree *tree,
 		enum editorSyntaxLanguage language,
 		const char *source,
 		size_t source_len,
@@ -1854,7 +2264,22 @@ static int editorSyntaxCollectCapturesFromTree(const TSTree *tree,
 
 	TSNode root = ts_tree_root_node(tree);
 	ts_query_cursor_set_byte_range(cursor, start_byte, end_byte);
-	ts_query_cursor_exec(cursor, cache->query, root);
+	struct editorSyntaxBudgetConfig budget =
+			editorSyntaxBudgetConfigForMode(state != NULL ? state->perf_mode :
+					EDITOR_SYNTAX_PERF_NORMAL);
+	if (budget.query_match_limit > 0) {
+		ts_query_cursor_set_match_limit(cursor, budget.query_match_limit);
+	}
+	struct editorSyntaxDeadlineContext query_deadline = {0};
+	TSQueryCursorOptions query_options = {0};
+	if (budget.query_budget_ns > 0) {
+		query_deadline.deadline_ns = editorSyntaxComputeDeadlineNs(budget.query_budget_ns);
+		query_options.payload = &query_deadline;
+		query_options.progress_callback = editorSyntaxQueryProgressCallback;
+		ts_query_cursor_exec_with_options(cursor, cache->query, root, &query_options);
+	} else {
+		ts_query_cursor_exec(cursor, cache->query, root);
+	}
 
 	struct editorSyntaxPredicateContext predicate_ctx = {
 		.source = source,
@@ -1905,6 +2330,15 @@ static int editorSyntaxCollectCapturesFromTree(const TSTree *tree,
 					highlight_class)) {
 			ts_query_cursor_delete(cursor);
 			return 0;
+		}
+	}
+
+	if (state != NULL) {
+		if (query_deadline.exceeded) {
+			state->budget_query_exceeded = 1;
+		}
+		if (ts_query_cursor_did_exceed_match_limit(cursor)) {
+			state->budget_query_exceeded = 1;
 		}
 	}
 
@@ -1974,7 +2408,7 @@ static enum editorSyntaxLanguage editorSyntaxLanguageFromInjectionName(const cha
 	return EDITOR_SYNTAX_NONE;
 }
 
-static int editorSyntaxCollectHtmlInjectionRanges(const struct editorSyntaxState *state,
+static int editorSyntaxCollectHtmlInjectionRanges(struct editorSyntaxState *state,
 		const char *source,
 		size_t source_len,
 		struct editorSyntaxRangeVec *javascript_ranges,
@@ -2001,7 +2435,21 @@ static int editorSyntaxCollectHtmlInjectionRanges(const struct editorSyntaxState
 	}
 
 	TSNode root = ts_tree_root_node(state->host.tree);
-	ts_query_cursor_exec(cursor, cache->query, root);
+	struct editorSyntaxBudgetConfig budget =
+			editorSyntaxBudgetConfigForMode(state->perf_mode);
+	if (budget.query_match_limit > 0) {
+		ts_query_cursor_set_match_limit(cursor, budget.query_match_limit);
+	}
+	struct editorSyntaxDeadlineContext query_deadline = {0};
+	TSQueryCursorOptions query_options = {0};
+	if (budget.query_budget_ns > 0) {
+		query_deadline.deadline_ns = editorSyntaxComputeDeadlineNs(budget.query_budget_ns);
+		query_options.payload = &query_deadline;
+		query_options.progress_callback = editorSyntaxQueryProgressCallback;
+		ts_query_cursor_exec_with_options(cursor, cache->query, root, &query_options);
+	} else {
+		ts_query_cursor_exec(cursor, cache->query, root);
+	}
 
 	struct editorSyntaxPredicateContext predicate_ctx = {
 		.source = source,
@@ -2061,6 +2509,10 @@ static int editorSyntaxCollectHtmlInjectionRanges(const struct editorSyntaxState
 				return 0;
 			}
 		}
+	}
+
+	if (query_deadline.exceeded || ts_query_cursor_did_exceed_match_limit(cursor)) {
+		state->budget_query_exceeded = 1;
 	}
 
 	ts_query_cursor_delete(cursor);
@@ -2140,8 +2592,9 @@ static int editorSyntaxStateParseHtmlInjections(struct editorSyntaxState *state,
 	int incremental = incremental_edit != NULL &&
 			state->javascript_injection.tree != NULL &&
 			state->css_injection.tree != NULL;
-	int ok = editorSyntaxParsedTreeParse(&state->javascript_injection, source, len, incremental) &&
-			editorSyntaxParsedTreeParse(&state->css_injection, source, len, incremental);
+	int ok = editorSyntaxParsedTreeParse(&state->javascript_injection, NULL, source, len,
+			incremental) &&
+			editorSyntaxParsedTreeParse(&state->css_injection, NULL, source, len, incremental);
 
 	editorSyntaxRangeVecFree(&javascript_ranges);
 	editorSyntaxRangeVecFree(&css_ranges);
@@ -2317,6 +2770,11 @@ struct editorSyntaxState *editorSyntaxStateCreate(enum editorSyntaxLanguage lang
 	state->perf_disable_predicates = 0;
 	state->perf_disable_injections = 0;
 	state->perf_mode = EDITOR_SYNTAX_PERF_NORMAL;
+	state->last_changed_ranges = NULL;
+	state->last_changed_range_count = 0;
+	state->last_changed_range_cap = 0;
+	state->budget_parse_exceeded = 0;
+	state->budget_query_exceeded = 0;
 	state->source_snapshot = NULL;
 	state->source_snapshot_len = 0;
 
@@ -2335,6 +2793,7 @@ struct editorSyntaxState *editorSyntaxStateCreate(enum editorSyntaxLanguage lang
 			editorSyntaxParsedTreeDestroy(&state->css_injection);
 			editorSyntaxLocalsContextFree(&state->host_javascript_locals);
 			editorSyntaxLocalsContextFree(&state->injection_javascript_locals);
+			free(state->last_changed_ranges);
 			free(state->source_snapshot);
 			free(state);
 			return NULL;
@@ -2353,6 +2812,10 @@ void editorSyntaxStateDestroy(struct editorSyntaxState *state) {
 	editorSyntaxParsedTreeDestroy(&state->css_injection);
 	editorSyntaxLocalsContextFree(&state->host_javascript_locals);
 	editorSyntaxLocalsContextFree(&state->injection_javascript_locals);
+	free(state->last_changed_ranges);
+	state->last_changed_ranges = NULL;
+	state->last_changed_range_count = 0;
+	state->last_changed_range_cap = 0;
 	free(state->source_snapshot);
 	state->source_snapshot = NULL;
 	state->source_snapshot_len = 0;
@@ -2363,18 +2826,24 @@ int editorSyntaxStateParseFull(struct editorSyntaxState *state, const char *sour
 	if (state == NULL || source == NULL || !editorSyntaxLengthFitsTreeSitter(len)) {
 		return 0;
 	}
+	state->budget_parse_exceeded = 0;
+	state->budget_query_exceeded = 0;
+	editorSyntaxStateClearChangedRanges(state);
 	editorSyntaxStateApplyPerformanceMode(state, len);
 	if (state->perf_mode == EDITOR_SYNTAX_PERF_DISABLED) {
 		return 0;
 	}
 
-	if (!editorSyntaxParsedTreeParse(&state->host, source, len, 0)) {
+	if (!editorSyntaxParsedTreeParse(&state->host, state, source, len, 0)) {
 		return 0;
 	}
 	if (!editorSyntaxStateParseHtmlInjections(state, source, len, NULL)) {
 		return 0;
 	}
 	if (!editorSyntaxStateUpdateSourceSnapshot(state, source, len)) {
+		return 0;
+	}
+	if (!editorSyntaxStateSetChangedRangesFull(state, len)) {
 		return 0;
 	}
 	return 1;
@@ -2439,6 +2908,9 @@ int editorSyntaxStateApplyEditAndParseWithInsertedText(struct editorSyntaxState 
 	if (state == NULL || edit == NULL || state->host.parser == NULL || state->host.tree == NULL) {
 		return 0;
 	}
+	state->budget_parse_exceeded = 0;
+	state->budget_query_exceeded = 0;
+	editorSyntaxStateClearChangedRanges(state);
 
 	const char *old_source = state->source_snapshot != NULL ? state->source_snapshot : "";
 	size_t old_len = state->source_snapshot != NULL ? state->source_snapshot_len : 0;
@@ -2457,7 +2929,7 @@ int editorSyntaxStateApplyEditAndParseWithInsertedText(struct editorSyntaxState 
 	}
 
 	editorSyntaxApplyInputEdit(state->host.tree, edit);
-	if (!editorSyntaxParsedTreeParse(&state->host, new_source, new_len, 1)) {
+	if (!editorSyntaxParsedTreeParse(&state->host, state, new_source, new_len, 1)) {
 		free(new_source);
 		return 0;
 	}
@@ -2480,13 +2952,16 @@ int editorSyntaxStateApplyEditAndParse(struct editorSyntaxState *state,
 			state->host.parser == NULL || state->host.tree == NULL) {
 		return 0;
 	}
+	state->budget_parse_exceeded = 0;
+	state->budget_query_exceeded = 0;
+	editorSyntaxStateClearChangedRanges(state);
 	editorSyntaxStateApplyPerformanceMode(state, len);
 	if (state->perf_mode == EDITOR_SYNTAX_PERF_DISABLED) {
 		return 0;
 	}
 
 	editorSyntaxApplyInputEdit(state->host.tree, edit);
-	if (!editorSyntaxParsedTreeParse(&state->host, source, len, 1)) {
+	if (!editorSyntaxParsedTreeParse(&state->host, state, source, len, 1)) {
 		return 0;
 	}
 	if (!editorSyntaxStateParseHtmlInjections(state, source, len, edit)) {
@@ -2517,6 +2992,23 @@ enum editorSyntaxLanguage editorSyntaxStateLanguage(const struct editorSyntaxSta
 	return state->language;
 }
 
+static int editorSyntaxCaptureSortKeyCmp(const struct editorSyntaxCapture *left,
+		const struct editorSyntaxCapture *right) {
+	if (left->start_byte < right->start_byte) {
+		return -1;
+	}
+	if (left->start_byte > right->start_byte) {
+		return 1;
+	}
+	if (left->end_byte < right->end_byte) {
+		return -1;
+	}
+	if (left->end_byte > right->end_byte) {
+		return 1;
+	}
+	return 0;
+}
+
 int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 		uint32_t start_byte,
 		uint32_t end_byte,
@@ -2534,23 +3026,62 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 		return 1;
 	}
 
-	struct editorSyntaxCaptureVec collected = {0};
 	const char *source = state->source_snapshot != NULL ? state->source_snapshot : "";
 	size_t source_len = state->source_snapshot != NULL ? state->source_snapshot_len : 0;
 	int skip_predicates = state->perf_disable_predicates;
+
+	if (state->language != EDITOR_SYNTAX_HTML) {
+		struct editorSyntaxCaptureVec collected = {0};
+		const struct editorSyntaxLocalsContext *host_js_locals = NULL;
+		if (!skip_predicates && state->language == EDITOR_SYNTAX_JAVASCRIPT &&
+				!editorSyntaxStateEnsureJavascriptLocalsCached(state, &state->host, source, source_len,
+						0, &host_js_locals)) {
+			editorSyntaxCaptureVecFree(&collected);
+			return 0;
+		}
+
+		int ok = editorSyntaxCollectCapturesFromTree(state, state->host.tree, state->language,
+				source, source_len, start_byte, end_byte,
+				host_js_locals, skip_predicates, &collected);
+		if (!ok) {
+			editorSyntaxCaptureVecFree(&collected);
+			return 0;
+		}
+
+		int out_count = collected.count;
+		if (out_count > max_captures) {
+			out_count = max_captures;
+		}
+		for (int i = 0; i < out_count; i++) {
+			captures[i] = collected.items[i];
+		}
+		if (count_out != NULL) {
+			*count_out = out_count;
+		}
+		editorSyntaxCaptureVecFree(&collected);
+		return 1;
+	}
+
+	struct editorSyntaxCaptureVec host_captures = {0};
+	struct editorSyntaxCaptureVec js_captures = {0};
+	struct editorSyntaxCaptureVec css_captures = {0};
 	const struct editorSyntaxLocalsContext *host_js_locals = NULL;
 	if (!skip_predicates && state->language == EDITOR_SYNTAX_JAVASCRIPT &&
 			!editorSyntaxStateEnsureJavascriptLocalsCached(state, &state->host, source, source_len,
 					0, &host_js_locals)) {
-		editorSyntaxCaptureVecFree(&collected);
+		editorSyntaxCaptureVecFree(&host_captures);
+		editorSyntaxCaptureVecFree(&js_captures);
+		editorSyntaxCaptureVecFree(&css_captures);
 		return 0;
 	}
 
-	int ok = editorSyntaxCollectCapturesFromTree(state->host.tree, state->language,
+	int ok = editorSyntaxCollectCapturesFromTree(state, state->host.tree, state->language,
 			source, source_len, start_byte, end_byte,
-			host_js_locals, skip_predicates, &collected);
+			host_js_locals, skip_predicates, &host_captures);
 	if (!ok) {
-		editorSyntaxCaptureVecFree(&collected);
+		editorSyntaxCaptureVecFree(&host_captures);
+		editorSyntaxCaptureVecFree(&js_captures);
+		editorSyntaxCaptureVecFree(&css_captures);
 		return 0;
 	}
 
@@ -2559,40 +3090,138 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 		if (!skip_predicates &&
 				!editorSyntaxStateEnsureJavascriptLocalsCached(state, &state->javascript_injection,
 						source, source_len, 1, &injection_js_locals)) {
-			editorSyntaxCaptureVecFree(&collected);
+			editorSyntaxCaptureVecFree(&host_captures);
+			editorSyntaxCaptureVecFree(&js_captures);
+			editorSyntaxCaptureVecFree(&css_captures);
 			return 0;
 		}
-		if (!editorSyntaxCollectCapturesFromTree(state->javascript_injection.tree,
+		if (!editorSyntaxCollectCapturesFromTree(state, state->javascript_injection.tree,
 					EDITOR_SYNTAX_JAVASCRIPT,
 					source, source_len, start_byte, end_byte,
-					injection_js_locals, skip_predicates, &collected) ||
-				!editorSyntaxCollectCapturesFromTree(state->css_injection.tree,
+					injection_js_locals, skip_predicates, &js_captures) ||
+				!editorSyntaxCollectCapturesFromTree(state, state->css_injection.tree,
 						EDITOR_SYNTAX_CSS,
 						source, source_len, start_byte, end_byte,
-						NULL, skip_predicates, &collected)) {
-			editorSyntaxCaptureVecFree(&collected);
+						NULL, skip_predicates, &css_captures)) {
+			editorSyntaxCaptureVecFree(&host_captures);
+			editorSyntaxCaptureVecFree(&js_captures);
+			editorSyntaxCaptureVecFree(&css_captures);
 			return 0;
 		}
 	}
 
-	if (state->language == EDITOR_SYNTAX_HTML && collected.count > 1) {
-		qsort(collected.items, (size_t)collected.count, sizeof(collected.items[0]),
-				editorSyntaxCompareCapture);
+	int idx_host = 0;
+	int idx_js = 0;
+	int idx_css = 0;
+	int out_count = 0;
+	while (out_count < max_captures &&
+			(idx_host < host_captures.count || idx_js < js_captures.count ||
+					idx_css < css_captures.count)) {
+		int source_choice = -1;
+		const struct editorSyntaxCapture *choice = NULL;
+
+		if (idx_host < host_captures.count) {
+			choice = &host_captures.items[idx_host];
+			source_choice = 0;
+		}
+		if (idx_js < js_captures.count) {
+			const struct editorSyntaxCapture *candidate = &js_captures.items[idx_js];
+			if (choice == NULL || editorSyntaxCaptureSortKeyCmp(candidate, choice) < 0) {
+				choice = candidate;
+				source_choice = 1;
+			}
+		}
+		if (idx_css < css_captures.count) {
+			const struct editorSyntaxCapture *candidate = &css_captures.items[idx_css];
+			if (choice == NULL || editorSyntaxCaptureSortKeyCmp(candidate, choice) < 0) {
+				choice = candidate;
+				source_choice = 2;
+			}
+		}
+
+		if (choice == NULL || source_choice < 0) {
+			break;
+		}
+		captures[out_count++] = *choice;
+		if (source_choice == 0) {
+			idx_host++;
+		} else if (source_choice == 1) {
+			idx_js++;
+		} else {
+			idx_css++;
+		}
 	}
 
-	int out_count = collected.count;
-	if (out_count > max_captures) {
-		out_count = max_captures;
-	}
-	for (int i = 0; i < out_count; i++) {
-		captures[i] = collected.items[i];
-	}
 	if (count_out != NULL) {
 		*count_out = out_count;
 	}
-
-	editorSyntaxCaptureVecFree(&collected);
+	editorSyntaxCaptureVecFree(&host_captures);
+	editorSyntaxCaptureVecFree(&js_captures);
+	editorSyntaxCaptureVecFree(&css_captures);
 	return 1;
+}
+
+int editorSyntaxStateCopyLastChangedRanges(const struct editorSyntaxState *state,
+		struct editorSyntaxByteRange *ranges, int max_ranges, int *count_out) {
+	if (count_out != NULL) {
+		*count_out = 0;
+	}
+	if (state == NULL || max_ranges < 0 || (max_ranges > 0 && ranges == NULL)) {
+		return 0;
+	}
+
+	int total_count = state->last_changed_range_count;
+	int copy_count = total_count;
+	if (copy_count > max_ranges) {
+		copy_count = max_ranges;
+	}
+	for (int i = 0; i < copy_count; i++) {
+		ranges[i] = state->last_changed_ranges[i];
+	}
+	if (count_out != NULL) {
+		*count_out = total_count;
+	}
+	return 1;
+}
+
+int editorSyntaxStateConsumeBudgetEvents(struct editorSyntaxState *state,
+		int *parse_budget_exceeded_out,
+		int *query_budget_exceeded_out) {
+	if (parse_budget_exceeded_out != NULL) {
+		*parse_budget_exceeded_out = 0;
+	}
+	if (query_budget_exceeded_out != NULL) {
+		*query_budget_exceeded_out = 0;
+	}
+	if (state == NULL) {
+		return 0;
+	}
+
+	if (parse_budget_exceeded_out != NULL) {
+		*parse_budget_exceeded_out = state->budget_parse_exceeded;
+	}
+	if (query_budget_exceeded_out != NULL) {
+		*query_budget_exceeded_out = state->budget_query_exceeded;
+	}
+
+	int had = state->budget_parse_exceeded || state->budget_query_exceeded;
+	state->budget_parse_exceeded = 0;
+	state->budget_query_exceeded = 0;
+	return had;
+}
+
+void editorSyntaxTestSetBudgetOverrides(int enabled,
+		uint32_t query_match_limit,
+		uint64_t query_time_budget_ns,
+		uint64_t parse_time_budget_ns) {
+	g_editor_syntax_budget_overrides.enabled = enabled ? 1 : 0;
+	g_editor_syntax_budget_overrides.query_match_limit = query_match_limit;
+	g_editor_syntax_budget_overrides.query_time_budget_ns = query_time_budget_ns;
+	g_editor_syntax_budget_overrides.parse_time_budget_ns = parse_time_budget_ns;
+}
+
+void editorSyntaxTestResetBudgetOverrides(void) {
+	memset(&g_editor_syntax_budget_overrides, 0, sizeof(g_editor_syntax_budget_overrides));
 }
 
 void editorSyntaxReleaseSharedResources(void) {
