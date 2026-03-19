@@ -1,5 +1,4 @@
 - FEATURE: Add multi-threading support for heavy background work (for example directory scanning/search indexing), with thread-safe state handling and unchanged editor behavior.
-- FEATURE: Make cursor style configurable via TOML (for example block/bar/underline), including config validation and sensible fallback defaults.
 - FEATURE: Integrate Tree-sitter for C files and maintain an incremental syntax tree per buffer (foundation for highlighting, folding, and symbol-aware actions).
 - FEATURE: Integrate Tree-sitter for HTML files with the same incremental-parse pipeline used for C.
 - FEATURE: Add "Go to definition" for functions (jump from call site to declaration/definition), including keyboard action and a fallback picker when multiple matches exist.

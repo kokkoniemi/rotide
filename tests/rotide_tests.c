@@ -2763,6 +2763,250 @@ cleanup:
 	return failed;
 }
 
+static int test_editor_cursor_style_load_valid_values_case_insensitive(void) {
+	char dir_template[] = "/tmp/rotide-test-cursor-style-valid-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+
+	struct {
+		const char *value;
+		enum editorCursorStyle expected;
+	} cases[] = {
+		{"BLOCK", EDITOR_CURSOR_STYLE_BLOCK},
+		{"bar", EDITOR_CURSOR_STYLE_BAR},
+		{"UnderLine", EDITOR_CURSOR_STYLE_UNDERLINE},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		char content[128];
+		int written = snprintf(content, sizeof(content), "[editor]\ncursor_style = \"%s\"\n",
+				cases[i].value);
+		ASSERT_TRUE(written > 0 && (size_t)written < sizeof(content));
+		ASSERT_TRUE(write_text_file(project_path, content));
+
+		enum editorCursorStyle style = EDITOR_CURSOR_STYLE_BAR;
+		enum editorCursorStyleLoadStatus status =
+				editorCursorStyleLoadFromPaths(&style, NULL, project_path);
+		ASSERT_EQ_INT(EDITOR_CURSOR_STYLE_LOAD_OK, status);
+		ASSERT_EQ_INT(cases[i].expected, style);
+	}
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_cursor_style_global_then_project_precedence(void) {
+	char dir_template[] = "/tmp/rotide-test-cursor-style-precedence-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char global_path[512];
+	char project_path[512];
+	ASSERT_TRUE(path_join(global_path, sizeof(global_path), dir_path, "global.toml"));
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
+
+	ASSERT_TRUE(write_text_file(global_path,
+				"[editor]\n"
+				"cursor_style = \"block\"\n"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[editor]\n"
+				"cursor_style = \"underline\"\n"));
+
+	enum editorCursorStyle style = EDITOR_CURSOR_STYLE_BAR;
+	enum editorCursorStyleLoadStatus status =
+			editorCursorStyleLoadFromPaths(&style, global_path, project_path);
+	ASSERT_EQ_INT(EDITOR_CURSOR_STYLE_LOAD_OK, status);
+	ASSERT_EQ_INT(EDITOR_CURSOR_STYLE_UNDERLINE, style);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(unlink(global_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_cursor_style_invalid_values_fallback_to_bar(void) {
+	char dir_template[] = "/tmp/rotide-test-cursor-style-invalid-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char global_path[512];
+	char project_path[512];
+	ASSERT_TRUE(path_join(global_path, sizeof(global_path), dir_path, "global.toml"));
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
+
+	ASSERT_TRUE(write_text_file(global_path,
+				"[editor]\n"
+				"cursor_style = \"invalid\"\n"));
+	enum editorCursorStyle style = EDITOR_CURSOR_STYLE_UNDERLINE;
+	enum editorCursorStyleLoadStatus status =
+			editorCursorStyleLoadFromPaths(&style, global_path, NULL);
+	ASSERT_EQ_INT(EDITOR_CURSOR_STYLE_LOAD_INVALID_GLOBAL, status);
+	ASSERT_EQ_INT(EDITOR_CURSOR_STYLE_BAR, style);
+
+	ASSERT_TRUE(write_text_file(global_path,
+				"[editor]\n"
+				"cursor_style = \"block\"\n"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[editor]\n"
+				"cursor_style = \"not-real\"\n"));
+	style = EDITOR_CURSOR_STYLE_UNDERLINE;
+	status = editorCursorStyleLoadFromPaths(&style, global_path, project_path);
+	ASSERT_EQ_INT(EDITOR_CURSOR_STYLE_LOAD_INVALID_PROJECT, status);
+	ASSERT_EQ_INT(EDITOR_CURSOR_STYLE_BAR, style);
+
+	ASSERT_TRUE(write_text_file(global_path,
+				"[editor]\n"
+				"cursor_style = \"bad-global\"\n"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[editor]\n"
+				"cursor_style = \"bad-project\"\n"));
+	style = EDITOR_CURSOR_STYLE_UNDERLINE;
+	status = editorCursorStyleLoadFromPaths(&style, global_path, project_path);
+	ASSERT_EQ_INT(
+			EDITOR_CURSOR_STYLE_LOAD_INVALID_GLOBAL | EDITOR_CURSOR_STYLE_LOAD_INVALID_PROJECT,
+			status);
+	ASSERT_EQ_INT(EDITOR_CURSOR_STYLE_BAR, style);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(unlink(global_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_cursor_style_load_configured_prefers_project_over_global(void) {
+	int failed = 1;
+	struct envVarBackup home_backup;
+	char *original_cwd = NULL;
+	char home_dir[512] = "";
+	char dot_rotide_dir[512] = "";
+	char global_path[512] = "";
+	char project_path[512] = "";
+	char root_template[] = "/tmp/rotide-test-cursor-style-configured-XXXXXX";
+
+	if (!backup_env_var(&home_backup, "HOME")) {
+		return 1;
+	}
+
+	original_cwd = getcwd(NULL, 0);
+	if (original_cwd == NULL) {
+		(void)restore_env_var(&home_backup);
+		return 1;
+	}
+
+	char *root_path = mkdtemp(root_template);
+	if (root_path == NULL) {
+		goto cleanup;
+	}
+
+	if (!path_join(home_dir, sizeof(home_dir), root_path, "home")) {
+		goto cleanup;
+	}
+	if (mkdir(home_dir, 0700) == -1) {
+		goto cleanup;
+	}
+	if (!path_join(dot_rotide_dir, sizeof(dot_rotide_dir), home_dir, ".rotide")) {
+		goto cleanup;
+	}
+	if (mkdir(dot_rotide_dir, 0700) == -1) {
+		goto cleanup;
+	}
+	if (!path_join(global_path, sizeof(global_path), dot_rotide_dir, "config.toml")) {
+		goto cleanup;
+	}
+	if (!path_join(project_path, sizeof(project_path), root_path, ".rotide.toml")) {
+		goto cleanup;
+	}
+	if (!write_text_file(global_path,
+				"[editor]\n"
+				"cursor_style = \"block\"\n")) {
+		goto cleanup;
+	}
+	if (!write_text_file(project_path,
+				"[editor]\n"
+				"cursor_style = \"underline\"\n")) {
+		goto cleanup;
+	}
+	if (setenv("HOME", home_dir, 1) != 0) {
+		goto cleanup;
+	}
+	if (chdir(root_path) != 0) {
+		goto cleanup;
+	}
+
+	enum editorCursorStyle style = EDITOR_CURSOR_STYLE_BAR;
+	enum editorCursorStyleLoadStatus status = editorCursorStyleLoadConfigured(&style);
+	if (status != EDITOR_CURSOR_STYLE_LOAD_OK) {
+		goto cleanup;
+	}
+	if (style != EDITOR_CURSOR_STYLE_UNDERLINE) {
+		goto cleanup;
+	}
+
+	failed = 0;
+
+cleanup:
+	if (original_cwd != NULL) {
+		if (chdir(original_cwd) != 0) {
+			failed = 1;
+		}
+	}
+	if (!restore_env_var(&home_backup)) {
+		failed = 1;
+	}
+	if (project_path[0] != '\0') {
+		(void)unlink(project_path);
+	}
+	if (global_path[0] != '\0') {
+		(void)unlink(global_path);
+	}
+	if (dot_rotide_dir[0] != '\0') {
+		(void)rmdir(dot_rotide_dir);
+	}
+	if (home_dir[0] != '\0') {
+		(void)rmdir(home_dir);
+	}
+	(void)rmdir(root_template);
+	free(original_cwd);
+	return failed;
+}
+
+static int test_editor_cursor_style_invalid_setting_does_not_break_keymap_loading(void) {
+	char dir_template[] = "/tmp/rotide-test-cursor-style-keymap-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[editor]\n"
+				"cursor_style = \"nope\"\n"
+				"[keymap]\n"
+				"save = \"ctrl+a\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus keymap_status =
+			editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, keymap_status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('a'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SAVE, action);
+
+	enum editorCursorStyle style = EDITOR_CURSOR_STYLE_UNDERLINE;
+	enum editorCursorStyleLoadStatus style_status =
+			editorCursorStyleLoadFromPaths(&style, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_CURSOR_STYLE_LOAD_INVALID_PROJECT, style_status);
+	ASSERT_EQ_INT(EDITOR_CURSOR_STYLE_BAR, style);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 static int test_editor_keymap_load_modifier_combo_specs_case_insensitive(void) {
 	char dir_template[] = "/tmp/rotide-test-keymap-combos-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -5101,6 +5345,27 @@ static int test_editor_refresh_screen_contains_expected_sequences(void) {
 	return 0;
 }
 
+static int test_editor_refresh_screen_uses_configured_cursor_style(void) {
+	add_row("cursor style");
+	E.window_rows = 4;
+	E.window_cols = 30;
+
+	E.cursor_style = EDITOR_CURSOR_STYLE_BLOCK;
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[2 q") != NULL);
+	free(output);
+
+	E.cursor_style = EDITOR_CURSOR_STYLE_UNDERLINE;
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[4 q") != NULL);
+	free(output);
+
+	return 0;
+}
+
 static int test_editor_refresh_screen_hides_expired_message(void) {
 	add_row("line one");
 	add_row("line two");
@@ -5392,6 +5657,16 @@ int main(void) {
 			test_editor_keymap_invalid_global_ignored_when_project_valid},
 			{"editor_keymap_load_configured_prefers_project_over_global",
 				test_editor_keymap_load_configured_prefers_project_over_global},
+			{"editor_cursor_style_load_valid_values_case_insensitive",
+				test_editor_cursor_style_load_valid_values_case_insensitive},
+			{"editor_cursor_style_global_then_project_precedence",
+				test_editor_cursor_style_global_then_project_precedence},
+			{"editor_cursor_style_invalid_values_fallback_to_bar",
+				test_editor_cursor_style_invalid_values_fallback_to_bar},
+			{"editor_cursor_style_load_configured_prefers_project_over_global",
+				test_editor_cursor_style_load_configured_prefers_project_over_global},
+			{"editor_cursor_style_invalid_setting_does_not_break_keymap_loading",
+				test_editor_cursor_style_invalid_setting_does_not_break_keymap_loading},
 			{"editor_keymap_load_modifier_combo_specs_case_insensitive",
 				test_editor_keymap_load_modifier_combo_specs_case_insensitive},
 			{"editor_keymap_load_invalid_modifier_combos_fall_back_to_defaults",
@@ -5560,6 +5835,8 @@ int main(void) {
 			test_editor_process_keypress_ctrl_z_restore_oom_preserves_state},
 			{"editor_refresh_screen_contains_expected_sequences",
 				test_editor_refresh_screen_contains_expected_sequences},
+			{"editor_refresh_screen_uses_configured_cursor_style",
+				test_editor_refresh_screen_uses_configured_cursor_style},
 			{"editor_refresh_screen_highlights_active_search_match",
 				test_editor_refresh_screen_highlights_active_search_match},
 			{"editor_refresh_screen_highlight_alignment_with_escaped_controls",

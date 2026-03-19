@@ -22,6 +22,8 @@ struct writeBuf {
 #define VT100_RESET_CURSOR_POS_3 "\x1b[H"
 #define VT100_HIDE_CURSOR_6 "\x1b[?25l"
 #define VT100_SHOW_CURSOR_6 "\x1b[?25h"
+#define VT100_CURSOR_STEADY_BLOCK_5 "\x1b[2 q"
+#define VT100_CURSOR_STEADY_UNDERLINE_5 "\x1b[4 q"
 #define VT100_CURSOR_STEADY_BAR_5 "\x1b[6 q"
 #define VT100_INVERTED_COLORS_4 "\x1b[7m"
 #define VT100_NORMAL_COLORS_3 "\x1b[m"
@@ -669,14 +671,37 @@ static int editorDrawMessageBar(struct writeBuf *wb) {
 	return 1;
 }
 
+static const char *editorCursorStyleSequence(enum editorCursorStyle style, size_t *len_out) {
+	const char *sequence = VT100_CURSOR_STEADY_BAR_5;
+	switch (style) {
+		case EDITOR_CURSOR_STYLE_BLOCK:
+			sequence = VT100_CURSOR_STEADY_BLOCK_5;
+			break;
+		case EDITOR_CURSOR_STYLE_UNDERLINE:
+			sequence = VT100_CURSOR_STEADY_UNDERLINE_5;
+			break;
+		case EDITOR_CURSOR_STYLE_BAR:
+		default:
+			sequence = VT100_CURSOR_STEADY_BAR_5;
+			break;
+	}
+	if (len_out != NULL) {
+		*len_out = strlen(sequence);
+	}
+	return sequence;
+}
+
 void editorRefreshScreen(void) {
 	editorScroll();
 
 	struct writeBuf wb = WRITEBUF_INIT;
+	size_t cursor_style_len = 0;
+	const char *cursor_style_sequence =
+			editorCursorStyleSequence(E.cursor_style, &cursor_style_len);
 
 	// Build a full frame in memory and write once to reduce terminal flicker.
 	if (!wbAppend(&wb, VT100_HIDE_CURSOR_6, 6) ||
-			!wbAppend(&wb, VT100_CURSOR_STEADY_BAR_5, 5) ||
+			!wbAppend(&wb, cursor_style_sequence, cursor_style_len) ||
 			!wbAppend(&wb, VT100_RESET_CURSOR_POS_3, 3)) {
 		wbFree(&wb);
 		editorSetStatusMsg("Out of memory");

@@ -76,6 +76,12 @@ enum editorPaneFocus {
 	EDITOR_PANE_DRAWER
 };
 
+enum editorCursorStyle {
+	EDITOR_CURSOR_STYLE_BLOCK = 0,
+	EDITOR_CURSOR_STYLE_BAR,
+	EDITOR_CURSOR_STYLE_UNDERLINE
+};
+
 struct editorDrawerEntryView {
 	const char *name;
 	int depth;
@@ -240,6 +246,7 @@ struct editorConfig {
 	int drawer_rowoff;
 	int drawer_last_click_visible_idx;
 	long long drawer_last_click_ms;
+	enum editorCursorStyle cursor_style;
 	enum editorPaneFocus pane_focus;
 	struct editorKeymap keymap;
 	struct termios orig_attrs;

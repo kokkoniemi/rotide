@@ -73,7 +73,7 @@ filename on first save.
 
 ## Configuration
 
-RotIDE supports keymap configuration from TOML files.
+RotIDE supports keymap and editor configuration from TOML files.
 
 Load order (lowest to highest precedence):
 1. Built-in defaults
@@ -83,10 +83,26 @@ Load order (lowest to highest precedence):
 Behavior on invalid config:
 - Invalid global config: ignored, then defaults/project continue.
 - Invalid project config: full fallback to defaults.
+- Invalid `cursor_style`: falls back to `bar` with a warning (other valid config still applies).
+
+Editor section format:
+
+```toml
+[editor]
+cursor_style = "bar"
+```
+
+Accepted `cursor_style` values (case-insensitive):
+- `block`
+- `bar`
+- `underline`
 
 Keymap section format:
 
 ```toml
+[editor]
+cursor_style = "bar"
+
 [keymap]
 save = "ctrl+s"
 quit = "ctrl+q"

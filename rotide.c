@@ -67,6 +67,7 @@ void initEditor(void) {
 	E.drawer_rowoff = 0;
 	E.drawer_last_click_visible_idx = -1;
 	E.drawer_last_click_ms = 0;
+	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;
 	E.pane_focus = EDITOR_PANE_TEXT;
 	editorKeymapInitDefaults(&E.keymap);
 	editorClipboardSetExternalSink(editorClipboardSyncOsc52);
@@ -86,6 +87,8 @@ int main(int argc, char *argv[]) {
 	initEditor();
 
 	enum editorKeymapLoadStatus keymap_status = editorKeymapLoadConfigured(&E.keymap);
+	enum editorCursorStyleLoadStatus cursor_style_status =
+			editorCursorStyleLoadConfigured(&E.cursor_style);
 	if (!editorRecoveryInitForCurrentDir()) {
 		editorSetStatusMsg("Recovery disabled (path setup failed)");
 	}
@@ -93,8 +96,16 @@ int main(int argc, char *argv[]) {
 		editorSetStatusMsg("Invalid keymap config, using defaults");
 	} else if (keymap_status == EDITOR_KEYMAP_LOAD_INVALID_GLOBAL) {
 		editorSetStatusMsg("Invalid global keymap config, ignoring ~/.rotide/config.toml");
-	} else if (keymap_status == EDITOR_KEYMAP_LOAD_OUT_OF_MEMORY) {
+	} else if (keymap_status == EDITOR_KEYMAP_LOAD_OUT_OF_MEMORY ||
+			(cursor_style_status & EDITOR_CURSOR_STYLE_LOAD_OUT_OF_MEMORY) != 0) {
 		editorSetStatusMsg("Out of memory");
+	} else if ((cursor_style_status & EDITOR_CURSOR_STYLE_LOAD_INVALID_GLOBAL) != 0 &&
+			(cursor_style_status & EDITOR_CURSOR_STYLE_LOAD_INVALID_PROJECT) != 0) {
+		editorSetStatusMsg("Invalid cursor_style in global/project config, using bar");
+	} else if ((cursor_style_status & EDITOR_CURSOR_STYLE_LOAD_INVALID_PROJECT) != 0) {
+		editorSetStatusMsg("Invalid cursor_style in ./.rotide.toml, using bar");
+	} else if ((cursor_style_status & EDITOR_CURSOR_STYLE_LOAD_INVALID_GLOBAL) != 0) {
+		editorSetStatusMsg("Invalid cursor_style in ~/.rotide/config.toml, using bar");
 	}
 
 	int restored_session = editorStartupLoadRecoveryOrOpenArgs(argc, argv);

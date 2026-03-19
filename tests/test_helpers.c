@@ -38,6 +38,7 @@ void reset_editor_state(void) {
 	E.mouse_drag_started = 0;
 	E.drawer_last_click_visible_idx = -1;
 	E.drawer_last_click_ms = 0;
+	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;
 	editorKeymapInitDefaults(&E.keymap);
 }
 

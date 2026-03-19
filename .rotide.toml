@@ -1,5 +1,8 @@
 # Rotide example project config.
-# Current configurable section: [keymap]
+# Configurable sections: [editor], [keymap]
+# Editor:
+# - cursor_style = "block" | "bar" | "underline" (case-insensitive)
+# - Invalid cursor_style values fall back to "bar" with a warning
 # Key spec format:
 # - "ctrl+<a-z>", "alt+<a-z>", "ctrl+alt+<a-z>"
 # - "ctrl+left/right/up/down", "alt+left/right/up/down",
@@ -9,6 +12,9 @@
 # left/right/up/down/home/end/page_up/page_down/enter/esc/backspace/del
 # - In drawer focus, enter toggles directories and opens files in tabs
 #   (reusing an already-open file tab when possible)
+
+[editor]
+cursor_style = "bar"
 
 [keymap]
 quit = "ctrl+q"
