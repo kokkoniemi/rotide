@@ -29,6 +29,8 @@ struct editorSyntaxCapture {
 };
 
 enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *filename);
+enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilenameAndFirstLine(
+		const char *filename, const char *first_line);
 
 struct editorSyntaxState *editorSyntaxStateCreate(enum editorSyntaxLanguage language);
 void editorSyntaxStateDestroy(struct editorSyntaxState *state);

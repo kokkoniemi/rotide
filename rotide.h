@@ -89,7 +89,8 @@ enum editorCursorStyle {
 
 enum editorSyntaxLanguage {
 	EDITOR_SYNTAX_NONE = 0,
-	EDITOR_SYNTAX_C
+	EDITOR_SYNTAX_C,
+	EDITOR_SYNTAX_SHELL
 };
 
 enum editorSyntaxHighlightClass {

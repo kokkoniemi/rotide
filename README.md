@@ -23,8 +23,8 @@ search, save, undo/redo, selection, tabs, and keymap configuration are implement
 - Mouse support (click, drag selection, vertical/horizontal wheel scroll).
 - Atomic save path with temp-file + rename strategy and cleanup handling.
 - Crash recovery via autosaved per-project recovery session files.
-- Tree-sitter foundation for C buffers (`.c`, `.h`) with per-tab incremental parse state.
-- Tree-sitter-driven syntax highlighting for C buffers with themeable ANSI color mapping.
+- Tree-sitter foundation for C and shell buffers with per-tab incremental parse state.
+- Tree-sitter-driven syntax highlighting for C and shell buffers with themeable ANSI color mapping.
 - Configurable keymap via TOML (`~/.rotide/config.toml` and `./.rotide.toml`).
 - Status bar path rendering that prioritizes keeping the full basename visible.
 
@@ -166,10 +166,13 @@ A full example with all configurable actions is included at project root:
 - If you restore a session, startup file arguments are ignored for that launch.
 - Recovery data is deleted on clean exit and when the session becomes fully clean.
 
-## Tree-sitter integration (C)
+## Tree-sitter integration (C + shell)
 
-- RotIDE embeds vendored Tree-sitter runtime + C grammar sources; builds do not require a system Tree-sitter install.
-- Syntax state is per tab/buffer and currently enabled for `.c` and `.h` files.
+- RotIDE embeds vendored Tree-sitter runtime + C/bash grammar sources; builds do not require a system Tree-sitter install.
+- Syntax state is per tab/buffer and currently enabled for:
+  - C: `.c`, `.h`
+  - Shell: `.sh`, `.bash`, `.zsh`, `.ksh`, and common rc files (`.bashrc`, `.zshrc`, `.profile`, `.bash_profile`, `.bash_login`, `.kshrc`)
+  - Extensionless scripts with shell shebangs (for example `#!/bin/bash` or `#!/usr/bin/env bash`)
 - Text edits update the parse tree incrementally; open/restore/undo-redo snapshot loads trigger full reparse.
 - Syntax highlighting is driven by Tree-sitter scope captures mapped to semantic classes and theme colors.
 
@@ -182,7 +185,7 @@ A full example with all configurable actions is included at project root:
 ./scripts/refresh_tree_sitter_vendor.sh
 ```
 
-- The script downloads the pinned Tree-sitter CLI release asset for the current host, verifies SHA-256 using release metadata, regenerates the C parser, and updates `vendor/tree_sitter/...`.
+- The script downloads the pinned Tree-sitter CLI release asset for the current host, verifies SHA-256 using release metadata, regenerates the C and bash parsers, and updates `vendor/tree_sitter/...`.
 
 ## Clipboard integration (OSC52)
 
@@ -228,7 +231,7 @@ ASAN_OPTIONS=detect_leaks=0 make test-sanitize
 - `save_syscalls.c`/`save_syscalls.h`: save syscall wrappers/failure injection.
 - `tests/`: unit and behavior tests.
 - `syntax.c`/`syntax.h`: Tree-sitter integration and incremental parse wrapper.
-- `vendor/tree_sitter/`: vendored Tree-sitter runtime + C grammar sources.
+- `vendor/tree_sitter/`: vendored Tree-sitter runtime + C/bash grammar sources.
 - `scripts/refresh_tree_sitter_vendor.sh`: maintainer helper to refresh vendored Tree-sitter artifacts.
 
 ## License

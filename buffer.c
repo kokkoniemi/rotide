@@ -88,7 +88,13 @@ static int editorSyntaxBuildCurrentSource(char **source_out, size_t *len_out) {
 }
 
 static int editorSyntaxReconfigureForFilename(void) {
-	enum editorSyntaxLanguage wanted = editorSyntaxDetectLanguageFromFilename(E.filename);
+	const char *first_line = NULL;
+	if (E.numrows > 0 && E.rows != NULL) {
+		first_line = E.rows[0].chars;
+	}
+
+	enum editorSyntaxLanguage wanted =
+			editorSyntaxDetectLanguageFromFilenameAndFirstLine(E.filename, first_line);
 	if (wanted == EDITOR_SYNTAX_NONE) {
 		editorSyntaxDeactivateActive();
 		return 1;
@@ -1541,7 +1547,12 @@ static void editorLoadActiveTab(int tab_idx) {
 		return;
 	}
 	editorTabStateLoadActive(&E.tabs[tab_idx]);
-	enum editorSyntaxLanguage detected = editorSyntaxDetectLanguageFromFilename(E.filename);
+	const char *first_line = NULL;
+	if (E.numrows > 0 && E.rows != NULL) {
+		first_line = E.rows[0].chars;
+	}
+	enum editorSyntaxLanguage detected =
+			editorSyntaxDetectLanguageFromFilenameAndFirstLine(E.filename, first_line);
 	if (E.syntax_language != detected || (detected != EDITOR_SYNTAX_NONE && E.syntax_state == NULL)) {
 		(void)editorSyntaxParseFullActive();
 	}

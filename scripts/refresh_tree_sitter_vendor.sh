@@ -130,14 +130,33 @@ if [[ ! -d "${GRAMMAR_SRC}/src" || ! -f "${GRAMMAR_SRC}/grammar.js" ]]; then
 	exit 1
 fi
 
+echo "Downloading Bash grammar source ref: ${TREE_SITTER_BASH_GRAMMAR_REF}" >&2
+BASH_GRAMMAR_TARBALL="${TMP_DIR}/tree-sitter-bash.tar.gz"
+curl -fsSL "https://github.com/tree-sitter/tree-sitter-bash/archive/${TREE_SITTER_BASH_GRAMMAR_REF}.tar.gz" -o "${BASH_GRAMMAR_TARBALL}"
+BASH_GRAMMAR_TOP="$(tar -tzf "${BASH_GRAMMAR_TARBALL}" | head -n 1 | cut -d/ -f1)"
+tar -xzf "${BASH_GRAMMAR_TARBALL}" -C "${TMP_DIR}"
+BASH_GRAMMAR_SRC="${TMP_DIR}/${BASH_GRAMMAR_TOP}"
+
+if [[ ! -d "${BASH_GRAMMAR_SRC}/src" || ! -f "${BASH_GRAMMAR_SRC}/grammar.js" ]]; then
+	echo "Grammar source layout not found in ${TREE_SITTER_BASH_GRAMMAR_REF}" >&2
+	exit 1
+fi
+
 echo "Regenerating C parser with official CLI binary" >&2
 (
 	cd "${GRAMMAR_SRC}"
 	"${CLI_BIN}" generate
 )
 
+echo "Regenerating Bash parser with official CLI binary" >&2
+(
+	cd "${BASH_GRAMMAR_SRC}"
+	"${CLI_BIN}" generate
+)
+
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
 GRAMMAR_VENDOR="${REPO_ROOT}/vendor/tree_sitter/grammars/c"
+BASH_GRAMMAR_VENDOR="${REPO_ROOT}/vendor/tree_sitter/grammars/bash"
 
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
 rm -rf "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
@@ -166,6 +185,29 @@ cp "${GRAMMAR_SRC}/README.md" "${GRAMMAR_VENDOR}/README.upstream.md"
 mkdir -p "${GRAMMAR_VENDOR}/queries"
 if [[ -f "${GRAMMAR_SRC}/queries/highlights.scm" ]]; then
 	cp "${GRAMMAR_SRC}/queries/highlights.scm" "${GRAMMAR_VENDOR}/queries/highlights.scm"
+fi
+
+mkdir -p "${BASH_GRAMMAR_VENDOR}/src/tree_sitter"
+rm -rf "${BASH_GRAMMAR_VENDOR}/src"
+mkdir -p "${BASH_GRAMMAR_VENDOR}/src/tree_sitter"
+cp "${BASH_GRAMMAR_SRC}/src/parser.c" "${BASH_GRAMMAR_VENDOR}/src/parser.c"
+if [[ -f "${BASH_GRAMMAR_SRC}/src/scanner.c" ]]; then
+	cp "${BASH_GRAMMAR_SRC}/src/scanner.c" "${BASH_GRAMMAR_VENDOR}/src/scanner.c"
+fi
+if [[ -d "${BASH_GRAMMAR_SRC}/src/tree_sitter" ]]; then
+	cp -R "${BASH_GRAMMAR_SRC}/src/tree_sitter/." "${BASH_GRAMMAR_VENDOR}/src/tree_sitter/"
+fi
+cp "${BASH_GRAMMAR_SRC}/src/grammar.json" "${BASH_GRAMMAR_VENDOR}/src/grammar.json"
+cp "${BASH_GRAMMAR_SRC}/src/node-types.json" "${BASH_GRAMMAR_VENDOR}/src/node-types.json"
+cp "${BASH_GRAMMAR_SRC}/grammar.js" "${BASH_GRAMMAR_VENDOR}/grammar.js"
+cp "${BASH_GRAMMAR_SRC}/tree-sitter.json" "${BASH_GRAMMAR_VENDOR}/tree-sitter.json"
+cp "${BASH_GRAMMAR_SRC}/package.json" "${BASH_GRAMMAR_VENDOR}/package.json"
+cp "${BASH_GRAMMAR_SRC}/LICENSE" "${BASH_GRAMMAR_VENDOR}/LICENSE"
+cp "${BASH_GRAMMAR_SRC}/README.md" "${BASH_GRAMMAR_VENDOR}/README.upstream.md"
+
+mkdir -p "${BASH_GRAMMAR_VENDOR}/queries"
+if [[ -f "${BASH_GRAMMAR_SRC}/queries/highlights.scm" ]]; then
+	cp "${BASH_GRAMMAR_SRC}/queries/highlights.scm" "${BASH_GRAMMAR_VENDOR}/queries/highlights.scm"
 fi
 
 echo "Tree-sitter vendor refresh complete." >&2

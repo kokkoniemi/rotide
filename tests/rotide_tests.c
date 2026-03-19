@@ -787,11 +787,72 @@ static int test_editor_syntax_activation_for_c_and_h_files(void) {
 	return 0;
 }
 
-static int test_editor_syntax_disabled_for_non_c_files(void) {
+static int test_editor_syntax_activation_for_shell_files_and_shebang(void) {
+	char sh_path[] = "/tmp/rotide-test-syntax-shell-XXXXXX.sh";
+	int sh_fd = mkstemps(sh_path, 3);
+	ASSERT_TRUE(sh_fd != -1);
+	const char *sh_source = "#!/usr/bin/env bash\nif true; then echo ok; fi\n";
+	ASSERT_TRUE(write_all(sh_fd, sh_source, strlen(sh_source)) == 0);
+	ASSERT_TRUE(close(sh_fd) == 0);
+
+	editorOpen(sh_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SHELL, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+
+	char rc_dir_template[] = "/tmp/rotide-test-syntax-shell-rc-XXXXXX";
+	char *rc_dir = mkdtemp(rc_dir_template);
+	ASSERT_TRUE(rc_dir != NULL);
+	char rc_path[512];
+	ASSERT_TRUE(path_join(rc_path, sizeof(rc_path), rc_dir, ".bashrc"));
+	ASSERT_TRUE(write_text_file(rc_path, "echo rc\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	editorOpen(rc_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SHELL, editorSyntaxLanguageActive());
+
+	char shebang_path[] = "/tmp/rotide-test-syntax-shell-shebang-XXXXXX";
+	int shebang_fd = mkstemp(shebang_path);
+	ASSERT_TRUE(shebang_fd != -1);
+	const char *shebang_source = "#!/usr/bin/env bash\necho shebang\n";
+	ASSERT_TRUE(write_all(shebang_fd, shebang_source, strlen(shebang_source)) == 0);
+	ASSERT_TRUE(close(shebang_fd) == 0);
+
+	ASSERT_TRUE(editorTabsInit());
+	editorOpen(shebang_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SHELL, editorSyntaxLanguageActive());
+
+	char plain_path[] = "/tmp/rotide-test-syntax-shell-plain-XXXXXX";
+	int plain_fd = mkstemp(plain_path);
+	ASSERT_TRUE(plain_fd != -1);
+	const char *plain_source = "echo plain\n";
+	ASSERT_TRUE(write_all(plain_fd, plain_source, strlen(plain_source)) == 0);
+	ASSERT_TRUE(close(plain_fd) == 0);
+
+	ASSERT_TRUE(editorTabsInit());
+	editorOpen(plain_path);
+	ASSERT_TRUE(!editorSyntaxEnabled());
+	ASSERT_TRUE(!editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_NONE, editorSyntaxLanguageActive());
+
+	ASSERT_TRUE(unlink(sh_path) == 0);
+	ASSERT_TRUE(unlink(rc_path) == 0);
+	ASSERT_TRUE(unlink(shebang_path) == 0);
+	ASSERT_TRUE(unlink(plain_path) == 0);
+	ASSERT_TRUE(rmdir(rc_dir) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_disabled_for_non_c_or_shell_files(void) {
 	char path[] = "/tmp/rotide-test-syntax-txt-XXXXXX.txt";
 	int fd = mkstemps(path, 4);
 	ASSERT_TRUE(fd != -1);
-	const char *text_source = "plain text\n";
+	const char *text_source = "#!/usr/bin/env bash\necho not-shell-because-extension\n";
 	ASSERT_TRUE(write_all(fd, text_source, strlen(text_source)) == 0);
 	ASSERT_TRUE(close(fd) == 0);
 
@@ -802,6 +863,62 @@ static int test_editor_syntax_disabled_for_non_c_files(void) {
 	ASSERT_TRUE(editorSyntaxRootType() == NULL);
 
 	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_save_as_shell_and_non_shell_updates_syntax(void) {
+	char shell_path[] = "/tmp/rotide-test-syntax-saveas-shell-XXXXXX.sh";
+	int shell_fd = mkstemps(shell_path, 3);
+	ASSERT_TRUE(shell_fd != -1);
+	ASSERT_TRUE(close(shell_fd) == 0);
+	ASSERT_TRUE(unlink(shell_path) == 0);
+
+	char txt_path[] = "/tmp/rotide-test-syntax-saveas-shell-XXXXXX.txt";
+	int txt_fd = mkstemps(txt_path, 4);
+	ASSERT_TRUE(txt_fd != -1);
+	ASSERT_TRUE(close(txt_fd) == 0);
+	ASSERT_TRUE(unlink(txt_path) == 0);
+
+	add_row("#!/usr/bin/env bash");
+	add_row("echo \"$HOME\"");
+	E.dirty = 1;
+	ASSERT_TRUE(E.filename == NULL);
+
+	char shell_input[256];
+	int shell_written = snprintf(shell_input, sizeof(shell_input), "%s\r", shell_path);
+	ASSERT_TRUE(shell_written > 0 && (size_t)shell_written < sizeof(shell_input));
+
+	int saved_stdin;
+	int saved_stdout;
+	ASSERT_TRUE(setup_stdin_bytes(shell_input, (size_t)shell_written, &saved_stdin) == 0);
+	ASSERT_TRUE(redirect_stdout_to_devnull(&saved_stdout) == 0);
+	editorSave();
+	ASSERT_TRUE(restore_stdout(saved_stdout) == 0);
+	ASSERT_TRUE(restore_stdin(saved_stdin) == 0);
+
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SHELL, editorSyntaxLanguageActive());
+
+	E.dirty = 1;
+	free(E.filename);
+	E.filename = NULL;
+	char txt_input[256];
+	int txt_written = snprintf(txt_input, sizeof(txt_input), "%s\r", txt_path);
+	ASSERT_TRUE(txt_written > 0 && (size_t)txt_written < sizeof(txt_input));
+
+	ASSERT_TRUE(setup_stdin_bytes(txt_input, (size_t)txt_written, &saved_stdin) == 0);
+	ASSERT_TRUE(redirect_stdout_to_devnull(&saved_stdout) == 0);
+	editorSave();
+	ASSERT_TRUE(restore_stdout(saved_stdout) == 0);
+	ASSERT_TRUE(restore_stdin(saved_stdin) == 0);
+
+	ASSERT_TRUE(!editorSyntaxEnabled());
+	ASSERT_TRUE(!editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_NONE, editorSyntaxLanguageActive());
+
+	ASSERT_TRUE(unlink(shell_path) == 0);
+	ASSERT_TRUE(unlink(txt_path) == 0);
 	return 0;
 }
 
@@ -878,6 +995,45 @@ static int test_editor_syntax_incremental_edits_keep_tree_valid(void) {
 	return 0;
 }
 
+static int test_editor_syntax_incremental_edits_keep_shell_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-shell-XXXXXX.sh";
+	int fd = mkstemps(path, 3);
+	ASSERT_TRUE(fd != -1);
+	const char *source = "#!/usr/bin/env bash\nif true; then\n\techo ok\nfi\n";
+	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SHELL, editorSyntaxLanguageActive());
+
+	E.cy = 2;
+	E.cx = 1;
+	editorInsertChar('x');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = E.rows[0].size;
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	struct editorSelectionRange delete_line = {
+		.start_cy = 0,
+		.start_cx = 0,
+		.end_cy = 1,
+		.end_cx = 0
+	};
+	ASSERT_EQ_INT(1, editorDeleteRange(&delete_line));
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_undo_redo_preserves_tree(void) {
 	char path[] = "/tmp/rotide-test-syntax-history-XXXXXX.c";
 	int fd = mkstemps(path, 2);
@@ -892,6 +1048,37 @@ static int test_editor_syntax_undo_redo_preserves_tree(void) {
 
 	E.cy = 0;
 	E.cx = E.rows[0].size;
+	editorHistoryBeginEdit(EDITOR_EDIT_NEWLINE);
+	int dirty_before = E.dirty;
+	editorInsertNewline();
+	editorHistoryCommitEdit(EDITOR_EDIT_NEWLINE, E.dirty != dirty_before);
+	editorHistoryBreakGroup();
+
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(1, editorUndo());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(1, editorRedo());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_undo_redo_preserves_shell_tree(void) {
+	char path[] = "/tmp/rotide-test-syntax-history-shell-XXXXXX.sh";
+	int fd = mkstemps(path, 3);
+	ASSERT_TRUE(fd != -1);
+	const char *source = "#!/usr/bin/env bash\necho one\n";
+	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SHELL, editorSyntaxLanguageActive());
+
+	E.cy = 1;
+	E.cx = E.rows[1].size;
 	editorHistoryBeginEdit(EDITOR_EDIT_NEWLINE);
 	int dirty_before = E.dirty;
 	editorInsertNewline();
@@ -947,6 +1134,46 @@ static int test_editor_tabs_keep_independent_syntax_states(void) {
 	return 0;
 }
 
+static int test_editor_tabs_keep_shell_and_c_syntax_states(void) {
+	ASSERT_TRUE(editorTabsInit());
+
+	char sh_path[] = "/tmp/rotide-test-syntax-tabs-shell-XXXXXX.sh";
+	int sh_fd = mkstemps(sh_path, 3);
+	ASSERT_TRUE(sh_fd != -1);
+	const char *sh_source = "#!/usr/bin/env bash\necho shell\n";
+	ASSERT_TRUE(write_all(sh_fd, sh_source, strlen(sh_source)) == 0);
+	ASSERT_TRUE(close(sh_fd) == 0);
+
+	char c_path[] = "/tmp/rotide-test-syntax-tabs-c2-XXXXXX.c";
+	int c_fd = mkstemps(c_path, 2);
+	ASSERT_TRUE(c_fd != -1);
+	const char *c_source = "int beta;\n";
+	ASSERT_TRUE(write_all(c_fd, c_source, strlen(c_source)) == 0);
+	ASSERT_TRUE(close(c_fd) == 0);
+
+	editorOpen(sh_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SHELL, editorSyntaxLanguageActive());
+
+	ASSERT_TRUE(editorTabOpenFileAsNew(c_path));
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
+
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SHELL, editorSyntaxLanguageActive());
+
+	ASSERT_TRUE(editorTabSwitchToIndex(1));
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
+
+	ASSERT_TRUE(unlink(sh_path) == 0);
+	ASSERT_TRUE(unlink(c_path) == 0);
+	return 0;
+}
+
 static int test_editor_recovery_restore_rebuilds_c_syntax_tree(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -968,6 +1195,33 @@ static int test_editor_recovery_restore_rebuilds_c_syntax_tree(void) {
 	ASSERT_TRUE(editorSyntaxEnabled());
 	ASSERT_TRUE(editorSyntaxTreeExists());
 	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_recovery_restore_rebuilds_shell_syntax_tree(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorTabsInit());
+
+	add_row("#!/usr/bin/env bash");
+	add_row("echo restored");
+	E.dirty = 1;
+	E.filename = strdup("recovered.sh");
+	ASSERT_TRUE(E.filename != NULL);
+
+	editorRecoveryMaybeAutosaveOnActivity();
+	ASSERT_TRUE(editorRecoveryHasSnapshot());
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_EQ_INT(0, E.numrows);
+
+	ASSERT_TRUE(editorRecoveryRestoreSnapshot());
+	ASSERT_EQ_STR("recovered.sh", E.filename);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_SHELL, editorSyntaxLanguageActive());
 
 	cleanup_recovery_test_env(&env);
 	return 0;
@@ -5856,6 +6110,39 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_c_tokens(v
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_shell_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-shell-XXXXXX.sh";
+	int fd = mkstemps(path, 3);
+	ASSERT_TRUE(fd != -1);
+	const char *source =
+			"#!/usr/bin/env bash\n"
+			"myfn() { echo -n 'txt'; }\n"
+			"if [ $HOME = \"/tmp\" ]; then\n"
+			"  myfn | cat # comment\n"
+			"fi\n";
+	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	editorOpen(path);
+	E.window_rows = 8;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mif\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[93mmyfn\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95m-n\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m# comment\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[97m|\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_plain_text_file_has_no_syntax_highlighting(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-txt-XXXXXX.txt";
 	int fd = mkstemps(path, 4);
@@ -5876,6 +6163,52 @@ static int test_editor_refresh_screen_plain_text_file_has_no_syntax_highlighting
 	ASSERT_TRUE(strstr(output, "\x1b[96mint\x1b[39m") == NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[94mreturn\x1b[39m") == NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[35m42\x1b[39m") == NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_shell_selection_and_search_override_syntax_colors(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-priority-shell-XXXXXX.sh";
+	int fd = mkstemps(path, 3);
+	ASSERT_TRUE(fd != -1);
+	const char *source = "if true; then echo -n \"$HOME\"; fi\n";
+	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	editorOpen(path);
+	E.window_rows = 4;
+	E.window_cols = 60;
+	E.cy = 0;
+	E.cx = 0;
+
+	E.selection_mode_active = 1;
+	E.selection_anchor_cy = 0;
+	E.selection_anchor_cx = 0;
+	E.cy = 0;
+	E.cx = 2;
+	E.search_match_row = 0;
+	E.search_match_start = 19;
+	E.search_match_len = 2;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[7mif\x1b[m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[7m\x1b[94m") == NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95m-n\x1b[39m") != NULL);
+	free(output);
+
+	E.selection_mode_active = 0;
+	E.search_match_row = 0;
+	E.search_match_start = 0;
+	E.search_match_len = 2;
+
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[7mif\x1b[m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95m-n\x1b[39m") != NULL);
 	free(output);
 
 	ASSERT_TRUE(unlink(path) == 0);
@@ -6796,17 +7129,29 @@ int main(void) {
 			{"editor_open_reads_rows_and_clears_dirty", test_editor_open_reads_rows_and_clears_dirty},
 			{"editor_syntax_activation_for_c_and_h_files",
 				test_editor_syntax_activation_for_c_and_h_files},
-			{"editor_syntax_disabled_for_non_c_files",
-				test_editor_syntax_disabled_for_non_c_files},
+			{"editor_syntax_activation_for_shell_files_and_shebang",
+				test_editor_syntax_activation_for_shell_files_and_shebang},
+			{"editor_syntax_disabled_for_non_c_or_shell_files",
+				test_editor_syntax_disabled_for_non_c_or_shell_files},
 			{"editor_save_as_c_file_enables_syntax", test_editor_save_as_c_file_enables_syntax},
+			{"editor_save_as_shell_and_non_shell_updates_syntax",
+				test_editor_save_as_shell_and_non_shell_updates_syntax},
 			{"editor_syntax_incremental_edits_keep_tree_valid",
 				test_editor_syntax_incremental_edits_keep_tree_valid},
+			{"editor_syntax_incremental_edits_keep_shell_tree_valid",
+				test_editor_syntax_incremental_edits_keep_shell_tree_valid},
 			{"editor_syntax_undo_redo_preserves_tree",
 				test_editor_syntax_undo_redo_preserves_tree},
+			{"editor_syntax_undo_redo_preserves_shell_tree",
+				test_editor_syntax_undo_redo_preserves_shell_tree},
 			{"editor_tabs_keep_independent_syntax_states",
 				test_editor_tabs_keep_independent_syntax_states},
+			{"editor_tabs_keep_shell_and_c_syntax_states",
+				test_editor_tabs_keep_shell_and_c_syntax_states},
 			{"editor_recovery_restore_rebuilds_c_syntax_tree",
 				test_editor_recovery_restore_rebuilds_c_syntax_tree},
+			{"editor_recovery_restore_rebuilds_shell_syntax_tree",
+				test_editor_recovery_restore_rebuilds_shell_syntax_tree},
 		{"editor_save_writes_file_and_clears_dirty", test_editor_save_writes_file_and_clears_dirty},
 		{"editor_save_prompts_for_filename", test_editor_save_prompts_for_filename},
 		{"editor_save_aborts_when_prompt_cancelled", test_editor_save_aborts_when_prompt_cancelled},
@@ -7144,10 +7489,14 @@ int main(void) {
 				test_editor_refresh_screen_highlights_active_search_match},
 			{"editor_refresh_screen_applies_syntax_highlighting_for_c_tokens",
 				test_editor_refresh_screen_applies_syntax_highlighting_for_c_tokens},
+			{"editor_refresh_screen_applies_syntax_highlighting_for_shell_tokens",
+				test_editor_refresh_screen_applies_syntax_highlighting_for_shell_tokens},
 			{"editor_refresh_screen_plain_text_file_has_no_syntax_highlighting",
 				test_editor_refresh_screen_plain_text_file_has_no_syntax_highlighting},
 			{"editor_refresh_screen_selection_and_search_override_syntax_colors",
 				test_editor_refresh_screen_selection_and_search_override_syntax_colors},
+			{"editor_refresh_screen_shell_selection_and_search_override_syntax_colors",
+				test_editor_refresh_screen_shell_selection_and_search_override_syntax_colors},
 			{"editor_refresh_screen_highlight_alignment_with_escaped_controls",
 				test_editor_refresh_screen_highlight_alignment_with_escaped_controls},
 			{"editor_refresh_screen_escapes_filename_controls",

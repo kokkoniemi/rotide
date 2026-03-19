@@ -1,5 +1,5 @@
 CC ?= cc
-CPPFLAGS ?= -I. -Ivendor/tree_sitter/runtime/include -Ivendor/tree_sitter/runtime/src -Ivendor/tree_sitter/grammars/c/src
+CPPFLAGS ?= -I. -Ivendor/tree_sitter/runtime/include -Ivendor/tree_sitter/runtime/src -Ivendor/tree_sitter/grammars/c/src -Ivendor/tree_sitter/grammars/bash/src
 CFLAGS ?= -Wall -Wextra -Werror -Wshadow -Wdouble-promotion -Wundef -fno-common -pedantic -std=c2x
 LDFLAGS ?=
 SANITIZER_CFLAGS ?= -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer
@@ -7,7 +7,10 @@ SANITIZER_LDFLAGS ?= -fsanitize=address,undefined -fno-omit-frame-pointer
 TREE_SITTER_CPPFLAGS = $(CPPFLAGS) -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_GNU_SOURCE
 TREE_SITTER_CFLAGS = $(filter-out -Werror -Wundef -Wshadow -Wdouble-promotion -pedantic,$(CFLAGS))
 
-TREE_SITTER_SRCS = vendor/tree_sitter/runtime/src/lib.c vendor/tree_sitter/grammars/c/src/parser.c
+TREE_SITTER_SRCS = vendor/tree_sitter/runtime/src/lib.c \
+	vendor/tree_sitter/grammars/c/src/parser.c \
+	vendor/tree_sitter/grammars/bash/src/parser.c \
+	vendor/tree_sitter/grammars/bash/src/scanner.c
 CORE_SRCS = rotide.c terminal.c buffer.c output.c input.c keymap.c alloc.c save_syscalls.c syntax.c
 SRCS = $(CORE_SRCS) $(TREE_SITTER_SRCS)
 OBJS = $(SRCS:.c=.o)
@@ -24,6 +27,12 @@ vendor/tree_sitter/runtime/src/lib.o: vendor/tree_sitter/runtime/src/lib.c
 	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) -c $< -o $@
 
 vendor/tree_sitter/grammars/c/src/parser.o: vendor/tree_sitter/grammars/c/src/parser.c
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) -c $< -o $@
+
+vendor/tree_sitter/grammars/bash/src/parser.o: vendor/tree_sitter/grammars/bash/src/parser.c
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) -c $< -o $@
+
+vendor/tree_sitter/grammars/bash/src/scanner.o: vendor/tree_sitter/grammars/bash/src/scanner.c
 	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) -c $< -o $@
 
 %.o: %.c

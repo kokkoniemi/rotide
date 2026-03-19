@@ -27,15 +27,15 @@ cursor_style = "bar"
 
 [theme.syntax]
 comment = "gray"
-keyword = "bright_blue"
-type = "bright_cyan"
+keyword = "bright_cyan"
+type = "bright_blue"
 function = "bright_yellow"
 string = "green"
-number = "magenta"
-constant = "bright_magenta"
+number = "bright_magenta"
+constant = "cyan"
 preprocessor = "bright_red"
-operator = "bright_white"
-punctuation = "default"
+operator = "white"
+punctuation = "bright_black"
 
 [keymap]
 quit = "ctrl+q"
