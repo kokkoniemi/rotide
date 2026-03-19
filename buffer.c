@@ -5,6 +5,7 @@
 #include "output.h"
 #include "save_syscalls.h"
 #include "size_utils.h"
+#include "syntax.h"
 #include "terminal.h"
 #include <dirent.h>
 #include <errno.h>
@@ -25,6 +26,7 @@
 #define NEWLINE_CHAR_WIDTH 1
 
 static char *editorPathJoin(const char *left, const char *right);
+static int editorPosToLinearOffset(int cy, int cx, size_t *offset_out);
 
 static void editorSetAllocFailureStatus(void) {
 	editorSetStatusMsg("Out of memory");
@@ -36,6 +38,137 @@ static void editorSetOperationTooLargeStatus(void) {
 
 static void editorSetFileTooLargeStatus(void) {
 	editorSetStatusMsg("File too large");
+}
+
+static void editorSyntaxDeactivateActive(void) {
+	editorSyntaxStateDestroy(E.syntax_state);
+	E.syntax_state = NULL;
+	E.syntax_language = EDITOR_SYNTAX_NONE;
+}
+
+static void editorSyntaxDisableWithStatus(const char *message) {
+	editorSyntaxDeactivateActive();
+	if (message != NULL && message[0] != '\0') {
+		editorSetStatusMsg("%s", message);
+	}
+}
+
+static int editorSyntaxOffsetToU32(size_t offset, uint32_t *out) {
+	if (out == NULL || offset > UINT32_MAX) {
+		return 0;
+	}
+	*out = (uint32_t)offset;
+	return 1;
+}
+
+static int editorSyntaxPointFromPosition(int cy, int cx, struct editorSyntaxPoint *out) {
+	if (out == NULL || cy < 0 || cx < 0) {
+		return 0;
+	}
+	out->row = (uint32_t)cy;
+	out->column = (uint32_t)cx;
+	return 1;
+}
+
+static int editorSyntaxBuildCurrentSource(char **source_out, size_t *len_out) {
+	if (source_out == NULL || len_out == NULL) {
+		return 0;
+	}
+
+	*source_out = NULL;
+	*len_out = 0;
+	errno = 0;
+	char *source = editorRowsToStr(len_out);
+	if (source == NULL && (*len_out > 0 || errno != 0)) {
+		return 0;
+	}
+
+	*source_out = source;
+	return 1;
+}
+
+static int editorSyntaxReconfigureForFilename(void) {
+	enum editorSyntaxLanguage wanted = editorSyntaxDetectLanguageFromFilename(E.filename);
+	if (wanted == EDITOR_SYNTAX_NONE) {
+		editorSyntaxDeactivateActive();
+		return 1;
+	}
+
+	if (E.syntax_state != NULL && E.syntax_language == wanted) {
+		return 1;
+	}
+
+	editorSyntaxDeactivateActive();
+	E.syntax_state = editorSyntaxStateCreate(wanted);
+	if (E.syntax_state == NULL) {
+		editorSetStatusMsg("Tree-sitter disabled (parser init failed)");
+		return 0;
+	}
+
+	E.syntax_language = wanted;
+	return 1;
+}
+
+static int editorSyntaxParseFullActive(void) {
+	if (!editorSyntaxReconfigureForFilename()) {
+		return 0;
+	}
+	if (E.syntax_state == NULL) {
+		return 1;
+	}
+
+	char *source = NULL;
+	size_t source_len = 0;
+	if (!editorSyntaxBuildCurrentSource(&source, &source_len)) {
+		if (errno == ENOMEM) {
+			editorSyntaxDisableWithStatus("Tree-sitter disabled (out of memory)");
+		} else {
+			editorSyntaxDisableWithStatus("Tree-sitter disabled (buffer too large)");
+		}
+		return 0;
+	}
+
+	int parsed = editorSyntaxStateParseFull(E.syntax_state,
+			source != NULL ? source : "",
+			source_len);
+	free(source);
+	if (!parsed) {
+		editorSyntaxDisableWithStatus("Tree-sitter disabled (parse failed)");
+		return 0;
+	}
+	return 1;
+}
+
+static int editorSyntaxApplyIncrementalEditActive(const struct editorSyntaxEdit *edit) {
+	if (E.syntax_state == NULL || E.syntax_language == EDITOR_SYNTAX_NONE) {
+		return 1;
+	}
+
+	char *source = NULL;
+	size_t source_len = 0;
+	if (!editorSyntaxBuildCurrentSource(&source, &source_len)) {
+		if (errno == ENOMEM) {
+			editorSyntaxDisableWithStatus("Tree-sitter disabled (out of memory)");
+		} else {
+			editorSyntaxDisableWithStatus("Tree-sitter disabled (buffer too large)");
+		}
+		return 0;
+	}
+
+	int parsed = 0;
+	if (editorSyntaxStateHasTree(E.syntax_state)) {
+		parsed = editorSyntaxStateApplyEditAndParse(E.syntax_state, edit,
+				source != NULL ? source : "", source_len);
+	} else {
+		parsed = editorSyntaxStateParseFull(E.syntax_state,
+				source != NULL ? source : "", source_len);
+	}
+	free(source);
+	if (!parsed) {
+		editorSyntaxDisableWithStatus("Tree-sitter disabled (parse failed)");
+		return 0;
+	}
+	return 1;
 }
 
 char *editorRowsToStr(size_t *buflen) {
@@ -837,6 +970,21 @@ int editorDeleteRange(const struct editorSelectionRange *range) {
 		return 0;
 	}
 
+	struct editorSyntaxEdit syntax_edit;
+	int syntax_track = 0;
+	if (E.syntax_state != NULL && E.syntax_language != EDITOR_SYNTAX_NONE &&
+			editorSyntaxOffsetToU32(start_offset, &syntax_edit.start_byte) &&
+			editorSyntaxOffsetToU32(end_offset, &syntax_edit.old_end_byte) &&
+			editorSyntaxPointFromPosition(normalized.start_cy, normalized.start_cx,
+					&syntax_edit.start_point) &&
+			editorSyntaxPointFromPosition(normalized.end_cy, normalized.end_cx,
+					&syntax_edit.old_end_point) &&
+			editorSyntaxPointFromPosition(normalized.start_cy, normalized.start_cx,
+					&syntax_edit.new_end_point)) {
+		syntax_edit.new_end_byte = syntax_edit.start_byte;
+		syntax_track = 1;
+	}
+
 	size_t new_len = full_len - removed_len;
 	char *new_text = NULL;
 	if (new_len > 0) {
@@ -883,6 +1031,9 @@ int editorDeleteRange(const struct editorSelectionRange *range) {
 	E.dirty = replacement.dirty;
 
 	editorFreeRowArray(old_rows, old_numrows);
+	if (syntax_track) {
+		(void)editorSyntaxApplyIncrementalEditActive(&syntax_edit);
+	}
 	free(new_text);
 	return 1;
 }
@@ -1159,6 +1310,7 @@ static int editorSnapshotRestore(const struct editorSnapshot *snapshot) {
 	editorSnapshotClampCursor(snapshot);
 	E.dirty = snapshot->dirty;
 	editorClearSelectionState();
+	(void)editorSyntaxParseFullActive();
 
 	editorFreeRowArray(old_rows, old_numrows);
 	return 1;
@@ -1166,6 +1318,8 @@ static int editorSnapshotRestore(const struct editorSnapshot *snapshot) {
 
 static void editorTabStateInitEmpty(struct editorTabState *tab) {
 	memset(tab, 0, sizeof(*tab));
+	tab->syntax_language = EDITOR_SYNTAX_NONE;
+	tab->syntax_state = NULL;
 	tab->search_match_row = -1;
 	tab->search_direction = 1;
 }
@@ -1180,6 +1334,8 @@ static void editorResetActiveBufferFields(void) {
 	E.rows = NULL;
 	E.dirty = 0;
 	E.filename = NULL;
+	E.syntax_language = EDITOR_SYNTAX_NONE;
+	E.syntax_state = NULL;
 	E.search_query = NULL;
 	E.search_match_row = -1;
 	E.search_match_start = 0;
@@ -1222,6 +1378,9 @@ static void editorTabStateFree(struct editorTabState *tab) {
 	editorFreeTabRows(tab);
 	free(tab->filename);
 	tab->filename = NULL;
+	editorSyntaxStateDestroy(tab->syntax_state);
+	tab->syntax_state = NULL;
+	tab->syntax_language = EDITOR_SYNTAX_NONE;
 	free(tab->search_query);
 	tab->search_query = NULL;
 	editorHistoryClear(&tab->undo_history);
@@ -1241,6 +1400,9 @@ static void editorFreeActiveBufferState(void) {
 
 	free(E.filename);
 	E.filename = NULL;
+	editorSyntaxStateDestroy(E.syntax_state);
+	E.syntax_state = NULL;
+	E.syntax_language = EDITOR_SYNTAX_NONE;
 	free(E.search_query);
 	E.search_query = NULL;
 	editorHistoryClear(&E.undo_history);
@@ -1261,6 +1423,8 @@ static void editorTabStateCaptureActive(struct editorTabState *tab) {
 	tab->rows = E.rows;
 	tab->dirty = E.dirty;
 	tab->filename = E.filename;
+	tab->syntax_language = E.syntax_language;
+	tab->syntax_state = E.syntax_state;
 	tab->search_query = E.search_query;
 	tab->search_match_row = E.search_match_row;
 	tab->search_match_start = E.search_match_start;
@@ -1295,6 +1459,8 @@ static void editorTabStateLoadActive(struct editorTabState *tab) {
 	E.rows = tab->rows;
 	E.dirty = tab->dirty;
 	E.filename = tab->filename;
+	E.syntax_language = tab->syntax_language;
+	E.syntax_state = tab->syntax_state;
 	E.search_query = tab->search_query;
 	E.search_match_row = tab->search_match_row;
 	E.search_match_start = tab->search_match_start;
@@ -1375,6 +1541,10 @@ static void editorLoadActiveTab(int tab_idx) {
 		return;
 	}
 	editorTabStateLoadActive(&E.tabs[tab_idx]);
+	enum editorSyntaxLanguage detected = editorSyntaxDetectLanguageFromFilename(E.filename);
+	if (E.syntax_language != detected || (detected != EDITOR_SYNTAX_NONE && E.syntax_state == NULL)) {
+		(void)editorSyntaxParseFullActive();
+	}
 	editorViewportSetMode(EDITOR_VIEWPORT_FOLLOW_CURSOR);
 }
 
@@ -1585,6 +1755,28 @@ int editorTabDirtyAt(int idx) {
 		return E.dirty != 0;
 	}
 	return E.tabs[idx].dirty != 0;
+}
+
+int editorSyntaxEnabled(void) {
+	return E.syntax_state != NULL && E.syntax_language != EDITOR_SYNTAX_NONE;
+}
+
+int editorSyntaxTreeExists(void) {
+	if (E.syntax_state == NULL) {
+		return 0;
+	}
+	return editorSyntaxStateHasTree(E.syntax_state);
+}
+
+enum editorSyntaxLanguage editorSyntaxLanguageActive(void) {
+	return E.syntax_language;
+}
+
+const char *editorSyntaxRootType(void) {
+	if (E.syntax_state == NULL) {
+		return NULL;
+	}
+	return editorSyntaxStateRootType(E.syntax_state);
 }
 
 static const char *editorTabLabelFromFilename(const char *filename) {
@@ -2901,25 +3093,78 @@ void editorInsertChar(int c) {
 		}
 	}
 
+	struct editorSyntaxEdit syntax_edit;
+	int syntax_track = 0;
+	size_t start_offset = 0;
+	int insert_cy = E.cy;
+	int insert_cx = E.cx;
+	if (E.syntax_state != NULL && E.syntax_language != EDITOR_SYNTAX_NONE &&
+			editorPosToLinearOffset(insert_cy, insert_cx, &start_offset) &&
+			editorSyntaxOffsetToU32(start_offset, &syntax_edit.start_byte) &&
+			syntax_edit.start_byte < UINT32_MAX &&
+			editorSyntaxPointFromPosition(insert_cy, insert_cx, &syntax_edit.start_point) &&
+			editorSyntaxPointFromPosition(insert_cy, insert_cx, &syntax_edit.old_end_point) &&
+			editorSyntaxPointFromPosition(insert_cy, insert_cx + 1, &syntax_edit.new_end_point)) {
+		syntax_edit.old_end_byte = syntax_edit.start_byte;
+		syntax_edit.new_end_byte = syntax_edit.start_byte + 1;
+		syntax_track = 1;
+	}
+
 	int dirty_before = E.dirty;
 	editorInsertCharAt(&E.rows[E.cy], E.cx, c);
 	if (E.dirty != dirty_before) {
 		E.cx++;
+		if (syntax_track) {
+			(void)editorSyntaxApplyIncrementalEditActive(&syntax_edit);
+		}
 	}
 }
 
 void editorInsertNewline(void) {
 	if (E.cx == 0) {
+		struct editorSyntaxEdit syntax_edit;
+		int syntax_track = 0;
+		size_t start_offset = 0;
+		if (E.syntax_state != NULL && E.syntax_language != EDITOR_SYNTAX_NONE &&
+				editorPosToLinearOffset(E.cy, 0, &start_offset) &&
+				editorSyntaxOffsetToU32(start_offset, &syntax_edit.start_byte) &&
+				syntax_edit.start_byte < UINT32_MAX &&
+				editorSyntaxPointFromPosition(E.cy, 0, &syntax_edit.start_point) &&
+				editorSyntaxPointFromPosition(E.cy, 0, &syntax_edit.old_end_point) &&
+				editorSyntaxPointFromPosition(E.cy + 1, 0, &syntax_edit.new_end_point)) {
+			syntax_edit.old_end_byte = syntax_edit.start_byte;
+			syntax_edit.new_end_byte = syntax_edit.start_byte + 1;
+			syntax_track = 1;
+		}
+
 		int prev_numrows = E.numrows;
 		editorInsertRow(E.cy, "", 0);
 		if (E.numrows != prev_numrows) {
 			E.cy++;
+			if (syntax_track) {
+				(void)editorSyntaxApplyIncrementalEditActive(&syntax_edit);
+			}
 		}
 		return;
 	}
 
 	struct erow *row = &E.rows[E.cy];
 	int split_idx = editorRowClampCxToClusterBoundary(row, E.cx);
+	struct editorSyntaxEdit syntax_edit;
+	int syntax_track = 0;
+	size_t start_offset = 0;
+	if (E.syntax_state != NULL && E.syntax_language != EDITOR_SYNTAX_NONE &&
+			editorPosToLinearOffset(E.cy, split_idx, &start_offset) &&
+			editorSyntaxOffsetToU32(start_offset, &syntax_edit.start_byte) &&
+			syntax_edit.start_byte < UINT32_MAX &&
+			editorSyntaxPointFromPosition(E.cy, split_idx, &syntax_edit.start_point) &&
+			editorSyntaxPointFromPosition(E.cy, split_idx, &syntax_edit.old_end_point) &&
+			editorSyntaxPointFromPosition(E.cy + 1, 0, &syntax_edit.new_end_point)) {
+		syntax_edit.old_end_byte = syntax_edit.start_byte;
+		syntax_edit.new_end_byte = syntax_edit.start_byte + 1;
+		syntax_track = 1;
+	}
+
 	char *prefix_render = NULL;
 	int prefix_rsize = 0;
 	if (!editorBuildRender(row->chars, split_idx, &prefix_render, &prefix_rsize)) {
@@ -2942,6 +3187,9 @@ void editorInsertNewline(void) {
 	row->rsize = prefix_rsize;
 	E.cy++;
 	E.cx = 0;
+	if (syntax_track) {
+		(void)editorSyntaxApplyIncrementalEditActive(&syntax_edit);
+	}
 }
 
 void editorDelChar(void) {
@@ -2952,15 +3200,51 @@ void editorDelChar(void) {
 
 	if (E.cx > 0) {
 		int prev_cx = editorRowPrevClusterIdx(row, E.cx);
+		struct editorSyntaxEdit syntax_edit;
+		int syntax_track = 0;
+		size_t start_offset = 0;
+		size_t old_end_offset = 0;
+		if (E.syntax_state != NULL && E.syntax_language != EDITOR_SYNTAX_NONE &&
+				editorPosToLinearOffset(E.cy, prev_cx, &start_offset) &&
+				editorPosToLinearOffset(E.cy, E.cx, &old_end_offset) &&
+				editorSyntaxOffsetToU32(start_offset, &syntax_edit.start_byte) &&
+				editorSyntaxOffsetToU32(old_end_offset, &syntax_edit.old_end_byte) &&
+				editorSyntaxPointFromPosition(E.cy, prev_cx, &syntax_edit.start_point) &&
+				editorSyntaxPointFromPosition(E.cy, E.cx, &syntax_edit.old_end_point) &&
+				editorSyntaxPointFromPosition(E.cy, prev_cx, &syntax_edit.new_end_point)) {
+			syntax_edit.new_end_byte = syntax_edit.start_byte;
+			syntax_track = 1;
+		}
+
 		int dirty_before = E.dirty;
 		editorDelCharsAt(row, prev_cx, E.cx - prev_cx);
 		if (E.dirty != dirty_before) {
 			E.cx = prev_cx;
+			if (syntax_track) {
+				(void)editorSyntaxApplyIncrementalEditActive(&syntax_edit);
+			}
 		}
 		return;
 	}
 
 	int old_cx = E.cx;
+	int merge_row = E.cy;
+	int merge_col = E.rows[E.cy - 1].size;
+	struct editorSyntaxEdit syntax_edit;
+	int syntax_track = 0;
+	size_t start_offset = 0;
+	if (E.syntax_state != NULL && E.syntax_language != EDITOR_SYNTAX_NONE &&
+			editorPosToLinearOffset(merge_row - 1, merge_col, &start_offset) &&
+			editorSyntaxOffsetToU32(start_offset, &syntax_edit.start_byte) &&
+			syntax_edit.start_byte < UINT32_MAX &&
+			editorSyntaxPointFromPosition(merge_row - 1, merge_col, &syntax_edit.start_point) &&
+			editorSyntaxPointFromPosition(merge_row, 0, &syntax_edit.old_end_point) &&
+			editorSyntaxPointFromPosition(merge_row - 1, merge_col, &syntax_edit.new_end_point)) {
+		syntax_edit.old_end_byte = syntax_edit.start_byte + 1;
+		syntax_edit.new_end_byte = syntax_edit.start_byte;
+		syntax_track = 1;
+	}
+
 	E.cx = E.rows[E.cy - 1].size;
 	int dirty_before = E.dirty;
 	editorRowAppendString(&E.rows[E.cy - 1], row->chars, row->size);
@@ -2970,6 +3254,9 @@ void editorDelChar(void) {
 	}
 	editorDeleteRow(E.cy);
 	E.cy--;
+	if (syntax_track) {
+		(void)editorSyntaxApplyIncrementalEditActive(&syntax_edit);
+	}
 }
 
 void editorOpen(const char *filename) {
@@ -3018,6 +3305,7 @@ void editorOpen(const char *filename) {
 	free(l);
 	fclose(fp);
 	E.dirty = 0;
+	(void)editorSyntaxParseFullActive();
 }
 
 void editorSetStatusMsg(const char *fmt, ...) {
@@ -3183,6 +3471,7 @@ void editorSave(void) {
 			}
 			return;
 		}
+		(void)editorSyntaxParseFullActive();
 	}
 
 	size_t len = 0;
@@ -3997,6 +4286,7 @@ static int editorRecoveryPopulateActiveFromTab(const struct editorRecoveryTab *t
 	E.dirty = 1;
 	editorHistoryReset();
 	editorRecoveryClampActiveCursorAndScroll(tab);
+	(void)editorSyntaxParseFullActive();
 	return 1;
 }
 

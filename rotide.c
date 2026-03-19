@@ -22,6 +22,8 @@ void initEditor(void) {
 	E.rows = NULL;
 	E.dirty = 0;
 	E.filename = NULL;
+	E.syntax_language = EDITOR_SYNTAX_NONE;
+	E.syntax_state = NULL;
 	E.statusmsg[0] = '\0';
 	E.statusmsg_time = 0;
 	E.search_query = NULL;

@@ -23,6 +23,7 @@ search, save, undo/redo, selection, tabs, and keymap configuration are implement
 - Mouse support (click, drag selection, vertical/horizontal wheel scroll).
 - Atomic save path with temp-file + rename strategy and cleanup handling.
 - Crash recovery via autosaved per-project recovery session files.
+- Tree-sitter foundation for C buffers (`.c`, `.h`) with per-tab incremental parse state.
 - Configurable keymap via TOML (`~/.rotide/config.toml` and `./.rotide.toml`).
 - Status bar path rendering that prioritizes keeping the full basename visible.
 
@@ -137,6 +138,24 @@ A full example with all configurable actions is included at project root:
 - If you restore a session, startup file arguments are ignored for that launch.
 - Recovery data is deleted on clean exit and when the session becomes fully clean.
 
+## Tree-sitter foundation (C)
+
+- RotIDE embeds vendored Tree-sitter runtime + C grammar sources; builds do not require a system Tree-sitter install.
+- Syntax state is per tab/buffer and currently enabled for `.c` and `.h` files.
+- Text edits update the parse tree incrementally; open/restore/undo-redo snapshot loads trigger full reparse.
+- This is parser-state groundwork only in this step (no Tree-sitter-driven highlighting/folding yet).
+
+### Vendor/regen workflow
+
+- Pinned source refs and CLI release are tracked in `vendor/tree_sitter/VERSIONS.env`.
+- To refresh vendored runtime/grammar sources and regenerate parser artifacts with the official CLI binary:
+
+```bash
+./scripts/refresh_tree_sitter_vendor.sh
+```
+
+- The script downloads the pinned Tree-sitter CLI release asset for the current host, verifies SHA-256 using release metadata, regenerates the C parser, and updates `vendor/tree_sitter/...`.
+
 ## Clipboard integration (OSC52)
 
 RotIDE can mirror internal clipboard writes to the terminal clipboard via OSC52.
@@ -180,6 +199,9 @@ ASAN_OPTIONS=detect_leaks=0 make test-sanitize
 - `alloc.c`/`alloc.h`: allocation wrappers and test hooks.
 - `save_syscalls.c`/`save_syscalls.h`: save syscall wrappers/failure injection.
 - `tests/`: unit and behavior tests.
+- `syntax.c`/`syntax.h`: Tree-sitter integration and incremental parse wrapper.
+- `vendor/tree_sitter/`: vendored Tree-sitter runtime + C grammar sources.
+- `scripts/refresh_tree_sitter_vendor.sh`: maintainer helper to refresh vendored Tree-sitter artifacts.
 
 ## License
 

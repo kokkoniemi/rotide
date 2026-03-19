@@ -81,6 +81,11 @@ int editorTabBuildLayoutForWidth(int cols, struct editorTabLayoutEntry *entries,
 		int *count_out);
 int editorTabHitTestColumn(int col, int cols);
 
+int editorSyntaxEnabled(void);
+int editorSyntaxTreeExists(void);
+enum editorSyntaxLanguage editorSyntaxLanguageActive(void);
+const char *editorSyntaxRootType(void);
+
 int editorGetSelectionRange(struct editorSelectionRange *range_out);
 int editorExtractRangeText(const struct editorSelectionRange *range, char **text_out, size_t *len_out);
 int editorDeleteRange(const struct editorSelectionRange *range);

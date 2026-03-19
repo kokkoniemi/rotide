@@ -753,6 +753,226 @@ static int test_editor_open_reads_rows_and_clears_dirty(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_c_and_h_files(void) {
+	char c_path[] = "/tmp/rotide-test-syntax-c-XXXXXX.c";
+	int c_fd = mkstemps(c_path, 2);
+	ASSERT_TRUE(c_fd != -1);
+	const char *c_source = "int main(void) { return 0; }\n";
+	ASSERT_TRUE(write_all(c_fd, c_source, strlen(c_source)) == 0);
+	ASSERT_TRUE(close(c_fd) == 0);
+
+	editorOpen(c_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("translation_unit", editorSyntaxRootType());
+
+	char h_path[] = "/tmp/rotide-test-syntax-h-XXXXXX.h";
+	int h_fd = mkstemps(h_path, 2);
+	ASSERT_TRUE(h_fd != -1);
+	const char *h_source = "int f(int x);\n";
+	ASSERT_TRUE(write_all(h_fd, h_source, strlen(h_source)) == 0);
+	ASSERT_TRUE(close(h_fd) == 0);
+
+	editorOpen(h_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("translation_unit", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(c_path) == 0);
+	ASSERT_TRUE(unlink(h_path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_disabled_for_non_c_files(void) {
+	char path[] = "/tmp/rotide-test-syntax-txt-XXXXXX.txt";
+	int fd = mkstemps(path, 4);
+	ASSERT_TRUE(fd != -1);
+	const char *text_source = "plain text\n";
+	ASSERT_TRUE(write_all(fd, text_source, strlen(text_source)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	editorOpen(path);
+	ASSERT_TRUE(!editorSyntaxEnabled());
+	ASSERT_TRUE(!editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_NONE, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() == NULL);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_save_as_c_file_enables_syntax(void) {
+	char path[] = "/tmp/rotide-test-syntax-saveas-XXXXXX.c";
+	int fd = mkstemps(path, 2);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(unlink(path) == 0);
+
+	add_row("int main(void) { return 0; }");
+	E.dirty = 1;
+	ASSERT_TRUE(E.filename == NULL);
+
+	char input[256];
+	int written = snprintf(input, sizeof(input), "%s\r", path);
+	ASSERT_TRUE(written > 0);
+	ASSERT_TRUE((size_t)written < sizeof(input));
+
+	int saved_stdin;
+	int saved_stdout;
+	ASSERT_TRUE(setup_stdin_bytes(input, (size_t)written, &saved_stdin) == 0);
+	ASSERT_TRUE(redirect_stdout_to_devnull(&saved_stdout) == 0);
+
+	editorSave();
+
+	ASSERT_TRUE(restore_stdout(saved_stdout) == 0);
+	ASSERT_TRUE(restore_stdin(saved_stdin) == 0);
+
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_incremental_edits_keep_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-XXXXXX.c";
+	int fd = mkstemps(path, 2);
+	ASSERT_TRUE(fd != -1);
+	const char *source = "int main(void) {\n\treturn 0;\n}\n";
+	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 1;
+	E.cx = 1;
+	editorInsertChar('x');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = E.rows[0].size;
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	struct editorSelectionRange delete_line = {
+		.start_cy = 0,
+		.start_cx = 0,
+		.end_cy = 1,
+		.end_cx = 0
+	};
+	ASSERT_EQ_INT(1, editorDeleteRange(&delete_line));
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_undo_redo_preserves_tree(void) {
+	char path[] = "/tmp/rotide-test-syntax-history-XXXXXX.c";
+	int fd = mkstemps(path, 2);
+	ASSERT_TRUE(fd != -1);
+	const char *source = "int value = 1;\n";
+	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = E.rows[0].size;
+	editorHistoryBeginEdit(EDITOR_EDIT_NEWLINE);
+	int dirty_before = E.dirty;
+	editorInsertNewline();
+	editorHistoryCommitEdit(EDITOR_EDIT_NEWLINE, E.dirty != dirty_before);
+	editorHistoryBreakGroup();
+
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(1, editorUndo());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(1, editorRedo());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_tabs_keep_independent_syntax_states(void) {
+	ASSERT_TRUE(editorTabsInit());
+
+	char c_path[] = "/tmp/rotide-test-syntax-tabs-c-XXXXXX.c";
+	int c_fd = mkstemps(c_path, 2);
+	ASSERT_TRUE(c_fd != -1);
+	const char *c_source = "int alpha;\n";
+	ASSERT_TRUE(write_all(c_fd, c_source, strlen(c_source)) == 0);
+	ASSERT_TRUE(close(c_fd) == 0);
+
+	char txt_path[] = "/tmp/rotide-test-syntax-tabs-txt-XXXXXX.txt";
+	int txt_fd = mkstemps(txt_path, 4);
+	ASSERT_TRUE(txt_fd != -1);
+	const char *txt_source = "notes\n";
+	ASSERT_TRUE(write_all(txt_fd, txt_source, strlen(txt_source)) == 0);
+	ASSERT_TRUE(close(txt_fd) == 0);
+
+	editorOpen(c_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
+
+	ASSERT_TRUE(editorTabOpenFileAsNew(txt_path));
+	ASSERT_TRUE(!editorSyntaxEnabled());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_NONE, editorSyntaxLanguageActive());
+
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
+
+	ASSERT_TRUE(editorTabSwitchToIndex(1));
+	ASSERT_TRUE(!editorSyntaxEnabled());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_NONE, editorSyntaxLanguageActive());
+
+	ASSERT_TRUE(unlink(c_path) == 0);
+	ASSERT_TRUE(unlink(txt_path) == 0);
+	return 0;
+}
+
+static int test_editor_recovery_restore_rebuilds_c_syntax_tree(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorTabsInit());
+
+	add_row("int recovered = 1;");
+	E.dirty = 1;
+	E.filename = strdup("recovered.c");
+	ASSERT_TRUE(E.filename != NULL);
+
+	editorRecoveryMaybeAutosaveOnActivity();
+	ASSERT_TRUE(editorRecoveryHasSnapshot());
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_EQ_INT(0, E.numrows);
+
+	ASSERT_TRUE(editorRecoveryRestoreSnapshot());
+	ASSERT_EQ_STR("recovered.c", E.filename);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_save_writes_file_and_clears_dirty(void) {
 	char path[] = "/tmp/rotide-test-save-XXXXXX";
 	int fd = mkstemp(path);
@@ -6389,6 +6609,19 @@ int main(void) {
 			{"editor_rows_to_str_rejects_oversized_total",
 				test_editor_rows_to_str_rejects_oversized_total},
 			{"editor_open_reads_rows_and_clears_dirty", test_editor_open_reads_rows_and_clears_dirty},
+			{"editor_syntax_activation_for_c_and_h_files",
+				test_editor_syntax_activation_for_c_and_h_files},
+			{"editor_syntax_disabled_for_non_c_files",
+				test_editor_syntax_disabled_for_non_c_files},
+			{"editor_save_as_c_file_enables_syntax", test_editor_save_as_c_file_enables_syntax},
+			{"editor_syntax_incremental_edits_keep_tree_valid",
+				test_editor_syntax_incremental_edits_keep_tree_valid},
+			{"editor_syntax_undo_redo_preserves_tree",
+				test_editor_syntax_undo_redo_preserves_tree},
+			{"editor_tabs_keep_independent_syntax_states",
+				test_editor_tabs_keep_independent_syntax_states},
+			{"editor_recovery_restore_rebuilds_c_syntax_tree",
+				test_editor_recovery_restore_rebuilds_c_syntax_tree},
 		{"editor_save_writes_file_and_clears_dirty", test_editor_save_writes_file_and_clears_dirty},
 		{"editor_save_prompts_for_filename", test_editor_save_prompts_for_filename},
 		{"editor_save_aborts_when_prompt_cancelled", test_editor_save_aborts_when_prompt_cancelled},

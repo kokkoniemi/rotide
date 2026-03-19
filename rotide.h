@@ -73,6 +73,7 @@ struct editorSelectionRange {
 };
 
 struct editorDrawerNode;
+struct editorSyntaxState;
 
 enum editorPaneFocus {
 	EDITOR_PANE_TEXT = 0,
@@ -83,6 +84,11 @@ enum editorCursorStyle {
 	EDITOR_CURSOR_STYLE_BLOCK = 0,
 	EDITOR_CURSOR_STYLE_BAR,
 	EDITOR_CURSOR_STYLE_UNDERLINE
+};
+
+enum editorSyntaxLanguage {
+	EDITOR_SYNTAX_NONE = 0,
+	EDITOR_SYNTAX_C
 };
 
 enum editorViewportMode {
@@ -197,6 +203,8 @@ struct editorTabState {
 	struct erow *rows;
 	int dirty;
 	char *filename;
+	enum editorSyntaxLanguage syntax_language;
+	struct editorSyntaxState *syntax_state;
 	char *search_query;
 	int search_match_row;
 	int search_match_start;
@@ -231,6 +239,8 @@ struct editorConfig {
 	struct erow *rows;
 	int dirty;
 	char *filename;
+	enum editorSyntaxLanguage syntax_language;
+	struct editorSyntaxState *syntax_state;
 	char statusmsg[80];
 	time_t statusmsg_time;
 	char *search_query;
