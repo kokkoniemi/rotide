@@ -20,7 +20,7 @@ search, save, undo/redo, selection, tabs, and keymap configuration are implement
 - Drawer tree rendering with Unicode branches/carets, focus-only row highlight, and italic active-file label.
 - Clipboard copy/cut/paste with optional OSC52 terminal sync.
 - Undo/redo history for insert/delete/newline edit flows.
-- Mouse support (click, drag selection, wheel scroll).
+- Mouse support (click, drag selection, vertical/horizontal wheel scroll).
 - Atomic save path with temp-file + rename strategy and cleanup handling.
 - Crash recovery via autosaved per-project recovery session files.
 - Configurable keymap via TOML (`~/.rotide/config.toml` and `./.rotide.toml`).
@@ -71,6 +71,7 @@ filename on first save.
 - Paste: `Ctrl-V`
 - Undo/Redo: `Ctrl-Z` / `Ctrl-Y`
 - Move: arrows, `Home`, `End`, `PageUp`, `PageDown`
+- Horizontal viewport scroll: `Ctrl-Left` / `Ctrl-Right` (also mouse horizontal wheel or `Shift+wheel`)
 - New line: `Enter`
 - Backspace/Delete: `Backspace` / `Del` (`Ctrl-H` also maps to backspace by default)
 - Redraw: `Ctrl-L`
@@ -111,6 +112,8 @@ cursor_style = "bar"
 save = "ctrl+s"
 quit = "ctrl+q"
 focus_drawer = "ctrl+e"
+scroll_left = "ctrl+left"
+scroll_right = "ctrl+right"
 ```
 
 Supported key specs:

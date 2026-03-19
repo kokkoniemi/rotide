@@ -2301,6 +2301,10 @@ static int test_editor_read_key_sgr_mouse_events(void) {
 	char left_release[] = "\x1b[<0;6;4m";
 	char wheel_up[] = "\x1b[<64;7;2M";
 	char wheel_down[] = "\x1b[<65;4;9M";
+	char wheel_left[] = "\x1b[<66;8;3M";
+	char wheel_right[] = "\x1b[<67;9;3M";
+	char shift_wheel_up[] = "\x1b[<68;10;5M";
+	char shift_wheel_down[] = "\x1b[<69;11;5M";
 	char modifier_drag_then_plain[] = "\x1b[<36;1;1MZ";
 	char unsupported_then_plain[] = "\x1b[<2;1;1MY";
 
@@ -2339,6 +2343,34 @@ static int test_editor_read_key_sgr_mouse_events(void) {
 	ASSERT_EQ_INT(EDITOR_MOUSE_EVENT_WHEEL_DOWN, event.kind);
 	ASSERT_EQ_INT(4, event.x);
 	ASSERT_EQ_INT(9, event.y);
+
+	ASSERT_TRUE(editor_read_key_with_input(wheel_left, sizeof(wheel_left) - 1, &key) == 0);
+	ASSERT_EQ_INT(MOUSE_EVENT, key);
+	ASSERT_TRUE(editorConsumeMouseEvent(&event) == 1);
+	ASSERT_EQ_INT(EDITOR_MOUSE_EVENT_WHEEL_LEFT, event.kind);
+	ASSERT_EQ_INT(8, event.x);
+	ASSERT_EQ_INT(3, event.y);
+
+	ASSERT_TRUE(editor_read_key_with_input(wheel_right, sizeof(wheel_right) - 1, &key) == 0);
+	ASSERT_EQ_INT(MOUSE_EVENT, key);
+	ASSERT_TRUE(editorConsumeMouseEvent(&event) == 1);
+	ASSERT_EQ_INT(EDITOR_MOUSE_EVENT_WHEEL_RIGHT, event.kind);
+	ASSERT_EQ_INT(9, event.x);
+	ASSERT_EQ_INT(3, event.y);
+
+	ASSERT_TRUE(editor_read_key_with_input(shift_wheel_up, sizeof(shift_wheel_up) - 1, &key) == 0);
+	ASSERT_EQ_INT(MOUSE_EVENT, key);
+	ASSERT_TRUE(editorConsumeMouseEvent(&event) == 1);
+	ASSERT_EQ_INT(EDITOR_MOUSE_EVENT_WHEEL_LEFT, event.kind);
+	ASSERT_EQ_INT(10, event.x);
+	ASSERT_EQ_INT(5, event.y);
+
+	ASSERT_TRUE(editor_read_key_with_input(shift_wheel_down, sizeof(shift_wheel_down) - 1, &key) == 0);
+	ASSERT_EQ_INT(MOUSE_EVENT, key);
+	ASSERT_TRUE(editorConsumeMouseEvent(&event) == 1);
+	ASSERT_EQ_INT(EDITOR_MOUSE_EVENT_WHEEL_RIGHT, event.kind);
+	ASSERT_EQ_INT(11, event.x);
+	ASSERT_EQ_INT(5, event.y);
 
 	ASSERT_TRUE(editor_read_key_with_input(modifier_drag_then_plain,
 				sizeof(modifier_drag_then_plain) - 1, &key) == 0);
@@ -3165,6 +3197,10 @@ static int test_editor_keymap_defaults_include_tab_actions(void) {
 	ASSERT_EQ_INT(EDITOR_ACTION_RESIZE_DRAWER_NARROW, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_SHIFT_ARROW_RIGHT, &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_RESIZE_DRAWER_WIDEN, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_ARROW_LEFT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SCROLL_LEFT, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_ARROW_RIGHT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SCROLL_RIGHT, action);
 	return 0;
 }
 
@@ -3648,7 +3684,7 @@ static int test_editor_process_keypress_mouse_left_click_places_cursor_with_offs
 	E.cy = 0;
 	E.cx = 0;
 
-	int text_start = editorDrawerTextStartColForCols(E.window_cols);
+	int text_start = editorTextBodyStartColForCols(E.window_cols);
 	char click[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click, sizeof(click), 0, text_start + 4, 2, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click, strlen(click)) == 0);
@@ -3672,13 +3708,44 @@ static int test_editor_process_keypress_mouse_left_click_ignores_non_text_rows(v
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(1, E.cx);
 
-	int text_start = editorDrawerTextStartColForCols(E.window_cols);
+	int text_start = editorTextBodyStartColForCols(E.window_cols);
 	char click_filler_row[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click_filler_row, sizeof(click_filler_row), 0,
 				text_start + 2, 4, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_filler_row, strlen(click_filler_row)) == 0);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(1, E.cx);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_left_click_ignores_indicator_padding_columns(void) {
+	add_row("0123456789");
+	E.window_rows = 4;
+	E.window_cols = 24;
+	E.rowoff = 0;
+	E.coloff = 1;
+	E.cy = 0;
+	E.cx = 3;
+	ASSERT_TRUE(editorDrawerSetWidthForCols(1, E.window_cols));
+
+	int text_start = editorDrawerTextStartColForCols(E.window_cols);
+	int text_cols = editorDrawerTextViewportCols(E.window_cols);
+
+	char click_left_padding[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click_left_padding, sizeof(click_left_padding), 0,
+				text_start + 1, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_left_padding,
+				strlen(click_left_padding)) == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(3, E.cx);
+
+	char click_right_padding[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click_right_padding, sizeof(click_right_padding), 0,
+				text_start + text_cols, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_right_padding,
+				strlen(click_right_padding)) == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(3, E.cx);
 	return 0;
 }
 
@@ -3917,6 +3984,34 @@ static int test_editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clam
 	return 0;
 }
 
+static int test_editor_process_keypress_mouse_wheel_scrolls_horizontally_and_clamps(void) {
+	add_row("abcdefghijklmnopqrstuvwxyz");
+	E.window_rows = 5;
+	E.window_cols = 12;
+	E.cy = 0;
+	E.cx = 5;
+	E.coloff = 0;
+
+	const char wheel_right[] = "\x1b[<67;1;1M";
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_right, sizeof(wheel_right) - 1) == 0);
+	ASSERT_EQ_INT(5, E.cx);
+	ASSERT_EQ_INT(3, E.coloff);
+	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
+
+	E.coloff = 24;
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_right, sizeof(wheel_right) - 1) == 0);
+	ASSERT_EQ_INT(25, E.coloff);
+
+	const char wheel_left[] = "\x1b[<66;1;1M";
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_left, sizeof(wheel_left) - 1) == 0);
+	ASSERT_EQ_INT(22, E.coloff);
+
+	E.coloff = 1;
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_left, sizeof(wheel_left) - 1) == 0);
+	ASSERT_EQ_INT(0, E.coloff);
+	return 0;
+}
+
 static int test_editor_process_keypress_page_up_down_scroll_viewport_without_moving_cursor(void) {
 	for (int i = 0; i < 20; i++) {
 		add_row("line");
@@ -3939,6 +4034,28 @@ static int test_editor_process_keypress_page_up_down_scroll_viewport_without_mov
 	ASSERT_EQ_INT(10, E.cy);
 	ASSERT_EQ_INT(2, E.cx);
 	ASSERT_EQ_INT(4, E.rowoff);
+	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_arrow_scrolls_horizontally_without_moving_cursor(void) {
+	add_row("abcdefghijklmnopqrstuvwxyz");
+	E.window_rows = 5;
+	E.window_cols = 12;
+	E.cy = 0;
+	E.cx = 7;
+	E.coloff = 0;
+
+	const char ctrl_right[] = "\x1b[1;5C";
+	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_right, sizeof(ctrl_right) - 1) == 0);
+	ASSERT_EQ_INT(7, E.cx);
+	ASSERT_EQ_INT(3, E.coloff);
+	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
+
+	const char ctrl_left[] = "\x1b[1;5D";
+	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_left, sizeof(ctrl_left) - 1) == 0);
+	ASSERT_EQ_INT(7, E.cx);
+	ASSERT_EQ_INT(0, E.coloff);
 	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
 	return 0;
 }
@@ -4016,7 +4133,7 @@ static int test_editor_process_keypress_mouse_click_keeps_selection_anchor(void)
 	E.cx = 1;
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
 
-	int text_start = editorDrawerTextStartColForCols(E.window_cols);
+	int text_start = editorTextBodyStartColForCols(E.window_cols);
 	char click[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click, sizeof(click), 0, text_start + 5, 2, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click, strlen(click)) == 0);
@@ -4037,7 +4154,7 @@ static int test_editor_process_keypress_mouse_drag_starts_selection_without_ctrl
 	E.cy = 0;
 	E.cx = 0;
 
-	int text_start = editorDrawerTextStartColForCols(E.window_cols);
+	int text_start = editorTextBodyStartColForCols(E.window_cols);
 	char press[32];
 	char drag[32];
 	ASSERT_TRUE(format_sgr_mouse_event(press, sizeof(press), 0, text_start + 2, 2, 'M'));
@@ -4065,7 +4182,7 @@ static int test_editor_process_keypress_mouse_press_without_drag_keeps_click_beh
 	E.cy = 0;
 	E.cx = 0;
 
-	int text_start = editorDrawerTextStartColForCols(E.window_cols);
+	int text_start = editorTextBodyStartColForCols(E.window_cols);
 	char press[32];
 	char release[32];
 	ASSERT_TRUE(format_sgr_mouse_event(press, sizeof(press), 0, text_start + 4, 2, 'M'));
@@ -4093,7 +4210,7 @@ static int test_editor_process_keypress_mouse_drag_resets_existing_selection_anc
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
 	E.cx = 4;
 
-	int text_start = editorDrawerTextStartColForCols(E.window_cols);
+	int text_start = editorTextBodyStartColForCols(E.window_cols);
 	char press[32];
 	char drag[32];
 	ASSERT_TRUE(format_sgr_mouse_event(press, sizeof(press), 0, text_start + 6, 2, 'M'));
@@ -4123,7 +4240,7 @@ static int test_editor_process_keypress_mouse_drag_clamps_to_viewport_without_au
 	E.cy = 0;
 	E.cx = 0;
 
-	int text_start = editorDrawerTextStartColForCols(E.window_cols);
+	int text_start = editorTextBodyStartColForCols(E.window_cols);
 	char press[32];
 	char drag[32];
 	ASSERT_TRUE(format_sgr_mouse_event(press, sizeof(press), 0, text_start + 3, 3, 'M'));
@@ -4135,7 +4252,7 @@ static int test_editor_process_keypress_mouse_drag_clamps_to_viewport_without_au
 	ASSERT_EQ_INT(3, E.selection_anchor_cy);
 	ASSERT_EQ_INT(3, E.selection_anchor_cx);
 	ASSERT_EQ_INT(4, E.cy);
-	ASSERT_EQ_INT(5, E.cx);
+	ASSERT_EQ_INT(3, E.cx);
 	ASSERT_EQ_INT(2, E.rowoff);
 	return 0;
 }
@@ -4149,7 +4266,7 @@ static int test_editor_process_keypress_mouse_drag_honors_rowoff_and_coloff(void
 	E.rowoff = 1;
 	E.coloff = 2;
 
-	int text_start = editorDrawerTextStartColForCols(E.window_cols);
+	int text_start = editorTextBodyStartColForCols(E.window_cols);
 	char press[32];
 	char drag[32];
 	ASSERT_TRUE(format_sgr_mouse_event(press, sizeof(press), 0, text_start + 2, 2, 'M'));
@@ -4177,7 +4294,7 @@ static int test_editor_process_keypress_mouse_release_stops_drag_session(void) {
 	E.cy = 0;
 	E.cx = 0;
 
-	int text_start = editorDrawerTextStartColForCols(E.window_cols);
+	int text_start = editorTextBodyStartColForCols(E.window_cols);
 	char press[32];
 	char drag[32];
 	char release[32];
@@ -4775,7 +4892,7 @@ static int test_editor_refresh_screen_highlights_active_selection_spans(void) {
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "prefix \x1b[7malpha\x1b[m suffix") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[7malpha\x1b[m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[7mprefix\x1b[m") == NULL);
 	free(output);
 
@@ -5401,7 +5518,7 @@ static int test_editor_refresh_screen_highlights_active_search_match(void) {
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "prefix \x1b[7malpha\x1b[m suffix") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[7malpha\x1b[m") != NULL);
 	free(output);
 	return 0;
 }
@@ -5615,7 +5732,7 @@ static int test_editor_refresh_screen_renders_drawer_entries_and_selection(void)
 	ASSERT_TRUE(strstr(output, "\xE2\x94\x94") != NULL);
 	ASSERT_TRUE(strstr(output, "\xE2\x94\x80") != NULL);
 	ASSERT_TRUE(strstr(output, "child.txt") != NULL);
-	ASSERT_TRUE(strstr(output, "\xE2\x94\x82" "body") != NULL);
+	ASSERT_TRUE(strstr(output, "\xE2\x94\x82 body") != NULL);
 	free(output);
 
 	ASSERT_TRUE(unlink(child_file) == 0);
@@ -5834,7 +5951,7 @@ static int test_editor_refresh_screen_cursor_column_offsets_for_drawer(void) {
 	E.coloff = 0;
 	E.pane_focus = EDITOR_PANE_TEXT;
 
-	int expected_col = editorDrawerTextStartColForCols(E.window_cols) + 2;
+	int expected_col = editorTextBodyStartColForCols(E.window_cols) + 2;
 	char expected_cursor[32];
 	ASSERT_TRUE(snprintf(expected_cursor, sizeof(expected_cursor), "\x1b[2;%dH", expected_col) > 0);
 
@@ -5899,8 +6016,12 @@ static int test_editor_refresh_screen_hides_cursor_when_offscreen_in_free_scroll
 static int test_editor_drawer_layout_clamps_tiny_widths(void) {
 	ASSERT_EQ_INT(0, editorDrawerWidthForCols(1));
 	ASSERT_EQ_INT(1, editorDrawerTextViewportCols(1));
+	ASSERT_EQ_INT(0, editorTextBodyStartColForCols(1));
+	ASSERT_EQ_INT(1, editorTextBodyViewportCols(1));
 	ASSERT_EQ_INT(1, editorDrawerWidthForCols(2));
 	ASSERT_EQ_INT(1, editorDrawerTextViewportCols(2));
+	ASSERT_EQ_INT(1, editorTextBodyStartColForCols(2));
+	ASSERT_EQ_INT(1, editorTextBodyViewportCols(2));
 	ASSERT_EQ_INT(0, editorDrawerSeparatorWidthForCols(2));
 
 	E.drawer_width_cols = 24;
@@ -5908,10 +6029,14 @@ static int test_editor_drawer_layout_clamps_tiny_widths(void) {
 	ASSERT_EQ_INT(4, editorDrawerWidthForCols(10));
 	ASSERT_EQ_INT(1, editorDrawerSeparatorWidthForCols(10));
 	ASSERT_EQ_INT(5, editorDrawerTextViewportCols(10));
+	ASSERT_EQ_INT(6, editorTextBodyStartColForCols(10));
+	ASSERT_EQ_INT(3, editorTextBodyViewportCols(10));
 
 	ASSERT_TRUE(editorDrawerSetWidthForCols(24, 10));
 	ASSERT_EQ_INT(8, editorDrawerWidthForCols(10));
 	ASSERT_EQ_INT(1, editorDrawerTextViewportCols(10));
+	ASSERT_EQ_INT(9, editorTextBodyStartColForCols(10));
+	ASSERT_EQ_INT(1, editorTextBodyViewportCols(10));
 
 	ASSERT_TRUE(editorDrawerSetWidthForCols(3, 10));
 	ASSERT_EQ_INT(3, editorDrawerWidthForCols(10));
@@ -5990,6 +6115,92 @@ static int test_editor_refresh_screen_hides_expired_message(void) {
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, "old message") == NULL);
+	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_shows_right_overflow_indicator(void) {
+	add_row("0123456789abcdefghijklmnopqrstuvwxyz");
+	E.window_rows = 3;
+	E.window_cols = 24;
+	E.rowoff = 0;
+	E.coloff = 0;
+	ASSERT_TRUE(editorDrawerSetWidthForCols(1, E.window_cols));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m\xE2\x86\x92\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m\xE2\x86\x90\x1b[39m") == NULL);
+	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_shows_left_overflow_indicator(void) {
+	add_row("0123456789");
+	E.window_rows = 3;
+	E.window_cols = 24;
+	E.rowoff = 0;
+	E.coloff = 1;
+	E.cy = 0;
+	E.cx = 2;
+	ASSERT_TRUE(editorDrawerSetWidthForCols(1, E.window_cols));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m\xE2\x86\x90\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m\xE2\x86\x92\x1b[39m") == NULL);
+	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_shows_both_horizontal_overflow_indicators(void) {
+	add_row("0123456789abcdefghijklmnopqrstuvwxyz");
+	E.window_rows = 3;
+	E.window_cols = 24;
+	E.rowoff = 0;
+	E.coloff = 1;
+	E.cy = 0;
+	E.cx = 2;
+	ASSERT_TRUE(editorDrawerSetWidthForCols(1, E.window_cols));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m\xE2\x86\x90\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m\xE2\x86\x92\x1b[39m") != NULL);
+	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_non_file_rows_do_not_show_overflow_indicators(void) {
+	E.window_rows = 3;
+	E.window_cols = 24;
+	E.rowoff = 0;
+	E.coloff = 4;
+	ASSERT_TRUE(editorDrawerSetWidthForCols(1, E.window_cols));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m\xE2\x86\x90\x1b[39m") == NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m\xE2\x86\x92\x1b[39m") == NULL);
+	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_out_of_buffer_tildes_are_gray(void) {
+	add_row("line");
+	E.window_rows = 4;
+	E.window_cols = 24;
+	E.rowoff = 0;
+	E.coloff = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m~\x1b[39m") != NULL);
 	free(output);
 	return 0;
 }
@@ -6355,12 +6566,14 @@ int main(void) {
 		{"editor_process_keypress_ctrl_s_saves_file", test_editor_process_keypress_ctrl_s_saves_file},
 		{"editor_process_keypress_resize_event_updates_window_size",
 			test_editor_process_keypress_resize_event_updates_window_size},
-			{"editor_process_keypress_mouse_left_click_places_cursor_with_offsets",
-				test_editor_process_keypress_mouse_left_click_places_cursor_with_offsets},
-			{"editor_process_keypress_mouse_left_click_ignores_non_text_rows",
-				test_editor_process_keypress_mouse_left_click_ignores_non_text_rows},
-				{"editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory",
-					test_editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory},
+				{"editor_process_keypress_mouse_left_click_places_cursor_with_offsets",
+					test_editor_process_keypress_mouse_left_click_places_cursor_with_offsets},
+				{"editor_process_keypress_mouse_left_click_ignores_non_text_rows",
+					test_editor_process_keypress_mouse_left_click_ignores_non_text_rows},
+				{"editor_process_keypress_mouse_left_click_ignores_indicator_padding_columns",
+					test_editor_process_keypress_mouse_left_click_ignores_indicator_padding_columns},
+					{"editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory",
+						test_editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory},
 				{"editor_process_keypress_mouse_drawer_single_file_click_selects_without_open",
 					test_editor_process_keypress_mouse_drawer_single_file_click_selects_without_open},
 				{"editor_process_keypress_mouse_drawer_double_click_file_opens_tab",
@@ -6373,8 +6586,12 @@ int main(void) {
 				test_editor_process_keypress_mouse_drag_on_splitter_resizes_drawer},
 			{"editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps",
 				test_editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps},
+			{"editor_process_keypress_mouse_wheel_scrolls_horizontally_and_clamps",
+				test_editor_process_keypress_mouse_wheel_scrolls_horizontally_and_clamps},
 			{"editor_process_keypress_page_up_down_scroll_viewport_without_moving_cursor",
 				test_editor_process_keypress_page_up_down_scroll_viewport_without_moving_cursor},
+			{"editor_process_keypress_ctrl_arrow_scrolls_horizontally_without_moving_cursor",
+				test_editor_process_keypress_ctrl_arrow_scrolls_horizontally_without_moving_cursor},
 			{"editor_process_keypress_free_scroll_can_leave_cursor_offscreen",
 				test_editor_process_keypress_free_scroll_can_leave_cursor_offscreen},
 			{"editor_process_keypress_cursor_move_resyncs_follow_scroll",
@@ -6538,9 +6755,19 @@ int main(void) {
 			{"editor_drawer_layout_clamps_tiny_widths", test_editor_drawer_layout_clamps_tiny_widths},
 			{"editor_refresh_screen_highlights_active_selection_spans",
 				test_editor_refresh_screen_highlights_active_selection_spans},
-		{"editor_refresh_screen_hides_expired_message", test_editor_refresh_screen_hides_expired_message},
-		{"editor_refresh_screen_updates_horizontal_scroll",
-			test_editor_refresh_screen_updates_horizontal_scroll},
+			{"editor_refresh_screen_hides_expired_message", test_editor_refresh_screen_hides_expired_message},
+			{"editor_refresh_screen_shows_right_overflow_indicator",
+				test_editor_refresh_screen_shows_right_overflow_indicator},
+			{"editor_refresh_screen_shows_left_overflow_indicator",
+				test_editor_refresh_screen_shows_left_overflow_indicator},
+			{"editor_refresh_screen_shows_both_horizontal_overflow_indicators",
+				test_editor_refresh_screen_shows_both_horizontal_overflow_indicators},
+			{"editor_refresh_screen_non_file_rows_do_not_show_overflow_indicators",
+				test_editor_refresh_screen_non_file_rows_do_not_show_overflow_indicators},
+			{"editor_refresh_screen_out_of_buffer_tildes_are_gray",
+				test_editor_refresh_screen_out_of_buffer_tildes_are_gray},
+			{"editor_refresh_screen_updates_horizontal_scroll",
+				test_editor_refresh_screen_updates_horizontal_scroll},
 		{"editor_refresh_screen_slice_after_multibyte_scroll",
 			test_editor_refresh_screen_slice_after_multibyte_scroll},
 		{"editor_refresh_screen_cursor_sequence_not_truncated_by_window_width",

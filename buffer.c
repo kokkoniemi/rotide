@@ -2318,6 +2318,23 @@ int editorDrawerTextViewportCols(int total_cols) {
 	return text_cols;
 }
 
+int editorTextBodyStartColForCols(int total_cols) {
+	int text_start = editorDrawerTextStartColForCols(total_cols);
+	int text_cols = editorDrawerTextViewportCols(total_cols);
+	if (text_cols >= 3) {
+		return text_start + 1;
+	}
+	return text_start;
+}
+
+int editorTextBodyViewportCols(int total_cols) {
+	int text_cols = editorDrawerTextViewportCols(total_cols);
+	if (text_cols >= 3) {
+		return text_cols - 2;
+	}
+	return text_cols;
+}
+
 int editorDrawerSetWidthForCols(int width, int total_cols) {
 	int clamped = editorDrawerClampWidthForCols(width, total_cols);
 	E.drawer_width_user_set = 1;

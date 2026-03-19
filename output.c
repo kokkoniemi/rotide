@@ -4,6 +4,7 @@
 #include "buffer.h"
 #include "size_utils.h"
 #include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,6 +41,8 @@ struct writeBuf {
 #define DRAWER_TREE_BRANCH_MID_UTF8 "\xE2\x94\x9C"
 #define DRAWER_TREE_BRANCH_LAST_UTF8 "\xE2\x94\x94"
 #define DRAWER_TREE_HORIZONTAL_UTF8 "\xE2\x94\x80"
+#define TEXT_OVERFLOW_LEFT_UTF8 "\xE2\x86\x90"
+#define TEXT_OVERFLOW_RIGHT_UTF8 "\xE2\x86\x92"
 
 static int wbAppend(struct writeBuf *wb, const char *s, size_t len) {
 	if (len == 0) {
@@ -66,6 +69,11 @@ static int wbAppend(struct writeBuf *wb, const char *s, size_t len) {
 
 static void wbFree(struct writeBuf *wb) {
 	free(wb->b);
+}
+
+static int editorAppendGrayBytes(struct writeBuf *wb, const char *text, size_t len) {
+	return wbAppend(wb, VT100_FG_GRAY_5, 5) && wbAppend(wb, text, len) &&
+			wbAppend(wb, VT100_FG_DEFAULT_5, 5);
 }
 
 /*** Output ***/
@@ -103,7 +111,7 @@ static int editorDrawGreeting(struct writeBuf *wb, int cols) {
 	}
 	int pad = (cols - greetlen) / 2;
 	if (pad) {
-		if (!wbAppend(wb, "~", 1)) {
+		if (!editorAppendGrayBytes(wb, "~", 1)) {
 			return 0;
 		}
 		pad--;
@@ -762,8 +770,84 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 	return 1;
 }
 
+static int editorRenderSliceDisplayCols(const struct erow *row, int coloff, int cols,
+		int *has_right_overflow_out) {
+	if (has_right_overflow_out != NULL) {
+		*has_right_overflow_out = 0;
+	}
+	if (row == NULL || cols <= 0 || coloff < 0 || row->rsize <= 0) {
+		return 0;
+	}
+
+	int start = -1;
+	int end = row->rsize;
+	editorRenderSliceBounds(row, coloff, cols, &start, &end);
+	if (start == -1 || end <= start) {
+		return 0;
+	}
+
+	int drawn_cols = 0;
+	for (int i = start; i < end;) {
+		unsigned int cp = 0;
+		int src_len = editorUtf8DecodeCodepoint(&row->render[i], end - i, &cp);
+		if (src_len <= 0) {
+			src_len = 1;
+		}
+		if (src_len > end - i) {
+			src_len = end - i;
+		}
+		drawn_cols += editorCharDisplayWidth(&row->render[i], end - i);
+		i += src_len;
+	}
+
+	if (has_right_overflow_out != NULL) {
+		*has_right_overflow_out = end < row->rsize;
+	}
+	return drawn_cols;
+}
+
+static int editorAppendGrayGlyph(struct writeBuf *wb, const char *glyph, size_t glyph_len) {
+	return editorAppendGrayBytes(wb, glyph, glyph_len);
+}
+
 static int editorDrawFileRow(struct writeBuf *wb, size_t i, int text_cols) {
-	return editorDrawRenderSlice(wb, &E.rows[i], (int)i, E.coloff, text_cols);
+	struct erow *row = &E.rows[i];
+	if (text_cols >= 3) {
+		int body_cols = editorTextBodyViewportCols(E.window_cols);
+		int has_right_overflow = 0;
+		int rendered_cols = editorRenderSliceDisplayCols(row, E.coloff, body_cols, &has_right_overflow);
+		int has_left_overflow = E.coloff > 0 && row->rsize > 0;
+
+		if (has_left_overflow) {
+			if (!editorAppendGrayGlyph(wb, TEXT_OVERFLOW_LEFT_UTF8, sizeof(TEXT_OVERFLOW_LEFT_UTF8) - 1)) {
+				return 0;
+			}
+		} else if (!wbAppend(wb, " ", 1)) {
+			return 0;
+		}
+
+		if (!editorDrawRenderSlice(wb, row, (int)i, E.coloff, body_cols)) {
+			return 0;
+		}
+
+		for (int pad = rendered_cols; pad < body_cols; pad++) {
+			if (!wbAppend(wb, " ", 1)) {
+				return 0;
+			}
+		}
+
+		if (has_right_overflow) {
+			if (!editorAppendGrayGlyph(wb, TEXT_OVERFLOW_RIGHT_UTF8,
+						sizeof(TEXT_OVERFLOW_RIGHT_UTF8) - 1)) {
+				return 0;
+			}
+		} else if (!wbAppend(wb, " ", 1)) {
+			return 0;
+		}
+		return 1;
+	}
+
+	return editorDrawRenderSlice(wb, row, (int)i, E.coloff, text_cols);
 }
 
 static const char *editorTabLabelFromFilename(const char *filename) {
@@ -1240,7 +1324,7 @@ static int editorDrawRows(struct writeBuf *wb) {
 				return 0;
 			}
 		} else {
-			if (!wbAppend(wb, "~", 1)) {
+			if (!editorAppendGrayBytes(wb, "~", 1)) {
 				return 0;
 			}
 		}
@@ -1248,9 +1332,8 @@ static int editorDrawRows(struct writeBuf *wb) {
 		if (!wbAppend(wb, VT100_CLEAR_ROW_3, 3)) {
 			return 0;
 		}
-		int overlay_drawn = 0;
 		if (!editorDrawDrawerSelectionOverflow(wb, y + 1, drawer_cols, separator_cols, text_cols, y + 2,
-					&overlay_drawn)) {
+					NULL)) {
 			return 0;
 		}
 		if (!wbAppend(wb, "\r\n", 2)) {
@@ -1367,6 +1450,39 @@ static void editorClampViewportOffsets(void) {
 	if (E.coloff < 0) {
 		E.coloff = 0;
 	}
+	if (E.coloff > 0) {
+		int max_coloff = 0;
+		for (int i = 0; i < E.numrows; i++) {
+			int row_cols = 0;
+			for (int j = 0; j < E.rows[i].rsize;) {
+				int width = editorCharDisplayWidth(&E.rows[i].render[j], E.rows[i].rsize - j);
+				if (width < 0) {
+					width = 0;
+				}
+				row_cols += width;
+
+				unsigned int cp = 0;
+				int char_len = editorUtf8DecodeCodepoint(&E.rows[i].render[j], E.rows[i].rsize - j, &cp);
+				(void)cp;
+				if (char_len <= 0) {
+					char_len = 1;
+				}
+				if (char_len > E.rows[i].rsize - j) {
+					char_len = E.rows[i].rsize - j;
+				}
+				j += char_len;
+			}
+			if (row_cols > max_coloff) {
+				max_coloff = row_cols;
+			}
+		}
+		if (max_coloff > 0) {
+			max_coloff--;
+		}
+		if (E.coloff > max_coloff) {
+			E.coloff = max_coloff;
+		}
+	}
 }
 
 static void editorUpdateRenderXFromCursor(void) {
@@ -1377,7 +1493,7 @@ static void editorUpdateRenderXFromCursor(void) {
 }
 
 static void editorFollowCursorViewport(void) {
-	int text_cols = editorDrawerTextViewportCols(E.window_cols);
+	int text_cols = editorTextBodyViewportCols(E.window_cols);
 	if (text_cols < 1) {
 		text_cols = 1;
 	}
@@ -1419,6 +1535,23 @@ void editorViewportScrollByRows(int delta_rows) {
 		target = max_rowoff;
 	}
 	E.rowoff = (int)target;
+	E.viewport_mode = EDITOR_VIEWPORT_FREE_SCROLL;
+	editorClampViewportOffsets();
+}
+
+void editorViewportScrollByCols(int delta_cols) {
+	if (delta_cols == 0) {
+		return;
+	}
+
+	long long target = (long long)E.coloff + (long long)delta_cols;
+	if (target < 0) {
+		target = 0;
+	}
+	if (target > INT_MAX) {
+		target = INT_MAX;
+	}
+	E.coloff = (int)target;
 	E.viewport_mode = EDITOR_VIEWPORT_FREE_SCROLL;
 	editorClampViewportOffsets();
 }
@@ -1497,7 +1630,7 @@ void editorRefreshScreen(void) {
 	}
 
 	int cursor_row = (E.cy - E.rowoff) + 2;
-	int cursor_col = editorDrawerTextStartColForCols(E.window_cols) + (E.rx - E.coloff) + 1;
+	int cursor_col = editorTextBodyStartColForCols(E.window_cols) + (E.rx - E.coloff) + 1;
 	int cursor_visible = 1;
 	if (E.pane_focus == EDITOR_PANE_DRAWER && editorDrawerWidthForCols(E.window_cols) > 0) {
 		cursor_visible = 0;
@@ -1508,8 +1641,8 @@ void editorRefreshScreen(void) {
 			text_row_max = text_row_min;
 		}
 
-		int text_col_min = editorDrawerTextStartColForCols(E.window_cols) + 1;
-		int text_col_max = text_col_min + editorDrawerTextViewportCols(E.window_cols) - 1;
+		int text_col_min = editorTextBodyStartColForCols(E.window_cols) + 1;
+		int text_col_max = text_col_min + editorTextBodyViewportCols(E.window_cols) - 1;
 		if (text_col_max < text_col_min) {
 			text_col_max = text_col_min;
 		}

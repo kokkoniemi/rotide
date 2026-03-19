@@ -145,11 +145,11 @@ static int editorDecodeSgrMousePayload(const char *payload, struct editorMouseEv
 
 	int button = cb & 0x03;
 	int has_modifiers = cb & (4 | 8 | 16);
+	int has_shift = cb & 4;
+	int has_alt = cb & 8;
+	int has_ctrl = cb & 16;
 	int has_motion = cb & 32;
 	int has_wheel = cb & 64;
-	if (has_modifiers) {
-		return 1;
-	}
 
 	// SGR uses lowercase 'm' for release.
 	if (suffix == 'm') {
@@ -164,12 +164,27 @@ static int editorDecodeSgrMousePayload(const char *payload, struct editorMouseEv
 
 	// Wheel events set bit 6 and encode direction in the low two bits.
 	if (has_wheel) {
+		if (has_alt || has_ctrl) {
+			return 1;
+		}
 		int wheel_button = button;
-		if (wheel_button == 0) {
+		if (wheel_button == 0 && has_shift) {
+			event_out->kind = EDITOR_MOUSE_EVENT_WHEEL_LEFT;
+		} else if (wheel_button == 1 && has_shift) {
+			event_out->kind = EDITOR_MOUSE_EVENT_WHEEL_RIGHT;
+		} else if (wheel_button == 0) {
 			event_out->kind = EDITOR_MOUSE_EVENT_WHEEL_UP;
 		} else if (wheel_button == 1) {
 			event_out->kind = EDITOR_MOUSE_EVENT_WHEEL_DOWN;
+		} else if (wheel_button == 2) {
+			event_out->kind = EDITOR_MOUSE_EVENT_WHEEL_LEFT;
+		} else if (wheel_button == 3) {
+			event_out->kind = EDITOR_MOUSE_EVENT_WHEEL_RIGHT;
 		}
+		return 1;
+	}
+
+	if (has_modifiers) {
 		return 1;
 	}
 

@@ -17,8 +17,10 @@ static int quit_confirmed = 0;
 typedef void (*editorPromptCallback)(const char *query, int key);
 enum {
 	MOUSE_WHEEL_SCROLL_LINES = 3,
+	MOUSE_WHEEL_SCROLL_COLS = 3,
 	DRAWER_DOUBLE_CLICK_THRESHOLD_MS = 400,
-	DRAWER_RESIZE_STEP = 1
+	DRAWER_RESIZE_STEP = 1,
+	KEYBOARD_SCROLL_COLS = 3
 };
 
 enum editorKeypressEffect {
@@ -719,8 +721,8 @@ static int editorResolveMouseToBufferPosition(const struct editorMouseEvent *eve
 	// Row 1 is the tab bar; text viewport starts on row 2.
 	int mouse_row = event->y - 2;
 	int raw_col = event->x - 1;
-	int text_cols = editorDrawerTextViewportCols(E.window_cols);
-	int text_start_col = editorDrawerTextStartColForCols(E.window_cols);
+	int text_cols = editorTextBodyViewportCols(E.window_cols);
+	int text_start_col = editorTextBodyStartColForCols(E.window_cols);
 	int mouse_col = raw_col - text_start_col;
 	if (clamp_to_viewport) {
 		if (E.window_rows <= 0 || text_cols <= 0) {
@@ -899,9 +901,22 @@ static int editorHandleMouseLeftRelease(void) {
 }
 
 static int editorHandleMouseWheel(const struct editorMouseEvent *event) {
-	int delta = event->kind == EDITOR_MOUSE_EVENT_WHEEL_UP ?
-			-MOUSE_WHEEL_SCROLL_LINES : MOUSE_WHEEL_SCROLL_LINES;
-	editorViewportScrollByRows(delta);
+	switch (event->kind) {
+		case EDITOR_MOUSE_EVENT_WHEEL_UP:
+			editorViewportScrollByRows(-MOUSE_WHEEL_SCROLL_LINES);
+			break;
+		case EDITOR_MOUSE_EVENT_WHEEL_DOWN:
+			editorViewportScrollByRows(MOUSE_WHEEL_SCROLL_LINES);
+			break;
+		case EDITOR_MOUSE_EVENT_WHEEL_LEFT:
+			editorViewportScrollByCols(-MOUSE_WHEEL_SCROLL_COLS);
+			break;
+		case EDITOR_MOUSE_EVENT_WHEEL_RIGHT:
+			editorViewportScrollByCols(MOUSE_WHEEL_SCROLL_COLS);
+			break;
+		default:
+			return EDITOR_KEYPRESS_EFFECT_NONE;
+	}
 	return EDITOR_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 }
 
@@ -921,6 +936,8 @@ static int editorHandleMouseEvent(void) {
 			return editorHandleMouseLeftRelease();
 		case EDITOR_MOUSE_EVENT_WHEEL_UP:
 		case EDITOR_MOUSE_EVENT_WHEEL_DOWN:
+		case EDITOR_MOUSE_EVENT_WHEEL_LEFT:
+		case EDITOR_MOUSE_EVENT_WHEEL_RIGHT:
 			return editorHandleMouseWheel(&event);
 		default:
 			return EDITOR_KEYPRESS_EFFECT_NONE;
@@ -1049,6 +1066,16 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			effects |= EDITOR_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 			break;
 		}
+		case EDITOR_ACTION_SCROLL_LEFT:
+			editorHistoryBreakGroup();
+			editorViewportScrollByCols(-KEYBOARD_SCROLL_COLS);
+			effects |= EDITOR_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
+			break;
+		case EDITOR_ACTION_SCROLL_RIGHT:
+			editorHistoryBreakGroup();
+			editorViewportScrollByCols(KEYBOARD_SCROLL_COLS);
+			effects |= EDITOR_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
+			break;
 		case EDITOR_ACTION_MOVE_UP:
 			editorHistoryBreakGroup();
 			if (E.pane_focus == EDITOR_PANE_DRAWER) {
