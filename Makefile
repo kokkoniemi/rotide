@@ -1,5 +1,5 @@
 CC ?= cc
-CPPFLAGS ?= -I. -Ivendor/tree_sitter/runtime/include -Ivendor/tree_sitter/runtime/src -Ivendor/tree_sitter/grammars/c/src -Ivendor/tree_sitter/grammars/bash/src
+CPPFLAGS ?= -I. -Ivendor/tree_sitter/runtime/include -Ivendor/tree_sitter/runtime/src -Ivendor/tree_sitter/grammars/c/src -Ivendor/tree_sitter/grammars/bash/src -Ivendor/tree_sitter/grammars/html/src -Ivendor/tree_sitter/grammars/javascript/src -Ivendor/tree_sitter/grammars/css/src
 CFLAGS ?= -Wall -Wextra -Werror -Wshadow -Wdouble-promotion -Wundef -fno-common -pedantic -std=c2x
 LDFLAGS ?=
 SANITIZER_CFLAGS ?= -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer
@@ -10,7 +10,13 @@ TREE_SITTER_CFLAGS = $(filter-out -Werror -Wundef -Wshadow -Wdouble-promotion -p
 TREE_SITTER_SRCS = vendor/tree_sitter/runtime/src/lib.c \
 	vendor/tree_sitter/grammars/c/src/parser.c \
 	vendor/tree_sitter/grammars/bash/src/parser.c \
-	vendor/tree_sitter/grammars/bash/src/scanner.c
+	vendor/tree_sitter/grammars/bash/src/scanner.c \
+	vendor/tree_sitter/grammars/html/src/parser.c \
+	vendor/tree_sitter/grammars/html/src/scanner.c \
+	vendor/tree_sitter/grammars/javascript/src/parser.c \
+	vendor/tree_sitter/grammars/javascript/src/scanner.c \
+	vendor/tree_sitter/grammars/css/src/parser.c \
+	vendor/tree_sitter/grammars/css/src/scanner.c
 CORE_SRCS = rotide.c terminal.c buffer.c output.c input.c keymap.c alloc.c save_syscalls.c syntax.c
 SRCS = $(CORE_SRCS) $(TREE_SITTER_SRCS)
 OBJS = $(SRCS:.c=.o)
@@ -33,6 +39,24 @@ vendor/tree_sitter/grammars/bash/src/parser.o: vendor/tree_sitter/grammars/bash/
 	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) -c $< -o $@
 
 vendor/tree_sitter/grammars/bash/src/scanner.o: vendor/tree_sitter/grammars/bash/src/scanner.c
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) -c $< -o $@
+
+vendor/tree_sitter/grammars/html/src/parser.o: vendor/tree_sitter/grammars/html/src/parser.c
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) -c $< -o $@
+
+vendor/tree_sitter/grammars/html/src/scanner.o: vendor/tree_sitter/grammars/html/src/scanner.c
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) -c $< -o $@
+
+vendor/tree_sitter/grammars/javascript/src/parser.o: vendor/tree_sitter/grammars/javascript/src/parser.c
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) -c $< -o $@
+
+vendor/tree_sitter/grammars/javascript/src/scanner.o: vendor/tree_sitter/grammars/javascript/src/scanner.c
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) -c $< -o $@
+
+vendor/tree_sitter/grammars/css/src/parser.o: vendor/tree_sitter/grammars/css/src/parser.c
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) -c $< -o $@
+
+vendor/tree_sitter/grammars/css/src/scanner.o: vendor/tree_sitter/grammars/css/src/scanner.c
 	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) -c $< -o $@
 
 %.o: %.c

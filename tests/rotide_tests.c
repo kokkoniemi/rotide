@@ -848,6 +848,107 @@ static int test_editor_syntax_activation_for_shell_files_and_shebang(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_html_js_and_css_files(void) {
+	char html_path[] = "/tmp/rotide-test-syntax-html-XXXXXX.html";
+	int html_fd = mkstemps(html_path, 5);
+	ASSERT_TRUE(html_fd != -1);
+	const char *html_source = "<!doctype html><html><body><h1>x</h1></body></html>\n";
+	ASSERT_TRUE(write_all(html_fd, html_source, strlen(html_source)) == 0);
+	ASSERT_TRUE(close(html_fd) == 0);
+
+	editorOpen(html_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HTML, editorSyntaxLanguageActive());
+	ASSERT_EQ_STR("document", editorSyntaxRootType());
+
+	char htm_path[] = "/tmp/rotide-test-syntax-html2-XXXXXX.htm";
+	int htm_fd = mkstemps(htm_path, 4);
+	ASSERT_TRUE(htm_fd != -1);
+	ASSERT_TRUE(write_all(htm_fd, html_source, strlen(html_source)) == 0);
+	ASSERT_TRUE(close(htm_fd) == 0);
+	editorOpen(htm_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HTML, editorSyntaxLanguageActive());
+
+	char xhtml_path[] = "/tmp/rotide-test-syntax-xhtml-XXXXXX.xhtml";
+	int xhtml_fd = mkstemps(xhtml_path, 6);
+	ASSERT_TRUE(xhtml_fd != -1);
+	ASSERT_TRUE(write_all(xhtml_fd, html_source, strlen(html_source)) == 0);
+	ASSERT_TRUE(close(xhtml_fd) == 0);
+	editorOpen(xhtml_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HTML, editorSyntaxLanguageActive());
+
+	char js_path[] = "/tmp/rotide-test-syntax-js-XXXXXX.js";
+	int js_fd = mkstemps(js_path, 3);
+	ASSERT_TRUE(js_fd != -1);
+	const char *js_source = "function demo(){ return 1; }\n";
+	ASSERT_TRUE(write_all(js_fd, js_source, strlen(js_source)) == 0);
+	ASSERT_TRUE(close(js_fd) == 0);
+	editorOpen(js_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, editorSyntaxLanguageActive());
+
+	char mjs_path[] = "/tmp/rotide-test-syntax-mjs-XXXXXX.mjs";
+	int mjs_fd = mkstemps(mjs_path, 4);
+	ASSERT_TRUE(mjs_fd != -1);
+	ASSERT_TRUE(write_all(mjs_fd, js_source, strlen(js_source)) == 0);
+	ASSERT_TRUE(close(mjs_fd) == 0);
+	editorOpen(mjs_path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, editorSyntaxLanguageActive());
+
+	char cjs_path[] = "/tmp/rotide-test-syntax-cjs-XXXXXX.cjs";
+	int cjs_fd = mkstemps(cjs_path, 4);
+	ASSERT_TRUE(cjs_fd != -1);
+	ASSERT_TRUE(write_all(cjs_fd, js_source, strlen(js_source)) == 0);
+	ASSERT_TRUE(close(cjs_fd) == 0);
+	editorOpen(cjs_path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, editorSyntaxLanguageActive());
+
+	char jsx_path[] = "/tmp/rotide-test-syntax-jsx-XXXXXX.jsx";
+	int jsx_fd = mkstemps(jsx_path, 4);
+	ASSERT_TRUE(jsx_fd != -1);
+	const char *jsx_source = "const el = <div className=\"x\">ok</div>;\n";
+	ASSERT_TRUE(write_all(jsx_fd, jsx_source, strlen(jsx_source)) == 0);
+	ASSERT_TRUE(close(jsx_fd) == 0);
+	editorOpen(jsx_path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, editorSyntaxLanguageActive());
+
+	char css_path[] = "/tmp/rotide-test-syntax-css-XXXXXX.css";
+	int css_fd = mkstemps(css_path, 4);
+	ASSERT_TRUE(css_fd != -1);
+	const char *css_source = ".box { color: red; }\n";
+	ASSERT_TRUE(write_all(css_fd, css_source, strlen(css_source)) == 0);
+	ASSERT_TRUE(close(css_fd) == 0);
+	editorOpen(css_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CSS, editorSyntaxLanguageActive());
+
+	char scss_path[] = "/tmp/rotide-test-syntax-scss-XXXXXX.scss";
+	int scss_fd = mkstemps(scss_path, 5);
+	ASSERT_TRUE(scss_fd != -1);
+	ASSERT_TRUE(write_all(scss_fd, css_source, strlen(css_source)) == 0);
+	ASSERT_TRUE(close(scss_fd) == 0);
+	editorOpen(scss_path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CSS, editorSyntaxLanguageActive());
+
+	ASSERT_TRUE(unlink(html_path) == 0);
+	ASSERT_TRUE(unlink(htm_path) == 0);
+	ASSERT_TRUE(unlink(xhtml_path) == 0);
+	ASSERT_TRUE(unlink(js_path) == 0);
+	ASSERT_TRUE(unlink(mjs_path) == 0);
+	ASSERT_TRUE(unlink(cjs_path) == 0);
+	ASSERT_TRUE(unlink(jsx_path) == 0);
+	ASSERT_TRUE(unlink(css_path) == 0);
+	ASSERT_TRUE(unlink(scss_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_disabled_for_non_c_or_shell_files(void) {
 	char path[] = "/tmp/rotide-test-syntax-txt-XXXXXX.txt";
 	int fd = mkstemps(path, 4);
@@ -918,6 +1019,98 @@ static int test_editor_save_as_shell_and_non_shell_updates_syntax(void) {
 	ASSERT_EQ_INT(EDITOR_SYNTAX_NONE, editorSyntaxLanguageActive());
 
 	ASSERT_TRUE(unlink(shell_path) == 0);
+	ASSERT_TRUE(unlink(txt_path) == 0);
+	return 0;
+}
+
+static int test_editor_save_as_web_and_plain_updates_syntax(void) {
+	char html_path[] = "/tmp/rotide-test-syntax-saveas-web-XXXXXX.html";
+	int html_fd = mkstemps(html_path, 5);
+	ASSERT_TRUE(html_fd != -1);
+	ASSERT_TRUE(close(html_fd) == 0);
+	ASSERT_TRUE(unlink(html_path) == 0);
+
+	char js_path[] = "/tmp/rotide-test-syntax-saveas-web-XXXXXX.js";
+	int js_fd = mkstemps(js_path, 3);
+	ASSERT_TRUE(js_fd != -1);
+	ASSERT_TRUE(close(js_fd) == 0);
+	ASSERT_TRUE(unlink(js_path) == 0);
+
+	char css_path[] = "/tmp/rotide-test-syntax-saveas-web-XXXXXX.css";
+	int css_fd = mkstemps(css_path, 4);
+	ASSERT_TRUE(css_fd != -1);
+	ASSERT_TRUE(close(css_fd) == 0);
+	ASSERT_TRUE(unlink(css_path) == 0);
+
+	char txt_path[] = "/tmp/rotide-test-syntax-saveas-web-XXXXXX.txt";
+	int txt_fd = mkstemps(txt_path, 4);
+	ASSERT_TRUE(txt_fd != -1);
+	ASSERT_TRUE(close(txt_fd) == 0);
+	ASSERT_TRUE(unlink(txt_path) == 0);
+
+	add_row("<div class=\"x\">hi</div>");
+	E.dirty = 1;
+	ASSERT_TRUE(E.filename == NULL);
+
+	int saved_stdin;
+	int saved_stdout;
+
+	char input_html[256];
+	int written_html = snprintf(input_html, sizeof(input_html), "%s\r", html_path);
+	ASSERT_TRUE(written_html > 0 && (size_t)written_html < sizeof(input_html));
+	ASSERT_TRUE(setup_stdin_bytes(input_html, (size_t)written_html, &saved_stdin) == 0);
+	ASSERT_TRUE(redirect_stdout_to_devnull(&saved_stdout) == 0);
+	editorSave();
+	ASSERT_TRUE(restore_stdout(saved_stdout) == 0);
+	ASSERT_TRUE(restore_stdin(saved_stdin) == 0);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HTML, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.dirty = 1;
+	free(E.filename);
+	E.filename = NULL;
+	char input_js[256];
+	int written_js = snprintf(input_js, sizeof(input_js), "%s\r", js_path);
+	ASSERT_TRUE(written_js > 0 && (size_t)written_js < sizeof(input_js));
+	ASSERT_TRUE(setup_stdin_bytes(input_js, (size_t)written_js, &saved_stdin) == 0);
+	ASSERT_TRUE(redirect_stdout_to_devnull(&saved_stdout) == 0);
+	editorSave();
+	ASSERT_TRUE(restore_stdout(saved_stdout) == 0);
+	ASSERT_TRUE(restore_stdin(saved_stdin) == 0);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.dirty = 1;
+	free(E.filename);
+	E.filename = NULL;
+	char input_css[256];
+	int written_css = snprintf(input_css, sizeof(input_css), "%s\r", css_path);
+	ASSERT_TRUE(written_css > 0 && (size_t)written_css < sizeof(input_css));
+	ASSERT_TRUE(setup_stdin_bytes(input_css, (size_t)written_css, &saved_stdin) == 0);
+	ASSERT_TRUE(redirect_stdout_to_devnull(&saved_stdout) == 0);
+	editorSave();
+	ASSERT_TRUE(restore_stdout(saved_stdout) == 0);
+	ASSERT_TRUE(restore_stdin(saved_stdin) == 0);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CSS, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.dirty = 1;
+	free(E.filename);
+	E.filename = NULL;
+	char input_txt[256];
+	int written_txt = snprintf(input_txt, sizeof(input_txt), "%s\r", txt_path);
+	ASSERT_TRUE(written_txt > 0 && (size_t)written_txt < sizeof(input_txt));
+	ASSERT_TRUE(setup_stdin_bytes(input_txt, (size_t)written_txt, &saved_stdin) == 0);
+	ASSERT_TRUE(redirect_stdout_to_devnull(&saved_stdout) == 0);
+	editorSave();
+	ASSERT_TRUE(restore_stdout(saved_stdout) == 0);
+	ASSERT_TRUE(restore_stdin(saved_stdin) == 0);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_NONE, editorSyntaxLanguageActive());
+	ASSERT_TRUE(!editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(html_path) == 0);
+	ASSERT_TRUE(unlink(js_path) == 0);
+	ASSERT_TRUE(unlink(css_path) == 0);
 	ASSERT_TRUE(unlink(txt_path) == 0);
 	return 0;
 }
@@ -1028,6 +1221,114 @@ static int test_editor_syntax_incremental_edits_keep_shell_tree_valid(void) {
 		.end_cx = 0
 	};
 	ASSERT_EQ_INT(1, editorDeleteRange(&delete_line));
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_incremental_edits_keep_html_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-html-XXXXXX.html";
+	int fd = mkstemps(path, 5);
+	ASSERT_TRUE(fd != -1);
+	const char *source =
+			"<html>\n"
+			"<body>\n"
+			"<script>\n"
+			"const window = 1;\n"
+			"</script>\n"
+			"<style>\n"
+			".box { color: red; }\n"
+			"</style>\n"
+			"</body>\n"
+			"</html>\n";
+	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HTML, editorSyntaxLanguageActive());
+
+	E.cy = 3;
+	E.cx = 6;
+	editorInsertChar('x');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 6;
+	E.cx = 6;
+	editorInsertChar('x');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	struct editorSelectionRange delete_line = {
+		.start_cy = 1,
+		.start_cx = 0,
+		.end_cy = 2,
+		.end_cx = 0
+	};
+	ASSERT_EQ_INT(1, editorDeleteRange(&delete_line));
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_incremental_edits_keep_javascript_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-js-XXXXXX.js";
+	int fd = mkstemps(path, 3);
+	ASSERT_TRUE(fd != -1);
+	const char *source = "function main() {\n\treturn 1;\n}\n";
+	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, editorSyntaxLanguageActive());
+
+	E.cy = 1;
+	E.cx = 1;
+	editorInsertChar('x');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = E.rows[0].size;
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_incremental_edits_keep_css_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-css-XXXXXX.css";
+	int fd = mkstemps(path, 4);
+	ASSERT_TRUE(fd != -1);
+	const char *source = ".box { color: red; }\n";
+	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CSS, editorSyntaxLanguageActive());
+
+	E.cy = 0;
+	E.cx = 1;
+	editorInsertChar('x');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = E.rows[0].size;
+	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	ASSERT_TRUE(unlink(path) == 0);
@@ -1170,6 +1471,48 @@ static int test_editor_tabs_keep_shell_and_c_syntax_states(void) {
 	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
 
 	ASSERT_TRUE(unlink(sh_path) == 0);
+	ASSERT_TRUE(unlink(c_path) == 0);
+	return 0;
+}
+
+static int test_editor_tabs_keep_web_and_c_syntax_states(void) {
+	ASSERT_TRUE(editorTabsInit());
+
+	char html_path[] = "/tmp/rotide-test-syntax-tabs-html-XXXXXX.html";
+	int html_fd = mkstemps(html_path, 5);
+	ASSERT_TRUE(html_fd != -1);
+	const char *html_source =
+			"<script>const value = 1; document;</script>\n"
+			"<style>.box { color: red; }</style>\n";
+	ASSERT_TRUE(write_all(html_fd, html_source, strlen(html_source)) == 0);
+	ASSERT_TRUE(close(html_fd) == 0);
+
+	char c_path[] = "/tmp/rotide-test-syntax-tabs-c3-XXXXXX.c";
+	int c_fd = mkstemps(c_path, 2);
+	ASSERT_TRUE(c_fd != -1);
+	const char *c_source = "int gamma;\n";
+	ASSERT_TRUE(write_all(c_fd, c_source, strlen(c_source)) == 0);
+	ASSERT_TRUE(close(c_fd) == 0);
+
+	editorOpen(html_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HTML, editorSyntaxLanguageActive());
+
+	ASSERT_TRUE(editorTabOpenFileAsNew(c_path));
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
+
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HTML, editorSyntaxLanguageActive());
+
+	ASSERT_TRUE(editorTabSwitchToIndex(1));
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
+
+	ASSERT_TRUE(unlink(html_path) == 0);
 	ASSERT_TRUE(unlink(c_path) == 0);
 	return 0;
 }
@@ -6143,6 +6486,127 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_shell_toke
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_html_with_injections(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-html-XXXXXX.html";
+	int fd = mkstemps(path, 5);
+	ASSERT_TRUE(fd != -1);
+	const char *source =
+			"<div class=\"box\">Hello</div>\n"
+			"<script>const value = 42; document;</script>\n"
+			"<style>.box { color: red; }</style>\n";
+	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	editorOpen(path);
+	E.window_rows = 8;
+	E.window_cols = 120;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96mdiv\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[91mclass\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mconst\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m42\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mdocument\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mcolor\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_javascript_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-js-XXXXXX.js";
+	int fd = mkstemps(path, 3);
+	ASSERT_TRUE(fd != -1);
+	const char *source =
+			"function main() {\n"
+			"  return 42;\n"
+			"}\n";
+	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	editorOpen(path);
+	E.window_rows = 6;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mfunction\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[93mmain\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mreturn\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m42\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_css_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-css-XXXXXX.css";
+	int fd = mkstemps(path, 4);
+	ASSERT_TRUE(fd != -1);
+	const char *source = ".box { color: red; }\n";
+	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	editorOpen(path);
+	E.window_rows = 4;
+	E.window_cols = 80;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mbox\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mcolor\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_javascript_predicates_and_locals(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-js-pred-XXXXXX.js";
+	int fd = mkstemps(path, 3);
+	ASSERT_TRUE(fd != -1);
+	const char *source =
+			"function demo() {\n"
+			"  const window = 1;\n"
+			"  window;\n"
+			"}\n"
+			"document;\n"
+			"const lower = 1;\n"
+			"const Upper = 2;\n";
+	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	editorOpen(path);
+	E.window_rows = 10;
+	E.window_cols = 120;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mdocument\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mwindow\x1b[39m") == NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96mUpper\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96mlower\x1b[39m") == NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_plain_text_file_has_no_syntax_highlighting(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-txt-XXXXXX.txt";
 	int fd = mkstemps(path, 4);
@@ -7131,15 +7595,25 @@ int main(void) {
 				test_editor_syntax_activation_for_c_and_h_files},
 			{"editor_syntax_activation_for_shell_files_and_shebang",
 				test_editor_syntax_activation_for_shell_files_and_shebang},
+			{"editor_syntax_activation_for_html_js_and_css_files",
+				test_editor_syntax_activation_for_html_js_and_css_files},
 			{"editor_syntax_disabled_for_non_c_or_shell_files",
 				test_editor_syntax_disabled_for_non_c_or_shell_files},
 			{"editor_save_as_c_file_enables_syntax", test_editor_save_as_c_file_enables_syntax},
 			{"editor_save_as_shell_and_non_shell_updates_syntax",
 				test_editor_save_as_shell_and_non_shell_updates_syntax},
+			{"editor_save_as_web_and_plain_updates_syntax",
+				test_editor_save_as_web_and_plain_updates_syntax},
 			{"editor_syntax_incremental_edits_keep_tree_valid",
 				test_editor_syntax_incremental_edits_keep_tree_valid},
 			{"editor_syntax_incremental_edits_keep_shell_tree_valid",
 				test_editor_syntax_incremental_edits_keep_shell_tree_valid},
+			{"editor_syntax_incremental_edits_keep_html_tree_valid",
+				test_editor_syntax_incremental_edits_keep_html_tree_valid},
+			{"editor_syntax_incremental_edits_keep_javascript_tree_valid",
+				test_editor_syntax_incremental_edits_keep_javascript_tree_valid},
+			{"editor_syntax_incremental_edits_keep_css_tree_valid",
+				test_editor_syntax_incremental_edits_keep_css_tree_valid},
 			{"editor_syntax_undo_redo_preserves_tree",
 				test_editor_syntax_undo_redo_preserves_tree},
 			{"editor_syntax_undo_redo_preserves_shell_tree",
@@ -7148,6 +7622,8 @@ int main(void) {
 				test_editor_tabs_keep_independent_syntax_states},
 			{"editor_tabs_keep_shell_and_c_syntax_states",
 				test_editor_tabs_keep_shell_and_c_syntax_states},
+			{"editor_tabs_keep_web_and_c_syntax_states",
+				test_editor_tabs_keep_web_and_c_syntax_states},
 			{"editor_recovery_restore_rebuilds_c_syntax_tree",
 				test_editor_recovery_restore_rebuilds_c_syntax_tree},
 			{"editor_recovery_restore_rebuilds_shell_syntax_tree",
@@ -7491,6 +7967,14 @@ int main(void) {
 				test_editor_refresh_screen_applies_syntax_highlighting_for_c_tokens},
 			{"editor_refresh_screen_applies_syntax_highlighting_for_shell_tokens",
 				test_editor_refresh_screen_applies_syntax_highlighting_for_shell_tokens},
+			{"editor_refresh_screen_applies_syntax_highlighting_for_html_with_injections",
+				test_editor_refresh_screen_applies_syntax_highlighting_for_html_with_injections},
+			{"editor_refresh_screen_applies_syntax_highlighting_for_javascript_tokens",
+				test_editor_refresh_screen_applies_syntax_highlighting_for_javascript_tokens},
+			{"editor_refresh_screen_applies_syntax_highlighting_for_css_tokens",
+				test_editor_refresh_screen_applies_syntax_highlighting_for_css_tokens},
+			{"editor_refresh_screen_javascript_predicates_and_locals",
+				test_editor_refresh_screen_javascript_predicates_and_locals},
 			{"editor_refresh_screen_plain_text_file_has_no_syntax_highlighting",
 				test_editor_refresh_screen_plain_text_file_has_no_syntax_highlighting},
 			{"editor_refresh_screen_selection_and_search_override_syntax_colors",

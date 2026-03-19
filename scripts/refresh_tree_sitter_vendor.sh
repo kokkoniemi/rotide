@@ -67,97 +67,138 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "Fetching CLI release metadata: ${TREE_SITTER_CLI_RELEASE}" >&2
-RELEASE_JSON="${TMP_DIR}/tree-sitter-release.json"
-curl -fsSL "${CLI_RELEASE_API}" > "${RELEASE_JSON}"
+download_cli() {
+	echo "Fetching CLI release metadata: ${TREE_SITTER_CLI_RELEASE}" >&2
+	local release_json="${TMP_DIR}/tree-sitter-release.json"
+	curl -fsSL "${CLI_RELEASE_API}" > "${release_json}"
 
-CLI_URL="$(jq -r --arg asset "${CLI_ASSET}" '.assets[] | select(.name == $asset) | .browser_download_url' "${RELEASE_JSON}")"
-CLI_DIGEST="$(jq -r --arg asset "${CLI_ASSET}" '.assets[] | select(.name == $asset) | .digest' "${RELEASE_JSON}")"
+	local cli_url
+	local cli_digest
+	cli_url="$(jq -r --arg asset "${CLI_ASSET}" '.assets[] | select(.name == $asset) | .browser_download_url' "${release_json}")"
+	cli_digest="$(jq -r --arg asset "${CLI_ASSET}" '.assets[] | select(.name == $asset) | .digest' "${release_json}")"
 
-if [[ -z "${CLI_URL}" || "${CLI_URL}" == "null" ]]; then
-	echo "Could not find CLI asset '${CLI_ASSET}' in ${TREE_SITTER_CLI_RELEASE}" >&2
-	exit 1
-fi
-if [[ -z "${CLI_DIGEST}" || "${CLI_DIGEST}" == "null" || "${CLI_DIGEST}" != sha256:* ]]; then
-	echo "Could not read sha256 digest for '${CLI_ASSET}' from release metadata" >&2
-	exit 1
-fi
+	if [[ -z "${cli_url}" || "${cli_url}" == "null" ]]; then
+		echo "Could not find CLI asset '${CLI_ASSET}' in ${TREE_SITTER_CLI_RELEASE}" >&2
+		exit 1
+	fi
+	if [[ -z "${cli_digest}" || "${cli_digest}" == "null" || "${cli_digest}" != sha256:* ]]; then
+		echo "Could not read sha256 digest for '${CLI_ASSET}' from release metadata" >&2
+		exit 1
+	fi
 
-CLI_ZIP="${TMP_DIR}/${CLI_ASSET}"
-echo "Downloading CLI asset: ${CLI_ASSET}" >&2
-curl -fsSL "${CLI_URL}" -o "${CLI_ZIP}"
+	local cli_zip="${TMP_DIR}/${CLI_ASSET}"
+	echo "Downloading CLI asset: ${CLI_ASSET}" >&2
+	curl -fsSL "${cli_url}" -o "${cli_zip}"
 
-EXPECTED_SHA256="${CLI_DIGEST#sha256:}"
-ACTUAL_SHA256="$(sha256sum "${CLI_ZIP}" | awk '{print $1}')"
-if [[ "${ACTUAL_SHA256}" != "${EXPECTED_SHA256}" ]]; then
-	echo "Checksum mismatch for ${CLI_ASSET}" >&2
-	echo "Expected: ${EXPECTED_SHA256}" >&2
-	echo "Actual:   ${ACTUAL_SHA256}" >&2
-	exit 1
-fi
+	local expected_sha256="${cli_digest#sha256:}"
+	local actual_sha256
+	actual_sha256="$(sha256sum "${cli_zip}" | awk '{print $1}')"
+	if [[ "${actual_sha256}" != "${expected_sha256}" ]]; then
+		echo "Checksum mismatch for ${CLI_ASSET}" >&2
+		echo "Expected: ${expected_sha256}" >&2
+		echo "Actual:   ${actual_sha256}" >&2
+		exit 1
+	fi
 
-CLI_DIR="${TMP_DIR}/cli"
-mkdir -p "${CLI_DIR}"
-unzip -q "${CLI_ZIP}" -d "${CLI_DIR}"
-CLI_BIN="$(find "${CLI_DIR}" -type f \( -name tree-sitter -o -name tree-sitter.exe \) | head -n 1)"
-if [[ -z "${CLI_BIN}" ]]; then
-	echo "Could not locate tree-sitter CLI binary after unzip" >&2
-	exit 1
-fi
-chmod +x "${CLI_BIN}"
+	local cli_dir="${TMP_DIR}/cli"
+	mkdir -p "${cli_dir}"
+	unzip -q "${cli_zip}" -d "${cli_dir}"
+	CLI_BIN="$(find "${cli_dir}" -type f \( -name tree-sitter -o -name tree-sitter.exe \) | head -n 1)"
+	if [[ -z "${CLI_BIN}" ]]; then
+		echo "Could not locate tree-sitter CLI binary after unzip" >&2
+		exit 1
+	fi
+	chmod +x "${CLI_BIN}"
+}
 
-echo "Downloading runtime source ref: ${TREE_SITTER_RUNTIME_REF}" >&2
-RUNTIME_TARBALL="${TMP_DIR}/tree-sitter-runtime.tar.gz"
-curl -fsSL "https://github.com/tree-sitter/tree-sitter/archive/${TREE_SITTER_RUNTIME_REF}.tar.gz" -o "${RUNTIME_TARBALL}"
-RUNTIME_TOP="$(tar -tzf "${RUNTIME_TARBALL}" | head -n 1 | cut -d/ -f1)"
-tar -xzf "${RUNTIME_TARBALL}" -C "${TMP_DIR}"
-RUNTIME_SRC="${TMP_DIR}/${RUNTIME_TOP}"
+download_repo_tarball() {
+	local repo="$1"
+	local ref="$2"
+	local out_var="$3"
+	local stem="${repo##*/}"
+	local tarball="${TMP_DIR}/${stem}.tar.gz"
+
+	echo "Downloading ${repo} source ref: ${ref}" >&2
+	curl -fsSL "https://github.com/${repo}/archive/${ref}.tar.gz" -o "${tarball}"
+	local top
+	top="$(tar -tzf "${tarball}" | awk -F/ 'NR == 1 { print $1; exit }')"
+	tar -xzf "${tarball}" -C "${TMP_DIR}"
+
+	printf -v "${out_var}" '%s' "${TMP_DIR}/${top}"
+}
+
+regenerate_parser() {
+	local src_dir="$1"
+	local name="$2"
+	echo "Regenerating ${name} parser with official CLI binary" >&2
+	(
+		cd "${src_dir}"
+		"${CLI_BIN}" generate
+	)
+}
+
+sync_grammar_vendor() {
+	local src_dir="$1"
+	local vendor_dir="$2"
+
+	if [[ ! -d "${src_dir}/src" || ! -f "${src_dir}/grammar.js" ]]; then
+		echo "Grammar source layout not found in ${src_dir}" >&2
+		exit 1
+	fi
+
+	mkdir -p "${vendor_dir}"
+	rm -rf "${vendor_dir}/src" "${vendor_dir}/queries"
+	mkdir -p "${vendor_dir}/src"
+	cp -R "${src_dir}/src/." "${vendor_dir}/src/"
+
+	cp "${src_dir}/grammar.js" "${vendor_dir}/grammar.js"
+	if [[ -f "${src_dir}/tree-sitter.json" ]]; then
+		cp "${src_dir}/tree-sitter.json" "${vendor_dir}/tree-sitter.json"
+	fi
+	if [[ -f "${src_dir}/package.json" ]]; then
+		cp "${src_dir}/package.json" "${vendor_dir}/package.json"
+	fi
+	if [[ -f "${src_dir}/LICENSE" ]]; then
+		cp "${src_dir}/LICENSE" "${vendor_dir}/LICENSE"
+	fi
+	if [[ -f "${src_dir}/README.md" ]]; then
+		cp "${src_dir}/README.md" "${vendor_dir}/README.upstream.md"
+	fi
+
+	if [[ -d "${src_dir}/queries" ]]; then
+		mkdir -p "${vendor_dir}/queries"
+		cp -R "${src_dir}/queries/." "${vendor_dir}/queries/"
+	fi
+}
+
+download_cli
+
+RUNTIME_SRC=""
+C_GRAMMAR_SRC=""
+BASH_GRAMMAR_SRC=""
+HTML_GRAMMAR_SRC=""
+JAVASCRIPT_GRAMMAR_SRC=""
+CSS_GRAMMAR_SRC=""
+
+download_repo_tarball "tree-sitter/tree-sitter" "${TREE_SITTER_RUNTIME_REF}" RUNTIME_SRC
+download_repo_tarball "tree-sitter/tree-sitter-c" "${TREE_SITTER_C_GRAMMAR_REF}" C_GRAMMAR_SRC
+download_repo_tarball "tree-sitter/tree-sitter-bash" "${TREE_SITTER_BASH_GRAMMAR_REF}" BASH_GRAMMAR_SRC
+download_repo_tarball "tree-sitter/tree-sitter-html" "${TREE_SITTER_HTML_GRAMMAR_REF}" HTML_GRAMMAR_SRC
+download_repo_tarball "tree-sitter/tree-sitter-javascript" "${TREE_SITTER_JAVASCRIPT_GRAMMAR_REF}" JAVASCRIPT_GRAMMAR_SRC
+download_repo_tarball "tree-sitter/tree-sitter-css" "${TREE_SITTER_CSS_GRAMMAR_REF}" CSS_GRAMMAR_SRC
 
 if [[ ! -d "${RUNTIME_SRC}/lib/src" || ! -f "${RUNTIME_SRC}/lib/include/tree_sitter/api.h" ]]; then
 	echo "Runtime source layout not found in ${TREE_SITTER_RUNTIME_REF}" >&2
 	exit 1
 fi
 
-echo "Downloading C grammar source ref: ${TREE_SITTER_C_GRAMMAR_REF}" >&2
-GRAMMAR_TARBALL="${TMP_DIR}/tree-sitter-c.tar.gz"
-curl -fsSL "https://github.com/tree-sitter/tree-sitter-c/archive/${TREE_SITTER_C_GRAMMAR_REF}.tar.gz" -o "${GRAMMAR_TARBALL}"
-GRAMMAR_TOP="$(tar -tzf "${GRAMMAR_TARBALL}" | head -n 1 | cut -d/ -f1)"
-tar -xzf "${GRAMMAR_TARBALL}" -C "${TMP_DIR}"
-GRAMMAR_SRC="${TMP_DIR}/${GRAMMAR_TOP}"
-
-if [[ ! -d "${GRAMMAR_SRC}/src" || ! -f "${GRAMMAR_SRC}/grammar.js" ]]; then
-	echo "Grammar source layout not found in ${TREE_SITTER_C_GRAMMAR_REF}" >&2
-	exit 1
-fi
-
-echo "Downloading Bash grammar source ref: ${TREE_SITTER_BASH_GRAMMAR_REF}" >&2
-BASH_GRAMMAR_TARBALL="${TMP_DIR}/tree-sitter-bash.tar.gz"
-curl -fsSL "https://github.com/tree-sitter/tree-sitter-bash/archive/${TREE_SITTER_BASH_GRAMMAR_REF}.tar.gz" -o "${BASH_GRAMMAR_TARBALL}"
-BASH_GRAMMAR_TOP="$(tar -tzf "${BASH_GRAMMAR_TARBALL}" | head -n 1 | cut -d/ -f1)"
-tar -xzf "${BASH_GRAMMAR_TARBALL}" -C "${TMP_DIR}"
-BASH_GRAMMAR_SRC="${TMP_DIR}/${BASH_GRAMMAR_TOP}"
-
-if [[ ! -d "${BASH_GRAMMAR_SRC}/src" || ! -f "${BASH_GRAMMAR_SRC}/grammar.js" ]]; then
-	echo "Grammar source layout not found in ${TREE_SITTER_BASH_GRAMMAR_REF}" >&2
-	exit 1
-fi
-
-echo "Regenerating C parser with official CLI binary" >&2
-(
-	cd "${GRAMMAR_SRC}"
-	"${CLI_BIN}" generate
-)
-
-echo "Regenerating Bash parser with official CLI binary" >&2
-(
-	cd "${BASH_GRAMMAR_SRC}"
-	"${CLI_BIN}" generate
-)
+regenerate_parser "${C_GRAMMAR_SRC}" "C"
+regenerate_parser "${BASH_GRAMMAR_SRC}" "Bash"
+regenerate_parser "${HTML_GRAMMAR_SRC}" "HTML"
+regenerate_parser "${JAVASCRIPT_GRAMMAR_SRC}" "JavaScript"
+regenerate_parser "${CSS_GRAMMAR_SRC}" "CSS"
 
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
-GRAMMAR_VENDOR="${REPO_ROOT}/vendor/tree_sitter/grammars/c"
-BASH_GRAMMAR_VENDOR="${REPO_ROOT}/vendor/tree_sitter/grammars/bash"
-
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
 rm -rf "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
@@ -166,49 +207,11 @@ cp "${RUNTIME_SRC}/lib/include/tree_sitter/api.h" "${RUNTIME_VENDOR}/include/tre
 cp "${RUNTIME_SRC}/LICENSE" "${RUNTIME_VENDOR}/LICENSE"
 cp "${RUNTIME_SRC}/lib/README.md" "${RUNTIME_VENDOR}/README.upstream.md"
 
-mkdir -p "${GRAMMAR_VENDOR}/src/tree_sitter"
-rm -rf "${GRAMMAR_VENDOR}/src"
-mkdir -p "${GRAMMAR_VENDOR}/src/tree_sitter"
-cp "${GRAMMAR_SRC}/src/parser.c" "${GRAMMAR_VENDOR}/src/parser.c"
-if [[ -f "${GRAMMAR_SRC}/src/scanner.c" ]]; then
-	cp "${GRAMMAR_SRC}/src/scanner.c" "${GRAMMAR_VENDOR}/src/scanner.c"
-fi
-cp "${GRAMMAR_SRC}/src/tree_sitter/parser.h" "${GRAMMAR_VENDOR}/src/tree_sitter/parser.h"
-cp "${GRAMMAR_SRC}/src/grammar.json" "${GRAMMAR_VENDOR}/src/grammar.json"
-cp "${GRAMMAR_SRC}/src/node-types.json" "${GRAMMAR_VENDOR}/src/node-types.json"
-cp "${GRAMMAR_SRC}/grammar.js" "${GRAMMAR_VENDOR}/grammar.js"
-cp "${GRAMMAR_SRC}/tree-sitter.json" "${GRAMMAR_VENDOR}/tree-sitter.json"
-cp "${GRAMMAR_SRC}/package.json" "${GRAMMAR_VENDOR}/package.json"
-cp "${GRAMMAR_SRC}/LICENSE" "${GRAMMAR_VENDOR}/LICENSE"
-cp "${GRAMMAR_SRC}/README.md" "${GRAMMAR_VENDOR}/README.upstream.md"
-
-mkdir -p "${GRAMMAR_VENDOR}/queries"
-if [[ -f "${GRAMMAR_SRC}/queries/highlights.scm" ]]; then
-	cp "${GRAMMAR_SRC}/queries/highlights.scm" "${GRAMMAR_VENDOR}/queries/highlights.scm"
-fi
-
-mkdir -p "${BASH_GRAMMAR_VENDOR}/src/tree_sitter"
-rm -rf "${BASH_GRAMMAR_VENDOR}/src"
-mkdir -p "${BASH_GRAMMAR_VENDOR}/src/tree_sitter"
-cp "${BASH_GRAMMAR_SRC}/src/parser.c" "${BASH_GRAMMAR_VENDOR}/src/parser.c"
-if [[ -f "${BASH_GRAMMAR_SRC}/src/scanner.c" ]]; then
-	cp "${BASH_GRAMMAR_SRC}/src/scanner.c" "${BASH_GRAMMAR_VENDOR}/src/scanner.c"
-fi
-if [[ -d "${BASH_GRAMMAR_SRC}/src/tree_sitter" ]]; then
-	cp -R "${BASH_GRAMMAR_SRC}/src/tree_sitter/." "${BASH_GRAMMAR_VENDOR}/src/tree_sitter/"
-fi
-cp "${BASH_GRAMMAR_SRC}/src/grammar.json" "${BASH_GRAMMAR_VENDOR}/src/grammar.json"
-cp "${BASH_GRAMMAR_SRC}/src/node-types.json" "${BASH_GRAMMAR_VENDOR}/src/node-types.json"
-cp "${BASH_GRAMMAR_SRC}/grammar.js" "${BASH_GRAMMAR_VENDOR}/grammar.js"
-cp "${BASH_GRAMMAR_SRC}/tree-sitter.json" "${BASH_GRAMMAR_VENDOR}/tree-sitter.json"
-cp "${BASH_GRAMMAR_SRC}/package.json" "${BASH_GRAMMAR_VENDOR}/package.json"
-cp "${BASH_GRAMMAR_SRC}/LICENSE" "${BASH_GRAMMAR_VENDOR}/LICENSE"
-cp "${BASH_GRAMMAR_SRC}/README.md" "${BASH_GRAMMAR_VENDOR}/README.upstream.md"
-
-mkdir -p "${BASH_GRAMMAR_VENDOR}/queries"
-if [[ -f "${BASH_GRAMMAR_SRC}/queries/highlights.scm" ]]; then
-	cp "${BASH_GRAMMAR_SRC}/queries/highlights.scm" "${BASH_GRAMMAR_VENDOR}/queries/highlights.scm"
-fi
+sync_grammar_vendor "${C_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/c"
+sync_grammar_vendor "${BASH_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/bash"
+sync_grammar_vendor "${HTML_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/html"
+sync_grammar_vendor "${JAVASCRIPT_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/javascript"
+sync_grammar_vendor "${CSS_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/css"
 
 echo "Tree-sitter vendor refresh complete." >&2
 echo "If you changed refs/releases, update vendor/tree_sitter/VERSIONS.env and VERSIONS.md." >&2
