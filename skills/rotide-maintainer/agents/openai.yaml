@@ -1,4 +1,4 @@
 interface:
   display_name: "Rotide Maintainer"
-  short_description: "Edit rotide.c safely and validate with the project build."
-  default_prompt: "Use this skill when making code or docs changes in the rotide project."
+  short_description: "Maintain RotIDE across core editor, keymap/config, tests, and syntax integration."
+  default_prompt: "Use this skill for code/docs/test changes in rotide, then validate with make + test targets."

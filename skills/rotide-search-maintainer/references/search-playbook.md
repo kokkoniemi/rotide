@@ -3,48 +3,38 @@
 ## Primary touchpoints
 
 - `input.c`
-  - `editorProcessKeypress()` for key dispatch (`Ctrl-F`, `Ctrl-N`, `Ctrl-P`)
-  - prompt flow (`editorPrompt`) for live query updates
-  - cursor positioning and movement helpers
+  - `editorFind()` + `editorFindCallback()` for query lifecycle and incremental selection
+  - prompt flow (`editorPromptWithCallback()` / `editorPrompt()`) for live query updates
+  - cursor restore/alignment helpers for cancel/confirm behavior
 - `output.c`
-  - row draw path for active-match highlight rendering
+  - row draw path (`editorDrawRenderSlice`) for active-match highlight rendering
   - keep status/message bar behavior stable
 - `rotide.h`
-  - editor state fields needed by search flow/highlight flow
+  - editor state fields used by search flow/highlight flow
 - `tests/rotide_tests.c`
   - search behavior tests and rendering checks
 
-## Recommended state model
+## Current state model
 
-Keep search state explicit and owned by editor state:
+Keep search state explicit and owned by editor state (`E`):
 
-- active query buffer (or pointer)
-- active match row/column span
-- last navigation direction (`+1` forward, `-1` backward)
-- saved cursor position for prompt cancel rollback
+- active query pointer (`E.search_query`)
+- active match row/start/len (`E.search_match_row`, `E.search_match_start`, `E.search_match_len`)
+- current navigation direction (`E.search_direction`)
+- saved cursor for prompt cancel rollback (`E.search_saved_cx`, `E.search_saved_cy`)
 
 Avoid storing search-only state in row structs.
 
-## Prompt and callback strategy
+## Prompt flow and navigation behavior
 
-Current prompt API is synchronous and save uses it directly.
-Prefer additive evolution:
-
-1. Add callback-capable prompt internals.
-2. Keep `editorPrompt(const char *prompt)` as compatibility wrapper.
-3. Implement search prompt on top of callback path for live updates.
-
-This avoids regressions in save and keeps API churn low.
-
-## Match and navigation behavior
-
-Default behavior:
+Current behavior baseline:
 
 - `Ctrl-F`: start prompt and jump to first match while typing.
+- `Down/Right`: move to next match while prompt is active.
+- `Up/Left`: move to previous match while prompt is active.
 - Enter: confirm current match.
 - Esc: cancel and restore pre-search cursor position.
-- `Ctrl-N`: move to next match after a search exists.
-- `Ctrl-P`: move to previous match after a search exists.
+- Empty query: restore cursor and clear active match.
 
 Navigation rules:
 
@@ -59,6 +49,7 @@ Use VT100 inverted colors around the active visible match span only.
 - start highlight before visible match bytes
 - reset colors immediately after highlighted bytes
 - avoid leaking styles across subsequent text/rows
+- preserve expected precedence interactions with syntax and selection overlays
 
 Compute highlight byte spans from `row->chars` indices and convert as needed for render slicing.
 
@@ -77,7 +68,7 @@ Add tests covering at least:
 - `Ctrl-F` opens prompt and incremental query updates select matches.
 - Enter confirmation keeps matched cursor location.
 - Esc cancellation restores original cursor location.
-- `Ctrl-N` and `Ctrl-P` traverse matches with wrap-around.
+- prompt arrow navigation traverses matches with wrap-around.
 - refresh output includes highlight escape sequences for active match.
 - no-match query does not crash and leaves stable state.
 
@@ -89,4 +80,4 @@ Run:
 For search rendering regressions, run interactive smoke check:
 
 - `./rotide README.md`
-- verify typing, search, movement, scrolling, save, quit.
+- verify typing, search prompt navigation, movement, scrolling, save, quit.

@@ -1,30 +1,30 @@
 ---
 name: rotide-search-maintainer
-description: Implement and refine incremental search in rotide, including Ctrl-F prompt flow, live match navigation, match highlighting, and follow-up next/previous navigation (Ctrl-N/Ctrl-P). Use when editing or reviewing search behavior in input/render/state paths, adding tests for search interactions, or stabilizing regressions in search cursor movement and highlight rendering.
+description: Maintain and refine RotIDE incremental search, including Ctrl-F prompt flow, live match navigation, prompt-arrow traversal, and active-match highlighting. Use when editing or reviewing search behavior in input/render/state paths, adding tests for search interactions, or stabilizing regressions in search cursor movement and highlight rendering.
 ---
 
 # Rotide Search Maintainer
 
 ## Overview
 
-Implement search features without breaking existing editor invariants.
-Prefer minimal, additive changes that preserve save/prompt behavior and existing UTF-8 cursor semantics.
+Maintain search behavior without breaking existing editor invariants.
+Prefer minimal, additive changes that preserve save/prompt compatibility, keymap-driven actions, and UTF-8 cursor semantics.
 
 ## Workflow
 
 1. Read `references/search-playbook.md` for touchpoints and acceptance behavior.
-2. Inspect current key and prompt flow in `input.c` before changing search behavior.
-3. Add search state and behavior in small steps:
-   - state shape
+2. Inspect current search flow in `input.c` (`editorFind()`, `editorFindCallback()`, prompt callback path) before changing behavior.
+3. Implement search changes in small steps:
+   - state transitions
    - prompt and live navigation
-   - render highlight
-   - next/previous shortcuts
+   - active match highlight rendering
+   - status/cancel/confirm behavior
 4. Update or add tests in `tests/rotide_tests.c` with behavior-focused assertions.
 5. Run `make` and `make test`.
 6. If render/search behavior changes, run an interactive smoke check (`./rotide README.md`) and verify:
    - `Ctrl-F` prompt updates matches live
    - Enter confirms match and Esc cancels prompt
-   - `Ctrl-N` / `Ctrl-P` move between matches
+   - prompt arrow navigation (`Up/Down` or `Left/Right`) moves between matches with wrap-around
    - highlight appears only for active match context
 
 ## Guardrails
@@ -45,8 +45,8 @@ Prefer minimal, additive changes that preserve save/prompt behavior and existing
 
 ## Implementation Defaults
 
-- Additive prompt strategy:
-  - introduce callback-capable prompt handling internally
+- Existing prompt strategy:
+  - reuse callback-capable prompt internals (`editorPromptWithCallback(...)`)
   - keep a simple `editorPrompt(...)` wrapper for existing call sites
 - Search state location:
   - store active query/match metadata in `editorConfig` (or an equivalent owned state object reachable from input/output code)
@@ -63,10 +63,10 @@ Prefer minimal, additive changes that preserve save/prompt behavior and existing
   - opening search prompt and finding first match
   - incremental movement while typing query
   - cancel/confirm behavior restoring or preserving cursor as intended
-  - Ctrl-N / Ctrl-P traversal and wrap-around
+  - prompt arrow traversal and wrap-around
   - highlight escape sequences in captured refresh output
 - Keep existing non-search tests passing.
 
 ## References
 
-- Load `references/search-playbook.md` before implementing feature work with this skill.
+- Load `references/search-playbook.md` before search feature/regression work.
