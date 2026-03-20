@@ -23,7 +23,7 @@ search, save, undo/redo, selection, tabs, and keymap configuration are implement
 - Mouse support (click, drag selection, vertical/horizontal wheel scroll).
 - Atomic save path with temp-file + rename strategy and cleanup handling.
 - Crash recovery via autosaved per-project recovery session files.
-- Tree-sitter foundation for C, shell, HTML, JavaScript, and CSS buffers with per-tab incremental parse state.
+- Tree-sitter foundation for C, Go, shell, HTML, JavaScript, and CSS buffers with per-tab incremental parse state.
 - HTML syntax injections for embedded JavaScript/CSS (`<script>` / `<style>`) with incremental reparse.
 - Tree-sitter-driven syntax highlighting with predicate and local-scope filtering for language queries.
 - Configurable keymap via TOML (`~/.rotide/config.toml` and `./.rotide.toml`).
@@ -167,11 +167,12 @@ A full example with all configurable actions is included at project root:
 - If you restore a session, startup file arguments are ignored for that launch.
 - Recovery data is deleted on clean exit and when the session becomes fully clean.
 
-## Tree-sitter integration (C + shell + web)
+## Tree-sitter integration (C + Go + shell + web)
 
-- RotIDE embeds vendored Tree-sitter runtime + C/bash/html/javascript/css grammar sources; builds do not require a system Tree-sitter install.
+- RotIDE embeds vendored Tree-sitter runtime + C/go/bash/html/javascript/css grammar sources; builds do not require a system Tree-sitter install.
 - Syntax state is per tab/buffer and currently enabled for:
   - C: `.c`, `.h`
+  - Go: `.go`, `go.mod`, `go.sum`
   - Shell: `.sh`, `.bash`, `.zsh`, `.ksh`, and common rc files (`.bashrc`, `.zshrc`, `.profile`, `.bash_profile`, `.bash_login`, `.kshrc`)
   - HTML: `.html`, `.htm`, `.xhtml` (with embedded JS/CSS injections for `<script>` / `<style>`)
   - JavaScript: `.js`, `.mjs`, `.cjs`, `.jsx`
@@ -190,7 +191,7 @@ A full example with all configurable actions is included at project root:
 ./scripts/refresh_tree_sitter_vendor.sh
 ```
 
-- The script downloads the pinned Tree-sitter CLI release asset for the current host, verifies SHA-256 using release metadata, regenerates C/bash/html/javascript/css parsers, and updates `vendor/tree_sitter/...`.
+- The script downloads the pinned Tree-sitter CLI release asset for the current host, verifies SHA-256 using release metadata, regenerates C/go/bash/html/javascript/css parsers, and updates `vendor/tree_sitter/...`.
 
 ## Clipboard integration (OSC52)
 
@@ -236,7 +237,7 @@ ASAN_OPTIONS=detect_leaks=0 make test-sanitize
 - `save_syscalls.c`/`save_syscalls.h`: save syscall wrappers/failure injection.
 - `tests/`: unit and behavior tests.
 - `syntax.c`/`syntax.h`: Tree-sitter integration and incremental parse wrapper.
-- `vendor/tree_sitter/`: vendored Tree-sitter runtime + C/bash/html/javascript/css grammar sources.
+- `vendor/tree_sitter/`: vendored Tree-sitter runtime + C/go/bash/html/javascript/css grammar sources.
 - `scripts/refresh_tree_sitter_vendor.sh`: maintainer helper to refresh vendored Tree-sitter artifacts.
 
 ## License

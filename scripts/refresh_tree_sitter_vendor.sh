@@ -175,6 +175,7 @@ download_cli
 
 RUNTIME_SRC=""
 C_GRAMMAR_SRC=""
+GO_GRAMMAR_SRC=""
 BASH_GRAMMAR_SRC=""
 HTML_GRAMMAR_SRC=""
 JAVASCRIPT_GRAMMAR_SRC=""
@@ -182,6 +183,7 @@ CSS_GRAMMAR_SRC=""
 
 download_repo_tarball "tree-sitter/tree-sitter" "${TREE_SITTER_RUNTIME_REF}" RUNTIME_SRC
 download_repo_tarball "tree-sitter/tree-sitter-c" "${TREE_SITTER_C_GRAMMAR_REF}" C_GRAMMAR_SRC
+download_repo_tarball "tree-sitter/tree-sitter-go" "${TREE_SITTER_GO_GRAMMAR_REF}" GO_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-bash" "${TREE_SITTER_BASH_GRAMMAR_REF}" BASH_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-html" "${TREE_SITTER_HTML_GRAMMAR_REF}" HTML_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-javascript" "${TREE_SITTER_JAVASCRIPT_GRAMMAR_REF}" JAVASCRIPT_GRAMMAR_SRC
@@ -193,6 +195,7 @@ if [[ ! -d "${RUNTIME_SRC}/lib/src" || ! -f "${RUNTIME_SRC}/lib/include/tree_sit
 fi
 
 regenerate_parser "${C_GRAMMAR_SRC}" "C"
+regenerate_parser "${GO_GRAMMAR_SRC}" "Go"
 regenerate_parser "${BASH_GRAMMAR_SRC}" "Bash"
 regenerate_parser "${HTML_GRAMMAR_SRC}" "HTML"
 regenerate_parser "${JAVASCRIPT_GRAMMAR_SRC}" "JavaScript"
@@ -208,6 +211,7 @@ cp "${RUNTIME_SRC}/LICENSE" "${RUNTIME_VENDOR}/LICENSE"
 cp "${RUNTIME_SRC}/lib/README.md" "${RUNTIME_VENDOR}/README.upstream.md"
 
 sync_grammar_vendor "${C_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/c"
+sync_grammar_vendor "${GO_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/go"
 sync_grammar_vendor "${BASH_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/bash"
 sync_grammar_vendor "${HTML_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/html"
 sync_grammar_vendor "${JAVASCRIPT_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/javascript"

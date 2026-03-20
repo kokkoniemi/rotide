@@ -976,6 +976,51 @@ static int test_editor_syntax_activation_for_html_js_and_css_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_go_and_mod_files(void) {
+	char go_path[] = "/tmp/rotide-test-syntax-go-XXXXXX.go";
+	int go_fd = mkstemps(go_path, 3);
+	ASSERT_TRUE(go_fd != -1);
+	const char *go_source = "package main\n\nfunc main() { var n int = 1 }\n";
+	ASSERT_TRUE(write_all(go_fd, go_source, strlen(go_source)) == 0);
+	ASSERT_TRUE(close(go_fd) == 0);
+
+	editorOpen(go_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_GO, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("source_file", editorSyntaxRootType());
+
+	char mod_dir_template[] = "/tmp/rotide-test-syntax-go-mod-XXXXXX";
+	char *mod_dir = mkdtemp(mod_dir_template);
+	ASSERT_TRUE(mod_dir != NULL);
+
+	char mod_path[512];
+	ASSERT_TRUE(path_join(mod_path, sizeof(mod_path), mod_dir, "go.mod"));
+	ASSERT_TRUE(write_text_file(mod_path, "module example.com/rotide\n\ngo 1.22\n"));
+
+	editorOpen(mod_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_GO, editorSyntaxLanguageActive());
+
+	char sum_path[512];
+	ASSERT_TRUE(path_join(sum_path, sizeof(sum_path), mod_dir, "go.sum"));
+	ASSERT_TRUE(write_text_file(sum_path,
+			"example.com/mod v1.0.0 h1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa=\n"));
+
+	editorOpen(sum_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_GO, editorSyntaxLanguageActive());
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	ASSERT_TRUE(unlink(mod_path) == 0);
+	ASSERT_TRUE(unlink(sum_path) == 0);
+	ASSERT_TRUE(rmdir(mod_dir) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_disabled_for_non_c_or_shell_files(void) {
 	char path[] = "/tmp/rotide-test-syntax-txt-XXXXXX.txt";
 	int fd = mkstemps(path, 4);
@@ -1177,6 +1222,44 @@ static int test_editor_save_as_c_file_enables_syntax(void) {
 	return 0;
 }
 
+static int test_editor_save_as_go_file_enables_syntax(void) {
+	char path[] = "/tmp/rotide-test-syntax-saveas-go-XXXXXX.go";
+	int fd = mkstemps(path, 3);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(unlink(path) == 0);
+
+	add_row("package main");
+	add_row("");
+	add_row("func main() { var n int = 1 }");
+	E.dirty = 1;
+	ASSERT_TRUE(E.filename == NULL);
+
+	char input[256];
+	int written = snprintf(input, sizeof(input), "%s\r", path);
+	ASSERT_TRUE(written > 0);
+	ASSERT_TRUE((size_t)written < sizeof(input));
+
+	int saved_stdin;
+	int saved_stdout;
+	ASSERT_TRUE(setup_stdin_bytes(input, (size_t)written, &saved_stdin) == 0);
+	ASSERT_TRUE(redirect_stdout_to_devnull(&saved_stdout) == 0);
+
+	editorSave();
+
+	ASSERT_TRUE(restore_stdout(saved_stdout) == 0);
+	ASSERT_TRUE(restore_stdin(saved_stdin) == 0);
+
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_GO, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("source_file", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_incremental_edits_keep_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-XXXXXX.c";
 	int fd = mkstemps(path, 2);
@@ -1355,6 +1438,39 @@ static int test_editor_syntax_incremental_edits_keep_css_tree_valid(void) {
 
 	E.cy = 0;
 	E.cx = E.rows[0].size;
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_incremental_edits_keep_go_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-go-XXXXXX.go";
+	int fd = mkstemps(path, 3);
+	ASSERT_TRUE(fd != -1);
+	const char *source =
+			"package main\n\n"
+			"func main() {\n"
+			"\tvar n int = 1\n"
+			"}\n";
+	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_GO, editorSyntaxLanguageActive());
+
+	E.cy = 3;
+	E.cx = 1;
+	editorInsertChar('x');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 2;
+	E.cx = E.rows[2].size;
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -6720,6 +6836,44 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_css_tokens
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_go_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-go-XXXXXX.go";
+	int fd = mkstemps(path, 3);
+	ASSERT_TRUE(fd != -1);
+	const char *source =
+			"package main\n"
+			"// comment\n"
+			"type payload struct{}\n"
+			"func main() {\n"
+			"  var p payload\n"
+			"  p = payload{}\n"
+			"  n := 42\n"
+			"  s := \"txt\"\n"
+			"}\n";
+	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	editorOpen(path);
+	E.window_rows = 12;
+	E.window_cols = 120;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mpackage\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m// comment\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96mpayload\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[93mmain\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m42\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"txt\"\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_javascript_predicates_and_locals(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-js-pred-XXXXXX.js";
 	int fd = mkstemps(path, 3);
@@ -7851,9 +8005,13 @@ int main(void) {
 				test_editor_syntax_activation_for_shell_files_and_shebang},
 			{"editor_syntax_activation_for_html_js_and_css_files",
 				test_editor_syntax_activation_for_html_js_and_css_files},
+			{"editor_syntax_activation_for_go_and_mod_files",
+				test_editor_syntax_activation_for_go_and_mod_files},
 			{"editor_syntax_disabled_for_non_c_or_shell_files",
 				test_editor_syntax_disabled_for_non_c_or_shell_files},
 			{"editor_save_as_c_file_enables_syntax", test_editor_save_as_c_file_enables_syntax},
+			{"editor_save_as_go_file_enables_syntax",
+				test_editor_save_as_go_file_enables_syntax},
 			{"editor_save_as_shell_and_non_shell_updates_syntax",
 				test_editor_save_as_shell_and_non_shell_updates_syntax},
 			{"editor_save_as_web_and_plain_updates_syntax",
@@ -7868,6 +8026,8 @@ int main(void) {
 					test_editor_syntax_incremental_edits_keep_javascript_tree_valid},
 				{"editor_syntax_incremental_edits_keep_css_tree_valid",
 					test_editor_syntax_incremental_edits_keep_css_tree_valid},
+				{"editor_syntax_incremental_edits_keep_go_tree_valid",
+					test_editor_syntax_incremental_edits_keep_go_tree_valid},
 				{"editor_syntax_query_budget_match_limit_is_graceful",
 					test_editor_syntax_query_budget_match_limit_is_graceful},
 				{"editor_syntax_parse_budget_is_graceful",
@@ -8237,6 +8397,8 @@ int main(void) {
 				test_editor_refresh_screen_applies_syntax_highlighting_for_javascript_tokens},
 			{"editor_refresh_screen_applies_syntax_highlighting_for_css_tokens",
 				test_editor_refresh_screen_applies_syntax_highlighting_for_css_tokens},
+			{"editor_refresh_screen_applies_syntax_highlighting_for_go_tokens",
+				test_editor_refresh_screen_applies_syntax_highlighting_for_go_tokens},
 				{"editor_refresh_screen_javascript_predicates_and_locals",
 					test_editor_refresh_screen_javascript_predicates_and_locals},
 				{"editor_refresh_screen_javascript_predicates_repeat_refresh",
