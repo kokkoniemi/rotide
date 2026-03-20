@@ -153,7 +153,8 @@ static int editorDecodeSgrMousePayload(const char *payload, struct editorMouseEv
 
 	// SGR uses lowercase 'm' for release.
 	if (suffix == 'm') {
-		if (!has_motion && !has_wheel && button == 0) {
+		// Different terminals encode release as either button 0 or button 3.
+		if (!has_motion && !has_wheel && (button == 0 || button == 3)) {
 			event_out->kind = EDITOR_MOUSE_EVENT_LEFT_RELEASE;
 		}
 		return 1;
@@ -641,7 +642,7 @@ int editorReadKey(void) {
 					return '\x1b';
 				}
 				if (event.kind == EDITOR_MOUSE_EVENT_NONE) {
-					// Valid mouse packet we intentionally ignore (release/drag/unsupported button).
+					// Valid mouse packet we intentionally ignore (unsupported button/modifier combo).
 					continue;
 				}
 				pending_mouse_event = event;

@@ -1034,6 +1034,8 @@ static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 	}
 
 	E.pane_focus = EDITOR_PANE_TEXT;
+	// A fresh text click exits any previous selection; dragging can start a new one.
+	editorClearSelectionMode();
 	E.mouse_left_button_down = 1;
 	E.mouse_drag_anchor_cx = E.cx;
 	E.mouse_drag_anchor_cy = E.cy;
