@@ -1203,12 +1203,24 @@ static int editorDrawTabSlots(struct writeBuf *wb, int cols) {
 
 		if (slot_cols < content_width) {
 			const char *label = editorTabLabelFromFilename(editorTabFilenameAt(tab_idx));
-			int label_cols = content_width - slot_cols;
+			int right_pad_cols = 3;
+			int label_cols = content_width - slot_cols - right_pad_cols;
+			if (label_cols < 0) {
+				label_cols = 0;
+			}
 			int written = 0;
 			if (!editorAppendSanitizedMiddleTruncated(wb, label, label_cols, &written)) {
 				return 0;
 			}
 			slot_cols += written;
+
+			while (right_pad_cols > 0 && slot_cols < content_width) {
+				if (!wbAppend(wb, " ", 1)) {
+					return 0;
+				}
+				slot_cols++;
+				right_pad_cols--;
+			}
 		}
 
 		while (slot_cols < content_width) {

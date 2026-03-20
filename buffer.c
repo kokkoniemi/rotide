@@ -2786,7 +2786,8 @@ static int editorTabLabelColsAt(int tab_idx) {
 }
 
 static int editorTabWidthColsAt(int tab_idx) {
-	return 3 + editorTabLabelColsAt(tab_idx);
+	// marker + dirty + left label pad + label + matching right pad
+	return 6 + editorTabLabelColsAt(tab_idx);
 }
 
 static void editorTabVisibleRangeFromStart(int start_idx, int cols, int *last_idx_out) {

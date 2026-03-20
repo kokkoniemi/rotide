@@ -7683,7 +7683,8 @@ static int test_editor_refresh_screen_renders_tab_bar_with_overflow_and_sanitize
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[7m") != NULL);
-	ASSERT_TRUE(strstr(output, "* a^[[31m.txt") != NULL);
+	ASSERT_TRUE(strstr(output, "* a") != NULL);
+	ASSERT_TRUE(strstr(output, "   >\x1b[m") != NULL);
 	ASSERT_TRUE(strstr(output, "beta.txt") == NULL);
 	ASSERT_TRUE(strstr(output, "gamma.txt") == NULL);
 	ASSERT_TRUE(strstr(output, ">") != NULL);
@@ -7706,6 +7707,20 @@ static int test_editor_refresh_screen_tab_labels_middle_truncate_at_25_cols(void
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, "aaaaaaaaaaa...ccccccccccc") != NULL);
 	free(output);
+	return 0;
+}
+
+static int test_editor_tab_layout_width_includes_right_label_padding(void) {
+	ASSERT_TRUE(editorTabsInit());
+	free(E.filename);
+	E.filename = strdup("/tmp/ab.txt");
+	ASSERT_TRUE(E.filename != NULL);
+
+	struct editorTabLayoutEntry layout[ROTIDE_MAX_TABS];
+	int layout_count = 0;
+	ASSERT_TRUE(editorTabBuildLayoutForWidth(80, layout, ROTIDE_MAX_TABS, &layout_count));
+	ASSERT_EQ_INT(1, layout_count);
+	ASSERT_EQ_INT(6 + (int)strlen("ab.txt"), layout[0].width_cols);
 	return 0;
 }
 
@@ -8935,6 +8950,8 @@ int main(void) {
 				test_editor_refresh_screen_renders_tab_bar_with_overflow_and_sanitized_labels},
 			{"editor_refresh_screen_tab_labels_middle_truncate_at_25_cols",
 				test_editor_refresh_screen_tab_labels_middle_truncate_at_25_cols},
+			{"editor_tab_layout_width_includes_right_label_padding",
+				test_editor_tab_layout_width_includes_right_label_padding},
 			{"editor_tabs_align_view_keeps_active_visible_with_variable_widths",
 				test_editor_tabs_align_view_keeps_active_visible_with_variable_widths},
 			{"editor_refresh_screen_renders_drawer_entries_and_selection",
