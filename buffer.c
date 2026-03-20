@@ -2,6 +2,7 @@
 
 #include "alloc.h"
 #include "input.h"
+#include "lsp.h"
 #include "output.h"
 #include "save_syscalls.h"
 #include "size_utils.h"
@@ -37,6 +38,13 @@ static void editorSyntaxDisableWithStatus(const char *message);
 static void editorSyntaxVisibleCacheInvalidate(void);
 static void editorSyntaxVisibleCacheInvalidateRows(int start_row, int end_row_exclusive);
 static void editorSyntaxReportBudgetStatusIfNeeded(void);
+static int editorTabFindOpenFileIndex(const char *path);
+static int editorLspActiveBufferTracked(void);
+static int editorLspBuildCurrentSource(char **source_out, size_t *source_len_out);
+static void editorLspNotifyDidChangeActive(const struct editorSyntaxEdit *edit,
+		const char *inserted_text, size_t inserted_len);
+static void editorLspNotifyDidSaveActive(void);
+static void editorLspNotifyDidCloseTabState(struct editorTabState *tab);
 
 static void editorSetAllocFailureStatus(void) {
 	editorSetStatusMsg("Out of memory");
@@ -289,6 +297,76 @@ static int editorSyntaxApplyIncrementalEditActive(const struct editorSyntaxEdit 
 	editorSyntaxReportBudgetStatusIfNeeded();
 	editorSyntaxVisibleCacheInvalidate();
 	return 1;
+}
+
+static int editorLspActiveBufferTracked(void) {
+	return E.lsp_enabled &&
+			E.filename != NULL &&
+			E.filename[0] != '\0' &&
+			E.syntax_language == EDITOR_SYNTAX_GO;
+}
+
+static int editorLspBuildCurrentSource(char **source_out, size_t *source_len_out) {
+	if (!editorLspActiveBufferTracked()) {
+		if (source_out != NULL) {
+			*source_out = NULL;
+		}
+		if (source_len_out != NULL) {
+			*source_len_out = 0;
+		}
+		return 1;
+	}
+	return editorSyntaxBuildCurrentSource(source_out, source_len_out);
+}
+
+static void editorLspNotifyDidChangeActive(const struct editorSyntaxEdit *edit,
+		const char *inserted_text, size_t inserted_len) {
+	if (!editorLspActiveBufferTracked()) {
+		return;
+	}
+
+	char *full_text = NULL;
+	size_t full_text_len = 0;
+	if (!E.lsp_doc_open) {
+		if (!editorLspBuildCurrentSource(&full_text, &full_text_len)) {
+			free(full_text);
+			return;
+		}
+	}
+
+	(void)editorLspNotifyDidChange(E.filename, E.syntax_language,
+			&E.lsp_doc_open, &E.lsp_doc_version, edit, inserted_text, inserted_len,
+			full_text != NULL ? full_text : "", full_text_len);
+	free(full_text);
+}
+
+static void editorLspNotifyDidSaveActive(void) {
+	if (!editorLspActiveBufferTracked()) {
+		return;
+	}
+
+	char *full_text = NULL;
+	size_t full_text_len = 0;
+	if (!E.lsp_doc_open) {
+		if (!editorLspBuildCurrentSource(&full_text, &full_text_len)) {
+			free(full_text);
+			return;
+		}
+		(void)editorLspEnsureDocumentOpen(E.filename, E.syntax_language,
+				&E.lsp_doc_open, &E.lsp_doc_version,
+				full_text != NULL ? full_text : "", full_text_len);
+	}
+	free(full_text);
+	(void)editorLspNotifyDidSave(E.filename, E.syntax_language,
+			&E.lsp_doc_open, &E.lsp_doc_version);
+}
+
+static void editorLspNotifyDidCloseTabState(struct editorTabState *tab) {
+	if (tab == NULL) {
+		return;
+	}
+	editorLspNotifyDidClose(tab->filename, tab->syntax_language,
+			&tab->lsp_doc_open, &tab->lsp_doc_version);
 }
 
 char *editorRowsToStr(size_t *buflen) {
@@ -1678,6 +1756,7 @@ int editorDeleteRange(const struct editorSelectionRange *range) {
 	if (syntax_track) {
 		(void)editorSyntaxApplyIncrementalEditActive(&syntax_edit, "", 0);
 	}
+	editorLspNotifyDidChangeActive(syntax_track ? &syntax_edit : NULL, "", 0);
 	free(new_text);
 	return 1;
 }
@@ -1969,6 +2048,8 @@ static void editorTabStateInitEmpty(struct editorTabState *tab) {
 	memset(tab, 0, sizeof(*tab));
 	tab->syntax_language = EDITOR_SYNTAX_NONE;
 	tab->syntax_state = NULL;
+	tab->lsp_doc_open = 0;
+	tab->lsp_doc_version = 0;
 	tab->row_start_bytes = NULL;
 	tab->row_start_bytes_count = 0;
 	tab->row_start_bytes_valid = 0;
@@ -1995,6 +2076,8 @@ static void editorResetActiveBufferFields(void) {
 	E.filename = NULL;
 	E.syntax_language = EDITOR_SYNTAX_NONE;
 	E.syntax_state = NULL;
+	E.lsp_doc_open = 0;
+	E.lsp_doc_version = 0;
 	E.search_query = NULL;
 	E.search_match_row = -1;
 	E.search_match_start = 0;
@@ -2100,6 +2183,8 @@ static void editorTabStateCaptureActive(struct editorTabState *tab) {
 	tab->filename = E.filename;
 	tab->syntax_language = E.syntax_language;
 	tab->syntax_state = E.syntax_state;
+	tab->lsp_doc_open = E.lsp_doc_open;
+	tab->lsp_doc_version = E.lsp_doc_version;
 	tab->search_query = E.search_query;
 	tab->search_match_row = E.search_match_row;
 	tab->search_match_start = E.search_match_start;
@@ -2141,6 +2226,8 @@ static void editorTabStateLoadActive(struct editorTabState *tab) {
 	E.filename = tab->filename;
 	E.syntax_language = tab->syntax_language;
 	E.syntax_state = tab->syntax_state;
+	E.lsp_doc_open = tab->lsp_doc_open;
+	E.lsp_doc_version = tab->lsp_doc_version;
 	E.search_query = tab->search_query;
 	E.search_match_row = tab->search_match_row;
 	E.search_match_start = tab->search_match_start;
@@ -2250,6 +2337,14 @@ int editorTabsInit(void) {
 }
 
 void editorTabsFreeAll(void) {
+	editorLspNotifyDidClose(E.filename, E.syntax_language, &E.lsp_doc_open, &E.lsp_doc_version);
+	if (E.tabs != NULL) {
+		for (int i = 0; i < E.tab_count; i++) {
+			editorLspNotifyDidCloseTabState(&E.tabs[i]);
+		}
+	}
+	editorLspShutdown();
+
 	editorFreeActiveBufferState();
 
 	if (E.tabs != NULL) {
@@ -2297,6 +2392,19 @@ int editorTabOpenFileAsNew(const char *filename) {
 	}
 	editorOpen(filename);
 	return 1;
+}
+
+int editorTabOpenOrSwitchToFile(const char *filename) {
+	if (filename == NULL || filename[0] == '\0') {
+		return 0;
+	}
+
+	int existing_tab = editorTabFindOpenFileIndex(filename);
+	if (existing_tab >= 0) {
+		return editorTabSwitchToIndex(existing_tab);
+	}
+
+	return editorTabOpenFileAsNew(filename);
 }
 
 static const char *editorTabPathAt(int idx) {
@@ -2377,6 +2485,7 @@ int editorTabCloseActive(void) {
 
 	editorStoreActiveTab();
 	int closing = E.active_tab;
+	editorLspNotifyDidCloseTabState(&E.tabs[closing]);
 	editorTabStateFree(&E.tabs[closing]);
 
 	if (E.tab_count == 1) {
@@ -3530,13 +3639,7 @@ int editorDrawerOpenSelectedFileInTab(void) {
 	if (lookup.node->is_dir || lookup.node->path == NULL || lookup.node->path[0] == '\0') {
 		return 0;
 	}
-
-	int existing_tab = editorTabFindOpenFileIndex(lookup.node->path);
-	if (existing_tab >= 0) {
-		return editorTabSwitchToIndex(existing_tab);
-	}
-
-	return editorTabOpenFileAsNew(lookup.node->path);
+	return editorTabOpenOrSwitchToFile(lookup.node->path);
 }
 
 const char *editorDrawerRootPath(void) {
@@ -3988,6 +4091,10 @@ void editorInsertChar(int c) {
 		if (syntax_track) {
 			char inserted[1] = {(char)c};
 			(void)editorSyntaxApplyIncrementalEditActive(&syntax_edit, inserted, 1);
+			editorLspNotifyDidChangeActive(&syntax_edit, inserted, 1);
+		} else {
+			char inserted[1] = {(char)c};
+			editorLspNotifyDidChangeActive(NULL, inserted, 1);
 		}
 	}
 }
@@ -4015,6 +4122,9 @@ void editorInsertNewline(void) {
 			E.cy++;
 			if (syntax_track) {
 				(void)editorSyntaxApplyIncrementalEditActive(&syntax_edit, "\n", 1);
+				editorLspNotifyDidChangeActive(&syntax_edit, "\n", 1);
+			} else {
+				editorLspNotifyDidChangeActive(NULL, "\n", 1);
 			}
 		}
 		return;
@@ -4071,6 +4181,9 @@ void editorInsertNewline(void) {
 	E.cx = 0;
 	if (syntax_track) {
 		(void)editorSyntaxApplyIncrementalEditActive(&syntax_edit, "\n", 1);
+		editorLspNotifyDidChangeActive(&syntax_edit, "\n", 1);
+	} else {
+		editorLspNotifyDidChangeActive(NULL, "\n", 1);
 	}
 }
 
@@ -4104,6 +4217,9 @@ void editorDelChar(void) {
 			E.cx = prev_cx;
 			if (syntax_track) {
 				(void)editorSyntaxApplyIncrementalEditActive(&syntax_edit, "", 0);
+				editorLspNotifyDidChangeActive(&syntax_edit, "", 0);
+			} else {
+				editorLspNotifyDidChangeActive(NULL, "", 0);
 			}
 		}
 		return;
@@ -4138,10 +4254,14 @@ void editorDelChar(void) {
 	E.cy--;
 	if (syntax_track) {
 		(void)editorSyntaxApplyIncrementalEditActive(&syntax_edit, "", 0);
+		editorLspNotifyDidChangeActive(&syntax_edit, "", 0);
+	} else {
+		editorLspNotifyDidChangeActive(NULL, "", 0);
 	}
 }
 
 void editorOpen(const char *filename) {
+	editorLspNotifyDidClose(E.filename, E.syntax_language, &E.lsp_doc_open, &E.lsp_doc_version);
 	editorHistoryReset();
 	editorClearSelectionState();
 	free(E.filename);
@@ -4429,6 +4549,7 @@ void editorSave(void) {
 	E.dirty = 0;
 	free(tmp_path);
 	free(buf);
+	editorLspNotifyDidSaveActive();
 	editorSetStatusMsg("%zu bytes written to disk", len);
 	return;
 

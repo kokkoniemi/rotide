@@ -179,6 +179,7 @@ enum editorAction {
 	EDITOR_ACTION_RESIZE_DRAWER_WIDEN,
 	EDITOR_ACTION_FIND,
 	EDITOR_ACTION_GOTO_LINE,
+	EDITOR_ACTION_GOTO_DEFINITION,
 	EDITOR_ACTION_TOGGLE_SELECTION,
 	EDITOR_ACTION_COPY_SELECTION,
 	EDITOR_ACTION_CUT_SELECTION,
@@ -259,6 +260,8 @@ struct editorTabState {
 	char *filename;
 	enum editorSyntaxLanguage syntax_language;
 	struct editorSyntaxState *syntax_state;
+	int lsp_doc_open;
+	int lsp_doc_version;
 	char *search_query;
 	int search_match_row;
 	int search_match_start;
@@ -300,6 +303,10 @@ struct editorConfig {
 	char *filename;
 	enum editorSyntaxLanguage syntax_language;
 	struct editorSyntaxState *syntax_state;
+	int lsp_enabled;
+	char lsp_gopls_command[PATH_MAX];
+	int lsp_doc_open;
+	int lsp_doc_version;
 	char statusmsg[80];
 	time_t statusmsg_time;
 	char *search_query;

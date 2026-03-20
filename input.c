@@ -2,12 +2,15 @@
 
 #include "alloc.h"
 #include <ctype.h>
+#include <errno.h>
 #include <limits.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "buffer.h"
 #include "keymap.h"
+#include "lsp.h"
 #include "output.h"
 #include "terminal.h"
 
@@ -91,6 +94,7 @@ static void quit(void) {
 		return;
 	}
 
+	editorLspShutdown();
 	editorRecoveryCleanupOnCleanExit();
 	editorRestoreTerminal();
 	editorClearScreen();
@@ -112,6 +116,7 @@ static void editorCloseTab(void) {
 }
 
 static void editorExitOnInputShutdown(void) {
+	editorLspShutdown();
 	editorRestoreTerminal();
 	editorClearScreen();
 	editorResetCursorPos();
@@ -663,6 +668,161 @@ static void editorGoToLine(void) {
 	editorAlignCursorWithRowEnd();
 }
 
+static const char *editorBasenameFromPath(const char *path) {
+	if (path == NULL) {
+		return "";
+	}
+	const char *base = strrchr(path, '/');
+	if (base == NULL) {
+		return path;
+	}
+	return base + 1;
+}
+
+static int editorJumpToDefinitionLocation(const struct editorLspLocation *location) {
+	if (location == NULL || location->path == NULL || location->path[0] == '\0') {
+		return 0;
+	}
+	if (!editorTabOpenOrSwitchToFile(location->path)) {
+		return 0;
+	}
+
+	if (E.numrows <= 0) {
+		E.cy = 0;
+		E.cx = 0;
+		editorViewportEnsureCursorVisible();
+		return 1;
+	}
+
+	int line = location->line;
+	if (line < 0) {
+		line = 0;
+	}
+	if (line >= E.numrows) {
+		line = E.numrows - 1;
+	}
+	E.cy = line;
+
+	int character = location->character;
+	if (character < 0) {
+		character = 0;
+	}
+	if (character > E.rows[E.cy].size) {
+		character = E.rows[E.cy].size;
+	}
+	E.cx = editorRowClampCxToClusterBoundary(&E.rows[E.cy], character);
+	if (E.cx > E.rows[E.cy].size) {
+		E.cx = E.rows[E.cy].size;
+	}
+	editorViewportEnsureCursorVisible();
+	return 1;
+}
+
+static int editorPromptDefinitionChoice(int count, int *choice_out) {
+	if (choice_out == NULL || count <= 0) {
+		return 0;
+	}
+
+	char prompt[64];
+	int written = snprintf(prompt, sizeof(prompt), "Definition (1-%d): %%s", count);
+	if (written <= 0 || (size_t)written >= sizeof(prompt)) {
+		return 0;
+	}
+
+	char *query = editorPrompt(prompt);
+	if (query == NULL) {
+		return 0;
+	}
+
+	long selected = 0;
+	int parsed = editorParsePositiveLineNumber(query, &selected);
+	free(query);
+	if (!parsed || selected > count) {
+		editorSetStatusMsg("Invalid definition choice");
+		return 0;
+	}
+
+	*choice_out = (int)(selected - 1);
+	return 1;
+}
+
+static void editorGoToDefinition(void) {
+	if (E.syntax_language != EDITOR_SYNTAX_GO) {
+		editorSetStatusMsg("Go to definition is available for Go files only");
+		return;
+	}
+	if (E.filename == NULL || E.filename[0] == '\0') {
+		editorSetStatusMsg("Save this Go buffer before using go to definition");
+		return;
+	}
+	if (E.cy < 0 || E.cy >= E.numrows) {
+		editorSetStatusMsg("Cursor is not on a source line");
+		return;
+	}
+
+	size_t full_text_len = 0;
+	errno = 0;
+	char *full_text = editorRowsToStr(&full_text_len);
+	if (full_text == NULL && (full_text_len > 0 || errno != 0)) {
+		if (errno == EOVERFLOW) {
+			editorSetStatusMsg("File too large");
+		} else {
+			editorSetStatusMsg("Out of memory");
+		}
+		return;
+	}
+
+	int ready = editorLspEnsureDocumentOpen(E.filename, E.syntax_language,
+			&E.lsp_doc_open, &E.lsp_doc_version,
+			full_text != NULL ? full_text : "", full_text_len);
+	free(full_text);
+	if (!ready) {
+		editorSetStatusMsg("LSP unavailable for this file");
+		return;
+	}
+
+	struct editorLspLocation *locations = NULL;
+	int count = 0;
+	int timed_out = 0;
+	int request_result =
+			editorLspRequestDefinition(E.filename, E.cy, E.cx, &locations, &count, &timed_out);
+	if (request_result == -2 || timed_out) {
+		editorSetStatusMsg("Go to definition timed out");
+		editorLspFreeLocations(locations, count);
+		return;
+	}
+	if (request_result <= 0) {
+		editorSetStatusMsg("Go to definition failed");
+		editorLspFreeLocations(locations, count);
+		return;
+	}
+	if (count <= 0) {
+		editorSetStatusMsg("Definition not found");
+		editorLspFreeLocations(locations, count);
+		return;
+	}
+
+	int selected_index = 0;
+	if (count > 1) {
+		editorSetStatusMsg("Found %d definitions; choose 1-%d", count, count);
+		if (!editorPromptDefinitionChoice(count, &selected_index)) {
+			editorLspFreeLocations(locations, count);
+			return;
+		}
+	}
+
+	const struct editorLspLocation *selected = &locations[selected_index];
+	if (!editorJumpToDefinitionLocation(selected)) {
+		editorSetStatusMsg("Unable to jump to definition");
+		editorLspFreeLocations(locations, count);
+		return;
+	}
+
+	editorSetStatusMsg("Definition: %s:%d", editorBasenameFromPath(selected->path),
+			selected->line + 1);
+	editorLspFreeLocations(locations, count);
+}
+
 static void editorMoveCursor(int k) {
 	int target_rx = 0;
 	if ((k == ARROW_UP || k == ARROW_DOWN) && E.cy < E.numrows) {
@@ -995,6 +1155,11 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 		case EDITOR_ACTION_GOTO_LINE:
 			editorHistoryBreakGroup();
 			editorGoToLine();
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			break;
+		case EDITOR_ACTION_GOTO_DEFINITION:
+			editorHistoryBreakGroup();
+			editorGoToDefinition();
 			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			break;
 		case EDITOR_ACTION_TOGGLE_SELECTION:

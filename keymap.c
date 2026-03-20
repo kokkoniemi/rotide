@@ -40,6 +40,13 @@ enum editorSyntaxThemeFileStatus {
 	EDITOR_SYNTAX_THEME_FILE_OUT_OF_MEMORY
 };
 
+enum editorLspConfigFileStatus {
+	EDITOR_LSP_CONFIG_FILE_APPLIED = 0,
+	EDITOR_LSP_CONFIG_FILE_MISSING,
+	EDITOR_LSP_CONFIG_FILE_INVALID,
+	EDITOR_LSP_CONFIG_FILE_OUT_OF_MEMORY
+};
+
 static const struct editorActionName editor_action_names[] = {
 	{"quit", EDITOR_ACTION_QUIT},
 	{"save", EDITOR_ACTION_SAVE},
@@ -52,6 +59,7 @@ static const struct editorActionName editor_action_names[] = {
 	{"resize_drawer_widen", EDITOR_ACTION_RESIZE_DRAWER_WIDEN},
 	{"find", EDITOR_ACTION_FIND},
 	{"goto_line", EDITOR_ACTION_GOTO_LINE},
+	{"goto_definition", EDITOR_ACTION_GOTO_DEFINITION},
 	{"toggle_selection", EDITOR_ACTION_TOGGLE_SELECTION},
 	{"copy_selection", EDITOR_ACTION_COPY_SELECTION},
 	{"cut_selection", EDITOR_ACTION_CUT_SELECTION},
@@ -184,17 +192,27 @@ static int editorKeymapParseCtrlKeySpec(const char *spec, int *key_out) {
 	}
 
 	unsigned char ch = (unsigned char)spec[5];
-	if (!isalpha(ch)) {
-		return 0;
+	if (isalpha(ch)) {
+		ch = (unsigned char)tolower(ch);
+		if (ch < 'a' || ch > 'z') {
+			return 0;
+		}
+		*key_out = CTRL_KEY((int)ch);
+		return 1;
 	}
 
-	ch = (unsigned char)tolower(ch);
-	if (ch < 'a' || ch > 'z') {
-		return 0;
+	switch (ch) {
+		case '@':
+		case '[':
+		case '\\':
+		case ']':
+		case '^':
+		case '_':
+			*key_out = CTRL_KEY((int)ch);
+			return 1;
+		default:
+			return 0;
 	}
-
-	*key_out = CTRL_KEY((int)ch);
-	return 1;
 }
 
 enum editorKeymapModifierFlags {
@@ -951,6 +969,9 @@ static int editorKeymapFormatKey(int key, char *buf, size_t bufsize) {
 		return 0;
 	}
 
+	if (key == CTRL_KEY(']')) {
+		return snprintf(buf, bufsize, "Ctrl-]") > 0;
+	}
 	if (key >= 1 && key <= 26) {
 		return snprintf(buf, bufsize, "Ctrl-%c", 'A' + key - 1) > 0;
 	}
@@ -1071,6 +1092,7 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 			EDITOR_ACTION_RESIZE_DRAWER_WIDEN);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('f'), EDITOR_ACTION_FIND);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('g'), EDITOR_ACTION_GOTO_LINE);
+	(void)editorKeymapAppendBinding(keymap, CTRL_KEY(']'), EDITOR_ACTION_GOTO_DEFINITION);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('b'), EDITOR_ACTION_TOGGLE_SELECTION);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('c'), EDITOR_ACTION_COPY_SELECTION);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('x'), EDITOR_ACTION_CUT_SELECTION);
@@ -1380,6 +1402,203 @@ enum editorSyntaxThemeLoadStatus editorSyntaxThemeLoadConfigured(
 
 	enum editorSyntaxThemeLoadStatus status =
 			editorSyntaxThemeLoadFromPaths(theme_out, global_path, ".rotide.toml");
+	free(global_path);
+	return status;
+}
+
+void editorLspConfigInitDefaults(int *enabled_out, char *command_out, size_t command_out_size) {
+	if (enabled_out != NULL) {
+		*enabled_out = 1;
+	}
+	if (command_out != NULL && command_out_size != 0) {
+		(void)snprintf(command_out, command_out_size, "%s", "gopls");
+		command_out[command_out_size - 1] = '\0';
+	}
+}
+
+static int editorParseBooleanValue(const char *value, int *out) {
+	if (value == NULL || out == NULL) {
+		return 0;
+	}
+	if (strcasecmp(value, "true") == 0) {
+		*out = 1;
+		return 1;
+	}
+	if (strcasecmp(value, "false") == 0) {
+		*out = 0;
+		return 1;
+	}
+	return 0;
+}
+
+static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *enabled_in_out,
+		char *command_in_out, size_t command_in_out_size, const char *path) {
+	if (enabled_in_out == NULL || command_in_out == NULL || command_in_out_size == 0) {
+		return EDITOR_LSP_CONFIG_FILE_OUT_OF_MEMORY;
+	}
+
+	FILE *fp = fopen(path, "r");
+	if (fp == NULL) {
+		if (errno == ENOENT) {
+			return EDITOR_LSP_CONFIG_FILE_MISSING;
+		}
+		return EDITOR_LSP_CONFIG_FILE_INVALID;
+	}
+
+	int enabled = *enabled_in_out;
+	char command[PATH_MAX];
+	(void)snprintf(command, sizeof(command), "%s", command_in_out);
+
+	int in_lsp_table = 0;
+	char line[1024];
+	while (fgets(line, sizeof(line), fp) != NULL) {
+		size_t line_len = strlen(line);
+		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
+			fclose(fp);
+			return EDITOR_LSP_CONFIG_FILE_INVALID;
+		}
+
+		editorStripInlineComment(line);
+		editorTrimRight(line);
+		char *trimmed = editorTrimLeft(line);
+		if (trimmed[0] == '\0') {
+			continue;
+		}
+
+		if (trimmed[0] == '[') {
+			char *close = strchr(trimmed, ']');
+			if (close == NULL) {
+				fclose(fp);
+				return EDITOR_LSP_CONFIG_FILE_INVALID;
+			}
+			*close = '\0';
+			char *table = editorTrimLeft(trimmed + 1);
+			editorTrimRight(table);
+			char *tail = editorTrimLeft(close + 1);
+			if (tail[0] != '\0') {
+				fclose(fp);
+				return EDITOR_LSP_CONFIG_FILE_INVALID;
+			}
+
+			in_lsp_table = strcmp(table, "lsp") == 0;
+			continue;
+		}
+
+		if (!in_lsp_table) {
+			continue;
+		}
+
+		char *eq = strchr(trimmed, '=');
+		if (eq == NULL) {
+			fclose(fp);
+			return EDITOR_LSP_CONFIG_FILE_INVALID;
+		}
+
+		*eq = '\0';
+		char *setting_name = editorTrimLeft(trimmed);
+		editorTrimRight(setting_name);
+		char *value = editorTrimLeft(eq + 1);
+		if (setting_name[0] == '\0') {
+			fclose(fp);
+			return EDITOR_LSP_CONFIG_FILE_INVALID;
+		}
+
+		if (strcmp(setting_name, "enabled") == 0) {
+			int parsed_enabled = 0;
+			if (!editorParseBooleanValue(value, &parsed_enabled)) {
+				fclose(fp);
+				return EDITOR_LSP_CONFIG_FILE_INVALID;
+			}
+			enabled = parsed_enabled;
+			continue;
+		}
+
+		if (strcmp(setting_name, "gopls_command") == 0) {
+			if (!editorKeymapParseQuotedValue(value, command, sizeof(command)) ||
+					command[0] == '\0') {
+				fclose(fp);
+				return EDITOR_LSP_CONFIG_FILE_INVALID;
+			}
+			continue;
+		}
+	}
+
+	if (ferror(fp)) {
+		fclose(fp);
+		return EDITOR_LSP_CONFIG_FILE_INVALID;
+	}
+
+	fclose(fp);
+	*enabled_in_out = enabled;
+	(void)snprintf(command_in_out, command_in_out_size, "%s", command);
+	command_in_out[command_in_out_size - 1] = '\0';
+	return EDITOR_LSP_CONFIG_FILE_APPLIED;
+}
+
+enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(int *enabled_out,
+		char *command_out, size_t command_out_size, const char *global_path,
+		const char *project_path) {
+	if (enabled_out == NULL || command_out == NULL || command_out_size == 0) {
+		return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
+	}
+
+	editorLspConfigInitDefaults(enabled_out, command_out, command_out_size);
+	enum editorLspConfigLoadStatus status = EDITOR_LSP_CONFIG_LOAD_OK;
+
+	if (global_path != NULL) {
+		enum editorLspConfigFileStatus global_status =
+				editorLspConfigApplyConfigFile(enabled_out, command_out, command_out_size,
+						global_path);
+		if (global_status == EDITOR_LSP_CONFIG_FILE_OUT_OF_MEMORY) {
+			editorLspConfigInitDefaults(enabled_out, command_out, command_out_size);
+			return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
+		}
+		if (global_status == EDITOR_LSP_CONFIG_FILE_INVALID) {
+			editorLspConfigInitDefaults(enabled_out, command_out, command_out_size);
+			status = (enum editorLspConfigLoadStatus)(
+					status | EDITOR_LSP_CONFIG_LOAD_INVALID_GLOBAL);
+		}
+	}
+
+	if (project_path != NULL) {
+		enum editorLspConfigFileStatus project_status =
+				editorLspConfigApplyConfigFile(enabled_out, command_out, command_out_size,
+						project_path);
+		if (project_status == EDITOR_LSP_CONFIG_FILE_OUT_OF_MEMORY) {
+			editorLspConfigInitDefaults(enabled_out, command_out, command_out_size);
+			return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
+		}
+		if (project_status == EDITOR_LSP_CONFIG_FILE_INVALID) {
+			editorLspConfigInitDefaults(enabled_out, command_out, command_out_size);
+			status = (enum editorLspConfigLoadStatus)(
+					status | EDITOR_LSP_CONFIG_LOAD_INVALID_PROJECT);
+		}
+	}
+
+	return status;
+}
+
+enum editorLspConfigLoadStatus editorLspConfigLoadConfigured(int *enabled_out,
+		char *command_out, size_t command_out_size) {
+	if (enabled_out == NULL || command_out == NULL || command_out_size == 0) {
+		return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
+	}
+
+	const char *home = getenv("HOME");
+	if (home == NULL || home[0] == '\0') {
+		return editorLspConfigLoadFromPaths(enabled_out, command_out, command_out_size, NULL,
+				".rotide.toml");
+	}
+
+	char *global_path = editorBuildGlobalConfigPath();
+	if (global_path == NULL) {
+		editorLspConfigInitDefaults(enabled_out, command_out, command_out_size);
+		return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
+	}
+
+	enum editorLspConfigLoadStatus status =
+			editorLspConfigLoadFromPaths(enabled_out, command_out, command_out_size,
+					global_path, ".rotide.toml");
 	free(global_path);
 	return status;
 }

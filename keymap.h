@@ -24,6 +24,13 @@ enum editorSyntaxThemeLoadStatus {
 	EDITOR_SYNTAX_THEME_LOAD_OUT_OF_MEMORY = 1 << 2
 };
 
+enum editorLspConfigLoadStatus {
+	EDITOR_LSP_CONFIG_LOAD_OK = 0,
+	EDITOR_LSP_CONFIG_LOAD_INVALID_GLOBAL = 1 << 0,
+	EDITOR_LSP_CONFIG_LOAD_INVALID_PROJECT = 1 << 1,
+	EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY = 1 << 2
+};
+
 void editorKeymapInitDefaults(struct editorKeymap *keymap);
 int editorKeymapLookupAction(const struct editorKeymap *keymap, int key,
 		enum editorAction *action_out);
@@ -44,5 +51,11 @@ enum editorSyntaxThemeLoadStatus editorSyntaxThemeLoadFromPaths(
 		const char *global_path, const char *project_path);
 enum editorSyntaxThemeLoadStatus editorSyntaxThemeLoadConfigured(
 		enum editorThemeColor theme_out[EDITOR_SYNTAX_HL_CLASS_COUNT]);
+void editorLspConfigInitDefaults(int *enabled_out, char *command_out, size_t command_out_size);
+enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(int *enabled_out,
+		char *command_out, size_t command_out_size, const char *global_path,
+		const char *project_path);
+enum editorLspConfigLoadStatus editorLspConfigLoadConfigured(int *enabled_out,
+		char *command_out, size_t command_out_size);
 
 #endif

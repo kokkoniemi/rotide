@@ -24,6 +24,10 @@ void initEditor(void) {
 	E.filename = NULL;
 	E.syntax_language = EDITOR_SYNTAX_NONE;
 	E.syntax_state = NULL;
+	editorLspConfigInitDefaults(&E.lsp_enabled, E.lsp_gopls_command,
+			sizeof(E.lsp_gopls_command));
+	E.lsp_doc_open = 0;
+	E.lsp_doc_version = 0;
 	E.statusmsg[0] = '\0';
 	E.statusmsg_time = 0;
 	E.search_query = NULL;
@@ -98,6 +102,9 @@ int main(int argc, char *argv[]) {
 			editorCursorStyleLoadConfigured(&E.cursor_style);
 	enum editorSyntaxThemeLoadStatus syntax_theme_status =
 			editorSyntaxThemeLoadConfigured(E.syntax_theme);
+	enum editorLspConfigLoadStatus lsp_config_status =
+			editorLspConfigLoadConfigured(&E.lsp_enabled, E.lsp_gopls_command,
+					sizeof(E.lsp_gopls_command));
 	if (!editorRecoveryInitForCurrentDir()) {
 		editorSetStatusMsg("Recovery disabled (path setup failed)");
 	}
@@ -107,8 +114,16 @@ int main(int argc, char *argv[]) {
 		editorSetStatusMsg("Invalid global keymap config, ignoring ~/.rotide/config.toml");
 	} else if (keymap_status == EDITOR_KEYMAP_LOAD_OUT_OF_MEMORY ||
 			(cursor_style_status & EDITOR_CURSOR_STYLE_LOAD_OUT_OF_MEMORY) != 0 ||
-			(syntax_theme_status & EDITOR_SYNTAX_THEME_LOAD_OUT_OF_MEMORY) != 0) {
+			(syntax_theme_status & EDITOR_SYNTAX_THEME_LOAD_OUT_OF_MEMORY) != 0 ||
+			(lsp_config_status & EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY) != 0) {
 		editorSetStatusMsg("Out of memory");
+	} else if ((lsp_config_status & EDITOR_LSP_CONFIG_LOAD_INVALID_GLOBAL) != 0 &&
+			(lsp_config_status & EDITOR_LSP_CONFIG_LOAD_INVALID_PROJECT) != 0) {
+		editorSetStatusMsg("Invalid [lsp] in global/project config, using defaults");
+	} else if ((lsp_config_status & EDITOR_LSP_CONFIG_LOAD_INVALID_PROJECT) != 0) {
+		editorSetStatusMsg("Invalid [lsp] in ./.rotide.toml, using defaults");
+	} else if ((lsp_config_status & EDITOR_LSP_CONFIG_LOAD_INVALID_GLOBAL) != 0) {
+		editorSetStatusMsg("Invalid [lsp] in ~/.rotide/config.toml, using defaults");
 	} else if ((cursor_style_status & EDITOR_CURSOR_STYLE_LOAD_INVALID_GLOBAL) != 0 &&
 			(cursor_style_status & EDITOR_CURSOR_STYLE_LOAD_INVALID_PROJECT) != 0) {
 		editorSetStatusMsg("Invalid cursor_style in global/project config, using bar");

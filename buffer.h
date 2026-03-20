@@ -69,6 +69,7 @@ int editorTabsInit(void);
 void editorTabsFreeAll(void);
 int editorTabNewEmpty(void);
 int editorTabOpenFileAsNew(const char *filename);
+int editorTabOpenOrSwitchToFile(const char *filename);
 int editorTabSwitchToIndex(int idx);
 int editorTabSwitchByDelta(int delta);
 int editorTabCloseActive(void);

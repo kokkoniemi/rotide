@@ -3,6 +3,7 @@
 #include "buffer.h"
 #include "input.h"
 #include "keymap.h"
+#include "lsp.h"
 #include "output.h"
 #include "syntax.h"
 #include "terminal.h"
@@ -111,6 +112,52 @@ static int remove_tmp_save_artifacts(const char *target_path) {
 	closedir(dir);
 	free(prefix);
 	return failures == 0 ? 0 : -1;
+}
+
+static int write_temp_go_file(char path_buf[], size_t path_buf_size, const char *content) {
+	if (path_buf == NULL || path_buf_size < sizeof("/tmp/x.go")) {
+		return 0;
+	}
+	int written = snprintf(path_buf, path_buf_size, "/tmp/rotide-test-go-lsp-XXXXXX.go");
+	if (written <= 0 || (size_t)written >= path_buf_size) {
+		return 0;
+	}
+
+	int fd = mkstemps(path_buf, 3);
+	if (fd == -1) {
+		return 0;
+	}
+
+	size_t len = strlen(content);
+	int ok = write_all(fd, content, len) == 0 && close(fd) == 0;
+	if (!ok) {
+		(void)close(fd);
+		(void)unlink(path_buf);
+	}
+	return ok;
+}
+
+static int write_temp_text_file(char path_buf[], size_t path_buf_size, const char *content) {
+	if (path_buf == NULL || path_buf_size < sizeof("/tmp/x.txt")) {
+		return 0;
+	}
+	int written = snprintf(path_buf, path_buf_size, "/tmp/rotide-test-lsp-XXXXXX.txt");
+	if (written <= 0 || (size_t)written >= path_buf_size) {
+		return 0;
+	}
+
+	int fd = mkstemps(path_buf, 4);
+	if (fd == -1) {
+		return 0;
+	}
+
+	size_t len = strlen(content);
+	int ok = write_all(fd, content, len) == 0 && close(fd) == 0;
+	if (!ok) {
+		(void)close(fd);
+		(void)unlink(path_buf);
+	}
+	return ok;
 }
 
 static int editor_process_keypress_with_input_silent(const char *input, size_t len) {
@@ -4336,6 +4383,386 @@ static int test_editor_keymap_defaults_include_tab_actions(void) {
 	return 0;
 }
 
+static int test_editor_keymap_defaults_include_goto_definition_action(void) {
+	struct editorKeymap keymap;
+	editorKeymapInitDefaults(&keymap);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY(']'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_GOTO_DEFINITION, action);
+
+	char binding[24];
+	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_GOTO_DEFINITION, binding,
+			sizeof(binding)));
+	ASSERT_EQ_STR("Ctrl-]", binding);
+	return 0;
+}
+
+static int test_editor_keymap_load_accepts_goto_definition_ctrl_bracket(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-gotodef-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[keymap]\n"
+				"goto_definition = \"ctrl+]\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY(']'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_GOTO_DEFINITION, action);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_lsp_config_defaults_and_precedence(void) {
+	int enabled = 0;
+	char command[PATH_MAX];
+
+	enum editorLspConfigLoadStatus defaults_status =
+			editorLspConfigLoadFromPaths(&enabled, command, sizeof(command), NULL, NULL);
+	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_OK, defaults_status);
+	ASSERT_EQ_INT(1, enabled);
+	ASSERT_EQ_STR("gopls", command);
+
+	char dir_template[] = "/tmp/rotide-test-lsp-config-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char global_path[512];
+	char project_path[512];
+	ASSERT_TRUE(path_join(global_path, sizeof(global_path), dir_path, "global.toml"));
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
+	ASSERT_TRUE(write_text_file(global_path,
+				"[lsp]\n"
+				"enabled = false\n"
+				"gopls_command = \"gopls-global\"\n"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[lsp]\n"
+				"enabled = true\n"
+				"gopls_command = \"gopls-project\"\n"));
+
+	enum editorLspConfigLoadStatus status =
+			editorLspConfigLoadFromPaths(&enabled, command, sizeof(command), global_path,
+					project_path);
+	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_OK, status);
+	ASSERT_EQ_INT(1, enabled);
+	ASSERT_EQ_STR("gopls-project", command);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(unlink(global_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
+	int enabled = 0;
+	char command[PATH_MAX];
+
+	char dir_template[] = "/tmp/rotide-test-lsp-config-invalid-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char global_path[512];
+	char project_path[512];
+	ASSERT_TRUE(path_join(global_path, sizeof(global_path), dir_path, "global.toml"));
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
+
+	ASSERT_TRUE(write_text_file(global_path,
+				"[lsp]\n"
+				"enabled = \"yes\"\n"));
+	enum editorLspConfigLoadStatus status =
+			editorLspConfigLoadFromPaths(&enabled, command, sizeof(command), global_path, NULL);
+	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_INVALID_GLOBAL, status);
+	ASSERT_EQ_INT(1, enabled);
+	ASSERT_EQ_STR("gopls", command);
+
+	ASSERT_TRUE(write_text_file(global_path,
+				"[lsp]\n"
+				"enabled = false\n"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[lsp]\n"
+				"gopls_command = \"\"\n"));
+	status = editorLspConfigLoadFromPaths(&enabled, command, sizeof(command), global_path,
+			project_path);
+	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_INVALID_PROJECT, status);
+	ASSERT_EQ_INT(1, enabled);
+	ASSERT_EQ_STR("gopls", command);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(unlink(global_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_enabled = 1;
+
+	char txt_path[64];
+	ASSERT_TRUE(write_temp_text_file(txt_path, sizeof(txt_path), "plain text\n"));
+	editorOpen(txt_path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_NONE, editorSyntaxLanguageActive());
+
+	char goto_def_txt[] = {CTRL_KEY(']')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def_txt,
+			sizeof(goto_def_txt)) == 0);
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(0, stats.start_count);
+	ASSERT_EQ_INT(0, stats.definition_count);
+
+	char go_path[64];
+	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
+			"package main\n\nfunc main() {\n\tmain()\n}\n"));
+	editorOpen(go_path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_GO, editorSyntaxLanguageActive());
+
+	editorLspTestSetMockDefinitionResponse(1, NULL, 0);
+	char goto_def_go[] = {CTRL_KEY(']')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def_go,
+			sizeof(goto_def_go)) == 0);
+
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.start_count);
+	ASSERT_EQ_INT(1, stats.definition_count);
+	ASSERT_EQ_INT(1, stats.did_open_count);
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	ASSERT_TRUE(unlink(txt_path) == 0);
+	return 0;
+}
+
+static int test_editor_lsp_lifecycle_restart_after_mock_crash(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_enabled = 1;
+
+	char go_path[64];
+	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
+			"package main\n\nfunc main() {}\n"));
+	editorOpen(go_path);
+
+	editorLspTestSetMockDefinitionResponse(1, NULL, 0);
+	char goto_def[] = {CTRL_KEY(']')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.start_count);
+	ASSERT_EQ_INT(1, stats.definition_count);
+
+	editorLspTestSetMockServerAlive(0);
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(2, stats.start_count);
+	ASSERT_EQ_INT(2, stats.definition_count);
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
+static int test_editor_lsp_document_sync_for_go_edit_save_close(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_enabled = 1;
+	ASSERT_TRUE(editorTabsInit());
+
+	char go_path[64];
+	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
+			"package main\n\nfunc main() {\n\tprintln(\"ok\")\n}\n"));
+	editorOpen(go_path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_GO, editorSyntaxLanguageActive());
+
+	E.cy = 0;
+	E.cx = 0;
+	editorInsertChar('/');
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.did_open_count);
+	ASSERT_EQ_INT(1, stats.did_change_count);
+
+	struct editorLspTestLastChange change = {0};
+	editorLspTestGetLastChange(&change);
+	ASSERT_EQ_INT(1, change.had_range);
+	ASSERT_EQ_INT(0, change.start_line);
+	ASSERT_EQ_INT(0, change.start_character);
+	ASSERT_EQ_INT(2, change.version);
+
+	editorSave();
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.did_save_count);
+
+	ASSERT_TRUE(editorTabCloseActive());
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.did_close_count);
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
+static int test_editor_lsp_document_sync_ignores_non_go_buffers(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_enabled = 1;
+	ASSERT_TRUE(editorTabsInit());
+
+	char txt_path[64];
+	ASSERT_TRUE(write_temp_text_file(txt_path, sizeof(txt_path), "plain text\n"));
+	editorOpen(txt_path);
+
+	E.cy = 0;
+	E.cx = 0;
+	editorInsertChar('x');
+	editorSave();
+	ASSERT_TRUE(editorTabCloseActive());
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(0, stats.did_open_count);
+	ASSERT_EQ_INT(0, stats.did_change_count);
+	ASSERT_EQ_INT(0, stats.did_save_count);
+	ASSERT_EQ_INT(0, stats.did_close_count);
+
+	ASSERT_TRUE(unlink(txt_path) == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_bracket_goto_definition_single_location(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_enabled = 1;
+
+	char go_path[64];
+	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
+			"package main\n\nfunc helper() {}\nfunc main() { helper() }\n"));
+	editorOpen(go_path);
+
+	E.cy = 3;
+	E.cx = 15;
+
+	struct editorLspLocation target = {
+		.path = go_path,
+		.line = 2,
+		.character = 5
+	};
+	editorLspTestSetMockDefinitionResponse(1, &target, 1);
+
+	char goto_def[] = {CTRL_KEY(']')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	ASSERT_EQ_INT(2, E.cy);
+	ASSERT_EQ_INT(5, E.cx);
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.definition_count);
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_goto_definition_cross_file_reuses_tab(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_enabled = 1;
+	ASSERT_TRUE(editorTabsInit());
+
+	char src_path[64];
+	char dst_path[64];
+	ASSERT_TRUE(write_temp_go_file(src_path, sizeof(src_path),
+			"package main\n\nfunc main() { helper() }\n"));
+	ASSERT_TRUE(write_temp_go_file(dst_path, sizeof(dst_path),
+			"package main\n\nfunc helper() {}\n"));
+
+	editorOpen(src_path);
+	E.cy = 2;
+	E.cx = 16;
+
+	struct editorLspLocation target = {
+		.path = dst_path,
+		.line = 2,
+		.character = 5
+	};
+	editorLspTestSetMockDefinitionResponse(1, &target, 1);
+
+	char goto_def[] = {CTRL_KEY(']')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_EQ_STR(dst_path, E.filename);
+
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+	ASSERT_EQ_STR(src_path, E.filename);
+	editorLspTestSetMockDefinitionResponse(1, &target, 1);
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_EQ_STR(dst_path, E.filename);
+
+	ASSERT_TRUE(unlink(src_path) == 0);
+	ASSERT_TRUE(unlink(dst_path) == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_goto_definition_multi_picker_selects_choice(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_enabled = 1;
+
+	char go_path[64];
+	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
+			"package main\n\nfunc a() {}\nfunc b() {}\nfunc main() { a() }\n"));
+	editorOpen(go_path);
+	E.cy = 4;
+	E.cx = 15;
+
+	struct editorLspLocation targets[2] = {
+		{.path = go_path, .line = 2, .character = 5},
+		{.path = go_path, .line = 3, .character = 5},
+	};
+	editorLspTestSetMockDefinitionResponse(1, targets, 2);
+
+	char input[] = {CTRL_KEY(']'), '2', '\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+	ASSERT_EQ_INT(3, E.cy);
+	ASSERT_EQ_INT(5, E.cx);
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_goto_definition_timeout_error_and_no_result(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_enabled = 1;
+
+	char go_path[64];
+	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
+			"package main\n\nfunc main() { helper() }\n"));
+	editorOpen(go_path);
+	E.cy = 2;
+	E.cx = 16;
+
+	char goto_def[] = {CTRL_KEY(']')};
+
+	editorLspTestSetMockDefinitionResponse(-2, NULL, 0);
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	ASSERT_TRUE(strstr(E.statusmsg, "timed out") != NULL);
+
+	editorLspTestSetMockDefinitionResponse(-1, NULL, 0);
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	ASSERT_TRUE(strstr(E.statusmsg, "failed") != NULL);
+
+	editorLspTestSetMockDefinitionResponse(1, NULL, 0);
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	ASSERT_TRUE(strstr(E.statusmsg, "not found") != NULL);
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
 static int test_editor_process_keypress_keymap_remap_changes_dispatch(void) {
 	char dir_template[] = "/tmp/rotide-test-keymap-dispatch-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -8197,10 +8624,34 @@ int main(void) {
 				test_editor_keymap_load_invalid_modifier_combos_fall_back_to_defaults},
 			{"editor_keymap_defaults_include_tab_actions",
 				test_editor_keymap_defaults_include_tab_actions},
+			{"editor_keymap_defaults_include_goto_definition_action",
+				test_editor_keymap_defaults_include_goto_definition_action},
+			{"editor_keymap_load_accepts_goto_definition_ctrl_bracket",
+				test_editor_keymap_load_accepts_goto_definition_ctrl_bracket},
+			{"editor_lsp_config_defaults_and_precedence",
+				test_editor_lsp_config_defaults_and_precedence},
+			{"editor_lsp_config_invalid_values_fallback_defaults",
+				test_editor_lsp_config_invalid_values_fallback_defaults},
+			{"editor_lsp_lifecycle_lazy_start_and_non_go_buffers",
+				test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers},
+			{"editor_lsp_lifecycle_restart_after_mock_crash",
+				test_editor_lsp_lifecycle_restart_after_mock_crash},
+			{"editor_lsp_document_sync_for_go_edit_save_close",
+				test_editor_lsp_document_sync_for_go_edit_save_close},
+			{"editor_lsp_document_sync_ignores_non_go_buffers",
+				test_editor_lsp_document_sync_ignores_non_go_buffers},
 			{"editor_process_keypress_keymap_remap_changes_dispatch",
 				test_editor_process_keypress_keymap_remap_changes_dispatch},
 			{"editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped_action",
 				test_editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped_action},
+			{"editor_process_keypress_ctrl_bracket_goto_definition_single_location",
+				test_editor_process_keypress_ctrl_bracket_goto_definition_single_location},
+			{"editor_process_keypress_goto_definition_cross_file_reuses_tab",
+				test_editor_process_keypress_goto_definition_cross_file_reuses_tab},
+			{"editor_process_keypress_goto_definition_multi_picker_selects_choice",
+				test_editor_process_keypress_goto_definition_multi_picker_selects_choice},
+			{"editor_process_keypress_goto_definition_timeout_error_and_no_result",
+				test_editor_process_keypress_goto_definition_timeout_error_and_no_result},
 			{"editor_process_keypress_resize_drawer_shortcuts",
 				test_editor_process_keypress_resize_drawer_shortcuts},
 			{"editor_tabs_switch_restores_per_tab_state",

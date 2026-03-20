@@ -1,5 +1,5 @@
 # Rotide example project config.
-# Configurable sections: [editor], [keymap]
+# Configurable sections: [editor], [theme.syntax], [lsp], [keymap]
 # Editor:
 # - cursor_style = "block" | "bar" | "underline" (case-insensitive)
 # - Invalid cursor_style values fall back to "bar" with a warning
@@ -11,8 +11,13 @@
 #   bright_black|bright_red|bright_green|bright_yellow|bright_blue|bright_magenta|bright_cyan|bright_white
 # - aliases: gray/grey => bright_black
 # - Invalid [theme.syntax] entries are ignored with a warning; defaults remain in effect.
+# LSP:
+# - [lsp]
+# - enabled = true|false
+# - gopls_command = "gopls" (command/path used to start gopls)
+# - Invalid [lsp] values fall back to defaults with a warning.
 # Key spec format:
-# - "ctrl+<a-z>", "alt+<a-z>", "ctrl+alt+<a-z>"
+# - "ctrl+<a-z>", "alt+<a-z>", "ctrl+alt+<a-z>", "ctrl+]"
 # - "ctrl+left/right/up/down", "alt+left/right/up/down",
 #   "ctrl+alt+left/right/up/down"
 # - "alt+shift+left/right/up/down"
@@ -37,6 +42,10 @@ preprocessor = "bright_red"
 operator = "white"
 punctuation = "bright_black"
 
+[lsp]
+enabled = true
+gopls_command = "gopls"
+
 [keymap]
 quit = "ctrl+q"
 save = "ctrl+s"
@@ -49,6 +58,7 @@ resize_drawer_narrow = "alt+shift+left"
 resize_drawer_widen = "alt+shift+right"
 find = "ctrl+f"
 goto_line = "ctrl+g"
+goto_definition = "ctrl+]"
 toggle_selection = "ctrl+b"
 copy_selection = "ctrl+c"
 cut_selection = "ctrl+x"

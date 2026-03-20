@@ -3,7 +3,7 @@
 ## Project context
 
 - `rotide` is a small terminal text editor inspired by kilo.
-- Core code is split across focused modules (`terminal.c`, `buffer.c`, `output.c`, `input.c`, `keymap.c`, `syntax.c`, `rotide.c`) with supporting utility/save backend modules (`alloc.c`, `save_syscalls.c`) and vendored Tree-sitter sources.
+- Core code is split across focused modules (`terminal.c`, `buffer.c`, `output.c`, `input.c`, `keymap.c`, `syntax.c`, `lsp.c`, `rotide.c`) with supporting utility/save backend modules (`alloc.c`, `save_syscalls.c`) and vendored Tree-sitter sources.
 - Prioritize readability and simple control flow over micro-optimizations.
 
 ## Repository layout
@@ -15,6 +15,7 @@
 - `input.c`/`input.h`: prompt flow, search/go-to-line, keypress processing, and mapped action dispatch.
 - `keymap.c`/`keymap.h`: keymap defaults, TOML config parsing, and lookup/format helpers.
 - `syntax.c`/`syntax.h`: Tree-sitter integration, incremental parse wrappers, and syntax query helpers.
+- `lsp.c`/`lsp.h`: JSON-RPC client glue for Go LSP (`gopls`) lifecycle, sync notifications, and definition requests.
 - `alloc.c`/`alloc.h`: allocation wrappers and test-hook integration.
 - `save_syscalls.c`/`save_syscalls.h`: save-related syscall wrappers and failure injection hooks.
 - `tests/rotide_tests.c`: unit and behavior test cases.

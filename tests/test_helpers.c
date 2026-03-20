@@ -4,6 +4,7 @@
 #include "buffer.h"
 #include "input.h"
 #include "keymap.h"
+#include "lsp.h"
 #include "output.h"
 #include "save_syscalls_test_hooks.h"
 #include "syntax.h"
@@ -25,6 +26,7 @@ void clear_editor_state(void) {
 void reset_editor_state(void) {
 	editorTestAllocReset();
 	editorTestSaveSyscallsReset();
+	editorLspTestResetMock();
 	clear_editor_state();
 	memset(&E, 0, sizeof(E));
 	E.window_rows = 8;
@@ -40,6 +42,11 @@ void reset_editor_state(void) {
 	E.mouse_drag_started = 0;
 	E.syntax_language = EDITOR_SYNTAX_NONE;
 	E.syntax_state = NULL;
+	editorLspConfigInitDefaults(&E.lsp_enabled, E.lsp_gopls_command,
+			sizeof(E.lsp_gopls_command));
+	E.lsp_enabled = 0;
+	E.lsp_doc_open = 0;
+	E.lsp_doc_version = 0;
 	E.drawer_last_click_visible_idx = -1;
 	E.drawer_last_click_ms = 0;
 	E.drawer_width_cols = ROTIDE_DRAWER_DEFAULT_WIDTH;

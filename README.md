@@ -27,6 +27,7 @@ search, save, undo/redo, selection, tabs, and keymap configuration are implement
 - HTML syntax injections for embedded JavaScript/CSS (`<script>` / `<style>`) with incremental reparse.
 - Tree-sitter-driven syntax highlighting with predicate and local-scope filtering for language queries.
 - Configurable keymap via TOML (`~/.rotide/config.toml` and `./.rotide.toml`).
+- Optional LSP (v1) support for Go via `gopls` with `textDocument/definition`.
 - Status bar path rendering that prioritizes keeping the full basename visible.
 
 ## Build and run
@@ -67,6 +68,7 @@ filename on first save.
 - Focus drawer: `Ctrl-E` (`Up/Down/Left/Right` navigate tree; `Enter` toggles folders or opens files in tabs; double-click also opens files; open reuses an already-open file tab; `Esc` returns to text pane)
 - Find: `Ctrl-F`
 - Go to line: `Ctrl-G`
+- Go to definition (Go buffers): `Ctrl-]`
 - Selection toggle: `Ctrl-B`
 - Copy selection: `Ctrl-C`
 - Cut selection: `Ctrl-X`
@@ -93,6 +95,7 @@ Behavior on invalid config:
 - Invalid project config: full fallback to defaults.
 - Invalid `cursor_style`: falls back to `bar` with a warning (other valid config still applies).
 - Invalid `[theme.syntax]` entries: ignored with warning; defaults remain for invalid entries.
+- Invalid `[lsp]` values: fall back to defaults (`enabled = true`, `gopls_command = "gopls"`).
 
 Editor section format:
 
@@ -122,6 +125,14 @@ operator = "bright_white"
 punctuation = "default"
 ```
 
+LSP section format:
+
+```toml
+[lsp]
+enabled = true
+gopls_command = "gopls"
+```
+
 Supported semantic class keys:
 - `comment`, `keyword`, `type`, `function`, `string`, `number`,
   `constant`, `preprocessor`, `operator`, `punctuation`
@@ -141,6 +152,7 @@ cursor_style = "bar"
 [keymap]
 save = "ctrl+s"
 quit = "ctrl+q"
+goto_definition = "ctrl+]"
 focus_drawer = "ctrl+e"
 scroll_left = "ctrl+left"
 scroll_right = "ctrl+right"
@@ -148,7 +160,7 @@ scroll_right = "ctrl+right"
 
 Supported key specs:
 - Modifiers are case-insensitive and can be in any order.
-- Letter combos: `ctrl+<a-z>`, `alt+<a-z>`, `ctrl+alt+<a-z>`
+- Letter combos: `ctrl+<a-z>`, `alt+<a-z>`, `ctrl+alt+<a-z>`, `ctrl+]`
 - Arrow combos: `ctrl+left/right/up/down`, `alt+left/right/up/down`,
   `ctrl+alt+left/right/up/down`
 - Shifted arrow combos: `alt+shift+left/right/up/down`
