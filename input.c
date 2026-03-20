@@ -707,6 +707,7 @@ static int editorJumpToDefinitionLocation(const struct editorLspLocation *locati
 	if (character < 0) {
 		character = 0;
 	}
+	character = editorLspProtocolCharacterToBufferColumn(&E.rows[E.cy], character);
 	if (character > E.rows[E.cy].size) {
 		character = E.rows[E.cy].size;
 	}
@@ -755,6 +756,14 @@ static void editorGoToDefinition(void) {
 		editorSetStatusMsg("Save this Go buffer before using go to definition");
 		return;
 	}
+	if (!E.lsp_enabled) {
+		editorSetStatusMsg("LSP is disabled in config");
+		return;
+	}
+	if (E.lsp_gopls_command[0] == '\0') {
+		editorSetStatusMsg("LSP disabled: [lsp].gopls_command is empty");
+		return;
+	}
 	if (E.cy < 0 || E.cy >= E.numrows) {
 		editorSetStatusMsg("Cursor is not on a source line");
 		return;
@@ -777,7 +786,9 @@ static void editorGoToDefinition(void) {
 			full_text != NULL ? full_text : "", full_text_len);
 	free(full_text);
 	if (!ready) {
-		editorSetStatusMsg("LSP unavailable for this file");
+		if (strncmp(E.statusmsg, "LSP ", strlen("LSP ")) != 0) {
+			editorSetStatusMsg("LSP unavailable for this file");
+		}
 		return;
 	}
 

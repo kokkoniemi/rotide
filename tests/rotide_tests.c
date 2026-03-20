@@ -4763,6 +4763,51 @@ static int test_editor_process_keypress_goto_definition_timeout_error_and_no_res
 	return 0;
 }
 
+static int test_editor_process_keypress_goto_definition_reports_lsp_disabled(void) {
+	E.lsp_enabled = 0;
+
+	char go_path[64];
+	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
+			"package main\n\nfunc main() { helper() }\n"));
+	editorOpen(go_path);
+	E.cy = 2;
+	E.cx = 16;
+
+	char goto_def[] = {CTRL_KEY(']')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	ASSERT_EQ_STR("LSP is disabled in config", E.statusmsg);
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_goto_definition_startup_failure_reports_reason(void) {
+	E.lsp_enabled = 1;
+
+	char missing_command[PATH_MAX];
+	int written = snprintf(missing_command, sizeof(missing_command),
+			"/tmp/rotide-test-missing-gopls-%ld", (long)getpid());
+	ASSERT_TRUE(written > 0 && (size_t)written < sizeof(missing_command));
+	(void)unlink(missing_command);
+	strncpy(E.lsp_gopls_command, missing_command, sizeof(E.lsp_gopls_command) - 1);
+	E.lsp_gopls_command[sizeof(E.lsp_gopls_command) - 1] = '\0';
+
+	char go_path[64];
+	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
+			"package main\n\nfunc main() { helper() }\n"));
+	editorOpen(go_path);
+	E.cy = 2;
+	E.cx = 16;
+
+	char goto_def[] = {CTRL_KEY(']')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	ASSERT_TRUE(strstr(E.statusmsg, "LSP startup failed") != NULL);
+	ASSERT_TRUE(strstr(E.statusmsg, "unavailable for this file") == NULL);
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
 static int test_editor_process_keypress_keymap_remap_changes_dispatch(void) {
 	char dir_template[] = "/tmp/rotide-test-keymap-dispatch-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -8652,6 +8697,10 @@ int main(void) {
 				test_editor_process_keypress_goto_definition_multi_picker_selects_choice},
 			{"editor_process_keypress_goto_definition_timeout_error_and_no_result",
 				test_editor_process_keypress_goto_definition_timeout_error_and_no_result},
+			{"editor_process_keypress_goto_definition_reports_lsp_disabled",
+				test_editor_process_keypress_goto_definition_reports_lsp_disabled},
+			{"editor_process_keypress_goto_definition_startup_failure_reports_reason",
+				test_editor_process_keypress_goto_definition_startup_failure_reports_reason},
 			{"editor_process_keypress_resize_drawer_shortcuts",
 				test_editor_process_keypress_resize_drawer_shortcuts},
 			{"editor_tabs_switch_restores_per_tab_state",

@@ -50,6 +50,7 @@ void editorLspNotifyDidClose(const char *filename, enum editorSyntaxLanguage lan
 int editorLspRequestDefinition(const char *filename, int line, int character,
 		struct editorLspLocation **locations_out, int *count_out, int *timed_out_out);
 void editorLspFreeLocations(struct editorLspLocation *locations, int count);
+int editorLspProtocolCharacterToBufferColumn(const struct erow *row, int protocol_character);
 
 /* Test hooks */
 void editorLspTestSetMockEnabled(int enabled);
