@@ -5052,6 +5052,64 @@ static int test_editor_process_keypress_tab_actions_new_next_prev(void) {
 	return 0;
 }
 
+static int test_editor_tab_open_file_reuses_active_clean_empty_buffer(void) {
+	char open_file[64];
+	ASSERT_TRUE(write_temp_text_file(open_file, sizeof(open_file), "opened\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_EQ_INT(1, editorTabCount());
+	ASSERT_EQ_INT(0, editorTabActiveIndex());
+	ASSERT_EQ_INT(0, E.numrows);
+	ASSERT_EQ_INT(0, E.dirty);
+	ASSERT_TRUE(E.filename == NULL);
+
+	ASSERT_TRUE(editorTabOpenFileAsNew(open_file));
+	ASSERT_EQ_INT(1, editorTabCount());
+	ASSERT_EQ_INT(0, editorTabActiveIndex());
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_EQ_STR(open_file, E.filename);
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_STR("opened", E.rows[0].chars);
+
+	ASSERT_TRUE(unlink(open_file) == 0);
+	return 0;
+}
+
+static int test_editor_tab_open_file_opens_new_tab_when_empty_buffer_is_inactive(void) {
+	char open_file[64];
+	ASSERT_TRUE(write_temp_text_file(open_file, sizeof(open_file), "opened\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_EQ_INT(1, editorTabCount());
+	ASSERT_EQ_INT(0, editorTabActiveIndex());
+	ASSERT_EQ_INT(0, E.numrows);
+
+	// Leave tab 0 as a clean empty buffer, then make tab 1 active and non-empty.
+	ASSERT_TRUE(editorTabNewEmpty());
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	add_row("keep");
+
+	ASSERT_TRUE(editorTabOpenFileAsNew(open_file));
+	ASSERT_EQ_INT(3, editorTabCount());
+	ASSERT_EQ_INT(2, editorTabActiveIndex());
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_EQ_STR(open_file, E.filename);
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_STR("opened", E.rows[0].chars);
+
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+	ASSERT_TRUE(E.filename == NULL);
+	ASSERT_EQ_INT(0, E.numrows);
+
+	ASSERT_TRUE(editorTabSwitchToIndex(1));
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_STR("keep", E.rows[0].chars);
+
+	ASSERT_TRUE(unlink(open_file) == 0);
+	return 0;
+}
+
 static int test_editor_process_keypress_focus_drawer_and_arrow_navigation(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -8738,12 +8796,16 @@ int main(void) {
 				test_editor_process_keypress_ctrl_w_dirty_requires_second_press},
 			{"editor_process_keypress_close_tab_confirmation_resets_on_other_action",
 				test_editor_process_keypress_close_tab_confirmation_resets_on_other_action},
-			{"editor_process_keypress_ctrl_q_checks_dirty_tabs_globally",
-				test_editor_process_keypress_ctrl_q_checks_dirty_tabs_globally},
-			{"editor_process_keypress_tab_actions_new_next_prev",
-				test_editor_process_keypress_tab_actions_new_next_prev},
-				{"editor_process_keypress_focus_drawer_and_arrow_navigation",
-					test_editor_process_keypress_focus_drawer_and_arrow_navigation},
+				{"editor_process_keypress_ctrl_q_checks_dirty_tabs_globally",
+					test_editor_process_keypress_ctrl_q_checks_dirty_tabs_globally},
+				{"editor_process_keypress_tab_actions_new_next_prev",
+					test_editor_process_keypress_tab_actions_new_next_prev},
+				{"editor_tab_open_file_reuses_active_clean_empty_buffer",
+					test_editor_tab_open_file_reuses_active_clean_empty_buffer},
+				{"editor_tab_open_file_opens_new_tab_when_empty_buffer_is_inactive",
+					test_editor_tab_open_file_opens_new_tab_when_empty_buffer_is_inactive},
+					{"editor_process_keypress_focus_drawer_and_arrow_navigation",
+						test_editor_process_keypress_focus_drawer_and_arrow_navigation},
 				{"editor_process_keypress_drawer_enter_toggles_directory",
 					test_editor_process_keypress_drawer_enter_toggles_directory},
 				{"editor_process_keypress_drawer_enter_opens_file_in_new_tab",

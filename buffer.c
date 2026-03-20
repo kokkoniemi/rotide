@@ -2386,7 +2386,29 @@ int editorTabNewEmpty(void) {
 	return 1;
 }
 
+static int editorTabCanReuseActiveEmptyBuffer(void) {
+	if (E.tab_count <= 0) {
+		return 0;
+	}
+	if (E.filename != NULL && E.filename[0] != '\0') {
+		return 0;
+	}
+	if (E.dirty != 0) {
+		return 0;
+	}
+	for (int row_idx = 0; row_idx < E.numrows; row_idx++) {
+		if (E.rows[row_idx].size != 0) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
 int editorTabOpenFileAsNew(const char *filename) {
+	if (editorTabCanReuseActiveEmptyBuffer()) {
+		editorOpen(filename);
+		return 1;
+	}
 	if (!editorTabNewEmpty()) {
 		return 0;
 	}
