@@ -29,12 +29,6 @@ int editorRowRxToCx(const struct erow *row, int rx);
 int editorRowCxToRenderIdx(const struct erow *row, int cx);
 
 void editorUpdateRow(struct erow *row);
-void editorInsertRow(int idx, const char *s, size_t len);
-void editorDeleteRow(int idx);
-void editorInsertCharAt(struct erow *row, int idx, int c);
-void editorRowAppendString(struct erow *row, const char *s, size_t len);
-void editorDelCharAt(struct erow *row, int idx);
-void editorDelCharsAt(struct erow *row, int idx, int len);
 
 void editorInsertChar(int c);
 int editorInsertText(const char *text, size_t len);
@@ -121,17 +115,13 @@ int editorSyntaxRowRenderSpans(int row_idx, struct editorRowSyntaxSpan *spans, i
 		int *count_out);
 void editorSyntaxTestResetVisibleRowRecomputeCount(void);
 int editorSyntaxTestVisibleRowRecomputeCount(void);
-void editorDocumentMirrorTestResetStats(void);
-int editorDocumentMirrorTestFullRebuildCount(void);
-int editorDocumentMirrorTestIncrementalUpdateCount(void);
-int editorDocumentMirrorTestRowSourceRebuildCount(void);
+void editorDocumentTestResetStats(void);
+int editorDocumentTestFullRebuildCount(void);
+int editorDocumentTestIncrementalUpdateCount(void);
 void editorActiveTextSourceBuildTestResetCount(void);
 int editorActiveTextSourceBuildTestCount(void);
 void editorActiveTextSourceDupTestResetCount(void);
 int editorActiveTextSourceDupTestCount(void);
-void editorSnapshotCaptureTestResetStats(void);
-int editorSnapshotCaptureTestDocumentCloneCount(void);
-int editorSnapshotCaptureTestTextSourceBuildCount(void);
 int editorBufferMaxRenderCols(void);
 
 int editorGetSelectionRange(struct editorSelectionRange *range_out);

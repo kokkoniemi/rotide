@@ -45,7 +45,7 @@ void reset_editor_state(void) {
 	editorTestAllocReset();
 	editorTestSaveSyscallsReset();
 	editorLspTestResetMock();
-	editorDocumentMirrorTestResetStats();
+	editorDocumentTestResetStats();
 	editorActiveTextSourceDupTestResetCount();
 	clear_editor_state();
 	memset(&E, 0, sizeof(E));
@@ -55,7 +55,6 @@ void reset_editor_state(void) {
 	E.is_preview = 0;
 	E.tab_title = NULL;
 	E.cursor_offset = 0;
-	E.preferred_rx = 0;
 	E.search_match_offset = 0;
 	E.search_match_len = 0;
 	E.search_direction = 1;
@@ -96,11 +95,49 @@ void reset_editor_state(void) {
 }
 
 void add_row(const char *s) {
-	editorInsertRow(E.numrows, s, strlen(s));
+	add_row_bytes(s, strlen(s));
 }
 
 void add_row_bytes(const char *s, size_t len) {
-	editorInsertRow(E.numrows, s, len);
+	if (s == NULL) {
+		return;
+	}
+	int saved_cy = E.cy;
+	int saved_cx = E.cx;
+	size_t saved_offset = E.cursor_offset;
+	size_t with_newline = len + 1;
+	char *line = malloc(with_newline);
+	if (line == NULL) {
+		return;
+	}
+	memcpy(line, s, len);
+	line[len] = '\n';
+	E.cy = E.numrows;
+	E.cx = 0;
+	(void)editorInsertText(line, with_newline);
+	free(line);
+
+	if (saved_cy < 0) {
+		saved_cy = 0;
+	}
+	if (saved_cy > E.numrows) {
+		saved_cy = E.numrows;
+	}
+	if (saved_cy < E.numrows) {
+		if (saved_cx < 0) {
+			saved_cx = 0;
+		}
+		if (saved_cx > E.rows[saved_cy].size) {
+			saved_cx = E.rows[saved_cy].size;
+		}
+	} else {
+		saved_cx = 0;
+	}
+	E.cy = saved_cy;
+	E.cx = saved_cx;
+	if (!editorBufferPosToOffset(E.cy, E.cx, &E.cursor_offset)) {
+		E.cursor_offset = saved_offset;
+	}
 }
 
 int write_all(int fd, const char *buf, size_t len) {

@@ -23,7 +23,6 @@ void initEditor(void) {
 	E.is_preview = 0;
 	E.tab_title = NULL;
 	E.cursor_offset = 0;
-	E.preferred_rx = 0;
 	E.numrows = 0;
 	E.rows = NULL;
 	E.dirty = 0;

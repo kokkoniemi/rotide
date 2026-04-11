@@ -6,6 +6,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -62,8 +63,9 @@ static struct editorLspMockState g_lsp_mock = {0};
 static enum editorLspStartupFailureReason g_lsp_last_startup_failure_reason =
 		EDITOR_LSP_STARTUP_FAILURE_NONE;
 
-static int editorLspUtf8ColumnToUtf16Units(const struct erow *row, int byte_column);
-static int editorLspUtf16UnitsToUtf8Column(const struct erow *row, int utf16_units);
+static int editorLspUtf8ColumnToUtf16Units(const char *text, size_t text_len, int byte_column);
+static int editorLspUtf16UnitsToUtf8Column(const char *text, size_t text_len, int utf16_units);
+static int editorLspReadActiveLineText(int line, char **text_out, size_t *len_out);
 static int editorLspProtocolCharacterFromBufferColumn(int line, int byte_column);
 
 static long long editorLspMonotonicMillis(void) {
@@ -754,14 +756,22 @@ void editorLspFreeLocations(struct editorLspLocation *locations, int count) {
 	free(locations);
 }
 
-int editorLspProtocolCharacterToBufferColumn(const struct erow *row, int protocol_character) {
+int editorLspProtocolCharacterToBufferColumn(int line, int protocol_character) {
 	if (protocol_character < 0) {
 		return 0;
 	}
-	if (!g_lsp_client.position_encoding_utf16 || row == NULL) {
+	if (!g_lsp_client.position_encoding_utf16) {
 		return protocol_character;
 	}
-	return editorLspUtf16UnitsToUtf8Column(row, protocol_character);
+
+	char *line_text = NULL;
+	size_t line_len = 0;
+	if (!editorLspReadActiveLineText(line, &line_text, &line_len)) {
+		return protocol_character;
+	}
+	int byte_column = editorLspUtf16UnitsToUtf8Column(line_text, line_len, protocol_character);
+	free(line_text);
+	return byte_column;
 }
 
 static int editorLspAppendLocation(struct editorLspLocation **locations, int *count, int *cap,
@@ -1004,26 +1014,34 @@ static void editorLspSetStartupFailureStatus(int timed_out) {
 	editorSetStatusMsg("LSP startup failed: initialize I/O error");
 }
 
-static int editorLspUtf8ColumnToUtf16Units(const struct erow *row, int byte_column) {
-	if (row == NULL || byte_column <= 0) {
+static int editorLspUtf8ColumnToUtf16Units(const char *text, size_t text_len, int byte_column) {
+	if (text == NULL || byte_column <= 0) {
 		return 0;
 	}
 
-	int clamped = editorRowClampCxToCharBoundary(row, byte_column);
+	int text_len_int = 0;
+	if (!editorSizeToInt(text_len, &text_len_int)) {
+		text_len_int = INT_MAX;
+	}
+	int clamped = byte_column;
 	if (clamped < 0) {
 		clamped = 0;
 	}
-	if (clamped > row->size) {
-		clamped = row->size;
+	if (clamped > text_len_int) {
+		clamped = text_len_int;
+	}
+	while (clamped > 0 && clamped < text_len_int &&
+			editorIsUtf8ContinuationByte((unsigned char)text[clamped])) {
+		clamped--;
 	}
 
 	int utf16_units = 0;
 	for (int idx = 0; idx < clamped;) {
 		unsigned int cp = 0;
-		int seq_len = editorUtf8DecodeCodepoint(row->chars + idx, row->size - idx, &cp);
+		int seq_len = editorUtf8DecodeCodepoint(text + idx, text_len_int - idx, &cp);
 		if (seq_len <= 0) {
 			seq_len = 1;
-			cp = (unsigned char)row->chars[idx];
+			cp = (unsigned char)text[idx];
 		}
 		utf16_units += (cp > 0xFFFFU) ? 2 : 1;
 		idx += seq_len;
@@ -1032,19 +1050,23 @@ static int editorLspUtf8ColumnToUtf16Units(const struct erow *row, int byte_colu
 	return utf16_units;
 }
 
-static int editorLspUtf16UnitsToUtf8Column(const struct erow *row, int utf16_units) {
-	if (row == NULL || utf16_units <= 0) {
+static int editorLspUtf16UnitsToUtf8Column(const char *text, size_t text_len, int utf16_units) {
+	if (text == NULL || utf16_units <= 0) {
 		return 0;
 	}
 
+	int text_len_int = 0;
+	if (!editorSizeToInt(text_len, &text_len_int)) {
+		text_len_int = INT_MAX;
+	}
 	int units = 0;
 	int idx = 0;
-	while (idx < row->size) {
+	while (idx < text_len_int) {
 		unsigned int cp = 0;
-		int seq_len = editorUtf8DecodeCodepoint(row->chars + idx, row->size - idx, &cp);
+		int seq_len = editorUtf8DecodeCodepoint(text + idx, text_len_int - idx, &cp);
 		if (seq_len <= 0) {
 			seq_len = 1;
-			cp = (unsigned char)row->chars[idx];
+			cp = (unsigned char)text[idx];
 		}
 
 		int cp_units = (cp > 0xFFFFU) ? 2 : 1;
@@ -1058,6 +1080,31 @@ static int editorLspUtf16UnitsToUtf8Column(const struct erow *row, int utf16_uni
 	return idx;
 }
 
+static int editorLspReadActiveLineText(int line, char **text_out, size_t *len_out) {
+	if (text_out == NULL || len_out == NULL || line < 0) {
+		return 0;
+	}
+	*text_out = NULL;
+	*len_out = 0;
+
+	size_t line_start = 0;
+	size_t line_end = 0;
+	if (!editorBufferLineByteRange(line, &line_start, &line_end)) {
+		return 0;
+	}
+
+	struct editorTextSource source = {0};
+	if (!editorBuildActiveTextSource(&source)) {
+		return 0;
+	}
+
+	*text_out = editorTextSourceDupRange(&source, line_start, line_end, len_out);
+	if (*text_out == NULL) {
+		return line_end == line_start;
+	}
+	return 1;
+}
+
 static int editorLspProtocolCharacterFromBufferColumn(int line, int byte_column) {
 	if (byte_column < 0) {
 		byte_column = 0;
@@ -1065,10 +1112,14 @@ static int editorLspProtocolCharacterFromBufferColumn(int line, int byte_column)
 	if (!g_lsp_client.position_encoding_utf16) {
 		return byte_column;
 	}
-	if (line < 0 || line >= E.numrows) {
+	char *line_text = NULL;
+	size_t line_len = 0;
+	if (!editorLspReadActiveLineText(line, &line_text, &line_len)) {
 		return byte_column;
 	}
-	return editorLspUtf8ColumnToUtf16Units(&E.rows[line], byte_column);
+	int protocol_character = editorLspUtf8ColumnToUtf16Units(line_text, line_len, byte_column);
+	free(line_text);
+	return protocol_character;
 }
 
 static void editorLspClientResetState(void) {

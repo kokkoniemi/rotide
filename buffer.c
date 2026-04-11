@@ -56,12 +56,14 @@ static void editorTaskResetState(void);
 static int editorTabKindSupportsDocument(enum editorTabKind tab_kind);
 static int editorDocumentStateResetFromText(struct editorDocument **document_in_out,
 		enum editorTabKind tab_kind, const char *text, size_t len);
-static int editorDocumentMirrorEnsureActiveCurrent(void);
-static int editorDocumentMirrorResetActiveFromText(const char *text, size_t len);
+static int editorDocumentEnsureActiveCurrent(void);
+static int editorDocumentResetActiveFromText(const char *text, size_t len);
 static int editorTabDocumentEnsureCurrent(struct editorTabState *tab);
 static int editorActiveDocumentCurrent(const struct editorDocument **document_out);
 static int editorBuildRowsFromDocument(const struct editorDocument *document,
 		struct erow **rows_out, int *numrows_out);
+static int editorBuildRowsFromDocumentRange(const struct editorDocument *document,
+		int start_row, int end_row_exclusive, struct erow **rows_out, int *numrows_out);
 static int editorCursorPositionForOffset(const struct editorDocument *document,
 		const struct erow *rows, int numrows, size_t offset, int *cy_out, int *cx_out,
 		size_t *normalized_offset_out);
@@ -77,13 +79,10 @@ static int editorTextSourceFindForwardInRange(const struct editorTextSource *sou
 static int editorTextSourceFindBackwardInRange(const struct editorTextSource *source,
 		size_t start_byte, size_t end_byte, const char *query, int before_idx, int *out_idx);
 
-static int g_document_mirror_full_rebuild_count = 0;
-static int g_document_mirror_incremental_update_count = 0;
-static int g_document_mirror_row_source_rebuild_count = 0;
+static int g_document_full_rebuild_count = 0;
+static int g_document_incremental_update_count = 0;
 static int g_active_text_source_build_count = 0;
 static int g_active_text_source_dup_count = 0;
-static int g_snapshot_capture_document_clone_count = 0;
-static int g_snapshot_capture_text_source_build_count = 0;
 
 struct editorDocumentEdit {
 	enum editorEditKind kind;
@@ -213,7 +212,7 @@ int editorBuildActiveTextSource(struct editorTextSource *source_out) {
 	}
 	g_active_text_source_build_count++;
 	if (!editorTabKindSupportsDocument(E.tab_kind) ||
-			!editorDocumentMirrorEnsureActiveCurrent() || E.document == NULL) {
+			!editorDocumentEnsureActiveCurrent() || E.document == NULL) {
 		return 0;
 	}
 	source_out->read = editorDocumentTextSourceRead;
@@ -278,7 +277,7 @@ static int editorTabKindSupportsDocument(enum editorTabKind tab_kind) {
 	return tab_kind == EDITOR_TAB_FILE || tab_kind == EDITOR_TAB_TASK_LOG;
 }
 
-static struct editorDocument *editorDocumentMirrorAlloc(void) {
+static struct editorDocument *editorDocumentAlloc(void) {
 	struct editorDocument *document = editorMalloc(sizeof(*document));
 	if (document == NULL) {
 		return NULL;
@@ -287,7 +286,7 @@ static struct editorDocument *editorDocumentMirrorAlloc(void) {
 	return document;
 }
 
-static void editorDocumentMirrorFree(struct editorDocument **document_in_out) {
+static void editorDocumentFreePtr(struct editorDocument **document_in_out) {
 	if (document_in_out == NULL || *document_in_out == NULL) {
 		return;
 	}
@@ -302,11 +301,11 @@ static int editorDocumentStateResetFromText(struct editorDocument **document_in_
 		return 0;
 	}
 	if (!editorTabKindSupportsDocument(tab_kind)) {
-		editorDocumentMirrorFree(document_in_out);
+		editorDocumentFreePtr(document_in_out);
 		return 1;
 	}
 	if (*document_in_out == NULL) {
-		*document_in_out = editorDocumentMirrorAlloc();
+		*document_in_out = editorDocumentAlloc();
 		if (*document_in_out == NULL) {
 			return 0;
 		}
@@ -314,7 +313,7 @@ static int editorDocumentStateResetFromText(struct editorDocument **document_in_
 	if (!editorDocumentResetFromString(*document_in_out, text, len)) {
 		return 0;
 	}
-	g_document_mirror_full_rebuild_count++;
+	g_document_full_rebuild_count++;
 	return 1;
 }
 
@@ -324,7 +323,7 @@ static int editorDocumentEnsureForTab(enum editorTabKind tab_kind,
 		return 0;
 	}
 	if (!editorTabKindSupportsDocument(tab_kind)) {
-		editorDocumentMirrorFree(document_in_out);
+		editorDocumentFreePtr(document_in_out);
 		return 1;
 	}
 	if (*document_in_out != NULL) {
@@ -333,11 +332,11 @@ static int editorDocumentEnsureForTab(enum editorTabKind tab_kind,
 	return editorDocumentStateResetFromText(document_in_out, tab_kind, "", 0);
 }
 
-static int editorDocumentMirrorResetActiveFromText(const char *text, size_t len) {
+static int editorDocumentResetActiveFromText(const char *text, size_t len) {
 	return editorDocumentStateResetFromText(&E.document, E.tab_kind, text, len);
 }
 
-static int editorDocumentMirrorEnsureActiveCurrent(void) {
+static int editorDocumentEnsureActiveCurrent(void) {
 	return editorDocumentEnsureForTab(E.tab_kind, &E.document) && E.document != NULL;
 }
 
@@ -418,7 +417,7 @@ static int editorReadNormalizedFileToText(FILE *fp, char **text_out, size_t *len
 
 static int editorActiveDocumentCurrent(const struct editorDocument **document_out) {
 	if (document_out == NULL || !editorTabKindSupportsDocument(E.tab_kind) ||
-			!editorDocumentMirrorEnsureActiveCurrent() || E.document == NULL) {
+			!editorDocumentEnsureActiveCurrent() || E.document == NULL) {
 		return 0;
 	}
 	*document_out = E.document;
@@ -1538,7 +1537,6 @@ static int editorHistoryRecordPendingEditFromOperation(enum editorEditKind kind,
 static int editorApplyDocumentEdit(const struct editorDocumentEdit *edit) {
 	const struct editorDocument *active_document = NULL;
 	size_t old_end_offset = 0;
-	struct editorDocument *replacement_document = NULL;
 	struct erow *new_rows = NULL;
 	int new_numrows = 0;
 	size_t normalized_offset = 0;
@@ -1575,46 +1573,30 @@ static int editorApplyDocumentEdit(const struct editorDocumentEdit *edit) {
 				edit->new_len > 0 ? edit->new_text : "", edit->new_len, &syntax_edit);
 	}
 
-	replacement_document = editorDocumentMirrorAlloc();
-	if (replacement_document == NULL) {
-		free(removed_text);
-		editorSetAllocFailureStatus();
-		return 0;
-	}
-	if (!editorDocumentResetFromDocument(replacement_document, active_document) ||
-			!editorDocumentReplaceRange(replacement_document, edit->start_offset, edit->old_len,
-					edit->new_len > 0 ? edit->new_text : "", edit->new_len) ||
-			!editorBuildRowsFromDocument(replacement_document, &new_rows, &new_numrows) ||
-				!editorCursorPositionForOffset(replacement_document, new_rows, new_numrows,
-					edit->after_cursor_offset, &new_cy, &new_cx, &normalized_offset)) {
+	if (!editorDocumentReplaceRange(E.document, edit->start_offset, edit->old_len,
+				edit->new_len > 0 ? edit->new_text : "", edit->new_len) ||
+			!editorBuildRowsFromDocument(E.document, &new_rows, &new_numrows) ||
+			!editorCursorPositionForOffset(E.document, new_rows, new_numrows, edit->after_cursor_offset,
+					&new_cy, &new_cx, &normalized_offset)) {
 		editorFreeRowArray(new_rows, new_numrows);
-		editorDocumentMirrorFree(&replacement_document);
 		free(removed_text);
 		editorSetAllocFailureStatus();
 		return 0;
 	}
-
-	struct erow *old_rows = E.rows;
-	int old_numrows = E.numrows;
-	struct editorDocument *old_document = E.document;
-
+	editorFreeRowArray(E.rows, E.numrows);
 	E.rows = new_rows;
 	E.numrows = new_numrows;
-	E.document = replacement_document;
+
 	E.max_render_cols_valid = 0;
 	E.cy = new_cy;
 	E.cx = new_cx;
 	E.cursor_offset = normalized_offset;
-	E.preferred_rx = 0;
 	E.dirty = edit->after_dirty;
 	if (E.syntax_state == NULL || E.syntax_language == EDITOR_SYNTAX_NONE) {
 		editorSyntaxVisibleCacheInvalidate();
 	}
 
-	editorFreeRowArray(old_rows, old_numrows);
-	editorDocumentMirrorFree(&old_document);
-
-	g_document_mirror_incremental_update_count++;
+	g_document_incremental_update_count++;
 	if (E.edit_pending_mode == EDITOR_EDIT_PENDING_CAPTURED &&
 			E.edit_pending_kind != EDITOR_EDIT_NONE) {
 		if (!editorHistoryRecordPendingEditFromOperation(E.edit_pending_kind, edit,
@@ -2192,6 +2174,7 @@ int editorDeleteRange(const struct editorSelectionRange *range) {
 
 	size_t start_offset = 0;
 	size_t end_offset = 0;
+	int dirty_delta = 1;
 	if (!editorBufferPosToOffset(normalized.start_cy, normalized.start_cx, &start_offset) ||
 			!editorBufferPosToOffset(normalized.end_cy, normalized.end_cx, &end_offset) ||
 			end_offset < start_offset) {
@@ -2206,6 +2189,13 @@ int editorDeleteRange(const struct editorSelectionRange *range) {
 	if (!editorBufferPosToOffset(E.cy, E.cx, &before_cursor_offset)) {
 		before_cursor_offset = start_offset;
 	}
+	if (normalized.start_cy != normalized.end_cy) {
+		dirty_delta = 2;
+	}
+	if (E.dirty > INT_MAX - dirty_delta) {
+		editorSetOperationTooLargeStatus();
+		return -1;
+	}
 
 	struct editorDocumentEdit edit = {
 		.kind = EDITOR_EDIT_DELETE_TEXT,
@@ -2216,7 +2206,7 @@ int editorDeleteRange(const struct editorSelectionRange *range) {
 		.before_cursor_offset = before_cursor_offset,
 		.after_cursor_offset = start_offset,
 		.before_dirty = E.dirty,
-		.after_dirty = E.dirty + 1
+		.after_dirty = E.dirty + dirty_delta
 	};
 	if (!editorApplyDocumentEdit(&edit)) {
 		return -1;
@@ -2506,17 +2496,21 @@ static int editorAppendRestoredRow(struct erow **rows, int *numrows, const char 
 	return 1;
 }
 
-static int editorBuildRowsFromDocument(const struct editorDocument *document,
-		struct erow **rows_out, int *numrows_out) {
+static int editorBuildRowsFromDocumentRange(const struct editorDocument *document,
+		int start_row, int end_row_exclusive, struct erow **rows_out, int *numrows_out) {
 	struct erow *rows = NULL;
 	int numrows = 0;
 
-	if (document == NULL || rows_out == NULL || numrows_out == NULL) {
+	if (document == NULL || rows_out == NULL || numrows_out == NULL ||
+			start_row < 0 || end_row_exclusive < start_row) {
 		return 0;
 	}
 
 	int line_count = editorDocumentLineCount(document);
-	for (int line_idx = 0; line_idx < line_count; line_idx++) {
+	if (end_row_exclusive > line_count) {
+		return 0;
+	}
+	for (int line_idx = start_row; line_idx < end_row_exclusive; line_idx++) {
 		size_t line_start = 0;
 		size_t line_end = 0;
 		if (!editorDocumentLineStartByte(document, line_idx, &line_start) ||
@@ -2547,6 +2541,15 @@ static int editorBuildRowsFromDocument(const struct editorDocument *document,
 	*rows_out = rows;
 	*numrows_out = numrows;
 	return 1;
+}
+
+static int editorBuildRowsFromDocument(const struct editorDocument *document,
+		struct erow **rows_out, int *numrows_out) {
+	if (document == NULL) {
+		return 0;
+	}
+	return editorBuildRowsFromDocumentRange(document, 0, editorDocumentLineCount(document),
+			rows_out, numrows_out);
 }
 
 static void editorClampCursorForRows(int target_cy, int target_cx,
@@ -2596,12 +2599,12 @@ static int editorRestoreActiveFromDocument(const struct editorDocument *document
 		return 0;
 	}
 
-	new_document = editorDocumentMirrorAlloc();
+	new_document = editorDocumentAlloc();
 	if (new_document == NULL ||
 			!editorDocumentResetFromDocument(new_document, document) ||
 			!editorBuildRowsFromDocument(new_document, &new_rows, &new_numrows)) {
 		editorFreeRowArray(new_rows, new_numrows);
-		editorDocumentMirrorFree(&new_document);
+		editorDocumentFreePtr(&new_document);
 		editorSetAllocFailureStatus();
 		return 0;
 	}
@@ -2625,14 +2628,13 @@ static int editorRestoreActiveFromDocument(const struct editorDocument *document
 		new_offset = 0;
 	}
 	E.cursor_offset = new_offset;
-	E.preferred_rx = 0;
-	g_document_mirror_full_rebuild_count++;
+	g_document_full_rebuild_count++;
 	if (parse_syntax) {
 		(void)editorSyntaxParseFullActive();
 	}
 
 	editorFreeRowArray(old_rows, old_numrows);
-	editorDocumentMirrorFree(&old_document);
+	editorDocumentFreePtr(&old_document);
 	return 1;
 }
 
@@ -2661,7 +2663,6 @@ static void editorTabStateInitEmpty(struct editorTabState *tab) {
 	tab->is_preview = 0;
 	tab->document = NULL;
 	tab->cursor_offset = 0;
-	tab->preferred_rx = 0;
 	tab->syntax_language = EDITOR_SYNTAX_NONE;
 	tab->syntax_state = NULL;
 	tab->lsp_doc_open = 0;
@@ -2679,7 +2680,6 @@ static void editorResetActiveBufferFields(void) {
 	E.is_preview = 0;
 	E.tab_title = NULL;
 	E.cursor_offset = 0;
-	E.preferred_rx = 0;
 	E.cx = 0;
 	E.cy = 0;
 	E.rx = 0;
@@ -2729,7 +2729,7 @@ static void editorFreeTabRows(struct editorTabState *tab) {
 
 static void editorTabStateFree(struct editorTabState *tab) {
 	editorFreeTabRows(tab);
-	editorDocumentMirrorFree(&tab->document);
+	editorDocumentFreePtr(&tab->document);
 	free(tab->filename);
 	tab->filename = NULL;
 	free(tab->tab_title);
@@ -2754,7 +2754,7 @@ static void editorFreeActiveBufferState(void) {
 	free(E.rows);
 	E.rows = NULL;
 	E.numrows = 0;
-	editorDocumentMirrorFree(&E.document);
+	editorDocumentFreePtr(&E.document);
 	E.max_render_cols = 0;
 	E.max_render_cols_valid = 1;
 
@@ -2782,7 +2782,6 @@ static void editorTabStateCaptureActive(struct editorTabState *tab) {
 	tab->is_preview = E.is_preview;
 	tab->tab_title = E.tab_title;
 	tab->cursor_offset = E.cursor_offset;
-	tab->preferred_rx = E.preferred_rx;
 	tab->cx = E.cx;
 	tab->cy = E.cy;
 	tab->rx = E.rx;
@@ -2825,7 +2824,6 @@ static void editorTabStateLoadActive(struct editorTabState *tab) {
 	E.is_preview = tab->is_preview;
 	E.tab_title = tab->tab_title;
 	E.cursor_offset = tab->cursor_offset;
-	E.preferred_rx = tab->preferred_rx;
 	E.cx = tab->cx;
 	E.cy = tab->cy;
 	E.rx = tab->rx;
@@ -3678,7 +3676,7 @@ int editorTaskStart(const char *title, const char *command,
 	E.lsp_doc_open = 0;
 	E.lsp_doc_version = 0;
 	(void)snprintf(header, sizeof(header), "$ %s\n\n", command);
-	if (!editorDocumentMirrorResetActiveFromText(header, strlen(header))) {
+	if (!editorDocumentResetActiveFromText(header, strlen(header))) {
 		editorSetAllocFailureStatus();
 		return 0;
 	}
@@ -3798,22 +3796,17 @@ int editorSyntaxTestVisibleRowRecomputeCount(void) {
 	return g_visible_syntax_row_recompute_count;
 }
 
-void editorDocumentMirrorTestResetStats(void) {
-	g_document_mirror_full_rebuild_count = 0;
-	g_document_mirror_incremental_update_count = 0;
-	g_document_mirror_row_source_rebuild_count = 0;
+void editorDocumentTestResetStats(void) {
+	g_document_full_rebuild_count = 0;
+	g_document_incremental_update_count = 0;
 }
 
-int editorDocumentMirrorTestFullRebuildCount(void) {
-	return g_document_mirror_full_rebuild_count;
+int editorDocumentTestFullRebuildCount(void) {
+	return g_document_full_rebuild_count;
 }
 
-int editorDocumentMirrorTestIncrementalUpdateCount(void) {
-	return g_document_mirror_incremental_update_count;
-}
-
-int editorDocumentMirrorTestRowSourceRebuildCount(void) {
-	return g_document_mirror_row_source_rebuild_count;
+int editorDocumentTestIncrementalUpdateCount(void) {
+	return g_document_incremental_update_count;
 }
 
 void editorActiveTextSourceBuildTestResetCount(void) {
@@ -3830,19 +3823,6 @@ void editorActiveTextSourceDupTestResetCount(void) {
 
 int editorActiveTextSourceDupTestCount(void) {
 	return g_active_text_source_dup_count;
-}
-
-void editorSnapshotCaptureTestResetStats(void) {
-	g_snapshot_capture_document_clone_count = 0;
-	g_snapshot_capture_text_source_build_count = 0;
-}
-
-int editorSnapshotCaptureTestDocumentCloneCount(void) {
-	return g_snapshot_capture_document_clone_count;
-}
-
-int editorSnapshotCaptureTestTextSourceBuildCount(void) {
-	return g_snapshot_capture_text_source_build_count;
 }
 
 int editorSyntaxRowRenderSpans(int row_idx, struct editorRowSyntaxSpan *spans, int max_spans,
@@ -5163,153 +5143,6 @@ void editorUpdateRow(struct erow *row) {
 	(void)editorRebuildRowRender(row);
 }
 
-static int editorFindRowIndex(const struct erow *row) {
-	if (row == NULL || E.rows == NULL || E.numrows <= 0) {
-		return -1;
-	}
-	for (int row_idx = 0; row_idx < E.numrows; row_idx++) {
-		if (&E.rows[row_idx] == row) {
-			return row_idx;
-		}
-	}
-	return -1;
-}
-
-static int editorApplyLowLevelDocumentEdit(enum editorEditKind kind,
-		size_t start_offset, size_t old_len, const char *new_text, size_t new_len) {
-	size_t cursor_offset = 0;
-	if (!editorBufferPosToOffset(E.cy, E.cx, &cursor_offset)) {
-		cursor_offset = 0;
-	}
-
-	int after_dirty = E.dirty;
-	if (after_dirty < INT_MAX) {
-		after_dirty++;
-	}
-
-	struct editorDocumentEdit edit = {
-		.kind = kind,
-		.start_offset = start_offset,
-		.old_len = old_len,
-		.new_text = new_text != NULL ? new_text : "",
-		.new_len = new_len,
-		.before_cursor_offset = cursor_offset,
-		.after_cursor_offset = cursor_offset,
-		.before_dirty = E.dirty,
-		.after_dirty = after_dirty
-	};
-	return editorApplyDocumentEdit(&edit);
-}
-
-void editorInsertRow(int idx, const char *s, size_t len) {
-	if (idx < 0 || idx > E.numrows) {
-		return;
-	}
-	if ((len > 0 && s == NULL) ||
-			len > ROTIDE_MAX_TEXT_BYTES || !editorSizeWithinInt(len)) {
-		editorSetOperationTooLargeStatus();
-		return;
-	}
-
-	size_t start_offset = 0;
-	size_t insert_len = 0;
-	if (!editorBufferPosToOffset(idx, 0, &start_offset) ||
-			!editorSizeAdd(len, 1, &insert_len)) {
-		editorSetOperationTooLargeStatus();
-		return;
-	}
-
-	char *inserted = editorMalloc(insert_len);
-	if (inserted == NULL) {
-		editorSetAllocFailureStatus();
-		return;
-	}
-	if (len > 0) {
-		memcpy(inserted, s, len);
-	}
-	inserted[len] = '\n';
-	(void)editorApplyLowLevelDocumentEdit(EDITOR_EDIT_NEWLINE, start_offset, 0, inserted, insert_len);
-	free(inserted);
-}
-
-void editorDeleteRow(int idx) {
-	if (idx < 0 || idx >= E.numrows) {
-		return;
-	}
-	struct erow *row = &E.rows[idx];
-	size_t row_len = 0;
-	size_t old_len = 0;
-	size_t start_offset = 0;
-	if (!editorIntToSize(row->size, &row_len) ||
-			!editorSizeAdd(row_len, NEWLINE_CHAR_WIDTH, &old_len) ||
-			!editorBufferPosToOffset(idx, 0, &start_offset)) {
-		editorSetOperationTooLargeStatus();
-		return;
-	}
-	(void)editorApplyLowLevelDocumentEdit(EDITOR_EDIT_DELETE_TEXT, start_offset, old_len, "", 0);
-}
-
-void editorInsertCharAt(struct erow *row, int idx, int c) {
-	int row_idx = editorFindRowIndex(row);
-	if (row_idx < 0) {
-		return;
-	}
-	if (idx < 0 || row->size < idx) {
-		idx = row->size;
-	}
-	size_t start_offset = 0;
-	if (!editorBufferPosToOffset(row_idx, idx, &start_offset)) {
-		editorSetOperationTooLargeStatus();
-		return;
-	}
-	char inserted = (char)c;
-	(void)editorApplyLowLevelDocumentEdit(EDITOR_EDIT_INSERT_TEXT, start_offset, 0, &inserted, 1);
-}
-
-void editorRowAppendString(struct erow *row, const char *s, size_t len) {
-	int row_idx = editorFindRowIndex(row);
-	if (row_idx < 0) {
-		return;
-	}
-	if (len > 0 && s == NULL) {
-		editorSetOperationTooLargeStatus();
-		return;
-	}
-	size_t start_offset = 0;
-	if (!editorBufferPosToOffset(row_idx, row->size, &start_offset)) {
-		editorSetOperationTooLargeStatus();
-		return;
-	}
-	(void)editorApplyLowLevelDocumentEdit(EDITOR_EDIT_INSERT_TEXT, start_offset, 0,
-			len > 0 ? s : "", len);
-}
-
-void editorDelCharAt(struct erow *row, int idx) {
-	int row_idx = editorFindRowIndex(row);
-	if (row_idx < 0 || idx < 0 || row->size <= idx) {
-		return;
-	}
-	size_t start_offset = 0;
-	if (!editorBufferPosToOffset(row_idx, idx, &start_offset)) {
-		editorSetOperationTooLargeStatus();
-		return;
-	}
-	(void)editorApplyLowLevelDocumentEdit(EDITOR_EDIT_DELETE_TEXT, start_offset, 1, "", 0);
-}
-
-void editorDelCharsAt(struct erow *row, int idx, int len) {
-	int row_idx = editorFindRowIndex(row);
-	if (row_idx < 0 || idx < 0 || len <= 0 || idx > row->size || len > row->size - idx) {
-		return;
-	}
-	size_t start_offset = 0;
-	if (!editorBufferPosToOffset(row_idx, idx, &start_offset)) {
-		editorSetOperationTooLargeStatus();
-		return;
-	}
-	(void)editorApplyLowLevelDocumentEdit(EDITOR_EDIT_DELETE_TEXT, start_offset, (size_t)len, "", 0);
-}
-
 int editorInsertText(const char *text, size_t len) {
 	int insert_cx = 0;
 	size_t start_offset = 0;
@@ -5795,14 +5628,8 @@ err: {
 #define ROTIDE_RECOVERY_MAGIC "RTRECOV1"
 #define ROTIDE_RECOVERY_MAGIC_LEN 8
 #define ROTIDE_RECOVERY_VERSION 2U
-#define ROTIDE_RECOVERY_VERSION_ROWS 1U
 #define ROTIDE_RECOVERY_AUTOSAVE_DEBOUNCE_SECONDS 5
 #define ROTIDE_RECOVERY_MAX_FILENAME_BYTES 4096
-
-struct editorRecoveryRow {
-	char *chars;
-	size_t len;
-};
 
 struct editorRecoveryTab {
 	int cx;
@@ -5812,8 +5639,6 @@ struct editorRecoveryTab {
 	char *filename;
 	char *text;
 	size_t textlen;
-	int row_count;
-	struct editorRecoveryRow *rows;
 };
 
 struct editorRecoverySession {
@@ -5830,13 +5655,6 @@ struct editorRecoveryTabView {
 	enum editorTabKind tab_kind;
 	struct editorDocument *document;
 	const char *filename;
-};
-
-struct editorRecoveryRowsTextSource {
-	const struct editorRecoveryRow *rows;
-	int row_count;
-	size_t *row_starts;
-	size_t total_len;
 };
 
 enum editorRecoveryLoadStatus {
@@ -5863,14 +5681,6 @@ static void editorRecoverySessionFree(struct editorRecoverySession *session) {
 		free(tab->text);
 		tab->text = NULL;
 		tab->textlen = 0;
-		for (int row_idx = 0; row_idx < tab->row_count; row_idx++) {
-			free(tab->rows[row_idx].chars);
-			tab->rows[row_idx].chars = NULL;
-			tab->rows[row_idx].len = 0;
-		}
-		free(tab->rows);
-		tab->rows = NULL;
-		tab->row_count = 0;
 		free(tab->filename);
 		tab->filename = NULL;
 	}
@@ -6086,7 +5896,7 @@ static int editorRecoveryGetTabView(int idx, struct editorRecoveryTabView *view_
 
 	if (idx == active_tab) {
 		if (editorTabKindSupportsDocument(E.tab_kind) &&
-				(!editorDocumentMirrorEnsureActiveCurrent() || E.document == NULL)) {
+				(!editorDocumentEnsureActiveCurrent() || E.document == NULL)) {
 			errno = EIO;
 			return 0;
 		}
@@ -6113,105 +5923,6 @@ static int editorRecoveryGetTabView(int idx, struct editorRecoveryTabView *view_
 	view_out->tab_kind = tab->tab_kind;
 	view_out->document = tab->document;
 	view_out->filename = tab->filename;
-	return 1;
-}
-
-static void editorRecoveryRowsTextSourceFree(struct editorRecoveryRowsTextSource *state) {
-	if (state == NULL) {
-		return;
-	}
-	free(state->row_starts);
-	state->row_starts = NULL;
-	state->rows = NULL;
-	state->row_count = 0;
-	state->total_len = 0;
-}
-
-static const char *editorRecoveryRowsTextSourceRead(const struct editorTextSource *source,
-		size_t byte_index, uint32_t *bytes_read) {
-	static const char newline[] = "\n";
-	const struct editorRecoveryRowsTextSource *state = source != NULL ? source->context : NULL;
-	if (bytes_read == NULL) {
-		return NULL;
-	}
-	*bytes_read = 0;
-	if (state == NULL || state->row_starts == NULL || state->row_count < 0 ||
-			byte_index >= state->total_len) {
-		return NULL;
-	}
-
-	int lo = 0;
-	int hi = state->row_count;
-	while (lo + 1 < hi) {
-		int mid = lo + (hi - lo) / 2;
-		if (state->row_starts[mid] <= byte_index) {
-			lo = mid;
-		} else {
-			hi = mid;
-		}
-	}
-
-	int row_idx = lo;
-	size_t row_start = state->row_starts[row_idx];
-	size_t row_size = state->rows[row_idx].len;
-	if (byte_index < row_start + row_size) {
-		size_t remaining = row_size - (byte_index - row_start);
-		if (remaining > UINT32_MAX) {
-			remaining = UINT32_MAX;
-		}
-		*bytes_read = (uint32_t)remaining;
-		return state->rows[row_idx].chars + (byte_index - row_start);
-	}
-	if (byte_index == row_start + row_size) {
-		*bytes_read = 1;
-		return newline;
-	}
-	return NULL;
-}
-
-static int editorRecoveryRowsBuildTextSource(const struct editorRecoveryRow *rows, int row_count,
-		struct editorRecoveryRowsTextSource *state_out, struct editorTextSource *source_out) {
-	if (state_out == NULL || source_out == NULL || row_count < 0 ||
-			(row_count > 0 && rows == NULL)) {
-		return 0;
-	}
-	memset(state_out, 0, sizeof(*state_out));
-	memset(source_out, 0, sizeof(*source_out));
-
-	size_t total = 0;
-	size_t starts_count = 0;
-	size_t starts_bytes = 0;
-	if (!editorIntToSize(row_count + 1, &starts_count) ||
-			!editorSizeMul(sizeof(*state_out->row_starts), starts_count, &starts_bytes)) {
-		errno = EOVERFLOW;
-		return 0;
-	}
-	state_out->row_starts = editorMalloc(starts_bytes);
-	if (state_out->row_starts == NULL) {
-		errno = ENOMEM;
-		return 0;
-	}
-
-	for (int row_idx = 0; row_idx < row_count; row_idx++) {
-		size_t row_total = 0;
-		state_out->row_starts[row_idx] = total;
-		if (!editorSizeAdd(rows[row_idx].len, NEWLINE_CHAR_WIDTH, &row_total) ||
-				!editorSizeAdd(total, row_total, &total) ||
-				total > ROTIDE_MAX_TEXT_BYTES) {
-			editorRecoveryRowsTextSourceFree(state_out);
-			errno = EOVERFLOW;
-			return 0;
-		}
-	}
-	state_out->row_starts[row_count] = total;
-	state_out->rows = rows;
-	state_out->row_count = row_count;
-	state_out->total_len = total;
-
-	source_out->read = editorRecoveryRowsTextSourceRead;
-	source_out->context = state_out;
-	source_out->length = total;
-	errno = 0;
 	return 1;
 }
 
@@ -6368,74 +6079,6 @@ err: {
 }
 }
 
-static int editorRecoveryTabReadRows(int fd, struct editorRecoveryTab *tab) {
-	uint32_t row_count_u32 = 0;
-	int read_status = editorRecoveryReadU32(fd, &row_count_u32);
-	if (read_status != EDITOR_READ_EXACT_OK) {
-		return read_status;
-	}
-	if (row_count_u32 > (uint32_t)INT_MAX) {
-		return EDITOR_READ_EXACT_EOF;
-	}
-
-	tab->row_count = (int)row_count_u32;
-	if (tab->row_count == 0) {
-		tab->rows = NULL;
-		return EDITOR_READ_EXACT_OK;
-	}
-
-	size_t rows_bytes = 0;
-	if (!editorSizeMul(sizeof(struct editorRecoveryRow), (size_t)tab->row_count, &rows_bytes)) {
-		return EDITOR_READ_EXACT_EOF;
-	}
-	tab->rows = editorMalloc(rows_bytes);
-	if (tab->rows == NULL) {
-		errno = ENOMEM;
-		return EDITOR_READ_EXACT_ERR;
-	}
-	memset(tab->rows, 0, rows_bytes);
-
-	size_t total_bytes = 0;
-	for (int row_idx = 0; row_idx < tab->row_count; row_idx++) {
-		uint32_t row_len_u32 = 0;
-		read_status = editorRecoveryReadU32(fd, &row_len_u32);
-		if (read_status != EDITOR_READ_EXACT_OK) {
-			return read_status;
-		}
-		if (row_len_u32 > (uint32_t)INT_MAX) {
-			return EDITOR_READ_EXACT_EOF;
-		}
-
-		size_t row_len = (size_t)row_len_u32;
-		size_t row_total = 0;
-		if (!editorSizeAdd(row_len, NEWLINE_CHAR_WIDTH, &row_total) ||
-				!editorSizeAdd(total_bytes, row_total, &total_bytes) ||
-				total_bytes > ROTIDE_MAX_TEXT_BYTES) {
-			return EDITOR_READ_EXACT_EOF;
-		}
-
-		size_t row_alloc = 0;
-		if (!editorSizeAdd(row_len, 1, &row_alloc)) {
-			return EDITOR_READ_EXACT_EOF;
-		}
-		tab->rows[row_idx].chars = editorMalloc(row_alloc);
-		if (tab->rows[row_idx].chars == NULL) {
-			errno = ENOMEM;
-			return EDITOR_READ_EXACT_ERR;
-		}
-		if (row_len > 0) {
-			read_status = editorRecoveryReadExact(fd, tab->rows[row_idx].chars, row_len);
-			if (read_status != EDITOR_READ_EXACT_OK) {
-				return read_status;
-			}
-		}
-		tab->rows[row_idx].chars[row_len] = '\0';
-		tab->rows[row_idx].len = row_len;
-	}
-
-	return EDITOR_READ_EXACT_OK;
-}
-
 static int editorRecoveryTabReadText(int fd, struct editorRecoveryTab *tab) {
 	uint32_t text_len_u32 = 0;
 	int read_status = editorRecoveryReadU32(fd, &text_len_u32);
@@ -6498,8 +6141,7 @@ static enum editorRecoveryLoadStatus editorRecoveryLoadSessionFromPath(const cha
 		status = EDITOR_RECOVERY_LOAD_INVALID;
 		goto out;
 	}
-	if ((version != ROTIDE_RECOVERY_VERSION &&
-				version != ROTIDE_RECOVERY_VERSION_ROWS) ||
+	if (version != ROTIDE_RECOVERY_VERSION ||
 			tab_count_u32 < 1 ||
 			tab_count_u32 > ROTIDE_MAX_TABS ||
 			active_tab_u32 >= tab_count_u32) {
@@ -6570,11 +6212,7 @@ static enum editorRecoveryLoadStatus editorRecoveryLoadSessionFromPath(const cha
 			tab->filename[filename_len] = '\0';
 		}
 
-		if (version == ROTIDE_RECOVERY_VERSION_ROWS) {
-			read_status = editorRecoveryTabReadRows(fd, tab);
-		} else {
-			read_status = editorRecoveryTabReadText(fd, tab);
-		}
+		read_status = editorRecoveryTabReadText(fd, tab);
 		if (read_status != EDITOR_READ_EXACT_OK) {
 			if (read_status == EDITOR_READ_EXACT_ERR) {
 				status = errno == ENOMEM ? EDITOR_RECOVERY_LOAD_OOM :
@@ -6666,21 +6304,10 @@ static int editorRecoveryPopulateActiveFromTab(const struct editorRecoveryTab *t
 
 	editorDocumentInit(&document);
 	document_inited = 1;
-	if (tab->text != NULL) {
-		if (!editorDocumentResetFromString(&document, tab->text, tab->textlen)) {
-			editorSetAllocFailureStatus();
-			goto cleanup;
-		}
-	} else {
-		struct editorRecoveryRowsTextSource state;
-		struct editorTextSource source = {0};
-		if (!editorRecoveryRowsBuildTextSource(tab->rows, tab->row_count, &state, &source) ||
-				!editorDocumentResetFromTextSource(&document, &source)) {
-			editorRecoveryRowsTextSourceFree(&state);
-			editorSetAllocFailureStatus();
-			goto cleanup;
-		}
-		editorRecoveryRowsTextSourceFree(&state);
+	if (!editorDocumentResetFromString(&document,
+				tab->text != NULL ? tab->text : "", tab->textlen)) {
+		editorSetAllocFailureStatus();
+		goto cleanup;
 	}
 
 	if (!editorRestoreActiveFromDocument(&document, tab->cy, tab->cx, 1, 1)) {
@@ -6691,7 +6318,6 @@ static int editorRecoveryPopulateActiveFromTab(const struct editorRecoveryTab *t
 	if (!editorBufferPosToOffset(E.cy, E.cx, &E.cursor_offset)) {
 		E.cursor_offset = 0;
 	}
-	E.preferred_rx = 0;
 	ok = 1;
 
 cleanup:

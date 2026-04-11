@@ -735,7 +735,7 @@ static int editorJumpToDefinitionLocation(const struct editorLspLocation *locati
 	if (character < 0) {
 		character = 0;
 	}
-	character = editorLspProtocolCharacterToBufferColumn(&E.rows[line], character);
+	character = editorLspProtocolCharacterToBufferColumn(line, character);
 	if (character > E.rows[line].size) {
 		character = E.rows[line].size;
 	}

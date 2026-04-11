@@ -274,7 +274,6 @@ struct editorTabState {
 	int is_preview;
 	char *tab_title;
 	size_t cursor_offset;
-	int preferred_rx;
 	int cx;
 	int cy;
 	int rx;
@@ -317,7 +316,6 @@ struct editorConfig {
 	int is_preview;
 	char *tab_title;
 	size_t cursor_offset;
-	int preferred_rx;
 	int cx;
 	int cy;
 	int rx;

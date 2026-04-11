@@ -190,7 +190,7 @@ This section names the core concepts used throughout the codebase.
 ### Recovery snapshot
 
 - Autosave/recovery persists tabs and text for crash recovery.
-- Includes legacy compatibility path for older row-based recovery payloads, normalized into document-first state when restored.
+- Recovery snapshots use the current document-first format (`RTRECOV1` version `2`).
 
 ## Module Map
 
