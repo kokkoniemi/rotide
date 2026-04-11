@@ -18,6 +18,7 @@ struct editorRope {
 
 void editorRopeInit(struct editorRope *rope);
 void editorRopeFree(struct editorRope *rope);
+int editorRopeAppend(struct editorRope *rope, const char *text, size_t len);
 int editorRopeResetFromString(struct editorRope *rope, const char *text, size_t len);
 size_t editorRopeLength(const struct editorRope *rope);
 const char *editorRopeRead(const struct editorRope *rope, size_t byte_index, uint32_t *bytes_read);

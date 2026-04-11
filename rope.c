@@ -70,6 +70,26 @@ static int editorRopeAppendChunkCopy(struct editorRope *rope, const char *text, 
 	return 1;
 }
 
+int editorRopeAppend(struct editorRope *rope, const char *text, size_t len) {
+	if (rope == NULL || (len > 0 && text == NULL)) {
+		return 0;
+	}
+
+	size_t offset = 0;
+	while (offset < len) {
+		size_t chunk_len = len - offset;
+		if (chunk_len > EDITOR_ROPE_CHUNK_BYTES) {
+			chunk_len = EDITOR_ROPE_CHUNK_BYTES;
+		}
+		if (!editorRopeAppendChunkCopy(rope, text + offset, chunk_len)) {
+			return 0;
+		}
+		offset += chunk_len;
+	}
+
+	return 1;
+}
+
 void editorRopeInit(struct editorRope *rope) {
 	if (rope == NULL) {
 		return;
@@ -99,17 +119,9 @@ int editorRopeResetFromString(struct editorRope *rope, const char *text, size_t 
 		return 0;
 	}
 
-	size_t offset = 0;
-	while (offset < len) {
-		size_t chunk_len = len - offset;
-		if (chunk_len > EDITOR_ROPE_CHUNK_BYTES) {
-			chunk_len = EDITOR_ROPE_CHUNK_BYTES;
-		}
-		if (!editorRopeAppendChunkCopy(&rebuilt, text + offset, chunk_len)) {
-			editorRopeFree(&rebuilt);
-			return 0;
-		}
-		offset += chunk_len;
+	if (!editorRopeAppend(&rebuilt, text, len)) {
+		editorRopeFree(&rebuilt);
+		return 0;
 	}
 
 	editorRopeFree(rope);

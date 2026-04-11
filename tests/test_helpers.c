@@ -46,6 +46,7 @@ void reset_editor_state(void) {
 	editorTestSaveSyscallsReset();
 	editorLspTestResetMock();
 	editorDocumentMirrorTestResetStats();
+	editorActiveTextSourceDupTestResetCount();
 	clear_editor_state();
 	memset(&E, 0, sizeof(E));
 	E.window_rows = 8;

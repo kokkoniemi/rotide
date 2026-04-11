@@ -6,6 +6,13 @@
 
 char *editorRowsToStr(size_t *buflen);
 int editorBuildActiveTextSource(struct editorTextSource *source_out);
+int editorBufferPosToOffset(int cy, int cx, size_t *offset_out);
+int editorBufferOffsetToPos(size_t offset, int *cy_out, int *cx_out);
+int editorBufferLineByteRange(int row_idx, size_t *start_byte_out, size_t *end_byte_out);
+int editorBufferFindForward(const char *query, int start_row, int start_col, int *out_row,
+		int *out_col);
+int editorBufferFindBackward(const char *query, int start_row, int start_col, int *out_row,
+		int *out_col);
 int editorIsUtf8ContinuationByte(unsigned char c);
 int editorUtf8DecodeCodepoint(const char *s, int len, unsigned int *cp);
 int editorIsGraphemeExtendCodepoint(unsigned int cp);
@@ -116,6 +123,9 @@ int editorSyntaxTestVisibleRowRecomputeCount(void);
 void editorDocumentMirrorTestResetStats(void);
 int editorDocumentMirrorTestFullRebuildCount(void);
 int editorDocumentMirrorTestIncrementalUpdateCount(void);
+int editorDocumentMirrorTestRowSourceRebuildCount(void);
+void editorActiveTextSourceDupTestResetCount(void);
+int editorActiveTextSourceDupTestCount(void);
 int editorBufferMaxRenderCols(void);
 
 int editorGetSelectionRange(struct editorSelectionRange *range_out);

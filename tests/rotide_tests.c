@@ -669,6 +669,68 @@ static int test_document_replace_range_updates_text_and_line_index(void) {
 	return 0;
 }
 
+static int test_document_reset_from_text_source_streams_bytes(void) {
+	struct editorDocument document;
+	editorDocumentInit(&document);
+
+	const char *text = "alpha\nbeta\ngamma\n";
+	struct editorTextSource source = {0};
+	editorTextSourceInitString(&source, text, strlen(text));
+	ASSERT_TRUE(editorDocumentResetFromTextSource(&document, &source));
+	ASSERT_EQ_INT((int)strlen(text), (int)editorDocumentLength(&document));
+
+	size_t len = 0;
+	char *dup = editorDocumentDupRange(&document, 0, editorDocumentLength(&document), &len);
+	ASSERT_TRUE(dup != NULL);
+	ASSERT_EQ_INT((int)strlen(text), (int)len);
+	ASSERT_EQ_STR(text, dup);
+
+	free(dup);
+	editorDocumentFree(&document);
+	return 0;
+}
+
+static int test_document_position_offset_roundtrip(void) {
+	struct editorDocument document;
+	editorDocumentInit(&document);
+
+	const char *text = "alpha\nbeta\n";
+	ASSERT_TRUE(editorDocumentResetFromString(&document, text, strlen(text)));
+
+	size_t offset = 0;
+	ASSERT_TRUE(editorDocumentPositionToByteOffset(&document, 0, 0, &offset));
+	ASSERT_EQ_INT(0, (int)offset);
+	ASSERT_TRUE(editorDocumentPositionToByteOffset(&document, 0, 5, &offset));
+	ASSERT_EQ_INT(5, (int)offset);
+	ASSERT_TRUE(editorDocumentPositionToByteOffset(&document, 1, 0, &offset));
+	ASSERT_EQ_INT(6, (int)offset);
+	ASSERT_TRUE(editorDocumentPositionToByteOffset(&document, 1, 4, &offset));
+	ASSERT_EQ_INT(10, (int)offset);
+	ASSERT_TRUE(editorDocumentPositionToByteOffset(&document, 2, 0, &offset));
+	ASSERT_EQ_INT(11, (int)offset);
+
+	int line_idx = -1;
+	size_t column = 0;
+	ASSERT_TRUE(editorDocumentByteOffsetToPosition(&document, 0, &line_idx, &column));
+	ASSERT_EQ_INT(0, line_idx);
+	ASSERT_EQ_INT(0, (int)column);
+	ASSERT_TRUE(editorDocumentByteOffsetToPosition(&document, 5, &line_idx, &column));
+	ASSERT_EQ_INT(0, line_idx);
+	ASSERT_EQ_INT(5, (int)column);
+	ASSERT_TRUE(editorDocumentByteOffsetToPosition(&document, 6, &line_idx, &column));
+	ASSERT_EQ_INT(1, line_idx);
+	ASSERT_EQ_INT(0, (int)column);
+	ASSERT_TRUE(editorDocumentByteOffsetToPosition(&document, 10, &line_idx, &column));
+	ASSERT_EQ_INT(1, line_idx);
+	ASSERT_EQ_INT(4, (int)column);
+	ASSERT_TRUE(editorDocumentByteOffsetToPosition(&document, 11, &line_idx, &column));
+	ASSERT_EQ_INT(2, line_idx);
+	ASSERT_EQ_INT(0, (int)column);
+
+	editorDocumentFree(&document);
+	return 0;
+}
+
 static int test_editor_build_active_text_source_uses_document_mirror_after_open(void) {
 	char path[64];
 	ASSERT_TRUE(write_temp_text_file(path, sizeof(path), "alpha\nbeta\n"));
@@ -716,6 +778,42 @@ static int test_editor_document_mirror_incremental_updates_for_basic_edits(void)
 	return 0;
 }
 
+static int test_editor_buffer_offset_roundtrip_uses_document_mapping(void) {
+	add_row("alpha");
+	add_row("beta");
+
+	size_t offset = 0;
+	ASSERT_TRUE(editorBufferPosToOffset(0, 0, &offset));
+	ASSERT_EQ_INT(0, (int)offset);
+	ASSERT_TRUE(editorBufferPosToOffset(0, 5, &offset));
+	ASSERT_EQ_INT(5, (int)offset);
+	ASSERT_TRUE(editorBufferPosToOffset(1, 0, &offset));
+	ASSERT_EQ_INT(6, (int)offset);
+	ASSERT_TRUE(editorBufferPosToOffset(1, 4, &offset));
+	ASSERT_EQ_INT(10, (int)offset);
+	ASSERT_TRUE(editorBufferPosToOffset(2, 0, &offset));
+	ASSERT_EQ_INT(11, (int)offset);
+
+	int cy = -1;
+	int cx = -1;
+	ASSERT_TRUE(editorBufferOffsetToPos(0, &cy, &cx));
+	ASSERT_EQ_INT(0, cy);
+	ASSERT_EQ_INT(0, cx);
+	ASSERT_TRUE(editorBufferOffsetToPos(5, &cy, &cx));
+	ASSERT_EQ_INT(0, cy);
+	ASSERT_EQ_INT(5, cx);
+	ASSERT_TRUE(editorBufferOffsetToPos(6, &cy, &cx));
+	ASSERT_EQ_INT(1, cy);
+	ASSERT_EQ_INT(0, cx);
+	ASSERT_TRUE(editorBufferOffsetToPos(10, &cy, &cx));
+	ASSERT_EQ_INT(1, cy);
+	ASSERT_EQ_INT(4, cx);
+	ASSERT_TRUE(editorBufferOffsetToPos(11, &cy, &cx));
+	ASSERT_EQ_INT(2, cy);
+	ASSERT_EQ_INT(0, cx);
+	return 0;
+}
+
 static int test_editor_document_mirror_lazy_rebuild_after_low_level_row_mutation(void) {
 	add_row("abc");
 	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
@@ -724,10 +822,13 @@ static int test_editor_document_mirror_lazy_rebuild_after_low_level_row_mutation
 	editorInsertCharAt(&E.rows[0], 1, 'X');
 	ASSERT_EQ_INT(0, editorDocumentMirrorTestFullRebuildCount());
 	ASSERT_EQ_INT(0, editorDocumentMirrorTestIncrementalUpdateCount());
+	ASSERT_EQ_INT(0, editorDocumentMirrorTestRowSourceRebuildCount());
 	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
 	ASSERT_EQ_INT(1, editorDocumentMirrorTestFullRebuildCount());
+	ASSERT_EQ_INT(1, editorDocumentMirrorTestRowSourceRebuildCount());
 	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
 	ASSERT_EQ_INT(1, editorDocumentMirrorTestFullRebuildCount());
+	ASSERT_EQ_INT(1, editorDocumentMirrorTestRowSourceRebuildCount());
 	return 0;
 }
 
@@ -761,8 +862,10 @@ static int test_editor_document_mirror_snapshot_capture_uses_active_source(void)
 	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
 
 	editorDocumentMirrorTestResetStats();
+	editorActiveTextSourceDupTestResetCount();
 	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
 	ASSERT_EQ_INT(0, editorDocumentMirrorTestFullRebuildCount());
+	ASSERT_EQ_INT(0, editorActiveTextSourceDupTestCount());
 	ASSERT_TRUE(E.edit_pending_snapshot.text != NULL);
 	ASSERT_EQ_STR("alpha\n", E.edit_pending_snapshot.text);
 	editorHistoryDiscardEdit();
@@ -782,20 +885,43 @@ static int test_editor_document_mirror_selection_and_delete_use_active_source(vo
 	};
 
 	editorDocumentMirrorTestResetStats();
+	editorActiveTextSourceDupTestResetCount();
 	char *selected = NULL;
 	size_t selected_len = 0;
 	ASSERT_EQ_INT(1, editorExtractRangeText(&range, &selected, &selected_len));
 	ASSERT_EQ_INT(0, editorDocumentMirrorTestFullRebuildCount());
+	ASSERT_EQ_INT(0, editorActiveTextSourceDupTestCount());
 	ASSERT_EQ_INT(7, (int)selected_len);
 	ASSERT_TRUE(selected != NULL);
 	ASSERT_MEM_EQ("lpha\nbe", selected, selected_len);
 	free(selected);
 
 	editorDocumentMirrorTestResetStats();
+	editorActiveTextSourceDupTestResetCount();
 	ASSERT_EQ_INT(1, editorDeleteRange(&range));
 	ASSERT_EQ_INT(0, editorDocumentMirrorTestFullRebuildCount());
 	ASSERT_EQ_INT(1, editorDocumentMirrorTestIncrementalUpdateCount());
+	ASSERT_EQ_INT(0, editorActiveTextSourceDupTestCount());
 	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+	return 0;
+}
+
+static int test_editor_buffer_find_uses_active_source_without_full_dup(void) {
+	add_row("alpha");
+	add_row("beta");
+
+	editorActiveTextSourceDupTestResetCount();
+	int row = -1;
+	int col = -1;
+	ASSERT_TRUE(editorBufferFindForward("ta", 0, -1, &row, &col));
+	ASSERT_EQ_INT(1, row);
+	ASSERT_EQ_INT(2, col);
+	ASSERT_EQ_INT(0, editorActiveTextSourceDupTestCount());
+
+	ASSERT_TRUE(editorBufferFindBackward("ph", 1, 4, &row, &col));
+	ASSERT_EQ_INT(0, row);
+	ASSERT_EQ_INT(2, col);
+	ASSERT_EQ_INT(0, editorActiveTextSourceDupTestCount());
 	return 0;
 }
 
@@ -9280,10 +9406,16 @@ int main(void) {
 			test_document_line_index_tracks_blank_lines_and_trailing_newline},
 		{"document_replace_range_updates_text_and_line_index",
 			test_document_replace_range_updates_text_and_line_index},
+		{"document_position_offset_roundtrip",
+			test_document_position_offset_roundtrip},
+		{"document_reset_from_text_source_streams_bytes",
+			test_document_reset_from_text_source_streams_bytes},
 		{"editor_build_active_text_source_uses_document_mirror_after_open",
 			test_editor_build_active_text_source_uses_document_mirror_after_open},
 		{"editor_document_mirror_incremental_updates_for_basic_edits",
 			test_editor_document_mirror_incremental_updates_for_basic_edits},
+		{"editor_buffer_offset_roundtrip_uses_document_mapping",
+			test_editor_buffer_offset_roundtrip_uses_document_mapping},
 		{"editor_document_mirror_lazy_rebuild_after_low_level_row_mutation",
 			test_editor_document_mirror_lazy_rebuild_after_low_level_row_mutation},
 		{"editor_document_mirror_restored_for_undo_redo",
@@ -9294,6 +9426,8 @@ int main(void) {
 			test_editor_document_mirror_selection_and_delete_use_active_source},
 		{"editor_document_mirror_save_uses_active_source",
 			test_editor_document_mirror_save_uses_active_source},
+		{"editor_buffer_find_uses_active_source_without_full_dup",
+			test_editor_buffer_find_uses_active_source_without_full_dup},
 		{"utf8_continuation_detection", test_utf8_continuation_detection},
 		{"grapheme_extend_classification", test_grapheme_extend_classification},
 		{"char_display_width_basics", test_char_display_width_basics},
