@@ -1495,11 +1495,13 @@ static int test_editor_syntax_query_budget_match_limit_is_graceful(void) {
 	char *source = build_repeated_text("const value = document + window;\n", 512, &source_len);
 	ASSERT_TRUE(source != NULL);
 	ASSERT_TRUE(source_len <= UINT32_MAX);
+	struct editorTextSource source_view = {0};
+	editorTextSourceInitString(&source_view, source, source_len);
 
 	editorSyntaxTestSetBudgetOverrides(1, 1, 0, 2000000000ULL);
 	struct editorSyntaxState *state = editorSyntaxStateCreate(EDITOR_SYNTAX_JAVASCRIPT);
 	ASSERT_TRUE(state != NULL);
-	ASSERT_TRUE(editorSyntaxStateParseFull(state, source, source_len));
+	ASSERT_TRUE(editorSyntaxStateParseFull(state, &source_view));
 
 	int parse_budget = 0;
 	int query_budget = 0;
@@ -1507,7 +1509,8 @@ static int test_editor_syntax_query_budget_match_limit_is_graceful(void) {
 
 	struct editorSyntaxCapture captures[1024];
 	int capture_count = 0;
-	ASSERT_TRUE(editorSyntaxStateCollectCapturesForRange(state, 0, (uint32_t)source_len, captures,
+	ASSERT_TRUE(editorSyntaxStateCollectCapturesForRange(state, &source_view, 0,
+				(uint32_t)source_len, captures,
 				(int)(sizeof(captures) / sizeof(captures[0])), &capture_count));
 	ASSERT_TRUE(editorSyntaxStateConsumeBudgetEvents(state, &parse_budget, &query_budget));
 	ASSERT_EQ_INT(0, parse_budget);
@@ -1524,17 +1527,76 @@ static int test_editor_syntax_parse_budget_is_graceful(void) {
 	char *source = build_repeated_text("function item(){ return 1; }\n", 120000, &source_len);
 	ASSERT_TRUE(source != NULL);
 	ASSERT_TRUE(source_len <= UINT32_MAX);
+	struct editorTextSource source_view = {0};
+	editorTextSourceInitString(&source_view, source, source_len);
 
 	editorSyntaxTestSetBudgetOverrides(1, 8192, 2000000000ULL, 1);
 	struct editorSyntaxState *state = editorSyntaxStateCreate(EDITOR_SYNTAX_JAVASCRIPT);
 	ASSERT_TRUE(state != NULL);
-	ASSERT_TRUE(editorSyntaxStateParseFull(state, source, source_len));
+	ASSERT_TRUE(editorSyntaxStateParseFull(state, &source_view));
 
 	int parse_budget = 0;
 	int query_budget = 0;
 	ASSERT_TRUE(editorSyntaxStateConsumeBudgetEvents(state, &parse_budget, &query_budget));
 	ASSERT_EQ_INT(1, parse_budget);
 	ASSERT_EQ_INT(0, query_budget);
+
+	editorSyntaxStateDestroy(state);
+	editorSyntaxTestResetBudgetOverrides();
+	free(source);
+	return 0;
+}
+
+static int test_editor_syntax_incremental_provider_parse_keeps_tree_valid(void) {
+	const char *before = "int value = 1;\n";
+	const char *after = "int xvalue = 1;\n";
+	struct editorTextSource before_source = {0};
+	struct editorTextSource after_source = {0};
+	editorTextSourceInitString(&before_source, before, strlen(before));
+	editorTextSourceInitString(&after_source, after, strlen(after));
+
+	struct editorSyntaxState *state = editorSyntaxStateCreate(EDITOR_SYNTAX_C);
+	ASSERT_TRUE(state != NULL);
+	ASSERT_TRUE(editorSyntaxStateParseFull(state, &before_source));
+
+	struct editorSyntaxEdit edit = {
+		.start_byte = 4,
+		.old_end_byte = 4,
+		.new_end_byte = 5,
+		.start_point = {.row = 0, .column = 4},
+		.old_end_point = {.row = 0, .column = 4},
+		.new_end_point = {.row = 0, .column = 5}
+	};
+	ASSERT_TRUE(editorSyntaxStateApplyEditAndParse(state, &edit, &after_source));
+	ASSERT_TRUE(editorSyntaxStateHasTree(state));
+
+	struct editorSyntaxCapture captures[32];
+	int capture_count = 0;
+	ASSERT_TRUE(editorSyntaxStateCollectCapturesForRange(state, &after_source, 0,
+				(uint32_t)strlen(after), captures,
+				(int)(sizeof(captures) / sizeof(captures[0])), &capture_count));
+	ASSERT_TRUE(capture_count > 0);
+
+	editorSyntaxStateDestroy(state);
+	return 0;
+}
+
+static int test_editor_syntax_large_file_stays_enabled_in_degraded_mode(void) {
+	size_t source_len = 0;
+	char *source = build_repeated_text("int value = 1;\n", 600000, &source_len);
+	ASSERT_TRUE(source != NULL);
+	ASSERT_TRUE(source_len > (size_t)(8 * 1024 * 1024));
+	struct editorTextSource source_view = {0};
+	editorTextSourceInitString(&source_view, source, source_len);
+
+	editorSyntaxTestSetBudgetOverrides(1, 8192, 0, 0);
+	struct editorSyntaxState *state = editorSyntaxStateCreate(EDITOR_SYNTAX_C);
+	ASSERT_TRUE(state != NULL);
+	ASSERT_TRUE(editorSyntaxStateConfigureForSourceLength(state, source_len));
+	ASSERT_TRUE(editorSyntaxStateParseFull(state, &source_view));
+	ASSERT_TRUE(editorSyntaxStateHasTree(state));
+	ASSERT_EQ_INT(EDITOR_SYNTAX_PERF_DEGRADED_INJECTIONS,
+			editorSyntaxStatePerformanceMode(state));
 
 	editorSyntaxStateDestroy(state);
 	editorSyntaxTestResetBudgetOverrides();
@@ -4565,6 +4627,32 @@ static int test_editor_lsp_document_sync_for_go_edit_save_close(void) {
 	return 0;
 }
 
+static int test_editor_lsp_full_document_change_uses_active_source(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_enabled = 1;
+
+	char go_path[64];
+	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
+			"package main\n\nfunc main() {}\n"));
+	editorOpen(go_path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_GO, editorSyntaxLanguageActive());
+
+	editorLspTestSetMockDefinitionResponse(1, NULL, 0);
+	char goto_def[] = {CTRL_KEY(']')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+
+	ASSERT_TRUE(editorLspNotifyDidChange(E.filename, E.syntax_language,
+				&E.lsp_doc_open, &E.lsp_doc_version, NULL, NULL, 0, NULL, 0));
+
+	struct editorLspTestLastChange change = {0};
+	editorLspTestGetLastChange(&change);
+	ASSERT_EQ_INT(0, change.had_range);
+	ASSERT_TRUE(strncmp(change.text, "package main", strlen("package main")) == 0);
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
 static int test_editor_lsp_document_sync_ignores_non_go_buffers(void) {
 	editorLspTestSetMockEnabled(1);
 	E.lsp_enabled = 1;
@@ -7558,6 +7646,29 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_c_tokens(v
 	return 0;
 }
 
+static int test_editor_refresh_screen_repo_buffer_c_stays_highlighted(void) {
+	char *path = testResolveRepoPath("buffer.c");
+	ASSERT_TRUE(path != NULL);
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
+	E.window_rows = 8;
+	E.window_cols = 120;
+	E.rowoff = 58;
+	E.cy = 59;
+	E.cx = 0;
+	ASSERT_TRUE(editorSyntaxPrepareVisibleRowSpans(58, 4));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"Out of memory\"\x1b[39m") != NULL);
+	free(output);
+	free(path);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_shell_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-shell-XXXXXX.sh";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
@@ -8908,6 +9019,10 @@ int main(void) {
 					test_editor_syntax_query_budget_match_limit_is_graceful},
 				{"editor_syntax_parse_budget_is_graceful",
 					test_editor_syntax_parse_budget_is_graceful},
+				{"editor_syntax_incremental_provider_parse_keeps_tree_valid",
+					test_editor_syntax_incremental_provider_parse_keeps_tree_valid},
+				{"editor_syntax_large_file_stays_enabled_in_degraded_mode",
+					test_editor_syntax_large_file_stays_enabled_in_degraded_mode},
 				{"editor_syntax_visible_cache_recomputes_only_changed_rows",
 					test_editor_syntax_visible_cache_recomputes_only_changed_rows},
 				{"editor_syntax_undo_redo_preserves_tree",
@@ -9087,6 +9202,8 @@ int main(void) {
 				test_editor_lsp_lifecycle_restart_after_mock_crash},
 			{"editor_lsp_document_sync_for_go_edit_save_close",
 				test_editor_lsp_document_sync_for_go_edit_save_close},
+			{"editor_lsp_full_document_change_uses_active_source",
+				test_editor_lsp_full_document_change_uses_active_source},
 			{"editor_lsp_document_sync_ignores_non_go_buffers",
 				test_editor_lsp_document_sync_ignores_non_go_buffers},
 			{"editor_process_keypress_keymap_remap_changes_dispatch",
@@ -9317,6 +9434,8 @@ int main(void) {
 				test_editor_refresh_screen_highlights_active_search_match},
 			{"editor_refresh_screen_applies_syntax_highlighting_for_c_tokens",
 				test_editor_refresh_screen_applies_syntax_highlighting_for_c_tokens},
+			{"editor_refresh_screen_repo_buffer_c_stays_highlighted",
+				test_editor_refresh_screen_repo_buffer_c_stays_highlighted},
 			{"editor_refresh_screen_applies_syntax_highlighting_for_shell_tokens",
 				test_editor_refresh_screen_applies_syntax_highlighting_for_shell_tokens},
 			{"editor_refresh_screen_applies_syntax_highlighting_for_html_with_injections",

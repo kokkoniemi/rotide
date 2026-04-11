@@ -47,15 +47,18 @@ enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilenameAndFirstLine(
 struct editorSyntaxState *editorSyntaxStateCreate(enum editorSyntaxLanguage language);
 void editorSyntaxStateDestroy(struct editorSyntaxState *state);
 
-int editorSyntaxStateParseFull(struct editorSyntaxState *state, const char *source, size_t len);
+void editorTextSourceInitString(struct editorTextSource *source, const char *text, size_t len);
+size_t editorTextSourceLength(const struct editorTextSource *source);
+int editorTextSourceCopyRange(const struct editorTextSource *source,
+		size_t start_byte, size_t end_byte, char *dst);
+char *editorTextSourceDupRange(const struct editorTextSource *source,
+		size_t start_byte, size_t end_byte, size_t *len_out);
+
+int editorSyntaxStateParseFull(struct editorSyntaxState *state,
+		const struct editorTextSource *source);
 int editorSyntaxStateApplyEditAndParse(struct editorSyntaxState *state,
 		const struct editorSyntaxEdit *edit,
-		const char *source,
-		size_t len);
-int editorSyntaxStateApplyEditAndParseWithInsertedText(struct editorSyntaxState *state,
-		const struct editorSyntaxEdit *edit,
-		const char *inserted_text,
-		size_t inserted_len);
+		const struct editorTextSource *source);
 int editorSyntaxStateConfigureForSourceLength(struct editorSyntaxState *state, size_t source_len);
 enum editorSyntaxPerformanceMode editorSyntaxStatePerformanceMode(
 		const struct editorSyntaxState *state);
@@ -70,6 +73,7 @@ int editorSyntaxStateHasTree(const struct editorSyntaxState *state);
 const char *editorSyntaxStateRootType(const struct editorSyntaxState *state);
 enum editorSyntaxLanguage editorSyntaxStateLanguage(const struct editorSyntaxState *state);
 int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
+		const struct editorTextSource *source,
 		uint32_t start_byte, uint32_t end_byte,
 		struct editorSyntaxCapture *captures, int max_captures, int *count_out);
 
@@ -79,6 +83,7 @@ void editorSyntaxTestSetBudgetOverrides(int enabled,
 		uint64_t query_time_budget_ns,
 		uint64_t parse_time_budget_ns);
 void editorSyntaxTestResetBudgetOverrides(void);
+int editorSyntaxTestBudgetOverridesEnabled(void);
 
 void editorSyntaxReleaseSharedResources(void);
 

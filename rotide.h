@@ -7,6 +7,7 @@
 
 #include <limits.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <sys/types.h>
 #include <termios.h>
 #include <time.h>
@@ -60,6 +61,16 @@ struct editorMouseEvent {
 	enum editorMouseEventKind kind;
 	int x;
 	int y;
+};
+
+struct editorTextSource;
+typedef const char *(*editorTextSourceReadFn)(const struct editorTextSource *source,
+		size_t byte_index, uint32_t *bytes_read);
+
+struct editorTextSource {
+	editorTextSourceReadFn read;
+	const void *context;
+	size_t length;
 };
 
 struct erow {

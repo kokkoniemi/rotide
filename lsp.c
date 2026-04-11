@@ -1462,14 +1462,33 @@ int editorLspNotifyDidChange(const char *filename, enum editorSyntaxLanguage lan
 		g_lsp_mock.last_change.end_line = edit != NULL ? (int)edit->old_end_point.row : 0;
 		g_lsp_mock.last_change.end_character = edit != NULL ? (int)edit->old_end_point.column : 0;
 		g_lsp_mock.last_change.version = next_version;
-		size_t copy_len = inserted_text_len;
+		const char *mock_text = inserted_text;
+		size_t mock_text_len = inserted_text_len;
+		if (edit == NULL) {
+			mock_text = full_text;
+			mock_text_len = full_text_len;
+			if (mock_text == NULL) {
+				struct editorTextSource source = {0};
+				if (!editorBuildActiveTextSource(&source)) {
+					return 0;
+				}
+				mock_text = editorTextSourceDupRange(&source, 0, source.length, &mock_text_len);
+				if (mock_text == NULL && mock_text_len > 0) {
+					return 0;
+				}
+			}
+		}
+		size_t copy_len = mock_text_len;
 		if (copy_len >= sizeof(g_lsp_mock.last_change.text)) {
 			copy_len = sizeof(g_lsp_mock.last_change.text) - 1;
 		}
-		if (copy_len > 0 && inserted_text != NULL) {
-			memcpy(g_lsp_mock.last_change.text, inserted_text, copy_len);
+		if (copy_len > 0 && mock_text != NULL) {
+			memcpy(g_lsp_mock.last_change.text, mock_text, copy_len);
 		}
 		g_lsp_mock.last_change.text[copy_len] = '\0';
+		if (edit == NULL && mock_text != full_text) {
+			free((char *)mock_text);
+		}
 		*doc_version_in_out = next_version;
 		return 1;
 	}
@@ -1498,7 +1517,11 @@ int editorLspNotifyDidChange(const char *filename, enum editorSyntaxLanguage lan
 		change_text = full_text;
 		change_text_len = full_text_len;
 		if (change_text == NULL) {
-			owned_full_text = editorRowsToStr(&change_text_len);
+			struct editorTextSource source = {0};
+			if (!editorBuildActiveTextSource(&source)) {
+				return 0;
+			}
+			owned_full_text = editorTextSourceDupRange(&source, 0, source.length, &change_text_len);
 			if (owned_full_text == NULL && change_text_len > 0) {
 				return 0;
 			}

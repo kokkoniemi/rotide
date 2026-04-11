@@ -5,6 +5,7 @@
 #include <stddef.h>
 
 char *editorRowsToStr(size_t *buflen);
+int editorBuildActiveTextSource(struct editorTextSource *source_out);
 int editorIsUtf8ContinuationByte(unsigned char c);
 int editorUtf8DecodeCodepoint(const char *s, int len, unsigned int *cp);
 int editorIsGraphemeExtendCodepoint(unsigned int cp);

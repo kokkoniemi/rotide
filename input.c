@@ -895,10 +895,14 @@ static void editorGoToDefinition(void) {
 	}
 
 	size_t full_text_len = 0;
-	errno = 0;
-	char *full_text = editorRowsToStr(&full_text_len);
-	if (full_text == NULL && (full_text_len > 0 || errno != 0)) {
-		if (errno == EOVERFLOW) {
+	struct editorTextSource source = {0};
+	if (!editorBuildActiveTextSource(&source)) {
+		editorSetStatusMsg("File too large");
+		return;
+	}
+	char *full_text = editorTextSourceDupRange(&source, 0, source.length, &full_text_len);
+	if (full_text == NULL) {
+		if (source.length > ROTIDE_MAX_TEXT_BYTES) {
 			editorSetStatusMsg("File too large");
 		} else {
 			editorSetStatusMsg("Out of memory");

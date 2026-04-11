@@ -32,6 +32,9 @@
 static char *editorPathJoin(const char *left, const char *right);
 static int editorPosToLinearOffset(int cy, int cx, size_t *offset_out);
 static int editorRowIndexForByteOffset(size_t offset);
+static int editorRowByteIndexEnsureBuilt(void);
+static const char *editorActiveTextSourceRead(const struct editorTextSource *source,
+		size_t byte_index, uint32_t *bytes_read);
 static int editorSyntaxByteRangeToVisibleRows(size_t start_byte, size_t end_byte,
 		int *start_row_out, int *end_row_exclusive_out);
 static int editorSyntaxVisibleCacheInvalidateChangedRowsFromState(void);
@@ -42,7 +45,7 @@ static void editorSyntaxVisibleCacheInvalidateRows(int start_row, int end_row_ex
 static void editorSyntaxReportBudgetStatusIfNeeded(void);
 static int editorTabFindOpenFileIndex(const char *path);
 static int editorLspActiveBufferTracked(void);
-static int editorLspBuildCurrentSource(char **source_out, size_t *source_len_out);
+static char *editorDupActiveTextSource(size_t *len_out);
 static void editorLspNotifyDidChangeActive(const struct editorSyntaxEdit *edit,
 		const char *inserted_text, size_t inserted_len);
 static void editorLspNotifyDidSaveActive(void);
@@ -117,7 +120,8 @@ static void editorSyntaxReportBudgetStatusIfNeeded(void) {
 
 	static time_t last_report_time = 0;
 	time_t now = time(NULL);
-	if (last_report_time != 0 && now - last_report_time < 2) {
+	if (!editorSyntaxTestBudgetOverridesEnabled() &&
+			last_report_time != 0 && now - last_report_time < 2) {
 		return;
 	}
 	last_report_time = now;
@@ -162,21 +166,70 @@ static int editorSyntaxPointFromPosition(int cy, int cx, struct editorSyntaxPoin
 	return 1;
 }
 
-static int editorSyntaxBuildCurrentSource(char **source_out, size_t *len_out) {
-	if (source_out == NULL || len_out == NULL) {
+int editorBuildActiveTextSource(struct editorTextSource *source_out) {
+	if (source_out == NULL) {
 		return 0;
 	}
-
-	*source_out = NULL;
-	*len_out = 0;
-	errno = 0;
-	char *source = editorRowsToStr(len_out);
-	if (source == NULL && (*len_out > 0 || errno != 0)) {
+	if (!editorRowByteIndexEnsureBuilt() || E.row_start_bytes == NULL ||
+			E.row_start_bytes_count != E.numrows + 1) {
 		return 0;
 	}
-
-	*source_out = source;
+	source_out->read = editorActiveTextSourceRead;
+	source_out->context = NULL;
+	source_out->length = E.row_start_bytes[E.numrows];
 	return 1;
+}
+
+static char *editorDupActiveTextSource(size_t *len_out) {
+	struct editorTextSource source = {0};
+	if (!editorBuildActiveTextSource(&source)) {
+		if (len_out != NULL) {
+			*len_out = 0;
+		}
+		return NULL;
+	}
+	return editorTextSourceDupRange(&source, 0, source.length, len_out);
+}
+
+static const char *editorActiveTextSourceRead(const struct editorTextSource *source,
+		size_t byte_index, uint32_t *bytes_read) {
+	(void)source;
+	static const char newline[] = "\n";
+	if (bytes_read == NULL) {
+		return NULL;
+	}
+	*bytes_read = 0;
+	if (!editorRowByteIndexEnsureBuilt() || E.row_start_bytes == NULL ||
+			E.row_start_bytes_count != E.numrows + 1) {
+		return NULL;
+	}
+
+	size_t total_len = E.row_start_bytes[E.numrows];
+	if (byte_index >= total_len) {
+		return NULL;
+	}
+
+	int row_idx = editorRowIndexForByteOffset(byte_index);
+	if (row_idx < 0 || row_idx >= E.numrows) {
+		return NULL;
+	}
+
+	size_t row_start = E.row_start_bytes[row_idx];
+	size_t row_size = (size_t)E.rows[row_idx].size;
+	if (byte_index < row_start + row_size) {
+		size_t remaining = row_size - (byte_index - row_start);
+		if (remaining > UINT32_MAX) {
+			remaining = UINT32_MAX;
+		}
+		*bytes_read = (uint32_t)remaining;
+		return E.rows[row_idx].chars + (byte_index - row_start);
+	}
+
+	if (byte_index == row_start + row_size) {
+		*bytes_read = 1;
+		return newline;
+	}
+	return NULL;
 }
 
 static int editorSyntaxReconfigureForFilename(void) {
@@ -215,26 +268,17 @@ static int editorSyntaxParseFullActive(void) {
 		return 1;
 	}
 
-	char *source = NULL;
-	size_t source_len = 0;
-	if (!editorSyntaxBuildCurrentSource(&source, &source_len)) {
-		if (errno == ENOMEM) {
-			editorSyntaxDisableWithStatus("Tree-sitter disabled (out of memory)");
-		} else {
-			editorSyntaxDisableWithStatus("Tree-sitter disabled (buffer too large)");
-		}
+	struct editorTextSource source = {0};
+	if (!editorBuildActiveTextSource(&source)) {
+		editorSyntaxDisableWithStatus("Tree-sitter disabled (buffer too large)");
 		return 0;
 	}
 
-	if (!editorSyntaxConfigurePerformanceForLength(source_len, 1)) {
-		free(source);
+	if (!editorSyntaxConfigurePerformanceForLength(source.length, 1)) {
 		return 0;
 	}
 
-	int parsed = editorSyntaxStateParseFull(E.syntax_state,
-			source != NULL ? source : "",
-			source_len);
-	free(source);
+	int parsed = editorSyntaxStateParseFull(E.syntax_state, &source);
 	if (!parsed) {
 		editorSyntaxDisableWithStatus("Tree-sitter disabled (parse failed)");
 		return 0;
@@ -265,8 +309,9 @@ static int editorSyntaxApplyIncrementalEditActive(const struct editorSyntaxEdit 
 					if (!editorSyntaxConfigurePerformanceForLength(new_len, 1)) {
 						return 0;
 					}
-					if (editorSyntaxStateApplyEditAndParseWithInsertedText(E.syntax_state, edit,
-							inserted_text != NULL ? inserted_text : "", inserted_len)) {
+					struct editorTextSource source = {0};
+					if (editorBuildActiveTextSource(&source) &&
+							editorSyntaxStateApplyEditAndParse(E.syntax_state, edit, &source)) {
 						editorSyntaxVisibleCacheInvalidateRowsForEdit(edit);
 						if (!editorSyntaxVisibleCacheInvalidateChangedRowsFromState()) {
 							editorSyntaxVisibleCacheInvalidate();
@@ -278,25 +323,17 @@ static int editorSyntaxApplyIncrementalEditActive(const struct editorSyntaxEdit 
 			}
 	}
 
-	char *source = NULL;
-	size_t source_len = 0;
-	if (!editorSyntaxBuildCurrentSource(&source, &source_len)) {
-		if (errno == ENOMEM) {
-			editorSyntaxDisableWithStatus("Tree-sitter disabled (out of memory)");
-		} else {
-			editorSyntaxDisableWithStatus("Tree-sitter disabled (buffer too large)");
-		}
+	struct editorTextSource source = {0};
+	if (!editorBuildActiveTextSource(&source)) {
+		editorSyntaxDisableWithStatus("Tree-sitter disabled (buffer too large)");
 		return 0;
 	}
 
-	if (!editorSyntaxConfigurePerformanceForLength(source_len, 1)) {
-		free(source);
+	if (!editorSyntaxConfigurePerformanceForLength(source.length, 1)) {
 		return 0;
 	}
 
-	int parsed = editorSyntaxStateParseFull(E.syntax_state,
-			source != NULL ? source : "", source_len);
-	free(source);
+	int parsed = editorSyntaxStateParseFull(E.syntax_state, &source);
 	if (!parsed) {
 		editorSyntaxDisableWithStatus("Tree-sitter disabled (parse failed)");
 		return 0;
@@ -313,19 +350,6 @@ static int editorLspActiveBufferTracked(void) {
 			E.syntax_language == EDITOR_SYNTAX_GO;
 }
 
-static int editorLspBuildCurrentSource(char **source_out, size_t *source_len_out) {
-	if (!editorLspActiveBufferTracked()) {
-		if (source_out != NULL) {
-			*source_out = NULL;
-		}
-		if (source_len_out != NULL) {
-			*source_len_out = 0;
-		}
-		return 1;
-	}
-	return editorSyntaxBuildCurrentSource(source_out, source_len_out);
-}
-
 static void editorLspNotifyDidChangeActive(const struct editorSyntaxEdit *edit,
 		const char *inserted_text, size_t inserted_len) {
 	if (!editorLspActiveBufferTracked()) {
@@ -335,7 +359,8 @@ static void editorLspNotifyDidChangeActive(const struct editorSyntaxEdit *edit,
 	char *full_text = NULL;
 	size_t full_text_len = 0;
 	if (!E.lsp_doc_open) {
-		if (!editorLspBuildCurrentSource(&full_text, &full_text_len)) {
+		full_text = editorDupActiveTextSource(&full_text_len);
+		if (full_text == NULL && full_text_len > 0) {
 			free(full_text);
 			return;
 		}
@@ -355,7 +380,8 @@ static void editorLspNotifyDidSaveActive(void) {
 	char *full_text = NULL;
 	size_t full_text_len = 0;
 	if (!E.lsp_doc_open) {
-		if (!editorLspBuildCurrentSource(&full_text, &full_text_len)) {
+		full_text = editorDupActiveTextSource(&full_text_len);
+		if (full_text == NULL && full_text_len > 0) {
 			free(full_text);
 			return;
 		}
@@ -1469,6 +1495,10 @@ static int editorSyntaxBuildVisibleSpanCache(int first_row, int row_count) {
 	if (!editorSyntaxVisibleCacheEnsureCapacity(row_count) || !editorRowByteIndexEnsureBuilt()) {
 		return 0;
 	}
+	struct editorTextSource source = {0};
+	if (!editorBuildActiveTextSource(&source)) {
+		return 0;
+	}
 
 	if (!g_visible_syntax_cache.prepared ||
 			g_visible_syntax_cache.first_row != first_row ||
@@ -1520,8 +1550,8 @@ static int editorSyntaxBuildVisibleSpanCache(int first_row, int row_count) {
 		}
 
 		int capture_count = 0;
-		if (!editorSyntaxStateCollectCapturesForRange(E.syntax_state, start_byte, end_byte, captures,
-					capture_limit, &capture_count)) {
+		if (!editorSyntaxStateCollectCapturesForRange(E.syntax_state, &source, start_byte, end_byte,
+					captures, capture_limit, &capture_count)) {
 			free(captures);
 			return 0;
 		}
@@ -3318,6 +3348,10 @@ int editorSyntaxRowRenderSpans(int row_idx, struct editorRowSyntaxSpan *spans, i
 			start_byte >= end_byte) {
 		return 1;
 	}
+	struct editorTextSource source = {0};
+	if (!editorBuildActiveTextSource(&source)) {
+		return 0;
+	}
 
 	int capture_limit = max_spans;
 	if (capture_limit > ROTIDE_MAX_SYNTAX_SPANS_PER_ROW) {
@@ -3326,8 +3360,8 @@ int editorSyntaxRowRenderSpans(int row_idx, struct editorRowSyntaxSpan *spans, i
 
 	struct editorSyntaxCapture captures[ROTIDE_MAX_SYNTAX_SPANS_PER_ROW];
 	int capture_count = 0;
-	if (!editorSyntaxStateCollectCapturesForRange(E.syntax_state, start_byte, end_byte, captures,
-				capture_limit, &capture_count)) {
+	if (!editorSyntaxStateCollectCapturesForRange(E.syntax_state, &source, start_byte, end_byte,
+				captures, capture_limit, &capture_count)) {
 		return 0;
 	}
 

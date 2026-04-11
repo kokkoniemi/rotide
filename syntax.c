@@ -30,8 +30,6 @@ enum editorSyntaxCaptureRole {
 
 #define ROTIDE_SYNTAX_PERF_DEGRADED_PREDICATES_BYTES ((size_t)(512 * 1024))
 #define ROTIDE_SYNTAX_PERF_DEGRADED_INJECTIONS_BYTES ((size_t)(2 * 1024 * 1024))
-#define ROTIDE_SYNTAX_PERF_DISABLED_BYTES ((size_t)(8 * 1024 * 1024))
-
 #define ROTIDE_SYNTAX_QUERY_MATCH_LIMIT_NORMAL 8192U
 #define ROTIDE_SYNTAX_QUERY_MATCH_LIMIT_DEGRADED 4096U
 #define ROTIDE_SYNTAX_QUERY_MATCH_LIMIT_DEGRADED_INJECTIONS 2048U
@@ -40,9 +38,9 @@ enum editorSyntaxCaptureRole {
 #define ROTIDE_SYNTAX_QUERY_BUDGET_NS_DEGRADED (6000000ULL)
 #define ROTIDE_SYNTAX_QUERY_BUDGET_NS_DEGRADED_INJECTIONS (5000000ULL)
 
-#define ROTIDE_SYNTAX_PARSE_BUDGET_NS_NORMAL (16000000ULL)
-#define ROTIDE_SYNTAX_PARSE_BUDGET_NS_DEGRADED (12000000ULL)
-#define ROTIDE_SYNTAX_PARSE_BUDGET_NS_DEGRADED_INJECTIONS (9000000ULL)
+#define ROTIDE_SYNTAX_PARSE_BUDGET_NS_NORMAL (50000000ULL)
+#define ROTIDE_SYNTAX_PARSE_BUDGET_NS_DEGRADED (30000000ULL)
+#define ROTIDE_SYNTAX_PARSE_BUDGET_NS_DEGRADED_INJECTIONS (20000000ULL)
 
 struct editorSyntaxLocalMark {
 	TSNode node;
@@ -83,8 +81,11 @@ struct editorSyntaxState {
 	int last_changed_range_cap;
 	int budget_parse_exceeded;
 	int budget_query_exceeded;
-	char *source_snapshot;
-	size_t source_snapshot_len;
+	size_t source_len;
+	char *scratch_primary;
+	size_t scratch_primary_cap;
+	char *scratch_secondary;
+	size_t scratch_secondary_cap;
 };
 
 struct editorSyntaxQueryCacheEntry {
@@ -132,14 +133,9 @@ struct editorSyntaxDeadlineContext {
 	int exceeded;
 };
 
-struct editorSyntaxSourceInput {
-	const char *source;
-	size_t len;
-};
-
 struct editorSyntaxPredicateContext {
-	const char *source;
-	size_t source_len;
+	struct editorSyntaxState *state;
+	const struct editorTextSource *source;
 	const struct editorSyntaxLocalsContext *locals;
 };
 
@@ -354,6 +350,95 @@ static bool editorSyntaxQueryProgressCallback(TSQueryCursorState *state) {
 	return false;
 }
 
+static const char *editorTextSourceReadFromString(const struct editorTextSource *source,
+		size_t byte_index, uint32_t *bytes_read) {
+	if (bytes_read == NULL) {
+		return NULL;
+	}
+	*bytes_read = 0;
+	if (source == NULL || source->context == NULL || byte_index >= source->length) {
+		return NULL;
+	}
+
+	size_t remaining = source->length - byte_index;
+	if (remaining > UINT32_MAX) {
+		remaining = UINT32_MAX;
+	}
+	*bytes_read = (uint32_t)remaining;
+	return (const char *)source->context + byte_index;
+}
+
+void editorTextSourceInitString(struct editorTextSource *source, const char *text, size_t len) {
+	if (source == NULL) {
+		return;
+	}
+	source->read = editorTextSourceReadFromString;
+	source->context = text;
+	source->length = len;
+}
+
+size_t editorTextSourceLength(const struct editorTextSource *source) {
+	if (source == NULL) {
+		return 0;
+	}
+	return source->length;
+}
+
+int editorTextSourceCopyRange(const struct editorTextSource *source,
+		size_t start_byte, size_t end_byte, char *dst) {
+	if (source == NULL || source->read == NULL || dst == NULL || end_byte < start_byte ||
+			end_byte > source->length) {
+		return 0;
+	}
+	size_t offset = start_byte;
+	size_t write_offset = 0;
+	while (offset < end_byte) {
+		uint32_t bytes_read = 0;
+		const char *chunk = source->read(source, offset, &bytes_read);
+		if (chunk == NULL || bytes_read == 0) {
+			return 0;
+		}
+
+		size_t chunk_len = bytes_read;
+		size_t remaining = end_byte - offset;
+		if (chunk_len > remaining) {
+			chunk_len = remaining;
+		}
+		memcpy(dst + write_offset, chunk, chunk_len);
+		offset += chunk_len;
+		write_offset += chunk_len;
+	}
+	return 1;
+}
+
+char *editorTextSourceDupRange(const struct editorTextSource *source,
+		size_t start_byte, size_t end_byte, size_t *len_out) {
+	if (len_out != NULL) {
+		*len_out = 0;
+	}
+	if (source == NULL || end_byte < start_byte || end_byte > source->length) {
+		return NULL;
+	}
+
+	size_t len = end_byte - start_byte;
+	char *dup = malloc(len + 1);
+	if (dup == NULL) {
+		if (len_out != NULL) {
+			*len_out = len;
+		}
+		return NULL;
+	}
+	if (len > 0 && !editorTextSourceCopyRange(source, start_byte, end_byte, dup)) {
+		free(dup);
+		return NULL;
+	}
+	dup[len] = '\0';
+	if (len_out != NULL) {
+		*len_out = len;
+	}
+	return dup;
+}
+
 static const char *editorSyntaxSourceRead(void *payload, uint32_t byte_index,
 		TSPoint position, uint32_t *bytes_read) {
 	(void)position;
@@ -364,17 +449,11 @@ static const char *editorSyntaxSourceRead(void *payload, uint32_t byte_index,
 	if (payload == NULL) {
 		return NULL;
 	}
-	struct editorSyntaxSourceInput *input = payload;
-	if (input->source == NULL || byte_index >= input->len) {
+	const struct editorTextSource *source = payload;
+	if (source->read == NULL || (size_t)byte_index >= source->length) {
 		return NULL;
 	}
-
-	size_t remaining = input->len - byte_index;
-	if (remaining > UINT32_MAX) {
-		remaining = UINT32_MAX;
-	}
-	*bytes_read = (uint32_t)remaining;
-	return input->source + byte_index;
+	return source->read(source, byte_index, bytes_read);
 }
 
 static struct editorSyntaxBudgetConfig editorSyntaxBudgetConfigForMode(
@@ -1444,11 +1523,10 @@ static int editorSyntaxParsedTreeSetIncludedRanges(struct editorSyntaxParsedTree
 
 static int editorSyntaxParsedTreeParse(struct editorSyntaxParsedTree *parsed,
 		struct editorSyntaxState *state,
-		const char *source,
-		size_t len,
+		const struct editorTextSource *source,
 		int incremental) {
-	if (parsed == NULL || parsed->parser == NULL || source == NULL ||
-			!editorSyntaxLengthFitsTreeSitter(len)) {
+	if (parsed == NULL || parsed->parser == NULL || source == NULL || source->read == NULL ||
+			!editorSyntaxLengthFitsTreeSitter(source->length)) {
 		return 0;
 	}
 
@@ -1456,12 +1534,8 @@ static int editorSyntaxParsedTreeParse(struct editorSyntaxParsedTree *parsed,
 	struct editorSyntaxBudgetConfig budget =
 			editorSyntaxBudgetConfigForMode(state != NULL ? state->perf_mode :
 					EDITOR_SYNTAX_PERF_NORMAL);
-	struct editorSyntaxSourceInput input_ctx = {
-		.source = source,
-		.len = len
-	};
 	TSInput input = {
-		.payload = &input_ctx,
+		.payload = (void *)source,
 		.read = editorSyntaxSourceRead,
 		.encoding = TSInputEncodingUTF8,
 		.decode = NULL
@@ -1477,10 +1551,16 @@ static int editorSyntaxParsedTreeParse(struct editorSyntaxParsedTree *parsed,
 		};
 		new_tree = ts_parser_parse_with_options(parsed->parser, old_tree, input, options);
 		if (new_tree == NULL && parse_deadline.exceeded) {
-			if (state != NULL) {
-				state->budget_parse_exceeded = 1;
+			if (old_tree == NULL &&
+					source->length <= ROTIDE_SYNTAX_PERF_DEGRADED_PREDICATES_BYTES) {
+				new_tree = ts_parser_parse(parsed->parser, old_tree, input);
 			}
-			return 1;
+			if (new_tree == NULL) {
+				if (state != NULL) {
+					state->budget_parse_exceeded = 1;
+				}
+				return 1;
+			}
 		}
 	} else {
 		new_tree = ts_parser_parse(parsed->parser, old_tree, input);
@@ -1521,7 +1601,45 @@ static uint32_t editorSyntaxNodeSpan(TSNode node) {
 	return end - start;
 }
 
-static int editorSyntaxNodeText(const char *source, size_t source_len, TSNode node,
+static int editorSyntaxStateCopySourceRangeToScratch(struct editorSyntaxState *state,
+		const struct editorTextSource *source,
+		size_t start_byte,
+		size_t end_byte,
+		int scratch_idx,
+		const char **text_out, size_t *len_out) {
+	if (state == NULL || source == NULL || text_out == NULL || len_out == NULL ||
+			end_byte < start_byte || end_byte > source->length) {
+		return 0;
+	}
+	if (start_byte == end_byte) {
+		*text_out = "";
+		*len_out = 0;
+		return 1;
+	}
+
+	char **scratch = scratch_idx == 0 ? &state->scratch_primary : &state->scratch_secondary;
+	size_t *scratch_cap = scratch_idx == 0 ?
+			&state->scratch_primary_cap : &state->scratch_secondary_cap;
+	size_t len = end_byte - start_byte;
+	if (*scratch_cap < len + 1) {
+		char *grown = realloc(*scratch, len + 1);
+		if (grown == NULL) {
+			return 0;
+		}
+		*scratch = grown;
+		*scratch_cap = len + 1;
+	}
+	if (!editorTextSourceCopyRange(source, start_byte, end_byte, *scratch)) {
+		return 0;
+	}
+	(*scratch)[len] = '\0';
+	*text_out = *scratch;
+	*len_out = len;
+	return 1;
+}
+
+static int editorSyntaxNodeText(struct editorSyntaxState *state,
+		const struct editorTextSource *source, TSNode node, int scratch_idx,
 		const char **text_out, size_t *len_out) {
 	if (source == NULL || text_out == NULL || len_out == NULL) {
 		return 0;
@@ -1532,13 +1650,8 @@ static int editorSyntaxNodeText(const char *source, size_t source_len, TSNode no
 	if (end < start) {
 		return 0;
 	}
-	if ((size_t)end > source_len) {
-		return 0;
-	}
-
-	*text_out = source + start;
-	*len_out = (size_t)(end - start);
-	return 1;
+	return editorSyntaxStateCopySourceRangeToScratch(state, source, start, end, scratch_idx,
+			text_out, len_out);
 }
 
 static int editorSyntaxNodeArrayAppend(TSNode **items, int *count, int *cap, TSNode node) {
@@ -1717,9 +1830,9 @@ static int editorSyntaxFindInnermostScope(const struct editorSyntaxScopeInfo *sc
 }
 
 static int editorSyntaxBuildLocalsContext(const TSTree *tree,
+		struct editorSyntaxState *state,
 		enum editorSyntaxLanguage language,
-		const char *source,
-		size_t source_len,
+		const struct editorTextSource *source,
 		struct editorSyntaxLocalsContext *ctx_out) {
 	if (ctx_out == NULL) {
 		return 0;
@@ -1826,7 +1939,7 @@ static int editorSyntaxBuildLocalsContext(const TSTree *tree,
 	for (int i = 0; i < definition_count; i++) {
 		const char *text = NULL;
 		size_t text_len = 0;
-		if (!editorSyntaxNodeText(source, source_len, definition_nodes[i], &text, &text_len) ||
+		if (!editorSyntaxNodeText(state, source, definition_nodes[i], 0, &text, &text_len) ||
 				text_len == 0) {
 			continue;
 		}
@@ -1847,7 +1960,7 @@ static int editorSyntaxBuildLocalsContext(const TSTree *tree,
 	for (int i = 0; i < reference_count; i++) {
 		const char *text = NULL;
 		size_t text_len = 0;
-		if (!editorSyntaxNodeText(source, source_len, reference_nodes[i], &text, &text_len) ||
+		if (!editorSyntaxNodeText(state, source, reference_nodes[i], 0, &text, &text_len) ||
 				text_len == 0) {
 			continue;
 		}
@@ -1906,6 +2019,7 @@ static int editorSyntaxPredicateArgText(const TSQuery *query,
 		const TSQueryMatch *match,
 		const struct editorSyntaxPredicateContext *ctx,
 		const TSQueryPredicateStep *arg,
+		int scratch_idx,
 		const char **text_out,
 		size_t *len_out) {
 	if (query == NULL || match == NULL || ctx == NULL || arg == NULL ||
@@ -1929,7 +2043,7 @@ static int editorSyntaxPredicateArgText(const TSQuery *query,
 		if (!editorSyntaxMatchFindCaptureNode(match, arg->value_id, &node)) {
 			return 0;
 		}
-		return editorSyntaxNodeText(ctx->source, ctx->source_len, node, text_out, len_out);
+		return editorSyntaxNodeText(ctx->state, ctx->source, node, scratch_idx, text_out, len_out);
 	}
 
 	return 0;
@@ -2108,8 +2222,9 @@ static int editorSyntaxEvaluatePredicate(const TSQuery *query,
 		size_t left_len = 0;
 		const char *right = NULL;
 		size_t right_len = 0;
-		if (!editorSyntaxPredicateArgText(query, match, ctx, &args[0], &left, &left_len) ||
-				!editorSyntaxPredicateArgText(query, match, ctx, &args[1], &right, &right_len)) {
+		if (!editorSyntaxPredicateArgText(query, match, ctx, &args[0], 0, &left, &left_len) ||
+				!editorSyntaxPredicateArgText(query, match, ctx, &args[1], 1, &right,
+						&right_len)) {
 			return 0;
 		}
 		int equal = (left_len == right_len) && memcmp(left, right, left_len) == 0;
@@ -2128,8 +2243,8 @@ static int editorSyntaxEvaluatePredicate(const TSQuery *query,
 		size_t text_len = 0;
 		const char *pattern = NULL;
 		size_t pattern_len = 0;
-		if (!editorSyntaxPredicateArgText(query, match, ctx, &args[0], &text, &text_len) ||
-				!editorSyntaxPredicateArgText(query, match, ctx, &args[1], &pattern,
+		if (!editorSyntaxPredicateArgText(query, match, ctx, &args[0], 0, &text, &text_len) ||
+				!editorSyntaxPredicateArgText(query, match, ctx, &args[1], 1, &pattern,
 						&pattern_len)) {
 			return 0;
 		}
@@ -2152,7 +2267,7 @@ static int editorSyntaxEvaluatePredicate(const TSQuery *query,
 		}
 		const char *target = NULL;
 		size_t target_len = 0;
-		if (!editorSyntaxPredicateArgText(query, match, ctx, &args[0], &target, &target_len)) {
+		if (!editorSyntaxPredicateArgText(query, match, ctx, &args[0], 0, &target, &target_len)) {
 			return 0;
 		}
 
@@ -2275,8 +2390,7 @@ static void editorSyntaxCaptureVecFree(struct editorSyntaxCaptureVec *vec) {
 static int editorSyntaxCollectCapturesFromTree(struct editorSyntaxState *state,
 		const TSTree *tree,
 		enum editorSyntaxLanguage language,
-		const char *source,
-		size_t source_len,
+		const struct editorTextSource *source,
 		uint32_t start_byte,
 		uint32_t end_byte,
 		const struct editorSyntaxLocalsContext *locals,
@@ -2323,8 +2437,8 @@ static int editorSyntaxCollectCapturesFromTree(struct editorSyntaxState *state,
 	}
 
 	struct editorSyntaxPredicateContext predicate_ctx = {
+		.state = state,
 		.source = source,
-		.source_len = source_len,
 		.locals = locals
 	};
 
@@ -2450,8 +2564,7 @@ static enum editorSyntaxLanguage editorSyntaxLanguageFromInjectionName(const cha
 }
 
 static int editorSyntaxCollectHtmlInjectionRanges(struct editorSyntaxState *state,
-		const char *source,
-		size_t source_len,
+		const struct editorTextSource *source,
 		struct editorSyntaxRangeVec *javascript_ranges,
 		struct editorSyntaxRangeVec *css_ranges) {
 	if (state == NULL || source == NULL || javascript_ranges == NULL || css_ranges == NULL) {
@@ -2493,8 +2606,8 @@ static int editorSyntaxCollectHtmlInjectionRanges(struct editorSyntaxState *stat
 	}
 
 	struct editorSyntaxPredicateContext predicate_ctx = {
+		.state = state,
 		.source = source,
-		.source_len = source_len,
 		.locals = NULL
 	};
 
@@ -2584,8 +2697,7 @@ static void editorSyntaxApplyInputEdit(TSTree *tree, const struct editorSyntaxEd
 }
 
 static int editorSyntaxStateParseHtmlInjections(struct editorSyntaxState *state,
-		const char *source,
-		size_t len,
+		const struct editorTextSource *source,
 		const struct editorSyntaxEdit *incremental_edit) {
 	if (state == NULL || source == NULL) {
 		return 0;
@@ -2605,8 +2717,7 @@ static int editorSyntaxStateParseHtmlInjections(struct editorSyntaxState *state,
 
 	struct editorSyntaxRangeVec javascript_ranges = {0};
 	struct editorSyntaxRangeVec css_ranges = {0};
-	if (!editorSyntaxCollectHtmlInjectionRanges(state, source, len, &javascript_ranges,
-				&css_ranges)) {
+	if (!editorSyntaxCollectHtmlInjectionRanges(state, source, &javascript_ranges, &css_ranges)) {
 		editorSyntaxRangeVecFree(&javascript_ranges);
 		editorSyntaxRangeVecFree(&css_ranges);
 		return 0;
@@ -2641,56 +2752,17 @@ static int editorSyntaxStateParseHtmlInjections(struct editorSyntaxState *state,
 	if (javascript_ranges.count > 0) {
 		int incremental = incremental_edit != NULL &&
 				state->javascript_injection.tree != NULL;
-		ok = editorSyntaxParsedTreeParse(&state->javascript_injection, NULL, source, len,
-				incremental);
+		ok = editorSyntaxParsedTreeParse(&state->javascript_injection, NULL, source, incremental);
 	}
 	if (ok && css_ranges.count > 0) {
 		int incremental = incremental_edit != NULL &&
 				state->css_injection.tree != NULL;
-		ok = editorSyntaxParsedTreeParse(&state->css_injection, NULL, source, len,
-				incremental);
+		ok = editorSyntaxParsedTreeParse(&state->css_injection, NULL, source, incremental);
 	}
 
 	editorSyntaxRangeVecFree(&javascript_ranges);
 	editorSyntaxRangeVecFree(&css_ranges);
 	return ok;
-}
-
-static int editorSyntaxStateUpdateSourceSnapshot(struct editorSyntaxState *state,
-		const char *source,
-		size_t len) {
-	if (state == NULL || source == NULL) {
-		return 0;
-	}
-	char *dup = malloc(len + 1);
-	if (dup == NULL) {
-		return 0;
-	}
-	if (len > 0) {
-		memcpy(dup, source, len);
-	}
-	dup[len] = '\0';
-	free(state->source_snapshot);
-	state->source_snapshot = dup;
-	state->source_snapshot_len = len;
-	return 1;
-}
-
-static int editorSyntaxStateReplaceSourceSnapshotOwned(struct editorSyntaxState *state,
-		char *owned_source,
-		size_t len) {
-	if (state == NULL) {
-		free(owned_source);
-		return 0;
-	}
-	if (owned_source == NULL && len != 0) {
-		return 0;
-	}
-
-	free(state->source_snapshot);
-	state->source_snapshot = owned_source;
-	state->source_snapshot_len = len;
-	return 1;
 }
 
 static void editorSyntaxStateInvalidateLocalsCaches(struct editorSyntaxState *state) {
@@ -2704,8 +2776,7 @@ static void editorSyntaxStateInvalidateLocalsCaches(struct editorSyntaxState *st
 static int editorSyntaxStateEnsureJavascriptLocalsCached(
 		struct editorSyntaxState *state,
 		const struct editorSyntaxParsedTree *parsed,
-		const char *source,
-		size_t source_len,
+		const struct editorTextSource *source,
 		int injection_tree,
 		const struct editorSyntaxLocalsContext **locals_out) {
 	if (locals_out == NULL) {
@@ -2734,8 +2805,8 @@ static int editorSyntaxStateEnsureJavascriptLocalsCached(
 
 	editorSyntaxLocalsContextFree(cache);
 	editorSyntaxLocalsContextInit(cache);
-	if (!editorSyntaxBuildLocalsContext(parsed->tree, EDITOR_SYNTAX_JAVASCRIPT, source,
-				source_len, cache)) {
+	if (!editorSyntaxBuildLocalsContext(parsed->tree, state, EDITOR_SYNTAX_JAVASCRIPT, source,
+				cache)) {
 		editorSyntaxLocalsContextFree(cache);
 		*cache_valid = 0;
 		return 0;
@@ -2757,11 +2828,7 @@ static void editorSyntaxStateApplyPerformanceMode(struct editorSyntaxState *stat
 	int disable_predicates = 0;
 	int disable_injections = 0;
 
-	if (source_len > ROTIDE_SYNTAX_PERF_DISABLED_BYTES) {
-		mode = EDITOR_SYNTAX_PERF_DISABLED;
-		disable_predicates = 1;
-		disable_injections = 1;
-	} else if (source_len > ROTIDE_SYNTAX_PERF_DEGRADED_INJECTIONS_BYTES) {
+	if (source_len > ROTIDE_SYNTAX_PERF_DEGRADED_INJECTIONS_BYTES) {
 		mode = EDITOR_SYNTAX_PERF_DEGRADED_INJECTIONS;
 		disable_predicates = 1;
 		disable_injections = 1;
@@ -2783,7 +2850,7 @@ int editorSyntaxStateConfigureForSourceLength(struct editorSyntaxState *state, s
 		return 0;
 	}
 	editorSyntaxStateApplyPerformanceMode(state, source_len);
-	return state->perf_mode != EDITOR_SYNTAX_PERF_DISABLED;
+	return editorSyntaxLengthFitsTreeSitter(source_len);
 }
 
 enum editorSyntaxPerformanceMode editorSyntaxStatePerformanceMode(
@@ -2798,7 +2865,7 @@ size_t editorSyntaxStateSourceLength(const struct editorSyntaxState *state) {
 	if (state == NULL) {
 		return 0;
 	}
-	return state->source_snapshot_len;
+	return state->source_len;
 }
 
 struct editorSyntaxState *editorSyntaxStateCreate(enum editorSyntaxLanguage language) {
@@ -2830,8 +2897,11 @@ struct editorSyntaxState *editorSyntaxStateCreate(enum editorSyntaxLanguage lang
 	state->last_changed_range_cap = 0;
 	state->budget_parse_exceeded = 0;
 	state->budget_query_exceeded = 0;
-	state->source_snapshot = NULL;
-	state->source_snapshot_len = 0;
+	state->source_len = 0;
+	state->scratch_primary = NULL;
+	state->scratch_primary_cap = 0;
+	state->scratch_secondary = NULL;
+	state->scratch_secondary_cap = 0;
 
 	if (!editorSyntaxParsedTreeCreateParser(&state->host, language)) {
 		free(state);
@@ -2849,7 +2919,8 @@ struct editorSyntaxState *editorSyntaxStateCreate(enum editorSyntaxLanguage lang
 			editorSyntaxLocalsContextFree(&state->host_javascript_locals);
 			editorSyntaxLocalsContextFree(&state->injection_javascript_locals);
 			free(state->last_changed_ranges);
-			free(state->source_snapshot);
+			free(state->scratch_primary);
+			free(state->scratch_secondary);
 			free(state);
 			return NULL;
 		}
@@ -2871,129 +2942,35 @@ void editorSyntaxStateDestroy(struct editorSyntaxState *state) {
 	state->last_changed_ranges = NULL;
 	state->last_changed_range_count = 0;
 	state->last_changed_range_cap = 0;
-	free(state->source_snapshot);
-	state->source_snapshot = NULL;
-	state->source_snapshot_len = 0;
+	free(state->scratch_primary);
+	state->scratch_primary = NULL;
+	state->scratch_primary_cap = 0;
+	free(state->scratch_secondary);
+	state->scratch_secondary = NULL;
+	state->scratch_secondary_cap = 0;
+	state->source_len = 0;
 	free(state);
 }
 
-int editorSyntaxStateParseFull(struct editorSyntaxState *state, const char *source, size_t len) {
-	if (state == NULL || source == NULL || !editorSyntaxLengthFitsTreeSitter(len)) {
+int editorSyntaxStateParseFull(struct editorSyntaxState *state,
+		const struct editorTextSource *source) {
+	if (state == NULL || source == NULL || source->read == NULL ||
+			!editorSyntaxLengthFitsTreeSitter(source->length)) {
 		return 0;
 	}
 	state->budget_parse_exceeded = 0;
 	state->budget_query_exceeded = 0;
 	editorSyntaxStateClearChangedRanges(state);
-	editorSyntaxStateApplyPerformanceMode(state, len);
-	if (state->perf_mode == EDITOR_SYNTAX_PERF_DISABLED) {
-		return 0;
-	}
+	editorSyntaxStateApplyPerformanceMode(state, source->length);
 
-	if (!editorSyntaxParsedTreeParse(&state->host, state, source, len, 0)) {
+	if (!editorSyntaxParsedTreeParse(&state->host, state, source, 0)) {
 		return 0;
 	}
-	if (!editorSyntaxStateParseHtmlInjections(state, source, len, NULL)) {
+	if (!editorSyntaxStateParseHtmlInjections(state, source, NULL)) {
 		return 0;
 	}
-	if (!editorSyntaxStateUpdateSourceSnapshot(state, source, len)) {
-		return 0;
-	}
-	if (!editorSyntaxStateSetChangedRangesFull(state, len)) {
-		return 0;
-	}
-	return 1;
-}
-
-static int editorSyntaxBuildEditedSource(const char *old_source, size_t old_len,
-		const struct editorSyntaxEdit *edit,
-		const char *inserted_text,
-		size_t inserted_len,
-		char **new_source_out,
-		size_t *new_len_out) {
-	if (old_source == NULL || edit == NULL || new_source_out == NULL || new_len_out == NULL ||
-			(inserted_len > 0 && inserted_text == NULL)) {
-		return 0;
-	}
-	if (edit->old_end_byte < edit->start_byte) {
-		return 0;
-	}
-
-	size_t start = (size_t)edit->start_byte;
-	size_t old_end = (size_t)edit->old_end_byte;
-	if (old_end > old_len || start > old_end) {
-		return 0;
-	}
-	size_t removed_len = old_end - start;
-	size_t kept_len = old_len - removed_len;
-	if (inserted_len > SIZE_MAX - kept_len) {
-		return 0;
-	}
-	size_t new_len = kept_len + inserted_len;
-	if (new_len > UINT32_MAX) {
-		return 0;
-	}
-	if (new_len == SIZE_MAX) {
-		return 0;
-	}
-
-	char *new_source = malloc(new_len + 1);
-	if (new_source == NULL) {
-		return 0;
-	}
-	if (start > 0) {
-		memcpy(new_source, old_source, start);
-	}
-	if (inserted_len > 0) {
-		memcpy(new_source + start, inserted_text, inserted_len);
-	}
-	size_t suffix_len = old_len - old_end;
-	if (suffix_len > 0) {
-		memcpy(new_source + start + inserted_len, old_source + old_end, suffix_len);
-	}
-	new_source[new_len] = '\0';
-	*new_source_out = new_source;
-	*new_len_out = new_len;
-	return 1;
-}
-
-int editorSyntaxStateApplyEditAndParseWithInsertedText(struct editorSyntaxState *state,
-		const struct editorSyntaxEdit *edit,
-		const char *inserted_text,
-		size_t inserted_len) {
-	if (state == NULL || edit == NULL || state->host.parser == NULL || state->host.tree == NULL) {
-		return 0;
-	}
-	state->budget_parse_exceeded = 0;
-	state->budget_query_exceeded = 0;
-	editorSyntaxStateClearChangedRanges(state);
-
-	const char *old_source = state->source_snapshot != NULL ? state->source_snapshot : "";
-	size_t old_len = state->source_snapshot != NULL ? state->source_snapshot_len : 0;
-
-	char *new_source = NULL;
-	size_t new_len = 0;
-	if (!editorSyntaxBuildEditedSource(old_source, old_len, edit, inserted_text, inserted_len,
-				&new_source, &new_len)) {
-		return 0;
-	}
-
-	editorSyntaxStateApplyPerformanceMode(state, new_len);
-	if (state->perf_mode == EDITOR_SYNTAX_PERF_DISABLED) {
-		free(new_source);
-		return 0;
-	}
-
-	editorSyntaxApplyInputEdit(state->host.tree, edit);
-	if (!editorSyntaxParsedTreeParse(&state->host, state, new_source, new_len, 1)) {
-		free(new_source);
-		return 0;
-	}
-	if (!editorSyntaxStateParseHtmlInjections(state, new_source, new_len, edit)) {
-		free(new_source);
-		return 0;
-	}
-	if (!editorSyntaxStateReplaceSourceSnapshotOwned(state, new_source, new_len)) {
-		free(new_source);
+	state->source_len = source->length;
+	if (!editorSyntaxStateSetChangedRangesFull(state, source->length)) {
 		return 0;
 	}
 	return 1;
@@ -3001,30 +2978,28 @@ int editorSyntaxStateApplyEditAndParseWithInsertedText(struct editorSyntaxState 
 
 int editorSyntaxStateApplyEditAndParse(struct editorSyntaxState *state,
 		const struct editorSyntaxEdit *edit,
-		const char *source,
-		size_t len) {
-	if (state == NULL || edit == NULL || source == NULL || !editorSyntaxLengthFitsTreeSitter(len) ||
+		const struct editorTextSource *source) {
+	if (state == NULL || edit == NULL || source == NULL || source->read == NULL ||
+			!editorSyntaxLengthFitsTreeSitter(source->length) ||
 			state->host.parser == NULL || state->host.tree == NULL) {
 		return 0;
 	}
 	state->budget_parse_exceeded = 0;
 	state->budget_query_exceeded = 0;
 	editorSyntaxStateClearChangedRanges(state);
-	editorSyntaxStateApplyPerformanceMode(state, len);
-	if (state->perf_mode == EDITOR_SYNTAX_PERF_DISABLED) {
+	if ((size_t)edit->old_end_byte > state->source_len || edit->old_end_byte < edit->start_byte) {
 		return 0;
 	}
+	editorSyntaxStateApplyPerformanceMode(state, source->length);
 
 	editorSyntaxApplyInputEdit(state->host.tree, edit);
-	if (!editorSyntaxParsedTreeParse(&state->host, state, source, len, 1)) {
+	if (!editorSyntaxParsedTreeParse(&state->host, state, source, 1)) {
 		return 0;
 	}
-	if (!editorSyntaxStateParseHtmlInjections(state, source, len, edit)) {
+	if (!editorSyntaxStateParseHtmlInjections(state, source, edit)) {
 		return 0;
 	}
-	if (!editorSyntaxStateUpdateSourceSnapshot(state, source, len)) {
-		return 0;
-	}
+	state->source_len = source->length;
 	return 1;
 }
 
@@ -3065,6 +3040,7 @@ static int editorSyntaxCaptureSortKeyCmp(const struct editorSyntaxCapture *left,
 }
 
 int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
+		const struct editorTextSource *source,
 		uint32_t start_byte,
 		uint32_t end_byte,
 		struct editorSyntaxCapture *captures,
@@ -3073,31 +3049,28 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 	if (count_out != NULL) {
 		*count_out = 0;
 	}
-	if (state == NULL || start_byte >= end_byte || max_captures < 0 ||
+	if (state == NULL || source == NULL || source->read == NULL || start_byte >= end_byte ||
+			max_captures < 0 ||
 			(max_captures > 0 && captures == NULL)) {
 		return 0;
 	}
 	if (max_captures == 0 || state->host.tree == NULL) {
 		return 1;
 	}
-
-	const char *source = state->source_snapshot != NULL ? state->source_snapshot : "";
-	size_t source_len = state->source_snapshot != NULL ? state->source_snapshot_len : 0;
 	int skip_predicates = state->perf_disable_predicates;
 
 	if (state->language != EDITOR_SYNTAX_HTML) {
 		struct editorSyntaxCaptureVec collected = {0};
 		const struct editorSyntaxLocalsContext *host_js_locals = NULL;
 		if (!skip_predicates && state->language == EDITOR_SYNTAX_JAVASCRIPT &&
-				!editorSyntaxStateEnsureJavascriptLocalsCached(state, &state->host, source, source_len,
-						0, &host_js_locals)) {
+				!editorSyntaxStateEnsureJavascriptLocalsCached(state, &state->host, source, 0,
+						&host_js_locals)) {
 			editorSyntaxCaptureVecFree(&collected);
 			return 0;
 		}
 
 		int ok = editorSyntaxCollectCapturesFromTree(state, state->host.tree, state->language,
-				source, source_len, start_byte, end_byte,
-				host_js_locals, skip_predicates, &collected);
+				source, start_byte, end_byte, host_js_locals, skip_predicates, &collected);
 		if (!ok) {
 			editorSyntaxCaptureVecFree(&collected);
 			return 0;
@@ -3122,8 +3095,8 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 	struct editorSyntaxCaptureVec css_captures = {0};
 	const struct editorSyntaxLocalsContext *host_js_locals = NULL;
 	if (!skip_predicates && state->language == EDITOR_SYNTAX_JAVASCRIPT &&
-			!editorSyntaxStateEnsureJavascriptLocalsCached(state, &state->host, source, source_len,
-					0, &host_js_locals)) {
+			!editorSyntaxStateEnsureJavascriptLocalsCached(state, &state->host, source, 0,
+					&host_js_locals)) {
 		editorSyntaxCaptureVecFree(&host_captures);
 		editorSyntaxCaptureVecFree(&js_captures);
 		editorSyntaxCaptureVecFree(&css_captures);
@@ -3131,8 +3104,7 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 	}
 
 	int ok = editorSyntaxCollectCapturesFromTree(state, state->host.tree, state->language,
-			source, source_len, start_byte, end_byte,
-			host_js_locals, skip_predicates, &host_captures);
+			source, start_byte, end_byte, host_js_locals, skip_predicates, &host_captures);
 	if (!ok) {
 		editorSyntaxCaptureVecFree(&host_captures);
 		editorSyntaxCaptureVecFree(&js_captures);
@@ -3144,19 +3116,17 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 		const struct editorSyntaxLocalsContext *injection_js_locals = NULL;
 		if (!skip_predicates &&
 				!editorSyntaxStateEnsureJavascriptLocalsCached(state, &state->javascript_injection,
-						source, source_len, 1, &injection_js_locals)) {
+						source, 1, &injection_js_locals)) {
 			editorSyntaxCaptureVecFree(&host_captures);
 			editorSyntaxCaptureVecFree(&js_captures);
 			editorSyntaxCaptureVecFree(&css_captures);
 			return 0;
 		}
 		if (!editorSyntaxCollectCapturesFromTree(state, state->javascript_injection.tree,
-					EDITOR_SYNTAX_JAVASCRIPT,
-					source, source_len, start_byte, end_byte,
+					EDITOR_SYNTAX_JAVASCRIPT, source, start_byte, end_byte,
 					injection_js_locals, skip_predicates, &js_captures) ||
 				!editorSyntaxCollectCapturesFromTree(state, state->css_injection.tree,
-						EDITOR_SYNTAX_CSS,
-						source, source_len, start_byte, end_byte,
+						EDITOR_SYNTAX_CSS, source, start_byte, end_byte,
 						NULL, skip_predicates, &css_captures)) {
 			editorSyntaxCaptureVecFree(&host_captures);
 			editorSyntaxCaptureVecFree(&js_captures);
@@ -3277,6 +3247,10 @@ void editorSyntaxTestSetBudgetOverrides(int enabled,
 
 void editorSyntaxTestResetBudgetOverrides(void) {
 	memset(&g_editor_syntax_budget_overrides, 0, sizeof(g_editor_syntax_budget_overrides));
+}
+
+int editorSyntaxTestBudgetOverridesEnabled(void) {
+	return g_editor_syntax_budget_overrides.enabled;
 }
 
 void editorSyntaxReleaseSharedResources(void) {
