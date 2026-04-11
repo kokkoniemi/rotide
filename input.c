@@ -928,9 +928,9 @@ static void editorMoveCursor(int k) {
 	(void)editorSetCursorFromPosition(cy, cx);
 }
 
-static int editorResolveMouseToBufferPosition(const struct editorMouseEvent *event,
-		int clamp_to_viewport, int *row_idx_out, int *cx_out) {
-	if (event == NULL || row_idx_out == NULL || cx_out == NULL || E.numrows == 0) {
+static int editorResolveMouseToBufferOffset(const struct editorMouseEvent *event,
+		int clamp_to_viewport, size_t *offset_out) {
+	if (event == NULL || offset_out == NULL || E.numrows == 0) {
 		return 0;
 	}
 
@@ -986,19 +986,13 @@ static int editorResolveMouseToBufferPosition(const struct editorMouseEvent *eve
 	}
 
 	// Convert rendered column -> buffer byte index while respecting grapheme boundaries.
-	*row_idx_out = row_idx;
-	*cx_out = editorRowRxToCx(&E.rows[row_idx], target_rx);
-	return 1;
+	int cx = editorRowRxToCx(&E.rows[row_idx], target_rx);
+	return editorBufferPosToOffset(row_idx, cx, offset_out);
 }
 
 static int editorMoveCursorToMouse(const struct editorMouseEvent *event, int clamp_to_viewport) {
-	int row_idx = 0;
-	int cx = 0;
 	size_t offset = 0;
-	if (!editorResolveMouseToBufferPosition(event, clamp_to_viewport, &row_idx, &cx)) {
-		return 0;
-	}
-	if (!editorBufferPosToOffset(row_idx, cx, &offset)) {
+	if (!editorResolveMouseToBufferOffset(event, clamp_to_viewport, &offset)) {
 		return 0;
 	}
 	return editorSetCursorFromOffset(offset);

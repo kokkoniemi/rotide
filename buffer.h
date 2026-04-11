@@ -118,6 +118,8 @@ int editorSyntaxTestVisibleRowRecomputeCount(void);
 void editorDocumentTestResetStats(void);
 int editorDocumentTestFullRebuildCount(void);
 int editorDocumentTestIncrementalUpdateCount(void);
+int editorRowCacheTestFullRebuildCount(void);
+int editorRowCacheTestSpliceUpdateCount(void);
 void editorActiveTextSourceBuildTestResetCount(void);
 int editorActiveTextSourceBuildTestCount(void);
 void editorActiveTextSourceDupTestResetCount(void);

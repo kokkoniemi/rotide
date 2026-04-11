@@ -753,12 +753,15 @@ static int test_editor_build_active_text_source_uses_document_after_open(void) {
 	editorDocumentTestResetStats();
 	editorOpen(path);
 	ASSERT_EQ_INT(1, editorDocumentTestFullRebuildCount());
+	ASSERT_EQ_INT(1, editorRowCacheTestFullRebuildCount());
 	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
 
 	editorDocumentTestResetStats();
 	ASSERT_EQ_INT(0, editorDocumentTestFullRebuildCount());
+	ASSERT_EQ_INT(0, editorRowCacheTestFullRebuildCount());
 	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
 	ASSERT_EQ_INT(0, editorDocumentTestFullRebuildCount());
+	ASSERT_EQ_INT(0, editorRowCacheTestFullRebuildCount());
 
 	ASSERT_TRUE(unlink(path) == 0);
 	return 0;
@@ -793,6 +796,8 @@ static int test_editor_document_incremental_updates_for_basic_edits(void) {
 	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
 	ASSERT_EQ_INT(0, editorDocumentTestFullRebuildCount());
 	ASSERT_EQ_INT(4, editorDocumentTestIncrementalUpdateCount());
+	ASSERT_EQ_INT(0, editorRowCacheTestFullRebuildCount());
+	ASSERT_EQ_INT(4, editorRowCacheTestSpliceUpdateCount());
 	return 0;
 }
 

@@ -33,6 +33,7 @@
 
 static char *editorPathJoin(const char *left, const char *right);
 struct editorDocumentEdit;
+struct editorRowCacheSpliceRegion;
 static const char *editorDocumentTextSourceRead(const struct editorTextSource *source,
 		size_t byte_index, uint32_t *bytes_read);
 static int editorSyntaxByteRangeToVisibleRows(size_t start_byte, size_t end_byte,
@@ -64,6 +65,17 @@ static int editorBuildRowsFromDocument(const struct editorDocument *document,
 		struct erow **rows_out, int *numrows_out);
 static int editorBuildRowsFromDocumentRange(const struct editorDocument *document,
 		int start_row, int end_row_exclusive, struct erow **rows_out, int *numrows_out);
+static int editorBuildFullRowsFromDocument(const struct editorDocument *document,
+		struct erow **rows_out, int *numrows_out);
+static int editorApplySignedByteDelta(size_t value, size_t old_total, size_t new_total,
+		size_t *out);
+static int editorPrepareRowCacheSpliceRegion(const struct editorDocument *document,
+		size_t start_offset, size_t old_len, struct editorRowCacheSpliceRegion *region_out);
+static int editorRowCacheSpliceEndRowForDocument(const struct editorDocument *document,
+		const struct editorRowCacheSpliceRegion *region, int *end_row_exclusive_out);
+static int editorSpliceRowCache(struct erow *replacement_rows, int replacement_numrows,
+		int start_row, int old_end_row_exclusive);
+static int editorSyncCursorFromOffset(size_t target_offset);
 static int editorCursorPositionForOffset(const struct editorDocument *document,
 		const struct erow *rows, int numrows, size_t offset, int *cy_out, int *cx_out,
 		size_t *normalized_offset_out);
@@ -83,6 +95,8 @@ static int g_document_full_rebuild_count = 0;
 static int g_document_incremental_update_count = 0;
 static int g_active_text_source_build_count = 0;
 static int g_active_text_source_dup_count = 0;
+static int g_row_cache_full_rebuild_count = 0;
+static int g_row_cache_splice_update_count = 0;
 
 struct editorDocumentEdit {
 	enum editorEditKind kind;
@@ -94,6 +108,14 @@ struct editorDocumentEdit {
 	size_t after_cursor_offset;
 	int before_dirty;
 	int after_dirty;
+};
+
+struct editorRowCacheSpliceRegion {
+	int start_row;
+	int old_end_row_exclusive;
+	size_t prefix_start;
+	size_t suffix_start_old;
+	size_t old_total;
 };
 
 static void editorSetAllocFailureStatus(void) {
@@ -1537,14 +1559,13 @@ static int editorHistoryRecordPendingEditFromOperation(enum editorEditKind kind,
 static int editorApplyDocumentEdit(const struct editorDocumentEdit *edit) {
 	const struct editorDocument *active_document = NULL;
 	size_t old_end_offset = 0;
-	struct erow *new_rows = NULL;
-	int new_numrows = 0;
-	size_t normalized_offset = 0;
-	int new_cy = 0;
-	int new_cx = 0;
 	struct editorSyntaxEdit syntax_edit = {0};
 	int syntax_track = 0;
 	char *removed_text = NULL;
+	struct editorRowCacheSpliceRegion row_region = {0};
+	struct erow *replacement_rows = NULL;
+	int replacement_numrows = 0;
+	int replacement_end_row_exclusive = 0;
 
 	if (edit == NULL || (edit->new_len > 0 && edit->new_text == NULL)) {
 		editorSetOperationTooLargeStatus();
@@ -1566,6 +1587,12 @@ static int editorApplyDocumentEdit(const struct editorDocumentEdit *edit) {
 			return 0;
 		}
 	}
+	if (!editorPrepareRowCacheSpliceRegion(active_document, edit->start_offset, edit->old_len,
+				&row_region)) {
+		free(removed_text);
+		editorSetOperationTooLargeStatus();
+		return 0;
+	}
 
 	if (E.syntax_state != NULL && E.syntax_language != EDITOR_SYNTAX_NONE) {
 		syntax_track = editorBuildSyntaxEditForDocumentEdit(active_document,
@@ -1575,22 +1602,24 @@ static int editorApplyDocumentEdit(const struct editorDocumentEdit *edit) {
 
 	if (!editorDocumentReplaceRange(E.document, edit->start_offset, edit->old_len,
 				edit->new_len > 0 ? edit->new_text : "", edit->new_len) ||
-			!editorBuildRowsFromDocument(E.document, &new_rows, &new_numrows) ||
-			!editorCursorPositionForOffset(E.document, new_rows, new_numrows, edit->after_cursor_offset,
-					&new_cy, &new_cx, &normalized_offset)) {
-		editorFreeRowArray(new_rows, new_numrows);
+			!editorRowCacheSpliceEndRowForDocument(E.document, &row_region,
+					&replacement_end_row_exclusive) ||
+			!editorBuildRowsFromDocumentRange(E.document, row_region.start_row,
+					replacement_end_row_exclusive, &replacement_rows, &replacement_numrows) ||
+			!editorSpliceRowCache(replacement_rows, replacement_numrows, row_region.start_row,
+					row_region.old_end_row_exclusive)) {
+		editorFreeRowArray(replacement_rows, replacement_numrows);
 		free(removed_text);
 		editorSetAllocFailureStatus();
 		return 0;
 	}
-	editorFreeRowArray(E.rows, E.numrows);
-	E.rows = new_rows;
-	E.numrows = new_numrows;
 
 	E.max_render_cols_valid = 0;
-	E.cy = new_cy;
-	E.cx = new_cx;
-	E.cursor_offset = normalized_offset;
+	if (!editorSyncCursorFromOffset(edit->after_cursor_offset)) {
+		free(removed_text);
+		editorSetAllocFailureStatus();
+		return 0;
+	}
 	E.dirty = edit->after_dirty;
 	if (E.syntax_state == NULL || E.syntax_language == EDITOR_SYNTAX_NONE) {
 		editorSyntaxVisibleCacheInvalidate();
@@ -2552,6 +2581,225 @@ static int editorBuildRowsFromDocument(const struct editorDocument *document,
 			rows_out, numrows_out);
 }
 
+static int editorBuildFullRowsFromDocument(const struct editorDocument *document,
+		struct erow **rows_out, int *numrows_out) {
+	if (!editorBuildRowsFromDocument(document, rows_out, numrows_out)) {
+		return 0;
+	}
+	g_row_cache_full_rebuild_count++;
+	return 1;
+}
+
+static int editorApplySignedByteDelta(size_t value, size_t old_total, size_t new_total,
+		size_t *out) {
+	if (out == NULL) {
+		return 0;
+	}
+	if (new_total >= old_total) {
+		return editorSizeAdd(value, new_total - old_total, out);
+	}
+	size_t delta = old_total - new_total;
+	if (value < delta) {
+		return 0;
+	}
+	*out = value - delta;
+	return 1;
+}
+
+static int editorPrepareRowCacheSpliceRegion(const struct editorDocument *document,
+		size_t start_offset, size_t old_len, struct editorRowCacheSpliceRegion *region_out) {
+	size_t old_total = 0;
+	size_t first_lookup = 0;
+	size_t last_lookup = 0;
+	size_t old_end_offset = 0;
+	int start_row = 0;
+	int end_row = 0;
+
+	if (document == NULL || region_out == NULL) {
+		return 0;
+	}
+
+	old_total = editorDocumentLength(document);
+	if (start_offset > old_total || old_len > old_total - start_offset) {
+		return 0;
+	}
+	old_end_offset = start_offset + old_len;
+
+	if (old_total == 0) {
+		*region_out = (struct editorRowCacheSpliceRegion) {
+			.start_row = 0,
+			.old_end_row_exclusive = 0,
+			.prefix_start = 0,
+			.suffix_start_old = 0,
+			.old_total = 0
+		};
+		return 1;
+	}
+
+	first_lookup = start_offset;
+	if (first_lookup == old_total) {
+		first_lookup = old_total - 1;
+	}
+	last_lookup = old_len > 0 ? start_offset + old_len - 1 : first_lookup;
+
+	if (!editorDocumentLineIndexForByteOffset(document, first_lookup, &start_row) ||
+			!editorDocumentLineIndexForByteOffset(document, last_lookup, &end_row) ||
+			!editorDocumentLineStartByte(document, start_row, &region_out->prefix_start)) {
+		return 0;
+	}
+	if (old_len > 0 && old_end_offset < old_total) {
+		int boundary_row = 0;
+		size_t boundary_start = 0;
+		if (!editorDocumentLineIndexForByteOffset(document, old_end_offset, &boundary_row) ||
+				!editorDocumentLineStartByte(document, boundary_row, &boundary_start)) {
+			return 0;
+		}
+		if (boundary_start == old_end_offset && boundary_row > end_row) {
+			end_row = boundary_row;
+		}
+	}
+
+	region_out->start_row = start_row;
+	region_out->old_end_row_exclusive = end_row + 1;
+	region_out->old_total = old_total;
+	if (region_out->old_end_row_exclusive < editorDocumentLineCount(document) &&
+			!editorDocumentLineStartByte(document, region_out->old_end_row_exclusive,
+					&region_out->suffix_start_old)) {
+		return 0;
+	}
+	if (region_out->old_end_row_exclusive >= editorDocumentLineCount(document)) {
+		region_out->suffix_start_old = old_total;
+	}
+	return 1;
+}
+
+static int editorRowCacheSpliceEndRowForDocument(const struct editorDocument *document,
+		const struct editorRowCacheSpliceRegion *region, int *end_row_exclusive_out) {
+	size_t new_total = 0;
+	size_t new_suffix_start = 0;
+	size_t last_lookup = 0;
+	int last_row = 0;
+
+	if (document == NULL || region == NULL || end_row_exclusive_out == NULL) {
+		return 0;
+	}
+
+	new_total = editorDocumentLength(document);
+	if (new_total == 0) {
+		*end_row_exclusive_out = 0;
+		return 1;
+	}
+	if (!editorApplySignedByteDelta(region->suffix_start_old, region->old_total, new_total,
+				&new_suffix_start) || new_suffix_start > new_total) {
+		return 0;
+	}
+
+	if (new_suffix_start > region->prefix_start) {
+		last_lookup = new_suffix_start - 1;
+	} else if (region->prefix_start < new_total) {
+		last_lookup = region->prefix_start;
+	} else {
+		last_lookup = new_total - 1;
+	}
+	if (!editorDocumentLineIndexForByteOffset(document, last_lookup, &last_row)) {
+		return 0;
+	}
+	*end_row_exclusive_out = last_row + 1;
+	if (*end_row_exclusive_out < region->start_row) {
+		*end_row_exclusive_out = region->start_row;
+	}
+	return 1;
+}
+
+static int editorSpliceRowCache(struct erow *replacement_rows, int replacement_numrows,
+		int start_row, int old_end_row_exclusive) {
+	int remove_count = 0;
+	int tail_count = 0;
+	int new_numrows = 0;
+	struct erow *grown = NULL;
+
+	if (start_row < 0 || old_end_row_exclusive < start_row ||
+			old_end_row_exclusive > E.numrows || replacement_numrows < 0 ||
+			(replacement_numrows > 0 && replacement_rows == NULL)) {
+		return 0;
+	}
+
+	remove_count = old_end_row_exclusive - start_row;
+	tail_count = E.numrows - old_end_row_exclusive;
+	if (start_row > INT_MAX - replacement_numrows ||
+			start_row + replacement_numrows > INT_MAX - tail_count) {
+		return 0;
+	}
+	new_numrows = start_row + replacement_numrows + tail_count;
+
+	if (new_numrows > E.numrows) {
+		size_t row_count_size = 0;
+		size_t row_bytes = 0;
+		if (!editorIntToSize(new_numrows, &row_count_size) ||
+				!editorSizeMul(sizeof(*E.rows), row_count_size, &row_bytes)) {
+			return 0;
+		}
+		grown = editorRealloc(E.rows, row_bytes);
+		if (grown == NULL) {
+			return 0;
+		}
+		E.rows = grown;
+	}
+
+	for (int i = start_row; i < old_end_row_exclusive; i++) {
+		free(E.rows[i].chars);
+		free(E.rows[i].render);
+		E.rows[i].chars = NULL;
+		E.rows[i].render = NULL;
+	}
+
+	if (tail_count > 0 && replacement_numrows != remove_count) {
+		memmove(&E.rows[start_row + replacement_numrows], &E.rows[old_end_row_exclusive],
+				sizeof(*E.rows) * (size_t)tail_count);
+	}
+	for (int i = 0; i < replacement_numrows; i++) {
+		E.rows[start_row + i] = replacement_rows[i];
+	}
+
+	if (new_numrows == 0) {
+		free(E.rows);
+		E.rows = NULL;
+	} else if (new_numrows < E.numrows) {
+		size_t row_count_size = 0;
+		size_t row_bytes = 0;
+		if (!editorIntToSize(new_numrows, &row_count_size) ||
+				!editorSizeMul(sizeof(*E.rows), row_count_size, &row_bytes)) {
+			return 0;
+		}
+		grown = editorRealloc(E.rows, row_bytes);
+		if (grown != NULL) {
+			E.rows = grown;
+		}
+	}
+
+	E.numrows = new_numrows;
+	g_row_cache_splice_update_count++;
+	free(replacement_rows);
+	return 1;
+}
+
+static int editorSyncCursorFromOffset(size_t target_offset) {
+	size_t normalized_offset = 0;
+	int new_cy = 0;
+	int new_cx = 0;
+
+	if (E.document == NULL ||
+			!editorCursorPositionForOffset(E.document, E.rows, E.numrows, target_offset,
+					&new_cy, &new_cx, &normalized_offset)) {
+		return 0;
+	}
+
+	E.cursor_offset = normalized_offset;
+	E.cy = new_cy;
+	E.cx = new_cx;
+	return 1;
+}
+
 static void editorClampCursorForRows(int target_cy, int target_cx,
 		const struct erow *rows, int numrows, int *cy_out, int *cx_out) {
 	int cy = target_cy;
@@ -2602,7 +2850,7 @@ static int editorRestoreActiveFromDocument(const struct editorDocument *document
 	new_document = editorDocumentAlloc();
 	if (new_document == NULL ||
 			!editorDocumentResetFromDocument(new_document, document) ||
-			!editorBuildRowsFromDocument(new_document, &new_rows, &new_numrows)) {
+			!editorBuildFullRowsFromDocument(new_document, &new_rows, &new_numrows)) {
 		editorFreeRowArray(new_rows, new_numrows);
 		editorDocumentFreePtr(&new_document);
 		editorSetAllocFailureStatus();
@@ -2782,6 +3030,12 @@ static void editorTabStateCaptureActive(struct editorTabState *tab) {
 	tab->is_preview = E.is_preview;
 	tab->tab_title = E.tab_title;
 	tab->cursor_offset = E.cursor_offset;
+	if (E.document != NULL) {
+		size_t cursor_offset = 0;
+		if (editorBufferPosToOffset(E.cy, E.cx, &cursor_offset)) {
+			tab->cursor_offset = cursor_offset;
+		}
+	}
 	tab->cx = E.cx;
 	tab->cy = E.cy;
 	tab->rx = E.rx;
@@ -2858,6 +3112,13 @@ static void editorTabStateLoadActive(struct editorTabState *tab) {
 	E.edit_pending_kind = tab->edit_pending_kind;
 	E.edit_pending_mode = tab->edit_pending_mode;
 	editorSyntaxVisibleCacheInvalidate();
+	if (E.document != NULL) {
+		if (!editorSyncCursorFromOffset(E.cursor_offset)) {
+			E.cursor_offset = 0;
+			E.cy = 0;
+			E.cx = 0;
+		}
+	}
 
 	editorTabStateInitEmpty(tab);
 }
@@ -3350,7 +3611,7 @@ static int editorRebuildGeneratedTabRows(struct editorTabState *tab) {
 	}
 	struct erow *new_rows = NULL;
 	int new_numrows = 0;
-	if (!editorBuildRowsFromDocument(tab->document, &new_rows, &new_numrows)) {
+	if (!editorBuildFullRowsFromDocument(tab->document, &new_rows, &new_numrows)) {
 		return 0;
 	}
 
@@ -3799,6 +4060,8 @@ int editorSyntaxTestVisibleRowRecomputeCount(void) {
 void editorDocumentTestResetStats(void) {
 	g_document_full_rebuild_count = 0;
 	g_document_incremental_update_count = 0;
+	g_row_cache_full_rebuild_count = 0;
+	g_row_cache_splice_update_count = 0;
 }
 
 int editorDocumentTestFullRebuildCount(void) {
@@ -3807,6 +4070,14 @@ int editorDocumentTestFullRebuildCount(void) {
 
 int editorDocumentTestIncrementalUpdateCount(void) {
 	return g_document_incremental_update_count;
+}
+
+int editorRowCacheTestFullRebuildCount(void) {
+	return g_row_cache_full_rebuild_count;
+}
+
+int editorRowCacheTestSpliceUpdateCount(void) {
+	return g_row_cache_splice_update_count;
 }
 
 void editorActiveTextSourceBuildTestResetCount(void) {
