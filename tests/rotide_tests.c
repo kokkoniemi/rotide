@@ -161,6 +161,33 @@ static int write_temp_text_file(char path_buf[], size_t path_buf_size, const cha
 	return ok;
 }
 
+static char *dup_active_source_text(size_t *len_out) {
+	struct editorTextSource source = {0};
+	if (!editorBuildActiveTextSource(&source)) {
+		if (len_out != NULL) {
+			*len_out = 0;
+		}
+		return NULL;
+	}
+	return editorTextSourceDupRange(&source, 0, source.length, len_out);
+}
+
+static int assert_active_source_matches_rows(void) {
+	size_t source_len = 0;
+	size_t rows_len = 0;
+	char *source_text = dup_active_source_text(&source_len);
+	char *rows_text = editorRowsToStr(&rows_len);
+	ASSERT_TRUE(source_text != NULL || source_len == 0);
+	ASSERT_TRUE(rows_text != NULL || rows_len == 0);
+	ASSERT_EQ_INT((int)rows_len, (int)source_len);
+	if (rows_len > 0) {
+		ASSERT_MEM_EQ(rows_text, source_text, rows_len);
+	}
+	free(source_text);
+	free(rows_text);
+	return 0;
+}
+
 static int write_fixture_to_temp_path(char path_buf[], int suffix_len,
 		const char *fixture_relative_path) {
 	int fd = suffix_len > 0 ? mkstemps(path_buf, suffix_len) : mkstemp(path_buf);
@@ -639,6 +666,163 @@ static int test_document_replace_range_updates_text_and_line_index(void) {
 
 	free(full);
 	editorDocumentFree(&document);
+	return 0;
+}
+
+static int test_editor_build_active_text_source_uses_document_mirror_after_open(void) {
+	char path[64];
+	ASSERT_TRUE(write_temp_text_file(path, sizeof(path), "alpha\nbeta\n"));
+
+	editorOpen(path);
+	editorDocumentMirrorTestResetStats();
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+	ASSERT_EQ_INT(0, editorDocumentMirrorTestFullRebuildCount());
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+	ASSERT_EQ_INT(0, editorDocumentMirrorTestFullRebuildCount());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_document_mirror_incremental_updates_for_basic_edits(void) {
+	add_row("abc");
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+	editorDocumentMirrorTestResetStats();
+
+	E.cy = 0;
+	E.cx = 2;
+	editorInsertChar('x');
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+
+	E.cx = 1;
+	editorInsertNewline();
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+
+	E.cy = 1;
+	E.cx = 1;
+	editorDelChar();
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+
+	struct editorSelectionRange range = {
+		.start_cy = 0,
+		.start_cx = 0,
+		.end_cy = 1,
+		.end_cx = 1
+	};
+	ASSERT_EQ_INT(1, editorDeleteRange(&range));
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+	ASSERT_EQ_INT(0, editorDocumentMirrorTestFullRebuildCount());
+	ASSERT_EQ_INT(4, editorDocumentMirrorTestIncrementalUpdateCount());
+	return 0;
+}
+
+static int test_editor_document_mirror_lazy_rebuild_after_low_level_row_mutation(void) {
+	add_row("abc");
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+	editorDocumentMirrorTestResetStats();
+
+	editorInsertCharAt(&E.rows[0], 1, 'X');
+	ASSERT_EQ_INT(0, editorDocumentMirrorTestFullRebuildCount());
+	ASSERT_EQ_INT(0, editorDocumentMirrorTestIncrementalUpdateCount());
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+	ASSERT_EQ_INT(1, editorDocumentMirrorTestFullRebuildCount());
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+	ASSERT_EQ_INT(1, editorDocumentMirrorTestFullRebuildCount());
+	return 0;
+}
+
+static int test_editor_document_mirror_restored_for_undo_redo(void) {
+	add_row("abc");
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+
+	E.cy = 0;
+	E.cx = 1;
+	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+	editorInsertChar('X');
+	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, 1);
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+
+	editorDocumentMirrorTestResetStats();
+	ASSERT_EQ_INT(1, editorUndo());
+	ASSERT_EQ_INT(1, editorDocumentMirrorTestFullRebuildCount());
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+	ASSERT_EQ_INT(1, editorDocumentMirrorTestFullRebuildCount());
+
+	editorDocumentMirrorTestResetStats();
+	ASSERT_EQ_INT(1, editorRedo());
+	ASSERT_EQ_INT(1, editorDocumentMirrorTestFullRebuildCount());
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+	ASSERT_EQ_INT(1, editorDocumentMirrorTestFullRebuildCount());
+	return 0;
+}
+
+static int test_editor_document_mirror_snapshot_capture_uses_active_source(void) {
+	add_row("alpha");
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+
+	editorDocumentMirrorTestResetStats();
+	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+	ASSERT_EQ_INT(0, editorDocumentMirrorTestFullRebuildCount());
+	ASSERT_TRUE(E.edit_pending_snapshot.text != NULL);
+	ASSERT_EQ_STR("alpha\n", E.edit_pending_snapshot.text);
+	editorHistoryDiscardEdit();
+	return 0;
+}
+
+static int test_editor_document_mirror_selection_and_delete_use_active_source(void) {
+	add_row("alpha");
+	add_row("beta");
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+
+	struct editorSelectionRange range = {
+		.start_cy = 0,
+		.start_cx = 1,
+		.end_cy = 1,
+		.end_cx = 2
+	};
+
+	editorDocumentMirrorTestResetStats();
+	char *selected = NULL;
+	size_t selected_len = 0;
+	ASSERT_EQ_INT(1, editorExtractRangeText(&range, &selected, &selected_len));
+	ASSERT_EQ_INT(0, editorDocumentMirrorTestFullRebuildCount());
+	ASSERT_EQ_INT(7, (int)selected_len);
+	ASSERT_TRUE(selected != NULL);
+	ASSERT_MEM_EQ("lpha\nbe", selected, selected_len);
+	free(selected);
+
+	editorDocumentMirrorTestResetStats();
+	ASSERT_EQ_INT(1, editorDeleteRange(&range));
+	ASSERT_EQ_INT(0, editorDocumentMirrorTestFullRebuildCount());
+	ASSERT_EQ_INT(1, editorDocumentMirrorTestIncrementalUpdateCount());
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+	return 0;
+}
+
+static int test_editor_document_mirror_save_uses_active_source(void) {
+	char path[] = "/tmp/rotide-test-save-mirror-XXXXXX";
+	int fd = mkstemp(path);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(close(fd) == 0);
+
+	add_row("alpha");
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+	E.filename = strdup(path);
+	ASSERT_TRUE(E.filename != NULL);
+	E.dirty = 1;
+
+	editorDocumentMirrorTestResetStats();
+	editorSave();
+	ASSERT_EQ_INT(0, editorDocumentMirrorTestFullRebuildCount());
+	ASSERT_EQ_INT(0, E.dirty);
+
+	size_t content_len = 0;
+	char *contents = read_file_contents(path, &content_len);
+	ASSERT_TRUE(contents != NULL);
+	ASSERT_EQ_INT(6, (int)content_len);
+	ASSERT_MEM_EQ("alpha\n", contents, content_len);
+	free(contents);
+	ASSERT_TRUE(unlink(path) == 0);
 	return 0;
 }
 
@@ -7781,12 +7965,22 @@ static int test_editor_refresh_screen_repo_buffer_c_stays_highlighted(void) {
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
 	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
+
+	int target_row = -1;
+	for (int row_idx = 0; row_idx < E.numrows; row_idx++) {
+		if (strstr(E.rows[row_idx].chars, "\"Out of memory\"") != NULL) {
+			target_row = row_idx;
+			break;
+		}
+	}
+	ASSERT_TRUE(target_row >= 0);
+
 	E.window_rows = 8;
 	E.window_cols = 120;
-	E.rowoff = 58;
-	E.cy = 59;
+	E.rowoff = target_row > 0 ? target_row - 1 : 0;
+	E.cy = target_row;
 	E.cx = 0;
-	ASSERT_TRUE(editorSyntaxPrepareVisibleRowSpans(58, 4));
+	ASSERT_TRUE(editorSyntaxPrepareVisibleRowSpans(E.rowoff, 4));
 
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
@@ -9086,6 +9280,20 @@ int main(void) {
 			test_document_line_index_tracks_blank_lines_and_trailing_newline},
 		{"document_replace_range_updates_text_and_line_index",
 			test_document_replace_range_updates_text_and_line_index},
+		{"editor_build_active_text_source_uses_document_mirror_after_open",
+			test_editor_build_active_text_source_uses_document_mirror_after_open},
+		{"editor_document_mirror_incremental_updates_for_basic_edits",
+			test_editor_document_mirror_incremental_updates_for_basic_edits},
+		{"editor_document_mirror_lazy_rebuild_after_low_level_row_mutation",
+			test_editor_document_mirror_lazy_rebuild_after_low_level_row_mutation},
+		{"editor_document_mirror_restored_for_undo_redo",
+			test_editor_document_mirror_restored_for_undo_redo},
+		{"editor_document_mirror_snapshot_capture_uses_active_source",
+			test_editor_document_mirror_snapshot_capture_uses_active_source},
+		{"editor_document_mirror_selection_and_delete_use_active_source",
+			test_editor_document_mirror_selection_and_delete_use_active_source},
+		{"editor_document_mirror_save_uses_active_source",
+			test_editor_document_mirror_save_uses_active_source},
 		{"utf8_continuation_detection", test_utf8_continuation_detection},
 		{"grapheme_extend_classification", test_grapheme_extend_classification},
 		{"char_display_width_basics", test_char_display_width_basics},

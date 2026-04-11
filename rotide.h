@@ -90,6 +90,7 @@ struct editorSelectionRange {
 
 struct editorDrawerNode;
 struct editorSyntaxState;
+struct editorDocument;
 
 enum editorPaneFocus {
 	EDITOR_PANE_TEXT = 0,
@@ -276,6 +277,8 @@ struct editorTabState {
 	int coloff;
 	int numrows;
 	struct erow *rows;
+	struct editorDocument *document;
+	int document_valid;
 	size_t *row_start_bytes;
 	int row_start_bytes_count;
 	int row_start_bytes_valid;
@@ -324,6 +327,8 @@ struct editorConfig {
 	int coloff;
 	int numrows;
 	struct erow *rows;
+	struct editorDocument *document;
+	int document_valid;
 	size_t *row_start_bytes;
 	int row_start_bytes_count;
 	int row_start_bytes_valid;

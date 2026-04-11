@@ -113,6 +113,9 @@ int editorSyntaxRowRenderSpans(int row_idx, struct editorRowSyntaxSpan *spans, i
 		int *count_out);
 void editorSyntaxTestResetVisibleRowRecomputeCount(void);
 int editorSyntaxTestVisibleRowRecomputeCount(void);
+void editorDocumentMirrorTestResetStats(void);
+int editorDocumentMirrorTestFullRebuildCount(void);
+int editorDocumentMirrorTestIncrementalUpdateCount(void);
 int editorBufferMaxRenderCols(void);
 
 int editorGetSelectionRange(struct editorSelectionRange *range_out);
