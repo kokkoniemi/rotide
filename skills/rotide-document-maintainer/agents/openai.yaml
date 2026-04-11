@@ -1,0 +1,4 @@
+interface:
+  display_name: "Rotide Document Maintainer"
+  short_description: "Maintain canonical document/rope/edit-history/recovery behavior."
+  default_prompt: "Use $rotide-document-maintainer for document-first storage, offset mapping, history, and recovery changes. Preserve document canonical ownership and derived-row cache semantics."

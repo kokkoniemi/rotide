@@ -1,4 +1,4 @@
 interface:
   display_name: "Rotide Syntax Maintainer"
-  short_description: "Add/update Tree-sitter syntax support safely."
-  default_prompt: "Use $rotide-syntax-maintainer to add or refine Tree-sitter language support, query wiring, and syntax tests in rotide."
+  short_description: "Add/update Tree-sitter language support, queries, and syntax performance behavior."
+  default_prompt: "Use $rotide-syntax-maintainer for syntax onboarding/regressions. Keep tab-local syntax state, document-backed text source usage, and degraded-mode behavior stable."

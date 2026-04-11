@@ -1,44 +1,42 @@
 ---
 name: rotide-maintainer
-description: Maintain and evolve the RotIDE terminal editor across core modules, keymap/config loading, and Tree-sitter syntax integration. Use when working in this repository on bug fixes, feature changes, refactors, code review, docs, and validation with strict compiler flags.
+description: Maintain and evolve RotIDE across core editor modules, document/rope storage, rendering, keymap/config loading, syntax, LSP, docs, and tests.
 ---
 
 # Rotide Maintainer
 
 ## Quick Start Workflow
 
-1. Read `AGENTS.md`, `README.md`, `Makefile`, and touched module files (`rotide.c`, `terminal.c`, `buffer.c`, `output.c`, `input.c`, `keymap.c`, `syntax.c`, `alloc.c`, `save_syscalls.c`).
-2. Check workspace state with `git status --short`; keep unrelated user changes intact.
-3. Implement the smallest viable change while matching current code style (tabs, C2x, sectioned layout).
-4. Update or add tests in `tests/rotide_tests.c` when behavior changes; update `tests/test_helpers.c` or test-hook shims when needed.
-5. Run `make`; treat all warnings as blockers because `-Werror` is enabled.
-6. Run `make test`; all tests must pass.
-7. If touching build/CI, sanitizer-sensitive paths, or syntax/highlighting internals, run `make test-sanitize` (if LeakSanitizer is flaky locally, use `ASAN_OPTIONS=detect_leaks=0 make test-sanitize` and note it).
-8. Summarize behavior impact, residual risks, and validation performed.
+1. Read `AGENTS.md`, `README.md`, and touched modules.
+2. Check workspace status with `git status --short`; preserve unrelated user edits.
+3. Implement the smallest behavior-correct change that matches project style.
+4. Update tests when behavior changes (`tests/rotide_tests.c` + helpers/hooks as needed).
+5. Run `make`.
+6. Run `make test`.
+7. Run `make test-sanitize` for sanitizer-sensitive/syntax/storage changes.
+8. Summarize impact, risks, and validation.
 
-## Project-Specific Guardrails
+## Guardrails
 
-- Keep the lightweight module architecture unless the user asks for major structural changes.
-- Preserve editor row invariants:
-  - Keep `row->chars` NUL-terminated with `row->size` as visible length.
-  - Recompute rendered content after row text mutations (current mutation paths use `editorRebuildRowRender()`, and `editorUpdateRow()` is a wrapper).
-- Preserve dirty-state behavior: increment `E.dirty` on text-buffer mutations, not view-only/search-only actions.
-- Keep keyboard behavior stable unless explicitly asked to change mappings; route behavior through `enum editorAction` + keymap lookup paths.
-- Keep syntax behavior stable: preserve per-tab/per-buffer syntax state ownership and incremental parse flows.
-- Keep status messaging user-facing and concise through `editorSetStatusMsg()`.
+- Treat `editorDocument` as canonical writable text state.
+- Treat `struct erow` rows as derived render/cache state.
+- Keep cursor/search/selection logic offset-safe and boundary-safe for UTF-8/graphemes.
+- Keep key behavior action-driven via `enum editorAction` and keymap lookups.
+- Keep task-log tabs generated/read-only/non-savable.
+- Keep syntax and LSP state tab-local.
+- Do not regress dirty-state semantics.
 
-## Validation Steps
+## Validation Defaults
 
-- Always run `make` after code edits.
-- Always run `make test` after code edits.
-- If changing build/CI, sanitizer-sensitive paths, or syntax/query behavior, run `make test-sanitize` (if LeakSanitizer is blocked locally, rerun with `ASAN_OPTIONS=detect_leaks=0` and call out the limitation).
-- If behavior changes, ensure tests are updated or added to cover the new behavior.
-- If editing input, cursor movement, rendering, save, search, tabs, or drawer behavior, run an interactive smoke check:
-  1. `./rotide README.md`
-  2. Test movement/editing/search/tab+drawer interactions and scrolling.
-  3. Test save (`Ctrl-S`) and quit (`Ctrl-Q`).
-- If interactive execution is not possible, call out the limitation and rely on compile + test validation.
+- Always: `make`, then `make test`.
+- Add sanitizer run (`make test-sanitize`) when touching:
+  - memory/UB-sensitive paths
+  - syntax/query/parse internals
+  - save/recovery/history/document storage
+  - build/CI plumbing
+- If LSAN is flaky locally, use:
+  - `ASAN_OPTIONS=detect_leaks=0 make test-sanitize`
 
 ## References
 
-- Load `references/code-map.md` for a quick map of major functions and common change recipes.
+- `references/code-map.md`

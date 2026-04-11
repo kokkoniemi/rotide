@@ -3,81 +3,62 @@
 ## Primary touchpoints
 
 - `input.c`
-  - `editorFind()` + `editorFindCallback()` for query lifecycle and incremental selection
-  - prompt flow (`editorPromptWithCallback()` / `editorPrompt()`) for live query updates
-  - cursor restore/alignment helpers for cancel/confirm behavior
+  - `editorFind()`
+  - `editorFindCallback()`
+  - `editorMoveCursorToSearchMatch()`
+  - `editorRestoreCursorToSavedSearchPosition()`
+- `buffer.c`
+  - `editorBufferFindForward()`
+  - `editorBufferFindBackward()`
+  - text-source-backed line range helpers
 - `output.c`
-  - row draw path (`editorDrawRenderSlice`) for active-match highlight rendering
-  - keep status/message bar behavior stable
+  - active match highlight rendering in row draw path
 - `rotide.h`
-  - editor state fields used by search flow/highlight flow
-- `tests/rotide_tests.c`
-  - search behavior tests and rendering checks
+  - search fields in `editorConfig` / `editorTabState`
 
-## Current state model
+## Search state model (current)
 
-Keep search state explicit and owned by editor state (`E`):
+Search is offset-first:
 
-- active query pointer (`E.search_query`)
-- active match row/start/len (`E.search_match_row`, `E.search_match_start`, `E.search_match_len`)
-- current navigation direction (`E.search_direction`)
-- saved cursor for prompt cancel rollback (`E.search_saved_cx`, `E.search_saved_cy`)
+- query text: `search_query`
+- active match: `search_match_offset` + `search_match_len`
+- saved cursor for cancel: `search_saved_offset`
+- navigation direction: `search_direction`
 
-Avoid storing search-only state in row structs.
+Avoid introducing row-index-only search state.
 
-## Prompt flow and navigation behavior
+## Behavioral baseline
 
-Current behavior baseline:
+- `Ctrl-F` opens prompt and starts incremental matching.
+- Typing updates active match immediately.
+- `Right/Down` moves to next match.
+- `Left/Up` moves to previous match.
+- Enter keeps current match/cursor.
+- Esc restores the cursor to `search_saved_offset`.
+- Empty query restores saved cursor and clears active match.
+- No-match query should be non-fatal and stable.
 
-- `Ctrl-F`: start prompt and jump to first match while typing.
-- `Down/Right`: move to next match while prompt is active.
-- `Up/Left`: move to previous match while prompt is active.
-- Enter: confirm current match.
-- Esc: cancel and restore pre-search cursor position.
-- Empty query: restore cursor and clear active match.
+## Rendering baseline
 
-Navigation rules:
-
-- wrap from end to start and start to end
-- remain deterministic for repeated keypresses
-- treat no-match query as non-fatal and surface status feedback
-
-## Highlight behavior
-
-Use VT100 inverted colors around the active visible match span only.
-
-- start highlight before visible match bytes
-- reset colors immediately after highlighted bytes
-- avoid leaking styles across subsequent text/rows
-- preserve expected precedence interactions with syntax and selection overlays
-
-Compute highlight byte spans from `row->chars` indices and convert as needed for render slicing.
+- Highlight only the active match.
+- Ensure VT100 attributes are restored immediately after the match span.
+- Keep precedence stable with selection and syntax overlays.
 
 ## UTF-8 and cursor safety
 
-Search can be byte-substring based, but cursor moves must remain boundary-safe.
+- Search itself may be byte-substring based.
+- Cursor placement after jumps must clamp to valid character/grapheme boundaries.
+- Keep offset <-> `(cy,cx)` mappings consistent with document helpers.
 
-- clamp target `cx` with existing cluster boundary helpers
-- keep `E.cx` and `E.rx` semantics intact
-- do not split grapheme clusters when positioning cursor
+## Test checklist
 
-## Test scenarios
+- `Ctrl-F` first match selection.
+- prompt arrow traversal and wrap-around.
+- Esc restore behavior.
+- Enter keep behavior.
+- no-match behavior and status message stability.
+- highlight escape sequence presence in refresh output.
 
-Add tests covering at least:
-
-- `Ctrl-F` opens prompt and incremental query updates select matches.
-- Enter confirmation keeps matched cursor location.
-- Esc cancellation restores original cursor location.
-- prompt arrow navigation traverses matches with wrap-around.
-- refresh output includes highlight escape sequences for active match.
-- no-match query does not crash and leaves stable state.
-
-Run:
-
+Validation:
 - `make`
 - `make test`
-
-For search rendering regressions, run interactive smoke check:
-
-- `./rotide README.md`
-- verify typing, search prompt navigation, movement, scrolling, save, quit.

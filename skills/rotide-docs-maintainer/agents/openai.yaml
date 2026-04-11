@@ -1,0 +1,4 @@
+interface:
+  display_name: "Rotide Docs Maintainer"
+  short_description: "Keep README/AGENTS/skills docs accurate and cohesive."
+  default_prompt: "Use $rotide-docs-maintainer for documentation updates. Verify behavior from source first, then keep terminology and architecture descriptions consistent."

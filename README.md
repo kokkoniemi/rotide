@@ -1,41 +1,16 @@
 # RotIDE
 
-RotIDE is a small terminal text editor inspired by
-[antirez/kilo](https://github.com/antirez/kilo), with a focus on simple code,
-clear control flow, and safety-oriented behavior.
+RotIDE is a terminal text editor inspired by [kilo](https://github.com/antirez/kilo), focused on predictable behavior, explicit data flow, and strong test coverage.
 
-## Current status
+## Status
 
-RotIDE is an active project and still evolving. Core editing, navigation,
-search, save, undo/redo, selection, tabs, and keymap configuration are implemented.
+RotIDE is under active development. Core editing, tabs, drawer navigation, search, undo/redo, Tree-sitter highlighting, crash recovery, and Go definition lookup are implemented and tested.
 
-## Features
-
-- Terminal-native editor loop with raw mode input handling.
-- UTF-8 aware row operations and grapheme-safe cursor movement.
-- Incremental search, go-to-line, and selection mode.
-- Multi-tab file buffers with a top tab bar and mouse tab switching.
-- Variable-width tab titles that grow to content, with middle truncation after 25 columns.
-- Always-visible file drawer rooted to the startup project directory.
-- Drawer tree rendering with Unicode branches/carets, focus-only row highlight, and italic active-file label.
-- Clipboard copy/cut/paste with optional OSC52 terminal sync.
-- Undo/redo history for insert/delete/newline edit flows.
-- Mouse support (click, drag selection, vertical/horizontal wheel scroll).
-- Atomic save path with temp-file + rename strategy and cleanup handling.
-- Crash recovery via autosaved per-project recovery session files.
-- Tree-sitter foundation for C, Go, shell, HTML, JavaScript, and CSS buffers with per-tab incremental parse state.
-- HTML syntax injections for embedded JavaScript/CSS (`<script>` / `<style>`) with incremental reparse.
-- Tree-sitter-driven syntax highlighting with predicate and local-scope filtering for language queries.
-- Configurable keymap via TOML (`~/.rotide/config.toml` and `./.rotide.toml`).
-- Optional LSP (v1) support for Go via `gopls` with `textDocument/definition`.
-- Generated task-log tabs for background command output such as guided `gopls` installs.
-- Status bar path rendering that prioritizes keeping the full basename visible.
-
-## Build and run
+## Quick Start
 
 Requirements:
-- C compiler with C2x support.
-- POSIX-like environment.
+- POSIX-like environment
+- C compiler with C2x support
 
 Build:
 
@@ -49,219 +24,209 @@ Run:
 ./rotide README.md
 ```
 
-You can pass multiple files and RotIDE opens each one in its own tab:
-
-```bash
-./rotide README.md rotide.c tests/rotide_tests.c
-```
-
-If no file path is provided, RotIDE starts with an empty tab and prompts for a
-filename on first save.
-
-## Default keybindings
-
-- Save: `Ctrl-S`
-- Quit: `Ctrl-Q`
-- New tab: `Ctrl-N`
-- Close tab: `Ctrl-W` (second press required for dirty tab)
-- Next/previous tab: `Alt-Right` / `Alt-Left`
-- Resize drawer: `Alt-Shift-Left` / `Alt-Shift-Right` (or drag the splitter border with mouse)
-- Focus drawer: `Ctrl-E` (`Up/Down/Left/Right` navigate tree; `Enter` toggles folders or opens files in tabs; double-click also opens files; open reuses an already-open file tab; `Esc` returns to text pane)
-- Find: `Ctrl-F`
-- Go to line: `Ctrl-G`
-- Go to definition (Go buffers): `Ctrl-]`
-- Selection toggle: `Ctrl-B`
-- Copy selection: `Ctrl-C`
-- Cut selection: `Ctrl-X`
-- Delete selection: `Ctrl-D`
-- Paste: `Ctrl-V`
-- Undo/Redo: `Ctrl-Z` / `Ctrl-Y`
-- Move: arrows, `Home`, `End`, `PageUp`, `PageDown`
-- Horizontal viewport scroll: `Ctrl-Left` / `Ctrl-Right` (also mouse horizontal wheel or `Shift+wheel`)
-- New line: `Enter`
-- Backspace/Delete: `Backspace` / `Del` (`Ctrl-H` also maps to backspace by default)
-- Redraw: `Ctrl-L`
-
-## Configuration
-
-RotIDE supports keymap and editor configuration from TOML files.
-
-Load order (lowest to highest precedence):
-1. Built-in defaults
-2. Global config: `~/.rotide/config.toml`
-3. Project config: `./.rotide.toml`
-
-Behavior on invalid config:
-- Invalid global config: ignored, then defaults/project continue.
-- Invalid project config: full fallback to defaults.
-- Invalid `cursor_style`: falls back to `bar` with a warning (other valid config still applies).
-- Invalid `[theme.syntax]` entries: ignored with warning; defaults remain for invalid entries.
-- Invalid `[lsp]` values: fall back to defaults (`enabled = true`, `gopls_command = "gopls"`).
-
-Editor section format:
-
-```toml
-[editor]
-cursor_style = "bar"
-```
-
-Accepted `cursor_style` values (case-insensitive):
-- `block`
-- `bar`
-- `underline`
-
-Syntax theme section format:
-
-```toml
-[theme.syntax]
-comment = "gray"
-keyword = "bright_blue"
-type = "bright_cyan"
-function = "bright_yellow"
-string = "green"
-number = "magenta"
-constant = "bright_magenta"
-preprocessor = "bright_red"
-operator = "bright_white"
-punctuation = "default"
-```
-
-LSP section format:
-
-```toml
-[lsp]
-enabled = true
-gopls_command = "gopls"
-gopls_install_command = "go install golang.org/x/tools/gopls@latest"
-```
-
-Notes:
-- `gopls_install_command` is loaded from global config only (`~/.rotide/config.toml`).
-- If `Ctrl-]` is used in a Go buffer and `gopls` is missing, RotIDE prompts before running the install command.
-- Installer output is streamed into a read-only task-log tab and the original Go action is not retried automatically.
-
-Supported semantic class keys:
-- `comment`, `keyword`, `type`, `function`, `string`, `number`,
-  `constant`, `preprocessor`, `operator`, `punctuation`
-
-Supported color values (case-insensitive):
-- `default`, `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white`
-- `bright_black`, `bright_red`, `bright_green`, `bright_yellow`,
-  `bright_blue`, `bright_magenta`, `bright_cyan`, `bright_white`
-- aliases: `gray` / `grey` = `bright_black`
-
-Keymap section format:
-
-```toml
-[editor]
-cursor_style = "bar"
-
-[keymap]
-save = "ctrl+s"
-quit = "ctrl+q"
-goto_definition = "ctrl+]"
-focus_drawer = "ctrl+e"
-scroll_left = "ctrl+left"
-scroll_right = "ctrl+right"
-```
-
-Supported key specs:
-- Modifiers are case-insensitive and can be in any order.
-- Letter combos: `ctrl+<a-z>`, `alt+<a-z>`, `ctrl+alt+<a-z>`, `ctrl+]`
-- Arrow combos: `ctrl+left/right/up/down`, `alt+left/right/up/down`,
-  `ctrl+alt+left/right/up/down`
-- Shifted arrow combos: `alt+shift+left/right/up/down`
-- Named keys: `left`, `right`, `up`, `down`, `home`, `end`, `page_up`,
-  `page_down`, `enter`, `esc`, `backspace`, `del`
-
-A full example with all configurable actions is included at project root:
-`./.rotide.toml`.
-
-## Autosave and recovery
-
-- RotIDE writes recovery snapshots to swap/recovery data (not directly to edited files).
-- Autosave is activity-triggered with a short debounce while unsaved changes exist.
-- Recovery files are scoped per working directory.
-- On startup, if recovery data exists, RotIDE prompts once to restore or discard it.
-- If you restore a session, startup file arguments are ignored for that launch.
-- Recovery data is deleted on clean exit and when the session becomes fully clean.
-
-## Tree-sitter integration (C + Go + shell + web)
-
-- RotIDE embeds vendored Tree-sitter runtime + C/go/bash/html/javascript/css grammar sources; builds do not require a system Tree-sitter install.
-- Syntax state is per tab/buffer and currently enabled for:
-  - C: `.c`, `.h`
-  - Go: `.go`, `go.mod`, `go.sum`
-  - Shell: `.sh`, `.bash`, `.zsh`, `.ksh`, and common rc files (`.bashrc`, `.zshrc`, `.profile`, `.bash_profile`, `.bash_login`, `.kshrc`)
-  - HTML: `.html`, `.htm`, `.xhtml` (with embedded JS/CSS injections for `<script>` / `<style>`)
-  - JavaScript: `.js`, `.mjs`, `.cjs`, `.jsx`
-  - CSS: `.css`, `.scss`
-  - Extensionless scripts with shell shebangs (for example `#!/bin/bash` or `#!/usr/bin/env bash`)
-- Text edits update the parse tree incrementally; open/restore/undo-redo snapshot loads trigger full reparse.
-- Syntax highlighting is driven by Tree-sitter scope captures mapped to semantic classes and theme colors.
-- Query predicates (`#eq?`, `#match?`, `#any-of?`, `#is?`, `#is-not?`) and JavaScript locals query semantics are evaluated in-editor.
-
-### Vendor/regen workflow
-
-- Pinned source refs and CLI release are tracked in `vendor/tree_sitter/VERSIONS.env`.
-- To refresh vendored runtime/grammar sources and regenerate parser artifacts with the official CLI binary:
-
-```bash
-./scripts/refresh_tree_sitter_vendor.sh
-```
-
-- The script downloads the pinned Tree-sitter CLI release asset for the current host, verifies SHA-256 using release metadata, regenerates C/go/bash/html/javascript/css parsers, and updates `vendor/tree_sitter/...`.
-
-## Clipboard integration (OSC52)
-
-RotIDE can mirror internal clipboard writes to the terminal clipboard via OSC52.
-Use `ROTIDE_OSC52`:
-
-- `auto` (default): enabled only when output looks compatible.
-- `off`: disable OSC52 writes.
-- `force`: always attempt OSC52 writes.
-
-Large clipboard payloads above `ROTIDE_OSC52_MAX_COPY_BYTES` are skipped for
-safety.
-
-## Testing and validation
-
 Run tests:
 
 ```bash
 make test
 ```
 
-Syntax test fixtures and sample files live under `tests/syntax/`.
-
-Run sanitizer suite:
+Run sanitizers:
 
 ```bash
 make test-sanitize
 ```
 
-If LeakSanitizer is flaky in your local environment:
+If LeakSanitizer is flaky locally:
 
 ```bash
 ASAN_OPTIONS=detect_leaks=0 make test-sanitize
 ```
 
-## Project layout
+## User-Facing Features
 
-- `rotide.c`: editor state init and main loop.
-- `terminal.c`/`terminal.h`: terminal mode, key decoding, resize, OSC52, mouse.
-- `buffer.c`/`buffer.h`: text buffer model, row ops, open/save, clipboard, history.
-- `output.c`/`output.h`: screen rendering pipeline.
-- `input.c`/`input.h`: prompts, movement, and key action dispatch.
-- `keymap.c`/`keymap.h`: keymap defaults, TOML parsing, config loading, lookup.
-- `alloc.c`/`alloc.h`: allocation wrappers and test hooks.
-- `save_syscalls.c`/`save_syscalls.h`: save syscall wrappers/failure injection.
-- `tests/`: unit and behavior tests.
-- `tests/syntax/`: syntax test fixtures for supported languages plus planned placeholders.
-- `syntax.c`/`syntax.h`: Tree-sitter integration and incremental parse wrapper.
-- `vendor/tree_sitter/`: vendored Tree-sitter runtime + C/go/bash/html/javascript/css grammar sources.
-- `scripts/refresh_tree_sitter_vendor.sh`: maintainer helper to refresh vendored Tree-sitter artifacts.
+- UTF-8/grapheme-safe editing and cursor movement.
+- Multi-tab workflow with preview tabs from drawer clicks.
+- Project drawer with expand/collapse, mouse resize, and keyboard navigation.
+- Search (`Ctrl-F`), go to line (`Ctrl-G`), selection/copy/cut/paste.
+- Undo/redo with edit grouping.
+- Tree-sitter syntax highlighting for:
+  - C (`.c`, `.h`)
+  - Go (`.go`, `go.mod`, `go.sum`)
+  - Shell (`.sh`, rc files, extensionless shebang scripts)
+  - HTML (`.html`, `.htm`, `.xhtml`)
+  - JavaScript (`.js`, `.mjs`, `.cjs`, `.jsx`)
+  - CSS (`.css`, `.scss`)
+- Go LSP definition lookup (`Ctrl-]`) via `gopls`.
+- Missing-`gopls` install prompt with live output in read-only task-log tabs.
+- Atomic save flow (temp file + fsync + rename + cleanup).
+- Crash recovery snapshots with restore prompt on startup.
+- Optional OSC52 clipboard sync.
+
+Syntax fixture samples are stored in [`tests/syntax/`](tests/syntax/README.md).
+
+## Default Keybindings
+
+- `Ctrl-S`: save
+- `Ctrl-Q`: quit (confirm if dirty/task running)
+- `Ctrl-N`: new tab
+- `Ctrl-W`: close tab (confirm if dirty/task running)
+- `Alt-Right` / `Alt-Left`: next/previous tab
+- `Ctrl-E`: focus drawer
+- `Ctrl-\`: collapse/expand drawer
+- `Alt-Shift-Left` / `Alt-Shift-Right`: resize drawer
+- `Ctrl-F`: search
+- `Ctrl-G`: go to line
+- `Ctrl-]`: Go definition (Go buffers)
+- `Ctrl-B`: toggle selection
+- `Ctrl-C` / `Ctrl-X` / `Ctrl-D` / `Ctrl-V`: copy/cut/delete/paste selection
+- `Ctrl-Z` / `Ctrl-Y`: undo/redo
+- `Ctrl-Left` / `Ctrl-Right`: horizontal viewport scroll
+- arrows/home/end/page up/page down: movement and viewport navigation
+
+## Configuration
+
+RotIDE reads TOML configs in this order (low to high precedence):
+1. built-in defaults
+2. `~/.rotide/config.toml`
+3. `./.rotide.toml`
+
+Sections:
+- `[editor]` (for example `cursor_style`)
+- `[theme.syntax]`
+- `[lsp]`
+- `[keymap]`
+
+LSP notes:
+- `gopls_command` can be set globally or per-project.
+- `gopls_install_command` is **global-only** (`~/.rotide/config.toml`).
+- If `gopls_install_command` appears in project config, RotIDE ignores that key and keeps parsing the rest of `[lsp]`.
+- Default install command:
+  - `go install golang.org/x/tools/gopls@latest`
+
+See [`.rotide.toml`](.rotide.toml) for a complete action/key example.
+
+## Architecture and Terminology
+
+This section names the core concepts used throughout the codebase.
+
+### `editorDocument` (canonical text model)
+
+- The canonical source of truth for tab text.
+- Owned in `editorConfig`/`editorTabState` as `document`.
+- Backed by `rope.c` plus a line-start index (`document.c`).
+
+### Rope
+
+- Implemented in [`rope.c`](rope.c) / [`rope.h`](rope.h).
+- Stores text in fixed-size chunks (currently 1024 bytes).
+- Supports read/copy/dup/replace by byte range.
+
+### Derived row cache (`struct erow`)
+
+- Implemented from the document in `buffer.c`.
+- Used for rendering and cursor/display conversions.
+- Not the canonical storage path.
+
+### Byte offset vs `(cy, cx, rx)`
+
+- `cursor_offset` is the canonical cursor location in bytes.
+- `cy`/`cx` are derived row/column coordinates.
+- `rx` is rendered column (tabs/control escapes expanded).
+- Mapping helpers:
+  - `editorBufferPosToOffset`
+  - `editorBufferOffsetToPos`
+  - row render helpers in `buffer.c`/`output.c`
+
+### `editorTextSource`
+
+- Shared read interface (`read(context, byte_index)`) over active text.
+- Used by syntax and LSP without requiring permanent flattened text copies.
+
+### Edit pipeline
+
+- High-level edits are represented as document edits with:
+  - start offset
+  - removed length/text
+  - inserted text
+  - before/after cursor offsets
+  - before/after dirty values
+- Applied through one core mutation path in `buffer.c`, then row cache/syntax/LSP/history are updated.
+
+### Operation history (undo/redo)
+
+- History entries are operations, not full buffer snapshots.
+- Entries store removed/inserted slices and cursor/dirty before/after metadata.
+- Typed runs may coalesce; redo invalidates on divergent edit.
+
+### Tab kinds
+
+- `EDITOR_TAB_FILE`: normal file tabs (editable, savable).
+- `EDITOR_TAB_TASK_LOG`: generated read-only tabs for command output (not savable).
+- File tabs can be marked preview (`is_preview`) and later pinned.
+
+### Task log tabs
+
+- Used for one-shot background tasks (for example installing `gopls`).
+- Stream merged stdout/stderr output live.
+- Remain open after completion with final status line.
+
+### Viewport modes
+
+- `EDITOR_VIEWPORT_FOLLOW_CURSOR`: keeps cursor visible.
+- `EDITOR_VIEWPORT_FREE_SCROLL`: mouse/page/ctrl-arrow scrolling can move view without moving cursor.
+
+### Syntax state
+
+- Per-tab `editorSyntaxState` in [`syntax.c`](syntax.c).
+- Tree-sitter host parse plus optional HTML injections (JS/CSS).
+- Query and parse budgets support graceful degraded modes instead of immediate hard disable for moderate file sizes.
+
+### LSP state
+
+- Go-only LSP client in [`lsp.c`](lsp.c) with JSON-RPC transport.
+- Tracks per-tab document open/version and sends didOpen/didChange/didSave/didClose.
+- Definition lookup integrates with tabs and position conversion helpers.
+
+### Recovery snapshot
+
+- Autosave/recovery persists tabs and text for crash recovery.
+- Includes legacy compatibility path for older row-based recovery payloads, normalized into document-first state when restored.
+
+## Module Map
+
+- [`rotide.c`](rotide.c), [`rotide.h`](rotide.h): lifecycle, global state, startup wiring.
+- [`terminal.c`](terminal.c): raw mode, key decoding, mouse packets, OSC52, terminal size.
+- [`input.c`](input.c): action dispatch, prompts, search/go-to-line/go-to-definition, mouse handling.
+- [`buffer.c`](buffer.c): canonical edit pipeline, tab state, drawer state transitions, save/recovery/history integration.
+- [`document.c`](document.c), [`rope.c`](rope.c): canonical text storage and offset/line mapping.
+- [`output.c`](output.c): rendering of tab bar, drawer, text viewport, status/message bars.
+- [`syntax.c`](syntax.c): Tree-sitter parser/query integration and capture collection.
+- [`lsp.c`](lsp.c): Go LSP process lifecycle and JSON-RPC messaging.
+- [`keymap.c`](keymap.c): keymap/config parser and load precedence.
+- [`alloc.c`](alloc.c), [`save_syscalls.c`](save_syscalls.c): testable wrappers for allocation and save syscalls.
+- [`tests/rotide_tests.c`](tests/rotide_tests.c): behavior and regression tests.
+
+## Tree-sitter Vendor Workflow
+
+Pinned grammar/runtime metadata is in:
+- [`vendor/tree_sitter/VERSIONS.env`](vendor/tree_sitter/VERSIONS.env)
+- [`vendor/tree_sitter/VERSIONS.md`](vendor/tree_sitter/VERSIONS.md)
+
+Refresh vendored runtime/grammars and parser artifacts:
+
+```bash
+./scripts/refresh_tree_sitter_vendor.sh
+```
+
+## CI
+
+GitHub Actions runs:
+- `make`
+- `make test`
+- `make test-sanitize`
+
+Workflow file: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
 
 ## License
 
-See `LICENSE`.
+See [`LICENSE`](LICENSE).

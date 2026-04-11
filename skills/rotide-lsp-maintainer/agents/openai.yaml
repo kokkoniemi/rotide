@@ -1,0 +1,4 @@
+interface:
+  display_name: "Rotide LSP Maintainer"
+  short_description: "Maintain Go LSP lifecycle, sync, definition UX, and gopls install flow."
+  default_prompt: "Use $rotide-lsp-maintainer for gopls integration changes. Preserve Go-only gating, document-backed sync, and install prompt/task-log behavior."

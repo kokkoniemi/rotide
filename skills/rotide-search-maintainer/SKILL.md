@@ -1,72 +1,44 @@
 ---
 name: rotide-search-maintainer
-description: Maintain and refine RotIDE incremental search, including Ctrl-F prompt flow, live match navigation, prompt-arrow traversal, and active-match highlighting. Use when editing or reviewing search behavior in input/render/state paths, adding tests for search interactions, or stabilizing regressions in search cursor movement and highlight rendering.
+description: Maintain RotIDE search behavior (Ctrl-F prompt flow, offset-based match tracking, navigation, and rendering highlights).
 ---
 
 # Rotide Search Maintainer
 
-## Overview
+## Scope
 
-Maintain search behavior without breaking existing editor invariants.
-Prefer minimal, additive changes that preserve save/prompt compatibility, keymap-driven actions, and UTF-8 cursor semantics.
+Use for search regressions/improvements in:
+- prompt lifecycle and callbacks
+- next/previous match traversal
+- cancel/confirm behavior
+- active match highlight rendering
+- search state correctness across tabs/undo/edits
 
 ## Workflow
 
-1. Read `references/search-playbook.md` for touchpoints and acceptance behavior.
-2. Inspect current search flow in `input.c` (`editorFind()`, `editorFindCallback()`, prompt callback path) before changing behavior.
-3. Implement search changes in small steps:
-   - state transitions
-   - prompt and live navigation
-   - active match highlight rendering
-   - status/cancel/confirm behavior
-4. Update or add tests in `tests/rotide_tests.c` with behavior-focused assertions.
-5. Run `make` and `make test`.
-6. If render/search behavior changes, run an interactive smoke check (`./rotide README.md`) and verify:
-   - `Ctrl-F` prompt updates matches live
-   - Enter confirms match and Esc cancels prompt
-   - prompt arrow navigation (`Up/Down` or `Left/Right`) moves between matches with wrap-around
-   - highlight appears only for active match context
+1. Read `references/search-playbook.md`.
+2. Inspect `input.c` search path:
+   - `editorFind()`
+   - `editorFindCallback()`
+   - cursor restore helpers
+3. Inspect `buffer.c` search functions:
+   - `editorBufferFindForward()`
+   - `editorBufferFindBackward()`
+4. Inspect highlight rendering in `output.c`.
+5. Update/add tests in `tests/rotide_tests.c`.
+6. Run `make` and `make test`.
 
 ## Guardrails
 
-- Preserve row and buffer invariants:
-  - keep `row->chars` NUL-terminated
-  - preserve cursor boundary clamping by grapheme cluster helpers
-  - avoid mutating `E.dirty` for search-only actions
-- Keep prompt compatibility:
-  - preserve current save prompt behavior (`editorPrompt("Save as: %s")`)
-  - avoid API breakage unless all callers and tests are updated
-- Keep rendering changes localized:
-  - avoid global style state leaking across rows
-  - reset VT100 attributes after highlight spans
-- Prefer predictable navigation order:
-  - forward for next, backward for previous
-  - wrap around file boundaries consistently
-
-## Implementation Defaults
-
-- Existing prompt strategy:
-  - reuse callback-capable prompt internals (`editorPromptWithCallback(...)`)
-  - keep a simple `editorPrompt(...)` wrapper for existing call sites
-- Search state location:
-  - store active query/match metadata in `editorConfig` (or an equivalent owned state object reachable from input/output code)
-- Match algorithm:
-  - perform byte-substring search against `row->chars`
-  - convert match byte index to cursor/display coordinates via existing row conversion helpers
-- Highlight strategy:
-  - render only active match highlight in `output.c`
-  - insert highlight VT100 sequences around visible match slice and return to normal colors immediately after span
-
-## Test Expectations
-
-- Add or update tests for:
-  - opening search prompt and finding first match
-  - incremental movement while typing query
-  - cancel/confirm behavior restoring or preserving cursor as intended
-  - prompt arrow traversal and wrap-around
-  - highlight escape sequences in captured refresh output
-- Keep existing non-search tests passing.
+- Search state is offset-based (`search_match_offset`, `search_saved_offset`).
+- Keep cursor placement UTF-8/grapheme-safe after match jumps.
+- Search actions must not mark buffer dirty.
+- Preserve prompt semantics:
+  - Enter confirms current state
+  - Esc restores saved cursor
+  - empty query clears active match and restores cursor
+- Keep highlight attribute resets tight to avoid style leakage.
 
 ## References
 
-- Load `references/search-playbook.md` before search feature/regression work.
+- `references/search-playbook.md`

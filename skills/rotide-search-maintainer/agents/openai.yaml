@@ -1,4 +1,4 @@
 interface:
   display_name: "Rotide Search Maintainer"
-  short_description: "Maintain Ctrl-F search prompt flow, arrow navigation, and active-match highlight behavior."
-  default_prompt: "Use $rotide-search-maintainer for search regressions or improvements in prompt flow, navigation, and rendering."
+  short_description: "Maintain Ctrl-F prompt flow, offset-based match tracking, and active-match highlighting."
+  default_prompt: "Use $rotide-search-maintainer for search behavior changes; keep search state offset-first and validate prompt/navigation/highlight regressions with tests."
