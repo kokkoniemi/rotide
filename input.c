@@ -197,7 +197,57 @@ static void editorExitOnInputShutdown(void) {
 	exit(EXIT_FAILURE);
 }
 
+static int editorSetCursorFromOffset(size_t offset) {
+	int cy = 0;
+	int cx = 0;
+	size_t normalized_offset = 0;
+
+	if (!editorBufferOffsetToPos(offset, &cy, &cx)) {
+		return 0;
+	}
+	if (cy < E.numrows) {
+		struct erow *row = &E.rows[cy];
+		cx = editorRowClampCxToCharBoundary(row, cx);
+		cx = editorRowClampCxToClusterBoundary(row, cx);
+	} else {
+		cx = 0;
+	}
+	if (!editorBufferPosToOffset(cy, cx, &normalized_offset)) {
+		return 0;
+	}
+	E.cursor_offset = normalized_offset;
+	E.cy = cy;
+	E.cx = cx;
+	return 1;
+}
+
+static int editorSetCursorFromPosition(int cy, int cx) {
+	size_t offset = 0;
+
+	if (cy < 0) {
+		cy = 0;
+	}
+	if (cy > E.numrows) {
+		cy = E.numrows;
+	}
+	if (cy < E.numrows) {
+		struct erow *row = &E.rows[cy];
+		cx = editorRowClampCxToCharBoundary(row, cx);
+		cx = editorRowClampCxToClusterBoundary(row, cx);
+	} else {
+		cx = 0;
+	}
+	if (!editorBufferPosToOffset(cy, cx, &offset)) {
+		return 0;
+	}
+	return editorSetCursorFromOffset(offset);
+}
+
 static void editorAlignCursorWithRowEnd(void) {
+	if (editorSetCursorFromPosition(E.cy, E.cx)) {
+		return;
+	}
+
 	int rowlen = 0;
 	if (E.numrows > E.cy) {
 		struct erow *row = &E.rows[E.cy];
@@ -207,6 +257,9 @@ static void editorAlignCursorWithRowEnd(void) {
 	}
 	if (E.cx > rowlen) {
 		E.cx = rowlen;
+	}
+	if (!editorBufferPosToOffset(E.cy, E.cx, &E.cursor_offset)) {
+		E.cursor_offset = 0;
 	}
 }
 
@@ -293,12 +346,8 @@ static void editorToggleSelectionMode(void) {
 	}
 
 	editorAlignCursorWithRowEnd();
-	size_t anchor_offset = 0;
-	if (!editorBufferPosToOffset(E.cy, E.cx, &anchor_offset)) {
-		anchor_offset = 0;
-	}
 	E.selection_mode_active = 1;
-	E.selection_anchor_offset = anchor_offset;
+	E.selection_anchor_offset = E.cursor_offset;
 }
 
 static int editorCopyRangeToClipboard(const struct editorSelectionRange *range, size_t *copied_len_out) {
@@ -423,20 +472,13 @@ static void editorMoveCursorToSearchMatch(int row_idx, int match_col, int match_
 
 	E.search_match_offset = match_offset;
 	E.search_match_len = match_len;
-	E.cy = row_idx;
-
-	struct erow *row = &E.rows[row_idx];
-	int cx = editorRowClampCxToCharBoundary(row, match_col);
-	E.cx = editorRowClampCxToClusterBoundary(row, cx);
-	editorAlignCursorWithRowEnd();
+	(void)editorSetCursorFromOffset(match_offset);
 }
 
 static void editorRestoreCursorToSavedSearchPosition(void) {
-	if (!editorBufferOffsetToPos(E.search_saved_offset, &E.cy, &E.cx)) {
-		E.cy = 0;
-		E.cx = 0;
+	if (!editorSetCursorFromOffset(E.search_saved_offset)) {
+		(void)editorSetCursorFromOffset(0);
 	}
-	editorAlignCursorWithRowEnd();
 }
 
 static void editorFindCallback(const char *query, int key) {
@@ -581,9 +623,8 @@ char *editorPrompt(const char *prompt) {
 }
 
 static void editorFind(void) {
-	if (!editorBufferPosToOffset(E.cy, E.cx, &E.search_saved_offset)) {
-		E.search_saved_offset = 0;
-	}
+	editorAlignCursorWithRowEnd();
+	E.search_saved_offset = E.cursor_offset;
 	E.search_direction = 1;
 	editorClearActiveSearchMatch();
 
@@ -642,8 +683,7 @@ static void editorGoToLine(void) {
 	}
 
 	if (E.numrows == 0) {
-		E.cy = 0;
-		E.cx = 0;
+		(void)editorSetCursorFromOffset(0);
 		editorSetStatusMsg("Buffer is empty");
 		return;
 	}
@@ -652,9 +692,11 @@ static void editorGoToLine(void) {
 		line = E.numrows;
 	}
 
-	E.cy = (int)(line - 1);
-	E.cx = 0;
-	editorAlignCursorWithRowEnd();
+	size_t target_offset = 0;
+	if (!editorBufferPosToOffset((int)(line - 1), 0, &target_offset) ||
+			!editorSetCursorFromOffset(target_offset)) {
+		(void)editorSetCursorFromOffset(0);
+	}
 }
 
 static const char *editorBasenameFromPath(const char *path) {
@@ -677,8 +719,7 @@ static int editorJumpToDefinitionLocation(const struct editorLspLocation *locati
 	}
 
 	if (E.numrows <= 0) {
-		E.cy = 0;
-		E.cx = 0;
+		(void)editorSetCursorFromOffset(0);
 		editorViewportEnsureCursorVisible();
 		return 1;
 	}
@@ -690,19 +731,22 @@ static int editorJumpToDefinitionLocation(const struct editorLspLocation *locati
 	if (line >= E.numrows) {
 		line = E.numrows - 1;
 	}
-	E.cy = line;
-
 	int character = location->character;
 	if (character < 0) {
 		character = 0;
 	}
-	character = editorLspProtocolCharacterToBufferColumn(&E.rows[E.cy], character);
-	if (character > E.rows[E.cy].size) {
-		character = E.rows[E.cy].size;
+	character = editorLspProtocolCharacterToBufferColumn(&E.rows[line], character);
+	if (character > E.rows[line].size) {
+		character = E.rows[line].size;
 	}
-	E.cx = editorRowClampCxToClusterBoundary(&E.rows[E.cy], character);
-	if (E.cx > E.rows[E.cy].size) {
-		E.cx = E.rows[E.cy].size;
+	int target_cx = editorRowClampCxToClusterBoundary(&E.rows[line], character);
+	if (target_cx > E.rows[line].size) {
+		target_cx = E.rows[line].size;
+	}
+	size_t target_offset = 0;
+	if (!editorBufferPosToOffset(line, target_cx, &target_offset) ||
+			!editorSetCursorFromOffset(target_offset)) {
+		(void)editorSetCursorFromOffset(0);
 	}
 	editorViewportEnsureCursorVisible();
 	return 1;
@@ -753,6 +797,7 @@ static void editorGoToDefinition(void) {
 		editorSetStatusMsg("LSP disabled: [lsp].gopls_command is empty");
 		return;
 	}
+	editorAlignCursorWithRowEnd();
 	if (E.cy < 0 || E.cy >= E.numrows) {
 		editorSetStatusMsg("Cursor is not on a source line");
 		return;
@@ -832,51 +877,55 @@ static void editorGoToDefinition(void) {
 }
 
 static void editorMoveCursor(int k) {
+	editorAlignCursorWithRowEnd();
+
+	int cy = E.cy;
+	int cx = E.cx;
 	int target_rx = 0;
-	if ((k == ARROW_UP || k == ARROW_DOWN) && E.cy < E.numrows) {
-		target_rx = editorRowCxToRx(&E.rows[E.cy], E.cx);
+	if ((k == ARROW_UP || k == ARROW_DOWN) && cy < E.numrows) {
+		target_rx = editorRowCxToRx(&E.rows[cy], cx);
 	}
 
 	switch (k) {
 		case ARROW_LEFT:
-			if (E.cx != 0) {
-				if (E.cy < E.numrows) {
+			if (cx != 0) {
+				if (cy < E.numrows) {
 					// Step by grapheme cluster instead of byte index.
-					E.cx = editorRowPrevClusterIdx(&E.rows[E.cy], E.cx);
+					cx = editorRowPrevClusterIdx(&E.rows[cy], cx);
 				} else {
-					E.cx--;
+					cx--;
 				}
-			} else if (E.cy > 0) {
-				E.cy--;
-				E.cx = E.rows[E.cy].size;
+			} else if (cy > 0) {
+				cy--;
+				cx = E.rows[cy].size;
 			}
 			break;
 		case ARROW_RIGHT:
-			if (E.numrows > E.cy && E.cx < E.rows[E.cy].size) {
+			if (E.numrows > cy && cx < E.rows[cy].size) {
 				// Step by grapheme cluster instead of byte index.
-				E.cx = editorRowNextClusterIdx(&E.rows[E.cy], E.cx);
-			} else if (E.numrows > E.cy && E.cx == E.rows[E.cy].size) {
-				E.cy++;
-				E.cx = 0;
+				cx = editorRowNextClusterIdx(&E.rows[cy], cx);
+			} else if (E.numrows > cy && cx == E.rows[cy].size) {
+				cy++;
+				cx = 0;
 			}
 			break;
 		case ARROW_DOWN:
-			if (E.cy < E.numrows) {
-				E.cy++;
+			if (cy < E.numrows) {
+				cy++;
 			}
 			break;
 		case ARROW_UP:
-			if (E.cy != 0) {
-				E.cy--;
+			if (cy != 0) {
+				cy--;
 			}
 			break;
 	}
 
-	if ((k == ARROW_UP || k == ARROW_DOWN) && E.cy < E.numrows) {
-		E.cx = editorRowRxToCx(&E.rows[E.cy], target_rx);
+	if ((k == ARROW_UP || k == ARROW_DOWN) && cy < E.numrows) {
+		cx = editorRowRxToCx(&E.rows[cy], target_rx);
 	}
 
-	editorAlignCursorWithRowEnd();
+	(void)editorSetCursorFromPosition(cy, cx);
 }
 
 static int editorResolveMouseToBufferPosition(const struct editorMouseEvent *event,
@@ -945,14 +994,14 @@ static int editorResolveMouseToBufferPosition(const struct editorMouseEvent *eve
 static int editorMoveCursorToMouse(const struct editorMouseEvent *event, int clamp_to_viewport) {
 	int row_idx = 0;
 	int cx = 0;
+	size_t offset = 0;
 	if (!editorResolveMouseToBufferPosition(event, clamp_to_viewport, &row_idx, &cx)) {
 		return 0;
 	}
-
-	E.cy = row_idx;
-	E.cx = cx;
-	editorAlignCursorWithRowEnd();
-	return 1;
+	if (!editorBufferPosToOffset(row_idx, cx, &offset)) {
+		return 0;
+	}
+	return editorSetCursorFromOffset(offset);
 }
 
 static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
@@ -1059,9 +1108,7 @@ static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 	// A fresh text click exits any previous selection; dragging can start a new one.
 	editorClearSelectionMode();
 	E.mouse_left_button_down = 1;
-	if (!editorBufferPosToOffset(E.cy, E.cx, &E.mouse_drag_anchor_offset)) {
-		E.mouse_drag_anchor_offset = 0;
-	}
+	E.mouse_drag_anchor_offset = E.cursor_offset;
 	E.mouse_drag_started = 0;
 	return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 }
@@ -1273,26 +1320,28 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			}
 			break;
-		case EDITOR_ACTION_REDO:
-			editorHistoryBreakGroup();
-			editorPinActivePreviewForEdit();
-			if (editorRedo() == 1) {
-				editorClearSearchState();
+			case EDITOR_ACTION_REDO:
+				editorHistoryBreakGroup();
+				editorPinActivePreviewForEdit();
+				if (editorRedo() == 1) {
+					editorClearSearchState();
+					effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+				}
+				break;
+			case EDITOR_ACTION_MOVE_HOME:
+				editorHistoryBreakGroup();
+				(void)editorSetCursorFromPosition(E.cy, 0);
 				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			}
-			break;
-		case EDITOR_ACTION_MOVE_HOME:
-			editorHistoryBreakGroup();
-			E.cx = 0;
-			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
-		case EDITOR_ACTION_MOVE_END:
-			editorHistoryBreakGroup();
-			if (E.cy < E.numrows) {
-				E.cx = E.rows[E.cy].size;
-			}
-			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
+				break;
+			case EDITOR_ACTION_MOVE_END:
+				editorHistoryBreakGroup();
+				if (E.cy < E.numrows) {
+					(void)editorSetCursorFromPosition(E.cy, E.rows[E.cy].size);
+				} else {
+					(void)editorSetCursorFromPosition(E.numrows, 0);
+				}
+				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+				break;
 		case EDITOR_ACTION_PAGE_UP: {
 			editorHistoryBreakGroup();
 			int page_rows = E.window_rows;
