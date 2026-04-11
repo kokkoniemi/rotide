@@ -8,6 +8,5 @@
 - FEATURE: Add bracket/quote pair assistance: auto-close pairs, skip-over closing pairs, and jump to matching bracket.
 - FEATURE: Add line numbers and current-line highlight (toggleable) to improve code navigation and context.
 - FEATURE: When focus is in drawer and scrolling with mouse, scroll the drawer instead of editor screen.
-- IMPROVEMENT: Highlight open file using inverted background in sidebar and implement similar logic as in vscode that first click opens the file and second makes tab to stay. So that the tab will be reused if it is not opened with double click. The current tab logic should be used if navigating using keyboard.
 - FEATURE: make it possible to collapse drawer. It should take the same amount of space from tab bar collapsed and be able to expand again by clickin the visible part of it. Maybe there should be text indicators for collapse / expand and for sure keyboard shortcuts.
 - FEATURE: implement support for vim-mode. The commands should be configurable in .rotide.toml in local and global files.

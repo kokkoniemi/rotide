@@ -2054,6 +2054,7 @@ static int editorSnapshotRestore(const struct editorSnapshot *snapshot) {
 static void editorTabStateInitEmpty(struct editorTabState *tab) {
 	memset(tab, 0, sizeof(*tab));
 	tab->tab_kind = EDITOR_TAB_FILE;
+	tab->is_preview = 0;
 	tab->syntax_language = EDITOR_SYNTAX_NONE;
 	tab->syntax_state = NULL;
 	tab->lsp_doc_open = 0;
@@ -2069,6 +2070,7 @@ static void editorTabStateInitEmpty(struct editorTabState *tab) {
 
 static void editorResetActiveBufferFields(void) {
 	E.tab_kind = EDITOR_TAB_FILE;
+	E.is_preview = 0;
 	E.tab_title = NULL;
 	E.generated_text = NULL;
 	E.generated_text_len = 0;
@@ -2190,6 +2192,7 @@ static void editorTabStateCaptureActive(struct editorTabState *tab) {
 	editorTabStateFree(tab);
 
 	tab->tab_kind = E.tab_kind;
+	tab->is_preview = E.is_preview;
 	tab->tab_title = E.tab_title;
 	tab->generated_text = E.generated_text;
 	tab->generated_text_len = E.generated_text_len;
@@ -2237,6 +2240,7 @@ static void editorTabStateCaptureActive(struct editorTabState *tab) {
 
 static void editorTabStateLoadActive(struct editorTabState *tab) {
 	E.tab_kind = tab->tab_kind;
+	E.is_preview = tab->is_preview;
 	E.tab_title = tab->tab_title;
 	E.generated_text = tab->generated_text;
 	E.generated_text_len = tab->generated_text_len;
@@ -2328,6 +2332,9 @@ static void editorStoreActiveTab(void) {
 	if (E.tabs == NULL || E.tab_count <= 0 ||
 			E.active_tab < 0 || E.active_tab >= E.tab_count) {
 		return;
+	}
+	if (E.is_preview && E.dirty != 0) {
+		E.is_preview = 0;
 	}
 	editorTabStateCaptureActive(&E.tabs[E.active_tab]);
 }
@@ -2453,15 +2460,54 @@ static int editorTabCanReuseActiveEmptyBuffer(void) {
 	return 1;
 }
 
+static int editorTabFindReusablePreviewIndex(void) {
+	for (int tab_idx = 0; tab_idx < E.tab_count; tab_idx++) {
+		if (tab_idx == E.active_tab) {
+			if (E.tab_kind == EDITOR_TAB_FILE && E.is_preview && E.dirty == 0) {
+				return tab_idx;
+			}
+			continue;
+		}
+		if (E.tabs[tab_idx].tab_kind == EDITOR_TAB_FILE &&
+				E.tabs[tab_idx].is_preview &&
+				E.tabs[tab_idx].dirty == 0) {
+			return tab_idx;
+		}
+	}
+	return -1;
+}
+
+void editorTabPinActivePreview(void) {
+	if (E.tab_kind == EDITOR_TAB_FILE) {
+		E.is_preview = 0;
+	}
+}
+
+int editorActiveTabIsPreview(void) {
+	return E.tab_kind == EDITOR_TAB_FILE && E.is_preview;
+}
+
+int editorTabIsPreviewAt(int idx) {
+	if (idx < 0 || idx >= E.tab_count) {
+		return 0;
+	}
+	if (idx == E.active_tab) {
+		return editorActiveTabIsPreview();
+	}
+	return E.tabs[idx].tab_kind == EDITOR_TAB_FILE && E.tabs[idx].is_preview;
+}
+
 int editorTabOpenFileAsNew(const char *filename) {
 	if (editorTabCanReuseActiveEmptyBuffer()) {
 		editorOpen(filename);
+		E.is_preview = 0;
 		return 1;
 	}
 	if (!editorTabNewEmpty()) {
 		return 0;
 	}
 	editorOpen(filename);
+	E.is_preview = 0;
 	return 1;
 }
 
@@ -2472,10 +2518,47 @@ int editorTabOpenOrSwitchToFile(const char *filename) {
 
 	int existing_tab = editorTabFindOpenFileIndex(filename);
 	if (existing_tab >= 0) {
-		return editorTabSwitchToIndex(existing_tab);
+		if (!editorTabSwitchToIndex(existing_tab)) {
+			return 0;
+		}
+		E.is_preview = 0;
+		return 1;
 	}
 
 	return editorTabOpenFileAsNew(filename);
+}
+
+static int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
+	if (filename == NULL || filename[0] == '\0') {
+		return 0;
+	}
+
+	int existing_tab = editorTabFindOpenFileIndex(filename);
+	if (existing_tab >= 0) {
+		return editorTabSwitchToIndex(existing_tab);
+	}
+
+	int preview_tab = editorTabFindReusablePreviewIndex();
+	if (preview_tab >= 0) {
+		if (!editorTabSwitchToIndex(preview_tab)) {
+			return 0;
+		}
+		editorOpen(filename);
+		E.is_preview = 1;
+		return 1;
+	}
+
+	if (editorTabCanReuseActiveEmptyBuffer()) {
+		editorOpen(filename);
+		E.is_preview = 1;
+		return 1;
+	}
+	if (!editorTabNewEmpty()) {
+		return 0;
+	}
+	editorOpen(filename);
+	E.is_preview = 1;
+	return 1;
 }
 
 static const char *editorTabPathAt(int idx) {
@@ -4218,6 +4301,17 @@ int editorDrawerOpenSelectedFileInTab(void) {
 	return editorTabOpenOrSwitchToFile(lookup.node->path);
 }
 
+int editorDrawerOpenSelectedFileInPreviewTab(void) {
+	struct editorDrawerLookup lookup;
+	if (!editorDrawerLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
+		return 0;
+	}
+	if (lookup.node->is_dir || lookup.node->path == NULL || lookup.node->path[0] == '\0') {
+		return 0;
+	}
+	return editorTabOpenOrSwitchToPreviewFile(lookup.node->path);
+}
+
 const char *editorDrawerRootPath(void) {
 	return E.drawer_root_path;
 }
@@ -4837,16 +4931,12 @@ void editorDelChar(void) {
 }
 
 void editorOpen(const char *filename) {
+	int was_preview = E.is_preview;
+
 	editorLspNotifyDidClose(E.filename, E.syntax_language, &E.lsp_doc_open, &E.lsp_doc_version);
-	editorHistoryReset();
-	editorClearSelectionState();
-	free(E.filename);
-	free(E.tab_title);
-	E.tab_title = NULL;
-	free(E.generated_text);
-	E.generated_text = NULL;
-	E.generated_text_len = 0;
+	editorFreeActiveBufferState();
 	E.tab_kind = EDITOR_TAB_FILE;
+	E.is_preview = was_preview;
 	E.filename = strdup(filename);
 
 	FILE *fp = fopen(filename, "r");

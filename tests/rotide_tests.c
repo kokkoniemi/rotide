@@ -5544,7 +5544,7 @@ static int test_editor_process_keypress_mouse_drawer_click_selects_and_toggles_d
 	return 0;
 }
 
-static int test_editor_process_keypress_mouse_drawer_single_file_click_selects_without_open(void) {
+static int test_editor_process_keypress_mouse_drawer_single_file_click_opens_preview_tab(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
 
@@ -5553,6 +5553,7 @@ static int test_editor_process_keypress_mouse_drawer_single_file_click_selects_w
 	ASSERT_TRUE(write_text_file(open_file, "single\n"));
 
 	ASSERT_TRUE(editorTabsInit());
+	add_row("keep");
 	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
 	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
 	int file_idx = -1;
@@ -5563,17 +5564,66 @@ static int test_editor_process_keypress_mouse_drawer_single_file_click_selects_w
 	char click_file[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click_file, sizeof(click_file), 0, 2, row, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_file, strlen(click_file)) == 0);
-	ASSERT_EQ_INT(1, editorTabCount());
-	ASSERT_EQ_INT(0, editorTabActiveIndex());
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
 	ASSERT_EQ_INT(file_idx, E.drawer_selected_index);
 	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_TRUE(editorActiveTabIsPreview());
+	ASSERT_EQ_STR("Preview tab opened. Double-click to keep it open", E.statusmsg);
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_EQ_STR(open_file, E.filename);
+	ASSERT_EQ_STR("single", E.rows[0].chars);
+
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+	ASSERT_EQ_STR("keep", E.rows[0].chars);
 
 	ASSERT_TRUE(unlink(open_file) == 0);
 	cleanup_recovery_test_env(&env);
 	return 0;
 }
 
-static int test_editor_process_keypress_mouse_drawer_double_click_file_opens_tab(void) {
+static int test_editor_drawer_open_selected_file_in_preview_reuses_preview_tab(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char first_file[512];
+	char second_file[512];
+	ASSERT_TRUE(path_join(first_file, sizeof(first_file), env.project_dir, "first.txt"));
+	ASSERT_TRUE(path_join(second_file, sizeof(second_file), env.project_dir, "second.txt"));
+	ASSERT_TRUE(write_text_file(first_file, "first\n"));
+	ASSERT_TRUE(write_text_file(second_file, "second\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("keep");
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+
+	int first_idx = -1;
+	int second_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("first.txt", &first_idx, NULL));
+	ASSERT_TRUE(find_drawer_entry("second.txt", &second_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(first_idx, E.window_rows + 1));
+	ASSERT_TRUE(editorDrawerOpenSelectedFileInPreviewTab());
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_TRUE(editorActiveTabIsPreview());
+	ASSERT_EQ_STR(first_file, E.filename);
+
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(second_idx, E.window_rows + 1));
+	ASSERT_TRUE(editorDrawerOpenSelectedFileInPreviewTab());
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_TRUE(editorActiveTabIsPreview());
+	ASSERT_EQ_STR(second_file, E.filename);
+	ASSERT_EQ_STR("second", E.rows[0].chars);
+
+	ASSERT_TRUE(unlink(first_file) == 0);
+	ASSERT_TRUE(unlink(second_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drawer_double_click_file_pins_preview_tab(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
 
@@ -5593,13 +5643,20 @@ static int test_editor_process_keypress_mouse_drawer_double_click_file_opens_tab
 	char click_file[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click_file, sizeof(click_file), 0, 2, row, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_file, strlen(click_file)) == 0);
-	ASSERT_EQ_INT(1, editorTabCount());
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
 	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_TRUE(editorActiveTabIsPreview());
+	ASSERT_EQ_STR("Preview tab opened. Double-click to keep it open", E.statusmsg);
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_EQ_STR(open_file, E.filename);
 
 	ASSERT_TRUE(editor_process_keypress_with_input(click_file, strlen(click_file)) == 0);
 	ASSERT_EQ_INT(2, editorTabCount());
 	ASSERT_EQ_INT(1, editorTabActiveIndex());
 	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+	ASSERT_TRUE(!editorActiveTabIsPreview());
+	ASSERT_EQ_STR("Tab kept open", E.statusmsg);
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_EQ_STR(open_file, E.filename);
 	ASSERT_EQ_INT(1, E.numrows);
@@ -7787,6 +7844,33 @@ static int test_editor_refresh_screen_tab_labels_middle_truncate_at_25_cols(void
 	return 0;
 }
 
+static int test_editor_refresh_screen_preview_tab_label_uses_italics(void) {
+	ASSERT_TRUE(editorTabsInit());
+	free(E.filename);
+	E.filename = strdup("/tmp/sticky.txt");
+	ASSERT_TRUE(E.filename != NULL);
+
+	ASSERT_TRUE(editorTabNewEmpty());
+	free(E.filename);
+	E.filename = strdup("/tmp/preview.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	E.is_preview = 1;
+
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+	E.window_rows = 3;
+	E.window_cols = 80;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[3mpreview.txt\x1b[23m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[3msticky.txt\x1b[23m") == NULL);
+	free(output);
+	return 0;
+}
+
 static int test_editor_tab_layout_width_includes_right_label_padding(void) {
 	ASSERT_TRUE(editorTabsInit());
 	free(E.filename);
@@ -7931,7 +8015,7 @@ static int test_editor_refresh_screen_drawer_hides_selection_marker_when_unfocus
 	return 0;
 }
 
-static int test_editor_refresh_screen_drawer_active_file_uses_italic(void) {
+static int test_editor_refresh_screen_drawer_active_file_uses_inverted_background(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
 
@@ -7950,7 +8034,9 @@ static int test_editor_refresh_screen_drawer_active_file_uses_italic(void) {
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[3mactive.txt\x1b[23m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[7m active.txt") != NULL);
+	ASSERT_TRUE(strstr(output, "active.txt\x1b[m") == NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[m\xE2\x94\x82") != NULL);
 	free(output);
 
 	ASSERT_TRUE(unlink(active_file) == 0);
@@ -8862,10 +8948,12 @@ int main(void) {
 					test_editor_process_keypress_mouse_left_click_ignores_indicator_padding_columns},
 					{"editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory",
 						test_editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory},
-				{"editor_process_keypress_mouse_drawer_single_file_click_selects_without_open",
-					test_editor_process_keypress_mouse_drawer_single_file_click_selects_without_open},
-				{"editor_process_keypress_mouse_drawer_double_click_file_opens_tab",
-					test_editor_process_keypress_mouse_drawer_double_click_file_opens_tab},
+				{"editor_process_keypress_mouse_drawer_single_file_click_opens_preview_tab",
+					test_editor_process_keypress_mouse_drawer_single_file_click_opens_preview_tab},
+				{"editor_drawer_open_selected_file_in_preview_reuses_preview_tab",
+					test_editor_drawer_open_selected_file_in_preview_reuses_preview_tab},
+				{"editor_process_keypress_mouse_drawer_double_click_file_pins_preview_tab",
+					test_editor_process_keypress_mouse_drawer_double_click_file_pins_preview_tab},
 				{"editor_process_keypress_mouse_top_row_click_switches_tab",
 					test_editor_process_keypress_mouse_top_row_click_switches_tab},
 				{"editor_process_keypress_mouse_top_row_click_uses_variable_tab_layout",
@@ -9048,6 +9136,8 @@ int main(void) {
 				test_editor_refresh_screen_renders_tab_bar_with_overflow_and_sanitized_labels},
 			{"editor_refresh_screen_tab_labels_middle_truncate_at_25_cols",
 				test_editor_refresh_screen_tab_labels_middle_truncate_at_25_cols},
+			{"editor_refresh_screen_preview_tab_label_uses_italics",
+				test_editor_refresh_screen_preview_tab_label_uses_italics},
 			{"editor_tab_layout_width_includes_right_label_padding",
 				test_editor_tab_layout_width_includes_right_label_padding},
 			{"editor_tabs_align_view_keeps_active_visible_with_variable_widths",
@@ -9056,8 +9146,8 @@ int main(void) {
 				test_editor_refresh_screen_renders_drawer_entries_and_selection},
 			{"editor_refresh_screen_drawer_hides_selection_marker_when_unfocused",
 				test_editor_refresh_screen_drawer_hides_selection_marker_when_unfocused},
-			{"editor_refresh_screen_drawer_active_file_uses_italic",
-				test_editor_refresh_screen_drawer_active_file_uses_italic},
+			{"editor_refresh_screen_drawer_active_file_uses_inverted_background",
+				test_editor_refresh_screen_drawer_active_file_uses_inverted_background},
 			{"editor_refresh_screen_drawer_renders_unicode_tree_connectors",
 				test_editor_refresh_screen_drawer_renders_unicode_tree_connectors},
 			{"editor_refresh_screen_drawer_selected_overflow_spills_into_text_area",

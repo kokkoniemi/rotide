@@ -63,6 +63,7 @@ int editorDrawerToggleSelectionExpanded(int viewport_rows);
 int editorDrawerSelectVisibleIndex(int visible_idx, int viewport_rows);
 int editorDrawerSelectedIsDirectory(void);
 int editorDrawerOpenSelectedFileInTab(void);
+int editorDrawerOpenSelectedFileInPreviewTab(void);
 const char *editorDrawerRootPath(void);
 
 int editorTabsInit(void);
@@ -76,6 +77,9 @@ int editorTabCloseActive(void);
 int editorTabCount(void);
 int editorTabActiveIndex(void);
 int editorTabAnyDirty(void);
+int editorActiveTabIsPreview(void);
+int editorTabIsPreviewAt(int idx);
+void editorTabPinActivePreview(void);
 const char *editorTabFilenameAt(int idx);
 const char *editorTabDisplayNameAt(int idx);
 int editorTabDirtyAt(int idx);

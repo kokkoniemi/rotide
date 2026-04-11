@@ -252,6 +252,7 @@ struct editorHistory {
 
 struct editorTabState {
 	enum editorTabKind tab_kind;
+	int is_preview;
 	char *tab_title;
 	char *generated_text;
 	size_t generated_text_len;
@@ -299,6 +300,7 @@ struct editorConfig {
 	int window_rows;
 	int window_cols;
 	enum editorTabKind tab_kind;
+	int is_preview;
 	char *tab_title;
 	char *generated_text;
 	size_t generated_text_len;

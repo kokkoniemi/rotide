@@ -19,6 +19,7 @@ void initEditor(void) {
 	E.rowoff = 0;
 	E.coloff = 0;
 	E.tab_kind = EDITOR_TAB_FILE;
+	E.is_preview = 0;
 	E.tab_title = NULL;
 	E.generated_text = NULL;
 	E.generated_text_len = 0;

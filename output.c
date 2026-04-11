@@ -1203,13 +1203,20 @@ static int editorDrawTabSlots(struct writeBuf *wb, int cols) {
 
 		if (slot_cols < content_width) {
 			const char *label = editorTabLabelFromDisplayName(editorTabDisplayNameAt(tab_idx));
+			int is_preview = editorTabIsPreviewAt(tab_idx);
 			int right_pad_cols = 3;
 			int label_cols = content_width - slot_cols - right_pad_cols;
 			if (label_cols < 0) {
 				label_cols = 0;
 			}
 			int written = 0;
+			if (is_preview && !wbAppend(wb, VT100_ITALIC_ON_4, 4)) {
+				return 0;
+			}
 			if (!editorAppendSanitizedMiddleTruncated(wb, label, label_cols, &written)) {
+				return 0;
+			}
+			if (is_preview && !wbAppend(wb, VT100_ITALIC_OFF_5, 5)) {
 				return 0;
 			}
 			slot_cols += written;
@@ -1487,10 +1494,12 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 	int visible_idx = E.drawer_rowoff + row_idx;
 	int written_cols = 0;
 	int selected_with_focus = 0;
+	int row_inverted = 0;
 	if (editorDrawerGetVisibleEntry(visible_idx, &entry)) {
 		selected_with_focus = entry.is_selected && E.pane_focus == EDITOR_PANE_DRAWER;
-		int gray_connectors = !selected_with_focus;
-		if (selected_with_focus && !wbAppend(wb, VT100_INVERTED_COLORS_4, 4)) {
+		row_inverted = selected_with_focus || (entry.is_active_file && !entry.is_dir);
+		int gray_connectors = !row_inverted;
+		if (row_inverted && !wbAppend(wb, VT100_INVERTED_COLORS_4, 4)) {
 			return 0;
 		}
 
@@ -1544,7 +1553,6 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 		if (written_cols < drawer_cols) {
 			int remaining = drawer_cols - written_cols;
 			int wrote = 0;
-			int active_file = entry.is_active_file && !entry.is_dir;
 			int root_bold = entry.is_root;
 			int root_white = entry.is_root;
 			if (root_bold && !wbAppend(wb, VT100_BOLD_ON_4, 4)) {
@@ -1553,13 +1561,7 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 			if (root_white && !wbAppend(wb, VT100_FG_WHITE_5, 5)) {
 				return 0;
 			}
-			if (active_file && !wbAppend(wb, VT100_ITALIC_ON_4, 4)) {
-				return 0;
-			}
 			if (!editorAppendSanitizedText(wb, entry.name, remaining, &wrote)) {
-				return 0;
-			}
-			if (active_file && !wbAppend(wb, VT100_ITALIC_OFF_5, 5)) {
 				return 0;
 			}
 			if (root_white && !wbAppend(wb, VT100_FG_DEFAULT_5, 5)) {
@@ -1580,7 +1582,7 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 		written_cols++;
 	}
 
-	if (selected_with_focus && !wbAppend(wb, VT100_NORMAL_COLORS_3, 3)) {
+	if (row_inverted && !wbAppend(wb, VT100_NORMAL_COLORS_3, 3)) {
 		return 0;
 	}
 

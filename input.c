@@ -235,6 +235,12 @@ static void editorMaybePromptInstallGopls(void) {
 	}
 }
 
+static void editorPinActivePreviewForEdit(void) {
+	if (E.pane_focus != EDITOR_PANE_DRAWER) {
+		editorTabPinActivePreview();
+	}
+}
+
 static int editorActionMutatesReadOnlyBuffer(enum editorAction action) {
 	switch (action) {
 		case EDITOR_ACTION_NEWLINE:
@@ -1100,10 +1106,19 @@ static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 				E.drawer_last_click_ms > 0 &&
 				now_ms > 0 &&
 				now_ms - E.drawer_last_click_ms <= DRAWER_DOUBLE_CLICK_THRESHOLD_MS;
-		if (should_open_file && editorDrawerOpenSelectedFileInTab()) {
+		if (should_open_file) {
+			if (editorActiveTabIsPreview()) {
+				editorTabPinActivePreview();
+				editorSetStatusMsg("Tab kept open");
+				E.pane_focus = EDITOR_PANE_TEXT;
+			} else if (editorDrawerOpenSelectedFileInTab()) {
+				E.pane_focus = EDITOR_PANE_TEXT;
+			}
 			editorResetDrawerClickTracking();
-			E.pane_focus = EDITOR_PANE_TEXT;
 		} else {
+			if (editorDrawerOpenSelectedFileInPreviewTab()) {
+				editorSetStatusMsg("Preview tab opened. Double-click to keep it open");
+			}
 			E.drawer_last_click_visible_idx = visible_idx;
 			E.drawer_last_click_ms = now_ms;
 			E.pane_focus = EDITOR_PANE_DRAWER;
@@ -1301,21 +1316,25 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			break;
 		case EDITOR_ACTION_CUT_SELECTION:
 			editorHistoryBreakGroup();
+			editorPinActivePreviewForEdit();
 			editorCutSelection();
 			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			break;
 		case EDITOR_ACTION_DELETE_SELECTION:
 			editorHistoryBreakGroup();
+			editorPinActivePreviewForEdit();
 			editorDeleteSelection();
 			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			break;
 		case EDITOR_ACTION_PASTE:
 			editorHistoryBreakGroup();
+			editorPinActivePreviewForEdit();
 			editorPasteClipboard();
 			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			break;
 		case EDITOR_ACTION_UNDO:
 			editorHistoryBreakGroup();
+			editorPinActivePreviewForEdit();
 			if (editorUndo() == 1) {
 				editorClearSearchState();
 				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
@@ -1323,6 +1342,7 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			break;
 		case EDITOR_ACTION_REDO:
 			editorHistoryBreakGroup();
+			editorPinActivePreviewForEdit();
 			if (editorRedo() == 1) {
 				editorClearSearchState();
 				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
@@ -1418,6 +1438,7 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 				break;
 			}
 			editorClearSelectionMode();
+			editorPinActivePreviewForEdit();
 			editorHistoryBeginEdit(EDITOR_EDIT_NEWLINE);
 			{
 				int dirty_before = E.dirty;
@@ -1440,6 +1461,7 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			break;
 		case EDITOR_ACTION_DELETE_CHAR:
 			editorClearSelectionMode();
+			editorPinActivePreviewForEdit();
 			editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
 			{
 				int dirty_before = E.dirty;
@@ -1452,6 +1474,7 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			break;
 		case EDITOR_ACTION_BACKSPACE:
 			editorClearSelectionMode();
+			editorPinActivePreviewForEdit();
 			editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
 			{
 				int dirty_before = E.dirty;
@@ -1508,6 +1531,7 @@ void editorProcessKeypress(void) {
 					goto done;
 				}
 				editorClearSelectionMode();
+				editorPinActivePreviewForEdit();
 				editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
 				int dirty_before = E.dirty;
 				editorInsertChar(c);
