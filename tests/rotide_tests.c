@@ -191,6 +191,24 @@ static int editor_process_keypress_with_input_silent(const char *input, size_t l
 	return ret;
 }
 
+static int wait_for_task_completion_with_timeout(int timeout_ms) {
+	const int poll_interval_us = 10000;
+	int waited_us = 0;
+
+	while (waited_us <= timeout_ms * 1000) {
+		(void)editorTaskPoll();
+		if (!editorTaskIsRunning()) {
+			return 1;
+		}
+		if (usleep((useconds_t)poll_interval_us) == -1 && errno != EINTR) {
+			return 0;
+		}
+		waited_us += poll_interval_us;
+	}
+
+	return 0;
+}
+
 static int editor_process_single_key(int key) {
 	char c = (char)key;
 	return editor_process_keypress_with_input(&c, 1);
@@ -4346,12 +4364,15 @@ static int test_editor_keymap_load_accepts_goto_definition_ctrl_bracket(void) {
 static int test_editor_lsp_config_defaults_and_precedence(void) {
 	int enabled = 0;
 	char command[PATH_MAX];
+	char install_command[PATH_MAX];
 
 	enum editorLspConfigLoadStatus defaults_status =
-			editorLspConfigLoadFromPaths(&enabled, command, sizeof(command), NULL, NULL);
+			editorLspConfigLoadFromPaths(&enabled, command, sizeof(command), install_command,
+					sizeof(install_command), NULL, NULL);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_OK, defaults_status);
 	ASSERT_EQ_INT(1, enabled);
 	ASSERT_EQ_STR("gopls", command);
+	ASSERT_EQ_STR("go install golang.org/x/tools/gopls@latest", install_command);
 
 	char dir_template[] = "/tmp/rotide-test-lsp-config-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -4364,18 +4385,21 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 	ASSERT_TRUE(write_text_file(global_path,
 				"[lsp]\n"
 				"enabled = false\n"
-				"gopls_command = \"gopls-global\"\n"));
+				"gopls_command = \"gopls-global\"\n"
+				"gopls_install_command = \"global-install\"\n"));
 	ASSERT_TRUE(write_text_file(project_path,
 				"[lsp]\n"
 				"enabled = true\n"
-				"gopls_command = \"gopls-project\"\n"));
+				"gopls_command = \"gopls-project\"\n"
+				"gopls_install_command = \"project-install\"\n"));
 
 	enum editorLspConfigLoadStatus status =
-			editorLspConfigLoadFromPaths(&enabled, command, sizeof(command), global_path,
-					project_path);
+			editorLspConfigLoadFromPaths(&enabled, command, sizeof(command), install_command,
+					sizeof(install_command), global_path, project_path);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_OK, status);
 	ASSERT_EQ_INT(1, enabled);
 	ASSERT_EQ_STR("gopls-project", command);
+	ASSERT_EQ_STR("global-install", install_command);
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(unlink(global_path) == 0);
@@ -4386,6 +4410,7 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
 	int enabled = 0;
 	char command[PATH_MAX];
+	char install_command[PATH_MAX];
 
 	char dir_template[] = "/tmp/rotide-test-lsp-config-invalid-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -4400,10 +4425,12 @@ static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
 				"[lsp]\n"
 				"enabled = \"yes\"\n"));
 	enum editorLspConfigLoadStatus status =
-			editorLspConfigLoadFromPaths(&enabled, command, sizeof(command), global_path, NULL);
+			editorLspConfigLoadFromPaths(&enabled, command, sizeof(command), install_command,
+					sizeof(install_command), global_path, NULL);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_INVALID_GLOBAL, status);
 	ASSERT_EQ_INT(1, enabled);
 	ASSERT_EQ_STR("gopls", command);
+	ASSERT_EQ_STR("go install golang.org/x/tools/gopls@latest", install_command);
 
 	ASSERT_TRUE(write_text_file(global_path,
 				"[lsp]\n"
@@ -4411,11 +4438,12 @@ static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
 	ASSERT_TRUE(write_text_file(project_path,
 				"[lsp]\n"
 				"gopls_command = \"\"\n"));
-	status = editorLspConfigLoadFromPaths(&enabled, command, sizeof(command), global_path,
-			project_path);
+	status = editorLspConfigLoadFromPaths(&enabled, command, sizeof(command), install_command,
+			sizeof(install_command), global_path, project_path);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_INVALID_PROJECT, status);
 	ASSERT_EQ_INT(1, enabled);
 	ASSERT_EQ_STR("gopls", command);
+	ASSERT_EQ_STR("go install golang.org/x/tools/gopls@latest", install_command);
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(unlink(global_path) == 0);
@@ -4705,12 +4733,7 @@ static int test_editor_process_keypress_goto_definition_reports_lsp_disabled(voi
 static int test_editor_process_keypress_goto_definition_startup_failure_reports_reason(void) {
 	E.lsp_enabled = 1;
 
-	char missing_command[PATH_MAX];
-	int written = snprintf(missing_command, sizeof(missing_command),
-			"/tmp/rotide-test-missing-gopls-%ld", (long)getpid());
-	ASSERT_TRUE(written > 0 && (size_t)written < sizeof(missing_command));
-	(void)unlink(missing_command);
-	strncpy(E.lsp_gopls_command, missing_command, sizeof(E.lsp_gopls_command) - 1);
+	strncpy(E.lsp_gopls_command, "true", sizeof(E.lsp_gopls_command) - 1);
 	E.lsp_gopls_command[sizeof(E.lsp_gopls_command) - 1] = '\0';
 
 	char go_path[64];
@@ -4726,6 +4749,164 @@ static int test_editor_process_keypress_goto_definition_startup_failure_reports_
 	ASSERT_TRUE(strstr(E.statusmsg, "unavailable for this file") == NULL);
 
 	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_goto_definition_missing_gopls_decline_install(void) {
+	E.lsp_enabled = 1;
+	ASSERT_TRUE(editorTabsInit());
+
+	strncpy(E.lsp_gopls_command,
+			"exec >/dev/null; sleep 0.05; rotide_missing_gopls_decline_command",
+			sizeof(E.lsp_gopls_command) - 1);
+	E.lsp_gopls_command[sizeof(E.lsp_gopls_command) - 1] = '\0';
+	strncpy(E.lsp_gopls_install_command, "printf 'install skipped\\n'",
+			sizeof(E.lsp_gopls_install_command) - 1);
+	E.lsp_gopls_install_command[sizeof(E.lsp_gopls_install_command) - 1] = '\0';
+
+	char go_path[64];
+	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
+			"package main\n\nfunc main() { helper() }\n"));
+	editorOpen(go_path);
+	E.cy = 2;
+	E.cx = 16;
+
+	char input[] = {CTRL_KEY(']'), '\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+	ASSERT_EQ_STR("gopls not installed", E.statusmsg);
+	ASSERT_TRUE(!editorTaskIsRunning());
+	ASSERT_EQ_INT(1, editorTabCount());
+	ASSERT_TRUE(!editorActiveTabIsTaskLog());
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_goto_definition_missing_gopls_starts_install_task(void) {
+	E.lsp_enabled = 1;
+	ASSERT_TRUE(editorTabsInit());
+
+	strncpy(E.lsp_gopls_command,
+			"exec >/dev/null; sleep 0.05; rotide_missing_gopls_install_command",
+			sizeof(E.lsp_gopls_command) - 1);
+	E.lsp_gopls_command[sizeof(E.lsp_gopls_command) - 1] = '\0';
+	strncpy(E.lsp_gopls_install_command, "printf 'install ok\\n'",
+			sizeof(E.lsp_gopls_install_command) - 1);
+	E.lsp_gopls_install_command[sizeof(E.lsp_gopls_install_command) - 1] = '\0';
+
+	char go_path[64];
+	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
+			"package main\n\nfunc main() { helper() }\n"));
+	editorOpen(go_path);
+	E.cy = 2;
+	E.cx = 16;
+
+	char input[] = {CTRL_KEY(']'), 'y', '\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+	ASSERT_TRUE(editorTaskIsRunning());
+	ASSERT_TRUE(editorActiveTabIsTaskLog());
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_STR("Task: Install gopls", editorActiveBufferDisplayName());
+	ASSERT_TRUE(wait_for_task_completion_with_timeout(1500));
+	ASSERT_EQ_STR("gopls installed. Retry Ctrl-]", E.statusmsg);
+
+	size_t textlen = 0;
+	char *text = editorRowsToStr(&textlen);
+	ASSERT_TRUE(text != NULL);
+	ASSERT_TRUE(strstr(text, "install ok") != NULL);
+	free(text);
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
+static int test_editor_task_log_read_only_search_and_copy(void) {
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTaskStart("Task: Echo", "printf 'alpha\\nbeta\\n'", NULL, NULL));
+	ASSERT_TRUE(wait_for_task_completion_with_timeout(1500));
+	ASSERT_TRUE(editorActiveTabIsTaskLog());
+	ASSERT_EQ_STR("Task: Echo", editorActiveBufferDisplayName());
+
+	size_t before_len = 0;
+	char *before = editorRowsToStr(&before_len);
+	ASSERT_TRUE(before != NULL);
+
+	char insert[] = {'x'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(insert, sizeof(insert)) == 0);
+	ASSERT_EQ_STR("Task log is read-only", E.statusmsg);
+
+	size_t after_len = 0;
+	char *after = editorRowsToStr(&after_len);
+	ASSERT_TRUE(after != NULL);
+	ASSERT_EQ_INT((int)before_len, (int)after_len);
+	ASSERT_MEM_EQ(before, after, before_len);
+	free(before);
+	free(after);
+
+	char save[] = {CTRL_KEY('s')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(save, sizeof(save)) == 0);
+	ASSERT_EQ_STR("Task logs cannot be saved", E.statusmsg);
+
+	char find_input[] = {CTRL_KEY('f'), 'c', 'o', 'm', 'p', 'l', 'e', 't', 'e', 'd', '\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(find_input, sizeof(find_input)) == 0);
+	ASSERT_TRUE(E.search_match_row >= 0);
+
+	E.cy = 3;
+	E.cx = 4;
+	E.selection_mode_active = 1;
+	E.selection_anchor_cx = 0;
+	E.selection_anchor_cy = 3;
+	char copy[] = {CTRL_KEY('c')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(copy, sizeof(copy)) == 0);
+
+	size_t copied_len = 0;
+	const char *copied = editorClipboardGet(&copied_len);
+	ASSERT_EQ_INT(4, (int)copied_len);
+	ASSERT_MEM_EQ("beta", copied, copied_len);
+	return 0;
+}
+
+static int test_editor_task_runner_merges_stderr_and_close_requires_confirmation(void) {
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTaskStart("Task: Mixed",
+			"printf 'out\\n'; printf 'err\\n' 1>&2; sleep 1", NULL, NULL));
+	ASSERT_TRUE(editorTaskIsRunning());
+
+	char close_once[] = {CTRL_KEY('w')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(close_once, sizeof(close_once)) == 0);
+	ASSERT_TRUE(strstr(E.statusmsg, "Task is still running") != NULL);
+	ASSERT_TRUE(editorTaskIsRunning());
+	ASSERT_EQ_INT(2, editorTabCount());
+
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(close_once, sizeof(close_once)) == 0);
+	ASSERT_TRUE(!editorTaskIsRunning());
+	ASSERT_EQ_INT(1, editorTabCount());
+	ASSERT_TRUE(!editorActiveTabIsTaskLog());
+
+	ASSERT_TRUE(editorTaskStart("Task: Mixed Output",
+			"printf 'out\\n'; printf 'err\\n' 1>&2", NULL, NULL));
+	ASSERT_TRUE(wait_for_task_completion_with_timeout(1500));
+	size_t textlen = 0;
+	char *text = editorRowsToStr(&textlen);
+	ASSERT_TRUE(text != NULL);
+	ASSERT_TRUE(strstr(text, "out") != NULL);
+	ASSERT_TRUE(strstr(text, "err") != NULL);
+	free(text);
+	return 0;
+}
+
+static int test_editor_task_runner_truncates_large_output(void) {
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTaskStart("Task: Large Output",
+			"yes 1234567890 | head -c 150000", NULL, NULL));
+	ASSERT_TRUE(wait_for_task_completion_with_timeout(3000));
+
+	size_t textlen = 0;
+	char *text = editorRowsToStr(&textlen);
+	ASSERT_TRUE(text != NULL);
+	ASSERT_TRUE(textlen <= ROTIDE_TASK_LOG_MAX_BYTES + 256);
+	ASSERT_TRUE(strstr(text, "[output truncated]") != NULL);
+	free(text);
 	return 0;
 }
 
@@ -8631,6 +8812,16 @@ int main(void) {
 				test_editor_process_keypress_goto_definition_reports_lsp_disabled},
 			{"editor_process_keypress_goto_definition_startup_failure_reports_reason",
 				test_editor_process_keypress_goto_definition_startup_failure_reports_reason},
+			{"editor_process_keypress_goto_definition_missing_gopls_decline_install",
+				test_editor_process_keypress_goto_definition_missing_gopls_decline_install},
+			{"editor_process_keypress_goto_definition_missing_gopls_starts_install_task",
+				test_editor_process_keypress_goto_definition_missing_gopls_starts_install_task},
+			{"editor_task_log_read_only_search_and_copy",
+				test_editor_task_log_read_only_search_and_copy},
+			{"editor_task_runner_merges_stderr_and_close_requires_confirmation",
+				test_editor_task_runner_merges_stderr_and_close_requires_confirmation},
+			{"editor_task_runner_truncates_large_output",
+				test_editor_task_runner_truncates_large_output},
 			{"editor_process_keypress_resize_drawer_shortcuts",
 				test_editor_process_keypress_resize_drawer_shortcuts},
 			{"editor_tabs_switch_restores_per_tab_state",

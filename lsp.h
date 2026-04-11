@@ -32,6 +32,12 @@ struct editorLspTestLastChange {
 	char text[64];
 };
 
+enum editorLspStartupFailureReason {
+	EDITOR_LSP_STARTUP_FAILURE_NONE = 0,
+	EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND,
+	EDITOR_LSP_STARTUP_FAILURE_OTHER
+};
+
 void editorLspShutdown(void);
 
 int editorLspEnsureDocumentOpen(const char *filename, enum editorSyntaxLanguage language,
@@ -51,6 +57,7 @@ int editorLspRequestDefinition(const char *filename, int line, int character,
 		struct editorLspLocation **locations_out, int *count_out, int *timed_out_out);
 void editorLspFreeLocations(struct editorLspLocation *locations, int count);
 int editorLspProtocolCharacterToBufferColumn(const struct erow *row, int protocol_character);
+enum editorLspStartupFailureReason editorLspLastStartupFailureReason(void);
 
 /* Test hooks */
 void editorLspTestSetMockEnabled(int enabled);

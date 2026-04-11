@@ -6,6 +6,7 @@
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <strings.h>
 #include <string.h>
 
 #include "buffer.h"
@@ -17,7 +18,10 @@
 /*** Input ***/
 
 static int quit_confirmed = 0;
+static int quit_task_confirmed = 0;
 typedef void (*editorPromptCallback)(const char *query, int key);
+static char *editorPromptWithCallback(const char *prompt, int allow_empty,
+		editorPromptCallback callback);
 enum {
 	MOUSE_WHEEL_SCROLL_LINES = 3,
 	MOUSE_WHEEL_SCROLL_COLS = 3,
@@ -76,6 +80,17 @@ static void editorSetQuitConfirmStatus(void) {
 	editorSetStatusMsg("File has unsaved changes. Press quit key again to quit");
 }
 
+static void editorSetQuitTaskConfirmStatus(void) {
+	char quit_binding[24];
+	if (editorKeymapFormatBinding(&E.keymap, EDITOR_ACTION_QUIT, quit_binding,
+				sizeof(quit_binding))) {
+		editorSetStatusMsg("Task is still running. Press %s again to terminate it and quit",
+				quit_binding);
+		return;
+	}
+	editorSetStatusMsg("Task is still running. Press quit key again to terminate it and quit");
+}
+
 static void editorSetCloseTabConfirmStatus(void) {
 	char close_binding[24];
 	if (editorKeymapFormatBinding(&E.keymap, EDITOR_ACTION_CLOSE_TAB, close_binding,
@@ -87,7 +102,28 @@ static void editorSetCloseTabConfirmStatus(void) {
 	editorSetStatusMsg("Tab has unsaved changes. Press close key again to close tab");
 }
 
+static void editorSetCloseTaskConfirmStatus(void) {
+	char close_binding[24];
+	if (editorKeymapFormatBinding(&E.keymap, EDITOR_ACTION_CLOSE_TAB, close_binding,
+				sizeof(close_binding))) {
+		editorSetStatusMsg("Task is still running. Press %s again to terminate it and close tab",
+				close_binding);
+		return;
+	}
+	editorSetStatusMsg("Task is still running. Press close key again to terminate it and close tab");
+}
+
 static void quit(void) {
+	if (editorTaskIsRunning() && !quit_task_confirmed) {
+		editorSetQuitTaskConfirmStatus();
+		quit_task_confirmed = 1;
+		return;
+	}
+	if (editorTaskIsRunning()) {
+		(void)editorTaskTerminate();
+		quit_task_confirmed = 0;
+	}
+
 	if (editorTabAnyDirty() && !quit_confirmed) {
 		editorSetQuitConfirmStatus();
 		quit_confirmed = 1;
@@ -104,6 +140,16 @@ static void quit(void) {
 }
 
 static void editorCloseTab(void) {
+	if (editorActiveTaskTabIsRunning() && !E.close_confirmed) {
+		editorSetCloseTaskConfirmStatus();
+		E.close_confirmed = 1;
+		return;
+	}
+	if (editorActiveTaskTabIsRunning()) {
+		(void)editorTaskTerminate();
+		E.close_confirmed = 0;
+	}
+
 	if (E.dirty && !E.close_confirmed) {
 		editorSetCloseTabConfirmStatus();
 		E.close_confirmed = 1;
@@ -116,6 +162,9 @@ static void editorCloseTab(void) {
 }
 
 static void editorExitOnInputShutdown(void) {
+	if (editorTaskIsRunning()) {
+		(void)editorTaskTerminate();
+	}
 	editorLspShutdown();
 	editorRestoreTerminal();
 	editorClearScreen();
@@ -154,6 +203,52 @@ static void editorClearSelectionMode(void) {
 	E.selection_mode_active = 0;
 	E.selection_anchor_cx = 0;
 	E.selection_anchor_cy = 0;
+}
+
+static int editorPromptYesNo(const char *prompt) {
+	char *response = editorPromptWithCallback(prompt, 1, NULL);
+	int accepted = 0;
+	if (response == NULL) {
+		return 0;
+	}
+	if (strcasecmp(response, "y") == 0 || strcasecmp(response, "yes") == 0) {
+		accepted = 1;
+	}
+	free(response);
+	return accepted;
+}
+
+static void editorMaybePromptInstallGopls(void) {
+	if (editorLspLastStartupFailureReason() != EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
+		return;
+	}
+	if (!editorPromptYesNo("gopls not found. Install now? [y/N] %s")) {
+		editorSetStatusMsg("gopls not installed");
+		return;
+	}
+	if (!editorTaskStart("Task: Install gopls", E.lsp_gopls_install_command,
+				"gopls installed. Retry Ctrl-]",
+				"gopls install failed; see task log")) {
+		if (E.statusmsg[0] == '\0') {
+			editorSetStatusMsg("Unable to start gopls install");
+		}
+	}
+}
+
+static int editorActionMutatesReadOnlyBuffer(enum editorAction action) {
+	switch (action) {
+		case EDITOR_ACTION_NEWLINE:
+		case EDITOR_ACTION_DELETE_CHAR:
+		case EDITOR_ACTION_BACKSPACE:
+		case EDITOR_ACTION_PASTE:
+		case EDITOR_ACTION_CUT_SELECTION:
+		case EDITOR_ACTION_DELETE_SELECTION:
+		case EDITOR_ACTION_UNDO:
+		case EDITOR_ACTION_REDO:
+			return 1;
+		default:
+			return 0;
+	}
 }
 
 static void editorToggleSelectionMode(void) {
@@ -786,6 +881,10 @@ static void editorGoToDefinition(void) {
 			full_text != NULL ? full_text : "", full_text_len);
 	free(full_text);
 	if (!ready) {
+		if (editorLspLastStartupFailureReason() == EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
+			editorMaybePromptInstallGopls();
+			return;
+		}
 		if (strncmp(E.statusmsg, "LSP ", strlen("LSP ")) != 0) {
 			editorSetStatusMsg("LSP unavailable for this file");
 		}
@@ -1120,6 +1219,23 @@ static int editorHandleMouseEvent(void) {
 static int editorProcessMappedAction(enum editorAction action, int *effects_out) {
 	int effects = EDITOR_KEYPRESS_EFFECT_NONE;
 
+	if (editorActiveTabIsReadOnly()) {
+		if (action == EDITOR_ACTION_SAVE) {
+			editorSetStatusMsg("Task logs cannot be saved");
+			if (effects_out != NULL) {
+				*effects_out = effects;
+			}
+			return 1;
+		}
+		if (E.pane_focus != EDITOR_PANE_DRAWER && editorActionMutatesReadOnlyBuffer(action)) {
+			editorSetStatusMsg("Task log is read-only");
+			if (effects_out != NULL) {
+				*effects_out = effects;
+			}
+			return 1;
+		}
+	}
+
 	switch (action) {
 		case EDITOR_ACTION_QUIT:
 			editorHistoryBreakGroup();
@@ -1369,6 +1485,9 @@ void editorProcessKeypress(void) {
 		(void)editorRefreshWindowSize();
 		return;
 	}
+	if (c == TASK_EVENT) {
+		return;
+	}
 
 	if (c == MOUSE_EVENT) {
 		// Mouse input can move cursor/selection, but it should not create edit history entries.
@@ -1384,6 +1503,10 @@ void editorProcessKeypress(void) {
 			effects |= mapped_effects;
 		} else if (c >= CHAR_MIN && c <= CHAR_MAX) {
 			if (E.pane_focus != EDITOR_PANE_DRAWER) {
+				if (editorActiveTabIsReadOnly()) {
+					editorSetStatusMsg("Task log is read-only");
+					goto done;
+				}
 				editorClearSelectionMode();
 				editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
 				int dirty_before = E.dirty;
@@ -1394,11 +1517,15 @@ void editorProcessKeypress(void) {
 		}
 	}
 
+done:
 	if (!mapped_action || action != EDITOR_ACTION_CLOSE_TAB) {
 		E.close_confirmed = 0;
 	}
 	if (!mapped_action || action != EDITOR_ACTION_QUIT) {
 		quit_confirmed = 0;
+	}
+	if (!mapped_action || action != EDITOR_ACTION_QUIT) {
+		quit_task_confirmed = 0;
 	}
 	if ((effects & EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT) != 0) {
 		editorViewportEnsureCursorVisible();

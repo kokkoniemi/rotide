@@ -28,6 +28,7 @@ search, save, undo/redo, selection, tabs, and keymap configuration are implement
 - Tree-sitter-driven syntax highlighting with predicate and local-scope filtering for language queries.
 - Configurable keymap via TOML (`~/.rotide/config.toml` and `./.rotide.toml`).
 - Optional LSP (v1) support for Go via `gopls` with `textDocument/definition`.
+- Generated task-log tabs for background command output such as guided `gopls` installs.
 - Status bar path rendering that prioritizes keeping the full basename visible.
 
 ## Build and run
@@ -131,7 +132,13 @@ LSP section format:
 [lsp]
 enabled = true
 gopls_command = "gopls"
+gopls_install_command = "go install golang.org/x/tools/gopls@latest"
 ```
+
+Notes:
+- `gopls_install_command` is loaded from global config only (`~/.rotide/config.toml`).
+- If `Ctrl-]` is used in a Go buffer and `gopls` is missing, RotIDE prompts before running the install command.
+- Installer output is streamed into a read-only task-log tab and the original Go action is not retried automatically.
 
 Supported semantic class keys:
 - `comment`, `keyword`, `type`, `function`, `string`, `number`,

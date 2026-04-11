@@ -1128,15 +1128,15 @@ static int editorDrawFileRow(struct writeBuf *wb, size_t i, int text_cols) {
 	return editorDrawRenderSlice(wb, row, (int)i, E.coloff, text_cols);
 }
 
-static const char *editorTabLabelFromFilename(const char *filename) {
-	if (filename == NULL) {
+static const char *editorTabLabelFromDisplayName(const char *display_name) {
+	if (display_name == NULL) {
 		return "[No Name]";
 	}
-	const char *slash = strrchr(filename, '/');
+	const char *slash = strrchr(display_name, '/');
 	if (slash != NULL && slash[1] != '\0') {
 		return slash + 1;
 	}
-	return filename;
+	return display_name;
 }
 
 static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols);
@@ -1202,7 +1202,7 @@ static int editorDrawTabSlots(struct writeBuf *wb, int cols) {
 		}
 
 		if (slot_cols < content_width) {
-			const char *label = editorTabLabelFromFilename(editorTabFilenameAt(tab_idx));
+			const char *label = editorTabLabelFromDisplayName(editorTabDisplayNameAt(tab_idx));
 			int right_pad_cols = 3;
 			int label_cols = content_width - slot_cols - right_pad_cols;
 			if (label_cols < 0) {
@@ -1690,10 +1690,7 @@ static int editorDrawStatusBar(struct writeBuf *wb) {
 		return 0;
 	}
 	char rightbuf[80];
-	const char *filename = E.filename;
-	if (filename == NULL) {
-		filename = "[No Name]";
-	}
+	const char *filename = editorActiveBufferDisplayName();
 	const char *dirtyflag = "";
 	if (E.dirty) {
 		dirtyflag = "[+]";

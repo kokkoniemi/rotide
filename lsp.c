@@ -59,6 +59,8 @@ static struct editorLspClient g_lsp_client = {
 	.position_encoding_utf16 = 0,
 };
 static struct editorLspMockState g_lsp_mock = {0};
+static enum editorLspStartupFailureReason g_lsp_last_startup_failure_reason =
+		EDITOR_LSP_STARTUP_FAILURE_NONE;
 
 static int editorLspUtf8ColumnToUtf16Units(const struct erow *row, int byte_column);
 static int editorLspUtf16UnitsToUtf8Column(const struct erow *row, int utf16_units);
@@ -950,7 +952,29 @@ static int editorLspTryGetProcessExitCode(int *exit_code_out) {
 	return 0;
 }
 
+static int editorLspTryGetProcessExitCodeWithWait(int timeout_ms, int *exit_code_out) {
+	long long deadline_ms = editorLspMonotonicMillis() + (long long)timeout_ms;
+
+	for (;;) {
+		if (editorLspTryGetProcessExitCode(exit_code_out)) {
+			return 1;
+		}
+		if (g_lsp_client.pid <= 0) {
+			return 0;
+		}
+		if (editorLspMonotonicMillis() >= deadline_ms) {
+			return 0;
+		}
+		struct timespec sleep_time = {
+			.tv_sec = 0,
+			.tv_nsec = 1000000L,
+		};
+		(void)nanosleep(&sleep_time, NULL);
+	}
+}
+
 static void editorLspSetStartupFailureStatus(int timed_out) {
+	g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_OTHER;
 	if (timed_out) {
 		editorSetStatusMsg("LSP startup failed: initialize timed out");
 		return;
@@ -959,7 +983,8 @@ static void editorLspSetStartupFailureStatus(int timed_out) {
 	int saved_errno = errno;
 	if (saved_errno == EPIPE) {
 		int exit_code = 0;
-		if (editorLspTryGetProcessExitCode(&exit_code) && exit_code == 127) {
+		if (editorLspTryGetProcessExitCodeWithWait(100, &exit_code) && exit_code == 127) {
+			g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND;
 			editorSetStatusMsg("LSP startup failed: command not found (%s)",
 					E.lsp_gopls_command);
 			return;
@@ -1194,6 +1219,7 @@ static int editorLspWaitForResponseId(int request_id, int timeout_ms, char **res
 }
 
 static int editorLspEnsureRunningReal(void) {
+	g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_NONE;
 	if (!E.lsp_enabled) {
 		return 0;
 	}
@@ -1206,6 +1232,7 @@ static int editorLspEnsureRunningReal(void) {
 	}
 
 	if (g_lsp_client.initialized && editorLspProcessAlive()) {
+		g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_NONE;
 		return 1;
 	}
 
@@ -1215,6 +1242,7 @@ static int editorLspEnsureRunningReal(void) {
 	int to_server_fd = -1;
 	int from_server_fd = -1;
 	if (!editorLspSpawnProcess(E.lsp_gopls_command, &pid, &to_server_fd, &from_server_fd)) {
+		g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_OTHER;
 		editorSetStatusMsg("LSP startup failed: unable to launch %s", E.lsp_gopls_command);
 		return 0;
 	}
@@ -1247,6 +1275,7 @@ static int editorLspEnsureRunningReal(void) {
 	}
 	free(root_uri);
 	if (!built) {
+		g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_OTHER;
 		editorSetStatusMsg("LSP startup failed: out of memory");
 		free(init.buf);
 		editorLspClientCleanup(0);
@@ -1254,6 +1283,7 @@ static int editorLspEnsureRunningReal(void) {
 	}
 
 	if (!editorLspSendRawJson(init.buf)) {
+		g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_OTHER;
 		editorSetStatusMsg("LSP startup failed: initialize write failed");
 		free(init.buf);
 		editorLspClientCleanup(0);
@@ -1270,6 +1300,7 @@ static int editorLspEnsureRunningReal(void) {
 	}
 	if (editorLspResponseHasError(response)) {
 		free(response);
+		g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_OTHER;
 		editorSetStatusMsg("LSP startup failed: initialize returned error");
 		editorLspClientCleanup(0);
 		return 0;
@@ -1295,12 +1326,14 @@ static int editorLspEnsureRunningReal(void) {
 	free(position_encoding);
 
 	if (!editorLspSendRawJson("{\"jsonrpc\":\"2.0\",\"method\":\"initialized\",\"params\":{}}")) {
+		g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_OTHER;
 		editorSetStatusMsg("LSP startup failed: initialized notification failed");
 		editorLspClientCleanup(0);
 		return 0;
 	}
 
 	g_lsp_client.initialized = 1;
+	g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_NONE;
 	return 1;
 }
 
@@ -1319,6 +1352,7 @@ static int editorLspEnsureRunning(void) {
 }
 
 void editorLspShutdown(void) {
+	g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_NONE;
 	if (g_lsp_mock.enabled) {
 		if (g_lsp_mock.server_alive) {
 			g_lsp_mock.stats.shutdown_count++;
@@ -1766,6 +1800,10 @@ int editorLspRequestDefinition(const char *filename, int line, int character,
 	return 1;
 }
 
+enum editorLspStartupFailureReason editorLspLastStartupFailureReason(void) {
+	return g_lsp_last_startup_failure_reason;
+}
+
 void editorLspTestSetMockEnabled(int enabled) {
 	g_lsp_mock.enabled = enabled ? 1 : 0;
 	if (!g_lsp_mock.enabled) {
@@ -1786,6 +1824,7 @@ void editorLspTestResetMock(void) {
 	memset(&g_lsp_mock.stats, 0, sizeof(g_lsp_mock.stats));
 	memset(&g_lsp_mock.last_change, 0, sizeof(g_lsp_mock.last_change));
 	g_lsp_mock.enabled = 0;
+	g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_NONE;
 }
 
 void editorLspTestGetStats(struct editorLspTestStats *out) {

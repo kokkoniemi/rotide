@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,6 +20,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 #include <wchar.h>
@@ -45,6 +47,11 @@ static void editorLspNotifyDidChangeActive(const struct editorSyntaxEdit *edit,
 		const char *inserted_text, size_t inserted_len);
 static void editorLspNotifyDidSaveActive(void);
 static void editorLspNotifyDidCloseTabState(struct editorTabState *tab);
+static int editorRebuildGeneratedTabRows(struct editorTabState *tab);
+static int editorAppendBytesToText(char **text_in_out, size_t *len_in_out,
+		const char *append, size_t append_len);
+static void editorTaskSetFinalStatus(int success);
+static void editorTaskResetState(void);
 
 static void editorSetAllocFailureStatus(void) {
 	editorSetStatusMsg("Out of memory");
@@ -2046,6 +2053,7 @@ static int editorSnapshotRestore(const struct editorSnapshot *snapshot) {
 
 static void editorTabStateInitEmpty(struct editorTabState *tab) {
 	memset(tab, 0, sizeof(*tab));
+	tab->tab_kind = EDITOR_TAB_FILE;
 	tab->syntax_language = EDITOR_SYNTAX_NONE;
 	tab->syntax_state = NULL;
 	tab->lsp_doc_open = 0;
@@ -2060,6 +2068,10 @@ static void editorTabStateInitEmpty(struct editorTabState *tab) {
 }
 
 static void editorResetActiveBufferFields(void) {
+	E.tab_kind = EDITOR_TAB_FILE;
+	E.tab_title = NULL;
+	E.generated_text = NULL;
+	E.generated_text_len = 0;
 	E.cx = 0;
 	E.cy = 0;
 	E.rx = 0;
@@ -2124,6 +2136,11 @@ static void editorTabStateFree(struct editorTabState *tab) {
 	tab->row_start_bytes_valid = 0;
 	free(tab->filename);
 	tab->filename = NULL;
+	free(tab->tab_title);
+	tab->tab_title = NULL;
+	free(tab->generated_text);
+	tab->generated_text = NULL;
+	tab->generated_text_len = 0;
 	editorSyntaxStateDestroy(tab->syntax_state);
 	tab->syntax_state = NULL;
 	tab->syntax_language = EDITOR_SYNTAX_NONE;
@@ -2152,6 +2169,11 @@ static void editorFreeActiveBufferState(void) {
 
 	free(E.filename);
 	E.filename = NULL;
+	free(E.tab_title);
+	E.tab_title = NULL;
+	free(E.generated_text);
+	E.generated_text = NULL;
+	E.generated_text_len = 0;
 	editorSyntaxStateDestroy(E.syntax_state);
 	E.syntax_state = NULL;
 	E.syntax_language = EDITOR_SYNTAX_NONE;
@@ -2167,6 +2189,10 @@ static void editorFreeActiveBufferState(void) {
 static void editorTabStateCaptureActive(struct editorTabState *tab) {
 	editorTabStateFree(tab);
 
+	tab->tab_kind = E.tab_kind;
+	tab->tab_title = E.tab_title;
+	tab->generated_text = E.generated_text;
+	tab->generated_text_len = E.generated_text_len;
 	tab->cx = E.cx;
 	tab->cy = E.cy;
 	tab->rx = E.rx;
@@ -2210,6 +2236,10 @@ static void editorTabStateCaptureActive(struct editorTabState *tab) {
 }
 
 static void editorTabStateLoadActive(struct editorTabState *tab) {
+	E.tab_kind = tab->tab_kind;
+	E.tab_title = tab->tab_title;
+	E.generated_text = tab->generated_text;
+	E.generated_text_len = tab->generated_text_len;
 	E.cx = tab->cx;
 	E.cy = tab->cy;
 	E.rx = tab->rx;
@@ -2309,6 +2339,15 @@ static void editorLoadActiveTab(int tab_idx) {
 		return;
 	}
 	editorTabStateLoadActive(&E.tabs[tab_idx]);
+	if (E.tab_kind == EDITOR_TAB_TASK_LOG) {
+		E.syntax_language = EDITOR_SYNTAX_NONE;
+		editorSyntaxStateDestroy(E.syntax_state);
+		E.syntax_state = NULL;
+		E.lsp_doc_open = 0;
+		E.lsp_doc_version = 0;
+		editorViewportSetMode(EDITOR_VIEWPORT_FOLLOW_CURSOR);
+		return;
+	}
 	const char *first_line = NULL;
 	if (E.numrows > 0 && E.rows != NULL) {
 		first_line = E.rows[0].chars;
@@ -2337,6 +2376,13 @@ int editorTabsInit(void) {
 }
 
 void editorTabsFreeAll(void) {
+	if (E.task_running && E.task_pid > 0) {
+		int status = 0;
+		(void)kill(E.task_pid, SIGTERM);
+		(void)waitpid(E.task_pid, &status, 0);
+	}
+	editorTaskResetState();
+
 	editorLspNotifyDidClose(E.filename, E.syntax_language, &E.lsp_doc_open, &E.lsp_doc_version);
 	if (E.tabs != NULL) {
 		for (int i = 0; i < E.tab_count; i++) {
@@ -2388,6 +2434,9 @@ int editorTabNewEmpty(void) {
 
 static int editorTabCanReuseActiveEmptyBuffer(void) {
 	if (E.tab_count <= 0) {
+		return 0;
+	}
+	if (E.tab_kind != EDITOR_TAB_FILE) {
 		return 0;
 	}
 	if (E.filename != NULL && E.filename[0] != '\0') {
@@ -2566,6 +2615,30 @@ const char *editorTabFilenameAt(int idx) {
 	return E.tabs[idx].filename;
 }
 
+const char *editorTabDisplayNameAt(int idx) {
+	if (idx < 0 || idx >= E.tab_count) {
+		return "[No Name]";
+	}
+	if (idx == E.active_tab) {
+		if (E.tab_kind == EDITOR_TAB_TASK_LOG && E.tab_title != NULL && E.tab_title[0] != '\0') {
+			return E.tab_title;
+		}
+		return E.filename != NULL ? E.filename : "[No Name]";
+	}
+	if (E.tabs[idx].tab_kind == EDITOR_TAB_TASK_LOG &&
+			E.tabs[idx].tab_title != NULL && E.tabs[idx].tab_title[0] != '\0') {
+		return E.tabs[idx].tab_title;
+	}
+	return E.tabs[idx].filename != NULL ? E.tabs[idx].filename : "[No Name]";
+}
+
+const char *editorActiveBufferDisplayName(void) {
+	if (E.tab_kind == EDITOR_TAB_TASK_LOG && E.tab_title != NULL && E.tab_title[0] != '\0') {
+		return E.tab_title;
+	}
+	return E.filename != NULL ? E.filename : "[No Name]";
+}
+
 int editorTabDirtyAt(int idx) {
 	if (idx < 0 || idx >= E.tab_count) {
 		return 0;
@@ -2574,6 +2647,486 @@ int editorTabDirtyAt(int idx) {
 		return E.dirty != 0;
 	}
 	return E.tabs[idx].dirty != 0;
+}
+
+int editorActiveTabIsTaskLog(void) {
+	return E.tab_kind == EDITOR_TAB_TASK_LOG;
+}
+
+int editorActiveTabIsReadOnly(void) {
+	return E.tab_kind == EDITOR_TAB_TASK_LOG;
+}
+
+int editorActiveTaskTabIsRunning(void) {
+	return E.task_running && E.task_tab_idx == E.active_tab && E.tab_kind == EDITOR_TAB_TASK_LOG;
+}
+
+static void editorTaskLogClampCursor(struct editorTabState *tab) {
+	if (tab == NULL) {
+		return;
+	}
+	if (tab->cy < 0) {
+		tab->cy = 0;
+	} else if (tab->cy > tab->numrows) {
+		tab->cy = tab->numrows;
+	}
+	if (tab->cy >= tab->numrows) {
+		tab->cx = 0;
+		return;
+	}
+	if (tab->cx < 0) {
+		tab->cx = 0;
+	}
+	if (tab->cx > tab->rows[tab->cy].size) {
+		tab->cx = tab->rows[tab->cy].size;
+	}
+	tab->cx = editorRowClampCxToClusterBoundary(&tab->rows[tab->cy], tab->cx);
+}
+
+static int editorRebuildGeneratedTabRows(struct editorTabState *tab) {
+	if (tab == NULL) {
+		return 0;
+	}
+
+	struct editorSnapshot snapshot = {
+		.text = tab->generated_text,
+		.textlen = tab->generated_text_len,
+		.cx = tab->cx,
+		.cy = tab->cy,
+		.dirty = 0
+	};
+	struct erow *new_rows = NULL;
+	int new_numrows = 0;
+	if (!editorSnapshotBuildRows(&snapshot, &new_rows, &new_numrows)) {
+		return 0;
+	}
+
+	editorFreeTabRows(tab);
+	free(tab->row_start_bytes);
+	tab->row_start_bytes = NULL;
+	tab->row_start_bytes_count = 0;
+	tab->row_start_bytes_valid = 0;
+	tab->max_render_cols = 0;
+	tab->max_render_cols_valid = 0;
+	tab->rows = new_rows;
+	tab->numrows = new_numrows;
+	tab->dirty = 0;
+	free(tab->filename);
+	tab->filename = NULL;
+	editorSyntaxStateDestroy(tab->syntax_state);
+	tab->syntax_state = NULL;
+	tab->syntax_language = EDITOR_SYNTAX_NONE;
+	tab->lsp_doc_open = 0;
+	tab->lsp_doc_version = 0;
+	editorTaskLogClampCursor(tab);
+	return 1;
+}
+
+static int editorAppendBytesToText(char **text_in_out, size_t *len_in_out,
+		const char *append, size_t append_len) {
+	size_t old_len = 0;
+	size_t new_len = 0;
+	size_t cap = 0;
+	char *grown = NULL;
+
+	if (text_in_out == NULL || len_in_out == NULL) {
+		return 0;
+	}
+	old_len = *len_in_out;
+	if (!editorSizeAdd(old_len, append_len, &new_len) ||
+			!editorSizeAdd(new_len, 1, &cap)) {
+		return 0;
+	}
+	grown = editorRealloc(*text_in_out, cap);
+	if (grown == NULL) {
+		return 0;
+	}
+	if (append_len > 0) {
+		memcpy(grown + old_len, append, append_len);
+	}
+	grown[new_len] = '\0';
+	*text_in_out = grown;
+	*len_in_out = new_len;
+	return 1;
+}
+
+static int editorTaskMutateTab(int tab_idx, int jump_to_end,
+		int (*mutator)(struct editorTabState *tab, void *ctx), void *ctx) {
+	if (mutator == NULL || tab_idx < 0 || tab_idx >= E.tab_count) {
+		return 0;
+	}
+
+	if (tab_idx == E.active_tab) {
+		editorStoreActiveTab();
+		if (!mutator(&E.tabs[tab_idx], ctx)) {
+			editorLoadActiveTab(tab_idx);
+			return 0;
+		}
+		editorLoadActiveTab(tab_idx);
+		if (jump_to_end) {
+			if (E.numrows > 0) {
+				E.cy = E.numrows - 1;
+				E.cx = E.rows[E.cy].size;
+			} else {
+				E.cy = 0;
+				E.cx = 0;
+			}
+			editorViewportEnsureCursorVisible();
+		}
+		return 1;
+	}
+
+	return mutator(&E.tabs[tab_idx], ctx);
+}
+
+struct editorTaskAppendContext {
+	const char *text;
+	size_t len;
+};
+
+static int editorTaskAppendOutputMutator(struct editorTabState *tab, void *ctx) {
+	static const char truncation_note[] = "\n[output truncated]\n";
+	struct editorTaskAppendContext *append = ctx;
+	size_t log_limit = ROTIDE_TASK_LOG_MAX_BYTES - (sizeof(truncation_note) - 1);
+	size_t append_len = 0;
+
+	if (tab == NULL || append == NULL) {
+		return 0;
+	}
+	if (E.task_output_truncated) {
+		return 1;
+	}
+
+	if (tab->generated_text_len < log_limit) {
+		append_len = append->len;
+		if (append_len > log_limit - tab->generated_text_len) {
+			append_len = log_limit - tab->generated_text_len;
+		}
+		if (append_len > 0 &&
+				!editorAppendBytesToText(&tab->generated_text, &tab->generated_text_len,
+						append->text, append_len)) {
+			return 0;
+		}
+		E.task_output_bytes += append_len;
+	}
+
+	if (append_len < append->len) {
+		if (!editorAppendBytesToText(&tab->generated_text, &tab->generated_text_len,
+					truncation_note, sizeof(truncation_note) - 1)) {
+			return 0;
+		}
+		E.task_output_truncated = 1;
+	}
+
+	if (!editorRebuildGeneratedTabRows(tab)) {
+		return 0;
+	}
+	return 1;
+}
+
+static int editorTaskAppendOutput(int tab_idx, const char *text, size_t len, int jump_to_end) {
+	struct editorTaskAppendContext ctx = {
+		.text = text,
+		.len = len
+	};
+	return editorTaskMutateTab(tab_idx, jump_to_end, editorTaskAppendOutputMutator, &ctx);
+}
+
+static void editorTaskResetState(void) {
+	if (E.task_running && E.task_output_fd > STDERR_FILENO) {
+		close(E.task_output_fd);
+	}
+	E.task_pid = 0;
+	E.task_output_fd = -1;
+	E.task_running = 0;
+	E.task_tab_idx = -1;
+	E.task_output_truncated = 0;
+	E.task_output_bytes = 0;
+	E.task_exit_code = 0;
+	E.task_success_status[0] = '\0';
+	E.task_failure_status[0] = '\0';
+}
+
+int editorTaskIsRunning(void) {
+	return E.task_running;
+}
+
+int editorTaskRunningTabIndex(void) {
+	return E.task_running ? E.task_tab_idx : -1;
+}
+
+static int editorTaskDrainOutput(int tab_idx, int jump_to_end, int *saw_eof_out) {
+	char buf[4096];
+	int changed = 0;
+
+	if (saw_eof_out != NULL) {
+		*saw_eof_out = 0;
+	}
+	if (E.task_output_fd == -1) {
+		if (saw_eof_out != NULL) {
+			*saw_eof_out = 1;
+		}
+		return 0;
+	}
+
+	for (;;) {
+		ssize_t nread = read(E.task_output_fd, buf, sizeof(buf));
+		if (nread > 0) {
+			if (!editorTaskAppendOutput(tab_idx, buf, (size_t)nread, jump_to_end)) {
+				editorSetAllocFailureStatus();
+				return changed;
+			}
+			changed = 1;
+			continue;
+		}
+		if (nread == 0) {
+			close(E.task_output_fd);
+			E.task_output_fd = -1;
+			if (saw_eof_out != NULL) {
+				*saw_eof_out = 1;
+			}
+			return 1;
+		}
+		if (errno == EINTR) {
+			continue;
+		}
+		if (errno == EAGAIN || errno == EWOULDBLOCK) {
+			return changed;
+		}
+		close(E.task_output_fd);
+		E.task_output_fd = -1;
+		if (saw_eof_out != NULL) {
+			*saw_eof_out = 1;
+		}
+		return 1;
+	}
+}
+
+static int editorTaskAppendFinalLineMutator(struct editorTabState *tab, void *ctx) {
+	const char *line = ctx;
+	if (tab == NULL || line == NULL) {
+		return 0;
+	}
+	if (!editorAppendBytesToText(&tab->generated_text, &tab->generated_text_len,
+				line, strlen(line))) {
+		return 0;
+	}
+	return editorRebuildGeneratedTabRows(tab);
+}
+
+static void editorTaskFinalize(int success, int exit_code) {
+	char final_line[96];
+	int tab_idx = E.task_tab_idx;
+	if (tab_idx >= 0 && tab_idx < E.tab_count) {
+		if (success) {
+			(void)snprintf(final_line, sizeof(final_line),
+					"\n[task completed successfully]\n");
+		} else {
+			(void)snprintf(final_line, sizeof(final_line),
+					"\n[task failed with exit code %d]\n", exit_code);
+		}
+		(void)editorTaskMutateTab(tab_idx, 1, editorTaskAppendFinalLineMutator, final_line);
+	}
+
+	E.task_exit_code = exit_code;
+	if (success) {
+		editorTaskSetFinalStatus(1);
+	} else {
+		editorTaskSetFinalStatus(0);
+	}
+	editorTaskResetState();
+}
+
+static void editorTaskSetFinalStatus(int success) {
+	if (success) {
+		if (E.task_success_status[0] != '\0') {
+			editorSetStatusMsg("%s", E.task_success_status);
+			return;
+		}
+		editorSetStatusMsg("Task finished successfully");
+		return;
+	}
+
+	if (E.task_failure_status[0] != '\0') {
+		editorSetStatusMsg("%s", E.task_failure_status);
+		return;
+	}
+	editorSetStatusMsg("Task failed");
+}
+
+int editorTaskPoll(void) {
+	int changed = 0;
+	int saw_eof = 0;
+	int status = 0;
+	pid_t waited = 0;
+
+	if (!E.task_running || E.task_tab_idx < 0) {
+		return 0;
+	}
+
+	changed |= editorTaskDrainOutput(E.task_tab_idx, 1, &saw_eof);
+
+	do {
+		waited = waitpid(E.task_pid, &status, WNOHANG);
+	} while (waited == -1 && errno == EINTR);
+
+	if (waited == E.task_pid) {
+		int exit_code = 1;
+		changed |= editorTaskDrainOutput(E.task_tab_idx, 1, &saw_eof);
+		if (WIFEXITED(status)) {
+			exit_code = WEXITSTATUS(status);
+		} else if (WIFSIGNALED(status)) {
+			exit_code = 128 + WTERMSIG(status);
+		}
+		editorTaskFinalize(exit_code == 0, exit_code);
+		return 1;
+	}
+
+	if (saw_eof && E.task_output_fd == -1 && E.task_pid > 0) {
+		return 1;
+	}
+
+	return changed;
+}
+
+int editorTaskTerminate(void) {
+	int status = 0;
+	int exit_code = 1;
+
+	if (!E.task_running || E.task_pid <= 0) {
+		return 1;
+	}
+
+	(void)kill(E.task_pid, SIGTERM);
+	do {
+		if (waitpid(E.task_pid, &status, 0) == E.task_pid) {
+			break;
+		}
+	} while (errno == EINTR);
+
+	(void)editorTaskDrainOutput(E.task_tab_idx, 1, NULL);
+	if (WIFEXITED(status)) {
+		exit_code = WEXITSTATUS(status);
+	} else if (WIFSIGNALED(status)) {
+		exit_code = 128 + WTERMSIG(status);
+	}
+	editorTaskFinalize(0, exit_code);
+	return 1;
+}
+
+int editorTaskStart(const char *title, const char *command,
+		const char *success_status, const char *failure_status) {
+	int output_pipe[2] = {-1, -1};
+	pid_t pid = 0;
+	int flags = 0;
+	char header[PATH_MAX + 8];
+
+	if (title == NULL || title[0] == '\0' || command == NULL || command[0] == '\0') {
+		return 0;
+	}
+	if (E.task_running) {
+		editorSetStatusMsg("Another task is already running");
+		return 0;
+	}
+	if (!editorTabNewEmpty()) {
+		return 0;
+	}
+
+	E.tab_kind = EDITOR_TAB_TASK_LOG;
+	E.tab_title = strdup(title);
+	if (E.tab_title == NULL) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+	E.generated_text = strdup("");
+	if (E.generated_text == NULL) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+	E.generated_text_len = 0;
+	E.dirty = 0;
+	free(E.filename);
+	E.filename = NULL;
+	editorSyntaxStateDestroy(E.syntax_state);
+	E.syntax_state = NULL;
+	E.syntax_language = EDITOR_SYNTAX_NONE;
+	E.lsp_doc_open = 0;
+	E.lsp_doc_version = 0;
+	(void)snprintf(header, sizeof(header), "$ %s\n\n", command);
+	if (!editorAppendBytesToText(&E.generated_text, &E.generated_text_len, header, strlen(header))) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+	if (!editorSnapshotRestore(&(struct editorSnapshot) {
+				.text = E.generated_text,
+				.textlen = E.generated_text_len,
+				.cx = 0,
+				.cy = 0,
+				.dirty = 0
+			})) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+	if (E.numrows > 0) {
+		E.cy = E.numrows - 1;
+		E.cx = E.rows[E.cy].size;
+	}
+	editorViewportEnsureCursorVisible();
+	editorStoreActiveTab();
+	editorLoadActiveTab(E.active_tab);
+
+	if (pipe(output_pipe) == -1) {
+		editorSetStatusMsg("Unable to start task");
+		return 0;
+	}
+
+	pid = fork();
+	if (pid == -1) {
+		close(output_pipe[0]);
+		close(output_pipe[1]);
+		editorSetStatusMsg("Unable to start task");
+		return 0;
+	}
+
+	if (pid == 0) {
+		int devnull = open("/dev/null", O_RDONLY);
+		if (devnull != -1) {
+			(void)dup2(devnull, STDIN_FILENO);
+			close(devnull);
+		}
+		(void)dup2(output_pipe[1], STDOUT_FILENO);
+		(void)dup2(output_pipe[1], STDERR_FILENO);
+		close(output_pipe[0]);
+		close(output_pipe[1]);
+		execl("/bin/sh", "sh", "-c", command, (char *)NULL);
+		_exit(127);
+	}
+
+	close(output_pipe[1]);
+	flags = fcntl(output_pipe[0], F_GETFL);
+	if (flags != -1) {
+		(void)fcntl(output_pipe[0], F_SETFL, flags | O_NONBLOCK);
+	}
+
+	E.task_pid = pid;
+	E.task_output_fd = output_pipe[0];
+	E.task_running = 1;
+	E.task_tab_idx = E.active_tab;
+	E.task_output_truncated = 0;
+	E.task_output_bytes = 0;
+	E.task_exit_code = 0;
+	if (success_status != NULL) {
+		(void)snprintf(E.task_success_status, sizeof(E.task_success_status), "%s", success_status);
+	} else {
+		E.task_success_status[0] = '\0';
+	}
+	if (failure_status != NULL) {
+		(void)snprintf(E.task_failure_status, sizeof(E.task_failure_status), "%s", failure_status);
+	} else {
+		E.task_failure_status[0] = '\0';
+	}
+	editorSetStatusMsg("Running task: %s", title);
+	return 1;
 }
 
 int editorBufferMaxRenderCols(void) {
@@ -2745,15 +3298,15 @@ int editorSyntaxRowRenderSpans(int row_idx, struct editorRowSyntaxSpan *spans, i
 	return 1;
 }
 
-static const char *editorTabLabelFromFilename(const char *filename) {
-	if (filename == NULL) {
+static const char *editorTabLabelFromDisplayName(const char *display_name) {
+	if (display_name == NULL) {
 		return "[No Name]";
 	}
-	const char *slash = strrchr(filename, '/');
+	const char *slash = strrchr(display_name, '/');
 	if (slash != NULL && slash[1] != '\0') {
 		return slash + 1;
 	}
-	return filename;
+	return display_name;
 }
 
 static int editorSanitizedTokenDisplayCols(const char *text, int text_len, int *src_len_out) {
@@ -2799,7 +3352,7 @@ static int editorSanitizedTextDisplayCols(const char *text, int max_cols) {
 }
 
 static int editorTabLabelColsAt(int tab_idx) {
-	const char *label = editorTabLabelFromFilename(editorTabFilenameAt(tab_idx));
+	const char *label = editorTabLabelFromDisplayName(editorTabDisplayNameAt(tab_idx));
 	int cols = editorSanitizedTextDisplayCols(label, ROTIDE_TAB_TITLE_MAX_COLS);
 	if (cols < 1) {
 		cols = 1;
@@ -4288,6 +4841,12 @@ void editorOpen(const char *filename) {
 	editorHistoryReset();
 	editorClearSelectionState();
 	free(E.filename);
+	free(E.tab_title);
+	E.tab_title = NULL;
+	free(E.generated_text);
+	E.generated_text = NULL;
+	E.generated_text_len = 0;
+	E.tab_kind = EDITOR_TAB_FILE;
 	E.filename = strdup(filename);
 
 	FILE *fp = fopen(filename, "r");
@@ -4489,6 +5048,11 @@ static mode_t editorDefaultCreateMode(void) {
 }
 
 void editorSave(void) {
+	if (editorActiveTabIsTaskLog()) {
+		editorSetStatusMsg("Task logs cannot be saved");
+		return;
+	}
+
 	if (E.filename == NULL) {
 		if ((E.filename = editorPrompt("Save as: %s")) == NULL) {
 			if (E.statusmsg[0] == '\0') {

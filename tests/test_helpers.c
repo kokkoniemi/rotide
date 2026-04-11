@@ -17,6 +17,21 @@
 
 static char *g_test_repo_root = NULL;
 
+static void ensure_test_stdout_open(void) {
+	if (fcntl(STDOUT_FILENO, F_GETFD) != -1 || errno != EBADF) {
+		return;
+	}
+
+	int reopened = dup(STDERR_FILENO);
+	if (reopened == -1) {
+		return;
+	}
+	if (reopened != STDOUT_FILENO) {
+		(void)dup2(reopened, STDOUT_FILENO);
+		(void)close(reopened);
+	}
+}
+
 void clear_editor_state(void) {
 	editorDrawerShutdown();
 	editorRecoveryShutdown();
@@ -26,6 +41,7 @@ void clear_editor_state(void) {
 }
 
 void reset_editor_state(void) {
+	ensure_test_stdout_open();
 	editorTestAllocReset();
 	editorTestSaveSyscallsReset();
 	editorLspTestResetMock();
@@ -33,6 +49,10 @@ void reset_editor_state(void) {
 	memset(&E, 0, sizeof(E));
 	E.window_rows = 8;
 	E.window_cols = 40;
+	E.tab_kind = EDITOR_TAB_FILE;
+	E.tab_title = NULL;
+	E.generated_text = NULL;
+	E.generated_text_len = 0;
 	E.search_match_row = -1;
 	E.search_direction = 1;
 	E.selection_mode_active = 0;
@@ -45,10 +65,20 @@ void reset_editor_state(void) {
 	E.syntax_language = EDITOR_SYNTAX_NONE;
 	E.syntax_state = NULL;
 	editorLspConfigInitDefaults(&E.lsp_enabled, E.lsp_gopls_command,
-			sizeof(E.lsp_gopls_command));
+			sizeof(E.lsp_gopls_command), E.lsp_gopls_install_command,
+			sizeof(E.lsp_gopls_install_command));
 	E.lsp_enabled = 0;
 	E.lsp_doc_open = 0;
 	E.lsp_doc_version = 0;
+	E.task_pid = 0;
+	E.task_output_fd = -1;
+	E.task_running = 0;
+	E.task_tab_idx = -1;
+	E.task_output_truncated = 0;
+	E.task_output_bytes = 0;
+	E.task_exit_code = 0;
+	E.task_success_status[0] = '\0';
+	E.task_failure_status[0] = '\0';
 	E.drawer_last_click_visible_idx = -1;
 	E.drawer_last_click_ms = 0;
 	E.drawer_width_cols = ROTIDE_DRAWER_DEFAULT_WIDTH;

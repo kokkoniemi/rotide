@@ -1,5 +1,6 @@
 #include "terminal.h"
 
+#include "buffer.h"
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
@@ -548,12 +549,18 @@ int editorReadKey(void) {
 		if (editorTakeResizeEvent()) {
 			return RESIZE_EVENT;
 		}
+		if (editorTaskPoll()) {
+			return TASK_EVENT;
+		}
 
 		char c;
 		enum editorReadByteResult read_status;
 		while ((read_status = editorReadInputByte(&c)) != EDITOR_READ_BYTE) {
 			if (editorTakeResizeEvent()) {
 				return RESIZE_EVENT;
+			}
+			if (editorTaskPoll()) {
+				return TASK_EVENT;
 			}
 			if (read_status == EDITOR_READ_EOF) {
 				return INPUT_EOF_EVENT;

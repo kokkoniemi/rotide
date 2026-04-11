@@ -7,6 +7,7 @@
 
 #include <limits.h>
 #include <stddef.h>
+#include <sys/types.h>
 #include <termios.h>
 #include <time.h>
 
@@ -24,6 +25,7 @@
 #define ROTIDE_MAX_SYNTAX_SPANS_PER_ROW 256
 #define ROTIDE_ALT_LETTER_KEY_BASE 91000
 #define ROTIDE_CTRL_ALT_LETTER_KEY_BASE 91026
+#define ROTIDE_TASK_LOG_MAX_BYTES ((size_t)131072)
 
 #define EDITOR_ALT_LETTER_KEY(ch) (ROTIDE_ALT_LETTER_KEY_BASE + ((int)(ch) - (int)'a'))
 #define EDITOR_CTRL_ALT_LETTER_KEY(ch) \
@@ -139,6 +141,11 @@ enum editorViewportMode {
 	EDITOR_VIEWPORT_FREE_SCROLL
 };
 
+enum editorTabKind {
+	EDITOR_TAB_FILE = 0,
+	EDITOR_TAB_TASK_LOG
+};
+
 struct editorRowSyntaxSpan {
 	int start_render_idx;
 	int end_render_idx;
@@ -244,6 +251,10 @@ struct editorHistory {
 };
 
 struct editorTabState {
+	enum editorTabKind tab_kind;
+	char *tab_title;
+	char *generated_text;
+	size_t generated_text_len;
 	int cx;
 	int cy;
 	int rx;
@@ -287,6 +298,10 @@ struct editorTabState {
 struct editorConfig {
 	int window_rows;
 	int window_cols;
+	enum editorTabKind tab_kind;
+	char *tab_title;
+	char *generated_text;
+	size_t generated_text_len;
 	int cx;
 	int cy;
 	int rx;
@@ -305,6 +320,7 @@ struct editorConfig {
 	struct editorSyntaxState *syntax_state;
 	int lsp_enabled;
 	char lsp_gopls_command[PATH_MAX];
+	char lsp_gopls_install_command[PATH_MAX];
 	int lsp_doc_open;
 	int lsp_doc_version;
 	char statusmsg[80];
@@ -338,6 +354,15 @@ struct editorConfig {
 	int active_tab;
 	int tab_view_start;
 	int close_confirmed;
+	pid_t task_pid;
+	int task_output_fd;
+	int task_running;
+	int task_tab_idx;
+	int task_output_truncated;
+	size_t task_output_bytes;
+	int task_exit_code;
+	char task_success_status[80];
+	char task_failure_status[80];
 	char *recovery_path;
 	time_t recovery_last_autosave_time;
 	char *drawer_root_path;
@@ -388,7 +413,8 @@ enum editorKey {
 	DEL_KEY,
 	MOUSE_EVENT,
 	RESIZE_EVENT,
-	INPUT_EOF_EVENT
+	INPUT_EOF_EVENT,
+	TASK_EVENT
 };
 
 #endif

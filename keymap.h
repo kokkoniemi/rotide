@@ -51,11 +51,13 @@ enum editorSyntaxThemeLoadStatus editorSyntaxThemeLoadFromPaths(
 		const char *global_path, const char *project_path);
 enum editorSyntaxThemeLoadStatus editorSyntaxThemeLoadConfigured(
 		enum editorThemeColor theme_out[EDITOR_SYNTAX_HL_CLASS_COUNT]);
-void editorLspConfigInitDefaults(int *enabled_out, char *command_out, size_t command_out_size);
+void editorLspConfigInitDefaults(int *enabled_out, char *command_out, size_t command_out_size,
+		char *install_command_out, size_t install_command_out_size);
 enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(int *enabled_out,
-		char *command_out, size_t command_out_size, const char *global_path,
-		const char *project_path);
+		char *command_out, size_t command_out_size, char *install_command_out,
+		size_t install_command_out_size, const char *global_path, const char *project_path);
 enum editorLspConfigLoadStatus editorLspConfigLoadConfigured(int *enabled_out,
-		char *command_out, size_t command_out_size);
+		char *command_out, size_t command_out_size, char *install_command_out,
+		size_t install_command_out_size);
 
 #endif

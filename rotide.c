@@ -18,6 +18,10 @@ void initEditor(void) {
 	E.rx = 0;
 	E.rowoff = 0;
 	E.coloff = 0;
+	E.tab_kind = EDITOR_TAB_FILE;
+	E.tab_title = NULL;
+	E.generated_text = NULL;
+	E.generated_text_len = 0;
 	E.numrows = 0;
 	E.rows = NULL;
 	E.dirty = 0;
@@ -25,7 +29,8 @@ void initEditor(void) {
 	E.syntax_language = EDITOR_SYNTAX_NONE;
 	E.syntax_state = NULL;
 	editorLspConfigInitDefaults(&E.lsp_enabled, E.lsp_gopls_command,
-			sizeof(E.lsp_gopls_command));
+			sizeof(E.lsp_gopls_command), E.lsp_gopls_install_command,
+			sizeof(E.lsp_gopls_install_command));
 	E.lsp_doc_open = 0;
 	E.lsp_doc_version = 0;
 	E.statusmsg[0] = '\0';
@@ -65,6 +70,15 @@ void initEditor(void) {
 	E.active_tab = 0;
 	E.tab_view_start = 0;
 	E.close_confirmed = 0;
+	E.task_pid = 0;
+	E.task_output_fd = -1;
+	E.task_running = 0;
+	E.task_tab_idx = -1;
+	E.task_output_truncated = 0;
+	E.task_output_bytes = 0;
+	E.task_exit_code = 0;
+	E.task_success_status[0] = '\0';
+	E.task_failure_status[0] = '\0';
 	E.recovery_path = NULL;
 	E.recovery_last_autosave_time = 0;
 	E.drawer_root_path = NULL;
@@ -104,7 +118,8 @@ int main(int argc, char *argv[]) {
 			editorSyntaxThemeLoadConfigured(E.syntax_theme);
 	enum editorLspConfigLoadStatus lsp_config_status =
 			editorLspConfigLoadConfigured(&E.lsp_enabled, E.lsp_gopls_command,
-					sizeof(E.lsp_gopls_command));
+					sizeof(E.lsp_gopls_command), E.lsp_gopls_install_command,
+					sizeof(E.lsp_gopls_install_command));
 	if (!editorRecoveryInitForCurrentDir()) {
 		editorSetStatusMsg("Recovery disabled (path setup failed)");
 	}

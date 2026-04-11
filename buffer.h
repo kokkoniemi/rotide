@@ -77,10 +77,22 @@ int editorTabCount(void);
 int editorTabActiveIndex(void);
 int editorTabAnyDirty(void);
 const char *editorTabFilenameAt(int idx);
+const char *editorTabDisplayNameAt(int idx);
 int editorTabDirtyAt(int idx);
 int editorTabBuildLayoutForWidth(int cols, struct editorTabLayoutEntry *entries, int max_entries,
 		int *count_out);
 int editorTabHitTestColumn(int col, int cols);
+int editorActiveTabIsTaskLog(void);
+int editorActiveTabIsReadOnly(void);
+int editorActiveTaskTabIsRunning(void);
+const char *editorActiveBufferDisplayName(void);
+
+int editorTaskStart(const char *title, const char *command,
+		const char *success_status, const char *failure_status);
+int editorTaskPoll(void);
+int editorTaskIsRunning(void);
+int editorTaskRunningTabIndex(void);
+int editorTaskTerminate(void);
 
 int editorSyntaxEnabled(void);
 int editorSyntaxTreeExists(void);
