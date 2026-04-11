@@ -225,6 +225,8 @@ Run tests:
 make test
 ```
 
+Syntax test fixtures and sample files live under `tests/syntax/`.
+
 Run sanitizer suite:
 
 ```bash
@@ -248,6 +250,7 @@ ASAN_OPTIONS=detect_leaks=0 make test-sanitize
 - `alloc.c`/`alloc.h`: allocation wrappers and test hooks.
 - `save_syscalls.c`/`save_syscalls.h`: save syscall wrappers/failure injection.
 - `tests/`: unit and behavior tests.
+- `tests/syntax/`: syntax test fixtures for supported languages plus planned placeholders.
 - `syntax.c`/`syntax.h`: Tree-sitter integration and incremental parse wrapper.
 - `vendor/tree_sitter/`: vendored Tree-sitter runtime + C/go/bash/html/javascript/css grammar sources.
 - `scripts/refresh_tree_sitter_vendor.sh`: maintainer helper to refresh vendored Tree-sitter artifacts.

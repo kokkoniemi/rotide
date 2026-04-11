@@ -64,6 +64,9 @@ int start_stdout_capture(struct stdoutCapture *capture);
 char *read_all_fd(int fd, size_t *len_out);
 char *stop_stdout_capture(struct stdoutCapture *capture, size_t *len_out);
 char *read_file_contents(const char *path, size_t *len_out);
+void testHelpersInitPaths(const char *startup_cwd);
+char *testResolveRepoPath(const char *relative_path);
+int copyTestFixtureToPath(const char *fixture_relative_path, const char *target_path);
 
 int editor_read_key_with_input(const char *input, size_t len, int *key_out);
 int editor_process_keypress_with_input(const char *input, size_t len);

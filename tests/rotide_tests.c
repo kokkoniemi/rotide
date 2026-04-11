@@ -160,6 +160,23 @@ static int write_temp_text_file(char path_buf[], size_t path_buf_size, const cha
 	return ok;
 }
 
+static int write_fixture_to_temp_path(char path_buf[], int suffix_len,
+		const char *fixture_relative_path) {
+	int fd = suffix_len > 0 ? mkstemps(path_buf, suffix_len) : mkstemp(path_buf);
+	if (fd == -1) {
+		return 0;
+	}
+	if (close(fd) != 0) {
+		(void)unlink(path_buf);
+		return 0;
+	}
+	if (!copyTestFixtureToPath(fixture_relative_path, path_buf)) {
+		(void)unlink(path_buf);
+		return 0;
+	}
+	return 1;
+}
+
 static int editor_process_keypress_with_input_silent(const char *input, size_t len) {
 	int saved_stdout;
 	if (redirect_stdout_to_devnull(&saved_stdout) == -1) {
@@ -829,11 +846,8 @@ static int test_editor_open_reads_rows_and_clears_dirty(void) {
 
 static int test_editor_syntax_activation_for_c_and_h_files(void) {
 	char c_path[] = "/tmp/rotide-test-syntax-c-XXXXXX.c";
-	int c_fd = mkstemps(c_path, 2);
-	ASSERT_TRUE(c_fd != -1);
-	const char *c_source = "int main(void) { return 0; }\n";
-	ASSERT_TRUE(write_all(c_fd, c_source, strlen(c_source)) == 0);
-	ASSERT_TRUE(close(c_fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(c_path, 2,
+			"tests/syntax/supported/c/activation.c"));
 
 	editorOpen(c_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -843,11 +857,8 @@ static int test_editor_syntax_activation_for_c_and_h_files(void) {
 	ASSERT_EQ_STR("translation_unit", editorSyntaxRootType());
 
 	char h_path[] = "/tmp/rotide-test-syntax-h-XXXXXX.h";
-	int h_fd = mkstemps(h_path, 2);
-	ASSERT_TRUE(h_fd != -1);
-	const char *h_source = "int f(int x);\n";
-	ASSERT_TRUE(write_all(h_fd, h_source, strlen(h_source)) == 0);
-	ASSERT_TRUE(close(h_fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(h_path, 2,
+			"tests/syntax/supported/c/activation.h"));
 
 	editorOpen(h_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -863,11 +874,8 @@ static int test_editor_syntax_activation_for_c_and_h_files(void) {
 
 static int test_editor_syntax_activation_for_shell_files_and_shebang(void) {
 	char sh_path[] = "/tmp/rotide-test-syntax-shell-XXXXXX.sh";
-	int sh_fd = mkstemps(sh_path, 3);
-	ASSERT_TRUE(sh_fd != -1);
-	const char *sh_source = "#!/usr/bin/env bash\nif true; then echo ok; fi\n";
-	ASSERT_TRUE(write_all(sh_fd, sh_source, strlen(sh_source)) == 0);
-	ASSERT_TRUE(close(sh_fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(sh_path, 3,
+			"tests/syntax/supported/bash/activation.sh"));
 
 	editorOpen(sh_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -880,7 +888,7 @@ static int test_editor_syntax_activation_for_shell_files_and_shebang(void) {
 	ASSERT_TRUE(rc_dir != NULL);
 	char rc_path[512];
 	ASSERT_TRUE(path_join(rc_path, sizeof(rc_path), rc_dir, ".bashrc"));
-	ASSERT_TRUE(write_text_file(rc_path, "echo rc\n"));
+	ASSERT_TRUE(copyTestFixtureToPath("tests/syntax/supported/bash/.bashrc", rc_path));
 
 	ASSERT_TRUE(editorTabsInit());
 	editorOpen(rc_path);
@@ -889,11 +897,8 @@ static int test_editor_syntax_activation_for_shell_files_and_shebang(void) {
 	ASSERT_EQ_INT(EDITOR_SYNTAX_SHELL, editorSyntaxLanguageActive());
 
 	char shebang_path[] = "/tmp/rotide-test-syntax-shell-shebang-XXXXXX";
-	int shebang_fd = mkstemp(shebang_path);
-	ASSERT_TRUE(shebang_fd != -1);
-	const char *shebang_source = "#!/usr/bin/env bash\necho shebang\n";
-	ASSERT_TRUE(write_all(shebang_fd, shebang_source, strlen(shebang_source)) == 0);
-	ASSERT_TRUE(close(shebang_fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(shebang_path, 0,
+			"tests/syntax/supported/bash/extensionless_shebang"));
 
 	ASSERT_TRUE(editorTabsInit());
 	editorOpen(shebang_path);
@@ -924,11 +929,8 @@ static int test_editor_syntax_activation_for_shell_files_and_shebang(void) {
 
 static int test_editor_syntax_activation_for_html_js_and_css_files(void) {
 	char html_path[] = "/tmp/rotide-test-syntax-html-XXXXXX.html";
-	int html_fd = mkstemps(html_path, 5);
-	ASSERT_TRUE(html_fd != -1);
-	const char *html_source = "<!doctype html><html><body><h1>x</h1></body></html>\n";
-	ASSERT_TRUE(write_all(html_fd, html_source, strlen(html_source)) == 0);
-	ASSERT_TRUE(close(html_fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(html_path, 5,
+			"tests/syntax/supported/html/activation.html"));
 
 	editorOpen(html_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -937,77 +939,58 @@ static int test_editor_syntax_activation_for_html_js_and_css_files(void) {
 	ASSERT_EQ_STR("document", editorSyntaxRootType());
 
 	char htm_path[] = "/tmp/rotide-test-syntax-html2-XXXXXX.htm";
-	int htm_fd = mkstemps(htm_path, 4);
-	ASSERT_TRUE(htm_fd != -1);
-	ASSERT_TRUE(write_all(htm_fd, html_source, strlen(html_source)) == 0);
-	ASSERT_TRUE(close(htm_fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(htm_path, 4,
+			"tests/syntax/supported/html/activation.htm"));
 	editorOpen(htm_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
 	ASSERT_TRUE(editorSyntaxTreeExists());
 	ASSERT_EQ_INT(EDITOR_SYNTAX_HTML, editorSyntaxLanguageActive());
 
 	char xhtml_path[] = "/tmp/rotide-test-syntax-xhtml-XXXXXX.xhtml";
-	int xhtml_fd = mkstemps(xhtml_path, 6);
-	ASSERT_TRUE(xhtml_fd != -1);
-	ASSERT_TRUE(write_all(xhtml_fd, html_source, strlen(html_source)) == 0);
-	ASSERT_TRUE(close(xhtml_fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(xhtml_path, 6,
+			"tests/syntax/supported/html/activation.xhtml"));
 	editorOpen(xhtml_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
 	ASSERT_TRUE(editorSyntaxTreeExists());
 	ASSERT_EQ_INT(EDITOR_SYNTAX_HTML, editorSyntaxLanguageActive());
 
 	char js_path[] = "/tmp/rotide-test-syntax-js-XXXXXX.js";
-	int js_fd = mkstemps(js_path, 3);
-	ASSERT_TRUE(js_fd != -1);
-	const char *js_source = "function demo(){ return 1; }\n";
-	ASSERT_TRUE(write_all(js_fd, js_source, strlen(js_source)) == 0);
-	ASSERT_TRUE(close(js_fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(js_path, 3,
+			"tests/syntax/supported/javascript/activation.js"));
 	editorOpen(js_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
 	ASSERT_TRUE(editorSyntaxTreeExists());
 	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, editorSyntaxLanguageActive());
 
 	char mjs_path[] = "/tmp/rotide-test-syntax-mjs-XXXXXX.mjs";
-	int mjs_fd = mkstemps(mjs_path, 4);
-	ASSERT_TRUE(mjs_fd != -1);
-	ASSERT_TRUE(write_all(mjs_fd, js_source, strlen(js_source)) == 0);
-	ASSERT_TRUE(close(mjs_fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(mjs_path, 4,
+			"tests/syntax/supported/javascript/module.mjs"));
 	editorOpen(mjs_path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, editorSyntaxLanguageActive());
 
 	char cjs_path[] = "/tmp/rotide-test-syntax-cjs-XXXXXX.cjs";
-	int cjs_fd = mkstemps(cjs_path, 4);
-	ASSERT_TRUE(cjs_fd != -1);
-	ASSERT_TRUE(write_all(cjs_fd, js_source, strlen(js_source)) == 0);
-	ASSERT_TRUE(close(cjs_fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(cjs_path, 4,
+			"tests/syntax/supported/javascript/commonjs.cjs"));
 	editorOpen(cjs_path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, editorSyntaxLanguageActive());
 
 	char jsx_path[] = "/tmp/rotide-test-syntax-jsx-XXXXXX.jsx";
-	int jsx_fd = mkstemps(jsx_path, 4);
-	ASSERT_TRUE(jsx_fd != -1);
-	const char *jsx_source = "const el = <div className=\"x\">ok</div>;\n";
-	ASSERT_TRUE(write_all(jsx_fd, jsx_source, strlen(jsx_source)) == 0);
-	ASSERT_TRUE(close(jsx_fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(jsx_path, 4,
+			"tests/syntax/supported/javascript/component.jsx"));
 	editorOpen(jsx_path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, editorSyntaxLanguageActive());
 
 	char css_path[] = "/tmp/rotide-test-syntax-css-XXXXXX.css";
-	int css_fd = mkstemps(css_path, 4);
-	ASSERT_TRUE(css_fd != -1);
-	const char *css_source = ".box { color: red; }\n";
-	ASSERT_TRUE(write_all(css_fd, css_source, strlen(css_source)) == 0);
-	ASSERT_TRUE(close(css_fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(css_path, 4,
+			"tests/syntax/supported/css/activation.css"));
 	editorOpen(css_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
 	ASSERT_TRUE(editorSyntaxTreeExists());
 	ASSERT_EQ_INT(EDITOR_SYNTAX_CSS, editorSyntaxLanguageActive());
 
 	char scss_path[] = "/tmp/rotide-test-syntax-scss-XXXXXX.scss";
-	int scss_fd = mkstemps(scss_path, 5);
-	ASSERT_TRUE(scss_fd != -1);
-	ASSERT_TRUE(write_all(scss_fd, css_source, strlen(css_source)) == 0);
-	ASSERT_TRUE(close(scss_fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(scss_path, 5,
+			"tests/syntax/supported/css/activation.scss"));
 	editorOpen(scss_path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_CSS, editorSyntaxLanguageActive());
 
@@ -1025,11 +1008,8 @@ static int test_editor_syntax_activation_for_html_js_and_css_files(void) {
 
 static int test_editor_syntax_activation_for_go_and_mod_files(void) {
 	char go_path[] = "/tmp/rotide-test-syntax-go-XXXXXX.go";
-	int go_fd = mkstemps(go_path, 3);
-	ASSERT_TRUE(go_fd != -1);
-	const char *go_source = "package main\n\nfunc main() { var n int = 1 }\n";
-	ASSERT_TRUE(write_all(go_fd, go_source, strlen(go_source)) == 0);
-	ASSERT_TRUE(close(go_fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(go_path, 3,
+			"tests/syntax/supported/go/activation.go"));
 
 	editorOpen(go_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -1044,7 +1024,7 @@ static int test_editor_syntax_activation_for_go_and_mod_files(void) {
 
 	char mod_path[512];
 	ASSERT_TRUE(path_join(mod_path, sizeof(mod_path), mod_dir, "go.mod"));
-	ASSERT_TRUE(write_text_file(mod_path, "module example.com/rotide\n\ngo 1.22\n"));
+	ASSERT_TRUE(copyTestFixtureToPath("tests/syntax/supported/go/go.mod", mod_path));
 
 	editorOpen(mod_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -1053,8 +1033,7 @@ static int test_editor_syntax_activation_for_go_and_mod_files(void) {
 
 	char sum_path[512];
 	ASSERT_TRUE(path_join(sum_path, sizeof(sum_path), mod_dir, "go.sum"));
-	ASSERT_TRUE(write_text_file(sum_path,
-			"example.com/mod v1.0.0 h1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa=\n"));
+	ASSERT_TRUE(copyTestFixtureToPath("tests/syntax/supported/go/go.sum", sum_path));
 
 	editorOpen(sum_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -1309,11 +1288,8 @@ static int test_editor_save_as_go_file_enables_syntax(void) {
 
 static int test_editor_syntax_incremental_edits_keep_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-XXXXXX.c";
-	int fd = mkstemps(path, 2);
-	ASSERT_TRUE(fd != -1);
-	const char *source = "int main(void) {\n\treturn 0;\n}\n";
-	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
-	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
+			"tests/syntax/supported/c/incremental.c"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -1347,11 +1323,8 @@ static int test_editor_syntax_incremental_edits_keep_tree_valid(void) {
 
 static int test_editor_syntax_incremental_edits_keep_shell_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-shell-XXXXXX.sh";
-	int fd = mkstemps(path, 3);
-	ASSERT_TRUE(fd != -1);
-	const char *source = "#!/usr/bin/env bash\nif true; then\n\techo ok\nfi\n";
-	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
-	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/bash/incremental.sh"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -1386,21 +1359,8 @@ static int test_editor_syntax_incremental_edits_keep_shell_tree_valid(void) {
 
 static int test_editor_syntax_incremental_edits_keep_html_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-html-XXXXXX.html";
-	int fd = mkstemps(path, 5);
-	ASSERT_TRUE(fd != -1);
-	const char *source =
-			"<html>\n"
-			"<body>\n"
-			"<script>\n"
-			"const window = 1;\n"
-			"</script>\n"
-			"<style>\n"
-			".box { color: red; }\n"
-			"</style>\n"
-			"</body>\n"
-			"</html>\n";
-	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
-	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
+			"tests/syntax/supported/html/incremental.html"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -1436,11 +1396,8 @@ static int test_editor_syntax_incremental_edits_keep_html_tree_valid(void) {
 
 static int test_editor_syntax_incremental_edits_keep_javascript_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-js-XXXXXX.js";
-	int fd = mkstemps(path, 3);
-	ASSERT_TRUE(fd != -1);
-	const char *source = "function main() {\n\treturn 1;\n}\n";
-	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
-	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/javascript/incremental.js"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -1465,11 +1422,8 @@ static int test_editor_syntax_incremental_edits_keep_javascript_tree_valid(void)
 
 static int test_editor_syntax_incremental_edits_keep_css_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-css-XXXXXX.css";
-	int fd = mkstemps(path, 4);
-	ASSERT_TRUE(fd != -1);
-	const char *source = ".box { color: red; }\n";
-	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
-	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+			"tests/syntax/supported/css/incremental.css"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -1494,15 +1448,8 @@ static int test_editor_syntax_incremental_edits_keep_css_tree_valid(void) {
 
 static int test_editor_syntax_incremental_edits_keep_go_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-go-XXXXXX.go";
-	int fd = mkstemps(path, 3);
-	ASSERT_TRUE(fd != -1);
-	const char *source =
-			"package main\n\n"
-			"func main() {\n"
-			"\tvar n int = 1\n"
-			"}\n";
-	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
-	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/go/incremental.go"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -1579,20 +1526,8 @@ static int test_editor_syntax_parse_budget_is_graceful(void) {
 
 static int test_editor_syntax_visible_cache_recomputes_only_changed_rows(void) {
 	char path[] = "/tmp/rotide-test-syntax-visible-cache-XXXXXX.c";
-	int fd = mkstemps(path, 2);
-	ASSERT_TRUE(fd != -1);
-	const char *source =
-			"int alpha(void) {\n"
-			"  return 1;\n"
-			"}\n"
-			"int beta(void) {\n"
-			"  return 2;\n"
-			"}\n"
-			"int gamma(void) {\n"
-			"  return 3;\n"
-			"}\n";
-	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
-	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
+			"tests/syntax/supported/c/visible_cache.c"));
 
 	editorOpen(path);
 	E.window_rows = 6;
@@ -1620,11 +1555,8 @@ static int test_editor_syntax_visible_cache_recomputes_only_changed_rows(void) {
 
 static int test_editor_syntax_undo_redo_preserves_tree(void) {
 	char path[] = "/tmp/rotide-test-syntax-history-XXXXXX.c";
-	int fd = mkstemps(path, 2);
-	ASSERT_TRUE(fd != -1);
-	const char *source = "int value = 1;\n";
-	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
-	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
+			"tests/syntax/supported/c/history.c"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -1650,11 +1582,8 @@ static int test_editor_syntax_undo_redo_preserves_tree(void) {
 
 static int test_editor_syntax_undo_redo_preserves_shell_tree(void) {
 	char path[] = "/tmp/rotide-test-syntax-history-shell-XXXXXX.sh";
-	int fd = mkstemps(path, 3);
-	ASSERT_TRUE(fd != -1);
-	const char *source = "#!/usr/bin/env bash\necho one\n";
-	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
-	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/bash/history.sh"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -1683,11 +1612,8 @@ static int test_editor_tabs_keep_independent_syntax_states(void) {
 	ASSERT_TRUE(editorTabsInit());
 
 	char c_path[] = "/tmp/rotide-test-syntax-tabs-c-XXXXXX.c";
-	int c_fd = mkstemps(c_path, 2);
-	ASSERT_TRUE(c_fd != -1);
-	const char *c_source = "int alpha;\n";
-	ASSERT_TRUE(write_all(c_fd, c_source, strlen(c_source)) == 0);
-	ASSERT_TRUE(close(c_fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(c_path, 2,
+			"tests/syntax/supported/c/activation.c"));
 
 	char txt_path[] = "/tmp/rotide-test-syntax-tabs-txt-XXXXXX.txt";
 	int txt_fd = mkstemps(txt_path, 4);
@@ -1722,18 +1648,12 @@ static int test_editor_tabs_keep_shell_and_c_syntax_states(void) {
 	ASSERT_TRUE(editorTabsInit());
 
 	char sh_path[] = "/tmp/rotide-test-syntax-tabs-shell-XXXXXX.sh";
-	int sh_fd = mkstemps(sh_path, 3);
-	ASSERT_TRUE(sh_fd != -1);
-	const char *sh_source = "#!/usr/bin/env bash\necho shell\n";
-	ASSERT_TRUE(write_all(sh_fd, sh_source, strlen(sh_source)) == 0);
-	ASSERT_TRUE(close(sh_fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(sh_path, 3,
+			"tests/syntax/supported/bash/tab.sh"));
 
 	char c_path[] = "/tmp/rotide-test-syntax-tabs-c2-XXXXXX.c";
-	int c_fd = mkstemps(c_path, 2);
-	ASSERT_TRUE(c_fd != -1);
-	const char *c_source = "int beta;\n";
-	ASSERT_TRUE(write_all(c_fd, c_source, strlen(c_source)) == 0);
-	ASSERT_TRUE(close(c_fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(c_path, 2,
+			"tests/syntax/supported/c/activation.c"));
 
 	editorOpen(sh_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -1762,20 +1682,12 @@ static int test_editor_tabs_keep_web_and_c_syntax_states(void) {
 	ASSERT_TRUE(editorTabsInit());
 
 	char html_path[] = "/tmp/rotide-test-syntax-tabs-html-XXXXXX.html";
-	int html_fd = mkstemps(html_path, 5);
-	ASSERT_TRUE(html_fd != -1);
-	const char *html_source =
-			"<script>const value = 1; document;</script>\n"
-			"<style>.box { color: red; }</style>\n";
-	ASSERT_TRUE(write_all(html_fd, html_source, strlen(html_source)) == 0);
-	ASSERT_TRUE(close(html_fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(html_path, 5,
+			"tests/syntax/supported/html/tab.html"));
 
 	char c_path[] = "/tmp/rotide-test-syntax-tabs-c3-XXXXXX.c";
-	int c_fd = mkstemps(c_path, 2);
-	ASSERT_TRUE(c_fd != -1);
-	const char *c_source = "int gamma;\n";
-	ASSERT_TRUE(write_all(c_fd, c_source, strlen(c_source)) == 0);
-	ASSERT_TRUE(close(c_fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(c_path, 2,
+			"tests/syntax/supported/c/activation.c"));
 
 	editorOpen(html_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -7199,16 +7111,8 @@ static int test_editor_refresh_screen_highlights_active_search_match(void) {
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_c_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-c-XXXXXX.c";
-	int fd = mkstemps(path, 2);
-	ASSERT_TRUE(fd != -1);
-	const char *source =
-			"int main(void) {\n"
-			"  // comment\n"
-			"  const char *s = \"txt\";\n"
-			"  return 42;\n"
-			"}\n";
-	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
-	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
+			"tests/syntax/supported/c/highlight.c"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -7233,16 +7137,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_c_tokens(v
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_shell_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-shell-XXXXXX.sh";
-	int fd = mkstemps(path, 3);
-	ASSERT_TRUE(fd != -1);
-	const char *source =
-			"#!/usr/bin/env bash\n"
-			"myfn() { echo -n 'txt'; }\n"
-			"if [ $HOME = \"/tmp\" ]; then\n"
-			"  myfn | cat # comment\n"
-			"fi\n";
-	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
-	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/bash/highlight.sh"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -7266,14 +7162,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_shell_toke
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_html_with_injections(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-html-XXXXXX.html";
-	int fd = mkstemps(path, 5);
-	ASSERT_TRUE(fd != -1);
-	const char *source =
-			"<div class=\"box\">Hello</div>\n"
-			"<script>const value = 42; document;</script>\n"
-			"<style>.box { color: red; }</style>\n";
-	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
-	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
+			"tests/syntax/supported/html/highlight.html"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -7298,12 +7188,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_html_with_
 
 static int test_editor_refresh_screen_html_text_apostrophe_not_javascript_string(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-html-apostrophe-XXXXXX.html";
-	int fd = mkstemps(path, 5);
-	ASSERT_TRUE(fd != -1);
-	const char *source =
-			"<p>Let's keep this plain text.</p>\n";
-	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
-	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
+			"tests/syntax/supported/html/apostrophe.html"));
 
 	editorOpen(path);
 	E.window_rows = 4;
@@ -7325,14 +7211,8 @@ static int test_editor_refresh_screen_html_text_apostrophe_not_javascript_string
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_javascript_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-js-XXXXXX.js";
-	int fd = mkstemps(path, 3);
-	ASSERT_TRUE(fd != -1);
-	const char *source =
-			"function main() {\n"
-			"  return 42;\n"
-			"}\n";
-	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
-	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/javascript/highlight.js"));
 
 	editorOpen(path);
 	E.window_rows = 6;
@@ -7355,11 +7235,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_javascript
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_css_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-css-XXXXXX.css";
-	int fd = mkstemps(path, 4);
-	ASSERT_TRUE(fd != -1);
-	const char *source = ".box { color: red; }\n";
-	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
-	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+			"tests/syntax/supported/css/highlight.css"));
 
 	editorOpen(path);
 	E.window_rows = 4;
@@ -7380,20 +7257,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_css_tokens
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_go_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-go-XXXXXX.go";
-	int fd = mkstemps(path, 3);
-	ASSERT_TRUE(fd != -1);
-	const char *source =
-			"package main\n"
-			"// comment\n"
-			"type payload struct{}\n"
-			"func main() {\n"
-			"  var p payload\n"
-			"  p = payload{}\n"
-			"  n := 42\n"
-			"  s := \"txt\"\n"
-			"}\n";
-	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
-	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/go/highlight.go"));
 
 	editorOpen(path);
 	E.window_rows = 12;
@@ -7418,18 +7283,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_go_tokens(
 
 static int test_editor_refresh_screen_javascript_predicates_and_locals(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-js-pred-XXXXXX.js";
-	int fd = mkstemps(path, 3);
-	ASSERT_TRUE(fd != -1);
-	const char *source =
-			"function demo() {\n"
-			"  const window = 1;\n"
-			"  window;\n"
-			"}\n"
-			"document;\n"
-			"const lower = 1;\n"
-			"const Upper = 2;\n";
-	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
-	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/javascript/predicates.js"));
 
 	editorOpen(path);
 	E.window_rows = 10;
@@ -7452,16 +7307,8 @@ static int test_editor_refresh_screen_javascript_predicates_and_locals(void) {
 
 static int test_editor_refresh_screen_javascript_predicates_repeat_refresh(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-js-repeat-XXXXXX.js";
-	int fd = mkstemps(path, 3);
-	ASSERT_TRUE(fd != -1);
-	const char *source =
-			"function demo() {\n"
-			"  const window = 1;\n"
-			"  window;\n"
-			"}\n"
-			"document;\n";
-	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
-	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/javascript/repeat_refresh.js"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -7523,11 +7370,8 @@ static int test_editor_refresh_screen_reports_query_budget_throttle_status(void)
 
 static int test_editor_refresh_screen_plain_text_file_has_no_syntax_highlighting(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-txt-XXXXXX.txt";
-	int fd = mkstemps(path, 4);
-	ASSERT_TRUE(fd != -1);
-	const char *source = "int main(void) { return 42; }\n";
-	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
-	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+			"tests/syntax/supported/c/activation.c"));
 
 	editorOpen(path);
 	E.window_rows = 4;
@@ -7549,11 +7393,8 @@ static int test_editor_refresh_screen_plain_text_file_has_no_syntax_highlighting
 
 static int test_editor_refresh_screen_shell_selection_and_search_override_syntax_colors(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-priority-shell-XXXXXX.sh";
-	int fd = mkstemps(path, 3);
-	ASSERT_TRUE(fd != -1);
-	const char *source = "if true; then echo -n \"$HOME\"; fi\n";
-	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
-	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/bash/priority.sh"));
 
 	editorOpen(path);
 	E.window_rows = 4;
@@ -7596,11 +7437,8 @@ static int test_editor_refresh_screen_shell_selection_and_search_override_syntax
 
 static int test_editor_refresh_screen_selection_and_search_override_syntax_colors(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-priority-XXXXXX.c";
-	int fd = mkstemps(path, 2);
-	ASSERT_TRUE(fd != -1);
-	const char *source = "return 42;\n";
-	ASSERT_TRUE(write_all(fd, source, strlen(source)) == 0);
-	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
+			"tests/syntax/supported/c/priority.c"));
 
 	editorOpen(path);
 	E.window_rows = 4;
@@ -8518,6 +8356,13 @@ struct testCase {
 
 int main(void) {
 	setlocale(LC_CTYPE, "");
+	char *startup_cwd = getcwd(NULL, 0);
+	if (startup_cwd == NULL) {
+		fprintf(stderr, "Failed to capture startup cwd: %s\n", strerror(errno));
+		return EXIT_FAILURE;
+	}
+	testHelpersInitPaths(startup_cwd);
+	free(startup_cwd);
 
 	const struct testCase tests[] = {
 		{"utf8_decode_valid_sequences", test_utf8_decode_valid_sequences},

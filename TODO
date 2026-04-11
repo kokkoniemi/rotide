@@ -7,3 +7,4 @@
 - FEATURE: Add configurable auto-indentation (tabs/spaces + indent width) for newline insertion and pasted blocks.
 - FEATURE: Add bracket/quote pair assistance: auto-close pairs, skip-over closing pairs, and jump to matching bracket.
 - FEATURE: Add line numbers and current-line highlight (toggleable) to improve code navigation and context.
+- FEATURE: When focus is in drawer and scrolling with mouse, scroll the drawer instead of editor screen.

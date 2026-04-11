@@ -15,6 +15,8 @@
 #include <string.h>
 #include <unistd.h>
 
+static char *g_test_repo_root = NULL;
+
 void clear_editor_state(void) {
 	editorDrawerShutdown();
 	editorRecoveryShutdown();
@@ -245,6 +247,69 @@ char *read_file_contents(const char *path, size_t *len_out) {
 	char *contents = read_all_fd(fd, len_out);
 	close(fd);
 	return contents;
+}
+
+void testHelpersInitPaths(const char *startup_cwd) {
+	free(g_test_repo_root);
+	g_test_repo_root = NULL;
+
+	if (startup_cwd == NULL) {
+		return;
+	}
+
+	g_test_repo_root = strdup(startup_cwd);
+}
+
+char *testResolveRepoPath(const char *relative_path) {
+	if (g_test_repo_root == NULL || relative_path == NULL || relative_path[0] == '\0') {
+		return NULL;
+	}
+
+	size_t root_len = strlen(g_test_repo_root);
+	size_t rel_len = strlen(relative_path);
+	int needs_slash = root_len > 0 && g_test_repo_root[root_len - 1] != '/';
+	size_t total_len = root_len + (size_t)needs_slash + rel_len;
+	char *path = malloc(total_len + 1);
+	if (path == NULL) {
+		return NULL;
+	}
+
+	memcpy(path, g_test_repo_root, root_len);
+	if (needs_slash) {
+		path[root_len] = '/';
+	}
+	memcpy(path + root_len + (size_t)needs_slash, relative_path, rel_len);
+	path[total_len] = '\0';
+	return path;
+}
+
+int copyTestFixtureToPath(const char *fixture_relative_path, const char *target_path) {
+	if (target_path == NULL) {
+		return 0;
+	}
+
+	char *fixture_path = testResolveRepoPath(fixture_relative_path);
+	if (fixture_path == NULL) {
+		return 0;
+	}
+
+	size_t content_len = 0;
+	char *contents = read_file_contents(fixture_path, &content_len);
+	free(fixture_path);
+	if (contents == NULL) {
+		return 0;
+	}
+
+	int fd = open(target_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+	if (fd == -1) {
+		free(contents);
+		return 0;
+	}
+
+	int write_ok = write_all(fd, contents, content_len) == 0;
+	free(contents);
+	int close_ok = close(fd) == 0;
+	return write_ok && close_ok;
 }
 
 int editor_read_key_with_input(const char *input, size_t len, int *key_out) {
