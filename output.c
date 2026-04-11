@@ -1663,7 +1663,7 @@ static int editorBuildFileRowLine(struct writeBuf *wb, int y, int drawer_cols, i
 }
 
 static int editorDrawRows(struct writeBuf *wb) {
-	(void)editorDrawerMoveSelectionBy(0, E.window_rows + 1);
+	editorDrawerClampViewport(E.window_rows + 1);
 	(void)editorSyntaxPrepareVisibleRowSpans(E.rowoff, E.window_rows);
 
 	int drawer_cols = editorDrawerWidthForCols(E.window_cols);

@@ -60,6 +60,19 @@ static void editorExpandDrawerForFocus(void) {
 	E.pane_focus = EDITOR_PANE_DRAWER;
 }
 
+static int editorMouseIsOverDrawer(const struct editorMouseEvent *event) {
+	if (event == NULL) {
+		return 0;
+	}
+
+	int mouse_col = event->x - 1;
+	int drawer_cols = editorDrawerWidthForCols(E.window_cols);
+	int drawer_view_rows = E.window_rows + 1;
+	int drawer_row = event->y - 1;
+	return drawer_row >= 0 && drawer_row < drawer_view_rows &&
+			mouse_col >= 0 && mouse_col < drawer_cols;
+}
+
 static size_t editorPromptPrevDeleteIdx(const char *buf, size_t buflen) {
 	if (buflen == 0) {
 		return 0;
@@ -1215,16 +1228,18 @@ static int editorHandleMouseLeftRelease(void) {
 }
 
 static int editorHandleMouseWheel(const struct editorMouseEvent *event) {
+	int over_drawer = editorMouseIsOverDrawer(event);
+
 	switch (event->kind) {
 		case EDITOR_MOUSE_EVENT_WHEEL_UP:
-			if (E.pane_focus == EDITOR_PANE_DRAWER) {
+			if (over_drawer) {
 				(void)editorDrawerScrollBy(-MOUSE_WHEEL_SCROLL_LINES, E.window_rows + 1);
 				break;
 			}
 			editorViewportScrollByRows(-MOUSE_WHEEL_SCROLL_LINES);
 			break;
 		case EDITOR_MOUSE_EVENT_WHEEL_DOWN:
-			if (E.pane_focus == EDITOR_PANE_DRAWER) {
+			if (over_drawer) {
 				(void)editorDrawerScrollBy(MOUSE_WHEEL_SCROLL_LINES, E.window_rows + 1);
 				break;
 			}

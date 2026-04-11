@@ -3985,7 +3985,7 @@ static int editorDrawerLookupByVisibleIndex(int visible_idx, struct editorDrawer
 			lookup_out);
 }
 
-static void editorDrawerClampSelectionAndScroll(int viewport_rows) {
+void editorDrawerClampViewport(int viewport_rows) {
 	int visible_count = editorDrawerVisibleCount();
 	if (visible_count <= 0) {
 		E.drawer_selected_index = 0;
@@ -4013,6 +4013,23 @@ static void editorDrawerClampSelectionAndScroll(int viewport_rows) {
 	}
 	if (E.drawer_rowoff < 0) {
 		E.drawer_rowoff = 0;
+	}
+}
+
+static void editorDrawerClampSelectionAndScroll(int viewport_rows) {
+	editorDrawerClampViewport(viewport_rows);
+
+	int visible_count = editorDrawerVisibleCount();
+	if (visible_count <= 0) {
+		return;
+	}
+
+	if (viewport_rows < 1) {
+		viewport_rows = 1;
+	}
+	int max_rowoff = visible_count - viewport_rows;
+	if (max_rowoff < 0) {
+		max_rowoff = 0;
 	}
 
 	if (E.drawer_selected_index < E.drawer_rowoff) {

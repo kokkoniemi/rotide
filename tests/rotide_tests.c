@@ -5845,20 +5845,23 @@ static int test_editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clam
 	E.cx = 0;
 	E.rowoff = 0;
 
-	const char wheel_down[] = "\x1b[<65;1;1M";
-	ASSERT_TRUE(editor_process_keypress_with_input(wheel_down, sizeof(wheel_down) - 1) == 0);
+	int text_x = editorTextBodyStartColForCols(E.window_cols) + 1;
+	char wheel_down[32];
+	ASSERT_TRUE(format_sgr_mouse_event(wheel_down, sizeof(wheel_down), 65, text_x, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_down, strlen(wheel_down)) == 0);
 	ASSERT_EQ_INT(4, E.cy);
 	ASSERT_EQ_INT(3, E.rowoff);
 	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
 
 	E.rowoff = 8;
-	ASSERT_TRUE(editor_process_keypress_with_input(wheel_down, sizeof(wheel_down) - 1) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_down, strlen(wheel_down)) == 0);
 	ASSERT_EQ_INT(9, E.rowoff);
 	ASSERT_EQ_INT(4, E.cy);
 
-	const char wheel_up[] = "\x1b[<64;1;1M";
+	char wheel_up[32];
+	ASSERT_TRUE(format_sgr_mouse_event(wheel_up, sizeof(wheel_up), 64, text_x, 2, 'M'));
 	E.rowoff = 1;
-	ASSERT_TRUE(editor_process_keypress_with_input(wheel_up, sizeof(wheel_up) - 1) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_up, strlen(wheel_up)) == 0);
 	ASSERT_EQ_INT(0, E.rowoff);
 	ASSERT_EQ_INT(4, E.cy);
 	return 0;
@@ -5872,27 +5875,30 @@ static int test_editor_process_keypress_mouse_wheel_scrolls_horizontally_and_cla
 	E.cx = 5;
 	E.coloff = 0;
 
-	const char wheel_right[] = "\x1b[<67;1;1M";
-	ASSERT_TRUE(editor_process_keypress_with_input(wheel_right, sizeof(wheel_right) - 1) == 0);
+	int text_x = editorTextBodyStartColForCols(E.window_cols) + 1;
+	char wheel_right[32];
+	ASSERT_TRUE(format_sgr_mouse_event(wheel_right, sizeof(wheel_right), 67, text_x, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_right, strlen(wheel_right)) == 0);
 	ASSERT_EQ_INT(5, E.cx);
 	ASSERT_EQ_INT(3, E.coloff);
 	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
 
 	E.coloff = 24;
-	ASSERT_TRUE(editor_process_keypress_with_input(wheel_right, sizeof(wheel_right) - 1) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_right, strlen(wheel_right)) == 0);
 	ASSERT_EQ_INT(25, E.coloff);
 
-	const char wheel_left[] = "\x1b[<66;1;1M";
-	ASSERT_TRUE(editor_process_keypress_with_input(wheel_left, sizeof(wheel_left) - 1) == 0);
+	char wheel_left[32];
+	ASSERT_TRUE(format_sgr_mouse_event(wheel_left, sizeof(wheel_left), 66, text_x, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_left, strlen(wheel_left)) == 0);
 	ASSERT_EQ_INT(22, E.coloff);
 
 	E.coloff = 1;
-	ASSERT_TRUE(editor_process_keypress_with_input(wheel_left, sizeof(wheel_left) - 1) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_left, strlen(wheel_left)) == 0);
 	ASSERT_EQ_INT(0, E.coloff);
 	return 0;
 }
 
-static int test_editor_process_keypress_mouse_wheel_scrolls_drawer_when_focused(void) {
+static int test_editor_process_keypress_mouse_wheel_scrolls_drawer_when_hovered(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
 
@@ -5915,14 +5921,14 @@ static int test_editor_process_keypress_mouse_wheel_scrolls_drawer_when_focused(
 	E.drawer_rowoff = 0;
 
 	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
-	E.pane_focus = EDITOR_PANE_DRAWER;
+	E.pane_focus = EDITOR_PANE_TEXT;
 
-	const char wheel_down[] = "\x1b[<65;1;1M";
+	const char wheel_down[] = "\x1b[<65;1;2M";
 	ASSERT_TRUE(editor_process_keypress_with_input(wheel_down, sizeof(wheel_down) - 1) == 0);
 	ASSERT_EQ_INT(3, E.drawer_rowoff);
 	ASSERT_EQ_INT(2, E.rowoff);
 
-	const char wheel_up[] = "\x1b[<64;1;1M";
+	const char wheel_up[] = "\x1b[<64;1;2M";
 	ASSERT_TRUE(editor_process_keypress_with_input(wheel_up, sizeof(wheel_up) - 1) == 0);
 	ASSERT_EQ_INT(0, E.drawer_rowoff);
 	ASSERT_EQ_INT(2, E.rowoff);
@@ -5935,6 +5941,74 @@ static int test_editor_process_keypress_mouse_wheel_scrolls_drawer_when_focused(
 		ASSERT_TRUE(unlink(path) == 0);
 	}
 	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_wheel_scrolls_drawer_with_empty_buffer(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	for (int i = 0; i < 12; i++) {
+		char name[32];
+		char path[512];
+		ASSERT_TRUE(snprintf(name, sizeof(name), "file-%02d.txt", i) > 0);
+		ASSERT_TRUE(path_join(path, sizeof(path), env.project_dir, name));
+		ASSERT_TRUE(write_text_file(path, "x\n"));
+	}
+
+	E.window_rows = 4;
+	E.window_cols = 30;
+	E.drawer_rowoff = 0;
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_EQ_INT(0, E.numrows);
+	ASSERT_EQ_INT(0, E.drawer_selected_index);
+
+	const char wheel_down[] = "\x1b[<65;1;2M";
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_down, sizeof(wheel_down) - 1) == 0);
+	ASSERT_EQ_INT(3, E.drawer_rowoff);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	free(output);
+	ASSERT_EQ_INT(3, E.drawer_rowoff);
+
+	for (int i = 0; i < 12; i++) {
+		char name[32];
+		char path[512];
+		ASSERT_TRUE(snprintf(name, sizeof(name), "file-%02d.txt", i) > 0);
+		ASSERT_TRUE(path_join(path, sizeof(path), env.project_dir, name));
+		ASSERT_TRUE(unlink(path) == 0);
+	}
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_wheel_scrolls_text_when_hovered_even_if_drawer_focused(void) {
+	for (int i = 0; i < 10; i++) {
+		add_row("line");
+	}
+	E.window_rows = 5;
+	E.window_cols = 30;
+	E.cy = 4;
+	E.cx = 0;
+	E.rowoff = 0;
+	E.drawer_rowoff = 2;
+	E.pane_focus = EDITOR_PANE_DRAWER;
+
+	int text_x = editorTextBodyStartColForCols(E.window_cols) + 1;
+	char wheel_down[32];
+	ASSERT_TRUE(format_sgr_mouse_event(wheel_down, sizeof(wheel_down), 65, text_x, 3, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_down, strlen(wheel_down)) == 0);
+	ASSERT_EQ_INT(3, E.rowoff);
+	ASSERT_EQ_INT(2, E.drawer_rowoff);
+
+	char wheel_up[32];
+	ASSERT_TRUE(format_sgr_mouse_event(wheel_up, sizeof(wheel_up), 64, text_x, 3, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_up, strlen(wheel_up)) == 0);
+	ASSERT_EQ_INT(0, E.rowoff);
+	ASSERT_EQ_INT(2, E.drawer_rowoff);
 	return 0;
 }
 
@@ -5996,8 +6070,10 @@ static int test_editor_process_keypress_free_scroll_can_leave_cursor_offscreen(v
 	E.cx = 0;
 	E.rowoff = 0;
 
-	const char wheel_down[] = "\x1b[<65;1;1M";
-	ASSERT_TRUE(editor_process_keypress_with_input(wheel_down, sizeof(wheel_down) - 1) == 0);
+	int text_x = editorTextBodyStartColForCols(E.window_cols) + 1;
+	char wheel_down[32];
+	ASSERT_TRUE(format_sgr_mouse_event(wheel_down, sizeof(wheel_down), 65, text_x, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_down, strlen(wheel_down)) == 0);
 	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
 	ASSERT_TRUE(E.cy < E.rowoff);
 	return 0;
@@ -6013,8 +6089,10 @@ static int test_editor_process_keypress_cursor_move_resyncs_follow_scroll(void) 
 	E.cx = 0;
 	E.rowoff = 0;
 
-	const char wheel_down[] = "\x1b[<65;1;1M";
-	ASSERT_TRUE(editor_process_keypress_with_input(wheel_down, sizeof(wheel_down) - 1) == 0);
+	int text_x = editorTextBodyStartColForCols(E.window_cols) + 1;
+	char wheel_down[32];
+	ASSERT_TRUE(format_sgr_mouse_event(wheel_down, sizeof(wheel_down), 65, text_x, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_down, strlen(wheel_down)) == 0);
 	ASSERT_TRUE(E.cy < E.rowoff);
 	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
 
@@ -6038,8 +6116,10 @@ static int test_editor_process_keypress_edit_resyncs_follow_scroll(void) {
 	E.cx = 0;
 	E.rowoff = 0;
 
-	const char wheel_down[] = "\x1b[<65;1;1M";
-	ASSERT_TRUE(editor_process_keypress_with_input(wheel_down, sizeof(wheel_down) - 1) == 0);
+	int text_x = editorTextBodyStartColForCols(E.window_cols) + 1;
+	char wheel_down[32];
+	ASSERT_TRUE(format_sgr_mouse_event(wheel_down, sizeof(wheel_down), 65, text_x, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_down, strlen(wheel_down)) == 0);
 	ASSERT_TRUE(E.cy < E.rowoff);
 	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
 
@@ -9095,8 +9175,12 @@ int main(void) {
 				test_editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps},
 			{"editor_process_keypress_mouse_wheel_scrolls_horizontally_and_clamps",
 				test_editor_process_keypress_mouse_wheel_scrolls_horizontally_and_clamps},
-			{"editor_process_keypress_mouse_wheel_scrolls_drawer_when_focused",
-				test_editor_process_keypress_mouse_wheel_scrolls_drawer_when_focused},
+			{"editor_process_keypress_mouse_wheel_scrolls_drawer_when_hovered",
+				test_editor_process_keypress_mouse_wheel_scrolls_drawer_when_hovered},
+			{"editor_process_keypress_mouse_wheel_scrolls_drawer_with_empty_buffer",
+				test_editor_process_keypress_mouse_wheel_scrolls_drawer_with_empty_buffer},
+			{"editor_process_keypress_mouse_wheel_scrolls_text_when_hovered_even_if_drawer_focused",
+				test_editor_process_keypress_mouse_wheel_scrolls_text_when_hovered_even_if_drawer_focused},
 			{"editor_process_keypress_page_up_down_scroll_viewport_without_moving_cursor",
 				test_editor_process_keypress_page_up_down_scroll_viewport_without_moving_cursor},
 			{"editor_process_keypress_ctrl_arrow_scrolls_horizontally_without_moving_cursor",
