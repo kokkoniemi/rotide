@@ -1,6 +1,7 @@
 #include "rotide.h"
 
 #include "buffer.h"
+#include "document.h"
 #include "input.h"
 #include "keymap.h"
 #include "lsp.h"
@@ -511,6 +512,133 @@ static int test_utf8_decode_invalid_sequences(void) {
 	ASSERT_EQ_INT(1, editorUtf8DecodeCodepoint(overlong, (int)sizeof(overlong) - 1, &cp));
 	ASSERT_EQ_INT(0xC0, cp);
 
+	return 0;
+}
+
+static int test_rope_copy_and_dup_range(void) {
+	struct editorRope rope;
+	editorRopeInit(&rope);
+
+	ASSERT_TRUE(editorRopeResetFromString(&rope, "hello world", strlen("hello world")));
+	ASSERT_EQ_INT((int)strlen("hello world"), (int)editorRopeLength(&rope));
+
+	uint32_t read_len = 0;
+	const char *chunk = editorRopeRead(&rope, 6, &read_len);
+	ASSERT_TRUE(chunk != NULL);
+	ASSERT_EQ_INT(5, read_len);
+	ASSERT_TRUE(strncmp(chunk, "world", 5) == 0);
+
+	char copy[6] = {0};
+	ASSERT_TRUE(editorRopeCopyRange(&rope, 0, 5, copy));
+	ASSERT_EQ_STR("hello", copy);
+
+	size_t dup_len = 0;
+	char *dup = editorRopeDupRange(&rope, 6, 11, &dup_len);
+	ASSERT_TRUE(dup != NULL);
+	ASSERT_EQ_INT(5, (int)dup_len);
+	ASSERT_EQ_STR("world", dup);
+
+	free(dup);
+	editorRopeFree(&rope);
+	return 0;
+}
+
+static int test_rope_replace_range_across_large_text(void) {
+	struct editorRope rope;
+	editorRopeInit(&rope);
+
+	size_t source_len = 2400;
+	char *source = malloc(source_len + 1);
+	ASSERT_TRUE(source != NULL);
+	for (size_t i = 0; i < source_len; i++) {
+		source[i] = (char)('a' + (int)(i % 26));
+	}
+	source[source_len] = '\0';
+
+	ASSERT_TRUE(editorRopeResetFromString(&rope, source, source_len));
+	ASSERT_TRUE(editorRopeReplaceRange(&rope, 900, 700, "XYZ", 3));
+	ASSERT_EQ_INT((int)(source_len - 700 + 3), (int)editorRopeLength(&rope));
+
+	size_t full_len = 0;
+	char *full = editorRopeDupRange(&rope, 0, editorRopeLength(&rope), &full_len);
+	ASSERT_TRUE(full != NULL);
+	ASSERT_EQ_INT((int)(source_len - 700 + 3), (int)full_len);
+	ASSERT_TRUE(memcmp(full, source, 900) == 0);
+	ASSERT_TRUE(memcmp(full + 900, "XYZ", 3) == 0);
+	ASSERT_TRUE(memcmp(full + 903, source + 1600, source_len - 1600) == 0);
+
+	free(full);
+	free(source);
+	editorRopeFree(&rope);
+	return 0;
+}
+
+static int test_document_line_index_tracks_blank_lines_and_trailing_newline(void) {
+	struct editorDocument document;
+	editorDocumentInit(&document);
+
+	const char *text = "alpha\n\nbeta\ngamma\n";
+	ASSERT_TRUE(editorDocumentResetFromString(&document, text, strlen(text)));
+	ASSERT_EQ_INT((int)strlen(text), (int)editorDocumentLength(&document));
+	ASSERT_EQ_INT(4, editorDocumentLineCount(&document));
+
+	size_t line_start = 0;
+	ASSERT_TRUE(editorDocumentLineStartByte(&document, 0, &line_start));
+	ASSERT_EQ_INT(0, (int)line_start);
+	ASSERT_TRUE(editorDocumentLineStartByte(&document, 1, &line_start));
+	ASSERT_EQ_INT(6, (int)line_start);
+	ASSERT_TRUE(editorDocumentLineStartByte(&document, 2, &line_start));
+	ASSERT_EQ_INT(7, (int)line_start);
+	ASSERT_TRUE(editorDocumentLineStartByte(&document, 3, &line_start));
+	ASSERT_EQ_INT(12, (int)line_start);
+
+	int line_idx = -1;
+	ASSERT_TRUE(editorDocumentLineIndexForByteOffset(&document, 0, &line_idx));
+	ASSERT_EQ_INT(0, line_idx);
+	ASSERT_TRUE(editorDocumentLineIndexForByteOffset(&document, 6, &line_idx));
+	ASSERT_EQ_INT(1, line_idx);
+	ASSERT_TRUE(editorDocumentLineIndexForByteOffset(&document, 8, &line_idx));
+	ASSERT_EQ_INT(2, line_idx);
+	ASSERT_TRUE(editorDocumentLineIndexForByteOffset(&document, 16, &line_idx));
+	ASSERT_EQ_INT(3, line_idx);
+
+	editorDocumentFree(&document);
+	return 0;
+}
+
+static int test_document_replace_range_updates_text_and_line_index(void) {
+	struct editorDocument document;
+	editorDocumentInit(&document);
+
+	const char *text = "one\ntwo\nthree\n";
+	ASSERT_TRUE(editorDocumentResetFromString(&document, text, strlen(text)));
+	ASSERT_TRUE(editorDocumentReplaceRange(&document, 4, 4, "two\n2b\n", 7));
+	ASSERT_EQ_INT(4, editorDocumentLineCount(&document));
+
+	size_t line_start = 0;
+	ASSERT_TRUE(editorDocumentLineStartByte(&document, 0, &line_start));
+	ASSERT_EQ_INT(0, (int)line_start);
+	ASSERT_TRUE(editorDocumentLineStartByte(&document, 1, &line_start));
+	ASSERT_EQ_INT(4, (int)line_start);
+	ASSERT_TRUE(editorDocumentLineStartByte(&document, 2, &line_start));
+	ASSERT_EQ_INT(8, (int)line_start);
+	ASSERT_TRUE(editorDocumentLineStartByte(&document, 3, &line_start));
+	ASSERT_EQ_INT(11, (int)line_start);
+
+	size_t full_len = 0;
+	char *full = editorDocumentDupRange(&document, 0, editorDocumentLength(&document), &full_len);
+	ASSERT_TRUE(full != NULL);
+	ASSERT_EQ_INT((int)strlen("one\ntwo\n2b\nthree\n"), (int)full_len);
+	ASSERT_EQ_STR("one\ntwo\n2b\nthree\n", full);
+
+	int line_idx = -1;
+	ASSERT_TRUE(editorDocumentLineIndexForByteOffset(&document, 10, &line_idx));
+	ASSERT_EQ_INT(2, line_idx);
+	ASSERT_TRUE(editorDocumentLineIndexForByteOffset(&document, full_len, &line_idx));
+	ASSERT_EQ_INT(3, line_idx);
+
+	free(full);
+	editorDocumentFree(&document);
 	return 0;
 }
 
@@ -8952,6 +9080,12 @@ int main(void) {
 	const struct testCase tests[] = {
 		{"utf8_decode_valid_sequences", test_utf8_decode_valid_sequences},
 		{"utf8_decode_invalid_sequences", test_utf8_decode_invalid_sequences},
+		{"rope_copy_and_dup_range", test_rope_copy_and_dup_range},
+		{"rope_replace_range_across_large_text", test_rope_replace_range_across_large_text},
+		{"document_line_index_tracks_blank_lines_and_trailing_newline",
+			test_document_line_index_tracks_blank_lines_and_trailing_newline},
+		{"document_replace_range_updates_text_and_line_index",
+			test_document_replace_range_updates_text_and_line_index},
 		{"utf8_continuation_detection", test_utf8_continuation_detection},
 		{"grapheme_extend_classification", test_grapheme_extend_classification},
 		{"char_display_width_basics", test_char_display_width_basics},
