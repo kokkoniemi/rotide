@@ -124,8 +124,13 @@ void editorDocumentMirrorTestResetStats(void);
 int editorDocumentMirrorTestFullRebuildCount(void);
 int editorDocumentMirrorTestIncrementalUpdateCount(void);
 int editorDocumentMirrorTestRowSourceRebuildCount(void);
+void editorActiveTextSourceBuildTestResetCount(void);
+int editorActiveTextSourceBuildTestCount(void);
 void editorActiveTextSourceDupTestResetCount(void);
 int editorActiveTextSourceDupTestCount(void);
+void editorSnapshotCaptureTestResetStats(void);
+int editorSnapshotCaptureTestDocumentCloneCount(void);
+int editorSnapshotCaptureTestTextSourceBuildCount(void);
 int editorBufferMaxRenderCols(void);
 
 int editorGetSelectionRange(struct editorSelectionRange *range_out);

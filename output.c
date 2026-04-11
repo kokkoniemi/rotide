@@ -813,6 +813,51 @@ static int editorSelectionSpanForRow(int row_idx, int *start_out, int *end_out) 
 	return 1;
 }
 
+static int editorSearchSpanForRow(int row_idx, int *start_out, int *end_out) {
+	if (row_idx < 0 || row_idx >= E.numrows || E.search_match_len <= 0) {
+		return 0;
+	}
+
+	int start_row = 0;
+	int start_col = 0;
+	if (!editorBufferOffsetToPos(E.search_match_offset, &start_row, &start_col)) {
+		return 0;
+	}
+
+	size_t end_offset = E.search_match_offset + (size_t)E.search_match_len;
+	int end_row = 0;
+	int end_col = 0;
+	if (!editorBufferOffsetToPos(end_offset, &end_row, &end_col)) {
+		return 0;
+	}
+
+	if (row_idx < start_row || row_idx > end_row) {
+		return 0;
+	}
+
+	int start = 0;
+	int end = E.rows[row_idx].size;
+	if (start_row == end_row) {
+		start = start_col;
+		end = end_col;
+	} else {
+		if (row_idx == start_row) {
+			start = start_col;
+		}
+		if (row_idx == end_row && end_row < E.numrows) {
+			end = end_col;
+		}
+	}
+
+	if (end <= start) {
+		return 0;
+	}
+
+	*start_out = start;
+	*end_out = end;
+	return 1;
+}
+
 static const char *editorThemeColorSequence(enum editorThemeColor color, size_t *len_out) {
 	const char *sequence = VT100_FG_DEFAULT_5;
 	switch (color) {
@@ -981,9 +1026,9 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 	if (editorSelectionSpanForRow(row_idx, &selection_start, &selection_end)) {
 		highlight_start_chars = selection_start;
 		highlight_len_chars = selection_end - selection_start;
-	} else if (E.search_match_row == row_idx && E.search_match_len > 0) {
-		highlight_start_chars = E.search_match_start;
-		highlight_len_chars = E.search_match_len;
+	} else if (editorSearchSpanForRow(row_idx, &selection_start, &selection_end)) {
+		highlight_start_chars = selection_start;
+		highlight_len_chars = selection_end - selection_start;
 	}
 
 	struct editorRowSyntaxSpan syntax_spans[ROTIDE_MAX_SYNTAX_SPANS_PER_ROW];

@@ -89,6 +89,12 @@ static int editorDocumentReadByte(const struct editorDocument *document, size_t 
 	return 1;
 }
 
+static const char *editorDocumentTextSourceRead(const struct editorTextSource *source,
+		size_t byte_index, uint32_t *bytes_read) {
+	const struct editorDocument *document = source != NULL ? source->context : NULL;
+	return editorDocumentRead(document, byte_index, bytes_read);
+}
+
 void editorDocumentInit(struct editorDocument *document) {
 	if (document == NULL) {
 		return;
@@ -118,6 +124,20 @@ int editorDocumentResetFromString(struct editorDocument *document, const char *t
 		return 0;
 	}
 	return editorDocumentRebuildLineIndex(document);
+}
+
+int editorDocumentResetFromDocument(struct editorDocument *document,
+		const struct editorDocument *source) {
+	if (document == NULL || source == NULL) {
+		return 0;
+	}
+
+	struct editorTextSource text_source = {
+		.read = editorDocumentTextSourceRead,
+		.context = source,
+		.length = editorDocumentLength(source)
+	};
+	return editorDocumentResetFromTextSource(document, &text_source);
 }
 
 int editorDocumentResetFromTextSource(struct editorDocument *document,

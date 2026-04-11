@@ -211,8 +211,7 @@ static void editorAlignCursorWithRowEnd(void) {
 }
 
 static void editorClearActiveSearchMatch(void) {
-	E.search_match_row = -1;
-	E.search_match_start = 0;
+	E.search_match_offset = 0;
 	E.search_match_len = 0;
 }
 
@@ -223,10 +222,16 @@ static void editorClearSearchState(void) {
 	editorClearActiveSearchMatch();
 }
 
+static int editorSearchMatchPosition(int *row_out, int *col_out) {
+	if (E.search_match_len <= 0 || row_out == NULL || col_out == NULL) {
+		return 0;
+	}
+	return editorBufferOffsetToPos(E.search_match_offset, row_out, col_out);
+}
+
 static void editorClearSelectionMode(void) {
 	E.selection_mode_active = 0;
-	E.selection_anchor_cx = 0;
-	E.selection_anchor_cy = 0;
+	E.selection_anchor_offset = 0;
 }
 
 static int editorPromptYesNo(const char *prompt) {
@@ -288,9 +293,12 @@ static void editorToggleSelectionMode(void) {
 	}
 
 	editorAlignCursorWithRowEnd();
+	size_t anchor_offset = 0;
+	if (!editorBufferPosToOffset(E.cy, E.cx, &anchor_offset)) {
+		anchor_offset = 0;
+	}
 	E.selection_mode_active = 1;
-	E.selection_anchor_cx = E.cx;
-	E.selection_anchor_cy = E.cy;
+	E.selection_anchor_offset = anchor_offset;
 }
 
 static int editorCopyRangeToClipboard(const struct editorSelectionRange *range, size_t *copied_len_out) {
@@ -421,8 +429,13 @@ static void editorPasteClipboard(void) {
 }
 
 static void editorMoveCursorToSearchMatch(int row_idx, int match_col, int match_len) {
-	E.search_match_row = row_idx;
-	E.search_match_start = match_col;
+	size_t match_offset = 0;
+	if (!editorBufferPosToOffset(row_idx, match_col, &match_offset)) {
+		editorClearActiveSearchMatch();
+		return;
+	}
+
+	E.search_match_offset = match_offset;
 	E.search_match_len = match_len;
 	E.cy = row_idx;
 
@@ -433,8 +446,10 @@ static void editorMoveCursorToSearchMatch(int row_idx, int match_col, int match_
 }
 
 static void editorRestoreCursorToSavedSearchPosition(void) {
-	E.cy = E.search_saved_cy;
-	E.cx = E.search_saved_cx;
+	if (!editorBufferOffsetToPos(E.search_saved_offset, &E.cy, &E.cx)) {
+		E.cy = 0;
+		E.cx = 0;
+	}
 	editorAlignCursorWithRowEnd();
 }
 
@@ -459,24 +474,30 @@ static void editorFindCallback(const char *query, int key) {
 	int direction = 1;
 	int start_row = 0;
 	int start_col = -1;
+	int saved_row = 0;
+	int saved_col = 0;
+	(void)editorBufferOffsetToPos(E.search_saved_offset, &saved_row, &saved_col);
+	int active_match_row = -1;
+	int active_match_col = -1;
+	int have_active_match = editorSearchMatchPosition(&active_match_row, &active_match_col);
 
 	if (key == ARROW_RIGHT || key == ARROW_DOWN) {
 		direction = 1;
-		if (E.search_match_row != -1) {
-			start_row = E.search_match_row;
-			start_col = E.search_match_start;
+		if (have_active_match) {
+			start_row = active_match_row;
+			start_col = active_match_col;
 		} else {
-			start_row = E.search_saved_cy;
-			start_col = E.search_saved_cx - 1;
+			start_row = saved_row;
+			start_col = saved_col - 1;
 		}
 	} else if (key == ARROW_LEFT || key == ARROW_UP) {
 		direction = -1;
-		if (E.search_match_row != -1) {
-			start_row = E.search_match_row;
-			start_col = E.search_match_start;
+		if (have_active_match) {
+			start_row = active_match_row;
+			start_col = active_match_col;
 		} else {
-			start_row = E.search_saved_cy;
-			start_col = E.search_saved_cx;
+			start_row = saved_row;
+			start_col = saved_col;
 		}
 	}
 
@@ -574,8 +595,9 @@ char *editorPrompt(const char *prompt) {
 }
 
 static void editorFind(void) {
-	E.search_saved_cx = E.cx;
-	E.search_saved_cy = E.cy;
+	if (!editorBufferPosToOffset(E.cy, E.cx, &E.search_saved_offset)) {
+		E.search_saved_offset = 0;
+	}
 	E.search_direction = 1;
 	editorClearActiveSearchMatch();
 
@@ -587,7 +609,7 @@ static void editorFind(void) {
 
 	free(E.search_query);
 	E.search_query = query;
-	if (E.search_match_row == -1) {
+	if (E.search_match_len == 0) {
 		editorSetStatusMsg("No matches for \"%s\"", query);
 	}
 }
@@ -1051,8 +1073,9 @@ static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 	// A fresh text click exits any previous selection; dragging can start a new one.
 	editorClearSelectionMode();
 	E.mouse_left_button_down = 1;
-	E.mouse_drag_anchor_cx = E.cx;
-	E.mouse_drag_anchor_cy = E.cy;
+	if (!editorBufferPosToOffset(E.cy, E.cx, &E.mouse_drag_anchor_offset)) {
+		E.mouse_drag_anchor_offset = 0;
+	}
 	E.mouse_drag_started = 0;
 	return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 }
@@ -1073,8 +1096,7 @@ static int editorHandleMouseLeftDrag(const struct editorMouseEvent *event) {
 	if (!E.mouse_drag_started) {
 		// A new drag always starts a fresh selection anchored at the initial press point.
 		E.selection_mode_active = 1;
-		E.selection_anchor_cx = E.mouse_drag_anchor_cx;
-		E.selection_anchor_cy = E.mouse_drag_anchor_cy;
+		E.selection_anchor_offset = E.mouse_drag_anchor_offset;
 		E.mouse_drag_started = 1;
 	}
 	return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;

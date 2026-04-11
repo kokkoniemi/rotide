@@ -251,6 +251,7 @@ enum editorEditPendingMode {
 };
 
 struct editorSnapshot {
+	struct editorDocument *document;
 	char *text;
 	size_t textlen;
 	int cx;
@@ -258,8 +259,21 @@ struct editorSnapshot {
 	int dirty;
 };
 
+struct editorHistoryEntry {
+	enum editorEditKind kind;
+	size_t start_offset;
+	char *removed_text;
+	size_t removed_len;
+	char *inserted_text;
+	size_t inserted_len;
+	size_t before_cursor_offset;
+	size_t after_cursor_offset;
+	int before_dirty;
+	int after_dirty;
+};
+
 struct editorHistory {
-	struct editorSnapshot entries[ROTIDE_UNDO_HISTORY_LIMIT];
+	struct editorHistoryEntry entries[ROTIDE_UNDO_HISTORY_LIMIT];
 	int start;
 	int len;
 };
@@ -268,8 +282,6 @@ struct editorTabState {
 	enum editorTabKind tab_kind;
 	int is_preview;
 	char *tab_title;
-	char *generated_text;
-	size_t generated_text_len;
 	int cx;
 	int cy;
 	int rx;
@@ -279,9 +291,6 @@ struct editorTabState {
 	struct erow *rows;
 	struct editorDocument *document;
 	int document_valid;
-	size_t *row_start_bytes;
-	int row_start_bytes_count;
-	int row_start_bytes_valid;
 	int max_render_cols;
 	int max_render_cols_valid;
 	int dirty;
@@ -291,18 +300,14 @@ struct editorTabState {
 	int lsp_doc_open;
 	int lsp_doc_version;
 	char *search_query;
-	int search_match_row;
-	int search_match_start;
+	size_t search_match_offset;
 	int search_match_len;
 	int search_direction;
-	int search_saved_cx;
-	int search_saved_cy;
+	size_t search_saved_offset;
 	int selection_mode_active;
-	int selection_anchor_cx;
-	int selection_anchor_cy;
+	size_t selection_anchor_offset;
 	int mouse_left_button_down;
-	int mouse_drag_anchor_cx;
-	int mouse_drag_anchor_cy;
+	size_t mouse_drag_anchor_offset;
 	int mouse_drag_started;
 	struct editorHistory undo_history;
 	struct editorHistory redo_history;
@@ -318,8 +323,6 @@ struct editorConfig {
 	enum editorTabKind tab_kind;
 	int is_preview;
 	char *tab_title;
-	char *generated_text;
-	size_t generated_text_len;
 	int cx;
 	int cy;
 	int rx;
@@ -329,9 +332,6 @@ struct editorConfig {
 	struct erow *rows;
 	struct editorDocument *document;
 	int document_valid;
-	size_t *row_start_bytes;
-	int row_start_bytes_count;
-	int row_start_bytes_valid;
 	int max_render_cols;
 	int max_render_cols_valid;
 	int dirty;
@@ -346,18 +346,14 @@ struct editorConfig {
 	char statusmsg[80];
 	time_t statusmsg_time;
 	char *search_query;
-	int search_match_row;
-	int search_match_start;
+	size_t search_match_offset;
 	int search_match_len;
 	int search_direction;
-	int search_saved_cx;
-	int search_saved_cy;
+	size_t search_saved_offset;
 	int selection_mode_active;
-	int selection_anchor_cx;
-	int selection_anchor_cy;
+	size_t selection_anchor_offset;
 	int mouse_left_button_down;
-	int mouse_drag_anchor_cx;
-	int mouse_drag_anchor_cy;
+	size_t mouse_drag_anchor_offset;
 	int mouse_drag_started;
 	char *clipboard_text;
 	size_t clipboard_textlen;

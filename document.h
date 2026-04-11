@@ -14,6 +14,8 @@ struct editorDocument {
 void editorDocumentInit(struct editorDocument *document);
 void editorDocumentFree(struct editorDocument *document);
 int editorDocumentResetFromString(struct editorDocument *document, const char *text, size_t len);
+int editorDocumentResetFromDocument(struct editorDocument *document,
+		const struct editorDocument *source);
 int editorDocumentResetFromTextSource(struct editorDocument *document,
 		const struct editorTextSource *source);
 size_t editorDocumentLength(const struct editorDocument *document);
