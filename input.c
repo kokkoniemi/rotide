@@ -1190,9 +1190,17 @@ static int editorHandleMouseLeftRelease(void) {
 static int editorHandleMouseWheel(const struct editorMouseEvent *event) {
 	switch (event->kind) {
 		case EDITOR_MOUSE_EVENT_WHEEL_UP:
+			if (E.pane_focus == EDITOR_PANE_DRAWER) {
+				(void)editorDrawerScrollBy(-MOUSE_WHEEL_SCROLL_LINES, E.window_rows + 1);
+				break;
+			}
 			editorViewportScrollByRows(-MOUSE_WHEEL_SCROLL_LINES);
 			break;
 		case EDITOR_MOUSE_EVENT_WHEEL_DOWN:
+			if (E.pane_focus == EDITOR_PANE_DRAWER) {
+				(void)editorDrawerScrollBy(MOUSE_WHEEL_SCROLL_LINES, E.window_rows + 1);
+				break;
+			}
 			editorViewportScrollByRows(MOUSE_WHEEL_SCROLL_LINES);
 			break;
 		case EDITOR_MOUSE_EVENT_WHEEL_LEFT:

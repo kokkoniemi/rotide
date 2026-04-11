@@ -57,6 +57,7 @@ int editorDrawerResizeByDeltaForCols(int delta, int total_cols);
 int editorDrawerVisibleCount(void);
 int editorDrawerGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *view_out);
 int editorDrawerMoveSelectionBy(int delta, int viewport_rows);
+int editorDrawerScrollBy(int delta, int viewport_rows);
 int editorDrawerExpandSelection(int viewport_rows);
 int editorDrawerCollapseSelection(int viewport_rows);
 int editorDrawerToggleSelectionExpanded(int viewport_rows);

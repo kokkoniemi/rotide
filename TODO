@@ -7,6 +7,5 @@
 - FEATURE: Add configurable auto-indentation (tabs/spaces + indent width) for newline insertion and pasted blocks.
 - FEATURE: Add bracket/quote pair assistance: auto-close pairs, skip-over closing pairs, and jump to matching bracket.
 - FEATURE: Add line numbers and current-line highlight (toggleable) to improve code navigation and context.
-- FEATURE: When focus is in drawer and scrolling with mouse, scroll the drawer instead of editor screen.
 - FEATURE: make it possible to collapse drawer. It should take the same amount of space from tab bar collapsed and be able to expand again by clickin the visible part of it. Maybe there should be text indicators for collapse / expand and for sure keyboard shortcuts.
 - FEATURE: implement support for vim-mode. The commands should be configurable in .rotide.toml in local and global files.

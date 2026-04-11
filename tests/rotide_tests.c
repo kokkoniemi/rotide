@@ -5833,6 +5833,52 @@ static int test_editor_process_keypress_mouse_wheel_scrolls_horizontally_and_cla
 	return 0;
 }
 
+static int test_editor_process_keypress_mouse_wheel_scrolls_drawer_when_focused(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	for (int i = 0; i < 12; i++) {
+		char name[32];
+		char path[512];
+		ASSERT_TRUE(snprintf(name, sizeof(name), "file-%02d.txt", i) > 0);
+		ASSERT_TRUE(path_join(path, sizeof(path), env.project_dir, name));
+		ASSERT_TRUE(write_text_file(path, "x\n"));
+	}
+
+	for (int i = 0; i < 10; i++) {
+		add_row("line");
+	}
+	E.window_rows = 4;
+	E.window_cols = 30;
+	E.cy = 4;
+	E.cx = 0;
+	E.rowoff = 2;
+	E.drawer_rowoff = 0;
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	E.pane_focus = EDITOR_PANE_DRAWER;
+
+	const char wheel_down[] = "\x1b[<65;1;1M";
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_down, sizeof(wheel_down) - 1) == 0);
+	ASSERT_EQ_INT(3, E.drawer_rowoff);
+	ASSERT_EQ_INT(2, E.rowoff);
+
+	const char wheel_up[] = "\x1b[<64;1;1M";
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_up, sizeof(wheel_up) - 1) == 0);
+	ASSERT_EQ_INT(0, E.drawer_rowoff);
+	ASSERT_EQ_INT(2, E.rowoff);
+
+	for (int i = 0; i < 12; i++) {
+		char name[32];
+		char path[512];
+		ASSERT_TRUE(snprintf(name, sizeof(name), "file-%02d.txt", i) > 0);
+		ASSERT_TRUE(path_join(path, sizeof(path), env.project_dir, name));
+		ASSERT_TRUE(unlink(path) == 0);
+	}
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_process_keypress_page_up_down_scroll_viewport_without_moving_cursor(void) {
 	for (int i = 0; i < 20; i++) {
 		add_row("line");
@@ -8964,6 +9010,8 @@ int main(void) {
 				test_editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps},
 			{"editor_process_keypress_mouse_wheel_scrolls_horizontally_and_clamps",
 				test_editor_process_keypress_mouse_wheel_scrolls_horizontally_and_clamps},
+			{"editor_process_keypress_mouse_wheel_scrolls_drawer_when_focused",
+				test_editor_process_keypress_mouse_wheel_scrolls_drawer_when_focused},
 			{"editor_process_keypress_page_up_down_scroll_viewport_without_moving_cursor",
 				test_editor_process_keypress_page_up_down_scroll_viewport_without_moving_cursor},
 			{"editor_process_keypress_ctrl_arrow_scrolls_horizontally_without_moving_cursor",

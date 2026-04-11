@@ -4197,6 +4197,34 @@ int editorDrawerMoveSelectionBy(int delta, int viewport_rows) {
 	return 1;
 }
 
+int editorDrawerScrollBy(int delta, int viewport_rows) {
+	int visible_count = editorDrawerVisibleCount();
+	if (visible_count <= 0) {
+		E.drawer_rowoff = 0;
+		return 0;
+	}
+
+	if (viewport_rows < 1) {
+		viewport_rows = 1;
+	}
+
+	int max_rowoff = visible_count - viewport_rows;
+	if (max_rowoff < 0) {
+		max_rowoff = 0;
+	}
+
+	int old_rowoff = E.drawer_rowoff;
+	int new_rowoff = E.drawer_rowoff + delta;
+	if (new_rowoff < 0) {
+		new_rowoff = 0;
+	}
+	if (new_rowoff > max_rowoff) {
+		new_rowoff = max_rowoff;
+	}
+	E.drawer_rowoff = new_rowoff;
+	return E.drawer_rowoff != old_rowoff;
+}
+
 int editorDrawerExpandSelection(int viewport_rows) {
 	struct editorDrawerLookup lookup;
 	if (!editorDrawerLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
