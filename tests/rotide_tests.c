@@ -4215,6 +4215,7 @@ static int test_editor_keymap_load_modifier_combo_specs_case_insensitive(void) {
 				"[keymap]\n"
 				"next_tab = \"CTRL+ALT+RIGHT\"\n"
 				"prev_tab = \"ctrl+UP\"\n"
+				"toggle_drawer = \"ctrl+alt+e\"\n"
 				"resize_drawer_narrow = \"SHIFT+ALT+LEFT\"\n"
 				"resize_drawer_widen = \"aLt+ShIfT+RiGhT\"\n"
 				"move_left = \"AlT+b\"\n"
@@ -4230,6 +4231,8 @@ static int test_editor_keymap_load_modifier_combo_specs_case_insensitive(void) {
 	ASSERT_EQ_INT(EDITOR_ACTION_NEXT_TAB, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_ARROW_UP, &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_PREV_TAB, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_CTRL_ALT_LETTER_KEY('e'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_TOGGLE_DRAWER, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('b'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_MOVE_LEFT, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_CTRL_ALT_LETTER_KEY('z'), &action));
@@ -4246,6 +4249,9 @@ static int test_editor_keymap_load_modifier_combo_specs_case_insensitive(void) {
 	ASSERT_EQ_STR("Ctrl-Alt-Z", binding);
 	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_PREV_TAB, binding, sizeof(binding)));
 	ASSERT_EQ_STR("Ctrl-Up", binding);
+	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_TOGGLE_DRAWER, binding,
+				sizeof(binding)));
+	ASSERT_EQ_STR("Ctrl-Alt-E", binding);
 	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_NEXT_TAB, binding, sizeof(binding)));
 	ASSERT_EQ_STR("Ctrl-Alt-Right", binding);
 	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_RESIZE_DRAWER_NARROW, binding,
@@ -4311,6 +4317,8 @@ static int test_editor_keymap_defaults_include_tab_actions(void) {
 	ASSERT_EQ_INT(EDITOR_ACTION_PREV_TAB, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('e'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_FOCUS_DRAWER, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_CTRL_ALT_LETTER_KEY('e'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_TOGGLE_DRAWER, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_SHIFT_ARROW_LEFT, &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_RESIZE_DRAWER_NARROW, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_SHIFT_ARROW_RIGHT, &action));
@@ -5013,6 +5021,34 @@ static int test_editor_process_keypress_resize_drawer_shortcuts(void) {
 	return 0;
 }
 
+static int test_editor_process_keypress_toggle_drawer_shortcut_collapses_and_expands(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	char toggle_drawer[] = {'\x1b', CTRL_KEY('e')};
+	ASSERT_TRUE(editor_process_keypress_with_input(toggle_drawer, sizeof(toggle_drawer)) == 0);
+	ASSERT_TRUE(editorDrawerIsCollapsed());
+	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+	ASSERT_EQ_STR("Drawer collapsed", E.statusmsg);
+
+	ASSERT_TRUE(editor_process_keypress_with_input(toggle_drawer, sizeof(toggle_drawer)) == 0);
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_STR("Drawer expanded", E.statusmsg);
+
+	ASSERT_TRUE(editorDrawerSetCollapsed(1));
+	E.pane_focus = EDITOR_PANE_TEXT;
+	char focus_drawer[] = {CTRL_KEY('e')};
+	ASSERT_TRUE(editor_process_keypress_with_input(focus_drawer, sizeof(focus_drawer)) == 0);
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_STR("Drawer expanded", E.statusmsg);
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_tabs_switch_restores_per_tab_state(void) {
 	ASSERT_TRUE(editorTabsInit());
 	add_row("tab-zero");
@@ -5540,6 +5576,29 @@ static int test_editor_process_keypress_mouse_drawer_click_selects_and_toggles_d
 
 	ASSERT_TRUE(unlink(child_file) == 0);
 	ASSERT_TRUE(rmdir(src_dir) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_click_expands_collapsed_drawer(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	char click_collapse[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click_collapse, sizeof(click_collapse), 0, 1, 1, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_collapse, strlen(click_collapse)) == 0);
+	ASSERT_TRUE(editorDrawerIsCollapsed());
+	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+	ASSERT_EQ_STR("Drawer collapsed", E.statusmsg);
+
+	char click_drawer[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click_drawer, sizeof(click_drawer), 0, 1, 3, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_drawer, strlen(click_drawer)) == 0);
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_STR("Drawer expanded", E.statusmsg);
+
 	cleanup_recovery_test_env(&env);
 	return 0;
 }
@@ -8090,6 +8149,28 @@ static int test_editor_refresh_screen_drawer_active_file_uses_inverted_backgroun
 	return 0;
 }
 
+static int test_editor_refresh_screen_drawer_collapsed_renders_expand_indicator(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerSetCollapsed(1));
+
+	add_row("body");
+	E.window_rows = 4;
+	E.window_cols = 20;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "[>]") != NULL);
+	ASSERT_TRUE(strstr(output, "[<]") == NULL);
+	ASSERT_EQ_INT(ROTIDE_DRAWER_COLLAPSED_WIDTH, editorDrawerWidthForCols(E.window_cols));
+	free(output);
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_refresh_screen_drawer_renders_unicode_tree_connectors(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -8956,6 +9037,8 @@ int main(void) {
 				test_editor_task_runner_truncates_large_output},
 			{"editor_process_keypress_resize_drawer_shortcuts",
 				test_editor_process_keypress_resize_drawer_shortcuts},
+			{"editor_process_keypress_toggle_drawer_shortcut_collapses_and_expands",
+				test_editor_process_keypress_toggle_drawer_shortcut_collapses_and_expands},
 			{"editor_tabs_switch_restores_per_tab_state",
 				test_editor_tabs_switch_restores_per_tab_state},
 			{"editor_tab_close_last_tab_keeps_one_empty_tab",
@@ -8994,6 +9077,8 @@ int main(void) {
 					test_editor_process_keypress_mouse_left_click_ignores_indicator_padding_columns},
 					{"editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory",
 						test_editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory},
+				{"editor_process_keypress_mouse_click_expands_collapsed_drawer",
+					test_editor_process_keypress_mouse_click_expands_collapsed_drawer},
 				{"editor_process_keypress_mouse_drawer_single_file_click_opens_preview_tab",
 					test_editor_process_keypress_mouse_drawer_single_file_click_opens_preview_tab},
 				{"editor_drawer_open_selected_file_in_preview_reuses_preview_tab",
@@ -9196,6 +9281,8 @@ int main(void) {
 				test_editor_refresh_screen_drawer_hides_selection_marker_when_unfocused},
 			{"editor_refresh_screen_drawer_active_file_uses_inverted_background",
 				test_editor_refresh_screen_drawer_active_file_uses_inverted_background},
+			{"editor_refresh_screen_drawer_collapsed_renders_expand_indicator",
+				test_editor_refresh_screen_drawer_collapsed_renders_expand_indicator},
 			{"editor_refresh_screen_drawer_renders_unicode_tree_connectors",
 				test_editor_refresh_screen_drawer_renders_unicode_tree_connectors},
 			{"editor_refresh_screen_drawer_selected_overflow_spills_into_text_area",

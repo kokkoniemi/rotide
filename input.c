@@ -49,6 +49,17 @@ static void editorResetDrawerClickTracking(void) {
 	E.drawer_last_click_ms = 0;
 }
 
+static void editorSetDrawerCollapseStatus(int collapsed) {
+	editorSetStatusMsg(collapsed ? "Drawer collapsed" : "Drawer expanded");
+}
+
+static void editorExpandDrawerForFocus(void) {
+	if (editorDrawerSetCollapsed(0)) {
+		editorSetDrawerCollapseStatus(0);
+	}
+	E.pane_focus = EDITOR_PANE_DRAWER;
+}
+
 static size_t editorPromptPrevDeleteIdx(const char *buf, size_t buflen) {
 	if (buflen == 0) {
 		return 0;
@@ -1086,6 +1097,22 @@ static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 
 	if (drawer_row >= 0 && drawer_row < drawer_view_rows &&
 			mouse_col >= 0 && mouse_col < drawer_cols) {
+		if (editorDrawerIsCollapsed()) {
+			editorResetDrawerClickTracking();
+			editorExpandDrawerForFocus();
+			E.mouse_left_button_down = 0;
+			E.mouse_drag_started = 0;
+			return EDITOR_KEYPRESS_EFFECT_NONE;
+		}
+		if (drawer_row == 0 && mouse_col < ROTIDE_DRAWER_COLLAPSED_WIDTH) {
+			editorResetDrawerClickTracking();
+			if (editorDrawerSetCollapsed(1)) {
+				editorSetDrawerCollapseStatus(1);
+			}
+			E.mouse_left_button_down = 0;
+			E.mouse_drag_started = 0;
+			return EDITOR_KEYPRESS_EFFECT_NONE;
+		}
 		int visible_idx = E.drawer_rowoff + drawer_row;
 		if (!editorDrawerSelectVisibleIndex(visible_idx, drawer_view_rows)) {
 			editorResetDrawerClickTracking();
@@ -1289,14 +1316,29 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			break;
 		case EDITOR_ACTION_FOCUS_DRAWER:
 			editorHistoryBreakGroup();
-			E.pane_focus = EDITOR_PANE_DRAWER;
+			editorExpandDrawerForFocus();
+			break;
+		case EDITOR_ACTION_TOGGLE_DRAWER:
+			editorHistoryBreakGroup();
+			if (editorDrawerToggleCollapsed()) {
+				editorSetDrawerCollapseStatus(editorDrawerIsCollapsed());
+				if (!editorDrawerIsCollapsed()) {
+					E.pane_focus = EDITOR_PANE_DRAWER;
+				}
+			}
 			break;
 		case EDITOR_ACTION_RESIZE_DRAWER_NARROW:
 			editorHistoryBreakGroup();
+			if (editorDrawerIsCollapsed()) {
+				(void)editorDrawerSetCollapsed(0);
+			}
 			(void)editorDrawerResizeByDeltaForCols(-DRAWER_RESIZE_STEP, E.window_cols);
 			break;
 		case EDITOR_ACTION_RESIZE_DRAWER_WIDEN:
 			editorHistoryBreakGroup();
+			if (editorDrawerIsCollapsed()) {
+				(void)editorDrawerSetCollapsed(0);
+			}
 			(void)editorDrawerResizeByDeltaForCols(DRAWER_RESIZE_STEP, E.window_cols);
 			break;
 		case EDITOR_ACTION_FIND:

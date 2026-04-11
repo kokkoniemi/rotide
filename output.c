@@ -55,6 +55,8 @@ struct writeBuf {
 #define DRAWER_TREE_BRANCH_MID_UTF8 "\xE2\x94\x9C"
 #define DRAWER_TREE_BRANCH_LAST_UTF8 "\xE2\x94\x94"
 #define DRAWER_TREE_HORIZONTAL_UTF8 "\xE2\x94\x80"
+#define DRAWER_COLLAPSE_INDICATOR "[<]"
+#define DRAWER_EXPAND_INDICATOR "[>]"
 #define TEXT_OVERFLOW_LEFT_UTF8 "\xE2\x86\x90"
 #define TEXT_OVERFLOW_RIGHT_UTF8 "\xE2\x86\x92"
 
@@ -1294,6 +1296,26 @@ static int editorDrawDrawerSeparatorCell(struct writeBuf *wb, int separator_cols
 	return wbAppend(wb, DRAWER_SPLITTER_UTF8, sizeof(DRAWER_SPLITTER_UTF8) - 1);
 }
 
+static int editorDrawCollapsedDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols) {
+	int written_cols = 0;
+	if (row_idx == 0) {
+		int indicator_cols = 0;
+		if (!editorAppendSanitizedText(wb, DRAWER_EXPAND_INDICATOR, drawer_cols, &indicator_cols)) {
+			return 0;
+		}
+		written_cols += indicator_cols;
+	}
+
+	while (written_cols < drawer_cols) {
+		if (!wbAppend(wb, " ", 1)) {
+			return 0;
+		}
+		written_cols++;
+	}
+
+	return 1;
+}
+
 static int editorDrawerAppendCell(struct writeBuf *wb, const char *text, size_t len, int *written_cols,
 		int drawer_cols) {
 	if (written_cols == NULL || *written_cols >= drawer_cols) {
@@ -1489,6 +1511,9 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 	if (drawer_cols <= 0) {
 		return 1;
 	}
+	if (editorDrawerIsCollapsed()) {
+		return editorDrawCollapsedDrawerRow(wb, row_idx, drawer_cols);
+	}
 
 	struct editorDrawerEntryView entry;
 	int visible_idx = E.drawer_rowoff + row_idx;
@@ -1501,6 +1526,19 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 		int gray_connectors = !row_inverted;
 		if (row_inverted && !wbAppend(wb, VT100_INVERTED_COLORS_4, 4)) {
 			return 0;
+		}
+
+		if (row_idx == 0) {
+			int indicator_written = 0;
+			if (!editorAppendSanitizedText(wb, DRAWER_COLLAPSE_INDICATOR, drawer_cols,
+						&indicator_written)) {
+				return 0;
+			}
+			written_cols += indicator_written;
+			if (written_cols < drawer_cols &&
+					!editorDrawerAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
+				return 0;
+			}
 		}
 
 		if (!entry.is_root && !editorDrawerAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {

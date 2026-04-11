@@ -22,6 +22,7 @@
 #define ROTIDE_TAB_TITLE_MAX_COLS 25
 #define ROTIDE_TAB_TRUNC_MARKER "..."
 #define ROTIDE_DRAWER_DEFAULT_WIDTH 24
+#define ROTIDE_DRAWER_COLLAPSED_WIDTH 3
 #define ROTIDE_MAX_SYNTAX_SPANS_PER_ROW 256
 #define ROTIDE_ALT_LETTER_KEY_BASE 91000
 #define ROTIDE_CTRL_ALT_LETTER_KEY_BASE 91026
@@ -182,6 +183,7 @@ enum editorAction {
 	EDITOR_ACTION_NEXT_TAB,
 	EDITOR_ACTION_PREV_TAB,
 	EDITOR_ACTION_FOCUS_DRAWER,
+	EDITOR_ACTION_TOGGLE_DRAWER,
 	EDITOR_ACTION_RESIZE_DRAWER_NARROW,
 	EDITOR_ACTION_RESIZE_DRAWER_WIDEN,
 	EDITOR_ACTION_FIND,
@@ -375,6 +377,7 @@ struct editorConfig {
 	long long drawer_last_click_ms;
 	int drawer_width_cols;
 	int drawer_width_user_set;
+	int drawer_collapsed;
 	int drawer_resize_active;
 	enum editorCursorStyle cursor_style;
 	enum editorThemeColor syntax_theme[EDITOR_SYNTAX_HL_CLASS_COUNT];

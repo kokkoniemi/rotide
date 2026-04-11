@@ -4072,7 +4072,33 @@ static int editorDrawerDefaultMaxWidthForCols(int total_cols) {
 	return max_drawer;
 }
 
+int editorDrawerIsCollapsed(void) {
+	return E.drawer_collapsed != 0;
+}
+
+int editorDrawerSetCollapsed(int collapsed) {
+	int new_collapsed = collapsed != 0;
+	if (E.drawer_collapsed == new_collapsed) {
+		return 0;
+	}
+
+	E.drawer_collapsed = new_collapsed;
+	E.drawer_resize_active = 0;
+	if (new_collapsed && E.pane_focus == EDITOR_PANE_DRAWER) {
+		E.pane_focus = EDITOR_PANE_TEXT;
+	}
+	return 1;
+}
+
+int editorDrawerToggleCollapsed(void) {
+	return editorDrawerSetCollapsed(!editorDrawerIsCollapsed());
+}
+
 int editorDrawerWidthForCols(int total_cols) {
+	if (editorDrawerIsCollapsed()) {
+		return editorDrawerClampWidthForCols(ROTIDE_DRAWER_COLLAPSED_WIDTH, total_cols);
+	}
+
 	int desired_width = E.drawer_width_cols;
 	if (desired_width <= 0) {
 		desired_width = ROTIDE_DRAWER_DEFAULT_WIDTH;
@@ -4141,7 +4167,11 @@ int editorDrawerSetWidthForCols(int width, int total_cols) {
 }
 
 int editorDrawerResizeByDeltaForCols(int delta, int total_cols) {
-	int current = editorDrawerWidthForCols(total_cols);
+	int current = editorDrawerIsCollapsed() ? E.drawer_width_cols :
+			editorDrawerWidthForCols(total_cols);
+	if (current <= 0) {
+		current = ROTIDE_DRAWER_DEFAULT_WIDTH;
+	}
 	return editorDrawerSetWidthForCols(current + delta, total_cols);
 }
 
@@ -4354,6 +4384,7 @@ void editorDrawerShutdown(void) {
 	E.drawer_last_click_visible_idx = -1;
 	E.drawer_last_click_ms = 0;
 	E.drawer_resize_active = 0;
+	E.drawer_collapsed = 0;
 	E.pane_focus = EDITOR_PANE_TEXT;
 }
 
@@ -4391,6 +4422,7 @@ int editorDrawerInitForStartup(int argc, char *argv[], int restored_session) {
 		E.drawer_width_cols = ROTIDE_DRAWER_DEFAULT_WIDTH;
 		E.drawer_width_user_set = 0;
 	}
+	E.drawer_collapsed = 0;
 	E.drawer_resize_active = 0;
 	E.pane_focus = EDITOR_PANE_TEXT;
 	editorDrawerClampSelectionAndScroll(E.window_rows + 1);

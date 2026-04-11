@@ -55,6 +55,7 @@ static const struct editorActionName editor_action_names[] = {
 	{"next_tab", EDITOR_ACTION_NEXT_TAB},
 	{"prev_tab", EDITOR_ACTION_PREV_TAB},
 	{"focus_drawer", EDITOR_ACTION_FOCUS_DRAWER},
+	{"toggle_drawer", EDITOR_ACTION_TOGGLE_DRAWER},
 	{"resize_drawer_narrow", EDITOR_ACTION_RESIZE_DRAWER_NARROW},
 	{"resize_drawer_widen", EDITOR_ACTION_RESIZE_DRAWER_WIDEN},
 	{"find", EDITOR_ACTION_FIND},
@@ -1086,6 +1087,8 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 	(void)editorKeymapAppendBinding(keymap, ALT_ARROW_RIGHT, EDITOR_ACTION_NEXT_TAB);
 	(void)editorKeymapAppendBinding(keymap, ALT_ARROW_LEFT, EDITOR_ACTION_PREV_TAB);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('e'), EDITOR_ACTION_FOCUS_DRAWER);
+	(void)editorKeymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('e'),
+			EDITOR_ACTION_TOGGLE_DRAWER);
 	(void)editorKeymapAppendBinding(keymap, ALT_SHIFT_ARROW_LEFT,
 			EDITOR_ACTION_RESIZE_DRAWER_NARROW);
 	(void)editorKeymapAppendBinding(keymap, ALT_SHIFT_ARROW_RIGHT,

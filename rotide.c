@@ -90,6 +90,7 @@ void initEditor(void) {
 	E.drawer_last_click_ms = 0;
 	E.drawer_width_cols = ROTIDE_DRAWER_DEFAULT_WIDTH;
 	E.drawer_width_user_set = 0;
+	E.drawer_collapsed = 0;
 	E.drawer_resize_active = 0;
 	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;
 	editorSyntaxThemeInitDefaults(E.syntax_theme);
