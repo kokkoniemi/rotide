@@ -284,28 +284,6 @@ static int format_sgr_mouse_event(char *buf, size_t bufsz, int cb, int x, int y,
 	return written > 0 && (size_t)written < bufsz;
 }
 
-static int install_synthetic_single_row(int size, int rsize) {
-	struct erow *rows = calloc(1, sizeof(*rows));
-	if (rows == NULL) {
-		return 0;
-	}
-
-	rows[0].size = size;
-	rows[0].rsize = rsize;
-	rows[0].chars = strdup("");
-	rows[0].render = strdup("");
-	if (rows[0].chars == NULL || rows[0].render == NULL) {
-		free(rows[0].chars);
-		free(rows[0].render);
-		free(rows);
-		return 0;
-	}
-
-	E.rows = rows;
-	E.numrows = 1;
-	return 1;
-}
-
 static int wait_for_child_exit_with_timeout(pid_t pid, int timeout_ms, int *status_out) {
 	const int poll_interval_us = 10000;
 	int waited_us = 0;
@@ -908,21 +886,24 @@ static int test_editor_buffer_offsets_rebuild_document_after_row_mutation(void) 
 
 	editorInsertCharAt(&E.rows[1], 2, 'X');
 	ASSERT_EQ_INT(0, editorDocumentMirrorTestFullRebuildCount());
+	ASSERT_EQ_INT(1, editorDocumentMirrorTestIncrementalUpdateCount());
 	ASSERT_EQ_INT(0, editorDocumentMirrorTestRowSourceRebuildCount());
 
 	size_t offset = 0;
 	ASSERT_TRUE(editorBufferPosToOffset(1, 5, &offset));
 	ASSERT_EQ_INT(11, (int)offset);
-	ASSERT_EQ_INT(1, editorDocumentMirrorTestFullRebuildCount());
-	ASSERT_EQ_INT(1, editorDocumentMirrorTestRowSourceRebuildCount());
+	ASSERT_EQ_INT(0, editorDocumentMirrorTestFullRebuildCount());
+	ASSERT_EQ_INT(1, editorDocumentMirrorTestIncrementalUpdateCount());
+	ASSERT_EQ_INT(0, editorDocumentMirrorTestRowSourceRebuildCount());
 
 	int cy = -1;
 	int cx = -1;
 	ASSERT_TRUE(editorBufferOffsetToPos(11, &cy, &cx));
 	ASSERT_EQ_INT(1, cy);
 	ASSERT_EQ_INT(5, cx);
-	ASSERT_EQ_INT(1, editorDocumentMirrorTestFullRebuildCount());
-	ASSERT_EQ_INT(1, editorDocumentMirrorTestRowSourceRebuildCount());
+	ASSERT_EQ_INT(0, editorDocumentMirrorTestFullRebuildCount());
+	ASSERT_EQ_INT(1, editorDocumentMirrorTestIncrementalUpdateCount());
+	ASSERT_EQ_INT(0, editorDocumentMirrorTestRowSourceRebuildCount());
 	return 0;
 }
 
@@ -933,14 +914,16 @@ static int test_editor_document_mirror_lazy_rebuild_after_low_level_row_mutation
 
 	editorInsertCharAt(&E.rows[0], 1, 'X');
 	ASSERT_EQ_INT(0, editorDocumentMirrorTestFullRebuildCount());
-	ASSERT_EQ_INT(0, editorDocumentMirrorTestIncrementalUpdateCount());
+	ASSERT_EQ_INT(1, editorDocumentMirrorTestIncrementalUpdateCount());
 	ASSERT_EQ_INT(0, editorDocumentMirrorTestRowSourceRebuildCount());
 	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
-	ASSERT_EQ_INT(1, editorDocumentMirrorTestFullRebuildCount());
-	ASSERT_EQ_INT(1, editorDocumentMirrorTestRowSourceRebuildCount());
+	ASSERT_EQ_INT(0, editorDocumentMirrorTestFullRebuildCount());
+	ASSERT_EQ_INT(1, editorDocumentMirrorTestIncrementalUpdateCount());
+	ASSERT_EQ_INT(0, editorDocumentMirrorTestRowSourceRebuildCount());
 	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
-	ASSERT_EQ_INT(1, editorDocumentMirrorTestFullRebuildCount());
-	ASSERT_EQ_INT(1, editorDocumentMirrorTestRowSourceRebuildCount());
+	ASSERT_EQ_INT(0, editorDocumentMirrorTestFullRebuildCount());
+	ASSERT_EQ_INT(1, editorDocumentMirrorTestIncrementalUpdateCount());
+	ASSERT_EQ_INT(0, editorDocumentMirrorTestRowSourceRebuildCount());
 	return 0;
 }
 
@@ -981,16 +964,20 @@ static int test_editor_document_mirror_snapshot_capture_uses_active_source(void)
 	ASSERT_EQ_INT(0, editorDocumentMirrorTestFullRebuildCount());
 	ASSERT_EQ_INT(0, editorActiveTextSourceBuildTestCount());
 	ASSERT_EQ_INT(0, editorActiveTextSourceDupTestCount());
-	ASSERT_EQ_INT(1, editorSnapshotCaptureTestDocumentCloneCount());
+	ASSERT_EQ_INT(0, editorSnapshotCaptureTestDocumentCloneCount());
 	ASSERT_EQ_INT(0, editorSnapshotCaptureTestTextSourceBuildCount());
-	ASSERT_TRUE(E.edit_pending_snapshot.document != NULL);
-	ASSERT_TRUE(E.edit_pending_snapshot.text == NULL);
-	char *snapshot_text = editorDocumentDupRange(E.edit_pending_snapshot.document, 0,
-			editorDocumentLength(E.edit_pending_snapshot.document), NULL);
-	ASSERT_TRUE(snapshot_text != NULL);
-	ASSERT_EQ_STR("alpha\n", snapshot_text);
-	free(snapshot_text);
+	ASSERT_EQ_INT(0, E.edit_pending_entry_valid);
+
+	editorInsertChar('Z');
+	ASSERT_EQ_INT(1, E.edit_pending_entry_valid);
+	ASSERT_EQ_INT(EDITOR_EDIT_INSERT_TEXT, E.edit_pending_entry.kind);
+	ASSERT_EQ_INT(0, (int)E.edit_pending_entry.removed_len);
+	ASSERT_EQ_INT(1, (int)E.edit_pending_entry.inserted_len);
+	ASSERT_TRUE(E.edit_pending_entry.inserted_text != NULL);
+	ASSERT_MEM_EQ("Z", E.edit_pending_entry.inserted_text, 1);
+
 	editorHistoryDiscardEdit();
+	ASSERT_EQ_INT(0, E.edit_pending_entry_valid);
 	return 0;
 }
 
@@ -1279,21 +1266,20 @@ static int test_insert_and_delete_chars(void) {
 	add_row("abc");
 	E.dirty = 0;
 
-	struct erow *row = &E.rows[0];
-	editorInsertCharAt(row, 1, 'X');
-	ASSERT_EQ_STR("aXbc", row->chars);
+	editorInsertCharAt(&E.rows[0], 1, 'X');
+	ASSERT_EQ_STR("aXbc", E.rows[0].chars);
 	ASSERT_EQ_INT(1, E.dirty);
 
-	editorDelCharAt(row, 2);
-	ASSERT_EQ_STR("aXc", row->chars);
+	editorDelCharAt(&E.rows[0], 2);
+	ASSERT_EQ_STR("aXc", E.rows[0].chars);
 	ASSERT_EQ_INT(2, E.dirty);
 
-	editorDelCharsAt(row, 1, 2);
-	ASSERT_EQ_STR("a", row->chars);
+	editorDelCharsAt(&E.rows[0], 1, 2);
+	ASSERT_EQ_STR("a", E.rows[0].chars);
 	ASSERT_EQ_INT(3, E.dirty);
 
-	editorDelCharsAt(row, 1, 0);
-	ASSERT_EQ_STR("a", row->chars);
+	editorDelCharsAt(&E.rows[0], 1, 0);
+	ASSERT_EQ_STR("a", E.rows[0].chars);
 	ASSERT_EQ_INT(3, E.dirty);
 	return 0;
 }
@@ -1396,21 +1382,24 @@ static int test_editor_rows_to_str(void) {
 	ASSERT_TRUE(joined != NULL);
 	ASSERT_EQ_INT(7, buflen);
 	ASSERT_MEM_EQ("a\nbXc\n\n", joined, (size_t)buflen);
-	ASSERT_EQ_INT(1, editorDocumentMirrorTestFullRebuildCount());
-	ASSERT_EQ_INT(1, editorDocumentMirrorTestRowSourceRebuildCount());
+	ASSERT_EQ_INT(0, editorDocumentMirrorTestFullRebuildCount());
+	ASSERT_EQ_INT(1, editorDocumentMirrorTestIncrementalUpdateCount());
+	ASSERT_EQ_INT(0, editorDocumentMirrorTestRowSourceRebuildCount());
 	free(joined);
 	return 0;
 }
 
-static int test_editor_rows_to_str_rejects_oversized_total(void) {
-	ASSERT_TRUE(install_synthetic_single_row(INT_MAX, 0));
+static int test_editor_rows_to_str_uses_document_when_row_cache_corrupt(void) {
+	add_row("abc");
+	E.rows[0].size = INT_MAX;
 
 	size_t buflen = 0;
 	errno = 0;
 	char *joined = editorRowsToStr(&buflen);
-	ASSERT_TRUE(joined == NULL);
-	ASSERT_EQ_INT(0, buflen);
-	ASSERT_EQ_INT(EOVERFLOW, errno);
+	ASSERT_TRUE(joined != NULL);
+	ASSERT_EQ_INT(4, buflen);
+	ASSERT_MEM_EQ("abc\n", joined, buflen);
+	free(joined);
 	return 0;
 }
 
@@ -2944,16 +2933,18 @@ static int test_editor_insert_char_render_alloc_failure_preserves_state(void) {
 	return 0;
 }
 
-static int test_editor_insert_char_rejects_size_overflow(void) {
-	ASSERT_TRUE(install_synthetic_single_row(INT_MAX, 0));
+static int test_editor_insert_char_uses_document_when_row_cache_corrupt(void) {
+	add_row("ab");
+	E.rows[0].size = INT_MAX;
+	E.cy = 0;
+	E.cx = 0;
 	E.dirty = 0;
 
 	editorInsertCharAt(&E.rows[0], 0, 'X');
 
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_INT(INT_MAX, E.rows[0].size);
-	ASSERT_EQ_INT(0, E.dirty);
-	ASSERT_EQ_STR("Operation too large", E.statusmsg);
+	ASSERT_EQ_STR("Xab", E.rows[0].chars);
+	ASSERT_EQ_INT(1, E.dirty);
 	return 0;
 }
 
@@ -3049,26 +3040,28 @@ static int test_editor_save_rows_to_str_alloc_failure_preserves_state(void) {
 	return 0;
 }
 
-static int test_editor_save_rejects_oversized_buffer(void) {
+static int test_editor_save_uses_document_when_row_cache_corrupt(void) {
 	char path[] = "/tmp/rotide-test-save-too-large-XXXXXX";
 	int fd = mkstemp(path);
 	ASSERT_TRUE(fd != -1);
 	ASSERT_TRUE(close(fd) == 0);
 
-	ASSERT_TRUE(install_synthetic_single_row(INT_MAX, 0));
+	add_row("alpha");
+	E.rows[0].size = INT_MAX;
 	E.filename = strdup(path);
 	ASSERT_TRUE(E.filename != NULL);
 	E.dirty = 1;
 
 	editorSave();
 
-	ASSERT_EQ_INT(1, E.dirty);
-	ASSERT_EQ_STR("File too large", E.statusmsg);
+	ASSERT_EQ_INT(0, E.dirty);
+	ASSERT_TRUE(strstr(E.statusmsg, "bytes written to disk") != NULL);
 
 	size_t content_len = 0;
 	char *contents = read_file_contents(path, &content_len);
 	ASSERT_TRUE(contents != NULL);
-	ASSERT_EQ_INT(0, content_len);
+	ASSERT_EQ_INT(6, content_len);
+	ASSERT_MEM_EQ("alpha\n", contents, content_len);
 
 	free(contents);
 	unlink(path);
@@ -3350,7 +3343,6 @@ static int test_editor_recovery_restore_legacy_row_snapshot_uses_document_path(v
 	editorDocumentMirrorTestResetStats();
 	ASSERT_TRUE(editorRecoveryRestoreSnapshot());
 	ASSERT_TRUE(E.document != NULL);
-	ASSERT_TRUE(E.document_valid);
 	ASSERT_EQ_INT(1, editorDocumentMirrorTestFullRebuildCount());
 	ASSERT_EQ_INT(0, editorDocumentMirrorTestRowSourceRebuildCount());
 	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
@@ -5529,7 +5521,6 @@ static int test_editor_task_log_read_only_search_and_copy(void) {
 	ASSERT_TRUE(editorActiveTabIsTaskLog());
 	ASSERT_EQ_STR("Task: Echo", editorActiveBufferDisplayName());
 	ASSERT_TRUE(E.document != NULL);
-	ASSERT_TRUE(E.document_valid);
 	ASSERT_TRUE(editorDocumentMirrorTestFullRebuildCount() > 0);
 
 	editorDocumentMirrorTestResetStats();
@@ -5581,19 +5572,17 @@ static int test_editor_task_log_read_only_search_and_copy(void) {
 	return 0;
 }
 
-static int test_editor_task_log_document_rebuilds_from_rows_when_invalidated(void) {
+static int test_editor_task_log_document_stays_authoritative(void) {
 	ASSERT_TRUE(editorTabsInit());
 	ASSERT_TRUE(editorTaskStart("Task: Echo", "printf 'alpha\\nbeta\\n'", NULL, NULL));
 	ASSERT_TRUE(wait_for_task_completion_with_timeout(1500));
 	ASSERT_TRUE(editorActiveTabIsTaskLog());
 	ASSERT_TRUE(E.document != NULL);
-	ASSERT_TRUE(E.document_valid);
 
-	E.document_valid = 0;
 	editorDocumentMirrorTestResetStats();
 	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
-	ASSERT_EQ_INT(1, editorDocumentMirrorTestFullRebuildCount());
-	ASSERT_EQ_INT(1, editorDocumentMirrorTestRowSourceRebuildCount());
+	ASSERT_EQ_INT(0, editorDocumentMirrorTestFullRebuildCount());
+	ASSERT_EQ_INT(0, editorDocumentMirrorTestRowSourceRebuildCount());
 	return 0;
 }
 
@@ -5612,7 +5601,6 @@ static int test_editor_task_log_streams_output_while_inactive(void) {
 	ASSERT_TRUE(editorActiveTabIsTaskLog());
 	ASSERT_EQ_STR("Task: Background", editorActiveBufferDisplayName());
 	ASSERT_TRUE(E.document != NULL);
-	ASSERT_TRUE(E.document_valid);
 
 	size_t textlen = 0;
 	char *text = editorRowsToStr(&textlen);
@@ -7156,8 +7144,9 @@ static int test_editor_selection_range_tracks_cursor_movement(void) {
 	return 0;
 }
 
-static int test_editor_extract_range_text_rejects_oversized_operation(void) {
-	ASSERT_TRUE(install_synthetic_single_row(INT_MAX, 0));
+static int test_editor_extract_range_text_uses_document_when_row_cache_corrupt(void) {
+	add_row("abc");
+	E.rows[0].size = INT_MAX;
 
 	struct editorSelectionRange range = {
 		.start_cy = 0,
@@ -7168,15 +7157,17 @@ static int test_editor_extract_range_text_rejects_oversized_operation(void) {
 	char *text = (char *)1;
 	size_t len = 123;
 	int extracted = editorExtractRangeText(&range, &text, &len);
-	ASSERT_EQ_INT(-1, extracted);
-	ASSERT_TRUE(text == NULL);
-	ASSERT_EQ_INT(0, len);
-	ASSERT_EQ_STR("Operation too large", E.statusmsg);
+	ASSERT_EQ_INT(1, extracted);
+	ASSERT_TRUE(text != NULL);
+	ASSERT_EQ_INT(4, len);
+	ASSERT_MEM_EQ("abc\n", text, len);
+	free(text);
 	return 0;
 }
 
-static int test_editor_delete_range_rejects_oversized_operation(void) {
-	ASSERT_TRUE(install_synthetic_single_row(INT_MAX, 0));
+static int test_editor_delete_range_uses_document_when_row_cache_corrupt(void) {
+	add_row("abc");
+	E.rows[0].size = INT_MAX;
 
 	struct editorSelectionRange range = {
 		.start_cy = 0,
@@ -7185,10 +7176,13 @@ static int test_editor_delete_range_rejects_oversized_operation(void) {
 		.end_cx = 0
 	};
 	int deleted = editorDeleteRange(&range);
-	ASSERT_EQ_INT(-1, deleted);
-	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_INT(INT_MAX, E.rows[0].size);
-	ASSERT_EQ_STR("Operation too large", E.statusmsg);
+	ASSERT_EQ_INT(1, deleted);
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+	size_t len = 123;
+	char *text = editorRowsToStr(&len);
+	ASSERT_TRUE(text != NULL);
+	ASSERT_EQ_INT(0, len);
+	free(text);
 	return 0;
 }
 
@@ -9653,8 +9647,8 @@ int main(void) {
 		{"editor_insert_newline_at_row_start", test_editor_insert_newline_at_row_start},
 			{"editor_del_char_cluster_and_merge", test_editor_del_char_cluster_and_merge},
 			{"editor_rows_to_str", test_editor_rows_to_str},
-			{"editor_rows_to_str_rejects_oversized_total",
-				test_editor_rows_to_str_rejects_oversized_total},
+			{"editor_rows_to_str_uses_document_when_row_cache_corrupt",
+				test_editor_rows_to_str_uses_document_when_row_cache_corrupt},
 			{"editor_open_reads_rows_and_clears_dirty", test_editor_open_reads_rows_and_clears_dirty},
 			{"editor_syntax_activation_for_c_and_h_files",
 				test_editor_syntax_activation_for_c_and_h_files},
@@ -9749,8 +9743,8 @@ int main(void) {
 			test_editor_insert_row_render_alloc_failure_preserves_state},
 			{"editor_insert_char_render_alloc_failure_preserves_state",
 				test_editor_insert_char_render_alloc_failure_preserves_state},
-			{"editor_insert_char_rejects_size_overflow",
-				test_editor_insert_char_rejects_size_overflow},
+			{"editor_insert_char_uses_document_when_row_cache_corrupt",
+				test_editor_insert_char_uses_document_when_row_cache_corrupt},
 			{"editor_insert_row_rejects_size_overflow",
 				test_editor_insert_row_rejects_size_overflow},
 			{"editor_del_char_merge_alloc_failure_preserves_state",
@@ -9761,8 +9755,8 @@ int main(void) {
 			test_editor_save_preserves_prompt_oom_status},
 			{"editor_save_rows_to_str_alloc_failure_preserves_state",
 				test_editor_save_rows_to_str_alloc_failure_preserves_state},
-			{"editor_save_rejects_oversized_buffer",
-				test_editor_save_rejects_oversized_buffer},
+			{"editor_save_uses_document_when_row_cache_corrupt",
+				test_editor_save_uses_document_when_row_cache_corrupt},
 			{"editor_save_tmp_path_alloc_failure_preserves_state",
 				test_editor_save_tmp_path_alloc_failure_preserves_state},
 		{"editor_save_parent_dir_fsync_failure_after_rename_reports_failure",
@@ -9900,8 +9894,8 @@ int main(void) {
 				test_editor_process_keypress_goto_definition_missing_gopls_starts_install_task},
 			{"editor_task_log_read_only_search_and_copy",
 				test_editor_task_log_read_only_search_and_copy},
-			{"editor_task_log_document_rebuilds_from_rows_when_invalidated",
-				test_editor_task_log_document_rebuilds_from_rows_when_invalidated},
+			{"editor_task_log_document_stays_authoritative",
+				test_editor_task_log_document_stays_authoritative},
 			{"editor_task_log_streams_output_while_inactive",
 				test_editor_task_log_streams_output_while_inactive},
 			{"editor_task_runner_merges_stderr_and_close_requires_confirmation",
@@ -10004,10 +9998,10 @@ int main(void) {
 			test_editor_process_keypress_ctrl_b_toggles_selection_mode},
 			{"editor_selection_range_tracks_cursor_movement",
 				test_editor_selection_range_tracks_cursor_movement},
-			{"editor_extract_range_text_rejects_oversized_operation",
-				test_editor_extract_range_text_rejects_oversized_operation},
-			{"editor_delete_range_rejects_oversized_operation",
-				test_editor_delete_range_rejects_oversized_operation},
+			{"editor_extract_range_text_uses_document_when_row_cache_corrupt",
+				test_editor_extract_range_text_uses_document_when_row_cache_corrupt},
+			{"editor_delete_range_uses_document_when_row_cache_corrupt",
+				test_editor_delete_range_uses_document_when_row_cache_corrupt},
 			{"editor_process_keypress_ctrl_c_copies_single_line_selection",
 				test_editor_process_keypress_ctrl_c_copies_single_line_selection},
 		{"editor_process_keypress_ctrl_c_copies_multiline_selection",

@@ -1912,6 +1912,15 @@ static void editorFollowCursorViewport(void) {
 	}
 }
 
+static void editorSyncCursorOffsetFromPosition(void) {
+	size_t offset = 0;
+	if (editorBufferPosToOffset(E.cy, E.cx, &offset)) {
+		E.cursor_offset = offset;
+	} else {
+		E.cursor_offset = 0;
+	}
+}
+
 void editorViewportSetMode(enum editorViewportMode mode) {
 	if (mode == EDITOR_VIEWPORT_FREE_SCROLL) {
 		E.viewport_mode = EDITOR_VIEWPORT_FREE_SCROLL;
@@ -1956,6 +1965,7 @@ void editorViewportScrollByCols(int delta_cols) {
 }
 
 void editorViewportEnsureCursorVisible(void) {
+	editorSyncCursorOffsetFromPosition();
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
 	editorUpdateRenderXFromCursor();
 	editorFollowCursorViewport();
@@ -1963,6 +1973,7 @@ void editorViewportEnsureCursorVisible(void) {
 }
 
 void editorScroll(void) {
+	editorSyncCursorOffsetFromPosition();
 	editorUpdateRenderXFromCursor();
 	if (E.viewport_mode == EDITOR_VIEWPORT_FOLLOW_CURSOR) {
 		editorFollowCursorViewport();

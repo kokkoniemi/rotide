@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <locale.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "buffer.h"
 #include "input.h"
@@ -21,6 +22,8 @@ void initEditor(void) {
 	E.tab_kind = EDITOR_TAB_FILE;
 	E.is_preview = 0;
 	E.tab_title = NULL;
+	E.cursor_offset = 0;
+	E.preferred_rx = 0;
 	E.numrows = 0;
 	E.rows = NULL;
 	E.dirty = 0;
@@ -51,11 +54,8 @@ void initEditor(void) {
 	E.undo_history.len = 0;
 	E.redo_history.start = 0;
 	E.redo_history.len = 0;
-	E.edit_pending_snapshot.text = NULL;
-	E.edit_pending_snapshot.textlen = 0;
-	E.edit_pending_snapshot.cx = 0;
-	E.edit_pending_snapshot.cy = 0;
-	E.edit_pending_snapshot.dirty = 0;
+	memset(&E.edit_pending_entry, 0, sizeof(E.edit_pending_entry));
+	E.edit_pending_entry_valid = 0;
 	E.edit_group_kind = EDITOR_EDIT_NONE;
 	E.edit_pending_kind = EDITOR_EDIT_NONE;
 	E.edit_pending_mode = EDITOR_EDIT_PENDING_NONE;

@@ -37,6 +37,7 @@ void editorDelCharAt(struct erow *row, int idx);
 void editorDelCharsAt(struct erow *row, int idx, int len);
 
 void editorInsertChar(int c);
+int editorInsertText(const char *text, size_t len);
 void editorInsertNewline(void);
 void editorDelChar(void);
 

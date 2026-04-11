@@ -250,15 +250,6 @@ enum editorEditPendingMode {
 	EDITOR_EDIT_PENDING_SKIPPED
 };
 
-struct editorSnapshot {
-	struct editorDocument *document;
-	char *text;
-	size_t textlen;
-	int cx;
-	int cy;
-	int dirty;
-};
-
 struct editorHistoryEntry {
 	enum editorEditKind kind;
 	size_t start_offset;
@@ -282,6 +273,8 @@ struct editorTabState {
 	enum editorTabKind tab_kind;
 	int is_preview;
 	char *tab_title;
+	size_t cursor_offset;
+	int preferred_rx;
 	int cx;
 	int cy;
 	int rx;
@@ -290,7 +283,6 @@ struct editorTabState {
 	int numrows;
 	struct erow *rows;
 	struct editorDocument *document;
-	int document_valid;
 	int max_render_cols;
 	int max_render_cols_valid;
 	int dirty;
@@ -311,7 +303,8 @@ struct editorTabState {
 	int mouse_drag_started;
 	struct editorHistory undo_history;
 	struct editorHistory redo_history;
-	struct editorSnapshot edit_pending_snapshot;
+	struct editorHistoryEntry edit_pending_entry;
+	int edit_pending_entry_valid;
 	enum editorEditKind edit_group_kind;
 	enum editorEditKind edit_pending_kind;
 	enum editorEditPendingMode edit_pending_mode;
@@ -323,6 +316,8 @@ struct editorConfig {
 	enum editorTabKind tab_kind;
 	int is_preview;
 	char *tab_title;
+	size_t cursor_offset;
+	int preferred_rx;
 	int cx;
 	int cy;
 	int rx;
@@ -331,7 +326,6 @@ struct editorConfig {
 	int numrows;
 	struct erow *rows;
 	struct editorDocument *document;
-	int document_valid;
 	int max_render_cols;
 	int max_render_cols_valid;
 	int dirty;
@@ -360,7 +354,8 @@ struct editorConfig {
 	editorClipboardExternalSink clipboard_external_sink;
 	struct editorHistory undo_history;
 	struct editorHistory redo_history;
-	struct editorSnapshot edit_pending_snapshot;
+	struct editorHistoryEntry edit_pending_entry;
+	int edit_pending_entry_valid;
 	enum editorEditKind edit_group_kind;
 	enum editorEditKind edit_pending_kind;
 	enum editorEditPendingMode edit_pending_mode;

@@ -404,27 +404,13 @@ static void editorPasteClipboard(void) {
 	editorClearSelectionMode();
 	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
 	int dirty_before = E.dirty;
-	size_t inserted = 0;
-	int failed = 0;
-	for (size_t i = 0; i < clip_len; i++) {
-		int step_dirty_before = E.dirty;
-		if (clip[i] == '\n') {
-			editorInsertNewline();
-		} else {
-			editorInsertChar((unsigned char)clip[i]);
-		}
-		if (E.dirty == step_dirty_before) {
-			failed = 1;
-			break;
-		}
-		inserted++;
-	}
+	int pasted = editorInsertText(clip, clip_len);
 
 	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
 	editorHistoryBreakGroup();
 
-	if (!failed) {
-		editorSetStatusMsg("Pasted %zu bytes", inserted);
+	if (pasted) {
+		editorSetStatusMsg("Pasted %zu bytes", clip_len);
 	}
 }
 
