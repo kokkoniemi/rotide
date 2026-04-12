@@ -57,10 +57,18 @@ enum editorMouseEventKind {
 	EDITOR_MOUSE_EVENT_WHEEL_RIGHT
 };
 
+enum editorMouseModifierFlags {
+	EDITOR_MOUSE_MOD_NONE = 0,
+	EDITOR_MOUSE_MOD_SHIFT = 1 << 0,
+	EDITOR_MOUSE_MOD_ALT = 1 << 1,
+	EDITOR_MOUSE_MOD_CTRL = 1 << 2
+};
+
 struct editorMouseEvent {
 	enum editorMouseEventKind kind;
 	int x;
 	int y;
+	int modifiers;
 };
 
 struct editorTextSource;

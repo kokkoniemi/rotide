@@ -4039,6 +4039,7 @@ static int test_editor_read_key_sgr_mouse_events(void) {
 	int key = 0;
 	struct editorMouseEvent event;
 	char left_click[] = "\x1b[<0;5;3M";
+	char ctrl_left_click[] = "\x1b[<16;12;6M";
 	char left_drag[] = "\x1b[<32;6;4M";
 	char left_release[] = "\x1b[<0;6;4m";
 	char left_release_alt_cb[] = "\x1b[<3;7;4m";
@@ -4057,7 +4058,16 @@ static int test_editor_read_key_sgr_mouse_events(void) {
 	ASSERT_EQ_INT(EDITOR_MOUSE_EVENT_LEFT_PRESS, event.kind);
 	ASSERT_EQ_INT(5, event.x);
 	ASSERT_EQ_INT(3, event.y);
+	ASSERT_EQ_INT(EDITOR_MOUSE_MOD_NONE, event.modifiers);
 	ASSERT_EQ_INT(0, editorConsumeMouseEvent(&event));
+
+	ASSERT_TRUE(editor_read_key_with_input(ctrl_left_click, sizeof(ctrl_left_click) - 1, &key) == 0);
+	ASSERT_EQ_INT(MOUSE_EVENT, key);
+	ASSERT_TRUE(editorConsumeMouseEvent(&event) == 1);
+	ASSERT_EQ_INT(EDITOR_MOUSE_EVENT_LEFT_PRESS, event.kind);
+	ASSERT_EQ_INT(12, event.x);
+	ASSERT_EQ_INT(6, event.y);
+	ASSERT_EQ_INT(EDITOR_MOUSE_MOD_CTRL, event.modifiers);
 
 	ASSERT_TRUE(editor_read_key_with_input(left_drag, sizeof(left_drag) - 1, &key) == 0);
 	ASSERT_EQ_INT(MOUSE_EVENT, key);
@@ -4065,6 +4075,7 @@ static int test_editor_read_key_sgr_mouse_events(void) {
 	ASSERT_EQ_INT(EDITOR_MOUSE_EVENT_LEFT_DRAG, event.kind);
 	ASSERT_EQ_INT(6, event.x);
 	ASSERT_EQ_INT(4, event.y);
+	ASSERT_EQ_INT(EDITOR_MOUSE_MOD_NONE, event.modifiers);
 
 	ASSERT_TRUE(editor_read_key_with_input(left_release, sizeof(left_release) - 1, &key) == 0);
 	ASSERT_EQ_INT(MOUSE_EVENT, key);
@@ -4072,6 +4083,7 @@ static int test_editor_read_key_sgr_mouse_events(void) {
 	ASSERT_EQ_INT(EDITOR_MOUSE_EVENT_LEFT_RELEASE, event.kind);
 	ASSERT_EQ_INT(6, event.x);
 	ASSERT_EQ_INT(4, event.y);
+	ASSERT_EQ_INT(EDITOR_MOUSE_MOD_NONE, event.modifiers);
 
 	ASSERT_TRUE(editor_read_key_with_input(left_release_alt_cb, sizeof(left_release_alt_cb) - 1, &key) ==
 			0);
@@ -5523,6 +5535,78 @@ static int test_editor_process_keypress_goto_definition_multi_picker_selects_cho
 	return 0;
 }
 
+static int test_editor_process_keypress_mouse_ctrl_click_goto_definition_single_location(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_enabled = 1;
+
+	char go_path[64];
+	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
+			"package main\n\nfunc helper() {}\nfunc main() { helper() }\n"));
+	editorOpen(go_path);
+	E.window_rows = 6;
+	E.window_cols = 40;
+	E.rowoff = 0;
+	E.coloff = 0;
+	E.cy = 0;
+	E.cx = 0;
+
+	struct editorLspLocation target = {
+		.path = go_path,
+		.line = 2,
+		.character = 5
+	};
+	editorLspTestSetMockDefinitionResponse(1, &target, 1);
+
+	int text_start = editorTextBodyStartColForCols(E.window_cols);
+	char click[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click, sizeof(click), 16, text_start + 16, 5, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(click, strlen(click)) == 0);
+	ASSERT_EQ_INT(2, E.cy);
+	ASSERT_EQ_INT(5, E.cx);
+	ASSERT_EQ_INT(0, E.mouse_left_button_down);
+	ASSERT_EQ_INT(0, E.mouse_drag_started);
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.definition_count);
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_ctrl_click_goto_definition_multi_picker_selects_choice(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_enabled = 1;
+
+	char go_path[64];
+	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
+			"package main\n\nfunc a() {}\nfunc b() {}\nfunc main() { a() }\n"));
+	editorOpen(go_path);
+	E.window_rows = 7;
+	E.window_cols = 40;
+	E.rowoff = 0;
+	E.coloff = 0;
+
+	struct editorLspLocation targets[2] = {
+		{.path = go_path, .line = 2, .character = 5},
+		{.path = go_path, .line = 3, .character = 5},
+	};
+	editorLspTestSetMockDefinitionResponse(1, targets, 2);
+
+	int text_start = editorTextBodyStartColForCols(E.window_cols);
+	char click[32];
+	char input[40];
+	ASSERT_TRUE(format_sgr_mouse_event(click, sizeof(click), 16, text_start + 16, 6, 'M'));
+	int written = snprintf(input, sizeof(input), "%s2\r", click);
+	ASSERT_TRUE(written > 0 && (size_t)written < sizeof(input));
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, (size_t)written) == 0);
+	ASSERT_EQ_INT(3, E.cy);
+	ASSERT_EQ_INT(5, E.cx);
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
 static int test_editor_process_keypress_goto_definition_timeout_error_and_no_result(void) {
 	editorLspTestSetMockEnabled(1);
 	E.lsp_enabled = 1;
@@ -5570,6 +5654,27 @@ static int test_editor_process_keypress_goto_definition_reports_lsp_disabled(voi
 	return 0;
 }
 
+static int test_editor_process_keypress_mouse_ctrl_click_goto_definition_reports_lsp_disabled(void) {
+	E.lsp_enabled = 0;
+	add_row("plain text");
+	E.window_rows = 4;
+	E.window_cols = 40;
+	E.rowoff = 0;
+	E.coloff = 0;
+	E.syntax_language = EDITOR_SYNTAX_NONE;
+
+	int text_start = editorTextBodyStartColForCols(E.window_cols);
+	char click[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click, sizeof(click), 16, text_start + 4, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(click, strlen(click)) == 0);
+	ASSERT_EQ_STR("Go to definition is available for Go files only", E.statusmsg);
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(0, stats.definition_count);
+	return 0;
+}
+
 static int test_editor_process_keypress_goto_definition_startup_failure_reports_reason(void) {
 	E.lsp_enabled = 1;
 
@@ -5589,6 +5694,26 @@ static int test_editor_process_keypress_goto_definition_startup_failure_reports_
 	ASSERT_TRUE(strstr(E.statusmsg, "unavailable for this file") == NULL);
 
 	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_ctrl_click_goto_definition_requires_saved_go_buffer(void) {
+	add_row("package main");
+	add_row("");
+	add_row("func main() { helper() }");
+	E.window_rows = 5;
+	E.window_cols = 40;
+	E.rowoff = 0;
+	E.coloff = 0;
+	E.syntax_language = EDITOR_SYNTAX_GO;
+	free(E.filename);
+	E.filename = NULL;
+
+	int text_start = editorTextBodyStartColForCols(E.window_cols);
+	char click[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click, sizeof(click), 16, text_start + 16, 4, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(click, strlen(click)) == 0);
+	ASSERT_EQ_STR("Save this Go buffer before using go to definition", E.statusmsg);
 	return 0;
 }
 
@@ -6418,6 +6543,27 @@ static int test_editor_process_keypress_mouse_left_click_places_cursor_with_offs
 	ASSERT_TRUE(editor_process_keypress_with_input(click, strlen(click)) == 0);
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(5, E.cx);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_ctrl_click_does_not_start_drag_selection(void) {
+	add_row("abcdef");
+	E.window_rows = 4;
+	E.window_cols = 20;
+	E.rowoff = 0;
+	E.coloff = 0;
+	E.syntax_language = EDITOR_SYNTAX_NONE;
+	E.cy = 0;
+	E.cx = 0;
+
+	int text_start = editorTextBodyStartColForCols(E.window_cols);
+	char click[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click, sizeof(click), 16, text_start + 4, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click, strlen(click)) == 0);
+	ASSERT_EQ_INT(0, E.mouse_left_button_down);
+	ASSERT_EQ_INT(0, E.mouse_drag_started);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+	ASSERT_EQ_INT(3, E.cx);
 	return 0;
 }
 
@@ -10127,12 +10273,20 @@ int main(void) {
 				test_editor_process_keypress_goto_definition_cross_file_reuses_tab},
 			{"editor_process_keypress_goto_definition_multi_picker_selects_choice",
 				test_editor_process_keypress_goto_definition_multi_picker_selects_choice},
+			{"editor_process_keypress_mouse_ctrl_click_goto_definition_single_location",
+				test_editor_process_keypress_mouse_ctrl_click_goto_definition_single_location},
+			{"editor_process_keypress_mouse_ctrl_click_goto_definition_multi_picker_selects_choice",
+				test_editor_process_keypress_mouse_ctrl_click_goto_definition_multi_picker_selects_choice},
 			{"editor_process_keypress_goto_definition_timeout_error_and_no_result",
 				test_editor_process_keypress_goto_definition_timeout_error_and_no_result},
 			{"editor_process_keypress_goto_definition_reports_lsp_disabled",
 				test_editor_process_keypress_goto_definition_reports_lsp_disabled},
+			{"editor_process_keypress_mouse_ctrl_click_goto_definition_reports_lsp_disabled",
+				test_editor_process_keypress_mouse_ctrl_click_goto_definition_reports_lsp_disabled},
 			{"editor_process_keypress_goto_definition_startup_failure_reports_reason",
 				test_editor_process_keypress_goto_definition_startup_failure_reports_reason},
+			{"editor_process_keypress_mouse_ctrl_click_goto_definition_requires_saved_go_buffer",
+				test_editor_process_keypress_mouse_ctrl_click_goto_definition_requires_saved_go_buffer},
 			{"editor_process_keypress_goto_definition_missing_gopls_decline_install",
 				test_editor_process_keypress_goto_definition_missing_gopls_decline_install},
 			{"editor_process_keypress_goto_definition_missing_gopls_starts_install_task",
@@ -10189,6 +10343,8 @@ int main(void) {
 			test_editor_process_keypress_resize_event_updates_window_size},
 				{"editor_process_keypress_mouse_left_click_places_cursor_with_offsets",
 					test_editor_process_keypress_mouse_left_click_places_cursor_with_offsets},
+				{"editor_process_keypress_mouse_ctrl_click_does_not_start_drag_selection",
+					test_editor_process_keypress_mouse_ctrl_click_does_not_start_drag_selection},
 				{"editor_process_keypress_mouse_left_click_ignores_non_text_rows",
 					test_editor_process_keypress_mouse_left_click_ignores_non_text_rows},
 				{"editor_process_keypress_mouse_left_click_ignores_indicator_padding_columns",

@@ -37,7 +37,7 @@ static volatile sig_atomic_t terminal_handlers_installed = 0;
 static volatile sig_atomic_t terminal_resize_handler_installed = 0;
 static volatile sig_atomic_t terminal_restore_atexit_registered = 0;
 static volatile sig_atomic_t terminal_resize_pending = 0;
-static struct editorMouseEvent pending_mouse_event = {EDITOR_MOUSE_EVENT_NONE, 0, 0};
+static struct editorMouseEvent pending_mouse_event = {EDITOR_MOUSE_EVENT_NONE, 0, 0, 0};
 static int has_pending_mouse_event = 0;
 
 enum editorOsc52Mode {
@@ -137,6 +137,7 @@ static int editorDecodeSgrMousePayload(const char *payload, struct editorMouseEv
 	event_out->kind = EDITOR_MOUSE_EVENT_NONE;
 	event_out->x = cx;
 	event_out->y = cy;
+	event_out->modifiers = EDITOR_MOUSE_MOD_NONE;
 	// Parsed packet but unusable coordinates: ignore without treating it as parse failure.
 	if (cx <= 0 || cy <= 0) {
 		return 1;
@@ -152,6 +153,15 @@ static int editorDecodeSgrMousePayload(const char *payload, struct editorMouseEv
 	int has_ctrl = cb & 16;
 	int has_motion = cb & 32;
 	int has_wheel = cb & 64;
+	if (has_shift) {
+		event_out->modifiers |= EDITOR_MOUSE_MOD_SHIFT;
+	}
+	if (has_alt) {
+		event_out->modifiers |= EDITOR_MOUSE_MOD_ALT;
+	}
+	if (has_ctrl) {
+		event_out->modifiers |= EDITOR_MOUSE_MOD_CTRL;
+	}
 
 	// SGR uses lowercase 'm' for release.
 	if (suffix == 'm') {
@@ -187,12 +197,8 @@ static int editorDecodeSgrMousePayload(const char *payload, struct editorMouseEv
 		return 1;
 	}
 
-	if (has_modifiers) {
-		return 1;
-	}
-
 	if (has_motion) {
-		if (button == 0) {
+		if (!has_modifiers && button == 0) {
 			event_out->kind = EDITOR_MOUSE_EVENT_LEFT_DRAG;
 		}
 		return 1;
@@ -364,6 +370,7 @@ int editorConsumeMouseEvent(struct editorMouseEvent *out) {
 	pending_mouse_event.kind = EDITOR_MOUSE_EVENT_NONE;
 	pending_mouse_event.x = 0;
 	pending_mouse_event.y = 0;
+	pending_mouse_event.modifiers = EDITOR_MOUSE_MOD_NONE;
 	has_pending_mouse_event = 0;
 	return 1;
 }
@@ -410,6 +417,7 @@ static void editorRestoreTerminalInternal(void) {
 	pending_mouse_event.kind = EDITOR_MOUSE_EVENT_NONE;
 	pending_mouse_event.x = 0;
 	pending_mouse_event.y = 0;
+	pending_mouse_event.modifiers = EDITOR_MOUSE_MOD_NONE;
 	has_pending_mouse_event = 0;
 	terminal_resize_pending = 0;
 }
