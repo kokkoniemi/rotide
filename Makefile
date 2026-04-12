@@ -1,5 +1,6 @@
 CC ?= cc
-CPPFLAGS ?= -I. -Ivendor/tree_sitter/runtime/include -Ivendor/tree_sitter/runtime/src -Ivendor/tree_sitter/grammars/c/src -Ivendor/tree_sitter/grammars/go/src -Ivendor/tree_sitter/grammars/bash/src -Ivendor/tree_sitter/grammars/html/src -Ivendor/tree_sitter/grammars/javascript/src -Ivendor/tree_sitter/grammars/css/src
+SRC_DIR := src
+CPPFLAGS ?= -I$(SRC_DIR) -Ivendor/tree_sitter/runtime/include -Ivendor/tree_sitter/runtime/src -Ivendor/tree_sitter/grammars/c/src -Ivendor/tree_sitter/grammars/go/src -Ivendor/tree_sitter/grammars/bash/src -Ivendor/tree_sitter/grammars/html/src -Ivendor/tree_sitter/grammars/javascript/src -Ivendor/tree_sitter/grammars/css/src
 CFLAGS ?= -Wall -Wextra -Werror -Wshadow -Wdouble-promotion -Wundef -fno-common -pedantic -std=c2x
 LDFLAGS ?=
 SANITIZER_CFLAGS ?= -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer
@@ -22,19 +23,22 @@ TREE_SITTER_SRCS = vendor/tree_sitter/runtime/src/lib.c \
 	vendor/tree_sitter/grammars/javascript/src/scanner.c \
 	vendor/tree_sitter/grammars/css/src/parser.c \
 	vendor/tree_sitter/grammars/css/src/scanner.c
-CORE_SRCS = rotide.c terminal.c buffer.c output.c input.c keymap.c alloc.c save_syscalls.c syntax.c lsp.c document.c rope.c \
-	editor/file_io.c editor/tabs.c editor/drawer.c editor/recovery.c text/utf8.c text/row.c
+CORE_SRCS = $(SRC_DIR)/rotide.c $(SRC_DIR)/terminal.c $(SRC_DIR)/buffer.c $(SRC_DIR)/output.c \
+	$(SRC_DIR)/input.c $(SRC_DIR)/keymap.c $(SRC_DIR)/alloc.c $(SRC_DIR)/save_syscalls.c \
+	$(SRC_DIR)/syntax.c $(SRC_DIR)/lsp.c $(SRC_DIR)/document.c $(SRC_DIR)/rope.c \
+	$(SRC_DIR)/editor/file_io.c $(SRC_DIR)/editor/tabs.c $(SRC_DIR)/editor/drawer.c \
+	$(SRC_DIR)/editor/recovery.c $(SRC_DIR)/text/utf8.c $(SRC_DIR)/text/row.c
 SRCS = $(CORE_SRCS) $(TREE_SITTER_SRCS)
 OBJS = $(SRCS:.c=.o)
+CORE_OBJS = $(CORE_SRCS:.c=.o)
 TREE_SITTER_OBJS = $(TREE_SITTER_SRCS:.c=.o)
-EDITOR_OBJS = terminal.o buffer.o output.o input.o keymap.o alloc.o save_syscalls.o syntax.o lsp.o document.o rope.o \
-	editor/file_io.o editor/tabs.o editor/drawer.o editor/recovery.o text/utf8.o text/row.o $(TREE_SITTER_OBJS)
+EDITOR_OBJS = $(filter-out $(SRC_DIR)/rotide.o,$(CORE_OBJS)) $(TREE_SITTER_OBJS)
 TEST_SRCS = tests/rotide_tests.c tests/test_helpers.c tests/alloc_test_hooks.c tests/save_syscalls_test_hooks.c
 TEST_OBJS = $(TEST_SRCS:.c=.o)
 TEST_BIN = tests/rotide_tests
 DEPFILES = $(OBJS:.o=.d) $(TEST_OBJS:.o=.d)
 
-rotide: rotide.o $(EDITOR_OBJS)
+rotide: $(SRC_DIR)/rotide.o $(EDITOR_OBJS)
 	$(CC) $(LDFLAGS) $(OBJS) -o $@
 
 vendor/tree_sitter/runtime/src/lib.o: vendor/tree_sitter/runtime/src/lib.c

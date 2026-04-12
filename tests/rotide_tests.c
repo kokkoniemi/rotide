@@ -8468,7 +8468,7 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_c_tokens(v
 }
 
 static int test_editor_refresh_screen_repo_buffer_c_stays_highlighted(void) {
-	char *path = testResolveRepoPath("buffer.c");
+	char *path = testResolveRepoPath("src/buffer.c");
 	ASSERT_TRUE(path != NULL);
 
 	editorOpen(path);

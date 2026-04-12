@@ -1,3 +1,12 @@
+-Isrc
+-Ivendor/tree_sitter/runtime/include
+-Ivendor/tree_sitter/runtime/src
+-Ivendor/tree_sitter/grammars/c/src
+-Ivendor/tree_sitter/grammars/go/src
+-Ivendor/tree_sitter/grammars/bash/src
+-Ivendor/tree_sitter/grammars/html/src
+-Ivendor/tree_sitter/grammars/javascript/src
+-Ivendor/tree_sitter/grammars/css/src
 -Wall
 -Wextra
 -Werror
@@ -7,4 +16,3 @@
 -fno-common
 -pedantic
 -std=c2x
-
