@@ -17,7 +17,7 @@ static void editorRopeChunkFree(struct editorRopeChunk *chunk) {
 }
 
 static void editorRopeChunkArrayFree(struct editorRopeChunk *chunks, int chunk_count) {
-	if (chunks == NULL || chunk_count <= 0) {
+	if (chunks == NULL) {
 		return;
 	}
 	for (int i = 0; i < chunk_count; i++) {

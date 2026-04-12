@@ -3776,21 +3776,45 @@ static int test_editor_recovery_snapshot_permissions_are_0600(void) {
 
 static int test_editor_recovery_clean_quit_removes_snapshot(void) {
 	struct recoveryTestEnv env;
-	ASSERT_TRUE(setup_recovery_test_env(&env));
-	ASSERT_TRUE(editorTabsInit());
+	const char *recovery_path = NULL;
+	pid_t pid = -1;
+	int status = 0;
+	int result = 1;
+
+	if (!setup_recovery_test_env(&env)) {
+		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
+				"setup_recovery_test_env(&env)");
+		goto cleanup;
+	}
+	if (!editorTabsInit()) {
+		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
+				"editorTabsInit()");
+		goto cleanup;
+	}
 
 	add_row("quit-cleanup");
 	E.dirty = 1;
 	E.recovery_last_autosave_time = 0;
 	editorRecoveryMaybeAutosaveOnActivity();
 
-	const char *recovery_path = editorRecoveryPath();
-	ASSERT_TRUE(recovery_path != NULL);
-	ASSERT_TRUE(access(recovery_path, F_OK) == 0);
+	recovery_path = editorRecoveryPath();
+	if (recovery_path == NULL) {
+		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
+				"recovery_path != NULL");
+		goto cleanup;
+	}
+	if (access(recovery_path, F_OK) != 0) {
+		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
+				"access(recovery_path, F_OK) == 0");
+		goto cleanup;
+	}
 
 	E.dirty = 0;
-	pid_t pid = fork();
-	ASSERT_TRUE(pid != -1);
+	pid = fork();
+	if (pid == -1) {
+		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__, "pid != -1");
+		goto cleanup;
+	}
 	if (pid == 0) {
 		int saved_stdout;
 		if (redirect_stdout_to_devnull(&saved_stdout) == -1) {
@@ -3803,14 +3827,36 @@ static int test_editor_recovery_clean_quit_removes_snapshot(void) {
 		_exit(153);
 	}
 
-	int status = 0;
-	ASSERT_TRUE(wait_for_child_exit_with_timeout(pid, 1500, &status) == 0);
-	ASSERT_TRUE(WIFEXITED(status));
-	ASSERT_EQ_INT(EXIT_SUCCESS, WEXITSTATUS(status));
-	ASSERT_TRUE(access(recovery_path, F_OK) == -1);
+	if (wait_for_child_exit_with_timeout(pid, 1500, &status) != 0) {
+		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
+				"wait_for_child_exit_with_timeout(pid, 1500, &status) == 0");
+		goto cleanup;
+	}
+	pid = -1;
+	if (!WIFEXITED(status)) {
+		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__, "WIFEXITED(status)");
+		goto cleanup;
+	}
+	if (WEXITSTATUS(status) != EXIT_SUCCESS) {
+		fprintf(stderr, "Assertion failed in %s:%d: expected %d, got %d\n", __func__, __LINE__,
+				EXIT_SUCCESS, WEXITSTATUS(status));
+		goto cleanup;
+	}
+	if (access(recovery_path, F_OK) != -1) {
+		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
+				"access(recovery_path, F_OK) == -1");
+		goto cleanup;
+	}
 
+	result = 0;
+
+cleanup:
+	if (pid > 0) {
+		(void)kill(pid, SIGKILL);
+		(void)waitpid(pid, &status, 0);
+	}
 	cleanup_recovery_test_env(&env);
-	return 0;
+	return result;
 }
 
 static int test_editor_recovery_failure_exit_keeps_snapshot(void) {
@@ -8319,13 +8365,23 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_shell_toke
 
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
+	int has_if = 0;
+	int has_myfn = 0;
+	int has_flag = 0;
+	int has_comment = 0;
+	int has_pipe = 0;
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[94mif\x1b[39m") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[93mmyfn\x1b[39m") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[95m-n\x1b[39m") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[90m# comment\x1b[39m") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[97m|\x1b[39m") != NULL);
+	has_if = strstr(output, "\x1b[94mif\x1b[39m") != NULL;
+	has_myfn = strstr(output, "\x1b[93mmyfn\x1b[39m") != NULL;
+	has_flag = strstr(output, "\x1b[95m-n\x1b[39m") != NULL;
+	has_comment = strstr(output, "\x1b[90m# comment\x1b[39m") != NULL;
+	has_pipe = strstr(output, "\x1b[97m|\x1b[39m") != NULL;
 	free(output);
+	ASSERT_TRUE(has_if);
+	ASSERT_TRUE(has_myfn);
+	ASSERT_TRUE(has_flag);
+	ASSERT_TRUE(has_comment);
+	ASSERT_TRUE(has_pipe);
 
 	ASSERT_TRUE(unlink(path) == 0);
 	return 0;
@@ -8344,14 +8400,26 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_html_with_
 
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
+	int has_div = 0;
+	int has_class = 0;
+	int has_const = 0;
+	int has_number = 0;
+	int has_document = 0;
+	int has_color = 0;
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[96mdiv\x1b[39m") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[91mclass\x1b[39m") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[94mconst\x1b[39m") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[35m42\x1b[39m") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[95mdocument\x1b[39m") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[95mcolor\x1b[39m") != NULL);
+	has_div = strstr(output, "\x1b[96mdiv\x1b[39m") != NULL;
+	has_class = strstr(output, "\x1b[91mclass\x1b[39m") != NULL;
+	has_const = strstr(output, "\x1b[94mconst\x1b[39m") != NULL;
+	has_number = strstr(output, "\x1b[35m42\x1b[39m") != NULL;
+	has_document = strstr(output, "\x1b[95mdocument\x1b[39m") != NULL;
+	has_color = strstr(output, "\x1b[95mcolor\x1b[39m") != NULL;
 	free(output);
+	ASSERT_TRUE(has_div);
+	ASSERT_TRUE(has_class);
+	ASSERT_TRUE(has_const);
+	ASSERT_TRUE(has_number);
+	ASSERT_TRUE(has_document);
+	ASSERT_TRUE(has_color);
 
 	ASSERT_TRUE(unlink(path) == 0);
 	return 0;
@@ -8465,12 +8533,20 @@ static int test_editor_refresh_screen_javascript_predicates_and_locals(void) {
 
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
+	int has_document = 0;
+	int has_window = 0;
+	int has_upper = 0;
+	int has_lower = 0;
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[95mdocument\x1b[39m") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[95mwindow\x1b[39m") == NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[96mUpper\x1b[39m") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[96mlower\x1b[39m") == NULL);
+	has_document = strstr(output, "\x1b[95mdocument\x1b[39m") != NULL;
+	has_window = strstr(output, "\x1b[95mwindow\x1b[39m") != NULL;
+	has_upper = strstr(output, "\x1b[96mUpper\x1b[39m") != NULL;
+	has_lower = strstr(output, "\x1b[96mlower\x1b[39m") != NULL;
 	free(output);
+	ASSERT_TRUE(has_document);
+	ASSERT_TRUE(!has_window);
+	ASSERT_TRUE(has_upper);
+	ASSERT_TRUE(!has_lower);
 
 	ASSERT_TRUE(unlink(path) == 0);
 	return 0;
@@ -8490,17 +8566,25 @@ static int test_editor_refresh_screen_javascript_predicates_repeat_refresh(void)
 	editorOutputTestResetFrameCache();
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
+	int first_has_document = 0;
+	int first_has_window = 0;
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[95mdocument\x1b[39m") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[95mwindow\x1b[39m") == NULL);
+	first_has_document = strstr(output, "\x1b[95mdocument\x1b[39m") != NULL;
+	first_has_window = strstr(output, "\x1b[95mwindow\x1b[39m") != NULL;
 	free(output);
+	ASSERT_TRUE(first_has_document);
+	ASSERT_TRUE(!first_has_window);
 
 	editorOutputTestResetFrameCache();
 	output = refresh_screen_and_capture(&output_len);
+	int second_has_document = 0;
+	int second_has_window = 0;
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[95mdocument\x1b[39m") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[95mwindow\x1b[39m") == NULL);
+	second_has_document = strstr(output, "\x1b[95mdocument\x1b[39m") != NULL;
+	second_has_window = strstr(output, "\x1b[95mwindow\x1b[39m") != NULL;
 	free(output);
+	ASSERT_TRUE(second_has_document);
+	ASSERT_TRUE(!second_has_window);
 
 	ASSERT_TRUE(unlink(path) == 0);
 	return 0;
@@ -8581,21 +8665,31 @@ static int test_editor_refresh_screen_shell_selection_and_search_override_syntax
 
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
+	int has_selected_if = 0;
+	int has_selected_if_syntax = 0;
+	int has_flag = 0;
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[7mif\x1b[m") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[7m\x1b[94m") == NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[95m-n\x1b[39m") != NULL);
+	has_selected_if = strstr(output, "\x1b[7mif\x1b[m") != NULL;
+	has_selected_if_syntax = strstr(output, "\x1b[7m\x1b[94m") != NULL;
+	has_flag = strstr(output, "\x1b[95m-n\x1b[39m") != NULL;
 	free(output);
+	ASSERT_TRUE(has_selected_if);
+	ASSERT_TRUE(!has_selected_if_syntax);
+	ASSERT_TRUE(has_flag);
 
 	E.selection_mode_active = 0;
 	ASSERT_TRUE(set_active_search_match(0, 0, 2));
 
 	editorOutputTestResetFrameCache();
 	output = refresh_screen_and_capture(&output_len);
+	int has_search_if = 0;
+	int has_search_flag = 0;
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[7mif\x1b[m") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[95m-n\x1b[39m") != NULL);
+	has_search_if = strstr(output, "\x1b[7mif\x1b[m") != NULL;
+	has_search_flag = strstr(output, "\x1b[95m-n\x1b[39m") != NULL;
 	free(output);
+	ASSERT_TRUE(has_search_if);
+	ASSERT_TRUE(has_search_flag);
 
 	ASSERT_TRUE(unlink(path) == 0);
 	return 0;
