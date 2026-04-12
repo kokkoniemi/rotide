@@ -10,10 +10,16 @@
 #include <string.h>
 
 #include "buffer.h"
+#include "editor/drawer.h"
+#include "editor/recovery.h"
+#include "editor/tabs.h"
+#include "editor/task.h"
 #include "keymap.h"
 #include "lsp.h"
 #include "output.h"
 #include "terminal.h"
+#include "text/row.h"
+#include "text/utf8.h"
 
 /*** Input ***/
 

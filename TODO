@@ -8,4 +8,3 @@
 - FEATURE: Add bracket/quote pair assistance: auto-close pairs, skip-over closing pairs, and jump to matching bracket.
 - FEATURE: Add line numbers and current-line highlight (toggleable) to improve code navigation and context.
 - FEATURE: implement support for vim-mode. The commands should be configurable in .rotide.toml in local and global files.
-- IMPROVEMENT: buffer.c is huge. Would it be possible to abstract something out or restructure project so that we would not have so big files? Maybe deeper project structure or something? I still want to follow best practices in project structure and abstraction. I want code to be understandable for human reader.

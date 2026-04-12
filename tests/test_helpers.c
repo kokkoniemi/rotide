@@ -2,6 +2,10 @@
 
 #include "alloc_test_hooks.h"
 #include "buffer.h"
+#include "editor/drawer.h"
+#include "editor/recovery.h"
+#include "editor/tabs.h"
+#include "editor_test_api.h"
 #include "input.h"
 #include "keymap.h"
 #include "lsp.h"
@@ -9,6 +13,7 @@
 #include "save_syscalls_test_hooks.h"
 #include "syntax.h"
 #include "terminal.h"
+#include "text/utf8.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>

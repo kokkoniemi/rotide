@@ -2,7 +2,11 @@
 
 #include "alloc.h"
 #include "buffer.h"
+#include "editor/drawer.h"
+#include "editor/tabs.h"
 #include "size_utils.h"
+#include "text/row.h"
+#include "text/utf8.h"
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>

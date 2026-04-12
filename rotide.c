@@ -6,6 +6,9 @@
 #include <string.h>
 
 #include "buffer.h"
+#include "editor/drawer.h"
+#include "editor/recovery.h"
+#include "editor/tabs.h"
 #include "input.h"
 #include "keymap.h"
 #include "output.h"

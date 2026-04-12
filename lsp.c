@@ -2,6 +2,7 @@
 
 #include "buffer.h"
 #include "size_utils.h"
+#include "text/utf8.h"
 
 #include <ctype.h>
 #include <errno.h>

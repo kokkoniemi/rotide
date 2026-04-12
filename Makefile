@@ -22,11 +22,13 @@ TREE_SITTER_SRCS = vendor/tree_sitter/runtime/src/lib.c \
 	vendor/tree_sitter/grammars/javascript/src/scanner.c \
 	vendor/tree_sitter/grammars/css/src/parser.c \
 	vendor/tree_sitter/grammars/css/src/scanner.c
-CORE_SRCS = rotide.c terminal.c buffer.c output.c input.c keymap.c alloc.c save_syscalls.c syntax.c lsp.c document.c rope.c
+CORE_SRCS = rotide.c terminal.c buffer.c output.c input.c keymap.c alloc.c save_syscalls.c syntax.c lsp.c document.c rope.c \
+	editor/file_io.c editor/tabs.c editor/drawer.c editor/recovery.c text/utf8.c text/row.c
 SRCS = $(CORE_SRCS) $(TREE_SITTER_SRCS)
 OBJS = $(SRCS:.c=.o)
 TREE_SITTER_OBJS = $(TREE_SITTER_SRCS:.c=.o)
-EDITOR_OBJS = terminal.o buffer.o output.o input.o keymap.o alloc.o save_syscalls.o syntax.o lsp.o document.o rope.o $(TREE_SITTER_OBJS)
+EDITOR_OBJS = terminal.o buffer.o output.o input.o keymap.o alloc.o save_syscalls.o syntax.o lsp.o document.o rope.o \
+	editor/file_io.o editor/tabs.o editor/drawer.o editor/recovery.o text/utf8.o text/row.o $(TREE_SITTER_OBJS)
 TEST_SRCS = tests/rotide_tests.c tests/test_helpers.c tests/alloc_test_hooks.c tests/save_syscalls_test_hooks.c
 TEST_OBJS = $(TEST_SRCS:.c=.o)
 TEST_BIN = tests/rotide_tests
