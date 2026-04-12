@@ -13,8 +13,11 @@
 # - Invalid [theme.syntax] entries are ignored with a warning; defaults remain in effect.
 # LSP:
 # - [lsp]
-# - enabled = true|false
+# - gopls_enabled = true|false
+# - clangd_enabled = true|false
 # - gopls_command = "gopls" (command/path used to start gopls)
+# - clangd_command = "clangd" (command/path used to start clangd)
+# - enabled = true|false is still accepted as a legacy alias for both servers
 # - Invalid [lsp] values fall back to defaults with a warning.
 # Key spec format:
 # - "ctrl+<a-z>", "alt+<a-z>", "ctrl+alt+<a-z>", "ctrl+]"
@@ -49,8 +52,10 @@ operator = "white"
 punctuation = "bright_black"
 
 [lsp]
-enabled = true
+gopls_enabled = true
+clangd_enabled = true
 gopls_command = "gopls"
+clangd_command = "clangd"
 
 [keymap]
 quit = "ctrl+q"

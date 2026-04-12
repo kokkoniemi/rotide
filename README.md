@@ -98,10 +98,12 @@ Sections:
 - `[keymap]`
 
 LSP notes:
+- `gopls_enabled` and `clangd_enabled` can be set independently in `[lsp]`.
 - `gopls_command` can be set globally or per-project.
 - `clangd_command` can be set globally or per-project.
 - `gopls_install_command` is **global-only** (`~/.rotide/config.toml`).
 - If `gopls_install_command` appears in project config, RotIDE ignores that key and keeps parsing the rest of `[lsp]`.
+- Legacy `enabled = true|false` is accepted as a shorthand that toggles both servers together.
 - Default install command:
   - `go install golang.org/x/tools/gopls@latest`
 

@@ -36,7 +36,8 @@ void initEditor(void) {
 	E.filename = NULL;
 	E.syntax_language = EDITOR_SYNTAX_NONE;
 	E.syntax_state = NULL;
-	editorLspConfigInitDefaults(&E.lsp_enabled, E.lsp_gopls_command,
+	editorLspConfigInitDefaults(&E.lsp_gopls_enabled, &E.lsp_clangd_enabled,
+			E.lsp_gopls_command,
 			sizeof(E.lsp_gopls_command), E.lsp_gopls_install_command,
 			sizeof(E.lsp_gopls_install_command), E.lsp_clangd_command,
 			sizeof(E.lsp_clangd_command));
@@ -120,7 +121,8 @@ int main(int argc, char *argv[]) {
 	enum editorSyntaxThemeLoadStatus syntax_theme_status =
 			editorSyntaxThemeLoadConfigured(E.syntax_theme);
 	enum editorLspConfigLoadStatus lsp_config_status =
-			editorLspConfigLoadConfigured(&E.lsp_enabled, E.lsp_gopls_command,
+			editorLspConfigLoadConfigured(&E.lsp_gopls_enabled, &E.lsp_clangd_enabled,
+					E.lsp_gopls_command,
 					sizeof(E.lsp_gopls_command), E.lsp_gopls_install_command,
 					sizeof(E.lsp_gopls_install_command), E.lsp_clangd_command,
 					sizeof(E.lsp_clangd_command));

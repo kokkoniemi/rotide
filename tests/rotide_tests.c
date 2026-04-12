@@ -5214,16 +5214,19 @@ static int test_editor_keymap_load_accepts_reserved_terminal_aliases_for_matchin
 }
 
 static int test_editor_lsp_config_defaults_and_precedence(void) {
-	int enabled = 0;
+	int gopls_enabled = 0;
+	int clangd_enabled = 0;
 	char command[PATH_MAX];
 	char install_command[PATH_MAX];
 	char clangd_command[PATH_MAX];
 
 	enum editorLspConfigLoadStatus defaults_status =
-			editorLspConfigLoadFromPaths(&enabled, command, sizeof(command), install_command,
-					sizeof(install_command), clangd_command, sizeof(clangd_command), NULL, NULL);
+			editorLspConfigLoadFromPaths(&gopls_enabled, &clangd_enabled, command, sizeof(command),
+					install_command, sizeof(install_command), clangd_command,
+					sizeof(clangd_command), NULL, NULL);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_OK, defaults_status);
-	ASSERT_EQ_INT(1, enabled);
+	ASSERT_EQ_INT(1, gopls_enabled);
+	ASSERT_EQ_INT(1, clangd_enabled);
 	ASSERT_EQ_STR("gopls", command);
 	ASSERT_EQ_STR("go install golang.org/x/tools/gopls@latest", install_command);
 	ASSERT_EQ_STR("clangd", clangd_command);
@@ -5238,23 +5241,27 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
 	ASSERT_TRUE(write_text_file(global_path,
 				"[lsp]\n"
-				"enabled = false\n"
+				"gopls_enabled = false\n"
+				"clangd_enabled = false\n"
 				"gopls_command = \"gopls-global\"\n"
 				"clangd_command = \"clangd-global\"\n"
 				"gopls_install_command = \"global-install\"\n"));
 	ASSERT_TRUE(write_text_file(project_path,
 				"[lsp]\n"
-				"enabled = true\n"
+				"gopls_enabled = true\n"
+				"clangd_enabled = false\n"
 				"gopls_command = \"gopls-project\"\n"
 				"clangd_command = \"clangd-project\"\n"
 				"gopls_install_command = \"project-install\"\n"));
 
 	enum editorLspConfigLoadStatus status =
-			editorLspConfigLoadFromPaths(&enabled, command, sizeof(command), install_command,
-					sizeof(install_command), clangd_command, sizeof(clangd_command), global_path,
+			editorLspConfigLoadFromPaths(&gopls_enabled, &clangd_enabled, command, sizeof(command),
+					install_command, sizeof(install_command), clangd_command,
+					sizeof(clangd_command), global_path,
 					project_path);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_OK, status);
-	ASSERT_EQ_INT(1, enabled);
+	ASSERT_EQ_INT(1, gopls_enabled);
+	ASSERT_EQ_INT(0, clangd_enabled);
 	ASSERT_EQ_STR("gopls-project", command);
 	ASSERT_EQ_STR("global-install", install_command);
 	ASSERT_EQ_STR("clangd-project", clangd_command);
@@ -5266,7 +5273,8 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 }
 
 static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
-	int enabled = 0;
+	int gopls_enabled = 0;
+	int clangd_enabled = 0;
 	char command[PATH_MAX];
 	char install_command[PATH_MAX];
 	char clangd_command[PATH_MAX];
@@ -5284,26 +5292,30 @@ static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
 				"[lsp]\n"
 				"enabled = \"yes\"\n"));
 	enum editorLspConfigLoadStatus status =
-			editorLspConfigLoadFromPaths(&enabled, command, sizeof(command), install_command,
+			editorLspConfigLoadFromPaths(&gopls_enabled, &clangd_enabled, command,
+					sizeof(command), install_command,
 					sizeof(install_command), clangd_command, sizeof(clangd_command), global_path,
 					NULL);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_INVALID_GLOBAL, status);
-	ASSERT_EQ_INT(1, enabled);
+	ASSERT_EQ_INT(1, gopls_enabled);
+	ASSERT_EQ_INT(1, clangd_enabled);
 	ASSERT_EQ_STR("gopls", command);
 	ASSERT_EQ_STR("go install golang.org/x/tools/gopls@latest", install_command);
 	ASSERT_EQ_STR("clangd", clangd_command);
 
 	ASSERT_TRUE(write_text_file(global_path,
 				"[lsp]\n"
-				"enabled = false\n"));
+				"clangd_enabled = false\n"));
 	ASSERT_TRUE(write_text_file(project_path,
 				"[lsp]\n"
 				"gopls_command = \"\"\n"));
-	status = editorLspConfigLoadFromPaths(&enabled, command, sizeof(command), install_command,
+	status = editorLspConfigLoadFromPaths(&gopls_enabled, &clangd_enabled, command,
+			sizeof(command), install_command,
 			sizeof(install_command), clangd_command, sizeof(clangd_command), global_path,
 			project_path);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_INVALID_PROJECT, status);
-	ASSERT_EQ_INT(1, enabled);
+	ASSERT_EQ_INT(1, gopls_enabled);
+	ASSERT_EQ_INT(1, clangd_enabled);
 	ASSERT_EQ_STR("gopls", command);
 	ASSERT_EQ_STR("go install golang.org/x/tools/gopls@latest", install_command);
 	ASSERT_EQ_STR("clangd", clangd_command);
@@ -5316,7 +5328,8 @@ static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
 
 static int test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_enabled = 1;
+	E.lsp_gopls_enabled = 1;
+	E.lsp_clangd_enabled = 0;
 
 	char txt_path[64];
 	ASSERT_TRUE(write_temp_text_file(txt_path, sizeof(txt_path), "plain text\n"));
@@ -5355,7 +5368,8 @@ static int test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers(void) {
 
 static int test_editor_lsp_lifecycle_restart_after_mock_crash(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_enabled = 1;
+	E.lsp_gopls_enabled = 1;
+	E.lsp_clangd_enabled = 1;
 
 	char go_path[64];
 	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
@@ -5383,7 +5397,8 @@ static int test_editor_lsp_lifecycle_restart_after_mock_crash(void) {
 
 static int test_editor_lsp_lifecycle_restarts_when_switching_between_go_and_clangd(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_enabled = 1;
+	E.lsp_gopls_enabled = 1;
+	E.lsp_clangd_enabled = 1;
 
 	char go_path[64];
 	char c_path[64];
@@ -5433,7 +5448,8 @@ static int test_editor_lsp_lifecycle_restarts_when_switching_between_go_and_clan
 
 static int test_editor_lsp_document_sync_for_go_edit_save_close(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_enabled = 1;
+	E.lsp_gopls_enabled = 1;
+	E.lsp_clangd_enabled = 0;
 	ASSERT_TRUE(editorTabsInit());
 
 	char go_path[64];
@@ -5472,7 +5488,8 @@ static int test_editor_lsp_document_sync_for_go_edit_save_close(void) {
 
 static int test_editor_lsp_document_sync_for_c_edit_save_close(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_enabled = 1;
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	char c_path[64];
@@ -5511,7 +5528,8 @@ static int test_editor_lsp_document_sync_for_c_edit_save_close(void) {
 
 static int test_editor_lsp_full_document_change_uses_active_source(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_enabled = 1;
+	E.lsp_gopls_enabled = 1;
+	E.lsp_clangd_enabled = 1;
 
 	char go_path[64];
 	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
@@ -5537,7 +5555,8 @@ static int test_editor_lsp_full_document_change_uses_active_source(void) {
 
 static int test_editor_lsp_document_sync_ignores_non_go_buffers(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_enabled = 1;
+	E.lsp_gopls_enabled = 1;
+	E.lsp_clangd_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	char txt_path[64];
@@ -5563,7 +5582,8 @@ static int test_editor_lsp_document_sync_ignores_non_go_buffers(void) {
 
 static int test_editor_process_keypress_ctrl_o_goto_definition_single_location(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_enabled = 1;
+	E.lsp_gopls_enabled = 1;
+	E.lsp_clangd_enabled = 0;
 
 	char go_path[64];
 	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
@@ -5595,7 +5615,8 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location(v
 
 static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_c_buffer(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_enabled = 1;
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 1;
 
 	char c_path[64];
 	ASSERT_TRUE(write_temp_c_file(c_path, sizeof(c_path),
@@ -5628,7 +5649,8 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_c
 
 static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_cpp_buffer(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_enabled = 1;
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 1;
 
 	char cpp_path[64];
 	ASSERT_TRUE(write_temp_cpp_file(cpp_path, sizeof(cpp_path),
@@ -5661,7 +5683,8 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_c
 
 static int test_editor_process_keypress_goto_definition_cross_file_reuses_tab(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_enabled = 1;
+	E.lsp_gopls_enabled = 1;
+	E.lsp_clangd_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	char src_path[64];
@@ -5703,7 +5726,8 @@ static int test_editor_process_keypress_goto_definition_cross_file_reuses_tab(vo
 
 static int test_editor_process_keypress_goto_definition_multi_picker_selects_choice(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_enabled = 1;
+	E.lsp_gopls_enabled = 1;
+	E.lsp_clangd_enabled = 1;
 
 	char go_path[64];
 	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
@@ -5729,7 +5753,8 @@ static int test_editor_process_keypress_goto_definition_multi_picker_selects_cho
 
 static int test_editor_process_keypress_mouse_ctrl_click_goto_definition_single_location(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_enabled = 1;
+	E.lsp_gopls_enabled = 1;
+	E.lsp_clangd_enabled = 1;
 
 	char go_path[64];
 	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
@@ -5768,7 +5793,8 @@ static int test_editor_process_keypress_mouse_ctrl_click_goto_definition_single_
 
 static int test_editor_process_keypress_mouse_ctrl_click_goto_definition_multi_picker_selects_choice(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_enabled = 1;
+	E.lsp_gopls_enabled = 1;
+	E.lsp_clangd_enabled = 1;
 
 	char go_path[64];
 	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
@@ -5801,7 +5827,8 @@ static int test_editor_process_keypress_mouse_ctrl_click_goto_definition_multi_p
 
 static int test_editor_process_keypress_goto_definition_timeout_error_and_no_result(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_enabled = 1;
+	E.lsp_gopls_enabled = 1;
+	E.lsp_clangd_enabled = 1;
 
 	char go_path[64];
 	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
@@ -5829,7 +5856,8 @@ static int test_editor_process_keypress_goto_definition_timeout_error_and_no_res
 }
 
 static int test_editor_process_keypress_goto_definition_reports_lsp_disabled(void) {
-	E.lsp_enabled = 0;
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 1;
 
 	char go_path[64];
 	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
@@ -5840,14 +5868,15 @@ static int test_editor_process_keypress_goto_definition_reports_lsp_disabled(voi
 
 	char goto_def[] = {CTRL_KEY('o')};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
-	ASSERT_EQ_STR("LSP is disabled in config", E.statusmsg);
+	ASSERT_EQ_STR("gopls is disabled in config", E.statusmsg);
 
 	ASSERT_TRUE(unlink(go_path) == 0);
 	return 0;
 }
 
 static int test_editor_process_keypress_goto_definition_reports_lsp_disabled_for_c(void) {
-	E.lsp_enabled = 0;
+	E.lsp_gopls_enabled = 1;
+	E.lsp_clangd_enabled = 0;
 
 	char c_path[64];
 	ASSERT_TRUE(write_temp_c_file(c_path, sizeof(c_path),
@@ -5858,14 +5887,15 @@ static int test_editor_process_keypress_goto_definition_reports_lsp_disabled_for
 
 	char goto_def[] = {CTRL_KEY('o')};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
-	ASSERT_EQ_STR("LSP is disabled in config", E.statusmsg);
+	ASSERT_EQ_STR("clangd is disabled in config", E.statusmsg);
 
 	ASSERT_TRUE(unlink(c_path) == 0);
 	return 0;
 }
 
 static int test_editor_process_keypress_mouse_ctrl_click_goto_definition_reports_lsp_disabled(void) {
-	E.lsp_enabled = 0;
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 0;
 	add_row("plain text");
 	E.window_rows = 4;
 	E.window_cols = 40;
@@ -5902,7 +5932,8 @@ static int test_editor_process_keypress_goto_definition_requires_saved_c_buffer(
 }
 
 static int test_editor_process_keypress_goto_definition_reports_empty_clangd_command(void) {
-	E.lsp_enabled = 1;
+	E.lsp_gopls_enabled = 1;
+	E.lsp_clangd_enabled = 1;
 	E.lsp_clangd_command[0] = '\0';
 
 	char c_path[64];
@@ -5921,7 +5952,8 @@ static int test_editor_process_keypress_goto_definition_reports_empty_clangd_com
 }
 
 static int test_editor_process_keypress_goto_definition_startup_failure_reports_reason(void) {
-	E.lsp_enabled = 1;
+	E.lsp_gopls_enabled = 1;
+	E.lsp_clangd_enabled = 1;
 
 	strncpy(E.lsp_gopls_command, "true", sizeof(E.lsp_gopls_command) - 1);
 	E.lsp_gopls_command[sizeof(E.lsp_gopls_command) - 1] = '\0';
@@ -5963,7 +5995,8 @@ static int test_editor_process_keypress_mouse_ctrl_click_goto_definition_require
 }
 
 static int test_editor_process_keypress_goto_definition_missing_gopls_decline_install(void) {
-	E.lsp_enabled = 1;
+	E.lsp_gopls_enabled = 1;
+	E.lsp_clangd_enabled = 0;
 	ASSERT_TRUE(editorTabsInit());
 
 	strncpy(E.lsp_gopls_command,
@@ -5993,7 +6026,8 @@ static int test_editor_process_keypress_goto_definition_missing_gopls_decline_in
 }
 
 static int test_editor_process_keypress_goto_definition_missing_gopls_starts_install_task(void) {
-	E.lsp_enabled = 1;
+	E.lsp_gopls_enabled = 1;
+	E.lsp_clangd_enabled = 0;
 	ASSERT_TRUE(editorTabsInit());
 
 	strncpy(E.lsp_gopls_command,

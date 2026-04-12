@@ -323,6 +323,16 @@ static int editorGoToDefinitionSupportedLanguage(enum editorSyntaxLanguage langu
 	return language == EDITOR_SYNTAX_GO || language == EDITOR_SYNTAX_C;
 }
 
+static int editorGoToDefinitionEnabledForLanguage(void) {
+	if (E.syntax_language == EDITOR_SYNTAX_GO) {
+		return E.lsp_gopls_enabled;
+	}
+	if (E.syntax_language == EDITOR_SYNTAX_C) {
+		return E.lsp_clangd_enabled;
+	}
+	return 0;
+}
+
 static const char *editorGoToDefinitionLanguageLabel(void) {
 	if (E.syntax_language == EDITOR_SYNTAX_GO) {
 		return "Go";
@@ -331,6 +341,16 @@ static const char *editorGoToDefinitionLanguageLabel(void) {
 		return "C/C++";
 	}
 	return NULL;
+}
+
+static const char *editorGoToDefinitionServerName(void) {
+	if (E.syntax_language == EDITOR_SYNTAX_GO) {
+		return "gopls";
+	}
+	if (E.syntax_language == EDITOR_SYNTAX_C) {
+		return "clangd";
+	}
+	return "LSP";
 }
 
 static const char *editorGoToDefinitionCommand(void) {
@@ -849,8 +869,8 @@ static void editorGoToDefinition(void) {
 		editorSetStatusMsg("Save this %s buffer before using go to definition", language_label);
 		return;
 	}
-	if (!E.lsp_enabled) {
-		editorSetStatusMsg("LSP is disabled in config");
+	if (!editorGoToDefinitionEnabledForLanguage()) {
+		editorSetStatusMsg("%s is disabled in config", editorGoToDefinitionServerName());
 		return;
 	}
 	const char *command = editorGoToDefinitionCommand();

@@ -547,6 +547,21 @@ static const char *editorLspCommandForServerKind(enum editorLspServerKind server
 	}
 }
 
+static int editorLspServerKindEnabled(enum editorLspServerKind server_kind) {
+	switch (server_kind) {
+		case EDITOR_LSP_SERVER_GOPLS:
+			return E.lsp_gopls_enabled;
+		case EDITOR_LSP_SERVER_CLANGD:
+			return E.lsp_clangd_enabled;
+		default:
+			return 0;
+	}
+}
+
+static int editorLspFileEnabled(const char *filename, enum editorSyntaxLanguage language) {
+	return editorLspServerKindEnabled(editorLspServerKindForFile(filename, language));
+}
+
 static const char *editorLspLanguageIdForFile(const char *filename,
 		enum editorSyntaxLanguage language) {
 	switch (language) {
@@ -1353,7 +1368,7 @@ static int editorLspWaitForResponseId(int request_id, int timeout_ms, char **res
 
 static int editorLspEnsureRunningReal(enum editorLspServerKind server_kind) {
 	g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_NONE;
-	if (!E.lsp_enabled) {
+	if (!editorLspServerKindEnabled(server_kind)) {
 		return 0;
 	}
 	const char *command = editorLspCommandForServerKind(server_kind);
@@ -1487,7 +1502,7 @@ static int editorLspEnsureRunningForFile(const char *filename, enum editorSyntax
 		return 0;
 	}
 	if (g_lsp_mock.enabled) {
-		if (!E.lsp_enabled) {
+		if (!editorLspServerKindEnabled(server_kind)) {
 			return 0;
 		}
 		if (!g_lsp_mock.server_alive || g_lsp_mock.server_kind != server_kind) {
@@ -1519,7 +1534,7 @@ void editorLspShutdown(void) {
 
 static int editorLspIsTrackedLanguage(const char *filename, enum editorSyntaxLanguage language,
 		int *doc_open_in_out, int *doc_version_in_out) {
-	if (filename == NULL || filename[0] == '\0' || !E.lsp_enabled ||
+	if (filename == NULL || filename[0] == '\0' || !editorLspFileEnabled(filename, language) ||
 			doc_open_in_out == NULL || doc_version_in_out == NULL ||
 			editorLspServerKindForFile(filename, language) == EDITOR_LSP_SERVER_NONE) {
 		return 0;
@@ -1888,7 +1903,7 @@ int editorLspRequestDefinition(const char *filename, enum editorSyntaxLanguage l
 		*timed_out_out = 0;
 	}
 
-	if (!E.lsp_enabled) {
+	if (!editorLspFileEnabled(filename, language)) {
 		return 0;
 	}
 	if (filename == NULL || filename[0] == '\0' || line < 0 || character < 0 ||
