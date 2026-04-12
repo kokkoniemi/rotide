@@ -2800,6 +2800,66 @@ static int editorSyncCursorFromOffset(size_t target_offset) {
 	return 1;
 }
 
+static int editorSyncCursorFromOffsetByteBoundary(size_t target_offset) {
+	size_t document_len = 0;
+	size_t normalized_offset = 0;
+	int new_cy = 0;
+	size_t column = 0;
+	int new_cx = 0;
+
+	if (E.document == NULL) {
+		return 0;
+	}
+
+	document_len = editorDocumentLength(E.document);
+	if (target_offset > document_len) {
+		target_offset = document_len;
+	}
+	if (!editorDocumentByteOffsetToPosition(E.document, target_offset, &new_cy, &column) ||
+			!editorSizeToInt(column, &new_cx)) {
+		return 0;
+	}
+
+	if (new_cy < 0) {
+		new_cy = 0;
+	}
+	if (new_cy > E.numrows) {
+		new_cy = E.numrows;
+	}
+
+	if (new_cy < E.numrows) {
+		if (new_cx < 0) {
+			new_cx = 0;
+		}
+		if (new_cx > E.rows[new_cy].size) {
+			new_cx = E.rows[new_cy].size;
+		}
+		new_cx = editorRowClampCxToCharBoundary(&E.rows[new_cy], new_cx);
+		if (new_cx < 0) {
+			new_cx = 0;
+		}
+		if (new_cx > E.rows[new_cy].size) {
+			new_cx = E.rows[new_cy].size;
+		}
+
+		size_t line_start = 0;
+		size_t cx_size = 0;
+		if (!editorDocumentLineStartByte(E.document, new_cy, &line_start) ||
+				!editorIntToSize(new_cx, &cx_size) ||
+				!editorSizeAdd(line_start, cx_size, &normalized_offset)) {
+			return 0;
+		}
+	} else {
+		new_cx = 0;
+		normalized_offset = document_len;
+	}
+
+	E.cursor_offset = normalized_offset;
+	E.cy = new_cy;
+	E.cx = new_cx;
+	return 1;
+}
+
 static void editorClampCursorForRows(int target_cy, int target_cx,
 		const struct erow *rows, int numrows, int *cy_out, int *cx_out) {
 	int cy = target_cy;
@@ -5490,7 +5550,11 @@ void editorInsertChar(int c) {
 		return;
 	}
 	if (E.cy < E.numrows) {
-		insert_cx = editorRowClampCxToClusterBoundary(&E.rows[E.cy], E.cx);
+		/*
+		 * Terminal UTF-8 input arrives byte-by-byte, so insertion needs to preserve
+		 * in-progress multibyte sequences instead of snapping back to a cluster boundary.
+		 */
+		insert_cx = editorRowClampCxToCharBoundary(&E.rows[E.cy], E.cx);
 	} else {
 		insert_cx = 0;
 	}
@@ -5513,7 +5577,9 @@ void editorInsertChar(int c) {
 		.before_dirty = E.dirty,
 		.after_dirty = E.dirty + dirty_delta
 	};
-	(void)editorApplyDocumentEdit(&edit);
+	if (editorApplyDocumentEdit(&edit)) {
+		(void)editorSyncCursorFromOffsetByteBoundary(start_offset + 1);
+	}
 }
 
 void editorInsertNewline(void) {

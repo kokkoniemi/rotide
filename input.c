@@ -93,6 +93,16 @@ static size_t editorPromptPrevDeleteIdx(const char *buf, size_t buflen) {
 	return buflen - 1;
 }
 
+static int editorByteShouldInsertAsText(int c) {
+	if (c < CHAR_MIN || c > CHAR_MAX) {
+		return 0;
+	}
+
+	unsigned char byte = (unsigned char)c;
+	/* Keep non-ASCII bytes verbatim and allow literal Tab; filter other ASCII controls. */
+	return byte == '\t' || byte >= 0x80 || !iscntrl(byte);
+}
+
 static void editorSetQuitConfirmStatus(void) {
 	char quit_binding[24];
 	if (editorKeymapFormatBinding(&E.keymap, EDITOR_ACTION_QUIT, quit_binding,
@@ -309,7 +319,7 @@ static void editorMaybePromptInstallGopls(void) {
 		return;
 	}
 	if (!editorTaskStart("Task: Install gopls", E.lsp_gopls_install_command,
-				"gopls installed. Retry Ctrl-]",
+				"gopls installed. Retry Ctrl-O",
 				"gopls install failed; see task log")) {
 		if (E.statusmsg[0] == '\0') {
 			editorSetStatusMsg("Unable to start gopls install");
@@ -1500,7 +1510,7 @@ void editorProcessKeypress(void) {
 				return;
 			}
 			effects |= mapped_effects;
-		} else if (c >= CHAR_MIN && c <= CHAR_MAX) {
+		} else if (editorByteShouldInsertAsText(c)) {
 			if (E.pane_focus != EDITOR_PANE_DRAWER) {
 				if (editorActiveTabIsReadOnly()) {
 					editorSetStatusMsg("Task log is read-only");

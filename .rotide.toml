@@ -24,6 +24,12 @@
 # - Modifiers are case-insensitive and can be in any order
 # - or one of
 # left/right/up/down/home/end/page_up/page_down/enter/esc/backspace/del
+# - Rotide binds terminal key codes, so some physical keys alias the same input
+# - "ctrl+i" is unsafe because terminals send the same byte for Ctrl-I and Tab
+# - "ctrl+m" and "ctrl+[" alias Enter and Esc; use them only for newline/escape
+# - "ctrl+h" aliases backspace and should only be used for the backspace action
+# - Tab stays reserved for literal text insertion under the baseline terminal model
+# - Default goto_definition is "ctrl+o"; avoid "ctrl+i" because it aliases Tab
 # - In drawer focus, enter toggles directories and opens files in tabs
 #   (reusing an already-open file tab when possible)
 
@@ -58,7 +64,7 @@ resize_drawer_narrow = "alt+shift+left"
 resize_drawer_widen = "alt+shift+right"
 find = "ctrl+f"
 goto_line = "ctrl+g"
-goto_definition = "ctrl+i"
+goto_definition = "ctrl+o"
 toggle_selection = "ctrl+b"
 copy_selection = "ctrl+c"
 cut_selection = "ctrl+x"

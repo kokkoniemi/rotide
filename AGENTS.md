@@ -1,6 +1,6 @@
 # AGENTS.md instructions for /home/mk/Development/rotide
 
-## Project context
+## Project context 	
 
 - `rotide` is a terminal text editor inspired by kilo.
 - Priorities: deterministic behavior, readable control flow, and strong regression coverage.

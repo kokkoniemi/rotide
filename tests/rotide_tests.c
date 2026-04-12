@@ -5034,17 +5034,17 @@ static int test_editor_keymap_defaults_include_goto_definition_action(void) {
 	editorKeymapInitDefaults(&keymap);
 
 	enum editorAction action = EDITOR_ACTION_COUNT;
-	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY(']'), &action));
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('o'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_GOTO_DEFINITION, action);
 
 	char binding[24];
 	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_GOTO_DEFINITION, binding,
 			sizeof(binding)));
-	ASSERT_EQ_STR("Ctrl-]", binding);
+	ASSERT_EQ_STR("Ctrl-O", binding);
 	return 0;
 }
 
-static int test_editor_keymap_load_accepts_goto_definition_ctrl_bracket(void) {
+static int test_editor_keymap_load_accepts_goto_definition_ctrl_o(void) {
 	char dir_template[] = "/tmp/rotide-test-keymap-gotodef-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
 	ASSERT_TRUE(dir_path != NULL);
@@ -5053,15 +5053,109 @@ static int test_editor_keymap_load_accepts_goto_definition_ctrl_bracket(void) {
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
 	ASSERT_TRUE(write_text_file(project_path,
 				"[keymap]\n"
-				"goto_definition = \"ctrl+]\"\n"));
+				"goto_definition = \"ctrl+o\"\n"));
 
 	struct editorKeymap keymap;
 	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
 	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
 
 	enum editorAction action = EDITOR_ACTION_COUNT;
-	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY(']'), &action));
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('o'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_GOTO_DEFINITION, action);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_load_rejects_ctrl_i_binding_that_conflicts_with_tab_input(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-tab-conflict-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[keymap]\n"
+				"goto_definition = \"ctrl+i\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_INVALID_PROJECT, status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('o'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_GOTO_DEFINITION, action);
+	ASSERT_TRUE(!editorKeymapLookupAction(&keymap, '\t', &action));
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_load_rejects_reserved_terminal_aliases_for_other_actions(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-reserved-alias-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+
+	struct {
+		const char *line;
+		int default_key;
+		enum editorAction default_action;
+	} cases[] = {
+		{"save = \"ctrl+m\"\n", CTRL_KEY('s'), EDITOR_ACTION_SAVE},
+		{"save = \"ctrl+[\"\n", CTRL_KEY('s'), EDITOR_ACTION_SAVE},
+		{"save = \"ctrl+h\"\n", CTRL_KEY('s'), EDITOR_ACTION_SAVE},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		char content[128];
+		int written = snprintf(content, sizeof(content), "[keymap]\n%s", cases[i].line);
+		ASSERT_TRUE(written > 0 && (size_t)written < sizeof(content));
+		ASSERT_TRUE(write_text_file(project_path, content));
+
+		struct editorKeymap keymap;
+		enum editorKeymapLoadStatus status =
+				editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+		ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_INVALID_PROJECT, status);
+
+		enum editorAction action = EDITOR_ACTION_COUNT;
+		ASSERT_TRUE(editorKeymapLookupAction(&keymap, cases[i].default_key, &action));
+		ASSERT_EQ_INT(cases[i].default_action, action);
+	}
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_load_accepts_reserved_terminal_aliases_for_matching_actions(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-reserved-allowed-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[keymap]\n"
+				"newline = \"ctrl+m\"\n"
+				"escape = \"ctrl+[\"\n"
+				"backspace = \"ctrl+h\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, '\r', &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_NEWLINE, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, '\x1b', &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_ESCAPE, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('h'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_BACKSPACE, action);
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(rmdir(dir_path) == 0);
@@ -5167,7 +5261,7 @@ static int test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers(void) {
 	editorOpen(txt_path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_NONE, editorSyntaxLanguageActive());
 
-	char goto_def_txt[] = {CTRL_KEY(']')};
+	char goto_def_txt[] = {CTRL_KEY('o')};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def_txt,
 			sizeof(goto_def_txt)) == 0);
 
@@ -5183,7 +5277,7 @@ static int test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers(void) {
 	ASSERT_EQ_INT(EDITOR_SYNTAX_GO, editorSyntaxLanguageActive());
 
 	editorLspTestSetMockDefinitionResponse(1, NULL, 0);
-	char goto_def_go[] = {CTRL_KEY(']')};
+	char goto_def_go[] = {CTRL_KEY('o')};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def_go,
 			sizeof(goto_def_go)) == 0);
 
@@ -5207,7 +5301,7 @@ static int test_editor_lsp_lifecycle_restart_after_mock_crash(void) {
 	editorOpen(go_path);
 
 	editorLspTestSetMockDefinitionResponse(1, NULL, 0);
-	char goto_def[] = {CTRL_KEY(']')};
+	char goto_def[] = {CTRL_KEY('o')};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 
 	struct editorLspTestStats stats = {0};
@@ -5275,7 +5369,7 @@ static int test_editor_lsp_full_document_change_uses_active_source(void) {
 	ASSERT_EQ_INT(EDITOR_SYNTAX_GO, editorSyntaxLanguageActive());
 
 	editorLspTestSetMockDefinitionResponse(1, NULL, 0);
-	char goto_def[] = {CTRL_KEY(']')};
+	char goto_def[] = {CTRL_KEY('o')};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 
 	ASSERT_TRUE(editorLspNotifyDidChange(E.filename, E.syntax_language,
@@ -5316,7 +5410,7 @@ static int test_editor_lsp_document_sync_ignores_non_go_buffers(void) {
 	return 0;
 }
 
-static int test_editor_process_keypress_ctrl_bracket_goto_definition_single_location(void) {
+static int test_editor_process_keypress_ctrl_o_goto_definition_single_location(void) {
 	editorLspTestSetMockEnabled(1);
 	E.lsp_enabled = 1;
 
@@ -5335,7 +5429,7 @@ static int test_editor_process_keypress_ctrl_bracket_goto_definition_single_loca
 	};
 	editorLspTestSetMockDefinitionResponse(1, &target, 1);
 
-	char goto_def[] = {CTRL_KEY(']')};
+	char goto_def[] = {CTRL_KEY('o')};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_EQ_INT(2, E.cy);
 	ASSERT_EQ_INT(5, E.cx);
@@ -5371,7 +5465,7 @@ static int test_editor_process_keypress_goto_definition_cross_file_reuses_tab(vo
 	};
 	editorLspTestSetMockDefinitionResponse(1, &target, 1);
 
-	char goto_def[] = {CTRL_KEY(']')};
+	char goto_def[] = {CTRL_KEY('o')};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_EQ_INT(2, editorTabCount());
 	ASSERT_EQ_INT(1, editorTabActiveIndex());
@@ -5407,7 +5501,7 @@ static int test_editor_process_keypress_goto_definition_multi_picker_selects_cho
 	};
 	editorLspTestSetMockDefinitionResponse(1, targets, 2);
 
-	char input[] = {CTRL_KEY(']'), '2', '\r'};
+	char input[] = {CTRL_KEY('o'), '2', '\r'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
 	ASSERT_EQ_INT(3, E.cy);
 	ASSERT_EQ_INT(5, E.cx);
@@ -5427,7 +5521,7 @@ static int test_editor_process_keypress_goto_definition_timeout_error_and_no_res
 	E.cy = 2;
 	E.cx = 16;
 
-	char goto_def[] = {CTRL_KEY(']')};
+	char goto_def[] = {CTRL_KEY('o')};
 
 	editorLspTestSetMockDefinitionResponse(-2, NULL, 0);
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
@@ -5455,7 +5549,7 @@ static int test_editor_process_keypress_goto_definition_reports_lsp_disabled(voi
 	E.cy = 2;
 	E.cx = 16;
 
-	char goto_def[] = {CTRL_KEY(']')};
+	char goto_def[] = {CTRL_KEY('o')};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_EQ_STR("LSP is disabled in config", E.statusmsg);
 
@@ -5476,7 +5570,7 @@ static int test_editor_process_keypress_goto_definition_startup_failure_reports_
 	E.cy = 2;
 	E.cx = 16;
 
-	char goto_def[] = {CTRL_KEY(']')};
+	char goto_def[] = {CTRL_KEY('o')};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 	ASSERT_TRUE(strstr(E.statusmsg, "LSP startup failed") != NULL);
 	ASSERT_TRUE(strstr(E.statusmsg, "unavailable for this file") == NULL);
@@ -5504,7 +5598,7 @@ static int test_editor_process_keypress_goto_definition_missing_gopls_decline_in
 	E.cy = 2;
 	E.cx = 16;
 
-	char input[] = {CTRL_KEY(']'), '\r'};
+	char input[] = {CTRL_KEY('o'), '\r'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
 	ASSERT_EQ_STR("gopls not installed", E.statusmsg);
 	ASSERT_TRUE(!editorTaskIsRunning());
@@ -5534,14 +5628,14 @@ static int test_editor_process_keypress_goto_definition_missing_gopls_starts_ins
 	E.cy = 2;
 	E.cx = 16;
 
-	char input[] = {CTRL_KEY(']'), 'y', '\r'};
+	char input[] = {CTRL_KEY('o'), 'y', '\r'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
 	ASSERT_TRUE(editorTaskIsRunning());
 	ASSERT_TRUE(editorActiveTabIsTaskLog());
 	ASSERT_EQ_INT(2, editorTabCount());
 	ASSERT_EQ_STR("Task: Install gopls", editorActiveBufferDisplayName());
 	ASSERT_TRUE(wait_for_task_completion_with_timeout(1500));
-	ASSERT_EQ_STR("gopls installed. Retry Ctrl-]", E.statusmsg);
+	ASSERT_EQ_STR("gopls installed. Retry Ctrl-O", E.statusmsg);
 
 	size_t textlen = 0;
 	char *text = editorRowsToStr(&textlen);
@@ -6166,6 +6260,53 @@ static int test_editor_process_keypress_insert_move_and_backspace(void) {
 	char end_key[] = "\x1b[F";
 	ASSERT_TRUE(editor_process_keypress_with_input(end_key, sizeof(end_key) - 1) == 0);
 	ASSERT_EQ_INT((int)strlen(E.rows[0].chars), E.cx);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_j_does_not_insert_newline(void) {
+	add_row("ab");
+	E.cy = 0;
+	E.cx = 1;
+	int dirty_before = E.dirty;
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('j')) == 0);
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_STR("ab", E.rows[0].chars);
+	ASSERT_EQ_INT(1, E.cx);
+	ASSERT_EQ_INT(dirty_before, E.dirty);
+	ASSERT_TRUE(assert_active_source_matches_rows() == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_tab_inserts_literal_tab(void) {
+	add_row("");
+	E.cy = 0;
+	E.cx = 0;
+
+	ASSERT_TRUE(editor_process_single_key('\t') == 0);
+	ASSERT_EQ_INT(1, E.rows[0].size);
+	ASSERT_EQ_STR("\t", E.rows[0].chars);
+	ASSERT_EQ_INT(1, E.cx);
+	ASSERT_TRUE(assert_active_source_matches_rows() == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_utf8_bytes_insert_verbatim(void) {
+	static const unsigned char input[] = {0xC3, 0xB6, 0xF0, 0x9F, 0x99, 0x82};
+	static const unsigned char expected[] = {0xC3, 0xB6, 0xF0, 0x9F, 0x99, 0x82, '\0'};
+
+	add_row("");
+	E.cy = 0;
+	E.cx = 0;
+
+	for (size_t i = 0; i < sizeof(input); i++) {
+		ASSERT_TRUE(editor_process_single_key((char)input[i]) == 0);
+	}
+
+	ASSERT_EQ_INT((int)sizeof(input), E.rows[0].size);
+	ASSERT_MEM_EQ(expected, E.rows[0].chars, sizeof(expected));
+	ASSERT_EQ_INT((int)sizeof(input), E.cx);
+	ASSERT_TRUE(assert_active_source_matches_rows() == 0);
 	return 0;
 }
 
@@ -9941,8 +10082,14 @@ int main(void) {
 				test_editor_keymap_defaults_include_tab_actions},
 			{"editor_keymap_defaults_include_goto_definition_action",
 				test_editor_keymap_defaults_include_goto_definition_action},
-			{"editor_keymap_load_accepts_goto_definition_ctrl_bracket",
-				test_editor_keymap_load_accepts_goto_definition_ctrl_bracket},
+			{"editor_keymap_load_accepts_goto_definition_ctrl_o",
+				test_editor_keymap_load_accepts_goto_definition_ctrl_o},
+			{"editor_keymap_load_rejects_ctrl_i_binding_that_conflicts_with_tab_input",
+				test_editor_keymap_load_rejects_ctrl_i_binding_that_conflicts_with_tab_input},
+			{"editor_keymap_load_rejects_reserved_terminal_aliases_for_other_actions",
+				test_editor_keymap_load_rejects_reserved_terminal_aliases_for_other_actions},
+			{"editor_keymap_load_accepts_reserved_terminal_aliases_for_matching_actions",
+				test_editor_keymap_load_accepts_reserved_terminal_aliases_for_matching_actions},
 			{"editor_lsp_config_defaults_and_precedence",
 				test_editor_lsp_config_defaults_and_precedence},
 			{"editor_lsp_config_invalid_values_fallback_defaults",
@@ -9961,8 +10108,8 @@ int main(void) {
 				test_editor_process_keypress_keymap_remap_changes_dispatch},
 			{"editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped_action",
 				test_editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped_action},
-			{"editor_process_keypress_ctrl_bracket_goto_definition_single_location",
-				test_editor_process_keypress_ctrl_bracket_goto_definition_single_location},
+			{"editor_process_keypress_ctrl_o_goto_definition_single_location",
+				test_editor_process_keypress_ctrl_o_goto_definition_single_location},
 			{"editor_process_keypress_goto_definition_cross_file_reuses_tab",
 				test_editor_process_keypress_goto_definition_cross_file_reuses_tab},
 			{"editor_process_keypress_goto_definition_multi_picker_selects_choice",
@@ -10011,13 +10158,19 @@ int main(void) {
 						test_editor_process_keypress_focus_drawer_and_arrow_navigation},
 				{"editor_process_keypress_drawer_enter_toggles_directory",
 					test_editor_process_keypress_drawer_enter_toggles_directory},
-				{"editor_process_keypress_drawer_enter_opens_file_in_new_tab",
-					test_editor_process_keypress_drawer_enter_opens_file_in_new_tab},
-				{"editor_process_keypress_insert_move_and_backspace",
-					test_editor_process_keypress_insert_move_and_backspace},
-		{"editor_process_keypress_delete_key", test_editor_process_keypress_delete_key},
-		{"editor_process_keypress_arrow_down_keeps_visual_column",
-			test_editor_process_keypress_arrow_down_keeps_visual_column},
+			{"editor_process_keypress_drawer_enter_opens_file_in_new_tab",
+				test_editor_process_keypress_drawer_enter_opens_file_in_new_tab},
+			{"editor_process_keypress_insert_move_and_backspace",
+				test_editor_process_keypress_insert_move_and_backspace},
+			{"editor_process_keypress_ctrl_j_does_not_insert_newline",
+				test_editor_process_keypress_ctrl_j_does_not_insert_newline},
+			{"editor_process_keypress_tab_inserts_literal_tab",
+				test_editor_process_keypress_tab_inserts_literal_tab},
+			{"editor_process_keypress_utf8_bytes_insert_verbatim",
+				test_editor_process_keypress_utf8_bytes_insert_verbatim},
+			{"editor_process_keypress_delete_key", test_editor_process_keypress_delete_key},
+			{"editor_process_keypress_arrow_down_keeps_visual_column",
+				test_editor_process_keypress_arrow_down_keeps_visual_column},
 		{"editor_process_keypress_ctrl_s_saves_file", test_editor_process_keypress_ctrl_s_saves_file},
 		{"editor_process_keypress_resize_event_updates_window_size",
 			test_editor_process_keypress_resize_event_updates_window_size},

@@ -139,6 +139,27 @@ static int editorKeymapHasBindingForKey(const struct editorKeymap *keymap, int k
 	return 0;
 }
 
+static int editorKeymapBindingUsesReservedTerminalInput(enum editorAction action, int key) {
+	/*
+	 * Rotide binds terminal key codes, not physical keyboard keys, so some
+	 * key combinations alias the same input byte unless an extended protocol is used.
+	 * Reserve those shared bytes for their built-in meanings under the baseline
+	 * terminal model, so config cannot steal Tab, Enter, Escape, or Ctrl-H backspace.
+	 */
+	switch (key) {
+		case '\t':
+			return 1;
+		case '\r':
+			return action != EDITOR_ACTION_NEWLINE;
+		case '\x1b':
+			return action != EDITOR_ACTION_ESCAPE;
+		case CTRL_KEY('h'):
+			return action != EDITOR_ACTION_BACKSPACE;
+		default:
+			return 0;
+	}
+}
+
 static void editorKeymapRemoveActionBindings(struct editorKeymap *keymap, enum editorAction action) {
 	size_t write_idx = 0;
 	for (size_t read_idx = 0; read_idx < keymap->len; read_idx++) {
@@ -167,6 +188,10 @@ static int editorKeymapAppendBinding(struct editorKeymap *keymap, int key, enum 
 
 static int editorKeymapSetActionBinding(struct editorKeymap *keymap, enum editorAction action, int key) {
 	struct editorKeymap updated = *keymap;
+
+	if (editorKeymapBindingUsesReservedTerminalInput(action, key)) {
+		return 0;
+	}
 
 	editorKeymapRemoveActionBindings(&updated, action);
 	if (!editorKeymapAppendBinding(&updated, key, action)) {
@@ -970,9 +995,6 @@ static int editorKeymapFormatKey(int key, char *buf, size_t bufsize) {
 		return 0;
 	}
 
-	if (key == CTRL_KEY(']')) {
-		return snprintf(buf, bufsize, "Ctrl-]") > 0;
-	}
 	if (key >= 1 && key <= 26) {
 		return snprintf(buf, bufsize, "Ctrl-%c", 'A' + key - 1) > 0;
 	}
@@ -1095,7 +1117,7 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 			EDITOR_ACTION_RESIZE_DRAWER_WIDEN);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('f'), EDITOR_ACTION_FIND);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('g'), EDITOR_ACTION_GOTO_LINE);
-	(void)editorKeymapAppendBinding(keymap, CTRL_KEY(']'), EDITOR_ACTION_GOTO_DEFINITION);
+	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('o'), EDITOR_ACTION_GOTO_DEFINITION);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('b'), EDITOR_ACTION_TOGGLE_SELECTION);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('c'), EDITOR_ACTION_COPY_SELECTION);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('x'), EDITOR_ACTION_CUT_SELECTION);

@@ -56,7 +56,7 @@ ASAN_OPTIONS=detect_leaks=0 make test-sanitize
   - HTML (`.html`, `.htm`, `.xhtml`)
   - JavaScript (`.js`, `.mjs`, `.cjs`, `.jsx`)
   - CSS (`.css`, `.scss`)
-- Go LSP definition lookup (`Ctrl-]`) via `gopls`.
+- Go LSP definition lookup (`Ctrl-O`) via `gopls`.
 - Missing-`gopls` install prompt with live output in read-only task-log tabs.
 - Atomic save flow (temp file + fsync + rename + cleanup).
 - Crash recovery snapshots with restore prompt on startup.
@@ -76,7 +76,7 @@ Syntax fixture samples are stored in [`tests/syntax/`](tests/syntax/README.md).
 - `Alt-Shift-Left` / `Alt-Shift-Right`: resize drawer
 - `Ctrl-F`: search
 - `Ctrl-G`: go to line
-- `Ctrl-]`: Go definition (Go buffers)
+- `Ctrl-O`: Go definition (Go buffers)
 - `Ctrl-B`: toggle selection
 - `Ctrl-C` / `Ctrl-X` / `Ctrl-D` / `Ctrl-V`: copy/cut/delete/paste selection
 - `Ctrl-Z` / `Ctrl-Y`: undo/redo
