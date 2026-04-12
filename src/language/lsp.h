@@ -53,8 +53,9 @@ int editorLspNotifyDidSave(const char *filename, enum editorSyntaxLanguage langu
 void editorLspNotifyDidClose(const char *filename, enum editorSyntaxLanguage language,
 		int *doc_open_in_out, int *doc_version_in_out);
 
-int editorLspRequestDefinition(const char *filename, int line, int character,
-		struct editorLspLocation **locations_out, int *count_out, int *timed_out_out);
+int editorLspRequestDefinition(const char *filename, enum editorSyntaxLanguage language, int line,
+		int character, struct editorLspLocation **locations_out, int *count_out,
+		int *timed_out_out);
 void editorLspFreeLocations(struct editorLspLocation *locations, int count);
 int editorLspProtocolCharacterToBufferColumn(int line, int protocol_character);
 enum editorLspStartupFailureReason editorLspLastStartupFailureReason(void);

@@ -77,7 +77,8 @@ void reset_editor_state(void) {
 	E.syntax_state = NULL;
 	editorLspConfigInitDefaults(&E.lsp_enabled, E.lsp_gopls_command,
 			sizeof(E.lsp_gopls_command), E.lsp_gopls_install_command,
-			sizeof(E.lsp_gopls_install_command));
+			sizeof(E.lsp_gopls_install_command), E.lsp_clangd_command,
+			sizeof(E.lsp_clangd_command));
 	E.lsp_enabled = 0;
 	E.lsp_doc_open = 0;
 	E.lsp_doc_version = 0;

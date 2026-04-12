@@ -16,7 +16,8 @@ enum editorLspConfigFileStatus {
 };
 
 void editorLspConfigInitDefaults(int *enabled_out, char *command_out, size_t command_out_size,
-		char *install_command_out, size_t install_command_out_size) {
+		char *install_command_out, size_t install_command_out_size,
+		char *clangd_command_out, size_t clangd_command_out_size) {
 	if (enabled_out != NULL) {
 		*enabled_out = 1;
 	}
@@ -28,6 +29,10 @@ void editorLspConfigInitDefaults(int *enabled_out, char *command_out, size_t com
 		(void)snprintf(install_command_out, install_command_out_size, "%s",
 				"go install golang.org/x/tools/gopls@latest");
 		install_command_out[install_command_out_size - 1] = '\0';
+	}
+	if (clangd_command_out != NULL && clangd_command_out_size != 0) {
+		(void)snprintf(clangd_command_out, clangd_command_out_size, "%s", "clangd");
+		clangd_command_out[clangd_command_out_size - 1] = '\0';
 	}
 }
 
@@ -48,9 +53,11 @@ static int editorParseBooleanValue(const char *value, int *out) {
 
 static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *enabled_in_out,
 		char *command_in_out, size_t command_in_out_size, char *install_command_in_out,
-		size_t install_command_in_out_size, int allow_install_command_override, const char *path) {
+		size_t install_command_in_out_size, char *clangd_command_in_out,
+		size_t clangd_command_in_out_size, int allow_install_command_override, const char *path) {
 	if (enabled_in_out == NULL || command_in_out == NULL || command_in_out_size == 0 ||
-			install_command_in_out == NULL || install_command_in_out_size == 0) {
+			install_command_in_out == NULL || install_command_in_out_size == 0 ||
+			clangd_command_in_out == NULL || clangd_command_in_out_size == 0) {
 		return EDITOR_LSP_CONFIG_FILE_OUT_OF_MEMORY;
 	}
 
@@ -65,9 +72,11 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *enable
 	int enabled = *enabled_in_out;
 	char *command = malloc(command_in_out_size);
 	char *install_command = malloc(install_command_in_out_size);
-	if (command == NULL || install_command == NULL) {
+	char *clangd_command = malloc(clangd_command_in_out_size);
+	if (command == NULL || install_command == NULL || clangd_command == NULL) {
 		free(command);
 		free(install_command);
+		free(clangd_command);
 		fclose(fp);
 		return EDITOR_LSP_CONFIG_FILE_OUT_OF_MEMORY;
 	}
@@ -75,6 +84,8 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *enable
 	command[command_in_out_size - 1] = '\0';
 	(void)snprintf(install_command, install_command_in_out_size, "%s", install_command_in_out);
 	install_command[install_command_in_out_size - 1] = '\0';
+	(void)snprintf(clangd_command, clangd_command_in_out_size, "%s", clangd_command_in_out);
+	clangd_command[clangd_command_in_out_size - 1] = '\0';
 
 	int in_lsp_table = 0;
 	char line[1024];
@@ -83,6 +94,7 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *enable
 		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
 			free(command);
 			free(install_command);
+			free(clangd_command);
 			fclose(fp);
 			return EDITOR_LSP_CONFIG_FILE_INVALID;
 		}
@@ -99,6 +111,7 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *enable
 			if (close == NULL) {
 				free(command);
 				free(install_command);
+				free(clangd_command);
 				fclose(fp);
 				return EDITOR_LSP_CONFIG_FILE_INVALID;
 			}
@@ -109,6 +122,7 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *enable
 			if (tail[0] != '\0') {
 				free(command);
 				free(install_command);
+				free(clangd_command);
 				fclose(fp);
 				return EDITOR_LSP_CONFIG_FILE_INVALID;
 			}
@@ -125,6 +139,7 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *enable
 		if (eq == NULL) {
 			free(command);
 			free(install_command);
+			free(clangd_command);
 			fclose(fp);
 			return EDITOR_LSP_CONFIG_FILE_INVALID;
 		}
@@ -136,6 +151,7 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *enable
 		if (setting_name[0] == '\0') {
 			free(command);
 			free(install_command);
+			free(clangd_command);
 			fclose(fp);
 			return EDITOR_LSP_CONFIG_FILE_INVALID;
 		}
@@ -145,6 +161,7 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *enable
 			if (!editorParseBooleanValue(value, &parsed_enabled)) {
 				free(command);
 				free(install_command);
+				free(clangd_command);
 				fclose(fp);
 				return EDITOR_LSP_CONFIG_FILE_INVALID;
 			}
@@ -157,6 +174,7 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *enable
 					command[0] == '\0') {
 				free(command);
 				free(install_command);
+				free(clangd_command);
 				fclose(fp);
 				return EDITOR_LSP_CONFIG_FILE_INVALID;
 			}
@@ -171,6 +189,18 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *enable
 					install_command[0] == '\0') {
 				free(command);
 				free(install_command);
+				free(clangd_command);
+				fclose(fp);
+				return EDITOR_LSP_CONFIG_FILE_INVALID;
+			}
+			continue;
+		}
+		if (strcmp(setting_name, "clangd_command") == 0) {
+			if (!editorConfigParseQuotedValue(value, clangd_command, clangd_command_in_out_size) ||
+					clangd_command[0] == '\0') {
+				free(command);
+				free(install_command);
+				free(clangd_command);
 				fclose(fp);
 				return EDITOR_LSP_CONFIG_FILE_INVALID;
 			}
@@ -181,6 +211,7 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *enable
 	if (ferror(fp)) {
 		free(command);
 		free(install_command);
+		free(clangd_command);
 		fclose(fp);
 		return EDITOR_LSP_CONFIG_FILE_INVALID;
 	}
@@ -191,35 +222,43 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *enable
 	command_in_out[command_in_out_size - 1] = '\0';
 	(void)snprintf(install_command_in_out, install_command_in_out_size, "%s", install_command);
 	install_command_in_out[install_command_in_out_size - 1] = '\0';
+	(void)snprintf(clangd_command_in_out, clangd_command_in_out_size, "%s", clangd_command);
+	clangd_command_in_out[clangd_command_in_out_size - 1] = '\0';
 	free(command);
 	free(install_command);
+	free(clangd_command);
 	return EDITOR_LSP_CONFIG_FILE_APPLIED;
 }
 
 enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(int *enabled_out,
 		char *command_out, size_t command_out_size, char *install_command_out,
-		size_t install_command_out_size, const char *global_path, const char *project_path) {
+		size_t install_command_out_size, char *clangd_command_out,
+		size_t clangd_command_out_size, const char *global_path, const char *project_path) {
 	if (enabled_out == NULL || command_out == NULL || command_out_size == 0 ||
-			install_command_out == NULL || install_command_out_size == 0) {
+			install_command_out == NULL || install_command_out_size == 0 ||
+			clangd_command_out == NULL || clangd_command_out_size == 0) {
 		return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
 	}
 
 	editorLspConfigInitDefaults(enabled_out, command_out, command_out_size, install_command_out,
-			install_command_out_size);
+			install_command_out_size, clangd_command_out, clangd_command_out_size);
 	enum editorLspConfigLoadStatus status = EDITOR_LSP_CONFIG_LOAD_OK;
 
 	if (global_path != NULL) {
 		enum editorLspConfigFileStatus global_status =
 				editorLspConfigApplyConfigFile(enabled_out, command_out, command_out_size,
-						install_command_out, install_command_out_size, 1, global_path);
+						install_command_out, install_command_out_size, clangd_command_out,
+						clangd_command_out_size, 1, global_path);
 		if (global_status == EDITOR_LSP_CONFIG_FILE_OUT_OF_MEMORY) {
 			editorLspConfigInitDefaults(enabled_out, command_out, command_out_size,
-					install_command_out, install_command_out_size);
+					install_command_out, install_command_out_size, clangd_command_out,
+					clangd_command_out_size);
 			return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
 		}
 		if (global_status == EDITOR_LSP_CONFIG_FILE_INVALID) {
 			editorLspConfigInitDefaults(enabled_out, command_out, command_out_size,
-					install_command_out, install_command_out_size);
+					install_command_out, install_command_out_size, clangd_command_out,
+					clangd_command_out_size);
 			status = (enum editorLspConfigLoadStatus)(
 					status | EDITOR_LSP_CONFIG_LOAD_INVALID_GLOBAL);
 		}
@@ -228,15 +267,18 @@ enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(int *enabled_out,
 	if (project_path != NULL) {
 		enum editorLspConfigFileStatus project_status =
 				editorLspConfigApplyConfigFile(enabled_out, command_out, command_out_size,
-						install_command_out, install_command_out_size, 0, project_path);
+						install_command_out, install_command_out_size, clangd_command_out,
+						clangd_command_out_size, 0, project_path);
 		if (project_status == EDITOR_LSP_CONFIG_FILE_OUT_OF_MEMORY) {
 			editorLspConfigInitDefaults(enabled_out, command_out, command_out_size,
-					install_command_out, install_command_out_size);
+					install_command_out, install_command_out_size, clangd_command_out,
+					clangd_command_out_size);
 			return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
 		}
 		if (project_status == EDITOR_LSP_CONFIG_FILE_INVALID) {
 			editorLspConfigInitDefaults(enabled_out, command_out, command_out_size,
-					install_command_out, install_command_out_size);
+					install_command_out, install_command_out_size, clangd_command_out,
+					clangd_command_out_size);
 			status = (enum editorLspConfigLoadStatus)(
 					status | EDITOR_LSP_CONFIG_LOAD_INVALID_PROJECT);
 		}
@@ -247,28 +289,33 @@ enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(int *enabled_out,
 
 enum editorLspConfigLoadStatus editorLspConfigLoadConfigured(int *enabled_out,
 		char *command_out, size_t command_out_size, char *install_command_out,
-		size_t install_command_out_size) {
+		size_t install_command_out_size, char *clangd_command_out,
+		size_t clangd_command_out_size) {
 	if (enabled_out == NULL || command_out == NULL || command_out_size == 0 ||
-			install_command_out == NULL || install_command_out_size == 0) {
+			install_command_out == NULL || install_command_out_size == 0 ||
+			clangd_command_out == NULL || clangd_command_out_size == 0) {
 		return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
 	}
 
 	const char *home = getenv("HOME");
 	if (home == NULL || home[0] == '\0') {
 		return editorLspConfigLoadFromPaths(enabled_out, command_out, command_out_size,
-				install_command_out, install_command_out_size, NULL, ".rotide.toml");
+				install_command_out, install_command_out_size, clangd_command_out,
+				clangd_command_out_size, NULL, ".rotide.toml");
 	}
 
 	char *global_path = editorConfigBuildGlobalConfigPath();
 	if (global_path == NULL) {
 		editorLspConfigInitDefaults(enabled_out, command_out, command_out_size,
-				install_command_out, install_command_out_size);
+				install_command_out, install_command_out_size, clangd_command_out,
+				clangd_command_out_size);
 		return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
 	}
 
 	enum editorLspConfigLoadStatus status =
 			editorLspConfigLoadFromPaths(enabled_out, command_out, command_out_size,
-					install_command_out, install_command_out_size, global_path, ".rotide.toml");
+					install_command_out, install_command_out_size, clangd_command_out,
+					clangd_command_out_size, global_path, ".rotide.toml");
 	free(global_path);
 	return status;
 }

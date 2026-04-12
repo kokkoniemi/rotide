@@ -465,7 +465,7 @@ static int editorLspActiveBufferTracked(void) {
 	return E.lsp_enabled &&
 			E.filename != NULL &&
 			E.filename[0] != '\0' &&
-			E.syntax_language == EDITOR_SYNTAX_GO;
+			(E.syntax_language == EDITOR_SYNTAX_GO || E.syntax_language == EDITOR_SYNTAX_C);
 }
 
 static void editorLspNotifyDidChangeActive(const struct editorSyntaxEdit *edit,

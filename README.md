@@ -4,7 +4,7 @@ RotIDE is a terminal text editor inspired by [kilo](https://github.com/antirez/k
 
 ## Status
 
-RotIDE is under active development. Core editing, tabs, drawer navigation, search, undo/redo, Tree-sitter highlighting, crash recovery, and Go definition lookup are implemented and tested.
+RotIDE is under active development. Core editing, tabs, drawer navigation, search, undo/redo, Tree-sitter highlighting, crash recovery, and Go/C/C++ definition lookup are implemented and tested.
 
 ## Quick Start
 
@@ -50,13 +50,14 @@ ASAN_OPTIONS=detect_leaks=0 make test-sanitize
 - Search (`Ctrl-F`), go to line (`Ctrl-G`), selection/copy/cut/paste.
 - Undo/redo with edit grouping.
 - Tree-sitter syntax highlighting for:
-  - C (`.c`, `.h`)
+  - C/C++ (`.c`, `.h`, `.cc`, `.cpp`, `.cxx`, `.c++`, `.hh`, `.hpp`, `.hxx`)
   - Go (`.go`, `go.mod`, `go.sum`)
   - Shell (`.sh`, rc files, extensionless shebang scripts)
   - HTML (`.html`, `.htm`, `.xhtml`)
   - JavaScript (`.js`, `.mjs`, `.cjs`, `.jsx`)
   - CSS (`.css`, `.scss`)
 - Go LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `gopls`.
+- C/C++ LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `clangd`.
 - Missing-`gopls` install prompt with live output in read-only task-log tabs.
 - Atomic save flow (temp file + fsync + rename + cleanup).
 - Crash recovery snapshots with restore prompt on startup.
@@ -76,7 +77,7 @@ Syntax fixture samples are stored in [`tests/syntax/`](tests/syntax/README.md).
 - `Alt-Shift-Left` / `Alt-Shift-Right`: resize drawer
 - `Ctrl-F`: search
 - `Ctrl-G`: go to line
-- `Ctrl-O` / `Ctrl + left click`: Go definition (Go buffers)
+- `Ctrl-O` / `Ctrl + left click`: Go/C/C++ definition (supported source buffers)
 - `Ctrl-B`: toggle selection
 - `Ctrl-C` / `Ctrl-X` / `Ctrl-D` / `Ctrl-V`: copy/cut/delete/paste selection
 - `Ctrl-Z` / `Ctrl-Y`: undo/redo
@@ -98,6 +99,7 @@ Sections:
 
 LSP notes:
 - `gopls_command` can be set globally or per-project.
+- `clangd_command` can be set globally or per-project.
 - `gopls_install_command` is **global-only** (`~/.rotide/config.toml`).
 - If `gopls_install_command` appears in project config, RotIDE ignores that key and keeps parsing the rest of `[lsp]`.
 - Default install command:
@@ -183,7 +185,7 @@ This section names the core concepts used throughout the codebase.
 
 ### LSP state
 
-- Go-only LSP client in [`src/language/lsp.c`](src/language/lsp.c) with JSON-RPC transport.
+- LSP client in [`src/language/lsp.c`](src/language/lsp.c) with JSON-RPC transport for `gopls` and `clangd`.
 - Tracks per-tab document open/version and sends didOpen/didChange/didSave/didClose.
 - Definition lookup integrates with tabs and position conversion helpers.
 
@@ -210,7 +212,7 @@ This section names the core concepts used throughout the codebase.
 - [`src/text/document.c`](src/text/document.c), [`src/text/rope.c`](src/text/rope.c): canonical text storage and offset/line mapping.
 - [`src/render/screen.c`](src/render/screen.c): rendering of tab bar, drawer, text viewport, status/message bars.
 - [`src/language/syntax.c`](src/language/syntax.c): Tree-sitter parser/query integration and capture collection.
-- [`src/language/lsp.c`](src/language/lsp.c): Go LSP process lifecycle and JSON-RPC messaging.
+- [`src/language/lsp.c`](src/language/lsp.c): Go/C/C++ LSP process lifecycle and JSON-RPC messaging.
 - [`src/config/`](src/config): keymap bindings, editor settings, theme config, LSP config, and shared TOML parsing helpers.
 - [`src/support/alloc.c`](src/support/alloc.c), [`src/support/save_syscalls.c`](src/support/save_syscalls.c): testable wrappers for allocation and save syscalls.
 - [`src/workspace/`](src/workspace): editor subsystems split out of the former monolithic buffer module.

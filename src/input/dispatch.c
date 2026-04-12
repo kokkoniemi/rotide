@@ -319,7 +319,44 @@ static int editorPromptYesNo(const char *prompt) {
 	return accepted;
 }
 
-static void editorMaybePromptInstallGopls(void) {
+static int editorGoToDefinitionSupportedLanguage(enum editorSyntaxLanguage language) {
+	return language == EDITOR_SYNTAX_GO || language == EDITOR_SYNTAX_C;
+}
+
+static const char *editorGoToDefinitionLanguageLabel(void) {
+	if (E.syntax_language == EDITOR_SYNTAX_GO) {
+		return "Go";
+	}
+	if (E.syntax_language == EDITOR_SYNTAX_C) {
+		return "C/C++";
+	}
+	return NULL;
+}
+
+static const char *editorGoToDefinitionCommand(void) {
+	if (E.syntax_language == EDITOR_SYNTAX_GO) {
+		return E.lsp_gopls_command;
+	}
+	if (E.syntax_language == EDITOR_SYNTAX_C) {
+		return E.lsp_clangd_command;
+	}
+	return NULL;
+}
+
+static const char *editorGoToDefinitionCommandSettingName(void) {
+	if (E.syntax_language == EDITOR_SYNTAX_GO) {
+		return "gopls_command";
+	}
+	if (E.syntax_language == EDITOR_SYNTAX_C) {
+		return "clangd_command";
+	}
+	return NULL;
+}
+
+static void editorMaybePromptInstallLanguageServer(void) {
+	if (E.syntax_language != EDITOR_SYNTAX_GO) {
+		return;
+	}
 	if (editorLspLastStartupFailureReason() != EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
 		return;
 	}
@@ -800,20 +837,30 @@ static int editorPromptDefinitionChoice(int count, int *choice_out) {
 }
 
 static void editorGoToDefinition(void) {
-	if (E.syntax_language != EDITOR_SYNTAX_GO) {
-		editorSetStatusMsg("Go to definition is available for Go files only");
+	if (!editorGoToDefinitionSupportedLanguage(E.syntax_language)) {
+		editorSetStatusMsg("Go to definition is available for Go, C, and C++ files only");
 		return;
 	}
 	if (E.filename == NULL || E.filename[0] == '\0') {
-		editorSetStatusMsg("Save this Go buffer before using go to definition");
+		const char *language_label = editorGoToDefinitionLanguageLabel();
+		if (language_label == NULL) {
+			language_label = "source";
+		}
+		editorSetStatusMsg("Save this %s buffer before using go to definition", language_label);
 		return;
 	}
 	if (!E.lsp_enabled) {
 		editorSetStatusMsg("LSP is disabled in config");
 		return;
 	}
-	if (E.lsp_gopls_command[0] == '\0') {
-		editorSetStatusMsg("LSP disabled: [lsp].gopls_command is empty");
+	const char *command = editorGoToDefinitionCommand();
+	const char *command_setting = editorGoToDefinitionCommandSettingName();
+	if (command == NULL || command_setting == NULL) {
+		editorSetStatusMsg("LSP unavailable for this file");
+		return;
+	}
+	if (command[0] == '\0') {
+		editorSetStatusMsg("LSP disabled: [lsp].%s is empty", command_setting);
 		return;
 	}
 	editorAlignCursorWithRowEnd();
@@ -844,8 +891,10 @@ static void editorGoToDefinition(void) {
 	free(full_text);
 	if (!ready) {
 		if (editorLspLastStartupFailureReason() == EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
-			editorMaybePromptInstallGopls();
-			return;
+			editorMaybePromptInstallLanguageServer();
+			if (E.syntax_language == EDITOR_SYNTAX_GO) {
+				return;
+			}
 		}
 		if (strncmp(E.statusmsg, "LSP ", strlen("LSP ")) != 0) {
 			editorSetStatusMsg("LSP unavailable for this file");
@@ -856,8 +905,8 @@ static void editorGoToDefinition(void) {
 	struct editorLspLocation *locations = NULL;
 	int count = 0;
 	int timed_out = 0;
-	int request_result =
-			editorLspRequestDefinition(E.filename, E.cy, E.cx, &locations, &count, &timed_out);
+	int request_result = editorLspRequestDefinition(E.filename, E.syntax_language, E.cy, E.cx,
+			&locations, &count, &timed_out);
 	if (request_result == -2 || timed_out) {
 		editorSetStatusMsg("Go to definition timed out");
 		editorLspFreeLocations(locations, count);

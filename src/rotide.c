@@ -38,7 +38,8 @@ void initEditor(void) {
 	E.syntax_state = NULL;
 	editorLspConfigInitDefaults(&E.lsp_enabled, E.lsp_gopls_command,
 			sizeof(E.lsp_gopls_command), E.lsp_gopls_install_command,
-			sizeof(E.lsp_gopls_install_command));
+			sizeof(E.lsp_gopls_install_command), E.lsp_clangd_command,
+			sizeof(E.lsp_clangd_command));
 	E.lsp_doc_open = 0;
 	E.lsp_doc_version = 0;
 	E.statusmsg[0] = '\0';
@@ -121,7 +122,8 @@ int main(int argc, char *argv[]) {
 	enum editorLspConfigLoadStatus lsp_config_status =
 			editorLspConfigLoadConfigured(&E.lsp_enabled, E.lsp_gopls_command,
 					sizeof(E.lsp_gopls_command), E.lsp_gopls_install_command,
-					sizeof(E.lsp_gopls_install_command));
+					sizeof(E.lsp_gopls_install_command), E.lsp_clangd_command,
+					sizeof(E.lsp_clangd_command));
 	if (!editorRecoveryInitForCurrentDir()) {
 		editorSetStatusMsg("Recovery disabled (path setup failed)");
 	}

@@ -1274,7 +1274,12 @@ enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *fil
 	}
 
 	const char *dot = strrchr(filename, '.');
-	if (dot != NULL && (strcmp(dot, ".c") == 0 || strcmp(dot, ".h") == 0)) {
+	if (dot != NULL &&
+			(strcmp(dot, ".c") == 0 || strcmp(dot, ".h") == 0 ||
+					strcmp(dot, ".cc") == 0 || strcmp(dot, ".cpp") == 0 ||
+					strcmp(dot, ".cxx") == 0 || strcmp(dot, ".c++") == 0 ||
+					strcmp(dot, ".hh") == 0 || strcmp(dot, ".hpp") == 0 ||
+					strcmp(dot, ".hxx") == 0)) {
 		return EDITOR_SYNTAX_C;
 	}
 	if (dot != NULL && strcmp(dot, ".go") == 0) {

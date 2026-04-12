@@ -341,6 +341,7 @@ struct editorConfig {
 	int lsp_enabled;
 	char lsp_gopls_command[PATH_MAX];
 	char lsp_gopls_install_command[PATH_MAX];
+	char lsp_clangd_command[PATH_MAX];
 	int lsp_doc_open;
 	int lsp_doc_version;
 	char statusmsg[80];
