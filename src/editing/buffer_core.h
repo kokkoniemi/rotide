@@ -14,15 +14,6 @@ int editorBufferFindForward(const char *query, int start_row, int start_col, int
 int editorBufferFindBackward(const char *query, int start_row, int start_col, int *out_row,
 		int *out_col);
 
-void editorInsertChar(int c);
-int editorInsertText(const char *text, size_t len);
-void editorInsertNewline(void);
-void editorDelChar(void);
-
-void editorOpen(const char *filename);
-void editorSetStatusMsg(const char *fmt, ...);
-void editorSave(void);
-
 int editorSyntaxEnabled(void);
 int editorSyntaxTreeExists(void);
 enum editorSyntaxLanguage editorSyntaxLanguageActive(void);
@@ -33,22 +24,5 @@ int editorSyntaxRowRenderSpans(int row_idx, struct editorRowSyntaxSpan *spans, i
 void editorSyntaxTestResetVisibleRowRecomputeCount(void);
 int editorSyntaxTestVisibleRowRecomputeCount(void);
 int editorBufferMaxRenderCols(void);
-
-int editorGetSelectionRange(struct editorSelectionRange *range_out);
-int editorExtractRangeText(const struct editorSelectionRange *range, char **text_out, size_t *len_out);
-int editorDeleteRange(const struct editorSelectionRange *range);
-
-int editorClipboardSet(const char *text, size_t len);
-const char *editorClipboardGet(size_t *len_out);
-void editorClipboardClear(void);
-void editorClipboardSetExternalSink(editorClipboardExternalSink sink);
-
-void editorHistoryReset(void);
-void editorHistoryBreakGroup(void);
-void editorHistoryBeginEdit(enum editorEditKind kind);
-void editorHistoryCommitEdit(enum editorEditKind kind, int changed);
-void editorHistoryDiscardEdit(void);
-int editorUndo(void);
-int editorRedo(void);
 
 #endif

@@ -1,12 +1,14 @@
-#include "output.h"
+#include "render/screen.h"
 
-#include "alloc.h"
-#include "buffer.h"
-#include "editor/drawer.h"
-#include "editor/tabs.h"
-#include "size_utils.h"
+#include "editing/buffer_core.h"
+#include "editing/edit.h"
+#include "editing/selection.h"
+#include "support/size_utils.h"
+#include "support/alloc.h"
 #include "text/row.h"
 #include "text/utf8.h"
+#include "workspace/drawer.h"
+#include "workspace/tabs.h"
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>

@@ -1,20 +1,26 @@
 #include "rotide.h"
 
-#include "buffer.h"
-#include "document.h"
-#include "editor/drawer.h"
-#include "editor/recovery.h"
-#include "editor/task.h"
-#include "editor/tabs.h"
+#include "config/editor_config.h"
+#include "config/keymap.h"
+#include "config/lsp_config.h"
+#include "config/theme_config.h"
+#include "editing/buffer_core.h"
+#include "editing/edit.h"
+#include "editing/history.h"
+#include "editing/selection.h"
 #include "editor_test_api.h"
-#include "input.h"
-#include "keymap.h"
-#include "lsp.h"
-#include "output.h"
-#include "syntax.h"
-#include "terminal.h"
+#include "input/dispatch.h"
+#include "language/lsp.h"
+#include "language/syntax.h"
+#include "render/screen.h"
+#include "support/terminal.h"
+#include "text/document.h"
 #include "text/row.h"
 #include "text/utf8.h"
+#include "workspace/drawer.h"
+#include "workspace/recovery.h"
+#include "workspace/task.h"
+#include "workspace/tabs.h"
 #include "alloc_test_hooks.h"
 #include "save_syscalls_test_hooks.h"
 #include "test_helpers.h"
@@ -8468,7 +8474,7 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_c_tokens(v
 }
 
 static int test_editor_refresh_screen_repo_buffer_c_stays_highlighted(void) {
-	char *path = testResolveRepoPath("src/buffer.c");
+	char *path = testResolveRepoPath("src/editing/buffer_core.c");
 	ASSERT_TRUE(path != NULL);
 
 	editorOpen(path);

@@ -2,7 +2,7 @@
 #define LSP_H
 
 #include "rotide.h"
-#include "syntax.h"
+#include "language/syntax.h"
 
 #include <stddef.h>
 

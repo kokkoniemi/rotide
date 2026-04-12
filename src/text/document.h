@@ -2,7 +2,7 @@
 #define DOCUMENT_H
 
 #include "rotide.h"
-#include "rope.h"
+#include "text/rope.h"
 
 struct editorDocument {
 	struct editorRope rope;

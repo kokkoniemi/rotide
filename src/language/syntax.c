@@ -1,4 +1,4 @@
-#include "syntax.h"
+#include "language/syntax.h"
 
 #include <ctype.h>
 #include <limits.h>

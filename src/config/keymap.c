@@ -1,7 +1,10 @@
-#include "keymap.h"
+#include "config/editor_config.h"
+#include "config/keymap.h"
+#include "config/lsp_config.h"
+#include "config/theme_config.h"
 
-#include "alloc.h"
-#include "size_utils.h"
+#include "support/alloc.h"
+#include "support/size_utils.h"
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>

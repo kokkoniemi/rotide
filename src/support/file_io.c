@@ -1,8 +1,8 @@
-#include "editor/file_io.h"
+#include "support/file_io.h"
 
-#include "alloc.h"
-#include "save_syscalls.h"
-#include "size_utils.h"
+#include "support/alloc.h"
+#include "support/save_syscalls.h"
+#include "support/size_utils.h"
 
 #include <errno.h>
 #include <stdlib.h>

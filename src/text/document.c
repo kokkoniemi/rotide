@@ -1,7 +1,7 @@
-#include "document.h"
+#include "text/document.h"
 
-#include "alloc.h"
-#include "size_utils.h"
+#include "support/alloc.h"
+#include "support/size_utils.h"
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>

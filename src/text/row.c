@@ -1,7 +1,7 @@
 #include "text/row.h"
 
-#include "alloc.h"
-#include "size_utils.h"
+#include "support/alloc.h"
+#include "support/size_utils.h"
 #include "text/utf8.h"
 
 #include <stdlib.h>

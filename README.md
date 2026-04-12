@@ -113,17 +113,17 @@ This section names the core concepts used throughout the codebase.
 
 - The canonical source of truth for tab text.
 - Owned in `editorConfig`/`editorTabState` as `document`.
-- Backed by `src/rope.c` plus a line-start index (`src/document.c`).
+- Backed by `src/text/rope.c` plus a line-start index (`src/text/document.c`).
 
 ### Rope
 
-- Implemented in [`src/rope.c`](src/rope.c) / [`src/rope.h`](src/rope.h).
+- Implemented in [`src/text/rope.c`](src/text/rope.c) / [`src/text/rope.h`](src/text/rope.h).
 - Stores text in fixed-size chunks (currently 1024 bytes).
 - Supports read/copy/dup/replace by byte range.
 
 ### Derived row cache (`struct erow`)
 
-- Implemented from the document in `src/buffer.c`.
+- Implemented from the document in `src/editing/buffer_core.c`.
 - Used for rendering and cursor/display conversions.
 - Not the canonical storage path.
 
@@ -135,7 +135,7 @@ This section names the core concepts used throughout the codebase.
 - Mapping helpers:
   - `editorBufferPosToOffset`
   - `editorBufferOffsetToPos`
-  - row render helpers in `src/buffer.c`/`src/output.c`
+  - row render helpers in `src/editing/buffer_core.c`/`src/render/screen.c`
 
 ### `editorTextSource`
 
@@ -150,7 +150,7 @@ This section names the core concepts used throughout the codebase.
   - inserted text
   - before/after cursor offsets
   - before/after dirty values
-- Applied through one core mutation path in `src/buffer.c`, then row cache/syntax/LSP/history are updated.
+- Applied through one core mutation path in `src/editing/buffer_core.c`, then row cache/syntax/LSP/history are updated.
 
 ### Operation history (undo/redo)
 
@@ -177,13 +177,13 @@ This section names the core concepts used throughout the codebase.
 
 ### Syntax state
 
-- Per-tab `editorSyntaxState` in [`src/syntax.c`](src/syntax.c).
+- Per-tab `editorSyntaxState` in [`src/language/syntax.c`](src/language/syntax.c).
 - Tree-sitter host parse plus optional HTML injections (JS/CSS).
 - Query and parse budgets support graceful degraded modes instead of immediate hard disable for moderate file sizes.
 
 ### LSP state
 
-- Go-only LSP client in [`src/lsp.c`](src/lsp.c) with JSON-RPC transport.
+- Go-only LSP client in [`src/language/lsp.c`](src/language/lsp.c) with JSON-RPC transport.
 - Tracks per-tab document open/version and sends didOpen/didChange/didSave/didClose.
 - Definition lookup integrates with tabs and position conversion helpers.
 
@@ -192,7 +192,8 @@ This section names the core concepts used throughout the codebase.
 - First-party runtime code lives under [`src/`](src/).
 - Top-level files are primarily project metadata, build files, docs, tests, and vendored dependencies.
 - Subdirectories inside `src/` are responsibility-oriented:
-  - `src/editor/`: stateful editor subsystems such as tabs, drawer, recovery, and file I/O
+  - `src/workspace/`: tabs, drawer, recovery, and task-log workspace behavior
+  - `src/support/`: terminal, allocation, save, and file/path helpers
   - `src/text/`: reusable UTF-8, grapheme, and row/render helpers
 
 ### Recovery snapshot
@@ -203,16 +204,16 @@ This section names the core concepts used throughout the codebase.
 ## Module Map
 
 - [`src/rotide.c`](src/rotide.c), [`src/rotide.h`](src/rotide.h): lifecycle, global state, startup wiring.
-- [`src/terminal.c`](src/terminal.c): raw mode, key decoding, mouse packets, OSC52, terminal size.
-- [`src/input.c`](src/input.c): action dispatch, prompts, search/go-to-line/go-to-definition, mouse handling.
-- [`src/buffer.c`](src/buffer.c): canonical edit pipeline, selection/history/edit orchestration, save integration.
-- [`src/document.c`](src/document.c), [`src/rope.c`](src/rope.c): canonical text storage and offset/line mapping.
-- [`src/output.c`](src/output.c): rendering of tab bar, drawer, text viewport, status/message bars.
-- [`src/syntax.c`](src/syntax.c): Tree-sitter parser/query integration and capture collection.
-- [`src/lsp.c`](src/lsp.c): Go LSP process lifecycle and JSON-RPC messaging.
-- [`src/keymap.c`](src/keymap.c): keymap/config parser and load precedence.
-- [`src/alloc.c`](src/alloc.c), [`src/save_syscalls.c`](src/save_syscalls.c): testable wrappers for allocation and save syscalls.
-- [`src/editor/`](src/editor): editor subsystems split out of the former monolithic buffer module.
+- [`src/support/terminal.c`](src/support/terminal.c): raw mode, key decoding, mouse packets, OSC52, terminal size.
+- [`src/input/dispatch.c`](src/input/dispatch.c): action dispatch, prompts, search/go-to-line/go-to-definition, mouse handling.
+- [`src/editing/buffer_core.c`](src/editing/buffer_core.c): canonical edit pipeline, selection/history/edit orchestration, save integration.
+- [`src/text/document.c`](src/text/document.c), [`src/text/rope.c`](src/text/rope.c): canonical text storage and offset/line mapping.
+- [`src/render/screen.c`](src/render/screen.c): rendering of tab bar, drawer, text viewport, status/message bars.
+- [`src/language/syntax.c`](src/language/syntax.c): Tree-sitter parser/query integration and capture collection.
+- [`src/language/lsp.c`](src/language/lsp.c): Go LSP process lifecycle and JSON-RPC messaging.
+- [`src/config/keymap.c`](src/config/keymap.c): keymap/config parser and load precedence.
+- [`src/support/alloc.c`](src/support/alloc.c), [`src/support/save_syscalls.c`](src/support/save_syscalls.c): testable wrappers for allocation and save syscalls.
+- [`src/workspace/`](src/workspace): editor subsystems split out of the former monolithic buffer module.
 - [`src/text/`](src/text): shared UTF-8, grapheme, and row/render helpers.
 - [`tests/rotide_tests.c`](tests/rotide_tests.c): behavior and regression tests.
 

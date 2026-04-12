@@ -5,14 +5,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "buffer.h"
-#include "editor/drawer.h"
-#include "editor/recovery.h"
-#include "editor/tabs.h"
-#include "input.h"
-#include "keymap.h"
-#include "output.h"
-#include "terminal.h"
+#include "config/editor_config.h"
+#include "config/keymap.h"
+#include "config/lsp_config.h"
+#include "config/theme_config.h"
+#include "editing/edit.h"
+#include "editing/selection.h"
+#include "input/dispatch.h"
+#include "render/screen.h"
+#include "support/terminal.h"
+#include "workspace/drawer.h"
+#include "workspace/recovery.h"
+#include "workspace/tabs.h"
 
 struct editorConfig E;
 

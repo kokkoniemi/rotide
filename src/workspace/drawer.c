@@ -1,11 +1,11 @@
-#include "editor/drawer.h"
+#include "workspace/drawer.h"
 
-#include "alloc.h"
-#include "buffer.h"
-#include "editor/file_io.h"
-#include "editor/internal.h"
-#include "editor/tabs.h"
-#include "size_utils.h"
+#include "editing/edit.h"
+#include "editing/internal.h"
+#include "support/size_utils.h"
+#include "support/alloc.h"
+#include "support/file_io.h"
+#include "workspace/tabs.h"
 
 #include <dirent.h>
 #include <errno.h>

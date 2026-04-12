@@ -1,7 +1,8 @@
-#include "lsp.h"
+#include "language/lsp.h"
 
-#include "buffer.h"
-#include "size_utils.h"
+#include "editing/buffer_core.h"
+#include "editing/edit.h"
+#include "support/size_utils.h"
 #include "text/utf8.h"
 
 #include <ctype.h>

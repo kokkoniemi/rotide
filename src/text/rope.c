@@ -1,7 +1,7 @@
-#include "rope.h"
+#include "text/rope.h"
 
-#include "alloc.h"
-#include "size_utils.h"
+#include "support/alloc.h"
+#include "support/size_utils.h"
 #include <stdlib.h>
 #include <string.h>
 

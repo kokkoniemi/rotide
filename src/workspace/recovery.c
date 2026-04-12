@@ -1,15 +1,16 @@
-#include "editor/recovery.h"
+#include "workspace/recovery.h"
 
-#include "alloc.h"
-#include "buffer.h"
-#include "document.h"
-#include "editor/file_io.h"
-#include "editor/internal.h"
-#include "editor/tabs.h"
-#include "output.h"
-#include "size_utils.h"
-#include "terminal.h"
+#include "editing/buffer_core.h"
+#include "editing/edit.h"
+#include "editing/internal.h"
+#include "render/screen.h"
+#include "support/size_utils.h"
+#include "support/alloc.h"
+#include "support/file_io.h"
+#include "support/terminal.h"
+#include "text/document.h"
 #include "text/row.h"
+#include "workspace/tabs.h"
 
 #include <errno.h>
 #include <fcntl.h>

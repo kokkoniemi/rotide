@@ -23,11 +23,18 @@ TREE_SITTER_SRCS = vendor/tree_sitter/runtime/src/lib.c \
 	vendor/tree_sitter/grammars/javascript/src/scanner.c \
 	vendor/tree_sitter/grammars/css/src/parser.c \
 	vendor/tree_sitter/grammars/css/src/scanner.c
-CORE_SRCS = $(SRC_DIR)/rotide.c $(SRC_DIR)/terminal.c $(SRC_DIR)/buffer.c $(SRC_DIR)/output.c \
-	$(SRC_DIR)/input.c $(SRC_DIR)/keymap.c $(SRC_DIR)/alloc.c $(SRC_DIR)/save_syscalls.c \
-	$(SRC_DIR)/syntax.c $(SRC_DIR)/lsp.c $(SRC_DIR)/document.c $(SRC_DIR)/rope.c \
-	$(SRC_DIR)/editor/file_io.c $(SRC_DIR)/editor/tabs.c $(SRC_DIR)/editor/drawer.c \
-	$(SRC_DIR)/editor/recovery.c $(SRC_DIR)/text/utf8.c $(SRC_DIR)/text/row.c
+CORE_SRCS = $(SRC_DIR)/rotide.c \
+	$(SRC_DIR)/support/terminal.c $(SRC_DIR)/support/alloc.c \
+	$(SRC_DIR)/support/save_syscalls.c $(SRC_DIR)/support/file_io.c \
+	$(SRC_DIR)/text/document.c $(SRC_DIR)/text/rope.c \
+	$(SRC_DIR)/text/utf8.c $(SRC_DIR)/text/row.c \
+	$(SRC_DIR)/editing/buffer_core.c \
+	$(SRC_DIR)/workspace/tabs.c $(SRC_DIR)/workspace/drawer.c \
+	$(SRC_DIR)/workspace/recovery.c \
+	$(SRC_DIR)/input/dispatch.c \
+	$(SRC_DIR)/render/screen.c \
+	$(SRC_DIR)/config/keymap.c \
+	$(SRC_DIR)/language/syntax.c $(SRC_DIR)/language/lsp.c
 SRCS = $(CORE_SRCS) $(TREE_SITTER_SRCS)
 OBJS = $(SRCS:.c=.o)
 CORE_OBJS = $(CORE_SRCS:.c=.o)
@@ -93,3 +100,4 @@ test-sanitize:
 .PHONY: clean test test-sanitize
 clean:
 	rm -f $(OBJS) $(TEST_OBJS) $(DEPFILES) $(TEST_BIN) rotide
+	find $(SRC_DIR) tests vendor/tree_sitter -type f \( -name '*.o' -o -name '*.d' \) -delete

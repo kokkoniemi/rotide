@@ -1,7 +1,7 @@
-#include "terminal.h"
+#include "support/terminal.h"
 
-#include "buffer.h"
-#include "editor/task.h"
+#include "editing/edit.h"
+#include "workspace/task.h"
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
@@ -13,7 +13,7 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
-#include "size_utils.h"
+#include "support/size_utils.h"
 
 /*** Terminal ***/
 

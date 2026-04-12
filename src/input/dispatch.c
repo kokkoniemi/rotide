@@ -1,6 +1,18 @@
-#include "input.h"
+#include "input/dispatch.h"
 
-#include "alloc.h"
+#include "config/keymap.h"
+#include "editing/buffer_core.h"
+#include "editing/edit.h"
+#include "editing/history.h"
+#include "editing/selection.h"
+#include "language/lsp.h"
+#include "render/screen.h"
+#include "support/alloc.h"
+#include "support/terminal.h"
+#include "workspace/drawer.h"
+#include "workspace/recovery.h"
+#include "workspace/tabs.h"
+#include "workspace/task.h"
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
@@ -9,15 +21,6 @@
 #include <strings.h>
 #include <string.h>
 
-#include "buffer.h"
-#include "editor/drawer.h"
-#include "editor/recovery.h"
-#include "editor/tabs.h"
-#include "editor/task.h"
-#include "keymap.h"
-#include "lsp.h"
-#include "output.h"
-#include "terminal.h"
 #include "text/row.h"
 #include "text/utf8.h"
 

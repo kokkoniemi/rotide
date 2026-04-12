@@ -5,7 +5,7 @@
 - `rotide` is a terminal text editor inspired by kilo.
 - Priorities: deterministic behavior, readable control flow, and strong regression coverage.
 - Current architecture is document-first:
-  - canonical text storage: `editorDocument` (`src/document.c`) backed by rope chunks (`src/rope.c`)
+  - canonical text storage: `editorDocument` (`src/text/document.c`) backed by rope chunks (`src/text/rope.c`)
   - row arrays (`struct erow`) are derived render/cache state, rebuilt from the document
 - Keep refactors incremental and preserve user-facing behavior unless explicitly requested.
 
@@ -13,18 +13,14 @@
 
 - `src/`: first-party runtime source tree.
 - `src/rotide.c` / `src/rotide.h`: process lifecycle, startup config loading, global state/type definitions.
-- `src/terminal.c` / `src/terminal.h`: raw mode, key decoding, mouse packets, OSC52 clipboard emit, window size helpers.
-- `src/input.c` / `src/input.h`: prompt flows, action dispatch, movement/search/go-to-line/go-to-definition, mouse behavior.
-- `src/buffer.c` / `src/buffer.h`: document edit orchestration, row-cache rebuild, save path, selection, and undo/redo integration.
-- `src/document.c` / `src/document.h`: canonical document abstraction, line index, byte offset <-> line/column mapping.
-- `src/rope.c` / `src/rope.h`: chunked rope storage and range replace/read helpers.
-- `src/output.c` / `src/output.h`: rendering pipeline (tabs, drawer, text area, status/message bars).
-- `src/syntax.c` / `src/syntax.h`: Tree-sitter parser/query integration, captures, budgets, incremental parse/injections.
-- `src/lsp.c` / `src/lsp.h`: Go LSP (`gopls`) lifecycle, JSON-RPC transport, document sync and definition requests.
-- `src/keymap.c` / `src/keymap.h`: keymap defaults, TOML parsing, config precedence, editor/theme/LSP config loading.
-- `src/alloc.c` / `src/alloc.h`: allocation wrappers + test hook integration.
-- `src/save_syscalls.c` / `src/save_syscalls.h`: save syscall wrappers + failure injection hooks.
-- `src/editor/`: stateful editor subsystems such as tabs, drawer, recovery, and file I/O.
+- `src/support/`: low-level support code such as terminal I/O, allocation wrappers, save syscalls, and file/path helpers.
+- `src/text/`: canonical text primitives such as document storage, rope chunks, UTF-8 helpers, and row rendering helpers.
+- `src/editing/`: document edit orchestration, row-cache rebuild, save path, selection, and undo/redo integration.
+- `src/workspace/`: tabs, drawer, recovery, and task-log workspace behavior.
+- `src/input/`: prompt flows, action dispatch, movement/search/go-to-line/go-to-definition, mouse behavior.
+- `src/render/`: rendering pipeline for tabs, drawer, text area, status, and message bars.
+- `src/config/`: keymap defaults, TOML parsing, config precedence, and editor/theme/LSP config loading.
+- `src/language/`: Tree-sitter syntax integration and Go LSP lifecycle/document sync/definition handling.
 - `src/text/`: shared UTF-8, grapheme, and row/render helpers.
 - `tests/rotide_tests.c`: main unit/behavior regression suite.
 - `tests/test_helpers.c` / `tests/test_helpers.h`: fixture helpers, path resolution, assertion helpers.

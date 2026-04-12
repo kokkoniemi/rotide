@@ -1,19 +1,22 @@
-#include "buffer.h"
+#include "editing/buffer_core.h"
 
-#include "alloc.h"
-#include "document.h"
-#include "editor/file_io.h"
-#include "editor/internal.h"
-#include "editor/tabs.h"
-#include "input.h"
-#include "lsp.h"
-#include "output.h"
-#include "save_syscalls.h"
-#include "size_utils.h"
-#include "syntax.h"
-#include "terminal.h"
+#include "editing/edit.h"
+#include "editing/history.h"
+#include "editing/internal.h"
+#include "editing/selection.h"
+#include "input/dispatch.h"
+#include "language/lsp.h"
+#include "language/syntax.h"
+#include "render/screen.h"
+#include "support/size_utils.h"
+#include "support/alloc.h"
+#include "support/file_io.h"
+#include "support/save_syscalls.h"
+#include "support/terminal.h"
+#include "text/document.h"
 #include "text/row.h"
 #include "text/utf8.h"
+#include "workspace/tabs.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
@@ -3162,4 +3165,3 @@ err: {
 	editorSetSaveFailureStatus(saved_errno, cleanup_errno);
 }
 }
-
