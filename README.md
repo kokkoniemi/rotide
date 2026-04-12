@@ -211,7 +211,7 @@ This section names the core concepts used throughout the codebase.
 - [`src/render/screen.c`](src/render/screen.c): rendering of tab bar, drawer, text viewport, status/message bars.
 - [`src/language/syntax.c`](src/language/syntax.c): Tree-sitter parser/query integration and capture collection.
 - [`src/language/lsp.c`](src/language/lsp.c): Go LSP process lifecycle and JSON-RPC messaging.
-- [`src/config/keymap.c`](src/config/keymap.c): keymap/config parser and load precedence.
+- [`src/config/`](src/config): keymap bindings, editor settings, theme config, LSP config, and shared TOML parsing helpers.
 - [`src/support/alloc.c`](src/support/alloc.c), [`src/support/save_syscalls.c`](src/support/save_syscalls.c): testable wrappers for allocation and save syscalls.
 - [`src/workspace/`](src/workspace): editor subsystems split out of the former monolithic buffer module.
 - [`src/text/`](src/text): shared UTF-8, grapheme, and row/render helpers.

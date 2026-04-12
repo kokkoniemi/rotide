@@ -29,11 +29,15 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/text/document.c $(SRC_DIR)/text/rope.c \
 	$(SRC_DIR)/text/utf8.c $(SRC_DIR)/text/row.c \
 	$(SRC_DIR)/editing/buffer_core.c \
+	$(SRC_DIR)/editing/edit.c $(SRC_DIR)/editing/selection.c \
+	$(SRC_DIR)/editing/history.c \
 	$(SRC_DIR)/workspace/tabs.c $(SRC_DIR)/workspace/drawer.c \
 	$(SRC_DIR)/workspace/recovery.c \
 	$(SRC_DIR)/input/dispatch.c \
 	$(SRC_DIR)/render/screen.c \
-	$(SRC_DIR)/config/keymap.c \
+	$(SRC_DIR)/config/common.c $(SRC_DIR)/config/keymap.c \
+	$(SRC_DIR)/config/editor_config.c $(SRC_DIR)/config/theme_config.c \
+	$(SRC_DIR)/config/lsp_config.c \
 	$(SRC_DIR)/language/syntax.c $(SRC_DIR)/language/lsp.c
 SRCS = $(CORE_SRCS) $(TREE_SITTER_SRCS)
 OBJS = $(SRCS:.c=.o)
