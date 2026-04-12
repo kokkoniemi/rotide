@@ -4,6 +4,7 @@ CFLAGS ?= -Wall -Wextra -Werror -Wshadow -Wdouble-promotion -Wundef -fno-common 
 LDFLAGS ?=
 SANITIZER_CFLAGS ?= -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer
 SANITIZER_LDFLAGS ?= -fsanitize=address,undefined -fno-omit-frame-pointer
+DEPFLAGS = -MMD -MP
 TREE_SITTER_CPPFLAGS = $(CPPFLAGS) -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_GNU_SOURCE
 TREE_SITTER_WARNING_CFLAGS = -Wno-unused-parameter -Wno-unused-value -Wno-sign-compare \
 	-Wno-implicit-fallthrough
@@ -29,45 +30,46 @@ EDITOR_OBJS = terminal.o buffer.o output.o input.o keymap.o alloc.o save_syscall
 TEST_SRCS = tests/rotide_tests.c tests/test_helpers.c tests/alloc_test_hooks.c tests/save_syscalls_test_hooks.c
 TEST_OBJS = $(TEST_SRCS:.c=.o)
 TEST_BIN = tests/rotide_tests
+DEPFILES = $(OBJS:.o=.d) $(TEST_OBJS:.o=.d)
 
 rotide: rotide.o $(EDITOR_OBJS)
 	$(CC) $(LDFLAGS) $(OBJS) -o $@
 
 vendor/tree_sitter/runtime/src/lib.o: vendor/tree_sitter/runtime/src/lib.c
-	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) -c $< -o $@
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 vendor/tree_sitter/grammars/c/src/parser.o: vendor/tree_sitter/grammars/c/src/parser.c
-	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) -c $< -o $@
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 vendor/tree_sitter/grammars/go/src/parser.o: vendor/tree_sitter/grammars/go/src/parser.c
-	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) -c $< -o $@
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 vendor/tree_sitter/grammars/bash/src/parser.o: vendor/tree_sitter/grammars/bash/src/parser.c
-	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) -c $< -o $@
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 vendor/tree_sitter/grammars/bash/src/scanner.o: vendor/tree_sitter/grammars/bash/src/scanner.c
-	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) -c $< -o $@
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 vendor/tree_sitter/grammars/html/src/parser.o: vendor/tree_sitter/grammars/html/src/parser.c
-	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) -c $< -o $@
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 vendor/tree_sitter/grammars/html/src/scanner.o: vendor/tree_sitter/grammars/html/src/scanner.c
-	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) -c $< -o $@
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 vendor/tree_sitter/grammars/javascript/src/parser.o: vendor/tree_sitter/grammars/javascript/src/parser.c
-	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) -c $< -o $@
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 vendor/tree_sitter/grammars/javascript/src/scanner.o: vendor/tree_sitter/grammars/javascript/src/scanner.c
-	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) -c $< -o $@
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 vendor/tree_sitter/grammars/css/src/parser.o: vendor/tree_sitter/grammars/css/src/parser.c
-	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) -c $< -o $@
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 vendor/tree_sitter/grammars/css/src/scanner.o: vendor/tree_sitter/grammars/css/src/scanner.c
-	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) -c $< -o $@
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 %.o: %.c
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 $(TEST_BIN): $(TEST_OBJS) $(EDITOR_OBJS)
 	$(CC) $(LDFLAGS) $^ -o $@
@@ -80,6 +82,8 @@ test-sanitize:
 	$(MAKE) CFLAGS="$(CFLAGS) $(SANITIZER_CFLAGS)" \
 		LDFLAGS="$(LDFLAGS) $(SANITIZER_LDFLAGS)" test
 
+-include $(DEPFILES)
+
 .PHONY: clean test test-sanitize
 clean:
-	rm -f $(OBJS) $(TEST_OBJS) $(TEST_BIN) rotide
+	rm -f $(OBJS) $(TEST_OBJS) $(DEPFILES) $(TEST_BIN) rotide
