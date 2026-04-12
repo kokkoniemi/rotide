@@ -80,6 +80,7 @@ When input/output/buffer behavior changes, run interactive smoke:
 ### Available skills
 
 - `rotide-maintainer`: general code/docs/test changes across the repository.
+- `rotide-domain-refactor`: domain-oriented refactors, module ownership cleanup, header narrowing, and dead-weight removal.
 - `rotide-document-maintainer`: canonical document/rope/edit-history/recovery changes.
 - `rotide-search-maintainer`: search prompt, active match navigation/highlight behavior.
 - `rotide-syntax-maintainer`: Tree-sitter language/query/incremental parse/highlighting changes.

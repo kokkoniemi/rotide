@@ -1,0 +1,4 @@
+interface:
+  display_name: "Rotide Domain Refactor"
+  short_description: "Refactor RotIDE by domain ownership and module boundaries."
+  default_prompt: "Use this skill for domain-oriented refactors in RotIDE. Keep behavior stable, name domains clearly, narrow headers, and extract the smallest useful module boundary."
