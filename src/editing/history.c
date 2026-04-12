@@ -1,7 +1,8 @@
 #include "editing/history.h"
 
+#include "editing/buffer_core.h"
 #include "editing/edit.h"
-#include "editing/internal.h"
+#include "editing/selection.h"
 #include "support/alloc.h"
 #include "support/size_utils.h"
 #include <string.h>

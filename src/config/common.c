@@ -1,4 +1,4 @@
-#include "config/internal.h"
+#include "config/common.h"
 
 #include "support/alloc.h"
 #include "support/size_utils.h"

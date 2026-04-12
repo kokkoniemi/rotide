@@ -1,5 +1,5 @@
-#ifndef CONFIG_INTERNAL_H
-#define CONFIG_INTERNAL_H
+#ifndef CONFIG_COMMON_H
+#define CONFIG_COMMON_H
 
 #include <stddef.h>
 

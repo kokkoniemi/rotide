@@ -4,6 +4,18 @@
 #include "rotide.h"
 #include <stddef.h>
 
+struct editorDocumentEdit {
+	enum editorEditKind kind;
+	size_t start_offset;
+	size_t old_len;
+	const char *new_text;
+	size_t new_len;
+	size_t before_cursor_offset;
+	size_t after_cursor_offset;
+	int before_dirty;
+	int after_dirty;
+};
+
 char *editorRowsToStr(size_t *buflen);
 int editorBuildActiveTextSource(struct editorTextSource *source_out);
 int editorBufferPosToOffset(int cy, int cx, size_t *offset_out);
@@ -24,5 +36,28 @@ int editorSyntaxRowRenderSpans(int row_idx, struct editorRowSyntaxSpan *spans, i
 void editorSyntaxTestResetVisibleRowRecomputeCount(void);
 int editorSyntaxTestVisibleRowRecomputeCount(void);
 int editorBufferMaxRenderCols(void);
+
+void editorSetAllocFailureStatus(void);
+void editorSetOperationTooLargeStatus(void);
+void editorSetFileTooLargeStatus(void);
+int editorTabKindSupportsDocument(enum editorTabKind tab_kind);
+void editorDocumentFreePtr(struct editorDocument **document_in_out);
+int editorDocumentEnsureActiveCurrent(void);
+int editorDocumentResetActiveFromText(const char *text, size_t len);
+int editorTabDocumentEnsureCurrent(struct editorTabState *tab);
+int editorSyntaxParseFullActive(void);
+void editorLspNotifyDidCloseTabState(struct editorTabState *tab);
+void editorLspNotifyDidSaveActive(void);
+void editorSyntaxVisibleCacheInvalidate(void);
+void editorSyntaxVisibleCacheFree(void);
+void editorFreeRowArray(struct erow *rows, int numrows);
+int editorBuildFullRowsFromDocument(const struct editorDocument *document,
+		struct erow **rows_out, int *numrows_out);
+int editorSyncCursorFromOffset(size_t target_offset);
+int editorSyncCursorFromOffsetByteBoundary(size_t target_offset);
+int editorRestoreActiveFromDocument(const struct editorDocument *document,
+		int target_cy, int target_cx, int dirty, int parse_syntax);
+int editorApplyDocumentEdit(const struct editorDocumentEdit *edit);
+char *editorDupActiveTextSource(size_t *len_out);
 
 #endif

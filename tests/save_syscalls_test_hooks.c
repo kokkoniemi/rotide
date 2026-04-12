@@ -1,6 +1,6 @@
 #include "save_syscalls_test_hooks.h"
 
-#include "support/save_syscalls_control.h"
+#include "support/save_syscalls.h"
 #include <errno.h>
 #include <stddef.h>
 

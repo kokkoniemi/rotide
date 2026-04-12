@@ -1,6 +1,6 @@
 #include "config/theme_config.h"
 
-#include "config/internal.h"
+#include "config/common.h"
 
 #include <ctype.h>
 #include <errno.h>

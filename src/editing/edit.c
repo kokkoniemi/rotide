@@ -1,7 +1,6 @@
 #include "editing/edit.h"
 
 #include "editing/buffer_core.h"
-#include "editing/internal.h"
 #include "input/dispatch.h"
 #include "language/lsp.h"
 #include "support/alloc.h"

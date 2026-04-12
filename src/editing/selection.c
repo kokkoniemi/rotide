@@ -1,7 +1,6 @@
 #include "editing/selection.h"
 
 #include "editing/buffer_core.h"
-#include "editing/internal.h"
 #include "language/syntax.h"
 #include "support/alloc.h"
 #include "support/size_utils.h"

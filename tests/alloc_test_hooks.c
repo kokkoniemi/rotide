@@ -1,6 +1,6 @@
 #include "alloc_test_hooks.h"
 
-#include "support/alloc_control.h"
+#include "support/alloc.h"
 
 static int editor_alloc_fail_after = -1;
 

@@ -1,6 +1,6 @@
 #include "config/editor_config.h"
 
-#include "config/internal.h"
+#include "config/common.h"
 
 #include <errno.h>
 #include <stdio.h>

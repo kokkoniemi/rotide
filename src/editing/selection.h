@@ -5,6 +5,7 @@
 
 #include <stddef.h>
 
+void editorClearSelectionState(void);
 int editorGetSelectionRange(struct editorSelectionRange *range_out);
 int editorExtractRangeText(const struct editorSelectionRange *range, char **text_out, size_t *len_out);
 int editorDeleteRange(const struct editorSelectionRange *range);

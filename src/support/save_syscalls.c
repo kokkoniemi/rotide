@@ -1,7 +1,6 @@
 #include "rotide.h"
 #include "save_syscalls.h"
 
-#include "save_syscalls_control.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>

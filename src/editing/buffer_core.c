@@ -2,7 +2,6 @@
 
 #include "editing/edit.h"
 #include "editing/history.h"
-#include "editing/internal.h"
 #include "editing/selection.h"
 #include "input/dispatch.h"
 #include "language/lsp.h"

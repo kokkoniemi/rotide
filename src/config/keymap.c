@@ -1,5 +1,5 @@
 #include "config/keymap.h"
-#include "config/internal.h"
+#include "config/common.h"
 
 #include <ctype.h>
 #include <errno.h>

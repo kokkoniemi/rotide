@@ -1,7 +1,7 @@
 #include "workspace/drawer.h"
 
+#include "editing/buffer_core.h"
 #include "editing/edit.h"
-#include "editing/internal.h"
 #include "support/size_utils.h"
 #include "support/alloc.h"
 #include "support/file_io.h"
