@@ -59,6 +59,7 @@ ASAN_OPTIONS=detect_leaks=0 make test-sanitize
 - Go LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `gopls`.
 - C/C++ LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `clangd`.
 - Missing-`gopls` install prompt with live output in read-only task-log tabs.
+- Missing-`clangd` prompt that can open an instruction tab with install guidance and the official installation URL.
 - Atomic save flow (temp file + fsync + rename + cleanup).
 - Crash recovery snapshots with restore prompt on startup.
 - Optional OSC52 clipboard sync.
@@ -104,6 +105,7 @@ LSP notes:
 - `gopls_install_command` is **global-only** (`~/.rotide/config.toml`).
 - If `gopls_install_command` appears in project config, RotIDE ignores that key and keeps parsing the rest of `[lsp]`.
 - Legacy `enabled = true|false` is accepted as a shorthand that toggles both servers together.
+- If `clangd` is missing, RotIDE shows install guidance in a task-log tab instead of trying to install it automatically.
 - Default install command:
   - `go install golang.org/x/tools/gopls@latest`
 

@@ -6064,6 +6064,71 @@ static int test_editor_process_keypress_goto_definition_missing_gopls_starts_ins
 	return 0;
 }
 
+static int test_editor_process_keypress_goto_definition_missing_clangd_declines_instructions(void) {
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 1;
+	ASSERT_TRUE(editorTabsInit());
+
+	strncpy(E.lsp_clangd_command,
+			"exec >/dev/null; sleep 0.05; rotide_missing_clangd_command",
+			sizeof(E.lsp_clangd_command) - 1);
+	E.lsp_clangd_command[sizeof(E.lsp_clangd_command) - 1] = '\0';
+
+	char c_path[64];
+	ASSERT_TRUE(write_temp_c_file(c_path, sizeof(c_path),
+			"int helper(void) { return 1; }\nint main(void) { return helper(); }\n"));
+	editorOpen(c_path);
+	E.cy = 1;
+	E.cx = 27;
+
+	char input[] = {CTRL_KEY('o'), '\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+	ASSERT_TRUE(!editorTaskIsRunning());
+	ASSERT_TRUE(!editorActiveTabIsTaskLog());
+	ASSERT_EQ_INT(1, editorTabCount());
+	ASSERT_EQ_STR("clangd not installed", E.statusmsg);
+
+	ASSERT_TRUE(unlink(c_path) == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_goto_definition_missing_clangd_shows_install_instructions(void) {
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 1;
+	ASSERT_TRUE(editorTabsInit());
+
+	strncpy(E.lsp_clangd_command,
+			"exec >/dev/null; sleep 0.05; rotide_missing_clangd_command",
+			sizeof(E.lsp_clangd_command) - 1);
+	E.lsp_clangd_command[sizeof(E.lsp_clangd_command) - 1] = '\0';
+
+	char c_path[64];
+	ASSERT_TRUE(write_temp_c_file(c_path, sizeof(c_path),
+			"int helper(void) { return 1; }\nint main(void) { return helper(); }\n"));
+	editorOpen(c_path);
+	E.cy = 1;
+	E.cx = 27;
+
+	char input[] = {CTRL_KEY('o'), 'y', '\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+	ASSERT_TRUE(!editorTaskIsRunning());
+	ASSERT_TRUE(editorActiveTabIsTaskLog());
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_STR("Task: Install clangd", editorActiveBufferDisplayName());
+	ASSERT_EQ_STR("clangd not installed; see task log", E.statusmsg);
+
+	size_t textlen = 0;
+	char *text = editorRowsToStr(&textlen);
+	ASSERT_TRUE(text != NULL);
+	ASSERT_TRUE(strstr(text, "clangd was not found on PATH") != NULL);
+	ASSERT_TRUE(strstr(text, "https://clangd.llvm.org/installation") != NULL);
+	ASSERT_TRUE(strstr(text, "[lsp].clangd_command") != NULL);
+	free(text);
+
+	ASSERT_TRUE(unlink(c_path) == 0);
+	return 0;
+}
+
 static int test_editor_task_log_read_only_search_and_copy(void) {
 	ASSERT_TRUE(editorTabsInit());
 	editorDocumentTestResetStats();
@@ -10584,6 +10649,10 @@ int main(void) {
 				test_editor_process_keypress_goto_definition_missing_gopls_decline_install},
 			{"editor_process_keypress_goto_definition_missing_gopls_starts_install_task",
 				test_editor_process_keypress_goto_definition_missing_gopls_starts_install_task},
+			{"editor_process_keypress_goto_definition_missing_clangd_declines_instructions",
+				test_editor_process_keypress_goto_definition_missing_clangd_declines_instructions},
+			{"editor_process_keypress_goto_definition_missing_clangd_shows_install_instructions",
+				test_editor_process_keypress_goto_definition_missing_clangd_shows_install_instructions},
 			{"editor_task_log_read_only_search_and_copy",
 				test_editor_task_log_read_only_search_and_copy},
 			{"editor_task_log_document_stays_authoritative",

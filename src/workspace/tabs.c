@@ -42,6 +42,7 @@ static int editorTaskMutateTab(int tab_idx, int jump_to_end,
 static void editorTaskResetState(void);
 static void editorTaskFinalize(int success, int exit_code);
 static void editorTaskSetFinalStatus(int success);
+static int editorTaskPrepareLogTab(const char *title, const char *text);
 static const char *editorTabLabelFromDisplayName(const char *display_name);
 static int editorSanitizedTokenDisplayCols(const char *text, int text_len, int *src_len_out);
 static int editorSanitizedTextDisplayCols(const char *text, int max_cols);
@@ -975,6 +976,46 @@ static void editorTaskSetFinalStatus(int success) {
 	editorSetStatusMsg("Task failed");
 }
 
+static int editorTaskPrepareLogTab(const char *title, const char *text) {
+	if (title == NULL || title[0] == '\0' || text == NULL) {
+		return 0;
+	}
+	if (!editorTabNewEmpty()) {
+		return 0;
+	}
+
+	E.tab_kind = EDITOR_TAB_TASK_LOG;
+	E.tab_title = strdup(title);
+	if (E.tab_title == NULL) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+	E.dirty = 0;
+	free(E.filename);
+	E.filename = NULL;
+	editorSyntaxStateDestroy(E.syntax_state);
+	E.syntax_state = NULL;
+	E.syntax_language = EDITOR_SYNTAX_NONE;
+	E.lsp_doc_open = 0;
+	E.lsp_doc_version = 0;
+	if (!editorDocumentResetActiveFromText(text, strlen(text))) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+	if (!editorRestoreActiveFromDocument(E.document, 0, 0, 0, 0)) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+	if (E.numrows > 0) {
+		E.cy = E.numrows - 1;
+		E.cx = E.rows[E.cy].size;
+	}
+	editorViewportEnsureCursorVisible();
+	editorStoreActiveTab();
+	editorLoadActiveTab(E.active_tab);
+	return 1;
+}
+
 int editorTaskPoll(void) {
 	int changed = 0;
 	int saw_eof = 0;
@@ -1049,40 +1090,10 @@ int editorTaskStart(const char *title, const char *command,
 		editorSetStatusMsg("Another task is already running");
 		return 0;
 	}
-	if (!editorTabNewEmpty()) {
-		return 0;
-	}
-
-	E.tab_kind = EDITOR_TAB_TASK_LOG;
-	E.tab_title = strdup(title);
-	if (E.tab_title == NULL) {
-		editorSetAllocFailureStatus();
-		return 0;
-	}
-	E.dirty = 0;
-	free(E.filename);
-	E.filename = NULL;
-	editorSyntaxStateDestroy(E.syntax_state);
-	E.syntax_state = NULL;
-	E.syntax_language = EDITOR_SYNTAX_NONE;
-	E.lsp_doc_open = 0;
-	E.lsp_doc_version = 0;
 	(void)snprintf(header, sizeof(header), "$ %s\n\n", command);
-	if (!editorDocumentResetActiveFromText(header, strlen(header))) {
-		editorSetAllocFailureStatus();
+	if (!editorTaskPrepareLogTab(title, header)) {
 		return 0;
 	}
-	if (!editorRestoreActiveFromDocument(E.document, 0, 0, 0, 0)) {
-		editorSetAllocFailureStatus();
-		return 0;
-	}
-	if (E.numrows > 0) {
-		E.cy = E.numrows - 1;
-		E.cx = E.rows[E.cy].size;
-	}
-	editorViewportEnsureCursorVisible();
-	editorStoreActiveTab();
-	editorLoadActiveTab(E.active_tab);
 
 	if (pipe(output_pipe) == -1) {
 		editorSetStatusMsg("Unable to start task");
@@ -1135,6 +1146,16 @@ int editorTaskStart(const char *title, const char *command,
 		E.task_failure_status[0] = '\0';
 	}
 	editorSetStatusMsg("Running task: %s", title);
+	return 1;
+}
+
+int editorTaskShowMessage(const char *title, const char *text, const char *status) {
+	if (!editorTaskPrepareLogTab(title, text)) {
+		return 0;
+	}
+	if (status != NULL && status[0] != '\0') {
+		editorSetStatusMsg("%s", status);
+	}
 	return 1;
 }
 

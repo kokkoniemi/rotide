@@ -374,21 +374,43 @@ static const char *editorGoToDefinitionCommandSettingName(void) {
 }
 
 static void editorMaybePromptInstallLanguageServer(void) {
-	if (E.syntax_language != EDITOR_SYNTAX_GO) {
-		return;
-	}
 	if (editorLspLastStartupFailureReason() != EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
 		return;
 	}
-	if (!editorPromptYesNo("gopls not found. Install now? [y/N] %s")) {
-		editorSetStatusMsg("gopls not installed");
+	if (E.syntax_language == EDITOR_SYNTAX_GO) {
+		if (!editorPromptYesNo("gopls not found. Install now? [y/N] %s")) {
+			editorSetStatusMsg("gopls not installed");
+			return;
+		}
+		if (!editorTaskStart("Task: Install gopls", E.lsp_gopls_install_command,
+					"gopls installed. Retry Ctrl-O",
+					"gopls install failed; see task log")) {
+			if (E.statusmsg[0] == '\0') {
+				editorSetStatusMsg("Unable to start gopls install");
+			}
+		}
 		return;
 	}
-	if (!editorTaskStart("Task: Install gopls", E.lsp_gopls_install_command,
-				"gopls installed. Retry Ctrl-O",
-				"gopls install failed; see task log")) {
-		if (E.statusmsg[0] == '\0') {
-			editorSetStatusMsg("Unable to start gopls install");
+
+	if (E.syntax_language == EDITOR_SYNTAX_C) {
+		static const char message[] =
+				"clangd was not found on PATH.\n"
+				"\n"
+				"Install instructions:\n"
+				"https://clangd.llvm.org/installation\n"
+				"\n"
+				"After installing clangd:\n"
+				"- retry Ctrl-O or Ctrl + left click\n"
+				"- set [lsp].clangd_command in .rotide.toml if clangd is installed in a custom location\n";
+		if (!editorPromptYesNo("clangd not found. Show install instructions? [y/N] %s")) {
+			editorSetStatusMsg("clangd not installed");
+			return;
+		}
+		if (!editorTaskShowMessage("Task: Install clangd", message,
+					"clangd not installed; see task log")) {
+			if (E.statusmsg[0] == '\0') {
+				editorSetStatusMsg("clangd not installed");
+			}
 		}
 	}
 }
@@ -912,9 +934,7 @@ static void editorGoToDefinition(void) {
 	if (!ready) {
 		if (editorLspLastStartupFailureReason() == EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
 			editorMaybePromptInstallLanguageServer();
-			if (E.syntax_language == EDITOR_SYNTAX_GO) {
-				return;
-			}
+			return;
 		}
 		if (strncmp(E.statusmsg, "LSP ", strlen("LSP ")) != 0) {
 			editorSetStatusMsg("LSP unavailable for this file");

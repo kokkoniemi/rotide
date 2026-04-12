@@ -20,7 +20,7 @@
 - `src/input/`: prompt flows, action dispatch, movement/search/go-to-line/go-to-definition, mouse behavior.
 - `src/render/`: rendering pipeline for tabs, drawer, text area, status, and message bars.
 - `src/config/`: keymap defaults, TOML parsing, config precedence, and editor/theme/LSP config loading.
-- `src/language/`: Tree-sitter syntax integration and Go LSP lifecycle/document sync/definition handling.
+- `src/language/`: Tree-sitter syntax integration and Go/C/C++ LSP lifecycle/document sync/definition handling.
 - `src/text/`: shared UTF-8, grapheme, and row/render helpers.
 - `tests/rotide_tests.c`: main unit/behavior regression suite.
 - `tests/test_helpers.c` / `tests/test_helpers.h`: fixture helpers, path resolution, assertion helpers.
@@ -80,7 +80,7 @@ When input/output/buffer behavior changes, run interactive smoke:
 - `rotide-document-maintainer`: canonical document/rope/edit-history/recovery changes.
 - `rotide-search-maintainer`: search prompt, active match navigation/highlight behavior.
 - `rotide-syntax-maintainer`: Tree-sitter language/query/incremental parse/highlighting changes.
-- `rotide-lsp-maintainer`: Go LSP lifecycle/sync/definition/install-prompt/task-log flows.
+- `rotide-lsp-maintainer`: Go/C/C++ LSP lifecycle/sync/definition/install-prompt/task-log flows.
 - `rotide-docs-maintainer`: README/AGENTS/skill/reference documentation quality and consistency.
 
 ### How to use skills
