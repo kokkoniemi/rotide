@@ -129,6 +129,9 @@ static int remove_tmp_save_artifacts(const char *target_path) {
 	return failures == 0 ? 0 : -1;
 }
 
+static int write_fixture_to_temp_path(char path_buf[], int suffix_len,
+		const char *fixture_relative_path);
+
 static int write_temp_file_with_suffix(char path_buf[], size_t path_buf_size, const char *prefix,
 		const char *suffix, const char *content) {
 	if (path_buf == NULL || prefix == NULL || suffix == NULL || content == NULL) {
@@ -157,6 +160,29 @@ static int write_temp_file_with_suffix(char path_buf[], size_t path_buf_size, co
 	return ok;
 }
 
+static int copy_fixture_to_temp_file_with_suffix(char path_buf[], size_t path_buf_size,
+		const char *prefix, const char *suffix, const char *fixture_relative_path) {
+	if (path_buf == NULL || prefix == NULL || suffix == NULL || fixture_relative_path == NULL) {
+		return 0;
+	}
+	int min_size = snprintf(NULL, 0, "/tmp/%sXXXXXX%s", prefix, suffix) + 1;
+	if (min_size <= 0 || (size_t)min_size > path_buf_size) {
+		return 0;
+	}
+	int written = snprintf(path_buf, path_buf_size, "/tmp/%sXXXXXX%s", prefix, suffix);
+	if (written <= 0 || (size_t)written >= path_buf_size) {
+		return 0;
+	}
+	return write_fixture_to_temp_path(path_buf, (int)strlen(suffix), fixture_relative_path);
+}
+
+static int copy_fixture_to_path(const char *dest_path, const char *fixture_relative_path) {
+	if (dest_path == NULL || fixture_relative_path == NULL) {
+		return 0;
+	}
+	return copyTestFixtureToPath(fixture_relative_path, dest_path);
+}
+
 static int write_temp_go_file(char path_buf[], size_t path_buf_size, const char *content) {
 	return write_temp_file_with_suffix(path_buf, path_buf_size, "rotide-test-go-lsp-", ".go",
 			content);
@@ -164,11 +190,6 @@ static int write_temp_go_file(char path_buf[], size_t path_buf_size, const char 
 
 static int write_temp_c_file(char path_buf[], size_t path_buf_size, const char *content) {
 	return write_temp_file_with_suffix(path_buf, path_buf_size, "rotide-test-c-lsp-", ".c",
-			content);
-}
-
-static int write_temp_cpp_file(char path_buf[], size_t path_buf_size, const char *content) {
-	return write_temp_file_with_suffix(path_buf, path_buf_size, "rotide-test-cpp-lsp-", ".cpp",
 			content);
 }
 
@@ -5316,8 +5337,8 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 	ASSERT_EQ_STR("gopls", gopls_command);
 	ASSERT_EQ_STR("go install golang.org/x/tools/gopls@latest", gopls_install_command);
 	ASSERT_EQ_STR("clangd", clangd_command);
-	ASSERT_EQ_STR("vscode-html-language-server --stdio", html_command);
-	ASSERT_EQ_STR("npm i -g vscode-langservers-extracted",
+	ASSERT_EQ_STR("~/.local/bin/vscode-html-language-server --stdio", html_command);
+	ASSERT_EQ_STR("npm install --global --prefix ~/.local vscode-langservers-extracted",
 			vscode_langservers_install_command);
 
 	char dir_template[] = "/tmp/rotide-test-lsp-config-XXXXXX";
@@ -5407,8 +5428,8 @@ static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
 	ASSERT_EQ_STR("gopls", gopls_command);
 	ASSERT_EQ_STR("go install golang.org/x/tools/gopls@latest", gopls_install_command);
 	ASSERT_EQ_STR("clangd", clangd_command);
-	ASSERT_EQ_STR("vscode-html-language-server --stdio", html_command);
-	ASSERT_EQ_STR("npm i -g vscode-langservers-extracted",
+	ASSERT_EQ_STR("~/.local/bin/vscode-html-language-server --stdio", html_command);
+	ASSERT_EQ_STR("npm install --global --prefix ~/.local vscode-langservers-extracted",
 			vscode_langservers_install_command);
 
 	ASSERT_TRUE(write_text_file(global_path,
@@ -5430,8 +5451,8 @@ static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
 	ASSERT_EQ_STR("gopls", gopls_command);
 	ASSERT_EQ_STR("go install golang.org/x/tools/gopls@latest", gopls_install_command);
 	ASSERT_EQ_STR("clangd", clangd_command);
-	ASSERT_EQ_STR("vscode-html-language-server --stdio", html_command);
-	ASSERT_EQ_STR("npm i -g vscode-langservers-extracted",
+	ASSERT_EQ_STR("~/.local/bin/vscode-html-language-server --stdio", html_command);
+	ASSERT_EQ_STR("npm install --global --prefix ~/.local vscode-langservers-extracted",
 			vscode_langservers_install_command);
 
 	ASSERT_TRUE(unlink(project_path) == 0);
@@ -5971,12 +5992,13 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location(v
 	E.lsp_clangd_enabled = 0;
 
 	char go_path[64];
-	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
-			"package main\n\nfunc helper() {}\nfunc main() { helper() }\n"));
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(go_path, sizeof(go_path),
+			"rotide-test-go-lsp-fixture-", ".go",
+			"tests/lsp/supported/go/single_file_definition.go"));
 	editorOpen(go_path);
 
-	E.cy = 3;
-	E.cx = 15;
+	E.cy = 5;
+	E.cx = 5;
 
 	struct editorLspLocation target = {
 		.path = go_path,
@@ -6004,13 +6026,14 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_c
 	E.lsp_clangd_enabled = 1;
 
 	char c_path[64];
-	ASSERT_TRUE(write_temp_c_file(c_path, sizeof(c_path),
-			"int helper(void) { return 1; }\nint main(void) { return helper(); }\n"));
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(c_path, sizeof(c_path),
+			"rotide-test-c-lsp-fixture-", ".c",
+			"tests/lsp/supported/c/single_file_definition.c"));
 	editorOpen(c_path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
 
-	E.cy = 1;
-	E.cx = 24;
+	E.cy = 3;
+	E.cx = 14;
 
 	struct editorLspLocation target = {
 		.path = c_path,
@@ -6038,13 +6061,14 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_c
 	E.lsp_clangd_enabled = 1;
 
 	char cpp_path[64];
-	ASSERT_TRUE(write_temp_cpp_file(cpp_path, sizeof(cpp_path),
-			"int helper() { return 1; }\nint main() { return helper(); }\n"));
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(cpp_path, sizeof(cpp_path),
+			"rotide-test-cpp-lsp-fixture-", ".cpp",
+			"tests/lsp/supported/cpp/single_file_definition.cpp"));
 	editorOpen(cpp_path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
 
-	E.cy = 1;
-	E.cx = 20;
+	E.cy = 3;
+	E.cx = 14;
 
 	struct editorLspLocation target = {
 		.path = cpp_path,
@@ -6073,8 +6097,9 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_h
 	E.lsp_html_enabled = 1;
 
 	char html_path[64];
-	ASSERT_TRUE(write_temp_html_file(html_path, sizeof(html_path),
-			"<div id=\"app\"></div>\n<a href=\"#app\">jump</a>\n"));
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(html_path, sizeof(html_path),
+			"rotide-test-html-lsp-fixture-", ".html",
+			"tests/lsp/supported/html/single_file_definition.html"));
 	editorOpen(html_path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_HTML, editorSyntaxLanguageActive());
 
@@ -6145,6 +6170,59 @@ static int test_editor_process_keypress_goto_definition_cross_file_reuses_tab(vo
 
 	ASSERT_TRUE(unlink(src_path) == 0);
 	ASSERT_TRUE(unlink(dst_path) == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_goto_definition_cross_file_cpp_fixture_reuses_tab(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 1;
+	ASSERT_TRUE(editorTabsInit());
+
+	char dir_template[] = "/tmp/rotide-test-cpp-lsp-cross-file-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char main_path[512];
+	char helper_path[512];
+	char header_path[512];
+	ASSERT_TRUE(path_join(main_path, sizeof(main_path), dir_path, "main.cpp"));
+	ASSERT_TRUE(path_join(helper_path, sizeof(helper_path), dir_path, "helper.cpp"));
+	ASSERT_TRUE(path_join(header_path, sizeof(header_path), dir_path, "helper.hpp"));
+	ASSERT_TRUE(copy_fixture_to_path(main_path, "tests/lsp/supported/cpp/cross_file/main.cpp"));
+	ASSERT_TRUE(copy_fixture_to_path(helper_path, "tests/lsp/supported/cpp/cross_file/helper.cpp"));
+	ASSERT_TRUE(copy_fixture_to_path(header_path, "tests/lsp/supported/cpp/cross_file/helper.hpp"));
+
+	editorOpen(main_path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
+	E.cy = 3;
+	E.cx = 14;
+
+	struct editorLspLocation target = {
+		.path = helper_path,
+		.line = 2,
+		.character = 4
+	};
+	editorLspTestSetMockDefinitionResponse(1, &target, 1);
+
+	char goto_def[] = {CTRL_KEY('o')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_EQ_STR(helper_path, E.filename);
+
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+	ASSERT_EQ_STR(main_path, E.filename);
+	editorLspTestSetMockDefinitionResponse(1, &target, 1);
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_EQ_STR(helper_path, E.filename);
+
+	ASSERT_TRUE(unlink(main_path) == 0);
+	ASSERT_TRUE(unlink(helper_path) == 0);
+	ASSERT_TRUE(unlink(header_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
 	return 0;
 }
 
@@ -11182,6 +11260,8 @@ int main(void) {
 				test_editor_process_keypress_ctrl_o_goto_definition_single_location_html_buffer},
 			{"editor_process_keypress_goto_definition_cross_file_reuses_tab",
 				test_editor_process_keypress_goto_definition_cross_file_reuses_tab},
+			{"editor_process_keypress_goto_definition_cross_file_cpp_fixture_reuses_tab",
+				test_editor_process_keypress_goto_definition_cross_file_cpp_fixture_reuses_tab},
 			{"editor_process_keypress_goto_definition_multi_picker_selects_choice",
 				test_editor_process_keypress_goto_definition_multi_picker_selects_choice},
 			{"editor_process_keypress_mouse_ctrl_click_goto_definition_single_location",

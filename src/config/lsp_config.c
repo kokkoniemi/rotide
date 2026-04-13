@@ -45,14 +45,14 @@ void editorLspConfigInitDefaults(int *gopls_enabled_out, int *clangd_enabled_out
 	}
 	if (html_command_out != NULL && html_command_out_size != 0) {
 		(void)snprintf(html_command_out, html_command_out_size, "%s",
-				"vscode-html-language-server --stdio");
+				"~/.local/bin/vscode-html-language-server --stdio");
 		html_command_out[html_command_out_size - 1] = '\0';
 	}
 	if (vscode_langservers_install_command_out != NULL &&
 			vscode_langservers_install_command_out_size != 0) {
 		(void)snprintf(vscode_langservers_install_command_out,
 				vscode_langservers_install_command_out_size, "%s",
-				"npm i -g vscode-langservers-extracted");
+				"npm install --global --prefix ~/.local vscode-langservers-extracted");
 		vscode_langservers_install_command_out[
 				vscode_langservers_install_command_out_size - 1] = '\0';
 	}

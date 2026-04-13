@@ -27,7 +27,7 @@
 - LSP-backed definition lookup currently supports:
   - Go via `gopls`
   - C/C++ via `clangd`
-  - HTML via `vscode-html-language-server --stdio`
+  - HTML via `~/.local/bin/vscode-html-language-server --stdio` by default
 - Definition request requires:
   - supported source buffer
   - saved filename
@@ -77,12 +77,12 @@
 - Defaults:
   - `gopls_command = "gopls"`
   - `clangd_command = "clangd"`
-  - `html_command = "vscode-html-language-server --stdio"`
+  - `html_command = "~/.local/bin/vscode-html-language-server --stdio"`
   - `gopls_enabled = true`
   - `clangd_enabled = true`
   - `html_enabled = true`
   - `gopls_install_command = "go install golang.org/x/tools/gopls@latest"`
-  - `vscode_langservers_install_command = "npm i -g vscode-langservers-extracted"`
+  - `vscode_langservers_install_command = "npm install --global --prefix ~/.local vscode-langservers-extracted"`
 - Load precedence:
   - defaults -> global -> project
 - Legacy compatibility:

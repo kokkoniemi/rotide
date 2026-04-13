@@ -58,7 +58,7 @@ ASAN_OPTIONS=detect_leaks=0 make test-sanitize
   - CSS (`.css`, `.scss`)
 - Go LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `gopls`.
 - C/C++ LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `clangd`.
-- HTML LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `vscode-html-language-server --stdio`.
+- HTML LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `~/.local/bin/vscode-html-language-server --stdio` by default.
 - Missing-`gopls` install prompt with live output in read-only task-log tabs.
 - Missing-`clangd` prompt that can open an instruction tab with install guidance and the official installation URL.
 - Missing-`vscode-langservers-extracted` install prompt with live output in read-only task-log tabs.
@@ -108,9 +108,11 @@ LSP notes:
 - If `gopls_install_command` appears in project config, RotIDE ignores that key and keeps parsing the rest of `[lsp]`.
 - If `vscode_langservers_install_command` appears in project config, RotIDE ignores that key and keeps parsing the rest of `[lsp]`.
 - Legacy `enabled = true|false` is accepted as a shorthand that toggles both servers together.
-- HTML definition lookup uses `vscode-html-language-server --stdio`.
+- HTML definition lookup uses `~/.local/bin/vscode-html-language-server --stdio` by default.
 - If `vscode-html-language-server` is missing, RotIDE offers to run:
-  - `npm i -g vscode-langservers-extracted`
+  - `npm install --global --prefix ~/.local vscode-langservers-extracted`
+- If `~/.local/bin` is already on your `PATH`, you can also set:
+  - `html_command = "vscode-html-language-server --stdio"`
 - The `vscode-langservers-extracted` package also provides future server commands:
   - `vscode-css-language-server`
   - `vscode-json-language-server`
@@ -126,7 +128,7 @@ LSP notes:
   - this is often a good fit for pure C projects
 - Default install command:
   - `go install golang.org/x/tools/gopls@latest`
-  - `npm i -g vscode-langservers-extracted`
+  - `npm install --global --prefix ~/.local vscode-langservers-extracted`
 
 See [`.rotide.toml`](.rotide.toml) for a complete action/key example.
 
