@@ -2,6 +2,7 @@
 
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
+#include "support/file_io.h"
 #include "support/size_utils.h"
 #include "text/utf8.h"
 
@@ -41,6 +42,7 @@ struct editorLspClient {
 	enum editorLspServerKind disabled_for_position_encoding_server_kind;
 	int next_request_id;
 	int position_encoding_utf16;
+	char *workspace_root_path;
 };
 
 struct editorLspString {
@@ -53,6 +55,7 @@ struct editorLspMockState {
 	int enabled;
 	int server_alive;
 	enum editorLspServerKind server_kind;
+	char *workspace_root_path;
 	struct editorLspTestStats stats;
 	struct editorLspTestLastChange last_change;
 	int definition_result_code;
@@ -69,6 +72,7 @@ static struct editorLspClient g_lsp_client = {
 	.disabled_for_position_encoding_server_kind = EDITOR_LSP_SERVER_NONE,
 	.next_request_id = 1,
 	.position_encoding_utf16 = 0,
+	.workspace_root_path = NULL,
 };
 static struct editorLspMockState g_lsp_mock = {0};
 static enum editorLspStartupFailureReason g_lsp_last_startup_failure_reason =
@@ -84,6 +88,9 @@ static enum editorLspServerKind editorLspServerKindForFile(const char *filename,
 static const char *editorLspCommandForServerKind(enum editorLspServerKind server_kind);
 static const char *editorLspLanguageIdForFile(const char *filename,
 		enum editorSyntaxLanguage language);
+static char *editorLspBuildWorkspaceRootPathForFile(const char *filename,
+		enum editorLspServerKind server_kind);
+static int editorLspWorkspaceRootsMatch(const char *left, const char *right);
 
 static long long editorLspMonotonicMillis(void) {
 	struct timespec ts;
@@ -418,28 +425,37 @@ static int editorLspBuildFileUri(const char *path, char **uri_out) {
 	}
 	*uri_out = NULL;
 
+	char *absolute_path = editorPathAbsoluteDup(path);
+	if (absolute_path == NULL) {
+		return 0;
+	}
+
 	struct editorLspString sb = {0};
 	if (!editorLspStringAppend(&sb, "file://")) {
+		free(absolute_path);
 		free(sb.buf);
 		return 0;
 	}
 
-	for (const unsigned char *p = (const unsigned char *)path; *p != '\0'; p++) {
+	for (const unsigned char *p = (const unsigned char *)absolute_path; *p != '\0'; p++) {
 		unsigned char ch = *p;
 		int unreserved = isalnum(ch) || ch == '-' || ch == '_' || ch == '.' || ch == '~' || ch == '/';
 		if (unreserved) {
 			if (!editorLspStringAppendBytes(&sb, (const char *)&ch, 1)) {
+				free(absolute_path);
 				free(sb.buf);
 				return 0;
 			}
 		} else {
 			if (!editorLspStringAppendf(&sb, "%%%02X", (unsigned int)ch)) {
+				free(absolute_path);
 				free(sb.buf);
 				return 0;
 			}
 		}
 	}
 
+	free(absolute_path);
 	*uri_out = sb.buf;
 	return 1;
 }
@@ -802,18 +818,75 @@ static const char *editorLspStrstrBounded(const char *haystack, const char *need
 	return found;
 }
 
+static const char *editorLspFindJsonObjectEnd(const char *object_start) {
+	if (object_start == NULL || object_start[0] != '{') {
+		return NULL;
+	}
+
+	int depth = 0;
+	int in_string = 0;
+	int escaped = 0;
+	for (const char *scan = object_start; scan[0] != '\0'; scan++) {
+		char ch = scan[0];
+		if (in_string) {
+			if (escaped) {
+				escaped = 0;
+			} else if (ch == '\\') {
+				escaped = 1;
+			} else if (ch == '"') {
+				in_string = 0;
+			}
+			continue;
+		}
+
+		if (ch == '"') {
+			in_string = 1;
+			continue;
+		}
+		if (ch == '{') {
+			depth++;
+			continue;
+		}
+		if (ch == '}') {
+			depth--;
+			if (depth == 0) {
+				return scan + 1;
+			}
+			if (depth < 0) {
+				return NULL;
+			}
+		}
+	}
+
+	return NULL;
+}
+
 static int editorLspParsePositionFromStart(const char *range_json, const char *limit,
 		int *line_out, int *character_out) {
 	const char *start = editorLspStrstrBounded(range_json, "\"start\"", limit);
 	if (start == NULL) {
 		return 0;
 	}
-	const char *line_key = editorLspStrstrBounded(start, "\"line\"", limit);
+
+	const char *start_colon = strchr(start, ':');
+	if (start_colon == NULL || (limit != NULL && start_colon >= limit)) {
+		return 0;
+	}
+	const char *start_object = strchr(start_colon + 1, '{');
+	if (start_object == NULL || (limit != NULL && start_object >= limit)) {
+		return 0;
+	}
+	const char *start_end = editorLspFindJsonObjectEnd(start_object);
+	if (start_end == NULL || (limit != NULL && start_end > limit)) {
+		return 0;
+	}
+
+	const char *line_key = editorLspStrstrBounded(start_object, "\"line\"", start_end);
 	if (line_key == NULL) {
 		return 0;
 	}
 	const char *line_colon = strchr(line_key, ':');
-	if (line_colon == NULL || (limit != NULL && line_colon >= limit)) {
+	if (line_colon == NULL || line_colon >= start_end) {
 		return 0;
 	}
 	int line = 0;
@@ -821,12 +894,12 @@ static int editorLspParsePositionFromStart(const char *range_json, const char *l
 		return 0;
 	}
 
-	const char *char_key = editorLspStrstrBounded(line_colon + 1, "\"character\"", limit);
+	const char *char_key = editorLspStrstrBounded(start_object, "\"character\"", start_end);
 	if (char_key == NULL) {
 		return 0;
 	}
 	const char *char_colon = strchr(char_key, ':');
-	if (char_colon == NULL || (limit != NULL && char_colon >= limit)) {
+	if (char_colon == NULL || char_colon >= start_end) {
 		return 0;
 	}
 	int character = 0;
@@ -915,27 +988,34 @@ static int editorLspParseLocationObjects(const char *result_json, const char *ur
 
 	const char *scan = result_json;
 	while (scan != NULL) {
-		const char *uri_key_pos = strstr(scan, key_pattern);
-		if (uri_key_pos == NULL) {
+		const char *object_start = strchr(scan, '{');
+		if (object_start == NULL) {
 			break;
 		}
-		const char *next_uri = strstr(uri_key_pos + 1, key_pattern);
+		const char *object_end = editorLspFindJsonObjectEnd(object_start);
+		if (object_end == NULL) {
+			editorLspFreeLocations(locations, count);
+			return 0;
+		}
+		scan = object_end;
+
+		const char *uri_key_pos = editorLspStrstrBounded(object_start, key_pattern, object_end);
+		if (uri_key_pos == NULL) {
+			continue;
+		}
 
 		const char *uri_colon = strchr(uri_key_pos, ':');
-		if (uri_colon == NULL || (next_uri != NULL && uri_colon >= next_uri)) {
-			scan = uri_key_pos + 1;
+		if (uri_colon == NULL || uri_colon >= object_end) {
 			continue;
 		}
 		const char *uri_value = editorLspSkipWs(uri_colon + 1);
 		if (uri_value == NULL || uri_value[0] != '"') {
-			scan = uri_key_pos + 1;
 			continue;
 		}
 
 		char *uri = NULL;
 		const char *after_uri = NULL;
 		if (!editorLspParseJsonString(uri_value, &uri, &after_uri)) {
-			scan = uri_key_pos + 1;
 			continue;
 		}
 		(void)after_uri;
@@ -949,7 +1029,7 @@ static int editorLspParseLocationObjects(const char *result_json, const char *ur
 			return 0;
 		}
 
-		const char *range_pos = editorLspStrstrBounded(uri_key_pos, primary_pattern, next_uri);
+		const char *range_pos = editorLspStrstrBounded(object_start, primary_pattern, object_end);
 		if (range_pos == NULL && range_key_fallback != NULL) {
 			char fallback_pattern[64];
 			int fallback_written = snprintf(fallback_pattern, sizeof(fallback_pattern), "\"%s\"",
@@ -959,13 +1039,13 @@ static int editorLspParseLocationObjects(const char *result_json, const char *ur
 				editorLspFreeLocations(locations, count);
 				return 0;
 			}
-			range_pos = editorLspStrstrBounded(uri_key_pos, fallback_pattern, next_uri);
+			range_pos = editorLspStrstrBounded(object_start, fallback_pattern, object_end);
 		}
 
 		int line = -1;
 		int character = -1;
 		if (range_pos != NULL) {
-			(void)editorLspParsePositionFromStart(range_pos, next_uri, &line, &character);
+			(void)editorLspParsePositionFromStart(range_pos, object_end, &line, &character);
 		}
 
 		if (line >= 0 && character >= 0) {
@@ -982,7 +1062,6 @@ static int editorLspParseLocationObjects(const char *result_json, const char *ur
 		}
 
 		free(uri);
-		scan = uri_key_pos + 1;
 	}
 
 	*locations_out = locations;
@@ -1226,6 +1305,7 @@ static void editorLspClientResetState(void) {
 	g_lsp_client.server_kind = EDITOR_LSP_SERVER_NONE;
 	g_lsp_client.next_request_id = 1;
 	g_lsp_client.position_encoding_utf16 = 0;
+	g_lsp_client.workspace_root_path = NULL;
 }
 
 static void editorLspClientCleanup(int graceful_shutdown) {
@@ -1265,6 +1345,7 @@ static void editorLspClientCleanup(int graceful_shutdown) {
 		}
 	}
 
+	free(g_lsp_client.workspace_root_path);
 	editorLspClientResetState();
 }
 
@@ -1317,25 +1398,66 @@ static int editorLspSpawnProcess(const char *command, pid_t *pid_out, int *to_se
 	return 1;
 }
 
-static char *editorLspBuildWorkspaceRootUri(void) {
-	char *root_path = NULL;
-	if (E.drawer_root_path != NULL && E.drawer_root_path[0] != '\0') {
-		root_path = realpath(E.drawer_root_path, NULL);
+static int editorLspWorkspaceRootsMatch(const char *left, const char *right) {
+	if (left == NULL || right == NULL) {
+		return 0;
 	}
-	if (root_path == NULL) {
-		root_path = getcwd(NULL, 0);
-	}
-	if (root_path == NULL) {
-		return NULL;
+	return editorPathsReferToSameFile(left, right);
+}
+
+static char *editorLspBuildWorkspaceRootPathForFile(const char *filename,
+		enum editorLspServerKind server_kind) {
+	static const char *const gopls_markers[] = {
+		"go.work",
+		"go.mod",
+		".rotide.toml",
+		".git"
+	};
+	static const char *const clangd_markers[] = {
+		"compile_commands.json",
+		"compile_flags.txt",
+		".clangd",
+		".rotide.toml",
+		".git"
+	};
+
+	char *file_path = editorPathAbsoluteDup(filename);
+	char *file_dir = NULL;
+	char *workspace_root = NULL;
+
+	if (file_path != NULL) {
+		file_dir = editorPathDirnameDup(file_path);
+		if (file_dir == NULL) {
+			free(file_path);
+			return NULL;
+		}
+
+		const char *const *markers = NULL;
+		size_t marker_count = 0;
+		if (server_kind == EDITOR_LSP_SERVER_GOPLS) {
+			markers = gopls_markers;
+			marker_count = sizeof(gopls_markers) / sizeof(gopls_markers[0]);
+		} else if (server_kind == EDITOR_LSP_SERVER_CLANGD) {
+			markers = clangd_markers;
+			marker_count = sizeof(clangd_markers) / sizeof(clangd_markers[0]);
+		}
+
+		if (markers != NULL) {
+			workspace_root = editorPathFindMarkerUpward(file_dir, markers, marker_count);
+		}
+		if (workspace_root == NULL) {
+			workspace_root = strdup(file_dir);
+		}
+		free(file_dir);
+		free(file_path);
+		return workspace_root;
 	}
 
-	char *uri = NULL;
-	if (!editorLspBuildFileUri(root_path, &uri)) {
-		free(root_path);
-		return NULL;
+	if (E.drawer_root_path != NULL && E.drawer_root_path[0] != '\0') {
+		return editorPathAbsoluteDup(E.drawer_root_path);
 	}
-	free(root_path);
-	return uri;
+
+	return editorPathGetCwd();
 }
 
 static int editorLspWaitForResponseId(int request_id, int timeout_ms, char **response_out,
@@ -1366,7 +1488,8 @@ static int editorLspWaitForResponseId(int request_id, int timeout_ms, char **res
 	}
 }
 
-static int editorLspEnsureRunningReal(enum editorLspServerKind server_kind) {
+static int editorLspEnsureRunningReal(const char *filename,
+		enum editorLspServerKind server_kind) {
 	g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_NONE;
 	if (!editorLspServerKindEnabled(server_kind)) {
 		return 0;
@@ -1384,13 +1507,23 @@ static int editorLspEnsureRunningReal(enum editorLspServerKind server_kind) {
 		return 0;
 	}
 
+	char *workspace_root_path = editorLspBuildWorkspaceRootPathForFile(filename, server_kind);
+	if (workspace_root_path == NULL) {
+		g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_OTHER;
+		editorSetStatusMsg("LSP startup failed: workspace root unavailable");
+		return 0;
+	}
+
 	if (g_lsp_client.initialized && g_lsp_client.server_kind == server_kind &&
-			editorLspProcessAlive()) {
+			editorLspProcessAlive() &&
+			editorLspWorkspaceRootsMatch(g_lsp_client.workspace_root_path, workspace_root_path)) {
+		free(workspace_root_path);
 		g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_NONE;
 		return 1;
 	}
 	if (g_lsp_client.server_kind != EDITOR_LSP_SERVER_NONE &&
-			(g_lsp_client.server_kind != server_kind || !editorLspProcessAlive())) {
+			(g_lsp_client.server_kind != server_kind || !editorLspProcessAlive() ||
+			 !editorLspWorkspaceRootsMatch(g_lsp_client.workspace_root_path, workspace_root_path))) {
 		editorLspResetTrackedDocuments();
 	}
 
@@ -1400,6 +1533,7 @@ static int editorLspEnsureRunningReal(enum editorLspServerKind server_kind) {
 	int to_server_fd = -1;
 	int from_server_fd = -1;
 	if (!editorLspSpawnProcess(command, &pid, &to_server_fd, &from_server_fd)) {
+		free(workspace_root_path);
 		g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_OTHER;
 		editorSetStatusMsg("LSP startup failed: unable to launch %s", command);
 		return 0;
@@ -1411,8 +1545,12 @@ static int editorLspEnsureRunningReal(enum editorLspServerKind server_kind) {
 	g_lsp_client.from_server_fd = from_server_fd;
 	g_lsp_client.server_kind = server_kind;
 	g_lsp_client.next_request_id = 1;
+	g_lsp_client.workspace_root_path = workspace_root_path;
 
-	char *root_uri = editorLspBuildWorkspaceRootUri();
+	char *root_uri = NULL;
+	if (g_lsp_client.workspace_root_path != NULL) {
+		(void)editorLspBuildFileUri(g_lsp_client.workspace_root_path, &root_uri);
+	}
 	if (root_uri == NULL) {
 		editorSetStatusMsg("LSP startup failed: workspace root unavailable");
 		editorLspClientCleanup(0);
@@ -1502,21 +1640,33 @@ static int editorLspEnsureRunningForFile(const char *filename, enum editorSyntax
 		return 0;
 	}
 	if (g_lsp_mock.enabled) {
-		if (!editorLspServerKindEnabled(server_kind)) {
+		char *workspace_root_path = editorLspBuildWorkspaceRootPathForFile(filename, server_kind);
+		if (workspace_root_path == NULL) {
 			return 0;
 		}
-		if (!g_lsp_mock.server_alive || g_lsp_mock.server_kind != server_kind) {
+		if (!editorLspServerKindEnabled(server_kind)) {
+			free(workspace_root_path);
+			return 0;
+		}
+		if (!g_lsp_mock.server_alive || g_lsp_mock.server_kind != server_kind ||
+				!editorLspWorkspaceRootsMatch(g_lsp_mock.workspace_root_path, workspace_root_path)) {
 			if (g_lsp_mock.server_kind != EDITOR_LSP_SERVER_NONE &&
-					(!g_lsp_mock.server_alive || g_lsp_mock.server_kind != server_kind)) {
+					(!g_lsp_mock.server_alive || g_lsp_mock.server_kind != server_kind ||
+					 !editorLspWorkspaceRootsMatch(g_lsp_mock.workspace_root_path,
+							 workspace_root_path))) {
 				editorLspResetTrackedDocuments();
 			}
 			g_lsp_mock.server_alive = 1;
 			g_lsp_mock.server_kind = server_kind;
+			free(g_lsp_mock.workspace_root_path);
+			g_lsp_mock.workspace_root_path = workspace_root_path;
 			g_lsp_mock.stats.start_count++;
+		} else {
+			free(workspace_root_path);
 		}
 		return 1;
 	}
-	return editorLspEnsureRunningReal(server_kind);
+	return editorLspEnsureRunningReal(filename, server_kind);
 }
 
 void editorLspShutdown(void) {
@@ -1527,6 +1677,8 @@ void editorLspShutdown(void) {
 			g_lsp_mock.server_alive = 0;
 			g_lsp_mock.server_kind = EDITOR_LSP_SERVER_NONE;
 		}
+		free(g_lsp_mock.workspace_root_path);
+		g_lsp_mock.workspace_root_path = NULL;
 		return;
 	}
 	editorLspClientCleanup(1);
@@ -2009,6 +2161,8 @@ void editorLspTestSetMockEnabled(int enabled) {
 	if (!g_lsp_mock.enabled) {
 		g_lsp_mock.server_alive = 0;
 		g_lsp_mock.server_kind = EDITOR_LSP_SERVER_NONE;
+		free(g_lsp_mock.workspace_root_path);
+		g_lsp_mock.workspace_root_path = NULL;
 	}
 }
 
@@ -2023,6 +2177,8 @@ void editorLspTestResetMock(void) {
 	g_lsp_mock.definition_result_code = 1;
 	g_lsp_mock.server_alive = 0;
 	g_lsp_mock.server_kind = EDITOR_LSP_SERVER_NONE;
+	free(g_lsp_mock.workspace_root_path);
+	g_lsp_mock.workspace_root_path = NULL;
 	memset(&g_lsp_mock.stats, 0, sizeof(g_lsp_mock.stats));
 	memset(&g_lsp_mock.last_change, 0, sizeof(g_lsp_mock.last_change));
 	g_lsp_mock.enabled = 0;
@@ -2055,4 +2211,12 @@ void editorLspTestSetMockDefinitionResponse(int result_code,
 	}
 	(void)editorLspCopyLocations(&g_lsp_mock.definition_locations,
 			&g_lsp_mock.definition_location_count, locations, count);
+}
+
+int editorLspTestParseDefinitionResponse(const char *response_json,
+		struct editorLspLocation **locations_out, int *count_out) {
+	if (response_json == NULL) {
+		return 0;
+	}
+	return editorLspParseDefinitionLocations(response_json, locations_out, count_out);
 }

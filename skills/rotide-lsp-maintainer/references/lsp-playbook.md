@@ -51,6 +51,11 @@
 - Open/focus a read-only task-log tab with:
   - a short explanation that `clangd` was not found on `PATH`
   - the installation URL `https://clangd.llvm.org/installation`
+  - a note that `clangd` usually needs `compile_commands.json` for C/C++ projects
+  - setup options for both:
+    - CMake: `cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`
+    - Bear: `bear -- make` or `bear -- <build command>`
+  - mention that Bear is often a good fit for pure C projects
   - a reminder that `[lsp].clangd_command` can point to a custom path
 - Do not auto-retry definition request.
 

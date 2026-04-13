@@ -13,6 +13,7 @@
 #include "language/lsp.h"
 #include "language/syntax.h"
 #include "render/screen.h"
+#include "support/file_io.h"
 #include "support/terminal.h"
 #include "text/document.h"
 #include "text/row.h"
@@ -3757,6 +3758,80 @@ static int test_editor_drawer_open_selected_file_switches_existing_relative_path
 	return 0;
 }
 
+static int test_editor_path_absolute_dup_makes_relative_paths_absolute(void) {
+	int failed = 1;
+	char *original_cwd = getcwd(NULL, 0);
+	char root_template[] = "/tmp/rotide-test-abs-path-XXXXXX";
+	char *root_path = mkdtemp(root_template);
+	char nested_dir[512] = "";
+	char nested_file[512] = "";
+	char *absolute = NULL;
+
+	if (original_cwd == NULL || root_path == NULL ||
+			!path_join(nested_dir, sizeof(nested_dir), root_path, "nested") ||
+			!make_dir(nested_dir) ||
+			!path_join(nested_file, sizeof(nested_file), nested_dir, "file.c") ||
+			!write_text_file(nested_file, "int main(void) { return 0; }\n") ||
+			chdir(root_path) != 0) {
+		goto cleanup;
+	}
+
+	absolute = editorPathAbsoluteDup("nested/file.c");
+	if (absolute == NULL || strcmp(nested_file, absolute) != 0) {
+		goto cleanup;
+	}
+
+	failed = 0;
+
+cleanup:
+	if (original_cwd != NULL) {
+		if (chdir(original_cwd) != 0) {
+			failed = 1;
+		}
+	}
+	free(absolute);
+	if (nested_file[0] != '\0') {
+		(void)unlink(nested_file);
+	}
+	if (nested_dir[0] != '\0') {
+		(void)rmdir(nested_dir);
+	}
+	if (root_path != NULL) {
+		(void)rmdir(root_path);
+	}
+	free(original_cwd);
+	return failed;
+}
+
+static int test_editor_path_find_marker_upward_returns_project_root(void) {
+	char root_template[] = "/tmp/rotide-test-path-marker-XXXXXX";
+	char *root_path = mkdtemp(root_template);
+	ASSERT_TRUE(root_path != NULL);
+
+	char src_dir[512];
+	char nested_dir[512];
+	char marker_path[512];
+	ASSERT_TRUE(path_join(src_dir, sizeof(src_dir), root_path, "src"));
+	ASSERT_TRUE(path_join(nested_dir, sizeof(nested_dir), src_dir, "inner"));
+	ASSERT_TRUE(path_join(marker_path, sizeof(marker_path), root_path, "compile_commands.json"));
+	ASSERT_TRUE(make_dir(src_dir));
+	ASSERT_TRUE(make_dir(nested_dir));
+	ASSERT_TRUE(write_text_file(marker_path, "[]\n"));
+
+	static const char *const markers[] = {"compile_commands.json", ".git"};
+	char *workspace_root = editorPathFindMarkerUpward(nested_dir, markers,
+			sizeof(markers) / sizeof(markers[0]));
+	ASSERT_TRUE(workspace_root != NULL);
+	ASSERT_EQ_STR(root_path, workspace_root);
+
+	free(workspace_root);
+	ASSERT_TRUE(unlink(marker_path) == 0);
+	ASSERT_TRUE(rmdir(nested_dir) == 0);
+	ASSERT_TRUE(rmdir(src_dir) == 0);
+	ASSERT_TRUE(rmdir(root_path) == 0);
+	return 0;
+}
+
 static int test_editor_drawer_open_selected_file_respects_tab_limit(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -5326,6 +5401,39 @@ static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
 	return 0;
 }
 
+static int test_editor_lsp_parse_definition_response_handles_clangd_field_order(void) {
+	const char *location_response =
+			"{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":[{\"range\":{\"start\":{\"character\":5,"
+			"\"line\":14},\"end\":{\"character\":23,\"line\":14}},\"uri\":"
+			"\"file:///home/mk/Development/rotide/src/editing/edit.h\"}]}";
+	struct editorLspLocation *locations = NULL;
+	int count = 0;
+	ASSERT_TRUE(editorLspTestParseDefinitionResponse(location_response, &locations, &count));
+	ASSERT_EQ_INT(1, count);
+	ASSERT_TRUE(locations != NULL);
+	ASSERT_EQ_STR("/home/mk/Development/rotide/src/editing/edit.h", locations[0].path);
+	ASSERT_EQ_INT(14, locations[0].line);
+	ASSERT_EQ_INT(5, locations[0].character);
+	editorLspFreeLocations(locations, count);
+
+	const char *location_link_response =
+			"{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":[{\"targetSelectionRange\":{\"start\":"
+			"{\"character\":5,\"line\":6},\"end\":{\"character\":26,\"line\":6}},"
+			"\"targetUri\":\"file:///home/mk/Development/rotide/src/input/dispatch.h\","
+			"\"targetRange\":{\"start\":{\"character\":0,\"line\":6},\"end\":{\"character\":26,"
+			"\"line\":6}}}]}";
+	locations = NULL;
+	count = 0;
+	ASSERT_TRUE(editorLspTestParseDefinitionResponse(location_link_response, &locations, &count));
+	ASSERT_EQ_INT(1, count);
+	ASSERT_TRUE(locations != NULL);
+	ASSERT_EQ_STR("/home/mk/Development/rotide/src/input/dispatch.h", locations[0].path);
+	ASSERT_EQ_INT(6, locations[0].line);
+	ASSERT_EQ_INT(5, locations[0].character);
+	editorLspFreeLocations(locations, count);
+	return 0;
+}
+
 static int test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers(void) {
 	editorLspTestSetMockEnabled(1);
 	E.lsp_gopls_enabled = 1;
@@ -5443,6 +5551,70 @@ static int test_editor_lsp_lifecycle_restarts_when_switching_between_go_and_clan
 
 	ASSERT_TRUE(unlink(go_path) == 0);
 	ASSERT_TRUE(unlink(c_path) == 0);
+	return 0;
+}
+
+static int test_editor_lsp_lifecycle_restarts_when_clangd_workspace_root_changes(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 1;
+
+	char root_template[] = "/tmp/rotide-test-clangd-root-XXXXXX";
+	char *root_path = mkdtemp(root_template);
+	ASSERT_TRUE(root_path != NULL);
+
+	char project_a[512];
+	char project_b[512];
+	char marker_a[512];
+	char marker_b[512];
+	char file_a[512];
+	char file_b[512];
+	ASSERT_TRUE(path_join(project_a, sizeof(project_a), root_path, "project-a"));
+	ASSERT_TRUE(path_join(project_b, sizeof(project_b), root_path, "project-b"));
+	ASSERT_TRUE(path_join(marker_a, sizeof(marker_a), project_a, "compile_commands.json"));
+	ASSERT_TRUE(path_join(marker_b, sizeof(marker_b), project_b, "compile_commands.json"));
+	ASSERT_TRUE(path_join(file_a, sizeof(file_a), project_a, "main.c"));
+	ASSERT_TRUE(path_join(file_b, sizeof(file_b), project_b, "main.c"));
+	ASSERT_TRUE(make_dir(project_a));
+	ASSERT_TRUE(make_dir(project_b));
+	ASSERT_TRUE(write_text_file(marker_a, "[]\n"));
+	ASSERT_TRUE(write_text_file(marker_b, "[]\n"));
+	ASSERT_TRUE(write_text_file(file_a,
+				"int helper(void) { return 1; }\nint main(void) { return helper(); }\n"));
+	ASSERT_TRUE(write_text_file(file_b,
+				"int helper(void) { return 2; }\nint main(void) { return helper(); }\n"));
+
+	struct editorLspLocation target = {
+		.path = file_a,
+		.line = 0,
+		.character = 4
+	};
+	editorLspTestSetMockDefinitionResponse(1, &target, 1);
+	editorOpen(file_a);
+	E.cy = 1;
+	E.cx = 24;
+	char goto_def[] = {CTRL_KEY('o')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+
+	target.path = file_b;
+	editorLspTestSetMockDefinitionResponse(1, &target, 1);
+	editorOpen(file_b);
+	E.cy = 1;
+	E.cx = 24;
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(2, stats.start_count);
+	ASSERT_EQ_INT(2, stats.definition_count);
+
+	ASSERT_TRUE(unlink(file_a) == 0);
+	ASSERT_TRUE(unlink(file_b) == 0);
+	ASSERT_TRUE(unlink(marker_a) == 0);
+	ASSERT_TRUE(unlink(marker_b) == 0);
+	ASSERT_TRUE(rmdir(project_a) == 0);
+	ASSERT_TRUE(rmdir(project_b) == 0);
+	ASSERT_TRUE(rmdir(root_path) == 0);
 	return 0;
 }
 
@@ -6122,6 +6294,9 @@ static int test_editor_process_keypress_goto_definition_missing_clangd_shows_ins
 	ASSERT_TRUE(text != NULL);
 	ASSERT_TRUE(strstr(text, "clangd was not found on PATH") != NULL);
 	ASSERT_TRUE(strstr(text, "https://clangd.llvm.org/installation") != NULL);
+	ASSERT_TRUE(strstr(text, "compile_commands.json") != NULL);
+	ASSERT_TRUE(strstr(text, "cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON") != NULL);
+	ASSERT_TRUE(strstr(text, "bear -- make") != NULL);
 	ASSERT_TRUE(strstr(text, "[lsp].clangd_command") != NULL);
 	free(text);
 
@@ -10521,6 +10696,10 @@ int main(void) {
 					test_editor_drawer_open_selected_file_in_new_tab},
 				{"editor_drawer_open_selected_file_switches_existing_relative_path_tab",
 					test_editor_drawer_open_selected_file_switches_existing_relative_path_tab},
+				{"editor_path_absolute_dup_makes_relative_paths_absolute",
+					test_editor_path_absolute_dup_makes_relative_paths_absolute},
+				{"editor_path_find_marker_upward_returns_project_root",
+					test_editor_path_find_marker_upward_returns_project_root},
 				{"editor_drawer_open_selected_file_respects_tab_limit",
 					test_editor_drawer_open_selected_file_respects_tab_limit},
 				{"editor_recovery_snapshot_permissions_are_0600",
@@ -10597,12 +10776,16 @@ int main(void) {
 				test_editor_lsp_config_defaults_and_precedence},
 			{"editor_lsp_config_invalid_values_fallback_defaults",
 				test_editor_lsp_config_invalid_values_fallback_defaults},
+			{"editor_lsp_parse_definition_response_handles_clangd_field_order",
+				test_editor_lsp_parse_definition_response_handles_clangd_field_order},
 			{"editor_lsp_lifecycle_lazy_start_and_non_go_buffers",
 				test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers},
 			{"editor_lsp_lifecycle_restart_after_mock_crash",
 				test_editor_lsp_lifecycle_restart_after_mock_crash},
 			{"editor_lsp_lifecycle_restarts_when_switching_between_go_and_clangd",
 				test_editor_lsp_lifecycle_restarts_when_switching_between_go_and_clangd},
+			{"editor_lsp_lifecycle_restarts_when_clangd_workspace_root_changes",
+				test_editor_lsp_lifecycle_restarts_when_clangd_workspace_root_changes},
 			{"editor_lsp_document_sync_for_go_edit_save_close",
 				test_editor_lsp_document_sync_for_go_edit_save_close},
 			{"editor_lsp_document_sync_for_c_edit_save_close",

@@ -106,6 +106,14 @@ LSP notes:
 - If `gopls_install_command` appears in project config, RotIDE ignores that key and keeps parsing the rest of `[lsp]`.
 - Legacy `enabled = true|false` is accepted as a shorthand that toggles both servers together.
 - If `clangd` is missing, RotIDE shows install guidance in a task-log tab instead of trying to install it automatically.
+- For most C/C++ projects, `clangd` also needs a `compile_commands.json` compilation database.
+- With CMake, generate one with:
+  - `cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`
+  - then use `build/compile_commands.json`, or copy/symlink it into the project root
+- Without CMake, `Bear` is a good option:
+  - `bear -- make`
+  - or `bear -- <your normal build command>`
+  - this is often a good fit for pure C projects
 - Default install command:
   - `go install golang.org/x/tools/gopls@latest`
 

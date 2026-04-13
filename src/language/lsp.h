@@ -68,5 +68,7 @@ void editorLspTestGetStats(struct editorLspTestStats *out);
 void editorLspTestGetLastChange(struct editorLspTestLastChange *out);
 void editorLspTestSetMockDefinitionResponse(int result_code,
 		const struct editorLspLocation *locations, int count);
+int editorLspTestParseDefinitionResponse(const char *response_json,
+		struct editorLspLocation **locations_out, int *count_out);
 
 #endif

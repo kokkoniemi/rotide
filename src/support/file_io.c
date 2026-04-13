@@ -10,6 +10,15 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+static int editorPathIsAbsolute(const char *path) {
+	return path != NULL && path[0] == '/';
+}
+
+static int editorPathExists(const char *path) {
+	struct stat st;
+	return path != NULL && stat(path, &st) == 0;
+}
+
 char *editorPathJoin(const char *left, const char *right) {
 	size_t left_len = strlen(left);
 	while (left_len > 1 && left[left_len - 1] == '/') {
@@ -120,6 +129,76 @@ char *editorPathGetCwd(void) {
 	}
 
 	return strdup(".");
+}
+
+char *editorPathAbsoluteDup(const char *path) {
+	if (path == NULL || path[0] == '\0') {
+		return NULL;
+	}
+
+	if (editorPathIsAbsolute(path)) {
+		return strdup(path);
+	}
+
+	char *cwd = editorPathGetCwd();
+	if (cwd == NULL) {
+		return NULL;
+	}
+
+	char *absolute = editorPathJoin(cwd, path);
+	free(cwd);
+	return absolute;
+}
+
+char *editorPathFindMarkerUpward(const char *start_dir, const char *const *markers,
+		size_t marker_count) {
+	if (start_dir == NULL || start_dir[0] == '\0' || markers == NULL || marker_count == 0) {
+		return NULL;
+	}
+
+	char *current = editorPathAbsoluteDup(start_dir);
+	if (current == NULL) {
+		return NULL;
+	}
+
+	for (;;) {
+		for (size_t i = 0; i < marker_count; i++) {
+			if (markers[i] == NULL || markers[i][0] == '\0') {
+				continue;
+			}
+
+			char *candidate = editorPathJoin(current, markers[i]);
+			if (candidate == NULL) {
+				free(current);
+				return NULL;
+			}
+			if (editorPathExists(candidate)) {
+				free(candidate);
+				return current;
+			}
+			free(candidate);
+		}
+
+		if (strcmp(current, "/") == 0) {
+			break;
+		}
+
+		char *parent = editorPathDirnameDup(current);
+		if (parent == NULL) {
+			free(current);
+			return NULL;
+		}
+		if (strcmp(parent, current) == 0) {
+			free(parent);
+			break;
+		}
+
+		free(current);
+		current = parent;
+	}
+
+	free(current);
+	return NULL;
 }
 
 int editorPathsReferToSameFile(const char *left, const char *right) {
