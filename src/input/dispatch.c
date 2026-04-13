@@ -319,8 +319,16 @@ static int editorPromptYesNo(const char *prompt) {
 	return accepted;
 }
 
+enum editorGoToDefinitionInstallFamily {
+	EDITOR_GOTO_DEF_INSTALL_NONE = 0,
+	EDITOR_GOTO_DEF_INSTALL_GOPLS,
+	EDITOR_GOTO_DEF_INSTALL_CLANGD,
+	EDITOR_GOTO_DEF_INSTALL_VSCODE_LANGSERVERS
+};
+
 static int editorGoToDefinitionSupportedLanguage(enum editorSyntaxLanguage language) {
-	return language == EDITOR_SYNTAX_GO || language == EDITOR_SYNTAX_C;
+	return language == EDITOR_SYNTAX_GO || language == EDITOR_SYNTAX_C ||
+			language == EDITOR_SYNTAX_HTML;
 }
 
 static int editorGoToDefinitionEnabledForLanguage(void) {
@@ -329,6 +337,9 @@ static int editorGoToDefinitionEnabledForLanguage(void) {
 	}
 	if (E.syntax_language == EDITOR_SYNTAX_C) {
 		return E.lsp_clangd_enabled;
+	}
+	if (E.syntax_language == EDITOR_SYNTAX_HTML) {
+		return E.lsp_html_enabled;
 	}
 	return 0;
 }
@@ -340,6 +351,9 @@ static const char *editorGoToDefinitionLanguageLabel(void) {
 	if (E.syntax_language == EDITOR_SYNTAX_C) {
 		return "C/C++";
 	}
+	if (E.syntax_language == EDITOR_SYNTAX_HTML) {
+		return "HTML";
+	}
 	return NULL;
 }
 
@@ -349,6 +363,9 @@ static const char *editorGoToDefinitionServerName(void) {
 	}
 	if (E.syntax_language == EDITOR_SYNTAX_C) {
 		return "clangd";
+	}
+	if (E.syntax_language == EDITOR_SYNTAX_HTML) {
+		return "vscode-html-language-server";
 	}
 	return "LSP";
 }
@@ -360,6 +377,9 @@ static const char *editorGoToDefinitionCommand(void) {
 	if (E.syntax_language == EDITOR_SYNTAX_C) {
 		return E.lsp_clangd_command;
 	}
+	if (E.syntax_language == EDITOR_SYNTAX_HTML) {
+		return E.lsp_html_command;
+	}
 	return NULL;
 }
 
@@ -370,59 +390,93 @@ static const char *editorGoToDefinitionCommandSettingName(void) {
 	if (E.syntax_language == EDITOR_SYNTAX_C) {
 		return "clangd_command";
 	}
+	if (E.syntax_language == EDITOR_SYNTAX_HTML) {
+		return "html_command";
+	}
 	return NULL;
+}
+
+static enum editorGoToDefinitionInstallFamily editorGoToDefinitionInstallFamilyForLanguage(void) {
+	if (E.syntax_language == EDITOR_SYNTAX_GO) {
+		return EDITOR_GOTO_DEF_INSTALL_GOPLS;
+	}
+	if (E.syntax_language == EDITOR_SYNTAX_C) {
+		return EDITOR_GOTO_DEF_INSTALL_CLANGD;
+	}
+	if (E.syntax_language == EDITOR_SYNTAX_HTML) {
+		return EDITOR_GOTO_DEF_INSTALL_VSCODE_LANGSERVERS;
+	}
+	return EDITOR_GOTO_DEF_INSTALL_NONE;
 }
 
 static void editorMaybePromptInstallLanguageServer(void) {
 	if (editorLspLastStartupFailureReason() != EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
 		return;
 	}
-	if (E.syntax_language == EDITOR_SYNTAX_GO) {
-		if (!editorPromptYesNo("gopls not found. Install now? [y/N] %s")) {
-			editorSetStatusMsg("gopls not installed");
-			return;
-		}
-		if (!editorTaskStart("Task: Install gopls", E.lsp_gopls_install_command,
-					"gopls installed. Retry Ctrl-O",
-					"gopls install failed; see task log")) {
-			if (E.statusmsg[0] == '\0') {
-				editorSetStatusMsg("Unable to start gopls install");
+	switch (editorGoToDefinitionInstallFamilyForLanguage()) {
+		case EDITOR_GOTO_DEF_INSTALL_GOPLS:
+			if (!editorPromptYesNo("gopls not found. Install now? [y/N] %s")) {
+				editorSetStatusMsg("gopls not installed");
+				return;
 			}
-		}
-		return;
-	}
-
-	if (E.syntax_language == EDITOR_SYNTAX_C) {
-		static const char message[] =
-				"clangd was not found on PATH.\n"
-				"\n"
-				"Install instructions:\n"
-				"https://clangd.llvm.org/installation\n"
-				"\n"
-				"clangd usually needs a compile_commands.json compilation database for C/C++ projects.\n"
-				"\n"
-				"Create compile_commands.json with CMake:\n"
-				"- cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON\n"
-				"- use build/compile_commands.json, or copy/symlink it into the project root\n"
-				"\n"
-				"Create compile_commands.json with Bear:\n"
-				"- bear -- make\n"
-				"- or bear -- <your normal build command>\n"
-				"- this is often a good fit for pure C projects that already build without CMake\n"
-				"\n"
-				"After installing clangd and setting up compile_commands.json:\n"
-				"- retry Ctrl-O or Ctrl + left click\n"
-				"- set [lsp].clangd_command in .rotide.toml if clangd is installed in a custom location\n";
-		if (!editorPromptYesNo("clangd not found. Show install instructions? [y/N] %s")) {
-			editorSetStatusMsg("clangd not installed");
+			if (!editorTaskStart("Task: Install gopls", E.lsp_gopls_install_command,
+						"gopls installed. Retry Ctrl-O",
+						"gopls install failed; see task log")) {
+				if (E.statusmsg[0] == '\0') {
+					editorSetStatusMsg("Unable to start gopls install");
+				}
+			}
 			return;
-		}
-		if (!editorTaskShowMessage("Task: Install clangd", message,
-					"clangd not installed; see task log")) {
-			if (E.statusmsg[0] == '\0') {
+		case EDITOR_GOTO_DEF_INSTALL_CLANGD: {
+			static const char message[] =
+					"clangd was not found on PATH.\n"
+					"\n"
+					"Install instructions:\n"
+					"https://clangd.llvm.org/installation\n"
+					"\n"
+					"clangd usually needs a compile_commands.json compilation database for C/C++ projects.\n"
+					"\n"
+					"Create compile_commands.json with CMake:\n"
+					"- cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON\n"
+					"- use build/compile_commands.json, or copy/symlink it into the project root\n"
+					"\n"
+					"Create compile_commands.json with Bear:\n"
+					"- bear -- make\n"
+					"- or bear -- <your normal build command>\n"
+					"- this is often a good fit for pure C projects that already build without CMake\n"
+					"\n"
+					"After installing clangd and setting up compile_commands.json:\n"
+					"- retry Ctrl-O or Ctrl + left click\n"
+					"- set [lsp].clangd_command in .rotide.toml if clangd is installed in a custom location\n";
+			if (!editorPromptYesNo("clangd not found. Show install instructions? [y/N] %s")) {
 				editorSetStatusMsg("clangd not installed");
+				return;
 			}
+			if (!editorTaskShowMessage("Task: Install clangd", message,
+						"clangd not installed; see task log")) {
+				if (E.statusmsg[0] == '\0') {
+					editorSetStatusMsg("clangd not installed");
+				}
+			}
+			return;
 		}
+		case EDITOR_GOTO_DEF_INSTALL_VSCODE_LANGSERVERS:
+			if (!editorPromptYesNo(
+						"vscode-langservers-extracted not found. Install now? [y/N] %s")) {
+				editorSetStatusMsg("vscode-langservers-extracted not installed");
+				return;
+			}
+			if (!editorTaskStart("Task: Install vscode-langservers-extracted",
+						E.lsp_vscode_langservers_install_command,
+						"vscode-langservers-extracted installed. Retry Ctrl-O",
+						"vscode-langservers-extracted install failed; see task log")) {
+				if (E.statusmsg[0] == '\0') {
+					editorSetStatusMsg("Unable to start vscode-langservers-extracted install");
+				}
+			}
+			return;
+		default:
+			return;
 	}
 }
 
@@ -891,7 +945,7 @@ static int editorPromptDefinitionChoice(int count, int *choice_out) {
 
 static void editorGoToDefinition(void) {
 	if (!editorGoToDefinitionSupportedLanguage(E.syntax_language)) {
-		editorSetStatusMsg("Go to definition is available for Go, C, and C++ files only");
+		editorSetStatusMsg("Go to definition is available for Go, C, C++, and HTML files only");
 		return;
 	}
 	if (E.filename == NULL || E.filename[0] == '\0') {

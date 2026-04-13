@@ -66,6 +66,7 @@ void editorLspTestSetMockServerAlive(int alive);
 void editorLspTestResetMock(void);
 void editorLspTestGetStats(struct editorLspTestStats *out);
 void editorLspTestGetLastChange(struct editorLspTestLastChange *out);
+void editorLspTestGetLastDidOpenLanguageId(char *out, size_t out_size);
 void editorLspTestSetMockDefinitionResponse(int result_code,
 		const struct editorLspLocation *locations, int count);
 int editorLspTestParseDefinitionResponse(const char *response_json,

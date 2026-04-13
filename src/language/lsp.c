@@ -30,7 +30,8 @@
 enum editorLspServerKind {
 	EDITOR_LSP_SERVER_NONE = 0,
 	EDITOR_LSP_SERVER_GOPLS,
-	EDITOR_LSP_SERVER_CLANGD
+	EDITOR_LSP_SERVER_CLANGD,
+	EDITOR_LSP_SERVER_HTML
 };
 
 struct editorLspClient {
@@ -56,6 +57,7 @@ struct editorLspMockState {
 	int server_alive;
 	enum editorLspServerKind server_kind;
 	char *workspace_root_path;
+	char last_did_open_language_id[32];
 	struct editorLspTestStats stats;
 	struct editorLspTestLastChange last_change;
 	int definition_result_code;
@@ -83,6 +85,7 @@ static int editorLspUtf16UnitsToUtf8Column(const char *text, size_t text_len, in
 static int editorLspReadActiveLineText(int line, char **text_out, size_t *len_out);
 static int editorLspProtocolCharacterFromBufferColumn(int line, int byte_column);
 static void editorLspResetTrackedDocuments(void);
+static int editorLspFilenameHasHtmlExtension(const char *filename);
 static enum editorLspServerKind editorLspServerKindForFile(const char *filename,
 		enum editorSyntaxLanguage language);
 static const char *editorLspCommandForServerKind(enum editorLspServerKind server_kind);
@@ -539,14 +542,29 @@ static int editorLspFilenameHasCppExtension(const char *filename) {
 			strcmp(dot, ".hxx") == 0;
 }
 
+static int editorLspFilenameHasHtmlExtension(const char *filename) {
+	if (filename == NULL || filename[0] == '\0') {
+		return 0;
+	}
+	const char *dot = strrchr(filename, '.');
+	if (dot == NULL) {
+		return 0;
+	}
+	return strcmp(dot, ".html") == 0 || strcmp(dot, ".htm") == 0 || strcmp(dot, ".xhtml") == 0;
+}
+
 static enum editorLspServerKind editorLspServerKindForFile(const char *filename,
 		enum editorSyntaxLanguage language) {
-	(void)filename;
+	if (editorLspFilenameHasHtmlExtension(filename)) {
+		return EDITOR_LSP_SERVER_HTML;
+	}
 	switch (language) {
 		case EDITOR_SYNTAX_GO:
 			return EDITOR_LSP_SERVER_GOPLS;
 		case EDITOR_SYNTAX_C:
 			return EDITOR_LSP_SERVER_CLANGD;
+		case EDITOR_SYNTAX_HTML:
+			return EDITOR_LSP_SERVER_HTML;
 		default:
 			return EDITOR_LSP_SERVER_NONE;
 	}
@@ -558,6 +576,8 @@ static const char *editorLspCommandForServerKind(enum editorLspServerKind server
 			return E.lsp_gopls_command;
 		case EDITOR_LSP_SERVER_CLANGD:
 			return E.lsp_clangd_command;
+		case EDITOR_LSP_SERVER_HTML:
+			return E.lsp_html_command;
 		default:
 			return NULL;
 	}
@@ -569,6 +589,8 @@ static int editorLspServerKindEnabled(enum editorLspServerKind server_kind) {
 			return E.lsp_gopls_enabled;
 		case EDITOR_LSP_SERVER_CLANGD:
 			return E.lsp_clangd_enabled;
+		case EDITOR_LSP_SERVER_HTML:
+			return E.lsp_html_enabled;
 		default:
 			return 0;
 	}
@@ -585,6 +607,8 @@ static const char *editorLspLanguageIdForFile(const char *filename,
 			return "go";
 		case EDITOR_SYNTAX_C:
 			return editorLspFilenameHasCppExtension(filename) ? "cpp" : "c";
+		case EDITOR_SYNTAX_HTML:
+			return "html";
 		default:
 			return NULL;
 	}
@@ -1420,6 +1444,11 @@ static char *editorLspBuildWorkspaceRootPathForFile(const char *filename,
 		".rotide.toml",
 		".git"
 	};
+	static const char *const html_markers[] = {
+		"package.json",
+		".rotide.toml",
+		".git"
+	};
 
 	char *file_path = editorPathAbsoluteDup(filename);
 	char *file_dir = NULL;
@@ -1440,6 +1469,9 @@ static char *editorLspBuildWorkspaceRootPathForFile(const char *filename,
 		} else if (server_kind == EDITOR_LSP_SERVER_CLANGD) {
 			markers = clangd_markers;
 			marker_count = sizeof(clangd_markers) / sizeof(clangd_markers[0]);
+		} else if (server_kind == EDITOR_LSP_SERVER_HTML) {
+			markers = html_markers;
+			marker_count = sizeof(html_markers) / sizeof(html_markers[0]);
 		}
 
 		if (markers != NULL) {
@@ -1500,6 +1532,8 @@ static int editorLspEnsureRunningReal(const char *filename,
 			editorSetStatusMsg("LSP disabled: [lsp].gopls_command is empty");
 		} else if (server_kind == EDITOR_LSP_SERVER_CLANGD) {
 			editorSetStatusMsg("LSP disabled: [lsp].clangd_command is empty");
+		} else if (server_kind == EDITOR_LSP_SERVER_HTML) {
+			editorSetStatusMsg("LSP disabled: [lsp].html_command is empty");
 		}
 		return 0;
 	}
@@ -1707,8 +1741,17 @@ int editorLspEnsureDocumentOpen(const char *filename, enum editorSyntaxLanguage 
 		return 0;
 	}
 
+	const char *language_id = editorLspLanguageIdForFile(filename, language);
+	if (language_id == NULL) {
+		return 0;
+	}
+
 	int version = *doc_version_in_out > 0 ? *doc_version_in_out : 1;
 	if (g_lsp_mock.enabled) {
+		(void)snprintf(g_lsp_mock.last_did_open_language_id,
+				sizeof(g_lsp_mock.last_did_open_language_id), "%s", language_id);
+		g_lsp_mock.last_did_open_language_id[
+				sizeof(g_lsp_mock.last_did_open_language_id) - 1] = '\0';
 		g_lsp_mock.stats.did_open_count++;
 		*doc_open_in_out = 1;
 		*doc_version_in_out = version;
@@ -1721,11 +1764,6 @@ int editorLspEnsureDocumentOpen(const char *filename, enum editorSyntaxLanguage 
 	}
 
 	if (full_text_len > 0 && full_text == NULL) {
-		free(uri);
-		return 0;
-	}
-	const char *language_id = editorLspLanguageIdForFile(filename, language);
-	if (language_id == NULL) {
 		free(uri);
 		return 0;
 	}
@@ -2163,6 +2201,7 @@ void editorLspTestSetMockEnabled(int enabled) {
 		g_lsp_mock.server_kind = EDITOR_LSP_SERVER_NONE;
 		free(g_lsp_mock.workspace_root_path);
 		g_lsp_mock.workspace_root_path = NULL;
+		g_lsp_mock.last_did_open_language_id[0] = '\0';
 	}
 }
 
@@ -2181,6 +2220,7 @@ void editorLspTestResetMock(void) {
 	g_lsp_mock.workspace_root_path = NULL;
 	memset(&g_lsp_mock.stats, 0, sizeof(g_lsp_mock.stats));
 	memset(&g_lsp_mock.last_change, 0, sizeof(g_lsp_mock.last_change));
+	g_lsp_mock.last_did_open_language_id[0] = '\0';
 	g_lsp_mock.enabled = 0;
 	g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_NONE;
 }
@@ -2197,6 +2237,14 @@ void editorLspTestGetLastChange(struct editorLspTestLastChange *out) {
 		return;
 	}
 	*out = g_lsp_mock.last_change;
+}
+
+void editorLspTestGetLastDidOpenLanguageId(char *out, size_t out_size) {
+	if (out == NULL || out_size == 0) {
+		return;
+	}
+	(void)snprintf(out, out_size, "%s", g_lsp_mock.last_did_open_language_id);
+	out[out_size - 1] = '\0';
 }
 
 void editorLspTestSetMockDefinitionResponse(int result_code,

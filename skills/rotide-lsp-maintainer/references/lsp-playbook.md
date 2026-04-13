@@ -13,6 +13,7 @@
   - definition picker/jump flow
   - missing-`gopls` install prompt trigger
   - missing-`clangd` instruction-tab trigger
+  - missing-`vscode-langservers-extracted` install prompt trigger
 - `src/editing/buffer_core.c`
   - active edit -> `editorLspNotifyDidChangeActive(...)`
   - save/close notifications and tab lifecycle hooks
@@ -26,6 +27,7 @@
 - LSP-backed definition lookup currently supports:
   - Go via `gopls`
   - C/C++ via `clangd`
+  - HTML via `vscode-html-language-server --stdio`
 - Definition request requires:
   - supported source buffer
   - saved filename
@@ -59,28 +61,45 @@
   - a reminder that `[lsp].clangd_command` can point to a custom path
 - Do not auto-retry definition request.
 
+## `vscode-langservers-extracted` install flow baseline
+
+- Prompt text: `vscode-langservers-extracted not found. Install now?`
+- On accept:
+  - open/focus task-log tab
+  - run configured install command
+  - stream stdout/stderr into tab
+- leave tab open
+- show success/failure status
+- Do not auto-retry definition request.
+
 ## Config baseline
 
 - Defaults:
   - `gopls_command = "gopls"`
   - `clangd_command = "clangd"`
+  - `html_command = "vscode-html-language-server --stdio"`
   - `gopls_enabled = true`
   - `clangd_enabled = true`
+  - `html_enabled = true`
   - `gopls_install_command = "go install golang.org/x/tools/gopls@latest"`
+  - `vscode_langservers_install_command = "npm i -g vscode-langservers-extracted"`
 - Load precedence:
   - defaults -> global -> project
 - Legacy compatibility:
   - `enabled = true|false` remains accepted as a shorthand for toggling both servers
 - `gopls_install_command` is global-only override:
   - project key is ignored, not treated as section-invalid
+- `vscode_langservers_install_command` is global-only override:
+  - project key is ignored, not treated as section-invalid
 
 ## Test checklist
 
 - config precedence and invalid cases
-- Go/C/C++ gating behavior
+- Go/C/C++/HTML gating behavior
 - definition request success/failure/multi-location picker
 - missing-`gopls` decline/accept flows
 - missing-`clangd` instruction-tab flow
+- missing-`vscode-langservers-extracted` decline/accept flows
 - task-log output and final status behavior
 - didChange/didSave/didClose sequencing
 

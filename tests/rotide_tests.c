@@ -172,6 +172,11 @@ static int write_temp_cpp_file(char path_buf[], size_t path_buf_size, const char
 			content);
 }
 
+static int write_temp_html_file(char path_buf[], size_t path_buf_size, const char *content) {
+	return write_temp_file_with_suffix(path_buf, path_buf_size, "rotide-test-html-lsp-", ".html",
+			content);
+}
+
 static int write_temp_text_file(char path_buf[], size_t path_buf_size, const char *content) {
 	return write_temp_file_with_suffix(path_buf, path_buf_size, "rotide-test-lsp-", ".txt",
 			content);
@@ -5291,20 +5296,29 @@ static int test_editor_keymap_load_accepts_reserved_terminal_aliases_for_matchin
 static int test_editor_lsp_config_defaults_and_precedence(void) {
 	int gopls_enabled = 0;
 	int clangd_enabled = 0;
-	char command[PATH_MAX];
-	char install_command[PATH_MAX];
+	int html_enabled = 0;
+	char gopls_command[PATH_MAX];
+	char gopls_install_command[PATH_MAX];
 	char clangd_command[PATH_MAX];
+	char html_command[PATH_MAX];
+	char vscode_langservers_install_command[PATH_MAX];
 
 	enum editorLspConfigLoadStatus defaults_status =
-			editorLspConfigLoadFromPaths(&gopls_enabled, &clangd_enabled, command, sizeof(command),
-					install_command, sizeof(install_command), clangd_command,
-					sizeof(clangd_command), NULL, NULL);
+			editorLspConfigLoadFromPaths(&gopls_enabled, &clangd_enabled, &html_enabled,
+					gopls_command, sizeof(gopls_command), gopls_install_command,
+					sizeof(gopls_install_command), clangd_command, sizeof(clangd_command),
+					html_command, sizeof(html_command), vscode_langservers_install_command,
+					sizeof(vscode_langservers_install_command), NULL, NULL);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_OK, defaults_status);
 	ASSERT_EQ_INT(1, gopls_enabled);
 	ASSERT_EQ_INT(1, clangd_enabled);
-	ASSERT_EQ_STR("gopls", command);
-	ASSERT_EQ_STR("go install golang.org/x/tools/gopls@latest", install_command);
+	ASSERT_EQ_INT(1, html_enabled);
+	ASSERT_EQ_STR("gopls", gopls_command);
+	ASSERT_EQ_STR("go install golang.org/x/tools/gopls@latest", gopls_install_command);
 	ASSERT_EQ_STR("clangd", clangd_command);
+	ASSERT_EQ_STR("vscode-html-language-server --stdio", html_command);
+	ASSERT_EQ_STR("npm i -g vscode-langservers-extracted",
+			vscode_langservers_install_command);
 
 	char dir_template[] = "/tmp/rotide-test-lsp-config-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -5318,28 +5332,39 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 				"[lsp]\n"
 				"gopls_enabled = false\n"
 				"clangd_enabled = false\n"
+				"html_enabled = false\n"
 				"gopls_command = \"gopls-global\"\n"
 				"clangd_command = \"clangd-global\"\n"
-				"gopls_install_command = \"global-install\"\n"));
+				"html_command = \"html-global --stdio\"\n"
+				"gopls_install_command = \"global-install\"\n"
+				"vscode_langservers_install_command = \"global-vscode-install\"\n"));
 	ASSERT_TRUE(write_text_file(project_path,
 				"[lsp]\n"
 				"gopls_enabled = true\n"
 				"clangd_enabled = false\n"
+				"html_enabled = true\n"
 				"gopls_command = \"gopls-project\"\n"
 				"clangd_command = \"clangd-project\"\n"
-				"gopls_install_command = \"project-install\"\n"));
+				"html_command = \"html-project --stdio\"\n"
+				"gopls_install_command = \"project-install\"\n"
+				"vscode_langservers_install_command = \"project-vscode-install\"\n"));
 
 	enum editorLspConfigLoadStatus status =
-			editorLspConfigLoadFromPaths(&gopls_enabled, &clangd_enabled, command, sizeof(command),
-					install_command, sizeof(install_command), clangd_command,
-					sizeof(clangd_command), global_path,
+			editorLspConfigLoadFromPaths(&gopls_enabled, &clangd_enabled, &html_enabled,
+					gopls_command, sizeof(gopls_command), gopls_install_command,
+					sizeof(gopls_install_command), clangd_command, sizeof(clangd_command),
+					html_command, sizeof(html_command), vscode_langservers_install_command,
+					sizeof(vscode_langservers_install_command), global_path,
 					project_path);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_OK, status);
 	ASSERT_EQ_INT(1, gopls_enabled);
 	ASSERT_EQ_INT(0, clangd_enabled);
-	ASSERT_EQ_STR("gopls-project", command);
-	ASSERT_EQ_STR("global-install", install_command);
+	ASSERT_EQ_INT(1, html_enabled);
+	ASSERT_EQ_STR("gopls-project", gopls_command);
+	ASSERT_EQ_STR("global-install", gopls_install_command);
 	ASSERT_EQ_STR("clangd-project", clangd_command);
+	ASSERT_EQ_STR("html-project --stdio", html_command);
+	ASSERT_EQ_STR("global-vscode-install", vscode_langservers_install_command);
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(unlink(global_path) == 0);
@@ -5350,9 +5375,12 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
 	int gopls_enabled = 0;
 	int clangd_enabled = 0;
-	char command[PATH_MAX];
-	char install_command[PATH_MAX];
+	int html_enabled = 0;
+	char gopls_command[PATH_MAX];
+	char gopls_install_command[PATH_MAX];
 	char clangd_command[PATH_MAX];
+	char html_command[PATH_MAX];
+	char vscode_langservers_install_command[PATH_MAX];
 
 	char dir_template[] = "/tmp/rotide-test-lsp-config-invalid-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -5367,33 +5395,44 @@ static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
 				"[lsp]\n"
 				"enabled = \"yes\"\n"));
 	enum editorLspConfigLoadStatus status =
-			editorLspConfigLoadFromPaths(&gopls_enabled, &clangd_enabled, command,
-					sizeof(command), install_command,
-					sizeof(install_command), clangd_command, sizeof(clangd_command), global_path,
-					NULL);
+			editorLspConfigLoadFromPaths(&gopls_enabled, &clangd_enabled, &html_enabled,
+					gopls_command, sizeof(gopls_command), gopls_install_command,
+					sizeof(gopls_install_command), clangd_command, sizeof(clangd_command),
+					html_command, sizeof(html_command), vscode_langservers_install_command,
+					sizeof(vscode_langservers_install_command), global_path, NULL);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_INVALID_GLOBAL, status);
 	ASSERT_EQ_INT(1, gopls_enabled);
 	ASSERT_EQ_INT(1, clangd_enabled);
-	ASSERT_EQ_STR("gopls", command);
-	ASSERT_EQ_STR("go install golang.org/x/tools/gopls@latest", install_command);
+	ASSERT_EQ_INT(1, html_enabled);
+	ASSERT_EQ_STR("gopls", gopls_command);
+	ASSERT_EQ_STR("go install golang.org/x/tools/gopls@latest", gopls_install_command);
 	ASSERT_EQ_STR("clangd", clangd_command);
+	ASSERT_EQ_STR("vscode-html-language-server --stdio", html_command);
+	ASSERT_EQ_STR("npm i -g vscode-langservers-extracted",
+			vscode_langservers_install_command);
 
 	ASSERT_TRUE(write_text_file(global_path,
 				"[lsp]\n"
-				"clangd_enabled = false\n"));
+				"clangd_enabled = false\n"
+				"html_enabled = false\n"));
 	ASSERT_TRUE(write_text_file(project_path,
 				"[lsp]\n"
-				"gopls_command = \"\"\n"));
-	status = editorLspConfigLoadFromPaths(&gopls_enabled, &clangd_enabled, command,
-			sizeof(command), install_command,
-			sizeof(install_command), clangd_command, sizeof(clangd_command), global_path,
-			project_path);
+				"html_command = \"\"\n"));
+	status = editorLspConfigLoadFromPaths(&gopls_enabled, &clangd_enabled, &html_enabled,
+			gopls_command, sizeof(gopls_command), gopls_install_command,
+			sizeof(gopls_install_command), clangd_command, sizeof(clangd_command),
+			html_command, sizeof(html_command), vscode_langservers_install_command,
+			sizeof(vscode_langservers_install_command), global_path, project_path);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_INVALID_PROJECT, status);
 	ASSERT_EQ_INT(1, gopls_enabled);
 	ASSERT_EQ_INT(1, clangd_enabled);
-	ASSERT_EQ_STR("gopls", command);
-	ASSERT_EQ_STR("go install golang.org/x/tools/gopls@latest", install_command);
+	ASSERT_EQ_INT(1, html_enabled);
+	ASSERT_EQ_STR("gopls", gopls_command);
+	ASSERT_EQ_STR("go install golang.org/x/tools/gopls@latest", gopls_install_command);
 	ASSERT_EQ_STR("clangd", clangd_command);
+	ASSERT_EQ_STR("vscode-html-language-server --stdio", html_command);
+	ASSERT_EQ_STR("npm i -g vscode-langservers-extracted",
+			vscode_langservers_install_command);
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(unlink(global_path) == 0);
@@ -5503,17 +5542,21 @@ static int test_editor_lsp_lifecycle_restart_after_mock_crash(void) {
 	return 0;
 }
 
-static int test_editor_lsp_lifecycle_restarts_when_switching_between_go_and_clangd(void) {
+static int test_editor_lsp_lifecycle_restarts_when_switching_between_go_clangd_and_html(void) {
 	editorLspTestSetMockEnabled(1);
 	E.lsp_gopls_enabled = 1;
 	E.lsp_clangd_enabled = 1;
+	E.lsp_html_enabled = 1;
 
 	char go_path[64];
 	char c_path[64];
+	char html_path[64];
 	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
 			"package main\n\nfunc helper() {}\nfunc main() { helper() }\n"));
 	ASSERT_TRUE(write_temp_c_file(c_path, sizeof(c_path),
 			"int helper(void) { return 1; }\nint main(void) { return helper(); }\n"));
+	ASSERT_TRUE(write_temp_html_file(html_path, sizeof(html_path),
+			"<div id=\"app\"></div>\n<a href=\"#app\">jump</a>\n"));
 
 	editorOpen(go_path);
 	E.cy = 3;
@@ -5538,6 +5581,17 @@ static int test_editor_lsp_lifecycle_restarts_when_switching_between_go_and_clan
 	editorLspTestSetMockDefinitionResponse(1, &c_target, 1);
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 
+	editorOpen(html_path);
+	E.cy = 1;
+	E.cx = 11;
+	struct editorLspLocation html_target = {
+		.path = html_path,
+		.line = 0,
+		.character = 9
+	};
+	editorLspTestSetMockDefinitionResponse(1, &html_target, 1);
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+
 	editorOpen(go_path);
 	E.cy = 3;
 	E.cx = 15;
@@ -5546,11 +5600,12 @@ static int test_editor_lsp_lifecycle_restarts_when_switching_between_go_and_clan
 
 	struct editorLspTestStats stats = {0};
 	editorLspTestGetStats(&stats);
-	ASSERT_EQ_INT(3, stats.start_count);
-	ASSERT_EQ_INT(3, stats.definition_count);
+	ASSERT_EQ_INT(4, stats.start_count);
+	ASSERT_EQ_INT(4, stats.definition_count);
 
 	ASSERT_TRUE(unlink(go_path) == 0);
 	ASSERT_TRUE(unlink(c_path) == 0);
+	ASSERT_TRUE(unlink(html_path) == 0);
 	return 0;
 }
 
@@ -5601,6 +5656,69 @@ static int test_editor_lsp_lifecycle_restarts_when_clangd_workspace_root_changes
 	editorOpen(file_b);
 	E.cy = 1;
 	E.cx = 24;
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(2, stats.start_count);
+	ASSERT_EQ_INT(2, stats.definition_count);
+
+	ASSERT_TRUE(unlink(file_a) == 0);
+	ASSERT_TRUE(unlink(file_b) == 0);
+	ASSERT_TRUE(unlink(marker_a) == 0);
+	ASSERT_TRUE(unlink(marker_b) == 0);
+	ASSERT_TRUE(rmdir(project_a) == 0);
+	ASSERT_TRUE(rmdir(project_b) == 0);
+	ASSERT_TRUE(rmdir(root_path) == 0);
+	return 0;
+}
+
+static int test_editor_lsp_lifecycle_restarts_when_html_workspace_root_changes(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 0;
+	E.lsp_html_enabled = 1;
+
+	char root_template[] = "/tmp/rotide-test-html-root-XXXXXX";
+	char *root_path = mkdtemp(root_template);
+	ASSERT_TRUE(root_path != NULL);
+
+	char project_a[512];
+	char project_b[512];
+	char marker_a[512];
+	char marker_b[512];
+	char file_a[512];
+	char file_b[512];
+	ASSERT_TRUE(path_join(project_a, sizeof(project_a), root_path, "project-a"));
+	ASSERT_TRUE(path_join(project_b, sizeof(project_b), root_path, "project-b"));
+	ASSERT_TRUE(path_join(marker_a, sizeof(marker_a), project_a, "package.json"));
+	ASSERT_TRUE(path_join(marker_b, sizeof(marker_b), project_b, "package.json"));
+	ASSERT_TRUE(path_join(file_a, sizeof(file_a), project_a, "index.html"));
+	ASSERT_TRUE(path_join(file_b, sizeof(file_b), project_b, "index.html"));
+	ASSERT_TRUE(make_dir(project_a));
+	ASSERT_TRUE(make_dir(project_b));
+	ASSERT_TRUE(write_text_file(marker_a, "{ }\n"));
+	ASSERT_TRUE(write_text_file(marker_b, "{ }\n"));
+	ASSERT_TRUE(write_text_file(file_a, "<div id=\"a\"></div>\n<a href=\"#a\">jump</a>\n"));
+	ASSERT_TRUE(write_text_file(file_b, "<div id=\"b\"></div>\n<a href=\"#b\">jump</a>\n"));
+
+	struct editorLspLocation target = {
+		.path = file_a,
+		.line = 0,
+		.character = 9
+	};
+	editorLspTestSetMockDefinitionResponse(1, &target, 1);
+	editorOpen(file_a);
+	E.cy = 1;
+	E.cx = 11;
+	char goto_def[] = {CTRL_KEY('o')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+
+	target.path = file_b;
+	editorLspTestSetMockDefinitionResponse(1, &target, 1);
+	editorOpen(file_b);
+	E.cy = 1;
+	E.cx = 11;
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 
 	struct editorLspTestStats stats = {0};
@@ -5695,6 +5813,101 @@ static int test_editor_lsp_document_sync_for_c_edit_save_close(void) {
 	ASSERT_EQ_INT(1, stats.did_close_count);
 
 	ASSERT_TRUE(unlink(c_path) == 0);
+	return 0;
+}
+
+static int test_editor_lsp_document_sync_for_html_edit_save_close(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 0;
+	E.lsp_html_enabled = 1;
+	ASSERT_TRUE(editorTabsInit());
+
+	char html_path[64];
+	ASSERT_TRUE(write_temp_html_file(html_path, sizeof(html_path),
+			"<div id=\"app\"></div>\n<a href=\"#app\">jump</a>\n"));
+	editorOpen(html_path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HTML, editorSyntaxLanguageActive());
+
+	E.cy = 0;
+	E.cx = 0;
+	editorInsertChar(' ');
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.did_open_count);
+	ASSERT_EQ_INT(1, stats.did_change_count);
+
+	char language_id[32];
+	editorLspTestGetLastDidOpenLanguageId(language_id, sizeof(language_id));
+	ASSERT_EQ_STR("html", language_id);
+
+	editorSave();
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.did_save_count);
+
+	ASSERT_TRUE(editorTabCloseActive());
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.did_close_count);
+
+	ASSERT_TRUE(unlink(html_path) == 0);
+	return 0;
+}
+
+static int test_editor_lsp_html_language_id_routing_for_supported_extensions(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 0;
+	E.lsp_html_enabled = 1;
+
+	char html_path[64];
+	char htm_path[64];
+	char xhtml_path[64];
+	ASSERT_TRUE(write_temp_file_with_suffix(html_path, sizeof(html_path),
+			"rotide-test-html-route-", ".html", "<div id=\"a\"></div>\n<a href=\"#a\">jump</a>\n"));
+	ASSERT_TRUE(write_temp_file_with_suffix(htm_path, sizeof(htm_path),
+			"rotide-test-html-route-", ".htm", "<div id=\"b\"></div>\n<a href=\"#b\">jump</a>\n"));
+	ASSERT_TRUE(write_temp_file_with_suffix(xhtml_path, sizeof(xhtml_path),
+			"rotide-test-html-route-", ".xhtml",
+			"<div id=\"c\"></div>\n<a href=\"#c\">jump</a>\n"));
+
+	struct editorLspLocation target = {
+		.path = html_path,
+		.line = 0,
+		.character = 9
+	};
+	char language_id[32];
+	char goto_def[] = {CTRL_KEY('o')};
+
+	editorOpen(html_path);
+	E.cy = 1;
+	E.cx = 11;
+	editorLspTestSetMockDefinitionResponse(1, &target, 1);
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	editorLspTestGetLastDidOpenLanguageId(language_id, sizeof(language_id));
+	ASSERT_EQ_STR("html", language_id);
+
+	target.path = htm_path;
+	editorOpen(htm_path);
+	E.cy = 1;
+	E.cx = 11;
+	editorLspTestSetMockDefinitionResponse(1, &target, 1);
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	editorLspTestGetLastDidOpenLanguageId(language_id, sizeof(language_id));
+	ASSERT_EQ_STR("html", language_id);
+
+	target.path = xhtml_path;
+	editorOpen(xhtml_path);
+	E.cy = 1;
+	E.cx = 11;
+	editorLspTestSetMockDefinitionResponse(1, &target, 1);
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	editorLspTestGetLastDidOpenLanguageId(language_id, sizeof(language_id));
+	ASSERT_EQ_STR("html", language_id);
+
+	ASSERT_TRUE(unlink(html_path) == 0);
+	ASSERT_TRUE(unlink(htm_path) == 0);
+	ASSERT_TRUE(unlink(xhtml_path) == 0);
 	return 0;
 }
 
@@ -5850,6 +6063,45 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_c
 	ASSERT_EQ_INT(1, stats.definition_count);
 
 	ASSERT_TRUE(unlink(cpp_path) == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_html_buffer(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 0;
+	E.lsp_html_enabled = 1;
+
+	char html_path[64];
+	ASSERT_TRUE(write_temp_html_file(html_path, sizeof(html_path),
+			"<div id=\"app\"></div>\n<a href=\"#app\">jump</a>\n"));
+	editorOpen(html_path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HTML, editorSyntaxLanguageActive());
+
+	E.cy = 1;
+	E.cx = 11;
+
+	struct editorLspLocation target = {
+		.path = html_path,
+		.line = 0,
+		.character = 9
+	};
+	editorLspTestSetMockDefinitionResponse(1, &target, 1);
+
+	char goto_def[] = {CTRL_KEY('o')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(9, E.cx);
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.definition_count);
+
+	char language_id[32];
+	editorLspTestGetLastDidOpenLanguageId(language_id, sizeof(language_id));
+	ASSERT_EQ_STR("html", language_id);
+
+	ASSERT_TRUE(unlink(html_path) == 0);
 	return 0;
 }
 
@@ -6065,6 +6317,26 @@ static int test_editor_process_keypress_goto_definition_reports_lsp_disabled_for
 	return 0;
 }
 
+static int test_editor_process_keypress_goto_definition_reports_lsp_disabled_for_html(void) {
+	E.lsp_gopls_enabled = 1;
+	E.lsp_clangd_enabled = 1;
+	E.lsp_html_enabled = 0;
+
+	char html_path[64];
+	ASSERT_TRUE(write_temp_html_file(html_path, sizeof(html_path),
+			"<div id=\"app\"></div>\n<a href=\"#app\">jump</a>\n"));
+	editorOpen(html_path);
+	E.cy = 1;
+	E.cx = 11;
+
+	char goto_def[] = {CTRL_KEY('o')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	ASSERT_EQ_STR("vscode-html-language-server is disabled in config", E.statusmsg);
+
+	ASSERT_TRUE(unlink(html_path) == 0);
+	return 0;
+}
+
 static int test_editor_process_keypress_mouse_ctrl_click_goto_definition_reports_lsp_disabled(void) {
 	E.lsp_gopls_enabled = 0;
 	E.lsp_clangd_enabled = 0;
@@ -6079,7 +6351,8 @@ static int test_editor_process_keypress_mouse_ctrl_click_goto_definition_reports
 	char click[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click, sizeof(click), 16, text_start + 4, 2, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(click, strlen(click)) == 0);
-	ASSERT_EQ_STR("Go to definition is available for Go, C, and C++ files only", E.statusmsg);
+	ASSERT_EQ_STR("Go to definition is available for Go, C, C++, and HTML files only",
+			E.statusmsg);
 
 	struct editorLspTestStats stats = {0};
 	editorLspTestGetStats(&stats);
@@ -6120,6 +6393,27 @@ static int test_editor_process_keypress_goto_definition_reports_empty_clangd_com
 	ASSERT_EQ_STR("LSP disabled: [lsp].clangd_command is empty", E.statusmsg);
 
 	ASSERT_TRUE(unlink(c_path) == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_goto_definition_reports_empty_html_command(void) {
+	E.lsp_gopls_enabled = 1;
+	E.lsp_clangd_enabled = 1;
+	E.lsp_html_enabled = 1;
+	E.lsp_html_command[0] = '\0';
+
+	char html_path[64];
+	ASSERT_TRUE(write_temp_html_file(html_path, sizeof(html_path),
+			"<div id=\"app\"></div>\n<a href=\"#app\">jump</a>\n"));
+	editorOpen(html_path);
+	E.cy = 1;
+	E.cx = 11;
+
+	char goto_def[] = {CTRL_KEY('o')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	ASSERT_EQ_STR("LSP disabled: [lsp].html_command is empty", E.statusmsg);
+
+	ASSERT_TRUE(unlink(html_path) == 0);
 	return 0;
 }
 
@@ -6301,6 +6595,80 @@ static int test_editor_process_keypress_goto_definition_missing_clangd_shows_ins
 	free(text);
 
 	ASSERT_TRUE(unlink(c_path) == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_goto_definition_missing_vscode_langservers_decline_install(void) {
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 0;
+	E.lsp_html_enabled = 1;
+	ASSERT_TRUE(editorTabsInit());
+
+	strncpy(E.lsp_html_command,
+			"exec >/dev/null; sleep 0.05; rotide_missing_vscode_langservers_command",
+			sizeof(E.lsp_html_command) - 1);
+	E.lsp_html_command[sizeof(E.lsp_html_command) - 1] = '\0';
+	strncpy(E.lsp_vscode_langservers_install_command, "printf 'install skipped\\n'",
+			sizeof(E.lsp_vscode_langservers_install_command) - 1);
+	E.lsp_vscode_langservers_install_command[
+			sizeof(E.lsp_vscode_langservers_install_command) - 1] = '\0';
+
+	char html_path[64];
+	ASSERT_TRUE(write_temp_html_file(html_path, sizeof(html_path),
+			"<div id=\"app\"></div>\n<a href=\"#app\">jump</a>\n"));
+	editorOpen(html_path);
+	E.cy = 1;
+	E.cx = 11;
+
+	char input[] = {CTRL_KEY('o'), '\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+	ASSERT_EQ_STR("vscode-langservers-extracted not installed", E.statusmsg);
+	ASSERT_TRUE(!editorTaskIsRunning());
+	ASSERT_EQ_INT(1, editorTabCount());
+	ASSERT_TRUE(!editorActiveTabIsTaskLog());
+
+	ASSERT_TRUE(unlink(html_path) == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_goto_definition_missing_vscode_langservers_starts_install_task(void) {
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 0;
+	E.lsp_html_enabled = 1;
+	ASSERT_TRUE(editorTabsInit());
+
+	strncpy(E.lsp_html_command,
+			"exec >/dev/null; sleep 0.05; rotide_missing_vscode_langservers_install_command",
+			sizeof(E.lsp_html_command) - 1);
+	E.lsp_html_command[sizeof(E.lsp_html_command) - 1] = '\0';
+	strncpy(E.lsp_vscode_langservers_install_command, "printf 'install ok\\n'",
+			sizeof(E.lsp_vscode_langservers_install_command) - 1);
+	E.lsp_vscode_langservers_install_command[
+			sizeof(E.lsp_vscode_langservers_install_command) - 1] = '\0';
+
+	char html_path[64];
+	ASSERT_TRUE(write_temp_html_file(html_path, sizeof(html_path),
+			"<div id=\"app\"></div>\n<a href=\"#app\">jump</a>\n"));
+	editorOpen(html_path);
+	E.cy = 1;
+	E.cx = 11;
+
+	char input[] = {CTRL_KEY('o'), 'y', '\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+	ASSERT_TRUE(editorTaskIsRunning());
+	ASSERT_TRUE(editorActiveTabIsTaskLog());
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_STR("Task: Install vscode-langservers-extracted", editorActiveBufferDisplayName());
+	ASSERT_TRUE(wait_for_task_completion_with_timeout(1500));
+	ASSERT_EQ_STR("vscode-langservers-extracted installed. Retry Ctrl-O", E.statusmsg);
+
+	size_t textlen = 0;
+	char *text = editorRowsToStr(&textlen);
+	ASSERT_TRUE(text != NULL);
+	ASSERT_TRUE(strstr(text, "install ok") != NULL);
+	free(text);
+
+	ASSERT_TRUE(unlink(html_path) == 0);
 	return 0;
 }
 
@@ -10782,18 +11150,24 @@ int main(void) {
 				test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers},
 			{"editor_lsp_lifecycle_restart_after_mock_crash",
 				test_editor_lsp_lifecycle_restart_after_mock_crash},
-			{"editor_lsp_lifecycle_restarts_when_switching_between_go_and_clangd",
-				test_editor_lsp_lifecycle_restarts_when_switching_between_go_and_clangd},
+			{"editor_lsp_lifecycle_restarts_when_switching_between_go_clangd_and_html",
+				test_editor_lsp_lifecycle_restarts_when_switching_between_go_clangd_and_html},
 			{"editor_lsp_lifecycle_restarts_when_clangd_workspace_root_changes",
 				test_editor_lsp_lifecycle_restarts_when_clangd_workspace_root_changes},
+			{"editor_lsp_lifecycle_restarts_when_html_workspace_root_changes",
+				test_editor_lsp_lifecycle_restarts_when_html_workspace_root_changes},
 			{"editor_lsp_document_sync_for_go_edit_save_close",
 				test_editor_lsp_document_sync_for_go_edit_save_close},
 			{"editor_lsp_document_sync_for_c_edit_save_close",
 				test_editor_lsp_document_sync_for_c_edit_save_close},
+			{"editor_lsp_document_sync_for_html_edit_save_close",
+				test_editor_lsp_document_sync_for_html_edit_save_close},
 			{"editor_lsp_full_document_change_uses_active_source",
 				test_editor_lsp_full_document_change_uses_active_source},
 			{"editor_lsp_document_sync_ignores_non_go_buffers",
 				test_editor_lsp_document_sync_ignores_non_go_buffers},
+			{"editor_lsp_html_language_id_routing_for_supported_extensions",
+				test_editor_lsp_html_language_id_routing_for_supported_extensions},
 			{"editor_process_keypress_keymap_remap_changes_dispatch",
 				test_editor_process_keypress_keymap_remap_changes_dispatch},
 			{"editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped_action",
@@ -10804,6 +11178,8 @@ int main(void) {
 				test_editor_process_keypress_ctrl_o_goto_definition_single_location_c_buffer},
 			{"editor_process_keypress_ctrl_o_goto_definition_single_location_cpp_buffer",
 				test_editor_process_keypress_ctrl_o_goto_definition_single_location_cpp_buffer},
+			{"editor_process_keypress_ctrl_o_goto_definition_single_location_html_buffer",
+				test_editor_process_keypress_ctrl_o_goto_definition_single_location_html_buffer},
 			{"editor_process_keypress_goto_definition_cross_file_reuses_tab",
 				test_editor_process_keypress_goto_definition_cross_file_reuses_tab},
 			{"editor_process_keypress_goto_definition_multi_picker_selects_choice",
@@ -10818,6 +11194,8 @@ int main(void) {
 				test_editor_process_keypress_goto_definition_reports_lsp_disabled},
 			{"editor_process_keypress_goto_definition_reports_lsp_disabled_for_c",
 				test_editor_process_keypress_goto_definition_reports_lsp_disabled_for_c},
+			{"editor_process_keypress_goto_definition_reports_lsp_disabled_for_html",
+				test_editor_process_keypress_goto_definition_reports_lsp_disabled_for_html},
 			{"editor_process_keypress_mouse_ctrl_click_goto_definition_reports_lsp_disabled",
 				test_editor_process_keypress_mouse_ctrl_click_goto_definition_reports_lsp_disabled},
 			{"editor_process_keypress_goto_definition_startup_failure_reports_reason",
@@ -10828,6 +11206,8 @@ int main(void) {
 				test_editor_process_keypress_goto_definition_requires_saved_c_buffer},
 			{"editor_process_keypress_goto_definition_reports_empty_clangd_command",
 				test_editor_process_keypress_goto_definition_reports_empty_clangd_command},
+			{"editor_process_keypress_goto_definition_reports_empty_html_command",
+				test_editor_process_keypress_goto_definition_reports_empty_html_command},
 			{"editor_process_keypress_goto_definition_missing_gopls_decline_install",
 				test_editor_process_keypress_goto_definition_missing_gopls_decline_install},
 			{"editor_process_keypress_goto_definition_missing_gopls_starts_install_task",
@@ -10836,6 +11216,10 @@ int main(void) {
 				test_editor_process_keypress_goto_definition_missing_clangd_declines_instructions},
 			{"editor_process_keypress_goto_definition_missing_clangd_shows_install_instructions",
 				test_editor_process_keypress_goto_definition_missing_clangd_shows_install_instructions},
+			{"editor_process_keypress_goto_definition_missing_vscode_langservers_decline_install",
+				test_editor_process_keypress_goto_definition_missing_vscode_langservers_decline_install},
+			{"editor_process_keypress_goto_definition_missing_vscode_langservers_starts_install_task",
+				test_editor_process_keypress_goto_definition_missing_vscode_langservers_starts_install_task},
 			{"editor_task_log_read_only_search_and_copy",
 				test_editor_task_log_read_only_search_and_copy},
 			{"editor_task_log_document_stays_authoritative",

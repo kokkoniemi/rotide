@@ -340,9 +340,12 @@ struct editorConfig {
 	struct editorSyntaxState *syntax_state;
 	int lsp_gopls_enabled;
 	int lsp_clangd_enabled;
+	int lsp_html_enabled;
 	char lsp_gopls_command[PATH_MAX];
 	char lsp_gopls_install_command[PATH_MAX];
 	char lsp_clangd_command[PATH_MAX];
+	char lsp_html_command[PATH_MAX];
+	char lsp_vscode_langservers_install_command[PATH_MAX];
 	int lsp_doc_open;
 	int lsp_doc_version;
 	char statusmsg[80];

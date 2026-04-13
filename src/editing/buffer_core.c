@@ -471,6 +471,9 @@ static int editorLspActiveBufferTracked(void) {
 	if (E.syntax_language == EDITOR_SYNTAX_C) {
 		return E.lsp_clangd_enabled;
 	}
+	if (E.syntax_language == EDITOR_SYNTAX_HTML) {
+		return E.lsp_html_enabled;
+	}
 	return 0;
 }
 

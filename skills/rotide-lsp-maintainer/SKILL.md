@@ -1,6 +1,6 @@
 ---
 name: rotide-lsp-maintainer
-description: Maintain RotIDE Go/C/C++ LSP behavior including lifecycle, sync, definition flow, config gating, and missing-server task-log UX.
+description: Maintain RotIDE Go/C/C++/HTML LSP behavior including lifecycle, sync, definition flow, config gating, and missing-server task-log UX.
 ---
 
 # Rotide LSP Maintainer
@@ -25,7 +25,7 @@ Use for changes in:
 
 ## Guardrails
 
-- Do not break Go or C/C++ gating behavior; unsupported languages should remain cleanly unavailable.
+- Do not break Go, C/C++, or HTML gating behavior; unsupported languages should remain cleanly unavailable.
 - Keep document sync source document-backed (`editorTextSource`/document path).
 - Preserve startup failure reason handling and status messages.
 - Missing-`gopls` behavior:
@@ -37,6 +37,10 @@ Use for changes in:
   - show installation instructions in a read-only task-log tab
   - point users at `https://clangd.llvm.org/installation`
   - mention `[lsp].clangd_command` for custom install paths
+- Missing-`vscode-langservers-extracted` behavior:
+  - prompt only when command-not-found is the startup failure reason
+  - run configured install command in task-log tab
+  - do not auto-retry original definition request
 - Keep generated task-log tabs read-only/non-savable.
 
 ## References

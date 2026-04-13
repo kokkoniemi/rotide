@@ -11,17 +11,25 @@ enum editorLspConfigLoadStatus {
 };
 
 void editorLspConfigInitDefaults(int *gopls_enabled_out, int *clangd_enabled_out,
-		char *command_out, size_t command_out_size, char *install_command_out,
-		size_t install_command_out_size,
-		char *clangd_command_out, size_t clangd_command_out_size);
+		int *html_enabled_out, char *gopls_command_out, size_t gopls_command_out_size,
+		char *gopls_install_command_out, size_t gopls_install_command_out_size,
+		char *clangd_command_out, size_t clangd_command_out_size, char *html_command_out,
+		size_t html_command_out_size, char *vscode_langservers_install_command_out,
+		size_t vscode_langservers_install_command_out_size);
 enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(int *gopls_enabled_out,
-		int *clangd_enabled_out, char *command_out, size_t command_out_size,
-		char *install_command_out, size_t install_command_out_size,
-		char *clangd_command_out, size_t clangd_command_out_size, const char *global_path,
+		int *clangd_enabled_out, int *html_enabled_out, char *gopls_command_out,
+		size_t gopls_command_out_size, char *gopls_install_command_out,
+		size_t gopls_install_command_out_size, char *clangd_command_out,
+		size_t clangd_command_out_size, char *html_command_out,
+		size_t html_command_out_size, char *vscode_langservers_install_command_out,
+		size_t vscode_langservers_install_command_out_size, const char *global_path,
 		const char *project_path);
 enum editorLspConfigLoadStatus editorLspConfigLoadConfigured(int *gopls_enabled_out,
-		int *clangd_enabled_out, char *command_out, size_t command_out_size,
-		char *install_command_out, size_t install_command_out_size,
-		char *clangd_command_out, size_t clangd_command_out_size);
+		int *clangd_enabled_out, int *html_enabled_out, char *gopls_command_out,
+		size_t gopls_command_out_size, char *gopls_install_command_out,
+		size_t gopls_install_command_out_size, char *clangd_command_out,
+		size_t clangd_command_out_size, char *html_command_out,
+		size_t html_command_out_size, char *vscode_langservers_install_command_out,
+		size_t vscode_langservers_install_command_out_size);
 
 #endif

@@ -58,8 +58,10 @@ ASAN_OPTIONS=detect_leaks=0 make test-sanitize
   - CSS (`.css`, `.scss`)
 - Go LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `gopls`.
 - C/C++ LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `clangd`.
+- HTML LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `vscode-html-language-server --stdio`.
 - Missing-`gopls` install prompt with live output in read-only task-log tabs.
 - Missing-`clangd` prompt that can open an instruction tab with install guidance and the official installation URL.
+- Missing-`vscode-langservers-extracted` install prompt with live output in read-only task-log tabs.
 - Atomic save flow (temp file + fsync + rename + cleanup).
 - Crash recovery snapshots with restore prompt on startup.
 - Optional OSC52 clipboard sync.
@@ -78,7 +80,7 @@ Syntax fixture samples are stored in [`tests/syntax/`](tests/syntax/README.md).
 - `Alt-Shift-Left` / `Alt-Shift-Right`: resize drawer
 - `Ctrl-F`: search
 - `Ctrl-G`: go to line
-- `Ctrl-O` / `Ctrl + left click`: Go/C/C++ definition (supported source buffers)
+- `Ctrl-O` / `Ctrl + left click`: Go/C/C++/HTML definition (supported source buffers)
 - `Ctrl-B`: toggle selection
 - `Ctrl-C` / `Ctrl-X` / `Ctrl-D` / `Ctrl-V`: copy/cut/delete/paste selection
 - `Ctrl-Z` / `Ctrl-Y`: undo/redo
@@ -99,12 +101,20 @@ Sections:
 - `[keymap]`
 
 LSP notes:
-- `gopls_enabled` and `clangd_enabled` can be set independently in `[lsp]`.
-- `gopls_command` can be set globally or per-project.
-- `clangd_command` can be set globally or per-project.
+- `gopls_enabled`, `clangd_enabled`, and `html_enabled` can be set independently in `[lsp]`.
+- `gopls_command`, `clangd_command`, and `html_command` can be set globally or per-project.
 - `gopls_install_command` is **global-only** (`~/.rotide/config.toml`).
+- `vscode_langservers_install_command` is **global-only** (`~/.rotide/config.toml`).
 - If `gopls_install_command` appears in project config, RotIDE ignores that key and keeps parsing the rest of `[lsp]`.
+- If `vscode_langservers_install_command` appears in project config, RotIDE ignores that key and keeps parsing the rest of `[lsp]`.
 - Legacy `enabled = true|false` is accepted as a shorthand that toggles both servers together.
+- HTML definition lookup uses `vscode-html-language-server --stdio`.
+- If `vscode-html-language-server` is missing, RotIDE offers to run:
+  - `npm i -g vscode-langservers-extracted`
+- The `vscode-langservers-extracted` package also provides future server commands:
+  - `vscode-css-language-server`
+  - `vscode-json-language-server`
+  - `vscode-eslint-language-server`
 - If `clangd` is missing, RotIDE shows install guidance in a task-log tab instead of trying to install it automatically.
 - For most C/C++ projects, `clangd` also needs a `compile_commands.json` compilation database.
 - With CMake, generate one with:
@@ -116,6 +126,7 @@ LSP notes:
   - this is often a good fit for pure C projects
 - Default install command:
   - `go install golang.org/x/tools/gopls@latest`
+  - `npm i -g vscode-langservers-extracted`
 
 See [`.rotide.toml`](.rotide.toml) for a complete action/key example.
 

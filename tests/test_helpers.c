@@ -76,12 +76,14 @@ void reset_editor_state(void) {
 	E.syntax_language = EDITOR_SYNTAX_NONE;
 	E.syntax_state = NULL;
 	editorLspConfigInitDefaults(&E.lsp_gopls_enabled, &E.lsp_clangd_enabled,
-			E.lsp_gopls_command,
-			sizeof(E.lsp_gopls_command), E.lsp_gopls_install_command,
-			sizeof(E.lsp_gopls_install_command), E.lsp_clangd_command,
-			sizeof(E.lsp_clangd_command));
+			&E.lsp_html_enabled, E.lsp_gopls_command, sizeof(E.lsp_gopls_command),
+			E.lsp_gopls_install_command, sizeof(E.lsp_gopls_install_command),
+			E.lsp_clangd_command, sizeof(E.lsp_clangd_command), E.lsp_html_command,
+			sizeof(E.lsp_html_command), E.lsp_vscode_langservers_install_command,
+			sizeof(E.lsp_vscode_langservers_install_command));
 	E.lsp_gopls_enabled = 0;
 	E.lsp_clangd_enabled = 0;
+	E.lsp_html_enabled = 0;
 	E.lsp_doc_open = 0;
 	E.lsp_doc_version = 0;
 	E.task_pid = 0;
