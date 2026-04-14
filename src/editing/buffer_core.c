@@ -465,15 +465,20 @@ static int editorLspActiveBufferTracked(void) {
 	return editorLspFileEnabled(E.filename, E.syntax_language);
 }
 
+static int editorLspActiveBufferTrackedForEslint(void) {
+	return editorLspEslintEnabledForFile(E.filename, E.syntax_language);
+}
+
 static void editorLspNotifyDidChangeActive(const struct editorSyntaxEdit *edit,
 		const char *inserted_text, size_t inserted_len) {
-	if (!editorLspActiveBufferTracked()) {
+	if (!editorLspActiveBufferTracked() && !editorLspActiveBufferTrackedForEslint()) {
 		return;
 	}
 
 	char *full_text = NULL;
 	size_t full_text_len = 0;
-	if (!E.lsp_doc_open) {
+	if ((editorLspActiveBufferTracked() && !E.lsp_doc_open) ||
+			(editorLspActiveBufferTrackedForEslint() && !E.lsp_eslint_doc_open)) {
 		full_text = editorDupActiveTextSource(&full_text_len);
 		if (full_text == NULL && full_text_len > 0) {
 			free(full_text);
@@ -481,32 +486,53 @@ static void editorLspNotifyDidChangeActive(const struct editorSyntaxEdit *edit,
 		}
 	}
 
-	(void)editorLspNotifyDidChange(E.filename, E.syntax_language,
-			&E.lsp_doc_open, &E.lsp_doc_version, edit, inserted_text, inserted_len,
-			full_text != NULL ? full_text : "", full_text_len);
+	if (editorLspActiveBufferTracked()) {
+		(void)editorLspNotifyDidChange(E.filename, E.syntax_language,
+				&E.lsp_doc_open, &E.lsp_doc_version, edit, inserted_text, inserted_len,
+				full_text != NULL ? full_text : "", full_text_len);
+	}
+	if (editorLspActiveBufferTrackedForEslint()) {
+		(void)editorLspNotifyEslintDidChange(E.filename, E.syntax_language,
+				&E.lsp_eslint_doc_open, &E.lsp_eslint_doc_version, edit, inserted_text,
+				inserted_len, full_text != NULL ? full_text : "", full_text_len);
+	}
 	free(full_text);
 }
 
 void editorLspNotifyDidSaveActive(void) {
-	if (!editorLspActiveBufferTracked()) {
+	if (!editorLspActiveBufferTracked() && !editorLspActiveBufferTrackedForEslint()) {
 		return;
 	}
 
 	char *full_text = NULL;
 	size_t full_text_len = 0;
-	if (!E.lsp_doc_open) {
+	if ((editorLspActiveBufferTracked() && !E.lsp_doc_open) ||
+			(editorLspActiveBufferTrackedForEslint() && !E.lsp_eslint_doc_open)) {
 		full_text = editorDupActiveTextSource(&full_text_len);
 		if (full_text == NULL && full_text_len > 0) {
 			free(full_text);
 			return;
 		}
-		(void)editorLspEnsureDocumentOpen(E.filename, E.syntax_language,
-				&E.lsp_doc_open, &E.lsp_doc_version,
-				full_text != NULL ? full_text : "", full_text_len);
+		if (editorLspActiveBufferTracked()) {
+			(void)editorLspEnsureDocumentOpen(E.filename, E.syntax_language,
+					&E.lsp_doc_open, &E.lsp_doc_version,
+					full_text != NULL ? full_text : "", full_text_len);
+		}
+		if (editorLspActiveBufferTrackedForEslint()) {
+			(void)editorLspEnsureEslintDocumentOpen(E.filename, E.syntax_language,
+					&E.lsp_eslint_doc_open, &E.lsp_eslint_doc_version,
+					full_text != NULL ? full_text : "", full_text_len);
+		}
 	}
 	free(full_text);
-	(void)editorLspNotifyDidSave(E.filename, E.syntax_language,
-			&E.lsp_doc_open, &E.lsp_doc_version);
+	if (editorLspActiveBufferTracked()) {
+		(void)editorLspNotifyDidSave(E.filename, E.syntax_language,
+				&E.lsp_doc_open, &E.lsp_doc_version);
+	}
+	if (editorLspActiveBufferTrackedForEslint()) {
+		(void)editorLspNotifyEslintDidSave(E.filename, E.syntax_language,
+				&E.lsp_eslint_doc_open, &E.lsp_eslint_doc_version);
+	}
 }
 
 void editorLspNotifyDidCloseTabState(struct editorTabState *tab) {
@@ -515,6 +541,8 @@ void editorLspNotifyDidCloseTabState(struct editorTabState *tab) {
 	}
 	editorLspNotifyDidClose(tab->filename, tab->syntax_language,
 			&tab->lsp_doc_open, &tab->lsp_doc_version);
+	editorLspNotifyEslintDidClose(tab->filename, tab->syntax_language,
+			&tab->lsp_eslint_doc_open, &tab->lsp_eslint_doc_version);
 }
 
 char *editorRowsToStr(size_t *buflen) {

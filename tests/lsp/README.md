@@ -22,5 +22,5 @@ Notes:
 - HTML fixtures focus on `id` / `href="#id"` style references because that is the most practical current manual definition target for the HTML server path.
 - CSS fixtures use custom property / variable references for `Ctrl-O` and document-sync coverage, including a separate SCSS sample for language-id routing.
 - JSON fixtures use repeated property names so mock definition tests can exercise filename-based routing without needing Tree-sitter JSON.
-- JavaScript fixtures are currently aimed at ESLint diagnostics and fix-action coverage rather than go-to-definition.
+- JavaScript fixtures cover `typescript-language-server` single-file and cross-file definition layout plus ESLint diagnostics/fix-action coverage on the same language family.
 - HTML real-server behavior may vary by language-server version, so HTML fixtures are best-effort manual smoke assets in addition to RotIDE’s mock-based LSP tests.

@@ -38,16 +38,21 @@ void initEditor(void) {
 	E.syntax_state = NULL;
 	editorLspConfigInitDefaults(&E.lsp_gopls_enabled, &E.lsp_clangd_enabled,
 			&E.lsp_html_enabled, &E.lsp_css_enabled, &E.lsp_json_enabled,
+			&E.lsp_javascript_enabled,
 			&E.lsp_eslint_enabled, E.lsp_gopls_command, sizeof(E.lsp_gopls_command),
 			E.lsp_gopls_install_command, sizeof(E.lsp_gopls_install_command),
 			E.lsp_clangd_command, sizeof(E.lsp_clangd_command), E.lsp_html_command,
 			sizeof(E.lsp_html_command), E.lsp_css_command, sizeof(E.lsp_css_command),
-			E.lsp_json_command, sizeof(E.lsp_json_command),
+			E.lsp_json_command, sizeof(E.lsp_json_command), E.lsp_javascript_command,
+			sizeof(E.lsp_javascript_command), E.lsp_javascript_install_command,
+			sizeof(E.lsp_javascript_install_command),
 			E.lsp_eslint_command, sizeof(E.lsp_eslint_command),
 			E.lsp_vscode_langservers_install_command,
 			sizeof(E.lsp_vscode_langservers_install_command));
 	E.lsp_doc_open = 0;
 	E.lsp_doc_version = 0;
+	E.lsp_eslint_doc_open = 0;
+	E.lsp_eslint_doc_version = 0;
 	E.lsp_diagnostics = NULL;
 	E.lsp_diagnostic_count = 0;
 	E.lsp_diagnostic_error_count = 0;
@@ -132,13 +137,16 @@ int main(int argc, char *argv[]) {
 	enum editorLspConfigLoadStatus lsp_config_status =
 			editorLspConfigLoadConfigured(&E.lsp_gopls_enabled, &E.lsp_clangd_enabled,
 					&E.lsp_html_enabled, &E.lsp_css_enabled, &E.lsp_json_enabled,
+					&E.lsp_javascript_enabled,
 					&E.lsp_eslint_enabled, E.lsp_gopls_command,
 					sizeof(E.lsp_gopls_command), E.lsp_gopls_install_command,
 					sizeof(E.lsp_gopls_install_command), E.lsp_clangd_command,
 					sizeof(E.lsp_clangd_command), E.lsp_html_command,
 					sizeof(E.lsp_html_command), E.lsp_css_command,
-					sizeof(E.lsp_css_command), E.lsp_json_command,
-					sizeof(E.lsp_json_command), E.lsp_eslint_command,
+					sizeof(E.lsp_css_command), E.lsp_json_command, sizeof(E.lsp_json_command),
+					E.lsp_javascript_command, sizeof(E.lsp_javascript_command),
+					E.lsp_javascript_install_command,
+					sizeof(E.lsp_javascript_install_command), E.lsp_eslint_command,
 					sizeof(E.lsp_eslint_command),
 					E.lsp_vscode_langservers_install_command,
 					sizeof(E.lsp_vscode_langservers_install_command));

@@ -323,6 +323,7 @@ enum editorGoToDefinitionInstallFamily {
 	EDITOR_GOTO_DEF_INSTALL_NONE = 0,
 	EDITOR_GOTO_DEF_INSTALL_GOPLS,
 	EDITOR_GOTO_DEF_INSTALL_CLANGD,
+	EDITOR_GOTO_DEF_INSTALL_JAVASCRIPT,
 	EDITOR_GOTO_DEF_INSTALL_VSCODE_LANGSERVERS
 };
 
@@ -331,7 +332,8 @@ static int editorGoToDefinitionSupportedLanguage(enum editorSyntaxLanguage langu
 		return 1;
 	}
 	return language == EDITOR_SYNTAX_GO || language == EDITOR_SYNTAX_C ||
-			language == EDITOR_SYNTAX_HTML || language == EDITOR_SYNTAX_CSS;
+			language == EDITOR_SYNTAX_HTML || language == EDITOR_SYNTAX_CSS ||
+			language == EDITOR_SYNTAX_JAVASCRIPT;
 }
 
 static int editorGoToDefinitionEnabledForLanguage(void) {
@@ -378,10 +380,28 @@ static enum editorGoToDefinitionInstallFamily editorGoToDefinitionInstallFamilyF
 	if (server_name != NULL && strcmp(server_name, "clangd") == 0) {
 		return EDITOR_GOTO_DEF_INSTALL_CLANGD;
 	}
+	if (server_name != NULL && strcmp(server_name, "typescript-language-server") == 0) {
+		return EDITOR_GOTO_DEF_INSTALL_JAVASCRIPT;
+	}
 	if (editorLspUsesSharedVscodeInstallPrompt(E.filename, E.syntax_language)) {
 		return EDITOR_GOTO_DEF_INSTALL_VSCODE_LANGSERVERS;
 	}
 	return EDITOR_GOTO_DEF_INSTALL_NONE;
+}
+
+static void editorPromptInstallJavascriptLanguageServer(void) {
+	if (!editorPromptYesNo("typescript-language-server not found. Install now? [y/N] %s")) {
+		editorSetStatusMsg("typescript-language-server not installed");
+		return;
+	}
+	if (!editorTaskStart("Task: Install typescript-language-server",
+				E.lsp_javascript_install_command,
+				"typescript-language-server installed. Retry Ctrl-O",
+				"typescript-language-server install failed; see task log")) {
+		if (E.statusmsg[0] == '\0') {
+			editorSetStatusMsg("Unable to start typescript-language-server install");
+		}
+	}
 }
 
 static void editorPromptInstallSharedVscodeLanguageServers(void) {
@@ -450,6 +470,9 @@ static void editorMaybePromptInstallLanguageServer(void) {
 			}
 			return;
 		}
+		case EDITOR_GOTO_DEF_INSTALL_JAVASCRIPT:
+			editorPromptInstallJavascriptLanguageServer();
+			return;
 		case EDITOR_GOTO_DEF_INSTALL_VSCODE_LANGSERVERS:
 			editorPromptInstallSharedVscodeLanguageServers();
 			return;
@@ -925,7 +948,7 @@ static int editorPromptDefinitionChoice(int count, int *choice_out) {
 static void editorGoToDefinition(void) {
 	if (!editorGoToDefinitionSupportedLanguage(E.syntax_language)) {
 		editorSetStatusMsg(
-				"Go to definition is available for Go, C, C++, HTML, CSS/SCSS, and JSON files only");
+				"Go to definition is available for Go, C, C++, HTML, CSS/SCSS, JSON, and JavaScript files only");
 		return;
 	}
 	if (E.filename == NULL || E.filename[0] == '\0') {
@@ -1035,8 +1058,7 @@ static void editorApplyEslintFixes(void) {
 		return;
 	}
 	if (editorLspServerNameForFile(E.filename, E.syntax_language) == NULL ||
-			strcmp(editorLspServerNameForFile(E.filename, E.syntax_language),
-					"vscode-eslint-language-server") != 0) {
+			!editorLspFileUsesEslint(E.filename, E.syntax_language)) {
 		editorSetStatusMsg("ESLint fixes are available for JavaScript files only");
 		return;
 	}

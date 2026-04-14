@@ -5320,6 +5320,7 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 	int html_enabled = 0;
 	int css_enabled = 0;
 	int json_enabled = 0;
+	int javascript_enabled = 0;
 	int eslint_enabled = 0;
 	char gopls_command[PATH_MAX];
 	char gopls_install_command[PATH_MAX];
@@ -5327,16 +5328,20 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 	char html_command[PATH_MAX];
 	char css_command[PATH_MAX];
 	char json_command[PATH_MAX];
+	char javascript_command[PATH_MAX];
+	char javascript_install_command[PATH_MAX];
 	char eslint_command[PATH_MAX];
 	char vscode_langservers_install_command[PATH_MAX];
 
 	enum editorLspConfigLoadStatus defaults_status =
 			editorLspConfigLoadFromPaths(&gopls_enabled, &clangd_enabled, &html_enabled,
-					&css_enabled, &json_enabled, &eslint_enabled,
+					&css_enabled, &json_enabled, &javascript_enabled, &eslint_enabled,
 					gopls_command, sizeof(gopls_command), gopls_install_command,
 					sizeof(gopls_install_command), clangd_command, sizeof(clangd_command),
 					html_command, sizeof(html_command), css_command, sizeof(css_command),
-					json_command, sizeof(json_command), eslint_command, sizeof(eslint_command),
+					json_command, sizeof(json_command), javascript_command,
+					sizeof(javascript_command), javascript_install_command,
+					sizeof(javascript_install_command), eslint_command, sizeof(eslint_command),
 					vscode_langservers_install_command,
 					sizeof(vscode_langservers_install_command), NULL, NULL);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_OK, defaults_status);
@@ -5345,6 +5350,7 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 	ASSERT_EQ_INT(1, html_enabled);
 	ASSERT_EQ_INT(1, css_enabled);
 	ASSERT_EQ_INT(1, json_enabled);
+	ASSERT_EQ_INT(1, javascript_enabled);
 	ASSERT_EQ_INT(1, eslint_enabled);
 	ASSERT_EQ_STR("gopls", gopls_command);
 	ASSERT_EQ_STR("go install golang.org/x/tools/gopls@latest", gopls_install_command);
@@ -5352,6 +5358,9 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 	ASSERT_EQ_STR("~/.local/bin/vscode-html-language-server --stdio", html_command);
 	ASSERT_EQ_STR("~/.local/bin/vscode-css-language-server --stdio", css_command);
 	ASSERT_EQ_STR("~/.local/bin/vscode-json-language-server --stdio", json_command);
+	ASSERT_EQ_STR("~/.local/bin/typescript-language-server --stdio", javascript_command);
+	ASSERT_EQ_STR("npm install --global --prefix ~/.local typescript typescript-language-server",
+			javascript_install_command);
 	ASSERT_EQ_STR("~/.local/bin/vscode-eslint-language-server --stdio", eslint_command);
 	ASSERT_EQ_STR("npm install --global --prefix ~/.local vscode-langservers-extracted",
 			vscode_langservers_install_command);
@@ -5371,12 +5380,15 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 				"html_enabled = false\n"
 				"css_enabled = false\n"
 				"json_enabled = false\n"
+				"javascript_enabled = false\n"
 				"eslint_enabled = false\n"
 				"gopls_command = \"gopls-global\"\n"
 				"clangd_command = \"clangd-global\"\n"
 				"html_command = \"html-global --stdio\"\n"
 				"css_command = \"css-global --stdio\"\n"
 				"json_command = \"json-global --stdio\"\n"
+				"javascript_command = \"javascript-global --stdio\"\n"
+				"javascript_install_command = \"javascript-global-install\"\n"
 				"eslint_command = \"eslint-global --stdio\"\n"
 				"gopls_install_command = \"global-install\"\n"
 				"vscode_langservers_install_command = \"global-vscode-install\"\n"));
@@ -5387,23 +5399,28 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 				"html_enabled = true\n"
 				"css_enabled = true\n"
 				"json_enabled = false\n"
+				"javascript_enabled = true\n"
 				"eslint_enabled = true\n"
 				"gopls_command = \"gopls-project\"\n"
 				"clangd_command = \"clangd-project\"\n"
 				"html_command = \"html-project --stdio\"\n"
 				"css_command = \"css-project --stdio\"\n"
 				"json_command = \"json-project --stdio\"\n"
+				"javascript_command = \"javascript-project --stdio\"\n"
+				"javascript_install_command = \"javascript-project-install\"\n"
 				"eslint_command = \"eslint-project --stdio\"\n"
 				"gopls_install_command = \"project-install\"\n"
 				"vscode_langservers_install_command = \"project-vscode-install\"\n"));
 
 	enum editorLspConfigLoadStatus status =
 			editorLspConfigLoadFromPaths(&gopls_enabled, &clangd_enabled, &html_enabled,
-					&css_enabled, &json_enabled, &eslint_enabled,
+					&css_enabled, &json_enabled, &javascript_enabled, &eslint_enabled,
 					gopls_command, sizeof(gopls_command), gopls_install_command,
 					sizeof(gopls_install_command), clangd_command, sizeof(clangd_command),
 					html_command, sizeof(html_command), css_command, sizeof(css_command),
-					json_command, sizeof(json_command), eslint_command, sizeof(eslint_command),
+					json_command, sizeof(json_command), javascript_command,
+					sizeof(javascript_command), javascript_install_command,
+					sizeof(javascript_install_command), eslint_command, sizeof(eslint_command),
 					vscode_langservers_install_command,
 					sizeof(vscode_langservers_install_command), global_path,
 					project_path);
@@ -5413,6 +5430,7 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 	ASSERT_EQ_INT(1, html_enabled);
 	ASSERT_EQ_INT(1, css_enabled);
 	ASSERT_EQ_INT(0, json_enabled);
+	ASSERT_EQ_INT(1, javascript_enabled);
 	ASSERT_EQ_INT(1, eslint_enabled);
 	ASSERT_EQ_STR("gopls-project", gopls_command);
 	ASSERT_EQ_STR("global-install", gopls_install_command);
@@ -5420,6 +5438,8 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 	ASSERT_EQ_STR("html-project --stdio", html_command);
 	ASSERT_EQ_STR("css-project --stdio", css_command);
 	ASSERT_EQ_STR("json-project --stdio", json_command);
+	ASSERT_EQ_STR("javascript-project --stdio", javascript_command);
+	ASSERT_EQ_STR("javascript-global-install", javascript_install_command);
 	ASSERT_EQ_STR("eslint-project --stdio", eslint_command);
 	ASSERT_EQ_STR("global-vscode-install", vscode_langservers_install_command);
 
@@ -5435,6 +5455,7 @@ static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
 	int html_enabled = 0;
 	int css_enabled = 0;
 	int json_enabled = 0;
+	int javascript_enabled = 0;
 	int eslint_enabled = 0;
 	char gopls_command[PATH_MAX];
 	char gopls_install_command[PATH_MAX];
@@ -5442,6 +5463,8 @@ static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
 	char html_command[PATH_MAX];
 	char css_command[PATH_MAX];
 	char json_command[PATH_MAX];
+	char javascript_command[PATH_MAX];
+	char javascript_install_command[PATH_MAX];
 	char eslint_command[PATH_MAX];
 	char vscode_langservers_install_command[PATH_MAX];
 
@@ -5459,11 +5482,13 @@ static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
 				"enabled = \"yes\"\n"));
 	enum editorLspConfigLoadStatus status =
 			editorLspConfigLoadFromPaths(&gopls_enabled, &clangd_enabled, &html_enabled,
-					&css_enabled, &json_enabled, &eslint_enabled,
+					&css_enabled, &json_enabled, &javascript_enabled, &eslint_enabled,
 					gopls_command, sizeof(gopls_command), gopls_install_command,
 					sizeof(gopls_install_command), clangd_command, sizeof(clangd_command),
 					html_command, sizeof(html_command), css_command, sizeof(css_command),
-					json_command, sizeof(json_command), eslint_command, sizeof(eslint_command),
+					json_command, sizeof(json_command), javascript_command,
+					sizeof(javascript_command), javascript_install_command,
+					sizeof(javascript_install_command), eslint_command, sizeof(eslint_command),
 					vscode_langservers_install_command,
 					sizeof(vscode_langservers_install_command), global_path, NULL);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_INVALID_GLOBAL, status);
@@ -5472,6 +5497,7 @@ static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
 	ASSERT_EQ_INT(1, html_enabled);
 	ASSERT_EQ_INT(1, css_enabled);
 	ASSERT_EQ_INT(1, json_enabled);
+	ASSERT_EQ_INT(1, javascript_enabled);
 	ASSERT_EQ_INT(1, eslint_enabled);
 	ASSERT_EQ_STR("gopls", gopls_command);
 	ASSERT_EQ_STR("go install golang.org/x/tools/gopls@latest", gopls_install_command);
@@ -5479,6 +5505,9 @@ static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
 	ASSERT_EQ_STR("~/.local/bin/vscode-html-language-server --stdio", html_command);
 	ASSERT_EQ_STR("~/.local/bin/vscode-css-language-server --stdio", css_command);
 	ASSERT_EQ_STR("~/.local/bin/vscode-json-language-server --stdio", json_command);
+	ASSERT_EQ_STR("~/.local/bin/typescript-language-server --stdio", javascript_command);
+	ASSERT_EQ_STR("npm install --global --prefix ~/.local typescript typescript-language-server",
+			javascript_install_command);
 	ASSERT_EQ_STR("~/.local/bin/vscode-eslint-language-server --stdio", eslint_command);
 	ASSERT_EQ_STR("npm install --global --prefix ~/.local vscode-langservers-extracted",
 			vscode_langservers_install_command);
@@ -5492,11 +5521,13 @@ static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
 				"[lsp]\n"
 				"html_command = \"\"\n"));
 	status = editorLspConfigLoadFromPaths(&gopls_enabled, &clangd_enabled, &html_enabled,
-			&css_enabled, &json_enabled, &eslint_enabled,
+			&css_enabled, &json_enabled, &javascript_enabled, &eslint_enabled,
 			gopls_command, sizeof(gopls_command), gopls_install_command,
 			sizeof(gopls_install_command), clangd_command, sizeof(clangd_command),
 			html_command, sizeof(html_command), css_command, sizeof(css_command),
-			json_command, sizeof(json_command), eslint_command, sizeof(eslint_command),
+			json_command, sizeof(json_command), javascript_command,
+			sizeof(javascript_command), javascript_install_command,
+			sizeof(javascript_install_command), eslint_command, sizeof(eslint_command),
 			vscode_langservers_install_command,
 			sizeof(vscode_langservers_install_command), global_path, project_path);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_INVALID_PROJECT, status);
@@ -5505,6 +5536,7 @@ static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
 	ASSERT_EQ_INT(1, html_enabled);
 	ASSERT_EQ_INT(1, css_enabled);
 	ASSERT_EQ_INT(1, json_enabled);
+	ASSERT_EQ_INT(1, javascript_enabled);
 	ASSERT_EQ_INT(1, eslint_enabled);
 	ASSERT_EQ_STR("gopls", gopls_command);
 	ASSERT_EQ_STR("go install golang.org/x/tools/gopls@latest", gopls_install_command);
@@ -5512,6 +5544,9 @@ static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
 	ASSERT_EQ_STR("~/.local/bin/vscode-html-language-server --stdio", html_command);
 	ASSERT_EQ_STR("~/.local/bin/vscode-css-language-server --stdio", css_command);
 	ASSERT_EQ_STR("~/.local/bin/vscode-json-language-server --stdio", json_command);
+	ASSERT_EQ_STR("~/.local/bin/typescript-language-server --stdio", javascript_command);
+	ASSERT_EQ_STR("npm install --global --prefix ~/.local typescript typescript-language-server",
+			javascript_install_command);
 	ASSERT_EQ_STR("~/.local/bin/vscode-eslint-language-server --stdio", eslint_command);
 	ASSERT_EQ_STR("npm install --global --prefix ~/.local vscode-langservers-extracted",
 			vscode_langservers_install_command);
@@ -6045,6 +6080,47 @@ static int test_editor_lsp_document_sync_for_css_edit_save_close(void) {
 	return 0;
 }
 
+static int test_editor_lsp_document_sync_for_javascript_edit_save_close(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 0;
+	E.lsp_html_enabled = 0;
+	E.lsp_javascript_enabled = 1;
+	E.lsp_eslint_enabled = 0;
+	ASSERT_TRUE(editorTabsInit());
+
+	char js_path[64];
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(js_path, sizeof(js_path),
+			"rotide-test-javascript-lsp-fixture-", ".js",
+			"tests/lsp/supported/javascript/single_file_definition.js"));
+	editorOpen(js_path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, editorSyntaxLanguageActive());
+
+	E.cy = 0;
+	E.cx = 0;
+	editorInsertChar(' ');
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.did_open_count);
+	ASSERT_EQ_INT(1, stats.did_change_count);
+
+	char language_id[32];
+	editorLspTestGetLastDidOpenLanguageId(language_id, sizeof(language_id));
+	ASSERT_EQ_STR("javascript", language_id);
+
+	editorSave();
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.did_save_count);
+
+	ASSERT_TRUE(editorTabCloseActive());
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.did_close_count);
+
+	ASSERT_TRUE(unlink(js_path) == 0);
+	return 0;
+}
+
 static int test_editor_lsp_language_id_routing_for_css_scss_and_json(void) {
 	editorLspTestSetMockEnabled(1);
 	E.lsp_gopls_enabled = 0;
@@ -6105,6 +6181,82 @@ static int test_editor_lsp_language_id_routing_for_css_scss_and_json(void) {
 	ASSERT_TRUE(unlink(css_path) == 0);
 	ASSERT_TRUE(unlink(scss_path) == 0);
 	ASSERT_TRUE(unlink(json_path) == 0);
+	return 0;
+}
+
+static int test_editor_lsp_language_id_routing_for_javascript_extensions(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 0;
+	E.lsp_html_enabled = 0;
+	E.lsp_javascript_enabled = 1;
+
+	char js_path[64];
+	char mjs_path[64];
+	char cjs_path[64];
+	char jsx_path[64];
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(js_path, sizeof(js_path),
+			"rotide-test-javascript-route-", ".js",
+			"tests/lsp/supported/javascript/single_file_definition.js"));
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(mjs_path, sizeof(mjs_path),
+			"rotide-test-javascript-route-", ".mjs",
+			"tests/lsp/supported/javascript/single_file_definition.js"));
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(cjs_path, sizeof(cjs_path),
+			"rotide-test-javascript-route-", ".cjs",
+			"tests/lsp/supported/javascript/single_file_definition.js"));
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(jsx_path, sizeof(jsx_path),
+			"rotide-test-javascript-route-", ".jsx",
+			"tests/lsp/supported/javascript/single_file_definition.jsx"));
+
+	struct editorLspLocation target = {
+		.path = js_path,
+		.line = 0,
+		.character = 6
+	};
+	char language_id[32];
+	char goto_def[] = {CTRL_KEY('o')};
+
+	editorOpen(js_path);
+	E.cy = 2;
+	E.cx = 2;
+	editorLspTestSetMockDefinitionResponse(1, &target, 1);
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	editorLspTestGetLastDidOpenLanguageId(language_id, sizeof(language_id));
+	ASSERT_EQ_STR("javascript", language_id);
+
+	target.path = mjs_path;
+	editorOpen(mjs_path);
+	E.cy = 2;
+	E.cx = 2;
+	editorLspTestSetMockDefinitionResponse(1, &target, 1);
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	editorLspTestGetLastDidOpenLanguageId(language_id, sizeof(language_id));
+	ASSERT_EQ_STR("javascript", language_id);
+
+	target.path = cjs_path;
+	editorOpen(cjs_path);
+	E.cy = 2;
+	E.cx = 2;
+	editorLspTestSetMockDefinitionResponse(1, &target, 1);
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	editorLspTestGetLastDidOpenLanguageId(language_id, sizeof(language_id));
+	ASSERT_EQ_STR("javascript", language_id);
+
+	target.path = jsx_path;
+	target.line = 0;
+	target.character = 9;
+	editorOpen(jsx_path);
+	E.cy = 5;
+	E.cx = 11;
+	editorLspTestSetMockDefinitionResponse(1, &target, 1);
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	editorLspTestGetLastDidOpenLanguageId(language_id, sizeof(language_id));
+	ASSERT_EQ_STR("javascriptreact", language_id);
+
+	ASSERT_TRUE(unlink(js_path) == 0);
+	ASSERT_TRUE(unlink(mjs_path) == 0);
+	ASSERT_TRUE(unlink(cjs_path) == 0);
+	ASSERT_TRUE(unlink(jsx_path) == 0);
 	return 0;
 }
 
@@ -6171,6 +6323,72 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_j
 	ASSERT_EQ_INT(3, E.cx);
 
 	ASSERT_TRUE(unlink(json_path) == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_javascript_buffer(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 0;
+	E.lsp_html_enabled = 0;
+	E.lsp_javascript_enabled = 1;
+
+	char js_path[64];
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(js_path, sizeof(js_path),
+			"rotide-test-javascript-lsp-fixture-", ".js",
+			"tests/lsp/supported/javascript/single_file_definition.js"));
+	editorOpen(js_path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, editorSyntaxLanguageActive());
+
+	E.cy = 2;
+	E.cx = 2;
+
+	struct editorLspLocation target = {
+		.path = js_path,
+		.line = 0,
+		.character = 6
+	};
+	editorLspTestSetMockDefinitionResponse(1, &target, 1);
+
+	char goto_def[] = {CTRL_KEY('o')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(6, E.cx);
+
+	ASSERT_TRUE(unlink(js_path) == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_jsx_buffer(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 0;
+	E.lsp_html_enabled = 0;
+	E.lsp_javascript_enabled = 1;
+
+	char jsx_path[64];
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(jsx_path, sizeof(jsx_path),
+			"rotide-test-javascript-lsp-fixture-", ".jsx",
+			"tests/lsp/supported/javascript/single_file_definition.jsx"));
+	editorOpen(jsx_path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, editorSyntaxLanguageActive());
+
+	E.cy = 5;
+	E.cx = 11;
+
+	struct editorLspLocation target = {
+		.path = jsx_path,
+		.line = 0,
+		.character = 9
+	};
+	editorLspTestSetMockDefinitionResponse(1, &target, 1);
+
+	char goto_def[] = {CTRL_KEY('o')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(9, E.cx);
+
+	ASSERT_TRUE(unlink(jsx_path) == 0);
 	return 0;
 }
 
@@ -6260,6 +6478,89 @@ static int test_editor_lsp_eslint_diagnostics_persist_across_tab_switches(void) 
 
 	ASSERT_TRUE(unlink(js_path) == 0);
 	ASSERT_TRUE(unlink(txt_path) == 0);
+	return 0;
+}
+
+static int test_editor_lsp_javascript_definition_coexists_with_eslint_sidecar(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 0;
+	E.lsp_html_enabled = 0;
+	E.lsp_javascript_enabled = 1;
+	E.lsp_eslint_enabled = 1;
+	ASSERT_TRUE(editorTabsInit());
+
+	E.keymap.bindings[E.keymap.len].key = CTRL_KEY('t');
+	E.keymap.bindings[E.keymap.len].action = EDITOR_ACTION_ESLINT_FIX;
+	E.keymap.len++;
+
+	char js_path[64];
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(js_path, sizeof(js_path),
+			"rotide-test-js-lsp-fixture-", ".js",
+			"tests/lsp/supported/javascript/eslint_buffer.js"));
+	editorOpen(js_path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, editorSyntaxLanguageActive());
+
+	size_t full_text_len = 0;
+	char *full_text = editorDupActiveTextSource(&full_text_len);
+	ASSERT_TRUE(full_text != NULL || full_text_len == 0);
+	ASSERT_TRUE(editorLspEnsureDocumentOpen(E.filename, E.syntax_language, &E.lsp_doc_open,
+				&E.lsp_doc_version, full_text != NULL ? full_text : "", full_text_len));
+	ASSERT_TRUE(editorLspEnsureEslintDocumentOpen(E.filename, E.syntax_language,
+				&E.lsp_eslint_doc_open, &E.lsp_eslint_doc_version,
+				full_text != NULL ? full_text : "", full_text_len));
+	free(full_text);
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(2, stats.start_count);
+	ASSERT_EQ_INT(2, stats.did_open_count);
+	ASSERT_EQ_INT(1, E.lsp_doc_open);
+	ASSERT_EQ_INT(1, E.lsp_eslint_doc_open);
+
+	struct editorLspDiagnostic diagnostics[1] = {
+		{.start_line = 1, .start_character = 12, .end_line = 1, .end_character = 15,
+				.severity = 2, .message = "Missing semicolon"},
+	};
+	editorLspTestSetMockDiagnostics(js_path, diagnostics, 1);
+	editorLspPumpNotifications();
+	ASSERT_EQ_INT(1, E.lsp_diagnostic_count);
+	ASSERT_EQ_INT(1, E.lsp_diagnostic_warning_count);
+
+	E.cy = 1;
+	E.cx = 13;
+	struct editorLspLocation target = {
+		.path = js_path,
+		.line = 0,
+		.character = 6
+	};
+	editorLspTestSetMockDefinitionResponse(1, &target, 1);
+
+	char goto_def[] = {CTRL_KEY('o')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(6, E.cx);
+
+	struct editorLspDiagnostic edits[1] = {
+		{.start_line = 1, .start_character = 16, .end_line = 1, .end_character = 16,
+				.message = ";"},
+	};
+	editorLspTestSetMockCodeActionResult(1, edits, 1);
+	char fix_input[] = {CTRL_KEY('t')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(fix_input, sizeof(fix_input)) == 0);
+	ASSERT_TRUE(strstr(E.statusmsg, "ESLint fixes applied") != NULL);
+
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.definition_count);
+	ASSERT_EQ_INT(1, stats.code_action_count);
+
+	size_t textlen = 0;
+	char *text = editorRowsToStr(&textlen);
+	ASSERT_TRUE(text != NULL);
+	ASSERT_TRUE(strstr(text, "console.log(foo);") != NULL);
+	free(text);
+
+	ASSERT_TRUE(unlink(js_path) == 0);
 	return 0;
 }
 
@@ -6577,6 +6878,58 @@ static int test_editor_process_keypress_goto_definition_cross_file_reuses_tab(vo
 
 	ASSERT_TRUE(unlink(src_path) == 0);
 	ASSERT_TRUE(unlink(dst_path) == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_goto_definition_cross_file_javascript_fixture_reuses_tab(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 0;
+	E.lsp_html_enabled = 0;
+	E.lsp_javascript_enabled = 1;
+	ASSERT_TRUE(editorTabsInit());
+
+	char dir_template[] = "/tmp/rotide-test-javascript-lsp-cross-file-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char main_path[512];
+	char helper_path[512];
+	ASSERT_TRUE(path_join(main_path, sizeof(main_path), dir_path, "main.js"));
+	ASSERT_TRUE(path_join(helper_path, sizeof(helper_path), dir_path, "helper.js"));
+	ASSERT_TRUE(copy_fixture_to_path(main_path, "tests/lsp/supported/javascript/cross_file/main.js"));
+	ASSERT_TRUE(copy_fixture_to_path(helper_path,
+			"tests/lsp/supported/javascript/cross_file/helper.js"));
+
+	editorOpen(main_path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, editorSyntaxLanguageActive());
+	E.cy = 2;
+	E.cx = 2;
+
+	struct editorLspLocation target = {
+		.path = helper_path,
+		.line = 0,
+		.character = 16
+	};
+	editorLspTestSetMockDefinitionResponse(1, &target, 1);
+
+	char goto_def[] = {CTRL_KEY('o')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_EQ_STR(helper_path, E.filename);
+
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+	ASSERT_EQ_STR(main_path, E.filename);
+	editorLspTestSetMockDefinitionResponse(1, &target, 1);
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_EQ_STR(helper_path, E.filename);
+
+	ASSERT_TRUE(unlink(main_path) == 0);
+	ASSERT_TRUE(unlink(helper_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
 	return 0;
 }
 
@@ -7153,6 +7506,48 @@ static int test_editor_process_keypress_goto_definition_missing_vscode_langserve
 	free(text);
 
 	ASSERT_TRUE(unlink(html_path) == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_goto_definition_missing_javascript_server_starts_install_task(void) {
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 0;
+	E.lsp_html_enabled = 0;
+	E.lsp_javascript_enabled = 1;
+	ASSERT_TRUE(editorTabsInit());
+
+	strncpy(E.lsp_javascript_command,
+			"exec >/dev/null; sleep 0.05; rotide_missing_typescript_language_server_install_command",
+			sizeof(E.lsp_javascript_command) - 1);
+	E.lsp_javascript_command[sizeof(E.lsp_javascript_command) - 1] = '\0';
+	strncpy(E.lsp_javascript_install_command, "printf 'install ok\\n'",
+			sizeof(E.lsp_javascript_install_command) - 1);
+	E.lsp_javascript_install_command[sizeof(E.lsp_javascript_install_command) - 1] = '\0';
+
+	char js_path[64];
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(js_path, sizeof(js_path),
+			"rotide-test-javascript-lsp-fixture-", ".js",
+			"tests/lsp/supported/javascript/single_file_definition.js"));
+	editorOpen(js_path);
+	E.cy = 2;
+	E.cx = 2;
+
+	char input[] = {CTRL_KEY('o'), 'y', '\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
+	ASSERT_TRUE(editorTaskIsRunning());
+	ASSERT_TRUE(editorActiveTabIsTaskLog());
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_STR("Task: Install typescript-language-server", editorActiveBufferDisplayName());
+	ASSERT_TRUE(wait_for_task_completion_with_timeout(1500));
+	ASSERT_EQ_STR("typescript-language-server installed. Retry Ctrl-O", E.statusmsg);
+
+	size_t textlen = 0;
+	char *text = editorRowsToStr(&textlen);
+	ASSERT_TRUE(text != NULL);
+	ASSERT_TRUE(strstr(text, "install ok") != NULL);
+	free(text);
+
+	ASSERT_TRUE(unlink(js_path) == 0);
 	return 0;
 }
 
@@ -11650,6 +12045,8 @@ int main(void) {
 				test_editor_lsp_document_sync_for_html_edit_save_close},
 			{"editor_lsp_document_sync_for_css_edit_save_close",
 				test_editor_lsp_document_sync_for_css_edit_save_close},
+			{"editor_lsp_document_sync_for_javascript_edit_save_close",
+				test_editor_lsp_document_sync_for_javascript_edit_save_close},
 			{"editor_lsp_full_document_change_uses_active_source",
 				test_editor_lsp_full_document_change_uses_active_source},
 			{"editor_lsp_document_sync_ignores_non_go_buffers",
@@ -11658,10 +12055,14 @@ int main(void) {
 				test_editor_lsp_html_language_id_routing_for_supported_extensions},
 			{"editor_lsp_language_id_routing_for_css_scss_and_json",
 				test_editor_lsp_language_id_routing_for_css_scss_and_json},
+			{"editor_lsp_language_id_routing_for_javascript_extensions",
+				test_editor_lsp_language_id_routing_for_javascript_extensions},
 			{"editor_lsp_eslint_diagnostics_update_and_status_summary",
 				test_editor_lsp_eslint_diagnostics_update_and_status_summary},
 			{"editor_lsp_eslint_diagnostics_persist_across_tab_switches",
 				test_editor_lsp_eslint_diagnostics_persist_across_tab_switches},
+			{"editor_lsp_javascript_definition_coexists_with_eslint_sidecar",
+				test_editor_lsp_javascript_definition_coexists_with_eslint_sidecar},
 			{"editor_process_keypress_keymap_remap_changes_dispatch",
 				test_editor_process_keypress_keymap_remap_changes_dispatch},
 			{"editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped_action",
@@ -11678,8 +12079,14 @@ int main(void) {
 				test_editor_process_keypress_ctrl_o_goto_definition_single_location_css_buffer},
 			{"editor_process_keypress_ctrl_o_goto_definition_single_location_json_buffer",
 				test_editor_process_keypress_ctrl_o_goto_definition_single_location_json_buffer},
+			{"editor_process_keypress_ctrl_o_goto_definition_single_location_javascript_buffer",
+				test_editor_process_keypress_ctrl_o_goto_definition_single_location_javascript_buffer},
+			{"editor_process_keypress_ctrl_o_goto_definition_single_location_jsx_buffer",
+				test_editor_process_keypress_ctrl_o_goto_definition_single_location_jsx_buffer},
 			{"editor_process_keypress_goto_definition_cross_file_reuses_tab",
 				test_editor_process_keypress_goto_definition_cross_file_reuses_tab},
+			{"editor_process_keypress_goto_definition_cross_file_javascript_fixture_reuses_tab",
+				test_editor_process_keypress_goto_definition_cross_file_javascript_fixture_reuses_tab},
 			{"editor_process_keypress_goto_definition_cross_file_cpp_fixture_reuses_tab",
 				test_editor_process_keypress_goto_definition_cross_file_cpp_fixture_reuses_tab},
 			{"editor_process_keypress_goto_definition_multi_picker_selects_choice",
@@ -11720,6 +12127,8 @@ int main(void) {
 				test_editor_process_keypress_goto_definition_missing_vscode_langservers_decline_install},
 			{"editor_process_keypress_goto_definition_missing_vscode_langservers_starts_install_task",
 				test_editor_process_keypress_goto_definition_missing_vscode_langservers_starts_install_task},
+			{"editor_process_keypress_goto_definition_missing_javascript_server_starts_install_task",
+				test_editor_process_keypress_goto_definition_missing_javascript_server_starts_install_task},
 			{"editor_process_keypress_eslint_fix_action_applies_mock_edits",
 				test_editor_process_keypress_eslint_fix_action_applies_mock_edits},
 			{"editor_process_keypress_eslint_fix_missing_vscode_langservers_starts_install_task",

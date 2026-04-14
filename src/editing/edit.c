@@ -282,6 +282,8 @@ void editorOpen(const char *filename) {
 	int document_inited = 0;
 
 	editorLspNotifyDidClose(E.filename, E.syntax_language, &E.lsp_doc_open, &E.lsp_doc_version);
+	editorLspNotifyEslintDidClose(E.filename, E.syntax_language, &E.lsp_eslint_doc_open,
+			&E.lsp_eslint_doc_version);
 	editorFreeActiveBufferState();
 	E.tab_kind = EDITOR_TAB_FILE;
 	E.is_preview = was_preview;

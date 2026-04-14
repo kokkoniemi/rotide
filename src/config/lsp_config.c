@@ -17,11 +17,14 @@ enum editorLspConfigFileStatus {
 
 void editorLspConfigInitDefaults(int *gopls_enabled_out, int *clangd_enabled_out,
 		int *html_enabled_out, int *css_enabled_out, int *json_enabled_out,
-		int *eslint_enabled_out, char *gopls_command_out, size_t gopls_command_out_size,
+		int *javascript_enabled_out, int *eslint_enabled_out, char *gopls_command_out,
+		size_t gopls_command_out_size,
 		char *gopls_install_command_out, size_t gopls_install_command_out_size,
 		char *clangd_command_out, size_t clangd_command_out_size, char *html_command_out,
 		size_t html_command_out_size, char *css_command_out, size_t css_command_out_size,
-		char *json_command_out, size_t json_command_out_size, char *eslint_command_out,
+		char *json_command_out, size_t json_command_out_size, char *javascript_command_out,
+		size_t javascript_command_out_size, char *javascript_install_command_out,
+		size_t javascript_install_command_out_size, char *eslint_command_out,
 		size_t eslint_command_out_size, char *vscode_langservers_install_command_out,
 		size_t vscode_langservers_install_command_out_size) {
 	if (gopls_enabled_out != NULL) {
@@ -38,6 +41,9 @@ void editorLspConfigInitDefaults(int *gopls_enabled_out, int *clangd_enabled_out
 	}
 	if (json_enabled_out != NULL) {
 		*json_enabled_out = 1;
+	}
+	if (javascript_enabled_out != NULL) {
+		*javascript_enabled_out = 1;
 	}
 	if (eslint_enabled_out != NULL) {
 		*eslint_enabled_out = 1;
@@ -69,6 +75,16 @@ void editorLspConfigInitDefaults(int *gopls_enabled_out, int *clangd_enabled_out
 		(void)snprintf(json_command_out, json_command_out_size, "%s",
 				"~/.local/bin/vscode-json-language-server --stdio");
 		json_command_out[json_command_out_size - 1] = '\0';
+	}
+	if (javascript_command_out != NULL && javascript_command_out_size != 0) {
+		(void)snprintf(javascript_command_out, javascript_command_out_size, "%s",
+				"~/.local/bin/typescript-language-server --stdio");
+		javascript_command_out[javascript_command_out_size - 1] = '\0';
+	}
+	if (javascript_install_command_out != NULL && javascript_install_command_out_size != 0) {
+		(void)snprintf(javascript_install_command_out, javascript_install_command_out_size, "%s",
+				"npm install --global --prefix ~/.local typescript typescript-language-server");
+		javascript_install_command_out[javascript_install_command_out_size - 1] = '\0';
 	}
 	if (eslint_command_out != NULL && eslint_command_out_size != 0) {
 		(void)snprintf(eslint_command_out, eslint_command_out_size, "%s",
@@ -102,27 +118,33 @@ static int editorParseBooleanValue(const char *value, int *out) {
 
 static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *gopls_enabled_in_out,
 		int *clangd_enabled_in_out, int *html_enabled_in_out, int *css_enabled_in_out,
-		int *json_enabled_in_out, int *eslint_enabled_in_out,
+		int *json_enabled_in_out, int *javascript_enabled_in_out, int *eslint_enabled_in_out,
 		char *gopls_command_in_out, size_t gopls_command_in_out_size,
 		char *gopls_install_command_in_out, size_t gopls_install_command_in_out_size,
 		char *clangd_command_in_out, size_t clangd_command_in_out_size,
 		char *html_command_in_out, size_t html_command_in_out_size,
 		char *css_command_in_out, size_t css_command_in_out_size,
 		char *json_command_in_out, size_t json_command_in_out_size,
+		char *javascript_command_in_out, size_t javascript_command_in_out_size,
+		char *javascript_install_command_in_out,
+		size_t javascript_install_command_in_out_size,
 		char *eslint_command_in_out, size_t eslint_command_in_out_size,
 		char *vscode_langservers_install_command_in_out,
 		size_t vscode_langservers_install_command_in_out_size,
 		int allow_install_command_override, const char *path) {
 	if (gopls_enabled_in_out == NULL || clangd_enabled_in_out == NULL ||
 			html_enabled_in_out == NULL || css_enabled_in_out == NULL ||
-			json_enabled_in_out == NULL || eslint_enabled_in_out == NULL ||
+			json_enabled_in_out == NULL || javascript_enabled_in_out == NULL ||
+			eslint_enabled_in_out == NULL ||
 			gopls_command_in_out == NULL ||
 			gopls_command_in_out_size == 0 || gopls_install_command_in_out == NULL ||
 			gopls_install_command_in_out_size == 0 || clangd_command_in_out == NULL ||
 			clangd_command_in_out_size == 0 || html_command_in_out == NULL ||
 			html_command_in_out_size == 0 || css_command_in_out == NULL ||
 			css_command_in_out_size == 0 || json_command_in_out == NULL ||
-			json_command_in_out_size == 0 || eslint_command_in_out == NULL ||
+			json_command_in_out_size == 0 || javascript_command_in_out == NULL ||
+			javascript_command_in_out_size == 0 || javascript_install_command_in_out == NULL ||
+			javascript_install_command_in_out_size == 0 || eslint_command_in_out == NULL ||
 			eslint_command_in_out_size == 0 ||
 			vscode_langservers_install_command_in_out == NULL ||
 			vscode_langservers_install_command_in_out_size == 0) {
@@ -142,6 +164,7 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *gopls_
 	int html_enabled = *html_enabled_in_out;
 	int css_enabled = *css_enabled_in_out;
 	int json_enabled = *json_enabled_in_out;
+	int javascript_enabled = *javascript_enabled_in_out;
 	int eslint_enabled = *eslint_enabled_in_out;
 	char *gopls_command = malloc(gopls_command_in_out_size);
 	char *gopls_install_command = malloc(gopls_install_command_in_out_size);
@@ -149,11 +172,14 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *gopls_
 	char *html_command = malloc(html_command_in_out_size);
 	char *css_command = malloc(css_command_in_out_size);
 	char *json_command = malloc(json_command_in_out_size);
+	char *javascript_command = malloc(javascript_command_in_out_size);
+	char *javascript_install_command = malloc(javascript_install_command_in_out_size);
 	char *eslint_command = malloc(eslint_command_in_out_size);
 	char *vscode_langservers_install_command =
 			malloc(vscode_langservers_install_command_in_out_size);
 	if (gopls_command == NULL || gopls_install_command == NULL || clangd_command == NULL ||
 			html_command == NULL || css_command == NULL || json_command == NULL ||
+			javascript_command == NULL || javascript_install_command == NULL ||
 			eslint_command == NULL || vscode_langservers_install_command == NULL) {
 		free(gopls_command);
 		free(gopls_install_command);
@@ -161,6 +187,8 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *gopls_
 		free(html_command);
 		free(css_command);
 		free(json_command);
+		free(javascript_command);
+		free(javascript_install_command);
 		free(eslint_command);
 		free(vscode_langservers_install_command);
 		fclose(fp);
@@ -179,6 +207,12 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *gopls_
 	css_command[css_command_in_out_size - 1] = '\0';
 	(void)snprintf(json_command, json_command_in_out_size, "%s", json_command_in_out);
 	json_command[json_command_in_out_size - 1] = '\0';
+	(void)snprintf(javascript_command, javascript_command_in_out_size, "%s",
+			javascript_command_in_out);
+	javascript_command[javascript_command_in_out_size - 1] = '\0';
+	(void)snprintf(javascript_install_command, javascript_install_command_in_out_size, "%s",
+			javascript_install_command_in_out);
+	javascript_install_command[javascript_install_command_in_out_size - 1] = '\0';
 	(void)snprintf(eslint_command, eslint_command_in_out_size, "%s", eslint_command_in_out);
 	eslint_command[eslint_command_in_out_size - 1] = '\0';
 	(void)snprintf(vscode_langservers_install_command,
@@ -195,6 +229,8 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *gopls_
 		free(html_command); \
 		free(css_command); \
 		free(json_command); \
+		free(javascript_command); \
+		free(javascript_install_command); \
 		free(eslint_command); \
 		free(vscode_langservers_install_command); \
 	} while (0)
@@ -270,6 +306,7 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *gopls_
 			html_enabled = parsed_enabled;
 			css_enabled = parsed_enabled;
 			json_enabled = parsed_enabled;
+			javascript_enabled = parsed_enabled;
 			eslint_enabled = parsed_enabled;
 			continue;
 		}
@@ -334,6 +371,16 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *gopls_
 				return EDITOR_LSP_CONFIG_FILE_INVALID;
 			}
 			eslint_enabled = parsed_enabled;
+			continue;
+		}
+		if (strcmp(setting_name, "javascript_enabled") == 0) {
+			int parsed_enabled = 0;
+			if (!editorParseBooleanValue(value, &parsed_enabled)) {
+				EDITOR_LSP_CONFIG_FREE_LOCAL();
+				fclose(fp);
+				return EDITOR_LSP_CONFIG_FILE_INVALID;
+			}
+			javascript_enabled = parsed_enabled;
 			continue;
 		}
 
@@ -405,6 +452,28 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *gopls_
 			}
 			continue;
 		}
+		if (strcmp(setting_name, "javascript_command") == 0) {
+			if (!editorConfigParseQuotedValue(value, javascript_command,
+						javascript_command_in_out_size) || javascript_command[0] == '\0') {
+				EDITOR_LSP_CONFIG_FREE_LOCAL();
+				fclose(fp);
+				return EDITOR_LSP_CONFIG_FILE_INVALID;
+			}
+			continue;
+		}
+		if (strcmp(setting_name, "javascript_install_command") == 0) {
+			if (!allow_install_command_override) {
+				continue;
+			}
+			if (!editorConfigParseQuotedValue(value, javascript_install_command,
+						javascript_install_command_in_out_size) ||
+					javascript_install_command[0] == '\0') {
+				EDITOR_LSP_CONFIG_FREE_LOCAL();
+				fclose(fp);
+				return EDITOR_LSP_CONFIG_FILE_INVALID;
+			}
+			continue;
+		}
 		if (strcmp(setting_name, "vscode_langservers_install_command") == 0) {
 			if (!allow_install_command_override) {
 				continue;
@@ -432,6 +501,7 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *gopls_
 	*html_enabled_in_out = html_enabled;
 	*css_enabled_in_out = css_enabled;
 	*json_enabled_in_out = json_enabled;
+	*javascript_enabled_in_out = javascript_enabled;
 	*eslint_enabled_in_out = eslint_enabled;
 	(void)snprintf(gopls_command_in_out, gopls_command_in_out_size, "%s", gopls_command);
 	gopls_command_in_out[gopls_command_in_out_size - 1] = '\0';
@@ -446,6 +516,12 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *gopls_
 	css_command_in_out[css_command_in_out_size - 1] = '\0';
 	(void)snprintf(json_command_in_out, json_command_in_out_size, "%s", json_command);
 	json_command_in_out[json_command_in_out_size - 1] = '\0';
+	(void)snprintf(javascript_command_in_out, javascript_command_in_out_size, "%s",
+			javascript_command);
+	javascript_command_in_out[javascript_command_in_out_size - 1] = '\0';
+	(void)snprintf(javascript_install_command_in_out, javascript_install_command_in_out_size, "%s",
+			javascript_install_command);
+	javascript_install_command_in_out[javascript_install_command_in_out_size - 1] = '\0';
 	(void)snprintf(eslint_command_in_out, eslint_command_in_out_size, "%s", eslint_command);
 	eslint_command_in_out[eslint_command_in_out_size - 1] = '\0';
 	(void)snprintf(vscode_langservers_install_command_in_out,
@@ -460,23 +536,29 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(int *gopls_
 
 enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(int *gopls_enabled_out,
 		int *clangd_enabled_out, int *html_enabled_out, int *css_enabled_out,
-		int *json_enabled_out, int *eslint_enabled_out, char *gopls_command_out,
-		size_t gopls_command_out_size, char *gopls_install_command_out,
+		int *json_enabled_out, int *javascript_enabled_out, int *eslint_enabled_out,
+		char *gopls_command_out, size_t gopls_command_out_size, char *gopls_install_command_out,
 		size_t gopls_install_command_out_size, char *clangd_command_out,
 		size_t clangd_command_out_size, char *html_command_out,
 		size_t html_command_out_size, char *css_command_out, size_t css_command_out_size,
-		char *json_command_out, size_t json_command_out_size, char *eslint_command_out,
+		char *json_command_out, size_t json_command_out_size, char *javascript_command_out,
+		size_t javascript_command_out_size, char *javascript_install_command_out,
+		size_t javascript_install_command_out_size, char *eslint_command_out,
 		size_t eslint_command_out_size, char *vscode_langservers_install_command_out,
 		size_t vscode_langservers_install_command_out_size, const char *global_path,
 		const char *project_path) {
 	if (gopls_enabled_out == NULL || clangd_enabled_out == NULL || html_enabled_out == NULL ||
-			css_enabled_out == NULL || json_enabled_out == NULL || eslint_enabled_out == NULL ||
+			css_enabled_out == NULL || json_enabled_out == NULL ||
+			javascript_enabled_out == NULL || eslint_enabled_out == NULL ||
 			gopls_command_out == NULL || gopls_command_out_size == 0 ||
 			gopls_install_command_out == NULL || gopls_install_command_out_size == 0 ||
 			clangd_command_out == NULL || clangd_command_out_size == 0 ||
 			html_command_out == NULL || html_command_out_size == 0 ||
 			css_command_out == NULL || css_command_out_size == 0 ||
 			json_command_out == NULL || json_command_out_size == 0 ||
+			javascript_command_out == NULL || javascript_command_out_size == 0 ||
+			javascript_install_command_out == NULL ||
+			javascript_install_command_out_size == 0 ||
 			eslint_command_out == NULL || eslint_command_out_size == 0 ||
 			vscode_langservers_install_command_out == NULL ||
 			vscode_langservers_install_command_out_size == 0) {
@@ -484,12 +566,13 @@ enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(int *gopls_enabled_o
 	}
 
 	editorLspConfigInitDefaults(gopls_enabled_out, clangd_enabled_out, html_enabled_out,
-			css_enabled_out, json_enabled_out, eslint_enabled_out,
+			css_enabled_out, json_enabled_out, javascript_enabled_out, eslint_enabled_out,
 			gopls_command_out, gopls_command_out_size, gopls_install_command_out,
 			gopls_install_command_out_size, clangd_command_out, clangd_command_out_size,
 			html_command_out, html_command_out_size, css_command_out, css_command_out_size,
-			json_command_out, json_command_out_size, eslint_command_out,
-			eslint_command_out_size,
+			json_command_out, json_command_out_size, javascript_command_out,
+			javascript_command_out_size, javascript_install_command_out,
+			javascript_install_command_out_size, eslint_command_out, eslint_command_out_size,
 			vscode_langservers_install_command_out,
 			vscode_langservers_install_command_out_size);
 	enum editorLspConfigLoadStatus status = EDITOR_LSP_CONFIG_LOAD_OK;
@@ -498,21 +581,27 @@ enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(int *gopls_enabled_o
 		enum editorLspConfigFileStatus global_status =
 				editorLspConfigApplyConfigFile(gopls_enabled_out, clangd_enabled_out,
 						html_enabled_out, css_enabled_out, json_enabled_out,
-						eslint_enabled_out, gopls_command_out, gopls_command_out_size,
+						javascript_enabled_out, eslint_enabled_out, gopls_command_out,
+						gopls_command_out_size,
 						gopls_install_command_out, gopls_install_command_out_size,
 						clangd_command_out, clangd_command_out_size, html_command_out,
 						html_command_out_size, css_command_out, css_command_out_size,
-						json_command_out, json_command_out_size, eslint_command_out,
+						json_command_out, json_command_out_size, javascript_command_out,
+						javascript_command_out_size, javascript_install_command_out,
+						javascript_install_command_out_size, eslint_command_out,
 						eslint_command_out_size, vscode_langservers_install_command_out,
 						vscode_langservers_install_command_out_size, 1, global_path);
 		if (global_status == EDITOR_LSP_CONFIG_FILE_OUT_OF_MEMORY) {
 			editorLspConfigInitDefaults(gopls_enabled_out, clangd_enabled_out,
 					html_enabled_out, css_enabled_out, json_enabled_out,
-					eslint_enabled_out, gopls_command_out, gopls_command_out_size,
+					javascript_enabled_out, eslint_enabled_out,
+					gopls_command_out, gopls_command_out_size,
 					gopls_install_command_out, gopls_install_command_out_size,
 					clangd_command_out, clangd_command_out_size, html_command_out,
 					html_command_out_size, css_command_out, css_command_out_size,
-					json_command_out, json_command_out_size, eslint_command_out,
+					json_command_out, json_command_out_size, javascript_command_out,
+					javascript_command_out_size, javascript_install_command_out,
+					javascript_install_command_out_size, eslint_command_out,
 					eslint_command_out_size, vscode_langservers_install_command_out,
 					vscode_langservers_install_command_out_size);
 			return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
@@ -520,11 +609,14 @@ enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(int *gopls_enabled_o
 		if (global_status == EDITOR_LSP_CONFIG_FILE_INVALID) {
 			editorLspConfigInitDefaults(gopls_enabled_out, clangd_enabled_out,
 					html_enabled_out, css_enabled_out, json_enabled_out,
-					eslint_enabled_out, gopls_command_out, gopls_command_out_size,
+					javascript_enabled_out, eslint_enabled_out,
+					gopls_command_out, gopls_command_out_size,
 					gopls_install_command_out, gopls_install_command_out_size,
 					clangd_command_out, clangd_command_out_size, html_command_out,
 					html_command_out_size, css_command_out, css_command_out_size,
-					json_command_out, json_command_out_size, eslint_command_out,
+					json_command_out, json_command_out_size, javascript_command_out,
+					javascript_command_out_size, javascript_install_command_out,
+					javascript_install_command_out_size, eslint_command_out,
 					eslint_command_out_size, vscode_langservers_install_command_out,
 					vscode_langservers_install_command_out_size);
 			status = (enum editorLspConfigLoadStatus)(
@@ -536,21 +628,27 @@ enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(int *gopls_enabled_o
 		enum editorLspConfigFileStatus project_status =
 				editorLspConfigApplyConfigFile(gopls_enabled_out, clangd_enabled_out,
 						html_enabled_out, css_enabled_out, json_enabled_out,
-						eslint_enabled_out, gopls_command_out, gopls_command_out_size,
+						javascript_enabled_out, eslint_enabled_out, gopls_command_out,
+						gopls_command_out_size,
 						gopls_install_command_out, gopls_install_command_out_size,
 						clangd_command_out, clangd_command_out_size, html_command_out,
 						html_command_out_size, css_command_out, css_command_out_size,
-						json_command_out, json_command_out_size, eslint_command_out,
+						json_command_out, json_command_out_size, javascript_command_out,
+						javascript_command_out_size, javascript_install_command_out,
+						javascript_install_command_out_size, eslint_command_out,
 						eslint_command_out_size, vscode_langservers_install_command_out,
 						vscode_langservers_install_command_out_size, 0, project_path);
 		if (project_status == EDITOR_LSP_CONFIG_FILE_OUT_OF_MEMORY) {
 			editorLspConfigInitDefaults(gopls_enabled_out, clangd_enabled_out,
 					html_enabled_out, css_enabled_out, json_enabled_out,
-					eslint_enabled_out, gopls_command_out, gopls_command_out_size,
+					javascript_enabled_out, eslint_enabled_out,
+					gopls_command_out, gopls_command_out_size,
 					gopls_install_command_out, gopls_install_command_out_size,
 					clangd_command_out, clangd_command_out_size, html_command_out,
 					html_command_out_size, css_command_out, css_command_out_size,
-					json_command_out, json_command_out_size, eslint_command_out,
+					json_command_out, json_command_out_size, javascript_command_out,
+					javascript_command_out_size, javascript_install_command_out,
+					javascript_install_command_out_size, eslint_command_out,
 					eslint_command_out_size, vscode_langservers_install_command_out,
 					vscode_langservers_install_command_out_size);
 			return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
@@ -558,11 +656,14 @@ enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(int *gopls_enabled_o
 		if (project_status == EDITOR_LSP_CONFIG_FILE_INVALID) {
 			editorLspConfigInitDefaults(gopls_enabled_out, clangd_enabled_out,
 					html_enabled_out, css_enabled_out, json_enabled_out,
-					eslint_enabled_out, gopls_command_out, gopls_command_out_size,
+					javascript_enabled_out, eslint_enabled_out,
+					gopls_command_out, gopls_command_out_size,
 					gopls_install_command_out, gopls_install_command_out_size,
 					clangd_command_out, clangd_command_out_size, html_command_out,
 					html_command_out_size, css_command_out, css_command_out_size,
-					json_command_out, json_command_out_size, eslint_command_out,
+					json_command_out, json_command_out_size, javascript_command_out,
+					javascript_command_out_size, javascript_install_command_out,
+					javascript_install_command_out_size, eslint_command_out,
 					eslint_command_out_size, vscode_langservers_install_command_out,
 					vscode_langservers_install_command_out_size);
 			status = (enum editorLspConfigLoadStatus)(
@@ -575,22 +676,28 @@ enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(int *gopls_enabled_o
 
 enum editorLspConfigLoadStatus editorLspConfigLoadConfigured(int *gopls_enabled_out,
 		int *clangd_enabled_out, int *html_enabled_out, int *css_enabled_out,
-		int *json_enabled_out, int *eslint_enabled_out, char *gopls_command_out,
-		size_t gopls_command_out_size, char *gopls_install_command_out,
+		int *json_enabled_out, int *javascript_enabled_out, int *eslint_enabled_out,
+		char *gopls_command_out, size_t gopls_command_out_size, char *gopls_install_command_out,
 		size_t gopls_install_command_out_size, char *clangd_command_out,
 		size_t clangd_command_out_size, char *html_command_out,
 		size_t html_command_out_size, char *css_command_out, size_t css_command_out_size,
-		char *json_command_out, size_t json_command_out_size, char *eslint_command_out,
+		char *json_command_out, size_t json_command_out_size, char *javascript_command_out,
+		size_t javascript_command_out_size, char *javascript_install_command_out,
+		size_t javascript_install_command_out_size, char *eslint_command_out,
 		size_t eslint_command_out_size, char *vscode_langservers_install_command_out,
 		size_t vscode_langservers_install_command_out_size) {
 	if (gopls_enabled_out == NULL || clangd_enabled_out == NULL || html_enabled_out == NULL ||
-			css_enabled_out == NULL || json_enabled_out == NULL || eslint_enabled_out == NULL ||
+			css_enabled_out == NULL || json_enabled_out == NULL ||
+			javascript_enabled_out == NULL || eslint_enabled_out == NULL ||
 			gopls_command_out == NULL || gopls_command_out_size == 0 ||
 			gopls_install_command_out == NULL || gopls_install_command_out_size == 0 ||
 			clangd_command_out == NULL || clangd_command_out_size == 0 ||
 			html_command_out == NULL || html_command_out_size == 0 ||
 			css_command_out == NULL || css_command_out_size == 0 ||
 			json_command_out == NULL || json_command_out_size == 0 ||
+			javascript_command_out == NULL || javascript_command_out_size == 0 ||
+			javascript_install_command_out == NULL ||
+			javascript_install_command_out_size == 0 ||
 			eslint_command_out == NULL || eslint_command_out_size == 0 ||
 			vscode_langservers_install_command_out == NULL ||
 			vscode_langservers_install_command_out_size == 0) {
@@ -600,12 +707,15 @@ enum editorLspConfigLoadStatus editorLspConfigLoadConfigured(int *gopls_enabled_
 	const char *home = getenv("HOME");
 	if (home == NULL || home[0] == '\0') {
 		return editorLspConfigLoadFromPaths(gopls_enabled_out, clangd_enabled_out,
-				html_enabled_out, css_enabled_out, json_enabled_out, eslint_enabled_out,
+				html_enabled_out, css_enabled_out, json_enabled_out, javascript_enabled_out,
+				eslint_enabled_out,
 				gopls_command_out, gopls_command_out_size,
 				gopls_install_command_out, gopls_install_command_out_size,
 				clangd_command_out, clangd_command_out_size, html_command_out,
 				html_command_out_size, css_command_out, css_command_out_size,
-				json_command_out, json_command_out_size, eslint_command_out,
+				json_command_out, json_command_out_size, javascript_command_out,
+				javascript_command_out_size, javascript_install_command_out,
+				javascript_install_command_out_size, eslint_command_out,
 				eslint_command_out_size, vscode_langservers_install_command_out,
 				vscode_langservers_install_command_out_size, NULL, ".rotide.toml");
 	}
@@ -613,12 +723,15 @@ enum editorLspConfigLoadStatus editorLspConfigLoadConfigured(int *gopls_enabled_
 	char *global_path = editorConfigBuildGlobalConfigPath();
 	if (global_path == NULL) {
 		editorLspConfigInitDefaults(gopls_enabled_out, clangd_enabled_out,
-				html_enabled_out, css_enabled_out, json_enabled_out, eslint_enabled_out,
+				html_enabled_out, css_enabled_out, json_enabled_out, javascript_enabled_out,
+				eslint_enabled_out,
 				gopls_command_out, gopls_command_out_size,
 				gopls_install_command_out, gopls_install_command_out_size,
 				clangd_command_out, clangd_command_out_size, html_command_out,
 				html_command_out_size, css_command_out, css_command_out_size,
-				json_command_out, json_command_out_size, eslint_command_out,
+				json_command_out, json_command_out_size, javascript_command_out,
+				javascript_command_out_size, javascript_install_command_out,
+				javascript_install_command_out_size, eslint_command_out,
 				eslint_command_out_size, vscode_langservers_install_command_out,
 				vscode_langservers_install_command_out_size);
 		return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
@@ -627,11 +740,14 @@ enum editorLspConfigLoadStatus editorLspConfigLoadConfigured(int *gopls_enabled_
 	enum editorLspConfigLoadStatus status =
 			editorLspConfigLoadFromPaths(gopls_enabled_out, clangd_enabled_out,
 					html_enabled_out, css_enabled_out, json_enabled_out,
-					eslint_enabled_out, gopls_command_out, gopls_command_out_size,
+					javascript_enabled_out, eslint_enabled_out,
+					gopls_command_out, gopls_command_out_size,
 					gopls_install_command_out, gopls_install_command_out_size,
 					clangd_command_out, clangd_command_out_size, html_command_out,
 					html_command_out_size, css_command_out, css_command_out_size,
-					json_command_out, json_command_out_size, eslint_command_out,
+					json_command_out, json_command_out_size, javascript_command_out,
+					javascript_command_out_size, javascript_install_command_out,
+					javascript_install_command_out_size, eslint_command_out,
 					eslint_command_out_size, vscode_langservers_install_command_out,
 					vscode_langservers_install_command_out_size, global_path, ".rotide.toml");
 	free(global_path);

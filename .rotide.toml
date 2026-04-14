@@ -18,12 +18,16 @@
 # - html_enabled = true|false
 # - css_enabled = true|false
 # - json_enabled = true|false
+# - javascript_enabled = true|false
 # - eslint_enabled = true|false
 # - gopls_command = "gopls" (command/path used to start gopls)
 # - clangd_command = "clangd" (command/path used to start clangd)
-# - html_command/css_command/json_command/eslint_command can be set per project
+# - html_command/css_command/json_command/javascript_command/eslint_command can be set per project
 # - enabled = true|false is still accepted as a legacy alias for all built-in LSP servers
-# - gopls_install_command and vscode_langservers_install_command are global-only
+# - gopls_install_command, javascript_install_command, and
+#   vscode_langservers_install_command are global-only
+# - default javascript_install_command:
+#   "npm install --global --prefix ~/.local typescript typescript-language-server"
 # - eslint_fix is an opt-in keymap action with no default binding
 # - Invalid [lsp] values fall back to defaults with a warning.
 # Key spec format:
@@ -64,12 +68,14 @@ clangd_enabled = true
 html_enabled = true
 css_enabled = true
 json_enabled = true
+javascript_enabled = true
 eslint_enabled = true
 gopls_command = "gopls"
 clangd_command = "clangd"
 html_command = "~/.local/bin/vscode-html-language-server --stdio"
 css_command = "~/.local/bin/vscode-css-language-server --stdio"
 json_command = "~/.local/bin/vscode-json-language-server --stdio"
+javascript_command = "~/.local/bin/typescript-language-server --stdio"
 eslint_command = "~/.local/bin/vscode-eslint-language-server --stdio"
 
 [keymap]

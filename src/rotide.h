@@ -308,6 +308,8 @@ struct editorTabState {
 	struct editorSyntaxState *syntax_state;
 	int lsp_doc_open;
 	int lsp_doc_version;
+	int lsp_eslint_doc_open;
+	int lsp_eslint_doc_version;
 	struct editorLspDiagnostic *lsp_diagnostics;
 	int lsp_diagnostic_count;
 	int lsp_diagnostic_error_count;
@@ -357,6 +359,7 @@ struct editorConfig {
 	int lsp_html_enabled;
 	int lsp_css_enabled;
 	int lsp_json_enabled;
+	int lsp_javascript_enabled;
 	int lsp_eslint_enabled;
 	char lsp_gopls_command[PATH_MAX];
 	char lsp_gopls_install_command[PATH_MAX];
@@ -364,10 +367,14 @@ struct editorConfig {
 	char lsp_html_command[PATH_MAX];
 	char lsp_css_command[PATH_MAX];
 	char lsp_json_command[PATH_MAX];
+	char lsp_javascript_command[PATH_MAX];
+	char lsp_javascript_install_command[PATH_MAX];
 	char lsp_eslint_command[PATH_MAX];
 	char lsp_vscode_langservers_install_command[PATH_MAX];
 	int lsp_doc_open;
 	int lsp_doc_version;
+	int lsp_eslint_doc_open;
+	int lsp_eslint_doc_version;
 	struct editorLspDiagnostic *lsp_diagnostics;
 	int lsp_diagnostic_count;
 	int lsp_diagnostic_error_count;

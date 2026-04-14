@@ -51,14 +51,26 @@ void editorLspPumpNotifications(void);
 int editorLspEnsureDocumentOpen(const char *filename, enum editorSyntaxLanguage language,
 		int *doc_open_in_out, int *doc_version_in_out,
 		const char *full_text, size_t full_text_len);
+int editorLspEnsureEslintDocumentOpen(const char *filename, enum editorSyntaxLanguage language,
+		int *doc_open_in_out, int *doc_version_in_out,
+		const char *full_text, size_t full_text_len);
 int editorLspNotifyDidChange(const char *filename, enum editorSyntaxLanguage language,
+		int *doc_open_in_out, int *doc_version_in_out,
+		const struct editorSyntaxEdit *edit,
+		const char *inserted_text, size_t inserted_text_len,
+		const char *full_text, size_t full_text_len);
+int editorLspNotifyEslintDidChange(const char *filename, enum editorSyntaxLanguage language,
 		int *doc_open_in_out, int *doc_version_in_out,
 		const struct editorSyntaxEdit *edit,
 		const char *inserted_text, size_t inserted_text_len,
 		const char *full_text, size_t full_text_len);
 int editorLspNotifyDidSave(const char *filename, enum editorSyntaxLanguage language,
 		int *doc_open_in_out, int *doc_version_in_out);
+int editorLspNotifyEslintDidSave(const char *filename, enum editorSyntaxLanguage language,
+		int *doc_open_in_out, int *doc_version_in_out);
 void editorLspNotifyDidClose(const char *filename, enum editorSyntaxLanguage language,
+		int *doc_open_in_out, int *doc_version_in_out);
+void editorLspNotifyEslintDidClose(const char *filename, enum editorSyntaxLanguage language,
 		int *doc_open_in_out, int *doc_version_in_out);
 
 int editorLspRequestDefinition(const char *filename, enum editorSyntaxLanguage language, int line,
@@ -70,6 +82,8 @@ int editorLspProtocolCharacterToBufferColumn(int line, int protocol_character);
 enum editorLspStartupFailureReason editorLspLastStartupFailureReason(void);
 int editorLspFileSupportsDefinition(const char *filename, enum editorSyntaxLanguage language);
 int editorLspFileEnabled(const char *filename, enum editorSyntaxLanguage language);
+int editorLspFileUsesEslint(const char *filename, enum editorSyntaxLanguage language);
+int editorLspEslintEnabledForFile(const char *filename, enum editorSyntaxLanguage language);
 const char *editorLspLanguageLabelForFile(const char *filename, enum editorSyntaxLanguage language);
 const char *editorLspServerNameForFile(const char *filename, enum editorSyntaxLanguage language);
 const char *editorLspCommandForFile(const char *filename, enum editorSyntaxLanguage language);

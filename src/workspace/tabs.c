@@ -61,6 +61,8 @@ static void editorTabStateInitEmpty(struct editorTabState *tab) {
 	tab->syntax_state = NULL;
 	tab->lsp_doc_open = 0;
 	tab->lsp_doc_version = 0;
+	tab->lsp_eslint_doc_open = 0;
+	tab->lsp_eslint_doc_version = 0;
 	tab->lsp_diagnostics = NULL;
 	tab->lsp_diagnostic_count = 0;
 	tab->lsp_diagnostic_error_count = 0;
@@ -94,6 +96,8 @@ void editorResetActiveBufferFields(void) {
 	E.syntax_state = NULL;
 	E.lsp_doc_open = 0;
 	E.lsp_doc_version = 0;
+	E.lsp_eslint_doc_open = 0;
+	E.lsp_eslint_doc_version = 0;
 	E.lsp_diagnostics = NULL;
 	E.lsp_diagnostic_count = 0;
 	E.lsp_diagnostic_error_count = 0;
@@ -220,6 +224,8 @@ static void editorTabStateCaptureActive(struct editorTabState *tab) {
 	tab->syntax_state = E.syntax_state;
 	tab->lsp_doc_open = E.lsp_doc_open;
 	tab->lsp_doc_version = E.lsp_doc_version;
+	tab->lsp_eslint_doc_open = E.lsp_eslint_doc_open;
+	tab->lsp_eslint_doc_version = E.lsp_eslint_doc_version;
 	tab->lsp_diagnostics = E.lsp_diagnostics;
 	tab->lsp_diagnostic_count = E.lsp_diagnostic_count;
 	tab->lsp_diagnostic_error_count = E.lsp_diagnostic_error_count;
@@ -266,6 +272,8 @@ static void editorTabStateLoadActive(struct editorTabState *tab) {
 	E.syntax_state = tab->syntax_state;
 	E.lsp_doc_open = tab->lsp_doc_open;
 	E.lsp_doc_version = tab->lsp_doc_version;
+	E.lsp_eslint_doc_open = tab->lsp_eslint_doc_open;
+	E.lsp_eslint_doc_version = tab->lsp_eslint_doc_version;
 	E.lsp_diagnostics = tab->lsp_diagnostics;
 	E.lsp_diagnostic_count = tab->lsp_diagnostic_count;
 	E.lsp_diagnostic_error_count = tab->lsp_diagnostic_error_count;
@@ -364,6 +372,8 @@ static void editorLoadActiveTab(int tab_idx) {
 		E.syntax_state = NULL;
 		E.lsp_doc_open = 0;
 		E.lsp_doc_version = 0;
+		E.lsp_eslint_doc_open = 0;
+		E.lsp_eslint_doc_version = 0;
 		E.lsp_diagnostics = NULL;
 		E.lsp_diagnostic_count = 0;
 		E.lsp_diagnostic_error_count = 0;
@@ -407,6 +417,8 @@ void editorTabsFreeAll(void) {
 	editorTaskResetState();
 
 	editorLspNotifyDidClose(E.filename, E.syntax_language, &E.lsp_doc_open, &E.lsp_doc_version);
+	editorLspNotifyEslintDidClose(E.filename, E.syntax_language, &E.lsp_eslint_doc_open,
+			&E.lsp_eslint_doc_version);
 	if (E.tabs != NULL) {
 		for (int i = 0; i < E.tab_count; i++) {
 			editorLspNotifyDidCloseTabState(&E.tabs[i]);
@@ -794,6 +806,8 @@ static int editorRebuildGeneratedTabRows(struct editorTabState *tab) {
 	tab->syntax_language = EDITOR_SYNTAX_NONE;
 	tab->lsp_doc_open = 0;
 	tab->lsp_doc_version = 0;
+	tab->lsp_eslint_doc_open = 0;
+	tab->lsp_eslint_doc_version = 0;
 	if (tab->lsp_diagnostics != NULL) {
 		for (int i = 0; i < tab->lsp_diagnostic_count; i++) {
 			free(tab->lsp_diagnostics[i].message);
@@ -1042,6 +1056,8 @@ static int editorTaskPrepareLogTab(const char *title, const char *text) {
 	E.syntax_language = EDITOR_SYNTAX_NONE;
 	E.lsp_doc_open = 0;
 	E.lsp_doc_version = 0;
+	E.lsp_eslint_doc_open = 0;
+	E.lsp_eslint_doc_version = 0;
 	if (!editorDocumentResetActiveFromText(text, strlen(text))) {
 		editorSetAllocFailureStatus();
 		return 0;
