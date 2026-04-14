@@ -4,7 +4,7 @@ RotIDE is a terminal text editor inspired by [kilo](https://github.com/antirez/k
 
 ## Status
 
-RotIDE is under active development. Core editing, tabs, drawer navigation, search, undo/redo, Tree-sitter highlighting, crash recovery, and Go/C/C++ definition lookup are implemented and tested.
+RotIDE is under active development. Core editing, tabs, drawer navigation, search, undo/redo, Tree-sitter highlighting, crash recovery, LSP-backed definition lookup, and incremental ESLint integration are implemented and tested.
 
 ## Quick Start
 
@@ -59,6 +59,10 @@ ASAN_OPTIONS=detect_leaks=0 make test-sanitize
 - Go LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `gopls`.
 - C/C++ LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `clangd`.
 - HTML LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `~/.local/bin/vscode-html-language-server --stdio` by default.
+- CSS/SCSS LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `~/.local/bin/vscode-css-language-server --stdio` by default.
+- JSON LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `~/.local/bin/vscode-json-language-server --stdio` by default.
+- ESLint diagnostics for active JavaScript buffers (`.js`, `.mjs`, `.cjs`, `.jsx`) via `~/.local/bin/vscode-eslint-language-server --stdio` by default.
+- Manual ESLint fix action (`eslint_fix`) for JavaScript buffers, configurable through `[keymap]`.
 - Missing-`gopls` install prompt with live output in read-only task-log tabs.
 - Missing-`clangd` prompt that can open an instruction tab with install guidance and the official installation URL.
 - Missing-`vscode-langservers-extracted` install prompt with live output in read-only task-log tabs.
@@ -80,12 +84,14 @@ Syntax fixture samples are stored in [`tests/syntax/`](tests/syntax/README.md).
 - `Alt-Shift-Left` / `Alt-Shift-Right`: resize drawer
 - `Ctrl-F`: search
 - `Ctrl-G`: go to line
-- `Ctrl-O` / `Ctrl + left click`: Go/C/C++/HTML definition (supported source buffers)
+- `Ctrl-O` / `Ctrl + left click`: Go/C/C++/HTML/CSS/SCSS/JSON definition (supported source buffers)
 - `Ctrl-B`: toggle selection
 - `Ctrl-C` / `Ctrl-X` / `Ctrl-D` / `Ctrl-V`: copy/cut/delete/paste selection
 - `Ctrl-Z` / `Ctrl-Y`: undo/redo
 - `Ctrl-Left` / `Ctrl-Right`: horizontal viewport scroll
 - arrows/home/end/page up/page down: movement and viewport navigation
+
+`eslint_fix` is available as a configurable action but does not have a default binding in the built-in keymap.
 
 ## Configuration
 
@@ -101,22 +107,34 @@ Sections:
 - `[keymap]`
 
 LSP notes:
-- `gopls_enabled`, `clangd_enabled`, and `html_enabled` can be set independently in `[lsp]`.
-- `gopls_command`, `clangd_command`, and `html_command` can be set globally or per-project.
+- `gopls_enabled`, `clangd_enabled`, `html_enabled`, `css_enabled`, `json_enabled`, and `eslint_enabled` can be set independently in `[lsp]`.
+- `gopls_command`, `clangd_command`, `html_command`, `css_command`, `json_command`, and `eslint_command` can be set globally or per-project.
 - `gopls_install_command` is **global-only** (`~/.rotide/config.toml`).
 - `vscode_langservers_install_command` is **global-only** (`~/.rotide/config.toml`).
 - If `gopls_install_command` appears in project config, RotIDE ignores that key and keeps parsing the rest of `[lsp]`.
 - If `vscode_langservers_install_command` appears in project config, RotIDE ignores that key and keeps parsing the rest of `[lsp]`.
-- Legacy `enabled = true|false` is accepted as a shorthand that toggles both servers together.
+- Legacy `enabled = true|false` is accepted as a shorthand that toggles all built-in LSP servers together.
 - HTML definition lookup uses `~/.local/bin/vscode-html-language-server --stdio` by default.
+- CSS/SCSS definition lookup uses `~/.local/bin/vscode-css-language-server --stdio` by default.
+- JSON definition lookup uses `~/.local/bin/vscode-json-language-server --stdio` by default.
+- ESLint diagnostics use `~/.local/bin/vscode-eslint-language-server --stdio` by default.
 - If `vscode-html-language-server` is missing, RotIDE offers to run:
   - `npm install --global --prefix ~/.local vscode-langservers-extracted`
+- The same install prompt is reused for `vscode-css-language-server`, `vscode-json-language-server`, and `vscode-eslint-language-server`.
 - If `~/.local/bin` is already on your `PATH`, you can also set:
   - `html_command = "vscode-html-language-server --stdio"`
-- The `vscode-langservers-extracted` package also provides future server commands:
+  - `css_command = "vscode-css-language-server --stdio"`
+  - `json_command = "vscode-json-language-server --stdio"`
+  - `eslint_command = "vscode-eslint-language-server --stdio"`
+- The `vscode-langservers-extracted` package provides:
+  - `vscode-html-language-server`
   - `vscode-css-language-server`
   - `vscode-json-language-server`
   - `vscode-eslint-language-server`
+- ESLint integration is intentionally incremental in this phase:
+  - diagnostics are shown for the active JavaScript-family buffer
+  - fixes are user-invoked through the `eslint_fix` action
+  - save behavior is unchanged
 - If `clangd` is missing, RotIDE shows install guidance in a task-log tab instead of trying to install it automatically.
 - For most C/C++ projects, `clangd` also needs a `compile_commands.json` compilation database.
 - With CMake, generate one with:
@@ -210,9 +228,10 @@ This section names the core concepts used throughout the codebase.
 
 ### LSP state
 
-- LSP client in [`src/language/lsp.c`](src/language/lsp.c) with JSON-RPC transport for `gopls` and `clangd`.
+- LSP client in [`src/language/lsp.c`](src/language/lsp.c) with JSON-RPC transport for `gopls`, `clangd`, and the `vscode-langservers-extracted` HTML/CSS/JSON/ESLint servers.
 - Tracks per-tab document open/version and sends didOpen/didChange/didSave/didClose.
-- Definition lookup integrates with tabs and position conversion helpers.
+- Stores per-tab diagnostic summaries for active-buffer ESLint results.
+- Definition lookup and ESLint code actions integrate with tabs and position conversion helpers.
 
 ### Source tree
 
@@ -237,7 +256,7 @@ This section names the core concepts used throughout the codebase.
 - [`src/text/document.c`](src/text/document.c), [`src/text/rope.c`](src/text/rope.c): canonical text storage and offset/line mapping.
 - [`src/render/screen.c`](src/render/screen.c): rendering of tab bar, drawer, text viewport, status/message bars.
 - [`src/language/syntax.c`](src/language/syntax.c): Tree-sitter parser/query integration and capture collection.
-- [`src/language/lsp.c`](src/language/lsp.c): Go/C/C++ LSP process lifecycle and JSON-RPC messaging.
+- [`src/language/lsp.c`](src/language/lsp.c): Go/C/C++/HTML/CSS/JSON/ESLint LSP process lifecycle, JSON-RPC messaging, diagnostics, and code actions.
 - [`src/config/`](src/config): keymap bindings, editor settings, theme config, LSP config, and shared TOML parsing helpers.
 - [`src/support/alloc.c`](src/support/alloc.c), [`src/support/save_syscalls.c`](src/support/save_syscalls.c): testable wrappers for allocation and save syscalls.
 - [`src/workspace/`](src/workspace): editor subsystems split out of the former monolithic buffer module.

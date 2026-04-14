@@ -3,6 +3,7 @@
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
 #include "editing/selection.h"
+#include "language/lsp.h"
 #include "support/size_utils.h"
 #include "support/alloc.h"
 #include "text/row.h"
@@ -1781,10 +1782,16 @@ static int editorDrawStatusBar(struct writeBuf *wb) {
 		return 0;
 	}
 	char rightbuf[80];
+	char diagbuf[48];
 	const char *filename = editorActiveBufferDisplayName();
 	const char *dirtyflag = "";
+	diagbuf[0] = '\0';
 	if (E.dirty) {
 		dirtyflag = "[+]";
+	}
+	if (E.lsp_diagnostic_count > 0) {
+		(void)snprintf(diagbuf, sizeof(diagbuf), " [E:%d W:%d]",
+				E.lsp_diagnostic_error_count, E.lsp_diagnostic_warning_count);
 	}
 
 	int progress = 0;
@@ -1815,6 +1822,7 @@ static int editorDrawStatusBar(struct writeBuf *wb) {
 	}
 
 	int dirty_cols = (int)strlen(dirtyflag);
+	int diag_cols = (int)strlen(diagbuf);
 	int left_budget = right_start_col;
 	int reserved_for_dirty = 0;
 	int include_dirty_sep = 0;
@@ -1831,10 +1839,20 @@ static int editorDrawStatusBar(struct writeBuf *wb) {
 	if (path_budget < 0) {
 		path_budget = 0;
 	}
+	if (diag_cols > 0 && path_budget >= diag_cols) {
+		path_budget -= diag_cols;
+	}
 
 	int left_cols = 0;
 	if (!editorAppendSanitizedStatusPath(wb, filename, path_budget, &left_cols)) {
 		return 0;
+	}
+	if (diagbuf[0] != '\0' && left_cols < right_start_col) {
+		int appended = 0;
+		if (!editorAppendSanitizedText(wb, diagbuf, right_start_col - left_cols, &appended)) {
+			return 0;
+		}
+		left_cols += appended;
 	}
 
 	if (reserved_for_dirty > 0) {
@@ -2011,6 +2029,7 @@ static const char *editorCursorStyleSequence(enum editorCursorStyle style, size_
 }
 
 void editorRefreshScreen(void) {
+	editorLspPumpNotifications();
 	editorScroll();
 	g_editor_output_last_refresh_file_row_draw_count = 0;
 

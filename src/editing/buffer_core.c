@@ -462,19 +462,7 @@ static int editorSyntaxApplyIncrementalEditActive(const struct editorSyntaxEdit 
 }
 
 static int editorLspActiveBufferTracked(void) {
-	if (E.filename == NULL || E.filename[0] == '\0') {
-		return 0;
-	}
-	if (E.syntax_language == EDITOR_SYNTAX_GO) {
-		return E.lsp_gopls_enabled;
-	}
-	if (E.syntax_language == EDITOR_SYNTAX_C) {
-		return E.lsp_clangd_enabled;
-	}
-	if (E.syntax_language == EDITOR_SYNTAX_HTML) {
-		return E.lsp_html_enabled;
-	}
-	return 0;
+	return editorLspFileEnabled(E.filename, E.syntax_language);
 }
 
 static void editorLspNotifyDidChangeActive(const struct editorSyntaxEdit *edit,

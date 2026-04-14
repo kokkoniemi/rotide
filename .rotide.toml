@@ -15,9 +15,16 @@
 # - [lsp]
 # - gopls_enabled = true|false
 # - clangd_enabled = true|false
+# - html_enabled = true|false
+# - css_enabled = true|false
+# - json_enabled = true|false
+# - eslint_enabled = true|false
 # - gopls_command = "gopls" (command/path used to start gopls)
 # - clangd_command = "clangd" (command/path used to start clangd)
-# - enabled = true|false is still accepted as a legacy alias for both servers
+# - html_command/css_command/json_command/eslint_command can be set per project
+# - enabled = true|false is still accepted as a legacy alias for all built-in LSP servers
+# - gopls_install_command and vscode_langservers_install_command are global-only
+# - eslint_fix is an opt-in keymap action with no default binding
 # - Invalid [lsp] values fall back to defaults with a warning.
 # Key spec format:
 # - "ctrl+<a-z>", "alt+<a-z>", "ctrl+alt+<a-z>", "ctrl+]"
@@ -54,8 +61,16 @@ punctuation = "bright_black"
 [lsp]
 gopls_enabled = true
 clangd_enabled = true
+html_enabled = true
+css_enabled = true
+json_enabled = true
+eslint_enabled = true
 gopls_command = "gopls"
 clangd_command = "clangd"
+html_command = "~/.local/bin/vscode-html-language-server --stdio"
+css_command = "~/.local/bin/vscode-css-language-server --stdio"
+json_command = "~/.local/bin/vscode-json-language-server --stdio"
+eslint_command = "~/.local/bin/vscode-eslint-language-server --stdio"
 
 [keymap]
 quit = "ctrl+q"
@@ -70,6 +85,7 @@ resize_drawer_widen = "alt+shift+right"
 find = "ctrl+f"
 goto_line = "ctrl+g"
 goto_definition = "ctrl+o"
+# eslint_fix = "ctrl+alt+e"
 toggle_selection = "ctrl+b"
 copy_selection = "ctrl+c"
 cut_selection = "ctrl+x"

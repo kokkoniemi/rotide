@@ -327,24 +327,22 @@ enum editorGoToDefinitionInstallFamily {
 };
 
 static int editorGoToDefinitionSupportedLanguage(enum editorSyntaxLanguage language) {
+	if (editorLspFileSupportsDefinition(E.filename, language)) {
+		return 1;
+	}
 	return language == EDITOR_SYNTAX_GO || language == EDITOR_SYNTAX_C ||
-			language == EDITOR_SYNTAX_HTML;
+			language == EDITOR_SYNTAX_HTML || language == EDITOR_SYNTAX_CSS;
 }
 
 static int editorGoToDefinitionEnabledForLanguage(void) {
-	if (E.syntax_language == EDITOR_SYNTAX_GO) {
-		return E.lsp_gopls_enabled;
-	}
-	if (E.syntax_language == EDITOR_SYNTAX_C) {
-		return E.lsp_clangd_enabled;
-	}
-	if (E.syntax_language == EDITOR_SYNTAX_HTML) {
-		return E.lsp_html_enabled;
-	}
-	return 0;
+	return editorLspFileEnabled(E.filename, E.syntax_language);
 }
 
 static const char *editorGoToDefinitionLanguageLabel(void) {
+	const char *label = editorLspLanguageLabelForFile(E.filename, E.syntax_language);
+	if (label != NULL) {
+		return label;
+	}
 	if (E.syntax_language == EDITOR_SYNTAX_GO) {
 		return "Go";
 	}
@@ -354,59 +352,51 @@ static const char *editorGoToDefinitionLanguageLabel(void) {
 	if (E.syntax_language == EDITOR_SYNTAX_HTML) {
 		return "HTML";
 	}
+	if (E.syntax_language == EDITOR_SYNTAX_CSS) {
+		return "CSS/SCSS";
+	}
 	return NULL;
 }
 
 static const char *editorGoToDefinitionServerName(void) {
-	if (E.syntax_language == EDITOR_SYNTAX_GO) {
-		return "gopls";
-	}
-	if (E.syntax_language == EDITOR_SYNTAX_C) {
-		return "clangd";
-	}
-	if (E.syntax_language == EDITOR_SYNTAX_HTML) {
-		return "vscode-html-language-server";
-	}
-	return "LSP";
+	return editorLspServerNameForFile(E.filename, E.syntax_language);
 }
 
 static const char *editorGoToDefinitionCommand(void) {
-	if (E.syntax_language == EDITOR_SYNTAX_GO) {
-		return E.lsp_gopls_command;
-	}
-	if (E.syntax_language == EDITOR_SYNTAX_C) {
-		return E.lsp_clangd_command;
-	}
-	if (E.syntax_language == EDITOR_SYNTAX_HTML) {
-		return E.lsp_html_command;
-	}
-	return NULL;
+	return editorLspCommandForFile(E.filename, E.syntax_language);
 }
 
 static const char *editorGoToDefinitionCommandSettingName(void) {
-	if (E.syntax_language == EDITOR_SYNTAX_GO) {
-		return "gopls_command";
-	}
-	if (E.syntax_language == EDITOR_SYNTAX_C) {
-		return "clangd_command";
-	}
-	if (E.syntax_language == EDITOR_SYNTAX_HTML) {
-		return "html_command";
-	}
-	return NULL;
+	return editorLspCommandSettingNameForFile(E.filename, E.syntax_language);
 }
 
 static enum editorGoToDefinitionInstallFamily editorGoToDefinitionInstallFamilyForLanguage(void) {
-	if (E.syntax_language == EDITOR_SYNTAX_GO) {
+	const char *server_name = editorGoToDefinitionServerName();
+	if (server_name != NULL && strcmp(server_name, "gopls") == 0) {
 		return EDITOR_GOTO_DEF_INSTALL_GOPLS;
 	}
-	if (E.syntax_language == EDITOR_SYNTAX_C) {
+	if (server_name != NULL && strcmp(server_name, "clangd") == 0) {
 		return EDITOR_GOTO_DEF_INSTALL_CLANGD;
 	}
-	if (E.syntax_language == EDITOR_SYNTAX_HTML) {
+	if (editorLspUsesSharedVscodeInstallPrompt(E.filename, E.syntax_language)) {
 		return EDITOR_GOTO_DEF_INSTALL_VSCODE_LANGSERVERS;
 	}
 	return EDITOR_GOTO_DEF_INSTALL_NONE;
+}
+
+static void editorPromptInstallSharedVscodeLanguageServers(void) {
+	if (!editorPromptYesNo("vscode-langservers-extracted not found. Install now? [y/N] %s")) {
+		editorSetStatusMsg("vscode-langservers-extracted not installed");
+		return;
+	}
+	if (!editorTaskStart("Task: Install vscode-langservers-extracted",
+				E.lsp_vscode_langservers_install_command,
+				"vscode-langservers-extracted installed. Retry Ctrl-O",
+				"vscode-langservers-extracted install failed; see task log")) {
+		if (E.statusmsg[0] == '\0') {
+			editorSetStatusMsg("Unable to start vscode-langservers-extracted install");
+		}
+	}
 }
 
 static void editorMaybePromptInstallLanguageServer(void) {
@@ -461,19 +451,7 @@ static void editorMaybePromptInstallLanguageServer(void) {
 			return;
 		}
 		case EDITOR_GOTO_DEF_INSTALL_VSCODE_LANGSERVERS:
-			if (!editorPromptYesNo(
-						"vscode-langservers-extracted not found. Install now? [y/N] %s")) {
-				editorSetStatusMsg("vscode-langservers-extracted not installed");
-				return;
-			}
-			if (!editorTaskStart("Task: Install vscode-langservers-extracted",
-						E.lsp_vscode_langservers_install_command,
-						"vscode-langservers-extracted installed. Retry Ctrl-O",
-						"vscode-langservers-extracted install failed; see task log")) {
-				if (E.statusmsg[0] == '\0') {
-					editorSetStatusMsg("Unable to start vscode-langservers-extracted install");
-				}
-			}
+			editorPromptInstallSharedVscodeLanguageServers();
 			return;
 		default:
 			return;
@@ -492,6 +470,7 @@ static int editorActionMutatesReadOnlyBuffer(enum editorAction action) {
 		case EDITOR_ACTION_DELETE_CHAR:
 		case EDITOR_ACTION_BACKSPACE:
 		case EDITOR_ACTION_PASTE:
+		case EDITOR_ACTION_ESLINT_FIX:
 		case EDITOR_ACTION_CUT_SELECTION:
 		case EDITOR_ACTION_DELETE_SELECTION:
 		case EDITOR_ACTION_UNDO:
@@ -945,7 +924,8 @@ static int editorPromptDefinitionChoice(int count, int *choice_out) {
 
 static void editorGoToDefinition(void) {
 	if (!editorGoToDefinitionSupportedLanguage(E.syntax_language)) {
-		editorSetStatusMsg("Go to definition is available for Go, C, C++, and HTML files only");
+		editorSetStatusMsg(
+				"Go to definition is available for Go, C, C++, HTML, CSS/SCSS, and JSON files only");
 		return;
 	}
 	if (E.filename == NULL || E.filename[0] == '\0') {
@@ -1047,6 +1027,46 @@ static void editorGoToDefinition(void) {
 	editorSetStatusMsg("Definition: %s:%d", editorBasenameFromPath(selected->path),
 			selected->line + 1);
 	editorLspFreeLocations(locations, count);
+}
+
+static void editorApplyEslintFixes(void) {
+	if (E.filename == NULL || E.filename[0] == '\0') {
+		editorSetStatusMsg("Save this JavaScript buffer before applying ESLint fixes");
+		return;
+	}
+	if (editorLspServerNameForFile(E.filename, E.syntax_language) == NULL ||
+			strcmp(editorLspServerNameForFile(E.filename, E.syntax_language),
+					"vscode-eslint-language-server") != 0) {
+		editorSetStatusMsg("ESLint fixes are available for JavaScript files only");
+		return;
+	}
+	if (!E.lsp_eslint_enabled) {
+		editorSetStatusMsg("vscode-eslint-language-server is disabled in config");
+		return;
+	}
+	if (E.lsp_eslint_command[0] == '\0') {
+		editorSetStatusMsg("LSP disabled: [lsp].eslint_command is empty");
+		return;
+	}
+
+	int result = editorLspRequestCodeActionFixes(E.filename, E.syntax_language);
+	if (result > 0) {
+		editorSetStatusMsg("ESLint fixes applied");
+		return;
+	}
+	if (result == 0) {
+		editorSetStatusMsg("No ESLint fixes available");
+		return;
+	}
+	if (editorLspLastStartupFailureReason() == EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
+		editorPromptInstallSharedVscodeLanguageServers();
+		return;
+	}
+	if (result == -2) {
+		editorSetStatusMsg("ESLint fixes timed out");
+		return;
+	}
+	editorSetStatusMsg("ESLint fixes failed");
 }
 
 static void editorMoveCursor(int k) {
@@ -1458,6 +1478,12 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 		case EDITOR_ACTION_GOTO_DEFINITION:
 			editorHistoryBreakGroup();
 			editorGoToDefinition();
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			break;
+		case EDITOR_ACTION_ESLINT_FIX:
+			editorHistoryBreakGroup();
+			editorPinActivePreviewForEdit();
+			editorApplyEslintFixes();
 			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			break;
 		case EDITOR_ACTION_TOGGLE_SELECTION:

@@ -96,6 +96,15 @@ struct editorSelectionRange {
 	int end_cx;
 };
 
+struct editorLspDiagnostic {
+	int start_line;
+	int start_character;
+	int end_line;
+	int end_character;
+	int severity;
+	char *message;
+};
+
 struct editorDrawerNode;
 struct editorSyntaxState;
 struct editorDocument;
@@ -209,6 +218,7 @@ enum editorAction {
 	EDITOR_ACTION_FIND,
 	EDITOR_ACTION_GOTO_LINE,
 	EDITOR_ACTION_GOTO_DEFINITION,
+	EDITOR_ACTION_ESLINT_FIX,
 	EDITOR_ACTION_TOGGLE_SELECTION,
 	EDITOR_ACTION_COPY_SELECTION,
 	EDITOR_ACTION_CUT_SELECTION,
@@ -298,6 +308,10 @@ struct editorTabState {
 	struct editorSyntaxState *syntax_state;
 	int lsp_doc_open;
 	int lsp_doc_version;
+	struct editorLspDiagnostic *lsp_diagnostics;
+	int lsp_diagnostic_count;
+	int lsp_diagnostic_error_count;
+	int lsp_diagnostic_warning_count;
 	char *search_query;
 	size_t search_match_offset;
 	int search_match_len;
@@ -341,13 +355,23 @@ struct editorConfig {
 	int lsp_gopls_enabled;
 	int lsp_clangd_enabled;
 	int lsp_html_enabled;
+	int lsp_css_enabled;
+	int lsp_json_enabled;
+	int lsp_eslint_enabled;
 	char lsp_gopls_command[PATH_MAX];
 	char lsp_gopls_install_command[PATH_MAX];
 	char lsp_clangd_command[PATH_MAX];
 	char lsp_html_command[PATH_MAX];
+	char lsp_css_command[PATH_MAX];
+	char lsp_json_command[PATH_MAX];
+	char lsp_eslint_command[PATH_MAX];
 	char lsp_vscode_langservers_install_command[PATH_MAX];
 	int lsp_doc_open;
 	int lsp_doc_version;
+	struct editorLspDiagnostic *lsp_diagnostics;
+	int lsp_diagnostic_count;
+	int lsp_diagnostic_error_count;
+	int lsp_diagnostic_warning_count;
 	char statusmsg[80];
 	time_t statusmsg_time;
 	char *search_query;

@@ -40,6 +40,7 @@ static const struct editorActionName editor_action_names[] = {
 	{"find", EDITOR_ACTION_FIND},
 	{"goto_line", EDITOR_ACTION_GOTO_LINE},
 	{"goto_definition", EDITOR_ACTION_GOTO_DEFINITION},
+	{"eslint_fix", EDITOR_ACTION_ESLINT_FIX},
 	{"toggle_selection", EDITOR_ACTION_TOGGLE_SELECTION},
 	{"copy_selection", EDITOR_ACTION_COPY_SELECTION},
 	{"cut_selection", EDITOR_ACTION_CUT_SELECTION},

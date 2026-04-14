@@ -61,6 +61,10 @@ static void editorTabStateInitEmpty(struct editorTabState *tab) {
 	tab->syntax_state = NULL;
 	tab->lsp_doc_open = 0;
 	tab->lsp_doc_version = 0;
+	tab->lsp_diagnostics = NULL;
+	tab->lsp_diagnostic_count = 0;
+	tab->lsp_diagnostic_error_count = 0;
+	tab->lsp_diagnostic_warning_count = 0;
 	tab->max_render_cols = 0;
 	tab->max_render_cols_valid = 1;
 	tab->search_match_offset = 0;
@@ -90,6 +94,10 @@ void editorResetActiveBufferFields(void) {
 	E.syntax_state = NULL;
 	E.lsp_doc_open = 0;
 	E.lsp_doc_version = 0;
+	E.lsp_diagnostics = NULL;
+	E.lsp_diagnostic_count = 0;
+	E.lsp_diagnostic_error_count = 0;
+	E.lsp_diagnostic_warning_count = 0;
 	E.search_query = NULL;
 	E.search_match_offset = 0;
 	E.search_match_len = 0;
@@ -122,6 +130,13 @@ static void editorFreeTabRows(struct editorTabState *tab) {
 }
 
 static void editorTabStateFree(struct editorTabState *tab) {
+	if (tab->lsp_diagnostics != NULL) {
+		for (int i = 0; i < tab->lsp_diagnostic_count; i++) {
+			free(tab->lsp_diagnostics[i].message);
+		}
+		free(tab->lsp_diagnostics);
+		tab->lsp_diagnostics = NULL;
+	}
 	editorFreeTabRows(tab);
 	editorDocumentFreePtr(&tab->document);
 	free(tab->filename);
@@ -141,6 +156,13 @@ static void editorTabStateFree(struct editorTabState *tab) {
 }
 
 void editorFreeActiveBufferState(void) {
+	if (E.lsp_diagnostics != NULL) {
+		for (int i = 0; i < E.lsp_diagnostic_count; i++) {
+			free(E.lsp_diagnostics[i].message);
+		}
+		free(E.lsp_diagnostics);
+		E.lsp_diagnostics = NULL;
+	}
 	for (int i = 0; i < E.numrows; i++) {
 		free(E.rows[i].chars);
 		free(E.rows[i].render);
@@ -198,6 +220,10 @@ static void editorTabStateCaptureActive(struct editorTabState *tab) {
 	tab->syntax_state = E.syntax_state;
 	tab->lsp_doc_open = E.lsp_doc_open;
 	tab->lsp_doc_version = E.lsp_doc_version;
+	tab->lsp_diagnostics = E.lsp_diagnostics;
+	tab->lsp_diagnostic_count = E.lsp_diagnostic_count;
+	tab->lsp_diagnostic_error_count = E.lsp_diagnostic_error_count;
+	tab->lsp_diagnostic_warning_count = E.lsp_diagnostic_warning_count;
 	tab->search_query = E.search_query;
 	tab->search_match_offset = E.search_match_offset;
 	tab->search_match_len = E.search_match_len;
@@ -240,6 +266,10 @@ static void editorTabStateLoadActive(struct editorTabState *tab) {
 	E.syntax_state = tab->syntax_state;
 	E.lsp_doc_open = tab->lsp_doc_open;
 	E.lsp_doc_version = tab->lsp_doc_version;
+	E.lsp_diagnostics = tab->lsp_diagnostics;
+	E.lsp_diagnostic_count = tab->lsp_diagnostic_count;
+	E.lsp_diagnostic_error_count = tab->lsp_diagnostic_error_count;
+	E.lsp_diagnostic_warning_count = tab->lsp_diagnostic_warning_count;
 	E.search_query = tab->search_query;
 	E.search_match_offset = tab->search_match_offset;
 	E.search_match_len = tab->search_match_len;
@@ -334,6 +364,10 @@ static void editorLoadActiveTab(int tab_idx) {
 		E.syntax_state = NULL;
 		E.lsp_doc_open = 0;
 		E.lsp_doc_version = 0;
+		E.lsp_diagnostics = NULL;
+		E.lsp_diagnostic_count = 0;
+		E.lsp_diagnostic_error_count = 0;
+		E.lsp_diagnostic_warning_count = 0;
 		editorViewportSetMode(EDITOR_VIEWPORT_FOLLOW_CURSOR);
 		return;
 	}
@@ -760,6 +794,16 @@ static int editorRebuildGeneratedTabRows(struct editorTabState *tab) {
 	tab->syntax_language = EDITOR_SYNTAX_NONE;
 	tab->lsp_doc_open = 0;
 	tab->lsp_doc_version = 0;
+	if (tab->lsp_diagnostics != NULL) {
+		for (int i = 0; i < tab->lsp_diagnostic_count; i++) {
+			free(tab->lsp_diagnostics[i].message);
+		}
+		free(tab->lsp_diagnostics);
+	}
+	tab->lsp_diagnostics = NULL;
+	tab->lsp_diagnostic_count = 0;
+	tab->lsp_diagnostic_error_count = 0;
+	tab->lsp_diagnostic_warning_count = 0;
 	editorTaskLogClampCursor(tab);
 	return 1;
 }

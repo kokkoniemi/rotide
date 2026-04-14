@@ -31,7 +31,10 @@ enum editorLspServerKind {
 	EDITOR_LSP_SERVER_NONE = 0,
 	EDITOR_LSP_SERVER_GOPLS,
 	EDITOR_LSP_SERVER_CLANGD,
-	EDITOR_LSP_SERVER_HTML
+	EDITOR_LSP_SERVER_HTML,
+	EDITOR_LSP_SERVER_CSS,
+	EDITOR_LSP_SERVER_JSON,
+	EDITOR_LSP_SERVER_ESLINT
 };
 
 struct editorLspClient {
@@ -52,6 +55,14 @@ struct editorLspString {
 	size_t cap;
 };
 
+struct editorLspPendingEdit {
+	int start_line;
+	int start_character;
+	int end_line;
+	int end_character;
+	char *new_text;
+};
+
 struct editorLspMockState {
 	int enabled;
 	int server_alive;
@@ -63,6 +74,12 @@ struct editorLspMockState {
 	int definition_result_code;
 	struct editorLspLocation *definition_locations;
 	int definition_location_count;
+	struct editorLspDiagnostic *diagnostics;
+	int diagnostic_count;
+	char *diagnostic_path;
+	int code_action_result_code;
+	struct editorLspPendingEdit *code_action_edits;
+	int code_action_edit_count;
 };
 
 static struct editorLspClient g_lsp_client = {
@@ -86,14 +103,31 @@ static int editorLspReadActiveLineText(int line, char **text_out, size_t *len_ou
 static int editorLspProtocolCharacterFromBufferColumn(int line, int byte_column);
 static void editorLspResetTrackedDocuments(void);
 static int editorLspFilenameHasHtmlExtension(const char *filename);
+static int editorLspFilenameHasCssExtension(const char *filename);
+static int editorLspFilenameHasJsonExtension(const char *filename);
+static int editorLspFilenameHasJavascriptExtension(const char *filename);
 static enum editorLspServerKind editorLspServerKindForFile(const char *filename,
 		enum editorSyntaxLanguage language);
 static const char *editorLspCommandForServerKind(enum editorLspServerKind server_kind);
+static const char *editorLspServerNameForServerKind(enum editorLspServerKind server_kind);
+static const char *editorLspCommandSettingNameForServerKind(
+		enum editorLspServerKind server_kind);
+static const char *editorLspLanguageLabelForServerKind(enum editorLspServerKind server_kind);
+static int editorLspServerKindSupportsDefinition(enum editorLspServerKind server_kind);
 static const char *editorLspLanguageIdForFile(const char *filename,
 		enum editorSyntaxLanguage language);
 static char *editorLspBuildWorkspaceRootPathForFile(const char *filename,
 		enum editorLspServerKind server_kind);
 static int editorLspWorkspaceRootsMatch(const char *left, const char *right);
+static int editorLspProcessIncomingMessage(const char *message);
+static int editorLspTryDrainIncoming(int timeout_ms);
+static void editorLspFreeDiagnostics(struct editorLspDiagnostic *diagnostics, int count);
+static int editorLspCopyDiagnostics(struct editorLspDiagnostic **out_diagnostics, int *out_count,
+		const struct editorLspDiagnostic *diagnostics, int count);
+static void editorLspSetDiagnosticsForPath(const char *path,
+		const struct editorLspDiagnostic *diagnostics, int count);
+static int editorLspApplyPendingEdits(const struct editorLspPendingEdit *edits, int count);
+static void editorLspFreePendingEdits(struct editorLspPendingEdit *edits, int count);
 
 static long long editorLspMonotonicMillis(void) {
 	struct timespec ts;
@@ -240,6 +274,35 @@ static int editorLspStringAppendJsonEscaped(struct editorLspString *sb, const ch
 	}
 
 	return editorLspStringAppendBytes(sb, "\"", 1);
+}
+
+static char *editorLspBuildInitializeRequestJson(int request_id, const char *root_uri,
+		int process_id) {
+	if (root_uri == NULL || root_uri[0] == '\0') {
+		return NULL;
+	}
+
+	struct editorLspString init = {0};
+	int built = editorLspStringAppendf(&init,
+			"{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":\"initialize\",\"params\":{"
+			"\"processId\":%d,\"rootUri\":",
+			request_id, process_id);
+	if (built) {
+		built = editorLspStringAppendJsonEscaped(&init, root_uri, strlen(root_uri));
+	}
+	if (built) {
+		built = editorLspStringAppend(&init,
+				",\"capabilities\":{\"general\":{\"positionEncodings\":[\"utf-8\",\"utf-16\"]},"
+				"\"workspace\":{\"applyEdit\":true},"
+				"\"textDocument\":{\"codeAction\":{\"codeActionLiteralSupport\":{"
+				"\"codeActionKind\":{\"valueSet\":[\"quickfix\",\"source.fixAll\","
+				"\"source.fixAll.eslint\"]}}}}}}}");
+	}
+	if (!built) {
+		free(init.buf);
+		return NULL;
+	}
+	return init.buf;
 }
 
 static int editorLspWriteAll(int fd, const char *buf, size_t len) {
@@ -553,10 +616,53 @@ static int editorLspFilenameHasHtmlExtension(const char *filename) {
 	return strcmp(dot, ".html") == 0 || strcmp(dot, ".htm") == 0 || strcmp(dot, ".xhtml") == 0;
 }
 
+static int editorLspFilenameHasCssExtension(const char *filename) {
+	if (filename == NULL || filename[0] == '\0') {
+		return 0;
+	}
+	const char *dot = strrchr(filename, '.');
+	if (dot == NULL) {
+		return 0;
+	}
+	return strcmp(dot, ".css") == 0 || strcmp(dot, ".scss") == 0;
+}
+
+static int editorLspFilenameHasJsonExtension(const char *filename) {
+	if (filename == NULL || filename[0] == '\0') {
+		return 0;
+	}
+	const char *dot = strrchr(filename, '.');
+	if (dot == NULL) {
+		return 0;
+	}
+	return strcmp(dot, ".json") == 0;
+}
+
+static int editorLspFilenameHasJavascriptExtension(const char *filename) {
+	if (filename == NULL || filename[0] == '\0') {
+		return 0;
+	}
+	const char *dot = strrchr(filename, '.');
+	if (dot == NULL) {
+		return 0;
+	}
+	return strcmp(dot, ".js") == 0 || strcmp(dot, ".mjs") == 0 || strcmp(dot, ".cjs") == 0 ||
+			strcmp(dot, ".jsx") == 0;
+}
+
 static enum editorLspServerKind editorLspServerKindForFile(const char *filename,
 		enum editorSyntaxLanguage language) {
 	if (editorLspFilenameHasHtmlExtension(filename)) {
 		return EDITOR_LSP_SERVER_HTML;
+	}
+	if (editorLspFilenameHasCssExtension(filename)) {
+		return EDITOR_LSP_SERVER_CSS;
+	}
+	if (editorLspFilenameHasJsonExtension(filename)) {
+		return EDITOR_LSP_SERVER_JSON;
+	}
+	if (editorLspFilenameHasJavascriptExtension(filename)) {
+		return EDITOR_LSP_SERVER_ESLINT;
 	}
 	switch (language) {
 		case EDITOR_SYNTAX_GO:
@@ -565,6 +671,10 @@ static enum editorLspServerKind editorLspServerKindForFile(const char *filename,
 			return EDITOR_LSP_SERVER_CLANGD;
 		case EDITOR_SYNTAX_HTML:
 			return EDITOR_LSP_SERVER_HTML;
+		case EDITOR_SYNTAX_CSS:
+			return EDITOR_LSP_SERVER_CSS;
+		case EDITOR_SYNTAX_JAVASCRIPT:
+			return EDITOR_LSP_SERVER_ESLINT;
 		default:
 			return EDITOR_LSP_SERVER_NONE;
 	}
@@ -578,6 +688,70 @@ static const char *editorLspCommandForServerKind(enum editorLspServerKind server
 			return E.lsp_clangd_command;
 		case EDITOR_LSP_SERVER_HTML:
 			return E.lsp_html_command;
+		case EDITOR_LSP_SERVER_CSS:
+			return E.lsp_css_command;
+		case EDITOR_LSP_SERVER_JSON:
+			return E.lsp_json_command;
+		case EDITOR_LSP_SERVER_ESLINT:
+			return E.lsp_eslint_command;
+		default:
+			return NULL;
+	}
+}
+
+static const char *editorLspServerNameForServerKind(enum editorLspServerKind server_kind) {
+	switch (server_kind) {
+		case EDITOR_LSP_SERVER_GOPLS:
+			return "gopls";
+		case EDITOR_LSP_SERVER_CLANGD:
+			return "clangd";
+		case EDITOR_LSP_SERVER_HTML:
+			return "vscode-html-language-server";
+		case EDITOR_LSP_SERVER_CSS:
+			return "vscode-css-language-server";
+		case EDITOR_LSP_SERVER_JSON:
+			return "vscode-json-language-server";
+		case EDITOR_LSP_SERVER_ESLINT:
+			return "vscode-eslint-language-server";
+		default:
+			return "LSP";
+	}
+}
+
+static const char *editorLspCommandSettingNameForServerKind(
+		enum editorLspServerKind server_kind) {
+	switch (server_kind) {
+		case EDITOR_LSP_SERVER_GOPLS:
+			return "gopls_command";
+		case EDITOR_LSP_SERVER_CLANGD:
+			return "clangd_command";
+		case EDITOR_LSP_SERVER_HTML:
+			return "html_command";
+		case EDITOR_LSP_SERVER_CSS:
+			return "css_command";
+		case EDITOR_LSP_SERVER_JSON:
+			return "json_command";
+		case EDITOR_LSP_SERVER_ESLINT:
+			return "eslint_command";
+		default:
+			return NULL;
+	}
+}
+
+static const char *editorLspLanguageLabelForServerKind(enum editorLspServerKind server_kind) {
+	switch (server_kind) {
+		case EDITOR_LSP_SERVER_GOPLS:
+			return "Go";
+		case EDITOR_LSP_SERVER_CLANGD:
+			return "C/C++";
+		case EDITOR_LSP_SERVER_HTML:
+			return "HTML";
+		case EDITOR_LSP_SERVER_CSS:
+			return "CSS/SCSS";
+		case EDITOR_LSP_SERVER_JSON:
+			return "JSON";
+		case EDITOR_LSP_SERVER_ESLINT:
+			return "JavaScript";
 		default:
 			return NULL;
 	}
@@ -591,13 +765,29 @@ static int editorLspServerKindEnabled(enum editorLspServerKind server_kind) {
 			return E.lsp_clangd_enabled;
 		case EDITOR_LSP_SERVER_HTML:
 			return E.lsp_html_enabled;
+		case EDITOR_LSP_SERVER_CSS:
+			return E.lsp_css_enabled;
+		case EDITOR_LSP_SERVER_JSON:
+			return E.lsp_json_enabled;
+		case EDITOR_LSP_SERVER_ESLINT:
+			return E.lsp_eslint_enabled;
 		default:
 			return 0;
 	}
 }
 
-static int editorLspFileEnabled(const char *filename, enum editorSyntaxLanguage language) {
+int editorLspFileEnabled(const char *filename, enum editorSyntaxLanguage language) {
 	return editorLspServerKindEnabled(editorLspServerKindForFile(filename, language));
+}
+
+static int editorLspServerKindSupportsDefinition(enum editorLspServerKind server_kind) {
+	return server_kind == EDITOR_LSP_SERVER_GOPLS || server_kind == EDITOR_LSP_SERVER_CLANGD ||
+			server_kind == EDITOR_LSP_SERVER_HTML || server_kind == EDITOR_LSP_SERVER_CSS ||
+			server_kind == EDITOR_LSP_SERVER_JSON;
+}
+
+int editorLspFileSupportsDefinition(const char *filename, enum editorSyntaxLanguage language) {
+	return editorLspServerKindSupportsDefinition(editorLspServerKindForFile(filename, language));
 }
 
 static const char *editorLspLanguageIdForFile(const char *filename,
@@ -609,9 +799,58 @@ static const char *editorLspLanguageIdForFile(const char *filename,
 			return editorLspFilenameHasCppExtension(filename) ? "cpp" : "c";
 		case EDITOR_SYNTAX_HTML:
 			return "html";
+		case EDITOR_SYNTAX_CSS:
+			return editorLspFilenameHasCssExtension(filename) &&
+						 strrchr(filename, '.') != NULL &&
+						 strcmp(strrchr(filename, '.'), ".scss") == 0 ?
+					"scss" :
+					"css";
+		case EDITOR_SYNTAX_JAVASCRIPT:
+			return "javascript";
 		default:
-			return NULL;
+			break;
 	}
+	if (editorLspFilenameHasHtmlExtension(filename)) {
+		return "html";
+	}
+	if (editorLspFilenameHasCssExtension(filename)) {
+		return strrchr(filename, '.') != NULL && strcmp(strrchr(filename, '.'), ".scss") == 0 ?
+				"scss" :
+				"css";
+	}
+	if (editorLspFilenameHasJsonExtension(filename)) {
+		return "json";
+	}
+	if (editorLspFilenameHasJavascriptExtension(filename)) {
+		return "javascript";
+	}
+	return NULL;
+}
+
+const char *editorLspLanguageLabelForFile(const char *filename,
+		enum editorSyntaxLanguage language) {
+	return editorLspLanguageLabelForServerKind(editorLspServerKindForFile(filename, language));
+}
+
+const char *editorLspServerNameForFile(const char *filename, enum editorSyntaxLanguage language) {
+	return editorLspServerNameForServerKind(editorLspServerKindForFile(filename, language));
+}
+
+const char *editorLspCommandForFile(const char *filename, enum editorSyntaxLanguage language) {
+	return editorLspCommandForServerKind(editorLspServerKindForFile(filename, language));
+}
+
+const char *editorLspCommandSettingNameForFile(const char *filename,
+		enum editorSyntaxLanguage language) {
+	return editorLspCommandSettingNameForServerKind(
+			editorLspServerKindForFile(filename, language));
+}
+
+int editorLspUsesSharedVscodeInstallPrompt(const char *filename,
+		enum editorSyntaxLanguage language) {
+	enum editorLspServerKind server_kind = editorLspServerKindForFile(filename, language);
+	return server_kind == EDITOR_LSP_SERVER_HTML || server_kind == EDITOR_LSP_SERVER_CSS ||
+			server_kind == EDITOR_LSP_SERVER_JSON || server_kind == EDITOR_LSP_SERVER_ESLINT;
 }
 
 static int editorLspParseJsonString(const char *json, char **value_out, const char **after_out) {
@@ -885,9 +1124,57 @@ static const char *editorLspFindJsonObjectEnd(const char *object_start) {
 	return NULL;
 }
 
-static int editorLspParsePositionFromStart(const char *range_json, const char *limit,
-		int *line_out, int *character_out) {
-	const char *start = editorLspStrstrBounded(range_json, "\"start\"", limit);
+static const char *editorLspFindJsonArrayEnd(const char *array_start) {
+	if (array_start == NULL || array_start[0] != '[') {
+		return NULL;
+	}
+
+	int depth = 0;
+	int in_string = 0;
+	int escaped = 0;
+	for (const char *scan = array_start; scan[0] != '\0'; scan++) {
+		char ch = scan[0];
+		if (in_string) {
+			if (escaped) {
+				escaped = 0;
+			} else if (ch == '\\') {
+				escaped = 1;
+			} else if (ch == '"') {
+				in_string = 0;
+			}
+			continue;
+		}
+
+		if (ch == '"') {
+			in_string = 1;
+			continue;
+		}
+		if (ch == '[') {
+			depth++;
+			continue;
+		}
+		if (ch == ']') {
+			depth--;
+			if (depth == 0) {
+				return scan + 1;
+			}
+			if (depth < 0) {
+				return NULL;
+			}
+		}
+	}
+
+	return NULL;
+}
+
+static int editorLspParsePositionFromKey(const char *range_json, const char *key_name,
+		const char *limit, int *line_out, int *character_out) {
+	char key_pattern[32];
+	int written = snprintf(key_pattern, sizeof(key_pattern), "\"%s\"", key_name);
+	if (written <= 0 || (size_t)written >= sizeof(key_pattern)) {
+		return 0;
+	}
+	const char *start = editorLspStrstrBounded(range_json, key_pattern, limit);
 	if (start == NULL) {
 		return 0;
 	}
@@ -934,6 +1221,11 @@ static int editorLspParsePositionFromStart(const char *range_json, const char *l
 	*line_out = line;
 	*character_out = character;
 	return 1;
+}
+
+static int editorLspParsePositionFromStart(const char *range_json, const char *limit,
+		int *line_out, int *character_out) {
+	return editorLspParsePositionFromKey(range_json, "start", limit, line_out, character_out);
 }
 
 void editorLspFreeLocations(struct editorLspLocation *locations, int count) {
@@ -1121,6 +1413,555 @@ static int editorLspParseDefinitionLocations(const char *response_json,
 	return editorLspParseLocationObjects(result, "uri", "range", NULL, locations_out, count_out);
 }
 
+static void editorLspFreeDiagnostics(struct editorLspDiagnostic *diagnostics, int count) {
+	if (diagnostics == NULL) {
+		return;
+	}
+	for (int i = 0; i < count; i++) {
+		free(diagnostics[i].message);
+	}
+	free(diagnostics);
+}
+
+static int editorLspCopyDiagnostics(struct editorLspDiagnostic **out_diagnostics, int *out_count,
+		const struct editorLspDiagnostic *diagnostics, int count) {
+	if (out_diagnostics == NULL || out_count == NULL) {
+		return 0;
+	}
+	*out_diagnostics = NULL;
+	*out_count = 0;
+	if (diagnostics == NULL || count <= 0) {
+		return 1;
+	}
+
+	size_t bytes = 0;
+	if (!editorSizeMul(sizeof(*diagnostics), (size_t)count, &bytes)) {
+		return 0;
+	}
+	struct editorLspDiagnostic *copy = calloc((size_t)count, sizeof(*copy));
+	if (copy == NULL) {
+		return 0;
+	}
+
+	for (int i = 0; i < count; i++) {
+		copy[i].start_line = diagnostics[i].start_line;
+		copy[i].start_character = diagnostics[i].start_character;
+		copy[i].end_line = diagnostics[i].end_line;
+		copy[i].end_character = diagnostics[i].end_character;
+		copy[i].severity = diagnostics[i].severity;
+		if (diagnostics[i].message != NULL) {
+			copy[i].message = strdup(diagnostics[i].message);
+			if (copy[i].message == NULL) {
+				editorLspFreeDiagnostics(copy, count);
+				return 0;
+			}
+		}
+	}
+
+	*out_diagnostics = copy;
+	*out_count = count;
+	return 1;
+}
+
+static int editorLspDiagnosticsErrorCount(const struct editorLspDiagnostic *diagnostics, int count) {
+	int errors = 0;
+	for (int i = 0; i < count; i++) {
+		if (diagnostics[i].severity == 1) {
+			errors++;
+		}
+	}
+	return errors;
+}
+
+static int editorLspDiagnosticsWarningCount(const struct editorLspDiagnostic *diagnostics, int count) {
+	int warnings = 0;
+	for (int i = 0; i < count; i++) {
+		if (diagnostics[i].severity == 2) {
+			warnings++;
+		}
+	}
+	return warnings;
+}
+
+static int editorLspPathMatches(const char *left, const char *right) {
+	return left != NULL && right != NULL && editorPathsReferToSameFile(left, right);
+}
+
+static void editorLspUpdateDiagnosticFields(struct editorLspDiagnostic **diagnostics_in_out,
+		int *count_in_out, int *error_count_out, int *warning_count_out,
+		const struct editorLspDiagnostic *diagnostics, int count) {
+	editorLspFreeDiagnostics(*diagnostics_in_out, *count_in_out);
+	*diagnostics_in_out = NULL;
+	*count_in_out = 0;
+	*error_count_out = 0;
+	*warning_count_out = 0;
+	if (diagnostics == NULL || count <= 0) {
+		return;
+	}
+	if (!editorLspCopyDiagnostics(diagnostics_in_out, count_in_out, diagnostics, count)) {
+		return;
+	}
+	*error_count_out = editorLspDiagnosticsErrorCount(*diagnostics_in_out, *count_in_out);
+	*warning_count_out = editorLspDiagnosticsWarningCount(*diagnostics_in_out, *count_in_out);
+}
+
+static void editorLspSetDiagnosticsForPath(const char *path,
+		const struct editorLspDiagnostic *diagnostics, int count) {
+	if (path == NULL || path[0] == '\0') {
+		return;
+	}
+
+	int active_matches = editorLspPathMatches(path, E.filename);
+	int old_count = active_matches ? E.lsp_diagnostic_count : 0;
+	int old_errors = active_matches ? E.lsp_diagnostic_error_count : 0;
+	int old_warnings = active_matches ? E.lsp_diagnostic_warning_count : 0;
+
+	if (active_matches) {
+		editorLspUpdateDiagnosticFields(&E.lsp_diagnostics, &E.lsp_diagnostic_count,
+				&E.lsp_diagnostic_error_count, &E.lsp_diagnostic_warning_count,
+				diagnostics, count);
+	}
+	for (int i = 0; i < E.tab_count; i++) {
+		if (!editorLspPathMatches(path, E.tabs[i].filename)) {
+			continue;
+		}
+		editorLspUpdateDiagnosticFields(&E.tabs[i].lsp_diagnostics,
+				&E.tabs[i].lsp_diagnostic_count, &E.tabs[i].lsp_diagnostic_error_count,
+				&E.tabs[i].lsp_diagnostic_warning_count, diagnostics, count);
+	}
+
+	if (active_matches &&
+			(old_count != E.lsp_diagnostic_count ||
+			 old_errors != E.lsp_diagnostic_error_count ||
+			 old_warnings != E.lsp_diagnostic_warning_count)) {
+		if (E.lsp_diagnostic_count == 0) {
+			editorSetStatusMsg("ESLint: diagnostics cleared");
+		} else {
+			editorSetStatusMsg("ESLint: %d error%s, %d warning%s",
+					E.lsp_diagnostic_error_count,
+					E.lsp_diagnostic_error_count == 1 ? "" : "s",
+					E.lsp_diagnostic_warning_count,
+					E.lsp_diagnostic_warning_count == 1 ? "" : "s");
+		}
+	}
+}
+
+void editorLspClearDiagnosticsForFile(const char *filename) {
+	editorLspSetDiagnosticsForPath(filename, NULL, 0);
+}
+
+void editorLspGetDiagnosticSummaryForFile(const char *filename,
+		struct editorLspDiagnosticSummary *summary_out) {
+	if (summary_out == NULL) {
+		return;
+	}
+	memset(summary_out, 0, sizeof(*summary_out));
+	if (editorLspPathMatches(filename, E.filename)) {
+		summary_out->count = E.lsp_diagnostic_count;
+		summary_out->error_count = E.lsp_diagnostic_error_count;
+		summary_out->warning_count = E.lsp_diagnostic_warning_count;
+		return;
+	}
+	for (int i = 0; i < E.tab_count; i++) {
+		if (!editorLspPathMatches(filename, E.tabs[i].filename)) {
+			continue;
+		}
+		summary_out->count = E.tabs[i].lsp_diagnostic_count;
+		summary_out->error_count = E.tabs[i].lsp_diagnostic_error_count;
+		summary_out->warning_count = E.tabs[i].lsp_diagnostic_warning_count;
+		return;
+	}
+}
+
+static int editorLspParseDiagnosticsMessage(const char *message, char **path_out,
+		struct editorLspDiagnostic **diagnostics_out, int *count_out) {
+	if (path_out == NULL || diagnostics_out == NULL || count_out == NULL) {
+		return 0;
+	}
+	*path_out = NULL;
+	*diagnostics_out = NULL;
+	*count_out = 0;
+
+	char *method = NULL;
+	if (!editorLspFindStringField(message, "method", &method)) {
+		return 0;
+	}
+	int is_publish = strcmp(method, "textDocument/publishDiagnostics") == 0;
+	free(method);
+	if (!is_publish) {
+		return 0;
+	}
+
+	const char *params_key = strstr(message, "\"params\"");
+	if (params_key == NULL) {
+		return 0;
+	}
+	const char *params_colon = strchr(params_key, ':');
+	if (params_colon == NULL) {
+		return 0;
+	}
+	const char *params_object = strchr(params_colon + 1, '{');
+	if (params_object == NULL) {
+		return 0;
+	}
+	const char *params_end = editorLspFindJsonObjectEnd(params_object);
+	if (params_end == NULL) {
+		return 0;
+	}
+
+	char *uri = NULL;
+	if (!editorLspFindStringField(params_object, "uri", &uri) || uri == NULL) {
+		free(uri);
+		return 0;
+	}
+	char *path = editorLspDecodeFileUri(uri);
+	free(uri);
+	if (path == NULL) {
+		return 0;
+	}
+
+	const char *diag_key = editorLspStrstrBounded(params_object, "\"diagnostics\"", params_end);
+	if (diag_key == NULL) {
+		free(path);
+		return 0;
+	}
+	const char *diag_colon = strchr(diag_key, ':');
+	if (diag_colon == NULL || diag_colon >= params_end) {
+		free(path);
+		return 0;
+	}
+	const char *diag_array = strchr(diag_colon + 1, '[');
+	if (diag_array == NULL || diag_array >= params_end) {
+		free(path);
+		return 0;
+	}
+	const char *diag_array_end = editorLspFindJsonArrayEnd(diag_array);
+	if (diag_array_end == NULL || diag_array_end > params_end) {
+		free(path);
+		return 0;
+	}
+
+	struct editorLspDiagnostic *diagnostics = NULL;
+	int count = 0;
+	int cap = 0;
+	const char *scan = diag_array + 1;
+	while (scan < diag_array_end) {
+		const char *object_start = strchr(scan, '{');
+		if (object_start == NULL || object_start >= diag_array_end) {
+			break;
+		}
+		const char *object_end = editorLspFindJsonObjectEnd(object_start);
+		if (object_end == NULL || object_end > diag_array_end) {
+			editorLspFreeDiagnostics(diagnostics, count);
+			free(path);
+			return 0;
+		}
+		scan = object_end;
+
+		const char *range_key = editorLspStrstrBounded(object_start, "\"range\"", object_end);
+		if (range_key == NULL) {
+			continue;
+		}
+		const char *range_colon = strchr(range_key, ':');
+		if (range_colon == NULL || range_colon >= object_end) {
+			continue;
+		}
+		const char *range_object = strchr(range_colon + 1, '{');
+		if (range_object == NULL || range_object >= object_end) {
+			continue;
+		}
+		const char *range_end = editorLspFindJsonObjectEnd(range_object);
+		if (range_end == NULL || range_end > object_end) {
+			continue;
+		}
+
+		int start_line = 0;
+		int start_character = 0;
+		int end_line = 0;
+		int end_character = 0;
+		if (!editorLspParsePositionFromKey(range_object, "start", range_end, &start_line,
+					&start_character) ||
+				!editorLspParsePositionFromKey(range_object, "end", range_end, &end_line,
+						&end_character)) {
+			continue;
+		}
+
+		int severity = 1;
+		const char *severity_key =
+				editorLspStrstrBounded(object_start, "\"severity\"", object_end);
+		if (severity_key != NULL) {
+			const char *severity_colon = strchr(severity_key, ':');
+			int parsed_severity = 0;
+			if (severity_colon != NULL &&
+					editorLspParseJsonInt(severity_colon + 1, &parsed_severity, NULL)) {
+				severity = parsed_severity;
+			}
+		}
+
+		char *msg = NULL;
+		if (!editorLspFindStringField(object_start, "message", &msg) || msg == NULL) {
+			msg = strdup("");
+			if (msg == NULL) {
+				editorLspFreeDiagnostics(diagnostics, count);
+				free(path);
+				return 0;
+			}
+		}
+
+		if (count >= cap) {
+			int new_cap = cap > 0 ? cap * 2 : 4;
+			size_t bytes = 0;
+			if (!editorSizeMul(sizeof(*diagnostics), (size_t)new_cap, &bytes)) {
+				free(msg);
+				editorLspFreeDiagnostics(diagnostics, count);
+				free(path);
+				return 0;
+			}
+			struct editorLspDiagnostic *grown = realloc(diagnostics, bytes);
+			if (grown == NULL) {
+				free(msg);
+				editorLspFreeDiagnostics(diagnostics, count);
+				free(path);
+				return 0;
+			}
+			diagnostics = grown;
+			cap = new_cap;
+		}
+		diagnostics[count].start_line = start_line;
+		diagnostics[count].start_character = start_character;
+		diagnostics[count].end_line = end_line;
+		diagnostics[count].end_character = end_character;
+		diagnostics[count].severity = severity;
+		diagnostics[count].message = msg;
+		count++;
+	}
+
+	*path_out = path;
+	*diagnostics_out = diagnostics;
+	*count_out = count;
+	return 1;
+}
+
+static void editorLspFreePendingEdits(struct editorLspPendingEdit *edits, int count) {
+	if (edits == NULL) {
+		return;
+	}
+	for (int i = 0; i < count; i++) {
+		free(edits[i].new_text);
+	}
+	free(edits);
+}
+
+static int editorLspPendingEditCompareDesc(const void *lhs, const void *rhs) {
+	const struct editorLspPendingEdit *left = lhs;
+	const struct editorLspPendingEdit *right = rhs;
+	if (left->start_line != right->start_line) {
+		return right->start_line - left->start_line;
+	}
+	return right->start_character - left->start_character;
+}
+
+static int editorLspApplyPendingEdits(const struct editorLspPendingEdit *edits, int count) {
+	if (edits == NULL || count <= 0) {
+		return 0;
+	}
+
+	struct editorLspPendingEdit *sorted = calloc((size_t)count, sizeof(*sorted));
+	if (sorted == NULL) {
+		return -1;
+	}
+	for (int i = 0; i < count; i++) {
+		sorted[i] = edits[i];
+	}
+	qsort(sorted, (size_t)count, sizeof(*sorted), editorLspPendingEditCompareDesc);
+
+	for (int i = 0; i < count; i++) {
+		int start_cx = editorLspProtocolCharacterToBufferColumn(sorted[i].start_line,
+				sorted[i].start_character);
+		int end_cx = editorLspProtocolCharacterToBufferColumn(sorted[i].end_line,
+				sorted[i].end_character);
+		size_t start_offset = 0;
+		size_t end_offset = 0;
+		if (!editorBufferPosToOffset(sorted[i].start_line, start_cx, &start_offset) ||
+				!editorBufferPosToOffset(sorted[i].end_line, end_cx, &end_offset) ||
+				end_offset < start_offset) {
+			free(sorted);
+			return -1;
+		}
+
+		size_t cursor_before = E.cursor_offset;
+		size_t cursor_after = cursor_before;
+		size_t new_len = sorted[i].new_text != NULL ? strlen(sorted[i].new_text) : 0;
+		size_t old_len = end_offset - start_offset;
+		if (cursor_before > start_offset) {
+			if (cursor_before <= end_offset) {
+				cursor_after = start_offset + new_len;
+			} else {
+				cursor_after = start_offset + new_len + (cursor_before - end_offset);
+			}
+		}
+
+		struct editorDocumentEdit edit = {
+			.kind = old_len > 0 ? EDITOR_EDIT_DELETE_TEXT : EDITOR_EDIT_INSERT_TEXT,
+			.start_offset = start_offset,
+			.old_len = old_len,
+			.new_text = sorted[i].new_text != NULL ? sorted[i].new_text : "",
+			.new_len = new_len,
+			.before_cursor_offset = cursor_before,
+			.after_cursor_offset = cursor_after,
+			.before_dirty = E.dirty,
+			.after_dirty = E.dirty + 1,
+		};
+		if (!editorApplyDocumentEdit(&edit)) {
+			free(sorted);
+			return -1;
+		}
+	}
+
+	free(sorted);
+	return count;
+}
+
+static int editorLspParseWorkspaceEditChanges(const char *edit_json, const char *target_path,
+		struct editorLspPendingEdit **edits_out, int *count_out) {
+	if (edits_out == NULL || count_out == NULL) {
+		return 0;
+	}
+	*edits_out = NULL;
+	*count_out = 0;
+
+	const char *changes_key = strstr(edit_json, "\"changes\"");
+	if (changes_key == NULL) {
+		return 1;
+	}
+	const char *changes_colon = strchr(changes_key, ':');
+	if (changes_colon == NULL) {
+		return 0;
+	}
+	const char *changes_object = strchr(changes_colon + 1, '{');
+	if (changes_object == NULL) {
+		return 0;
+	}
+	const char *changes_end = editorLspFindJsonObjectEnd(changes_object);
+	if (changes_end == NULL) {
+		return 0;
+	}
+
+	const char *scan = changes_object + 1;
+	while (scan < changes_end) {
+		const char *key = strchr(scan, '"');
+		if (key == NULL || key >= changes_end) {
+			break;
+		}
+		char *uri = NULL;
+		const char *after_key = NULL;
+		if (!editorLspParseJsonString(key, &uri, &after_key) || uri == NULL) {
+			return 0;
+		}
+		const char *colon = strchr(after_key, ':');
+		if (colon == NULL || colon >= changes_end) {
+			free(uri);
+			return 0;
+		}
+		const char *array_start = strchr(colon + 1, '[');
+		if (array_start == NULL || array_start >= changes_end) {
+			free(uri);
+			return 0;
+		}
+		const char *array_end = editorLspFindJsonArrayEnd(array_start);
+		if (array_end == NULL || array_end > changes_end) {
+			free(uri);
+			return 0;
+		}
+
+		char *path = editorLspDecodeFileUri(uri);
+		free(uri);
+		if (path != NULL && editorLspPathMatches(path, target_path)) {
+			struct editorLspPendingEdit *edits = NULL;
+			int count = 0;
+			int cap = 0;
+			const char *item_scan = array_start + 1;
+			while (item_scan < array_end) {
+				const char *object_start = strchr(item_scan, '{');
+				if (object_start == NULL || object_start >= array_end) {
+					break;
+				}
+				const char *object_end = editorLspFindJsonObjectEnd(object_start);
+				if (object_end == NULL || object_end > array_end) {
+					editorLspFreePendingEdits(edits, count);
+					free(path);
+					return 0;
+				}
+				item_scan = object_end;
+
+				const char *range_key =
+						editorLspStrstrBounded(object_start, "\"range\"", object_end);
+				const char *range_colon = range_key != NULL ? strchr(range_key, ':') : NULL;
+				const char *range_object =
+						range_colon != NULL ? strchr(range_colon + 1, '{') : NULL;
+				const char *range_end =
+						range_object != NULL ? editorLspFindJsonObjectEnd(range_object) : NULL;
+				char *new_text = NULL;
+				if (!editorLspFindStringField(object_start, "newText", &new_text) ||
+						new_text == NULL) {
+					new_text = strdup("");
+				}
+				if (new_text == NULL) {
+					editorLspFreePendingEdits(edits, count);
+					free(path);
+					return 0;
+				}
+
+				int start_line = 0;
+				int start_character = 0;
+				int end_line = 0;
+				int end_character = 0;
+				if (range_end != NULL &&
+						editorLspParsePositionFromKey(range_object, "start", range_end,
+								&start_line, &start_character) &&
+						editorLspParsePositionFromKey(range_object, "end", range_end,
+								&end_line, &end_character)) {
+					if (count >= cap) {
+						int new_cap = cap > 0 ? cap * 2 : 4;
+						size_t bytes = 0;
+						if (!editorSizeMul(sizeof(*edits), (size_t)new_cap, &bytes)) {
+							free(new_text);
+							editorLspFreePendingEdits(edits, count);
+							free(path);
+							return 0;
+						}
+						struct editorLspPendingEdit *grown = realloc(edits, bytes);
+						if (grown == NULL) {
+							free(new_text);
+							editorLspFreePendingEdits(edits, count);
+							free(path);
+							return 0;
+						}
+						edits = grown;
+						cap = new_cap;
+					}
+					edits[count].start_line = start_line;
+					edits[count].start_character = start_character;
+					edits[count].end_line = end_line;
+					edits[count].end_character = end_character;
+					edits[count].new_text = new_text;
+					count++;
+				} else {
+					free(new_text);
+				}
+			}
+			free(path);
+			*edits_out = edits;
+			*count_out = count;
+			return 1;
+		}
+		free(path);
+		scan = array_end;
+	}
+
+	return 1;
+}
+
 static int editorLspProcessAlive(void) {
 	if (g_lsp_client.pid <= 0) {
 		return 0;
@@ -1135,6 +1976,122 @@ static int editorLspProcessAlive(void) {
 		return 1;
 	}
 	return 0;
+}
+
+static int editorLspRespondToRequest(int request_id, const char *result_json) {
+	struct editorLspString payload = {0};
+	int built = editorLspStringAppendf(&payload,
+			"{\"jsonrpc\":\"2.0\",\"id\":%d,\"result\":", request_id);
+	if (built) {
+		built = editorLspStringAppend(&payload, result_json != NULL ? result_json : "null");
+	}
+	if (built) {
+		built = editorLspStringAppend(&payload, "}");
+	}
+	if (!built) {
+		free(payload.buf);
+		return 0;
+	}
+	int sent = editorLspSendRawJson(payload.buf);
+	free(payload.buf);
+	return sent;
+}
+
+static int editorLspProcessIncomingMessage(const char *message) {
+	if (message == NULL || message[0] == '\0') {
+		return 1;
+	}
+
+	char *path = NULL;
+	struct editorLspDiagnostic *diagnostics = NULL;
+	int diagnostic_count = 0;
+	if (editorLspParseDiagnosticsMessage(message, &path, &diagnostics, &diagnostic_count)) {
+		editorLspSetDiagnosticsForPath(path, diagnostics, diagnostic_count);
+		editorLspFreeDiagnostics(diagnostics, diagnostic_count);
+		free(path);
+		return 1;
+	}
+
+	char *method = NULL;
+	if (!editorLspFindStringField(message, "method", &method) || method == NULL) {
+		free(method);
+		return 1;
+	}
+
+	int request_id = 0;
+	int has_request_id = editorLspExtractResponseId(message, &request_id);
+	if (strcmp(method, "workspace/configuration") == 0) {
+		free(method);
+		if (has_request_id) {
+			return editorLspRespondToRequest(request_id, "[{}]");
+		}
+		return 1;
+	}
+	if (strcmp(method, "client/registerCapability") == 0) {
+		free(method);
+		if (has_request_id) {
+			return editorLspRespondToRequest(request_id, "null");
+		}
+		return 1;
+	}
+	if (strcmp(method, "workspace/applyEdit") == 0) {
+		free(method);
+		if (!has_request_id) {
+			return 1;
+		}
+		struct editorLspPendingEdit *edits = NULL;
+		int count = 0;
+		int parsed = editorLspParseWorkspaceEditChanges(message, E.filename, &edits, &count);
+		int applied = parsed && count > 0 && editorLspApplyPendingEdits(edits, count) >= 0;
+		editorLspFreePendingEdits(edits, count);
+		return editorLspRespondToRequest(request_id, applied ? "{\"applied\":true}" :
+				"{\"applied\":false}");
+	}
+
+	free(method);
+	if (has_request_id) {
+		return editorLspRespondToRequest(request_id, "null");
+	}
+	return 1;
+}
+
+static int editorLspTryDrainIncoming(int timeout_ms) {
+	if (g_lsp_mock.enabled || g_lsp_client.from_server_fd == -1) {
+		return 1;
+	}
+
+	int wait_ms = timeout_ms;
+	for (;;) {
+		struct pollfd pfd = {
+			.fd = g_lsp_client.from_server_fd,
+			.events = POLLIN,
+			.revents = 0,
+		};
+		int polled = poll(&pfd, 1, wait_ms);
+		if (polled == -1) {
+			if (errno == EINTR) {
+				continue;
+			}
+			return 0;
+		}
+		if (polled == 0) {
+			return 1;
+		}
+		if ((pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0) {
+			return 0;
+		}
+
+		char *message = editorLspReadFrame(g_lsp_client.from_server_fd, ROTIDE_LSP_IO_TIMEOUT_MS);
+		if (message == NULL) {
+			return 0;
+		}
+		int processed = editorLspProcessIncomingMessage(message);
+		free(message);
+		if (!processed) {
+			return 0;
+		}
+		wait_ms = 0;
+	}
 }
 
 static int editorLspTryGetProcessExitCode(int *exit_code_out) {
@@ -1466,13 +2423,16 @@ static char *editorLspBuildWorkspaceRootPathForFile(const char *filename,
 		if (server_kind == EDITOR_LSP_SERVER_GOPLS) {
 			markers = gopls_markers;
 			marker_count = sizeof(gopls_markers) / sizeof(gopls_markers[0]);
-		} else if (server_kind == EDITOR_LSP_SERVER_CLANGD) {
-			markers = clangd_markers;
-			marker_count = sizeof(clangd_markers) / sizeof(clangd_markers[0]);
-		} else if (server_kind == EDITOR_LSP_SERVER_HTML) {
-			markers = html_markers;
-			marker_count = sizeof(html_markers) / sizeof(html_markers[0]);
-		}
+	} else if (server_kind == EDITOR_LSP_SERVER_CLANGD) {
+		markers = clangd_markers;
+		marker_count = sizeof(clangd_markers) / sizeof(clangd_markers[0]);
+	} else if (server_kind == EDITOR_LSP_SERVER_HTML ||
+			server_kind == EDITOR_LSP_SERVER_CSS ||
+			server_kind == EDITOR_LSP_SERVER_JSON ||
+			server_kind == EDITOR_LSP_SERVER_ESLINT) {
+		markers = html_markers;
+		marker_count = sizeof(html_markers) / sizeof(html_markers[0]);
+	}
 
 		if (markers != NULL) {
 			workspace_root = editorPathFindMarkerUpward(file_dir, markers, marker_count);
@@ -1516,6 +2476,7 @@ static int editorLspWaitForResponseId(int request_id, int timeout_ms, char **res
 			*response_out = response;
 			return 1;
 		}
+		(void)editorLspProcessIncomingMessage(response);
 		free(response);
 	}
 }
@@ -1528,12 +2489,9 @@ static int editorLspEnsureRunningReal(const char *filename,
 	}
 	const char *command = editorLspCommandForServerKind(server_kind);
 	if (command == NULL || command[0] == '\0') {
-		if (server_kind == EDITOR_LSP_SERVER_GOPLS) {
-			editorSetStatusMsg("LSP disabled: [lsp].gopls_command is empty");
-		} else if (server_kind == EDITOR_LSP_SERVER_CLANGD) {
-			editorSetStatusMsg("LSP disabled: [lsp].clangd_command is empty");
-		} else if (server_kind == EDITOR_LSP_SERVER_HTML) {
-			editorSetStatusMsg("LSP disabled: [lsp].html_command is empty");
+		const char *setting_name = editorLspCommandSettingNameForServerKind(server_kind);
+		if (setting_name != NULL) {
+			editorSetStatusMsg("LSP disabled: [lsp].%s is empty", setting_name);
 		}
 		return 0;
 	}
@@ -1592,35 +2550,23 @@ static int editorLspEnsureRunningReal(const char *filename,
 	}
 
 	int request_id = g_lsp_client.next_request_id++;
-	struct editorLspString init = {0};
-	int built = editorLspStringAppendf(&init,
-			"{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":\"initialize\",\"params\":{"
-			"\"processId\":%d,\"rootUri\":",
-			request_id, (int)getpid());
-	if (built) {
-		built = editorLspStringAppendJsonEscaped(&init, root_uri, strlen(root_uri));
-	}
-	if (built) {
-		built = editorLspStringAppend(&init,
-				",\"capabilities\":{\"general\":{\"positionEncodings\":[\"utf-8\",\"utf-16\"]}}}}");
-	}
+	char *init = editorLspBuildInitializeRequestJson(request_id, root_uri, (int)getpid());
 	free(root_uri);
-	if (!built) {
+	if (init == NULL) {
 		g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_OTHER;
 		editorSetStatusMsg("LSP startup failed: out of memory");
-		free(init.buf);
 		editorLspClientCleanup(0);
 		return 0;
 	}
 
-	if (!editorLspSendRawJson(init.buf)) {
+	if (!editorLspSendRawJson(init)) {
 		g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_OTHER;
 		editorSetStatusMsg("LSP startup failed: initialize write failed");
-		free(init.buf);
+		free(init);
 		editorLspClientCleanup(0);
 		return 0;
 	}
-	free(init.buf);
+	free(init);
 
 	char *response = NULL;
 	int timed_out = 0;
@@ -1716,6 +2662,17 @@ void editorLspShutdown(void) {
 		return;
 	}
 	editorLspClientCleanup(1);
+}
+
+void editorLspPumpNotifications(void) {
+	if (g_lsp_mock.enabled) {
+		if (g_lsp_mock.diagnostic_path != NULL) {
+			editorLspSetDiagnosticsForPath(g_lsp_mock.diagnostic_path, g_lsp_mock.diagnostics,
+					g_lsp_mock.diagnostic_count);
+		}
+		return;
+	}
+	(void)editorLspTryDrainIncoming(0);
 }
 
 static int editorLspIsTrackedLanguage(const char *filename, enum editorSyntaxLanguage language,
@@ -2019,6 +2976,7 @@ void editorLspNotifyDidClose(const char *filename, enum editorSyntaxLanguage lan
 		g_lsp_mock.stats.did_close_count++;
 		*doc_open_in_out = 0;
 		*doc_version_in_out = 0;
+		editorLspClearDiagnosticsForFile(filename);
 		return;
 	}
 
@@ -2045,6 +3003,7 @@ void editorLspNotifyDidClose(const char *filename, enum editorSyntaxLanguage lan
 
 	*doc_open_in_out = 0;
 	*doc_version_in_out = 0;
+	editorLspClearDiagnosticsForFile(filename);
 }
 
 static int editorLspCopyLocations(struct editorLspLocation **out_locations, int *out_count,
@@ -2097,7 +3056,7 @@ int editorLspRequestDefinition(const char *filename, enum editorSyntaxLanguage l
 		return 0;
 	}
 	if (filename == NULL || filename[0] == '\0' || line < 0 || character < 0 ||
-			editorLspServerKindForFile(filename, language) == EDITOR_LSP_SERVER_NONE) {
+			!editorLspFileSupportsDefinition(filename, language)) {
 		return -1;
 	}
 
@@ -2190,6 +3149,152 @@ int editorLspRequestDefinition(const char *filename, enum editorSyntaxLanguage l
 	return 1;
 }
 
+int editorLspRequestCodeActionFixes(const char *filename, enum editorSyntaxLanguage language) {
+	if (filename == NULL || filename[0] == '\0' ||
+			editorLspServerKindForFile(filename, language) != EDITOR_LSP_SERVER_ESLINT ||
+			!editorLspFileEnabled(filename, language)) {
+		return 0;
+	}
+
+	if (g_lsp_mock.enabled) {
+		if (!editorLspEnsureRunningForFile(filename, language)) {
+			return -1;
+		}
+		g_lsp_mock.stats.code_action_count++;
+		if (g_lsp_mock.code_action_result_code <= 0) {
+			return g_lsp_mock.code_action_result_code;
+		}
+		return editorLspApplyPendingEdits(g_lsp_mock.code_action_edits,
+				g_lsp_mock.code_action_edit_count) >= 0 ?
+				g_lsp_mock.code_action_edit_count :
+				-1;
+	}
+
+	size_t full_text_len = 0;
+	char *full_text = NULL;
+	if (!E.lsp_doc_open) {
+		full_text = editorDupActiveTextSource(&full_text_len);
+		if (full_text == NULL && full_text_len > 0) {
+			return -1;
+		}
+	}
+	int ready = editorLspEnsureDocumentOpen(filename, language, &E.lsp_doc_open, &E.lsp_doc_version,
+			full_text != NULL ? full_text : "", full_text_len);
+	free(full_text);
+	if (!ready) {
+		return -1;
+	}
+
+	char *uri = NULL;
+	if (!editorLspBuildFileUri(filename, &uri)) {
+		return -1;
+	}
+
+	int request_id = g_lsp_client.next_request_id++;
+	struct editorLspString payload = {0};
+	int built = editorLspStringAppendf(&payload,
+			"{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":\"textDocument/codeAction\",\"params\":{"
+			"\"textDocument\":{\"uri\":",
+			request_id);
+	if (built) {
+		built = editorLspStringAppendJsonEscaped(&payload, uri, strlen(uri));
+	}
+	if (built) {
+		built = editorLspStringAppend(&payload,
+				"},\"range\":{\"start\":{\"line\":0,\"character\":0},"
+				"\"end\":{\"line\":0,\"character\":0}},\"context\":{\"diagnostics\":[");
+	}
+	for (int i = 0; built && i < E.lsp_diagnostic_count; i++) {
+		if (i > 0) {
+			built = editorLspStringAppend(&payload, ",");
+		}
+		int start_character = editorLspProtocolCharacterFromBufferColumn(
+				E.lsp_diagnostics[i].start_line, E.lsp_diagnostics[i].start_character);
+		int end_character = editorLspProtocolCharacterFromBufferColumn(
+				E.lsp_diagnostics[i].end_line, E.lsp_diagnostics[i].end_character);
+		built = editorLspStringAppendf(&payload,
+				"{\"range\":{\"start\":{\"line\":%d,\"character\":%d},"
+				"\"end\":{\"line\":%d,\"character\":%d}},\"severity\":%d,\"message\":",
+				E.lsp_diagnostics[i].start_line, start_character,
+				E.lsp_diagnostics[i].end_line, end_character, E.lsp_diagnostics[i].severity);
+		if (built) {
+			built = editorLspStringAppendJsonEscaped(&payload,
+					E.lsp_diagnostics[i].message != NULL ? E.lsp_diagnostics[i].message : "",
+					E.lsp_diagnostics[i].message != NULL ? strlen(E.lsp_diagnostics[i].message) : 0);
+		}
+		if (built) {
+			built = editorLspStringAppend(&payload, "}");
+		}
+	}
+	if (built) {
+		built = editorLspStringAppend(&payload,
+				"],\"only\":[\"source.fixAll.eslint\"]}}}");
+	}
+	free(uri);
+	if (!built) {
+		free(payload.buf);
+		return -1;
+	}
+
+	if (!editorLspSendRawJson(payload.buf)) {
+		free(payload.buf);
+		editorLspClientCleanup(0);
+		return -1;
+	}
+	free(payload.buf);
+
+	char *response = NULL;
+	int timed_out = 0;
+	if (!editorLspWaitForResponseId(request_id, ROTIDE_LSP_IO_TIMEOUT_MS, &response, &timed_out)) {
+		editorLspClientCleanup(0);
+		return timed_out ? -2 : -1;
+	}
+	if (editorLspResponseHasError(response)) {
+		free(response);
+		return -1;
+	}
+
+	const char *result_key = strstr(response, "\"result\"");
+	const char *result_colon = result_key != NULL ? strchr(result_key, ':') : NULL;
+	const char *result = result_colon != NULL ? editorLspSkipWs(result_colon + 1) : NULL;
+	if (result == NULL || strncmp(result, "null", 4) == 0) {
+		free(response);
+		return 0;
+	}
+
+	const char *scan = result;
+	struct editorLspPendingEdit *edits = NULL;
+	int count = 0;
+	while (scan != NULL) {
+		const char *edit_key = strstr(scan, "\"edit\"");
+		if (edit_key == NULL) {
+			break;
+		}
+		const char *edit_colon = strchr(edit_key, ':');
+		const char *edit_object = edit_colon != NULL ? strchr(edit_colon + 1, '{') : NULL;
+		const char *edit_end = edit_object != NULL ? editorLspFindJsonObjectEnd(edit_object) : NULL;
+		if (edit_end == NULL) {
+			break;
+		}
+		if (editorLspParseWorkspaceEditChanges(edit_object, filename, &edits, &count) && count > 0) {
+			break;
+		}
+		editorLspFreePendingEdits(edits, count);
+		edits = NULL;
+		count = 0;
+		scan = edit_end;
+	}
+	free(response);
+	if (count <= 0) {
+		editorLspFreePendingEdits(edits, count);
+		return 0;
+	}
+
+	int applied = editorLspApplyPendingEdits(edits, count);
+	editorLspFreePendingEdits(edits, count);
+	return applied >= 0 ? applied : -1;
+}
+
 enum editorLspStartupFailureReason editorLspLastStartupFailureReason(void) {
 	return g_lsp_last_startup_failure_reason;
 }
@@ -2211,9 +3316,18 @@ void editorLspTestSetMockServerAlive(int alive) {
 
 void editorLspTestResetMock(void) {
 	editorLspFreeLocations(g_lsp_mock.definition_locations, g_lsp_mock.definition_location_count);
+	editorLspFreeDiagnostics(g_lsp_mock.diagnostics, g_lsp_mock.diagnostic_count);
+	editorLspFreePendingEdits(g_lsp_mock.code_action_edits, g_lsp_mock.code_action_edit_count);
 	g_lsp_mock.definition_locations = NULL;
 	g_lsp_mock.definition_location_count = 0;
 	g_lsp_mock.definition_result_code = 1;
+	g_lsp_mock.diagnostics = NULL;
+	g_lsp_mock.diagnostic_count = 0;
+	free(g_lsp_mock.diagnostic_path);
+	g_lsp_mock.diagnostic_path = NULL;
+	g_lsp_mock.code_action_result_code = 0;
+	g_lsp_mock.code_action_edits = NULL;
+	g_lsp_mock.code_action_edit_count = 0;
 	g_lsp_mock.server_alive = 0;
 	g_lsp_mock.server_kind = EDITOR_LSP_SERVER_NONE;
 	free(g_lsp_mock.workspace_root_path);
@@ -2261,10 +3375,59 @@ void editorLspTestSetMockDefinitionResponse(int result_code,
 			&g_lsp_mock.definition_location_count, locations, count);
 }
 
+void editorLspTestSetMockDiagnostics(const char *path, const struct editorLspDiagnostic *diagnostics,
+		int count) {
+	editorLspFreeDiagnostics(g_lsp_mock.diagnostics, g_lsp_mock.diagnostic_count);
+	g_lsp_mock.diagnostics = NULL;
+	g_lsp_mock.diagnostic_count = 0;
+	free(g_lsp_mock.diagnostic_path);
+	g_lsp_mock.diagnostic_path = path != NULL ? strdup(path) : NULL;
+	(void)editorLspCopyDiagnostics(&g_lsp_mock.diagnostics, &g_lsp_mock.diagnostic_count,
+			diagnostics, count);
+}
+
+void editorLspTestSetMockCodeActionResult(int result_code,
+		const struct editorLspDiagnostic *edits, int count) {
+	editorLspFreePendingEdits(g_lsp_mock.code_action_edits, g_lsp_mock.code_action_edit_count);
+	g_lsp_mock.code_action_edits = NULL;
+	g_lsp_mock.code_action_edit_count = 0;
+	g_lsp_mock.code_action_result_code = result_code;
+	if (edits == NULL || count <= 0) {
+		return;
+	}
+	g_lsp_mock.code_action_edits = calloc((size_t)count, sizeof(*g_lsp_mock.code_action_edits));
+	if (g_lsp_mock.code_action_edits == NULL) {
+		g_lsp_mock.code_action_result_code = -1;
+		return;
+	}
+	g_lsp_mock.code_action_edit_count = count;
+	for (int i = 0; i < count; i++) {
+		g_lsp_mock.code_action_edits[i].start_line = edits[i].start_line;
+		g_lsp_mock.code_action_edits[i].start_character = edits[i].start_character;
+		g_lsp_mock.code_action_edits[i].end_line = edits[i].end_line;
+		g_lsp_mock.code_action_edits[i].end_character = edits[i].end_character;
+		g_lsp_mock.code_action_edits[i].new_text =
+				edits[i].message != NULL ? strdup(edits[i].message) : strdup("");
+		if (g_lsp_mock.code_action_edits[i].new_text == NULL) {
+			editorLspFreePendingEdits(g_lsp_mock.code_action_edits,
+					g_lsp_mock.code_action_edit_count);
+			g_lsp_mock.code_action_edits = NULL;
+			g_lsp_mock.code_action_edit_count = 0;
+			g_lsp_mock.code_action_result_code = -1;
+			return;
+		}
+	}
+}
+
 int editorLspTestParseDefinitionResponse(const char *response_json,
 		struct editorLspLocation **locations_out, int *count_out) {
 	if (response_json == NULL) {
 		return 0;
 	}
 	return editorLspParseDefinitionLocations(response_json, locations_out, count_out);
+}
+
+char *editorLspTestBuildInitializeRequestJson(int request_id, const char *root_uri,
+		int process_id) {
+	return editorLspBuildInitializeRequestJson(request_id, root_uri, process_id);
 }
