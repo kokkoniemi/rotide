@@ -168,6 +168,7 @@ static enum editorLspServerKind editorLspServerKindForFile(const char *filename,
 		case EDITOR_SYNTAX_GO:
 			return EDITOR_LSP_SERVER_GOPLS;
 		case EDITOR_SYNTAX_C:
+		case EDITOR_SYNTAX_CPP:
 			return EDITOR_LSP_SERVER_CLANGD;
 		case EDITOR_SYNTAX_HTML:
 			return EDITOR_LSP_SERVER_HTML;
@@ -316,6 +317,8 @@ static const char *editorLspLanguageIdForFile(const char *filename,
 			return "go";
 		case EDITOR_SYNTAX_C:
 			return editorLspFilenameHasCppExtension(filename) ? "cpp" : "c";
+		case EDITOR_SYNTAX_CPP:
+			return "cpp";
 		case EDITOR_SYNTAX_HTML:
 			return "html";
 		case EDITOR_SYNTAX_CSS:

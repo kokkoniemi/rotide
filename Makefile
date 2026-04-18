@@ -1,6 +1,6 @@
 CC ?= cc
 SRC_DIR := src
-CPPFLAGS ?= -I$(SRC_DIR) -Ivendor/tree_sitter/runtime/include -Ivendor/tree_sitter/runtime/src -Ivendor/tree_sitter/grammars/c/src -Ivendor/tree_sitter/grammars/go/src -Ivendor/tree_sitter/grammars/bash/src -Ivendor/tree_sitter/grammars/html/src -Ivendor/tree_sitter/grammars/javascript/src -Ivendor/tree_sitter/grammars/css/src
+CPPFLAGS ?= -I$(SRC_DIR) -Ivendor/tree_sitter/runtime/include -Ivendor/tree_sitter/runtime/src -Ivendor/tree_sitter/grammars/c/src -Ivendor/tree_sitter/grammars/cpp/src -Ivendor/tree_sitter/grammars/go/src -Ivendor/tree_sitter/grammars/bash/src -Ivendor/tree_sitter/grammars/html/src -Ivendor/tree_sitter/grammars/javascript/src -Ivendor/tree_sitter/grammars/css/src
 CFLAGS ?= -Wall -Wextra -Werror -Wshadow -Wdouble-promotion -Wundef -fno-common -pedantic -std=c2x
 LDFLAGS ?=
 SANITIZER_CFLAGS ?= -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer
@@ -14,6 +14,8 @@ TREE_SITTER_CFLAGS = $(filter-out -Werror -Wundef -Wshadow -Wdouble-promotion -p
 
 TREE_SITTER_SRCS = vendor/tree_sitter/runtime/src/lib.c \
 	vendor/tree_sitter/grammars/c/src/parser.c \
+	vendor/tree_sitter/grammars/cpp/src/parser.c \
+	vendor/tree_sitter/grammars/cpp/src/scanner.c \
 	vendor/tree_sitter/grammars/go/src/parser.c \
 	vendor/tree_sitter/grammars/bash/src/parser.c \
 	vendor/tree_sitter/grammars/bash/src/scanner.c \
@@ -60,6 +62,12 @@ vendor/tree_sitter/runtime/src/lib.o: vendor/tree_sitter/runtime/src/lib.c
 	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 vendor/tree_sitter/grammars/c/src/parser.o: vendor/tree_sitter/grammars/c/src/parser.c
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
+
+vendor/tree_sitter/grammars/cpp/src/parser.o: vendor/tree_sitter/grammars/cpp/src/parser.c
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
+
+vendor/tree_sitter/grammars/cpp/src/scanner.o: vendor/tree_sitter/grammars/cpp/src/scanner.c
 	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 vendor/tree_sitter/grammars/go/src/parser.o: vendor/tree_sitter/grammars/go/src/parser.c

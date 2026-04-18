@@ -43,6 +43,36 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_c_tokens(v
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_cpp_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-cpp-XXXXXX.cpp";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+			"tests/syntax/supported/cpp/highlight.cpp"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CPP, editorSyntaxLanguageActive());
+	E.window_rows = 12;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mnamespace\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mclass\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mpublic\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96mint\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m// comment\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"txt\"\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mreturn\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m42\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_repo_buffer_c_stays_highlighted(void) {
 	char *path = testResolveRepoPath("src/editing/buffer_core.c");
 	ASSERT_TRUE(path != NULL);
@@ -1383,6 +1413,7 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_uses_configured_cursor_style", test_editor_refresh_screen_uses_configured_cursor_style},
 	{"editor_refresh_screen_highlights_active_search_match", test_editor_refresh_screen_highlights_active_search_match},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_c_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_c_tokens},
+	{"editor_refresh_screen_applies_syntax_highlighting_for_cpp_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_cpp_tokens},
 	{"editor_refresh_screen_repo_buffer_c_stays_highlighted", test_editor_refresh_screen_repo_buffer_c_stays_highlighted},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_shell_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_shell_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_html_with_injections", test_editor_refresh_screen_applies_syntax_highlighting_for_html_with_injections},

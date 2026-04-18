@@ -26,23 +26,23 @@ static int test_editor_syntax_activation_for_c_and_h_files(void) {
 
 	char cpp_path[] = "/tmp/rotide-test-syntax-cpp-XXXXXX.cpp";
 	ASSERT_TRUE(write_fixture_to_temp_path(cpp_path, 4,
-			"tests/syntax/supported/c/activation.c"));
+			"tests/syntax/supported/cpp/activation.cpp"));
 
 	editorOpen(cpp_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
 	ASSERT_TRUE(editorSyntaxTreeExists());
-	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CPP, editorSyntaxLanguageActive());
 	ASSERT_TRUE(editorSyntaxRootType() != NULL);
 	ASSERT_EQ_STR("translation_unit", editorSyntaxRootType());
 
 	char hpp_path[] = "/tmp/rotide-test-syntax-hpp-XXXXXX.hpp";
 	ASSERT_TRUE(write_fixture_to_temp_path(hpp_path, 4,
-			"tests/syntax/supported/c/activation.h"));
+			"tests/syntax/supported/cpp/activation.hpp"));
 
 	editorOpen(hpp_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
 	ASSERT_TRUE(editorSyntaxTreeExists());
-	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CPP, editorSyntaxLanguageActive());
 	ASSERT_TRUE(editorSyntaxRootType() != NULL);
 	ASSERT_EQ_STR("translation_unit", editorSyntaxRootType());
 
@@ -475,6 +475,42 @@ static int test_editor_syntax_incremental_edits_keep_tree_valid(void) {
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
 	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 1;
+	E.cx = 1;
+	editorInsertChar('x');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = E.rows[0].size;
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	struct editorSelectionRange delete_line = {
+		.start_cy = 0,
+		.start_cx = 0,
+		.end_cy = 1,
+		.end_cx = 0
+	};
+	ASSERT_EQ_INT(1, editorDeleteRange(&delete_line));
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_incremental_edits_keep_cpp_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-cpp-XXXXXX.cpp";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+			"tests/syntax/supported/cpp/incremental.cpp"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CPP, editorSyntaxLanguageActive());
 
 	E.cy = 1;
 	E.cx = 1;
@@ -1019,6 +1055,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_save_as_shell_and_non_shell_updates_syntax", test_editor_save_as_shell_and_non_shell_updates_syntax},
 	{"editor_save_as_web_and_plain_updates_syntax", test_editor_save_as_web_and_plain_updates_syntax},
 	{"editor_syntax_incremental_edits_keep_tree_valid", test_editor_syntax_incremental_edits_keep_tree_valid},
+	{"editor_syntax_incremental_edits_keep_cpp_tree_valid", test_editor_syntax_incremental_edits_keep_cpp_tree_valid},
 	{"editor_syntax_incremental_edits_keep_shell_tree_valid", test_editor_syntax_incremental_edits_keep_shell_tree_valid},
 	{"editor_syntax_incremental_edits_keep_html_tree_valid", test_editor_syntax_incremental_edits_keep_html_tree_valid},
 	{"editor_syntax_incremental_edits_keep_javascript_tree_valid", test_editor_syntax_incremental_edits_keep_javascript_tree_valid},

@@ -9,6 +9,7 @@ Current fixture-to-editor mapping:
 
 - `supported/bash/` maps to the current shell syntax support (`EDITOR_SYNTAX_SHELL`)
 - `supported/c/` maps to `EDITOR_SYNTAX_C`
+- `supported/cpp/` maps to `EDITOR_SYNTAX_CPP`
 - `supported/go/` maps to `EDITOR_SYNTAX_GO`
 - `supported/html/` maps to `EDITOR_SYNTAX_HTML`
 - `supported/javascript/` maps to `EDITOR_SYNTAX_JAVASCRIPT`
@@ -22,7 +23,6 @@ Notes:
 
 Planned placeholder directories:
 
-- `cpp`
 - `csharp`
 - `erb`
 - `ejs`

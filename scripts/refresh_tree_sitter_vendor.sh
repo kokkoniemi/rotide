@@ -137,6 +137,16 @@ regenerate_parser() {
 	)
 }
 
+link_grammar_dep() {
+	local target_dir="$1"
+	local dep_name="$2"
+	local dep_src="$3"
+	local modules_dir="${target_dir}/node_modules"
+	mkdir -p "${modules_dir}"
+	rm -rf "${modules_dir}/${dep_name}"
+	ln -s "${dep_src}" "${modules_dir}/${dep_name}"
+}
+
 sync_grammar_vendor() {
 	local src_dir="$1"
 	local vendor_dir="$2"
@@ -175,6 +185,7 @@ download_cli
 
 RUNTIME_SRC=""
 C_GRAMMAR_SRC=""
+CPP_GRAMMAR_SRC=""
 GO_GRAMMAR_SRC=""
 BASH_GRAMMAR_SRC=""
 HTML_GRAMMAR_SRC=""
@@ -183,6 +194,7 @@ CSS_GRAMMAR_SRC=""
 
 download_repo_tarball "tree-sitter/tree-sitter" "${TREE_SITTER_RUNTIME_REF}" RUNTIME_SRC
 download_repo_tarball "tree-sitter/tree-sitter-c" "${TREE_SITTER_C_GRAMMAR_REF}" C_GRAMMAR_SRC
+download_repo_tarball "tree-sitter/tree-sitter-cpp" "${TREE_SITTER_CPP_GRAMMAR_REF}" CPP_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-go" "${TREE_SITTER_GO_GRAMMAR_REF}" GO_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-bash" "${TREE_SITTER_BASH_GRAMMAR_REF}" BASH_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-html" "${TREE_SITTER_HTML_GRAMMAR_REF}" HTML_GRAMMAR_SRC
@@ -195,6 +207,10 @@ if [[ ! -d "${RUNTIME_SRC}/lib/src" || ! -f "${RUNTIME_SRC}/lib/include/tree_sit
 fi
 
 regenerate_parser "${C_GRAMMAR_SRC}" "C"
+# tree-sitter-cpp grammar.js does `require('tree-sitter-c/grammar')`, so expose
+# the pinned C grammar source under cpp's node_modules before regenerating.
+link_grammar_dep "${CPP_GRAMMAR_SRC}" "tree-sitter-c" "${C_GRAMMAR_SRC}"
+regenerate_parser "${CPP_GRAMMAR_SRC}" "C++"
 regenerate_parser "${GO_GRAMMAR_SRC}" "Go"
 regenerate_parser "${BASH_GRAMMAR_SRC}" "Bash"
 regenerate_parser "${HTML_GRAMMAR_SRC}" "HTML"
@@ -211,6 +227,7 @@ cp "${RUNTIME_SRC}/LICENSE" "${RUNTIME_VENDOR}/LICENSE"
 cp "${RUNTIME_SRC}/lib/README.md" "${RUNTIME_VENDOR}/README.upstream.md"
 
 sync_grammar_vendor "${C_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/c"
+sync_grammar_vendor "${CPP_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/cpp"
 sync_grammar_vendor "${GO_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/go"
 sync_grammar_vendor "${BASH_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/bash"
 sync_grammar_vendor "${HTML_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/html"

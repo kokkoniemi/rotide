@@ -1460,7 +1460,7 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_c
 			"rotide-test-cpp-lsp-fixture-", ".cpp",
 			"tests/lsp/supported/cpp/single_file_definition.cpp"));
 	editorOpen(cpp_path);
-	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CPP, editorSyntaxLanguageActive());
 
 	E.cy = 3;
 	E.cx = 14;
@@ -1641,7 +1641,7 @@ static int test_editor_process_keypress_goto_definition_cross_file_cpp_fixture_r
 	ASSERT_TRUE(copy_fixture_to_path(header_path, "tests/lsp/supported/cpp/cross_file/helper.hpp"));
 
 	editorOpen(main_path);
-	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CPP, editorSyntaxLanguageActive());
 	E.cy = 3;
 	E.cx = 14;
 

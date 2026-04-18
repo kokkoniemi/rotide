@@ -120,6 +120,7 @@ struct editorSyntaxPredicateContext {
 };
 
 static struct editorSyntaxQueryCacheEntry g_c_highlight_query_cache = {0};
+static struct editorSyntaxQueryCacheEntry g_cpp_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_go_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_shell_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_html_highlight_query_cache = {0};
@@ -149,6 +150,31 @@ static const char editor_builtin_c_highlights_query[] =
 		"[\"if\" \"else\" \"switch\" \"case\" \"default\" \"while\" \"for\" \"do\"\n"
 		" \"return\" \"break\" \"continue\" \"goto\" \"typedef\" \"struct\" \"enum\" \"union\"\n"
 		" \"sizeof\" \"static\" \"extern\" \"inline\" \"const\" \"volatile\"] @keyword\n";
+
+static const char editor_builtin_cpp_highlights_query[] =
+		"(comment) @comment\n"
+		"[(string_literal) (raw_string_literal)] @string\n"
+		"(char_literal) @string\n"
+		"(number_literal) @number\n"
+		"[(true) (false)] @constant\n"
+		"(null) @constant\n"
+		"\"nullptr\" @constant\n"
+		"(this) @constant\n"
+		"(primitive_type) @type\n"
+		"(type_identifier) @type\n"
+		"(auto) @type\n"
+		"(call_expression function: (identifier) @function)\n"
+		"(function_declarator declarator: (identifier) @function)\n"
+		"(function_declarator declarator: (field_identifier) @function)\n"
+		"[(preproc_include) (preproc_def) (preproc_function_def) (preproc_call)] @preprocessor\n"
+		"[\"if\" \"else\" \"switch\" \"case\" \"default\" \"while\" \"for\" \"do\"\n"
+		" \"return\" \"break\" \"continue\" \"goto\" \"typedef\" \"struct\" \"enum\" \"union\"\n"
+		" \"sizeof\" \"static\" \"extern\" \"inline\" \"const\" \"volatile\"\n"
+		" \"class\" \"namespace\" \"template\" \"typename\" \"using\" \"virtual\"\n"
+		" \"public\" \"private\" \"protected\" \"friend\" \"explicit\" \"override\"\n"
+		" \"final\" \"new\" \"delete\" \"try\" \"catch\" \"throw\" \"noexcept\"\n"
+		" \"constexpr\" \"constinit\" \"consteval\" \"mutable\" \"concept\" \"requires\"\n"
+		" \"co_await\" \"co_return\" \"co_yield\"] @keyword\n";
 
 static const char editor_builtin_go_highlights_query[] =
 		"(call_expression function: (identifier) @function)\n"
@@ -221,6 +247,11 @@ static const char editor_builtin_html_injections_query[] =
 
 static const char *const g_c_highlight_query_paths[] = {
 	"vendor/tree_sitter/grammars/c/queries/highlights.scm"
+};
+
+static const char *const g_cpp_highlight_query_paths[] = {
+	"vendor/tree_sitter/grammars/c/queries/highlights.scm",
+	"vendor/tree_sitter/grammars/cpp/queries/highlights.scm"
 };
 
 static const char *const g_go_highlight_query_paths[] = {
@@ -664,6 +695,8 @@ static const TSLanguage *editorSyntaxLanguageObject(enum editorSyntaxLanguage la
 	switch (language) {
 		case EDITOR_SYNTAX_C:
 			return tree_sitter_c();
+		case EDITOR_SYNTAX_CPP:
+			return tree_sitter_cpp();
 		case EDITOR_SYNTAX_GO:
 			return tree_sitter_go();
 		case EDITOR_SYNTAX_SHELL:
@@ -1021,6 +1054,13 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 					(int)(sizeof(g_c_highlight_query_paths) / sizeof(g_c_highlight_query_paths[0])),
 					editor_builtin_c_highlights_query,
 					1, 0, 0, 0);
+		case EDITOR_SYNTAX_CPP:
+			return editorSyntaxEnsureQueryCache(&g_cpp_highlight_query_cache, EDITOR_SYNTAX_CPP,
+					g_cpp_highlight_query_paths,
+					(int)(sizeof(g_cpp_highlight_query_paths) /
+						sizeof(g_cpp_highlight_query_paths[0])),
+					editor_builtin_cpp_highlights_query,
+					1, 0, 0, 0);
 		case EDITOR_SYNTAX_GO:
 			return editorSyntaxEnsureQueryCache(&g_go_highlight_query_cache, EDITOR_SYNTAX_GO,
 					g_go_highlight_query_paths,
@@ -1093,6 +1133,8 @@ static const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCache
 	switch (language) {
 		case EDITOR_SYNTAX_C:
 			return &g_c_highlight_query_cache;
+		case EDITOR_SYNTAX_CPP:
+			return &g_cpp_highlight_query_cache;
 		case EDITOR_SYNTAX_GO:
 			return &g_go_highlight_query_cache;
 		case EDITOR_SYNTAX_SHELL:
@@ -1124,6 +1166,7 @@ static struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(c
 
 	struct editorSyntaxQueryCacheEntry *all[] = {
 		&g_c_highlight_query_cache,
+		&g_cpp_highlight_query_cache,
 		&g_go_highlight_query_cache,
 		&g_shell_highlight_query_cache,
 		&g_html_highlight_query_cache,
