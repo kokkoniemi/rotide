@@ -5,22 +5,13 @@ description: Maintain RotIDE documentation quality and consistency across README
 
 # Rotide Docs Maintainer
 
-## Scope
+Use for `README.md`, `AGENTS.md`, and `skills/*` docs.
 
-Use for:
-- `README.md`
-- `AGENTS.md`
-- `skills/*/SKILL.md`
-- `skills/*/references/*.md`
-
-## Workflow
+## First Inspect
 
 1. Read `references/docs-playbook.md`.
-2. Confirm current behavior from source files before documenting.
-3. Update docs with terminology-first, architecture-accurate wording.
-4. Keep user docs and contributor docs consistent.
-5. Ensure new/renamed skills are reflected in `AGENTS.md`.
-6. Run `make` and `make test` before finalizing doc-only PRs in this repo.
+2. Confirm behavior from source before changing wording.
+3. Open `README.md` only when the task touches user-facing docs.
 
 ## Guardrails
 

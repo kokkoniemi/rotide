@@ -44,7 +44,11 @@ OBJS = $(SRCS:.c=.o)
 CORE_OBJS = $(CORE_SRCS:.c=.o)
 TREE_SITTER_OBJS = $(TREE_SITTER_SRCS:.c=.o)
 EDITOR_OBJS = $(filter-out $(SRC_DIR)/rotide.o,$(CORE_OBJS)) $(TREE_SITTER_OBJS)
-TEST_SRCS = tests/rotide_tests.c tests/test_helpers.c tests/alloc_test_hooks.c tests/save_syscalls_test_hooks.c
+TEST_SRCS = tests/rotide_tests_main.c tests/test_document_text_editing.c \
+	tests/test_syntax.c tests/test_save_recovery.c tests/test_workspace_config.c \
+	tests/test_lsp.c tests/test_input_search.c tests/test_render_terminal.c \
+	tests/test_support.c tests/test_helpers.c tests/alloc_test_hooks.c \
+	tests/save_syscalls_test_hooks.c
 TEST_OBJS = $(TEST_SRCS:.c=.o)
 TEST_BIN = tests/rotide_tests
 DEPFILES = $(OBJS:.o=.d) $(TEST_OBJS:.o=.d)

@@ -5,16 +5,13 @@ description: Maintain and evolve RotIDE across core editor modules, document/rop
 
 # Rotide Maintainer
 
-## Quick Start Workflow
+Use this for general RotIDE code, docs, and test work when a narrower skill is not the best fit.
 
-1. Read `AGENTS.md`, `README.md`, and touched modules.
-2. Check workspace status with `git status --short`; preserve unrelated user edits.
-3. Implement the smallest behavior-correct change that matches project style.
-4. Update tests when behavior changes (`tests/rotide_tests.c` + helpers/hooks as needed).
-5. Run `make`.
-6. Run `make test`.
-7. Run `make test-sanitize` for sanitizer-sensitive/syntax/storage changes.
-8. Summarize impact, risks, and validation.
+## First Inspect
+
+1. `AGENTS.md`
+2. touched modules
+3. `references/task-routing.md`
 
 ## Guardrails
 
@@ -26,7 +23,7 @@ description: Maintain and evolve RotIDE across core editor modules, document/rop
 - Keep syntax and LSP state tab-local.
 - Do not regress dirty-state semantics.
 
-## Validation Defaults
+## Validation
 
 - Always: `make`, then `make test`.
 - Add sanitizer run (`make test-sanitize`) when touching:
@@ -39,4 +36,4 @@ description: Maintain and evolve RotIDE across core editor modules, document/rop
 
 ## References
 
-- `references/code-map.md`
+- `references/task-routing.md`

@@ -5,28 +5,13 @@ description: Maintain RotIDE search behavior (Ctrl-F prompt flow, offset-based m
 
 # Rotide Search Maintainer
 
-## Scope
+Use for search prompt flow, active match navigation, and search highlight behavior.
 
-Use for search regressions/improvements in:
-- prompt lifecycle and callbacks
-- next/previous match traversal
-- cancel/confirm behavior
-- active match highlight rendering
-- search state correctness across tabs/undo/edits
-
-## Workflow
+## First Inspect
 
 1. Read `references/search-playbook.md`.
-2. Inspect `input.c` search path:
-   - `editorFind()`
-   - `editorFindCallback()`
-   - cursor restore helpers
-3. Inspect `buffer.c` search functions:
-   - `editorBufferFindForward()`
-   - `editorBufferFindBackward()`
-4. Inspect highlight rendering in `output.c`.
-5. Update/add tests in `tests/rotide_tests.c`.
-6. Run `make` and `make test`.
+2. Inspect the search caller, the buffer search helpers, and the active highlight path.
+3. Check `tests/test_input_search.c` and `tests/test_render_terminal.c` if highlight output changes.
 
 ## Guardrails
 

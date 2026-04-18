@@ -5,28 +5,13 @@ description: Add, evolve, and debug RotIDE Tree-sitter language support, query b
 
 # Rotide Syntax Maintainer
 
-## Scope
+Use for Tree-sitter activation, query wiring, incremental parse behavior, and syntax highlighting changes.
 
-Use for:
-- language detection/activation changes
-- parser/query wiring changes
-- highlight capture mapping changes
-- incremental parse regressions
-- injection/predicate/locals behavior
-- syntax budget/degraded-mode tuning
-
-## Workflow
+## First Inspect
 
 1. Read `references/syntax-playbook.md`.
-2. Confirm scope (new language vs query tweak vs bug/perf fix).
-3. Apply changes in this order:
-   - `rotide.h` enums/types if needed
-   - `syntax.c` parser/query/capture wiring
-   - `buffer.c` activation/parse/incremental-edit integration
-   - `output.c` rendering interactions when needed
-   - `Makefile` + `vendor/tree_sitter/*` + refresh script if vendor/build changes are required
-4. Update tests in `tests/rotide_tests.c`.
-5. Run `make`, `make test`, and sanitizer suite for syntax-sensitive changes.
+2. Inspect `src/language/syntax.c` plus the immediate caller/renderer.
+3. Check `tests/test_syntax.c` and `tests/test_render_terminal.c`.
 
 ## Guardrails
 

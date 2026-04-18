@@ -5,29 +5,13 @@ description: Maintain RotIDE canonical document/rope/edit-history/recovery pipel
 
 # Rotide Document Maintainer
 
-## Scope
+Use for canonical document, rope, edit-history, and recovery-path changes.
 
-Use for changes in:
-- `document.c` / `document.h`
-- `rope.c` / `rope.h`
-- document-backed edit application in `buffer.c`
-- offset mapping and cursor offset invariants
-- operation-based history entries
-- recovery normalization and document restore paths
-
-## Workflow
+## First Inspect
 
 1. Read `references/document-playbook.md`.
-2. Identify whether the change affects:
-   - storage semantics
-   - offset/line mapping
-   - edit application and row-cache rebuild
-   - history behavior
-   - recovery serialization/restore
-3. Apply minimal changes, preserving canonical document-first ownership.
-4. Update tests in `tests/rotide_tests.c` (or helper tests) for changed behaviors.
-5. Run `make` and `make test`.
-6. Run sanitizer suite when touching memory/replace-range/index logic.
+2. Inspect touched document/storage modules.
+3. Check `tests/test_document_text_editing.c` and `tests/test_save_recovery.c` if behavior changes.
 
 ## Guardrails
 

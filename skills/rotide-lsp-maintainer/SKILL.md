@@ -5,23 +5,13 @@ description: Maintain RotIDE Go/C/C++/HTML LSP behavior including lifecycle, syn
 
 # Rotide LSP Maintainer
 
-## Scope
+Use for LSP lifecycle, sync, definition flow, config gating, and install/task-log behavior.
 
-Use for changes in:
-- `src/language/lsp.c` / `src/language/lsp.h`
-- `src/input/dispatch.c` definition UX, picker flow, and missing-server prompts/instructions
-- `src/editing/buffer_core.c` LSP didChange/didSave/didClose integration
-- `src/config/lsp_config.c` / `src/config/lsp_config.h` `[lsp]` config loading
-- `src/workspace/tabs.c` / `src/workspace/task.h` task-log behavior tied to LSP install/actions
-
-## Workflow
+## First Inspect
 
 1. Read `references/lsp-playbook.md`.
-2. Determine whether the change is config, transport, sync, definition UX, or install flow.
-3. Preserve per-language gating and server-specific UX unless the change explicitly broadens scope.
-4. Update tests in `tests/rotide_tests.c`.
-5. Run `make` and `make test`.
-6. Run sanitizer suite for transport/parsing/memory-sensitive changes.
+2. Inspect `src/language/lsp.c` and the immediate caller/config module involved.
+3. Check `tests/test_lsp.c`.
 
 ## Guardrails
 
