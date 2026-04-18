@@ -992,7 +992,7 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_j
 			"rotide-test-json-lsp-fixture-", ".json",
 			"tests/lsp/supported/json/single_file_definition.json"));
 	editorOpen(json_path);
-	ASSERT_EQ_INT(EDITOR_SYNTAX_NONE, editorSyntaxLanguageActive());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_JSON, editorSyntaxLanguageActive());
 
 	E.cy = 2;
 	E.cx = 11;
