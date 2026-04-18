@@ -126,6 +126,7 @@ static struct editorSyntaxQueryCacheEntry g_shell_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_html_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_javascript_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_css_highlight_query_cache = {0};
+static struct editorSyntaxQueryCacheEntry g_json_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_javascript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_html_injection_query_cache = {0};
 
@@ -239,6 +240,13 @@ static const char editor_builtin_css_highlights_query[] =
 		"(id_name) @property\n"
 		"(at_keyword) @keyword\n";
 
+static const char editor_builtin_json_highlights_query[] =
+		"(pair key: (_) @string)\n"
+		"(string) @string\n"
+		"(number) @number\n"
+		"[(null) (true) (false)] @constant\n"
+		"(comment) @comment\n";
+
 static const char editor_builtin_html_injections_query[] =
 		"((script_element (raw_text) @injection.content)\n"
 		" (#set! injection.language \"javascript\"))\n"
@@ -278,6 +286,10 @@ static const char *const g_javascript_locals_query_paths[] = {
 
 static const char *const g_css_highlight_query_paths[] = {
 	"vendor/tree_sitter/grammars/css/queries/highlights.scm"
+};
+
+static const char *const g_json_highlight_query_paths[] = {
+	"vendor/tree_sitter/grammars/json/queries/highlights.scm"
 };
 
 static const char *const g_html_injection_query_paths[] = {
@@ -707,6 +719,8 @@ static const TSLanguage *editorSyntaxLanguageObject(enum editorSyntaxLanguage la
 			return tree_sitter_javascript();
 		case EDITOR_SYNTAX_CSS:
 			return tree_sitter_css();
+		case EDITOR_SYNTAX_JSON:
+			return tree_sitter_json();
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return NULL;
@@ -1099,6 +1113,14 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 						sizeof(g_css_highlight_query_paths[0])),
 					editor_builtin_css_highlights_query,
 					1, 0, 0, 0);
+		case EDITOR_SYNTAX_JSON:
+			return editorSyntaxEnsureQueryCache(&g_json_highlight_query_cache,
+					EDITOR_SYNTAX_JSON,
+					g_json_highlight_query_paths,
+					(int)(sizeof(g_json_highlight_query_paths) /
+						sizeof(g_json_highlight_query_paths[0])),
+					editor_builtin_json_highlights_query,
+					1, 0, 0, 0);
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return 0;
@@ -1145,6 +1167,8 @@ static const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCache
 			return &g_javascript_highlight_query_cache;
 		case EDITOR_SYNTAX_CSS:
 			return &g_css_highlight_query_cache;
+		case EDITOR_SYNTAX_JSON:
+			return &g_json_highlight_query_cache;
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return NULL;
@@ -1172,6 +1196,7 @@ static struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(c
 		&g_html_highlight_query_cache,
 		&g_javascript_highlight_query_cache,
 		&g_css_highlight_query_cache,
+		&g_json_highlight_query_cache,
 		&g_javascript_locals_query_cache,
 		&g_html_injection_query_cache
 	};

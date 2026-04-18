@@ -187,6 +187,31 @@ static int test_editor_syntax_activation_for_html_js_and_css_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_json_files(void) {
+	char json_path[] = "/tmp/rotide-test-syntax-json-XXXXXX.json";
+	ASSERT_TRUE(write_fixture_to_temp_path(json_path, 5,
+			"tests/syntax/supported/json/activation.json"));
+
+	editorOpen(json_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_JSON, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("document", editorSyntaxRootType());
+
+	char jsonc_path[] = "/tmp/rotide-test-syntax-jsonc-XXXXXX.jsonc";
+	ASSERT_TRUE(write_fixture_to_temp_path(jsonc_path, 6,
+			"tests/syntax/supported/json/activation.json"));
+	editorOpen(jsonc_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_JSON, editorSyntaxLanguageActive());
+
+	ASSERT_TRUE(unlink(json_path) == 0);
+	ASSERT_TRUE(unlink(jsonc_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_go_and_mod_files(void) {
 	char go_path[] = "/tmp/rotide-test-syntax-go-XXXXXX.go";
 	ASSERT_TRUE(write_fixture_to_temp_path(go_path, 3,
@@ -1048,6 +1073,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_activation_for_c_and_h_files", test_editor_syntax_activation_for_c_and_h_files},
 	{"editor_syntax_activation_for_shell_files_and_shebang", test_editor_syntax_activation_for_shell_files_and_shebang},
 	{"editor_syntax_activation_for_html_js_and_css_files", test_editor_syntax_activation_for_html_js_and_css_files},
+	{"editor_syntax_activation_for_json_files", test_editor_syntax_activation_for_json_files},
 	{"editor_syntax_activation_for_go_and_mod_files", test_editor_syntax_activation_for_go_and_mod_files},
 	{"editor_syntax_disabled_for_non_c_or_shell_files", test_editor_syntax_disabled_for_non_c_or_shell_files},
 	{"editor_save_as_c_file_enables_syntax", test_editor_save_as_c_file_enables_syntax},

@@ -191,6 +191,7 @@ BASH_GRAMMAR_SRC=""
 HTML_GRAMMAR_SRC=""
 JAVASCRIPT_GRAMMAR_SRC=""
 CSS_GRAMMAR_SRC=""
+JSON_GRAMMAR_SRC=""
 
 download_repo_tarball "tree-sitter/tree-sitter" "${TREE_SITTER_RUNTIME_REF}" RUNTIME_SRC
 download_repo_tarball "tree-sitter/tree-sitter-c" "${TREE_SITTER_C_GRAMMAR_REF}" C_GRAMMAR_SRC
@@ -200,6 +201,7 @@ download_repo_tarball "tree-sitter/tree-sitter-bash" "${TREE_SITTER_BASH_GRAMMAR
 download_repo_tarball "tree-sitter/tree-sitter-html" "${TREE_SITTER_HTML_GRAMMAR_REF}" HTML_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-javascript" "${TREE_SITTER_JAVASCRIPT_GRAMMAR_REF}" JAVASCRIPT_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-css" "${TREE_SITTER_CSS_GRAMMAR_REF}" CSS_GRAMMAR_SRC
+download_repo_tarball "tree-sitter/tree-sitter-json" "${TREE_SITTER_JSON_GRAMMAR_REF}" JSON_GRAMMAR_SRC
 
 if [[ ! -d "${RUNTIME_SRC}/lib/src" || ! -f "${RUNTIME_SRC}/lib/include/tree_sitter/api.h" ]]; then
 	echo "Runtime source layout not found in ${TREE_SITTER_RUNTIME_REF}" >&2
@@ -216,6 +218,7 @@ regenerate_parser "${BASH_GRAMMAR_SRC}" "Bash"
 regenerate_parser "${HTML_GRAMMAR_SRC}" "HTML"
 regenerate_parser "${JAVASCRIPT_GRAMMAR_SRC}" "JavaScript"
 regenerate_parser "${CSS_GRAMMAR_SRC}" "CSS"
+regenerate_parser "${JSON_GRAMMAR_SRC}" "JSON"
 
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
@@ -233,6 +236,7 @@ sync_grammar_vendor "${BASH_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/gramm
 sync_grammar_vendor "${HTML_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/html"
 sync_grammar_vendor "${JAVASCRIPT_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/javascript"
 sync_grammar_vendor "${CSS_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/css"
+sync_grammar_vendor "${JSON_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/json"
 
 echo "Tree-sitter vendor refresh complete." >&2
 echo "If you changed refs/releases, update vendor/tree_sitter/VERSIONS.env and VERSIONS.md." >&2

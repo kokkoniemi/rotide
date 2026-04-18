@@ -20,6 +20,7 @@ extern const TSLanguage *tree_sitter_bash(void);
 extern const TSLanguage *tree_sitter_html(void);
 extern const TSLanguage *tree_sitter_javascript(void);
 extern const TSLanguage *tree_sitter_css(void);
+extern const TSLanguage *tree_sitter_json(void);
 
 #include "language/syntax_queries.c"
 
@@ -166,6 +167,10 @@ enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *fil
 	}
 	if (dot != NULL && (strcmp(dot, ".css") == 0 || strcmp(dot, ".scss") == 0)) {
 		return EDITOR_SYNTAX_CSS;
+	}
+	if (dot != NULL &&
+			(strcmp(dot, ".json") == 0 || strcmp(dot, ".jsonc") == 0)) {
+		return EDITOR_SYNTAX_JSON;
 	}
 
 	const char *base = strrchr(filename, '/');
@@ -2130,6 +2135,7 @@ void editorSyntaxReleaseSharedResources(void) {
 	editorSyntaxClearQueryCacheEntry(&g_html_highlight_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_javascript_highlight_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_css_highlight_query_cache);
+	editorSyntaxClearQueryCacheEntry(&g_json_highlight_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_javascript_locals_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_html_injection_query_cache);
 }
