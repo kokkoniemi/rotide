@@ -30,48 +30,6 @@ module.exports = grammar({
     /[\s\p{Zs}\uFEFF\u2028\u2029\u2060\u200B]/,
   ],
 
-  reserved: {
-    // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Lexical_grammar#reserved_words
-    global: $ => [
-      'break',
-      'case',
-      'catch',
-      'class',
-      'const',
-      'continue',
-      'debugger',
-      'default',
-      'delete',
-      'do',
-      'else',
-      'export',
-      'extends',
-      'false',
-      'finally',
-      'for',
-      'function',
-      'if',
-      'import',
-      'in',
-      'instanceof',
-      'new',
-      'null',
-      'return',
-      'super',
-      'switch',
-      'this',
-      'throw',
-      'true',
-      'try',
-      'typeof',
-      'var',
-      'void',
-      'while',
-      'with',
-    ],
-    properties: $ => [],
-  },
-
   supertypes: $ => [
     $.statement,
     $.declaration,
@@ -132,10 +90,8 @@ module.exports = grammar({
 
   conflicts: $ => [
     [$.primary_expression, $._property_name],
-    [$.primary_expression, $.await_expression],
-    [$.primary_expression, $.await_expression, $._property_name],
+    [$.primary_expression, $._property_name, $.arrow_function],
     [$.primary_expression, $.arrow_function],
-    [$.primary_expression, $.arrow_function, $._property_name],
     [$.primary_expression, $.method_definition],
     [$.primary_expression, $.rest_pattern],
     [$.primary_expression, $.pattern],
@@ -217,7 +173,6 @@ module.exports = grammar({
     _module_export_name: $ => choice(
       $.identifier,
       $.string,
-      'default',
     ),
 
     declaration: $ => choice(
@@ -226,7 +181,6 @@ module.exports = grammar({
       $.class_declaration,
       $.lexical_declaration,
       $.variable_declaration,
-      $.using_declaration,
     ),
 
     //
@@ -332,21 +286,8 @@ module.exports = grammar({
       $._semicolon,
     ),
 
-    using_declaration: $ => seq(
-      field('kind', choice(
-        'using',
-        seq('await', 'using'),
-      )),
-      commaSep1($.variable_declarator),
-      $._semicolon,
-    ),
-
     variable_declarator: $ => seq(
-      field('name', choice(
-        $.identifier,
-        alias('of', $.identifier),
-        $._destructuring_pattern,
-      )),
+      field('name', choice($.identifier, $._destructuring_pattern)),
       optional($._initializer),
     ),
 
@@ -407,7 +348,6 @@ module.exports = grammar({
           field('kind', 'var'),
           field('left', choice(
             $.identifier,
-            alias('of', $.identifier),
             $._destructuring_pattern,
           )),
           optional($._initializer),
@@ -416,19 +356,6 @@ module.exports = grammar({
           field('kind', choice('let', 'const')),
           field('left', choice(
             $.identifier,
-            alias('of', $.identifier),
-            $._destructuring_pattern,
-          )),
-          optional($._automatic_semicolon),
-        ),
-        seq(
-          field('kind', choice(
-            'using',
-            seq('await', 'using'),
-          )),
-          field('left', choice(
-            $.identifier,
-            alias('of', $.identifier),
             $._destructuring_pattern,
           )),
           optional($._automatic_semicolon),
@@ -886,8 +813,7 @@ module.exports = grammar({
       choice('.', field('optional_chain', $.optional_chain)),
       field('property', choice(
         $.private_property_identifier,
-        reserved('properties', alias($.identifier, $.property_identifier)),
-      )),
+        alias($.identifier, $.property_identifier))),
     )),
 
     subscript_expression: $ => prec.right('member', seq(
@@ -1270,7 +1196,7 @@ module.exports = grammar({
       field('value', choice($.pattern, $.assignment_pattern)),
     ),
 
-    _property_name: $ => reserved('properties', choice(
+    _property_name: $ => choice(
       alias(
         choice($.identifier, $._reserved_identifier),
         $.property_identifier,
@@ -1279,7 +1205,7 @@ module.exports = grammar({
       $.string,
       $.number,
       $.computed_property_name,
-    )),
+    ),
 
     computed_property_name: $ => seq(
       '[',
@@ -1291,7 +1217,6 @@ module.exports = grammar({
       'get',
       'set',
       'async',
-      'await',
       'static',
       'export',
       'let',

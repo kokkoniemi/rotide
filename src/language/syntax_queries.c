@@ -125,6 +125,7 @@ static struct editorSyntaxQueryCacheEntry g_go_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_shell_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_html_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_javascript_highlight_query_cache = {0};
+static struct editorSyntaxQueryCacheEntry g_typescript_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_css_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_json_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_javascript_locals_query_cache = {0};
@@ -221,6 +222,20 @@ static const char editor_builtin_javascript_highlights_query[] =
 		"[(function_declaration name: (identifier) @function)]\n"
 		"[(\"function\") (\"return\") (\"if\") (\"else\") (\"for\") (\"while\")] @keyword\n";
 
+static const char editor_builtin_typescript_highlights_query[] =
+		"(identifier) @variable\n"
+		"(property_identifier) @property\n"
+		"(comment) @comment\n"
+		"[(string) (template_string)] @string\n"
+		"(number) @number\n"
+		"(type_identifier) @type\n"
+		"(predefined_type) @type\n"
+		"[(function_declaration name: (identifier) @function)]\n"
+		"[(\"function\") (\"return\") (\"if\") (\"else\") (\"for\") (\"while\")] @keyword\n"
+		"[\"abstract\" \"declare\" \"enum\" \"export\" \"implements\" \"interface\"\n"
+		" \"keyof\" \"namespace\" \"private\" \"protected\" \"public\" \"type\"\n"
+		" \"readonly\" \"override\" \"satisfies\"] @keyword\n";
+
 static const char editor_builtin_javascript_locals_query[] =
 		"[(statement_block) (function_expression) (arrow_function)\n"
 		" (function_declaration) (method_definition)] @local.scope\n"
@@ -278,6 +293,13 @@ static const char *const g_javascript_highlight_query_paths[] = {
 	"vendor/tree_sitter/grammars/javascript/queries/highlights.scm",
 	"vendor/tree_sitter/grammars/javascript/queries/highlights-jsx.scm",
 	"vendor/tree_sitter/grammars/javascript/queries/highlights-params.scm"
+};
+
+static const char *const g_typescript_highlight_query_paths[] = {
+	"vendor/tree_sitter/grammars/javascript/queries/highlights.scm",
+	"vendor/tree_sitter/grammars/javascript/queries/highlights-jsx.scm",
+	"vendor/tree_sitter/grammars/javascript/queries/highlights-params.scm",
+	"vendor/tree_sitter/grammars/typescript/queries/highlights.scm"
 };
 
 static const char *const g_javascript_locals_query_paths[] = {
@@ -717,6 +739,8 @@ static const TSLanguage *editorSyntaxLanguageObject(enum editorSyntaxLanguage la
 			return tree_sitter_html();
 		case EDITOR_SYNTAX_JAVASCRIPT:
 			return tree_sitter_javascript();
+		case EDITOR_SYNTAX_TYPESCRIPT:
+			return tree_sitter_typescript();
 		case EDITOR_SYNTAX_CSS:
 			return tree_sitter_css();
 		case EDITOR_SYNTAX_JSON:
@@ -1105,6 +1129,14 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 						sizeof(g_javascript_highlight_query_paths[0])),
 					editor_builtin_javascript_highlights_query,
 					1, 0, 0, 0);
+		case EDITOR_SYNTAX_TYPESCRIPT:
+			return editorSyntaxEnsureQueryCache(&g_typescript_highlight_query_cache,
+					EDITOR_SYNTAX_TYPESCRIPT,
+					g_typescript_highlight_query_paths,
+					(int)(sizeof(g_typescript_highlight_query_paths) /
+						sizeof(g_typescript_highlight_query_paths[0])),
+					editor_builtin_typescript_highlights_query,
+					1, 0, 0, 0);
 		case EDITOR_SYNTAX_CSS:
 			return editorSyntaxEnsureQueryCache(&g_css_highlight_query_cache,
 					EDITOR_SYNTAX_CSS,
@@ -1165,6 +1197,8 @@ static const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCache
 			return &g_html_highlight_query_cache;
 		case EDITOR_SYNTAX_JAVASCRIPT:
 			return &g_javascript_highlight_query_cache;
+		case EDITOR_SYNTAX_TYPESCRIPT:
+			return &g_typescript_highlight_query_cache;
 		case EDITOR_SYNTAX_CSS:
 			return &g_css_highlight_query_cache;
 		case EDITOR_SYNTAX_JSON:
@@ -1195,6 +1229,7 @@ static struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(c
 		&g_shell_highlight_query_cache,
 		&g_html_highlight_query_cache,
 		&g_javascript_highlight_query_cache,
+		&g_typescript_highlight_query_cache,
 		&g_css_highlight_query_cache,
 		&g_json_highlight_query_cache,
 		&g_javascript_locals_query_cache,

@@ -8,9 +8,10 @@ Pinned source/tooling used by this repository:
 - Tree-sitter Go grammar source ref: `2346a3ab1bb3857b48b29d779a1ef9799a248cd7` (`tree-sitter-go-master-2346a3a`)
 - Tree-sitter Bash grammar source ref: `a06c2e4415e9bc0346c6b86d401879ffb44058f7` (`tree-sitter-bash-master-a06c2e4`)
 - Tree-sitter HTML grammar source ref: `73a3947324f6efddf9e17c0ea58d454843590cc0` (`tree-sitter-html-master-73a3947`)
-- Tree-sitter JavaScript grammar source ref: `58404d8cf191d69f2674a8fd507bd5776f46cb11` (`tree-sitter-javascript-master-58404d8`)
+- Tree-sitter JavaScript grammar source ref: `3a837b6f3658ca3618f2022f8707e29739c91364` (`tree-sitter-javascript-v0.23.1-3a837b6`)
 - Tree-sitter CSS grammar source ref: `dda5cfc5722c429eaba1c910ca32c2c0c5bb1a3f` (`tree-sitter-css-master-dda5cfc`)
-- Tree-sitter CLI release for regeneration: `v0.26.7`
+- Tree-sitter TypeScript grammar source ref: `f975a621f4e7f532fe322e13c4f79495e0a7b2e7` (`tree-sitter-typescript-v0.23.2-f975a62`)
+- Tree-sitter CLI release for regeneration: `v0.26.8`
 
 The machine-readable source of truth is [`VERSIONS.env`](./VERSIONS.env).
 Use [`scripts/refresh_tree_sitter_vendor.sh`](../../scripts/refresh_tree_sitter_vendor.sh) to refresh vendored sources and regenerated parser artifacts.

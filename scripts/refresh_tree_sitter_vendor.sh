@@ -192,6 +192,7 @@ HTML_GRAMMAR_SRC=""
 JAVASCRIPT_GRAMMAR_SRC=""
 CSS_GRAMMAR_SRC=""
 JSON_GRAMMAR_SRC=""
+TYPESCRIPT_GRAMMAR_SRC=""
 
 download_repo_tarball "tree-sitter/tree-sitter" "${TREE_SITTER_RUNTIME_REF}" RUNTIME_SRC
 download_repo_tarball "tree-sitter/tree-sitter-c" "${TREE_SITTER_C_GRAMMAR_REF}" C_GRAMMAR_SRC
@@ -202,6 +203,7 @@ download_repo_tarball "tree-sitter/tree-sitter-html" "${TREE_SITTER_HTML_GRAMMAR
 download_repo_tarball "tree-sitter/tree-sitter-javascript" "${TREE_SITTER_JAVASCRIPT_GRAMMAR_REF}" JAVASCRIPT_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-css" "${TREE_SITTER_CSS_GRAMMAR_REF}" CSS_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-json" "${TREE_SITTER_JSON_GRAMMAR_REF}" JSON_GRAMMAR_SRC
+download_repo_tarball "tree-sitter/tree-sitter-typescript" "${TREE_SITTER_TYPESCRIPT_GRAMMAR_REF}" TYPESCRIPT_GRAMMAR_SRC
 
 if [[ ! -d "${RUNTIME_SRC}/lib/src" || ! -f "${RUNTIME_SRC}/lib/include/tree_sitter/api.h" ]]; then
 	echo "Runtime source layout not found in ${TREE_SITTER_RUNTIME_REF}" >&2
@@ -217,6 +219,10 @@ regenerate_parser "${GO_GRAMMAR_SRC}" "Go"
 regenerate_parser "${BASH_GRAMMAR_SRC}" "Bash"
 regenerate_parser "${HTML_GRAMMAR_SRC}" "HTML"
 regenerate_parser "${JAVASCRIPT_GRAMMAR_SRC}" "JavaScript"
+# tree-sitter-typescript grammar.js requires tree-sitter-javascript via
+# common/define-grammar.js; expose the pinned JS source in node_modules.
+link_grammar_dep "${TYPESCRIPT_GRAMMAR_SRC}" "tree-sitter-javascript" "${JAVASCRIPT_GRAMMAR_SRC}"
+regenerate_parser "${TYPESCRIPT_GRAMMAR_SRC}/typescript" "TypeScript"
 regenerate_parser "${CSS_GRAMMAR_SRC}" "CSS"
 regenerate_parser "${JSON_GRAMMAR_SRC}" "JSON"
 
@@ -235,6 +241,13 @@ sync_grammar_vendor "${GO_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammar
 sync_grammar_vendor "${BASH_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/bash"
 sync_grammar_vendor "${HTML_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/html"
 sync_grammar_vendor "${JAVASCRIPT_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/javascript"
+# TypeScript grammar keeps top-level queries/ separate from typescript/src/.
+# Stage them into typescript/ so sync_grammar_vendor picks them up.
+cp -R "${TYPESCRIPT_GRAMMAR_SRC}/queries" "${TYPESCRIPT_GRAMMAR_SRC}/typescript/queries"
+sync_grammar_vendor "${TYPESCRIPT_GRAMMAR_SRC}/typescript" "${REPO_ROOT}/vendor/tree_sitter/grammars/typescript"
+# scanner.c includes ../../common/scanner.h; provide the shared common/ dir.
+rm -rf "${REPO_ROOT}/vendor/tree_sitter/grammars/common"
+cp -R "${TYPESCRIPT_GRAMMAR_SRC}/common" "${REPO_ROOT}/vendor/tree_sitter/grammars/common"
 sync_grammar_vendor "${CSS_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/css"
 sync_grammar_vendor "${JSON_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/json"
 

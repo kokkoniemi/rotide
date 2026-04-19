@@ -19,6 +19,7 @@ extern const TSLanguage *tree_sitter_go(void);
 extern const TSLanguage *tree_sitter_bash(void);
 extern const TSLanguage *tree_sitter_html(void);
 extern const TSLanguage *tree_sitter_javascript(void);
+extern const TSLanguage *tree_sitter_typescript(void);
 extern const TSLanguage *tree_sitter_css(void);
 extern const TSLanguage *tree_sitter_json(void);
 
@@ -164,6 +165,11 @@ enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *fil
 			(strcmp(dot, ".js") == 0 || strcmp(dot, ".mjs") == 0 ||
 					strcmp(dot, ".cjs") == 0 || strcmp(dot, ".jsx") == 0)) {
 		return EDITOR_SYNTAX_JAVASCRIPT;
+	}
+	if (dot != NULL &&
+			(strcmp(dot, ".ts") == 0 || strcmp(dot, ".tsx") == 0 ||
+					strcmp(dot, ".cts") == 0 || strcmp(dot, ".mts") == 0)) {
+		return EDITOR_SYNTAX_TYPESCRIPT;
 	}
 	if (dot != NULL && (strcmp(dot, ".css") == 0 || strcmp(dot, ".scss") == 0)) {
 		return EDITOR_SYNTAX_CSS;
@@ -2134,6 +2140,7 @@ void editorSyntaxReleaseSharedResources(void) {
 	editorSyntaxClearQueryCacheEntry(&g_shell_highlight_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_html_highlight_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_javascript_highlight_query_cache);
+	editorSyntaxClearQueryCacheEntry(&g_typescript_highlight_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_css_highlight_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_json_highlight_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_javascript_locals_query_cache);

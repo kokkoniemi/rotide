@@ -26,12 +26,21 @@
 
 ## Currently supported syntax families
 
-- C
+- C / C++
 - Go
 - Shell (bash language backend)
 - HTML (with JS/CSS injections)
-- JavaScript
+- JavaScript (`.js`, `.mjs`, `.cjs`, `.jsx`)
+- TypeScript (`.ts`, `.tsx`, `.cts`, `.mts`) — grammar from tree-sitter-typescript `typescript/` sub-grammar; shared `common/` lives at `vendor/tree_sitter/grammars/common/`
 - CSS (including `.scss` detection path)
+- JSON (`.json`, `.jsonc`)
+
+## TypeScript vendoring notes
+
+- The repo has `typescript/` and `tsx/` sub-grammars; only `typescript/` is vendored (handles both `.ts` and `.tsx`).
+- `grammar.js` requires `../common/define-grammar` → `tree-sitter-javascript` dep; the refresh script links JS grammar source via `link_grammar_dep` before regenerating.
+- `scanner.c` includes `../../common/scanner.h`; the shared `common/` from the TS repo is copied to `vendor/tree_sitter/grammars/common/`.
+- TS grammar requires JS grammar at the same semver family; pin JS and TS together (currently JS v0.23.1 + TS v0.23.2).
 
 ## Language onboarding checklist
 

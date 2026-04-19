@@ -212,6 +212,32 @@ static int test_editor_syntax_activation_for_json_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_typescript_files(void) {
+	char ts_path[] = "/tmp/rotide-test-syntax-ts-XXXXXX.ts";
+	ASSERT_TRUE(write_fixture_to_temp_path(ts_path, 3,
+			"tests/syntax/supported/typescript/activation.ts"));
+
+	editorOpen(ts_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_TYPESCRIPT, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("program", editorSyntaxRootType());
+
+	char tsx_path[] = "/tmp/rotide-test-syntax-tsx-XXXXXX.tsx";
+	ASSERT_TRUE(write_fixture_to_temp_path(tsx_path, 4,
+			"tests/syntax/supported/typescript/activation.tsx"));
+
+	editorOpen(tsx_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_TYPESCRIPT, editorSyntaxLanguageActive());
+
+	ASSERT_TRUE(unlink(ts_path) == 0);
+	ASSERT_TRUE(unlink(tsx_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_go_and_mod_files(void) {
 	char go_path[] = "/tmp/rotide-test-syntax-go-XXXXXX.go";
 	ASSERT_TRUE(write_fixture_to_temp_path(go_path, 3,
@@ -1074,6 +1100,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_activation_for_shell_files_and_shebang", test_editor_syntax_activation_for_shell_files_and_shebang},
 	{"editor_syntax_activation_for_html_js_and_css_files", test_editor_syntax_activation_for_html_js_and_css_files},
 	{"editor_syntax_activation_for_json_files", test_editor_syntax_activation_for_json_files},
+	{"editor_syntax_activation_for_typescript_files", test_editor_syntax_activation_for_typescript_files},
 	{"editor_syntax_activation_for_go_and_mod_files", test_editor_syntax_activation_for_go_and_mod_files},
 	{"editor_syntax_disabled_for_non_c_or_shell_files", test_editor_syntax_disabled_for_non_c_or_shell_files},
 	{"editor_save_as_c_file_enables_syntax", test_editor_save_as_c_file_enables_syntax},
