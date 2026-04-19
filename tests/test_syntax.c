@@ -212,6 +212,49 @@ static int test_editor_syntax_activation_for_json_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_python_files_and_shebang(void) {
+	char py_path[] = "/tmp/rotide-test-syntax-py-XXXXXX.py";
+	ASSERT_TRUE(write_fixture_to_temp_path(py_path, 3,
+			"tests/syntax/supported/python/activation.py"));
+
+	editorOpen(py_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_PYTHON, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("module", editorSyntaxRootType());
+
+	char pyi_path[] = "/tmp/rotide-test-syntax-pyi-XXXXXX.pyi";
+	ASSERT_TRUE(write_fixture_to_temp_path(pyi_path, 4,
+			"tests/syntax/supported/python/activation.pyi"));
+	editorOpen(pyi_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_PYTHON, editorSyntaxLanguageActive());
+
+	char pyw_path[] = "/tmp/rotide-test-syntax-pyw-XXXXXX.pyw";
+	ASSERT_TRUE(write_fixture_to_temp_path(pyw_path, 4,
+			"tests/syntax/supported/python/activation.pyw"));
+	editorOpen(pyw_path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_PYTHON, editorSyntaxLanguageActive());
+
+	char shebang_path[] = "/tmp/rotide-test-syntax-py-shebang-XXXXXX";
+	ASSERT_TRUE(write_fixture_to_temp_path(shebang_path, 0,
+			"tests/syntax/supported/python/extensionless_shebang"));
+
+	ASSERT_TRUE(editorTabsInit());
+	editorOpen(shebang_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_PYTHON, editorSyntaxLanguageActive());
+
+	ASSERT_TRUE(unlink(py_path) == 0);
+	ASSERT_TRUE(unlink(pyi_path) == 0);
+	ASSERT_TRUE(unlink(pyw_path) == 0);
+	ASSERT_TRUE(unlink(shebang_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_typescript_files(void) {
 	char ts_path[] = "/tmp/rotide-test-syntax-ts-XXXXXX.ts";
 	ASSERT_TRUE(write_fixture_to_temp_path(ts_path, 3,
@@ -766,6 +809,32 @@ static int test_editor_syntax_incremental_edits_keep_go_tree_valid(void) {
 	return 0;
 }
 
+static int test_editor_syntax_incremental_edits_keep_python_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-py-XXXXXX.py";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/python/incremental.py"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_PYTHON, editorSyntaxLanguageActive());
+
+	E.cy = 1;
+	E.cx = 4;
+	editorInsertChar('x');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = E.rows[0].size;
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_query_budget_match_limit_is_graceful(void) {
 	size_t source_len = 0;
 	char *source = build_repeated_text("const value = document + window;\n", 512, &source_len);
@@ -1127,6 +1196,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_activation_for_html_js_and_css_files", test_editor_syntax_activation_for_html_js_and_css_files},
 	{"editor_syntax_activation_for_json_files", test_editor_syntax_activation_for_json_files},
 	{"editor_syntax_activation_for_typescript_files", test_editor_syntax_activation_for_typescript_files},
+	{"editor_syntax_activation_for_python_files_and_shebang", test_editor_syntax_activation_for_python_files_and_shebang},
 	{"editor_syntax_activation_for_go_and_mod_files", test_editor_syntax_activation_for_go_and_mod_files},
 	{"editor_syntax_disabled_for_non_c_or_shell_files", test_editor_syntax_disabled_for_non_c_or_shell_files},
 	{"editor_save_as_c_file_enables_syntax", test_editor_save_as_c_file_enables_syntax},
@@ -1141,6 +1211,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_incremental_edits_keep_typescript_tree_valid", test_editor_syntax_incremental_edits_keep_typescript_tree_valid},
 	{"editor_syntax_incremental_edits_keep_css_tree_valid", test_editor_syntax_incremental_edits_keep_css_tree_valid},
 	{"editor_syntax_incremental_edits_keep_go_tree_valid", test_editor_syntax_incremental_edits_keep_go_tree_valid},
+	{"editor_syntax_incremental_edits_keep_python_tree_valid", test_editor_syntax_incremental_edits_keep_python_tree_valid},
 	{"editor_syntax_query_budget_match_limit_is_graceful", test_editor_syntax_query_budget_match_limit_is_graceful},
 	{"editor_syntax_parse_budget_is_graceful", test_editor_syntax_parse_budget_is_graceful},
 	{"editor_syntax_incremental_provider_parse_keeps_tree_valid", test_editor_syntax_incremental_provider_parse_keeps_tree_valid},

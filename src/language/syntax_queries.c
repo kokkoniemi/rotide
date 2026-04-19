@@ -128,6 +128,7 @@ static struct editorSyntaxQueryCacheEntry g_javascript_highlight_query_cache = {
 static struct editorSyntaxQueryCacheEntry g_typescript_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_css_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_json_highlight_query_cache = {0};
+static struct editorSyntaxQueryCacheEntry g_python_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_javascript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_typescript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_html_injection_query_cache = {0};
@@ -272,6 +273,24 @@ static const char editor_builtin_json_highlights_query[] =
 		"[(null) (true) (false)] @constant\n"
 		"(comment) @comment\n";
 
+static const char editor_builtin_python_highlights_query[] =
+		"(comment) @comment\n"
+		"(string) @string\n"
+		"[(integer) (float)] @number\n"
+		"[(true) (false) (none)] @constant\n"
+		"(call function: (identifier) @function)\n"
+		"(call function: (attribute attribute: (identifier) @function.method))\n"
+		"(function_definition name: (identifier) @function)\n"
+		"(class_definition name: (identifier) @type)\n"
+		"(decorator) @function\n"
+		"(attribute attribute: (identifier) @property)\n"
+		"(type (identifier) @type)\n"
+		"[\"and\" \"as\" \"assert\" \"async\" \"await\" \"break\" \"class\" \"continue\"\n"
+		" \"def\" \"del\" \"elif\" \"else\" \"except\" \"finally\" \"for\" \"from\"\n"
+		" \"global\" \"if\" \"import\" \"in\" \"is\" \"lambda\" \"nonlocal\" \"not\"\n"
+		" \"or\" \"pass\" \"raise\" \"return\" \"try\" \"while\" \"with\" \"yield\"\n"
+		" \"match\" \"case\"] @keyword\n";
+
 static const char editor_builtin_html_injections_query[] =
 		"((script_element (raw_text) @injection.content)\n"
 		" (#set! injection.language \"javascript\"))\n"
@@ -327,6 +346,10 @@ static const char *const g_css_highlight_query_paths[] = {
 
 static const char *const g_json_highlight_query_paths[] = {
 	"vendor/tree_sitter/grammars/json/queries/highlights.scm"
+};
+
+static const char *const g_python_highlight_query_paths[] = {
+	"vendor/tree_sitter/grammars/python/queries/highlights.scm"
 };
 
 static const char *const g_html_injection_query_paths[] = {
@@ -760,6 +783,8 @@ static const TSLanguage *editorSyntaxLanguageObject(enum editorSyntaxLanguage la
 			return tree_sitter_css();
 		case EDITOR_SYNTAX_JSON:
 			return tree_sitter_json();
+		case EDITOR_SYNTAX_PYTHON:
+			return tree_sitter_python();
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return NULL;
@@ -1168,6 +1193,14 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 						sizeof(g_json_highlight_query_paths[0])),
 					editor_builtin_json_highlights_query,
 					1, 0, 0, 0);
+		case EDITOR_SYNTAX_PYTHON:
+			return editorSyntaxEnsureQueryCache(&g_python_highlight_query_cache,
+					EDITOR_SYNTAX_PYTHON,
+					g_python_highlight_query_paths,
+					(int)(sizeof(g_python_highlight_query_paths) /
+						sizeof(g_python_highlight_query_paths[0])),
+					editor_builtin_python_highlights_query,
+					1, 0, 0, 0);
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return 0;
@@ -1228,6 +1261,8 @@ static const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCache
 			return &g_css_highlight_query_cache;
 		case EDITOR_SYNTAX_JSON:
 			return &g_json_highlight_query_cache;
+		case EDITOR_SYNTAX_PYTHON:
+			return &g_python_highlight_query_cache;
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return NULL;
@@ -1261,6 +1296,7 @@ static struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(c
 		&g_typescript_highlight_query_cache,
 		&g_css_highlight_query_cache,
 		&g_json_highlight_query_cache,
+		&g_python_highlight_query_cache,
 		&g_javascript_locals_query_cache,
 		&g_typescript_locals_query_cache,
 		&g_html_injection_query_cache

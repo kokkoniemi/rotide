@@ -251,6 +251,32 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_typescript
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_python_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-py-XXXXXX.py";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/python/highlight.py"));
+
+	editorOpen(path);
+	E.window_rows = 6;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mdef\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[93mmain\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96mint\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mreturn\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m42\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m# comment\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_css_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-css-XXXXXX.css";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
@@ -1445,6 +1471,7 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_html_text_apostrophe_not_javascript_string", test_editor_refresh_screen_html_text_apostrophe_not_javascript_string},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_javascript_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_javascript_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_typescript_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_typescript_tokens},
+	{"editor_refresh_screen_applies_syntax_highlighting_for_python_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_python_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_css_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_css_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_go_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_go_tokens},
 	{"editor_refresh_screen_javascript_predicates_and_locals", test_editor_refresh_screen_javascript_predicates_and_locals},

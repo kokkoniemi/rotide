@@ -34,6 +34,7 @@
 - TypeScript (`.ts`, `.tsx`, `.cts`, `.mts`) — grammar from tree-sitter-typescript `typescript/` sub-grammar; shared `common/` lives at `vendor/tree_sitter/grammars/common/`
 - CSS (including `.scss` detection path)
 - JSON (`.json`, `.jsonc`)
+- Python (`.py`, `.pyi`, `.pyw`, plus extensionless shebang detection for `python` / `python3`)
 
 ## TypeScript vendoring notes
 

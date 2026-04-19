@@ -55,7 +55,10 @@ ASAN_OPTIONS=detect_leaks=0 make test-sanitize
   - Shell (`.sh`, rc files, extensionless shebang scripts)
   - HTML (`.html`, `.htm`, `.xhtml`)
   - JavaScript (`.js`, `.mjs`, `.cjs`, `.jsx`)
+  - TypeScript (`.ts`, `.tsx`, `.cts`, `.mts`)
   - CSS (`.css`, `.scss`)
+  - JSON (`.json`, `.jsonc`)
+  - Python (`.py`, `.pyi`, `.pyw`, extensionless shebang scripts)
 - Go LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `gopls`.
 - C/C++ LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `clangd`.
 - HTML LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `~/.local/bin/vscode-html-language-server --stdio` by default.

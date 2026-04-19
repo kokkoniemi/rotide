@@ -193,6 +193,7 @@ JAVASCRIPT_GRAMMAR_SRC=""
 CSS_GRAMMAR_SRC=""
 JSON_GRAMMAR_SRC=""
 TYPESCRIPT_GRAMMAR_SRC=""
+PYTHON_GRAMMAR_SRC=""
 
 download_repo_tarball "tree-sitter/tree-sitter" "${TREE_SITTER_RUNTIME_REF}" RUNTIME_SRC
 download_repo_tarball "tree-sitter/tree-sitter-c" "${TREE_SITTER_C_GRAMMAR_REF}" C_GRAMMAR_SRC
@@ -204,6 +205,7 @@ download_repo_tarball "tree-sitter/tree-sitter-javascript" "${TREE_SITTER_JAVASC
 download_repo_tarball "tree-sitter/tree-sitter-css" "${TREE_SITTER_CSS_GRAMMAR_REF}" CSS_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-json" "${TREE_SITTER_JSON_GRAMMAR_REF}" JSON_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-typescript" "${TREE_SITTER_TYPESCRIPT_GRAMMAR_REF}" TYPESCRIPT_GRAMMAR_SRC
+download_repo_tarball "tree-sitter/tree-sitter-python" "${TREE_SITTER_PYTHON_GRAMMAR_REF}" PYTHON_GRAMMAR_SRC
 
 if [[ ! -d "${RUNTIME_SRC}/lib/src" || ! -f "${RUNTIME_SRC}/lib/include/tree_sitter/api.h" ]]; then
 	echo "Runtime source layout not found in ${TREE_SITTER_RUNTIME_REF}" >&2
@@ -225,6 +227,7 @@ link_grammar_dep "${TYPESCRIPT_GRAMMAR_SRC}" "tree-sitter-javascript" "${JAVASCR
 regenerate_parser "${TYPESCRIPT_GRAMMAR_SRC}/typescript" "TypeScript"
 regenerate_parser "${CSS_GRAMMAR_SRC}" "CSS"
 regenerate_parser "${JSON_GRAMMAR_SRC}" "JSON"
+regenerate_parser "${PYTHON_GRAMMAR_SRC}" "Python"
 
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
@@ -250,6 +253,7 @@ rm -rf "${REPO_ROOT}/vendor/tree_sitter/grammars/common"
 cp -R "${TYPESCRIPT_GRAMMAR_SRC}/common" "${REPO_ROOT}/vendor/tree_sitter/grammars/common"
 sync_grammar_vendor "${CSS_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/css"
 sync_grammar_vendor "${JSON_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/json"
+sync_grammar_vendor "${PYTHON_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/python"
 
 echo "Tree-sitter vendor refresh complete." >&2
 echo "If you changed refs/releases, update vendor/tree_sitter/VERSIONS.env and VERSIONS.md." >&2

@@ -22,6 +22,7 @@ extern const TSLanguage *tree_sitter_javascript(void);
 extern const TSLanguage *tree_sitter_typescript(void);
 extern const TSLanguage *tree_sitter_css(void);
 extern const TSLanguage *tree_sitter_json(void);
+extern const TSLanguage *tree_sitter_python(void);
 
 #include "language/syntax_queries.c"
 
@@ -30,6 +31,19 @@ static int editorSyntaxIsShellInterpreterName(const char *token, size_t len) {
 			(len == 4 && strncasecmp(token, "bash", 4) == 0) ||
 			(len == 3 && strncasecmp(token, "zsh", 3) == 0) ||
 			(len == 3 && strncasecmp(token, "ksh", 3) == 0);
+}
+
+static int editorSyntaxIsPythonInterpreterName(const char *token, size_t len) {
+	if (len < 6 || strncasecmp(token, "python", 6) != 0) {
+		return 0;
+	}
+	for (size_t i = 6; i < len; i++) {
+		char ch = token[i];
+		if (!((ch >= '0' && ch <= '9') || ch == '.')) {
+			return 0;
+		}
+	}
+	return 1;
 }
 
 static int editorSyntaxTokenFromLine(const char *line, size_t line_len, size_t *idx,
@@ -82,6 +96,9 @@ static enum editorSyntaxLanguage editorSyntaxDetectLanguageFromShebang(const cha
 	if (editorSyntaxIsShellInterpreterName(base, base_len)) {
 		return EDITOR_SYNTAX_SHELL;
 	}
+	if (editorSyntaxIsPythonInterpreterName(base, base_len)) {
+		return EDITOR_SYNTAX_PYTHON;
+	}
 
 	if (base_len == 3 && strncasecmp(base, "env", 3) == 0) {
 		for (;;) {
@@ -101,6 +118,9 @@ static enum editorSyntaxLanguage editorSyntaxDetectLanguageFromShebang(const cha
 			base_len = token_len - (size_t)(base - token);
 			if (editorSyntaxIsShellInterpreterName(base, base_len)) {
 				return EDITOR_SYNTAX_SHELL;
+			}
+			if (editorSyntaxIsPythonInterpreterName(base, base_len)) {
+				return EDITOR_SYNTAX_PYTHON;
 			}
 			break;
 		}
@@ -177,6 +197,11 @@ enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *fil
 	if (dot != NULL &&
 			(strcmp(dot, ".json") == 0 || strcmp(dot, ".jsonc") == 0)) {
 		return EDITOR_SYNTAX_JSON;
+	}
+	if (dot != NULL &&
+			(strcmp(dot, ".py") == 0 || strcmp(dot, ".pyi") == 0 ||
+					strcmp(dot, ".pyw") == 0)) {
+		return EDITOR_SYNTAX_PYTHON;
 	}
 
 	const char *base = strrchr(filename, '/');

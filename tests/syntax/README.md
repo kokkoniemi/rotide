@@ -14,6 +14,9 @@ Current fixture-to-editor mapping:
 - `supported/html/` maps to `EDITOR_SYNTAX_HTML`
 - `supported/javascript/` maps to `EDITOR_SYNTAX_JAVASCRIPT`
 - `supported/css/` maps to `EDITOR_SYNTAX_CSS`
+- `supported/json/` maps to `EDITOR_SYNTAX_JSON`
+- `supported/typescript/` maps to `EDITOR_SYNTAX_TYPESCRIPT`
+- `supported/python/` maps to `EDITOR_SYNTAX_PYTHON`
 
 Notes:
 
@@ -29,13 +32,10 @@ Planned placeholder directories:
 - `haskell`
 - `java`
 - `jsdoc`
-- `json`
 - `julia`
 - `ocaml`
 - `php`
-- `python`
 - `regex`
 - `ruby`
 - `rust`
 - `scala`
-- `typescript`
