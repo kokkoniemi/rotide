@@ -1649,14 +1649,15 @@ static void editorSyntaxStateInvalidateLocalsCaches(struct editorSyntaxState *st
 	if (state == NULL) {
 		return;
 	}
-	state->host_javascript_locals_valid = 0;
+	state->host_locals_valid = 0;
 	state->injection_javascript_locals_valid = 0;
 }
 
-static int editorSyntaxStateEnsureJavascriptLocalsCached(
+static int editorSyntaxStateEnsureLocalsCached(
 		struct editorSyntaxState *state,
 		const struct editorSyntaxParsedTree *parsed,
 		const struct editorTextSource *source,
+		enum editorSyntaxLanguage language,
 		int injection_tree,
 		const struct editorSyntaxLocalsContext **locals_out) {
 	if (locals_out == NULL) {
@@ -1670,13 +1671,13 @@ static int editorSyntaxStateEnsureJavascriptLocalsCached(
 
 	struct editorSyntaxLocalsContext *cache = injection_tree ?
 			&state->injection_javascript_locals :
-			&state->host_javascript_locals;
+			&state->host_locals;
 	uint64_t *cache_revision = injection_tree ?
 			&state->injection_javascript_locals_revision :
-			&state->host_javascript_locals_revision;
+			&state->host_locals_revision;
 	int *cache_valid = injection_tree ?
 			&state->injection_javascript_locals_valid :
-			&state->host_javascript_locals_valid;
+			&state->host_locals_valid;
 
 	if (*cache_valid && *cache_revision == parsed->revision) {
 		*locals_out = cache;
@@ -1685,8 +1686,7 @@ static int editorSyntaxStateEnsureJavascriptLocalsCached(
 
 	editorSyntaxLocalsContextFree(cache);
 	editorSyntaxLocalsContextInit(cache);
-	if (!editorSyntaxBuildLocalsContext(parsed->tree, state, EDITOR_SYNTAX_JAVASCRIPT, source,
-				cache)) {
+	if (!editorSyntaxBuildLocalsContext(parsed->tree, state, language, source, cache)) {
 		editorSyntaxLocalsContextFree(cache);
 		*cache_valid = 0;
 		return 0;
@@ -1696,6 +1696,10 @@ static int editorSyntaxStateEnsureJavascriptLocalsCached(
 	*cache_valid = 1;
 	*locals_out = cache;
 	return 1;
+}
+
+static int editorSyntaxLanguageHasLocalsQuery(enum editorSyntaxLanguage language) {
+	return language == EDITOR_SYNTAX_JAVASCRIPT || language == EDITOR_SYNTAX_TYPESCRIPT;
 }
 
 static void editorSyntaxStateApplyPerformanceMode(struct editorSyntaxState *state,
@@ -1763,11 +1767,11 @@ struct editorSyntaxState *editorSyntaxStateCreate(enum editorSyntaxLanguage lang
 	editorSyntaxParsedTreeInit(&state->host, language);
 	editorSyntaxParsedTreeInit(&state->javascript_injection, EDITOR_SYNTAX_JAVASCRIPT);
 	editorSyntaxParsedTreeInit(&state->css_injection, EDITOR_SYNTAX_CSS);
-	editorSyntaxLocalsContextInit(&state->host_javascript_locals);
+	editorSyntaxLocalsContextInit(&state->host_locals);
 	editorSyntaxLocalsContextInit(&state->injection_javascript_locals);
-	state->host_javascript_locals_revision = 0;
+	state->host_locals_revision = 0;
 	state->injection_javascript_locals_revision = 0;
-	state->host_javascript_locals_valid = 0;
+	state->host_locals_valid = 0;
 	state->injection_javascript_locals_valid = 0;
 	state->perf_disable_predicates = 0;
 	state->perf_disable_injections = 0;
@@ -1796,7 +1800,7 @@ struct editorSyntaxState *editorSyntaxStateCreate(enum editorSyntaxLanguage lang
 			editorSyntaxParsedTreeDestroy(&state->host);
 			editorSyntaxParsedTreeDestroy(&state->javascript_injection);
 			editorSyntaxParsedTreeDestroy(&state->css_injection);
-			editorSyntaxLocalsContextFree(&state->host_javascript_locals);
+			editorSyntaxLocalsContextFree(&state->host_locals);
 			editorSyntaxLocalsContextFree(&state->injection_javascript_locals);
 			free(state->last_changed_ranges);
 			free(state->scratch_primary);
@@ -1816,7 +1820,7 @@ void editorSyntaxStateDestroy(struct editorSyntaxState *state) {
 	editorSyntaxParsedTreeDestroy(&state->host);
 	editorSyntaxParsedTreeDestroy(&state->javascript_injection);
 	editorSyntaxParsedTreeDestroy(&state->css_injection);
-	editorSyntaxLocalsContextFree(&state->host_javascript_locals);
+	editorSyntaxLocalsContextFree(&state->host_locals);
 	editorSyntaxLocalsContextFree(&state->injection_javascript_locals);
 	free(state->last_changed_ranges);
 	state->last_changed_ranges = NULL;
@@ -1941,16 +1945,16 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 
 	if (state->language != EDITOR_SYNTAX_HTML) {
 		struct editorSyntaxCaptureVec collected = {0};
-		const struct editorSyntaxLocalsContext *host_js_locals = NULL;
-		if (!skip_predicates && state->language == EDITOR_SYNTAX_JAVASCRIPT &&
-				!editorSyntaxStateEnsureJavascriptLocalsCached(state, &state->host, source, 0,
-						&host_js_locals)) {
+		const struct editorSyntaxLocalsContext *host_locals = NULL;
+		if (!skip_predicates && editorSyntaxLanguageHasLocalsQuery(state->language) &&
+				!editorSyntaxStateEnsureLocalsCached(state, &state->host, source,
+						state->language, 0, &host_locals)) {
 			editorSyntaxCaptureVecFree(&collected);
 			return 0;
 		}
 
 		int ok = editorSyntaxCollectCapturesFromTree(state, state->host.tree, state->language,
-				source, start_byte, end_byte, host_js_locals, skip_predicates, &collected);
+				source, start_byte, end_byte, host_locals, skip_predicates, &collected);
 		if (!ok) {
 			editorSyntaxCaptureVecFree(&collected);
 			return 0;
@@ -1974,9 +1978,9 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 	struct editorSyntaxCaptureVec js_captures = {0};
 	struct editorSyntaxCaptureVec css_captures = {0};
 	const struct editorSyntaxLocalsContext *host_js_locals = NULL;
-	if (!skip_predicates && state->language == EDITOR_SYNTAX_JAVASCRIPT &&
-			!editorSyntaxStateEnsureJavascriptLocalsCached(state, &state->host, source, 0,
-					&host_js_locals)) {
+	if (!skip_predicates && editorSyntaxLanguageHasLocalsQuery(state->language) &&
+			!editorSyntaxStateEnsureLocalsCached(state, &state->host, source,
+					state->language, 0, &host_js_locals)) {
 		editorSyntaxCaptureVecFree(&host_captures);
 		editorSyntaxCaptureVecFree(&js_captures);
 		editorSyntaxCaptureVecFree(&css_captures);
@@ -1995,8 +1999,8 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 	if (state->language == EDITOR_SYNTAX_HTML && !state->perf_disable_injections) {
 		const struct editorSyntaxLocalsContext *injection_js_locals = NULL;
 		if (!skip_predicates &&
-				!editorSyntaxStateEnsureJavascriptLocalsCached(state, &state->javascript_injection,
-						source, 1, &injection_js_locals)) {
+				!editorSyntaxStateEnsureLocalsCached(state, &state->javascript_injection,
+						source, EDITOR_SYNTAX_JAVASCRIPT, 1, &injection_js_locals)) {
 			editorSyntaxCaptureVecFree(&host_captures);
 			editorSyntaxCaptureVecFree(&js_captures);
 			editorSyntaxCaptureVecFree(&css_captures);
@@ -2144,5 +2148,6 @@ void editorSyntaxReleaseSharedResources(void) {
 	editorSyntaxClearQueryCacheEntry(&g_css_highlight_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_json_highlight_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_javascript_locals_query_cache);
+	editorSyntaxClearQueryCacheEntry(&g_typescript_locals_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_html_injection_query_cache);
 }

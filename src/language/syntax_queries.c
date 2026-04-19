@@ -47,11 +47,11 @@ struct editorSyntaxState {
 	struct editorSyntaxParsedTree host;
 	struct editorSyntaxParsedTree javascript_injection;
 	struct editorSyntaxParsedTree css_injection;
-	struct editorSyntaxLocalsContext host_javascript_locals;
+	struct editorSyntaxLocalsContext host_locals;
 	struct editorSyntaxLocalsContext injection_javascript_locals;
-	uint64_t host_javascript_locals_revision;
+	uint64_t host_locals_revision;
 	uint64_t injection_javascript_locals_revision;
-	int host_javascript_locals_valid;
+	int host_locals_valid;
 	int injection_javascript_locals_valid;
 	int perf_disable_predicates;
 	int perf_disable_injections;
@@ -129,6 +129,7 @@ static struct editorSyntaxQueryCacheEntry g_typescript_highlight_query_cache = {
 static struct editorSyntaxQueryCacheEntry g_css_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_json_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_javascript_locals_query_cache = {0};
+static struct editorSyntaxQueryCacheEntry g_typescript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_html_injection_query_cache = {0};
 
 static struct {
@@ -243,6 +244,15 @@ static const char editor_builtin_javascript_locals_query[] =
 		"(variable_declarator name: (identifier) @local.definition)\n"
 		"(identifier) @local.reference\n";
 
+static const char editor_builtin_typescript_locals_query[] =
+		"[(statement_block) (function_expression) (arrow_function)\n"
+		" (function_declaration) (method_definition)] @local.scope\n"
+		"(pattern/identifier) @local.definition\n"
+		"(variable_declarator name: (identifier) @local.definition)\n"
+		"(required_parameter (identifier) @local.definition)\n"
+		"(optional_parameter (identifier) @local.definition)\n"
+		"(identifier) @local.reference\n";
+
 static const char editor_builtin_css_highlights_query[] =
 		"(comment) @comment\n"
 		"(tag_name) @tag\n"
@@ -304,6 +314,11 @@ static const char *const g_typescript_highlight_query_paths[] = {
 
 static const char *const g_javascript_locals_query_paths[] = {
 	"vendor/tree_sitter/grammars/javascript/queries/locals.scm"
+};
+
+static const char *const g_typescript_locals_query_paths[] = {
+	"vendor/tree_sitter/grammars/javascript/queries/locals.scm",
+	"vendor/tree_sitter/grammars/typescript/queries/locals.scm"
 };
 
 static const char *const g_css_highlight_query_paths[] = {
@@ -1160,16 +1175,26 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 }
 
 static int editorSyntaxEnsureLocalsQuery(enum editorSyntaxLanguage language) {
-	if (language != EDITOR_SYNTAX_JAVASCRIPT) {
-		return 0;
+	switch (language) {
+		case EDITOR_SYNTAX_JAVASCRIPT:
+			return editorSyntaxEnsureQueryCache(&g_javascript_locals_query_cache,
+					EDITOR_SYNTAX_JAVASCRIPT,
+					g_javascript_locals_query_paths,
+					(int)(sizeof(g_javascript_locals_query_paths) /
+						sizeof(g_javascript_locals_query_paths[0])),
+					editor_builtin_javascript_locals_query,
+					0, 1, 0, 0);
+		case EDITOR_SYNTAX_TYPESCRIPT:
+			return editorSyntaxEnsureQueryCache(&g_typescript_locals_query_cache,
+					EDITOR_SYNTAX_TYPESCRIPT,
+					g_typescript_locals_query_paths,
+					(int)(sizeof(g_typescript_locals_query_paths) /
+						sizeof(g_typescript_locals_query_paths[0])),
+					editor_builtin_typescript_locals_query,
+					0, 1, 0, 0);
+		default:
+			return 0;
 	}
-	return editorSyntaxEnsureQueryCache(&g_javascript_locals_query_cache,
-			EDITOR_SYNTAX_JAVASCRIPT,
-			g_javascript_locals_query_paths,
-			(int)(sizeof(g_javascript_locals_query_paths) /
-				sizeof(g_javascript_locals_query_paths[0])),
-			editor_builtin_javascript_locals_query,
-			0, 1, 0, 0);
 }
 
 static int editorSyntaxEnsureHtmlInjectionQuery(void) {
@@ -1211,10 +1236,14 @@ static const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCache
 
 static const struct editorSyntaxQueryCacheEntry *editorSyntaxLocalsQueryCacheForLanguage(
 		enum editorSyntaxLanguage language) {
-	if (language == EDITOR_SYNTAX_JAVASCRIPT) {
-		return &g_javascript_locals_query_cache;
+	switch (language) {
+		case EDITOR_SYNTAX_JAVASCRIPT:
+			return &g_javascript_locals_query_cache;
+		case EDITOR_SYNTAX_TYPESCRIPT:
+			return &g_typescript_locals_query_cache;
+		default:
+			return NULL;
 	}
-	return NULL;
 }
 
 static struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(const TSQuery *query) {
@@ -1233,6 +1262,7 @@ static struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(c
 		&g_css_highlight_query_cache,
 		&g_json_highlight_query_cache,
 		&g_javascript_locals_query_cache,
+		&g_typescript_locals_query_cache,
 		&g_html_injection_query_cache
 	};
 
