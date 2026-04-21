@@ -35,13 +35,17 @@
 - CSS (including `.scss` detection path)
 - JSON (`.json`, `.jsonc`)
 - Python (`.py`, `.pyi`, `.pyw`, plus extensionless shebang detection for `python` / `python3`)
-- PHP (`.php`, `.phtml`, `.php3`–`.php8`, `.phps`, plus extensionless shebang detection for `php` / `php8`); uses the `php/` sub-grammar (HTML-mixed variant), not `php_only/`. Shared `common/` from the PHP repo is vendored per-grammar to `vendor/tree_sitter/grammars/php/common/`; the refresh script also patches `src/scanner.c`'s `../../common/scanner.h` include down to `../common/scanner.h` so it doesn't collide with tree-sitter-typescript's unrelated `common/scanner.h` at `vendor/tree_sitter/grammars/common/`.
+- PHP (`.php`, `.phtml`, `.php3`–`.php8`, `.phps`, plus extensionless shebang detection for `php` / `php8`); uses the `php/` sub-grammar (HTML-mixed variant), not `php_only/`.
+
+## Per-grammar `common/` convention
+
+Some upstream grammar repos (tree-sitter-typescript, tree-sitter-php) ship a shared `common/scanner.h` that their `src/scanner.c` includes as `"../../common/scanner.h"`. Different grammars' commons are not compatible, so each one is vendored **inside its own grammar directory** at `vendor/tree_sitter/grammars/<lang>/common/`, and the refresh script patches the `src/scanner.c` include from `../../common/scanner.h` down to `../common/scanner.h`. When vendoring a new grammar that uses this pattern, follow the same shape — do not reintroduce a shared `vendor/tree_sitter/grammars/common/` dir.
 
 ## TypeScript vendoring notes
 
 - The repo has `typescript/` and `tsx/` sub-grammars; only `typescript/` is vendored (handles both `.ts` and `.tsx`).
 - `grammar.js` requires `../common/define-grammar` → `tree-sitter-javascript` dep; the refresh script links JS grammar source via `link_grammar_dep` before regenerating.
-- `scanner.c` includes `../../common/scanner.h`; the shared `common/` from the TS repo is copied to `vendor/tree_sitter/grammars/common/`.
+- `scanner.c` includes `"../common/scanner.h"` (patched from upstream's `../../common/`); the shared `common/` from the TS repo is vendored to `vendor/tree_sitter/grammars/typescript/common/`.
 - TS grammar requires JS grammar at the same semver family; pin JS and TS together (currently JS v0.23.1 + TS v0.23.2).
 
 ## Language onboarding checklist

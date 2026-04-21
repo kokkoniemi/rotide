@@ -253,9 +253,13 @@ sync_grammar_vendor "${JAVASCRIPT_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter
 # Stage them into typescript/ so sync_grammar_vendor picks them up.
 cp -R "${TYPESCRIPT_GRAMMAR_SRC}/queries" "${TYPESCRIPT_GRAMMAR_SRC}/typescript/queries"
 sync_grammar_vendor "${TYPESCRIPT_GRAMMAR_SRC}/typescript" "${REPO_ROOT}/vendor/tree_sitter/grammars/typescript"
-# scanner.c includes ../../common/scanner.h; provide the shared common/ dir.
-rm -rf "${REPO_ROOT}/vendor/tree_sitter/grammars/common"
-cp -R "${TYPESCRIPT_GRAMMAR_SRC}/common" "${REPO_ROOT}/vendor/tree_sitter/grammars/common"
+# scanner.c includes ../../common/scanner.h; place the shared common/ under
+# typescript/ and repoint the include so each grammar owns its common/.
+rm -rf "${REPO_ROOT}/vendor/tree_sitter/grammars/typescript/common"
+cp -R "${TYPESCRIPT_GRAMMAR_SRC}/common" "${REPO_ROOT}/vendor/tree_sitter/grammars/typescript/common"
+sed -i.bak 's|\.\./\.\./common/scanner\.h|../common/scanner.h|' \
+	"${REPO_ROOT}/vendor/tree_sitter/grammars/typescript/src/scanner.c"
+rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/typescript/src/scanner.c.bak"
 sync_grammar_vendor "${CSS_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/css"
 sync_grammar_vendor "${JSON_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/json"
 sync_grammar_vendor "${PYTHON_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/python"
@@ -264,8 +268,7 @@ sync_grammar_vendor "${PYTHON_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/gra
 cp -R "${PHP_GRAMMAR_SRC}/queries" "${PHP_GRAMMAR_SRC}/php/queries"
 sync_grammar_vendor "${PHP_GRAMMAR_SRC}/php" "${REPO_ROOT}/vendor/tree_sitter/grammars/php"
 # scanner.c includes ../../common/scanner.h; place the shared common/ under
-# php/ and repoint the include so it doesn't collide with tree-sitter-typescript's
-# unrelated common/scanner.h at vendor/tree_sitter/grammars/common/.
+# php/ and repoint the include so each grammar owns its common/.
 rm -rf "${REPO_ROOT}/vendor/tree_sitter/grammars/php/common"
 cp -R "${PHP_GRAMMAR_SRC}/common" "${REPO_ROOT}/vendor/tree_sitter/grammars/php/common"
 sed -i.bak 's|\.\./\.\./common/scanner\.h|../common/scanner.h|' \
