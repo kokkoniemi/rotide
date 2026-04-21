@@ -14,6 +14,7 @@ Pinned source/tooling used by this repository:
 - Tree-sitter JSON grammar source ref: `ee35a6ebefcef0c5c416c0d1ccec7370cfca5a24` (`tree-sitter-json-v0.24.8-ee35a6e`)
 - Tree-sitter Python grammar source ref: `293fdc02038ee2bf0e2e206711b69c90ac0d413f` (`tree-sitter-python-v0.25.0-293fdc0`)
 - Tree-sitter PHP grammar source ref: `5b5627faaa290d89eb3d01b9bf47c3bb9e797dea` (`tree-sitter-php-v0.24.2-5b5627f`)
+- Tree-sitter Rust grammar source ref: `77a3747266f4d621d0757825e6b11edcbf991ca5` (`tree-sitter-rust-v0.24.2-77a3747`)
 - Tree-sitter CLI release for regeneration: `v0.26.8`
 
 The machine-readable source of truth is [`VERSIONS.env`](./VERSIONS.env).

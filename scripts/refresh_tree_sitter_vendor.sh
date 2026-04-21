@@ -195,6 +195,7 @@ JSON_GRAMMAR_SRC=""
 TYPESCRIPT_GRAMMAR_SRC=""
 PYTHON_GRAMMAR_SRC=""
 PHP_GRAMMAR_SRC=""
+RUST_GRAMMAR_SRC=""
 
 download_repo_tarball "tree-sitter/tree-sitter" "${TREE_SITTER_RUNTIME_REF}" RUNTIME_SRC
 download_repo_tarball "tree-sitter/tree-sitter-c" "${TREE_SITTER_C_GRAMMAR_REF}" C_GRAMMAR_SRC
@@ -208,6 +209,7 @@ download_repo_tarball "tree-sitter/tree-sitter-json" "${TREE_SITTER_JSON_GRAMMAR
 download_repo_tarball "tree-sitter/tree-sitter-typescript" "${TREE_SITTER_TYPESCRIPT_GRAMMAR_REF}" TYPESCRIPT_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-python" "${TREE_SITTER_PYTHON_GRAMMAR_REF}" PYTHON_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-php" "${TREE_SITTER_PHP_GRAMMAR_REF}" PHP_GRAMMAR_SRC
+download_repo_tarball "tree-sitter/tree-sitter-rust" "${TREE_SITTER_RUST_GRAMMAR_REF}" RUST_GRAMMAR_SRC
 
 if [[ ! -d "${RUNTIME_SRC}/lib/src" || ! -f "${RUNTIME_SRC}/lib/include/tree_sitter/api.h" ]]; then
 	echo "Runtime source layout not found in ${TREE_SITTER_RUNTIME_REF}" >&2
@@ -233,6 +235,7 @@ regenerate_parser "${PYTHON_GRAMMAR_SRC}" "Python"
 # tree-sitter-php grammar.js requires ../common/define-grammar.js inside the
 # tarball layout; regenerate from the php/ sub-grammar (HTML-mixed variant).
 regenerate_parser "${PHP_GRAMMAR_SRC}/php" "PHP"
+regenerate_parser "${RUST_GRAMMAR_SRC}" "Rust"
 
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
@@ -274,6 +277,7 @@ cp -R "${PHP_GRAMMAR_SRC}/common" "${REPO_ROOT}/vendor/tree_sitter/grammars/php/
 sed -i.bak 's|\.\./\.\./common/scanner\.h|../common/scanner.h|' \
 	"${REPO_ROOT}/vendor/tree_sitter/grammars/php/src/scanner.c"
 rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/php/src/scanner.c.bak"
+sync_grammar_vendor "${RUST_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/rust"
 
 echo "Tree-sitter vendor refresh complete." >&2
 echo "If you changed refs/releases, update vendor/tree_sitter/VERSIONS.env and VERSIONS.md." >&2

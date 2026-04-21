@@ -24,6 +24,7 @@ extern const TSLanguage *tree_sitter_css(void);
 extern const TSLanguage *tree_sitter_json(void);
 extern const TSLanguage *tree_sitter_python(void);
 extern const TSLanguage *tree_sitter_php(void);
+extern const TSLanguage *tree_sitter_rust(void);
 
 #include "language/syntax_queries.c"
 
@@ -229,6 +230,9 @@ enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *fil
 					strcmp(dot, ".php5") == 0 || strcmp(dot, ".php7") == 0 ||
 					strcmp(dot, ".php8") == 0 || strcmp(dot, ".phps") == 0)) {
 		return EDITOR_SYNTAX_PHP;
+	}
+	if (dot != NULL && strcmp(dot, ".rs") == 0) {
+		return EDITOR_SYNTAX_RUST;
 	}
 
 	const char *base = strrchr(filename, '/');
