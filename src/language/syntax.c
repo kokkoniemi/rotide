@@ -23,6 +23,7 @@ extern const TSLanguage *tree_sitter_typescript(void);
 extern const TSLanguage *tree_sitter_css(void);
 extern const TSLanguage *tree_sitter_json(void);
 extern const TSLanguage *tree_sitter_python(void);
+extern const TSLanguage *tree_sitter_php(void);
 
 #include "language/syntax_queries.c"
 
@@ -38,6 +39,19 @@ static int editorSyntaxIsPythonInterpreterName(const char *token, size_t len) {
 		return 0;
 	}
 	for (size_t i = 6; i < len; i++) {
+		char ch = token[i];
+		if (!((ch >= '0' && ch <= '9') || ch == '.')) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+static int editorSyntaxIsPhpInterpreterName(const char *token, size_t len) {
+	if (len < 3 || strncasecmp(token, "php", 3) != 0) {
+		return 0;
+	}
+	for (size_t i = 3; i < len; i++) {
 		char ch = token[i];
 		if (!((ch >= '0' && ch <= '9') || ch == '.')) {
 			return 0;
@@ -99,6 +113,9 @@ static enum editorSyntaxLanguage editorSyntaxDetectLanguageFromShebang(const cha
 	if (editorSyntaxIsPythonInterpreterName(base, base_len)) {
 		return EDITOR_SYNTAX_PYTHON;
 	}
+	if (editorSyntaxIsPhpInterpreterName(base, base_len)) {
+		return EDITOR_SYNTAX_PHP;
+	}
 
 	if (base_len == 3 && strncasecmp(base, "env", 3) == 0) {
 		for (;;) {
@@ -121,6 +138,9 @@ static enum editorSyntaxLanguage editorSyntaxDetectLanguageFromShebang(const cha
 			}
 			if (editorSyntaxIsPythonInterpreterName(base, base_len)) {
 				return EDITOR_SYNTAX_PYTHON;
+			}
+			if (editorSyntaxIsPhpInterpreterName(base, base_len)) {
+				return EDITOR_SYNTAX_PHP;
 			}
 			break;
 		}
@@ -202,6 +222,13 @@ enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *fil
 			(strcmp(dot, ".py") == 0 || strcmp(dot, ".pyi") == 0 ||
 					strcmp(dot, ".pyw") == 0)) {
 		return EDITOR_SYNTAX_PYTHON;
+	}
+	if (dot != NULL &&
+			(strcmp(dot, ".php") == 0 || strcmp(dot, ".phtml") == 0 ||
+					strcmp(dot, ".php3") == 0 || strcmp(dot, ".php4") == 0 ||
+					strcmp(dot, ".php5") == 0 || strcmp(dot, ".php7") == 0 ||
+					strcmp(dot, ".php8") == 0 || strcmp(dot, ".phps") == 0)) {
+		return EDITOR_SYNTAX_PHP;
 	}
 
 	const char *base = strrchr(filename, '/');

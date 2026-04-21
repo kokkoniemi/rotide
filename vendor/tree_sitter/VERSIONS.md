@@ -11,6 +11,9 @@ Pinned source/tooling used by this repository:
 - Tree-sitter JavaScript grammar source ref: `3a837b6f3658ca3618f2022f8707e29739c91364` (`tree-sitter-javascript-v0.23.1-3a837b6`)
 - Tree-sitter CSS grammar source ref: `dda5cfc5722c429eaba1c910ca32c2c0c5bb1a3f` (`tree-sitter-css-master-dda5cfc`)
 - Tree-sitter TypeScript grammar source ref: `f975a621f4e7f532fe322e13c4f79495e0a7b2e7` (`tree-sitter-typescript-v0.23.2-f975a62`)
+- Tree-sitter JSON grammar source ref: `ee35a6ebefcef0c5c416c0d1ccec7370cfca5a24` (`tree-sitter-json-v0.24.8-ee35a6e`)
+- Tree-sitter Python grammar source ref: `293fdc02038ee2bf0e2e206711b69c90ac0d413f` (`tree-sitter-python-v0.25.0-293fdc0`)
+- Tree-sitter PHP grammar source ref: `5b5627faaa290d89eb3d01b9bf47c3bb9e797dea` (`tree-sitter-php-v0.24.2-5b5627f`)
 - Tree-sitter CLI release for regeneration: `v0.26.8`
 
 The machine-readable source of truth is [`VERSIONS.env`](./VERSIONS.env).

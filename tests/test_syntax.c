@@ -281,6 +281,42 @@ static int test_editor_syntax_activation_for_typescript_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_php_files_and_shebang(void) {
+	char php_path[] = "/tmp/rotide-test-syntax-php-XXXXXX.php";
+	ASSERT_TRUE(write_fixture_to_temp_path(php_path, 4,
+			"tests/syntax/supported/php/activation.php"));
+
+	editorOpen(php_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_PHP, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("program", editorSyntaxRootType());
+
+	char phtml_path[] = "/tmp/rotide-test-syntax-phtml-XXXXXX.phtml";
+	ASSERT_TRUE(write_fixture_to_temp_path(phtml_path, 6,
+			"tests/syntax/supported/php/activation.phtml"));
+	editorOpen(phtml_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_PHP, editorSyntaxLanguageActive());
+
+	char shebang_path[] = "/tmp/rotide-test-syntax-php-shebang-XXXXXX";
+	ASSERT_TRUE(write_fixture_to_temp_path(shebang_path, 0,
+			"tests/syntax/supported/php/extensionless_shebang"));
+
+	ASSERT_TRUE(editorTabsInit());
+	editorOpen(shebang_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_PHP, editorSyntaxLanguageActive());
+
+	ASSERT_TRUE(unlink(php_path) == 0);
+	ASSERT_TRUE(unlink(phtml_path) == 0);
+	ASSERT_TRUE(unlink(shebang_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_go_and_mod_files(void) {
 	char go_path[] = "/tmp/rotide-test-syntax-go-XXXXXX.go";
 	ASSERT_TRUE(write_fixture_to_temp_path(go_path, 3,
@@ -835,6 +871,32 @@ static int test_editor_syntax_incremental_edits_keep_python_tree_valid(void) {
 	return 0;
 }
 
+static int test_editor_syntax_incremental_edits_keep_php_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-php-XXXXXX.php";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+			"tests/syntax/supported/php/incremental.php"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_PHP, editorSyntaxLanguageActive());
+
+	E.cy = 2;
+	E.cx = 4;
+	editorInsertChar('x');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = E.rows[0].size;
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_query_budget_match_limit_is_graceful(void) {
 	size_t source_len = 0;
 	char *source = build_repeated_text("const value = document + window;\n", 512, &source_len);
@@ -1197,6 +1259,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_activation_for_json_files", test_editor_syntax_activation_for_json_files},
 	{"editor_syntax_activation_for_typescript_files", test_editor_syntax_activation_for_typescript_files},
 	{"editor_syntax_activation_for_python_files_and_shebang", test_editor_syntax_activation_for_python_files_and_shebang},
+	{"editor_syntax_activation_for_php_files_and_shebang", test_editor_syntax_activation_for_php_files_and_shebang},
 	{"editor_syntax_activation_for_go_and_mod_files", test_editor_syntax_activation_for_go_and_mod_files},
 	{"editor_syntax_disabled_for_non_c_or_shell_files", test_editor_syntax_disabled_for_non_c_or_shell_files},
 	{"editor_save_as_c_file_enables_syntax", test_editor_save_as_c_file_enables_syntax},
@@ -1212,6 +1275,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_incremental_edits_keep_css_tree_valid", test_editor_syntax_incremental_edits_keep_css_tree_valid},
 	{"editor_syntax_incremental_edits_keep_go_tree_valid", test_editor_syntax_incremental_edits_keep_go_tree_valid},
 	{"editor_syntax_incremental_edits_keep_python_tree_valid", test_editor_syntax_incremental_edits_keep_python_tree_valid},
+	{"editor_syntax_incremental_edits_keep_php_tree_valid", test_editor_syntax_incremental_edits_keep_php_tree_valid},
 	{"editor_syntax_query_budget_match_limit_is_graceful", test_editor_syntax_query_budget_match_limit_is_graceful},
 	{"editor_syntax_parse_budget_is_graceful", test_editor_syntax_parse_budget_is_graceful},
 	{"editor_syntax_incremental_provider_parse_keeps_tree_valid", test_editor_syntax_incremental_provider_parse_keeps_tree_valid},

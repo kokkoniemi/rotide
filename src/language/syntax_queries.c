@@ -129,6 +129,7 @@ static struct editorSyntaxQueryCacheEntry g_typescript_highlight_query_cache = {
 static struct editorSyntaxQueryCacheEntry g_css_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_json_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_python_highlight_query_cache = {0};
+static struct editorSyntaxQueryCacheEntry g_php_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_javascript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_typescript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_html_injection_query_cache = {0};
@@ -273,6 +274,26 @@ static const char editor_builtin_json_highlights_query[] =
 		"[(null) (true) (false)] @constant\n"
 		"(comment) @comment\n";
 
+static const char editor_builtin_php_highlights_query[] =
+		"(comment) @comment\n"
+		"[(string) (string_content) (encapsed_string) (heredoc_body) (nowdoc_body)] @string\n"
+		"[(integer) (float)] @number\n"
+		"[(boolean) (null)] @constant\n"
+		"(variable_name) @variable\n"
+		"(function_definition name: (name) @function)\n"
+		"(method_declaration name: (name) @function)\n"
+		"(function_call_expression function: (name) @function)\n"
+		"(named_type (name) @type)\n"
+		"(primitive_type) @type\n"
+		"[(php_tag) (php_end_tag)] @tag\n"
+		"[\"and\" \"as\" \"break\" \"case\" \"catch\" \"class\" \"clone\" \"const\" \"continue\"\n"
+		" \"declare\" \"default\" \"do\" \"echo\" \"else\" \"elseif\" \"enddeclare\" \"endfor\"\n"
+		" \"endforeach\" \"endif\" \"endswitch\" \"endwhile\" \"enum\" \"extends\" \"finally\"\n"
+		" \"fn\" \"for\" \"foreach\" \"function\" \"global\" \"goto\" \"if\" \"implements\"\n"
+		" \"include\" \"include_once\" \"instanceof\" \"insteadof\" \"interface\" \"match\"\n"
+		" \"namespace\" \"new\" \"or\" \"print\" \"require\" \"require_once\" \"return\"\n"
+		" \"switch\" \"throw\" \"trait\" \"try\" \"use\" \"while\" \"xor\" \"yield\"] @keyword\n";
+
 static const char editor_builtin_python_highlights_query[] =
 		"(comment) @comment\n"
 		"(string) @string\n"
@@ -350,6 +371,10 @@ static const char *const g_json_highlight_query_paths[] = {
 
 static const char *const g_python_highlight_query_paths[] = {
 	"vendor/tree_sitter/grammars/python/queries/highlights.scm"
+};
+
+static const char *const g_php_highlight_query_paths[] = {
+	"vendor/tree_sitter/grammars/php/queries/highlights.scm"
 };
 
 static const char *const g_html_injection_query_paths[] = {
@@ -785,6 +810,8 @@ static const TSLanguage *editorSyntaxLanguageObject(enum editorSyntaxLanguage la
 			return tree_sitter_json();
 		case EDITOR_SYNTAX_PYTHON:
 			return tree_sitter_python();
+		case EDITOR_SYNTAX_PHP:
+			return tree_sitter_php();
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return NULL;
@@ -1201,6 +1228,14 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 						sizeof(g_python_highlight_query_paths[0])),
 					editor_builtin_python_highlights_query,
 					1, 0, 0, 0);
+		case EDITOR_SYNTAX_PHP:
+			return editorSyntaxEnsureQueryCache(&g_php_highlight_query_cache,
+					EDITOR_SYNTAX_PHP,
+					g_php_highlight_query_paths,
+					(int)(sizeof(g_php_highlight_query_paths) /
+						sizeof(g_php_highlight_query_paths[0])),
+					editor_builtin_php_highlights_query,
+					1, 0, 0, 0);
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return 0;
@@ -1263,6 +1298,8 @@ static const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCache
 			return &g_json_highlight_query_cache;
 		case EDITOR_SYNTAX_PYTHON:
 			return &g_python_highlight_query_cache;
+		case EDITOR_SYNTAX_PHP:
+			return &g_php_highlight_query_cache;
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return NULL;
@@ -1297,6 +1334,7 @@ static struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(c
 		&g_css_highlight_query_cache,
 		&g_json_highlight_query_cache,
 		&g_python_highlight_query_cache,
+		&g_php_highlight_query_cache,
 		&g_javascript_locals_query_cache,
 		&g_typescript_locals_query_cache,
 		&g_html_injection_query_cache

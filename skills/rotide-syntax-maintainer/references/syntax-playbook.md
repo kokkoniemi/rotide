@@ -35,6 +35,7 @@
 - CSS (including `.scss` detection path)
 - JSON (`.json`, `.jsonc`)
 - Python (`.py`, `.pyi`, `.pyw`, plus extensionless shebang detection for `python` / `python3`)
+- PHP (`.php`, `.phtml`, `.php3`–`.php8`, `.phps`, plus extensionless shebang detection for `php` / `php8`); uses the `php/` sub-grammar (HTML-mixed variant), not `php_only/`. Shared `common/` from the PHP repo is vendored per-grammar to `vendor/tree_sitter/grammars/php/common/`; the refresh script also patches `src/scanner.c`'s `../../common/scanner.h` include down to `../common/scanner.h` so it doesn't collide with tree-sitter-typescript's unrelated `common/scanner.h` at `vendor/tree_sitter/grammars/common/`.
 
 ## TypeScript vendoring notes
 
