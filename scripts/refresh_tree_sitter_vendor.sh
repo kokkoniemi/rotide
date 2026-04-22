@@ -197,6 +197,7 @@ PYTHON_GRAMMAR_SRC=""
 PHP_GRAMMAR_SRC=""
 RUST_GRAMMAR_SRC=""
 JAVA_GRAMMAR_SRC=""
+REGEX_GRAMMAR_SRC=""
 
 download_repo_tarball "tree-sitter/tree-sitter" "${TREE_SITTER_RUNTIME_REF}" RUNTIME_SRC
 download_repo_tarball "tree-sitter/tree-sitter-c" "${TREE_SITTER_C_GRAMMAR_REF}" C_GRAMMAR_SRC
@@ -212,6 +213,7 @@ download_repo_tarball "tree-sitter/tree-sitter-python" "${TREE_SITTER_PYTHON_GRA
 download_repo_tarball "tree-sitter/tree-sitter-php" "${TREE_SITTER_PHP_GRAMMAR_REF}" PHP_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-rust" "${TREE_SITTER_RUST_GRAMMAR_REF}" RUST_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-java" "${TREE_SITTER_JAVA_GRAMMAR_REF}" JAVA_GRAMMAR_SRC
+download_repo_tarball "tree-sitter/tree-sitter-regex" "${TREE_SITTER_REGEX_GRAMMAR_REF}" REGEX_GRAMMAR_SRC
 
 if [[ ! -d "${RUNTIME_SRC}/lib/src" || ! -f "${RUNTIME_SRC}/lib/include/tree_sitter/api.h" ]]; then
 	echo "Runtime source layout not found in ${TREE_SITTER_RUNTIME_REF}" >&2
@@ -239,6 +241,7 @@ regenerate_parser "${PYTHON_GRAMMAR_SRC}" "Python"
 regenerate_parser "${PHP_GRAMMAR_SRC}/php" "PHP"
 regenerate_parser "${RUST_GRAMMAR_SRC}" "Rust"
 regenerate_parser "${JAVA_GRAMMAR_SRC}" "Java"
+regenerate_parser "${REGEX_GRAMMAR_SRC}" "Regex"
 
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
@@ -282,6 +285,7 @@ sed -i.bak 's|\.\./\.\./common/scanner\.h|../common/scanner.h|' \
 rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/php/src/scanner.c.bak"
 sync_grammar_vendor "${RUST_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/rust"
 sync_grammar_vendor "${JAVA_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/java"
+sync_grammar_vendor "${REGEX_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/regex"
 
 echo "Tree-sitter vendor refresh complete." >&2
 echo "If you changed refs/releases, update vendor/tree_sitter/VERSIONS.env and VERSIONS.md." >&2

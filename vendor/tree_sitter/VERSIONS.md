@@ -16,6 +16,7 @@ Pinned source/tooling used by this repository:
 - Tree-sitter PHP grammar source ref: `5b5627faaa290d89eb3d01b9bf47c3bb9e797dea` (`tree-sitter-php-v0.24.2-5b5627f`)
 - Tree-sitter Rust grammar source ref: `77a3747266f4d621d0757825e6b11edcbf991ca5` (`tree-sitter-rust-v0.24.2-77a3747`)
 - Tree-sitter Java grammar source ref: `94703d5a6bed02b98e438d7cad1136c01a60ba2c` (`tree-sitter-java-v0.23.5-94703d5`)
+- Tree-sitter Regex grammar source ref: `b2ac15e27fce703d2f37a79ccd94a5c0cbe9720b` (`tree-sitter-regex-v0.25.0-b2ac15e`)
 - Tree-sitter CLI release for regeneration: `v0.26.8`
 
 The machine-readable source of truth is [`VERSIONS.env`](./VERSIONS.env).
