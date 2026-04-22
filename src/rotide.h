@@ -133,7 +133,8 @@ enum editorSyntaxLanguage {
 	EDITOR_SYNTAX_JSON,
 	EDITOR_SYNTAX_PYTHON,
 	EDITOR_SYNTAX_PHP,
-	EDITOR_SYNTAX_RUST
+	EDITOR_SYNTAX_RUST,
+	EDITOR_SYNTAX_JAVA
 };
 
 enum editorSyntaxHighlightClass {

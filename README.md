@@ -61,6 +61,7 @@ ASAN_OPTIONS=detect_leaks=0 make test-sanitize
   - Python (`.py`, `.pyi`, `.pyw`, extensionless shebang scripts)
   - PHP (`.php`, `.phtml`, `.php3`–`.php8`, `.phps`, extensionless shebang scripts)
   - Rust (`.rs`)
+  - Java (`.java`)
 - Go LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `gopls`.
 - C/C++ LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `clangd`.
 - HTML LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `~/.local/bin/vscode-html-language-server --stdio` by default.

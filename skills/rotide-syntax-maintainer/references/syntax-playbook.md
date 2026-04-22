@@ -37,6 +37,7 @@
 - Python (`.py`, `.pyi`, `.pyw`, plus extensionless shebang detection for `python` / `python3`)
 - PHP (`.php`, `.phtml`, `.php3`–`.php8`, `.phps`, plus extensionless shebang detection for `php` / `php8`); uses the `php/` sub-grammar (HTML-mixed variant), not `php_only/`.
 - Rust (`.rs`)
+- Java (`.java`)
 
 ## Per-grammar `common/` convention
 

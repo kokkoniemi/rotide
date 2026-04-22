@@ -131,6 +131,7 @@ static struct editorSyntaxQueryCacheEntry g_json_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_python_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_php_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_rust_highlight_query_cache = {0};
+static struct editorSyntaxQueryCacheEntry g_java_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_javascript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_typescript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_html_injection_query_cache = {0};
@@ -312,6 +313,29 @@ static const char editor_builtin_rust_highlights_query[] =
 		" \"static\" \"struct\" \"trait\" \"type\" \"unsafe\" \"use\" \"where\"\n"
 		" \"while\"] @keyword\n";
 
+static const char editor_builtin_java_highlights_query[] =
+		"[(line_comment) (block_comment)] @comment\n"
+		"[(string_literal) (character_literal)] @string\n"
+		"[(hex_integer_literal) (decimal_integer_literal) (octal_integer_literal)\n"
+		" (decimal_floating_point_literal) (hex_floating_point_literal)] @number\n"
+		"[(true) (false) (null_literal)] @constant\n"
+		"[(boolean_type) (integral_type) (floating_point_type) (void_type)] @type\n"
+		"(type_identifier) @type\n"
+		"(method_declaration name: (identifier) @function)\n"
+		"(method_invocation name: (identifier) @function)\n"
+		"(class_declaration name: (identifier) @type)\n"
+		"(interface_declaration name: (identifier) @type)\n"
+		"(enum_declaration name: (identifier) @type)\n"
+		"(constructor_declaration name: (identifier) @type)\n"
+		"[\"abstract\" \"assert\" \"break\" \"case\" \"catch\" \"class\" \"continue\"\n"
+		" \"default\" \"do\" \"else\" \"enum\" \"exports\" \"extends\" \"final\" \"finally\"\n"
+		" \"for\" \"if\" \"implements\" \"import\" \"instanceof\" \"interface\" \"module\"\n"
+		" \"native\" \"new\" \"non-sealed\" \"open\" \"opens\" \"package\" \"permits\"\n"
+		" \"private\" \"protected\" \"provides\" \"public\" \"record\" \"requires\"\n"
+		" \"return\" \"sealed\" \"static\" \"strictfp\" \"switch\" \"synchronized\"\n"
+		" \"throw\" \"throws\" \"to\" \"transient\" \"transitive\" \"try\" \"uses\"\n"
+		" \"volatile\" \"when\" \"while\" \"with\" \"yield\"] @keyword\n";
+
 static const char editor_builtin_python_highlights_query[] =
 		"(comment) @comment\n"
 		"(string) @string\n"
@@ -397,6 +421,10 @@ static const char *const g_php_highlight_query_paths[] = {
 
 static const char *const g_rust_highlight_query_paths[] = {
 	"vendor/tree_sitter/grammars/rust/queries/highlights.scm"
+};
+
+static const char *const g_java_highlight_query_paths[] = {
+	"vendor/tree_sitter/grammars/java/queries/highlights.scm"
 };
 
 static const char *const g_html_injection_query_paths[] = {
@@ -836,6 +864,8 @@ static const TSLanguage *editorSyntaxLanguageObject(enum editorSyntaxLanguage la
 			return tree_sitter_php();
 		case EDITOR_SYNTAX_RUST:
 			return tree_sitter_rust();
+		case EDITOR_SYNTAX_JAVA:
+			return tree_sitter_java();
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return NULL;
@@ -1268,6 +1298,14 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 						sizeof(g_rust_highlight_query_paths[0])),
 					editor_builtin_rust_highlights_query,
 					1, 0, 0, 0);
+		case EDITOR_SYNTAX_JAVA:
+			return editorSyntaxEnsureQueryCache(&g_java_highlight_query_cache,
+					EDITOR_SYNTAX_JAVA,
+					g_java_highlight_query_paths,
+					(int)(sizeof(g_java_highlight_query_paths) /
+						sizeof(g_java_highlight_query_paths[0])),
+					editor_builtin_java_highlights_query,
+					1, 0, 0, 0);
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return 0;
@@ -1334,6 +1372,8 @@ static const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCache
 			return &g_php_highlight_query_cache;
 		case EDITOR_SYNTAX_RUST:
 			return &g_rust_highlight_query_cache;
+		case EDITOR_SYNTAX_JAVA:
+			return &g_java_highlight_query_cache;
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return NULL;
@@ -1370,6 +1410,7 @@ static struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(c
 		&g_python_highlight_query_cache,
 		&g_php_highlight_query_cache,
 		&g_rust_highlight_query_cache,
+		&g_java_highlight_query_cache,
 		&g_javascript_locals_query_cache,
 		&g_typescript_locals_query_cache,
 		&g_html_injection_query_cache

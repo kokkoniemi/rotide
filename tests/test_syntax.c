@@ -333,6 +333,22 @@ static int test_editor_syntax_activation_for_rust_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_java_files(void) {
+	char java_path[] = "/tmp/rotide-test-syntax-java-XXXXXX.java";
+	ASSERT_TRUE(write_fixture_to_temp_path(java_path, 5,
+			"tests/syntax/supported/java/activation.java"));
+
+	editorOpen(java_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVA, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("program", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(java_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_go_and_mod_files(void) {
 	char go_path[] = "/tmp/rotide-test-syntax-go-XXXXXX.go";
 	ASSERT_TRUE(write_fixture_to_temp_path(go_path, 3,
@@ -939,6 +955,32 @@ static int test_editor_syntax_incremental_edits_keep_rust_tree_valid(void) {
 	return 0;
 }
 
+static int test_editor_syntax_incremental_edits_keep_java_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-java-XXXXXX.java";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
+			"tests/syntax/supported/java/incremental.java"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVA, editorSyntaxLanguageActive());
+
+	E.cy = 2;
+	E.cx = 8;
+	editorInsertChar('x');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = E.rows[0].size;
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_query_budget_match_limit_is_graceful(void) {
 	size_t source_len = 0;
 	char *source = build_repeated_text("const value = document + window;\n", 512, &source_len);
@@ -1303,6 +1345,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_activation_for_python_files_and_shebang", test_editor_syntax_activation_for_python_files_and_shebang},
 	{"editor_syntax_activation_for_php_files_and_shebang", test_editor_syntax_activation_for_php_files_and_shebang},
 	{"editor_syntax_activation_for_rust_files", test_editor_syntax_activation_for_rust_files},
+	{"editor_syntax_activation_for_java_files", test_editor_syntax_activation_for_java_files},
 	{"editor_syntax_activation_for_go_and_mod_files", test_editor_syntax_activation_for_go_and_mod_files},
 	{"editor_syntax_disabled_for_non_c_or_shell_files", test_editor_syntax_disabled_for_non_c_or_shell_files},
 	{"editor_save_as_c_file_enables_syntax", test_editor_save_as_c_file_enables_syntax},
@@ -1320,6 +1363,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_incremental_edits_keep_python_tree_valid", test_editor_syntax_incremental_edits_keep_python_tree_valid},
 	{"editor_syntax_incremental_edits_keep_php_tree_valid", test_editor_syntax_incremental_edits_keep_php_tree_valid},
 	{"editor_syntax_incremental_edits_keep_rust_tree_valid", test_editor_syntax_incremental_edits_keep_rust_tree_valid},
+	{"editor_syntax_incremental_edits_keep_java_tree_valid", test_editor_syntax_incremental_edits_keep_java_tree_valid},
 	{"editor_syntax_query_budget_match_limit_is_graceful", test_editor_syntax_query_budget_match_limit_is_graceful},
 	{"editor_syntax_parse_budget_is_graceful", test_editor_syntax_parse_budget_is_graceful},
 	{"editor_syntax_incremental_provider_parse_keeps_tree_valid", test_editor_syntax_incremental_provider_parse_keeps_tree_valid},

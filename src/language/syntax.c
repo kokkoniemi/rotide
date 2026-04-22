@@ -25,6 +25,7 @@ extern const TSLanguage *tree_sitter_json(void);
 extern const TSLanguage *tree_sitter_python(void);
 extern const TSLanguage *tree_sitter_php(void);
 extern const TSLanguage *tree_sitter_rust(void);
+extern const TSLanguage *tree_sitter_java(void);
 
 #include "language/syntax_queries.c"
 
@@ -233,6 +234,9 @@ enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *fil
 	}
 	if (dot != NULL && strcmp(dot, ".rs") == 0) {
 		return EDITOR_SYNTAX_RUST;
+	}
+	if (dot != NULL && strcmp(dot, ".java") == 0) {
+		return EDITOR_SYNTAX_JAVA;
 	}
 
 	const char *base = strrchr(filename, '/');

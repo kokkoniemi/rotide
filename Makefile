@@ -1,6 +1,6 @@
 CC ?= cc
 SRC_DIR := src
-CPPFLAGS ?= -I$(SRC_DIR) -Ivendor/tree_sitter/runtime/include -Ivendor/tree_sitter/runtime/src -Ivendor/tree_sitter/grammars/c/src -Ivendor/tree_sitter/grammars/cpp/src -Ivendor/tree_sitter/grammars/go/src -Ivendor/tree_sitter/grammars/bash/src -Ivendor/tree_sitter/grammars/html/src -Ivendor/tree_sitter/grammars/javascript/src -Ivendor/tree_sitter/grammars/css/src -Ivendor/tree_sitter/grammars/json/src -Ivendor/tree_sitter/grammars/typescript/src -Ivendor/tree_sitter/grammars/python/src -Ivendor/tree_sitter/grammars/php/src -Ivendor/tree_sitter/grammars/rust/src
+CPPFLAGS ?= -I$(SRC_DIR) -Ivendor/tree_sitter/runtime/include -Ivendor/tree_sitter/runtime/src -Ivendor/tree_sitter/grammars/c/src -Ivendor/tree_sitter/grammars/cpp/src -Ivendor/tree_sitter/grammars/go/src -Ivendor/tree_sitter/grammars/bash/src -Ivendor/tree_sitter/grammars/html/src -Ivendor/tree_sitter/grammars/javascript/src -Ivendor/tree_sitter/grammars/css/src -Ivendor/tree_sitter/grammars/json/src -Ivendor/tree_sitter/grammars/typescript/src -Ivendor/tree_sitter/grammars/python/src -Ivendor/tree_sitter/grammars/php/src -Ivendor/tree_sitter/grammars/rust/src -Ivendor/tree_sitter/grammars/java/src
 CFLAGS ?= -Wall -Wextra -Werror -Wshadow -Wdouble-promotion -Wundef -fno-common -pedantic -std=c2x
 LDFLAGS ?=
 SANITIZER_CFLAGS ?= -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer
@@ -33,7 +33,8 @@ TREE_SITTER_SRCS = vendor/tree_sitter/runtime/src/lib.c \
 	vendor/tree_sitter/grammars/php/src/parser.c \
 	vendor/tree_sitter/grammars/php/src/scanner.c \
 	vendor/tree_sitter/grammars/rust/src/parser.c \
-	vendor/tree_sitter/grammars/rust/src/scanner.c
+	vendor/tree_sitter/grammars/rust/src/scanner.c \
+	vendor/tree_sitter/grammars/java/src/parser.c
 CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/support/terminal.c $(SRC_DIR)/support/alloc.c \
 	$(SRC_DIR)/support/save_syscalls.c $(SRC_DIR)/support/file_io.c \
@@ -131,6 +132,9 @@ vendor/tree_sitter/grammars/rust/src/parser.o: vendor/tree_sitter/grammars/rust/
 	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 vendor/tree_sitter/grammars/rust/src/scanner.o: vendor/tree_sitter/grammars/rust/src/scanner.c
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
+
+vendor/tree_sitter/grammars/java/src/parser.o: vendor/tree_sitter/grammars/java/src/parser.c
 	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 %.o: %.c
