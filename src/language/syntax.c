@@ -27,6 +27,7 @@ extern const TSLanguage *tree_sitter_php(void);
 extern const TSLanguage *tree_sitter_rust(void);
 extern const TSLanguage *tree_sitter_java(void);
 extern const TSLanguage *tree_sitter_regex(void);
+extern const TSLanguage *tree_sitter_c_sharp(void);
 
 #include "language/syntax_queries.c"
 
@@ -241,6 +242,10 @@ enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *fil
 	}
 	if (dot != NULL && strcmp(dot, ".regex") == 0) {
 		return EDITOR_SYNTAX_REGEX;
+	}
+	if (dot != NULL &&
+			(strcmp(dot, ".cs") == 0 || strcmp(dot, ".csx") == 0)) {
+		return EDITOR_SYNTAX_CSHARP;
 	}
 
 	const char *base = strrchr(filename, '/');
@@ -2214,4 +2219,5 @@ void editorSyntaxReleaseSharedResources(void) {
 	editorSyntaxClearQueryCacheEntry(&g_javascript_locals_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_typescript_locals_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_html_injection_query_cache);
+	editorSyntaxClearQueryCacheEntry(&g_csharp_highlight_query_cache);
 }

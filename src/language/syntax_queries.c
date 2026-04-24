@@ -133,6 +133,7 @@ static struct editorSyntaxQueryCacheEntry g_php_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_rust_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_java_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_regex_highlight_query_cache = {0};
+static struct editorSyntaxQueryCacheEntry g_csharp_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_javascript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_typescript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_html_injection_query_cache = {0};
@@ -337,6 +338,35 @@ static const char editor_builtin_java_highlights_query[] =
 		" \"throw\" \"throws\" \"to\" \"transient\" \"transitive\" \"try\" \"uses\"\n"
 		" \"volatile\" \"when\" \"while\" \"with\" \"yield\"] @keyword\n";
 
+static const char editor_builtin_csharp_highlights_query[] =
+		"(comment) @comment\n"
+		"[(string_literal) (raw_string_literal) (verbatim_string_literal)\n"
+		" (character_literal) (interpolated_string_expression)] @string\n"
+		"(escape_sequence) @string\n"
+		"[(integer_literal) (real_literal)] @number\n"
+		"[(boolean_literal) (null_literal)] @constant\n"
+		"(predefined_type) @type\n"
+		"(class_declaration name: (identifier) @type)\n"
+		"(interface_declaration name: (identifier) @type)\n"
+		"(struct_declaration (identifier) @type)\n"
+		"(record_declaration (identifier) @type)\n"
+		"(enum_declaration name: (identifier) @type)\n"
+		"(method_declaration name: (identifier) @function)\n"
+		"(local_function_statement name: (identifier) @function)\n"
+		"(constructor_declaration name: (identifier) @function)\n"
+		"(destructor_declaration name: (identifier) @function)\n"
+		"(invocation_expression (member_access_expression name: (identifier) @function))\n"
+		"[\"abstract\" \"as\" \"async\" \"await\" \"base\" \"break\" \"case\" \"catch\"\n"
+		" \"checked\" \"class\" \"const\" \"continue\" \"default\" \"delegate\" \"do\"\n"
+		" \"else\" \"enum\" \"event\" \"explicit\" \"extern\" \"finally\" \"fixed\"\n"
+		" \"for\" \"foreach\" \"from\" \"get\" \"global\" \"goto\" \"if\" \"implicit\"\n"
+		" \"in\" \"init\" \"interface\" \"internal\" \"is\" \"let\" \"lock\" \"namespace\"\n"
+		" \"new\" \"notnull\" \"operator\" \"out\" \"override\" \"params\" \"private\"\n"
+		" \"protected\" \"public\" \"readonly\" \"record\" \"ref\" \"remove\" \"return\"\n"
+		" \"sealed\" \"select\" \"set\" \"sizeof\" \"stackalloc\" \"static\" \"struct\"\n"
+		" \"switch\" \"this\" \"throw\" \"try\" \"typeof\" \"unchecked\" \"unsafe\" \"using\"\n"
+		" \"virtual\" \"void\" \"volatile\" \"when\" \"where\" \"while\" \"with\" \"yield\"] @keyword\n";
+
 static const char editor_builtin_regex_highlights_query[] =
 		"[(identity_escape) (control_letter_escape) (character_class_escape)\n"
 		" (control_escape) (backreference_escape) (decimal_escape)\n"
@@ -444,6 +474,10 @@ static const char *const g_java_highlight_query_paths[] = {
 
 static const char *const g_regex_highlight_query_paths[] = {
 	"vendor/tree_sitter/grammars/regex/queries/highlights.scm"
+};
+
+static const char *const g_csharp_highlight_query_paths[] = {
+	"vendor/tree_sitter/grammars/csharp/queries/highlights.scm"
 };
 
 static const char *const g_html_injection_query_paths[] = {
@@ -887,6 +921,8 @@ static const TSLanguage *editorSyntaxLanguageObject(enum editorSyntaxLanguage la
 			return tree_sitter_java();
 		case EDITOR_SYNTAX_REGEX:
 			return tree_sitter_regex();
+		case EDITOR_SYNTAX_CSHARP:
+			return tree_sitter_c_sharp();
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return NULL;
@@ -1335,6 +1371,14 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 						sizeof(g_regex_highlight_query_paths[0])),
 					editor_builtin_regex_highlights_query,
 					1, 0, 0, 0);
+		case EDITOR_SYNTAX_CSHARP:
+			return editorSyntaxEnsureQueryCache(&g_csharp_highlight_query_cache,
+					EDITOR_SYNTAX_CSHARP,
+					g_csharp_highlight_query_paths,
+					(int)(sizeof(g_csharp_highlight_query_paths) /
+						sizeof(g_csharp_highlight_query_paths[0])),
+					editor_builtin_csharp_highlights_query,
+					1, 0, 0, 0);
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return 0;
@@ -1405,6 +1449,8 @@ static const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCache
 			return &g_java_highlight_query_cache;
 		case EDITOR_SYNTAX_REGEX:
 			return &g_regex_highlight_query_cache;
+		case EDITOR_SYNTAX_CSHARP:
+			return &g_csharp_highlight_query_cache;
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return NULL;
@@ -1443,6 +1489,7 @@ static struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(c
 		&g_rust_highlight_query_cache,
 		&g_java_highlight_query_cache,
 		&g_regex_highlight_query_cache,
+		&g_csharp_highlight_query_cache,
 		&g_javascript_locals_query_cache,
 		&g_typescript_locals_query_cache,
 		&g_html_injection_query_cache

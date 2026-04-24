@@ -38,6 +38,7 @@
 - PHP (`.php`, `.phtml`, `.php3`–`.php8`, `.phps`, plus extensionless shebang detection for `php` / `php8`); uses the `php/` sub-grammar (HTML-mixed variant), not `php_only/`.
 - Rust (`.rs`)
 - Java (`.java`)
+- C# (`.cs`, `.csx`) — grammar name `c_sharp`; extern parser is `tree_sitter_c_sharp`
 - Regex (`.regex`)
 
 ## Per-grammar `common/` convention

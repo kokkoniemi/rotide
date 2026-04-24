@@ -349,6 +349,22 @@ static int test_editor_syntax_activation_for_java_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_csharp_files(void) {
+	char cs_path[] = "/tmp/rotide-test-syntax-csharp-XXXXXX.cs";
+	ASSERT_TRUE(write_fixture_to_temp_path(cs_path, 3,
+			"tests/syntax/supported/csharp/activation.cs"));
+
+	editorOpen(cs_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CSHARP, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("compilation_unit", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(cs_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_regex_files(void) {
 	char regex_path[] = "/tmp/rotide-test-syntax-regex-XXXXXX.regex";
 	ASSERT_TRUE(write_fixture_to_temp_path(regex_path, 6,
@@ -997,6 +1013,32 @@ static int test_editor_syntax_incremental_edits_keep_java_tree_valid(void) {
 	return 0;
 }
 
+static int test_editor_syntax_incremental_edits_keep_csharp_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-csharp-XXXXXX.cs";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/csharp/incremental.cs"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CSHARP, editorSyntaxLanguageActive());
+
+	E.cy = 2;
+	E.cx = 8;
+	editorInsertChar('x');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = E.rows[0].size;
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_incremental_edits_keep_regex_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-regex-XXXXXX.regex";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 6,
@@ -1388,6 +1430,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_activation_for_php_files_and_shebang", test_editor_syntax_activation_for_php_files_and_shebang},
 	{"editor_syntax_activation_for_rust_files", test_editor_syntax_activation_for_rust_files},
 	{"editor_syntax_activation_for_java_files", test_editor_syntax_activation_for_java_files},
+	{"editor_syntax_activation_for_csharp_files", test_editor_syntax_activation_for_csharp_files},
 	{"editor_syntax_activation_for_regex_files", test_editor_syntax_activation_for_regex_files},
 	{"editor_syntax_activation_for_go_and_mod_files", test_editor_syntax_activation_for_go_and_mod_files},
 	{"editor_syntax_disabled_for_non_c_or_shell_files", test_editor_syntax_disabled_for_non_c_or_shell_files},
@@ -1407,6 +1450,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_incremental_edits_keep_php_tree_valid", test_editor_syntax_incremental_edits_keep_php_tree_valid},
 	{"editor_syntax_incremental_edits_keep_rust_tree_valid", test_editor_syntax_incremental_edits_keep_rust_tree_valid},
 	{"editor_syntax_incremental_edits_keep_java_tree_valid", test_editor_syntax_incremental_edits_keep_java_tree_valid},
+	{"editor_syntax_incremental_edits_keep_csharp_tree_valid", test_editor_syntax_incremental_edits_keep_csharp_tree_valid},
 	{"editor_syntax_incremental_edits_keep_regex_tree_valid", test_editor_syntax_incremental_edits_keep_regex_tree_valid},
 	{"editor_syntax_query_budget_match_limit_is_graceful", test_editor_syntax_query_budget_match_limit_is_graceful},
 	{"editor_syntax_parse_budget_is_graceful", test_editor_syntax_parse_budget_is_graceful},

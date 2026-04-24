@@ -17,6 +17,7 @@ Pinned source/tooling used by this repository:
 - Tree-sitter Rust grammar source ref: `77a3747266f4d621d0757825e6b11edcbf991ca5` (`tree-sitter-rust-v0.24.2-77a3747`)
 - Tree-sitter Java grammar source ref: `94703d5a6bed02b98e438d7cad1136c01a60ba2c` (`tree-sitter-java-v0.23.5-94703d5`)
 - Tree-sitter Regex grammar source ref: `b2ac15e27fce703d2f37a79ccd94a5c0cbe9720b` (`tree-sitter-regex-v0.25.0-b2ac15e`)
+- Tree-sitter C# grammar source ref: `cac6d5fb595f5811a076336682d5d595ac1c9e85` (`tree-sitter-c-sharp-v0.23.5-cac6d5f`)
 - Tree-sitter CLI release for regeneration: `v0.26.8`
 
 The machine-readable source of truth is [`VERSIONS.env`](./VERSIONS.env).
