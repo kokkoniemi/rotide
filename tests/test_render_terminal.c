@@ -383,6 +383,31 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_csharp_tok
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_haskell_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-haskell-XXXXXX.hs";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/haskell/highlight.hs"));
+
+	editorOpen(path);
+	E.window_rows = 8;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mmodule\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mwhere\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m-- comment\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96mInt\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m42\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_regex_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-regex-XXXXXX.regex";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 6,
@@ -1607,6 +1632,7 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_applies_syntax_highlighting_for_rust_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_rust_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_java_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_java_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_csharp_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_csharp_tokens},
+	{"editor_refresh_screen_applies_syntax_highlighting_for_haskell_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_haskell_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_regex_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_regex_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_css_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_css_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_go_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_go_tokens},

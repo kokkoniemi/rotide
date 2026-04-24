@@ -134,6 +134,7 @@ static struct editorSyntaxQueryCacheEntry g_rust_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_java_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_regex_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_csharp_highlight_query_cache = {0};
+static struct editorSyntaxQueryCacheEntry g_haskell_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_javascript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_typescript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_html_injection_query_cache = {0};
@@ -367,6 +368,23 @@ static const char editor_builtin_csharp_highlights_query[] =
 		" \"switch\" \"this\" \"throw\" \"try\" \"typeof\" \"unchecked\" \"unsafe\" \"using\"\n"
 		" \"virtual\" \"void\" \"volatile\" \"when\" \"where\" \"while\" \"with\" \"yield\"] @keyword\n";
 
+static const char editor_builtin_haskell_highlights_query[] =
+		"(comment) @comment\n"
+		"(string) @string\n"
+		"(char) @string\n"
+		"(integer) @number\n"
+		"(float) @number\n"
+		"((constructor) @constant\n"
+		" (#any-of? @constant \"True\" \"False\"))\n"
+		"(constructor) @type\n"
+		"(name) @type\n"
+		"(pragma) @preprocessor\n"
+		"[\"if\" \"then\" \"else\" \"case\" \"of\" \"let\" \"in\" \"do\" \"where\"\n"
+		" \"module\" \"import\" \"qualified\" \"as\" \"hiding\" \"class\" \"instance\"\n"
+		" \"data\" \"newtype\" \"type\" \"family\" \"deriving\" \"via\" \"stock\"\n"
+		" \"anyclass\" \"forall\" \"infix\" \"infixl\" \"infixr\" \"pattern\" \"mdo\"\n"
+		" \"rec\"] @keyword\n";
+
 static const char editor_builtin_regex_highlights_query[] =
 		"[(identity_escape) (control_letter_escape) (character_class_escape)\n"
 		" (control_escape) (backreference_escape) (decimal_escape)\n"
@@ -478,6 +496,10 @@ static const char *const g_regex_highlight_query_paths[] = {
 
 static const char *const g_csharp_highlight_query_paths[] = {
 	"vendor/tree_sitter/grammars/csharp/queries/highlights.scm"
+};
+
+static const char *const g_haskell_highlight_query_paths[] = {
+	"vendor/tree_sitter/grammars/haskell/queries/highlights.scm"
 };
 
 static const char *const g_html_injection_query_paths[] = {
@@ -923,6 +945,8 @@ static const TSLanguage *editorSyntaxLanguageObject(enum editorSyntaxLanguage la
 			return tree_sitter_regex();
 		case EDITOR_SYNTAX_CSHARP:
 			return tree_sitter_c_sharp();
+		case EDITOR_SYNTAX_HASKELL:
+			return tree_sitter_haskell();
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return NULL;
@@ -1379,6 +1403,14 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 						sizeof(g_csharp_highlight_query_paths[0])),
 					editor_builtin_csharp_highlights_query,
 					1, 0, 0, 0);
+		case EDITOR_SYNTAX_HASKELL:
+			return editorSyntaxEnsureQueryCache(&g_haskell_highlight_query_cache,
+					EDITOR_SYNTAX_HASKELL,
+					g_haskell_highlight_query_paths,
+					(int)(sizeof(g_haskell_highlight_query_paths) /
+						sizeof(g_haskell_highlight_query_paths[0])),
+					editor_builtin_haskell_highlights_query,
+					1, 0, 0, 0);
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return 0;
@@ -1451,6 +1483,8 @@ static const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCache
 			return &g_regex_highlight_query_cache;
 		case EDITOR_SYNTAX_CSHARP:
 			return &g_csharp_highlight_query_cache;
+		case EDITOR_SYNTAX_HASKELL:
+			return &g_haskell_highlight_query_cache;
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return NULL;
@@ -1490,6 +1524,7 @@ static struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(c
 		&g_java_highlight_query_cache,
 		&g_regex_highlight_query_cache,
 		&g_csharp_highlight_query_cache,
+		&g_haskell_highlight_query_cache,
 		&g_javascript_locals_query_cache,
 		&g_typescript_locals_query_cache,
 		&g_html_injection_query_cache

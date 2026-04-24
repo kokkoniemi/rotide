@@ -28,6 +28,7 @@ extern const TSLanguage *tree_sitter_rust(void);
 extern const TSLanguage *tree_sitter_java(void);
 extern const TSLanguage *tree_sitter_regex(void);
 extern const TSLanguage *tree_sitter_c_sharp(void);
+extern const TSLanguage *tree_sitter_haskell(void);
 
 #include "language/syntax_queries.c"
 
@@ -246,6 +247,9 @@ enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *fil
 	if (dot != NULL &&
 			(strcmp(dot, ".cs") == 0 || strcmp(dot, ".csx") == 0)) {
 		return EDITOR_SYNTAX_CSHARP;
+	}
+	if (dot != NULL && (strcmp(dot, ".hs") == 0 || strcmp(dot, ".lhs") == 0)) {
+		return EDITOR_SYNTAX_HASKELL;
 	}
 
 	const char *base = strrchr(filename, '/');
@@ -2220,4 +2224,5 @@ void editorSyntaxReleaseSharedResources(void) {
 	editorSyntaxClearQueryCacheEntry(&g_typescript_locals_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_html_injection_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_csharp_highlight_query_cache);
+	editorSyntaxClearQueryCacheEntry(&g_haskell_highlight_query_cache);
 }
