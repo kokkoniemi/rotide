@@ -139,6 +139,7 @@ static struct editorSyntaxQueryCacheEntry g_ruby_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_ocaml_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_julia_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_scala_highlight_query_cache = {0};
+static struct editorSyntaxQueryCacheEntry g_ejs_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_javascript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_typescript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_html_injection_query_cache = {0};
@@ -389,6 +390,10 @@ static const char editor_builtin_haskell_highlights_query[] =
 		" \"anyclass\" \"forall\" \"infix\" \"infixl\" \"infixr\" \"pattern\" \"mdo\"\n"
 		" \"rec\"] @keyword\n";
 
+static const char editor_builtin_ejs_highlights_query[] =
+		"(comment_directive) @comment\n"
+		"[\"<%#\" \"<%\" \"<%=\" \"<%_\" \"<%-\" \"%>\" \"-%>\" \"_%>\"] @keyword\n";
+
 static const char editor_builtin_scala_highlights_query[] =
 		"[(comment) (block_comment)] @comment\n"
 		"(string) @string\n"
@@ -623,6 +628,10 @@ static const char *const g_julia_highlight_query_paths[] = {
 
 static const char *const g_scala_highlight_query_paths[] = {
 	"vendor/tree_sitter/grammars/scala/queries/highlights.scm"
+};
+
+static const char *const g_ejs_highlight_query_paths[] = {
+	"vendor/tree_sitter/grammars/embedded_template/queries/highlights.scm"
 };
 
 static const char *const g_html_injection_query_paths[] = {
@@ -1078,6 +1087,8 @@ static const TSLanguage *editorSyntaxLanguageObject(enum editorSyntaxLanguage la
 			return tree_sitter_julia();
 		case EDITOR_SYNTAX_SCALA:
 			return tree_sitter_scala();
+		case EDITOR_SYNTAX_EJS:
+			return tree_sitter_embedded_template();
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return NULL;
@@ -1574,6 +1585,14 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 						sizeof(g_scala_highlight_query_paths[0])),
 					editor_builtin_scala_highlights_query,
 					1, 0, 0, 0);
+		case EDITOR_SYNTAX_EJS:
+			return editorSyntaxEnsureQueryCache(&g_ejs_highlight_query_cache,
+					EDITOR_SYNTAX_EJS,
+					g_ejs_highlight_query_paths,
+					(int)(sizeof(g_ejs_highlight_query_paths) /
+						sizeof(g_ejs_highlight_query_paths[0])),
+					editor_builtin_ejs_highlights_query,
+					1, 0, 0, 0);
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return 0;
@@ -1656,6 +1675,8 @@ static const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCache
 			return &g_julia_highlight_query_cache;
 		case EDITOR_SYNTAX_SCALA:
 			return &g_scala_highlight_query_cache;
+		case EDITOR_SYNTAX_EJS:
+			return &g_ejs_highlight_query_cache;
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return NULL;
@@ -1700,6 +1721,7 @@ static struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(c
 		&g_ocaml_highlight_query_cache,
 		&g_julia_highlight_query_cache,
 		&g_scala_highlight_query_cache,
+		&g_ejs_highlight_query_cache,
 		&g_javascript_locals_query_cache,
 		&g_typescript_locals_query_cache,
 		&g_html_injection_query_cache

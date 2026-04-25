@@ -455,6 +455,28 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_ocaml_toke
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_ejs_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-ejs-XXXXXX.ejs";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+			"tests/syntax/supported/ejs/highlight.ejs"));
+
+	editorOpen(path);
+	E.window_rows = 8;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94m<%#\x1b[90m greeting \x1b[94m%>") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94m<%=\x1b[39m name \x1b[94m%>") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_scala_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-scala-XXXXXX.scala";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 6,
@@ -1730,6 +1752,7 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_applies_syntax_highlighting_for_ocaml_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_ocaml_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_julia_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_julia_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_scala_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_scala_tokens},
+	{"editor_refresh_screen_applies_syntax_highlighting_for_ejs_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_ejs_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_regex_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_regex_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_css_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_css_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_go_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_go_tokens},

@@ -33,6 +33,7 @@ extern const TSLanguage *tree_sitter_ruby(void);
 extern const TSLanguage *tree_sitter_ocaml(void);
 extern const TSLanguage *tree_sitter_julia(void);
 extern const TSLanguage *tree_sitter_scala(void);
+extern const TSLanguage *tree_sitter_embedded_template(void);
 
 #include "language/syntax_queries.c"
 
@@ -277,6 +278,9 @@ enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *fil
 	}
 	if (dot != NULL && (strcmp(dot, ".scala") == 0 || strcmp(dot, ".sc") == 0)) {
 		return EDITOR_SYNTAX_SCALA;
+	}
+	if (dot != NULL && strcmp(dot, ".ejs") == 0) {
+		return EDITOR_SYNTAX_EJS;
 	}
 
 	const char *base = strrchr(filename, '/');
@@ -2261,4 +2265,5 @@ void editorSyntaxReleaseSharedResources(void) {
 	editorSyntaxClearQueryCacheEntry(&g_ocaml_highlight_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_julia_highlight_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_scala_highlight_query_cache);
+	editorSyntaxClearQueryCacheEntry(&g_ejs_highlight_query_cache);
 }
