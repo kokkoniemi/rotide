@@ -135,6 +135,7 @@ static struct editorSyntaxQueryCacheEntry g_java_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_regex_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_csharp_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_haskell_highlight_query_cache = {0};
+static struct editorSyntaxQueryCacheEntry g_ruby_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_javascript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_typescript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_html_injection_query_cache = {0};
@@ -385,6 +386,24 @@ static const char editor_builtin_haskell_highlights_query[] =
 		" \"anyclass\" \"forall\" \"infix\" \"infixl\" \"infixr\" \"pattern\" \"mdo\"\n"
 		" \"rec\"] @keyword\n";
 
+static const char editor_builtin_ruby_highlights_query[] =
+		"(comment) @comment\n"
+		"[(string) (bare_string) (subshell) (heredoc_body) (heredoc_beginning)] @string\n"
+		"[(simple_symbol) (delimited_symbol) (hash_key_symbol) (bare_symbol)] @string\n"
+		"(regex) @string\n"
+		"(escape_sequence) @string\n"
+		"[(integer) (float)] @number\n"
+		"[(nil) (true) (false) (self) (super)] @constant\n"
+		"(constant) @type\n"
+		"[(class_variable) (instance_variable) (global_variable)] @property\n"
+		"(method name: [(identifier) (constant)] @function)\n"
+		"(singleton_method name: [(identifier) (constant)] @function)\n"
+		"(call method: [(identifier) (constant)] @function)\n"
+		"[\"alias\" \"and\" \"begin\" \"break\" \"case\" \"class\" \"def\" \"do\" \"else\"\n"
+		" \"elsif\" \"end\" \"ensure\" \"for\" \"if\" \"in\" \"module\" \"next\" \"or\"\n"
+		" \"rescue\" \"retry\" \"return\" \"then\" \"unless\" \"until\" \"when\" \"while\"\n"
+		" \"yield\"] @keyword\n";
+
 static const char editor_builtin_regex_highlights_query[] =
 		"[(identity_escape) (control_letter_escape) (character_class_escape)\n"
 		" (control_escape) (backreference_escape) (decimal_escape)\n"
@@ -500,6 +519,10 @@ static const char *const g_csharp_highlight_query_paths[] = {
 
 static const char *const g_haskell_highlight_query_paths[] = {
 	"vendor/tree_sitter/grammars/haskell/queries/highlights.scm"
+};
+
+static const char *const g_ruby_highlight_query_paths[] = {
+	"vendor/tree_sitter/grammars/ruby/queries/highlights.scm"
 };
 
 static const char *const g_html_injection_query_paths[] = {
@@ -947,6 +970,8 @@ static const TSLanguage *editorSyntaxLanguageObject(enum editorSyntaxLanguage la
 			return tree_sitter_c_sharp();
 		case EDITOR_SYNTAX_HASKELL:
 			return tree_sitter_haskell();
+		case EDITOR_SYNTAX_RUBY:
+			return tree_sitter_ruby();
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return NULL;
@@ -1411,6 +1436,14 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 						sizeof(g_haskell_highlight_query_paths[0])),
 					editor_builtin_haskell_highlights_query,
 					1, 0, 0, 0);
+		case EDITOR_SYNTAX_RUBY:
+			return editorSyntaxEnsureQueryCache(&g_ruby_highlight_query_cache,
+					EDITOR_SYNTAX_RUBY,
+					g_ruby_highlight_query_paths,
+					(int)(sizeof(g_ruby_highlight_query_paths) /
+						sizeof(g_ruby_highlight_query_paths[0])),
+					editor_builtin_ruby_highlights_query,
+					1, 0, 0, 0);
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return 0;
@@ -1485,6 +1518,8 @@ static const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCache
 			return &g_csharp_highlight_query_cache;
 		case EDITOR_SYNTAX_HASKELL:
 			return &g_haskell_highlight_query_cache;
+		case EDITOR_SYNTAX_RUBY:
+			return &g_ruby_highlight_query_cache;
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return NULL;
@@ -1525,6 +1560,7 @@ static struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(c
 		&g_regex_highlight_query_cache,
 		&g_csharp_highlight_query_cache,
 		&g_haskell_highlight_query_cache,
+		&g_ruby_highlight_query_cache,
 		&g_javascript_locals_query_cache,
 		&g_typescript_locals_query_cache,
 		&g_html_injection_query_cache

@@ -200,6 +200,7 @@ JAVA_GRAMMAR_SRC=""
 REGEX_GRAMMAR_SRC=""
 CSHARP_GRAMMAR_SRC=""
 HASKELL_GRAMMAR_SRC=""
+RUBY_GRAMMAR_SRC=""
 
 download_repo_tarball "tree-sitter/tree-sitter" "${TREE_SITTER_RUNTIME_REF}" RUNTIME_SRC
 download_repo_tarball "tree-sitter/tree-sitter-c" "${TREE_SITTER_C_GRAMMAR_REF}" C_GRAMMAR_SRC
@@ -218,6 +219,7 @@ download_repo_tarball "tree-sitter/tree-sitter-java" "${TREE_SITTER_JAVA_GRAMMAR
 download_repo_tarball "tree-sitter/tree-sitter-regex" "${TREE_SITTER_REGEX_GRAMMAR_REF}" REGEX_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-c-sharp" "${TREE_SITTER_CSHARP_GRAMMAR_REF}" CSHARP_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-haskell" "${TREE_SITTER_HASKELL_GRAMMAR_REF}" HASKELL_GRAMMAR_SRC
+download_repo_tarball "tree-sitter/tree-sitter-ruby" "${TREE_SITTER_RUBY_GRAMMAR_REF}" RUBY_GRAMMAR_SRC
 
 if [[ ! -d "${RUNTIME_SRC}/lib/src" || ! -f "${RUNTIME_SRC}/lib/include/tree_sitter/api.h" ]]; then
 	echo "Runtime source layout not found in ${TREE_SITTER_RUNTIME_REF}" >&2
@@ -248,6 +250,7 @@ regenerate_parser "${JAVA_GRAMMAR_SRC}" "Java"
 regenerate_parser "${REGEX_GRAMMAR_SRC}" "Regex"
 regenerate_parser "${CSHARP_GRAMMAR_SRC}" "C#"
 regenerate_parser "${HASKELL_GRAMMAR_SRC}" "Haskell"
+regenerate_parser "${RUBY_GRAMMAR_SRC}" "Ruby"
 
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
@@ -294,6 +297,7 @@ sync_grammar_vendor "${JAVA_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/gramm
 sync_grammar_vendor "${REGEX_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/regex"
 sync_grammar_vendor "${CSHARP_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/csharp"
 sync_grammar_vendor "${HASKELL_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/haskell"
+sync_grammar_vendor "${RUBY_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/ruby"
 
 echo "Tree-sitter vendor refresh complete." >&2
 echo "If you changed refs/releases, update vendor/tree_sitter/VERSIONS.env and VERSIONS.md." >&2

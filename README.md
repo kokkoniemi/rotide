@@ -64,6 +64,7 @@ ASAN_OPTIONS=detect_leaks=0 make test-sanitize
   - Java (`.java`)
   - C# (`.cs`, `.csx`)
   - Haskell (`.hs`, `.lhs`)
+  - Ruby (`.rb`, `.rake`, `.gemspec`, `.ru`, `Rakefile`/`Gemfile`/`Guardfile`/`Capfile`/`Vagrantfile`, extensionless shebang scripts)
   - Regex (`.regex`)
 - Go LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `gopls`.
 - C/C++ LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `clangd`.

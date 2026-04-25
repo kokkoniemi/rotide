@@ -381,6 +381,22 @@ static int test_editor_syntax_activation_for_haskell_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_ruby_files(void) {
+	char rb_path[] = "/tmp/rotide-test-syntax-ruby-XXXXXX.rb";
+	ASSERT_TRUE(write_fixture_to_temp_path(rb_path, 3,
+			"tests/syntax/supported/ruby/activation.rb"));
+
+	editorOpen(rb_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_RUBY, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("program", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(rb_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_regex_files(void) {
 	char regex_path[] = "/tmp/rotide-test-syntax-regex-XXXXXX.regex";
 	ASSERT_TRUE(write_fixture_to_temp_path(regex_path, 6,
@@ -1081,6 +1097,32 @@ static int test_editor_syntax_incremental_edits_keep_haskell_tree_valid(void) {
 	return 0;
 }
 
+static int test_editor_syntax_incremental_edits_keep_ruby_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-ruby-XXXXXX.rb";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/ruby/incremental.rb"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_RUBY, editorSyntaxLanguageActive());
+
+	E.cy = 1;
+	E.cx = 3;
+	editorInsertChar('x');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = E.rows[0].size;
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_incremental_edits_keep_regex_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-regex-XXXXXX.regex";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 6,
@@ -1474,6 +1516,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_activation_for_java_files", test_editor_syntax_activation_for_java_files},
 	{"editor_syntax_activation_for_csharp_files", test_editor_syntax_activation_for_csharp_files},
 	{"editor_syntax_activation_for_haskell_files", test_editor_syntax_activation_for_haskell_files},
+	{"editor_syntax_activation_for_ruby_files", test_editor_syntax_activation_for_ruby_files},
 	{"editor_syntax_activation_for_regex_files", test_editor_syntax_activation_for_regex_files},
 	{"editor_syntax_activation_for_go_and_mod_files", test_editor_syntax_activation_for_go_and_mod_files},
 	{"editor_syntax_disabled_for_non_c_or_shell_files", test_editor_syntax_disabled_for_non_c_or_shell_files},
@@ -1495,6 +1538,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_incremental_edits_keep_java_tree_valid", test_editor_syntax_incremental_edits_keep_java_tree_valid},
 	{"editor_syntax_incremental_edits_keep_csharp_tree_valid", test_editor_syntax_incremental_edits_keep_csharp_tree_valid},
 	{"editor_syntax_incremental_edits_keep_haskell_tree_valid", test_editor_syntax_incremental_edits_keep_haskell_tree_valid},
+	{"editor_syntax_incremental_edits_keep_ruby_tree_valid", test_editor_syntax_incremental_edits_keep_ruby_tree_valid},
 	{"editor_syntax_incremental_edits_keep_regex_tree_valid", test_editor_syntax_incremental_edits_keep_regex_tree_valid},
 	{"editor_syntax_query_budget_match_limit_is_graceful", test_editor_syntax_query_budget_match_limit_is_graceful},
 	{"editor_syntax_parse_budget_is_graceful", test_editor_syntax_parse_budget_is_graceful},

@@ -40,6 +40,7 @@
 - Java (`.java`)
 - C# (`.cs`, `.csx`) — grammar name `c_sharp`; extern parser is `tree_sitter_c_sharp`
 - Haskell (`.hs`, `.lhs`) — extern parser `tree_sitter_haskell`; grammar ships an indentation-aware external scanner plus a vendored `unicode.h` next to `parser.c`/`scanner.c`
+- Ruby (`.rb`, `.rake`, `.gemspec`, `.ru`, plus `Rakefile`/`Gemfile`/`Guardfile`/`Capfile`/`Vagrantfile`, extensionless shebang detection for `ruby`) — extern parser `tree_sitter_ruby`; grammar ships an external scanner alongside `parser.c`/`scanner.c`
 - Regex (`.regex`)
 
 ## Per-grammar `common/` convention

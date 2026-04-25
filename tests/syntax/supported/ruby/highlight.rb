@@ -1,0 +1,4 @@
+# comment
+def main
+  42
+end

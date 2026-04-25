@@ -29,6 +29,7 @@ extern const TSLanguage *tree_sitter_java(void);
 extern const TSLanguage *tree_sitter_regex(void);
 extern const TSLanguage *tree_sitter_c_sharp(void);
 extern const TSLanguage *tree_sitter_haskell(void);
+extern const TSLanguage *tree_sitter_ruby(void);
 
 #include "language/syntax_queries.c"
 
@@ -50,6 +51,10 @@ static int editorSyntaxIsPythonInterpreterName(const char *token, size_t len) {
 		}
 	}
 	return 1;
+}
+
+static int editorSyntaxIsRubyInterpreterName(const char *token, size_t len) {
+	return (len == 4 && strncasecmp(token, "ruby", 4) == 0);
 }
 
 static int editorSyntaxIsPhpInterpreterName(const char *token, size_t len) {
@@ -121,6 +126,9 @@ static enum editorSyntaxLanguage editorSyntaxDetectLanguageFromShebang(const cha
 	if (editorSyntaxIsPhpInterpreterName(base, base_len)) {
 		return EDITOR_SYNTAX_PHP;
 	}
+	if (editorSyntaxIsRubyInterpreterName(base, base_len)) {
+		return EDITOR_SYNTAX_RUBY;
+	}
 
 	if (base_len == 3 && strncasecmp(base, "env", 3) == 0) {
 		for (;;) {
@@ -146,6 +154,9 @@ static enum editorSyntaxLanguage editorSyntaxDetectLanguageFromShebang(const cha
 			}
 			if (editorSyntaxIsPhpInterpreterName(base, base_len)) {
 				return EDITOR_SYNTAX_PHP;
+			}
+			if (editorSyntaxIsRubyInterpreterName(base, base_len)) {
+				return EDITOR_SYNTAX_RUBY;
 			}
 			break;
 		}
@@ -251,6 +262,10 @@ enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *fil
 	if (dot != NULL && (strcmp(dot, ".hs") == 0 || strcmp(dot, ".lhs") == 0)) {
 		return EDITOR_SYNTAX_HASKELL;
 	}
+	if (dot != NULL && (strcmp(dot, ".rb") == 0 || strcmp(dot, ".rake") == 0 ||
+			strcmp(dot, ".gemspec") == 0 || strcmp(dot, ".ru") == 0)) {
+		return EDITOR_SYNTAX_RUBY;
+	}
 
 	const char *base = strrchr(filename, '/');
 	if (base != NULL) {
@@ -265,6 +280,11 @@ enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *fil
 	}
 	if (strcmp(base, "go.mod") == 0 || strcmp(base, "go.sum") == 0) {
 		return EDITOR_SYNTAX_GO;
+	}
+	if (strcmp(base, "Rakefile") == 0 || strcmp(base, "Gemfile") == 0 ||
+			strcmp(base, "Guardfile") == 0 || strcmp(base, "Capfile") == 0 ||
+			strcmp(base, "Vagrantfile") == 0) {
+		return EDITOR_SYNTAX_RUBY;
 	}
 
 	return EDITOR_SYNTAX_NONE;
@@ -2225,4 +2245,5 @@ void editorSyntaxReleaseSharedResources(void) {
 	editorSyntaxClearQueryCacheEntry(&g_html_injection_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_csharp_highlight_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_haskell_highlight_query_cache);
+	editorSyntaxClearQueryCacheEntry(&g_ruby_highlight_query_cache);
 }
