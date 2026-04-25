@@ -29,7 +29,7 @@
 - C / C++
 - Go
 - Shell (bash language backend)
-- HTML (with JS/CSS injections)
+- HTML (with JS/CSS injections via the generic injection tree registry)
 - JavaScript (`.js`, `.mjs`, `.cjs`, `.jsx`) — JSDoc doc comments remain JavaScript `(comment)` nodes in the host tree, then RotIDE parses each visible `/** ... */` comment with the vendored `tree-sitter-jsdoc` parser and overlays its `tag_name`/`type` captures.
 - TypeScript (`.ts`, `.tsx`, `.cts`, `.mts`) — grammar from tree-sitter-typescript `typescript/` sub-grammar; shared `common/` lives at `vendor/tree_sitter/grammars/typescript/common/`. Uses the same vendored `tree-sitter-jsdoc` doc-comment overlay as JavaScript.
 - JSDoc — vendored from `tree-sitter/tree-sitter-jsdoc` as `vendor/tree_sitter/grammars/jsdoc/`; it is parser-backed comment highlighting for JS/TS, not a standalone file detection mode.
@@ -45,7 +45,7 @@
 - OCaml (`.ml`) — extern parser `tree_sitter_ocaml`; upstream ships sub-grammars under `grammars/<name>/` (`ocaml`, `interface`, `type`); only `ocaml/` is vendored. Shared `common/scanner.h` lives at the repo root and `src/scanner.c` includes it as `"../../../common/scanner.h"`; the refresh script vendors the shared `common/` next to `src/` and patches the include down to `"../common/scanner.h"`. Top-level `queries/` is staged into `grammars/ocaml/queries/` before sync so highlights ship with the grammar.
 - Julia (`.jl`) — extern parser `tree_sitter_julia`; standard layout (no shared `common/`, no sub-grammars). Grammar root is `source_file`. Upstream `highlights.scm` uses many capture names (`@variable`, `@variable.member`, `@function.call`, `@function.macro`, `@type.builtin`, `@keyword.conditional`, etc.) that don't match rotide's prefix table; the builtin fallback query targets a recognized subset (`@comment`, `@string`, `@number`, `@constant`, `@function`, `@type`, `@keyword`, `@operator`, `@punctuation`).
 - Scala (`.scala`, `.sc`) — extern parser `tree_sitter_scala`; standard layout. Grammar root is `compilation_unit`. Upstream `highlights.scm` uses unrecognized capture names (`@parameter`, `@namespace`, `@function.call`, `@method.call`, `@method`, `@constructor`, `@none`, `@type.definition`); the builtin fallback query targets a recognized subset using node-pattern matches.
-- EJS (`.ejs`) and ERB (`.erb`) — extern parser `tree_sitter_embedded_template` (shared upstream grammar `tree-sitter-embedded-template`, vendored as `embedded_template/`; the same parser would back ETLUA when added). Grammar root is `template`. Parser-only — no `scanner.c`, so the Makefile only compiles `parser.c`. Upstream ships per-dialect injection queries (`injections-ejs.scm`, `injections-erb.scm`, `injections-etlua.scm`) plus a single `highlights.scm` that only marks tag delimiters and `(comment_directive)`. **Injection wiring is not implemented for EJS/ERB** — the existing `g_html_injection_query_cache` path is HTML-specific (hardcoded JS/CSS injection trees in `editorSyntaxState`); EJS/ERB therefore render only tag delimiters and comment-directive bodies. Adding body injection highlighting would require a generalized injection trees mechanism in syntax state.
+- EJS (`.ejs`) and ERB (`.erb`) — extern parser `tree_sitter_embedded_template` (shared upstream grammar `tree-sitter-embedded-template`, vendored as `embedded_template/`; the same parser would back ETLUA when added). Grammar root is `template`. Parser-only — no `scanner.c`, so the Makefile only compiles `parser.c`. Upstream ships per-dialect injection queries (`injections-ejs.scm`, `injections-erb.scm`, `injections-etlua.scm`) plus a single `highlights.scm` that marks tag delimiters and `(comment_directive)`. RotIDE loads the EJS/ERB injection queries through the generic injection registry: template `content` renders as HTML, EJS `code` renders as JavaScript, ERB `code` renders as Ruby, and injected HTML can recursively inject `<script>` JavaScript and `<style>` CSS.
 - Regex (`.regex`)
 
 ## Per-grammar `common/` convention
@@ -76,6 +76,12 @@ Some upstream grammar repos (tree-sitter-typescript, tree-sitter-php) ship a sha
 2. Keep builtin fallback query strings aligned when fallback parity matters.
 3. Confirm capture names still map to intended semantic classes.
 4. Add/adjust render tests for representative tokens.
+
+## Injection notes
+
+- Generic injections are stored as tab-local injected parse trees in `editorSyntaxState`; do not reintroduce one-off language fields for new static injections.
+- V1 supports static `#set! injection.language` plus `@injection.content`, with `#set! injection.combined` recorded for parity. Dynamic `@injection.language`, `#offset!`, and `#set! injection.include-children` remain follow-up work before broader upstream injection queries are enabled.
+- Unsupported injection target languages should be skipped without disabling the host tree or reporting noisy status.
 
 ## Performance and degraded-mode checklist
 

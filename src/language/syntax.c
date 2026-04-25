@@ -359,6 +359,9 @@ static int editorSyntaxParsedTreeCreateParser(struct editorSyntaxParsedTree *par
 	return 1;
 }
 
+static void editorSyntaxLocalsContextInit(struct editorSyntaxLocalsContext *ctx);
+static void editorSyntaxLocalsContextFree(struct editorSyntaxLocalsContext *ctx);
+
 static void editorSyntaxParsedTreeDestroy(struct editorSyntaxParsedTree *parsed) {
 	if (parsed == NULL) {
 		return;
@@ -374,6 +377,30 @@ static void editorSyntaxParsedTreeDestroy(struct editorSyntaxParsedTree *parsed)
 	free(parsed->included_ranges);
 	parsed->included_ranges = NULL;
 	parsed->included_range_count = 0;
+}
+
+static void editorSyntaxInjectedTreeInit(struct editorSyntaxInjectedTree *injection) {
+	if (injection == NULL) {
+		return;
+	}
+	editorSyntaxParsedTreeInit(&injection->parsed, EDITOR_SYNTAX_NONE);
+	editorSyntaxLocalsContextInit(&injection->locals);
+	injection->locals_revision = 0;
+	injection->locals_valid = 0;
+	injection->active = 0;
+	injection->depth = 0;
+}
+
+static void editorSyntaxInjectedTreeDestroy(struct editorSyntaxInjectedTree *injection) {
+	if (injection == NULL) {
+		return;
+	}
+	editorSyntaxParsedTreeDestroy(&injection->parsed);
+	editorSyntaxLocalsContextFree(&injection->locals);
+	injection->locals_revision = 0;
+	injection->locals_valid = 0;
+	injection->active = 0;
+	injection->depth = 0;
 }
 
 static void editorSyntaxParsedTreeResetTree(struct editorSyntaxParsedTree *parsed) {
@@ -1659,34 +1686,241 @@ static int editorSyntaxCompareRange(const void *a, const void *b) {
 	return 0;
 }
 
+struct editorSyntaxInjectionWorkItem {
+	enum editorSyntaxLanguage language;
+	struct editorSyntaxRangeVec ranges;
+	int depth;
+};
+
+struct editorSyntaxInjectionWork {
+	struct editorSyntaxInjectionWorkItem items[ROTIDE_SYNTAX_MAX_INJECTION_TREES];
+	int count;
+};
+
 static enum editorSyntaxLanguage editorSyntaxLanguageFromInjectionName(const char *name,
 		size_t len) {
+	if (editorSyntaxStringEqualsNoCase(name, len, "html")) {
+		return EDITOR_SYNTAX_HTML;
+	}
 	if (editorSyntaxStringEqualsNoCase(name, len, "javascript") ||
-			editorSyntaxStringEqualsNoCase(name, len, "js")) {
+			editorSyntaxStringEqualsNoCase(name, len, "js") ||
+			editorSyntaxStringEqualsNoCase(name, len, "jsx")) {
 		return EDITOR_SYNTAX_JAVASCRIPT;
+	}
+	if (editorSyntaxStringEqualsNoCase(name, len, "typescript") ||
+			editorSyntaxStringEqualsNoCase(name, len, "ts") ||
+			editorSyntaxStringEqualsNoCase(name, len, "tsx")) {
+		return EDITOR_SYNTAX_TYPESCRIPT;
 	}
 	if (editorSyntaxStringEqualsNoCase(name, len, "css")) {
 		return EDITOR_SYNTAX_CSS;
 	}
+	if (editorSyntaxStringEqualsNoCase(name, len, "ruby") ||
+			editorSyntaxStringEqualsNoCase(name, len, "rb")) {
+		return EDITOR_SYNTAX_RUBY;
+	}
+	if (editorSyntaxStringEqualsNoCase(name, len, "json")) {
+		return EDITOR_SYNTAX_JSON;
+	}
+	if (editorSyntaxStringEqualsNoCase(name, len, "regex") ||
+			editorSyntaxStringEqualsNoCase(name, len, "regexp")) {
+		return EDITOR_SYNTAX_REGEX;
+	}
+	if (editorSyntaxStringEqualsNoCase(name, len, "bash") ||
+			editorSyntaxStringEqualsNoCase(name, len, "sh") ||
+			editorSyntaxStringEqualsNoCase(name, len, "shell")) {
+		return EDITOR_SYNTAX_SHELL;
+	}
 	return EDITOR_SYNTAX_NONE;
 }
 
-static int editorSyntaxCollectHtmlInjectionRanges(struct editorSyntaxState *state,
-		const struct editorTextSource *source,
-		struct editorSyntaxRangeVec *javascript_ranges,
-		struct editorSyntaxRangeVec *css_ranges) {
-	if (state == NULL || source == NULL || javascript_ranges == NULL || css_ranges == NULL) {
+static int editorSyntaxLanguageHasInjectionQuery(enum editorSyntaxLanguage language) {
+	return language == EDITOR_SYNTAX_HTML || language == EDITOR_SYNTAX_EJS ||
+			language == EDITOR_SYNTAX_ERB;
+}
+
+static struct editorSyntaxInjectionWorkItem *editorSyntaxInjectionWorkFind(
+		struct editorSyntaxInjectionWork *work,
+		enum editorSyntaxLanguage language) {
+	if (work == NULL || language == EDITOR_SYNTAX_NONE) {
+		return NULL;
+	}
+	for (int i = 0; i < work->count; i++) {
+		if (work->items[i].language == language) {
+			return &work->items[i];
+		}
+	}
+	return NULL;
+}
+
+static struct editorSyntaxInjectionWorkItem *editorSyntaxInjectionWorkEnsure(
+		struct editorSyntaxInjectionWork *work,
+		enum editorSyntaxLanguage language,
+		int depth) {
+	if (work == NULL || language == EDITOR_SYNTAX_NONE) {
+		return NULL;
+	}
+	struct editorSyntaxInjectionWorkItem *item =
+			editorSyntaxInjectionWorkFind(work, language);
+	if (item != NULL) {
+		if (depth < item->depth) {
+			item->depth = depth;
+		}
+		return item;
+	}
+	if (work->count >= ROTIDE_SYNTAX_MAX_INJECTION_TREES) {
+		return NULL;
+	}
+	item = &work->items[work->count++];
+	item->language = language;
+	item->ranges.items = NULL;
+	item->ranges.count = 0;
+	item->ranges.cap = 0;
+	item->depth = depth;
+	return item;
+}
+
+static int editorSyntaxInjectionWorkAppendRange(struct editorSyntaxInjectionWork *work,
+		enum editorSyntaxLanguage language,
+		int depth,
+		const TSRange *range) {
+	struct editorSyntaxInjectionWorkItem *item =
+			editorSyntaxInjectionWorkEnsure(work, language, depth);
+	if (item == NULL) {
+		return 1;
+	}
+	return editorSyntaxRangeVecAppend(&item->ranges, range);
+}
+
+static void editorSyntaxInjectionWorkFree(struct editorSyntaxInjectionWork *work) {
+	if (work == NULL) {
+		return;
+	}
+	for (int i = 0; i < work->count; i++) {
+		editorSyntaxRangeVecFree(&work->items[i].ranges);
+	}
+	work->count = 0;
+}
+
+static void editorSyntaxRangeVecSortUnique(struct editorSyntaxRangeVec *ranges) {
+	if (ranges == NULL || ranges->count <= 1) {
+		return;
+	}
+	qsort(ranges->items, ranges->count, sizeof(ranges->items[0]), editorSyntaxCompareRange);
+	uint32_t out = 0;
+	for (uint32_t i = 0; i < ranges->count; i++) {
+		if (ranges->items[i].end_byte <= ranges->items[i].start_byte) {
+			continue;
+		}
+		if (out > 0 &&
+				ranges->items[out - 1].start_byte == ranges->items[i].start_byte &&
+				ranges->items[out - 1].end_byte == ranges->items[i].end_byte) {
+			continue;
+		}
+		ranges->items[out++] = ranges->items[i];
+	}
+	ranges->count = out;
+}
+
+static struct editorSyntaxInjectedTree *editorSyntaxStateFindInjection(
+		struct editorSyntaxState *state,
+		enum editorSyntaxLanguage language) {
+	if (state == NULL || language == EDITOR_SYNTAX_NONE) {
+		return NULL;
+	}
+	for (int i = 0; i < state->injection_count; i++) {
+		if (state->injections[i].parsed.language == language) {
+			return &state->injections[i];
+		}
+	}
+	return NULL;
+}
+
+static struct editorSyntaxInjectedTree *editorSyntaxStateEnsureInjection(
+		struct editorSyntaxState *state,
+		enum editorSyntaxLanguage language) {
+	if (state == NULL || language == EDITOR_SYNTAX_NONE) {
+		return NULL;
+	}
+	struct editorSyntaxInjectedTree *injection =
+			editorSyntaxStateFindInjection(state, language);
+	if (injection != NULL) {
+		return injection;
+	}
+	if (state->injection_count >= ROTIDE_SYNTAX_MAX_INJECTION_TREES) {
+		return NULL;
+	}
+	injection = &state->injections[state->injection_count++];
+	editorSyntaxInjectedTreeInit(injection);
+	if (!editorSyntaxParsedTreeCreateParser(&injection->parsed, language)) {
+		editorSyntaxInjectedTreeDestroy(injection);
+		state->injection_count--;
+		return NULL;
+	}
+	return injection;
+}
+
+static void editorSyntaxStateMarkInjectionsInactive(struct editorSyntaxState *state) {
+	if (state == NULL) {
+		return;
+	}
+	for (int i = 0; i < state->injection_count; i++) {
+		state->injections[i].active = 0;
+		state->injections[i].depth = 0;
+	}
+}
+
+static int editorSyntaxStateResetInactiveInjections(struct editorSyntaxState *state) {
+	if (state == NULL) {
 		return 0;
 	}
-	if (state->host.tree == NULL) {
-		return 1;
+	for (int i = 0; i < state->injection_count; i++) {
+		struct editorSyntaxInjectedTree *injection = &state->injections[i];
+		if (injection->active) {
+			continue;
+		}
+		if (injection->parsed.parser != NULL &&
+				!editorSyntaxParsedTreeSetIncludedRanges(&injection->parsed, NULL, 0)) {
+			return 0;
+		}
+		editorSyntaxParsedTreeResetTree(&injection->parsed);
+		injection->locals_valid = 0;
 	}
-	if (!editorSyntaxEnsureHtmlInjectionQuery()) {
-		return 1;
-	}
+	return 1;
+}
 
-	const struct editorSyntaxQueryCacheEntry *cache = &g_html_injection_query_cache;
-	if (cache->query == NULL || cache->capture_roles == NULL ||
+static void editorSyntaxApplyInputEdit(TSTree *tree, const struct editorSyntaxEdit *edit);
+
+static void editorSyntaxStateApplyEditToInjections(struct editorSyntaxState *state,
+		const struct editorSyntaxEdit *edit) {
+	if (state == NULL || edit == NULL) {
+		return;
+	}
+	for (int i = 0; i < state->injection_count; i++) {
+		if (state->injections[i].parsed.tree != NULL) {
+			editorSyntaxApplyInputEdit(state->injections[i].parsed.tree, edit);
+		}
+	}
+}
+
+static int editorSyntaxCollectInjectionRangesFromTree(struct editorSyntaxState *state,
+		const TSTree *tree,
+		enum editorSyntaxLanguage language,
+		const struct editorTextSource *source,
+		int target_depth,
+		struct editorSyntaxInjectionWork *work) {
+	if (state == NULL || tree == NULL || source == NULL || work == NULL) {
+		return 0;
+	}
+	if (!editorSyntaxLanguageHasInjectionQuery(language)) {
+		return 1;
+	}
+	if (!editorSyntaxEnsureInjectionQuery(language)) {
+		return 1;
+	}
+	const struct editorSyntaxQueryCacheEntry *cache =
+			editorSyntaxInjectionQueryCacheForLanguage(language);
+	if (cache == NULL || cache->query == NULL || cache->capture_roles == NULL ||
 			cache->pattern_injection_languages == NULL) {
 		return 1;
 	}
@@ -1696,7 +1930,7 @@ static int editorSyntaxCollectHtmlInjectionRanges(struct editorSyntaxState *stat
 		return 0;
 	}
 
-	TSNode root = ts_tree_root_node(state->host.tree);
+	TSNode root = ts_tree_root_node(tree);
 	struct editorSyntaxBudgetConfig budget =
 			editorSyntaxBudgetConfigForMode(state->perf_mode);
 	if (budget.query_match_limit > 0) {
@@ -1736,7 +1970,7 @@ static int editorSyntaxCollectHtmlInjectionRanges(struct editorSyntaxState *stat
 		}
 		enum editorSyntaxLanguage target_lang =
 				editorSyntaxLanguageFromInjectionName(lang_name, strlen(lang_name));
-		if (target_lang != EDITOR_SYNTAX_JAVASCRIPT && target_lang != EDITOR_SYNTAX_CSS) {
+		if (target_lang == EDITOR_SYNTAX_NONE || editorSyntaxLanguageObject(target_lang) == NULL) {
 			continue;
 		}
 
@@ -1760,13 +1994,8 @@ static int editorSyntaxCollectHtmlInjectionRanges(struct editorSyntaxState *stat
 				continue;
 			}
 
-			int ok = 0;
-			if (target_lang == EDITOR_SYNTAX_JAVASCRIPT) {
-				ok = editorSyntaxRangeVecAppend(javascript_ranges, &range);
-			} else {
-				ok = editorSyntaxRangeVecAppend(css_ranges, &range);
-			}
-			if (!ok) {
+			if (!editorSyntaxInjectionWorkAppendRange(work, target_lang, target_depth,
+						&range)) {
 				ts_query_cursor_delete(cursor);
 				return 0;
 			}
@@ -1778,14 +2007,6 @@ static int editorSyntaxCollectHtmlInjectionRanges(struct editorSyntaxState *stat
 	}
 
 	ts_query_cursor_delete(cursor);
-	if (javascript_ranges->count > 1) {
-		qsort(javascript_ranges->items, javascript_ranges->count,
-				sizeof(javascript_ranges->items[0]), editorSyntaxCompareRange);
-	}
-	if (css_ranges->count > 1) {
-		qsort(css_ranges->items, css_ranges->count,
-				sizeof(css_ranges->items[0]), editorSyntaxCompareRange);
-	}
 	return 1;
 }
 
@@ -1804,72 +2025,67 @@ static void editorSyntaxApplyInputEdit(TSTree *tree, const struct editorSyntaxEd
 	ts_tree_edit(tree, &ts_edit);
 }
 
-static int editorSyntaxStateParseHtmlInjections(struct editorSyntaxState *state,
+static int editorSyntaxStateParseInjections(struct editorSyntaxState *state,
 		const struct editorTextSource *source,
 		const struct editorSyntaxEdit *incremental_edit) {
 	if (state == NULL || source == NULL) {
 		return 0;
 	}
-	if (state->language != EDITOR_SYNTAX_HTML) {
-		return 1;
-	}
 	if (state->perf_disable_injections) {
-		if (!editorSyntaxParsedTreeSetIncludedRanges(&state->javascript_injection, NULL, 0) ||
-				!editorSyntaxParsedTreeSetIncludedRanges(&state->css_injection, NULL, 0)) {
-			return 0;
-		}
-		editorSyntaxParsedTreeResetTree(&state->javascript_injection);
-		editorSyntaxParsedTreeResetTree(&state->css_injection);
-		return 1;
+		editorSyntaxStateMarkInjectionsInactive(state);
+		return editorSyntaxStateResetInactiveInjections(state);
 	}
 
-	struct editorSyntaxRangeVec javascript_ranges = {0};
-	struct editorSyntaxRangeVec css_ranges = {0};
-	if (!editorSyntaxCollectHtmlInjectionRanges(state, source, &javascript_ranges, &css_ranges)) {
-		editorSyntaxRangeVecFree(&javascript_ranges);
-		editorSyntaxRangeVecFree(&css_ranges);
-		return 0;
-	}
+	editorSyntaxStateApplyEditToInjections(state, incremental_edit);
+	editorSyntaxStateMarkInjectionsInactive(state);
 
-	if (incremental_edit != NULL) {
-		if (state->javascript_injection.tree != NULL) {
-			editorSyntaxApplyInputEdit(state->javascript_injection.tree, incremental_edit);
-		}
-		if (state->css_injection.tree != NULL) {
-			editorSyntaxApplyInputEdit(state->css_injection.tree, incremental_edit);
-		}
-	}
-
-	if (!editorSyntaxParsedTreeSetIncludedRanges(&state->javascript_injection,
-			javascript_ranges.items, javascript_ranges.count) ||
-			!editorSyntaxParsedTreeSetIncludedRanges(&state->css_injection,
-					css_ranges.items, css_ranges.count)) {
-		editorSyntaxRangeVecFree(&javascript_ranges);
-		editorSyntaxRangeVecFree(&css_ranges);
-		return 0;
-	}
-
-	if (javascript_ranges.count == 0) {
-		editorSyntaxParsedTreeResetTree(&state->javascript_injection);
-	}
-	if (css_ranges.count == 0) {
-		editorSyntaxParsedTreeResetTree(&state->css_injection);
-	}
-
+	struct editorSyntaxInjectionWork work = {0};
 	int ok = 1;
-	if (javascript_ranges.count > 0) {
-		int incremental = incremental_edit != NULL &&
-				state->javascript_injection.tree != NULL;
-		ok = editorSyntaxParsedTreeParse(&state->javascript_injection, NULL, source, incremental);
-	}
-	if (ok && css_ranges.count > 0) {
-		int incremental = incremental_edit != NULL &&
-				state->css_injection.tree != NULL;
-		ok = editorSyntaxParsedTreeParse(&state->css_injection, NULL, source, incremental);
+	if (state->host.tree != NULL &&
+			!editorSyntaxCollectInjectionRangesFromTree(state, state->host.tree,
+				state->language, source, 1, &work)) {
+		ok = 0;
 	}
 
-	editorSyntaxRangeVecFree(&javascript_ranges);
-	editorSyntaxRangeVecFree(&css_ranges);
+	for (int work_idx = 0; ok && work_idx < work.count; work_idx++) {
+		struct editorSyntaxInjectionWorkItem *item = &work.items[work_idx];
+		if (item->depth > ROTIDE_SYNTAX_MAX_INJECTION_DEPTH) {
+			continue;
+		}
+		editorSyntaxRangeVecSortUnique(&item->ranges);
+		if (item->ranges.count == 0) {
+			continue;
+		}
+
+		struct editorSyntaxInjectedTree *injection =
+				editorSyntaxStateEnsureInjection(state, item->language);
+		if (injection == NULL) {
+			continue;
+		}
+		int incremental = incremental_edit != NULL && injection->parsed.tree != NULL;
+		if (!editorSyntaxParsedTreeSetIncludedRanges(&injection->parsed, item->ranges.items,
+					item->ranges.count) ||
+				!editorSyntaxParsedTreeParse(&injection->parsed, NULL, source, incremental)) {
+			ok = 0;
+			break;
+		}
+		injection->active = 1;
+		injection->depth = item->depth;
+		injection->locals_valid = 0;
+
+		if (item->depth < ROTIDE_SYNTAX_MAX_INJECTION_DEPTH &&
+				editorSyntaxLanguageHasInjectionQuery(item->language) &&
+				!editorSyntaxCollectInjectionRangesFromTree(state, injection->parsed.tree,
+					item->language, source, item->depth + 1, &work)) {
+			ok = 0;
+			break;
+		}
+	}
+
+	if (ok && !editorSyntaxStateResetInactiveInjections(state)) {
+		ok = 0;
+	}
+	editorSyntaxInjectionWorkFree(&work);
 	return ok;
 }
 
@@ -1878,7 +2094,9 @@ static void editorSyntaxStateInvalidateLocalsCaches(struct editorSyntaxState *st
 		return;
 	}
 	state->host_locals_valid = 0;
-	state->injection_javascript_locals_valid = 0;
+	for (int i = 0; i < state->injection_count; i++) {
+		state->injections[i].locals_valid = 0;
+	}
 }
 
 static int editorSyntaxStateEnsureLocalsCached(
@@ -1886,7 +2104,7 @@ static int editorSyntaxStateEnsureLocalsCached(
 		const struct editorSyntaxParsedTree *parsed,
 		const struct editorTextSource *source,
 		enum editorSyntaxLanguage language,
-		int injection_tree,
+		struct editorSyntaxInjectedTree *injection,
 		const struct editorSyntaxLocalsContext **locals_out) {
 	if (locals_out == NULL) {
 		return 0;
@@ -1897,15 +2115,12 @@ static int editorSyntaxStateEnsureLocalsCached(
 		return 1;
 	}
 
-	struct editorSyntaxLocalsContext *cache = injection_tree ?
-			&state->injection_javascript_locals :
-			&state->host_locals;
-	uint64_t *cache_revision = injection_tree ?
-			&state->injection_javascript_locals_revision :
-			&state->host_locals_revision;
-	int *cache_valid = injection_tree ?
-			&state->injection_javascript_locals_valid :
-			&state->host_locals_valid;
+	struct editorSyntaxLocalsContext *cache = injection != NULL ?
+			&injection->locals : &state->host_locals;
+	uint64_t *cache_revision = injection != NULL ?
+			&injection->locals_revision : &state->host_locals_revision;
+	int *cache_valid = injection != NULL ?
+			&injection->locals_valid : &state->host_locals_valid;
 
 	if (*cache_valid && *cache_revision == parsed->revision) {
 		*locals_out = cache;
@@ -1993,15 +2208,14 @@ struct editorSyntaxState *editorSyntaxStateCreate(enum editorSyntaxLanguage lang
 	}
 	state->language = language;
 	editorSyntaxParsedTreeInit(&state->host, language);
-	editorSyntaxParsedTreeInit(&state->javascript_injection, EDITOR_SYNTAX_JAVASCRIPT);
-	editorSyntaxParsedTreeInit(&state->css_injection, EDITOR_SYNTAX_CSS);
 	editorSyntaxParsedTreeInit(&state->jsdoc_injection, EDITOR_SYNTAX_JSDOC);
 	editorSyntaxLocalsContextInit(&state->host_locals);
-	editorSyntaxLocalsContextInit(&state->injection_javascript_locals);
+	for (int i = 0; i < ROTIDE_SYNTAX_MAX_INJECTION_TREES; i++) {
+		editorSyntaxInjectedTreeInit(&state->injections[i]);
+	}
+	state->injection_count = 0;
 	state->host_locals_revision = 0;
-	state->injection_javascript_locals_revision = 0;
 	state->host_locals_valid = 0;
-	state->injection_javascript_locals_valid = 0;
 	state->perf_disable_predicates = 0;
 	state->perf_disable_injections = 0;
 	state->perf_mode = EDITOR_SYNTAX_PERF_NORMAL;
@@ -2021,34 +2235,16 @@ struct editorSyntaxState *editorSyntaxStateCreate(enum editorSyntaxLanguage lang
 		return NULL;
 	}
 
-	if (language == EDITOR_SYNTAX_HTML) {
-		if (!editorSyntaxParsedTreeCreateParser(&state->javascript_injection,
-					EDITOR_SYNTAX_JAVASCRIPT) ||
-				!editorSyntaxParsedTreeCreateParser(&state->css_injection,
-						EDITOR_SYNTAX_CSS)) {
-			editorSyntaxParsedTreeDestroy(&state->host);
-			editorSyntaxParsedTreeDestroy(&state->javascript_injection);
-			editorSyntaxParsedTreeDestroy(&state->css_injection);
-			editorSyntaxParsedTreeDestroy(&state->jsdoc_injection);
-			editorSyntaxLocalsContextFree(&state->host_locals);
-			editorSyntaxLocalsContextFree(&state->injection_javascript_locals);
-			free(state->last_changed_ranges);
-			free(state->scratch_primary);
-			free(state->scratch_secondary);
-			free(state);
-			return NULL;
-		}
-	}
 	if (language == EDITOR_SYNTAX_HTML || language == EDITOR_SYNTAX_JAVASCRIPT ||
 			language == EDITOR_SYNTAX_TYPESCRIPT) {
 		if (!editorSyntaxParsedTreeCreateParser(&state->jsdoc_injection,
 					EDITOR_SYNTAX_JSDOC)) {
 			editorSyntaxParsedTreeDestroy(&state->host);
-			editorSyntaxParsedTreeDestroy(&state->javascript_injection);
-			editorSyntaxParsedTreeDestroy(&state->css_injection);
 			editorSyntaxParsedTreeDestroy(&state->jsdoc_injection);
 			editorSyntaxLocalsContextFree(&state->host_locals);
-			editorSyntaxLocalsContextFree(&state->injection_javascript_locals);
+			for (int i = 0; i < ROTIDE_SYNTAX_MAX_INJECTION_TREES; i++) {
+				editorSyntaxInjectedTreeDestroy(&state->injections[i]);
+			}
 			free(state->last_changed_ranges);
 			free(state->scratch_primary);
 			free(state->scratch_secondary);
@@ -2065,11 +2261,12 @@ void editorSyntaxStateDestroy(struct editorSyntaxState *state) {
 		return;
 	}
 	editorSyntaxParsedTreeDestroy(&state->host);
-	editorSyntaxParsedTreeDestroy(&state->javascript_injection);
-	editorSyntaxParsedTreeDestroy(&state->css_injection);
 	editorSyntaxParsedTreeDestroy(&state->jsdoc_injection);
 	editorSyntaxLocalsContextFree(&state->host_locals);
-	editorSyntaxLocalsContextFree(&state->injection_javascript_locals);
+	for (int i = 0; i < ROTIDE_SYNTAX_MAX_INJECTION_TREES; i++) {
+		editorSyntaxInjectedTreeDestroy(&state->injections[i]);
+	}
+	state->injection_count = 0;
 	free(state->last_changed_ranges);
 	state->last_changed_ranges = NULL;
 	state->last_changed_range_count = 0;
@@ -2098,7 +2295,7 @@ int editorSyntaxStateParseFull(struct editorSyntaxState *state,
 	if (!editorSyntaxParsedTreeParse(&state->host, state, source, 0)) {
 		return 0;
 	}
-	if (!editorSyntaxStateParseHtmlInjections(state, source, NULL)) {
+	if (!editorSyntaxStateParseInjections(state, source, NULL)) {
 		return 0;
 	}
 	state->source_len = source->length;
@@ -2128,7 +2325,7 @@ int editorSyntaxStateApplyEditAndParse(struct editorSyntaxState *state,
 	if (!editorSyntaxParsedTreeParse(&state->host, state, source, 1)) {
 		return 0;
 	}
-	if (!editorSyntaxStateParseHtmlInjections(state, source, edit)) {
+	if (!editorSyntaxStateParseInjections(state, source, edit)) {
 		return 0;
 	}
 	state->source_len = source->length;
@@ -2191,108 +2388,71 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 	}
 	int skip_predicates = state->perf_disable_predicates;
 
-	if (state->language != EDITOR_SYNTAX_HTML) {
-		struct editorSyntaxCaptureVec collected = {0};
-		const struct editorSyntaxLocalsContext *host_locals = NULL;
-		if (!skip_predicates && editorSyntaxLanguageHasLocalsQuery(state->language) &&
-				!editorSyntaxStateEnsureLocalsCached(state, &state->host, source,
-						state->language, 0, &host_locals)) {
-			editorSyntaxCaptureVecFree(&collected);
-			return 0;
-		}
-
-		int ok = editorSyntaxCollectCapturesFromTree(state, state->host.tree, state->language,
-				source, start_byte, end_byte, host_locals, skip_predicates, &collected);
-		if (!ok) {
-			editorSyntaxCaptureVecFree(&collected);
-			return 0;
-		}
-
-		int out_count = collected.count;
-		if (out_count > max_captures) {
-			out_count = max_captures;
-		}
-		for (int i = 0; i < out_count; i++) {
-			captures[i] = collected.items[i];
-		}
-		if (count_out != NULL) {
-			*count_out = out_count;
-		}
-		editorSyntaxCaptureVecFree(&collected);
-		return 1;
-	}
-
-	struct editorSyntaxCaptureVec host_captures = {0};
-	struct editorSyntaxCaptureVec js_captures = {0};
-	struct editorSyntaxCaptureVec css_captures = {0};
-	const struct editorSyntaxLocalsContext *host_js_locals = NULL;
+	struct editorSyntaxCaptureVec capture_vecs[1 + ROTIDE_SYNTAX_MAX_INJECTION_TREES] = {0};
+	int capture_vec_count = 1;
+	const struct editorSyntaxLocalsContext *host_locals = NULL;
 	if (!skip_predicates && editorSyntaxLanguageHasLocalsQuery(state->language) &&
 			!editorSyntaxStateEnsureLocalsCached(state, &state->host, source,
-					state->language, 0, &host_js_locals)) {
-		editorSyntaxCaptureVecFree(&host_captures);
-		editorSyntaxCaptureVecFree(&js_captures);
-		editorSyntaxCaptureVecFree(&css_captures);
+					state->language, NULL, &host_locals)) {
 		return 0;
 	}
 
 	int ok = editorSyntaxCollectCapturesFromTree(state, state->host.tree, state->language,
-			source, start_byte, end_byte, host_js_locals, skip_predicates, &host_captures);
+			source, start_byte, end_byte, host_locals, skip_predicates, &capture_vecs[0]);
 	if (!ok) {
-		editorSyntaxCaptureVecFree(&host_captures);
-		editorSyntaxCaptureVecFree(&js_captures);
-		editorSyntaxCaptureVecFree(&css_captures);
+		editorSyntaxCaptureVecFree(&capture_vecs[0]);
 		return 0;
 	}
 
-	if (state->language == EDITOR_SYNTAX_HTML && !state->perf_disable_injections) {
-		const struct editorSyntaxLocalsContext *injection_js_locals = NULL;
-		if (!skip_predicates &&
-				!editorSyntaxStateEnsureLocalsCached(state, &state->javascript_injection,
-						source, EDITOR_SYNTAX_JAVASCRIPT, 1, &injection_js_locals)) {
-			editorSyntaxCaptureVecFree(&host_captures);
-			editorSyntaxCaptureVecFree(&js_captures);
-			editorSyntaxCaptureVecFree(&css_captures);
-			return 0;
-		}
-		if (!editorSyntaxCollectCapturesFromTree(state, state->javascript_injection.tree,
-					EDITOR_SYNTAX_JAVASCRIPT, source, start_byte, end_byte,
-					injection_js_locals, skip_predicates, &js_captures) ||
-				!editorSyntaxCollectCapturesFromTree(state, state->css_injection.tree,
-						EDITOR_SYNTAX_CSS, source, start_byte, end_byte,
-						NULL, skip_predicates, &css_captures)) {
-			editorSyntaxCaptureVecFree(&host_captures);
-			editorSyntaxCaptureVecFree(&js_captures);
-			editorSyntaxCaptureVecFree(&css_captures);
-			return 0;
+	if (!state->perf_disable_injections) {
+		for (int i = 0; i < state->injection_count &&
+				capture_vec_count < (int)(sizeof(capture_vecs) / sizeof(capture_vecs[0]));
+				i++) {
+			struct editorSyntaxInjectedTree *injection = &state->injections[i];
+			if (!injection->active || injection->parsed.tree == NULL) {
+				continue;
+			}
+			const struct editorSyntaxLocalsContext *injection_locals = NULL;
+			if (!skip_predicates && editorSyntaxLanguageHasLocalsQuery(injection->parsed.language) &&
+					!editorSyntaxStateEnsureLocalsCached(state, &injection->parsed,
+						source, injection->parsed.language, injection, &injection_locals)) {
+				ok = 0;
+				break;
+			}
+			int vec_idx = capture_vec_count;
+			if (!editorSyntaxCollectCapturesFromTree(state, injection->parsed.tree,
+						injection->parsed.language, source, start_byte, end_byte,
+						injection_locals, skip_predicates,
+						&capture_vecs[vec_idx])) {
+				editorSyntaxCaptureVecFree(&capture_vecs[vec_idx]);
+				ok = 0;
+				break;
+			}
+			capture_vec_count++;
 		}
 	}
+	if (!ok) {
+		for (int i = 0; i < capture_vec_count; i++) {
+			editorSyntaxCaptureVecFree(&capture_vecs[i]);
+		}
+		return 0;
+	}
 
-	int idx_host = 0;
-	int idx_js = 0;
-	int idx_css = 0;
+	int indices[1 + ROTIDE_SYNTAX_MAX_INJECTION_TREES] = {0};
 	int out_count = 0;
-	while (out_count < max_captures &&
-			(idx_host < host_captures.count || idx_js < js_captures.count ||
-					idx_css < css_captures.count)) {
+	while (out_count < max_captures) {
 		int source_choice = -1;
 		const struct editorSyntaxCapture *choice = NULL;
 
-		if (idx_host < host_captures.count) {
-			choice = &host_captures.items[idx_host];
-			source_choice = 0;
-		}
-		if (idx_js < js_captures.count) {
-			const struct editorSyntaxCapture *candidate = &js_captures.items[idx_js];
-			if (choice == NULL || editorSyntaxCaptureSortKeyCmp(candidate, choice) < 0) {
-				choice = candidate;
-				source_choice = 1;
+		for (int vec_idx = 0; vec_idx < capture_vec_count; vec_idx++) {
+			if (indices[vec_idx] >= capture_vecs[vec_idx].count) {
+				continue;
 			}
-		}
-		if (idx_css < css_captures.count) {
-			const struct editorSyntaxCapture *candidate = &css_captures.items[idx_css];
+			const struct editorSyntaxCapture *candidate =
+					&capture_vecs[vec_idx].items[indices[vec_idx]];
 			if (choice == NULL || editorSyntaxCaptureSortKeyCmp(candidate, choice) < 0) {
 				choice = candidate;
-				source_choice = 2;
+				source_choice = vec_idx;
 			}
 		}
 
@@ -2300,21 +2460,15 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 			break;
 		}
 		captures[out_count++] = *choice;
-		if (source_choice == 0) {
-			idx_host++;
-		} else if (source_choice == 1) {
-			idx_js++;
-		} else {
-			idx_css++;
-		}
+		indices[source_choice]++;
 	}
 
 	if (count_out != NULL) {
 		*count_out = out_count;
 	}
-	editorSyntaxCaptureVecFree(&host_captures);
-	editorSyntaxCaptureVecFree(&js_captures);
-	editorSyntaxCaptureVecFree(&css_captures);
+	for (int i = 0; i < capture_vec_count; i++) {
+		editorSyntaxCaptureVecFree(&capture_vecs[i]);
+	}
 	return 1;
 }
 
@@ -2399,6 +2553,8 @@ void editorSyntaxReleaseSharedResources(void) {
 	editorSyntaxClearQueryCacheEntry(&g_javascript_locals_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_typescript_locals_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_html_injection_query_cache);
+	editorSyntaxClearQueryCacheEntry(&g_ejs_injection_query_cache);
+	editorSyntaxClearQueryCacheEntry(&g_erb_injection_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_csharp_highlight_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_haskell_highlight_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_ruby_highlight_query_cache);

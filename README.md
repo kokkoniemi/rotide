@@ -53,7 +53,7 @@ ASAN_OPTIONS=detect_leaks=0 make test-sanitize
   - C/C++ (`.c`, `.h`, `.cc`, `.cpp`, `.cxx`, `.c++`, `.hh`, `.hpp`, `.hxx`)
   - Go (`.go`, `go.mod`, `go.sum`)
   - Shell (`.sh`, rc files, extensionless shebang scripts)
-  - HTML (`.html`, `.htm`, `.xhtml`)
+  - HTML (`.html`, `.htm`, `.xhtml`) with JavaScript/CSS injection highlighting
   - JavaScript (`.js`, `.mjs`, `.cjs`, `.jsx`) with tree-sitter-jsdoc tag/type highlighting in doc comments
   - TypeScript (`.ts`, `.tsx`, `.cts`, `.mts`) with tree-sitter-jsdoc tag/type highlighting in doc comments
   - CSS (`.css`, `.scss`)
@@ -68,8 +68,8 @@ ASAN_OPTIONS=detect_leaks=0 make test-sanitize
   - OCaml (`.ml`)
   - Julia (`.jl`)
   - Scala (`.scala`, `.sc`)
-  - EJS (`.ejs`) — tag delimiters and comment directives only; HTML/JS bodies are not yet injection-highlighted
-  - ERB (`.erb`) — tag delimiters and comment directives only; HTML/Ruby bodies are not yet injection-highlighted
+  - EJS (`.ejs`) with injected HTML, JavaScript, and nested HTML JavaScript/CSS highlighting
+  - ERB (`.erb`) with injected HTML, Ruby, and nested HTML JavaScript/CSS highlighting
   - Regex (`.regex`)
 - Go LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `gopls`.
 - C/C++ LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `clangd`.
@@ -248,7 +248,7 @@ This section names the core concepts used throughout the codebase.
 ### Syntax state
 
 - Per-tab `editorSyntaxState` in [`src/language/syntax.c`](src/language/syntax.c).
-- Tree-sitter host parse plus optional HTML injections (JS/CSS).
+- Tree-sitter host parse plus generic tab-local injection trees for HTML/EJS/ERB nested highlighting.
 - Query and parse budgets support graceful degraded modes instead of immediate hard disable for moderate file sizes.
 
 ### LSP state

@@ -5,7 +5,8 @@ enum editorSyntaxCaptureRole {
 	EDITOR_SYNTAX_CAPTURE_ROLE_LOCAL_SCOPE,
 	EDITOR_SYNTAX_CAPTURE_ROLE_LOCAL_DEFINITION,
 	EDITOR_SYNTAX_CAPTURE_ROLE_LOCAL_REFERENCE,
-	EDITOR_SYNTAX_CAPTURE_ROLE_INJECTION_CONTENT
+	EDITOR_SYNTAX_CAPTURE_ROLE_INJECTION_CONTENT,
+	EDITOR_SYNTAX_CAPTURE_ROLE_INJECTION_LANGUAGE
 };
 
 #define ROTIDE_SYNTAX_PERF_DEGRADED_PREDICATES_BYTES ((size_t)(512 * 1024))
@@ -43,18 +44,27 @@ struct editorSyntaxParsedTree {
 	uint64_t revision;
 };
 
+struct editorSyntaxInjectedTree {
+	struct editorSyntaxParsedTree parsed;
+	struct editorSyntaxLocalsContext locals;
+	uint64_t locals_revision;
+	int locals_valid;
+	int active;
+	int depth;
+};
+
+#define ROTIDE_SYNTAX_MAX_INJECTION_TREES 16
+#define ROTIDE_SYNTAX_MAX_INJECTION_DEPTH 3
+
 struct editorSyntaxState {
 	enum editorSyntaxLanguage language;
 	struct editorSyntaxParsedTree host;
-	struct editorSyntaxParsedTree javascript_injection;
-	struct editorSyntaxParsedTree css_injection;
 	struct editorSyntaxParsedTree jsdoc_injection;
 	struct editorSyntaxLocalsContext host_locals;
-	struct editorSyntaxLocalsContext injection_javascript_locals;
+	struct editorSyntaxInjectedTree injections[ROTIDE_SYNTAX_MAX_INJECTION_TREES];
+	int injection_count;
 	uint64_t host_locals_revision;
-	uint64_t injection_javascript_locals_revision;
 	int host_locals_valid;
-	int injection_javascript_locals_valid;
 	int perf_disable_predicates;
 	int perf_disable_injections;
 	enum editorSyntaxPerformanceMode perf_mode;
@@ -76,6 +86,7 @@ struct editorSyntaxQueryCacheEntry {
 	enum editorSyntaxHighlightClass *capture_classes;
 	uint8_t *capture_roles;
 	char **pattern_injection_languages;
+	uint8_t *pattern_injection_combined;
 	uint32_t capture_count;
 	uint32_t pattern_count;
 	regex_t *compiled_regexes;
@@ -147,6 +158,8 @@ static struct editorSyntaxQueryCacheEntry g_erb_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_javascript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_typescript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_html_injection_query_cache = {0};
+static struct editorSyntaxQueryCacheEntry g_ejs_injection_query_cache = {0};
+static struct editorSyntaxQueryCacheEntry g_erb_injection_query_cache = {0};
 
 static struct {
 	int enabled;
@@ -547,6 +560,22 @@ static const char editor_builtin_html_injections_query[] =
 		"((style_element (raw_text) @injection.content)\n"
 		" (#set! injection.language \"css\"))\n";
 
+static const char editor_builtin_ejs_injections_query[] =
+		"((content) @injection.content\n"
+		" (#set! injection.language \"html\")\n"
+		" (#set! injection.combined))\n"
+		"((code) @injection.content\n"
+		" (#set! injection.language \"javascript\")\n"
+		" (#set! injection.combined))\n";
+
+static const char editor_builtin_erb_injections_query[] =
+		"((content) @injection.content\n"
+		" (#set! injection.language \"html\")\n"
+		" (#set! injection.combined))\n"
+		"((code) @injection.content\n"
+		" (#set! injection.language \"ruby\")\n"
+		" (#set! injection.combined))\n";
+
 static const char *const g_c_highlight_query_paths[] = {
 	"vendor/tree_sitter/grammars/c/queries/highlights.scm"
 };
@@ -656,6 +685,14 @@ static const char *const g_erb_highlight_query_paths[] = {
 
 static const char *const g_html_injection_query_paths[] = {
 	"vendor/tree_sitter/grammars/html/queries/injections.scm"
+};
+
+static const char *const g_ejs_injection_query_paths[] = {
+	"vendor/tree_sitter/grammars/embedded_template/queries/injections-ejs.scm"
+};
+
+static const char *const g_erb_injection_query_paths[] = {
+	"vendor/tree_sitter/grammars/embedded_template/queries/injections-erb.scm"
 };
 
 static int editorSyntaxStringEquals(const char *s, size_t len, const char *literal) {
@@ -1226,6 +1263,8 @@ static int editorSyntaxPopulateInjectionCaptureRoles(TSQuery *query, uint8_t **c
 			const char *name = ts_query_capture_name_for_id(query, i, &name_len);
 			if (editorSyntaxCaptureNameHasPrefix(name, name_len, "injection.content")) {
 				capture_roles[i] = EDITOR_SYNTAX_CAPTURE_ROLE_INJECTION_CONTENT;
+			} else if (editorSyntaxCaptureNameHasPrefix(name, name_len, "injection.language")) {
+				capture_roles[i] = EDITOR_SYNTAX_CAPTURE_ROLE_INJECTION_LANGUAGE;
 			}
 		}
 	}
@@ -1236,18 +1275,28 @@ static int editorSyntaxPopulateInjectionCaptureRoles(TSQuery *query, uint8_t **c
 }
 
 static int editorSyntaxPopulateInjectionPatternLanguages(TSQuery *query,
-		char ***languages_out, uint32_t *pattern_count_out) {
-	if (query == NULL || languages_out == NULL || pattern_count_out == NULL) {
+		char ***languages_out,
+		uint8_t **combined_out,
+		uint32_t *pattern_count_out) {
+	if (query == NULL || languages_out == NULL || combined_out == NULL ||
+			pattern_count_out == NULL) {
 		return 0;
 	}
 	*languages_out = NULL;
+	*combined_out = NULL;
 	*pattern_count_out = 0;
 
 	uint32_t pattern_count = ts_query_pattern_count(query);
 	char **languages = NULL;
+	uint8_t *combined = NULL;
 	if (pattern_count > 0) {
 		languages = calloc(pattern_count, sizeof(*languages));
 		if (languages == NULL) {
+			return 0;
+		}
+		combined = calloc(pattern_count, sizeof(*combined));
+		if (combined == NULL) {
+			free(languages);
 			return 0;
 		}
 	}
@@ -1287,12 +1336,31 @@ static int editorSyntaxPopulateInjectionPatternLanguages(TSQuery *query,
 								free(languages[j]);
 							}
 							free(languages);
+							free(combined);
 							return 0;
 						}
 						memcpy(dup, value, value_len);
 						dup[value_len] = '\0';
 						free(languages[pattern_idx]);
 						languages[pattern_idx] = dup;
+					} else if (editorSyntaxStringEquals(key, key_len,
+								"injection.combined")) {
+						combined[pattern_idx] = 1;
+					} else if (editorSyntaxStringEquals(key, key_len,
+								"injection.include-children")) {
+						/* Recorded later when child-inclusive injections are enabled. */
+					}
+				} else if (editorSyntaxStringEquals(cmd, cmd_len, "set!") &&
+						end - start >= 2 &&
+						steps[start + 1].type == TSQueryPredicateStepTypeString) {
+					uint32_t key_len = 0;
+					const char *key = ts_query_string_value_for_id(query,
+							steps[start + 1].value_id, &key_len);
+					if (editorSyntaxStringEquals(key, key_len, "injection.combined")) {
+						combined[pattern_idx] = 1;
+					} else if (editorSyntaxStringEquals(key, key_len,
+								"injection.include-children")) {
+						/* Recognized for future upstream parity; v1 still uses node ranges. */
 					}
 				}
 			}
@@ -1301,6 +1369,7 @@ static int editorSyntaxPopulateInjectionPatternLanguages(TSQuery *query,
 	}
 
 	*languages_out = languages;
+	*combined_out = combined;
 	*pattern_count_out = pattern_count;
 	return 1;
 }
@@ -1339,6 +1408,8 @@ static void editorSyntaxClearQueryCacheEntry(struct editorSyntaxQueryCacheEntry 
 	}
 	free(cache->pattern_injection_languages);
 	cache->pattern_injection_languages = NULL;
+	free(cache->pattern_injection_combined);
+	cache->pattern_injection_combined = NULL;
 	cache->capture_count = 0;
 	cache->pattern_count = 0;
 	cache->load_attempted = 0;
@@ -1379,6 +1450,7 @@ static int editorSyntaxEnsureQueryCache(struct editorSyntaxQueryCacheEntry *cach
 	enum editorSyntaxHighlightClass *capture_classes = NULL;
 	uint8_t *capture_roles = NULL;
 	char **pattern_languages = NULL;
+	uint8_t *pattern_combined = NULL;
 	uint32_t capture_count = 0;
 	uint32_t pattern_count = 0;
 	uint32_t string_count = ts_query_string_count(query);
@@ -1408,7 +1480,7 @@ static int editorSyntaxEnsureQueryCache(struct editorSyntaxQueryCacheEntry *cach
 
 	if (want_injection_languages &&
 			!editorSyntaxPopulateInjectionPatternLanguages(query, &pattern_languages,
-					&pattern_count)) {
+					&pattern_combined, &pattern_count)) {
 		free(capture_classes);
 		free(capture_roles);
 		ts_query_delete(query);
@@ -1433,6 +1505,7 @@ static int editorSyntaxEnsureQueryCache(struct editorSyntaxQueryCacheEntry *cach
 				}
 			}
 			free(pattern_languages);
+			free(pattern_combined);
 			ts_query_delete(query);
 			return 0;
 		}
@@ -1442,6 +1515,7 @@ static int editorSyntaxEnsureQueryCache(struct editorSyntaxQueryCacheEntry *cach
 	cache->capture_classes = capture_classes;
 	cache->capture_roles = capture_roles;
 	cache->pattern_injection_languages = pattern_languages;
+	cache->pattern_injection_combined = pattern_combined;
 	cache->capture_count = capture_count;
 	cache->pattern_count = pattern_count;
 	cache->compiled_regexes = compiled_regexes;
@@ -1661,14 +1735,49 @@ static int editorSyntaxEnsureLocalsQuery(enum editorSyntaxLanguage language) {
 	}
 }
 
-static int editorSyntaxEnsureHtmlInjectionQuery(void) {
-	return editorSyntaxEnsureQueryCache(&g_html_injection_query_cache,
-			EDITOR_SYNTAX_HTML,
-			g_html_injection_query_paths,
-			(int)(sizeof(g_html_injection_query_paths) /
-				sizeof(g_html_injection_query_paths[0])),
-			editor_builtin_html_injections_query,
-			0, 0, 1, 1);
+static int editorSyntaxEnsureInjectionQuery(enum editorSyntaxLanguage language) {
+	switch (language) {
+		case EDITOR_SYNTAX_HTML:
+			return editorSyntaxEnsureQueryCache(&g_html_injection_query_cache,
+					EDITOR_SYNTAX_HTML,
+					g_html_injection_query_paths,
+					(int)(sizeof(g_html_injection_query_paths) /
+						sizeof(g_html_injection_query_paths[0])),
+					editor_builtin_html_injections_query,
+					0, 0, 1, 1);
+		case EDITOR_SYNTAX_EJS:
+			return editorSyntaxEnsureQueryCache(&g_ejs_injection_query_cache,
+					EDITOR_SYNTAX_EJS,
+					g_ejs_injection_query_paths,
+					(int)(sizeof(g_ejs_injection_query_paths) /
+						sizeof(g_ejs_injection_query_paths[0])),
+					editor_builtin_ejs_injections_query,
+					0, 0, 1, 1);
+		case EDITOR_SYNTAX_ERB:
+			return editorSyntaxEnsureQueryCache(&g_erb_injection_query_cache,
+					EDITOR_SYNTAX_ERB,
+					g_erb_injection_query_paths,
+					(int)(sizeof(g_erb_injection_query_paths) /
+						sizeof(g_erb_injection_query_paths[0])),
+					editor_builtin_erb_injections_query,
+					0, 0, 1, 1);
+		default:
+			return 0;
+	}
+}
+
+static const struct editorSyntaxQueryCacheEntry *editorSyntaxInjectionQueryCacheForLanguage(
+		enum editorSyntaxLanguage language) {
+	switch (language) {
+		case EDITOR_SYNTAX_HTML:
+			return &g_html_injection_query_cache;
+		case EDITOR_SYNTAX_EJS:
+			return &g_ejs_injection_query_cache;
+		case EDITOR_SYNTAX_ERB:
+			return &g_erb_injection_query_cache;
+		default:
+			return NULL;
+	}
 }
 
 static const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCacheForLanguage(
@@ -1769,7 +1878,9 @@ static struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(c
 		&g_erb_highlight_query_cache,
 		&g_javascript_locals_query_cache,
 		&g_typescript_locals_query_cache,
-		&g_html_injection_query_cache
+		&g_html_injection_query_cache,
+		&g_ejs_injection_query_cache,
+		&g_erb_injection_query_cache
 	};
 
 	for (size_t i = 0; i < sizeof(all) / sizeof(all[0]); i++) {

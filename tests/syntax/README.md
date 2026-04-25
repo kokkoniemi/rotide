@@ -25,6 +25,7 @@ Notes:
 - `planned/*` is scaffolding only and does not imply runtime syntax support yet.
 - SCSS coverage lives under `supported/css/`; `.sass` is intentionally out of scope.
 - JSDoc coverage lives under `supported/javascript/` and `supported/typescript/`; it is parser-backed doc-comment highlighting via tree-sitter-jsdoc, not standalone file detection.
+- EJS/ERB coverage includes generic injection highlighting: template tags, injected HTML, nested `<script>` JavaScript, nested `<style>` CSS, and template-code JavaScript/Ruby.
 - Tests resolve these fixtures from the startup repo root so they keep working even if a test temporarily changes the current working directory.
 
 Planned placeholder directories:

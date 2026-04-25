@@ -518,6 +518,13 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_ejs_tokens
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[94m<%#\x1b[90m greeting \x1b[94m%>") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[94m<%=\x1b[39m name \x1b[94m%>") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96msection\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[91mclass\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mif\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mconst\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m42\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mdocument\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mcolor\x1b[39m") != NULL);
 	free(output);
 
 	ASSERT_TRUE(unlink(path) == 0);
@@ -539,7 +546,15 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_erb_tokens
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[94m<%#\x1b[90m greeting \x1b[94m%>") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[94m<%=\x1b[39m name \x1b[94m%>") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94m<%=\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96msection\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[91mclass\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mif\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[93mupcase\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mconst\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m42\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mdocument\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mcolor\x1b[39m") != NULL);
 	free(output);
 
 	ASSERT_TRUE(unlink(path) == 0);
