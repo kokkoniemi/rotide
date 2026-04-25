@@ -282,6 +282,9 @@ enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *fil
 	if (dot != NULL && strcmp(dot, ".ejs") == 0) {
 		return EDITOR_SYNTAX_EJS;
 	}
+	if (dot != NULL && strcmp(dot, ".erb") == 0) {
+		return EDITOR_SYNTAX_ERB;
+	}
 
 	const char *base = strrchr(filename, '/');
 	if (base != NULL) {

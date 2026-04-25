@@ -429,6 +429,22 @@ static int test_editor_syntax_activation_for_ejs_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_erb_files(void) {
+	char erb_path[] = "/tmp/rotide-test-syntax-erb-XXXXXX.erb";
+	ASSERT_TRUE(write_fixture_to_temp_path(erb_path, 4,
+			"tests/syntax/supported/erb/activation.erb"));
+
+	editorOpen(erb_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ERB, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("template", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(erb_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_scala_files(void) {
 	char scala_path[] = "/tmp/rotide-test-syntax-scala-XXXXXX.scala";
 	ASSERT_TRUE(write_fixture_to_temp_path(scala_path, 6,
@@ -1239,6 +1255,32 @@ static int test_editor_syntax_incremental_edits_keep_ejs_tree_valid(void) {
 	return 0;
 }
 
+static int test_editor_syntax_incremental_edits_keep_erb_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-erb-XXXXXX.erb";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+			"tests/syntax/supported/erb/incremental.erb"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_ERB, editorSyntaxLanguageActive());
+
+	E.cy = 0;
+	E.cx = 4;
+	editorInsertChar(' ');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = E.rows[0].size;
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_incremental_edits_keep_scala_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-scala-XXXXXX.scala";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 6,
@@ -1689,6 +1731,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_activation_for_julia_files", test_editor_syntax_activation_for_julia_files},
 	{"editor_syntax_activation_for_scala_files", test_editor_syntax_activation_for_scala_files},
 	{"editor_syntax_activation_for_ejs_files", test_editor_syntax_activation_for_ejs_files},
+	{"editor_syntax_activation_for_erb_files", test_editor_syntax_activation_for_erb_files},
 	{"editor_syntax_activation_for_regex_files", test_editor_syntax_activation_for_regex_files},
 	{"editor_syntax_activation_for_go_and_mod_files", test_editor_syntax_activation_for_go_and_mod_files},
 	{"editor_syntax_disabled_for_non_c_or_shell_files", test_editor_syntax_disabled_for_non_c_or_shell_files},
@@ -1715,6 +1758,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_incremental_edits_keep_julia_tree_valid", test_editor_syntax_incremental_edits_keep_julia_tree_valid},
 	{"editor_syntax_incremental_edits_keep_scala_tree_valid", test_editor_syntax_incremental_edits_keep_scala_tree_valid},
 	{"editor_syntax_incremental_edits_keep_ejs_tree_valid", test_editor_syntax_incremental_edits_keep_ejs_tree_valid},
+	{"editor_syntax_incremental_edits_keep_erb_tree_valid", test_editor_syntax_incremental_edits_keep_erb_tree_valid},
 	{"editor_syntax_incremental_edits_keep_regex_tree_valid", test_editor_syntax_incremental_edits_keep_regex_tree_valid},
 	{"editor_syntax_query_budget_match_limit_is_graceful", test_editor_syntax_query_budget_match_limit_is_graceful},
 	{"editor_syntax_parse_budget_is_graceful", test_editor_syntax_parse_budget_is_graceful},

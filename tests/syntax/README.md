@@ -17,6 +17,8 @@ Current fixture-to-editor mapping:
 - `supported/json/` maps to `EDITOR_SYNTAX_JSON`
 - `supported/typescript/` maps to `EDITOR_SYNTAX_TYPESCRIPT`
 - `supported/python/` maps to `EDITOR_SYNTAX_PYTHON`
+- `supported/erb/` maps to `EDITOR_SYNTAX_ERB`
+- `supported/ejs/` maps to `EDITOR_SYNTAX_EJS`
 
 Notes:
 
@@ -27,8 +29,6 @@ Notes:
 Planned placeholder directories:
 
 - `csharp`
-- `erb`
-- `ejs`
 - `haskell`
 - `java`
 - `jsdoc`

@@ -142,7 +142,8 @@ enum editorSyntaxLanguage {
 	EDITOR_SYNTAX_OCAML,
 	EDITOR_SYNTAX_JULIA,
 	EDITOR_SYNTAX_SCALA,
-	EDITOR_SYNTAX_EJS
+	EDITOR_SYNTAX_EJS,
+	EDITOR_SYNTAX_ERB
 };
 
 enum editorSyntaxHighlightClass {
