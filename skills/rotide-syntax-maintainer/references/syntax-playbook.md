@@ -42,6 +42,7 @@
 - Haskell (`.hs`, `.lhs`) — extern parser `tree_sitter_haskell`; grammar ships an indentation-aware external scanner plus a vendored `unicode.h` next to `parser.c`/`scanner.c`
 - Ruby (`.rb`, `.rake`, `.gemspec`, `.ru`, plus `Rakefile`/`Gemfile`/`Guardfile`/`Capfile`/`Vagrantfile`, extensionless shebang detection for `ruby`) — extern parser `tree_sitter_ruby`; grammar ships an external scanner alongside `parser.c`/`scanner.c`
 - OCaml (`.ml`) — extern parser `tree_sitter_ocaml`; upstream ships sub-grammars under `grammars/<name>/` (`ocaml`, `interface`, `type`); only `ocaml/` is vendored. Shared `common/scanner.h` lives at the repo root and `src/scanner.c` includes it as `"../../../common/scanner.h"`; the refresh script vendors the shared `common/` next to `src/` and patches the include down to `"../common/scanner.h"`. Top-level `queries/` is staged into `grammars/ocaml/queries/` before sync so highlights ship with the grammar.
+- Julia (`.jl`) — extern parser `tree_sitter_julia`; standard layout (no shared `common/`, no sub-grammars). Grammar root is `source_file`. Upstream `highlights.scm` uses many capture names (`@variable`, `@variable.member`, `@function.call`, `@function.macro`, `@type.builtin`, `@keyword.conditional`, etc.) that don't match rotide's prefix table; the builtin fallback query targets a recognized subset (`@comment`, `@string`, `@number`, `@constant`, `@function`, `@type`, `@keyword`, `@operator`, `@punctuation`).
 - Regex (`.regex`)
 
 ## Per-grammar `common/` convention

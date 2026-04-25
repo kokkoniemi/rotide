@@ -137,6 +137,7 @@ static struct editorSyntaxQueryCacheEntry g_csharp_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_haskell_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_ruby_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_ocaml_highlight_query_cache = {0};
+static struct editorSyntaxQueryCacheEntry g_julia_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_javascript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_typescript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_html_injection_query_cache = {0};
@@ -387,6 +388,38 @@ static const char editor_builtin_haskell_highlights_query[] =
 		" \"anyclass\" \"forall\" \"infix\" \"infixl\" \"infixr\" \"pattern\" \"mdo\"\n"
 		" \"rec\"] @keyword\n";
 
+static const char editor_builtin_julia_highlights_query[] =
+		"[(line_comment) (block_comment)] @comment\n"
+		"(string_literal) @string\n"
+		"(prefixed_string_literal) @string\n"
+		"(character_literal) @string\n"
+		"(command_literal) @string\n"
+		"(escape_sequence) @string\n"
+		"(integer_literal) @number\n"
+		"(float_literal) @number\n"
+		"(boolean_literal) @constant\n"
+		"((identifier) @constant\n"
+		"  (#any-of? @constant \"nothing\" \"missing\" \"NaN\" \"Inf\"))\n"
+		"(call_expression (identifier) @function)\n"
+		"(call_expression (field_expression (identifier) @function .))\n"
+		"(broadcast_call_expression (identifier) @function)\n"
+		"(broadcast_call_expression (field_expression (identifier) @function .))\n"
+		"(macro_identifier \"@\" @function (identifier) @function)\n"
+		"(macro_definition (signature (call_expression . (identifier) @function)))\n"
+		"(function_definition (signature (call_expression . (identifier) @function)))\n"
+		"(type_head (_) @type)\n"
+		"(parametrized_type_expression (identifier) @type)\n"
+		"(typed_expression (identifier) @type .)\n"
+		"(field_expression (identifier) @property .)\n"
+		"[\"abstract\" \"baremodule\" \"begin\" \"break\" \"catch\" \"const\" \"continue\"\n"
+		" \"do\" \"else\" \"elseif\" \"end\" \"export\" \"finally\" \"for\" \"function\"\n"
+		" \"global\" \"if\" \"import\" \"in\" \"isa\" \"let\" \"local\" \"macro\" \"module\"\n"
+		" \"mutable\" \"primitive\" \"public\" \"quote\" \"return\" \"struct\" \"try\"\n"
+		" \"type\" \"using\" \"where\" \"while\" \"as\" \"outer\"] @keyword\n"
+		"(operator) @operator\n"
+		"[\".\" \"...\" \",\" \";\" \"::\"] @punctuation\n"
+		"[\"(\" \")\" \"[\" \"]\" \"{\" \"}\"] @punctuation\n";
+
 static const char editor_builtin_ocaml_highlights_query[] =
 		"(comment) @comment\n"
 		"[(string) (character) (quoted_string)] @string\n"
@@ -550,6 +583,10 @@ static const char *const g_ruby_highlight_query_paths[] = {
 
 static const char *const g_ocaml_highlight_query_paths[] = {
 	"vendor/tree_sitter/grammars/ocaml/queries/highlights.scm"
+};
+
+static const char *const g_julia_highlight_query_paths[] = {
+	"vendor/tree_sitter/grammars/julia/queries/highlights.scm"
 };
 
 static const char *const g_html_injection_query_paths[] = {
@@ -1001,6 +1038,8 @@ static const TSLanguage *editorSyntaxLanguageObject(enum editorSyntaxLanguage la
 			return tree_sitter_ruby();
 		case EDITOR_SYNTAX_OCAML:
 			return tree_sitter_ocaml();
+		case EDITOR_SYNTAX_JULIA:
+			return tree_sitter_julia();
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return NULL;
@@ -1481,6 +1520,14 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 						sizeof(g_ocaml_highlight_query_paths[0])),
 					editor_builtin_ocaml_highlights_query,
 					1, 0, 0, 0);
+		case EDITOR_SYNTAX_JULIA:
+			return editorSyntaxEnsureQueryCache(&g_julia_highlight_query_cache,
+					EDITOR_SYNTAX_JULIA,
+					g_julia_highlight_query_paths,
+					(int)(sizeof(g_julia_highlight_query_paths) /
+						sizeof(g_julia_highlight_query_paths[0])),
+					editor_builtin_julia_highlights_query,
+					1, 0, 0, 0);
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return 0;
@@ -1559,6 +1606,8 @@ static const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCache
 			return &g_ruby_highlight_query_cache;
 		case EDITOR_SYNTAX_OCAML:
 			return &g_ocaml_highlight_query_cache;
+		case EDITOR_SYNTAX_JULIA:
+			return &g_julia_highlight_query_cache;
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return NULL;
@@ -1601,6 +1650,7 @@ static struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(c
 		&g_haskell_highlight_query_cache,
 		&g_ruby_highlight_query_cache,
 		&g_ocaml_highlight_query_cache,
+		&g_julia_highlight_query_cache,
 		&g_javascript_locals_query_cache,
 		&g_typescript_locals_query_cache,
 		&g_html_injection_query_cache

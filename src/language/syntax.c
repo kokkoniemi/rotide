@@ -31,6 +31,7 @@ extern const TSLanguage *tree_sitter_c_sharp(void);
 extern const TSLanguage *tree_sitter_haskell(void);
 extern const TSLanguage *tree_sitter_ruby(void);
 extern const TSLanguage *tree_sitter_ocaml(void);
+extern const TSLanguage *tree_sitter_julia(void);
 
 #include "language/syntax_queries.c"
 
@@ -269,6 +270,9 @@ enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *fil
 	}
 	if (dot != NULL && strcmp(dot, ".ml") == 0) {
 		return EDITOR_SYNTAX_OCAML;
+	}
+	if (dot != NULL && strcmp(dot, ".jl") == 0) {
+		return EDITOR_SYNTAX_JULIA;
 	}
 
 	const char *base = strrchr(filename, '/');
@@ -2251,4 +2255,5 @@ void editorSyntaxReleaseSharedResources(void) {
 	editorSyntaxClearQueryCacheEntry(&g_haskell_highlight_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_ruby_highlight_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_ocaml_highlight_query_cache);
+	editorSyntaxClearQueryCacheEntry(&g_julia_highlight_query_cache);
 }

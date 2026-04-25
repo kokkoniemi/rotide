@@ -413,6 +413,22 @@ static int test_editor_syntax_activation_for_ocaml_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_julia_files(void) {
+	char jl_path[] = "/tmp/rotide-test-syntax-julia-XXXXXX.jl";
+	ASSERT_TRUE(write_fixture_to_temp_path(jl_path, 3,
+			"tests/syntax/supported/julia/activation.jl"));
+
+	editorOpen(jl_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_JULIA, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("source_file", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(jl_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_regex_files(void) {
 	char regex_path[] = "/tmp/rotide-test-syntax-regex-XXXXXX.regex";
 	ASSERT_TRUE(write_fixture_to_temp_path(regex_path, 6,
@@ -1165,6 +1181,32 @@ static int test_editor_syntax_incremental_edits_keep_ocaml_tree_valid(void) {
 	return 0;
 }
 
+static int test_editor_syntax_incremental_edits_keep_julia_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-julia-XXXXXX.jl";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/julia/incremental.jl"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_JULIA, editorSyntaxLanguageActive());
+
+	E.cy = 0;
+	E.cx = 1;
+	editorInsertChar('y');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = E.rows[0].size;
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_incremental_edits_keep_regex_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-regex-XXXXXX.regex";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 6,
@@ -1560,6 +1602,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_activation_for_haskell_files", test_editor_syntax_activation_for_haskell_files},
 	{"editor_syntax_activation_for_ruby_files", test_editor_syntax_activation_for_ruby_files},
 	{"editor_syntax_activation_for_ocaml_files", test_editor_syntax_activation_for_ocaml_files},
+	{"editor_syntax_activation_for_julia_files", test_editor_syntax_activation_for_julia_files},
 	{"editor_syntax_activation_for_regex_files", test_editor_syntax_activation_for_regex_files},
 	{"editor_syntax_activation_for_go_and_mod_files", test_editor_syntax_activation_for_go_and_mod_files},
 	{"editor_syntax_disabled_for_non_c_or_shell_files", test_editor_syntax_disabled_for_non_c_or_shell_files},
@@ -1583,6 +1626,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_incremental_edits_keep_haskell_tree_valid", test_editor_syntax_incremental_edits_keep_haskell_tree_valid},
 	{"editor_syntax_incremental_edits_keep_ruby_tree_valid", test_editor_syntax_incremental_edits_keep_ruby_tree_valid},
 	{"editor_syntax_incremental_edits_keep_ocaml_tree_valid", test_editor_syntax_incremental_edits_keep_ocaml_tree_valid},
+	{"editor_syntax_incremental_edits_keep_julia_tree_valid", test_editor_syntax_incremental_edits_keep_julia_tree_valid},
 	{"editor_syntax_incremental_edits_keep_regex_tree_valid", test_editor_syntax_incremental_edits_keep_regex_tree_valid},
 	{"editor_syntax_query_budget_match_limit_is_graceful", test_editor_syntax_query_budget_match_limit_is_graceful},
 	{"editor_syntax_parse_budget_is_graceful", test_editor_syntax_parse_budget_is_graceful},

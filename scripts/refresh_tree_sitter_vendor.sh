@@ -202,6 +202,7 @@ CSHARP_GRAMMAR_SRC=""
 HASKELL_GRAMMAR_SRC=""
 RUBY_GRAMMAR_SRC=""
 OCAML_GRAMMAR_SRC=""
+JULIA_GRAMMAR_SRC=""
 
 download_repo_tarball "tree-sitter/tree-sitter" "${TREE_SITTER_RUNTIME_REF}" RUNTIME_SRC
 download_repo_tarball "tree-sitter/tree-sitter-c" "${TREE_SITTER_C_GRAMMAR_REF}" C_GRAMMAR_SRC
@@ -222,6 +223,7 @@ download_repo_tarball "tree-sitter/tree-sitter-c-sharp" "${TREE_SITTER_CSHARP_GR
 download_repo_tarball "tree-sitter/tree-sitter-haskell" "${TREE_SITTER_HASKELL_GRAMMAR_REF}" HASKELL_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-ruby" "${TREE_SITTER_RUBY_GRAMMAR_REF}" RUBY_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-ocaml" "${TREE_SITTER_OCAML_GRAMMAR_REF}" OCAML_GRAMMAR_SRC
+download_repo_tarball "tree-sitter/tree-sitter-julia" "${TREE_SITTER_JULIA_GRAMMAR_REF}" JULIA_GRAMMAR_SRC
 
 if [[ ! -d "${RUNTIME_SRC}/lib/src" || ! -f "${RUNTIME_SRC}/lib/include/tree_sitter/api.h" ]]; then
 	echo "Runtime source layout not found in ${TREE_SITTER_RUNTIME_REF}" >&2
@@ -256,6 +258,7 @@ regenerate_parser "${RUBY_GRAMMAR_SRC}" "Ruby"
 # tree-sitter-ocaml ships sub-grammars under grammars/<name>/ (ocaml, interface,
 # type). Only the ocaml sub-grammar is vendored; regenerate from there.
 regenerate_parser "${OCAML_GRAMMAR_SRC}/grammars/ocaml" "OCaml"
+regenerate_parser "${JULIA_GRAMMAR_SRC}" "Julia"
 
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
@@ -314,6 +317,7 @@ cp -R "${OCAML_GRAMMAR_SRC}/common" "${REPO_ROOT}/vendor/tree_sitter/grammars/oc
 sed -i.bak 's|\.\./\.\./\.\./common/scanner\.h|../common/scanner.h|' \
 	"${REPO_ROOT}/vendor/tree_sitter/grammars/ocaml/src/scanner.c"
 rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/ocaml/src/scanner.c.bak"
+sync_grammar_vendor "${JULIA_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/julia"
 
 echo "Tree-sitter vendor refresh complete." >&2
 echo "If you changed refs/releases, update vendor/tree_sitter/VERSIONS.env and VERSIONS.md." >&2

@@ -21,6 +21,7 @@ Pinned source/tooling used by this repository:
 - Tree-sitter Haskell grammar source ref: `c30d812bc90827f1a54106a25bc9a6307f5cdcec` (`tree-sitter-haskell-v0.23.1-c30d812`)
 - Tree-sitter Ruby grammar source ref: `71bd32fb7607035768799732addba884a37a6210` (`tree-sitter-ruby-v0.23.1-71bd32f`)
 - Tree-sitter OCaml grammar source ref: `0cc270ff90ca09c29d0f2f9dec69ddfef55a3eff` (`tree-sitter-ocaml-v0.24.2-0cc270f`)
+- Tree-sitter Julia grammar source ref: `e0f9dcd180fdcfcfa8d79a3531e11d99e79321d3` (`tree-sitter-julia-v0.25.0-e0f9dcd`)
 - Tree-sitter CLI release for regeneration: `v0.26.8`
 
 The machine-readable source of truth is [`VERSIONS.env`](./VERSIONS.env).
