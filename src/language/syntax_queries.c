@@ -136,6 +136,7 @@ static struct editorSyntaxQueryCacheEntry g_regex_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_csharp_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_haskell_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_ruby_highlight_query_cache = {0};
+static struct editorSyntaxQueryCacheEntry g_ocaml_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_javascript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_typescript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_html_injection_query_cache = {0};
@@ -386,6 +387,28 @@ static const char editor_builtin_haskell_highlights_query[] =
 		" \"anyclass\" \"forall\" \"infix\" \"infixl\" \"infixr\" \"pattern\" \"mdo\"\n"
 		" \"rec\"] @keyword\n";
 
+static const char editor_builtin_ocaml_highlights_query[] =
+		"(comment) @comment\n"
+		"[(string) (character) (quoted_string)] @string\n"
+		"(escape_sequence) @string\n"
+		"[(number) (signed_number)] @number\n"
+		"(boolean) @constant\n"
+		"[(constructor_name) (tag) (type_constructor) (class_name) (class_type_name)] @type\n"
+		"(let_binding pattern: (value_name) @function (parameter))\n"
+		"(let_binding pattern: (value_name) @function\n"
+		"  body: [(fun_expression) (function_expression)])\n"
+		"(application_expression function: (value_path (value_name) @function))\n"
+		"(method_name) @function\n"
+		"[(label_name) (field_name) (instance_variable_name)] @property\n"
+		"(attribute_id) @attribute\n"
+		"[\"and\" \"as\" \"assert\" \"begin\" \"class\" \"constraint\" \"do\" \"done\"\n"
+		" \"downto\" \"effect\" \"else\" \"end\" \"exception\" \"external\" \"for\"\n"
+		" \"fun\" \"function\" \"functor\" \"if\" \"in\" \"include\" \"inherit\"\n"
+		" \"initializer\" \"lazy\" \"let\" \"match\" \"method\" \"module\" \"mutable\"\n"
+		" \"new\" \"nonrec\" \"object\" \"of\" \"open\" \"private\" \"rec\" \"sig\"\n"
+		" \"struct\" \"then\" \"to\" \"try\" \"type\" \"val\" \"virtual\" \"when\"\n"
+		" \"while\" \"with\"] @keyword\n";
+
 static const char editor_builtin_ruby_highlights_query[] =
 		"(comment) @comment\n"
 		"[(string) (bare_string) (subshell) (heredoc_body) (heredoc_beginning)] @string\n"
@@ -523,6 +546,10 @@ static const char *const g_haskell_highlight_query_paths[] = {
 
 static const char *const g_ruby_highlight_query_paths[] = {
 	"vendor/tree_sitter/grammars/ruby/queries/highlights.scm"
+};
+
+static const char *const g_ocaml_highlight_query_paths[] = {
+	"vendor/tree_sitter/grammars/ocaml/queries/highlights.scm"
 };
 
 static const char *const g_html_injection_query_paths[] = {
@@ -972,6 +999,8 @@ static const TSLanguage *editorSyntaxLanguageObject(enum editorSyntaxLanguage la
 			return tree_sitter_haskell();
 		case EDITOR_SYNTAX_RUBY:
 			return tree_sitter_ruby();
+		case EDITOR_SYNTAX_OCAML:
+			return tree_sitter_ocaml();
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return NULL;
@@ -1444,6 +1473,14 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 						sizeof(g_ruby_highlight_query_paths[0])),
 					editor_builtin_ruby_highlights_query,
 					1, 0, 0, 0);
+		case EDITOR_SYNTAX_OCAML:
+			return editorSyntaxEnsureQueryCache(&g_ocaml_highlight_query_cache,
+					EDITOR_SYNTAX_OCAML,
+					g_ocaml_highlight_query_paths,
+					(int)(sizeof(g_ocaml_highlight_query_paths) /
+						sizeof(g_ocaml_highlight_query_paths[0])),
+					editor_builtin_ocaml_highlights_query,
+					1, 0, 0, 0);
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return 0;
@@ -1520,6 +1557,8 @@ static const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCache
 			return &g_haskell_highlight_query_cache;
 		case EDITOR_SYNTAX_RUBY:
 			return &g_ruby_highlight_query_cache;
+		case EDITOR_SYNTAX_OCAML:
+			return &g_ocaml_highlight_query_cache;
 		case EDITOR_SYNTAX_NONE:
 		default:
 			return NULL;
@@ -1561,6 +1600,7 @@ static struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(c
 		&g_csharp_highlight_query_cache,
 		&g_haskell_highlight_query_cache,
 		&g_ruby_highlight_query_cache,
+		&g_ocaml_highlight_query_cache,
 		&g_javascript_locals_query_cache,
 		&g_typescript_locals_query_cache,
 		&g_html_injection_query_cache

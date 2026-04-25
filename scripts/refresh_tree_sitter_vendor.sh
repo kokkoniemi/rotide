@@ -201,6 +201,7 @@ REGEX_GRAMMAR_SRC=""
 CSHARP_GRAMMAR_SRC=""
 HASKELL_GRAMMAR_SRC=""
 RUBY_GRAMMAR_SRC=""
+OCAML_GRAMMAR_SRC=""
 
 download_repo_tarball "tree-sitter/tree-sitter" "${TREE_SITTER_RUNTIME_REF}" RUNTIME_SRC
 download_repo_tarball "tree-sitter/tree-sitter-c" "${TREE_SITTER_C_GRAMMAR_REF}" C_GRAMMAR_SRC
@@ -220,6 +221,7 @@ download_repo_tarball "tree-sitter/tree-sitter-regex" "${TREE_SITTER_REGEX_GRAMM
 download_repo_tarball "tree-sitter/tree-sitter-c-sharp" "${TREE_SITTER_CSHARP_GRAMMAR_REF}" CSHARP_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-haskell" "${TREE_SITTER_HASKELL_GRAMMAR_REF}" HASKELL_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-ruby" "${TREE_SITTER_RUBY_GRAMMAR_REF}" RUBY_GRAMMAR_SRC
+download_repo_tarball "tree-sitter/tree-sitter-ocaml" "${TREE_SITTER_OCAML_GRAMMAR_REF}" OCAML_GRAMMAR_SRC
 
 if [[ ! -d "${RUNTIME_SRC}/lib/src" || ! -f "${RUNTIME_SRC}/lib/include/tree_sitter/api.h" ]]; then
 	echo "Runtime source layout not found in ${TREE_SITTER_RUNTIME_REF}" >&2
@@ -251,6 +253,9 @@ regenerate_parser "${REGEX_GRAMMAR_SRC}" "Regex"
 regenerate_parser "${CSHARP_GRAMMAR_SRC}" "C#"
 regenerate_parser "${HASKELL_GRAMMAR_SRC}" "Haskell"
 regenerate_parser "${RUBY_GRAMMAR_SRC}" "Ruby"
+# tree-sitter-ocaml ships sub-grammars under grammars/<name>/ (ocaml, interface,
+# type). Only the ocaml sub-grammar is vendored; regenerate from there.
+regenerate_parser "${OCAML_GRAMMAR_SRC}/grammars/ocaml" "OCaml"
 
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
@@ -298,6 +303,17 @@ sync_grammar_vendor "${REGEX_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/gram
 sync_grammar_vendor "${CSHARP_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/csharp"
 sync_grammar_vendor "${HASKELL_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/haskell"
 sync_grammar_vendor "${RUBY_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/ruby"
+# tree-sitter-ocaml keeps top-level queries/ separate from grammars/ocaml/src/.
+# Stage them into the sub-grammar so sync_grammar_vendor picks them up.
+cp -R "${OCAML_GRAMMAR_SRC}/queries" "${OCAML_GRAMMAR_SRC}/grammars/ocaml/queries"
+sync_grammar_vendor "${OCAML_GRAMMAR_SRC}/grammars/ocaml" "${REPO_ROOT}/vendor/tree_sitter/grammars/ocaml"
+# scanner.c includes ../../../common/scanner.h; place the shared common/ under
+# ocaml/ and repoint the include so each grammar owns its common/.
+rm -rf "${REPO_ROOT}/vendor/tree_sitter/grammars/ocaml/common"
+cp -R "${OCAML_GRAMMAR_SRC}/common" "${REPO_ROOT}/vendor/tree_sitter/grammars/ocaml/common"
+sed -i.bak 's|\.\./\.\./\.\./common/scanner\.h|../common/scanner.h|' \
+	"${REPO_ROOT}/vendor/tree_sitter/grammars/ocaml/src/scanner.c"
+rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/ocaml/src/scanner.c.bak"
 
 echo "Tree-sitter vendor refresh complete." >&2
 echo "If you changed refs/releases, update vendor/tree_sitter/VERSIONS.env and VERSIONS.md." >&2
