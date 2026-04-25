@@ -30,8 +30,9 @@
 - Go
 - Shell (bash language backend)
 - HTML (with JS/CSS injections)
-- JavaScript (`.js`, `.mjs`, `.cjs`, `.jsx`)
-- TypeScript (`.ts`, `.tsx`, `.cts`, `.mts`) — grammar from tree-sitter-typescript `typescript/` sub-grammar; shared `common/` lives at `vendor/tree_sitter/grammars/common/`
+- JavaScript (`.js`, `.mjs`, `.cjs`, `.jsx`) — JSDoc doc comments remain JavaScript `(comment)` nodes in the host tree, then RotIDE parses each visible `/** ... */` comment with the vendored `tree-sitter-jsdoc` parser and overlays its `tag_name`/`type` captures.
+- TypeScript (`.ts`, `.tsx`, `.cts`, `.mts`) — grammar from tree-sitter-typescript `typescript/` sub-grammar; shared `common/` lives at `vendor/tree_sitter/grammars/typescript/common/`. Uses the same vendored `tree-sitter-jsdoc` doc-comment overlay as JavaScript.
+- JSDoc — vendored from `tree-sitter/tree-sitter-jsdoc` as `vendor/tree_sitter/grammars/jsdoc/`; it is parser-backed comment highlighting for JS/TS, not a standalone file detection mode.
 - CSS (including `.scss` detection path)
 - JSON (`.json`, `.jsonc`)
 - Python (`.py`, `.pyi`, `.pyw`, plus extensionless shebang detection for `python` / `python3`)

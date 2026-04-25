@@ -9,6 +9,7 @@ Pinned source/tooling used by this repository:
 - Tree-sitter Bash grammar source ref: `a06c2e4415e9bc0346c6b86d401879ffb44058f7` (`tree-sitter-bash-master-a06c2e4`)
 - Tree-sitter HTML grammar source ref: `73a3947324f6efddf9e17c0ea58d454843590cc0` (`tree-sitter-html-master-73a3947`)
 - Tree-sitter JavaScript grammar source ref: `3a837b6f3658ca3618f2022f8707e29739c91364` (`tree-sitter-javascript-v0.23.1-3a837b6`)
+- Tree-sitter JSDoc grammar source ref: `658d18dcdddb75c760363faa4963427a7c6b52db` (`tree-sitter-jsdoc-v0.25.0-658d18d`)
 - Tree-sitter CSS grammar source ref: `dda5cfc5722c429eaba1c910ca32c2c0c5bb1a3f` (`tree-sitter-css-master-dda5cfc`)
 - Tree-sitter TypeScript grammar source ref: `f975a621f4e7f532fe322e13c4f79495e0a7b2e7` (`tree-sitter-typescript-v0.23.2-f975a62`)
 - Tree-sitter JSON grammar source ref: `ee35a6ebefcef0c5c416c0d1ccec7370cfca5a24` (`tree-sitter-json-v0.24.8-ee35a6e`)

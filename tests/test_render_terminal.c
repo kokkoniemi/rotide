@@ -226,6 +226,30 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_javascript
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_jsdoc_highlighting_for_javascript(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-jsdoc-XXXXXX.js";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/javascript/jsdoc.js"));
+
+	editorOpen(path);
+	E.window_rows = 10;
+	E.window_cols = 120;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m * \x1b[94m@param\x1b[90m") != NULL);
+	ASSERT_TRUE(strstr(output, "{\x1b[96mnumber\x1b[90m} left") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m * \x1b[94m@returns\x1b[90m") != NULL);
+	ASSERT_TRUE(strstr(output, "{\x1b[96mPromise<number>\x1b[90m}") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_typescript_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-ts-XXXXXX.ts";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
@@ -245,6 +269,29 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_typescript
 	ASSERT_TRUE(strstr(output, "\x1b[96mnumber\x1b[39m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[94mreturn\x1b[39m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[35m42\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_jsdoc_highlighting_for_typescript(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-jsdoc-ts-XXXXXX.ts";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/typescript/jsdoc.ts"));
+
+	editorOpen(path);
+	E.window_rows = 10;
+	E.window_cols = 120;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m * \x1b[94m@param\x1b[90m") != NULL);
+	ASSERT_TRUE(strstr(output, "{\x1b[96mnumber\x1b[90m} left") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96mnumber\x1b[39m") != NULL);
 	free(output);
 
 	ASSERT_TRUE(unlink(path) == 0);
@@ -1763,7 +1810,9 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_applies_syntax_highlighting_for_html_with_injections", test_editor_refresh_screen_applies_syntax_highlighting_for_html_with_injections},
 	{"editor_refresh_screen_html_text_apostrophe_not_javascript_string", test_editor_refresh_screen_html_text_apostrophe_not_javascript_string},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_javascript_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_javascript_tokens},
+	{"editor_refresh_screen_applies_jsdoc_highlighting_for_javascript", test_editor_refresh_screen_applies_jsdoc_highlighting_for_javascript},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_typescript_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_typescript_tokens},
+	{"editor_refresh_screen_applies_jsdoc_highlighting_for_typescript", test_editor_refresh_screen_applies_jsdoc_highlighting_for_typescript},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_python_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_python_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_php_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_php_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_rust_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_rust_tokens},

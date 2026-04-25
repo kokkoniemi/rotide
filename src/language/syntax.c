@@ -19,6 +19,7 @@ extern const TSLanguage *tree_sitter_go(void);
 extern const TSLanguage *tree_sitter_bash(void);
 extern const TSLanguage *tree_sitter_html(void);
 extern const TSLanguage *tree_sitter_javascript(void);
+extern const TSLanguage *tree_sitter_jsdoc(void);
 extern const TSLanguage *tree_sitter_typescript(void);
 extern const TSLanguage *tree_sitter_css(void);
 extern const TSLanguage *tree_sitter_json(void);
@@ -1387,6 +1388,112 @@ static int editorSyntaxCollectCapturesFromTree(struct editorSyntaxState *state,
 		uint32_t end_byte,
 		const struct editorSyntaxLocalsContext *locals,
 		int skip_predicates,
+		struct editorSyntaxCaptureVec *captures_out);
+
+static int editorSyntaxLanguageHasJsdocComments(enum editorSyntaxLanguage language) {
+	return language == EDITOR_SYNTAX_JAVASCRIPT || language == EDITOR_SYNTAX_TYPESCRIPT;
+}
+
+static int editorSyntaxAppendOffsetCaptureClipped(struct editorSyntaxCaptureVec *captures_out,
+		const struct editorSyntaxCapture *capture,
+		uint32_t offset,
+		uint32_t range_start,
+		uint32_t range_end) {
+	if (captures_out == NULL || capture == NULL || capture->end_byte <= capture->start_byte) {
+		return 0;
+	}
+	if (capture->start_byte > UINT32_MAX - offset || capture->end_byte > UINT32_MAX - offset) {
+		return 0;
+	}
+
+	uint32_t start = offset + capture->start_byte;
+	uint32_t end = offset + capture->end_byte;
+	if (end <= range_start || start >= range_end) {
+		return 1;
+	}
+	if (start < range_start) {
+		start = range_start;
+	}
+	if (end > range_end) {
+		end = range_end;
+	}
+	if (end <= start) {
+		return 1;
+	}
+	return editorSyntaxCaptureVecAppend(captures_out, start, end, capture->highlight_class);
+}
+
+static int editorSyntaxAppendJsdocCommentCaptures(struct editorSyntaxState *state,
+		const struct editorTextSource *source,
+		uint32_t comment_start,
+		uint32_t comment_end,
+		uint32_t range_start,
+		uint32_t range_end,
+		struct editorSyntaxCaptureVec *captures_out) {
+	if (state == NULL || source == NULL || captures_out == NULL ||
+			comment_end <= comment_start) {
+		return 0;
+	}
+	if (state->jsdoc_injection.parser == NULL) {
+		return 1;
+	}
+
+	size_t comment_len = (size_t)(comment_end - comment_start);
+	if (comment_len < 3 || comment_len > ROTIDE_SYNTAX_JSDOC_PARSE_MAX_BYTES) {
+		return 1;
+	}
+
+	size_t text_len = 0;
+	char *text = editorTextSourceDupRange(source, comment_start, comment_end, &text_len);
+	if (text == NULL) {
+		return 0;
+	}
+	if (text_len < 3 || text[0] != '/' || text[1] != '*' || text[2] != '*') {
+		free(text);
+		return 1;
+	}
+
+	struct editorTextSource comment_source = {0};
+	editorTextSourceInitString(&comment_source, text, text_len);
+
+	if (!editorSyntaxParsedTreeParse(&state->jsdoc_injection, NULL, &comment_source, 0)) {
+		free(text);
+		return 0;
+	}
+	if (state->jsdoc_injection.tree == NULL) {
+		free(text);
+		return 1;
+	}
+
+	struct editorSyntaxCaptureVec jsdoc_captures = {0};
+	int ok = editorSyntaxCollectCapturesFromTree(state, state->jsdoc_injection.tree,
+			EDITOR_SYNTAX_JSDOC, &comment_source, 0, (uint32_t)text_len, NULL,
+			1, &jsdoc_captures);
+	if (ok) {
+		for (int i = 0; i < jsdoc_captures.count; i++) {
+			if (!editorSyntaxAppendOffsetCaptureClipped(captures_out,
+						&jsdoc_captures.items[i], comment_start,
+						range_start, range_end)) {
+				ok = 0;
+				break;
+			}
+		}
+	}
+
+	editorSyntaxCaptureVecFree(&jsdoc_captures);
+	editorSyntaxParsedTreeResetTree(&state->jsdoc_injection);
+	free(text);
+	return ok;
+}
+
+static int editorSyntaxCollectCapturesFromTree(struct editorSyntaxState *state,
+		const TSTree *tree,
+		enum editorSyntaxLanguage language,
+		const struct editorTextSource *source,
+		uint32_t start_byte,
+		uint32_t end_byte,
+		const struct editorSyntaxLocalsContext *locals,
+		int skip_predicates,
 		struct editorSyntaxCaptureVec *captures_out) {
 	if (captures_out == NULL) {
 		return 0;
@@ -1455,8 +1562,10 @@ static int editorSyntaxCollectCapturesFromTree(struct editorSyntaxState *state,
 			continue;
 		}
 
-		uint32_t capture_start = ts_node_start_byte(capture.node);
-		uint32_t capture_end = ts_node_end_byte(capture.node);
+		uint32_t node_start = ts_node_start_byte(capture.node);
+		uint32_t node_end = ts_node_end_byte(capture.node);
+		uint32_t capture_start = node_start;
+		uint32_t capture_end = node_end;
 		if (capture_end <= capture_start) {
 			continue;
 		}
@@ -1475,6 +1584,13 @@ static int editorSyntaxCollectCapturesFromTree(struct editorSyntaxState *state,
 
 		if (!editorSyntaxCaptureVecAppend(captures_out, capture_start, capture_end,
 					highlight_class)) {
+			ts_query_cursor_delete(cursor);
+			return 0;
+		}
+		if (highlight_class == EDITOR_SYNTAX_HL_COMMENT &&
+				editorSyntaxLanguageHasJsdocComments(language) &&
+				!editorSyntaxAppendJsdocCommentCaptures(state, source, node_start, node_end,
+					start_byte, end_byte, captures_out)) {
 			ts_query_cursor_delete(cursor);
 			return 0;
 		}
@@ -1879,6 +1995,7 @@ struct editorSyntaxState *editorSyntaxStateCreate(enum editorSyntaxLanguage lang
 	editorSyntaxParsedTreeInit(&state->host, language);
 	editorSyntaxParsedTreeInit(&state->javascript_injection, EDITOR_SYNTAX_JAVASCRIPT);
 	editorSyntaxParsedTreeInit(&state->css_injection, EDITOR_SYNTAX_CSS);
+	editorSyntaxParsedTreeInit(&state->jsdoc_injection, EDITOR_SYNTAX_JSDOC);
 	editorSyntaxLocalsContextInit(&state->host_locals);
 	editorSyntaxLocalsContextInit(&state->injection_javascript_locals);
 	state->host_locals_revision = 0;
@@ -1912,6 +2029,24 @@ struct editorSyntaxState *editorSyntaxStateCreate(enum editorSyntaxLanguage lang
 			editorSyntaxParsedTreeDestroy(&state->host);
 			editorSyntaxParsedTreeDestroy(&state->javascript_injection);
 			editorSyntaxParsedTreeDestroy(&state->css_injection);
+			editorSyntaxParsedTreeDestroy(&state->jsdoc_injection);
+			editorSyntaxLocalsContextFree(&state->host_locals);
+			editorSyntaxLocalsContextFree(&state->injection_javascript_locals);
+			free(state->last_changed_ranges);
+			free(state->scratch_primary);
+			free(state->scratch_secondary);
+			free(state);
+			return NULL;
+		}
+	}
+	if (language == EDITOR_SYNTAX_HTML || language == EDITOR_SYNTAX_JAVASCRIPT ||
+			language == EDITOR_SYNTAX_TYPESCRIPT) {
+		if (!editorSyntaxParsedTreeCreateParser(&state->jsdoc_injection,
+					EDITOR_SYNTAX_JSDOC)) {
+			editorSyntaxParsedTreeDestroy(&state->host);
+			editorSyntaxParsedTreeDestroy(&state->javascript_injection);
+			editorSyntaxParsedTreeDestroy(&state->css_injection);
+			editorSyntaxParsedTreeDestroy(&state->jsdoc_injection);
 			editorSyntaxLocalsContextFree(&state->host_locals);
 			editorSyntaxLocalsContextFree(&state->injection_javascript_locals);
 			free(state->last_changed_ranges);
@@ -1932,6 +2067,7 @@ void editorSyntaxStateDestroy(struct editorSyntaxState *state) {
 	editorSyntaxParsedTreeDestroy(&state->host);
 	editorSyntaxParsedTreeDestroy(&state->javascript_injection);
 	editorSyntaxParsedTreeDestroy(&state->css_injection);
+	editorSyntaxParsedTreeDestroy(&state->jsdoc_injection);
 	editorSyntaxLocalsContextFree(&state->host_locals);
 	editorSyntaxLocalsContextFree(&state->injection_javascript_locals);
 	free(state->last_changed_ranges);
@@ -2256,6 +2392,7 @@ void editorSyntaxReleaseSharedResources(void) {
 	editorSyntaxClearQueryCacheEntry(&g_shell_highlight_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_html_highlight_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_javascript_highlight_query_cache);
+	editorSyntaxClearQueryCacheEntry(&g_jsdoc_highlight_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_typescript_highlight_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_css_highlight_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_json_highlight_query_cache);

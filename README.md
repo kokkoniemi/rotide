@@ -54,8 +54,8 @@ ASAN_OPTIONS=detect_leaks=0 make test-sanitize
   - Go (`.go`, `go.mod`, `go.sum`)
   - Shell (`.sh`, rc files, extensionless shebang scripts)
   - HTML (`.html`, `.htm`, `.xhtml`)
-  - JavaScript (`.js`, `.mjs`, `.cjs`, `.jsx`)
-  - TypeScript (`.ts`, `.tsx`, `.cts`, `.mts`)
+  - JavaScript (`.js`, `.mjs`, `.cjs`, `.jsx`) with tree-sitter-jsdoc tag/type highlighting in doc comments
+  - TypeScript (`.ts`, `.tsx`, `.cts`, `.mts`) with tree-sitter-jsdoc tag/type highlighting in doc comments
   - CSS (`.css`, `.scss`)
   - JSON (`.json`, `.jsonc`)
   - Python (`.py`, `.pyi`, `.pyw`, extensionless shebang scripts)

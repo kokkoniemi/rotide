@@ -190,6 +190,7 @@ GO_GRAMMAR_SRC=""
 BASH_GRAMMAR_SRC=""
 HTML_GRAMMAR_SRC=""
 JAVASCRIPT_GRAMMAR_SRC=""
+JSDOC_GRAMMAR_SRC=""
 CSS_GRAMMAR_SRC=""
 JSON_GRAMMAR_SRC=""
 TYPESCRIPT_GRAMMAR_SRC=""
@@ -213,6 +214,7 @@ download_repo_tarball "tree-sitter/tree-sitter-go" "${TREE_SITTER_GO_GRAMMAR_REF
 download_repo_tarball "tree-sitter/tree-sitter-bash" "${TREE_SITTER_BASH_GRAMMAR_REF}" BASH_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-html" "${TREE_SITTER_HTML_GRAMMAR_REF}" HTML_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-javascript" "${TREE_SITTER_JAVASCRIPT_GRAMMAR_REF}" JAVASCRIPT_GRAMMAR_SRC
+download_repo_tarball "tree-sitter/tree-sitter-jsdoc" "${TREE_SITTER_JSDOC_GRAMMAR_REF}" JSDOC_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-css" "${TREE_SITTER_CSS_GRAMMAR_REF}" CSS_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-json" "${TREE_SITTER_JSON_GRAMMAR_REF}" JSON_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-typescript" "${TREE_SITTER_TYPESCRIPT_GRAMMAR_REF}" TYPESCRIPT_GRAMMAR_SRC
@@ -243,6 +245,7 @@ regenerate_parser "${GO_GRAMMAR_SRC}" "Go"
 regenerate_parser "${BASH_GRAMMAR_SRC}" "Bash"
 regenerate_parser "${HTML_GRAMMAR_SRC}" "HTML"
 regenerate_parser "${JAVASCRIPT_GRAMMAR_SRC}" "JavaScript"
+regenerate_parser "${JSDOC_GRAMMAR_SRC}" "JSDoc"
 # tree-sitter-typescript grammar.js requires tree-sitter-javascript via
 # common/define-grammar.js; expose the pinned JS source in node_modules.
 link_grammar_dep "${TYPESCRIPT_GRAMMAR_SRC}" "tree-sitter-javascript" "${JAVASCRIPT_GRAMMAR_SRC}"
@@ -281,6 +284,7 @@ sync_grammar_vendor "${GO_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammar
 sync_grammar_vendor "${BASH_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/bash"
 sync_grammar_vendor "${HTML_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/html"
 sync_grammar_vendor "${JAVASCRIPT_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/javascript"
+sync_grammar_vendor "${JSDOC_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/jsdoc"
 # TypeScript grammar keeps top-level queries/ separate from typescript/src/.
 # Stage them into typescript/ so sync_grammar_vendor picks them up.
 cp -R "${TYPESCRIPT_GRAMMAR_SRC}/queries" "${TYPESCRIPT_GRAMMAR_SRC}/typescript/queries"
