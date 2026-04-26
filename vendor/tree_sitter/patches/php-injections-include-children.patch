@@ -1,0 +1,17 @@
+diff --git a/vendor/tree_sitter/grammars/php/queries/injections.scm b/vendor/tree_sitter/grammars/php/queries/injections.scm
+index a1b7970..62fdb0f 100644
+--- a/vendor/tree_sitter/grammars/php/queries/injections.scm
++++ b/vendor/tree_sitter/grammars/php/queries/injections.scm
+@@ -3,8 +3,10 @@
+ 
+ (heredoc
+   (heredoc_body) @injection.content
+-  (heredoc_end) @injection.language)
++  (heredoc_end) @injection.language
++  (#set! injection.include-children))
+ 
+ (nowdoc
+   (nowdoc_body) @injection.content
+-  (heredoc_end) @injection.language)
++  (heredoc_end) @injection.language
++  (#set! injection.include-children))

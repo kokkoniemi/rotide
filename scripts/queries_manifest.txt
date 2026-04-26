@@ -11,7 +11,7 @@ shell_highlight       vendor/tree_sitter/grammars/bash/queries/highlights.scm
 html_highlight        vendor/tree_sitter/grammars/html/queries/highlights.scm
 javascript_highlight  vendor/tree_sitter/grammars/javascript/queries/highlights.scm vendor/tree_sitter/grammars/javascript/queries/highlights-jsx.scm vendor/tree_sitter/grammars/javascript/queries/highlights-params.scm
 jsdoc_highlight       vendor/tree_sitter/grammars/jsdoc/queries/highlights.scm
-typescript_highlight  vendor/tree_sitter/grammars/javascript/queries/highlights.scm vendor/tree_sitter/grammars/javascript/queries/highlights-jsx.scm vendor/tree_sitter/grammars/javascript/queries/highlights-params.scm vendor/tree_sitter/grammars/typescript/queries/highlights.scm
+typescript_highlight  vendor/tree_sitter/grammars/javascript/queries/highlights.scm vendor/tree_sitter/grammars/typescript/queries/highlights.scm
 javascript_locals     vendor/tree_sitter/grammars/javascript/queries/locals.scm
 typescript_locals     vendor/tree_sitter/grammars/javascript/queries/locals.scm vendor/tree_sitter/grammars/typescript/queries/locals.scm
 css_highlight         vendor/tree_sitter/grammars/css/queries/highlights.scm
@@ -22,7 +22,7 @@ rust_highlight        vendor/tree_sitter/grammars/rust/queries/highlights.scm
 java_highlight        vendor/tree_sitter/grammars/java/queries/highlights.scm
 regex_highlight       vendor/tree_sitter/grammars/regex/queries/highlights.scm
 csharp_highlight      vendor/tree_sitter/grammars/csharp/queries/highlights.scm
-haskell_highlight     vendor/tree_sitter/grammars/haskell/queries/highlights.scm
+haskell_highlight     src/language/queries/haskell/highlights.scm
 ruby_highlight        vendor/tree_sitter/grammars/ruby/queries/highlights.scm
 ocaml_highlight       vendor/tree_sitter/grammars/ocaml/queries/highlights.scm
 julia_highlight       vendor/tree_sitter/grammars/julia/queries/highlights.scm
@@ -30,5 +30,11 @@ scala_highlight       vendor/tree_sitter/grammars/scala/queries/highlights.scm
 ejs_highlight         vendor/tree_sitter/grammars/embedded_template/queries/highlights.scm
 erb_highlight         vendor/tree_sitter/grammars/embedded_template/queries/highlights.scm
 html_injection        vendor/tree_sitter/grammars/html/queries/injections.scm
+javascript_injection  vendor/tree_sitter/grammars/javascript/queries/injections.scm
+typescript_injection  vendor/tree_sitter/grammars/javascript/queries/injections.scm
+php_injection         vendor/tree_sitter/grammars/php/queries/injections.scm vendor/tree_sitter/grammars/php/queries/injections-text.scm
+cpp_injection         vendor/tree_sitter/grammars/cpp/queries/injections.scm
+haskell_injection     vendor/tree_sitter/grammars/haskell/queries/injections.scm
+julia_injection       vendor/tree_sitter/grammars/julia/queries/injections.scm
 ejs_injection         vendor/tree_sitter/grammars/embedded_template/queries/injections-ejs.scm
 erb_injection         vendor/tree_sitter/grammars/embedded_template/queries/injections-erb.scm

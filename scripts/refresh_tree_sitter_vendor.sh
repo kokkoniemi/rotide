@@ -313,6 +313,10 @@ rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/php/src/scanner.c.bak"
 # Local fix for an lvalue use of array_pop() in the PHP scanner
 git -C "${REPO_ROOT}" apply \
 	"${REPO_ROOT}/vendor/tree_sitter/patches/php-scanner-array-pop-lvalue.patch"
+# Add injection.include-children to PHP heredoc/nowdoc so injected HTML and
+# language-tagged heredoc bodies highlight correctly through nested children.
+git -C "${REPO_ROOT}" apply \
+	"${REPO_ROOT}/vendor/tree_sitter/patches/php-injections-include-children.patch"
 sync_grammar_vendor "${RUST_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/rust"
 sync_grammar_vendor "${JAVA_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/java"
 sync_grammar_vendor "${REGEX_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/regex"
