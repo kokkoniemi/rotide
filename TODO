@@ -6,3 +6,4 @@
 - FEATURE: Add bracket/quote pair assistance: auto-close pairs, skip-over closing pairs, and jump to matching bracket.
 - FEATURE: Add line numbers and current-line highlight (toggleable) to improve code navigation and context.
 - FEATURE: implement support for vim-mode. The commands should be configurable in .rotide.toml in local and global files.
+- IMPROVEMENT: integrate Fil-C to improve memory safety

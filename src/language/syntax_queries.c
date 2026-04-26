@@ -184,6 +184,10 @@ static struct {
 	uint64_t parse_time_budget_ns;
 } g_editor_syntax_budget_overrides = {0};
 
+static struct editorSyntaxQueryCompileError g_last_query_compile_error = {0};
+static unsigned int g_last_query_compile_error_generation = 0;
+static unsigned int g_drained_query_compile_error_generation = 0;
+
 static int editorSyntaxStringEquals(const char *s, size_t len, const char *literal) {
 	if (s == NULL || literal == NULL) {
 		return 0;
@@ -507,6 +511,106 @@ static const TSLanguage *editorSyntaxLanguageObject(enum editorSyntaxLanguage la
 	}
 }
 
+static const char *editorSyntaxQueryErrorName(TSQueryError error_type) {
+	switch (error_type) {
+		case TSQueryErrorNone:
+			return "none";
+		case TSQueryErrorSyntax:
+			return "syntax";
+		case TSQueryErrorNodeType:
+			return "node-type";
+		case TSQueryErrorField:
+			return "field";
+		case TSQueryErrorCapture:
+			return "capture";
+		case TSQueryErrorStructure:
+			return "structure";
+		case TSQueryErrorLanguage:
+			return "language";
+		default:
+			return "unknown";
+	}
+}
+
+static void editorSyntaxCopyQueryErrorContext(
+		const char *query_source, size_t query_len, uint32_t error_offset,
+		char context[ROTIDE_SYNTAX_QUERY_ERROR_CONTEXT_MAX + 1]) {
+	if (context == NULL) {
+		return;
+	}
+	context[0] = '\0';
+	if (query_source == NULL || query_len == 0) {
+		return;
+	}
+
+	size_t start = error_offset;
+	if (start > query_len) {
+		start = query_len;
+	}
+	if (start > ROTIDE_SYNTAX_QUERY_ERROR_CONTEXT_MAX / 4U) {
+		start -= ROTIDE_SYNTAX_QUERY_ERROR_CONTEXT_MAX / 4U;
+	} else {
+		start = 0;
+	}
+
+	size_t len = query_len - start;
+	if (len > ROTIDE_SYNTAX_QUERY_ERROR_CONTEXT_MAX) {
+		len = ROTIDE_SYNTAX_QUERY_ERROR_CONTEXT_MAX;
+	}
+	for (size_t i = 0; i < len; i++) {
+		unsigned char ch = (unsigned char)query_source[start + i];
+		context[i] = (ch < ' ' || ch == 0x7f) ? ' ' : (char)ch;
+	}
+	context[len] = '\0';
+}
+
+static void editorSyntaxRecordQueryCompileError(enum editorSyntaxLanguage language,
+		const char *query_source, size_t query_len, uint32_t error_offset,
+		TSQueryError error_type) {
+	g_last_query_compile_error.has_error = 1;
+	g_last_query_compile_error.language = language;
+	g_last_query_compile_error.error_offset = error_offset;
+	g_last_query_compile_error.error_type = (int)error_type;
+	editorSyntaxCopyQueryErrorContext(query_source, query_len, error_offset,
+			g_last_query_compile_error.context);
+	g_last_query_compile_error_generation++;
+
+#ifndef NDEBUG
+	fprintf(stderr,
+			"rotide: tree-sitter query compile failed: language=%d offset=%u "
+			"error=%s context=\"%s\"\n",
+			(int)language, (unsigned int)error_offset,
+			editorSyntaxQueryErrorName(error_type), g_last_query_compile_error.context);
+#endif
+}
+
+int editorSyntaxCopyLastQueryCompileError(struct editorSyntaxQueryCompileError *error_out) {
+	if (error_out == NULL) {
+		return 0;
+	}
+	*error_out = g_last_query_compile_error;
+	return g_last_query_compile_error.has_error;
+}
+
+int editorSyntaxDrainLastQueryCompileError(struct editorSyntaxQueryCompileError *error_out) {
+	if (error_out != NULL) {
+		*error_out = g_last_query_compile_error;
+	}
+	if (!g_last_query_compile_error.has_error ||
+			g_drained_query_compile_error_generation ==
+					g_last_query_compile_error_generation) {
+		return 0;
+	}
+	g_drained_query_compile_error_generation = g_last_query_compile_error_generation;
+	return 1;
+}
+
+void editorSyntaxTestResetLastQueryCompileError(void) {
+	memset(&g_last_query_compile_error, 0, sizeof(g_last_query_compile_error));
+	g_last_query_compile_error_generation = 0;
+	g_drained_query_compile_error_generation = 0;
+}
+
 static int editorSyntaxCompileQuery(enum editorSyntaxLanguage language,
 		const char *query_source, size_t query_len, TSQuery **query_out) {
 	const TSLanguage *ts_language = editorSyntaxLanguageObject(language);
@@ -520,13 +624,26 @@ static int editorSyntaxCompileQuery(enum editorSyntaxLanguage language,
 	TSQuery *query = ts_query_new(ts_language, query_source, (uint32_t)query_len,
 			&error_offset, &error_type);
 	if (query == NULL) {
-		(void)error_offset;
-		(void)error_type;
+		editorSyntaxRecordQueryCompileError(language, query_source, query_len,
+				error_offset, error_type);
 		return 0;
 	}
 
 	*query_out = query;
 	return 1;
+}
+
+int editorSyntaxTestCompileQueryForDiagnostics(enum editorSyntaxLanguage language,
+		const char *query_source) {
+	if (query_source == NULL) {
+		return 0;
+	}
+	TSQuery *query = NULL;
+	int ok = editorSyntaxCompileQuery(language, query_source, strlen(query_source), &query);
+	if (query != NULL) {
+		ts_query_delete(query);
+	}
+	return ok;
 }
 
 static int editorSyntaxPopulateCaptureClasses(TSQuery *query,

@@ -1391,6 +1391,33 @@ static int test_editor_syntax_query_budget_match_limit_is_graceful(void) {
 	return 0;
 }
 
+static int test_editor_syntax_query_compile_failure_records_diagnostics(void) {
+	const char *broken_query = "((identifier) @name";
+	editorSyntaxTestResetLastQueryCompileError();
+
+	ASSERT_EQ_INT(0, editorSyntaxTestCompileQueryForDiagnostics(
+				EDITOR_SYNTAX_C, broken_query));
+
+	struct editorSyntaxQueryCompileError error = {0};
+	ASSERT_TRUE(editorSyntaxCopyLastQueryCompileError(&error));
+	ASSERT_EQ_INT(1, error.has_error);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_C, error.language);
+	ASSERT_TRUE(error.error_type != 0);
+	ASSERT_TRUE(error.error_offset <= strlen(broken_query));
+	ASSERT_TRUE(strstr(error.context, "identifier") != NULL);
+
+	struct editorSyntaxQueryCompileError drained = {0};
+	ASSERT_TRUE(editorSyntaxDrainLastQueryCompileError(&drained));
+	ASSERT_EQ_INT(error.language, drained.language);
+	ASSERT_EQ_INT(error.error_type, drained.error_type);
+	ASSERT_EQ_INT(error.error_offset, drained.error_offset);
+	ASSERT_EQ_STR(error.context, drained.context);
+	ASSERT_TRUE(!editorSyntaxDrainLastQueryCompileError(NULL));
+
+	editorSyntaxTestResetLastQueryCompileError();
+	return 0;
+}
+
 static int test_editor_syntax_parse_budget_is_graceful(void) {
 	size_t source_len = 0;
 	char *source = build_repeated_text("function item(){ return 1; }\n", 120000, &source_len);
@@ -1761,6 +1788,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_incremental_edits_keep_erb_tree_valid", test_editor_syntax_incremental_edits_keep_erb_tree_valid},
 	{"editor_syntax_incremental_edits_keep_regex_tree_valid", test_editor_syntax_incremental_edits_keep_regex_tree_valid},
 	{"editor_syntax_query_budget_match_limit_is_graceful", test_editor_syntax_query_budget_match_limit_is_graceful},
+	{"editor_syntax_query_compile_failure_records_diagnostics", test_editor_syntax_query_compile_failure_records_diagnostics},
 	{"editor_syntax_parse_budget_is_graceful", test_editor_syntax_parse_budget_is_graceful},
 	{"editor_syntax_incremental_provider_parse_keeps_tree_valid", test_editor_syntax_incremental_provider_parse_keeps_tree_valid},
 	{"editor_syntax_large_file_stays_enabled_in_degraded_mode", test_editor_syntax_large_file_stays_enabled_in_degraded_mode},

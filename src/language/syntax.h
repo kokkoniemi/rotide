@@ -40,6 +40,16 @@ enum editorSyntaxPerformanceMode {
 	EDITOR_SYNTAX_PERF_DISABLED
 };
 
+#define ROTIDE_SYNTAX_QUERY_ERROR_CONTEXT_MAX 80
+
+struct editorSyntaxQueryCompileError {
+	int has_error;
+	enum editorSyntaxLanguage language;
+	uint32_t error_offset;
+	int error_type;
+	char context[ROTIDE_SYNTAX_QUERY_ERROR_CONTEXT_MAX + 1];
+};
+
 enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *filename);
 enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilenameAndFirstLine(
 		const char *filename, const char *first_line);
@@ -68,6 +78,8 @@ int editorSyntaxStateCopyLastChangedRanges(const struct editorSyntaxState *state
 int editorSyntaxStateConsumeBudgetEvents(struct editorSyntaxState *state,
 		int *parse_budget_exceeded_out,
 		int *query_budget_exceeded_out);
+int editorSyntaxDrainLastQueryCompileError(struct editorSyntaxQueryCompileError *error_out);
+int editorSyntaxCopyLastQueryCompileError(struct editorSyntaxQueryCompileError *error_out);
 
 int editorSyntaxStateHasTree(const struct editorSyntaxState *state);
 const char *editorSyntaxStateRootType(const struct editorSyntaxState *state);
@@ -84,6 +96,9 @@ void editorSyntaxTestSetBudgetOverrides(int enabled,
 		uint64_t parse_time_budget_ns);
 void editorSyntaxTestResetBudgetOverrides(void);
 int editorSyntaxTestBudgetOverridesEnabled(void);
+void editorSyntaxTestResetLastQueryCompileError(void);
+int editorSyntaxTestCompileQueryForDiagnostics(enum editorSyntaxLanguage language,
+		const char *query_source);
 
 void editorSyntaxReleaseSharedResources(void);
 
