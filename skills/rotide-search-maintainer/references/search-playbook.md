@@ -2,18 +2,18 @@
 
 ## Primary touchpoints
 
-- `input.c`
+- `src/input/dispatch.c`
   - `editorFind()`
   - `editorFindCallback()`
   - `editorMoveCursorToSearchMatch()`
   - `editorRestoreCursorToSavedSearchPosition()`
-- `buffer.c`
+- `src/editing/buffer_core.c`
   - `editorBufferFindForward()`
   - `editorBufferFindBackward()`
   - text-source-backed line range helpers
-- `output.c`
+- `src/render/screen.c`
   - active match highlight rendering in row draw path
-- `rotide.h`
+- `src/rotide.h`
   - search fields in `editorConfig` / `editorTabState`
 
 ## Search state model (current)

@@ -2,19 +2,24 @@
 
 ## Primary touchpoints
 
-- `document.c` / `document.h`
+- `src/text/document.c` / `document.h`
   - line index rebuild
   - offset <-> line/column conversions
   - range read/copy/dup/replace
-- `rope.c` / `rope.h`
+- `src/text/rope.c` / `rope.h`
   - chunk storage, append/read/copy/replace mechanics
-- `buffer.c`
+- `src/text/row.c`, `src/text/utf8.c`
+  - derived row cache rebuild and UTF-8/grapheme helpers
+- `src/editing/buffer_core.c`
   - `editorApplyDocumentEdit(...)`
   - row-cache rebuild from document
   - cursor/selection/search offset updates
-  - undo/redo operation replay
+  - active text-source construction
+- `src/editing/edit.c`, `src/editing/selection.c`, `src/editing/history.c`
+  - edit descriptor construction, selection mutation, undo/redo operation replay
+- `src/workspace/recovery.c`
   - recovery restore normalization
-- `rotide.h`
+- `src/rotide.h`
   - state fields (`cursor_offset`, `document`, history entries)
 
 ## Core invariants

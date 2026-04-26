@@ -248,7 +248,7 @@ This section names the core concepts used throughout the codebase.
 ### Syntax state
 
 - Per-tab `editorSyntaxState` in [`src/language/syntax.c`](src/language/syntax.c).
-- Tree-sitter host parse plus generic tab-local injection trees for HTML/EJS/ERB nested highlighting.
+- Tree-sitter host parse plus generic tab-local injection trees for nested highlighting (HTML, JavaScript, TypeScript, PHP, C++, Haskell, Julia, EJS, and ERB host grammars all ship injection queries).
 - Query and parse budgets support graceful degraded modes instead of immediate hard disable for moderate file sizes.
 
 ### LSP state
@@ -286,7 +286,7 @@ This section names the core concepts used throughout the codebase.
 - [`src/support/alloc.c`](src/support/alloc.c), [`src/support/save_syscalls.c`](src/support/save_syscalls.c): testable wrappers for allocation and save syscalls.
 - [`src/workspace/`](src/workspace): editor subsystems split out of the former monolithic buffer module.
 - [`src/text/`](src/text): shared UTF-8, grapheme, and row/render helpers.
-- [`tests/rotide_tests.c`](tests/rotide_tests.c): behavior and regression tests.
+- [`tests/`](tests): behavior and regression tests, split per concern (`test_syntax.c`, `test_lsp.c`, `test_render_terminal.c`, `test_document_text_editing.c`, `test_save_recovery.c`, `test_input_search.c`, `test_workspace_config.c`).
 
 ## Tree-sitter Vendor Workflow
 

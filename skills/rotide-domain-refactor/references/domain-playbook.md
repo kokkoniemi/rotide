@@ -107,8 +107,9 @@ These are strong candidates, not rigid law:
 ### Document domain
 
 Owns:
-- `src/document.c`
-- `src/rope.c`
+- `src/text/document.c`
+- `src/text/rope.c`
+- `src/text/row.c`, `src/text/utf8.c`
 - offset/line mapping invariants
 
 Should not own:
@@ -124,7 +125,10 @@ Owns:
 - undo/redo grouping
 
 Usually centered in:
-- `src/buffer.c`
+- `src/editing/buffer_core.c`
+- `src/editing/edit.c`
+- `src/editing/selection.c`
+- `src/editing/history.c`
 
 ### Workspace domain
 
@@ -134,7 +138,7 @@ Owns:
 - task-log tab lifecycle
 
 Usually centered in:
-- `src/editor/tabs.c`
+- `src/workspace/tabs.c`
 
 ### Drawer domain
 
@@ -144,7 +148,7 @@ Owns:
 - drawer-driven open/preview actions
 
 Usually centered in:
-- `src/editor/drawer.c`
+- `src/workspace/drawer.c`
 
 ### Recovery/save domain
 
@@ -153,9 +157,9 @@ Owns:
 - atomic save path helpers
 
 Usually centered in:
-- `src/editor/recovery.c`
-- `src/editor/file_io.c`
-- save-related pieces still in `src/buffer.c`
+- `src/workspace/recovery.c`
+- `src/support/file_io.c`
+- save-related pieces still in `src/editing/buffer_core.c`
 
 ### Input domain
 
@@ -165,7 +169,7 @@ Owns:
 - keypress and mouse workflows
 
 Usually centered in:
-- `src/input.c`
+- `src/input/dispatch.c`
 
 ### Rendering domain
 
@@ -174,7 +178,7 @@ Owns:
 - tab bar/drawer/status rendering
 
 Usually centered in:
-- `src/output.c`
+- `src/render/screen.c`
 
 ### Syntax/LSP domains
 
@@ -183,8 +187,8 @@ Own independently:
 - LSP process lifecycle and requests
 
 Usually centered in:
-- `src/syntax.c`
-- `src/lsp.c`
+- `src/language/syntax.c`, `src/language/syntax_queries.c`
+- `src/language/lsp.c`, `src/language/lsp_protocol.c`, `src/language/lsp_transport.c`
 
 ## Decision heuristics
 

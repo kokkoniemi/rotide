@@ -28,6 +28,11 @@
   - Go via `gopls`
   - C/C++ via `clangd`
   - HTML via `~/.local/bin/vscode-html-language-server --stdio` by default
+  - CSS/SCSS via `~/.local/bin/vscode-css-language-server --stdio` by default
+  - JSON via `~/.local/bin/vscode-json-language-server --stdio` by default
+  - JavaScript/JSX via `~/.local/bin/typescript-language-server --stdio` by default
+- ESLint diagnostics for active JavaScript buffers (`.js`, `.mjs`, `.cjs`, `.jsx`) via `~/.local/bin/vscode-eslint-language-server --stdio`, plus the `eslint_fix` code-action path.
+- Server kinds enumerated in `src/language/lsp_internal.h` (`EDITOR_LSP_SERVER_GOPLS`, `_CLANGD`, `_HTML`, `_CSS`, `_JSON`, `_JAVASCRIPT`, `_ESLINT`).
 - Definition request requires:
   - supported source buffer
   - saved filename
@@ -78,11 +83,14 @@
   - `gopls_command = "gopls"`
   - `clangd_command = "clangd"`
   - `html_command = "~/.local/bin/vscode-html-language-server --stdio"`
-  - `gopls_enabled = true`
-  - `clangd_enabled = true`
-  - `html_enabled = true`
+  - `css_command = "~/.local/bin/vscode-css-language-server --stdio"`
+  - `json_command = "~/.local/bin/vscode-json-language-server --stdio"`
+  - `javascript_command = "~/.local/bin/typescript-language-server --stdio"`
+  - `eslint_command = "~/.local/bin/vscode-eslint-language-server --stdio"`
+  - `gopls_enabled = true`, `clangd_enabled = true`, `html_enabled = true`, `css_enabled = true`, `json_enabled = true`, `javascript_enabled = true`, `eslint_enabled = true`
   - `gopls_install_command = "go install golang.org/x/tools/gopls@latest"`
   - `vscode_langservers_install_command = "npm install --global --prefix ~/.local vscode-langservers-extracted"`
+  - `javascript_install_command = "npm install --global --prefix ~/.local typescript typescript-language-server"`
 - Load precedence:
   - defaults -> global -> project
 - Legacy compatibility:

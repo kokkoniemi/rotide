@@ -2,34 +2,36 @@
 
 ## Primary touchpoints
 
-- `rotide.h`
+- `src/rotide.h`
   - `enum editorSyntaxLanguage`
   - highlight class enums
   - tab/editor syntax state fields
-- `syntax.c` / `syntax.h`
+- `src/language/syntax.c`
   - language objects (`tree_sitter_*`)
-  - query cache + fallback query strings
-  - capture-name to semantic-class mapping
   - filename/shebang detection helpers
-  - injection and locals/predicate handling
-- `buffer.c`
+  - host parse, incremental edits, injection orchestration, performance budgets
+  - capture-name to semantic-class mapping at paint time
+- `src/language/syntax_queries.c`
+  - query cache + fallback query strings (highlights, locals, injections)
+  - predicate/locals handling and injection pattern metadata
+- `src/editing/buffer_core.c`
   - syntax activation/reconfiguration
   - full and incremental parse entrypoints
   - visible-row syntax span cache invalidation/rebuild
-- `output.c`
+- `src/render/screen.c`
   - syntax span paint path and overlay precedence
 - `Makefile` + `vendor/tree_sitter/*` + refresh script when grammar assets change
-- `tests/rotide_tests.c`
+- `tests/test_syntax.c` and `tests/test_render_terminal.c`
   - activation, incremental parse validity, render highlights, budgets, tab isolation
 - `tests/syntax/`
-  - fixture files under `supported/` and placeholder scaffolding under `planned/`
+  - fixture files under `supported/`; `planned/` is reserved scaffolding and currently empty
 
 ## Currently supported syntax families
 
 - C / C++
 - Go
 - Shell (bash language backend)
-- HTML (with JS/CSS injections via the generic injection tree registry)
+- HTML (nested `<script>` JavaScript and `<style>` CSS injections via the generic injection tree registry)
 - JavaScript (`.js`, `.mjs`, `.cjs`, `.jsx`) — JSDoc doc comments remain JavaScript `(comment)` nodes in the host tree, then RotIDE parses each visible `/** ... */` comment with the vendored `tree-sitter-jsdoc` parser and overlays its `tag_name`/`type` captures.
 - TypeScript (`.ts`, `.tsx`, `.cts`, `.mts`) — grammar from tree-sitter-typescript `typescript/` sub-grammar; shared `common/` lives at `vendor/tree_sitter/grammars/typescript/common/`. Uses the same vendored `tree-sitter-jsdoc` doc-comment overlay as JavaScript.
 - JSDoc — vendored from `tree-sitter/tree-sitter-jsdoc` as `vendor/tree_sitter/grammars/jsdoc/`; it is parser-backed comment highlighting for JS/TS, not a standalone file detection mode.
@@ -62,7 +64,7 @@ Some upstream grammar repos (tree-sitter-typescript, tree-sitter-php) ship a sha
 ## Language onboarding checklist
 
 1. Add enum value in `rotide.h` if introducing a new runtime syntax language.
-2. Wire parser in `syntax.c` (`tree_sitter_<lang>()` dispatch).
+2. Wire parser in `src/language/syntax.c` (`tree_sitter_<lang>()` dispatch).
 3. Wire query cache paths/fallback query strings.
 4. Update detection (`editorSyntaxDetectLanguageFromFilenameAndFirstLine` and helpers).
 5. Update build/vendor wiring when grammar runtime/parser/scanner files are needed.
@@ -80,7 +82,8 @@ Some upstream grammar repos (tree-sitter-typescript, tree-sitter-php) ship a sha
 ## Injection notes
 
 - Generic injections are stored as tab-local injected parse trees in `editorSyntaxState`; do not reintroduce one-off language fields for new static injections.
-- V1 supports static `#set! injection.language` plus `@injection.content`, with `#set! injection.combined` recorded for parity. Dynamic `@injection.language`, `#offset!`, and `#set! injection.include-children` remain follow-up work before broader upstream injection queries are enabled.
+- Supported predicates / settings: `@injection.content`, static `#set! injection.language`, dynamic `@injection.language` capture (resolved per-match), `#set! injection.combined`, `#set! injection.include-children`, and `#offset!` adjustments for content/language captures.
+- Host languages with built-in injection queries today: HTML, JavaScript, TypeScript, PHP, C++, Haskell, Julia, EJS, ERB. The set is gated by `editorSyntaxLanguageHasInjectionQuery` in `src/language/syntax.c`.
 - Unsupported injection target languages should be skipped without disabling the host tree or reporting noisy status.
 
 ## Performance and degraded-mode checklist
