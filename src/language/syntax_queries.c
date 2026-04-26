@@ -609,10 +609,12 @@ static const char editor_builtin_php_injections_query[] =
 		" (#set! injection.combined))\n"
 		"(heredoc\n"
 		" (heredoc_body) @injection.content\n"
-		" (heredoc_end) @injection.language)\n"
+		" (heredoc_end) @injection.language\n"
+		" (#set! injection.include-children))\n"
 		"(nowdoc\n"
 		" (nowdoc_body) @injection.content\n"
-		" (heredoc_end) @injection.language)\n";
+		" (heredoc_end) @injection.language\n"
+		" (#set! injection.include-children))\n";
 
 static const char editor_builtin_cpp_injections_query[] =
 		"(raw_string_literal\n"

@@ -465,7 +465,8 @@ static bool scan(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
         array_delete(&word);
 
         lexer->mark_end(lexer);
-        array_delete(&array_pop(&scanner->heredocs).word);
+        Heredoc closed_heredoc = array_pop(&scanner->heredocs);
+        array_delete(&closed_heredoc.word);
         return true;
     }
 

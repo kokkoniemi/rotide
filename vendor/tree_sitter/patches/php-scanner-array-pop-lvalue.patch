@@ -1,0 +1,14 @@
+diff --git a/vendor/tree_sitter/grammars/php/common/scanner.h b/vendor/tree_sitter/grammars/php/common/scanner.h
+index e16a21e..39736f2 100644
+--- a/vendor/tree_sitter/grammars/php/common/scanner.h
++++ b/vendor/tree_sitter/grammars/php/common/scanner.h
+@@ -465,7 +465,8 @@ static bool scan(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
+         array_delete(&word);
+ 
+         lexer->mark_end(lexer);
+-        array_delete(&array_pop(&scanner->heredocs).word);
++        Heredoc closed_heredoc = array_pop(&scanner->heredocs);
++        array_delete(&closed_heredoc.word);
+         return true;
+     }
+ 

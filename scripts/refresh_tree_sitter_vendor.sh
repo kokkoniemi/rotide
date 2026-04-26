@@ -310,6 +310,9 @@ cp -R "${PHP_GRAMMAR_SRC}/common" "${REPO_ROOT}/vendor/tree_sitter/grammars/php/
 sed -i.bak 's|\.\./\.\./common/scanner\.h|../common/scanner.h|' \
 	"${REPO_ROOT}/vendor/tree_sitter/grammars/php/src/scanner.c"
 rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/php/src/scanner.c.bak"
+# Local fix for an lvalue use of array_pop() in the PHP scanner
+git -C "${REPO_ROOT}" apply \
+	"${REPO_ROOT}/vendor/tree_sitter/patches/php-scanner-array-pop-lvalue.patch"
 sync_grammar_vendor "${RUST_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/rust"
 sync_grammar_vendor "${JAVA_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/java"
 sync_grammar_vendor "${REGEX_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/regex"

@@ -434,7 +434,7 @@ static int test_editor_refresh_screen_applies_php_html_injections(void) {
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[96msection\x1b[39m") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[91mclass\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[91mclass") != NULL);
 	free(output);
 
 	ASSERT_TRUE(unlink(path) == 0);

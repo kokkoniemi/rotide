@@ -1,2 +1,5 @@
+<?php
+$html = <<<HTML
 <section class="plain">Plain</section>
-<?php echo "hi"; ?>
+HTML;
+echo $html;

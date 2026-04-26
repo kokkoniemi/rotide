@@ -2593,7 +2593,9 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 			}
 			const struct editorSyntaxCapture *candidate =
 					&capture_vecs[vec_idx].items[indices[vec_idx]];
-			if (choice == NULL || editorSyntaxCaptureSortKeyCmp(candidate, choice) < 0) {
+			int cmp = choice == NULL ? -1 :
+					editorSyntaxCaptureSortKeyCmp(candidate, choice);
+			if (choice == NULL || cmp < 0 || (cmp == 0 && vec_idx > source_choice)) {
 				choice = candidate;
 				source_choice = vec_idx;
 			}
