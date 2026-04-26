@@ -34,7 +34,9 @@ static void editorSyntaxDisableWithStatus(const char *message);
 int editorSyntaxParseFullActive(void);
 void editorSyntaxVisibleCacheInvalidate(void);
 static void editorSyntaxVisibleCacheInvalidateRows(int start_row, int end_row_exclusive);
+static void editorSyntaxReportStatusIfNeeded(void);
 static void editorSyntaxReportBudgetStatusIfNeeded(void);
+static void editorSyntaxReportQueryUnavailableStatusIfNeeded(void);
 static int editorLspActiveBufferTracked(void);
 char *editorDupActiveTextSource(size_t *len_out);
 static void editorLspNotifyDidChangeActive(const struct editorSyntaxEdit *edit,
@@ -167,6 +169,30 @@ static void editorSyntaxReportBudgetStatusIfNeeded(void) {
 	} else if (query_budget_exceeded) {
 		editorSetStatusMsg("Tree-sitter highlight throttled (budget)");
 	}
+}
+
+static void editorSyntaxReportQueryUnavailableStatusIfNeeded(void) {
+	if (E.syntax_state == NULL) {
+		return;
+	}
+
+	enum editorSyntaxLanguage language = EDITOR_SYNTAX_NONE;
+	enum editorSyntaxQueryKind kind = EDITOR_SYNTAX_QUERY_KIND_HIGHLIGHT;
+	if (!editorSyntaxStateConsumeQueryUnavailableEvent(E.syntax_state, &language, &kind)) {
+		return;
+	}
+	(void)language;
+
+	if (kind == EDITOR_SYNTAX_QUERY_KIND_INJECTION) {
+		editorSetStatusMsg("Tree-sitter injection query unavailable");
+	} else {
+		editorSetStatusMsg("Tree-sitter highlight query unavailable");
+	}
+}
+
+static void editorSyntaxReportStatusIfNeeded(void) {
+	editorSyntaxReportBudgetStatusIfNeeded();
+	editorSyntaxReportQueryUnavailableStatusIfNeeded();
 }
 
 static void editorSyntaxDeactivateActive(void) {
@@ -401,7 +427,7 @@ int editorSyntaxParseFullActive(void) {
 		editorSyntaxDisableWithStatus("Tree-sitter disabled (parse failed)");
 		return 0;
 	}
-	editorSyntaxReportBudgetStatusIfNeeded();
+	editorSyntaxReportStatusIfNeeded();
 	editorSyntaxVisibleCacheInvalidate();
 	return 1;
 }
@@ -434,7 +460,7 @@ static int editorSyntaxApplyIncrementalEditActive(const struct editorSyntaxEdit 
 						if (!editorSyntaxVisibleCacheInvalidateChangedRowsFromState()) {
 							editorSyntaxVisibleCacheInvalidate();
 						}
-						editorSyntaxReportBudgetStatusIfNeeded();
+						editorSyntaxReportStatusIfNeeded();
 						return 1;
 					}
 				}
@@ -456,7 +482,7 @@ static int editorSyntaxApplyIncrementalEditActive(const struct editorSyntaxEdit 
 		editorSyntaxDisableWithStatus("Tree-sitter disabled (parse failed)");
 		return 0;
 	}
-	editorSyntaxReportBudgetStatusIfNeeded();
+	editorSyntaxReportStatusIfNeeded();
 	editorSyntaxVisibleCacheInvalidate();
 	return 1;
 }
@@ -1403,7 +1429,7 @@ static int editorSyntaxBuildVisibleSpanCache(int first_row, int row_count) {
 		g_visible_syntax_row_recompute_count++;
 	}
 
-	editorSyntaxReportBudgetStatusIfNeeded();
+	editorSyntaxReportStatusIfNeeded();
 	return 1;
 }
 

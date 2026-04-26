@@ -50,6 +50,11 @@ struct editorSyntaxQueryCompileError {
 	char context[ROTIDE_SYNTAX_QUERY_ERROR_CONTEXT_MAX + 1];
 };
 
+enum editorSyntaxQueryKind {
+	EDITOR_SYNTAX_QUERY_KIND_HIGHLIGHT = 0,
+	EDITOR_SYNTAX_QUERY_KIND_INJECTION
+};
+
 enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *filename);
 enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilenameAndFirstLine(
 		const char *filename, const char *first_line);
@@ -78,6 +83,9 @@ int editorSyntaxStateCopyLastChangedRanges(const struct editorSyntaxState *state
 int editorSyntaxStateConsumeBudgetEvents(struct editorSyntaxState *state,
 		int *parse_budget_exceeded_out,
 		int *query_budget_exceeded_out);
+int editorSyntaxStateConsumeQueryUnavailableEvent(struct editorSyntaxState *state,
+		enum editorSyntaxLanguage *language_out,
+		enum editorSyntaxQueryKind *kind_out);
 int editorSyntaxDrainLastQueryCompileError(struct editorSyntaxQueryCompileError *error_out);
 int editorSyntaxCopyLastQueryCompileError(struct editorSyntaxQueryCompileError *error_out);
 

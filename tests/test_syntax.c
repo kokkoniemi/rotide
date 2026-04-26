@@ -1418,6 +1418,27 @@ static int test_editor_syntax_query_compile_failure_records_diagnostics(void) {
 	return 0;
 }
 
+static int test_editor_syntax_collect_c_captures_without_injection_query_is_graceful(void) {
+	const char *source = "int value = 1;\n";
+	struct editorTextSource source_view = {0};
+	editorTextSourceInitString(&source_view, source, strlen(source));
+
+	struct editorSyntaxState *state = editorSyntaxStateCreate(EDITOR_SYNTAX_C);
+	ASSERT_TRUE(state != NULL);
+	ASSERT_TRUE(editorSyntaxStateParseFull(state, &source_view));
+
+	struct editorSyntaxCapture captures[32];
+	int capture_count = 0;
+	ASSERT_TRUE(editorSyntaxStateCollectCapturesForRange(state, &source_view, 0,
+				(uint32_t)strlen(source), captures,
+				(int)(sizeof(captures) / sizeof(captures[0])), &capture_count));
+	ASSERT_TRUE(capture_count > 0);
+	ASSERT_TRUE(!editorSyntaxStateConsumeQueryUnavailableEvent(state, NULL, NULL));
+
+	editorSyntaxStateDestroy(state);
+	return 0;
+}
+
 static int test_editor_syntax_parse_budget_is_graceful(void) {
 	size_t source_len = 0;
 	char *source = build_repeated_text("function item(){ return 1; }\n", 120000, &source_len);
@@ -1789,6 +1810,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_incremental_edits_keep_regex_tree_valid", test_editor_syntax_incremental_edits_keep_regex_tree_valid},
 	{"editor_syntax_query_budget_match_limit_is_graceful", test_editor_syntax_query_budget_match_limit_is_graceful},
 	{"editor_syntax_query_compile_failure_records_diagnostics", test_editor_syntax_query_compile_failure_records_diagnostics},
+	{"editor_syntax_collect_c_captures_without_injection_query_is_graceful", test_editor_syntax_collect_c_captures_without_injection_query_is_graceful},
 	{"editor_syntax_parse_budget_is_graceful", test_editor_syntax_parse_budget_is_graceful},
 	{"editor_syntax_incremental_provider_parse_keeps_tree_valid", test_editor_syntax_incremental_provider_parse_keeps_tree_valid},
 	{"editor_syntax_large_file_stays_enabled_in_degraded_mode", test_editor_syntax_large_file_stays_enabled_in_degraded_mode},

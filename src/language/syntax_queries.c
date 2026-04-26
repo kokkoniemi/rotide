@@ -24,6 +24,7 @@ enum editorSyntaxCaptureRole {
 #define ROTIDE_SYNTAX_PARSE_BUDGET_NS_NORMAL (50000000ULL)
 #define ROTIDE_SYNTAX_PARSE_BUDGET_NS_DEGRADED (30000000ULL)
 #define ROTIDE_SYNTAX_PARSE_BUDGET_NS_DEGRADED_INJECTIONS (20000000ULL)
+#define ROTIDE_SYNTAX_QUERY_KIND_COUNT 2
 struct editorSyntaxLocalMark {
 	TSNode node;
 	int is_local;
@@ -84,6 +85,9 @@ struct editorSyntaxState {
 	int last_changed_range_cap;
 	int budget_parse_exceeded;
 	int budget_query_exceeded;
+	int query_unavailable_pending;
+	enum editorSyntaxLanguage query_unavailable_language;
+	enum editorSyntaxQueryKind query_unavailable_kind;
 	size_t source_len;
 	char *scratch_primary;
 	size_t scratch_primary_cap;
@@ -187,6 +191,7 @@ static struct {
 static struct editorSyntaxQueryCompileError g_last_query_compile_error = {0};
 static unsigned int g_last_query_compile_error_generation = 0;
 static unsigned int g_drained_query_compile_error_generation = 0;
+static uint64_t g_query_unavailable_reported[ROTIDE_SYNTAX_QUERY_KIND_COUNT] = {0};
 
 static int editorSyntaxStringEquals(const char *s, size_t len, const char *literal) {
 	if (s == NULL || literal == NULL) {
@@ -1069,6 +1074,11 @@ static int editorSyntaxEnsureQueryCache(struct editorSyntaxQueryCacheEntry *cach
 	return 1;
 }
 
+static const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCacheForLanguage(
+		enum editorSyntaxLanguage language);
+static const struct editorSyntaxQueryCacheEntry *editorSyntaxInjectionQueryCacheForLanguage(
+		enum editorSyntaxLanguage language);
+
 static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) {
 	switch (language) {
 		case EDITOR_SYNTAX_C:
@@ -1188,6 +1198,19 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 	}
 }
 
+static const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCachePtr(
+		enum editorSyntaxLanguage language) {
+	if (!editorSyntaxEnsureHighlightQuery(language)) {
+		return NULL;
+	}
+	const struct editorSyntaxQueryCacheEntry *cache =
+			editorSyntaxHighlightQueryCacheForLanguage(language);
+	if (cache == NULL || cache->query == NULL || cache->capture_classes == NULL) {
+		return NULL;
+	}
+	return cache;
+}
+
 static int editorSyntaxEnsureLocalsQuery(enum editorSyntaxLanguage language) {
 	switch (language) {
 		case EDITOR_SYNTAX_JAVASCRIPT:
@@ -1255,6 +1278,58 @@ static int editorSyntaxEnsureInjectionQuery(enum editorSyntaxLanguage language) 
 		default:
 			return 0;
 	}
+}
+
+static const struct editorSyntaxQueryCacheEntry *editorSyntaxInjectionQueryCachePtr(
+		enum editorSyntaxLanguage language) {
+	if (!editorSyntaxEnsureInjectionQuery(language)) {
+		return NULL;
+	}
+	const struct editorSyntaxQueryCacheEntry *cache =
+			editorSyntaxInjectionQueryCacheForLanguage(language);
+	if (cache == NULL || cache->query == NULL || cache->capture_roles == NULL ||
+			cache->pattern_injection_metadata == NULL) {
+		return NULL;
+	}
+	return cache;
+}
+
+static int editorSyntaxQueryKindIndex(enum editorSyntaxQueryKind kind) {
+	switch (kind) {
+		case EDITOR_SYNTAX_QUERY_KIND_HIGHLIGHT:
+			return 0;
+		case EDITOR_SYNTAX_QUERY_KIND_INJECTION:
+			return 1;
+		default:
+			return -1;
+	}
+}
+
+static uint64_t editorSyntaxLanguageEventBit(enum editorSyntaxLanguage language) {
+	if ((int)language <= 0 || (int)language >= 64) {
+		return 0;
+	}
+	return 1ULL << (unsigned int)language;
+}
+
+static void editorSyntaxStateRecordQueryUnavailable(struct editorSyntaxState *state,
+		enum editorSyntaxLanguage language,
+		enum editorSyntaxQueryKind kind) {
+	if (state == NULL) {
+		return;
+	}
+	int kind_idx = editorSyntaxQueryKindIndex(kind);
+	uint64_t language_bit = editorSyntaxLanguageEventBit(language);
+	if (kind_idx < 0 || language_bit == 0) {
+		return;
+	}
+	if ((g_query_unavailable_reported[kind_idx] & language_bit) != 0) {
+		return;
+	}
+	g_query_unavailable_reported[kind_idx] |= language_bit;
+	state->query_unavailable_pending = 1;
+	state->query_unavailable_language = language;
+	state->query_unavailable_kind = kind;
 }
 
 static const struct editorSyntaxQueryCacheEntry *editorSyntaxInjectionQueryCacheForLanguage(

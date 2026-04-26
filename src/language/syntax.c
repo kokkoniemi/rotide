@@ -1415,7 +1415,8 @@ static int editorSyntaxCollectCapturesFromTree(struct editorSyntaxState *state,
 		uint32_t end_byte,
 		const struct editorSyntaxLocalsContext *locals,
 		int skip_predicates,
-		struct editorSyntaxCaptureVec *captures_out);
+		struct editorSyntaxCaptureVec *captures_out,
+		int *query_unavailable_out);
 
 static int editorSyntaxCollectCapturesFromTree(struct editorSyntaxState *state,
 		const TSTree *tree,
@@ -1425,7 +1426,11 @@ static int editorSyntaxCollectCapturesFromTree(struct editorSyntaxState *state,
 		uint32_t end_byte,
 		const struct editorSyntaxLocalsContext *locals,
 		int skip_predicates,
-		struct editorSyntaxCaptureVec *captures_out) {
+		struct editorSyntaxCaptureVec *captures_out,
+		int *query_unavailable_out) {
+	if (query_unavailable_out != NULL) {
+		*query_unavailable_out = 0;
+	}
 	if (captures_out == NULL) {
 		return 0;
 	}
@@ -1433,13 +1438,13 @@ static int editorSyntaxCollectCapturesFromTree(struct editorSyntaxState *state,
 		return 1;
 	}
 
-	if (!editorSyntaxEnsureHighlightQuery(language)) {
-		return 1;
-	}
 	const struct editorSyntaxQueryCacheEntry *cache =
-			editorSyntaxHighlightQueryCacheForLanguage(language);
-	if (cache == NULL || cache->query == NULL || cache->capture_classes == NULL) {
-		return 1;
+			editorSyntaxHighlightQueryCachePtr(language);
+	if (cache == NULL) {
+		if (query_unavailable_out != NULL) {
+			*query_unavailable_out = 1;
+		}
+		return 0;
 	}
 
 	TSQueryCursor *cursor = ts_query_cursor_new();
@@ -2073,13 +2078,11 @@ static int editorSyntaxCollectInjectionRangesFromTree(struct editorSyntaxState *
 	if (!editorSyntaxLanguageHasInjectionQuery(language)) {
 		return 1;
 	}
-	if (!editorSyntaxEnsureInjectionQuery(language)) {
-		return 1;
-	}
 	const struct editorSyntaxQueryCacheEntry *cache =
-			editorSyntaxInjectionQueryCacheForLanguage(language);
-	if (cache == NULL || cache->query == NULL || cache->capture_roles == NULL ||
-			cache->pattern_injection_metadata == NULL) {
+			editorSyntaxInjectionQueryCachePtr(language);
+	if (cache == NULL) {
+		editorSyntaxStateRecordQueryUnavailable(state, language,
+				EDITOR_SYNTAX_QUERY_KIND_INJECTION);
 		return 1;
 	}
 
@@ -2386,6 +2389,9 @@ struct editorSyntaxState *editorSyntaxStateCreate(enum editorSyntaxLanguage lang
 	state->last_changed_range_cap = 0;
 	state->budget_parse_exceeded = 0;
 	state->budget_query_exceeded = 0;
+	state->query_unavailable_pending = 0;
+	state->query_unavailable_language = EDITOR_SYNTAX_NONE;
+	state->query_unavailable_kind = EDITOR_SYNTAX_QUERY_KIND_HIGHLIGHT;
 	state->source_len = 0;
 	state->scratch_primary = NULL;
 	state->scratch_primary_cap = 0;
@@ -2540,11 +2546,19 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 		return 0;
 	}
 
+	int query_unavailable = 0;
 	int ok = editorSyntaxCollectCapturesFromTree(state, state->host.tree, state->language,
-			source, start_byte, end_byte, host_locals, skip_predicates, &capture_vecs[0]);
+			source, start_byte, end_byte, host_locals, skip_predicates, &capture_vecs[0],
+			&query_unavailable);
 	if (!ok) {
-		editorSyntaxCaptureVecFree(&capture_vecs[0]);
-		return 0;
+		if (query_unavailable) {
+			editorSyntaxStateRecordQueryUnavailable(state, state->language,
+					EDITOR_SYNTAX_QUERY_KIND_HIGHLIGHT);
+			ok = 1;
+		} else {
+			editorSyntaxCaptureVecFree(&capture_vecs[0]);
+			return 0;
+		}
 	}
 
 	if (!state->perf_disable_injections) {
@@ -2563,13 +2577,20 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 				break;
 			}
 			int vec_idx = capture_vec_count;
+			query_unavailable = 0;
 			if (!editorSyntaxCollectCapturesFromTree(state, injection->parsed.tree,
 						injection->parsed.language, source, start_byte, end_byte,
 						injection_locals, skip_predicates,
-						&capture_vecs[vec_idx])) {
-				editorSyntaxCaptureVecFree(&capture_vecs[vec_idx]);
-				ok = 0;
-				break;
+						&capture_vecs[vec_idx], &query_unavailable)) {
+				if (query_unavailable) {
+					editorSyntaxStateRecordQueryUnavailable(state, injection->parsed.language,
+							EDITOR_SYNTAX_QUERY_KIND_HIGHLIGHT);
+					continue;
+				} else {
+					editorSyntaxCaptureVecFree(&capture_vecs[vec_idx]);
+					ok = 0;
+					break;
+				}
 			}
 			capture_vec_count++;
 		}
@@ -2666,6 +2687,30 @@ int editorSyntaxStateConsumeBudgetEvents(struct editorSyntaxState *state,
 	return had;
 }
 
+int editorSyntaxStateConsumeQueryUnavailableEvent(struct editorSyntaxState *state,
+		enum editorSyntaxLanguage *language_out,
+		enum editorSyntaxQueryKind *kind_out) {
+	if (language_out != NULL) {
+		*language_out = EDITOR_SYNTAX_NONE;
+	}
+	if (kind_out != NULL) {
+		*kind_out = EDITOR_SYNTAX_QUERY_KIND_HIGHLIGHT;
+	}
+	if (state == NULL || !state->query_unavailable_pending) {
+		return 0;
+	}
+	if (language_out != NULL) {
+		*language_out = state->query_unavailable_language;
+	}
+	if (kind_out != NULL) {
+		*kind_out = state->query_unavailable_kind;
+	}
+	state->query_unavailable_pending = 0;
+	state->query_unavailable_language = EDITOR_SYNTAX_NONE;
+	state->query_unavailable_kind = EDITOR_SYNTAX_QUERY_KIND_HIGHLIGHT;
+	return 1;
+}
+
 void editorSyntaxTestSetBudgetOverrides(int enabled,
 		uint32_t query_match_limit,
 		uint64_t query_time_budget_ns,
@@ -2685,6 +2730,7 @@ int editorSyntaxTestBudgetOverridesEnabled(void) {
 }
 
 void editorSyntaxReleaseSharedResources(void) {
+	memset(g_query_unavailable_reported, 0, sizeof(g_query_unavailable_reported));
 	editorSyntaxClearQueryCacheEntry(&g_c_highlight_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_cpp_highlight_query_cache);
 	editorSyntaxClearQueryCacheEntry(&g_go_highlight_query_cache);
