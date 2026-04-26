@@ -22,8 +22,6 @@ enum editorSyntaxCaptureRole {
 #define ROTIDE_SYNTAX_PARSE_BUDGET_NS_NORMAL (50000000ULL)
 #define ROTIDE_SYNTAX_PARSE_BUDGET_NS_DEGRADED (30000000ULL)
 #define ROTIDE_SYNTAX_PARSE_BUDGET_NS_DEGRADED_INJECTIONS (20000000ULL)
-#define ROTIDE_SYNTAX_JSDOC_PARSE_MAX_BYTES ((size_t)(128 * 1024))
-
 struct editorSyntaxLocalMark {
 	TSNode node;
 	int is_local;
@@ -53,13 +51,24 @@ struct editorSyntaxInjectedTree {
 	int depth;
 };
 
+struct editorSyntaxInjectionPatternMetadata {
+	char *language;
+	uint8_t combined;
+	uint8_t include_children;
+	uint8_t has_offset;
+	uint32_t offset_capture_id;
+	int32_t start_row_offset;
+	int32_t start_column_offset;
+	int32_t end_row_offset;
+	int32_t end_column_offset;
+};
+
 #define ROTIDE_SYNTAX_MAX_INJECTION_TREES 16
 #define ROTIDE_SYNTAX_MAX_INJECTION_DEPTH 3
 
 struct editorSyntaxState {
 	enum editorSyntaxLanguage language;
 	struct editorSyntaxParsedTree host;
-	struct editorSyntaxParsedTree jsdoc_injection;
 	struct editorSyntaxLocalsContext host_locals;
 	struct editorSyntaxInjectedTree injections[ROTIDE_SYNTAX_MAX_INJECTION_TREES];
 	int injection_count;
@@ -85,8 +94,7 @@ struct editorSyntaxQueryCacheEntry {
 	TSQuery *query;
 	enum editorSyntaxHighlightClass *capture_classes;
 	uint8_t *capture_roles;
-	char **pattern_injection_languages;
-	uint8_t *pattern_injection_combined;
+	struct editorSyntaxInjectionPatternMetadata *pattern_injection_metadata;
 	uint32_t capture_count;
 	uint32_t pattern_count;
 	regex_t *compiled_regexes;
@@ -158,6 +166,12 @@ static struct editorSyntaxQueryCacheEntry g_erb_highlight_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_javascript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_typescript_locals_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_html_injection_query_cache = {0};
+static struct editorSyntaxQueryCacheEntry g_javascript_injection_query_cache = {0};
+static struct editorSyntaxQueryCacheEntry g_typescript_injection_query_cache = {0};
+static struct editorSyntaxQueryCacheEntry g_php_injection_query_cache = {0};
+static struct editorSyntaxQueryCacheEntry g_cpp_injection_query_cache = {0};
+static struct editorSyntaxQueryCacheEntry g_haskell_injection_query_cache = {0};
+static struct editorSyntaxQueryCacheEntry g_julia_injection_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_ejs_injection_query_cache = {0};
 static struct editorSyntaxQueryCacheEntry g_erb_injection_query_cache = {0};
 
@@ -575,6 +589,75 @@ static const char editor_builtin_erb_injections_query[] =
 		"((code) @injection.content\n"
 		" (#set! injection.language \"ruby\")\n"
 		" (#set! injection.combined))\n";
+
+static const char editor_builtin_javascript_injections_query[] =
+		"((regex_pattern) @injection.content\n"
+		" (#set! injection.language \"regex\"))\n"
+		"((comment) @injection.content\n"
+		" (#match? @injection.content \"^/\\\\*\\\\*\")\n"
+		" (#set! injection.language \"jsdoc\"))\n"
+		"(call_expression\n"
+		" function: [(identifier) @injection.language\n"
+		"            (member_expression property: (property_identifier) @injection.language)]\n"
+		" arguments: (template_string (string_fragment) @injection.content)\n"
+		" (#set! injection.combined)\n"
+		" (#set! injection.include-children))\n";
+
+static const char editor_builtin_php_injections_query[] =
+		"((text) @injection.content\n"
+		" (#set! injection.language \"html\")\n"
+		" (#set! injection.combined))\n"
+		"(heredoc\n"
+		" (heredoc_body) @injection.content\n"
+		" (heredoc_end) @injection.language)\n"
+		"(nowdoc\n"
+		" (nowdoc_body) @injection.content\n"
+		" (heredoc_end) @injection.language)\n";
+
+static const char editor_builtin_cpp_injections_query[] =
+		"(raw_string_literal\n"
+		" delimiter: (raw_string_delimiter) @injection.language\n"
+		" (raw_string_content) @injection.content)\n";
+
+static const char editor_builtin_haskell_injections_query[] =
+		"(quasiquote\n"
+		" (quoter) @injection.language\n"
+		" (quasiquote_body) @injection.content)\n"
+		"(quasiquote\n"
+		" (quoter) @_name\n"
+		" (#any-of? @_name \"cassius\" \"lucius\")\n"
+		" (quasiquote_body) @injection.content\n"
+		" (#set! injection.language \"css\"))\n"
+		"(quasiquote\n"
+		" (quoter) @_name\n"
+		" (#any-of? @_name \"shamlet\" \"xshamlet\" \"hamlet\" \"xhamlet\" \"ihamlet\" \"hsx\")\n"
+		" (quasiquote_body) @injection.content\n"
+		" (#set! injection.language \"html\"))\n"
+		"(quasiquote\n"
+		" (quoter) @_name\n"
+		" (#any-of? @_name \"js\" \"julius\")\n"
+		" (quasiquote_body) @injection.content\n"
+		" (#set! injection.language \"javascript\"))\n"
+		"(quasiquote\n"
+		" (quoter) @_name\n"
+		" (#any-of? @_name \"tsc\" \"tscJSX\")\n"
+		" (quasiquote_body) @injection.content\n"
+		" (#set! injection.language \"typescript\"))\n"
+		"(quasiquote\n"
+		" (quoter) @_name\n"
+		" (#eq? @_name \"aesonQQ\")\n"
+		" (quasiquote_body) @injection.content\n"
+		" (#set! injection.language \"json\"))\n";
+
+static const char editor_builtin_julia_injections_query[] =
+		"(prefixed_string_literal\n"
+		" prefix: (identifier) @_prefix\n"
+		" (content) @injection.content\n"
+		" (#eq? @_prefix \"r\")\n"
+		" (#set! injection.language \"regex\"))\n"
+		"(command_literal\n"
+		" (content) @injection.content\n"
+		" (#set! injection.language \"bash\"))\n";
 
 static const char *const g_c_highlight_query_paths[] = {
 	"vendor/tree_sitter/grammars/c/queries/highlights.scm"
@@ -1274,29 +1357,53 @@ static int editorSyntaxPopulateInjectionCaptureRoles(TSQuery *query, uint8_t **c
 	return 1;
 }
 
-static int editorSyntaxPopulateInjectionPatternLanguages(TSQuery *query,
-		char ***languages_out,
-		uint8_t **combined_out,
+static int editorSyntaxParsePredicateInt32(const char *value, uint32_t value_len,
+		int32_t *out) {
+	if (value == NULL || value_len == 0 || out == NULL) {
+		return 0;
+	}
+	if (value_len >= 32) {
+		return 0;
+	}
+	char buf[32];
+	memcpy(buf, value, value_len);
+	buf[value_len] = '\0';
+	char *end = NULL;
+	long parsed = strtol(buf, &end, 10);
+	if (end == buf || *end != '\0' || parsed < INT32_MIN || parsed > INT32_MAX) {
+		return 0;
+	}
+	*out = (int32_t)parsed;
+	return 1;
+}
+
+static void editorSyntaxFreeInjectionPatternMetadata(
+		struct editorSyntaxInjectionPatternMetadata *metadata,
+		uint32_t pattern_count) {
+	if (metadata == NULL) {
+		return;
+	}
+	for (uint32_t i = 0; i < pattern_count; i++) {
+		free(metadata[i].language);
+	}
+	free(metadata);
+}
+
+static int editorSyntaxPopulateInjectionPatternMetadata(TSQuery *query,
+		struct editorSyntaxInjectionPatternMetadata **metadata_out,
 		uint32_t *pattern_count_out) {
-	if (query == NULL || languages_out == NULL || combined_out == NULL ||
+	if (query == NULL || metadata_out == NULL ||
 			pattern_count_out == NULL) {
 		return 0;
 	}
-	*languages_out = NULL;
-	*combined_out = NULL;
+	*metadata_out = NULL;
 	*pattern_count_out = 0;
 
 	uint32_t pattern_count = ts_query_pattern_count(query);
-	char **languages = NULL;
-	uint8_t *combined = NULL;
+	struct editorSyntaxInjectionPatternMetadata *metadata = NULL;
 	if (pattern_count > 0) {
-		languages = calloc(pattern_count, sizeof(*languages));
-		if (languages == NULL) {
-			return 0;
-		}
-		combined = calloc(pattern_count, sizeof(*combined));
-		if (combined == NULL) {
-			free(languages);
+		metadata = calloc(pattern_count, sizeof(*metadata));
+		if (metadata == NULL) {
 			return 0;
 		}
 	}
@@ -1332,23 +1439,19 @@ static int editorSyntaxPopulateInjectionPatternLanguages(TSQuery *query,
 								steps[start + 2].value_id, &value_len);
 						char *dup = malloc((size_t)value_len + 1);
 						if (dup == NULL) {
-							for (uint32_t j = 0; j < pattern_count; j++) {
-								free(languages[j]);
-							}
-							free(languages);
-							free(combined);
+							editorSyntaxFreeInjectionPatternMetadata(metadata, pattern_count);
 							return 0;
 						}
 						memcpy(dup, value, value_len);
 						dup[value_len] = '\0';
-						free(languages[pattern_idx]);
-						languages[pattern_idx] = dup;
+						free(metadata[pattern_idx].language);
+						metadata[pattern_idx].language = dup;
 					} else if (editorSyntaxStringEquals(key, key_len,
 								"injection.combined")) {
-						combined[pattern_idx] = 1;
+						metadata[pattern_idx].combined = 1;
 					} else if (editorSyntaxStringEquals(key, key_len,
 								"injection.include-children")) {
-						/* Recorded later when child-inclusive injections are enabled. */
+						metadata[pattern_idx].include_children = 1;
 					}
 				} else if (editorSyntaxStringEquals(cmd, cmd_len, "set!") &&
 						end - start >= 2 &&
@@ -1357,19 +1460,60 @@ static int editorSyntaxPopulateInjectionPatternLanguages(TSQuery *query,
 					const char *key = ts_query_string_value_for_id(query,
 							steps[start + 1].value_id, &key_len);
 					if (editorSyntaxStringEquals(key, key_len, "injection.combined")) {
-						combined[pattern_idx] = 1;
+						metadata[pattern_idx].combined = 1;
 					} else if (editorSyntaxStringEquals(key, key_len,
 								"injection.include-children")) {
-						/* Recognized for future upstream parity; v1 still uses node ranges. */
+						metadata[pattern_idx].include_children = 1;
 					}
+				} else if (editorSyntaxStringEquals(cmd, cmd_len, "offset!") &&
+						end - start >= 6 &&
+						steps[start + 1].type == TSQueryPredicateStepTypeCapture &&
+						steps[start + 2].type == TSQueryPredicateStepTypeString &&
+						steps[start + 3].type == TSQueryPredicateStepTypeString &&
+						steps[start + 4].type == TSQueryPredicateStepTypeString &&
+						steps[start + 5].type == TSQueryPredicateStepTypeString) {
+					int32_t start_row = 0;
+					int32_t start_col = 0;
+					int32_t end_row = 0;
+					int32_t end_col = 0;
+					uint32_t value_len = 0;
+					const char *value = ts_query_string_value_for_id(query,
+							steps[start + 2].value_id, &value_len);
+					if (!editorSyntaxParsePredicateInt32(value, value_len, &start_row)) {
+						i++;
+						continue;
+					}
+					value = ts_query_string_value_for_id(query,
+							steps[start + 3].value_id, &value_len);
+					if (!editorSyntaxParsePredicateInt32(value, value_len, &start_col)) {
+						i++;
+						continue;
+					}
+					value = ts_query_string_value_for_id(query,
+							steps[start + 4].value_id, &value_len);
+					if (!editorSyntaxParsePredicateInt32(value, value_len, &end_row)) {
+						i++;
+						continue;
+					}
+					value = ts_query_string_value_for_id(query,
+							steps[start + 5].value_id, &value_len);
+					if (!editorSyntaxParsePredicateInt32(value, value_len, &end_col)) {
+						i++;
+						continue;
+					}
+					metadata[pattern_idx].has_offset = 1;
+					metadata[pattern_idx].offset_capture_id = steps[start + 1].value_id;
+					metadata[pattern_idx].start_row_offset = start_row;
+					metadata[pattern_idx].start_column_offset = start_col;
+					metadata[pattern_idx].end_row_offset = end_row;
+					metadata[pattern_idx].end_column_offset = end_col;
 				}
 			}
 			i++;
 		}
 	}
 
-	*languages_out = languages;
-	*combined_out = combined;
+	*metadata_out = metadata;
 	*pattern_count_out = pattern_count;
 	return 1;
 }
@@ -1401,15 +1545,9 @@ static void editorSyntaxClearQueryCacheEntry(struct editorSyntaxQueryCacheEntry 
 	cache->capture_classes = NULL;
 	free(cache->capture_roles);
 	cache->capture_roles = NULL;
-	if (cache->pattern_injection_languages != NULL) {
-		for (uint32_t i = 0; i < cache->pattern_count; i++) {
-			free(cache->pattern_injection_languages[i]);
-		}
-	}
-	free(cache->pattern_injection_languages);
-	cache->pattern_injection_languages = NULL;
-	free(cache->pattern_injection_combined);
-	cache->pattern_injection_combined = NULL;
+	editorSyntaxFreeInjectionPatternMetadata(cache->pattern_injection_metadata,
+			cache->pattern_count);
+	cache->pattern_injection_metadata = NULL;
 	cache->capture_count = 0;
 	cache->pattern_count = 0;
 	cache->load_attempted = 0;
@@ -1420,10 +1558,10 @@ static int editorSyntaxEnsureQueryCache(struct editorSyntaxQueryCacheEntry *cach
 		const char *const *query_paths,
 		int query_path_count,
 		const char *fallback_query,
-		int want_capture_classes,
-		int want_locals_roles,
-		int want_injection_roles,
-		int want_injection_languages) {
+	int want_capture_classes,
+	int want_locals_roles,
+	int want_injection_roles,
+	int want_injection_metadata) {
 	if (cache == NULL || (query_paths == NULL && fallback_query == NULL)) {
 		return 0;
 	}
@@ -1449,8 +1587,7 @@ static int editorSyntaxEnsureQueryCache(struct editorSyntaxQueryCacheEntry *cach
 
 	enum editorSyntaxHighlightClass *capture_classes = NULL;
 	uint8_t *capture_roles = NULL;
-	char **pattern_languages = NULL;
-	uint8_t *pattern_combined = NULL;
+	struct editorSyntaxInjectionPatternMetadata *pattern_metadata = NULL;
 	uint32_t capture_count = 0;
 	uint32_t pattern_count = 0;
 	uint32_t string_count = ts_query_string_count(query);
@@ -1478,9 +1615,9 @@ static int editorSyntaxEnsureQueryCache(struct editorSyntaxQueryCacheEntry *cach
 		return 0;
 	}
 
-	if (want_injection_languages &&
-			!editorSyntaxPopulateInjectionPatternLanguages(query, &pattern_languages,
-					&pattern_combined, &pattern_count)) {
+	if (want_injection_metadata &&
+			!editorSyntaxPopulateInjectionPatternMetadata(query, &pattern_metadata,
+					&pattern_count)) {
 		free(capture_classes);
 		free(capture_roles);
 		ts_query_delete(query);
@@ -1499,13 +1636,7 @@ static int editorSyntaxEnsureQueryCache(struct editorSyntaxQueryCacheEntry *cach
 			free(compiled_regex_failed);
 			free(capture_classes);
 			free(capture_roles);
-			if (pattern_languages != NULL) {
-				for (uint32_t i = 0; i < pattern_count; i++) {
-					free(pattern_languages[i]);
-				}
-			}
-			free(pattern_languages);
-			free(pattern_combined);
+			editorSyntaxFreeInjectionPatternMetadata(pattern_metadata, pattern_count);
 			ts_query_delete(query);
 			return 0;
 		}
@@ -1514,8 +1645,7 @@ static int editorSyntaxEnsureQueryCache(struct editorSyntaxQueryCacheEntry *cach
 	cache->query = query;
 	cache->capture_classes = capture_classes;
 	cache->capture_roles = capture_roles;
-	cache->pattern_injection_languages = pattern_languages;
-	cache->pattern_injection_combined = pattern_combined;
+	cache->pattern_injection_metadata = pattern_metadata;
 	cache->capture_count = capture_count;
 	cache->pattern_count = pattern_count;
 	cache->compiled_regexes = compiled_regexes;
@@ -1745,6 +1875,42 @@ static int editorSyntaxEnsureInjectionQuery(enum editorSyntaxLanguage language) 
 						sizeof(g_html_injection_query_paths[0])),
 					editor_builtin_html_injections_query,
 					0, 0, 1, 1);
+		case EDITOR_SYNTAX_JAVASCRIPT:
+			return editorSyntaxEnsureQueryCache(&g_javascript_injection_query_cache,
+					EDITOR_SYNTAX_JAVASCRIPT,
+					NULL, 0,
+					editor_builtin_javascript_injections_query,
+					0, 0, 1, 1);
+		case EDITOR_SYNTAX_TYPESCRIPT:
+			return editorSyntaxEnsureQueryCache(&g_typescript_injection_query_cache,
+					EDITOR_SYNTAX_TYPESCRIPT,
+					NULL, 0,
+					editor_builtin_javascript_injections_query,
+					0, 0, 1, 1);
+		case EDITOR_SYNTAX_PHP:
+			return editorSyntaxEnsureQueryCache(&g_php_injection_query_cache,
+					EDITOR_SYNTAX_PHP,
+					NULL, 0,
+					editor_builtin_php_injections_query,
+					0, 0, 1, 1);
+		case EDITOR_SYNTAX_CPP:
+			return editorSyntaxEnsureQueryCache(&g_cpp_injection_query_cache,
+					EDITOR_SYNTAX_CPP,
+					NULL, 0,
+					editor_builtin_cpp_injections_query,
+					0, 0, 1, 1);
+		case EDITOR_SYNTAX_HASKELL:
+			return editorSyntaxEnsureQueryCache(&g_haskell_injection_query_cache,
+					EDITOR_SYNTAX_HASKELL,
+					NULL, 0,
+					editor_builtin_haskell_injections_query,
+					0, 0, 1, 1);
+		case EDITOR_SYNTAX_JULIA:
+			return editorSyntaxEnsureQueryCache(&g_julia_injection_query_cache,
+					EDITOR_SYNTAX_JULIA,
+					NULL, 0,
+					editor_builtin_julia_injections_query,
+					0, 0, 1, 1);
 		case EDITOR_SYNTAX_EJS:
 			return editorSyntaxEnsureQueryCache(&g_ejs_injection_query_cache,
 					EDITOR_SYNTAX_EJS,
@@ -1771,6 +1937,18 @@ static const struct editorSyntaxQueryCacheEntry *editorSyntaxInjectionQueryCache
 	switch (language) {
 		case EDITOR_SYNTAX_HTML:
 			return &g_html_injection_query_cache;
+		case EDITOR_SYNTAX_JAVASCRIPT:
+			return &g_javascript_injection_query_cache;
+		case EDITOR_SYNTAX_TYPESCRIPT:
+			return &g_typescript_injection_query_cache;
+		case EDITOR_SYNTAX_PHP:
+			return &g_php_injection_query_cache;
+		case EDITOR_SYNTAX_CPP:
+			return &g_cpp_injection_query_cache;
+		case EDITOR_SYNTAX_HASKELL:
+			return &g_haskell_injection_query_cache;
+		case EDITOR_SYNTAX_JULIA:
+			return &g_julia_injection_query_cache;
 		case EDITOR_SYNTAX_EJS:
 			return &g_ejs_injection_query_cache;
 		case EDITOR_SYNTAX_ERB:
@@ -1879,6 +2057,12 @@ static struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(c
 		&g_javascript_locals_query_cache,
 		&g_typescript_locals_query_cache,
 		&g_html_injection_query_cache,
+		&g_javascript_injection_query_cache,
+		&g_typescript_injection_query_cache,
+		&g_php_injection_query_cache,
+		&g_cpp_injection_query_cache,
+		&g_haskell_injection_query_cache,
+		&g_julia_injection_query_cache,
 		&g_ejs_injection_query_cache,
 		&g_erb_injection_query_cache
 	};

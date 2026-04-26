@@ -73,6 +73,27 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_cpp_tokens
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_cpp_raw_string_injections(void) {
+	char path[] = "/tmp/rotide-test-syntax-inject-cpp-XXXXXX.cpp";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+			"tests/syntax/supported/cpp/injections.cpp"));
+
+	editorOpen(path);
+	E.window_rows = 6;
+	E.window_cols = 120;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96msection\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_repo_buffer_c_stays_highlighted(void) {
 	char *path = testResolveRepoPath("src/editing/buffer_core.c");
 	ASSERT_TRUE(path != NULL);
@@ -202,6 +223,29 @@ static int test_editor_refresh_screen_html_text_apostrophe_not_javascript_string
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_nested_jsdoc_in_html_script(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-html-jsdoc-XXXXXX.html";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
+			"tests/syntax/supported/html/nested_jsdoc.html"));
+
+	editorOpen(path);
+	E.window_rows = 8;
+	E.window_cols = 120;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m * \x1b[94m@returns\x1b[90m") != NULL);
+	ASSERT_TRUE(strstr(output, "{\x1b[96mnumber\x1b[90m}") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mconst\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_javascript_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-js-XXXXXX.js";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
@@ -220,6 +264,31 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_javascript
 	ASSERT_TRUE(strstr(output, "\x1b[93mmain\x1b[39m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[94mreturn\x1b[39m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[35m42\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_javascript_injections(void) {
+	char path[] = "/tmp/rotide-test-syntax-inject-js-XXXXXX.js";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/javascript/injections.js"));
+
+	editorOpen(path);
+	E.window_rows = 10;
+	E.window_cols = 140;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m * \x1b[94m@param\x1b[90m") != NULL);
+	ASSERT_TRUE(strstr(output, "{\x1b[96mnumber\x1b[90m} count") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[97m+\x1b") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96msection\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mcolor\x1b[39m") != NULL);
 	free(output);
 
 	ASSERT_TRUE(unlink(path) == 0);
@@ -350,6 +419,28 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_php_tokens
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_php_html_injections(void) {
+	char path[] = "/tmp/rotide-test-syntax-inject-php-XXXXXX.php";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+			"tests/syntax/supported/php/injections.php"));
+
+	editorOpen(path);
+	E.window_rows = 8;
+	E.window_cols = 120;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96msection\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[91mclass\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_rust_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-rs-XXXXXX.rs";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
@@ -449,6 +540,33 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_haskell_to
 	ASSERT_TRUE(strstr(output, "\x1b[90m-- comment\x1b[39m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[96mInt\x1b[39m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[35m42\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_haskell_quasiquote_injections(void) {
+	char path[] = "/tmp/rotide-test-syntax-inject-haskell-XXXXXX.hs";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/haskell/injections.hs"));
+
+	editorOpen(path);
+	E.window_rows = 12;
+	E.window_cols = 160;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mmodule\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96msection\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[91mclass\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[95mcolor\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mconst\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96mnumber\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32m\"answer\"\x1b[39m") != NULL);
 	free(output);
 
 	ASSERT_TRUE(unlink(path) == 0);
@@ -601,6 +719,27 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_julia_toke
 	ASSERT_TRUE(strstr(output, "\x1b[94mfunction\x1b[39m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[90m# comment\x1b[39m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[35m42\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_julia_literal_injections(void) {
+	char path[] = "/tmp/rotide-test-syntax-inject-julia-XXXXXX.jl";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/julia/injections.jl"));
+
+	editorOpen(path);
+	E.window_rows = 6;
+	E.window_cols = 120;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[97m+\x1b") != NULL);
 	free(output);
 
 	ASSERT_TRUE(unlink(path) == 0);
@@ -1820,23 +1959,29 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_highlights_active_search_match", test_editor_refresh_screen_highlights_active_search_match},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_c_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_c_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_cpp_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_cpp_tokens},
+	{"editor_refresh_screen_applies_cpp_raw_string_injections", test_editor_refresh_screen_applies_cpp_raw_string_injections},
 	{"editor_refresh_screen_repo_buffer_c_stays_highlighted", test_editor_refresh_screen_repo_buffer_c_stays_highlighted},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_shell_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_shell_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_html_with_injections", test_editor_refresh_screen_applies_syntax_highlighting_for_html_with_injections},
 	{"editor_refresh_screen_html_text_apostrophe_not_javascript_string", test_editor_refresh_screen_html_text_apostrophe_not_javascript_string},
+	{"editor_refresh_screen_applies_nested_jsdoc_in_html_script", test_editor_refresh_screen_applies_nested_jsdoc_in_html_script},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_javascript_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_javascript_tokens},
+	{"editor_refresh_screen_applies_javascript_injections", test_editor_refresh_screen_applies_javascript_injections},
 	{"editor_refresh_screen_applies_jsdoc_highlighting_for_javascript", test_editor_refresh_screen_applies_jsdoc_highlighting_for_javascript},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_typescript_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_typescript_tokens},
 	{"editor_refresh_screen_applies_jsdoc_highlighting_for_typescript", test_editor_refresh_screen_applies_jsdoc_highlighting_for_typescript},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_python_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_python_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_php_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_php_tokens},
+	{"editor_refresh_screen_applies_php_html_injections", test_editor_refresh_screen_applies_php_html_injections},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_rust_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_rust_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_java_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_java_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_csharp_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_csharp_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_haskell_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_haskell_tokens},
+	{"editor_refresh_screen_applies_haskell_quasiquote_injections", test_editor_refresh_screen_applies_haskell_quasiquote_injections},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_ruby_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_ruby_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_ocaml_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_ocaml_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_julia_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_julia_tokens},
+	{"editor_refresh_screen_applies_julia_literal_injections", test_editor_refresh_screen_applies_julia_literal_injections},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_scala_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_scala_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_ejs_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_ejs_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_erb_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_erb_tokens},
