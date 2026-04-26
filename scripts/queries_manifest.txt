@@ -1,0 +1,34 @@
+# Manifest of vendored tree-sitter query bundles to embed in the binary.
+# Each non-comment line:
+#     <symbol>  <file1>  [file2 ...]
+# files are concatenated in listed order (with a separating newline) before
+# compilation. Mirrors the g_*_query_paths[] arrays in syntax_queries.c.
+
+c_highlight           vendor/tree_sitter/grammars/c/queries/highlights.scm
+cpp_highlight         vendor/tree_sitter/grammars/c/queries/highlights.scm vendor/tree_sitter/grammars/cpp/queries/highlights.scm
+go_highlight          vendor/tree_sitter/grammars/go/queries/highlights.scm
+shell_highlight       vendor/tree_sitter/grammars/bash/queries/highlights.scm
+html_highlight        vendor/tree_sitter/grammars/html/queries/highlights.scm
+javascript_highlight  vendor/tree_sitter/grammars/javascript/queries/highlights.scm vendor/tree_sitter/grammars/javascript/queries/highlights-jsx.scm vendor/tree_sitter/grammars/javascript/queries/highlights-params.scm
+jsdoc_highlight       vendor/tree_sitter/grammars/jsdoc/queries/highlights.scm
+typescript_highlight  vendor/tree_sitter/grammars/javascript/queries/highlights.scm vendor/tree_sitter/grammars/javascript/queries/highlights-jsx.scm vendor/tree_sitter/grammars/javascript/queries/highlights-params.scm vendor/tree_sitter/grammars/typescript/queries/highlights.scm
+javascript_locals     vendor/tree_sitter/grammars/javascript/queries/locals.scm
+typescript_locals     vendor/tree_sitter/grammars/javascript/queries/locals.scm vendor/tree_sitter/grammars/typescript/queries/locals.scm
+css_highlight         vendor/tree_sitter/grammars/css/queries/highlights.scm
+json_highlight        vendor/tree_sitter/grammars/json/queries/highlights.scm
+python_highlight      vendor/tree_sitter/grammars/python/queries/highlights.scm
+php_highlight         vendor/tree_sitter/grammars/php/queries/highlights.scm
+rust_highlight        vendor/tree_sitter/grammars/rust/queries/highlights.scm
+java_highlight        vendor/tree_sitter/grammars/java/queries/highlights.scm
+regex_highlight       vendor/tree_sitter/grammars/regex/queries/highlights.scm
+csharp_highlight      vendor/tree_sitter/grammars/csharp/queries/highlights.scm
+haskell_highlight     vendor/tree_sitter/grammars/haskell/queries/highlights.scm
+ruby_highlight        vendor/tree_sitter/grammars/ruby/queries/highlights.scm
+ocaml_highlight       vendor/tree_sitter/grammars/ocaml/queries/highlights.scm
+julia_highlight       vendor/tree_sitter/grammars/julia/queries/highlights.scm
+scala_highlight       vendor/tree_sitter/grammars/scala/queries/highlights.scm
+ejs_highlight         vendor/tree_sitter/grammars/embedded_template/queries/highlights.scm
+erb_highlight         vendor/tree_sitter/grammars/embedded_template/queries/highlights.scm
+html_injection        vendor/tree_sitter/grammars/html/queries/injections.scm
+ejs_injection         vendor/tree_sitter/grammars/embedded_template/queries/injections-ejs.scm
+erb_injection         vendor/tree_sitter/grammars/embedded_template/queries/injections-erb.scm

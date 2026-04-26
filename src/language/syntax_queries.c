@@ -1,5 +1,7 @@
 /* Included by syntax.c. Query caches, fallback query text, and load helpers live here. */
 
+#include "language/syntax_query_data.h"
+
 enum editorSyntaxCaptureRole {
 	EDITOR_SYNTAX_CAPTURE_ROLE_NONE = 0,
 	EDITOR_SYNTAX_CAPTURE_ROLE_LOCAL_SCOPE,
@@ -1555,16 +1557,50 @@ static void editorSyntaxClearQueryCacheEntry(struct editorSyntaxQueryCacheEntry 
 	cache->load_attempted = 0;
 }
 
+static char *editorSyntaxConcatEmbeddedParts(
+		const struct editorSyntaxEmbeddedQueryPart *parts, int part_count,
+		size_t *len_out) {
+	if (len_out != NULL) {
+		*len_out = 0;
+	}
+	if (parts == NULL || part_count <= 0) {
+		return NULL;
+	}
+	size_t total = 0;
+	for (int i = 0; i < part_count; i++) {
+		total += parts[i].len + 1;
+	}
+	char *buf = malloc(total);
+	if (buf == NULL) {
+		return NULL;
+	}
+	size_t off = 0;
+	for (int i = 0; i < part_count; i++) {
+		if (parts[i].len > 0) {
+			memcpy(buf + off, parts[i].data, parts[i].len);
+			off += parts[i].len;
+		}
+		buf[off++] = '\n';
+	}
+	if (len_out != NULL) {
+		*len_out = off;
+	}
+	return buf;
+}
+
 static int editorSyntaxEnsureQueryCache(struct editorSyntaxQueryCacheEntry *cache,
 		enum editorSyntaxLanguage language,
 		const char *const *query_paths,
 		int query_path_count,
+		const struct editorSyntaxEmbeddedQueryPart *embedded_parts,
+		int embedded_part_count,
 		const char *fallback_query,
 	int want_capture_classes,
 	int want_locals_roles,
 	int want_injection_roles,
 	int want_injection_metadata) {
-	if (cache == NULL || (query_paths == NULL && fallback_query == NULL)) {
+	if (cache == NULL ||
+			(query_paths == NULL && embedded_parts == NULL && fallback_query == NULL)) {
 		return 0;
 	}
 	if (cache->load_attempted) {
@@ -1578,6 +1614,16 @@ static int editorSyntaxEnsureQueryCache(struct editorSyntaxQueryCacheEntry *cach
 	if (file_query != NULL) {
 		(void)editorSyntaxCompileQuery(language, file_query, query_len, &query);
 		free(file_query);
+	}
+
+	if (query == NULL && embedded_parts != NULL && embedded_part_count > 0) {
+		size_t embedded_len = 0;
+		char *embedded_query = editorSyntaxConcatEmbeddedParts(
+				embedded_parts, embedded_part_count, &embedded_len);
+		if (embedded_query != NULL) {
+			(void)editorSyntaxCompileQuery(language, embedded_query, embedded_len, &query);
+			free(embedded_query);
+		}
 	}
 
 	if (query == NULL && fallback_query != NULL) {
@@ -1663,6 +1709,7 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 			return editorSyntaxEnsureQueryCache(&g_c_highlight_query_cache, EDITOR_SYNTAX_C,
 					g_c_highlight_query_paths,
 					(int)(sizeof(g_c_highlight_query_paths) / sizeof(g_c_highlight_query_paths[0])),
+					editor_query_c_highlight_parts, EDITOR_QUERY_C_HIGHLIGHT_PART_COUNT,
 					editor_builtin_c_highlights_query,
 					1, 0, 0, 0);
 		case EDITOR_SYNTAX_CPP:
@@ -1670,6 +1717,7 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 					g_cpp_highlight_query_paths,
 					(int)(sizeof(g_cpp_highlight_query_paths) /
 						sizeof(g_cpp_highlight_query_paths[0])),
+					editor_query_cpp_highlight_parts, EDITOR_QUERY_CPP_HIGHLIGHT_PART_COUNT,
 					editor_builtin_cpp_highlights_query,
 					1, 0, 0, 0);
 		case EDITOR_SYNTAX_GO:
@@ -1677,6 +1725,7 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 					g_go_highlight_query_paths,
 					(int)(sizeof(g_go_highlight_query_paths) /
 						sizeof(g_go_highlight_query_paths[0])),
+					editor_query_go_highlight_parts, EDITOR_QUERY_GO_HIGHLIGHT_PART_COUNT,
 					editor_builtin_go_highlights_query,
 					1, 0, 0, 0);
 		case EDITOR_SYNTAX_SHELL:
@@ -1685,6 +1734,7 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 					g_shell_highlight_query_paths,
 					(int)(sizeof(g_shell_highlight_query_paths) /
 						sizeof(g_shell_highlight_query_paths[0])),
+					editor_query_shell_highlight_parts, EDITOR_QUERY_SHELL_HIGHLIGHT_PART_COUNT,
 					editor_builtin_shell_highlights_query,
 					1, 0, 0, 0);
 		case EDITOR_SYNTAX_HTML:
@@ -1692,6 +1742,7 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 					g_html_highlight_query_paths,
 					(int)(sizeof(g_html_highlight_query_paths) /
 						sizeof(g_html_highlight_query_paths[0])),
+					editor_query_html_highlight_parts, EDITOR_QUERY_HTML_HIGHLIGHT_PART_COUNT,
 					editor_builtin_html_highlights_query,
 					1, 0, 0, 0);
 		case EDITOR_SYNTAX_JAVASCRIPT:
@@ -1700,6 +1751,7 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 					g_javascript_highlight_query_paths,
 					(int)(sizeof(g_javascript_highlight_query_paths) /
 						sizeof(g_javascript_highlight_query_paths[0])),
+					editor_query_javascript_highlight_parts, EDITOR_QUERY_JAVASCRIPT_HIGHLIGHT_PART_COUNT,
 					editor_builtin_javascript_highlights_query,
 					1, 0, 0, 0);
 		case EDITOR_SYNTAX_JSDOC:
@@ -1708,6 +1760,7 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 					g_jsdoc_highlight_query_paths,
 					(int)(sizeof(g_jsdoc_highlight_query_paths) /
 						sizeof(g_jsdoc_highlight_query_paths[0])),
+					editor_query_jsdoc_highlight_parts, EDITOR_QUERY_JSDOC_HIGHLIGHT_PART_COUNT,
 					editor_builtin_jsdoc_highlights_query,
 					1, 0, 0, 0);
 		case EDITOR_SYNTAX_TYPESCRIPT:
@@ -1716,6 +1769,7 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 					g_typescript_highlight_query_paths,
 					(int)(sizeof(g_typescript_highlight_query_paths) /
 						sizeof(g_typescript_highlight_query_paths[0])),
+					editor_query_typescript_highlight_parts, EDITOR_QUERY_TYPESCRIPT_HIGHLIGHT_PART_COUNT,
 					editor_builtin_typescript_highlights_query,
 					1, 0, 0, 0);
 		case EDITOR_SYNTAX_CSS:
@@ -1724,6 +1778,7 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 					g_css_highlight_query_paths,
 					(int)(sizeof(g_css_highlight_query_paths) /
 						sizeof(g_css_highlight_query_paths[0])),
+					editor_query_css_highlight_parts, EDITOR_QUERY_CSS_HIGHLIGHT_PART_COUNT,
 					editor_builtin_css_highlights_query,
 					1, 0, 0, 0);
 		case EDITOR_SYNTAX_JSON:
@@ -1732,6 +1787,7 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 					g_json_highlight_query_paths,
 					(int)(sizeof(g_json_highlight_query_paths) /
 						sizeof(g_json_highlight_query_paths[0])),
+					editor_query_json_highlight_parts, EDITOR_QUERY_JSON_HIGHLIGHT_PART_COUNT,
 					editor_builtin_json_highlights_query,
 					1, 0, 0, 0);
 		case EDITOR_SYNTAX_PYTHON:
@@ -1740,6 +1796,7 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 					g_python_highlight_query_paths,
 					(int)(sizeof(g_python_highlight_query_paths) /
 						sizeof(g_python_highlight_query_paths[0])),
+					editor_query_python_highlight_parts, EDITOR_QUERY_PYTHON_HIGHLIGHT_PART_COUNT,
 					editor_builtin_python_highlights_query,
 					1, 0, 0, 0);
 		case EDITOR_SYNTAX_PHP:
@@ -1748,6 +1805,7 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 					g_php_highlight_query_paths,
 					(int)(sizeof(g_php_highlight_query_paths) /
 						sizeof(g_php_highlight_query_paths[0])),
+					editor_query_php_highlight_parts, EDITOR_QUERY_PHP_HIGHLIGHT_PART_COUNT,
 					editor_builtin_php_highlights_query,
 					1, 0, 0, 0);
 		case EDITOR_SYNTAX_RUST:
@@ -1756,6 +1814,7 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 					g_rust_highlight_query_paths,
 					(int)(sizeof(g_rust_highlight_query_paths) /
 						sizeof(g_rust_highlight_query_paths[0])),
+					editor_query_rust_highlight_parts, EDITOR_QUERY_RUST_HIGHLIGHT_PART_COUNT,
 					editor_builtin_rust_highlights_query,
 					1, 0, 0, 0);
 		case EDITOR_SYNTAX_JAVA:
@@ -1764,6 +1823,7 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 					g_java_highlight_query_paths,
 					(int)(sizeof(g_java_highlight_query_paths) /
 						sizeof(g_java_highlight_query_paths[0])),
+					editor_query_java_highlight_parts, EDITOR_QUERY_JAVA_HIGHLIGHT_PART_COUNT,
 					editor_builtin_java_highlights_query,
 					1, 0, 0, 0);
 		case EDITOR_SYNTAX_REGEX:
@@ -1772,6 +1832,7 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 					g_regex_highlight_query_paths,
 					(int)(sizeof(g_regex_highlight_query_paths) /
 						sizeof(g_regex_highlight_query_paths[0])),
+					editor_query_regex_highlight_parts, EDITOR_QUERY_REGEX_HIGHLIGHT_PART_COUNT,
 					editor_builtin_regex_highlights_query,
 					1, 0, 0, 0);
 		case EDITOR_SYNTAX_CSHARP:
@@ -1780,6 +1841,7 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 					g_csharp_highlight_query_paths,
 					(int)(sizeof(g_csharp_highlight_query_paths) /
 						sizeof(g_csharp_highlight_query_paths[0])),
+					editor_query_csharp_highlight_parts, EDITOR_QUERY_CSHARP_HIGHLIGHT_PART_COUNT,
 					editor_builtin_csharp_highlights_query,
 					1, 0, 0, 0);
 		case EDITOR_SYNTAX_HASKELL:
@@ -1788,6 +1850,7 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 					g_haskell_highlight_query_paths,
 					(int)(sizeof(g_haskell_highlight_query_paths) /
 						sizeof(g_haskell_highlight_query_paths[0])),
+					editor_query_haskell_highlight_parts, EDITOR_QUERY_HASKELL_HIGHLIGHT_PART_COUNT,
 					editor_builtin_haskell_highlights_query,
 					1, 0, 0, 0);
 		case EDITOR_SYNTAX_RUBY:
@@ -1796,6 +1859,7 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 					g_ruby_highlight_query_paths,
 					(int)(sizeof(g_ruby_highlight_query_paths) /
 						sizeof(g_ruby_highlight_query_paths[0])),
+					editor_query_ruby_highlight_parts, EDITOR_QUERY_RUBY_HIGHLIGHT_PART_COUNT,
 					editor_builtin_ruby_highlights_query,
 					1, 0, 0, 0);
 		case EDITOR_SYNTAX_OCAML:
@@ -1804,6 +1868,7 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 					g_ocaml_highlight_query_paths,
 					(int)(sizeof(g_ocaml_highlight_query_paths) /
 						sizeof(g_ocaml_highlight_query_paths[0])),
+					editor_query_ocaml_highlight_parts, EDITOR_QUERY_OCAML_HIGHLIGHT_PART_COUNT,
 					editor_builtin_ocaml_highlights_query,
 					1, 0, 0, 0);
 		case EDITOR_SYNTAX_JULIA:
@@ -1812,6 +1877,7 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 					g_julia_highlight_query_paths,
 					(int)(sizeof(g_julia_highlight_query_paths) /
 						sizeof(g_julia_highlight_query_paths[0])),
+					editor_query_julia_highlight_parts, EDITOR_QUERY_JULIA_HIGHLIGHT_PART_COUNT,
 					editor_builtin_julia_highlights_query,
 					1, 0, 0, 0);
 		case EDITOR_SYNTAX_SCALA:
@@ -1820,6 +1886,7 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 					g_scala_highlight_query_paths,
 					(int)(sizeof(g_scala_highlight_query_paths) /
 						sizeof(g_scala_highlight_query_paths[0])),
+					editor_query_scala_highlight_parts, EDITOR_QUERY_SCALA_HIGHLIGHT_PART_COUNT,
 					editor_builtin_scala_highlights_query,
 					1, 0, 0, 0);
 		case EDITOR_SYNTAX_EJS:
@@ -1828,6 +1895,7 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 					g_ejs_highlight_query_paths,
 					(int)(sizeof(g_ejs_highlight_query_paths) /
 						sizeof(g_ejs_highlight_query_paths[0])),
+					editor_query_ejs_highlight_parts, EDITOR_QUERY_EJS_HIGHLIGHT_PART_COUNT,
 					editor_builtin_ejs_highlights_query,
 					1, 0, 0, 0);
 		case EDITOR_SYNTAX_ERB:
@@ -1836,6 +1904,7 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 					g_erb_highlight_query_paths,
 					(int)(sizeof(g_erb_highlight_query_paths) /
 						sizeof(g_erb_highlight_query_paths[0])),
+					editor_query_erb_highlight_parts, EDITOR_QUERY_ERB_HIGHLIGHT_PART_COUNT,
 					editor_builtin_erb_highlights_query,
 					1, 0, 0, 0);
 		case EDITOR_SYNTAX_NONE:
@@ -1852,6 +1921,7 @@ static int editorSyntaxEnsureLocalsQuery(enum editorSyntaxLanguage language) {
 					g_javascript_locals_query_paths,
 					(int)(sizeof(g_javascript_locals_query_paths) /
 						sizeof(g_javascript_locals_query_paths[0])),
+					editor_query_javascript_locals_parts, EDITOR_QUERY_JAVASCRIPT_LOCALS_PART_COUNT,
 					editor_builtin_javascript_locals_query,
 					0, 1, 0, 0);
 		case EDITOR_SYNTAX_TYPESCRIPT:
@@ -1860,6 +1930,7 @@ static int editorSyntaxEnsureLocalsQuery(enum editorSyntaxLanguage language) {
 					g_typescript_locals_query_paths,
 					(int)(sizeof(g_typescript_locals_query_paths) /
 						sizeof(g_typescript_locals_query_paths[0])),
+					editor_query_typescript_locals_parts, EDITOR_QUERY_TYPESCRIPT_LOCALS_PART_COUNT,
 					editor_builtin_typescript_locals_query,
 					0, 1, 0, 0);
 		default:
@@ -1875,11 +1946,13 @@ static int editorSyntaxEnsureInjectionQuery(enum editorSyntaxLanguage language) 
 					g_html_injection_query_paths,
 					(int)(sizeof(g_html_injection_query_paths) /
 						sizeof(g_html_injection_query_paths[0])),
+					editor_query_html_injection_parts, EDITOR_QUERY_HTML_INJECTION_PART_COUNT,
 					editor_builtin_html_injections_query,
 					0, 0, 1, 1);
 		case EDITOR_SYNTAX_JAVASCRIPT:
 			return editorSyntaxEnsureQueryCache(&g_javascript_injection_query_cache,
 					EDITOR_SYNTAX_JAVASCRIPT,
+					NULL, 0,
 					NULL, 0,
 					editor_builtin_javascript_injections_query,
 					0, 0, 1, 1);
@@ -1887,11 +1960,13 @@ static int editorSyntaxEnsureInjectionQuery(enum editorSyntaxLanguage language) 
 			return editorSyntaxEnsureQueryCache(&g_typescript_injection_query_cache,
 					EDITOR_SYNTAX_TYPESCRIPT,
 					NULL, 0,
+					NULL, 0,
 					editor_builtin_javascript_injections_query,
 					0, 0, 1, 1);
 		case EDITOR_SYNTAX_PHP:
 			return editorSyntaxEnsureQueryCache(&g_php_injection_query_cache,
 					EDITOR_SYNTAX_PHP,
+					NULL, 0,
 					NULL, 0,
 					editor_builtin_php_injections_query,
 					0, 0, 1, 1);
@@ -1899,17 +1974,20 @@ static int editorSyntaxEnsureInjectionQuery(enum editorSyntaxLanguage language) 
 			return editorSyntaxEnsureQueryCache(&g_cpp_injection_query_cache,
 					EDITOR_SYNTAX_CPP,
 					NULL, 0,
+					NULL, 0,
 					editor_builtin_cpp_injections_query,
 					0, 0, 1, 1);
 		case EDITOR_SYNTAX_HASKELL:
 			return editorSyntaxEnsureQueryCache(&g_haskell_injection_query_cache,
 					EDITOR_SYNTAX_HASKELL,
 					NULL, 0,
+					NULL, 0,
 					editor_builtin_haskell_injections_query,
 					0, 0, 1, 1);
 		case EDITOR_SYNTAX_JULIA:
 			return editorSyntaxEnsureQueryCache(&g_julia_injection_query_cache,
 					EDITOR_SYNTAX_JULIA,
+					NULL, 0,
 					NULL, 0,
 					editor_builtin_julia_injections_query,
 					0, 0, 1, 1);
@@ -1919,6 +1997,7 @@ static int editorSyntaxEnsureInjectionQuery(enum editorSyntaxLanguage language) 
 					g_ejs_injection_query_paths,
 					(int)(sizeof(g_ejs_injection_query_paths) /
 						sizeof(g_ejs_injection_query_paths[0])),
+					editor_query_ejs_injection_parts, EDITOR_QUERY_EJS_INJECTION_PART_COUNT,
 					editor_builtin_ejs_injections_query,
 					0, 0, 1, 1);
 		case EDITOR_SYNTAX_ERB:
@@ -1927,6 +2006,7 @@ static int editorSyntaxEnsureInjectionQuery(enum editorSyntaxLanguage language) 
 					g_erb_injection_query_paths,
 					(int)(sizeof(g_erb_injection_query_paths) /
 						sizeof(g_erb_injection_query_paths[0])),
+					editor_query_erb_injection_parts, EDITOR_QUERY_ERB_INJECTION_PART_COUNT,
 					editor_builtin_erb_injections_query,
 					0, 0, 1, 1);
 		default:

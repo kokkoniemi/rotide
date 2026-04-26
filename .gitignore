@@ -1,6 +1,9 @@
 # Prerequisites
 *.d
 
+# Generated headers
+src/language/syntax_query_data.h
+
 # Object files
 *.o
 *.ko

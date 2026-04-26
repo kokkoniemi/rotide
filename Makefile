@@ -81,8 +81,20 @@ TEST_OBJS = $(TEST_SRCS:.c=.o)
 TEST_BIN = tests/rotide_tests
 DEPFILES = $(OBJS:.o=.d) $(TEST_OBJS:.o=.d)
 
+QUERIES_MANIFEST := scripts/queries_manifest.txt
+QUERIES_HEADER := $(SRC_DIR)/language/syntax_query_data.h
+QUERIES_SCM := $(shell awk '/^[[:space:]]*#/ || NF==0 { next } { for (i=2; i<=NF; i++) print $$i }' $(QUERIES_MANIFEST))
+GENERATED_HEADERS := $(QUERIES_HEADER)
+
+.DEFAULT_GOAL := rotide
+
 rotide: $(SRC_DIR)/rotide.o $(EDITOR_OBJS)
 	$(CC) $(LDFLAGS) $(OBJS) -o $@
+
+$(QUERIES_HEADER): $(QUERIES_MANIFEST) scripts/embed_queries.sh $(QUERIES_SCM)
+	scripts/embed_queries.sh $(QUERIES_MANIFEST) $@
+
+$(SRC_DIR)/language/syntax.o: $(QUERIES_HEADER)
 
 vendor/tree_sitter/runtime/src/lib.o: vendor/tree_sitter/runtime/src/lib.c
 	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
@@ -219,5 +231,5 @@ test-sanitize:
 
 .PHONY: clean test test-sanitize
 clean:
-	rm -f $(OBJS) $(TEST_OBJS) $(DEPFILES) $(TEST_BIN) rotide
+	rm -f $(OBJS) $(TEST_OBJS) $(DEPFILES) $(TEST_BIN) rotide $(GENERATED_HEADERS)
 	find $(SRC_DIR) tests vendor/tree_sitter -type f \( -name '*.o' -o -name '*.d' \) -delete
