@@ -55,6 +55,19 @@ enum editorSyntaxQueryKind {
 	EDITOR_SYNTAX_QUERY_KIND_INJECTION
 };
 
+enum editorSyntaxLimitEventKind {
+	EDITOR_SYNTAX_LIMIT_EVENT_CAPTURE_TRUNCATED = 0,
+	EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_DEPTH_EXCEEDED,
+	EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_SLOTS_FULL
+};
+
+struct editorSyntaxLimitEvent {
+	enum editorSyntaxLimitEventKind kind;
+	enum editorSyntaxLanguage language;
+	int row;
+	int detail;
+};
+
 enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *filename);
 enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilenameAndFirstLine(
 		const char *filename, const char *first_line);
@@ -86,6 +99,9 @@ int editorSyntaxStateConsumeBudgetEvents(struct editorSyntaxState *state,
 int editorSyntaxStateConsumeQueryUnavailableEvent(struct editorSyntaxState *state,
 		enum editorSyntaxLanguage *language_out,
 		enum editorSyntaxQueryKind *kind_out);
+int editorSyntaxStateConsumeLimitEvent(struct editorSyntaxState *state,
+		struct editorSyntaxLimitEvent *event_out);
+void editorSyntaxStateRecordCaptureTruncated(struct editorSyntaxState *state, int row);
 int editorSyntaxDrainLastQueryCompileError(struct editorSyntaxQueryCompileError *error_out);
 int editorSyntaxCopyLastQueryCompileError(struct editorSyntaxQueryCompileError *error_out);
 

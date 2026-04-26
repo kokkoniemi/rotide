@@ -190,9 +190,29 @@ static void editorSyntaxReportQueryUnavailableStatusIfNeeded(void) {
 	}
 }
 
+static void editorSyntaxReportLimitStatusIfNeeded(void) {
+	if (E.syntax_state == NULL) {
+		return;
+	}
+
+	struct editorSyntaxLimitEvent event = {0};
+	if (!editorSyntaxStateConsumeLimitEvent(E.syntax_state, &event)) {
+		return;
+	}
+
+	if (event.kind == EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_DEPTH_EXCEEDED) {
+		editorSetStatusMsg("Tree-sitter injection depth limit reached");
+	} else if (event.kind == EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_SLOTS_FULL) {
+		editorSetStatusMsg("Tree-sitter injection slot limit reached");
+	} else {
+		editorSetStatusMsg("Tree-sitter syntax spans truncated");
+	}
+}
+
 static void editorSyntaxReportStatusIfNeeded(void) {
 	editorSyntaxReportBudgetStatusIfNeeded();
 	editorSyntaxReportQueryUnavailableStatusIfNeeded();
+	editorSyntaxReportLimitStatusIfNeeded();
 }
 
 static void editorSyntaxDeactivateActive(void) {
@@ -1385,6 +1405,7 @@ static int editorSyntaxBuildVisibleSpanCache(int first_row, int row_count) {
 
 			int slot = g_visible_syntax_cache.span_counts[rel_row];
 			if (slot >= ROTIDE_MAX_SYNTAX_SPANS_PER_ROW) {
+				editorSyntaxStateRecordCaptureTruncated(E.syntax_state, row_idx);
 				continue;
 			}
 

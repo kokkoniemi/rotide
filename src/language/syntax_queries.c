@@ -25,6 +25,7 @@ enum editorSyntaxCaptureRole {
 #define ROTIDE_SYNTAX_PARSE_BUDGET_NS_DEGRADED (30000000ULL)
 #define ROTIDE_SYNTAX_PARSE_BUDGET_NS_DEGRADED_INJECTIONS (20000000ULL)
 #define ROTIDE_SYNTAX_QUERY_KIND_COUNT 2
+#define ROTIDE_SYNTAX_LIMIT_EVENT_CAP 16
 struct editorSyntaxLocalMark {
 	TSNode node;
 	int is_local;
@@ -88,6 +89,15 @@ struct editorSyntaxState {
 	int query_unavailable_pending;
 	enum editorSyntaxLanguage query_unavailable_language;
 	enum editorSyntaxQueryKind query_unavailable_kind;
+	struct editorSyntaxLimitEvent limit_events[ROTIDE_SYNTAX_LIMIT_EVENT_CAP];
+	int limit_event_start;
+	int limit_event_count;
+	int injection_depth_exceeded_reported;
+	int injection_slots_full_reported;
+	int capture_truncated_unknown_reported;
+	int *capture_truncated_rows;
+	int capture_truncated_row_count;
+	int capture_truncated_row_cap;
 	size_t source_len;
 	char *scratch_primary;
 	size_t scratch_primary_cap;

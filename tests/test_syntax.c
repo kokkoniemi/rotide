@@ -1439,6 +1439,92 @@ static int test_editor_syntax_collect_c_captures_without_injection_query_is_grac
 	return 0;
 }
 
+static char *build_dense_c_expression_source(int terms, size_t *len_out) {
+	if (terms <= 0 || len_out == NULL) {
+		return NULL;
+	}
+
+	const char *prefix = "int value = ";
+	const char *suffix = ";\n";
+	size_t cap = strlen(prefix) + strlen(suffix) + (size_t)terms * 16 + 1;
+	char *source = malloc(cap);
+	if (source == NULL) {
+		return NULL;
+	}
+
+	size_t used = 0;
+	int written = snprintf(source + used, cap - used, "%s", prefix);
+	if (written < 0 || (size_t)written >= cap - used) {
+		free(source);
+		return NULL;
+	}
+	used += (size_t)written;
+	for (int i = 0; i < terms; i++) {
+		written = snprintf(source + used, cap - used, "%s%d",
+				i == 0 ? "" : " + ", i);
+		if (written < 0 || (size_t)written >= cap - used) {
+			free(source);
+			return NULL;
+		}
+		used += (size_t)written;
+	}
+	written = snprintf(source + used, cap - used, "%s", suffix);
+	if (written < 0 || (size_t)written >= cap - used) {
+		free(source);
+		return NULL;
+	}
+	used += (size_t)written;
+	*len_out = used;
+	return source;
+}
+
+static int test_editor_syntax_capture_truncation_reports_event_and_keeps_span_limit(void) {
+	size_t source_len = 0;
+	char *source = build_dense_c_expression_source(300, &source_len);
+	ASSERT_TRUE(source != NULL);
+	ASSERT_TRUE(source_len <= UINT32_MAX);
+
+	char path[512];
+	ASSERT_TRUE(write_temp_c_file(path, sizeof(path), source));
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	struct editorRowSyntaxSpan spans[ROTIDE_MAX_SYNTAX_SPANS_PER_ROW];
+	int span_count = 0;
+	ASSERT_TRUE(editorSyntaxRowRenderSpans(0, spans,
+				(int)(sizeof(spans) / sizeof(spans[0])), &span_count));
+	ASSERT_EQ_INT(ROTIDE_MAX_SYNTAX_SPANS_PER_ROW, span_count);
+
+	for (int i = 0; i < span_count; i++) {
+		ASSERT_TRUE(spans[i].end_render_idx > spans[i].start_render_idx);
+		ASSERT_TRUE(spans[i].highlight_class != EDITOR_SYNTAX_HL_NONE);
+	}
+
+	struct editorSyntaxLimitEvent event = {0};
+	ASSERT_TRUE(editorSyntaxStateConsumeLimitEvent(E.syntax_state, &event));
+	ASSERT_EQ_INT(EDITOR_SYNTAX_LIMIT_EVENT_CAPTURE_TRUNCATED, event.kind);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_C, event.language);
+	ASSERT_EQ_INT(-1, event.row);
+	ASSERT_EQ_INT(ROTIDE_MAX_SYNTAX_SPANS_PER_ROW, event.detail);
+
+	E.window_rows = 4;
+	E.window_cols = 120;
+	E.rowoff = 0;
+	E.coloff = 0;
+	ASSERT_TRUE(editorSyntaxPrepareVisibleRowSpans(E.rowoff, E.window_rows));
+	ASSERT_TRUE(strstr(E.statusmsg, "Tree-sitter syntax spans truncated") != NULL);
+
+	span_count = 0;
+	ASSERT_TRUE(editorSyntaxRowRenderSpans(0, spans,
+				(int)(sizeof(spans) / sizeof(spans[0])), &span_count));
+	ASSERT_EQ_INT(ROTIDE_MAX_SYNTAX_SPANS_PER_ROW, span_count);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	free(source);
+	return 0;
+}
+
 static int test_editor_syntax_parse_budget_is_graceful(void) {
 	size_t source_len = 0;
 	char *source = build_repeated_text("function item(){ return 1; }\n", 120000, &source_len);
@@ -1811,6 +1897,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_query_budget_match_limit_is_graceful", test_editor_syntax_query_budget_match_limit_is_graceful},
 	{"editor_syntax_query_compile_failure_records_diagnostics", test_editor_syntax_query_compile_failure_records_diagnostics},
 	{"editor_syntax_collect_c_captures_without_injection_query_is_graceful", test_editor_syntax_collect_c_captures_without_injection_query_is_graceful},
+	{"editor_syntax_capture_truncation_reports_event_and_keeps_span_limit", test_editor_syntax_capture_truncation_reports_event_and_keeps_span_limit},
 	{"editor_syntax_parse_budget_is_graceful", test_editor_syntax_parse_budget_is_graceful},
 	{"editor_syntax_incremental_provider_parse_keeps_tree_valid", test_editor_syntax_incremental_provider_parse_keeps_tree_valid},
 	{"editor_syntax_large_file_stays_enabled_in_degraded_mode", test_editor_syntax_large_file_stays_enabled_in_degraded_mode},

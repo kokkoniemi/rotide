@@ -403,6 +403,84 @@ static void editorSyntaxInjectedTreeDestroy(struct editorSyntaxInjectedTree *inj
 	injection->depth = 0;
 }
 
+static void editorSyntaxStateQueueLimitEvent(struct editorSyntaxState *state,
+		enum editorSyntaxLimitEventKind kind,
+		enum editorSyntaxLanguage language,
+		int row,
+		int detail) {
+	if (state == NULL) {
+		return;
+	}
+	int idx = 0;
+	if (state->limit_event_count < ROTIDE_SYNTAX_LIMIT_EVENT_CAP) {
+		idx = (state->limit_event_start + state->limit_event_count) %
+				ROTIDE_SYNTAX_LIMIT_EVENT_CAP;
+		state->limit_event_count++;
+	} else {
+		idx = state->limit_event_start;
+		state->limit_event_start = (state->limit_event_start + 1) %
+				ROTIDE_SYNTAX_LIMIT_EVENT_CAP;
+	}
+	state->limit_events[idx].kind = kind;
+	state->limit_events[idx].language = language;
+	state->limit_events[idx].row = row;
+	state->limit_events[idx].detail = detail;
+}
+
+void editorSyntaxStateRecordCaptureTruncated(struct editorSyntaxState *state, int row) {
+	if (state == NULL) {
+		return;
+	}
+	if (row < 0) {
+		if (state->capture_truncated_unknown_reported) {
+			return;
+		}
+		state->capture_truncated_unknown_reported = 1;
+	} else {
+		for (int i = 0; i < state->capture_truncated_row_count; i++) {
+			if (state->capture_truncated_rows[i] == row) {
+				return;
+			}
+		}
+		if (state->capture_truncated_row_count >= state->capture_truncated_row_cap) {
+			int new_cap = state->capture_truncated_row_cap == 0 ?
+					8 : state->capture_truncated_row_cap * 2;
+			int *new_rows = realloc(state->capture_truncated_rows,
+					(size_t)new_cap * sizeof(*new_rows));
+			if (new_rows == NULL) {
+				return;
+			}
+			state->capture_truncated_rows = new_rows;
+			state->capture_truncated_row_cap = new_cap;
+		}
+		state->capture_truncated_rows[state->capture_truncated_row_count++] = row;
+	}
+	editorSyntaxStateQueueLimitEvent(state, EDITOR_SYNTAX_LIMIT_EVENT_CAPTURE_TRUNCATED,
+			state->language, row, ROTIDE_MAX_SYNTAX_SPANS_PER_ROW);
+}
+
+static void editorSyntaxStateRecordInjectionDepthExceeded(struct editorSyntaxState *state,
+		enum editorSyntaxLanguage language,
+		int depth) {
+	if (state == NULL || state->injection_depth_exceeded_reported) {
+		return;
+	}
+	state->injection_depth_exceeded_reported = 1;
+	editorSyntaxStateQueueLimitEvent(state,
+			EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_DEPTH_EXCEEDED, language, -1, depth);
+}
+
+static void editorSyntaxStateRecordInjectionSlotsFull(struct editorSyntaxState *state,
+		enum editorSyntaxLanguage language) {
+	if (state == NULL || state->injection_slots_full_reported) {
+		return;
+	}
+	state->injection_slots_full_reported = 1;
+	editorSyntaxStateQueueLimitEvent(state,
+			EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_SLOTS_FULL, language, -1,
+			ROTIDE_SYNTAX_MAX_INJECTION_TREES);
+}
+
 static void editorSyntaxParsedTreeResetTree(struct editorSyntaxParsedTree *parsed) {
 	if (parsed == NULL || parsed->tree == NULL) {
 		return;
@@ -1597,6 +1675,8 @@ struct editorSyntaxInjectionWorkItem {
 struct editorSyntaxInjectionWork {
 	struct editorSyntaxInjectionWorkItem items[ROTIDE_SYNTAX_MAX_INJECTION_TREES];
 	int count;
+	int slots_full;
+	enum editorSyntaxLanguage slots_full_language;
 };
 
 static enum editorSyntaxLanguage editorSyntaxLanguageFromInjectionName(const char *name,
@@ -1714,6 +1794,8 @@ static struct editorSyntaxInjectionWorkItem *editorSyntaxInjectionWorkEnsure(
 		return item;
 	}
 	if (work->count >= ROTIDE_SYNTAX_MAX_INJECTION_TREES) {
+		work->slots_full = 1;
+		work->slots_full_language = language;
 		return NULL;
 	}
 	item = &work->items[work->count++];
@@ -2212,10 +2294,14 @@ static int editorSyntaxStateParseInjections(struct editorSyntaxState *state,
 				state->language, source, 1, &work)) {
 		ok = 0;
 	}
+	if (work.slots_full) {
+		editorSyntaxStateRecordInjectionSlotsFull(state, work.slots_full_language);
+	}
 
 	for (int work_idx = 0; ok && work_idx < work.count; work_idx++) {
 		struct editorSyntaxInjectionWorkItem *item = &work.items[work_idx];
 		if (item->depth > ROTIDE_SYNTAX_MAX_INJECTION_DEPTH) {
+			editorSyntaxStateRecordInjectionDepthExceeded(state, item->language, item->depth);
 			continue;
 		}
 		editorSyntaxRangeVecSortUnique(&item->ranges);
@@ -2224,7 +2310,15 @@ static int editorSyntaxStateParseInjections(struct editorSyntaxState *state,
 		}
 
 		struct editorSyntaxInjectedTree *injection =
-				editorSyntaxStateEnsureInjection(state, item->language);
+				editorSyntaxStateFindInjection(state, item->language);
+		if (injection == NULL &&
+				state->injection_count >= ROTIDE_SYNTAX_MAX_INJECTION_TREES) {
+			editorSyntaxStateRecordInjectionSlotsFull(state, item->language);
+			continue;
+		}
+		if (injection == NULL) {
+			injection = editorSyntaxStateEnsureInjection(state, item->language);
+		}
 		if (injection == NULL) {
 			continue;
 		}
@@ -2245,6 +2339,9 @@ static int editorSyntaxStateParseInjections(struct editorSyntaxState *state,
 					item->language, source, item->depth + 1, &work)) {
 			ok = 0;
 			break;
+		}
+		if (work.slots_full) {
+			editorSyntaxStateRecordInjectionSlotsFull(state, work.slots_full_language);
 		}
 	}
 
@@ -2392,6 +2489,14 @@ struct editorSyntaxState *editorSyntaxStateCreate(enum editorSyntaxLanguage lang
 	state->query_unavailable_pending = 0;
 	state->query_unavailable_language = EDITOR_SYNTAX_NONE;
 	state->query_unavailable_kind = EDITOR_SYNTAX_QUERY_KIND_HIGHLIGHT;
+	state->limit_event_start = 0;
+	state->limit_event_count = 0;
+	state->injection_depth_exceeded_reported = 0;
+	state->injection_slots_full_reported = 0;
+	state->capture_truncated_unknown_reported = 0;
+	state->capture_truncated_rows = NULL;
+	state->capture_truncated_row_count = 0;
+	state->capture_truncated_row_cap = 0;
 	state->source_len = 0;
 	state->scratch_primary = NULL;
 	state->scratch_primary_cap = 0;
@@ -2420,6 +2525,10 @@ void editorSyntaxStateDestroy(struct editorSyntaxState *state) {
 	state->last_changed_ranges = NULL;
 	state->last_changed_range_count = 0;
 	state->last_changed_range_cap = 0;
+	free(state->capture_truncated_rows);
+	state->capture_truncated_rows = NULL;
+	state->capture_truncated_row_count = 0;
+	state->capture_truncated_row_cap = 0;
 	free(state->scratch_primary);
 	state->scratch_primary = NULL;
 	state->scratch_primary_cap = 0;
@@ -2628,6 +2737,14 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 		captures[out_count++] = *choice;
 		indices[source_choice]++;
 	}
+	if (out_count >= max_captures) {
+		for (int vec_idx = 0; vec_idx < capture_vec_count; vec_idx++) {
+			if (indices[vec_idx] < capture_vecs[vec_idx].count) {
+				editorSyntaxStateRecordCaptureTruncated(state, -1);
+				break;
+			}
+		}
+	}
 
 	if (count_out != NULL) {
 		*count_out = out_count;
@@ -2708,6 +2825,28 @@ int editorSyntaxStateConsumeQueryUnavailableEvent(struct editorSyntaxState *stat
 	state->query_unavailable_pending = 0;
 	state->query_unavailable_language = EDITOR_SYNTAX_NONE;
 	state->query_unavailable_kind = EDITOR_SYNTAX_QUERY_KIND_HIGHLIGHT;
+	return 1;
+}
+
+int editorSyntaxStateConsumeLimitEvent(struct editorSyntaxState *state,
+		struct editorSyntaxLimitEvent *event_out) {
+	if (event_out != NULL) {
+		event_out->kind = EDITOR_SYNTAX_LIMIT_EVENT_CAPTURE_TRUNCATED;
+		event_out->language = EDITOR_SYNTAX_NONE;
+		event_out->row = -1;
+		event_out->detail = 0;
+	}
+	if (state == NULL || state->limit_event_count <= 0) {
+		return 0;
+	}
+
+	int idx = state->limit_event_start;
+	if (event_out != NULL) {
+		*event_out = state->limit_events[idx];
+	}
+	state->limit_event_start = (state->limit_event_start + 1) %
+			ROTIDE_SYNTAX_LIMIT_EVENT_CAP;
+	state->limit_event_count--;
 	return 1;
 }
 
