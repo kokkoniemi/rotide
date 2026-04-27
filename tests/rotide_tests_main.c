@@ -12,6 +12,8 @@ extern const struct editorTestCase g_document_text_editing_tests[];
 extern const int g_document_text_editing_test_count;
 extern const struct editorTestCase g_syntax_tests[];
 extern const int g_syntax_test_count;
+extern const struct editorTestCase g_syntax_registry_tests[];
+extern const int g_syntax_registry_test_count;
 extern const struct editorTestCase g_save_recovery_tests[];
 extern const int g_save_recovery_test_count;
 extern const struct editorTestCase g_workspace_config_tests[];
@@ -41,6 +43,7 @@ int main(void) {
 	const struct editorTestSuite suites[] = {
 		{g_document_text_editing_tests, g_document_text_editing_test_count},
 		{g_syntax_tests, g_syntax_test_count},
+		{g_syntax_registry_tests, g_syntax_registry_test_count},
 		{g_save_recovery_tests, g_save_recovery_test_count},
 		{g_workspace_config_tests, g_workspace_config_test_count},
 		{g_lsp_tests, g_lsp_test_count},

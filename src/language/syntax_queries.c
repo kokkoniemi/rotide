@@ -1,6 +1,6 @@
 /* Included by syntax.c. Query caches, fallback query text, and load helpers live here. */
 
-#include "language/syntax_query_data.h"
+#include "language/languages.h"
 
 enum editorSyntaxCaptureRole {
 	EDITOR_SYNTAX_CAPTURE_ROLE_NONE = 0,
@@ -156,40 +156,28 @@ struct editorSyntaxPredicateContext {
 	const struct editorSyntaxLocalsContext *locals;
 };
 
-static struct editorSyntaxQueryCacheEntry g_c_highlight_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_cpp_highlight_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_go_highlight_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_shell_highlight_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_html_highlight_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_javascript_highlight_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_jsdoc_highlight_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_typescript_highlight_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_css_highlight_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_json_highlight_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_python_highlight_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_php_highlight_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_rust_highlight_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_java_highlight_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_regex_highlight_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_csharp_highlight_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_haskell_highlight_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_ruby_highlight_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_ocaml_highlight_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_julia_highlight_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_scala_highlight_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_ejs_highlight_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_erb_highlight_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_javascript_locals_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_typescript_locals_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_html_injection_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_javascript_injection_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_typescript_injection_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_php_injection_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_cpp_injection_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_haskell_injection_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_julia_injection_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_ejs_injection_query_cache = {0};
-static struct editorSyntaxQueryCacheEntry g_erb_injection_query_cache = {0};
+enum editorSyntaxQueryCacheKind {
+	EDITOR_SYNTAX_QUERY_CACHE_KIND_HIGHLIGHT = 0,
+	EDITOR_SYNTAX_QUERY_CACHE_KIND_LOCALS,
+	EDITOR_SYNTAX_QUERY_CACHE_KIND_INJECTION,
+	EDITOR_SYNTAX_QUERY_CACHE_KIND_COUNT
+};
+
+static struct editorSyntaxQueryCacheEntry
+		g_query_caches[EDITOR_SYNTAX_LANGUAGE_COUNT]
+		              [EDITOR_SYNTAX_QUERY_CACHE_KIND_COUNT] = {0};
+
+static struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheSlot(
+		enum editorSyntaxLanguage language,
+		enum editorSyntaxQueryCacheKind kind) {
+	if ((int)language <= 0 || (int)language >= EDITOR_SYNTAX_LANGUAGE_COUNT) {
+		return NULL;
+	}
+	if ((int)kind < 0 || (int)kind >= EDITOR_SYNTAX_QUERY_CACHE_KIND_COUNT) {
+		return NULL;
+	}
+	return &g_query_caches[(int)language][(int)kind];
+}
 
 static struct {
 	int enabled;
@@ -212,17 +200,6 @@ static int editorSyntaxStringEquals(const char *s, size_t len, const char *liter
 		return 0;
 	}
 	return memcmp(s, literal, len) == 0;
-}
-
-static int editorSyntaxStringEqualsNoCase(const char *s, size_t len, const char *literal) {
-	if (s == NULL || literal == NULL) {
-		return 0;
-	}
-	size_t lit_len = strlen(literal);
-	if (len != lit_len) {
-		return 0;
-	}
-	return strncasecmp(s, literal, len) == 0;
 }
 
 static int editorSyntaxLengthFitsTreeSitter(size_t len) {
@@ -474,56 +451,11 @@ static enum editorSyntaxHighlightClass editorSyntaxClassFromCaptureName(const ch
 }
 
 static const TSLanguage *editorSyntaxLanguageObject(enum editorSyntaxLanguage language) {
-	switch (language) {
-		case EDITOR_SYNTAX_C:
-			return tree_sitter_c();
-		case EDITOR_SYNTAX_CPP:
-			return tree_sitter_cpp();
-		case EDITOR_SYNTAX_GO:
-			return tree_sitter_go();
-		case EDITOR_SYNTAX_SHELL:
-			return tree_sitter_bash();
-		case EDITOR_SYNTAX_HTML:
-			return tree_sitter_html();
-		case EDITOR_SYNTAX_JAVASCRIPT:
-			return tree_sitter_javascript();
-		case EDITOR_SYNTAX_JSDOC:
-			return tree_sitter_jsdoc();
-		case EDITOR_SYNTAX_TYPESCRIPT:
-			return tree_sitter_typescript();
-		case EDITOR_SYNTAX_CSS:
-			return tree_sitter_css();
-		case EDITOR_SYNTAX_JSON:
-			return tree_sitter_json();
-		case EDITOR_SYNTAX_PYTHON:
-			return tree_sitter_python();
-		case EDITOR_SYNTAX_PHP:
-			return tree_sitter_php();
-		case EDITOR_SYNTAX_RUST:
-			return tree_sitter_rust();
-		case EDITOR_SYNTAX_JAVA:
-			return tree_sitter_java();
-		case EDITOR_SYNTAX_REGEX:
-			return tree_sitter_regex();
-		case EDITOR_SYNTAX_CSHARP:
-			return tree_sitter_c_sharp();
-		case EDITOR_SYNTAX_HASKELL:
-			return tree_sitter_haskell();
-		case EDITOR_SYNTAX_RUBY:
-			return tree_sitter_ruby();
-		case EDITOR_SYNTAX_OCAML:
-			return tree_sitter_ocaml();
-		case EDITOR_SYNTAX_JULIA:
-			return tree_sitter_julia();
-		case EDITOR_SYNTAX_SCALA:
-			return tree_sitter_scala();
-		case EDITOR_SYNTAX_EJS:
-		case EDITOR_SYNTAX_ERB:
-			return tree_sitter_embedded_template();
-		case EDITOR_SYNTAX_NONE:
-		default:
-			return NULL;
+	const struct editorSyntaxLanguageDef *def = editorSyntaxLookupLanguage(language);
+	if (def == NULL || def->ts_factory == NULL) {
+		return NULL;
 	}
+	return def->ts_factory();
 }
 
 static const char *editorSyntaxQueryErrorName(TSQueryError error_type) {
@@ -1096,128 +1028,19 @@ static int editorSyntaxEnsureQueryCache(struct editorSyntaxQueryCacheEntry *cach
 	return 1;
 }
 
-static const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCacheForLanguage(
-		enum editorSyntaxLanguage language);
-static const struct editorSyntaxQueryCacheEntry *editorSyntaxInjectionQueryCacheForLanguage(
-		enum editorSyntaxLanguage language);
-
 static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) {
-	switch (language) {
-		case EDITOR_SYNTAX_C:
-			return editorSyntaxEnsureQueryCache(&g_c_highlight_query_cache, EDITOR_SYNTAX_C,
-					editor_query_c_highlight_parts, EDITOR_QUERY_C_HIGHLIGHT_PART_COUNT,
-					1, 0, 0, 0);
-		case EDITOR_SYNTAX_CPP:
-			return editorSyntaxEnsureQueryCache(&g_cpp_highlight_query_cache, EDITOR_SYNTAX_CPP,
-					editor_query_cpp_highlight_parts, EDITOR_QUERY_CPP_HIGHLIGHT_PART_COUNT,
-					1, 0, 0, 0);
-		case EDITOR_SYNTAX_GO:
-			return editorSyntaxEnsureQueryCache(&g_go_highlight_query_cache, EDITOR_SYNTAX_GO,
-					editor_query_go_highlight_parts, EDITOR_QUERY_GO_HIGHLIGHT_PART_COUNT,
-					1, 0, 0, 0);
-		case EDITOR_SYNTAX_SHELL:
-			return editorSyntaxEnsureQueryCache(&g_shell_highlight_query_cache,
-					EDITOR_SYNTAX_SHELL,
-					editor_query_shell_highlight_parts, EDITOR_QUERY_SHELL_HIGHLIGHT_PART_COUNT,
-					1, 0, 0, 0);
-		case EDITOR_SYNTAX_HTML:
-			return editorSyntaxEnsureQueryCache(&g_html_highlight_query_cache, EDITOR_SYNTAX_HTML,
-					editor_query_html_highlight_parts, EDITOR_QUERY_HTML_HIGHLIGHT_PART_COUNT,
-					1, 0, 0, 0);
-		case EDITOR_SYNTAX_JAVASCRIPT:
-			return editorSyntaxEnsureQueryCache(&g_javascript_highlight_query_cache,
-					EDITOR_SYNTAX_JAVASCRIPT,
-					editor_query_javascript_highlight_parts, EDITOR_QUERY_JAVASCRIPT_HIGHLIGHT_PART_COUNT,
-					1, 0, 0, 0);
-		case EDITOR_SYNTAX_JSDOC:
-			return editorSyntaxEnsureQueryCache(&g_jsdoc_highlight_query_cache,
-					EDITOR_SYNTAX_JSDOC,
-					editor_query_jsdoc_highlight_parts, EDITOR_QUERY_JSDOC_HIGHLIGHT_PART_COUNT,
-					1, 0, 0, 0);
-		case EDITOR_SYNTAX_TYPESCRIPT:
-			return editorSyntaxEnsureQueryCache(&g_typescript_highlight_query_cache,
-					EDITOR_SYNTAX_TYPESCRIPT,
-					editor_query_typescript_highlight_parts, EDITOR_QUERY_TYPESCRIPT_HIGHLIGHT_PART_COUNT,
-					1, 0, 0, 0);
-		case EDITOR_SYNTAX_CSS:
-			return editorSyntaxEnsureQueryCache(&g_css_highlight_query_cache,
-					EDITOR_SYNTAX_CSS,
-					editor_query_css_highlight_parts, EDITOR_QUERY_CSS_HIGHLIGHT_PART_COUNT,
-					1, 0, 0, 0);
-		case EDITOR_SYNTAX_JSON:
-			return editorSyntaxEnsureQueryCache(&g_json_highlight_query_cache,
-					EDITOR_SYNTAX_JSON,
-					editor_query_json_highlight_parts, EDITOR_QUERY_JSON_HIGHLIGHT_PART_COUNT,
-					1, 0, 0, 0);
-		case EDITOR_SYNTAX_PYTHON:
-			return editorSyntaxEnsureQueryCache(&g_python_highlight_query_cache,
-					EDITOR_SYNTAX_PYTHON,
-					editor_query_python_highlight_parts, EDITOR_QUERY_PYTHON_HIGHLIGHT_PART_COUNT,
-					1, 0, 0, 0);
-		case EDITOR_SYNTAX_PHP:
-			return editorSyntaxEnsureQueryCache(&g_php_highlight_query_cache,
-					EDITOR_SYNTAX_PHP,
-					editor_query_php_highlight_parts, EDITOR_QUERY_PHP_HIGHLIGHT_PART_COUNT,
-					1, 0, 0, 0);
-		case EDITOR_SYNTAX_RUST:
-			return editorSyntaxEnsureQueryCache(&g_rust_highlight_query_cache,
-					EDITOR_SYNTAX_RUST,
-					editor_query_rust_highlight_parts, EDITOR_QUERY_RUST_HIGHLIGHT_PART_COUNT,
-					1, 0, 0, 0);
-		case EDITOR_SYNTAX_JAVA:
-			return editorSyntaxEnsureQueryCache(&g_java_highlight_query_cache,
-					EDITOR_SYNTAX_JAVA,
-					editor_query_java_highlight_parts, EDITOR_QUERY_JAVA_HIGHLIGHT_PART_COUNT,
-					1, 0, 0, 0);
-		case EDITOR_SYNTAX_REGEX:
-			return editorSyntaxEnsureQueryCache(&g_regex_highlight_query_cache,
-					EDITOR_SYNTAX_REGEX,
-					editor_query_regex_highlight_parts, EDITOR_QUERY_REGEX_HIGHLIGHT_PART_COUNT,
-					1, 0, 0, 0);
-		case EDITOR_SYNTAX_CSHARP:
-			return editorSyntaxEnsureQueryCache(&g_csharp_highlight_query_cache,
-					EDITOR_SYNTAX_CSHARP,
-					editor_query_csharp_highlight_parts, EDITOR_QUERY_CSHARP_HIGHLIGHT_PART_COUNT,
-					1, 0, 0, 0);
-		case EDITOR_SYNTAX_HASKELL:
-			return editorSyntaxEnsureQueryCache(&g_haskell_highlight_query_cache,
-					EDITOR_SYNTAX_HASKELL,
-					editor_query_haskell_highlight_parts, EDITOR_QUERY_HASKELL_HIGHLIGHT_PART_COUNT,
-					1, 0, 0, 0);
-		case EDITOR_SYNTAX_RUBY:
-			return editorSyntaxEnsureQueryCache(&g_ruby_highlight_query_cache,
-					EDITOR_SYNTAX_RUBY,
-					editor_query_ruby_highlight_parts, EDITOR_QUERY_RUBY_HIGHLIGHT_PART_COUNT,
-					1, 0, 0, 0);
-		case EDITOR_SYNTAX_OCAML:
-			return editorSyntaxEnsureQueryCache(&g_ocaml_highlight_query_cache,
-					EDITOR_SYNTAX_OCAML,
-					editor_query_ocaml_highlight_parts, EDITOR_QUERY_OCAML_HIGHLIGHT_PART_COUNT,
-					1, 0, 0, 0);
-		case EDITOR_SYNTAX_JULIA:
-			return editorSyntaxEnsureQueryCache(&g_julia_highlight_query_cache,
-					EDITOR_SYNTAX_JULIA,
-					editor_query_julia_highlight_parts, EDITOR_QUERY_JULIA_HIGHLIGHT_PART_COUNT,
-					1, 0, 0, 0);
-		case EDITOR_SYNTAX_SCALA:
-			return editorSyntaxEnsureQueryCache(&g_scala_highlight_query_cache,
-					EDITOR_SYNTAX_SCALA,
-					editor_query_scala_highlight_parts, EDITOR_QUERY_SCALA_HIGHLIGHT_PART_COUNT,
-					1, 0, 0, 0);
-		case EDITOR_SYNTAX_EJS:
-			return editorSyntaxEnsureQueryCache(&g_ejs_highlight_query_cache,
-					EDITOR_SYNTAX_EJS,
-					editor_query_ejs_highlight_parts, EDITOR_QUERY_EJS_HIGHLIGHT_PART_COUNT,
-					1, 0, 0, 0);
-		case EDITOR_SYNTAX_ERB:
-			return editorSyntaxEnsureQueryCache(&g_erb_highlight_query_cache,
-					EDITOR_SYNTAX_ERB,
-					editor_query_erb_highlight_parts, EDITOR_QUERY_ERB_HIGHLIGHT_PART_COUNT,
-					1, 0, 0, 0);
-		case EDITOR_SYNTAX_NONE:
-		default:
-			return 0;
+	const struct editorSyntaxLanguageDef *def = editorSyntaxLookupLanguage(language);
+	if (def == NULL || def->highlight_parts == NULL || def->highlight_part_count <= 0) {
+		return 0;
 	}
+	struct editorSyntaxQueryCacheEntry *slot =
+			editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_HIGHLIGHT);
+	if (slot == NULL) {
+		return 0;
+	}
+	return editorSyntaxEnsureQueryCache(slot, language,
+			def->highlight_parts, def->highlight_part_count,
+			1, 0, 0, 0);
 }
 
 static const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCachePtr(
@@ -1226,7 +1049,7 @@ static const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCache
 		return NULL;
 	}
 	const struct editorSyntaxQueryCacheEntry *cache =
-			editorSyntaxHighlightQueryCacheForLanguage(language);
+			editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_HIGHLIGHT);
 	if (cache == NULL || cache->query == NULL || cache->capture_classes == NULL) {
 		return NULL;
 	}
@@ -1234,72 +1057,33 @@ static const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCache
 }
 
 static int editorSyntaxEnsureLocalsQuery(enum editorSyntaxLanguage language) {
-	switch (language) {
-		case EDITOR_SYNTAX_JAVASCRIPT:
-			return editorSyntaxEnsureQueryCache(&g_javascript_locals_query_cache,
-					EDITOR_SYNTAX_JAVASCRIPT,
-					editor_query_javascript_locals_parts, EDITOR_QUERY_JAVASCRIPT_LOCALS_PART_COUNT,
-					0, 1, 0, 0);
-		case EDITOR_SYNTAX_TYPESCRIPT:
-			return editorSyntaxEnsureQueryCache(&g_typescript_locals_query_cache,
-					EDITOR_SYNTAX_TYPESCRIPT,
-					editor_query_typescript_locals_parts, EDITOR_QUERY_TYPESCRIPT_LOCALS_PART_COUNT,
-					0, 1, 0, 0);
-		default:
-			return 0;
+	const struct editorSyntaxLanguageDef *def = editorSyntaxLookupLanguage(language);
+	if (def == NULL || def->locals_parts == NULL || def->locals_part_count <= 0) {
+		return 0;
 	}
+	struct editorSyntaxQueryCacheEntry *slot =
+			editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_LOCALS);
+	if (slot == NULL) {
+		return 0;
+	}
+	return editorSyntaxEnsureQueryCache(slot, language,
+			def->locals_parts, def->locals_part_count,
+			0, 1, 0, 0);
 }
 
 static int editorSyntaxEnsureInjectionQuery(enum editorSyntaxLanguage language) {
-	switch (language) {
-		case EDITOR_SYNTAX_HTML:
-			return editorSyntaxEnsureQueryCache(&g_html_injection_query_cache,
-					EDITOR_SYNTAX_HTML,
-					editor_query_html_injection_parts, EDITOR_QUERY_HTML_INJECTION_PART_COUNT,
-					0, 0, 1, 1);
-		case EDITOR_SYNTAX_JAVASCRIPT:
-			return editorSyntaxEnsureQueryCache(&g_javascript_injection_query_cache,
-					EDITOR_SYNTAX_JAVASCRIPT,
-					editor_query_javascript_injection_parts, EDITOR_QUERY_JAVASCRIPT_INJECTION_PART_COUNT,
-					0, 0, 1, 1);
-		case EDITOR_SYNTAX_TYPESCRIPT:
-			return editorSyntaxEnsureQueryCache(&g_typescript_injection_query_cache,
-					EDITOR_SYNTAX_TYPESCRIPT,
-					editor_query_typescript_injection_parts, EDITOR_QUERY_TYPESCRIPT_INJECTION_PART_COUNT,
-					0, 0, 1, 1);
-		case EDITOR_SYNTAX_PHP:
-			return editorSyntaxEnsureQueryCache(&g_php_injection_query_cache,
-					EDITOR_SYNTAX_PHP,
-					editor_query_php_injection_parts, EDITOR_QUERY_PHP_INJECTION_PART_COUNT,
-					0, 0, 1, 1);
-		case EDITOR_SYNTAX_CPP:
-			return editorSyntaxEnsureQueryCache(&g_cpp_injection_query_cache,
-					EDITOR_SYNTAX_CPP,
-					editor_query_cpp_injection_parts, EDITOR_QUERY_CPP_INJECTION_PART_COUNT,
-					0, 0, 1, 1);
-		case EDITOR_SYNTAX_HASKELL:
-			return editorSyntaxEnsureQueryCache(&g_haskell_injection_query_cache,
-					EDITOR_SYNTAX_HASKELL,
-					editor_query_haskell_injection_parts, EDITOR_QUERY_HASKELL_INJECTION_PART_COUNT,
-					0, 0, 1, 1);
-		case EDITOR_SYNTAX_JULIA:
-			return editorSyntaxEnsureQueryCache(&g_julia_injection_query_cache,
-					EDITOR_SYNTAX_JULIA,
-					editor_query_julia_injection_parts, EDITOR_QUERY_JULIA_INJECTION_PART_COUNT,
-					0, 0, 1, 1);
-		case EDITOR_SYNTAX_EJS:
-			return editorSyntaxEnsureQueryCache(&g_ejs_injection_query_cache,
-					EDITOR_SYNTAX_EJS,
-					editor_query_ejs_injection_parts, EDITOR_QUERY_EJS_INJECTION_PART_COUNT,
-					0, 0, 1, 1);
-		case EDITOR_SYNTAX_ERB:
-			return editorSyntaxEnsureQueryCache(&g_erb_injection_query_cache,
-					EDITOR_SYNTAX_ERB,
-					editor_query_erb_injection_parts, EDITOR_QUERY_ERB_INJECTION_PART_COUNT,
-					0, 0, 1, 1);
-		default:
-			return 0;
+	const struct editorSyntaxLanguageDef *def = editorSyntaxLookupLanguage(language);
+	if (def == NULL || def->injection_parts == NULL || def->injection_part_count <= 0) {
+		return 0;
 	}
+	struct editorSyntaxQueryCacheEntry *slot =
+			editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_INJECTION);
+	if (slot == NULL) {
+		return 0;
+	}
+	return editorSyntaxEnsureQueryCache(slot, language,
+			def->injection_parts, def->injection_part_count,
+			0, 0, 1, 1);
 }
 
 static const struct editorSyntaxQueryCacheEntry *editorSyntaxInjectionQueryCachePtr(
@@ -1308,7 +1092,7 @@ static const struct editorSyntaxQueryCacheEntry *editorSyntaxInjectionQueryCache
 		return NULL;
 	}
 	const struct editorSyntaxQueryCacheEntry *cache =
-			editorSyntaxInjectionQueryCacheForLanguage(language);
+			editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_INJECTION);
 	if (cache == NULL || cache->query == NULL || cache->capture_roles == NULL ||
 			cache->pattern_injection_metadata == NULL) {
 		return NULL;
@@ -1354,144 +1138,26 @@ static void editorSyntaxStateRecordQueryUnavailable(struct editorSyntaxState *st
 	state->query_unavailable_kind = kind;
 }
 
-static const struct editorSyntaxQueryCacheEntry *editorSyntaxInjectionQueryCacheForLanguage(
-		enum editorSyntaxLanguage language) {
-	switch (language) {
-		case EDITOR_SYNTAX_HTML:
-			return &g_html_injection_query_cache;
-		case EDITOR_SYNTAX_JAVASCRIPT:
-			return &g_javascript_injection_query_cache;
-		case EDITOR_SYNTAX_TYPESCRIPT:
-			return &g_typescript_injection_query_cache;
-		case EDITOR_SYNTAX_PHP:
-			return &g_php_injection_query_cache;
-		case EDITOR_SYNTAX_CPP:
-			return &g_cpp_injection_query_cache;
-		case EDITOR_SYNTAX_HASKELL:
-			return &g_haskell_injection_query_cache;
-		case EDITOR_SYNTAX_JULIA:
-			return &g_julia_injection_query_cache;
-		case EDITOR_SYNTAX_EJS:
-			return &g_ejs_injection_query_cache;
-		case EDITOR_SYNTAX_ERB:
-			return &g_erb_injection_query_cache;
-		default:
-			return NULL;
-	}
-}
-
-static const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCacheForLanguage(
-		enum editorSyntaxLanguage language) {
-	switch (language) {
-		case EDITOR_SYNTAX_C:
-			return &g_c_highlight_query_cache;
-		case EDITOR_SYNTAX_CPP:
-			return &g_cpp_highlight_query_cache;
-		case EDITOR_SYNTAX_GO:
-			return &g_go_highlight_query_cache;
-		case EDITOR_SYNTAX_SHELL:
-			return &g_shell_highlight_query_cache;
-		case EDITOR_SYNTAX_HTML:
-			return &g_html_highlight_query_cache;
-		case EDITOR_SYNTAX_JAVASCRIPT:
-			return &g_javascript_highlight_query_cache;
-		case EDITOR_SYNTAX_JSDOC:
-			return &g_jsdoc_highlight_query_cache;
-		case EDITOR_SYNTAX_TYPESCRIPT:
-			return &g_typescript_highlight_query_cache;
-		case EDITOR_SYNTAX_CSS:
-			return &g_css_highlight_query_cache;
-		case EDITOR_SYNTAX_JSON:
-			return &g_json_highlight_query_cache;
-		case EDITOR_SYNTAX_PYTHON:
-			return &g_python_highlight_query_cache;
-		case EDITOR_SYNTAX_PHP:
-			return &g_php_highlight_query_cache;
-		case EDITOR_SYNTAX_RUST:
-			return &g_rust_highlight_query_cache;
-		case EDITOR_SYNTAX_JAVA:
-			return &g_java_highlight_query_cache;
-		case EDITOR_SYNTAX_REGEX:
-			return &g_regex_highlight_query_cache;
-		case EDITOR_SYNTAX_CSHARP:
-			return &g_csharp_highlight_query_cache;
-		case EDITOR_SYNTAX_HASKELL:
-			return &g_haskell_highlight_query_cache;
-		case EDITOR_SYNTAX_RUBY:
-			return &g_ruby_highlight_query_cache;
-		case EDITOR_SYNTAX_OCAML:
-			return &g_ocaml_highlight_query_cache;
-		case EDITOR_SYNTAX_JULIA:
-			return &g_julia_highlight_query_cache;
-		case EDITOR_SYNTAX_SCALA:
-			return &g_scala_highlight_query_cache;
-		case EDITOR_SYNTAX_EJS:
-			return &g_ejs_highlight_query_cache;
-		case EDITOR_SYNTAX_ERB:
-			return &g_erb_highlight_query_cache;
-		case EDITOR_SYNTAX_NONE:
-		default:
-			return NULL;
-	}
-}
-
 static const struct editorSyntaxQueryCacheEntry *editorSyntaxLocalsQueryCacheForLanguage(
 		enum editorSyntaxLanguage language) {
-	switch (language) {
-		case EDITOR_SYNTAX_JAVASCRIPT:
-			return &g_javascript_locals_query_cache;
-		case EDITOR_SYNTAX_TYPESCRIPT:
-			return &g_typescript_locals_query_cache;
-		default:
-			return NULL;
+	const struct editorSyntaxQueryCacheEntry *cache =
+			editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_LOCALS);
+	if (cache == NULL || cache->query == NULL) {
+		return NULL;
 	}
+	return cache;
 }
 
 static struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(const TSQuery *query) {
 	if (query == NULL) {
 		return NULL;
 	}
-
-	struct editorSyntaxQueryCacheEntry *all[] = {
-		&g_c_highlight_query_cache,
-		&g_cpp_highlight_query_cache,
-		&g_go_highlight_query_cache,
-		&g_shell_highlight_query_cache,
-		&g_html_highlight_query_cache,
-		&g_javascript_highlight_query_cache,
-		&g_jsdoc_highlight_query_cache,
-		&g_typescript_highlight_query_cache,
-		&g_css_highlight_query_cache,
-		&g_json_highlight_query_cache,
-		&g_python_highlight_query_cache,
-		&g_php_highlight_query_cache,
-		&g_rust_highlight_query_cache,
-		&g_java_highlight_query_cache,
-		&g_regex_highlight_query_cache,
-		&g_csharp_highlight_query_cache,
-		&g_haskell_highlight_query_cache,
-		&g_ruby_highlight_query_cache,
-		&g_ocaml_highlight_query_cache,
-		&g_julia_highlight_query_cache,
-		&g_scala_highlight_query_cache,
-		&g_ejs_highlight_query_cache,
-		&g_erb_highlight_query_cache,
-		&g_javascript_locals_query_cache,
-		&g_typescript_locals_query_cache,
-		&g_html_injection_query_cache,
-		&g_javascript_injection_query_cache,
-		&g_typescript_injection_query_cache,
-		&g_php_injection_query_cache,
-		&g_cpp_injection_query_cache,
-		&g_haskell_injection_query_cache,
-		&g_julia_injection_query_cache,
-		&g_ejs_injection_query_cache,
-		&g_erb_injection_query_cache
-	};
-
-	for (size_t i = 0; i < sizeof(all) / sizeof(all[0]); i++) {
-		if (all[i]->query == query) {
-			return all[i];
+	for (int lang = 1; lang < EDITOR_SYNTAX_LANGUAGE_COUNT; lang++) {
+		for (int kind = 0; kind < EDITOR_SYNTAX_QUERY_CACHE_KIND_COUNT; kind++) {
+			struct editorSyntaxQueryCacheEntry *cache = &g_query_caches[lang][kind];
+			if (cache->query == query) {
+				return cache;
+			}
 		}
 	}
 	return NULL;

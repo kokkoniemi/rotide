@@ -66,14 +66,16 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/config/common.c $(SRC_DIR)/config/keymap.c \
 	$(SRC_DIR)/config/editor_config.c $(SRC_DIR)/config/theme_config.c \
 	$(SRC_DIR)/config/lsp_config.c \
-	$(SRC_DIR)/language/syntax.c $(SRC_DIR)/language/lsp.c
+	$(SRC_DIR)/language/syntax.c $(SRC_DIR)/language/languages.c \
+	$(SRC_DIR)/language/lsp.c
 SRCS = $(CORE_SRCS) $(TREE_SITTER_SRCS)
 OBJS = $(SRCS:.c=.o)
 CORE_OBJS = $(CORE_SRCS:.c=.o)
 TREE_SITTER_OBJS = $(TREE_SITTER_SRCS:.c=.o)
 EDITOR_OBJS = $(filter-out $(SRC_DIR)/rotide.o,$(CORE_OBJS)) $(TREE_SITTER_OBJS)
 TEST_SRCS = tests/rotide_tests_main.c tests/test_document_text_editing.c \
-	tests/test_syntax.c tests/test_save_recovery.c tests/test_workspace_config.c \
+	tests/test_syntax.c tests/test_syntax_registry.c \
+	tests/test_save_recovery.c tests/test_workspace_config.c \
 	tests/test_lsp.c tests/test_input_search.c tests/test_render_terminal.c \
 	tests/test_support.c tests/test_helpers.c tests/alloc_test_hooks.c \
 	tests/save_syscalls_test_hooks.c
@@ -95,6 +97,7 @@ $(QUERIES_HEADER): $(QUERIES_MANIFEST) scripts/embed_queries.sh $(QUERIES_SCM)
 	scripts/embed_queries.sh $(QUERIES_MANIFEST) $@
 
 $(SRC_DIR)/language/syntax.o: $(QUERIES_HEADER)
+$(SRC_DIR)/language/languages.o: $(QUERIES_HEADER)
 
 vendor/tree_sitter/runtime/src/lib.o: vendor/tree_sitter/runtime/src/lib.c
 	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
