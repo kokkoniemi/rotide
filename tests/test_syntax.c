@@ -1636,6 +1636,43 @@ static int test_editor_syntax_visible_cache_recomputes_only_changed_rows(void) {
 	return 0;
 }
 
+static int test_editor_syntax_visible_cache_slides_on_scroll(void) {
+	char path[] = "/tmp/rotide-test-syntax-visible-cache-scroll-XXXXXX.c";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
+			"tests/syntax/supported/c/visible_cache.c"));
+
+	editorOpen(path);
+	E.window_rows = 4;
+	E.window_cols = 100;
+	E.rowoff = 0;
+	E.coloff = 0;
+
+	editorSyntaxTestResetVisibleRowRecomputeCount();
+	ASSERT_TRUE(editorSyntaxPrepareVisibleRowSpans(E.rowoff, E.window_rows));
+	ASSERT_EQ_INT(E.window_rows, editorSyntaxTestVisibleRowRecomputeCount());
+
+	struct editorRowSyntaxSpan before[ROTIDE_MAX_SYNTAX_SPANS_PER_ROW];
+	int before_count = 0;
+	ASSERT_TRUE(editorSyntaxRowRenderSpans(1, before,
+				(int)(sizeof(before) / sizeof(before[0])), &before_count));
+	ASSERT_TRUE(before_count > 0);
+
+	E.rowoff = 1;
+	editorSyntaxTestResetVisibleRowRecomputeCount();
+	ASSERT_TRUE(editorSyntaxPrepareVisibleRowSpans(E.rowoff, E.window_rows));
+	ASSERT_EQ_INT(1, editorSyntaxTestVisibleRowRecomputeCount());
+
+	struct editorRowSyntaxSpan after[ROTIDE_MAX_SYNTAX_SPANS_PER_ROW];
+	int after_count = 0;
+	ASSERT_TRUE(editorSyntaxRowRenderSpans(1, after,
+				(int)(sizeof(after) / sizeof(after[0])), &after_count));
+	ASSERT_EQ_INT(before_count, after_count);
+	ASSERT_MEM_EQ(before, after, sizeof(before[0]) * (size_t)before_count);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_undo_redo_preserves_tree(void) {
 	char path[] = "/tmp/rotide-test-syntax-history-XXXXXX.c";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
@@ -1902,6 +1939,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_incremental_provider_parse_keeps_tree_valid", test_editor_syntax_incremental_provider_parse_keeps_tree_valid},
 	{"editor_syntax_large_file_stays_enabled_in_degraded_mode", test_editor_syntax_large_file_stays_enabled_in_degraded_mode},
 	{"editor_syntax_visible_cache_recomputes_only_changed_rows", test_editor_syntax_visible_cache_recomputes_only_changed_rows},
+	{"editor_syntax_visible_cache_slides_on_scroll", test_editor_syntax_visible_cache_slides_on_scroll},
 	{"editor_syntax_undo_redo_preserves_tree", test_editor_syntax_undo_redo_preserves_tree},
 	{"editor_syntax_undo_redo_preserves_shell_tree", test_editor_syntax_undo_redo_preserves_shell_tree},
 	{"editor_tabs_keep_independent_syntax_states", test_editor_tabs_keep_independent_syntax_states},

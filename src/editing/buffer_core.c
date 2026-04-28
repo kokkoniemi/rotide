@@ -698,6 +698,71 @@ static int editorSyntaxVisibleCacheEnsureCapacity(int row_count) {
 	return 1;
 }
 
+static void editorSyntaxVisibleCacheMarkRowsDirty(int rel_start, int rel_end_exclusive) {
+	if (rel_start < 0) {
+		rel_start = 0;
+	}
+	if (rel_end_exclusive > g_visible_syntax_cache.row_count) {
+		rel_end_exclusive = g_visible_syntax_cache.row_count;
+	}
+	if (rel_start >= rel_end_exclusive) {
+		return;
+	}
+
+	for (int rel_row = rel_start; rel_row < rel_end_exclusive; rel_row++) {
+		g_visible_syntax_cache.span_counts[rel_row] = 0;
+		g_visible_syntax_cache.row_dirty[rel_row] = 1;
+	}
+}
+
+static int editorSyntaxVisibleCacheSlide(int first_row, int row_count) {
+	if (!g_visible_syntax_cache.prepared || g_visible_syntax_cache.row_count <= 0) {
+		return 0;
+	}
+
+	int old_first = g_visible_syntax_cache.first_row;
+	int old_count = g_visible_syntax_cache.row_count;
+	int old_end = old_first + old_count;
+	int new_end = first_row + row_count;
+	int overlap_start = old_first > first_row ? old_first : first_row;
+	int overlap_end = old_end < new_end ? old_end : new_end;
+	if (overlap_start >= overlap_end) {
+		return 0;
+	}
+
+	int src_rel = overlap_start - old_first;
+	int dst_rel = overlap_start - first_row;
+	int overlap_count = overlap_end - overlap_start;
+	size_t overlap_size = 0;
+	size_t count_bytes = 0;
+	size_t dirty_bytes = 0;
+	size_t span_count = 0;
+	size_t span_bytes = 0;
+	if (!editorIntToSize(overlap_count, &overlap_size) ||
+			!editorSizeMul(sizeof(*g_visible_syntax_cache.span_counts), overlap_size,
+					&count_bytes) ||
+			!editorSizeMul(sizeof(*g_visible_syntax_cache.row_dirty), overlap_size,
+					&dirty_bytes) ||
+			!editorSizeMul(overlap_size, ROTIDE_MAX_SYNTAX_SPANS_PER_ROW, &span_count) ||
+			!editorSizeMul(sizeof(*g_visible_syntax_cache.spans), span_count, &span_bytes)) {
+		return 0;
+	}
+
+	memmove(&g_visible_syntax_cache.span_counts[dst_rel],
+			&g_visible_syntax_cache.span_counts[src_rel], count_bytes);
+	memmove(&g_visible_syntax_cache.row_dirty[dst_rel],
+			&g_visible_syntax_cache.row_dirty[src_rel], dirty_bytes);
+	memmove(&g_visible_syntax_cache.spans[dst_rel * ROTIDE_MAX_SYNTAX_SPANS_PER_ROW],
+			&g_visible_syntax_cache.spans[src_rel * ROTIDE_MAX_SYNTAX_SPANS_PER_ROW],
+			span_bytes);
+
+	g_visible_syntax_cache.first_row = first_row;
+	g_visible_syntax_cache.row_count = row_count;
+	editorSyntaxVisibleCacheMarkRowsDirty(0, dst_rel);
+	editorSyntaxVisibleCacheMarkRowsDirty(dst_rel + overlap_count, row_count);
+	return 1;
+}
+
 int editorBufferPosToOffset(int cy, int cx, size_t *offset_out) {
 	if (cy < 0 || cy > E.numrows || cx < 0 || offset_out == NULL) {
 		return 0;
@@ -1340,13 +1405,12 @@ static int editorSyntaxBuildVisibleSpanCache(int first_row, int row_count) {
 	if (!g_visible_syntax_cache.prepared ||
 			g_visible_syntax_cache.first_row != first_row ||
 			g_visible_syntax_cache.row_count != row_count) {
-		memset(g_visible_syntax_cache.span_counts, 0, sizeof(*g_visible_syntax_cache.span_counts) *
-				(size_t)row_count);
-		memset(g_visible_syntax_cache.row_dirty, 1, sizeof(*g_visible_syntax_cache.row_dirty) *
-				(size_t)row_count);
 		g_visible_syntax_cache.prepared = 1;
-		g_visible_syntax_cache.first_row = first_row;
-		g_visible_syntax_cache.row_count = row_count;
+		if (!editorSyntaxVisibleCacheSlide(first_row, row_count)) {
+			g_visible_syntax_cache.first_row = first_row;
+			g_visible_syntax_cache.row_count = row_count;
+			editorSyntaxVisibleCacheMarkRowsDirty(0, row_count);
+		}
 	}
 
 	for (int rel_row = 0; rel_row < row_count; rel_row++) {
