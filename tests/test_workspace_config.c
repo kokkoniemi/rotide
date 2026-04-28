@@ -1438,7 +1438,11 @@ static int test_editor_syntax_theme_load_global_project_precedence(void) {
 	ASSERT_TRUE(write_text_file(project_path,
 				"[theme.syntax]\n"
 				"keyword = \"bright_yellow\"\n"
-				"string = \"green\"\n"));
+				"string = \"green\"\n"
+				"variable = \"white\"\n"
+				"parameter = \"yellow\"\n"
+				"module = \"cyan\"\n"
+				"property = \"bright_magenta\"\n"));
 
 	enum editorThemeColor theme[EDITOR_SYNTAX_HL_CLASS_COUNT];
 	enum editorSyntaxThemeLoadStatus status =
@@ -1448,6 +1452,10 @@ static int test_editor_syntax_theme_load_global_project_precedence(void) {
 	ASSERT_EQ_INT(EDITOR_THEME_COLOR_BRIGHT_YELLOW, theme[EDITOR_SYNTAX_HL_KEYWORD]);
 	ASSERT_EQ_INT(EDITOR_THEME_COLOR_GREEN, theme[EDITOR_SYNTAX_HL_STRING]);
 	ASSERT_EQ_INT(EDITOR_THEME_COLOR_BRIGHT_CYAN, theme[EDITOR_SYNTAX_HL_TYPE]);
+	ASSERT_EQ_INT(EDITOR_THEME_COLOR_WHITE, theme[EDITOR_SYNTAX_HL_VARIABLE]);
+	ASSERT_EQ_INT(EDITOR_THEME_COLOR_YELLOW, theme[EDITOR_SYNTAX_HL_PARAMETER]);
+	ASSERT_EQ_INT(EDITOR_THEME_COLOR_CYAN, theme[EDITOR_SYNTAX_HL_MODULE]);
+	ASSERT_EQ_INT(EDITOR_THEME_COLOR_BRIGHT_MAGENTA, theme[EDITOR_SYNTAX_HL_PROPERTY]);
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(unlink(global_path) == 0);

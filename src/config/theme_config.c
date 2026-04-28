@@ -31,6 +31,10 @@ void editorSyntaxThemeInitDefaults(
 	theme_out[EDITOR_SYNTAX_HL_STRING] = EDITOR_THEME_COLOR_GREEN;
 	theme_out[EDITOR_SYNTAX_HL_NUMBER] = EDITOR_THEME_COLOR_MAGENTA;
 	theme_out[EDITOR_SYNTAX_HL_CONSTANT] = EDITOR_THEME_COLOR_BRIGHT_MAGENTA;
+	theme_out[EDITOR_SYNTAX_HL_VARIABLE] = EDITOR_THEME_COLOR_WHITE;
+	theme_out[EDITOR_SYNTAX_HL_PARAMETER] = EDITOR_THEME_COLOR_YELLOW;
+	theme_out[EDITOR_SYNTAX_HL_MODULE] = EDITOR_THEME_COLOR_CYAN;
+	theme_out[EDITOR_SYNTAX_HL_PROPERTY] = EDITOR_THEME_COLOR_BRIGHT_MAGENTA;
 	theme_out[EDITOR_SYNTAX_HL_PREPROCESSOR] = EDITOR_THEME_COLOR_BRIGHT_RED;
 	theme_out[EDITOR_SYNTAX_HL_OPERATOR] = EDITOR_THEME_COLOR_BRIGHT_WHITE;
 	theme_out[EDITOR_SYNTAX_HL_PUNCTUATION] = EDITOR_THEME_COLOR_DEFAULT;
@@ -96,6 +100,26 @@ static int editorParseSyntaxHighlightClassName(const char *name,
 	}
 	if (strcmp(normalized, "constant") == 0) {
 		*class_out = EDITOR_SYNTAX_HL_CONSTANT;
+		return 1;
+	}
+	if (strcmp(normalized, "variable") == 0) {
+		*class_out = EDITOR_SYNTAX_HL_VARIABLE;
+		return 1;
+	}
+	if (strcmp(normalized, "parameter") == 0 ||
+			strcmp(normalized, "variable_parameter") == 0 ||
+			strcmp(normalized, "variable.parameter") == 0) {
+		*class_out = EDITOR_SYNTAX_HL_PARAMETER;
+		return 1;
+	}
+	if (strcmp(normalized, "module") == 0 || strcmp(normalized, "namespace") == 0) {
+		*class_out = EDITOR_SYNTAX_HL_MODULE;
+		return 1;
+	}
+	if (strcmp(normalized, "property") == 0 ||
+			strcmp(normalized, "variable_member") == 0 ||
+			strcmp(normalized, "variable.member") == 0) {
+		*class_out = EDITOR_SYNTAX_HL_PROPERTY;
 		return 1;
 	}
 	if (strcmp(normalized, "preprocessor") == 0) {

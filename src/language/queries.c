@@ -240,6 +240,108 @@ struct editorSyntaxBudgetConfig editorSyntaxBudgetConfigForMode(
 	return config;
 }
 
+struct editorSyntaxCaptureRule {
+	const char *prefix;
+	enum editorSyntaxHighlightClass highlight_class;
+};
+
+static const struct editorSyntaxCaptureRule g_capture_rules[] = {
+	{"keyword.conditional.ternary", EDITOR_SYNTAX_HL_KEYWORD},
+	{"reference.implementation", EDITOR_SYNTAX_HL_TYPE},
+	{"function.method.builtin", EDITOR_SYNTAX_HL_FUNCTION},
+	{"definition.enum_variant", EDITOR_SYNTAX_HL_CONSTANT},
+	{"reference.enum_variant", EDITOR_SYNTAX_HL_CONSTANT},
+	{"punctuation.delimiter", EDITOR_SYNTAX_HL_PUNCTUATION},
+	{"comment.documentation", EDITOR_SYNTAX_HL_COMMENT},
+	{"string.documentation", EDITOR_SYNTAX_HL_STRING},
+	{"definition.interface", EDITOR_SYNTAX_HL_TYPE},
+	{"reference.interface", EDITOR_SYNTAX_HL_TYPE},
+	{"punctuation.special", EDITOR_SYNTAX_HL_PUNCTUATION},
+	{"punctuation.bracket", EDITOR_SYNTAX_HL_PUNCTUATION},
+	{"property.definition", EDITOR_SYNTAX_HL_PROPERTY},
+	{"keyword.conditional", EDITOR_SYNTAX_HL_KEYWORD},
+	{"definition.constant", EDITOR_SYNTAX_HL_CONSTANT},
+	{"definition.function", EDITOR_SYNTAX_HL_FUNCTION},
+	{"definition.operator", EDITOR_SYNTAX_HL_OPERATOR},
+	{"definition.property", EDITOR_SYNTAX_HL_PROPERTY},
+	{"definition.variable", EDITOR_SYNTAX_HL_VARIABLE},
+	{"variable.parameter", EDITOR_SYNTAX_HL_PARAMETER},
+	{"string.special.key", EDITOR_SYNTAX_HL_STRING},
+	{"constant.character", EDITOR_SYNTAX_HL_CONSTANT},
+	{"keyword.exception", EDITOR_SYNTAX_HL_KEYWORD},
+	{"keyword.directive", EDITOR_SYNTAX_HL_KEYWORD},
+	{"definition.method", EDITOR_SYNTAX_HL_FUNCTION},
+	{"definition.module", EDITOR_SYNTAX_HL_MODULE},
+	{"definition.object", EDITOR_SYNTAX_HL_TYPE},
+	{"variable.builtin", EDITOR_SYNTAX_HL_CONSTANT},
+	{"reference.module", EDITOR_SYNTAX_HL_MODULE},
+	{"keyword.operator", EDITOR_SYNTAX_HL_KEYWORD},
+	{"keyword.modifier", EDITOR_SYNTAX_HL_KEYWORD},
+	{"keyword.function", EDITOR_SYNTAX_HL_KEYWORD},
+	{"function.builtin", EDITOR_SYNTAX_HL_FUNCTION},
+	{"function.special", EDITOR_SYNTAX_HL_FUNCTION},
+	{"definition.class", EDITOR_SYNTAX_HL_TYPE},
+	{"definition.field", EDITOR_SYNTAX_HL_PROPERTY},
+	{"definition.macro", EDITOR_SYNTAX_HL_FUNCTION},
+	{"constant.builtin", EDITOR_SYNTAX_HL_CONSTANT},
+	{"variable.member", EDITOR_SYNTAX_HL_PROPERTY},
+	{"type.definition", EDITOR_SYNTAX_HL_TYPE},
+	{"reference.field", EDITOR_SYNTAX_HL_PROPERTY},
+	{"reference.class", EDITOR_SYNTAX_HL_TYPE},
+	{"definition.type", EDITOR_SYNTAX_HL_TYPE},
+	{"function.method", EDITOR_SYNTAX_HL_FUNCTION},
+	{"type.qualifier", EDITOR_SYNTAX_HL_TYPE},
+	{"string.special", EDITOR_SYNTAX_HL_STRING},
+	{"reference.type", EDITOR_SYNTAX_HL_TYPE},
+	{"reference.call", EDITOR_SYNTAX_HL_FUNCTION},
+	{"module.builtin", EDITOR_SYNTAX_HL_MODULE},
+	{"keyword.import", EDITOR_SYNTAX_HL_KEYWORD},
+	{"keyword.repeat", EDITOR_SYNTAX_HL_KEYWORD},
+	{"keyword.return", EDITOR_SYNTAX_HL_KEYWORD},
+	{"function.macro", EDITOR_SYNTAX_HL_FUNCTION},
+	{"string.symbol", EDITOR_SYNTAX_HL_STRING},
+	{"string.escape", EDITOR_SYNTAX_HL_STRING},
+	{"keyword.debug", EDITOR_SYNTAX_HL_KEYWORD},
+	{"function.call", EDITOR_SYNTAX_HL_FUNCTION},
+	{"type.builtin", EDITOR_SYNTAX_HL_TYPE},
+	{"string.regex", EDITOR_SYNTAX_HL_STRING},
+	{"storageclass", EDITOR_SYNTAX_HL_PREPROCESSOR},
+	{"preprocessor", EDITOR_SYNTAX_HL_PREPROCESSOR},
+	{"number.float", EDITOR_SYNTAX_HL_NUMBER},
+	{"keyword.type", EDITOR_SYNTAX_HL_KEYWORD},
+	{"punctuation", EDITOR_SYNTAX_HL_PUNCTUATION},
+	{"method.call", EDITOR_SYNTAX_HL_FUNCTION},
+	{"conditional", EDITOR_SYNTAX_HL_KEYWORD},
+	{"constructor", EDITOR_SYNTAX_HL_TYPE},
+	{"parameter", EDITOR_SYNTAX_HL_PARAMETER},
+	{"namespace", EDITOR_SYNTAX_HL_MODULE},
+	{"exception", EDITOR_SYNTAX_HL_KEYWORD},
+	{"delimiter", EDITOR_SYNTAX_HL_PUNCTUATION},
+	{"character", EDITOR_SYNTAX_HL_STRING},
+	{"attribute", EDITOR_SYNTAX_HL_PREPROCESSOR},
+	{"variable", EDITOR_SYNTAX_HL_VARIABLE},
+	{"property", EDITOR_SYNTAX_HL_PROPERTY},
+	{"operator", EDITOR_SYNTAX_HL_OPERATOR},
+	{"function", EDITOR_SYNTAX_HL_FUNCTION},
+	{"constant", EDITOR_SYNTAX_HL_CONSTANT},
+	{"preproc", EDITOR_SYNTAX_HL_PREPROCESSOR},
+	{"keyword", EDITOR_SYNTAX_HL_KEYWORD},
+	{"include", EDITOR_SYNTAX_HL_KEYWORD},
+	{"comment", EDITOR_SYNTAX_HL_COMMENT},
+	{"command", EDITOR_SYNTAX_HL_FUNCTION},
+	{"boolean", EDITOR_SYNTAX_HL_CONSTANT},
+	{"string", EDITOR_SYNTAX_HL_STRING},
+	{"repeat", EDITOR_SYNTAX_HL_KEYWORD},
+	{"number", EDITOR_SYNTAX_HL_NUMBER},
+	{"module", EDITOR_SYNTAX_HL_MODULE},
+	{"method", EDITOR_SYNTAX_HL_FUNCTION},
+	{"label", EDITOR_SYNTAX_HL_FUNCTION},
+	{"float", EDITOR_SYNTAX_HL_NUMBER},
+	{"type", EDITOR_SYNTAX_HL_TYPE},
+	{"tag", EDITOR_SYNTAX_HL_TYPE},
+	{"doc", EDITOR_SYNTAX_HL_COMMENT}
+};
+
 static int editorSyntaxCaptureNameHasPrefix(const char *name, size_t len, const char *prefix) {
 	size_t prefix_len = strlen(prefix);
 	if (name == NULL || prefix == NULL || len < prefix_len) {
@@ -254,47 +356,10 @@ static enum editorSyntaxHighlightClass editorSyntaxClassFromCaptureName(const ch
 		return EDITOR_SYNTAX_HL_NONE;
 	}
 
-	if (editorSyntaxCaptureNameHasPrefix(name, len, "comment")) {
-		return EDITOR_SYNTAX_HL_COMMENT;
-	}
-	if (editorSyntaxCaptureNameHasPrefix(name, len, "keyword")) {
-		return EDITOR_SYNTAX_HL_KEYWORD;
-	}
-	if (editorSyntaxCaptureNameHasPrefix(name, len, "type") ||
-			editorSyntaxCaptureNameHasPrefix(name, len, "constructor") ||
-			editorSyntaxCaptureNameHasPrefix(name, len, "tag")) {
-		return EDITOR_SYNTAX_HL_TYPE;
-	}
-	if (editorSyntaxCaptureNameHasPrefix(name, len, "function") ||
-			editorSyntaxCaptureNameHasPrefix(name, len, "command") ||
-			editorSyntaxCaptureNameHasPrefix(name, len, "label")) {
-		return EDITOR_SYNTAX_HL_FUNCTION;
-	}
-	if (editorSyntaxCaptureNameHasPrefix(name, len, "string") ||
-			editorSyntaxCaptureNameHasPrefix(name, len, "character")) {
-		return EDITOR_SYNTAX_HL_STRING;
-	}
-	if (editorSyntaxCaptureNameHasPrefix(name, len, "number") ||
-			editorSyntaxCaptureNameHasPrefix(name, len, "float")) {
-		return EDITOR_SYNTAX_HL_NUMBER;
-	}
-	if (editorSyntaxCaptureNameHasPrefix(name, len, "variable.builtin") ||
-			editorSyntaxCaptureNameHasPrefix(name, len, "constant") ||
-			editorSyntaxCaptureNameHasPrefix(name, len, "boolean") ||
-			editorSyntaxCaptureNameHasPrefix(name, len, "property")) {
-		return EDITOR_SYNTAX_HL_CONSTANT;
-	}
-	if (editorSyntaxCaptureNameHasPrefix(name, len, "attribute") ||
-			editorSyntaxCaptureNameHasPrefix(name, len, "preproc") ||
-			editorSyntaxCaptureNameHasPrefix(name, len, "preprocessor")) {
-		return EDITOR_SYNTAX_HL_PREPROCESSOR;
-	}
-	if (editorSyntaxCaptureNameHasPrefix(name, len, "operator")) {
-		return EDITOR_SYNTAX_HL_OPERATOR;
-	}
-	if (editorSyntaxCaptureNameHasPrefix(name, len, "punctuation") ||
-			editorSyntaxCaptureNameHasPrefix(name, len, "delimiter")) {
-		return EDITOR_SYNTAX_HL_PUNCTUATION;
+	for (size_t i = 0; i < sizeof(g_capture_rules) / sizeof(g_capture_rules[0]); i++) {
+		if (editorSyntaxCaptureNameHasPrefix(name, len, g_capture_rules[i].prefix)) {
+			return g_capture_rules[i].highlight_class;
+		}
 	}
 
 	return EDITOR_SYNTAX_HL_NONE;
@@ -1029,6 +1094,37 @@ void editorSyntaxTestResetBudgetOverrides(void) {
 
 int editorSyntaxTestBudgetOverridesEnabled(void) {
 	return g_editor_syntax_budget_overrides.enabled;
+}
+
+int editorSyntaxTestCaptureRuleCount(void) {
+	return (int)(sizeof(g_capture_rules) / sizeof(g_capture_rules[0]));
+}
+
+int editorSyntaxTestCaptureRuleAt(int idx, const char **prefix_out,
+		enum editorSyntaxHighlightClass *class_out) {
+	if (prefix_out != NULL) {
+		*prefix_out = NULL;
+	}
+	if (class_out != NULL) {
+		*class_out = EDITOR_SYNTAX_HL_NONE;
+	}
+	if (idx < 0 || idx >= editorSyntaxTestCaptureRuleCount()) {
+		return 0;
+	}
+	if (prefix_out != NULL) {
+		*prefix_out = g_capture_rules[idx].prefix;
+	}
+	if (class_out != NULL) {
+		*class_out = g_capture_rules[idx].highlight_class;
+	}
+	return 1;
+}
+
+enum editorSyntaxHighlightClass editorSyntaxTestClassFromCaptureName(const char *name) {
+	if (name == NULL) {
+		return EDITOR_SYNTAX_HL_NONE;
+	}
+	return editorSyntaxClassFromCaptureName(name, strlen(name));
 }
 
 void editorSyntaxReleaseSharedResources(void) {

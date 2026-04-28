@@ -1489,6 +1489,50 @@ static int test_editor_syntax_query_compile_failure_records_diagnostics(void) {
 	return 0;
 }
 
+static int test_editor_syntax_capture_rules_are_longest_match_first(void) {
+	int rule_count = editorSyntaxTestCaptureRuleCount();
+	ASSERT_TRUE(rule_count > 0);
+
+	size_t previous_len = (size_t)-1;
+	for (int i = 0; i < rule_count; i++) {
+		const char *prefix = NULL;
+		enum editorSyntaxHighlightClass highlight_class = EDITOR_SYNTAX_HL_NONE;
+		ASSERT_TRUE(editorSyntaxTestCaptureRuleAt(i, &prefix, &highlight_class));
+		ASSERT_TRUE(prefix != NULL);
+		ASSERT_TRUE(prefix[0] != '\0');
+		size_t prefix_len = strlen(prefix);
+		ASSERT_TRUE(prefix_len <= previous_len);
+		ASSERT_TRUE(highlight_class > EDITOR_SYNTAX_HL_NONE);
+		ASSERT_TRUE(highlight_class < EDITOR_SYNTAX_HL_CLASS_COUNT);
+		ASSERT_EQ_INT(highlight_class, editorSyntaxTestClassFromCaptureName(prefix));
+
+		char nested_capture[128];
+		int written = snprintf(nested_capture, sizeof(nested_capture), "%s.extra", prefix);
+		ASSERT_TRUE(written > 0);
+		ASSERT_TRUE((size_t)written < sizeof(nested_capture));
+		ASSERT_EQ_INT(highlight_class,
+				editorSyntaxTestClassFromCaptureName(nested_capture));
+
+		previous_len = prefix_len;
+	}
+
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HL_PARAMETER,
+			editorSyntaxTestClassFromCaptureName("variable.parameter"));
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HL_PROPERTY,
+			editorSyntaxTestClassFromCaptureName("variable.member"));
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HL_VARIABLE,
+			editorSyntaxTestClassFromCaptureName("variable"));
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HL_MODULE,
+			editorSyntaxTestClassFromCaptureName("namespace"));
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HL_PROPERTY,
+			editorSyntaxTestClassFromCaptureName("property"));
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HL_CONSTANT,
+			editorSyntaxTestClassFromCaptureName("constant"));
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HL_NONE,
+			editorSyntaxTestClassFromCaptureName("none"));
+	return 0;
+}
+
 static int test_editor_syntax_collect_c_captures_without_injection_query_is_graceful(void) {
 	const char *source = "int value = 1;\n";
 	struct editorTextSource source_view = {0};
@@ -2006,6 +2050,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_incremental_edits_keep_regex_tree_valid", test_editor_syntax_incremental_edits_keep_regex_tree_valid},
 	{"editor_syntax_query_budget_match_limit_is_graceful", test_editor_syntax_query_budget_match_limit_is_graceful},
 	{"editor_syntax_query_compile_failure_records_diagnostics", test_editor_syntax_query_compile_failure_records_diagnostics},
+	{"editor_syntax_capture_rules_are_longest_match_first", test_editor_syntax_capture_rules_are_longest_match_first},
 	{"editor_syntax_collect_c_captures_without_injection_query_is_graceful", test_editor_syntax_collect_c_captures_without_injection_query_is_graceful},
 	{"editor_syntax_capture_truncation_reports_event_and_keeps_span_limit", test_editor_syntax_capture_truncation_reports_event_and_keeps_span_limit},
 	{"editor_syntax_parse_budget_is_graceful", test_editor_syntax_parse_budget_is_graceful},

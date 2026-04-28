@@ -123,6 +123,10 @@ void editorSyntaxTestSetBudgetOverrides(int enabled,
 		uint64_t parse_time_budget_ns);
 void editorSyntaxTestResetBudgetOverrides(void);
 int editorSyntaxTestBudgetOverridesEnabled(void);
+int editorSyntaxTestCaptureRuleCount(void);
+int editorSyntaxTestCaptureRuleAt(int idx, const char **prefix_out,
+		enum editorSyntaxHighlightClass *class_out);
+enum editorSyntaxHighlightClass editorSyntaxTestClassFromCaptureName(const char *name);
 void editorSyntaxTestSetParseFailureCountdowns(int full_parse_failures,
 		int incremental_parse_failures);
 void editorSyntaxTestResetParseFailureCountdowns(void);
