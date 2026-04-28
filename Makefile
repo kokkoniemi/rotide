@@ -66,7 +66,8 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/config/common.c $(SRC_DIR)/config/keymap.c \
 	$(SRC_DIR)/config/editor_config.c $(SRC_DIR)/config/theme_config.c \
 	$(SRC_DIR)/config/lsp_config.c \
-	$(SRC_DIR)/language/syntax.c $(SRC_DIR)/language/languages.c \
+	$(SRC_DIR)/language/syntax.c $(SRC_DIR)/language/queries.c \
+	$(SRC_DIR)/language/languages.c \
 	$(SRC_DIR)/language/lsp.c
 SRCS = $(CORE_SRCS) $(TREE_SITTER_SRCS)
 OBJS = $(SRCS:.c=.o)
@@ -96,7 +97,7 @@ rotide: $(SRC_DIR)/rotide.o $(EDITOR_OBJS)
 $(QUERIES_HEADER): $(QUERIES_MANIFEST) scripts/embed_queries.sh $(QUERIES_SCM)
 	scripts/embed_queries.sh $(QUERIES_MANIFEST) $@
 
-$(SRC_DIR)/language/syntax.o: $(QUERIES_HEADER)
+$(SRC_DIR)/language/queries.o: $(QUERIES_HEADER)
 $(SRC_DIR)/language/languages.o: $(QUERIES_HEADER)
 
 vendor/tree_sitter/runtime/src/lib.o: vendor/tree_sitter/runtime/src/lib.c

@@ -1,167 +1,17 @@
-/* Included by syntax.c. Query caches, fallback query text, and load helpers live here. */
+/* Translation unit for tree-sitter query loading and the per-language compiled-query
+ * caches. Paired with syntax.c (parser/edit/orchestration) via syntax_internal.h.
+ */
+
+#include "language/syntax_internal.h"
 
 #include "language/languages.h"
 
-enum editorSyntaxCaptureRole {
-	EDITOR_SYNTAX_CAPTURE_ROLE_NONE = 0,
-	EDITOR_SYNTAX_CAPTURE_ROLE_LOCAL_SCOPE,
-	EDITOR_SYNTAX_CAPTURE_ROLE_LOCAL_DEFINITION,
-	EDITOR_SYNTAX_CAPTURE_ROLE_LOCAL_REFERENCE,
-	EDITOR_SYNTAX_CAPTURE_ROLE_INJECTION_CONTENT,
-	EDITOR_SYNTAX_CAPTURE_ROLE_INJECTION_LANGUAGE
-};
-
-#define ROTIDE_SYNTAX_PERF_DEGRADED_PREDICATES_BYTES ((size_t)(512 * 1024))
-#define ROTIDE_SYNTAX_PERF_DEGRADED_INJECTIONS_BYTES ((size_t)(2 * 1024 * 1024))
-#define ROTIDE_SYNTAX_QUERY_MATCH_LIMIT_NORMAL 8192U
-#define ROTIDE_SYNTAX_QUERY_MATCH_LIMIT_DEGRADED 4096U
-#define ROTIDE_SYNTAX_QUERY_MATCH_LIMIT_DEGRADED_INJECTIONS 2048U
-
-#define ROTIDE_SYNTAX_QUERY_BUDGET_NS_NORMAL (8000000ULL)
-#define ROTIDE_SYNTAX_QUERY_BUDGET_NS_DEGRADED (6000000ULL)
-#define ROTIDE_SYNTAX_QUERY_BUDGET_NS_DEGRADED_INJECTIONS (5000000ULL)
-
-#define ROTIDE_SYNTAX_PARSE_BUDGET_NS_NORMAL (50000000ULL)
-#define ROTIDE_SYNTAX_PARSE_BUDGET_NS_DEGRADED (30000000ULL)
-#define ROTIDE_SYNTAX_PARSE_BUDGET_NS_DEGRADED_INJECTIONS (20000000ULL)
-#define ROTIDE_SYNTAX_QUERY_KIND_COUNT 2
-#define ROTIDE_SYNTAX_LIMIT_EVENT_CAP 16
-struct editorSyntaxLocalMark {
-	TSNode node;
-	int is_local;
-};
-
-struct editorSyntaxLocalsContext {
-	struct editorSyntaxLocalMark *marks;
-	int count;
-	int cap;
-};
-
-struct editorSyntaxParsedTree {
-	enum editorSyntaxLanguage language;
-	TSParser *parser;
-	TSTree *tree;
-	TSRange *included_ranges;
-	uint32_t included_range_count;
-	uint64_t revision;
-};
-
-struct editorSyntaxInjectedTree {
-	struct editorSyntaxParsedTree parsed;
-	struct editorSyntaxLocalsContext locals;
-	uint64_t locals_revision;
-	int locals_valid;
-	int active;
-	int depth;
-};
-
-struct editorSyntaxInjectionPatternMetadata {
-	char *language;
-	uint8_t combined;
-	uint8_t include_children;
-	uint8_t has_offset;
-	uint32_t offset_capture_id;
-	int32_t start_row_offset;
-	int32_t start_column_offset;
-	int32_t end_row_offset;
-	int32_t end_column_offset;
-};
-
-#define ROTIDE_SYNTAX_MAX_INJECTION_TREES 16
-#define ROTIDE_SYNTAX_MAX_INJECTION_DEPTH 3
-
-struct editorSyntaxState {
-	enum editorSyntaxLanguage language;
-	struct editorSyntaxParsedTree host;
-	struct editorSyntaxLocalsContext host_locals;
-	struct editorSyntaxInjectedTree injections[ROTIDE_SYNTAX_MAX_INJECTION_TREES];
-	int injection_count;
-	uint64_t host_locals_revision;
-	int host_locals_valid;
-	int perf_disable_predicates;
-	int perf_disable_injections;
-	enum editorSyntaxPerformanceMode perf_mode;
-	struct editorSyntaxByteRange *last_changed_ranges;
-	int last_changed_range_count;
-	int last_changed_range_cap;
-	int budget_parse_exceeded;
-	int budget_query_exceeded;
-	int query_unavailable_pending;
-	enum editorSyntaxLanguage query_unavailable_language;
-	enum editorSyntaxQueryKind query_unavailable_kind;
-	struct editorSyntaxLimitEvent limit_events[ROTIDE_SYNTAX_LIMIT_EVENT_CAP];
-	int limit_event_start;
-	int limit_event_count;
-	int injection_depth_exceeded_reported;
-	int injection_slots_full_reported;
-	int capture_truncated_unknown_reported;
-	int *capture_truncated_rows;
-	int capture_truncated_row_count;
-	int capture_truncated_row_cap;
-	size_t source_len;
-	char *scratch_primary;
-	size_t scratch_primary_cap;
-	char *scratch_secondary;
-	size_t scratch_secondary_cap;
-};
-
-struct editorSyntaxQueryCacheEntry {
-	int load_attempted;
-	TSQuery *query;
-	enum editorSyntaxHighlightClass *capture_classes;
-	uint8_t *capture_roles;
-	struct editorSyntaxInjectionPatternMetadata *pattern_injection_metadata;
-	uint32_t capture_count;
-	uint32_t pattern_count;
-	regex_t *compiled_regexes;
-	uint8_t *compiled_regex_compiled;
-	uint8_t *compiled_regex_failed;
-	uint32_t string_count;
-};
-
-struct editorSyntaxScopeInfo {
-	TSNode node;
-	int parent_idx;
-	char **definitions;
-	int def_count;
-	int def_cap;
-};
-
-struct editorSyntaxCaptureVec {
-	struct editorSyntaxCapture *items;
-	int count;
-	int cap;
-};
-
-struct editorSyntaxRangeVec {
-	TSRange *items;
-	uint32_t count;
-	uint32_t cap;
-};
-
-struct editorSyntaxBudgetConfig {
-	uint32_t query_match_limit;
-	uint64_t query_budget_ns;
-	uint64_t parse_budget_ns;
-};
-
-struct editorSyntaxDeadlineContext {
-	uint64_t deadline_ns;
-	int exceeded;
-};
-
-struct editorSyntaxPredicateContext {
-	struct editorSyntaxState *state;
-	const struct editorTextSource *source;
-	const struct editorSyntaxLocalsContext *locals;
-};
-
-enum editorSyntaxQueryCacheKind {
-	EDITOR_SYNTAX_QUERY_CACHE_KIND_HIGHLIGHT = 0,
-	EDITOR_SYNTAX_QUERY_CACHE_KIND_LOCALS,
-	EDITOR_SYNTAX_QUERY_CACHE_KIND_INJECTION,
-	EDITOR_SYNTAX_QUERY_CACHE_KIND_COUNT
-};
+#include <regex.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
 
 static struct editorSyntaxQueryCacheEntry
 		g_query_caches[EDITOR_SYNTAX_LANGUAGE_COUNT]
@@ -191,7 +41,7 @@ static unsigned int g_last_query_compile_error_generation = 0;
 static unsigned int g_drained_query_compile_error_generation = 0;
 static uint64_t g_query_unavailable_reported[ROTIDE_SYNTAX_QUERY_KIND_COUNT] = {0};
 
-static int editorSyntaxStringEquals(const char *s, size_t len, const char *literal) {
+int editorSyntaxStringEquals(const char *s, size_t len, const char *literal) {
 	if (s == NULL || literal == NULL) {
 		return 0;
 	}
@@ -202,7 +52,7 @@ static int editorSyntaxStringEquals(const char *s, size_t len, const char *liter
 	return memcmp(s, literal, len) == 0;
 }
 
-static int editorSyntaxLengthFitsTreeSitter(size_t len) {
+int editorSyntaxLengthFitsTreeSitter(size_t len) {
 	return len <= UINT32_MAX;
 }
 
@@ -214,7 +64,7 @@ static uint64_t editorSyntaxMonotonicNanos(void) {
 	return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
 }
 
-static uint64_t editorSyntaxComputeDeadlineNs(uint64_t budget_ns) {
+uint64_t editorSyntaxComputeDeadlineNs(uint64_t budget_ns) {
 	if (budget_ns == 0) {
 		return 0;
 	}
@@ -225,7 +75,7 @@ static uint64_t editorSyntaxComputeDeadlineNs(uint64_t budget_ns) {
 	return now + budget_ns;
 }
 
-static bool editorSyntaxParseProgressCallback(TSParseState *state) {
+bool editorSyntaxParseProgressCallback(TSParseState *state) {
 	if (state == NULL || state->payload == NULL) {
 		return false;
 	}
@@ -241,7 +91,7 @@ static bool editorSyntaxParseProgressCallback(TSParseState *state) {
 	return false;
 }
 
-static bool editorSyntaxQueryProgressCallback(TSQueryCursorState *state) {
+bool editorSyntaxQueryProgressCallback(TSQueryCursorState *state) {
 	if (state == NULL || state->payload == NULL) {
 		return false;
 	}
@@ -346,7 +196,7 @@ char *editorTextSourceDupRange(const struct editorTextSource *source,
 	return dup;
 }
 
-static const char *editorSyntaxSourceRead(void *payload, uint32_t byte_index,
+const char *editorSyntaxSourceRead(void *payload, uint32_t byte_index,
 		TSPoint position, uint32_t *bytes_read) {
 	(void)position;
 	if (bytes_read == NULL) {
@@ -363,7 +213,7 @@ static const char *editorSyntaxSourceRead(void *payload, uint32_t byte_index,
 	return source->read(source, byte_index, bytes_read);
 }
 
-static struct editorSyntaxBudgetConfig editorSyntaxBudgetConfigForMode(
+struct editorSyntaxBudgetConfig editorSyntaxBudgetConfigForMode(
 		enum editorSyntaxPerformanceMode mode) {
 	struct editorSyntaxBudgetConfig config = {
 		.query_match_limit = ROTIDE_SYNTAX_QUERY_MATCH_LIMIT_NORMAL,
@@ -450,7 +300,7 @@ static enum editorSyntaxHighlightClass editorSyntaxClassFromCaptureName(const ch
 	return EDITOR_SYNTAX_HL_NONE;
 }
 
-static const TSLanguage *editorSyntaxLanguageObject(enum editorSyntaxLanguage language) {
+const TSLanguage *editorSyntaxLanguageObject(enum editorSyntaxLanguage language) {
 	const struct editorSyntaxLanguageDef *def = editorSyntaxLookupLanguage(language);
 	if (def == NULL || def->ts_factory == NULL) {
 		return NULL;
@@ -1043,7 +893,7 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 			1, 0, 0, 0);
 }
 
-static const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCachePtr(
+const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCachePtr(
 		enum editorSyntaxLanguage language) {
 	if (!editorSyntaxEnsureHighlightQuery(language)) {
 		return NULL;
@@ -1056,7 +906,7 @@ static const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCache
 	return cache;
 }
 
-static int editorSyntaxEnsureLocalsQuery(enum editorSyntaxLanguage language) {
+int editorSyntaxEnsureLocalsQuery(enum editorSyntaxLanguage language) {
 	const struct editorSyntaxLanguageDef *def = editorSyntaxLookupLanguage(language);
 	if (def == NULL || def->locals_parts == NULL || def->locals_part_count <= 0) {
 		return 0;
@@ -1086,7 +936,7 @@ static int editorSyntaxEnsureInjectionQuery(enum editorSyntaxLanguage language) 
 			0, 0, 1, 1);
 }
 
-static const struct editorSyntaxQueryCacheEntry *editorSyntaxInjectionQueryCachePtr(
+const struct editorSyntaxQueryCacheEntry *editorSyntaxInjectionQueryCachePtr(
 		enum editorSyntaxLanguage language) {
 	if (!editorSyntaxEnsureInjectionQuery(language)) {
 		return NULL;
@@ -1118,7 +968,7 @@ static uint64_t editorSyntaxLanguageEventBit(enum editorSyntaxLanguage language)
 	return 1ULL << (unsigned int)language;
 }
 
-static void editorSyntaxStateRecordQueryUnavailable(struct editorSyntaxState *state,
+void editorSyntaxStateRecordQueryUnavailable(struct editorSyntaxState *state,
 		enum editorSyntaxLanguage language,
 		enum editorSyntaxQueryKind kind) {
 	if (state == NULL) {
@@ -1138,7 +988,7 @@ static void editorSyntaxStateRecordQueryUnavailable(struct editorSyntaxState *st
 	state->query_unavailable_kind = kind;
 }
 
-static const struct editorSyntaxQueryCacheEntry *editorSyntaxLocalsQueryCacheForLanguage(
+const struct editorSyntaxQueryCacheEntry *editorSyntaxLocalsQueryCacheForLanguage(
 		enum editorSyntaxLanguage language) {
 	const struct editorSyntaxQueryCacheEntry *cache =
 			editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_LOCALS);
@@ -1148,7 +998,7 @@ static const struct editorSyntaxQueryCacheEntry *editorSyntaxLocalsQueryCacheFor
 	return cache;
 }
 
-static struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(const TSQuery *query) {
+struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(const TSQuery *query) {
 	if (query == NULL) {
 		return NULL;
 	}
@@ -1161,4 +1011,31 @@ static struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(c
 		}
 	}
 	return NULL;
+}
+
+void editorSyntaxTestSetBudgetOverrides(int enabled,
+		uint32_t query_match_limit,
+		uint64_t query_time_budget_ns,
+		uint64_t parse_time_budget_ns) {
+	g_editor_syntax_budget_overrides.enabled = enabled ? 1 : 0;
+	g_editor_syntax_budget_overrides.query_match_limit = query_match_limit;
+	g_editor_syntax_budget_overrides.query_time_budget_ns = query_time_budget_ns;
+	g_editor_syntax_budget_overrides.parse_time_budget_ns = parse_time_budget_ns;
+}
+
+void editorSyntaxTestResetBudgetOverrides(void) {
+	memset(&g_editor_syntax_budget_overrides, 0, sizeof(g_editor_syntax_budget_overrides));
+}
+
+int editorSyntaxTestBudgetOverridesEnabled(void) {
+	return g_editor_syntax_budget_overrides.enabled;
+}
+
+void editorSyntaxReleaseSharedResources(void) {
+	memset(g_query_unavailable_reported, 0, sizeof(g_query_unavailable_reported));
+	for (int lang = 1; lang < EDITOR_SYNTAX_LANGUAGE_COUNT; lang++) {
+		for (int kind = 0; kind < EDITOR_SYNTAX_QUERY_CACHE_KIND_COUNT; kind++) {
+			editorSyntaxClearQueryCacheEntry(&g_query_caches[lang][kind]);
+		}
+	}
 }

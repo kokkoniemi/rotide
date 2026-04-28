@@ -13,7 +13,7 @@
 #include "tree_sitter/api.h"
 
 #include "language/languages.h"
-#include "language/syntax_queries.c"
+#include "language/syntax_internal.h"
 
 static int editorSyntaxTokenFromLine(const char *line, size_t line_len, size_t *idx,
 		const char **token_out, size_t *token_len_out) {
@@ -2621,29 +2621,3 @@ int editorSyntaxStateConsumeLimitEvent(struct editorSyntaxState *state,
 	return 1;
 }
 
-void editorSyntaxTestSetBudgetOverrides(int enabled,
-		uint32_t query_match_limit,
-		uint64_t query_time_budget_ns,
-		uint64_t parse_time_budget_ns) {
-	g_editor_syntax_budget_overrides.enabled = enabled ? 1 : 0;
-	g_editor_syntax_budget_overrides.query_match_limit = query_match_limit;
-	g_editor_syntax_budget_overrides.query_time_budget_ns = query_time_budget_ns;
-	g_editor_syntax_budget_overrides.parse_time_budget_ns = parse_time_budget_ns;
-}
-
-void editorSyntaxTestResetBudgetOverrides(void) {
-	memset(&g_editor_syntax_budget_overrides, 0, sizeof(g_editor_syntax_budget_overrides));
-}
-
-int editorSyntaxTestBudgetOverridesEnabled(void) {
-	return g_editor_syntax_budget_overrides.enabled;
-}
-
-void editorSyntaxReleaseSharedResources(void) {
-	memset(g_query_unavailable_reported, 0, sizeof(g_query_unavailable_reported));
-	for (int lang = 1; lang < EDITOR_SYNTAX_LANGUAGE_COUNT; lang++) {
-		for (int kind = 0; kind < EDITOR_SYNTAX_QUERY_CACHE_KIND_COUNT; kind++) {
-			editorSyntaxClearQueryCacheEntry(&g_query_caches[lang][kind]);
-		}
-	}
-}
