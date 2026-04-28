@@ -15,6 +15,19 @@
 #include "language/languages.h"
 #include "language/syntax_internal.h"
 
+static int g_syntax_test_full_parse_failures = 0;
+static int g_syntax_test_incremental_parse_failures = 0;
+
+static int editorSyntaxTestConsumeParseFailure(int incremental) {
+	int *failures = incremental ? &g_syntax_test_incremental_parse_failures :
+			&g_syntax_test_full_parse_failures;
+	if (*failures <= 0) {
+		return 0;
+	}
+	(*failures)--;
+	return 1;
+}
+
 static int editorSyntaxTokenFromLine(const char *line, size_t line_len, size_t *idx,
 		const char **token_out, size_t *token_len_out) {
 	if (line == NULL || idx == NULL || token_out == NULL || token_len_out == NULL) {
@@ -322,6 +335,15 @@ static void editorSyntaxStateRecordInjectionSlotsFull(struct editorSyntaxState *
 	editorSyntaxStateQueueLimitEvent(state,
 			EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_SLOTS_FULL, language, -1,
 			ROTIDE_SYNTAX_MAX_INJECTION_TREES);
+}
+
+void editorSyntaxStateRecordParseFailed(struct editorSyntaxState *state,
+		int consecutive_failures) {
+	if (state == NULL) {
+		return;
+	}
+	editorSyntaxStateQueueLimitEvent(state, EDITOR_SYNTAX_LIMIT_EVENT_PARSE_FAILED,
+			state->language, -1, consecutive_failures);
 }
 
 static void editorSyntaxParsedTreeResetTree(struct editorSyntaxParsedTree *parsed) {
@@ -2424,6 +2446,9 @@ int editorSyntaxStateParseFull(struct editorSyntaxState *state,
 			!editorSyntaxLengthFitsTreeSitter(source->length)) {
 		return 0;
 	}
+	if (editorSyntaxTestConsumeParseFailure(0)) {
+		return 0;
+	}
 	state->budget_parse_exceeded = 0;
 	state->budget_query_exceeded = 0;
 	editorSyntaxStateClearChangedRanges(state);
@@ -2448,6 +2473,9 @@ int editorSyntaxStateApplyEditAndParse(struct editorSyntaxState *state,
 	if (state == NULL || edit == NULL || source == NULL || source->read == NULL ||
 			!editorSyntaxLengthFitsTreeSitter(source->length) ||
 			state->host.parser == NULL || state->host.tree == NULL) {
+		return 0;
+	}
+	if (editorSyntaxTestConsumeParseFailure(1)) {
 		return 0;
 	}
 	state->budget_parse_exceeded = 0;
@@ -2729,3 +2757,13 @@ int editorSyntaxStateConsumeLimitEvent(struct editorSyntaxState *state,
 	return 1;
 }
 
+void editorSyntaxTestSetParseFailureCountdowns(int full_parse_failures,
+		int incremental_parse_failures) {
+	g_syntax_test_full_parse_failures = full_parse_failures > 0 ? full_parse_failures : 0;
+	g_syntax_test_incremental_parse_failures =
+			incremental_parse_failures > 0 ? incremental_parse_failures : 0;
+}
+
+void editorSyntaxTestResetParseFailureCountdowns(void) {
+	editorSyntaxTestSetParseFailureCountdowns(0, 0);
+}

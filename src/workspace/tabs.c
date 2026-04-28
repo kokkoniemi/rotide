@@ -59,6 +59,7 @@ static void editorTabStateInitEmpty(struct editorTabState *tab) {
 	tab->cursor_offset = 0;
 	tab->syntax_language = EDITOR_SYNTAX_NONE;
 	tab->syntax_state = NULL;
+	tab->syntax_parse_failures = 0;
 	tab->lsp_doc_open = 0;
 	tab->lsp_doc_version = 0;
 	tab->lsp_eslint_doc_open = 0;
@@ -94,6 +95,7 @@ void editorResetActiveBufferFields(void) {
 	E.filename = NULL;
 	E.syntax_language = EDITOR_SYNTAX_NONE;
 	E.syntax_state = NULL;
+	E.syntax_parse_failures = 0;
 	E.lsp_doc_open = 0;
 	E.lsp_doc_version = 0;
 	E.lsp_eslint_doc_open = 0;
@@ -222,6 +224,7 @@ static void editorTabStateCaptureActive(struct editorTabState *tab) {
 	tab->filename = E.filename;
 	tab->syntax_language = E.syntax_language;
 	tab->syntax_state = E.syntax_state;
+	tab->syntax_parse_failures = E.syntax_parse_failures;
 	tab->lsp_doc_open = E.lsp_doc_open;
 	tab->lsp_doc_version = E.lsp_doc_version;
 	tab->lsp_eslint_doc_open = E.lsp_eslint_doc_open;
@@ -270,6 +273,7 @@ static void editorTabStateLoadActive(struct editorTabState *tab) {
 	E.filename = tab->filename;
 	E.syntax_language = tab->syntax_language;
 	E.syntax_state = tab->syntax_state;
+	E.syntax_parse_failures = tab->syntax_parse_failures;
 	E.lsp_doc_open = tab->lsp_doc_open;
 	E.lsp_doc_version = tab->lsp_doc_version;
 	E.lsp_eslint_doc_open = tab->lsp_eslint_doc_open;
@@ -370,6 +374,7 @@ static void editorLoadActiveTab(int tab_idx) {
 		E.syntax_language = EDITOR_SYNTAX_NONE;
 		editorSyntaxStateDestroy(E.syntax_state);
 		E.syntax_state = NULL;
+		E.syntax_parse_failures = 0;
 		E.lsp_doc_open = 0;
 		E.lsp_doc_version = 0;
 		E.lsp_eslint_doc_open = 0;

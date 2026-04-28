@@ -808,6 +808,77 @@ static int test_editor_syntax_incremental_edits_keep_tree_valid(void) {
 	return 0;
 }
 
+static int assert_editor_syntax_parse_failed_event(int expected_detail) {
+	ASSERT_TRUE(E.syntax_state != NULL);
+	struct editorSyntaxLimitEvent event = {0};
+	ASSERT_TRUE(editorSyntaxStateConsumeLimitEvent(E.syntax_state, &event));
+	ASSERT_EQ_INT(EDITOR_SYNTAX_LIMIT_EVENT_PARSE_FAILED, event.kind);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_C, event.language);
+	ASSERT_EQ_INT(-1, event.row);
+	ASSERT_EQ_INT(expected_detail, event.detail);
+	return 0;
+}
+
+static int test_editor_syntax_transient_parse_failure_retries_next_edit(void) {
+	char path[] = "/tmp/rotide-test-syntax-retry-XXXXXX.c";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
+			"tests/syntax/supported/c/incremental.c"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 1;
+	E.cx = 1;
+	editorSyntaxTestSetParseFailureCountdowns(1, 1);
+	editorInsertChar('x');
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(1, E.syntax_parse_failures);
+	ASSERT_TRUE(assert_editor_syntax_parse_failed_event(1) == 0);
+
+	editorSyntaxTestResetParseFailureCountdowns();
+	editorInsertChar('y');
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(0, E.syntax_parse_failures);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_deactivates_after_consecutive_parse_failures(void) {
+	char path[] = "/tmp/rotide-test-syntax-retry-limit-XXXXXX.c";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
+			"tests/syntax/supported/c/incremental.c"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 1;
+	E.cx = 1;
+	editorSyntaxTestSetParseFailureCountdowns(3, 1);
+
+	editorInsertChar('a');
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_EQ_INT(1, E.syntax_parse_failures);
+	ASSERT_TRUE(assert_editor_syntax_parse_failed_event(1) == 0);
+
+	editorInsertChar('b');
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_EQ_INT(2, E.syntax_parse_failures);
+	ASSERT_TRUE(assert_editor_syntax_parse_failed_event(2) == 0);
+
+	editorInsertChar('c');
+	ASSERT_TRUE(!editorSyntaxEnabled());
+	ASSERT_EQ_INT(0, E.syntax_parse_failures);
+
+	editorSyntaxTestResetParseFailureCountdowns();
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_incremental_edits_keep_cpp_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-cpp-XXXXXX.cpp";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
@@ -1911,6 +1982,8 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_save_as_shell_and_non_shell_updates_syntax", test_editor_save_as_shell_and_non_shell_updates_syntax},
 	{"editor_save_as_web_and_plain_updates_syntax", test_editor_save_as_web_and_plain_updates_syntax},
 	{"editor_syntax_incremental_edits_keep_tree_valid", test_editor_syntax_incremental_edits_keep_tree_valid},
+	{"editor_syntax_transient_parse_failure_retries_next_edit", test_editor_syntax_transient_parse_failure_retries_next_edit},
+	{"editor_syntax_deactivates_after_consecutive_parse_failures", test_editor_syntax_deactivates_after_consecutive_parse_failures},
 	{"editor_syntax_incremental_edits_keep_cpp_tree_valid", test_editor_syntax_incremental_edits_keep_cpp_tree_valid},
 	{"editor_syntax_incremental_edits_keep_shell_tree_valid", test_editor_syntax_incremental_edits_keep_shell_tree_valid},
 	{"editor_syntax_incremental_edits_keep_html_tree_valid", test_editor_syntax_incremental_edits_keep_html_tree_valid},

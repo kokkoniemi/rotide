@@ -58,7 +58,8 @@ enum editorSyntaxQueryKind {
 enum editorSyntaxLimitEventKind {
 	EDITOR_SYNTAX_LIMIT_EVENT_CAPTURE_TRUNCATED = 0,
 	EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_DEPTH_EXCEEDED,
-	EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_SLOTS_FULL
+	EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_SLOTS_FULL,
+	EDITOR_SYNTAX_LIMIT_EVENT_PARSE_FAILED
 };
 
 struct editorSyntaxLimitEvent {
@@ -102,6 +103,8 @@ int editorSyntaxStateConsumeQueryUnavailableEvent(struct editorSyntaxState *stat
 int editorSyntaxStateConsumeLimitEvent(struct editorSyntaxState *state,
 		struct editorSyntaxLimitEvent *event_out);
 void editorSyntaxStateRecordCaptureTruncated(struct editorSyntaxState *state, int row);
+void editorSyntaxStateRecordParseFailed(struct editorSyntaxState *state,
+		int consecutive_failures);
 int editorSyntaxDrainLastQueryCompileError(struct editorSyntaxQueryCompileError *error_out);
 int editorSyntaxCopyLastQueryCompileError(struct editorSyntaxQueryCompileError *error_out);
 
@@ -120,6 +123,9 @@ void editorSyntaxTestSetBudgetOverrides(int enabled,
 		uint64_t parse_time_budget_ns);
 void editorSyntaxTestResetBudgetOverrides(void);
 int editorSyntaxTestBudgetOverridesEnabled(void);
+void editorSyntaxTestSetParseFailureCountdowns(int full_parse_failures,
+		int incremental_parse_failures);
+void editorSyntaxTestResetParseFailureCountdowns(void);
 void editorSyntaxTestResetLastQueryCompileError(void);
 int editorSyntaxTestCompileQueryForDiagnostics(enum editorSyntaxLanguage language,
 		const char *query_source);

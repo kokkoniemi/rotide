@@ -36,6 +36,7 @@ void initEditor(void) {
 	E.filename = NULL;
 	E.syntax_language = EDITOR_SYNTAX_NONE;
 	E.syntax_state = NULL;
+	E.syntax_parse_failures = 0;
 	editorLspConfigInitDefaults(&E.lsp_gopls_enabled, &E.lsp_clangd_enabled,
 			&E.lsp_html_enabled, &E.lsp_css_enabled, &E.lsp_json_enabled,
 			&E.lsp_javascript_enabled,

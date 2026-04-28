@@ -84,6 +84,8 @@ static int g_active_text_source_dup_count = 0;
 static int g_row_cache_full_rebuild_count = 0;
 static int g_row_cache_splice_update_count = 0;
 
+#define ROTIDE_SYNTAX_PARSE_FAILURE_LIMIT 3
+
 struct editorRowCacheSpliceRegion {
 	int start_row;
 	int old_end_row_exclusive;
@@ -204,6 +206,8 @@ static void editorSyntaxReportLimitStatusIfNeeded(void) {
 		editorSetStatusMsg("Tree-sitter injection depth limit reached");
 	} else if (event.kind == EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_SLOTS_FULL) {
 		editorSetStatusMsg("Tree-sitter injection slot limit reached");
+	} else if (event.kind == EDITOR_SYNTAX_LIMIT_EVENT_PARSE_FAILED) {
+		editorSetStatusMsg("Tree-sitter parse failed (will retry)");
 	} else {
 		editorSetStatusMsg("Tree-sitter syntax spans truncated");
 	}
@@ -219,6 +223,7 @@ static void editorSyntaxDeactivateActive(void) {
 	editorSyntaxStateDestroy(E.syntax_state);
 	E.syntax_state = NULL;
 	E.syntax_language = EDITOR_SYNTAX_NONE;
+	E.syntax_parse_failures = 0;
 	editorSyntaxVisibleCacheInvalidate();
 }
 
@@ -227,6 +232,25 @@ static void editorSyntaxDisableWithStatus(const char *message) {
 	if (message != NULL && message[0] != '\0') {
 		editorSetStatusMsg("%s", message);
 	}
+}
+
+static void editorSyntaxResetParseFailures(void) {
+	E.syntax_parse_failures = 0;
+}
+
+static int editorSyntaxRecordParseFailureActive(void) {
+	if (E.syntax_parse_failures < ROTIDE_SYNTAX_PARSE_FAILURE_LIMIT) {
+		E.syntax_parse_failures++;
+	}
+	if (E.syntax_state != NULL) {
+		editorSyntaxStateRecordParseFailed(E.syntax_state, E.syntax_parse_failures);
+	}
+	editorSetStatusMsg("Tree-sitter parse failed (will retry)");
+	editorSyntaxVisibleCacheInvalidate();
+	if (E.syntax_parse_failures >= ROTIDE_SYNTAX_PARSE_FAILURE_LIMIT) {
+		editorSyntaxDisableWithStatus("Tree-sitter disabled (parse failed)");
+	}
+	return 0;
 }
 
 static int editorSyntaxOffsetToU32(size_t offset, uint32_t *out) {
@@ -421,6 +445,7 @@ static int editorSyntaxReconfigureForFilename(void) {
 	}
 
 	E.syntax_language = wanted;
+	editorSyntaxResetParseFailures();
 	return 1;
 }
 
@@ -444,9 +469,9 @@ int editorSyntaxParseFullActive(void) {
 
 	int parsed = editorSyntaxStateParseFull(E.syntax_state, &source);
 	if (!parsed) {
-		editorSyntaxDisableWithStatus("Tree-sitter disabled (parse failed)");
-		return 0;
+		return editorSyntaxRecordParseFailureActive();
 	}
+	editorSyntaxResetParseFailures();
 	editorSyntaxReportStatusIfNeeded();
 	editorSyntaxVisibleCacheInvalidate();
 	return 1;
@@ -463,28 +488,30 @@ static int editorSyntaxApplyIncrementalEditActive(const struct editorSyntaxEdit 
 		return 0;
 	}
 
-	if (edit != NULL && editorSyntaxStateHasTree(E.syntax_state)) {
+	if (E.syntax_parse_failures == 0 && edit != NULL &&
+			editorSyntaxStateHasTree(E.syntax_state)) {
 		size_t old_len = editorSyntaxStateSourceLength(E.syntax_state);
 		if (edit->old_end_byte >= edit->start_byte &&
 				(size_t)edit->old_end_byte <= old_len) {
 			size_t removed_len = (size_t)(edit->old_end_byte - edit->start_byte);
 			if (removed_len <= old_len) {
-					size_t new_len = old_len - removed_len + inserted_len;
-					if (!editorSyntaxConfigurePerformanceForLength(new_len, 1)) {
-						return 0;
+				size_t new_len = old_len - removed_len + inserted_len;
+				if (!editorSyntaxConfigurePerformanceForLength(new_len, 1)) {
+					return 0;
+				}
+				struct editorTextSource source = {0};
+				if (editorBuildActiveTextSource(&source) &&
+						editorSyntaxStateApplyEditAndParse(E.syntax_state, edit, &source)) {
+					editorSyntaxResetParseFailures();
+					editorSyntaxVisibleCacheInvalidateRowsForEdit(edit);
+					if (!editorSyntaxVisibleCacheInvalidateChangedRowsFromState()) {
+						editorSyntaxVisibleCacheInvalidate();
 					}
-					struct editorTextSource source = {0};
-					if (editorBuildActiveTextSource(&source) &&
-							editorSyntaxStateApplyEditAndParse(E.syntax_state, edit, &source)) {
-						editorSyntaxVisibleCacheInvalidateRowsForEdit(edit);
-						if (!editorSyntaxVisibleCacheInvalidateChangedRowsFromState()) {
-							editorSyntaxVisibleCacheInvalidate();
-						}
-						editorSyntaxReportStatusIfNeeded();
-						return 1;
-					}
+					editorSyntaxReportStatusIfNeeded();
+					return 1;
 				}
 			}
+		}
 	}
 
 	struct editorTextSource source = {0};
@@ -499,9 +526,9 @@ static int editorSyntaxApplyIncrementalEditActive(const struct editorSyntaxEdit 
 
 	int parsed = editorSyntaxStateParseFull(E.syntax_state, &source);
 	if (!parsed) {
-		editorSyntaxDisableWithStatus("Tree-sitter disabled (parse failed)");
-		return 0;
+		return editorSyntaxRecordParseFailureActive();
 	}
+	editorSyntaxResetParseFailures();
 	editorSyntaxReportStatusIfNeeded();
 	editorSyntaxVisibleCacheInvalidate();
 	return 1;

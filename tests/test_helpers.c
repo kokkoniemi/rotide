@@ -75,6 +75,7 @@ void reset_editor_state(void) {
 	E.mouse_drag_started = 0;
 	E.syntax_language = EDITOR_SYNTAX_NONE;
 	E.syntax_state = NULL;
+	E.syntax_parse_failures = 0;
 	editorLspConfigInitDefaults(&E.lsp_gopls_enabled, &E.lsp_clangd_enabled,
 			&E.lsp_html_enabled, &E.lsp_css_enabled, &E.lsp_json_enabled,
 			&E.lsp_javascript_enabled,
@@ -117,6 +118,7 @@ void reset_editor_state(void) {
 	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;
 	editorSyntaxThemeInitDefaults(E.syntax_theme);
 	editorSyntaxTestResetBudgetOverrides();
+	editorSyntaxTestResetParseFailureCountdowns();
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
 	editorKeymapInitDefaults(&E.keymap);
 }

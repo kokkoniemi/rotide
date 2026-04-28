@@ -324,6 +324,7 @@ struct editorTabState {
 	char *filename;
 	enum editorSyntaxLanguage syntax_language;
 	struct editorSyntaxState *syntax_state;
+	int syntax_parse_failures;
 	int lsp_doc_open;
 	int lsp_doc_version;
 	int lsp_eslint_doc_open;
@@ -372,6 +373,7 @@ struct editorConfig {
 	char *filename;
 	enum editorSyntaxLanguage syntax_language;
 	struct editorSyntaxState *syntax_state;
+	int syntax_parse_failures;
 	int lsp_gopls_enabled;
 	int lsp_clangd_enabled;
 	int lsp_html_enabled;
