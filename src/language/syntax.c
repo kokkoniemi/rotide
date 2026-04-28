@@ -1129,6 +1129,213 @@ static int editorSyntaxPredicateTargetNode(const TSQuery *query,
 	return 0;
 }
 
+typedef int (*editorSyntaxPredicateHandlerFn)(
+		const TSQuery *query,
+		const TSQueryMatch *match,
+		const struct editorSyntaxPredicateContext *ctx,
+		const TSQueryPredicateStep *args,
+		uint32_t arg_count);
+
+static int editorSyntaxPredicateAlwaysPass(const TSQuery *query,
+		const TSQueryMatch *match,
+		const struct editorSyntaxPredicateContext *ctx,
+		const TSQueryPredicateStep *args,
+		uint32_t arg_count) {
+	(void)query;
+	(void)match;
+	(void)ctx;
+	(void)args;
+	(void)arg_count;
+	return 1;
+}
+
+static int editorSyntaxPredicateEqShared(int negated,
+		const TSQuery *query,
+		const TSQueryMatch *match,
+		const struct editorSyntaxPredicateContext *ctx,
+		const TSQueryPredicateStep *args,
+		uint32_t arg_count) {
+	if (arg_count < 2) {
+		return 1;
+	}
+	const char *left = NULL;
+	size_t left_len = 0;
+	const char *right = NULL;
+	size_t right_len = 0;
+	if (!editorSyntaxPredicateArgText(query, match, ctx, &args[0], 0, &left, &left_len) ||
+			!editorSyntaxPredicateArgText(query, match, ctx, &args[1], 1, &right,
+					&right_len)) {
+		return 0;
+	}
+	int equal = (left_len == right_len) && memcmp(left, right, left_len) == 0;
+	return negated ? !equal : equal;
+}
+
+static int editorSyntaxPredicateEq(const TSQuery *query,
+		const TSQueryMatch *match,
+		const struct editorSyntaxPredicateContext *ctx,
+		const TSQueryPredicateStep *args,
+		uint32_t arg_count) {
+	return editorSyntaxPredicateEqShared(0, query, match, ctx, args, arg_count);
+}
+
+static int editorSyntaxPredicateNotEq(const TSQuery *query,
+		const TSQueryMatch *match,
+		const struct editorSyntaxPredicateContext *ctx,
+		const TSQueryPredicateStep *args,
+		uint32_t arg_count) {
+	return editorSyntaxPredicateEqShared(1, query, match, ctx, args, arg_count);
+}
+
+static int editorSyntaxPredicateMatchShared(int negated,
+		const TSQuery *query,
+		const TSQueryMatch *match,
+		const struct editorSyntaxPredicateContext *ctx,
+		const TSQueryPredicateStep *args,
+		uint32_t arg_count) {
+	if (arg_count < 2) {
+		return 1;
+	}
+	const char *text = NULL;
+	size_t text_len = 0;
+	const char *pattern = NULL;
+	size_t pattern_len = 0;
+	if (!editorSyntaxPredicateArgText(query, match, ctx, &args[0], 0, &text, &text_len) ||
+			!editorSyntaxPredicateArgText(query, match, ctx, &args[1], 1, &pattern,
+					&pattern_len)) {
+		return 0;
+	}
+	int matched = 0;
+	if (args[1].type == TSQueryPredicateStepTypeString) {
+		matched = editorSyntaxRegexMatchCached(query, args[1].value_id, text, text_len);
+	} else {
+		matched = editorSyntaxRegexMatch(text, text_len, pattern, pattern_len);
+	}
+	return negated ? !matched : matched;
+}
+
+static int editorSyntaxPredicateMatch(const TSQuery *query,
+		const TSQueryMatch *match,
+		const struct editorSyntaxPredicateContext *ctx,
+		const TSQueryPredicateStep *args,
+		uint32_t arg_count) {
+	return editorSyntaxPredicateMatchShared(0, query, match, ctx, args, arg_count);
+}
+
+static int editorSyntaxPredicateNotMatch(const TSQuery *query,
+		const TSQueryMatch *match,
+		const struct editorSyntaxPredicateContext *ctx,
+		const TSQueryPredicateStep *args,
+		uint32_t arg_count) {
+	return editorSyntaxPredicateMatchShared(1, query, match, ctx, args, arg_count);
+}
+
+static int editorSyntaxPredicateAnyOfShared(int negated,
+		const TSQuery *query,
+		const TSQueryMatch *match,
+		const struct editorSyntaxPredicateContext *ctx,
+		const TSQueryPredicateStep *args,
+		uint32_t arg_count) {
+	if (arg_count < 2) {
+		return 1;
+	}
+	const char *target = NULL;
+	size_t target_len = 0;
+	if (!editorSyntaxPredicateArgText(query, match, ctx, &args[0], 0, &target, &target_len)) {
+		return 0;
+	}
+
+	int found = 0;
+	for (uint32_t i = 1; i < arg_count; i++) {
+		if (args[i].type != TSQueryPredicateStepTypeString) {
+			continue;
+		}
+		uint32_t value_len = 0;
+		const char *value = ts_query_string_value_for_id(query, args[i].value_id,
+				&value_len);
+		if (value == NULL) {
+			continue;
+		}
+		if (target_len == value_len && memcmp(target, value, target_len) == 0) {
+			found = 1;
+			break;
+		}
+	}
+
+	return negated ? !found : found;
+}
+
+static int editorSyntaxPredicateAnyOf(const TSQuery *query,
+		const TSQueryMatch *match,
+		const struct editorSyntaxPredicateContext *ctx,
+		const TSQueryPredicateStep *args,
+		uint32_t arg_count) {
+	return editorSyntaxPredicateAnyOfShared(0, query, match, ctx, args, arg_count);
+}
+
+static int editorSyntaxPredicateNotAnyOf(const TSQuery *query,
+		const TSQueryMatch *match,
+		const struct editorSyntaxPredicateContext *ctx,
+		const TSQueryPredicateStep *args,
+		uint32_t arg_count) {
+	return editorSyntaxPredicateAnyOfShared(1, query, match, ctx, args, arg_count);
+}
+
+/* `#is?` / `#is-not?` recognize only the `local` property today; other properties
+ * are treated as not-set. Kept as a single helper per the predicate-table plan. */
+static int editorSyntaxPredicateIsShared(int negated,
+		const TSQuery *query,
+		const TSQueryMatch *match,
+		const struct editorSyntaxPredicateContext *ctx,
+		const TSQueryPredicateStep *args,
+		uint32_t arg_count) {
+	TSNode target;
+	const char *property = NULL;
+	size_t property_len = 0;
+	if (!editorSyntaxPredicateTargetNode(query, match, args, arg_count, &target,
+				&property, &property_len)) {
+		return 1;
+	}
+	int is_property = 0;
+	if (editorSyntaxStringEquals(property, property_len, "local")) {
+		is_property = editorSyntaxLocalsContextNodeIsLocal(ctx->locals, target);
+	}
+	return negated ? !is_property : is_property;
+}
+
+static int editorSyntaxPredicateIs(const TSQuery *query,
+		const TSQueryMatch *match,
+		const struct editorSyntaxPredicateContext *ctx,
+		const TSQueryPredicateStep *args,
+		uint32_t arg_count) {
+	return editorSyntaxPredicateIsShared(0, query, match, ctx, args, arg_count);
+}
+
+static int editorSyntaxPredicateIsNot(const TSQuery *query,
+		const TSQueryMatch *match,
+		const struct editorSyntaxPredicateContext *ctx,
+		const TSQueryPredicateStep *args,
+		uint32_t arg_count) {
+	return editorSyntaxPredicateIsShared(1, query, match, ctx, args, arg_count);
+}
+
+struct editorSyntaxPredicateEntry {
+	const char *name;
+	editorSyntaxPredicateHandlerFn handler;
+};
+
+static const struct editorSyntaxPredicateEntry g_predicate_table[] = {
+	{"set!",        editorSyntaxPredicateAlwaysPass},
+	{"eq?",         editorSyntaxPredicateEq},
+	{"not-eq?",     editorSyntaxPredicateNotEq},
+	{"match?",      editorSyntaxPredicateMatch},
+	{"not-match?",  editorSyntaxPredicateNotMatch},
+	{"any-of?",     editorSyntaxPredicateAnyOf},
+	{"not-any-of?", editorSyntaxPredicateNotAnyOf},
+	{"is?",         editorSyntaxPredicateIs},
+	{"is-not?",     editorSyntaxPredicateIsNot}
+};
+
 static int editorSyntaxEvaluatePredicate(const TSQuery *query,
 		const TSQueryMatch *match,
 		const struct editorSyntaxPredicateContext *ctx,
@@ -1150,110 +1357,11 @@ static int editorSyntaxEvaluatePredicate(const TSQuery *query,
 	const TSQueryPredicateStep *args = &steps[1];
 	uint32_t arg_count = step_count - 1;
 
-	if (editorSyntaxStringEquals(command, command_len, "set!")) {
-		return 1;
+	for (size_t i = 0; i < sizeof(g_predicate_table) / sizeof(g_predicate_table[0]); i++) {
+		if (editorSyntaxStringEquals(command, command_len, g_predicate_table[i].name)) {
+			return g_predicate_table[i].handler(query, match, ctx, args, arg_count);
+		}
 	}
-
-	if (editorSyntaxStringEquals(command, command_len, "eq?") ||
-			editorSyntaxStringEquals(command, command_len, "not-eq?")) {
-		if (arg_count < 2) {
-			return 1;
-		}
-		const char *left = NULL;
-		size_t left_len = 0;
-		const char *right = NULL;
-		size_t right_len = 0;
-		if (!editorSyntaxPredicateArgText(query, match, ctx, &args[0], 0, &left, &left_len) ||
-				!editorSyntaxPredicateArgText(query, match, ctx, &args[1], 1, &right,
-						&right_len)) {
-			return 0;
-		}
-		int equal = (left_len == right_len) && memcmp(left, right, left_len) == 0;
-		if (editorSyntaxStringEquals(command, command_len, "eq?")) {
-			return equal;
-		}
-		return !equal;
-	}
-
-	if (editorSyntaxStringEquals(command, command_len, "match?") ||
-			editorSyntaxStringEquals(command, command_len, "not-match?")) {
-		if (arg_count < 2) {
-			return 1;
-		}
-		const char *text = NULL;
-		size_t text_len = 0;
-		const char *pattern = NULL;
-		size_t pattern_len = 0;
-		if (!editorSyntaxPredicateArgText(query, match, ctx, &args[0], 0, &text, &text_len) ||
-				!editorSyntaxPredicateArgText(query, match, ctx, &args[1], 1, &pattern,
-						&pattern_len)) {
-			return 0;
-		}
-		int matched = 0;
-		if (args[1].type == TSQueryPredicateStepTypeString) {
-			matched = editorSyntaxRegexMatchCached(query, args[1].value_id, text, text_len);
-		} else {
-			matched = editorSyntaxRegexMatch(text, text_len, pattern, pattern_len);
-		}
-		if (editorSyntaxStringEquals(command, command_len, "match?")) {
-			return matched;
-		}
-		return !matched;
-	}
-
-	if (editorSyntaxStringEquals(command, command_len, "any-of?") ||
-			editorSyntaxStringEquals(command, command_len, "not-any-of?")) {
-		if (arg_count < 2) {
-			return 1;
-		}
-		const char *target = NULL;
-		size_t target_len = 0;
-		if (!editorSyntaxPredicateArgText(query, match, ctx, &args[0], 0, &target, &target_len)) {
-			return 0;
-		}
-
-		int found = 0;
-		for (uint32_t i = 1; i < arg_count; i++) {
-			if (args[i].type != TSQueryPredicateStepTypeString) {
-				continue;
-			}
-			uint32_t value_len = 0;
-			const char *value = ts_query_string_value_for_id(query, args[i].value_id,
-					&value_len);
-			if (value == NULL) {
-				continue;
-			}
-			if (target_len == value_len && memcmp(target, value, target_len) == 0) {
-				found = 1;
-				break;
-			}
-		}
-
-		if (editorSyntaxStringEquals(command, command_len, "any-of?")) {
-			return found;
-		}
-		return !found;
-	}
-
-	if (editorSyntaxStringEquals(command, command_len, "is?") ||
-			editorSyntaxStringEquals(command, command_len, "is-not?")) {
-		TSNode target;
-		const char *property = NULL;
-		size_t property_len = 0;
-		if (!editorSyntaxPredicateTargetNode(query, match, args, arg_count, &target,
-					&property, &property_len)) {
-			return 1;
-		}
-		int is_property = 0;
-		if (editorSyntaxStringEquals(property, property_len, "local")) {
-			is_property = editorSyntaxLocalsContextNodeIsLocal(ctx->locals, target);
-		}
-		if (editorSyntaxStringEquals(command, command_len, "is?")) {
-			return is_property;
-		}
-		return !is_property;
-	}
-
 	return 1;
 }
 
