@@ -364,6 +364,11 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_tsx_tokens
 	ASSERT_TRUE(strstr(output, "\x1b[96mstring\x1b[39m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[96mdiv\x1b[39m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[96mspan\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[91mclassName") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[91mdata-active") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[91mtitle") != NULL);
+	ASSERT_TRUE(strstr(output, "{\x1b[37mactive") != NULL);
+	ASSERT_TRUE(strstr(output, "{\x1b[37mlabel") != NULL);
 	free(output);
 
 	ASSERT_TRUE(unlink(path) == 0);
