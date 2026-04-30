@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Generate src/language/syntax_query_data.h from scripts/queries_manifest.txt.
 # Output is a header containing one byte array per input file plus a parts
-# table per manifest symbol. Read by syntax_queries.c.
+# table per manifest symbol. Read by src/language/queries.c.
 set -euo pipefail
 
 if [[ $# -ne 2 ]]; then

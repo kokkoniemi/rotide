@@ -41,11 +41,12 @@ Source lives under `src/<area>/`; tests are split per concern under `tests/test_
   - `editor_config.c`, `theme_config.c`, `lsp_config.c` — TOML loaders for `[editor]`, `[theme]`, `[lsp]`
   - `common.c` — shared config plumbing (global vs project precedence)
 - `src/language/`
-  - `syntax.c` — Tree-sitter parser/host parse, incremental edits, injection orchestration, performance budgets
-  - `syntax_queries.c` — query cache, fallback query strings, predicate/locals/injection metadata
-  - `lsp.c` — multi-server LSP lifecycle and routing (`gopls`, `clangd`, `vscode-html-language-server`, `vscode-css-language-server`, `vscode-json-language-server`, `typescript-language-server`, `vscode-eslint-language-server`); server kinds in `lsp_internal.h`
-  - `lsp_protocol.c` — JSON-RPC encoding and message dispatch
-  - `lsp_transport.c` — child-process transport layer
+  - `syntax.h` — public syntax state API, edit/capture structs, budget/query/limit event channel
+  - `syntax.c` — Tree-sitter host parse, incremental edits, injection orchestration, performance budgets, visible failure events
+  - `syntax_internal.h` — private shared structs/helpers used by the syntax/query translation units
+  - `languages.c` / `languages.h` — table-driven language registry: parser factories, query bundle pointers, filename/basename/shebang detection, injection aliases
+  - `queries.c` — embedded query loading/cache, fallback query strings, predicate/locals/injection metadata, regex cache
+  - `lsp.c` / `lsp.h` / `lsp_internal.h` — multi-server LSP lifecycle, JSON-RPC transport, and routing (`gopls`, `clangd`, `vscode-html-language-server`, `vscode-css-language-server`, `vscode-json-language-server`, `typescript-language-server`, `vscode-eslint-language-server`)
 
 ## High-signal workflows
 
@@ -94,7 +95,7 @@ Source lives under `src/<area>/`; tests are split per concern under `tests/test_
 
 ### Update syntax behavior
 
-- Touch: `src/language/syntax.c`, `src/language/syntax_queries.c`, `src/editing/buffer_core.c`, `src/render/screen.c`, `tests/test_syntax.c`, `tests/test_render_terminal.c`, vendor query files if needed
+- Touch: `src/language/syntax.c`, `src/language/queries.c`, `src/language/languages.c`, `src/language/syntax.h`, `src/editing/buffer_core.c`, `src/render/screen.c`, `tests/test_syntax.c`, `tests/test_syntax_registry.c`, `tests/test_render_terminal.c`, vendor query files if needed
 - Keep:
   - tab-local syntax state
   - budget/degraded mode behavior
@@ -102,7 +103,7 @@ Source lives under `src/<area>/`; tests are split per concern under `tests/test_
 
 ### Update LSP behavior
 
-- Touch: `src/language/lsp.c`, `src/language/lsp_protocol.c`, `src/language/lsp_transport.c`, `src/input/dispatch.c`, `src/editing/buffer_core.c`, `src/config/lsp_config.c`, `tests/test_lsp.c`
+- Touch: `src/language/lsp.c`, `src/language/lsp.h`, `src/language/lsp_internal.h`, `src/input/dispatch.c`, `src/editing/buffer_core.c`, `src/config/lsp_config.c`, `tests/test_lsp.c`
 - Keep:
   - per-server enable/disable gating (`gopls`, `clangd`, HTML/CSS/JSON, `typescript-language-server`, `vscode-eslint-language-server`)
   - global vs project precedence for `*_command` keys, with `javascript_install_command` global-only

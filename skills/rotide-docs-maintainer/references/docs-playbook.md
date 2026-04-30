@@ -9,7 +9,7 @@ When documenting behavior, verify in this order:
    - editing core: `src/editing/buffer_core.c`, `src/editing/edit.c`, `src/editing/selection.c`, `src/editing/history.c`
    - text storage: `src/text/document.c`, `src/text/rope.c`, `src/text/row.c`
    - input/render: `src/input/dispatch.c`, `src/render/screen.c`
-   - language: `src/language/syntax.c`, `src/language/syntax_queries.c`, `src/language/lsp.c`
+   - language: `src/language/syntax.c`, `src/language/queries.c`, `src/language/languages.c`, `src/language/lsp.c`
    - config/workspace: `src/config/*.c`, `src/workspace/*.c`
 3. split test suites in `tests/` (`test_syntax.c`, `test_lsp.c`, `test_render_terminal.c`, `test_document_text_editing.c`, `test_save_recovery.c`, `test_input_search.c`, `test_workspace_config.c`) for behavior contracts
 4. existing docs (README/AGENTS/skills) for wording continuity

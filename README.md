@@ -248,7 +248,8 @@ This section names the core concepts used throughout the codebase.
 ### Syntax state
 
 - Per-tab `editorSyntaxState` in [`src/language/syntax.c`](src/language/syntax.c).
-- Tree-sitter host parse plus generic tab-local injection trees for nested highlighting (HTML, JavaScript, TypeScript, PHP, C++, Haskell, Julia, EJS, and ERB host grammars all ship injection queries).
+- Table-driven language registry in [`src/language/languages.c`](src/language/languages.c) owns parser factories, query bundles, filename/shebang detection, and injection aliases.
+- Tree-sitter host parse plus generic tab-local injection trees for nested highlighting (HTML, JavaScript, TypeScript, PHP, C++, Haskell, Julia, EJS, and ERB host grammars all ship injection queries; nested injections are capped at depth 3 and 16 active injected trees per tab).
 - Query and parse budgets support graceful degraded modes instead of immediate hard disable for moderate file sizes.
 
 ### LSP state

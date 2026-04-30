@@ -187,8 +187,8 @@ Own independently:
 - LSP process lifecycle and requests
 
 Usually centered in:
-- `src/language/syntax.c`, `src/language/syntax_queries.c`
-- `src/language/lsp.c`, `src/language/lsp_protocol.c`, `src/language/lsp_transport.c`
+- `src/language/syntax.c`, `src/language/queries.c`, `src/language/languages.c`
+- `src/language/lsp.c`, `src/language/lsp.h`, `src/language/lsp_internal.h`
 
 ## Decision heuristics
 

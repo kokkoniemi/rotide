@@ -6,14 +6,23 @@
   - `enum editorSyntaxLanguage`
   - highlight class enums
   - tab/editor syntax state fields
+- `src/language/syntax.h`
+  - public syntax state API
+  - parse/edit/capture structs
+  - budget, query-unavailable, and limit-event consumers
 - `src/language/syntax.c`
-  - language objects (`tree_sitter_*`)
-  - filename/shebang detection helpers
   - host parse, incremental edits, injection orchestration, performance budgets
   - capture-name to semantic-class mapping at paint time
-- `src/language/syntax_queries.c`
+- `src/language/languages.c` / `src/language/languages.h`
+  - table-driven language registry (`struct editorSyntaxLanguageDef`)
+  - parser factories (`tree_sitter_*`)
+  - filename extension, basename, shebang, and injection-alias lookup
+- `src/language/queries.c`
   - query cache + fallback query strings (highlights, locals, injections)
   - predicate/locals handling and injection pattern metadata
+- `src/language/syntax_internal.h`
+  - private structs shared by `syntax.c` and `queries.c`
+  - injection limits, query budgets, parser/query progress helpers
 - `src/editing/buffer_core.c`
   - syntax activation/reconfiguration
   - full and incremental parse entrypoints
@@ -25,6 +34,14 @@
   - activation, incremental parse validity, render highlights, budgets, tab isolation
 - `tests/syntax/`
   - fixture files under `supported/`; `planned/` is reserved scaffolding and currently empty
+
+## Current module layout
+
+- `syntax.c` owns parser state transitions: state creation/destruction, full parse, incremental `ts_tree_edit`, injection tree lifecycle, range/capture merging, and enqueueing observable limit events.
+- `queries.c` owns all compiled-query state: embedded query materialization from `src/language/syntax_query_data.h`, per-language/per-kind query caches, capture-role population, predicates, locals-query support, and regex caches for `#match?`.
+- `languages.c` owns the registry. Every runtime language is described by one `struct editorSyntaxLanguageDef` entry with parser factory, embedded query bundles, detection metadata, and optional injection aliases.
+- `syntax_internal.h` is the private contract between `syntax.c` and `queries.c`; do not include it from editor, render, or test code unless a test-only hook genuinely needs module-private state.
+- `scripts/queries_manifest.txt` is the source list for generated embedded query data. Keep its query symbols aligned with the `editor_query_*` parts referenced from `languages.c`.
 
 ## Currently supported syntax families
 
@@ -64,13 +81,14 @@ Some upstream grammar repos (tree-sitter-typescript, tree-sitter-php) ship a sha
 ## Language onboarding checklist
 
 1. Add enum value in `rotide.h` if introducing a new runtime syntax language.
-2. Wire parser in `src/language/syntax.c` (`tree_sitter_<lang>()` dispatch).
-3. Wire query cache paths/fallback query strings.
-4. Update detection (`editorSyntaxDetectLanguageFromFilenameAndFirstLine` and helpers).
-5. Update build/vendor wiring when grammar runtime/parser/scanner files are needed.
-6. Add/refresh fixtures under `tests/syntax/supported/<lang>/`.
-7. Add behavior tests (activation + incremental + rendering).
-8. Update README syntax-support documentation.
+2. Add or refresh grammar runtime files under `vendor/tree_sitter/grammars/<lang>/`, including parser/scanner/common wiring in the `Makefile` when needed.
+3. Add query files to `scripts/queries_manifest.txt`; use repo-local fallback queries only when upstream captures do not map cleanly to RotIDE highlight classes.
+4. Add one `struct editorSyntaxLanguageDef` entry in `src/language/languages.c` with `.id`, `.name`, `.ts_factory`, query parts, and detection metadata.
+5. Add extensions, basenames, shebang matcher, and `injection_aliases` arrays in `languages.c` only where the language actually supports those entry points.
+6. If the language has injections or locals, set `.injection_parts` / `.locals_parts`; capability checks read those registry fields.
+7. Add/refresh fixtures under `tests/syntax/supported/<lang>/`.
+8. Add behavior tests: activation, incremental parse validity, rendering, and registry consistency when metadata changes.
+9. Update README syntax-support documentation.
 
 ## Query-only change checklist
 
@@ -83,8 +101,17 @@ Some upstream grammar repos (tree-sitter-typescript, tree-sitter-php) ship a sha
 
 - Generic injections are stored as tab-local injected parse trees in `editorSyntaxState`; do not reintroduce one-off language fields for new static injections.
 - Supported predicates / settings: `@injection.content`, static `#set! injection.language`, dynamic `@injection.language` capture (resolved per-match), `#set! injection.combined`, `#set! injection.include-children`, and `#offset!` adjustments for content/language captures.
-- Host languages with built-in injection queries today: HTML, JavaScript, TypeScript, PHP, C++, Haskell, Julia, EJS, ERB. The set is gated by `editorSyntaxLanguageHasInjectionQuery` in `src/language/syntax.c`.
+- Host languages with built-in injection queries today: HTML, JavaScript, TypeScript, PHP, C++, Haskell, Julia, EJS, ERB. The set is derived from registry entries whose `.injection_parts` field is non-NULL.
+- Injection target names resolve through `editorSyntaxLookupLanguageByInjectionName`: first the registry `.name`, then case-insensitive entries in `.injection_aliases`.
+- Injection recursion is intentionally bounded: `ROTIDE_SYNTAX_MAX_INJECTION_DEPTH` is 3 and `ROTIDE_SYNTAX_MAX_INJECTION_TREES` is 16. When the next level or slot would be needed, the syntax state queues `EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_DEPTH_EXCEEDED` or `EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_SLOTS_FULL` and drops only that deeper/extra injection.
 - Unsupported injection target languages should be skipped without disabling the host tree or reporting noisy status.
+
+## Event channel notes
+
+- Budget events are consumed with `editorSyntaxStateConsumeBudgetEvents`.
+- Query availability failures are consumed with `editorSyntaxStateConsumeQueryUnavailableEvent` and carry the language plus highlight/injection query kind.
+- Limit events are consumed with `editorSyntaxStateConsumeLimitEvent`; current event kinds cover capture truncation, injection depth, injection slot exhaustion, parse failure, and parse trees containing errors.
+- Event producers should rate-limit at the syntax-state level when a condition can repeat every frame or row. Preserve rendering fallback where possible: host captures should still paint when a nested injection is skipped.
 
 ## Performance and degraded-mode checklist
 

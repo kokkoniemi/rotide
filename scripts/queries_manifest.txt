@@ -2,7 +2,7 @@
 # Each non-comment line:
 #     <symbol>  <file1>  [file2 ...]
 # files are concatenated in listed order (with a separating newline) before
-# compilation. Mirrors the g_*_query_paths[] arrays in syntax_queries.c.
+# compilation. Referenced by src/language/languages.c via generated query parts.
 
 c_highlight           vendor/tree_sitter/grammars/c/queries/highlights.scm
 cpp_highlight         vendor/tree_sitter/grammars/c/queries/highlights.scm vendor/tree_sitter/grammars/cpp/queries/highlights.scm
