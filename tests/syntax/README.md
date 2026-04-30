@@ -31,6 +31,7 @@ Current fixture-to-editor mapping (`enum editorSyntaxLanguage` in
 - `supported/rust/` maps to `EDITOR_SYNTAX_RUST`
 - `supported/scala/` maps to `EDITOR_SYNTAX_SCALA`
 - `supported/typescript/` maps to `EDITOR_SYNTAX_TYPESCRIPT`
+- `supported/tsx/` maps to `EDITOR_SYNTAX_TSX`
 
 Notes:
 
@@ -39,11 +40,11 @@ Notes:
 - `EDITOR_SYNTAX_JSDOC` has no fixture directory of its own: it is parser-backed
   doc-comment highlighting via tree-sitter-jsdoc, overlaid on JS/TS host trees,
   not a standalone file detection mode. JSDoc coverage lives under
-  `supported/javascript/` and `supported/typescript/`.
+  `supported/javascript/`, `supported/typescript/`, and `supported/tsx/`.
 - Languages with injection coverage in fixtures (`injections.*`):
   - HTML — nested `<script>` JavaScript and `<style>` CSS.
-  - JavaScript / TypeScript — tagged-template `html` / `css` / regex literals
-    and JSDoc doc-comment overlay.
+  - JavaScript / TypeScript / TSX — tagged-template `html` / `css` / regex
+    literals and JSDoc doc-comment overlay.
   - PHP — interleaved HTML text plus heredoc bodies tagged with a language
     label (`<<<HTML`, `<<<JS`, ...).
   - C++ — raw string literals tagged with a language delimiter

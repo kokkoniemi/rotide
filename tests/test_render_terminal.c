@@ -344,6 +344,56 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_typescript
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_tsx_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-tsx-XXXXXX.tsx";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+			"tests/syntax/supported/tsx/highlight.tsx"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_TSX, editorSyntaxLanguageActive());
+	E.window_rows = 14;
+	E.window_cols = 120;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94minterface\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96mstring\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96mdiv\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96mspan\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_jsdoc_highlighting_for_tsx(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-jsdoc-tsx-XXXXXX.tsx";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+			"tests/syntax/supported/tsx/jsdoc.tsx"));
+
+	editorOpen(path);
+	E.window_rows = 10;
+	E.window_cols = 120;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m * \x1b[94m@param\x1b[90m") != NULL);
+	ASSERT_TRUE(strstr(output, "{\x1b[96mstring\x1b[90m} name") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m * \x1b[94m@returns\x1b[90m") != NULL);
+	ASSERT_TRUE(strstr(output, "{\x1b[96mJSX.Element\x1b[90m}") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_jsdoc_highlighting_for_typescript(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-jsdoc-ts-XXXXXX.ts";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
@@ -1970,6 +2020,8 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_applies_javascript_injections", test_editor_refresh_screen_applies_javascript_injections},
 	{"editor_refresh_screen_applies_jsdoc_highlighting_for_javascript", test_editor_refresh_screen_applies_jsdoc_highlighting_for_javascript},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_typescript_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_typescript_tokens},
+	{"editor_refresh_screen_applies_syntax_highlighting_for_tsx_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_tsx_tokens},
+	{"editor_refresh_screen_applies_jsdoc_highlighting_for_tsx", test_editor_refresh_screen_applies_jsdoc_highlighting_for_tsx},
 	{"editor_refresh_screen_applies_jsdoc_highlighting_for_typescript", test_editor_refresh_screen_applies_jsdoc_highlighting_for_typescript},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_python_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_python_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_php_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_php_tokens},

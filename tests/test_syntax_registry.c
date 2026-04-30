@@ -129,7 +129,7 @@ static int test_editor_syntax_registry_lookup_by_extension(void) {
 
 	def = editorSyntaxLookupLanguageByExtension(".tsx");
 	ASSERT_TRUE(def != NULL);
-	ASSERT_EQ_INT(EDITOR_SYNTAX_TYPESCRIPT, (int)def->id);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_TSX, (int)def->id);
 
 	ASSERT_TRUE(editorSyntaxLookupLanguageByExtension(".bogus") == NULL);
 	return 0;
@@ -172,6 +172,11 @@ static int test_editor_syntax_registry_lookup_by_injection_name(void) {
 			editorSyntaxLookupLanguageByInjectionName(jsx, strlen(jsx));
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, (int)def->id);
+
+	const char *tsx = "tsx";
+	def = editorSyntaxLookupLanguageByInjectionName(tsx, strlen(tsx));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_TSX, (int)def->id);
 
 	const char *aeson = "aesonQQ";
 	def = editorSyntaxLookupLanguageByInjectionName(aeson, strlen(aeson));

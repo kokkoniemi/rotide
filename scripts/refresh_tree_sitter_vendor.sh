@@ -250,6 +250,7 @@ regenerate_parser "${JSDOC_GRAMMAR_SRC}" "JSDoc"
 # common/define-grammar.js; expose the pinned JS source in node_modules.
 link_grammar_dep "${TYPESCRIPT_GRAMMAR_SRC}" "tree-sitter-javascript" "${JAVASCRIPT_GRAMMAR_SRC}"
 regenerate_parser "${TYPESCRIPT_GRAMMAR_SRC}/typescript" "TypeScript"
+regenerate_parser "${TYPESCRIPT_GRAMMAR_SRC}/tsx" "TSX"
 regenerate_parser "${CSS_GRAMMAR_SRC}" "CSS"
 regenerate_parser "${JSON_GRAMMAR_SRC}" "JSON"
 regenerate_parser "${PYTHON_GRAMMAR_SRC}" "Python"
@@ -289,6 +290,8 @@ sync_grammar_vendor "${JSDOC_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/gram
 # Stage them into typescript/ so sync_grammar_vendor picks them up.
 cp -R "${TYPESCRIPT_GRAMMAR_SRC}/queries" "${TYPESCRIPT_GRAMMAR_SRC}/typescript/queries"
 sync_grammar_vendor "${TYPESCRIPT_GRAMMAR_SRC}/typescript" "${REPO_ROOT}/vendor/tree_sitter/grammars/typescript"
+cp -R "${TYPESCRIPT_GRAMMAR_SRC}/queries" "${TYPESCRIPT_GRAMMAR_SRC}/tsx/queries"
+sync_grammar_vendor "${TYPESCRIPT_GRAMMAR_SRC}/tsx" "${REPO_ROOT}/vendor/tree_sitter/grammars/tsx"
 # scanner.c includes ../../common/scanner.h; place the shared common/ under
 # typescript/ and repoint the include so each grammar owns its common/.
 rm -rf "${REPO_ROOT}/vendor/tree_sitter/grammars/typescript/common"
@@ -296,6 +299,11 @@ cp -R "${TYPESCRIPT_GRAMMAR_SRC}/common" "${REPO_ROOT}/vendor/tree_sitter/gramma
 sed -i.bak 's|\.\./\.\./common/scanner\.h|../common/scanner.h|' \
 	"${REPO_ROOT}/vendor/tree_sitter/grammars/typescript/src/scanner.c"
 rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/typescript/src/scanner.c.bak"
+rm -rf "${REPO_ROOT}/vendor/tree_sitter/grammars/tsx/common"
+cp -R "${TYPESCRIPT_GRAMMAR_SRC}/common" "${REPO_ROOT}/vendor/tree_sitter/grammars/tsx/common"
+sed -i.bak 's|\.\./\.\./common/scanner\.h|../common/scanner.h|' \
+	"${REPO_ROOT}/vendor/tree_sitter/grammars/tsx/src/scanner.c"
+rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/tsx/src/scanner.c.bak"
 sync_grammar_vendor "${CSS_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/css"
 sync_grammar_vendor "${JSON_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/json"
 sync_grammar_vendor "${PYTHON_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/python"

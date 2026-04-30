@@ -267,16 +267,22 @@ static int test_editor_syntax_activation_for_typescript_files(void) {
 	ASSERT_TRUE(editorSyntaxRootType() != NULL);
 	ASSERT_EQ_STR("program", editorSyntaxRootType());
 
+	ASSERT_TRUE(unlink(ts_path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_activation_for_tsx_files(void) {
 	char tsx_path[] = "/tmp/rotide-test-syntax-tsx-XXXXXX.tsx";
 	ASSERT_TRUE(write_fixture_to_temp_path(tsx_path, 4,
-			"tests/syntax/supported/typescript/activation.tsx"));
+			"tests/syntax/supported/tsx/activation.tsx"));
 
 	editorOpen(tsx_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
 	ASSERT_TRUE(editorSyntaxTreeExists());
-	ASSERT_EQ_INT(EDITOR_SYNTAX_TYPESCRIPT, editorSyntaxLanguageActive());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_TSX, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("program", editorSyntaxRootType());
 
-	ASSERT_TRUE(unlink(ts_path) == 0);
 	ASSERT_TRUE(unlink(tsx_path) == 0);
 	return 0;
 }
@@ -1023,6 +1029,32 @@ static int test_editor_syntax_incremental_edits_keep_typescript_tree_valid(void)
 	ASSERT_TRUE(editorSyntaxEnabled());
 	ASSERT_TRUE(editorSyntaxTreeExists());
 	ASSERT_EQ_INT(EDITOR_SYNTAX_TYPESCRIPT, editorSyntaxLanguageActive());
+
+	E.cy = 1;
+	E.cx = 1;
+	editorInsertChar('x');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = E.rows[0].size;
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_incremental_edits_keep_tsx_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-tsx-XXXXXX.tsx";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+			"tests/syntax/supported/tsx/incremental.tsx"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_TSX, editorSyntaxLanguageActive());
 
 	E.cy = 1;
 	E.cx = 1;
@@ -2132,6 +2164,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_activation_for_html_js_and_css_files", test_editor_syntax_activation_for_html_js_and_css_files},
 	{"editor_syntax_activation_for_json_files", test_editor_syntax_activation_for_json_files},
 	{"editor_syntax_activation_for_typescript_files", test_editor_syntax_activation_for_typescript_files},
+	{"editor_syntax_activation_for_tsx_files", test_editor_syntax_activation_for_tsx_files},
 	{"editor_syntax_activation_for_python_files_and_shebang", test_editor_syntax_activation_for_python_files_and_shebang},
 	{"editor_syntax_activation_for_php_files_and_shebang", test_editor_syntax_activation_for_php_files_and_shebang},
 	{"editor_syntax_activation_for_rust_files", test_editor_syntax_activation_for_rust_files},
@@ -2159,6 +2192,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_incremental_edits_keep_html_tree_valid", test_editor_syntax_incremental_edits_keep_html_tree_valid},
 	{"editor_syntax_incremental_edits_keep_javascript_tree_valid", test_editor_syntax_incremental_edits_keep_javascript_tree_valid},
 	{"editor_syntax_incremental_edits_keep_typescript_tree_valid", test_editor_syntax_incremental_edits_keep_typescript_tree_valid},
+	{"editor_syntax_incremental_edits_keep_tsx_tree_valid", test_editor_syntax_incremental_edits_keep_tsx_tree_valid},
 	{"editor_syntax_incremental_edits_keep_css_tree_valid", test_editor_syntax_incremental_edits_keep_css_tree_valid},
 	{"editor_syntax_incremental_edits_keep_go_tree_valid", test_editor_syntax_incremental_edits_keep_go_tree_valid},
 	{"editor_syntax_incremental_edits_keep_python_tree_valid", test_editor_syntax_incremental_edits_keep_python_tree_valid},

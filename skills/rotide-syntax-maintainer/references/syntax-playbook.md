@@ -50,7 +50,8 @@
 - Shell (bash language backend)
 - HTML (nested `<script>` JavaScript and `<style>` CSS injections via the generic injection tree registry)
 - JavaScript (`.js`, `.mjs`, `.cjs`, `.jsx`) — JSDoc doc comments remain JavaScript `(comment)` nodes in the host tree, then RotIDE parses each visible `/** ... */` comment with the vendored `tree-sitter-jsdoc` parser and overlays its `tag_name`/`type` captures.
-- TypeScript (`.ts`, `.tsx`, `.cts`, `.mts`) — grammar from tree-sitter-typescript `typescript/` sub-grammar; shared `common/` lives at `vendor/tree_sitter/grammars/typescript/common/`. Uses the same vendored `tree-sitter-jsdoc` doc-comment overlay as JavaScript.
+- TypeScript (`.ts`, `.cts`, `.mts`) — grammar from tree-sitter-typescript `typescript/` sub-grammar; shared `common/` lives at `vendor/tree_sitter/grammars/typescript/common/`. Uses the same vendored `tree-sitter-jsdoc` doc-comment overlay as JavaScript.
+- TSX (`.tsx`) — grammar from tree-sitter-typescript `tsx/` sub-grammar; shared `common/` lives at `vendor/tree_sitter/grammars/tsx/common/`. Its query bundle combines JavaScript/JSX and TypeScript-compatible captures so JSX nodes and TypeScript types highlight against the TSX parser.
 - JSDoc — vendored from `tree-sitter/tree-sitter-jsdoc` as `vendor/tree_sitter/grammars/jsdoc/`; it is parser-backed comment highlighting for JS/TS, not a standalone file detection mode.
 - CSS (including `.scss` detection path)
 - JSON (`.json`, `.jsonc`)
@@ -73,9 +74,9 @@ Some upstream grammar repos (tree-sitter-typescript, tree-sitter-php) ship a sha
 
 ## TypeScript vendoring notes
 
-- The repo has `typescript/` and `tsx/` sub-grammars; only `typescript/` is vendored (handles both `.ts` and `.tsx`).
+- Both `typescript/` and `tsx/` sub-grammars are vendored separately so `.ts`/`.cts`/`.mts` use `tree_sitter_typescript()` and `.tsx` uses `tree_sitter_tsx()`.
 - `grammar.js` requires `../common/define-grammar` → `tree-sitter-javascript` dep; the refresh script links JS grammar source via `link_grammar_dep` before regenerating.
-- `scanner.c` includes `"../common/scanner.h"` (patched from upstream's `../../common/`); the shared `common/` from the TS repo is vendored to `vendor/tree_sitter/grammars/typescript/common/`.
+- Each TypeScript-family sub-grammar has its own `common/` copy under the vendored grammar directory. `scanner.c` includes `"../common/scanner.h"` after the refresh script patches upstream's `../../common/` include.
 - TS grammar requires JS grammar at the same semver family; pin JS and TS together (currently JS v0.23.1 + TS v0.23.2).
 
 ## Language onboarding checklist
@@ -101,7 +102,7 @@ Some upstream grammar repos (tree-sitter-typescript, tree-sitter-php) ship a sha
 
 - Generic injections are stored as tab-local injected parse trees in `editorSyntaxState`; do not reintroduce one-off language fields for new static injections.
 - Supported predicates / settings: `@injection.content`, static `#set! injection.language`, dynamic `@injection.language` capture (resolved per-match), `#set! injection.combined`, `#set! injection.include-children`, and `#offset!` adjustments for content/language captures.
-- Host languages with built-in injection queries today: HTML, JavaScript, TypeScript, PHP, C++, Haskell, Julia, EJS, ERB. The set is derived from registry entries whose `.injection_parts` field is non-NULL.
+- Host languages with built-in injection queries today: HTML, JavaScript, TypeScript, TSX, PHP, C++, Haskell, Julia, EJS, ERB. The set is derived from registry entries whose `.injection_parts` field is non-NULL.
 - Injection target names resolve through `editorSyntaxLookupLanguageByInjectionName`: first the registry `.name`, then case-insensitive entries in `.injection_aliases`.
 - Injection recursion is intentionally bounded: `ROTIDE_SYNTAX_MAX_INJECTION_DEPTH` is 3 and `ROTIDE_SYNTAX_MAX_INJECTION_TREES` is 16. When the next level or slot would be needed, the syntax state queues `EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_DEPTH_EXCEEDED` or `EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_SLOTS_FULL` and drops only that deeper/extra injection.
 - Unsupported injection target languages should be skipped without disabling the host tree or reporting noisy status.

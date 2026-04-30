@@ -12,8 +12,10 @@ html_highlight        vendor/tree_sitter/grammars/html/queries/highlights.scm
 javascript_highlight  vendor/tree_sitter/grammars/javascript/queries/highlights.scm vendor/tree_sitter/grammars/javascript/queries/highlights-jsx.scm vendor/tree_sitter/grammars/javascript/queries/highlights-params.scm
 jsdoc_highlight       vendor/tree_sitter/grammars/jsdoc/queries/highlights.scm
 typescript_highlight  vendor/tree_sitter/grammars/javascript/queries/highlights.scm vendor/tree_sitter/grammars/typescript/queries/highlights.scm
+tsx_highlight         vendor/tree_sitter/grammars/javascript/queries/highlights.scm vendor/tree_sitter/grammars/javascript/queries/highlights-jsx.scm vendor/tree_sitter/grammars/tsx/queries/highlights.scm
 javascript_locals     vendor/tree_sitter/grammars/javascript/queries/locals.scm
 typescript_locals     vendor/tree_sitter/grammars/javascript/queries/locals.scm vendor/tree_sitter/grammars/typescript/queries/locals.scm
+tsx_locals            vendor/tree_sitter/grammars/javascript/queries/locals.scm vendor/tree_sitter/grammars/tsx/queries/locals.scm
 ruby_locals           vendor/tree_sitter/grammars/ruby/queries/locals.scm
 haskell_locals        vendor/tree_sitter/grammars/haskell/queries/locals.scm
 ocaml_locals          vendor/tree_sitter/grammars/ocaml/queries/locals.scm
@@ -37,6 +39,7 @@ erb_highlight         vendor/tree_sitter/grammars/embedded_template/queries/high
 html_injection        vendor/tree_sitter/grammars/html/queries/injections.scm
 javascript_injection  vendor/tree_sitter/grammars/javascript/queries/injections.scm
 typescript_injection  vendor/tree_sitter/grammars/javascript/queries/injections.scm
+tsx_injection         vendor/tree_sitter/grammars/javascript/queries/injections.scm
 php_injection         vendor/tree_sitter/grammars/php/queries/injections.scm vendor/tree_sitter/grammars/php/queries/injections-text.scm
 cpp_injection         vendor/tree_sitter/grammars/cpp/queries/injections.scm
 haskell_injection     vendor/tree_sitter/grammars/haskell/queries/injections.scm

@@ -55,7 +55,8 @@ ASAN_OPTIONS=detect_leaks=0 make test-sanitize
   - Shell (`.sh`, rc files, extensionless shebang scripts)
   - HTML (`.html`, `.htm`, `.xhtml`) with JavaScript/CSS injection highlighting
   - JavaScript (`.js`, `.mjs`, `.cjs`, `.jsx`) with tree-sitter-jsdoc tag/type highlighting in doc comments
-  - TypeScript (`.ts`, `.tsx`, `.cts`, `.mts`) with tree-sitter-jsdoc tag/type highlighting in doc comments
+  - TypeScript (`.ts`, `.cts`, `.mts`) with tree-sitter-jsdoc tag/type highlighting in doc comments
+  - TSX (`.tsx`) with JSX and tree-sitter-jsdoc tag/type highlighting in doc comments
   - CSS (`.css`, `.scss`)
   - JSON (`.json`, `.jsonc`)
   - Python (`.py`, `.pyi`, `.pyw`, extensionless shebang scripts)
@@ -249,7 +250,7 @@ This section names the core concepts used throughout the codebase.
 
 - Per-tab `editorSyntaxState` in [`src/language/syntax.c`](src/language/syntax.c).
 - Table-driven language registry in [`src/language/languages.c`](src/language/languages.c) owns parser factories, query bundles, filename/shebang detection, and injection aliases.
-- Tree-sitter host parse plus generic tab-local injection trees for nested highlighting (HTML, JavaScript, TypeScript, PHP, C++, Haskell, Julia, EJS, and ERB host grammars all ship injection queries; nested injections are capped at depth 3 and 16 active injected trees per tab).
+- Tree-sitter host parse plus generic tab-local injection trees for nested highlighting (HTML, JavaScript, TypeScript, TSX, PHP, C++, Haskell, Julia, EJS, and ERB host grammars all ship injection queries; nested injections are capped at depth 3 and 16 active injected trees per tab).
 - Query and parse budgets support graceful degraded modes instead of immediate hard disable for moderate file sizes.
 
 ### LSP state

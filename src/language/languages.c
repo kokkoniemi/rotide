@@ -15,6 +15,7 @@ extern const TSLanguage *tree_sitter_html(void);
 extern const TSLanguage *tree_sitter_javascript(void);
 extern const TSLanguage *tree_sitter_jsdoc(void);
 extern const TSLanguage *tree_sitter_typescript(void);
+extern const TSLanguage *tree_sitter_tsx(void);
 extern const TSLanguage *tree_sitter_css(void);
 extern const TSLanguage *tree_sitter_json(void);
 extern const TSLanguage *tree_sitter_python(void);
@@ -97,7 +98,8 @@ static const char *const k_shell_basenames[] = {
 	".bashrc", ".zshrc", ".profile", ".bash_profile", ".bash_login", ".kshrc", NULL};
 static const char *const k_html_extensions[] = {".html", ".htm", ".xhtml", NULL};
 static const char *const k_javascript_extensions[] = {".js", ".mjs", ".cjs", ".jsx", NULL};
-static const char *const k_typescript_extensions[] = {".ts", ".tsx", ".cts", ".mts", NULL};
+static const char *const k_typescript_extensions[] = {".ts", ".cts", ".mts", NULL};
+static const char *const k_tsx_extensions[] = {".tsx", NULL};
 static const char *const k_css_extensions[] = {".css", ".scss", NULL};
 static const char *const k_json_extensions[] = {".json", ".jsonc", NULL};
 static const char *const k_python_extensions[] = {".py", ".pyi", ".pyw", NULL};
@@ -123,7 +125,8 @@ static const char *const k_html_injection_aliases[] = {
 static const char *const k_javascript_injection_aliases[] = {
 	"javascript", "js", "jsx", "julius", NULL};
 static const char *const k_typescript_injection_aliases[] = {
-	"typescript", "ts", "tsx", "tsc", "tscJSX", NULL};
+	"typescript", "ts", "tsc", NULL};
+static const char *const k_tsx_injection_aliases[] = {"tsx", "tscJSX", NULL};
 static const char *const k_css_injection_aliases[] = {
 	"css", "lucius", "cassius", NULL};
 static const char *const k_jsdoc_injection_aliases[] = {"jsdoc", NULL};
@@ -216,6 +219,19 @@ static const struct editorSyntaxLanguageDef g_languages[] = {
 		.injection_part_count = EDITOR_QUERY_TYPESCRIPT_INJECTION_PART_COUNT,
 		.extensions = k_typescript_extensions,
 		.injection_aliases = k_typescript_injection_aliases
+	},
+	{
+		.id = EDITOR_SYNTAX_TSX,
+		.name = "tsx",
+		.ts_factory = tree_sitter_tsx,
+		.highlight_parts = editor_query_tsx_highlight_parts,
+		.highlight_part_count = EDITOR_QUERY_TSX_HIGHLIGHT_PART_COUNT,
+		.locals_parts = editor_query_tsx_locals_parts,
+		.locals_part_count = EDITOR_QUERY_TSX_LOCALS_PART_COUNT,
+		.injection_parts = editor_query_tsx_injection_parts,
+		.injection_part_count = EDITOR_QUERY_TSX_INJECTION_PART_COUNT,
+		.extensions = k_tsx_extensions,
+		.injection_aliases = k_tsx_injection_aliases
 	},
 	{
 		.id = EDITOR_SYNTAX_CSS,
