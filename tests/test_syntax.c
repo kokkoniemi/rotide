@@ -1640,6 +1640,45 @@ static int test_editor_syntax_capture_truncation_reports_event_and_keeps_span_li
 	return 0;
 }
 
+static int test_editor_syntax_parse_tree_errors_report_event_and_status(void) {
+	const char *broken_source = "int main( {\n";
+	struct editorTextSource broken_view = {0};
+	editorTextSourceInitString(&broken_view, broken_source, strlen(broken_source));
+
+	struct editorSyntaxState *state = editorSyntaxStateCreate(EDITOR_SYNTAX_C);
+	ASSERT_TRUE(state != NULL);
+	ASSERT_TRUE(editorSyntaxStateParseFull(state, &broken_view));
+
+	struct editorSyntaxLimitEvent event = {0};
+	ASSERT_TRUE(editorSyntaxStateConsumeLimitEvent(state, &event));
+	ASSERT_EQ_INT(EDITOR_SYNTAX_LIMIT_EVENT_PARSE_TREE_HAS_ERROR, event.kind);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_C, event.language);
+	ASSERT_EQ_INT(-1, event.row);
+	ASSERT_EQ_INT(1, event.detail);
+	ASSERT_TRUE(!editorSyntaxStateConsumeLimitEvent(state, NULL));
+
+	const char *valid_source = "int main(void) { return 0; }\n";
+	struct editorTextSource valid_view = {0};
+	editorTextSourceInitString(&valid_view, valid_source, strlen(valid_source));
+	ASSERT_TRUE(editorSyntaxStateParseFull(state, &valid_view));
+	ASSERT_TRUE(!editorSyntaxStateConsumeLimitEvent(state, NULL));
+
+	ASSERT_TRUE(editorSyntaxStateParseFull(state, &broken_view));
+	ASSERT_TRUE(editorSyntaxStateConsumeLimitEvent(state, &event));
+	ASSERT_EQ_INT(EDITOR_SYNTAX_LIMIT_EVENT_PARSE_TREE_HAS_ERROR, event.kind);
+	editorSyntaxStateDestroy(state);
+
+	char path[512];
+	ASSERT_TRUE(write_temp_c_file(path, sizeof(path), broken_source));
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_TRUE(strstr(E.statusmsg, "Tree-sitter parse tree has errors") != NULL);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_parse_budget_is_graceful(void) {
 	size_t source_len = 0;
 	char *source = build_repeated_text("function item(){ return 1; }\n", 120000, &source_len);
@@ -2053,6 +2092,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_capture_rules_are_longest_match_first", test_editor_syntax_capture_rules_are_longest_match_first},
 	{"editor_syntax_collect_c_captures_without_injection_query_is_graceful", test_editor_syntax_collect_c_captures_without_injection_query_is_graceful},
 	{"editor_syntax_capture_truncation_reports_event_and_keeps_span_limit", test_editor_syntax_capture_truncation_reports_event_and_keeps_span_limit},
+	{"editor_syntax_parse_tree_errors_report_event_and_status", test_editor_syntax_parse_tree_errors_report_event_and_status},
 	{"editor_syntax_parse_budget_is_graceful", test_editor_syntax_parse_budget_is_graceful},
 	{"editor_syntax_incremental_provider_parse_keeps_tree_valid", test_editor_syntax_incremental_provider_parse_keeps_tree_valid},
 	{"editor_syntax_large_file_stays_enabled_in_degraded_mode", test_editor_syntax_large_file_stays_enabled_in_degraded_mode},

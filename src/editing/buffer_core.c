@@ -208,6 +208,8 @@ static void editorSyntaxReportLimitStatusIfNeeded(void) {
 		editorSetStatusMsg("Tree-sitter injection slot limit reached");
 	} else if (event.kind == EDITOR_SYNTAX_LIMIT_EVENT_PARSE_FAILED) {
 		editorSetStatusMsg("Tree-sitter parse failed (will retry)");
+	} else if (event.kind == EDITOR_SYNTAX_LIMIT_EVENT_PARSE_TREE_HAS_ERROR) {
+		editorSetStatusMsg("Tree-sitter parse tree has errors");
 	} else {
 		editorSetStatusMsg("Tree-sitter syntax spans truncated");
 	}

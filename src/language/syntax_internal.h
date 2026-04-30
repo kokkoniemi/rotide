@@ -70,6 +70,7 @@ struct editorSyntaxParsedTree {
 	TSRange *included_ranges;
 	uint32_t included_range_count;
 	uint64_t revision;
+	int tree_error_reported;
 };
 
 struct editorSyntaxInjectedTree {

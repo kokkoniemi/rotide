@@ -190,6 +190,7 @@ static void editorSyntaxParsedTreeInit(struct editorSyntaxParsedTree *parsed,
 	parsed->included_ranges = NULL;
 	parsed->included_range_count = 0;
 	parsed->revision = 0;
+	parsed->tree_error_reported = 0;
 }
 
 static int editorSyntaxParsedTreeCreateParser(struct editorSyntaxParsedTree *parsed,
@@ -233,6 +234,7 @@ static void editorSyntaxParsedTreeDestroy(struct editorSyntaxParsedTree *parsed)
 	free(parsed->included_ranges);
 	parsed->included_ranges = NULL;
 	parsed->included_range_count = 0;
+	parsed->tree_error_reported = 0;
 }
 
 static void editorSyntaxInjectedTreeInit(struct editorSyntaxInjectedTree *injection) {
@@ -346,6 +348,15 @@ void editorSyntaxStateRecordParseFailed(struct editorSyntaxState *state,
 			state->language, -1, consecutive_failures);
 }
 
+static void editorSyntaxStateRecordParseTreeHasError(struct editorSyntaxState *state,
+		enum editorSyntaxLanguage language) {
+	if (state == NULL) {
+		return;
+	}
+	editorSyntaxStateQueueLimitEvent(state,
+			EDITOR_SYNTAX_LIMIT_EVENT_PARSE_TREE_HAS_ERROR, language, -1, 1);
+}
+
 static void editorSyntaxParsedTreeResetTree(struct editorSyntaxParsedTree *parsed) {
 	if (parsed == NULL || parsed->tree == NULL) {
 		return;
@@ -353,6 +364,7 @@ static void editorSyntaxParsedTreeResetTree(struct editorSyntaxParsedTree *parse
 	ts_tree_delete(parsed->tree);
 	parsed->tree = NULL;
 	parsed->revision++;
+	parsed->tree_error_reported = 0;
 }
 
 static void editorSyntaxStateClearChangedRanges(struct editorSyntaxState *state) {
@@ -544,6 +556,15 @@ static int editorSyntaxParsedTreeParse(struct editorSyntaxParsedTree *parsed,
 	}
 	parsed->tree = new_tree;
 	parsed->revision++;
+	TSNode root = ts_tree_root_node(parsed->tree);
+	if (ts_node_has_error(root)) {
+		if (!parsed->tree_error_reported) {
+			editorSyntaxStateRecordParseTreeHasError(state, parsed->language);
+			parsed->tree_error_reported = 1;
+		}
+	} else {
+		parsed->tree_error_reported = 0;
+	}
 	return 1;
 }
 
