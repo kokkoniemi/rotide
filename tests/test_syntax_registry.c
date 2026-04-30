@@ -84,6 +84,43 @@ static int test_editor_syntax_registry_compiles_every_query(void) {
 	return 0;
 }
 
+static int test_editor_syntax_registry_compiles_every_locals_query(void) {
+	editorSyntaxReleaseSharedResources();
+	editorSyntaxTestResetLastQueryCompileError();
+
+	int count = editorSyntaxLanguageDefCount();
+	int languages_with_locals = 0;
+	for (int i = 0; i < count; i++) {
+		const struct editorSyntaxLanguageDef *def = editorSyntaxLanguageDefAt(i);
+		ASSERT_TRUE(def != NULL);
+		if (def->locals_parts == NULL) {
+			continue;
+		}
+		ASSERT_TRUE(def->locals_part_count > 0);
+		languages_with_locals++;
+		struct editorSyntaxState *state = editorSyntaxStateCreate(def->id);
+		ASSERT_TRUE(state != NULL);
+
+		const char *probe = "a";
+		struct editorTextSource source = {0};
+		editorTextSourceInitString(&source, probe, 1);
+		(void)editorSyntaxStateParseFull(state, &source);
+
+		struct editorSyntaxCapture captures[4];
+		int capture_count = 0;
+		(void)editorSyntaxStateCollectCapturesForRange(state, &source, 0, 1,
+				captures, (int)(sizeof(captures) / sizeof(captures[0])),
+				&capture_count);
+
+		struct editorSyntaxQueryCompileError err = {0};
+		ASSERT_TRUE(!editorSyntaxCopyLastQueryCompileError(&err));
+
+		editorSyntaxStateDestroy(state);
+	}
+	ASSERT_TRUE(languages_with_locals >= 2);
+	return 0;
+}
+
 static int test_editor_syntax_registry_lookup_by_extension(void) {
 	const struct editorSyntaxLanguageDef *def =
 			editorSyntaxLookupLanguageByExtension(".c");
@@ -156,6 +193,7 @@ const struct editorTestCase g_syntax_registry_tests[] = {
 	{"editor_syntax_registry_factories_succeed", test_editor_syntax_registry_factories_succeed},
 	{"editor_syntax_registry_lookup_by_id_round_trips", test_editor_syntax_registry_lookup_by_id_round_trips},
 	{"editor_syntax_registry_compiles_every_query", test_editor_syntax_registry_compiles_every_query},
+	{"editor_syntax_registry_compiles_every_locals_query", test_editor_syntax_registry_compiles_every_locals_query},
 	{"editor_syntax_registry_lookup_by_extension", test_editor_syntax_registry_lookup_by_extension},
 	{"editor_syntax_registry_lookup_by_basename", test_editor_syntax_registry_lookup_by_basename},
 	{"editor_syntax_registry_lookup_by_shebang", test_editor_syntax_registry_lookup_by_shebang},

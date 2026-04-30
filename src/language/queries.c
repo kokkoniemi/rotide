@@ -550,6 +550,18 @@ static int editorSyntaxPopulateCaptureClasses(TSQuery *query,
 	return 1;
 }
 
+static int editorSyntaxLocalCaptureRoleMatches(const char *name, uint32_t name_len,
+		const char *role) {
+	size_t role_len = strlen(role);
+	if (name_len < role_len) {
+		return 0;
+	}
+	if (strncmp(name, role, role_len) != 0) {
+		return 0;
+	}
+	return name_len == role_len || name[role_len] == '.';
+}
+
 static int editorSyntaxPopulateLocalsCaptureRoles(TSQuery *query, uint8_t **capture_roles_out,
 		uint32_t *capture_count_out) {
 	if (query == NULL || capture_roles_out == NULL || capture_count_out == NULL) {
@@ -569,11 +581,11 @@ static int editorSyntaxPopulateLocalsCaptureRoles(TSQuery *query, uint8_t **capt
 		for (uint32_t i = 0; i < capture_count; i++) {
 			uint32_t name_len = 0;
 			const char *name = ts_query_capture_name_for_id(query, i, &name_len);
-			if (editorSyntaxStringEquals(name, name_len, "local.scope")) {
+			if (editorSyntaxLocalCaptureRoleMatches(name, name_len, "local.scope")) {
 				capture_roles[i] = EDITOR_SYNTAX_CAPTURE_ROLE_LOCAL_SCOPE;
-			} else if (editorSyntaxStringEquals(name, name_len, "local.definition")) {
+			} else if (editorSyntaxLocalCaptureRoleMatches(name, name_len, "local.definition")) {
 				capture_roles[i] = EDITOR_SYNTAX_CAPTURE_ROLE_LOCAL_DEFINITION;
-			} else if (editorSyntaxStringEquals(name, name_len, "local.reference")) {
+			} else if (editorSyntaxLocalCaptureRoleMatches(name, name_len, "local.reference")) {
 				capture_roles[i] = EDITOR_SYNTAX_CAPTURE_ROLE_LOCAL_REFERENCE;
 			}
 		}

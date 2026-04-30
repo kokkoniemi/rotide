@@ -294,6 +294,8 @@ static const struct editorSyntaxLanguageDef g_languages[] = {
 		.ts_factory = tree_sitter_haskell,
 		.highlight_parts = editor_query_haskell_highlight_parts,
 		.highlight_part_count = EDITOR_QUERY_HASKELL_HIGHLIGHT_PART_COUNT,
+		.locals_parts = editor_query_haskell_locals_parts,
+		.locals_part_count = EDITOR_QUERY_HASKELL_LOCALS_PART_COUNT,
 		.injection_parts = editor_query_haskell_injection_parts,
 		.injection_part_count = EDITOR_QUERY_HASKELL_INJECTION_PART_COUNT,
 		.extensions = k_haskell_extensions
@@ -304,6 +306,8 @@ static const struct editorSyntaxLanguageDef g_languages[] = {
 		.ts_factory = tree_sitter_ruby,
 		.highlight_parts = editor_query_ruby_highlight_parts,
 		.highlight_part_count = EDITOR_QUERY_RUBY_HIGHLIGHT_PART_COUNT,
+		.locals_parts = editor_query_ruby_locals_parts,
+		.locals_part_count = EDITOR_QUERY_RUBY_LOCALS_PART_COUNT,
 		.extensions = k_ruby_extensions,
 		.basenames = k_ruby_basenames,
 		.shebang_matches = editorSyntaxRubyShebangMatch,
@@ -315,6 +319,8 @@ static const struct editorSyntaxLanguageDef g_languages[] = {
 		.ts_factory = tree_sitter_ocaml,
 		.highlight_parts = editor_query_ocaml_highlight_parts,
 		.highlight_part_count = EDITOR_QUERY_OCAML_HIGHLIGHT_PART_COUNT,
+		.locals_parts = editor_query_ocaml_locals_parts,
+		.locals_part_count = EDITOR_QUERY_OCAML_LOCALS_PART_COUNT,
 		.extensions = k_ocaml_extensions
 	},
 	{
@@ -323,6 +329,8 @@ static const struct editorSyntaxLanguageDef g_languages[] = {
 		.ts_factory = tree_sitter_julia,
 		.highlight_parts = editor_query_julia_highlight_parts,
 		.highlight_part_count = EDITOR_QUERY_JULIA_HIGHLIGHT_PART_COUNT,
+		.locals_parts = editor_query_julia_locals_parts,
+		.locals_part_count = EDITOR_QUERY_JULIA_LOCALS_PART_COUNT,
 		.injection_parts = editor_query_julia_injection_parts,
 		.injection_part_count = EDITOR_QUERY_JULIA_INJECTION_PART_COUNT,
 		.extensions = k_julia_extensions
@@ -333,6 +341,8 @@ static const struct editorSyntaxLanguageDef g_languages[] = {
 		.ts_factory = tree_sitter_scala,
 		.highlight_parts = editor_query_scala_highlight_parts,
 		.highlight_part_count = EDITOR_QUERY_SCALA_HIGHLIGHT_PART_COUNT,
+		.locals_parts = editor_query_scala_locals_parts,
+		.locals_part_count = EDITOR_QUERY_SCALA_LOCALS_PART_COUNT,
 		.extensions = k_scala_extensions
 	},
 	{
