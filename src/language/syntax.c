@@ -2254,7 +2254,7 @@ static int editorSyntaxStateParseInjections(struct editorSyntaxState *state,
 		injection->depth = item->depth;
 		injection->locals_valid = 0;
 
-		if (item->depth < ROTIDE_SYNTAX_MAX_INJECTION_DEPTH &&
+		if (item->depth <= ROTIDE_SYNTAX_MAX_INJECTION_DEPTH &&
 				editorSyntaxLanguageHasInjectionQuery(item->language) &&
 				!editorSyntaxCollectInjectionRangesFromTree(state, injection->parsed.tree,
 					item->language, source, item->depth + 1, &work)) {

@@ -1679,6 +1679,93 @@ static int test_editor_syntax_parse_tree_errors_report_event_and_status(void) {
 	return 0;
 }
 
+static int test_editor_syntax_injection_depth_limit_reports_event(void) {
+	const char *source =
+			"const nested = cpp`const char *page = "
+			"R\"html(<script>const tooDeep = /abc/;</script>)html\";`;\n";
+	struct editorTextSource source_view = {0};
+	editorTextSourceInitString(&source_view, source, strlen(source));
+
+	struct editorSyntaxState *state = editorSyntaxStateCreate(EDITOR_SYNTAX_JAVASCRIPT);
+	ASSERT_TRUE(state != NULL);
+	ASSERT_TRUE(editorSyntaxStateParseFull(state, &source_view));
+
+	struct editorSyntaxLimitEvent event = {0};
+	ASSERT_TRUE(editorSyntaxStateConsumeLimitEvent(state, &event));
+	ASSERT_EQ_INT(EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_DEPTH_EXCEEDED, event.kind);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_REGEX, event.language);
+	ASSERT_EQ_INT(-1, event.row);
+	ASSERT_EQ_INT(4, event.detail);
+	ASSERT_TRUE(!editorSyntaxStateConsumeLimitEvent(state, NULL));
+	editorSyntaxStateDestroy(state);
+
+	char path[] = "/tmp/rotide-test-syntax-injection-depth-XXXXXX.js";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/javascript/injection_depth.js"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_TRUE(strstr(E.statusmsg, "Tree-sitter injection depth limit reached") != NULL);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_injection_slot_limit_reports_event(void) {
+	const char *source =
+			"const a0 = c`x`;\n"
+			"const a1 = cpp`x`;\n"
+			"const a2 = go`x`;\n"
+			"const a3 = bash`x`;\n"
+			"const a4 = html`x`;\n"
+			"const a5 = javascript`x`;\n"
+			"const a6 = jsdoc`x`;\n"
+			"const a7 = typescript`x`;\n"
+			"const a8 = css`x`;\n"
+			"const a9 = json`x`;\n"
+			"const a10 = python`x`;\n"
+			"const a11 = php`x`;\n"
+			"const a12 = rust`x`;\n"
+			"const a13 = java`x`;\n"
+			"const a14 = regex`x`;\n"
+			"const a15 = csharp`x`;\n"
+			"const a16 = haskell`x`;\n";
+	struct editorTextSource source_view = {0};
+	editorTextSourceInitString(&source_view, source, strlen(source));
+
+	struct editorSyntaxState *state = editorSyntaxStateCreate(EDITOR_SYNTAX_JAVASCRIPT);
+	ASSERT_TRUE(state != NULL);
+	ASSERT_TRUE(editorSyntaxStateParseFull(state, &source_view));
+
+	struct editorSyntaxLimitEvent event = {0};
+	ASSERT_TRUE(editorSyntaxStateConsumeLimitEvent(state, &event));
+	ASSERT_EQ_INT(EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_SLOTS_FULL, event.kind);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HASKELL, event.language);
+	ASSERT_EQ_INT(-1, event.row);
+	ASSERT_EQ_INT(16, event.detail);
+	ASSERT_TRUE(!editorSyntaxStateConsumeLimitEvent(state, NULL));
+
+	editorSyntaxStateDestroy(state);
+	return 0;
+}
+
+static int test_editor_syntax_unknown_injection_target_is_graceful(void) {
+	const char *source = "const value = notalanguage`body`;\n";
+	struct editorTextSource source_view = {0};
+	editorTextSourceInitString(&source_view, source, strlen(source));
+
+	struct editorSyntaxState *state = editorSyntaxStateCreate(EDITOR_SYNTAX_JAVASCRIPT);
+	ASSERT_TRUE(state != NULL);
+	ASSERT_TRUE(editorSyntaxStateParseFull(state, &source_view));
+	ASSERT_TRUE(editorSyntaxStateHasTree(state));
+	ASSERT_TRUE(!editorSyntaxStateConsumeLimitEvent(state, NULL));
+	ASSERT_TRUE(!editorSyntaxStateConsumeQueryUnavailableEvent(state, NULL, NULL));
+
+	editorSyntaxStateDestroy(state);
+	return 0;
+}
+
 static int test_editor_syntax_parse_budget_is_graceful(void) {
 	size_t source_len = 0;
 	char *source = build_repeated_text("function item(){ return 1; }\n", 120000, &source_len);
@@ -2093,6 +2180,9 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_collect_c_captures_without_injection_query_is_graceful", test_editor_syntax_collect_c_captures_without_injection_query_is_graceful},
 	{"editor_syntax_capture_truncation_reports_event_and_keeps_span_limit", test_editor_syntax_capture_truncation_reports_event_and_keeps_span_limit},
 	{"editor_syntax_parse_tree_errors_report_event_and_status", test_editor_syntax_parse_tree_errors_report_event_and_status},
+	{"editor_syntax_injection_depth_limit_reports_event", test_editor_syntax_injection_depth_limit_reports_event},
+	{"editor_syntax_injection_slot_limit_reports_event", test_editor_syntax_injection_slot_limit_reports_event},
+	{"editor_syntax_unknown_injection_target_is_graceful", test_editor_syntax_unknown_injection_target_is_graceful},
 	{"editor_syntax_parse_budget_is_graceful", test_editor_syntax_parse_budget_is_graceful},
 	{"editor_syntax_incremental_provider_parse_keeps_tree_valid", test_editor_syntax_incremental_provider_parse_keeps_tree_valid},
 	{"editor_syntax_large_file_stays_enabled_in_degraded_mode", test_editor_syntax_large_file_stays_enabled_in_degraded_mode},
