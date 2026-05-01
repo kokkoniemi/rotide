@@ -3,6 +3,7 @@
 # Editor:
 # - cursor_style = "block" | "bar" | "underline" (case-insensitive)
 # - Invalid cursor_style values fall back to "bar" with a warning
+# - cursor_blink = true|false (default true)
 # - line_wrap = true|false (soft wraps long file rows; default false)
 # - line_numbers = true|false (absolute line-number gutter; default true)
 # - current_line_highlight = true|false (subtle active-row background; default true)
@@ -52,6 +53,7 @@
 
 [editor]
 cursor_style = "bar"
+cursor_blink = true
 line_wrap = false
 line_numbers = true
 current_line_highlight = true

@@ -17,6 +17,13 @@ enum editorLineWrapLoadStatus {
 	EDITOR_LINE_WRAP_LOAD_OUT_OF_MEMORY = 1 << 2
 };
 
+enum editorCursorBlinkLoadStatus {
+	EDITOR_CURSOR_BLINK_LOAD_OK = 0,
+	EDITOR_CURSOR_BLINK_LOAD_INVALID_GLOBAL = 1 << 0,
+	EDITOR_CURSOR_BLINK_LOAD_INVALID_PROJECT = 1 << 1,
+	EDITOR_CURSOR_BLINK_LOAD_OUT_OF_MEMORY = 1 << 2
+};
+
 enum editorLineNumbersLoadStatus {
 	EDITOR_LINE_NUMBERS_LOAD_OK = 0,
 	EDITOR_LINE_NUMBERS_LOAD_INVALID_GLOBAL = 1 << 0,
@@ -37,6 +44,9 @@ enum editorCursorStyleLoadStatus editorCursorStyleLoadConfigured(enum editorCurs
 enum editorLineWrapLoadStatus editorLineWrapLoadFromPaths(int *line_wrap_out,
 		const char *global_path, const char *project_path);
 enum editorLineWrapLoadStatus editorLineWrapLoadConfigured(int *line_wrap_out);
+enum editorCursorBlinkLoadStatus editorCursorBlinkLoadFromPaths(int *cursor_blink_out,
+		const char *global_path, const char *project_path);
+enum editorCursorBlinkLoadStatus editorCursorBlinkLoadConfigured(int *cursor_blink_out);
 enum editorLineNumbersLoadStatus editorLineNumbersLoadFromPaths(int *line_numbers_out,
 		const char *global_path, const char *project_path);
 enum editorLineNumbersLoadStatus editorLineNumbersLoadConfigured(int *line_numbers_out);

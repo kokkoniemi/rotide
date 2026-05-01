@@ -512,6 +512,7 @@ struct editorConfig {
 	int drawer_project_search_previewed_col;
 	int drawer_project_search_active_tab_before;
 	enum editorCursorStyle cursor_style;
+	int cursor_blink_enabled;
 	int line_wrap_enabled;
 	int line_numbers_enabled;
 	int current_line_highlight_enabled;

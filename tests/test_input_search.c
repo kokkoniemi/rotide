@@ -2581,6 +2581,7 @@ static int test_editor_process_keypress_ctrl_q_restores_cursor_shape(void) {
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(output_len > 0);
 	ASSERT_TRUE(strstr(output, "\x1b[0 q") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b]112\x07") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[?25h") != NULL);
 	free(output);
 	return 0;
@@ -2682,6 +2683,7 @@ static int test_editor_process_keypress_eof_restores_terminal_visual_state(void)
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(output_len > 0);
 	ASSERT_TRUE(strstr(output, "\x1b[0 q") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b]112\x07") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[?25h") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[2J") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[H") != NULL);

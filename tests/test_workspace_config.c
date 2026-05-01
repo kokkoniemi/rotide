@@ -1668,6 +1668,44 @@ static int test_editor_cursor_style_invalid_setting_does_not_break_keymap_loadin
 	return 0;
 }
 
+static int test_editor_cursor_blink_load_precedence_and_invalid_fallback(void) {
+	char dir_template[] = "/tmp/rotide-test-cursor-blink-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char global_path[512];
+	char project_path[512];
+	ASSERT_TRUE(path_join(global_path, sizeof(global_path), dir_path, "global.toml"));
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
+
+	ASSERT_TRUE(write_text_file(global_path,
+				"[editor]\n"
+				"cursor_blink = true\n"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[editor]\n"
+				"cursor_blink = false\n"
+				"cursor_style = \"underline\"\n"));
+
+	int cursor_blink = 1;
+	enum editorCursorBlinkLoadStatus status =
+			editorCursorBlinkLoadFromPaths(&cursor_blink, global_path, project_path);
+	ASSERT_EQ_INT(EDITOR_CURSOR_BLINK_LOAD_OK, status);
+	ASSERT_EQ_INT(0, cursor_blink);
+
+	ASSERT_TRUE(write_text_file(project_path,
+				"[editor]\n"
+				"cursor_blink = maybe\n"));
+	cursor_blink = 0;
+	status = editorCursorBlinkLoadFromPaths(&cursor_blink, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_CURSOR_BLINK_LOAD_INVALID_PROJECT, status);
+	ASSERT_EQ_INT(1, cursor_blink);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(unlink(global_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 static int test_editor_line_wrap_load_valid_bool_values(void) {
 	char dir_template[] = "/tmp/rotide-test-line-wrap-valid-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -1875,6 +1913,7 @@ static int test_editor_view_bool_invalid_settings_do_not_break_keymap_loading(vo
 				"[editor]\n"
 				"line_numbers = maybe\n"
 				"current_line_highlight = maybe\n"
+				"cursor_blink = maybe\n"
 				"cursor_style = \"bar\"\n"
 				"[keymap]\n"
 				"toggle_line_numbers = \"alt+n\"\n"
@@ -1903,6 +1942,12 @@ static int test_editor_view_bool_invalid_settings_do_not_break_keymap_loading(vo
 	ASSERT_EQ_INT(EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_INVALID_PROJECT,
 			current_line_highlight_status);
 	ASSERT_EQ_INT(1, current_line_highlight);
+
+	int cursor_blink = 0;
+	enum editorCursorBlinkLoadStatus cursor_blink_status =
+			editorCursorBlinkLoadFromPaths(&cursor_blink, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_CURSOR_BLINK_LOAD_INVALID_PROJECT, cursor_blink_status);
+	ASSERT_EQ_INT(1, cursor_blink);
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(rmdir(dir_path) == 0);
@@ -2357,6 +2402,7 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_cursor_style_invalid_values_fallback_to_bar", test_editor_cursor_style_invalid_values_fallback_to_bar},
 	{"editor_cursor_style_load_configured_prefers_project_over_global", test_editor_cursor_style_load_configured_prefers_project_over_global},
 	{"editor_cursor_style_invalid_setting_does_not_break_keymap_loading", test_editor_cursor_style_invalid_setting_does_not_break_keymap_loading},
+	{"editor_cursor_blink_load_precedence_and_invalid_fallback", test_editor_cursor_blink_load_precedence_and_invalid_fallback},
 	{"editor_line_wrap_load_valid_bool_values", test_editor_line_wrap_load_valid_bool_values},
 	{"editor_line_wrap_global_then_project_precedence", test_editor_line_wrap_global_then_project_precedence},
 	{"editor_line_wrap_invalid_values_fallback_to_false", test_editor_line_wrap_invalid_values_fallback_to_false},

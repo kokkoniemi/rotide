@@ -139,6 +139,7 @@ void initEditor(void) {
 	E.drawer_project_search_previewed_col = 0;
 	E.drawer_project_search_active_tab_before = -1;
 	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;
+	E.cursor_blink_enabled = 1;
 	E.line_wrap_enabled = 0;
 	E.line_numbers_enabled = 1;
 	E.current_line_highlight_enabled = 1;
@@ -168,6 +169,8 @@ int main(int argc, char *argv[]) {
 	enum editorKeymapLoadStatus keymap_status = editorKeymapLoadConfigured(&E.keymap);
 	enum editorCursorStyleLoadStatus cursor_style_status =
 			editorCursorStyleLoadConfigured(&E.cursor_style);
+	enum editorCursorBlinkLoadStatus cursor_blink_status =
+			editorCursorBlinkLoadConfigured(&E.cursor_blink_enabled);
 	enum editorLineWrapLoadStatus line_wrap_status =
 			editorLineWrapLoadConfigured(&E.line_wrap_enabled);
 	enum editorLineNumbersLoadStatus line_numbers_status =
@@ -201,6 +204,7 @@ int main(int argc, char *argv[]) {
 		editorSetStatusMsg("Invalid global keymap config, ignoring ~/.rotide/config.toml");
 	} else if (keymap_status == EDITOR_KEYMAP_LOAD_OUT_OF_MEMORY ||
 			(cursor_style_status & EDITOR_CURSOR_STYLE_LOAD_OUT_OF_MEMORY) != 0 ||
+			(cursor_blink_status & EDITOR_CURSOR_BLINK_LOAD_OUT_OF_MEMORY) != 0 ||
 			(line_wrap_status & EDITOR_LINE_WRAP_LOAD_OUT_OF_MEMORY) != 0 ||
 			(line_numbers_status & EDITOR_LINE_NUMBERS_LOAD_OUT_OF_MEMORY) != 0 ||
 			(current_line_highlight_status &
@@ -222,6 +226,13 @@ int main(int argc, char *argv[]) {
 		editorSetStatusMsg("Invalid cursor_style in ./.rotide.toml, using bar");
 	} else if ((cursor_style_status & EDITOR_CURSOR_STYLE_LOAD_INVALID_GLOBAL) != 0) {
 		editorSetStatusMsg("Invalid cursor_style in ~/.rotide/config.toml, using bar");
+	} else if ((cursor_blink_status & EDITOR_CURSOR_BLINK_LOAD_INVALID_GLOBAL) != 0 &&
+			(cursor_blink_status & EDITOR_CURSOR_BLINK_LOAD_INVALID_PROJECT) != 0) {
+		editorSetStatusMsg("Invalid cursor_blink in global/project config, using true");
+	} else if ((cursor_blink_status & EDITOR_CURSOR_BLINK_LOAD_INVALID_PROJECT) != 0) {
+		editorSetStatusMsg("Invalid cursor_blink in ./.rotide.toml, using true");
+	} else if ((cursor_blink_status & EDITOR_CURSOR_BLINK_LOAD_INVALID_GLOBAL) != 0) {
+		editorSetStatusMsg("Invalid cursor_blink in ~/.rotide/config.toml, using true");
 	} else if ((line_wrap_status & EDITOR_LINE_WRAP_LOAD_INVALID_GLOBAL) != 0 &&
 			(line_wrap_status & EDITOR_LINE_WRAP_LOAD_INVALID_PROJECT) != 0) {
 		editorSetStatusMsg("Invalid line_wrap in global/project config, using false");

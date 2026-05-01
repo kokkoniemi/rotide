@@ -126,6 +126,7 @@ void reset_editor_state(void) {
 	E.drawer_search_active_tab_before = -1;
 	E.drawer_project_search_active_tab_before = -1;
 	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;
+	E.cursor_blink_enabled = 1;
 	E.line_wrap_enabled = 0;
 	E.line_numbers_enabled = 1;
 	E.current_line_highlight_enabled = 1;

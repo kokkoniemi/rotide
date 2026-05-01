@@ -24,6 +24,7 @@
 #define VT100_RESET_CURSOR_POS_3 "\x1b[H"
 #define VT100_SHOW_CURSOR_6 "\x1b[?25h"
 #define VT100_CURSOR_DEFAULT_5 "\x1b[0 q"
+#define VT100_CURSOR_COLOR_DEFAULT "\x1b]112\x07"
 #define VT100_ENABLE_MOUSE "\x1b[?1000h\x1b[?1002h\x1b[?1006h"
 #define VT100_DISABLE_MOUSE "\x1b[?1000l\x1b[?1002l\x1b[?1006l"
 #define OSC52_PLAIN_PREFIX "\x1b]52;c;"
@@ -479,6 +480,8 @@ int editorRefreshWindowSize(void) {
 
 static void editorRestoreCursorVisualState(void) {
 	(void)editorWriteAll(STDOUT_FILENO, VT100_CURSOR_DEFAULT_5, sizeof(VT100_CURSOR_DEFAULT_5) - 1);
+	(void)editorWriteAll(STDOUT_FILENO, VT100_CURSOR_COLOR_DEFAULT,
+			sizeof(VT100_CURSOR_COLOR_DEFAULT) - 1);
 	(void)editorWriteAll(STDOUT_FILENO, VT100_SHOW_CURSOR_6, sizeof(VT100_SHOW_CURSOR_6) - 1);
 }
 

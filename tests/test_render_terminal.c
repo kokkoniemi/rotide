@@ -1953,7 +1953,8 @@ static int test_editor_refresh_screen_contains_expected_sequences(void) {
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(output_len > 0);
 	ASSERT_TRUE(strstr(output, "\x1b[?25l") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[6 q") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b]12;white\a") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[5 q") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[?25h") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[7m") != NULL);
 	ASSERT_TRUE(strstr(output, "first line") != NULL);
@@ -2005,6 +2006,25 @@ static int test_editor_refresh_screen_uses_configured_cursor_style(void) {
 	E.cursor_style = EDITOR_CURSOR_STYLE_BLOCK;
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[1 q") != NULL);
+	free(output);
+
+	E.cursor_style = EDITOR_CURSOR_STYLE_UNDERLINE;
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[3 q") != NULL);
+	free(output);
+
+	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;
+	E.cursor_blink_enabled = 0;
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[6 q") != NULL);
+	free(output);
+
+	E.cursor_style = EDITOR_CURSOR_STYLE_BLOCK;
+	output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[2 q") != NULL);
 	free(output);

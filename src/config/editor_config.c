@@ -449,6 +449,69 @@ static enum editorBoolFileStatus editorBoolApplyConfigFile(int *bool_in_out,
 	return EDITOR_BOOL_FILE_APPLIED;
 }
 
+enum editorCursorBlinkLoadStatus editorCursorBlinkLoadFromPaths(int *cursor_blink_out,
+		const char *global_path, const char *project_path) {
+	if (cursor_blink_out == NULL) {
+		return EDITOR_CURSOR_BLINK_LOAD_OUT_OF_MEMORY;
+	}
+
+	int cursor_blink = 1;
+	enum editorCursorBlinkLoadStatus status = EDITOR_CURSOR_BLINK_LOAD_OK;
+
+	if (global_path != NULL) {
+		enum editorBoolFileStatus global_status =
+				editorBoolApplyConfigFile(&cursor_blink, global_path, "cursor_blink");
+		if (global_status == EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
+			*cursor_blink_out = 1;
+			return EDITOR_CURSOR_BLINK_LOAD_OUT_OF_MEMORY;
+		}
+		if (global_status == EDITOR_BOOL_FILE_INVALID) {
+			cursor_blink = 1;
+			status = (enum editorCursorBlinkLoadStatus)(
+					status | EDITOR_CURSOR_BLINK_LOAD_INVALID_GLOBAL);
+		}
+	}
+
+	if (project_path != NULL) {
+		enum editorBoolFileStatus project_status =
+				editorBoolApplyConfigFile(&cursor_blink, project_path, "cursor_blink");
+		if (project_status == EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
+			*cursor_blink_out = 1;
+			return EDITOR_CURSOR_BLINK_LOAD_OUT_OF_MEMORY;
+		}
+		if (project_status == EDITOR_BOOL_FILE_INVALID) {
+			cursor_blink = 1;
+			status = (enum editorCursorBlinkLoadStatus)(
+					status | EDITOR_CURSOR_BLINK_LOAD_INVALID_PROJECT);
+		}
+	}
+
+	*cursor_blink_out = cursor_blink;
+	return status;
+}
+
+enum editorCursorBlinkLoadStatus editorCursorBlinkLoadConfigured(int *cursor_blink_out) {
+	if (cursor_blink_out == NULL) {
+		return EDITOR_CURSOR_BLINK_LOAD_OUT_OF_MEMORY;
+	}
+
+	const char *home = getenv("HOME");
+	if (home == NULL || home[0] == '\0') {
+		return editorCursorBlinkLoadFromPaths(cursor_blink_out, NULL, ".rotide.toml");
+	}
+
+	char *global_path = editorConfigBuildGlobalConfigPath();
+	if (global_path == NULL) {
+		*cursor_blink_out = 1;
+		return EDITOR_CURSOR_BLINK_LOAD_OUT_OF_MEMORY;
+	}
+
+	enum editorCursorBlinkLoadStatus status =
+			editorCursorBlinkLoadFromPaths(cursor_blink_out, global_path, ".rotide.toml");
+	free(global_path);
+	return status;
+}
+
 enum editorLineNumbersLoadStatus editorLineNumbersLoadFromPaths(int *line_numbers_out,
 		const char *global_path, const char *project_path) {
 	if (line_numbers_out == NULL) {
