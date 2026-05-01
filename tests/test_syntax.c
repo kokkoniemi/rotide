@@ -1754,6 +1754,8 @@ static int test_editor_syntax_parse_tree_errors_report_event_and_status(void) {
 }
 
 static int test_editor_syntax_injection_depth_limit_reports_event(void) {
+	editorSyntaxTestSetMaxInjectionDepth(3);
+
 	const char *source =
 			"const nested = cpp`const char *page = "
 			"R\"html(<script>const tooDeep = /abc/;</script>)html\";`;\n";
@@ -1783,6 +1785,7 @@ static int test_editor_syntax_injection_depth_limit_reports_event(void) {
 	ASSERT_TRUE(strstr(E.statusmsg, "Tree-sitter injection depth limit reached") != NULL);
 
 	ASSERT_TRUE(unlink(path) == 0);
+	editorSyntaxTestResetMaxInjectionDepth();
 	return 0;
 }
 

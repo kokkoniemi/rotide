@@ -124,6 +124,8 @@ void editorSyntaxTestSetBudgetOverrides(int enabled,
 		uint64_t parse_time_budget_ns);
 void editorSyntaxTestResetBudgetOverrides(void);
 int editorSyntaxTestBudgetOverridesEnabled(void);
+void editorSyntaxTestSetMaxInjectionDepth(int depth);
+void editorSyntaxTestResetMaxInjectionDepth(void);
 int editorSyntaxTestCaptureRuleCount(void);
 int editorSyntaxTestCaptureRuleAt(int idx, const char **prefix_out,
 		enum editorSyntaxHighlightClass *class_out);

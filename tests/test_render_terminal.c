@@ -795,15 +795,15 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_markdown_t
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	/* atx_heading body is highlighted via the @keyword class
-	 * (theme bright blue, ANSI \x1b[94m). */
-	ASSERT_TRUE(strstr(output, "\x1b[94m Heading\x1b[39m") != NULL);
+	/* Upstream highlights captures only the (inline) inside an atx_heading
+	 * via @text.title -> @keyword (theme bright blue, ANSI \x1b[94m). */
+	ASSERT_TRUE(strstr(output, "\x1b[94mHeading\x1b[39m") != NULL);
 	/* code_span (the injected markdown_inline grammar's match for the
-	 * `inline code` span) is highlighted via @string (theme green, ANSI
-	 * \x1b[32m). The code_span_delimiter backticks render as @punctuation
-	 * (default color), which over-paints the span ends, so we assert the
-	 * green escape appears around the inner span text. This proves
-	 * block-to-inline injection routes through correctly. */
+	 * `inline code` span) is highlighted via @text.literal -> @string
+	 * (theme green, ANSI \x1b[32m). The code_span_delimiter backticks
+	 * render as @punctuation.delimiter (default color) and over-paint the
+	 * span ends, so we assert the green escape appears around the inner
+	 * span text. This proves block-to-inline injection routes through. */
 	ASSERT_TRUE(strstr(output, "\x1b[32minline code") != NULL);
 	free(output);
 
@@ -825,13 +825,17 @@ static int test_editor_refresh_screen_applies_markdown_code_fence_injection(void
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	/* The `python` info_string -> @type (theme bright cyan, ANSI \x1b[96m). */
-	ASSERT_TRUE(strstr(output, "\x1b[96mpython\x1b[39m") != NULL);
-	/* The integer literals inside the fenced block render as @number
-	 * (theme magenta, ANSI \x1b[35m), proving the python parser ran on
-	 * the code-fence content. */
-	ASSERT_TRUE(strstr(output, "\x1b[35m1\x1b[39m") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[35m2\x1b[39m") != NULL);
+	/* The whole (fenced_code_block) is captured as @text.literal -> @string
+	 * (theme green, ANSI \x1b[32m); the inner (language) node inherits it,
+	 * so the language tag shows up in green. */
+	ASSERT_TRUE(strstr(output, "\x1b[32mpython") != NULL);
+	/* (code_fence_content) is @none in upstream, deferring to the python
+	 * injection. The integer literals inside render as @number (theme
+	 * magenta, ANSI \x1b[35m), proving the python parser ran on the
+	 * code-fence content. The host @text.literal green resumes after each
+	 * injected token, so we only assert the opening number escape. */
+	ASSERT_TRUE(strstr(output, "\x1b[35m1") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m2") != NULL);
 	free(output);
 
 	ASSERT_TRUE(unlink(path) == 0);

@@ -15,6 +15,8 @@
 #include "language/languages.h"
 #include "language/syntax_internal.h"
 
+int g_editor_syntax_max_injection_depth = ROTIDE_SYNTAX_DEFAULT_MAX_INJECTION_DEPTH;
+
 static int g_syntax_test_full_parse_failures = 0;
 static int g_syntax_test_incremental_parse_failures = 0;
 
@@ -2227,7 +2229,7 @@ static int editorSyntaxStateParseInjections(struct editorSyntaxState *state,
 
 	for (int work_idx = 0; ok && work_idx < work.count; work_idx++) {
 		struct editorSyntaxInjectionWorkItem *item = &work.items[work_idx];
-		if (item->depth > ROTIDE_SYNTAX_MAX_INJECTION_DEPTH) {
+		if (item->depth > g_editor_syntax_max_injection_depth) {
 			editorSyntaxStateRecordInjectionDepthExceeded(state, item->language, item->depth);
 			continue;
 		}
@@ -2260,7 +2262,7 @@ static int editorSyntaxStateParseInjections(struct editorSyntaxState *state,
 		injection->depth = item->depth;
 		injection->locals_valid = 0;
 
-		if (item->depth <= ROTIDE_SYNTAX_MAX_INJECTION_DEPTH &&
+		if (item->depth <= g_editor_syntax_max_injection_depth &&
 				editorSyntaxLanguageHasInjectionQuery(item->language) &&
 				!editorSyntaxCollectInjectionRangesFromTree(state, injection->parsed.tree,
 					item->language, source, item->depth + 1, &work)) {
@@ -2793,4 +2795,13 @@ void editorSyntaxTestSetParseFailureCountdowns(int full_parse_failures,
 
 void editorSyntaxTestResetParseFailureCountdowns(void) {
 	editorSyntaxTestSetParseFailureCountdowns(0, 0);
+}
+
+void editorSyntaxTestSetMaxInjectionDepth(int depth) {
+	g_editor_syntax_max_injection_depth = depth > 0 ? depth :
+			ROTIDE_SYNTAX_DEFAULT_MAX_INJECTION_DEPTH;
+}
+
+void editorSyntaxTestResetMaxInjectionDepth(void) {
+	g_editor_syntax_max_injection_depth = ROTIDE_SYNTAX_DEFAULT_MAX_INJECTION_DEPTH;
 }
