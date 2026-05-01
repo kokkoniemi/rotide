@@ -1218,8 +1218,10 @@ static int editorResolveMouseToBufferOffset(const struct editorMouseEvent *event
 
 	int row_idx = E.rowoff + mouse_row;
 	int segment_coloff = E.coloff;
+	int segment_indent_cols = 0;
 	if (E.line_wrap_enabled) {
-		if (!editorViewportTextScreenRowToBufferRow(mouse_row, &row_idx, &segment_coloff)) {
+		if (!editorViewportTextScreenRowToBufferPosition(mouse_row, &row_idx, &segment_coloff,
+					&segment_indent_cols)) {
 			return 0;
 		}
 	}
@@ -1237,9 +1239,9 @@ static int editorResolveMouseToBufferOffset(const struct editorMouseEvent *event
 		}
 	}
 
-	int target_rx = segment_coloff + mouse_col;
-	if (target_rx < 0) {
-		target_rx = 0;
+	int target_rx = segment_coloff + mouse_col - segment_indent_cols;
+	if (target_rx < segment_coloff) {
+		target_rx = segment_coloff;
 	}
 
 	// Convert rendered column -> buffer byte index while respecting grapheme boundaries.
