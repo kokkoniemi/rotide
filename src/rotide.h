@@ -252,6 +252,8 @@ enum editorAction {
 	EDITOR_ACTION_RESIZE_DRAWER_NARROW,
 	EDITOR_ACTION_RESIZE_DRAWER_WIDEN,
 	EDITOR_ACTION_TOGGLE_LINE_WRAP,
+	EDITOR_ACTION_TOGGLE_LINE_NUMBERS,
+	EDITOR_ACTION_TOGGLE_CURRENT_LINE_HIGHLIGHT,
 	EDITOR_ACTION_FIND_FILE,
 	EDITOR_ACTION_PROJECT_SEARCH,
 	EDITOR_ACTION_FIND,
@@ -511,6 +513,8 @@ struct editorConfig {
 	int drawer_project_search_active_tab_before;
 	enum editorCursorStyle cursor_style;
 	int line_wrap_enabled;
+	int line_numbers_enabled;
+	int current_line_highlight_enabled;
 	enum editorThemeColor syntax_theme[EDITOR_SYNTAX_HL_CLASS_COUNT];
 	enum editorViewportMode viewport_mode;
 	enum editorPaneFocus pane_focus;

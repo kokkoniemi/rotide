@@ -809,6 +809,46 @@ static int test_editor_process_keypress_alt_z_toggles_line_wrap_without_dirty(vo
 	return 0;
 }
 
+static int test_editor_process_keypress_alt_n_toggles_line_numbers_without_dirty(void) {
+	add_row("line");
+	E.window_rows = 4;
+	E.window_cols = 20;
+	E.line_numbers_enabled = 1;
+	E.dirty = 7;
+
+	const char alt_n[] = "\x1bn";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_n, sizeof(alt_n) - 1) == 0);
+	ASSERT_EQ_INT(0, E.line_numbers_enabled);
+	ASSERT_EQ_INT(7, E.dirty);
+	ASSERT_EQ_STR("Line numbers disabled", E.statusmsg);
+
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_n, sizeof(alt_n) - 1) == 0);
+	ASSERT_EQ_INT(1, E.line_numbers_enabled);
+	ASSERT_EQ_INT(7, E.dirty);
+	ASSERT_EQ_STR("Line numbers enabled", E.statusmsg);
+	return 0;
+}
+
+static int test_editor_process_keypress_alt_h_toggles_current_line_highlight_without_dirty(void) {
+	add_row("line");
+	E.window_rows = 4;
+	E.window_cols = 20;
+	E.current_line_highlight_enabled = 1;
+	E.dirty = 7;
+
+	const char alt_h[] = "\x1bh";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_h, sizeof(alt_h) - 1) == 0);
+	ASSERT_EQ_INT(0, E.current_line_highlight_enabled);
+	ASSERT_EQ_INT(7, E.dirty);
+	ASSERT_EQ_STR("Current-line highlight disabled", E.statusmsg);
+
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_h, sizeof(alt_h) - 1) == 0);
+	ASSERT_EQ_INT(1, E.current_line_highlight_enabled);
+	ASSERT_EQ_INT(7, E.dirty);
+	ASSERT_EQ_STR("Current-line highlight enabled", E.statusmsg);
+	return 0;
+}
+
 static int test_editor_process_keypress_mouse_left_click_places_cursor_with_offsets(void) {
 	add_row("0123456789");
 	add_row("abcdefghij");
@@ -829,11 +869,37 @@ static int test_editor_process_keypress_mouse_left_click_places_cursor_with_offs
 	return 0;
 }
 
+static int test_editor_process_keypress_mouse_click_maps_same_column_with_line_numbers(void) {
+	add_row("0123456789");
+	E.window_rows = 4;
+	E.window_cols = 24;
+	E.rowoff = 0;
+	E.coloff = 0;
+	ASSERT_TRUE(editorDrawerSetWidthForCols(1, E.window_cols));
+
+	char click[32];
+	E.line_numbers_enabled = 0;
+	int text_start = editorTextBodyStartColForCols(E.window_cols);
+	ASSERT_TRUE(format_sgr_mouse_event(click, sizeof(click), 0, text_start + 5, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click, strlen(click)) == 0);
+	ASSERT_EQ_INT(4, E.cx);
+
+	E.cy = 0;
+	E.cx = 0;
+	E.line_numbers_enabled = 1;
+	text_start = editorTextBodyStartColForCols(E.window_cols);
+	ASSERT_TRUE(format_sgr_mouse_event(click, sizeof(click), 0, text_start + 5, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click, strlen(click)) == 0);
+	ASSERT_EQ_INT(4, E.cx);
+	return 0;
+}
+
 static int test_editor_process_keypress_mouse_left_click_places_cursor_on_wrapped_segment(void) {
 	add_row("abcdefghijklmn");
 	E.window_rows = 4;
 	E.window_cols = 10;
 	E.line_wrap_enabled = 1;
+	E.line_numbers_enabled = 0;
 	E.rowoff = 0;
 	E.wrapoff = 0;
 	E.coloff = 0;
@@ -1645,6 +1711,7 @@ static int test_editor_process_keypress_mouse_drag_clamps_to_viewport_without_au
 	}
 	E.window_rows = 3;
 	E.window_cols = 10;
+	E.line_numbers_enabled = 0;
 	E.rowoff = 2;
 	E.coloff = 1;
 	E.cy = 0;
@@ -2941,7 +3008,10 @@ const struct editorTestCase g_input_search_tests[] = {
 	{"editor_process_keypress_ctrl_s_saves_file", test_editor_process_keypress_ctrl_s_saves_file},
 	{"editor_process_keypress_resize_event_updates_window_size", test_editor_process_keypress_resize_event_updates_window_size},
 	{"editor_process_keypress_alt_z_toggles_line_wrap_without_dirty", test_editor_process_keypress_alt_z_toggles_line_wrap_without_dirty},
+	{"editor_process_keypress_alt_n_toggles_line_numbers_without_dirty", test_editor_process_keypress_alt_n_toggles_line_numbers_without_dirty},
+	{"editor_process_keypress_alt_h_toggles_current_line_highlight_without_dirty", test_editor_process_keypress_alt_h_toggles_current_line_highlight_without_dirty},
 	{"editor_process_keypress_mouse_left_click_places_cursor_with_offsets", test_editor_process_keypress_mouse_left_click_places_cursor_with_offsets},
+	{"editor_process_keypress_mouse_click_maps_same_column_with_line_numbers", test_editor_process_keypress_mouse_click_maps_same_column_with_line_numbers},
 	{"editor_process_keypress_mouse_left_click_places_cursor_on_wrapped_segment", test_editor_process_keypress_mouse_left_click_places_cursor_on_wrapped_segment},
 	{"editor_process_keypress_mouse_ctrl_click_does_not_start_drag_selection", test_editor_process_keypress_mouse_ctrl_click_does_not_start_drag_selection},
 	{"editor_process_keypress_mouse_left_click_ignores_non_text_rows", test_editor_process_keypress_mouse_left_click_ignores_non_text_rows},

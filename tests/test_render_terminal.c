@@ -3,6 +3,20 @@
 #include "workspace/file_search.h"
 #include "workspace/project_search.h"
 
+static int count_substrings(const char *haystack, const char *needle) {
+	int count = 0;
+	size_t needle_len = strlen(needle);
+	if (needle_len == 0) {
+		return 0;
+	}
+	const char *cursor = haystack;
+	while ((cursor = strstr(cursor, needle)) != NULL) {
+		count++;
+		cursor += needle_len;
+	}
+	return count;
+}
+
 static int test_editor_refresh_screen_highlights_active_search_match(void) {
 	add_row("prefix alpha suffix");
 	E.window_rows = 3;
@@ -1403,6 +1417,7 @@ static int test_editor_refresh_screen_renders_drawer_entries_and_selection(void)
 	E.pane_focus = EDITOR_PANE_DRAWER;
 	E.window_rows = 4;
 	E.window_cols = 40;
+	E.line_numbers_enabled = 0;
 	add_row("body");
 	struct editorDrawerEntryView root_view;
 	ASSERT_TRUE(editorDrawerGetVisibleEntry(0, &root_view));
@@ -1795,6 +1810,7 @@ static int test_editor_refresh_screen_hides_cursor_when_offscreen_in_free_scroll
 }
 
 static int test_editor_drawer_layout_clamps_tiny_widths(void) {
+	E.line_numbers_enabled = 0;
 	ASSERT_EQ_INT(0, editorDrawerWidthForCols(1));
 	ASSERT_EQ_INT(1, editorDrawerTextViewportCols(1));
 	ASSERT_EQ_INT(0, editorTextBodyStartColForCols(1));
@@ -1830,6 +1846,91 @@ static int test_editor_drawer_layout_clamps_tiny_widths(void) {
 	ASSERT_TRUE(editorDrawerResizeByDeltaForCols(50, 10));
 	ASSERT_EQ_INT(8, editorDrawerWidthForCols(10));
 	ASSERT_EQ_INT(1, editorDrawerTextViewportCols(10));
+	return 0;
+}
+
+static int test_editor_line_number_gutter_width_and_absolute_numbers(void) {
+	for (int i = 0; i < 12; i++) {
+		add_row("x");
+	}
+	E.window_rows = 12;
+	E.window_cols = 40;
+	E.line_numbers_enabled = 1;
+	E.current_line_highlight_enabled = 0;
+	ASSERT_TRUE(editorDrawerSetWidthForCols(1, E.window_cols));
+
+	ASSERT_EQ_INT(3, editorLineNumberGutterColsForCols(E.window_cols));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m 1 \x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m12 \x1b[39m") != NULL);
+	free(output);
+	return 0;
+}
+
+static int test_editor_line_numbers_disabled_removes_gutter(void) {
+	add_row("alpha");
+	E.window_rows = 3;
+	E.window_cols = 24;
+	E.line_numbers_enabled = 0;
+	E.current_line_highlight_enabled = 0;
+	ASSERT_TRUE(editorDrawerSetWidthForCols(1, E.window_cols));
+
+	ASSERT_EQ_INT(0, editorLineNumberGutterColsForCols(E.window_cols));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "alpha") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m1 \x1b[39m") == NULL);
+	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_highlights_current_line(void) {
+	add_row("first");
+	add_row("second");
+	E.window_rows = 3;
+	E.window_cols = 30;
+	E.cy = 1;
+	E.cx = 0;
+	E.current_line_highlight_enabled = 1;
+	ASSERT_TRUE(editorDrawerSetWidthForCols(1, E.window_cols));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_EQ_INT(1, count_substrings(output, "\x1b[48;5;236m"));
+	ASSERT_TRUE(strstr(output, "second") != NULL);
+	free(output);
+
+	E.current_line_highlight_enabled = 0;
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_EQ_INT(0, count_substrings(output, "\x1b[48;5;236m"));
+	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_wrap_continuation_does_not_repeat_line_number(void) {
+	add_row("abcdefghijklmn");
+	E.window_rows = 4;
+	E.window_cols = 14;
+	E.line_wrap_enabled = 1;
+	E.line_numbers_enabled = 1;
+	E.current_line_highlight_enabled = 0;
+	E.rowoff = 0;
+	E.wrapoff = 0;
+	ASSERT_TRUE(editorDrawerSetWidthForCols(1, E.window_cols));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_EQ_INT(1, count_substrings(output, "\x1b[90m1 \x1b[39m"));
+	ASSERT_TRUE(strstr(output, "\x1b[90m\xE2\x86\xB3\x1b[39m") != NULL);
+	free(output);
 	return 0;
 }
 
@@ -1994,6 +2095,7 @@ static int test_editor_refresh_screen_wraps_long_line_with_continuation_marker(v
 	E.window_rows = 4;
 	E.window_cols = 10;
 	E.line_wrap_enabled = 1;
+	E.line_numbers_enabled = 0;
 	E.rowoff = 0;
 	E.wrapoff = 0;
 	E.coloff = 4;
@@ -2017,6 +2119,7 @@ static int test_editor_refresh_screen_wrap_exact_width_has_no_continuation_marke
 	E.window_rows = 3;
 	E.window_cols = 10;
 	E.line_wrap_enabled = 1;
+	E.line_numbers_enabled = 0;
 	E.rowoff = 0;
 	E.wrapoff = 0;
 	ASSERT_TRUE(editorDrawerSetWidthForCols(1, E.window_cols));
@@ -2035,6 +2138,7 @@ static int test_editor_refresh_screen_wrap_cursor_uses_visual_segment(void) {
 	E.window_rows = 4;
 	E.window_cols = 10;
 	E.line_wrap_enabled = 1;
+	E.line_numbers_enabled = 0;
 	E.rowoff = 0;
 	E.wrapoff = 0;
 	E.cy = 0;
@@ -2150,6 +2254,7 @@ static int test_editor_refresh_screen_slice_after_multibyte_scroll(void) {
 	add_row("\xC3\xB6XYZ");
 	E.window_rows = 3;
 	E.window_cols = 10;
+	E.line_numbers_enabled = 0;
 	E.cy = 0;
 	E.cx = 2;
 	E.coloff = 1;
@@ -2336,6 +2441,10 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_project_search_header_shows_cursor", test_editor_refresh_screen_project_search_header_shows_cursor},
 	{"editor_refresh_screen_hides_cursor_when_offscreen_in_free_scroll", test_editor_refresh_screen_hides_cursor_when_offscreen_in_free_scroll},
 	{"editor_drawer_layout_clamps_tiny_widths", test_editor_drawer_layout_clamps_tiny_widths},
+	{"editor_line_number_gutter_width_and_absolute_numbers", test_editor_line_number_gutter_width_and_absolute_numbers},
+	{"editor_line_numbers_disabled_removes_gutter", test_editor_line_numbers_disabled_removes_gutter},
+	{"editor_refresh_screen_highlights_current_line", test_editor_refresh_screen_highlights_current_line},
+	{"editor_refresh_screen_wrap_continuation_does_not_repeat_line_number", test_editor_refresh_screen_wrap_continuation_does_not_repeat_line_number},
 	{"editor_refresh_screen_hides_expired_message", test_editor_refresh_screen_hides_expired_message},
 	{"editor_refresh_screen_shows_right_overflow_indicator", test_editor_refresh_screen_shows_right_overflow_indicator},
 	{"editor_refresh_screen_shows_left_overflow_indicator", test_editor_refresh_screen_shows_left_overflow_indicator},

@@ -1647,6 +1647,20 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			editorSetStatusMsg("Line wrap %s", E.line_wrap_enabled ? "enabled" : "disabled");
 			effects |= EDITOR_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 			break;
+		case EDITOR_ACTION_TOGGLE_LINE_NUMBERS:
+			editorHistoryBreakGroup();
+			E.line_numbers_enabled = !E.line_numbers_enabled;
+			editorViewportEnsureCursorVisible();
+			editorSetStatusMsg("Line numbers %s", E.line_numbers_enabled ? "enabled" : "disabled");
+			effects |= EDITOR_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
+			break;
+		case EDITOR_ACTION_TOGGLE_CURRENT_LINE_HIGHLIGHT:
+			editorHistoryBreakGroup();
+			E.current_line_highlight_enabled = !E.current_line_highlight_enabled;
+			editorSetStatusMsg("Current-line highlight %s",
+					E.current_line_highlight_enabled ? "enabled" : "disabled");
+			effects |= EDITOR_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
+			break;
 		case EDITOR_ACTION_FIND_FILE:
 			editorFindFile();
 			break;

@@ -501,9 +501,39 @@ int editorDrawerTextViewportCols(int total_cols) {
 	return text_cols;
 }
 
+static int editorLineNumberDigitCols(void) {
+	int rows = E.numrows > 0 ? E.numrows : 1;
+	int digits = 1;
+	while (rows >= 10) {
+		rows /= 10;
+		digits++;
+	}
+	return digits;
+}
+
+int editorLineNumberGutterColsForCols(int total_cols) {
+	if (!E.line_numbers_enabled) {
+		return 0;
+	}
+
+	int text_cols = editorDrawerTextViewportCols(total_cols);
+	if (text_cols <= 1) {
+		return 0;
+	}
+
+	int gutter_cols = editorLineNumberDigitCols() + 1;
+	if (gutter_cols >= text_cols) {
+		gutter_cols = text_cols - 1;
+	}
+	return gutter_cols;
+}
+
 int editorTextBodyStartColForCols(int total_cols) {
 	int text_start = editorDrawerTextStartColForCols(total_cols);
 	int text_cols = editorDrawerTextViewportCols(total_cols);
+	int gutter_cols = editorLineNumberGutterColsForCols(total_cols);
+	text_start += gutter_cols;
+	text_cols -= gutter_cols;
 	if (text_cols >= 3) {
 		return text_start + 1;
 	}
@@ -512,6 +542,10 @@ int editorTextBodyStartColForCols(int total_cols) {
 
 int editorTextBodyViewportCols(int total_cols) {
 	int text_cols = editorDrawerTextViewportCols(total_cols);
+	text_cols -= editorLineNumberGutterColsForCols(total_cols);
+	if (text_cols < 1) {
+		text_cols = 1;
+	}
 	if (text_cols >= 3) {
 		return text_cols - 2;
 	}

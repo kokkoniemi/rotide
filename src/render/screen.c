@@ -41,6 +41,7 @@ struct writeBuf {
 #define VT100_BOLD_OFF_5 "\x1b[22m"
 #define VT100_INVERTED_COLORS_4 "\x1b[7m"
 #define VT100_NORMAL_COLORS_3 "\x1b[m"
+#define VT100_BG_CURRENT_LINE "\x1b[48;5;236m"
 #define VT100_FG_BLACK_5 "\x1b[30m"
 #define VT100_FG_RED_5 "\x1b[31m"
 #define VT100_FG_GREEN_5 "\x1b[32m"
@@ -116,6 +117,7 @@ struct editorFileRowFrameCache {
 
 static struct editorFileRowFrameCache g_file_row_frame_cache = {0};
 static int g_editor_output_last_refresh_file_row_draw_count = 0;
+static int g_editor_drawing_current_line_highlight = 0;
 
 static int editorWriteAllToStdout(const char *buf, size_t len) {
 	if (len == 0) {
@@ -1504,6 +1506,77 @@ static int editorAppendGrayGlyph(struct writeBuf *wb, const char *glyph, size_t 
 	return editorAppendGrayBytes(wb, glyph, glyph_len);
 }
 
+static int editorCurrentLineHighlightApplies(int row_idx, int segment_coloff) {
+	if (!E.current_line_highlight_enabled || E.pane_focus != EDITOR_PANE_TEXT || row_idx != E.cy) {
+		return 0;
+	}
+	if (!E.line_wrap_enabled) {
+		return 1;
+	}
+	if (row_idx < 0 || row_idx >= E.numrows) {
+		return 0;
+	}
+
+	int body_cols = editorWrapBodyCols();
+	int cursor_segment = editorWrapCursorSegmentForRx(&E.rows[row_idx], E.rx, body_cols);
+	int cursor_segment_coloff = 0;
+	editorWrapSegmentInfo(&E.rows[row_idx], cursor_segment, body_cols, &cursor_segment_coloff,
+			NULL, NULL);
+	return segment_coloff == cursor_segment_coloff;
+}
+
+static int editorDrawLineNumberGutter(struct writeBuf *wb, int row_idx, int segment_coloff,
+		int gutter_cols) {
+	if (gutter_cols <= 0) {
+		return 1;
+	}
+
+	if (row_idx >= 0 && row_idx < E.numrows && segment_coloff == 0) {
+		char number[32];
+		int len = snprintf(number, sizeof(number), "%d", row_idx + 1);
+		if (len < 0) {
+			return 0;
+		}
+		if (len >= (int)sizeof(number)) {
+			len = (int)sizeof(number) - 1;
+		}
+
+		int number_cols = gutter_cols > 1 ? gutter_cols - 1 : gutter_cols;
+		int pad_cols = number_cols - len;
+		if (pad_cols < 0) {
+			pad_cols = 0;
+		}
+
+		if (!wbAppend(wb, VT100_FG_GRAY_5, 5)) {
+			return 0;
+		}
+		for (int pad = 0; pad < pad_cols; pad++) {
+			if (!wbAppend(wb, " ", 1)) {
+				return 0;
+			}
+		}
+		const char *visible_number = number;
+		if (len > number_cols) {
+			visible_number = number + (len - number_cols);
+			len = number_cols;
+		}
+		if (len > 0 && !wbAppend(wb, visible_number, (size_t)len)) {
+			return 0;
+		}
+		if (gutter_cols > 1 && !wbAppend(wb, " ", 1)) {
+			return 0;
+		}
+		return wbAppend(wb, VT100_FG_DEFAULT_5, 5);
+	}
+
+	for (int col = 0; col < gutter_cols; col++) {
+		if (!wbAppend(wb, " ", 1)) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
 static int editorDrawFileRowWrapped(struct writeBuf *wb, size_t i, int text_cols,
 		int segment_coloff) {
 	struct erow *row = &E.rows[i];
@@ -2150,19 +2223,42 @@ static int editorBuildFileRowLine(struct writeBuf *wb, int y, int drawer_cols, i
 		return 0;
 	}
 
+	int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);
+	int file_cols = text_cols - gutter_cols;
+	if (file_cols < 1) {
+		file_cols = 1;
+	}
+	int highlight_row = y_offset < E.numrows &&
+			editorCurrentLineHighlightApplies(y_offset, segment_coloff);
+	if (highlight_row && !wbAppend(wb, VT100_BG_CURRENT_LINE, strlen(VT100_BG_CURRENT_LINE))) {
+		return 0;
+	}
+	g_editor_drawing_current_line_highlight = highlight_row;
+	if (!editorDrawLineNumberGutter(wb, y_offset, segment_coloff, gutter_cols)) {
+		g_editor_drawing_current_line_highlight = 0;
+		return 0;
+	}
 	if (y_offset < E.numrows) {
 		if (E.line_wrap_enabled) {
-			if (!editorDrawFileRowWrapped(wb, (size_t)y_offset, text_cols, segment_coloff)) {
+			if (!editorDrawFileRowWrapped(wb, (size_t)y_offset, file_cols, segment_coloff)) {
+				g_editor_drawing_current_line_highlight = 0;
 				return 0;
 			}
-		} else if (!editorDrawFileRow(wb, (size_t)y_offset, text_cols)) {
+		} else if (!editorDrawFileRow(wb, (size_t)y_offset, file_cols)) {
+			g_editor_drawing_current_line_highlight = 0;
 			return 0;
 		}
 	} else if (E.numrows == 0 && y == E.window_rows / 3) {
-		if (!editorDrawGreeting(wb, text_cols)) {
+		if (!editorDrawGreeting(wb, file_cols)) {
+			g_editor_drawing_current_line_highlight = 0;
 			return 0;
 		}
 	} else if (!editorAppendGrayBytes(wb, "~", 1)) {
+		g_editor_drawing_current_line_highlight = 0;
+		return 0;
+	}
+	g_editor_drawing_current_line_highlight = 0;
+	if (highlight_row && !wbAppend(wb, VT100_NORMAL_COLORS_3, 3)) {
 		return 0;
 	}
 

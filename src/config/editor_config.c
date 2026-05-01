@@ -22,6 +22,13 @@ enum editorLineWrapFileStatus {
 	EDITOR_LINE_WRAP_FILE_OUT_OF_MEMORY
 };
 
+enum editorBoolFileStatus {
+	EDITOR_BOOL_FILE_APPLIED = 0,
+	EDITOR_BOOL_FILE_MISSING,
+	EDITOR_BOOL_FILE_INVALID,
+	EDITOR_BOOL_FILE_OUT_OF_MEMORY
+};
+
 static int editorParseCursorStyleValue(const char *value, enum editorCursorStyle *style_out) {
 	if (strcasecmp(value, "block") == 0) {
 		*style_out = EDITOR_CURSOR_STYLE_BLOCK;
@@ -351,6 +358,222 @@ enum editorLineWrapLoadStatus editorLineWrapLoadConfigured(int *line_wrap_out) {
 
 	enum editorLineWrapLoadStatus status =
 			editorLineWrapLoadFromPaths(line_wrap_out, global_path, ".rotide.toml");
+	free(global_path);
+	return status;
+}
+
+static enum editorBoolFileStatus editorBoolApplyConfigFile(int *bool_in_out,
+		const char *path, const char *target_setting_name) {
+	FILE *fp = fopen(path, "r");
+	if (fp == NULL) {
+		if (errno == ENOENT) {
+			return EDITOR_BOOL_FILE_MISSING;
+		}
+		return EDITOR_BOOL_FILE_INVALID;
+	}
+
+	int updated = *bool_in_out;
+	int in_editor_table = 0;
+	char line[1024];
+	while (fgets(line, sizeof(line), fp) != NULL) {
+		size_t line_len = strlen(line);
+		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
+			fclose(fp);
+			return EDITOR_BOOL_FILE_INVALID;
+		}
+
+		editorConfigStripInlineComment(line);
+		editorConfigTrimRight(line);
+		char *trimmed = editorConfigTrimLeft(line);
+		if (trimmed[0] == '\0') {
+			continue;
+		}
+
+		if (trimmed[0] == '[') {
+			char *close = strchr(trimmed, ']');
+			if (close == NULL) {
+				fclose(fp);
+				return EDITOR_BOOL_FILE_INVALID;
+			}
+			*close = '\0';
+			char *table = editorConfigTrimLeft(trimmed + 1);
+			editorConfigTrimRight(table);
+			char *tail = editorConfigTrimLeft(close + 1);
+			if (tail[0] != '\0') {
+				fclose(fp);
+				return EDITOR_BOOL_FILE_INVALID;
+			}
+
+			in_editor_table = strcmp(table, "editor") == 0;
+			continue;
+		}
+
+		if (!in_editor_table) {
+			continue;
+		}
+
+		char *eq = strchr(trimmed, '=');
+		if (eq == NULL) {
+			fclose(fp);
+			return EDITOR_BOOL_FILE_INVALID;
+		}
+
+		*eq = '\0';
+		char *setting_name = editorConfigTrimLeft(trimmed);
+		editorConfigTrimRight(setting_name);
+		char *value = editorConfigTrimLeft(eq + 1);
+		editorConfigTrimRight(value);
+		if (setting_name[0] == '\0') {
+			fclose(fp);
+			return EDITOR_BOOL_FILE_INVALID;
+		}
+		if (strcmp(setting_name, target_setting_name) != 0) {
+			continue;
+		}
+
+		int parsed = 0;
+		if (!editorParseBoolValue(value, &parsed)) {
+			fclose(fp);
+			return EDITOR_BOOL_FILE_INVALID;
+		}
+		updated = parsed;
+	}
+
+	if (ferror(fp)) {
+		fclose(fp);
+		return EDITOR_BOOL_FILE_INVALID;
+	}
+
+	fclose(fp);
+	*bool_in_out = updated;
+	return EDITOR_BOOL_FILE_APPLIED;
+}
+
+enum editorLineNumbersLoadStatus editorLineNumbersLoadFromPaths(int *line_numbers_out,
+		const char *global_path, const char *project_path) {
+	if (line_numbers_out == NULL) {
+		return EDITOR_LINE_NUMBERS_LOAD_OUT_OF_MEMORY;
+	}
+
+	int line_numbers = 1;
+	enum editorLineNumbersLoadStatus status = EDITOR_LINE_NUMBERS_LOAD_OK;
+
+	if (global_path != NULL) {
+		enum editorBoolFileStatus global_status =
+				editorBoolApplyConfigFile(&line_numbers, global_path, "line_numbers");
+		if (global_status == EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
+			*line_numbers_out = 1;
+			return EDITOR_LINE_NUMBERS_LOAD_OUT_OF_MEMORY;
+		}
+		if (global_status == EDITOR_BOOL_FILE_INVALID) {
+			line_numbers = 1;
+			status = (enum editorLineNumbersLoadStatus)(
+					status | EDITOR_LINE_NUMBERS_LOAD_INVALID_GLOBAL);
+		}
+	}
+
+	if (project_path != NULL) {
+		enum editorBoolFileStatus project_status =
+				editorBoolApplyConfigFile(&line_numbers, project_path, "line_numbers");
+		if (project_status == EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
+			*line_numbers_out = 1;
+			return EDITOR_LINE_NUMBERS_LOAD_OUT_OF_MEMORY;
+		}
+		if (project_status == EDITOR_BOOL_FILE_INVALID) {
+			line_numbers = 1;
+			status = (enum editorLineNumbersLoadStatus)(
+					status | EDITOR_LINE_NUMBERS_LOAD_INVALID_PROJECT);
+		}
+	}
+
+	*line_numbers_out = line_numbers;
+	return status;
+}
+
+enum editorLineNumbersLoadStatus editorLineNumbersLoadConfigured(int *line_numbers_out) {
+	if (line_numbers_out == NULL) {
+		return EDITOR_LINE_NUMBERS_LOAD_OUT_OF_MEMORY;
+	}
+
+	const char *home = getenv("HOME");
+	if (home == NULL || home[0] == '\0') {
+		return editorLineNumbersLoadFromPaths(line_numbers_out, NULL, ".rotide.toml");
+	}
+
+	char *global_path = editorConfigBuildGlobalConfigPath();
+	if (global_path == NULL) {
+		*line_numbers_out = 1;
+		return EDITOR_LINE_NUMBERS_LOAD_OUT_OF_MEMORY;
+	}
+
+	enum editorLineNumbersLoadStatus status =
+			editorLineNumbersLoadFromPaths(line_numbers_out, global_path, ".rotide.toml");
+	free(global_path);
+	return status;
+}
+
+enum editorCurrentLineHighlightLoadStatus editorCurrentLineHighlightLoadFromPaths(
+		int *current_line_highlight_out, const char *global_path, const char *project_path) {
+	if (current_line_highlight_out == NULL) {
+		return EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_OUT_OF_MEMORY;
+	}
+
+	int current_line_highlight = 1;
+	enum editorCurrentLineHighlightLoadStatus status = EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_OK;
+
+	if (global_path != NULL) {
+		enum editorBoolFileStatus global_status = editorBoolApplyConfigFile(
+				&current_line_highlight, global_path, "current_line_highlight");
+		if (global_status == EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
+			*current_line_highlight_out = 1;
+			return EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_OUT_OF_MEMORY;
+		}
+		if (global_status == EDITOR_BOOL_FILE_INVALID) {
+			current_line_highlight = 1;
+			status = (enum editorCurrentLineHighlightLoadStatus)(
+					status | EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_INVALID_GLOBAL);
+		}
+	}
+
+	if (project_path != NULL) {
+		enum editorBoolFileStatus project_status = editorBoolApplyConfigFile(
+				&current_line_highlight, project_path, "current_line_highlight");
+		if (project_status == EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
+			*current_line_highlight_out = 1;
+			return EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_OUT_OF_MEMORY;
+		}
+		if (project_status == EDITOR_BOOL_FILE_INVALID) {
+			current_line_highlight = 1;
+			status = (enum editorCurrentLineHighlightLoadStatus)(
+					status | EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_INVALID_PROJECT);
+		}
+	}
+
+	*current_line_highlight_out = current_line_highlight;
+	return status;
+}
+
+enum editorCurrentLineHighlightLoadStatus editorCurrentLineHighlightLoadConfigured(
+		int *current_line_highlight_out) {
+	if (current_line_highlight_out == NULL) {
+		return EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_OUT_OF_MEMORY;
+	}
+
+	const char *home = getenv("HOME");
+	if (home == NULL || home[0] == '\0') {
+		return editorCurrentLineHighlightLoadFromPaths(current_line_highlight_out, NULL,
+				".rotide.toml");
+	}
+
+	char *global_path = editorConfigBuildGlobalConfigPath();
+	if (global_path == NULL) {
+		*current_line_highlight_out = 1;
+		return EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_OUT_OF_MEMORY;
+	}
+
+	enum editorCurrentLineHighlightLoadStatus status =
+			editorCurrentLineHighlightLoadFromPaths(current_line_highlight_out, global_path,
+					".rotide.toml");
 	free(global_path);
 	return status;
 }

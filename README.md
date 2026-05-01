@@ -107,6 +107,8 @@ Syntax fixture samples are stored in [`tests/syntax/`](tests/syntax/README.md).
 - `Ctrl-G`: go to line
 - `Ctrl-O` / `Ctrl + left click`: Go/C/C++/HTML/CSS/SCSS/JSON/JavaScript definition (supported source buffers)
 - `Alt-Z`: toggle soft line wrapping
+- `Alt-N`: toggle absolute line numbers
+- `Alt-H`: toggle current-line highlight
 - `Ctrl-B`: toggle selection
 - `Ctrl-C` / `Ctrl-X` / `Ctrl-D` / `Ctrl-V`: copy/cut/delete/paste selection
 - `Ctrl-Z` / `Ctrl-Y`: undo/redo
@@ -115,6 +117,7 @@ Syntax fixture samples are stored in [`tests/syntax/`](tests/syntax/README.md).
 
 `eslint_fix` is available as a configurable action but does not have a default binding in the built-in keymap.
 Soft line wrapping is off by default and can also be enabled with `[editor] line_wrap = true`.
+Line numbers and current-line highlighting are on by default; disable them with `[editor] line_numbers = false` and `[editor] current_line_highlight = false`.
 
 ## Configuration
 
@@ -124,7 +127,7 @@ RotIDE reads TOML configs in this order (low to high precedence):
 3. `./.rotide.toml`
 
 Sections:
-- `[editor]` (for example `cursor_style`, `line_wrap`)
+- `[editor]` (for example `cursor_style`, `line_wrap`, `line_numbers`, `current_line_highlight`)
 - `[theme.syntax]`
 - `[lsp]`
 - `[keymap]`

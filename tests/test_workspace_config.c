@@ -1788,6 +1788,127 @@ static int test_editor_line_wrap_invalid_setting_does_not_break_keymap_loading(v
 	return 0;
 }
 
+static int test_editor_line_numbers_load_precedence_and_invalid_fallback(void) {
+	char dir_template[] = "/tmp/rotide-test-line-numbers-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char global_path[512];
+	char project_path[512];
+	ASSERT_TRUE(path_join(global_path, sizeof(global_path), dir_path, "global.toml"));
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
+
+	ASSERT_TRUE(write_text_file(global_path,
+				"[editor]\n"
+				"line_numbers = true\n"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[editor]\n"
+				"line_numbers = false\n"));
+
+	int line_numbers = 1;
+	enum editorLineNumbersLoadStatus status =
+			editorLineNumbersLoadFromPaths(&line_numbers, global_path, project_path);
+	ASSERT_EQ_INT(EDITOR_LINE_NUMBERS_LOAD_OK, status);
+	ASSERT_EQ_INT(0, line_numbers);
+
+	ASSERT_TRUE(write_text_file(project_path,
+				"[editor]\n"
+				"line_numbers = maybe\n"));
+	line_numbers = 0;
+	status = editorLineNumbersLoadFromPaths(&line_numbers, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_LINE_NUMBERS_LOAD_INVALID_PROJECT, status);
+	ASSERT_EQ_INT(1, line_numbers);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(unlink(global_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_current_line_highlight_load_precedence_and_invalid_fallback(void) {
+	char dir_template[] = "/tmp/rotide-test-current-line-highlight-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char global_path[512];
+	char project_path[512];
+	ASSERT_TRUE(path_join(global_path, sizeof(global_path), dir_path, "global.toml"));
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
+
+	ASSERT_TRUE(write_text_file(global_path,
+				"[editor]\n"
+				"current_line_highlight = false\n"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[editor]\n"
+				"current_line_highlight = true\n"));
+
+	int current_line_highlight = 0;
+	enum editorCurrentLineHighlightLoadStatus status =
+			editorCurrentLineHighlightLoadFromPaths(&current_line_highlight, global_path,
+					project_path);
+	ASSERT_EQ_INT(EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_OK, status);
+	ASSERT_EQ_INT(1, current_line_highlight);
+
+	ASSERT_TRUE(write_text_file(project_path,
+				"[editor]\n"
+				"current_line_highlight = \"yes\"\n"));
+	current_line_highlight = 0;
+	status = editorCurrentLineHighlightLoadFromPaths(&current_line_highlight, NULL,
+			project_path);
+	ASSERT_EQ_INT(EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_INVALID_PROJECT, status);
+	ASSERT_EQ_INT(1, current_line_highlight);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(unlink(global_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_view_bool_invalid_settings_do_not_break_keymap_loading(void) {
+	char dir_template[] = "/tmp/rotide-test-view-bool-keymap-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[editor]\n"
+				"line_numbers = maybe\n"
+				"current_line_highlight = maybe\n"
+				"cursor_style = \"bar\"\n"
+				"[keymap]\n"
+				"toggle_line_numbers = \"alt+n\"\n"
+				"toggle_current_line_highlight = \"alt+h\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus keymap_status =
+			editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, keymap_status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('n'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_TOGGLE_LINE_NUMBERS, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('h'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_TOGGLE_CURRENT_LINE_HIGHLIGHT, action);
+
+	int line_numbers = 0;
+	enum editorLineNumbersLoadStatus line_numbers_status =
+			editorLineNumbersLoadFromPaths(&line_numbers, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_LINE_NUMBERS_LOAD_INVALID_PROJECT, line_numbers_status);
+	ASSERT_EQ_INT(1, line_numbers);
+
+	int current_line_highlight = 0;
+	enum editorCurrentLineHighlightLoadStatus current_line_highlight_status =
+			editorCurrentLineHighlightLoadFromPaths(&current_line_highlight, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_INVALID_PROJECT,
+			current_line_highlight_status);
+	ASSERT_EQ_INT(1, current_line_highlight);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_theme_load_global_project_precedence(void) {
 	char dir_template[] = "/tmp/rotide-test-syntax-theme-precedence-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -1996,6 +2117,10 @@ static int test_editor_keymap_defaults_include_tab_actions(void) {
 	ASSERT_EQ_INT(EDITOR_ACTION_RESIZE_DRAWER_WIDEN, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('z'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_TOGGLE_LINE_WRAP, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('n'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_TOGGLE_LINE_NUMBERS, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('h'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_TOGGLE_CURRENT_LINE_HIGHLIGHT, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('p'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_FIND_FILE, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_CTRL_ALT_LETTER_KEY('f'), &action));
@@ -2025,6 +2150,33 @@ static int test_editor_keymap_load_accepts_toggle_line_wrap_alt_z(void) {
 	enum editorAction action = EDITOR_ACTION_COUNT;
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('z'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_TOGGLE_LINE_WRAP, action);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_load_accepts_line_number_highlight_toggles(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-line-number-highlight-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[keymap]\n"
+				"toggle_line_numbers = \"alt+a\"\n"
+				"toggle_current_line_highlight = \"alt+b\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('a'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_TOGGLE_LINE_NUMBERS, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('b'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_TOGGLE_CURRENT_LINE_HIGHLIGHT, action);
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(rmdir(dir_path) == 0);
@@ -2209,12 +2361,16 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_line_wrap_global_then_project_precedence", test_editor_line_wrap_global_then_project_precedence},
 	{"editor_line_wrap_invalid_values_fallback_to_false", test_editor_line_wrap_invalid_values_fallback_to_false},
 	{"editor_line_wrap_invalid_setting_does_not_break_keymap_loading", test_editor_line_wrap_invalid_setting_does_not_break_keymap_loading},
+	{"editor_line_numbers_load_precedence_and_invalid_fallback", test_editor_line_numbers_load_precedence_and_invalid_fallback},
+	{"editor_current_line_highlight_load_precedence_and_invalid_fallback", test_editor_current_line_highlight_load_precedence_and_invalid_fallback},
+	{"editor_view_bool_invalid_settings_do_not_break_keymap_loading", test_editor_view_bool_invalid_settings_do_not_break_keymap_loading},
 	{"editor_syntax_theme_load_global_project_precedence", test_editor_syntax_theme_load_global_project_precedence},
 	{"editor_syntax_theme_invalid_entries_nonfatal_and_keymap_still_loads", test_editor_syntax_theme_invalid_entries_nonfatal_and_keymap_still_loads},
 	{"editor_keymap_load_modifier_combo_specs_case_insensitive", test_editor_keymap_load_modifier_combo_specs_case_insensitive},
 	{"editor_keymap_load_invalid_modifier_combos_fall_back_to_defaults", test_editor_keymap_load_invalid_modifier_combos_fall_back_to_defaults},
 	{"editor_keymap_defaults_include_tab_actions", test_editor_keymap_defaults_include_tab_actions},
 	{"editor_keymap_load_accepts_toggle_line_wrap_alt_z", test_editor_keymap_load_accepts_toggle_line_wrap_alt_z},
+	{"editor_keymap_load_accepts_line_number_highlight_toggles", test_editor_keymap_load_accepts_line_number_highlight_toggles},
 	{"editor_keymap_defaults_include_goto_definition_action", test_editor_keymap_defaults_include_goto_definition_action},
 	{"editor_keymap_load_accepts_goto_definition_ctrl_o", test_editor_keymap_load_accepts_goto_definition_ctrl_o},
 	{"editor_keymap_load_rejects_ctrl_i_binding_that_conflicts_with_tab_input", test_editor_keymap_load_rejects_ctrl_i_binding_that_conflicts_with_tab_input},

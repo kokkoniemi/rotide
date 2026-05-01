@@ -12,6 +12,7 @@ int editorDrawerWidthForCols(int total_cols);
 int editorDrawerSeparatorWidthForCols(int total_cols);
 int editorDrawerTextStartColForCols(int total_cols);
 int editorDrawerTextViewportCols(int total_cols);
+int editorLineNumberGutterColsForCols(int total_cols);
 int editorTextBodyStartColForCols(int total_cols);
 int editorTextBodyViewportCols(int total_cols);
 int editorDrawerSetWidthForCols(int width, int total_cols);

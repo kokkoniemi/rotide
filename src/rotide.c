@@ -140,6 +140,8 @@ void initEditor(void) {
 	E.drawer_project_search_active_tab_before = -1;
 	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;
 	E.line_wrap_enabled = 0;
+	E.line_numbers_enabled = 1;
+	E.current_line_highlight_enabled = 1;
 	editorSyntaxThemeInitDefaults(E.syntax_theme);
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
 	E.pane_focus = EDITOR_PANE_TEXT;
@@ -168,6 +170,10 @@ int main(int argc, char *argv[]) {
 			editorCursorStyleLoadConfigured(&E.cursor_style);
 	enum editorLineWrapLoadStatus line_wrap_status =
 			editorLineWrapLoadConfigured(&E.line_wrap_enabled);
+	enum editorLineNumbersLoadStatus line_numbers_status =
+			editorLineNumbersLoadConfigured(&E.line_numbers_enabled);
+	enum editorCurrentLineHighlightLoadStatus current_line_highlight_status =
+			editorCurrentLineHighlightLoadConfigured(&E.current_line_highlight_enabled);
 	enum editorSyntaxThemeLoadStatus syntax_theme_status =
 			editorSyntaxThemeLoadConfigured(E.syntax_theme);
 	enum editorLspConfigLoadStatus lsp_config_status =
@@ -196,6 +202,9 @@ int main(int argc, char *argv[]) {
 	} else if (keymap_status == EDITOR_KEYMAP_LOAD_OUT_OF_MEMORY ||
 			(cursor_style_status & EDITOR_CURSOR_STYLE_LOAD_OUT_OF_MEMORY) != 0 ||
 			(line_wrap_status & EDITOR_LINE_WRAP_LOAD_OUT_OF_MEMORY) != 0 ||
+			(line_numbers_status & EDITOR_LINE_NUMBERS_LOAD_OUT_OF_MEMORY) != 0 ||
+			(current_line_highlight_status &
+					EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_OUT_OF_MEMORY) != 0 ||
 			(syntax_theme_status & EDITOR_SYNTAX_THEME_LOAD_OUT_OF_MEMORY) != 0 ||
 			(lsp_config_status & EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY) != 0) {
 		editorSetStatusMsg("Out of memory");
@@ -220,6 +229,26 @@ int main(int argc, char *argv[]) {
 		editorSetStatusMsg("Invalid line_wrap in ./.rotide.toml, using false");
 	} else if ((line_wrap_status & EDITOR_LINE_WRAP_LOAD_INVALID_GLOBAL) != 0) {
 		editorSetStatusMsg("Invalid line_wrap in ~/.rotide/config.toml, using false");
+	} else if ((line_numbers_status & EDITOR_LINE_NUMBERS_LOAD_INVALID_GLOBAL) != 0 &&
+			(line_numbers_status & EDITOR_LINE_NUMBERS_LOAD_INVALID_PROJECT) != 0) {
+		editorSetStatusMsg("Invalid line_numbers in global/project config, using true");
+	} else if ((line_numbers_status & EDITOR_LINE_NUMBERS_LOAD_INVALID_PROJECT) != 0) {
+		editorSetStatusMsg("Invalid line_numbers in ./.rotide.toml, using true");
+	} else if ((line_numbers_status & EDITOR_LINE_NUMBERS_LOAD_INVALID_GLOBAL) != 0) {
+		editorSetStatusMsg("Invalid line_numbers in ~/.rotide/config.toml, using true");
+	} else if ((current_line_highlight_status &
+					EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_INVALID_GLOBAL) != 0 &&
+			(current_line_highlight_status &
+					EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_INVALID_PROJECT) != 0) {
+		editorSetStatusMsg(
+				"Invalid current_line_highlight in global/project config, using true");
+	} else if ((current_line_highlight_status &
+					EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_INVALID_PROJECT) != 0) {
+		editorSetStatusMsg("Invalid current_line_highlight in ./.rotide.toml, using true");
+	} else if ((current_line_highlight_status &
+					EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_INVALID_GLOBAL) != 0) {
+		editorSetStatusMsg(
+				"Invalid current_line_highlight in ~/.rotide/config.toml, using true");
 	} else if ((syntax_theme_status & EDITOR_SYNTAX_THEME_LOAD_INVALID_GLOBAL) != 0 &&
 			(syntax_theme_status & EDITOR_SYNTAX_THEME_LOAD_INVALID_PROJECT) != 0) {
 		editorSetStatusMsg("Invalid [theme.syntax] in global/project config, using defaults");
