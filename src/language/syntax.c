@@ -2024,6 +2024,28 @@ static int editorSyntaxApplyInjectionOffset(
 	return 1;
 }
 
+static int editorSyntaxRangeExtendTrailingNewline(const struct editorTextSource *source,
+		TSRange *range) {
+	if (source == NULL || source->read == NULL || range == NULL ||
+			range->end_byte >= source->length) {
+		return 1;
+	}
+
+	uint32_t bytes_read = 0;
+	const char *chunk = source->read(source, range->end_byte, &bytes_read);
+	if (chunk == NULL || bytes_read == 0) {
+		return 0;
+	}
+	if (chunk[0] != '\n') {
+		return 1;
+	}
+
+	range->end_byte++;
+	range->end_point.row++;
+	range->end_point.column = 0;
+	return 1;
+}
+
 static enum editorSyntaxLanguage editorSyntaxResolveInjectionLanguage(
 		struct editorSyntaxState *state,
 		const struct editorTextSource *source,
@@ -2165,6 +2187,11 @@ static int editorSyntaxCollectInjectionRangesFromTree(struct editorSyntaxState *
 			}
 			if (range.end_byte <= range.start_byte) {
 				continue;
+			}
+			if (target_lang == EDITOR_SYNTAX_MARKDOWN_INLINE &&
+					!editorSyntaxRangeExtendTrailingNewline(source, &range)) {
+				ts_query_cursor_delete(cursor);
+				return 0;
 			}
 
 			int append_ok = metadata->include_children ?
