@@ -16,6 +16,7 @@
 #include "support/terminal.h"
 #include "text/utf8.h"
 #include "workspace/drawer.h"
+#include "workspace/project_search.h"
 #include "workspace/recovery.h"
 #include "workspace/tabs.h"
 #include <errno.h>
@@ -123,6 +124,7 @@ void reset_editor_state(void) {
 	E.drawer_collapsed = 0;
 	E.drawer_resize_active = 0;
 	E.drawer_search_active_tab_before = -1;
+	E.drawer_project_search_active_tab_before = -1;
 	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;
 	editorSyntaxThemeInitDefaults(E.syntax_theme);
 	editorSyntaxTestResetBudgetOverrides();

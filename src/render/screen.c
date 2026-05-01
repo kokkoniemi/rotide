@@ -10,6 +10,7 @@
 #include "text/utf8.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
+#include "workspace/project_search.h"
 #include "workspace/tabs.h"
 #include <errno.h>
 #include <limits.h>
@@ -1505,6 +1506,10 @@ static int editorBuildDrawerRowPlain(struct writeBuf *wb, int visible_idx) {
 	return editorAppendSanitizedText(wb, entry.name, -1, NULL);
 }
 
+static int editorDrawerSearchHeaderActive(void) {
+	return editorFileSearchIsActive() || editorProjectSearchIsActive();
+}
+
 static int editorDrawDrawerSelectionOverflow(struct writeBuf *wb, int row_idx, int drawer_cols,
 		int separator_cols, int text_cols, int terminal_row, int *overlay_drawn_out) {
 	if (overlay_drawn_out != NULL) {
@@ -1515,7 +1520,7 @@ static int editorDrawDrawerSelectionOverflow(struct writeBuf *wb, int row_idx, i
 	}
 
 	int visible_idx =
-			(editorFileSearchIsActive() && row_idx == 0) ? 0 : E.drawer_rowoff + row_idx;
+			(editorDrawerSearchHeaderActive() && row_idx == 0) ? 0 : E.drawer_rowoff + row_idx;
 	struct editorDrawerEntryView entry;
 	if (!editorDrawerGetVisibleEntry(visible_idx, &entry) || !entry.is_selected) {
 		return 1;
@@ -1571,7 +1576,7 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 
 	struct editorDrawerEntryView entry;
 	int visible_idx =
-			(editorFileSearchIsActive() && row_idx == 0) ? 0 : E.drawer_rowoff + row_idx;
+			(editorDrawerSearchHeaderActive() && row_idx == 0) ? 0 : E.drawer_rowoff + row_idx;
 	int written_cols = 0;
 	int selected_with_focus = 0;
 	int row_inverted = 0;
@@ -1599,7 +1604,8 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 		if (entry.is_search_header) {
 			if (written_cols < drawer_cols) {
 				int wrote = 0;
-				if (!editorAppendSanitizedText(wb, "Find: ", drawer_cols - written_cols, &wrote)) {
+				const char *label = editorProjectSearchIsActive() ? "Text: " : "Find: ";
+				if (!editorAppendSanitizedText(wb, label, drawer_cols - written_cols, &wrote)) {
 					return 0;
 				}
 				written_cols += wrote;
@@ -2094,6 +2100,9 @@ void editorRefreshScreen(void) {
 		if (editorFileSearchIsActive()) {
 			cursor_row = 1;
 			cursor_col = editorFileSearchHeaderCursorCol(editorDrawerWidthForCols(E.window_cols));
+		} else if (editorProjectSearchIsActive()) {
+			cursor_row = 1;
+			cursor_col = editorProjectSearchHeaderCursorCol(editorDrawerWidthForCols(E.window_cols));
 		} else {
 			cursor_visible = 0;
 		}

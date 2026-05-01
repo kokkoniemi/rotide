@@ -6,6 +6,7 @@
 #include "support/alloc.h"
 #include "support/file_io.h"
 #include "workspace/file_search.h"
+#include "workspace/project_search.h"
 #include "workspace/tabs.h"
 
 #include <dirent.h>
@@ -320,6 +321,10 @@ void editorDrawerClampViewport(int viewport_rows) {
 		editorFileSearchClampViewport(viewport_rows);
 		return;
 	}
+	if (editorProjectSearchIsActive()) {
+		editorProjectSearchClampViewport(viewport_rows);
+		return;
+	}
 	int visible_count = editorDrawerVisibleCount();
 	if (visible_count <= 0) {
 		E.drawer_selected_index = 0;
@@ -436,6 +441,9 @@ int editorDrawerSetCollapsed(int collapsed) {
 	if (new_collapsed && editorFileSearchIsActive()) {
 		editorFileSearchExit(1);
 	}
+	if (new_collapsed && editorProjectSearchIsActive()) {
+		editorProjectSearchExit(1);
+	}
 	E.drawer_collapsed = new_collapsed;
 	E.drawer_resize_active = 0;
 	if (new_collapsed && E.pane_focus == EDITOR_PANE_DRAWER) {
@@ -533,6 +541,9 @@ int editorDrawerVisibleCount(void) {
 	if (editorFileSearchIsActive()) {
 		return editorFileSearchVisibleCount();
 	}
+	if (editorProjectSearchIsActive()) {
+		return editorProjectSearchVisibleCount();
+	}
 	return editorDrawerCountVisibleFromNode(E.drawer_root);
 }
 
@@ -542,6 +553,9 @@ int editorDrawerGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *v
 	}
 	if (editorFileSearchIsActive()) {
 		return editorFileSearchGetVisibleEntry(visible_idx, view_out);
+	}
+	if (editorProjectSearchIsActive()) {
+		return editorProjectSearchGetVisibleEntry(visible_idx, view_out);
 	}
 
 	struct editorDrawerLookup lookup;
@@ -573,6 +587,9 @@ int editorDrawerGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *v
 int editorDrawerMoveSelectionBy(int delta, int viewport_rows) {
 	if (editorFileSearchIsActive()) {
 		return editorFileSearchMoveSelectionBy(delta, viewport_rows);
+	}
+	if (editorProjectSearchIsActive()) {
+		return editorProjectSearchMoveSelectionBy(delta, viewport_rows);
 	}
 	int visible_count = editorDrawerVisibleCount();
 	if (visible_count <= 0) {
@@ -620,7 +637,7 @@ int editorDrawerScrollBy(int delta, int viewport_rows) {
 }
 
 int editorDrawerExpandSelection(int viewport_rows) {
-	if (editorFileSearchIsActive()) {
+	if (editorFileSearchIsActive() || editorProjectSearchIsActive()) {
 		return 0;
 	}
 	struct editorDrawerLookup lookup;
@@ -645,7 +662,7 @@ int editorDrawerExpandSelection(int viewport_rows) {
 }
 
 int editorDrawerCollapseSelection(int viewport_rows) {
-	if (editorFileSearchIsActive()) {
+	if (editorFileSearchIsActive() || editorProjectSearchIsActive()) {
 		return 0;
 	}
 	struct editorDrawerLookup lookup;
@@ -675,7 +692,7 @@ int editorDrawerCollapseSelection(int viewport_rows) {
 }
 
 int editorDrawerToggleSelectionExpanded(int viewport_rows) {
-	if (editorFileSearchIsActive()) {
+	if (editorFileSearchIsActive() || editorProjectSearchIsActive()) {
 		return 0;
 	}
 	struct editorDrawerLookup lookup;
@@ -706,6 +723,9 @@ int editorDrawerSelectVisibleIndex(int visible_idx, int viewport_rows) {
 	if (editorFileSearchIsActive()) {
 		return editorFileSearchSelectVisibleIndex(visible_idx, viewport_rows);
 	}
+	if (editorProjectSearchIsActive()) {
+		return editorProjectSearchSelectVisibleIndex(visible_idx, viewport_rows);
+	}
 	int visible_count = editorDrawerVisibleCount();
 	if (visible_idx < 0 || visible_idx >= visible_count) {
 		return 0;
@@ -720,6 +740,9 @@ int editorDrawerSelectedIsDirectory(void) {
 	if (editorFileSearchIsActive()) {
 		return editorFileSearchSelectedIsDirectory();
 	}
+	if (editorProjectSearchIsActive()) {
+		return editorProjectSearchSelectedIsDirectory();
+	}
 	struct editorDrawerLookup lookup;
 	if (!editorDrawerLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
 		return 0;
@@ -730,6 +753,9 @@ int editorDrawerSelectedIsDirectory(void) {
 int editorDrawerOpenSelectedFileInTab(void) {
 	if (editorFileSearchIsActive()) {
 		return editorFileSearchOpenSelectedFileInTab();
+	}
+	if (editorProjectSearchIsActive()) {
+		return editorProjectSearchOpenSelectedFileInTab();
 	}
 	struct editorDrawerLookup lookup;
 	if (!editorDrawerLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
@@ -744,6 +770,9 @@ int editorDrawerOpenSelectedFileInTab(void) {
 int editorDrawerOpenSelectedFileInPreviewTab(void) {
 	if (editorFileSearchIsActive()) {
 		return editorFileSearchOpenSelectedFileInPreviewTab();
+	}
+	if (editorProjectSearchIsActive()) {
+		return editorProjectSearchOpenSelectedFileInPreviewTab();
 	}
 	struct editorDrawerLookup lookup;
 	if (!editorDrawerLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
@@ -828,6 +857,7 @@ const char *editorDrawerRootPath(void) {
 
 void editorDrawerShutdown(void) {
 	editorFileSearchFree();
+	editorProjectSearchFree();
 	editorDrawerNodeFree(E.drawer_root);
 	E.drawer_root = NULL;
 	free(E.drawer_root_path);

@@ -16,6 +16,7 @@
 #include "render/screen.h"
 #include "support/terminal.h"
 #include "workspace/drawer.h"
+#include "workspace/project_search.h"
 #include "workspace/recovery.h"
 #include "workspace/tabs.h"
 
@@ -127,6 +128,15 @@ void initEditor(void) {
 	E.drawer_search_filtered_capacity = 0;
 	E.drawer_search_previewed_path = NULL;
 	E.drawer_search_active_tab_before = -1;
+	E.drawer_project_search_query = NULL;
+	E.drawer_project_search_query_len = 0;
+	E.drawer_project_search_results = NULL;
+	E.drawer_project_search_result_count = 0;
+	E.drawer_project_search_result_capacity = 0;
+	E.drawer_project_search_previewed_path = NULL;
+	E.drawer_project_search_previewed_line = 0;
+	E.drawer_project_search_previewed_col = 0;
+	E.drawer_project_search_active_tab_before = -1;
 	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;
 	editorSyntaxThemeInitDefaults(E.syntax_theme);
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;

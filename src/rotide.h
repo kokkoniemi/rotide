@@ -224,6 +224,14 @@ struct editorDrawerEntryView {
 	int is_placeholder;
 };
 
+struct editorProjectSearchResult {
+	char *path;
+	int line;
+	int col;
+	char *line_text;
+	char *display;
+};
+
 struct editorTabLayoutEntry {
 	int tab_idx;
 	int start_col;
@@ -244,6 +252,7 @@ enum editorAction {
 	EDITOR_ACTION_RESIZE_DRAWER_NARROW,
 	EDITOR_ACTION_RESIZE_DRAWER_WIDEN,
 	EDITOR_ACTION_FIND_FILE,
+	EDITOR_ACTION_PROJECT_SEARCH,
 	EDITOR_ACTION_FIND,
 	EDITOR_ACTION_GOTO_LINE,
 	EDITOR_ACTION_GOTO_DEFINITION,
@@ -299,7 +308,8 @@ enum editorEditPendingMode {
 
 enum editorDrawerMode {
 	EDITOR_DRAWER_MODE_TREE = 0,
-	EDITOR_DRAWER_MODE_FILE_SEARCH
+	EDITOR_DRAWER_MODE_FILE_SEARCH,
+	EDITOR_DRAWER_MODE_PROJECT_SEARCH
 };
 
 struct editorHistoryEntry {
@@ -487,6 +497,15 @@ struct editorConfig {
 	int drawer_search_filtered_capacity;
 	char *drawer_search_previewed_path;
 	int drawer_search_active_tab_before;
+	char *drawer_project_search_query;
+	size_t drawer_project_search_query_len;
+	struct editorProjectSearchResult *drawer_project_search_results;
+	int drawer_project_search_result_count;
+	int drawer_project_search_result_capacity;
+	char *drawer_project_search_previewed_path;
+	int drawer_project_search_previewed_line;
+	int drawer_project_search_previewed_col;
+	int drawer_project_search_active_tab_before;
 	enum editorCursorStyle cursor_style;
 	enum editorThemeColor syntax_theme[EDITOR_SYNTAX_HL_CLASS_COUNT];
 	enum editorViewportMode viewport_mode;

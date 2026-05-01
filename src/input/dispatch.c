@@ -12,6 +12,7 @@
 #include "support/terminal.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
+#include "workspace/project_search.h"
 #include "workspace/recovery.h"
 #include "workspace/tabs.h"
 #include "workspace/task.h"
@@ -817,11 +818,28 @@ static void editorFindFile(void) {
 	if (editorDrawerSetCollapsed(0)) {
 		editorSetDrawerCollapseStatus(0);
 	}
+	if (editorProjectSearchIsActive()) {
+		editorProjectSearchExit(0);
+	}
 	if (!editorFileSearchEnter()) {
 		return;
 	}
 	E.pane_focus = EDITOR_PANE_DRAWER;
 	(void)editorFileSearchPreviewSelection();
+}
+
+static void editorFindTextInProject(void) {
+	editorHistoryBreakGroup();
+	if (editorDrawerSetCollapsed(0)) {
+		editorSetDrawerCollapseStatus(0);
+	}
+	if (editorFileSearchIsActive()) {
+		editorFileSearchExit(0);
+	}
+	if (!editorProjectSearchEnter()) {
+		return;
+	}
+	E.pane_focus = EDITOR_PANE_DRAWER;
 }
 
 static int editorParsePositiveLineNumber(const char *query, long *out_line) {
@@ -1271,7 +1289,8 @@ static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 			return EDITOR_KEYPRESS_EFFECT_NONE;
 		}
 		int visible_idx =
-				(editorFileSearchIsActive() && drawer_row == 0) ? 0 : E.drawer_rowoff + drawer_row;
+				((editorFileSearchIsActive() || editorProjectSearchIsActive()) && drawer_row == 0) ?
+						0 : E.drawer_rowoff + drawer_row;
 		if (!editorDrawerSelectVisibleIndex(visible_idx, drawer_view_rows)) {
 			editorResetDrawerClickTracking();
 			E.mouse_left_button_down = 0;
@@ -1292,7 +1311,7 @@ static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 				now_ms > 0 &&
 				now_ms - E.drawer_last_click_ms <= DRAWER_DOUBLE_CLICK_THRESHOLD_MS;
 		if (should_open_file) {
-			if (editorFileSearchIsActive()) {
+			if (editorFileSearchIsActive() || editorProjectSearchIsActive()) {
 				if (editorDrawerOpenSelectedFileInTab()) {
 					E.pane_focus = EDITOR_PANE_DRAWER;
 				}
@@ -1440,6 +1459,9 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 
 	if (editorFileSearchIsActive()) {
 		switch (action) {
+			case EDITOR_ACTION_PROJECT_SEARCH:
+				editorFindTextInProject();
+				break;
 			case EDITOR_ACTION_FIND_FILE:
 				editorFindFile();
 				break;
@@ -1467,6 +1489,54 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			case EDITOR_ACTION_DELETE_CHAR:
 				if (editorFileSearchBackspace()) {
 					(void)editorFileSearchPreviewSelection();
+				}
+				break;
+			case EDITOR_ACTION_TOGGLE_DRAWER:
+				if (editorDrawerSetCollapsed(1)) {
+					editorSetDrawerCollapseStatus(1);
+				}
+				break;
+			default:
+				break;
+		}
+		if (effects_out != NULL) {
+			*effects_out = effects;
+		}
+		return 0;
+	}
+
+	if (editorProjectSearchIsActive()) {
+		switch (action) {
+			case EDITOR_ACTION_FIND_FILE:
+				editorFindFile();
+				break;
+			case EDITOR_ACTION_PROJECT_SEARCH:
+				editorFindTextInProject();
+				break;
+			case EDITOR_ACTION_MOVE_UP:
+				if (editorProjectSearchMoveSelectionBy(-1, E.window_rows + 1)) {
+					(void)editorProjectSearchPreviewSelection();
+				}
+				break;
+			case EDITOR_ACTION_MOVE_DOWN:
+				if (editorProjectSearchMoveSelectionBy(1, E.window_rows + 1)) {
+					(void)editorProjectSearchPreviewSelection();
+				}
+				break;
+			case EDITOR_ACTION_NEWLINE:
+				if (editorProjectSearchOpenSelectedFileInTab()) {
+					E.pane_focus = EDITOR_PANE_DRAWER;
+					effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+				}
+				break;
+			case EDITOR_ACTION_ESCAPE:
+				editorProjectSearchExit(1);
+				E.pane_focus = EDITOR_PANE_TEXT;
+				break;
+			case EDITOR_ACTION_BACKSPACE:
+			case EDITOR_ACTION_DELETE_CHAR:
+				if (editorProjectSearchBackspace()) {
+					(void)editorProjectSearchPreviewSelection();
 				}
 				break;
 			case EDITOR_ACTION_TOGGLE_DRAWER:
@@ -1559,6 +1629,9 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			break;
 		case EDITOR_ACTION_FIND_FILE:
 			editorFindFile();
+			break;
+		case EDITOR_ACTION_PROJECT_SEARCH:
+			editorFindTextInProject();
 			break;
 		case EDITOR_ACTION_FIND:
 			editorHistoryBreakGroup();
@@ -1808,6 +1881,10 @@ void editorProcessKeypress(void) {
 			if (editorFileSearchIsActive()) {
 				if (editorFileSearchAppendByte(c)) {
 					(void)editorFileSearchPreviewSelection();
+				}
+			} else if (editorProjectSearchIsActive()) {
+				if (editorProjectSearchAppendByte(c)) {
+					(void)editorProjectSearchPreviewSelection();
 				}
 			} else if (E.pane_focus != EDITOR_PANE_DRAWER) {
 				if (editorActiveTabIsReadOnly()) {

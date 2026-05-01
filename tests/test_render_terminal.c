@@ -1,6 +1,7 @@
 #include "test_case.h"
 #include "test_support.h"
 #include "workspace/file_search.h"
+#include "workspace/project_search.h"
 
 static int test_editor_refresh_screen_highlights_active_search_match(void) {
 	add_row("prefix alpha suffix");
@@ -1736,6 +1737,39 @@ static int test_editor_refresh_screen_file_search_header_shows_cursor(void) {
 	return 0;
 }
 
+static int test_editor_refresh_screen_project_search_header_shows_cursor(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char beta_file[512];
+	ASSERT_TRUE(path_join(beta_file, sizeof(beta_file), env.project_dir, "beta.txt"));
+	ASSERT_TRUE(write_text_file(beta_file, "beta needle\n"));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorProjectSearchEnter());
+	ASSERT_TRUE(editorProjectSearchAppendByte('n'));
+	E.pane_focus = EDITOR_PANE_DRAWER;
+	E.window_rows = 3;
+	E.window_cols = 40;
+	add_row("body");
+
+	char expected_cursor[32];
+	ASSERT_TRUE(snprintf(expected_cursor, sizeof(expected_cursor), "\x1b[1;%dH",
+				editorProjectSearchHeaderCursorCol(editorDrawerWidthForCols(E.window_cols))) > 0);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "Text: n") != NULL);
+	ASSERT_TRUE(strstr(output, expected_cursor) != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[?25h") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(beta_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_refresh_screen_hides_cursor_when_offscreen_in_free_scroll(void) {
 	add_row("line1");
 	add_row("line2");
@@ -2191,6 +2225,7 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_cursor_column_offsets_for_drawer", test_editor_refresh_screen_cursor_column_offsets_for_drawer},
 	{"editor_refresh_screen_hides_cursor_when_drawer_focused", test_editor_refresh_screen_hides_cursor_when_drawer_focused},
 	{"editor_refresh_screen_file_search_header_shows_cursor", test_editor_refresh_screen_file_search_header_shows_cursor},
+	{"editor_refresh_screen_project_search_header_shows_cursor", test_editor_refresh_screen_project_search_header_shows_cursor},
 	{"editor_refresh_screen_hides_cursor_when_offscreen_in_free_scroll", test_editor_refresh_screen_hides_cursor_when_offscreen_in_free_scroll},
 	{"editor_drawer_layout_clamps_tiny_widths", test_editor_drawer_layout_clamps_tiny_widths},
 	{"editor_refresh_screen_hides_expired_message", test_editor_refresh_screen_hides_expired_message},

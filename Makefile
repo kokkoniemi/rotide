@@ -68,6 +68,7 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/editing/history.c \
 	$(SRC_DIR)/workspace/tabs.c $(SRC_DIR)/workspace/drawer.c \
 	$(SRC_DIR)/workspace/file_search.c \
+	$(SRC_DIR)/workspace/project_search.c \
 	$(SRC_DIR)/workspace/recovery.c \
 	$(SRC_DIR)/input/dispatch.c \
 	$(SRC_DIR)/render/screen.c \

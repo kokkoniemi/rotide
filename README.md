@@ -101,6 +101,8 @@ Syntax fixture samples are stored in [`tests/syntax/`](tests/syntax/README.md).
 - `Ctrl-E`: focus drawer
 - `Ctrl-\`: collapse/expand drawer
 - `Alt-Shift-Left` / `Alt-Shift-Right`: resize drawer
+- `Ctrl-P`: search files in the drawer
+- `Ctrl-Alt-F`: search text across the project in the drawer
 - `Ctrl-F`: search
 - `Ctrl-G`: go to line
 - `Ctrl-O` / `Ctrl + left click`: Go/C/C++/HTML/CSS/SCSS/JSON/JavaScript definition (supported source buffers)
