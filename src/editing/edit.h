@@ -11,7 +11,9 @@ void editorInsertChar(int c);
 void editorInsertNewline(void);
 void editorDelChar(void);
 
-void editorOpen(const char *filename);
+int editorFileCanOpen(const char *filename);
+int editorOpen(const char *filename);
+int editorFilePathLooksBinary(const char *filename, int *binary_out);
 void editorSetStatusMsg(const char *fmt, ...);
 void editorSave(void);
 

@@ -240,7 +240,7 @@ static int test_editor_build_active_text_source_uses_document_after_open(void) {
 	ASSERT_TRUE(write_temp_text_file(path, sizeof(path), "alpha\nbeta\n"));
 
 	editorDocumentTestResetStats();
-	editorOpen(path);
+	ASSERT_TRUE(editorOpen(path));
 	ASSERT_EQ_INT(1, editorDocumentTestFullRebuildCount());
 	ASSERT_EQ_INT(1, editorRowCacheTestFullRebuildCount());
 	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
@@ -907,6 +907,28 @@ static int test_editor_open_reads_rows_and_clears_dirty(void) {
 	return 0;
 }
 
+static int test_editor_open_rejects_binary_file_without_mutating_buffer(void) {
+	char path[] = "/tmp/rotide-test-open-binary-XXXXXX";
+	const char bytes[] = {'r', 'o', 't', 'i', 'd', 'e', '\0', 'b', 'i', 'n'};
+	int fd = mkstemp(path);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(write_all(fd, bytes, sizeof(bytes)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	add_row("keep");
+	E.dirty = 7;
+	ASSERT_EQ_INT(0, editorOpen(path));
+
+	ASSERT_TRUE(E.filename == NULL);
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_EQ_STR("keep", E.rows[0].chars);
+	ASSERT_EQ_INT(7, E.dirty);
+	ASSERT_TRUE(strstr(E.statusmsg, "Binary files are not supported") != NULL);
+
+	unlink(path);
+	return 0;
+}
+
 const struct editorTestCase g_document_text_editing_tests[] = {
 	{"utf8_decode_valid_sequences", test_utf8_decode_valid_sequences},
 	{"utf8_decode_invalid_sequences", test_utf8_decode_invalid_sequences},
@@ -953,6 +975,7 @@ const struct editorTestCase g_document_text_editing_tests[] = {
 	{"editor_rows_to_str", test_editor_rows_to_str},
 	{"editor_rows_to_str_uses_document_when_row_cache_corrupt", test_editor_rows_to_str_uses_document_when_row_cache_corrupt},
 	{"editor_open_reads_rows_and_clears_dirty", test_editor_open_reads_rows_and_clears_dirty},
+	{"editor_open_rejects_binary_file_without_mutating_buffer", test_editor_open_rejects_binary_file_without_mutating_buffer},
 };
 
 const int g_document_text_editing_test_count =

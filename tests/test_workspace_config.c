@@ -334,6 +334,39 @@ static int test_editor_file_search_preview_and_open_selected_file(void) {
 	return 0;
 }
 
+static int test_editor_file_search_previews_binary_file_as_blank(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char binary_file[512];
+	const char bytes[] = {'r', 'o', 't', 'i', 'd', 'e', '\0', 'b', 'i', 'n'};
+	ASSERT_TRUE(path_join(binary_file, sizeof(binary_file), env.project_dir, "rotide"));
+	int fd = open(binary_file, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(write_all(fd, bytes, sizeof(bytes)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("base");
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorFileSearchEnter());
+	ASSERT_TRUE(editorFileSearchAppendByte('r'));
+
+	ASSERT_EQ_INT(1, editorFileSearchPreviewSelection());
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_EQ_STR(binary_file, E.filename);
+	ASSERT_EQ_INT(0, E.numrows);
+	ASSERT_TRUE(E.is_preview);
+	ASSERT_TRUE(strstr(E.statusmsg, "Binary files are not supported") != NULL);
+
+	editorFileSearchExit(0);
+	ASSERT_TRUE(unlink(binary_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_path_absolute_dup_makes_relative_paths_absolute(void) {
 	int failed = 1;
 	char *original_cwd = getcwd(NULL, 0);
@@ -1883,6 +1916,7 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_drawer_open_selected_file_switches_existing_relative_path_tab", test_editor_drawer_open_selected_file_switches_existing_relative_path_tab},
 	{"editor_file_search_filters_results_in_drawer", test_editor_file_search_filters_results_in_drawer},
 	{"editor_file_search_preview_and_open_selected_file", test_editor_file_search_preview_and_open_selected_file},
+	{"editor_file_search_previews_binary_file_as_blank", test_editor_file_search_previews_binary_file_as_blank},
 	{"editor_path_absolute_dup_makes_relative_paths_absolute", test_editor_path_absolute_dup_makes_relative_paths_absolute},
 	{"editor_path_find_marker_upward_returns_project_root", test_editor_path_find_marker_upward_returns_project_root},
 	{"editor_drawer_open_selected_file_respects_tab_limit", test_editor_drawer_open_selected_file_respects_tab_limit},

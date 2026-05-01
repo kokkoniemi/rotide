@@ -23,6 +23,90 @@
 #include <unistd.h>
 
 #define NEWLINE_CHAR_WIDTH 1
+#define BINARY_DETECT_SAMPLE_BYTES 8192
+
+static int editorFileStreamLooksBinary(FILE *fp, int *binary_out) {
+	unsigned char buf[BINARY_DETECT_SAMPLE_BYTES];
+	size_t bytes_read = 0;
+
+	if (fp == NULL || binary_out == NULL) {
+		return 0;
+	}
+	*binary_out = 0;
+
+	bytes_read = fread(buf, 1, sizeof(buf), fp);
+	if (ferror(fp)) {
+		return 0;
+	}
+	for (size_t i = 0; i < bytes_read; i++) {
+		if (buf[i] == '\0') {
+			*binary_out = 1;
+			break;
+		}
+	}
+	if (fseek(fp, 0, SEEK_SET) != 0) {
+		return 0;
+	}
+	return 1;
+}
+
+static int editorCheckOpenFileStream(const char *filename, FILE **fp_out) {
+	FILE *fp = NULL;
+	int is_binary = 0;
+
+	if (fp_out == NULL) {
+		return 0;
+	}
+	*fp_out = NULL;
+	if (filename == NULL || filename[0] == '\0') {
+		editorSetStatusMsg("No file selected");
+		return 0;
+	}
+
+	fp = fopen(filename, "rb");
+	if (fp == NULL) {
+		editorSetStatusMsg("Unable to open file: %s", strerror(errno));
+		return 0;
+	}
+	if (!editorFileStreamLooksBinary(fp, &is_binary)) {
+		fclose(fp);
+		editorSetStatusMsg("Unable to inspect file: %s", strerror(errno));
+		return 0;
+	}
+	if (is_binary) {
+		fclose(fp);
+		editorSetStatusMsg("Binary files are not supported");
+		return 0;
+	}
+
+	*fp_out = fp;
+	return 1;
+}
+
+int editorFilePathLooksBinary(const char *filename, int *binary_out) {
+	FILE *fp = fopen(filename, "rb");
+	if (fp == NULL || binary_out == NULL) {
+		if (binary_out != NULL) {
+			*binary_out = 0;
+		}
+		return 0;
+	}
+	if (!editorFileStreamLooksBinary(fp, binary_out)) {
+		fclose(fp);
+		return 0;
+	}
+	fclose(fp);
+	return 1;
+}
+
+int editorFileCanOpen(const char *filename) {
+	FILE *fp = NULL;
+	if (!editorCheckOpenFileStream(filename, &fp)) {
+		return 0;
+	}
+	fclose(fp);
+	return 1;
+}
 
 static int editorReadNormalizedFileToText(FILE *fp, char **text_out, size_t *len_out) {
 	char *line = NULL;
@@ -273,35 +357,30 @@ void editorDelChar(void) {
 	(void)editorApplyDocumentEdit(&edit);
 }
 
-void editorOpen(const char *filename) {
+int editorOpen(const char *filename) {
 	int was_preview = E.is_preview;
 	FILE *fp = NULL;
+	char *filename_copy = NULL;
 	char *text = NULL;
 	size_t text_len = 0;
 	struct editorDocument document;
 	int document_inited = 0;
+	int ok = 0;
 
-	editorLspNotifyDidClose(E.filename, E.syntax_language, &E.lsp_doc_open, &E.lsp_doc_version);
-	editorLspNotifyEslintDidClose(E.filename, E.syntax_language, &E.lsp_eslint_doc_open,
-			&E.lsp_eslint_doc_version);
-	editorFreeActiveBufferState();
-	E.tab_kind = EDITOR_TAB_FILE;
-	E.is_preview = was_preview;
-	E.filename = strdup(filename);
-	if (E.filename == NULL) {
+	filename_copy = strdup(filename != NULL ? filename : "");
+	if (filename_copy == NULL) {
 		editorSetAllocFailureStatus();
-		return;
+		return 0;
 	}
 
-	fp = fopen(filename, "r");
-	if (!fp) {
-		panic("fopen");
+	if (!editorCheckOpenFileStream(filename, &fp)) {
+		goto cleanup;
 	}
 	if (!editorReadNormalizedFileToText(fp, &text, &text_len)) {
-		fclose(fp);
-		return;
+		goto cleanup;
 	}
 	fclose(fp);
+	fp = NULL;
 
 	editorDocumentInit(&document);
 	document_inited = 1;
@@ -310,15 +389,29 @@ void editorOpen(const char *filename) {
 		goto cleanup;
 	}
 
+	editorLspNotifyDidClose(E.filename, E.syntax_language, &E.lsp_doc_open, &E.lsp_doc_version);
+	editorLspNotifyEslintDidClose(E.filename, E.syntax_language, &E.lsp_eslint_doc_open,
+			&E.lsp_eslint_doc_version);
+	editorFreeActiveBufferState();
+	E.tab_kind = EDITOR_TAB_FILE;
+	E.is_preview = was_preview;
+	E.filename = filename_copy;
+	filename_copy = NULL;
 	if (!editorRestoreActiveFromDocument(&document, 0, 0, 0, 1)) {
 		goto cleanup;
 	}
+	ok = 1;
 
 cleanup:
+	if (fp != NULL) {
+		fclose(fp);
+	}
 	if (document_inited) {
 		editorDocumentFree(&document);
 	}
+	free(filename_copy);
 	free(text);
+	return ok;
 }
 
 void editorSetStatusMsg(const char *fmt, ...) {

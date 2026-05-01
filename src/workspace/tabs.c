@@ -558,14 +558,21 @@ int editorTabIsPreviewAt(int idx) {
 
 int editorTabOpenFileAsNew(const char *filename) {
 	if (editorTabCanReuseActiveEmptyBuffer()) {
-		editorOpen(filename);
+		if (!editorOpen(filename)) {
+			return 0;
+		}
 		E.is_preview = 0;
 		return 1;
+	}
+	if (!editorFileCanOpen(filename)) {
+		return 0;
 	}
 	if (!editorTabNewEmpty()) {
 		return 0;
 	}
-	editorOpen(filename);
+	if (!editorOpen(filename)) {
+		return 0;
+	}
 	E.is_preview = 0;
 	return 1;
 }
@@ -597,26 +604,79 @@ int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
 		return editorTabSwitchToIndex(existing_tab);
 	}
 
+	int is_binary = 0;
+	int can_open = editorFileCanOpen(filename);
+	if (!can_open) {
+		editorFilePathLooksBinary(filename, &is_binary);
+	}
+
 	int preview_tab = editorTabFindReusablePreviewIndex();
 	if (preview_tab >= 0) {
+		if (can_open) {
+			if (!editorTabSwitchToIndex(preview_tab)) {
+				return 0;
+			}
+			if (!editorOpen(filename)) {
+				return 0;
+			}
+			E.is_preview = 1;
+			return 1;
+		}
+		if (!is_binary) {
+			return 0;
+		}
 		if (!editorTabSwitchToIndex(preview_tab)) {
 			return 0;
 		}
-		editorOpen(filename);
+		editorFreeActiveBufferState();
+		E.tab_kind = EDITOR_TAB_FILE;
 		E.is_preview = 1;
+		E.filename = strdup(filename);
+		if (E.filename == NULL) {
+			editorSetAllocFailureStatus();
+			return 0;
+		}
 		return 1;
 	}
 
 	if (editorTabCanReuseActiveEmptyBuffer()) {
-		editorOpen(filename);
+		if (can_open) {
+			if (!editorOpen(filename)) {
+				return 0;
+			}
+			E.is_preview = 1;
+			return 1;
+		}
+		if (!is_binary) {
+			return 0;
+		}
 		E.is_preview = 1;
+		E.filename = strdup(filename);
+		if (E.filename == NULL) {
+			editorSetAllocFailureStatus();
+			return 0;
+		}
 		return 1;
+	}
+	if (!can_open && !is_binary) {
+		return 0;
 	}
 	if (!editorTabNewEmpty()) {
 		return 0;
 	}
-	editorOpen(filename);
+	if (can_open) {
+		if (!editorOpen(filename)) {
+			return 0;
+		}
+		E.is_preview = 1;
+		return 1;
+	}
 	E.is_preview = 1;
+	E.filename = strdup(filename);
+	if (E.filename == NULL) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
 	return 1;
 }
 
