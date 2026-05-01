@@ -2,6 +2,7 @@
 
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
+#include "language/syntax.h"
 #include "render/screen.h"
 #include "support/size_utils.h"
 #include "support/alloc.h"
@@ -23,7 +24,8 @@
 
 #define ROTIDE_RECOVERY_MAGIC "RTRECOV1"
 #define ROTIDE_RECOVERY_MAGIC_LEN 8
-#define ROTIDE_RECOVERY_VERSION 2U
+#define ROTIDE_RECOVERY_VERSION 3U
+#define ROTIDE_RECOVERY_MIN_VERSION 2U
 #define ROTIDE_RECOVERY_AUTOSAVE_DEBOUNCE_SECONDS 5
 #define ROTIDE_RECOVERY_MAX_FILENAME_BYTES 4096
 
@@ -32,6 +34,8 @@ struct editorRecoveryTab {
 	int cy;
 	int rowoff;
 	int coloff;
+	enum editorTabKind tab_kind;
+	int dirty;
 	char *filename;
 	char *text;
 	size_t textlen;
@@ -49,6 +53,7 @@ struct editorRecoveryTabView {
 	int rowoff;
 	int coloff;
 	enum editorTabKind tab_kind;
+	int dirty;
 	struct editorDocument *document;
 	const char *filename;
 };
@@ -268,6 +273,12 @@ static int editorRecoveryReadI32(int fd, int32_t *value_out) {
 	return EDITOR_READ_EXACT_OK;
 }
 
+static int editorRecoveryTabKindIsValid(int tab_kind) {
+	return tab_kind == EDITOR_TAB_FILE ||
+			tab_kind == EDITOR_TAB_TASK_LOG ||
+			tab_kind == EDITOR_TAB_UNSUPPORTED_FILE;
+}
+
 static int editorRecoveryGetTabView(int idx, struct editorRecoveryTabView *view_out) {
 	if (view_out == NULL) {
 		errno = EINVAL;
@@ -295,6 +306,7 @@ static int editorRecoveryGetTabView(int idx, struct editorRecoveryTabView *view_
 		view_out->rowoff = E.rowoff;
 		view_out->coloff = E.coloff;
 		view_out->tab_kind = E.tab_kind;
+		view_out->dirty = E.dirty;
 		view_out->document = E.document;
 		view_out->filename = E.filename;
 		return 1;
@@ -311,6 +323,7 @@ static int editorRecoveryGetTabView(int idx, struct editorRecoveryTabView *view_
 	view_out->rowoff = tab->rowoff;
 	view_out->coloff = tab->coloff;
 	view_out->tab_kind = tab->tab_kind;
+	view_out->dirty = tab->dirty;
 	view_out->document = tab->document;
 	view_out->filename = tab->filename;
 	return 1;
@@ -379,6 +392,8 @@ static int editorRecoveryWriteSessionToFd(int fd) {
 				!editorRecoveryWriteI32(fd, (int32_t)view.cy) ||
 				!editorRecoveryWriteI32(fd, (int32_t)view.rowoff) ||
 				!editorRecoveryWriteI32(fd, (int32_t)view.coloff) ||
+				!editorRecoveryWriteI32(fd, (int32_t)view.tab_kind) ||
+				!editorRecoveryWriteI32(fd, (int32_t)view.dirty) ||
 				!editorRecoveryWriteU32(fd, (uint32_t)filename_len)) {
 			if (errno == 0) {
 				errno = EIO;
@@ -531,7 +546,8 @@ static enum editorRecoveryLoadStatus editorRecoveryLoadSessionFromPath(const cha
 		status = EDITOR_RECOVERY_LOAD_INVALID;
 		goto out;
 	}
-	if (version != ROTIDE_RECOVERY_VERSION ||
+	if (version < ROTIDE_RECOVERY_MIN_VERSION ||
+			version > ROTIDE_RECOVERY_VERSION ||
 			tab_count_u32 < 1 ||
 			tab_count_u32 > ROTIDE_MAX_TABS ||
 			active_tab_u32 >= tab_count_u32) {
@@ -571,6 +587,24 @@ static enum editorRecoveryLoadStatus editorRecoveryLoadSessionFromPath(const cha
 		tab->cy = (int)cy;
 		tab->rowoff = (int)rowoff;
 		tab->coloff = (int)coloff;
+		tab->tab_kind = EDITOR_TAB_FILE;
+		tab->dirty = 1;
+
+		if (version >= 3) {
+			int32_t tab_kind = 0;
+			int32_t dirty = 0;
+			if (editorRecoveryReadI32(fd, &tab_kind) != EDITOR_READ_EXACT_OK ||
+					editorRecoveryReadI32(fd, &dirty) != EDITOR_READ_EXACT_OK) {
+				status = EDITOR_RECOVERY_LOAD_INVALID;
+				goto out;
+			}
+			if (!editorRecoveryTabKindIsValid((int)tab_kind) || dirty < 0) {
+				status = EDITOR_RECOVERY_LOAD_INVALID;
+				goto out;
+			}
+			tab->tab_kind = (enum editorTabKind)tab_kind;
+			tab->dirty = dirty != 0;
+		}
 
 		uint32_t filename_len_u32 = 0;
 		if (editorRecoveryReadU32(fd, &filename_len_u32) != EDITOR_READ_EXACT_OK) {
@@ -682,6 +716,8 @@ static int editorRecoveryPopulateActiveFromTab(const struct editorRecoveryTab *t
 	struct editorDocument document;
 	int document_inited = 0;
 	int ok = 0;
+	E.tab_kind = tab->tab_kind;
+	E.is_preview = 0;
 	free(E.filename);
 	E.filename = NULL;
 	if (tab->filename != NULL) {
@@ -700,8 +736,19 @@ static int editorRecoveryPopulateActiveFromTab(const struct editorRecoveryTab *t
 		goto cleanup;
 	}
 
-	if (!editorRestoreActiveFromDocument(&document, tab->cy, tab->cx, 1, 1)) {
+	int parse_syntax = tab->tab_kind == EDITOR_TAB_FILE;
+	if (!editorRestoreActiveFromDocument(&document, tab->cy, tab->cx, tab->dirty,
+				parse_syntax)) {
 		goto cleanup;
+	}
+	if (editorActiveTabIsReadOnly()) {
+		E.syntax_language = EDITOR_SYNTAX_NONE;
+		editorSyntaxStateDestroy(E.syntax_state);
+		E.syntax_state = NULL;
+		E.lsp_doc_open = 0;
+		E.lsp_doc_version = 0;
+		E.lsp_eslint_doc_open = 0;
+		E.lsp_eslint_doc_version = 0;
 	}
 
 	editorRecoveryClampActiveCursorAndScroll(tab);

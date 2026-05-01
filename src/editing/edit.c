@@ -27,20 +27,24 @@
 
 static int editorFileStreamLooksBinary(FILE *fp, int *binary_out) {
 	unsigned char buf[BINARY_DETECT_SAMPLE_BYTES];
-	size_t bytes_read = 0;
 
 	if (fp == NULL || binary_out == NULL) {
 		return 0;
 	}
 	*binary_out = 0;
 
-	bytes_read = fread(buf, 1, sizeof(buf), fp);
-	if (ferror(fp)) {
-		return 0;
-	}
-	for (size_t i = 0; i < bytes_read; i++) {
-		if (buf[i] == '\0') {
-			*binary_out = 1;
+	while (1) {
+		size_t bytes_read = fread(buf, 1, sizeof(buf), fp);
+		if (ferror(fp)) {
+			return 0;
+		}
+		for (size_t i = 0; i < bytes_read; i++) {
+			if (buf[i] == '\0') {
+				*binary_out = 1;
+				break;
+			}
+		}
+		if (*binary_out || bytes_read < sizeof(buf)) {
 			break;
 		}
 	}
@@ -511,6 +515,10 @@ static mode_t editorDefaultCreateMode(void) {
 }
 
 void editorSave(void) {
+	if (editorActiveTabIsUnsupportedFile()) {
+		editorSetStatusMsg("Unsupported files cannot be saved");
+		return;
+	}
 	if (editorActiveTabIsTaskLog()) {
 		editorSetStatusMsg("Task logs cannot be saved");
 		return;

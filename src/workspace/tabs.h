@@ -28,6 +28,7 @@ int editorTabBuildLayoutForWidth(int cols, struct editorTabLayoutEntry *entries,
 		int *count_out);
 int editorTabHitTestColumn(int col, int cols);
 int editorActiveTabIsTaskLog(void);
+int editorActiveTabIsUnsupportedFile(void);
 int editorActiveTabIsReadOnly(void);
 int editorActiveTaskTabIsRunning(void);
 const char *editorActiveBufferDisplayName(void);

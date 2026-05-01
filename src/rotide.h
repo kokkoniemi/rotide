@@ -198,7 +198,8 @@ enum editorViewportMode {
 
 enum editorTabKind {
 	EDITOR_TAB_FILE = 0,
-	EDITOR_TAB_TASK_LOG
+	EDITOR_TAB_TASK_LOG,
+	EDITOR_TAB_UNSUPPORTED_FILE
 };
 
 struct editorRowSyntaxSpan {

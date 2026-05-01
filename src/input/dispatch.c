@@ -1485,14 +1485,16 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 
 	if (editorActiveTabIsReadOnly()) {
 		if (action == EDITOR_ACTION_SAVE) {
-			editorSetStatusMsg("Task logs cannot be saved");
+			editorSetStatusMsg(editorActiveTabIsUnsupportedFile() ?
+					"Unsupported files cannot be saved" : "Task logs cannot be saved");
 			if (effects_out != NULL) {
 				*effects_out = effects;
 			}
 			return 1;
 		}
 		if (E.pane_focus != EDITOR_PANE_DRAWER && editorActionMutatesReadOnlyBuffer(action)) {
-			editorSetStatusMsg("Task log is read-only");
+			editorSetStatusMsg(editorActiveTabIsUnsupportedFile() ?
+					"File is unsupported" : "Task log is read-only");
 			if (effects_out != NULL) {
 				*effects_out = effects;
 			}
@@ -1809,7 +1811,8 @@ void editorProcessKeypress(void) {
 				}
 			} else if (E.pane_focus != EDITOR_PANE_DRAWER) {
 				if (editorActiveTabIsReadOnly()) {
-					editorSetStatusMsg("Task log is read-only");
+					editorSetStatusMsg(editorActiveTabIsUnsupportedFile() ?
+							"File is unsupported" : "Task log is read-only");
 					goto done;
 				}
 				editorClearSelectionMode();

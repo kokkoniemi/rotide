@@ -334,7 +334,7 @@ static int test_editor_file_search_preview_and_open_selected_file(void) {
 	return 0;
 }
 
-static int test_editor_file_search_previews_binary_file_as_blank(void) {
+static int test_editor_file_search_previews_binary_file_as_unsupported_read_only_tab(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
 
@@ -357,9 +357,21 @@ static int test_editor_file_search_previews_binary_file_as_blank(void) {
 	ASSERT_EQ_INT(1, editorTabActiveIndex());
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_EQ_STR(binary_file, E.filename);
-	ASSERT_EQ_INT(0, E.numrows);
+	ASSERT_TRUE(E.numrows > 0);
+	ASSERT_EQ_STR("File is unsupported", E.rows[0].chars);
 	ASSERT_TRUE(E.is_preview);
-	ASSERT_TRUE(strstr(E.statusmsg, "Binary files are not supported") != NULL);
+	ASSERT_TRUE(editorActiveTabIsUnsupportedFile());
+	ASSERT_TRUE(editorActiveTabIsReadOnly());
+	ASSERT_TRUE(strstr(E.statusmsg, "Binary files are not supported") == NULL);
+
+	editorSave();
+	ASSERT_TRUE(strstr(E.statusmsg, "Unsupported files cannot be saved") != NULL);
+	size_t content_len = 0;
+	char *contents = read_file_contents(binary_file, &content_len);
+	ASSERT_TRUE(contents != NULL);
+	ASSERT_EQ_INT((int)sizeof(bytes), (int)content_len);
+	ASSERT_MEM_EQ(bytes, contents, sizeof(bytes));
+	free(contents);
 
 	editorFileSearchExit(0);
 	ASSERT_TRUE(unlink(binary_file) == 0);
@@ -1916,7 +1928,7 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_drawer_open_selected_file_switches_existing_relative_path_tab", test_editor_drawer_open_selected_file_switches_existing_relative_path_tab},
 	{"editor_file_search_filters_results_in_drawer", test_editor_file_search_filters_results_in_drawer},
 	{"editor_file_search_preview_and_open_selected_file", test_editor_file_search_preview_and_open_selected_file},
-	{"editor_file_search_previews_binary_file_as_blank", test_editor_file_search_previews_binary_file_as_blank},
+	{"editor_file_search_previews_binary_file_as_unsupported_read_only_tab", test_editor_file_search_previews_binary_file_as_unsupported_read_only_tab},
 	{"editor_path_absolute_dup_makes_relative_paths_absolute", test_editor_path_absolute_dup_makes_relative_paths_absolute},
 	{"editor_path_find_marker_upward_returns_project_root", test_editor_path_find_marker_upward_returns_project_root},
 	{"editor_drawer_open_selected_file_respects_tab_limit", test_editor_drawer_open_selected_file_respects_tab_limit},

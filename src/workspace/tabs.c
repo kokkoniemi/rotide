@@ -25,6 +25,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#define EDITOR_UNSUPPORTED_FILE_TEXT "File is unsupported\n\nBinary files are not supported.\n"
+
 static void editorTabStateInitEmpty(struct editorTabState *tab);
 static void editorTabStateFree(struct editorTabState *tab);
 static void editorTabStateCaptureActive(struct editorTabState *tab);
@@ -33,9 +35,12 @@ static int editorEnsureTabCapacity(int needed);
 static void editorStoreActiveTab(void);
 static void editorLoadActiveTab(int tab_idx);
 static int editorTabCanReuseActiveEmptyBuffer(void);
+static int editorTabKindCanReuseAsPreview(enum editorTabKind tab_kind);
 static int editorTabFindReusablePreviewIndex(void);
 static const char *editorTabPathAt(int idx);
 static int editorTabFindOpenFileIndex(const char *path);
+static int editorTabFindEditableFileIndex(const char *path);
+static int editorTabLoadUnsupportedFilePreview(const char *filename);
 static void editorTaskLogClampCursor(struct editorTabState *tab);
 static int editorRebuildGeneratedTabRows(struct editorTabState *tab);
 static int editorTaskMutateTab(int tab_idx, int jump_to_end,
@@ -395,7 +400,7 @@ static void editorLoadActiveTab(int tab_idx) {
 		return;
 	}
 	editorTabStateLoadActive(&E.tabs[tab_idx]);
-	if (E.tab_kind == EDITOR_TAB_TASK_LOG) {
+	if (editorActiveTabIsReadOnly()) {
 		E.syntax_language = EDITOR_SYNTAX_NONE;
 		editorSyntaxStateDestroy(E.syntax_state);
 		E.syntax_state = NULL;
@@ -519,15 +524,19 @@ static int editorTabCanReuseActiveEmptyBuffer(void) {
 	return 1;
 }
 
+static int editorTabKindCanReuseAsPreview(enum editorTabKind tab_kind) {
+	return tab_kind == EDITOR_TAB_FILE || tab_kind == EDITOR_TAB_UNSUPPORTED_FILE;
+}
+
 static int editorTabFindReusablePreviewIndex(void) {
 	for (int tab_idx = 0; tab_idx < E.tab_count; tab_idx++) {
 		if (tab_idx == E.active_tab) {
-			if (E.tab_kind == EDITOR_TAB_FILE && E.is_preview && E.dirty == 0) {
+			if (editorTabKindCanReuseAsPreview(E.tab_kind) && E.is_preview && E.dirty == 0) {
 				return tab_idx;
 			}
 			continue;
 		}
-		if (E.tabs[tab_idx].tab_kind == EDITOR_TAB_FILE &&
+		if (editorTabKindCanReuseAsPreview(E.tabs[tab_idx].tab_kind) &&
 				E.tabs[tab_idx].is_preview &&
 				E.tabs[tab_idx].dirty == 0) {
 			return tab_idx;
@@ -537,13 +546,13 @@ static int editorTabFindReusablePreviewIndex(void) {
 }
 
 void editorTabPinActivePreview(void) {
-	if (E.tab_kind == EDITOR_TAB_FILE) {
+	if (editorTabKindCanReuseAsPreview(E.tab_kind)) {
 		E.is_preview = 0;
 	}
 }
 
 int editorActiveTabIsPreview(void) {
-	return E.tab_kind == EDITOR_TAB_FILE && E.is_preview;
+	return editorTabKindCanReuseAsPreview(E.tab_kind) && E.is_preview;
 }
 
 int editorTabIsPreviewAt(int idx) {
@@ -553,7 +562,52 @@ int editorTabIsPreviewAt(int idx) {
 	if (idx == E.active_tab) {
 		return editorActiveTabIsPreview();
 	}
-	return E.tabs[idx].tab_kind == EDITOR_TAB_FILE && E.tabs[idx].is_preview;
+	return editorTabKindCanReuseAsPreview(E.tabs[idx].tab_kind) && E.tabs[idx].is_preview;
+}
+
+static int editorTabLoadUnsupportedFilePreview(const char *filename) {
+	struct editorDocument document;
+	int document_inited = 0;
+	char *filename_copy = NULL;
+	int ok = 0;
+
+	if (filename == NULL || filename[0] == '\0') {
+		return 0;
+	}
+	filename_copy = strdup(filename);
+	if (filename_copy == NULL) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+
+	editorDocumentInit(&document);
+	document_inited = 1;
+	if (!editorDocumentResetFromString(&document, EDITOR_UNSUPPORTED_FILE_TEXT,
+				strlen(EDITOR_UNSUPPORTED_FILE_TEXT))) {
+		editorSetAllocFailureStatus();
+		goto cleanup;
+	}
+
+	editorLspNotifyDidClose(E.filename, E.syntax_language, &E.lsp_doc_open, &E.lsp_doc_version);
+	editorLspNotifyEslintDidClose(E.filename, E.syntax_language, &E.lsp_eslint_doc_open,
+			&E.lsp_eslint_doc_version);
+	editorFreeActiveBufferState();
+	E.tab_kind = EDITOR_TAB_UNSUPPORTED_FILE;
+	E.is_preview = 1;
+	E.filename = filename_copy;
+	filename_copy = NULL;
+	E.syntax_language = EDITOR_SYNTAX_NONE;
+	if (!editorRestoreActiveFromDocument(&document, 0, 0, 0, 0)) {
+		goto cleanup;
+	}
+	ok = 1;
+
+cleanup:
+	if (document_inited) {
+		editorDocumentFree(&document);
+	}
+	free(filename_copy);
+	return ok;
 }
 
 int editorTabOpenFileAsNew(const char *filename) {
@@ -582,7 +636,7 @@ int editorTabOpenOrSwitchToFile(const char *filename) {
 		return 0;
 	}
 
-	int existing_tab = editorTabFindOpenFileIndex(filename);
+	int existing_tab = editorTabFindEditableFileIndex(filename);
 	if (existing_tab >= 0) {
 		if (!editorTabSwitchToIndex(existing_tab)) {
 			return 0;
@@ -605,9 +659,11 @@ int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
 	}
 
 	int is_binary = 0;
-	int can_open = editorFileCanOpen(filename);
-	if (!can_open) {
-		editorFilePathLooksBinary(filename, &is_binary);
+	int can_open = 0;
+	if (editorFilePathLooksBinary(filename, &is_binary) && is_binary) {
+		can_open = 0;
+	} else {
+		can_open = editorFileCanOpen(filename);
 	}
 
 	int preview_tab = editorTabFindReusablePreviewIndex();
@@ -628,15 +684,7 @@ int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
 		if (!editorTabSwitchToIndex(preview_tab)) {
 			return 0;
 		}
-		editorFreeActiveBufferState();
-		E.tab_kind = EDITOR_TAB_FILE;
-		E.is_preview = 1;
-		E.filename = strdup(filename);
-		if (E.filename == NULL) {
-			editorSetAllocFailureStatus();
-			return 0;
-		}
-		return 1;
+		return editorTabLoadUnsupportedFilePreview(filename);
 	}
 
 	if (editorTabCanReuseActiveEmptyBuffer()) {
@@ -650,13 +698,7 @@ int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
 		if (!is_binary) {
 			return 0;
 		}
-		E.is_preview = 1;
-		E.filename = strdup(filename);
-		if (E.filename == NULL) {
-			editorSetAllocFailureStatus();
-			return 0;
-		}
-		return 1;
+		return editorTabLoadUnsupportedFilePreview(filename);
 	}
 	if (!can_open && !is_binary) {
 		return 0;
@@ -671,13 +713,7 @@ int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
 		E.is_preview = 1;
 		return 1;
 	}
-	E.is_preview = 1;
-	E.filename = strdup(filename);
-	if (E.filename == NULL) {
-		editorSetAllocFailureStatus();
-		return 0;
-	}
-	return 1;
+	return editorTabLoadUnsupportedFilePreview(filename);
 }
 
 static const char *editorTabPathAt(int idx) {
@@ -701,6 +737,29 @@ static int editorTabFindOpenFileIndex(const char *path) {
 			continue;
 		}
 		if (editorPathsReferToSameFile(path, tab_path)) {
+			return tab_idx;
+		}
+	}
+
+	return -1;
+}
+
+static int editorTabFindEditableFileIndex(const char *path) {
+	if (path == NULL || path[0] == '\0') {
+		return -1;
+	}
+
+	for (int tab_idx = 0; tab_idx < E.tab_count; tab_idx++) {
+		enum editorTabKind tab_kind = tab_idx == E.active_tab ? E.tab_kind :
+				E.tabs[tab_idx].tab_kind;
+		if (tab_kind != EDITOR_TAB_FILE) {
+			continue;
+		}
+		const char *tab_path = editorTabPathAt(tab_idx);
+		if (tab_path == NULL || tab_path[0] == '\0') {
+			continue;
+		}
+		if (editorPathsReferToSameFile(tab_path, path)) {
 			return tab_idx;
 		}
 	}
@@ -841,8 +900,12 @@ int editorActiveTabIsTaskLog(void) {
 	return E.tab_kind == EDITOR_TAB_TASK_LOG;
 }
 
+int editorActiveTabIsUnsupportedFile(void) {
+	return E.tab_kind == EDITOR_TAB_UNSUPPORTED_FILE;
+}
+
 int editorActiveTabIsReadOnly(void) {
-	return E.tab_kind == EDITOR_TAB_TASK_LOG;
+	return E.tab_kind == EDITOR_TAB_TASK_LOG || E.tab_kind == EDITOR_TAB_UNSUPPORTED_FILE;
 }
 
 int editorActiveTaskTabIsRunning(void) {
