@@ -30,6 +30,8 @@ extern const TSLanguage *tree_sitter_ocaml(void);
 extern const TSLanguage *tree_sitter_julia(void);
 extern const TSLanguage *tree_sitter_scala(void);
 extern const TSLanguage *tree_sitter_embedded_template(void);
+extern const TSLanguage *tree_sitter_markdown(void);
+extern const TSLanguage *tree_sitter_markdown_inline(void);
 
 static const TSLanguage *editorSyntaxFactoryEjs(void) {
 	return tree_sitter_embedded_template();
@@ -119,6 +121,7 @@ static const char *const k_julia_extensions[] = {".jl", NULL};
 static const char *const k_scala_extensions[] = {".scala", ".sc", NULL};
 static const char *const k_ejs_extensions[] = {".ejs", NULL};
 static const char *const k_erb_extensions[] = {".erb", NULL};
+static const char *const k_markdown_extensions[] = {".md", ".markdown", NULL};
 
 static const char *const k_html_injection_aliases[] = {
 	"html", "hamlet", "xhamlet", "shamlet", "xshamlet", "ihamlet", "hsx", NULL};
@@ -135,6 +138,9 @@ static const char *const k_json_injection_aliases[] = {"json", "aesonQQ", NULL};
 static const char *const k_regex_injection_aliases[] = {"regex", "regexp", NULL};
 static const char *const k_shell_injection_aliases[] = {
 	"bash", "sh", "shell", NULL};
+static const char *const k_markdown_injection_aliases[] = {"markdown", "md", NULL};
+static const char *const k_markdown_inline_injection_aliases[] = {
+	"markdown_inline", "markdown.inline", NULL};
 
 static const struct editorSyntaxLanguageDef g_languages[] = {
 	{
@@ -380,6 +386,29 @@ static const struct editorSyntaxLanguageDef g_languages[] = {
 		.injection_parts = editor_query_erb_injection_parts,
 		.injection_part_count = EDITOR_QUERY_ERB_INJECTION_PART_COUNT,
 		.extensions = k_erb_extensions
+	},
+	{
+		.id = EDITOR_SYNTAX_MARKDOWN,
+		.name = "markdown",
+		.ts_factory = tree_sitter_markdown,
+		.highlight_parts = editor_query_markdown_highlight_parts,
+		.highlight_part_count = EDITOR_QUERY_MARKDOWN_HIGHLIGHT_PART_COUNT,
+		.injection_parts = editor_query_markdown_injection_parts,
+		.injection_part_count = EDITOR_QUERY_MARKDOWN_INJECTION_PART_COUNT,
+		.extensions = k_markdown_extensions,
+		.injection_aliases = k_markdown_injection_aliases
+	},
+	{
+		/* Injection-only target: tree-sitter-markdown's block grammar emits
+		 * (inline) nodes that are reparsed with markdown_inline via the static
+		 * injection.language set in markdown's injections.scm. There is no
+		 * file detection for this id. */
+		.id = EDITOR_SYNTAX_MARKDOWN_INLINE,
+		.name = "markdown_inline",
+		.ts_factory = tree_sitter_markdown_inline,
+		.highlight_parts = editor_query_markdown_inline_highlight_parts,
+		.highlight_part_count = EDITOR_QUERY_MARKDOWN_INLINE_HIGHLIGHT_PART_COUNT,
+		.injection_aliases = k_markdown_inline_injection_aliases
 	}
 };
 

@@ -1753,7 +1753,13 @@ static int editorSyntaxInjectionWorkAppendRangeExcludingChildren(
 		return editorSyntaxInjectionWorkAppendRange(work, language, depth, range);
 	}
 
-	uint32_t child_count = ts_node_child_count(node);
+	/* Only named children are semantic injection-content boundaries.
+	 * Anonymous tokens (e.g. literal backticks inside markdown's (inline)
+	 * node, or quote characters around a string body) are part of the
+	 * content the injected grammar needs to see — excluding them
+	 * fragments the included range and breaks injection parsers that
+	 * depend on seeing those delimiters. */
+	uint32_t child_count = ts_node_named_child_count(node);
 	if (child_count == 0) {
 		return editorSyntaxInjectionWorkAppendRange(work, language, depth, range);
 	}
@@ -1761,7 +1767,7 @@ static int editorSyntaxInjectionWorkAppendRangeExcludingChildren(
 	uint32_t segment_start_byte = range->start_byte;
 	TSPoint segment_start_point = range->start_point;
 	for (uint32_t child_idx = 0; child_idx < child_count; child_idx++) {
-		TSNode child = ts_node_child(node, child_idx);
+		TSNode child = ts_node_named_child(node, child_idx);
 		uint32_t child_start_byte = ts_node_start_byte(child);
 		uint32_t child_end_byte = ts_node_end_byte(child);
 		if (child_end_byte <= range->start_byte || child_start_byte >= range->end_byte) {

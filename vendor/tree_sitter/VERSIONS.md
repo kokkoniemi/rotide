@@ -25,6 +25,7 @@ Pinned source/tooling used by this repository:
 - Tree-sitter Julia grammar source ref: `e0f9dcd180fdcfcfa8d79a3531e11d99e79321d3` (`tree-sitter-julia-v0.25.0-e0f9dcd`)
 - Tree-sitter Scala grammar source ref: `38950b525c9dfc44c8b60d44bdd6e54217286ca8` (`tree-sitter-scala-v0.26.0-38950b5`)
 - Tree-sitter embedded-template grammar source ref: `c70c1de07dedd532089c0c90835c8ed9fa694f5c` (`tree-sitter-embedded-template-v0.25.0-c70c1de`) — shared by EJS and (future) ERB
+- Tree-sitter Markdown grammar source ref: `f969cd3ae3f9fbd4e43205431d0ae286014c05b5` (`tree-sitter-markdown-v0.5.3-f969cd3`) — single repo ships block (`tree-sitter-markdown`) and inline (`tree-sitter-markdown-inline`) sub-grammars; both are vendored.
 - Tree-sitter CLI release for regeneration: `v0.26.8`
 
 The machine-readable source of truth is [`VERSIONS.env`](./VERSIONS.env).

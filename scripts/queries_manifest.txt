@@ -46,3 +46,6 @@ haskell_injection     vendor/tree_sitter/grammars/haskell/queries/injections.scm
 julia_injection       vendor/tree_sitter/grammars/julia/queries/injections.scm
 ejs_injection         vendor/tree_sitter/grammars/embedded_template/queries/injections-ejs.scm
 erb_injection         vendor/tree_sitter/grammars/embedded_template/queries/injections-erb.scm
+markdown_highlight        src/language/queries/markdown/highlights.scm
+markdown_inline_highlight src/language/queries/markdown_inline/highlights.scm
+markdown_injection        vendor/tree_sitter/grammars/markdown/queries/injections.scm

@@ -23,6 +23,7 @@ Current fixture-to-editor mapping (`enum editorSyntaxLanguage` in
 - `supported/javascript/` maps to `EDITOR_SYNTAX_JAVASCRIPT`
 - `supported/json/` maps to `EDITOR_SYNTAX_JSON`
 - `supported/julia/` maps to `EDITOR_SYNTAX_JULIA`
+- `supported/markdown/` maps to `EDITOR_SYNTAX_MARKDOWN`
 - `supported/ocaml/` maps to `EDITOR_SYNTAX_OCAML`
 - `supported/php/` maps to `EDITOR_SYNTAX_PHP`
 - `supported/python/` maps to `EDITOR_SYNTAX_PYTHON`
@@ -41,6 +42,10 @@ Notes:
   doc-comment highlighting via tree-sitter-jsdoc, overlaid on JS/TS host trees,
   not a standalone file detection mode. JSDoc coverage lives under
   `supported/javascript/`, `supported/typescript/`, and `supported/tsx/`.
+- `EDITOR_SYNTAX_MARKDOWN_INLINE` has no fixture directory of its own: it is
+  parser-backed inline highlighting overlaid on the markdown block grammar's
+  `(inline)` nodes via injection, not a standalone file detection mode.
+  Inline-grammar coverage lives under `supported/markdown/`.
 - Languages with injection coverage in fixtures (`injections.*`):
   - HTML — nested `<script>` JavaScript and `<style>` CSS.
   - JavaScript / TypeScript / TSX — tagged-template `html` / `css` / regex
@@ -54,5 +59,8 @@ Notes:
   - EJS — template `content` as HTML and `code` as JavaScript, with the
     injected HTML further injecting its own `<script>` JS and `<style>` CSS.
   - ERB — same shape as EJS, with `code` injected as Ruby.
+  - Markdown — fenced code blocks routed by their info-string (e.g.
+    ```` ```python ```` -> Python), plus the inline grammar overlay for
+    emphasis, links, and code spans inside paragraphs.
 - Tests resolve these fixtures from the startup repo root so they keep working
   even if a test temporarily changes the current working directory.

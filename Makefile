@@ -1,6 +1,6 @@
 CC ?= cc
 SRC_DIR := src
-CPPFLAGS ?= -I$(SRC_DIR) -Ivendor/tree_sitter/runtime/include -Ivendor/tree_sitter/runtime/src -Ivendor/tree_sitter/grammars/c/src -Ivendor/tree_sitter/grammars/cpp/src -Ivendor/tree_sitter/grammars/go/src -Ivendor/tree_sitter/grammars/bash/src -Ivendor/tree_sitter/grammars/html/src -Ivendor/tree_sitter/grammars/javascript/src -Ivendor/tree_sitter/grammars/jsdoc/src -Ivendor/tree_sitter/grammars/css/src -Ivendor/tree_sitter/grammars/json/src -Ivendor/tree_sitter/grammars/typescript/src -Ivendor/tree_sitter/grammars/tsx/src -Ivendor/tree_sitter/grammars/python/src -Ivendor/tree_sitter/grammars/php/src -Ivendor/tree_sitter/grammars/rust/src -Ivendor/tree_sitter/grammars/java/src -Ivendor/tree_sitter/grammars/regex/src -Ivendor/tree_sitter/grammars/csharp/src -Ivendor/tree_sitter/grammars/haskell/src -Ivendor/tree_sitter/grammars/ruby/src -Ivendor/tree_sitter/grammars/ocaml/src -Ivendor/tree_sitter/grammars/julia/src -Ivendor/tree_sitter/grammars/scala/src -Ivendor/tree_sitter/grammars/embedded_template/src
+CPPFLAGS ?= -I$(SRC_DIR) -Ivendor/tree_sitter/runtime/include -Ivendor/tree_sitter/runtime/src -Ivendor/tree_sitter/grammars/c/src -Ivendor/tree_sitter/grammars/cpp/src -Ivendor/tree_sitter/grammars/go/src -Ivendor/tree_sitter/grammars/bash/src -Ivendor/tree_sitter/grammars/html/src -Ivendor/tree_sitter/grammars/javascript/src -Ivendor/tree_sitter/grammars/jsdoc/src -Ivendor/tree_sitter/grammars/css/src -Ivendor/tree_sitter/grammars/json/src -Ivendor/tree_sitter/grammars/typescript/src -Ivendor/tree_sitter/grammars/tsx/src -Ivendor/tree_sitter/grammars/python/src -Ivendor/tree_sitter/grammars/php/src -Ivendor/tree_sitter/grammars/rust/src -Ivendor/tree_sitter/grammars/java/src -Ivendor/tree_sitter/grammars/regex/src -Ivendor/tree_sitter/grammars/csharp/src -Ivendor/tree_sitter/grammars/haskell/src -Ivendor/tree_sitter/grammars/ruby/src -Ivendor/tree_sitter/grammars/ocaml/src -Ivendor/tree_sitter/grammars/julia/src -Ivendor/tree_sitter/grammars/scala/src -Ivendor/tree_sitter/grammars/embedded_template/src -Ivendor/tree_sitter/grammars/markdown/src -Ivendor/tree_sitter/grammars/markdown_inline/src
 CFLAGS ?= -Wall -Wextra -Werror -Wshadow -Wdouble-promotion -Wundef -fno-common -pedantic -std=c2x
 LDFLAGS ?=
 SANITIZER_CFLAGS ?= -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer
@@ -52,7 +52,11 @@ TREE_SITTER_SRCS = vendor/tree_sitter/runtime/src/lib.c \
 	vendor/tree_sitter/grammars/julia/src/scanner.c \
 	vendor/tree_sitter/grammars/scala/src/parser.c \
 	vendor/tree_sitter/grammars/scala/src/scanner.c \
-	vendor/tree_sitter/grammars/embedded_template/src/parser.c
+	vendor/tree_sitter/grammars/embedded_template/src/parser.c \
+	vendor/tree_sitter/grammars/markdown/src/parser.c \
+	vendor/tree_sitter/grammars/markdown/src/scanner.c \
+	vendor/tree_sitter/grammars/markdown_inline/src/parser.c \
+	vendor/tree_sitter/grammars/markdown_inline/src/scanner.c
 CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/support/terminal.c $(SRC_DIR)/support/alloc.c \
 	$(SRC_DIR)/support/save_syscalls.c $(SRC_DIR)/support/file_io.c \
@@ -223,6 +227,18 @@ vendor/tree_sitter/grammars/scala/src/scanner.o: vendor/tree_sitter/grammars/sca
 	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 vendor/tree_sitter/grammars/embedded_template/src/parser.o: vendor/tree_sitter/grammars/embedded_template/src/parser.c
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
+
+vendor/tree_sitter/grammars/markdown/src/parser.o: vendor/tree_sitter/grammars/markdown/src/parser.c
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
+
+vendor/tree_sitter/grammars/markdown/src/scanner.o: vendor/tree_sitter/grammars/markdown/src/scanner.c
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
+
+vendor/tree_sitter/grammars/markdown_inline/src/parser.o: vendor/tree_sitter/grammars/markdown_inline/src/parser.c
+	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
+
+vendor/tree_sitter/grammars/markdown_inline/src/scanner.o: vendor/tree_sitter/grammars/markdown_inline/src/scanner.c
 	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 %.o: %.c

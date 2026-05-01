@@ -781,6 +781,63 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_julia_toke
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_markdown_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-markdown-XXXXXX.md";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/markdown/highlight.md"));
+
+	editorOpen(path);
+	E.window_rows = 8;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	/* atx_heading body is highlighted via the @keyword class
+	 * (theme bright blue, ANSI \x1b[94m). */
+	ASSERT_TRUE(strstr(output, "\x1b[94m Heading\x1b[39m") != NULL);
+	/* code_span (the injected markdown_inline grammar's match for the
+	 * `inline code` span) is highlighted via @string (theme green, ANSI
+	 * \x1b[32m). The code_span_delimiter backticks render as @punctuation
+	 * (default color), which over-paints the span ends, so we assert the
+	 * green escape appears around the inner span text. This proves
+	 * block-to-inline injection routes through correctly. */
+	ASSERT_TRUE(strstr(output, "\x1b[32minline code") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_markdown_code_fence_injection(void) {
+	char path[] = "/tmp/rotide-test-syntax-inject-markdown-XXXXXX.md";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/markdown/injections.md"));
+
+	editorOpen(path);
+	E.window_rows = 8;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	/* The `python` info_string -> @type (theme bright cyan, ANSI \x1b[96m). */
+	ASSERT_TRUE(strstr(output, "\x1b[96mpython\x1b[39m") != NULL);
+	/* The integer literals inside the fenced block render as @number
+	 * (theme magenta, ANSI \x1b[35m), proving the python parser ran on
+	 * the code-fence content. */
+	ASSERT_TRUE(strstr(output, "\x1b[35m1\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[35m2\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_julia_literal_injections(void) {
 	char path[] = "/tmp/rotide-test-syntax-inject-julia-XXXXXX.jl";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
@@ -2040,6 +2097,8 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_applies_syntax_highlighting_for_ocaml_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_ocaml_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_julia_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_julia_tokens},
 	{"editor_refresh_screen_applies_julia_literal_injections", test_editor_refresh_screen_applies_julia_literal_injections},
+	{"editor_refresh_screen_applies_syntax_highlighting_for_markdown_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_markdown_tokens},
+	{"editor_refresh_screen_applies_markdown_code_fence_injection", test_editor_refresh_screen_applies_markdown_code_fence_injection},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_scala_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_scala_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_ejs_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_ejs_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_erb_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_erb_tokens},
