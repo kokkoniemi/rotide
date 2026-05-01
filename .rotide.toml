@@ -3,6 +3,7 @@
 # Editor:
 # - cursor_style = "block" | "bar" | "underline" (case-insensitive)
 # - Invalid cursor_style values fall back to "bar" with a warning
+# - line_wrap = true|false (soft wraps long file rows; default false)
 # Theme:
 # - [theme.syntax] supports semantic classes:
 #   comment|keyword|type|function|string|number|constant|preprocessor|operator|punctuation
@@ -49,6 +50,7 @@
 
 [editor]
 cursor_style = "bar"
+line_wrap = false
 
 [theme.syntax]
 comment = "gray"
@@ -90,6 +92,7 @@ find_file = "ctrl+p"
 project_search = "ctrl+alt+f"
 resize_drawer_narrow = "alt+shift+left"
 resize_drawer_widen = "alt+shift+right"
+toggle_line_wrap = "alt+z"
 find = "ctrl+f"
 goto_line = "ctrl+g"
 goto_definition = "ctrl+o"

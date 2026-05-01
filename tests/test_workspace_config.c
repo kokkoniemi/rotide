@@ -1668,6 +1668,126 @@ static int test_editor_cursor_style_invalid_setting_does_not_break_keymap_loadin
 	return 0;
 }
 
+static int test_editor_line_wrap_load_valid_bool_values(void) {
+	char dir_template[] = "/tmp/rotide-test-line-wrap-valid-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+
+	struct {
+		const char *value;
+		int expected;
+	} cases[] = {
+		{"true", 1},
+		{"false", 0},
+		{"TRUE", 1},
+	};
+
+	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+		char content[128];
+		int written = snprintf(content, sizeof(content), "[editor]\nline_wrap = %s\n",
+				cases[i].value);
+		ASSERT_TRUE(written > 0 && (size_t)written < sizeof(content));
+		ASSERT_TRUE(write_text_file(project_path, content));
+
+		int line_wrap = 0;
+		enum editorLineWrapLoadStatus status =
+				editorLineWrapLoadFromPaths(&line_wrap, NULL, project_path);
+		ASSERT_EQ_INT(EDITOR_LINE_WRAP_LOAD_OK, status);
+		ASSERT_EQ_INT(cases[i].expected, line_wrap);
+	}
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_line_wrap_global_then_project_precedence(void) {
+	char dir_template[] = "/tmp/rotide-test-line-wrap-precedence-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char global_path[512];
+	char project_path[512];
+	ASSERT_TRUE(path_join(global_path, sizeof(global_path), dir_path, "global.toml"));
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
+
+	ASSERT_TRUE(write_text_file(global_path,
+				"[editor]\n"
+				"line_wrap = true\n"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[editor]\n"
+				"line_wrap = false\n"));
+
+	int line_wrap = 1;
+	enum editorLineWrapLoadStatus status =
+			editorLineWrapLoadFromPaths(&line_wrap, global_path, project_path);
+	ASSERT_EQ_INT(EDITOR_LINE_WRAP_LOAD_OK, status);
+	ASSERT_EQ_INT(0, line_wrap);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(unlink(global_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_line_wrap_invalid_values_fallback_to_false(void) {
+	char dir_template[] = "/tmp/rotide-test-line-wrap-invalid-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[editor]\n"
+				"line_wrap = \"yes\"\n"));
+
+	int line_wrap = 1;
+	enum editorLineWrapLoadStatus status =
+			editorLineWrapLoadFromPaths(&line_wrap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_LINE_WRAP_LOAD_INVALID_PROJECT, status);
+	ASSERT_EQ_INT(0, line_wrap);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_line_wrap_invalid_setting_does_not_break_keymap_loading(void) {
+	char dir_template[] = "/tmp/rotide-test-line-wrap-keymap-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[editor]\n"
+				"line_wrap = maybe\n"
+				"[keymap]\n"
+				"save = \"ctrl+a\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus keymap_status =
+			editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, keymap_status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('a'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SAVE, action);
+
+	int line_wrap = 1;
+	enum editorLineWrapLoadStatus line_wrap_status =
+			editorLineWrapLoadFromPaths(&line_wrap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_LINE_WRAP_LOAD_INVALID_PROJECT, line_wrap_status);
+	ASSERT_EQ_INT(0, line_wrap);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_theme_load_global_project_precedence(void) {
 	char dir_template[] = "/tmp/rotide-test-syntax-theme-precedence-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -1874,6 +1994,8 @@ static int test_editor_keymap_defaults_include_tab_actions(void) {
 	ASSERT_EQ_INT(EDITOR_ACTION_RESIZE_DRAWER_NARROW, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_SHIFT_ARROW_RIGHT, &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_RESIZE_DRAWER_WIDEN, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('z'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_TOGGLE_LINE_WRAP, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('p'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_FIND_FILE, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_CTRL_ALT_LETTER_KEY('f'), &action));
@@ -1882,6 +2004,30 @@ static int test_editor_keymap_defaults_include_tab_actions(void) {
 	ASSERT_EQ_INT(EDITOR_ACTION_SCROLL_LEFT, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_ARROW_RIGHT, &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_SCROLL_RIGHT, action);
+	return 0;
+}
+
+static int test_editor_keymap_load_accepts_toggle_line_wrap_alt_z(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-line-wrap-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[keymap]\n"
+				"toggle_line_wrap = \"alt+z\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('z'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_TOGGLE_LINE_WRAP, action);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
 	return 0;
 }
 
@@ -2059,11 +2205,16 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_cursor_style_invalid_values_fallback_to_bar", test_editor_cursor_style_invalid_values_fallback_to_bar},
 	{"editor_cursor_style_load_configured_prefers_project_over_global", test_editor_cursor_style_load_configured_prefers_project_over_global},
 	{"editor_cursor_style_invalid_setting_does_not_break_keymap_loading", test_editor_cursor_style_invalid_setting_does_not_break_keymap_loading},
+	{"editor_line_wrap_load_valid_bool_values", test_editor_line_wrap_load_valid_bool_values},
+	{"editor_line_wrap_global_then_project_precedence", test_editor_line_wrap_global_then_project_precedence},
+	{"editor_line_wrap_invalid_values_fallback_to_false", test_editor_line_wrap_invalid_values_fallback_to_false},
+	{"editor_line_wrap_invalid_setting_does_not_break_keymap_loading", test_editor_line_wrap_invalid_setting_does_not_break_keymap_loading},
 	{"editor_syntax_theme_load_global_project_precedence", test_editor_syntax_theme_load_global_project_precedence},
 	{"editor_syntax_theme_invalid_entries_nonfatal_and_keymap_still_loads", test_editor_syntax_theme_invalid_entries_nonfatal_and_keymap_still_loads},
 	{"editor_keymap_load_modifier_combo_specs_case_insensitive", test_editor_keymap_load_modifier_combo_specs_case_insensitive},
 	{"editor_keymap_load_invalid_modifier_combos_fall_back_to_defaults", test_editor_keymap_load_invalid_modifier_combos_fall_back_to_defaults},
 	{"editor_keymap_defaults_include_tab_actions", test_editor_keymap_defaults_include_tab_actions},
+	{"editor_keymap_load_accepts_toggle_line_wrap_alt_z", test_editor_keymap_load_accepts_toggle_line_wrap_alt_z},
 	{"editor_keymap_defaults_include_goto_definition_action", test_editor_keymap_defaults_include_goto_definition_action},
 	{"editor_keymap_load_accepts_goto_definition_ctrl_o", test_editor_keymap_load_accepts_goto_definition_ctrl_o},
 	{"editor_keymap_load_rejects_ctrl_i_binding_that_conflicts_with_tab_input", test_editor_keymap_load_rejects_ctrl_i_binding_that_conflicts_with_tab_input},

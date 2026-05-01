@@ -785,6 +785,30 @@ static int test_editor_process_keypress_resize_event_updates_window_size(void) {
 	return 0;
 }
 
+static int test_editor_process_keypress_alt_z_toggles_line_wrap_without_dirty(void) {
+	add_row("abcdefghijklmn");
+	E.window_rows = 4;
+	E.window_cols = 10;
+	E.line_wrap_enabled = 0;
+	E.dirty = 7;
+	E.coloff = 4;
+	E.wrapoff = 2;
+
+	const char alt_z[] = "\x1bz";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_z, sizeof(alt_z) - 1) == 0);
+	ASSERT_EQ_INT(1, E.line_wrap_enabled);
+	ASSERT_EQ_INT(0, E.coloff);
+	ASSERT_EQ_INT(7, E.dirty);
+	ASSERT_EQ_STR("Line wrap enabled", E.statusmsg);
+
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_z, sizeof(alt_z) - 1) == 0);
+	ASSERT_EQ_INT(0, E.line_wrap_enabled);
+	ASSERT_EQ_INT(0, E.wrapoff);
+	ASSERT_EQ_INT(7, E.dirty);
+	ASSERT_EQ_STR("Line wrap disabled", E.statusmsg);
+	return 0;
+}
+
 static int test_editor_process_keypress_mouse_left_click_places_cursor_with_offsets(void) {
 	add_row("0123456789");
 	add_row("abcdefghij");
@@ -802,6 +826,27 @@ static int test_editor_process_keypress_mouse_left_click_places_cursor_with_offs
 	ASSERT_TRUE(editor_process_keypress_with_input(click, strlen(click)) == 0);
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(5, E.cx);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_left_click_places_cursor_on_wrapped_segment(void) {
+	add_row("abcdefghijklmn");
+	E.window_rows = 4;
+	E.window_cols = 10;
+	E.line_wrap_enabled = 1;
+	E.rowoff = 0;
+	E.wrapoff = 0;
+	E.coloff = 0;
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(editorDrawerSetWidthForCols(1, E.window_cols));
+
+	int text_start = editorTextBodyStartColForCols(E.window_cols);
+	char click[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click, sizeof(click), 0, text_start + 4, 3, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click, strlen(click)) == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(9, E.cx);
 	return 0;
 }
 
@@ -1197,6 +1242,35 @@ static int test_editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clam
 	ASSERT_TRUE(editor_process_keypress_with_input(wheel_up, strlen(wheel_up)) == 0);
 	ASSERT_EQ_INT(0, E.rowoff);
 	ASSERT_EQ_INT(4, E.cy);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_wheel_scrolls_wrapped_segments(void) {
+	add_row("abcdefghijklmnopqrst");
+	E.window_rows = 2;
+	E.window_cols = 10;
+	E.line_wrap_enabled = 1;
+	E.rowoff = 0;
+	E.wrapoff = 0;
+	E.coloff = 0;
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(editorDrawerSetWidthForCols(1, E.window_cols));
+
+	int text_x = editorTextBodyStartColForCols(E.window_cols) + 1;
+	char wheel_down[32];
+	ASSERT_TRUE(format_sgr_mouse_event(wheel_down, sizeof(wheel_down), 65, text_x, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_down, strlen(wheel_down)) == 0);
+	ASSERT_EQ_INT(0, E.rowoff);
+	ASSERT_EQ_INT(3, E.wrapoff);
+	ASSERT_EQ_INT(0, E.coloff);
+	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
+
+	char wheel_up[32];
+	ASSERT_TRUE(format_sgr_mouse_event(wheel_up, sizeof(wheel_up), 64, text_x, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(wheel_up, strlen(wheel_up)) == 0);
+	ASSERT_EQ_INT(0, E.rowoff);
+	ASSERT_EQ_INT(0, E.wrapoff);
 	return 0;
 }
 
@@ -2866,7 +2940,9 @@ const struct editorTestCase g_input_search_tests[] = {
 	{"editor_process_keypress_arrow_down_keeps_visual_column", test_editor_process_keypress_arrow_down_keeps_visual_column},
 	{"editor_process_keypress_ctrl_s_saves_file", test_editor_process_keypress_ctrl_s_saves_file},
 	{"editor_process_keypress_resize_event_updates_window_size", test_editor_process_keypress_resize_event_updates_window_size},
+	{"editor_process_keypress_alt_z_toggles_line_wrap_without_dirty", test_editor_process_keypress_alt_z_toggles_line_wrap_without_dirty},
 	{"editor_process_keypress_mouse_left_click_places_cursor_with_offsets", test_editor_process_keypress_mouse_left_click_places_cursor_with_offsets},
+	{"editor_process_keypress_mouse_left_click_places_cursor_on_wrapped_segment", test_editor_process_keypress_mouse_left_click_places_cursor_on_wrapped_segment},
 	{"editor_process_keypress_mouse_ctrl_click_does_not_start_drag_selection", test_editor_process_keypress_mouse_ctrl_click_does_not_start_drag_selection},
 	{"editor_process_keypress_mouse_left_click_ignores_non_text_rows", test_editor_process_keypress_mouse_left_click_ignores_non_text_rows},
 	{"editor_process_keypress_mouse_left_click_ignores_indicator_padding_columns", test_editor_process_keypress_mouse_left_click_ignores_indicator_padding_columns},
@@ -2879,6 +2955,7 @@ const struct editorTestCase g_input_search_tests[] = {
 	{"editor_process_keypress_mouse_top_row_click_uses_variable_tab_layout", test_editor_process_keypress_mouse_top_row_click_uses_variable_tab_layout},
 	{"editor_process_keypress_mouse_drag_on_splitter_resizes_drawer", test_editor_process_keypress_mouse_drag_on_splitter_resizes_drawer},
 	{"editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps", test_editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps},
+	{"editor_process_keypress_mouse_wheel_scrolls_wrapped_segments", test_editor_process_keypress_mouse_wheel_scrolls_wrapped_segments},
 	{"editor_process_keypress_mouse_wheel_scrolls_horizontally_and_clamps", test_editor_process_keypress_mouse_wheel_scrolls_horizontally_and_clamps},
 	{"editor_process_keypress_mouse_wheel_scrolls_drawer_when_hovered", test_editor_process_keypress_mouse_wheel_scrolls_drawer_when_hovered},
 	{"editor_process_keypress_mouse_wheel_scrolls_drawer_with_empty_buffer", test_editor_process_keypress_mouse_wheel_scrolls_drawer_with_empty_buffer},

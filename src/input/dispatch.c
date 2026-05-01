@@ -1217,6 +1217,12 @@ static int editorResolveMouseToBufferOffset(const struct editorMouseEvent *event
 	}
 
 	int row_idx = E.rowoff + mouse_row;
+	int segment_coloff = E.coloff;
+	if (E.line_wrap_enabled) {
+		if (!editorViewportTextScreenRowToBufferRow(mouse_row, &row_idx, &segment_coloff)) {
+			return 0;
+		}
+	}
 	if (clamp_to_viewport) {
 		if (row_idx < 0) {
 			row_idx = 0;
@@ -1231,7 +1237,7 @@ static int editorResolveMouseToBufferOffset(const struct editorMouseEvent *event
 		}
 	}
 
-	int target_rx = E.coloff + mouse_col;
+	int target_rx = segment_coloff + mouse_col;
 	if (target_rx < 0) {
 		target_rx = 0;
 	}
@@ -1626,6 +1632,18 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 				(void)editorDrawerSetCollapsed(0);
 			}
 			(void)editorDrawerResizeByDeltaForCols(DRAWER_RESIZE_STEP, E.window_cols);
+			break;
+		case EDITOR_ACTION_TOGGLE_LINE_WRAP:
+			editorHistoryBreakGroup();
+			E.line_wrap_enabled = !E.line_wrap_enabled;
+			if (E.line_wrap_enabled) {
+				E.coloff = 0;
+			} else {
+				E.wrapoff = 0;
+			}
+			editorViewportEnsureCursorVisible();
+			editorSetStatusMsg("Line wrap %s", E.line_wrap_enabled ? "enabled" : "disabled");
+			effects |= EDITOR_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 			break;
 		case EDITOR_ACTION_FIND_FILE:
 			editorFindFile();

@@ -68,6 +68,7 @@ struct writeBuf {
 #define DRAWER_EXPAND_INDICATOR "[>]"
 #define TEXT_OVERFLOW_LEFT_UTF8 "\xE2\x86\x90"
 #define TEXT_OVERFLOW_RIGHT_UTF8 "\xE2\x86\x92"
+#define TEXT_WRAP_CONTINUATION_UTF8 "\xE2\x86\xB3"
 
 static int wbAppend(struct writeBuf *wb, const char *s, size_t len) {
 	if (len == 0) {
@@ -1140,12 +1141,193 @@ static int editorRenderSliceDisplayCols(const struct erow *row, int coloff, int 
 	return drawn_cols;
 }
 
+static int editorRenderDisplayCols(const struct erow *row) {
+	if (row == NULL || row->rsize <= 0) {
+		return 0;
+	}
+
+	int cols = 0;
+	for (int i = 0; i < row->rsize;) {
+		unsigned int cp = 0;
+		int src_len = editorUtf8DecodeCodepoint(&row->render[i], row->rsize - i, &cp);
+		if (src_len <= 0) {
+			src_len = 1;
+		}
+		if (src_len > row->rsize - i) {
+			src_len = row->rsize - i;
+		}
+		cols += editorCharDisplayWidth(&row->render[i], row->rsize - i);
+		i += src_len;
+	}
+	return cols;
+}
+
+static int editorWrapBodyCols(void) {
+	int body_cols = editorTextBodyViewportCols(E.window_cols);
+	return body_cols < 1 ? 1 : body_cols;
+}
+
+static int editorWrapSegmentCountForRowIndex(int row_idx, int body_cols) {
+	if (body_cols < 1) {
+		body_cols = 1;
+	}
+	if (row_idx < 0 || row_idx >= E.numrows) {
+		return 1;
+	}
+	int cols = editorRenderDisplayCols(&E.rows[row_idx]);
+	if (cols <= 0) {
+		return 1;
+	}
+	return (cols + body_cols - 1) / body_cols;
+}
+
+static int editorWrapCursorSegmentForRx(int rx, int body_cols) {
+	if (body_cols < 1) {
+		body_cols = 1;
+	}
+	if (rx <= 0) {
+		return 0;
+	}
+	return (rx - 1) / body_cols;
+}
+
+static void editorWrappedClampViewportOffsets(void) {
+	if (!E.line_wrap_enabled) {
+		E.wrapoff = 0;
+		return;
+	}
+	E.coloff = 0;
+	if (E.rowoff < 0) {
+		E.rowoff = 0;
+	}
+	int max_rowoff = E.numrows > 0 ? E.numrows - 1 : 0;
+	if (E.rowoff > max_rowoff) {
+		E.rowoff = max_rowoff;
+	}
+	int body_cols = editorWrapBodyCols();
+	int max_wrapoff = editorWrapSegmentCountForRowIndex(E.rowoff, body_cols) - 1;
+	if (E.wrapoff < 0) {
+		E.wrapoff = 0;
+	}
+	if (E.wrapoff > max_wrapoff) {
+		E.wrapoff = max_wrapoff;
+	}
+}
+
+static void editorWrappedAdvancePosition(int *row_idx, int *segment_idx, int body_cols) {
+	if (row_idx == NULL || segment_idx == NULL) {
+		return;
+	}
+	if (*row_idx >= E.numrows) {
+		return;
+	}
+	int segment_count = editorWrapSegmentCountForRowIndex(*row_idx, body_cols);
+	if (*segment_idx + 1 < segment_count) {
+		(*segment_idx)++;
+		return;
+	}
+	(*row_idx)++;
+	*segment_idx = 0;
+}
+
+static void editorWrappedMoveBackPosition(int *row_idx, int *segment_idx, int body_cols) {
+	if (row_idx == NULL || segment_idx == NULL || (*row_idx <= 0 && *segment_idx <= 0)) {
+		return;
+	}
+	if (*segment_idx > 0) {
+		(*segment_idx)--;
+		return;
+	}
+	(*row_idx)--;
+	*segment_idx = editorWrapSegmentCountForRowIndex(*row_idx, body_cols) - 1;
+}
+
+static int editorWrappedPositionBefore(int row_a, int segment_a, int row_b, int segment_b) {
+	return row_a < row_b || (row_a == row_b && segment_a < segment_b);
+}
+
+static int editorWrappedDistanceForward(int from_row, int from_segment, int to_row, int to_segment,
+		int max_distance, int body_cols, int *distance_out) {
+	int row = from_row;
+	int segment = from_segment;
+	for (int distance = 0; distance <= max_distance; distance++) {
+		if (row == to_row && segment == to_segment) {
+			if (distance_out != NULL) {
+				*distance_out = distance;
+			}
+			return 1;
+		}
+		editorWrappedAdvancePosition(&row, &segment, body_cols);
+		if (row >= E.numrows) {
+			break;
+		}
+	}
+	return 0;
+}
+
+int editorViewportTextScreenRowToBufferRow(int screen_row, int *row_idx_out,
+		int *segment_coloff_out) {
+	if (row_idx_out == NULL || segment_coloff_out == NULL || screen_row < 0) {
+		return 0;
+	}
+	if (!E.line_wrap_enabled) {
+		*row_idx_out = E.rowoff + screen_row;
+		*segment_coloff_out = E.coloff;
+		return 1;
+	}
+
+	int row = E.rowoff;
+	int segment = E.wrapoff;
+	int body_cols = editorWrapBodyCols();
+	for (int y = 0; y < screen_row; y++) {
+		editorWrappedAdvancePosition(&row, &segment, body_cols);
+	}
+	*row_idx_out = row;
+	*segment_coloff_out = segment * body_cols;
+	return 1;
+}
+
 static int editorAppendGrayGlyph(struct writeBuf *wb, const char *glyph, size_t glyph_len) {
 	return editorAppendGrayBytes(wb, glyph, glyph_len);
 }
 
+static int editorDrawFileRowWrapped(struct writeBuf *wb, size_t i, int text_cols,
+		int segment_coloff) {
+	struct erow *row = &E.rows[i];
+	if (text_cols >= 3) {
+		int body_cols = editorTextBodyViewportCols(E.window_cols);
+		int rendered_cols = editorRenderSliceDisplayCols(row, segment_coloff, body_cols, NULL);
+
+		if (segment_coloff > 0) {
+			if (!editorAppendGrayGlyph(wb, TEXT_WRAP_CONTINUATION_UTF8,
+						sizeof(TEXT_WRAP_CONTINUATION_UTF8) - 1)) {
+				return 0;
+			}
+		} else if (!wbAppend(wb, " ", 1)) {
+			return 0;
+		}
+
+		if (!editorDrawRenderSlice(wb, row, (int)i, segment_coloff, body_cols)) {
+			return 0;
+		}
+
+		for (int pad = rendered_cols; pad < body_cols; pad++) {
+			if (!wbAppend(wb, " ", 1)) {
+				return 0;
+			}
+		}
+
+		return wbAppend(wb, " ", 1);
+	}
+
+	return editorDrawRenderSlice(wb, row, (int)i, segment_coloff, text_cols);
+}
+
 static int editorDrawFileRow(struct writeBuf *wb, size_t i, int text_cols) {
 	struct erow *row = &E.rows[i];
+	if (E.line_wrap_enabled) {
+		return editorDrawFileRowWrapped(wb, i, text_cols, 0);
+	}
 	if (text_cols >= 3) {
 		int body_cols = editorTextBodyViewportCols(E.window_cols);
 		int has_right_overflow = 0;
@@ -1718,6 +1900,13 @@ pad_drawer_row:
 static int editorBuildFileRowLine(struct writeBuf *wb, int y, int drawer_cols, int separator_cols,
 		int text_cols) {
 	int y_offset = y + E.rowoff;
+	int segment_coloff = 0;
+	if (E.line_wrap_enabled) {
+		if (!editorViewportTextScreenRowToBufferRow(y, &y_offset, &segment_coloff)) {
+			y_offset = E.numrows;
+			segment_coloff = 0;
+		}
+	}
 
 	if (!editorDrawDrawerRow(wb, y + 1, drawer_cols)) {
 		return 0;
@@ -1728,7 +1917,11 @@ static int editorBuildFileRowLine(struct writeBuf *wb, int y, int drawer_cols, i
 	}
 
 	if (y_offset < E.numrows) {
-		if (!editorDrawFileRow(wb, (size_t)y_offset, text_cols)) {
+		if (E.line_wrap_enabled) {
+			if (!editorDrawFileRowWrapped(wb, (size_t)y_offset, text_cols, segment_coloff)) {
+				return 0;
+			}
+		} else if (!editorDrawFileRow(wb, (size_t)y_offset, text_cols)) {
 			return 0;
 		}
 	} else if (E.numrows == 0 && y == E.window_rows / 3) {
@@ -1923,6 +2116,10 @@ static int editorDrawStatusBar(struct writeBuf *wb) {
 }
 
 static void editorClampViewportOffsets(void) {
+	if (E.line_wrap_enabled) {
+		editorWrappedClampViewportOffsets();
+		return;
+	}
 	if (E.rowoff < 0) {
 		E.rowoff = 0;
 	}
@@ -1942,6 +2139,7 @@ static void editorClampViewportOffsets(void) {
 			E.coloff = max_coloff;
 		}
 	}
+	E.wrapoff = 0;
 }
 
 static void editorUpdateRenderXFromCursor(void) {
@@ -1955,6 +2153,32 @@ static void editorFollowCursorViewport(void) {
 	int text_cols = editorTextBodyViewportCols(E.window_cols);
 	if (text_cols < 1) {
 		text_cols = 1;
+	}
+
+	if (E.line_wrap_enabled) {
+		int body_cols = editorWrapBodyCols();
+		int cursor_segment = editorWrapCursorSegmentForRx(E.rx, body_cols);
+		E.coloff = 0;
+
+		if (editorWrappedPositionBefore(E.cy, cursor_segment, E.rowoff, E.wrapoff)) {
+			E.rowoff = E.cy;
+			E.wrapoff = cursor_segment;
+			return;
+		}
+
+		int distance = 0;
+		if (!editorWrappedDistanceForward(E.rowoff, E.wrapoff, E.cy, cursor_segment,
+					E.window_rows > 0 ? E.window_rows - 1 : 0, body_cols, &distance)) {
+			int top_row = E.cy;
+			int top_segment = cursor_segment;
+			int back_count = E.window_rows > 0 ? E.window_rows - 1 : 0;
+			for (int i = 0; i < back_count; i++) {
+				editorWrappedMoveBackPosition(&top_row, &top_segment, body_cols);
+			}
+			E.rowoff = top_row;
+			E.wrapoff = top_segment;
+		}
+		return;
 	}
 
 	// Keep the cursor visible vertically and horizontally by moving
@@ -1985,6 +2209,35 @@ void editorViewportScrollByRows(int delta_rows) {
 		return;
 	}
 
+	if (E.line_wrap_enabled) {
+		int body_cols = editorWrapBodyCols();
+		editorWrappedClampViewportOffsets();
+		if (delta_rows > 0) {
+			for (int i = 0; i < delta_rows; i++) {
+				int old_row = E.rowoff;
+				int old_segment = E.wrapoff;
+				editorWrappedAdvancePosition(&E.rowoff, &E.wrapoff, body_cols);
+				if (E.rowoff >= E.numrows) {
+					E.rowoff = old_row;
+					E.wrapoff = old_segment;
+					break;
+				}
+			}
+		} else {
+			for (int i = 0; i > delta_rows; i--) {
+				int old_row = E.rowoff;
+				int old_segment = E.wrapoff;
+				editorWrappedMoveBackPosition(&E.rowoff, &E.wrapoff, body_cols);
+				if (E.rowoff == old_row && E.wrapoff == old_segment) {
+					break;
+				}
+			}
+		}
+		E.viewport_mode = EDITOR_VIEWPORT_FREE_SCROLL;
+		editorWrappedClampViewportOffsets();
+		return;
+	}
+
 	long long target = (long long)E.rowoff + (long long)delta_rows;
 	if (target < 0) {
 		target = 0;
@@ -2000,6 +2253,12 @@ void editorViewportScrollByRows(int delta_rows) {
 
 void editorViewportScrollByCols(int delta_cols) {
 	if (delta_cols == 0) {
+		return;
+	}
+
+	if (E.line_wrap_enabled) {
+		E.coloff = 0;
+		editorWrappedClampViewportOffsets();
 		return;
 	}
 
@@ -2096,6 +2355,25 @@ void editorRefreshScreen(void) {
 	int cursor_row = (E.cy - E.rowoff) + 2;
 	int cursor_col = editorTextBodyStartColForCols(E.window_cols) + (E.rx - E.coloff) + 1;
 	int cursor_visible = 1;
+	if (E.line_wrap_enabled) {
+		int body_cols = editorWrapBodyCols();
+		int cursor_segment = editorWrapCursorSegmentForRx(E.rx, body_cols);
+		int cursor_segment_col = E.rx - (cursor_segment * body_cols);
+		if (cursor_segment_col >= body_cols) {
+			cursor_segment_col = body_cols - 1;
+		}
+		if (cursor_segment_col < 0) {
+			cursor_segment_col = 0;
+		}
+		int cursor_distance = 0;
+		if (editorWrappedDistanceForward(E.rowoff, E.wrapoff, E.cy, cursor_segment,
+					E.window_rows > 0 ? E.window_rows - 1 : 0, body_cols, &cursor_distance)) {
+			cursor_row = cursor_distance + 2;
+		} else {
+			cursor_visible = 0;
+		}
+		cursor_col = editorTextBodyStartColForCols(E.window_cols) + cursor_segment_col + 1;
+	}
 	if (E.pane_focus == EDITOR_PANE_DRAWER && editorDrawerWidthForCols(E.window_cols) > 0) {
 		if (editorFileSearchIsActive()) {
 			cursor_row = 1;

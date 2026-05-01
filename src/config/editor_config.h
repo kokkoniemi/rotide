@@ -10,8 +10,18 @@ enum editorCursorStyleLoadStatus {
 	EDITOR_CURSOR_STYLE_LOAD_OUT_OF_MEMORY = 1 << 2
 };
 
+enum editorLineWrapLoadStatus {
+	EDITOR_LINE_WRAP_LOAD_OK = 0,
+	EDITOR_LINE_WRAP_LOAD_INVALID_GLOBAL = 1 << 0,
+	EDITOR_LINE_WRAP_LOAD_INVALID_PROJECT = 1 << 1,
+	EDITOR_LINE_WRAP_LOAD_OUT_OF_MEMORY = 1 << 2
+};
+
 enum editorCursorStyleLoadStatus editorCursorStyleLoadFromPaths(enum editorCursorStyle *style_out,
 		const char *global_path, const char *project_path);
 enum editorCursorStyleLoadStatus editorCursorStyleLoadConfigured(enum editorCursorStyle *style_out);
+enum editorLineWrapLoadStatus editorLineWrapLoadFromPaths(int *line_wrap_out,
+		const char *global_path, const char *project_path);
+enum editorLineWrapLoadStatus editorLineWrapLoadConfigured(int *line_wrap_out);
 
 #endif

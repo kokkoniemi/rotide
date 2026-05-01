@@ -98,6 +98,7 @@ void editorResetActiveBufferFields(void) {
 	E.rx = 0;
 	E.rowoff = 0;
 	E.coloff = 0;
+	E.wrapoff = 0;
 	E.numrows = 0;
 	E.rows = NULL;
 	E.document = NULL;
@@ -233,6 +234,7 @@ static void editorTabStateCaptureActive(struct editorTabState *tab) {
 	tab->rx = E.rx;
 	tab->rowoff = E.rowoff;
 	tab->coloff = E.coloff;
+	tab->wrapoff = E.wrapoff;
 	tab->numrows = E.numrows;
 	tab->rows = E.rows;
 	tab->document = E.document;
@@ -288,6 +290,7 @@ static void editorTabStateLoadActive(struct editorTabState *tab) {
 	E.rx = tab->rx;
 	E.rowoff = tab->rowoff;
 	E.coloff = tab->coloff;
+	E.wrapoff = tab->wrapoff;
 	E.numrows = tab->numrows;
 	E.rows = tab->rows;
 	E.document = tab->document;

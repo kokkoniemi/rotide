@@ -126,6 +126,8 @@ void reset_editor_state(void) {
 	E.drawer_search_active_tab_before = -1;
 	E.drawer_project_search_active_tab_before = -1;
 	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;
+	E.line_wrap_enabled = 0;
+	E.wrapoff = 0;
 	editorSyntaxThemeInitDefaults(E.syntax_theme);
 	editorSyntaxTestResetBudgetOverrides();
 	editorSyntaxTestResetParseFailureCountdowns();

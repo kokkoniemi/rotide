@@ -1989,6 +1989,71 @@ static int test_editor_refresh_screen_shows_both_horizontal_overflow_indicators(
 	return 0;
 }
 
+static int test_editor_refresh_screen_wraps_long_line_with_continuation_marker(void) {
+	add_row("abcdefghijklmn");
+	E.window_rows = 4;
+	E.window_cols = 10;
+	E.line_wrap_enabled = 1;
+	E.rowoff = 0;
+	E.wrapoff = 0;
+	E.coloff = 4;
+	ASSERT_TRUE(editorDrawerSetWidthForCols(1, E.window_cols));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_EQ_INT(0, E.coloff);
+	ASSERT_TRUE(strstr(output, "abcdef") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m\xE2\x86\xB3\x1b[39mghijkl") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m\xE2\x86\xB3\x1b[39mmn") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m\xE2\x86\x90\x1b[39m") == NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m\xE2\x86\x92\x1b[39m") == NULL);
+	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_wrap_exact_width_has_no_continuation_marker(void) {
+	add_row("abcdef");
+	E.window_rows = 3;
+	E.window_cols = 10;
+	E.line_wrap_enabled = 1;
+	E.rowoff = 0;
+	E.wrapoff = 0;
+	ASSERT_TRUE(editorDrawerSetWidthForCols(1, E.window_cols));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "abcdef") != NULL);
+	ASSERT_TRUE(strstr(output, "\xE2\x86\xB3") == NULL);
+	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_wrap_cursor_uses_visual_segment(void) {
+	add_row("abcdefghijklmn");
+	E.window_rows = 4;
+	E.window_cols = 10;
+	E.line_wrap_enabled = 1;
+	E.rowoff = 0;
+	E.wrapoff = 0;
+	E.cy = 0;
+	E.cx = 8;
+	ASSERT_TRUE(editorDrawerSetWidthForCols(1, E.window_cols));
+
+	int expected_col = editorTextBodyStartColForCols(E.window_cols) + 3;
+	char expected_cursor[32];
+	ASSERT_TRUE(snprintf(expected_cursor, sizeof(expected_cursor), "\x1b[3;%dH",
+				expected_col) > 0);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, expected_cursor) != NULL);
+	free(output);
+	return 0;
+}
+
 static int test_editor_refresh_screen_non_file_rows_do_not_show_overflow_indicators(void) {
 	E.window_rows = 3;
 	E.window_cols = 24;
@@ -2232,6 +2297,9 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_shows_right_overflow_indicator", test_editor_refresh_screen_shows_right_overflow_indicator},
 	{"editor_refresh_screen_shows_left_overflow_indicator", test_editor_refresh_screen_shows_left_overflow_indicator},
 	{"editor_refresh_screen_shows_both_horizontal_overflow_indicators", test_editor_refresh_screen_shows_both_horizontal_overflow_indicators},
+	{"editor_refresh_screen_wraps_long_line_with_continuation_marker", test_editor_refresh_screen_wraps_long_line_with_continuation_marker},
+	{"editor_refresh_screen_wrap_exact_width_has_no_continuation_marker", test_editor_refresh_screen_wrap_exact_width_has_no_continuation_marker},
+	{"editor_refresh_screen_wrap_cursor_uses_visual_segment", test_editor_refresh_screen_wrap_cursor_uses_visual_segment},
 	{"editor_refresh_screen_non_file_rows_do_not_show_overflow_indicators", test_editor_refresh_screen_non_file_rows_do_not_show_overflow_indicators},
 	{"editor_refresh_screen_out_of_buffer_tildes_are_gray", test_editor_refresh_screen_out_of_buffer_tildes_are_gray},
 	{"editor_refresh_screen_updates_horizontal_scroll", test_editor_refresh_screen_updates_horizontal_scroll},

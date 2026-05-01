@@ -37,6 +37,7 @@ static const struct editorActionName editor_action_names[] = {
 	{"toggle_drawer", EDITOR_ACTION_TOGGLE_DRAWER},
 	{"resize_drawer_narrow", EDITOR_ACTION_RESIZE_DRAWER_NARROW},
 	{"resize_drawer_widen", EDITOR_ACTION_RESIZE_DRAWER_WIDEN},
+	{"toggle_line_wrap", EDITOR_ACTION_TOGGLE_LINE_WRAP},
 	{"find_file", EDITOR_ACTION_FIND_FILE},
 	{"project_search", EDITOR_ACTION_PROJECT_SEARCH},
 	{"find", EDITOR_ACTION_FIND},
@@ -600,6 +601,8 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 			EDITOR_ACTION_RESIZE_DRAWER_NARROW);
 	(void)editorKeymapAppendBinding(keymap, ALT_SHIFT_ARROW_RIGHT,
 			EDITOR_ACTION_RESIZE_DRAWER_WIDEN);
+	(void)editorKeymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('z'),
+			EDITOR_ACTION_TOGGLE_LINE_WRAP);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('p'), EDITOR_ACTION_FIND_FILE);
 	(void)editorKeymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('f'),
 			EDITOR_ACTION_PROJECT_SEARCH);
