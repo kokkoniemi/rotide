@@ -11,6 +11,7 @@
 #include "support/alloc.h"
 #include "support/terminal.h"
 #include "workspace/drawer.h"
+#include "workspace/file_search.h"
 #include "workspace/recovery.h"
 #include "workspace/tabs.h"
 #include "workspace/task.h"
@@ -811,6 +812,18 @@ static void editorFind(void) {
 	}
 }
 
+static void editorFindFile(void) {
+	editorHistoryBreakGroup();
+	if (editorDrawerSetCollapsed(0)) {
+		editorSetDrawerCollapseStatus(0);
+	}
+	if (!editorFileSearchEnter()) {
+		return;
+	}
+	E.pane_focus = EDITOR_PANE_DRAWER;
+	(void)editorFileSearchPreviewSelection();
+}
+
 static int editorParsePositiveLineNumber(const char *query, long *out_line) {
 	if (query[0] == '\0') {
 		return 0;
@@ -1257,7 +1270,8 @@ static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 			E.mouse_drag_started = 0;
 			return EDITOR_KEYPRESS_EFFECT_NONE;
 		}
-		int visible_idx = E.drawer_rowoff + drawer_row;
+		int visible_idx =
+				(editorFileSearchIsActive() && drawer_row == 0) ? 0 : E.drawer_rowoff + drawer_row;
 		if (!editorDrawerSelectVisibleIndex(visible_idx, drawer_view_rows)) {
 			editorResetDrawerClickTracking();
 			E.mouse_left_button_down = 0;
@@ -1278,7 +1292,12 @@ static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 				now_ms > 0 &&
 				now_ms - E.drawer_last_click_ms <= DRAWER_DOUBLE_CLICK_THRESHOLD_MS;
 		if (should_open_file) {
-			if (editorActiveTabIsPreview()) {
+			if (editorFileSearchIsActive()) {
+				if (editorDrawerOpenSelectedFileInTab()) {
+					editorFileSearchExit(0);
+					E.pane_focus = EDITOR_PANE_TEXT;
+				}
+			} else if (editorActiveTabIsPreview()) {
 				editorTabPinActivePreview();
 				editorSetStatusMsg("Tab kept open");
 				E.pane_focus = EDITOR_PANE_TEXT;
@@ -1420,6 +1439,52 @@ static int editorHandleMouseEvent(void) {
 static int editorProcessMappedAction(enum editorAction action, int *effects_out) {
 	int effects = EDITOR_KEYPRESS_EFFECT_NONE;
 
+	if (editorFileSearchIsActive()) {
+		switch (action) {
+			case EDITOR_ACTION_FIND_FILE:
+				editorFindFile();
+				break;
+			case EDITOR_ACTION_MOVE_UP:
+				if (editorFileSearchMoveSelectionBy(-1, E.window_rows + 1)) {
+					(void)editorFileSearchPreviewSelection();
+				}
+				break;
+			case EDITOR_ACTION_MOVE_DOWN:
+				if (editorFileSearchMoveSelectionBy(1, E.window_rows + 1)) {
+					(void)editorFileSearchPreviewSelection();
+				}
+				break;
+			case EDITOR_ACTION_NEWLINE:
+				if (editorFileSearchOpenSelectedFileInTab()) {
+					editorFileSearchExit(0);
+					E.pane_focus = EDITOR_PANE_TEXT;
+					effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+				}
+				break;
+			case EDITOR_ACTION_ESCAPE:
+				editorFileSearchExit(1);
+				E.pane_focus = EDITOR_PANE_TEXT;
+				break;
+			case EDITOR_ACTION_BACKSPACE:
+			case EDITOR_ACTION_DELETE_CHAR:
+				if (editorFileSearchBackspace()) {
+					(void)editorFileSearchPreviewSelection();
+				}
+				break;
+			case EDITOR_ACTION_TOGGLE_DRAWER:
+				if (editorDrawerSetCollapsed(1)) {
+					editorSetDrawerCollapseStatus(1);
+				}
+				break;
+			default:
+				break;
+		}
+		if (effects_out != NULL) {
+			*effects_out = effects;
+		}
+		return 0;
+	}
+
 	if (editorActiveTabIsReadOnly()) {
 		if (action == EDITOR_ACTION_SAVE) {
 			editorSetStatusMsg("Task logs cannot be saved");
@@ -1491,6 +1556,9 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 				(void)editorDrawerSetCollapsed(0);
 			}
 			(void)editorDrawerResizeByDeltaForCols(DRAWER_RESIZE_STEP, E.window_cols);
+			break;
+		case EDITOR_ACTION_FIND_FILE:
+			editorFindFile();
 			break;
 		case EDITOR_ACTION_FIND:
 			editorHistoryBreakGroup();
@@ -1737,7 +1805,11 @@ void editorProcessKeypress(void) {
 			}
 			effects |= mapped_effects;
 		} else if (editorByteShouldInsertAsText(c)) {
-			if (E.pane_focus != EDITOR_PANE_DRAWER) {
+			if (editorFileSearchIsActive()) {
+				if (editorFileSearchAppendByte(c)) {
+					(void)editorFileSearchPreviewSelection();
+				}
+			} else if (E.pane_focus != EDITOR_PANE_DRAWER) {
 				if (editorActiveTabIsReadOnly()) {
 					editorSetStatusMsg("Task log is read-only");
 					goto done;

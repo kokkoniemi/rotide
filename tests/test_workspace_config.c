@@ -1,5 +1,6 @@
 #include "test_case.h"
 #include "test_support.h"
+#include "workspace/file_search.h"
 
 static int test_editor_drawer_root_selection_modes(void) {
 	struct recoveryTestEnv env;
@@ -225,6 +226,98 @@ static int test_editor_drawer_open_selected_file_switches_existing_relative_path
 	ASSERT_EQ_STR("dup", E.rows[0].chars);
 
 	ASSERT_TRUE(unlink(abs_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_file_search_filters_results_in_drawer(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char src_dir[512];
+	char docs_dir[512];
+	char main_file[512];
+	char readme_file[512];
+	char guide_file[512];
+	ASSERT_TRUE(path_join(src_dir, sizeof(src_dir), env.project_dir, "src"));
+	ASSERT_TRUE(path_join(docs_dir, sizeof(docs_dir), env.project_dir, "docs"));
+	ASSERT_TRUE(path_join(main_file, sizeof(main_file), src_dir, "main.c"));
+	ASSERT_TRUE(path_join(readme_file, sizeof(readme_file), env.project_dir, "README.md"));
+	ASSERT_TRUE(path_join(guide_file, sizeof(guide_file), docs_dir, "guide.md"));
+	ASSERT_TRUE(make_dir(src_dir));
+	ASSERT_TRUE(make_dir(docs_dir));
+	ASSERT_TRUE(write_text_file(main_file, "int main(void) { return 0; }\n"));
+	ASSERT_TRUE(write_text_file(readme_file, "# Rotide\n"));
+	ASSERT_TRUE(write_text_file(guide_file, "guide\n"));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorFileSearchEnter());
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
+
+	struct editorDrawerEntryView header;
+	ASSERT_TRUE(editorDrawerGetVisibleEntry(0, &header));
+	ASSERT_EQ_INT(1, header.is_search_header);
+	ASSERT_EQ_STR("", header.name);
+
+	ASSERT_TRUE(editorFileSearchAppendByte('M'));
+	ASSERT_TRUE(editorFileSearchAppendByte('A'));
+	ASSERT_TRUE(editorFileSearchAppendByte('I'));
+	ASSERT_TRUE(editorFileSearchAppendByte('N'));
+	ASSERT_EQ_STR("MAIN", editorFileSearchQuery());
+	ASSERT_EQ_INT(2, editorDrawerVisibleCount());
+
+	struct editorDrawerEntryView result;
+	ASSERT_TRUE(editorDrawerGetVisibleEntry(1, &result));
+	ASSERT_EQ_STR("src/main.c", result.name);
+	ASSERT_EQ_STR(main_file, result.path);
+	ASSERT_EQ_INT(1, result.is_selected);
+
+	editorFileSearchExit(0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, E.drawer_mode);
+
+	ASSERT_TRUE(unlink(guide_file) == 0);
+	ASSERT_TRUE(unlink(readme_file) == 0);
+	ASSERT_TRUE(unlink(main_file) == 0);
+	ASSERT_TRUE(rmdir(docs_dir) == 0);
+	ASSERT_TRUE(rmdir(src_dir) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_file_search_preview_and_open_selected_file(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char alpha_file[512];
+	char beta_file[512];
+	ASSERT_TRUE(path_join(alpha_file, sizeof(alpha_file), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(path_join(beta_file, sizeof(beta_file), env.project_dir, "beta.txt"));
+	ASSERT_TRUE(write_text_file(alpha_file, "alpha\n"));
+	ASSERT_TRUE(write_text_file(beta_file, "beta\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("base");
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorFileSearchEnter());
+	ASSERT_TRUE(editorFileSearchAppendByte('b'));
+	ASSERT_TRUE(editorFileSearchAppendByte('e'));
+
+	ASSERT_TRUE(editorFileSearchPreviewSelection());
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_TRUE(editorActiveTabIsPreview());
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_EQ_STR(beta_file, E.filename);
+	ASSERT_EQ_STR("beta", E.rows[0].chars);
+
+	ASSERT_TRUE(editorFileSearchOpenSelectedFileInTab());
+	editorFileSearchExit(0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, E.drawer_mode);
+	ASSERT_EQ_INT(0, editorActiveTabIsPreview());
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_EQ_STR(beta_file, E.filename);
+
+	ASSERT_TRUE(unlink(beta_file) == 0);
+	ASSERT_TRUE(unlink(alpha_file) == 0);
 	cleanup_recovery_test_env(&env);
 	return 0;
 }
@@ -1627,6 +1720,8 @@ static int test_editor_keymap_defaults_include_tab_actions(void) {
 	ASSERT_EQ_INT(EDITOR_ACTION_RESIZE_DRAWER_NARROW, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_SHIFT_ARROW_RIGHT, &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_RESIZE_DRAWER_WIDEN, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('p'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_FIND_FILE, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_ARROW_LEFT, &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_SCROLL_LEFT, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_ARROW_RIGHT, &action));
@@ -1774,6 +1869,8 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_drawer_root_is_not_collapsible", test_editor_drawer_root_is_not_collapsible},
 	{"editor_drawer_open_selected_file_in_new_tab", test_editor_drawer_open_selected_file_in_new_tab},
 	{"editor_drawer_open_selected_file_switches_existing_relative_path_tab", test_editor_drawer_open_selected_file_switches_existing_relative_path_tab},
+	{"editor_file_search_filters_results_in_drawer", test_editor_file_search_filters_results_in_drawer},
+	{"editor_file_search_preview_and_open_selected_file", test_editor_file_search_preview_and_open_selected_file},
 	{"editor_path_absolute_dup_makes_relative_paths_absolute", test_editor_path_absolute_dup_makes_relative_paths_absolute},
 	{"editor_path_find_marker_upward_returns_project_root", test_editor_path_find_marker_upward_returns_project_root},
 	{"editor_drawer_open_selected_file_respects_tab_limit", test_editor_drawer_open_selected_file_respects_tab_limit},

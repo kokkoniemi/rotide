@@ -1,5 +1,6 @@
 #include "test_case.h"
 #include "test_support.h"
+#include "workspace/file_search.h"
 
 static int test_editor_task_log_document_stays_authoritative(void) {
 	ASSERT_TRUE(editorTabsInit());
@@ -527,6 +528,48 @@ static int test_editor_process_keypress_drawer_enter_opens_file_in_new_tab(void)
 	ASSERT_EQ_STR("keep", E.rows[0].chars);
 
 	ASSERT_TRUE(unlink(open_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_find_file_filters_previews_and_opens(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char alpha_file[512];
+	char beta_file[512];
+	ASSERT_TRUE(path_join(alpha_file, sizeof(alpha_file), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(path_join(beta_file, sizeof(beta_file), env.project_dir, "beta.txt"));
+	ASSERT_TRUE(write_text_file(alpha_file, "alpha\n"));
+	ASSERT_TRUE(write_text_file(beta_file, "beta\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("base");
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	char ctrl_p[] = {CTRL_KEY('p')};
+	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_p, sizeof(ctrl_p)) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_TRUE(editorActiveTabIsPreview());
+
+	char filter[] = {'b'};
+	ASSERT_TRUE(editor_process_keypress_with_input(filter, sizeof(filter)) == 0);
+	ASSERT_EQ_STR("b", editorFileSearchQuery());
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_EQ_STR(beta_file, E.filename);
+	ASSERT_EQ_STR("beta", E.rows[0].chars);
+
+	char enter_key[] = {'\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input(enter_key, sizeof(enter_key)) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+	ASSERT_EQ_INT(0, editorActiveTabIsPreview());
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_EQ_STR(beta_file, E.filename);
+
+	ASSERT_TRUE(unlink(beta_file) == 0);
+	ASSERT_TRUE(unlink(alpha_file) == 0);
 	cleanup_recovery_test_env(&env);
 	return 0;
 }
@@ -2756,6 +2799,7 @@ const struct editorTestCase g_input_search_tests[] = {
 	{"editor_process_keypress_focus_drawer_and_arrow_navigation", test_editor_process_keypress_focus_drawer_and_arrow_navigation},
 	{"editor_process_keypress_drawer_enter_toggles_directory", test_editor_process_keypress_drawer_enter_toggles_directory},
 	{"editor_process_keypress_drawer_enter_opens_file_in_new_tab", test_editor_process_keypress_drawer_enter_opens_file_in_new_tab},
+	{"editor_process_keypress_find_file_filters_previews_and_opens", test_editor_process_keypress_find_file_filters_previews_and_opens},
 	{"editor_process_keypress_insert_move_and_backspace", test_editor_process_keypress_insert_move_and_backspace},
 	{"editor_process_keypress_ctrl_j_does_not_insert_newline", test_editor_process_keypress_ctrl_j_does_not_insert_newline},
 	{"editor_process_keypress_tab_inserts_literal_tab", test_editor_process_keypress_tab_inserts_literal_tab},

@@ -108,6 +108,7 @@ void initEditor(void) {
 	E.recovery_last_autosave_time = 0;
 	E.drawer_root_path = NULL;
 	E.drawer_root = NULL;
+	E.drawer_mode = EDITOR_DRAWER_MODE_TREE;
 	E.drawer_selected_index = 0;
 	E.drawer_rowoff = 0;
 	E.drawer_last_click_visible_idx = -1;
@@ -116,6 +117,16 @@ void initEditor(void) {
 	E.drawer_width_user_set = 0;
 	E.drawer_collapsed = 0;
 	E.drawer_resize_active = 0;
+	E.drawer_search_query = NULL;
+	E.drawer_search_query_len = 0;
+	E.drawer_search_paths = NULL;
+	E.drawer_search_path_count = 0;
+	E.drawer_search_path_capacity = 0;
+	E.drawer_search_filtered_indices = NULL;
+	E.drawer_search_filtered_count = 0;
+	E.drawer_search_filtered_capacity = 0;
+	E.drawer_search_previewed_path = NULL;
+	E.drawer_search_active_tab_before = -1;
 	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;
 	editorSyntaxThemeInitDefaults(E.syntax_theme);
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;

@@ -219,6 +219,8 @@ struct editorDrawerEntryView {
 	int parent_visible_idx;
 	int is_last_sibling;
 	int is_active_file;
+	int is_search_header;
+	int is_placeholder;
 };
 
 struct editorTabLayoutEntry {
@@ -240,6 +242,7 @@ enum editorAction {
 	EDITOR_ACTION_TOGGLE_DRAWER,
 	EDITOR_ACTION_RESIZE_DRAWER_NARROW,
 	EDITOR_ACTION_RESIZE_DRAWER_WIDEN,
+	EDITOR_ACTION_FIND_FILE,
 	EDITOR_ACTION_FIND,
 	EDITOR_ACTION_GOTO_LINE,
 	EDITOR_ACTION_GOTO_DEFINITION,
@@ -291,6 +294,11 @@ enum editorEditPendingMode {
 	EDITOR_EDIT_PENDING_CAPTURED,
 	EDITOR_EDIT_PENDING_GROUPED,
 	EDITOR_EDIT_PENDING_SKIPPED
+};
+
+enum editorDrawerMode {
+	EDITOR_DRAWER_MODE_TREE = 0,
+	EDITOR_DRAWER_MODE_FILE_SEARCH
 };
 
 struct editorHistoryEntry {
@@ -459,6 +467,7 @@ struct editorConfig {
 	time_t recovery_last_autosave_time;
 	char *drawer_root_path;
 	struct editorDrawerNode *drawer_root;
+	enum editorDrawerMode drawer_mode;
 	int drawer_selected_index;
 	int drawer_rowoff;
 	int drawer_last_click_visible_idx;
@@ -467,6 +476,16 @@ struct editorConfig {
 	int drawer_width_user_set;
 	int drawer_collapsed;
 	int drawer_resize_active;
+	char *drawer_search_query;
+	size_t drawer_search_query_len;
+	char **drawer_search_paths;
+	int drawer_search_path_count;
+	int drawer_search_path_capacity;
+	int *drawer_search_filtered_indices;
+	int drawer_search_filtered_count;
+	int drawer_search_filtered_capacity;
+	char *drawer_search_previewed_path;
+	int drawer_search_active_tab_before;
 	enum editorCursorStyle cursor_style;
 	enum editorThemeColor syntax_theme[EDITOR_SYNTAX_HL_CLASS_COUNT];
 	enum editorViewportMode viewport_mode;

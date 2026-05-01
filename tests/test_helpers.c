@@ -117,10 +117,12 @@ void reset_editor_state(void) {
 	E.task_failure_status[0] = '\0';
 	E.drawer_last_click_visible_idx = -1;
 	E.drawer_last_click_ms = 0;
+	E.drawer_mode = EDITOR_DRAWER_MODE_TREE;
 	E.drawer_width_cols = ROTIDE_DRAWER_DEFAULT_WIDTH;
 	E.drawer_width_user_set = 0;
 	E.drawer_collapsed = 0;
 	E.drawer_resize_active = 0;
+	E.drawer_search_active_tab_before = -1;
 	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;
 	editorSyntaxThemeInitDefaults(E.syntax_theme);
 	editorSyntaxTestResetBudgetOverrides();

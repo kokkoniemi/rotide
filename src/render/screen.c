@@ -9,6 +9,7 @@
 #include "text/row.h"
 #include "text/utf8.h"
 #include "workspace/drawer.h"
+#include "workspace/file_search.h"
 #include "workspace/tabs.h"
 #include <errno.h>
 #include <limits.h>
@@ -1513,7 +1514,8 @@ static int editorDrawDrawerSelectionOverflow(struct writeBuf *wb, int row_idx, i
 		return 1;
 	}
 
-	int visible_idx = E.drawer_rowoff + row_idx;
+	int visible_idx =
+			(editorFileSearchIsActive() && row_idx == 0) ? 0 : E.drawer_rowoff + row_idx;
 	struct editorDrawerEntryView entry;
 	if (!editorDrawerGetVisibleEntry(visible_idx, &entry) || !entry.is_selected) {
 		return 1;
@@ -1568,7 +1570,8 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 	}
 
 	struct editorDrawerEntryView entry;
-	int visible_idx = E.drawer_rowoff + row_idx;
+	int visible_idx =
+			(editorFileSearchIsActive() && row_idx == 0) ? 0 : E.drawer_rowoff + row_idx;
 	int written_cols = 0;
 	int selected_with_focus = 0;
 	int row_inverted = 0;
@@ -1591,6 +1594,25 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 					!editorDrawerAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
 				return 0;
 			}
+		}
+
+		if (entry.is_search_header) {
+			if (written_cols < drawer_cols) {
+				int wrote = 0;
+				if (!editorAppendSanitizedText(wb, "Find: ", drawer_cols - written_cols, &wrote)) {
+					return 0;
+				}
+				written_cols += wrote;
+			}
+			if (written_cols < drawer_cols) {
+				int wrote = 0;
+				if (!editorAppendSanitizedText(wb, entry.name, drawer_cols - written_cols,
+							&wrote)) {
+					return 0;
+				}
+				written_cols += wrote;
+			}
+			goto pad_drawer_row;
 		}
 
 		if (!entry.is_root && !editorDrawerAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
@@ -1645,13 +1667,20 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 			int wrote = 0;
 			int root_bold = entry.is_root;
 			int root_white = entry.is_root;
+			int placeholder_gray = entry.is_placeholder;
 			if (root_bold && !wbAppend(wb, VT100_BOLD_ON_4, 4)) {
 				return 0;
 			}
 			if (root_white && !wbAppend(wb, VT100_FG_WHITE_5, 5)) {
 				return 0;
 			}
+			if (placeholder_gray && !wbAppend(wb, VT100_FG_GRAY_5, 5)) {
+				return 0;
+			}
 			if (!editorAppendSanitizedText(wb, entry.name, remaining, &wrote)) {
+				return 0;
+			}
+			if (placeholder_gray && !wbAppend(wb, VT100_FG_DEFAULT_5, 5)) {
 				return 0;
 			}
 			if (root_white && !wbAppend(wb, VT100_FG_DEFAULT_5, 5)) {
@@ -1665,6 +1694,7 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 
 	}
 
+pad_drawer_row:
 	while (written_cols < drawer_cols) {
 		if (!wbAppend(wb, " ", 1)) {
 			return 0;
@@ -2061,7 +2091,12 @@ void editorRefreshScreen(void) {
 	int cursor_col = editorTextBodyStartColForCols(E.window_cols) + (E.rx - E.coloff) + 1;
 	int cursor_visible = 1;
 	if (E.pane_focus == EDITOR_PANE_DRAWER && editorDrawerWidthForCols(E.window_cols) > 0) {
-		cursor_visible = 0;
+		if (editorFileSearchIsActive()) {
+			cursor_row = 1;
+			cursor_col = editorFileSearchHeaderCursorCol(editorDrawerWidthForCols(E.window_cols));
+		} else {
+			cursor_visible = 0;
+		}
 	} else {
 		int text_row_min = 2;
 		int text_row_max = E.window_rows + 1;
