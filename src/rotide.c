@@ -142,7 +142,7 @@ void initEditor(void) {
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
 	E.pane_focus = EDITOR_PANE_TEXT;
 	editorKeymapInitDefaults(&E.keymap);
-	editorClipboardSetExternalSink(editorClipboardSyncOsc52);
+	editorClipboardSetExternalSink(editorClipboardSyncAll);
 	if (!editorTabsInit()) {
 		errno = ENOMEM;
 		panic("editorTabsInit");

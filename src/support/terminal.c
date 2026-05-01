@@ -5,6 +5,7 @@
 #include "workspace/task.h"
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
 #include <poll.h>
 #include <signal.h>
@@ -12,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "support/size_utils.h"
@@ -362,6 +364,80 @@ void editorClipboardSyncOsc52(const char *text, size_t len) {
 	free(encoded);
 }
 
+static void editorClipboardSyncNative(const char *text, size_t len) {
+	if (len == 0) {
+		return;
+	}
+
+	const char *wayland = getenv("WAYLAND_DISPLAY");
+	const char *display = getenv("DISPLAY");
+
+	const char *cmd;
+	if (wayland != NULL && wayland[0] != '\0') {
+		cmd = "wl-copy 2>/dev/null";
+	} else if (display != NULL && display[0] != '\0') {
+		cmd = "xclip -selection clipboard 2>/dev/null"
+		      " || xsel --clipboard --input 2>/dev/null";
+	} else {
+		return;
+	}
+
+	int pipefd[2];
+	if (pipe(pipefd) == -1) {
+		return;
+	}
+
+	// Double-fork: parent waits for the intermediate child (exits quickly),
+	// grandchild runs the clipboard tool (re-parented to init so it can
+	// stay alive without blocking the editor).
+	pid_t child = fork();
+	if (child < 0) {
+		close(pipefd[0]);
+		close(pipefd[1]);
+		return;
+	}
+
+	if (child == 0) {
+		pid_t grandchild = fork();
+		if (grandchild != 0) {
+			_exit(0);
+		}
+		close(pipefd[1]);
+		if (dup2(pipefd[0], STDIN_FILENO) == -1) {
+			_exit(1);
+		}
+		close(pipefd[0]);
+		int devnull = open("/dev/null", O_RDWR);
+		if (devnull != -1) {
+			dup2(devnull, STDOUT_FILENO);
+			dup2(devnull, STDERR_FILENO);
+			close(devnull);
+		}
+		execlp("sh", "sh", "-c", cmd, (char *)NULL);
+		_exit(1);
+	}
+
+	close(pipefd[0]);
+	size_t total = 0;
+	while (total < len) {
+		ssize_t n = write(pipefd[1], text + total, len - total);
+		if (n <= 0) {
+			if (n == -1 && errno == EINTR) {
+				continue;
+			}
+			break;
+		}
+		total += (size_t)n;
+	}
+	close(pipefd[1]);
+	waitpid(child, NULL, 0);
+}
+
+void editorClipboardSyncAll(const char *text, size_t len) {
+	editorClipboardSyncNative(text, len);
+	editorClipboardSyncOsc52(text, len);
+}
+
 int editorConsumeMouseEvent(struct editorMouseEvent *out) {
 	if (out == NULL || !has_pending_mouse_event) {
 		return 0;
@@ -550,6 +626,7 @@ void setRawMode(void) {
 	// Mouse enable is best-effort: unsupported terminals simply ignore the control sequence.
 	(void)editorWriteAll(STDOUT_FILENO, VT100_ENABLE_MOUSE, sizeof(VT100_ENABLE_MOUSE) - 1);
 	terminal_raw_enabled = 1;
+	signal(SIGPIPE, SIG_IGN);
 	editorInstallTerminationHandlers();
 	editorInstallResizeHandler();
 }
