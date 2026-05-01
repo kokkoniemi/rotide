@@ -1294,8 +1294,7 @@ static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 		if (should_open_file) {
 			if (editorFileSearchIsActive()) {
 				if (editorDrawerOpenSelectedFileInTab()) {
-					editorFileSearchExit(0);
-					E.pane_focus = EDITOR_PANE_TEXT;
+					E.pane_focus = EDITOR_PANE_DRAWER;
 				}
 			} else if (editorActiveTabIsPreview()) {
 				editorTabPinActivePreview();
@@ -1456,8 +1455,7 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 				break;
 			case EDITOR_ACTION_NEWLINE:
 				if (editorFileSearchOpenSelectedFileInTab()) {
-					editorFileSearchExit(0);
-					E.pane_focus = EDITOR_PANE_TEXT;
+					E.pane_focus = EDITOR_PANE_DRAWER;
 					effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 				}
 				break;

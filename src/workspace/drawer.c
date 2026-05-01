@@ -267,6 +267,54 @@ static int editorDrawerLookupByVisibleIndex(int visible_idx, struct editorDrawer
 			lookup_out);
 }
 
+static struct editorDrawerNode *editorDrawerFindChildByName(struct editorDrawerNode *node,
+		const char *name, size_t name_len) {
+	if (node == NULL || !node->is_dir || name == NULL) {
+		return NULL;
+	}
+	(void)editorDrawerEnsureScanned(node);
+	for (int i = 0; i < node->child_count; i++) {
+		if (strlen(node->children[i]->name) == name_len &&
+				strncmp(node->children[i]->name, name, name_len) == 0) {
+			return node->children[i];
+		}
+	}
+	return NULL;
+}
+
+static int editorDrawerFindVisibleIndexForNodeRecursive(struct editorDrawerNode *node,
+		struct editorDrawerNode *target, int *cursor, int *visible_idx_out) {
+	if (node == NULL || target == NULL || cursor == NULL || visible_idx_out == NULL) {
+		return 0;
+	}
+
+	int current = *cursor;
+	if (node == target) {
+		*visible_idx_out = current;
+		return 1;
+	}
+	(*cursor)++;
+	if (!node->is_dir || !node->is_expanded) {
+		return 0;
+	}
+
+	(void)editorDrawerEnsureScanned(node);
+	for (int i = 0; i < node->child_count; i++) {
+		if (editorDrawerFindVisibleIndexForNodeRecursive(node->children[i], target, cursor,
+					visible_idx_out)) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static int editorDrawerFindVisibleIndexForNode(struct editorDrawerNode *target,
+		int *visible_idx_out) {
+	int cursor = 0;
+	return editorDrawerFindVisibleIndexForNodeRecursive(E.drawer_root, target, &cursor,
+			visible_idx_out);
+}
+
 void editorDrawerClampViewport(int viewport_rows) {
 	if (editorFileSearchIsActive()) {
 		editorFileSearchClampViewport(viewport_rows);
@@ -705,6 +753,73 @@ int editorDrawerOpenSelectedFileInPreviewTab(void) {
 		return 0;
 	}
 	return editorTabOpenOrSwitchToPreviewFile(lookup.node->path);
+}
+
+int editorDrawerRevealPath(const char *path, int viewport_rows) {
+	if (path == NULL || path[0] == '\0' || E.drawer_root == NULL || E.drawer_root_path == NULL) {
+		return 0;
+	}
+
+	char *absolute = editorPathAbsoluteDup(path);
+	if (absolute == NULL) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+
+	size_t root_len = strlen(E.drawer_root_path);
+	if (strcmp(absolute, E.drawer_root_path) == 0) {
+		E.drawer_root->is_expanded = 1;
+		E.drawer_selected_index = 0;
+		editorDrawerClampSelectionAndScroll(viewport_rows);
+		free(absolute);
+		return 1;
+	}
+	if (root_len == 0 || strncmp(absolute, E.drawer_root_path, root_len) != 0 ||
+			absolute[root_len] != '/') {
+		free(absolute);
+		return 0;
+	}
+
+	struct editorDrawerNode *node = E.drawer_root;
+	node->is_expanded = 1;
+	const char *component = absolute + root_len + 1;
+	while (component[0] != '\0') {
+		const char *slash = strchr(component, '/');
+		size_t component_len =
+				slash != NULL ? (size_t)(slash - component) : strlen(component);
+		if (component_len == 0) {
+			free(absolute);
+			return 0;
+		}
+
+		struct editorDrawerNode *child =
+				editorDrawerFindChildByName(node, component, component_len);
+		if (child == NULL) {
+			free(absolute);
+			return 0;
+		}
+
+		node = child;
+		if (slash == NULL) {
+			break;
+		}
+		if (!node->is_dir) {
+			free(absolute);
+			return 0;
+		}
+		node->is_expanded = 1;
+		component = slash + 1;
+	}
+
+	int visible_idx = 0;
+	if (!editorDrawerFindVisibleIndexForNode(node, &visible_idx)) {
+		free(absolute);
+		return 0;
+	}
+	E.drawer_selected_index = visible_idx;
+	editorDrawerClampSelectionAndScroll(viewport_rows);
+	free(absolute);
+	return 1;
 }
 
 const char *editorDrawerRootPath(void) {

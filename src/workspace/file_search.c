@@ -482,7 +482,19 @@ int editorFileSearchOpenSelectedFileInTab(void) {
 	if (path == NULL || path[0] == '\0') {
 		return 0;
 	}
-	return editorTabOpenOrSwitchToFile(path);
+	char *path_copy = strdup(path);
+	if (path_copy == NULL) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+	if (!editorTabOpenOrSwitchToFile(path)) {
+		free(path_copy);
+		return 0;
+	}
+	editorFileSearchExit(0);
+	(void)editorDrawerRevealPath(path_copy, E.window_rows + 1);
+	free(path_copy);
+	return 1;
 }
 
 int editorFileSearchOpenSelectedFileInPreviewTab(void) {

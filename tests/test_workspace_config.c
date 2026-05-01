@@ -288,10 +288,13 @@ static int test_editor_file_search_preview_and_open_selected_file(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
 
+	char src_dir[512];
 	char alpha_file[512];
 	char beta_file[512];
+	ASSERT_TRUE(path_join(src_dir, sizeof(src_dir), env.project_dir, "src"));
 	ASSERT_TRUE(path_join(alpha_file, sizeof(alpha_file), env.project_dir, "alpha.txt"));
-	ASSERT_TRUE(path_join(beta_file, sizeof(beta_file), env.project_dir, "beta.txt"));
+	ASSERT_TRUE(path_join(beta_file, sizeof(beta_file), src_dir, "beta.txt"));
+	ASSERT_TRUE(make_dir(src_dir));
 	ASSERT_TRUE(write_text_file(alpha_file, "alpha\n"));
 	ASSERT_TRUE(write_text_file(beta_file, "beta\n"));
 
@@ -310,14 +313,23 @@ static int test_editor_file_search_preview_and_open_selected_file(void) {
 	ASSERT_EQ_STR("beta", E.rows[0].chars);
 
 	ASSERT_TRUE(editorFileSearchOpenSelectedFileInTab());
-	editorFileSearchExit(0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, E.drawer_mode);
 	ASSERT_EQ_INT(0, editorActiveTabIsPreview());
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_EQ_STR(beta_file, E.filename);
+	int src_idx = -1;
+	int beta_idx = -1;
+	struct editorDrawerEntryView beta_view;
+	ASSERT_TRUE(find_drawer_entry("src", &src_idx, NULL));
+	ASSERT_TRUE(find_drawer_entry("beta.txt", &beta_idx, &beta_view));
+	ASSERT_TRUE(src_idx >= 0);
+	ASSERT_TRUE(beta_idx > src_idx);
+	ASSERT_EQ_INT(beta_idx, E.drawer_selected_index);
+	ASSERT_EQ_STR(beta_file, beta_view.path);
 
 	ASSERT_TRUE(unlink(beta_file) == 0);
 	ASSERT_TRUE(unlink(alpha_file) == 0);
+	ASSERT_TRUE(rmdir(src_dir) == 0);
 	cleanup_recovery_test_env(&env);
 	return 0;
 }

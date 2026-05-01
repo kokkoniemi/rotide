@@ -28,6 +28,7 @@ int editorDrawerSelectVisibleIndex(int visible_idx, int viewport_rows);
 int editorDrawerSelectedIsDirectory(void);
 int editorDrawerOpenSelectedFileInTab(void);
 int editorDrawerOpenSelectedFileInPreviewTab(void);
+int editorDrawerRevealPath(const char *path, int viewport_rows);
 const char *editorDrawerRootPath(void);
 
 #endif
