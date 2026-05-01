@@ -7,4 +7,3 @@
 - IMPROVEMENT: integrate Fil-C to improve memory safety
 - FEATURE: Git integration. Show changed files with different color and git status, branch in status bar.
 - FEATURE: Watch for changes outside RotIDE and update tab content automatically if unchanged. Prompt if more recent file exists (vscode style).
-- FEATURE: Add toggleable line wrapping and use wrap character.
