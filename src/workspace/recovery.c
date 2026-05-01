@@ -794,6 +794,9 @@ static int editorRecoveryPromptRestoreChoice(void) {
 		if (key == MOUSE_EVENT) {
 			continue;
 		}
+		if (key == SYNTAX_EVENT || key == TASK_EVENT) {
+			continue;
+		}
 		if (key == INPUT_EOF_EVENT) {
 			return 0;
 		}

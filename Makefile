@@ -3,6 +3,7 @@ SRC_DIR := src
 CPPFLAGS ?= -I$(SRC_DIR) -Ivendor/tree_sitter/runtime/include -Ivendor/tree_sitter/runtime/src -Ivendor/tree_sitter/grammars/c/src -Ivendor/tree_sitter/grammars/cpp/src -Ivendor/tree_sitter/grammars/go/src -Ivendor/tree_sitter/grammars/bash/src -Ivendor/tree_sitter/grammars/html/src -Ivendor/tree_sitter/grammars/javascript/src -Ivendor/tree_sitter/grammars/jsdoc/src -Ivendor/tree_sitter/grammars/css/src -Ivendor/tree_sitter/grammars/json/src -Ivendor/tree_sitter/grammars/typescript/src -Ivendor/tree_sitter/grammars/tsx/src -Ivendor/tree_sitter/grammars/python/src -Ivendor/tree_sitter/grammars/php/src -Ivendor/tree_sitter/grammars/rust/src -Ivendor/tree_sitter/grammars/java/src -Ivendor/tree_sitter/grammars/regex/src -Ivendor/tree_sitter/grammars/csharp/src -Ivendor/tree_sitter/grammars/haskell/src -Ivendor/tree_sitter/grammars/ruby/src -Ivendor/tree_sitter/grammars/ocaml/src -Ivendor/tree_sitter/grammars/julia/src -Ivendor/tree_sitter/grammars/scala/src -Ivendor/tree_sitter/grammars/embedded_template/src -Ivendor/tree_sitter/grammars/markdown/src -Ivendor/tree_sitter/grammars/markdown_inline/src
 CFLAGS ?= -Wall -Wextra -Werror -Wshadow -Wdouble-promotion -Wundef -fno-common -pedantic -std=c2x
 LDFLAGS ?=
+PTHREAD_FLAGS ?= -pthread
 SANITIZER_CFLAGS ?= -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer
 SANITIZER_LDFLAGS ?= -fsanitize=address,undefined -fno-omit-frame-pointer
 DEPFLAGS = -MMD -MP
@@ -73,6 +74,7 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/config/editor_config.c $(SRC_DIR)/config/theme_config.c \
 	$(SRC_DIR)/config/lsp_config.c \
 	$(SRC_DIR)/language/syntax.c $(SRC_DIR)/language/queries.c \
+	$(SRC_DIR)/language/syntax_worker.c \
 	$(SRC_DIR)/language/languages.c \
 	$(SRC_DIR)/language/lsp.c
 SRCS = $(CORE_SRCS) $(TREE_SITTER_SRCS)
@@ -98,7 +100,7 @@ GENERATED_HEADERS := $(QUERIES_HEADER)
 .DEFAULT_GOAL := rotide
 
 rotide: $(SRC_DIR)/rotide.o $(EDITOR_OBJS)
-	$(CC) $(LDFLAGS) $(OBJS) -o $@
+	$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) $(OBJS) -o $@
 
 $(QUERIES_HEADER): $(QUERIES_MANIFEST) scripts/embed_queries.sh $(QUERIES_SCM)
 	scripts/embed_queries.sh $(QUERIES_MANIFEST) $@
@@ -242,10 +244,10 @@ vendor/tree_sitter/grammars/markdown_inline/src/scanner.o: vendor/tree_sitter/gr
 	$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 %.o: %.c
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(PTHREAD_FLAGS) $(DEPFLAGS) -c $< -o $@
 
 $(TEST_BIN): $(TEST_OBJS) $(EDITOR_OBJS)
-	$(CC) $(LDFLAGS) $^ -o $@
+	$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) $^ -o $@
 
 test: $(TEST_BIN)
 	./$(TEST_BIN)

@@ -12,6 +12,7 @@
 #include "editing/edit.h"
 #include "editing/selection.h"
 #include "input/dispatch.h"
+#include "language/syntax_worker.h"
 #include "render/screen.h"
 #include "support/terminal.h"
 #include "workspace/drawer.h"
@@ -37,6 +38,12 @@ void initEditor(void) {
 	E.syntax_language = EDITOR_SYNTAX_NONE;
 	E.syntax_state = NULL;
 	E.syntax_parse_failures = 0;
+	E.syntax_revision = 0;
+	E.syntax_generation = 0;
+	E.syntax_background_pending = 0;
+	E.syntax_pending_revision = 0;
+	E.syntax_pending_first_row = 0;
+	E.syntax_pending_row_count = 0;
 	editorLspConfigInitDefaults(&E.lsp_gopls_enabled, &E.lsp_clangd_enabled,
 			&E.lsp_html_enabled, &E.lsp_css_enabled, &E.lsp_json_enabled,
 			&E.lsp_javascript_enabled,
@@ -129,6 +136,9 @@ int main(int argc, char *argv[]) {
 	setlocale(LC_CTYPE, "");
 	setRawMode();
 	initEditor();
+	if (!editorSyntaxBackgroundStart()) {
+		editorSetStatusMsg("Tree-sitter background worker disabled");
+	}
 
 	enum editorKeymapLoadStatus keymap_status = editorKeymapLoadConfigured(&E.keymap);
 	enum editorCursorStyleLoadStatus cursor_style_status =
@@ -198,6 +208,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	while (1) {
+		editorSyntaxBackgroundPoll();
 		editorRefreshScreen();
 		editorProcessKeypress();
 	}

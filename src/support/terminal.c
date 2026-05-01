@@ -1,6 +1,7 @@
 #include "support/terminal.h"
 
 #include "editing/edit.h"
+#include "language/syntax_worker.h"
 #include "workspace/task.h"
 #include <ctype.h>
 #include <errno.h>
@@ -555,6 +556,9 @@ void setRawMode(void) {
 
 int editorReadKey(void) {
 	while (1) {
+		if (editorSyntaxBackgroundPoll()) {
+			return SYNTAX_EVENT;
+		}
 		if (editorTakeResizeEvent()) {
 			return RESIZE_EVENT;
 		}
@@ -565,6 +569,9 @@ int editorReadKey(void) {
 		char c;
 		enum editorReadByteResult read_status;
 		while ((read_status = editorReadInputByte(&c)) != EDITOR_READ_BYTE) {
+			if (editorSyntaxBackgroundPoll()) {
+				return SYNTAX_EVENT;
+			}
 			if (editorTakeResizeEvent()) {
 				return RESIZE_EVENT;
 			}

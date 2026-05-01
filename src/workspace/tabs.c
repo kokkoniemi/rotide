@@ -5,6 +5,7 @@
 #include "editing/history.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
+#include "language/syntax_worker.h"
 #include "render/screen.h"
 #include "support/size_utils.h"
 #include "support/alloc.h"
@@ -60,6 +61,12 @@ static void editorTabStateInitEmpty(struct editorTabState *tab) {
 	tab->syntax_language = EDITOR_SYNTAX_NONE;
 	tab->syntax_state = NULL;
 	tab->syntax_parse_failures = 0;
+	tab->syntax_revision = 0;
+	tab->syntax_generation = 0;
+	tab->syntax_background_pending = 0;
+	tab->syntax_pending_revision = 0;
+	tab->syntax_pending_first_row = 0;
+	tab->syntax_pending_row_count = 0;
 	tab->lsp_doc_open = 0;
 	tab->lsp_doc_version = 0;
 	tab->lsp_eslint_doc_open = 0;
@@ -96,6 +103,12 @@ void editorResetActiveBufferFields(void) {
 	E.syntax_language = EDITOR_SYNTAX_NONE;
 	E.syntax_state = NULL;
 	E.syntax_parse_failures = 0;
+	E.syntax_revision = 0;
+	E.syntax_generation = 0;
+	E.syntax_background_pending = 0;
+	E.syntax_pending_revision = 0;
+	E.syntax_pending_first_row = 0;
+	E.syntax_pending_row_count = 0;
 	E.lsp_doc_open = 0;
 	E.lsp_doc_version = 0;
 	E.lsp_eslint_doc_open = 0;
@@ -225,6 +238,12 @@ static void editorTabStateCaptureActive(struct editorTabState *tab) {
 	tab->syntax_language = E.syntax_language;
 	tab->syntax_state = E.syntax_state;
 	tab->syntax_parse_failures = E.syntax_parse_failures;
+	tab->syntax_revision = E.syntax_revision;
+	tab->syntax_generation = E.syntax_generation;
+	tab->syntax_background_pending = E.syntax_background_pending;
+	tab->syntax_pending_revision = E.syntax_pending_revision;
+	tab->syntax_pending_first_row = E.syntax_pending_first_row;
+	tab->syntax_pending_row_count = E.syntax_pending_row_count;
 	tab->lsp_doc_open = E.lsp_doc_open;
 	tab->lsp_doc_version = E.lsp_doc_version;
 	tab->lsp_eslint_doc_open = E.lsp_eslint_doc_open;
@@ -274,6 +293,12 @@ static void editorTabStateLoadActive(struct editorTabState *tab) {
 	E.syntax_language = tab->syntax_language;
 	E.syntax_state = tab->syntax_state;
 	E.syntax_parse_failures = tab->syntax_parse_failures;
+	E.syntax_revision = tab->syntax_revision;
+	E.syntax_generation = tab->syntax_generation;
+	E.syntax_background_pending = tab->syntax_background_pending;
+	E.syntax_pending_revision = tab->syntax_pending_revision;
+	E.syntax_pending_first_row = tab->syntax_pending_first_row;
+	E.syntax_pending_row_count = tab->syntax_pending_row_count;
 	E.lsp_doc_open = tab->lsp_doc_open;
 	E.lsp_doc_version = tab->lsp_doc_version;
 	E.lsp_eslint_doc_open = tab->lsp_eslint_doc_open;
@@ -430,6 +455,7 @@ void editorTabsFreeAll(void) {
 		}
 	}
 	editorLspShutdown();
+	editorSyntaxBackgroundStop();
 
 	editorFreeActiveBufferState();
 

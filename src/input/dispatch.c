@@ -6,6 +6,7 @@
 #include "editing/history.h"
 #include "editing/selection.h"
 #include "language/lsp.h"
+#include "language/syntax_worker.h"
 #include "render/screen.h"
 #include "support/alloc.h"
 #include "support/terminal.h"
@@ -174,6 +175,7 @@ static void quit(void) {
 	}
 
 	editorLspShutdown();
+	editorSyntaxBackgroundStop();
 	editorRecoveryCleanupOnCleanExit();
 	editorRestoreTerminal();
 	editorClearScreen();
@@ -732,6 +734,9 @@ static char *editorPromptWithCallback(const char *prompt, int allow_empty,
 		}
 		if (c == RESIZE_EVENT) {
 			(void)editorRefreshWindowSize();
+			continue;
+		}
+		if (c == SYNTAX_EVENT || c == TASK_EVENT) {
 			continue;
 		}
 		// Prompt editing is keyboard-only; ignore mouse packets without invoking callbacks.
@@ -1713,6 +1718,9 @@ void editorProcessKeypress(void) {
 		return;
 	}
 	if (c == TASK_EVENT) {
+		return;
+	}
+	if (c == SYNTAX_EVENT) {
 		return;
 	}
 

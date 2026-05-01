@@ -76,6 +76,12 @@ void reset_editor_state(void) {
 	E.syntax_language = EDITOR_SYNTAX_NONE;
 	E.syntax_state = NULL;
 	E.syntax_parse_failures = 0;
+	E.syntax_revision = 0;
+	E.syntax_generation = 0;
+	E.syntax_background_pending = 0;
+	E.syntax_pending_revision = 0;
+	E.syntax_pending_first_row = 0;
+	E.syntax_pending_row_count = 0;
 	editorLspConfigInitDefaults(&E.lsp_gopls_enabled, &E.lsp_clangd_enabled,
 			&E.lsp_html_enabled, &E.lsp_css_enabled, &E.lsp_json_enabled,
 			&E.lsp_javascript_enabled,

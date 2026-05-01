@@ -6,6 +6,7 @@
 #include "input/dispatch.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
+#include "language/syntax_worker.h"
 #include "render/screen.h"
 #include "support/size_utils.h"
 #include "support/alloc.h"
@@ -37,6 +38,9 @@ static void editorSyntaxVisibleCacheInvalidateRows(int start_row, int end_row_ex
 static void editorSyntaxReportStatusIfNeeded(void);
 static void editorSyntaxReportBudgetStatusIfNeeded(void);
 static void editorSyntaxReportQueryUnavailableStatusIfNeeded(void);
+static int editorSyntaxScheduleBackgroundActive(int first_row, int row_count);
+static int editorSyntaxVisibleCacheStoreBackgroundResult(
+		const struct editorSyntaxWorkerResult *result);
 static int editorLspActiveBufferTracked(void);
 char *editorDupActiveTextSource(size_t *len_out);
 static void editorLspNotifyDidChangeActive(const struct editorSyntaxEdit *edit,
@@ -83,8 +87,18 @@ static int g_active_text_source_build_count = 0;
 static int g_active_text_source_dup_count = 0;
 static int g_row_cache_full_rebuild_count = 0;
 static int g_row_cache_splice_update_count = 0;
+static uint64_t g_syntax_generation_counter = 0;
+
+static uint64_t editorSyntaxNextGeneration(void) {
+	if (g_syntax_generation_counter == UINT64_MAX) {
+		g_syntax_generation_counter = 1;
+	}
+	return ++g_syntax_generation_counter;
+}
 
 #define ROTIDE_SYNTAX_PARSE_FAILURE_LIMIT 3
+#define ROTIDE_SYNTAX_BACKGROUND_MIN_OVERSCAN_ROWS 64
+#define ROTIDE_SYNTAX_BACKGROUND_MAX_OVERSCAN_ROWS 256
 
 struct editorRowCacheSpliceRegion {
 	int start_row;
@@ -226,6 +240,9 @@ static void editorSyntaxDeactivateActive(void) {
 	E.syntax_state = NULL;
 	E.syntax_language = EDITOR_SYNTAX_NONE;
 	E.syntax_parse_failures = 0;
+	E.syntax_background_pending = 0;
+	E.syntax_revision++;
+	E.syntax_generation = editorSyntaxNextGeneration();
 	editorSyntaxVisibleCacheInvalidate();
 }
 
@@ -253,6 +270,47 @@ static int editorSyntaxRecordParseFailureActive(void) {
 		editorSyntaxDisableWithStatus("Tree-sitter disabled (parse failed)");
 	}
 	return 0;
+}
+
+int editorSyntaxBackgroundPoll(void) {
+	struct editorSyntaxWorkerResult *result = editorSyntaxWorkerTakeResult();
+	if (result == NULL) {
+		return 0;
+	}
+
+	if (result->language != E.syntax_language ||
+			result->revision != E.syntax_revision ||
+			result->generation != E.syntax_generation) {
+		editorSyntaxWorkerResultDestroy(result);
+		return 0;
+	}
+
+	E.syntax_background_pending = 0;
+	if (!result->parsed || result->state == NULL) {
+		editorSyntaxWorkerResultDestroy(result);
+		(void)editorSyntaxRecordParseFailureActive();
+		return 1;
+	}
+
+	editorSyntaxStateDestroy(E.syntax_state);
+	E.syntax_state = result->state;
+	result->state = NULL;
+	if (!editorSyntaxVisibleCacheStoreBackgroundResult(result)) {
+		editorSetAllocFailureStatus();
+	}
+	editorSyntaxResetParseFailures();
+	editorSyntaxReportStatusIfNeeded();
+	editorSyntaxWorkerResultDestroy(result);
+	return 1;
+}
+
+int editorSyntaxBackgroundFlushForTests(void) {
+	while (editorSyntaxWorkerHasWork()) {
+		editorSyntaxWorkerWaitForIdle();
+		editorSyntaxBackgroundPoll();
+	}
+	editorSyntaxBackgroundPoll();
+	return 1;
 }
 
 static int editorSyntaxOffsetToU32(size_t offset, uint32_t *out) {
@@ -435,6 +493,21 @@ static int editorSyntaxReconfigureForFilename(void) {
 		return 1;
 	}
 
+	if (editorSyntaxBackgroundEnabled()) {
+		if (E.syntax_language == wanted && E.syntax_generation != 0) {
+			return 1;
+		}
+		editorSyntaxStateDestroy(E.syntax_state);
+		E.syntax_state = NULL;
+		E.syntax_language = wanted;
+		E.syntax_generation = editorSyntaxNextGeneration();
+		E.syntax_revision = 0;
+		E.syntax_background_pending = 0;
+		editorSyntaxResetParseFailures();
+		editorSyntaxVisibleCacheInvalidate();
+		return 1;
+	}
+
 	if (E.syntax_state != NULL && E.syntax_language == wanted) {
 		return 1;
 	}
@@ -454,6 +527,13 @@ static int editorSyntaxReconfigureForFilename(void) {
 int editorSyntaxParseFullActive(void) {
 	if (!editorSyntaxReconfigureForFilename()) {
 		return 0;
+	}
+	if (editorSyntaxBackgroundEnabled()) {
+		if (E.syntax_language == EDITOR_SYNTAX_NONE) {
+			return 1;
+		}
+		E.syntax_revision++;
+		return editorSyntaxScheduleBackgroundActive(E.rowoff, E.window_rows);
 	}
 	if (E.syntax_state == NULL) {
 		return 1;
@@ -482,12 +562,21 @@ int editorSyntaxParseFullActive(void) {
 static int editorSyntaxApplyIncrementalEditActive(const struct editorSyntaxEdit *edit,
 		const char *inserted_text,
 		size_t inserted_len) {
-	if (E.syntax_state == NULL || E.syntax_language == EDITOR_SYNTAX_NONE) {
+	if (E.syntax_language == EDITOR_SYNTAX_NONE) {
 		return 1;
 	}
 
 	if (inserted_len > 0 && inserted_text == NULL) {
 		return 0;
+	}
+
+	if (editorSyntaxBackgroundEnabled()) {
+		E.syntax_revision++;
+		return editorSyntaxScheduleBackgroundActive(E.rowoff, E.window_rows);
+	}
+
+	if (E.syntax_state == NULL) {
+		return 1;
 	}
 
 	if (E.syntax_parse_failures == 0 && edit != NULL &&
@@ -642,6 +731,9 @@ struct editorVisibleSyntaxCache {
 	int first_row;
 	int row_count;
 	int row_capacity;
+	enum editorSyntaxLanguage language;
+	uint64_t revision;
+	uint64_t generation;
 	int *span_counts;
 	uint8_t *row_dirty;
 	struct editorRowSyntaxSpan *spans;
@@ -654,6 +746,9 @@ void editorSyntaxVisibleCacheInvalidate(void) {
 	g_visible_syntax_cache.prepared = 0;
 	g_visible_syntax_cache.first_row = 0;
 	g_visible_syntax_cache.row_count = 0;
+	g_visible_syntax_cache.language = EDITOR_SYNTAX_NONE;
+	g_visible_syntax_cache.revision = 0;
+	g_visible_syntax_cache.generation = 0;
 }
 
 static void editorSyntaxVisibleCacheInvalidateRows(int start_row, int end_row_exclusive) {
@@ -724,6 +819,173 @@ static int editorSyntaxVisibleCacheEnsureCapacity(int row_count) {
 	g_visible_syntax_cache.row_dirty = new_dirty;
 	g_visible_syntax_cache.spans = new_spans;
 	g_visible_syntax_cache.row_capacity = row_count;
+	return 1;
+}
+
+static int editorSyntaxVisibleCacheStoreBackgroundResult(
+		const struct editorSyntaxWorkerResult *result) {
+	if (result == NULL || result->row_count < 0) {
+		return 0;
+	}
+	if (!editorSyntaxVisibleCacheEnsureCapacity(result->row_count)) {
+		return 0;
+	}
+
+	g_visible_syntax_cache.prepared = 1;
+	g_visible_syntax_cache.first_row = result->first_row;
+	g_visible_syntax_cache.row_count = result->row_count;
+	g_visible_syntax_cache.language = result->language;
+	g_visible_syntax_cache.revision = result->revision;
+	g_visible_syntax_cache.generation = result->generation;
+	if (result->row_count <= 0) {
+		return 1;
+	}
+
+	size_t rows_size = 0;
+	size_t counts_bytes = 0;
+	size_t dirty_bytes = 0;
+	size_t span_rows = 0;
+	size_t spans_bytes = 0;
+	if (!editorIntToSize(result->row_count, &rows_size) ||
+			!editorSizeMul(sizeof(*g_visible_syntax_cache.span_counts), rows_size,
+				&counts_bytes) ||
+			!editorSizeMul(sizeof(*g_visible_syntax_cache.row_dirty), rows_size,
+				&dirty_bytes) ||
+			!editorSizeMul(rows_size, ROTIDE_MAX_SYNTAX_SPANS_PER_ROW, &span_rows) ||
+			!editorSizeMul(sizeof(*g_visible_syntax_cache.spans), span_rows, &spans_bytes)) {
+		return 0;
+	}
+	if (result->span_counts != NULL) {
+		memcpy(g_visible_syntax_cache.span_counts, result->span_counts, counts_bytes);
+	} else {
+		memset(g_visible_syntax_cache.span_counts, 0, counts_bytes);
+	}
+	memset(g_visible_syntax_cache.row_dirty, 0, dirty_bytes);
+	if (result->spans != NULL) {
+		memcpy(g_visible_syntax_cache.spans, result->spans, spans_bytes);
+	}
+	g_visible_syntax_row_recompute_count += result->row_count;
+	return 1;
+}
+
+static int editorSyntaxNormalizeVisibleRows(int *first_row_in_out, int *row_count_in_out) {
+	if (first_row_in_out == NULL || row_count_in_out == NULL) {
+		return 0;
+	}
+	int first_row = *first_row_in_out;
+	int row_count = *row_count_in_out;
+	if (row_count <= 0 || E.numrows <= 0) {
+		*first_row_in_out = 0;
+		*row_count_in_out = 0;
+		return 1;
+	}
+	if (first_row < 0) {
+		row_count += first_row;
+		first_row = 0;
+	}
+	if (first_row >= E.numrows || row_count <= 0) {
+		*first_row_in_out = 0;
+		*row_count_in_out = 0;
+		return 1;
+	}
+	if (first_row + row_count > E.numrows) {
+		row_count = E.numrows - first_row;
+	}
+	if (row_count < 0) {
+		row_count = 0;
+	}
+	*first_row_in_out = first_row;
+	*row_count_in_out = row_count;
+	return 1;
+}
+
+static int editorSyntaxRowRangeCovers(int cached_first, int cached_count,
+		int visible_first, int visible_count) {
+	if (visible_count <= 0) {
+		return 1;
+	}
+	if (cached_count <= 0 || cached_first > visible_first) {
+		return 0;
+	}
+	return cached_first + cached_count >= visible_first + visible_count;
+}
+
+static int editorSyntaxBackgroundExpandRows(int *first_row_in_out, int *row_count_in_out) {
+	if (first_row_in_out == NULL || row_count_in_out == NULL) {
+		return 0;
+	}
+	if (!editorSyntaxNormalizeVisibleRows(first_row_in_out, row_count_in_out)) {
+		return 0;
+	}
+	if (*row_count_in_out <= 0) {
+		return 1;
+	}
+
+	int overscan = *row_count_in_out;
+	if (overscan < ROTIDE_SYNTAX_BACKGROUND_MIN_OVERSCAN_ROWS) {
+		overscan = ROTIDE_SYNTAX_BACKGROUND_MIN_OVERSCAN_ROWS;
+	}
+	if (overscan > ROTIDE_SYNTAX_BACKGROUND_MAX_OVERSCAN_ROWS) {
+		overscan = ROTIDE_SYNTAX_BACKGROUND_MAX_OVERSCAN_ROWS;
+	}
+
+	int visible_first = *first_row_in_out;
+	int visible_end = visible_first + *row_count_in_out;
+	int expanded_first = visible_first - overscan;
+	if (expanded_first < 0) {
+		expanded_first = 0;
+	}
+	int expanded_end = visible_end + overscan;
+	if (expanded_end < visible_end || expanded_end > E.numrows) {
+		expanded_end = E.numrows;
+	}
+
+	*first_row_in_out = expanded_first;
+	*row_count_in_out = expanded_end - expanded_first;
+	return 1;
+}
+
+static int editorSyntaxScheduleBackgroundActive(int first_row, int row_count) {
+	if (!editorSyntaxBackgroundEnabled()) {
+		return 0;
+	}
+	if (E.syntax_language == EDITOR_SYNTAX_NONE) {
+		return 1;
+	}
+	if (!editorSyntaxBackgroundExpandRows(&first_row, &row_count)) {
+		return 0;
+	}
+	if (E.syntax_background_pending &&
+			E.syntax_pending_revision == E.syntax_revision &&
+			E.syntax_pending_first_row == first_row &&
+			E.syntax_pending_row_count == row_count) {
+		return 1;
+	}
+
+	size_t text_len = 0;
+	char *text = editorDupActiveTextSource(&text_len);
+	if (text == NULL) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+
+	struct editorSyntaxWorkerJob job = {
+		.language = E.syntax_language,
+		.revision = E.syntax_revision,
+		.generation = E.syntax_generation,
+		.first_row = first_row,
+		.row_count = row_count,
+		.text = text,
+		.text_len = text_len
+	};
+	if (!editorSyntaxWorkerSchedule(&job)) {
+		free(text);
+		return 0;
+	}
+	E.syntax_background_pending = 1;
+	E.syntax_pending_revision = E.syntax_revision;
+	E.syntax_pending_first_row = first_row;
+	E.syntax_pending_row_count = row_count;
 	return 1;
 }
 
@@ -1017,7 +1279,8 @@ int editorApplyDocumentEdit(const struct editorDocumentEdit *edit) {
 		return 0;
 	}
 
-	if (E.syntax_state != NULL && E.syntax_language != EDITOR_SYNTAX_NONE) {
+	if ((E.syntax_state != NULL || editorSyntaxBackgroundEnabled()) &&
+			E.syntax_language != EDITOR_SYNTAX_NONE) {
 		syntax_track = editorBuildSyntaxEditForDocumentEdit(active_document,
 				edit->start_offset, edit->old_len,
 				edit->new_len > 0 ? edit->new_text : "", edit->new_len, &syntax_edit);
@@ -1044,7 +1307,8 @@ int editorApplyDocumentEdit(const struct editorDocumentEdit *edit) {
 		return 0;
 	}
 	E.dirty = edit->after_dirty;
-	if (E.syntax_state == NULL || E.syntax_language == EDITOR_SYNTAX_NONE) {
+	if ((E.syntax_state == NULL && !editorSyntaxBackgroundEnabled()) ||
+			E.syntax_language == EDITOR_SYNTAX_NONE) {
 		editorSyntaxVisibleCacheInvalidate();
 	}
 
@@ -2041,6 +2305,9 @@ int editorBufferMaxRenderCols(void) {
 }
 
 int editorSyntaxEnabled(void) {
+	if (editorSyntaxBackgroundEnabled()) {
+		return E.syntax_language != EDITOR_SYNTAX_NONE;
+	}
 	return E.syntax_state != NULL && E.syntax_language != EDITOR_SYNTAX_NONE;
 }
 
@@ -2063,6 +2330,31 @@ const char *editorSyntaxRootType(void) {
 }
 
 int editorSyntaxPrepareVisibleRowSpans(int first_row, int row_count) {
+	if (editorSyntaxBackgroundEnabled()) {
+		editorSyntaxBackgroundPoll();
+		if (E.syntax_language == EDITOR_SYNTAX_NONE) {
+			editorSyntaxVisibleCacheInvalidate();
+			return 1;
+		}
+		if (!editorSyntaxNormalizeVisibleRows(&first_row, &row_count)) {
+			return 0;
+		}
+		if (g_visible_syntax_cache.prepared &&
+				g_visible_syntax_cache.language == E.syntax_language &&
+				g_visible_syntax_cache.revision == E.syntax_revision &&
+				g_visible_syntax_cache.generation == E.syntax_generation &&
+				editorSyntaxRowRangeCovers(g_visible_syntax_cache.first_row,
+					g_visible_syntax_cache.row_count, first_row, row_count)) {
+			return 1;
+		}
+		if (E.syntax_background_pending &&
+				E.syntax_pending_revision == E.syntax_revision &&
+				editorSyntaxRowRangeCovers(E.syntax_pending_first_row,
+					E.syntax_pending_row_count, first_row, row_count)) {
+			return 1;
+		}
+		return editorSyntaxScheduleBackgroundActive(first_row, row_count);
+	}
 	return editorSyntaxBuildVisibleSpanCache(first_row, row_count);
 }
 
@@ -2123,6 +2415,35 @@ int editorSyntaxRowRenderSpans(int row_idx, struct editorRowSyntaxSpan *spans, i
 		return 0;
 	}
 	if (max_spans == 0 || E.syntax_state == NULL || E.syntax_language == EDITOR_SYNTAX_NONE) {
+		return 1;
+	}
+
+	if (editorSyntaxBackgroundEnabled()) {
+		if (g_visible_syntax_cache.prepared &&
+				g_visible_syntax_cache.language == E.syntax_language &&
+				g_visible_syntax_cache.revision == E.syntax_revision &&
+				g_visible_syntax_cache.generation == E.syntax_generation &&
+				row_idx >= g_visible_syntax_cache.first_row &&
+				row_idx < g_visible_syntax_cache.first_row + g_visible_syntax_cache.row_count) {
+			int rel_row = row_idx - g_visible_syntax_cache.first_row;
+			int cached_count = g_visible_syntax_cache.span_counts[rel_row];
+			if (cached_count > max_spans) {
+				cached_count = max_spans;
+			}
+			if (cached_count > 0) {
+				size_t count_size = 0;
+				size_t copy_bytes = 0;
+				if (!editorIntToSize(cached_count, &count_size) ||
+						!editorSizeMul(sizeof(*spans), count_size, &copy_bytes)) {
+					return 0;
+				}
+				int base = rel_row * ROTIDE_MAX_SYNTAX_SPANS_PER_ROW;
+				memcpy(spans, &g_visible_syntax_cache.spans[base], copy_bytes);
+			}
+			if (count_out != NULL) {
+				*count_out = cached_count;
+			}
+		}
 		return 1;
 	}
 

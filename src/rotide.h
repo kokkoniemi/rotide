@@ -332,6 +332,12 @@ struct editorTabState {
 	enum editorSyntaxLanguage syntax_language;
 	struct editorSyntaxState *syntax_state;
 	int syntax_parse_failures;
+	uint64_t syntax_revision;
+	uint64_t syntax_generation;
+	int syntax_background_pending;
+	uint64_t syntax_pending_revision;
+	int syntax_pending_first_row;
+	int syntax_pending_row_count;
 	int lsp_doc_open;
 	int lsp_doc_version;
 	int lsp_eslint_doc_open;
@@ -381,6 +387,12 @@ struct editorConfig {
 	enum editorSyntaxLanguage syntax_language;
 	struct editorSyntaxState *syntax_state;
 	int syntax_parse_failures;
+	uint64_t syntax_revision;
+	uint64_t syntax_generation;
+	int syntax_background_pending;
+	uint64_t syntax_pending_revision;
+	int syntax_pending_first_row;
+	int syntax_pending_row_count;
 	int lsp_gopls_enabled;
 	int lsp_clangd_enabled;
 	int lsp_html_enabled;
@@ -495,7 +507,8 @@ enum editorKey {
 	MOUSE_EVENT,
 	RESIZE_EVENT,
 	INPUT_EOF_EVENT,
-	TASK_EVENT
+	TASK_EVENT,
+	SYNTAX_EVENT
 };
 
 #endif

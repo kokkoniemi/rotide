@@ -15,6 +15,7 @@
 #include "input/dispatch.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
+#include "language/syntax_worker.h"
 #include "render/screen.h"
 #include "support/file_io.h"
 #include "support/terminal.h"

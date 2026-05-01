@@ -33,6 +33,8 @@ const char *editorSyntaxRootType(void);
 int editorSyntaxPrepareVisibleRowSpans(int first_row, int row_count);
 int editorSyntaxRowRenderSpans(int row_idx, struct editorRowSyntaxSpan *spans, int max_spans,
 		int *count_out);
+int editorSyntaxBackgroundPoll(void);
+int editorSyntaxBackgroundFlushForTests(void);
 void editorSyntaxTestResetVisibleRowRecomputeCount(void);
 int editorSyntaxTestVisibleRowRecomputeCount(void);
 int editorBufferMaxRenderCols(void);
