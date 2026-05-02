@@ -211,6 +211,9 @@ static int test_editor_process_keypress_toggle_drawer_shortcut_collapses_and_exp
 	ASSERT_TRUE(!editorDrawerIsCollapsed());
 	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
 	ASSERT_EQ_STR("Drawer expanded", E.statusmsg);
+	ASSERT_TRUE(editor_process_keypress_with_input(focus_drawer, sizeof(focus_drawer)) == 0);
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
+	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
 
 	cleanup_recovery_test_env(&env);
 	return 0;
@@ -427,6 +430,10 @@ static int test_editor_process_keypress_focus_drawer_and_arrow_navigation(void) 
 	int initial_cx = E.cx;
 
 	char focus_drawer[] = {CTRL_KEY('e')};
+	ASSERT_TRUE(editor_process_keypress_with_input(focus_drawer, sizeof(focus_drawer)) == 0);
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_TRUE(editor_process_keypress_with_input(focus_drawer, sizeof(focus_drawer)) == 0);
+	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
 	ASSERT_TRUE(editor_process_keypress_with_input(focus_drawer, sizeof(focus_drawer)) == 0);
 	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
 

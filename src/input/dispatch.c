@@ -72,6 +72,14 @@ static void editorExpandDrawerForFocus(void) {
 	E.pane_focus = EDITOR_PANE_DRAWER;
 }
 
+static void editorToggleDrawerFocus(void) {
+	if (E.pane_focus == EDITOR_PANE_DRAWER) {
+		E.pane_focus = EDITOR_PANE_TEXT;
+		return;
+	}
+	editorExpandDrawerForFocus();
+}
+
 static int editorMouseIsOverDrawer(const struct editorMouseEvent *event) {
 	if (event == NULL) {
 		return 0;
@@ -1610,7 +1618,7 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			break;
 		case EDITOR_ACTION_FOCUS_DRAWER:
 			editorHistoryBreakGroup();
-			editorExpandDrawerForFocus();
+			editorToggleDrawerFocus();
 			break;
 		case EDITOR_ACTION_TOGGLE_DRAWER:
 			editorHistoryBreakGroup();
