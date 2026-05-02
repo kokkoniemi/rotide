@@ -6,6 +6,7 @@
 #include "support/alloc.h"
 #include "support/file_io.h"
 #include "workspace/file_search.h"
+#include "workspace/git.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
 
@@ -615,6 +616,13 @@ int editorDrawerGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *v
 	}
 	view_out->is_active_file = !lookup.node->is_dir && E.filename != NULL &&
 			editorPathsReferToSameFile(lookup.node->path, E.filename);
+	if (E.git_repo_root != NULL) {
+		if (lookup.node->is_dir) {
+			view_out->git_status = editorGitDirStatus(lookup.node->path);
+		} else {
+			view_out->git_status = editorGitFileStatus(lookup.node->path);
+		}
+	}
 	return 1;
 }
 

@@ -10,6 +10,7 @@
 #include "text/utf8.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
+#include "workspace/git.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
 #include <errno.h>
@@ -2167,6 +2168,31 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 			int root_bold = entry.is_root;
 			int root_white = entry.is_root;
 			int placeholder_gray = entry.is_placeholder;
+			int git_color = 0;
+			if (!row_inverted && E.git_repo_root != NULL) {
+				switch (entry.git_status) {
+				case EDITOR_GIT_STATUS_MODIFIED:
+					git_color = 1;
+					if (!wbAppend(wb, VT100_FG_YELLOW_5, 5)) {
+						return 0;
+					}
+					break;
+				case EDITOR_GIT_STATUS_UNTRACKED:
+					git_color = 1;
+					if (!wbAppend(wb, VT100_FG_GREEN_5, 5)) {
+						return 0;
+					}
+					break;
+				case EDITOR_GIT_STATUS_CONFLICT:
+					git_color = 1;
+					if (!wbAppend(wb, VT100_FG_RED_5, 5)) {
+						return 0;
+					}
+					break;
+				default:
+					break;
+				}
+			}
 			if (root_bold && !wbAppend(wb, VT100_BOLD_ON_4, 4)) {
 				return 0;
 			}
@@ -2186,6 +2212,9 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 				return 0;
 			}
 			if (root_bold && !wbAppend(wb, VT100_BOLD_OFF_5, 5)) {
+				return 0;
+			}
+			if (git_color && !wbAppend(wb, VT100_FG_DEFAULT_5, 5)) {
 				return 0;
 			}
 			written_cols += wrote;
@@ -2373,8 +2402,18 @@ static int editorDrawStatusBar(struct writeBuf *wb) {
 	if (cursor_col < 1) {
 		cursor_col = 1;
 	}
-	int rlen = snprintf(rightbuf, sizeof(rightbuf), "%d,%d    %d%%",
-			E.cy + 1, cursor_col, progress);
+	const char *git_branch = editorGitBranch();
+	int rlen;
+	if (git_branch != NULL) {
+		char branch_trunc[25];
+		(void)snprintf(branch_trunc, sizeof(branch_trunc), "%s", git_branch);
+		const char *dirty_marker = E.git_entry_count > 0 ? "+" : "";
+		rlen = snprintf(rightbuf, sizeof(rightbuf), " %s%s  %d,%d    %d%%",
+				branch_trunc, dirty_marker, E.cy + 1, cursor_col, progress);
+	} else {
+		rlen = snprintf(rightbuf, sizeof(rightbuf), "%d,%d    %d%%",
+				E.cy + 1, cursor_col, progress);
+	}
 	if (rlen < 0) {
 		rlen = 0;
 	}

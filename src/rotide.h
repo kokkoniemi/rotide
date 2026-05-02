@@ -208,6 +208,13 @@ struct editorRowSyntaxSpan {
 	enum editorSyntaxHighlightClass highlight_class;
 };
 
+enum editorGitStatus {
+	EDITOR_GIT_STATUS_CLEAN = 0,
+	EDITOR_GIT_STATUS_MODIFIED,
+	EDITOR_GIT_STATUS_UNTRACKED,
+	EDITOR_GIT_STATUS_CONFLICT
+};
+
 struct editorDrawerEntryView {
 	const char *name;
 	const char *path;
@@ -222,6 +229,7 @@ struct editorDrawerEntryView {
 	int is_active_file;
 	int is_search_header;
 	int is_placeholder;
+	enum editorGitStatus git_status;
 };
 
 struct editorProjectSearchResult {
@@ -313,6 +321,11 @@ enum editorDrawerMode {
 	EDITOR_DRAWER_MODE_TREE = 0,
 	EDITOR_DRAWER_MODE_FILE_SEARCH,
 	EDITOR_DRAWER_MODE_PROJECT_SEARCH
+};
+
+struct editorGitEntry {
+	char *rel_path;
+	enum editorGitStatus status;
 };
 
 struct editorHistoryEntry {
@@ -511,6 +524,11 @@ struct editorConfig {
 	int drawer_project_search_previewed_line;
 	int drawer_project_search_previewed_col;
 	int drawer_project_search_active_tab_before;
+	char *git_repo_root;
+	char *git_branch;
+	struct editorGitEntry *git_entries;
+	int git_entry_count;
+	int git_entry_capacity;
 	enum editorCursorStyle cursor_style;
 	int cursor_blink_enabled;
 	int line_wrap_enabled;

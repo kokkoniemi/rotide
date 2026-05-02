@@ -16,6 +16,7 @@
 #include "render/screen.h"
 #include "support/terminal.h"
 #include "workspace/drawer.h"
+#include "workspace/git.h"
 #include "workspace/project_search.h"
 #include "workspace/recovery.h"
 #include "workspace/tabs.h"
@@ -138,6 +139,11 @@ void initEditor(void) {
 	E.drawer_project_search_previewed_line = 0;
 	E.drawer_project_search_previewed_col = 0;
 	E.drawer_project_search_active_tab_before = -1;
+	E.git_repo_root = NULL;
+	E.git_branch = NULL;
+	E.git_entries = NULL;
+	E.git_entry_count = 0;
+	E.git_entry_capacity = 0;
 	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;
 	E.cursor_blink_enabled = 1;
 	E.line_wrap_enabled = 0;
@@ -273,6 +279,7 @@ int main(int argc, char *argv[]) {
 	if (!editorDrawerInitForStartup(argc, argv, restored_session)) {
 		editorSetStatusMsg("Drawer disabled (init failed)");
 	}
+	(void)editorGitInit();
 
 	if (keymap_status == EDITOR_KEYMAP_LOAD_OK && E.statusmsg[0] == '\0') {
 		char help_msg[160];

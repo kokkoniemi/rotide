@@ -8,6 +8,7 @@
 #include "support/save_syscalls.h"
 #include "support/size_utils.h"
 #include "support/terminal.h"
+#include "workspace/git.h"
 #include "workspace/tabs.h"
 #include "text/document.h"
 #include "text/row.h"
@@ -608,6 +609,7 @@ void editorSave(void) {
 	free(tmp_path);
 	free(buf);
 	editorLspNotifyDidSaveActive();
+	editorGitRefresh();
 	editorSetStatusMsg("%zu bytes written to disk", len);
 	return;
 

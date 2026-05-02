@@ -13,6 +13,7 @@
 #include "text/document.h"
 #include "text/row.h"
 #include "text/utf8.h"
+#include "workspace/git.h"
 #include "workspace/task.h"
 
 #include <errno.h>
@@ -1172,6 +1173,7 @@ static void editorTaskFinalize(int success, int exit_code) {
 		editorTaskSetFinalStatus(0);
 	}
 	editorTaskResetState();
+	editorGitRefresh();
 }
 
 static void editorTaskSetFinalStatus(int success) {
