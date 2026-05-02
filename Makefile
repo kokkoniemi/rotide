@@ -69,6 +69,7 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/workspace/tabs.c $(SRC_DIR)/workspace/drawer.c \
 	$(SRC_DIR)/workspace/file_search.c \
 	$(SRC_DIR)/workspace/git.c \
+	$(SRC_DIR)/workspace/watch.c \
 	$(SRC_DIR)/workspace/project_search.c \
 	$(SRC_DIR)/workspace/recovery.c \
 	$(SRC_DIR)/input/dispatch.c \
@@ -88,6 +89,7 @@ EDITOR_OBJS = $(filter-out $(SRC_DIR)/rotide.o,$(CORE_OBJS)) $(TREE_SITTER_OBJS)
 TEST_SRCS = tests/rotide_tests_main.c tests/test_document_text_editing.c \
 	tests/test_syntax.c tests/test_syntax_registry.c \
 	tests/test_save_recovery.c tests/test_workspace_config.c \
+	tests/test_file_watch.c \
 	tests/test_lsp.c tests/test_input_search.c tests/test_render_terminal.c \
 	tests/test_support.c tests/test_helpers.c tests/alloc_test_hooks.c \
 	tests/save_syscalls_test_hooks.c

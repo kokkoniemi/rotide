@@ -18,6 +18,8 @@ extern const struct editorTestCase g_save_recovery_tests[];
 extern const int g_save_recovery_test_count;
 extern const struct editorTestCase g_workspace_config_tests[];
 extern const int g_workspace_config_test_count;
+extern const struct editorTestCase g_file_watch_tests[];
+extern const int g_file_watch_test_count;
 extern const struct editorTestCase g_lsp_tests[];
 extern const int g_lsp_test_count;
 extern const struct editorTestCase g_input_search_tests[];
@@ -46,6 +48,7 @@ int main(void) {
 		{g_syntax_registry_tests, g_syntax_registry_test_count},
 		{g_save_recovery_tests, g_save_recovery_test_count},
 		{g_workspace_config_tests, g_workspace_config_test_count},
+		{g_file_watch_tests, g_file_watch_test_count},
 		{g_lsp_tests, g_lsp_test_count},
 		{g_input_search_tests, g_input_search_test_count},
 		{g_render_terminal_tests, g_render_terminal_test_count},

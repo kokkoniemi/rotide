@@ -83,6 +83,8 @@ static void editorTabStateInitEmpty(struct editorTabState *tab) {
 	tab->lsp_diagnostic_warning_count = 0;
 	tab->max_render_cols = 0;
 	tab->max_render_cols_valid = 1;
+	memset(&tab->disk_state, 0, sizeof(tab->disk_state));
+	tab->disk_conflict = 0;
 	tab->search_match_offset = 0;
 	tab->search_match_len = 0;
 	tab->search_direction = 1;
@@ -107,6 +109,8 @@ void editorResetActiveBufferFields(void) {
 	E.max_render_cols_valid = 1;
 	E.dirty = 0;
 	E.filename = NULL;
+	memset(&E.disk_state, 0, sizeof(E.disk_state));
+	E.disk_conflict = 0;
 	E.syntax_language = EDITOR_SYNTAX_NONE;
 	E.syntax_state = NULL;
 	E.syntax_parse_failures = 0;
@@ -243,6 +247,8 @@ static void editorTabStateCaptureActive(struct editorTabState *tab) {
 	tab->max_render_cols_valid = E.max_render_cols_valid;
 	tab->dirty = E.dirty;
 	tab->filename = E.filename;
+	tab->disk_state = E.disk_state;
+	tab->disk_conflict = E.disk_conflict;
 	tab->syntax_language = E.syntax_language;
 	tab->syntax_state = E.syntax_state;
 	tab->syntax_parse_failures = E.syntax_parse_failures;
@@ -299,6 +305,8 @@ static void editorTabStateLoadActive(struct editorTabState *tab) {
 	E.max_render_cols_valid = tab->max_render_cols_valid;
 	E.dirty = tab->dirty;
 	E.filename = tab->filename;
+	E.disk_state = tab->disk_state;
+	E.disk_conflict = tab->disk_conflict;
 	E.syntax_language = tab->syntax_language;
 	E.syntax_state = tab->syntax_state;
 	E.syntax_parse_failures = tab->syntax_parse_failures;
@@ -959,6 +967,8 @@ static int editorRebuildGeneratedTabRows(struct editorTabState *tab) {
 	tab->dirty = 0;
 	free(tab->filename);
 	tab->filename = NULL;
+	memset(&tab->disk_state, 0, sizeof(tab->disk_state));
+	tab->disk_conflict = 0;
 	editorSyntaxStateDestroy(tab->syntax_state);
 	tab->syntax_state = NULL;
 	tab->syntax_language = EDITOR_SYNTAX_NONE;
@@ -1217,6 +1227,8 @@ static int editorTaskPrepareLogTab(const char *title, const char *text) {
 	E.lsp_doc_version = 0;
 	E.lsp_eslint_doc_open = 0;
 	E.lsp_eslint_doc_version = 0;
+	memset(&E.disk_state, 0, sizeof(E.disk_state));
+	E.disk_conflict = 0;
 	if (!editorDocumentResetActiveFromText(text, strlen(text))) {
 		editorSetAllocFailureStatus();
 		return 0;

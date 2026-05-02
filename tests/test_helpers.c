@@ -19,6 +19,7 @@
 #include "workspace/project_search.h"
 #include "workspace/recovery.h"
 #include "workspace/tabs.h"
+#include "workspace/watch.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -46,6 +47,7 @@ void clear_editor_state(void) {
 	editorDrawerShutdown();
 	editorRecoveryShutdown();
 	editorTabsFreeAll();
+	editorWatchTestReset();
 	editorOutputTestResetFrameCache();
 	editorClipboardClear();
 }

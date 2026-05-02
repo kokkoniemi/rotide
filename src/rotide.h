@@ -248,6 +248,16 @@ struct editorTabLayoutEntry {
 	int show_right_overflow;
 };
 
+struct editorFileDiskState {
+	int known;
+	int exists;
+	dev_t dev;
+	ino_t ino;
+	off_t size;
+	struct timespec mtime;
+	struct timespec ctime;
+};
+
 enum editorAction {
 	EDITOR_ACTION_QUIT = 0,
 	EDITOR_ACTION_SAVE,
@@ -365,6 +375,8 @@ struct editorTabState {
 	int max_render_cols_valid;
 	int dirty;
 	char *filename;
+	struct editorFileDiskState disk_state;
+	int disk_conflict;
 	enum editorSyntaxLanguage syntax_language;
 	struct editorSyntaxState *syntax_state;
 	int syntax_parse_failures;
@@ -421,6 +433,8 @@ struct editorConfig {
 	int max_render_cols_valid;
 	int dirty;
 	char *filename;
+	struct editorFileDiskState disk_state;
+	int disk_conflict;
 	enum editorSyntaxLanguage syntax_language;
 	struct editorSyntaxState *syntax_state;
 	int syntax_parse_failures;
@@ -574,7 +588,8 @@ enum editorKey {
 	RESIZE_EVENT,
 	INPUT_EOF_EVENT,
 	TASK_EVENT,
-	SYNTAX_EVENT
+	SYNTAX_EVENT,
+	WATCH_EVENT
 };
 
 #endif

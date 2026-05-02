@@ -4,6 +4,7 @@
 #include "rotide.h"
 
 char *editorPrompt(const char *prompt);
+int editorPromptYesNo(const char *prompt);
 void editorProcessKeypress(void);
 
 #endif

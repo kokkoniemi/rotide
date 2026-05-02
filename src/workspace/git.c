@@ -19,6 +19,46 @@ static void editorGitFreeEntries(void) {
 	E.git_entry_capacity = 0;
 }
 
+static void editorGitRefreshBranch(void) {
+	char head_path[PATH_MAX];
+	int n = 0;
+
+	free(E.git_branch);
+	E.git_branch = NULL;
+	if (E.git_repo_root == NULL) {
+		return;
+	}
+
+	n = snprintf(head_path, sizeof(head_path), "%s/.git/HEAD", E.git_repo_root);
+	if (n <= 0 || n >= (int)sizeof(head_path)) {
+		return;
+	}
+
+	FILE *f = fopen(head_path, "r");
+	if (f == NULL) {
+		return;
+	}
+
+	char line[256];
+	if (fgets(line, sizeof(line), f) != NULL) {
+		size_t len = strlen(line);
+		while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r')) {
+			line[--len] = '\0';
+		}
+		const char *ref_prefix = "ref: refs/heads/";
+		size_t prefix_len = strlen(ref_prefix);
+		if (strncmp(line, ref_prefix, prefix_len) == 0) {
+			E.git_branch = strdup(line + prefix_len);
+		} else if (len >= 7) {
+			char sha_short[8];
+			memcpy(sha_short, line, 7);
+			sha_short[7] = '\0';
+			E.git_branch = strdup(sha_short);
+		}
+	}
+	fclose(f);
+}
+
 static int editorGitEntryCompare(const void *a, const void *b) {
 	const struct editorGitEntry *ea = (const struct editorGitEntry *)a;
 	const struct editorGitEntry *eb = (const struct editorGitEntry *)b;
@@ -78,31 +118,7 @@ int editorGitInit(void) {
 
 	E.git_repo_root = repo_root;
 
-	char head_path[PATH_MAX];
-	int n = snprintf(head_path, sizeof(head_path), "%s/.git/HEAD", repo_root);
-	if (n > 0 && n < (int)sizeof(head_path)) {
-		FILE *f = fopen(head_path, "r");
-		if (f != NULL) {
-			char line[256];
-			if (fgets(line, sizeof(line), f) != NULL) {
-				size_t len = strlen(line);
-				while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r')) {
-					line[--len] = '\0';
-				}
-				const char *ref_prefix = "ref: refs/heads/";
-				size_t prefix_len = strlen(ref_prefix);
-				if (strncmp(line, ref_prefix, prefix_len) == 0) {
-					E.git_branch = strdup(line + prefix_len);
-				} else if (len >= 7) {
-					char sha_short[8];
-					memcpy(sha_short, line, 7);
-					sha_short[7] = '\0';
-					E.git_branch = strdup(sha_short);
-				}
-			}
-			fclose(f);
-		}
-	}
+	editorGitRefreshBranch();
 
 	editorGitRefresh();
 	return 1;
@@ -113,6 +129,7 @@ void editorGitRefresh(void) {
 		return;
 	}
 
+	editorGitRefreshBranch();
 	editorGitFreeEntries();
 
 	// Single-quote-wrap the repo root so paths with spaces are handled safely.

@@ -4,6 +4,4 @@
 - FEATURE: Add bracket/quote pair assistance: auto-close pairs, skip-over closing pairs, and jump to matching bracket.
 - FEATURE: implement support for vim-mode. The commands should be configurable in .rotide.toml in local and global files.
 - IMPROVEMENT: integrate Fil-C to improve memory safety
-- FEATURE: Git integration. Show changed files with different color and git status, branch in status bar.
-- FEATURE: Watch for changes outside RotIDE and update tab content automatically if unchanged. Prompt if more recent file exists (vscode style).
 - FEATURE: create a new file or folder / delete file or folder / rename file or folder

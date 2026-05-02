@@ -38,6 +38,8 @@ void initEditor(void) {
 	E.rows = NULL;
 	E.dirty = 0;
 	E.filename = NULL;
+	memset(&E.disk_state, 0, sizeof(E.disk_state));
+	E.disk_conflict = 0;
 	E.syntax_language = EDITOR_SYNTAX_NONE;
 	E.syntax_state = NULL;
 	E.syntax_parse_failures = 0;

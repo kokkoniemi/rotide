@@ -10,6 +10,7 @@
 #include "support/terminal.h"
 #include "workspace/git.h"
 #include "workspace/tabs.h"
+#include "workspace/watch.h"
 #include "text/document.h"
 #include "text/row.h"
 #include <errno.h>
@@ -179,6 +180,24 @@ static int editorReadNormalizedFileToText(FILE *fp, char **text_out, size_t *len
 	*text_out = text;
 	*len_out = text_len;
 	return 1;
+}
+
+int editorReadFileToText(const char *filename, char **text_out, size_t *len_out) {
+	FILE *fp = NULL;
+	int ok = 0;
+
+	if (text_out == NULL || len_out == NULL) {
+		return 0;
+	}
+	*text_out = NULL;
+	*len_out = 0;
+
+	if (!editorCheckOpenFileStream(filename, &fp)) {
+		return 0;
+	}
+	ok = editorReadNormalizedFileToText(fp, text_out, len_out);
+	fclose(fp);
+	return ok;
 }
 
 int editorInsertText(const char *text, size_t len) {
@@ -405,6 +424,7 @@ int editorOpen(const char *filename) {
 	if (!editorRestoreActiveFromDocument(&document, 0, 0, 0, 1)) {
 		goto cleanup;
 	}
+	editorWatchRefreshActiveBaseline();
 	ok = 1;
 
 cleanup:
@@ -534,6 +554,11 @@ void editorSave(void) {
 		}
 		(void)editorSyntaxParseFullActive();
 	}
+	if (editorWatchActiveHasDiskConflict() &&
+			!editorPromptYesNo("File changed on disk. Overwrite? [y/N] %s")) {
+		editorSetStatusMsg("Save aborted; file changed on disk");
+		return;
+	}
 
 	size_t len = 0;
 	errno = 0;
@@ -606,6 +631,7 @@ void editorSave(void) {
 	dir_fd = -1;
 
 	E.dirty = 0;
+	editorWatchRefreshActiveBaseline();
 	free(tmp_path);
 	free(buf);
 	editorLspNotifyDidSaveActive();

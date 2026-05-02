@@ -318,7 +318,7 @@ static void editorClearSelectionMode(void) {
 	E.selection_anchor_offset = 0;
 }
 
-static int editorPromptYesNo(const char *prompt) {
+int editorPromptYesNo(const char *prompt) {
 	char *response = editorPromptWithCallback(prompt, 1, NULL);
 	int accepted = 0;
 	if (response == NULL) {
@@ -746,7 +746,7 @@ static char *editorPromptWithCallback(const char *prompt, int allow_empty,
 			(void)editorRefreshWindowSize();
 			continue;
 		}
-		if (c == SYNTAX_EVENT || c == TASK_EVENT) {
+		if (c == SYNTAX_EVENT || c == TASK_EVENT || c == WATCH_EVENT) {
 			continue;
 		}
 		// Prompt editing is keyboard-only; ignore mouse packets without invoking callbacks.
@@ -1904,6 +1904,9 @@ void editorProcessKeypress(void) {
 		return;
 	}
 	if (c == SYNTAX_EVENT) {
+		return;
+	}
+	if (c == WATCH_EVENT) {
 		return;
 	}
 

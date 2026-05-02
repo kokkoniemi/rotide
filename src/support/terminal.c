@@ -3,6 +3,7 @@
 #include "editing/edit.h"
 #include "language/syntax_worker.h"
 #include "workspace/task.h"
+#include "workspace/watch.h"
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -645,6 +646,9 @@ int editorReadKey(void) {
 		if (editorTaskPoll()) {
 			return TASK_EVENT;
 		}
+		if (editorWatchPoll()) {
+			return WATCH_EVENT;
+		}
 
 		char c;
 		enum editorReadByteResult read_status;
@@ -657,6 +661,9 @@ int editorReadKey(void) {
 			}
 			if (editorTaskPoll()) {
 				return TASK_EVENT;
+			}
+			if (editorWatchPoll()) {
+				return WATCH_EVENT;
 			}
 			if (read_status == EDITOR_READ_EOF) {
 				return INPUT_EOF_EVENT;
