@@ -2165,8 +2165,9 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 		if (written_cols < drawer_cols) {
 			int remaining = drawer_cols - written_cols;
 			int wrote = 0;
-			int root_bold = entry.is_root;
+			int root_bold = entry.is_root || (entry.is_dir && !row_inverted);
 			int root_white = entry.is_root;
+			int dir_cyan = entry.is_dir && !entry.is_root && !row_inverted;
 			int placeholder_gray = entry.is_placeholder;
 			int git_color = 0;
 			if (!row_inverted && E.git_repo_root != NULL) {
@@ -2199,6 +2200,9 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 			if (root_white && !wbAppend(wb, VT100_FG_WHITE_5, 5)) {
 				return 0;
 			}
+			if (dir_cyan && !wbAppend(wb, VT100_FG_CYAN_5, 5)) {
+				return 0;
+			}
 			if (placeholder_gray && !wbAppend(wb, VT100_FG_GRAY_5, 5)) {
 				return 0;
 			}
@@ -2206,6 +2210,9 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 				return 0;
 			}
 			if (placeholder_gray && !wbAppend(wb, VT100_FG_DEFAULT_5, 5)) {
+				return 0;
+			}
+			if (dir_cyan && !wbAppend(wb, VT100_FG_DEFAULT_5, 5)) {
 				return 0;
 			}
 			if (root_white && !wbAppend(wb, VT100_FG_DEFAULT_5, 5)) {
