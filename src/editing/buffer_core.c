@@ -2423,7 +2423,6 @@ int editorSyntaxRowRenderSpans(int row_idx, struct editorRowSyntaxSpan *spans, i
 	if (editorSyntaxBackgroundEnabled()) {
 		if (g_visible_syntax_cache.prepared &&
 				g_visible_syntax_cache.language == E.syntax_language &&
-				g_visible_syntax_cache.revision == E.syntax_revision &&
 				g_visible_syntax_cache.generation == E.syntax_generation &&
 				row_idx >= g_visible_syntax_cache.first_row &&
 				row_idx < g_visible_syntax_cache.first_row + g_visible_syntax_cache.row_count) {
