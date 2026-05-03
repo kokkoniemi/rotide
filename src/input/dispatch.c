@@ -672,6 +672,89 @@ static void editorMoveCurrentLine(int direction) {
 	free(new_text);
 }
 
+static int editorIndentSelection(void) {
+	struct editorSelectionRange range;
+	if (!editorGetSelectionRange(&range)) {
+		return 0;
+	}
+
+	// If selection ends exactly at column 0, that last row isn't visually selected
+	int last_row = range.end_cy;
+	if (last_row > range.start_cy && range.end_cx == 0) {
+		last_row--;
+	}
+
+	size_t first_start = 0, dummy_end = 0;
+	size_t dummy_start = 0, last_end = 0;
+	if (!editorBufferLineByteRange(range.start_cy, &first_start, &dummy_end) ||
+			!editorBufferLineByteRange(last_row, &dummy_start, &last_end)) {
+		return 1;
+	}
+
+	int num_rows = last_row - range.start_cy + 1;
+	size_t old_len = last_end - first_start;
+	size_t new_len = old_len + (size_t)num_rows;
+
+	char *new_text = editorMalloc(new_len);
+	if (new_text == NULL) {
+		editorSetAllocFailureStatus();
+		return 1;
+	}
+
+	size_t out = 0;
+	for (int row = range.start_cy; row <= last_row; row++) {
+		new_text[out++] = '\t';
+		size_t row_len = (size_t)E.rows[row].size;
+		memcpy(new_text + out, E.rows[row].chars, row_len);
+		out += row_len;
+		if (row < last_row) {
+			new_text[out++] = '\n';
+		}
+	}
+
+	// Cursor: keep on same row, shift cx right by 1 for the prepended tab
+	size_t before_offset = 0;
+	(void)editorBufferPosToOffset(E.cy, E.cx, &before_offset);
+
+	size_t after_offset;
+	if (E.cy >= range.start_cy && E.cy <= last_row) {
+		size_t cur_row_new_start = first_start;
+		for (int row = range.start_cy; row < E.cy; row++) {
+			cur_row_new_start += 1 + (size_t)E.rows[row].size + 1;
+		}
+		size_t new_cx = (size_t)E.cx + 1;
+		size_t max_cx = (size_t)E.rows[E.cy].size + 1;
+		if (new_cx > max_cx) {
+			new_cx = max_cx;
+		}
+		after_offset = cur_row_new_start + new_cx;
+	} else {
+		after_offset = before_offset + (size_t)num_rows;
+	}
+
+	struct editorDocumentEdit edit = {
+		.kind = EDITOR_EDIT_INSERT_TEXT,
+		.start_offset = first_start,
+		.old_len = old_len,
+		.new_text = new_text,
+		.new_len = new_len,
+		.before_cursor_offset = before_offset,
+		.after_cursor_offset = after_offset,
+		.before_dirty = E.dirty,
+		.after_dirty = E.dirty + 1,
+	};
+
+	editorPinActivePreviewForEdit();
+	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+	int dirty_before = E.dirty;
+	(void)editorApplyDocumentEdit(&edit);
+	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+
+	free(new_text);
+	editorClearSelectionMode();
+	return 1;
+}
+
 static void editorDeleteSelection(void) {
 	struct editorSelectionRange range;
 	if (!editorGetSelectionRange(&range)) {
@@ -2041,13 +2124,17 @@ void editorProcessKeypress(void) {
 							"File is unsupported" : "Task log is read-only");
 					goto done;
 				}
-				editorClearSelectionMode();
-				editorPinActivePreviewForEdit();
-				editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
-				int dirty_before = E.dirty;
-				editorInsertChar(c);
-				editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
-				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+				if (c == '\t' && editorIndentSelection()) {
+					effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+				} else {
+					editorClearSelectionMode();
+					editorPinActivePreviewForEdit();
+					editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+					int dirty_before = E.dirty;
+					editorInsertChar(c);
+					editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+					effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+				}
 			}
 		}
 	}
