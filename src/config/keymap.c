@@ -68,6 +68,8 @@ static const struct editorActionName editor_action_names[] = {
 	{"redraw", EDITOR_ACTION_REDRAW},
 	{"delete_char", EDITOR_ACTION_DELETE_CHAR},
 	{"backspace", EDITOR_ACTION_BACKSPACE},
+	{"move_line_up", EDITOR_ACTION_MOVE_LINE_UP},
+	{"move_line_down", EDITOR_ACTION_MOVE_LINE_DOWN},
 };
 
 static const struct editorNamedKey editor_named_keys[] = {
@@ -638,6 +640,8 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 	(void)editorKeymapAppendBinding(keymap, DEL_KEY, EDITOR_ACTION_DELETE_CHAR);
 	(void)editorKeymapAppendBinding(keymap, BACKSPACE, EDITOR_ACTION_BACKSPACE);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('h'), EDITOR_ACTION_BACKSPACE);
+	(void)editorKeymapAppendBinding(keymap, ALT_ARROW_UP, EDITOR_ACTION_MOVE_LINE_UP);
+	(void)editorKeymapAppendBinding(keymap, ALT_ARROW_DOWN, EDITOR_ACTION_MOVE_LINE_DOWN);
 }
 
 int editorKeymapLookupAction(const struct editorKeymap *keymap, int key,

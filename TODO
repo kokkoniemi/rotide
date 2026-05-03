@@ -1,4 +1,3 @@
-- FEATURE: add support for moving current line up/down (e.g., ALT+UP/DOWN)
 - FEATURE: multi-line intendation support for selection using TAB
 - FEATURE: replace selection with inputted character
 - FEATURE: toggle selected lines to comment in supported languages

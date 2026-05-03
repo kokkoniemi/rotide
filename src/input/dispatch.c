@@ -598,6 +598,80 @@ static void editorCutSelection(void) {
 	editorSetStatusMsg("Cut %zu bytes", copied_len);
 }
 
+static void editorMoveCurrentLine(int direction) {
+	int cur = E.cy;
+	int other = cur + direction;
+
+	if (cur < 0 || cur >= E.numrows || other < 0 || other >= E.numrows) {
+		return;
+	}
+
+	int first = direction < 0 ? other : cur;
+	int second = direction < 0 ? cur : other;
+
+	size_t first_start = 0, first_end = 0;
+	size_t second_start = 0, second_end = 0;
+	if (!editorBufferLineByteRange(first, &first_start, &first_end) ||
+			!editorBufferLineByteRange(second, &second_start, &second_end)) {
+		return;
+	}
+
+	int first_len = E.rows[first].size;
+	int second_len = E.rows[second].size;
+	const char *first_chars = E.rows[first].chars;
+	const char *second_chars = E.rows[second].chars;
+
+	// new_text = second_content + '\n' + first_content
+	size_t new_len = (size_t)second_len + 1 + (size_t)first_len;
+	char *new_text = editorMalloc(new_len);
+	if (new_text == NULL) {
+		editorSetAllocFailureStatus();
+		return;
+	}
+	memcpy(new_text, second_chars, (size_t)second_len);
+	new_text[second_len] = '\n';
+	memcpy(new_text + second_len + 1, first_chars, (size_t)first_len);
+
+	// Replace the combined content of both rows (including the '\n' between them)
+	size_t old_len = second_end - first_start;
+
+	size_t cx = (size_t)E.cx;
+	size_t after_offset;
+	if (direction < 0) {
+		if (cx > (size_t)second_len) {
+			cx = (size_t)second_len;
+		}
+		after_offset = first_start + cx;
+	} else {
+		if (cx > (size_t)first_len) {
+			cx = (size_t)first_len;
+		}
+		after_offset = first_start + (size_t)second_len + 1 + cx;
+	}
+
+	size_t before_offset = 0;
+	(void)editorBufferPosToOffset(cur, E.cx, &before_offset);
+
+	struct editorDocumentEdit edit = {
+		.kind = EDITOR_EDIT_INSERT_TEXT,
+		.start_offset = first_start,
+		.old_len = old_len,
+		.new_text = new_text,
+		.new_len = new_len,
+		.before_cursor_offset = before_offset,
+		.after_cursor_offset = after_offset,
+		.before_dirty = E.dirty,
+		.after_dirty = E.dirty + 1,
+	};
+
+	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+	int dirty_before = E.dirty;
+	(void)editorApplyDocumentEdit(&edit);
+	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+
+	free(new_text);
+}
+
 static void editorDeleteSelection(void) {
 	struct editorSelectionRange range;
 	if (!editorGetSelectionRange(&range)) {
@@ -1891,6 +1965,18 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 					editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
 				}
 			}
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			break;
+		case EDITOR_ACTION_MOVE_LINE_UP:
+			editorClearSelectionMode();
+			editorPinActivePreviewForEdit();
+			editorMoveCurrentLine(-1);
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			break;
+		case EDITOR_ACTION_MOVE_LINE_DOWN:
+			editorClearSelectionMode();
+			editorPinActivePreviewForEdit();
+			editorMoveCurrentLine(1);
 			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			break;
 		case EDITOR_ACTION_COUNT:
