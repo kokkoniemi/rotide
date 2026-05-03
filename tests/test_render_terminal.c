@@ -1570,8 +1570,8 @@ static int test_editor_refresh_screen_drawer_renders_unicode_tree_connectors(voi
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "\xE2\x96\xBE src") != NULL);
-	ASSERT_TRUE(strstr(output, "\xE2\x96\xB8 zzz") != NULL);
+	ASSERT_TRUE(strstr(output, "\xE2\x96\xBE \x1b[1m\x1b[36msrc") != NULL);
+	ASSERT_TRUE(strstr(output, "\xE2\x96\xB8 \x1b[1m\x1b[36mzzz") != NULL);
 	ASSERT_TRUE(strstr(output, "\xE2\x94\x9C src") == NULL);
 	ASSERT_TRUE(strstr(output, "\xE2\x94\x94 src") == NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[90m\xE2\x94\x9C\x1b[39m") != NULL);
