@@ -672,6 +672,44 @@ static void editorMoveCurrentLine(int direction) {
 	free(new_text);
 }
 
+static int editorReplaceSelectionWithChar(int c) {
+	struct editorSelectionRange range;
+	if (!editorGetSelectionRange(&range)) {
+		return 0;
+	}
+
+	size_t start_offset = 0, end_offset = 0;
+	if (!editorBufferPosToOffset(range.start_cy, range.start_cx, &start_offset) ||
+			!editorBufferPosToOffset(range.end_cy, range.end_cx, &end_offset) ||
+			end_offset < start_offset) {
+		return 1;
+	}
+
+	char inserted = (char)c;
+	struct editorDocumentEdit edit = {
+		.kind = EDITOR_EDIT_INSERT_TEXT,
+		.start_offset = start_offset,
+		.old_len = end_offset - start_offset,
+		.new_text = &inserted,
+		.new_len = 1,
+		.before_cursor_offset = start_offset,
+		.after_cursor_offset = start_offset + 1,
+		.before_dirty = E.dirty,
+		.after_dirty = E.dirty + 1,
+	};
+
+	editorPinActivePreviewForEdit();
+	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+	int dirty_before = E.dirty;
+	if (editorApplyDocumentEdit(&edit)) {
+		(void)editorSyncCursorFromOffsetByteBoundary(start_offset + 1);
+	}
+	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+
+	editorClearSelectionMode();
+	return 1;
+}
+
 static int editorIndentSelection(void) {
 	struct editorSelectionRange range;
 	if (!editorGetSelectionRange(&range)) {
@@ -2125,6 +2163,8 @@ void editorProcessKeypress(void) {
 					goto done;
 				}
 				if (c == '\t' && editorIndentSelection()) {
+					effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+				} else if (editorReplaceSelectionWithChar(c)) {
 					effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 				} else {
 					editorClearSelectionMode();
