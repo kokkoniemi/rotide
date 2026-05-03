@@ -598,6 +598,221 @@ static void editorCutSelection(void) {
 	editorSetStatusMsg("Cut %zu bytes", copied_len);
 }
 
+static const char *editorCommentPrefixForLanguage(enum editorSyntaxLanguage lang) {
+	switch (lang) {
+	case EDITOR_SYNTAX_C:
+	case EDITOR_SYNTAX_CPP:
+	case EDITOR_SYNTAX_GO:
+	case EDITOR_SYNTAX_JAVASCRIPT:
+	case EDITOR_SYNTAX_TYPESCRIPT:
+	case EDITOR_SYNTAX_TSX:
+	case EDITOR_SYNTAX_JAVA:
+	case EDITOR_SYNTAX_RUST:
+	case EDITOR_SYNTAX_CSS:
+	case EDITOR_SYNTAX_CSHARP:
+	case EDITOR_SYNTAX_SCALA:
+	case EDITOR_SYNTAX_PHP:
+		return "//";
+	case EDITOR_SYNTAX_PYTHON:
+	case EDITOR_SYNTAX_SHELL:
+	case EDITOR_SYNTAX_RUBY:
+	case EDITOR_SYNTAX_JULIA:
+		return "#";
+	case EDITOR_SYNTAX_HASKELL:
+		return "--";
+	default:
+		return NULL;
+	}
+}
+
+static void editorToggleCommentLines(void) {
+	const char *prefix = editorCommentPrefixForLanguage(E.syntax_language);
+	if (prefix == NULL) {
+		editorSetStatusMsg("No line comment for this language");
+		return;
+	}
+	int prefix_len = (int)strlen(prefix);
+
+	struct editorSelectionRange range;
+	int had_selection = editorGetSelectionRange(&range);
+	if (!had_selection) {
+		if (E.cy < 0 || E.cy >= E.numrows) {
+			return;
+		}
+		range.start_cy = E.cy;
+		range.start_cx = 0;
+		range.end_cy = E.cy;
+		range.end_cx = E.rows[E.cy].size;
+	}
+
+	int last_row = range.end_cy;
+	if (had_selection && last_row > range.start_cy && range.end_cx == 0) {
+		last_row--;
+	}
+	if (range.start_cy < 0 || last_row >= E.numrows) {
+		return;
+	}
+
+	// Determine toggle direction: all non-empty lines commented → remove, else add
+	int removing = 1;
+	for (int row = range.start_cy; row <= last_row; row++) {
+		const char *chars = E.rows[row].chars;
+		int size = E.rows[row].size;
+		if (size == 0) {
+			continue;
+		}
+		int i = 0;
+		while (i < size && (chars[i] == ' ' || chars[i] == '\t')) {
+			i++;
+		}
+		if (i + prefix_len > size || strncmp(chars + i, prefix, (size_t)prefix_len) != 0) {
+			removing = 0;
+			break;
+		}
+	}
+
+	size_t first_start = 0, dummy = 0, last_end = 0;
+	if (!editorBufferLineByteRange(range.start_cy, &first_start, &dummy) ||
+			!editorBufferLineByteRange(last_row, &dummy, &last_end)) {
+		return;
+	}
+	size_t old_len = last_end - first_start;
+
+	// Compute new_len
+	size_t new_len = old_len;
+	for (int row = range.start_cy; row <= last_row; row++) {
+		const char *chars = E.rows[row].chars;
+		int size = E.rows[row].size;
+		if (size == 0) {
+			continue;
+		}
+		if (!removing) {
+			new_len += (size_t)prefix_len + 1;
+		} else {
+			int i = 0;
+			while (i < size && (chars[i] == ' ' || chars[i] == '\t')) {
+				i++;
+			}
+			int skip = prefix_len;
+			if (i + prefix_len < size && chars[i + prefix_len] == ' ') {
+				skip++;
+			}
+			new_len -= (size_t)skip;
+		}
+	}
+
+	char *new_text = editorMalloc(new_len > 0 ? new_len : 1);
+	if (new_text == NULL) {
+		editorSetAllocFailureStatus();
+		return;
+	}
+
+	size_t out = 0;
+	size_t cur_row_new_start = first_start;
+	size_t cur_row_new_size = 0;
+
+	for (int row = range.start_cy; row <= last_row; row++) {
+		const char *chars = E.rows[row].chars;
+		int size = E.rows[row].size;
+		size_t out_before = out;
+
+		if (size == 0) {
+			// empty: unchanged
+		} else if (!removing) {
+			memcpy(new_text + out, prefix, (size_t)prefix_len);
+			out += (size_t)prefix_len;
+			new_text[out++] = ' ';
+			memcpy(new_text + out, chars, (size_t)size);
+			out += (size_t)size;
+		} else {
+			int i = 0;
+			while (i < size && (chars[i] == ' ' || chars[i] == '\t')) {
+				i++;
+			}
+			memcpy(new_text + out, chars, (size_t)i);
+			out += (size_t)i;
+			int skip = prefix_len;
+			if (i + prefix_len < size && chars[i + prefix_len] == ' ') {
+				skip++;
+			}
+			int rest = size - i - skip;
+			if (rest > 0) {
+				memcpy(new_text + out, chars + i + skip, (size_t)rest);
+				out += (size_t)rest;
+			}
+		}
+
+		if (row < E.cy) {
+			cur_row_new_start += (out - out_before) + 1;
+		} else if (row == E.cy) {
+			cur_row_new_size = out - out_before;
+		}
+
+		if (row < last_row) {
+			new_text[out++] = '\n';
+		}
+	}
+
+	size_t before_offset = 0;
+	(void)editorBufferPosToOffset(E.cy, E.cx, &before_offset);
+
+	size_t after_offset;
+	if (E.cy >= range.start_cy && E.cy <= last_row && E.cy < E.numrows) {
+		int size = E.rows[E.cy].size;
+		size_t new_cx = (size_t)E.cx;
+		if (size > 0) {
+			if (!removing) {
+				new_cx += (size_t)prefix_len + 1;
+			} else {
+				const char *chars = E.rows[E.cy].chars;
+				int i = 0;
+				while (i < size && (chars[i] == ' ' || chars[i] == '\t')) {
+					i++;
+				}
+				int skip = prefix_len;
+				if (i + prefix_len < size && chars[i + prefix_len] == ' ') {
+					skip++;
+				}
+				if (new_cx > (size_t)(i + skip)) {
+					new_cx -= (size_t)skip;
+				} else {
+					new_cx = (size_t)i;
+				}
+			}
+		}
+		if (new_cx > cur_row_new_size) {
+			new_cx = cur_row_new_size;
+		}
+		after_offset = cur_row_new_start + new_cx;
+	} else {
+		ptrdiff_t net = (ptrdiff_t)new_len - (ptrdiff_t)old_len;
+		after_offset = (size_t)((ptrdiff_t)before_offset + net);
+	}
+
+	struct editorDocumentEdit edit = {
+		.kind = EDITOR_EDIT_INSERT_TEXT,
+		.start_offset = first_start,
+		.old_len = old_len,
+		.new_text = new_text,
+		.new_len = new_len,
+		.before_cursor_offset = before_offset,
+		.after_cursor_offset = after_offset,
+		.before_dirty = E.dirty,
+		.after_dirty = E.dirty + 1,
+	};
+
+	editorPinActivePreviewForEdit();
+	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+	int dirty_before = E.dirty;
+	(void)editorApplyDocumentEdit(&edit);
+	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+
+	free(new_text);
+	if (had_selection) {
+		editorClearSelectionMode();
+	}
+}
+
 static void editorMoveCurrentLine(int direction) {
 	int cur = E.cy;
 	int other = cur + direction;
@@ -2098,6 +2313,11 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			editorClearSelectionMode();
 			editorPinActivePreviewForEdit();
 			editorMoveCurrentLine(1);
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			break;
+		case EDITOR_ACTION_TOGGLE_COMMENT:
+			editorPinActivePreviewForEdit();
+			editorToggleCommentLines();
 			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			break;
 		case EDITOR_ACTION_COUNT:

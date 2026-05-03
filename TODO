@@ -1,4 +1,3 @@
-- FEATURE: toggle selected lines to comment in supported languages
 - FEATURE: add column selection mode (SHIFT + ALt + navigation)
 - FEATURE: Add find-and-replace workflows (current file and project scope) with preview, replace-one, replace-all, and undo-safe behavior.
 - IMPROVEMENT: hide drawer completely in toggled state. Keep only the toggle button visible in first row (tab row)

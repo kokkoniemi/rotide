@@ -70,6 +70,7 @@ static const struct editorActionName editor_action_names[] = {
 	{"backspace", EDITOR_ACTION_BACKSPACE},
 	{"move_line_up", EDITOR_ACTION_MOVE_LINE_UP},
 	{"move_line_down", EDITOR_ACTION_MOVE_LINE_DOWN},
+	{"toggle_comment", EDITOR_ACTION_TOGGLE_COMMENT},
 };
 
 static const struct editorNamedKey editor_named_keys[] = {
@@ -642,6 +643,7 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('h'), EDITOR_ACTION_BACKSPACE);
 	(void)editorKeymapAppendBinding(keymap, ALT_ARROW_UP, EDITOR_ACTION_MOVE_LINE_UP);
 	(void)editorKeymapAppendBinding(keymap, ALT_ARROW_DOWN, EDITOR_ACTION_MOVE_LINE_DOWN);
+	(void)editorKeymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('c'), EDITOR_ACTION_TOGGLE_COMMENT);
 }
 
 int editorKeymapLookupAction(const struct editorKeymap *keymap, int key,
