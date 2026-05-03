@@ -1852,26 +1852,44 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			editorHistoryBreakGroup();
 			break;
 		case EDITOR_ACTION_DELETE_CHAR:
-			editorClearSelectionMode();
 			editorPinActivePreviewForEdit();
-			editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
 			{
-				int dirty_before = E.dirty;
-				// DEL deletes under cursor; editorDelChar() implements backspace semantics.
-				editorMoveCursor(ARROW_RIGHT);
-				editorDelChar();
-				editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+				struct editorSelectionRange range;
+				if (editorGetSelectionRange(&range)) {
+					editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
+					int dirty_before = E.dirty;
+					editorDeleteRange(&range);
+					editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+					editorClearSelectionMode();
+				} else {
+					editorClearSelectionMode();
+					editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
+					int dirty_before = E.dirty;
+					// DEL deletes under cursor; editorDelChar() implements backspace semantics.
+					editorMoveCursor(ARROW_RIGHT);
+					editorDelChar();
+					editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+				}
 			}
 			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			break;
 		case EDITOR_ACTION_BACKSPACE:
-			editorClearSelectionMode();
 			editorPinActivePreviewForEdit();
-			editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
 			{
-				int dirty_before = E.dirty;
-				editorDelChar();
-				editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+				struct editorSelectionRange range;
+				if (editorGetSelectionRange(&range)) {
+					editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
+					int dirty_before = E.dirty;
+					editorDeleteRange(&range);
+					editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+					editorClearSelectionMode();
+				} else {
+					editorClearSelectionMode();
+					editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
+					int dirty_before = E.dirty;
+					editorDelChar();
+					editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+				}
 			}
 			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			break;
