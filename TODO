@@ -4,6 +4,7 @@
 - FEATURE: Implement main menu mode, which would show menu options in drawer
 - FEATURE: add more lsp functionalities (go to implementations, auto-complete, go to symbol in editor etc.)
 - FEATURE: create a new file or folder / delete file or folder / rename file or folder
+- FEATURE: Add support for themes and create a theme using terminal colors and a dark + light built-in themes.
 - FEATURE: Add configurable auto-indentation (tabs/spaces + indent width) for newline insertion and pasted blocks.
 - FEATURE: Add bracket/quote pair assistance: auto-close pairs, skip-over closing pairs, and jump to matching bracket.
 - FEATURE: Add multi-threading support for heavy background work (for example directory scanning/search indexing), with thread-safe state handling and unchanged editor behavior.

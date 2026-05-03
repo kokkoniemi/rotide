@@ -1927,6 +1927,9 @@ static int editorDrawDrawerAncestorGuides(struct writeBuf *wb, int parent_visibl
 		if (!editorDrawerAppendCell(wb, " ", 1, written_cols, drawer_cols)) {
 			return 0;
 		}
+		if (!editorDrawerAppendCell(wb, " ", 1, written_cols, drawer_cols)) {
+			return 0;
+		}
 	}
 
 	return 1;
@@ -1947,10 +1950,10 @@ static int editorBuildDrawerAncestorGuidesPlain(struct writeBuf *wb, int parent_
 			return 0;
 		}
 		if (parent_entry.is_last_sibling) {
-			if (!wbAppend(wb, "  ", 2)) {
+			if (!wbAppend(wb, "   ", 3)) {
 				return 0;
 			}
-		} else if (!wbAppend(wb, DRAWER_SPLITTER_UTF8 " ", sizeof(DRAWER_SPLITTER_UTF8) + 1 - 1)) {
+		} else if (!wbAppend(wb, DRAWER_SPLITTER_UTF8 "  ", sizeof(DRAWER_SPLITTER_UTF8) + 2 - 1)) {
 			return 0;
 		}
 	}
