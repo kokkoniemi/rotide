@@ -1,7 +1,18 @@
-- FEATURE: Add multi-threading support for heavy background work (for example directory scanning/search indexing), with thread-safe state handling and unchanged editor behavior.
+- IMPROVEMENT: drawer folders in bold and cyan (similar to ls)
+- FEATURE: delete whole selection with backspace or DEL
+- FEATURE: add support for moving current line up/down (e.g., ALT+UP/DOWN)
+- FEATURE: multi-line intendation support for selection using TAB
+- FEATURE: replace selection with inputted character
+- FEATURE: toggle selected lines to comment in supported languages
+- FEATURE: add column selection mode (SHIFT + ALt + navigation)
 - FEATURE: Add find-and-replace workflows (current file and project scope) with preview, replace-one, replace-all, and undo-safe behavior.
+- IMPROVEMENT: hide drawer completely in toggled state. Keep only the toggle button visible in first row (tab row)
+- FEATURE: Implement main menu mode, which would show menu options in drawer
+- FEATURE: add more lsp functionalities (go to implementations, auto-complete, go to symbol in editor etc.)
+- FEATURE: create a new file or folder / delete file or folder / rename file or folder
 - FEATURE: Add configurable auto-indentation (tabs/spaces + indent width) for newline insertion and pasted blocks.
 - FEATURE: Add bracket/quote pair assistance: auto-close pairs, skip-over closing pairs, and jump to matching bracket.
+- FEATURE: Add multi-threading support for heavy background work (for example directory scanning/search indexing), with thread-safe state handling and unchanged editor behavior.
+- FEATURE: implement support for Debug Adapter Protocol (DAP)
 - FEATURE: implement support for vim-mode. The commands should be configurable in .rotide.toml in local and global files.
 - IMPROVEMENT: integrate Fil-C to improve memory safety
-- FEATURE: create a new file or folder / delete file or folder / rename file or folder
