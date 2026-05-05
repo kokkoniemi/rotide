@@ -70,8 +70,12 @@ struct writeBuf {
 #define DRAWER_TREE_BRANCH_MID_UTF8 "\xE2\x94\x9C"
 #define DRAWER_TREE_BRANCH_LAST_UTF8 "\xE2\x94\x94"
 #define DRAWER_TREE_HORIZONTAL_UTF8 "\xE2\x94\x80"
-#define DRAWER_COLLAPSE_INDICATOR "[<]"
-#define DRAWER_EXPAND_INDICATOR "[>]"
+#define DRAWER_COLLAPSE_INDICATOR "\xE2\x80\xB9"
+#define DRAWER_EXPAND_INDICATOR "\xE2\x80\xBA"
+#define DRAWER_HEADER_EXPLORER_SYMBOL_UTF8 "E"
+#define DRAWER_HEADER_FILE_SEARCH_SYMBOL_UTF8 "F"
+#define DRAWER_HEADER_PROJECT_SEARCH_SYMBOL_UTF8 "/"
+#define DRAWER_HEADER_MAIN_MENU_SYMBOL_UTF8 "\xE2\x89\xA1"
 #define DRAWER_HEADER_MODE_BUTTON_COLS 3
 #define DRAWER_HEADER_MODE_BUTTON_COUNT 4
 #define DRAWER_HEADER_MODE_BUTTONS_MIN_COLS \
@@ -1885,14 +1889,40 @@ static int editorDrawDrawerSeparatorCell(struct writeBuf *wb, int separator_cols
 	return wbAppend(wb, DRAWER_SPLITTER_UTF8, sizeof(DRAWER_SPLITTER_UTF8) - 1);
 }
 
-static int editorDrawCollapsedDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols) {
-	int written_cols = 0;
-	if (row_idx == 0) {
-		int indicator_cols = 0;
-		if (!editorAppendSanitizedText(wb, DRAWER_EXPAND_INDICATOR, drawer_cols, &indicator_cols)) {
+static int editorDrawDrawerHeaderCell(struct writeBuf *wb, const char *label, int active,
+		int *written_cols, int drawer_cols) {
+	if (label == NULL || written_cols == NULL || *written_cols >= drawer_cols) {
+		return 1;
+	}
+
+	char text[16];
+	int len = snprintf(text, sizeof(text), " %s ", label);
+	if (len <= 0 || len >= (int)sizeof(text)) {
+		return 0;
+	}
+
+	if (active) {
+		if (!wbAppend(wb, VT100_INVERTED_COLORS_4, 4)) {
 			return 0;
 		}
-		written_cols += indicator_cols;
+	} else if (!wbAppend(wb, VT100_BG_CURRENT_LINE, sizeof(VT100_BG_CURRENT_LINE) - 1)) {
+		return 0;
+	}
+
+	int wrote = 0;
+	if (!editorAppendSanitizedText(wb, text, drawer_cols - *written_cols, &wrote) ||
+			!wbAppend(wb, VT100_NORMAL_COLORS_3, 3)) {
+		return 0;
+	}
+	*written_cols += wrote;
+	return 1;
+}
+
+static int editorDrawCollapsedDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols) {
+	int written_cols = 0;
+	if (row_idx == 0 && !editorDrawDrawerHeaderCell(wb, DRAWER_EXPAND_INDICATOR, 0,
+				&written_cols, drawer_cols)) {
+		return 0;
 	}
 
 	while (written_cols < drawer_cols) {
@@ -1915,46 +1945,32 @@ static enum editorDrawerMode editorActiveDrawerHeaderMode(void) {
 	return E.drawer_mode;
 }
 
-static int editorDrawDrawerHeaderModeButton(struct writeBuf *wb, char label,
+static int editorDrawDrawerHeaderModeButton(struct writeBuf *wb, const char *label,
 		enum editorDrawerMode mode, enum editorDrawerMode active_mode, int *written_cols,
 		int drawer_cols) {
-	char text[4] = {'[', label, ']', '\0'};
-	if (written_cols == NULL || *written_cols >= drawer_cols) {
-		return 1;
-	}
-	if (mode == active_mode && !wbAppend(wb, VT100_INVERTED_COLORS_4, 4)) {
-		return 0;
-	}
-	int wrote = 0;
-	if (!editorAppendSanitizedText(wb, text, drawer_cols - *written_cols, &wrote)) {
-		return 0;
-	}
-	*written_cols += wrote;
-	if (mode == active_mode && !wbAppend(wb, VT100_NORMAL_COLORS_3, 3)) {
-		return 0;
-	}
-	return 1;
+	return editorDrawDrawerHeaderCell(wb, label, mode == active_mode, written_cols, drawer_cols);
 }
 
 static int editorDrawExpandedDrawerHeaderRow(struct writeBuf *wb, int drawer_cols) {
 	int written_cols = 0;
-	int indicator_cols = 0;
-	if (!editorAppendSanitizedText(wb, DRAWER_COLLAPSE_INDICATOR, drawer_cols,
-				&indicator_cols)) {
+	if (!editorDrawDrawerHeaderCell(wb, DRAWER_COLLAPSE_INDICATOR, 0, &written_cols,
+				drawer_cols)) {
 		return 0;
 	}
-	written_cols += indicator_cols;
 
 	if (drawer_cols >= DRAWER_HEADER_MODE_BUTTONS_MIN_COLS) {
 		enum editorDrawerMode active_mode = editorActiveDrawerHeaderMode();
-		if (!editorDrawDrawerHeaderModeButton(wb, 'E', EDITOR_DRAWER_MODE_TREE, active_mode,
-					&written_cols, drawer_cols) ||
-				!editorDrawDrawerHeaderModeButton(wb, 'F', EDITOR_DRAWER_MODE_FILE_SEARCH,
-					active_mode, &written_cols, drawer_cols) ||
-				!editorDrawDrawerHeaderModeButton(wb, 'R', EDITOR_DRAWER_MODE_PROJECT_SEARCH,
-					active_mode, &written_cols, drawer_cols) ||
-				!editorDrawDrawerHeaderModeButton(wb, 'M', EDITOR_DRAWER_MODE_MAIN_MENU,
-					active_mode, &written_cols, drawer_cols)) {
+		if (!editorDrawDrawerHeaderModeButton(wb, DRAWER_HEADER_EXPLORER_SYMBOL_UTF8,
+					EDITOR_DRAWER_MODE_TREE, active_mode, &written_cols, drawer_cols) ||
+				!editorDrawDrawerHeaderModeButton(wb, DRAWER_HEADER_FILE_SEARCH_SYMBOL_UTF8,
+					EDITOR_DRAWER_MODE_FILE_SEARCH, active_mode, &written_cols,
+					drawer_cols) ||
+				!editorDrawDrawerHeaderModeButton(wb, DRAWER_HEADER_PROJECT_SEARCH_SYMBOL_UTF8,
+					EDITOR_DRAWER_MODE_PROJECT_SEARCH, active_mode, &written_cols,
+					drawer_cols) ||
+				!editorDrawDrawerHeaderModeButton(wb, DRAWER_HEADER_MAIN_MENU_SYMBOL_UTF8,
+					EDITOR_DRAWER_MODE_MAIN_MENU, active_mode, &written_cols,
+					drawer_cols)) {
 			return 0;
 		}
 	}

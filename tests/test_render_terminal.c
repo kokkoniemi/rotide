@@ -3,6 +3,35 @@
 #include "workspace/file_search.h"
 #include "workspace/project_search.h"
 
+#define TEST_HEADER_BG "\x1b[48;5;236m"
+#define TEST_HEADER_ACTIVE "\x1b[7m"
+#define TEST_HEADER_RESET "\x1b[m"
+#define TEST_DRAWER_COLLAPSE_SYMBOL "\xE2\x80\xB9"
+#define TEST_DRAWER_EXPAND_SYMBOL "\xE2\x80\xBA"
+#define TEST_DRAWER_EXPLORER_SYMBOL "\xE2\x96\xA3"
+#define TEST_DRAWER_FILE_SEARCH_SYMBOL "\xE2\x96\xA4"
+#define TEST_DRAWER_PROJECT_SEARCH_SYMBOL "\xE2\x8C\x95"
+#define TEST_DRAWER_MAIN_MENU_SYMBOL "\xE2\x98\xB0"
+#define TEST_DRAWER_COLLAPSE_CELL \
+	TEST_HEADER_BG " " TEST_DRAWER_COLLAPSE_SYMBOL " " TEST_HEADER_RESET
+#define TEST_DRAWER_EXPAND_CELL TEST_HEADER_BG " " TEST_DRAWER_EXPAND_SYMBOL " " TEST_HEADER_RESET
+#define TEST_DRAWER_EXPLORER_CELL \
+	TEST_HEADER_BG " " TEST_DRAWER_EXPLORER_SYMBOL " " TEST_HEADER_RESET
+#define TEST_DRAWER_FILE_SEARCH_CELL \
+	TEST_HEADER_BG " " TEST_DRAWER_FILE_SEARCH_SYMBOL " " TEST_HEADER_RESET
+#define TEST_DRAWER_PROJECT_SEARCH_CELL \
+	TEST_HEADER_BG " " TEST_DRAWER_PROJECT_SEARCH_SYMBOL " " TEST_HEADER_RESET
+#define TEST_DRAWER_MAIN_MENU_CELL \
+	TEST_HEADER_BG " " TEST_DRAWER_MAIN_MENU_SYMBOL " " TEST_HEADER_RESET
+#define TEST_DRAWER_ACTIVE_EXPLORER_CELL \
+	TEST_HEADER_ACTIVE " " TEST_DRAWER_EXPLORER_SYMBOL " " TEST_HEADER_RESET
+#define TEST_DRAWER_ACTIVE_FILE_SEARCH_CELL \
+	TEST_HEADER_ACTIVE " " TEST_DRAWER_FILE_SEARCH_SYMBOL " " TEST_HEADER_RESET
+#define TEST_DRAWER_ACTIVE_PROJECT_SEARCH_CELL \
+	TEST_HEADER_ACTIVE " " TEST_DRAWER_PROJECT_SEARCH_SYMBOL " " TEST_HEADER_RESET
+#define TEST_DRAWER_ACTIVE_MAIN_MENU_CELL \
+	TEST_HEADER_ACTIVE " " TEST_DRAWER_MAIN_MENU_SYMBOL " " TEST_HEADER_RESET
+
 static int count_substrings(const char *haystack, const char *needle) {
 	int count = 0;
 	size_t needle_len = strlen(needle);
@@ -1430,7 +1459,7 @@ static int test_editor_refresh_screen_renders_drawer_entries_and_selection(void)
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, expected_root_bold) != NULL);
-	const char *drawer_header = strstr(output, "[<]");
+	const char *drawer_header = strstr(output, TEST_DRAWER_COLLAPSE_SYMBOL);
 	const char *root_text = strstr(output, expected_root_bold);
 	ASSERT_TRUE(drawer_header != NULL);
 	ASSERT_TRUE(root_text != NULL);
@@ -1534,8 +1563,8 @@ static int test_editor_refresh_screen_drawer_collapsed_renders_expand_indicator(
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "[>]") != NULL);
-	ASSERT_TRUE(strstr(output, "[<]") == NULL);
+	ASSERT_TRUE(strstr(output, TEST_DRAWER_EXPAND_CELL) != NULL);
+	ASSERT_TRUE(strstr(output, TEST_DRAWER_COLLAPSE_SYMBOL) == NULL);
 	ASSERT_TRUE(strstr(output, "\xE2\x94\x82") == NULL);
 	ASSERT_EQ_INT(0, editorDrawerWidthForCols(E.window_cols));
 	ASSERT_EQ_INT(0, editorDrawerSeparatorWidthForCols(E.window_cols));
@@ -1560,38 +1589,46 @@ static int test_editor_refresh_screen_drawer_header_mode_buttons(void) {
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "[<]\x1b[7m[E]\x1b[m[F][R][M]") != NULL);
+	ASSERT_TRUE(strstr(output, TEST_DRAWER_COLLAPSE_CELL TEST_DRAWER_ACTIVE_EXPLORER_CELL
+				TEST_DRAWER_FILE_SEARCH_CELL TEST_DRAWER_PROJECT_SEARCH_CELL
+				TEST_DRAWER_MAIN_MENU_CELL) != NULL);
 	free(output);
 
 	ASSERT_TRUE(editorFileSearchEnter());
 	output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "[<][E]\x1b[7m[F]\x1b[m[R][M]") != NULL);
+	ASSERT_TRUE(strstr(output, TEST_DRAWER_COLLAPSE_CELL TEST_DRAWER_EXPLORER_CELL
+				TEST_DRAWER_ACTIVE_FILE_SEARCH_CELL TEST_DRAWER_PROJECT_SEARCH_CELL
+				TEST_DRAWER_MAIN_MENU_CELL) != NULL);
 	free(output);
 	editorFileSearchExit(1);
 
 	ASSERT_TRUE(editorProjectSearchEnter());
 	output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "[<][E][F]\x1b[7m[R]\x1b[m[M]") != NULL);
+	ASSERT_TRUE(strstr(output, TEST_DRAWER_COLLAPSE_CELL TEST_DRAWER_EXPLORER_CELL
+				TEST_DRAWER_FILE_SEARCH_CELL TEST_DRAWER_ACTIVE_PROJECT_SEARCH_CELL
+				TEST_DRAWER_MAIN_MENU_CELL) != NULL);
 	free(output);
 	editorProjectSearchExit(1);
 
 	ASSERT_TRUE(editorDrawerMainMenuToggle());
 	output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "[<][E][F][R]\x1b[7m[M]\x1b[m") != NULL);
+	ASSERT_TRUE(strstr(output, TEST_DRAWER_COLLAPSE_CELL TEST_DRAWER_EXPLORER_CELL
+				TEST_DRAWER_FILE_SEARCH_CELL TEST_DRAWER_PROJECT_SEARCH_CELL
+				TEST_DRAWER_ACTIVE_MAIN_MENU_CELL) != NULL);
 	free(output);
 
 	ASSERT_TRUE(editorDrawerSetWidthForCols(14, E.window_cols));
 	output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	const char *drawer_header = strstr(output, "[<]");
+	const char *drawer_header = strstr(output, TEST_DRAWER_COLLAPSE_SYMBOL);
 	ASSERT_TRUE(drawer_header != NULL);
 	const char *header_end = strstr(drawer_header, "\r\n");
 	ASSERT_TRUE(header_end != NULL);
-	ASSERT_TRUE(strstr(drawer_header, "[E]") == NULL ||
-			strstr(drawer_header, "[E]") > header_end);
+	ASSERT_TRUE(strstr(drawer_header, TEST_DRAWER_EXPLORER_SYMBOL) == NULL ||
+			strstr(drawer_header, TEST_DRAWER_EXPLORER_SYMBOL) > header_end);
 	free(output);
 
 	cleanup_recovery_test_env(&env);
@@ -2008,14 +2045,14 @@ static int test_editor_refresh_screen_highlights_current_line(void) {
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_EQ_INT(1, count_substrings(output, "\x1b[48;5;236m"));
+	ASSERT_EQ_INT(2, count_substrings(output, TEST_HEADER_BG));
 	ASSERT_TRUE(strstr(output, "second") != NULL);
 	free(output);
 
 	E.current_line_highlight_enabled = 0;
 	output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_EQ_INT(0, count_substrings(output, "\x1b[48;5;236m"));
+	ASSERT_EQ_INT(1, count_substrings(output, TEST_HEADER_BG));
 	free(output);
 	return 0;
 }
