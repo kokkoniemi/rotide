@@ -1014,11 +1014,13 @@ static int test_editor_process_keypress_mouse_drawer_click_selects_and_toggles_d
 
 	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
 	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows));
-	ASSERT_TRUE(find_drawer_entry("src", NULL, NULL));
+	int src_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("src", &src_idx, NULL));
 	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
 
+	int row = src_idx - E.drawer_rowoff + 2;
 	char click_src[32];
-	ASSERT_TRUE(format_sgr_mouse_event(click_src, sizeof(click_src), 0, 2, 2, 'M'));
+	ASSERT_TRUE(format_sgr_mouse_event(click_src, sizeof(click_src), 0, 2, row, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_src, strlen(click_src)) == 0);
 	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
 	ASSERT_TRUE(find_drawer_entry("child.txt", NULL, NULL));
@@ -1044,12 +1046,39 @@ static int test_editor_process_keypress_mouse_click_expands_collapsed_drawer(voi
 	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
 	ASSERT_EQ_STR("Drawer collapsed", E.statusmsg);
 
-	char click_drawer[32];
-	ASSERT_TRUE(format_sgr_mouse_event(click_drawer, sizeof(click_drawer), 0, 1, 3, 'M'));
-	ASSERT_TRUE(editor_process_keypress_with_input(click_drawer, strlen(click_drawer)) == 0);
+	char click_toggle[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click_toggle, sizeof(click_toggle), 0, 1, 1, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_toggle, strlen(click_toggle)) == 0);
 	ASSERT_TRUE(!editorDrawerIsCollapsed());
 	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
 	ASSERT_EQ_STR("Drawer expanded", E.statusmsg);
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_collapsed_drawer_body_click_edits_text_pane(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	add_row("abc");
+	E.window_rows = 4;
+	E.window_cols = 20;
+	E.line_numbers_enabled = 0;
+	E.cy = 0;
+	E.cx = 2;
+	E.pane_focus = EDITOR_PANE_TEXT;
+	ASSERT_TRUE(editorDrawerSetCollapsed(1));
+
+	int text_x = editorTextBodyStartColForCols(E.window_cols) + 1;
+	char click_body[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click_body, sizeof(click_body), 0, text_x, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_body, strlen(click_body)) == 0);
+	ASSERT_TRUE(editorDrawerIsCollapsed());
+	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(0, E.cx);
 
 	cleanup_recovery_test_env(&env);
 	return 0;
@@ -1070,8 +1099,8 @@ static int test_editor_process_keypress_mouse_drawer_single_file_click_opens_pre
 	int file_idx = -1;
 	ASSERT_TRUE(find_drawer_entry("single.txt", &file_idx, NULL));
 
-	int row = file_idx - E.drawer_rowoff + 1;
-	ASSERT_TRUE(row >= 1);
+	int row = file_idx - E.drawer_rowoff + 2;
+	ASSERT_TRUE(row >= 2);
 	char click_file[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click_file, sizeof(click_file), 0, 2, row, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_file, strlen(click_file)) == 0);
@@ -1149,8 +1178,8 @@ static int test_editor_process_keypress_mouse_drawer_double_click_file_pins_prev
 	int file_idx = -1;
 	ASSERT_TRUE(find_drawer_entry("double.txt", &file_idx, NULL));
 
-	int row = file_idx - E.drawer_rowoff + 1;
-	ASSERT_TRUE(row >= 1);
+	int row = file_idx - E.drawer_rowoff + 2;
+	ASSERT_TRUE(row >= 2);
 	char click_file[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click_file, sizeof(click_file), 0, 2, row, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_file, strlen(click_file)) == 0);
@@ -3225,6 +3254,7 @@ const struct editorTestCase g_input_search_tests[] = {
 	{"editor_process_keypress_mouse_left_click_ignores_indicator_padding_columns", test_editor_process_keypress_mouse_left_click_ignores_indicator_padding_columns},
 	{"editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory", test_editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory},
 	{"editor_process_keypress_mouse_click_expands_collapsed_drawer", test_editor_process_keypress_mouse_click_expands_collapsed_drawer},
+	{"editor_process_keypress_mouse_collapsed_drawer_body_click_edits_text_pane", test_editor_process_keypress_mouse_collapsed_drawer_body_click_edits_text_pane},
 	{"editor_process_keypress_mouse_drawer_single_file_click_opens_preview_tab", test_editor_process_keypress_mouse_drawer_single_file_click_opens_preview_tab},
 	{"editor_drawer_open_selected_file_in_preview_reuses_preview_tab", test_editor_drawer_open_selected_file_in_preview_reuses_preview_tab},
 	{"editor_process_keypress_mouse_drawer_double_click_file_pins_preview_tab", test_editor_process_keypress_mouse_drawer_double_click_file_pins_preview_tab},

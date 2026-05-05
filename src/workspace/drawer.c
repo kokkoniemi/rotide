@@ -457,9 +457,19 @@ int editorDrawerToggleCollapsed(void) {
 	return editorDrawerSetCollapsed(!editorDrawerIsCollapsed());
 }
 
+int editorDrawerCollapsedToggleWidthForCols(int total_cols) {
+	if (total_cols <= 0) {
+		return 0;
+	}
+	if (total_cols < ROTIDE_DRAWER_COLLAPSED_WIDTH) {
+		return total_cols;
+	}
+	return ROTIDE_DRAWER_COLLAPSED_WIDTH;
+}
+
 int editorDrawerWidthForCols(int total_cols) {
 	if (editorDrawerIsCollapsed()) {
-		return editorDrawerClampWidthForCols(ROTIDE_DRAWER_COLLAPSED_WIDTH, total_cols);
+		return 0;
 	}
 
 	int desired_width = E.drawer_width_cols;
@@ -950,6 +960,6 @@ int editorDrawerInitForStartup(int argc, char *argv[], int restored_session) {
 	E.drawer_collapsed = 0;
 	E.drawer_resize_active = 0;
 	E.pane_focus = EDITOR_PANE_TEXT;
-	editorDrawerClampSelectionAndScroll(E.window_rows + 1);
+	editorDrawerClampSelectionAndScroll(E.window_rows);
 	return 1;
 }

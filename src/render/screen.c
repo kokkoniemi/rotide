@@ -1712,6 +1712,7 @@ static const char *editorTabLabelFromDisplayName(const char *display_name) {
 
 static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols);
 static int editorDrawDrawerSeparatorCell(struct writeBuf *wb, int separator_cols);
+static int editorDrawCollapsedDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols);
 static int editorDrawDrawerSelectionOverflow(struct writeBuf *wb, int row_idx, int drawer_cols,
 		int separator_cols, int text_cols, int terminal_row, int *overlay_drawn_out);
 
@@ -1838,6 +1839,20 @@ static int editorDrawTabBar(struct writeBuf *wb) {
 		return wbAppend(wb, "\r\n", 2);
 	}
 
+	if (editorDrawerIsCollapsed()) {
+		int toggle_cols = editorDrawerCollapsedToggleWidthForCols(E.window_cols);
+		if (!editorDrawCollapsedDrawerRow(wb, 0, toggle_cols)) {
+			return 0;
+		}
+		if (!editorDrawTabSlots(wb, E.window_cols - toggle_cols)) {
+			return 0;
+		}
+		if (!wbAppend(wb, VT100_CLEAR_ROW_3, 3)) {
+			return 0;
+		}
+		return wbAppend(wb, "\r\n", 2);
+	}
+
 	int drawer_cols = editorDrawerWidthForCols(E.window_cols);
 	int separator_cols = editorDrawerSeparatorWidthForCols(E.window_cols);
 	int text_cols = editorDrawerTextViewportCols(E.window_cols);
@@ -1874,6 +1889,25 @@ static int editorDrawCollapsedDrawerRow(struct writeBuf *wb, int row_idx, int dr
 		}
 		written_cols += indicator_cols;
 	}
+
+	while (written_cols < drawer_cols) {
+		if (!wbAppend(wb, " ", 1)) {
+			return 0;
+		}
+		written_cols++;
+	}
+
+	return 1;
+}
+
+static int editorDrawExpandedDrawerHeaderRow(struct writeBuf *wb, int drawer_cols) {
+	int written_cols = 0;
+	int indicator_cols = 0;
+	if (!editorAppendSanitizedText(wb, DRAWER_COLLAPSE_INDICATOR, drawer_cols,
+				&indicator_cols)) {
+		return 0;
+	}
+	written_cols += indicator_cols;
 
 	while (written_cols < drawer_cols) {
 		if (!wbAppend(wb, " ", 1)) {
@@ -2024,10 +2058,6 @@ static int editorBuildDrawerRowPlain(struct writeBuf *wb, int visible_idx) {
 	return editorAppendSanitizedText(wb, entry.name, -1, NULL);
 }
 
-static int editorDrawerSearchHeaderActive(void) {
-	return editorFileSearchIsActive() || editorProjectSearchIsActive();
-}
-
 static int editorDrawDrawerSelectionOverflow(struct writeBuf *wb, int row_idx, int drawer_cols,
 		int separator_cols, int text_cols, int terminal_row, int *overlay_drawn_out) {
 	if (overlay_drawn_out != NULL) {
@@ -2036,9 +2066,11 @@ static int editorDrawDrawerSelectionOverflow(struct writeBuf *wb, int row_idx, i
 	if (separator_cols + text_cols <= 0 || E.pane_focus != EDITOR_PANE_DRAWER) {
 		return 1;
 	}
+	if (row_idx <= 0) {
+		return 1;
+	}
 
-	int visible_idx =
-			(editorDrawerSearchHeaderActive() && row_idx == 0) ? 0 : E.drawer_rowoff + row_idx;
+	int visible_idx = E.drawer_rowoff + row_idx - 1;
 	struct editorDrawerEntryView entry;
 	if (!editorDrawerGetVisibleEntry(visible_idx, &entry) || !entry.is_selected) {
 		return 1;
@@ -2091,10 +2123,12 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 	if (editorDrawerIsCollapsed()) {
 		return editorDrawCollapsedDrawerRow(wb, row_idx, drawer_cols);
 	}
+	if (row_idx == 0) {
+		return editorDrawExpandedDrawerHeaderRow(wb, drawer_cols);
+	}
 
 	struct editorDrawerEntryView entry;
-	int visible_idx =
-			(editorDrawerSearchHeaderActive() && row_idx == 0) ? 0 : E.drawer_rowoff + row_idx;
+	int visible_idx = E.drawer_rowoff + row_idx - 1;
 	int written_cols = 0;
 	int selected_with_focus = 0;
 	int row_inverted = 0;
@@ -2104,19 +2138,6 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 		int gray_connectors = !row_inverted;
 		if (row_inverted && !wbAppend(wb, VT100_INVERTED_COLORS_4, 4)) {
 			return 0;
-		}
-
-		if (row_idx == 0) {
-			int indicator_written = 0;
-			if (!editorAppendSanitizedText(wb, DRAWER_COLLAPSE_INDICATOR, drawer_cols,
-						&indicator_written)) {
-				return 0;
-			}
-			written_cols += indicator_written;
-			if (written_cols < drawer_cols &&
-					!editorDrawerAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
-				return 0;
-			}
 		}
 
 		if (entry.is_search_header) {
@@ -2338,7 +2359,7 @@ static int editorBuildFileRowLine(struct writeBuf *wb, int y, int drawer_cols, i
 }
 
 static int editorDrawRows(struct writeBuf *wb) {
-	editorDrawerClampViewport(E.window_rows + 1);
+	editorDrawerClampViewport(E.window_rows);
 	(void)editorSyntaxPrepareVisibleRowSpans(E.rowoff, E.window_rows);
 
 	int drawer_cols = editorDrawerWidthForCols(E.window_cols);
@@ -2794,10 +2815,10 @@ void editorRefreshScreen(void) {
 	}
 	if (E.pane_focus == EDITOR_PANE_DRAWER && editorDrawerWidthForCols(E.window_cols) > 0) {
 		if (editorFileSearchIsActive()) {
-			cursor_row = 1;
+			cursor_row = 2;
 			cursor_col = editorFileSearchHeaderCursorCol(editorDrawerWidthForCols(E.window_cols));
 		} else if (editorProjectSearchIsActive()) {
-			cursor_row = 1;
+			cursor_row = 2;
 			cursor_col = editorProjectSearchHeaderCursorCol(editorDrawerWidthForCols(E.window_cols));
 		} else {
 			cursor_visible = 0;

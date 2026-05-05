@@ -696,7 +696,7 @@ int editorProjectSearchOpenSelectedFileInTab(void) {
 	selected.col = col;
 	(void)editorProjectSearchApplySelectedLocation(&selected);
 	editorProjectSearchExit(0);
-	(void)editorDrawerRevealPath(path_copy, E.window_rows + 1);
+	(void)editorDrawerRevealPath(path_copy, E.window_rows);
 	free(path_copy);
 	return 1;
 }

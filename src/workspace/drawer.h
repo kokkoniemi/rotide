@@ -8,6 +8,7 @@ void editorDrawerShutdown(void);
 int editorDrawerIsCollapsed(void);
 int editorDrawerSetCollapsed(int collapsed);
 int editorDrawerToggleCollapsed(void);
+int editorDrawerCollapsedToggleWidthForCols(int total_cols);
 int editorDrawerWidthForCols(int total_cols);
 int editorDrawerSeparatorWidthForCols(int total_cols);
 int editorDrawerTextStartColForCols(int total_cols);

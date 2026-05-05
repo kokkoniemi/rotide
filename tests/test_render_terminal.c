@@ -1430,6 +1430,13 @@ static int test_editor_refresh_screen_renders_drawer_entries_and_selection(void)
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, expected_root_bold) != NULL);
+	const char *drawer_header = strstr(output, "[<]");
+	const char *root_text = strstr(output, expected_root_bold);
+	ASSERT_TRUE(drawer_header != NULL);
+	ASSERT_TRUE(root_text != NULL);
+	const char *header_end = strstr(drawer_header, "\r\n");
+	ASSERT_TRUE(header_end != NULL);
+	ASSERT_TRUE(header_end < root_text);
 	ASSERT_TRUE(strstr(output, "\x1b[7m \xE2\x96\xBE src") != NULL);
 	ASSERT_TRUE(strstr(output, "\xE2\x94\x9C src") == NULL);
 	ASSERT_TRUE(strstr(output, "\xE2\x94\x94 src") == NULL);
@@ -1529,7 +1536,11 @@ static int test_editor_refresh_screen_drawer_collapsed_renders_expand_indicator(
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, "[>]") != NULL);
 	ASSERT_TRUE(strstr(output, "[<]") == NULL);
-	ASSERT_EQ_INT(ROTIDE_DRAWER_COLLAPSED_WIDTH, editorDrawerWidthForCols(E.window_cols));
+	ASSERT_TRUE(strstr(output, "\xE2\x94\x82") == NULL);
+	ASSERT_EQ_INT(0, editorDrawerWidthForCols(E.window_cols));
+	ASSERT_EQ_INT(0, editorDrawerSeparatorWidthForCols(E.window_cols));
+	ASSERT_EQ_INT(0, editorDrawerTextStartColForCols(E.window_cols));
+	ASSERT_EQ_INT(E.window_cols, editorDrawerTextViewportCols(E.window_cols));
 	free(output);
 
 	cleanup_recovery_test_env(&env);
@@ -1736,7 +1747,7 @@ static int test_editor_refresh_screen_file_search_header_shows_cursor(void) {
 	add_row("body");
 
 	char expected_cursor[32];
-	ASSERT_TRUE(snprintf(expected_cursor, sizeof(expected_cursor), "\x1b[1;%dH",
+	ASSERT_TRUE(snprintf(expected_cursor, sizeof(expected_cursor), "\x1b[2;%dH",
 				editorFileSearchHeaderCursorCol(editorDrawerWidthForCols(E.window_cols))) > 0);
 
 	size_t output_len = 0;
@@ -1769,7 +1780,7 @@ static int test_editor_refresh_screen_project_search_header_shows_cursor(void) {
 	add_row("body");
 
 	char expected_cursor[32];
-	ASSERT_TRUE(snprintf(expected_cursor, sizeof(expected_cursor), "\x1b[1;%dH",
+	ASSERT_TRUE(snprintf(expected_cursor, sizeof(expected_cursor), "\x1b[2;%dH",
 				editorProjectSearchHeaderCursorCol(editorDrawerWidthForCols(E.window_cols))) > 0);
 
 	size_t output_len = 0;
@@ -1846,6 +1857,13 @@ static int test_editor_drawer_layout_clamps_tiny_widths(void) {
 	ASSERT_TRUE(editorDrawerResizeByDeltaForCols(50, 10));
 	ASSERT_EQ_INT(8, editorDrawerWidthForCols(10));
 	ASSERT_EQ_INT(1, editorDrawerTextViewportCols(10));
+
+	ASSERT_TRUE(editorDrawerSetCollapsed(1));
+	ASSERT_EQ_INT(3, editorDrawerCollapsedToggleWidthForCols(10));
+	ASSERT_EQ_INT(0, editorDrawerWidthForCols(10));
+	ASSERT_EQ_INT(0, editorDrawerSeparatorWidthForCols(10));
+	ASSERT_EQ_INT(0, editorDrawerTextStartColForCols(10));
+	ASSERT_EQ_INT(10, editorDrawerTextViewportCols(10));
 	return 0;
 }
 
