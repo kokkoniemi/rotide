@@ -528,7 +528,7 @@ int editorFileSearchPreviewSelection(void) {
 }
 
 int editorFileSearchHeaderCursorCol(int drawer_cols) {
-	int col = 3 + 1 + 6 + editorFileSearchQueryDisplayCols() + 1;
+	int col = 6 + editorFileSearchQueryDisplayCols() + 1;
 	if (col < 1) {
 		col = 1;
 	}

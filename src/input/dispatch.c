@@ -48,6 +48,12 @@ enum editorKeypressEffect {
 	EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT = 1 << 1
 };
 
+#define DRAWER_HEADER_MODE_BUTTON_COLS 3
+#define DRAWER_HEADER_MODE_BUTTON_COUNT 4
+#define DRAWER_HEADER_MODE_BUTTONS_MIN_COLS \
+	(ROTIDE_DRAWER_COLLAPSED_WIDTH + \
+			DRAWER_HEADER_MODE_BUTTON_COLS * DRAWER_HEADER_MODE_BUTTON_COUNT)
+
 static int editorProcessMappedAction(enum editorAction action, int *effects_out);
 
 static long long editorMonotonicMillis(void) {
@@ -2280,6 +2286,90 @@ static int editorMoveCursorToMouse(const struct editorMouseEvent *event, int cla
 	return editorSetCursorFromOffset(offset);
 }
 
+static int editorDrawerHeaderModeForColumn(int mouse_col, int drawer_cols,
+		enum editorDrawerMode *mode_out) {
+	if (mode_out == NULL || drawer_cols < DRAWER_HEADER_MODE_BUTTONS_MIN_COLS ||
+			mouse_col < ROTIDE_DRAWER_COLLAPSED_WIDTH) {
+		return 0;
+	}
+
+	int mode_col = mouse_col - ROTIDE_DRAWER_COLLAPSED_WIDTH;
+	int button_idx = mode_col / DRAWER_HEADER_MODE_BUTTON_COLS;
+	if (mode_col < 0 || button_idx < 0 || button_idx >= DRAWER_HEADER_MODE_BUTTON_COUNT) {
+		return 0;
+	}
+
+	switch (button_idx) {
+	case 0:
+		*mode_out = EDITOR_DRAWER_MODE_TREE;
+		return 1;
+	case 1:
+		*mode_out = EDITOR_DRAWER_MODE_FILE_SEARCH;
+		return 1;
+	case 2:
+		*mode_out = EDITOR_DRAWER_MODE_PROJECT_SEARCH;
+		return 1;
+	case 3:
+		*mode_out = EDITOR_DRAWER_MODE_MAIN_MENU;
+		return 1;
+	default:
+		return 0;
+	}
+}
+
+static enum editorDrawerMode editorActiveDrawerHeaderMode(void) {
+	if (editorFileSearchIsActive()) {
+		return EDITOR_DRAWER_MODE_FILE_SEARCH;
+	}
+	if (editorProjectSearchIsActive()) {
+		return EDITOR_DRAWER_MODE_PROJECT_SEARCH;
+	}
+	return E.drawer_mode;
+}
+
+static int editorSwitchDrawerHeaderMode(enum editorDrawerMode mode) {
+	if (editorActiveDrawerHeaderMode() == mode) {
+		E.pane_focus = EDITOR_PANE_DRAWER;
+		return EDITOR_KEYPRESS_EFFECT_NONE;
+	}
+
+	switch (mode) {
+	case EDITOR_DRAWER_MODE_TREE:
+		editorHistoryBreakGroup();
+		if (editorFileSearchIsActive()) {
+			editorFileSearchExit(1);
+		}
+		if (editorProjectSearchIsActive()) {
+			editorProjectSearchExit(1);
+		}
+		E.drawer_mode = EDITOR_DRAWER_MODE_TREE;
+		E.drawer_selected_index = 0;
+		E.drawer_rowoff = 0;
+		E.drawer_resize_active = 0;
+		(void)editorDrawerSetCollapsed(0);
+		E.pane_focus = EDITOR_PANE_DRAWER;
+		editorSetStatusMsg("Project drawer shown");
+		return EDITOR_KEYPRESS_EFFECT_NONE;
+	case EDITOR_DRAWER_MODE_FILE_SEARCH:
+		editorFindFile();
+		return EDITOR_KEYPRESS_EFFECT_NONE;
+	case EDITOR_DRAWER_MODE_PROJECT_SEARCH:
+		editorFindTextInProject();
+		return EDITOR_KEYPRESS_EFFECT_NONE;
+	case EDITOR_DRAWER_MODE_MAIN_MENU:
+		editorHistoryBreakGroup();
+		if (E.drawer_mode != EDITOR_DRAWER_MODE_MAIN_MENU || editorFileSearchIsActive() ||
+				editorProjectSearchIsActive()) {
+			(void)editorDrawerMainMenuToggle();
+			editorSetStatusMsg("Main menu opened");
+		}
+		E.pane_focus = EDITOR_PANE_DRAWER;
+		return EDITOR_KEYPRESS_EFFECT_NONE;
+	default:
+		return EDITOR_KEYPRESS_EFFECT_NONE;
+	}
+}
+
 static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 	int mouse_col = event->x - 1;
 	int drawer_cols = editorDrawerWidthForCols(E.window_cols);
@@ -2324,6 +2414,14 @@ static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 			return EDITOR_KEYPRESS_EFFECT_NONE;
 		}
 		if (drawer_row == 0) {
+			enum editorDrawerMode header_mode;
+			if (editorDrawerHeaderModeForColumn(mouse_col, drawer_cols, &header_mode)) {
+				int effects = editorSwitchDrawerHeaderMode(header_mode);
+				editorResetDrawerClickTracking();
+				E.mouse_left_button_down = 0;
+				E.mouse_drag_started = 0;
+				return effects;
+			}
 			editorResetDrawerClickTracking();
 			E.mouse_left_button_down = 0;
 			E.mouse_drag_started = 0;
@@ -2555,7 +2653,7 @@ static int editorHandleMouseEvent(void) {
 static int editorProcessMappedAction(enum editorAction action, int *effects_out) {
 	int effects = EDITOR_KEYPRESS_EFFECT_NONE;
 
-	if (editorFileSearchIsActive()) {
+	if (!editorDrawerIsCollapsed() && editorFileSearchIsActive()) {
 		switch (action) {
 			case EDITOR_ACTION_PROJECT_SEARCH:
 				editorFindTextInProject();
@@ -2608,7 +2706,7 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 		return 0;
 	}
 
-	if (editorProjectSearchIsActive()) {
+	if (!editorDrawerIsCollapsed() && editorProjectSearchIsActive()) {
 		switch (action) {
 			case EDITOR_ACTION_FIND_FILE:
 				editorFindFile();
@@ -3131,11 +3229,11 @@ void editorProcessKeypress(void) {
 			}
 			effects |= mapped_effects;
 		} else if (editorByteShouldInsertAsText(c)) {
-			if (editorFileSearchIsActive()) {
+			if (!editorDrawerIsCollapsed() && editorFileSearchIsActive()) {
 				if (editorFileSearchAppendByte(c)) {
 					(void)editorFileSearchPreviewSelection();
 				}
-			} else if (editorProjectSearchIsActive()) {
+			} else if (!editorDrawerIsCollapsed() && editorProjectSearchIsActive()) {
 				if (editorProjectSearchAppendByte(c)) {
 					(void)editorProjectSearchPreviewSelection();
 				}

@@ -220,6 +220,65 @@ static int test_editor_process_keypress_toggle_drawer_shortcut_collapses_and_exp
 	return 0;
 }
 
+static int test_editor_process_keypress_toggle_drawer_preserves_search_modes(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	add_row("body");
+
+	char find_file[] = {CTRL_KEY('p')};
+	ASSERT_TRUE(editor_process_keypress_with_input(find_file, sizeof(find_file)) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
+	char file_query[] = {'a'};
+	ASSERT_TRUE(editor_process_keypress_with_input(file_query, sizeof(file_query)) == 0);
+	ASSERT_EQ_STR("a", editorFileSearchQuery());
+
+	char toggle_drawer[] = {'\x1b', CTRL_KEY('e')};
+	ASSERT_TRUE(editor_process_keypress_with_input(toggle_drawer, sizeof(toggle_drawer)) == 0);
+	ASSERT_TRUE(editorDrawerIsCollapsed());
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+
+	char hidden_file_query_input[] = {'b'};
+	ASSERT_TRUE(editor_process_keypress_with_input(hidden_file_query_input,
+				sizeof(hidden_file_query_input)) == 0);
+	ASSERT_EQ_STR("a", editorFileSearchQuery());
+
+	ASSERT_TRUE(editor_process_keypress_with_input(toggle_drawer, sizeof(toggle_drawer)) == 0);
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_STR("a", editorFileSearchQuery());
+	editorFileSearchExit(1);
+
+	char project_search[] = {'\x1b', CTRL_KEY('f')};
+	ASSERT_TRUE(editor_process_keypress_with_input(project_search, sizeof(project_search)) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_PROJECT_SEARCH, E.drawer_mode);
+	char project_query[] = {'x'};
+	ASSERT_TRUE(editor_process_keypress_with_input(project_query, sizeof(project_query)) == 0);
+	ASSERT_EQ_STR("x", editorProjectSearchQuery());
+
+	ASSERT_TRUE(editor_process_keypress_with_input(toggle_drawer, sizeof(toggle_drawer)) == 0);
+	ASSERT_TRUE(editorDrawerIsCollapsed());
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_PROJECT_SEARCH, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+
+	char hidden_project_query_input[] = {'y'};
+	ASSERT_TRUE(editor_process_keypress_with_input(hidden_project_query_input,
+				sizeof(hidden_project_query_input)) == 0);
+	ASSERT_EQ_STR("x", editorProjectSearchQuery());
+
+	ASSERT_TRUE(editor_process_keypress_with_input(toggle_drawer, sizeof(toggle_drawer)) == 0);
+	ASSERT_TRUE(!editorDrawerIsCollapsed());
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_PROJECT_SEARCH, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_STR("x", editorProjectSearchQuery());
+	editorProjectSearchExit(1);
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_process_keypress_main_menu_runs_selected_action(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -1083,6 +1142,57 @@ static int test_editor_process_keypress_mouse_click_expands_collapsed_drawer(voi
 	ASSERT_TRUE(!editorDrawerIsCollapsed());
 	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
 	ASSERT_EQ_STR("Drawer expanded", E.statusmsg);
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drawer_header_mode_buttons(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	E.window_rows = 6;
+	E.window_cols = 60;
+
+	char click_file_search[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click_file_search, sizeof(click_file_search), 0, 7, 1,
+				'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_file_search,
+				strlen(click_file_search)) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+
+	char query_char[] = {'a'};
+	ASSERT_TRUE(editor_process_keypress_with_input(query_char, sizeof(query_char)) == 0);
+	ASSERT_EQ_STR("a", editorFileSearchQuery());
+	ASSERT_TRUE(editor_process_keypress_with_input(click_file_search,
+				strlen(click_file_search)) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
+	ASSERT_EQ_STR("a", editorFileSearchQuery());
+
+	char click_project_search[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click_project_search, sizeof(click_project_search), 0, 10,
+				1, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_project_search,
+				strlen(click_project_search)) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_PROJECT_SEARCH, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+
+	char click_main_menu[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click_main_menu, sizeof(click_main_menu), 0, 13, 1,
+				'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_main_menu,
+				strlen(click_main_menu)) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_MAIN_MENU, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+
+	char click_explorer[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click_explorer, sizeof(click_explorer), 0, 4, 1, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_explorer, strlen(click_explorer)) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
 
 	cleanup_recovery_test_env(&env);
 	return 0;
@@ -3253,6 +3363,7 @@ const struct editorTestCase g_input_search_tests[] = {
 	{"editor_column_select_alt_mouse_drag_starts_column_selection", test_editor_column_select_alt_mouse_drag_starts_column_selection},
 	{"editor_column_select_plain_arrow_clears_mode", test_editor_column_select_plain_arrow_clears_mode},
 	{"editor_process_keypress_toggle_drawer_shortcut_collapses_and_expands", test_editor_process_keypress_toggle_drawer_shortcut_collapses_and_expands},
+	{"editor_process_keypress_toggle_drawer_preserves_search_modes", test_editor_process_keypress_toggle_drawer_preserves_search_modes},
 	{"editor_process_keypress_main_menu_runs_selected_action", test_editor_process_keypress_main_menu_runs_selected_action},
 	{"editor_tabs_switch_restores_per_tab_state", test_editor_tabs_switch_restores_per_tab_state},
 	{"editor_tab_close_last_tab_keeps_one_empty_tab", test_editor_tab_close_last_tab_keeps_one_empty_tab},
@@ -3286,6 +3397,7 @@ const struct editorTestCase g_input_search_tests[] = {
 	{"editor_process_keypress_mouse_left_click_ignores_indicator_padding_columns", test_editor_process_keypress_mouse_left_click_ignores_indicator_padding_columns},
 	{"editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory", test_editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory},
 	{"editor_process_keypress_mouse_click_expands_collapsed_drawer", test_editor_process_keypress_mouse_click_expands_collapsed_drawer},
+	{"editor_process_keypress_mouse_drawer_header_mode_buttons", test_editor_process_keypress_mouse_drawer_header_mode_buttons},
 	{"editor_process_keypress_mouse_collapsed_drawer_body_click_edits_text_pane", test_editor_process_keypress_mouse_collapsed_drawer_body_click_edits_text_pane},
 	{"editor_process_keypress_mouse_drawer_single_file_click_opens_preview_tab", test_editor_process_keypress_mouse_drawer_single_file_click_opens_preview_tab},
 	{"editor_drawer_open_selected_file_in_preview_reuses_preview_tab", test_editor_drawer_open_selected_file_in_preview_reuses_preview_tab},

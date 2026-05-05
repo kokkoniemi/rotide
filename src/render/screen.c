@@ -72,6 +72,11 @@ struct writeBuf {
 #define DRAWER_TREE_HORIZONTAL_UTF8 "\xE2\x94\x80"
 #define DRAWER_COLLAPSE_INDICATOR "[<]"
 #define DRAWER_EXPAND_INDICATOR "[>]"
+#define DRAWER_HEADER_MODE_BUTTON_COLS 3
+#define DRAWER_HEADER_MODE_BUTTON_COUNT 4
+#define DRAWER_HEADER_MODE_BUTTONS_MIN_COLS \
+	(ROTIDE_DRAWER_COLLAPSED_WIDTH + \
+			DRAWER_HEADER_MODE_BUTTON_COLS * DRAWER_HEADER_MODE_BUTTON_COUNT)
 #define TEXT_OVERFLOW_LEFT_UTF8 "\xE2\x86\x90"
 #define TEXT_OVERFLOW_RIGHT_UTF8 "\xE2\x86\x92"
 #define TEXT_WRAP_CONTINUATION_UTF8 "\xE2\x86\xB3"
@@ -1900,6 +1905,37 @@ static int editorDrawCollapsedDrawerRow(struct writeBuf *wb, int row_idx, int dr
 	return 1;
 }
 
+static enum editorDrawerMode editorActiveDrawerHeaderMode(void) {
+	if (editorFileSearchIsActive()) {
+		return EDITOR_DRAWER_MODE_FILE_SEARCH;
+	}
+	if (editorProjectSearchIsActive()) {
+		return EDITOR_DRAWER_MODE_PROJECT_SEARCH;
+	}
+	return E.drawer_mode;
+}
+
+static int editorDrawDrawerHeaderModeButton(struct writeBuf *wb, char label,
+		enum editorDrawerMode mode, enum editorDrawerMode active_mode, int *written_cols,
+		int drawer_cols) {
+	char text[4] = {'[', label, ']', '\0'};
+	if (written_cols == NULL || *written_cols >= drawer_cols) {
+		return 1;
+	}
+	if (mode == active_mode && !wbAppend(wb, VT100_INVERTED_COLORS_4, 4)) {
+		return 0;
+	}
+	int wrote = 0;
+	if (!editorAppendSanitizedText(wb, text, drawer_cols - *written_cols, &wrote)) {
+		return 0;
+	}
+	*written_cols += wrote;
+	if (mode == active_mode && !wbAppend(wb, VT100_NORMAL_COLORS_3, 3)) {
+		return 0;
+	}
+	return 1;
+}
+
 static int editorDrawExpandedDrawerHeaderRow(struct writeBuf *wb, int drawer_cols) {
 	int written_cols = 0;
 	int indicator_cols = 0;
@@ -1908,6 +1944,20 @@ static int editorDrawExpandedDrawerHeaderRow(struct writeBuf *wb, int drawer_col
 		return 0;
 	}
 	written_cols += indicator_cols;
+
+	if (drawer_cols >= DRAWER_HEADER_MODE_BUTTONS_MIN_COLS) {
+		enum editorDrawerMode active_mode = editorActiveDrawerHeaderMode();
+		if (!editorDrawDrawerHeaderModeButton(wb, 'E', EDITOR_DRAWER_MODE_TREE, active_mode,
+					&written_cols, drawer_cols) ||
+				!editorDrawDrawerHeaderModeButton(wb, 'F', EDITOR_DRAWER_MODE_FILE_SEARCH,
+					active_mode, &written_cols, drawer_cols) ||
+				!editorDrawDrawerHeaderModeButton(wb, 'R', EDITOR_DRAWER_MODE_PROJECT_SEARCH,
+					active_mode, &written_cols, drawer_cols) ||
+				!editorDrawDrawerHeaderModeButton(wb, 'M', EDITOR_DRAWER_MODE_MAIN_MENU,
+					active_mode, &written_cols, drawer_cols)) {
+			return 0;
+		}
+	}
 
 	while (written_cols < drawer_cols) {
 		if (!wbAppend(wb, " ", 1)) {

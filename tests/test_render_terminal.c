@@ -1547,6 +1547,57 @@ static int test_editor_refresh_screen_drawer_collapsed_renders_expand_indicator(
 	return 0;
 }
 
+static int test_editor_refresh_screen_drawer_header_mode_buttons(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	add_row("body");
+	E.window_rows = 6;
+	E.window_cols = 60;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "[<]\x1b[7m[E]\x1b[m[F][R][M]") != NULL);
+	free(output);
+
+	ASSERT_TRUE(editorFileSearchEnter());
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "[<][E]\x1b[7m[F]\x1b[m[R][M]") != NULL);
+	free(output);
+	editorFileSearchExit(1);
+
+	ASSERT_TRUE(editorProjectSearchEnter());
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "[<][E][F]\x1b[7m[R]\x1b[m[M]") != NULL);
+	free(output);
+	editorProjectSearchExit(1);
+
+	ASSERT_TRUE(editorDrawerMainMenuToggle());
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "[<][E][F][R]\x1b[7m[M]\x1b[m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(editorDrawerSetWidthForCols(14, E.window_cols));
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	const char *drawer_header = strstr(output, "[<]");
+	ASSERT_TRUE(drawer_header != NULL);
+	const char *header_end = strstr(drawer_header, "\r\n");
+	ASSERT_TRUE(header_end != NULL);
+	ASSERT_TRUE(strstr(drawer_header, "[E]") == NULL ||
+			strstr(drawer_header, "[E]") > header_end);
+	free(output);
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_refresh_screen_main_menu_drawer_groups_actions(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -1786,8 +1837,7 @@ static int test_editor_refresh_screen_file_search_header_shows_cursor(void) {
 	add_row("body");
 
 	char expected_cursor[32];
-	ASSERT_TRUE(snprintf(expected_cursor, sizeof(expected_cursor), "\x1b[2;%dH",
-				editorFileSearchHeaderCursorCol(editorDrawerWidthForCols(E.window_cols))) > 0);
+	ASSERT_TRUE(snprintf(expected_cursor, sizeof(expected_cursor), "\x1b[2;8H") > 0);
 
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
@@ -1819,8 +1869,7 @@ static int test_editor_refresh_screen_project_search_header_shows_cursor(void) {
 	add_row("body");
 
 	char expected_cursor[32];
-	ASSERT_TRUE(snprintf(expected_cursor, sizeof(expected_cursor), "\x1b[2;%dH",
-				editorProjectSearchHeaderCursorCol(editorDrawerWidthForCols(E.window_cols))) > 0);
+	ASSERT_TRUE(snprintf(expected_cursor, sizeof(expected_cursor), "\x1b[2;8H") > 0);
 
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
@@ -2509,6 +2558,7 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_drawer_hides_selection_marker_when_unfocused", test_editor_refresh_screen_drawer_hides_selection_marker_when_unfocused},
 	{"editor_refresh_screen_drawer_active_file_uses_inverted_background", test_editor_refresh_screen_drawer_active_file_uses_inverted_background},
 	{"editor_refresh_screen_drawer_collapsed_renders_expand_indicator", test_editor_refresh_screen_drawer_collapsed_renders_expand_indicator},
+	{"editor_refresh_screen_drawer_header_mode_buttons", test_editor_refresh_screen_drawer_header_mode_buttons},
 	{"editor_refresh_screen_main_menu_drawer_groups_actions", test_editor_refresh_screen_main_menu_drawer_groups_actions},
 	{"editor_refresh_screen_drawer_renders_unicode_tree_connectors", test_editor_refresh_screen_drawer_renders_unicode_tree_connectors},
 	{"editor_refresh_screen_drawer_selected_overflow_spills_into_text_area", test_editor_refresh_screen_drawer_selected_overflow_spills_into_text_area},

@@ -758,7 +758,7 @@ static int editorProjectSearchQueryDisplayCols(void) {
 }
 
 int editorProjectSearchHeaderCursorCol(int drawer_cols) {
-	int col = 3 + 1 + 6 + editorProjectSearchQueryDisplayCols() + 1;
+	int col = 6 + editorProjectSearchQueryDisplayCols() + 1;
 	if (col < 1) {
 		col = 1;
 	}

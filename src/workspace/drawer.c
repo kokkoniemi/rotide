@@ -611,12 +611,6 @@ int editorDrawerSetCollapsed(int collapsed) {
 		return 0;
 	}
 
-	if (new_collapsed && editorFileSearchIsActive()) {
-		editorFileSearchExit(1);
-	}
-	if (new_collapsed && editorProjectSearchIsActive()) {
-		editorProjectSearchExit(1);
-	}
 	E.drawer_collapsed = new_collapsed;
 	E.drawer_resize_active = 0;
 	if (new_collapsed && E.pane_focus == EDITOR_PANE_DRAWER) {
