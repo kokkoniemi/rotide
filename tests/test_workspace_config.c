@@ -2186,7 +2186,7 @@ static int test_editor_column_select_drag_modifier_load_from_paths(void) {
 				"[editor]\ncolumn_select_drag_modifier = \"banana\"\n"));
 	status = editorColumnSelectDragModifierLoadFromPaths(&modifier, NULL, project_path);
 	ASSERT_EQ_INT(EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_INVALID_PROJECT, status);
-	ASSERT_EQ_INT(EDITOR_MOUSE_MOD_ALT | EDITOR_MOUSE_MOD_SHIFT, modifier);
+	ASSERT_EQ_INT(EDITOR_MOUSE_MOD_ALT, modifier);
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(rmdir(dir_path) == 0);

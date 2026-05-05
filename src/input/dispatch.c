@@ -511,6 +511,7 @@ static int editorActionMutatesReadOnlyBuffer(enum editorAction action) {
 		case EDITOR_ACTION_DELETE_SELECTION:
 		case EDITOR_ACTION_UNDO:
 		case EDITOR_ACTION_REDO:
+		case EDITOR_ACTION_FIND_REPLACE:
 			return 1;
 		default:
 			return 0;
@@ -1288,6 +1289,474 @@ static char *editorPromptWithCallback(const char *prompt, int allow_empty,
 
 char *editorPrompt(const char *prompt) {
 	return editorPromptWithCallback(prompt, 0, NULL);
+}
+
+static int editorReplaceAtOffset(size_t offset, size_t old_len,
+		const char *new_text, size_t new_len) {
+	int dirty_before = E.dirty;
+	editorPinActivePreviewForEdit();
+	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+	struct editorDocumentEdit edit = {
+		.kind = EDITOR_EDIT_INSERT_TEXT,
+		.start_offset = offset,
+		.old_len = old_len,
+		.new_text = new_text,
+		.new_len = new_len,
+		.before_cursor_offset = offset,
+		.after_cursor_offset = offset + new_len,
+		.before_dirty = E.dirty,
+		.after_dirty = E.dirty + 1
+	};
+	int ok = editorApplyDocumentEdit(&edit);
+	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, ok && E.dirty != dirty_before);
+	return ok;
+}
+
+static int editorCollectMatchOffsets(const char *query, size_t query_len,
+		size_t **offsets_out) {
+	if (offsets_out == NULL || query == NULL || query_len == 0 || E.numrows == 0) {
+		if (offsets_out != NULL) {
+			*offsets_out = NULL;
+		}
+		return 0;
+	}
+
+	size_t *offsets = NULL;
+	int count = 0;
+	int cap = 0;
+	int row = 0;
+	int col = -1;
+	int match_row = 0;
+	int match_col = 0;
+	int started = 0;
+	size_t prev_offset = 0;
+
+	while (editorBufferFindForward(query, row, col, &match_row, &match_col)) {
+		size_t offset = 0;
+		if (!editorBufferPosToOffset(match_row, match_col, &offset)) {
+			break;
+		}
+		if (started && offset <= prev_offset) {
+			break;
+		}
+		started = 1;
+		prev_offset = offset;
+
+		if (count == cap) {
+			int new_cap = cap == 0 ? 16 : cap * 2;
+			size_t *grown = editorRealloc(offsets, (size_t)new_cap * sizeof(size_t));
+			if (grown == NULL) {
+				free(offsets);
+				*offsets_out = NULL;
+				return -1;
+			}
+			offsets = grown;
+			cap = new_cap;
+		}
+		offsets[count++] = offset;
+
+		row = match_row;
+		int next_col = match_col + (int)query_len;
+		if (row < E.numrows && next_col > E.rows[row].size) {
+			row++;
+			if (row >= E.numrows) {
+				break;
+			}
+			col = -1;
+		} else {
+			col = next_col - 1;
+		}
+	}
+
+	*offsets_out = offsets;
+	return count;
+}
+
+static int editorReplaceAllInBuffer(const char *query, size_t query_len,
+		const char *replacement, size_t replacement_len) {
+	size_t *offsets = NULL;
+	int count = editorCollectMatchOffsets(query, query_len, &offsets);
+	if (count <= 0) {
+		return count;
+	}
+
+	size_t first_offset = offsets[0];
+
+	int replaced = 0;
+	for (int i = count - 1; i >= 0; i--) {
+		editorHistoryBreakGroup();
+		if (editorReplaceAtOffset(offsets[i], query_len, replacement, replacement_len)) {
+			replaced++;
+		}
+	}
+	free(offsets);
+
+	if (replaced > 0) {
+		(void)editorSyncCursorFromOffset(first_offset + replacement_len);
+		editorViewportEnsureCursorVisible();
+		free(E.search_query);
+		E.search_query = NULL;
+		editorClearActiveSearchMatch();
+	}
+	return replaced;
+}
+
+static int editorReplaceNavigateNext(const char *query, int query_len) {
+	int match_row = -1;
+	int match_col = -1;
+	int cur_row = E.cy;
+	int cur_start_col;
+	int active_row = -1;
+	int active_col = -1;
+	if (E.search_match_len > 0 && editorSearchMatchPosition(&active_row, &active_col)) {
+		cur_row = active_row;
+		cur_start_col = active_col + query_len - 1;
+	} else {
+		cur_start_col = E.cx > 0 ? E.cx - 1 : -1;
+	}
+	if (!editorBufferFindForward(query, cur_row, cur_start_col, &match_row, &match_col)) {
+		editorClearActiveSearchMatch();
+		return 0;
+	}
+	editorMoveCursorToSearchMatch(match_row, match_col, query_len);
+	return 1;
+}
+
+static void editorProjectReplaceFromSearch(void) {
+	const char *find = editorProjectSearchQuery();
+	if (find == NULL || find[0] == '\0') {
+		editorSetStatusMsg("No active search query to replace");
+		return;
+	}
+	if (E.drawer_project_search_result_count == 0) {
+		editorSetStatusMsg("No search results to replace");
+		return;
+	}
+
+	char prompt_buf[256];
+	int pn = snprintf(prompt_buf, sizeof(prompt_buf),
+			"Replace \"%.*s\" with: %%s (Enter to confirm, Esc to cancel)", 40, find);
+	if (pn < 0 || pn >= (int)sizeof(prompt_buf)) {
+		prompt_buf[sizeof(prompt_buf) - 1] = '\0';
+	}
+	char *replace_query = editorPromptWithCallback(prompt_buf, 1, NULL);
+	if (replace_query == NULL) {
+		return;
+	}
+
+	char *find_copy = strdup(find);
+	if (find_copy == NULL) {
+		free(replace_query);
+		editorSetAllocFailureStatus();
+		return;
+	}
+
+	typedef struct { char *path; int start_row; } FileEntry;
+	FileEntry *files = NULL;
+	int file_count = 0;
+	int file_cap = 0;
+	int result_count = E.drawer_project_search_result_count;
+
+	for (int i = 0; i < result_count; i++) {
+		const struct editorProjectSearchResult *r = &E.drawer_project_search_results[i];
+		if (r->path == NULL || r->path[0] == '\0') {
+			continue;
+		}
+		int already = 0;
+		for (int j = 0; j < file_count; j++) {
+			if (strcmp(files[j].path, r->path) == 0) {
+				already = 1;
+				break;
+			}
+		}
+		if (already) {
+			continue;
+		}
+		if (file_count == file_cap) {
+			int new_cap = file_cap == 0 ? 8 : file_cap * 2;
+			FileEntry *grown = editorRealloc(files, (size_t)new_cap * sizeof(FileEntry));
+			if (grown == NULL) {
+				for (int j = 0; j < file_count; j++) free(files[j].path);
+				free(files);
+				free(find_copy);
+				free(replace_query);
+				editorSetAllocFailureStatus();
+				return;
+			}
+			files = grown;
+			file_cap = new_cap;
+		}
+		char *path_copy = strdup(r->path);
+		if (path_copy == NULL) {
+			for (int j = 0; j < file_count; j++) free(files[j].path);
+			free(files);
+			free(find_copy);
+			free(replace_query);
+			editorSetAllocFailureStatus();
+			return;
+		}
+		files[file_count].path = path_copy;
+		files[file_count].start_row = r->line > 0 ? r->line - 1 : 0;
+		file_count++;
+	}
+
+	int saved_active_tab = editorTabActiveIndex();
+	editorProjectSearchExit(0);
+	E.pane_focus = EDITOR_PANE_TEXT;
+
+	size_t find_len = strlen(find_copy);
+	size_t replace_len = strlen(replace_query);
+	int total_replaced = 0;
+	int total_files = 0;
+	int aborted = 0;
+	int replace_all_remaining = 0;
+
+	for (int fi = 0; fi < file_count; fi++) {
+		if (!editorTabOpenOrSwitchToFile(files[fi].path)) {
+			continue;
+		}
+		editorHistoryBreakGroup();
+		free(E.search_query);
+		E.search_query = strdup(find_copy);
+		if (E.search_query == NULL) {
+			aborted = 1;
+			break;
+		}
+
+		if (replace_all_remaining) {
+			int count = editorReplaceAllInBuffer(E.search_query, find_len,
+					replace_query, replace_len);
+			if (count > 0) {
+				total_replaced += count;
+				total_files++;
+			}
+			continue;
+		}
+
+		int start_row = files[fi].start_row;
+		if (start_row >= E.numrows) {
+			start_row = 0;
+		}
+		int match_row = -1;
+		int match_col = -1;
+		if (!editorBufferFindForward(E.search_query, start_row, -1, &match_row, &match_col)) {
+			continue;
+		}
+		if (match_row < start_row) {
+			if (!editorBufferFindForward(E.search_query, 0, -1, &match_row, &match_col)) {
+				continue;
+			}
+		}
+
+		editorMoveCursorToSearchMatch(match_row, match_col, (int)find_len);
+		editorViewportEnsureCursorVisible();
+
+		size_t file_start_offset = E.search_match_offset;
+		const char *sep = strrchr(files[fi].path, '/');
+		const char *basename = sep != NULL ? sep + 1 : files[fi].path;
+		int file_replaced = 0;
+		int done_with_file = 0;
+
+		while (!done_with_file) {
+			editorSetStatusMsg(
+					"[%s] Replace? Enter=this Tab=skip Ctrl+A=all Esc=done (%d replaced)",
+					basename, total_replaced + file_replaced);
+			editorRefreshScreen();
+
+			int c = editorReadKey();
+			if (c == INPUT_EOF_EVENT) {
+				aborted = 1;
+				done_with_file = 1;
+				fi = file_count;
+				editorExitOnInputShutdown();
+			}
+			if (c == RESIZE_EVENT) {
+				(void)editorRefreshWindowSize();
+				continue;
+			}
+			if (c == SYNTAX_EVENT || c == TASK_EVENT || c == WATCH_EVENT) {
+				continue;
+			}
+			if (c == MOUSE_EVENT) {
+				continue;
+			}
+
+			if (c == '\x1b') {
+				aborted = 1;
+				done_with_file = 1;
+			} else if (c == '\r') {
+				if (E.search_match_len > 0) {
+					size_t offset = E.search_match_offset;
+					editorHistoryBreakGroup();
+					if (editorReplaceAtOffset(offset, find_len, replace_query, replace_len)) {
+						file_replaced++;
+					}
+				}
+				if (!editorReplaceNavigateNext(E.search_query, (int)find_len) ||
+						E.search_match_offset <= file_start_offset) {
+					editorClearActiveSearchMatch();
+					done_with_file = 1;
+				}
+			} else if (c == '\t') {
+				if (!editorReplaceNavigateNext(E.search_query, (int)find_len) ||
+						E.search_match_offset <= file_start_offset) {
+					editorClearActiveSearchMatch();
+					done_with_file = 1;
+				}
+			} else if (c == CTRL_KEY('a')) {
+				int count = editorReplaceAllInBuffer(E.search_query, find_len,
+						replace_query, replace_len);
+				if (count > 0) {
+					file_replaced += count;
+				}
+				done_with_file = 1;
+				replace_all_remaining = 1;
+			}
+		}
+
+		if (file_replaced > 0) {
+			total_replaced += file_replaced;
+			total_files++;
+		}
+
+		if (aborted) {
+			break;
+		}
+	}
+
+	free(replace_query);
+	free(find_copy);
+	for (int j = 0; j < file_count; j++) {
+		free(files[j].path);
+	}
+	free(files);
+
+	if (!aborted && saved_active_tab < 0) {
+		(void)editorTabSwitchToIndex(0);
+	}
+
+	if (total_replaced > 0 || aborted) {
+		editorSetStatusMsg("Replaced %d occurrence(s) across %d file(s)%s",
+				total_replaced, total_files, aborted ? " (stopped)" : "");
+	} else {
+		editorSetStatusMsg("No replacements made");
+	}
+}
+
+static void editorFindReplace(void) {
+	editorAlignCursorWithRowEnd();
+	E.search_saved_offset = E.cursor_offset;
+	E.search_direction = 1;
+	editorClearActiveSearchMatch();
+
+	char *find_query = editorPromptWithCallback(
+			"Find: %s (Arrows/Enter to confirm, Esc to cancel)", 1, editorFindCallback);
+	if (find_query == NULL) {
+		return;
+	}
+
+	free(E.search_query);
+	E.search_query = find_query;
+
+	if (E.search_match_len == 0) {
+		int match_row = -1;
+		int match_col = -1;
+		int saved_row = 0;
+		int saved_col = 0;
+		(void)editorBufferOffsetToPos(E.search_saved_offset, &saved_row, &saved_col);
+		if (!editorBufferFindForward(find_query, saved_row, saved_col - 1,
+					&match_row, &match_col)) {
+			editorSetStatusMsg("No matches for \"%s\"", find_query);
+			return;
+		}
+		editorMoveCursorToSearchMatch(match_row, match_col, (int)strlen(find_query));
+	}
+
+	char *replace_query = editorPromptWithCallback(
+			"Replace with: %s (Enter to confirm, Esc to cancel)", 1, NULL);
+	if (replace_query == NULL) {
+		return;
+	}
+
+	size_t find_len = strlen(find_query);
+	size_t replace_len = strlen(replace_query);
+	int replaced = 0;
+
+	while (1) {
+		editorSetStatusMsg(
+				"Replace? Enter=this Tab=skip Ctrl+A=all Esc=done (%d replaced)", replaced);
+		editorRefreshScreen();
+
+		int c = editorReadKey();
+		if (c == INPUT_EOF_EVENT) {
+			free(replace_query);
+			editorExitOnInputShutdown();
+			return;
+		}
+		if (c == RESIZE_EVENT) {
+			(void)editorRefreshWindowSize();
+			continue;
+		}
+		if (c == SYNTAX_EVENT || c == TASK_EVENT || c == WATCH_EVENT) {
+			continue;
+		}
+		if (c == MOUSE_EVENT) {
+			continue;
+		}
+
+		if (c == '\x1b') {
+			break;
+		}
+
+		if (c == '\r') {
+			if (E.search_match_len <= 0) {
+				break;
+			}
+			size_t match_offset = E.search_match_offset;
+			editorHistoryBreakGroup();
+			if (editorReplaceAtOffset(match_offset, find_len, replace_query, replace_len)) {
+				replaced++;
+			}
+			if (!editorReplaceNavigateNext(find_query, (int)find_len)) {
+				editorSetStatusMsg("Done. Replaced %d occurrence(s)", replaced);
+				free(replace_query);
+				return;
+			}
+		} else if (c == '\t') {
+			if (!editorReplaceNavigateNext(find_query, (int)find_len)) {
+				editorSetStatusMsg("No more matches. Replaced %d occurrence(s)", replaced);
+				free(replace_query);
+				return;
+			}
+		} else if (c == CTRL_KEY('a')) {
+			int count = editorReplaceAllInBuffer(
+					find_query, find_len, replace_query, replace_len);
+			if (count < 0) {
+				editorSetStatusMsg("Replace all failed");
+			} else {
+				editorSetStatusMsg("Replaced %d occurrence(s)", replaced + count);
+			}
+			free(replace_query);
+			return;
+		} else if (c == ARROW_RIGHT || c == ARROW_DOWN) {
+			if (!editorReplaceNavigateNext(find_query, (int)find_len)) {
+				editorSetStatusMsg("No more matches");
+			}
+		} else if (c == ARROW_LEFT || c == ARROW_UP) {
+			int match_row = -1;
+			int match_col = -1;
+			int have_active = editorSearchMatchPosition(&match_row, &match_col);
+			int start_row = have_active ? match_row : E.cy;
+			int start_col = have_active ? match_col : E.cx;
+			if (editorBufferFindBackward(find_query, start_row, start_col,
+						&match_row, &match_col)) {
+				editorMoveCursorToSearchMatch(match_row, match_col, (int)find_len);
+			}
+		}
+	}
+
+	editorSetStatusMsg(replaced > 0 ? "Replaced %d occurrence(s)" : "Cancelled", replaced);
+	free(replace_query);
 }
 
 static void editorFind(void) {
@@ -2113,6 +2582,10 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			case EDITOR_ACTION_PROJECT_SEARCH:
 				editorFindTextInProject();
 				break;
+			case EDITOR_ACTION_FIND_REPLACE:
+				editorProjectReplaceFromSearch();
+				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+				break;
 			case EDITOR_ACTION_MOVE_UP:
 				if (editorProjectSearchMoveSelectionBy(-1, E.window_rows + 1)) {
 					(void)editorProjectSearchPreviewSelection();
@@ -2302,6 +2775,11 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 		case EDITOR_ACTION_FIND:
 			editorHistoryBreakGroup();
 			editorFind();
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			break;
+		case EDITOR_ACTION_FIND_REPLACE:
+			editorHistoryBreakGroup();
+			editorFindReplace();
 			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			break;
 		case EDITOR_ACTION_GOTO_LINE:

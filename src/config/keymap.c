@@ -75,6 +75,7 @@ static const struct editorActionName editor_action_names[] = {
 	{"column_select_down", EDITOR_ACTION_COLUMN_SELECT_DOWN},
 	{"column_select_left", EDITOR_ACTION_COLUMN_SELECT_LEFT},
 	{"column_select_right", EDITOR_ACTION_COLUMN_SELECT_RIGHT},
+	{"find_replace", EDITOR_ACTION_FIND_REPLACE},
 };
 
 static const struct editorNamedKey editor_named_keys[] = {
@@ -652,6 +653,7 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 	(void)editorKeymapAppendBinding(keymap, ALT_ARROW_UP, EDITOR_ACTION_MOVE_LINE_UP);
 	(void)editorKeymapAppendBinding(keymap, ALT_ARROW_DOWN, EDITOR_ACTION_MOVE_LINE_DOWN);
 	(void)editorKeymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('c'), EDITOR_ACTION_TOGGLE_COMMENT);
+	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('r'), EDITOR_ACTION_FIND_REPLACE);
 }
 
 int editorKeymapLookupAction(const struct editorKeymap *keymap, int key,
