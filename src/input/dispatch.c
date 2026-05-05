@@ -2343,7 +2343,7 @@ static int editorSwitchDrawerHeaderMode(enum editorDrawerMode mode) {
 			editorProjectSearchExit(1);
 		}
 		E.drawer_mode = EDITOR_DRAWER_MODE_TREE;
-		E.drawer_selected_index = 0;
+		E.drawer_selected_index = -1;
 		E.drawer_rowoff = 0;
 		E.drawer_resize_active = 0;
 		(void)editorDrawerSetCollapsed(0);

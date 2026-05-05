@@ -505,8 +505,8 @@ void editorDrawerClampViewport(int viewport_rows) {
 		return;
 	}
 
-	if (E.drawer_selected_index < 0) {
-		E.drawer_selected_index = 0;
+	if (E.drawer_selected_index < -1) {
+		E.drawer_selected_index = -1;
 	}
 	if (E.drawer_selected_index >= visible_count) {
 		E.drawer_selected_index = visible_count - 1;
@@ -542,6 +542,10 @@ static void editorDrawerClampSelectionAndScroll(int viewport_rows) {
 	int max_rowoff = visible_count - viewport_rows;
 	if (max_rowoff < 0) {
 		max_rowoff = 0;
+	}
+
+	if (E.drawer_selected_index < 0) {
+		return;
 	}
 
 	if (E.drawer_selected_index < E.drawer_rowoff) {
@@ -626,7 +630,7 @@ int editorDrawerToggleCollapsed(void) {
 int editorDrawerMainMenuToggle(void) {
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_MAIN_MENU) {
 		E.drawer_mode = EDITOR_DRAWER_MODE_TREE;
-		E.drawer_selected_index = 0;
+		E.drawer_selected_index = -1;
 		E.drawer_rowoff = 0;
 		E.drawer_resize_active = 0;
 		E.pane_focus = EDITOR_PANE_DRAWER;
@@ -641,7 +645,7 @@ int editorDrawerMainMenuToggle(void) {
 	}
 	editorDrawerMenuEnsureDefaultExpanded();
 	E.drawer_mode = EDITOR_DRAWER_MODE_MAIN_MENU;
-	E.drawer_selected_index = 0;
+	E.drawer_selected_index = -1;
 	E.drawer_rowoff = 0;
 	E.drawer_resize_active = 0;
 	(void)editorDrawerSetCollapsed(0);
@@ -880,7 +884,9 @@ int editorDrawerMoveSelectionBy(int delta, int viewport_rows) {
 		return 0;
 	}
 
-	if (delta < 0 && E.drawer_selected_index + delta < 0) {
+	if (E.drawer_selected_index < 0) {
+		E.drawer_selected_index = delta < 0 ? visible_count - 1 : 0;
+	} else if (delta < 0 && E.drawer_selected_index + delta < 0) {
 		E.drawer_selected_index = 0;
 	} else if (delta > 0 && E.drawer_selected_index + delta >= visible_count) {
 		E.drawer_selected_index = visible_count - 1;

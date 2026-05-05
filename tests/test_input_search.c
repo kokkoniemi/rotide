@@ -292,6 +292,7 @@ static int test_editor_process_keypress_main_menu_runs_selected_action(void) {
 	const char alt_m[] = "\x1bm";
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_m, sizeof(alt_m) - 1) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_MAIN_MENU, E.drawer_mode);
+	ASSERT_EQ_INT(-1, E.drawer_selected_index);
 	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
 	ASSERT_EQ_STR("Main menu opened", E.statusmsg);
 
@@ -1186,12 +1187,14 @@ static int test_editor_process_keypress_mouse_drawer_header_mode_buttons(void) {
 	ASSERT_TRUE(editor_process_keypress_with_input(click_main_menu,
 				strlen(click_main_menu)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_MAIN_MENU, E.drawer_mode);
+	ASSERT_EQ_INT(-1, E.drawer_selected_index);
 	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
 
 	char click_explorer[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click_explorer, sizeof(click_explorer), 0, 4, 1, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_explorer, strlen(click_explorer)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, E.drawer_mode);
+	ASSERT_EQ_INT(-1, E.drawer_selected_index);
 	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
 
 	cleanup_recovery_test_env(&env);

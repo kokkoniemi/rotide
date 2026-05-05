@@ -1618,6 +1618,7 @@ static int test_editor_refresh_screen_main_menu_drawer_groups_actions(void) {
 	ASSERT_TRUE(strstr(output, "Search Project Text") != NULL);
 	ASSERT_TRUE(strstr(output, "Save") != NULL);
 	ASSERT_TRUE(strstr(output, "Close Tab") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[7mMain Menu") == NULL);
 	ASSERT_TRUE(find_drawer_entry("Project Files", NULL, NULL));
 	free(output);
 
@@ -1628,7 +1629,6 @@ static int test_editor_refresh_screen_main_menu_drawer_groups_actions(void) {
 
 	output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "Main Menu") != NULL);
 	ASSERT_TRUE(strstr(output, "Find File") == NULL);
 	ASSERT_TRUE(strstr(output, "Save") != NULL);
 	free(output);
