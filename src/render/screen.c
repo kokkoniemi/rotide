@@ -799,6 +799,27 @@ static int editorSelectionSpanForRow(int row_idx, int *start_out, int *end_out) 
 		return 0;
 	}
 
+	if (E.column_select_active) {
+		struct editorColumnSelectionRect rect;
+		if (!editorColumnSelectionGetRect(&rect)) {
+			return 0;
+		}
+		if (row_idx < rect.top_cy || row_idx > rect.bottom_cy) {
+			return 0;
+		}
+		int cx_start = 0;
+		int cx_end = 0;
+		if (!editorColumnSelectionRowSpan(row_idx, rect.left_rx, rect.right_rx, &cx_start, &cx_end)) {
+			return 0;
+		}
+if (cx_end <= cx_start) {
+			return 0;
+		}
+		*start_out = cx_start;
+		*end_out = cx_end;
+		return 1;
+	}
+
 	struct editorSelectionRange selection;
 	if (!editorGetSelectionRange(&selection)) {
 		return 0;

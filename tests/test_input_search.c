@@ -1,5 +1,6 @@
 #include "test_case.h"
 #include "test_support.h"
+#include "editing/selection.h"
 #include "workspace/file_search.h"
 #include "workspace/project_search.h"
 
@@ -165,6 +166,7 @@ static int test_editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped
 static int test_editor_process_keypress_resize_drawer_shortcuts(void) {
 	E.window_cols = 40;
 	E.drawer_width_cols = 10;
+	E.pane_focus = EDITOR_PANE_DRAWER;
 
 	const char alt_shift_right[] = "\x1b[1;4C";
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_right,
@@ -176,7 +178,6 @@ static int test_editor_process_keypress_resize_drawer_shortcuts(void) {
 				sizeof(alt_shift_left) - 1) == 0);
 	ASSERT_EQ_INT(10, editorDrawerWidthForCols(E.window_cols));
 
-	E.pane_focus = EDITOR_PANE_DRAWER;
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_left,
 				sizeof(alt_shift_left) - 1) == 0);
 	ASSERT_EQ_INT(9, editorDrawerWidthForCols(E.window_cols));
@@ -2986,6 +2987,196 @@ static int test_editor_process_keypress_ctrl_z_restore_oom_preserves_state(void)
 	return 0;
 }
 
+static int test_editor_column_select_extends_rectangle_with_shift_alt_arrows(void) {
+	add_row("hello world");
+	add_row("foobar baz!");
+	add_row("0123456789a");
+	E.cy = 0;
+	E.cx = 2;
+	E.pane_focus = EDITOR_PANE_TEXT;
+
+	const char alt_shift_down[] = "\x1b[1;4B";
+	const char alt_shift_right[] = "\x1b[1;4C";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
+				sizeof(alt_shift_down) - 1) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
+				sizeof(alt_shift_down) - 1) == 0);
+	for (int i = 0; i < 4; i++) {
+		ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_right,
+					sizeof(alt_shift_right) - 1) == 0);
+	}
+	ASSERT_EQ_INT(1, E.column_select_active);
+
+	struct editorColumnSelectionRect rect;
+	ASSERT_TRUE(editorColumnSelectionGetRect(&rect));
+	ASSERT_EQ_INT(0, rect.top_cy);
+	ASSERT_EQ_INT(2, rect.bottom_cy);
+	ASSERT_EQ_INT(2, rect.left_rx);
+	ASSERT_EQ_INT(6, rect.right_rx);
+	return 0;
+}
+
+static int test_editor_column_select_copy_joins_per_row_slices_with_newlines(void) {
+	add_row("hello world");
+	add_row("foobar baz!");
+	add_row("0123456789a");
+	E.cy = 0;
+	E.cx = 2;
+	E.pane_focus = EDITOR_PANE_TEXT;
+
+	const char alt_shift_down[] = "\x1b[1;4B";
+	const char alt_shift_right[] = "\x1b[1;4C";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
+				sizeof(alt_shift_down) - 1) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
+				sizeof(alt_shift_down) - 1) == 0);
+	for (int i = 0; i < 4; i++) {
+		ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_right,
+					sizeof(alt_shift_right) - 1) == 0);
+	}
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('c')) == 0);
+	size_t clip_len = 0;
+	const char *clip = editorClipboardGet(&clip_len);
+	ASSERT_TRUE(clip != NULL);
+	ASSERT_EQ_INT(14, (int)clip_len);
+	ASSERT_MEM_EQ("llo \nobar\n2345", clip, clip_len);
+	return 0;
+}
+
+static int test_editor_column_select_delete_removes_rectangle_per_row(void) {
+	add_row("hello world");
+	add_row("foobar baz!");
+	add_row("0123456789a");
+	E.cy = 0;
+	E.cx = 2;
+	E.pane_focus = EDITOR_PANE_TEXT;
+
+	const char alt_shift_down[] = "\x1b[1;4B";
+	const char alt_shift_right[] = "\x1b[1;4C";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
+				sizeof(alt_shift_down) - 1) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
+				sizeof(alt_shift_down) - 1) == 0);
+	for (int i = 0; i < 4; i++) {
+		ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_right,
+					sizeof(alt_shift_right) - 1) == 0);
+	}
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('d')) == 0);
+	ASSERT_EQ_INT(0, E.column_select_active);
+	ASSERT_EQ_STR("heworld", E.rows[0].chars);
+	ASSERT_EQ_STR("fo baz!", E.rows[1].chars);
+	ASSERT_EQ_STR("016789a", E.rows[2].chars);
+	return 0;
+}
+
+static int test_editor_column_select_typing_inserts_char_on_each_row(void) {
+	add_row("aaaa");
+	add_row("bbbb");
+	add_row("cccc");
+	E.cy = 0;
+	E.cx = 1;
+	E.pane_focus = EDITOR_PANE_TEXT;
+
+	const char alt_shift_down[] = "\x1b[1;4B";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
+				sizeof(alt_shift_down) - 1) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
+				sizeof(alt_shift_down) - 1) == 0);
+
+	ASSERT_TRUE(editor_process_single_key('X') == 0);
+	ASSERT_EQ_STR("aXaaa", E.rows[0].chars);
+	ASSERT_EQ_STR("bXbbb", E.rows[1].chars);
+	ASSERT_EQ_STR("cXccc", E.rows[2].chars);
+	ASSERT_EQ_INT(1, E.column_select_active);
+
+	// After typing the rect must remain multi-row (width 0) so subsequent typing
+	// continues to insert on every row in the original column-selection.
+	struct editorColumnSelectionRect rect;
+	ASSERT_TRUE(editorColumnSelectionGetRect(&rect));
+	ASSERT_EQ_INT(0, rect.top_cy);
+	ASSERT_EQ_INT(2, rect.bottom_cy);
+	ASSERT_EQ_INT(rect.right_rx, rect.left_rx);
+
+	ASSERT_TRUE(editor_process_single_key('Y') == 0);
+	ASSERT_EQ_STR("aXYaaa", E.rows[0].chars);
+	ASSERT_EQ_STR("bXYbbb", E.rows[1].chars);
+	ASSERT_EQ_STR("cXYccc", E.rows[2].chars);
+	return 0;
+}
+
+static int test_editor_column_select_toggling_linear_selection_clears_column_mode(void) {
+	add_row("abcdef");
+	add_row("ghijkl");
+	E.cy = 0;
+	E.cx = 1;
+	E.pane_focus = EDITOR_PANE_TEXT;
+
+	const char alt_shift_down[] = "\x1b[1;4B";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
+				sizeof(alt_shift_down) - 1) == 0);
+	ASSERT_EQ_INT(1, E.column_select_active);
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	ASSERT_EQ_INT(0, E.column_select_active);
+	ASSERT_EQ_INT(1, E.selection_mode_active);
+	return 0;
+}
+
+static int test_editor_column_select_alt_mouse_drag_starts_column_selection(void) {
+	add_row("abcdef");
+	add_row("ghijkl");
+	add_row("mnopqr");
+	E.window_rows = 4;
+	E.window_cols = 30;
+	E.cy = 0;
+	E.cx = 0;
+	E.pane_focus = EDITOR_PANE_TEXT;
+
+	int text_start = editorTextBodyStartColForCols(E.window_cols);
+	char press[32];
+	char drag[32];
+	// SGR press code for left button with Alt+Shift modifier (cb=12 = 8|4)
+	int written = snprintf(press, sizeof(press), "\x1b[<12;%d;%dM", text_start + 2, 2);
+	ASSERT_TRUE(written > 0 && (size_t)written < sizeof(press));
+	// Drag with motion bit (cb=32+12=44)
+	written = snprintf(drag, sizeof(drag), "\x1b[<44;%d;%dM", text_start + 5, 4);
+	ASSERT_TRUE(written > 0 && (size_t)written < sizeof(drag));
+
+	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
+	ASSERT_EQ_INT(1, E.column_select_active);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+
+	ASSERT_TRUE(editor_process_keypress_with_input(drag, strlen(drag)) == 0);
+	struct editorColumnSelectionRect rect;
+	ASSERT_TRUE(editorColumnSelectionGetRect(&rect));
+	ASSERT_EQ_INT(0, rect.top_cy);
+	ASSERT_EQ_INT(2, rect.bottom_cy);
+	ASSERT_EQ_INT(1, rect.left_rx);
+	ASSERT_EQ_INT(4, rect.right_rx);
+	return 0;
+}
+
+static int test_editor_column_select_plain_arrow_clears_mode(void) {
+	add_row("abcdef");
+	add_row("ghijkl");
+	E.cy = 0;
+	E.cx = 1;
+	E.pane_focus = EDITOR_PANE_TEXT;
+
+	const char alt_shift_down[] = "\x1b[1;4B";
+	const char arrow_down[] = "\x1b[B";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
+				sizeof(alt_shift_down) - 1) == 0);
+	ASSERT_EQ_INT(1, E.column_select_active);
+
+	ASSERT_TRUE(editor_process_keypress_with_input(arrow_down,
+				sizeof(arrow_down) - 1) == 0);
+	ASSERT_EQ_INT(0, E.column_select_active);
+	return 0;
+}
+
 const struct editorTestCase g_input_search_tests[] = {
 	{"editor_process_keypress_keymap_remap_changes_dispatch", test_editor_process_keypress_keymap_remap_changes_dispatch},
 	{"editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped_action", test_editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped_action},
@@ -2994,6 +3185,13 @@ const struct editorTestCase g_input_search_tests[] = {
 	{"editor_task_runner_merges_stderr_and_close_requires_confirmation", test_editor_task_runner_merges_stderr_and_close_requires_confirmation},
 	{"editor_task_runner_truncates_large_output", test_editor_task_runner_truncates_large_output},
 	{"editor_process_keypress_resize_drawer_shortcuts", test_editor_process_keypress_resize_drawer_shortcuts},
+	{"editor_column_select_extends_rectangle_with_shift_alt_arrows", test_editor_column_select_extends_rectangle_with_shift_alt_arrows},
+	{"editor_column_select_copy_joins_per_row_slices_with_newlines", test_editor_column_select_copy_joins_per_row_slices_with_newlines},
+	{"editor_column_select_delete_removes_rectangle_per_row", test_editor_column_select_delete_removes_rectangle_per_row},
+	{"editor_column_select_typing_inserts_char_on_each_row", test_editor_column_select_typing_inserts_char_on_each_row},
+	{"editor_column_select_toggling_linear_selection_clears_column_mode", test_editor_column_select_toggling_linear_selection_clears_column_mode},
+	{"editor_column_select_alt_mouse_drag_starts_column_selection", test_editor_column_select_alt_mouse_drag_starts_column_selection},
+	{"editor_column_select_plain_arrow_clears_mode", test_editor_column_select_plain_arrow_clears_mode},
 	{"editor_process_keypress_toggle_drawer_shortcut_collapses_and_expands", test_editor_process_keypress_toggle_drawer_shortcut_collapses_and_expands},
 	{"editor_tabs_switch_restores_per_tab_state", test_editor_tabs_switch_restores_per_tab_state},
 	{"editor_tab_close_last_tab_keeps_one_empty_tab", test_editor_tab_close_last_tab_keeps_one_empty_tab},

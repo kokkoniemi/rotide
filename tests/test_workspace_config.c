@@ -1,5 +1,6 @@
 #include "test_case.h"
 #include "test_support.h"
+#include "config/editor_config.h"
 #include "workspace/file_search.h"
 #include "workspace/project_search.h"
 
@@ -956,8 +957,10 @@ static int test_editor_read_key_sgr_mouse_events(void) {
 
 	ASSERT_TRUE(editor_read_key_with_input(modifier_drag_then_plain,
 				sizeof(modifier_drag_then_plain) - 1, &key) == 0);
-	ASSERT_EQ_INT('Z', key);
-	ASSERT_EQ_INT(0, editorConsumeMouseEvent(&event));
+	ASSERT_EQ_INT(MOUSE_EVENT, key);
+	ASSERT_TRUE(editorConsumeMouseEvent(&event) == 1);
+	ASSERT_EQ_INT(EDITOR_MOUSE_EVENT_LEFT_DRAG, event.kind);
+	ASSERT_EQ_INT(EDITOR_MOUSE_MOD_SHIFT, event.modifiers);
 
 	ASSERT_TRUE(editor_read_key_with_input(unsupported_then_plain,
 				sizeof(unsupported_then_plain) - 1, &key) == 0);
@@ -2053,8 +2056,8 @@ static int test_editor_keymap_load_modifier_combo_specs_case_insensitive(void) {
 				"next_tab = \"CTRL+ALT+RIGHT\"\n"
 				"prev_tab = \"ctrl+UP\"\n"
 				"toggle_drawer = \"ctrl+alt+e\"\n"
-				"resize_drawer_narrow = \"SHIFT+ALT+LEFT\"\n"
-				"resize_drawer_widen = \"aLt+ShIfT+RiGhT\"\n"
+				"column_select_left = \"SHIFT+ALT+LEFT\"\n"
+				"column_select_right = \"aLt+ShIfT+RiGhT\"\n"
 				"move_left = \"AlT+b\"\n"
 				"move_right = \"cTrL+aLt+z\"\n"));
 
@@ -2075,9 +2078,9 @@ static int test_editor_keymap_load_modifier_combo_specs_case_insensitive(void) {
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_CTRL_ALT_LETTER_KEY('z'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_MOVE_RIGHT, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_SHIFT_ARROW_LEFT, &action));
-	ASSERT_EQ_INT(EDITOR_ACTION_RESIZE_DRAWER_NARROW, action);
+	ASSERT_EQ_INT(EDITOR_ACTION_COLUMN_SELECT_LEFT, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_SHIFT_ARROW_RIGHT, &action));
-	ASSERT_EQ_INT(EDITOR_ACTION_RESIZE_DRAWER_WIDEN, action);
+	ASSERT_EQ_INT(EDITOR_ACTION_COLUMN_SELECT_RIGHT, action);
 
 	char binding[24];
 	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_MOVE_LEFT, binding, sizeof(binding)));
@@ -2091,10 +2094,10 @@ static int test_editor_keymap_load_modifier_combo_specs_case_insensitive(void) {
 	ASSERT_EQ_STR("Ctrl-Alt-E", binding);
 	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_NEXT_TAB, binding, sizeof(binding)));
 	ASSERT_EQ_STR("Ctrl-Alt-Right", binding);
-	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_RESIZE_DRAWER_NARROW, binding,
+	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_COLUMN_SELECT_LEFT, binding,
 				sizeof(binding)));
 	ASSERT_EQ_STR("Alt-Shift-Left", binding);
-	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_RESIZE_DRAWER_WIDEN, binding,
+	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_COLUMN_SELECT_RIGHT, binding,
 				sizeof(binding)));
 	ASSERT_EQ_STR("Alt-Shift-Right", binding);
 
@@ -2139,6 +2142,57 @@ static int test_editor_keymap_load_invalid_modifier_combos_fall_back_to_defaults
 	return 0;
 }
 
+static int test_editor_parse_column_select_drag_modifier_value(void) {
+	int value = 0;
+	ASSERT_TRUE(editorParseColumnSelectDragModifierValue("alt", &value));
+	ASSERT_EQ_INT(EDITOR_MOUSE_MOD_ALT, value);
+	ASSERT_TRUE(editorParseColumnSelectDragModifierValue("alt+shift", &value));
+	ASSERT_EQ_INT(EDITOR_MOUSE_MOD_ALT | EDITOR_MOUSE_MOD_SHIFT, value);
+	ASSERT_TRUE(editorParseColumnSelectDragModifierValue("Shift+ALT", &value));
+	ASSERT_EQ_INT(EDITOR_MOUSE_MOD_ALT | EDITOR_MOUSE_MOD_SHIFT, value);
+	ASSERT_TRUE(editorParseColumnSelectDragModifierValue("ctrl+alt", &value));
+	ASSERT_EQ_INT(EDITOR_MOUSE_MOD_ALT | EDITOR_MOUSE_MOD_CTRL, value);
+	ASSERT_TRUE(editorParseColumnSelectDragModifierValue("none", &value));
+	ASSERT_EQ_INT(0, value);
+	ASSERT_TRUE(editorParseColumnSelectDragModifierValue("\"alt+shift\"", &value));
+	ASSERT_EQ_INT(EDITOR_MOUSE_MOD_ALT | EDITOR_MOUSE_MOD_SHIFT, value);
+
+	ASSERT_TRUE(!editorParseColumnSelectDragModifierValue("", &value));
+	ASSERT_TRUE(!editorParseColumnSelectDragModifierValue("foo", &value));
+	ASSERT_TRUE(!editorParseColumnSelectDragModifierValue("alt+", &value));
+	ASSERT_TRUE(!editorParseColumnSelectDragModifierValue("+alt", &value));
+	ASSERT_TRUE(!editorParseColumnSelectDragModifierValue("alt+alt", &value));
+	ASSERT_TRUE(!editorParseColumnSelectDragModifierValue("alt+none", &value));
+	return 0;
+}
+
+static int test_editor_column_select_drag_modifier_load_from_paths(void) {
+	char dir_template[] = "/tmp/rotide-test-cs-mod-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[editor]\ncolumn_select_drag_modifier = \"ctrl+alt\"\n"));
+
+	int modifier = 0;
+	enum editorColumnSelectDragModifierLoadStatus status =
+			editorColumnSelectDragModifierLoadFromPaths(&modifier, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_OK, status);
+	ASSERT_EQ_INT(EDITOR_MOUSE_MOD_ALT | EDITOR_MOUSE_MOD_CTRL, modifier);
+
+	ASSERT_TRUE(write_text_file(project_path,
+				"[editor]\ncolumn_select_drag_modifier = \"banana\"\n"));
+	status = editorColumnSelectDragModifierLoadFromPaths(&modifier, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_INVALID_PROJECT, status);
+	ASSERT_EQ_INT(EDITOR_MOUSE_MOD_ALT | EDITOR_MOUSE_MOD_SHIFT, modifier);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 static int test_editor_keymap_defaults_include_tab_actions(void) {
 	struct editorKeymap keymap;
 	editorKeymapInitDefaults(&keymap);
@@ -2157,9 +2211,13 @@ static int test_editor_keymap_defaults_include_tab_actions(void) {
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_CTRL_ALT_LETTER_KEY('e'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_TOGGLE_DRAWER, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_SHIFT_ARROW_LEFT, &action));
-	ASSERT_EQ_INT(EDITOR_ACTION_RESIZE_DRAWER_NARROW, action);
+	ASSERT_EQ_INT(EDITOR_ACTION_COLUMN_SELECT_LEFT, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_SHIFT_ARROW_RIGHT, &action));
-	ASSERT_EQ_INT(EDITOR_ACTION_RESIZE_DRAWER_WIDEN, action);
+	ASSERT_EQ_INT(EDITOR_ACTION_COLUMN_SELECT_RIGHT, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_SHIFT_ARROW_UP, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_COLUMN_SELECT_UP, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_SHIFT_ARROW_DOWN, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_COLUMN_SELECT_DOWN, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('z'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_TOGGLE_LINE_WRAP, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('n'), &action));
@@ -2414,6 +2472,8 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_syntax_theme_invalid_entries_nonfatal_and_keymap_still_loads", test_editor_syntax_theme_invalid_entries_nonfatal_and_keymap_still_loads},
 	{"editor_keymap_load_modifier_combo_specs_case_insensitive", test_editor_keymap_load_modifier_combo_specs_case_insensitive},
 	{"editor_keymap_load_invalid_modifier_combos_fall_back_to_defaults", test_editor_keymap_load_invalid_modifier_combos_fall_back_to_defaults},
+	{"editor_parse_column_select_drag_modifier_value", test_editor_parse_column_select_drag_modifier_value},
+	{"editor_column_select_drag_modifier_load_from_paths", test_editor_column_select_drag_modifier_load_from_paths},
 	{"editor_keymap_defaults_include_tab_actions", test_editor_keymap_defaults_include_tab_actions},
 	{"editor_keymap_load_accepts_toggle_line_wrap_alt_z", test_editor_keymap_load_accepts_toggle_line_wrap_alt_z},
 	{"editor_keymap_load_accepts_line_number_highlight_toggles", test_editor_keymap_load_accepts_line_number_highlight_toggles},

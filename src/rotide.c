@@ -79,6 +79,10 @@ void initEditor(void) {
 	E.search_saved_offset = 0;
 	E.selection_mode_active = 0;
 	E.selection_anchor_offset = 0;
+	E.column_select_active = 0;
+	E.column_select_anchor_cy = 0;
+	E.column_select_anchor_rx = 0;
+	E.column_select_cursor_rx = 0;
 	E.mouse_left_button_down = 0;
 	E.mouse_drag_anchor_offset = 0;
 	E.mouse_drag_started = 0;
@@ -151,6 +155,7 @@ void initEditor(void) {
 	E.line_wrap_enabled = 0;
 	E.line_numbers_enabled = 1;
 	E.current_line_highlight_enabled = 1;
+	E.column_select_drag_modifier = EDITOR_MOUSE_MOD_ALT;
 	editorSyntaxThemeInitDefaults(E.syntax_theme);
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
 	E.pane_focus = EDITOR_PANE_TEXT;
@@ -185,6 +190,8 @@ int main(int argc, char *argv[]) {
 			editorLineNumbersLoadConfigured(&E.line_numbers_enabled);
 	enum editorCurrentLineHighlightLoadStatus current_line_highlight_status =
 			editorCurrentLineHighlightLoadConfigured(&E.current_line_highlight_enabled);
+	enum editorColumnSelectDragModifierLoadStatus column_select_drag_modifier_status =
+			editorColumnSelectDragModifierLoadConfigured(&E.column_select_drag_modifier);
 	enum editorSyntaxThemeLoadStatus syntax_theme_status =
 			editorSyntaxThemeLoadConfigured(E.syntax_theme);
 	enum editorLspConfigLoadStatus lsp_config_status =
@@ -217,6 +224,8 @@ int main(int argc, char *argv[]) {
 			(line_numbers_status & EDITOR_LINE_NUMBERS_LOAD_OUT_OF_MEMORY) != 0 ||
 			(current_line_highlight_status &
 					EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_OUT_OF_MEMORY) != 0 ||
+			(column_select_drag_modifier_status &
+					EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_OUT_OF_MEMORY) != 0 ||
 			(syntax_theme_status & EDITOR_SYNTAX_THEME_LOAD_OUT_OF_MEMORY) != 0 ||
 			(lsp_config_status & EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY) != 0) {
 		editorSetStatusMsg("Out of memory");
@@ -268,6 +277,20 @@ int main(int argc, char *argv[]) {
 					EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_INVALID_GLOBAL) != 0) {
 		editorSetStatusMsg(
 				"Invalid current_line_highlight in ~/.rotide/config.toml, using true");
+	} else if ((column_select_drag_modifier_status &
+					EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_INVALID_GLOBAL) != 0 &&
+			(column_select_drag_modifier_status &
+					EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_INVALID_PROJECT) != 0) {
+		editorSetStatusMsg(
+				"Invalid column_select_drag_modifier in global/project config, using alt");
+	} else if ((column_select_drag_modifier_status &
+					EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_INVALID_PROJECT) != 0) {
+		editorSetStatusMsg(
+				"Invalid column_select_drag_modifier in ./.rotide.toml, using alt");
+	} else if ((column_select_drag_modifier_status &
+					EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_INVALID_GLOBAL) != 0) {
+		editorSetStatusMsg(
+				"Invalid column_select_drag_modifier in ~/.rotide/config.toml, using alt");
 	} else if ((syntax_theme_status & EDITOR_SYNTAX_THEME_LOAD_INVALID_GLOBAL) != 0 &&
 			(syntax_theme_status & EDITOR_SYNTAX_THEME_LOAD_INVALID_PROJECT) != 0) {
 		editorSetStatusMsg("Invalid [theme.syntax] in global/project config, using defaults");

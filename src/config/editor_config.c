@@ -640,3 +640,263 @@ enum editorCurrentLineHighlightLoadStatus editorCurrentLineHighlightLoadConfigur
 	free(global_path);
 	return status;
 }
+
+static int editorColumnSelectDragModifierTokenBit(const char *token, int *bit_out, int *is_none) {
+	if (strcmp(token, "alt") == 0) {
+		*bit_out = EDITOR_MOUSE_MOD_ALT;
+		*is_none = 0;
+		return 1;
+	}
+	if (strcmp(token, "shift") == 0) {
+		*bit_out = EDITOR_MOUSE_MOD_SHIFT;
+		*is_none = 0;
+		return 1;
+	}
+	if (strcmp(token, "ctrl") == 0) {
+		*bit_out = EDITOR_MOUSE_MOD_CTRL;
+		*is_none = 0;
+		return 1;
+	}
+	if (strcmp(token, "none") == 0) {
+		*bit_out = 0;
+		*is_none = 1;
+		return 1;
+	}
+	return 0;
+}
+
+int editorParseColumnSelectDragModifierValue(const char *value, int *modifier_out) {
+	if (value == NULL || modifier_out == NULL) {
+		return 0;
+	}
+	const char *p = value;
+	while (*p == ' ' || *p == '\t') {
+		p++;
+	}
+	if (*p == '"' || *p == '\'') {
+		p++;
+	}
+
+	int modifiers = 0;
+	int parsed_any = 0;
+	int saw_none = 0;
+	char token[16];
+	size_t token_len = 0;
+	int expecting_token = 1;
+
+	while (1) {
+		char c = *p;
+		if (c == '\0' || c == '"' || c == '\'' || c == '+') {
+			if (token_len == 0) {
+				if (c == '+') {
+					return 0;
+				}
+				if (expecting_token && parsed_any) {
+					return 0;
+				}
+				break;
+			}
+			token[token_len] = '\0';
+			for (size_t i = 0; i < token_len; i++) {
+				if (token[i] >= 'A' && token[i] <= 'Z') {
+					token[i] = (char)(token[i] - 'A' + 'a');
+				}
+			}
+			int bit = 0;
+			int is_none = 0;
+			if (!editorColumnSelectDragModifierTokenBit(token, &bit, &is_none)) {
+				return 0;
+			}
+			if (is_none) {
+				if (parsed_any) {
+					return 0;
+				}
+				saw_none = 1;
+			} else {
+				if (saw_none) {
+					return 0;
+				}
+				if (modifiers & bit) {
+					return 0;
+				}
+				modifiers |= bit;
+			}
+			parsed_any = 1;
+			token_len = 0;
+			expecting_token = (c == '+');
+			if (c == '\0' || c == '"' || c == '\'') {
+				break;
+			}
+			p++;
+			continue;
+		}
+		if (token_len + 1 >= sizeof(token)) {
+			return 0;
+		}
+		token[token_len++] = c;
+		p++;
+	}
+
+	if (!parsed_any) {
+		return 0;
+	}
+	*modifier_out = saw_none ? 0 : modifiers;
+	return 1;
+}
+
+enum editorColumnSelectDragModifierFileStatus {
+	EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_APPLIED = 0,
+	EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_MISSING,
+	EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID,
+	EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_OUT_OF_MEMORY
+};
+
+static enum editorColumnSelectDragModifierFileStatus
+editorColumnSelectDragModifierApplyConfigFile(int *modifier_in_out, const char *path) {
+	FILE *fp = fopen(path, "r");
+	if (fp == NULL) {
+		if (errno == ENOENT) {
+			return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_MISSING;
+		}
+		return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
+	}
+
+	int updated = *modifier_in_out;
+	int in_editor_table = 0;
+	char line[1024];
+	while (fgets(line, sizeof(line), fp) != NULL) {
+		size_t line_len = strlen(line);
+		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
+			fclose(fp);
+			return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
+		}
+
+		editorConfigStripInlineComment(line);
+		editorConfigTrimRight(line);
+		char *trimmed = editorConfigTrimLeft(line);
+		if (trimmed[0] == '\0') {
+			continue;
+		}
+
+		if (trimmed[0] == '[') {
+			char *close = strchr(trimmed, ']');
+			if (close == NULL) {
+				fclose(fp);
+				return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
+			}
+			*close = '\0';
+			char *table = editorConfigTrimLeft(trimmed + 1);
+			editorConfigTrimRight(table);
+			char *tail = editorConfigTrimLeft(close + 1);
+			if (tail[0] != '\0') {
+				fclose(fp);
+				return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
+			}
+			in_editor_table = strcmp(table, "editor") == 0;
+			continue;
+		}
+
+		if (!in_editor_table) {
+			continue;
+		}
+
+		char *eq = strchr(trimmed, '=');
+		if (eq == NULL) {
+			fclose(fp);
+			return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
+		}
+
+		*eq = '\0';
+		char *setting_name = editorConfigTrimLeft(trimmed);
+		editorConfigTrimRight(setting_name);
+		char *value = editorConfigTrimLeft(eq + 1);
+		editorConfigTrimRight(value);
+		if (setting_name[0] == '\0') {
+			fclose(fp);
+			return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
+		}
+		if (strcmp(setting_name, "column_select_drag_modifier") != 0) {
+			continue;
+		}
+
+		int parsed = 0;
+		if (!editorParseColumnSelectDragModifierValue(value, &parsed)) {
+			fclose(fp);
+			return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
+		}
+		updated = parsed;
+	}
+
+	if (ferror(fp)) {
+		fclose(fp);
+		return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
+	}
+
+	fclose(fp);
+	*modifier_in_out = updated;
+	return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_APPLIED;
+}
+
+enum editorColumnSelectDragModifierLoadStatus
+editorColumnSelectDragModifierLoadFromPaths(int *modifier_out, const char *global_path,
+		const char *project_path) {
+	if (modifier_out == NULL) {
+		return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_OUT_OF_MEMORY;
+	}
+
+	int default_modifier = EDITOR_MOUSE_MOD_ALT;
+	int modifier = default_modifier;
+	enum editorColumnSelectDragModifierLoadStatus status =
+			EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_OK;
+
+	if (global_path != NULL) {
+		enum editorColumnSelectDragModifierFileStatus s =
+				editorColumnSelectDragModifierApplyConfigFile(&modifier, global_path);
+		if (s == EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_OUT_OF_MEMORY) {
+			*modifier_out = default_modifier;
+			return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_OUT_OF_MEMORY;
+		}
+		if (s == EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID) {
+			modifier = default_modifier;
+			status = (enum editorColumnSelectDragModifierLoadStatus)(
+					status | EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_INVALID_GLOBAL);
+		}
+	}
+
+	if (project_path != NULL) {
+		enum editorColumnSelectDragModifierFileStatus s =
+				editorColumnSelectDragModifierApplyConfigFile(&modifier, project_path);
+		if (s == EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_OUT_OF_MEMORY) {
+			*modifier_out = default_modifier;
+			return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_OUT_OF_MEMORY;
+		}
+		if (s == EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID) {
+			modifier = default_modifier;
+			status = (enum editorColumnSelectDragModifierLoadStatus)(
+					status | EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_INVALID_PROJECT);
+		}
+	}
+
+	*modifier_out = modifier;
+	return status;
+}
+
+enum editorColumnSelectDragModifierLoadStatus
+editorColumnSelectDragModifierLoadConfigured(int *modifier_out) {
+	if (modifier_out == NULL) {
+		return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_OUT_OF_MEMORY;
+	}
+	const char *home = getenv("HOME");
+	if (home == NULL || home[0] == '\0') {
+		return editorColumnSelectDragModifierLoadFromPaths(modifier_out, NULL, ".rotide.toml");
+	}
+	char *global_path = editorConfigBuildGlobalConfigPath();
+	if (global_path == NULL) {
+		*modifier_out = EDITOR_MOUSE_MOD_ALT;
+		return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_OUT_OF_MEMORY;
+	}
+	enum editorColumnSelectDragModifierLoadStatus status =
+			editorColumnSelectDragModifierLoadFromPaths(modifier_out, global_path, ".rotide.toml");
+	free(global_path);
+	return status;
+}

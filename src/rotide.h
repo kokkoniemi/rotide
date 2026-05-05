@@ -96,6 +96,13 @@ struct editorSelectionRange {
 	int end_cx;
 };
 
+struct editorColumnSelectionRect {
+	int top_cy;
+	int bottom_cy;
+	int left_rx;
+	int right_rx;
+};
+
 struct editorLspDiagnostic {
 	int start_line;
 	int start_character;
@@ -303,6 +310,10 @@ enum editorAction {
 	EDITOR_ACTION_MOVE_LINE_UP,
 	EDITOR_ACTION_MOVE_LINE_DOWN,
 	EDITOR_ACTION_TOGGLE_COMMENT,
+	EDITOR_ACTION_COLUMN_SELECT_UP,
+	EDITOR_ACTION_COLUMN_SELECT_DOWN,
+	EDITOR_ACTION_COLUMN_SELECT_LEFT,
+	EDITOR_ACTION_COLUMN_SELECT_RIGHT,
 	EDITOR_ACTION_COUNT
 };
 
@@ -404,6 +415,10 @@ struct editorTabState {
 	size_t search_saved_offset;
 	int selection_mode_active;
 	size_t selection_anchor_offset;
+	int column_select_active;
+	int column_select_anchor_cy;
+	int column_select_anchor_rx;
+	int column_select_cursor_rx;
 	int mouse_left_button_down;
 	size_t mouse_drag_anchor_offset;
 	int mouse_drag_started;
@@ -481,6 +496,10 @@ struct editorConfig {
 	size_t search_saved_offset;
 	int selection_mode_active;
 	size_t selection_anchor_offset;
+	int column_select_active;
+	int column_select_anchor_cy;
+	int column_select_anchor_rx;
+	int column_select_cursor_rx;
 	int mouse_left_button_down;
 	size_t mouse_drag_anchor_offset;
 	int mouse_drag_started;
@@ -551,6 +570,7 @@ struct editorConfig {
 	int line_wrap_enabled;
 	int line_numbers_enabled;
 	int current_line_highlight_enabled;
+	int column_select_drag_modifier;
 	enum editorThemeColor syntax_theme[EDITOR_SYNTAX_HL_CLASS_COUNT];
 	enum editorViewportMode viewport_mode;
 	enum editorPaneFocus pane_focus;

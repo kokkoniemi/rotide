@@ -38,6 +38,13 @@ enum editorCurrentLineHighlightLoadStatus {
 	EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_OUT_OF_MEMORY = 1 << 2
 };
 
+enum editorColumnSelectDragModifierLoadStatus {
+	EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_OK = 0,
+	EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_INVALID_GLOBAL = 1 << 0,
+	EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_INVALID_PROJECT = 1 << 1,
+	EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_OUT_OF_MEMORY = 1 << 2
+};
+
 enum editorCursorStyleLoadStatus editorCursorStyleLoadFromPaths(enum editorCursorStyle *style_out,
 		const char *global_path, const char *project_path);
 enum editorCursorStyleLoadStatus editorCursorStyleLoadConfigured(enum editorCursorStyle *style_out);
@@ -54,5 +61,11 @@ enum editorCurrentLineHighlightLoadStatus editorCurrentLineHighlightLoadFromPath
 		int *current_line_highlight_out, const char *global_path, const char *project_path);
 enum editorCurrentLineHighlightLoadStatus editorCurrentLineHighlightLoadConfigured(
 		int *current_line_highlight_out);
+
+enum editorColumnSelectDragModifierLoadStatus editorColumnSelectDragModifierLoadFromPaths(
+		int *modifier_out, const char *global_path, const char *project_path);
+enum editorColumnSelectDragModifierLoadStatus editorColumnSelectDragModifierLoadConfigured(
+		int *modifier_out);
+int editorParseColumnSelectDragModifierValue(const char *value, int *modifier_out);
 
 #endif

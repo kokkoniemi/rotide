@@ -135,6 +135,10 @@ void editorResetActiveBufferFields(void) {
 	E.search_saved_offset = 0;
 	E.selection_mode_active = 0;
 	E.selection_anchor_offset = 0;
+	E.column_select_active = 0;
+	E.column_select_anchor_cy = 0;
+	E.column_select_anchor_rx = 0;
+	E.column_select_cursor_rx = 0;
 	E.mouse_left_button_down = 0;
 	E.mouse_drag_anchor_offset = 0;
 	E.mouse_drag_started = 0;
@@ -273,6 +277,10 @@ static void editorTabStateCaptureActive(struct editorTabState *tab) {
 	tab->search_saved_offset = E.search_saved_offset;
 	tab->selection_mode_active = E.selection_mode_active;
 	tab->selection_anchor_offset = E.selection_anchor_offset;
+	tab->column_select_active = E.column_select_active;
+	tab->column_select_anchor_cy = E.column_select_anchor_cy;
+	tab->column_select_anchor_rx = E.column_select_anchor_rx;
+	tab->column_select_cursor_rx = E.column_select_cursor_rx;
 	tab->mouse_left_button_down = E.mouse_left_button_down;
 	tab->mouse_drag_anchor_offset = E.mouse_drag_anchor_offset;
 	tab->mouse_drag_started = E.mouse_drag_started;
@@ -331,6 +339,10 @@ static void editorTabStateLoadActive(struct editorTabState *tab) {
 	E.search_saved_offset = tab->search_saved_offset;
 	E.selection_mode_active = tab->selection_mode_active;
 	E.selection_anchor_offset = tab->selection_anchor_offset;
+	E.column_select_active = tab->column_select_active;
+	E.column_select_anchor_cy = tab->column_select_anchor_cy;
+	E.column_select_anchor_rx = tab->column_select_anchor_rx;
+	E.column_select_cursor_rx = tab->column_select_cursor_rx;
 	E.mouse_left_button_down = tab->mouse_left_button_down;
 	E.mouse_drag_anchor_offset = tab->mouse_drag_anchor_offset;
 	E.mouse_drag_started = tab->mouse_drag_started;

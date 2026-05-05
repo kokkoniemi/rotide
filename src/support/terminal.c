@@ -152,7 +152,6 @@ static int editorDecodeSgrMousePayload(const char *payload, struct editorMouseEv
 	}
 
 	int button = cb & 0x03;
-	int has_modifiers = cb & (4 | 8 | 16);
 	int has_shift = cb & 4;
 	int has_alt = cb & 8;
 	int has_ctrl = cb & 16;
@@ -203,7 +202,9 @@ static int editorDecodeSgrMousePayload(const char *payload, struct editorMouseEv
 	}
 
 	if (has_motion) {
-		if (!has_modifiers && button == 0) {
+		// Forward all left-button drags including modifier-decorated ones; the
+		// dispatch layer decides which modifier combos do what.
+		if (button == 0) {
 			event_out->kind = EDITOR_MOUSE_EVENT_LEFT_DRAG;
 		}
 		return 1;

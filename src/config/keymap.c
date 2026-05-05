@@ -71,6 +71,10 @@ static const struct editorActionName editor_action_names[] = {
 	{"move_line_up", EDITOR_ACTION_MOVE_LINE_UP},
 	{"move_line_down", EDITOR_ACTION_MOVE_LINE_DOWN},
 	{"toggle_comment", EDITOR_ACTION_TOGGLE_COMMENT},
+	{"column_select_up", EDITOR_ACTION_COLUMN_SELECT_UP},
+	{"column_select_down", EDITOR_ACTION_COLUMN_SELECT_DOWN},
+	{"column_select_left", EDITOR_ACTION_COLUMN_SELECT_LEFT},
+	{"column_select_right", EDITOR_ACTION_COLUMN_SELECT_RIGHT},
 };
 
 static const struct editorNamedKey editor_named_keys[] = {
@@ -603,9 +607,13 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 	(void)editorKeymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('e'),
 			EDITOR_ACTION_TOGGLE_DRAWER);
 	(void)editorKeymapAppendBinding(keymap, ALT_SHIFT_ARROW_LEFT,
-			EDITOR_ACTION_RESIZE_DRAWER_NARROW);
+			EDITOR_ACTION_COLUMN_SELECT_LEFT);
 	(void)editorKeymapAppendBinding(keymap, ALT_SHIFT_ARROW_RIGHT,
-			EDITOR_ACTION_RESIZE_DRAWER_WIDEN);
+			EDITOR_ACTION_COLUMN_SELECT_RIGHT);
+	(void)editorKeymapAppendBinding(keymap, ALT_SHIFT_ARROW_UP,
+			EDITOR_ACTION_COLUMN_SELECT_UP);
+	(void)editorKeymapAppendBinding(keymap, ALT_SHIFT_ARROW_DOWN,
+			EDITOR_ACTION_COLUMN_SELECT_DOWN);
 	(void)editorKeymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('z'),
 			EDITOR_ACTION_TOGGLE_LINE_WRAP);
 	(void)editorKeymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('n'),

@@ -316,6 +316,7 @@ static int editorSearchMatchPosition(int *row_out, int *col_out) {
 static void editorClearSelectionMode(void) {
 	E.selection_mode_active = 0;
 	E.selection_anchor_offset = 0;
+	editorColumnSelectionClear();
 }
 
 int editorPromptYesNo(const char *prompt) {
@@ -522,6 +523,7 @@ static void editorToggleSelectionMode(void) {
 		return;
 	}
 
+	editorColumnSelectionClear();
 	editorAlignCursorWithRowEnd();
 	E.selection_mode_active = 1;
 	E.selection_anchor_offset = E.cursor_offset;
@@ -547,7 +549,39 @@ static int editorCopyRangeToClipboard(const struct editorSelectionRange *range, 
 	return 1;
 }
 
+static int editorCopyColumnSelectionToClipboard(size_t *copied_len_out) {
+	char *text = NULL;
+	size_t len = 0;
+	int rc = editorColumnSelectionExtractText(&text, &len);
+	if (rc <= 0) {
+		return rc;
+	}
+	if (!editorClipboardSet(text, len)) {
+		free(text);
+		return -1;
+	}
+	free(text);
+	if (copied_len_out != NULL) {
+		*copied_len_out = len;
+	}
+	return 1;
+}
+
 static void editorCopySelection(void) {
+	if (E.column_select_active) {
+		size_t copied_len = 0;
+		int copied = editorCopyColumnSelectionToClipboard(&copied_len);
+		if (copied < 0) {
+			return;
+		}
+		if (copied == 0) {
+			editorSetStatusMsg("Selection is empty");
+			return;
+		}
+		editorSetStatusMsg("Copied %zu bytes", copied_len);
+		return;
+	}
+
 	struct editorSelectionRange range;
 	if (!editorGetSelectionRange(&range)) {
 		editorSetStatusMsg("No selection");
@@ -568,6 +602,27 @@ static void editorCopySelection(void) {
 }
 
 static void editorCutSelection(void) {
+	if (E.column_select_active) {
+		size_t copied_len = 0;
+		int copied = editorCopyColumnSelectionToClipboard(&copied_len);
+		if (copied < 0) {
+			return;
+		}
+		if (copied == 0) {
+			editorSetStatusMsg("Selection is empty");
+			return;
+		}
+		editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
+		int dirty_before = E.dirty;
+		int deleted = editorColumnSelectionDelete();
+		editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+		if (deleted < 0) {
+			return;
+		}
+		editorSetStatusMsg("Cut %zu bytes", copied_len);
+		return;
+	}
+
 	struct editorSelectionRange range;
 	if (!editorGetSelectionRange(&range)) {
 		editorSetStatusMsg("No selection");
@@ -1009,6 +1064,17 @@ static int editorIndentSelection(void) {
 }
 
 static void editorDeleteSelection(void) {
+	if (E.column_select_active) {
+		editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
+		int dirty_before = E.dirty;
+		int deleted = editorColumnSelectionDelete();
+		editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+		if (deleted < 0) {
+			return;
+		}
+		return;
+	}
+
 	struct editorSelectionRange range;
 	if (!editorGetSelectionRange(&range)) {
 		editorSetStatusMsg("No selection");
@@ -1034,6 +1100,18 @@ static void editorPasteClipboard(void) {
 	const char *clip = editorClipboardGet(&clip_len);
 	if (clip_len <= 0) {
 		editorSetStatusMsg("Clipboard is empty");
+		return;
+	}
+
+	if (E.column_select_active) {
+		editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+		int dirty_before = E.dirty;
+		int pasted = editorColumnSelectionPasteText(clip, clip_len);
+		editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+		editorHistoryBreakGroup();
+		if (pasted) {
+			editorSetStatusMsg("Pasted %zu bytes", clip_len);
+		}
 		return;
 	}
 
@@ -1597,6 +1675,59 @@ static void editorMoveCursor(int k) {
 	(void)editorSetCursorFromPosition(cy, cx);
 }
 
+static int editorColumnSelectionCurrentRx(void) {
+	if (E.cy >= 0 && E.cy < E.numrows) {
+		return editorRowCxToRx(&E.rows[E.cy], E.cx);
+	}
+	return 0;
+}
+
+static void editorColumnSelectionEnsureActive(void) {
+	if (E.column_select_active) {
+		return;
+	}
+	E.selection_mode_active = 0;
+	E.selection_anchor_offset = 0;
+	E.column_select_active = 1;
+	E.column_select_anchor_cy = E.cy;
+	E.column_select_anchor_rx = editorColumnSelectionCurrentRx();
+	E.column_select_cursor_rx = E.column_select_anchor_rx;
+}
+
+static void editorColumnSelectionApplyCursorRx(void) {
+	int target_rx = E.column_select_cursor_rx;
+	int cy = E.cy;
+	int cx = 0;
+	if (cy < 0) {
+		cy = 0;
+	}
+	if (cy > E.numrows) {
+		cy = E.numrows;
+	}
+	if (cy < E.numrows) {
+		cx = editorRowRxToCx(&E.rows[cy], target_rx);
+	}
+	(void)editorSetCursorFromPosition(cy, cx);
+}
+
+static void editorColumnSelectionMove(int dy, int drx) {
+	editorColumnSelectionEnsureActive();
+	int new_cy = E.cy + dy;
+	if (new_cy < 0) {
+		new_cy = 0;
+	}
+	if (new_cy > E.numrows) {
+		new_cy = E.numrows;
+	}
+	E.cy = new_cy;
+	int new_rx = E.column_select_cursor_rx + drx;
+	if (new_rx < 0) {
+		new_rx = 0;
+	}
+	E.column_select_cursor_rx = new_rx;
+	editorColumnSelectionApplyCursorRx();
+}
+
 static int editorResolveMouseToBufferOffset(const struct editorMouseEvent *event,
 		int clamp_to_viewport, size_t *offset_out) {
 	if (event == NULL || offset_out == NULL || E.numrows == 0) {
@@ -1791,6 +1922,15 @@ static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 		editorGoToDefinition();
 		return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 	}
+	int column_modifier = E.column_select_drag_modifier;
+	if (column_modifier != 0 && event->modifiers == column_modifier) {
+		// Anchor a column selection at the click position; drag will extend it.
+		E.column_select_active = 1;
+		E.column_select_anchor_cy = E.cy;
+		E.column_select_anchor_rx = (E.cy < E.numrows)
+				? editorRowCxToRx(&E.rows[E.cy], E.cx) : 0;
+		E.column_select_cursor_rx = E.column_select_anchor_rx;
+	}
 	E.mouse_left_button_down = 1;
 	E.mouse_drag_anchor_offset = E.cursor_offset;
 	E.mouse_drag_started = 0;
@@ -1806,12 +1946,46 @@ static int editorHandleMouseLeftDrag(const struct editorMouseEvent *event) {
 	if (!E.mouse_left_button_down) {
 		return EDITOR_KEYPRESS_EFFECT_NONE;
 	}
+	if (E.column_select_active) {
+		// Resolve mouse to an rx/cy and extend the column selection there.
+		int mouse_col = event->x - 1;
+		int text_start = editorTextBodyStartColForCols(E.window_cols);
+		int text_cols = editorTextBodyViewportCols(E.window_cols);
+		int rel_col = mouse_col - text_start;
+		if (rel_col < 0) {
+			rel_col = 0;
+		}
+		if (rel_col > text_cols) {
+			rel_col = text_cols;
+		}
+		int target_rx = E.coloff + rel_col;
+		if (target_rx < 0) {
+			target_rx = 0;
+		}
+		if (!editorMoveCursorToMouse(event, 1)) {
+			return EDITOR_KEYPRESS_EFFECT_NONE;
+		}
+		E.column_select_cursor_rx = target_rx;
+		if (E.cy < E.numrows) {
+			int new_cx = editorRowRxToCx(&E.rows[E.cy], target_rx);
+			if (new_cx > E.rows[E.cy].size) {
+				new_cx = E.rows[E.cy].size;
+			}
+			size_t off = 0;
+			if (editorBufferPosToOffset(E.cy, new_cx, &off)) {
+				(void)editorSyncCursorFromOffsetByteBoundary(off);
+			}
+		}
+		E.mouse_drag_started = 1;
+		return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+	}
 	if (!editorMoveCursorToMouse(event, 1)) {
 		return EDITOR_KEYPRESS_EFFECT_NONE;
 	}
 
 	if (!E.mouse_drag_started) {
 		// A new drag always starts a fresh selection anchored at the initial press point.
+		editorColumnSelectionClear();
 		E.selection_mode_active = 1;
 		E.selection_anchor_offset = E.mouse_drag_anchor_offset;
 		E.mouse_drag_started = 1;
@@ -2053,6 +2227,46 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			}
 			(void)editorDrawerResizeByDeltaForCols(DRAWER_RESIZE_STEP, E.window_cols);
 			break;
+		case EDITOR_ACTION_COLUMN_SELECT_UP:
+			editorHistoryBreakGroup();
+			if (E.pane_focus == EDITOR_PANE_DRAWER) {
+				break;
+			}
+			editorColumnSelectionMove(-1, 0);
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			break;
+		case EDITOR_ACTION_COLUMN_SELECT_DOWN:
+			editorHistoryBreakGroup();
+			if (E.pane_focus == EDITOR_PANE_DRAWER) {
+				break;
+			}
+			editorColumnSelectionMove(1, 0);
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			break;
+		case EDITOR_ACTION_COLUMN_SELECT_LEFT:
+			editorHistoryBreakGroup();
+			if (E.pane_focus == EDITOR_PANE_DRAWER) {
+				if (editorDrawerIsCollapsed()) {
+					(void)editorDrawerSetCollapsed(0);
+				}
+				(void)editorDrawerResizeByDeltaForCols(-DRAWER_RESIZE_STEP, E.window_cols);
+				break;
+			}
+			editorColumnSelectionMove(0, -1);
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			break;
+		case EDITOR_ACTION_COLUMN_SELECT_RIGHT:
+			editorHistoryBreakGroup();
+			if (E.pane_focus == EDITOR_PANE_DRAWER) {
+				if (editorDrawerIsCollapsed()) {
+					(void)editorDrawerSetCollapsed(0);
+				}
+				(void)editorDrawerResizeByDeltaForCols(DRAWER_RESIZE_STEP, E.window_cols);
+				break;
+			}
+			editorColumnSelectionMove(0, 1);
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			break;
 		case EDITOR_ACTION_TOGGLE_LINE_WRAP:
 			editorHistoryBreakGroup();
 			E.line_wrap_enabled = !E.line_wrap_enabled;
@@ -2197,6 +2411,7 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			if (E.pane_focus == EDITOR_PANE_DRAWER) {
 				(void)editorDrawerMoveSelectionBy(-1, E.window_rows + 1);
 			} else {
+				editorColumnSelectionClear();
 				editorMoveCursor(ARROW_UP);
 				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			}
@@ -2206,6 +2421,7 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			if (E.pane_focus == EDITOR_PANE_DRAWER) {
 				(void)editorDrawerMoveSelectionBy(1, E.window_rows + 1);
 			} else {
+				editorColumnSelectionClear();
 				editorMoveCursor(ARROW_DOWN);
 				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			}
@@ -2215,6 +2431,7 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			if (E.pane_focus == EDITOR_PANE_DRAWER) {
 				(void)editorDrawerCollapseSelection(E.window_rows + 1);
 			} else {
+				editorColumnSelectionClear();
 				editorMoveCursor(ARROW_LEFT);
 				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			}
@@ -2224,6 +2441,7 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			if (E.pane_focus == EDITOR_PANE_DRAWER) {
 				(void)editorDrawerExpandSelection(E.window_rows + 1);
 			} else {
+				editorColumnSelectionClear();
 				editorMoveCursor(ARROW_RIGHT);
 				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			}
@@ -2265,7 +2483,12 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			editorPinActivePreviewForEdit();
 			{
 				struct editorSelectionRange range;
-				if (editorGetSelectionRange(&range)) {
+				if (E.column_select_active) {
+					editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
+					int dirty_before = E.dirty;
+					editorColumnSelectionDeleteForward();
+					editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+				} else if (editorGetSelectionRange(&range)) {
 					editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
 					int dirty_before = E.dirty;
 					editorDeleteRange(&range);
@@ -2287,7 +2510,12 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			editorPinActivePreviewForEdit();
 			{
 				struct editorSelectionRange range;
-				if (editorGetSelectionRange(&range)) {
+				if (E.column_select_active) {
+					editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
+					int dirty_before = E.dirty;
+					editorColumnSelectionBackspace();
+					editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+				} else if (editorGetSelectionRange(&range)) {
 					editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
 					int dirty_before = E.dirty;
 					editorDeleteRange(&range);
@@ -2382,7 +2610,14 @@ void editorProcessKeypress(void) {
 							"File is unsupported" : "Task log is read-only");
 					goto done;
 				}
-				if (c == '\t' && editorIndentSelection()) {
+				if (E.column_select_active && c >= 0x20 && c < 0x7f) {
+					editorPinActivePreviewForEdit();
+					editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+					int dirty_before = E.dirty;
+					editorColumnSelectionInsertChar(c);
+					editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+					effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+				} else if (c == '\t' && editorIndentSelection()) {
 					effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 				} else if (editorReplaceSelectionWithChar(c)) {
 					effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;

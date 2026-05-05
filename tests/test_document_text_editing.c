@@ -758,6 +758,117 @@ static int test_insert_and_delete_chars(void) {
 	return 0;
 }
 
+static void set_column_selection(int anchor_row, int cursor_row, int left_rx, int right_rx) {
+	E.column_select_active = 1;
+	E.column_select_anchor_cy = anchor_row;
+	E.column_select_anchor_rx = left_rx;
+	E.column_select_cursor_rx = right_rx;
+	E.cy = cursor_row;
+	E.cx = 0;
+	if (cursor_row >= 0 && cursor_row < E.numrows) {
+		E.cx = editorRowRxToCx(&E.rows[cursor_row], right_rx);
+	}
+	(void)editorBufferPosToOffset(E.cy, E.cx, &E.cursor_offset);
+}
+
+static int test_editor_column_selection_extracts_and_deletes_each_row_slice(void) {
+	add_row("abcdef");
+	add_row("ABCDEF");
+	add_row("123456");
+	E.dirty = 0;
+	set_column_selection(0, 2, 1, 4);
+
+	char *text = NULL;
+	size_t len = 0;
+	ASSERT_EQ_INT(1, editorColumnSelectionExtractText(&text, &len));
+	ASSERT_EQ_INT(11, (int)len);
+	ASSERT_EQ_STR("bcd\nBCD\n234", text);
+	free(text);
+
+	ASSERT_EQ_INT(1, editorColumnSelectionDelete());
+	ASSERT_EQ_STR("aef", E.rows[0].chars);
+	ASSERT_EQ_STR("AEF", E.rows[1].chars);
+	ASSERT_EQ_STR("156", E.rows[2].chars);
+	ASSERT_EQ_INT(0, E.column_select_active);
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+	return 0;
+}
+
+static int test_editor_column_selection_insert_replaces_slice_on_each_row(void) {
+	add_row("abc");
+	add_row("ABC");
+	E.dirty = 0;
+	set_column_selection(0, 1, 1, 2);
+
+	ASSERT_EQ_INT(1, editorColumnSelectionInsertChar('x'));
+	ASSERT_EQ_STR("axc", E.rows[0].chars);
+	ASSERT_EQ_STR("AxC", E.rows[1].chars);
+	ASSERT_EQ_INT(1, E.column_select_active);
+	ASSERT_EQ_INT(2, E.column_select_anchor_rx);
+	ASSERT_EQ_INT(2, E.column_select_cursor_rx);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+	return 0;
+}
+
+static int test_editor_column_selection_pastes_matching_lines_by_cursor_row(void) {
+	add_row("abcdef");
+	add_row("ABCDEF");
+	E.dirty = 0;
+	set_column_selection(0, 1, 1, 3);
+
+	ASSERT_EQ_INT(1, editorColumnSelectionPasteText("xx\ny", 4));
+	ASSERT_EQ_STR("axxdef", E.rows[0].chars);
+	ASSERT_EQ_STR("AyDEF", E.rows[1].chars);
+	ASSERT_EQ_INT(1, E.column_select_active);
+	ASSERT_EQ_INT(2, E.column_select_anchor_rx);
+	ASSERT_EQ_INT(2, E.column_select_cursor_rx);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+	return 0;
+}
+
+static int test_editor_column_selection_pastes_single_line_at_each_cursor(void) {
+	add_row("ab");
+	add_row("AB");
+	add_row("12");
+	E.dirty = 0;
+	set_column_selection(0, 2, 1, 1);
+
+	ASSERT_EQ_INT(1, editorColumnSelectionPasteText("!", 1));
+	ASSERT_EQ_STR("a!b", E.rows[0].chars);
+	ASSERT_EQ_STR("A!B", E.rows[1].chars);
+	ASSERT_EQ_STR("1!2", E.rows[2].chars);
+	ASSERT_EQ_INT(1, E.column_select_active);
+	ASSERT_EQ_INT(2, E.column_select_anchor_rx);
+	ASSERT_EQ_INT(2, E.column_select_cursor_rx);
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+	return 0;
+}
+
+static int test_editor_column_selection_zero_width_delete_and_backspace_each_row(void) {
+	add_row("abcd");
+	add_row("ABCD");
+	E.dirty = 0;
+	set_column_selection(0, 1, 2, 2);
+
+	ASSERT_EQ_INT(1, editorColumnSelectionDeleteForward());
+	ASSERT_EQ_STR("abd", E.rows[0].chars);
+	ASSERT_EQ_STR("ABD", E.rows[1].chars);
+	ASSERT_EQ_INT(1, E.column_select_active);
+	ASSERT_EQ_INT(2, E.column_select_anchor_rx);
+	ASSERT_EQ_INT(2, E.column_select_cursor_rx);
+
+	ASSERT_EQ_INT(1, editorColumnSelectionBackspace());
+	ASSERT_EQ_STR("ad", E.rows[0].chars);
+	ASSERT_EQ_STR("AD", E.rows[1].chars);
+	ASSERT_EQ_INT(1, E.column_select_active);
+	ASSERT_EQ_INT(1, E.column_select_anchor_rx);
+	ASSERT_EQ_INT(1, E.column_select_cursor_rx);
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+	return 0;
+}
+
 static int test_editor_del_char_at_rejects_idx_at_row_size(void) {
 	add_row("abc");
 	E.dirty = 0;
@@ -994,6 +1105,11 @@ const struct editorTestCase g_document_text_editing_tests[] = {
 	{"insert_and_delete_row_updates_dirty", test_insert_and_delete_row_updates_dirty},
 	{"editor_delete_row_rejects_idx_at_numrows", test_editor_delete_row_rejects_idx_at_numrows},
 	{"insert_and_delete_chars", test_insert_and_delete_chars},
+	{"editor_column_selection_extracts_and_deletes_each_row_slice", test_editor_column_selection_extracts_and_deletes_each_row_slice},
+	{"editor_column_selection_insert_replaces_slice_on_each_row", test_editor_column_selection_insert_replaces_slice_on_each_row},
+	{"editor_column_selection_pastes_matching_lines_by_cursor_row", test_editor_column_selection_pastes_matching_lines_by_cursor_row},
+	{"editor_column_selection_pastes_single_line_at_each_cursor", test_editor_column_selection_pastes_single_line_at_each_cursor},
+	{"editor_column_selection_zero_width_delete_and_backspace_each_row", test_editor_column_selection_zero_width_delete_and_backspace_each_row},
 	{"editor_del_char_at_rejects_idx_at_row_size", test_editor_del_char_at_rejects_idx_at_row_size},
 	{"editor_insert_char_creates_initial_row", test_editor_insert_char_creates_initial_row},
 	{"editor_insert_newline_splits_row", test_editor_insert_newline_splits_row},

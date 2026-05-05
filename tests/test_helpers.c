@@ -73,6 +73,10 @@ void reset_editor_state(void) {
 	E.search_saved_offset = 0;
 	E.selection_mode_active = 0;
 	E.selection_anchor_offset = 0;
+	E.column_select_active = 0;
+	E.column_select_anchor_cy = 0;
+	E.column_select_anchor_rx = 0;
+	E.column_select_cursor_rx = 0;
 	E.mouse_left_button_down = 0;
 	E.mouse_drag_anchor_offset = 0;
 	E.mouse_drag_started = 0;
@@ -132,6 +136,7 @@ void reset_editor_state(void) {
 	E.line_wrap_enabled = 0;
 	E.line_numbers_enabled = 1;
 	E.current_line_highlight_enabled = 1;
+	E.column_select_drag_modifier = EDITOR_MOUSE_MOD_ALT | EDITOR_MOUSE_MOD_SHIFT;
 	E.wrapoff = 0;
 	editorSyntaxThemeInitDefaults(E.syntax_theme);
 	editorSyntaxTestResetBudgetOverrides();
