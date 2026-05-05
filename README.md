@@ -100,6 +100,7 @@ Syntax fixture samples are stored in [`tests/syntax/`](tests/syntax/README.md).
 - `Alt-Right` / `Alt-Left`: next/previous tab
 - `Ctrl-E`: toggle focus between editor and drawer
 - `Ctrl-\`: collapse/expand drawer
+- `Alt-M`: open the main menu in the drawer
 - `Alt-Shift-Left` / `Alt-Shift-Right`: resize drawer
 - `Ctrl-P`: search files in the drawer
 - `Ctrl-Alt-F`: search text across the project in the drawer

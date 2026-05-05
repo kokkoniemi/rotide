@@ -1547,6 +1547,45 @@ static int test_editor_refresh_screen_drawer_collapsed_renders_expand_indicator(
 	return 0;
 }
 
+static int test_editor_refresh_screen_main_menu_drawer_groups_actions(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerMainMenuToggle());
+
+	add_row("body");
+	E.window_rows = 14;
+	E.window_cols = 60;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "Main Menu") != NULL);
+	ASSERT_TRUE(strstr(output, "Find") != NULL);
+	ASSERT_TRUE(strstr(output, "Find File") != NULL);
+	ASSERT_TRUE(strstr(output, "Find & replace") != NULL);
+	ASSERT_TRUE(strstr(output, "Search Project Text") != NULL);
+	ASSERT_TRUE(strstr(output, "Save") != NULL);
+	ASSERT_TRUE(strstr(output, "Close Tab") != NULL);
+	ASSERT_TRUE(find_drawer_entry("Project Files", NULL, NULL));
+	free(output);
+
+	int find_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("Find", &find_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(find_idx, E.window_rows));
+	ASSERT_TRUE(editorDrawerToggleSelectionExpanded(E.window_rows));
+
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "Main Menu") != NULL);
+	ASSERT_TRUE(strstr(output, "Find File") == NULL);
+	ASSERT_TRUE(strstr(output, "Save") != NULL);
+	free(output);
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_refresh_screen_drawer_renders_unicode_tree_connectors(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -2470,6 +2509,7 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_drawer_hides_selection_marker_when_unfocused", test_editor_refresh_screen_drawer_hides_selection_marker_when_unfocused},
 	{"editor_refresh_screen_drawer_active_file_uses_inverted_background", test_editor_refresh_screen_drawer_active_file_uses_inverted_background},
 	{"editor_refresh_screen_drawer_collapsed_renders_expand_indicator", test_editor_refresh_screen_drawer_collapsed_renders_expand_indicator},
+	{"editor_refresh_screen_main_menu_drawer_groups_actions", test_editor_refresh_screen_main_menu_drawer_groups_actions},
 	{"editor_refresh_screen_drawer_renders_unicode_tree_connectors", test_editor_refresh_screen_drawer_renders_unicode_tree_connectors},
 	{"editor_refresh_screen_drawer_selected_overflow_spills_into_text_area", test_editor_refresh_screen_drawer_selected_overflow_spills_into_text_area},
 	{"editor_refresh_screen_drawer_splitter_spans_editor_rows", test_editor_refresh_screen_drawer_splitter_spans_editor_rows},

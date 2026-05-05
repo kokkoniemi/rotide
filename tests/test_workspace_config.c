@@ -2210,6 +2210,8 @@ static int test_editor_keymap_defaults_include_tab_actions(void) {
 	ASSERT_EQ_INT(EDITOR_ACTION_FOCUS_DRAWER, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_CTRL_ALT_LETTER_KEY('e'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_TOGGLE_DRAWER, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('m'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_MAIN_MENU, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_SHIFT_ARROW_LEFT, &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_COLUMN_SELECT_LEFT, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_SHIFT_ARROW_RIGHT, &action));

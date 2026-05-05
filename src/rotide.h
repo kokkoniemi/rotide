@@ -274,6 +274,7 @@ enum editorAction {
 	EDITOR_ACTION_PREV_TAB,
 	EDITOR_ACTION_FOCUS_DRAWER,
 	EDITOR_ACTION_TOGGLE_DRAWER,
+	EDITOR_ACTION_MAIN_MENU,
 	EDITOR_ACTION_RESIZE_DRAWER_NARROW,
 	EDITOR_ACTION_RESIZE_DRAWER_WIDEN,
 	EDITOR_ACTION_TOGGLE_LINE_WRAP,
@@ -344,6 +345,7 @@ enum editorEditPendingMode {
 
 enum editorDrawerMode {
 	EDITOR_DRAWER_MODE_TREE = 0,
+	EDITOR_DRAWER_MODE_MAIN_MENU,
 	EDITOR_DRAWER_MODE_FILE_SEARCH,
 	EDITOR_DRAWER_MODE_PROJECT_SEARCH
 };
@@ -534,6 +536,7 @@ struct editorConfig {
 	char *drawer_root_path;
 	struct editorDrawerNode *drawer_root;
 	enum editorDrawerMode drawer_mode;
+	unsigned int drawer_menu_expanded;
 	int drawer_selected_index;
 	int drawer_rowoff;
 	int drawer_last_click_visible_idx;

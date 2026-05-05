@@ -48,6 +48,8 @@ enum editorKeypressEffect {
 	EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT = 1 << 1
 };
 
+static int editorProcessMappedAction(enum editorAction action, int *effects_out);
+
 static long long editorMonotonicMillis(void) {
 	struct timespec ts;
 	if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
@@ -2342,6 +2344,17 @@ static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 			E.mouse_drag_started = 0;
 			return EDITOR_KEYPRESS_EFFECT_NONE;
 		}
+		enum editorAction menu_action = EDITOR_ACTION_COUNT;
+		if (editorDrawerSelectedMenuAction(&menu_action)) {
+			int mapped_effects = EDITOR_KEYPRESS_EFFECT_NONE;
+			editorResetDrawerClickTracking();
+			E.mouse_left_button_down = 0;
+			E.mouse_drag_started = 0;
+			if (editorProcessMappedAction(menu_action, &mapped_effects)) {
+				return mapped_effects;
+			}
+			return mapped_effects;
+		}
 
 		int should_open_file = E.drawer_last_click_visible_idx == visible_idx &&
 				E.drawer_last_click_ms > 0 &&
@@ -2581,6 +2594,11 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 					editorSetDrawerCollapseStatus(1);
 				}
 				break;
+			case EDITOR_ACTION_MAIN_MENU:
+				(void)editorDrawerMainMenuToggle();
+				editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_MAIN_MENU ?
+						"Main menu opened" : "Project drawer shown");
+				break;
 			default:
 				break;
 		}
@@ -2632,6 +2650,11 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 				if (editorDrawerSetCollapsed(1)) {
 					editorSetDrawerCollapseStatus(1);
 				}
+				break;
+			case EDITOR_ACTION_MAIN_MENU:
+				(void)editorDrawerMainMenuToggle();
+				editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_MAIN_MENU ?
+						"Main menu opened" : "Project drawer shown");
 				break;
 			default:
 				break;
@@ -2701,6 +2724,12 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 					E.pane_focus = EDITOR_PANE_DRAWER;
 				}
 			}
+			break;
+		case EDITOR_ACTION_MAIN_MENU:
+			editorHistoryBreakGroup();
+			(void)editorDrawerMainMenuToggle();
+			editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_MAIN_MENU ?
+					"Main menu opened" : "Project drawer shown");
 			break;
 		case EDITOR_ACTION_RESIZE_DRAWER_NARROW:
 			editorHistoryBreakGroup();
@@ -2946,8 +2975,20 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 				editorResetDrawerClickTracking();
 				if (editorDrawerSelectedIsDirectory()) {
 					(void)editorDrawerToggleSelectionExpanded(E.window_rows);
-				} else if (editorDrawerOpenSelectedFileInTab()) {
-					E.pane_focus = EDITOR_PANE_TEXT;
+				} else {
+					enum editorAction menu_action = EDITOR_ACTION_COUNT;
+					if (editorDrawerSelectedMenuAction(&menu_action)) {
+						int mapped_effects = EDITOR_KEYPRESS_EFFECT_NONE;
+						if (editorProcessMappedAction(menu_action, &mapped_effects)) {
+							if (effects_out != NULL) {
+								*effects_out = effects | mapped_effects;
+							}
+							return 1;
+						}
+						effects |= mapped_effects;
+					} else if (editorDrawerOpenSelectedFileInTab()) {
+						E.pane_focus = EDITOR_PANE_TEXT;
+					}
 				}
 				break;
 			}

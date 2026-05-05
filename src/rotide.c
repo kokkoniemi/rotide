@@ -118,6 +118,7 @@ void initEditor(void) {
 	E.drawer_root_path = NULL;
 	E.drawer_root = NULL;
 	E.drawer_mode = EDITOR_DRAWER_MODE_TREE;
+	E.drawer_menu_expanded = 0;
 	E.drawer_selected_index = 0;
 	E.drawer_rowoff = 0;
 	E.drawer_last_click_visible_idx = -1;

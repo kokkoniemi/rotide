@@ -1,4 +1,3 @@
-- FEATURE: Implement main menu mode, which would show menu options in drawer
 - FEATURE: add more lsp functionalities (go to implementations, auto-complete, go to symbol in editor etc.)
 - FEATURE: create a new file or folder / delete file or folder / rename file or folder
 - FEATURE: Add support for themes and create a theme using terminal colors and a dark + light built-in themes.

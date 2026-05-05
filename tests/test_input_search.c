@@ -220,6 +220,37 @@ static int test_editor_process_keypress_toggle_drawer_shortcut_collapses_and_exp
 	return 0;
 }
 
+static int test_editor_process_keypress_main_menu_runs_selected_action(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char match_file[512];
+	ASSERT_TRUE(path_join(match_file, sizeof(match_file), env.project_dir, "match.txt"));
+	ASSERT_TRUE(write_text_file(match_file, "match\n"));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	const char alt_m[] = "\x1bm";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_m, sizeof(alt_m) - 1) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_MAIN_MENU, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_STR("Main menu opened", E.statusmsg);
+
+	int find_file_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("Find File", &find_file_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(find_file_idx, E.window_rows));
+
+	char enter[] = {'\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input(enter, sizeof(enter)) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+
+	editorFileSearchExit(1);
+	ASSERT_TRUE(unlink(match_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_tabs_switch_restores_per_tab_state(void) {
 	ASSERT_TRUE(editorTabsInit());
 	add_row("tab-zero");
@@ -3222,6 +3253,7 @@ const struct editorTestCase g_input_search_tests[] = {
 	{"editor_column_select_alt_mouse_drag_starts_column_selection", test_editor_column_select_alt_mouse_drag_starts_column_selection},
 	{"editor_column_select_plain_arrow_clears_mode", test_editor_column_select_plain_arrow_clears_mode},
 	{"editor_process_keypress_toggle_drawer_shortcut_collapses_and_expands", test_editor_process_keypress_toggle_drawer_shortcut_collapses_and_expands},
+	{"editor_process_keypress_main_menu_runs_selected_action", test_editor_process_keypress_main_menu_runs_selected_action},
 	{"editor_tabs_switch_restores_per_tab_state", test_editor_tabs_switch_restores_per_tab_state},
 	{"editor_tab_close_last_tab_keeps_one_empty_tab", test_editor_tab_close_last_tab_keeps_one_empty_tab},
 	{"editor_process_keypress_ctrl_w_dirty_requires_second_press", test_editor_process_keypress_ctrl_w_dirty_requires_second_press},

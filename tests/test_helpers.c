@@ -125,6 +125,7 @@ void reset_editor_state(void) {
 	E.drawer_last_click_visible_idx = -1;
 	E.drawer_last_click_ms = 0;
 	E.drawer_mode = EDITOR_DRAWER_MODE_TREE;
+	E.drawer_menu_expanded = 0;
 	E.drawer_width_cols = ROTIDE_DRAWER_DEFAULT_WIDTH;
 	E.drawer_width_user_set = 0;
 	E.drawer_collapsed = 0;
