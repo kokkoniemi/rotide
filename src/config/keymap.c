@@ -77,6 +77,10 @@ static const struct editorActionName editor_action_names[] = {
 	{"column_select_left", EDITOR_ACTION_COLUMN_SELECT_LEFT},
 	{"column_select_right", EDITOR_ACTION_COLUMN_SELECT_RIGHT},
 	{"find_replace", EDITOR_ACTION_FIND_REPLACE},
+	{"drawer_create_file", EDITOR_ACTION_DRAWER_CREATE_FILE},
+	{"drawer_create_folder", EDITOR_ACTION_DRAWER_CREATE_FOLDER},
+	{"drawer_rename", EDITOR_ACTION_DRAWER_RENAME},
+	{"drawer_delete", EDITOR_ACTION_DRAWER_DELETE},
 };
 
 static const struct editorNamedKey editor_named_keys[] = {
@@ -656,6 +660,14 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 	(void)editorKeymapAppendBinding(keymap, ALT_ARROW_DOWN, EDITOR_ACTION_MOVE_LINE_DOWN);
 	(void)editorKeymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('c'), EDITOR_ACTION_TOGGLE_COMMENT);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('r'), EDITOR_ACTION_FIND_REPLACE);
+	(void)editorKeymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('n'),
+			EDITOR_ACTION_DRAWER_CREATE_FILE);
+	(void)editorKeymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('d'),
+			EDITOR_ACTION_DRAWER_CREATE_FOLDER);
+	(void)editorKeymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('r'),
+			EDITOR_ACTION_DRAWER_RENAME);
+	(void)editorKeymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('k'),
+			EDITOR_ACTION_DRAWER_DELETE);
 }
 
 int editorKeymapLookupAction(const struct editorKeymap *keymap, int key,

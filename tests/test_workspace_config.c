@@ -180,6 +180,166 @@ static int test_editor_drawer_root_is_not_collapsible(void) {
 	return 0;
 }
 
+static int test_editor_drawer_create_file_under_selected_directory(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char src_dir[512];
+	ASSERT_TRUE(path_join(src_dir, sizeof(src_dir), env.project_dir, "src"));
+	ASSERT_TRUE(make_dir(src_dir));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+
+	int src_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("src", &src_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(src_idx, E.window_rows + 1));
+
+	ASSERT_TRUE(editorDrawerCreateFileAtSelection("new.txt", E.window_rows + 1));
+
+	char created_path[512];
+	ASSERT_TRUE(path_join(created_path, sizeof(created_path), src_dir, "new.txt"));
+	struct stat st;
+	ASSERT_TRUE(stat(created_path, &st) == 0);
+	ASSERT_TRUE(S_ISREG(st.st_mode));
+
+	int new_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("new.txt", &new_idx, NULL));
+	ASSERT_EQ_INT(new_idx, E.drawer_selected_index);
+
+	ASSERT_EQ_INT(0, editorDrawerCreateFileAtSelection("new.txt", E.window_rows + 1));
+	ASSERT_EQ_INT(0, editorDrawerCreateFileAtSelection("bad/name", E.window_rows + 1));
+
+	ASSERT_TRUE(unlink(created_path) == 0);
+	ASSERT_TRUE(rmdir(src_dir) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_create_folder_creates_sibling_when_file_selected(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char src_dir[512];
+	char anchor_file[512];
+	ASSERT_TRUE(path_join(src_dir, sizeof(src_dir), env.project_dir, "src"));
+	ASSERT_TRUE(make_dir(src_dir));
+	ASSERT_TRUE(path_join(anchor_file, sizeof(anchor_file), src_dir, "anchor.txt"));
+	ASSERT_TRUE(write_text_file(anchor_file, "anchor\n"));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+
+	int src_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("src", &src_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(src_idx, E.window_rows + 1));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+
+	int anchor_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("anchor.txt", &anchor_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(anchor_idx, E.window_rows + 1));
+
+	ASSERT_TRUE(editorDrawerCreateFolderAtSelection("subdir", E.window_rows + 1));
+
+	char created_dir[512];
+	ASSERT_TRUE(path_join(created_dir, sizeof(created_dir), src_dir, "subdir"));
+	struct stat st;
+	ASSERT_TRUE(stat(created_dir, &st) == 0);
+	ASSERT_TRUE(S_ISDIR(st.st_mode));
+
+	int sub_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("subdir", &sub_idx, NULL));
+	ASSERT_EQ_INT(sub_idx, E.drawer_selected_index);
+
+	ASSERT_TRUE(rmdir(created_dir) == 0);
+	ASSERT_TRUE(unlink(anchor_file) == 0);
+	ASSERT_TRUE(rmdir(src_dir) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_rename_selection_updates_path_and_selection(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char old_file[512];
+	ASSERT_TRUE(path_join(old_file, sizeof(old_file), env.project_dir, "old.txt"));
+	ASSERT_TRUE(write_text_file(old_file, "stuff\n"));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+
+	int old_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("old.txt", &old_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(old_idx, E.window_rows + 1));
+
+	ASSERT_TRUE(editorDrawerRenameSelection("renamed.txt", E.window_rows + 1));
+
+	char new_file[512];
+	ASSERT_TRUE(path_join(new_file, sizeof(new_file), env.project_dir, "renamed.txt"));
+	struct stat st;
+	ASSERT_TRUE(stat(new_file, &st) == 0);
+	ASSERT_EQ_INT(0, find_drawer_entry("old.txt", NULL, NULL));
+	int new_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("renamed.txt", &new_idx, NULL));
+	ASSERT_EQ_INT(new_idx, E.drawer_selected_index);
+
+	ASSERT_TRUE(unlink(new_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_rename_selection_rejects_root(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_EQ_INT(0, editorDrawerRenameSelection("anything", E.window_rows + 1));
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_delete_selection_removes_directory_recursively(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char dir_path[512];
+	char nested_file[512];
+	ASSERT_TRUE(path_join(dir_path, sizeof(dir_path), env.project_dir, "doomed"));
+	ASSERT_TRUE(make_dir(dir_path));
+	ASSERT_TRUE(path_join(nested_file, sizeof(nested_file), dir_path, "leaf.txt"));
+	ASSERT_TRUE(write_text_file(nested_file, "leaf\n"));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+
+	int dir_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("doomed", &dir_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(dir_idx, E.window_rows + 1));
+
+	ASSERT_TRUE(editorDrawerDeleteSelection(E.window_rows + 1));
+
+	struct stat st;
+	ASSERT_TRUE(stat(dir_path, &st) != 0);
+	ASSERT_EQ_INT(0, find_drawer_entry("doomed", NULL, NULL));
+	ASSERT_EQ_INT(0, E.drawer_selected_index);
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_delete_selection_rejects_root(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_EQ_INT(0, editorDrawerDeleteSelection(E.window_rows + 1));
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_drawer_open_selected_file_in_new_tab(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -2426,6 +2586,12 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_drawer_tree_lists_dotfiles_sorted_and_symlink_as_file", test_editor_drawer_tree_lists_dotfiles_sorted_and_symlink_as_file},
 	{"editor_drawer_expand_collapse_reuses_cached_children", test_editor_drawer_expand_collapse_reuses_cached_children},
 	{"editor_drawer_root_is_not_collapsible", test_editor_drawer_root_is_not_collapsible},
+	{"editor_drawer_create_file_under_selected_directory", test_editor_drawer_create_file_under_selected_directory},
+	{"editor_drawer_create_folder_creates_sibling_when_file_selected", test_editor_drawer_create_folder_creates_sibling_when_file_selected},
+	{"editor_drawer_rename_selection_updates_path_and_selection", test_editor_drawer_rename_selection_updates_path_and_selection},
+	{"editor_drawer_rename_selection_rejects_root", test_editor_drawer_rename_selection_rejects_root},
+	{"editor_drawer_delete_selection_removes_directory_recursively", test_editor_drawer_delete_selection_removes_directory_recursively},
+	{"editor_drawer_delete_selection_rejects_root", test_editor_drawer_delete_selection_rejects_root},
 	{"editor_drawer_open_selected_file_in_new_tab", test_editor_drawer_open_selected_file_in_new_tab},
 	{"editor_drawer_open_selected_file_switches_existing_relative_path_tab", test_editor_drawer_open_selected_file_switches_existing_relative_path_tab},
 	{"editor_file_search_filters_results_in_drawer", test_editor_file_search_filters_results_in_drawer},

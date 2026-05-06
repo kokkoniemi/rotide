@@ -146,14 +146,14 @@ static int test_editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
 	ASSERT_TRUE(write_text_file(project_path,
 				"[keymap]\n"
-				"new_tab = \"ctrl+alt+n\"\n"));
+				"new_tab = \"ctrl+alt+a\"\n"));
 
 	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&E.keymap, NULL, project_path);
 	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
 	ASSERT_TRUE(editorTabsInit());
 	ASSERT_EQ_INT(1, editorTabCount());
 
-	char input[] = {'\x1b', CTRL_KEY('n')};
+	char input[] = {'\x1b', CTRL_KEY('a')};
 	ASSERT_TRUE(editor_process_keypress_with_input(input, sizeof(input)) == 0);
 	ASSERT_EQ_INT(2, editorTabCount());
 	ASSERT_EQ_INT(1, editorTabActiveIndex());
