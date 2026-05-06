@@ -203,6 +203,80 @@ static int inject_git_entry(const char *rel_path, enum editorGitStatus status,
 	return 1;
 }
 
+static int test_editor_git_file_status_returns_status_for_known_path(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	E.git_repo_root = strdup(env.project_dir);
+	ASSERT_TRUE(E.git_repo_root != NULL);
+	// Entries must be sorted alphabetically for binary search.
+	ASSERT_TRUE(inject_git_entry("a/changed.c", EDITOR_GIT_STATUS_MODIFIED, ' ', 'M'));
+	ASSERT_TRUE(inject_git_entry("a/staged.c", EDITOR_GIT_STATUS_MODIFIED, 'M', ' '));
+	ASSERT_TRUE(inject_git_entry("b/conflict.c", EDITOR_GIT_STATUS_CONFLICT, 'U', 'U'));
+	ASSERT_TRUE(inject_git_entry("c/new.c", EDITOR_GIT_STATUS_UNTRACKED, '?', '?'));
+
+	char path[512];
+	ASSERT_TRUE(path_join(path, sizeof(path), env.project_dir, "a/changed.c"));
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_MODIFIED, editorGitFileStatus(path));
+
+	ASSERT_TRUE(path_join(path, sizeof(path), env.project_dir, "b/conflict.c"));
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_CONFLICT, editorGitFileStatus(path));
+
+	ASSERT_TRUE(path_join(path, sizeof(path), env.project_dir, "c/new.c"));
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_UNTRACKED, editorGitFileStatus(path));
+
+	ASSERT_TRUE(path_join(path, sizeof(path), env.project_dir, "missing.c"));
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_CLEAN, editorGitFileStatus(path));
+
+	editorGitFree();
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_git_dir_status_aggregates_worst_descendant(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	E.git_repo_root = strdup(env.project_dir);
+	ASSERT_TRUE(E.git_repo_root != NULL);
+	ASSERT_TRUE(inject_git_entry("clean_dir/keep.c", EDITOR_GIT_STATUS_MODIFIED, ' ', 'M'));
+	ASSERT_TRUE(inject_git_entry("mixed/conflict.c", EDITOR_GIT_STATUS_CONFLICT, 'U', 'U'));
+	ASSERT_TRUE(inject_git_entry("mixed/edit.c", EDITOR_GIT_STATUS_MODIFIED, ' ', 'M'));
+	ASSERT_TRUE(inject_git_entry("only_new/added.c", EDITOR_GIT_STATUS_UNTRACKED, '?', '?'));
+
+	char path[512];
+	ASSERT_TRUE(path_join(path, sizeof(path), env.project_dir, "clean_dir"));
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_MODIFIED, editorGitDirStatus(path));
+
+	ASSERT_TRUE(path_join(path, sizeof(path), env.project_dir, "mixed"));
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_CONFLICT, editorGitDirStatus(path));
+
+	ASSERT_TRUE(path_join(path, sizeof(path), env.project_dir, "only_new"));
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_UNTRACKED, editorGitDirStatus(path));
+
+	ASSERT_TRUE(path_join(path, sizeof(path), env.project_dir, "untouched"));
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_CLEAN, editorGitDirStatus(path));
+
+	editorGitFree();
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_git_file_status_returns_clean_outside_repo(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	E.git_repo_root = strdup(env.project_dir);
+	ASSERT_TRUE(E.git_repo_root != NULL);
+	ASSERT_TRUE(inject_git_entry("inside.c", EDITOR_GIT_STATUS_MODIFIED, ' ', 'M'));
+
+	ASSERT_EQ_INT(EDITOR_GIT_STATUS_CLEAN, editorGitFileStatus("/tmp/somewhere/else.c"));
+
+	editorGitFree();
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_drawer_git_mode_groups_entries_by_status(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -2725,6 +2799,9 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_drawer_tree_lists_dotfiles_sorted_and_symlink_as_file", test_editor_drawer_tree_lists_dotfiles_sorted_and_symlink_as_file},
 	{"editor_drawer_expand_collapse_reuses_cached_children", test_editor_drawer_expand_collapse_reuses_cached_children},
 	{"editor_drawer_root_is_not_collapsible", test_editor_drawer_root_is_not_collapsible},
+	{"editor_git_file_status_returns_status_for_known_path", test_editor_git_file_status_returns_status_for_known_path},
+	{"editor_git_dir_status_aggregates_worst_descendant", test_editor_git_dir_status_aggregates_worst_descendant},
+	{"editor_git_file_status_returns_clean_outside_repo", test_editor_git_file_status_returns_clean_outside_repo},
 	{"editor_drawer_git_mode_groups_entries_by_status", test_editor_drawer_git_mode_groups_entries_by_status},
 	{"editor_drawer_git_mode_collapses_group", test_editor_drawer_git_mode_collapses_group},
 	{"editor_drawer_git_mode_selects_file_entry", test_editor_drawer_git_mode_selects_file_entry},

@@ -759,6 +759,220 @@ static int test_editor_process_keypress_insert_move_and_backspace(void) {
 	return 0;
 }
 
+static int test_editor_process_keypress_alt_c_toggles_line_comment(void) {
+	add_row("hello");
+	E.cy = 0;
+	E.cx = 0;
+	E.syntax_language = EDITOR_SYNTAX_C;
+
+	const char alt_c[] = "\x1b" "c";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_c, sizeof(alt_c) - 1) == 0);
+	ASSERT_EQ_STR("// hello", E.rows[0].chars);
+
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_c, sizeof(alt_c) - 1) == 0);
+	ASSERT_EQ_STR("hello", E.rows[0].chars);
+	ASSERT_TRUE(assert_active_source_matches_rows() == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_alt_c_toggles_python_comment(void) {
+	add_row("foo()");
+	E.cy = 0;
+	E.cx = 0;
+	E.syntax_language = EDITOR_SYNTAX_PYTHON;
+
+	const char alt_c[] = "\x1b" "c";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_c, sizeof(alt_c) - 1) == 0);
+	ASSERT_EQ_STR("# foo()", E.rows[0].chars);
+
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_c, sizeof(alt_c) - 1) == 0);
+	ASSERT_EQ_STR("foo()", E.rows[0].chars);
+	return 0;
+}
+
+static int test_editor_process_keypress_alt_c_toggles_comment_for_selection(void) {
+	add_row("first");
+	add_row("second");
+	add_row("third");
+	E.syntax_language = EDITOR_SYNTAX_C;
+
+	E.cy = 0;
+	E.cx = 0;
+	E.selection_mode_active = 1;
+	ASSERT_TRUE(set_selection_anchor(0, 0));
+	E.cy = 2;
+	E.cx = E.rows[2].size;
+
+	const char alt_c[] = "\x1b" "c";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_c, sizeof(alt_c) - 1) == 0);
+	ASSERT_EQ_STR("// first", E.rows[0].chars);
+	ASSERT_EQ_STR("// second", E.rows[1].chars);
+	ASSERT_EQ_STR("// third", E.rows[2].chars);
+
+	// Toggle off — selection cleared by the previous edit, so re-establish it.
+	E.cy = 0;
+	E.cx = 0;
+	E.selection_mode_active = 1;
+	ASSERT_TRUE(set_selection_anchor(0, 0));
+	E.cy = 2;
+	E.cx = E.rows[2].size;
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_c, sizeof(alt_c) - 1) == 0);
+	ASSERT_EQ_STR("first", E.rows[0].chars);
+	ASSERT_EQ_STR("second", E.rows[1].chars);
+	ASSERT_EQ_STR("third", E.rows[2].chars);
+	return 0;
+}
+
+static int test_editor_process_keypress_alt_c_no_op_for_unsupported_language(void) {
+	add_row("plain");
+	E.cy = 0;
+	E.cx = 0;
+	E.syntax_language = EDITOR_SYNTAX_NONE;
+	int dirty_before = E.dirty;
+
+	const char alt_c[] = "\x1b" "c";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_c, sizeof(alt_c) - 1) == 0);
+	ASSERT_EQ_STR("plain", E.rows[0].chars);
+	ASSERT_EQ_INT(dirty_before, E.dirty);
+	ASSERT_EQ_STR("No line comment for this language", E.statusmsg);
+	return 0;
+}
+
+static int test_editor_process_keypress_typed_char_replaces_selection(void) {
+	add_row("hello world");
+	E.cy = 0;
+	E.cx = 0;
+	E.selection_mode_active = 1;
+	ASSERT_TRUE(set_selection_anchor(0, 0));
+	E.cy = 0;
+	E.cx = 5;
+
+	ASSERT_TRUE(editor_process_single_key('Z') == 0);
+	ASSERT_EQ_STR("Z world", E.rows[0].chars);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+	ASSERT_EQ_INT(1, E.cx);
+	ASSERT_TRUE(assert_active_source_matches_rows() == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_tab_indents_selection(void) {
+	add_row("alpha");
+	add_row("beta");
+	add_row("gamma");
+	E.cy = 0;
+	E.cx = 0;
+	E.selection_mode_active = 1;
+	ASSERT_TRUE(set_selection_anchor(0, 0));
+	E.cy = 1;
+	E.cx = E.rows[1].size;
+
+	ASSERT_TRUE(editor_process_single_key('\t') == 0);
+	ASSERT_EQ_STR("\talpha", E.rows[0].chars);
+	ASSERT_EQ_STR("\tbeta", E.rows[1].chars);
+	ASSERT_EQ_STR("gamma", E.rows[2].chars);
+	ASSERT_TRUE(assert_active_source_matches_rows() == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_tab_indents_selection_drops_terminating_zero_column(void) {
+	add_row("one");
+	add_row("two");
+	add_row("three");
+	E.cy = 0;
+	E.cx = 0;
+	E.selection_mode_active = 1;
+	ASSERT_TRUE(set_selection_anchor(0, 0));
+	// Selection ending at column 0 of the next row should not indent that row.
+	E.cy = 2;
+	E.cx = 0;
+
+	ASSERT_TRUE(editor_process_single_key('\t') == 0);
+	ASSERT_EQ_STR("\tone", E.rows[0].chars);
+	ASSERT_EQ_STR("\ttwo", E.rows[1].chars);
+	ASSERT_EQ_STR("three", E.rows[2].chars);
+	return 0;
+}
+
+static int test_editor_process_keypress_alt_arrow_up_moves_line_up(void) {
+	add_row("first");
+	add_row("second");
+	add_row("third");
+	E.cy = 1;
+	E.cx = 2;
+
+	const char alt_up[] = "\x1b[1;3A";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_up, sizeof(alt_up) - 1) == 0);
+	ASSERT_EQ_STR("second", E.rows[0].chars);
+	ASSERT_EQ_STR("first", E.rows[1].chars);
+	ASSERT_EQ_STR("third", E.rows[2].chars);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_TRUE(assert_active_source_matches_rows() == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_alt_arrow_down_moves_line_down(void) {
+	add_row("first");
+	add_row("second");
+	add_row("third");
+	E.cy = 0;
+	E.cx = 3;
+
+	const char alt_down[] = "\x1b[1;3B";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_down, sizeof(alt_down) - 1) == 0);
+	ASSERT_EQ_STR("second", E.rows[0].chars);
+	ASSERT_EQ_STR("first", E.rows[1].chars);
+	ASSERT_EQ_STR("third", E.rows[2].chars);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(3, E.cx);
+	return 0;
+}
+
+static int test_editor_process_keypress_alt_arrow_up_at_top_no_op(void) {
+	add_row("first");
+	add_row("second");
+	E.cy = 0;
+	E.cx = 0;
+	int dirty_before = E.dirty;
+
+	const char alt_up[] = "\x1b[1;3A";
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_up, sizeof(alt_up) - 1) == 0);
+	ASSERT_EQ_STR("first", E.rows[0].chars);
+	ASSERT_EQ_STR("second", E.rows[1].chars);
+	ASSERT_EQ_INT(dirty_before, E.dirty);
+	return 0;
+}
+
+static int test_editor_process_keypress_backspace_deletes_active_selection(void) {
+	add_row("hello world");
+	E.cy = 0;
+	E.cx = 5;
+	E.selection_mode_active = 1;
+	ASSERT_TRUE(set_selection_anchor(0, 0));
+
+	char backspace[] = {BACKSPACE};
+	ASSERT_TRUE(editor_process_keypress_with_input(backspace, sizeof(backspace)) == 0);
+	ASSERT_EQ_STR(" world", E.rows[0].chars);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+	ASSERT_EQ_INT(0, E.cx);
+	ASSERT_TRUE(assert_active_source_matches_rows() == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_delete_deletes_active_selection(void) {
+	add_row("hello world");
+	E.cy = 0;
+	E.cx = 5;
+	E.selection_mode_active = 1;
+	ASSERT_TRUE(set_selection_anchor(0, 0));
+
+	const char del_key[] = "\x1b[3~";
+	ASSERT_TRUE(editor_process_keypress_with_input(del_key, sizeof(del_key) - 1) == 0);
+	ASSERT_EQ_STR(" world", E.rows[0].chars);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+	return 0;
+}
+
 static int test_editor_process_keypress_ctrl_j_does_not_insert_newline(void) {
 	add_row("ab");
 	E.cy = 0;
@@ -3388,6 +3602,18 @@ const struct editorTestCase g_input_search_tests[] = {
 	{"editor_process_keypress_find_file_filters_previews_and_opens", test_editor_process_keypress_find_file_filters_previews_and_opens},
 	{"editor_process_keypress_project_search_filters_previews_and_opens", test_editor_process_keypress_project_search_filters_previews_and_opens},
 	{"editor_process_keypress_insert_move_and_backspace", test_editor_process_keypress_insert_move_and_backspace},
+	{"editor_process_keypress_alt_c_toggles_line_comment", test_editor_process_keypress_alt_c_toggles_line_comment},
+	{"editor_process_keypress_alt_c_toggles_python_comment", test_editor_process_keypress_alt_c_toggles_python_comment},
+	{"editor_process_keypress_alt_c_toggles_comment_for_selection", test_editor_process_keypress_alt_c_toggles_comment_for_selection},
+	{"editor_process_keypress_alt_c_no_op_for_unsupported_language", test_editor_process_keypress_alt_c_no_op_for_unsupported_language},
+	{"editor_process_keypress_typed_char_replaces_selection", test_editor_process_keypress_typed_char_replaces_selection},
+	{"editor_process_keypress_tab_indents_selection", test_editor_process_keypress_tab_indents_selection},
+	{"editor_process_keypress_tab_indents_selection_drops_terminating_zero_column", test_editor_process_keypress_tab_indents_selection_drops_terminating_zero_column},
+	{"editor_process_keypress_alt_arrow_up_moves_line_up", test_editor_process_keypress_alt_arrow_up_moves_line_up},
+	{"editor_process_keypress_alt_arrow_down_moves_line_down", test_editor_process_keypress_alt_arrow_down_moves_line_down},
+	{"editor_process_keypress_alt_arrow_up_at_top_no_op", test_editor_process_keypress_alt_arrow_up_at_top_no_op},
+	{"editor_process_keypress_backspace_deletes_active_selection", test_editor_process_keypress_backspace_deletes_active_selection},
+	{"editor_process_keypress_delete_deletes_active_selection", test_editor_process_keypress_delete_deletes_active_selection},
 	{"editor_process_keypress_ctrl_j_does_not_insert_newline", test_editor_process_keypress_ctrl_j_does_not_insert_newline},
 	{"editor_process_keypress_tab_inserts_literal_tab", test_editor_process_keypress_tab_inserts_literal_tab},
 	{"editor_process_keypress_utf8_bytes_insert_verbatim", test_editor_process_keypress_utf8_bytes_insert_verbatim},

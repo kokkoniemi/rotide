@@ -1,6 +1,7 @@
 #include "test_case.h"
 #include "test_support.h"
 #include "workspace/file_search.h"
+#include "workspace/git.h"
 #include "workspace/project_search.h"
 
 #define TEST_HEADER_BG "\x1b[48;5;236m"
@@ -1488,6 +1489,110 @@ static int test_editor_refresh_screen_renders_drawer_entries_and_selection(void)
 	return 0;
 }
 
+static int test_editor_refresh_screen_drawer_colors_files_by_git_status(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char modified_file[512];
+	char untracked_file[512];
+	char conflict_file[512];
+	ASSERT_TRUE(path_join(modified_file, sizeof(modified_file), env.project_dir, "modified.txt"));
+	ASSERT_TRUE(path_join(untracked_file, sizeof(untracked_file), env.project_dir, "untracked.txt"));
+	ASSERT_TRUE(path_join(conflict_file, sizeof(conflict_file), env.project_dir, "conflict.txt"));
+	ASSERT_TRUE(write_text_file(modified_file, "m\n"));
+	ASSERT_TRUE(write_text_file(untracked_file, "u\n"));
+	ASSERT_TRUE(write_text_file(conflict_file, "c\n"));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows));
+
+	free(E.git_repo_root);
+	E.git_repo_root = strdup(env.project_dir);
+	ASSERT_TRUE(E.git_repo_root != NULL);
+	// Inject in alphabetical order so editorGitFileStatus's binary search works.
+	struct editorGitEntry *grown = realloc(E.git_entries, 3 * sizeof(struct editorGitEntry));
+	ASSERT_TRUE(grown != NULL);
+	E.git_entries = grown;
+	E.git_entry_capacity = 3;
+	E.git_entries[0].rel_path = strdup("conflict.txt");
+	E.git_entries[0].status = EDITOR_GIT_STATUS_CONFLICT;
+	E.git_entries[0].index_status = 'U';
+	E.git_entries[0].worktree_status = 'U';
+	E.git_entries[1].rel_path = strdup("modified.txt");
+	E.git_entries[1].status = EDITOR_GIT_STATUS_MODIFIED;
+	E.git_entries[1].index_status = ' ';
+	E.git_entries[1].worktree_status = 'M';
+	E.git_entries[2].rel_path = strdup("untracked.txt");
+	E.git_entries[2].status = EDITOR_GIT_STATUS_UNTRACKED;
+	E.git_entries[2].index_status = '?';
+	E.git_entries[2].worktree_status = '?';
+	E.git_entry_count = 3;
+
+	E.pane_focus = EDITOR_PANE_TEXT;
+	E.window_rows = 8;
+	E.window_cols = 50;
+	E.line_numbers_enabled = 0;
+	add_row("body");
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+
+	// Yellow (modified), green (untracked), red (conflict) precede the file name.
+	ASSERT_TRUE(strstr(output, "\x1b[33mmodified.txt") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32muntracked.txt") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[31mconflict.txt") != NULL);
+	free(output);
+
+	editorGitFree();
+	ASSERT_TRUE(unlink(conflict_file) == 0);
+	ASSERT_TRUE(unlink(untracked_file) == 0);
+	ASSERT_TRUE(unlink(modified_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_refresh_screen_drawer_renders_directories_bold_and_cyan(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char src_dir[512];
+	char child_file[512];
+	ASSERT_TRUE(path_join(src_dir, sizeof(src_dir), env.project_dir, "src"));
+	ASSERT_TRUE(path_join(child_file, sizeof(child_file), env.project_dir, "leaf.txt"));
+	ASSERT_TRUE(make_dir(src_dir));
+	ASSERT_TRUE(write_text_file(child_file, "leaf\n"));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows));
+
+	E.pane_focus = EDITOR_PANE_TEXT;
+	E.window_rows = 6;
+	E.window_cols = 40;
+	E.line_numbers_enabled = 0;
+	add_row("body");
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+
+	// Directory "src" should be wrapped in bold + cyan + reset.
+	const char *dir_marker = strstr(output, "src");
+	ASSERT_TRUE(dir_marker != NULL);
+	const char *dir_bold_cyan = strstr(output, "\x1b[1m\x1b[36msrc\x1b[39m\x1b[22m");
+	ASSERT_TRUE(dir_bold_cyan != NULL);
+
+	// Regular file "leaf.txt" should NOT be wrapped in cyan.
+	ASSERT_TRUE(strstr(output, "\x1b[36mleaf.txt") == NULL);
+	ASSERT_TRUE(strstr(output, "leaf.txt") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(child_file) == 0);
+	ASSERT_TRUE(rmdir(src_dir) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_refresh_screen_drawer_hides_selection_marker_when_unfocused(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -2606,6 +2711,8 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_tab_layout_width_includes_right_label_padding", test_editor_tab_layout_width_includes_right_label_padding},
 	{"editor_tabs_align_view_keeps_active_visible_with_variable_widths", test_editor_tabs_align_view_keeps_active_visible_with_variable_widths},
 	{"editor_refresh_screen_renders_drawer_entries_and_selection", test_editor_refresh_screen_renders_drawer_entries_and_selection},
+	{"editor_refresh_screen_drawer_colors_files_by_git_status", test_editor_refresh_screen_drawer_colors_files_by_git_status},
+	{"editor_refresh_screen_drawer_renders_directories_bold_and_cyan", test_editor_refresh_screen_drawer_renders_directories_bold_and_cyan},
 	{"editor_refresh_screen_drawer_hides_selection_marker_when_unfocused", test_editor_refresh_screen_drawer_hides_selection_marker_when_unfocused},
 	{"editor_refresh_screen_drawer_active_file_uses_inverted_background", test_editor_refresh_screen_drawer_active_file_uses_inverted_background},
 	{"editor_refresh_screen_drawer_collapsed_renders_expand_indicator", test_editor_refresh_screen_drawer_collapsed_renders_expand_indicator},
