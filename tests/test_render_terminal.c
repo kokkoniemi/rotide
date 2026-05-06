@@ -94,6 +94,83 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_c_tokens(v
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_a11y_dark_truecolor_theme(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-a11y-dark-XXXXXX.c";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
+			"tests/syntax/supported/c/highlight.c"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorThemeInitBuiltin(&E.theme, "a11y-dark"));
+	E.window_rows = 8;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b]12;rgb:f8/f8/f2\a") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[38;2;102;221;236mint") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[38;2;255;215;0mmain") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[38;2;212;208;171m// comment") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[48;2;58;58;58m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[38;2;43;43;43m\x1b[48;2;248;248;242m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_applies_custom_theme_roles(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-custom-theme-XXXXXX.c";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
+			"tests/syntax/supported/c/highlight.c"));
+
+	editorOpen(path);
+	E.theme.syntax[EDITOR_SYNTAX_HL_STRING] = editorThemeRgbColor(0x01, 0x02, 0x03);
+	E.theme.ui[EDITOR_THEME_UI_LINE_NUMBER] = editorThemeRgbColor(0x04, 0x05, 0x06);
+	E.theme.ui[EDITOR_THEME_UI_CURRENT_LINE_BG] = editorThemeRgbColor(0x07, 0x08, 0x09);
+	E.window_rows = 8;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[38;2;1;2;3m\"txt\"") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[38;2;4;5;6m1 ") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[48;2;7;8;9m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_a11y_selection_overrides_syntax(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-a11y-selection-XXXXXX.c";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
+			"tests/syntax/supported/c/highlight.c"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorThemeInitBuiltin(&E.theme, "a11y-dark"));
+	E.window_rows = 8;
+	E.window_cols = 100;
+	E.cy = 3;
+	E.cx = 0;
+	ASSERT_TRUE(set_active_search_match(3, 2, 6));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[38;2;43;43;43m\x1b[48;2;255;215;0mreturn") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[38;2;107;190;255mreturn") == NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_cpp_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-cpp-XXXXXX.cpp";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
@@ -2660,6 +2737,9 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_uses_configured_cursor_style", test_editor_refresh_screen_uses_configured_cursor_style},
 	{"editor_refresh_screen_highlights_active_search_match", test_editor_refresh_screen_highlights_active_search_match},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_c_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_c_tokens},
+	{"editor_refresh_screen_applies_a11y_dark_truecolor_theme", test_editor_refresh_screen_applies_a11y_dark_truecolor_theme},
+	{"editor_refresh_screen_applies_custom_theme_roles", test_editor_refresh_screen_applies_custom_theme_roles},
+	{"editor_refresh_screen_a11y_selection_overrides_syntax", test_editor_refresh_screen_a11y_selection_overrides_syntax},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_cpp_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_cpp_tokens},
 	{"editor_refresh_screen_applies_cpp_raw_string_injections", test_editor_refresh_screen_applies_cpp_raw_string_injections},
 	{"editor_refresh_screen_repo_buffer_c_stays_highlighted", test_editor_refresh_screen_repo_buffer_c_stays_highlighted},

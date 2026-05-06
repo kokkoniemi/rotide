@@ -26,6 +26,15 @@ static int find_drawer_entry_path(const char *path, int *idx_out,
 	return 0;
 }
 
+static int theme_color_is_ansi(struct editorThemeColor color, enum editorThemeAnsiColor ansi) {
+	return color.kind == EDITOR_THEME_COLOR_ANSI && color.value == (unsigned char)ansi;
+}
+
+static int theme_color_is_rgb(struct editorThemeColor color, unsigned char r, unsigned char g,
+		unsigned char b) {
+	return color.kind == EDITOR_THEME_COLOR_RGB && color.r == r && color.g == g && color.b == b;
+}
+
 static int test_editor_drawer_root_selection_modes(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -2330,8 +2339,8 @@ static int test_editor_view_bool_invalid_settings_do_not_break_keymap_loading(vo
 	return 0;
 }
 
-static int test_editor_syntax_theme_load_global_project_precedence(void) {
-	char dir_template[] = "/tmp/rotide-test-syntax-theme-precedence-XXXXXX";
+static int test_editor_theme_load_builtin_global_project_precedence(void) {
+	char dir_template[] = "/tmp/rotide-test-theme-precedence-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
 	ASSERT_TRUE(dir_path != NULL);
 
@@ -2341,30 +2350,19 @@ static int test_editor_syntax_theme_load_global_project_precedence(void) {
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
 
 	ASSERT_TRUE(write_text_file(global_path,
-				"[theme.syntax]\n"
-				"comment = \"red\"\n"
-				"keyword = \"blue\"\n"));
+				"[theme]\n"
+				"name = \"a11y-dark\"\n"));
 	ASSERT_TRUE(write_text_file(project_path,
-				"[theme.syntax]\n"
-				"keyword = \"bright_yellow\"\n"
-				"string = \"green\"\n"
-				"variable = \"white\"\n"
-				"parameter = \"yellow\"\n"
-				"module = \"cyan\"\n"
-				"property = \"bright_magenta\"\n"));
+				"[theme]\n"
+				"name = \"a11y-light\"\n"));
 
-	enum editorThemeColor theme[EDITOR_SYNTAX_HL_CLASS_COUNT];
-	enum editorSyntaxThemeLoadStatus status =
-			editorSyntaxThemeLoadFromPaths(theme, global_path, project_path);
-	ASSERT_EQ_INT(EDITOR_SYNTAX_THEME_LOAD_OK, status);
-	ASSERT_EQ_INT(EDITOR_THEME_COLOR_RED, theme[EDITOR_SYNTAX_HL_COMMENT]);
-	ASSERT_EQ_INT(EDITOR_THEME_COLOR_BRIGHT_YELLOW, theme[EDITOR_SYNTAX_HL_KEYWORD]);
-	ASSERT_EQ_INT(EDITOR_THEME_COLOR_GREEN, theme[EDITOR_SYNTAX_HL_STRING]);
-	ASSERT_EQ_INT(EDITOR_THEME_COLOR_BRIGHT_CYAN, theme[EDITOR_SYNTAX_HL_TYPE]);
-	ASSERT_EQ_INT(EDITOR_THEME_COLOR_WHITE, theme[EDITOR_SYNTAX_HL_VARIABLE]);
-	ASSERT_EQ_INT(EDITOR_THEME_COLOR_YELLOW, theme[EDITOR_SYNTAX_HL_PARAMETER]);
-	ASSERT_EQ_INT(EDITOR_THEME_COLOR_CYAN, theme[EDITOR_SYNTAX_HL_MODULE]);
-	ASSERT_EQ_INT(EDITOR_THEME_COLOR_BRIGHT_MAGENTA, theme[EDITOR_SYNTAX_HL_PROPERTY]);
+	struct editorTheme theme;
+	enum editorThemeLoadStatus status =
+			editorThemeLoadFromPaths(&theme, global_path, project_path, dir_path);
+	ASSERT_EQ_INT(EDITOR_THEME_LOAD_OK, status);
+	ASSERT_EQ_STR("a11y-light", theme.name);
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_BACKGROUND], 0xFE, 0xFE, 0xFE));
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_KEYWORD], 0x32, 0x6B, 0xAD));
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(unlink(global_path) == 0);
@@ -2372,36 +2370,28 @@ static int test_editor_syntax_theme_load_global_project_precedence(void) {
 	return 0;
 }
 
-static int test_editor_syntax_theme_invalid_entries_nonfatal_and_keymap_still_loads(void) {
-	char dir_template[] = "/tmp/rotide-test-syntax-theme-invalid-XXXXXX";
+static int test_editor_theme_project_config_cannot_override_theme_colors(void) {
+	char dir_template[] = "/tmp/rotide-test-theme-no-project-overrides-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
 	ASSERT_TRUE(dir_path != NULL);
 
-	char global_path[512];
 	char project_path[512];
-	ASSERT_TRUE(path_join(global_path, sizeof(global_path), dir_path, "global.toml"));
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
 
-	ASSERT_TRUE(write_text_file(global_path,
-				"[theme.syntax]\n"
-				"comment = \"not-a-color\"\n"
-				"keyword = \"bright_blue\"\n"));
 	ASSERT_TRUE(write_text_file(project_path,
+				"[theme]\n"
+				"name = \"a11y-light\"\n"
 				"[theme.syntax]\n"
-				"unknown_scope = \"red\"\n"
-				"string = \"green\"\n"
+				"keyword = \"red\"\n"
 				"[keymap]\n"
 				"save = \"ctrl+a\"\n"));
 
-	enum editorThemeColor theme[EDITOR_SYNTAX_HL_CLASS_COUNT];
-	enum editorSyntaxThemeLoadStatus theme_status =
-			editorSyntaxThemeLoadFromPaths(theme, global_path, project_path);
-	ASSERT_EQ_INT(
-			EDITOR_SYNTAX_THEME_LOAD_INVALID_GLOBAL | EDITOR_SYNTAX_THEME_LOAD_INVALID_PROJECT,
-			theme_status);
-	ASSERT_EQ_INT(EDITOR_THEME_COLOR_BRIGHT_BLACK, theme[EDITOR_SYNTAX_HL_COMMENT]);
-	ASSERT_EQ_INT(EDITOR_THEME_COLOR_BRIGHT_BLUE, theme[EDITOR_SYNTAX_HL_KEYWORD]);
-	ASSERT_EQ_INT(EDITOR_THEME_COLOR_GREEN, theme[EDITOR_SYNTAX_HL_STRING]);
+	struct editorTheme theme;
+	enum editorThemeLoadStatus theme_status =
+			editorThemeLoadFromPaths(&theme, NULL, project_path, dir_path);
+	ASSERT_EQ_INT(EDITOR_THEME_LOAD_INVALID_PROJECT, theme_status);
+	ASSERT_EQ_STR("a11y-light", theme.name);
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_KEYWORD], 0x32, 0x6B, 0xAD));
 
 	struct editorKeymap keymap;
 	enum editorKeymapLoadStatus keymap_status =
@@ -2412,7 +2402,95 @@ static int test_editor_syntax_theme_invalid_entries_nonfatal_and_keymap_still_lo
 	ASSERT_EQ_INT(EDITOR_ACTION_SAVE, action);
 
 	ASSERT_TRUE(unlink(project_path) == 0);
-	ASSERT_TRUE(unlink(global_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_theme_loads_custom_theme_from_home_themes(void) {
+	char dir_template[] = "/tmp/rotide-test-theme-custom-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char dot_rotide[512];
+	char themes_dir[512];
+	char theme_path[512];
+	char project_path[512];
+	ASSERT_TRUE(path_join(dot_rotide, sizeof(dot_rotide), dir_path, ".rotide"));
+	ASSERT_TRUE(path_join(themes_dir, sizeof(themes_dir), dot_rotide, "themes"));
+	ASSERT_TRUE(path_join(theme_path, sizeof(theme_path), themes_dir, "custom.toml"));
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
+	ASSERT_TRUE(make_dir(dot_rotide));
+	ASSERT_TRUE(make_dir(themes_dir));
+	ASSERT_TRUE(write_text_file(theme_path,
+				"name = \"custom\"\n"
+				"inherits = \"a11y-dark\"\n"
+				"[theme.syntax]\n"
+				"comment = \"#010203\"\n"
+				"[theme.ui]\n"
+				"current_line_bg = \"#0A0B0C\"\n"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[theme]\n"
+				"name = \"custom\"\n"));
+
+	struct editorTheme theme;
+	enum editorThemeLoadStatus status =
+			editorThemeLoadFromPaths(&theme, NULL, project_path, dir_path);
+	ASSERT_EQ_INT(EDITOR_THEME_LOAD_OK, status);
+	ASSERT_EQ_STR("custom", theme.name);
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_COMMENT], 0x01, 0x02, 0x03));
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_KEYWORD], 0x6B, 0xBE, 0xFF));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_CURRENT_LINE_BG], 0x0A, 0x0B, 0x0C));
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(unlink(theme_path) == 0);
+	ASSERT_TRUE(rmdir(themes_dir) == 0);
+	ASSERT_TRUE(rmdir(dot_rotide) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_theme_invalid_values_fall_back_to_terminal(void) {
+	char dir_template[] = "/tmp/rotide-test-theme-invalid-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char dot_rotide[512];
+	char themes_dir[512];
+	char theme_path[512];
+	char project_path[512];
+	ASSERT_TRUE(path_join(dot_rotide, sizeof(dot_rotide), dir_path, ".rotide"));
+	ASSERT_TRUE(path_join(themes_dir, sizeof(themes_dir), dot_rotide, "themes"));
+	ASSERT_TRUE(path_join(theme_path, sizeof(theme_path), themes_dir, "bad.toml"));
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
+	ASSERT_TRUE(make_dir(dot_rotide));
+	ASSERT_TRUE(make_dir(themes_dir));
+	ASSERT_TRUE(write_text_file(theme_path,
+				"name = \"bad\"\n"
+				"[theme.syntax]\n"
+				"keyword = \"#12\"\n"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[theme]\n"
+				"name = \"bad\"\n"));
+
+	struct editorTheme theme;
+	enum editorThemeLoadStatus status =
+			editorThemeLoadFromPaths(&theme, NULL, project_path, dir_path);
+	ASSERT_EQ_INT(EDITOR_THEME_LOAD_INVALID_THEME, status);
+	ASSERT_EQ_STR("terminal", theme.name);
+	ASSERT_TRUE(theme_color_is_ansi(theme.syntax[EDITOR_SYNTAX_HL_KEYWORD],
+				EDITOR_THEME_ANSI_BRIGHT_BLUE));
+
+	ASSERT_TRUE(write_text_file(project_path,
+				"[theme]\n"
+				"name = \"../bad\"\n"));
+	status = editorThemeLoadFromPaths(&theme, NULL, project_path, dir_path);
+	ASSERT_EQ_INT(EDITOR_THEME_LOAD_INVALID_PROJECT, status);
+	ASSERT_EQ_STR("terminal", theme.name);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(unlink(theme_path) == 0);
+	ASSERT_TRUE(rmdir(themes_dir) == 0);
+	ASSERT_TRUE(rmdir(dot_rotide) == 0);
 	ASSERT_TRUE(rmdir(dir_path) == 0);
 	return 0;
 }
@@ -2855,8 +2933,10 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_line_numbers_load_precedence_and_invalid_fallback", test_editor_line_numbers_load_precedence_and_invalid_fallback},
 	{"editor_current_line_highlight_load_precedence_and_invalid_fallback", test_editor_current_line_highlight_load_precedence_and_invalid_fallback},
 	{"editor_view_bool_invalid_settings_do_not_break_keymap_loading", test_editor_view_bool_invalid_settings_do_not_break_keymap_loading},
-	{"editor_syntax_theme_load_global_project_precedence", test_editor_syntax_theme_load_global_project_precedence},
-	{"editor_syntax_theme_invalid_entries_nonfatal_and_keymap_still_loads", test_editor_syntax_theme_invalid_entries_nonfatal_and_keymap_still_loads},
+	{"editor_theme_load_builtin_global_project_precedence", test_editor_theme_load_builtin_global_project_precedence},
+	{"editor_theme_project_config_cannot_override_theme_colors", test_editor_theme_project_config_cannot_override_theme_colors},
+	{"editor_theme_loads_custom_theme_from_home_themes", test_editor_theme_loads_custom_theme_from_home_themes},
+	{"editor_theme_invalid_values_fall_back_to_terminal", test_editor_theme_invalid_values_fall_back_to_terminal},
 	{"editor_keymap_load_modifier_combo_specs_case_insensitive", test_editor_keymap_load_modifier_combo_specs_case_insensitive},
 	{"editor_keymap_load_invalid_modifier_combos_fall_back_to_defaults", test_editor_keymap_load_invalid_modifier_combos_fall_back_to_defaults},
 	{"editor_parse_column_select_drag_modifier_value", test_editor_parse_column_select_drag_modifier_value},

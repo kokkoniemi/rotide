@@ -113,9 +113,160 @@ static void wbFree(struct writeBuf *wb) {
 	free(wb->b);
 }
 
+static int editorThemeColorEquals(struct editorThemeColor a, struct editorThemeColor b) {
+	return a.kind == b.kind && a.value == b.value && a.r == b.r && a.g == b.g && a.b == b.b;
+}
+
+static int editorThemeColorIsDefault(struct editorThemeColor color) {
+	return color.kind == EDITOR_THEME_COLOR_DEFAULT;
+}
+
+static int editorAppendThemeColor(struct writeBuf *wb, struct editorThemeColor color, int bg) {
+	if (color.kind == EDITOR_THEME_COLOR_DEFAULT) {
+		return wbAppend(wb, bg ? "\x1b[49m" : "\x1b[39m", 5);
+	}
+	if (color.kind == EDITOR_THEME_COLOR_ANSI) {
+		static const char *fg_sequences[EDITOR_THEME_ANSI_COUNT] = {
+			VT100_FG_BLACK_5,
+			VT100_FG_RED_5,
+			VT100_FG_GREEN_5,
+			VT100_FG_YELLOW_5,
+			VT100_FG_BLUE_5,
+			VT100_FG_MAGENTA_5,
+			VT100_FG_CYAN_5,
+			VT100_FG_WHITE_5,
+			VT100_FG_GRAY_5,
+			VT100_FG_BRIGHT_RED_5,
+			VT100_FG_BRIGHT_GREEN_5,
+			VT100_FG_BRIGHT_YELLOW_5,
+			VT100_FG_BRIGHT_BLUE_5,
+			VT100_FG_BRIGHT_MAGENTA_5,
+			VT100_FG_BRIGHT_CYAN_5,
+			VT100_FG_BRIGHT_WHITE_5,
+		};
+		static const char *bg_sequences[EDITOR_THEME_ANSI_COUNT] = {
+			"\x1b[40m", "\x1b[41m", "\x1b[42m", "\x1b[43m",
+			"\x1b[44m", "\x1b[45m", "\x1b[46m", "\x1b[47m",
+			"\x1b[100m", "\x1b[101m", "\x1b[102m", "\x1b[103m",
+			"\x1b[104m", "\x1b[105m", "\x1b[106m", "\x1b[107m",
+		};
+		if (color.value >= EDITOR_THEME_ANSI_COUNT) {
+			return wbAppend(wb, bg ? "\x1b[49m" : "\x1b[39m", 5);
+		}
+		const char *sequence = bg ? bg_sequences[color.value] : fg_sequences[color.value];
+		return wbAppend(wb, sequence, strlen(sequence));
+	}
+
+	char sequence[32];
+	int len = 0;
+	if (color.kind == EDITOR_THEME_COLOR_256) {
+		len = snprintf(sequence, sizeof(sequence), "\x1b[%d;5;%um", bg ? 48 : 38,
+				(unsigned int)color.value);
+	} else {
+		len = snprintf(sequence, sizeof(sequence), "\x1b[%d;2;%u;%u;%um", bg ? 48 : 38,
+				(unsigned int)color.r, (unsigned int)color.g, (unsigned int)color.b);
+	}
+	if (len <= 0 || len >= (int)sizeof(sequence)) {
+		return 0;
+	}
+	return wbAppend(wb, sequence, (size_t)len);
+}
+
+static int editorAppendThemeForeground(struct writeBuf *wb, struct editorThemeColor color) {
+	return editorAppendThemeColor(wb, color, 0);
+}
+
+static int editorAppendThemeBackground(struct writeBuf *wb, struct editorThemeColor color) {
+	return editorAppendThemeColor(wb, color, 1);
+}
+
+static int editorAppendThemeBaseForeground(struct writeBuf *wb) {
+	return editorAppendThemeForeground(wb, E.theme.ui[EDITOR_THEME_UI_FOREGROUND]);
+}
+
+static int editorAppendThemeBaseStyle(struct writeBuf *wb) {
+	if (!editorThemeColorIsDefault(E.theme.ui[EDITOR_THEME_UI_FOREGROUND]) &&
+			!editorAppendThemeForeground(wb, E.theme.ui[EDITOR_THEME_UI_FOREGROUND])) {
+		return 0;
+	}
+	if (!editorThemeColorIsDefault(E.theme.ui[EDITOR_THEME_UI_BACKGROUND]) &&
+			!editorAppendThemeBackground(wb, E.theme.ui[EDITOR_THEME_UI_BACKGROUND])) {
+		return 0;
+	}
+	return 1;
+}
+
+static int editorAppendThemeReset(struct writeBuf *wb) {
+	return wbAppend(wb, VT100_NORMAL_COLORS_3, 3) && editorAppendThemeBaseStyle(wb);
+}
+
+static int editorAppendThemeStyle(struct writeBuf *wb, enum editorThemeStyleRole role) {
+	if (role < 0 || role >= EDITOR_THEME_STYLE_ROLE_COUNT) {
+		return 1;
+	}
+	struct editorThemeStyle style = E.theme.styles[role];
+	if (style.reverse) {
+		return wbAppend(wb, VT100_INVERTED_COLORS_4, 4);
+	}
+	if (!editorAppendThemeForeground(wb, style.fg)) {
+		return 0;
+	}
+	return editorAppendThemeBackground(wb, style.bg);
+}
+
+static int editorAppendThemeForegroundRole(struct writeBuf *wb, enum editorThemeUiRole role) {
+	if (role < 0 || role >= EDITOR_THEME_UI_ROLE_COUNT) {
+		return 1;
+	}
+	return editorAppendThemeForeground(wb, E.theme.ui[role]);
+}
+
+static int editorAppendThemeBackgroundRole(struct writeBuf *wb, enum editorThemeUiRole role) {
+	if (role < 0 || role >= EDITOR_THEME_UI_ROLE_COUNT) {
+		return 1;
+	}
+	return editorAppendThemeBackground(wb, E.theme.ui[role]);
+}
+
+static int editorAppendThemeCursorColor(struct writeBuf *wb) {
+	struct editorThemeColor color = E.theme.ui[EDITOR_THEME_UI_CURSOR];
+	if (color.kind == EDITOR_THEME_COLOR_DEFAULT) {
+		return wbAppend(wb, VT100_CURSOR_COLOR_WHITE, strlen(VT100_CURSOR_COLOR_WHITE));
+	}
+	if (color.kind == EDITOR_THEME_COLOR_ANSI) {
+		static const char *names[EDITOR_THEME_ANSI_COUNT] = {
+			"black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
+			"brightblack", "brightred", "brightgreen", "brightyellow", "brightblue",
+			"brightmagenta", "brightcyan", "brightwhite",
+		};
+		if (color.value == EDITOR_THEME_ANSI_WHITE) {
+			return wbAppend(wb, VT100_CURSOR_COLOR_WHITE, strlen(VT100_CURSOR_COLOR_WHITE));
+		}
+		if (color.value >= EDITOR_THEME_ANSI_COUNT) {
+			return wbAppend(wb, VT100_CURSOR_COLOR_WHITE, strlen(VT100_CURSOR_COLOR_WHITE));
+		}
+		char sequence[40];
+		int len = snprintf(sequence, sizeof(sequence), "\x1b]12;%s\a", names[color.value]);
+		if (len <= 0 || len >= (int)sizeof(sequence)) {
+			return 0;
+		}
+		return wbAppend(wb, sequence, (size_t)len);
+	}
+	if (color.kind == EDITOR_THEME_COLOR_256) {
+		return wbAppend(wb, VT100_CURSOR_COLOR_WHITE, strlen(VT100_CURSOR_COLOR_WHITE));
+	}
+	char sequence[40];
+	int len = snprintf(sequence, sizeof(sequence), "\x1b]12;rgb:%02x/%02x/%02x\a",
+			(unsigned int)color.r, (unsigned int)color.g, (unsigned int)color.b);
+	if (len <= 0 || len >= (int)sizeof(sequence)) {
+		return 0;
+	}
+	return wbAppend(wb, sequence, (size_t)len);
+}
+
 static int editorAppendGrayBytes(struct writeBuf *wb, const char *text, size_t len) {
-	return wbAppend(wb, VT100_FG_GRAY_5, 5) && wbAppend(wb, text, len) &&
-			wbAppend(wb, VT100_FG_DEFAULT_5, 5);
+	return editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_PLACEHOLDER) &&
+			wbAppend(wb, text, len) && editorAppendThemeBaseForeground(wb);
 }
 
 /*** Output ***/
@@ -906,69 +1057,6 @@ static int editorSearchSpanForRow(int row_idx, int *start_out, int *end_out) {
 	return 1;
 }
 
-static const char *editorThemeColorSequence(enum editorThemeColor color, size_t *len_out) {
-	const char *sequence = VT100_FG_DEFAULT_5;
-	switch (color) {
-		case EDITOR_THEME_COLOR_BLACK:
-			sequence = VT100_FG_BLACK_5;
-			break;
-		case EDITOR_THEME_COLOR_RED:
-			sequence = VT100_FG_RED_5;
-			break;
-		case EDITOR_THEME_COLOR_GREEN:
-			sequence = VT100_FG_GREEN_5;
-			break;
-		case EDITOR_THEME_COLOR_YELLOW:
-			sequence = VT100_FG_YELLOW_5;
-			break;
-		case EDITOR_THEME_COLOR_BLUE:
-			sequence = VT100_FG_BLUE_5;
-			break;
-		case EDITOR_THEME_COLOR_MAGENTA:
-			sequence = VT100_FG_MAGENTA_5;
-			break;
-		case EDITOR_THEME_COLOR_CYAN:
-			sequence = VT100_FG_CYAN_5;
-			break;
-		case EDITOR_THEME_COLOR_WHITE:
-			sequence = VT100_FG_WHITE_5;
-			break;
-		case EDITOR_THEME_COLOR_BRIGHT_BLACK:
-			sequence = VT100_FG_GRAY_5;
-			break;
-		case EDITOR_THEME_COLOR_BRIGHT_RED:
-			sequence = VT100_FG_BRIGHT_RED_5;
-			break;
-		case EDITOR_THEME_COLOR_BRIGHT_GREEN:
-			sequence = VT100_FG_BRIGHT_GREEN_5;
-			break;
-		case EDITOR_THEME_COLOR_BRIGHT_YELLOW:
-			sequence = VT100_FG_BRIGHT_YELLOW_5;
-			break;
-		case EDITOR_THEME_COLOR_BRIGHT_BLUE:
-			sequence = VT100_FG_BRIGHT_BLUE_5;
-			break;
-		case EDITOR_THEME_COLOR_BRIGHT_MAGENTA:
-			sequence = VT100_FG_BRIGHT_MAGENTA_5;
-			break;
-		case EDITOR_THEME_COLOR_BRIGHT_CYAN:
-			sequence = VT100_FG_BRIGHT_CYAN_5;
-			break;
-		case EDITOR_THEME_COLOR_BRIGHT_WHITE:
-			sequence = VT100_FG_BRIGHT_WHITE_5;
-			break;
-		case EDITOR_THEME_COLOR_DEFAULT:
-		default:
-			sequence = VT100_FG_DEFAULT_5;
-			break;
-	}
-
-	if (len_out != NULL) {
-		*len_out = strlen(sequence);
-	}
-	return sequence;
-}
-
 static enum editorSyntaxHighlightClass editorSyntaxClassAtRenderIdx(
 		const struct editorRowSyntaxSpan *spans, int span_count, int render_idx) {
 	enum editorSyntaxHighlightClass highlight_class = EDITOR_SYNTAX_HL_NONE;
@@ -993,24 +1081,25 @@ static int editorDrawRenderSliceWithSyntax(struct writeBuf *wb, const struct ero
 		return wbAppend(wb, &row->render[segment_start], (size_t)(segment_end - segment_start));
 	}
 
-	enum editorThemeColor active_color = EDITOR_THEME_COLOR_DEFAULT;
+	struct editorThemeColor base_color = E.theme.ui[EDITOR_THEME_UI_FOREGROUND];
+	struct editorThemeColor active_color = base_color;
+	int active_color_emitted = 0;
 	int pos = segment_start;
 	while (pos < segment_end) {
 		enum editorSyntaxHighlightClass highlight_class =
 				editorSyntaxClassAtRenderIdx(spans, span_count, pos);
-		enum editorThemeColor next_color = EDITOR_THEME_COLOR_DEFAULT;
+		struct editorThemeColor next_color = base_color;
 		if (highlight_class > EDITOR_SYNTAX_HL_NONE &&
 				highlight_class < EDITOR_SYNTAX_HL_CLASS_COUNT) {
-			next_color = E.syntax_theme[highlight_class];
+			next_color = E.theme.syntax[highlight_class];
 		}
 
-		if (next_color != active_color) {
-			size_t seq_len = 0;
-			const char *seq = editorThemeColorSequence(next_color, &seq_len);
-			if (!wbAppend(wb, seq, seq_len)) {
+		if (!editorThemeColorEquals(next_color, active_color)) {
+			if (!editorAppendThemeForeground(wb, next_color)) {
 				return 0;
 			}
 			active_color = next_color;
+			active_color_emitted = 1;
 		}
 
 		int next = segment_end;
@@ -1046,8 +1135,7 @@ static int editorDrawRenderSliceWithSyntax(struct writeBuf *wb, const struct ero
 		pos = next;
 	}
 
-	if (active_color != EDITOR_THEME_COLOR_DEFAULT &&
-			!wbAppend(wb, VT100_FG_DEFAULT_5, 5)) {
+	if (active_color_emitted && !editorAppendThemeBaseForeground(wb)) {
 		return 0;
 	}
 	return 1;
@@ -1125,13 +1213,13 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 					syntax_span_count)) {
 		return 0;
 	}
-	if (!wbAppend(wb, VT100_INVERTED_COLORS_4, 4)) {
+	if (!editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_SELECTION)) {
 		return 0;
 	}
 	if (!wbAppend(wb, &row->render[highlight_start], highlight_end - highlight_start)) {
 		return 0;
 	}
-	if (!wbAppend(wb, VT100_NORMAL_COLORS_3, 3)) {
+	if (!editorAppendThemeReset(wb)) {
 		return 0;
 	}
 	if (highlight_end < end &&
@@ -1583,7 +1671,7 @@ static int editorDrawLineNumberGutter(struct writeBuf *wb, int row_idx, int segm
 			pad_cols = 0;
 		}
 
-		if (!wbAppend(wb, VT100_FG_GRAY_5, 5)) {
+		if (!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_LINE_NUMBER)) {
 			return 0;
 		}
 		for (int pad = 0; pad < pad_cols; pad++) {
@@ -1602,7 +1690,7 @@ static int editorDrawLineNumberGutter(struct writeBuf *wb, int row_idx, int segm
 		if (gutter_cols > 1 && !wbAppend(wb, " ", 1)) {
 			return 0;
 		}
-		return wbAppend(wb, VT100_FG_DEFAULT_5, 5);
+		return editorAppendThemeBaseForeground(wb);
 	}
 
 	for (int col = 0; col < gutter_cols; col++) {
@@ -1747,7 +1835,7 @@ static int editorDrawTabSlots(struct writeBuf *wb, int cols) {
 			continue;
 		}
 		int is_active = tab_idx == active;
-		if (is_active && !wbAppend(wb, VT100_INVERTED_COLORS_4, 4)) {
+		if (is_active && !editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_TAB_ACTIVE)) {
 			return 0;
 		}
 
@@ -1827,7 +1915,7 @@ static int editorDrawTabSlots(struct writeBuf *wb, int cols) {
 			slot_cols++;
 		}
 
-		if (is_active && !wbAppend(wb, VT100_NORMAL_COLORS_3, 3)) {
+		if (is_active && !editorAppendThemeReset(wb)) {
 			return 0;
 		}
 
@@ -1903,16 +1991,16 @@ static int editorDrawDrawerHeaderCell(struct writeBuf *wb, const char *label, in
 	}
 
 	if (active) {
-		if (!wbAppend(wb, VT100_INVERTED_COLORS_4, 4)) {
+		if (!editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_DRAWER_HEADER_ACTIVE)) {
 			return 0;
 		}
-	} else if (!wbAppend(wb, VT100_BG_CURRENT_LINE, sizeof(VT100_BG_CURRENT_LINE) - 1)) {
+	} else if (!editorAppendThemeBackgroundRole(wb, EDITOR_THEME_UI_DRAWER_HEADER_BG)) {
 		return 0;
 	}
 
 	int wrote = 0;
 	if (!editorAppendSanitizedText(wb, text, drawer_cols - *written_cols, &wrote) ||
-			!wbAppend(wb, VT100_NORMAL_COLORS_3, 3)) {
+			!editorAppendThemeReset(wb)) {
 		return 0;
 	}
 	*written_cols += wrote;
@@ -2006,8 +2094,8 @@ static int editorDrawerAppendGrayCell(struct writeBuf *wb, const char *text, siz
 	if (written_cols == NULL || *written_cols >= drawer_cols) {
 		return 1;
 	}
-	if (!wbAppend(wb, VT100_FG_GRAY_5, 5) || !wbAppend(wb, text, len) ||
-			!wbAppend(wb, VT100_FG_DEFAULT_5, 5)) {
+	if (!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_DRAWER_CONNECTOR) ||
+			!wbAppend(wb, text, len) || !editorAppendThemeBaseForeground(wb)) {
 		return 0;
 	}
 	(*written_cols)++;
@@ -2171,10 +2259,10 @@ static int editorDrawDrawerSelectionOverflow(struct writeBuf *wb, int row_idx, i
 		return 0;
 	}
 	if (!wbAppend(wb, move_buf, (size_t)move_len) ||
-			!wbAppend(wb, VT100_INVERTED_COLORS_4, 4) ||
+			!editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_SELECTION) ||
 			!editorAppendDisplaySlice(wb, plain.b != NULL ? plain.b : "", drawer_cols, overlay_budget,
 					&overlay_written) ||
-			!wbAppend(wb, VT100_NORMAL_COLORS_3, 3)) {
+			!editorAppendThemeReset(wb)) {
 		wbFree(&plain);
 		return 0;
 	}
@@ -2206,7 +2294,7 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 		selected_with_focus = entry.is_selected && E.pane_focus == EDITOR_PANE_DRAWER;
 		row_inverted = selected_with_focus || (entry.is_active_file && !entry.is_dir);
 		int gray_connectors = !row_inverted;
-		if (row_inverted && !wbAppend(wb, VT100_INVERTED_COLORS_4, 4)) {
+		if (row_inverted && !editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_SELECTION)) {
 			return 0;
 		}
 
@@ -2281,27 +2369,27 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 			int remaining = drawer_cols - written_cols;
 			int wrote = 0;
 			int root_bold = entry.is_root || (entry.is_dir && !row_inverted);
-			int root_white = entry.is_root;
-			int dir_cyan = entry.is_dir && !entry.is_root && !row_inverted;
-			int placeholder_gray = entry.is_placeholder;
+			int root_color = entry.is_root;
+			int dir_color = entry.is_dir && !entry.is_root && !row_inverted;
+			int placeholder_color = entry.is_placeholder;
 			int git_color = 0;
 			if (!row_inverted && E.git_repo_root != NULL) {
 				switch (entry.git_status) {
 				case EDITOR_GIT_STATUS_MODIFIED:
 					git_color = 1;
-					if (!wbAppend(wb, VT100_FG_YELLOW_5, 5)) {
+					if (!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_GIT_MODIFIED)) {
 						return 0;
 					}
 					break;
 				case EDITOR_GIT_STATUS_UNTRACKED:
 					git_color = 1;
-					if (!wbAppend(wb, VT100_FG_GREEN_5, 5)) {
+					if (!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_GIT_UNTRACKED)) {
 						return 0;
 					}
 					break;
 				case EDITOR_GIT_STATUS_CONFLICT:
 					git_color = 1;
-					if (!wbAppend(wb, VT100_FG_RED_5, 5)) {
+					if (!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_GIT_CONFLICT)) {
 						return 0;
 					}
 					break;
@@ -2312,31 +2400,32 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 			if (root_bold && !wbAppend(wb, VT100_BOLD_ON_4, 4)) {
 				return 0;
 			}
-			if (root_white && !wbAppend(wb, VT100_FG_WHITE_5, 5)) {
+			if (root_color && !editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_ROOT)) {
 				return 0;
 			}
-			if (dir_cyan && !wbAppend(wb, VT100_FG_CYAN_5, 5)) {
+			if (dir_color && !editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_DIRECTORY)) {
 				return 0;
 			}
-			if (placeholder_gray && !wbAppend(wb, VT100_FG_GRAY_5, 5)) {
+			if (placeholder_color &&
+					!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_PLACEHOLDER)) {
 				return 0;
 			}
 			if (!editorAppendSanitizedText(wb, entry.name, remaining, &wrote)) {
 				return 0;
 			}
-			if (placeholder_gray && !wbAppend(wb, VT100_FG_DEFAULT_5, 5)) {
+			if (placeholder_color && !editorAppendThemeBaseForeground(wb)) {
 				return 0;
 			}
-			if (dir_cyan && !wbAppend(wb, VT100_FG_DEFAULT_5, 5)) {
+			if (dir_color && !editorAppendThemeBaseForeground(wb)) {
 				return 0;
 			}
-			if (root_white && !wbAppend(wb, VT100_FG_DEFAULT_5, 5)) {
+			if (root_color && !editorAppendThemeBaseForeground(wb)) {
 				return 0;
 			}
 			if (root_bold && !wbAppend(wb, VT100_BOLD_OFF_5, 5)) {
 				return 0;
 			}
-			if (git_color && !wbAppend(wb, VT100_FG_DEFAULT_5, 5)) {
+			if (git_color && !editorAppendThemeBaseForeground(wb)) {
 				return 0;
 			}
 			written_cols += wrote;
@@ -2352,7 +2441,7 @@ pad_drawer_row:
 		written_cols++;
 	}
 
-	if (row_inverted && !wbAppend(wb, VT100_NORMAL_COLORS_3, 3)) {
+	if (row_inverted && !editorAppendThemeReset(wb)) {
 		return 0;
 	}
 
@@ -2385,7 +2474,8 @@ static int editorBuildFileRowLine(struct writeBuf *wb, int y, int drawer_cols, i
 	}
 	int highlight_row = y_offset < E.numrows &&
 			editorCurrentLineHighlightApplies(y_offset, segment_coloff);
-	if (highlight_row && !wbAppend(wb, VT100_BG_CURRENT_LINE, strlen(VT100_BG_CURRENT_LINE))) {
+	if (highlight_row &&
+			!editorAppendThemeBackgroundRole(wb, EDITOR_THEME_UI_CURRENT_LINE_BG)) {
 		return 0;
 	}
 	g_editor_drawing_current_line_highlight = highlight_row;
@@ -2413,7 +2503,7 @@ static int editorBuildFileRowLine(struct writeBuf *wb, int y, int drawer_cols, i
 		return 0;
 	}
 	g_editor_drawing_current_line_highlight = 0;
-	if (highlight_row && !wbAppend(wb, VT100_NORMAL_COLORS_3, 3)) {
+	if (highlight_row && !editorAppendThemeReset(wb)) {
 		return 0;
 	}
 
@@ -2492,7 +2582,7 @@ static int editorDrawRows(struct writeBuf *wb) {
 }
 
 static int editorDrawStatusBar(struct writeBuf *wb) {
-	if (!wbAppend(wb, VT100_INVERTED_COLORS_4, 4)) {
+	if (!editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_STATUS)) {
 		return 0;
 	}
 	char rightbuf[80];
@@ -2604,7 +2694,7 @@ static int editorDrawStatusBar(struct writeBuf *wb) {
 	if (rlen > 0 && !wbAppend(wb, rightbuf, (size_t)rlen)) {
 		return 0;
 	}
-	if (!wbAppend(wb, VT100_NORMAL_COLORS_3, 3)) {
+	if (!editorAppendThemeReset(wb)) {
 		return 0;
 	}
 	return wbAppend(wb, "\r\n", 2);
@@ -2833,9 +2923,10 @@ void editorRefreshScreen(void) {
 
 	// Build a full frame in memory and write once to reduce terminal flicker.
 	if (!wbAppend(&wb, VT100_HIDE_CURSOR_6, 6) ||
-			!wbAppend(&wb, VT100_CURSOR_COLOR_WHITE, strlen(VT100_CURSOR_COLOR_WHITE)) ||
+			!editorAppendThemeCursorColor(&wb) ||
 			!wbAppend(&wb, cursor_style_sequence, cursor_style_len) ||
-			!wbAppend(&wb, VT100_RESET_CURSOR_POS_3, 3)) {
+			!wbAppend(&wb, VT100_RESET_CURSOR_POS_3, 3) ||
+			!editorAppendThemeBaseStyle(&wb)) {
 		wbFree(&wb);
 		editorSetStatusMsg("Out of memory");
 		return;

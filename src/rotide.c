@@ -157,7 +157,7 @@ void initEditor(void) {
 	E.line_numbers_enabled = 1;
 	E.current_line_highlight_enabled = 1;
 	E.column_select_drag_modifier = EDITOR_MOUSE_MOD_ALT;
-	editorSyntaxThemeInitDefaults(E.syntax_theme);
+	editorThemeInitDefault(&E.theme);
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
 	E.pane_focus = EDITOR_PANE_TEXT;
 	editorKeymapInitDefaults(&E.keymap);
@@ -193,8 +193,7 @@ int main(int argc, char *argv[]) {
 			editorCurrentLineHighlightLoadConfigured(&E.current_line_highlight_enabled);
 	enum editorColumnSelectDragModifierLoadStatus column_select_drag_modifier_status =
 			editorColumnSelectDragModifierLoadConfigured(&E.column_select_drag_modifier);
-	enum editorSyntaxThemeLoadStatus syntax_theme_status =
-			editorSyntaxThemeLoadConfigured(E.syntax_theme);
+	enum editorThemeLoadStatus theme_status = editorThemeLoadConfigured(&E.theme);
 	enum editorLspConfigLoadStatus lsp_config_status =
 			editorLspConfigLoadConfigured(&E.lsp_gopls_enabled, &E.lsp_clangd_enabled,
 					&E.lsp_html_enabled, &E.lsp_css_enabled, &E.lsp_json_enabled,
@@ -227,7 +226,7 @@ int main(int argc, char *argv[]) {
 					EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_OUT_OF_MEMORY) != 0 ||
 			(column_select_drag_modifier_status &
 					EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_OUT_OF_MEMORY) != 0 ||
-			(syntax_theme_status & EDITOR_SYNTAX_THEME_LOAD_OUT_OF_MEMORY) != 0 ||
+			(theme_status & EDITOR_THEME_LOAD_OUT_OF_MEMORY) != 0 ||
 			(lsp_config_status & EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY) != 0) {
 		editorSetStatusMsg("Out of memory");
 	} else if ((lsp_config_status & EDITOR_LSP_CONFIG_LOAD_INVALID_GLOBAL) != 0 &&
@@ -292,13 +291,15 @@ int main(int argc, char *argv[]) {
 					EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_INVALID_GLOBAL) != 0) {
 		editorSetStatusMsg(
 				"Invalid column_select_drag_modifier in ~/.rotide/config.toml, using alt");
-	} else if ((syntax_theme_status & EDITOR_SYNTAX_THEME_LOAD_INVALID_GLOBAL) != 0 &&
-			(syntax_theme_status & EDITOR_SYNTAX_THEME_LOAD_INVALID_PROJECT) != 0) {
-		editorSetStatusMsg("Invalid [theme.syntax] in global/project config, using defaults");
-	} else if ((syntax_theme_status & EDITOR_SYNTAX_THEME_LOAD_INVALID_PROJECT) != 0) {
-		editorSetStatusMsg("Invalid [theme.syntax] in ./.rotide.toml, using defaults");
-	} else if ((syntax_theme_status & EDITOR_SYNTAX_THEME_LOAD_INVALID_GLOBAL) != 0) {
-		editorSetStatusMsg("Invalid [theme.syntax] in ~/.rotide/config.toml, using defaults");
+	} else if ((theme_status & EDITOR_THEME_LOAD_INVALID_THEME) != 0) {
+		editorSetStatusMsg("Invalid theme, using terminal");
+	} else if ((theme_status & EDITOR_THEME_LOAD_INVALID_GLOBAL) != 0 &&
+			(theme_status & EDITOR_THEME_LOAD_INVALID_PROJECT) != 0) {
+		editorSetStatusMsg("Invalid [theme] in global/project config, using terminal");
+	} else if ((theme_status & EDITOR_THEME_LOAD_INVALID_PROJECT) != 0) {
+		editorSetStatusMsg("Invalid [theme] in ./.rotide.toml, using terminal");
+	} else if ((theme_status & EDITOR_THEME_LOAD_INVALID_GLOBAL) != 0) {
+		editorSetStatusMsg("Invalid [theme] in ~/.rotide/config.toml, using terminal");
 	}
 
 	int restored_session = editorStartupLoadRecoveryOrOpenArgs(argc, argv);

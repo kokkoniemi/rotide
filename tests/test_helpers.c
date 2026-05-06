@@ -139,7 +139,7 @@ void reset_editor_state(void) {
 	E.current_line_highlight_enabled = 1;
 	E.column_select_drag_modifier = EDITOR_MOUSE_MOD_ALT | EDITOR_MOUSE_MOD_SHIFT;
 	E.wrapoff = 0;
-	editorSyntaxThemeInitDefaults(E.syntax_theme);
+	editorThemeInitDefault(&E.theme);
 	editorSyntaxTestResetBudgetOverrides();
 	editorSyntaxTestResetParseFailureCountdowns();
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;

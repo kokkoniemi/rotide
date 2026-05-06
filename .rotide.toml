@@ -1,5 +1,5 @@
 # Rotide example project config.
-# Configurable sections: [editor], [theme.syntax], [lsp], [keymap]
+# Configurable sections: [editor], [theme], [lsp], [keymap]
 # Editor:
 # - cursor_style = "block" | "bar" | "underline" (case-insensitive)
 # - Invalid cursor_style values fall back to "bar" with a warning
@@ -8,13 +8,15 @@
 # - line_numbers = true|false (absolute line-number gutter; default true)
 # - current_line_highlight = true|false (subtle active-row background; default true)
 # Theme:
-# - [theme.syntax] supports semantic classes:
-#   comment|keyword|type|function|string|number|constant|preprocessor|operator|punctuation
-# - values are ANSI 16-color names:
+# - [theme] name selects a built-in theme or ~/.rotide/themes/<name>.toml
+# - built-ins: terminal|a11y-dark|a11y-light
+# - ./.rotide.toml can select a theme but cannot override theme colors
+# - custom theme files own [theme.syntax] and [theme.ui]
+# - theme color values are ANSI 16-color names or "#RRGGBB":
 #   default|black|red|green|yellow|blue|magenta|cyan|white|
 #   bright_black|bright_red|bright_green|bright_yellow|bright_blue|bright_magenta|bright_cyan|bright_white
 # - aliases: gray/grey => bright_black
-# - Invalid [theme.syntax] entries are ignored with a warning; defaults remain in effect.
+# - Invalid custom themes fall back to terminal with a warning.
 # LSP:
 # - [lsp]
 # - gopls_enabled = true|false
@@ -58,17 +60,8 @@ line_wrap = false
 line_numbers = true
 current_line_highlight = true
 
-[theme.syntax]
-comment = "gray"
-keyword = "bright_cyan"
-type = "bright_blue"
-function = "bright_yellow"
-string = "green"
-number = "bright_magenta"
-constant = "cyan"
-preprocessor = "bright_red"
-operator = "white"
-punctuation = "bright_black"
+[theme]
+name = "terminal"
 
 [lsp]
 gopls_enabled = true

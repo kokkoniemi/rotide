@@ -130,9 +130,17 @@ RotIDE reads TOML configs in this order (low to high precedence):
 
 Sections:
 - `[editor]` (for example `cursor_style`, `cursor_blink`, `line_wrap`, `line_numbers`, `current_line_highlight`)
-- `[theme.syntax]`
+- `[theme]`
 - `[lsp]`
 - `[keymap]`
+
+Theme notes:
+- `[theme] name = "terminal"` is the default and follows the terminal ANSI palette.
+- Built-in themes: `terminal`, `a11y-dark`, and `a11y-light`.
+- Project config (`./.rotide.toml`) can select a theme but cannot override theme colors.
+- Custom themes live at `~/.rotide/themes/<name>.toml`.
+- Theme files may define `name`, optional `inherits = "terminal"|"a11y-dark"|"a11y-light"`, `[theme.syntax]`, and `[theme.ui]`.
+- Color values in theme files support `default`, ANSI names such as `bright_blue`, and true-color hex such as `"#6BBEFF"`.
 
 LSP notes:
 - `gopls_enabled`, `clangd_enabled`, `html_enabled`, `css_enabled`, `json_enabled`, `javascript_enabled`, and `eslint_enabled` can be set independently in `[lsp]`.
