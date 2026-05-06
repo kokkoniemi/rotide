@@ -75,9 +75,10 @@ struct writeBuf {
 #define DRAWER_HEADER_EXPLORER_SYMBOL_UTF8 "E"
 #define DRAWER_HEADER_FILE_SEARCH_SYMBOL_UTF8 "F"
 #define DRAWER_HEADER_PROJECT_SEARCH_SYMBOL_UTF8 "/"
+#define DRAWER_HEADER_GIT_SYMBOL_UTF8 "\xE2\x91\x82"
 #define DRAWER_HEADER_MAIN_MENU_SYMBOL_UTF8 "\xE2\x89\xA1"
 #define DRAWER_HEADER_MODE_BUTTON_COLS 3
-#define DRAWER_HEADER_MODE_BUTTON_COUNT 4
+#define DRAWER_HEADER_MODE_BUTTON_COUNT 5
 #define DRAWER_HEADER_MODE_BUTTONS_MIN_COLS \
 	(ROTIDE_DRAWER_COLLAPSED_WIDTH + \
 			DRAWER_HEADER_MODE_BUTTON_COLS * DRAWER_HEADER_MODE_BUTTON_COUNT)
@@ -1967,6 +1968,9 @@ static int editorDrawExpandedDrawerHeaderRow(struct writeBuf *wb, int drawer_col
 					drawer_cols) ||
 				!editorDrawDrawerHeaderModeButton(wb, DRAWER_HEADER_PROJECT_SEARCH_SYMBOL_UTF8,
 					EDITOR_DRAWER_MODE_PROJECT_SEARCH, active_mode, &written_cols,
+					drawer_cols) ||
+				!editorDrawDrawerHeaderModeButton(wb, DRAWER_HEADER_GIT_SYMBOL_UTF8,
+					EDITOR_DRAWER_MODE_GIT, active_mode, &written_cols,
 					drawer_cols) ||
 				!editorDrawDrawerHeaderModeButton(wb, DRAWER_HEADER_MAIN_MENU_SYMBOL_UTF8,
 					EDITOR_DRAWER_MODE_MAIN_MENU, active_mode, &written_cols,

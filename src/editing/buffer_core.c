@@ -400,7 +400,8 @@ static const char *editorDocumentTextSourceRead(const struct editorTextSource *s
 int editorTabKindSupportsDocument(enum editorTabKind tab_kind) {
 	return tab_kind == EDITOR_TAB_FILE ||
 			tab_kind == EDITOR_TAB_TASK_LOG ||
-			tab_kind == EDITOR_TAB_UNSUPPORTED_FILE;
+			tab_kind == EDITOR_TAB_UNSUPPORTED_FILE ||
+			tab_kind == EDITOR_TAB_GIT_DIFF;
 }
 
 static struct editorDocument *editorDocumentAlloc(void) {

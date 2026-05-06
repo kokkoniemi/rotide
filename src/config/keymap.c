@@ -81,6 +81,7 @@ static const struct editorActionName editor_action_names[] = {
 	{"drawer_create_folder", EDITOR_ACTION_DRAWER_CREATE_FOLDER},
 	{"drawer_rename", EDITOR_ACTION_DRAWER_RENAME},
 	{"drawer_delete", EDITOR_ACTION_DRAWER_DELETE},
+	{"git_drawer", EDITOR_ACTION_GIT_DRAWER},
 };
 
 static const struct editorNamedKey editor_named_keys[] = {
@@ -668,6 +669,8 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 			EDITOR_ACTION_DRAWER_RENAME);
 	(void)editorKeymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('k'),
 			EDITOR_ACTION_DRAWER_DELETE);
+	(void)editorKeymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('g'),
+			EDITOR_ACTION_GIT_DRAWER);
 }
 
 int editorKeymapLookupAction(const struct editorKeymap *keymap, int key,

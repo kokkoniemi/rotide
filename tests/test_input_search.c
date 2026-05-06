@@ -1181,8 +1181,14 @@ static int test_editor_process_keypress_mouse_drawer_header_mode_buttons(void) {
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_PROJECT_SEARCH, E.drawer_mode);
 	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
 
+	char click_git[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click_git, sizeof(click_git), 0, 13, 1, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_git, strlen(click_git)) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_GIT, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+
 	char click_main_menu[32];
-	ASSERT_TRUE(format_sgr_mouse_event(click_main_menu, sizeof(click_main_menu), 0, 13, 1,
+	ASSERT_TRUE(format_sgr_mouse_event(click_main_menu, sizeof(click_main_menu), 0, 16, 1,
 				'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_main_menu,
 				strlen(click_main_menu)) == 0);

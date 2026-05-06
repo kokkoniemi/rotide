@@ -81,7 +81,8 @@ static enum editorGitStatus editorGitStatusFromXY(char x, char y) {
 	return EDITOR_GIT_STATUS_CLEAN;
 }
 
-static int editorGitAddEntry(const char *rel_path, enum editorGitStatus status) {
+static int editorGitAddEntry(const char *rel_path, enum editorGitStatus status,
+		char index_status, char worktree_status) {
 	if (E.git_entry_count >= E.git_entry_capacity) {
 		int new_cap = E.git_entry_capacity == 0 ? 16 : E.git_entry_capacity * 2;
 		struct editorGitEntry *new_entries = editorRealloc(E.git_entries,
@@ -98,6 +99,8 @@ static int editorGitAddEntry(const char *rel_path, enum editorGitStatus status) 
 	}
 	E.git_entries[E.git_entry_count].rel_path = path_dup;
 	E.git_entries[E.git_entry_count].status = status;
+	E.git_entries[E.git_entry_count].index_status = index_status;
+	E.git_entries[E.git_entry_count].worktree_status = worktree_status;
 	E.git_entry_count++;
 	return 1;
 }
@@ -231,7 +234,7 @@ void editorGitRefresh(void) {
 
 		enum editorGitStatus status = editorGitStatusFromXY(x, y);
 		if (status != EDITOR_GIT_STATUS_CLEAN) {
-			(void)editorGitAddEntry(rel_path, status);
+			(void)editorGitAddEntry(rel_path, status, x, y);
 		}
 	}
 
@@ -284,6 +287,143 @@ enum editorGitStatus editorGitFileStatus(const char *abs_path) {
 		}
 	}
 	return EDITOR_GIT_STATUS_CLEAN;
+}
+
+static int editorGitAppendShellQuotedArg(char *cmd, size_t cmd_size, size_t *pos,
+		const char *value) {
+	if (cmd == NULL || pos == NULL || value == NULL) {
+		return 0;
+	}
+	size_t cur = *pos;
+	if (cur + 1 >= cmd_size) {
+		return 0;
+	}
+	cmd[cur++] = '\'';
+	for (const char *p = value; *p != '\0'; p++) {
+		if (*p == '\'') {
+			if (cur + 4 >= cmd_size) {
+				return 0;
+			}
+			cmd[cur++] = '\'';
+			cmd[cur++] = '\\';
+			cmd[cur++] = '\'';
+			cmd[cur++] = '\'';
+		} else {
+			if (cur + 1 >= cmd_size) {
+				return 0;
+			}
+			cmd[cur++] = *p;
+		}
+	}
+	if (cur + 1 >= cmd_size) {
+		return 0;
+	}
+	cmd[cur++] = '\'';
+	*pos = cur;
+	return 1;
+}
+
+static int editorGitAppendLiteral(char *cmd, size_t cmd_size, size_t *pos, const char *literal) {
+	size_t literal_len = strlen(literal);
+	if (*pos + literal_len + 1 > cmd_size) {
+		return 0;
+	}
+	memcpy(cmd + *pos, literal, literal_len);
+	*pos += literal_len;
+	cmd[*pos] = '\0';
+	return 1;
+}
+
+char *editorGitGenerateDiff(const char *rel_path, char index_status, char worktree_status,
+		size_t *len_out) {
+	if (len_out != NULL) {
+		*len_out = 0;
+	}
+	if (rel_path == NULL || rel_path[0] == '\0' || E.git_repo_root == NULL) {
+		return NULL;
+	}
+
+	int is_untracked = (index_status == '?' && worktree_status == '?');
+	int has_staged = !is_untracked && index_status != ' ' && index_status != '?';
+	int has_worktree = !is_untracked && worktree_status != ' ' && worktree_status != '?';
+	(void)has_worktree;
+
+	char cmd[PATH_MAX * 4 + 256];
+	size_t pos = 0;
+
+	if (is_untracked) {
+		// For untracked files, simulate a diff against /dev/null using git diff --no-index.
+		if (!editorGitAppendLiteral(cmd, sizeof(cmd), &pos, "git -C ") ||
+				!editorGitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, E.git_repo_root) ||
+				!editorGitAppendLiteral(cmd, sizeof(cmd), &pos,
+					" --no-pager diff --no-color --no-index -- /dev/null ") ||
+				!editorGitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, rel_path) ||
+				!editorGitAppendLiteral(cmd, sizeof(cmd), &pos, " 2>/dev/null")) {
+			return NULL;
+		}
+	} else {
+		const char *diff_subcommand = has_staged ? " --no-pager diff --no-color --cached -- " :
+				" --no-pager diff --no-color -- ";
+		if (!editorGitAppendLiteral(cmd, sizeof(cmd), &pos, "git -C ") ||
+				!editorGitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, E.git_repo_root) ||
+				!editorGitAppendLiteral(cmd, sizeof(cmd), &pos, diff_subcommand) ||
+				!editorGitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, rel_path) ||
+				!editorGitAppendLiteral(cmd, sizeof(cmd), &pos, " 2>/dev/null")) {
+			return NULL;
+		}
+	}
+
+	FILE *fp = popen(cmd, "r");
+	if (fp == NULL) {
+		return NULL;
+	}
+
+	size_t buf_cap = 4096;
+	size_t buf_len = 0;
+	char *buf = editorMalloc(buf_cap);
+	if (buf == NULL) {
+		pclose(fp);
+		return NULL;
+	}
+	while (!feof(fp)) {
+		if (buf_len + 1 >= buf_cap) {
+			size_t new_cap = buf_cap * 2;
+			char *new_buf = editorRealloc(buf, new_cap);
+			if (new_buf == NULL) {
+				free(buf);
+				pclose(fp);
+				return NULL;
+			}
+			buf = new_buf;
+			buf_cap = new_cap;
+		}
+		size_t n_read = fread(buf + buf_len, 1, buf_cap - buf_len - 1, fp);
+		if (n_read == 0) {
+			break;
+		}
+		buf_len += n_read;
+	}
+	pclose(fp);
+	buf[buf_len] = '\0';
+
+	if (buf_len == 0) {
+		const char *empty = "(no changes to display)\n";
+		size_t empty_len = strlen(empty);
+		char *replacement = editorMalloc(empty_len + 1);
+		if (replacement == NULL) {
+			free(buf);
+			return NULL;
+		}
+		memcpy(replacement, empty, empty_len + 1);
+		free(buf);
+		buf = replacement;
+		buf_len = empty_len;
+	}
+
+	if (len_out != NULL) {
+		*len_out = buf_len;
+	}
+	return buf;
 }
 
 enum editorGitStatus editorGitDirStatus(const char *abs_path) {

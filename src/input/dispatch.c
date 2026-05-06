@@ -12,6 +12,7 @@
 #include "support/terminal.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
+#include "workspace/git.h"
 #include "workspace/project_search.h"
 #include "workspace/recovery.h"
 #include "workspace/tabs.h"
@@ -49,7 +50,7 @@ enum editorKeypressEffect {
 };
 
 #define DRAWER_HEADER_MODE_BUTTON_COLS 3
-#define DRAWER_HEADER_MODE_BUTTON_COUNT 4
+#define DRAWER_HEADER_MODE_BUTTON_COUNT 5
 #define DRAWER_HEADER_MODE_BUTTONS_MIN_COLS \
 	(ROTIDE_DRAWER_COLLAPSED_WIDTH + \
 			DRAWER_HEADER_MODE_BUTTON_COLS * DRAWER_HEADER_MODE_BUTTON_COUNT)
@@ -1960,6 +1961,29 @@ static const char *editorBasenameFromPath(const char *path) {
 	return base + 1;
 }
 
+static int editorOpenSelectedGitDiff(void) {
+	int entry_idx = -1;
+	if (!editorDrawerSelectedGitEntry(&entry_idx)) {
+		return 0;
+	}
+	if (entry_idx < 0 || entry_idx >= E.git_entry_count) {
+		return 0;
+	}
+	const struct editorGitEntry *entry = &E.git_entries[entry_idx];
+	size_t diff_len = 0;
+	char *diff_text = editorGitGenerateDiff(entry->rel_path, entry->index_status,
+			entry->worktree_status, &diff_len);
+	if (diff_text == NULL) {
+		editorSetStatusMsg("Failed to generate git diff");
+		return 0;
+	}
+	char title[PATH_MAX + 16];
+	snprintf(title, sizeof(title), "git diff: %s", entry->rel_path);
+	int ok = editorTabOpenGitDiff(title, diff_text);
+	free(diff_text);
+	return ok;
+}
+
 static int editorJumpToDefinitionLocation(const struct editorLspLocation *location) {
 	if (location == NULL || location->path == NULL || location->path[0] == '\0') {
 		return 0;
@@ -2383,6 +2407,9 @@ static int editorDrawerHeaderModeForColumn(int mouse_col, int drawer_cols,
 		*mode_out = EDITOR_DRAWER_MODE_PROJECT_SEARCH;
 		return 1;
 	case 3:
+		*mode_out = EDITOR_DRAWER_MODE_GIT;
+		return 1;
+	case 4:
 		*mode_out = EDITOR_DRAWER_MODE_MAIN_MENU;
 		return 1;
 	default:
@@ -2435,6 +2462,16 @@ static int editorSwitchDrawerHeaderMode(enum editorDrawerMode mode) {
 				editorProjectSearchIsActive()) {
 			(void)editorDrawerMainMenuToggle();
 			editorSetStatusMsg("Main menu opened");
+		}
+		E.pane_focus = EDITOR_PANE_DRAWER;
+		return EDITOR_KEYPRESS_EFFECT_NONE;
+	case EDITOR_DRAWER_MODE_GIT:
+		editorHistoryBreakGroup();
+		if (E.drawer_mode != EDITOR_DRAWER_MODE_GIT || editorFileSearchIsActive() ||
+				editorProjectSearchIsActive()) {
+			(void)editorDrawerGitToggle();
+			editorSetStatusMsg(E.git_repo_root != NULL ? "Git changes shown" :
+					"Not in a git repository");
 		}
 		E.pane_focus = EDITOR_PANE_DRAWER;
 		return EDITOR_KEYPRESS_EFFECT_NONE;
@@ -2525,6 +2562,15 @@ static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 				return mapped_effects;
 			}
 			return mapped_effects;
+		}
+		if (E.drawer_mode == EDITOR_DRAWER_MODE_GIT) {
+			if (editorOpenSelectedGitDiff()) {
+				E.pane_focus = EDITOR_PANE_TEXT;
+			}
+			editorResetDrawerClickTracking();
+			E.mouse_left_button_down = 0;
+			E.mouse_drag_started = 0;
+			return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 		}
 
 		int should_open_file = E.drawer_last_click_visible_idx == visible_idx &&
@@ -2770,6 +2816,13 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 				editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_MAIN_MENU ?
 						"Main menu opened" : "Project drawer shown");
 				break;
+			case EDITOR_ACTION_GIT_DRAWER:
+				(void)editorDrawerGitToggle();
+				editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_GIT ?
+						(E.git_repo_root != NULL ? "Git changes shown" :
+						"Not in a git repository") :
+						"Project drawer shown");
+				break;
 			default:
 				break;
 		}
@@ -2826,6 +2879,13 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 				(void)editorDrawerMainMenuToggle();
 				editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_MAIN_MENU ?
 						"Main menu opened" : "Project drawer shown");
+				break;
+			case EDITOR_ACTION_GIT_DRAWER:
+				(void)editorDrawerGitToggle();
+				editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_GIT ?
+						(E.git_repo_root != NULL ? "Git changes shown" :
+						"Not in a git repository") :
+						"Project drawer shown");
 				break;
 			default:
 				break;
@@ -2901,6 +2961,14 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			(void)editorDrawerMainMenuToggle();
 			editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_MAIN_MENU ?
 					"Main menu opened" : "Project drawer shown");
+			break;
+		case EDITOR_ACTION_GIT_DRAWER:
+			editorHistoryBreakGroup();
+			(void)editorDrawerGitToggle();
+			editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_GIT ?
+					(E.git_repo_root != NULL ? "Git changes shown" :
+					"Not in a git repository") :
+					"Project drawer shown");
 			break;
 		case EDITOR_ACTION_RESIZE_DRAWER_NARROW:
 			editorHistoryBreakGroup();
@@ -3162,6 +3230,11 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 				editorResetDrawerClickTracking();
 				if (editorDrawerSelectedIsDirectory()) {
 					(void)editorDrawerToggleSelectionExpanded(E.window_rows);
+				} else if (E.drawer_mode == EDITOR_DRAWER_MODE_GIT) {
+					if (editorOpenSelectedGitDiff()) {
+						E.pane_focus = EDITOR_PANE_TEXT;
+						effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+					}
 				} else {
 					enum editorAction menu_action = EDITOR_ACTION_COUNT;
 					if (editorDrawerSelectedMenuAction(&menu_action)) {

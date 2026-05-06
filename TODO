@@ -1,5 +1,4 @@
 - FEATURE: add more lsp functionalities (go to implementations, auto-complete, go to symbol in editor etc.)
-- FEATURE: Drawer mode that shows staged, changed, deleted, added etc files and if opened opens the git diff of the file in readonly git diff tab. Drawer mode icon ⑂
 - FEATURE: Add support for themes and create a theme using terminal colors and a dark + light built-in themes.
 - FEATURE: Add configurable auto-indentation (tabs/spaces + indent width) for newline insertion and pasted blocks.
 - FEATURE: Add bracket/quote pair assistance: auto-close pairs, skip-over closing pairs, and jump to matching bracket.

@@ -206,7 +206,8 @@ enum editorViewportMode {
 enum editorTabKind {
 	EDITOR_TAB_FILE = 0,
 	EDITOR_TAB_TASK_LOG,
-	EDITOR_TAB_UNSUPPORTED_FILE
+	EDITOR_TAB_UNSUPPORTED_FILE,
+	EDITOR_TAB_GIT_DIFF
 };
 
 struct editorRowSyntaxSpan {
@@ -320,6 +321,7 @@ enum editorAction {
 	EDITOR_ACTION_DRAWER_CREATE_FOLDER,
 	EDITOR_ACTION_DRAWER_RENAME,
 	EDITOR_ACTION_DRAWER_DELETE,
+	EDITOR_ACTION_GIT_DRAWER,
 	EDITOR_ACTION_COUNT
 };
 
@@ -351,12 +353,15 @@ enum editorDrawerMode {
 	EDITOR_DRAWER_MODE_TREE = 0,
 	EDITOR_DRAWER_MODE_MAIN_MENU,
 	EDITOR_DRAWER_MODE_FILE_SEARCH,
-	EDITOR_DRAWER_MODE_PROJECT_SEARCH
+	EDITOR_DRAWER_MODE_PROJECT_SEARCH,
+	EDITOR_DRAWER_MODE_GIT
 };
 
 struct editorGitEntry {
 	char *rel_path;
 	enum editorGitStatus status;
+	char index_status;
+	char worktree_status;
 };
 
 struct editorHistoryEntry {
@@ -541,6 +546,7 @@ struct editorConfig {
 	struct editorDrawerNode *drawer_root;
 	enum editorDrawerMode drawer_mode;
 	unsigned int drawer_menu_expanded;
+	unsigned int drawer_git_expanded;
 	int drawer_selected_index;
 	int drawer_rowoff;
 	int drawer_last_click_visible_idx;

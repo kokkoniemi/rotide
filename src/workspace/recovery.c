@@ -276,7 +276,8 @@ static int editorRecoveryReadI32(int fd, int32_t *value_out) {
 static int editorRecoveryTabKindIsValid(int tab_kind) {
 	return tab_kind == EDITOR_TAB_FILE ||
 			tab_kind == EDITOR_TAB_TASK_LOG ||
-			tab_kind == EDITOR_TAB_UNSUPPORTED_FILE;
+			tab_kind == EDITOR_TAB_UNSUPPORTED_FILE ||
+			tab_kind == EDITOR_TAB_GIT_DIFF;
 }
 
 static int editorRecoveryGetTabView(int idx, struct editorRecoveryTabView *view_out) {

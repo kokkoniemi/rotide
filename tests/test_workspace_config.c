@@ -2,6 +2,7 @@
 #include "test_support.h"
 #include "config/editor_config.h"
 #include "workspace/file_search.h"
+#include "workspace/git.h"
 #include "workspace/project_search.h"
 
 static int find_drawer_entry_path(const char *path, int *idx_out,
@@ -176,6 +177,144 @@ static int test_editor_drawer_root_is_not_collapsible(void) {
 	ASSERT_EQ_INT(0, E.drawer_selected_index);
 
 	ASSERT_TRUE(rmdir(src_dir) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int inject_git_entry(const char *rel_path, enum editorGitStatus status,
+		char index_status, char worktree_status) {
+	int new_count = E.git_entry_count + 1;
+	struct editorGitEntry *grown = realloc(E.git_entries,
+			(size_t)new_count * sizeof(struct editorGitEntry));
+	if (grown == NULL) {
+		return 0;
+	}
+	E.git_entries = grown;
+	E.git_entry_capacity = new_count;
+	char *path_dup = strdup(rel_path);
+	if (path_dup == NULL) {
+		return 0;
+	}
+	E.git_entries[E.git_entry_count].rel_path = path_dup;
+	E.git_entries[E.git_entry_count].status = status;
+	E.git_entries[E.git_entry_count].index_status = index_status;
+	E.git_entries[E.git_entry_count].worktree_status = worktree_status;
+	E.git_entry_count = new_count;
+	return 1;
+}
+
+static int test_editor_drawer_git_mode_groups_entries_by_status(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	// Inject in alphabetical order; refresh would sort but we bypass it.
+	ASSERT_TRUE(inject_git_entry("both.c", EDITOR_GIT_STATUS_MODIFIED, 'M', 'M'));
+	ASSERT_TRUE(inject_git_entry("changed.c", EDITOR_GIT_STATUS_MODIFIED, ' ', 'M'));
+	ASSERT_TRUE(inject_git_entry("conflict.c", EDITOR_GIT_STATUS_CONFLICT, 'U', 'U'));
+	ASSERT_TRUE(inject_git_entry("new.c", EDITOR_GIT_STATUS_UNTRACKED, '?', '?'));
+	ASSERT_TRUE(inject_git_entry("staged.c", EDITOR_GIT_STATUS_MODIFIED, 'M', ' '));
+
+	ASSERT_TRUE(editorDrawerGitToggle());
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_GIT, E.drawer_mode);
+
+	int visible = editorDrawerVisibleCount();
+	// 1 root + 4 groups + 2 staged + 2 changes + 1 untracked + 1 conflict = 11.
+	ASSERT_EQ_INT(11, visible);
+
+	struct editorDrawerEntryView view;
+	ASSERT_TRUE(editorDrawerGetVisibleEntry(0, &view));
+	ASSERT_EQ_STR("Git", view.name);
+	ASSERT_TRUE(view.is_root);
+
+	ASSERT_TRUE(editorDrawerGetVisibleEntry(1, &view));
+	ASSERT_EQ_STR("Staged", view.name);
+	ASSERT_TRUE(editorDrawerGetVisibleEntry(2, &view));
+	ASSERT_EQ_STR("M both.c", view.name);
+	ASSERT_TRUE(editorDrawerGetVisibleEntry(3, &view));
+	ASSERT_EQ_STR("M staged.c", view.name);
+	ASSERT_TRUE(editorDrawerGetVisibleEntry(4, &view));
+	ASSERT_EQ_STR("Changes", view.name);
+	ASSERT_TRUE(editorDrawerGetVisibleEntry(5, &view));
+	ASSERT_EQ_STR("M both.c", view.name);
+	ASSERT_TRUE(editorDrawerGetVisibleEntry(6, &view));
+	ASSERT_EQ_STR("M changed.c", view.name);
+	ASSERT_TRUE(editorDrawerGetVisibleEntry(7, &view));
+	ASSERT_EQ_STR("Untracked", view.name);
+	ASSERT_TRUE(editorDrawerGetVisibleEntry(8, &view));
+	ASSERT_EQ_STR("? new.c", view.name);
+	ASSERT_TRUE(editorDrawerGetVisibleEntry(9, &view));
+	ASSERT_EQ_STR("Conflicts", view.name);
+	ASSERT_TRUE(editorDrawerGetVisibleEntry(10, &view));
+	ASSERT_EQ_STR("U conflict.c", view.name);
+
+	editorGitFree();
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_git_mode_collapses_group(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(inject_git_entry("a.c", EDITOR_GIT_STATUS_UNTRACKED, '?', '?'));
+	ASSERT_TRUE(inject_git_entry("b.c", EDITOR_GIT_STATUS_UNTRACKED, '?', '?'));
+
+	ASSERT_TRUE(editorDrawerGitToggle());
+	int expanded_count = editorDrawerVisibleCount();
+	// 1 root + 4 groups + 0 staged-placeholder + 0 changes-placeholder + 2 untracked + 0 conflicts-placeholder
+	// Each empty group with expansion shows a placeholder row (= 1).
+	ASSERT_EQ_INT(1 + 4 + 1 + 1 + 2 + 1, expanded_count);
+
+	int untracked_idx = -1;
+	for (int i = 0; i < expanded_count; i++) {
+		struct editorDrawerEntryView view;
+		ASSERT_TRUE(editorDrawerGetVisibleEntry(i, &view));
+		if (strcmp(view.name, "Untracked") == 0) {
+			untracked_idx = i;
+			break;
+		}
+	}
+	ASSERT_TRUE(untracked_idx > 0);
+
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(untracked_idx, E.window_rows + 1));
+	ASSERT_TRUE(editorDrawerCollapseSelection(E.window_rows + 1));
+	int collapsed_count = editorDrawerVisibleCount();
+	ASSERT_EQ_INT(expanded_count - 2, collapsed_count);
+
+	editorGitFree();
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_git_mode_selects_file_entry(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(inject_git_entry("only.c", EDITOR_GIT_STATUS_UNTRACKED, '?', '?'));
+
+	ASSERT_TRUE(editorDrawerGitToggle());
+
+	int file_idx = -1;
+	int visible = editorDrawerVisibleCount();
+	for (int i = 0; i < visible; i++) {
+		struct editorDrawerEntryView view;
+		ASSERT_TRUE(editorDrawerGetVisibleEntry(i, &view));
+		if (strcmp(view.name, "? only.c") == 0) {
+			file_idx = i;
+			break;
+		}
+	}
+	ASSERT_TRUE(file_idx > 0);
+
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(file_idx, E.window_rows + 1));
+	int entry_idx = -1;
+	ASSERT_TRUE(editorDrawerSelectedGitEntry(&entry_idx));
+	ASSERT_EQ_INT(0, entry_idx);
+
+	editorGitFree();
 	cleanup_recovery_test_env(&env);
 	return 0;
 }
@@ -2586,6 +2725,9 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_drawer_tree_lists_dotfiles_sorted_and_symlink_as_file", test_editor_drawer_tree_lists_dotfiles_sorted_and_symlink_as_file},
 	{"editor_drawer_expand_collapse_reuses_cached_children", test_editor_drawer_expand_collapse_reuses_cached_children},
 	{"editor_drawer_root_is_not_collapsible", test_editor_drawer_root_is_not_collapsible},
+	{"editor_drawer_git_mode_groups_entries_by_status", test_editor_drawer_git_mode_groups_entries_by_status},
+	{"editor_drawer_git_mode_collapses_group", test_editor_drawer_git_mode_collapses_group},
+	{"editor_drawer_git_mode_selects_file_entry", test_editor_drawer_git_mode_selects_file_entry},
 	{"editor_drawer_create_file_under_selected_directory", test_editor_drawer_create_file_under_selected_directory},
 	{"editor_drawer_create_folder_creates_sibling_when_file_selected", test_editor_drawer_create_folder_creates_sibling_when_file_selected},
 	{"editor_drawer_rename_selection_updates_path_and_selection", test_editor_drawer_rename_selection_updates_path_and_selection},

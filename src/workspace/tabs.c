@@ -891,12 +891,14 @@ const char *editorTabDisplayNameAt(int idx) {
 		return "[No Name]";
 	}
 	if (idx == E.active_tab) {
-		if (E.tab_kind == EDITOR_TAB_TASK_LOG && E.tab_title != NULL && E.tab_title[0] != '\0') {
+		if ((E.tab_kind == EDITOR_TAB_TASK_LOG || E.tab_kind == EDITOR_TAB_GIT_DIFF) &&
+				E.tab_title != NULL && E.tab_title[0] != '\0') {
 			return E.tab_title;
 		}
 		return E.filename != NULL ? E.filename : "[No Name]";
 	}
-	if (E.tabs[idx].tab_kind == EDITOR_TAB_TASK_LOG &&
+	if ((E.tabs[idx].tab_kind == EDITOR_TAB_TASK_LOG ||
+			E.tabs[idx].tab_kind == EDITOR_TAB_GIT_DIFF) &&
 			E.tabs[idx].tab_title != NULL && E.tabs[idx].tab_title[0] != '\0') {
 		return E.tabs[idx].tab_title;
 	}
@@ -904,7 +906,8 @@ const char *editorTabDisplayNameAt(int idx) {
 }
 
 const char *editorActiveBufferDisplayName(void) {
-	if (E.tab_kind == EDITOR_TAB_TASK_LOG && E.tab_title != NULL && E.tab_title[0] != '\0') {
+	if ((E.tab_kind == EDITOR_TAB_TASK_LOG || E.tab_kind == EDITOR_TAB_GIT_DIFF) &&
+			E.tab_title != NULL && E.tab_title[0] != '\0') {
 		return E.tab_title;
 	}
 	return E.filename != NULL ? E.filename : "[No Name]";
@@ -929,7 +932,8 @@ int editorActiveTabIsUnsupportedFile(void) {
 }
 
 int editorActiveTabIsReadOnly(void) {
-	return E.tab_kind == EDITOR_TAB_TASK_LOG || E.tab_kind == EDITOR_TAB_UNSUPPORTED_FILE;
+	return E.tab_kind == EDITOR_TAB_TASK_LOG || E.tab_kind == EDITOR_TAB_UNSUPPORTED_FILE ||
+			E.tab_kind == EDITOR_TAB_GIT_DIFF;
 }
 
 int editorActiveTaskTabIsRunning(void) {
@@ -1253,6 +1257,60 @@ static int editorTaskPrepareLogTab(const char *title, const char *text) {
 		E.cy = E.numrows - 1;
 		E.cx = E.rows[E.cy].size;
 	}
+	editorViewportEnsureCursorVisible();
+	editorStoreActiveTab();
+	editorLoadActiveTab(E.active_tab);
+	return 1;
+}
+
+int editorTabOpenGitDiff(const char *title, const char *diff_text) {
+	if (title == NULL || title[0] == '\0' || diff_text == NULL) {
+		return 0;
+	}
+
+	for (int idx = 0; idx < E.tab_count; idx++) {
+		const char *existing_title = idx == E.active_tab ? E.tab_title :
+				E.tabs[idx].tab_title;
+		enum editorTabKind existing_kind = idx == E.active_tab ? E.tab_kind :
+				E.tabs[idx].tab_kind;
+		if (existing_kind == EDITOR_TAB_GIT_DIFF && existing_title != NULL &&
+				strcmp(existing_title, title) == 0) {
+			return editorTabSwitchToIndex(idx);
+		}
+	}
+
+	if (!editorTabNewEmpty()) {
+		return 0;
+	}
+
+	E.tab_kind = EDITOR_TAB_GIT_DIFF;
+	E.tab_title = strdup(title);
+	if (E.tab_title == NULL) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+	E.dirty = 0;
+	free(E.filename);
+	E.filename = NULL;
+	editorSyntaxStateDestroy(E.syntax_state);
+	E.syntax_state = NULL;
+	E.syntax_language = EDITOR_SYNTAX_NONE;
+	E.lsp_doc_open = 0;
+	E.lsp_doc_version = 0;
+	E.lsp_eslint_doc_open = 0;
+	E.lsp_eslint_doc_version = 0;
+	memset(&E.disk_state, 0, sizeof(E.disk_state));
+	E.disk_conflict = 0;
+	if (!editorDocumentResetActiveFromText(diff_text, strlen(diff_text))) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+	if (!editorRestoreActiveFromDocument(E.document, 0, 0, 0, 0)) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+	E.cy = 0;
+	E.cx = 0;
 	editorViewportEnsureCursorVisible();
 	editorStoreActiveTab();
 	editorLoadActiveTab(E.active_tab);
