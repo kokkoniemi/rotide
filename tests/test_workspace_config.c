@@ -2370,6 +2370,33 @@ static int test_editor_theme_load_builtin_global_project_precedence(void) {
 	return 0;
 }
 
+static int test_editor_theme_loads_modus_builtins(void) {
+	struct editorTheme theme;
+
+	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "modus-operandi"));
+	ASSERT_EQ_STR("modus-operandi", theme.name);
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_BACKGROUND], 0xFF, 0xFF, 0xFF));
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_KEYWORD], 0x53, 0x1A, 0xB6));
+	ASSERT_TRUE(theme_color_is_rgb(
+				theme.styles[EDITOR_THEME_STYLE_SELECTION].bg, 0xBD, 0xBD, 0xBD));
+
+	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "modus-operandi-tinted"));
+	ASSERT_EQ_STR("modus-operandi-tinted", theme.name);
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_BACKGROUND], 0xFB, 0xF7, 0xF0));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_CURSOR], 0xD0, 0x00, 0x00));
+
+	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "modus-vivendi"));
+	ASSERT_EQ_STR("modus-vivendi", theme.name);
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_BACKGROUND], 0x00, 0x00, 0x00));
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_KEYWORD], 0xB6, 0xA0, 0xFF));
+
+	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "modus-vivendi-tinted"));
+	ASSERT_EQ_STR("modus-vivendi-tinted", theme.name);
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_BACKGROUND], 0x0D, 0x0E, 0x1C));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_CURSOR], 0xFF, 0x66, 0xFF));
+	return 0;
+}
+
 static int test_editor_theme_project_config_cannot_override_theme_colors(void) {
 	char dir_template[] = "/tmp/rotide-test-theme-no-project-overrides-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -2934,6 +2961,7 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_current_line_highlight_load_precedence_and_invalid_fallback", test_editor_current_line_highlight_load_precedence_and_invalid_fallback},
 	{"editor_view_bool_invalid_settings_do_not_break_keymap_loading", test_editor_view_bool_invalid_settings_do_not_break_keymap_loading},
 	{"editor_theme_load_builtin_global_project_precedence", test_editor_theme_load_builtin_global_project_precedence},
+	{"editor_theme_loads_modus_builtins", test_editor_theme_loads_modus_builtins},
 	{"editor_theme_project_config_cannot_override_theme_colors", test_editor_theme_project_config_cannot_override_theme_colors},
 	{"editor_theme_loads_custom_theme_from_home_themes", test_editor_theme_loads_custom_theme_from_home_themes},
 	{"editor_theme_invalid_values_fall_back_to_terminal", test_editor_theme_invalid_values_fall_back_to_terminal},

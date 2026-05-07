@@ -9,7 +9,8 @@
 # - current_line_highlight = true|false (subtle active-row background; default true)
 # Theme:
 # - [theme] name selects a built-in theme or ~/.rotide/themes/<name>.toml
-# - built-ins: terminal|a11y-dark|a11y-light
+# - built-ins: terminal|a11y-dark|a11y-light|modus-operandi|
+#   modus-operandi-tinted|modus-vivendi|modus-vivendi-tinted
 # - ./.rotide.toml can select a theme but cannot override theme colors
 # - custom theme files own [theme.syntax] and [theme.ui]
 # - theme color values are ANSI 16-color names or "#RRGGBB":
@@ -61,7 +62,7 @@ line_numbers = true
 current_line_highlight = true
 
 [theme]
-name = "terminal"
+name = "modus-operandi"
 
 [lsp]
 gopls_enabled = true

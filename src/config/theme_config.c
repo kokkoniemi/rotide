@@ -242,6 +242,228 @@ static void editorThemeInitA11yLight(struct editorTheme *theme) {
 	theme->styles[EDITOR_THEME_STYLE_DRAWER_HEADER_ACTIVE] = editorThemeStylePair(bg, fg);
 }
 
+struct editorModusPalette {
+	const char *name;
+	struct editorThemeColor bg_main;
+	struct editorThemeColor bg_dim;
+	struct editorThemeColor fg_main;
+	struct editorThemeColor fg_dim;
+	struct editorThemeColor fg_alt;
+	struct editorThemeColor border;
+	struct editorThemeColor bg_hl_line;
+	struct editorThemeColor bg_region;
+	struct editorThemeColor fg_region;
+	struct editorThemeColor bg_mode_line_active;
+	struct editorThemeColor fg_mode_line_active;
+	struct editorThemeColor bg_mode_line_inactive;
+	struct editorThemeColor bg_tab_current;
+	struct editorThemeColor cursor;
+	struct editorThemeColor red;
+	struct editorThemeColor green;
+	struct editorThemeColor yellow;
+	struct editorThemeColor cyan;
+	struct editorThemeColor comment;
+	struct editorThemeColor keyword;
+	struct editorThemeColor type;
+	struct editorThemeColor function;
+	struct editorThemeColor string;
+	struct editorThemeColor number;
+	struct editorThemeColor constant;
+	struct editorThemeColor variable;
+	struct editorThemeColor parameter;
+	struct editorThemeColor module;
+	struct editorThemeColor property;
+	struct editorThemeColor preprocessor;
+};
+
+static void editorThemeInitModus(struct editorTheme *theme, struct editorModusPalette p) {
+	memset(theme, 0, sizeof(*theme));
+	editorThemeSetName(theme, p.name);
+	theme->ui[EDITOR_THEME_UI_FOREGROUND] = p.fg_main;
+	theme->ui[EDITOR_THEME_UI_BACKGROUND] = p.bg_main;
+	theme->ui[EDITOR_THEME_UI_LINE_NUMBER] = p.fg_dim;
+	theme->ui[EDITOR_THEME_UI_DRAWER_CONNECTOR] = p.border;
+	theme->ui[EDITOR_THEME_UI_PLACEHOLDER] = p.fg_dim;
+	theme->ui[EDITOR_THEME_UI_CURRENT_LINE_BG] = p.bg_hl_line;
+	theme->ui[EDITOR_THEME_UI_DRAWER_HEADER_BG] = p.bg_mode_line_inactive;
+	theme->ui[EDITOR_THEME_UI_DIRECTORY] = p.cyan;
+	theme->ui[EDITOR_THEME_UI_ROOT] = p.fg_alt;
+	theme->ui[EDITOR_THEME_UI_GIT_MODIFIED] = p.yellow;
+	theme->ui[EDITOR_THEME_UI_GIT_UNTRACKED] = p.green;
+	theme->ui[EDITOR_THEME_UI_GIT_CONFLICT] = p.red;
+	theme->ui[EDITOR_THEME_UI_CURSOR] = p.cursor;
+
+	for (int i = 0; i < EDITOR_SYNTAX_HL_CLASS_COUNT; i++) {
+		theme->syntax[i] = p.fg_main;
+	}
+	theme->syntax[EDITOR_SYNTAX_HL_COMMENT] = p.comment;
+	theme->syntax[EDITOR_SYNTAX_HL_KEYWORD] = p.keyword;
+	theme->syntax[EDITOR_SYNTAX_HL_TYPE] = p.type;
+	theme->syntax[EDITOR_SYNTAX_HL_FUNCTION] = p.function;
+	theme->syntax[EDITOR_SYNTAX_HL_STRING] = p.string;
+	theme->syntax[EDITOR_SYNTAX_HL_NUMBER] = p.number;
+	theme->syntax[EDITOR_SYNTAX_HL_CONSTANT] = p.constant;
+	theme->syntax[EDITOR_SYNTAX_HL_VARIABLE] = p.variable;
+	theme->syntax[EDITOR_SYNTAX_HL_PARAMETER] = p.parameter;
+	theme->syntax[EDITOR_SYNTAX_HL_MODULE] = p.module;
+	theme->syntax[EDITOR_SYNTAX_HL_PROPERTY] = p.property;
+	theme->syntax[EDITOR_SYNTAX_HL_PREPROCESSOR] = p.preprocessor;
+	theme->syntax[EDITOR_SYNTAX_HL_OPERATOR] = p.fg_main;
+	theme->syntax[EDITOR_SYNTAX_HL_PUNCTUATION] = p.fg_main;
+
+	theme->styles[EDITOR_THEME_STYLE_SELECTION] = editorThemeStylePair(p.fg_region, p.bg_region);
+	theme->styles[EDITOR_THEME_STYLE_STATUS] =
+			editorThemeStylePair(p.fg_mode_line_active, p.bg_mode_line_active);
+	theme->styles[EDITOR_THEME_STYLE_TAB_ACTIVE] =
+			editorThemeStylePair(p.fg_main, p.bg_tab_current);
+	theme->styles[EDITOR_THEME_STYLE_DRAWER_HEADER_ACTIVE] =
+			editorThemeStylePair(p.fg_mode_line_active, p.bg_mode_line_active);
+}
+
+static void editorThemeInitModusOperandi(struct editorTheme *theme) {
+	editorThemeInitModus(theme, (struct editorModusPalette){
+			.name = "modus-operandi",
+			.bg_main = editorThemeRgbColor(0xFF, 0xFF, 0xFF),
+			.bg_dim = editorThemeRgbColor(0xF2, 0xF2, 0xF2),
+			.fg_main = editorThemeRgbColor(0x00, 0x00, 0x00),
+			.fg_dim = editorThemeRgbColor(0x59, 0x59, 0x59),
+			.fg_alt = editorThemeRgbColor(0x19, 0x36, 0x68),
+			.border = editorThemeRgbColor(0x9F, 0x9F, 0x9F),
+			.bg_hl_line = editorThemeRgbColor(0xDA, 0xE5, 0xEC),
+			.bg_region = editorThemeRgbColor(0xBD, 0xBD, 0xBD),
+			.fg_region = editorThemeRgbColor(0x00, 0x00, 0x00),
+			.bg_mode_line_active = editorThemeRgbColor(0xC8, 0xC8, 0xC8),
+			.fg_mode_line_active = editorThemeRgbColor(0x00, 0x00, 0x00),
+			.bg_mode_line_inactive = editorThemeRgbColor(0xE6, 0xE6, 0xE6),
+			.bg_tab_current = editorThemeRgbColor(0xFF, 0xFF, 0xFF),
+			.cursor = editorThemeRgbColor(0x00, 0x00, 0x00),
+			.red = editorThemeRgbColor(0xA6, 0x00, 0x00),
+			.green = editorThemeRgbColor(0x00, 0x68, 0x00),
+			.yellow = editorThemeRgbColor(0x6F, 0x55, 0x00),
+			.cyan = editorThemeRgbColor(0x00, 0x5E, 0x8B),
+			.comment = editorThemeRgbColor(0x59, 0x59, 0x59),
+			.keyword = editorThemeRgbColor(0x53, 0x1A, 0xB6),
+			.type = editorThemeRgbColor(0x00, 0x5F, 0x5F),
+			.function = editorThemeRgbColor(0x72, 0x10, 0x45),
+			.string = editorThemeRgbColor(0x35, 0x48, 0xCF),
+			.number = editorThemeRgbColor(0x00, 0x00, 0x00),
+			.constant = editorThemeRgbColor(0x00, 0x00, 0xB0),
+			.variable = editorThemeRgbColor(0x00, 0x5E, 0x8B),
+			.parameter = editorThemeRgbColor(0x7A, 0x4F, 0x2F),
+			.module = editorThemeRgbColor(0x00, 0x5F, 0x5F),
+			.property = editorThemeRgbColor(0x00, 0x5E, 0x8B),
+			.preprocessor = editorThemeRgbColor(0xA0, 0x13, 0x2F),
+	});
+}
+
+static void editorThemeInitModusOperandiTinted(struct editorTheme *theme) {
+	editorThemeInitModus(theme, (struct editorModusPalette){
+			.name = "modus-operandi-tinted",
+			.bg_main = editorThemeRgbColor(0xFB, 0xF7, 0xF0),
+			.bg_dim = editorThemeRgbColor(0xEF, 0xE9, 0xDD),
+			.fg_main = editorThemeRgbColor(0x00, 0x00, 0x00),
+			.fg_dim = editorThemeRgbColor(0x59, 0x59, 0x59),
+			.fg_alt = editorThemeRgbColor(0x19, 0x36, 0x68),
+			.border = editorThemeRgbColor(0x9F, 0x96, 0x90),
+			.bg_hl_line = editorThemeRgbColor(0xF1, 0xD5, 0xD0),
+			.bg_region = editorThemeRgbColor(0xC2, 0xBC, 0xB5),
+			.fg_region = editorThemeRgbColor(0x00, 0x00, 0x00),
+			.bg_mode_line_active = editorThemeRgbColor(0xCA, 0xB9, 0xB2),
+			.fg_mode_line_active = editorThemeRgbColor(0x00, 0x00, 0x00),
+			.bg_mode_line_inactive = editorThemeRgbColor(0xDF, 0xD9, 0xCF),
+			.bg_tab_current = editorThemeRgbColor(0xFB, 0xF7, 0xF0),
+			.cursor = editorThemeRgbColor(0xD0, 0x00, 0x00),
+			.red = editorThemeRgbColor(0xA6, 0x00, 0x00),
+			.green = editorThemeRgbColor(0x00, 0x63, 0x00),
+			.yellow = editorThemeRgbColor(0x6D, 0x50, 0x00),
+			.cyan = editorThemeRgbColor(0x00, 0x59, 0x8B),
+			.comment = editorThemeRgbColor(0x7F, 0x00, 0x00),
+			.keyword = editorThemeRgbColor(0x00, 0x31, 0xA9),
+			.type = editorThemeRgbColor(0x30, 0x60, 0x10),
+			.function = editorThemeRgbColor(0x60, 0x29, 0x38),
+			.string = editorThemeRgbColor(0x00, 0x59, 0x8B),
+			.number = editorThemeRgbColor(0x00, 0x00, 0x00),
+			.constant = editorThemeRgbColor(0x53, 0x1A, 0xB6),
+			.variable = editorThemeRgbColor(0x00, 0x60, 0x3F),
+			.parameter = editorThemeRgbColor(0x57, 0x43, 0x16),
+			.module = editorThemeRgbColor(0x00, 0x5F, 0x5F),
+			.property = editorThemeRgbColor(0x00, 0x60, 0x3F),
+			.preprocessor = editorThemeRgbColor(0x89, 0x40, 0x00),
+	});
+}
+
+static void editorThemeInitModusVivendi(struct editorTheme *theme) {
+	editorThemeInitModus(theme, (struct editorModusPalette){
+			.name = "modus-vivendi",
+			.bg_main = editorThemeRgbColor(0x00, 0x00, 0x00),
+			.bg_dim = editorThemeRgbColor(0x1E, 0x1E, 0x1E),
+			.fg_main = editorThemeRgbColor(0xFF, 0xFF, 0xFF),
+			.fg_dim = editorThemeRgbColor(0x98, 0x98, 0x98),
+			.fg_alt = editorThemeRgbColor(0xC6, 0xDA, 0xFF),
+			.border = editorThemeRgbColor(0x64, 0x64, 0x64),
+			.bg_hl_line = editorThemeRgbColor(0x2F, 0x38, 0x49),
+			.bg_region = editorThemeRgbColor(0x5A, 0x5A, 0x5A),
+			.fg_region = editorThemeRgbColor(0xFF, 0xFF, 0xFF),
+			.bg_mode_line_active = editorThemeRgbColor(0x50, 0x50, 0x50),
+			.fg_mode_line_active = editorThemeRgbColor(0xFF, 0xFF, 0xFF),
+			.bg_mode_line_inactive = editorThemeRgbColor(0x2D, 0x2D, 0x2D),
+			.bg_tab_current = editorThemeRgbColor(0x00, 0x00, 0x00),
+			.cursor = editorThemeRgbColor(0xFF, 0xFF, 0xFF),
+			.red = editorThemeRgbColor(0xFF, 0x5F, 0x59),
+			.green = editorThemeRgbColor(0x44, 0xBC, 0x44),
+			.yellow = editorThemeRgbColor(0xD0, 0xBC, 0x00),
+			.cyan = editorThemeRgbColor(0x00, 0xD3, 0xD0),
+			.comment = editorThemeRgbColor(0x98, 0x98, 0x98),
+			.keyword = editorThemeRgbColor(0xB6, 0xA0, 0xFF),
+			.type = editorThemeRgbColor(0x6A, 0xE4, 0xB9),
+			.function = editorThemeRgbColor(0xFE, 0xAC, 0xD0),
+			.string = editorThemeRgbColor(0x79, 0xA8, 0xFF),
+			.number = editorThemeRgbColor(0xFF, 0xFF, 0xFF),
+			.constant = editorThemeRgbColor(0x00, 0xBC, 0xFF),
+			.variable = editorThemeRgbColor(0x00, 0xD3, 0xD0),
+			.parameter = editorThemeRgbColor(0xD2, 0xB5, 0x80),
+			.module = editorThemeRgbColor(0x6A, 0xE4, 0xB9),
+			.property = editorThemeRgbColor(0x00, 0xD3, 0xD0),
+			.preprocessor = editorThemeRgbColor(0xFF, 0x7F, 0x86),
+	});
+}
+
+static void editorThemeInitModusVivendiTinted(struct editorTheme *theme) {
+	editorThemeInitModus(theme, (struct editorModusPalette){
+			.name = "modus-vivendi-tinted",
+			.bg_main = editorThemeRgbColor(0x0D, 0x0E, 0x1C),
+			.bg_dim = editorThemeRgbColor(0x1D, 0x22, 0x35),
+			.fg_main = editorThemeRgbColor(0xFF, 0xFF, 0xFF),
+			.fg_dim = editorThemeRgbColor(0x98, 0x98, 0x98),
+			.fg_alt = editorThemeRgbColor(0xC6, 0xDA, 0xFF),
+			.border = editorThemeRgbColor(0x61, 0x64, 0x7A),
+			.bg_hl_line = editorThemeRgbColor(0x30, 0x3A, 0x6F),
+			.bg_region = editorThemeRgbColor(0x55, 0x5A, 0x66),
+			.fg_region = editorThemeRgbColor(0xFF, 0xFF, 0xFF),
+			.bg_mode_line_active = editorThemeRgbColor(0x48, 0x4D, 0x67),
+			.fg_mode_line_active = editorThemeRgbColor(0xFF, 0xFF, 0xFF),
+			.bg_mode_line_inactive = editorThemeRgbColor(0x29, 0x2D, 0x48),
+			.bg_tab_current = editorThemeRgbColor(0x0D, 0x0E, 0x1C),
+			.cursor = editorThemeRgbColor(0xFF, 0x66, 0xFF),
+			.red = editorThemeRgbColor(0xFF, 0x5F, 0x59),
+			.green = editorThemeRgbColor(0x44, 0xBC, 0x44),
+			.yellow = editorThemeRgbColor(0xD0, 0xBC, 0x00),
+			.cyan = editorThemeRgbColor(0x00, 0xD3, 0xD0),
+			.comment = editorThemeRgbColor(0xEF, 0x83, 0x86),
+			.keyword = editorThemeRgbColor(0x79, 0xA8, 0xFF),
+			.type = editorThemeRgbColor(0x11, 0xC7, 0x77),
+			.function = editorThemeRgbColor(0xF7, 0x8F, 0xE7),
+			.string = editorThemeRgbColor(0x2F, 0xAF, 0xFF),
+			.number = editorThemeRgbColor(0xFF, 0xFF, 0xFF),
+			.constant = editorThemeRgbColor(0xB6, 0xA0, 0xFF),
+			.variable = editorThemeRgbColor(0x4A, 0xE2, 0xF0),
+			.parameter = editorThemeRgbColor(0xD2, 0xB5, 0x80),
+			.module = editorThemeRgbColor(0x6A, 0xE4, 0xB9),
+			.property = editorThemeRgbColor(0x4A, 0xE2, 0xF0),
+			.preprocessor = editorThemeRgbColor(0xFF, 0x7F, 0x86),
+	});
+}
+
 int editorThemeInitBuiltin(struct editorTheme *theme_out, const char *name) {
 	if (theme_out == NULL || name == NULL) {
 		return 0;
@@ -256,6 +478,22 @@ int editorThemeInitBuiltin(struct editorTheme *theme_out, const char *name) {
 	}
 	if (strcmp(name, "a11y-light") == 0) {
 		editorThemeInitA11yLight(theme_out);
+		return 1;
+	}
+	if (strcmp(name, "modus-operandi") == 0) {
+		editorThemeInitModusOperandi(theme_out);
+		return 1;
+	}
+	if (strcmp(name, "modus-operandi-tinted") == 0) {
+		editorThemeInitModusOperandiTinted(theme_out);
+		return 1;
+	}
+	if (strcmp(name, "modus-vivendi") == 0) {
+		editorThemeInitModusVivendi(theme_out);
+		return 1;
+	}
+	if (strcmp(name, "modus-vivendi-tinted") == 0) {
+		editorThemeInitModusVivendiTinted(theme_out);
 		return 1;
 	}
 	return 0;

@@ -136,11 +136,15 @@ Sections:
 
 Theme notes:
 - `[theme] name = "terminal"` is the default and follows the terminal ANSI palette.
-- Built-in themes: `terminal`, `a11y-dark`, and `a11y-light`.
+- Built-in themes: `terminal`, `a11y-dark`, `a11y-light`, `modus-operandi`,
+  `modus-operandi-tinted`, `modus-vivendi`, and `modus-vivendi-tinted`.
 - Project config (`./.rotide.toml`) can select a theme but cannot override theme colors.
 - Custom themes live at `~/.rotide/themes/<name>.toml`.
-- Theme files may define `name`, optional `inherits = "terminal"|"a11y-dark"|"a11y-light"`, `[theme.syntax]`, and `[theme.ui]`.
+- Theme files may define `name`, optional `inherits` from any built-in theme,
+  `[theme.syntax]`, and `[theme.ui]`.
 - Color values in theme files support `default`, ANSI names such as `bright_blue`, and true-color hex such as `"#6BBEFF"`.
+- The Modus built-ins use the upstream CC0 Modus palette mappings from
+  <https://protesilaos.com/emacs/modus-themes-colors>.
 
 LSP notes:
 - `gopls_enabled`, `clangd_enabled`, `html_enabled`, `css_enabled`, `json_enabled`, `javascript_enabled`, and `eslint_enabled` can be set independently in `[lsp]`.
