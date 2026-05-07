@@ -523,6 +523,30 @@ static void editorThemeInitUbuntuDark(struct editorTheme *theme) {
 	theme->ui[EDITOR_THEME_UI_DIRECTORY] = editorThemeRgbColor(0xF7, 0xF7, 0xF7);
 }
 
+static void editorThemeInitMolokai(struct editorTheme *theme) {
+	editorThemeInitGithub(theme, (struct editorGithubPalette){
+			.name = "molokai",
+			.bg = editorThemeRgbColor(0x1B, 0x1D, 0x1E),
+			.fg = editorThemeRgbColor(0xF8, 0xF8, 0xF2),
+			.muted = editorThemeRgbColor(0x7E, 0x8E, 0x91),
+			.border = editorThemeRgbColor(0x45, 0x53, 0x54),
+			.current_line = editorThemeRgbColor(0x29, 0x37, 0x39),
+			.header_bg = editorThemeRgbColor(0x23, 0x25, 0x26),
+			.selection_bg = editorThemeRgbColor(0x40, 0x3D, 0x3D),
+			.accent = editorThemeRgbColor(0x66, 0xD9, 0xEF),
+			.success = editorThemeRgbColor(0xA6, 0xE2, 0x2E),
+			.attention = editorThemeRgbColor(0xFD, 0x97, 0x1F),
+			.danger = editorThemeRgbColor(0xF9, 0x26, 0x72),
+			.comment = editorThemeRgbColor(0x7E, 0x8E, 0x91),
+			.constant = editorThemeRgbColor(0xAE, 0x81, 0xFF),
+			.entity = editorThemeRgbColor(0xA6, 0xE2, 0x2E),
+			.keyword = editorThemeRgbColor(0xF9, 0x26, 0x72),
+			.string = editorThemeRgbColor(0xE6, 0xDB, 0x74),
+			.variable = editorThemeRgbColor(0xFD, 0x97, 0x1F),
+			.type = editorThemeRgbColor(0x66, 0xD9, 0xEF),
+	});
+}
+
 struct editorModusPalette {
 	const char *name;
 	struct editorThemeColor bg_main;
@@ -799,6 +823,10 @@ int editorThemeInitBuiltin(struct editorTheme *theme_out, const char *name) {
 	}
 	if (strcmp(name, "ubuntu") == 0 || strcmp(name, "ubuntu-dark") == 0) {
 		editorThemeInitUbuntuDark(theme_out);
+		return 1;
+	}
+	if (strcmp(name, "molokai") == 0) {
+		editorThemeInitMolokai(theme_out);
 		return 1;
 	}
 	return 0;

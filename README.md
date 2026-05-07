@@ -138,7 +138,8 @@ Theme notes:
 - `[theme] name = "terminal"` is the default and follows the terminal ANSI palette.
 - Built-in themes: `terminal`, `a11y-dark`, `a11y-light`, `acme`, `silentium`,
   `256noir`, `github-light`, `github-dark`, `modus-operandi`,
-  `modus-operandi-tinted`, `modus-vivendi`, `modus-vivendi-tinted`, and `ubuntu`.
+  `modus-operandi-tinted`, `modus-vivendi`, `modus-vivendi-tinted`, `ubuntu`,
+  and `molokai`.
 - Project config (`./.rotide.toml`) can select a theme but cannot override theme colors.
 - Custom themes live at `~/.rotide/themes/<name>.toml`.
 - Theme files may define `name`, optional `inherits` from any built-in theme,
@@ -158,6 +159,8 @@ Theme notes:
   (<https://design.ubuntu.com/brand/colour-palette>): Aubergine background,
   Ubuntu Orange / Warm Grey / Light Aubergine accents, with syntax tints derived
   from those base colors.
+- The `molokai` built-in mirrors Tomas Restrepo's Vim port of Molokai
+  (<https://github.com/tomasr/molokai>).
 
 LSP notes:
 - `gopls_enabled`, `clangd_enabled`, `html_enabled`, `css_enabled`, `json_enabled`, `javascript_enabled`, and `eslint_enabled` can be set independently in `[lsp]`.
