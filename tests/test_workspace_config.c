@@ -2397,6 +2397,28 @@ static int test_editor_theme_loads_modus_builtins(void) {
 	return 0;
 }
 
+static int test_editor_theme_loads_github_builtins(void) {
+	struct editorTheme theme;
+
+	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "github-light"));
+	ASSERT_EQ_STR("github-light", theme.name);
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_BACKGROUND], 0xFF, 0xFF, 0xFF));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_FOREGROUND], 0x1F, 0x23, 0x28));
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_KEYWORD], 0xCF, 0x22, 0x2E));
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_STRING], 0x0A, 0x30, 0x69));
+	ASSERT_TRUE(theme_color_is_rgb(
+				theme.styles[EDITOR_THEME_STYLE_SELECTION].bg, 0xBB, 0xDF, 0xFF));
+
+	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "github-dark"));
+	ASSERT_EQ_STR("github-dark", theme.name);
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_BACKGROUND], 0x0D, 0x11, 0x17));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_FOREGROUND], 0xE6, 0xED, 0xF3));
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_COMMENT], 0x8B, 0x94, 0x9E));
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_FUNCTION], 0xD2, 0xA8, 0xFF));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_CURRENT_LINE_BG], 0x17, 0x1C, 0x23));
+	return 0;
+}
+
 static int test_editor_theme_project_config_cannot_override_theme_colors(void) {
 	char dir_template[] = "/tmp/rotide-test-theme-no-project-overrides-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -2962,6 +2984,7 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_view_bool_invalid_settings_do_not_break_keymap_loading", test_editor_view_bool_invalid_settings_do_not_break_keymap_loading},
 	{"editor_theme_load_builtin_global_project_precedence", test_editor_theme_load_builtin_global_project_precedence},
 	{"editor_theme_loads_modus_builtins", test_editor_theme_loads_modus_builtins},
+	{"editor_theme_loads_github_builtins", test_editor_theme_loads_github_builtins},
 	{"editor_theme_project_config_cannot_override_theme_colors", test_editor_theme_project_config_cannot_override_theme_colors},
 	{"editor_theme_loads_custom_theme_from_home_themes", test_editor_theme_loads_custom_theme_from_home_themes},
 	{"editor_theme_invalid_values_fall_back_to_terminal", test_editor_theme_invalid_values_fall_back_to_terminal},

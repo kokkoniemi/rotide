@@ -242,6 +242,118 @@ static void editorThemeInitA11yLight(struct editorTheme *theme) {
 	theme->styles[EDITOR_THEME_STYLE_DRAWER_HEADER_ACTIVE] = editorThemeStylePair(bg, fg);
 }
 
+struct editorGithubPalette {
+	const char *name;
+	struct editorThemeColor bg;
+	struct editorThemeColor fg;
+	struct editorThemeColor muted;
+	struct editorThemeColor border;
+	struct editorThemeColor current_line;
+	struct editorThemeColor header_bg;
+	struct editorThemeColor selection_bg;
+	struct editorThemeColor accent;
+	struct editorThemeColor success;
+	struct editorThemeColor attention;
+	struct editorThemeColor danger;
+	struct editorThemeColor comment;
+	struct editorThemeColor constant;
+	struct editorThemeColor entity;
+	struct editorThemeColor keyword;
+	struct editorThemeColor string;
+	struct editorThemeColor variable;
+	struct editorThemeColor type;
+};
+
+static void editorThemeInitGithub(struct editorTheme *theme, struct editorGithubPalette p) {
+	memset(theme, 0, sizeof(*theme));
+	editorThemeSetName(theme, p.name);
+	theme->ui[EDITOR_THEME_UI_FOREGROUND] = p.fg;
+	theme->ui[EDITOR_THEME_UI_BACKGROUND] = p.bg;
+	theme->ui[EDITOR_THEME_UI_LINE_NUMBER] = p.muted;
+	theme->ui[EDITOR_THEME_UI_DRAWER_CONNECTOR] = p.border;
+	theme->ui[EDITOR_THEME_UI_PLACEHOLDER] = p.muted;
+	theme->ui[EDITOR_THEME_UI_CURRENT_LINE_BG] = p.current_line;
+	theme->ui[EDITOR_THEME_UI_DRAWER_HEADER_BG] = p.header_bg;
+	theme->ui[EDITOR_THEME_UI_DIRECTORY] = p.accent;
+	theme->ui[EDITOR_THEME_UI_ROOT] = p.fg;
+	theme->ui[EDITOR_THEME_UI_GIT_MODIFIED] = p.attention;
+	theme->ui[EDITOR_THEME_UI_GIT_UNTRACKED] = p.success;
+	theme->ui[EDITOR_THEME_UI_GIT_CONFLICT] = p.danger;
+	theme->ui[EDITOR_THEME_UI_CURSOR] = p.fg;
+
+	for (int i = 0; i < EDITOR_SYNTAX_HL_CLASS_COUNT; i++) {
+		theme->syntax[i] = p.fg;
+	}
+	theme->syntax[EDITOR_SYNTAX_HL_COMMENT] = p.comment;
+	theme->syntax[EDITOR_SYNTAX_HL_KEYWORD] = p.keyword;
+	theme->syntax[EDITOR_SYNTAX_HL_TYPE] = p.type;
+	theme->syntax[EDITOR_SYNTAX_HL_FUNCTION] = p.entity;
+	theme->syntax[EDITOR_SYNTAX_HL_STRING] = p.string;
+	theme->syntax[EDITOR_SYNTAX_HL_NUMBER] = p.constant;
+	theme->syntax[EDITOR_SYNTAX_HL_CONSTANT] = p.constant;
+	theme->syntax[EDITOR_SYNTAX_HL_VARIABLE] = p.variable;
+	theme->syntax[EDITOR_SYNTAX_HL_PARAMETER] = p.variable;
+	theme->syntax[EDITOR_SYNTAX_HL_MODULE] = p.constant;
+	theme->syntax[EDITOR_SYNTAX_HL_PROPERTY] = p.constant;
+	theme->syntax[EDITOR_SYNTAX_HL_PREPROCESSOR] = p.keyword;
+	theme->syntax[EDITOR_SYNTAX_HL_OPERATOR] = p.fg;
+	theme->syntax[EDITOR_SYNTAX_HL_PUNCTUATION] = p.fg;
+
+	theme->styles[EDITOR_THEME_STYLE_SELECTION] = editorThemeStylePair(p.fg, p.selection_bg);
+	theme->styles[EDITOR_THEME_STYLE_STATUS] = editorThemeStylePair(p.muted, p.header_bg);
+	theme->styles[EDITOR_THEME_STYLE_TAB_ACTIVE] = editorThemeStylePair(p.fg, p.bg);
+	theme->styles[EDITOR_THEME_STYLE_DRAWER_HEADER_ACTIVE] =
+			editorThemeStylePair(p.fg, p.header_bg);
+}
+
+static void editorThemeInitGithubLight(struct editorTheme *theme) {
+	editorThemeInitGithub(theme, (struct editorGithubPalette){
+			.name = "github-light",
+			.bg = editorThemeRgbColor(0xFF, 0xFF, 0xFF),
+			.fg = editorThemeRgbColor(0x1F, 0x23, 0x28),
+			.muted = editorThemeRgbColor(0x65, 0x6D, 0x76),
+			.border = editorThemeRgbColor(0xD0, 0xD7, 0xDE),
+			.current_line = editorThemeRgbColor(0xF4, 0xF6, 0xF8),
+			.header_bg = editorThemeRgbColor(0xF6, 0xF8, 0xFA),
+			.selection_bg = editorThemeRgbColor(0xBB, 0xDF, 0xFF),
+			.accent = editorThemeRgbColor(0x09, 0x69, 0xDA),
+			.success = editorThemeRgbColor(0x1A, 0x7F, 0x37),
+			.attention = editorThemeRgbColor(0x9A, 0x67, 0x00),
+			.danger = editorThemeRgbColor(0xCF, 0x22, 0x2E),
+			.comment = editorThemeRgbColor(0x57, 0x60, 0x6A),
+			.constant = editorThemeRgbColor(0x05, 0x50, 0xAE),
+			.entity = editorThemeRgbColor(0x82, 0x50, 0xDF),
+			.keyword = editorThemeRgbColor(0xCF, 0x22, 0x2E),
+			.string = editorThemeRgbColor(0x0A, 0x30, 0x69),
+			.variable = editorThemeRgbColor(0x95, 0x38, 0x00),
+			.type = editorThemeRgbColor(0x1A, 0x7F, 0x37),
+	});
+}
+
+static void editorThemeInitGithubDark(struct editorTheme *theme) {
+	editorThemeInitGithub(theme, (struct editorGithubPalette){
+			.name = "github-dark",
+			.bg = editorThemeRgbColor(0x0D, 0x11, 0x17),
+			.fg = editorThemeRgbColor(0xE6, 0xED, 0xF3),
+			.muted = editorThemeRgbColor(0x84, 0x8D, 0x97),
+			.border = editorThemeRgbColor(0x30, 0x36, 0x3D),
+			.current_line = editorThemeRgbColor(0x17, 0x1C, 0x23),
+			.header_bg = editorThemeRgbColor(0x16, 0x1B, 0x22),
+			.selection_bg = editorThemeRgbColor(0x24, 0x3B, 0x61),
+			.accent = editorThemeRgbColor(0x2F, 0x81, 0xF7),
+			.success = editorThemeRgbColor(0x3F, 0xB9, 0x50),
+			.attention = editorThemeRgbColor(0xD2, 0x99, 0x22),
+			.danger = editorThemeRgbColor(0xF8, 0x51, 0x49),
+			.comment = editorThemeRgbColor(0x8B, 0x94, 0x9E),
+			.constant = editorThemeRgbColor(0x79, 0xC0, 0xFF),
+			.entity = editorThemeRgbColor(0xD2, 0xA8, 0xFF),
+			.keyword = editorThemeRgbColor(0xFF, 0x7B, 0x72),
+			.string = editorThemeRgbColor(0xA5, 0xD6, 0xFF),
+			.variable = editorThemeRgbColor(0xFF, 0xA6, 0x57),
+			.type = editorThemeRgbColor(0x7E, 0xE7, 0x87),
+	});
+}
+
 struct editorModusPalette {
 	const char *name;
 	struct editorThemeColor bg_main;
@@ -478,6 +590,14 @@ int editorThemeInitBuiltin(struct editorTheme *theme_out, const char *name) {
 	}
 	if (strcmp(name, "a11y-light") == 0) {
 		editorThemeInitA11yLight(theme_out);
+		return 1;
+	}
+	if (strcmp(name, "github-light") == 0) {
+		editorThemeInitGithubLight(theme_out);
+		return 1;
+	}
+	if (strcmp(name, "github-dark") == 0) {
+		editorThemeInitGithubDark(theme_out);
 		return 1;
 	}
 	if (strcmp(name, "modus-operandi") == 0) {
