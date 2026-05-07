@@ -230,6 +230,34 @@ static int test_editor_refresh_screen_applies_acme_theme(void) {
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_silentium_theme(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-silentium-XXXXXX.c";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
+			"tests/syntax/supported/c/highlight.c"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorThemeInitBuiltin(&E.theme, "silentium"));
+	E.window_rows = 8;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b]12;rgb:e6/e6/e6\a") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[48;2;20;20;20m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[38;2;246;206;78mreturn") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[38;2;166;166;166m\"txt\"") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[38;2;115;115;115m// comment") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[38;2;246;206;78mmain") == NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[48;2;40;40;40m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_custom_theme_roles(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-custom-theme-XXXXXX.c";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
@@ -2928,6 +2956,7 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_applies_github_light_theme", test_editor_refresh_screen_applies_github_light_theme},
 	{"editor_refresh_screen_applies_github_dark_theme", test_editor_refresh_screen_applies_github_dark_theme},
 	{"editor_refresh_screen_applies_acme_theme", test_editor_refresh_screen_applies_acme_theme},
+	{"editor_refresh_screen_applies_silentium_theme", test_editor_refresh_screen_applies_silentium_theme},
 	{"editor_refresh_screen_applies_custom_theme_roles", test_editor_refresh_screen_applies_custom_theme_roles},
 	{"editor_refresh_screen_a11y_selection_overrides_syntax", test_editor_refresh_screen_a11y_selection_overrides_syntax},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_cpp_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_cpp_tokens},

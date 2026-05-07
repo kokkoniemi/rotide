@@ -293,6 +293,51 @@ static void editorThemeInitAcme(struct editorTheme *theme) {
 	theme->styles[EDITOR_THEME_STYLE_DRAWER_HEADER_ACTIVE] = editorThemeStylePair(fg, yellow);
 }
 
+static void editorThemeInitSilentium(struct editorTheme *theme) {
+	struct editorThemeColor accent = editorThemeRgbColor(0xF6, 0xCE, 0x4E);
+	struct editorThemeColor white = editorThemeRgbColor(0xE6, 0xE6, 0xE6);
+	struct editorThemeColor light_gray = editorThemeRgbColor(0xA6, 0xA6, 0xA6);
+	struct editorThemeColor gray = editorThemeRgbColor(0x73, 0x73, 0x73);
+	struct editorThemeColor ghost = editorThemeRgbColor(0x4D, 0x4D, 0x4D);
+	struct editorThemeColor dark_gray = editorThemeRgbColor(0x28, 0x28, 0x28);
+	struct editorThemeColor dark = editorThemeRgbColor(0x14, 0x14, 0x14);
+	struct editorThemeColor red = editorThemeRgbColor(0xE8, 0x5A, 0x4F);
+	struct editorThemeColor green = editorThemeRgbColor(0x5F, 0xB3, 0x6A);
+
+	memset(theme, 0, sizeof(*theme));
+	editorThemeSetName(theme, "silentium");
+	theme->ui[EDITOR_THEME_UI_FOREGROUND] = white;
+	theme->ui[EDITOR_THEME_UI_BACKGROUND] = dark;
+	theme->ui[EDITOR_THEME_UI_LINE_NUMBER] = light_gray;
+	theme->ui[EDITOR_THEME_UI_DRAWER_CONNECTOR] = gray;
+	theme->ui[EDITOR_THEME_UI_PLACEHOLDER] = ghost;
+	theme->ui[EDITOR_THEME_UI_CURRENT_LINE_BG] = dark_gray;
+	theme->ui[EDITOR_THEME_UI_DRAWER_HEADER_BG] = ghost;
+	theme->ui[EDITOR_THEME_UI_DIRECTORY] = accent;
+	theme->ui[EDITOR_THEME_UI_ROOT] = white;
+	theme->ui[EDITOR_THEME_UI_GIT_MODIFIED] = accent;
+	theme->ui[EDITOR_THEME_UI_GIT_UNTRACKED] = green;
+	theme->ui[EDITOR_THEME_UI_GIT_CONFLICT] = red;
+	theme->ui[EDITOR_THEME_UI_CURSOR] = white;
+
+	for (int i = 0; i < EDITOR_SYNTAX_HL_CLASS_COUNT; i++) {
+		theme->syntax[i] = white;
+	}
+	theme->syntax[EDITOR_SYNTAX_HL_COMMENT] = gray;
+	theme->syntax[EDITOR_SYNTAX_HL_KEYWORD] = accent;
+	theme->syntax[EDITOR_SYNTAX_HL_STRING] = light_gray;
+	theme->syntax[EDITOR_SYNTAX_HL_MODULE] = accent;
+	theme->syntax[EDITOR_SYNTAX_HL_PROPERTY] = white;
+	theme->syntax[EDITOR_SYNTAX_HL_PREPROCESSOR] = white;
+	theme->syntax[EDITOR_SYNTAX_HL_OPERATOR] = white;
+	theme->syntax[EDITOR_SYNTAX_HL_PUNCTUATION] = white;
+
+	theme->styles[EDITOR_THEME_STYLE_SELECTION] = editorThemeStylePair(white, dark_gray);
+	theme->styles[EDITOR_THEME_STYLE_STATUS] = editorThemeStylePair(white, ghost);
+	theme->styles[EDITOR_THEME_STYLE_TAB_ACTIVE] = editorThemeStylePair(dark, accent);
+	theme->styles[EDITOR_THEME_STYLE_DRAWER_HEADER_ACTIVE] = editorThemeStylePair(dark, accent);
+}
+
 struct editorGithubPalette {
 	const char *name;
 	struct editorThemeColor bg;
@@ -645,6 +690,10 @@ int editorThemeInitBuiltin(struct editorTheme *theme_out, const char *name) {
 	}
 	if (strcmp(name, "acme") == 0) {
 		editorThemeInitAcme(theme_out);
+		return 1;
+	}
+	if (strcmp(name, "silentium") == 0) {
+		editorThemeInitSilentium(theme_out);
 		return 1;
 	}
 	if (strcmp(name, "github-light") == 0) {
