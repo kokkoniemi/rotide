@@ -2431,6 +2431,8 @@ static int test_editor_theme_loads_acme_builtin(void) {
 	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_BACKGROUND], 0xFF, 0xFF, 0xEA));
 	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_FOREGROUND], 0x00, 0x00, 0x00));
 	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_DRAWER_HEADER_BG], 0xAE, 0xEE, 0xEE));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_DIRECTORY], 0x10, 0x10, 0x10));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_DRAWER_CONNECTOR], 0x50, 0x50, 0x50));
 	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_COMMENT], 0x50, 0x50, 0x50));
 	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_KEYWORD], 0xAF, 0x5F, 0x00));
 	ASSERT_TRUE(theme_color_is_rgb(

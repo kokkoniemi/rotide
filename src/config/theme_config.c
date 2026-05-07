@@ -251,7 +251,6 @@ static void editorThemeInitAcme(struct editorTheme *theme) {
 	struct editorThemeColor yellow = editorThemeRgbColor(0xFF, 0xFF, 0x5F);
 	struct editorThemeColor blue = editorThemeRgbColor(0xAE, 0xEE, 0xEE);
 	struct editorThemeColor magenta = editorThemeRgbColor(0x50, 0x50, 0x50);
-	struct editorThemeColor cyan = editorThemeRgbColor(0xAF, 0xFF, 0xD7);
 	struct editorThemeColor white = editorThemeRgbColor(0xFC, 0xFC, 0xCE);
 
 	memset(theme, 0, sizeof(*theme));
@@ -259,11 +258,11 @@ static void editorThemeInitAcme(struct editorTheme *theme) {
 	theme->ui[EDITOR_THEME_UI_FOREGROUND] = fg;
 	theme->ui[EDITOR_THEME_UI_BACKGROUND] = bg;
 	theme->ui[EDITOR_THEME_UI_LINE_NUMBER] = magenta;
-	theme->ui[EDITOR_THEME_UI_DRAWER_CONNECTOR] = green;
+	theme->ui[EDITOR_THEME_UI_DRAWER_CONNECTOR] = magenta;
 	theme->ui[EDITOR_THEME_UI_PLACEHOLDER] = magenta;
 	theme->ui[EDITOR_THEME_UI_CURRENT_LINE_BG] = white;
 	theme->ui[EDITOR_THEME_UI_DRAWER_HEADER_BG] = blue;
-	theme->ui[EDITOR_THEME_UI_DIRECTORY] = cyan;
+	theme->ui[EDITOR_THEME_UI_DIRECTORY] = black;
 	theme->ui[EDITOR_THEME_UI_ROOT] = black;
 	theme->ui[EDITOR_THEME_UI_GIT_MODIFIED] = red;
 	theme->ui[EDITOR_THEME_UI_GIT_UNTRACKED] = green;
