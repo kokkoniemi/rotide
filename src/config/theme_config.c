@@ -448,6 +448,7 @@ static void editorThemeInitGithubDark(struct editorTheme *theme) {
 			.variable = editorThemeRgbColor(0xE6, 0xED, 0xF3),
 			.type = editorThemeRgbColor(0xE6, 0xED, 0xF3),
 	});
+	theme->ui[EDITOR_THEME_UI_DIRECTORY] = editorThemeRgbColor(0x79, 0xC0, 0xFF);
 }
 
 struct editorModusPalette {

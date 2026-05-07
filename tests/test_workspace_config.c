@@ -2415,6 +2415,7 @@ static int test_editor_theme_loads_github_builtins(void) {
 	ASSERT_EQ_STR("github-dark", theme.name);
 	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_BACKGROUND], 0x0D, 0x11, 0x17));
 	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_FOREGROUND], 0xE6, 0xED, 0xF3));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_DIRECTORY], 0x79, 0xC0, 0xFF));
 	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_COMMENT], 0x8B, 0x94, 0x9E));
 	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_FUNCTION], 0xD2, 0xA8, 0xFF));
 	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_TYPE], 0xE6, 0xED, 0xF3));
