@@ -338,6 +338,53 @@ static void editorThemeInitSilentium(struct editorTheme *theme) {
 	theme->styles[EDITOR_THEME_STYLE_DRAWER_HEADER_ACTIVE] = editorThemeStylePair(dark, accent);
 }
 
+static void editorThemeInit256Noir(struct editorTheme *theme) {
+	struct editorThemeColor bg = editorTheme256Color(16);
+	struct editorThemeColor fg = editorTheme256Color(250);
+	struct editorThemeColor keyword = editorTheme256Color(255);
+	struct editorThemeColor constant = editorTheme256Color(252);
+	struct editorThemeColor string = editorTheme256Color(245);
+	struct editorThemeColor comment = editorTheme256Color(240);
+	struct editorThemeColor number = editorTheme256Color(196);
+	struct editorThemeColor current_line = editorTheme256Color(233);
+
+	memset(theme, 0, sizeof(*theme));
+	editorThemeSetName(theme, "256noir");
+	theme->ui[EDITOR_THEME_UI_FOREGROUND] = fg;
+	theme->ui[EDITOR_THEME_UI_BACKGROUND] = bg;
+	theme->ui[EDITOR_THEME_UI_LINE_NUMBER] = comment;
+	theme->ui[EDITOR_THEME_UI_DRAWER_CONNECTOR] = comment;
+	theme->ui[EDITOR_THEME_UI_PLACEHOLDER] = comment;
+	theme->ui[EDITOR_THEME_UI_CURRENT_LINE_BG] = current_line;
+	theme->ui[EDITOR_THEME_UI_DRAWER_HEADER_BG] = bg;
+	theme->ui[EDITOR_THEME_UI_DIRECTORY] = keyword;
+	theme->ui[EDITOR_THEME_UI_ROOT] = fg;
+	theme->ui[EDITOR_THEME_UI_GIT_MODIFIED] = keyword;
+	theme->ui[EDITOR_THEME_UI_GIT_UNTRACKED] = constant;
+	theme->ui[EDITOR_THEME_UI_GIT_CONFLICT] = number;
+	theme->ui[EDITOR_THEME_UI_CURSOR] = fg;
+
+	for (int i = 0; i < EDITOR_SYNTAX_HL_CLASS_COUNT; i++) {
+		theme->syntax[i] = fg;
+	}
+	theme->syntax[EDITOR_SYNTAX_HL_COMMENT] = comment;
+	theme->syntax[EDITOR_SYNTAX_HL_KEYWORD] = keyword;
+	theme->syntax[EDITOR_SYNTAX_HL_TYPE] = keyword;
+	theme->syntax[EDITOR_SYNTAX_HL_FUNCTION] = keyword;
+	theme->syntax[EDITOR_SYNTAX_HL_STRING] = string;
+	theme->syntax[EDITOR_SYNTAX_HL_NUMBER] = number;
+	theme->syntax[EDITOR_SYNTAX_HL_CONSTANT] = constant;
+	theme->syntax[EDITOR_SYNTAX_HL_MODULE] = keyword;
+	theme->syntax[EDITOR_SYNTAX_HL_PREPROCESSOR] = keyword;
+	theme->syntax[EDITOR_SYNTAX_HL_OPERATOR] = keyword;
+	theme->syntax[EDITOR_SYNTAX_HL_PUNCTUATION] = fg;
+
+	theme->styles[EDITOR_THEME_STYLE_SELECTION] = editorThemeStylePair(bg, fg);
+	theme->styles[EDITOR_THEME_STYLE_STATUS] = editorThemeStylePair(bg, string);
+	theme->styles[EDITOR_THEME_STYLE_TAB_ACTIVE] = editorThemeStylePair(bg, keyword);
+	theme->styles[EDITOR_THEME_STYLE_DRAWER_HEADER_ACTIVE] = editorThemeStylePair(bg, keyword);
+}
+
 struct editorGithubPalette {
 	const char *name;
 	struct editorThemeColor bg;
@@ -695,6 +742,10 @@ int editorThemeInitBuiltin(struct editorTheme *theme_out, const char *name) {
 	}
 	if (strcmp(name, "silentium") == 0) {
 		editorThemeInitSilentium(theme_out);
+		return 1;
+	}
+	if (strcmp(name, "256noir") == 0 || strcmp(name, "256_noir") == 0) {
+		editorThemeInit256Noir(theme_out);
 		return 1;
 	}
 	if (strcmp(name, "github-light") == 0) {

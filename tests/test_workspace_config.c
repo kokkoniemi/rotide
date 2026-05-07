@@ -30,6 +30,10 @@ static int theme_color_is_ansi(struct editorThemeColor color, enum editorThemeAn
 	return color.kind == EDITOR_THEME_COLOR_ANSI && color.value == (unsigned char)ansi;
 }
 
+static int theme_color_is_256(struct editorThemeColor color, unsigned char value) {
+	return color.kind == EDITOR_THEME_COLOR_256 && color.value == value;
+}
+
 static int theme_color_is_rgb(struct editorThemeColor color, unsigned char r, unsigned char g,
 		unsigned char b) {
 	return color.kind == EDITOR_THEME_COLOR_RGB && color.r == r && color.g == g && color.b == b;
@@ -2457,6 +2461,26 @@ static int test_editor_theme_loads_silentium_builtin(void) {
 	return 0;
 }
 
+static int test_editor_theme_loads_256noir_builtin(void) {
+	struct editorTheme theme;
+
+	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "256noir"));
+	ASSERT_EQ_STR("256noir", theme.name);
+	ASSERT_TRUE(theme_color_is_256(theme.ui[EDITOR_THEME_UI_BACKGROUND], 16));
+	ASSERT_TRUE(theme_color_is_256(theme.ui[EDITOR_THEME_UI_FOREGROUND], 250));
+	ASSERT_TRUE(theme_color_is_256(theme.ui[EDITOR_THEME_UI_DIRECTORY], 255));
+	ASSERT_TRUE(theme_color_is_256(theme.ui[EDITOR_THEME_UI_CURRENT_LINE_BG], 233));
+	ASSERT_TRUE(theme_color_is_256(theme.syntax[EDITOR_SYNTAX_HL_COMMENT], 240));
+	ASSERT_TRUE(theme_color_is_256(theme.syntax[EDITOR_SYNTAX_HL_KEYWORD], 255));
+	ASSERT_TRUE(theme_color_is_256(theme.syntax[EDITOR_SYNTAX_HL_STRING], 245));
+	ASSERT_TRUE(theme_color_is_256(theme.syntax[EDITOR_SYNTAX_HL_NUMBER], 196));
+	ASSERT_TRUE(theme_color_is_256(theme.syntax[EDITOR_SYNTAX_HL_FUNCTION], 255));
+
+	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "256_noir"));
+	ASSERT_EQ_STR("256noir", theme.name);
+	return 0;
+}
+
 static int test_editor_theme_project_config_cannot_override_theme_colors(void) {
 	char dir_template[] = "/tmp/rotide-test-theme-no-project-overrides-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -3025,6 +3049,7 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_theme_loads_github_builtins", test_editor_theme_loads_github_builtins},
 	{"editor_theme_loads_acme_builtin", test_editor_theme_loads_acme_builtin},
 	{"editor_theme_loads_silentium_builtin", test_editor_theme_loads_silentium_builtin},
+	{"editor_theme_loads_256noir_builtin", test_editor_theme_loads_256noir_builtin},
 	{"editor_theme_project_config_cannot_override_theme_colors", test_editor_theme_project_config_cannot_override_theme_colors},
 	{"editor_theme_loads_custom_theme_from_home_themes", test_editor_theme_loads_custom_theme_from_home_themes},
 	{"editor_theme_invalid_values_fall_back_to_terminal", test_editor_theme_invalid_values_fall_back_to_terminal},

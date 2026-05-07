@@ -137,8 +137,8 @@ Sections:
 Theme notes:
 - `[theme] name = "terminal"` is the default and follows the terminal ANSI palette.
 - Built-in themes: `terminal`, `a11y-dark`, `a11y-light`, `acme`, `silentium`,
-  `github-light`, `github-dark`, `modus-operandi`, `modus-operandi-tinted`,
-  `modus-vivendi`, and `modus-vivendi-tinted`.
+  `256noir`, `github-light`, `github-dark`, `modus-operandi`,
+  `modus-operandi-tinted`, `modus-vivendi`, and `modus-vivendi-tinted`.
 - Project config (`./.rotide.toml`) can select a theme but cannot override theme colors.
 - Custom themes live at `~/.rotide/themes/<name>.toml`.
 - Theme files may define `name`, optional `inherits` from any built-in theme,
@@ -152,6 +152,8 @@ Theme notes:
   <https://github.com/plan9-for-vimspace/acme-colors>.
 - The `silentium` built-in uses the monochrome-plus-accent palette from
   <https://github.com/silentium-theme/silentium.nvim>.
+- The `256noir` built-in uses the xterm 256-color grayscale palette from
+  <https://github.com/andreasvc/vim-256noir>.
 
 LSP notes:
 - `gopls_enabled`, `clangd_enabled`, `html_enabled`, `css_enabled`, `json_enabled`, `javascript_enabled`, and `eslint_enabled` can be set independently in `[lsp]`.
