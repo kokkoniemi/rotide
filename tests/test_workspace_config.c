@@ -2481,30 +2481,6 @@ static int test_editor_theme_loads_256noir_builtin(void) {
 	return 0;
 }
 
-static int test_editor_theme_loads_ubuntu_builtin(void) {
-	struct editorTheme theme;
-
-	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "ubuntu"));
-	ASSERT_EQ_STR("ubuntu", theme.name);
-	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_BACKGROUND], 0x2C, 0x00, 0x1E));
-	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_FOREGROUND], 0xF7, 0xF7, 0xF7));
-	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_DIRECTORY], 0xF7, 0xF7, 0xF7));
-	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_CURRENT_LINE_BG], 0x3A, 0x08, 0x27));
-	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_COMMENT], 0xAE, 0xA7, 0x9F));
-	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_KEYWORD], 0xE9, 0x54, 0x20));
-	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_STRING], 0xBF, 0xA9, 0xB9));
-	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_FUNCTION], 0xD6, 0xBC, 0xD4));
-	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_NUMBER], 0xBB, 0x90, 0xB7));
-	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_TYPE], 0xF7, 0xF7, 0xF7));
-	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_VARIABLE], 0xF7, 0xF7, 0xF7));
-	ASSERT_TRUE(theme_color_is_rgb(
-				theme.styles[EDITOR_THEME_STYLE_SELECTION].bg, 0x77, 0x21, 0x6F));
-
-	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "ubuntu-dark"));
-	ASSERT_EQ_STR("ubuntu", theme.name);
-	return 0;
-}
-
 static int test_editor_theme_loads_molokai_builtin(void) {
 	struct editorTheme theme;
 
@@ -3132,7 +3108,6 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_theme_loads_acme_builtin", test_editor_theme_loads_acme_builtin},
 	{"editor_theme_loads_silentium_builtin", test_editor_theme_loads_silentium_builtin},
 	{"editor_theme_loads_256noir_builtin", test_editor_theme_loads_256noir_builtin},
-	{"editor_theme_loads_ubuntu_builtin", test_editor_theme_loads_ubuntu_builtin},
 	{"editor_theme_loads_molokai_builtin", test_editor_theme_loads_molokai_builtin},
 	{"editor_theme_loads_kanagawa_builtins", test_editor_theme_loads_kanagawa_builtins},
 	{"editor_theme_project_config_cannot_override_theme_colors", test_editor_theme_project_config_cannot_override_theme_colors},

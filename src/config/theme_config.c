@@ -498,31 +498,6 @@ static void editorThemeInitGithubDark(struct editorTheme *theme) {
 	theme->ui[EDITOR_THEME_UI_DIRECTORY] = editorThemeRgbColor(0x79, 0xC0, 0xFF);
 }
 
-static void editorThemeInitUbuntuDark(struct editorTheme *theme) {
-	editorThemeInitGithub(theme, (struct editorGithubPalette){
-			.name = "ubuntu",
-			.bg = editorThemeRgbColor(0x2C, 0x00, 0x1E),
-			.fg = editorThemeRgbColor(0xF7, 0xF7, 0xF7),
-			.muted = editorThemeRgbColor(0x7A, 0x64, 0x6B),
-			.border = editorThemeRgbColor(0x5E, 0x27, 0x50),
-			.current_line = editorThemeRgbColor(0x3A, 0x08, 0x27),
-			.header_bg = editorThemeRgbColor(0x1F, 0x00, 0x15),
-			.selection_bg = editorThemeRgbColor(0x77, 0x21, 0x6F),
-			.accent = editorThemeRgbColor(0xE9, 0x54, 0x20),
-			.success = editorThemeRgbColor(0x0E, 0x84, 0x20),
-			.attention = editorThemeRgbColor(0xE9, 0x54, 0x20),
-			.danger = editorThemeRgbColor(0xC7, 0x16, 0x2B),
-			.comment = editorThemeRgbColor(0xAE, 0xA7, 0x9F),
-			.constant = editorThemeRgbColor(0xBB, 0x90, 0xB7),
-			.entity = editorThemeRgbColor(0xD6, 0xBC, 0xD4),
-			.keyword = editorThemeRgbColor(0xE9, 0x54, 0x20),
-			.string = editorThemeRgbColor(0xBF, 0xA9, 0xB9),
-			.variable = editorThemeRgbColor(0xF7, 0xF7, 0xF7),
-			.type = editorThemeRgbColor(0xF7, 0xF7, 0xF7),
-	});
-	theme->ui[EDITOR_THEME_UI_DIRECTORY] = editorThemeRgbColor(0xF7, 0xF7, 0xF7);
-}
-
 static void editorThemeInitMolokai(struct editorTheme *theme) {
 	editorThemeInitGithub(theme, (struct editorGithubPalette){
 			.name = "molokai",
@@ -976,10 +951,6 @@ int editorThemeInitBuiltin(struct editorTheme *theme_out, const char *name) {
 	}
 	if (strcmp(name, "modus-vivendi-tinted") == 0) {
 		editorThemeInitModusVivendiTinted(theme_out);
-		return 1;
-	}
-	if (strcmp(name, "ubuntu") == 0 || strcmp(name, "ubuntu-dark") == 0) {
-		editorThemeInitUbuntuDark(theme_out);
 		return 1;
 	}
 	if (strcmp(name, "molokai") == 0) {

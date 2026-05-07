@@ -138,8 +138,8 @@ Theme notes:
 - `[theme] name = "terminal"` is the default and follows the terminal ANSI palette.
 - Built-in themes: `terminal`, `a11y-dark`, `a11y-light`, `acme`, `silentium`,
   `256noir`, `github-light`, `github-dark`, `modus-operandi`,
-  `modus-operandi-tinted`, `modus-vivendi`, `modus-vivendi-tinted`, `ubuntu`,
-  `molokai`, `kanagawa-wave`, `kanagawa-dragon`, and `kanagawa-lotus`
+  `modus-operandi-tinted`, `modus-vivendi`, `modus-vivendi-tinted`, `molokai`,
+  `kanagawa-wave`, `kanagawa-dragon`, and `kanagawa-lotus`
   (`kanagawa` is an alias for `kanagawa-wave`).
 - Project config (`./.rotide.toml`) can select a theme but cannot override theme colors.
 - Custom themes live at `~/.rotide/themes/<name>.toml`.
@@ -156,10 +156,6 @@ Theme notes:
   <https://github.com/silentium-theme/silentium.nvim>.
 - The `256noir` built-in uses the xterm 256-color grayscale palette from
   <https://github.com/andreasvc/vim-256noir>.
-- The `ubuntu` built-in is a dark scheme drawn from Canonical's brand palette
-  (<https://design.ubuntu.com/brand/colour-palette>): Aubergine background,
-  Ubuntu Orange / Warm Grey / Light Aubergine accents, with syntax tints derived
-  from those base colors.
 - The `molokai` built-in mirrors Tomas Restrepo's Vim port of Molokai
   (<https://github.com/tomasr/molokai>).
 - The `kanagawa-*` built-ins port the Kanagawa palette from

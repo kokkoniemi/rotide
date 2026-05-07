@@ -11,7 +11,7 @@
 # - [theme] name selects a built-in theme or ~/.rotide/themes/<name>.toml
 # - built-ins: terminal|a11y-dark|a11y-light|acme|silentium|256noir|
 #   github-light|github-dark|modus-operandi|modus-operandi-tinted|modus-vivendi|
-#   modus-vivendi-tinted|ubuntu|molokai|kanagawa-wave|kanagawa-dragon|
+#   modus-vivendi-tinted|molokai|kanagawa-wave|kanagawa-dragon|
 #   kanagawa-lotus (alias: kanagawa => kanagawa-wave)
 # - ./.rotide.toml can select a theme but cannot override theme colors
 # - custom theme files own [theme.syntax] and [theme.ui]
