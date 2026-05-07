@@ -62,7 +62,7 @@ line_numbers = true
 current_line_highlight = true
 
 [theme]
-name = "modus-operandi"
+name = "modus-operandi-tinted"
 
 [lsp]
 gopls_enabled = true
