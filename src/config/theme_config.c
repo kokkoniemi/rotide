@@ -401,8 +401,8 @@ static void editorThemeInitGithubDark(struct editorTheme *theme) {
 			.entity = editorThemeRgbColor(0xD2, 0xA8, 0xFF),
 			.keyword = editorThemeRgbColor(0xFF, 0x7B, 0x72),
 			.string = editorThemeRgbColor(0xA5, 0xD6, 0xFF),
-			.variable = editorThemeRgbColor(0xFF, 0xA6, 0x57),
-			.type = editorThemeRgbColor(0x7E, 0xE7, 0x87),
+			.variable = editorThemeRgbColor(0xE6, 0xED, 0xF3),
+			.type = editorThemeRgbColor(0xE6, 0xED, 0xF3),
 	});
 }
 

@@ -165,7 +165,8 @@ static int test_editor_refresh_screen_applies_github_dark_theme(void) {
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b]12;rgb:e6/ed/f3\a") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[48;2;13;17;23m") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[38;2;126;231;135mint") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[38;2;126;231;135mint") == NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[38;2;255;166;87ms") == NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[38;2;210;168;255mmain") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[38;2;139;148;158m// comment") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[48;2;23;28;35m") != NULL);
