@@ -2581,6 +2581,57 @@ static int editorDrawRows(struct writeBuf *wb) {
 	return 1;
 }
 
+static int editorScrollProgressPercent(void) {
+	int visible_rows = E.window_rows > 0 ? E.window_rows : 1;
+	long long top = 0;
+	long long total = 0;
+
+	if (E.line_wrap_enabled) {
+		int body_cols = editorWrapBodyCols();
+		for (int i = 0; i < E.numrows; i++) {
+			int segment_count = editorWrapSegmentCountForRowIndex(i, body_cols);
+			if (i < E.rowoff) {
+				top += segment_count;
+			}
+			total += segment_count;
+		}
+		if (E.rowoff >= 0 && E.rowoff < E.numrows) {
+			int top_segment_count = editorWrapSegmentCountForRowIndex(E.rowoff, body_cols);
+			int top_segment = E.wrapoff;
+			if (top_segment < 0) {
+				top_segment = 0;
+			}
+			if (top_segment >= top_segment_count) {
+				top_segment = top_segment_count - 1;
+			}
+			top += top_segment;
+		}
+	} else {
+		top = E.rowoff;
+		total = E.numrows;
+	}
+
+	if (total <= 0) {
+		return 0;
+	}
+	if (total <= visible_rows || top + visible_rows >= total) {
+		return 100;
+	}
+
+	long long max_top = total - visible_rows;
+	if (max_top <= 0) {
+		return 100;
+	}
+	int progress = (int)((top * 100) / max_top);
+	if (progress < 0) {
+		return 0;
+	}
+	if (progress > 100) {
+		return 100;
+	}
+	return progress;
+}
+
 static int editorDrawStatusBar(struct writeBuf *wb) {
 	if (!editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_STATUS)) {
 		return 0;
@@ -2598,18 +2649,7 @@ static int editorDrawStatusBar(struct writeBuf *wb) {
 				E.lsp_diagnostic_error_count, E.lsp_diagnostic_warning_count);
 	}
 
-	int progress = 0;
-	if (E.numrows == 1) {
-		progress = 100;
-	} else if (E.numrows > 1) {
-		progress = (int)((float)E.cy / (E.numrows - 1) * 100);
-	}
-	if (progress < 0) {
-		progress = 0;
-	}
-	if (progress > 100) {
-		progress = 100;
-	}
+	int progress = editorScrollProgressPercent();
 	int cursor_col = E.rx + 1;
 	if (cursor_col < 1) {
 		cursor_col = 1;

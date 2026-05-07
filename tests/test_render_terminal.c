@@ -2687,6 +2687,64 @@ static int test_editor_refresh_screen_status_bar_single_row_percent(void) {
 	return 0;
 }
 
+static int test_editor_refresh_screen_status_bar_percent_uses_viewport_top(void) {
+	for (int i = 0; i < 10; i++) {
+		add_row("line");
+	}
+	E.window_rows = 3;
+	E.window_cols = 50;
+	E.cy = 9;
+	E.cx = 0;
+	E.rowoff = 0;
+	editorViewportSetMode(EDITOR_VIEWPORT_FREE_SCROLL);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "10,1    0%") != NULL);
+	free(output);
+
+	E.rowoff = 4;
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "10,1    57%") != NULL);
+	free(output);
+
+	E.rowoff = 7;
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "10,1    100%") != NULL);
+	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_status_bar_wrapped_percent_uses_visual_top(void) {
+	add_row("abcdefghijklmn");
+	E.window_rows = 2;
+	E.window_cols = 10;
+	E.line_wrap_enabled = 1;
+	E.line_numbers_enabled = 0;
+	E.cy = 0;
+	E.cx = 0;
+	E.rowoff = 0;
+	E.wrapoff = 0;
+	editorViewportSetMode(EDITOR_VIEWPORT_FREE_SCROLL);
+	ASSERT_TRUE(editorDrawerSetWidthForCols(1, E.window_cols));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "1,1    0%") != NULL);
+	free(output);
+
+	E.wrapoff = 1;
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "1,1    100%") != NULL);
+	free(output);
+	return 0;
+}
+
 static int test_editor_refresh_screen_status_bar_cursor_multibyte_col(void) {
 	add_row("\xC3\xB6" "a");
 	E.window_rows = 3;
@@ -2854,6 +2912,8 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_slice_after_multibyte_scroll", test_editor_refresh_screen_slice_after_multibyte_scroll},
 	{"editor_refresh_screen_cursor_sequence_not_truncated_by_window_width", test_editor_refresh_screen_cursor_sequence_not_truncated_by_window_width},
 	{"editor_refresh_screen_status_bar_single_row_percent", test_editor_refresh_screen_status_bar_single_row_percent},
+	{"editor_refresh_screen_status_bar_percent_uses_viewport_top", test_editor_refresh_screen_status_bar_percent_uses_viewport_top},
+	{"editor_refresh_screen_status_bar_wrapped_percent_uses_visual_top", test_editor_refresh_screen_status_bar_wrapped_percent_uses_visual_top},
 	{"editor_refresh_screen_status_bar_cursor_multibyte_col", test_editor_refresh_screen_status_bar_cursor_multibyte_col},
 	{"editor_refresh_screen_status_bar_cursor_tab_display_col", test_editor_refresh_screen_status_bar_cursor_tab_display_col},
 	{"editor_refresh_screen_status_bar_shows_full_path_when_space_allows", test_editor_refresh_screen_status_bar_shows_full_path_when_space_allows},
