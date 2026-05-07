@@ -242,6 +242,58 @@ static void editorThemeInitA11yLight(struct editorTheme *theme) {
 	theme->styles[EDITOR_THEME_STYLE_DRAWER_HEADER_ACTIVE] = editorThemeStylePair(bg, fg);
 }
 
+static void editorThemeInitAcme(struct editorTheme *theme) {
+	struct editorThemeColor bg = editorThemeRgbColor(0xFF, 0xFF, 0xEA);
+	struct editorThemeColor fg = editorThemeRgbColor(0x00, 0x00, 0x00);
+	struct editorThemeColor black = editorThemeRgbColor(0x10, 0x10, 0x10);
+	struct editorThemeColor red = editorThemeRgbColor(0xAF, 0x5F, 0x00);
+	struct editorThemeColor green = editorThemeRgbColor(0xCC, 0xCC, 0x7C);
+	struct editorThemeColor yellow = editorThemeRgbColor(0xFF, 0xFF, 0x5F);
+	struct editorThemeColor blue = editorThemeRgbColor(0xAE, 0xEE, 0xEE);
+	struct editorThemeColor magenta = editorThemeRgbColor(0x50, 0x50, 0x50);
+	struct editorThemeColor cyan = editorThemeRgbColor(0xAF, 0xFF, 0xD7);
+	struct editorThemeColor white = editorThemeRgbColor(0xFC, 0xFC, 0xCE);
+
+	memset(theme, 0, sizeof(*theme));
+	editorThemeSetName(theme, "acme");
+	theme->ui[EDITOR_THEME_UI_FOREGROUND] = fg;
+	theme->ui[EDITOR_THEME_UI_BACKGROUND] = bg;
+	theme->ui[EDITOR_THEME_UI_LINE_NUMBER] = magenta;
+	theme->ui[EDITOR_THEME_UI_DRAWER_CONNECTOR] = green;
+	theme->ui[EDITOR_THEME_UI_PLACEHOLDER] = magenta;
+	theme->ui[EDITOR_THEME_UI_CURRENT_LINE_BG] = white;
+	theme->ui[EDITOR_THEME_UI_DRAWER_HEADER_BG] = blue;
+	theme->ui[EDITOR_THEME_UI_DIRECTORY] = cyan;
+	theme->ui[EDITOR_THEME_UI_ROOT] = black;
+	theme->ui[EDITOR_THEME_UI_GIT_MODIFIED] = red;
+	theme->ui[EDITOR_THEME_UI_GIT_UNTRACKED] = green;
+	theme->ui[EDITOR_THEME_UI_GIT_CONFLICT] = red;
+	theme->ui[EDITOR_THEME_UI_CURSOR] = fg;
+
+	for (int i = 0; i < EDITOR_SYNTAX_HL_CLASS_COUNT; i++) {
+		theme->syntax[i] = fg;
+	}
+	theme->syntax[EDITOR_SYNTAX_HL_COMMENT] = magenta;
+	theme->syntax[EDITOR_SYNTAX_HL_KEYWORD] = red;
+	theme->syntax[EDITOR_SYNTAX_HL_TYPE] = fg;
+	theme->syntax[EDITOR_SYNTAX_HL_FUNCTION] = black;
+	theme->syntax[EDITOR_SYNTAX_HL_STRING] = red;
+	theme->syntax[EDITOR_SYNTAX_HL_NUMBER] = fg;
+	theme->syntax[EDITOR_SYNTAX_HL_CONSTANT] = red;
+	theme->syntax[EDITOR_SYNTAX_HL_VARIABLE] = fg;
+	theme->syntax[EDITOR_SYNTAX_HL_PARAMETER] = fg;
+	theme->syntax[EDITOR_SYNTAX_HL_MODULE] = red;
+	theme->syntax[EDITOR_SYNTAX_HL_PROPERTY] = black;
+	theme->syntax[EDITOR_SYNTAX_HL_PREPROCESSOR] = red;
+	theme->syntax[EDITOR_SYNTAX_HL_OPERATOR] = fg;
+	theme->syntax[EDITOR_SYNTAX_HL_PUNCTUATION] = fg;
+
+	theme->styles[EDITOR_THEME_STYLE_SELECTION] = editorThemeStylePair(fg, blue);
+	theme->styles[EDITOR_THEME_STYLE_STATUS] = editorThemeStylePair(fg, blue);
+	theme->styles[EDITOR_THEME_STYLE_TAB_ACTIVE] = editorThemeStylePair(fg, blue);
+	theme->styles[EDITOR_THEME_STYLE_DRAWER_HEADER_ACTIVE] = editorThemeStylePair(fg, yellow);
+}
+
 struct editorGithubPalette {
 	const char *name;
 	struct editorThemeColor bg;
@@ -590,6 +642,10 @@ int editorThemeInitBuiltin(struct editorTheme *theme_out, const char *name) {
 	}
 	if (strcmp(name, "a11y-light") == 0) {
 		editorThemeInitA11yLight(theme_out);
+		return 1;
+	}
+	if (strcmp(name, "acme") == 0) {
+		editorThemeInitAcme(theme_out);
 		return 1;
 	}
 	if (strcmp(name, "github-light") == 0) {

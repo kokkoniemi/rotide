@@ -2419,6 +2419,21 @@ static int test_editor_theme_loads_github_builtins(void) {
 	return 0;
 }
 
+static int test_editor_theme_loads_acme_builtin(void) {
+	struct editorTheme theme;
+
+	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "acme"));
+	ASSERT_EQ_STR("acme", theme.name);
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_BACKGROUND], 0xFF, 0xFF, 0xEA));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_FOREGROUND], 0x00, 0x00, 0x00));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_DRAWER_HEADER_BG], 0xAE, 0xEE, 0xEE));
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_COMMENT], 0x50, 0x50, 0x50));
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_KEYWORD], 0xAF, 0x5F, 0x00));
+	ASSERT_TRUE(theme_color_is_rgb(
+				theme.styles[EDITOR_THEME_STYLE_SELECTION].bg, 0xAE, 0xEE, 0xEE));
+	return 0;
+}
+
 static int test_editor_theme_project_config_cannot_override_theme_colors(void) {
 	char dir_template[] = "/tmp/rotide-test-theme-no-project-overrides-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -2985,6 +3000,7 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_theme_load_builtin_global_project_precedence", test_editor_theme_load_builtin_global_project_precedence},
 	{"editor_theme_loads_modus_builtins", test_editor_theme_loads_modus_builtins},
 	{"editor_theme_loads_github_builtins", test_editor_theme_loads_github_builtins},
+	{"editor_theme_loads_acme_builtin", test_editor_theme_loads_acme_builtin},
 	{"editor_theme_project_config_cannot_override_theme_colors", test_editor_theme_project_config_cannot_override_theme_colors},
 	{"editor_theme_loads_custom_theme_from_home_themes", test_editor_theme_loads_custom_theme_from_home_themes},
 	{"editor_theme_invalid_values_fall_back_to_terminal", test_editor_theme_invalid_values_fall_back_to_terminal},
