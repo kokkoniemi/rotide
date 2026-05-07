@@ -138,7 +138,7 @@ Theme notes:
 - `[theme] name = "terminal"` is the default and follows the terminal ANSI palette.
 - Built-in themes: `terminal`, `a11y-dark`, `a11y-light`, `acme`, `silentium`,
   `256noir`, `github-light`, `github-dark`, `modus-operandi`,
-  `modus-operandi-tinted`, `modus-vivendi`, and `modus-vivendi-tinted`.
+  `modus-operandi-tinted`, `modus-vivendi`, `modus-vivendi-tinted`, and `ubuntu`.
 - Project config (`./.rotide.toml`) can select a theme but cannot override theme colors.
 - Custom themes live at `~/.rotide/themes/<name>.toml`.
 - Theme files may define `name`, optional `inherits` from any built-in theme,
@@ -154,6 +154,10 @@ Theme notes:
   <https://github.com/silentium-theme/silentium.nvim>.
 - The `256noir` built-in uses the xterm 256-color grayscale palette from
   <https://github.com/andreasvc/vim-256noir>.
+- The `ubuntu` built-in is a dark scheme drawn from Canonical's brand palette
+  (<https://design.ubuntu.com/brand/colour-palette>): Aubergine background,
+  Ubuntu Orange / Warm Grey / Light Aubergine accents, with syntax tints derived
+  from those base colors.
 
 LSP notes:
 - `gopls_enabled`, `clangd_enabled`, `html_enabled`, `css_enabled`, `json_enabled`, `javascript_enabled`, and `eslint_enabled` can be set independently in `[lsp]`.
