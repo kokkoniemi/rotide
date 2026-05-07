@@ -346,6 +346,36 @@ static int test_editor_refresh_screen_applies_molokai_theme(void) {
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_kanagawa_wave_theme(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-kanagawa-XXXXXX.c";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
+			"tests/syntax/supported/c/highlight.c"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorThemeInitBuiltin(&E.theme, "kanagawa-wave"));
+	E.window_rows = 8;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b]12;rgb:dc/d7/ba\a") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[48;2;31;31;40m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[38;2;122;168;159mint") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[38;2;126;156;216mmain") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[38;2;114;113;105m// comment") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[38;2;152;187;108m\"txt\"") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[38;2;149;127;184mreturn") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[38;2;210;126;153m42") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[48;2;42;42;55m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_custom_theme_roles(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-custom-theme-XXXXXX.c";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
@@ -3048,6 +3078,7 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_applies_256noir_theme", test_editor_refresh_screen_applies_256noir_theme},
 	{"editor_refresh_screen_applies_ubuntu_theme", test_editor_refresh_screen_applies_ubuntu_theme},
 	{"editor_refresh_screen_applies_molokai_theme", test_editor_refresh_screen_applies_molokai_theme},
+	{"editor_refresh_screen_applies_kanagawa_wave_theme", test_editor_refresh_screen_applies_kanagawa_wave_theme},
 	{"editor_refresh_screen_applies_custom_theme_roles", test_editor_refresh_screen_applies_custom_theme_roles},
 	{"editor_refresh_screen_a11y_selection_overrides_syntax", test_editor_refresh_screen_a11y_selection_overrides_syntax},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_cpp_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_cpp_tokens},

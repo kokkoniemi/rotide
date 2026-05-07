@@ -769,6 +769,163 @@ static void editorThemeInitModusVivendiTinted(struct editorTheme *theme) {
 	});
 }
 
+struct editorKanagawaPalette {
+	const char *name;
+	struct editorThemeColor bg;
+	struct editorThemeColor fg;
+	struct editorThemeColor muted;
+	struct editorThemeColor border;
+	struct editorThemeColor current_line;
+	struct editorThemeColor header_bg;
+	struct editorThemeColor selection_bg;
+	struct editorThemeColor accent;
+	struct editorThemeColor success;
+	struct editorThemeColor attention;
+	struct editorThemeColor danger;
+	struct editorThemeColor comment;
+	struct editorThemeColor keyword;
+	struct editorThemeColor func;
+	struct editorThemeColor type;
+	struct editorThemeColor string;
+	struct editorThemeColor number;
+	struct editorThemeColor constant;
+	struct editorThemeColor variable;
+	struct editorThemeColor parameter;
+	struct editorThemeColor property;
+	struct editorThemeColor preprocessor;
+	struct editorThemeColor op;
+};
+
+static void editorThemeInitKanagawa(struct editorTheme *theme,
+		struct editorKanagawaPalette p) {
+	memset(theme, 0, sizeof(*theme));
+	editorThemeSetName(theme, p.name);
+	theme->ui[EDITOR_THEME_UI_FOREGROUND] = p.fg;
+	theme->ui[EDITOR_THEME_UI_BACKGROUND] = p.bg;
+	theme->ui[EDITOR_THEME_UI_LINE_NUMBER] = p.muted;
+	theme->ui[EDITOR_THEME_UI_DRAWER_CONNECTOR] = p.border;
+	theme->ui[EDITOR_THEME_UI_PLACEHOLDER] = p.muted;
+	theme->ui[EDITOR_THEME_UI_CURRENT_LINE_BG] = p.current_line;
+	theme->ui[EDITOR_THEME_UI_DRAWER_HEADER_BG] = p.header_bg;
+	theme->ui[EDITOR_THEME_UI_DIRECTORY] = p.accent;
+	theme->ui[EDITOR_THEME_UI_ROOT] = p.fg;
+	theme->ui[EDITOR_THEME_UI_GIT_MODIFIED] = p.attention;
+	theme->ui[EDITOR_THEME_UI_GIT_UNTRACKED] = p.success;
+	theme->ui[EDITOR_THEME_UI_GIT_CONFLICT] = p.danger;
+	theme->ui[EDITOR_THEME_UI_CURSOR] = p.fg;
+
+	for (int i = 0; i < EDITOR_SYNTAX_HL_CLASS_COUNT; i++) {
+		theme->syntax[i] = p.fg;
+	}
+	theme->syntax[EDITOR_SYNTAX_HL_COMMENT] = p.comment;
+	theme->syntax[EDITOR_SYNTAX_HL_KEYWORD] = p.keyword;
+	theme->syntax[EDITOR_SYNTAX_HL_TYPE] = p.type;
+	theme->syntax[EDITOR_SYNTAX_HL_FUNCTION] = p.func;
+	theme->syntax[EDITOR_SYNTAX_HL_STRING] = p.string;
+	theme->syntax[EDITOR_SYNTAX_HL_NUMBER] = p.number;
+	theme->syntax[EDITOR_SYNTAX_HL_CONSTANT] = p.constant;
+	theme->syntax[EDITOR_SYNTAX_HL_VARIABLE] = p.variable;
+	theme->syntax[EDITOR_SYNTAX_HL_PARAMETER] = p.parameter;
+	theme->syntax[EDITOR_SYNTAX_HL_MODULE] = p.constant;
+	theme->syntax[EDITOR_SYNTAX_HL_PROPERTY] = p.property;
+	theme->syntax[EDITOR_SYNTAX_HL_PREPROCESSOR] = p.preprocessor;
+	theme->syntax[EDITOR_SYNTAX_HL_OPERATOR] = p.op;
+	theme->syntax[EDITOR_SYNTAX_HL_PUNCTUATION] = p.fg;
+
+	theme->styles[EDITOR_THEME_STYLE_SELECTION] = editorThemeStylePair(p.fg, p.selection_bg);
+	theme->styles[EDITOR_THEME_STYLE_STATUS] = editorThemeStylePair(p.muted, p.header_bg);
+	theme->styles[EDITOR_THEME_STYLE_TAB_ACTIVE] = editorThemeStylePair(p.fg, p.bg);
+	theme->styles[EDITOR_THEME_STYLE_DRAWER_HEADER_ACTIVE] =
+			editorThemeStylePair(p.fg, p.header_bg);
+}
+
+static void editorThemeInitKanagawaWave(struct editorTheme *theme) {
+	editorThemeInitKanagawa(theme, (struct editorKanagawaPalette){
+			.name = "kanagawa-wave",
+			.bg = editorThemeRgbColor(0x1F, 0x1F, 0x28),
+			.fg = editorThemeRgbColor(0xDC, 0xD7, 0xBA),
+			.muted = editorThemeRgbColor(0x54, 0x54, 0x6D),
+			.border = editorThemeRgbColor(0x36, 0x36, 0x46),
+			.current_line = editorThemeRgbColor(0x2A, 0x2A, 0x37),
+			.header_bg = editorThemeRgbColor(0x18, 0x18, 0x20),
+			.selection_bg = editorThemeRgbColor(0x2D, 0x4F, 0x67),
+			.accent = editorThemeRgbColor(0x7E, 0x9C, 0xD8),
+			.success = editorThemeRgbColor(0x76, 0x94, 0x6A),
+			.attention = editorThemeRgbColor(0xDC, 0xA5, 0x61),
+			.danger = editorThemeRgbColor(0xC3, 0x40, 0x43),
+			.comment = editorThemeRgbColor(0x72, 0x71, 0x69),
+			.keyword = editorThemeRgbColor(0x95, 0x7F, 0xB8),
+			.func = editorThemeRgbColor(0x7E, 0x9C, 0xD8),
+			.type = editorThemeRgbColor(0x7A, 0xA8, 0x9F),
+			.string = editorThemeRgbColor(0x98, 0xBB, 0x6C),
+			.number = editorThemeRgbColor(0xD2, 0x7E, 0x99),
+			.constant = editorThemeRgbColor(0xFF, 0xA0, 0x66),
+			.variable = editorThemeRgbColor(0xDC, 0xD7, 0xBA),
+			.parameter = editorThemeRgbColor(0x9C, 0xAB, 0xCA),
+			.property = editorThemeRgbColor(0xE6, 0xC3, 0x84),
+			.preprocessor = editorThemeRgbColor(0xFF, 0xA0, 0x66),
+			.op = editorThemeRgbColor(0xC0, 0xA3, 0x6E),
+	});
+}
+
+static void editorThemeInitKanagawaDragon(struct editorTheme *theme) {
+	editorThemeInitKanagawa(theme, (struct editorKanagawaPalette){
+			.name = "kanagawa-dragon",
+			.bg = editorThemeRgbColor(0x18, 0x16, 0x16),
+			.fg = editorThemeRgbColor(0xC5, 0xC9, 0xC5),
+			.muted = editorThemeRgbColor(0x62, 0x5E, 0x5A),
+			.border = editorThemeRgbColor(0x39, 0x38, 0x36),
+			.current_line = editorThemeRgbColor(0x28, 0x27, 0x27),
+			.header_bg = editorThemeRgbColor(0x12, 0x12, 0x0F),
+			.selection_bg = editorThemeRgbColor(0x22, 0x32, 0x49),
+			.accent = editorThemeRgbColor(0x8B, 0xA4, 0xB0),
+			.success = editorThemeRgbColor(0x87, 0xA9, 0x87),
+			.attention = editorThemeRgbColor(0xC4, 0xB2, 0x8A),
+			.danger = editorThemeRgbColor(0xC4, 0x74, 0x6E),
+			.comment = editorThemeRgbColor(0x73, 0x7C, 0x73),
+			.keyword = editorThemeRgbColor(0x89, 0x92, 0xA7),
+			.func = editorThemeRgbColor(0x8B, 0xA4, 0xB0),
+			.type = editorThemeRgbColor(0x8E, 0xA4, 0xA2),
+			.string = editorThemeRgbColor(0x87, 0xA9, 0x87),
+			.number = editorThemeRgbColor(0xA2, 0x92, 0xA3),
+			.constant = editorThemeRgbColor(0xB6, 0x92, 0x7B),
+			.variable = editorThemeRgbColor(0xC5, 0xC9, 0xC5),
+			.parameter = editorThemeRgbColor(0x94, 0x9F, 0xB5),
+			.property = editorThemeRgbColor(0xC4, 0xB2, 0x8A),
+			.preprocessor = editorThemeRgbColor(0xB6, 0x92, 0x7B),
+			.op = editorThemeRgbColor(0xC4, 0xB2, 0x8A),
+	});
+}
+
+static void editorThemeInitKanagawaLotus(struct editorTheme *theme) {
+	editorThemeInitKanagawa(theme, (struct editorKanagawaPalette){
+			.name = "kanagawa-lotus",
+			.bg = editorThemeRgbColor(0xF2, 0xEC, 0xBC),
+			.fg = editorThemeRgbColor(0x1F, 0x1F, 0x28),
+			.muted = editorThemeRgbColor(0x8A, 0x89, 0x80),
+			.border = editorThemeRgbColor(0xE7, 0xDB, 0xA0),
+			.current_line = editorThemeRgbColor(0xDC, 0xD5, 0xAC),
+			.header_bg = editorThemeRgbColor(0xE5, 0xDD, 0xB0),
+			.selection_bg = editorThemeRgbColor(0xD7, 0xE3, 0xD8),
+			.accent = editorThemeRgbColor(0x4E, 0x8C, 0xA2),
+			.success = editorThemeRgbColor(0x6F, 0x89, 0x4E),
+			.attention = editorThemeRgbColor(0xCC, 0x6D, 0x00),
+			.danger = editorThemeRgbColor(0xC8, 0x40, 0x53),
+			.comment = editorThemeRgbColor(0x8A, 0x83, 0x6F),
+			.keyword = editorThemeRgbColor(0x62, 0x4C, 0x83),
+			.func = editorThemeRgbColor(0x66, 0x93, 0xBF),
+			.type = editorThemeRgbColor(0x59, 0x7B, 0x75),
+			.string = editorThemeRgbColor(0x6F, 0x89, 0x4E),
+			.number = editorThemeRgbColor(0xC8, 0x40, 0x53),
+			.constant = editorThemeRgbColor(0xCC, 0x6D, 0x00),
+			.variable = editorThemeRgbColor(0x1F, 0x1F, 0x28),
+			.parameter = editorThemeRgbColor(0x5A, 0x77, 0x85),
+			.property = editorThemeRgbColor(0x83, 0x6F, 0x4A),
+			.preprocessor = editorThemeRgbColor(0xCC, 0x6D, 0x00),
+			.op = editorThemeRgbColor(0x77, 0x71, 0x3F),
+	});
+}
+
 int editorThemeInitBuiltin(struct editorTheme *theme_out, const char *name) {
 	if (theme_out == NULL || name == NULL) {
 		return 0;
@@ -827,6 +984,18 @@ int editorThemeInitBuiltin(struct editorTheme *theme_out, const char *name) {
 	}
 	if (strcmp(name, "molokai") == 0) {
 		editorThemeInitMolokai(theme_out);
+		return 1;
+	}
+	if (strcmp(name, "kanagawa") == 0 || strcmp(name, "kanagawa-wave") == 0) {
+		editorThemeInitKanagawaWave(theme_out);
+		return 1;
+	}
+	if (strcmp(name, "kanagawa-dragon") == 0) {
+		editorThemeInitKanagawaDragon(theme_out);
+		return 1;
+	}
+	if (strcmp(name, "kanagawa-lotus") == 0) {
+		editorThemeInitKanagawaLotus(theme_out);
 		return 1;
 	}
 	return 0;

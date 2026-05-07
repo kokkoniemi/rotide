@@ -2526,6 +2526,43 @@ static int test_editor_theme_loads_molokai_builtin(void) {
 	return 0;
 }
 
+static int test_editor_theme_loads_kanagawa_builtins(void) {
+	struct editorTheme theme;
+
+	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "kanagawa-wave"));
+	ASSERT_EQ_STR("kanagawa-wave", theme.name);
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_BACKGROUND], 0x1F, 0x1F, 0x28));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_FOREGROUND], 0xDC, 0xD7, 0xBA));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_DIRECTORY], 0x7E, 0x9C, 0xD8));
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_COMMENT], 0x72, 0x71, 0x69));
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_KEYWORD], 0x95, 0x7F, 0xB8));
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_FUNCTION], 0x7E, 0x9C, 0xD8));
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_TYPE], 0x7A, 0xA8, 0x9F));
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_STRING], 0x98, 0xBB, 0x6C));
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_NUMBER], 0xD2, 0x7E, 0x99));
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_CONSTANT], 0xFF, 0xA0, 0x66));
+	ASSERT_TRUE(theme_color_is_rgb(
+				theme.styles[EDITOR_THEME_STYLE_SELECTION].bg, 0x2D, 0x4F, 0x67));
+
+	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "kanagawa"));
+	ASSERT_EQ_STR("kanagawa-wave", theme.name);
+
+	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "kanagawa-dragon"));
+	ASSERT_EQ_STR("kanagawa-dragon", theme.name);
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_BACKGROUND], 0x18, 0x16, 0x16));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_FOREGROUND], 0xC5, 0xC9, 0xC5));
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_KEYWORD], 0x89, 0x92, 0xA7));
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_STRING], 0x87, 0xA9, 0x87));
+
+	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "kanagawa-lotus"));
+	ASSERT_EQ_STR("kanagawa-lotus", theme.name);
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_BACKGROUND], 0xF2, 0xEC, 0xBC));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_FOREGROUND], 0x1F, 0x1F, 0x28));
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_KEYWORD], 0x62, 0x4C, 0x83));
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_STRING], 0x6F, 0x89, 0x4E));
+	return 0;
+}
+
 static int test_editor_theme_project_config_cannot_override_theme_colors(void) {
 	char dir_template[] = "/tmp/rotide-test-theme-no-project-overrides-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -3097,6 +3134,7 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_theme_loads_256noir_builtin", test_editor_theme_loads_256noir_builtin},
 	{"editor_theme_loads_ubuntu_builtin", test_editor_theme_loads_ubuntu_builtin},
 	{"editor_theme_loads_molokai_builtin", test_editor_theme_loads_molokai_builtin},
+	{"editor_theme_loads_kanagawa_builtins", test_editor_theme_loads_kanagawa_builtins},
 	{"editor_theme_project_config_cannot_override_theme_colors", test_editor_theme_project_config_cannot_override_theme_colors},
 	{"editor_theme_loads_custom_theme_from_home_themes", test_editor_theme_loads_custom_theme_from_home_themes},
 	{"editor_theme_invalid_values_fall_back_to_terminal", test_editor_theme_invalid_values_fall_back_to_terminal},

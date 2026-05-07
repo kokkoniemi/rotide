@@ -139,7 +139,8 @@ Theme notes:
 - Built-in themes: `terminal`, `a11y-dark`, `a11y-light`, `acme`, `silentium`,
   `256noir`, `github-light`, `github-dark`, `modus-operandi`,
   `modus-operandi-tinted`, `modus-vivendi`, `modus-vivendi-tinted`, `ubuntu`,
-  and `molokai`.
+  `molokai`, `kanagawa-wave`, `kanagawa-dragon`, and `kanagawa-lotus`
+  (`kanagawa` is an alias for `kanagawa-wave`).
 - Project config (`./.rotide.toml`) can select a theme but cannot override theme colors.
 - Custom themes live at `~/.rotide/themes/<name>.toml`.
 - Theme files may define `name`, optional `inherits` from any built-in theme,
@@ -161,6 +162,8 @@ Theme notes:
   from those base colors.
 - The `molokai` built-in mirrors Tomas Restrepo's Vim port of Molokai
   (<https://github.com/tomasr/molokai>).
+- The `kanagawa-*` built-ins port the Kanagawa palette from
+  <https://github.com/rebelot/kanagawa.nvim> (Wave dark, Dragon dark, Lotus light).
 
 LSP notes:
 - `gopls_enabled`, `clangd_enabled`, `html_enabled`, `css_enabled`, `json_enabled`, `javascript_enabled`, and `eslint_enabled` can be set independently in `[lsp]`.
