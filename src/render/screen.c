@@ -334,6 +334,17 @@ static void editorFileRowFrameCacheReset(void) {
 	g_file_row_frame_cache.window_cols = 0;
 }
 
+static int editorAppendTextRowReset(struct writeBuf *wb) {
+	if (!editorAppendThemeReset(wb)) {
+		return 0;
+	}
+	if (g_editor_drawing_current_line_highlight &&
+			!editorAppendThemeBackgroundRole(wb, EDITOR_THEME_UI_CURRENT_LINE_BG)) {
+		return 0;
+	}
+	return 1;
+}
+
 static int editorFileRowFrameCacheEnsureCapacity(int needed_rows) {
 	if (needed_rows <= g_file_row_frame_cache.row_capacity) {
 		return 1;
@@ -1219,7 +1230,7 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 	if (!wbAppend(wb, &row->render[highlight_start], highlight_end - highlight_start)) {
 		return 0;
 	}
-	if (!editorAppendThemeReset(wb)) {
+	if (!editorAppendTextRowReset(wb)) {
 		return 0;
 	}
 	if (highlight_end < end &&

@@ -2790,7 +2790,7 @@ static int test_editor_refresh_screen_highlights_active_selection_spans(void) {
 	output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, "a\x1b[7mbc\x1b[m") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[7mde\x1b[mf") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[7mde\x1b[m\x1b[48;5;236mf") != NULL);
 	free(output);
 	return 0;
 }

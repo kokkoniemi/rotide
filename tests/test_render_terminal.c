@@ -1339,7 +1339,7 @@ static int test_editor_refresh_screen_highlight_alignment_with_escaped_controls(
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "A^[\x1b[7mB\x1b[mC") != NULL);
+	ASSERT_TRUE(strstr(output, "A^[\x1b[7mB\x1b[m" TEST_HEADER_BG "C") != NULL);
 	free(output);
 	return 0;
 }
@@ -2280,6 +2280,25 @@ static int test_editor_refresh_screen_highlights_current_line(void) {
 	return 0;
 }
 
+static int test_editor_refresh_screen_current_line_highlight_continues_after_selection(void) {
+	add_row("prefix alpha suffix");
+	E.window_rows = 3;
+	E.window_cols = 50;
+	E.cy = 0;
+	E.cx = 12;
+	E.current_line_highlight_enabled = 1;
+	E.selection_mode_active = 1;
+	ASSERT_TRUE(set_selection_anchor(0, 7));
+	ASSERT_TRUE(editorDrawerSetWidthForCols(1, E.window_cols));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[7malpha\x1b[m\x1b[48;5;236m suffix") != NULL);
+	free(output);
+	return 0;
+}
+
 static int test_editor_refresh_screen_wrap_continuation_does_not_repeat_line_number(void) {
 	add_row("abcdefghijklmn");
 	E.window_rows = 4;
@@ -2896,6 +2915,7 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_line_number_gutter_width_and_absolute_numbers", test_editor_line_number_gutter_width_and_absolute_numbers},
 	{"editor_line_numbers_disabled_removes_gutter", test_editor_line_numbers_disabled_removes_gutter},
 	{"editor_refresh_screen_highlights_current_line", test_editor_refresh_screen_highlights_current_line},
+	{"editor_refresh_screen_current_line_highlight_continues_after_selection", test_editor_refresh_screen_current_line_highlight_continues_after_selection},
 	{"editor_refresh_screen_wrap_continuation_does_not_repeat_line_number", test_editor_refresh_screen_wrap_continuation_does_not_repeat_line_number},
 	{"editor_refresh_screen_hides_expired_message", test_editor_refresh_screen_hides_expired_message},
 	{"editor_refresh_screen_shows_right_overflow_indicator", test_editor_refresh_screen_shows_right_overflow_indicator},
