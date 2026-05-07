@@ -23,6 +23,7 @@
 
 #define VT100_CLEAR_SCREEN_4 "\x1b[2J"
 #define VT100_RESET_CURSOR_POS_3 "\x1b[H"
+#define VT100_NORMAL_COLORS_3 "\x1b[m"
 #define VT100_SHOW_CURSOR_6 "\x1b[?25h"
 #define VT100_CURSOR_DEFAULT_5 "\x1b[0 q"
 #define VT100_CURSOR_COLOR_DEFAULT "\x1b]112\x07"
@@ -481,6 +482,8 @@ int editorRefreshWindowSize(void) {
 }
 
 static void editorRestoreCursorVisualState(void) {
+	(void)editorWriteAll(STDOUT_FILENO, VT100_NORMAL_COLORS_3,
+			sizeof(VT100_NORMAL_COLORS_3) - 1);
 	(void)editorWriteAll(STDOUT_FILENO, VT100_CURSOR_DEFAULT_5, sizeof(VT100_CURSOR_DEFAULT_5) - 1);
 	(void)editorWriteAll(STDOUT_FILENO, VT100_CURSOR_COLOR_DEFAULT,
 			sizeof(VT100_CURSOR_COLOR_DEFAULT) - 1);
