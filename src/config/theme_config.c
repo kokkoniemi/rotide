@@ -377,8 +377,8 @@ static void editorThemeInitGithubLight(struct editorTheme *theme) {
 			.entity = editorThemeRgbColor(0x82, 0x50, 0xDF),
 			.keyword = editorThemeRgbColor(0xCF, 0x22, 0x2E),
 			.string = editorThemeRgbColor(0x0A, 0x30, 0x69),
-			.variable = editorThemeRgbColor(0x95, 0x38, 0x00),
-			.type = editorThemeRgbColor(0x1A, 0x7F, 0x37),
+			.variable = editorThemeRgbColor(0x1F, 0x23, 0x28),
+			.type = editorThemeRgbColor(0x1F, 0x23, 0x28),
 	});
 }
 

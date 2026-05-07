@@ -2406,6 +2406,8 @@ static int test_editor_theme_loads_github_builtins(void) {
 	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_FOREGROUND], 0x1F, 0x23, 0x28));
 	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_KEYWORD], 0xCF, 0x22, 0x2E));
 	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_STRING], 0x0A, 0x30, 0x69));
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_TYPE], 0x1F, 0x23, 0x28));
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_VARIABLE], 0x1F, 0x23, 0x28));
 	ASSERT_TRUE(theme_color_is_rgb(
 				theme.styles[EDITOR_THEME_STYLE_SELECTION].bg, 0xBB, 0xDF, 0xFF));
 
