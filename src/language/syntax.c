@@ -144,8 +144,14 @@ enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *fil
 		return EDITOR_SYNTAX_NONE;
 	}
 
-	const char *dot = strrchr(filename, '.');
-	if (dot != NULL) {
+	const char *base = strrchr(filename, '/');
+	if (base != NULL) {
+		base++;
+	} else {
+		base = filename;
+	}
+
+	for (const char *dot = strchr(base, '.'); dot != NULL; dot = strchr(dot + 1, '.')) {
 		const struct editorSyntaxLanguageDef *def =
 				editorSyntaxLookupLanguageByExtension(dot);
 		if (def != NULL) {
@@ -153,12 +159,6 @@ enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *fil
 		}
 	}
 
-	const char *base = strrchr(filename, '/');
-	if (base != NULL) {
-		base++;
-	} else {
-		base = filename;
-	}
 	const struct editorSyntaxLanguageDef *def =
 			editorSyntaxLookupLanguageByBasename(base);
 	if (def != NULL) {

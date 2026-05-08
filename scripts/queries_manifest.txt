@@ -49,3 +49,4 @@ erb_injection         vendor/tree_sitter/grammars/embedded_template/queries/inje
 markdown_highlight        vendor/tree_sitter/grammars/markdown/queries/highlights.scm
 markdown_inline_highlight vendor/tree_sitter/grammars/markdown_inline/queries/highlights.scm
 markdown_injection        vendor/tree_sitter/grammars/markdown/queries/injections.scm
+toml_highlight            vendor/tree_sitter/grammars/toml/queries/highlights.scm

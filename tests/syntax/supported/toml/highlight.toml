@@ -1,0 +1,7 @@
+# comment
+title = "RotIDE"
+enabled = true
+count = 42
+
+[theme]
+name = "silentium"

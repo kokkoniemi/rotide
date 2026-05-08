@@ -32,6 +32,7 @@ extern const TSLanguage *tree_sitter_scala(void);
 extern const TSLanguage *tree_sitter_embedded_template(void);
 extern const TSLanguage *tree_sitter_markdown(void);
 extern const TSLanguage *tree_sitter_markdown_inline(void);
+extern const TSLanguage *tree_sitter_toml(void);
 
 static const TSLanguage *editorSyntaxFactoryEjs(void) {
 	return tree_sitter_embedded_template();
@@ -122,6 +123,7 @@ static const char *const k_scala_extensions[] = {".scala", ".sc", NULL};
 static const char *const k_ejs_extensions[] = {".ejs", NULL};
 static const char *const k_erb_extensions[] = {".erb", NULL};
 static const char *const k_markdown_extensions[] = {".md", ".markdown", NULL};
+static const char *const k_toml_extensions[] = {".toml", ".toml.example", NULL};
 
 static const char *const k_html_injection_aliases[] = {
 	"html", "hamlet", "xhamlet", "shamlet", "xshamlet", "ihamlet", "hsx", NULL};
@@ -141,6 +143,7 @@ static const char *const k_shell_injection_aliases[] = {
 static const char *const k_markdown_injection_aliases[] = {"markdown", "md", NULL};
 static const char *const k_markdown_inline_injection_aliases[] = {
 	"markdown_inline", "markdown.inline", NULL};
+static const char *const k_toml_injection_aliases[] = {"toml", NULL};
 
 static const struct editorSyntaxLanguageDef g_languages[] = {
 	{
@@ -409,6 +412,15 @@ static const struct editorSyntaxLanguageDef g_languages[] = {
 		.highlight_parts = editor_query_markdown_inline_highlight_parts,
 		.highlight_part_count = EDITOR_QUERY_MARKDOWN_INLINE_HIGHLIGHT_PART_COUNT,
 		.injection_aliases = k_markdown_inline_injection_aliases
+	},
+	{
+		.id = EDITOR_SYNTAX_TOML,
+		.name = "toml",
+		.ts_factory = tree_sitter_toml,
+		.highlight_parts = editor_query_toml_highlight_parts,
+		.highlight_part_count = EDITOR_QUERY_TOML_HIGHLIGHT_PART_COUNT,
+		.extensions = k_toml_extensions,
+		.injection_aliases = k_toml_injection_aliases
 	}
 };
 

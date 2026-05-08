@@ -483,6 +483,34 @@ static int test_editor_syntax_activation_for_markdown_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_toml_files(void) {
+	char path[] = "/tmp/rotide-test-syntax-toml-XXXXXX.toml";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
+			"tests/syntax/supported/toml/activation.toml"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_TOML, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("document", editorSyntaxRootType());
+
+	char example_path[] = "/tmp/rotide-test-syntax-toml-example-XXXXXX.toml.example";
+	ASSERT_TRUE(write_fixture_to_temp_path(example_path, 13,
+			"tests/syntax/supported/toml/activation.toml"));
+
+	editorOpen(example_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_TOML, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("document", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	ASSERT_TRUE(unlink(example_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_julia_files(void) {
 	char jl_path[] = "/tmp/rotide-test-syntax-julia-XXXXXX.jl";
 	ASSERT_TRUE(write_fixture_to_temp_path(jl_path, 3,
@@ -1452,6 +1480,32 @@ static int test_editor_syntax_incremental_edits_keep_markdown_tree_valid(void) {
 	return 0;
 }
 
+static int test_editor_syntax_incremental_edits_keep_toml_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-toml-XXXXXX.toml";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
+			"tests/syntax/supported/toml/incremental.toml"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_TOML, editorSyntaxLanguageActive());
+
+	E.cy = 1;
+	E.cx = 1;
+	editorInsertChar('x');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = E.rows[0].size;
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_incremental_edits_keep_julia_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-julia-XXXXXX.jl";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
@@ -2357,6 +2411,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_activation_for_ruby_files", test_editor_syntax_activation_for_ruby_files},
 	{"editor_syntax_activation_for_ocaml_files", test_editor_syntax_activation_for_ocaml_files},
 	{"editor_syntax_activation_for_markdown_files", test_editor_syntax_activation_for_markdown_files},
+	{"editor_syntax_activation_for_toml_files", test_editor_syntax_activation_for_toml_files},
 	{"editor_syntax_activation_for_julia_files", test_editor_syntax_activation_for_julia_files},
 	{"editor_syntax_activation_for_scala_files", test_editor_syntax_activation_for_scala_files},
 	{"editor_syntax_activation_for_ejs_files", test_editor_syntax_activation_for_ejs_files},
@@ -2388,6 +2443,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_incremental_edits_keep_ruby_tree_valid", test_editor_syntax_incremental_edits_keep_ruby_tree_valid},
 	{"editor_syntax_incremental_edits_keep_ocaml_tree_valid", test_editor_syntax_incremental_edits_keep_ocaml_tree_valid},
 	{"editor_syntax_incremental_edits_keep_markdown_tree_valid", test_editor_syntax_incremental_edits_keep_markdown_tree_valid},
+	{"editor_syntax_incremental_edits_keep_toml_tree_valid", test_editor_syntax_incremental_edits_keep_toml_tree_valid},
 	{"editor_syntax_incremental_edits_keep_julia_tree_valid", test_editor_syntax_incremental_edits_keep_julia_tree_valid},
 	{"editor_syntax_incremental_edits_keep_scala_tree_valid", test_editor_syntax_incremental_edits_keep_scala_tree_valid},
 	{"editor_syntax_incremental_edits_keep_ejs_tree_valid", test_editor_syntax_incremental_edits_keep_ejs_tree_valid},

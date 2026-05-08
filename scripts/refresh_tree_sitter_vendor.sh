@@ -207,6 +207,7 @@ JULIA_GRAMMAR_SRC=""
 SCALA_GRAMMAR_SRC=""
 EMBEDDED_TEMPLATE_GRAMMAR_SRC=""
 MARKDOWN_GRAMMAR_SRC=""
+TOML_GRAMMAR_SRC=""
 
 download_repo_tarball "tree-sitter/tree-sitter" "${TREE_SITTER_RUNTIME_REF}" RUNTIME_SRC
 download_repo_tarball "tree-sitter/tree-sitter-c" "${TREE_SITTER_C_GRAMMAR_REF}" C_GRAMMAR_SRC
@@ -232,6 +233,7 @@ download_repo_tarball "tree-sitter/tree-sitter-julia" "${TREE_SITTER_JULIA_GRAMM
 download_repo_tarball "tree-sitter/tree-sitter-scala" "${TREE_SITTER_SCALA_GRAMMAR_REF}" SCALA_GRAMMAR_SRC
 download_repo_tarball "tree-sitter/tree-sitter-embedded-template" "${TREE_SITTER_EMBEDDED_TEMPLATE_GRAMMAR_REF}" EMBEDDED_TEMPLATE_GRAMMAR_SRC
 download_repo_tarball "tree-sitter-grammars/tree-sitter-markdown" "${TREE_SITTER_MARKDOWN_GRAMMAR_REF}" MARKDOWN_GRAMMAR_SRC
+download_repo_tarball "tree-sitter-grammars/tree-sitter-toml" "${TREE_SITTER_TOML_GRAMMAR_REF}" TOML_GRAMMAR_SRC
 
 if [[ ! -d "${RUNTIME_SRC}/lib/src" || ! -f "${RUNTIME_SRC}/lib/include/tree_sitter/api.h" ]]; then
 	echo "Runtime source layout not found in ${TREE_SITTER_RUNTIME_REF}" >&2
@@ -277,6 +279,7 @@ regenerate_parser "${EMBEDDED_TEMPLATE_GRAMMAR_SRC}" "embedded-template"
 # sub-grammar regenerates in place.
 regenerate_parser "${MARKDOWN_GRAMMAR_SRC}/tree-sitter-markdown" "Markdown"
 regenerate_parser "${MARKDOWN_GRAMMAR_SRC}/tree-sitter-markdown-inline" "Markdown Inline"
+regenerate_parser "${TOML_GRAMMAR_SRC}" "TOML"
 
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
@@ -359,6 +362,7 @@ sync_grammar_vendor "${EMBEDDED_TEMPLATE_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree
 # used at generation time and is not vendored.
 sync_grammar_vendor "${MARKDOWN_GRAMMAR_SRC}/tree-sitter-markdown" "${REPO_ROOT}/vendor/tree_sitter/grammars/markdown"
 sync_grammar_vendor "${MARKDOWN_GRAMMAR_SRC}/tree-sitter-markdown-inline" "${REPO_ROOT}/vendor/tree_sitter/grammars/markdown_inline"
+sync_grammar_vendor "${TOML_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/toml"
 
 echo "Tree-sitter vendor refresh complete." >&2
 echo "If you changed refs/releases, update vendor/tree_sitter/VERSIONS.env and VERSIONS.md." >&2
