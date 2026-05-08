@@ -444,7 +444,7 @@ static void editorThemeInitGithub(struct editorTheme *theme, struct editorGithub
 
 	theme->styles[EDITOR_THEME_STYLE_SELECTION] = editorThemeStylePair(p.fg, p.selection_bg);
 	theme->styles[EDITOR_THEME_STYLE_STATUS] = editorThemeStylePair(p.muted, p.header_bg);
-	theme->styles[EDITOR_THEME_STYLE_TAB_ACTIVE] = editorThemeStylePair(p.fg, p.bg);
+	theme->styles[EDITOR_THEME_STYLE_TAB_ACTIVE] = editorThemeStylePair(p.fg, p.header_bg);
 	theme->styles[EDITOR_THEME_STYLE_DRAWER_HEADER_ACTIVE] =
 			editorThemeStylePair(p.fg, p.header_bg);
 }
@@ -809,7 +809,7 @@ static void editorThemeInitKanagawa(struct editorTheme *theme,
 
 	theme->styles[EDITOR_THEME_STYLE_SELECTION] = editorThemeStylePair(p.fg, p.selection_bg);
 	theme->styles[EDITOR_THEME_STYLE_STATUS] = editorThemeStylePair(p.muted, p.header_bg);
-	theme->styles[EDITOR_THEME_STYLE_TAB_ACTIVE] = editorThemeStylePair(p.fg, p.bg);
+	theme->styles[EDITOR_THEME_STYLE_TAB_ACTIVE] = editorThemeStylePair(p.fg, p.header_bg);
 	theme->styles[EDITOR_THEME_STYLE_DRAWER_HEADER_ACTIVE] =
 			editorThemeStylePair(p.fg, p.header_bg);
 }
