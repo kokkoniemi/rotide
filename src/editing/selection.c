@@ -155,17 +155,33 @@ int editorExtractRangeText(const struct editorSelectionRange *range, char **text
 }
 
 int editorReplaceRange(const struct editorSelectionRange *range, const char *text, size_t len) {
-	struct editorSelectionRange normalized;
-	if (!editorNormalizeRange(range, &normalized)) {
+	if (range == NULL) {
 		return 0;
 	}
-
 	if (len > 0 && text == NULL) {
 		return 0;
 	}
 	if (len > ROTIDE_MAX_TEXT_BYTES) {
 		editorSetOperationTooLargeStatus();
 		return -1;
+	}
+
+	struct editorSelectionRange normalized = {
+		.start_cy = range->start_cy,
+		.start_cx = range->start_cx,
+		.end_cy = range->end_cy,
+		.end_cx = range->end_cx
+	};
+	editorClampPositionToBuffer(&normalized.start_cy, &normalized.start_cx);
+	editorClampPositionToBuffer(&normalized.end_cy, &normalized.end_cx);
+	if (editorPosComesBefore(normalized.end_cy, normalized.end_cx,
+			normalized.start_cy, normalized.start_cx)) {
+		int tmp_cy = normalized.start_cy;
+		int tmp_cx = normalized.start_cx;
+		normalized.start_cy = normalized.end_cy;
+		normalized.start_cx = normalized.end_cx;
+		normalized.end_cy = tmp_cy;
+		normalized.end_cx = tmp_cx;
 	}
 
 	size_t start_offset = 0;

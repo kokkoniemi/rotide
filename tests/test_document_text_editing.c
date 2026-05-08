@@ -869,6 +869,110 @@ static int test_editor_column_selection_zero_width_delete_and_backspace_each_row
 	return 0;
 }
 
+static int test_editor_replace_range_replaces_text_in_one_edit(void) {
+	add_row("hello world");
+	E.cy = 0;
+	E.cx = 6;
+	E.dirty = 0;
+
+	struct editorSelectionRange range = {
+		.start_cy = 0,
+		.start_cx = 6,
+		.end_cy = 0,
+		.end_cx = 11
+	};
+	ASSERT_EQ_INT(1, editorReplaceRange(&range, "there", 5));
+	ASSERT_EQ_STR("hello there", E.rows[0].chars);
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+	return 0;
+}
+
+static int test_editor_replace_range_undoes_paste_on_selection_in_one_step(void) {
+	add_row("hello world");
+	E.cy = 0;
+	E.cx = 0;
+	E.dirty = 0;
+
+	struct editorSelectionRange range = {
+		.start_cy = 0,
+		.start_cx = 6,
+		.end_cy = 0,
+		.end_cx = 11
+	};
+
+	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+	ASSERT_EQ_INT(1, editorReplaceRange(&range, "there", 5));
+	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, 1);
+	ASSERT_EQ_STR("hello there", E.rows[0].chars);
+
+	ASSERT_EQ_INT(1, editorUndo());
+	ASSERT_EQ_STR("hello world", E.rows[0].chars);
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+
+	ASSERT_EQ_INT(1, editorRedo());
+	ASSERT_EQ_STR("hello there", E.rows[0].chars);
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+	return 0;
+}
+
+static int test_editor_replace_range_inserts_at_empty_range(void) {
+	add_row("ab");
+	E.cy = 0;
+	E.cx = 1;
+	E.dirty = 0;
+
+	struct editorSelectionRange range = {
+		.start_cy = 0,
+		.start_cx = 1,
+		.end_cy = 0,
+		.end_cx = 1
+	};
+	ASSERT_EQ_INT(1, editorReplaceRange(&range, "XY", 2));
+	ASSERT_EQ_STR("aXYb", E.rows[0].chars);
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+	return 0;
+}
+
+static int test_editor_replace_range_with_empty_selection_and_empty_text_is_noop(void) {
+	add_row("abc");
+	E.cy = 0;
+	E.cx = 1;
+	E.dirty = 0;
+
+	struct editorSelectionRange range = {
+		.start_cy = 0,
+		.start_cx = 1,
+		.end_cy = 0,
+		.end_cx = 1
+	};
+	ASSERT_EQ_INT(0, editorReplaceRange(&range, "", 0));
+	ASSERT_EQ_STR("abc", E.rows[0].chars);
+	ASSERT_EQ_INT(0, E.dirty);
+	return 0;
+}
+
+static int test_editor_replace_range_spans_multiple_lines(void) {
+	add_row("hello");
+	add_row("world");
+	add_row("tail");
+	E.cy = 0;
+	E.cx = 0;
+	E.dirty = 0;
+
+	struct editorSelectionRange range = {
+		.start_cy = 0,
+		.start_cx = 2,
+		.end_cy = 1,
+		.end_cx = 3
+	};
+	ASSERT_EQ_INT(1, editorReplaceRange(&range, "XYZ", 3));
+	ASSERT_EQ_INT(2, E.numrows);
+	ASSERT_EQ_STR("heXYZld", E.rows[0].chars);
+	ASSERT_EQ_STR("tail", E.rows[1].chars);
+	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
+	return 0;
+}
+
 static int test_editor_del_char_at_rejects_idx_at_row_size(void) {
 	add_row("abc");
 	E.dirty = 0;
@@ -1110,6 +1214,11 @@ const struct editorTestCase g_document_text_editing_tests[] = {
 	{"editor_column_selection_pastes_matching_lines_by_cursor_row", test_editor_column_selection_pastes_matching_lines_by_cursor_row},
 	{"editor_column_selection_pastes_single_line_at_each_cursor", test_editor_column_selection_pastes_single_line_at_each_cursor},
 	{"editor_column_selection_zero_width_delete_and_backspace_each_row", test_editor_column_selection_zero_width_delete_and_backspace_each_row},
+	{"editor_replace_range_replaces_text_in_one_edit", test_editor_replace_range_replaces_text_in_one_edit},
+	{"editor_replace_range_undoes_paste_on_selection_in_one_step", test_editor_replace_range_undoes_paste_on_selection_in_one_step},
+	{"editor_replace_range_inserts_at_empty_range", test_editor_replace_range_inserts_at_empty_range},
+	{"editor_replace_range_with_empty_selection_and_empty_text_is_noop", test_editor_replace_range_with_empty_selection_and_empty_text_is_noop},
+	{"editor_replace_range_spans_multiple_lines", test_editor_replace_range_spans_multiple_lines},
 	{"editor_del_char_at_rejects_idx_at_row_size", test_editor_del_char_at_rejects_idx_at_row_size},
 	{"editor_insert_char_creates_initial_row", test_editor_insert_char_creates_initial_row},
 	{"editor_insert_newline_splits_row", test_editor_insert_newline_splits_row},

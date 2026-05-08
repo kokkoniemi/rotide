@@ -603,6 +603,10 @@ struct editorConfig {
 	int drawer_rowoff;
 	int drawer_last_click_visible_idx;
 	long long drawer_last_click_ms;
+	int text_last_click_cy;
+	int text_last_click_cx;
+	long long text_last_click_ms;
+	int text_click_count;
 	int drawer_width_cols;
 	int drawer_width_user_set;
 	int drawer_collapsed;

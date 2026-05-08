@@ -39,6 +39,7 @@ enum {
 	MOUSE_WHEEL_SCROLL_LINES = 3,
 	MOUSE_WHEEL_SCROLL_COLS = 3,
 	DRAWER_DOUBLE_CLICK_THRESHOLD_MS = 400,
+	TEXT_MULTI_CLICK_THRESHOLD_MS = 400,
 	DRAWER_RESIZE_STEP = 1,
 	KEYBOARD_SCROLL_COLS = 3
 };
@@ -68,6 +69,93 @@ static long long editorMonotonicMillis(void) {
 static void editorResetDrawerClickTracking(void) {
 	E.drawer_last_click_visible_idx = -1;
 	E.drawer_last_click_ms = 0;
+}
+
+static void editorResetTextClickTracking(void) {
+	E.text_last_click_cy = -1;
+	E.text_last_click_cx = -1;
+	E.text_last_click_ms = 0;
+	E.text_click_count = 0;
+}
+
+static int editorIsWordByte(unsigned char b) {
+	return isalnum(b) || b == '_' || b >= 0x80;
+}
+
+static void editorSelectWordAtCursor(void) {
+	if (E.cy < 0 || E.cy >= E.numrows) {
+		return;
+	}
+	struct erow *row = &E.rows[E.cy];
+	int cx = editorRowClampCxToCharBoundary(row, E.cx);
+	if (cx >= row->size) {
+		cx = editorRowPrevCharIdx(row, row->size);
+		if (cx < 0) {
+			return;
+		}
+	}
+	if (!editorIsWordByte((unsigned char)row->chars[cx])) {
+		return;
+	}
+
+	int start = cx;
+	while (start > 0) {
+		int prev = editorRowPrevCharIdx(row, start);
+		if (prev >= start || !editorIsWordByte((unsigned char)row->chars[prev])) {
+			break;
+		}
+		start = prev;
+	}
+	int end = editorRowNextCharIdx(row, cx);
+	while (end < row->size) {
+		if (!editorIsWordByte((unsigned char)row->chars[end])) {
+			break;
+		}
+		int next = editorRowNextCharIdx(row, end);
+		if (next <= end) {
+			break;
+		}
+		end = next;
+	}
+
+	size_t anchor_offset = 0;
+	if (!editorBufferPosToOffset(E.cy, start, &anchor_offset)) {
+		return;
+	}
+	editorColumnSelectionClear();
+	E.selection_mode_active = 1;
+	E.selection_anchor_offset = anchor_offset;
+	E.cx = end;
+	size_t cursor_offset = 0;
+	if (editorBufferPosToOffset(E.cy, end, &cursor_offset)) {
+		E.cursor_offset = cursor_offset;
+	}
+}
+
+static void editorSelectLineAtCursor(void) {
+	if (E.cy < 0 || E.cy >= E.numrows) {
+		return;
+	}
+	size_t anchor_offset = 0;
+	if (!editorBufferPosToOffset(E.cy, 0, &anchor_offset)) {
+		return;
+	}
+	editorColumnSelectionClear();
+	E.selection_mode_active = 1;
+	E.selection_anchor_offset = anchor_offset;
+
+	int end_cy = E.cy;
+	int end_cx = E.rows[E.cy].size;
+	if (E.cy + 1 < E.numrows) {
+		end_cy = E.cy + 1;
+		end_cx = 0;
+	}
+	E.cy = end_cy;
+	E.cx = end_cx;
+	size_t cursor_offset = 0;
+	if (editorBufferPosToOffset(end_cy, end_cx, &cursor_offset)) {
+		E.cursor_offset = cursor_offset;
+	}
 }
 
 static void editorSetDrawerCollapseStatus(int collapsed) {
@@ -2634,6 +2722,7 @@ static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 	if (!editorMoveCursorToMouse(event, 0)) {
 		E.mouse_left_button_down = 0;
 		E.mouse_drag_started = 0;
+		editorResetTextClickTracking();
 		return EDITOR_KEYPRESS_EFFECT_NONE;
 	}
 
@@ -2643,6 +2732,7 @@ static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 	if (event->modifiers == EDITOR_MOUSE_MOD_CTRL) {
 		E.mouse_left_button_down = 0;
 		E.mouse_drag_started = 0;
+		editorResetTextClickTracking();
 		editorHistoryBreakGroup();
 		editorGoToDefinition();
 		return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
@@ -2655,7 +2745,41 @@ static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 		E.column_select_anchor_rx = (E.cy < E.numrows)
 				? editorRowCxToRx(&E.rows[E.cy], E.cx) : 0;
 		E.column_select_cursor_rx = E.column_select_anchor_rx;
+		editorResetTextClickTracking();
+		E.mouse_left_button_down = 1;
+		E.mouse_drag_anchor_offset = E.cursor_offset;
+		E.mouse_drag_started = 0;
+		return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 	}
+
+	int click_count = 1;
+	if (event->modifiers == EDITOR_MOUSE_MOD_NONE &&
+			E.text_last_click_ms > 0 && now_ms > 0 &&
+			now_ms - E.text_last_click_ms <= TEXT_MULTI_CLICK_THRESHOLD_MS &&
+			E.text_last_click_cy == E.cy && E.text_last_click_cx == E.cx) {
+		click_count = E.text_click_count + 1;
+		if (click_count > 3) {
+			click_count = 1;
+		}
+	}
+	E.text_click_count = click_count;
+	E.text_last_click_cy = E.cy;
+	E.text_last_click_cx = E.cx;
+	E.text_last_click_ms = now_ms;
+
+	if (click_count == 2) {
+		editorSelectWordAtCursor();
+		E.mouse_left_button_down = 0;
+		E.mouse_drag_started = 0;
+		return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+	}
+	if (click_count == 3) {
+		editorSelectLineAtCursor();
+		E.mouse_left_button_down = 0;
+		E.mouse_drag_started = 0;
+		return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+	}
+
 	E.mouse_left_button_down = 1;
 	E.mouse_drag_anchor_offset = E.cursor_offset;
 	E.mouse_drag_started = 0;

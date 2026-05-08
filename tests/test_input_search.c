@@ -1199,6 +1199,7 @@ static int test_editor_process_keypress_mouse_click_maps_same_column_with_line_n
 
 	E.cy = 0;
 	E.cx = 0;
+	E.text_last_click_ms = 0;
 	E.line_numbers_enabled = 1;
 	text_start = editorTextBodyStartColForCols(E.window_cols);
 	ASSERT_TRUE(format_sgr_mouse_event(click, sizeof(click), 0, text_start + 5, 2, 'M'));
