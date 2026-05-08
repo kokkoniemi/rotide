@@ -1128,9 +1128,17 @@ static void editorPasteClipboard(void) {
 		return;
 	}
 
-	editorClearSelectionMode();
+	struct editorSelectionRange range;
+	int has_selection = editorGetSelectionRange(&range);
+
 	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
 	int dirty_before = E.dirty;
+
+	if (has_selection) {
+		(void)editorDeleteRange(&range);
+	}
+	editorClearSelectionMode();
+
 	int pasted = editorInsertText(clip, clip_len);
 
 	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
