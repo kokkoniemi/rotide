@@ -1623,7 +1623,7 @@ enum editorThemeLoadStatus editorThemeLoadFromPaths(struct editorTheme *theme_ou
 enum editorThemeLoadStatus editorThemeLoadConfigured(struct editorTheme *theme_out) {
 	const char *home = getenv("HOME");
 	if (home == NULL || home[0] == '\0') {
-		return editorThemeLoadFromPaths(theme_out, NULL, ".rotide.toml", NULL);
+		return editorThemeLoadFromPaths(theme_out, NULL, NULL, NULL);
 	}
 
 	char *global_path = editorConfigBuildGlobalConfigPath();
@@ -1633,7 +1633,7 @@ enum editorThemeLoadStatus editorThemeLoadConfigured(struct editorTheme *theme_o
 	}
 
 	enum editorThemeLoadStatus status =
-			editorThemeLoadFromPaths(theme_out, global_path, ".rotide.toml", home);
+			editorThemeLoadFromPaths(theme_out, global_path, NULL, home);
 	free(global_path);
 	return status;
 }

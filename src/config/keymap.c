@@ -826,7 +826,7 @@ enum editorKeymapLoadStatus editorKeymapLoadConfigured(struct editorKeymap *keym
 
 	const char *home = getenv("HOME");
 	if (home == NULL || home[0] == '\0') {
-		return editorKeymapLoadFromPaths(keymap, NULL, ".rotide.toml");
+		return editorKeymapLoadFromPaths(keymap, NULL, NULL);
 	}
 
 	char *global_path = editorConfigBuildGlobalConfigPath();
@@ -836,7 +836,7 @@ enum editorKeymapLoadStatus editorKeymapLoadConfigured(struct editorKeymap *keym
 	}
 
 	enum editorKeymapLoadStatus status =
-			editorKeymapLoadFromPaths(keymap, global_path, ".rotide.toml");
+			editorKeymapLoadFromPaths(keymap, global_path, NULL);
 	free(global_path);
 	return status;
 }

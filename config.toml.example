@@ -1,4 +1,7 @@
-# Rotide example project config.
+# Rotide example global config.
+# Copy any settings you want to override into `~/.rotide/config.toml`.
+# A minimal `~/.rotide/config.toml` is auto-created on first launch.
+# Project-local config files are intentionally not loaded.
 # Configurable sections: [editor], [theme], [lsp], [keymap]
 # Editor:
 # - cursor_style = "block" | "bar" | "underline" (case-insensitive)

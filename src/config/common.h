@@ -9,4 +9,12 @@ void editorConfigStripInlineComment(char *line);
 int editorConfigParseQuotedValue(const char *value, char *buf, size_t bufsize);
 char *editorConfigBuildGlobalConfigPath(void);
 
+enum editorConfigBootstrapStatus {
+	EDITOR_CONFIG_BOOTSTRAP_OK = 0,
+	EDITOR_CONFIG_BOOTSTRAP_CREATED,
+	EDITOR_CONFIG_BOOTSTRAP_FAILED,
+};
+
+enum editorConfigBootstrapStatus editorConfigEnsureGlobalConfig(void);
+
 #endif

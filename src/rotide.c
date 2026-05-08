@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "config/common.h"
 #include "config/editor_config.h"
 #include "config/keymap.h"
 #include "config/lsp_config.h"
@@ -184,6 +185,8 @@ int main(int argc, char *argv[]) {
 		editorSetStatusMsg("Tree-sitter background worker disabled");
 	}
 
+	enum editorConfigBootstrapStatus bootstrap_status = editorConfigEnsureGlobalConfig();
+
 	enum editorKeymapLoadStatus keymap_status = editorKeymapLoadConfigured(&E.keymap);
 	enum editorCursorStyleLoadStatus cursor_style_status =
 			editorCursorStyleLoadConfigured(&E.cursor_style);
@@ -304,6 +307,10 @@ int main(int argc, char *argv[]) {
 		editorSetStatusMsg("Invalid [theme] in ./.rotide.toml, using terminal");
 	} else if ((theme_status & EDITOR_THEME_LOAD_INVALID_GLOBAL) != 0) {
 		editorSetStatusMsg("Invalid [theme] in ~/.rotide/config.toml, using terminal");
+	} else if (bootstrap_status == EDITOR_CONFIG_BOOTSTRAP_CREATED) {
+		editorSetStatusMsg("Created ~/.rotide/config.toml with default values");
+	} else if (bootstrap_status == EDITOR_CONFIG_BOOTSTRAP_FAILED) {
+		editorSetStatusMsg("Could not create ~/.rotide/config.toml, using defaults");
 	}
 
 	int restored_session = editorStartupLoadRecoveryOrOpenArgs(argc, argv);

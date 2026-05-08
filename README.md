@@ -123,10 +123,14 @@ Line numbers and current-line highlighting are on by default; disable them with 
 
 ## Configuration
 
-RotIDE reads TOML configs in this order (low to high precedence):
-1. built-in defaults
-2. `~/.rotide/config.toml`
-3. `./.rotide.toml`
+RotIDE reads TOML config from `~/.rotide/config.toml` only. On first launch it
+auto-creates that file (and `~/.rotide`) with the documented defaults.
+
+Project-local `.rotide.toml` files are **not** loaded — opening an untrusted
+repo would otherwise let it override LSP server commands, keybindings, and
+other settings. See [`config.toml.example`](config.toml.example) for a full
+reference of available options; copy entries into `~/.rotide/config.toml` to
+customize.
 
 Sections:
 - `[editor]` (for example `cursor_style`, `cursor_blink`, `line_wrap`, `line_numbers`, `current_line_highlight`)
@@ -141,7 +145,6 @@ Theme notes:
   `modus-operandi-tinted`, `modus-vivendi`, `modus-vivendi-tinted`, `molokai`,
   `kanagawa-wave`, `kanagawa-dragon`, and `kanagawa-lotus`
   (`kanagawa` is an alias for `kanagawa-wave`).
-- Project config (`./.rotide.toml`) can select a theme but cannot override theme colors.
 - Custom themes live at `~/.rotide/themes/<name>.toml`.
 - Theme files may define `name`, optional `inherits` from any built-in theme,
   `[theme.syntax]`, and `[theme.ui]`.
@@ -163,13 +166,10 @@ Theme notes:
 
 LSP notes:
 - `gopls_enabled`, `clangd_enabled`, `html_enabled`, `css_enabled`, `json_enabled`, `javascript_enabled`, and `eslint_enabled` can be set independently in `[lsp]`.
-- `gopls_command`, `clangd_command`, `html_command`, `css_command`, `json_command`, `javascript_command`, and `eslint_command` can be set globally or per-project.
-- `gopls_install_command` is **global-only** (`~/.rotide/config.toml`).
-- `javascript_install_command` is **global-only** (`~/.rotide/config.toml`).
-- `vscode_langservers_install_command` is **global-only** (`~/.rotide/config.toml`).
-- If `gopls_install_command` appears in project config, RotIDE ignores that key and keeps parsing the rest of `[lsp]`.
-- If `javascript_install_command` appears in project config, RotIDE ignores that key and keeps parsing the rest of `[lsp]`.
-- If `vscode_langservers_install_command` appears in project config, RotIDE ignores that key and keeps parsing the rest of `[lsp]`.
+- `gopls_command`, `clangd_command`, `html_command`, `css_command`, `json_command`, `javascript_command`, and `eslint_command` are read from `~/.rotide/config.toml`.
+- `gopls_install_command`, `javascript_install_command`, and
+  `vscode_langservers_install_command` are also configured globally in
+  `~/.rotide/config.toml`.
 - Legacy `enabled = true|false` is accepted as a shorthand that toggles all built-in LSP servers together.
 - HTML definition lookup uses `~/.local/bin/vscode-html-language-server --stdio` by default.
 - CSS/SCSS definition lookup uses `~/.local/bin/vscode-css-language-server --stdio` by default.
@@ -211,7 +211,7 @@ LSP notes:
   - `npm install --global --prefix ~/.local typescript typescript-language-server`
   - `npm install --global --prefix ~/.local vscode-langservers-extracted`
 
-See [`.rotide.toml`](.rotide.toml) for a complete action/key example.
+See [`config.toml.example`](config.toml.example) for a complete action/key example.
 
 ## Architecture and Terminology
 

@@ -197,7 +197,7 @@ enum editorCursorStyleLoadStatus editorCursorStyleLoadConfigured(enum editorCurs
 
 	const char *home = getenv("HOME");
 	if (home == NULL || home[0] == '\0') {
-		return editorCursorStyleLoadFromPaths(style_out, NULL, ".rotide.toml");
+		return editorCursorStyleLoadFromPaths(style_out, NULL, NULL);
 	}
 
 	char *global_path = editorConfigBuildGlobalConfigPath();
@@ -207,7 +207,7 @@ enum editorCursorStyleLoadStatus editorCursorStyleLoadConfigured(enum editorCurs
 	}
 
 	enum editorCursorStyleLoadStatus status =
-			editorCursorStyleLoadFromPaths(style_out, global_path, ".rotide.toml");
+			editorCursorStyleLoadFromPaths(style_out, global_path, NULL);
 	free(global_path);
 	return status;
 }
@@ -347,7 +347,7 @@ enum editorLineWrapLoadStatus editorLineWrapLoadConfigured(int *line_wrap_out) {
 
 	const char *home = getenv("HOME");
 	if (home == NULL || home[0] == '\0') {
-		return editorLineWrapLoadFromPaths(line_wrap_out, NULL, ".rotide.toml");
+		return editorLineWrapLoadFromPaths(line_wrap_out, NULL, NULL);
 	}
 
 	char *global_path = editorConfigBuildGlobalConfigPath();
@@ -357,7 +357,7 @@ enum editorLineWrapLoadStatus editorLineWrapLoadConfigured(int *line_wrap_out) {
 	}
 
 	enum editorLineWrapLoadStatus status =
-			editorLineWrapLoadFromPaths(line_wrap_out, global_path, ".rotide.toml");
+			editorLineWrapLoadFromPaths(line_wrap_out, global_path, NULL);
 	free(global_path);
 	return status;
 }
@@ -497,7 +497,7 @@ enum editorCursorBlinkLoadStatus editorCursorBlinkLoadConfigured(int *cursor_bli
 
 	const char *home = getenv("HOME");
 	if (home == NULL || home[0] == '\0') {
-		return editorCursorBlinkLoadFromPaths(cursor_blink_out, NULL, ".rotide.toml");
+		return editorCursorBlinkLoadFromPaths(cursor_blink_out, NULL, NULL);
 	}
 
 	char *global_path = editorConfigBuildGlobalConfigPath();
@@ -507,7 +507,7 @@ enum editorCursorBlinkLoadStatus editorCursorBlinkLoadConfigured(int *cursor_bli
 	}
 
 	enum editorCursorBlinkLoadStatus status =
-			editorCursorBlinkLoadFromPaths(cursor_blink_out, global_path, ".rotide.toml");
+			editorCursorBlinkLoadFromPaths(cursor_blink_out, global_path, NULL);
 	free(global_path);
 	return status;
 }
@@ -560,7 +560,7 @@ enum editorLineNumbersLoadStatus editorLineNumbersLoadConfigured(int *line_numbe
 
 	const char *home = getenv("HOME");
 	if (home == NULL || home[0] == '\0') {
-		return editorLineNumbersLoadFromPaths(line_numbers_out, NULL, ".rotide.toml");
+		return editorLineNumbersLoadFromPaths(line_numbers_out, NULL, NULL);
 	}
 
 	char *global_path = editorConfigBuildGlobalConfigPath();
@@ -570,7 +570,7 @@ enum editorLineNumbersLoadStatus editorLineNumbersLoadConfigured(int *line_numbe
 	}
 
 	enum editorLineNumbersLoadStatus status =
-			editorLineNumbersLoadFromPaths(line_numbers_out, global_path, ".rotide.toml");
+			editorLineNumbersLoadFromPaths(line_numbers_out, global_path, NULL);
 	free(global_path);
 	return status;
 }
@@ -625,7 +625,7 @@ enum editorCurrentLineHighlightLoadStatus editorCurrentLineHighlightLoadConfigur
 	const char *home = getenv("HOME");
 	if (home == NULL || home[0] == '\0') {
 		return editorCurrentLineHighlightLoadFromPaths(current_line_highlight_out, NULL,
-				".rotide.toml");
+				NULL);
 	}
 
 	char *global_path = editorConfigBuildGlobalConfigPath();
@@ -636,7 +636,7 @@ enum editorCurrentLineHighlightLoadStatus editorCurrentLineHighlightLoadConfigur
 
 	enum editorCurrentLineHighlightLoadStatus status =
 			editorCurrentLineHighlightLoadFromPaths(current_line_highlight_out, global_path,
-					".rotide.toml");
+					NULL);
 	free(global_path);
 	return status;
 }
@@ -888,7 +888,7 @@ editorColumnSelectDragModifierLoadConfigured(int *modifier_out) {
 	}
 	const char *home = getenv("HOME");
 	if (home == NULL || home[0] == '\0') {
-		return editorColumnSelectDragModifierLoadFromPaths(modifier_out, NULL, ".rotide.toml");
+		return editorColumnSelectDragModifierLoadFromPaths(modifier_out, NULL, NULL);
 	}
 	char *global_path = editorConfigBuildGlobalConfigPath();
 	if (global_path == NULL) {
@@ -896,7 +896,7 @@ editorColumnSelectDragModifierLoadConfigured(int *modifier_out) {
 		return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_OUT_OF_MEMORY;
 	}
 	enum editorColumnSelectDragModifierLoadStatus status =
-			editorColumnSelectDragModifierLoadFromPaths(modifier_out, global_path, ".rotide.toml");
+			editorColumnSelectDragModifierLoadFromPaths(modifier_out, global_path, NULL);
 	free(global_path);
 	return status;
 }

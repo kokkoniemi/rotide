@@ -717,7 +717,7 @@ enum editorLspConfigLoadStatus editorLspConfigLoadConfigured(int *gopls_enabled_
 				javascript_command_out_size, javascript_install_command_out,
 				javascript_install_command_out_size, eslint_command_out,
 				eslint_command_out_size, vscode_langservers_install_command_out,
-				vscode_langservers_install_command_out_size, NULL, ".rotide.toml");
+				vscode_langservers_install_command_out_size, NULL, NULL);
 	}
 
 	char *global_path = editorConfigBuildGlobalConfigPath();
@@ -749,7 +749,7 @@ enum editorLspConfigLoadStatus editorLspConfigLoadConfigured(int *gopls_enabled_
 					javascript_command_out_size, javascript_install_command_out,
 					javascript_install_command_out_size, eslint_command_out,
 					eslint_command_out_size, vscode_langservers_install_command_out,
-					vscode_langservers_install_command_out_size, global_path, ".rotide.toml");
+					vscode_langservers_install_command_out_size, global_path, NULL);
 	free(global_path);
 	return status;
 }

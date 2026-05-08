@@ -1,5 +1,6 @@
 #include "test_case.h"
 #include "test_support.h"
+#include "config/common.h"
 #include "config/editor_config.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
@@ -1709,7 +1710,7 @@ static int test_editor_keymap_invalid_global_ignored_when_project_valid(void) {
 	return 0;
 }
 
-static int test_editor_keymap_load_configured_prefers_project_over_global(void) {
+static int test_editor_keymap_load_configured_ignores_project(void) {
 	int failed = 1;
 	struct envVarBackup home_backup;
 	char *original_cwd = NULL;
@@ -1776,11 +1777,11 @@ static int test_editor_keymap_load_configured_prefers_project_over_global(void) 
 	}
 
 	enum editorAction action = EDITOR_ACTION_COUNT;
-	if (!editorKeymapLookupAction(&keymap, CTRL_KEY('a'), &action) ||
+	if (!editorKeymapLookupAction(&keymap, CTRL_KEY('t'), &action) ||
 			action != EDITOR_ACTION_SAVE) {
 		goto cleanup;
 	}
-	if (editorKeymapLookupAction(&keymap, CTRL_KEY('t'), &action) &&
+	if (editorKeymapLookupAction(&keymap, CTRL_KEY('a'), &action) &&
 			action == EDITOR_ACTION_SAVE) {
 		goto cleanup;
 	}
@@ -1927,7 +1928,7 @@ static int test_editor_cursor_style_invalid_values_fallback_to_bar(void) {
 	return 0;
 }
 
-static int test_editor_cursor_style_load_configured_prefers_project_over_global(void) {
+static int test_editor_cursor_style_load_configured_ignores_project(void) {
 	int failed = 1;
 	struct envVarBackup home_backup;
 	char *original_cwd = NULL;
@@ -1992,7 +1993,7 @@ static int test_editor_cursor_style_load_configured_prefers_project_over_global(
 	if (status != EDITOR_CURSOR_STYLE_LOAD_OK) {
 		goto cleanup;
 	}
-	if (style != EDITOR_CURSOR_STYLE_UNDERLINE) {
+	if (style != EDITOR_CURSOR_STYLE_BLOCK) {
 		goto cleanup;
 	}
 
@@ -3041,6 +3042,72 @@ static int test_editor_keymap_load_accepts_reserved_terminal_aliases_for_matchin
 	return 0;
 }
 
+static int test_editor_config_ensure_global_creates_default_when_missing(void) {
+	int failed = 1;
+	struct envVarBackup home_backup;
+	char home_dir[512] = "";
+	char dot_rotide_dir[512] = "";
+	char config_path[512] = "";
+	char root_template[] = "/tmp/rotide-test-bootstrap-XXXXXX";
+
+	if (!backup_env_var(&home_backup, "HOME")) {
+		return 1;
+	}
+
+	char *root_path = mkdtemp(root_template);
+	if (root_path == NULL) {
+		goto cleanup;
+	}
+	if (!path_join(home_dir, sizeof(home_dir), root_path, "home")) {
+		goto cleanup;
+	}
+	if (mkdir(home_dir, 0700) == -1) {
+		goto cleanup;
+	}
+	if (!path_join(dot_rotide_dir, sizeof(dot_rotide_dir), home_dir, ".rotide")) {
+		goto cleanup;
+	}
+	if (!path_join(config_path, sizeof(config_path), dot_rotide_dir, "config.toml")) {
+		goto cleanup;
+	}
+	if (setenv("HOME", home_dir, 1) != 0) {
+		goto cleanup;
+	}
+
+	enum editorConfigBootstrapStatus status = editorConfigEnsureGlobalConfig();
+	if (status != EDITOR_CONFIG_BOOTSTRAP_CREATED) {
+		goto cleanup;
+	}
+
+	struct stat st;
+	if (stat(config_path, &st) != 0 || !S_ISREG(st.st_mode) || st.st_size == 0) {
+		goto cleanup;
+	}
+
+	enum editorConfigBootstrapStatus second = editorConfigEnsureGlobalConfig();
+	if (second != EDITOR_CONFIG_BOOTSTRAP_OK) {
+		goto cleanup;
+	}
+
+	failed = 0;
+
+cleanup:
+	if (!restore_env_var(&home_backup)) {
+		failed = 1;
+	}
+	if (config_path[0] != '\0') {
+		(void)unlink(config_path);
+	}
+	if (dot_rotide_dir[0] != '\0') {
+		(void)rmdir(dot_rotide_dir);
+	}
+	if (home_dir[0] != '\0') {
+		(void)rmdir(home_dir);
+	}
+	(void)rmdir(root_template);
+	return failed;
+}
+
 const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_drawer_root_selection_modes", test_editor_drawer_root_selection_modes},
 	{"editor_drawer_tree_lists_dotfiles_sorted_and_symlink_as_file", test_editor_drawer_tree_lists_dotfiles_sorted_and_symlink_as_file},
@@ -3088,11 +3155,11 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_keymap_load_malformed_toml_falls_back_to_defaults", test_editor_keymap_load_malformed_toml_falls_back_to_defaults},
 	{"editor_keymap_global_then_project_precedence", test_editor_keymap_global_then_project_precedence},
 	{"editor_keymap_invalid_global_ignored_when_project_valid", test_editor_keymap_invalid_global_ignored_when_project_valid},
-	{"editor_keymap_load_configured_prefers_project_over_global", test_editor_keymap_load_configured_prefers_project_over_global},
+	{"editor_keymap_load_configured_ignores_project", test_editor_keymap_load_configured_ignores_project},
 	{"editor_cursor_style_load_valid_values_case_insensitive", test_editor_cursor_style_load_valid_values_case_insensitive},
 	{"editor_cursor_style_global_then_project_precedence", test_editor_cursor_style_global_then_project_precedence},
 	{"editor_cursor_style_invalid_values_fallback_to_bar", test_editor_cursor_style_invalid_values_fallback_to_bar},
-	{"editor_cursor_style_load_configured_prefers_project_over_global", test_editor_cursor_style_load_configured_prefers_project_over_global},
+	{"editor_cursor_style_load_configured_ignores_project", test_editor_cursor_style_load_configured_ignores_project},
 	{"editor_cursor_style_invalid_setting_does_not_break_keymap_loading", test_editor_cursor_style_invalid_setting_does_not_break_keymap_loading},
 	{"editor_cursor_blink_load_precedence_and_invalid_fallback", test_editor_cursor_blink_load_precedence_and_invalid_fallback},
 	{"editor_line_wrap_load_valid_bool_values", test_editor_line_wrap_load_valid_bool_values},
@@ -3126,6 +3193,7 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_keymap_load_rejects_reserved_terminal_aliases_for_other_actions", test_editor_keymap_load_rejects_reserved_terminal_aliases_for_other_actions},
 	{"editor_keymap_load_accepts_reserved_terminal_aliases_for_matching_actions", test_editor_keymap_load_accepts_reserved_terminal_aliases_for_matching_actions},
 	{"editor_refresh_screen_reports_oom_without_crash", test_editor_refresh_screen_reports_oom_without_crash},
+	{"editor_config_ensure_global_creates_default_when_missing", test_editor_config_ensure_global_creates_default_when_missing},
 };
 
 const int g_workspace_config_test_count =
