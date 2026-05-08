@@ -50,3 +50,4 @@ markdown_highlight        vendor/tree_sitter/grammars/markdown/queries/highlight
 markdown_inline_highlight vendor/tree_sitter/grammars/markdown_inline/queries/highlights.scm
 markdown_injection        vendor/tree_sitter/grammars/markdown/queries/injections.scm
 toml_highlight            vendor/tree_sitter/grammars/toml/queries/highlights.scm
+yaml_highlight            vendor/tree_sitter/grammars/yaml/queries/highlights.scm

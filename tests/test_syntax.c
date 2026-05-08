@@ -511,6 +511,60 @@ static int test_editor_syntax_activation_for_toml_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_yaml_files(void) {
+	char yaml_path[] = "/tmp/rotide-test-syntax-yaml-XXXXXX.yaml";
+	ASSERT_TRUE(write_fixture_to_temp_path(yaml_path, 5,
+			"tests/syntax/supported/yaml/activation.yaml"));
+
+	editorOpen(yaml_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_YAML, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("stream", editorSyntaxRootType());
+
+	char yml_path[] = "/tmp/rotide-test-syntax-yml-XXXXXX.yml";
+	ASSERT_TRUE(write_fixture_to_temp_path(yml_path, 4,
+			"tests/syntax/supported/yaml/activation.yaml"));
+
+	editorOpen(yml_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_YAML, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("stream", editorSyntaxRootType());
+
+	char yaml_example_path[] =
+			"/tmp/rotide-test-syntax-yaml-example-XXXXXX.yaml.example";
+	ASSERT_TRUE(write_fixture_to_temp_path(yaml_example_path, 13,
+			"tests/syntax/supported/yaml/activation.yaml"));
+
+	editorOpen(yaml_example_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_YAML, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("stream", editorSyntaxRootType());
+
+	char yml_example_path[] =
+			"/tmp/rotide-test-syntax-yml-example-XXXXXX.yml.example";
+	ASSERT_TRUE(write_fixture_to_temp_path(yml_example_path, 12,
+			"tests/syntax/supported/yaml/activation.yaml"));
+
+	editorOpen(yml_example_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_YAML, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("stream", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(yaml_path) == 0);
+	ASSERT_TRUE(unlink(yml_path) == 0);
+	ASSERT_TRUE(unlink(yaml_example_path) == 0);
+	ASSERT_TRUE(unlink(yml_example_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_julia_files(void) {
 	char jl_path[] = "/tmp/rotide-test-syntax-julia-XXXXXX.jl";
 	ASSERT_TRUE(write_fixture_to_temp_path(jl_path, 3,
@@ -1506,6 +1560,32 @@ static int test_editor_syntax_incremental_edits_keep_toml_tree_valid(void) {
 	return 0;
 }
 
+static int test_editor_syntax_incremental_edits_keep_yaml_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-yaml-XXXXXX.yaml";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
+			"tests/syntax/supported/yaml/incremental.yaml"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_YAML, editorSyntaxLanguageActive());
+
+	E.cy = 1;
+	E.cx = 1;
+	editorInsertChar('x');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = E.rows[0].size;
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_incremental_edits_keep_julia_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-julia-XXXXXX.jl";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
@@ -2412,6 +2492,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_activation_for_ocaml_files", test_editor_syntax_activation_for_ocaml_files},
 	{"editor_syntax_activation_for_markdown_files", test_editor_syntax_activation_for_markdown_files},
 	{"editor_syntax_activation_for_toml_files", test_editor_syntax_activation_for_toml_files},
+	{"editor_syntax_activation_for_yaml_files", test_editor_syntax_activation_for_yaml_files},
 	{"editor_syntax_activation_for_julia_files", test_editor_syntax_activation_for_julia_files},
 	{"editor_syntax_activation_for_scala_files", test_editor_syntax_activation_for_scala_files},
 	{"editor_syntax_activation_for_ejs_files", test_editor_syntax_activation_for_ejs_files},
@@ -2444,6 +2525,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_incremental_edits_keep_ocaml_tree_valid", test_editor_syntax_incremental_edits_keep_ocaml_tree_valid},
 	{"editor_syntax_incremental_edits_keep_markdown_tree_valid", test_editor_syntax_incremental_edits_keep_markdown_tree_valid},
 	{"editor_syntax_incremental_edits_keep_toml_tree_valid", test_editor_syntax_incremental_edits_keep_toml_tree_valid},
+	{"editor_syntax_incremental_edits_keep_yaml_tree_valid", test_editor_syntax_incremental_edits_keep_yaml_tree_valid},
 	{"editor_syntax_incremental_edits_keep_julia_tree_valid", test_editor_syntax_incremental_edits_keep_julia_tree_valid},
 	{"editor_syntax_incremental_edits_keep_scala_tree_valid", test_editor_syntax_incremental_edits_keep_scala_tree_valid},
 	{"editor_syntax_incremental_edits_keep_ejs_tree_valid", test_editor_syntax_incremental_edits_keep_ejs_tree_valid},
