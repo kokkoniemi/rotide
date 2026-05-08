@@ -100,7 +100,9 @@ DEPFILES = $(OBJS:.o=.d) $(TEST_OBJS:.o=.d)
 QUERIES_MANIFEST := scripts/queries_manifest.txt
 QUERIES_HEADER := $(SRC_DIR)/language/syntax_query_data.h
 QUERIES_SCM := $(shell awk '/^[[:space:]]*#/ || NF==0 { next } { for (i=2; i<=NF; i++) print $$i }' $(QUERIES_MANIFEST))
-GENERATED_HEADERS := $(QUERIES_HEADER)
+DEFAULT_CONFIG_INPUT := config.toml.example
+DEFAULT_CONFIG_HEADER := $(SRC_DIR)/config/default_config_data.h
+GENERATED_HEADERS := $(QUERIES_HEADER) $(DEFAULT_CONFIG_HEADER)
 
 .DEFAULT_GOAL := rotide
 
@@ -110,6 +112,10 @@ rotide: $(SRC_DIR)/rotide.o $(EDITOR_OBJS)
 $(QUERIES_HEADER): $(QUERIES_MANIFEST) scripts/embed_queries.sh $(QUERIES_SCM)
 	scripts/embed_queries.sh $(QUERIES_MANIFEST) $@
 
+$(DEFAULT_CONFIG_HEADER): $(DEFAULT_CONFIG_INPUT) scripts/embed_default_config.sh
+	scripts/embed_default_config.sh $(DEFAULT_CONFIG_INPUT) $@
+
+$(SRC_DIR)/config/common.o: $(DEFAULT_CONFIG_HEADER)
 $(SRC_DIR)/language/queries.o: $(QUERIES_HEADER)
 $(SRC_DIR)/language/languages.o: $(QUERIES_HEADER)
 

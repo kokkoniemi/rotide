@@ -1334,6 +1334,10 @@ static void editorThemeApplyStyleColor(struct editorTheme *theme, enum editorThe
 
 static void editorThemeParseEntry(struct editorTheme *theme, struct editorThemeParseContext *ctx,
 		char *trimmed) {
+	if (!ctx->is_theme_file && !ctx->in_theme_table) {
+		return;
+	}
+
 	char *key = NULL;
 	char *value = NULL;
 	if (!editorThemeParseKeyValue(trimmed, &key, &value)) {
@@ -1370,7 +1374,7 @@ static void editorThemeParseEntry(struct editorTheme *theme, struct editorThemeP
 	}
 
 	if (!ctx->is_theme_file) {
-		if (ctx->in_theme_table && strcmp(key, "name") == 0) {
+		if (strcmp(key, "name") == 0) {
 			if (!editorThemeNameIsValid(parsed)) {
 				ctx->had_invalid = 1;
 				return;

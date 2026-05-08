@@ -82,6 +82,7 @@ static const struct editorDrawerMenuItem editor_drawer_menu_file_items[] = {
 	{"New Folder...", EDITOR_ACTION_DRAWER_CREATE_FOLDER},
 	{"Rename...", EDITOR_ACTION_DRAWER_RENAME},
 	{"Delete...", EDITOR_ACTION_DRAWER_DELETE},
+	{"Settings", EDITOR_ACTION_OPEN_SETTINGS},
 	{"Quit", EDITOR_ACTION_QUIT},
 };
 

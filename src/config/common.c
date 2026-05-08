@@ -1,5 +1,6 @@
 #include "config/common.h"
 
+#include "config/default_config_data.h"
 #include "support/alloc.h"
 #include "support/size_utils.h"
 
@@ -108,21 +109,6 @@ char *editorConfigBuildGlobalConfigPath(void) {
 	return path;
 }
 
-static const char EDITOR_CONFIG_DEFAULT_GLOBAL_CONTENT[] =
-		"# Rotide global config (auto-created on first launch).\n"
-		"# Edit values to customize. See `config.toml.example` in the source\n"
-		"# repository for a complete reference of available options.\n"
-		"\n"
-		"[editor]\n"
-		"cursor_style = \"bar\"\n"
-		"cursor_blink = true\n"
-		"line_wrap = false\n"
-		"line_numbers = true\n"
-		"current_line_highlight = true\n"
-		"\n"
-		"[theme]\n"
-		"name = \"terminal\"\n";
-
 static int editorConfigEnsureDir(const char *path) {
 	if (mkdir(path, 0700) == 0) {
 		return 1;
@@ -193,8 +179,8 @@ enum editorConfigBootstrapStatus editorConfigEnsureGlobalConfig(void) {
 		goto done;
 	}
 
-	const char *buf = EDITOR_CONFIG_DEFAULT_GLOBAL_CONTENT;
-	size_t remaining = sizeof(EDITOR_CONFIG_DEFAULT_GLOBAL_CONTENT) - 1;
+	const unsigned char *buf = EDITOR_CONFIG_DEFAULT_GLOBAL_CONTENT;
+	size_t remaining = EDITOR_CONFIG_DEFAULT_GLOBAL_CONTENT_SIZE;
 	while (remaining > 0) {
 		ssize_t n = write(fd, buf, remaining);
 		if (n < 0) {

@@ -2,6 +2,10 @@
 #include "test_support.h"
 #include "config/common.h"
 #include "config/editor_config.h"
+#include "config/keymap.h"
+#include "config/theme_config.h"
+#include "input/dispatch.h"
+#include "workspace/tabs.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
 #include "workspace/project_search.h"
@@ -2344,6 +2348,39 @@ static int test_editor_view_bool_invalid_settings_do_not_break_keymap_loading(vo
 	return 0;
 }
 
+static int test_editor_theme_load_ignores_non_theme_sections(void) {
+	char dir_template[] = "/tmp/rotide-test-theme-mixed-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char global_path[512];
+	ASSERT_TRUE(path_join(global_path, sizeof(global_path), dir_path, "global.toml"));
+
+	ASSERT_TRUE(write_text_file(global_path,
+				"[editor]\n"
+				"cursor_style = \"bar\"\n"
+				"line_numbers = true\n"
+				"\n"
+				"[theme]\n"
+				"name = \"github-dark\"\n"
+				"\n"
+				"[lsp]\n"
+				"gopls_command = \"gopls\"\n"
+				"\n"
+				"[keymap]\n"
+				"save = \"ctrl+s\"\n"));
+
+	struct editorTheme theme;
+	enum editorThemeLoadStatus status =
+			editorThemeLoadFromPaths(&theme, global_path, NULL, dir_path);
+	ASSERT_EQ_INT(EDITOR_THEME_LOAD_OK, status);
+	ASSERT_EQ_STR("github-dark", theme.name);
+
+	ASSERT_TRUE(unlink(global_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 static int test_editor_theme_load_builtin_global_project_precedence(void) {
 	char dir_template[] = "/tmp/rotide-test-theme-precedence-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -3042,6 +3079,149 @@ static int test_editor_keymap_load_accepts_reserved_terminal_aliases_for_matchin
 	return 0;
 }
 
+static int test_editor_open_settings_opens_global_config_in_tab(void) {
+	int failed = 1;
+	struct envVarBackup home_backup;
+	char home_dir[512] = "";
+	char dot_rotide_dir[512] = "";
+	char config_path[512] = "";
+	char root_template[] = "/tmp/rotide-test-open-settings-XXXXXX";
+
+	if (!backup_env_var(&home_backup, "HOME")) {
+		return 1;
+	}
+
+	char *root_path = mkdtemp(root_template);
+	if (root_path == NULL) {
+		goto cleanup;
+	}
+	if (!path_join(home_dir, sizeof(home_dir), root_path, "home")) {
+		goto cleanup;
+	}
+	if (mkdir(home_dir, 0700) == -1) {
+		goto cleanup;
+	}
+	if (!path_join(dot_rotide_dir, sizeof(dot_rotide_dir), home_dir, ".rotide")) {
+		goto cleanup;
+	}
+	if (!path_join(config_path, sizeof(config_path), dot_rotide_dir, "config.toml")) {
+		goto cleanup;
+	}
+	if (setenv("HOME", home_dir, 1) != 0) {
+		goto cleanup;
+	}
+
+	if (!editorTabsInit()) {
+		goto cleanup;
+	}
+
+	editorOpenSettings();
+
+	struct stat st;
+	if (stat(config_path, &st) != 0 || !S_ISREG(st.st_mode)) {
+		goto cleanup;
+	}
+	if (E.filename == NULL || strcmp(E.filename, config_path) != 0) {
+		goto cleanup;
+	}
+
+	failed = 0;
+
+cleanup:
+	if (!restore_env_var(&home_backup)) {
+		failed = 1;
+	}
+	if (config_path[0] != '\0') {
+		(void)unlink(config_path);
+	}
+	if (dot_rotide_dir[0] != '\0') {
+		(void)rmdir(dot_rotide_dir);
+	}
+	if (home_dir[0] != '\0') {
+		(void)rmdir(home_dir);
+	}
+	(void)rmdir(root_template);
+	return failed;
+}
+
+static int test_editor_config_default_global_loads_cleanly(void) {
+	int failed = 1;
+	struct envVarBackup home_backup;
+	char home_dir[512] = "";
+	char dot_rotide_dir[512] = "";
+	char config_path[512] = "";
+	char root_template[] = "/tmp/rotide-test-default-loads-XXXXXX";
+
+	if (!backup_env_var(&home_backup, "HOME")) {
+		return 1;
+	}
+
+	char *root_path = mkdtemp(root_template);
+	if (root_path == NULL) {
+		goto cleanup;
+	}
+	if (!path_join(home_dir, sizeof(home_dir), root_path, "home")) {
+		goto cleanup;
+	}
+	if (mkdir(home_dir, 0700) == -1) {
+		goto cleanup;
+	}
+	if (!path_join(dot_rotide_dir, sizeof(dot_rotide_dir), home_dir, ".rotide")) {
+		goto cleanup;
+	}
+	if (!path_join(config_path, sizeof(config_path), dot_rotide_dir, "config.toml")) {
+		goto cleanup;
+	}
+	if (setenv("HOME", home_dir, 1) != 0) {
+		goto cleanup;
+	}
+
+	if (editorConfigEnsureGlobalConfig() != EDITOR_CONFIG_BOOTSTRAP_CREATED) {
+		goto cleanup;
+	}
+
+	struct editorKeymap keymap;
+	if (editorKeymapLoadFromPaths(&keymap, config_path, NULL) !=
+			EDITOR_KEYMAP_LOAD_OK) {
+		goto cleanup;
+	}
+
+	struct editorTheme theme;
+	if (editorThemeLoadFromPaths(&theme, config_path, NULL, home_dir) !=
+			EDITOR_THEME_LOAD_OK) {
+		goto cleanup;
+	}
+
+	enum editorCursorStyle style = EDITOR_CURSOR_STYLE_BAR;
+	if (editorCursorStyleLoadFromPaths(&style, config_path, NULL) !=
+			EDITOR_CURSOR_STYLE_LOAD_OK) {
+		goto cleanup;
+	}
+	int line_wrap = 0;
+	if (editorLineWrapLoadFromPaths(&line_wrap, config_path, NULL) !=
+			EDITOR_LINE_WRAP_LOAD_OK) {
+		goto cleanup;
+	}
+
+	failed = 0;
+
+cleanup:
+	if (!restore_env_var(&home_backup)) {
+		failed = 1;
+	}
+	if (config_path[0] != '\0') {
+		(void)unlink(config_path);
+	}
+	if (dot_rotide_dir[0] != '\0') {
+		(void)rmdir(dot_rotide_dir);
+	}
+	if (home_dir[0] != '\0') {
+		(void)rmdir(home_dir);
+	}
+	(void)rmdir(root_template);
+	return failed;
+}
+
 static int test_editor_config_ensure_global_creates_default_when_missing(void) {
 	int failed = 1;
 	struct envVarBackup home_backup;
@@ -3170,6 +3350,7 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_current_line_highlight_load_precedence_and_invalid_fallback", test_editor_current_line_highlight_load_precedence_and_invalid_fallback},
 	{"editor_view_bool_invalid_settings_do_not_break_keymap_loading", test_editor_view_bool_invalid_settings_do_not_break_keymap_loading},
 	{"editor_theme_load_builtin_global_project_precedence", test_editor_theme_load_builtin_global_project_precedence},
+	{"editor_theme_load_ignores_non_theme_sections", test_editor_theme_load_ignores_non_theme_sections},
 	{"editor_theme_loads_modus_builtins", test_editor_theme_loads_modus_builtins},
 	{"editor_theme_loads_github_builtins", test_editor_theme_loads_github_builtins},
 	{"editor_theme_loads_acme_builtin", test_editor_theme_loads_acme_builtin},
@@ -3194,6 +3375,8 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_keymap_load_accepts_reserved_terminal_aliases_for_matching_actions", test_editor_keymap_load_accepts_reserved_terminal_aliases_for_matching_actions},
 	{"editor_refresh_screen_reports_oom_without_crash", test_editor_refresh_screen_reports_oom_without_crash},
 	{"editor_config_ensure_global_creates_default_when_missing", test_editor_config_ensure_global_creates_default_when_missing},
+	{"editor_open_settings_opens_global_config_in_tab", test_editor_open_settings_opens_global_config_in_tab},
+	{"editor_config_default_global_loads_cleanly", test_editor_config_default_global_loads_cleanly},
 };
 
 const int g_workspace_config_test_count =

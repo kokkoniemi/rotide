@@ -6,5 +6,6 @@
 char *editorPrompt(const char *prompt);
 int editorPromptYesNo(const char *prompt);
 void editorProcessKeypress(void);
+void editorOpenSettings(void);
 
 #endif

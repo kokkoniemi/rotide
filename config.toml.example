@@ -1,64 +1,16 @@
-# Rotide example global config.
-# Copy any settings you want to override into `~/.rotide/config.toml`.
-# A minimal `~/.rotide/config.toml` is auto-created on first launch.
+# Rotide global config.
+# Lives at ~/.rotide/config.toml. Auto-created on first launch.
 # Project-local config files are intentionally not loaded.
-# Configurable sections: [editor], [theme], [lsp], [keymap]
-# Editor:
-# - cursor_style = "block" | "bar" | "underline" (case-insensitive)
-# - Invalid cursor_style values fall back to "bar" with a warning
-# - cursor_blink = true|false (default true)
-# - line_wrap = true|false (soft wraps long file rows; default false)
-# - line_numbers = true|false (absolute line-number gutter; default true)
-# - current_line_highlight = true|false (subtle active-row background; default true)
-# Theme:
-# - [theme] name selects a built-in theme or ~/.rotide/themes/<name>.toml
-# - built-ins: terminal|a11y-dark|a11y-light|acme|silentium|256noir|
-#   github-light|github-dark|modus-operandi|modus-operandi-tinted|modus-vivendi|
-#   modus-vivendi-tinted|molokai|kanagawa-wave|kanagawa-dragon|
-#   kanagawa-lotus (alias: kanagawa => kanagawa-wave)
-# - ./.rotide.toml can select a theme but cannot override theme colors
-# - custom theme files own [theme.syntax] and [theme.ui]
-# - theme color values are ANSI 16-color names or "#RRGGBB":
-#   default|black|red|green|yellow|blue|magenta|cyan|white|
-#   bright_black|bright_red|bright_green|bright_yellow|bright_blue|bright_magenta|bright_cyan|bright_white
-# - aliases: gray/grey => bright_black
-# - Invalid custom themes fall back to terminal with a warning.
-# LSP:
-# - [lsp]
-# - gopls_enabled = true|false
-# - clangd_enabled = true|false
-# - html_enabled = true|false
-# - css_enabled = true|false
-# - json_enabled = true|false
-# - javascript_enabled = true|false
-# - eslint_enabled = true|false
-# - gopls_command = "gopls" (command/path used to start gopls)
-# - clangd_command = "clangd" (command/path used to start clangd)
-# - html_command/css_command/json_command/javascript_command/eslint_command can be set per project
-# - enabled = true|false is still accepted as a legacy alias for all built-in LSP servers
-# - gopls_install_command, javascript_install_command, and
-#   vscode_langservers_install_command are global-only
-# - default javascript_install_command:
-#   "npm install --global --prefix ~/.local typescript typescript-language-server"
-# - eslint_fix is an opt-in keymap action with no default binding
-# - Invalid [lsp] values fall back to defaults with a warning.
-# Key spec format:
-# - "ctrl+<a-z>", "alt+<a-z>", "ctrl+alt+<a-z>", "ctrl+]"
-# - "ctrl+left/right/up/down", "alt+left/right/up/down",
-#   "ctrl+alt+left/right/up/down"
-# - "alt+shift+left/right/up/down"
-# - Modifiers are case-insensitive and can be in any order
-# - or one of
-# left/right/up/down/home/end/page_up/page_down/enter/esc/backspace/del
-# - Rotide binds terminal key codes, so some physical keys alias the same input
-# - "ctrl+i" is unsafe because terminals send the same byte for Ctrl-I and Tab
-# - "ctrl+m" and "ctrl+[" alias Enter and Esc; use them only for newline/escape
-# - "ctrl+h" aliases backspace and should only be used for the backspace action
-# - Tab stays reserved for literal text insertion under the baseline terminal model
-# - Default goto_definition is "ctrl+o"; avoid "ctrl+i" because it aliases Tab
-# - In drawer focus, enter toggles directories and opens files in tabs
-#   (reusing an already-open file tab when possible)
+# This file is the canonical reference; every value below mirrors the
+# built-in default. Edit values to customize.
 
+# --- [editor] -----------------------------------------------------------------
+# cursor_style: "block" | "bar" | "underline" (case-insensitive).
+#   Invalid values fall back to "bar" with a warning.
+# cursor_blink: true|false (default true).
+# line_wrap: soft-wrap long file rows. true|false (default false).
+# line_numbers: absolute line-number gutter. true|false (default true).
+# current_line_highlight: subtle active-row background. true|false (default true).
 [editor]
 cursor_style = "bar"
 cursor_blink = true
@@ -66,9 +18,31 @@ line_wrap = false
 line_numbers = true
 current_line_highlight = true
 
+# --- [theme] ------------------------------------------------------------------
+# name selects a built-in theme or a custom theme at ~/.rotide/themes/<name>.toml.
+# Built-ins:
+#   terminal | a11y-dark | a11y-light | acme | silentium | 256noir |
+#   github-light | github-dark |
+#   modus-operandi | modus-operandi-tinted | modus-vivendi | modus-vivendi-tinted |
+#   molokai | kanagawa-wave | kanagawa-dragon | kanagawa-lotus
+#   (alias: kanagawa => kanagawa-wave)
+# Custom theme files own [theme.syntax] and [theme.ui]; color values are
+# ANSI 16-color names (default|black|red|green|yellow|blue|magenta|cyan|white|
+# bright_black|bright_red|bright_green|bright_yellow|bright_blue|bright_magenta|
+# bright_cyan|bright_white; aliases: gray/grey => bright_black) or "#RRGGBB".
+# Invalid custom themes fall back to terminal with a warning.
 [theme]
-name = "github-dark"
+name = "terminal"
 
+# --- [lsp] --------------------------------------------------------------------
+# Each *_enabled toggles a built-in LSP server. Legacy `enabled = true|false`
+# is still accepted as a shorthand that toggles all servers together.
+# *_command sets the command/path used to start each server.
+# Install commands (gopls_install_command, javascript_install_command,
+# vscode_langservers_install_command) are global-only.
+# Default javascript_install_command:
+#   "npm install --global --prefix ~/.local typescript typescript-language-server"
+# Invalid [lsp] values fall back to defaults with a warning.
 [lsp]
 gopls_enabled = true
 clangd_enabled = true
@@ -85,6 +59,25 @@ json_command = "~/.local/bin/vscode-json-language-server --stdio"
 javascript_command = "~/.local/bin/typescript-language-server --stdio"
 eslint_command = "~/.local/bin/vscode-eslint-language-server --stdio"
 
+# --- [keymap] -----------------------------------------------------------------
+# Key spec format:
+#   "ctrl+<a-z>", "alt+<a-z>", "ctrl+alt+<a-z>", "ctrl+]"
+#   "ctrl+left/right/up/down", "alt+left/right/up/down",
+#     "ctrl+alt+left/right/up/down", "alt+shift+left/right/up/down"
+#   or a named key: left|right|up|down|home|end|page_up|page_down|
+#     enter|esc|backspace|del
+# Modifiers are case-insensitive and may appear in any order.
+# Each action takes exactly one key; assigning a key that is already in use by
+# another action will fail to load. Drop or comment out one side of any pair
+# you want to reassign (for example, to use `resize_drawer_narrow = "alt+shift+left"`
+# remove or comment out `column_select_left`).
+# Rotide binds terminal key codes, so some physical keys alias the same input:
+#   "ctrl+i" aliases Tab (avoid; use named keys instead).
+#   "ctrl+m" aliases Enter; "ctrl+[" aliases Esc — use only for newline/escape.
+#   "ctrl+h" aliases backspace.
+# Tab stays reserved for literal text insertion.
+# In drawer focus, enter toggles directories and opens files in tabs (reusing
+# an already-open tab when possible).
 [keymap]
 quit = "ctrl+q"
 save = "ctrl+s"
@@ -93,17 +86,23 @@ close_tab = "ctrl+w"
 next_tab = "alt+right"
 prev_tab = "alt+left"
 focus_drawer = "ctrl+e"
-find_file = "ctrl+p"
-project_search = "ctrl+alt+f"
-resize_drawer_narrow = "alt+shift+left"
-resize_drawer_widen = "alt+shift+right"
+toggle_drawer = "ctrl+alt+e"
+main_menu = "alt+m"
+# resize_drawer_narrow and resize_drawer_widen have no default binding.
+# To enable them, comment out the conflicting column_select_left/right below.
+# resize_drawer_narrow = "alt+shift+left"
+# resize_drawer_widen = "alt+shift+right"
 toggle_line_wrap = "alt+z"
 toggle_line_numbers = "alt+n"
 toggle_current_line_highlight = "alt+h"
+find_file = "ctrl+p"
+project_search = "ctrl+alt+f"
 find = "ctrl+f"
+find_replace = "ctrl+r"
 goto_line = "ctrl+g"
 goto_definition = "ctrl+o"
-# eslint_fix = "ctrl+alt+e"
+# eslint_fix has no default binding; uncomment to enable.
+# eslint_fix = "ctrl+alt+e"  # NOTE: conflicts with toggle_drawer above.
 toggle_selection = "ctrl+b"
 copy_selection = "ctrl+c"
 cut_selection = "ctrl+x"
@@ -125,7 +124,20 @@ newline = "enter"
 escape = "esc"
 redraw = "ctrl+l"
 delete_char = "del"
-backspace = "backspace"
+# backspace has two default bindings: "backspace" and "ctrl+h".
+# Assigning it explicitly here removes the alternative — leave commented to keep both.
+# backspace = "backspace"
 move_line_up = "alt+up"
 move_line_down = "alt+down"
 toggle_comment = "alt+c"
+column_select_up = "alt+shift+up"
+column_select_down = "alt+shift+down"
+column_select_left = "alt+shift+left"
+column_select_right = "alt+shift+right"
+drawer_create_file = "ctrl+alt+n"
+drawer_create_folder = "ctrl+alt+d"
+drawer_rename = "ctrl+alt+r"
+drawer_delete = "ctrl+alt+k"
+git_drawer = "ctrl+alt+g"
+# open_settings has no default binding; the File > Settings menu item opens it.
+# open_settings = "ctrl+alt+s"

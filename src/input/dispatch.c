@@ -1,5 +1,6 @@
 #include "input/dispatch.h"
 
+#include "config/common.h"
 #include "config/keymap.h"
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
@@ -292,6 +293,21 @@ static void quit(void) {
 	editorResetCursorPos();
 
 	exit(EXIT_SUCCESS);
+}
+
+void editorOpenSettings(void) {
+	enum editorConfigBootstrapStatus bootstrap = editorConfigEnsureGlobalConfig();
+	char *path = editorConfigBuildGlobalConfigPath();
+	if (path == NULL || bootstrap == EDITOR_CONFIG_BOOTSTRAP_FAILED) {
+		free(path);
+		editorSetStatusMsg("Could not open ~/.rotide/config.toml");
+		return;
+	}
+	if (!editorTabOpenOrSwitchToFile(path)) {
+		editorSetStatusMsg("Could not open %s", path);
+	}
+	free(path);
+	E.pane_focus = EDITOR_PANE_TEXT;
 }
 
 static void editorCloseTab(void) {
@@ -3103,6 +3119,10 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 					(E.git_repo_root != NULL ? "Git changes shown" :
 					"Not in a git repository") :
 					"Project drawer shown");
+			break;
+		case EDITOR_ACTION_OPEN_SETTINGS:
+			editorHistoryBreakGroup();
+			editorOpenSettings();
 			break;
 		case EDITOR_ACTION_RESIZE_DRAWER_NARROW:
 			editorHistoryBreakGroup();

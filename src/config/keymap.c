@@ -82,6 +82,7 @@ static const struct editorActionName editor_action_names[] = {
 	{"drawer_rename", EDITOR_ACTION_DRAWER_RENAME},
 	{"drawer_delete", EDITOR_ACTION_DRAWER_DELETE},
 	{"git_drawer", EDITOR_ACTION_GIT_DRAWER},
+	{"open_settings", EDITOR_ACTION_OPEN_SETTINGS},
 };
 
 static const struct editorNamedKey editor_named_keys[] = {
