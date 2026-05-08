@@ -154,6 +154,77 @@ int editorExtractRangeText(const struct editorSelectionRange *range, char **text
 	return 1;
 }
 
+int editorReplaceRange(const struct editorSelectionRange *range, const char *text, size_t len) {
+	struct editorSelectionRange normalized;
+	if (!editorNormalizeRange(range, &normalized)) {
+		return 0;
+	}
+
+	if (len > 0 && text == NULL) {
+		return 0;
+	}
+	if (len > ROTIDE_MAX_TEXT_BYTES) {
+		editorSetOperationTooLargeStatus();
+		return -1;
+	}
+
+	size_t start_offset = 0;
+	size_t end_offset = 0;
+	if (!editorBufferPosToOffset(normalized.start_cy, normalized.start_cx, &start_offset) ||
+			!editorBufferPosToOffset(normalized.end_cy, normalized.end_cx, &end_offset) ||
+			end_offset < start_offset) {
+		editorSetOperationTooLargeStatus();
+		return -1;
+	}
+	size_t removed_len = end_offset - start_offset;
+	if (removed_len == 0 && len == 0) {
+		return 0;
+	}
+
+	size_t after_offset = 0;
+	if (!editorSizeAdd(start_offset, len, &after_offset) ||
+			after_offset > ROTIDE_MAX_TEXT_BYTES) {
+		editorSetOperationTooLargeStatus();
+		return -1;
+	}
+
+	size_t before_cursor_offset = start_offset;
+	if (!editorBufferPosToOffset(E.cy, E.cx, &before_cursor_offset)) {
+		before_cursor_offset = start_offset;
+	}
+
+	int dirty_delta = 0;
+	if (removed_len > 0) {
+		dirty_delta += (normalized.start_cy != normalized.end_cy) ? 2 : 1;
+	}
+	for (size_t i = 0; i < len; i++) {
+		dirty_delta++;
+		if (text[i] == '\n') {
+			dirty_delta++;
+		}
+	}
+	if (dirty_delta <= 0 || E.dirty > INT_MAX - dirty_delta) {
+		editorSetOperationTooLargeStatus();
+		return -1;
+	}
+
+	struct editorDocumentEdit edit = {
+		.kind = (removed_len > 0 && len == 0) ? EDITOR_EDIT_DELETE_TEXT : EDITOR_EDIT_INSERT_TEXT,
+		.start_offset = start_offset,
+		.old_len = removed_len,
+		.new_text = len > 0 ? text : "",
+		.new_len = len,
+		.before_cursor_offset = before_cursor_offset,
+		.after_cursor_offset = after_offset,
+		.before_dirty = E.dirty,
+		.after_dirty = E.dirty + dirty_delta
+	};
+	if (!editorApplyDocumentEdit(&edit)) {
+		return -1;
+	}
+	return 1;
+}
+
 int editorDeleteRange(const struct editorSelectionRange *range) {
 	struct editorSelectionRange normalized;
 	if (!editorNormalizeRange(range, &normalized)) {

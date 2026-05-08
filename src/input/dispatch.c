@@ -1133,13 +1133,15 @@ static void editorPasteClipboard(void) {
 
 	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
 	int dirty_before = E.dirty;
+	int pasted = 0;
 
 	if (has_selection) {
-		(void)editorDeleteRange(&range);
+		editorClearSelectionMode();
+		pasted = editorReplaceRange(&range, clip, clip_len) > 0;
+	} else {
+		editorClearSelectionMode();
+		pasted = editorInsertText(clip, clip_len);
 	}
-	editorClearSelectionMode();
-
-	int pasted = editorInsertText(clip, clip_len);
 
 	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
 	editorHistoryBreakGroup();
