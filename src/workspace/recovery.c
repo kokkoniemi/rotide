@@ -11,6 +11,7 @@
 #include "text/document.h"
 #include "text/row.h"
 #include "workspace/tabs.h"
+#include "workspace/workspace_state.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -909,7 +910,9 @@ void editorRecoveryMaybeAutosaveOnActivity(void) {
 int editorStartupLoadRecoveryOrOpenArgs(int argc, char *argv[]) {
 	int restored = editorRecoveryPromptAndMaybeRestore();
 	if (!restored && argc >= 2) {
-		editorOpen(argv[1]);
+		if (editorOpen(argv[1])) {
+			(void)editorWorkspaceStateRememberRecentFile(argv[1]);
+		}
 		for (int i = 2; i < argc; i++) {
 			if (!editorTabOpenFileAsNew(argv[i])) {
 				break;

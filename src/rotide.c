@@ -144,6 +144,9 @@ void initEditor(void) {
 	E.drawer_search_filtered_capacity = 0;
 	E.drawer_search_previewed_path = NULL;
 	E.drawer_search_active_tab_before = -1;
+	E.recent_file_paths = NULL;
+	E.recent_file_count = 0;
+	E.recent_file_capacity = 0;
 	E.drawer_project_search_query = NULL;
 	E.drawer_project_search_query_len = 0;
 	E.drawer_project_search_results = NULL;

@@ -15,6 +15,7 @@
 #include "text/utf8.h"
 #include "workspace/git.h"
 #include "workspace/task.h"
+#include "workspace/workspace_state.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -640,6 +641,7 @@ int editorTabOpenFileAsNew(const char *filename) {
 			return 0;
 		}
 		E.is_preview = 0;
+		(void)editorWorkspaceStateRememberRecentFile(filename);
 		return 1;
 	}
 	if (!editorFileCanOpen(filename)) {
@@ -652,6 +654,7 @@ int editorTabOpenFileAsNew(const char *filename) {
 		return 0;
 	}
 	E.is_preview = 0;
+	(void)editorWorkspaceStateRememberRecentFile(filename);
 	return 1;
 }
 
@@ -666,6 +669,7 @@ int editorTabOpenOrSwitchToFile(const char *filename) {
 			return 0;
 		}
 		E.is_preview = 0;
+		(void)editorWorkspaceStateRememberRecentFile(filename);
 		return 1;
 	}
 

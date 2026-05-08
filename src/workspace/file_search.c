@@ -7,6 +7,7 @@
 #include "text/utf8.h"
 #include "workspace/drawer.h"
 #include "workspace/tabs.h"
+#include "workspace/workspace_state.h"
 
 #include <ctype.h>
 #include <dirent.h>
@@ -167,9 +168,30 @@ static int editorFileSearchPathCmp(const void *a, const void *b) {
 	return strcmp(left, right);
 }
 
+static int editorFileSearchRecentRankForSort(const char *path) {
+	const char *active_path = editorTabFilenameAt(E.drawer_search_active_tab_before);
+	if (active_path != NULL && editorPathsReferToSameFile(path, active_path)) {
+		return -1;
+	}
+	return editorWorkspaceStateRecentFileRank(path);
+}
+
 static int editorFileSearchFilteredIndexCmp(const void *a, const void *b) {
 	int left_idx = *(const int *)a;
 	int right_idx = *(const int *)b;
+	int left_recent = editorFileSearchRecentRankForSort(E.drawer_search_paths[left_idx]);
+	int right_recent = editorFileSearchRecentRankForSort(E.drawer_search_paths[right_idx]);
+	if (left_recent >= 0 || right_recent >= 0) {
+		if (left_recent < 0) {
+			return 1;
+		}
+		if (right_recent < 0) {
+			return -1;
+		}
+		if (left_recent != right_recent) {
+			return left_recent < right_recent ? -1 : 1;
+		}
+	}
 	const char *left = editorFileSearchDisplayPath(E.drawer_search_paths[left_idx]);
 	const char *right = editorFileSearchDisplayPath(E.drawer_search_paths[right_idx]);
 	size_t left_len = strlen(left);

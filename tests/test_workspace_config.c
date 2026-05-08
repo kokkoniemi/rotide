@@ -3158,6 +3158,53 @@ static int test_editor_workspace_state_load_missing_is_noop(void) {
 	return 0;
 }
 
+static int test_editor_file_search_lists_recent_non_active_files_first_and_persists_order(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char alpha_file[512];
+	char beta_file[512];
+	char gamma_file[512];
+	ASSERT_TRUE(path_join(alpha_file, sizeof(alpha_file), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(path_join(beta_file, sizeof(beta_file), env.project_dir, "beta.txt"));
+	ASSERT_TRUE(path_join(gamma_file, sizeof(gamma_file), env.project_dir, "gamma.txt"));
+	ASSERT_TRUE(write_text_file(alpha_file, "alpha\n"));
+	ASSERT_TRUE(write_text_file(beta_file, "beta\n"));
+	ASSERT_TRUE(write_text_file(gamma_file, "gamma\n"));
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTabOpenFileAsNew(beta_file));
+	ASSERT_TRUE(editorTabOpenFileAsNew(alpha_file));
+	ASSERT_TRUE(editorWorkspaceStateSave());
+
+	editorWorkspaceStateShutdown();
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorFileSearchEnter());
+
+	struct editorDrawerEntryView first;
+	struct editorDrawerEntryView second;
+	struct editorDrawerEntryView third;
+	ASSERT_TRUE(editorDrawerGetVisibleEntry(1, &first));
+	ASSERT_TRUE(editorDrawerGetVisibleEntry(2, &second));
+	ASSERT_TRUE(editorDrawerGetVisibleEntry(3, &third));
+	ASSERT_EQ_STR("beta.txt", first.name);
+	ASSERT_EQ_STR(beta_file, first.path);
+	ASSERT_EQ_STR("alpha.txt", second.name);
+	ASSERT_EQ_STR(alpha_file, second.path);
+	ASSERT_EQ_STR("gamma.txt", third.name);
+	ASSERT_EQ_STR(gamma_file, third.path);
+
+	editorFileSearchExit(0);
+	ASSERT_TRUE(unlink(gamma_file) == 0);
+	ASSERT_TRUE(unlink(beta_file) == 0);
+	ASSERT_TRUE(unlink(alpha_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_open_settings_opens_global_config_in_tab(void) {
 	int failed = 1;
 	struct envVarBackup home_backup;
@@ -3389,6 +3436,7 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_file_search_filters_results_in_drawer", test_editor_file_search_filters_results_in_drawer},
 	{"editor_file_search_preview_and_open_selected_file", test_editor_file_search_preview_and_open_selected_file},
 	{"editor_file_search_previews_binary_file_as_unsupported_read_only_tab", test_editor_file_search_previews_binary_file_as_unsupported_read_only_tab},
+	{"editor_file_search_lists_recent_non_active_files_first_and_persists_order", test_editor_file_search_lists_recent_non_active_files_first_and_persists_order},
 	{"editor_project_search_finds_previews_and_opens_matches", test_editor_project_search_finds_previews_and_opens_matches},
 	{"editor_path_absolute_dup_makes_relative_paths_absolute", test_editor_path_absolute_dup_makes_relative_paths_absolute},
 	{"editor_path_find_marker_upward_returns_project_root", test_editor_path_find_marker_upward_returns_project_root},

@@ -6,6 +6,8 @@ void editorWorkspaceStateShutdown(void);
 
 int editorWorkspaceStateLoadAndApply(int total_cols);
 int editorWorkspaceStateSave(void);
+int editorWorkspaceStateRememberRecentFile(const char *path);
+int editorWorkspaceStateRecentFileRank(const char *path);
 
 const char *editorWorkspaceStatePath(void);
 

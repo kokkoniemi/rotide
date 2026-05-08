@@ -623,6 +623,9 @@ struct editorConfig {
 	int drawer_search_filtered_capacity;
 	char *drawer_search_previewed_path;
 	int drawer_search_active_tab_before;
+	char **recent_file_paths;
+	int recent_file_count;
+	int recent_file_capacity;
 	char *drawer_project_search_query;
 	size_t drawer_project_search_query_len;
 	struct editorProjectSearchResult *drawer_project_search_results;

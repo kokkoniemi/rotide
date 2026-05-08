@@ -20,6 +20,7 @@
 #include "workspace/recovery.h"
 #include "workspace/tabs.h"
 #include "workspace/watch.h"
+#include "workspace/workspace_state.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -46,6 +47,7 @@ static void ensure_test_stdout_open(void) {
 void clear_editor_state(void) {
 	editorDrawerShutdown();
 	editorRecoveryShutdown();
+	editorWorkspaceStateShutdown();
 	editorTabsFreeAll();
 	editorWatchTestReset();
 	editorOutputTestResetFrameCache();
