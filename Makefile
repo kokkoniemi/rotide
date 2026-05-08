@@ -72,6 +72,7 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/workspace/watch.c \
 	$(SRC_DIR)/workspace/project_search.c \
 	$(SRC_DIR)/workspace/recovery.c \
+	$(SRC_DIR)/workspace/workspace_state.c \
 	$(SRC_DIR)/input/dispatch.c \
 	$(SRC_DIR)/render/screen.c \
 	$(SRC_DIR)/config/common.c $(SRC_DIR)/config/keymap.c \

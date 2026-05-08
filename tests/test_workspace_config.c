@@ -6,6 +6,7 @@
 #include "config/theme_config.h"
 #include "input/dispatch.h"
 #include "workspace/tabs.h"
+#include "workspace/workspace_state.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
 #include "workspace/project_search.h"
@@ -3081,6 +3082,82 @@ static int test_editor_keymap_load_accepts_reserved_terminal_aliases_for_matchin
 	return 0;
 }
 
+static int test_editor_workspace_state_persists_drawer_state(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	ASSERT_TRUE(editorWorkspaceStatePath() != NULL);
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	E.window_cols = 100;
+	E.window_rows = 40;
+
+	ASSERT_TRUE(editorDrawerSetWidthForCols(42, E.window_cols) ||
+			E.drawer_width_cols == 42);
+	(void)editorDrawerSetCollapsed(1);
+	E.drawer_mode = EDITOR_DRAWER_MODE_GIT;
+
+	ASSERT_TRUE(editorWorkspaceStateSave());
+
+	E.drawer_width_cols = 20;
+	E.drawer_width_user_set = 0;
+	E.drawer_collapsed = 0;
+	E.drawer_mode = EDITOR_DRAWER_MODE_TREE;
+
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+
+	ASSERT_EQ_INT(42, E.drawer_width_cols);
+	ASSERT_EQ_INT(1, E.drawer_collapsed);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_GIT, (int)E.drawer_mode);
+
+	editorWorkspaceStateShutdown();
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_workspace_state_ignores_search_modes_on_save(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	E.window_cols = 100;
+	E.window_rows = 40;
+
+	E.drawer_mode = EDITOR_DRAWER_MODE_FILE_SEARCH;
+	ASSERT_TRUE(editorWorkspaceStateSave());
+
+	E.drawer_mode = EDITOR_DRAWER_MODE_GIT;
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, (int)E.drawer_mode);
+
+	editorWorkspaceStateShutdown();
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_workspace_state_load_missing_is_noop(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	E.window_cols = 100;
+	E.window_rows = 40;
+	E.drawer_width_cols = 35;
+	E.drawer_collapsed = 0;
+	E.drawer_mode = EDITOR_DRAWER_MODE_TREE;
+
+	int loaded = editorWorkspaceStateLoadAndApply(E.window_cols);
+	ASSERT_EQ_INT(0, loaded);
+	ASSERT_EQ_INT(35, E.drawer_width_cols);
+
+	editorWorkspaceStateShutdown();
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_open_settings_opens_global_config_in_tab(void) {
 	int failed = 1;
 	struct envVarBackup home_backup;
@@ -3379,6 +3456,9 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_config_ensure_global_creates_default_when_missing", test_editor_config_ensure_global_creates_default_when_missing},
 	{"editor_open_settings_opens_global_config_in_tab", test_editor_open_settings_opens_global_config_in_tab},
 	{"editor_config_default_global_loads_cleanly", test_editor_config_default_global_loads_cleanly},
+	{"editor_workspace_state_persists_drawer_state", test_editor_workspace_state_persists_drawer_state},
+	{"editor_workspace_state_ignores_search_modes_on_save", test_editor_workspace_state_ignores_search_modes_on_save},
+	{"editor_workspace_state_load_missing_is_noop", test_editor_workspace_state_load_missing_is_noop},
 };
 
 const int g_workspace_config_test_count =

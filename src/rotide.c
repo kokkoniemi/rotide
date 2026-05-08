@@ -21,6 +21,7 @@
 #include "workspace/project_search.h"
 #include "workspace/recovery.h"
 #include "workspace/tabs.h"
+#include "workspace/workspace_state.h"
 
 struct editorConfig E;
 
@@ -115,6 +116,7 @@ void initEditor(void) {
 	E.task_success_status[0] = '\0';
 	E.task_failure_status[0] = '\0';
 	E.recovery_path = NULL;
+	E.workspace_state_path = NULL;
 	E.recovery_last_autosave_time = 0;
 	E.drawer_root_path = NULL;
 	E.drawer_root = NULL;
@@ -220,6 +222,7 @@ int main(int argc, char *argv[]) {
 	if (!editorRecoveryInitForCurrentDir()) {
 		editorSetStatusMsg("Recovery disabled (path setup failed)");
 	}
+	(void)editorWorkspaceStateInitForCurrentDir();
 	if (keymap_status == EDITOR_KEYMAP_LOAD_INVALID_PROJECT) {
 		editorSetStatusMsg("Invalid keymap config, using defaults");
 	} else if (keymap_status == EDITOR_KEYMAP_LOAD_INVALID_GLOBAL) {
@@ -317,6 +320,7 @@ int main(int argc, char *argv[]) {
 	if (!editorDrawerInitForStartup(argc, argv, restored_session)) {
 		editorSetStatusMsg("Drawer disabled (init failed)");
 	}
+	(void)editorWorkspaceStateLoadAndApply(E.window_cols);
 	(void)editorGitInit();
 
 	if (keymap_status == EDITOR_KEYMAP_LOAD_OK && E.statusmsg[0] == '\0') {

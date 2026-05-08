@@ -594,6 +594,7 @@ struct editorConfig {
 	char task_success_status[80];
 	char task_failure_status[80];
 	char *recovery_path;
+	char *workspace_state_path;
 	time_t recovery_last_autosave_time;
 	char *drawer_root_path;
 	struct editorDrawerNode *drawer_root;

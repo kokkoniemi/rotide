@@ -18,6 +18,7 @@
 #include "workspace/recovery.h"
 #include "workspace/tabs.h"
 #include "workspace/task.h"
+#include "workspace/workspace_state.h"
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
@@ -285,6 +286,7 @@ static void quit(void) {
 		return;
 	}
 
+	(void)editorWorkspaceStateSave();
 	editorLspShutdown();
 	editorSyntaxBackgroundStop();
 	editorRecoveryCleanupOnCleanExit();

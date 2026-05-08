@@ -446,11 +446,15 @@ void cleanup_recovery_test_env(struct recoveryTestEnv *env) {
 
 	char dot_rotide_dir[512];
 	char recovery_dir[512];
+	char state_dir[512];
 	if (env->home_dir[0] != '\0' &&
 			path_join(dot_rotide_dir, sizeof(dot_rotide_dir), env->home_dir, ".rotide") &&
-			path_join(recovery_dir, sizeof(recovery_dir), dot_rotide_dir, "recovery")) {
+			path_join(recovery_dir, sizeof(recovery_dir), dot_rotide_dir, "recovery") &&
+			path_join(state_dir, sizeof(state_dir), dot_rotide_dir, "state")) {
 		remove_files_in_dir(recovery_dir);
 		(void)rmdir(recovery_dir);
+		remove_files_in_dir(state_dir);
+		(void)rmdir(state_dir);
 		remove_files_in_dir(dot_rotide_dir);
 		(void)rmdir(dot_rotide_dir);
 	}
