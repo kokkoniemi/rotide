@@ -18,6 +18,20 @@ Build:
 make
 ```
 
+Build output is compact by default. To print full compiler/linker commands:
+
+```bash
+make V=1
+```
+
+Build a size-oriented release binary:
+
+```bash
+make release
+```
+
+The release target rebuilds `rotide` with size-oriented compiler/linker flags and strips unneeded symbols. The binary still includes the supported Tree-sitter grammars statically, so parser tables remain the dominant size cost.
+
 Run:
 
 ```bash
