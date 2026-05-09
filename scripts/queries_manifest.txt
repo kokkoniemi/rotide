@@ -52,3 +52,4 @@ markdown_injection        vendor/tree_sitter/grammars/markdown/queries/injection
 toml_highlight            vendor/tree_sitter/grammars/toml/queries/highlights.scm
 yaml_highlight            vendor/tree_sitter/grammars/yaml/queries/highlights.scm
 make_highlight            vendor/tree_sitter/grammars/make/queries/highlights.scm
+diff_highlight            vendor/tree_sitter/grammars/diff/queries/highlights.scm

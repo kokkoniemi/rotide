@@ -210,6 +210,7 @@ MARKDOWN_GRAMMAR_SRC=""
 TOML_GRAMMAR_SRC=""
 YAML_GRAMMAR_SRC=""
 MAKE_GRAMMAR_SRC=""
+DIFF_GRAMMAR_SRC=""
 
 download_repo_tarball "tree-sitter/tree-sitter" "${TREE_SITTER_RUNTIME_REF}" RUNTIME_SRC
 download_repo_tarball "tree-sitter/tree-sitter-c" "${TREE_SITTER_C_GRAMMAR_REF}" C_GRAMMAR_SRC
@@ -238,6 +239,7 @@ download_repo_tarball "tree-sitter-grammars/tree-sitter-markdown" "${TREE_SITTER
 download_repo_tarball "tree-sitter-grammars/tree-sitter-toml" "${TREE_SITTER_TOML_GRAMMAR_REF}" TOML_GRAMMAR_SRC
 download_repo_tarball "tree-sitter-grammars/tree-sitter-yaml" "${TREE_SITTER_YAML_GRAMMAR_REF}" YAML_GRAMMAR_SRC
 download_repo_tarball "tree-sitter-grammars/tree-sitter-make" "${TREE_SITTER_MAKE_GRAMMAR_REF}" MAKE_GRAMMAR_SRC
+download_repo_tarball "tree-sitter-grammars/tree-sitter-diff" "${TREE_SITTER_DIFF_GRAMMAR_REF}" DIFF_GRAMMAR_SRC
 
 if [[ ! -d "${RUNTIME_SRC}/lib/src" || ! -f "${RUNTIME_SRC}/lib/include/tree_sitter/api.h" ]]; then
 	echo "Runtime source layout not found in ${TREE_SITTER_RUNTIME_REF}" >&2
@@ -286,6 +288,7 @@ regenerate_parser "${MARKDOWN_GRAMMAR_SRC}/tree-sitter-markdown-inline" "Markdow
 regenerate_parser "${TOML_GRAMMAR_SRC}" "TOML"
 regenerate_parser "${YAML_GRAMMAR_SRC}" "YAML"
 regenerate_parser "${MAKE_GRAMMAR_SRC}" "Make"
+regenerate_parser "${DIFF_GRAMMAR_SRC}" "Diff"
 
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
@@ -371,6 +374,7 @@ sync_grammar_vendor "${MARKDOWN_GRAMMAR_SRC}/tree-sitter-markdown-inline" "${REP
 sync_grammar_vendor "${TOML_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/toml"
 sync_grammar_vendor "${YAML_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/yaml"
 sync_grammar_vendor "${MAKE_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/make"
+sync_grammar_vendor "${DIFF_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/diff"
 
 echo "Tree-sitter vendor refresh complete." >&2
 echo "If you changed refs/releases, update vendor/tree_sitter/VERSIONS.env and VERSIONS.md." >&2

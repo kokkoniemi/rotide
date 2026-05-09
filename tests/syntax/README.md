@@ -14,6 +14,7 @@ Current fixture-to-editor mapping (`enum editorSyntaxLanguage` in
 - `supported/cpp/` maps to `EDITOR_SYNTAX_CPP`
 - `supported/csharp/` maps to `EDITOR_SYNTAX_CSHARP`
 - `supported/css/` maps to `EDITOR_SYNTAX_CSS`
+- `supported/diff/` maps to `EDITOR_SYNTAX_DIFF`
 - `supported/ejs/` maps to `EDITOR_SYNTAX_EJS`
 - `supported/erb/` maps to `EDITOR_SYNTAX_ERB`
 - `supported/go/` maps to `EDITOR_SYNTAX_GO`
@@ -63,5 +64,8 @@ Notes:
   - Markdown — fenced code blocks routed by their info-string (e.g.
     ```` ```python ```` -> Python), plus the inline grammar overlay for
     emphasis, links, and code spans inside paragraphs.
+- Git diff tabs use `EDITOR_SYNTAX_DIFF` directly; they do not rely on a
+  filename extension because generated diff tabs are read-only buffers with
+  display titles instead of real file paths.
 - Tests resolve these fixtures from the startup repo root so they keep working
   even if a test temporarily changes the current working directory.

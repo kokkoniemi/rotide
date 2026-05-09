@@ -599,6 +599,56 @@ static int test_editor_syntax_activation_for_make_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_diff_files(void) {
+	char diff_path[] = "/tmp/rotide-test-syntax-diff-XXXXXX.diff";
+	ASSERT_TRUE(write_fixture_to_temp_path(diff_path, 5,
+			"tests/syntax/supported/diff/activation.diff"));
+
+	editorOpen(diff_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_DIFF, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("source", editorSyntaxRootType());
+
+	char patch_path[] = "/tmp/rotide-test-syntax-patch-XXXXXX.patch";
+	ASSERT_TRUE(write_fixture_to_temp_path(patch_path, 6,
+			"tests/syntax/supported/diff/activation.diff"));
+
+	editorOpen(patch_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_DIFF, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("source", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(diff_path) == 0);
+	ASSERT_TRUE(unlink(patch_path) == 0);
+	return 0;
+}
+
+static int test_editor_syntax_git_diff_tab_uses_diff_language(void) {
+	const char *diff_text =
+			"diff --git a/src/app.c b/src/app.c\n"
+			"index 1111111..2222222 100644\n"
+			"--- a/src/app.c\n"
+			"+++ b/src/app.c\n"
+			"@@ -1,2 +1,2 @@\n"
+			"-old line\n"
+			"+new line\n";
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTabOpenGitDiff("git diff: src/app.c", diff_text));
+	ASSERT_EQ_INT(EDITOR_TAB_GIT_DIFF, E.tab_kind);
+	ASSERT_TRUE(editorActiveTabIsReadOnly());
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_DIFF, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("source", editorSyntaxRootType());
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_julia_files(void) {
 	char jl_path[] = "/tmp/rotide-test-syntax-julia-XXXXXX.jl";
 	ASSERT_TRUE(write_fixture_to_temp_path(jl_path, 3,
@@ -1646,6 +1696,32 @@ static int test_editor_syntax_incremental_edits_keep_make_tree_valid(void) {
 	return 0;
 }
 
+static int test_editor_syntax_incremental_edits_keep_diff_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-diff-XXXXXX.diff";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
+			"tests/syntax/supported/diff/incremental.diff"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_DIFF, editorSyntaxLanguageActive());
+
+	E.cy = 5;
+	E.cx = E.rows[5].size;
+	editorInsertChar('!');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 4;
+	E.cx = E.rows[4].size;
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_incremental_edits_keep_julia_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-julia-XXXXXX.jl";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
@@ -2554,6 +2630,8 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_activation_for_toml_files", test_editor_syntax_activation_for_toml_files},
 	{"editor_syntax_activation_for_yaml_files", test_editor_syntax_activation_for_yaml_files},
 	{"editor_syntax_activation_for_make_files", test_editor_syntax_activation_for_make_files},
+	{"editor_syntax_activation_for_diff_files", test_editor_syntax_activation_for_diff_files},
+	{"editor_syntax_git_diff_tab_uses_diff_language", test_editor_syntax_git_diff_tab_uses_diff_language},
 	{"editor_syntax_activation_for_julia_files", test_editor_syntax_activation_for_julia_files},
 	{"editor_syntax_activation_for_scala_files", test_editor_syntax_activation_for_scala_files},
 	{"editor_syntax_activation_for_ejs_files", test_editor_syntax_activation_for_ejs_files},
@@ -2588,6 +2666,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_incremental_edits_keep_toml_tree_valid", test_editor_syntax_incremental_edits_keep_toml_tree_valid},
 	{"editor_syntax_incremental_edits_keep_yaml_tree_valid", test_editor_syntax_incremental_edits_keep_yaml_tree_valid},
 	{"editor_syntax_incremental_edits_keep_make_tree_valid", test_editor_syntax_incremental_edits_keep_make_tree_valid},
+	{"editor_syntax_incremental_edits_keep_diff_tree_valid", test_editor_syntax_incremental_edits_keep_diff_tree_valid},
 	{"editor_syntax_incremental_edits_keep_julia_tree_valid", test_editor_syntax_incremental_edits_keep_julia_tree_valid},
 	{"editor_syntax_incremental_edits_keep_scala_tree_valid", test_editor_syntax_incremental_edits_keep_scala_tree_valid},
 	{"editor_syntax_incremental_edits_keep_ejs_tree_valid", test_editor_syntax_incremental_edits_keep_ejs_tree_valid},

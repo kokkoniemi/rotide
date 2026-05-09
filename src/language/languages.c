@@ -35,6 +35,7 @@ extern const TSLanguage *tree_sitter_markdown_inline(void);
 extern const TSLanguage *tree_sitter_toml(void);
 extern const TSLanguage *tree_sitter_yaml(void);
 extern const TSLanguage *tree_sitter_make(void);
+extern const TSLanguage *tree_sitter_diff(void);
 
 static const TSLanguage *editorSyntaxFactoryEjs(void) {
 	return tree_sitter_embedded_template();
@@ -131,6 +132,7 @@ static const char *const k_yaml_extensions[] = {
 static const char *const k_make_extensions[] = {".mk", ".mak", NULL};
 static const char *const k_make_basenames[] = {
 	"Makefile", "makefile", "GNUmakefile", "BSDmakefile", NULL};
+static const char *const k_diff_extensions[] = {".diff", ".patch", NULL};
 
 static const char *const k_html_injection_aliases[] = {
 	"html", "hamlet", "xhamlet", "shamlet", "xshamlet", "ihamlet", "hsx", NULL};
@@ -153,6 +155,7 @@ static const char *const k_markdown_inline_injection_aliases[] = {
 static const char *const k_toml_injection_aliases[] = {"toml", NULL};
 static const char *const k_yaml_injection_aliases[] = {"yaml", "yml", NULL};
 static const char *const k_make_injection_aliases[] = {"make", "makefile", "gnumake", NULL};
+static const char *const k_diff_injection_aliases[] = {"diff", "patch", NULL};
 
 static const struct editorSyntaxLanguageDef g_languages[] = {
 	{
@@ -449,6 +452,15 @@ static const struct editorSyntaxLanguageDef g_languages[] = {
 		.extensions = k_make_extensions,
 		.basenames = k_make_basenames,
 		.injection_aliases = k_make_injection_aliases
+	},
+	{
+		.id = EDITOR_SYNTAX_DIFF,
+		.name = "diff",
+		.ts_factory = tree_sitter_diff,
+		.highlight_parts = editor_query_diff_highlight_parts,
+		.highlight_part_count = EDITOR_QUERY_DIFF_HIGHLIGHT_PART_COUNT,
+		.extensions = k_diff_extensions,
+		.injection_aliases = k_diff_injection_aliases
 	}
 };
 

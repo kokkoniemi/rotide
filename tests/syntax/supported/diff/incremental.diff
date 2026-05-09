@@ -1,0 +1,7 @@
+diff --git a/src/app.c b/src/app.c
+index 1111111..2222222 100644
+--- a/src/app.c
++++ b/src/app.c
+@@ -1,2 +1,2 @@
+-before
++after

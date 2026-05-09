@@ -489,7 +489,8 @@ static int editorSyntaxReconfigureForFilename(void) {
 		first_line = E.rows[0].chars;
 	}
 
-	enum editorSyntaxLanguage wanted =
+	enum editorSyntaxLanguage wanted = E.tab_kind == EDITOR_TAB_GIT_DIFF ?
+			EDITOR_SYNTAX_DIFF :
 			editorSyntaxDetectLanguageFromFilenameAndFirstLine(E.filename, first_line);
 	if (wanted == EDITOR_SYNTAX_NONE) {
 		editorSyntaxDeactivateActive();

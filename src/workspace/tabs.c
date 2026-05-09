@@ -425,7 +425,7 @@ static void editorLoadActiveTab(int tab_idx) {
 		return;
 	}
 	editorTabStateLoadActive(&E.tabs[tab_idx]);
-	if (editorActiveTabIsReadOnly()) {
+	if (editorActiveTabIsReadOnly() && E.tab_kind != EDITOR_TAB_GIT_DIFF) {
 		E.syntax_language = EDITOR_SYNTAX_NONE;
 		editorSyntaxStateDestroy(E.syntax_state);
 		E.syntax_state = NULL;
@@ -445,7 +445,8 @@ static void editorLoadActiveTab(int tab_idx) {
 	if (E.numrows > 0 && E.rows != NULL) {
 		first_line = E.rows[0].chars;
 	}
-	enum editorSyntaxLanguage detected =
+	enum editorSyntaxLanguage detected = E.tab_kind == EDITOR_TAB_GIT_DIFF ?
+			EDITOR_SYNTAX_DIFF :
 			editorSyntaxDetectLanguageFromFilenameAndFirstLine(E.filename, first_line);
 	if (E.syntax_language != detected || (detected != EDITOR_SYNTAX_NONE && E.syntax_state == NULL)) {
 		(void)editorSyntaxParseFullActive();
@@ -1315,6 +1316,7 @@ int editorTabOpenGitDiff(const char *title, const char *diff_text) {
 	}
 	E.cy = 0;
 	E.cx = 0;
+	(void)editorSyntaxParseFullActive();
 	editorViewportEnsureCursorVisible();
 	editorStoreActiveTab();
 	editorLoadActiveTab(E.active_tab);

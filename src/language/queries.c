@@ -318,6 +318,8 @@ static const struct editorSyntaxCaptureRule g_capture_rules[] = {
 	{"constructor", EDITOR_SYNTAX_HL_TYPE},
 	{"text.strong", EDITOR_SYNTAX_HL_KEYWORD},
 	{"text.title", EDITOR_SYNTAX_HL_KEYWORD},
+	{"diff.minus", EDITOR_SYNTAX_HL_PREPROCESSOR},
+	{"diff.plus", EDITOR_SYNTAX_HL_STRING},
 	{"parameter", EDITOR_SYNTAX_HL_PARAMETER},
 	{"namespace", EDITOR_SYNTAX_HL_MODULE},
 	{"exception", EDITOR_SYNTAX_HL_KEYWORD},

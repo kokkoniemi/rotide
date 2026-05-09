@@ -1240,6 +1240,34 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_make_token
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_git_diff_tab(void) {
+	const char *diff_text =
+			"diff --git a/src/app.c b/src/app.c\n"
+			"index 1111111..2222222 100644\n"
+			"--- a/src/app.c\n"
+			"+++ b/src/app.c\n"
+			"@@ -1,3 +1,3 @@\n"
+			"-old line\n"
+			"+new line\n"
+			" context line\n";
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTabOpenGitDiff("git diff: src/app.c", diff_text));
+	E.window_rows = 10;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[93mdiff\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[32mnew line") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[91mold line") != NULL);
+	free(output);
+	return 0;
+}
+
 static int test_editor_refresh_screen_markdown_list_code_spans_stay_highlighted(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-markdown-list-code-XXXXXX.md";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
@@ -3156,6 +3184,7 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_applies_syntax_highlighting_for_toml_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_toml_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_yaml_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_yaml_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_make_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_make_tokens},
+	{"editor_refresh_screen_applies_syntax_highlighting_for_git_diff_tab", test_editor_refresh_screen_applies_syntax_highlighting_for_git_diff_tab},
 	{"editor_refresh_screen_markdown_list_code_spans_stay_highlighted", test_editor_refresh_screen_markdown_list_code_spans_stay_highlighted},
 	{"editor_refresh_screen_applies_markdown_code_fence_injection", test_editor_refresh_screen_applies_markdown_code_fence_injection},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_scala_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_scala_tokens},

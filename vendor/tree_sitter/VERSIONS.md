@@ -29,6 +29,7 @@ Pinned source/tooling used by this repository:
 - Tree-sitter TOML grammar source ref: `64b56832c2cffe41758f28e05c756a3a98d16f41` (`tree-sitter-toml-v0.7.0-64b5683`)
 - Tree-sitter YAML grammar source ref: `7708026449bed86239b1cd5bce6e3c34dbca6415` (`tree-sitter-yaml-v0.7.2-7708026`)
 - Tree-sitter Make grammar source ref: `70613f3d812cbabbd7f38d104d60a409c4008b43` (`tree-sitter-make-master-70613f3`)
+- Tree-sitter Diff grammar source ref: `2520c3f934b3179bb540d23e0ef45f75304b5fed` (`tree-sitter-diff-master-2520c3f`)
 - Tree-sitter CLI release for regeneration: `v0.26.8`
 
 The machine-readable source of truth is [`VERSIONS.env`](./VERSIONS.env).

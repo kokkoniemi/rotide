@@ -75,6 +75,7 @@ ASAN_OPTIONS=detect_leaks=0 make test-sanitize
   - TOML (`.toml`, `.toml.example`)
   - YAML (`.yaml`, `.yml`, `.yaml.example`, `.yml.example`)
   - Make (`.mk`, `.mak`, `Makefile`/`makefile`/`GNUmakefile`/`BSDmakefile`)
+  - Diff (`.diff`, `.patch`, plus generated Git diff tabs)
   - Regex (`.regex`)
 - Go LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `gopls`.
 - C/C++ LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `clangd`.
