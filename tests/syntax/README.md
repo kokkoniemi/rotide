@@ -23,6 +23,7 @@ Current fixture-to-editor mapping (`enum editorSyntaxLanguage` in
 - `supported/javascript/` maps to `EDITOR_SYNTAX_JAVASCRIPT`
 - `supported/json/` maps to `EDITOR_SYNTAX_JSON`
 - `supported/julia/` maps to `EDITOR_SYNTAX_JULIA`
+- `supported/make/` maps to `EDITOR_SYNTAX_MAKE`
 - `supported/markdown/` maps to `EDITOR_SYNTAX_MARKDOWN`
 - `supported/ocaml/` maps to `EDITOR_SYNTAX_OCAML`
 - `supported/php/` maps to `EDITOR_SYNTAX_PHP`

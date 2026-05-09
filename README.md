@@ -74,6 +74,7 @@ ASAN_OPTIONS=detect_leaks=0 make test-sanitize
   - Markdown (`.md`, `.markdown`) with inline-grammar overlay for emphasis/links/code spans and fenced code-block injection routed by info-string
   - TOML (`.toml`, `.toml.example`)
   - YAML (`.yaml`, `.yml`, `.yaml.example`, `.yml.example`)
+  - Make (`.mk`, `.mak`, `Makefile`/`makefile`/`GNUmakefile`/`BSDmakefile`)
   - Regex (`.regex`)
 - Go LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `gopls`.
 - C/C++ LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `clangd`.

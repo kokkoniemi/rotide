@@ -565,6 +565,40 @@ static int test_editor_syntax_activation_for_yaml_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_make_files(void) {
+	char mk_path[] = "/tmp/rotide-test-syntax-make-XXXXXX.mk";
+	ASSERT_TRUE(write_fixture_to_temp_path(mk_path, 3,
+			"tests/syntax/supported/make/activation.mk"));
+
+	editorOpen(mk_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_MAKE, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("makefile", editorSyntaxRootType());
+
+	char make_dir_template[] = "/tmp/rotide-test-syntax-makefile-XXXXXX";
+	char *make_dir = mkdtemp(make_dir_template);
+	ASSERT_TRUE(make_dir != NULL);
+
+	char makefile_path[512];
+	ASSERT_TRUE(path_join(makefile_path, sizeof(makefile_path), make_dir, "Makefile"));
+	ASSERT_TRUE(copyTestFixtureToPath(
+				"tests/syntax/supported/make/activation.mk", makefile_path));
+
+	editorOpen(makefile_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_MAKE, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("makefile", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(mk_path) == 0);
+	ASSERT_TRUE(unlink(makefile_path) == 0);
+	ASSERT_TRUE(rmdir(make_dir) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_julia_files(void) {
 	char jl_path[] = "/tmp/rotide-test-syntax-julia-XXXXXX.jl";
 	ASSERT_TRUE(write_fixture_to_temp_path(jl_path, 3,
@@ -1586,6 +1620,32 @@ static int test_editor_syntax_incremental_edits_keep_yaml_tree_valid(void) {
 	return 0;
 }
 
+static int test_editor_syntax_incremental_edits_keep_make_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-make-XXXXXX.mk";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
+			"tests/syntax/supported/make/incremental.mk"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_MAKE, editorSyntaxLanguageActive());
+
+	E.cy = 0;
+	E.cx = E.rows[0].size;
+	editorInsertChar('x');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 2;
+	E.cx = E.rows[2].size;
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_incremental_edits_keep_julia_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-julia-XXXXXX.jl";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
@@ -2493,6 +2553,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_activation_for_markdown_files", test_editor_syntax_activation_for_markdown_files},
 	{"editor_syntax_activation_for_toml_files", test_editor_syntax_activation_for_toml_files},
 	{"editor_syntax_activation_for_yaml_files", test_editor_syntax_activation_for_yaml_files},
+	{"editor_syntax_activation_for_make_files", test_editor_syntax_activation_for_make_files},
 	{"editor_syntax_activation_for_julia_files", test_editor_syntax_activation_for_julia_files},
 	{"editor_syntax_activation_for_scala_files", test_editor_syntax_activation_for_scala_files},
 	{"editor_syntax_activation_for_ejs_files", test_editor_syntax_activation_for_ejs_files},
@@ -2526,6 +2587,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_incremental_edits_keep_markdown_tree_valid", test_editor_syntax_incremental_edits_keep_markdown_tree_valid},
 	{"editor_syntax_incremental_edits_keep_toml_tree_valid", test_editor_syntax_incremental_edits_keep_toml_tree_valid},
 	{"editor_syntax_incremental_edits_keep_yaml_tree_valid", test_editor_syntax_incremental_edits_keep_yaml_tree_valid},
+	{"editor_syntax_incremental_edits_keep_make_tree_valid", test_editor_syntax_incremental_edits_keep_make_tree_valid},
 	{"editor_syntax_incremental_edits_keep_julia_tree_valid", test_editor_syntax_incremental_edits_keep_julia_tree_valid},
 	{"editor_syntax_incremental_edits_keep_scala_tree_valid", test_editor_syntax_incremental_edits_keep_scala_tree_valid},
 	{"editor_syntax_incremental_edits_keep_ejs_tree_valid", test_editor_syntax_incremental_edits_keep_ejs_tree_valid},

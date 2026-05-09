@@ -143,6 +143,10 @@ static int test_editor_syntax_registry_lookup_by_extension(void) {
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_YAML, (int)def->id);
 
+	def = editorSyntaxLookupLanguageByExtension(".mk");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_MAKE, (int)def->id);
+
 	ASSERT_TRUE(editorSyntaxLookupLanguageByExtension(".bogus") == NULL);
 	return 0;
 }
@@ -156,6 +160,10 @@ static int test_editor_syntax_registry_lookup_by_basename(void) {
 	def = editorSyntaxLookupLanguageByBasename("go.mod");
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_GO, (int)def->id);
+
+	def = editorSyntaxLookupLanguageByBasename("Makefile");
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_MAKE, (int)def->id);
 
 	ASSERT_TRUE(editorSyntaxLookupLanguageByBasename("noresult") == NULL);
 	return 0;
@@ -199,6 +207,11 @@ static int test_editor_syntax_registry_lookup_by_injection_name(void) {
 	def = editorSyntaxLookupLanguageByInjectionName(quoted, strlen(quoted));
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_HTML, (int)def->id);
+
+	const char *make = "gnumake";
+	def = editorSyntaxLookupLanguageByInjectionName(make, strlen(make));
+	ASSERT_TRUE(def != NULL);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_MAKE, (int)def->id);
 
 	const char *unknown = "klingon";
 	ASSERT_TRUE(editorSyntaxLookupLanguageByInjectionName(unknown, strlen(unknown)) == NULL);

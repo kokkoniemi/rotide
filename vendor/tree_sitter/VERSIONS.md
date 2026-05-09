@@ -28,6 +28,7 @@ Pinned source/tooling used by this repository:
 - Tree-sitter Markdown grammar source ref: `f969cd3ae3f9fbd4e43205431d0ae286014c05b5` (`tree-sitter-markdown-v0.5.3-f969cd3`) — single repo ships block (`tree-sitter-markdown`) and inline (`tree-sitter-markdown-inline`) sub-grammars; both are vendored.
 - Tree-sitter TOML grammar source ref: `64b56832c2cffe41758f28e05c756a3a98d16f41` (`tree-sitter-toml-v0.7.0-64b5683`)
 - Tree-sitter YAML grammar source ref: `7708026449bed86239b1cd5bce6e3c34dbca6415` (`tree-sitter-yaml-v0.7.2-7708026`)
+- Tree-sitter Make grammar source ref: `70613f3d812cbabbd7f38d104d60a409c4008b43` (`tree-sitter-make-master-70613f3`)
 - Tree-sitter CLI release for regeneration: `v0.26.8`
 
 The machine-readable source of truth is [`VERSIONS.env`](./VERSIONS.env).

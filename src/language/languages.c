@@ -34,6 +34,7 @@ extern const TSLanguage *tree_sitter_markdown(void);
 extern const TSLanguage *tree_sitter_markdown_inline(void);
 extern const TSLanguage *tree_sitter_toml(void);
 extern const TSLanguage *tree_sitter_yaml(void);
+extern const TSLanguage *tree_sitter_make(void);
 
 static const TSLanguage *editorSyntaxFactoryEjs(void) {
 	return tree_sitter_embedded_template();
@@ -127,6 +128,9 @@ static const char *const k_markdown_extensions[] = {".md", ".markdown", NULL};
 static const char *const k_toml_extensions[] = {".toml", ".toml.example", NULL};
 static const char *const k_yaml_extensions[] = {
 	".yaml", ".yml", ".yaml.example", ".yml.example", NULL};
+static const char *const k_make_extensions[] = {".mk", ".mak", NULL};
+static const char *const k_make_basenames[] = {
+	"Makefile", "makefile", "GNUmakefile", "BSDmakefile", NULL};
 
 static const char *const k_html_injection_aliases[] = {
 	"html", "hamlet", "xhamlet", "shamlet", "xshamlet", "ihamlet", "hsx", NULL};
@@ -148,6 +152,7 @@ static const char *const k_markdown_inline_injection_aliases[] = {
 	"markdown_inline", "markdown.inline", NULL};
 static const char *const k_toml_injection_aliases[] = {"toml", NULL};
 static const char *const k_yaml_injection_aliases[] = {"yaml", "yml", NULL};
+static const char *const k_make_injection_aliases[] = {"make", "makefile", "gnumake", NULL};
 
 static const struct editorSyntaxLanguageDef g_languages[] = {
 	{
@@ -434,6 +439,16 @@ static const struct editorSyntaxLanguageDef g_languages[] = {
 		.highlight_part_count = EDITOR_QUERY_YAML_HIGHLIGHT_PART_COUNT,
 		.extensions = k_yaml_extensions,
 		.injection_aliases = k_yaml_injection_aliases
+	},
+	{
+		.id = EDITOR_SYNTAX_MAKE,
+		.name = "make",
+		.ts_factory = tree_sitter_make,
+		.highlight_parts = editor_query_make_highlight_parts,
+		.highlight_part_count = EDITOR_QUERY_MAKE_HIGHLIGHT_PART_COUNT,
+		.extensions = k_make_extensions,
+		.basenames = k_make_basenames,
+		.injection_aliases = k_make_injection_aliases
 	}
 };
 
