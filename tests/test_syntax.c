@@ -565,6 +565,34 @@ static int test_editor_syntax_activation_for_yaml_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_xml_files(void) {
+	char xml_path[] = "/tmp/rotide-test-syntax-xml-XXXXXX.xml";
+	ASSERT_TRUE(write_fixture_to_temp_path(xml_path, 4,
+			"tests/syntax/supported/xml/activation.xml"));
+
+	editorOpen(xml_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_XML, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("document", editorSyntaxRootType());
+
+	char svg_path[] = "/tmp/rotide-test-syntax-svg-XXXXXX.svg";
+	ASSERT_TRUE(write_fixture_to_temp_path(svg_path, 4,
+			"tests/syntax/supported/xml/activation.xml"));
+
+	editorOpen(svg_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_XML, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("document", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(xml_path) == 0);
+	ASSERT_TRUE(unlink(svg_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_make_files(void) {
 	char mk_path[] = "/tmp/rotide-test-syntax-make-XXXXXX.mk";
 	ASSERT_TRUE(write_fixture_to_temp_path(mk_path, 3,
@@ -1670,6 +1698,32 @@ static int test_editor_syntax_incremental_edits_keep_yaml_tree_valid(void) {
 	return 0;
 }
 
+static int test_editor_syntax_incremental_edits_keep_xml_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-xml-XXXXXX.xml";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+			"tests/syntax/supported/xml/incremental.xml"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_XML, editorSyntaxLanguageActive());
+
+	E.cy = 2;
+	E.cx = 11;
+	editorInsertChar('x');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = E.rows[0].size;
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_incremental_edits_keep_make_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-make-XXXXXX.mk";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
@@ -2629,6 +2683,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_activation_for_markdown_files", test_editor_syntax_activation_for_markdown_files},
 	{"editor_syntax_activation_for_toml_files", test_editor_syntax_activation_for_toml_files},
 	{"editor_syntax_activation_for_yaml_files", test_editor_syntax_activation_for_yaml_files},
+	{"editor_syntax_activation_for_xml_files", test_editor_syntax_activation_for_xml_files},
 	{"editor_syntax_activation_for_make_files", test_editor_syntax_activation_for_make_files},
 	{"editor_syntax_activation_for_diff_files", test_editor_syntax_activation_for_diff_files},
 	{"editor_syntax_git_diff_tab_uses_diff_language", test_editor_syntax_git_diff_tab_uses_diff_language},
@@ -2665,6 +2720,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_syntax_incremental_edits_keep_markdown_tree_valid", test_editor_syntax_incremental_edits_keep_markdown_tree_valid},
 	{"editor_syntax_incremental_edits_keep_toml_tree_valid", test_editor_syntax_incremental_edits_keep_toml_tree_valid},
 	{"editor_syntax_incremental_edits_keep_yaml_tree_valid", test_editor_syntax_incremental_edits_keep_yaml_tree_valid},
+	{"editor_syntax_incremental_edits_keep_xml_tree_valid", test_editor_syntax_incremental_edits_keep_xml_tree_valid},
 	{"editor_syntax_incremental_edits_keep_make_tree_valid", test_editor_syntax_incremental_edits_keep_make_tree_valid},
 	{"editor_syntax_incremental_edits_keep_diff_tree_valid", test_editor_syntax_incremental_edits_keep_diff_tree_valid},
 	{"editor_syntax_incremental_edits_keep_julia_tree_valid", test_editor_syntax_incremental_edits_keep_julia_tree_valid},

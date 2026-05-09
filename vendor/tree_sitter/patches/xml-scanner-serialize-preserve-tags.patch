@@ -1,0 +1,32 @@
+diff --git a/vendor/tree_sitter/grammars/xml/src/scanner.c b/vendor/tree_sitter/grammars/xml/src/scanner.c
+index 0d7e445..0a1aa81 100644
+--- a/vendor/tree_sitter/grammars/xml/src/scanner.c
++++ b/vendor/tree_sitter/grammars/xml/src/scanner.c
+@@ -48,7 +48,8 @@ static bool scan_end_tag_name(Vector *tags, TSLexer *lexer) {
+     }
+ 
+     if (tags->size > 0 && string_eq(array_back(tags), &tag_name)) {
+-        array_delete(&array_pop(tags));
++        String popped_tag = array_pop(tags);
++        array_delete(&popped_tag);
+         lexer->result_symbol = END_TAG_NAME;
+     } else {
+         lexer->result_symbol = ERRONEOUS_END_NAME;
+@@ -61,7 +62,8 @@ static bool scan_self_closing_tag_delimiter(Vector *tags, TSLexer *lexer) {
+     advance(lexer);
+     advance_if_eq(lexer, '>');
+     if (tags->size > 0) {
+-        array_delete(&array_pop(tags));
++        String popped_tag = array_pop(tags);
++        array_delete(&popped_tag);
+         lexer->result_symbol = SELF_CLOSING_TAG_DELIMITER;
+     }
+     return true;
+@@ -222,7 +224,6 @@ unsigned tree_sitter_xml_external_scanner_serialize(void *payload, char *buffer)
+         if (name_length > 0) {
+             memcpy(&buffer[size], tag->contents, name_length);
+         }
+-        array_delete(tag);
+         size += name_length;
+     }
+ 

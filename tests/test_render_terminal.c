@@ -1215,6 +1215,29 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_yaml_token
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_xml_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-xml-XXXXXX.xml";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+			"tests/syntax/supported/xml/highlight.xml"));
+
+	editorOpen(path);
+	E.window_rows = 8;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94mxml\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m<!-- catalog comment -->\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96mcatalog\x1b[39m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_make_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-make-XXXXXX.mk";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
@@ -3183,6 +3206,7 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_applies_syntax_highlighting_for_markdown_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_markdown_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_toml_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_toml_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_yaml_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_yaml_tokens},
+	{"editor_refresh_screen_applies_syntax_highlighting_for_xml_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_xml_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_make_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_make_tokens},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_git_diff_tab", test_editor_refresh_screen_applies_syntax_highlighting_for_git_diff_tab},
 	{"editor_refresh_screen_markdown_list_code_spans_stay_highlighted", test_editor_refresh_screen_markdown_list_code_spans_stay_highlighted},

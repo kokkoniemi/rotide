@@ -35,6 +35,7 @@ Current fixture-to-editor mapping (`enum editorSyntaxLanguage` in
 - `supported/scala/` maps to `EDITOR_SYNTAX_SCALA`
 - `supported/typescript/` maps to `EDITOR_SYNTAX_TYPESCRIPT`
 - `supported/tsx/` maps to `EDITOR_SYNTAX_TSX`
+- `supported/xml/` maps to `EDITOR_SYNTAX_XML`
 
 Notes:
 

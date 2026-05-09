@@ -209,6 +209,7 @@ EMBEDDED_TEMPLATE_GRAMMAR_SRC=""
 MARKDOWN_GRAMMAR_SRC=""
 TOML_GRAMMAR_SRC=""
 YAML_GRAMMAR_SRC=""
+XML_GRAMMAR_SRC=""
 MAKE_GRAMMAR_SRC=""
 DIFF_GRAMMAR_SRC=""
 
@@ -238,6 +239,7 @@ download_repo_tarball "tree-sitter/tree-sitter-embedded-template" "${TREE_SITTER
 download_repo_tarball "tree-sitter-grammars/tree-sitter-markdown" "${TREE_SITTER_MARKDOWN_GRAMMAR_REF}" MARKDOWN_GRAMMAR_SRC
 download_repo_tarball "tree-sitter-grammars/tree-sitter-toml" "${TREE_SITTER_TOML_GRAMMAR_REF}" TOML_GRAMMAR_SRC
 download_repo_tarball "tree-sitter-grammars/tree-sitter-yaml" "${TREE_SITTER_YAML_GRAMMAR_REF}" YAML_GRAMMAR_SRC
+download_repo_tarball "tree-sitter-grammars/tree-sitter-xml" "${TREE_SITTER_XML_GRAMMAR_REF}" XML_GRAMMAR_SRC
 download_repo_tarball "tree-sitter-grammars/tree-sitter-make" "${TREE_SITTER_MAKE_GRAMMAR_REF}" MAKE_GRAMMAR_SRC
 download_repo_tarball "tree-sitter-grammars/tree-sitter-diff" "${TREE_SITTER_DIFF_GRAMMAR_REF}" DIFF_GRAMMAR_SRC
 
@@ -287,6 +289,7 @@ regenerate_parser "${MARKDOWN_GRAMMAR_SRC}/tree-sitter-markdown" "Markdown"
 regenerate_parser "${MARKDOWN_GRAMMAR_SRC}/tree-sitter-markdown-inline" "Markdown Inline"
 regenerate_parser "${TOML_GRAMMAR_SRC}" "TOML"
 regenerate_parser "${YAML_GRAMMAR_SRC}" "YAML"
+regenerate_parser "${XML_GRAMMAR_SRC}/xml" "XML"
 regenerate_parser "${MAKE_GRAMMAR_SRC}" "Make"
 regenerate_parser "${DIFF_GRAMMAR_SRC}" "Diff"
 
@@ -373,6 +376,23 @@ sync_grammar_vendor "${MARKDOWN_GRAMMAR_SRC}/tree-sitter-markdown" "${REPO_ROOT}
 sync_grammar_vendor "${MARKDOWN_GRAMMAR_SRC}/tree-sitter-markdown-inline" "${REPO_ROOT}/vendor/tree_sitter/grammars/markdown_inline"
 sync_grammar_vendor "${TOML_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/toml"
 sync_grammar_vendor "${YAML_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/yaml"
+# tree-sitter-xml ships XML and DTD sub-grammars plus shared common/scanner.h.
+# RotIDE vendors the XML sub-grammar here; DTD can be added as a separate
+# runtime language if file detection support is needed later.
+rm -rf "${XML_GRAMMAR_SRC}/xml/queries"
+mkdir -p "${XML_GRAMMAR_SRC}/xml/queries"
+cp -R "${XML_GRAMMAR_SRC}/queries/xml/." "${XML_GRAMMAR_SRC}/xml/queries/"
+sync_grammar_vendor "${XML_GRAMMAR_SRC}/xml" "${REPO_ROOT}/vendor/tree_sitter/grammars/xml"
+rm -rf "${REPO_ROOT}/vendor/tree_sitter/grammars/xml/common"
+cp -R "${XML_GRAMMAR_SRC}/common" "${REPO_ROOT}/vendor/tree_sitter/grammars/xml/common"
+sed -i.bak \
+	-e 's|\.\./\.\./common/scanner\.h|../common/scanner.h|' \
+	-e 's|\.\./common/scanner\.h|../common/scanner.h|' \
+	"${REPO_ROOT}/vendor/tree_sitter/grammars/xml/src/scanner.c"
+rm -f "${REPO_ROOT}/vendor/tree_sitter/grammars/xml/src/scanner.c.bak"
+# Preserve XML scanner tag-stack state during Tree-sitter serialization.
+git -C "${REPO_ROOT}" apply \
+	"${REPO_ROOT}/vendor/tree_sitter/patches/xml-scanner-serialize-preserve-tags.patch"
 sync_grammar_vendor "${MAKE_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/make"
 sync_grammar_vendor "${DIFF_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/diff"
 
