@@ -4,7 +4,7 @@ RotIDE is a terminal text editor inspired by [kilo](https://github.com/antirez/k
 
 ## Status
 
-RotIDE is under active development. Core editing, tabs, drawer navigation, search, undo/redo, Tree-sitter highlighting, crash recovery, LSP-backed definition lookup for Go/C/C++/HTML/CSS/JSON/JavaScript, and incremental ESLint integration are implemented and tested.
+RotIDE is under active development. Core editing, tabs, drawer navigation, search, undo/redo, Tree-sitter highlighting, crash recovery, LSP-backed definition lookup for Go/C/C++/HTML/CSS/JSON/JavaScript, an LSP Problems drawer, and incremental ESLint integration are implemented and tested.
 
 ## Quick Start
 
@@ -99,6 +99,7 @@ ASAN_OPTIONS=detect_leaks=0 make test-sanitize
 - JSON LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `~/.local/bin/vscode-json-language-server --stdio` by default.
 - JavaScript/JSX LSP definition lookup (`Ctrl-O` or `Ctrl + left click`) via `~/.local/bin/typescript-language-server --stdio` by default.
 - ESLint diagnostics for active JavaScript buffers (`.js`, `.mjs`, `.cjs`, `.jsx`) via `~/.local/bin/vscode-eslint-language-server --stdio` by default.
+- LSP drawer with clickable syntax and LSP problems for open tabs.
 - Manual ESLint fix action (`eslint_fix`) for JavaScript buffers, configurable through `[keymap]`.
 - Missing-`gopls` install prompt with live output in read-only task-log tabs.
 - Missing-`typescript-language-server` install prompt with live output in read-only task-log tabs.
@@ -123,6 +124,7 @@ Syntax fixture samples are stored in [`tests/syntax/`](tests/syntax/README.md).
 - `Alt-Shift-Left` / `Alt-Shift-Right`: resize drawer
 - `Ctrl-P`: search files in the drawer
 - `Ctrl-Alt-F`: search text across the project in the drawer
+- `Ctrl-Alt-L`: show LSP Problems/Symbols drawer
 - `Ctrl-F`: search
 - `Ctrl-G`: go to line
 - `Ctrl-O` / `Ctrl + left click`: Go/C/C++/HTML/CSS/SCSS/JSON/JavaScript definition (supported source buffers)
@@ -314,6 +316,7 @@ This section names the core concepts used throughout the codebase.
 - LSP clients in [`src/language/lsp.c`](src/language/lsp.c) with JSON-RPC transport for `gopls`, `clangd`, `typescript-language-server`, and the `vscode-langservers-extracted` HTML/CSS/JSON/ESLint servers.
 - Tracks per-tab document open/version and sends didOpen/didChange/didSave/didClose.
 - Stores per-tab diagnostic summaries for active-buffer ESLint results.
+- Shows open-tab diagnostics and Tree-sitter parse errors in the LSP drawer.
 - Definition lookup and ESLint code actions integrate with tabs and position conversion helpers.
 
 ### Source tree

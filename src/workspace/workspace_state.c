@@ -246,6 +246,9 @@ static enum editorDrawerMode editorWorkspaceStateModeFromString(const char *valu
 	if (strcmp(value, "git") == 0) {
 		return EDITOR_DRAWER_MODE_GIT;
 	}
+	if (strcmp(value, "lsp") == 0) {
+		return EDITOR_DRAWER_MODE_LSP;
+	}
 	return EDITOR_DRAWER_MODE_TREE;
 }
 
@@ -255,6 +258,8 @@ static const char *editorWorkspaceStateModeToString(enum editorDrawerMode mode) 
 			return "main_menu";
 		case EDITOR_DRAWER_MODE_GIT:
 			return "git";
+		case EDITOR_DRAWER_MODE_LSP:
+			return "lsp";
 		default:
 			return "tree";
 	}
@@ -368,7 +373,7 @@ int editorWorkspaceStateSave(void) {
 
 	enum editorDrawerMode mode = E.drawer_mode;
 	if (mode != EDITOR_DRAWER_MODE_TREE && mode != EDITOR_DRAWER_MODE_MAIN_MENU &&
-			mode != EDITOR_DRAWER_MODE_GIT) {
+			mode != EDITOR_DRAWER_MODE_GIT && mode != EDITOR_DRAWER_MODE_LSP) {
 		mode = EDITOR_DRAWER_MODE_TREE;
 	}
 

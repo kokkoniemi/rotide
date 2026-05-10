@@ -110,6 +110,9 @@ int editorSyntaxDrainLastQueryCompileError(struct editorSyntaxQueryCompileError 
 int editorSyntaxCopyLastQueryCompileError(struct editorSyntaxQueryCompileError *error_out);
 
 int editorSyntaxStateHasTree(const struct editorSyntaxState *state);
+int editorSyntaxStateHasError(const struct editorSyntaxState *state);
+int editorSyntaxStateFirstErrorPosition(const struct editorSyntaxState *state,
+		int *row_out, int *column_out);
 const char *editorSyntaxStateRootType(const struct editorSyntaxState *state);
 enum editorSyntaxLanguage editorSyntaxStateLanguage(const struct editorSyntaxState *state);
 int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,

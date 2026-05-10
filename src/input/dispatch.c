@@ -53,7 +53,7 @@ enum editorKeypressEffect {
 };
 
 #define DRAWER_HEADER_MODE_BUTTON_COLS 3
-#define DRAWER_HEADER_MODE_BUTTON_COUNT 5
+#define DRAWER_HEADER_MODE_BUTTON_COUNT 6
 #define DRAWER_HEADER_MODE_BUTTONS_MIN_COLS \
 	(ROTIDE_DRAWER_COLLAPSED_WIDTH + \
 			DRAWER_HEADER_MODE_BUTTON_COLS * DRAWER_HEADER_MODE_BUTTON_COUNT)
@@ -2100,11 +2100,13 @@ static int editorOpenSelectedGitDiff(void) {
 	return ok;
 }
 
-static int editorJumpToDefinitionLocation(const struct editorLspLocation *location) {
-	if (location == NULL || location->path == NULL || location->path[0] == '\0') {
+static int editorJumpToPathLocation(const char *path, int line, int character, int preview) {
+	if (path == NULL || path[0] == '\0') {
 		return 0;
 	}
-	if (!editorTabOpenOrSwitchToFile(location->path)) {
+	int opened = preview ? editorTabOpenOrSwitchToPreviewFile(path) :
+			editorTabOpenOrSwitchToFile(path);
+	if (!opened) {
 		return 0;
 	}
 
@@ -2114,14 +2116,12 @@ static int editorJumpToDefinitionLocation(const struct editorLspLocation *locati
 		return 1;
 	}
 
-	int line = location->line;
 	if (line < 0) {
 		line = 0;
 	}
 	if (line >= E.numrows) {
 		line = E.numrows - 1;
 	}
-	int character = location->character;
 	if (character < 0) {
 		character = 0;
 	}
@@ -2140,6 +2140,23 @@ static int editorJumpToDefinitionLocation(const struct editorLspLocation *locati
 	}
 	editorViewportEnsureCursorVisible();
 	return 1;
+}
+
+static int editorJumpToDefinitionLocation(const struct editorLspLocation *location) {
+	if (location == NULL) {
+		return 0;
+	}
+	return editorJumpToPathLocation(location->path, location->line, location->character, 0);
+}
+
+static int editorJumpToSelectedLspDrawerLocation(int preview) {
+	const char *path = NULL;
+	int line = 0;
+	int character = 0;
+	if (!editorDrawerSelectedLspLocation(&path, &line, &character)) {
+		return 0;
+	}
+	return editorJumpToPathLocation(path, line, character, preview);
 }
 
 static int editorPromptDefinitionChoice(int count, int *choice_out) {
@@ -2523,9 +2540,12 @@ static int editorDrawerHeaderModeForColumn(int mouse_col, int drawer_cols,
 		*mode_out = EDITOR_DRAWER_MODE_PROJECT_SEARCH;
 		return 1;
 	case 3:
-		*mode_out = EDITOR_DRAWER_MODE_GIT;
+		*mode_out = EDITOR_DRAWER_MODE_LSP;
 		return 1;
 	case 4:
+		*mode_out = EDITOR_DRAWER_MODE_GIT;
+		return 1;
+	case 5:
 		*mode_out = EDITOR_DRAWER_MODE_MAIN_MENU;
 		return 1;
 	default:
@@ -2571,6 +2591,15 @@ static int editorSwitchDrawerHeaderMode(enum editorDrawerMode mode) {
 		return EDITOR_KEYPRESS_EFFECT_NONE;
 	case EDITOR_DRAWER_MODE_PROJECT_SEARCH:
 		editorFindTextInProject();
+		return EDITOR_KEYPRESS_EFFECT_NONE;
+	case EDITOR_DRAWER_MODE_LSP:
+		editorHistoryBreakGroup();
+		if (E.drawer_mode != EDITOR_DRAWER_MODE_LSP || editorFileSearchIsActive() ||
+				editorProjectSearchIsActive()) {
+			(void)editorDrawerLspToggle();
+			editorSetStatusMsg("LSP drawer shown");
+		}
+		E.pane_focus = EDITOR_PANE_DRAWER;
 		return EDITOR_KEYPRESS_EFFECT_NONE;
 	case EDITOR_DRAWER_MODE_MAIN_MENU:
 		editorHistoryBreakGroup();
@@ -2684,6 +2713,30 @@ static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 				E.pane_focus = EDITOR_PANE_TEXT;
 			}
 			editorResetDrawerClickTracking();
+			E.mouse_left_button_down = 0;
+			E.mouse_drag_started = 0;
+			return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+		}
+		if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
+			int should_open_location = E.drawer_last_click_visible_idx == visible_idx &&
+					E.drawer_last_click_ms > 0 &&
+					now_ms > 0 &&
+					now_ms - E.drawer_last_click_ms <= DRAWER_DOUBLE_CLICK_THRESHOLD_MS;
+			if (should_open_location) {
+				if (editorJumpToSelectedLspDrawerLocation(0)) {
+					E.pane_focus = EDITOR_PANE_TEXT;
+				}
+				editorResetDrawerClickTracking();
+				E.mouse_left_button_down = 0;
+				E.mouse_drag_started = 0;
+				return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			}
+			if (editorJumpToSelectedLspDrawerLocation(1)) {
+				editorSetStatusMsg("LSP location previewed. Double-click to open");
+			}
+			E.drawer_last_click_visible_idx = visible_idx;
+			E.drawer_last_click_ms = now_ms;
+			E.pane_focus = EDITOR_PANE_DRAWER;
 			E.mouse_left_button_down = 0;
 			E.mouse_drag_started = 0;
 			return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
@@ -2975,6 +3028,11 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 						"Not in a git repository") :
 						"Project drawer shown");
 				break;
+			case EDITOR_ACTION_LSP_DRAWER:
+				(void)editorDrawerLspToggle();
+				editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_LSP ?
+						"LSP drawer shown" : "Project drawer shown");
+				break;
 			default:
 				break;
 		}
@@ -3038,6 +3096,11 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 						(E.git_repo_root != NULL ? "Git changes shown" :
 						"Not in a git repository") :
 						"Project drawer shown");
+				break;
+			case EDITOR_ACTION_LSP_DRAWER:
+				(void)editorDrawerLspToggle();
+				editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_LSP ?
+						"LSP drawer shown" : "Project drawer shown");
 				break;
 			default:
 				break;
@@ -3121,6 +3184,12 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 					(E.git_repo_root != NULL ? "Git changes shown" :
 					"Not in a git repository") :
 					"Project drawer shown");
+			break;
+		case EDITOR_ACTION_LSP_DRAWER:
+			editorHistoryBreakGroup();
+			(void)editorDrawerLspToggle();
+			editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_LSP ?
+					"LSP drawer shown" : "Project drawer shown");
 			break;
 		case EDITOR_ACTION_OPEN_SETTINGS:
 			editorHistoryBreakGroup();
@@ -3388,6 +3457,11 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 					(void)editorDrawerToggleSelectionExpanded(E.window_rows);
 				} else if (E.drawer_mode == EDITOR_DRAWER_MODE_GIT) {
 					if (editorOpenSelectedGitDiff()) {
+						E.pane_focus = EDITOR_PANE_TEXT;
+						effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+					}
+				} else if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
+					if (editorJumpToSelectedLspDrawerLocation(0)) {
 						E.pane_focus = EDITOR_PANE_TEXT;
 						effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 					}

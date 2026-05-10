@@ -2295,6 +2295,106 @@ static int test_editor_task_log_read_only_search_and_copy(void) {
 	return 0;
 }
 
+static int find_drawer_entry_containing(const char *needle, int *idx_out,
+		struct editorDrawerEntryView *view_out) {
+	int visible = editorDrawerVisibleCount();
+	for (int i = 0; i < visible; i++) {
+		struct editorDrawerEntryView view = {0};
+		if (!editorDrawerGetVisibleEntry(i, &view) || view.name == NULL) {
+			continue;
+		}
+		if (strstr(view.name, needle) != NULL) {
+			if (idx_out != NULL) {
+				*idx_out = i;
+			}
+			if (view_out != NULL) {
+				*view_out = view;
+			}
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static int test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 0;
+	E.lsp_html_enabled = 0;
+	E.lsp_eslint_enabled = 1;
+	ASSERT_TRUE(editorTabsInit());
+
+	char js_path[64];
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(js_path, sizeof(js_path),
+			"rotide-test-js-lsp-drawer-", ".js",
+			"tests/lsp/supported/javascript/eslint_buffer.js"));
+	editorOpen(js_path);
+	E.cy = 0;
+	E.cx = 0;
+	editorInsertChar(' ');
+	int dirty_before = E.dirty;
+
+	struct editorLspDiagnostic diagnostics[1] = {
+		{.start_line = 1, .start_character = 0, .end_line = 1, .end_character = 11,
+				.severity = 2, .message = "Missing semicolon"},
+	};
+	editorLspTestSetMockDiagnostics(js_path, diagnostics, 1);
+	editorLspPumpNotifications();
+
+	char lsp_drawer[] = {'\x1b', CTRL_KEY('l')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(lsp_drawer,
+			sizeof(lsp_drawer)) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+
+	struct editorDrawerEntryView view = {0};
+	int problem_idx = -1;
+	ASSERT_TRUE(find_drawer_entry_containing("Missing semicolon", &problem_idx, &view));
+	ASSERT_EQ_STR(js_path, view.path);
+	ASSERT_EQ_INT(1, view.line);
+
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(problem_idx, E.window_rows));
+	char enter[] = {'\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(enter, sizeof(enter)) == 0);
+	ASSERT_EQ_STR(js_path, E.filename);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(0, E.cx);
+	ASSERT_EQ_INT(dirty_before, E.dirty);
+	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+
+	ASSERT_TRUE(unlink(js_path) == 0);
+	return 0;
+}
+
+static int test_editor_lsp_drawer_lists_syntax_parse_error(void) {
+	ASSERT_TRUE(editorTabsInit());
+
+	char c_path[64];
+	ASSERT_TRUE(write_temp_c_file(c_path, sizeof(c_path), "int main( {\n"));
+	editorOpen(c_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxStateHasError(E.syntax_state));
+	int dirty_before = E.dirty;
+
+	(void)editorDrawerLspToggle();
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
+
+	struct editorDrawerEntryView view = {0};
+	int problem_idx = -1;
+	ASSERT_TRUE(find_drawer_entry_containing("Syntax parse error", &problem_idx, &view));
+	ASSERT_EQ_STR(c_path, view.path);
+	ASSERT_TRUE(view.line >= 0);
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(problem_idx, E.window_rows));
+
+	char enter[] = {'\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(enter, sizeof(enter)) == 0);
+	ASSERT_EQ_STR(c_path, E.filename);
+	ASSERT_EQ_INT(dirty_before, E.dirty);
+
+	ASSERT_TRUE(unlink(c_path) == 0);
+	return 0;
+}
+
 const struct editorTestCase g_lsp_tests[] = {
 	{"editor_lsp_config_defaults_and_precedence", test_editor_lsp_config_defaults_and_precedence},
 	{"editor_lsp_config_invalid_values_fallback_defaults", test_editor_lsp_config_invalid_values_fallback_defaults},
@@ -2317,6 +2417,8 @@ const struct editorTestCase g_lsp_tests[] = {
 	{"editor_lsp_language_id_routing_for_javascript_extensions", test_editor_lsp_language_id_routing_for_javascript_extensions},
 	{"editor_lsp_eslint_diagnostics_update_and_status_summary", test_editor_lsp_eslint_diagnostics_update_and_status_summary},
 	{"editor_lsp_eslint_diagnostics_persist_across_tab_switches", test_editor_lsp_eslint_diagnostics_persist_across_tab_switches},
+	{"editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem", test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem},
+	{"editor_lsp_drawer_lists_syntax_parse_error", test_editor_lsp_drawer_lists_syntax_parse_error},
 	{"editor_lsp_javascript_definition_coexists_with_eslint_sidecar", test_editor_lsp_javascript_definition_coexists_with_eslint_sidecar},
 	{"editor_process_keypress_ctrl_o_goto_definition_single_location", test_editor_process_keypress_ctrl_o_goto_definition_single_location},
 	{"editor_process_keypress_ctrl_o_goto_definition_single_location_c_buffer", test_editor_process_keypress_ctrl_o_goto_definition_single_location_c_buffer},

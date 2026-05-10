@@ -82,6 +82,7 @@ static const struct editorActionName editor_action_names[] = {
 	{"drawer_rename", EDITOR_ACTION_DRAWER_RENAME},
 	{"drawer_delete", EDITOR_ACTION_DRAWER_DELETE},
 	{"git_drawer", EDITOR_ACTION_GIT_DRAWER},
+	{"lsp_drawer", EDITOR_ACTION_LSP_DRAWER},
 	{"open_settings", EDITOR_ACTION_OPEN_SETTINGS},
 };
 
@@ -672,6 +673,8 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 			EDITOR_ACTION_DRAWER_DELETE);
 	(void)editorKeymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('g'),
 			EDITOR_ACTION_GIT_DRAWER);
+	(void)editorKeymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('l'),
+			EDITOR_ACTION_LSP_DRAWER);
 }
 
 int editorKeymapLookupAction(const struct editorKeymap *keymap, int key,

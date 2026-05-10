@@ -2,6 +2,7 @@
 
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
+#include "language/syntax.h"
 #include "support/size_utils.h"
 #include "support/alloc.h"
 #include "support/file_io.h"
@@ -105,6 +106,7 @@ static const struct editorDrawerMenuItem editor_drawer_menu_edit_items[] = {
 static const struct editorDrawerMenuItem editor_drawer_menu_view_items[] = {
 	{"Project Files", EDITOR_ACTION_MAIN_MENU},
 	{"Git Changes", EDITOR_ACTION_GIT_DRAWER},
+	{"LSP", EDITOR_ACTION_LSP_DRAWER},
 	{"Collapse Drawer", EDITOR_ACTION_TOGGLE_DRAWER},
 	{"Toggle Line Wrap", EDITOR_ACTION_TOGGLE_LINE_WRAP},
 	{"Toggle Line Numbers", EDITOR_ACTION_TOGGLE_LINE_NUMBERS},
@@ -159,11 +161,54 @@ struct editorDrawerGitLookup {
 	char status_char;
 };
 
+enum editorDrawerLspGroup {
+	EDITOR_DRAWER_LSP_GROUP_PROBLEMS = 0,
+	EDITOR_DRAWER_LSP_GROUP_SYMBOLS,
+	EDITOR_DRAWER_LSP_GROUP_COUNT
+};
+
+enum editorDrawerLspEntryKind {
+	EDITOR_DRAWER_LSP_ENTRY_ROOT = 0,
+	EDITOR_DRAWER_LSP_ENTRY_GROUP,
+	EDITOR_DRAWER_LSP_ENTRY_PROBLEM,
+	EDITOR_DRAWER_LSP_ENTRY_PLACEHOLDER
+};
+
+enum editorDrawerLspProblemSource {
+	EDITOR_DRAWER_LSP_PROBLEM_LSP = 0,
+	EDITOR_DRAWER_LSP_PROBLEM_SYNTAX
+};
+
+struct editorDrawerLspProblem {
+	enum editorDrawerLspProblemSource source;
+	const char *path;
+	const char *message;
+	int line;
+	int character;
+	int severity;
+};
+
+struct editorDrawerLspLookup {
+	enum editorDrawerLspEntryKind kind;
+	int group_idx;
+	int item_idx;
+	int item_count;
+	int visible_idx;
+	int parent_visible_idx;
+	int group_visible_idx;
+	struct editorDrawerLspProblem problem;
+};
+
 static const char *editor_drawer_git_group_names[EDITOR_DRAWER_GIT_GROUP_COUNT] = {
 	"Staged",
 	"Changes",
 	"Untracked",
 	"Conflicts"
+};
+
+static const char *editor_drawer_lsp_group_names[EDITOR_DRAWER_LSP_GROUP_COUNT] = {
+	"Problems",
+	"Symbols"
 };
 
 static int editorDrawerLookupByVisibleIndex(int visible_idx, struct editorDrawerLookup *lookup_out);
@@ -176,6 +221,11 @@ static int editorDrawerGitLookupByVisibleIndex(int visible_idx,
 		struct editorDrawerGitLookup *lookup_out);
 static void editorDrawerGitEnsureDefaultExpanded(void);
 static int editorDrawerGitGroupExpanded(int group_idx);
+static int editorDrawerLspVisibleCount(void);
+static int editorDrawerLspLookupByVisibleIndex(int visible_idx,
+		struct editorDrawerLspLookup *lookup_out);
+static void editorDrawerLspEnsureDefaultExpanded(void);
+static int editorDrawerLspGroupExpanded(int group_idx);
 static void editorDrawerClampSelectionAndScroll(int viewport_rows);
 
 static char *editorDrawerResolveRootPathForStartup(int argc, char *argv[], int restored_session) {
@@ -619,6 +669,182 @@ static int editorDrawerGitLookupByVisibleIndex(int visible_idx,
 	return 0;
 }
 
+static unsigned int editorDrawerLspAllGroupsMask(void) {
+	unsigned int mask = 0;
+	for (int i = 0; i < EDITOR_DRAWER_LSP_GROUP_COUNT; i++) {
+		mask |= 1u << (unsigned int)i;
+	}
+	return mask;
+}
+
+static int editorDrawerLspGroupExpanded(int group_idx) {
+	if (group_idx < 0 || group_idx >= EDITOR_DRAWER_LSP_GROUP_COUNT) {
+		return 0;
+	}
+	return (E.drawer_lsp_expanded & (1u << (unsigned int)group_idx)) != 0;
+}
+
+static void editorDrawerLspEnsureDefaultExpanded(void) {
+	E.drawer_lsp_expanded = editorDrawerLspAllGroupsMask();
+}
+
+static int editorDrawerTabHasSyntaxProblem(const struct editorTabState *tab, int active,
+		int *line_out, int *character_out) {
+	struct editorSyntaxState *state = active ? E.syntax_state : tab != NULL ? tab->syntax_state : NULL;
+	return editorSyntaxStateFirstErrorPosition(state, line_out, character_out);
+}
+
+static int editorDrawerLspTabProblemCount(int tab_idx) {
+	int active = tab_idx == E.active_tab;
+	const struct editorTabState *tab = active ? NULL : &E.tabs[tab_idx];
+	int count = active ? E.lsp_diagnostic_count : tab->lsp_diagnostic_count;
+	if (editorDrawerTabHasSyntaxProblem(tab, active, NULL, NULL)) {
+		count++;
+	}
+	return count;
+}
+
+static int editorDrawerLspProblemCount(void) {
+	int count = 0;
+	for (int tab_idx = 0; tab_idx < E.tab_count; tab_idx++) {
+		count += editorDrawerLspTabProblemCount(tab_idx);
+	}
+	return count;
+}
+
+static int editorDrawerLspProblemAt(int problem_idx,
+		struct editorDrawerLspProblem *problem_out) {
+	if (problem_out == NULL || problem_idx < 0) {
+		return 0;
+	}
+
+	for (int tab_idx = 0; tab_idx < E.tab_count; tab_idx++) {
+		int active = tab_idx == E.active_tab;
+		const struct editorTabState *tab = active ? NULL : &E.tabs[tab_idx];
+		const char *filename = active ? E.filename : tab->filename;
+
+		int line = 0;
+		int character = 0;
+		if (editorDrawerTabHasSyntaxProblem(tab, active, &line, &character)) {
+			if (problem_idx == 0) {
+				memset(problem_out, 0, sizeof(*problem_out));
+				problem_out->source = EDITOR_DRAWER_LSP_PROBLEM_SYNTAX;
+				problem_out->path = filename;
+				problem_out->message = "Syntax parse error";
+				problem_out->line = line;
+				problem_out->character = character;
+				problem_out->severity = 1;
+				return 1;
+			}
+			problem_idx--;
+		}
+
+		const struct editorLspDiagnostic *diagnostics =
+				active ? E.lsp_diagnostics : tab->lsp_diagnostics;
+		int diagnostic_count = active ? E.lsp_diagnostic_count : tab->lsp_diagnostic_count;
+		for (int i = 0; i < diagnostic_count; i++) {
+			if (problem_idx == 0) {
+				memset(problem_out, 0, sizeof(*problem_out));
+				problem_out->source = EDITOR_DRAWER_LSP_PROBLEM_LSP;
+				problem_out->path = filename;
+				problem_out->message = diagnostics[i].message;
+				problem_out->line = diagnostics[i].start_line;
+				problem_out->character = diagnostics[i].start_character;
+				problem_out->severity = diagnostics[i].severity;
+				return 1;
+			}
+			problem_idx--;
+		}
+	}
+
+	return 0;
+}
+
+static int editorDrawerLspGroupItemCount(int group_idx) {
+	if (group_idx == EDITOR_DRAWER_LSP_GROUP_PROBLEMS) {
+		return editorDrawerLspProblemCount();
+	}
+	return 0;
+}
+
+static int editorDrawerLspVisibleCount(void) {
+	int count = 1;
+	for (int group_idx = 0; group_idx < EDITOR_DRAWER_LSP_GROUP_COUNT; group_idx++) {
+		count++;
+		if (!editorDrawerLspGroupExpanded(group_idx)) {
+			continue;
+		}
+		int item_count = editorDrawerLspGroupItemCount(group_idx);
+		count += item_count > 0 ? item_count : 1;
+	}
+	return count;
+}
+
+static int editorDrawerLspLookupByVisibleIndex(int visible_idx,
+		struct editorDrawerLspLookup *lookup_out) {
+	if (lookup_out == NULL || visible_idx < 0) {
+		return 0;
+	}
+
+	memset(lookup_out, 0, sizeof(*lookup_out));
+	lookup_out->visible_idx = visible_idx;
+	lookup_out->group_idx = -1;
+	lookup_out->item_idx = -1;
+	lookup_out->parent_visible_idx = -1;
+	lookup_out->group_visible_idx = -1;
+
+	if (visible_idx == 0) {
+		lookup_out->kind = EDITOR_DRAWER_LSP_ENTRY_ROOT;
+		return 1;
+	}
+
+	int cursor = 1;
+	for (int group_idx = 0; group_idx < EDITOR_DRAWER_LSP_GROUP_COUNT; group_idx++) {
+		int group_visible_idx = cursor;
+		int item_count = editorDrawerLspGroupItemCount(group_idx);
+		if (visible_idx == group_visible_idx) {
+			lookup_out->kind = EDITOR_DRAWER_LSP_ENTRY_GROUP;
+			lookup_out->group_idx = group_idx;
+			lookup_out->parent_visible_idx = 0;
+			lookup_out->group_visible_idx = group_visible_idx;
+			lookup_out->item_count = item_count;
+			return 1;
+		}
+		cursor++;
+
+		if (!editorDrawerLspGroupExpanded(group_idx)) {
+			continue;
+		}
+
+		if (item_count == 0) {
+			if (visible_idx == cursor) {
+				lookup_out->kind = EDITOR_DRAWER_LSP_ENTRY_PLACEHOLDER;
+				lookup_out->group_idx = group_idx;
+				lookup_out->parent_visible_idx = group_visible_idx;
+				lookup_out->group_visible_idx = group_visible_idx;
+				return 1;
+			}
+			cursor++;
+			continue;
+		}
+
+		for (int item_idx = 0; item_idx < item_count; item_idx++) {
+			if (visible_idx == cursor) {
+				lookup_out->kind = EDITOR_DRAWER_LSP_ENTRY_PROBLEM;
+				lookup_out->group_idx = group_idx;
+				lookup_out->item_idx = item_idx;
+				lookup_out->item_count = item_count;
+				lookup_out->parent_visible_idx = group_visible_idx;
+				lookup_out->group_visible_idx = group_visible_idx;
+				return editorDrawerLspProblemAt(item_idx, &lookup_out->problem);
+			}
+			cursor++;
+		}
+	}
+
+	return 0;
+}
+
 static int editorDrawerLookupByVisibleIndexRecursive(struct editorDrawerNode *node, int depth,
 		int parent_visible_idx, int *cursor, int target_visible_idx,
 		struct editorDrawerLookup *lookup_out) {
@@ -901,6 +1127,32 @@ int editorDrawerGitToggle(void) {
 	return 1;
 }
 
+int editorDrawerLspToggle(void) {
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
+		E.drawer_mode = EDITOR_DRAWER_MODE_TREE;
+		E.drawer_selected_index = -1;
+		E.drawer_rowoff = 0;
+		E.drawer_resize_active = 0;
+		E.pane_focus = EDITOR_PANE_DRAWER;
+		return 1;
+	}
+
+	if (editorFileSearchIsActive()) {
+		editorFileSearchExit(1);
+	}
+	if (editorProjectSearchIsActive()) {
+		editorProjectSearchExit(1);
+	}
+	editorDrawerLspEnsureDefaultExpanded();
+	E.drawer_mode = EDITOR_DRAWER_MODE_LSP;
+	E.drawer_selected_index = -1;
+	E.drawer_rowoff = 0;
+	E.drawer_resize_active = 0;
+	(void)editorDrawerSetCollapsed(0);
+	E.pane_focus = EDITOR_PANE_DRAWER;
+	return 1;
+}
+
 int editorDrawerCollapsedToggleWidthForCols(int total_cols) {
 	if (total_cols <= 0) {
 		return 0;
@@ -1039,6 +1291,9 @@ int editorDrawerVisibleCount(void) {
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_GIT) {
 		return editorDrawerGitVisibleCount();
 	}
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
+		return editorDrawerLspVisibleCount();
+	}
 	return editorDrawerCountVisibleFromNode(E.drawer_root);
 }
 
@@ -1134,6 +1389,75 @@ int editorDrawerGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *v
 		}
 		case EDITOR_DRAWER_GIT_ENTRY_PLACEHOLDER:
 			view_out->name = "(empty)";
+			view_out->depth = 2;
+			view_out->is_placeholder = 1;
+			view_out->is_last_sibling = 1;
+			return 1;
+		default:
+			return 0;
+		}
+	}
+
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
+		static char lsp_name_buf[PATH_MAX + 128];
+		struct editorDrawerLspLookup lookup;
+		if (!editorDrawerLspLookupByVisibleIndex(visible_idx, &lookup)) {
+			return 0;
+		}
+
+		memset(view_out, 0, sizeof(*view_out));
+		view_out->is_selected = visible_idx == E.drawer_selected_index;
+		view_out->parent_visible_idx = lookup.parent_visible_idx;
+		view_out->line = lookup.problem.line;
+		view_out->character = lookup.problem.character;
+		switch (lookup.kind) {
+		case EDITOR_DRAWER_LSP_ENTRY_ROOT:
+			view_out->name = "LSP";
+			view_out->depth = 0;
+			view_out->is_dir = 1;
+			view_out->is_expanded = 1;
+			view_out->is_root = 1;
+			view_out->is_last_sibling = 1;
+			return 1;
+		case EDITOR_DRAWER_LSP_ENTRY_GROUP:
+			if (lookup.group_idx == EDITOR_DRAWER_LSP_GROUP_PROBLEMS) {
+				snprintf(lsp_name_buf, sizeof(lsp_name_buf), "Problems (%d)",
+						lookup.item_count);
+				view_out->name = lsp_name_buf;
+			} else {
+				view_out->name = editor_drawer_lsp_group_names[lookup.group_idx];
+			}
+			view_out->depth = 1;
+			view_out->is_dir = 1;
+			view_out->is_expanded = editorDrawerLspGroupExpanded(lookup.group_idx);
+			view_out->is_last_sibling =
+					lookup.group_idx == EDITOR_DRAWER_LSP_GROUP_COUNT - 1;
+			return 1;
+		case EDITOR_DRAWER_LSP_ENTRY_PROBLEM: {
+			const char *path = lookup.problem.path != NULL ? lookup.problem.path : "";
+			const char *slash = strrchr(path, '/');
+			const char *base = slash != NULL ? slash + 1 : path;
+			const char *message = lookup.problem.message != NULL ? lookup.problem.message : "";
+			char severity = lookup.problem.source == EDITOR_DRAWER_LSP_PROBLEM_SYNTAX ? 'S' : 'I';
+			if (lookup.problem.source == EDITOR_DRAWER_LSP_PROBLEM_LSP) {
+				if (lookup.problem.severity == 1) {
+					severity = 'E';
+				} else if (lookup.problem.severity == 2) {
+					severity = 'W';
+				}
+			}
+			snprintf(lsp_name_buf, sizeof(lsp_name_buf), "%c %s:%d %s", severity,
+					base != NULL && base[0] != '\0' ? base : "(untitled)",
+					lookup.problem.line + 1, message);
+			view_out->name = lsp_name_buf;
+			view_out->path = lookup.problem.path;
+			view_out->depth = 2;
+			view_out->is_last_sibling = lookup.item_idx == lookup.item_count - 1;
+			return 1;
+		}
+		case EDITOR_DRAWER_LSP_ENTRY_PLACEHOLDER:
+			view_out->name = lookup.group_idx == EDITOR_DRAWER_LSP_GROUP_SYMBOLS ?
+					"(symbols not loaded yet)" : "(none)";
 			view_out->depth = 2;
 			view_out->is_placeholder = 1;
 			view_out->is_last_sibling = 1;
@@ -1268,6 +1592,23 @@ int editorDrawerExpandSelection(int viewport_rows) {
 		editorDrawerClampSelectionAndScroll(viewport_rows);
 		return 1;
 	}
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
+		struct editorDrawerLspLookup lookup;
+		if (!editorDrawerLspLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
+			return 0;
+		}
+		if (lookup.kind == EDITOR_DRAWER_LSP_ENTRY_ROOT) {
+			editorDrawerClampSelectionAndScroll(viewport_rows);
+			return 0;
+		}
+		if (lookup.kind != EDITOR_DRAWER_LSP_ENTRY_GROUP ||
+				editorDrawerLspGroupExpanded(lookup.group_idx)) {
+			return 0;
+		}
+		E.drawer_lsp_expanded |= 1u << (unsigned int)lookup.group_idx;
+		editorDrawerClampSelectionAndScroll(viewport_rows);
+		return 1;
+	}
 	struct editorDrawerLookup lookup;
 	if (!editorDrawerLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
 		return 0;
@@ -1342,6 +1683,31 @@ int editorDrawerCollapseSelection(int viewport_rows) {
 		}
 		return 0;
 	}
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
+		struct editorDrawerLspLookup lookup;
+		if (!editorDrawerLspLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
+			return 0;
+		}
+		if (lookup.kind == EDITOR_DRAWER_LSP_ENTRY_ROOT) {
+			editorDrawerClampSelectionAndScroll(viewport_rows);
+			return 0;
+		}
+		if (lookup.kind == EDITOR_DRAWER_LSP_ENTRY_GROUP) {
+			if (!editorDrawerLspGroupExpanded(lookup.group_idx)) {
+				return 0;
+			}
+			E.drawer_lsp_expanded &= ~(1u << (unsigned int)lookup.group_idx);
+			editorDrawerClampSelectionAndScroll(viewport_rows);
+			return 1;
+		}
+		if (lookup.kind == EDITOR_DRAWER_LSP_ENTRY_PROBLEM ||
+				lookup.kind == EDITOR_DRAWER_LSP_ENTRY_PLACEHOLDER) {
+			E.drawer_selected_index = lookup.group_visible_idx;
+			editorDrawerClampSelectionAndScroll(viewport_rows);
+			return 1;
+		}
+		return 0;
+	}
 	struct editorDrawerLookup lookup;
 	if (!editorDrawerLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
 		return 0;
@@ -1396,6 +1762,18 @@ int editorDrawerToggleSelectionExpanded(int viewport_rows) {
 			return 0;
 		}
 		E.drawer_git_expanded ^= 1u << (unsigned int)lookup.group_idx;
+		editorDrawerClampSelectionAndScroll(viewport_rows);
+		return 1;
+	}
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
+		struct editorDrawerLspLookup lookup;
+		if (!editorDrawerLspLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
+			return 0;
+		}
+		if (lookup.kind != EDITOR_DRAWER_LSP_ENTRY_GROUP) {
+			return 0;
+		}
+		E.drawer_lsp_expanded ^= 1u << (unsigned int)lookup.group_idx;
 		editorDrawerClampSelectionAndScroll(viewport_rows);
 		return 1;
 	}
@@ -1463,6 +1841,14 @@ int editorDrawerSelectedIsDirectory(void) {
 		return lookup.kind == EDITOR_DRAWER_GIT_ENTRY_ROOT ||
 				lookup.kind == EDITOR_DRAWER_GIT_ENTRY_GROUP;
 	}
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
+		struct editorDrawerLspLookup lookup;
+		if (!editorDrawerLspLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
+			return 0;
+		}
+		return lookup.kind == EDITOR_DRAWER_LSP_ENTRY_ROOT ||
+				lookup.kind == EDITOR_DRAWER_LSP_ENTRY_GROUP;
+	}
 	struct editorDrawerLookup lookup;
 	if (!editorDrawerLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
 		return 0;
@@ -1480,6 +1866,23 @@ int editorDrawerSelectedGitEntry(int *entry_idx_out) {
 		return 0;
 	}
 	*entry_idx_out = lookup.entry_idx;
+	return 1;
+}
+
+int editorDrawerSelectedLspLocation(const char **path_out, int *line_out, int *character_out) {
+	if (path_out == NULL || line_out == NULL || character_out == NULL ||
+			E.drawer_mode != EDITOR_DRAWER_MODE_LSP) {
+		return 0;
+	}
+	struct editorDrawerLspLookup lookup;
+	if (!editorDrawerLspLookupByVisibleIndex(E.drawer_selected_index, &lookup) ||
+			lookup.kind != EDITOR_DRAWER_LSP_ENTRY_PROBLEM ||
+			lookup.problem.path == NULL || lookup.problem.path[0] == '\0') {
+		return 0;
+	}
+	*path_out = lookup.problem.path;
+	*line_out = lookup.problem.line;
+	*character_out = lookup.problem.character;
 	return 1;
 }
 
@@ -1850,7 +2253,9 @@ int editorDrawerOpenSelectedFileInTab(void) {
 	if (editorProjectSearchIsActive()) {
 		return editorProjectSearchOpenSelectedFileInTab();
 	}
-	if (E.drawer_mode == EDITOR_DRAWER_MODE_MAIN_MENU || E.drawer_mode == EDITOR_DRAWER_MODE_GIT) {
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_MAIN_MENU ||
+			E.drawer_mode == EDITOR_DRAWER_MODE_GIT ||
+			E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
 		return 0;
 	}
 	struct editorDrawerLookup lookup;
@@ -1870,7 +2275,9 @@ int editorDrawerOpenSelectedFileInPreviewTab(void) {
 	if (editorProjectSearchIsActive()) {
 		return editorProjectSearchOpenSelectedFileInPreviewTab();
 	}
-	if (E.drawer_mode == EDITOR_DRAWER_MODE_MAIN_MENU || E.drawer_mode == EDITOR_DRAWER_MODE_GIT) {
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_MAIN_MENU ||
+			E.drawer_mode == EDITOR_DRAWER_MODE_GIT ||
+			E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
 		return 0;
 	}
 	struct editorDrawerLookup lookup;

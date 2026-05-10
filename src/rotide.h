@@ -295,6 +295,8 @@ struct editorDrawerEntryView {
 	int is_search_header;
 	int is_placeholder;
 	enum editorGitStatus git_status;
+	int line;
+	int character;
 };
 
 struct editorProjectSearchResult {
@@ -379,6 +381,7 @@ enum editorAction {
 	EDITOR_ACTION_DRAWER_RENAME,
 	EDITOR_ACTION_DRAWER_DELETE,
 	EDITOR_ACTION_GIT_DRAWER,
+	EDITOR_ACTION_LSP_DRAWER,
 	EDITOR_ACTION_OPEN_SETTINGS,
 	EDITOR_ACTION_COUNT
 };
@@ -412,7 +415,8 @@ enum editorDrawerMode {
 	EDITOR_DRAWER_MODE_MAIN_MENU,
 	EDITOR_DRAWER_MODE_FILE_SEARCH,
 	EDITOR_DRAWER_MODE_PROJECT_SEARCH,
-	EDITOR_DRAWER_MODE_GIT
+	EDITOR_DRAWER_MODE_GIT,
+	EDITOR_DRAWER_MODE_LSP
 };
 
 struct editorGitEntry {
@@ -606,6 +610,7 @@ struct editorConfig {
 	enum editorDrawerMode drawer_mode;
 	unsigned int drawer_menu_expanded;
 	unsigned int drawer_git_expanded;
+	unsigned int drawer_lsp_expanded;
 	int drawer_selected_index;
 	int drawer_rowoff;
 	int drawer_last_click_visible_idx;

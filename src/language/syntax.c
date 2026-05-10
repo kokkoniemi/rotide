@@ -2557,6 +2557,61 @@ int editorSyntaxStateHasTree(const struct editorSyntaxState *state) {
 	return state != NULL && state->host.tree != NULL;
 }
 
+int editorSyntaxStateHasError(const struct editorSyntaxState *state) {
+	if (state == NULL || state->host.tree == NULL) {
+		return 0;
+	}
+	return ts_node_has_error(ts_tree_root_node(state->host.tree));
+}
+
+static int editorSyntaxFirstErrorNode(TSNode node, TSNode *error_out) {
+	if (!ts_node_has_error(node)) {
+		return 0;
+	}
+	if (ts_node_is_error(node) || ts_node_is_missing(node)) {
+		*error_out = node;
+		return 1;
+	}
+
+	uint32_t child_count = ts_node_child_count(node);
+	for (uint32_t i = 0; i < child_count; i++) {
+		if (editorSyntaxFirstErrorNode(ts_node_child(node, i), error_out)) {
+			return 1;
+		}
+	}
+
+	*error_out = node;
+	return 1;
+}
+
+int editorSyntaxStateFirstErrorPosition(const struct editorSyntaxState *state,
+		int *row_out, int *column_out) {
+	if (row_out != NULL) {
+		*row_out = 0;
+	}
+	if (column_out != NULL) {
+		*column_out = 0;
+	}
+	if (state == NULL || state->host.tree == NULL) {
+		return 0;
+	}
+
+	TSNode root = ts_tree_root_node(state->host.tree);
+	TSNode error = {0};
+	if (!editorSyntaxFirstErrorNode(root, &error)) {
+		return 0;
+	}
+
+	TSPoint point = ts_node_start_point(error);
+	if (row_out != NULL) {
+		*row_out = (int)point.row;
+	}
+	if (column_out != NULL) {
+		*column_out = (int)point.column;
+	}
+	return 1;
+}
+
 const char *editorSyntaxStateRootType(const struct editorSyntaxState *state) {
 	if (state == NULL || state->host.tree == NULL) {
 		return NULL;
