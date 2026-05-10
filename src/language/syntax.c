@@ -2580,8 +2580,7 @@ static int editorSyntaxFirstErrorNode(TSNode node, TSNode *error_out) {
 		}
 	}
 
-	*error_out = node;
-	return 1;
+	return 0;
 }
 
 int editorSyntaxStateFirstErrorPosition(const struct editorSyntaxState *state,

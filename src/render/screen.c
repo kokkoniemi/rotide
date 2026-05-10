@@ -2305,6 +2305,10 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 	int selected_with_focus = 0;
 	int row_inverted = 0;
 	if (editorDrawerGetVisibleEntry(visible_idx, &entry)) {
+		char entry_name_buf[PATH_MAX + 512];
+		const char *entry_name = entry.name != NULL ? entry.name : "";
+		snprintf(entry_name_buf, sizeof(entry_name_buf), "%s", entry_name);
+		entry_name = entry_name_buf;
 		selected_with_focus = entry.is_selected && E.pane_focus == EDITOR_PANE_DRAWER;
 		row_inverted = selected_with_focus || (entry.is_active_file && !entry.is_dir);
 		int gray_connectors = !row_inverted;
@@ -2323,7 +2327,7 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 			}
 			if (written_cols < drawer_cols) {
 				int wrote = 0;
-				if (!editorAppendSanitizedText(wb, entry.name, drawer_cols - written_cols,
+				if (!editorAppendSanitizedText(wb, entry_name, drawer_cols - written_cols,
 							&wrote)) {
 					return 0;
 				}
@@ -2424,7 +2428,7 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 					!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_PLACEHOLDER)) {
 				return 0;
 			}
-			if (!editorAppendSanitizedText(wb, entry.name, remaining, &wrote)) {
+			if (!editorAppendSanitizedText(wb, entry_name, remaining, &wrote)) {
 				return 0;
 			}
 			if (placeholder_color && !editorAppendThemeBaseForeground(wb)) {

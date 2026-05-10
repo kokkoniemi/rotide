@@ -167,6 +167,8 @@ enum editorDrawerLspGroup {
 	EDITOR_DRAWER_LSP_GROUP_COUNT
 };
 
+#define EDITOR_DRAWER_LSP_VISIBLE_GROUP_COUNT 1
+
 enum editorDrawerLspEntryKind {
 	EDITOR_DRAWER_LSP_ENTRY_ROOT = 0,
 	EDITOR_DRAWER_LSP_ENTRY_GROUP,
@@ -671,14 +673,14 @@ static int editorDrawerGitLookupByVisibleIndex(int visible_idx,
 
 static unsigned int editorDrawerLspAllGroupsMask(void) {
 	unsigned int mask = 0;
-	for (int i = 0; i < EDITOR_DRAWER_LSP_GROUP_COUNT; i++) {
+	for (int i = 0; i < EDITOR_DRAWER_LSP_VISIBLE_GROUP_COUNT; i++) {
 		mask |= 1u << (unsigned int)i;
 	}
 	return mask;
 }
 
 static int editorDrawerLspGroupExpanded(int group_idx) {
-	if (group_idx < 0 || group_idx >= EDITOR_DRAWER_LSP_GROUP_COUNT) {
+	if (group_idx < 0 || group_idx >= EDITOR_DRAWER_LSP_VISIBLE_GROUP_COUNT) {
 		return 0;
 	}
 	return (E.drawer_lsp_expanded & (1u << (unsigned int)group_idx)) != 0;
@@ -769,7 +771,7 @@ static int editorDrawerLspGroupItemCount(int group_idx) {
 
 static int editorDrawerLspVisibleCount(void) {
 	int count = 1;
-	for (int group_idx = 0; group_idx < EDITOR_DRAWER_LSP_GROUP_COUNT; group_idx++) {
+	for (int group_idx = 0; group_idx < EDITOR_DRAWER_LSP_VISIBLE_GROUP_COUNT; group_idx++) {
 		count++;
 		if (!editorDrawerLspGroupExpanded(group_idx)) {
 			continue;
@@ -799,7 +801,7 @@ static int editorDrawerLspLookupByVisibleIndex(int visible_idx,
 	}
 
 	int cursor = 1;
-	for (int group_idx = 0; group_idx < EDITOR_DRAWER_LSP_GROUP_COUNT; group_idx++) {
+	for (int group_idx = 0; group_idx < EDITOR_DRAWER_LSP_VISIBLE_GROUP_COUNT; group_idx++) {
 		int group_visible_idx = cursor;
 		int item_count = editorDrawerLspGroupItemCount(group_idx);
 		if (visible_idx == group_visible_idx) {
@@ -1431,24 +1433,25 @@ int editorDrawerGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *v
 			view_out->is_dir = 1;
 			view_out->is_expanded = editorDrawerLspGroupExpanded(lookup.group_idx);
 			view_out->is_last_sibling =
-					lookup.group_idx == EDITOR_DRAWER_LSP_GROUP_COUNT - 1;
+					lookup.group_idx == EDITOR_DRAWER_LSP_VISIBLE_GROUP_COUNT - 1;
 			return 1;
 		case EDITOR_DRAWER_LSP_ENTRY_PROBLEM: {
 			const char *path = lookup.problem.path != NULL ? lookup.problem.path : "";
 			const char *slash = strrchr(path, '/');
 			const char *base = slash != NULL ? slash + 1 : path;
 			const char *message = lookup.problem.message != NULL ? lookup.problem.message : "";
-			char severity = lookup.problem.source == EDITOR_DRAWER_LSP_PROBLEM_SYNTAX ? 'S' : 'I';
+			const char *kind = lookup.problem.source == EDITOR_DRAWER_LSP_PROBLEM_SYNTAX ?
+					"Syntax" : "Info";
 			if (lookup.problem.source == EDITOR_DRAWER_LSP_PROBLEM_LSP) {
 				if (lookup.problem.severity == 1) {
-					severity = 'E';
+					kind = "Error";
 				} else if (lookup.problem.severity == 2) {
-					severity = 'W';
+					kind = "Warning";
 				}
 			}
-			snprintf(lsp_name_buf, sizeof(lsp_name_buf), "%c %s:%d %s", severity,
+			snprintf(lsp_name_buf, sizeof(lsp_name_buf), "%s %s:%d:%d %s", kind,
 					base != NULL && base[0] != '\0' ? base : "(untitled)",
-					lookup.problem.line + 1, message);
+					lookup.problem.line + 1, lookup.problem.character + 1, message);
 			view_out->name = lsp_name_buf;
 			view_out->path = lookup.problem.path;
 			view_out->depth = 2;

@@ -2316,6 +2316,24 @@ static int find_drawer_entry_containing(const char *needle, int *idx_out,
 	return 0;
 }
 
+static int replace_active_text_for_lsp_drawer_test(const char *text) {
+	if (text == NULL || E.document == NULL) {
+		return 0;
+	}
+	struct editorDocumentEdit edit = {
+		.kind = EDITOR_EDIT_INSERT_TEXT,
+		.start_offset = 0,
+		.old_len = editorDocumentLength(E.document),
+		.new_text = text,
+		.new_len = strlen(text),
+		.before_cursor_offset = 0,
+		.after_cursor_offset = 0,
+		.before_dirty = E.dirty,
+		.after_dirty = E.dirty + 1
+	};
+	return editorApplyDocumentEdit(&edit);
+}
+
 static int test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem(void) {
 	editorLspTestSetMockEnabled(1);
 	E.lsp_gopls_enabled = 0;
@@ -2346,12 +2364,23 @@ static int test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem(void) {
 			sizeof(lsp_drawer)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
 	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_TRUE(!find_drawer_entry("Symbols", NULL, NULL));
 
 	struct editorDrawerEntryView view = {0};
 	int problem_idx = -1;
 	ASSERT_TRUE(find_drawer_entry_containing("Missing semicolon", &problem_idx, &view));
+	ASSERT_TRUE(strstr(view.name, "Warning") != NULL);
 	ASSERT_EQ_STR(js_path, view.path);
 	ASSERT_EQ_INT(1, view.line);
+
+	E.window_cols = 160;
+	ASSERT_TRUE(editorDrawerSetWidthForCols(80, E.window_cols));
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "Missing semicolon") != NULL);
+	ASSERT_TRUE(strstr(output, "Symbols") == NULL);
+	free(output);
 
 	ASSERT_TRUE(editorDrawerSelectVisibleIndex(problem_idx, E.window_rows));
 	char enter[] = {'\r'};
@@ -2363,6 +2392,34 @@ static int test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem(void) {
 	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
 
 	ASSERT_TRUE(unlink(js_path) == 0);
+	return 0;
+}
+
+static int test_editor_lsp_drawer_syntax_problem_clears_and_reappears(void) {
+	ASSERT_TRUE(editorTabsInit());
+
+	char c_path[64];
+	ASSERT_TRUE(write_temp_c_file(c_path, sizeof(c_path), "int main(void) {\n\treturn 0;\n}\n"));
+	editorOpen(c_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+
+	(void)editorDrawerLspToggle();
+	ASSERT_TRUE(find_drawer_entry("Problems (0)", NULL, NULL));
+	ASSERT_TRUE(!find_drawer_entry_containing("Syntax parse error", NULL, NULL));
+
+	ASSERT_TRUE(replace_active_text_for_lsp_drawer_test("int main( {\n"));
+	ASSERT_TRUE(find_drawer_entry("Problems (1)", NULL, NULL));
+	ASSERT_TRUE(find_drawer_entry_containing("Syntax parse error", NULL, NULL));
+
+	ASSERT_TRUE(replace_active_text_for_lsp_drawer_test("int main(void) {\n\treturn 0;\n}\n"));
+	ASSERT_TRUE(find_drawer_entry("Problems (0)", NULL, NULL));
+	ASSERT_TRUE(!find_drawer_entry_containing("Syntax parse error", NULL, NULL));
+
+	ASSERT_TRUE(replace_active_text_for_lsp_drawer_test("int main( {\n"));
+	ASSERT_TRUE(find_drawer_entry("Problems (1)", NULL, NULL));
+	ASSERT_TRUE(find_drawer_entry_containing("Syntax parse error", NULL, NULL));
+
+	ASSERT_TRUE(unlink(c_path) == 0);
 	return 0;
 }
 
@@ -2418,6 +2475,7 @@ const struct editorTestCase g_lsp_tests[] = {
 	{"editor_lsp_eslint_diagnostics_update_and_status_summary", test_editor_lsp_eslint_diagnostics_update_and_status_summary},
 	{"editor_lsp_eslint_diagnostics_persist_across_tab_switches", test_editor_lsp_eslint_diagnostics_persist_across_tab_switches},
 	{"editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem", test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem},
+	{"editor_lsp_drawer_syntax_problem_clears_and_reappears", test_editor_lsp_drawer_syntax_problem_clears_and_reappears},
 	{"editor_lsp_drawer_lists_syntax_parse_error", test_editor_lsp_drawer_lists_syntax_parse_error},
 	{"editor_lsp_javascript_definition_coexists_with_eslint_sidecar", test_editor_lsp_javascript_definition_coexists_with_eslint_sidecar},
 	{"editor_process_keypress_ctrl_o_goto_definition_single_location", test_editor_process_keypress_ctrl_o_goto_definition_single_location},
