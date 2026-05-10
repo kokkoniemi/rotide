@@ -82,6 +82,8 @@ static void editorTabStateInitEmpty(struct editorTabState *tab) {
 	tab->lsp_diagnostic_count = 0;
 	tab->lsp_diagnostic_error_count = 0;
 	tab->lsp_diagnostic_warning_count = 0;
+	tab->lsp_symbols = NULL;
+	tab->lsp_symbol_count = 0;
 	tab->max_render_cols = 0;
 	tab->max_render_cols_valid = 1;
 	memset(&tab->disk_state, 0, sizeof(tab->disk_state));
@@ -129,6 +131,8 @@ void editorResetActiveBufferFields(void) {
 	E.lsp_diagnostic_count = 0;
 	E.lsp_diagnostic_error_count = 0;
 	E.lsp_diagnostic_warning_count = 0;
+	E.lsp_symbols = NULL;
+	E.lsp_symbol_count = 0;
 	E.search_query = NULL;
 	E.search_match_offset = 0;
 	E.search_match_len = 0;
@@ -172,6 +176,11 @@ static void editorTabStateFree(struct editorTabState *tab) {
 		free(tab->lsp_diagnostics);
 		tab->lsp_diagnostics = NULL;
 	}
+	if (tab->lsp_symbols != NULL) {
+		editorLspFreeSymbols(tab->lsp_symbols, tab->lsp_symbol_count);
+		tab->lsp_symbols = NULL;
+		tab->lsp_symbol_count = 0;
+	}
 	editorFreeTabRows(tab);
 	editorDocumentFreePtr(&tab->document);
 	free(tab->filename);
@@ -197,6 +206,11 @@ void editorFreeActiveBufferState(void) {
 		}
 		free(E.lsp_diagnostics);
 		E.lsp_diagnostics = NULL;
+	}
+	if (E.lsp_symbols != NULL) {
+		editorLspFreeSymbols(E.lsp_symbols, E.lsp_symbol_count);
+		E.lsp_symbols = NULL;
+		E.lsp_symbol_count = 0;
 	}
 	for (int i = 0; i < E.numrows; i++) {
 		free(E.rows[i].chars);
@@ -271,6 +285,8 @@ static void editorTabStateCaptureActive(struct editorTabState *tab) {
 	tab->lsp_diagnostic_count = E.lsp_diagnostic_count;
 	tab->lsp_diagnostic_error_count = E.lsp_diagnostic_error_count;
 	tab->lsp_diagnostic_warning_count = E.lsp_diagnostic_warning_count;
+	tab->lsp_symbols = E.lsp_symbols;
+	tab->lsp_symbol_count = E.lsp_symbol_count;
 	tab->search_query = E.search_query;
 	tab->search_match_offset = E.search_match_offset;
 	tab->search_match_len = E.search_match_len;
@@ -333,6 +349,8 @@ static void editorTabStateLoadActive(struct editorTabState *tab) {
 	E.lsp_diagnostic_count = tab->lsp_diagnostic_count;
 	E.lsp_diagnostic_error_count = tab->lsp_diagnostic_error_count;
 	E.lsp_diagnostic_warning_count = tab->lsp_diagnostic_warning_count;
+	E.lsp_symbols = tab->lsp_symbols;
+	E.lsp_symbol_count = tab->lsp_symbol_count;
 	E.search_query = tab->search_query;
 	E.search_match_offset = tab->search_match_offset;
 	E.search_match_len = tab->search_match_len;
@@ -438,6 +456,8 @@ static void editorLoadActiveTab(int tab_idx) {
 		E.lsp_diagnostic_count = 0;
 		E.lsp_diagnostic_error_count = 0;
 		E.lsp_diagnostic_warning_count = 0;
+		E.lsp_symbols = NULL;
+		E.lsp_symbol_count = 0;
 		editorViewportSetMode(EDITOR_VIEWPORT_FOLLOW_CURSOR);
 		return;
 	}
@@ -1007,6 +1027,11 @@ static int editorRebuildGeneratedTabRows(struct editorTabState *tab) {
 	tab->lsp_diagnostic_count = 0;
 	tab->lsp_diagnostic_error_count = 0;
 	tab->lsp_diagnostic_warning_count = 0;
+	if (tab->lsp_symbols != NULL) {
+		editorLspFreeSymbols(tab->lsp_symbols, tab->lsp_symbol_count);
+	}
+	tab->lsp_symbols = NULL;
+	tab->lsp_symbol_count = 0;
 	editorTaskLogClampCursor(tab);
 	return 1;
 }

@@ -39,6 +39,11 @@ int editorLspParseDefinitionLocations(const char *response_json,
 int editorLspCopyLocations(struct editorLspLocation **out_locations, int *out_count,
 		const struct editorLspLocation *locations, int count);
 
+int editorLspParseDocumentSymbols(const char *response_json,
+		struct editorLspSymbol **symbols_out, int *count_out);
+int editorLspCopySymbols(struct editorLspSymbol **out_symbols, int *out_count,
+		const struct editorLspSymbol *symbols, int count);
+
 int editorLspParseWorkspaceEditChanges(const char *edit_json, const char *target_path,
 		struct editorLspPendingEdit **edits_out, int *count_out);
 void editorLspFreePendingEdits(struct editorLspPendingEdit *edits, int count);

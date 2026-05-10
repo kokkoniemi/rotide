@@ -2,6 +2,7 @@
 
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
+#include "language/lsp.h"
 #include "language/syntax.h"
 #include "support/size_utils.h"
 #include "support/alloc.h"
@@ -167,12 +168,13 @@ enum editorDrawerLspGroup {
 	EDITOR_DRAWER_LSP_GROUP_COUNT
 };
 
-#define EDITOR_DRAWER_LSP_VISIBLE_GROUP_COUNT 1
+#define EDITOR_DRAWER_LSP_VISIBLE_GROUP_COUNT 2
 
 enum editorDrawerLspEntryKind {
 	EDITOR_DRAWER_LSP_ENTRY_ROOT = 0,
 	EDITOR_DRAWER_LSP_ENTRY_GROUP,
 	EDITOR_DRAWER_LSP_ENTRY_PROBLEM,
+	EDITOR_DRAWER_LSP_ENTRY_SYMBOL,
 	EDITOR_DRAWER_LSP_ENTRY_PLACEHOLDER
 };
 
@@ -190,6 +192,17 @@ struct editorDrawerLspProblem {
 	int severity;
 };
 
+struct editorDrawerLspSymbolEntry {
+	const char *name;
+	const char *path;
+	int kind;
+	int line;
+	int character;
+	int depth;
+	int parent_index;
+	int is_last_sibling;
+};
+
 struct editorDrawerLspLookup {
 	enum editorDrawerLspEntryKind kind;
 	int group_idx;
@@ -199,6 +212,7 @@ struct editorDrawerLspLookup {
 	int parent_visible_idx;
 	int group_visible_idx;
 	struct editorDrawerLspProblem problem;
+	struct editorDrawerLspSymbolEntry symbol;
 };
 
 static const char *editor_drawer_git_group_names[EDITOR_DRAWER_GIT_GROUP_COUNT] = {
@@ -762,9 +776,35 @@ static int editorDrawerLspProblemAt(int problem_idx,
 	return 0;
 }
 
+static int editorDrawerLspSymbolCount(void) {
+	return E.lsp_symbol_count > 0 ? E.lsp_symbol_count : 0;
+}
+
+static int editorDrawerLspSymbolAt(int symbol_idx,
+		struct editorDrawerLspSymbolEntry *symbol_out) {
+	if (symbol_out == NULL || symbol_idx < 0 || symbol_idx >= E.lsp_symbol_count ||
+			E.lsp_symbols == NULL) {
+		return 0;
+	}
+	const struct editorLspSymbol *src = &E.lsp_symbols[symbol_idx];
+	memset(symbol_out, 0, sizeof(*symbol_out));
+	symbol_out->name = src->name != NULL ? src->name : "";
+	symbol_out->path = E.filename;
+	symbol_out->kind = src->kind;
+	symbol_out->line = src->line;
+	symbol_out->character = src->character;
+	symbol_out->depth = src->depth;
+	symbol_out->parent_index = src->parent_index;
+	symbol_out->is_last_sibling = src->is_last_sibling;
+	return 1;
+}
+
 static int editorDrawerLspGroupItemCount(int group_idx) {
 	if (group_idx == EDITOR_DRAWER_LSP_GROUP_PROBLEMS) {
 		return editorDrawerLspProblemCount();
+	}
+	if (group_idx == EDITOR_DRAWER_LSP_GROUP_SYMBOLS) {
+		return editorDrawerLspSymbolCount();
 	}
 	return 0;
 }
@@ -832,12 +872,22 @@ static int editorDrawerLspLookupByVisibleIndex(int visible_idx,
 
 		for (int item_idx = 0; item_idx < item_count; item_idx++) {
 			if (visible_idx == cursor) {
-				lookup_out->kind = EDITOR_DRAWER_LSP_ENTRY_PROBLEM;
 				lookup_out->group_idx = group_idx;
 				lookup_out->item_idx = item_idx;
 				lookup_out->item_count = item_count;
-				lookup_out->parent_visible_idx = group_visible_idx;
 				lookup_out->group_visible_idx = group_visible_idx;
+				if (group_idx == EDITOR_DRAWER_LSP_GROUP_SYMBOLS) {
+					lookup_out->kind = EDITOR_DRAWER_LSP_ENTRY_SYMBOL;
+					if (!editorDrawerLspSymbolAt(item_idx, &lookup_out->symbol)) {
+						return 0;
+					}
+					lookup_out->parent_visible_idx = lookup_out->symbol.parent_index >= 0 ?
+							group_visible_idx + 1 + lookup_out->symbol.parent_index :
+							group_visible_idx;
+					return 1;
+				}
+				lookup_out->parent_visible_idx = group_visible_idx;
+				lookup_out->kind = EDITOR_DRAWER_LSP_ENTRY_PROBLEM;
 				return editorDrawerLspProblemAt(item_idx, &lookup_out->problem);
 			}
 			cursor++;
@@ -1145,6 +1195,7 @@ int editorDrawerLspToggle(void) {
 	if (editorProjectSearchIsActive()) {
 		editorProjectSearchExit(1);
 	}
+	editorLspRefreshActiveDocumentSymbols();
 	editorDrawerLspEnsureDefaultExpanded();
 	E.drawer_mode = EDITOR_DRAWER_MODE_LSP;
 	E.drawer_selected_index = -1;
@@ -1456,6 +1507,20 @@ int editorDrawerGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *v
 			view_out->path = lookup.problem.path;
 			view_out->depth = 2;
 			view_out->is_last_sibling = lookup.item_idx == lookup.item_count - 1;
+			return 1;
+		}
+		case EDITOR_DRAWER_LSP_ENTRY_SYMBOL: {
+			const char *symbol_name = lookup.symbol.name != NULL && lookup.symbol.name[0] != '\0' ?
+					lookup.symbol.name : "(unnamed)";
+			snprintf(lsp_name_buf, sizeof(lsp_name_buf), "%s %s:%d",
+					editorLspSymbolKindLabel(lookup.symbol.kind), symbol_name,
+					lookup.symbol.line + 1);
+			view_out->name = lsp_name_buf;
+			view_out->path = lookup.symbol.path;
+			view_out->line = lookup.symbol.line;
+			view_out->character = lookup.symbol.character;
+			view_out->depth = 2 + lookup.symbol.depth;
+			view_out->is_last_sibling = lookup.symbol.is_last_sibling;
 			return 1;
 		}
 		case EDITOR_DRAWER_LSP_ENTRY_PLACEHOLDER:
@@ -1878,15 +1943,28 @@ int editorDrawerSelectedLspLocation(const char **path_out, int *line_out, int *c
 		return 0;
 	}
 	struct editorDrawerLspLookup lookup;
-	if (!editorDrawerLspLookupByVisibleIndex(E.drawer_selected_index, &lookup) ||
-			lookup.kind != EDITOR_DRAWER_LSP_ENTRY_PROBLEM ||
-			lookup.problem.path == NULL || lookup.problem.path[0] == '\0') {
+	if (!editorDrawerLspLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
 		return 0;
 	}
-	*path_out = lookup.problem.path;
-	*line_out = lookup.problem.line;
-	*character_out = lookup.problem.character;
-	return 1;
+	if (lookup.kind == EDITOR_DRAWER_LSP_ENTRY_PROBLEM) {
+		if (lookup.problem.path == NULL || lookup.problem.path[0] == '\0') {
+			return 0;
+		}
+		*path_out = lookup.problem.path;
+		*line_out = lookup.problem.line;
+		*character_out = lookup.problem.character;
+		return 1;
+	}
+	if (lookup.kind == EDITOR_DRAWER_LSP_ENTRY_SYMBOL) {
+		if (lookup.symbol.path == NULL || lookup.symbol.path[0] == '\0') {
+			return 0;
+		}
+		*path_out = lookup.symbol.path;
+		*line_out = lookup.symbol.line;
+		*character_out = lookup.symbol.character;
+		return 1;
+	}
+	return 0;
 }
 
 int editorDrawerSelectedIsRoot(void) {

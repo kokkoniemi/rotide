@@ -173,7 +173,8 @@ char *editorLspBuildInitializeRequestJson(int request_id, const char *root_uri,
 				"\"workspace\":{\"applyEdit\":true},"
 				"\"textDocument\":{\"codeAction\":{\"codeActionLiteralSupport\":{"
 				"\"codeActionKind\":{\"valueSet\":[\"quickfix\",\"source.fixAll\","
-				"\"source.fixAll.eslint\"]}}}}}}}");
+				"\"source.fixAll.eslint\"]}}},"
+				"\"documentSymbol\":{\"hierarchicalDocumentSymbolSupport\":true}}}}}");
 	}
 	if (!built) {
 		free(init.buf);
@@ -856,6 +857,284 @@ int editorLspParseDefinitionLocations(const char *response_json,
 				"targetRange", locations_out, count_out);
 	}
 	return editorLspParseLocationObjects(result, "uri", "range", NULL, locations_out, count_out);
+}
+
+void editorLspFreeSymbols(struct editorLspSymbol *symbols, int count) {
+	if (symbols == NULL) {
+		return;
+	}
+	for (int i = 0; i < count; i++) {
+		free(symbols[i].name);
+	}
+	free(symbols);
+}
+
+int editorLspCopySymbols(struct editorLspSymbol **out_symbols, int *out_count,
+		const struct editorLspSymbol *symbols, int count) {
+	if (out_symbols == NULL || out_count == NULL) {
+		return 0;
+	}
+	*out_symbols = NULL;
+	*out_count = 0;
+	if (symbols == NULL || count <= 0) {
+		return 1;
+	}
+	struct editorLspSymbol *copy = calloc((size_t)count, sizeof(*copy));
+	if (copy == NULL) {
+		return 0;
+	}
+	for (int i = 0; i < count; i++) {
+		copy[i].kind = symbols[i].kind;
+		copy[i].line = symbols[i].line;
+		copy[i].character = symbols[i].character;
+		copy[i].depth = symbols[i].depth;
+		copy[i].parent_index = symbols[i].parent_index;
+		copy[i].is_last_sibling = symbols[i].is_last_sibling;
+		const char *name = symbols[i].name != NULL ? symbols[i].name : "";
+		copy[i].name = strdup(name);
+		if (copy[i].name == NULL) {
+			editorLspFreeSymbols(copy, i);
+			return 0;
+		}
+	}
+	*out_symbols = copy;
+	*out_count = count;
+	return 1;
+}
+
+const char *editorLspSymbolKindLabel(int kind) {
+	switch (kind) {
+	case 1: return "File";
+	case 2: return "Module";
+	case 3: return "Namespace";
+	case 4: return "Package";
+	case 5: return "Class";
+	case 6: return "Method";
+	case 7: return "Property";
+	case 8: return "Field";
+	case 9: return "Constructor";
+	case 10: return "Enum";
+	case 11: return "Interface";
+	case 12: return "Function";
+	case 13: return "Variable";
+	case 14: return "Constant";
+	case 15: return "String";
+	case 16: return "Number";
+	case 17: return "Boolean";
+	case 18: return "Array";
+	case 19: return "Object";
+	case 20: return "Key";
+	case 21: return "Null";
+	case 22: return "EnumMember";
+	case 23: return "Struct";
+	case 24: return "Event";
+	case 25: return "Operator";
+	case 26: return "TypeParameter";
+	default: return "Symbol";
+	}
+}
+
+static int editorLspAppendSymbol(struct editorLspSymbol **symbols, int *count, int *cap,
+		char *name, int kind, int line, int character, int depth, int parent_index) {
+	if (*count >= *cap) {
+		int new_cap = *cap > 0 ? *cap * 2 : 8;
+		struct editorLspSymbol *grown = realloc(*symbols,
+				(size_t)new_cap * sizeof(**symbols));
+		if (grown == NULL) {
+			return 0;
+		}
+		*symbols = grown;
+		*cap = new_cap;
+	}
+	(*symbols)[*count].name = name;
+	(*symbols)[*count].kind = kind;
+	(*symbols)[*count].line = line;
+	(*symbols)[*count].character = character;
+	(*symbols)[*count].depth = depth;
+	(*symbols)[*count].parent_index = parent_index;
+	(*symbols)[*count].is_last_sibling = 0;
+	(*count)++;
+	return 1;
+}
+
+static int editorLspParseDocumentSymbolObject(const char *object_start, const char *object_end,
+		struct editorLspSymbol **symbols, int *count, int *cap, int depth, int parent_index) {
+	char *name = NULL;
+	if (!editorLspFindStringField(object_start, "name", &name) || name == NULL) {
+		return 1;
+	}
+
+	int kind = 0;
+	const char *kind_key = editorLspStrstrBounded(object_start, "\"kind\"", object_end);
+	if (kind_key != NULL) {
+		const char *colon = strchr(kind_key, ':');
+		if (colon != NULL) {
+			(void)editorLspParseJsonInt(editorLspSkipWs(colon + 1), &kind, NULL);
+		}
+	}
+
+	int line = 0;
+	int character = 0;
+	const char *location_key = editorLspStrstrBounded(object_start, "\"location\"", object_end);
+	int has_position = 0;
+	if (location_key != NULL) {
+		const char *location_colon = strchr(location_key, ':');
+		if (location_colon != NULL && (object_end == NULL || location_colon < object_end)) {
+			const char *location_value = editorLspSkipWs(location_colon + 1);
+			if (location_value != NULL && *location_value == '{') {
+				const char *location_end = editorLspFindJsonObjectEnd(location_value);
+				if (location_end != NULL) {
+					const char *range_key = editorLspStrstrBounded(location_value, "\"range\"",
+							location_end);
+					if (range_key != NULL) {
+						has_position = editorLspParsePositionFromKey(range_key, "start",
+								location_end, &line, &character);
+					}
+				}
+			}
+		}
+	}
+	if (!has_position) {
+		const char *range_key = editorLspStrstrBounded(object_start, "\"range\"", object_end);
+		if (range_key != NULL) {
+			has_position = editorLspParsePositionFromKey(range_key, "start", object_end, &line,
+					&character);
+		}
+	}
+	if (!has_position) {
+		const char *sel_key = editorLspStrstrBounded(object_start, "\"selectionRange\"", object_end);
+		if (sel_key != NULL) {
+			has_position = editorLspParsePositionFromKey(sel_key, "start", object_end, &line,
+					&character);
+		}
+	}
+
+	int my_index = *count;
+	if (!editorLspAppendSymbol(symbols, count, cap, name, kind, line, character, depth,
+				parent_index)) {
+		free(name);
+		return 0;
+	}
+
+	const char *children_key = editorLspStrstrBounded(object_start, "\"children\"", object_end);
+	if (children_key != NULL) {
+		const char *children_colon = strchr(children_key, ':');
+		if (children_colon != NULL) {
+			const char *children_value = editorLspSkipWs(children_colon + 1);
+			if (children_value != NULL && *children_value == '[') {
+				const char *children_end = editorLspFindJsonArrayEnd(children_value);
+				if (children_end != NULL) {
+					int last_child_index = -1;
+					const char *p = children_value + 1;
+					while (p < children_end) {
+						p = editorLspSkipWs(p);
+						if (p == NULL || *p == ']') {
+							break;
+						}
+						if (*p != '{') {
+							p++;
+							continue;
+						}
+						const char *child_end = editorLspFindJsonObjectEnd(p);
+						if (child_end == NULL) {
+							break;
+						}
+						int child_index = *count;
+						if (!editorLspParseDocumentSymbolObject(p, child_end, symbols, count, cap,
+									depth + 1, my_index)) {
+							return 0;
+						}
+						last_child_index = child_index;
+						p = child_end + 1;
+						p = editorLspSkipWs(p);
+						if (p == NULL) {
+							break;
+						}
+						if (*p == ',') {
+							p++;
+						}
+					}
+					if (last_child_index >= 0) {
+						(*symbols)[last_child_index].is_last_sibling = 1;
+					}
+				}
+			}
+		}
+	}
+	return 1;
+}
+
+int editorLspParseDocumentSymbols(const char *response_json,
+		struct editorLspSymbol **symbols_out, int *count_out) {
+	if (symbols_out == NULL || count_out == NULL) {
+		return 0;
+	}
+	*symbols_out = NULL;
+	*count_out = 0;
+
+	const char *result_key = strstr(response_json, "\"result\"");
+	if (result_key == NULL) {
+		return 0;
+	}
+	const char *result_colon = strchr(result_key, ':');
+	if (result_colon == NULL) {
+		return 0;
+	}
+	const char *result = editorLspSkipWs(result_colon + 1);
+	if (result == NULL) {
+		return 0;
+	}
+	if (strncmp(result, "null", 4) == 0) {
+		return 1;
+	}
+	if (*result != '[') {
+		return 0;
+	}
+	const char *array_end = editorLspFindJsonArrayEnd(result);
+	if (array_end == NULL) {
+		return 0;
+	}
+
+	struct editorLspSymbol *symbols = NULL;
+	int count = 0;
+	int cap = 0;
+	int last_top_index = -1;
+	const char *p = result + 1;
+	while (p < array_end) {
+		p = editorLspSkipWs(p);
+		if (p == NULL || *p == ']') {
+			break;
+		}
+		if (*p != '{') {
+			p++;
+			continue;
+		}
+		const char *obj_end = editorLspFindJsonObjectEnd(p);
+		if (obj_end == NULL) {
+			break;
+		}
+		int top_index = count;
+		if (!editorLspParseDocumentSymbolObject(p, obj_end, &symbols, &count, &cap, 0, -1)) {
+			editorLspFreeSymbols(symbols, count);
+			return 0;
+		}
+		last_top_index = top_index;
+		p = obj_end + 1;
+		p = editorLspSkipWs(p);
+		if (p == NULL) {
+			break;
+		}
+		if (*p == ',') {
+			p++;
+		}
+	}
+	if (last_top_index >= 0) {
+		symbols[last_top_index].is_last_sibling = 1;
+	}
+
+	*symbols_out = symbols;
+	*count_out = count;
+	return 1;
 }
 
 void editorLspFreeDiagnostics(struct editorLspDiagnostic *diagnostics, int count) {

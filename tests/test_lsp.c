@@ -284,6 +284,7 @@ static int test_editor_lsp_build_initialize_request_json_is_complete(void) {
 	ASSERT_TRUE(strstr(request, "\"processId\":1234") != NULL);
 	ASSERT_TRUE(strstr(request, "\"rootUri\":\"file:///tmp/project\"") != NULL);
 	ASSERT_TRUE(strstr(request, "\"source.fixAll.eslint\"") != NULL);
+	ASSERT_TRUE(strstr(request, "\"hierarchicalDocumentSymbolSupport\":true") != NULL);
 	ASSERT_EQ_INT('}', request[strlen(request) - 1]);
 	free(request);
 	return 0;
@@ -1474,6 +1475,157 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location(v
 	return 0;
 }
 
+static int test_editor_process_keypress_alt_i_goto_implementation_jumps_to_target(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_gopls_enabled = 1;
+	E.lsp_clangd_enabled = 0;
+	ASSERT_TRUE(editorTabsInit());
+
+	char go_path[64];
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(go_path, sizeof(go_path),
+			"rotide-test-go-lsp-impl-", ".go",
+			"tests/lsp/supported/go/single_file_definition.go"));
+	editorOpen(go_path);
+
+	E.cy = 5;
+	E.cx = 5;
+
+	struct editorLspLocation target = {
+		.path = go_path,
+		.line = 2,
+		.character = 5
+	};
+	editorLspTestSetMockDefinitionResponse(1, &target, 1);
+
+	char goto_impl[] = {'\x1b', 'i'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_impl, sizeof(goto_impl)) == 0);
+	ASSERT_EQ_INT(2, E.cy);
+	ASSERT_EQ_INT(5, E.cx);
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.implementation_count);
+	ASSERT_EQ_INT(0, stats.definition_count);
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_alt_s_goto_symbol_jumps_to_first_symbol(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_gopls_enabled = 1;
+	E.lsp_clangd_enabled = 0;
+	ASSERT_TRUE(editorTabsInit());
+
+	char go_path[64];
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(go_path, sizeof(go_path),
+			"rotide-test-go-lsp-sym-", ".go",
+			"tests/lsp/supported/go/single_file_definition.go"));
+	editorOpen(go_path);
+
+	E.cy = 0;
+	E.cx = 0;
+
+	struct editorLspSymbol symbols[1] = {
+		{.name = "main", .kind = 12, .line = 4, .character = 0},
+	};
+	editorLspTestSetMockDocumentSymbolResponse(1, symbols, 1);
+
+	char goto_sym[] = {'\x1b', 's'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_sym, sizeof(goto_sym)) == 0);
+	ASSERT_EQ_INT(4, E.cy);
+	ASSERT_EQ_INT(0, E.cx);
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.document_symbol_count);
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
+static int test_editor_lsp_parse_document_symbols_handles_document_symbol_array(void) {
+	const char *response =
+			"{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":["
+			"{\"name\":\"main\",\"kind\":12,"
+			"\"range\":{\"start\":{\"line\":4,\"character\":0},"
+			"\"end\":{\"line\":6,\"character\":1}},"
+			"\"selectionRange\":{\"start\":{\"line\":4,\"character\":5},"
+			"\"end\":{\"line\":4,\"character\":9}}},"
+			"{\"name\":\"helper\",\"kind\":12,"
+			"\"range\":{\"start\":{\"line\":8,\"character\":0},"
+			"\"end\":{\"line\":10,\"character\":1}}}"
+			"]}";
+	struct editorLspSymbol *symbols = NULL;
+	int count = 0;
+	ASSERT_EQ_INT(1, editorLspTestParseDocumentSymbolResponse(response, &symbols, &count));
+	ASSERT_EQ_INT(2, count);
+	ASSERT_EQ_STR("main", symbols[0].name);
+	ASSERT_EQ_INT(12, symbols[0].kind);
+	ASSERT_EQ_INT(4, symbols[0].line);
+	ASSERT_EQ_STR("helper", symbols[1].name);
+	ASSERT_EQ_INT(8, symbols[1].line);
+	editorLspFreeSymbols(symbols, count);
+	return 0;
+}
+
+static int test_editor_lsp_parse_document_symbols_handles_symbol_information_array(void) {
+	const char *response =
+			"{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":["
+			"{\"name\":\"Foo\",\"kind\":5,"
+			"\"location\":{\"uri\":\"file:///tmp/x.go\","
+			"\"range\":{\"start\":{\"line\":1,\"character\":7},"
+			"\"end\":{\"line\":1,\"character\":10}}}}"
+			"]}";
+	struct editorLspSymbol *symbols = NULL;
+	int count = 0;
+	ASSERT_EQ_INT(1, editorLspTestParseDocumentSymbolResponse(response, &symbols, &count));
+	ASSERT_EQ_INT(1, count);
+	ASSERT_EQ_STR("Foo", symbols[0].name);
+	ASSERT_EQ_INT(5, symbols[0].kind);
+	ASSERT_EQ_INT(1, symbols[0].line);
+	ASSERT_EQ_INT(7, symbols[0].character);
+	editorLspFreeSymbols(symbols, count);
+	return 0;
+}
+
+static int test_editor_lsp_parse_document_symbols_flattens_children(void) {
+	const char *response =
+			"{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":["
+			"{\"name\":\"Outer\",\"kind\":5,"
+			"\"range\":{\"start\":{\"line\":0,\"character\":0},"
+			"\"end\":{\"line\":10,\"character\":1}},"
+			"\"children\":["
+			"{\"name\":\"first\",\"kind\":6,"
+			"\"range\":{\"start\":{\"line\":2,\"character\":2},"
+			"\"end\":{\"line\":3,\"character\":3}}},"
+			"{\"name\":\"second\",\"kind\":6,"
+			"\"range\":{\"start\":{\"line\":4,\"character\":2},"
+			"\"end\":{\"line\":5,\"character\":3}}}"
+			"]}"
+			"]}";
+	struct editorLspSymbol *symbols = NULL;
+	int count = 0;
+	ASSERT_EQ_INT(1, editorLspTestParseDocumentSymbolResponse(response, &symbols, &count));
+	ASSERT_EQ_INT(3, count);
+	ASSERT_EQ_STR("Outer", symbols[0].name);
+	ASSERT_EQ_INT(0, symbols[0].depth);
+	ASSERT_EQ_INT(-1, symbols[0].parent_index);
+	ASSERT_EQ_INT(1, symbols[0].is_last_sibling);
+
+	ASSERT_EQ_STR("first", symbols[1].name);
+	ASSERT_EQ_INT(1, symbols[1].depth);
+	ASSERT_EQ_INT(0, symbols[1].parent_index);
+	ASSERT_EQ_INT(0, symbols[1].is_last_sibling);
+
+	ASSERT_EQ_STR("second", symbols[2].name);
+	ASSERT_EQ_INT(1, symbols[2].depth);
+	ASSERT_EQ_INT(0, symbols[2].parent_index);
+	ASSERT_EQ_INT(1, symbols[2].is_last_sibling);
+	editorLspFreeSymbols(symbols, count);
+	return 0;
+}
+
 static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_c_buffer(void) {
 	editorLspTestSetMockEnabled(1);
 	E.lsp_gopls_enabled = 0;
@@ -2423,7 +2575,7 @@ static int test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem(void) {
 			sizeof(lsp_drawer)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
 	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
-	ASSERT_TRUE(!find_drawer_entry("Symbols", NULL, NULL));
+	ASSERT_TRUE(find_drawer_entry("Symbols", NULL, NULL));
 
 	struct editorDrawerEntryView view = {0};
 	int problem_idx = -1;
@@ -2438,7 +2590,7 @@ static int test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem(void) {
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, "Missing semicolon") != NULL);
-	ASSERT_TRUE(strstr(output, "Symbols") == NULL);
+	ASSERT_TRUE(strstr(output, "Symbols") != NULL);
 	free(output);
 
 	ASSERT_TRUE(editorDrawerSelectVisibleIndex(problem_idx, E.window_rows));
@@ -2451,6 +2603,104 @@ static int test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem(void) {
 	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
 
 	ASSERT_TRUE(unlink(js_path) == 0);
+	return 0;
+}
+
+static int test_editor_lsp_drawer_lists_document_symbols_and_jumps_to_symbol(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_gopls_enabled = 1;
+	E.lsp_clangd_enabled = 0;
+	ASSERT_TRUE(editorTabsInit());
+
+	char go_path[64];
+	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
+			"package main\n\nfunc helper() {}\n\nfunc main() { helper() }\n"));
+	editorOpen(go_path);
+
+	struct editorLspSymbol symbols[2] = {
+		{.name = "helper", .kind = 12, .line = 2, .character = 5},
+		{.name = "main", .kind = 12, .line = 4, .character = 5},
+	};
+	editorLspTestSetMockDocumentSymbolResponse(1, symbols, 2);
+
+	char lsp_drawer[] = {'\x1b', CTRL_KEY('l')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(lsp_drawer,
+			sizeof(lsp_drawer)) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.document_symbol_count);
+	ASSERT_EQ_INT(2, E.lsp_symbol_count);
+
+	struct editorDrawerEntryView view = {0};
+	int helper_idx = -1;
+	ASSERT_TRUE(find_drawer_entry_containing("helper", &helper_idx, &view));
+	ASSERT_TRUE(strstr(view.name, "Function") != NULL);
+	ASSERT_EQ_INT(2, view.line);
+
+	int main_idx = -1;
+	ASSERT_TRUE(find_drawer_entry_containing("main", &main_idx, NULL));
+
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(helper_idx, E.window_rows));
+	char enter[] = {'\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(enter, sizeof(enter)) == 0);
+	ASSERT_EQ_STR(go_path, E.filename);
+	ASSERT_EQ_INT(2, E.cy);
+	ASSERT_EQ_INT(5, E.cx);
+	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
+static int test_editor_lsp_drawer_renders_nested_symbols_hierarchically(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 1;
+	ASSERT_TRUE(editorTabsInit());
+
+	char c_path[64];
+	ASSERT_TRUE(write_temp_c_file(c_path, sizeof(c_path),
+			"struct Outer { int a; int b; };\n"));
+	editorOpen(c_path);
+
+	struct editorLspSymbol symbols[3] = {
+		{.name = "Outer", .kind = 23, .line = 0, .character = 7,
+				.depth = 0, .parent_index = -1, .is_last_sibling = 1},
+		{.name = "a", .kind = 8, .line = 0, .character = 19,
+				.depth = 1, .parent_index = 0, .is_last_sibling = 0},
+		{.name = "b", .kind = 8, .line = 0, .character = 26,
+				.depth = 1, .parent_index = 0, .is_last_sibling = 1},
+	};
+	editorLspTestSetMockDocumentSymbolResponse(1, symbols, 3);
+
+	char lsp_drawer[] = {'\x1b', CTRL_KEY('l')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(lsp_drawer,
+			sizeof(lsp_drawer)) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
+	ASSERT_EQ_INT(3, E.lsp_symbol_count);
+
+	int outer_idx = -1;
+	struct editorDrawerEntryView outer_view = {0};
+	ASSERT_TRUE(find_drawer_entry_containing("Outer", &outer_idx, &outer_view));
+	ASSERT_EQ_INT(2, outer_view.depth);
+
+	int field_a_idx = -1;
+	struct editorDrawerEntryView field_a = {0};
+	ASSERT_TRUE(find_drawer_entry_containing("Field a:1", &field_a_idx, &field_a));
+	ASSERT_EQ_INT(3, field_a.depth);
+	ASSERT_EQ_INT(outer_idx, field_a.parent_visible_idx);
+	ASSERT_EQ_INT(0, field_a.is_last_sibling);
+
+	int field_b_idx = -1;
+	struct editorDrawerEntryView field_b = {0};
+	ASSERT_TRUE(find_drawer_entry_containing("Field b:1", &field_b_idx, &field_b));
+	ASSERT_EQ_INT(3, field_b.depth);
+	ASSERT_EQ_INT(outer_idx, field_b.parent_visible_idx);
+	ASSERT_EQ_INT(1, field_b.is_last_sibling);
+
+	ASSERT_TRUE(unlink(c_path) == 0);
 	return 0;
 }
 
@@ -2582,11 +2832,18 @@ const struct editorTestCase g_lsp_tests[] = {
 	{"editor_lsp_eslint_diagnostics_update_and_status_summary", test_editor_lsp_eslint_diagnostics_update_and_status_summary},
 	{"editor_lsp_eslint_diagnostics_persist_across_tab_switches", test_editor_lsp_eslint_diagnostics_persist_across_tab_switches},
 	{"editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem", test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem},
+	{"editor_lsp_drawer_lists_document_symbols_and_jumps_to_symbol", test_editor_lsp_drawer_lists_document_symbols_and_jumps_to_symbol},
+	{"editor_lsp_drawer_renders_nested_symbols_hierarchically", test_editor_lsp_drawer_renders_nested_symbols_hierarchically},
 	{"editor_lsp_drawer_selected_problem_spills_into_text_area", test_editor_lsp_drawer_selected_problem_spills_into_text_area},
 	{"editor_lsp_drawer_syntax_problem_clears_and_reappears", test_editor_lsp_drawer_syntax_problem_clears_and_reappears},
 	{"editor_lsp_drawer_lists_syntax_parse_error", test_editor_lsp_drawer_lists_syntax_parse_error},
 	{"editor_lsp_javascript_definition_coexists_with_eslint_sidecar", test_editor_lsp_javascript_definition_coexists_with_eslint_sidecar},
 	{"editor_process_keypress_ctrl_o_goto_definition_single_location", test_editor_process_keypress_ctrl_o_goto_definition_single_location},
+	{"editor_process_keypress_alt_i_goto_implementation_jumps_to_target", test_editor_process_keypress_alt_i_goto_implementation_jumps_to_target},
+	{"editor_process_keypress_alt_s_goto_symbol_jumps_to_first_symbol", test_editor_process_keypress_alt_s_goto_symbol_jumps_to_first_symbol},
+	{"editor_lsp_parse_document_symbols_handles_document_symbol_array", test_editor_lsp_parse_document_symbols_handles_document_symbol_array},
+	{"editor_lsp_parse_document_symbols_handles_symbol_information_array", test_editor_lsp_parse_document_symbols_handles_symbol_information_array},
+	{"editor_lsp_parse_document_symbols_flattens_children", test_editor_lsp_parse_document_symbols_flattens_children},
 	{"editor_process_keypress_ctrl_o_goto_definition_single_location_c_buffer", test_editor_process_keypress_ctrl_o_goto_definition_single_location_c_buffer},
 	{"editor_process_keypress_ctrl_o_goto_definition_single_location_cpp_buffer", test_editor_process_keypress_ctrl_o_goto_definition_single_location_cpp_buffer},
 	{"editor_process_keypress_ctrl_o_goto_definition_single_location_html_buffer", test_editor_process_keypress_ctrl_o_goto_definition_single_location_html_buffer},

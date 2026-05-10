@@ -46,6 +46,8 @@ static const struct editorActionName editor_action_names[] = {
 	{"find", EDITOR_ACTION_FIND},
 	{"goto_line", EDITOR_ACTION_GOTO_LINE},
 	{"goto_definition", EDITOR_ACTION_GOTO_DEFINITION},
+	{"goto_implementation", EDITOR_ACTION_GOTO_IMPLEMENTATION},
+	{"goto_symbol", EDITOR_ACTION_GOTO_SYMBOL},
 	{"eslint_fix", EDITOR_ACTION_ESLINT_FIX},
 	{"toggle_selection", EDITOR_ACTION_TOGGLE_SELECTION},
 	{"copy_selection", EDITOR_ACTION_COPY_SELECTION},
@@ -636,6 +638,10 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('f'), EDITOR_ACTION_FIND);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('g'), EDITOR_ACTION_GOTO_LINE);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('o'), EDITOR_ACTION_GOTO_DEFINITION);
+	(void)editorKeymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('i'),
+			EDITOR_ACTION_GOTO_IMPLEMENTATION);
+	(void)editorKeymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('s'),
+			EDITOR_ACTION_GOTO_SYMBOL);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('b'), EDITOR_ACTION_TOGGLE_SELECTION);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('c'), EDITOR_ACTION_COPY_SELECTION);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('x'), EDITOR_ACTION_CUT_SELECTION);

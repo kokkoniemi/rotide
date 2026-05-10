@@ -115,6 +115,7 @@ struct editorLspDiagnostic {
 struct editorDrawerNode;
 struct editorSyntaxState;
 struct editorDocument;
+struct editorLspSymbol;
 
 enum editorPaneFocus {
 	EDITOR_PANE_TEXT = 0,
@@ -345,6 +346,8 @@ enum editorAction {
 	EDITOR_ACTION_FIND,
 	EDITOR_ACTION_GOTO_LINE,
 	EDITOR_ACTION_GOTO_DEFINITION,
+	EDITOR_ACTION_GOTO_IMPLEMENTATION,
+	EDITOR_ACTION_GOTO_SYMBOL,
 	EDITOR_ACTION_ESLINT_FIX,
 	EDITOR_ACTION_TOGGLE_SELECTION,
 	EDITOR_ACTION_COPY_SELECTION,
@@ -482,6 +485,8 @@ struct editorTabState {
 	int lsp_diagnostic_count;
 	int lsp_diagnostic_error_count;
 	int lsp_diagnostic_warning_count;
+	struct editorLspSymbol *lsp_symbols;
+	int lsp_symbol_count;
 	char *search_query;
 	size_t search_match_offset;
 	int search_match_len;
@@ -561,6 +566,8 @@ struct editorConfig {
 	int lsp_diagnostic_count;
 	int lsp_diagnostic_error_count;
 	int lsp_diagnostic_warning_count;
+	struct editorLspSymbol *lsp_symbols;
+	int lsp_symbol_count;
 	char statusmsg[80];
 	time_t statusmsg_time;
 	char *search_query;

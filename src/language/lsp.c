@@ -32,6 +32,9 @@ struct editorLspMockState {
 	int definition_result_code;
 	struct editorLspLocation *definition_locations;
 	int definition_location_count;
+	int document_symbol_result_code;
+	struct editorLspSymbol *document_symbols;
+	int document_symbol_count;
 	struct editorLspDiagnostic *diagnostics;
 	int diagnostic_count;
 	char *diagnostic_path;
@@ -1384,9 +1387,9 @@ void editorLspNotifyEslintDidClose(const char *filename, enum editorSyntaxLangua
 }
 
 
-int editorLspRequestDefinition(const char *filename, enum editorSyntaxLanguage language, int line,
-		int character, struct editorLspLocation **locations_out, int *count_out,
-		int *timed_out_out) {
+static int editorLspRequestLocationsByMethod(const char *method, int *mock_counter,
+		const char *filename, enum editorSyntaxLanguage language, int line, int character,
+		struct editorLspLocation **locations_out, int *count_out, int *timed_out_out) {
 	if (locations_out == NULL || count_out == NULL) {
 		return -1;
 	}
@@ -1408,7 +1411,9 @@ int editorLspRequestDefinition(const char *filename, enum editorSyntaxLanguage l
 		if (!editorLspEnsureRunningForFile(filename, language)) {
 			return -1;
 		}
-		g_lsp_mock.stats.definition_count++;
+		if (mock_counter != NULL) {
+			(*mock_counter)++;
+		}
 		if (g_lsp_mock.definition_result_code == -2) {
 			if (timed_out_out != NULL) {
 				*timed_out_out = 1;
@@ -1439,9 +1444,9 @@ int editorLspRequestDefinition(const char *filename, enum editorSyntaxLanguage l
 	int request_id = g_lsp_client.next_request_id++;
 	struct editorLspString payload = {0};
 	int built = editorLspStringAppendf(&payload,
-			"{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":\"textDocument/definition\",\"params\":{"
+			"{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":\"%s\",\"params\":{"
 			"\"textDocument\":{\"uri\":",
-			request_id);
+			request_id, method);
 	if (built) {
 		built = editorLspStringAppendJsonEscaped(&payload, uri, strlen(uri));
 	}
@@ -1490,6 +1495,128 @@ int editorLspRequestDefinition(const char *filename, enum editorSyntaxLanguage l
 	free(response);
 
 	*locations_out = locations;
+	*count_out = count;
+	return 1;
+}
+
+int editorLspRequestDefinition(const char *filename, enum editorSyntaxLanguage language, int line,
+		int character, struct editorLspLocation **locations_out, int *count_out,
+		int *timed_out_out) {
+	return editorLspRequestLocationsByMethod("textDocument/definition",
+			&g_lsp_mock.stats.definition_count,
+			filename, language, line, character, locations_out, count_out, timed_out_out);
+}
+
+int editorLspRequestImplementation(const char *filename, enum editorSyntaxLanguage language,
+		int line, int character, struct editorLspLocation **locations_out, int *count_out,
+		int *timed_out_out) {
+	return editorLspRequestLocationsByMethod("textDocument/implementation",
+			&g_lsp_mock.stats.implementation_count,
+			filename, language, line, character, locations_out, count_out, timed_out_out);
+}
+
+int editorLspRequestDocumentSymbols(const char *filename, enum editorSyntaxLanguage language,
+		struct editorLspSymbol **symbols_out, int *count_out, int *timed_out_out) {
+	if (symbols_out == NULL || count_out == NULL) {
+		return -1;
+	}
+	*symbols_out = NULL;
+	*count_out = 0;
+	if (timed_out_out != NULL) {
+		*timed_out_out = 0;
+	}
+
+	if (!editorLspFileEnabled(filename, language)) {
+		return 0;
+	}
+	if (filename == NULL || filename[0] == '\0' ||
+			!editorLspFileSupportsDefinition(filename, language)) {
+		return -1;
+	}
+
+	if (g_lsp_mock.enabled) {
+		if (!editorLspEnsureRunningForFile(filename, language)) {
+			return -1;
+		}
+		g_lsp_mock.stats.document_symbol_count++;
+		if (g_lsp_mock.document_symbol_result_code == -2) {
+			if (timed_out_out != NULL) {
+				*timed_out_out = 1;
+			}
+			return -2;
+		}
+		if (g_lsp_mock.document_symbol_result_code < 0) {
+			return -1;
+		}
+		if (!editorLspCopySymbols(symbols_out, count_out, g_lsp_mock.document_symbols,
+					g_lsp_mock.document_symbol_count)) {
+			return -1;
+		}
+		return 1;
+	}
+
+	if (!editorLspEnsureRunningForFile(filename, language)) {
+		return -1;
+	}
+
+	char *uri = NULL;
+	if (!editorLspBuildFileUri(filename, &uri)) {
+		return -1;
+	}
+
+	int request_id = g_lsp_client.next_request_id++;
+	struct editorLspString payload = {0};
+	int built = editorLspStringAppendf(&payload,
+			"{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":\"textDocument/documentSymbol\",\"params\":{"
+			"\"textDocument\":{\"uri\":",
+			request_id);
+	if (built) {
+		built = editorLspStringAppendJsonEscaped(&payload, uri, strlen(uri));
+	}
+	if (built) {
+		built = editorLspStringAppend(&payload, "}}}");
+	}
+	free(uri);
+	if (!built) {
+		free(payload.buf);
+		return -1;
+	}
+
+	if (!editorLspSendRawJson(payload.buf)) {
+		free(payload.buf);
+		editorLspClientCleanup(&g_lsp_client, 0);
+		return -1;
+	}
+	free(payload.buf);
+
+	char *response = NULL;
+	int timed_out = 0;
+	if (!editorLspWaitForResponseId(&g_lsp_client, request_id, ROTIDE_LSP_IO_TIMEOUT_MS, &response,
+				&timed_out)) {
+		editorLspClientCleanup(&g_lsp_client, 0);
+		if (timed_out) {
+			if (timed_out_out != NULL) {
+				*timed_out_out = 1;
+			}
+			return -2;
+		}
+		return -1;
+	}
+
+	if (editorLspResponseHasError(response)) {
+		free(response);
+		return -1;
+	}
+
+	struct editorLspSymbol *symbols = NULL;
+	int count = 0;
+	if (!editorLspParseDocumentSymbols(response, &symbols, &count)) {
+		free(response);
+		return -1;
+	}
+	free(response);
+
+	*symbols_out = symbols;
 	*count_out = count;
 	return 1;
 }
@@ -1666,11 +1793,15 @@ void editorLspTestSetMockServerAlive(int alive) {
 
 void editorLspTestResetMock(void) {
 	editorLspFreeLocations(g_lsp_mock.definition_locations, g_lsp_mock.definition_location_count);
+	editorLspFreeSymbols(g_lsp_mock.document_symbols, g_lsp_mock.document_symbol_count);
 	editorLspFreeDiagnostics(g_lsp_mock.diagnostics, g_lsp_mock.diagnostic_count);
 	editorLspFreePendingEdits(g_lsp_mock.code_action_edits, g_lsp_mock.code_action_edit_count);
 	g_lsp_mock.definition_locations = NULL;
 	g_lsp_mock.definition_location_count = 0;
 	g_lsp_mock.definition_result_code = 1;
+	g_lsp_mock.document_symbols = NULL;
+	g_lsp_mock.document_symbol_count = 0;
+	g_lsp_mock.document_symbol_result_code = 1;
 	g_lsp_mock.diagnostics = NULL;
 	g_lsp_mock.diagnostic_count = 0;
 	free(g_lsp_mock.diagnostic_path);
@@ -1728,6 +1859,20 @@ void editorLspTestSetMockDefinitionResponse(int result_code,
 			&g_lsp_mock.definition_location_count, locations, count);
 }
 
+void editorLspTestSetMockDocumentSymbolResponse(int result_code,
+		const struct editorLspSymbol *symbols, int count) {
+	editorLspFreeSymbols(g_lsp_mock.document_symbols, g_lsp_mock.document_symbol_count);
+	g_lsp_mock.document_symbols = NULL;
+	g_lsp_mock.document_symbol_count = 0;
+	g_lsp_mock.document_symbol_result_code = result_code;
+
+	if (symbols == NULL || count <= 0) {
+		return;
+	}
+	(void)editorLspCopySymbols(&g_lsp_mock.document_symbols,
+			&g_lsp_mock.document_symbol_count, symbols, count);
+}
+
 void editorLspTestSetMockDiagnostics(const char *path, const struct editorLspDiagnostic *diagnostics,
 		int count) {
 	editorLspFreeDiagnostics(g_lsp_mock.diagnostics, g_lsp_mock.diagnostic_count);
@@ -1778,6 +1923,42 @@ int editorLspTestParseDefinitionResponse(const char *response_json,
 		return 0;
 	}
 	return editorLspParseDefinitionLocations(response_json, locations_out, count_out);
+}
+
+int editorLspTestParseDocumentSymbolResponse(const char *response_json,
+		struct editorLspSymbol **symbols_out, int *count_out) {
+	if (response_json == NULL) {
+		return 0;
+	}
+	return editorLspParseDocumentSymbols(response_json, symbols_out, count_out);
+}
+
+void editorLspRefreshActiveDocumentSymbols(void) {
+	if (E.tab_kind != EDITOR_TAB_FILE || E.filename == NULL || E.filename[0] == '\0' ||
+			!editorLspFileEnabled(E.filename, E.syntax_language) ||
+			!editorLspFileSupportsDefinition(E.filename, E.syntax_language)) {
+		if (E.lsp_symbols != NULL) {
+			editorLspFreeSymbols(E.lsp_symbols, E.lsp_symbol_count);
+		}
+		E.lsp_symbols = NULL;
+		E.lsp_symbol_count = 0;
+		return;
+	}
+
+	struct editorLspSymbol *symbols = NULL;
+	int count = 0;
+	int timed_out = 0;
+	int result = editorLspRequestDocumentSymbols(E.filename, E.syntax_language,
+			&symbols, &count, &timed_out);
+	if (result <= 0) {
+		editorLspFreeSymbols(symbols, count);
+		return;
+	}
+	if (E.lsp_symbols != NULL) {
+		editorLspFreeSymbols(E.lsp_symbols, E.lsp_symbol_count);
+	}
+	E.lsp_symbols = symbols;
+	E.lsp_symbol_count = count;
 }
 
 char *editorLspTestBuildInitializeRequestJson(int request_id, const char *root_uri,

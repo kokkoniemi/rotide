@@ -12,6 +12,16 @@ struct editorLspLocation {
 	int character;
 };
 
+struct editorLspSymbol {
+	char *name;
+	int kind;
+	int line;
+	int character;
+	int depth;
+	int parent_index;
+	int is_last_sibling;
+};
+
 struct editorLspTestStats {
 	int start_count;
 	int shutdown_count;
@@ -20,6 +30,8 @@ struct editorLspTestStats {
 	int did_save_count;
 	int did_close_count;
 	int definition_count;
+	int implementation_count;
+	int document_symbol_count;
 	int code_action_count;
 };
 
@@ -76,6 +88,15 @@ void editorLspNotifyEslintDidClose(const char *filename, enum editorSyntaxLangua
 int editorLspRequestDefinition(const char *filename, enum editorSyntaxLanguage language, int line,
 		int character, struct editorLspLocation **locations_out, int *count_out,
 		int *timed_out_out);
+int editorLspRequestImplementation(const char *filename, enum editorSyntaxLanguage language,
+		int line, int character, struct editorLspLocation **locations_out, int *count_out,
+		int *timed_out_out);
+int editorLspRequestDocumentSymbols(const char *filename, enum editorSyntaxLanguage language,
+		struct editorLspSymbol **symbols_out, int *count_out, int *timed_out_out);
+void editorLspFreeSymbols(struct editorLspSymbol *symbols, int count);
+const char *editorLspSymbolKindLabel(int kind);
+
+void editorLspRefreshActiveDocumentSymbols(void);
 int editorLspRequestCodeActionFixes(const char *filename, enum editorSyntaxLanguage language);
 void editorLspFreeLocations(struct editorLspLocation *locations, int count);
 int editorLspProtocolCharacterToBufferColumn(int line, int protocol_character);
@@ -104,12 +125,16 @@ void editorLspTestGetLastChange(struct editorLspTestLastChange *out);
 void editorLspTestGetLastDidOpenLanguageId(char *out, size_t out_size);
 void editorLspTestSetMockDefinitionResponse(int result_code,
 		const struct editorLspLocation *locations, int count);
+void editorLspTestSetMockDocumentSymbolResponse(int result_code,
+		const struct editorLspSymbol *symbols, int count);
 void editorLspTestSetMockDiagnostics(const char *path, const struct editorLspDiagnostic *diagnostics,
 		int count);
 void editorLspTestSetMockCodeActionResult(int result_code,
 		const struct editorLspDiagnostic *edits, int count);
 int editorLspTestParseDefinitionResponse(const char *response_json,
 		struct editorLspLocation **locations_out, int *count_out);
+int editorLspTestParseDocumentSymbolResponse(const char *response_json,
+		struct editorLspSymbol **symbols_out, int *count_out);
 char *editorLspTestBuildInitializeRequestJson(int request_id, const char *root_uri,
 		int process_id);
 

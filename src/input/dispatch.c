@@ -2158,13 +2158,13 @@ static int editorJumpToSelectedLspDrawerLocation(int preview) {
 	return editorJumpToPathLocation(path, line, character, preview);
 }
 
-static int editorPromptDefinitionChoice(int count, int *choice_out) {
+static int editorPromptLocationChoice(const char *kind_capitalized, int count, int *choice_out) {
 	if (choice_out == NULL || count <= 0) {
 		return 0;
 	}
 
-	char prompt[64];
-	int written = snprintf(prompt, sizeof(prompt), "Definition (1-%d): %%s", count);
+	char prompt[80];
+	int written = snprintf(prompt, sizeof(prompt), "%s (1-%d): %%s", kind_capitalized, count);
 	if (written <= 0 || (size_t)written >= sizeof(prompt)) {
 		return 0;
 	}
@@ -2178,7 +2178,7 @@ static int editorPromptDefinitionChoice(int count, int *choice_out) {
 	int parsed = editorParsePositiveLineNumber(query, &selected);
 	free(query);
 	if (!parsed || selected > count) {
-		editorSetStatusMsg("Invalid definition choice");
+		editorSetStatusMsg("Invalid %s choice", kind_capitalized);
 		return 0;
 	}
 
@@ -2186,10 +2186,16 @@ static int editorPromptDefinitionChoice(int count, int *choice_out) {
 	return 1;
 }
 
-static void editorGoToDefinition(void) {
+typedef int (*editorLspLocationRequestFn)(const char *filename, enum editorSyntaxLanguage language,
+		int line, int character, struct editorLspLocation **locations_out, int *count_out,
+		int *timed_out_out);
+
+static void editorRunLocationLookup(const char *kind_lower, const char *kind_capitalized,
+		const char *kind_plural, editorLspLocationRequestFn request_fn) {
 	if (!editorGoToDefinitionSupportedLanguage(E.syntax_language)) {
 		editorSetStatusMsg(
-				"Go to definition is available for Go, C, C++, HTML, CSS/SCSS, JSON, and JavaScript files only");
+				"Go to %s is available for Go, C, C++, HTML, CSS/SCSS, JSON, and JavaScript files only",
+				kind_lower);
 		return;
 	}
 	if (E.filename == NULL || E.filename[0] == '\0') {
@@ -2197,7 +2203,7 @@ static void editorGoToDefinition(void) {
 		if (language_label == NULL) {
 			language_label = "source";
 		}
-		editorSetStatusMsg("Save this %s buffer before using go to definition", language_label);
+		editorSetStatusMsg("Save this %s buffer before using go to %s", language_label, kind_lower);
 		return;
 	}
 	if (!editorGoToDefinitionEnabledForLanguage()) {
@@ -2254,28 +2260,28 @@ static void editorGoToDefinition(void) {
 	struct editorLspLocation *locations = NULL;
 	int count = 0;
 	int timed_out = 0;
-	int request_result = editorLspRequestDefinition(E.filename, E.syntax_language, E.cy, E.cx,
+	int request_result = request_fn(E.filename, E.syntax_language, E.cy, E.cx,
 			&locations, &count, &timed_out);
 	if (request_result == -2 || timed_out) {
-		editorSetStatusMsg("Go to definition timed out");
+		editorSetStatusMsg("Go to %s timed out", kind_lower);
 		editorLspFreeLocations(locations, count);
 		return;
 	}
 	if (request_result <= 0) {
-		editorSetStatusMsg("Go to definition failed");
+		editorSetStatusMsg("Go to %s failed", kind_lower);
 		editorLspFreeLocations(locations, count);
 		return;
 	}
 	if (count <= 0) {
-		editorSetStatusMsg("Definition not found");
+		editorSetStatusMsg("%s not found", kind_capitalized);
 		editorLspFreeLocations(locations, count);
 		return;
 	}
 
 	int selected_index = 0;
 	if (count > 1) {
-		editorSetStatusMsg("Found %d definitions; choose 1-%d", count, count);
-		if (!editorPromptDefinitionChoice(count, &selected_index)) {
+		editorSetStatusMsg("Found %d %s; choose 1-%d", count, kind_plural, count);
+		if (!editorPromptLocationChoice(kind_capitalized, count, &selected_index)) {
 			editorLspFreeLocations(locations, count);
 			return;
 		}
@@ -2283,14 +2289,126 @@ static void editorGoToDefinition(void) {
 
 	const struct editorLspLocation *selected = &locations[selected_index];
 	if (!editorJumpToDefinitionLocation(selected)) {
-		editorSetStatusMsg("Unable to jump to definition");
+		editorSetStatusMsg("Unable to jump to %s", kind_lower);
 		editorLspFreeLocations(locations, count);
 		return;
 	}
 
-	editorSetStatusMsg("Definition: %s:%d", editorBasenameFromPath(selected->path),
+	editorSetStatusMsg("%s: %s:%d", kind_capitalized, editorBasenameFromPath(selected->path),
 			selected->line + 1);
 	editorLspFreeLocations(locations, count);
+}
+
+static void editorGoToDefinition(void) {
+	editorRunLocationLookup("definition", "Definition", "definitions",
+			editorLspRequestDefinition);
+}
+
+static void editorGoToImplementation(void) {
+	editorRunLocationLookup("implementation", "Implementation", "implementations",
+			editorLspRequestImplementation);
+}
+
+static void editorGoToSymbol(void) {
+	if (!editorGoToDefinitionSupportedLanguage(E.syntax_language)) {
+		editorSetStatusMsg(
+				"Go to symbol is available for Go, C, C++, HTML, CSS/SCSS, JSON, and JavaScript files only");
+		return;
+	}
+	if (E.filename == NULL || E.filename[0] == '\0') {
+		const char *language_label = editorGoToDefinitionLanguageLabel();
+		if (language_label == NULL) {
+			language_label = "source";
+		}
+		editorSetStatusMsg("Save this %s buffer before using go to symbol", language_label);
+		return;
+	}
+	if (!editorGoToDefinitionEnabledForLanguage()) {
+		editorSetStatusMsg("%s is disabled in config", editorGoToDefinitionServerName());
+		return;
+	}
+	const char *command = editorGoToDefinitionCommand();
+	const char *command_setting = editorGoToDefinitionCommandSettingName();
+	if (command == NULL || command_setting == NULL) {
+		editorSetStatusMsg("LSP unavailable for this file");
+		return;
+	}
+	if (command[0] == '\0') {
+		editorSetStatusMsg("LSP disabled: [lsp].%s is empty", command_setting);
+		return;
+	}
+
+	size_t full_text_len = 0;
+	struct editorTextSource source = {0};
+	if (!editorBuildActiveTextSource(&source)) {
+		editorSetStatusMsg("File too large");
+		return;
+	}
+	char *full_text = editorTextSourceDupRange(&source, 0, source.length, &full_text_len);
+	if (full_text == NULL) {
+		if (source.length > ROTIDE_MAX_TEXT_BYTES) {
+			editorSetStatusMsg("File too large");
+		} else {
+			editorSetStatusMsg("Out of memory");
+		}
+		return;
+	}
+
+	int ready = editorLspEnsureDocumentOpen(E.filename, E.syntax_language,
+			&E.lsp_doc_open, &E.lsp_doc_version,
+			full_text != NULL ? full_text : "", full_text_len);
+	free(full_text);
+	if (!ready) {
+		if (editorLspLastStartupFailureReason() == EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
+			editorMaybePromptInstallLanguageServer();
+			return;
+		}
+		if (strncmp(E.statusmsg, "LSP ", strlen("LSP ")) != 0) {
+			editorSetStatusMsg("LSP unavailable for this file");
+		}
+		return;
+	}
+
+	struct editorLspSymbol *symbols = NULL;
+	int count = 0;
+	int timed_out = 0;
+	int request_result = editorLspRequestDocumentSymbols(E.filename, E.syntax_language,
+			&symbols, &count, &timed_out);
+	if (request_result == -2 || timed_out) {
+		editorSetStatusMsg("Go to symbol timed out");
+		editorLspFreeSymbols(symbols, count);
+		return;
+	}
+	if (request_result <= 0) {
+		editorSetStatusMsg("Go to symbol failed");
+		editorLspFreeSymbols(symbols, count);
+		return;
+	}
+	if (count <= 0) {
+		editorSetStatusMsg("No symbols");
+		editorLspFreeSymbols(symbols, count);
+		return;
+	}
+
+	int selected_index = 0;
+	if (count > 1) {
+		editorSetStatusMsg("Found %d symbols; choose 1-%d", count, count);
+		if (!editorPromptLocationChoice("Symbol", count, &selected_index)) {
+			editorLspFreeSymbols(symbols, count);
+			return;
+		}
+	}
+
+	const struct editorLspSymbol *selected = &symbols[selected_index];
+	if (!editorJumpToPathLocation(E.filename, selected->line, selected->character, 0)) {
+		editorSetStatusMsg("Unable to jump to symbol");
+		editorLspFreeSymbols(symbols, count);
+		return;
+	}
+
+	editorSetStatusMsg("%s %s:%d", editorLspSymbolKindLabel(selected->kind),
+			selected->name != NULL ? selected->name : "(unnamed)", selected->line + 1);
+	editorLspFreeSymbols(symbols, count);
 }
 
 static void editorApplyEslintFixes(void) {
@@ -3314,6 +3432,16 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 		case EDITOR_ACTION_GOTO_DEFINITION:
 			editorHistoryBreakGroup();
 			editorGoToDefinition();
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			break;
+		case EDITOR_ACTION_GOTO_IMPLEMENTATION:
+			editorHistoryBreakGroup();
+			editorGoToImplementation();
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			break;
+		case EDITOR_ACTION_GOTO_SYMBOL:
+			editorHistoryBreakGroup();
+			editorGoToSymbol();
 			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			break;
 		case EDITOR_ACTION_ESLINT_FIX:

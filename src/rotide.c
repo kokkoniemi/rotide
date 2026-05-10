@@ -71,6 +71,8 @@ void initEditor(void) {
 	E.lsp_diagnostic_count = 0;
 	E.lsp_diagnostic_error_count = 0;
 	E.lsp_diagnostic_warning_count = 0;
+	E.lsp_symbols = NULL;
+	E.lsp_symbol_count = 0;
 	E.statusmsg[0] = '\0';
 	E.statusmsg_time = 0;
 	E.search_query = NULL;
