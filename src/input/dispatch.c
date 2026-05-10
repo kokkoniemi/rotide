@@ -2100,7 +2100,8 @@ static int editorOpenSelectedGitDiff(void) {
 	return ok;
 }
 
-static int editorJumpToPathLocation(const char *path, int line, int character, int preview) {
+static int editorJumpToPathLocation(const char *path, int line, int character, int preview,
+		int center) {
 	if (path == NULL || path[0] == '\0') {
 		return 0;
 	}
@@ -2112,7 +2113,11 @@ static int editorJumpToPathLocation(const char *path, int line, int character, i
 
 	if (E.numrows <= 0) {
 		(void)editorSetCursorFromOffset(0);
-		editorViewportEnsureCursorVisible();
+		if (center) {
+			editorViewportCenterCursor();
+		} else {
+			editorViewportEnsureCursorVisible();
+		}
 		return 1;
 	}
 
@@ -2138,7 +2143,11 @@ static int editorJumpToPathLocation(const char *path, int line, int character, i
 			!editorSetCursorFromOffset(target_offset)) {
 		(void)editorSetCursorFromOffset(0);
 	}
-	editorViewportEnsureCursorVisible();
+	if (center) {
+		editorViewportCenterCursor();
+	} else {
+		editorViewportEnsureCursorVisible();
+	}
 	return 1;
 }
 
@@ -2146,7 +2155,7 @@ static int editorJumpToDefinitionLocation(const struct editorLspLocation *locati
 	if (location == NULL) {
 		return 0;
 	}
-	return editorJumpToPathLocation(location->path, location->line, location->character, 0);
+	return editorJumpToPathLocation(location->path, location->line, location->character, 0, 0);
 }
 
 static int editorJumpToSelectedLspDrawerLocation(int preview) {
@@ -2156,7 +2165,7 @@ static int editorJumpToSelectedLspDrawerLocation(int preview) {
 	if (!editorDrawerSelectedLspLocation(&path, &line, &character)) {
 		return 0;
 	}
-	return editorJumpToPathLocation(path, line, character, preview);
+	return editorJumpToPathLocation(path, line, character, preview, 1);
 }
 
 static int editorPromptLocationChoice(const char *kind_capitalized, int count, int *choice_out) {
@@ -2401,7 +2410,7 @@ static void editorGoToSymbol(void) {
 	}
 
 	const struct editorLspSymbol *selected = &symbols[selected_index];
-	if (!editorJumpToPathLocation(E.filename, selected->line, selected->character, 0)) {
+	if (!editorJumpToPathLocation(E.filename, selected->line, selected->character, 0, 0)) {
 		editorSetStatusMsg("Unable to jump to symbol");
 		editorLspFreeSymbols(symbols, count);
 		return;
@@ -3540,7 +3549,11 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 		case EDITOR_ACTION_MOVE_UP:
 			editorHistoryBreakGroup();
 			if (E.pane_focus == EDITOR_PANE_DRAWER) {
-				(void)editorDrawerMoveSelectionBy(-1, E.window_rows);
+				if (editorDrawerMoveSelectionBy(-1, E.window_rows) &&
+						E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
+					(void)editorJumpToSelectedLspDrawerLocation(1);
+					E.pane_focus = EDITOR_PANE_DRAWER;
+				}
 			} else {
 				editorColumnSelectionClear();
 				editorMoveCursor(ARROW_UP);
@@ -3550,7 +3563,11 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 		case EDITOR_ACTION_MOVE_DOWN:
 			editorHistoryBreakGroup();
 			if (E.pane_focus == EDITOR_PANE_DRAWER) {
-				(void)editorDrawerMoveSelectionBy(1, E.window_rows);
+				if (editorDrawerMoveSelectionBy(1, E.window_rows) &&
+						E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
+					(void)editorJumpToSelectedLspDrawerLocation(1);
+					E.pane_focus = EDITOR_PANE_DRAWER;
+				}
 			} else {
 				editorColumnSelectionClear();
 				editorMoveCursor(ARROW_DOWN);

@@ -1644,8 +1644,20 @@ static int editorAppendGrayGlyph(struct writeBuf *wb, const char *glyph, size_t 
 }
 
 static int editorCurrentLineHighlightApplies(int row_idx, int segment_coloff) {
-	if (!E.current_line_highlight_enabled || E.pane_focus != EDITOR_PANE_TEXT || row_idx != E.cy) {
+	if (!E.current_line_highlight_enabled || row_idx != E.cy) {
 		return 0;
+	}
+	if (E.pane_focus != EDITOR_PANE_TEXT && !E.is_preview) {
+		const char *lsp_path = NULL;
+		int lsp_line = -1;
+		int lsp_character = -1;
+		if (E.pane_focus != EDITOR_PANE_DRAWER ||
+				E.drawer_mode != EDITOR_DRAWER_MODE_LSP ||
+				!editorDrawerSelectedLspLocation(&lsp_path, &lsp_line, &lsp_character) ||
+				lsp_path == NULL || E.filename == NULL ||
+				strcmp(lsp_path, E.filename) != 0 || lsp_line != E.cy) {
+			return 0;
+		}
 	}
 	if (!E.line_wrap_enabled) {
 		return 1;
@@ -2927,6 +2939,63 @@ void editorViewportEnsureCursorVisible(void) {
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
 	editorUpdateRenderXFromCursor();
 	editorFollowCursorViewport();
+	editorClampViewportOffsets();
+}
+
+static int editorViewportCenteredScreenRowAvoidingDrawerSelection(int desired_screen_row) {
+	if (desired_screen_row < 0 || E.pane_focus != EDITOR_PANE_DRAWER ||
+			E.drawer_selected_index < 0 || E.window_rows <= 1) {
+		return desired_screen_row;
+	}
+	int drawer_screen_row = E.drawer_selected_index - E.drawer_rowoff;
+	if (drawer_screen_row != desired_screen_row) {
+		return desired_screen_row;
+	}
+	if (desired_screen_row + 1 < E.window_rows) {
+		return desired_screen_row + 1;
+	}
+	if (desired_screen_row > 0) {
+		return desired_screen_row - 1;
+	}
+	return desired_screen_row;
+}
+
+void editorViewportCenterCursor(void) {
+	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
+	editorUpdateRenderXFromCursor();
+
+	int target_screen_row = E.window_rows > 0 ? E.window_rows / 2 : 0;
+	target_screen_row = editorViewportCenteredScreenRowAvoidingDrawerSelection(target_screen_row);
+
+	if (E.line_wrap_enabled) {
+		int body_cols = editorWrapBodyCols();
+		int cursor_segment = E.cy < E.numrows ?
+				editorWrapCursorSegmentForRx(&E.rows[E.cy], E.rx, body_cols) : 0;
+		E.coloff = 0;
+		int top_row = E.cy;
+		int top_segment = cursor_segment;
+		for (int i = 0; i < target_screen_row; i++) {
+			editorWrappedMoveBackPosition(&top_row, &top_segment, body_cols);
+		}
+		E.rowoff = top_row;
+		E.wrapoff = top_segment;
+	} else {
+		int target_rowoff = E.cy - target_screen_row;
+		if (target_rowoff < 0) {
+			target_rowoff = 0;
+		}
+		E.rowoff = target_rowoff;
+
+		int text_cols = editorTextBodyViewportCols(E.window_cols);
+		if (text_cols < 1) {
+			text_cols = 1;
+		}
+		if (E.rx < E.coloff) {
+			E.coloff = E.rx;
+		} else if (E.rx >= E.coloff + text_cols) {
+			E.coloff = E.rx - text_cols + 1;
+		}
+	}
 	editorClampViewportOffsets();
 }
 

@@ -669,7 +669,7 @@ static int editorProjectSearchApplySelectedLocation(const struct editorProjectSe
 		E.search_match_len = 0;
 		editorSetAllocFailureStatus();
 	}
-	editorViewportEnsureCursorVisible();
+	editorViewportCenterCursor();
 	return 1;
 }
 

@@ -2623,6 +2623,88 @@ static int test_editor_refresh_screen_highlights_current_line(void) {
 	return 0;
 }
 
+static int test_editor_viewport_center_cursor_centers_target_row(void) {
+	for (int i = 0; i < 100; i++) {
+		add_row("line");
+	}
+	E.window_rows = 11;
+	E.window_cols = 40;
+	E.cy = 50;
+	E.cx = 0;
+	E.rowoff = 0;
+	E.coloff = 0;
+	E.line_wrap_enabled = 0;
+
+	editorViewportCenterCursor();
+
+	ASSERT_EQ_INT(50 - 11 / 2, E.rowoff);
+	return 0;
+}
+
+static int test_editor_viewport_center_cursor_clamps_near_top(void) {
+	for (int i = 0; i < 20; i++) {
+		add_row("line");
+	}
+	E.window_rows = 11;
+	E.window_cols = 40;
+	E.cy = 1;
+	E.cx = 0;
+	E.rowoff = 0;
+	E.coloff = 0;
+	E.line_wrap_enabled = 0;
+
+	editorViewportCenterCursor();
+
+	ASSERT_EQ_INT(0, E.rowoff);
+	return 0;
+}
+
+static int test_editor_refresh_screen_current_line_highlight_visible_when_drawer_focus_previewing(void) {
+	add_row("first");
+	add_row("second");
+	E.window_rows = 3;
+	E.window_cols = 30;
+	E.cy = 1;
+	E.cx = 0;
+	E.current_line_highlight_enabled = 1;
+	E.is_preview = 1;
+	E.pane_focus = EDITOR_PANE_DRAWER;
+	ASSERT_TRUE(editorDrawerSetWidthForCols(1, E.window_cols));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_EQ_INT(2, count_substrings(output, TEST_HEADER_BG));
+	free(output);
+
+	E.is_preview = 0;
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_EQ_INT(1, count_substrings(output, TEST_HEADER_BG));
+	free(output);
+
+	E.filename = strdup("/tmp/current-line-highlight-lsp.c");
+	ASSERT_TRUE(E.filename != NULL);
+	E.drawer_mode = EDITOR_DRAWER_MODE_LSP;
+	E.drawer_lsp_expanded = 3;
+	E.drawer_selected_index = 4;
+	E.lsp_symbols = calloc(1, sizeof(*E.lsp_symbols));
+	ASSERT_TRUE(E.lsp_symbols != NULL);
+	E.lsp_symbol_count = 1;
+	E.lsp_symbols[0].name = strdup("second");
+	ASSERT_TRUE(E.lsp_symbols[0].name != NULL);
+	E.lsp_symbols[0].kind = 12;
+	E.lsp_symbols[0].line = 1;
+	E.lsp_symbols[0].character = 0;
+	E.lsp_symbols[0].parent_index = -1;
+	E.lsp_symbols[0].is_last_sibling = 1;
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_EQ_INT(2, count_substrings(output, TEST_HEADER_BG));
+	free(output);
+	return 0;
+}
+
 static int test_editor_refresh_screen_current_line_highlight_continues_after_selection(void) {
 	add_row("prefix alpha suffix");
 	E.window_rows = 3;
@@ -3393,6 +3475,9 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_line_number_gutter_width_and_absolute_numbers", test_editor_line_number_gutter_width_and_absolute_numbers},
 	{"editor_line_numbers_disabled_removes_gutter", test_editor_line_numbers_disabled_removes_gutter},
 	{"editor_refresh_screen_highlights_current_line", test_editor_refresh_screen_highlights_current_line},
+	{"editor_viewport_center_cursor_centers_target_row", test_editor_viewport_center_cursor_centers_target_row},
+	{"editor_viewport_center_cursor_clamps_near_top", test_editor_viewport_center_cursor_clamps_near_top},
+	{"editor_refresh_screen_current_line_highlight_visible_when_drawer_focus_previewing", test_editor_refresh_screen_current_line_highlight_visible_when_drawer_focus_previewing},
 	{"editor_refresh_screen_current_line_highlight_continues_after_selection", test_editor_refresh_screen_current_line_highlight_continues_after_selection},
 	{"editor_refresh_screen_wrap_continuation_does_not_repeat_line_number", test_editor_refresh_screen_wrap_continuation_does_not_repeat_line_number},
 	{"editor_refresh_screen_hides_expired_message", test_editor_refresh_screen_hides_expired_message},

@@ -2683,6 +2683,67 @@ static int test_editor_lsp_drawer_lists_document_symbols_and_jumps_to_symbol(voi
 	return 0;
 }
 
+static int test_editor_lsp_drawer_arrow_previews_symbol_centered_away_from_drawer_cursor(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_gopls_enabled = 1;
+	E.lsp_clangd_enabled = 0;
+	ASSERT_TRUE(editorTabsInit());
+
+	char go_path[64];
+	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
+			"package main\n"
+			"// 1\n"
+			"// 2\n"
+			"// 3\n"
+			"// 4\n"
+			"// 5\n"
+			"// 6\n"
+			"// 7\n"
+			"// 8\n"
+			"// 9\n"
+			"// 10\n"
+			"// 11\n"
+			"// 12\n"
+			"// 13\n"
+			"// 14\n"
+			"// 15\n"
+			"// 16\n"
+			"// 17\n"
+			"// 18\n"
+			"// 19\n"
+			"func target() {}\n"
+			"func tail() {}\n"));
+	editorOpen(go_path);
+	E.window_rows = 9;
+	E.window_cols = 80;
+
+	struct editorLspSymbol symbols[1] = {
+		{.name = "target", .kind = 12, .line = 20, .character = 5},
+	};
+	editorLspTestSetMockDocumentSymbolResponse(1, symbols, 1);
+
+	char lsp_drawer[] = {'\x1b', CTRL_KEY('l')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(lsp_drawer,
+			sizeof(lsp_drawer)) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+
+	const char arrow_down[] = "\x1b[B";
+	for (int i = 0; i < 5; i++) {
+		ASSERT_TRUE(editor_process_keypress_with_input_silent(arrow_down,
+					strlen(arrow_down)) == 0);
+	}
+
+	ASSERT_EQ_INT(20, E.cy);
+	ASSERT_EQ_INT(5, E.cx);
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(E.window_rows / 2, E.drawer_selected_index - E.drawer_rowoff);
+	ASSERT_TRUE(E.cy - E.rowoff != E.drawer_selected_index - E.drawer_rowoff);
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
 static int test_editor_lsp_drawer_renders_nested_symbols_hierarchically(void) {
 	editorLspTestSetMockEnabled(1);
 	E.lsp_gopls_enabled = 0;
@@ -2862,6 +2923,7 @@ const struct editorTestCase g_lsp_tests[] = {
 	{"editor_lsp_eslint_diagnostics_persist_across_tab_switches", test_editor_lsp_eslint_diagnostics_persist_across_tab_switches},
 	{"editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem", test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem},
 	{"editor_lsp_drawer_lists_document_symbols_and_jumps_to_symbol", test_editor_lsp_drawer_lists_document_symbols_and_jumps_to_symbol},
+	{"editor_lsp_drawer_arrow_previews_symbol_centered_away_from_drawer_cursor", test_editor_lsp_drawer_arrow_previews_symbol_centered_away_from_drawer_cursor},
 	{"editor_lsp_drawer_renders_nested_symbols_hierarchically", test_editor_lsp_drawer_renders_nested_symbols_hierarchically},
 	{"editor_lsp_drawer_selected_problem_spills_into_text_area", test_editor_lsp_drawer_selected_problem_spills_into_text_area},
 	{"editor_lsp_drawer_syntax_problem_clears_and_reappears", test_editor_lsp_drawer_syntax_problem_clears_and_reappears},
