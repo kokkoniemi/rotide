@@ -10,7 +10,6 @@
 #include "text/document.h"
 #include "text/row.h"
 #include "workspace/git.h"
-#include "workspace/tabs.h"
 
 #include <errno.h>
 #include <limits.h>

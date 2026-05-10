@@ -18,7 +18,6 @@
 #include "support/terminal.h"
 #include "workspace/drawer.h"
 #include "workspace/git.h"
-#include "workspace/project_search.h"
 #include "workspace/recovery.h"
 #include "workspace/tabs.h"
 #include "workspace/workspace_state.h"

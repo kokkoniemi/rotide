@@ -7,7 +7,6 @@
 #include "support/file_io.h"
 #include "support/save_syscalls.h"
 #include "support/size_utils.h"
-#include "support/terminal.h"
 #include "workspace/git.h"
 #include "workspace/tabs.h"
 #include "workspace/watch.h"
@@ -206,7 +205,6 @@ int editorInsertText(const char *text, size_t len) {
 	size_t after_offset = 0;
 	int dirty_delta = 0;
 	int sim_cy = 0;
-	int sim_cx = 0;
 	int sim_numrows = 0;
 
 	if (len == 0) {
@@ -229,14 +227,12 @@ int editorInsertText(const char *text, size_t len) {
 	}
 
 	sim_cy = E.cy;
-	sim_cx = insert_cx;
 	sim_numrows = E.numrows;
 	for (size_t i = 0; i < len; i++) {
 		if (text[i] == '\n') {
 			dirty_delta++;
 			sim_numrows++;
 			sim_cy++;
-			sim_cx = 0;
 			continue;
 		}
 		dirty_delta++;
@@ -244,7 +240,6 @@ int editorInsertText(const char *text, size_t len) {
 			dirty_delta++;
 			sim_numrows++;
 		}
-		sim_cx++;
 	}
 	if (dirty_delta <= 0 || E.dirty > INT_MAX - dirty_delta) {
 		editorSetOperationTooLargeStatus();

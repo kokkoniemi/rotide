@@ -1,6 +1,5 @@
 #include "support/terminal.h"
 
-#include "editing/edit.h"
 #include "language/syntax_worker.h"
 #include "workspace/task.h"
 #include "workspace/watch.h"
