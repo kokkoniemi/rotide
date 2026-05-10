@@ -1,4 +1,25 @@
-/* Included by lsp.c. Shared process, framing, and transport helpers live here. */
+#include "language/lsp_transport.h"
+
+#include "language/lsp_protocol.h"
+#include "support/file_io.h"
+#include "support/size_utils.h"
+
+#include <ctype.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
+#include <poll.h>
+#include <signal.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h>
+#include <sys/wait.h>
+#include <time.h>
+#include <unistd.h>
+
+#define ROTIDE_LSP_MAX_HEADER_BYTES 8192
 
 static long long editorLspMonotonicMillis(void) {
 	struct timespec ts;
@@ -169,7 +190,7 @@ static char *editorLspReadFrame(int fd, int timeout_ms) {
 	return payload;
 }
 
-static int editorLspSendRawJsonToFd(int fd, const char *json) {
+int editorLspSendRawJsonToFd(int fd, const char *json) {
 	if (json == NULL || fd == -1) {
 		return 0;
 	}
@@ -189,12 +210,12 @@ static int editorLspSendRawJsonToFd(int fd, const char *json) {
 	return 1;
 }
 
-static int editorLspSendRawJson(const char *json) {
+int editorLspSendRawJson(const char *json) {
 	return editorLspSendRawJsonToFd(g_lsp_client.to_server_fd, json);
 }
 
 
-static int editorLspProcessAlive(struct editorLspClient *client) {
+int editorLspProcessAlive(struct editorLspClient *client) {
 	if (client == NULL || client->pid <= 0) {
 		return 0;
 	}
@@ -211,8 +232,8 @@ static int editorLspProcessAlive(struct editorLspClient *client) {
 }
 
 
-static int editorLspTryDrainIncoming(struct editorLspClient *client, int timeout_ms) {
-	if (g_lsp_mock.enabled || client == NULL || client->from_server_fd == -1) {
+int editorLspTryDrainIncoming(struct editorLspClient *client, int timeout_ms) {
+	if (editorLspMockEnabled() || client == NULL || client->from_server_fd == -1) {
 		return 1;
 	}
 
@@ -271,7 +292,7 @@ static int editorLspTryGetProcessExitCode(struct editorLspClient *client, int *e
 	return 0;
 }
 
-static int editorLspTryGetProcessExitCodeWithWait(struct editorLspClient *client, int timeout_ms,
+int editorLspTryGetProcessExitCodeWithWait(struct editorLspClient *client, int timeout_ms,
 		int *exit_code_out) {
 	long long deadline_ms = editorLspMonotonicMillis() + (long long)timeout_ms;
 
@@ -294,7 +315,7 @@ static int editorLspTryGetProcessExitCodeWithWait(struct editorLspClient *client
 }
 
 
-static void editorLspClientResetState(struct editorLspClient *client) {
+void editorLspClientResetState(struct editorLspClient *client) {
 	if (client == NULL) {
 		return;
 	}
@@ -308,7 +329,7 @@ static void editorLspClientResetState(struct editorLspClient *client) {
 	client->workspace_root_path = NULL;
 }
 
-static void editorLspClientCleanup(struct editorLspClient *client, int graceful_shutdown) {
+void editorLspClientCleanup(struct editorLspClient *client, int graceful_shutdown) {
 	if (client == NULL) {
 		return;
 	}
@@ -353,7 +374,7 @@ static void editorLspClientCleanup(struct editorLspClient *client, int graceful_
 	editorLspClientResetState(client);
 }
 
-static int editorLspSpawnProcess(const char *command, pid_t *pid_out, int *to_server_fd_out,
+int editorLspSpawnProcess(const char *command, pid_t *pid_out, int *to_server_fd_out,
 		int *from_server_fd_out) {
 	int stdin_pipe[2] = {-1, -1};
 	int stdout_pipe[2] = {-1, -1};
@@ -402,7 +423,7 @@ static int editorLspSpawnProcess(const char *command, pid_t *pid_out, int *to_se
 	return 1;
 }
 
-static int editorLspWorkspaceRootsMatch(const char *left, const char *right) {
+int editorLspWorkspaceRootsMatch(const char *left, const char *right) {
 	if (left == NULL || right == NULL) {
 		return 0;
 	}
@@ -410,7 +431,7 @@ static int editorLspWorkspaceRootsMatch(const char *left, const char *right) {
 }
 
 
-static int editorLspWaitForResponseId(struct editorLspClient *client, int request_id, int timeout_ms,
+int editorLspWaitForResponseId(struct editorLspClient *client, int request_id, int timeout_ms,
 		char **response_out, int *timed_out_out) {
 	if (response_out == NULL) {
 		return 0;

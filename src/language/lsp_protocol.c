@@ -1,4 +1,18 @@
-/* Included by lsp.c. Shared protocol, URI, and parse helpers live here. */
+#include "language/lsp_protocol.h"
+
+#include "editing/buffer_core.h"
+#include "editing/edit.h"
+#include "support/file_io.h"
+#include "support/size_utils.h"
+#include "text/utf8.h"
+
+#include <ctype.h>
+#include <stdarg.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h>
 
 static int editorLspStringEnsureCap(struct editorLspString *sb, size_t needed) {
 	if (needed <= sb->cap) {
@@ -41,11 +55,11 @@ static int editorLspStringAppendBytes(struct editorLspString *sb, const char *by
 	return 1;
 }
 
-static int editorLspStringAppend(struct editorLspString *sb, const char *text) {
+int editorLspStringAppend(struct editorLspString *sb, const char *text) {
 	return editorLspStringAppendBytes(sb, text, strlen(text));
 }
 
-static int editorLspStringAppendf(struct editorLspString *sb, const char *fmt, ...) {
+int editorLspStringAppendf(struct editorLspString *sb, const char *fmt, ...) {
 	va_list ap;
 	va_start(ap, fmt);
 	va_list ap_copy;
@@ -78,7 +92,7 @@ static int editorLspStringAppendf(struct editorLspString *sb, const char *fmt, .
 	return 1;
 }
 
-static int editorLspStringAppendJsonEscaped(struct editorLspString *sb, const char *text,
+int editorLspStringAppendJsonEscaped(struct editorLspString *sb, const char *text,
 		size_t len) {
 	if (!editorLspStringAppendBytes(sb, "\"", 1)) {
 		return 0;
@@ -139,7 +153,7 @@ static int editorLspStringAppendJsonEscaped(struct editorLspString *sb, const ch
 	return editorLspStringAppendBytes(sb, "\"", 1);
 }
 
-static char *editorLspBuildInitializeRequestJson(int request_id, const char *root_uri,
+char *editorLspBuildInitializeRequestJson(int request_id, const char *root_uri,
 		int process_id) {
 	if (root_uri == NULL || root_uri[0] == '\0') {
 		return NULL;
@@ -169,7 +183,7 @@ static char *editorLspBuildInitializeRequestJson(int request_id, const char *roo
 }
 
 
-static int editorLspBuildFileUri(const char *path, char **uri_out) {
+int editorLspBuildFileUri(const char *path, char **uri_out) {
 	if (path == NULL || uri_out == NULL) {
 		return 0;
 	}
@@ -372,7 +386,7 @@ static int editorLspParseJsonString(const char *json, char **value_out, const ch
 	return 0;
 }
 
-static const char *editorLspSkipWs(const char *p) {
+const char *editorLspSkipWs(const char *p) {
 	while (p != NULL && (*p == ' ' || *p == '\n' || *p == '\r' || *p == '\t')) {
 		p++;
 	}
@@ -420,7 +434,7 @@ static int editorLspParseJsonInt(const char *json, int *value_out, const char **
 	return 1;
 }
 
-static int editorLspExtractResponseId(const char *json, int *id_out) {
+int editorLspExtractResponseId(const char *json, int *id_out) {
 	if (json == NULL || id_out == NULL) {
 		return 0;
 	}
@@ -435,7 +449,7 @@ static int editorLspExtractResponseId(const char *json, int *id_out) {
 	return editorLspParseJsonInt(colon + 1, id_out, NULL);
 }
 
-static int editorLspResponseHasError(const char *json) {
+int editorLspResponseHasError(const char *json) {
 	const char *key = strstr(json, "\"error\"");
 	if (key == NULL) {
 		return 0;
@@ -451,7 +465,7 @@ static int editorLspResponseHasError(const char *json) {
 	return strncmp(value, "null", 4) != 0;
 }
 
-static int editorLspFindStringField(const char *json, const char *field_name, char **value_out) {
+int editorLspFindStringField(const char *json, const char *field_name, char **value_out) {
 	if (json == NULL || field_name == NULL || value_out == NULL) {
 		return 0;
 	}
@@ -493,7 +507,7 @@ static const char *editorLspStrstrBounded(const char *haystack, const char *need
 	return found;
 }
 
-static const char *editorLspFindJsonObjectEnd(const char *object_start) {
+const char *editorLspFindJsonObjectEnd(const char *object_start) {
 	if (object_start == NULL || object_start[0] != '{') {
 		return NULL;
 	}
@@ -668,7 +682,7 @@ int editorLspProtocolCharacterToBufferColumn(int line, int protocol_character) {
 	return byte_column;
 }
 
-static int editorLspClientProtocolCharacterToBufferColumn(struct editorLspClient *client, int line,
+int editorLspClientProtocolCharacterToBufferColumn(struct editorLspClient *client, int line,
 		int protocol_character) {
 	if (protocol_character < 0) {
 		return 0;
@@ -816,7 +830,7 @@ static int editorLspParseLocationObjects(const char *result_json, const char *ur
 	return 1;
 }
 
-static int editorLspParseDefinitionLocations(const char *response_json,
+int editorLspParseDefinitionLocations(const char *response_json,
 		struct editorLspLocation **locations_out, int *count_out) {
 	*locations_out = NULL;
 	*count_out = 0;
@@ -844,7 +858,7 @@ static int editorLspParseDefinitionLocations(const char *response_json,
 	return editorLspParseLocationObjects(result, "uri", "range", NULL, locations_out, count_out);
 }
 
-static void editorLspFreeDiagnostics(struct editorLspDiagnostic *diagnostics, int count) {
+void editorLspFreeDiagnostics(struct editorLspDiagnostic *diagnostics, int count) {
 	if (diagnostics == NULL) {
 		return;
 	}
@@ -854,7 +868,7 @@ static void editorLspFreeDiagnostics(struct editorLspDiagnostic *diagnostics, in
 	free(diagnostics);
 }
 
-static int editorLspCopyDiagnostics(struct editorLspDiagnostic **out_diagnostics, int *out_count,
+int editorLspCopyDiagnostics(struct editorLspDiagnostic **out_diagnostics, int *out_count,
 		const struct editorLspDiagnostic *diagnostics, int count) {
 	if (out_diagnostics == NULL || out_count == NULL) {
 		return 0;
@@ -936,7 +950,7 @@ static void editorLspUpdateDiagnosticFields(struct editorLspDiagnostic **diagnos
 	*warning_count_out = editorLspDiagnosticsWarningCount(*diagnostics_in_out, *count_in_out);
 }
 
-static void editorLspSetDiagnosticsForPath(const char *path,
+void editorLspSetDiagnosticsForPath(const char *path,
 		const struct editorLspDiagnostic *diagnostics, int count) {
 	if (path == NULL || path[0] == '\0') {
 		return;
@@ -1173,7 +1187,7 @@ static int editorLspParseDiagnosticsMessage(const char *message, char **path_out
 	return 1;
 }
 
-static void editorLspFreePendingEdits(struct editorLspPendingEdit *edits, int count) {
+void editorLspFreePendingEdits(struct editorLspPendingEdit *edits, int count) {
 	if (edits == NULL) {
 		return;
 	}
@@ -1192,7 +1206,7 @@ static int editorLspPendingEditCompareDesc(const void *lhs, const void *rhs) {
 	return right->start_character - left->start_character;
 }
 
-static int editorLspApplyPendingEditsWithClient(struct editorLspClient *client,
+int editorLspApplyPendingEditsWithClient(struct editorLspClient *client,
 		const struct editorLspPendingEdit *edits, int count) {
 	if (edits == NULL || count <= 0) {
 		return 0;
@@ -1254,11 +1268,11 @@ static int editorLspApplyPendingEditsWithClient(struct editorLspClient *client,
 	return count;
 }
 
-static int editorLspApplyPendingEdits(const struct editorLspPendingEdit *edits, int count) {
+int editorLspApplyPendingEdits(const struct editorLspPendingEdit *edits, int count) {
 	return editorLspApplyPendingEditsWithClient(&g_lsp_client, edits, count);
 }
 
-static int editorLspParseWorkspaceEditChanges(const char *edit_json, const char *target_path,
+int editorLspParseWorkspaceEditChanges(const char *edit_json, const char *target_path,
 		struct editorLspPendingEdit **edits_out, int *count_out) {
 	if (edits_out == NULL || count_out == NULL) {
 		return 0;
@@ -1419,7 +1433,7 @@ static int editorLspRespondToRequest(struct editorLspClient *client, int request
 	return sent;
 }
 
-static int editorLspProcessIncomingMessage(struct editorLspClient *client, const char *message) {
+int editorLspProcessIncomingMessage(struct editorLspClient *client, const char *message) {
 	if (message == NULL || message[0] == '\0') {
 		return 1;
 	}
@@ -1479,7 +1493,7 @@ static int editorLspProcessIncomingMessage(struct editorLspClient *client, const
 }
 
 
-static int editorLspUtf8ColumnToUtf16Units(const char *text, size_t text_len, int byte_column) {
+int editorLspUtf8ColumnToUtf16Units(const char *text, size_t text_len, int byte_column) {
 	if (text == NULL || byte_column <= 0) {
 		return 0;
 	}
@@ -1515,7 +1529,7 @@ static int editorLspUtf8ColumnToUtf16Units(const char *text, size_t text_len, in
 	return utf16_units;
 }
 
-static int editorLspUtf16UnitsToUtf8Column(const char *text, size_t text_len, int utf16_units) {
+int editorLspUtf16UnitsToUtf8Column(const char *text, size_t text_len, int utf16_units) {
 	if (text == NULL || utf16_units <= 0) {
 		return 0;
 	}
@@ -1545,7 +1559,7 @@ static int editorLspUtf16UnitsToUtf8Column(const char *text, size_t text_len, in
 	return idx;
 }
 
-static int editorLspReadActiveLineText(int line, char **text_out, size_t *len_out) {
+int editorLspReadActiveLineText(int line, char **text_out, size_t *len_out) {
 	if (text_out == NULL || len_out == NULL || line < 0) {
 		return 0;
 	}
@@ -1570,7 +1584,7 @@ static int editorLspReadActiveLineText(int line, char **text_out, size_t *len_ou
 	return 1;
 }
 
-static int editorLspProtocolCharacterFromBufferColumn(int line, int byte_column) {
+int editorLspProtocolCharacterFromBufferColumn(int line, int byte_column) {
 	if (byte_column < 0) {
 		byte_column = 0;
 	}
@@ -1587,7 +1601,7 @@ static int editorLspProtocolCharacterFromBufferColumn(int line, int byte_column)
 	return protocol_character;
 }
 
-static int editorLspClientProtocolCharacterFromBufferColumn(struct editorLspClient *client, int line,
+int editorLspClientProtocolCharacterFromBufferColumn(struct editorLspClient *client, int line,
 		int byte_column) {
 	if (client == NULL || byte_column < 0) {
 		byte_column = 0;
@@ -1606,7 +1620,7 @@ static int editorLspClientProtocolCharacterFromBufferColumn(struct editorLspClie
 }
 
 
-static int editorLspCopyLocations(struct editorLspLocation **out_locations, int *out_count,
+int editorLspCopyLocations(struct editorLspLocation **out_locations, int *out_count,
 		const struct editorLspLocation *locations, int count) {
 	*out_locations = NULL;
 	*out_count = 0;

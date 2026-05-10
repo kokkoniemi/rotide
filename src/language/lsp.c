@@ -1,6 +1,46 @@
-#include "language/lsp_internal.h"
+#include "language/lsp.h"
+#include "language/lsp_protocol.h"
+#include "language/lsp_transport.h"
 
-static struct editorLspClient g_lsp_client = {
+#include "editing/buffer_core.h"
+#include "editing/edit.h"
+#include "support/file_io.h"
+#include "support/size_utils.h"
+
+#include <ctype.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+struct editorLspMockState {
+	int enabled;
+	int primary_server_alive;
+	enum editorLspServerKind primary_server_kind;
+	char *primary_workspace_root_path;
+	int eslint_server_alive;
+	char *eslint_workspace_root_path;
+	char last_did_open_language_id[32];
+	struct editorLspTestStats stats;
+	struct editorLspTestLastChange last_change;
+	int definition_result_code;
+	struct editorLspLocation *definition_locations;
+	int definition_location_count;
+	struct editorLspDiagnostic *diagnostics;
+	int diagnostic_count;
+	char *diagnostic_path;
+	int code_action_result_code;
+	struct editorLspPendingEdit *code_action_edits;
+	int code_action_edit_count;
+};
+
+struct editorLspClient g_lsp_client = {
 	.pid = 0,
 	.to_server_fd = -1,
 	.from_server_fd = -1,
@@ -11,7 +51,7 @@ static struct editorLspClient g_lsp_client = {
 	.position_encoding_utf16 = 0,
 	.workspace_root_path = NULL,
 };
-static struct editorLspClient g_lsp_eslint_client = {
+struct editorLspClient g_lsp_eslint_client = {
 	.pid = 0,
 	.to_server_fd = -1,
 	.from_server_fd = -1,
@@ -26,15 +66,10 @@ static struct editorLspMockState g_lsp_mock = {0};
 static enum editorLspStartupFailureReason g_lsp_last_startup_failure_reason =
 		EDITOR_LSP_STARTUP_FAILURE_NONE;
 
-static int editorLspUtf8ColumnToUtf16Units(const char *text, size_t text_len, int byte_column);
-static int editorLspUtf16UnitsToUtf8Column(const char *text, size_t text_len, int utf16_units);
-static int editorLspReadActiveLineText(int line, char **text_out, size_t *len_out);
-static int editorLspProtocolCharacterFromBufferColumn(int line, int byte_column);
-static int editorLspClientProtocolCharacterFromBufferColumn(struct editorLspClient *client, int line,
-		int byte_column);
-static int editorLspClientProtocolCharacterToBufferColumn(struct editorLspClient *client, int line,
-		int protocol_character);
-static int editorLspStringAppendf(struct editorLspString *sb, const char *fmt, ...);
+int editorLspMockEnabled(void) {
+	return g_lsp_mock.enabled;
+}
+
 static void editorLspResetTrackedDocumentsForServerKind(enum editorLspServerKind server_kind);
 static int editorLspFilenameHasHtmlExtension(const char *filename);
 static int editorLspFilenameHasCssExtension(const char *filename);
@@ -52,22 +87,6 @@ static const char *editorLspLanguageIdForFile(const char *filename,
 		enum editorSyntaxLanguage language);
 static char *editorLspBuildWorkspaceRootPathForFile(const char *filename,
 		enum editorLspServerKind server_kind);
-static int editorLspWorkspaceRootsMatch(const char *left, const char *right);
-static int editorLspProcessIncomingMessage(struct editorLspClient *client, const char *message);
-static int editorLspTryDrainIncoming(struct editorLspClient *client, int timeout_ms);
-static void editorLspFreeDiagnostics(struct editorLspDiagnostic *diagnostics, int count);
-static int editorLspCopyDiagnostics(struct editorLspDiagnostic **out_diagnostics, int *out_count,
-		const struct editorLspDiagnostic *diagnostics, int count);
-static void editorLspSetDiagnosticsForPath(const char *path,
-		const struct editorLspDiagnostic *diagnostics, int count);
-static int editorLspApplyPendingEdits(const struct editorLspPendingEdit *edits, int count);
-static void editorLspFreePendingEdits(struct editorLspPendingEdit *edits, int count);
-static int editorLspExtractResponseId(const char *json, int *id_out);
-
-
-#include "language/lsp_transport.c"
-
-#include "language/lsp_protocol.c"
 
 static void editorLspResetTrackedDocumentsForServerKind(enum editorLspServerKind server_kind) {
 	int is_eslint = server_kind == EDITOR_LSP_SERVER_ESLINT;
