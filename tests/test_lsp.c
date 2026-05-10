@@ -1589,6 +1589,35 @@ static int test_editor_lsp_parse_document_symbols_handles_symbol_information_arr
 	return 0;
 }
 
+static int test_editor_lsp_parse_document_symbols_uses_top_level_name_when_children_appear_first(void) {
+	const char *response =
+			"{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":["
+			"{\"children\":["
+			"{\"name\":\"enabled\",\"kind\":8,"
+			"\"range\":{\"start\":{\"line\":22,\"character\":1},"
+			"\"end\":{\"line\":22,\"character\":12}}}"
+			"],"
+			"\"name\":\"editorLspMockState\",\"kind\":23,"
+			"\"range\":{\"start\":{\"line\":21,\"character\":7},"
+			"\"end\":{\"line\":40,\"character\":1}}}"
+			"]}";
+	struct editorLspSymbol *symbols = NULL;
+	int count = 0;
+	ASSERT_EQ_INT(1, editorLspTestParseDocumentSymbolResponse(response, &symbols, &count));
+	ASSERT_EQ_INT(2, count);
+	ASSERT_EQ_STR("editorLspMockState", symbols[0].name);
+	ASSERT_EQ_INT(23, symbols[0].kind);
+	ASSERT_EQ_INT(21, symbols[0].line);
+	ASSERT_EQ_INT(0, symbols[0].depth);
+	ASSERT_EQ_STR("enabled", symbols[1].name);
+	ASSERT_EQ_INT(8, symbols[1].kind);
+	ASSERT_EQ_INT(22, symbols[1].line);
+	ASSERT_EQ_INT(1, symbols[1].depth);
+	ASSERT_EQ_INT(0, symbols[1].parent_index);
+	editorLspFreeSymbols(symbols, count);
+	return 0;
+}
+
 static int test_editor_lsp_parse_document_symbols_flattens_children(void) {
 	const char *response =
 			"{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":["
@@ -2844,6 +2873,7 @@ const struct editorTestCase g_lsp_tests[] = {
 	{"editor_lsp_parse_document_symbols_handles_document_symbol_array", test_editor_lsp_parse_document_symbols_handles_document_symbol_array},
 	{"editor_lsp_parse_document_symbols_handles_symbol_information_array", test_editor_lsp_parse_document_symbols_handles_symbol_information_array},
 	{"editor_lsp_parse_document_symbols_flattens_children", test_editor_lsp_parse_document_symbols_flattens_children},
+	{"editor_lsp_parse_document_symbols_uses_top_level_name_when_children_appear_first", test_editor_lsp_parse_document_symbols_uses_top_level_name_when_children_appear_first},
 	{"editor_process_keypress_ctrl_o_goto_definition_single_location_c_buffer", test_editor_process_keypress_ctrl_o_goto_definition_single_location_c_buffer},
 	{"editor_process_keypress_ctrl_o_goto_definition_single_location_cpp_buffer", test_editor_process_keypress_ctrl_o_goto_definition_single_location_cpp_buffer},
 	{"editor_process_keypress_ctrl_o_goto_definition_single_location_html_buffer", test_editor_process_keypress_ctrl_o_goto_definition_single_location_html_buffer},

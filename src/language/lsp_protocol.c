@@ -508,6 +508,60 @@ static const char *editorLspStrstrBounded(const char *haystack, const char *need
 	return found;
 }
 
+/*
+ * Find a key like "foo" only at the immediate top level of the JSON object that
+ * starts at object_start (which must point at '{') and ends just before object_end
+ * (which should point at the matching '}'). Skips nested objects, arrays, and strings
+ * so a key inside a child object is not matched.
+ */
+static const char *editorLspFindTopLevelKey(const char *object_start, const char *object_end,
+		const char *quoted_key) {
+	if (object_start == NULL || object_end == NULL || quoted_key == NULL ||
+			object_start >= object_end || object_start[0] != '{') {
+		return NULL;
+	}
+	size_t key_len = strlen(quoted_key);
+	int depth = 0;
+	const char *p = object_start + 1;
+	while (p < object_end) {
+		char ch = *p;
+		if (ch == '"') {
+			if (depth == 0 && (size_t)(object_end - p) >= key_len &&
+					memcmp(p, quoted_key, key_len) == 0) {
+				const char *after = p + key_len;
+				while (after < object_end && (*after == ' ' || *after == '\t' ||
+						*after == '\n' || *after == '\r')) {
+					after++;
+				}
+				if (after < object_end && *after == ':') {
+					return p;
+				}
+			}
+			p++;
+			while (p < object_end && *p != '"') {
+				if (*p == '\\' && p + 1 < object_end) {
+					p += 2;
+					continue;
+				}
+				p++;
+			}
+			if (p < object_end) {
+				p++;
+			}
+			continue;
+		}
+		if (ch == '{' || ch == '[') {
+			depth++;
+		} else if (ch == '}' || ch == ']') {
+			if (depth > 0) {
+				depth--;
+			}
+		}
+		p++;
+	}
+	return NULL;
+}
+
 const char *editorLspFindJsonObjectEnd(const char *object_start) {
 	if (object_start == NULL || object_start[0] != '{') {
 		return NULL;
@@ -959,33 +1013,43 @@ static int editorLspAppendSymbol(struct editorLspSymbol **symbols, int *count, i
 
 static int editorLspParseDocumentSymbolObject(const char *object_start, const char *object_end,
 		struct editorLspSymbol **symbols, int *count, int *cap, int depth, int parent_index) {
+	const char *name_key = editorLspFindTopLevelKey(object_start, object_end, "\"name\"");
+	if (name_key == NULL) {
+		return 1;
+	}
 	char *name = NULL;
-	if (!editorLspFindStringField(object_start, "name", &name) || name == NULL) {
+	const char *name_colon = strchr(name_key, ':');
+	if (name_colon == NULL || name_colon >= object_end) {
+		return 1;
+	}
+	const char *name_value = editorLspSkipWs(name_colon + 1);
+	if (name_value == NULL || name_value[0] != '"' ||
+			!editorLspParseJsonString(name_value, &name, NULL) || name == NULL) {
 		return 1;
 	}
 
 	int kind = 0;
-	const char *kind_key = editorLspStrstrBounded(object_start, "\"kind\"", object_end);
+	const char *kind_key = editorLspFindTopLevelKey(object_start, object_end, "\"kind\"");
 	if (kind_key != NULL) {
 		const char *colon = strchr(kind_key, ':');
-		if (colon != NULL) {
+		if (colon != NULL && colon < object_end) {
 			(void)editorLspParseJsonInt(editorLspSkipWs(colon + 1), &kind, NULL);
 		}
 	}
 
 	int line = 0;
 	int character = 0;
-	const char *location_key = editorLspStrstrBounded(object_start, "\"location\"", object_end);
 	int has_position = 0;
+	const char *location_key = editorLspFindTopLevelKey(object_start, object_end, "\"location\"");
 	if (location_key != NULL) {
 		const char *location_colon = strchr(location_key, ':');
-		if (location_colon != NULL && (object_end == NULL || location_colon < object_end)) {
+		if (location_colon != NULL && location_colon < object_end) {
 			const char *location_value = editorLspSkipWs(location_colon + 1);
 			if (location_value != NULL && *location_value == '{') {
 				const char *location_end = editorLspFindJsonObjectEnd(location_value);
 				if (location_end != NULL) {
-					const char *range_key = editorLspStrstrBounded(location_value, "\"range\"",
-							location_end);
+					const char *range_key = editorLspFindTopLevelKey(location_value, location_end,
+							"\"range\"");
 					if (range_key != NULL) {
 						has_position = editorLspParsePositionFromKey(range_key, "start",
 								location_end, &line, &character);
@@ -995,14 +1059,15 @@ static int editorLspParseDocumentSymbolObject(const char *object_start, const ch
 		}
 	}
 	if (!has_position) {
-		const char *range_key = editorLspStrstrBounded(object_start, "\"range\"", object_end);
+		const char *range_key = editorLspFindTopLevelKey(object_start, object_end, "\"range\"");
 		if (range_key != NULL) {
 			has_position = editorLspParsePositionFromKey(range_key, "start", object_end, &line,
 					&character);
 		}
 	}
 	if (!has_position) {
-		const char *sel_key = editorLspStrstrBounded(object_start, "\"selectionRange\"", object_end);
+		const char *sel_key = editorLspFindTopLevelKey(object_start, object_end,
+				"\"selectionRange\"");
 		if (sel_key != NULL) {
 			has_position = editorLspParsePositionFromKey(sel_key, "start", object_end, &line,
 					&character);
@@ -1016,10 +1081,10 @@ static int editorLspParseDocumentSymbolObject(const char *object_start, const ch
 		return 0;
 	}
 
-	const char *children_key = editorLspStrstrBounded(object_start, "\"children\"", object_end);
+	const char *children_key = editorLspFindTopLevelKey(object_start, object_end, "\"children\"");
 	if (children_key != NULL) {
 		const char *children_colon = strchr(children_key, ':');
-		if (children_colon != NULL) {
+		if (children_colon != NULL && children_colon < object_end) {
 			const char *children_value = editorLspSkipWs(children_colon + 1);
 			if (children_value != NULL && *children_value == '[') {
 				const char *children_end = editorLspFindJsonArrayEnd(children_value);
