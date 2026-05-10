@@ -1,6 +1,8 @@
 #ifndef LSP_TRANSPORT_H
 #define LSP_TRANSPORT_H
 
+#include "rotide.h"
+
 #include <sys/types.h>
 
 #define ROTIDE_LSP_IO_TIMEOUT_MS 2500
