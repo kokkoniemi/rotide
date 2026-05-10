@@ -363,6 +363,7 @@ static int test_editor_lsp_lifecycle_restarts_when_switching_between_go_clangd_a
 	E.lsp_gopls_enabled = 1;
 	E.lsp_clangd_enabled = 1;
 	E.lsp_html_enabled = 1;
+	ASSERT_TRUE(editorTabsInit());
 
 	char go_path[64];
 	char c_path[64];
@@ -429,6 +430,7 @@ static int test_editor_lsp_lifecycle_restarts_when_clangd_workspace_root_changes
 	editorLspTestSetMockEnabled(1);
 	E.lsp_gopls_enabled = 0;
 	E.lsp_clangd_enabled = 1;
+	ASSERT_TRUE(editorTabsInit());
 
 	char root_template[] = "/tmp/rotide-test-clangd-root-XXXXXX";
 	char *root_path = mkdtemp(root_template);
@@ -494,6 +496,7 @@ static int test_editor_lsp_lifecycle_restarts_when_html_workspace_root_changes(v
 	E.lsp_gopls_enabled = 0;
 	E.lsp_clangd_enabled = 0;
 	E.lsp_html_enabled = 1;
+	ASSERT_TRUE(editorTabsInit());
 
 	char root_template[] = "/tmp/rotide-test-html-root-XXXXXX";
 	char *root_path = mkdtemp(root_template);
@@ -629,6 +632,62 @@ static int test_editor_lsp_document_sync_for_c_edit_save_close(void) {
 	ASSERT_EQ_INT(1, stats.did_close_count);
 
 	ASSERT_TRUE(unlink(c_path) == 0);
+	return 0;
+}
+
+static int test_editor_lsp_document_did_open_sent_on_file_open(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 1;
+	ASSERT_TRUE(editorTabsInit());
+
+	char c_path[64];
+	ASSERT_TRUE(write_temp_c_file(c_path, sizeof(c_path),
+			"int main(void) {\n\treturn 0;\n}\n"));
+	editorOpen(c_path);
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.start_count);
+	ASSERT_EQ_INT(1, stats.did_open_count);
+	ASSERT_EQ_INT(0, stats.did_change_count);
+	ASSERT_EQ_INT(1, E.lsp_doc_open);
+	ASSERT_EQ_INT(1, E.lsp_doc_version);
+
+	ASSERT_TRUE(unlink(c_path) == 0);
+	return 0;
+}
+
+static int test_editor_lsp_did_change_without_syntax_edit_sends_full_buffer(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_gopls_enabled = 1;
+	E.lsp_clangd_enabled = 0;
+	ASSERT_TRUE(editorTabsInit());
+
+	char go_path[64];
+	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
+			"package main\n\nfunc main() {}\n"));
+	editorOpen(go_path);
+	ASSERT_EQ_INT(1, E.lsp_doc_open);
+
+	editorSyntaxBackgroundSetEnabledForTests(0);
+	editorSyntaxStateDestroy(E.syntax_state);
+	E.syntax_state = NULL;
+
+	E.cy = 0;
+	E.cx = 0;
+	editorInsertChar('x');
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.did_change_count);
+
+	struct editorLspTestLastChange change = {0};
+	editorLspTestGetLastChange(&change);
+	ASSERT_EQ_INT(0, change.had_range);
+	ASSERT_TRUE(strncmp(change.text, "xpackage main", strlen("xpackage main")) == 0);
+
+	ASSERT_TRUE(unlink(go_path) == 0);
 	return 0;
 }
 
@@ -2464,6 +2523,8 @@ const struct editorTestCase g_lsp_tests[] = {
 	{"editor_lsp_lifecycle_restarts_when_html_workspace_root_changes", test_editor_lsp_lifecycle_restarts_when_html_workspace_root_changes},
 	{"editor_lsp_document_sync_for_go_edit_save_close", test_editor_lsp_document_sync_for_go_edit_save_close},
 	{"editor_lsp_document_sync_for_c_edit_save_close", test_editor_lsp_document_sync_for_c_edit_save_close},
+	{"editor_lsp_document_did_open_sent_on_file_open", test_editor_lsp_document_did_open_sent_on_file_open},
+	{"editor_lsp_did_change_without_syntax_edit_sends_full_buffer", test_editor_lsp_did_change_without_syntax_edit_sends_full_buffer},
 	{"editor_lsp_document_sync_for_html_edit_save_close", test_editor_lsp_document_sync_for_html_edit_save_close},
 	{"editor_lsp_document_sync_for_css_edit_save_close", test_editor_lsp_document_sync_for_css_edit_save_close},
 	{"editor_lsp_document_sync_for_javascript_edit_save_close", test_editor_lsp_document_sync_for_javascript_edit_save_close},

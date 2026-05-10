@@ -657,12 +657,12 @@ static void editorLspNotifyDidChangeActive(const struct editorSyntaxEdit *edit,
 	if (editorLspActiveBufferTracked()) {
 		(void)editorLspNotifyDidChange(E.filename, E.syntax_language,
 				&E.lsp_doc_open, &E.lsp_doc_version, edit, inserted_text, inserted_len,
-				full_text != NULL ? full_text : "", full_text_len);
+				full_text, full_text_len);
 	}
 	if (editorLspActiveBufferTrackedForEslint()) {
 		(void)editorLspNotifyEslintDidChange(E.filename, E.syntax_language,
 				&E.lsp_eslint_doc_open, &E.lsp_eslint_doc_version, edit, inserted_text,
-				inserted_len, full_text != NULL ? full_text : "", full_text_len);
+				inserted_len, full_text, full_text_len);
 	}
 	free(full_text);
 }

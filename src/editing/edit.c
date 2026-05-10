@@ -425,6 +425,12 @@ int editorOpen(const char *filename) {
 		goto cleanup;
 	}
 	editorWatchRefreshActiveBaseline();
+	(void)editorLspEnsureDocumentOpen(E.filename, E.syntax_language,
+			&E.lsp_doc_open, &E.lsp_doc_version,
+			text != NULL ? text : "", text_len);
+	(void)editorLspEnsureEslintDocumentOpen(E.filename, E.syntax_language,
+			&E.lsp_eslint_doc_open, &E.lsp_eslint_doc_version,
+			text != NULL ? text : "", text_len);
 	ok = 1;
 
 cleanup:
