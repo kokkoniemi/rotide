@@ -1,5 +1,6 @@
 #include "test_case.h"
 #include "test_support.h"
+#include "render/popup.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
 #include "workspace/project_search.h"
@@ -3177,6 +3178,129 @@ static int test_editor_refresh_screen_status_bar_truncates_prefix_keeps_basename
 	return 0;
 }
 
+static int test_editor_popup_open_select_close(void) {
+	struct editorPopupItem items[3] = {
+		{.label = (char *)"alpha"},
+		{.label = (char *)"beta"},
+		{.label = (char *)"gamma"},
+	};
+	ASSERT_TRUE(editorPopupOpen(items, 3, 0, 0));
+	ASSERT_TRUE(editorPopupIsVisible());
+	ASSERT_EQ_INT(3, editorPopupItemCount());
+	ASSERT_EQ_INT(0, editorPopupSelectedIndex());
+	ASSERT_EQ_STR("alpha", editorPopupSelectedLabel());
+
+	ASSERT_EQ_INT(EDITOR_POPUP_KEY_CONSUMED, editorPopupHandleKey(ARROW_DOWN));
+	ASSERT_EQ_INT(1, editorPopupSelectedIndex());
+	ASSERT_EQ_STR("beta", editorPopupSelectedLabel());
+	ASSERT_EQ_INT(EDITOR_POPUP_KEY_CONSUMED, editorPopupHandleKey(ARROW_DOWN));
+	ASSERT_EQ_INT(2, editorPopupSelectedIndex());
+	ASSERT_EQ_INT(EDITOR_POPUP_KEY_CONSUMED, editorPopupHandleKey(ARROW_DOWN));
+	ASSERT_EQ_INT(2, editorPopupSelectedIndex());
+	ASSERT_EQ_INT(EDITOR_POPUP_KEY_CONSUMED, editorPopupHandleKey(ARROW_UP));
+	ASSERT_EQ_INT(1, editorPopupSelectedIndex());
+
+	ASSERT_EQ_INT(EDITOR_POPUP_KEY_ACCEPTED, editorPopupHandleKey('\r'));
+	ASSERT_TRUE(editorPopupIsVisible());
+
+	ASSERT_EQ_INT(EDITOR_POPUP_KEY_CONSUMED, editorPopupHandleKey('\x1b'));
+	ASSERT_TRUE(!editorPopupIsVisible());
+	ASSERT_TRUE(editorPopupSelectedLabel() == NULL);
+	return 0;
+}
+
+static int test_editor_popup_other_key_dismisses_with_pass_through(void) {
+	struct editorPopupItem items[1] = {{.label = (char *)"only"}};
+	ASSERT_TRUE(editorPopupOpen(items, 1, 0, 0));
+	ASSERT_TRUE(editorPopupIsVisible());
+	ASSERT_EQ_INT(EDITOR_POPUP_KEY_DISMISSED_PASS_THROUGH, editorPopupHandleKey('a'));
+	ASSERT_TRUE(!editorPopupIsVisible());
+	return 0;
+}
+
+static int test_editor_popup_renders_overlay_in_text_area(void) {
+	add_row("hello world");
+	E.window_rows = 6;
+	E.window_cols = 40;
+	E.cy = 0;
+	E.cx = 0;
+
+	struct editorPopupItem items[2] = {
+		{.label = (char *)"completion_alpha"},
+		{.label = (char *)"completion_beta"},
+	};
+	ASSERT_TRUE(editorPopupOpen(items, 2, 0, 0));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "completion_alpha") != NULL);
+	ASSERT_TRUE(strstr(output, "completion_beta") != NULL);
+	free(output);
+
+	editorPopupClose();
+	return 0;
+}
+
+static int test_editor_popup_placement_below_cursor(void) {
+	add_row("abc");
+	add_row("def");
+	add_row("ghi");
+	E.window_rows = 10;
+	E.window_cols = 40;
+	E.cy = 1;
+	E.cx = 0;
+
+	struct editorPopupItem items[2] = {
+		{.label = (char *)"first"},
+		{.label = (char *)"second"},
+	};
+	ASSERT_TRUE(editorPopupOpen(items, 2, 1, 0));
+
+	int row = 0;
+	int col = 0;
+	int rows = 0;
+	int cols = 0;
+	int above = 0;
+	editorPopupComputePlacement(&row, &col, &rows, &cols, &above);
+	ASSERT_EQ_INT(0, above);
+	ASSERT_EQ_INT(2, rows);
+	ASSERT_EQ_INT(3, row);
+
+	editorPopupClose();
+	return 0;
+}
+
+static int test_editor_popup_placement_above_when_below_overflows(void) {
+	for (int i = 0; i < 10; i++) {
+		add_row("line");
+	}
+	E.window_rows = 6;
+	E.window_cols = 40;
+	E.cy = 5;
+	E.cx = 0;
+
+	struct editorPopupItem items[3] = {
+		{.label = (char *)"a"},
+		{.label = (char *)"b"},
+		{.label = (char *)"c"},
+	};
+	ASSERT_TRUE(editorPopupOpen(items, 3, 5, 0));
+
+	int row = 0;
+	int col = 0;
+	int rows = 0;
+	int cols = 0;
+	int above = 0;
+	editorPopupComputePlacement(&row, &col, &rows, &cols, &above);
+	ASSERT_EQ_INT(1, above);
+	ASSERT_EQ_INT(3, rows);
+	ASSERT_EQ_INT(3, row);
+
+	editorPopupClose();
+	return 0;
+}
+
 const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_contains_expected_sequences", test_editor_refresh_screen_contains_expected_sequences},
 	{"editor_refresh_screen_file_row_frame_diff_updates_only_changed_rows", test_editor_refresh_screen_file_row_frame_diff_updates_only_changed_rows},
@@ -3292,6 +3416,11 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_status_bar_cursor_tab_display_col", test_editor_refresh_screen_status_bar_cursor_tab_display_col},
 	{"editor_refresh_screen_status_bar_shows_full_path_when_space_allows", test_editor_refresh_screen_status_bar_shows_full_path_when_space_allows},
 	{"editor_refresh_screen_status_bar_truncates_prefix_keeps_basename_visible", test_editor_refresh_screen_status_bar_truncates_prefix_keeps_basename_visible},
+	{"editor_popup_open_select_close", test_editor_popup_open_select_close},
+	{"editor_popup_other_key_dismisses_with_pass_through", test_editor_popup_other_key_dismisses_with_pass_through},
+	{"editor_popup_renders_overlay_in_text_area", test_editor_popup_renders_overlay_in_text_area},
+	{"editor_popup_placement_below_cursor", test_editor_popup_placement_below_cursor},
+	{"editor_popup_placement_above_when_below_overflows", test_editor_popup_placement_above_when_below_overflows},
 };
 
 const int g_render_terminal_test_count =

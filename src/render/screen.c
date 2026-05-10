@@ -8,6 +8,7 @@
 #include "support/alloc.h"
 #include "text/row.h"
 #include "text/utf8.h"
+#include "render/popup.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
@@ -2973,6 +2974,71 @@ static const char *editorCursorStyleSequence(enum editorCursorStyle style, int b
 	return sequence;
 }
 
+static int editorDrawPopupOverlay(struct writeBuf *wb) {
+	if (!editorPopupIsVisible()) {
+		return 1;
+	}
+	int terminal_row = 0;
+	int terminal_col = 0;
+	int visible_rows = 0;
+	int cols = 0;
+	int place_above = 0;
+	editorPopupComputePlacement(&terminal_row, &terminal_col, &visible_rows, &cols, &place_above);
+	if (visible_rows <= 0 || cols <= 0) {
+		return 1;
+	}
+
+	int item_count = editorPopupItemCount();
+	int row_offset = E.popup.row_offset;
+	int selected_idx = editorPopupSelectedIndex();
+
+	for (int row = 0; row < visible_rows; row++) {
+		int item_idx = row_offset + row;
+		if (item_idx >= item_count) {
+			break;
+		}
+		char move_buf[32];
+		int move_len = snprintf(move_buf, sizeof(move_buf), "\x1b[%d;%dH",
+				terminal_row + row, terminal_col);
+		if (move_len <= 0 || move_len >= (int)sizeof(move_buf)) {
+			return 0;
+		}
+		if (!wbAppend(wb, move_buf, (size_t)move_len)) {
+			return 0;
+		}
+		int is_selected = item_idx == selected_idx;
+		if (is_selected) {
+			if (!editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_SELECTION)) {
+				return 0;
+			}
+		} else {
+			if (!editorAppendThemeBackgroundRole(wb, EDITOR_THEME_UI_CURRENT_LINE_BG)) {
+				return 0;
+			}
+		}
+		if (!wbAppend(wb, " ", 1)) {
+			return 0;
+		}
+		const char *label = E.popup.items[item_idx].label != NULL ?
+				E.popup.items[item_idx].label : "";
+		int wrote = 0;
+		if (!editorAppendSanitizedText(wb, label, cols - 2, &wrote)) {
+			return 0;
+		}
+		int padding = cols - 1 - wrote;
+		while (padding > 0) {
+			if (!wbAppend(wb, " ", 1)) {
+				return 0;
+			}
+			padding--;
+		}
+		if (!editorAppendThemeReset(wb)) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
 void editorRefreshScreen(void) {
 	editorLspPumpNotifications();
 	editorScroll();
@@ -2999,6 +3065,11 @@ void editorRefreshScreen(void) {
 	if (!editorDrawTabBar(&wb) || !editorDrawRows(&wb) ||
 			!editorAppendCursorMove(&wb, status_row, 1) || !editorDrawStatusBar(&wb) ||
 			!editorAppendCursorMove(&wb, message_row, 1) || !editorDrawMessageBar(&wb)) {
+		wbFree(&wb);
+		editorSetStatusMsg("Out of memory");
+		return;
+	}
+	if (!editorDrawPopupOverlay(&wb)) {
 		wbFree(&wb);
 		editorSetStatusMsg("Out of memory");
 		return;

@@ -117,6 +117,21 @@ struct editorSyntaxState;
 struct editorDocument;
 struct editorLspSymbol;
 
+struct editorPopupItem {
+	char *label;
+	char *detail;
+};
+
+struct editorPopupState {
+	int visible;
+	int anchor_row;
+	int anchor_col;
+	int selected_index;
+	int row_offset;
+	struct editorPopupItem *items;
+	int item_count;
+};
+
 enum editorPaneFocus {
 	EDITOR_PANE_TEXT = 0,
 	EDITOR_PANE_DRAWER
@@ -667,6 +682,7 @@ struct editorConfig {
 	enum editorViewportMode viewport_mode;
 	enum editorPaneFocus pane_focus;
 	struct editorKeymap keymap;
+	struct editorPopupState popup;
 	struct termios orig_attrs;
 };
 

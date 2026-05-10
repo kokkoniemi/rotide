@@ -8,6 +8,7 @@
 #include "editing/selection.h"
 #include "language/lsp.h"
 #include "language/syntax_worker.h"
+#include "render/popup.h"
 #include "render/screen.h"
 #include "support/alloc.h"
 #include "support/terminal.h"
@@ -3733,6 +3734,14 @@ void editorProcessKeypress(void) {
 	}
 	if (c == WATCH_EVENT) {
 		return;
+	}
+
+	if (editorPopupIsVisible()) {
+		enum editorPopupKeyResult popup_result = editorPopupHandleKey(c);
+		if (popup_result == EDITOR_POPUP_KEY_CONSUMED ||
+				popup_result == EDITOR_POPUP_KEY_ACCEPTED) {
+			return;
+		}
 	}
 
 	if (c == MOUSE_EVENT) {

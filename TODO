@@ -5,3 +5,4 @@
 - FEATURE: implement support for Debug Adapter Protocol (DAP)
 - FEATURE: implement support for vim-mode. The commands should be configurable in .rotide.toml in local and global files.
 - IMPROVEMENT: integrate Fil-C to improve memory safety
+- IMPROVEMENT: in find / lsp views (drawer) the preview highlight should newer be in same line as the drawer cursor because it can be below the overflow text. I would like to keep the preview lines about center of the screen. I would like the target row to have the cursor highlight too.
