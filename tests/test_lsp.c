@@ -2454,6 +2454,52 @@ static int test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem(void) {
 	return 0;
 }
 
+static int test_editor_lsp_drawer_selected_problem_spills_into_text_area(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 0;
+	E.lsp_html_enabled = 0;
+	E.lsp_eslint_enabled = 1;
+	ASSERT_TRUE(editorTabsInit());
+
+	char js_path[64];
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(js_path, sizeof(js_path),
+			"rotide-test-js-lsp-drawer-spill-", ".js",
+			"tests/lsp/supported/javascript/eslint_buffer.js"));
+	editorOpen(js_path);
+
+	const char *long_message = "very_long_diagnostic_message_that_exceeds_drawer_width_tail_segment";
+	struct editorLspDiagnostic diagnostics[1] = {
+		{.start_line = 0, .start_character = 0, .end_line = 0, .end_character = 1,
+				.severity = 1, .message = (char *)long_message},
+	};
+	editorLspTestSetMockDiagnostics(js_path, diagnostics, 1);
+	editorLspPumpNotifications();
+
+	char lsp_drawer[] = {'\x1b', CTRL_KEY('l')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(lsp_drawer,
+			sizeof(lsp_drawer)) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+
+	int problem_idx = -1;
+	ASSERT_TRUE(find_drawer_entry_containing(long_message, &problem_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(problem_idx, E.window_rows));
+
+	E.window_rows = 6;
+	E.window_cols = 200;
+	ASSERT_TRUE(editorDrawerSetWidthForCols(20, E.window_cols));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "tail_segment") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(js_path) == 0);
+	return 0;
+}
+
 static int test_editor_lsp_drawer_syntax_problem_clears_and_reappears(void) {
 	ASSERT_TRUE(editorTabsInit());
 
@@ -2536,6 +2582,7 @@ const struct editorTestCase g_lsp_tests[] = {
 	{"editor_lsp_eslint_diagnostics_update_and_status_summary", test_editor_lsp_eslint_diagnostics_update_and_status_summary},
 	{"editor_lsp_eslint_diagnostics_persist_across_tab_switches", test_editor_lsp_eslint_diagnostics_persist_across_tab_switches},
 	{"editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem", test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem},
+	{"editor_lsp_drawer_selected_problem_spills_into_text_area", test_editor_lsp_drawer_selected_problem_spills_into_text_area},
 	{"editor_lsp_drawer_syntax_problem_clears_and_reappears", test_editor_lsp_drawer_syntax_problem_clears_and_reappears},
 	{"editor_lsp_drawer_lists_syntax_parse_error", test_editor_lsp_drawer_lists_syntax_parse_error},
 	{"editor_lsp_javascript_definition_coexists_with_eslint_sidecar", test_editor_lsp_javascript_definition_coexists_with_eslint_sidecar},

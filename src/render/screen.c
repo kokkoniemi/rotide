@@ -2194,6 +2194,10 @@ static int editorBuildDrawerRowPlain(struct writeBuf *wb, int visible_idx) {
 		return 1;
 	}
 
+	char entry_name_buf[PATH_MAX + 512];
+	snprintf(entry_name_buf, sizeof(entry_name_buf), "%s",
+			entry.name != NULL ? entry.name : "");
+
 	if (!entry.is_root && !wbAppend(wb, " ", 1)) {
 		return 0;
 	}
@@ -2227,7 +2231,7 @@ static int editorBuildDrawerRowPlain(struct writeBuf *wb, int visible_idx) {
 		}
 	}
 
-	return editorAppendSanitizedText(wb, entry.name, -1, NULL);
+	return editorAppendSanitizedText(wb, entry_name_buf, -1, NULL);
 }
 
 static int editorDrawDrawerSelectionOverflow(struct writeBuf *wb, int row_idx, int drawer_cols,
