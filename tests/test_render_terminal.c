@@ -3360,6 +3360,36 @@ static int test_editor_popup_renders_overlay_in_text_area(void) {
 	return 0;
 }
 
+static int test_editor_popup_close_repaints_rows_under_overlay(void) {
+	add_row("hello world");
+	add_row("second line");
+	add_row("third line");
+	E.window_rows = 6;
+	E.window_cols = 40;
+	E.cy = 0;
+	E.cx = 0;
+
+	struct editorPopupItem items[2] = {
+		{.label = (char *)"completion_xyz"},
+		{.label = (char *)"completion_abc"},
+	};
+	ASSERT_TRUE(editorPopupOpen(items, 2, 0, 0));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "completion_xyz") != NULL);
+	free(output);
+
+	editorPopupClose();
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "completion_xyz") == NULL);
+	ASSERT_TRUE(strstr(output, "hello world") != NULL);
+	free(output);
+	return 0;
+}
+
 static int test_editor_popup_placement_below_cursor(void) {
 	add_row("abc");
 	add_row("def");
@@ -3541,6 +3571,7 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_popup_open_select_close", test_editor_popup_open_select_close},
 	{"editor_popup_other_key_dismisses_with_pass_through", test_editor_popup_other_key_dismisses_with_pass_through},
 	{"editor_popup_renders_overlay_in_text_area", test_editor_popup_renders_overlay_in_text_area},
+	{"editor_popup_close_repaints_rows_under_overlay", test_editor_popup_close_repaints_rows_under_overlay},
 	{"editor_popup_placement_below_cursor", test_editor_popup_placement_below_cursor},
 	{"editor_popup_placement_above_when_below_overflows", test_editor_popup_placement_above_when_below_overflows},
 };

@@ -286,6 +286,8 @@ struct editorFileRowFrameCache {
 static struct editorFileRowFrameCache g_file_row_frame_cache = {0};
 static int g_editor_output_last_refresh_file_row_draw_count = 0;
 static int g_editor_drawing_current_line_highlight = 0;
+static int g_popup_prev_screen_top = 0;
+static int g_popup_prev_row_count = 0;
 
 static int editorWriteAllToStdout(const char *buf, size_t len) {
 	if (len == 0) {
@@ -334,6 +336,8 @@ static void editorFileRowFrameCacheReset(void) {
 	g_file_row_frame_cache.row_count = 0;
 	g_file_row_frame_cache.window_rows = 0;
 	g_file_row_frame_cache.window_cols = 0;
+	g_popup_prev_screen_top = 0;
+	g_popup_prev_row_count = 0;
 }
 
 static int editorAppendTextRowReset(struct writeBuf *wb) {
@@ -2595,6 +2599,27 @@ static int editorDrawRows(struct writeBuf *wb) {
 		return 0;
 	}
 
+	/*
+	 * Cells that were covered by the popup overlay during the previous frame are not tracked
+	 * in the row cache. Drop those entries so the rows beneath them get repainted now that
+	 * the popup may have moved or closed.
+	 */
+	if (g_popup_prev_row_count > 0) {
+		int top_idx = g_popup_prev_screen_top - 2;
+		int end_idx = top_idx + g_popup_prev_row_count;
+		if (top_idx < 0) {
+			top_idx = 0;
+		}
+		if (end_idx > g_file_row_frame_cache.row_capacity) {
+			end_idx = g_file_row_frame_cache.row_capacity;
+		}
+		for (int i = top_idx; i < end_idx; i++) {
+			free(g_file_row_frame_cache.rows[i]);
+			g_file_row_frame_cache.rows[i] = NULL;
+			g_file_row_frame_cache.row_lens[i] = 0;
+		}
+	}
+
 	for (int y = 0; y < E.window_rows; y++) {
 		struct writeBuf row_buf = WRITEBUF_INIT;
 		if (!editorBuildFileRowLine(&row_buf, y, drawer_cols, separator_cols, text_cols)) {
@@ -3069,6 +3094,8 @@ static const char *editorCursorStyleSequence(enum editorCursorStyle style, int b
 
 static int editorDrawPopupOverlay(struct writeBuf *wb) {
 	if (!editorPopupIsVisible()) {
+		g_popup_prev_screen_top = 0;
+		g_popup_prev_row_count = 0;
 		return 1;
 	}
 	int terminal_row = 0;
@@ -3078,8 +3105,12 @@ static int editorDrawPopupOverlay(struct writeBuf *wb) {
 	int place_above = 0;
 	editorPopupComputePlacement(&terminal_row, &terminal_col, &visible_rows, &cols, &place_above);
 	if (visible_rows <= 0 || cols <= 0) {
+		g_popup_prev_screen_top = 0;
+		g_popup_prev_row_count = 0;
 		return 1;
 	}
+	g_popup_prev_screen_top = terminal_row;
+	g_popup_prev_row_count = visible_rows;
 
 	int item_count = editorPopupItemCount();
 	int row_offset = E.popup.row_offset;

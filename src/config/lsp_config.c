@@ -32,7 +32,7 @@ void editorLspConfigInitDefaults(int *gopls_enabled_out, int *clangd_enabled_out
 		*autocomplete_enabled_out = 1;
 	}
 	if (autocomplete_max_items_out != NULL) {
-		*autocomplete_max_items_out = 50;
+		*autocomplete_max_items_out = 100;
 	}
 	if (gopls_enabled_out != NULL) {
 		*gopls_enabled_out = 1;

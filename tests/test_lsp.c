@@ -540,6 +540,80 @@ static int test_editor_lsp_autocomplete_accept_uses_insert_text(void) {
 	return 0;
 }
 
+static int test_editor_lsp_autocomplete_typing_narrows_popup_without_response(void) {
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(1);
+	E.lsp_clangd_enabled = 1;
+	E.lsp_autocomplete_enabled = 1;
+	E.lsp_autocomplete_max_items = 100;
+	free(E.filename);
+	E.filename = strdup("/tmp/auto.c");
+	ASSERT_TRUE(E.filename != NULL);
+	E.syntax_language = EDITOR_SYNTAX_C;
+	add_row("f");
+	E.cy = 0;
+	E.cx = 1;
+
+	struct editorLspCompletionItem mock_items[3] = {
+		{.label = (char *)"foo"},
+		{.label = (char *)"fbar"},
+		{.label = (char *)"fbaz"},
+	};
+	editorLspTestSetMockCompletionResponse(mock_items, 3);
+	editorAutocompleteOnCharInserted('f');
+	editorLspTestDeliverPendingCompletion();
+	ASSERT_TRUE(editorAutocompleteIsVisible());
+	ASSERT_EQ_INT(3, editorPopupItemCount());
+
+	editorInsertChar('o');
+	editorAutocompleteOnCharInserted('o');
+	ASSERT_TRUE(editorAutocompleteIsVisible());
+	ASSERT_EQ_INT(1, editorPopupItemCount());
+	ASSERT_EQ_STR("foo", editorPopupSelectedLabel());
+
+	editorAutocompleteShutdown();
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(0);
+	return 0;
+}
+
+static int test_editor_lsp_autocomplete_typing_narrows_popup_keeps_accept_correct(void) {
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(1);
+	E.lsp_clangd_enabled = 1;
+	E.lsp_autocomplete_enabled = 1;
+	E.lsp_autocomplete_max_items = 100;
+	free(E.filename);
+	E.filename = strdup("/tmp/auto.c");
+	ASSERT_TRUE(E.filename != NULL);
+	E.syntax_language = EDITOR_SYNTAX_C;
+	add_row("f");
+	E.cy = 0;
+	E.cx = 1;
+
+	struct editorLspCompletionItem mock_items[3] = {
+		{.label = (char *)"foo"},
+		{.label = (char *)"fbar"},
+		{.label = (char *)"fbaz"},
+	};
+	editorLspTestSetMockCompletionResponse(mock_items, 3);
+	editorAutocompleteOnCharInserted('f');
+	editorLspTestDeliverPendingCompletion();
+
+	editorInsertChar('o');
+	editorAutocompleteOnCharInserted('o');
+	ASSERT_TRUE(editorAutocompleteIsVisible());
+	ASSERT_EQ_INT(1, editorPopupItemCount());
+
+	ASSERT_TRUE(editorAutocompleteAcceptSelection());
+	ASSERT_EQ_STR("foo", E.rows[0].chars);
+
+	editorAutocompleteShutdown();
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(0);
+	return 0;
+}
+
 static int test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers(void) {
 	editorLspTestSetMockEnabled(1);
 	E.lsp_gopls_enabled = 1;
@@ -3162,6 +3236,8 @@ const struct editorTestCase g_lsp_tests[] = {
 	{"editor_lsp_autocomplete_stale_response_after_cursor_move_is_ignored", test_editor_lsp_autocomplete_stale_response_after_cursor_move_is_ignored},
 	{"editor_lsp_autocomplete_accept_inserts_label", test_editor_lsp_autocomplete_accept_inserts_label},
 	{"editor_lsp_autocomplete_accept_uses_insert_text", test_editor_lsp_autocomplete_accept_uses_insert_text},
+	{"editor_lsp_autocomplete_typing_narrows_popup_without_response", test_editor_lsp_autocomplete_typing_narrows_popup_without_response},
+	{"editor_lsp_autocomplete_typing_narrows_popup_keeps_accept_correct", test_editor_lsp_autocomplete_typing_narrows_popup_keeps_accept_correct},
 	{"editor_lsp_lifecycle_lazy_start_and_non_go_buffers", test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers},
 	{"editor_lsp_lifecycle_restart_after_mock_crash", test_editor_lsp_lifecycle_restart_after_mock_crash},
 	{"editor_lsp_lifecycle_restarts_when_switching_between_go_clangd_and_html", test_editor_lsp_lifecycle_restarts_when_switching_between_go_clangd_and_html},
