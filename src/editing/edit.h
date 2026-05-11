@@ -13,6 +13,7 @@ void editorDelChar(void);
 
 int editorFileCanOpen(const char *filename);
 int editorOpen(const char *filename);
+void editorOpenSetDeferLsp(int defer);
 int editorFilePathLooksBinary(const char *filename, int *binary_out);
 int editorReadFileToText(const char *filename, char **text_out, size_t *len_out);
 void editorSetStatusMsg(const char *fmt, ...);

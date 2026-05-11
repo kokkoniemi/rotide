@@ -2,6 +2,8 @@
 
 #include "rotide.h"
 #include "editing/buffer_core.h"
+#include "editing/edit.h"
+#include "language/lsp.h"
 #include "render/screen.h"
 #include "support/alloc.h"
 #include "support/file_io.h"
@@ -461,6 +463,12 @@ int editorWorkspaceStateRestoreTabs(void) {
 		return 0;
 	}
 	int opened_any = 0;
+	/*
+	 * Restoring a workspace with several tabs would otherwise pay the cost of a synchronous
+	 * LSP initialize round-trip per language. Skip LSP for every tab during this loop;
+	 * the active tab below and any later tab switch will trigger didOpen lazily.
+	 */
+	editorOpenSetDeferLsp(1);
 	for (int i = 0; i < g_pending_tab_count; i++) {
 		const struct editorWorkspacePendingTab *pending = &g_pending_tabs[i];
 		if (!editorTabOpenOrSwitchToFile(pending->path)) {
@@ -497,8 +505,23 @@ int editorWorkspaceStateRestoreTabs(void) {
 		}
 		editorViewportCenterCursor();
 	}
+	editorOpenSetDeferLsp(0);
 	if (opened_any && g_pending_active_path != NULL) {
 		(void)editorTabOpenOrSwitchToFile(g_pending_active_path);
+	}
+	/*
+	 * When the active path is the last tab we opened, editorTabSwitchToIndex returns early
+	 * without calling editorLoadActiveTab, so the LSP didOpen never runs. Force it here.
+	 */
+	if (opened_any) {
+		editorLspEnsureActiveDocumentTracked();
+	}
+	/*
+	 * Document symbols are only refreshed on explicit LSP-drawer activation. If the drawer
+	 * was left in LSP mode across restarts, populate them now.
+	 */
+	if (opened_any && E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
+		editorLspRefreshActiveDocumentSymbols();
 	}
 	editorWorkspaceStateFreePendingTabs();
 	return opened_any;

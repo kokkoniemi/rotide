@@ -119,6 +119,7 @@ void editorLspFreeCompletionItems(struct editorLspCompletionItem *items, int cou
 const char *editorLspSymbolKindLabel(int kind);
 
 void editorLspRefreshActiveDocumentSymbols(void);
+void editorLspEnsureActiveDocumentTracked(void);
 int editorLspRequestCodeActionFixes(const char *filename, enum editorSyntaxLanguage language);
 void editorLspFreeLocations(struct editorLspLocation *locations, int count);
 int editorLspProtocolCharacterToBufferColumn(int line, int protocol_character);

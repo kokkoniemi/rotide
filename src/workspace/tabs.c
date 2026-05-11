@@ -472,6 +472,12 @@ static void editorLoadActiveTab(int tab_idx) {
 	if (E.syntax_language != detected || (detected != EDITOR_SYNTAX_NONE && E.syntax_state == NULL)) {
 		(void)editorSyntaxParseFullActive();
 	}
+	/*
+	 * If this tab was opened with deferred LSP (e.g. during session restore), the LSP server
+	 * never received a didOpen for it. Send one now so diagnostics, definitions, and
+	 * completion start working as soon as the user lands on the tab.
+	 */
+	editorLspEnsureActiveDocumentTracked();
 	editorViewportSetMode(EDITOR_VIEWPORT_FOLLOW_CURSOR);
 }
 

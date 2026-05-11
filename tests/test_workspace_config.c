@@ -3213,6 +3213,67 @@ static int test_editor_workspace_state_restores_open_tabs_with_cursor(void) {
 	return 0;
 }
 
+static int test_editor_workspace_state_restore_defers_lsp_for_inactive_tabs(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char alpha_c[512];
+	char beta_c[512];
+	ASSERT_TRUE(path_join(alpha_c, sizeof(alpha_c), env.project_dir, "alpha.c"));
+	ASSERT_TRUE(path_join(beta_c, sizeof(beta_c), env.project_dir, "beta.c"));
+	ASSERT_TRUE(write_text_file(alpha_c, "int main(void) { return 0; }\n"));
+	ASSERT_TRUE(write_text_file(beta_c, "void helper(void) {}\n"));
+
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(1);
+	E.lsp_clangd_enabled = 1;
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTabOpenFileAsNew(alpha_c));
+	ASSERT_TRUE(editorTabOpenFileAsNew(beta_c));
+	ASSERT_TRUE(editorWorkspaceStateSave());
+
+	editorTabsFreeAll();
+	editorWorkspaceStateShutdown();
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(1);
+	E.lsp_clangd_enabled = 1;
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_TRUE(editorWorkspaceStateRestoreTabs());
+	ASSERT_EQ_INT(2, editorTabCount());
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.did_open_count);
+	ASSERT_EQ_STR(beta_c, editorTabFilenameAt(E.active_tab));
+
+	int alpha_idx = -1;
+	for (int i = 0; i < editorTabCount(); i++) {
+		const char *path = editorTabFilenameAt(i);
+		if (path != NULL && strcmp(path, alpha_c) == 0) {
+			alpha_idx = i;
+			break;
+		}
+	}
+	ASSERT_TRUE(alpha_idx >= 0);
+	ASSERT_TRUE(editorTabSwitchToIndex(alpha_idx));
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(2, stats.did_open_count);
+
+	editorTabsFreeAll();
+	editorWorkspaceStateShutdown();
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(0);
+	ASSERT_TRUE(unlink(beta_c) == 0);
+	ASSERT_TRUE(unlink(alpha_c) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_file_search_lists_recent_non_active_files_first_and_persists_order(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -3563,6 +3624,7 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_workspace_state_ignores_search_modes_on_save", test_editor_workspace_state_ignores_search_modes_on_save},
 	{"editor_workspace_state_load_missing_is_noop", test_editor_workspace_state_load_missing_is_noop},
 	{"editor_workspace_state_restores_open_tabs_with_cursor", test_editor_workspace_state_restores_open_tabs_with_cursor},
+	{"editor_workspace_state_restore_defers_lsp_for_inactive_tabs", test_editor_workspace_state_restore_defers_lsp_for_inactive_tabs},
 };
 
 const int g_workspace_config_test_count =

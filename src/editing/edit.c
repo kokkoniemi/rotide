@@ -376,6 +376,12 @@ void editorDelChar(void) {
 	(void)editorApplyDocumentEdit(&edit);
 }
 
+static int g_editor_open_defer_lsp = 0;
+
+void editorOpenSetDeferLsp(int defer) {
+	g_editor_open_defer_lsp = defer ? 1 : 0;
+}
+
 int editorOpen(const char *filename) {
 	int was_preview = E.is_preview;
 	FILE *fp = NULL;
@@ -420,12 +426,14 @@ int editorOpen(const char *filename) {
 		goto cleanup;
 	}
 	editorWatchRefreshActiveBaseline();
-	(void)editorLspEnsureDocumentOpen(E.filename, E.syntax_language,
-			&E.lsp_doc_open, &E.lsp_doc_version,
-			text != NULL ? text : "", text_len);
-	(void)editorLspEnsureEslintDocumentOpen(E.filename, E.syntax_language,
-			&E.lsp_eslint_doc_open, &E.lsp_eslint_doc_version,
-			text != NULL ? text : "", text_len);
+	if (!g_editor_open_defer_lsp) {
+		(void)editorLspEnsureDocumentOpen(E.filename, E.syntax_language,
+				&E.lsp_doc_open, &E.lsp_doc_version,
+				text != NULL ? text : "", text_len);
+		(void)editorLspEnsureEslintDocumentOpen(E.filename, E.syntax_language,
+				&E.lsp_eslint_doc_open, &E.lsp_eslint_doc_version,
+				text != NULL ? text : "", text_len);
+	}
 	ok = 1;
 
 cleanup:

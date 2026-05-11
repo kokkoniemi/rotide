@@ -2145,6 +2145,34 @@ void editorLspTestDeliverPendingCompletion(void) {
 	free(filename);
 }
 
+void editorLspEnsureActiveDocumentTracked(void) {
+	if (E.tab_kind != EDITOR_TAB_FILE || E.filename == NULL || E.filename[0] == '\0' ||
+			E.document == NULL) {
+		return;
+	}
+	if (E.lsp_doc_open && E.lsp_eslint_doc_open) {
+		return;
+	}
+	struct editorTextSource source = {0};
+	if (!editorBuildActiveTextSource(&source)) {
+		return;
+	}
+	size_t text_len = 0;
+	char *text = editorTextSourceDupRange(&source, 0, source.length, &text_len);
+	if (text == NULL) {
+		return;
+	}
+	if (!E.lsp_doc_open) {
+		(void)editorLspEnsureDocumentOpen(E.filename, E.syntax_language,
+				&E.lsp_doc_open, &E.lsp_doc_version, text, text_len);
+	}
+	if (!E.lsp_eslint_doc_open) {
+		(void)editorLspEnsureEslintDocumentOpen(E.filename, E.syntax_language,
+				&E.lsp_eslint_doc_open, &E.lsp_eslint_doc_version, text, text_len);
+	}
+	free(text);
+}
+
 void editorLspRefreshActiveDocumentSymbols(void) {
 	if (E.tab_kind != EDITOR_TAB_FILE || E.filename == NULL || E.filename[0] == '\0' ||
 			!editorLspFileEnabled(E.filename, E.syntax_language) ||
