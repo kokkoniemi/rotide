@@ -215,6 +215,7 @@ void editorFreeActiveBufferState(void) {
 	for (int i = 0; i < E.numrows; i++) {
 		free(E.rows[i].chars);
 		free(E.rows[i].render);
+		free(E.rows[i].wrap_cache_segments);
 	}
 	free(E.rows);
 	E.rows = NULL;

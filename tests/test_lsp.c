@@ -19,6 +19,8 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 	char javascript_install_command[PATH_MAX];
 	char eslint_command[PATH_MAX];
 	char vscode_langservers_install_command[PATH_MAX];
+	int autocomplete_enabled = 0;
+	int autocomplete_max_items = 0;
 
 	enum editorLspConfigLoadStatus defaults_status =
 			editorLspConfigLoadFromPaths(&gopls_enabled, &clangd_enabled, &html_enabled,
@@ -30,7 +32,8 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 					sizeof(javascript_command), javascript_install_command,
 					sizeof(javascript_install_command), eslint_command, sizeof(eslint_command),
 					vscode_langservers_install_command,
-					sizeof(vscode_langservers_install_command), NULL, NULL);
+					sizeof(vscode_langservers_install_command), &autocomplete_enabled,
+					&autocomplete_max_items, NULL, NULL);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_OK, defaults_status);
 	ASSERT_EQ_INT(1, gopls_enabled);
 	ASSERT_EQ_INT(1, clangd_enabled);
@@ -109,8 +112,8 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 					sizeof(javascript_command), javascript_install_command,
 					sizeof(javascript_install_command), eslint_command, sizeof(eslint_command),
 					vscode_langservers_install_command,
-					sizeof(vscode_langservers_install_command), global_path,
-					project_path);
+					sizeof(vscode_langservers_install_command), &autocomplete_enabled,
+					&autocomplete_max_items, global_path, project_path);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_OK, status);
 	ASSERT_EQ_INT(1, gopls_enabled);
 	ASSERT_EQ_INT(0, clangd_enabled);
@@ -154,6 +157,8 @@ static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
 	char javascript_install_command[PATH_MAX];
 	char eslint_command[PATH_MAX];
 	char vscode_langservers_install_command[PATH_MAX];
+	int autocomplete_enabled = 0;
+	int autocomplete_max_items = 0;
 
 	char dir_template[] = "/tmp/rotide-test-lsp-config-invalid-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -177,7 +182,8 @@ static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
 					sizeof(javascript_command), javascript_install_command,
 					sizeof(javascript_install_command), eslint_command, sizeof(eslint_command),
 					vscode_langservers_install_command,
-					sizeof(vscode_langservers_install_command), global_path, NULL);
+					sizeof(vscode_langservers_install_command), &autocomplete_enabled,
+					&autocomplete_max_items, global_path, NULL);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_INVALID_GLOBAL, status);
 	ASSERT_EQ_INT(1, gopls_enabled);
 	ASSERT_EQ_INT(1, clangd_enabled);
@@ -216,7 +222,8 @@ static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
 			sizeof(javascript_command), javascript_install_command,
 			sizeof(javascript_install_command), eslint_command, sizeof(eslint_command),
 			vscode_langservers_install_command,
-			sizeof(vscode_langservers_install_command), global_path, project_path);
+			sizeof(vscode_langservers_install_command), &autocomplete_enabled,
+			&autocomplete_max_items, global_path, project_path);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_INVALID_PROJECT, status);
 	ASSERT_EQ_INT(1, gopls_enabled);
 	ASSERT_EQ_INT(1, clangd_enabled);
@@ -285,8 +292,251 @@ static int test_editor_lsp_build_initialize_request_json_is_complete(void) {
 	ASSERT_TRUE(strstr(request, "\"rootUri\":\"file:///tmp/project\"") != NULL);
 	ASSERT_TRUE(strstr(request, "\"source.fixAll.eslint\"") != NULL);
 	ASSERT_TRUE(strstr(request, "\"hierarchicalDocumentSymbolSupport\":true") != NULL);
+	ASSERT_TRUE(strstr(request, "\"completion\"") != NULL);
+	ASSERT_TRUE(strstr(request, "\"snippetSupport\":false") != NULL);
 	ASSERT_EQ_INT('}', request[strlen(request) - 1]);
 	free(request);
+	return 0;
+}
+
+static int test_editor_lsp_parse_completion_provider_extracts_trigger_chars(void) {
+	const char *response =
+			"{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"capabilities\":{"
+			"\"completionProvider\":{\"resolveProvider\":true,"
+			"\"triggerCharacters\":[\".\",\":\",\">\"]}}}}";
+	int supported = 0;
+	char *trigger_chars = NULL;
+	int ok = editorLspParseCompletionProviderInResponse(response, &supported, &trigger_chars);
+	ASSERT_EQ_INT(1, ok);
+	ASSERT_EQ_INT(1, supported);
+	ASSERT_TRUE(trigger_chars != NULL);
+	ASSERT_EQ_STR(".:>", trigger_chars);
+	free(trigger_chars);
+	return 0;
+}
+
+static int test_editor_lsp_parse_completion_provider_handles_missing(void) {
+	int supported = 0;
+	char *trigger_chars = NULL;
+	int ok = editorLspParseCompletionProviderInResponse(
+			"{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"capabilities\":{}}}",
+			&supported, &trigger_chars);
+	ASSERT_EQ_INT(1, ok);
+	ASSERT_EQ_INT(0, supported);
+	ASSERT_TRUE(trigger_chars == NULL);
+	return 0;
+}
+
+static int test_editor_lsp_parse_completion_response_handles_items_array(void) {
+	const char *response =
+			"{\"jsonrpc\":\"2.0\",\"id\":3,\"result\":{"
+			"\"isIncomplete\":false,\"items\":["
+			"{\"label\":\"alpha\"},"
+			"{\"label\":\"beta\",\"insertText\":\"beta_(\"},"
+			"{\"label\":\"gamma\",\"textEdit\":{\"range\":{\"start\":{\"line\":1,"
+			"\"character\":2},\"end\":{\"line\":1,\"character\":5}},"
+			"\"newText\":\"gammaX\"}}"
+			"]}}";
+	struct editorLspCompletionItem *items = NULL;
+	int count = 0;
+	ASSERT_TRUE(editorLspTestParseCompletionResponse(response, &items, &count));
+	ASSERT_EQ_INT(3, count);
+	ASSERT_TRUE(items != NULL);
+	ASSERT_EQ_STR("alpha", items[0].label);
+	ASSERT_TRUE(items[0].insert_text == NULL);
+	ASSERT_EQ_INT(0, items[0].has_text_edit);
+	ASSERT_EQ_STR("beta", items[1].label);
+	ASSERT_EQ_STR("beta_(", items[1].insert_text);
+	ASSERT_EQ_STR("gamma", items[2].label);
+	ASSERT_EQ_INT(1, items[2].has_text_edit);
+	ASSERT_EQ_INT(1, items[2].text_edit_start_line);
+	ASSERT_EQ_INT(2, items[2].text_edit_start_character);
+	ASSERT_EQ_INT(1, items[2].text_edit_end_line);
+	ASSERT_EQ_INT(5, items[2].text_edit_end_character);
+	ASSERT_EQ_STR("gammaX", items[2].text_edit_new_text);
+	editorLspFreeCompletionItems(items, count);
+	return 0;
+}
+
+static int test_editor_lsp_parse_completion_response_handles_plain_array(void) {
+	const char *response =
+			"{\"jsonrpc\":\"2.0\",\"id\":4,\"result\":["
+			"{\"label\":\"foo\"},{\"label\":\"bar\"}]}";
+	struct editorLspCompletionItem *items = NULL;
+	int count = 0;
+	ASSERT_TRUE(editorLspTestParseCompletionResponse(response, &items, &count));
+	ASSERT_EQ_INT(2, count);
+	ASSERT_EQ_STR("foo", items[0].label);
+	ASSERT_EQ_STR("bar", items[1].label);
+	editorLspFreeCompletionItems(items, count);
+	return 0;
+}
+
+static int test_editor_lsp_parse_completion_response_handles_null(void) {
+	struct editorLspCompletionItem *items = NULL;
+	int count = 0;
+	ASSERT_TRUE(editorLspTestParseCompletionResponse(
+			"{\"jsonrpc\":\"2.0\",\"id\":5,\"result\":null}", &items, &count));
+	ASSERT_EQ_INT(0, count);
+	ASSERT_TRUE(items == NULL);
+	return 0;
+}
+
+static int test_editor_lsp_autocomplete_disabled_by_config_does_not_trigger(void) {
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(1);
+	E.lsp_clangd_enabled = 1;
+	E.lsp_autocomplete_enabled = 0;
+	free(E.filename);
+	E.filename = strdup("/tmp/auto.c");
+	ASSERT_TRUE(E.filename != NULL);
+	E.syntax_language = EDITOR_SYNTAX_C;
+	add_row("foo");
+	E.cy = 0;
+	E.cx = 3;
+
+	editorAutocompleteOnCharInserted('o');
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(0, stats.completion_count);
+	ASSERT_EQ_INT(0, editorAutocompleteIsVisible());
+
+	editorAutocompleteShutdown();
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(0);
+	return 0;
+}
+
+static int test_editor_lsp_autocomplete_identifier_trigger_opens_popup(void) {
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(1);
+	E.lsp_clangd_enabled = 1;
+	E.lsp_autocomplete_enabled = 1;
+	E.lsp_autocomplete_max_items = 50;
+	free(E.filename);
+	E.filename = strdup("/tmp/auto.c");
+	ASSERT_TRUE(E.filename != NULL);
+	E.syntax_language = EDITOR_SYNTAX_C;
+	add_row("foo");
+	E.cy = 0;
+	E.cx = 3;
+
+	struct editorLspCompletionItem mock_items[2] = {
+		{.label = (char *)"foobar"},
+		{.label = (char *)"foobaz"},
+	};
+	editorLspTestSetMockCompletionResponse(mock_items, 2);
+
+	editorAutocompleteOnCharInserted('o');
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.completion_count);
+	ASSERT_EQ_INT(1, editorLspCompletionPendingActive());
+
+	editorLspTestDeliverPendingCompletion();
+	ASSERT_EQ_INT(1, editorAutocompleteIsVisible());
+	ASSERT_EQ_INT(2, editorPopupItemCount());
+	ASSERT_EQ_STR("foobar", editorPopupSelectedLabel());
+
+	editorAutocompleteShutdown();
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(0);
+	return 0;
+}
+
+static int test_editor_lsp_autocomplete_stale_response_after_cursor_move_is_ignored(void) {
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(1);
+	E.lsp_clangd_enabled = 1;
+	E.lsp_autocomplete_enabled = 1;
+	E.lsp_autocomplete_max_items = 50;
+	free(E.filename);
+	E.filename = strdup("/tmp/auto.c");
+	ASSERT_TRUE(E.filename != NULL);
+	E.syntax_language = EDITOR_SYNTAX_C;
+	add_row("foo");
+	add_row("bar");
+	E.cy = 0;
+	E.cx = 3;
+
+	struct editorLspCompletionItem mock_items[1] = {
+		{.label = (char *)"foobar"},
+	};
+	editorLspTestSetMockCompletionResponse(mock_items, 1);
+	editorAutocompleteOnCharInserted('o');
+	ASSERT_EQ_INT(1, editorLspCompletionPendingActive());
+
+	/* Move cursor to a different line before the response arrives. */
+	E.cy = 1;
+	E.cx = 0;
+
+	editorLspTestDeliverPendingCompletion();
+	ASSERT_EQ_INT(0, editorAutocompleteIsVisible());
+
+	editorAutocompleteShutdown();
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(0);
+	return 0;
+}
+
+static int test_editor_lsp_autocomplete_accept_inserts_label(void) {
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(1);
+	E.lsp_clangd_enabled = 1;
+	E.lsp_autocomplete_enabled = 1;
+	E.lsp_autocomplete_max_items = 50;
+	free(E.filename);
+	E.filename = strdup("/tmp/auto.c");
+	ASSERT_TRUE(E.filename != NULL);
+	E.syntax_language = EDITOR_SYNTAX_C;
+	add_row("foo");
+	E.cy = 0;
+	E.cx = 3;
+
+	struct editorLspCompletionItem mock_items[1] = {
+		{.label = (char *)"foobar"},
+	};
+	editorLspTestSetMockCompletionResponse(mock_items, 1);
+	editorAutocompleteOnCharInserted('o');
+	editorLspTestDeliverPendingCompletion();
+	ASSERT_EQ_INT(1, editorAutocompleteIsVisible());
+
+	ASSERT_TRUE(editorAutocompleteAcceptSelection());
+	ASSERT_EQ_INT(0, editorAutocompleteIsVisible());
+	ASSERT_EQ_STR("foobar", E.rows[0].chars);
+
+	editorAutocompleteShutdown();
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(0);
+	return 0;
+}
+
+static int test_editor_lsp_autocomplete_accept_uses_insert_text(void) {
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(1);
+	E.lsp_clangd_enabled = 1;
+	E.lsp_autocomplete_enabled = 1;
+	E.lsp_autocomplete_max_items = 50;
+	free(E.filename);
+	E.filename = strdup("/tmp/auto.c");
+	ASSERT_TRUE(E.filename != NULL);
+	E.syntax_language = EDITOR_SYNTAX_C;
+	add_row("foo");
+	E.cy = 0;
+	E.cx = 3;
+
+	struct editorLspCompletionItem mock_items[1] = {
+		{.label = (char *)"foobar", .insert_text = (char *)"foobar_extra"},
+	};
+	editorLspTestSetMockCompletionResponse(mock_items, 1);
+	editorAutocompleteOnCharInserted('o');
+	editorLspTestDeliverPendingCompletion();
+	ASSERT_TRUE(editorAutocompleteAcceptSelection());
+	ASSERT_EQ_STR("foobar_extra", E.rows[0].chars);
+
+	editorAutocompleteShutdown();
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(0);
 	return 0;
 }
 
@@ -2902,6 +3152,16 @@ const struct editorTestCase g_lsp_tests[] = {
 	{"editor_lsp_config_invalid_values_fallback_defaults", test_editor_lsp_config_invalid_values_fallback_defaults},
 	{"editor_lsp_parse_definition_response_handles_clangd_field_order", test_editor_lsp_parse_definition_response_handles_clangd_field_order},
 	{"editor_lsp_build_initialize_request_json_is_complete", test_editor_lsp_build_initialize_request_json_is_complete},
+	{"editor_lsp_parse_completion_provider_extracts_trigger_chars", test_editor_lsp_parse_completion_provider_extracts_trigger_chars},
+	{"editor_lsp_parse_completion_provider_handles_missing", test_editor_lsp_parse_completion_provider_handles_missing},
+	{"editor_lsp_parse_completion_response_handles_items_array", test_editor_lsp_parse_completion_response_handles_items_array},
+	{"editor_lsp_parse_completion_response_handles_plain_array", test_editor_lsp_parse_completion_response_handles_plain_array},
+	{"editor_lsp_parse_completion_response_handles_null", test_editor_lsp_parse_completion_response_handles_null},
+	{"editor_lsp_autocomplete_disabled_by_config_does_not_trigger", test_editor_lsp_autocomplete_disabled_by_config_does_not_trigger},
+	{"editor_lsp_autocomplete_identifier_trigger_opens_popup", test_editor_lsp_autocomplete_identifier_trigger_opens_popup},
+	{"editor_lsp_autocomplete_stale_response_after_cursor_move_is_ignored", test_editor_lsp_autocomplete_stale_response_after_cursor_move_is_ignored},
+	{"editor_lsp_autocomplete_accept_inserts_label", test_editor_lsp_autocomplete_accept_inserts_label},
+	{"editor_lsp_autocomplete_accept_uses_insert_text", test_editor_lsp_autocomplete_accept_uses_insert_text},
 	{"editor_lsp_lifecycle_lazy_start_and_non_go_buffers", test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers},
 	{"editor_lsp_lifecycle_restart_after_mock_crash", test_editor_lsp_lifecycle_restart_after_mock_crash},
 	{"editor_lsp_lifecycle_restarts_when_switching_between_go_clangd_and_html", test_editor_lsp_lifecycle_restarts_when_switching_between_go_clangd_and_html},

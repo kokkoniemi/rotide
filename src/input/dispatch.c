@@ -9,6 +9,7 @@
 #include "language/lsp.h"
 #include "language/syntax_worker.h"
 #include "render/popup.h"
+#include "language/autocomplete.h"
 #include "render/screen.h"
 #include "support/alloc.h"
 #include "support/terminal.h"
@@ -3783,9 +3784,26 @@ void editorProcessKeypress(void) {
 
 	if (editorPopupIsVisible()) {
 		enum editorPopupKeyResult popup_result = editorPopupHandleKey(c);
-		if (popup_result == EDITOR_POPUP_KEY_CONSUMED ||
-				popup_result == EDITOR_POPUP_KEY_ACCEPTED) {
+		if (popup_result == EDITOR_POPUP_KEY_ACCEPTED) {
+			if (editorAutocompleteIsVisible()) {
+				editorPinActivePreviewForEdit();
+				editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+				int dirty_before = E.dirty;
+				int applied = editorAutocompleteAcceptSelection();
+				editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+				if (applied) {
+					editorViewportEnsureCursorVisible();
+				}
+			} else {
+				editorPopupClose();
+			}
 			return;
+		}
+		if (popup_result == EDITOR_POPUP_KEY_CONSUMED) {
+			return;
+		}
+		if (editorAutocompleteIsVisible()) {
+			editorAutocompleteCancel();
 		}
 	}
 
@@ -3834,6 +3852,7 @@ void editorProcessKeypress(void) {
 					int dirty_before = E.dirty;
 					editorInsertChar(c);
 					editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+					editorAutocompleteOnCharInserted(c);
 					effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 				}
 			}

@@ -1,5 +1,6 @@
 #include "language/lsp_transport.h"
 
+#include "language/autocomplete.h"
 #include "language/lsp_protocol.h"
 #include "support/file_io.h"
 #include "support/size_utils.h"
@@ -262,7 +263,26 @@ int editorLspTryDrainIncoming(struct editorLspClient *client, int timeout_ms) {
 		if (message == NULL) {
 			return 0;
 		}
-		int processed = editorLspProcessIncomingMessage(client, message);
+		int processed = 1;
+		int message_id = 0;
+		if (client->completion_pending.request_id != 0 &&
+				editorLspExtractResponseId(message, &message_id) &&
+				message_id == client->completion_pending.request_id) {
+			struct editorLspCompletionPending pending = client->completion_pending;
+			memset(&client->completion_pending, 0, sizeof(client->completion_pending));
+			struct editorLspCompletionItem *items = NULL;
+			int count = 0;
+			if (!editorLspResponseHasError(message)) {
+				(void)editorLspParseCompletionResponse(message, &items, &count);
+			}
+			editorAutocompleteHandleCompletionResponse(pending.request_id,
+					pending.document_version, pending.cy, pending.cx,
+					pending.prefix_start_cx, pending.prefix, pending.filename, items, count);
+			free(pending.prefix);
+			free(pending.filename);
+		} else {
+			processed = editorLspProcessIncomingMessage(client, message);
+		}
 		free(message);
 		if (!processed) {
 			return 0;
@@ -315,6 +335,21 @@ int editorLspTryGetProcessExitCodeWithWait(struct editorLspClient *client, int t
 }
 
 
+void editorLspCompletionPendingClear(struct editorLspCompletionPending *pending) {
+	if (pending == NULL) {
+		return;
+	}
+	free(pending->prefix);
+	free(pending->filename);
+	pending->prefix = NULL;
+	pending->filename = NULL;
+	pending->request_id = 0;
+	pending->document_version = 0;
+	pending->cy = 0;
+	pending->cx = 0;
+	pending->prefix_start_cx = 0;
+}
+
 void editorLspClientResetState(struct editorLspClient *client) {
 	if (client == NULL) {
 		return;
@@ -327,6 +362,10 @@ void editorLspClientResetState(struct editorLspClient *client) {
 	client->next_request_id = 1;
 	client->position_encoding_utf16 = 0;
 	client->workspace_root_path = NULL;
+	client->completion_supported = 0;
+	free(client->completion_trigger_chars);
+	client->completion_trigger_chars = NULL;
+	editorLspCompletionPendingClear(&client->completion_pending);
 }
 
 void editorLspClientCleanup(struct editorLspClient *client, int graceful_shutdown) {
@@ -452,11 +491,28 @@ int editorLspWaitForResponseId(struct editorLspClient *client, int request_id, i
 		}
 
 		int id = 0;
-		if (editorLspExtractResponseId(response, &id) && id == request_id) {
+		int has_id = editorLspExtractResponseId(response, &id);
+		if (has_id && id == request_id) {
 			*response_out = response;
 			return 1;
 		}
-		(void)editorLspProcessIncomingMessage(client, response);
+		if (has_id && client != NULL && client->completion_pending.request_id != 0 &&
+				id == client->completion_pending.request_id) {
+			struct editorLspCompletionPending pending = client->completion_pending;
+			memset(&client->completion_pending, 0, sizeof(client->completion_pending));
+			struct editorLspCompletionItem *items = NULL;
+			int count = 0;
+			if (!editorLspResponseHasError(response)) {
+				(void)editorLspParseCompletionResponse(response, &items, &count);
+			}
+			editorAutocompleteHandleCompletionResponse(pending.request_id,
+					pending.document_version, pending.cy, pending.cx,
+					pending.prefix_start_cx, pending.prefix, pending.filename, items, count);
+			free(pending.prefix);
+			free(pending.filename);
+		} else {
+			(void)editorLspProcessIncomingMessage(client, response);
+		}
 		free(response);
 	}
 }

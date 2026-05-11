@@ -578,6 +578,8 @@ struct editorConfig {
 	char lsp_javascript_install_command[PATH_MAX];
 	char lsp_eslint_command[PATH_MAX];
 	char lsp_vscode_langservers_install_command[PATH_MAX];
+	int lsp_autocomplete_enabled;
+	int lsp_autocomplete_max_items;
 	int lsp_doc_open;
 	int lsp_doc_version;
 	int lsp_eslint_doc_open;

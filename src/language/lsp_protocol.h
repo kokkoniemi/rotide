@@ -33,6 +33,13 @@ const char *editorLspFindJsonObjectEnd(const char *object_start);
 int editorLspFindStringField(const char *json, const char *field_name, char **value_out);
 int editorLspExtractResponseId(const char *json, int *id_out);
 int editorLspResponseHasError(const char *json);
+int editorLspParseCompletionProviderInResponse(const char *response_json, int *supported_out,
+		char **trigger_chars_out);
+
+int editorLspParseCompletionResponse(const char *response_json,
+		struct editorLspCompletionItem **items_out, int *count_out);
+int editorLspCopyCompletionItems(struct editorLspCompletionItem **out_items, int *out_count,
+		const struct editorLspCompletionItem *items, int count);
 
 int editorLspParseDefinitionLocations(const char *response_json,
 		struct editorLspLocation **locations_out, int *count_out);

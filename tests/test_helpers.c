@@ -103,7 +103,8 @@ void reset_editor_state(void) {
 			sizeof(E.lsp_javascript_install_command),
 			E.lsp_eslint_command, sizeof(E.lsp_eslint_command),
 			E.lsp_vscode_langservers_install_command,
-			sizeof(E.lsp_vscode_langservers_install_command));
+			sizeof(E.lsp_vscode_langservers_install_command),
+			&E.lsp_autocomplete_enabled, &E.lsp_autocomplete_max_items);
 	E.lsp_gopls_enabled = 0;
 	E.lsp_clangd_enabled = 0;
 	E.lsp_html_enabled = 0;
@@ -111,6 +112,8 @@ void reset_editor_state(void) {
 	E.lsp_json_enabled = 0;
 	E.lsp_javascript_enabled = 0;
 	E.lsp_eslint_enabled = 0;
+	E.lsp_autocomplete_enabled = 0;
+	E.lsp_autocomplete_max_items = 50;
 	E.lsp_doc_open = 0;
 	E.lsp_doc_version = 0;
 	E.lsp_eslint_doc_open = 0;

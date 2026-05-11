@@ -22,6 +22,17 @@ struct editorLspSymbol {
 	int is_last_sibling;
 };
 
+struct editorLspCompletionItem {
+	char *label;
+	char *insert_text;
+	int has_text_edit;
+	int text_edit_start_line;
+	int text_edit_start_character;
+	int text_edit_end_line;
+	int text_edit_end_character;
+	char *text_edit_new_text;
+};
+
 struct editorLspTestStats {
 	int start_count;
 	int shutdown_count;
@@ -33,6 +44,7 @@ struct editorLspTestStats {
 	int implementation_count;
 	int document_symbol_count;
 	int code_action_count;
+	int completion_count;
 };
 
 struct editorLspTestLastChange {
@@ -94,6 +106,16 @@ int editorLspRequestImplementation(const char *filename, enum editorSyntaxLangua
 int editorLspRequestDocumentSymbols(const char *filename, enum editorSyntaxLanguage language,
 		struct editorLspSymbol **symbols_out, int *count_out, int *timed_out_out);
 void editorLspFreeSymbols(struct editorLspSymbol *symbols, int count);
+
+int editorLspRequestCompletionAsync(const char *filename, enum editorSyntaxLanguage language,
+		int line, int character, int document_version, int prefix_start_cx,
+		const char *prefix, int trigger_kind, int trigger_character);
+void editorLspCancelCompletion(void);
+int editorLspCompletionPendingActive(void);
+int editorLspCompletionEnabledForFile(const char *filename, enum editorSyntaxLanguage language);
+const char *editorLspCompletionTriggerCharsForFile(const char *filename,
+		enum editorSyntaxLanguage language);
+void editorLspFreeCompletionItems(struct editorLspCompletionItem *items, int count);
 const char *editorLspSymbolKindLabel(int kind);
 
 void editorLspRefreshActiveDocumentSymbols(void);
@@ -131,11 +153,16 @@ void editorLspTestSetMockDiagnostics(const char *path, const struct editorLspDia
 		int count);
 void editorLspTestSetMockCodeActionResult(int result_code,
 		const struct editorLspDiagnostic *edits, int count);
+void editorLspTestSetMockCompletionResponse(const struct editorLspCompletionItem *items,
+		int count);
 int editorLspTestParseDefinitionResponse(const char *response_json,
 		struct editorLspLocation **locations_out, int *count_out);
 int editorLspTestParseDocumentSymbolResponse(const char *response_json,
 		struct editorLspSymbol **symbols_out, int *count_out);
+int editorLspTestParseCompletionResponse(const char *response_json,
+		struct editorLspCompletionItem **items_out, int *count_out);
 char *editorLspTestBuildInitializeRequestJson(int request_id, const char *root_uri,
 		int process_id);
+void editorLspTestDeliverPendingCompletion(void);
 
 #endif

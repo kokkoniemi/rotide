@@ -174,6 +174,8 @@ char *editorLspBuildInitializeRequestJson(int request_id, const char *root_uri,
 				"\"textDocument\":{\"codeAction\":{\"codeActionLiteralSupport\":{"
 				"\"codeActionKind\":{\"valueSet\":[\"quickfix\",\"source.fixAll\","
 				"\"source.fixAll.eslint\"]}}},"
+				"\"completion\":{\"completionItem\":{\"snippetSupport\":false,"
+				"\"insertReplaceSupport\":false}},"
 				"\"documentSymbol\":{\"hierarchicalDocumentSymbolSupport\":true}}}}}");
 	}
 	if (!built) {
@@ -562,6 +564,93 @@ static const char *editorLspFindTopLevelKey(const char *object_start, const char
 	return NULL;
 }
 
+int editorLspParseCompletionProviderInResponse(const char *response_json, int *supported_out,
+		char **trigger_chars_out) {
+	if (supported_out != NULL) {
+		*supported_out = 0;
+	}
+	if (trigger_chars_out != NULL) {
+		*trigger_chars_out = NULL;
+	}
+	if (response_json == NULL) {
+		return 0;
+	}
+	const char *cp_key = strstr(response_json, "\"completionProvider\"");
+	if (cp_key == NULL) {
+		return 1;
+	}
+	const char *colon = strchr(cp_key, ':');
+	if (colon == NULL) {
+		return 0;
+	}
+	const char *value = editorLspSkipWs(colon + 1);
+	if (value == NULL) {
+		return 0;
+	}
+	if (value[0] == 'n' && strncmp(value, "null", 4) == 0) {
+		return 1;
+	}
+	if (supported_out != NULL) {
+		*supported_out = 1;
+	}
+	if (value[0] != '{') {
+		return 1;
+	}
+	const char *provider_end = editorLspFindJsonObjectEnd(value);
+	if (provider_end == NULL) {
+		return 1;
+	}
+	const char *tc_key = editorLspStrstrBounded(value, "\"triggerCharacters\"", provider_end);
+	if (tc_key == NULL) {
+		return 1;
+	}
+	const char *tc_colon = strchr(tc_key, ':');
+	if (tc_colon == NULL || tc_colon >= provider_end) {
+		return 1;
+	}
+	const char *array_start = editorLspSkipWs(tc_colon + 1);
+	if (array_start == NULL || array_start >= provider_end || array_start[0] != '[') {
+		return 1;
+	}
+	struct editorLspString chars = {0};
+	const char *scan = array_start + 1;
+	while (scan < provider_end) {
+		while (scan < provider_end && (*scan == ' ' || *scan == '\t' || *scan == '\n' ||
+				*scan == '\r' || *scan == ',')) {
+			scan++;
+		}
+		if (scan >= provider_end || *scan == ']') {
+			break;
+		}
+		if (*scan != '"') {
+			break;
+		}
+		char *entry = NULL;
+		const char *after = NULL;
+		if (!editorLspParseJsonString(scan, &entry, &after) || entry == NULL) {
+			break;
+		}
+		if (entry[0] != '\0' &&
+				!editorLspStringAppendBytes(&chars, entry, 1)) {
+			free(entry);
+			free(chars.buf);
+			return 0;
+		}
+		free(entry);
+		scan = after != NULL ? after : provider_end;
+	}
+	if (trigger_chars_out != NULL) {
+		*trigger_chars_out = chars.buf != NULL ? chars.buf : strdup("");
+		if (*trigger_chars_out == NULL) {
+			free(chars.buf);
+			return 0;
+		}
+	} else {
+		free(chars.buf);
+	}
+	return 1;
+}
+
 const char *editorLspFindJsonObjectEnd(const char *object_start) {
 	if (object_start == NULL || object_start[0] != '{') {
 		return NULL;
@@ -717,6 +806,310 @@ void editorLspFreeLocations(struct editorLspLocation *locations, int count) {
 		free(locations[i].path);
 	}
 	free(locations);
+}
+
+void editorLspFreeCompletionItems(struct editorLspCompletionItem *items, int count) {
+	if (items == NULL) {
+		return;
+	}
+	for (int i = 0; i < count; i++) {
+		free(items[i].label);
+		free(items[i].insert_text);
+		free(items[i].text_edit_new_text);
+	}
+	free(items);
+}
+
+int editorLspCopyCompletionItems(struct editorLspCompletionItem **out_items, int *out_count,
+		const struct editorLspCompletionItem *items, int count) {
+	if (out_items == NULL || out_count == NULL) {
+		return 0;
+	}
+	*out_items = NULL;
+	*out_count = 0;
+	if (items == NULL || count <= 0) {
+		return 1;
+	}
+	struct editorLspCompletionItem *copy = calloc((size_t)count, sizeof(*copy));
+	if (copy == NULL) {
+		return 0;
+	}
+	for (int i = 0; i < count; i++) {
+		if (items[i].label != NULL) {
+			copy[i].label = strdup(items[i].label);
+			if (copy[i].label == NULL) {
+				editorLspFreeCompletionItems(copy, i + 1);
+				return 0;
+			}
+		}
+		if (items[i].insert_text != NULL) {
+			copy[i].insert_text = strdup(items[i].insert_text);
+			if (copy[i].insert_text == NULL) {
+				editorLspFreeCompletionItems(copy, i + 1);
+				return 0;
+			}
+		}
+		copy[i].has_text_edit = items[i].has_text_edit;
+		copy[i].text_edit_start_line = items[i].text_edit_start_line;
+		copy[i].text_edit_start_character = items[i].text_edit_start_character;
+		copy[i].text_edit_end_line = items[i].text_edit_end_line;
+		copy[i].text_edit_end_character = items[i].text_edit_end_character;
+		if (items[i].text_edit_new_text != NULL) {
+			copy[i].text_edit_new_text = strdup(items[i].text_edit_new_text);
+			if (copy[i].text_edit_new_text == NULL) {
+				editorLspFreeCompletionItems(copy, i + 1);
+				return 0;
+			}
+		}
+	}
+	*out_items = copy;
+	*out_count = count;
+	return 1;
+}
+
+static int editorLspParsePositionFromObject(const char *position_object, const char *limit,
+		int *line_out, int *character_out) {
+	if (position_object == NULL || position_object[0] != '{') {
+		return 0;
+	}
+	const char *line_key = editorLspStrstrBounded(position_object, "\"line\"", limit);
+	if (line_key == NULL) {
+		return 0;
+	}
+	const char *line_colon = strchr(line_key, ':');
+	if (line_colon == NULL || line_colon >= limit) {
+		return 0;
+	}
+	int line = 0;
+	if (!editorLspParseJsonInt(line_colon + 1, &line, NULL) || line < 0) {
+		return 0;
+	}
+	const char *char_key = editorLspStrstrBounded(position_object, "\"character\"", limit);
+	if (char_key == NULL) {
+		return 0;
+	}
+	const char *char_colon = strchr(char_key, ':');
+	if (char_colon == NULL || char_colon >= limit) {
+		return 0;
+	}
+	int character = 0;
+	if (!editorLspParseJsonInt(char_colon + 1, &character, NULL) || character < 0) {
+		return 0;
+	}
+	*line_out = line;
+	*character_out = character;
+	return 1;
+}
+
+static int editorLspParseCompletionItemObject(const char *object_start, const char *object_end,
+		struct editorLspCompletionItem *out) {
+	memset(out, 0, sizeof(*out));
+
+	const char *label_key = editorLspStrstrBounded(object_start, "\"label\"", object_end);
+	if (label_key == NULL) {
+		return 0;
+	}
+	const char *label_colon = strchr(label_key, ':');
+	if (label_colon == NULL || label_colon >= object_end) {
+		return 0;
+	}
+	const char *label_value = editorLspSkipWs(label_colon + 1);
+	if (label_value == NULL || label_value[0] != '"') {
+		return 0;
+	}
+	if (!editorLspParseJsonString(label_value, &out->label, NULL) || out->label == NULL) {
+		return 0;
+	}
+
+	const char *insert_key = editorLspStrstrBounded(object_start, "\"insertText\"", object_end);
+	if (insert_key != NULL) {
+		const char *insert_colon = strchr(insert_key, ':');
+		if (insert_colon != NULL && insert_colon < object_end) {
+			const char *insert_value = editorLspSkipWs(insert_colon + 1);
+			if (insert_value != NULL && insert_value[0] == '"') {
+				char *insert_text = NULL;
+				if (editorLspParseJsonString(insert_value, &insert_text, NULL) &&
+						insert_text != NULL) {
+					out->insert_text = insert_text;
+				}
+			}
+		}
+	}
+
+	const char *text_edit_key = editorLspStrstrBounded(object_start, "\"textEdit\"", object_end);
+	if (text_edit_key != NULL) {
+		const char *te_colon = strchr(text_edit_key, ':');
+		if (te_colon != NULL && te_colon < object_end) {
+			const char *te_object = editorLspSkipWs(te_colon + 1);
+			if (te_object != NULL && te_object[0] == '{') {
+				const char *te_end = editorLspFindJsonObjectEnd(te_object);
+				if (te_end != NULL && te_end <= object_end) {
+					const char *range_key = editorLspStrstrBounded(te_object, "\"range\"", te_end);
+					const char *new_text_key =
+							editorLspStrstrBounded(te_object, "\"newText\"", te_end);
+					int parsed_range = 0;
+					if (range_key != NULL) {
+						const char *range_colon = strchr(range_key, ':');
+						if (range_colon != NULL && range_colon < te_end) {
+							const char *range_object = editorLspSkipWs(range_colon + 1);
+							if (range_object != NULL && range_object[0] == '{') {
+								const char *range_end =
+										editorLspFindJsonObjectEnd(range_object);
+								if (range_end != NULL && range_end <= te_end) {
+									int sl = 0;
+									int sc = 0;
+									int el = 0;
+									int ec = 0;
+									const char *start_pos = editorLspStrstrBounded(range_object,
+											"\"start\"", range_end);
+									const char *end_pos = editorLspStrstrBounded(range_object,
+											"\"end\"", range_end);
+									if (start_pos != NULL && end_pos != NULL) {
+										const char *sc_colon = strchr(start_pos, ':');
+										const char *ec_colon = strchr(end_pos, ':');
+										if (sc_colon != NULL && ec_colon != NULL) {
+											const char *start_obj = editorLspSkipWs(sc_colon + 1);
+											const char *end_obj = editorLspSkipWs(ec_colon + 1);
+											if (start_obj != NULL && end_obj != NULL &&
+													start_obj[0] == '{' && end_obj[0] == '{') {
+												if (editorLspParsePositionFromObject(start_obj,
+															range_end, &sl, &sc) &&
+														editorLspParsePositionFromObject(end_obj,
+															range_end, &el, &ec)) {
+													out->text_edit_start_line = sl;
+													out->text_edit_start_character = sc;
+													out->text_edit_end_line = el;
+													out->text_edit_end_character = ec;
+													parsed_range = 1;
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					if (parsed_range && new_text_key != NULL) {
+						const char *nt_colon = strchr(new_text_key, ':');
+						if (nt_colon != NULL && nt_colon < te_end) {
+							const char *nt_value = editorLspSkipWs(nt_colon + 1);
+							if (nt_value != NULL && nt_value[0] == '"') {
+								char *new_text = NULL;
+								if (editorLspParseJsonString(nt_value, &new_text, NULL) &&
+										new_text != NULL) {
+									out->text_edit_new_text = new_text;
+									out->has_text_edit = 1;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return 1;
+}
+
+int editorLspParseCompletionResponse(const char *response_json,
+		struct editorLspCompletionItem **items_out, int *count_out) {
+	if (items_out == NULL || count_out == NULL) {
+		return 0;
+	}
+	*items_out = NULL;
+	*count_out = 0;
+	if (response_json == NULL) {
+		return 0;
+	}
+
+	const char *result_key = strstr(response_json, "\"result\"");
+	if (result_key == NULL) {
+		return 0;
+	}
+	const char *result_colon = strchr(result_key, ':');
+	if (result_colon == NULL) {
+		return 0;
+	}
+	const char *result = editorLspSkipWs(result_colon + 1);
+	if (result == NULL) {
+		return 0;
+	}
+	if (strncmp(result, "null", 4) == 0) {
+		return 1;
+	}
+
+	const char *array_start = NULL;
+	const char *array_end = NULL;
+	if (result[0] == '[') {
+		array_start = result;
+		array_end = editorLspFindJsonArrayEnd(array_start);
+	} else if (result[0] == '{') {
+		const char *result_end = editorLspFindJsonObjectEnd(result);
+		if (result_end == NULL) {
+			return 0;
+		}
+		const char *items_key = editorLspStrstrBounded(result, "\"items\"", result_end);
+		if (items_key == NULL) {
+			return 1;
+		}
+		const char *items_colon = strchr(items_key, ':');
+		if (items_colon == NULL || items_colon >= result_end) {
+			return 0;
+		}
+		const char *items_value = editorLspSkipWs(items_colon + 1);
+		if (items_value == NULL || items_value[0] != '[') {
+			return 1;
+		}
+		array_start = items_value;
+		array_end = editorLspFindJsonArrayEnd(array_start);
+	} else {
+		return 0;
+	}
+	if (array_start == NULL || array_end == NULL) {
+		return 0;
+	}
+
+	struct editorLspCompletionItem *items = NULL;
+	int count = 0;
+	int cap = 0;
+
+	const char *scan = array_start + 1;
+	while (scan < array_end) {
+		const char *object_start = strchr(scan, '{');
+		if (object_start == NULL || object_start >= array_end) {
+			break;
+		}
+		const char *object_end = editorLspFindJsonObjectEnd(object_start);
+		if (object_end == NULL || object_end > array_end) {
+			break;
+		}
+		struct editorLspCompletionItem item = {0};
+		if (editorLspParseCompletionItemObject(object_start, object_end, &item)) {
+			if (count >= cap) {
+				int new_cap = cap > 0 ? cap * 2 : 8;
+				struct editorLspCompletionItem *grown =
+						realloc(items, sizeof(*items) * (size_t)new_cap);
+				if (grown == NULL) {
+					editorLspFreeCompletionItems(items, count);
+					free(item.label);
+					free(item.insert_text);
+					free(item.text_edit_new_text);
+					return 0;
+				}
+				items = grown;
+				cap = new_cap;
+			}
+			items[count++] = item;
+		} else {
+			free(item.label);
+			free(item.insert_text);
+			free(item.text_edit_new_text);
+		}
+		scan = object_end;
+	}
+
+	*items_out = items;
+	*count_out = count;
+	return 1;
 }
 
 int editorLspProtocolCharacterToBufferColumn(int line, int protocol_character) {

@@ -21,7 +21,8 @@ void editorLspConfigInitDefaults(int *gopls_enabled_out, int *clangd_enabled_out
 		size_t javascript_command_out_size, char *javascript_install_command_out,
 		size_t javascript_install_command_out_size, char *eslint_command_out,
 		size_t eslint_command_out_size, char *vscode_langservers_install_command_out,
-		size_t vscode_langservers_install_command_out_size);
+		size_t vscode_langservers_install_command_out_size, int *autocomplete_enabled_out,
+		int *autocomplete_max_items_out);
 enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(int *gopls_enabled_out,
 		int *clangd_enabled_out, int *html_enabled_out, int *css_enabled_out,
 		int *json_enabled_out, int *javascript_enabled_out, int *eslint_enabled_out,
@@ -33,8 +34,8 @@ enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(int *gopls_enabled_o
 		size_t javascript_command_out_size, char *javascript_install_command_out,
 		size_t javascript_install_command_out_size, char *eslint_command_out,
 		size_t eslint_command_out_size, char *vscode_langservers_install_command_out,
-		size_t vscode_langservers_install_command_out_size, const char *global_path,
-		const char *project_path);
+		size_t vscode_langservers_install_command_out_size, int *autocomplete_enabled_out,
+		int *autocomplete_max_items_out, const char *global_path, const char *project_path);
 enum editorLspConfigLoadStatus editorLspConfigLoadConfigured(int *gopls_enabled_out,
 		int *clangd_enabled_out, int *html_enabled_out, int *css_enabled_out,
 		int *json_enabled_out, int *javascript_enabled_out, int *eslint_enabled_out,
@@ -46,6 +47,7 @@ enum editorLspConfigLoadStatus editorLspConfigLoadConfigured(int *gopls_enabled_
 		size_t javascript_command_out_size, char *javascript_install_command_out,
 		size_t javascript_install_command_out_size, char *eslint_command_out,
 		size_t eslint_command_out_size, char *vscode_langservers_install_command_out,
-		size_t vscode_langservers_install_command_out_size);
+		size_t vscode_langservers_install_command_out_size, int *autocomplete_enabled_out,
+		int *autocomplete_max_items_out);
 
 #endif

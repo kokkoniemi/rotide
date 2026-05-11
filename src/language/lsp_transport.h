@@ -18,6 +18,16 @@ enum editorLspServerKind {
 	EDITOR_LSP_SERVER_ESLINT
 };
 
+struct editorLspCompletionPending {
+	int request_id;
+	int document_version;
+	int cy;
+	int cx;
+	int prefix_start_cx;
+	char *prefix;
+	char *filename;
+};
+
 struct editorLspClient {
 	pid_t pid;
 	int to_server_fd;
@@ -28,6 +38,9 @@ struct editorLspClient {
 	int next_request_id;
 	int position_encoding_utf16;
 	char *workspace_root_path;
+	int completion_supported;
+	char *completion_trigger_chars;
+	struct editorLspCompletionPending completion_pending;
 };
 
 extern struct editorLspClient g_lsp_client;
@@ -37,6 +50,7 @@ int editorLspMockEnabled(void);
 
 void editorLspClientCleanup(struct editorLspClient *client, int graceful_shutdown);
 void editorLspClientResetState(struct editorLspClient *client);
+void editorLspCompletionPendingClear(struct editorLspCompletionPending *pending);
 int editorLspProcessAlive(struct editorLspClient *client);
 int editorLspSendRawJson(const char *json);
 int editorLspSendRawJsonToFd(int fd, const char *json);

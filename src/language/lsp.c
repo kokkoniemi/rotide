@@ -1,6 +1,7 @@
 #include "language/lsp.h"
 #include "language/lsp_protocol.h"
 #include "language/lsp_transport.h"
+#include "language/autocomplete.h"
 
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
@@ -41,6 +42,9 @@ struct editorLspMockState {
 	int code_action_result_code;
 	struct editorLspPendingEdit *code_action_edits;
 	int code_action_edit_count;
+	struct editorLspCompletionItem *completion_items;
+	int completion_item_count;
+	int completion_pending_request_id;
 };
 
 struct editorLspClient g_lsp_client = {
@@ -53,6 +57,9 @@ struct editorLspClient g_lsp_client = {
 	.next_request_id = 1,
 	.position_encoding_utf16 = 0,
 	.workspace_root_path = NULL,
+	.completion_supported = 0,
+	.completion_trigger_chars = NULL,
+	.completion_pending = {0},
 };
 struct editorLspClient g_lsp_eslint_client = {
 	.pid = 0,
@@ -64,6 +71,9 @@ struct editorLspClient g_lsp_eslint_client = {
 	.next_request_id = 1,
 	.position_encoding_utf16 = 0,
 	.workspace_root_path = NULL,
+	.completion_supported = 0,
+	.completion_trigger_chars = NULL,
+	.completion_pending = {0},
 };
 static struct editorLspMockState g_lsp_mock = {0};
 static enum editorLspStartupFailureReason g_lsp_last_startup_failure_reason =
@@ -625,7 +635,14 @@ static int editorLspEnsureRunningReal(struct editorLspClient *client, const char
 
 	char *position_encoding = NULL;
 	int have_encoding = editorLspFindStringField(response, "positionEncoding", &position_encoding);
+	int completion_supported = 0;
+	char *trigger_chars = NULL;
+	(void)editorLspParseCompletionProviderInResponse(response, &completion_supported,
+			&trigger_chars);
 	free(response);
+	client->completion_supported = completion_supported;
+	free(client->completion_trigger_chars);
+	client->completion_trigger_chars = trigger_chars;
 	if (!have_encoding || position_encoding == NULL) {
 		/* LSP default is UTF-16 when the field is omitted. */
 		client->position_encoding_utf16 = 1;
@@ -1621,6 +1638,147 @@ int editorLspRequestDocumentSymbols(const char *filename, enum editorSyntaxLangu
 	return 1;
 }
 
+int editorLspCompletionEnabledForFile(const char *filename, enum editorSyntaxLanguage language) {
+	if (!E.lsp_autocomplete_enabled) {
+		return 0;
+	}
+	if (!editorLspFileEnabled(filename, language)) {
+		return 0;
+	}
+	if (g_lsp_mock.enabled) {
+		return 1;
+	}
+	return g_lsp_client.completion_supported &&
+			editorLspWorkspaceRootsMatch(g_lsp_client.workspace_root_path,
+					g_lsp_client.workspace_root_path);
+}
+
+const char *editorLspCompletionTriggerCharsForFile(const char *filename,
+		enum editorSyntaxLanguage language) {
+	if (!editorLspCompletionEnabledForFile(filename, language)) {
+		return NULL;
+	}
+	if (g_lsp_mock.enabled) {
+		return ".";
+	}
+	return g_lsp_client.completion_trigger_chars;
+}
+
+void editorLspCancelCompletion(void) {
+	editorLspCompletionPendingClear(&g_lsp_client.completion_pending);
+	g_lsp_mock.completion_pending_request_id = 0;
+}
+
+int editorLspCompletionPendingActive(void) {
+	if (g_lsp_mock.enabled) {
+		return g_lsp_mock.completion_pending_request_id != 0;
+	}
+	return g_lsp_client.completion_pending.request_id != 0;
+}
+
+int editorLspRequestCompletionAsync(const char *filename, enum editorSyntaxLanguage language,
+		int line, int character, int document_version, int prefix_start_cx,
+		const char *prefix, int trigger_kind, int trigger_character) {
+	if (filename == NULL || filename[0] == '\0' || line < 0 || character < 0) {
+		return 0;
+	}
+	if (!editorLspCompletionEnabledForFile(filename, language)) {
+		return 0;
+	}
+
+	editorLspCancelCompletion();
+
+	if (g_lsp_mock.enabled) {
+		if (!editorLspEnsureRunningForFile(filename, language)) {
+			return 0;
+		}
+		g_lsp_mock.stats.completion_count++;
+		int request_id = ++g_lsp_mock.completion_pending_request_id;
+		if (request_id <= 0) {
+			request_id = 1;
+			g_lsp_mock.completion_pending_request_id = 1;
+		}
+		struct editorLspCompletionPending *pending = &g_lsp_client.completion_pending;
+		pending->request_id = request_id;
+		pending->document_version = document_version;
+		pending->cy = line;
+		pending->cx = character;
+		pending->prefix_start_cx = prefix_start_cx;
+		free(pending->prefix);
+		pending->prefix = prefix != NULL ? strdup(prefix) : strdup("");
+		free(pending->filename);
+		pending->filename = strdup(filename);
+		(void)trigger_kind;
+		(void)trigger_character;
+		return 1;
+	}
+
+	if (!editorLspEnsureRunningForFile(filename, language)) {
+		return 0;
+	}
+
+	char *uri = NULL;
+	if (!editorLspBuildFileUri(filename, &uri)) {
+		return 0;
+	}
+
+	int protocol_character = editorLspProtocolCharacterFromBufferColumn(line, character);
+	int request_id = g_lsp_client.next_request_id++;
+	struct editorLspString payload = {0};
+	int built = editorLspStringAppendf(&payload,
+			"{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":\"textDocument/completion\",\"params\":{"
+			"\"textDocument\":{\"uri\":",
+			request_id);
+	if (built) {
+		built = editorLspStringAppendJsonEscaped(&payload, uri, strlen(uri));
+	}
+	if (built) {
+		built = editorLspStringAppendf(&payload,
+				"},\"position\":{\"line\":%d,\"character\":%d}", line, protocol_character);
+	}
+	free(uri);
+	if (built) {
+		if (trigger_kind == 2 && trigger_character > 0 && trigger_character < 0x80) {
+			char ch = (char)trigger_character;
+			built = editorLspStringAppendf(&payload,
+					",\"context\":{\"triggerKind\":2,\"triggerCharacter\":");
+			if (built) {
+				built = editorLspStringAppendJsonEscaped(&payload, &ch, 1);
+			}
+			if (built) {
+				built = editorLspStringAppend(&payload, "}}}");
+			}
+		} else {
+			built = editorLspStringAppendf(&payload, ",\"context\":{\"triggerKind\":%d}}}",
+					trigger_kind > 0 ? trigger_kind : 1);
+		}
+	}
+	if (!built) {
+		free(payload.buf);
+		return 0;
+	}
+
+	if (!editorLspSendRawJson(payload.buf)) {
+		free(payload.buf);
+		editorLspClientCleanup(&g_lsp_client, 0);
+		return 0;
+	}
+	free(payload.buf);
+
+	struct editorLspCompletionPending *pending = &g_lsp_client.completion_pending;
+	pending->request_id = request_id;
+	pending->document_version = document_version;
+	pending->cy = line;
+	pending->cx = character;
+	pending->prefix_start_cx = prefix_start_cx;
+	free(pending->prefix);
+	pending->prefix = prefix != NULL ? strdup(prefix) : strdup("");
+	free(pending->filename);
+	pending->filename = strdup(filename);
+	g_lsp_mock.stats.completion_count++;
+	return 1;
+}
+
 int editorLspRequestCodeActionFixes(const char *filename, enum editorSyntaxLanguage language) {
 	if (filename == NULL || filename[0] == '\0' ||
 			!editorLspEslintEnabledForFile(filename, language)) {
@@ -1796,6 +1954,7 @@ void editorLspTestResetMock(void) {
 	editorLspFreeSymbols(g_lsp_mock.document_symbols, g_lsp_mock.document_symbol_count);
 	editorLspFreeDiagnostics(g_lsp_mock.diagnostics, g_lsp_mock.diagnostic_count);
 	editorLspFreePendingEdits(g_lsp_mock.code_action_edits, g_lsp_mock.code_action_edit_count);
+	editorLspFreeCompletionItems(g_lsp_mock.completion_items, g_lsp_mock.completion_item_count);
 	g_lsp_mock.definition_locations = NULL;
 	g_lsp_mock.definition_location_count = 0;
 	g_lsp_mock.definition_result_code = 1;
@@ -1809,6 +1968,9 @@ void editorLspTestResetMock(void) {
 	g_lsp_mock.code_action_result_code = 0;
 	g_lsp_mock.code_action_edits = NULL;
 	g_lsp_mock.code_action_edit_count = 0;
+	g_lsp_mock.completion_items = NULL;
+	g_lsp_mock.completion_item_count = 0;
+	g_lsp_mock.completion_pending_request_id = 0;
 	g_lsp_mock.primary_server_alive = 0;
 	g_lsp_mock.primary_server_kind = EDITOR_LSP_SERVER_NONE;
 	g_lsp_mock.eslint_server_alive = 0;
@@ -1821,6 +1983,8 @@ void editorLspTestResetMock(void) {
 	g_lsp_mock.last_did_open_language_id[0] = '\0';
 	g_lsp_mock.enabled = 0;
 	g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_NONE;
+	editorLspCompletionPendingClear(&g_lsp_client.completion_pending);
+	editorLspCompletionPendingClear(&g_lsp_eslint_client.completion_pending);
 }
 
 void editorLspTestGetStats(struct editorLspTestStats *out) {
@@ -1931,6 +2095,54 @@ int editorLspTestParseDocumentSymbolResponse(const char *response_json,
 		return 0;
 	}
 	return editorLspParseDocumentSymbols(response_json, symbols_out, count_out);
+}
+
+int editorLspTestParseCompletionResponse(const char *response_json,
+		struct editorLspCompletionItem **items_out, int *count_out) {
+	if (response_json == NULL) {
+		return 0;
+	}
+	return editorLspParseCompletionResponse(response_json, items_out, count_out);
+}
+
+void editorLspTestSetMockCompletionResponse(const struct editorLspCompletionItem *items,
+		int count) {
+	editorLspFreeCompletionItems(g_lsp_mock.completion_items, g_lsp_mock.completion_item_count);
+	g_lsp_mock.completion_items = NULL;
+	g_lsp_mock.completion_item_count = 0;
+	if (items == NULL || count <= 0) {
+		return;
+	}
+	(void)editorLspCopyCompletionItems(&g_lsp_mock.completion_items,
+			&g_lsp_mock.completion_item_count, items, count);
+}
+
+void editorLspTestDeliverPendingCompletion(void) {
+	if (!g_lsp_mock.enabled) {
+		return;
+	}
+	struct editorLspCompletionPending *pending = &g_lsp_client.completion_pending;
+	if (pending->request_id == 0) {
+		return;
+	}
+	struct editorLspCompletionItem *items = NULL;
+	int count = 0;
+	(void)editorLspCopyCompletionItems(&items, &count, g_lsp_mock.completion_items,
+			g_lsp_mock.completion_item_count);
+	int request_id = pending->request_id;
+	int document_version = pending->document_version;
+	int request_cy = pending->cy;
+	int request_cx = pending->cx;
+	int prefix_start_cx = pending->prefix_start_cx;
+	char *prefix = pending->prefix != NULL ? strdup(pending->prefix) : NULL;
+	char *filename = pending->filename != NULL ? strdup(pending->filename) : NULL;
+	editorLspCompletionPendingClear(pending);
+	g_lsp_mock.completion_pending_request_id = 0;
+
+	editorAutocompleteHandleCompletionResponse(request_id, document_version, request_cy,
+			request_cx, prefix_start_cx, prefix, filename, items, count);
+	free(prefix);
+	free(filename);
 }
 
 void editorLspRefreshActiveDocumentSymbols(void) {
