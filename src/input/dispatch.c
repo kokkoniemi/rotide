@@ -2168,6 +2168,18 @@ static int editorJumpToSelectedLspDrawerLocation(int preview) {
 	return editorJumpToPathLocation(path, line, character, preview, 1);
 }
 
+static void editorDrawerPreviewSelectionAfterMove(void) {
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
+		(void)editorJumpToSelectedLspDrawerLocation(1);
+		E.pane_focus = EDITOR_PANE_DRAWER;
+		return;
+	}
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_TREE) {
+		(void)editorDrawerOpenSelectedFileInPreviewTab();
+		E.pane_focus = EDITOR_PANE_DRAWER;
+	}
+}
+
 static int editorPromptLocationChoice(const char *kind_capitalized, int count, int *choice_out) {
 	if (choice_out == NULL || count <= 0) {
 		return 0;
@@ -3549,10 +3561,8 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 		case EDITOR_ACTION_MOVE_UP:
 			editorHistoryBreakGroup();
 			if (E.pane_focus == EDITOR_PANE_DRAWER) {
-				if (editorDrawerMoveSelectionBy(-1, E.window_rows) &&
-						E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
-					(void)editorJumpToSelectedLspDrawerLocation(1);
-					E.pane_focus = EDITOR_PANE_DRAWER;
+				if (editorDrawerMoveSelectionBy(-1, E.window_rows)) {
+					editorDrawerPreviewSelectionAfterMove();
 				}
 			} else {
 				editorColumnSelectionClear();
@@ -3563,10 +3573,8 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 		case EDITOR_ACTION_MOVE_DOWN:
 			editorHistoryBreakGroup();
 			if (E.pane_focus == EDITOR_PANE_DRAWER) {
-				if (editorDrawerMoveSelectionBy(1, E.window_rows) &&
-						E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
-					(void)editorJumpToSelectedLspDrawerLocation(1);
-					E.pane_focus = EDITOR_PANE_DRAWER;
+				if (editorDrawerMoveSelectionBy(1, E.window_rows)) {
+					editorDrawerPreviewSelectionAfterMove();
 				}
 			} else {
 				editorColumnSelectionClear();

@@ -1493,6 +1493,61 @@ static int test_editor_process_keypress_mouse_drawer_single_file_click_opens_pre
 	return 0;
 }
 
+static int test_editor_drawer_arrow_navigation_opens_preview_tab(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char first_file[512];
+	char second_file[512];
+	ASSERT_TRUE(path_join(first_file, sizeof(first_file), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(path_join(second_file, sizeof(second_file), env.project_dir, "beta.txt"));
+	ASSERT_TRUE(write_text_file(first_file, "alpha\n"));
+	ASSERT_TRUE(write_text_file(second_file, "beta\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("keep");
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+
+	int alpha_idx = -1;
+	int beta_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("alpha.txt", &alpha_idx, NULL));
+	ASSERT_TRUE(find_drawer_entry("beta.txt", &beta_idx, NULL));
+
+	int start_idx = alpha_idx < beta_idx ? alpha_idx : beta_idx;
+	int start_visible = start_idx - 1;
+	ASSERT_TRUE(start_visible >= 0);
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(start_visible, E.window_rows + 1));
+
+	char focus_drawer[] = {CTRL_KEY('e')};
+	ASSERT_TRUE(editor_process_keypress_with_input(focus_drawer, sizeof(focus_drawer)) == 0);
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+
+	int tab_count_before = editorTabCount();
+	const char arrow_down[] = "\x1b[B";
+	ASSERT_TRUE(editor_process_keypress_with_input(arrow_down, sizeof(arrow_down) - 1) == 0);
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_TRUE(editorActiveTabIsPreview());
+	ASSERT_EQ_INT(start_idx, E.drawer_selected_index);
+	ASSERT_TRUE(E.filename != NULL);
+	const char *first_preview_path = alpha_idx < beta_idx ? first_file : second_file;
+	ASSERT_EQ_STR(first_preview_path, E.filename);
+	int tab_count_after_first = editorTabCount();
+	ASSERT_TRUE(tab_count_after_first >= tab_count_before);
+
+	ASSERT_TRUE(editor_process_keypress_with_input(arrow_down, sizeof(arrow_down) - 1) == 0);
+	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_TRUE(editorActiveTabIsPreview());
+	const char *second_preview_path = alpha_idx < beta_idx ? second_file : first_file;
+	ASSERT_EQ_STR(second_preview_path, E.filename);
+	ASSERT_EQ_INT(tab_count_after_first, editorTabCount());
+
+	ASSERT_TRUE(unlink(first_file) == 0);
+	ASSERT_TRUE(unlink(second_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_drawer_open_selected_file_in_preview_reuses_preview_tab(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -3645,6 +3700,7 @@ const struct editorTestCase g_input_search_tests[] = {
 	{"editor_process_keypress_mouse_collapsed_drawer_body_click_edits_text_pane", test_editor_process_keypress_mouse_collapsed_drawer_body_click_edits_text_pane},
 	{"editor_process_keypress_mouse_drawer_single_file_click_opens_preview_tab", test_editor_process_keypress_mouse_drawer_single_file_click_opens_preview_tab},
 	{"editor_drawer_open_selected_file_in_preview_reuses_preview_tab", test_editor_drawer_open_selected_file_in_preview_reuses_preview_tab},
+	{"editor_drawer_arrow_navigation_opens_preview_tab", test_editor_drawer_arrow_navigation_opens_preview_tab},
 	{"editor_process_keypress_mouse_drawer_double_click_file_pins_preview_tab", test_editor_process_keypress_mouse_drawer_double_click_file_pins_preview_tab},
 	{"editor_process_keypress_mouse_top_row_click_switches_tab", test_editor_process_keypress_mouse_top_row_click_switches_tab},
 	{"editor_process_keypress_mouse_top_row_click_uses_variable_tab_layout", test_editor_process_keypress_mouse_top_row_click_uses_variable_tab_layout},
