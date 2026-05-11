@@ -87,6 +87,11 @@ struct erow {
 	int render_display_cols;
 	char *chars;
 	char *render;
+	int wrap_cache_body_cols;
+	int wrap_cache_segment_count;
+	int wrap_cache_indent_cols;
+	int wrap_cache_capacity;
+	int *wrap_cache_segments;
 };
 
 struct editorSelectionRange {

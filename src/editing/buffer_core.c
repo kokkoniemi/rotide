@@ -1812,6 +1812,7 @@ void editorFreeRowArray(struct erow *rows, int numrows) {
 	for (int i = 0; i < numrows; i++) {
 		free(rows[i].chars);
 		free(rows[i].render);
+		free(rows[i].wrap_cache_segments);
 	}
 	free(rows);
 }
@@ -1860,6 +1861,11 @@ static int editorAppendRestoredRow(struct erow **rows, int *numrows, const char 
 	(*rows)[*numrows].render_display_cols = row_display_cols;
 	(*rows)[*numrows].chars = row_chars;
 	(*rows)[*numrows].render = row_render;
+	(*rows)[*numrows].wrap_cache_body_cols = 0;
+	(*rows)[*numrows].wrap_cache_segment_count = 0;
+	(*rows)[*numrows].wrap_cache_indent_cols = 0;
+	(*rows)[*numrows].wrap_cache_capacity = 0;
+	(*rows)[*numrows].wrap_cache_segments = NULL;
 	(*numrows)++;
 	return 1;
 }
@@ -2088,8 +2094,14 @@ static int editorSpliceRowCache(struct erow *replacement_rows, int replacement_n
 	for (int i = start_row; i < old_end_row_exclusive; i++) {
 		free(E.rows[i].chars);
 		free(E.rows[i].render);
+		free(E.rows[i].wrap_cache_segments);
 		E.rows[i].chars = NULL;
 		E.rows[i].render = NULL;
+		E.rows[i].wrap_cache_segments = NULL;
+		E.rows[i].wrap_cache_capacity = 0;
+		E.rows[i].wrap_cache_body_cols = 0;
+		E.rows[i].wrap_cache_segment_count = 0;
+		E.rows[i].wrap_cache_indent_cols = 0;
 	}
 
 	if (tail_count > 0 && replacement_numrows != remove_count) {

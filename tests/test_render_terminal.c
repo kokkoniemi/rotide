@@ -3031,6 +3031,42 @@ static int test_editor_refresh_screen_wrap_cursor_honors_continuation_indent(voi
 	return 0;
 }
 
+static int test_editor_refresh_screen_wrap_handles_resize_after_render(void) {
+	add_row("abcdefghijklmnopqrstuvwxyz");
+	E.window_rows = 8;
+	E.window_cols = 12;
+	E.line_wrap_enabled = 1;
+	E.line_numbers_enabled = 0;
+	E.rowoff = 0;
+	E.wrapoff = 0;
+	ASSERT_TRUE(editorDrawerSetWidthForCols(1, E.window_cols));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	free(output);
+
+	E.window_cols = 20;
+	(void)editorDrawerSetWidthForCols(1, E.window_cols);
+
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "abcdefghijklmnop") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m\xE2\x86\xB3\x1b[39mqrstuvwxyz") != NULL);
+	free(output);
+
+	E.window_cols = 12;
+	(void)editorDrawerSetWidthForCols(1, E.window_cols);
+
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "abcdefgh") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m\xE2\x86\xB3\x1b[39mijklmnop") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m\xE2\x86\xB3\x1b[39mqrstuvwx") != NULL);
+	free(output);
+	return 0;
+}
+
 static int test_editor_refresh_screen_non_file_rows_do_not_show_overflow_indicators(void) {
 	E.window_rows = 3;
 	E.window_cols = 24;
@@ -3489,6 +3525,7 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_wrap_cursor_uses_visual_segment", test_editor_refresh_screen_wrap_cursor_uses_visual_segment},
 	{"editor_refresh_screen_wrap_prefers_punctuation_breaks", test_editor_refresh_screen_wrap_prefers_punctuation_breaks},
 	{"editor_refresh_screen_wrap_cursor_honors_continuation_indent", test_editor_refresh_screen_wrap_cursor_honors_continuation_indent},
+	{"editor_refresh_screen_wrap_handles_resize_after_render", test_editor_refresh_screen_wrap_handles_resize_after_render},
 	{"editor_refresh_screen_non_file_rows_do_not_show_overflow_indicators", test_editor_refresh_screen_non_file_rows_do_not_show_overflow_indicators},
 	{"editor_refresh_screen_out_of_buffer_tildes_are_gray", test_editor_refresh_screen_out_of_buffer_tildes_are_gray},
 	{"editor_refresh_screen_updates_horizontal_scroll", test_editor_refresh_screen_updates_horizontal_scroll},
