@@ -3158,6 +3158,61 @@ static int test_editor_workspace_state_load_missing_is_noop(void) {
 	return 0;
 }
 
+static int test_editor_workspace_state_restores_open_tabs_with_cursor(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char alpha_file[512];
+	char beta_file[512];
+	ASSERT_TRUE(path_join(alpha_file, sizeof(alpha_file), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(path_join(beta_file, sizeof(beta_file), env.project_dir, "beta.txt"));
+	ASSERT_TRUE(write_text_file(alpha_file, "alpha\nsecond\nthird\n"));
+	ASSERT_TRUE(write_text_file(beta_file, "beta line\n"));
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTabOpenFileAsNew(alpha_file));
+	E.cy = 1;
+	E.cx = 3;
+	ASSERT_TRUE(editorTabOpenFileAsNew(beta_file));
+	E.cy = 0;
+	E.cx = 4;
+	ASSERT_TRUE(editorWorkspaceStateSave());
+
+	editorTabsFreeAll();
+	editorWorkspaceStateShutdown();
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_TRUE(editorWorkspaceStateRestoreTabs());
+
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_STR(beta_file, editorTabFilenameAt(E.active_tab));
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(4, E.cx);
+
+	int alpha_idx = -1;
+	for (int i = 0; i < editorTabCount(); i++) {
+		const char *path = editorTabFilenameAt(i);
+		if (path != NULL && strcmp(path, alpha_file) == 0) {
+			alpha_idx = i;
+			break;
+		}
+	}
+	ASSERT_TRUE(alpha_idx >= 0);
+	ASSERT_TRUE(editorTabSwitchToIndex(alpha_idx));
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(3, E.cx);
+
+	editorTabsFreeAll();
+	editorWorkspaceStateShutdown();
+	ASSERT_TRUE(unlink(beta_file) == 0);
+	ASSERT_TRUE(unlink(alpha_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_file_search_lists_recent_non_active_files_first_and_persists_order(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -3507,6 +3562,7 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_workspace_state_persists_drawer_state", test_editor_workspace_state_persists_drawer_state},
 	{"editor_workspace_state_ignores_search_modes_on_save", test_editor_workspace_state_ignores_search_modes_on_save},
 	{"editor_workspace_state_load_missing_is_noop", test_editor_workspace_state_load_missing_is_noop},
+	{"editor_workspace_state_restores_open_tabs_with_cursor", test_editor_workspace_state_restores_open_tabs_with_cursor},
 };
 
 const int g_workspace_config_test_count =

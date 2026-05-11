@@ -5,6 +5,7 @@ int editorWorkspaceStateInitForCurrentDir(void);
 void editorWorkspaceStateShutdown(void);
 
 int editorWorkspaceStateLoadAndApply(int total_cols);
+int editorWorkspaceStateRestoreTabs(void);
 int editorWorkspaceStateSave(void);
 int editorWorkspaceStateRememberRecentFile(const char *path);
 int editorWorkspaceStateRecentFileRank(const char *path);

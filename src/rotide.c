@@ -327,6 +327,9 @@ int main(int argc, char *argv[]) {
 		editorSetStatusMsg("Drawer disabled (init failed)");
 	}
 	(void)editorWorkspaceStateLoadAndApply(E.window_cols);
+	if (!restored_session && argc < 2) {
+		(void)editorWorkspaceStateRestoreTabs();
+	}
 	(void)editorGitInit();
 
 	if (keymap_status == EDITOR_KEYMAP_LOAD_OK && E.statusmsg[0] == '\0') {

@@ -1,9 +1,13 @@
 #include "workspace/workspace_state.h"
 
 #include "rotide.h"
+#include "editing/buffer_core.h"
+#include "render/screen.h"
 #include "support/alloc.h"
 #include "support/file_io.h"
+#include "text/row.h"
 #include "workspace/drawer.h"
+#include "workspace/tabs.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -15,8 +19,22 @@
 #include <unistd.h>
 
 #define ROTIDE_WORKSPACE_RECENT_FILE_LIMIT 64
+#define ROTIDE_WORKSPACE_PENDING_TAB_LIMIT 256
+
+struct editorWorkspacePendingTab {
+	char *path;
+	int cx;
+	int cy;
+};
+
+static struct editorWorkspacePendingTab *g_pending_tabs;
+static int g_pending_tab_count;
+static int g_pending_tab_capacity;
+static int g_pending_active_idx;
+static char *g_pending_active_path;
 
 static void editorWorkspaceStateFreeRecentFiles(void);
+static void editorWorkspaceStateFreePendingTabs(void);
 
 static uint64_t editorWorkspaceStateHashPath(const char *path) {
 	uint64_t hash = UINT64_C(1469598103934665603);
@@ -99,6 +117,7 @@ static char *editorWorkspaceStateResolvePath(void) {
 int editorWorkspaceStateInitForCurrentDir(void) {
 	free(E.workspace_state_path);
 	editorWorkspaceStateFreeRecentFiles();
+	editorWorkspaceStateFreePendingTabs();
 	E.workspace_state_path = editorWorkspaceStateResolvePath();
 	return E.workspace_state_path != NULL;
 }
@@ -107,6 +126,7 @@ void editorWorkspaceStateShutdown(void) {
 	free(E.workspace_state_path);
 	E.workspace_state_path = NULL;
 	editorWorkspaceStateFreeRecentFiles();
+	editorWorkspaceStateFreePendingTabs();
 }
 
 const char *editorWorkspaceStatePath(void) {
@@ -121,6 +141,50 @@ static void editorWorkspaceStateFreeRecentFiles(void) {
 	E.recent_file_paths = NULL;
 	E.recent_file_count = 0;
 	E.recent_file_capacity = 0;
+}
+
+static void editorWorkspaceStateFreePendingTabs(void) {
+	for (int i = 0; i < g_pending_tab_count; i++) {
+		free(g_pending_tabs[i].path);
+	}
+	free(g_pending_tabs);
+	g_pending_tabs = NULL;
+	g_pending_tab_count = 0;
+	g_pending_tab_capacity = 0;
+	g_pending_active_idx = -1;
+	free(g_pending_active_path);
+	g_pending_active_path = NULL;
+}
+
+static int editorWorkspaceStateAppendPendingTab(int cx, int cy, const char *path) {
+	if (path == NULL || path[0] == '\0') {
+		return 0;
+	}
+	if (g_pending_tab_count >= ROTIDE_WORKSPACE_PENDING_TAB_LIMIT) {
+		return 0;
+	}
+	if (g_pending_tab_count >= g_pending_tab_capacity) {
+		int new_cap = g_pending_tab_capacity > 0 ? g_pending_tab_capacity * 2 : 8;
+		if (new_cap > ROTIDE_WORKSPACE_PENDING_TAB_LIMIT) {
+			new_cap = ROTIDE_WORKSPACE_PENDING_TAB_LIMIT;
+		}
+		struct editorWorkspacePendingTab *grown =
+				realloc(g_pending_tabs, sizeof(*g_pending_tabs) * (size_t)new_cap);
+		if (grown == NULL) {
+			return 0;
+		}
+		g_pending_tabs = grown;
+		g_pending_tab_capacity = new_cap;
+	}
+	char *copy = strdup(path);
+	if (copy == NULL) {
+		return 0;
+	}
+	g_pending_tabs[g_pending_tab_count].path = copy;
+	g_pending_tabs[g_pending_tab_count].cx = cx < 0 ? 0 : cx;
+	g_pending_tabs[g_pending_tab_count].cy = cy < 0 ? 0 : cy;
+	g_pending_tab_count++;
+	return 1;
 }
 
 static int editorWorkspaceStateEnsureRecentFileCapacity(int needed) {
@@ -281,6 +345,42 @@ static int editorWorkspaceStateParseInt(const char *value, int *out) {
 	return 1;
 }
 
+static int editorWorkspaceStateParseTabLine(const char *value, int *cx_out, int *cy_out,
+		const char **path_out) {
+	if (value == NULL || cx_out == NULL || cy_out == NULL || path_out == NULL) {
+		return 0;
+	}
+	const char *first = strchr(value, '|');
+	if (first == NULL) {
+		return 0;
+	}
+	const char *second = strchr(first + 1, '|');
+	if (second == NULL) {
+		return 0;
+	}
+	char cx_buf[32];
+	char cy_buf[32];
+	size_t cx_len = (size_t)(first - value);
+	size_t cy_len = (size_t)(second - first - 1);
+	if (cx_len >= sizeof(cx_buf) || cy_len >= sizeof(cy_buf)) {
+		return 0;
+	}
+	memcpy(cx_buf, value, cx_len);
+	cx_buf[cx_len] = '\0';
+	memcpy(cy_buf, first + 1, cy_len);
+	cy_buf[cy_len] = '\0';
+	int cx = 0;
+	int cy = 0;
+	if (!editorWorkspaceStateParseInt(cx_buf, &cx) ||
+			!editorWorkspaceStateParseInt(cy_buf, &cy)) {
+		return 0;
+	}
+	*cx_out = cx;
+	*cy_out = cy;
+	*path_out = second + 1;
+	return 1;
+}
+
 int editorWorkspaceStateLoadAndApply(int total_cols) {
 	if (E.workspace_state_path == NULL) {
 		return 0;
@@ -295,8 +395,10 @@ int editorWorkspaceStateLoadAndApply(int total_cols) {
 	int collapsed = -1;
 	enum editorDrawerMode mode = EDITOR_DRAWER_MODE_TREE;
 	int saw_mode = 0;
+	editorWorkspaceStateFreePendingTabs();
+	g_pending_active_idx = -1;
 
-	char line[256];
+	char line[4096];
 	while (fgets(line, sizeof(line), fp) != NULL) {
 		size_t line_len = strlen(line);
 		while (line_len > 0 && (line[line_len - 1] == '\n' || line[line_len - 1] == '\r')) {
@@ -324,6 +426,16 @@ int editorWorkspaceStateLoadAndApply(int total_cols) {
 			saw_mode = 1;
 		} else if (strcmp(key, "recent_file") == 0) {
 			(void)editorWorkspaceStateAppendRecentFile(value);
+		} else if (strcmp(key, "tab") == 0) {
+			int tab_cx = 0;
+			int tab_cy = 0;
+			const char *tab_path = NULL;
+			if (editorWorkspaceStateParseTabLine(value, &tab_cx, &tab_cy, &tab_path)) {
+				(void)editorWorkspaceStateAppendPendingTab(tab_cx, tab_cy, tab_path);
+			}
+		} else if (strcmp(key, "active_tab") == 0) {
+			free(g_pending_active_path);
+			g_pending_active_path = strdup(value);
 		}
 		(void)parsed;
 	}
@@ -342,6 +454,54 @@ int editorWorkspaceStateLoadAndApply(int total_cols) {
 		E.drawer_mode = mode;
 	}
 	return 1;
+}
+
+int editorWorkspaceStateRestoreTabs(void) {
+	if (g_pending_tab_count <= 0) {
+		return 0;
+	}
+	int opened_any = 0;
+	for (int i = 0; i < g_pending_tab_count; i++) {
+		const struct editorWorkspacePendingTab *pending = &g_pending_tabs[i];
+		if (!editorTabOpenOrSwitchToFile(pending->path)) {
+			continue;
+		}
+		opened_any = 1;
+		if (E.numrows <= 0) {
+			continue;
+		}
+		int target_cy = pending->cy;
+		if (target_cy < 0) {
+			target_cy = 0;
+		}
+		if (target_cy >= E.numrows) {
+			target_cy = E.numrows - 1;
+		}
+		int target_cx = pending->cx;
+		if (target_cx < 0) {
+			target_cx = 0;
+		}
+		if (target_cx > E.rows[target_cy].size) {
+			target_cx = E.rows[target_cy].size;
+		}
+		target_cx = editorRowClampCxToClusterBoundary(&E.rows[target_cy], target_cx);
+		if (target_cx < 0) {
+			target_cx = 0;
+		}
+		if (target_cx > E.rows[target_cy].size) {
+			target_cx = E.rows[target_cy].size;
+		}
+		size_t target_offset = 0;
+		if (editorBufferPosToOffset(target_cy, target_cx, &target_offset)) {
+			(void)editorSyncCursorFromOffset(target_offset);
+		}
+		editorViewportCenterCursor();
+	}
+	if (opened_any && g_pending_active_path != NULL) {
+		(void)editorTabOpenOrSwitchToFile(g_pending_active_path);
+	}
+	editorWorkspaceStateFreePendingTabs();
+	return opened_any;
 }
 
 static int editorWorkspaceStateWriteAll(int fd, const char *buf, size_t len) {
@@ -403,6 +563,55 @@ int editorWorkspaceStateSave(void) {
 		}
 		if (!editorWorkspaceStateWriteAll(fd, "recent_file=", strlen("recent_file=")) ||
 				!editorWorkspaceStateWriteAll(fd, path, strlen(path)) ||
+				!editorWorkspaceStateWriteAll(fd, "\n", 1)) {
+			(void)close(fd);
+			return 0;
+		}
+	}
+
+	const char *active_path = NULL;
+	for (int i = 0; i < E.tab_count; i++) {
+		enum editorTabKind tab_kind;
+		int is_preview;
+		const char *path;
+		int tab_cx;
+		int tab_cy;
+		if (i == E.active_tab) {
+			tab_kind = E.tab_kind;
+			is_preview = E.is_preview;
+			path = E.filename;
+			tab_cx = E.cx;
+			tab_cy = E.cy;
+		} else {
+			tab_kind = E.tabs[i].tab_kind;
+			is_preview = E.tabs[i].is_preview;
+			path = E.tabs[i].filename;
+			tab_cx = E.tabs[i].cx;
+			tab_cy = E.tabs[i].cy;
+		}
+		if (tab_kind != EDITOR_TAB_FILE || is_preview ||
+				!editorWorkspaceStatePathCanWriteLine(path)) {
+			continue;
+		}
+		char prefix[64];
+		int prefix_len = snprintf(prefix, sizeof(prefix), "tab=%d|%d|", tab_cx, tab_cy);
+		if (prefix_len <= 0 || (size_t)prefix_len >= sizeof(prefix)) {
+			(void)close(fd);
+			return 0;
+		}
+		if (!editorWorkspaceStateWriteAll(fd, prefix, (size_t)prefix_len) ||
+				!editorWorkspaceStateWriteAll(fd, path, strlen(path)) ||
+				!editorWorkspaceStateWriteAll(fd, "\n", 1)) {
+			(void)close(fd);
+			return 0;
+		}
+		if (i == E.active_tab) {
+			active_path = path;
+		}
+	}
+	if (active_path != NULL) {
+		if (!editorWorkspaceStateWriteAll(fd, "active_tab=", strlen("active_tab=")) ||
+				!editorWorkspaceStateWriteAll(fd, active_path, strlen(active_path)) ||
 				!editorWorkspaceStateWriteAll(fd, "\n", 1)) {
 			(void)close(fd);
 			return 0;
