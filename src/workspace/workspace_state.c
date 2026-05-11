@@ -397,6 +397,9 @@ int editorWorkspaceStateLoadAndApply(int total_cols) {
 	int collapsed = -1;
 	enum editorDrawerMode mode = EDITOR_DRAWER_MODE_TREE;
 	int saw_mode = 0;
+	int menu_expanded = -1;
+	int git_expanded = -1;
+	int lsp_expanded = -1;
 	editorWorkspaceStateFreePendingTabs();
 	g_pending_active_idx = -1;
 
@@ -426,6 +429,12 @@ int editorWorkspaceStateLoadAndApply(int total_cols) {
 		} else if (strcmp(key, "drawer_mode") == 0) {
 			mode = editorWorkspaceStateModeFromString(value);
 			saw_mode = 1;
+		} else if (strcmp(key, "drawer_menu_expanded") == 0) {
+			(void)editorWorkspaceStateParseInt(value, &menu_expanded);
+		} else if (strcmp(key, "drawer_git_expanded") == 0) {
+			(void)editorWorkspaceStateParseInt(value, &git_expanded);
+		} else if (strcmp(key, "drawer_lsp_expanded") == 0) {
+			(void)editorWorkspaceStateParseInt(value, &lsp_expanded);
 		} else if (strcmp(key, "recent_file") == 0) {
 			(void)editorWorkspaceStateAppendRecentFile(value);
 		} else if (strcmp(key, "tab") == 0) {
@@ -454,6 +463,15 @@ int editorWorkspaceStateLoadAndApply(int total_cols) {
 	}
 	if (saw_mode) {
 		E.drawer_mode = mode;
+	}
+	if (menu_expanded >= 0) {
+		E.drawer_menu_expanded = (unsigned int)menu_expanded;
+	}
+	if (git_expanded >= 0) {
+		E.drawer_git_expanded = (unsigned int)git_expanded;
+	}
+	if (lsp_expanded >= 0) {
+		E.drawer_lsp_expanded = (unsigned int)lsp_expanded;
 	}
 	return 1;
 }
@@ -565,11 +583,17 @@ int editorWorkspaceStateSave(void) {
 			"drawer_width_cols=%d\n"
 			"drawer_width_user_set=%d\n"
 			"drawer_collapsed=%d\n"
-			"drawer_mode=%s\n",
+			"drawer_mode=%s\n"
+			"drawer_menu_expanded=%u\n"
+			"drawer_git_expanded=%u\n"
+			"drawer_lsp_expanded=%u\n",
 			E.drawer_width_cols,
 			E.drawer_width_user_set ? 1 : 0,
 			E.drawer_collapsed ? 1 : 0,
-			editorWorkspaceStateModeToString(mode));
+			editorWorkspaceStateModeToString(mode),
+			E.drawer_menu_expanded,
+			E.drawer_git_expanded,
+			E.drawer_lsp_expanded);
 	if (len <= 0 || (size_t)len >= sizeof(buf)) {
 		(void)close(fd);
 		return 0;

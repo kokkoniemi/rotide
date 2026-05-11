@@ -3116,6 +3116,35 @@ static int test_editor_workspace_state_persists_drawer_state(void) {
 	return 0;
 }
 
+static int test_editor_workspace_state_persists_drawer_expanded_masks(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	E.window_cols = 100;
+	E.window_rows = 40;
+	E.drawer_menu_expanded = 0x5u;
+	E.drawer_git_expanded = 0x2u;
+	E.drawer_lsp_expanded = 0x3u;
+
+	ASSERT_TRUE(editorWorkspaceStateSave());
+
+	E.drawer_menu_expanded = 0;
+	E.drawer_git_expanded = 0;
+	E.drawer_lsp_expanded = 0;
+
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+
+	ASSERT_EQ_INT(0x5, (int)E.drawer_menu_expanded);
+	ASSERT_EQ_INT(0x2, (int)E.drawer_git_expanded);
+	ASSERT_EQ_INT(0x3, (int)E.drawer_lsp_expanded);
+
+	editorWorkspaceStateShutdown();
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_workspace_state_ignores_search_modes_on_save(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -3621,6 +3650,7 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_open_settings_opens_global_config_in_tab", test_editor_open_settings_opens_global_config_in_tab},
 	{"editor_config_default_global_loads_cleanly", test_editor_config_default_global_loads_cleanly},
 	{"editor_workspace_state_persists_drawer_state", test_editor_workspace_state_persists_drawer_state},
+	{"editor_workspace_state_persists_drawer_expanded_masks", test_editor_workspace_state_persists_drawer_expanded_masks},
 	{"editor_workspace_state_ignores_search_modes_on_save", test_editor_workspace_state_ignores_search_modes_on_save},
 	{"editor_workspace_state_load_missing_is_noop", test_editor_workspace_state_load_missing_is_noop},
 	{"editor_workspace_state_restores_open_tabs_with_cursor", test_editor_workspace_state_restores_open_tabs_with_cursor},

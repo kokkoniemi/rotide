@@ -3385,7 +3385,12 @@ static int test_editor_popup_close_repaints_rows_under_overlay(void) {
 	output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, "completion_xyz") == NULL);
-	ASSERT_TRUE(strstr(output, "hello world") != NULL);
+	/*
+	 * Popup is rendered one line below the cursor (cy=0), so the rows covered are
+	 * "second line" and "third line". After the popup closes those rows must be
+	 * repainted, not stay frozen in the terminal frame cache.
+	 */
+	ASSERT_TRUE(strstr(output, "second line") != NULL);
 	free(output);
 	return 0;
 }
@@ -3413,7 +3418,7 @@ static int test_editor_popup_placement_below_cursor(void) {
 	editorPopupComputePlacement(&row, &col, &rows, &cols, &above);
 	ASSERT_EQ_INT(0, above);
 	ASSERT_EQ_INT(2, rows);
-	ASSERT_EQ_INT(3, row);
+	ASSERT_EQ_INT(4, row);
 
 	editorPopupClose();
 	return 0;
@@ -3443,7 +3448,7 @@ static int test_editor_popup_placement_above_when_below_overflows(void) {
 	editorPopupComputePlacement(&row, &col, &rows, &cols, &above);
 	ASSERT_EQ_INT(1, above);
 	ASSERT_EQ_INT(3, rows);
-	ASSERT_EQ_INT(3, row);
+	ASSERT_EQ_INT(4, row);
 
 	editorPopupClose();
 	return 0;

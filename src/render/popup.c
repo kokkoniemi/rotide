@@ -233,7 +233,7 @@ void editorPopupComputePlacement(int *terminal_row_out, int *terminal_col_out,
 	}
 
 	if (terminal_row_out != NULL) {
-		*terminal_row_out = top_row + 1;
+		*terminal_row_out = top_row + 2; // +2 to take acccount for 1-based indexing and the tab line
 	}
 	if (terminal_col_out != NULL) {
 		*terminal_col_out = anchor_screen_col + 1;
