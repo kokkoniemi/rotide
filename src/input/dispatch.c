@@ -80,6 +80,11 @@ static void editorResetTextClickTracking(void) {
 	E.text_click_count = 0;
 }
 
+static void editorResetTabClickTracking(void) {
+	E.tab_last_click_idx = -1;
+	E.tab_last_click_ms = 0;
+}
+
 static int editorIsWordByte(unsigned char b) {
 	return isalnum(b) || b == '_' || b >= 0x80;
 }
@@ -2922,7 +2927,22 @@ static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 		int tab_col = mouse_col - tab_start_col;
 		int tab_idx = editorTabHitTestColumn(tab_col, tab_cols);
 		if (tab_idx >= 0) {
+			int is_double_click = E.tab_last_click_idx == tab_idx &&
+					E.tab_last_click_ms > 0 && now_ms > 0 &&
+					now_ms - E.tab_last_click_ms <= DRAWER_DOUBLE_CLICK_THRESHOLD_MS;
 			(void)editorTabSwitchToIndex(tab_idx);
+			if (is_double_click) {
+				if (editorActiveTabIsPreview()) {
+					editorTabPinActivePreview();
+					editorSetStatusMsg("Tab kept open");
+				}
+				editorResetTabClickTracking();
+			} else {
+				E.tab_last_click_idx = tab_idx;
+				E.tab_last_click_ms = now_ms;
+			}
+		} else {
+			editorResetTabClickTracking();
 		}
 		E.mouse_left_button_down = 0;
 		E.mouse_drag_started = 0;

@@ -1633,6 +1633,61 @@ static int test_editor_process_keypress_mouse_drawer_double_click_file_pins_prev
 	return 0;
 }
 
+static int test_editor_process_keypress_mouse_top_row_double_click_pins_preview_tab(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char open_file[512];
+	ASSERT_TRUE(path_join(open_file, sizeof(open_file), env.project_dir, "tab-double.txt"));
+	ASSERT_TRUE(write_text_file(open_file, "content\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("orig");
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+	int file_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("tab-double.txt", &file_idx, NULL));
+
+	int drawer_row = file_idx - E.drawer_rowoff + 2;
+	ASSERT_TRUE(drawer_row >= 2);
+	char drawer_click[32];
+	ASSERT_TRUE(format_sgr_mouse_event(drawer_click, sizeof(drawer_click), 0, 2, drawer_row, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(drawer_click, strlen(drawer_click)) == 0);
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_TRUE(editorActiveTabIsPreview());
+
+	int text_start = editorDrawerTextStartColForCols(E.window_cols);
+	struct editorTabLayoutEntry layout[ROTIDE_MAX_TABS];
+	int layout_count = 0;
+	ASSERT_TRUE(editorTabBuildLayoutForWidth(editorDrawerTextViewportCols(E.window_cols),
+				layout, ROTIDE_MAX_TABS, &layout_count));
+	int preview_tab_col = -1;
+	for (int i = 0; i < layout_count; i++) {
+		if (layout[i].tab_idx == 1) {
+			preview_tab_col = layout[i].start_col + 1;
+			break;
+		}
+	}
+	ASSERT_TRUE(preview_tab_col >= 0);
+
+	char tab_click[32];
+	ASSERT_TRUE(format_sgr_mouse_event(tab_click, sizeof(tab_click), 0,
+				text_start + preview_tab_col, 1, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(tab_click, strlen(tab_click)) == 0);
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_TRUE(editorActiveTabIsPreview());
+
+	ASSERT_TRUE(editor_process_keypress_with_input(tab_click, strlen(tab_click)) == 0);
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_TRUE(!editorActiveTabIsPreview());
+	ASSERT_EQ_STR("Tab kept open", E.statusmsg);
+
+	ASSERT_TRUE(unlink(open_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_process_keypress_mouse_top_row_click_switches_tab(void) {
 	ASSERT_TRUE(editorTabsInit());
 	add_row("zero");
@@ -3702,6 +3757,7 @@ const struct editorTestCase g_input_search_tests[] = {
 	{"editor_drawer_open_selected_file_in_preview_reuses_preview_tab", test_editor_drawer_open_selected_file_in_preview_reuses_preview_tab},
 	{"editor_drawer_arrow_navigation_opens_preview_tab", test_editor_drawer_arrow_navigation_opens_preview_tab},
 	{"editor_process_keypress_mouse_drawer_double_click_file_pins_preview_tab", test_editor_process_keypress_mouse_drawer_double_click_file_pins_preview_tab},
+	{"editor_process_keypress_mouse_top_row_double_click_pins_preview_tab", test_editor_process_keypress_mouse_top_row_double_click_pins_preview_tab},
 	{"editor_process_keypress_mouse_top_row_click_switches_tab", test_editor_process_keypress_mouse_top_row_click_switches_tab},
 	{"editor_process_keypress_mouse_top_row_click_uses_variable_tab_layout", test_editor_process_keypress_mouse_top_row_click_uses_variable_tab_layout},
 	{"editor_process_keypress_mouse_drag_on_splitter_resizes_drawer", test_editor_process_keypress_mouse_drag_on_splitter_resizes_drawer},
