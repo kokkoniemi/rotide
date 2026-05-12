@@ -32,6 +32,18 @@ static int editorAutocompleteIsIdentByte(unsigned char b) {
 	return isalnum(b) || b == '_' || b >= 0x80;
 }
 
+static int editorAutocompleteTriggerCharMatches(const char *trigger_chars, int ch) {
+	if (trigger_chars == NULL || trigger_chars[0] == '\0') {
+		return 0;
+	}
+	for (const unsigned char *p = (const unsigned char *)trigger_chars; *p != '\0'; p++) {
+		if ((int)*p == ch) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
 static void editorAutocompleteReset(void) {
 	editorPopupClose();
 	editorLspFreeCompletionItems(g_autocomplete.items, g_autocomplete.count);
@@ -66,14 +78,23 @@ int editorAutocompleteIsVisible(void) {
 	return g_autocomplete.active;
 }
 
-static int editorAutocompleteTriggerCharMatches(const char *trigger_chars, int ch) {
-	if (trigger_chars == NULL || trigger_chars[0] == '\0') {
+int editorAutocompleteWouldRefilter(int ch) {
+	if (!g_autocomplete.active) {
 		return 0;
 	}
-	for (const unsigned char *p = (const unsigned char *)trigger_chars; *p != '\0'; p++) {
-		if ((int)*p == ch) {
-			return 1;
-		}
+	if (E.filename == NULL || E.filename[0] == '\0') {
+		return 0;
+	}
+	if (!editorLspCompletionEnabledForFile(E.filename, E.syntax_language)) {
+		return 0;
+	}
+	const char *trigger_chars =
+			editorLspCompletionTriggerCharsForFile(E.filename, E.syntax_language);
+	if (editorAutocompleteTriggerCharMatches(trigger_chars, ch)) {
+		return 1;
+	}
+	if (ch >= 0x20 && ch < 0x80 && editorAutocompleteIsIdentByte((unsigned char)ch)) {
+		return 1;
 	}
 	return 0;
 }
@@ -122,18 +143,46 @@ static char *editorAutocompleteCopyPrefix(const struct erow *row, int start_cx, 
 	return out;
 }
 
-static int editorAutocompleteItemBeginsWith(const char *label, const char *prefix) {
+static const char *editorAutocompleteStripLeadingNonIdent(const char *label) {
 	if (label == NULL) {
+		return NULL;
+	}
+	const char *p = label;
+	while (*p != '\0') {
+		unsigned char b = (unsigned char)*p;
+		if (editorAutocompleteIsIdentByte(b)) {
+			break;
+		}
+		p++;
+	}
+	return p;
+}
+
+static const char *editorAutocompleteItemMatchText(const struct editorLspCompletionItem *item) {
+	if (item == NULL) {
+		return NULL;
+	}
+	if (item->filter_text != NULL && item->filter_text[0] != '\0') {
+		return item->filter_text;
+	}
+	if (item->insert_text != NULL && item->insert_text[0] != '\0') {
+		return item->insert_text;
+	}
+	return editorAutocompleteStripLeadingNonIdent(item->label);
+}
+
+static int editorAutocompleteMatchBeginsWith(const char *text, const char *prefix) {
+	if (text == NULL) {
 		return 0;
 	}
 	if (prefix == NULL || prefix[0] == '\0') {
 		return 1;
 	}
 	size_t pl = strlen(prefix);
-	if (strncmp(label, prefix, pl) == 0) {
+	if (strncmp(text, prefix, pl) == 0) {
 		return 1;
 	}
-	if (strncasecmp(label, prefix, pl) == 0) {
+	if (strncasecmp(text, prefix, pl) == 0) {
 		return 1;
 	}
 	return 0;
@@ -175,8 +224,8 @@ static int editorAutocompleteRefreshFiltered(int anchor_row, int anchor_col) {
 	int cap = 0;
 
 	for (int i = 0; i < g_autocomplete.count && visible_count < max_items; i++) {
-		if (!editorAutocompleteItemBeginsWith(g_autocomplete.items[i].label,
-					g_autocomplete.prefix)) {
+		const char *match_text = editorAutocompleteItemMatchText(&g_autocomplete.items[i]);
+		if (!editorAutocompleteMatchBeginsWith(match_text, g_autocomplete.prefix)) {
 			continue;
 		}
 		if (visible_count >= cap) {
@@ -198,7 +247,17 @@ static int editorAutocompleteRefreshFiltered(int anchor_row, int anchor_col) {
 			visible_indices = grown_indices;
 			cap = new_cap;
 		}
-		popup_items[visible_count].label = g_autocomplete.items[i].label;
+		/*
+		 * Servers like clangd put a leading space or category marker (e.g. "•") in the
+		 * label for ranking; strip those so the popup shows the bare symbol the user is
+		 * trying to complete.
+		 */
+		const char *display = editorAutocompleteStripLeadingNonIdent(
+				g_autocomplete.items[i].label);
+		if (display == NULL || display[0] == '\0') {
+			display = g_autocomplete.items[i].label;
+		}
+		popup_items[visible_count].label = (char *)display;
 		popup_items[visible_count].detail = NULL;
 		visible_indices[visible_count] = i;
 		visible_count++;
@@ -231,6 +290,15 @@ static int editorAutocompleteRefreshFiltered(int anchor_row, int anchor_col) {
 }
 
 void editorAutocompleteOnCharInserted(int ch) {
+	/*
+	 * If the popup was closed externally (e.g. via Escape through the popup key handler)
+	 * the autocomplete state can drift out of sync — visible() would still return true and
+	 * the refilter branch below would resurrect the popup on the next keystroke. Lazily
+	 * clear the state so typing after dismissal triggers a fresh request instead.
+	 */
+	if (g_autocomplete.active && !editorPopupIsVisible()) {
+		editorAutocompleteReset();
+	}
 	if (E.filename == NULL || E.filename[0] == '\0') {
 		editorAutocompleteReset();
 		return;
@@ -324,10 +392,16 @@ static int editorAutocompleteApplyItem(const struct editorLspCompletionItem *ite
 				item->text_edit_start_character);
 		range_end_cx = editorLspProtocolCharacterToBufferColumn(range_end_cy,
 				item->text_edit_end_character);
-	} else if (item->insert_text != NULL) {
+	} else if (item->insert_text != NULL && item->insert_text[0] != '\0') {
 		insert_text = item->insert_text;
+	} else if (item->filter_text != NULL && item->filter_text[0] != '\0') {
+		/* Use filterText (e.g. clangd's bare symbol name) when label has decoration. */
+		insert_text = item->filter_text;
 	} else {
-		insert_text = item->label;
+		insert_text = editorAutocompleteStripLeadingNonIdent(item->label);
+		if (insert_text == NULL || insert_text[0] == '\0') {
+			insert_text = item->label;
+		}
 	}
 	if (insert_text == NULL) {
 		return 0;
@@ -363,6 +437,9 @@ int editorAutocompleteAcceptSelection(void) {
 	if (g_autocomplete.items[raw_idx].label != NULL) {
 		item_copy.label = strdup(g_autocomplete.items[raw_idx].label);
 	}
+	if (g_autocomplete.items[raw_idx].filter_text != NULL) {
+		item_copy.filter_text = strdup(g_autocomplete.items[raw_idx].filter_text);
+	}
 	if (g_autocomplete.items[raw_idx].insert_text != NULL) {
 		item_copy.insert_text = strdup(g_autocomplete.items[raw_idx].insert_text);
 	}
@@ -382,6 +459,7 @@ int editorAutocompleteAcceptSelection(void) {
 
 	int ok = editorAutocompleteApplyItem(&item_copy, prefix_start_cy, prefix_start_cx, cursor_cx);
 	free(item_copy.label);
+	free(item_copy.filter_text);
 	free(item_copy.insert_text);
 	free(item_copy.text_edit_new_text);
 	return ok;

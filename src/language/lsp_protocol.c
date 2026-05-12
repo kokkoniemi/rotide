@@ -814,6 +814,7 @@ void editorLspFreeCompletionItems(struct editorLspCompletionItem *items, int cou
 	}
 	for (int i = 0; i < count; i++) {
 		free(items[i].label);
+		free(items[i].filter_text);
 		free(items[i].insert_text);
 		free(items[i].text_edit_new_text);
 	}
@@ -838,6 +839,13 @@ int editorLspCopyCompletionItems(struct editorLspCompletionItem **out_items, int
 		if (items[i].label != NULL) {
 			copy[i].label = strdup(items[i].label);
 			if (copy[i].label == NULL) {
+				editorLspFreeCompletionItems(copy, i + 1);
+				return 0;
+			}
+		}
+		if (items[i].filter_text != NULL) {
+			copy[i].filter_text = strdup(items[i].filter_text);
+			if (copy[i].filter_text == NULL) {
 				editorLspFreeCompletionItems(copy, i + 1);
 				return 0;
 			}
@@ -919,6 +927,21 @@ static int editorLspParseCompletionItemObject(const char *object_start, const ch
 	}
 	if (!editorLspParseJsonString(label_value, &out->label, NULL) || out->label == NULL) {
 		return 0;
+	}
+
+	const char *filter_key = editorLspStrstrBounded(object_start, "\"filterText\"", object_end);
+	if (filter_key != NULL) {
+		const char *filter_colon = strchr(filter_key, ':');
+		if (filter_colon != NULL && filter_colon < object_end) {
+			const char *filter_value = editorLspSkipWs(filter_colon + 1);
+			if (filter_value != NULL && filter_value[0] == '"') {
+				char *filter_text = NULL;
+				if (editorLspParseJsonString(filter_value, &filter_text, NULL) &&
+						filter_text != NULL) {
+					out->filter_text = filter_text;
+				}
+			}
+		}
 	}
 
 	const char *insert_key = editorLspStrstrBounded(object_start, "\"insertText\"", object_end);

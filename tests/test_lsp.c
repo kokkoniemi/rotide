@@ -614,6 +614,166 @@ static int test_editor_lsp_autocomplete_typing_narrows_popup_keeps_accept_correc
 	return 0;
 }
 
+static int test_editor_lsp_autocomplete_dispatch_typing_keeps_popup_open(void) {
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(1);
+	E.lsp_clangd_enabled = 1;
+	E.lsp_autocomplete_enabled = 1;
+	E.lsp_autocomplete_max_items = 100;
+	free(E.filename);
+	E.filename = strdup("/tmp/auto.c");
+	ASSERT_TRUE(E.filename != NULL);
+	E.syntax_language = EDITOR_SYNTAX_C;
+	add_row("f");
+	E.cy = 0;
+	E.cx = 1;
+
+	struct editorLspCompletionItem mock_items[3] = {
+		{.label = (char *)"foo"},
+		{.label = (char *)"fbar"},
+		{.label = (char *)"fbaz"},
+	};
+	editorLspTestSetMockCompletionResponse(mock_items, 3);
+	editorAutocompleteOnCharInserted('f');
+	editorLspTestDeliverPendingCompletion();
+	ASSERT_TRUE(editorAutocompleteIsVisible());
+	ASSERT_EQ_INT(3, editorPopupItemCount());
+
+	/*
+	 * Route the keystroke through the dispatcher so the popup-handler path is exercised.
+	 * Before the fix the popup would be dismissed by editorPopupHandleKey and then the
+	 * dispatcher would cancel the autocomplete, leaving an empty popup until the LSP
+	 * server replied.
+	 */
+	char input[] = {'o'};
+	ASSERT_TRUE(editor_process_keypress_with_input(input, sizeof(input)) == 0);
+
+	ASSERT_TRUE(editorAutocompleteIsVisible());
+	ASSERT_TRUE(editorPopupIsVisible());
+	ASSERT_EQ_INT(1, editorPopupItemCount());
+	ASSERT_EQ_STR("foo", editorPopupSelectedLabel());
+
+	editorAutocompleteShutdown();
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(0);
+	return 0;
+}
+
+static int test_editor_lsp_autocomplete_filters_clangd_decorated_labels(void) {
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(1);
+	E.lsp_clangd_enabled = 1;
+	E.lsp_autocomplete_enabled = 1;
+	E.lsp_autocomplete_max_items = 100;
+	free(E.filename);
+	E.filename = strdup("/tmp/auto.c");
+	ASSERT_TRUE(E.filename != NULL);
+	E.syntax_language = EDITOR_SYNTAX_C;
+	add_row("client.");
+	E.cy = 0;
+	E.cx = 7;
+
+	/* Mirror clangd: labels carry leading whitespace/markers; filterText holds the
+	 * bare symbol that should drive prefix matching. */
+	struct editorLspCompletionItem mock_items[3] = {
+		{.label = (char *)" completion_pending",
+		 .filter_text = (char *)"completion_pending"},
+		{.label = (char *)" completion_supported",
+		 .filter_text = (char *)"completion_supported"},
+		{.label = (char *)" flags",
+		 .filter_text = (char *)"flags"},
+	};
+	editorLspTestSetMockCompletionResponse(mock_items, 3);
+	editorAutocompleteOnCharInserted('.');
+	editorLspTestDeliverPendingCompletion();
+	ASSERT_TRUE(editorAutocompleteIsVisible());
+	ASSERT_EQ_INT(3, editorPopupItemCount());
+	/* Display label must be stripped of leading space. */
+	ASSERT_EQ_STR("completion_pending", editorPopupSelectedLabel());
+
+	char input[] = {'c'};
+	ASSERT_TRUE(editor_process_keypress_with_input(input, sizeof(input)) == 0);
+
+	ASSERT_TRUE(editorAutocompleteIsVisible());
+	ASSERT_TRUE(editorPopupIsVisible());
+	ASSERT_EQ_INT(2, editorPopupItemCount());
+	ASSERT_EQ_STR("completion_pending", editorPopupSelectedLabel());
+
+	editorAutocompleteShutdown();
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(0);
+	return 0;
+}
+
+static int test_editor_lsp_autocomplete_accept_uses_filter_text_when_label_decorated(void) {
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(1);
+	E.lsp_clangd_enabled = 1;
+	E.lsp_autocomplete_enabled = 1;
+	E.lsp_autocomplete_max_items = 100;
+	free(E.filename);
+	E.filename = strdup("/tmp/auto.c");
+	ASSERT_TRUE(E.filename != NULL);
+	E.syntax_language = EDITOR_SYNTAX_C;
+	add_row("client.");
+	E.cy = 0;
+	E.cx = 7;
+
+	struct editorLspCompletionItem mock_items[1] = {
+		{.label = (char *)" completion_pending",
+		 .filter_text = (char *)"completion_pending"},
+	};
+	editorLspTestSetMockCompletionResponse(mock_items, 1);
+	editorAutocompleteOnCharInserted('.');
+	editorLspTestDeliverPendingCompletion();
+	ASSERT_TRUE(editorAutocompleteAcceptSelection());
+	/* Inserted text must not carry the leading space from label. */
+	ASSERT_EQ_STR("client.completion_pending", E.rows[0].chars);
+
+	editorAutocompleteShutdown();
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(0);
+	return 0;
+}
+
+static int test_editor_lsp_autocomplete_dispatch_typing_after_trigger_char_keeps_popup(void) {
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(1);
+	E.lsp_clangd_enabled = 1;
+	E.lsp_autocomplete_enabled = 1;
+	E.lsp_autocomplete_max_items = 100;
+	free(E.filename);
+	E.filename = strdup("/tmp/auto.c");
+	ASSERT_TRUE(E.filename != NULL);
+	E.syntax_language = EDITOR_SYNTAX_C;
+	add_row("client.");
+	E.cy = 0;
+	E.cx = 7;
+
+	struct editorLspCompletionItem mock_items[3] = {
+		{.label = (char *)"count"},
+		{.label = (char *)"connect"},
+		{.label = (char *)"flags"},
+	};
+	editorLspTestSetMockCompletionResponse(mock_items, 3);
+	editorAutocompleteOnCharInserted('.');
+	editorLspTestDeliverPendingCompletion();
+	ASSERT_TRUE(editorAutocompleteIsVisible());
+	ASSERT_EQ_INT(3, editorPopupItemCount());
+
+	char input[] = {'c'};
+	ASSERT_TRUE(editor_process_keypress_with_input(input, sizeof(input)) == 0);
+
+	ASSERT_TRUE(editorAutocompleteIsVisible());
+	ASSERT_TRUE(editorPopupIsVisible());
+	ASSERT_EQ_INT(2, editorPopupItemCount());
+
+	editorAutocompleteShutdown();
+	editorLspTestResetMock();
+	editorLspTestSetMockEnabled(0);
+	return 0;
+}
+
 static int test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers(void) {
 	editorLspTestSetMockEnabled(1);
 	E.lsp_gopls_enabled = 1;
@@ -3238,6 +3398,10 @@ const struct editorTestCase g_lsp_tests[] = {
 	{"editor_lsp_autocomplete_accept_uses_insert_text", test_editor_lsp_autocomplete_accept_uses_insert_text},
 	{"editor_lsp_autocomplete_typing_narrows_popup_without_response", test_editor_lsp_autocomplete_typing_narrows_popup_without_response},
 	{"editor_lsp_autocomplete_typing_narrows_popup_keeps_accept_correct", test_editor_lsp_autocomplete_typing_narrows_popup_keeps_accept_correct},
+	{"editor_lsp_autocomplete_dispatch_typing_keeps_popup_open", test_editor_lsp_autocomplete_dispatch_typing_keeps_popup_open},
+	{"editor_lsp_autocomplete_filters_clangd_decorated_labels", test_editor_lsp_autocomplete_filters_clangd_decorated_labels},
+	{"editor_lsp_autocomplete_accept_uses_filter_text_when_label_decorated", test_editor_lsp_autocomplete_accept_uses_filter_text_when_label_decorated},
+	{"editor_lsp_autocomplete_dispatch_typing_after_trigger_char_keeps_popup", test_editor_lsp_autocomplete_dispatch_typing_after_trigger_char_keeps_popup},
 	{"editor_lsp_lifecycle_lazy_start_and_non_go_buffers", test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers},
 	{"editor_lsp_lifecycle_restart_after_mock_crash", test_editor_lsp_lifecycle_restart_after_mock_crash},
 	{"editor_lsp_lifecycle_restarts_when_switching_between_go_clangd_and_html", test_editor_lsp_lifecycle_restarts_when_switching_between_go_clangd_and_html},

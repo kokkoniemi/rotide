@@ -24,6 +24,7 @@ struct editorLspSymbol {
 
 struct editorLspCompletionItem {
 	char *label;
+	char *filter_text;
 	char *insert_text;
 	int has_text_edit;
 	int text_edit_start_line;

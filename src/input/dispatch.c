@@ -3783,27 +3783,35 @@ void editorProcessKeypress(void) {
 	}
 
 	if (editorPopupIsVisible()) {
-		enum editorPopupKeyResult popup_result = editorPopupHandleKey(c);
-		if (popup_result == EDITOR_POPUP_KEY_ACCEPTED) {
-			if (editorAutocompleteIsVisible()) {
-				editorPinActivePreviewForEdit();
-				editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
-				int dirty_before = E.dirty;
-				int applied = editorAutocompleteAcceptSelection();
-				editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
-				if (applied) {
-					editorViewportEnsureCursorVisible();
+		/*
+		 * If the upcoming character would simply narrow the autocomplete popup, skip the
+		 * popup key handler entirely so the popup stays open across the keystroke. The
+		 * insertion flow below will call editorAutocompleteOnCharInserted which refilters
+		 * the visible items in place.
+		 */
+		if (!editorAutocompleteWouldRefilter(c)) {
+			enum editorPopupKeyResult popup_result = editorPopupHandleKey(c);
+			if (popup_result == EDITOR_POPUP_KEY_ACCEPTED) {
+				if (editorAutocompleteIsVisible()) {
+					editorPinActivePreviewForEdit();
+					editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+					int dirty_before = E.dirty;
+					int applied = editorAutocompleteAcceptSelection();
+					editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+					if (applied) {
+						editorViewportEnsureCursorVisible();
+					}
+				} else {
+					editorPopupClose();
 				}
-			} else {
-				editorPopupClose();
+				return;
 			}
-			return;
-		}
-		if (popup_result == EDITOR_POPUP_KEY_CONSUMED) {
-			return;
-		}
-		if (editorAutocompleteIsVisible()) {
-			editorAutocompleteCancel();
+			if (popup_result == EDITOR_POPUP_KEY_CONSUMED) {
+				return;
+			}
+			if (editorAutocompleteIsVisible()) {
+				editorAutocompleteCancel();
+			}
 		}
 	}
 
