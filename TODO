@@ -1,10 +1,8 @@
-- FEATURE: add more lsp functionalities (go to implementations, auto-complete, go to symbol in editor etc.)
 - FEATURE: Add configurable auto-indentation (tabs/spaces + indent width) for newline insertion and pasted blocks.
 - FEATURE: Add bracket/quote pair assistance: auto-close pairs, skip-over closing pairs, and jump to matching bracket.
 - FEATURE: Add multi-threading support for heavy background work (for example directory scanning/search indexing), with thread-safe state handling and unchanged editor behavior.
 - FEATURE: implement support for Debug Adapter Protocol (DAP)
 - FEATURE: implement support for vim-mode. The commands should be configurable in .rotide.toml in local and global files.
 - IMPROVEMENT: integrate Fil-C to improve memory safety
-- IMPROVEMENT: make go to definition etc. osc8 hyperlink or render the text underlined on hover
-- IMPROVEMENT: render linting errors in red underline. Show error message in popup/popdown when cursor is over.
+- IMPROVEMENT: make go to definition etc. osc8 hyperlink or render the text underlined on mouse hover when ctrl pressed
 - DOCS: create a script that takes screenshots of the editor on the most important screens showing e.g. rotide source code and saving the screenshots to docs and README. In main README.md there should be a gif that goes over those slowly. I want also to showcase themes. I should be able to re-geneate those with the newest features as the editor progresses.

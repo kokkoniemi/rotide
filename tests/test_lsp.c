@@ -1712,6 +1712,37 @@ static int test_editor_lsp_diagnostic_status_uses_publishing_server_label(void) 
 	return 0;
 }
 
+static int test_editor_lsp_diagnostics_render_error_underline_and_cursor_popdown(void) {
+	ASSERT_TRUE(editorTabsInit());
+
+	char js_path[64];
+	ASSERT_TRUE(write_temp_file_with_suffix(js_path, sizeof(js_path),
+			"rotide-test-lsp-diagnostic-render-", ".js", "const value = 1;\n"));
+	editorOpen(js_path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, editorSyntaxLanguageActive());
+	E.window_rows = 8;
+	E.window_cols = 80;
+	E.cy = 0;
+	E.cx = 2;
+
+	struct editorLspDiagnostic diagnostics[1] = {
+		{.start_line = 0, .start_character = 0, .end_line = 0, .end_character = 5,
+				.severity = 1, .message = "Unexpected token"},
+	};
+	editorLspSetDiagnosticsForPath(js_path, diagnostics, 1);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[4m\x1b[58;5;1m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[24m\x1b[59m") != NULL);
+	ASSERT_TRUE(strstr(output, "Unexpected token") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(js_path) == 0);
+	return 0;
+}
+
 static int test_editor_lsp_eslint_diagnostics_persist_across_tab_switches(void) {
 	editorLspTestSetMockEnabled(1);
 	E.lsp_gopls_enabled = 0;
@@ -3160,6 +3191,49 @@ static int test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem(void) {
 	return 0;
 }
 
+static int test_editor_lsp_drawer_colors_problem_severity_labels(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 0;
+	E.lsp_html_enabled = 0;
+	E.lsp_eslint_enabled = 1;
+	ASSERT_TRUE(editorTabsInit());
+
+	char js_path[64];
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(js_path, sizeof(js_path),
+			"rotide-test-js-lsp-drawer-colors-", ".js",
+			"tests/lsp/supported/javascript/eslint_buffer.js"));
+	editorOpen(js_path);
+
+	struct editorLspDiagnostic diagnostics[2] = {
+		{.start_line = 0, .start_character = 0, .end_line = 0, .end_character = 5,
+				.severity = 1, .message = "Bad parse"},
+		{.start_line = 1, .start_character = 0, .end_line = 1, .end_character = 11,
+				.severity = 2, .message = "Missing semicolon"},
+	};
+	editorLspTestSetMockDiagnostics(js_path, diagnostics, 2);
+	editorLspPumpNotifications();
+
+	char lsp_drawer[] = {'\x1b', CTRL_KEY('l')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(lsp_drawer,
+			sizeof(lsp_drawer)) == 0);
+	E.window_rows = 8;
+	E.window_cols = 160;
+	ASSERT_TRUE(editorDrawerSetWidthForCols(120, E.window_cols));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[31mError\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[33mWarning\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "Bad parse") != NULL);
+	ASSERT_TRUE(strstr(output, "Missing semicolon") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(js_path) == 0);
+	return 0;
+}
+
 static int test_editor_lsp_drawer_lists_document_symbols_and_jumps_to_symbol(void) {
 	editorLspTestSetMockEnabled(1);
 	E.lsp_gopls_enabled = 1;
@@ -3462,8 +3536,10 @@ const struct editorTestCase g_lsp_tests[] = {
 	{"editor_lsp_language_id_routing_for_javascript_extensions", test_editor_lsp_language_id_routing_for_javascript_extensions},
 	{"editor_lsp_eslint_diagnostics_update_and_status_summary", test_editor_lsp_eslint_diagnostics_update_and_status_summary},
 	{"editor_lsp_diagnostic_status_uses_publishing_server_label", test_editor_lsp_diagnostic_status_uses_publishing_server_label},
+	{"editor_lsp_diagnostics_render_error_underline_and_cursor_popdown", test_editor_lsp_diagnostics_render_error_underline_and_cursor_popdown},
 	{"editor_lsp_eslint_diagnostics_persist_across_tab_switches", test_editor_lsp_eslint_diagnostics_persist_across_tab_switches},
 	{"editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem", test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem},
+	{"editor_lsp_drawer_colors_problem_severity_labels", test_editor_lsp_drawer_colors_problem_severity_labels},
 	{"editor_lsp_drawer_lists_document_symbols_and_jumps_to_symbol", test_editor_lsp_drawer_lists_document_symbols_and_jumps_to_symbol},
 	{"editor_lsp_drawer_arrow_previews_symbol_centered_away_from_drawer_cursor", test_editor_lsp_drawer_arrow_previews_symbol_centered_away_from_drawer_cursor},
 	{"editor_lsp_drawer_renders_nested_symbols_hierarchically", test_editor_lsp_drawer_renders_nested_symbols_hierarchically},

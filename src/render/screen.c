@@ -45,6 +45,10 @@ struct writeBuf {
 #define VT100_ITALIC_OFF_5 "\x1b[23m"
 #define VT100_BOLD_ON_4 "\x1b[1m"
 #define VT100_BOLD_OFF_5 "\x1b[22m"
+#define VT100_UNDERLINE_ON_4 "\x1b[4m"
+#define VT100_UNDERLINE_OFF_5 "\x1b[24m"
+#define VT100_UNDERLINE_COLOR_RED_9 "\x1b[58;5;1m"
+#define VT100_UNDERLINE_COLOR_DEFAULT_5 "\x1b[59m"
 #define VT100_INVERTED_COLORS_4 "\x1b[7m"
 #define VT100_NORMAL_COLORS_3 "\x1b[m"
 #define VT100_BG_CURRENT_LINE "\x1b[48;5;236m"
@@ -84,6 +88,8 @@ struct writeBuf {
 #define DRAWER_HEADER_MODE_BUTTONS_MIN_COLS \
 	(ROTIDE_DRAWER_COLLAPSED_WIDTH + \
 			DRAWER_HEADER_MODE_BUTTON_COLS * DRAWER_HEADER_MODE_BUTTON_COUNT)
+#define EDITOR_DIAGNOSTIC_MAX_RENDER_SPANS_PER_ROW 64
+#define EDITOR_DIAGNOSTIC_POPDOWN_MAX_COLS 72
 #define TEXT_OVERFLOW_LEFT_UTF8 "\xE2\x86\x90"
 #define TEXT_OVERFLOW_RIGHT_UTF8 "\xE2\x86\x92"
 #define TEXT_WRAP_CONTINUATION_UTF8 "\xE2\x86\xB3"
@@ -1088,19 +1094,119 @@ static enum editorSyntaxHighlightClass editorSyntaxClassAtRenderIdx(
 	return highlight_class;
 }
 
+static int editorDiagnosticSeverityIsError(int severity) {
+	return severity == 1;
+}
+
+static int editorDiagnosticRangeForRow(const struct editorLspDiagnostic *diagnostic,
+		int row_idx, int row_size, int *start_out, int *end_out) {
+	if (diagnostic == NULL || start_out == NULL || end_out == NULL ||
+			row_idx < diagnostic->start_line || row_idx > diagnostic->end_line ||
+			diagnostic->end_line < diagnostic->start_line) {
+		return 0;
+	}
+
+	int start = row_idx == diagnostic->start_line ? diagnostic->start_character : 0;
+	int end = row_idx == diagnostic->end_line ? diagnostic->end_character : row_size;
+	if (start < 0) {
+		start = 0;
+	}
+	if (end < 0) {
+		end = 0;
+	}
+	if (start > row_size) {
+		start = row_size;
+	}
+	if (end > row_size) {
+		end = row_size;
+	}
+	if (end <= start && start < row_size) {
+		end = start + 1;
+	}
+	if (end <= start) {
+		return 0;
+	}
+
+	*start_out = start;
+	*end_out = end;
+	return 1;
+}
+
+static int editorDiagnosticAtRenderIdx(
+		const struct editorRowSyntaxSpan *spans, int span_count, int render_idx) {
+	for (int i = 0; i < span_count; i++) {
+		if (spans[i].end_render_idx <= spans[i].start_render_idx) {
+			continue;
+		}
+		if (render_idx >= spans[i].start_render_idx && render_idx < spans[i].end_render_idx) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static int editorBuildDiagnosticRenderSpansForRow(int row_idx, const struct erow *row,
+		struct editorRowSyntaxSpan *spans, int max_spans, int *span_count_out) {
+	if (span_count_out != NULL) {
+		*span_count_out = 0;
+	}
+	if (row == NULL || spans == NULL || span_count_out == NULL || max_spans <= 0 ||
+			E.lsp_diagnostics == NULL || E.lsp_diagnostic_count <= 0) {
+		return 1;
+	}
+
+	int count = 0;
+	for (int i = 0; i < E.lsp_diagnostic_count && count < max_spans; i++) {
+		if (!editorDiagnosticSeverityIsError(E.lsp_diagnostics[i].severity)) {
+			continue;
+		}
+		int start = 0;
+		int end = 0;
+		if (!editorDiagnosticRangeForRow(&E.lsp_diagnostics[i], row_idx, row->size, &start,
+					&end)) {
+			continue;
+		}
+		int render_start = editorRowCxToRenderIdx(row, start);
+		int render_end = editorRowCxToRenderIdx(row, end);
+		if (render_end <= render_start) {
+			continue;
+		}
+		spans[count].start_render_idx = render_start;
+		spans[count].end_render_idx = render_end;
+		spans[count].highlight_class = EDITOR_SYNTAX_HL_NONE;
+		count++;
+	}
+	*span_count_out = count;
+	return 1;
+}
+
+static int editorAppendDiagnosticUnderlineStart(struct writeBuf *wb) {
+	return wbAppend(wb, VT100_UNDERLINE_ON_4, 4) &&
+			wbAppend(wb, VT100_UNDERLINE_COLOR_RED_9, 9);
+}
+
+static int editorAppendDiagnosticUnderlineEnd(struct writeBuf *wb) {
+	return wbAppend(wb, VT100_UNDERLINE_OFF_5, 5) &&
+			wbAppend(wb, VT100_UNDERLINE_COLOR_DEFAULT_5, 5);
+}
+
 static int editorDrawRenderSliceWithSyntax(struct writeBuf *wb, const struct erow *row,
-		int segment_start, int segment_end, const struct editorRowSyntaxSpan *spans, int span_count) {
+		int segment_start, int segment_end, const struct editorRowSyntaxSpan *spans,
+		int span_count, const struct editorRowSyntaxSpan *diagnostic_spans,
+		int diagnostic_span_count) {
 	if (segment_end <= segment_start) {
 		return 1;
 	}
-	if (spans == NULL || span_count <= 0 || E.syntax_state == NULL ||
-			E.syntax_language == EDITOR_SYNTAX_NONE) {
+	if ((spans == NULL || span_count <= 0 || E.syntax_state == NULL ||
+				E.syntax_language == EDITOR_SYNTAX_NONE) &&
+			(diagnostic_spans == NULL || diagnostic_span_count <= 0)) {
 		return wbAppend(wb, &row->render[segment_start], (size_t)(segment_end - segment_start));
 	}
 
 	struct editorThemeColor base_color = E.theme.ui[EDITOR_THEME_UI_FOREGROUND];
 	struct editorThemeColor active_color = base_color;
 	int active_color_emitted = 0;
+	int underline_active = 0;
 	int pos = segment_start;
 	while (pos < segment_end) {
 		enum editorSyntaxHighlightClass highlight_class =
@@ -1119,10 +1225,36 @@ static int editorDrawRenderSliceWithSyntax(struct writeBuf *wb, const struct ero
 			active_color_emitted = 1;
 		}
 
+		int next_underline = editorDiagnosticAtRenderIdx(diagnostic_spans,
+				diagnostic_span_count, pos);
+		if (next_underline != underline_active) {
+			if (next_underline) {
+				if (!editorAppendDiagnosticUnderlineStart(wb)) {
+					return 0;
+				}
+			} else if (!editorAppendDiagnosticUnderlineEnd(wb)) {
+				return 0;
+			}
+			underline_active = next_underline;
+		}
+
 		int next = segment_end;
 		for (int i = 0; i < span_count; i++) {
 			int span_start = spans[i].start_render_idx;
 			int span_end = spans[i].end_render_idx;
+			if (span_end <= span_start) {
+				continue;
+			}
+			if (span_start > pos && span_start < next) {
+				next = span_start;
+			}
+			if (span_end > pos && span_end < next) {
+				next = span_end;
+			}
+		}
+		for (int i = 0; i < diagnostic_span_count; i++) {
+			int span_start = diagnostic_spans[i].start_render_idx;
+			int span_end = diagnostic_spans[i].end_render_idx;
 			if (span_end <= span_start) {
 				continue;
 			}
@@ -1152,6 +1284,9 @@ static int editorDrawRenderSliceWithSyntax(struct writeBuf *wb, const struct ero
 		pos = next;
 	}
 
+	if (underline_active && !editorAppendDiagnosticUnderlineEnd(wb)) {
+		return 0;
+	}
 	if (active_color_emitted && !editorAppendThemeBaseForeground(wb)) {
 		return 0;
 	}
@@ -1190,9 +1325,16 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 				&syntax_span_count)) {
 		syntax_span_count = 0;
 	}
+	struct editorRowSyntaxSpan diagnostic_spans[EDITOR_DIAGNOSTIC_MAX_RENDER_SPANS_PER_ROW];
+	int diagnostic_span_count = 0;
+	if (!editorBuildDiagnosticRenderSpansForRow(row_idx, row, diagnostic_spans,
+				EDITOR_DIAGNOSTIC_MAX_RENDER_SPANS_PER_ROW, &diagnostic_span_count)) {
+		diagnostic_span_count = 0;
+	}
 
 	if (highlight_len_chars <= 0) {
-		return editorDrawRenderSliceWithSyntax(wb, row, start, end, syntax_spans, syntax_span_count);
+		return editorDrawRenderSliceWithSyntax(wb, row, start, end, syntax_spans,
+				syntax_span_count, diagnostic_spans, diagnostic_span_count);
 	}
 
 	int match_start_chars = highlight_start_chars;
@@ -1216,18 +1358,20 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 	int match_render_start = editorRowCxToRenderIdx(row, match_start_chars);
 	int match_render_end = editorRowCxToRenderIdx(row, match_end_chars);
 	if (match_render_end <= match_render_start) {
-		return editorDrawRenderSliceWithSyntax(wb, row, start, end, syntax_spans, syntax_span_count);
+		return editorDrawRenderSliceWithSyntax(wb, row, start, end, syntax_spans,
+				syntax_span_count, diagnostic_spans, diagnostic_span_count);
 	}
 
 	int highlight_start = start > match_render_start ? start : match_render_start;
 	int highlight_end = end < match_render_end ? end : match_render_end;
 	if (highlight_end <= highlight_start) {
-		return editorDrawRenderSliceWithSyntax(wb, row, start, end, syntax_spans, syntax_span_count);
+		return editorDrawRenderSliceWithSyntax(wb, row, start, end, syntax_spans,
+				syntax_span_count, diagnostic_spans, diagnostic_span_count);
 	}
 
 	if (highlight_start > start &&
 			!editorDrawRenderSliceWithSyntax(wb, row, start, highlight_start, syntax_spans,
-					syntax_span_count)) {
+					syntax_span_count, diagnostic_spans, diagnostic_span_count)) {
 		return 0;
 	}
 	if (!editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_SELECTION)) {
@@ -1241,7 +1385,7 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 	}
 	if (highlight_end < end &&
 			!editorDrawRenderSliceWithSyntax(wb, row, highlight_end, end, syntax_spans,
-					syntax_span_count)) {
+					syntax_span_count, diagnostic_spans, diagnostic_span_count)) {
 		return 0;
 	}
 
@@ -2436,6 +2580,9 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 			int dir_color = entry.is_dir && !entry.is_root && !row_inverted;
 			int placeholder_color = entry.is_placeholder;
 			int git_color = 0;
+			int lsp_problem_kind_color =
+					!row_inverted && entry.lsp_problem_kind_len > 0 &&
+					(entry.lsp_problem_severity == 1 || entry.lsp_problem_severity == 2);
 			if (!row_inverted && E.git_repo_root != NULL) {
 				switch (entry.git_status) {
 				case EDITOR_GIT_STATUS_MODIFIED:
@@ -2473,8 +2620,37 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 					!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_PLACEHOLDER)) {
 				return 0;
 			}
-			if (!editorAppendSanitizedText(wb, entry_name, remaining, &wrote)) {
-				return 0;
+			if (lsp_problem_kind_color) {
+				struct editorThemeColor problem_color = {
+					.kind = EDITOR_THEME_COLOR_ANSI,
+					.value = entry.lsp_problem_severity == 1 ?
+							EDITOR_THEME_ANSI_RED : EDITOR_THEME_ANSI_YELLOW,
+				};
+				int prefix_budget = entry.lsp_problem_kind_len;
+				if (prefix_budget > remaining) {
+					prefix_budget = remaining;
+				}
+				int prefix_wrote = 0;
+				if (!editorAppendThemeForeground(wb, problem_color) ||
+						!editorAppendSanitizedText(wb, entry_name, prefix_budget,
+								&prefix_wrote) ||
+						!editorAppendThemeBaseForeground(wb)) {
+					return 0;
+				}
+				wrote += prefix_wrote;
+				if (wrote < remaining && prefix_wrote >= entry.lsp_problem_kind_len) {
+					int rest_wrote = 0;
+					if (!editorAppendSanitizedText(wb,
+								entry_name + entry.lsp_problem_kind_len,
+								remaining - wrote, &rest_wrote)) {
+						return 0;
+					}
+					wrote += rest_wrote;
+				}
+			} else {
+				if (!editorAppendSanitizedText(wb, entry_name, remaining, &wrote)) {
+					return 0;
+				}
 			}
 			if (placeholder_color && !editorAppendThemeBaseForeground(wb)) {
 				return 0;
@@ -3092,6 +3268,142 @@ static const char *editorCursorStyleSequence(enum editorCursorStyle style, int b
 	return sequence;
 }
 
+static const struct editorLspDiagnostic *editorDiagnosticAtCursor(void) {
+	if (E.pane_focus != EDITOR_PANE_TEXT || E.cy < 0 || E.cy >= E.numrows ||
+			E.lsp_diagnostics == NULL || E.lsp_diagnostic_count <= 0) {
+		return NULL;
+	}
+	int row_size = E.rows[E.cy].size;
+	for (int i = 0; i < E.lsp_diagnostic_count; i++) {
+		int start = 0;
+		int end = 0;
+		if (!editorDiagnosticRangeForRow(&E.lsp_diagnostics[i], E.cy, row_size, &start, &end)) {
+			continue;
+		}
+		if (E.cx >= start && E.cx < end) {
+			return &E.lsp_diagnostics[i];
+		}
+	}
+	return NULL;
+}
+
+static int editorCursorScreenPosition(int *screen_row_out, int *screen_col_out) {
+	if (screen_row_out == NULL || screen_col_out == NULL || E.cy < 0 || E.cy >= E.numrows) {
+		return 0;
+	}
+	if (E.line_wrap_enabled) {
+		int body_cols = editorWrapBodyCols();
+		int cursor_segment = editorWrapCursorSegmentForRx(&E.rows[E.cy], E.rx, body_cols);
+		int cursor_distance = 0;
+		if (!editorWrappedDistanceForward(E.rowoff, E.wrapoff, E.cy, cursor_segment,
+					E.window_rows > 0 ? E.window_rows - 1 : 0, body_cols, &cursor_distance)) {
+			return 0;
+		}
+		int segment_start_col = 0;
+		int segment_indent_cols = 0;
+		editorWrapSegmentInfo(&E.rows[E.cy], cursor_segment, body_cols, &segment_start_col,
+				NULL, &segment_indent_cols);
+		int cursor_segment_col = segment_indent_cols + E.rx - segment_start_col;
+		if (cursor_segment_col < 0) {
+			cursor_segment_col = 0;
+		}
+		if (cursor_segment_col >= body_cols) {
+			cursor_segment_col = body_cols - 1;
+		}
+		*screen_row_out = cursor_distance;
+		*screen_col_out = cursor_segment_col;
+		return 1;
+	}
+
+	int screen_row = E.cy - E.rowoff;
+	int screen_col = E.rx - E.coloff;
+	if (screen_row < 0 || screen_row >= E.window_rows || screen_col < 0) {
+		return 0;
+	}
+	*screen_row_out = screen_row;
+	*screen_col_out = screen_col;
+	return 1;
+}
+
+static int editorDrawDiagnosticPopdown(struct writeBuf *wb) {
+	if (editorPopupIsVisible()) {
+		return 1;
+	}
+	const struct editorLspDiagnostic *diagnostic = editorDiagnosticAtCursor();
+	const char *message = diagnostic != NULL && diagnostic->message != NULL ?
+			diagnostic->message : NULL;
+	if (message == NULL || message[0] == '\0') {
+		return 1;
+	}
+
+	int screen_row = 0;
+	int screen_col = 0;
+	if (!editorCursorScreenPosition(&screen_row, &screen_col)) {
+		return 1;
+	}
+	int popdown_screen_row = screen_row + 1;
+	if (popdown_screen_row >= E.window_rows) {
+		popdown_screen_row = screen_row - 1;
+	}
+	if (popdown_screen_row < 0 || popdown_screen_row >= E.window_rows) {
+		return 1;
+	}
+
+	int text_start_col = editorTextBodyStartColForCols(E.window_cols);
+	int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);
+	int terminal_col_zero = text_start_col + gutter_cols + screen_col;
+	int message_cols = 0;
+	char *sanitized = editorSanitizeTextDup(message, &message_cols);
+	if (sanitized == NULL) {
+		return 0;
+	}
+	int cols = message_cols + 2;
+	if (cols > EDITOR_DIAGNOSTIC_POPDOWN_MAX_COLS) {
+		cols = EDITOR_DIAGNOSTIC_POPDOWN_MAX_COLS;
+	}
+	if (cols > E.window_cols - text_start_col) {
+		cols = E.window_cols - text_start_col;
+	}
+	if (cols < 4) {
+		free(sanitized);
+		return 1;
+	}
+	if (terminal_col_zero + cols > E.window_cols) {
+		terminal_col_zero = E.window_cols - cols;
+	}
+	if (terminal_col_zero < text_start_col) {
+		terminal_col_zero = text_start_col;
+	}
+
+	int terminal_row = popdown_screen_row + 2;
+	int terminal_col = terminal_col_zero + 1;
+	if (!editorAppendCursorMove(wb, terminal_row, terminal_col) ||
+			!editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_STATUS) ||
+			!wbAppend(wb, " ", 1)) {
+		free(sanitized);
+		return 0;
+	}
+	int wrote = 0;
+	if (!editorAppendDisplayPrefix(wb, sanitized, cols - 2, &wrote)) {
+		free(sanitized);
+		return 0;
+	}
+	free(sanitized);
+	int padding = cols - 1 - wrote;
+	while (padding > 0) {
+		if (!wbAppend(wb, " ", 1)) {
+			return 0;
+		}
+		padding--;
+	}
+	if (!editorAppendThemeReset(wb)) {
+		return 0;
+	}
+	g_popup_prev_screen_top = terminal_row;
+	g_popup_prev_row_count = 1;
+	return 1;
+}
+
 static int editorDrawPopupOverlay(struct writeBuf *wb) {
 	if (!editorPopupIsVisible()) {
 		g_popup_prev_screen_top = 0;
@@ -3194,6 +3506,11 @@ void editorRefreshScreen(void) {
 		return;
 	}
 	if (!editorDrawPopupOverlay(&wb)) {
+		wbFree(&wb);
+		editorSetStatusMsg("Out of memory");
+		return;
+	}
+	if (!editorDrawDiagnosticPopdown(&wb)) {
 		wbFree(&wb);
 		editorSetStatusMsg("Out of memory");
 		return;

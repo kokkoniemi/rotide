@@ -1507,6 +1507,8 @@ int editorDrawerGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *v
 			view_out->path = lookup.problem.path;
 			view_out->depth = 2;
 			view_out->is_last_sibling = lookup.item_idx == lookup.item_count - 1;
+			view_out->lsp_problem_severity = lookup.problem.severity;
+			view_out->lsp_problem_kind_len = (int)strlen(kind);
 			return 1;
 		}
 		case EDITOR_DRAWER_LSP_ENTRY_SYMBOL: {

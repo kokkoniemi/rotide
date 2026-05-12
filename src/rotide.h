@@ -318,6 +318,8 @@ struct editorDrawerEntryView {
 	enum editorGitStatus git_status;
 	int line;
 	int character;
+	int lsp_problem_severity;
+	int lsp_problem_kind_len;
 };
 
 struct editorProjectSearchResult {
