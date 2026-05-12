@@ -1656,7 +1656,7 @@ static int test_editor_lsp_eslint_diagnostics_update_and_status_summary(void) {
 	ASSERT_EQ_INT(2, E.lsp_diagnostic_count);
 	ASSERT_EQ_INT(1, E.lsp_diagnostic_error_count);
 	ASSERT_EQ_INT(1, E.lsp_diagnostic_warning_count);
-	ASSERT_TRUE(strstr(E.statusmsg, "ESLint: 1 error, 1 warning") != NULL);
+	ASSERT_TRUE(strstr(E.statusmsg, "LSP: 1 error, 1 warning") != NULL);
 	ASSERT_TRUE(strstr(output, "[E:1 W:1]") != NULL);
 	free(output);
 
@@ -1668,6 +1668,47 @@ static int test_editor_lsp_eslint_diagnostics_update_and_status_summary(void) {
 	free(output);
 
 	ASSERT_TRUE(unlink(js_path) == 0);
+	return 0;
+}
+
+static int test_editor_lsp_diagnostic_status_uses_publishing_server_label(void) {
+	ASSERT_TRUE(editorTabsInit());
+
+	char c_path[64];
+	ASSERT_TRUE(write_temp_c_file(c_path, sizeof(c_path), "int main( {\n"));
+	editorOpen(c_path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
+
+	char *uri = NULL;
+	ASSERT_TRUE(editorLspBuildFileUri(c_path, &uri));
+
+	char message[1024];
+	int len = snprintf(message, sizeof(message),
+			"{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/publishDiagnostics\","
+			"\"params\":{\"uri\":\"%s\",\"diagnostics\":[{\"range\":{\"start\":"
+			"{\"line\":0,\"character\":4},\"end\":{\"line\":0,\"character\":8}},"
+			"\"severity\":1,\"message\":\"syntax error\"}]}}",
+			uri);
+	ASSERT_TRUE(len > 0 && len < (int)sizeof(message));
+
+	struct editorLspClient clangd_client = {0};
+	clangd_client.server_kind = EDITOR_LSP_SERVER_CLANGD;
+	ASSERT_TRUE(editorLspProcessIncomingMessage(&clangd_client, message));
+	ASSERT_EQ_INT(1, E.lsp_diagnostic_count);
+	ASSERT_TRUE(strstr(E.statusmsg, "clangd: 1 error, 0 warnings") != NULL);
+	ASSERT_TRUE(strstr(E.statusmsg, "ESLint") == NULL);
+
+	len = snprintf(message, sizeof(message),
+			"{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/publishDiagnostics\","
+			"\"params\":{\"uri\":\"%s\",\"diagnostics\":[]}}",
+			uri);
+	ASSERT_TRUE(len > 0 && len < (int)sizeof(message));
+	ASSERT_TRUE(editorLspProcessIncomingMessage(&clangd_client, message));
+	ASSERT_EQ_INT(0, E.lsp_diagnostic_count);
+	ASSERT_TRUE(strstr(E.statusmsg, "clangd: diagnostics cleared") != NULL);
+
+	free(uri);
+	ASSERT_TRUE(unlink(c_path) == 0);
 	return 0;
 }
 
@@ -3420,6 +3461,7 @@ const struct editorTestCase g_lsp_tests[] = {
 	{"editor_lsp_language_id_routing_for_css_scss_and_json", test_editor_lsp_language_id_routing_for_css_scss_and_json},
 	{"editor_lsp_language_id_routing_for_javascript_extensions", test_editor_lsp_language_id_routing_for_javascript_extensions},
 	{"editor_lsp_eslint_diagnostics_update_and_status_summary", test_editor_lsp_eslint_diagnostics_update_and_status_summary},
+	{"editor_lsp_diagnostic_status_uses_publishing_server_label", test_editor_lsp_diagnostic_status_uses_publishing_server_label},
 	{"editor_lsp_eslint_diagnostics_persist_across_tab_switches", test_editor_lsp_eslint_diagnostics_persist_across_tab_switches},
 	{"editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem", test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem},
 	{"editor_lsp_drawer_lists_document_symbols_and_jumps_to_symbol", test_editor_lsp_drawer_lists_document_symbols_and_jumps_to_symbol},

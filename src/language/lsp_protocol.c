@@ -1710,10 +1710,36 @@ static void editorLspUpdateDiagnosticFields(struct editorLspDiagnostic **diagnos
 	*warning_count_out = editorLspDiagnosticsWarningCount(*diagnostics_in_out, *count_in_out);
 }
 
-void editorLspSetDiagnosticsForPath(const char *path,
-		const struct editorLspDiagnostic *diagnostics, int count) {
+static const char *editorLspDiagnosticSourceLabelForServerKind(
+		enum editorLspServerKind server_kind) {
+	switch (server_kind) {
+		case EDITOR_LSP_SERVER_GOPLS:
+			return "gopls";
+		case EDITOR_LSP_SERVER_CLANGD:
+			return "clangd";
+		case EDITOR_LSP_SERVER_HTML:
+			return "HTML LSP";
+		case EDITOR_LSP_SERVER_CSS:
+			return "CSS LSP";
+		case EDITOR_LSP_SERVER_JSON:
+			return "JSON LSP";
+		case EDITOR_LSP_SERVER_JAVASCRIPT:
+			return "TypeScript LSP";
+		case EDITOR_LSP_SERVER_ESLINT:
+			return "ESLint";
+		default:
+			return "LSP";
+	}
+}
+
+static void editorLspSetDiagnosticsForPathWithSource(const char *path,
+		const struct editorLspDiagnostic *diagnostics, int count,
+		const char *source_label) {
 	if (path == NULL || path[0] == '\0') {
 		return;
+	}
+	if (source_label == NULL || source_label[0] == '\0') {
+		source_label = "LSP";
 	}
 
 	int active_matches = editorLspPathMatches(path, E.filename);
@@ -1740,15 +1766,20 @@ void editorLspSetDiagnosticsForPath(const char *path,
 			 old_errors != E.lsp_diagnostic_error_count ||
 			 old_warnings != E.lsp_diagnostic_warning_count)) {
 		if (E.lsp_diagnostic_count == 0) {
-			editorSetStatusMsg("ESLint: diagnostics cleared");
+			editorSetStatusMsg("%s: diagnostics cleared", source_label);
 		} else {
-			editorSetStatusMsg("ESLint: %d error%s, %d warning%s",
+			editorSetStatusMsg("%s: %d error%s, %d warning%s", source_label,
 					E.lsp_diagnostic_error_count,
 					E.lsp_diagnostic_error_count == 1 ? "" : "s",
 					E.lsp_diagnostic_warning_count,
 					E.lsp_diagnostic_warning_count == 1 ? "" : "s");
 		}
 	}
+}
+
+void editorLspSetDiagnosticsForPath(const char *path,
+		const struct editorLspDiagnostic *diagnostics, int count) {
+	editorLspSetDiagnosticsForPathWithSource(path, diagnostics, count, "LSP");
 }
 
 void editorLspClearDiagnosticsForFile(const char *filename) {
@@ -2202,7 +2233,10 @@ int editorLspProcessIncomingMessage(struct editorLspClient *client, const char *
 	struct editorLspDiagnostic *diagnostics = NULL;
 	int diagnostic_count = 0;
 	if (editorLspParseDiagnosticsMessage(message, &path, &diagnostics, &diagnostic_count)) {
-		editorLspSetDiagnosticsForPath(path, diagnostics, diagnostic_count);
+		const char *source_label = editorLspDiagnosticSourceLabelForServerKind(
+				client != NULL ? client->server_kind : EDITOR_LSP_SERVER_NONE);
+		editorLspSetDiagnosticsForPathWithSource(path, diagnostics, diagnostic_count,
+				source_label);
 		editorLspFreeDiagnostics(diagnostics, diagnostic_count);
 		free(path);
 		return 1;
@@ -2413,5 +2447,4 @@ int editorLspCopyLocations(struct editorLspLocation **out_locations, int *out_co
 	*out_count = count;
 	return 1;
 }
-
 
