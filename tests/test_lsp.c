@@ -1725,9 +1725,12 @@ static int test_editor_lsp_diagnostics_render_error_underline_and_cursor_popdown
 	E.cy = 0;
 	E.cx = 2;
 
+	char long_message[] =
+			"Unexpected token because the parser found a closing brace\nnote:\tbefore the "
+			"statement ended and could not recover from the remaining expression";
 	struct editorLspDiagnostic diagnostics[1] = {
 		{.start_line = 0, .start_character = 0, .end_line = 0, .end_character = 5,
-				.severity = 1, .message = "Unexpected token"},
+				.severity = 1, .message = long_message},
 	};
 	editorLspSetDiagnosticsForPath(js_path, diagnostics, 1);
 
@@ -1737,6 +1740,12 @@ static int test_editor_lsp_diagnostics_render_error_underline_and_cursor_popdown
 	ASSERT_TRUE(strstr(output, "\x1b[4m\x1b[58;5;1m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[24m\x1b[59m") != NULL);
 	ASSERT_TRUE(strstr(output, "Unexpected token") != NULL);
+	ASSERT_TRUE(strstr(output, "closing brace") != NULL);
+	ASSERT_TRUE(strstr(output, "note:") != NULL);
+	ASSERT_TRUE(strstr(output, "remaining") != NULL);
+	ASSERT_TRUE(strstr(output, "expression") != NULL);
+	ASSERT_TRUE(strstr(output, "^J") == NULL);
+	ASSERT_TRUE(strstr(output, "^I") == NULL);
 	free(output);
 
 	ASSERT_TRUE(unlink(js_path) == 0);

@@ -89,7 +89,6 @@ struct writeBuf {
 	(ROTIDE_DRAWER_COLLAPSED_WIDTH + \
 			DRAWER_HEADER_MODE_BUTTON_COLS * DRAWER_HEADER_MODE_BUTTON_COUNT)
 #define EDITOR_DIAGNOSTIC_MAX_RENDER_SPANS_PER_ROW 64
-#define EDITOR_DIAGNOSTIC_POPDOWN_MAX_COLS 72
 #define TEXT_OVERFLOW_LEFT_UTF8 "\xE2\x86\x90"
 #define TEXT_OVERFLOW_RIGHT_UTF8 "\xE2\x86\x92"
 #define TEXT_WRAP_CONTINUATION_UTF8 "\xE2\x86\xB3"
@@ -551,6 +550,91 @@ static int editorDisplayTextCols(const char *text) {
 	return cols;
 }
 
+static void editorDisplayWrapNextLine(const char *text, int text_len, int start_idx,
+		int max_cols, int *end_idx_out, int *cols_out) {
+	if (end_idx_out != NULL) {
+		*end_idx_out = start_idx;
+	}
+	if (cols_out != NULL) {
+		*cols_out = 0;
+	}
+	if (text == NULL || text_len <= 0 || start_idx < 0 || start_idx >= text_len ||
+			max_cols <= 0) {
+		return;
+	}
+
+	int idx = start_idx;
+	int cols = 0;
+	int last_space_end = -1;
+	int last_space_cols = 0;
+	while (idx < text_len) {
+		unsigned int cp = 0;
+		int src_len = editorUtf8DecodeCodepoint(&text[idx], text_len - idx, &cp);
+		if (src_len <= 0) {
+			src_len = 1;
+		}
+		if (src_len > text_len - idx) {
+			src_len = text_len - idx;
+		}
+		int token_cols = editorCharDisplayWidth(&text[idx], text_len - idx);
+		if (token_cols < 0) {
+			token_cols = 0;
+		}
+		if (cols + token_cols > max_cols) {
+			if (last_space_end > start_idx) {
+				idx = last_space_end;
+				cols = last_space_cols;
+			} else if (idx == start_idx) {
+				idx += src_len;
+				cols += token_cols;
+			}
+			break;
+		}
+		cols += token_cols;
+		idx += src_len;
+		if (cp == ' ') {
+			last_space_end = idx;
+			last_space_cols = cols;
+		}
+		if (cols >= max_cols) {
+			if (idx < text_len && cp != ' ' && last_space_end > start_idx) {
+				idx = last_space_end;
+				cols = last_space_cols;
+			}
+			break;
+		}
+	}
+
+	if (idx <= start_idx && start_idx < text_len) {
+		idx = start_idx + 1;
+		cols = 1;
+	}
+	if (end_idx_out != NULL) {
+		*end_idx_out = idx;
+	}
+	if (cols_out != NULL) {
+		*cols_out = cols;
+	}
+}
+
+static int editorDisplayWrapLineCount(const char *text, int max_cols) {
+	if (text == NULL || text[0] == '\0' || max_cols <= 0) {
+		return 0;
+	}
+	int text_len = (int)strlen(text);
+	int row_count = 0;
+	for (int idx = 0; idx < text_len;) {
+		int next_idx = idx;
+		editorDisplayWrapNextLine(text, text_len, idx, max_cols, &next_idx, NULL);
+		if (next_idx <= idx) {
+			break;
+		}
+		row_count++;
+		idx = next_idx;
+	}
+	return row_count;
+}
+
 static int editorAppendDisplayPrefix(struct writeBuf *wb, const char *text, int max_cols,
 		int *written_cols_out) {
 	if (written_cols_out != NULL) {
@@ -749,6 +833,68 @@ static char *editorSanitizeTextDup(const char *text, int *cols_out) {
 	}
 	int text_len = (int)strlen(text);
 	return editorSanitizeTextRangeDup(text, text_len, cols_out);
+}
+
+static int editorDiagnosticMessageIsInlineSpace(unsigned int cp) {
+	return cp <= 0x20 || cp == 0x7F || (cp >= 0x80 && cp <= 0x9F);
+}
+
+static char *editorSanitizeDiagnosticMessageDup(const char *text, int *cols_out) {
+	if (cols_out != NULL) {
+		*cols_out = 0;
+	}
+
+	struct writeBuf out = WRITEBUF_INIT;
+	if (text == NULL || text[0] == '\0') {
+		if (!wbAppend(&out, "\0", 1)) {
+			return NULL;
+		}
+		return out.b;
+	}
+
+	int text_len = (int)strlen(text);
+	int total_cols = 0;
+	int pending_space = 0;
+	for (int idx = 0; idx < text_len;) {
+		unsigned int cp = 0;
+		int src_len = editorUtf8DecodeCodepoint(&text[idx], text_len - idx, &cp);
+		if (src_len <= 0) {
+			src_len = 1;
+		}
+		if (src_len > text_len - idx) {
+			src_len = text_len - idx;
+		}
+
+		if (editorDiagnosticMessageIsInlineSpace(cp)) {
+			pending_space = out.len > 0;
+			idx += src_len;
+			continue;
+		}
+
+		if (pending_space) {
+			if (!wbAppend(&out, " ", 1)) {
+				wbFree(&out);
+				return NULL;
+			}
+			total_cols++;
+			pending_space = 0;
+		}
+		if (!wbAppend(&out, &text[idx], (size_t)src_len)) {
+			wbFree(&out);
+			return NULL;
+		}
+		total_cols += editorCharDisplayWidth(&text[idx], text_len - idx);
+		idx += src_len;
+	}
+
+	if (!wbAppend(&out, "\0", 1)) {
+		wbFree(&out);
+		return NULL;
+	}
+	if (cols_out != NULL) {
+		*cols_out = total_cols;
+	}
+	return out.b;
 }
 
 // Sanitize untrusted UI text (filename/status/message) using the same control
@@ -3341,33 +3487,50 @@ static int editorDrawDiagnosticPopdown(struct writeBuf *wb) {
 	if (!editorCursorScreenPosition(&screen_row, &screen_col)) {
 		return 1;
 	}
-	int popdown_screen_row = screen_row + 1;
-	if (popdown_screen_row >= E.window_rows) {
-		popdown_screen_row = screen_row - 1;
-	}
-	if (popdown_screen_row < 0 || popdown_screen_row >= E.window_rows) {
-		return 1;
-	}
 
 	int text_start_col = editorTextBodyStartColForCols(E.window_cols);
 	int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);
 	int terminal_col_zero = text_start_col + gutter_cols + screen_col;
 	int message_cols = 0;
-	char *sanitized = editorSanitizeTextDup(message, &message_cols);
+	char *sanitized = editorSanitizeDiagnosticMessageDup(message, &message_cols);
 	if (sanitized == NULL) {
 		return 0;
 	}
+	int available_cols = E.window_cols - text_start_col;
 	int cols = message_cols + 2;
-	if (cols > EDITOR_DIAGNOSTIC_POPDOWN_MAX_COLS) {
-		cols = EDITOR_DIAGNOSTIC_POPDOWN_MAX_COLS;
-	}
-	if (cols > E.window_cols - text_start_col) {
-		cols = E.window_cols - text_start_col;
+	if (cols > available_cols) {
+		cols = available_cols;
 	}
 	if (cols < 4) {
 		free(sanitized);
 		return 1;
 	}
+	int content_cols = cols - 2;
+	int row_count = editorDisplayWrapLineCount(sanitized, content_cols);
+	if (row_count <= 0) {
+		free(sanitized);
+		return 1;
+	}
+
+	int rows_below = E.window_rows - (screen_row + 1);
+	int rows_above = screen_row;
+	int popdown_screen_row = -1;
+	int visible_rows = row_count;
+	if (row_count <= rows_below) {
+		popdown_screen_row = screen_row + 1;
+	} else if (row_count <= rows_above) {
+		popdown_screen_row = screen_row - row_count;
+	} else if (rows_below >= rows_above && rows_below > 0) {
+		popdown_screen_row = screen_row + 1;
+		visible_rows = rows_below;
+	} else if (rows_above > 0) {
+		popdown_screen_row = screen_row - rows_above;
+		visible_rows = rows_above;
+	} else {
+		free(sanitized);
+		return 1;
+	}
+
 	if (terminal_col_zero + cols > E.window_cols) {
 		terminal_col_zero = E.window_cols - cols;
 	}
@@ -3375,32 +3538,44 @@ static int editorDrawDiagnosticPopdown(struct writeBuf *wb) {
 		terminal_col_zero = text_start_col;
 	}
 
-	int terminal_row = popdown_screen_row + 2;
 	int terminal_col = terminal_col_zero + 1;
-	if (!editorAppendCursorMove(wb, terminal_row, terminal_col) ||
-			!editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_STATUS) ||
-			!wbAppend(wb, " ", 1)) {
-		free(sanitized);
-		return 0;
-	}
-	int wrote = 0;
-	if (!editorAppendDisplayPrefix(wb, sanitized, cols - 2, &wrote)) {
-		free(sanitized);
-		return 0;
-	}
-	free(sanitized);
-	int padding = cols - 1 - wrote;
-	while (padding > 0) {
-		if (!wbAppend(wb, " ", 1)) {
+	int text_len = (int)strlen(sanitized);
+	int start_idx = 0;
+	int rows_drawn = 0;
+	for (; rows_drawn < visible_rows && start_idx < text_len; rows_drawn++) {
+		int terminal_row = popdown_screen_row + rows_drawn + 2;
+		int end_idx = start_idx;
+		int wrote = 0;
+		editorDisplayWrapNextLine(sanitized, text_len, start_idx, content_cols, &end_idx,
+				&wrote);
+		if (end_idx <= start_idx) {
+			break;
+		}
+		if (!editorAppendCursorMove(wb, terminal_row, terminal_col) ||
+				!editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_STATUS) ||
+				!wbAppend(wb, " ", 1) ||
+				!wbAppend(wb, &sanitized[start_idx], (size_t)(end_idx - start_idx))) {
+			free(sanitized);
 			return 0;
 		}
-		padding--;
+		int padding = cols - 1 - wrote;
+		while (padding > 0) {
+			if (!wbAppend(wb, " ", 1)) {
+				free(sanitized);
+				return 0;
+			}
+			padding--;
+		}
+		if (!editorAppendThemeReset(wb)) {
+			free(sanitized);
+			return 0;
+		}
+		start_idx = end_idx;
 	}
-	if (!editorAppendThemeReset(wb)) {
-		return 0;
-	}
-	g_popup_prev_screen_top = terminal_row;
-	g_popup_prev_row_count = 1;
+
+	free(sanitized);
+	g_popup_prev_screen_top = popdown_screen_row + 2;
+	g_popup_prev_row_count = rows_drawn;
 	return 1;
 }
 
