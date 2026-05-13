@@ -1735,3 +1735,28 @@ int editorTabHitTestColumn(int col, int cols) {
 	}
 	return -1;
 }
+
+int editorTabOverflowHitTestColumn(int col, int cols) {
+	if (col < 0 || col >= cols || E.tab_count <= 0 || cols <= 0) {
+		return -1;
+	}
+
+	struct editorTabLayoutEntry layout[ROTIDE_MAX_TABS];
+	int layout_count = 0;
+	if (!editorTabBuildLayoutForWidth(cols, layout, ROTIDE_MAX_TABS, &layout_count)) {
+		return -1;
+	}
+	for (int i = 0; i < layout_count; i++) {
+		int start_col = layout[i].start_col;
+		int end_col = start_col + layout[i].width_cols;
+		if (layout[i].show_right_overflow && col == end_col - 1) {
+			int target = layout[i].tab_idx + 1;
+			return target < E.tab_count ? target : -1;
+		}
+		if (layout[i].show_left_overflow && col == start_col) {
+			int target = layout[i].tab_idx - 1;
+			return target >= 0 ? target : -1;
+		}
+	}
+	return -1;
+}

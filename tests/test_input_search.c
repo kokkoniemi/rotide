@@ -1752,7 +1752,7 @@ static int test_editor_process_keypress_mouse_top_row_double_click_pins_preview_
 	int preview_tab_col = -1;
 	for (int i = 0; i < layout_count; i++) {
 		if (layout[i].tab_idx == 1) {
-			preview_tab_col = layout[i].start_col + 1;
+			preview_tab_col = layout[i].start_col + 3;
 			break;
 		}
 	}
@@ -1760,7 +1760,7 @@ static int test_editor_process_keypress_mouse_top_row_double_click_pins_preview_
 
 	char tab_click[32];
 	ASSERT_TRUE(format_sgr_mouse_event(tab_click, sizeof(tab_click), 0,
-				text_start + preview_tab_col, 1, 'M'));
+				text_start + preview_tab_col + 1, 1, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(tab_click, strlen(tab_click)) == 0);
 	ASSERT_EQ_INT(1, editorTabActiveIndex());
 	ASSERT_TRUE(editorActiveTabIsPreview());
@@ -1841,6 +1841,74 @@ static int test_editor_process_keypress_mouse_top_row_click_uses_variable_tab_la
 	ASSERT_TRUE(editor_process_keypress_with_input(click_second_tab, strlen(click_second_tab)) == 0);
 	ASSERT_EQ_INT(1, editorTabActiveIndex());
 	ASSERT_EQ_STR("one", E.rows[0].chars);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_tab_bar_carets_switch_hidden_tabs(void) {
+	ASSERT_TRUE(editorTabsInit());
+	free(E.filename);
+	E.filename = strdup("/tmp/first_tab_with_a_long_name_001.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	add_row("zero");
+
+	ASSERT_TRUE(editorTabNewEmpty());
+	free(E.filename);
+	E.filename = strdup("/tmp/second_tab_with_a_long_name_002.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	add_row("one");
+
+	ASSERT_TRUE(editorTabNewEmpty());
+	free(E.filename);
+	E.filename = strdup("/tmp/third_tab_with_a_long_name_003.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	add_row("two");
+
+	ASSERT_TRUE(editorTabNewEmpty());
+	free(E.filename);
+	E.filename = strdup("/tmp/fourth_tab_with_a_long_name_004.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	add_row("three");
+
+	E.window_cols = 44;
+	ASSERT_TRUE(editorDrawerSetCollapsed(1));
+
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+	int tab_start = editorDrawerCollapsedToggleWidthForCols(E.window_cols);
+	int tab_cols = E.window_cols - tab_start;
+	ASSERT_TRUE(tab_cols > 0);
+	struct editorTabLayoutEntry layout[ROTIDE_MAX_TABS];
+	int layout_count = 0;
+	ASSERT_TRUE(editorTabBuildLayoutForWidth(tab_cols, layout, ROTIDE_MAX_TABS, &layout_count));
+	ASSERT_TRUE(layout_count > 0);
+	ASSERT_TRUE(layout[layout_count - 1].show_right_overflow);
+	int right_caret_col = layout[layout_count - 1].start_col +
+			layout[layout_count - 1].width_cols - 1;
+	int right_target = layout[layout_count - 1].tab_idx + 1;
+	ASSERT_TRUE(right_target < editorTabCount());
+
+	char click_right_caret[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click_right_caret, sizeof(click_right_caret), 0,
+				tab_start + right_caret_col + 1, 1, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_right_caret,
+				strlen(click_right_caret)) == 0);
+	ASSERT_EQ_INT(right_target, editorTabActiveIndex());
+	ASSERT_EQ_STR("one", E.rows[0].chars);
+
+	ASSERT_TRUE(editorTabSwitchToIndex(editorTabCount() - 1));
+	ASSERT_TRUE(editorTabBuildLayoutForWidth(tab_cols, layout, ROTIDE_MAX_TABS, &layout_count));
+	ASSERT_TRUE(layout_count > 0);
+	ASSERT_TRUE(layout[0].show_left_overflow);
+	int left_caret_col = layout[0].start_col;
+	int left_target = layout[0].tab_idx - 1;
+	ASSERT_TRUE(left_target >= 0);
+
+	char click_left_caret[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click_left_caret, sizeof(click_left_caret), 0,
+				tab_start + left_caret_col + 1, 1, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_left_caret,
+				strlen(click_left_caret)) == 0);
+	ASSERT_EQ_INT(left_target, editorTabActiveIndex());
+	ASSERT_EQ_STR("two", E.rows[0].chars);
 	return 0;
 }
 
@@ -3874,6 +3942,7 @@ const struct editorTestCase g_input_search_tests[] = {
 	{"editor_process_keypress_mouse_top_row_double_click_pins_preview_tab", test_editor_process_keypress_mouse_top_row_double_click_pins_preview_tab},
 	{"editor_process_keypress_mouse_top_row_click_switches_tab", test_editor_process_keypress_mouse_top_row_click_switches_tab},
 	{"editor_process_keypress_mouse_top_row_click_uses_variable_tab_layout", test_editor_process_keypress_mouse_top_row_click_uses_variable_tab_layout},
+	{"editor_process_keypress_mouse_tab_bar_carets_switch_hidden_tabs", test_editor_process_keypress_mouse_tab_bar_carets_switch_hidden_tabs},
 	{"editor_process_keypress_mouse_drag_on_splitter_resizes_drawer", test_editor_process_keypress_mouse_drag_on_splitter_resizes_drawer},
 	{"editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps", test_editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps},
 	{"editor_process_keypress_mouse_wheel_scrolls_wrapped_segments", test_editor_process_keypress_mouse_wheel_scrolls_wrapped_segments},

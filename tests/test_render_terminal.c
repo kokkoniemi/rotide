@@ -2440,12 +2440,12 @@ static int test_editor_refresh_screen_file_search_header_shows_cursor(void) {
 	add_row("body");
 
 	char expected_cursor[32];
-	ASSERT_TRUE(snprintf(expected_cursor, sizeof(expected_cursor), "\x1b[2;8H") > 0);
+	ASSERT_TRUE(snprintf(expected_cursor, sizeof(expected_cursor), "\x1b[2;13H") > 0);
 
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "Find: b") != NULL);
+	ASSERT_TRUE(strstr(output, "File name: b") != NULL);
 	ASSERT_TRUE(strstr(output, expected_cursor) != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[?25h") != NULL);
 	free(output);
@@ -2472,12 +2472,12 @@ static int test_editor_refresh_screen_project_search_header_shows_cursor(void) {
 	add_row("body");
 
 	char expected_cursor[32];
-	ASSERT_TRUE(snprintf(expected_cursor, sizeof(expected_cursor), "\x1b[2;8H") > 0);
+	ASSERT_TRUE(snprintf(expected_cursor, sizeof(expected_cursor), "\x1b[2;9H") > 0);
 
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "Text: n") != NULL);
+	ASSERT_TRUE(strstr(output, "Query: n") != NULL);
 	ASSERT_TRUE(strstr(output, expected_cursor) != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[?25h") != NULL);
 	free(output);

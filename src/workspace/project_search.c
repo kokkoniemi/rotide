@@ -89,6 +89,10 @@ const char *editorProjectSearchQuery(void) {
 	return E.drawer_project_search_query != NULL ? E.drawer_project_search_query : "";
 }
 
+const char *editorProjectSearchHeaderLabel(void) {
+	return "Query: ";
+}
+
 static int editorProjectSearchEnsureResultCapacity(int needed) {
 	if (needed <= E.drawer_project_search_result_capacity) {
 		return 1;
@@ -758,7 +762,8 @@ static int editorProjectSearchQueryDisplayCols(void) {
 }
 
 int editorProjectSearchHeaderCursorCol(int drawer_cols) {
-	int col = 6 + editorProjectSearchQueryDisplayCols() + 1;
+	int col = (int)strlen(editorProjectSearchHeaderLabel()) +
+			editorProjectSearchQueryDisplayCols() + 1;
 	if (col < 1) {
 		col = 1;
 	}

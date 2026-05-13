@@ -19,6 +19,7 @@ int editorFileSearchOpenSelectedFileInTab(void);
 int editorFileSearchOpenSelectedFileInPreviewTab(void);
 int editorFileSearchPreviewSelection(void);
 int editorFileSearchHeaderCursorCol(int drawer_cols);
+const char *editorFileSearchHeaderLabel(void);
 const char *editorFileSearchQuery(void);
 
 #endif

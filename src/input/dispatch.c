@@ -3180,7 +3180,15 @@ static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 			tab_cols = 0;
 		}
 		int tab_col = mouse_col - tab_start_col;
-		int tab_idx = editorTabHitTestColumn(tab_col, tab_cols);
+		int tab_idx = editorTabOverflowHitTestColumn(tab_col, tab_cols);
+		if (tab_idx >= 0) {
+			(void)editorTabSwitchToIndex(tab_idx);
+			editorResetTabClickTracking();
+			E.mouse_left_button_down = 0;
+			E.mouse_drag_started = 0;
+			return EDITOR_KEYPRESS_EFFECT_NONE;
+		}
+		tab_idx = editorTabHitTestColumn(tab_col, tab_cols);
 		if (tab_idx >= 0) {
 			int is_double_click = E.tab_last_click_idx == tab_idx &&
 					E.tab_last_click_ms > 0 && now_ms > 0 &&

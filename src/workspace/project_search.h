@@ -20,6 +20,7 @@ int editorProjectSearchOpenSelectedFileInTab(void);
 int editorProjectSearchOpenSelectedFileInPreviewTab(void);
 int editorProjectSearchPreviewSelection(void);
 int editorProjectSearchHeaderCursorCol(int drawer_cols);
+const char *editorProjectSearchHeaderLabel(void);
 const char *editorProjectSearchQuery(void);
 
 #endif

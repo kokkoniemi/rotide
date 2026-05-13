@@ -2654,7 +2654,8 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 		if (entry.is_search_header) {
 			if (written_cols < drawer_cols) {
 				int wrote = 0;
-				const char *label = editorProjectSearchIsActive() ? "Text: " : "Find: ";
+				const char *label = editorProjectSearchIsActive() ?
+						editorProjectSearchHeaderLabel() : editorFileSearchHeaderLabel();
 				if (!editorAppendSanitizedText(wb, label, drawer_cols - written_cols, &wrote)) {
 					return 0;
 				}

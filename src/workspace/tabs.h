@@ -28,6 +28,7 @@ int editorTabDirtyAt(int idx);
 int editorTabBuildLayoutForWidth(int cols, struct editorTabLayoutEntry *entries, int max_entries,
 		int *count_out);
 int editorTabHitTestColumn(int col, int cols);
+int editorTabOverflowHitTestColumn(int col, int cols);
 int editorActiveTabIsTaskLog(void);
 int editorActiveTabIsUnsupportedFile(void);
 int editorActiveTabIsReadOnly(void);

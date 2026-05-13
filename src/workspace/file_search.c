@@ -67,6 +67,10 @@ const char *editorFileSearchQuery(void) {
 	return E.drawer_search_query != NULL ? E.drawer_search_query : "";
 }
 
+const char *editorFileSearchHeaderLabel(void) {
+	return "File name: ";
+}
+
 static int editorFileSearchEnsurePathCapacity(int needed) {
 	if (needed <= E.drawer_search_path_capacity) {
 		return 1;
@@ -549,7 +553,7 @@ int editorFileSearchPreviewSelection(void) {
 }
 
 int editorFileSearchHeaderCursorCol(int drawer_cols) {
-	int col = 6 + editorFileSearchQueryDisplayCols() + 1;
+	int col = (int)strlen(editorFileSearchHeaderLabel()) + editorFileSearchQueryDisplayCols() + 1;
 	if (col < 1) {
 		col = 1;
 	}
