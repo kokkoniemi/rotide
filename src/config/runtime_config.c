@@ -15,6 +15,7 @@ struct editorConfiguredSettingsStatus {
 	enum editorLineWrapLoadStatus line_wrap_status;
 	enum editorLineNumbersLoadStatus line_numbers_status;
 	enum editorCurrentLineHighlightLoadStatus current_line_highlight_status;
+	enum editorNerdFontsLoadStatus nerd_fonts_status;
 	enum editorIndentConfigLoadStatus indent_config_status;
 	enum editorColumnSelectDragModifierLoadStatus column_select_drag_modifier_status;
 	enum editorThemeLoadStatus theme_status;
@@ -30,6 +31,7 @@ static void editorConfigLoadConfiguredSettings(
 	status->line_numbers_status = editorLineNumbersLoadConfigured(&E.line_numbers_enabled);
 	status->current_line_highlight_status = editorCurrentLineHighlightLoadConfigured(
 			&E.current_line_highlight_enabled);
+	status->nerd_fonts_status = editorNerdFontsLoadConfigured(&E.nerd_fonts_enabled);
 	status->indent_config_status = editorIndentConfigLoadConfigured(&E.auto_indent_enabled,
 			&E.indent_use_tabs, &E.indent_width);
 	status->column_select_drag_modifier_status =
@@ -70,6 +72,7 @@ static int editorConfigSetConfiguredSettingsStatus(
 			(status->line_numbers_status & EDITOR_LINE_NUMBERS_LOAD_OUT_OF_MEMORY) != 0 ||
 			(status->current_line_highlight_status &
 					EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_OUT_OF_MEMORY) != 0 ||
+			(status->nerd_fonts_status & EDITOR_NERD_FONTS_LOAD_OUT_OF_MEMORY) != 0 ||
 			(status->indent_config_status & EDITOR_INDENT_CONFIG_LOAD_OUT_OF_MEMORY) != 0 ||
 			(status->column_select_drag_modifier_status &
 					EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_OUT_OF_MEMORY) != 0 ||
@@ -160,6 +163,19 @@ static int editorConfigSetConfiguredSettingsStatus(
 					EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_INVALID_GLOBAL) != 0) {
 		editorSetStatusMsg(
 				"Invalid current_line_highlight in ~/.rotide/config.toml, using true");
+		return 1;
+	}
+	if ((status->nerd_fonts_status & EDITOR_NERD_FONTS_LOAD_INVALID_GLOBAL) != 0 &&
+			(status->nerd_fonts_status & EDITOR_NERD_FONTS_LOAD_INVALID_PROJECT) != 0) {
+		editorSetStatusMsg("Invalid nerd_fonts in global/project config, using false");
+		return 1;
+	}
+	if ((status->nerd_fonts_status & EDITOR_NERD_FONTS_LOAD_INVALID_PROJECT) != 0) {
+		editorSetStatusMsg("Invalid nerd_fonts in ./.rotide.toml, using false");
+		return 1;
+	}
+	if ((status->nerd_fonts_status & EDITOR_NERD_FONTS_LOAD_INVALID_GLOBAL) != 0) {
+		editorSetStatusMsg("Invalid nerd_fonts in ~/.rotide/config.toml, using false");
 		return 1;
 	}
 	if ((status->indent_config_status & EDITOR_INDENT_CONFIG_LOAD_INVALID_GLOBAL) != 0 &&

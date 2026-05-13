@@ -11,6 +11,7 @@
 # line_wrap: soft-wrap long file rows. true|false (default false).
 # line_numbers: absolute line-number gutter. true|false (default true).
 # current_line_highlight: subtle active-row background. true|false (default true).
+# nerd_fonts: use Nerd Font drawer/header/menu/file-type icons. true|false (default false).
 # auto_indent: copy leading indentation on newline and multiline paste.
 #   true|false (default false).
 # indent_style: "spaces" | "tabs" (default "spaces").
@@ -21,6 +22,7 @@ cursor_blink = true
 line_wrap = false
 line_numbers = true
 current_line_highlight = true
+nerd_fonts = false
 auto_indent = false
 indent_style = "spaces"
 indent_width = 4

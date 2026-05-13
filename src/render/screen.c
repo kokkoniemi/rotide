@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <unistd.h>
 
 /*** Write buffer ***/
@@ -83,6 +84,37 @@ struct writeBuf {
 #define DRAWER_HEADER_LSP_SYMBOL_UTF8 "L"
 #define DRAWER_HEADER_GIT_SYMBOL_UTF8 "\xE2\x91\x82"
 #define DRAWER_HEADER_MAIN_MENU_SYMBOL_UTF8 "\xE2\x89\xA1"
+#define DRAWER_NERD_FOLDER_UTF8 "\xEF\x81\xBB"
+#define DRAWER_NERD_FOLDER_OPEN_UTF8 "\xEF\x81\xBC"
+#define DRAWER_NERD_FILE_UTF8 "\xEF\x85\x9B"
+#define DRAWER_NERD_FILE_TEXT_UTF8 "\xEF\x85\x9C"
+#define DRAWER_NERD_FILE_CODE_UTF8 "\xEF\x87\x89"
+#define DRAWER_NERD_FILE_IMAGE_UTF8 "\xEF\x87\x85"
+#define DRAWER_NERD_FILE_ARCHIVE_UTF8 "\xEF\x87\x86"
+#define DRAWER_NERD_FILE_PDF_UTF8 "\xEF\x87\x81"
+#define DRAWER_NERD_FILE_AUDIO_UTF8 "\xEF\x87\x87"
+#define DRAWER_NERD_FILE_VIDEO_UTF8 "\xEF\x87\x88"
+#define DRAWER_NERD_GEAR_UTF8 "\xEF\x80\x93"
+#define DRAWER_NERD_SEARCH_UTF8 "\xEF\x80\x82"
+#define DRAWER_NERD_TREE_UTF8 "\xEF\x83\xA8"
+#define DRAWER_NERD_CODE_UTF8 "\xEF\x84\xA1"
+#define DRAWER_NERD_TERMINAL_UTF8 "\xEF\x84\xA0"
+#define DRAWER_NERD_BRANCH_UTF8 "\xEF\x84\xA6"
+#define DRAWER_NERD_BARS_UTF8 "\xEF\x83\x89"
+#define DRAWER_NERD_SAVE_UTF8 "\xEF\x83\x87"
+#define DRAWER_NERD_PLUS_UTF8 "\xEF\x81\xA7"
+#define DRAWER_NERD_CLOSE_UTF8 "\xEF\x80\x8D"
+#define DRAWER_NERD_EDIT_UTF8 "\xEF\x81\x84"
+#define DRAWER_NERD_TRASH_UTF8 "\xEF\x87\xB8"
+#define DRAWER_NERD_COPY_UTF8 "\xEF\x83\x85"
+#define DRAWER_NERD_CUT_UTF8 "\xEF\x83\x84"
+#define DRAWER_NERD_PASTE_UTF8 "\xEF\x83\xAA"
+#define DRAWER_NERD_UNDO_UTF8 "\xEF\x83\xA2"
+#define DRAWER_NERD_REDO_UTF8 "\xEF\x80\x9E"
+#define DRAWER_NERD_ARROW_RIGHT_UTF8 "\xEF\x81\xA1"
+#define DRAWER_NERD_ARROW_LEFT_UTF8 "\xEF\x81\xA0"
+#define DRAWER_NERD_EYE_UTF8 "\xEF\x81\xAE"
+#define DRAWER_NERD_LINE_CHART_UTF8 "\xEF\x88\x81"
 #define DRAWER_HEADER_MODE_BUTTON_COLS 3
 #define DRAWER_HEADER_MODE_BUTTON_COUNT 6
 #define DRAWER_HEADER_MODE_BUTTONS_MIN_COLS \
@@ -2377,6 +2409,44 @@ static enum editorDrawerMode editorActiveDrawerHeaderMode(void) {
 	return E.drawer_mode;
 }
 
+static const char *editorDrawerHeaderSymbol(enum editorDrawerMode mode) {
+	if (!E.nerd_fonts_enabled) {
+		switch (mode) {
+		case EDITOR_DRAWER_MODE_TREE:
+			return DRAWER_HEADER_EXPLORER_SYMBOL_UTF8;
+		case EDITOR_DRAWER_MODE_FILE_SEARCH:
+			return DRAWER_HEADER_FILE_SEARCH_SYMBOL_UTF8;
+		case EDITOR_DRAWER_MODE_PROJECT_SEARCH:
+			return DRAWER_HEADER_PROJECT_SEARCH_SYMBOL_UTF8;
+		case EDITOR_DRAWER_MODE_LSP:
+			return DRAWER_HEADER_LSP_SYMBOL_UTF8;
+		case EDITOR_DRAWER_MODE_GIT:
+			return DRAWER_HEADER_GIT_SYMBOL_UTF8;
+		case EDITOR_DRAWER_MODE_MAIN_MENU:
+			return DRAWER_HEADER_MAIN_MENU_SYMBOL_UTF8;
+		default:
+			return "";
+		}
+	}
+
+	switch (mode) {
+	case EDITOR_DRAWER_MODE_TREE:
+		return DRAWER_NERD_FOLDER_UTF8;
+	case EDITOR_DRAWER_MODE_FILE_SEARCH:
+		return DRAWER_NERD_FILE_TEXT_UTF8;
+	case EDITOR_DRAWER_MODE_PROJECT_SEARCH:
+		return DRAWER_NERD_SEARCH_UTF8;
+	case EDITOR_DRAWER_MODE_LSP:
+		return DRAWER_NERD_TERMINAL_UTF8;
+	case EDITOR_DRAWER_MODE_GIT:
+		return DRAWER_NERD_BRANCH_UTF8;
+	case EDITOR_DRAWER_MODE_MAIN_MENU:
+		return DRAWER_NERD_BARS_UTF8;
+	default:
+		return "";
+	}
+}
+
 static int editorDrawDrawerHeaderModeButton(struct writeBuf *wb, const char *label,
 		enum editorDrawerMode mode, enum editorDrawerMode active_mode, int *written_cols,
 		int drawer_cols) {
@@ -2392,20 +2462,26 @@ static int editorDrawExpandedDrawerHeaderRow(struct writeBuf *wb, int drawer_col
 
 	if (drawer_cols >= DRAWER_HEADER_MODE_BUTTONS_MIN_COLS) {
 		enum editorDrawerMode active_mode = editorActiveDrawerHeaderMode();
-		if (!editorDrawDrawerHeaderModeButton(wb, DRAWER_HEADER_EXPLORER_SYMBOL_UTF8,
+		if (!editorDrawDrawerHeaderModeButton(wb,
+					editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_TREE),
 					EDITOR_DRAWER_MODE_TREE, active_mode, &written_cols, drawer_cols) ||
-				!editorDrawDrawerHeaderModeButton(wb, DRAWER_HEADER_FILE_SEARCH_SYMBOL_UTF8,
+				!editorDrawDrawerHeaderModeButton(wb,
+					editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_FILE_SEARCH),
 					EDITOR_DRAWER_MODE_FILE_SEARCH, active_mode, &written_cols,
 					drawer_cols) ||
-				!editorDrawDrawerHeaderModeButton(wb, DRAWER_HEADER_PROJECT_SEARCH_SYMBOL_UTF8,
+				!editorDrawDrawerHeaderModeButton(wb,
+					editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_PROJECT_SEARCH),
 					EDITOR_DRAWER_MODE_PROJECT_SEARCH, active_mode, &written_cols,
 					drawer_cols) ||
-				!editorDrawDrawerHeaderModeButton(wb, DRAWER_HEADER_LSP_SYMBOL_UTF8,
+				!editorDrawDrawerHeaderModeButton(wb,
+					editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_LSP),
 					EDITOR_DRAWER_MODE_LSP, active_mode, &written_cols, drawer_cols) ||
-				!editorDrawDrawerHeaderModeButton(wb, DRAWER_HEADER_GIT_SYMBOL_UTF8,
+				!editorDrawDrawerHeaderModeButton(wb,
+					editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_GIT),
 					EDITOR_DRAWER_MODE_GIT, active_mode, &written_cols,
 					drawer_cols) ||
-				!editorDrawDrawerHeaderModeButton(wb, DRAWER_HEADER_MAIN_MENU_SYMBOL_UTF8,
+				!editorDrawDrawerHeaderModeButton(wb,
+					editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_MAIN_MENU),
 					EDITOR_DRAWER_MODE_MAIN_MENU, active_mode, &written_cols,
 					drawer_cols)) {
 			return 0;
@@ -2419,6 +2495,242 @@ static int editorDrawExpandedDrawerHeaderRow(struct writeBuf *wb, int drawer_col
 		written_cols++;
 	}
 
+	return 1;
+}
+
+static int editorDrawerHasSuffixCaseInsensitive(const char *text, const char *suffix) {
+	if (text == NULL || suffix == NULL) {
+		return 0;
+	}
+	size_t text_len = strlen(text);
+	size_t suffix_len = strlen(suffix);
+	if (suffix_len > text_len) {
+		return 0;
+	}
+	return strcasecmp(text + text_len - suffix_len, suffix) == 0;
+}
+
+static const char *editorDrawerNameForFileIcon(const struct editorDrawerEntryView *entry,
+		const char *entry_name) {
+	if (entry != NULL && entry->path != NULL && entry->path[0] != '\0') {
+		return entry->path;
+	}
+	if (entry_name == NULL) {
+		return "";
+	}
+	if (entry_name[0] != '\0' && entry_name[1] == ' ') {
+		return entry_name + 2;
+	}
+	return entry_name;
+}
+
+static const char *editorDrawerNerdIconForMenuLabel(const char *label) {
+	if (label == NULL) {
+		return NULL;
+	}
+	if (strcmp(label, "Main Menu") == 0 || strcmp(label, "Find") == 0 ||
+			strcmp(label, "File") == 0 || strcmp(label, "Tabs") == 0 ||
+			strcmp(label, "Edit") == 0 || strcmp(label, "View") == 0) {
+		return NULL;
+	}
+	if (strcmp(label, "Find File") == 0 || strcmp(label, "Find in Buffer") == 0) {
+		return DRAWER_NERD_SEARCH_UTF8;
+	}
+	if (strcmp(label, "Next Tab") == 0) {
+		return DRAWER_NERD_ARROW_RIGHT_UTF8;
+	}
+	if (strcmp(label, "Previous Tab") == 0) {
+		return DRAWER_NERD_ARROW_LEFT_UTF8;
+	}
+	if (strcmp(label, "Rename...") == 0 || strcmp(label, "Find & replace") == 0 ||
+			strcmp(label, "Toggle Comment") == 0) {
+		return DRAWER_NERD_EDIT_UTF8;
+	}
+	if (strncmp(label, "Toggle ", 7) == 0) {
+		return DRAWER_NERD_EYE_UTF8;
+	}
+	if (strcmp(label, "Save") == 0) {
+		return DRAWER_NERD_SAVE_UTF8;
+	}
+	if (strcmp(label, "New Tab") == 0 || strcmp(label, "New File...") == 0 ||
+			strcmp(label, "New Folder...") == 0) {
+		return DRAWER_NERD_PLUS_UTF8;
+	}
+	if (strcmp(label, "Close Tab") == 0 || strcmp(label, "Quit") == 0) {
+		return DRAWER_NERD_CLOSE_UTF8;
+	}
+	if (strcmp(label, "Delete...") == 0 || strcmp(label, "Delete Selection") == 0) {
+		return DRAWER_NERD_TRASH_UTF8;
+	}
+	if (strcmp(label, "Settings") == 0) {
+		return DRAWER_NERD_GEAR_UTF8;
+	}
+	if (strcmp(label, "Project Files") == 0 || strcmp(label, "Collapse Drawer") == 0) {
+		return DRAWER_NERD_FOLDER_UTF8;
+	}
+	if (strcmp(label, "Search Project Text") == 0) {
+		return DRAWER_NERD_TREE_UTF8;
+	}
+	if (strncmp(label, "Go to ", 6) == 0) {
+		return DRAWER_NERD_ARROW_RIGHT_UTF8;
+	}
+	if (strcmp(label, "Git Changes") == 0) {
+		return DRAWER_NERD_BRANCH_UTF8;
+	}
+	if (strcmp(label, "LSP") == 0) {
+		return DRAWER_NERD_TERMINAL_UTF8;
+	}
+	if (strcmp(label, "Undo") == 0) {
+		return DRAWER_NERD_UNDO_UTF8;
+	}
+	if (strcmp(label, "Redo") == 0) {
+		return DRAWER_NERD_REDO_UTF8;
+	}
+	if (strcmp(label, "Copy Selection") == 0) {
+		return DRAWER_NERD_COPY_UTF8;
+	}
+	if (strcmp(label, "Cut Selection") == 0) {
+		return DRAWER_NERD_CUT_UTF8;
+	}
+	if (strcmp(label, "Paste") == 0) {
+		return DRAWER_NERD_PASTE_UTF8;
+	}
+	if (strcmp(label, "Toggle Selection") == 0) {
+		return DRAWER_NERD_LINE_CHART_UTF8;
+	}
+	return DRAWER_NERD_FILE_TEXT_UTF8;
+}
+
+static const char *editorDrawerNerdIconForFileName(const char *name) {
+	if (name == NULL || name[0] == '\0') {
+		return DRAWER_NERD_FILE_UTF8;
+	}
+	const char *slash = strrchr(name, '/');
+	const char *base = slash != NULL ? slash + 1 : name;
+	if (strcmp(base, "Makefile") == 0 || strcmp(base, "makefile") == 0 ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".c") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".h") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".cc") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".cpp") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".cxx") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".hpp") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".go") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".rs") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".js") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".jsx") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".ts") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".tsx") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".py") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".php") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".java") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".rb") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".cs") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".hs") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".ml") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".jl") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".scala") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".sh") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".bash") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".zsh")) {
+		return DRAWER_NERD_FILE_CODE_UTF8;
+	}
+	if (editorDrawerHasSuffixCaseInsensitive(base, ".toml") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".json") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".yaml") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".yml") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".xml") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".ini") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".conf") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".cfg") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".env")) {
+		return DRAWER_NERD_GEAR_UTF8;
+	}
+	if (editorDrawerHasSuffixCaseInsensitive(base, ".md") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".markdown") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".txt") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".log")) {
+		return DRAWER_NERD_FILE_TEXT_UTF8;
+	}
+	if (editorDrawerHasSuffixCaseInsensitive(base, ".png") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".jpg") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".jpeg") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".gif") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".svg") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".webp")) {
+		return DRAWER_NERD_FILE_IMAGE_UTF8;
+	}
+	if (editorDrawerHasSuffixCaseInsensitive(base, ".zip") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".tar") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".gz") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".bz2") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".xz")) {
+		return DRAWER_NERD_FILE_ARCHIVE_UTF8;
+	}
+	if (editorDrawerHasSuffixCaseInsensitive(base, ".pdf")) {
+		return DRAWER_NERD_FILE_PDF_UTF8;
+	}
+	if (editorDrawerHasSuffixCaseInsensitive(base, ".mp3") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".wav") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".flac")) {
+		return DRAWER_NERD_FILE_AUDIO_UTF8;
+	}
+	if (editorDrawerHasSuffixCaseInsensitive(base, ".mp4") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".mov") ||
+			editorDrawerHasSuffixCaseInsensitive(base, ".webm")) {
+		return DRAWER_NERD_FILE_VIDEO_UTF8;
+	}
+	return DRAWER_NERD_FILE_UTF8;
+}
+
+static const char *editorDrawerNerdIconForEntry(const struct editorDrawerEntryView *entry,
+		const char *entry_name) {
+	if (!E.nerd_fonts_enabled || entry == NULL || entry->is_search_header ||
+			entry->is_placeholder) {
+		return NULL;
+	}
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_MAIN_MENU) {
+		return editorDrawerNerdIconForMenuLabel(entry_name);
+	}
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_GIT && entry->is_root) {
+		return NULL;
+	}
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP && entry->is_root) {
+		return NULL;
+	}
+	if (entry->is_dir) {
+		return NULL;
+	}
+	return editorDrawerNerdIconForFileName(editorDrawerNameForFileIcon(entry, entry_name));
+}
+
+static int editorDrawerAppendNerdIcon(struct writeBuf *wb, const char *icon, int row_inverted,
+		int *written_cols, int drawer_cols, int *appended_out) {
+	if (appended_out != NULL) {
+		*appended_out = 0;
+	}
+	if (icon == NULL || written_cols == NULL || *written_cols >= drawer_cols) {
+		return 1;
+	}
+	int icon_cols = editorDisplayTextCols(icon);
+	if (icon_cols <= 0) {
+		icon_cols = 1;
+	}
+	if (*written_cols + icon_cols > drawer_cols) {
+		return 1;
+	}
+	if (!row_inverted && !editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_DRAWER_ICON)) {
+		return 0;
+	}
+	if (!wbAppend(wb, icon, strlen(icon))) {
+		return 0;
+	}
+	if (!row_inverted && !editorAppendThemeBaseForeground(wb)) {
+		return 0;
+	}
+	*written_cols += icon_cols;
+	if (appended_out != NULL) {
+		*appended_out = 1;
+	}
 	return 1;
 }
 
@@ -2560,6 +2872,11 @@ static int editorBuildDrawerRowPlain(struct writeBuf *wb, int visible_idx) {
 				return 0;
 			}
 		}
+	}
+
+	const char *icon = editorDrawerNerdIconForEntry(&entry, entry_name_buf);
+	if (icon != NULL && (!wbAppend(wb, icon, strlen(icon)) || !wbAppend(wb, " ", 1))) {
+		return 0;
 	}
 
 	return editorAppendSanitizedText(wb, entry_name_buf, -1, NULL);
@@ -2717,6 +3034,17 @@ static int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols
 			if (!editorDrawerAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
 				return 0;
 			}
+		}
+
+		const char *icon = editorDrawerNerdIconForEntry(&entry, entry_name);
+		int icon_appended = 0;
+		if (!editorDrawerAppendNerdIcon(wb, icon, row_inverted, &written_cols, drawer_cols,
+					&icon_appended)) {
+			return 0;
+		}
+		if (icon_appended &&
+				!editorDrawerAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
+			return 0;
 		}
 
 		if (written_cols < drawer_cols) {

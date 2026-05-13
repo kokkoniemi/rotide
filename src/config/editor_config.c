@@ -641,6 +641,69 @@ enum editorCurrentLineHighlightLoadStatus editorCurrentLineHighlightLoadConfigur
 	return status;
 }
 
+enum editorNerdFontsLoadStatus editorNerdFontsLoadFromPaths(int *nerd_fonts_out,
+		const char *global_path, const char *project_path) {
+	if (nerd_fonts_out == NULL) {
+		return EDITOR_NERD_FONTS_LOAD_OUT_OF_MEMORY;
+	}
+
+	int nerd_fonts = 0;
+	enum editorNerdFontsLoadStatus status = EDITOR_NERD_FONTS_LOAD_OK;
+
+	if (global_path != NULL) {
+		enum editorBoolFileStatus global_status =
+				editorBoolApplyConfigFile(&nerd_fonts, global_path, "nerd_fonts");
+		if (global_status == EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
+			*nerd_fonts_out = 0;
+			return EDITOR_NERD_FONTS_LOAD_OUT_OF_MEMORY;
+		}
+		if (global_status == EDITOR_BOOL_FILE_INVALID) {
+			nerd_fonts = 0;
+			status = (enum editorNerdFontsLoadStatus)(
+					status | EDITOR_NERD_FONTS_LOAD_INVALID_GLOBAL);
+		}
+	}
+
+	if (project_path != NULL) {
+		enum editorBoolFileStatus project_status =
+				editorBoolApplyConfigFile(&nerd_fonts, project_path, "nerd_fonts");
+		if (project_status == EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
+			*nerd_fonts_out = 0;
+			return EDITOR_NERD_FONTS_LOAD_OUT_OF_MEMORY;
+		}
+		if (project_status == EDITOR_BOOL_FILE_INVALID) {
+			nerd_fonts = 0;
+			status = (enum editorNerdFontsLoadStatus)(
+					status | EDITOR_NERD_FONTS_LOAD_INVALID_PROJECT);
+		}
+	}
+
+	*nerd_fonts_out = nerd_fonts;
+	return status;
+}
+
+enum editorNerdFontsLoadStatus editorNerdFontsLoadConfigured(int *nerd_fonts_out) {
+	if (nerd_fonts_out == NULL) {
+		return EDITOR_NERD_FONTS_LOAD_OUT_OF_MEMORY;
+	}
+
+	const char *home = getenv("HOME");
+	if (home == NULL || home[0] == '\0') {
+		return editorNerdFontsLoadFromPaths(nerd_fonts_out, NULL, NULL);
+	}
+
+	char *global_path = editorConfigBuildGlobalConfigPath();
+	if (global_path == NULL) {
+		*nerd_fonts_out = 0;
+		return EDITOR_NERD_FONTS_LOAD_OUT_OF_MEMORY;
+	}
+
+	enum editorNerdFontsLoadStatus status =
+			editorNerdFontsLoadFromPaths(nerd_fonts_out, global_path, NULL);
+	free(global_path);
+	return status;
+}
+
 enum editorIndentConfigFileStatus {
 	EDITOR_INDENT_CONFIG_FILE_APPLIED = 0,
 	EDITOR_INDENT_CONFIG_FILE_MISSING,

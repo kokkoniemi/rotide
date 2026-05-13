@@ -16,6 +16,14 @@
 #define TEST_DRAWER_LSP_SYMBOL "L"
 #define TEST_DRAWER_GIT_SYMBOL "\xE2\x91\x82"
 #define TEST_DRAWER_MAIN_MENU_SYMBOL "\xE2\x89\xA1"
+#define TEST_NERD_FOLDER "\xEF\x81\xBB"
+#define TEST_NERD_FOLDER_OPEN "\xEF\x81\xBC"
+#define TEST_NERD_FILE_TEXT "\xEF\x85\x9C"
+#define TEST_NERD_FILE_CODE "\xEF\x87\x89"
+#define TEST_NERD_SEARCH "\xEF\x80\x82"
+#define TEST_NERD_BRANCH "\xEF\x84\xA6"
+#define TEST_NERD_BARS "\xEF\x83\x89"
+#define TEST_NERD_TERMINAL "\xEF\x84\xA0"
 #define TEST_DRAWER_COLLAPSE_CELL \
 	TEST_HEADER_BG " " TEST_DRAWER_COLLAPSE_SYMBOL " " TEST_HEADER_RESET
 #define TEST_DRAWER_EXPAND_CELL TEST_HEADER_BG " " TEST_DRAWER_EXPAND_SYMBOL " " TEST_HEADER_RESET
@@ -2201,6 +2209,64 @@ static int test_editor_refresh_screen_drawer_header_mode_buttons(void) {
 	return 0;
 }
 
+static int test_editor_refresh_screen_drawer_uses_nerd_font_icons_when_enabled(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char src_dir[512];
+	char code_file[512];
+	char text_file[512];
+	ASSERT_TRUE(path_join(src_dir, sizeof(src_dir), env.project_dir, "src"));
+	ASSERT_TRUE(path_join(code_file, sizeof(code_file), src_dir, "main.c"));
+	ASSERT_TRUE(path_join(text_file, sizeof(text_file), env.project_dir, "README.md"));
+	ASSERT_TRUE(make_dir(src_dir));
+	ASSERT_TRUE(write_text_file(code_file, "int main(void) { return 0; }\n"));
+	ASSERT_TRUE(write_text_file(text_file, "# title\n"));
+
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows));
+	int src_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("src", &src_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(src_idx, E.window_rows));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows));
+
+	E.nerd_fonts_enabled = 1;
+	E.pane_focus = EDITOR_PANE_TEXT;
+	E.window_rows = 8;
+	E.window_cols = 70;
+	E.line_numbers_enabled = 0;
+	add_row("body");
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, TEST_NERD_FOLDER) != NULL);
+	ASSERT_TRUE(strstr(output, TEST_NERD_FILE_TEXT) != NULL);
+	ASSERT_TRUE(strstr(output, TEST_NERD_SEARCH) != NULL);
+	ASSERT_TRUE(strstr(output, TEST_NERD_TERMINAL) != NULL);
+	ASSERT_TRUE(strstr(output, TEST_NERD_BRANCH) != NULL);
+	ASSERT_TRUE(strstr(output, TEST_NERD_BARS) != NULL);
+	ASSERT_TRUE(strstr(output, TEST_NERD_FOLDER_OPEN " src") == NULL);
+	ASSERT_TRUE(strstr(output, TEST_NERD_FOLDER " src") == NULL);
+	ASSERT_TRUE(strstr(output, TEST_NERD_FILE_CODE "\x1b[39m main.c") != NULL);
+	ASSERT_TRUE(strstr(output, TEST_NERD_FILE_TEXT "\x1b[39m README.md") != NULL);
+	free(output);
+
+	ASSERT_TRUE(editorDrawerMainMenuToggle());
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, TEST_NERD_BARS " Main Menu") == NULL);
+	ASSERT_TRUE(strstr(output, "Main Menu") != NULL);
+	ASSERT_TRUE(strstr(output, TEST_NERD_SEARCH "\x1b[39m Find File") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(code_file) == 0);
+	ASSERT_TRUE(rmdir(src_dir) == 0);
+	ASSERT_TRUE(unlink(text_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_refresh_screen_main_menu_drawer_groups_actions(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -3533,6 +3599,7 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_drawer_active_file_uses_inverted_background", test_editor_refresh_screen_drawer_active_file_uses_inverted_background},
 	{"editor_refresh_screen_drawer_collapsed_renders_expand_indicator", test_editor_refresh_screen_drawer_collapsed_renders_expand_indicator},
 	{"editor_refresh_screen_drawer_header_mode_buttons", test_editor_refresh_screen_drawer_header_mode_buttons},
+	{"editor_refresh_screen_drawer_uses_nerd_font_icons_when_enabled", test_editor_refresh_screen_drawer_uses_nerd_font_icons_when_enabled},
 	{"editor_refresh_screen_main_menu_drawer_groups_actions", test_editor_refresh_screen_main_menu_drawer_groups_actions},
 	{"editor_refresh_screen_drawer_renders_unicode_tree_connectors", test_editor_refresh_screen_drawer_renders_unicode_tree_connectors},
 	{"editor_refresh_screen_drawer_selected_overflow_spills_into_text_area", test_editor_refresh_screen_drawer_selected_overflow_spills_into_text_area},

@@ -251,6 +251,7 @@ enum editorThemeUiRole {
 	EDITOR_THEME_UI_BACKGROUND,
 	EDITOR_THEME_UI_LINE_NUMBER,
 	EDITOR_THEME_UI_DRAWER_CONNECTOR,
+	EDITOR_THEME_UI_DRAWER_ICON,
 	EDITOR_THEME_UI_PLACEHOLDER,
 	EDITOR_THEME_UI_CURRENT_LINE_BG,
 	EDITOR_THEME_UI_DRAWER_HEADER_BG,
@@ -693,6 +694,7 @@ struct editorConfig {
 	int line_wrap_enabled;
 	int line_numbers_enabled;
 	int current_line_highlight_enabled;
+	int nerd_fonts_enabled;
 	int auto_indent_enabled;
 	int indent_use_tabs;
 	int indent_width;

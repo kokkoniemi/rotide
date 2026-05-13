@@ -496,6 +496,7 @@ static void editorThemeInitGithubDark(struct editorTheme *theme) {
 			.type = editorThemeRgbColor(0xE6, 0xED, 0xF3),
 	});
 	theme->ui[EDITOR_THEME_UI_DIRECTORY] = editorThemeRgbColor(0x79, 0xC0, 0xFF);
+	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = editorThemeRgbColor(0xB1, 0xBA, 0xC4);
 }
 
 static void editorThemeInitMolokai(struct editorTheme *theme) {
@@ -901,75 +902,59 @@ static void editorThemeInitKanagawaLotus(struct editorTheme *theme) {
 	});
 }
 
+static void editorThemeFinalize(struct editorTheme *theme) {
+	if (theme == NULL) {
+		return;
+	}
+	if (theme->ui[EDITOR_THEME_UI_DRAWER_ICON].kind == EDITOR_THEME_COLOR_DEFAULT) {
+		theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = theme->ui[EDITOR_THEME_UI_DRAWER_CONNECTOR];
+	}
+}
+
 int editorThemeInitBuiltin(struct editorTheme *theme_out, const char *name) {
 	if (theme_out == NULL || name == NULL) {
 		return 0;
 	}
+	int matched = 1;
 	if (strcmp(name, "terminal") == 0) {
 		editorThemeInitTerminal(theme_out);
-		return 1;
-	}
-	if (strcmp(name, "a11y-dark") == 0) {
+	} else if (strcmp(name, "a11y-dark") == 0) {
 		editorThemeInitA11yDark(theme_out);
-		return 1;
-	}
-	if (strcmp(name, "a11y-light") == 0) {
+	} else if (strcmp(name, "a11y-light") == 0) {
 		editorThemeInitA11yLight(theme_out);
-		return 1;
-	}
-	if (strcmp(name, "acme") == 0) {
+	} else if (strcmp(name, "acme") == 0) {
 		editorThemeInitAcme(theme_out);
-		return 1;
-	}
-	if (strcmp(name, "silentium") == 0) {
+	} else if (strcmp(name, "silentium") == 0) {
 		editorThemeInitSilentium(theme_out);
-		return 1;
-	}
-	if (strcmp(name, "256noir") == 0 || strcmp(name, "256_noir") == 0) {
+	} else if (strcmp(name, "256noir") == 0 || strcmp(name, "256_noir") == 0) {
 		editorThemeInit256Noir(theme_out);
-		return 1;
-	}
-	if (strcmp(name, "github-light") == 0) {
+	} else if (strcmp(name, "github-light") == 0) {
 		editorThemeInitGithubLight(theme_out);
-		return 1;
-	}
-	if (strcmp(name, "github-dark") == 0) {
+	} else if (strcmp(name, "github-dark") == 0) {
 		editorThemeInitGithubDark(theme_out);
-		return 1;
-	}
-	if (strcmp(name, "modus-operandi") == 0) {
+	} else if (strcmp(name, "modus-operandi") == 0) {
 		editorThemeInitModusOperandi(theme_out);
-		return 1;
-	}
-	if (strcmp(name, "modus-operandi-tinted") == 0) {
+	} else if (strcmp(name, "modus-operandi-tinted") == 0) {
 		editorThemeInitModusOperandiTinted(theme_out);
-		return 1;
-	}
-	if (strcmp(name, "modus-vivendi") == 0) {
+	} else if (strcmp(name, "modus-vivendi") == 0) {
 		editorThemeInitModusVivendi(theme_out);
-		return 1;
-	}
-	if (strcmp(name, "modus-vivendi-tinted") == 0) {
+	} else if (strcmp(name, "modus-vivendi-tinted") == 0) {
 		editorThemeInitModusVivendiTinted(theme_out);
-		return 1;
-	}
-	if (strcmp(name, "molokai") == 0) {
+	} else if (strcmp(name, "molokai") == 0) {
 		editorThemeInitMolokai(theme_out);
-		return 1;
-	}
-	if (strcmp(name, "kanagawa") == 0 || strcmp(name, "kanagawa-wave") == 0) {
+	} else if (strcmp(name, "kanagawa") == 0 || strcmp(name, "kanagawa-wave") == 0) {
 		editorThemeInitKanagawaWave(theme_out);
-		return 1;
-	}
-	if (strcmp(name, "kanagawa-dragon") == 0) {
+	} else if (strcmp(name, "kanagawa-dragon") == 0) {
 		editorThemeInitKanagawaDragon(theme_out);
-		return 1;
-	}
-	if (strcmp(name, "kanagawa-lotus") == 0) {
+	} else if (strcmp(name, "kanagawa-lotus") == 0) {
 		editorThemeInitKanagawaLotus(theme_out);
-		return 1;
+	} else {
+		matched = 0;
 	}
-	return 0;
+	if (matched) {
+		editorThemeFinalize(theme_out);
+	}
+	return matched;
 }
 
 static int editorNormalizeThemeToken(const char *token, char *out, size_t out_size) {
@@ -1236,6 +1221,10 @@ static int editorParseThemeUiRoleName(const char *name, enum editorThemeUiRole *
 	}
 	if (strcmp(normalized, "drawer_connector") == 0) {
 		*role_out = EDITOR_THEME_UI_DRAWER_CONNECTOR;
+		return 1;
+	}
+	if (strcmp(normalized, "drawer_icon") == 0) {
+		*role_out = EDITOR_THEME_UI_DRAWER_ICON;
 		return 1;
 	}
 	if (strcmp(normalized, "placeholder") == 0) {

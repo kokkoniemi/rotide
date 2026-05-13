@@ -2347,6 +2347,43 @@ static int test_editor_current_line_highlight_load_precedence_and_invalid_fallba
 	return 0;
 }
 
+static int test_editor_nerd_fonts_load_precedence_and_invalid_fallback(void) {
+	char dir_template[] = "/tmp/rotide-test-nerd-fonts-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char global_path[512];
+	char project_path[512];
+	ASSERT_TRUE(path_join(global_path, sizeof(global_path), dir_path, "global.toml"));
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
+
+	ASSERT_TRUE(write_text_file(global_path,
+				"[editor]\n"
+				"nerd_fonts = false\n"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[editor]\n"
+				"nerd_fonts = true\n"));
+
+	int nerd_fonts = 0;
+	enum editorNerdFontsLoadStatus status =
+			editorNerdFontsLoadFromPaths(&nerd_fonts, global_path, project_path);
+	ASSERT_EQ_INT(EDITOR_NERD_FONTS_LOAD_OK, status);
+	ASSERT_EQ_INT(1, nerd_fonts);
+
+	ASSERT_TRUE(write_text_file(project_path,
+				"[editor]\n"
+				"nerd_fonts = \"yes\"\n"));
+	nerd_fonts = 1;
+	status = editorNerdFontsLoadFromPaths(&nerd_fonts, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_NERD_FONTS_LOAD_INVALID_PROJECT, status);
+	ASSERT_EQ_INT(0, nerd_fonts);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(unlink(global_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 static int test_editor_view_bool_invalid_settings_do_not_break_keymap_loading(void) {
 	char dir_template[] = "/tmp/rotide-test-view-bool-keymap-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -2509,6 +2546,8 @@ static int test_editor_theme_loads_github_builtins(void) {
 	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_BACKGROUND], 0x0D, 0x11, 0x17));
 	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_FOREGROUND], 0xE6, 0xED, 0xF3));
 	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_DIRECTORY], 0x79, 0xC0, 0xFF));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_DRAWER_CONNECTOR], 0x30, 0x36, 0x3D));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_DRAWER_ICON], 0xB1, 0xBA, 0xC4));
 	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_COMMENT], 0x8B, 0x94, 0x9E));
 	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_FUNCTION], 0xD2, 0xA8, 0xFF));
 	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_TYPE], 0xE6, 0xED, 0xF3));
@@ -2531,6 +2570,7 @@ static int test_editor_theme_loads_acme_builtin(void) {
 	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_DRAWER_HEADER_BG], 0xAE, 0xEE, 0xEE));
 	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_DIRECTORY], 0x10, 0x10, 0x10));
 	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_DRAWER_CONNECTOR], 0x50, 0x50, 0x50));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_DRAWER_ICON], 0x50, 0x50, 0x50));
 	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_COMMENT], 0x50, 0x50, 0x50));
 	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_KEYWORD], 0xAF, 0x5F, 0x00));
 	ASSERT_TRUE(theme_color_is_rgb(
@@ -3922,6 +3962,7 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_line_numbers_load_precedence_and_invalid_fallback", test_editor_line_numbers_load_precedence_and_invalid_fallback},
 	{"editor_indent_config_load_precedence_and_invalid_fallback", test_editor_indent_config_load_precedence_and_invalid_fallback},
 	{"editor_current_line_highlight_load_precedence_and_invalid_fallback", test_editor_current_line_highlight_load_precedence_and_invalid_fallback},
+	{"editor_nerd_fonts_load_precedence_and_invalid_fallback", test_editor_nerd_fonts_load_precedence_and_invalid_fallback},
 	{"editor_view_bool_invalid_settings_do_not_break_keymap_loading", test_editor_view_bool_invalid_settings_do_not_break_keymap_loading},
 	{"editor_theme_load_builtin_global_project_precedence", test_editor_theme_load_builtin_global_project_precedence},
 	{"editor_theme_load_ignores_non_theme_sections", test_editor_theme_load_ignores_non_theme_sections},

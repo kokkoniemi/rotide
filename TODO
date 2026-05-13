@@ -3,5 +3,3 @@
 - FEATURE: implement support for vim-mode. The commands should be configurable in .rotide.toml in local and global files.
 - IMPROVEMENT: integrate Fil-C to improve memory safety
 - IMPROVEMENT: make go to definition etc. osc8 hyperlink or render the text underlined on mouse hover when ctrl pressed
-- DOCS: in all screenshots use github-dark as default theme. Showcase all default themes as screenshot and in docs/media/screenshots/README.md as well as other screenshots
-- FEATURE: support nerd-fonts. Default is off. If on, use nerd icons in drawer header icons and indicating file types. Do not change caret's to folders. In drawer menu mode, use icons too along with text. It would be best if icons are single color.
