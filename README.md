@@ -141,6 +141,7 @@ Syntax fixture samples are stored in [`tests/syntax/`](tests/syntax/README.md).
 Soft line wrapping is off by default and can also be enabled with `[editor] line_wrap = true`.
 The cursor blinks by default; use `[editor] cursor_blink = false` for a steady cursor.
 Line numbers and current-line highlighting are on by default; disable them with `[editor] line_numbers = false` and `[editor] current_line_highlight = false`.
+Auto-indentation is off by default; enable it with `[editor] auto_indent = true`, then choose `[editor] indent_style = "spaces"` or `"tabs"` and `[editor] indent_width = 4`.
 
 ## Configuration
 
@@ -154,7 +155,7 @@ reference of available options; copy entries into `~/.rotide/config.toml` to
 customize.
 
 Sections:
-- `[editor]` (for example `cursor_style`, `cursor_blink`, `line_wrap`, `line_numbers`, `current_line_highlight`)
+- `[editor]` (for example `cursor_style`, `cursor_blink`, `line_wrap`, `line_numbers`, `current_line_highlight`, `auto_indent`, `indent_style`, `indent_width`)
 - `[theme]`
 - `[lsp]`
 - `[keymap]`

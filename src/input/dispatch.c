@@ -1242,6 +1242,17 @@ static void editorPasteClipboard(void) {
 
 	struct editorSelectionRange range;
 	int has_selection = editorGetSelectionRange(&range);
+	int indent_cy = has_selection ? range.start_cy : E.cy;
+	int indent_cx = has_selection ? range.start_cx : E.cx;
+	char *indented_clip = NULL;
+	size_t indented_clip_len = 0;
+	int indent_result = editorBuildAutoIndentedText(clip, clip_len, indent_cy, indent_cx,
+			&indented_clip, &indented_clip_len);
+	if (indent_result < 0) {
+		return;
+	}
+	const char *paste_text = indent_result > 0 ? indented_clip : clip;
+	size_t paste_len = indent_result > 0 ? indented_clip_len : clip_len;
 
 	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
 	int dirty_before = E.dirty;
@@ -1249,14 +1260,15 @@ static void editorPasteClipboard(void) {
 
 	if (has_selection) {
 		editorClearSelectionMode();
-		pasted = editorReplaceRange(&range, clip, clip_len) > 0;
+		pasted = editorReplaceRange(&range, paste_text, paste_len) > 0;
 	} else {
 		editorClearSelectionMode();
-		pasted = editorInsertText(clip, clip_len);
+		pasted = editorInsertText(paste_text, paste_len);
 	}
 
 	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
 	editorHistoryBreakGroup();
+	free(indented_clip);
 
 	if (pasted) {
 		editorSetStatusMsg("Pasted %zu bytes", clip_len);

@@ -11,12 +11,19 @@
 # line_wrap: soft-wrap long file rows. true|false (default false).
 # line_numbers: absolute line-number gutter. true|false (default true).
 # current_line_highlight: subtle active-row background. true|false (default true).
+# auto_indent: copy leading indentation on newline and multiline paste.
+#   true|false (default false).
+# indent_style: "spaces" | "tabs" (default "spaces").
+# indent_width: columns per indentation level, 1..16 (default 4).
 [editor]
 cursor_style = "bar"
 cursor_blink = true
 line_wrap = false
 line_numbers = true
 current_line_highlight = true
+auto_indent = false
+indent_style = "spaces"
+indent_width = 4
 
 # --- [theme] ------------------------------------------------------------------
 # name selects a built-in theme or a custom theme at ~/.rotide/themes/<name>.toml.

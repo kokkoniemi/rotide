@@ -7,6 +7,8 @@
 #include <stddef.h>
 
 int editorInsertText(const char *text, size_t len);
+int editorBuildAutoIndentedText(const char *text, size_t len, int indent_cy,
+		int indent_cx, char **text_out, size_t *len_out);
 void editorInsertChar(int c);
 void editorInsertNewline(void);
 void editorDelChar(void);

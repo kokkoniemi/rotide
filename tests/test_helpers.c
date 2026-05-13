@@ -144,6 +144,9 @@ void reset_editor_state(void) {
 	E.line_wrap_enabled = 0;
 	E.line_numbers_enabled = 1;
 	E.current_line_highlight_enabled = 1;
+	E.auto_indent_enabled = 0;
+	E.indent_use_tabs = 0;
+	E.indent_width = ROTIDE_INDENT_WIDTH_DEFAULT;
 	E.column_select_drag_modifier = EDITOR_MOUSE_MOD_ALT | EDITOR_MOUSE_MOD_SHIFT;
 	E.wrapoff = 0;
 	editorThemeInitDefault(&E.theme);

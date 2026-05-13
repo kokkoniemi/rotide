@@ -260,6 +260,156 @@ int editorInsertText(const char *text, size_t len) {
 	return editorApplyDocumentEdit(&edit);
 }
 
+static int editorEffectiveIndentWidth(void) {
+	if (E.indent_width >= 1 && E.indent_width <= ROTIDE_INDENT_WIDTH_MAX) {
+		return E.indent_width;
+	}
+	return ROTIDE_INDENT_WIDTH_DEFAULT;
+}
+
+static size_t editorIndentPrefixColumns(const struct erow *row, int limit_cx) {
+	if (row == NULL || row->chars == NULL || limit_cx <= 0) {
+		return 0;
+	}
+	if (limit_cx > row->size) {
+		limit_cx = row->size;
+	}
+
+	size_t cols = 0;
+	size_t width = (size_t)editorEffectiveIndentWidth();
+	for (int i = 0; i < limit_cx; i++) {
+		if (row->chars[i] == ' ') {
+			cols++;
+			continue;
+		}
+		if (row->chars[i] == '\t') {
+			size_t remainder = cols % width;
+			cols += remainder == 0 ? width : width - remainder;
+			continue;
+		}
+		break;
+	}
+	return cols;
+}
+
+static int editorBuildIndentString(size_t cols, char **indent_out, size_t *indent_len_out) {
+	if (indent_out == NULL || indent_len_out == NULL) {
+		return 0;
+	}
+	*indent_out = NULL;
+	*indent_len_out = 0;
+	if (cols == 0) {
+		return 1;
+	}
+
+	size_t width = (size_t)editorEffectiveIndentWidth();
+	size_t tabs = E.indent_use_tabs ? cols / width : 0;
+	size_t spaces = E.indent_use_tabs ? cols % width : cols;
+	size_t len = 0;
+	if (!editorSizeAdd(tabs, spaces, &len) ||
+			len > ROTIDE_MAX_TEXT_BYTES) {
+		editorSetOperationTooLargeStatus();
+		return 0;
+	}
+
+	char *indent = editorMalloc(len + 1);
+	if (indent == NULL) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+	memset(indent, '\t', tabs);
+	memset(indent + tabs, ' ', spaces);
+	indent[len] = '\0';
+	*indent_out = indent;
+	*indent_len_out = len;
+	return 1;
+}
+
+static int editorBuildIndentForLine(int row_idx, int limit_cx, char **indent_out,
+		size_t *indent_len_out) {
+	if (indent_out == NULL || indent_len_out == NULL) {
+		return 0;
+	}
+	*indent_out = NULL;
+	*indent_len_out = 0;
+	if (!E.auto_indent_enabled || row_idx < 0 || row_idx >= E.numrows) {
+		return 1;
+	}
+	int clamped_cx = editorRowClampCxToClusterBoundary(&E.rows[row_idx], limit_cx);
+	size_t cols = editorIndentPrefixColumns(&E.rows[row_idx], clamped_cx);
+	return editorBuildIndentString(cols, indent_out, indent_len_out);
+}
+
+int editorBuildAutoIndentedText(const char *text, size_t len, int indent_cy,
+		int indent_cx, char **text_out, size_t *len_out) {
+	if (text_out == NULL || len_out == NULL) {
+		return -1;
+	}
+	*text_out = NULL;
+	*len_out = 0;
+	if (text == NULL || len == 0) {
+		return 0;
+	}
+	if (!E.auto_indent_enabled) {
+		return 0;
+	}
+
+	int has_newline = 0;
+	size_t extra_lines = 0;
+	for (size_t i = 0; i < len; i++) {
+		if (text[i] == '\n') {
+			has_newline = 1;
+			if (i + 1 < len && text[i + 1] != '\n' && text[i + 1] != '\r') {
+				extra_lines++;
+			}
+		}
+	}
+	if (!has_newline || extra_lines == 0) {
+		return 0;
+	}
+
+	char *indent = NULL;
+	size_t indent_len = 0;
+	if (!editorBuildIndentForLine(indent_cy, indent_cx, &indent, &indent_len)) {
+		return -1;
+	}
+	if (indent_len == 0) {
+		free(indent);
+		return 0;
+	}
+
+	size_t extra_len = 0;
+	size_t total_len = 0;
+	if (!editorSizeMul(indent_len, extra_lines, &extra_len) ||
+			!editorSizeAdd(len, extra_len, &total_len) ||
+			total_len > ROTIDE_MAX_TEXT_BYTES) {
+		free(indent);
+		editorSetOperationTooLargeStatus();
+		return -1;
+	}
+
+	char *out = editorMalloc(total_len + 1);
+	if (out == NULL) {
+		free(indent);
+		editorSetAllocFailureStatus();
+		return -1;
+	}
+
+	size_t out_idx = 0;
+	for (size_t i = 0; i < len; i++) {
+		out[out_idx++] = text[i];
+		if (text[i] == '\n' && i + 1 < len && text[i + 1] != '\n' && text[i + 1] != '\r') {
+			memcpy(out + out_idx, indent, indent_len);
+			out_idx += indent_len;
+		}
+	}
+	out[out_idx] = '\0';
+	*text_out = out;
+	*len_out = out_idx;
+	free(indent);
+	return 1;
+}
+
 void editorInsertChar(int c) {
 	int insert_cx = 0;
 	size_t start_offset = 0;
@@ -314,18 +464,56 @@ void editorInsertNewline(void) {
 		return;
 	}
 
+	char *indent = NULL;
+	size_t indent_len = 0;
+	if (!editorBuildIndentForLine(E.cy, split_idx, &indent, &indent_len)) {
+		return;
+	}
+	size_t inserted_len = 0;
+	size_t after_offset = 0;
+	if (!editorSizeAdd(1, indent_len, &inserted_len) ||
+			!editorSizeAdd(start_offset, inserted_len, &after_offset) ||
+			after_offset > ROTIDE_MAX_TEXT_BYTES) {
+		free(indent);
+		editorSetOperationTooLargeStatus();
+		return;
+	}
+	const char *inserted_text = "\n";
+	char *allocated_text = NULL;
+	if (indent_len > 0) {
+		allocated_text = editorMalloc(inserted_len + 1);
+		if (allocated_text == NULL) {
+			free(indent);
+			editorSetAllocFailureStatus();
+			return;
+		}
+		allocated_text[0] = '\n';
+		memcpy(allocated_text + 1, indent, indent_len);
+		allocated_text[inserted_len] = '\0';
+		inserted_text = allocated_text;
+	}
+	if (inserted_len > (size_t)INT_MAX || E.dirty > INT_MAX - (int)inserted_len) {
+		free(allocated_text);
+		free(indent);
+		editorSetOperationTooLargeStatus();
+		return;
+	}
+	int dirty_delta = (int)inserted_len;
+
 	struct editorDocumentEdit edit = {
 		.kind = EDITOR_EDIT_NEWLINE,
 		.start_offset = start_offset,
 		.old_len = 0,
-		.new_text = "\n",
-		.new_len = 1,
+		.new_text = inserted_text,
+		.new_len = inserted_len,
 		.before_cursor_offset = start_offset,
-		.after_cursor_offset = start_offset + 1,
+		.after_cursor_offset = after_offset,
 		.before_dirty = E.dirty,
-		.after_dirty = E.dirty + 1
+		.after_dirty = E.dirty + dirty_delta
 	};
 	(void)editorApplyDocumentEdit(&edit);
+	free(allocated_text);
+	free(indent);
 }
 
 void editorDelChar(void) {

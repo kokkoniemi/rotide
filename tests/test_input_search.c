@@ -2561,6 +2561,27 @@ static int test_editor_process_keypress_ctrl_v_pastes_multiline_clipboard_text(v
 	return 0;
 }
 
+static int test_editor_process_keypress_ctrl_v_auto_indents_multiline_clipboard_text(void) {
+	ASSERT_TRUE(editorClipboardSet("one\ntwo\n\nthree", 14));
+	add_row("    ");
+	E.auto_indent_enabled = 1;
+	E.indent_use_tabs = 0;
+	E.indent_width = 4;
+	E.cy = 0;
+	E.cx = 4;
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('v')) == 0);
+	ASSERT_EQ_INT(4, E.numrows);
+	ASSERT_EQ_STR("    one", E.rows[0].chars);
+	ASSERT_EQ_STR("    two", E.rows[1].chars);
+	ASSERT_EQ_STR("", E.rows[2].chars);
+	ASSERT_EQ_STR("    three", E.rows[3].chars);
+	ASSERT_EQ_INT(3, E.cy);
+	ASSERT_EQ_INT(9, E.cx);
+	ASSERT_EQ_STR("Pasted 14 bytes", E.statusmsg);
+	return 0;
+}
+
 static int test_editor_process_keypress_ctrl_v_empty_clipboard_is_noop(void) {
 	add_row("abc");
 	E.cy = 0;
@@ -3791,6 +3812,7 @@ const struct editorTestCase g_input_search_tests[] = {
 	{"editor_process_keypress_ctrl_d_deletes_selection_without_overwriting_clipboard", test_editor_process_keypress_ctrl_d_deletes_selection_without_overwriting_clipboard},
 	{"editor_process_keypress_ctrl_v_pastes_clipboard_text", test_editor_process_keypress_ctrl_v_pastes_clipboard_text},
 	{"editor_process_keypress_ctrl_v_pastes_multiline_clipboard_text", test_editor_process_keypress_ctrl_v_pastes_multiline_clipboard_text},
+	{"editor_process_keypress_ctrl_v_auto_indents_multiline_clipboard_text", test_editor_process_keypress_ctrl_v_auto_indents_multiline_clipboard_text},
 	{"editor_process_keypress_ctrl_v_empty_clipboard_is_noop", test_editor_process_keypress_ctrl_v_empty_clipboard_is_noop},
 	{"editor_clipboard_sync_osc52_plain_sequence", test_editor_clipboard_sync_osc52_plain_sequence},
 	{"editor_clipboard_sync_osc52_tmux_wrapped_sequence", test_editor_clipboard_sync_osc52_tmux_wrapped_sequence},

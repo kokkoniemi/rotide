@@ -641,6 +641,237 @@ enum editorCurrentLineHighlightLoadStatus editorCurrentLineHighlightLoadConfigur
 	return status;
 }
 
+enum editorIndentConfigFileStatus {
+	EDITOR_INDENT_CONFIG_FILE_APPLIED = 0,
+	EDITOR_INDENT_CONFIG_FILE_MISSING,
+	EDITOR_INDENT_CONFIG_FILE_INVALID,
+	EDITOR_INDENT_CONFIG_FILE_OUT_OF_MEMORY
+};
+
+void editorIndentConfigInitDefaults(int *auto_indent_out, int *indent_use_tabs_out,
+		int *indent_width_out) {
+	if (auto_indent_out != NULL) {
+		*auto_indent_out = 0;
+	}
+	if (indent_use_tabs_out != NULL) {
+		*indent_use_tabs_out = 0;
+	}
+	if (indent_width_out != NULL) {
+		*indent_width_out = ROTIDE_INDENT_WIDTH_DEFAULT;
+	}
+}
+
+static int editorParseIndentStyleValue(const char *value, int *indent_use_tabs_out) {
+	if (value == NULL || indent_use_tabs_out == NULL) {
+		return 0;
+	}
+	if (strcasecmp(value, "spaces") == 0 || strcasecmp(value, "space") == 0) {
+		*indent_use_tabs_out = 0;
+		return 1;
+	}
+	if (strcasecmp(value, "tabs") == 0 || strcasecmp(value, "tab") == 0) {
+		*indent_use_tabs_out = 1;
+		return 1;
+	}
+	return 0;
+}
+
+static int editorParseIndentWidthValue(const char *value, int *indent_width_out) {
+	if (value == NULL || indent_width_out == NULL) {
+		return 0;
+	}
+	errno = 0;
+	char *end = NULL;
+	long width = strtol(value, &end, 10);
+	if (errno != 0 || end == value || *end != '\0' ||
+			width < 1 || width > ROTIDE_INDENT_WIDTH_MAX) {
+		return 0;
+	}
+	*indent_width_out = (int)width;
+	return 1;
+}
+
+static enum editorIndentConfigFileStatus editorIndentConfigApplyConfigFile(
+		int *auto_indent_in_out, int *indent_use_tabs_in_out, int *indent_width_in_out,
+		const char *path) {
+	FILE *fp = fopen(path, "r");
+	if (fp == NULL) {
+		if (errno == ENOENT) {
+			return EDITOR_INDENT_CONFIG_FILE_MISSING;
+		}
+		return EDITOR_INDENT_CONFIG_FILE_INVALID;
+	}
+
+	int updated_auto_indent = *auto_indent_in_out;
+	int updated_indent_use_tabs = *indent_use_tabs_in_out;
+	int updated_indent_width = *indent_width_in_out;
+	int in_editor_table = 0;
+	char line[1024];
+	while (fgets(line, sizeof(line), fp) != NULL) {
+		size_t line_len = strlen(line);
+		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
+			fclose(fp);
+			return EDITOR_INDENT_CONFIG_FILE_INVALID;
+		}
+
+		editorConfigStripInlineComment(line);
+		editorConfigTrimRight(line);
+		char *trimmed = editorConfigTrimLeft(line);
+		if (trimmed[0] == '\0') {
+			continue;
+		}
+
+		if (trimmed[0] == '[') {
+			char *close = strchr(trimmed, ']');
+			if (close == NULL) {
+				fclose(fp);
+				return EDITOR_INDENT_CONFIG_FILE_INVALID;
+			}
+			*close = '\0';
+			char *table = editorConfigTrimLeft(trimmed + 1);
+			editorConfigTrimRight(table);
+			char *tail = editorConfigTrimLeft(close + 1);
+			if (tail[0] != '\0') {
+				fclose(fp);
+				return EDITOR_INDENT_CONFIG_FILE_INVALID;
+			}
+
+			in_editor_table = strcmp(table, "editor") == 0;
+			continue;
+		}
+
+		if (!in_editor_table) {
+			continue;
+		}
+
+		char *eq = strchr(trimmed, '=');
+		if (eq == NULL) {
+			fclose(fp);
+			return EDITOR_INDENT_CONFIG_FILE_INVALID;
+		}
+
+		*eq = '\0';
+		char *setting_name = editorConfigTrimLeft(trimmed);
+		editorConfigTrimRight(setting_name);
+		char *value = editorConfigTrimLeft(eq + 1);
+		editorConfigTrimRight(value);
+		if (setting_name[0] == '\0') {
+			fclose(fp);
+			return EDITOR_INDENT_CONFIG_FILE_INVALID;
+		}
+
+		if (strcmp(setting_name, "auto_indent") == 0) {
+			int parsed = 0;
+			if (!editorParseBoolValue(value, &parsed)) {
+				fclose(fp);
+				return EDITOR_INDENT_CONFIG_FILE_INVALID;
+			}
+			updated_auto_indent = parsed;
+			continue;
+		}
+		if (strcmp(setting_name, "indent_style") == 0) {
+			char style_value[32];
+			int parsed = 0;
+			if (!editorConfigParseQuotedValue(value, style_value, sizeof(style_value)) ||
+					!editorParseIndentStyleValue(style_value, &parsed)) {
+				fclose(fp);
+				return EDITOR_INDENT_CONFIG_FILE_INVALID;
+			}
+			updated_indent_use_tabs = parsed;
+			continue;
+		}
+		if (strcmp(setting_name, "indent_width") == 0) {
+			int parsed = 0;
+			if (!editorParseIndentWidthValue(value, &parsed)) {
+				fclose(fp);
+				return EDITOR_INDENT_CONFIG_FILE_INVALID;
+			}
+			updated_indent_width = parsed;
+		}
+	}
+
+	if (ferror(fp)) {
+		fclose(fp);
+		return EDITOR_INDENT_CONFIG_FILE_INVALID;
+	}
+
+	fclose(fp);
+	*auto_indent_in_out = updated_auto_indent;
+	*indent_use_tabs_in_out = updated_indent_use_tabs;
+	*indent_width_in_out = updated_indent_width;
+	return EDITOR_INDENT_CONFIG_FILE_APPLIED;
+}
+
+enum editorIndentConfigLoadStatus editorIndentConfigLoadFromPaths(int *auto_indent_out,
+		int *indent_use_tabs_out, int *indent_width_out, const char *global_path,
+		const char *project_path) {
+	if (auto_indent_out == NULL || indent_use_tabs_out == NULL || indent_width_out == NULL) {
+		return EDITOR_INDENT_CONFIG_LOAD_OUT_OF_MEMORY;
+	}
+
+	int auto_indent = 0;
+	int indent_use_tabs = 0;
+	int indent_width = ROTIDE_INDENT_WIDTH_DEFAULT;
+	enum editorIndentConfigLoadStatus status = EDITOR_INDENT_CONFIG_LOAD_OK;
+
+	if (global_path != NULL) {
+		enum editorIndentConfigFileStatus global_status = editorIndentConfigApplyConfigFile(
+				&auto_indent, &indent_use_tabs, &indent_width, global_path);
+		if (global_status == EDITOR_INDENT_CONFIG_FILE_OUT_OF_MEMORY) {
+			editorIndentConfigInitDefaults(auto_indent_out, indent_use_tabs_out,
+					indent_width_out);
+			return EDITOR_INDENT_CONFIG_LOAD_OUT_OF_MEMORY;
+		}
+		if (global_status == EDITOR_INDENT_CONFIG_FILE_INVALID) {
+			editorIndentConfigInitDefaults(&auto_indent, &indent_use_tabs, &indent_width);
+			status = (enum editorIndentConfigLoadStatus)(
+					status | EDITOR_INDENT_CONFIG_LOAD_INVALID_GLOBAL);
+		}
+	}
+
+	if (project_path != NULL) {
+		enum editorIndentConfigFileStatus project_status = editorIndentConfigApplyConfigFile(
+				&auto_indent, &indent_use_tabs, &indent_width, project_path);
+		if (project_status == EDITOR_INDENT_CONFIG_FILE_OUT_OF_MEMORY) {
+			editorIndentConfigInitDefaults(auto_indent_out, indent_use_tabs_out,
+					indent_width_out);
+			return EDITOR_INDENT_CONFIG_LOAD_OUT_OF_MEMORY;
+		}
+		if (project_status == EDITOR_INDENT_CONFIG_FILE_INVALID) {
+			editorIndentConfigInitDefaults(&auto_indent, &indent_use_tabs, &indent_width);
+			status = (enum editorIndentConfigLoadStatus)(
+					status | EDITOR_INDENT_CONFIG_LOAD_INVALID_PROJECT);
+		}
+	}
+
+	*auto_indent_out = auto_indent;
+	*indent_use_tabs_out = indent_use_tabs;
+	*indent_width_out = indent_width;
+	return status;
+}
+
+enum editorIndentConfigLoadStatus editorIndentConfigLoadConfigured(int *auto_indent_out,
+		int *indent_use_tabs_out, int *indent_width_out) {
+	if (auto_indent_out == NULL || indent_use_tabs_out == NULL || indent_width_out == NULL) {
+		return EDITOR_INDENT_CONFIG_LOAD_OUT_OF_MEMORY;
+	}
+	const char *home = getenv("HOME");
+	if (home == NULL || home[0] == '\0') {
+		return editorIndentConfigLoadFromPaths(auto_indent_out, indent_use_tabs_out,
+				indent_width_out, NULL, NULL);
+	}
+	char *global_path = editorConfigBuildGlobalConfigPath();
+	if (global_path == NULL) {
+		editorIndentConfigInitDefaults(auto_indent_out, indent_use_tabs_out,
+				indent_width_out);
+		return EDITOR_INDENT_CONFIG_LOAD_OUT_OF_MEMORY;
+	}
+	enum editorIndentConfigLoadStatus status = editorIndentConfigLoadFromPaths(
+			auto_indent_out, indent_use_tabs_out, indent_width_out, global_path, NULL);
+	free(global_path);
+	return status;
+}
+
 static int editorColumnSelectDragModifierTokenBit(const char *token, int *bit_out, int *is_none) {
 	if (strcmp(token, "alt") == 0) {
 		*bit_out = EDITOR_MOUSE_MOD_ALT;

@@ -38,6 +38,13 @@ enum editorCurrentLineHighlightLoadStatus {
 	EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_OUT_OF_MEMORY = 1 << 2
 };
 
+enum editorIndentConfigLoadStatus {
+	EDITOR_INDENT_CONFIG_LOAD_OK = 0,
+	EDITOR_INDENT_CONFIG_LOAD_INVALID_GLOBAL = 1 << 0,
+	EDITOR_INDENT_CONFIG_LOAD_INVALID_PROJECT = 1 << 1,
+	EDITOR_INDENT_CONFIG_LOAD_OUT_OF_MEMORY = 1 << 2
+};
+
 enum editorColumnSelectDragModifierLoadStatus {
 	EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_OK = 0,
 	EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_INVALID_GLOBAL = 1 << 0,
@@ -61,6 +68,13 @@ enum editorCurrentLineHighlightLoadStatus editorCurrentLineHighlightLoadFromPath
 		int *current_line_highlight_out, const char *global_path, const char *project_path);
 enum editorCurrentLineHighlightLoadStatus editorCurrentLineHighlightLoadConfigured(
 		int *current_line_highlight_out);
+void editorIndentConfigInitDefaults(int *auto_indent_out, int *indent_use_tabs_out,
+		int *indent_width_out);
+enum editorIndentConfigLoadStatus editorIndentConfigLoadFromPaths(int *auto_indent_out,
+		int *indent_use_tabs_out, int *indent_width_out, const char *global_path,
+		const char *project_path);
+enum editorIndentConfigLoadStatus editorIndentConfigLoadConfigured(int *auto_indent_out,
+		int *indent_use_tabs_out, int *indent_width_out);
 
 enum editorColumnSelectDragModifierLoadStatus editorColumnSelectDragModifierLoadFromPaths(
 		int *modifier_out, const char *global_path, const char *project_path);

@@ -1030,6 +1030,44 @@ static int test_editor_insert_newline_at_row_start(void) {
 	return 0;
 }
 
+static int test_editor_insert_newline_auto_indents_with_spaces(void) {
+	add_row("    hello");
+	E.auto_indent_enabled = 1;
+	E.indent_use_tabs = 0;
+	E.indent_width = 4;
+	E.dirty = 0;
+	E.cy = 0;
+	E.cx = 9;
+
+	editorInsertNewline();
+	ASSERT_EQ_INT(2, E.numrows);
+	ASSERT_EQ_STR("    hello", E.rows[0].chars);
+	ASSERT_EQ_STR("    ", E.rows[1].chars);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(4, E.cx);
+	ASSERT_EQ_INT(5, E.dirty);
+	return 0;
+}
+
+static int test_editor_insert_newline_auto_indents_with_tabs(void) {
+	add_row("        hello");
+	E.auto_indent_enabled = 1;
+	E.indent_use_tabs = 1;
+	E.indent_width = 4;
+	E.dirty = 0;
+	E.cy = 0;
+	E.cx = 13;
+
+	editorInsertNewline();
+	ASSERT_EQ_INT(2, E.numrows);
+	ASSERT_EQ_STR("        hello", E.rows[0].chars);
+	ASSERT_EQ_STR("\t\t", E.rows[1].chars);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_EQ_INT(3, E.dirty);
+	return 0;
+}
+
 static int test_editor_del_char_cluster_and_merge(void) {
 	const char with_combining[] = "a\xCC\x81" "b";
 	add_row_bytes(with_combining, sizeof(with_combining) - 1);
@@ -1223,6 +1261,8 @@ const struct editorTestCase g_document_text_editing_tests[] = {
 	{"editor_insert_char_creates_initial_row", test_editor_insert_char_creates_initial_row},
 	{"editor_insert_newline_splits_row", test_editor_insert_newline_splits_row},
 	{"editor_insert_newline_at_row_start", test_editor_insert_newline_at_row_start},
+	{"editor_insert_newline_auto_indents_with_spaces", test_editor_insert_newline_auto_indents_with_spaces},
+	{"editor_insert_newline_auto_indents_with_tabs", test_editor_insert_newline_auto_indents_with_tabs},
 	{"editor_del_char_cluster_and_merge", test_editor_del_char_cluster_and_merge},
 	{"editor_rows_to_str", test_editor_rows_to_str},
 	{"editor_rows_to_str_uses_document_when_row_cache_corrupt", test_editor_rows_to_str_uses_document_when_row_cache_corrupt},

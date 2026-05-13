@@ -2258,6 +2258,56 @@ static int test_editor_line_numbers_load_precedence_and_invalid_fallback(void) {
 	return 0;
 }
 
+static int test_editor_indent_config_load_precedence_and_invalid_fallback(void) {
+	char dir_template[] = "/tmp/rotide-test-indent-config-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char global_path[512];
+	char project_path[512];
+	ASSERT_TRUE(path_join(global_path, sizeof(global_path), dir_path, "global.toml"));
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
+
+	ASSERT_TRUE(write_text_file(global_path,
+				"[editor]\n"
+				"auto_indent = true\n"
+				"indent_style = \"spaces\"\n"
+				"indent_width = 2\n"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[editor]\n"
+				"indent_style = \"tabs\"\n"
+				"indent_width = 4\n"));
+
+	int auto_indent = 0;
+	int indent_use_tabs = 0;
+	int indent_width = 0;
+	enum editorIndentConfigLoadStatus status = editorIndentConfigLoadFromPaths(
+			&auto_indent, &indent_use_tabs, &indent_width, global_path, project_path);
+	ASSERT_EQ_INT(EDITOR_INDENT_CONFIG_LOAD_OK, status);
+	ASSERT_EQ_INT(1, auto_indent);
+	ASSERT_EQ_INT(1, indent_use_tabs);
+	ASSERT_EQ_INT(4, indent_width);
+
+	ASSERT_TRUE(write_text_file(project_path,
+				"[editor]\n"
+				"auto_indent = true\n"
+				"indent_width = 0\n"));
+	auto_indent = 1;
+	indent_use_tabs = 1;
+	indent_width = 8;
+	status = editorIndentConfigLoadFromPaths(&auto_indent, &indent_use_tabs, &indent_width,
+			NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_INDENT_CONFIG_LOAD_INVALID_PROJECT, status);
+	ASSERT_EQ_INT(0, auto_indent);
+	ASSERT_EQ_INT(0, indent_use_tabs);
+	ASSERT_EQ_INT(ROTIDE_INDENT_WIDTH_DEFAULT, indent_width);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(unlink(global_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 static int test_editor_current_line_highlight_load_precedence_and_invalid_fallback(void) {
 	char dir_template[] = "/tmp/rotide-test-current-line-highlight-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -3619,6 +3669,7 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_line_wrap_invalid_values_fallback_to_false", test_editor_line_wrap_invalid_values_fallback_to_false},
 	{"editor_line_wrap_invalid_setting_does_not_break_keymap_loading", test_editor_line_wrap_invalid_setting_does_not_break_keymap_loading},
 	{"editor_line_numbers_load_precedence_and_invalid_fallback", test_editor_line_numbers_load_precedence_and_invalid_fallback},
+	{"editor_indent_config_load_precedence_and_invalid_fallback", test_editor_indent_config_load_precedence_and_invalid_fallback},
 	{"editor_current_line_highlight_load_precedence_and_invalid_fallback", test_editor_current_line_highlight_load_precedence_and_invalid_fallback},
 	{"editor_view_bool_invalid_settings_do_not_break_keymap_loading", test_editor_view_bool_invalid_settings_do_not_break_keymap_loading},
 	{"editor_theme_load_builtin_global_project_precedence", test_editor_theme_load_builtin_global_project_precedence},

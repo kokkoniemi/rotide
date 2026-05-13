@@ -172,6 +172,9 @@ void initEditor(void) {
 	E.line_wrap_enabled = 0;
 	E.line_numbers_enabled = 1;
 	E.current_line_highlight_enabled = 1;
+	E.auto_indent_enabled = 0;
+	E.indent_use_tabs = 0;
+	E.indent_width = ROTIDE_INDENT_WIDTH_DEFAULT;
 	E.column_select_drag_modifier = EDITOR_MOUSE_MOD_ALT;
 	editorThemeInitDefault(&E.theme);
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
@@ -209,6 +212,9 @@ int main(int argc, char *argv[]) {
 			editorLineNumbersLoadConfigured(&E.line_numbers_enabled);
 	enum editorCurrentLineHighlightLoadStatus current_line_highlight_status =
 			editorCurrentLineHighlightLoadConfigured(&E.current_line_highlight_enabled);
+	enum editorIndentConfigLoadStatus indent_config_status =
+			editorIndentConfigLoadConfigured(&E.auto_indent_enabled, &E.indent_use_tabs,
+					&E.indent_width);
 	enum editorColumnSelectDragModifierLoadStatus column_select_drag_modifier_status =
 			editorColumnSelectDragModifierLoadConfigured(&E.column_select_drag_modifier);
 	enum editorThemeLoadStatus theme_status = editorThemeLoadConfigured(&E.theme);
@@ -244,6 +250,7 @@ int main(int argc, char *argv[]) {
 			(line_numbers_status & EDITOR_LINE_NUMBERS_LOAD_OUT_OF_MEMORY) != 0 ||
 			(current_line_highlight_status &
 					EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_OUT_OF_MEMORY) != 0 ||
+			(indent_config_status & EDITOR_INDENT_CONFIG_LOAD_OUT_OF_MEMORY) != 0 ||
 			(column_select_drag_modifier_status &
 					EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_OUT_OF_MEMORY) != 0 ||
 			(theme_status & EDITOR_THEME_LOAD_OUT_OF_MEMORY) != 0 ||
@@ -297,6 +304,14 @@ int main(int argc, char *argv[]) {
 					EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_INVALID_GLOBAL) != 0) {
 		editorSetStatusMsg(
 				"Invalid current_line_highlight in ~/.rotide/config.toml, using true");
+	} else if ((indent_config_status & EDITOR_INDENT_CONFIG_LOAD_INVALID_GLOBAL) != 0 &&
+			(indent_config_status & EDITOR_INDENT_CONFIG_LOAD_INVALID_PROJECT) != 0) {
+		editorSetStatusMsg("Invalid indent config in global/project config, using defaults");
+	} else if ((indent_config_status & EDITOR_INDENT_CONFIG_LOAD_INVALID_PROJECT) != 0) {
+		editorSetStatusMsg("Invalid indent config in ./.rotide.toml, using defaults");
+	} else if ((indent_config_status & EDITOR_INDENT_CONFIG_LOAD_INVALID_GLOBAL) != 0) {
+		editorSetStatusMsg(
+				"Invalid indent config in ~/.rotide/config.toml, using defaults");
 	} else if ((column_select_drag_modifier_status &
 					EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_INVALID_GLOBAL) != 0 &&
 			(column_select_drag_modifier_status &

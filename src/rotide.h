@@ -15,6 +15,8 @@
 #define CTRL_KEY(k) ((k) & 0x1f)
 #define ROTIDE_VERSION "0.0.1"
 #define ROTIDE_TAB_WIDTH 8
+#define ROTIDE_INDENT_WIDTH_DEFAULT 4
+#define ROTIDE_INDENT_WIDTH_MAX 16
 #define ROTIDE_UNDO_HISTORY_LIMIT 200
 #define ROTIDE_OSC52_MAX_COPY_BYTES ((size_t)100000)
 #define ROTIDE_MAX_TEXT_BYTES ((size_t)INT_MAX)
@@ -688,6 +690,9 @@ struct editorConfig {
 	int line_wrap_enabled;
 	int line_numbers_enabled;
 	int current_line_highlight_enabled;
+	int auto_indent_enabled;
+	int indent_use_tabs;
+	int indent_width;
 	int column_select_drag_modifier;
 	struct editorTheme theme;
 	enum editorViewportMode viewport_mode;
