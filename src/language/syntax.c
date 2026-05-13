@@ -2693,6 +2693,50 @@ static int editorSyntaxNodeStartsIndentScope(enum editorSyntaxLanguage language,
 	}
 }
 
+static int editorSyntaxLanguageUsesBraceIndentScopes(enum editorSyntaxLanguage language) {
+	switch (language) {
+		case EDITOR_SYNTAX_C:
+		case EDITOR_SYNTAX_CPP:
+		case EDITOR_SYNTAX_GO:
+		case EDITOR_SYNTAX_JAVASCRIPT:
+		case EDITOR_SYNTAX_TYPESCRIPT:
+		case EDITOR_SYNTAX_TSX:
+		case EDITOR_SYNTAX_CSS:
+		case EDITOR_SYNTAX_JSON:
+		case EDITOR_SYNTAX_PHP:
+		case EDITOR_SYNTAX_RUST:
+		case EDITOR_SYNTAX_JAVA:
+		case EDITOR_SYNTAX_CSHARP:
+		case EDITOR_SYNTAX_JULIA:
+		case EDITOR_SYNTAX_SCALA:
+			return 1;
+		default:
+			return 0;
+	}
+}
+
+static int editorSyntaxIndentAnchorRowForScope(enum editorSyntaxLanguage language,
+		TSNode scope) {
+	TSPoint start = ts_node_start_point(scope);
+	int anchor_row = (int)start.row;
+	if (!editorSyntaxLanguageUsesBraceIndentScopes(language)) {
+		return anchor_row;
+	}
+
+	TSNode parent = ts_node_parent(scope);
+	if (ts_node_is_null(parent) || ts_node_is_null(ts_node_parent(parent))) {
+		return anchor_row;
+	}
+
+	TSPoint parent_start = ts_node_start_point(parent);
+	const char *parent_type = ts_node_type(parent);
+	if (parent_start.row < start.row &&
+			!editorSyntaxNodeStartsIndentScope(language, parent_type)) {
+		return (int)parent_start.row;
+	}
+	return anchor_row;
+}
+
 int editorSyntaxStateSuggestIndentAnchor(const struct editorSyntaxState *state,
 		int row, int column, int *anchor_row_out, int *extra_levels_out) {
 	if (anchor_row_out != NULL) {
@@ -2722,7 +2766,8 @@ int editorSyntaxStateSuggestIndentAnchor(const struct editorSyntaxState *state,
 		if (editorSyntaxNodeStartsIndentScope(state->language, type) &&
 				start.row <= point.row && point.row < end.row) {
 			if (anchor_row_out != NULL) {
-				*anchor_row_out = (int)start.row;
+				*anchor_row_out = editorSyntaxIndentAnchorRowForScope(state->language,
+						node);
 			}
 			if (extra_levels_out != NULL) {
 				*extra_levels_out = 1;

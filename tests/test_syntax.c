@@ -1053,6 +1053,39 @@ static int test_editor_insert_newline_uses_tree_sitter_block_indent_for_c(void) 
 	return 0;
 }
 
+static int test_editor_insert_newline_uses_function_header_indent_for_wrapped_c_args(void) {
+	char path[512];
+	ASSERT_TRUE(write_temp_c_file(path, sizeof(path),
+				"static int foo(int lol, int32_t a,\n"
+				"\t\tint32_t b) {\n"
+				"\tif (a != b) {\n"
+				"\t\treturn lol;\n"
+				"\t}\n"
+				"}\n"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	E.auto_indent_enabled = 1;
+	E.indent_use_tabs = 1;
+	E.indent_width = 4;
+	E.dirty = 0;
+	E.cy = 4;
+	E.cx = E.rows[4].size;
+
+	editorInsertNewline();
+	ASSERT_EQ_INT(7, E.numrows);
+	ASSERT_EQ_STR("\t}", E.rows[4].chars);
+	ASSERT_EQ_STR("\t", E.rows[5].chars);
+	ASSERT_EQ_STR("}", E.rows[6].chars);
+	ASSERT_EQ_INT(5, E.cy);
+	ASSERT_EQ_INT(1, E.cx);
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_insert_newline_uses_tree_sitter_header_indent_for_python(void) {
 	char path[512];
 	ASSERT_TRUE(write_temp_file_with_suffix(path, sizeof(path),
@@ -2760,6 +2793,7 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_save_as_web_and_plain_updates_syntax", test_editor_save_as_web_and_plain_updates_syntax},
 	{"editor_syntax_incremental_edits_keep_tree_valid", test_editor_syntax_incremental_edits_keep_tree_valid},
 	{"editor_insert_newline_uses_tree_sitter_block_indent_for_c", test_editor_insert_newline_uses_tree_sitter_block_indent_for_c},
+	{"editor_insert_newline_uses_function_header_indent_for_wrapped_c_args", test_editor_insert_newline_uses_function_header_indent_for_wrapped_c_args},
 	{"editor_insert_newline_uses_tree_sitter_header_indent_for_python", test_editor_insert_newline_uses_tree_sitter_header_indent_for_python},
 	{"editor_syntax_transient_parse_failure_retries_next_edit", test_editor_syntax_transient_parse_failure_retries_next_edit},
 	{"editor_syntax_deactivates_after_consecutive_parse_failures", test_editor_syntax_deactivates_after_consecutive_parse_failures},

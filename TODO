@@ -1,4 +1,3 @@
-- FEATURE: Add bracket/quote pair assistance: auto-close pairs, skip-over closing pairs, and jump to matching bracket.
 - FEATURE: Add multi-threading support for heavy background work (for example directory scanning/search indexing), with thread-safe state handling and unchanged editor behavior.
 - FEATURE: implement support for Debug Adapter Protocol (DAP)
 - FEATURE: implement support for vim-mode. The commands should be configurable in .rotide.toml in local and global files.
