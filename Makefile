@@ -12,6 +12,7 @@ SANITIZER_CFLAGS ?= -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer
 SANITIZER_LDFLAGS ?= -fsanitize=address,undefined -fno-omit-frame-pointer
 DEPFLAGS = -MMD -MP
 V ?= 0
+DOCS_MEDIA_FLAGS ?=
 MAKEFLAGS += --no-print-directory
 ifeq ($(V),1)
 LOG =
@@ -323,9 +324,12 @@ release:
 		LDFLAGS="$(LDFLAGS) $(RELEASE_LDFLAGS)" rotide
 	$(call LOG,STRIP,rotide)$(STRIP) $(STRIPFLAGS) rotide
 
+docs-media:
+	$(call LOG,DOCS,media)python3 scripts/capture_docs_media.py $(DOCS_MEDIA_FLAGS)
+
 -include $(DEPFILES)
 
-.PHONY: clean test test-sanitize release
+.PHONY: clean test test-sanitize release docs-media
 clean:
 	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(DEPFILES) $(TEST_BIN) rotide $(GENERATED_HEADERS)
 	$(call LOG,CLEAN,tree)find $(SRC_DIR) tests vendor/tree_sitter -type f \( -name '*.o' -o -name '*.d' \) -delete
