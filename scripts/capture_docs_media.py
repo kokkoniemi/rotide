@@ -23,6 +23,7 @@ ROTIDE_BIN = REPO_ROOT / "rotide"
 CAPTURE_WIDTH = 2560
 CAPTURE_HEIGHT = 1520
 CAPTURE_FONT_SIZE = 32
+CAPTURE_FONT_FAMILY = "FiraMono Nerd Font Mono"
 DEFAULT_CAPTURE_THEME = "github-dark"
 
 BUILTIN_THEMES: tuple[tuple[str, str], ...] = (
@@ -51,6 +52,7 @@ cursor_blink = false
 line_wrap = false
 line_numbers = true
 current_line_highlight = true
+nerd_fonts = {nerd_fonts}
 auto_indent = true
 indent_style = "tabs"
 indent_width = 4
@@ -86,11 +88,13 @@ class Scene:
     theme: str = DEFAULT_CAPTURE_THEME
     lsp_scene: bool = False
     required_commands: tuple[str, ...] = ()
-    open_file: str = "src/rotide.c"
+    open_file: str = "src/text/document.c"
     clangd_enabled: bool = False
     javascript_enabled: bool = False
     full_config: bool = False
     git_repo: bool = False
+    nerd_fonts: bool = True
+    launch_in_workspace_root: bool = True
 
 
 def vhs_type(text: str) -> str:
@@ -115,6 +119,29 @@ BASE_SCENES: tuple[Scene, ...] = (
             "Ctrl+E",
             "Sleep 500ms",
             "Ctrl+E",
+            "Sleep 1000ms",
+        ),
+    ),
+    Scene(
+        name="editor-source-plain",
+        output="editor-source-plain.png",
+        description="Same editor scene rendered without Nerd Font icons, for environments that lack the font.",
+        tape_body=(
+            "Sleep 1800ms",
+            "Ctrl+E",
+            "Sleep 500ms",
+            "Ctrl+E",
+            "Sleep 1000ms",
+        ),
+        nerd_fonts=False,
+    ),
+    Scene(
+        name="editor-source-no-drawer",
+        output="editor-source-no-drawer.png",
+        description="Editor with the project drawer hidden, leaving the full width for source.",
+        tape_body=(
+            "Sleep 1800ms",
+            "Ctrl+Alt+E",
             "Sleep 1000ms",
         ),
     ),
@@ -147,20 +174,22 @@ BASE_SCENES: tuple[Scene, ...] = (
         ),
     ),
     Scene(
-        name="lsp-autocomplete-js",
-        output="lsp-autocomplete-js.png",
-        description="JavaScript autocomplete popup powered by a real TypeScript language server.",
+        name="lsp-autocomplete-c",
+        output="lsp-autocomplete-c.png",
+        description="C autocomplete popup powered by clangd suggesting struct members.",
         tape_body=(
-            "Sleep 3500ms",
-            "Down 5",
+            "Sleep 5000ms",
+            "Down 8",
             "Right 7",
+            "Sleep 300ms",
             vhs_type("."),
-            "Sleep 3500ms",
+            "Sleep 5000ms",
         ),
         lsp_scene=True,
-        required_commands=("typescript-language-server", "tsserver"),
-        open_file="app.js",
-        javascript_enabled=True,
+        required_commands=("clangd",),
+        open_file="autocomplete.c",
+        clangd_enabled=True,
+        launch_in_workspace_root=False,
     ),
     Scene(
         name="lsp-clang-problems",
@@ -175,6 +204,7 @@ BASE_SCENES: tuple[Scene, ...] = (
         required_commands=("clangd",),
         open_file="clang-problems.c",
         clangd_enabled=True,
+        launch_in_workspace_root=False,
     ),
     Scene(
         name="settings-config",
@@ -185,6 +215,17 @@ BASE_SCENES: tuple[Scene, ...] = (
         ),
         open_file=".home/.rotide/config.toml",
         full_config=True,
+        launch_in_workspace_root=False,
+    ),
+    Scene(
+        name="main-menu",
+        output="main-menu.png",
+        description="Main menu drawer with grouped actions for Find, File, Tabs, Edit, and View.",
+        tape_body=(
+            "Sleep 1500ms",
+            "Alt+M",
+            "Sleep 600ms",
+        ),
     ),
     Scene(
         name="git-changes",
@@ -347,14 +388,17 @@ def copy_fixture_workspace(workspace: Path) -> None:
         "This generated workspace keeps RotIDE documentation screenshots deterministic.\n",
         encoding="utf-8",
     )
-    (workspace / "app.js").write_text(
-        "const client = {\n"
-        "  completionCount: 1,\n"
-        "  completionContext: true,\n"
-        "  connect() { return this.completionCount; },\n"
+    (workspace / "autocomplete.c").write_text(
+        "struct app_state {\n"
+        "    int request_count;\n"
+        "    int response_count;\n"
+        "    const char *session_id;\n"
         "};\n"
         "\n"
-        "client",
+        "int main(void) {\n"
+        "    struct app_state app;\n"
+        "    app\n"
+        "}\n",
         encoding="utf-8",
     )
     (workspace / "clang-problems.c").write_text(
@@ -374,9 +418,9 @@ def prepare_git_repo(workspace: Path) -> None:
     run_checked_quiet(["git", "config", "user.name", "RotIDE Docs Media"], cwd=workspace)
     run_checked_quiet(["git", "add", "."], cwd=workspace)
     run_checked_quiet(["git", "commit", "-m", "Initial docs media fixture"], cwd=workspace)
-    with (workspace / "src" / "rotide.c").open("a", encoding="utf-8") as f:
+    with (workspace / "src" / "text" / "document.c").open("a", encoding="utf-8") as f:
         f.write("\n/* docs-media: modified line for the git screenshot */\n")
-    run_checked_quiet(["git", "add", "src/rotide.c"], cwd=workspace)
+    run_checked_quiet(["git", "add", "src/text/document.c"], cwd=workspace)
     (workspace / "docs" / "capture-notes.md").write_text(
         "# Capture Notes\n\n"
         "This modified file makes the Git drawer show realistic workspace changes.\n",
@@ -406,6 +450,7 @@ def write_config(home: Path, scene: Scene) -> Path:
             theme=scene.theme,
             clangd_enabled=str(scene.clangd_enabled).lower(),
             javascript_enabled=str(scene.javascript_enabled).lower(),
+            nerd_fonts=str(scene.nerd_fonts).lower(),
         ), encoding="utf-8")
     return path
 
@@ -416,16 +461,39 @@ def scene_open_path(scene: Scene, workspace: Path, home: Path) -> Path:
     return workspace / scene.open_file
 
 
-def tape_for_scene(scene: Scene, workspace: Path, home: Path, frame_output: Path) -> str:
-    env = (
-        f'cd {sh_quote(str(workspace))} && '
-        f'HOME={sh_quote(str(home))} '
-        "TERM=xterm-256color "
-        f'{sh_quote(str(ROTIDE_BIN))} {sh_quote(str(scene_open_path(scene, workspace, home)))}'
+def vhs_open_file_via_finder(filename: str) -> tuple[str, ...]:
+    return (
+        "Sleep 1200ms",
+        "Ctrl+P",
+        "Sleep 400ms",
+        vhs_type(filename),
+        "Sleep 600ms",
+        "Enter",
+        "Sleep 600ms",
     )
+
+
+def tape_for_scene(scene: Scene, workspace: Path, home: Path, frame_output: Path) -> str:
+    if scene.launch_in_workspace_root:
+        launch_cmd = (
+            f'cd {sh_quote(str(workspace))} && '
+            f'HOME={sh_quote(str(home))} '
+            "TERM=xterm-256color "
+            f'{sh_quote(str(ROTIDE_BIN))}'
+        )
+        finder_preamble: tuple[str, ...] = vhs_open_file_via_finder(scene.open_file)
+    else:
+        launch_cmd = (
+            f'cd {sh_quote(str(workspace))} && '
+            f'HOME={sh_quote(str(home))} '
+            "TERM=xterm-256color "
+            f'{sh_quote(str(ROTIDE_BIN))} {sh_quote(str(scene_open_path(scene, workspace, home)))}'
+        )
+        finder_preamble = ()
     lines = [
         f"Output {quote_vhs_path(frame_output)}",
         "Set Shell bash",
+        f'Set FontFamily "{CAPTURE_FONT_FAMILY}"',
         f"Set FontSize {CAPTURE_FONT_SIZE}",
         f"Set Width {CAPTURE_WIDTH}",
         f"Set Height {CAPTURE_HEIGHT}",
@@ -433,7 +501,8 @@ def tape_for_scene(scene: Scene, workspace: Path, home: Path, frame_output: Path
         "Set PlaybackSpeed 1.0",
         "Set TypingSpeed 50ms",
         "",
-        *vhs_run(env),
+        *vhs_run(launch_cmd),
+        *finder_preamble,
         *scene.tape_body,
     ]
     return "\n".join(lines) + "\n"

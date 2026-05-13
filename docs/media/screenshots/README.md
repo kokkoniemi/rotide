@@ -13,6 +13,14 @@ make docs-media DOCS_MEDIA_FLAGS=--skip-lsp
 
 ![Editor source](editor-source.png)
 
+### Editor Source (no Nerd Font)
+
+![Editor source without Nerd Font icons](editor-source-plain.png)
+
+### Editor Source (drawer hidden)
+
+![Editor source with drawer hidden](editor-source-no-drawer.png)
+
 ### Project Drawer
 
 ![Project drawer](drawer-tree.png)
@@ -21,9 +29,9 @@ make docs-media DOCS_MEDIA_FLAGS=--skip-lsp
 
 ![Project search](project-search.png)
 
-### JavaScript Autocomplete
+### C Autocomplete
 
-![JavaScript autocomplete](lsp-autocomplete-js.png)
+![C autocomplete](lsp-autocomplete-c.png)
 
 ### Clangd Problems
 
@@ -32,6 +40,10 @@ make docs-media DOCS_MEDIA_FLAGS=--skip-lsp
 ### Settings
 
 ![Settings config](settings-config.png)
+
+### Main Menu
+
+![Main menu](main-menu.png)
 
 ### Git Changes
 

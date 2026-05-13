@@ -120,6 +120,8 @@ static void editorThemeInitTerminal(struct editorTheme *theme) {
 			editorThemeAnsiColor(EDITOR_THEME_ANSI_BRIGHT_BLACK);
 	theme->ui[EDITOR_THEME_UI_DRAWER_CONNECTOR] =
 			editorThemeAnsiColor(EDITOR_THEME_ANSI_BRIGHT_BLACK);
+	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] =
+			editorThemeAnsiColor(EDITOR_THEME_ANSI_WHITE);
 	theme->ui[EDITOR_THEME_UI_PLACEHOLDER] =
 			editorThemeAnsiColor(EDITOR_THEME_ANSI_BRIGHT_BLACK);
 	theme->ui[EDITOR_THEME_UI_CURRENT_LINE_BG] = editorTheme256Color(236);
@@ -310,6 +312,7 @@ static void editorThemeInitSilentium(struct editorTheme *theme) {
 	theme->ui[EDITOR_THEME_UI_BACKGROUND] = dark;
 	theme->ui[EDITOR_THEME_UI_LINE_NUMBER] = light_gray;
 	theme->ui[EDITOR_THEME_UI_DRAWER_CONNECTOR] = gray;
+	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = light_gray;
 	theme->ui[EDITOR_THEME_UI_PLACEHOLDER] = ghost;
 	theme->ui[EDITOR_THEME_UI_CURRENT_LINE_BG] = dark_gray;
 	theme->ui[EDITOR_THEME_UI_DRAWER_HEADER_BG] = ghost;
@@ -354,6 +357,7 @@ static void editorThemeInit256Noir(struct editorTheme *theme) {
 	theme->ui[EDITOR_THEME_UI_BACKGROUND] = bg;
 	theme->ui[EDITOR_THEME_UI_LINE_NUMBER] = comment;
 	theme->ui[EDITOR_THEME_UI_DRAWER_CONNECTOR] = comment;
+	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = editorTheme256Color(245);
 	theme->ui[EDITOR_THEME_UI_PLACEHOLDER] = comment;
 	theme->ui[EDITOR_THEME_UI_CURRENT_LINE_BG] = current_line;
 	theme->ui[EDITOR_THEME_UI_DRAWER_HEADER_BG] = bg;
@@ -471,6 +475,7 @@ static void editorThemeInitGithubLight(struct editorTheme *theme) {
 			.variable = editorThemeRgbColor(0x1F, 0x23, 0x28),
 			.type = editorThemeRgbColor(0x1F, 0x23, 0x28),
 	});
+	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = editorThemeRgbColor(0x57, 0x60, 0x6A);
 }
 
 static void editorThemeInitGithubDark(struct editorTheme *theme) {
@@ -521,6 +526,7 @@ static void editorThemeInitMolokai(struct editorTheme *theme) {
 			.variable = editorThemeRgbColor(0xFD, 0x97, 0x1F),
 			.type = editorThemeRgbColor(0x66, 0xD9, 0xEF),
 	});
+	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = editorThemeRgbColor(0xB5, 0xC4, 0xC7);
 }
 
 struct editorModusPalette {
@@ -635,6 +641,7 @@ static void editorThemeInitModusOperandi(struct editorTheme *theme) {
 			.property = editorThemeRgbColor(0x00, 0x5E, 0x8B),
 			.preprocessor = editorThemeRgbColor(0xA0, 0x13, 0x2F),
 	});
+	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = editorThemeRgbColor(0x40, 0x40, 0x40);
 }
 
 static void editorThemeInitModusOperandiTinted(struct editorTheme *theme) {
@@ -671,6 +678,7 @@ static void editorThemeInitModusOperandiTinted(struct editorTheme *theme) {
 			.property = editorThemeRgbColor(0x00, 0x60, 0x3F),
 			.preprocessor = editorThemeRgbColor(0x89, 0x40, 0x00),
 	});
+	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = editorThemeRgbColor(0x40, 0x3D, 0x38);
 }
 
 static void editorThemeInitModusVivendi(struct editorTheme *theme) {
@@ -707,6 +715,7 @@ static void editorThemeInitModusVivendi(struct editorTheme *theme) {
 			.property = editorThemeRgbColor(0x00, 0xD3, 0xD0),
 			.preprocessor = editorThemeRgbColor(0xFF, 0x7F, 0x86),
 	});
+	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = editorThemeRgbColor(0xB5, 0xB5, 0xB5);
 }
 
 static void editorThemeInitModusVivendiTinted(struct editorTheme *theme) {
@@ -743,6 +752,7 @@ static void editorThemeInitModusVivendiTinted(struct editorTheme *theme) {
 			.property = editorThemeRgbColor(0x4A, 0xE2, 0xF0),
 			.preprocessor = editorThemeRgbColor(0xFF, 0x7F, 0x86),
 	});
+	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = editorThemeRgbColor(0xB0, 0xB5, 0xC5);
 }
 
 struct editorKanagawaPalette {
@@ -842,6 +852,7 @@ static void editorThemeInitKanagawaWave(struct editorTheme *theme) {
 			.preprocessor = editorThemeRgbColor(0xFF, 0xA0, 0x66),
 			.op = editorThemeRgbColor(0xC0, 0xA3, 0x6E),
 	});
+	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = editorThemeRgbColor(0x9D, 0x9C, 0xB0);
 }
 
 static void editorThemeInitKanagawaDragon(struct editorTheme *theme) {
@@ -871,6 +882,7 @@ static void editorThemeInitKanagawaDragon(struct editorTheme *theme) {
 			.preprocessor = editorThemeRgbColor(0xB6, 0x92, 0x7B),
 			.op = editorThemeRgbColor(0xC4, 0xB2, 0x8A),
 	});
+	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = editorThemeRgbColor(0x9C, 0x95, 0x8E);
 }
 
 static void editorThemeInitKanagawaLotus(struct editorTheme *theme) {
@@ -900,6 +912,7 @@ static void editorThemeInitKanagawaLotus(struct editorTheme *theme) {
 			.preprocessor = editorThemeRgbColor(0xCC, 0x6D, 0x00),
 			.op = editorThemeRgbColor(0x77, 0x71, 0x3F),
 	});
+	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = editorThemeRgbColor(0x5A, 0x57, 0x4D);
 }
 
 static void editorThemeFinalize(struct editorTheme *theme) {

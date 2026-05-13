@@ -38,6 +38,7 @@ src/language/syntax_query_data.h
 *.i*86
 *.x86_64
 *.hex
+*.pyc
 
 # Debug files
 *.dSYM/
