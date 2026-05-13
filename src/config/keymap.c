@@ -45,6 +45,7 @@ static const struct editorActionName editor_action_names[] = {
 	{"project_search", EDITOR_ACTION_PROJECT_SEARCH},
 	{"find", EDITOR_ACTION_FIND},
 	{"goto_line", EDITOR_ACTION_GOTO_LINE},
+	{"goto_matching_bracket", EDITOR_ACTION_GOTO_MATCHING_BRACKET},
 	{"goto_definition", EDITOR_ACTION_GOTO_DEFINITION},
 	{"goto_implementation", EDITOR_ACTION_GOTO_IMPLEMENTATION},
 	{"goto_symbol", EDITOR_ACTION_GOTO_SYMBOL},
@@ -637,6 +638,7 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 			EDITOR_ACTION_PROJECT_SEARCH);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('f'), EDITOR_ACTION_FIND);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('g'), EDITOR_ACTION_GOTO_LINE);
+	(void)editorKeymapAppendBinding(keymap, CTRL_KEY(']'), EDITOR_ACTION_GOTO_MATCHING_BRACKET);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('o'), EDITOR_ACTION_GOTO_DEFINITION);
 	(void)editorKeymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('i'),
 			EDITOR_ACTION_GOTO_IMPLEMENTATION);

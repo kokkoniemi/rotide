@@ -73,6 +73,7 @@ static const struct editorDrawerMenuItem editor_drawer_menu_search_items[] = {
 	{"Search Project Text", EDITOR_ACTION_PROJECT_SEARCH},
 	{"Find & replace", EDITOR_ACTION_FIND_REPLACE},
 	{"Go to Line", EDITOR_ACTION_GOTO_LINE},
+	{"Go to Matching Bracket", EDITOR_ACTION_GOTO_MATCHING_BRACKET},
 	{"Go to Definition", EDITOR_ACTION_GOTO_DEFINITION},
 };
 

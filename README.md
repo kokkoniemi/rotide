@@ -61,7 +61,7 @@ ASAN_OPTIONS=detect_leaks=0 make test-sanitize
 - UTF-8/grapheme-safe editing and cursor movement.
 - Multi-tab workflow with preview tabs from drawer clicks.
 - Project drawer with expand/collapse, mouse resize, and keyboard navigation.
-- Search (`Ctrl-F`), go to line (`Ctrl-G`), selection/copy/cut/paste.
+- Search (`Ctrl-F`), go to line (`Ctrl-G`), matching bracket jump (`Ctrl-]`), selection/copy/cut/paste.
 - Undo/redo with edit grouping.
 - Tree-sitter syntax highlighting for:
   - C/C++ (`.c`, `.h`, `.cc`, `.cpp`, `.cxx`, `.c++`, `.hh`, `.hpp`, `.hxx`)
@@ -127,6 +127,7 @@ Syntax fixture samples are stored in [`tests/syntax/`](tests/syntax/README.md).
 - `Ctrl-Alt-L`: show LSP Problems/Symbols drawer
 - `Ctrl-F`: search
 - `Ctrl-G`: go to line
+- `Ctrl-]`: jump to matching bracket
 - `Ctrl-O` / `Ctrl + left click`: Go/C/C++/HTML/CSS/SCSS/JSON/JavaScript definition (supported source buffers)
 - `Alt-Z`: toggle soft line wrapping
 - `Alt-N`: toggle absolute line numbers

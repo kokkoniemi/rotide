@@ -2941,6 +2941,8 @@ static int test_editor_keymap_defaults_include_tab_actions(void) {
 	ASSERT_EQ_INT(EDITOR_ACTION_FIND_FILE, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_CTRL_ALT_LETTER_KEY('f'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_PROJECT_SEARCH, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY(']'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_GOTO_MATCHING_BRACKET, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_ARROW_LEFT, &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_SCROLL_LEFT, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_ARROW_RIGHT, &action));
@@ -3032,6 +3034,30 @@ static int test_editor_keymap_load_accepts_goto_definition_ctrl_o(void) {
 	enum editorAction action = EDITOR_ACTION_COUNT;
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('o'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_GOTO_DEFINITION, action);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_load_accepts_goto_matching_bracket_ctrl_bracket(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-matchbracket-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[keymap]\n"
+				"goto_matching_bracket = \"ctrl+]\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY(']'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_GOTO_MATCHING_BRACKET, action);
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(rmdir(dir_path) == 0);
@@ -3693,6 +3719,7 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_keymap_load_accepts_line_number_highlight_toggles", test_editor_keymap_load_accepts_line_number_highlight_toggles},
 	{"editor_keymap_defaults_include_goto_definition_action", test_editor_keymap_defaults_include_goto_definition_action},
 	{"editor_keymap_load_accepts_goto_definition_ctrl_o", test_editor_keymap_load_accepts_goto_definition_ctrl_o},
+	{"editor_keymap_load_accepts_goto_matching_bracket_ctrl_bracket", test_editor_keymap_load_accepts_goto_matching_bracket_ctrl_bracket},
 	{"editor_keymap_load_rejects_ctrl_i_binding_that_conflicts_with_tab_input", test_editor_keymap_load_rejects_ctrl_i_binding_that_conflicts_with_tab_input},
 	{"editor_keymap_load_rejects_reserved_terminal_aliases_for_other_actions", test_editor_keymap_load_rejects_reserved_terminal_aliases_for_other_actions},
 	{"editor_keymap_load_accepts_reserved_terminal_aliases_for_matching_actions", test_editor_keymap_load_accepts_reserved_terminal_aliases_for_matching_actions},

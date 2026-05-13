@@ -855,6 +855,93 @@ static int test_editor_process_keypress_typed_char_replaces_selection(void) {
 	return 0;
 }
 
+static int test_editor_process_keypress_opening_pair_autocloses_and_undoes_together(void) {
+	add_row("a");
+	E.cy = 0;
+	E.cx = 1;
+
+	ASSERT_TRUE(editor_process_single_key('(') == 0);
+	ASSERT_EQ_STR("a()", E.rows[0].chars);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_TRUE(assert_active_source_matches_rows() == 0);
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
+	ASSERT_EQ_STR("a", E.rows[0].chars);
+	ASSERT_EQ_INT(1, E.cx);
+	ASSERT_TRUE(assert_active_source_matches_rows() == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_quote_pair_autocloses(void) {
+	add_row("");
+	E.cy = 0;
+	E.cx = 0;
+
+	ASSERT_TRUE(editor_process_single_key('"') == 0);
+	ASSERT_EQ_STR("\"\"", E.rows[0].chars);
+	ASSERT_EQ_INT(1, E.cx);
+	ASSERT_TRUE(assert_active_source_matches_rows() == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_closing_pair_skips_existing_byte(void) {
+	add_row("()");
+	E.cy = 0;
+	E.cx = 1;
+	int dirty_before = E.dirty;
+
+	ASSERT_TRUE(editor_process_single_key(')') == 0);
+	ASSERT_EQ_STR("()", E.rows[0].chars);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_EQ_INT(dirty_before, E.dirty);
+	ASSERT_TRUE(assert_active_source_matches_rows() == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_opening_pair_before_word_inserts_literal(void) {
+	add_row("ab");
+	E.cy = 0;
+	E.cx = 1;
+
+	ASSERT_TRUE(editor_process_single_key('(') == 0);
+	ASSERT_EQ_STR("a(b", E.rows[0].chars);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_TRUE(assert_active_source_matches_rows() == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_bracket_jumps_to_matching_bracket(void) {
+	add_row("a(b[c]d)e");
+	E.cy = 0;
+	E.cx = 1;
+	int dirty_before = E.dirty;
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY(']')) == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(7, E.cx);
+	ASSERT_EQ_INT(dirty_before, E.dirty);
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY(']')) == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(1, E.cx);
+	ASSERT_EQ_INT(dirty_before, E.dirty);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_bracket_reports_missing_match(void) {
+	add_row("abc");
+	E.cy = 0;
+	E.cx = 1;
+	int dirty_before = E.dirty;
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY(']')) == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(1, E.cx);
+	ASSERT_EQ_INT(dirty_before, E.dirty);
+	ASSERT_EQ_STR("No bracket near cursor", E.statusmsg);
+	return 0;
+}
+
 static int test_editor_process_keypress_tab_indents_selection(void) {
 	add_row("alpha");
 	add_row("beta");
@@ -3747,6 +3834,12 @@ const struct editorTestCase g_input_search_tests[] = {
 	{"editor_process_keypress_alt_c_toggles_comment_for_selection", test_editor_process_keypress_alt_c_toggles_comment_for_selection},
 	{"editor_process_keypress_alt_c_no_op_for_unsupported_language", test_editor_process_keypress_alt_c_no_op_for_unsupported_language},
 	{"editor_process_keypress_typed_char_replaces_selection", test_editor_process_keypress_typed_char_replaces_selection},
+	{"editor_process_keypress_opening_pair_autocloses_and_undoes_together", test_editor_process_keypress_opening_pair_autocloses_and_undoes_together},
+	{"editor_process_keypress_quote_pair_autocloses", test_editor_process_keypress_quote_pair_autocloses},
+	{"editor_process_keypress_closing_pair_skips_existing_byte", test_editor_process_keypress_closing_pair_skips_existing_byte},
+	{"editor_process_keypress_opening_pair_before_word_inserts_literal", test_editor_process_keypress_opening_pair_before_word_inserts_literal},
+	{"editor_process_keypress_ctrl_bracket_jumps_to_matching_bracket", test_editor_process_keypress_ctrl_bracket_jumps_to_matching_bracket},
+	{"editor_process_keypress_ctrl_bracket_reports_missing_match", test_editor_process_keypress_ctrl_bracket_reports_missing_match},
 	{"editor_process_keypress_tab_indents_selection", test_editor_process_keypress_tab_indents_selection},
 	{"editor_process_keypress_tab_indents_selection_drops_terminating_zero_column", test_editor_process_keypress_tab_indents_selection_drops_terminating_zero_column},
 	{"editor_process_keypress_alt_arrow_up_moves_line_up", test_editor_process_keypress_alt_arrow_up_moves_line_up},
