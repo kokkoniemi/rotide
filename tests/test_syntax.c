@@ -1024,6 +1024,66 @@ static int test_editor_syntax_incremental_edits_keep_tree_valid(void) {
 	return 0;
 }
 
+static int test_editor_insert_newline_uses_tree_sitter_block_indent_for_c(void) {
+	char path[512];
+	ASSERT_TRUE(write_temp_c_file(path, sizeof(path),
+				"int main() {\n"
+				"}\n"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	E.auto_indent_enabled = 1;
+	E.indent_use_tabs = 0;
+	E.indent_width = 4;
+	E.dirty = 0;
+	E.cy = 0;
+	E.cx = E.rows[0].size;
+
+	editorInsertNewline();
+	ASSERT_EQ_INT(3, E.numrows);
+	ASSERT_EQ_STR("int main() {", E.rows[0].chars);
+	ASSERT_EQ_STR("    ", E.rows[1].chars);
+	ASSERT_EQ_STR("}", E.rows[2].chars);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(4, E.cx);
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_insert_newline_uses_tree_sitter_header_indent_for_python(void) {
+	char path[512];
+	ASSERT_TRUE(write_temp_file_with_suffix(path, sizeof(path),
+				"rotide-test-indent-python-", ".py",
+				"if True:\n"
+				"    pass\n"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_PYTHON, editorSyntaxLanguageActive());
+	E.auto_indent_enabled = 1;
+	E.indent_use_tabs = 0;
+	E.indent_width = 4;
+	E.dirty = 0;
+	E.cy = 0;
+	E.cx = E.rows[0].size;
+
+	editorInsertNewline();
+	ASSERT_EQ_INT(3, E.numrows);
+	ASSERT_EQ_STR("if True:", E.rows[0].chars);
+	ASSERT_EQ_STR("    ", E.rows[1].chars);
+	ASSERT_EQ_STR("    pass", E.rows[2].chars);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(4, E.cx);
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int assert_editor_syntax_parse_failed_event(int expected_detail) {
 	ASSERT_TRUE(E.syntax_state != NULL);
 	struct editorSyntaxLimitEvent event = {0};
@@ -2699,6 +2759,8 @@ const struct editorTestCase g_syntax_tests[] = {
 	{"editor_save_as_shell_and_non_shell_updates_syntax", test_editor_save_as_shell_and_non_shell_updates_syntax},
 	{"editor_save_as_web_and_plain_updates_syntax", test_editor_save_as_web_and_plain_updates_syntax},
 	{"editor_syntax_incremental_edits_keep_tree_valid", test_editor_syntax_incremental_edits_keep_tree_valid},
+	{"editor_insert_newline_uses_tree_sitter_block_indent_for_c", test_editor_insert_newline_uses_tree_sitter_block_indent_for_c},
+	{"editor_insert_newline_uses_tree_sitter_header_indent_for_python", test_editor_insert_newline_uses_tree_sitter_header_indent_for_python},
 	{"editor_syntax_transient_parse_failure_retries_next_edit", test_editor_syntax_transient_parse_failure_retries_next_edit},
 	{"editor_syntax_deactivates_after_consecutive_parse_failures", test_editor_syntax_deactivates_after_consecutive_parse_failures},
 	{"editor_syntax_incremental_edits_keep_cpp_tree_valid", test_editor_syntax_incremental_edits_keep_cpp_tree_valid},

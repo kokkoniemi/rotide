@@ -3,6 +3,7 @@
 #include "editing/buffer_core.h"
 #include "input/dispatch.h"
 #include "language/lsp.h"
+#include "language/syntax.h"
 #include "support/alloc.h"
 #include "support/file_io.h"
 #include "support/save_syscalls.h"
@@ -337,6 +338,25 @@ static int editorBuildIndentForLine(int row_idx, int limit_cx, char **indent_out
 	}
 	int clamped_cx = editorRowClampCxToClusterBoundary(&E.rows[row_idx], limit_cx);
 	size_t cols = editorIndentPrefixColumns(&E.rows[row_idx], clamped_cx);
+	int anchor_row = 0;
+	int extra_levels = 0;
+	if (editorSyntaxStateSuggestIndentAnchor(E.syntax_state, row_idx, clamped_cx,
+			&anchor_row, &extra_levels) && anchor_row >= 0 && anchor_row < E.numrows &&
+			extra_levels > 0) {
+		size_t syntax_cols = editorIndentPrefixColumns(&E.rows[anchor_row],
+				E.rows[anchor_row].size);
+		size_t extra_cols = 0;
+		size_t total_cols = 0;
+		if (!editorSizeMul((size_t)extra_levels, (size_t)editorEffectiveIndentWidth(),
+				&extra_cols) ||
+				!editorSizeAdd(syntax_cols, extra_cols, &total_cols)) {
+			editorSetOperationTooLargeStatus();
+			return 0;
+		}
+		if (total_cols > cols) {
+			cols = total_cols;
+		}
+	}
 	return editorBuildIndentString(cols, indent_out, indent_len_out);
 }
 

@@ -2626,6 +2626,115 @@ enum editorSyntaxLanguage editorSyntaxStateLanguage(const struct editorSyntaxSta
 	return state->language;
 }
 
+static int editorSyntaxTypeEqualsAny(const char *type, const char *const *types, size_t count) {
+	if (type == NULL || types == NULL) {
+		return 0;
+	}
+	for (size_t i = 0; i < count; i++) {
+		if (strcmp(type, types[i]) == 0) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static int editorSyntaxNodeStartsIndentScope(enum editorSyntaxLanguage language,
+		const char *type) {
+	static const char *const brace_scope_types[] = {
+		"block",
+		"compound_statement",
+		"statement_block",
+		"declaration_list",
+		"field_declaration_list",
+		"enum_body",
+		"class_body",
+		"interface_body",
+		"namespace_body",
+		"object",
+		"array"
+	};
+	static const char *const python_scope_types[] = {
+		"if_statement",
+		"for_statement",
+		"while_statement",
+		"with_statement",
+		"try_statement",
+		"except_clause",
+		"function_definition",
+		"class_definition",
+		"match_statement",
+		"case_clause"
+	};
+
+	switch (language) {
+		case EDITOR_SYNTAX_C:
+		case EDITOR_SYNTAX_CPP:
+		case EDITOR_SYNTAX_GO:
+		case EDITOR_SYNTAX_JAVASCRIPT:
+		case EDITOR_SYNTAX_TYPESCRIPT:
+		case EDITOR_SYNTAX_TSX:
+		case EDITOR_SYNTAX_CSS:
+		case EDITOR_SYNTAX_JSON:
+		case EDITOR_SYNTAX_PHP:
+		case EDITOR_SYNTAX_RUST:
+		case EDITOR_SYNTAX_JAVA:
+		case EDITOR_SYNTAX_CSHARP:
+		case EDITOR_SYNTAX_JULIA:
+		case EDITOR_SYNTAX_SCALA:
+			return editorSyntaxTypeEqualsAny(type, brace_scope_types,
+					sizeof(brace_scope_types) / sizeof(brace_scope_types[0]));
+		case EDITOR_SYNTAX_PYTHON:
+			return editorSyntaxTypeEqualsAny(type, brace_scope_types,
+						sizeof(brace_scope_types) / sizeof(brace_scope_types[0])) ||
+					editorSyntaxTypeEqualsAny(type, python_scope_types,
+							sizeof(python_scope_types) / sizeof(python_scope_types[0]));
+		default:
+			return 0;
+	}
+}
+
+int editorSyntaxStateSuggestIndentAnchor(const struct editorSyntaxState *state,
+		int row, int column, int *anchor_row_out, int *extra_levels_out) {
+	if (anchor_row_out != NULL) {
+		*anchor_row_out = 0;
+	}
+	if (extra_levels_out != NULL) {
+		*extra_levels_out = 0;
+	}
+	if (state == NULL || state->host.tree == NULL || row < 0 || column < 0) {
+		return 0;
+	}
+
+	TSPoint point = {
+		.row = (uint32_t)row,
+		.column = (uint32_t)column
+	};
+	TSNode root = ts_tree_root_node(state->host.tree);
+	TSNode node = ts_node_descendant_for_point_range(root, point, point);
+	if (ts_node_is_null(node)) {
+		node = root;
+	}
+
+	while (!ts_node_is_null(node)) {
+		const char *type = ts_node_type(node);
+		TSPoint start = ts_node_start_point(node);
+		TSPoint end = ts_node_end_point(node);
+		if (editorSyntaxNodeStartsIndentScope(state->language, type) &&
+				start.row <= point.row && point.row < end.row) {
+			if (anchor_row_out != NULL) {
+				*anchor_row_out = (int)start.row;
+			}
+			if (extra_levels_out != NULL) {
+				*extra_levels_out = 1;
+			}
+			return 1;
+		}
+		node = ts_node_parent(node);
+	}
+
+	return 0;
+}
+
 static int editorSyntaxCaptureSortKeyCmp(const struct editorSyntaxCapture *left,
 		const struct editorSyntaxCapture *right) {
 	if (left->start_byte < right->start_byte) {

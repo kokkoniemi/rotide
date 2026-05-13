@@ -115,6 +115,8 @@ int editorSyntaxStateFirstErrorPosition(const struct editorSyntaxState *state,
 		int *row_out, int *column_out);
 const char *editorSyntaxStateRootType(const struct editorSyntaxState *state);
 enum editorSyntaxLanguage editorSyntaxStateLanguage(const struct editorSyntaxState *state);
+int editorSyntaxStateSuggestIndentAnchor(const struct editorSyntaxState *state,
+		int row, int column, int *anchor_row_out, int *extra_levels_out);
 int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 		const struct editorTextSource *source,
 		uint32_t start_byte, uint32_t end_byte,
