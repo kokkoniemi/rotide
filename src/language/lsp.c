@@ -124,6 +124,11 @@ static void editorLspResetTrackedDocumentsForServerKind(enum editorLspServerKind
 	}
 }
 
+void editorLspResetTrackedDocuments(void) {
+	editorLspResetTrackedDocumentsForServerKind(EDITOR_LSP_SERVER_GOPLS);
+	editorLspResetTrackedDocumentsForServerKind(EDITOR_LSP_SERVER_ESLINT);
+}
+
 static int editorLspFilenameHasCppExtension(const char *filename) {
 	if (filename == NULL || filename[0] == '\0') {
 		return 0;

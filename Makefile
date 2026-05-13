@@ -96,6 +96,7 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/render/screen.c \
 	$(SRC_DIR)/render/popup.c \
 	$(SRC_DIR)/config/common.c $(SRC_DIR)/config/keymap.c \
+	$(SRC_DIR)/config/runtime_config.c \
 	$(SRC_DIR)/config/editor_config.c $(SRC_DIR)/config/theme_config.c \
 	$(SRC_DIR)/config/lsp_config.c \
 	$(SRC_DIR)/language/syntax.c $(SRC_DIR)/language/queries.c \

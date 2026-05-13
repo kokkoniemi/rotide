@@ -3491,6 +3491,196 @@ cleanup:
 	return failed;
 }
 
+static int test_editor_save_global_config_can_reload_settings(void) {
+	int failed = 1;
+	struct envVarBackup home_backup;
+	char home_dir[512] = "";
+	char dot_rotide_dir[512] = "";
+	char config_path[512] = "";
+	char root_template[] = "/tmp/rotide-test-config-save-reload-XXXXXX";
+	int saved_stdin = -1;
+	int saved_stdout = -1;
+
+	if (!backup_env_var(&home_backup, "HOME")) {
+		return 1;
+	}
+
+	char *root_path = mkdtemp(root_template);
+	if (root_path == NULL) {
+		goto cleanup;
+	}
+	if (!path_join(home_dir, sizeof(home_dir), root_path, "home")) {
+		goto cleanup;
+	}
+	if (mkdir(home_dir, 0700) == -1) {
+		goto cleanup;
+	}
+	if (!path_join(dot_rotide_dir, sizeof(dot_rotide_dir), home_dir, ".rotide")) {
+		goto cleanup;
+	}
+	if (mkdir(dot_rotide_dir, 0700) == -1) {
+		goto cleanup;
+	}
+	if (!path_join(config_path, sizeof(config_path), dot_rotide_dir, "config.toml")) {
+		goto cleanup;
+	}
+	if (setenv("HOME", home_dir, 1) != 0) {
+		goto cleanup;
+	}
+	if (!write_text_file(config_path, "[editor]\nline_wrap = true\n")) {
+		goto cleanup;
+	}
+	if (!editorTabsInit() || !editorOpen(config_path)) {
+		goto cleanup;
+	}
+
+	E.line_wrap_enabled = 0;
+	if (setup_stdin_bytes("y\r", 2, &saved_stdin) != 0) {
+		goto cleanup;
+	}
+	if (redirect_stdout_to_devnull(&saved_stdout) != 0) {
+		goto cleanup;
+	}
+	editorSave();
+	if (restore_stdout(saved_stdout) != 0) {
+		goto cleanup;
+	}
+	saved_stdout = -1;
+	if (restore_stdin(saved_stdin) != 0) {
+		goto cleanup;
+	}
+	saved_stdin = -1;
+
+	if (E.line_wrap_enabled != 1) {
+		goto cleanup;
+	}
+	if (strcmp(E.statusmsg, "Settings reloaded") != 0) {
+		goto cleanup;
+	}
+	if (E.dirty != 0) {
+		goto cleanup;
+	}
+
+	failed = 0;
+
+cleanup:
+	if (saved_stdout != -1 && !restore_stdout(saved_stdout)) {
+		failed = 1;
+	}
+	if (saved_stdin != -1 && !restore_stdin(saved_stdin)) {
+		failed = 1;
+	}
+	if (!restore_env_var(&home_backup)) {
+		failed = 1;
+	}
+	if (config_path[0] != '\0') {
+		(void)unlink(config_path);
+	}
+	if (dot_rotide_dir[0] != '\0') {
+		(void)rmdir(dot_rotide_dir);
+	}
+	if (home_dir[0] != '\0') {
+		(void)rmdir(home_dir);
+	}
+	(void)rmdir(root_template);
+	return failed;
+}
+
+static int test_editor_save_global_config_can_skip_reload(void) {
+	int failed = 1;
+	struct envVarBackup home_backup;
+	char home_dir[512] = "";
+	char dot_rotide_dir[512] = "";
+	char config_path[512] = "";
+	char root_template[] = "/tmp/rotide-test-config-save-skip-XXXXXX";
+	int saved_stdin = -1;
+	int saved_stdout = -1;
+
+	if (!backup_env_var(&home_backup, "HOME")) {
+		return 1;
+	}
+
+	char *root_path = mkdtemp(root_template);
+	if (root_path == NULL) {
+		goto cleanup;
+	}
+	if (!path_join(home_dir, sizeof(home_dir), root_path, "home")) {
+		goto cleanup;
+	}
+	if (mkdir(home_dir, 0700) == -1) {
+		goto cleanup;
+	}
+	if (!path_join(dot_rotide_dir, sizeof(dot_rotide_dir), home_dir, ".rotide")) {
+		goto cleanup;
+	}
+	if (mkdir(dot_rotide_dir, 0700) == -1) {
+		goto cleanup;
+	}
+	if (!path_join(config_path, sizeof(config_path), dot_rotide_dir, "config.toml")) {
+		goto cleanup;
+	}
+	if (setenv("HOME", home_dir, 1) != 0) {
+		goto cleanup;
+	}
+	if (!write_text_file(config_path, "[editor]\nline_wrap = true\n")) {
+		goto cleanup;
+	}
+	if (!editorTabsInit() || !editorOpen(config_path)) {
+		goto cleanup;
+	}
+
+	E.line_wrap_enabled = 0;
+	if (setup_stdin_bytes("n\r", 2, &saved_stdin) != 0) {
+		goto cleanup;
+	}
+	if (redirect_stdout_to_devnull(&saved_stdout) != 0) {
+		goto cleanup;
+	}
+	editorSave();
+	if (restore_stdout(saved_stdout) != 0) {
+		goto cleanup;
+	}
+	saved_stdout = -1;
+	if (restore_stdin(saved_stdin) != 0) {
+		goto cleanup;
+	}
+	saved_stdin = -1;
+
+	if (E.line_wrap_enabled != 0) {
+		goto cleanup;
+	}
+	if (strcmp(E.statusmsg, "Settings reload skipped") != 0) {
+		goto cleanup;
+	}
+	if (E.dirty != 0) {
+		goto cleanup;
+	}
+
+	failed = 0;
+
+cleanup:
+	if (saved_stdout != -1 && !restore_stdout(saved_stdout)) {
+		failed = 1;
+	}
+	if (saved_stdin != -1 && !restore_stdin(saved_stdin)) {
+		failed = 1;
+	}
+	if (!restore_env_var(&home_backup)) {
+		failed = 1;
+	}
+	if (config_path[0] != '\0') {
+		(void)unlink(config_path);
+	}
+	if (dot_rotide_dir[0] != '\0') {
+		(void)rmdir(dot_rotide_dir);
+	}
+	if (home_dir[0] != '\0') {
+		(void)rmdir(home_dir);
+	}
+	(void)rmdir(root_template);
+	return failed;
+}
+
 static int test_editor_config_default_global_loads_cleanly(void) {
 	int failed = 1;
 	struct envVarBackup home_backup;
@@ -3726,6 +3916,8 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_refresh_screen_reports_oom_without_crash", test_editor_refresh_screen_reports_oom_without_crash},
 	{"editor_config_ensure_global_creates_default_when_missing", test_editor_config_ensure_global_creates_default_when_missing},
 	{"editor_open_settings_opens_global_config_in_tab", test_editor_open_settings_opens_global_config_in_tab},
+	{"editor_save_global_config_can_reload_settings", test_editor_save_global_config_can_reload_settings},
+	{"editor_save_global_config_can_skip_reload", test_editor_save_global_config_can_skip_reload},
 	{"editor_config_default_global_loads_cleanly", test_editor_config_default_global_loads_cleanly},
 	{"editor_workspace_state_persists_drawer_state", test_editor_workspace_state_persists_drawer_state},
 	{"editor_workspace_state_persists_drawer_expanded_masks", test_editor_workspace_state_persists_drawer_expanded_masks},

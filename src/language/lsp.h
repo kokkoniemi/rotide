@@ -97,6 +97,7 @@ void editorLspNotifyDidClose(const char *filename, enum editorSyntaxLanguage lan
 		int *doc_open_in_out, int *doc_version_in_out);
 void editorLspNotifyEslintDidClose(const char *filename, enum editorSyntaxLanguage language,
 		int *doc_open_in_out, int *doc_version_in_out);
+void editorLspResetTrackedDocuments(void);
 
 int editorLspRequestDefinition(const char *filename, enum editorSyntaxLanguage language, int line,
 		int character, struct editorLspLocation **locations_out, int *count_out,

@@ -9,6 +9,7 @@
 #include "config/editor_config.h"
 #include "config/keymap.h"
 #include "config/lsp_config.h"
+#include "config/runtime_config.h"
 #include "config/theme_config.h"
 #include "editing/edit.h"
 #include "editing/selection.h"
@@ -201,145 +202,11 @@ int main(int argc, char *argv[]) {
 
 	enum editorConfigBootstrapStatus bootstrap_status = editorConfigEnsureGlobalConfig();
 
-	enum editorKeymapLoadStatus keymap_status = editorKeymapLoadConfigured(&E.keymap);
-	enum editorCursorStyleLoadStatus cursor_style_status =
-			editorCursorStyleLoadConfigured(&E.cursor_style);
-	enum editorCursorBlinkLoadStatus cursor_blink_status =
-			editorCursorBlinkLoadConfigured(&E.cursor_blink_enabled);
-	enum editorLineWrapLoadStatus line_wrap_status =
-			editorLineWrapLoadConfigured(&E.line_wrap_enabled);
-	enum editorLineNumbersLoadStatus line_numbers_status =
-			editorLineNumbersLoadConfigured(&E.line_numbers_enabled);
-	enum editorCurrentLineHighlightLoadStatus current_line_highlight_status =
-			editorCurrentLineHighlightLoadConfigured(&E.current_line_highlight_enabled);
-	enum editorIndentConfigLoadStatus indent_config_status =
-			editorIndentConfigLoadConfigured(&E.auto_indent_enabled, &E.indent_use_tabs,
-					&E.indent_width);
-	enum editorColumnSelectDragModifierLoadStatus column_select_drag_modifier_status =
-			editorColumnSelectDragModifierLoadConfigured(&E.column_select_drag_modifier);
-	enum editorThemeLoadStatus theme_status = editorThemeLoadConfigured(&E.theme);
-	enum editorLspConfigLoadStatus lsp_config_status =
-			editorLspConfigLoadConfigured(&E.lsp_gopls_enabled, &E.lsp_clangd_enabled,
-					&E.lsp_html_enabled, &E.lsp_css_enabled, &E.lsp_json_enabled,
-					&E.lsp_javascript_enabled,
-					&E.lsp_eslint_enabled, E.lsp_gopls_command,
-					sizeof(E.lsp_gopls_command), E.lsp_gopls_install_command,
-					sizeof(E.lsp_gopls_install_command), E.lsp_clangd_command,
-					sizeof(E.lsp_clangd_command), E.lsp_html_command,
-					sizeof(E.lsp_html_command), E.lsp_css_command,
-					sizeof(E.lsp_css_command), E.lsp_json_command, sizeof(E.lsp_json_command),
-					E.lsp_javascript_command, sizeof(E.lsp_javascript_command),
-					E.lsp_javascript_install_command,
-					sizeof(E.lsp_javascript_install_command), E.lsp_eslint_command,
-					sizeof(E.lsp_eslint_command),
-					E.lsp_vscode_langservers_install_command,
-					sizeof(E.lsp_vscode_langservers_install_command),
-					&E.lsp_autocomplete_enabled, &E.lsp_autocomplete_max_items);
 	if (!editorRecoveryInitForCurrentDir()) {
 		editorSetStatusMsg("Recovery disabled (path setup failed)");
 	}
 	(void)editorWorkspaceStateInitForCurrentDir();
-	if (keymap_status == EDITOR_KEYMAP_LOAD_INVALID_PROJECT) {
-		editorSetStatusMsg("Invalid keymap config, using defaults");
-	} else if (keymap_status == EDITOR_KEYMAP_LOAD_INVALID_GLOBAL) {
-		editorSetStatusMsg("Invalid global keymap config, ignoring ~/.rotide/config.toml");
-	} else if (keymap_status == EDITOR_KEYMAP_LOAD_OUT_OF_MEMORY ||
-			(cursor_style_status & EDITOR_CURSOR_STYLE_LOAD_OUT_OF_MEMORY) != 0 ||
-			(cursor_blink_status & EDITOR_CURSOR_BLINK_LOAD_OUT_OF_MEMORY) != 0 ||
-			(line_wrap_status & EDITOR_LINE_WRAP_LOAD_OUT_OF_MEMORY) != 0 ||
-			(line_numbers_status & EDITOR_LINE_NUMBERS_LOAD_OUT_OF_MEMORY) != 0 ||
-			(current_line_highlight_status &
-					EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_OUT_OF_MEMORY) != 0 ||
-			(indent_config_status & EDITOR_INDENT_CONFIG_LOAD_OUT_OF_MEMORY) != 0 ||
-			(column_select_drag_modifier_status &
-					EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_OUT_OF_MEMORY) != 0 ||
-			(theme_status & EDITOR_THEME_LOAD_OUT_OF_MEMORY) != 0 ||
-			(lsp_config_status & EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY) != 0) {
-		editorSetStatusMsg("Out of memory");
-	} else if ((lsp_config_status & EDITOR_LSP_CONFIG_LOAD_INVALID_GLOBAL) != 0 &&
-			(lsp_config_status & EDITOR_LSP_CONFIG_LOAD_INVALID_PROJECT) != 0) {
-		editorSetStatusMsg("Invalid [lsp] in global/project config, using defaults");
-	} else if ((lsp_config_status & EDITOR_LSP_CONFIG_LOAD_INVALID_PROJECT) != 0) {
-		editorSetStatusMsg("Invalid [lsp] in ./.rotide.toml, using defaults");
-	} else if ((lsp_config_status & EDITOR_LSP_CONFIG_LOAD_INVALID_GLOBAL) != 0) {
-		editorSetStatusMsg("Invalid [lsp] in ~/.rotide/config.toml, using defaults");
-	} else if ((cursor_style_status & EDITOR_CURSOR_STYLE_LOAD_INVALID_GLOBAL) != 0 &&
-			(cursor_style_status & EDITOR_CURSOR_STYLE_LOAD_INVALID_PROJECT) != 0) {
-		editorSetStatusMsg("Invalid cursor_style in global/project config, using bar");
-	} else if ((cursor_style_status & EDITOR_CURSOR_STYLE_LOAD_INVALID_PROJECT) != 0) {
-		editorSetStatusMsg("Invalid cursor_style in ./.rotide.toml, using bar");
-	} else if ((cursor_style_status & EDITOR_CURSOR_STYLE_LOAD_INVALID_GLOBAL) != 0) {
-		editorSetStatusMsg("Invalid cursor_style in ~/.rotide/config.toml, using bar");
-	} else if ((cursor_blink_status & EDITOR_CURSOR_BLINK_LOAD_INVALID_GLOBAL) != 0 &&
-			(cursor_blink_status & EDITOR_CURSOR_BLINK_LOAD_INVALID_PROJECT) != 0) {
-		editorSetStatusMsg("Invalid cursor_blink in global/project config, using true");
-	} else if ((cursor_blink_status & EDITOR_CURSOR_BLINK_LOAD_INVALID_PROJECT) != 0) {
-		editorSetStatusMsg("Invalid cursor_blink in ./.rotide.toml, using true");
-	} else if ((cursor_blink_status & EDITOR_CURSOR_BLINK_LOAD_INVALID_GLOBAL) != 0) {
-		editorSetStatusMsg("Invalid cursor_blink in ~/.rotide/config.toml, using true");
-	} else if ((line_wrap_status & EDITOR_LINE_WRAP_LOAD_INVALID_GLOBAL) != 0 &&
-			(line_wrap_status & EDITOR_LINE_WRAP_LOAD_INVALID_PROJECT) != 0) {
-		editorSetStatusMsg("Invalid line_wrap in global/project config, using false");
-	} else if ((line_wrap_status & EDITOR_LINE_WRAP_LOAD_INVALID_PROJECT) != 0) {
-		editorSetStatusMsg("Invalid line_wrap in ./.rotide.toml, using false");
-	} else if ((line_wrap_status & EDITOR_LINE_WRAP_LOAD_INVALID_GLOBAL) != 0) {
-		editorSetStatusMsg("Invalid line_wrap in ~/.rotide/config.toml, using false");
-	} else if ((line_numbers_status & EDITOR_LINE_NUMBERS_LOAD_INVALID_GLOBAL) != 0 &&
-			(line_numbers_status & EDITOR_LINE_NUMBERS_LOAD_INVALID_PROJECT) != 0) {
-		editorSetStatusMsg("Invalid line_numbers in global/project config, using true");
-	} else if ((line_numbers_status & EDITOR_LINE_NUMBERS_LOAD_INVALID_PROJECT) != 0) {
-		editorSetStatusMsg("Invalid line_numbers in ./.rotide.toml, using true");
-	} else if ((line_numbers_status & EDITOR_LINE_NUMBERS_LOAD_INVALID_GLOBAL) != 0) {
-		editorSetStatusMsg("Invalid line_numbers in ~/.rotide/config.toml, using true");
-	} else if ((current_line_highlight_status &
-					EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_INVALID_GLOBAL) != 0 &&
-			(current_line_highlight_status &
-					EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_INVALID_PROJECT) != 0) {
-		editorSetStatusMsg(
-				"Invalid current_line_highlight in global/project config, using true");
-	} else if ((current_line_highlight_status &
-					EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_INVALID_PROJECT) != 0) {
-		editorSetStatusMsg("Invalid current_line_highlight in ./.rotide.toml, using true");
-	} else if ((current_line_highlight_status &
-					EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_INVALID_GLOBAL) != 0) {
-		editorSetStatusMsg(
-				"Invalid current_line_highlight in ~/.rotide/config.toml, using true");
-	} else if ((indent_config_status & EDITOR_INDENT_CONFIG_LOAD_INVALID_GLOBAL) != 0 &&
-			(indent_config_status & EDITOR_INDENT_CONFIG_LOAD_INVALID_PROJECT) != 0) {
-		editorSetStatusMsg("Invalid indent config in global/project config, using defaults");
-	} else if ((indent_config_status & EDITOR_INDENT_CONFIG_LOAD_INVALID_PROJECT) != 0) {
-		editorSetStatusMsg("Invalid indent config in ./.rotide.toml, using defaults");
-	} else if ((indent_config_status & EDITOR_INDENT_CONFIG_LOAD_INVALID_GLOBAL) != 0) {
-		editorSetStatusMsg(
-				"Invalid indent config in ~/.rotide/config.toml, using defaults");
-	} else if ((column_select_drag_modifier_status &
-					EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_INVALID_GLOBAL) != 0 &&
-			(column_select_drag_modifier_status &
-					EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_INVALID_PROJECT) != 0) {
-		editorSetStatusMsg(
-				"Invalid column_select_drag_modifier in global/project config, using alt");
-	} else if ((column_select_drag_modifier_status &
-					EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_INVALID_PROJECT) != 0) {
-		editorSetStatusMsg(
-				"Invalid column_select_drag_modifier in ./.rotide.toml, using alt");
-	} else if ((column_select_drag_modifier_status &
-					EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_INVALID_GLOBAL) != 0) {
-		editorSetStatusMsg(
-				"Invalid column_select_drag_modifier in ~/.rotide/config.toml, using alt");
-	} else if ((theme_status & EDITOR_THEME_LOAD_INVALID_THEME) != 0) {
-		editorSetStatusMsg("Invalid theme, using terminal");
-	} else if ((theme_status & EDITOR_THEME_LOAD_INVALID_GLOBAL) != 0 &&
-			(theme_status & EDITOR_THEME_LOAD_INVALID_PROJECT) != 0) {
-		editorSetStatusMsg("Invalid [theme] in global/project config, using terminal");
-	} else if ((theme_status & EDITOR_THEME_LOAD_INVALID_PROJECT) != 0) {
-		editorSetStatusMsg("Invalid [theme] in ./.rotide.toml, using terminal");
-	} else if ((theme_status & EDITOR_THEME_LOAD_INVALID_GLOBAL) != 0) {
-		editorSetStatusMsg("Invalid [theme] in ~/.rotide/config.toml, using terminal");
-	} else if (bootstrap_status == EDITOR_CONFIG_BOOTSTRAP_CREATED) {
-		editorSetStatusMsg("Created ~/.rotide/config.toml with default values");
-	} else if (bootstrap_status == EDITOR_CONFIG_BOOTSTRAP_FAILED) {
-		editorSetStatusMsg("Could not create ~/.rotide/config.toml, using defaults");
-	}
+	editorConfigApplyConfiguredSettings(bootstrap_status, NULL);
 
 	int restored_session = editorStartupLoadRecoveryOrOpenArgs(argc, argv);
 	if (!editorDrawerInitForStartup(argc, argv, restored_session)) {
@@ -351,7 +218,7 @@ int main(int argc, char *argv[]) {
 	}
 	(void)editorGitInit();
 
-	if (keymap_status == EDITOR_KEYMAP_LOAD_OK && E.statusmsg[0] == '\0') {
+	if (E.statusmsg[0] == '\0') {
 		char help_msg[160];
 		editorKeymapBuildHelpStatus(&E.keymap, help_msg, sizeof(help_msg));
 		editorSetStatusMsg("%s", help_msg);

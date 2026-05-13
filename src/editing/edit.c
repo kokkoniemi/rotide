@@ -1,5 +1,7 @@
 #include "editing/edit.h"
 
+#include "config/common.h"
+#include "config/runtime_config.h"
 #include "editing/buffer_core.h"
 #include "input/dispatch.h"
 #include "language/lsp.h"
@@ -752,6 +754,17 @@ static mode_t editorDefaultCreateMode(void) {
 	return 0644 & ~mask;
 }
 
+static void editorMaybePromptReloadSettingsAfterSave(const char *filename) {
+	if (!editorConfigPathIsGlobalConfig(filename)) {
+		return;
+	}
+	if (editorPromptYesNo("Reload settings now? [y/N] %s")) {
+		editorConfigReloadConfiguredSettings();
+		return;
+	}
+	editorSetStatusMsg("Settings reload skipped");
+}
+
 void editorSave(void) {
 	if (editorActiveTabIsUnsupportedFile()) {
 		editorSetStatusMsg("Unsupported files cannot be saved");
@@ -853,7 +866,11 @@ void editorSave(void) {
 	free(buf);
 	editorLspNotifyDidSaveActive();
 	editorGitRefresh();
-	editorSetStatusMsg("%zu bytes written to disk", len);
+	if (editorConfigPathIsGlobalConfig(E.filename)) {
+		editorMaybePromptReloadSettingsAfterSave(E.filename);
+	} else {
+		editorSetStatusMsg("%zu bytes written to disk", len);
+	}
 	return;
 
 err: {

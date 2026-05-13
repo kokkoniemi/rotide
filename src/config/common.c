@@ -109,6 +109,29 @@ char *editorConfigBuildGlobalConfigPath(void) {
 	return path;
 }
 
+int editorConfigPathIsGlobalConfig(const char *path) {
+	if (path == NULL || path[0] == '\0') {
+		return 0;
+	}
+
+	char *global_path = editorConfigBuildGlobalConfigPath();
+	if (global_path == NULL) {
+		return 0;
+	}
+
+	struct stat path_stat;
+	struct stat global_stat;
+	int matches = 0;
+	if (stat(path, &path_stat) == 0 && stat(global_path, &global_stat) == 0) {
+		matches = path_stat.st_dev == global_stat.st_dev &&
+				path_stat.st_ino == global_stat.st_ino;
+	} else {
+		matches = strcmp(path, global_path) == 0;
+	}
+	free(global_path);
+	return matches;
+}
+
 static int editorConfigEnsureDir(const char *path) {
 	if (mkdir(path, 0700) == 0) {
 		return 1;
