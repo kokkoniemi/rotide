@@ -2516,6 +2516,8 @@ static int test_editor_theme_loads_github_builtins(void) {
 	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_CURRENT_LINE_BG], 0x17, 0x1C, 0x23));
 	ASSERT_TRUE(theme_color_is_rgb(
 				theme.styles[EDITOR_THEME_STYLE_TAB_ACTIVE].bg, 0x16, 0x1B, 0x22));
+	ASSERT_TRUE(theme_color_is_rgb(
+				theme.styles[EDITOR_THEME_STYLE_DRAWER_HEADER_ACTIVE].bg, 0x0D, 0x11, 0x17));
 	return 0;
 }
 
@@ -2610,6 +2612,8 @@ static int test_editor_theme_loads_kanagawa_builtins(void) {
 	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_CONSTANT], 0xFF, 0xA0, 0x66));
 	ASSERT_TRUE(theme_color_is_rgb(
 				theme.styles[EDITOR_THEME_STYLE_SELECTION].bg, 0x2D, 0x4F, 0x67));
+	ASSERT_TRUE(theme_color_is_rgb(
+				theme.styles[EDITOR_THEME_STYLE_DRAWER_HEADER_ACTIVE].bg, 0x1F, 0x1F, 0x28));
 
 	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "kanagawa"));
 	ASSERT_EQ_STR("kanagawa-wave", theme.name);
