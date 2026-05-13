@@ -20,6 +20,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCREENSHOT_DIR = REPO_ROOT / "docs" / "media" / "screenshots"
 ROTIDE_BIN = REPO_ROOT / "rotide"
+CAPTURE_WIDTH = 2560
+CAPTURE_HEIGHT = 1520
+CAPTURE_FONT_SIZE = 32
 
 COMMON_CONFIG_TEMPLATE = """\
 [editor]
@@ -37,19 +40,20 @@ name = "{theme}"
 
 [lsp]
 gopls_enabled = false
-clangd_enabled = false
+clangd_enabled = {clangd_enabled}
 html_enabled = false
 css_enabled = false
 json_enabled = false
-javascript_enabled = true
-eslint_enabled = true
+javascript_enabled = {javascript_enabled}
+eslint_enabled = false
+clangd_command = "clangd"
 javascript_command = "typescript-language-server --stdio"
-eslint_command = "vscode-eslint-language-server --stdio"
 autocomplete_max_items = 8
 
 [keymap]
 project_search = "ctrl+t"
 lsp_drawer = "ctrl+u"
+git_drawer = "ctrl+k"
 """
 
 
@@ -63,6 +67,10 @@ class Scene:
     lsp_scene: bool = False
     required_commands: tuple[str, ...] = ()
     open_file: str = "src/rotide.c"
+    clangd_enabled: bool = False
+    javascript_enabled: bool = False
+    full_config: bool = False
+    git_repo: bool = False
 
 
 def vhs_type(text: str) -> str:
@@ -93,7 +101,7 @@ SCENES: tuple[Scene, ...] = (
     Scene(
         name="drawer-tree",
         output="drawer-tree.png",
-        description="Project drawer navigation over a compact RotIDE fixture tree.",
+        description="Project drawer navigation over a full RotIDE fixture tree.",
         tape_body=(
             "Sleep 1500ms",
             "Ctrl+E",
@@ -132,35 +140,45 @@ SCENES: tuple[Scene, ...] = (
         lsp_scene=True,
         required_commands=("typescript-language-server", "tsserver"),
         open_file="app.js",
+        javascript_enabled=True,
     ),
     Scene(
-        name="lsp-eslint-problems",
-        output="lsp-eslint-problems.png",
-        description="ESLint diagnostics collected through LSP and shown in the Problems drawer.",
+        name="lsp-clang-problems",
+        output="lsp-clang-problems.png",
+        description="Clangd diagnostics collected through LSP and shown in the Problems drawer.",
         tape_body=(
-            "Sleep 4200ms",
+            "Sleep 5000ms",
             "Ctrl+U",
-            "Sleep 1200ms",
+            "Sleep 1800ms",
         ),
         lsp_scene=True,
-        required_commands=(
-            "typescript-language-server",
-            "tsserver",
-            "vscode-eslint-language-server",
-            "eslint",
-        ),
-        open_file="lint-problems.js",
+        required_commands=("clangd",),
+        open_file="clang-problems.c",
+        clangd_enabled=True,
     ),
     Scene(
         name="settings-config",
         output="settings-config.png",
-        description="The generated global config file, including editor, theme, LSP, and keymap settings.",
+        description="The full generated global config file, including editor, theme, LSP, and keymap settings.",
         tape_body=(
             "Sleep 1600ms",
-            "PageDown",
-            "Sleep 900ms",
         ),
         open_file=".home/.rotide/config.toml",
+        full_config=True,
+    ),
+    Scene(
+        name="git-changes",
+        output="git-changes.png",
+        description="Git changes drawer opening a generated diff tab for a modified RotIDE source file.",
+        tape_body=(
+            "Sleep 2400ms",
+            "Ctrl+K",
+            "Sleep 1000ms",
+            "Down 3",
+            "Enter",
+            "Sleep 1400ms",
+        ),
+        git_repo=True,
     ),
     Scene(
         name="theme-kanagawa-wave",
@@ -253,19 +271,23 @@ def preflight(scenes: list[Scene]) -> None:
             file=sys.stderr,
         )
         print("Then ensure ~/.local/bin is on PATH.", file=sys.stderr)
-    if any(command in missing for command in ("vscode-eslint-language-server", "eslint")):
-        print(
-            "Install ESLint diagnostics demo tools, for example:\n"
-            "  npm install --global --prefix ~/.local "
-            "vscode-langservers-extracted eslint",
-            file=sys.stderr,
-        )
-        print("Then ensure ~/.local/bin is on PATH.", file=sys.stderr)
+    if "clangd" in missing:
+        print("Install clangd with your system package manager.", file=sys.stderr)
     raise SystemExit(1)
 
 
 def run_checked(command: list[str], cwd: Path = REPO_ROOT) -> None:
     subprocess.run(command, cwd=cwd, check=True)
+
+
+def run_checked_quiet(command: list[str], cwd: Path = REPO_ROOT) -> None:
+    subprocess.run(
+        command,
+        cwd=cwd,
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
 
 def build_rotide(no_build: bool) -> None:
@@ -276,33 +298,33 @@ def build_rotide(no_build: bool) -> None:
     run_checked(["make"])
 
 
-def copy_fixture_workspace(workspace: Path) -> None:
-    for directory in (
-        workspace / "src",
-        workspace / "src" / "language",
-        workspace / "src" / "config",
-        workspace / "tests" / "syntax" / "supported" / "javascript",
-        workspace / "docs",
-    ):
-        directory.mkdir(parents=True, exist_ok=True)
-
-    files = (
-        "README.md",
-        "config.toml.example",
-        "src/rotide.c",
-        "src/rotide.h",
-        "src/language/lsp_protocol.c",
-        "src/language/lsp_transport.c",
-        "src/language/autocomplete.c",
-        "src/config/theme_config.c",
-        "tests/syntax/supported/javascript/highlight.js",
+def repo_files_for_fixture() -> list[str]:
+    result = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=REPO_ROOT,
+        check=True,
+        stdout=subprocess.PIPE,
     )
-    for rel in files:
+    files = result.stdout.decode("utf-8").split("\0")
+    skipped_prefixes = (
+        "docs/media/screenshots/",
+        "vendor/tree_sitter/",
+    )
+    return [
+        rel for rel in files
+        if rel and not rel.endswith(".png") and
+        not any(rel.startswith(prefix) for prefix in skipped_prefixes)
+    ]
+
+
+def copy_fixture_workspace(workspace: Path) -> None:
+    for rel in repo_files_for_fixture():
         src = REPO_ROOT / rel
         dst = workspace / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dst)
 
+    (workspace / "docs").mkdir(parents=True, exist_ok=True)
     (workspace / "docs" / "capture-notes.md").write_text(
         "# Capture Notes\n\n"
         "This generated workspace keeps RotIDE documentation screenshots deterministic.\n",
@@ -318,29 +340,51 @@ def copy_fixture_workspace(workspace: Path) -> None:
         "client",
         encoding="utf-8",
     )
-    (workspace / "lint-problems.js").write_text(
-        "const unused = 1\nconsole.log(missingValue)\n",
-        encoding="utf-8",
-    )
-    (workspace / "eslint.config.js").write_text(
-        "export default [{\n"
-        "  files: ['**/*.js'],\n"
-        "  languageOptions: { ecmaVersion: 2022, sourceType: 'module' },\n"
-        "  rules: { 'no-undef': 'error', 'no-unused-vars': 'warn', semi: 'error' }\n"
-        "}];\n",
-        encoding="utf-8",
-    )
-    (workspace / "package.json").write_text(
-        '{"type":"module","devDependencies":{"eslint":"*","typescript":"*"}}\n',
+    (workspace / "clang-problems.c").write_text(
+        "#include <stdio.h>\n"
+        "\n"
+        "int main(void) {\n"
+        "\tprintf(\"%d\\n\", missing_symbol);\n"
+        "\treturn 0;\n"
+        "}\n",
         encoding="utf-8",
     )
 
 
-def write_config(home: Path, theme: str) -> Path:
+def prepare_git_repo(workspace: Path) -> None:
+    run_checked_quiet(["git", "init", "-b", "main"], cwd=workspace)
+    run_checked_quiet(["git", "config", "user.email", "docs-media@example.invalid"], cwd=workspace)
+    run_checked_quiet(["git", "config", "user.name", "RotIDE Docs Media"], cwd=workspace)
+    run_checked_quiet(["git", "add", "."], cwd=workspace)
+    run_checked_quiet(["git", "commit", "-m", "Initial docs media fixture"], cwd=workspace)
+    with (workspace / "src" / "rotide.c").open("a", encoding="utf-8") as f:
+        f.write("\n/* docs-media: modified line for the git screenshot */\n")
+    run_checked_quiet(["git", "add", "src/rotide.c"], cwd=workspace)
+    (workspace / "docs" / "capture-notes.md").write_text(
+        "# Capture Notes\n\n"
+        "This modified file makes the Git drawer show realistic workspace changes.\n",
+        encoding="utf-8",
+    )
+    (workspace / "docs" / "untracked-note.md").write_text(
+        "# Untracked Note\n\n"
+        "This untracked file gives the Git drawer another status group.\n",
+        encoding="utf-8",
+    )
+
+
+def write_config(home: Path, scene: Scene) -> Path:
     config_dir = home / ".rotide"
     config_dir.mkdir(parents=True, exist_ok=True)
     path = config_dir / "config.toml"
-    path.write_text(COMMON_CONFIG_TEMPLATE.format(theme=theme), encoding="utf-8")
+    if scene.full_config:
+        path.write_text((REPO_ROOT / "config.toml.example").read_text(encoding="utf-8"),
+                encoding="utf-8")
+    else:
+        path.write_text(COMMON_CONFIG_TEMPLATE.format(
+            theme=scene.theme,
+            clangd_enabled=str(scene.clangd_enabled).lower(),
+            javascript_enabled=str(scene.javascript_enabled).lower(),
+        ), encoding="utf-8")
     return path
 
 
@@ -360,9 +404,9 @@ def tape_for_scene(scene: Scene, workspace: Path, home: Path, frame_output: Path
     lines = [
         f"Output {quote_vhs_path(frame_output)}",
         "Set Shell bash",
-        "Set FontSize 16",
-        "Set Width 1280",
-        "Set Height 760",
+        f"Set FontSize {CAPTURE_FONT_SIZE}",
+        f"Set Width {CAPTURE_WIDTH}",
+        f"Set Height {CAPTURE_HEIGHT}",
         "Set Framerate 15",
         "Set PlaybackSpeed 1.0",
         "Set TypingSpeed 50ms",
@@ -410,7 +454,9 @@ def render_scene(scene: Scene, tmpdir: Path, dry_run: bool) -> None:
     frame_output = tape_dir / f"{scene.name}-frames.png"
 
     copy_fixture_workspace(workspace)
-    write_config(home, scene.theme)
+    if scene.git_repo:
+        prepare_git_repo(workspace)
+    write_config(home, scene)
     tape_dir.mkdir(parents=True, exist_ok=True)
     output.parent.mkdir(parents=True, exist_ok=True)
 

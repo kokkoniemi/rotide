@@ -12,11 +12,12 @@ RotIDE is under active development. Core editing, tabs, drawer navigation, searc
 
 The full docs media set can be regenerated with `make docs-media`. To render only the screenshots that do not require language servers, run `make docs-media DOCS_MEDIA_FLAGS=--skip-lsp`.
 
-- [Project drawer](docs/media/screenshots/drawer-tree.png): file tree navigation over a compact RotIDE workspace.
+- [Project drawer](docs/media/screenshots/drawer-tree.png): file tree navigation over a full RotIDE fixture workspace.
 - [Project search](docs/media/screenshots/project-search.png): project-wide text search results previewing matches in source.
 - [JavaScript autocomplete](docs/media/screenshots/lsp-autocomplete-js.png): completion popup powered by `typescript-language-server`.
-- [ESLint Problems drawer](docs/media/screenshots/lsp-eslint-problems.png): diagnostics from `vscode-eslint-language-server`.
-- [Settings config](docs/media/screenshots/settings-config.png): editable `~/.rotide/config.toml` with editor, theme, LSP, and keymap settings.
+- [Clangd Problems drawer](docs/media/screenshots/lsp-clang-problems.png): C diagnostics from `clangd` in the LSP drawer.
+- [Settings config](docs/media/screenshots/settings-config.png): editable `~/.rotide/config.toml` with the full documented settings file.
+- [Git changes](docs/media/screenshots/git-changes.png): the Git drawer opening a generated diff tab for a modified source file.
 - [Kanagawa Wave theme](docs/media/screenshots/theme-kanagawa-wave.png): the same source fixture under `kanagawa-wave`.
 - [Modus Operandi theme](docs/media/screenshots/theme-modus-operandi.png): the same source fixture under `modus-operandi`.
 
