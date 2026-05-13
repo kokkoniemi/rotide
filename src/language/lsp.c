@@ -6,12 +6,9 @@
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
 #include "support/file_io.h"
-#include "support/size_utils.h"
 
-#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

@@ -353,6 +353,7 @@ static int editorDrawerEnsureScanned(struct editorDrawerNode *node) {
 	}
 
 	struct editorDrawerNode **children = NULL;
+	const size_t child_entry_size = sizeof(children[0]); // NOLINT(bugprone-sizeof-expression)
 	int child_count = 0;
 	int child_capacity = 0;
 	struct dirent *entry;
@@ -385,7 +386,7 @@ static int editorDrawerEnsureScanned(struct editorDrawerNode *node) {
 			size_t cap_size = 0;
 			size_t bytes = 0;
 			if (!editorIntToSize(new_capacity, &cap_size) ||
-					!editorSizeMul(sizeof(*children), cap_size, &bytes)) {
+					!editorSizeMul(child_entry_size, cap_size, &bytes)) {
 				editorDrawerNodeFree(child);
 				editorSetAllocFailureStatus();
 				break;
@@ -407,7 +408,7 @@ static int editorDrawerEnsureScanned(struct editorDrawerNode *node) {
 	(void)closedir(dir);
 
 	if (child_count > 1) {
-		qsort(children, (size_t)child_count, sizeof(*children), editorDrawerNodeCmp);
+		qsort(children, (size_t)child_count, child_entry_size, editorDrawerNodeCmp);
 	}
 
 	node->children = children;

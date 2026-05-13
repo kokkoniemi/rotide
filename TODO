@@ -3,5 +3,8 @@
 - FEATURE: implement support for vim-mode. The commands should be configurable in .rotide.toml in local and global files.
 - IMPROVEMENT: integrate Fil-C to improve memory safety
 - IMPROVEMENT: make go to definition etc. osc8 hyperlink or render the text underlined on mouse hover when ctrl pressed
-- IMPROVEMENT: Jump over word with ctrl+arrows like in vscode
-- DOCS: create a script that takes screenshots of the editor on the most important screens showing e.g. rotide source code and saving the screenshots to docs and README. In main README.md there should be a gif that goes over those slowly. I want also to showcase themes. I should be able to re-geneate those with the newest features as the editor progresses.
+- FEATURE: Jump over word with ctrl+arrows like in vscode
+- DOCS: in all screenshots use github-dark as default theme. Showcase all default themes as screenshot and in docs/media/screenshots/README.md as well as other screenshots
+- FEATURE: support nerd-fonts. Default is off. If on, use nerd icons in drawer header icons and indicating file types. Do not change caret's to folders. In drawer menu mode, use icons too along with text. It would be best if icons are single color.
+- IPROVEMENT: rename "Find:" with "File name:" in file search. And "Text:" with "Query:" in text search.
+- FEATURE: make tab bar carets clickable

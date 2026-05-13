@@ -6,7 +6,6 @@
 #include <string.h>
 
 #include "config/common.h"
-#include "config/editor_config.h"
 #include "config/keymap.h"
 #include "config/lsp_config.h"
 #include "config/runtime_config.h"

@@ -1,9 +1,7 @@
 #include "language/autocomplete.h"
 
-#include "editing/buffer_core.h"
 #include "editing/selection.h"
 #include "language/lsp.h"
-#include "language/lsp_protocol.h"
 #include "render/popup.h"
 #include "text/row.h"
 #include "rotide.h"
