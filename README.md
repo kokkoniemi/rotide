@@ -10,32 +10,7 @@ RotIDE is under active development. Core editing, tabs, drawer navigation, searc
 
 ## Screenshots
 
-The full docs media set can be regenerated with `make docs-media`. To render only the screenshots that do not require language servers, run `make docs-media DOCS_MEDIA_FLAGS=--skip-lsp`. Feature screenshots use `github-dark`; theme screenshots use the named theme.
-
-- [Project drawer](docs/media/screenshots/drawer-tree.png): file tree navigation over a full RotIDE fixture workspace.
-- [Project search](docs/media/screenshots/project-search.png): project-wide text search results previewing matches in source.
-- [JavaScript autocomplete](docs/media/screenshots/lsp-autocomplete-js.png): completion popup powered by `typescript-language-server`.
-- [Clangd Problems drawer](docs/media/screenshots/lsp-clang-problems.png): C diagnostics from `clangd` in the LSP drawer.
-- [Settings config](docs/media/screenshots/settings-config.png): editable `~/.rotide/config.toml` with the full documented settings file.
-- [Git changes](docs/media/screenshots/git-changes.png): the Git drawer opening a generated diff tab for a modified source file.
-
-Theme showcase:
-[terminal](docs/media/screenshots/theme-terminal.png),
-[a11y-dark](docs/media/screenshots/theme-a11y-dark.png),
-[a11y-light](docs/media/screenshots/theme-a11y-light.png),
-[acme](docs/media/screenshots/theme-acme.png),
-[silentium](docs/media/screenshots/theme-silentium.png),
-[256noir](docs/media/screenshots/theme-256noir.png),
-[github-light](docs/media/screenshots/theme-github-light.png),
-[github-dark](docs/media/screenshots/theme-github-dark.png),
-[modus-operandi](docs/media/screenshots/theme-modus-operandi.png),
-[modus-operandi-tinted](docs/media/screenshots/theme-modus-operandi-tinted.png),
-[modus-vivendi](docs/media/screenshots/theme-modus-vivendi.png),
-[modus-vivendi-tinted](docs/media/screenshots/theme-modus-vivendi-tinted.png),
-[molokai](docs/media/screenshots/theme-molokai.png),
-[kanagawa-wave](docs/media/screenshots/theme-kanagawa-wave.png),
-[kanagawa-dragon](docs/media/screenshots/theme-kanagawa-dragon.png),
-and [kanagawa-lotus](docs/media/screenshots/theme-kanagawa-lotus.png).
+See [docs/media/screenshots/](docs/media/screenshots/README.md) for the feature and theme showcase. Regenerate with `make docs-media` (or `make docs-media DOCS_MEDIA_FLAGS=--skip-lsp` to skip language-server scenes).
 
 ## Quick Start
 
