@@ -23,6 +23,26 @@ ROTIDE_BIN = REPO_ROOT / "rotide"
 CAPTURE_WIDTH = 2560
 CAPTURE_HEIGHT = 1520
 CAPTURE_FONT_SIZE = 32
+DEFAULT_CAPTURE_THEME = "github-dark"
+
+BUILTIN_THEMES: tuple[tuple[str, str], ...] = (
+    ("terminal", "Terminal ANSI"),
+    ("a11y-dark", "A11y Dark"),
+    ("a11y-light", "A11y Light"),
+    ("acme", "Acme"),
+    ("silentium", "Silentium"),
+    ("256noir", "256noir"),
+    ("github-light", "GitHub Light"),
+    ("github-dark", "GitHub Dark"),
+    ("modus-operandi", "Modus Operandi"),
+    ("modus-operandi-tinted", "Modus Operandi Tinted"),
+    ("modus-vivendi", "Modus Vivendi"),
+    ("modus-vivendi-tinted", "Modus Vivendi Tinted"),
+    ("molokai", "Molokai"),
+    ("kanagawa-wave", "Kanagawa Wave"),
+    ("kanagawa-dragon", "Kanagawa Dragon"),
+    ("kanagawa-lotus", "Kanagawa Lotus"),
+)
 
 COMMON_CONFIG_TEMPLATE = """\
 [editor]
@@ -63,7 +83,7 @@ class Scene:
     output: str
     description: str
     tape_body: tuple[str, ...]
-    theme: str = "kanagawa-wave"
+    theme: str = DEFAULT_CAPTURE_THEME
     lsp_scene: bool = False
     required_commands: tuple[str, ...] = ()
     open_file: str = "src/rotide.c"
@@ -85,7 +105,7 @@ def vhs_run(command: str) -> tuple[str, ...]:
     )
 
 
-SCENES: tuple[Scene, ...] = (
+BASE_SCENES: tuple[Scene, ...] = (
     Scene(
         name="editor-source",
         output="editor-source.png",
@@ -180,25 +200,22 @@ SCENES: tuple[Scene, ...] = (
         ),
         git_repo=True,
     ),
-    Scene(
-        name="theme-kanagawa-wave",
-        output="theme-kanagawa-wave.png",
-        description="Kanagawa Wave theme applied to the same RotIDE source fixture.",
-        tape_body=(
-            "Sleep 1600ms",
-        ),
-        theme="kanagawa-wave",
-    ),
-    Scene(
-        name="theme-modus-operandi",
-        output="theme-modus-operandi.png",
-        description="Modus Operandi theme applied to the same RotIDE source fixture.",
-        tape_body=(
-            "Sleep 1600ms",
-        ),
-        theme="modus-operandi",
-    ),
 )
+
+THEME_SCENES: tuple[Scene, ...] = tuple(
+    Scene(
+        name=f"theme-{theme_name}",
+        output=f"theme-{theme_name}.png",
+        description=f"{theme_label} theme applied to the same RotIDE source fixture.",
+        tape_body=(
+            "Sleep 1600ms",
+        ),
+        theme=theme_name,
+    )
+    for theme_name, theme_label in BUILTIN_THEMES
+)
+
+SCENES: tuple[Scene, ...] = BASE_SCENES + THEME_SCENES
 
 
 def parse_args() -> argparse.Namespace:
@@ -377,8 +394,13 @@ def write_config(home: Path, scene: Scene) -> Path:
     config_dir.mkdir(parents=True, exist_ok=True)
     path = config_dir / "config.toml"
     if scene.full_config:
-        path.write_text((REPO_ROOT / "config.toml.example").read_text(encoding="utf-8"),
-                encoding="utf-8")
+        config_text = (REPO_ROOT / "config.toml.example").read_text(encoding="utf-8")
+        default_theme_selector = '[theme]\nname = "terminal"'
+        if default_theme_selector not in config_text:
+            raise SystemExit("config.toml.example no longer has the expected [theme] default")
+        config_text = config_text.replace(default_theme_selector,
+                f'[theme]\nname = "{scene.theme}"', 1)
+        path.write_text(config_text, encoding="utf-8")
     else:
         path.write_text(COMMON_CONFIG_TEMPLATE.format(
             theme=scene.theme,
