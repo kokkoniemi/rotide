@@ -2184,25 +2184,44 @@ static int test_editor_process_keypress_page_up_down_scroll_viewport_without_mov
 	return 0;
 }
 
-static int test_editor_process_keypress_ctrl_arrow_scrolls_horizontally_without_moving_cursor(void) {
-	add_row("abcdefghijklmnopqrstuvwxyz");
+static int test_editor_process_keypress_ctrl_arrow_moves_by_word(void) {
+	add_row("alpha beta.gamma");
+	add_row("  delta");
 	E.window_rows = 5;
-	E.window_cols = 12;
+	E.window_cols = 30;
 	E.cy = 0;
-	E.cx = 7;
+	E.cx = 0;
 	E.coloff = 0;
 
 	const char ctrl_right[] = "\x1b[1;5C";
 	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_right, sizeof(ctrl_right) - 1) == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(5, E.cx);
+
+	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_right, sizeof(ctrl_right) - 1) == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(10, E.cx);
+
+	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_right, sizeof(ctrl_right) - 1) == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(16, E.cx);
+
+	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_right, sizeof(ctrl_right) - 1) == 0);
+	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(7, E.cx);
-	ASSERT_EQ_INT(3, E.coloff);
-	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
 
 	const char ctrl_left[] = "\x1b[1;5D";
 	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_left, sizeof(ctrl_left) - 1) == 0);
-	ASSERT_EQ_INT(7, E.cx);
-	ASSERT_EQ_INT(0, E.coloff);
-	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+
+	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_left, sizeof(ctrl_left) - 1) == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(11, E.cx);
+
+	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_left, sizeof(ctrl_left) - 1) == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(6, E.cx);
 	return 0;
 }
 
@@ -3951,7 +3970,7 @@ const struct editorTestCase g_input_search_tests[] = {
 	{"editor_process_keypress_mouse_wheel_scrolls_drawer_with_empty_buffer", test_editor_process_keypress_mouse_wheel_scrolls_drawer_with_empty_buffer},
 	{"editor_process_keypress_mouse_wheel_scrolls_text_when_hovered_even_if_drawer_focused", test_editor_process_keypress_mouse_wheel_scrolls_text_when_hovered_even_if_drawer_focused},
 	{"editor_process_keypress_page_up_down_scroll_viewport_without_moving_cursor", test_editor_process_keypress_page_up_down_scroll_viewport_without_moving_cursor},
-	{"editor_process_keypress_ctrl_arrow_scrolls_horizontally_without_moving_cursor", test_editor_process_keypress_ctrl_arrow_scrolls_horizontally_without_moving_cursor},
+	{"editor_process_keypress_ctrl_arrow_moves_by_word", test_editor_process_keypress_ctrl_arrow_moves_by_word},
 	{"editor_process_keypress_free_scroll_can_leave_cursor_offscreen", test_editor_process_keypress_free_scroll_can_leave_cursor_offscreen},
 	{"editor_process_keypress_cursor_move_resyncs_follow_scroll", test_editor_process_keypress_cursor_move_resyncs_follow_scroll},
 	{"editor_process_keypress_edit_resyncs_follow_scroll", test_editor_process_keypress_edit_resyncs_follow_scroll},

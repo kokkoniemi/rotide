@@ -59,6 +59,8 @@ static const struct editorActionName editor_action_names[] = {
 	{"redo", EDITOR_ACTION_REDO},
 	{"move_home", EDITOR_ACTION_MOVE_HOME},
 	{"move_end", EDITOR_ACTION_MOVE_END},
+	{"move_word_left", EDITOR_ACTION_MOVE_WORD_LEFT},
+	{"move_word_right", EDITOR_ACTION_MOVE_WORD_RIGHT},
 	{"page_up", EDITOR_ACTION_PAGE_UP},
 	{"page_down", EDITOR_ACTION_PAGE_DOWN},
 	{"scroll_left", EDITOR_ACTION_SCROLL_LEFT},
@@ -653,10 +655,10 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('y'), EDITOR_ACTION_REDO);
 	(void)editorKeymapAppendBinding(keymap, HOME_KEY, EDITOR_ACTION_MOVE_HOME);
 	(void)editorKeymapAppendBinding(keymap, END_KEY, EDITOR_ACTION_MOVE_END);
+	(void)editorKeymapAppendBinding(keymap, CTRL_ARROW_LEFT, EDITOR_ACTION_MOVE_WORD_LEFT);
+	(void)editorKeymapAppendBinding(keymap, CTRL_ARROW_RIGHT, EDITOR_ACTION_MOVE_WORD_RIGHT);
 	(void)editorKeymapAppendBinding(keymap, PAGE_UP, EDITOR_ACTION_PAGE_UP);
 	(void)editorKeymapAppendBinding(keymap, PAGE_DOWN, EDITOR_ACTION_PAGE_DOWN);
-	(void)editorKeymapAppendBinding(keymap, CTRL_ARROW_LEFT, EDITOR_ACTION_SCROLL_LEFT);
-	(void)editorKeymapAppendBinding(keymap, CTRL_ARROW_RIGHT, EDITOR_ACTION_SCROLL_RIGHT);
 	(void)editorKeymapAppendBinding(keymap, ARROW_UP, EDITOR_ACTION_MOVE_UP);
 	(void)editorKeymapAppendBinding(keymap, ARROW_DOWN, EDITOR_ACTION_MOVE_DOWN);
 	(void)editorKeymapAppendBinding(keymap, ARROW_LEFT, EDITOR_ACTION_MOVE_LEFT);

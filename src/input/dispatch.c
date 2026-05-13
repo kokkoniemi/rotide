@@ -2784,6 +2784,119 @@ static void editorMoveCursor(int k) {
 	(void)editorSetCursorFromPosition(cy, cx);
 }
 
+static int editorRowIsWordAt(const struct erow *row, int cx) {
+	return cx >= 0 && cx < row->size && editorIsWordByte((unsigned char)row->chars[cx]);
+}
+
+static void editorMoveCursorWordLeft(void) {
+	editorAlignCursorWithRowEnd();
+
+	int cy = E.cy;
+	int cx = E.cx;
+	if (cy > E.numrows) {
+		cy = E.numrows;
+	}
+
+	while (cy >= 0) {
+		if (cy >= E.numrows) {
+			if (E.numrows == 0) {
+				cy = 0;
+				cx = 0;
+				break;
+			}
+			cy = E.numrows - 1;
+			cx = E.rows[cy].size;
+			continue;
+		}
+
+		struct erow *row = &E.rows[cy];
+		cx = editorRowClampCxToCharBoundary(row, cx);
+		if (cx > 0) {
+			int scan = editorRowPrevCharIdx(row, cx);
+			int found_word = 0;
+			while (1) {
+				if (editorRowIsWordAt(row, scan)) {
+					found_word = 1;
+					break;
+				}
+				if (scan == 0) {
+					break;
+				}
+				int prev = editorRowPrevCharIdx(row, scan);
+				if (prev >= scan) {
+					break;
+				}
+				scan = prev;
+			}
+			if (found_word) {
+				while (scan > 0) {
+					int prev = editorRowPrevCharIdx(row, scan);
+					if (prev >= scan || !editorRowIsWordAt(row, prev)) {
+						break;
+					}
+					scan = prev;
+				}
+				cx = scan;
+				break;
+			}
+		}
+
+		if (cy == 0) {
+			cx = 0;
+			break;
+		}
+		cy--;
+		cx = E.rows[cy].size;
+	}
+
+	(void)editorSetCursorFromPosition(cy, cx);
+}
+
+static void editorMoveCursorWordRight(void) {
+	editorAlignCursorWithRowEnd();
+
+	int cy = E.cy;
+	int cx = E.cx;
+	if (cy < 0) {
+		cy = 0;
+		cx = 0;
+	}
+
+	while (cy < E.numrows) {
+		struct erow *row = &E.rows[cy];
+		cx = editorRowClampCxToCharBoundary(row, cx);
+		int found_word = 0;
+
+		while (cx < row->size && !editorRowIsWordAt(row, cx)) {
+			int next = editorRowNextCharIdx(row, cx);
+			if (next <= cx) {
+				break;
+			}
+			cx = next;
+		}
+		while (cx < row->size && editorRowIsWordAt(row, cx)) {
+			found_word = 1;
+			int next = editorRowNextCharIdx(row, cx);
+			if (next <= cx) {
+				break;
+			}
+			cx = next;
+		}
+		if (found_word) {
+			break;
+		}
+
+		if (cy >= E.numrows - 1) {
+			cx = row->size;
+			break;
+		}
+		cy++;
+		cx = 0;
+	}
+
+	(void)editorSetCursorFromPosition(cy, cx);
+}
+
 static int editorColumnSelectionCurrentRx(void) {
 	if (E.cy >= 0 && E.cy < E.numrows) {
 		return editorRowCxToRx(&E.rows[E.cy], E.cx);
@@ -3795,28 +3908,48 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			}
 			break;
-			case EDITOR_ACTION_REDO:
-				editorHistoryBreakGroup();
-				editorPinActivePreviewForEdit();
-				if (editorRedo() == 1) {
-					editorClearSearchState();
-					effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-				}
-				break;
-			case EDITOR_ACTION_MOVE_HOME:
-				editorHistoryBreakGroup();
-				(void)editorSetCursorFromPosition(E.cy, 0);
+		case EDITOR_ACTION_REDO:
+			editorHistoryBreakGroup();
+			editorPinActivePreviewForEdit();
+			if (editorRedo() == 1) {
+				editorClearSearchState();
 				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-				break;
-			case EDITOR_ACTION_MOVE_END:
-				editorHistoryBreakGroup();
-				if (E.cy < E.numrows) {
-					(void)editorSetCursorFromPosition(E.cy, E.rows[E.cy].size);
-				} else {
-					(void)editorSetCursorFromPosition(E.numrows, 0);
-				}
+			}
+			break;
+		case EDITOR_ACTION_MOVE_HOME:
+			editorHistoryBreakGroup();
+			(void)editorSetCursorFromPosition(E.cy, 0);
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			break;
+		case EDITOR_ACTION_MOVE_END:
+			editorHistoryBreakGroup();
+			if (E.cy < E.numrows) {
+				(void)editorSetCursorFromPosition(E.cy, E.rows[E.cy].size);
+			} else {
+				(void)editorSetCursorFromPosition(E.numrows, 0);
+			}
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			break;
+		case EDITOR_ACTION_MOVE_WORD_LEFT:
+			editorHistoryBreakGroup();
+			if (E.pane_focus == EDITOR_PANE_DRAWER) {
+				(void)editorDrawerCollapseSelection(E.window_rows);
+			} else {
+				editorColumnSelectionClear();
+				editorMoveCursorWordLeft();
 				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-				break;
+			}
+			break;
+		case EDITOR_ACTION_MOVE_WORD_RIGHT:
+			editorHistoryBreakGroup();
+			if (E.pane_focus == EDITOR_PANE_DRAWER) {
+				(void)editorDrawerExpandSelection(E.window_rows);
+			} else {
+				editorColumnSelectionClear();
+				editorMoveCursorWordRight();
+				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			}
+			break;
 		case EDITOR_ACTION_PAGE_UP: {
 			editorHistoryBreakGroup();
 			int page_rows = E.window_rows;

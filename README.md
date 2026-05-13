@@ -150,10 +150,11 @@ Syntax fixture samples are stored in [`tests/syntax/`](tests/syntax/README.md).
 - `Ctrl-B`: toggle selection
 - `Ctrl-C` / `Ctrl-X` / `Ctrl-D` / `Ctrl-V`: copy/cut/delete/paste selection
 - `Ctrl-Z` / `Ctrl-Y`: undo/redo
-- `Ctrl-Left` / `Ctrl-Right`: horizontal viewport scroll
+- `Ctrl-Left` / `Ctrl-Right`: move by word
 - arrows/home/end/page up/page down: movement and viewport navigation
 
 `eslint_fix` is available as a configurable action but does not have a default binding in the built-in keymap.
+Horizontal viewport scroll actions are still configurable as `scroll_left` and `scroll_right`.
 Soft line wrapping is off by default and can also be enabled with `[editor] line_wrap = true`.
 The cursor blinks by default; use `[editor] cursor_blink = false` for a steady cursor.
 Line numbers and current-line highlighting are on by default; disable them with `[editor] line_numbers = false` and `[editor] current_line_highlight = false`.

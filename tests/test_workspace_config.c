@@ -2948,9 +2948,40 @@ static int test_editor_keymap_defaults_include_tab_actions(void) {
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY(']'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_GOTO_MATCHING_BRACKET, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_ARROW_LEFT, &action));
-	ASSERT_EQ_INT(EDITOR_ACTION_SCROLL_LEFT, action);
+	ASSERT_EQ_INT(EDITOR_ACTION_MOVE_WORD_LEFT, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_ARROW_RIGHT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_MOVE_WORD_RIGHT, action);
+	return 0;
+}
+
+static int test_editor_keymap_load_accepts_remapped_horizontal_scroll(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-scroll-remap-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path,
+				"[keymap]\n"
+				"scroll_left = \"ctrl+alt+left\"\n"
+				"scroll_right = \"ctrl+alt+right\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_ALT_ARROW_LEFT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SCROLL_LEFT, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_ALT_ARROW_RIGHT, &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_SCROLL_RIGHT, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_ARROW_LEFT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_MOVE_WORD_LEFT, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_ARROW_RIGHT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_MOVE_WORD_RIGHT, action);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
 	return 0;
 }
 
@@ -3909,6 +3940,7 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_parse_column_select_drag_modifier_value", test_editor_parse_column_select_drag_modifier_value},
 	{"editor_column_select_drag_modifier_load_from_paths", test_editor_column_select_drag_modifier_load_from_paths},
 	{"editor_keymap_defaults_include_tab_actions", test_editor_keymap_defaults_include_tab_actions},
+	{"editor_keymap_load_accepts_remapped_horizontal_scroll", test_editor_keymap_load_accepts_remapped_horizontal_scroll},
 	{"editor_keymap_load_accepts_toggle_line_wrap_alt_z", test_editor_keymap_load_accepts_toggle_line_wrap_alt_z},
 	{"editor_keymap_load_accepts_line_number_highlight_toggles", test_editor_keymap_load_accepts_line_number_highlight_toggles},
 	{"editor_keymap_defaults_include_goto_definition_action", test_editor_keymap_defaults_include_goto_definition_action},
