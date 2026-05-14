@@ -7,7 +7,7 @@ design rule is that text has one writable owner: `editorDocument`. Rows,
 syntax captures, rendered columns, diagnostics, search matches, and viewports
 are derived from that document or from tab-local state.
 
-![RotIDE container architecture](../diagrams/svg/architecture-container.svg)
+![RotIDE container relationships](../diagrams/svg/architecture-container.svg)
 
 ## State Model
 

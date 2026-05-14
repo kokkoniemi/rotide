@@ -3,45 +3,49 @@ skin rose
 !include <C4/C4_Container>
 skinparam backgroundColor #FFFFFF
 
-title RotIDE container architecture
+LAYOUT_LEFT_RIGHT()
+title RotIDE container relationships
 
 Person(user, "User", "Edits files in a terminal")
+
 System_Boundary(rotide, "RotIDE") {
-	Container(input, "Input and actions", "C", "Terminal decoding, keymap lookup, prompts, mouse handling, terminal-pane key routing")
-	Container(editing, "Editing core", "C", "Document edit pipeline, selection, history, dirty state")
-	Container(document, "Document model", "C", "editorDocument plus rope and line-start index")
-	Container(render, "Renderer", "C", "Tab bar, drawer, multi-pane painter, borders, overlays, libvterm cell painter")
-	Container(workspace, "Workspace and layout", "C", "Tabs, drawer, pane tree (splits/focus), task logs, recovery, file search, workspace persistence")
-	Container(language, "Language services", "C", "Tree-sitter syntax, LSP, autocomplete")
-	Container(terminal, "Terminal panes", "C + libvterm", "PTY transport, vterm parser, mouse/paste forwarding")
-	Container(dap, "DAP", "C", "Adapter spawn, launch with optional terminal console, breakpoints, lifecycle")
-	Container(config, "Config", "TOML", "Editor, theme, keymap, LSP, and DAP settings")
+	Container(input, "Input and actions", "C", "Terminal decoding, keymaps, prompts, action dispatch")
+	Container(text, "Text engine", "C", "editorDocument, rope, rows, edit pipeline, selection, history")
+	Container(workspace, "Workspace and renderer", "C", "Tabs, drawer, pane tree, status rows, terminal cell painter")
+	Container(language, "Language services", "C", "Tree-sitter syntax, LSP, diagnostics, autocomplete")
+	Container(terminal, "Terminal and DAP", "C + libvterm", "PTY panes, DAP adapter lifecycle, debug console")
+	Container(config, "Config and persistence", "TOML + files", "Settings, themes, keymaps, recovery, workspace snapshots")
 }
 
 System_Ext(files, "Filesystem", "Source files, config, recovery and workspace snapshots")
 System_Ext(ts, "Tree-sitter", "Vendored parsers and runtime")
-System_Ext(lsp, "Language servers", "gopls, clangd, TypeScript, vscode extracted servers, ESLint")
-System_Ext(pty_children, "PTY children", "Shells, debuggees, debug-adapter inferiors")
-System_Ext(adapters, "DAP adapters", "gdb -i dap, lldb-dap, dlv dap, etc.")
+System_Ext(lsp, "Language servers", "gopls, clangd, TypeScript, ESLint")
+System_Ext(pty_children, "PTY children", "Shells and debuggees")
+System_Ext(adapters, "DAP adapters", "gdb -i dap, lldb-dap, dlv dap")
 
-Rel(user, input, "Keys and mouse")
-Rel(input, editing, "editorAction and edit requests")
-Rel(input, terminal, "Forwarded keys / mouse / paste when focused on a terminal pane")
-Rel(input, dap, "DAP control actions")
-Rel(editing, document, "Mutates canonical text")
-Rel(editing, language, "Syntax edits and LSP notifications")
-Rel(render, document, "Reads derived rows/text")
-Rel(render, workspace, "Reads tabs, drawer state, pane layout")
-Rel(render, terminal, "Reads vterm grid, pumps PTY")
-Rel(config, input, "Key bindings")
-Rel(config, language, "Server commands and enable flags")
-Rel(config, dap, "Adapters, launch configs, console mode")
-Rel(workspace, files, "Open, save, recover, watch, persist layout")
-Rel(language, ts, "Parse and query")
-Rel(language, lsp, "JSON-RPC")
-Rel(terminal, pty_children, "stdin/stdout via PTY master fd")
-Rel(dap, adapters, "JSON-RPC over stdio")
-Rel(dap, terminal, "console=terminal opens a pane and supplies its tty to the adapter")
-Rel(user, render, "Views terminal frame")
+Rel_R(user, input, "Keys/mouse")
+Rel_R(config, input, "Settings")
+Rel_R(input, text, "Editor actions")
+Rel_R(text, workspace, "Rows and state")
+Rel_D(text, language, "Sync text")
+Rel_D(workspace, terminal, "Paint/pump PTYs")
+
+Rel_D(config, files, "Config/snapshots")
+Rel_D(language, ts, "Parse/query")
+Rel_D(language, lsp, "JSON-RPC")
+Rel_D(terminal, pty_children, "PTY")
+Rel_D(terminal, adapters, "DAP")
+
+Lay_L(user, input)
+Lay_U(config, input)
+Lay_R(input, text)
+Lay_R(text, workspace)
+Lay_D(text, language)
+Lay_D(workspace, terminal)
+Lay_D(config, files)
+Lay_D(language, ts)
+Lay_D(language, lsp)
+Lay_D(terminal, pty_children)
+Lay_D(terminal, adapters)
 
 @enduml
