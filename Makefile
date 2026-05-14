@@ -353,9 +353,12 @@ release:
 docs-media:
 	$(call LOG,DOCS,media)python3 scripts/capture_docs_media.py $(DOCS_MEDIA_FLAGS)
 
+docs-diagrams:
+	$(call LOG,DOCS,diagrams)scripts/render_docs_diagrams.sh
+
 -include $(DEPFILES)
 
-.PHONY: clean test test-sanitize release docs-media
+.PHONY: clean test test-sanitize release docs-media docs-diagrams
 clean:
 	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(DEPFILES) $(TEST_BIN) rotide $(GENERATED_HEADERS)
 	$(call LOG,CLEAN,tree)find $(SRC_DIR) tests vendor/tree_sitter -type f \( -name '*.o' -o -name '*.d' \) -delete

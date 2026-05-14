@@ -6,6 +6,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* Tab-local Tree-sitter state. The implementation owns host and injected parse
+ * trees, query caches, budget events, and visible capture collection.
+ */
 struct editorSyntaxState;
 
 struct editorSyntaxPoint {
@@ -74,6 +77,9 @@ enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *fil
 enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilenameAndFirstLine(
 		const char *filename, const char *first_line);
 
+/* Create/destroy and parse APIs are per tab. Callers pass editorTextSource so
+ * syntax can read document bytes without owning canonical text.
+ */
 struct editorSyntaxState *editorSyntaxStateCreate(enum editorSyntaxLanguage language);
 void editorSyntaxStateDestroy(struct editorSyntaxState *state);
 

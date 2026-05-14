@@ -1,0 +1,19 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+title Search and highlight flow
+
+start
+:Ctrl-F opens prompt;
+:prompt callback updates query;
+:scan editorTextSource forward/backward;
+if (match?) then (yes)
+	:store byte offset and length;
+	:sync cursor/view to match;
+else (no)
+	:clear active match;
+endif
+:renderer maps offset to visible rows;
+:draw search overlay without dirty change;
+stop
+
+@enduml

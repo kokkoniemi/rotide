@@ -1,0 +1,35 @@
+@startuml
+!include <C4/C4_Container>
+skinparam backgroundColor #FFFFFF
+
+title RotIDE container architecture
+
+Person(user, "User", "Edits files in a terminal")
+System_Boundary(rotide, "RotIDE") {
+	Container(input, "Input and actions", "C", "Terminal decoding, keymap lookup, prompts, mouse handling")
+	Container(editing, "Editing core", "C", "Document edit pipeline, selection, history, dirty state")
+	Container(document, "Document model", "C", "editorDocument plus rope and line-start index")
+	Container(render, "Renderer", "C", "Tabs, drawer, viewport, status, overlays")
+	Container(workspace, "Workspace", "C", "Tabs, drawer, task logs, recovery, file search")
+	Container(language, "Language services", "C", "Tree-sitter syntax, LSP, autocomplete")
+	Container(config, "Config", "TOML", "Editor, theme, keymap, and LSP settings")
+}
+
+System_Ext(files, "Filesystem", "Source files, config, recovery snapshots")
+System_Ext(ts, "Tree-sitter", "Vendored parsers and runtime")
+System_Ext(lsp, "Language servers", "gopls, clangd, TypeScript, vscode extracted servers, ESLint")
+
+Rel(user, input, "Keys and mouse")
+Rel(input, editing, "editorAction and edit requests")
+Rel(editing, document, "Mutates canonical text")
+Rel(editing, language, "Syntax edits and LSP notifications")
+Rel(render, document, "Reads derived rows/text")
+Rel(render, workspace, "Reads tabs and drawer state")
+Rel(config, input, "Key bindings")
+Rel(config, language, "Server commands and enable flags")
+Rel(workspace, files, "Open, save, recover, watch")
+Rel(language, ts, "Parse and query")
+Rel(language, lsp, "JSON-RPC")
+Rel(user, render, "Views terminal frame")
+
+@enduml

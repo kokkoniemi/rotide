@@ -1,0 +1,18 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+title Task-log tab flow
+
+start
+:create EDITOR_TAB_TASK_LOG;
+:spawn child process;
+while (task running)
+	:read merged stdout/stderr;
+	:append output to task-log document;
+	:rebuild rows;
+	:cap output at ROTIDE_TASK_LOG_MAX_BYTES;
+endwhile
+:append final status line;
+:leave read-only non-savable tab open;
+stop
+
+@enduml

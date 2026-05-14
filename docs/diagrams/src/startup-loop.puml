@@ -1,0 +1,23 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+title Startup and main loop
+
+start
+:enable terminal raw mode;
+:load runtime config;
+:initialize tabs, drawer, syntax worker, recovery;
+if (recovery snapshot?) then (yes)
+	:prompt and restore or open args;
+else (no)
+	:open CLI args or empty tab;
+endif
+while (running)
+	:pump LSP and background syntax;
+	:draw terminal frame;
+	:read terminal input;
+	:dispatch action;
+endwhile
+:cleanup tasks, LSP, syntax, terminal;
+stop
+
+@enduml

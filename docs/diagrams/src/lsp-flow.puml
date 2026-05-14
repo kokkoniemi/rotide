@@ -1,0 +1,24 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+title LSP document and request flow
+
+participant "tab/document" as tab
+participant "lsp.c" as lsp
+participant "lsp_protocol.c" as protocol
+participant "lsp_transport.c" as transport
+participant "language server" as server
+participant "renderer/drawer" as ui
+
+tab -> lsp : supported file opened
+lsp -> protocol : build didOpen
+protocol -> transport : framed JSON-RPC
+transport -> server : stdin/stdout
+tab -> lsp : document edit
+lsp -> protocol : didChange with version
+server --> transport : diagnostics/response
+transport --> protocol : parse JSON
+protocol --> lsp : locations, symbols, diagnostics, edits
+lsp --> tab : update tab-local state
+tab --> ui : overlays and LSP drawer entries
+
+@enduml

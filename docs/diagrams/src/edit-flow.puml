@@ -1,0 +1,22 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+title Edit application flow
+
+participant "input/edit helpers" as input
+participant "editorApplyDocumentEdit" as apply
+participant "editorDocument" as doc
+participant "erow cache" as rows
+participant "syntax state" as syntax
+participant "LSP clients" as lsp
+participant "history" as history
+
+input -> apply : editorDocumentEdit
+apply -> doc : replace byte range
+apply -> rows : rebuild from document
+apply -> apply : sync cursor_offset to cy/cx/rx
+apply -> syntax : incremental/full parse update
+apply -> lsp : didOpen/didChange as needed
+apply -> history : record operation and dirty metadata
+apply --> input : success/failure
+
+@enduml

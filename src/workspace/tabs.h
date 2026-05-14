@@ -3,9 +3,14 @@
 
 #include "rotide.h"
 
+/* Active-buffer helpers move state between E and editorTabState. File tabs own
+ * editable documents; task-log, unsupported-file, and Git-diff tabs are
+ * read-only/non-normal save targets.
+ */
 void editorResetActiveBufferFields(void);
 void editorFreeActiveBufferState(void);
 
+/* Tab lifecycle and navigation. Preview tabs may be reused until pinned. */
 int editorTabsInit(void);
 void editorTabsFreeAll(void);
 int editorTabNewEmpty(void);
@@ -25,6 +30,8 @@ void editorTabPinActivePreview(void);
 const char *editorTabFilenameAt(int idx);
 const char *editorTabDisplayNameAt(int idx);
 int editorTabDirtyAt(int idx);
+
+/* Rendering and hit-testing helpers keep tab bar layout outside the renderer. */
 int editorTabBuildLayoutForWidth(int cols, struct editorTabLayoutEntry *entries, int max_entries,
 		int *count_out);
 int editorTabHitTestColumn(int col, int cols);

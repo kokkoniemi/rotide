@@ -1,0 +1,20 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+title Tree-sitter syntax flow
+
+start
+:detect language from filename/shebang;
+:create tab-local editorSyntaxState;
+:parse document through editorTextSource;
+if (edit arrives?) then (yes)
+	:apply Tree-sitter edit;
+	:incremental parse, fallback full parse when needed;
+endif
+:collect captures for visible byte ranges;
+if (injection query matches?) then (yes)
+	:parse injected language up to depth/slot limits;
+endif
+:renderer applies syntax spans under overlays;
+stop
+
+@enduml

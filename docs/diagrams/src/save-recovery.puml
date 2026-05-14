@@ -1,0 +1,27 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+title Save and recovery flow
+
+start
+if (save requested?) then (save)
+	:copy active document text;
+	:write temp file;
+	:fsync temp file;
+	:rename temp over target;
+	:fsync parent directory;
+	:clear dirty after success;
+else (recovery autosave)
+	:serialize tab state and document text;
+	:write recovery snapshot;
+endif
+
+if (startup sees snapshot?) then (yes)
+	:prompt user;
+	:restore tabs through document model;
+	:rebuild derived rows;
+else (no)
+	:open args or empty tab;
+endif
+stop
+
+@enduml

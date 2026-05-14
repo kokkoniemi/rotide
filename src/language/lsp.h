@@ -6,6 +6,10 @@
 
 #include <stddef.h>
 
+/* Public LSP value types are copied into tab-local state by request and
+ * notification handlers. Positions use LSP line/character units at this API
+ * boundary and are converted near editor buffer helpers.
+ */
 struct editorLspLocation {
 	char *path;
 	int line;
@@ -73,6 +77,9 @@ struct editorLspDiagnosticSummary {
 void editorLspShutdown(void);
 void editorLspPumpNotifications(void);
 
+/* Document lifecycle notifications keep per-tab open flags and versions in
+ * sync with the canonical editorDocument text.
+ */
 int editorLspEnsureDocumentOpen(const char *filename, enum editorSyntaxLanguage language,
 		int *doc_open_in_out, int *doc_version_in_out,
 		const char *full_text, size_t full_text_len);
@@ -99,6 +106,9 @@ void editorLspNotifyEslintDidClose(const char *filename, enum editorSyntaxLangua
 		int *doc_open_in_out, int *doc_version_in_out);
 void editorLspResetTrackedDocuments(void);
 
+/* Request helpers synchronously or asynchronously query the active server and
+ * return heap-owned result arrays for callers to store or free.
+ */
 int editorLspRequestDefinition(const char *filename, enum editorSyntaxLanguage language, int line,
 		int character, struct editorLspLocation **locations_out, int *count_out,
 		int *timed_out_out);

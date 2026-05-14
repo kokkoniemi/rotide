@@ -4,6 +4,10 @@
 #include "rotide.h"
 #include <stddef.h>
 
+/* Canonical edit descriptor for text mutations.
+ * All normal editing, undo, redo, syntax updates, LSP notifications, cursor
+ * synchronization, and dirty-state transitions route through this shape.
+ */
 struct editorDocumentEdit {
 	enum editorEditKind kind;
 	size_t start_offset;
@@ -18,6 +22,10 @@ struct editorDocumentEdit {
 
 char *editorRowsToStr(size_t *buflen);
 int editorBuildActiveTextSource(struct editorTextSource *source_out);
+
+/* Offset/row mapping helpers keep cursor, search, and selection state anchored
+ * to editorDocument while allowing the renderer to work with derived rows.
+ */
 int editorBufferPosToOffset(int cy, int cx, size_t *offset_out);
 int editorBufferOffsetToPos(size_t offset, int *cy_out, int *cx_out);
 int editorBufferLineByteRange(int row_idx, size_t *start_byte_out, size_t *end_byte_out);
@@ -59,6 +67,8 @@ int editorSyncCursorFromOffset(size_t target_offset);
 int editorSyncCursorFromOffsetByteBoundary(size_t target_offset);
 int editorRestoreActiveFromDocument(const struct editorDocument *document,
 		int target_cy, int target_cx, int dirty, int parse_syntax);
+
+/* The single active-buffer mutation path. */
 int editorApplyDocumentEdit(const struct editorDocumentEdit *edit);
 char *editorDupActiveTextSource(size_t *len_out);
 

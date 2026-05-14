@@ -1,0 +1,28 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+title Keypress to editor action
+
+start
+:terminal decodes key/mouse packet;
+if (prompt active?) then (yes)
+	:send byte to prompt callback;
+	stop
+endif
+if (mouse event?) then (yes)
+	:route to drawer/tab/text handler;
+	stop
+endif
+:lookup configured keymap;
+if (bound action?) then (yes)
+	:dispatch enum editorAction;
+else (text input)
+	:build insert edit;
+endif
+if (text mutation?) then (yes)
+	:apply document edit;
+else (view/navigation)
+	:update cursor/view/search/drawer state;
+endif
+stop
+
+@enduml

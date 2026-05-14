@@ -4,6 +4,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* Chunked byte storage used underneath editorDocument.
+ * The rope has no editor semantics: it stores bytes and supports range reads,
+ * copies, duplication, and replacement by byte offset.
+ */
 struct editorRopeChunk {
 	char *bytes;
 	size_t len;
@@ -16,6 +20,7 @@ struct editorRope {
 	size_t length;
 };
 
+/* Mutating operations preserve the rope length and chunk list invariants. */
 void editorRopeInit(struct editorRope *rope);
 void editorRopeFree(struct editorRope *rope);
 int editorRopeAppend(struct editorRope *rope, const char *text, size_t len);

@@ -4,6 +4,10 @@
 #include "rotide.h"
 #include "text/rope.h"
 
+/* Canonical writable text for a tab.
+ * The rope owns bytes; line_starts is a derived index maintained with every
+ * reset/replace so callers can map between byte offsets and line positions.
+ */
 struct editorDocument {
 	struct editorRope rope;
 	size_t *line_starts;
@@ -11,6 +15,7 @@ struct editorDocument {
 	int line_capacity;
 };
 
+/* Reset/copy/replace operations keep the line index in sync with the rope. */
 void editorDocumentInit(struct editorDocument *document);
 void editorDocumentFree(struct editorDocument *document);
 int editorDocumentResetFromString(struct editorDocument *document, const char *text, size_t len);
@@ -27,6 +32,10 @@ char *editorDocumentDupRange(const struct editorDocument *document, size_t start
 		size_t end_byte, size_t *len_out);
 int editorDocumentReplaceRange(struct editorDocument *document, size_t start_byte, size_t old_len,
 		const char *new_text, size_t new_len);
+
+/* Byte/line mapping helpers are the boundary between document storage and
+ * editor cursor/search/selection state.
+ */
 int editorDocumentLineCount(const struct editorDocument *document);
 int editorDocumentLineStartByte(const struct editorDocument *document, int line_idx,
 		size_t *start_byte_out);

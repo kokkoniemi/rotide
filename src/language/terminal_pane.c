@@ -25,7 +25,8 @@ static void editorTerminalOutputCallback(const char *s, size_t len, void *user) 
 	if (t == NULL || t->child.master_fd < 0 || s == NULL || len == 0) {
 		return;
 	}
-	(void)write(t->child.master_fd, s, len);
+	ssize_t written = write(t->child.master_fd, s, len);
+	(void)written;
 }
 
 struct editorTerminalPane *editorTerminalPaneCreate(const char *command,
@@ -219,7 +220,8 @@ int editorTerminalPaneSendKey(struct editorTerminalPane *terminal,
 	 * the literal control byte. */
 	if (rotide_key > 0 && rotide_key < 0x20) {
 		char b = (char)rotide_key;
-		(void)write(terminal->child.master_fd, &b, 1);
+		ssize_t written = write(terminal->child.master_fd, &b, 1);
+		(void)written;
 		return 1;
 	}
 	return 0;

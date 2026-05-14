@@ -1,0 +1,27 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+title Canonical document model
+
+skinparam componentStyle rectangle
+
+component "editorDocument\ncanonical writable text" as doc
+component "editorRope\nchunked byte storage" as rope
+component "line_starts\nbyte offsets per line" as index
+component "struct erow\nNUL-terminated derived rows" as row
+component "cursor/search/selection\noffsets" as offsets
+component "render coordinates\ncy/cx/rx/rowoff/coloff" as coords
+component "syntax and LSP\nper-tab state" as lang
+
+doc --> rope : owns
+doc --> index : owns
+doc --> row : rebuilds derived cache
+doc --> offsets : maps byte positions
+row --> coords : display mapping
+doc --> lang : text source / edits
+
+note bottom of row
+Rows are render/cache state only.
+Do not treat row->chars as canonical storage.
+end note
+
+@enduml
