@@ -1,11 +1,13 @@
 #include "input/dispatch.h"
 
 #include "config/common.h"
+#include "config/dap_config.h"
 #include "config/keymap.h"
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
 #include "editing/history.h"
 #include "editing/selection.h"
+#include "language/dap.h"
 #include "language/lsp.h"
 #include "language/syntax_worker.h"
 #include "render/popup.h"
@@ -54,7 +56,7 @@ enum editorKeypressEffect {
 };
 
 #define DRAWER_HEADER_MODE_BUTTON_COLS 3
-#define DRAWER_HEADER_MODE_BUTTON_COUNT 6
+#define DRAWER_HEADER_MODE_BUTTON_COUNT 7
 #define DRAWER_HEADER_MODE_BUTTONS_MIN_COLS \
 	(ROTIDE_DRAWER_COLLAPSED_WIDTH + \
 			DRAWER_HEADER_MODE_BUTTON_COLS * DRAWER_HEADER_MODE_BUTTON_COUNT)
@@ -535,6 +537,7 @@ static void quit(void) {
 	}
 
 	(void)editorWorkspaceStateSave();
+	editorDapShutdown();
 	editorLspShutdown();
 	editorSyntaxBackgroundStop();
 	editorRecoveryCleanupOnCleanExit();
@@ -586,6 +589,7 @@ static void editorExitOnInputShutdown(void) {
 	if (editorTaskIsRunning()) {
 		(void)editorTaskTerminate();
 	}
+	editorDapShutdown();
 	editorLspShutdown();
 	editorRestoreTerminal();
 	editorClearScreen();
@@ -2428,9 +2432,24 @@ static int editorJumpToSelectedLspDrawerLocation(int preview) {
 	return editorJumpToPathLocation(path, line, character, preview, 1);
 }
 
+static int editorJumpToSelectedDapDrawerLocation(int preview) {
+	const char *path = NULL;
+	int line = 0;
+	int character = 0;
+	if (!editorDrawerSelectedDapLocation(&path, &line, &character)) {
+		return 0;
+	}
+	return editorJumpToPathLocation(path, line, character, preview, 1);
+}
+
 static void editorDrawerPreviewSelectionAfterMove(void) {
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
 		(void)editorJumpToSelectedLspDrawerLocation(1);
+		E.pane_focus = EDITOR_PANE_DRAWER;
+		return;
+	}
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_DAP) {
+		(void)editorJumpToSelectedDapDrawerLocation(1);
 		E.pane_focus = EDITOR_PANE_DRAWER;
 		return;
 	}
@@ -3055,9 +3074,12 @@ static int editorDrawerHeaderModeForColumn(int mouse_col, int drawer_cols,
 		*mode_out = EDITOR_DRAWER_MODE_LSP;
 		return 1;
 	case 4:
-		*mode_out = EDITOR_DRAWER_MODE_GIT;
+		*mode_out = EDITOR_DRAWER_MODE_DAP;
 		return 1;
 	case 5:
+		*mode_out = EDITOR_DRAWER_MODE_GIT;
+		return 1;
+	case 6:
 		*mode_out = EDITOR_DRAWER_MODE_MAIN_MENU;
 		return 1;
 	default:
@@ -3110,6 +3132,15 @@ static int editorSwitchDrawerHeaderMode(enum editorDrawerMode mode) {
 				editorProjectSearchIsActive()) {
 			(void)editorDrawerLspToggle();
 			editorSetStatusMsg("LSP drawer shown");
+		}
+		E.pane_focus = EDITOR_PANE_DRAWER;
+		return EDITOR_KEYPRESS_EFFECT_NONE;
+	case EDITOR_DRAWER_MODE_DAP:
+		editorHistoryBreakGroup();
+		if (E.drawer_mode != EDITOR_DRAWER_MODE_DAP || editorFileSearchIsActive() ||
+				editorProjectSearchIsActive()) {
+			(void)editorDrawerDapToggle();
+			editorSetStatusMsg("DAP drawer shown");
 		}
 		E.pane_focus = EDITOR_PANE_DRAWER;
 		return EDITOR_KEYPRESS_EFFECT_NONE;
@@ -3245,6 +3276,47 @@ static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 			}
 			if (editorJumpToSelectedLspDrawerLocation(1)) {
 				editorSetStatusMsg("LSP location previewed. Double-click to open");
+			}
+			E.drawer_last_click_visible_idx = visible_idx;
+			E.drawer_last_click_ms = now_ms;
+			E.pane_focus = EDITOR_PANE_DRAWER;
+			E.mouse_left_button_down = 0;
+			E.mouse_drag_started = 0;
+			return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+		}
+		if (E.drawer_mode == EDITOR_DRAWER_MODE_DAP) {
+			int launch_idx = -1;
+			int default_idx = -1;
+			if (editorDrawerSelectedDapLaunch(&launch_idx)) {
+				E.dap_selected_launch = launch_idx;
+				(void)editorDapStartLaunch(launch_idx);
+				editorResetDrawerClickTracking();
+				E.mouse_left_button_down = 0;
+				E.mouse_drag_started = 0;
+				return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			}
+			if (editorDrawerSelectedDapDefault(&default_idx)) {
+				(void)editorDapCreateProjectLaunchFromDefault(default_idx, E.drawer_root_path);
+				editorResetDrawerClickTracking();
+				E.mouse_left_button_down = 0;
+				E.mouse_drag_started = 0;
+				return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			}
+			int should_open_location = E.drawer_last_click_visible_idx == visible_idx &&
+					E.drawer_last_click_ms > 0 &&
+					now_ms > 0 &&
+					now_ms - E.drawer_last_click_ms <= DRAWER_DOUBLE_CLICK_THRESHOLD_MS;
+			if (should_open_location) {
+				if (editorJumpToSelectedDapDrawerLocation(0)) {
+					E.pane_focus = EDITOR_PANE_TEXT;
+				}
+				editorResetDrawerClickTracking();
+				E.mouse_left_button_down = 0;
+				E.mouse_drag_started = 0;
+				return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			}
+			if (editorJumpToSelectedDapDrawerLocation(1)) {
+				editorSetStatusMsg("DAP location previewed. Double-click to open");
 			}
 			E.drawer_last_click_visible_idx = visible_idx;
 			E.drawer_last_click_ms = now_ms;
@@ -3653,6 +3725,11 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 				editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_LSP ?
 						"LSP drawer shown" : "Project drawer shown");
 				break;
+			case EDITOR_ACTION_DAP_DRAWER:
+				(void)editorDrawerDapToggle();
+				editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_DAP ?
+						"DAP drawer shown" : "Project drawer shown");
+				break;
 			default:
 				break;
 		}
@@ -3721,6 +3798,11 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 				(void)editorDrawerLspToggle();
 				editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_LSP ?
 						"LSP drawer shown" : "Project drawer shown");
+				break;
+			case EDITOR_ACTION_DAP_DRAWER:
+				(void)editorDrawerDapToggle();
+				editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_DAP ?
+						"DAP drawer shown" : "Project drawer shown");
 				break;
 			default:
 				break;
@@ -3810,6 +3892,44 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			(void)editorDrawerLspToggle();
 			editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_LSP ?
 					"LSP drawer shown" : "Project drawer shown");
+			break;
+		case EDITOR_ACTION_DAP_DRAWER:
+			editorHistoryBreakGroup();
+			(void)editorDrawerDapToggle();
+			editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_DAP ?
+					"DAP drawer shown" : "Project drawer shown");
+			break;
+		case EDITOR_ACTION_DAP_START:
+			editorHistoryBreakGroup();
+			(void)editorDapStartSelectedLaunch();
+			break;
+		case EDITOR_ACTION_DAP_STOP:
+			editorHistoryBreakGroup();
+			(void)editorDapStop();
+			break;
+		case EDITOR_ACTION_DAP_CONTINUE:
+			editorHistoryBreakGroup();
+			(void)editorDapContinue();
+			break;
+		case EDITOR_ACTION_DAP_PAUSE:
+			editorHistoryBreakGroup();
+			(void)editorDapPause();
+			break;
+		case EDITOR_ACTION_DAP_STEP_OVER:
+			editorHistoryBreakGroup();
+			(void)editorDapStepOver();
+			break;
+		case EDITOR_ACTION_DAP_STEP_INTO:
+			editorHistoryBreakGroup();
+			(void)editorDapStepInto();
+			break;
+		case EDITOR_ACTION_DAP_STEP_OUT:
+			editorHistoryBreakGroup();
+			(void)editorDapStepOut();
+			break;
+		case EDITOR_ACTION_DAP_TOGGLE_BREAKPOINT:
+			editorHistoryBreakGroup();
+			(void)editorDapToggleBreakpointAtCursor();
 			break;
 		case EDITOR_ACTION_OPEN_SETTINGS:
 			editorHistoryBreakGroup();
@@ -4122,6 +4242,23 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 					}
 				} else if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
 					if (editorJumpToSelectedLspDrawerLocation(0)) {
+						E.pane_focus = EDITOR_PANE_TEXT;
+						effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+					}
+				} else if (E.drawer_mode == EDITOR_DRAWER_MODE_DAP) {
+					int launch_idx = -1;
+					int default_idx = -1;
+					if (editorDrawerSelectedDapLaunch(&launch_idx)) {
+						E.dap_selected_launch = launch_idx;
+						if (editorDapStartLaunch(launch_idx)) {
+							effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+						}
+					} else if (editorDrawerSelectedDapDefault(&default_idx)) {
+						if (editorDapCreateProjectLaunchFromDefault(default_idx,
+									E.drawer_root_path)) {
+							effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+						}
+					} else if (editorJumpToSelectedDapDrawerLocation(0)) {
 						E.pane_focus = EDITOR_PANE_TEXT;
 						effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 					}

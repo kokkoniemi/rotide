@@ -99,13 +99,14 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/config/common.c $(SRC_DIR)/config/keymap.c \
 	$(SRC_DIR)/config/runtime_config.c \
 	$(SRC_DIR)/config/editor_config.c $(SRC_DIR)/config/theme_config.c \
-	$(SRC_DIR)/config/lsp_config.c \
+	$(SRC_DIR)/config/lsp_config.c $(SRC_DIR)/config/dap_config.c \
 	$(SRC_DIR)/language/syntax.c $(SRC_DIR)/language/queries.c \
 	$(SRC_DIR)/language/syntax_worker.c \
 	$(SRC_DIR)/language/languages.c \
 	$(SRC_DIR)/language/lsp.c \
 	$(SRC_DIR)/language/lsp_protocol.c \
 	$(SRC_DIR)/language/lsp_transport.c \
+	$(SRC_DIR)/language/dap.c \
 	$(SRC_DIR)/language/autocomplete.c
 SRCS = $(CORE_SRCS) $(TREE_SITTER_SRCS)
 OBJS = $(SRCS:.c=.o)

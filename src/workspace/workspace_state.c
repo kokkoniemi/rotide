@@ -1,6 +1,7 @@
 #include "workspace/workspace_state.h"
 
 #include "rotide.h"
+#include "config/dap_config.h"
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
 #include "language/lsp.h"
@@ -315,6 +316,9 @@ static enum editorDrawerMode editorWorkspaceStateModeFromString(const char *valu
 	if (strcmp(value, "lsp") == 0) {
 		return EDITOR_DRAWER_MODE_LSP;
 	}
+	if (strcmp(value, "dap") == 0) {
+		return EDITOR_DRAWER_MODE_DAP;
+	}
 	return EDITOR_DRAWER_MODE_TREE;
 }
 
@@ -326,6 +330,8 @@ static const char *editorWorkspaceStateModeToString(enum editorDrawerMode mode) 
 			return "git";
 		case EDITOR_DRAWER_MODE_LSP:
 			return "lsp";
+		case EDITOR_DRAWER_MODE_DAP:
+			return "dap";
 		default:
 			return "tree";
 	}
@@ -400,6 +406,7 @@ int editorWorkspaceStateLoadAndApply(int total_cols) {
 	int menu_expanded = -1;
 	int git_expanded = -1;
 	int lsp_expanded = -1;
+	int dap_expanded = -1;
 	editorWorkspaceStateFreePendingTabs();
 	g_pending_active_idx = -1;
 
@@ -435,6 +442,8 @@ int editorWorkspaceStateLoadAndApply(int total_cols) {
 			(void)editorWorkspaceStateParseInt(value, &git_expanded);
 		} else if (strcmp(key, "drawer_lsp_expanded") == 0) {
 			(void)editorWorkspaceStateParseInt(value, &lsp_expanded);
+		} else if (strcmp(key, "drawer_dap_expanded") == 0) {
+			(void)editorWorkspaceStateParseInt(value, &dap_expanded);
 		} else if (strcmp(key, "recent_file") == 0) {
 			(void)editorWorkspaceStateAppendRecentFile(value);
 		} else if (strcmp(key, "tab") == 0) {
@@ -472,6 +481,9 @@ int editorWorkspaceStateLoadAndApply(int total_cols) {
 	}
 	if (lsp_expanded >= 0) {
 		E.drawer_lsp_expanded = (unsigned int)lsp_expanded;
+	}
+	if (dap_expanded >= 0) {
+		E.drawer_dap_expanded = (unsigned int)dap_expanded;
 	}
 	return 1;
 }
@@ -541,6 +553,9 @@ int editorWorkspaceStateRestoreTabs(void) {
 	if (opened_any && E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
 		editorLspRefreshActiveDocumentSymbols();
 	}
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_DAP) {
+		(void)editorDapConfigReloadProject(E.drawer_root_path);
+	}
 	editorWorkspaceStateFreePendingTabs();
 	return opened_any;
 }
@@ -574,7 +589,8 @@ int editorWorkspaceStateSave(void) {
 
 	enum editorDrawerMode mode = E.drawer_mode;
 	if (mode != EDITOR_DRAWER_MODE_TREE && mode != EDITOR_DRAWER_MODE_MAIN_MENU &&
-			mode != EDITOR_DRAWER_MODE_GIT && mode != EDITOR_DRAWER_MODE_LSP) {
+			mode != EDITOR_DRAWER_MODE_GIT && mode != EDITOR_DRAWER_MODE_LSP &&
+			mode != EDITOR_DRAWER_MODE_DAP) {
 		mode = EDITOR_DRAWER_MODE_TREE;
 	}
 
@@ -586,14 +602,16 @@ int editorWorkspaceStateSave(void) {
 			"drawer_mode=%s\n"
 			"drawer_menu_expanded=%u\n"
 			"drawer_git_expanded=%u\n"
-			"drawer_lsp_expanded=%u\n",
+			"drawer_lsp_expanded=%u\n"
+			"drawer_dap_expanded=%u\n",
 			E.drawer_width_cols,
 			E.drawer_width_user_set ? 1 : 0,
 			E.drawer_collapsed ? 1 : 0,
 			editorWorkspaceStateModeToString(mode),
 			E.drawer_menu_expanded,
 			E.drawer_git_expanded,
-			E.drawer_lsp_expanded);
+			E.drawer_lsp_expanded,
+			E.drawer_dap_expanded);
 	if (len <= 0 || (size_t)len >= sizeof(buf)) {
 		(void)close(fd);
 		return 0;

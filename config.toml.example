@@ -68,6 +68,24 @@ json_command = "~/.local/bin/vscode-json-language-server --stdio"
 javascript_command = "~/.local/bin/typescript-language-server --stdio"
 eslint_command = "~/.local/bin/vscode-eslint-language-server --stdio"
 
+# --- [dap] --------------------------------------------------------------------
+# Adapter commands are global-only. Project launch configs live in ./.rotide.toml
+# under [dap.launch.<id>]. The DAP drawer can copy one of these defaults into the
+# project config for review.
+[dap.adapters]
+go = "dlv dap"
+# cpp = "/path/to/OpenDebugAD7"
+
+[dap.defaults.go_app]
+name = "Go app"
+adapter = "go"
+request = "launch"
+program = "${workspaceFolder}"
+cwd = "${workspaceFolder}"
+args = []
+stopOnEntry = false
+mode = "debug"
+
 # --- [keymap] -----------------------------------------------------------------
 # Key spec format:
 #   "ctrl+<a-z>", "alt+<a-z>", "ctrl+alt+<a-z>", "ctrl+]"
@@ -152,5 +170,15 @@ drawer_create_folder = "ctrl+alt+d"
 drawer_rename = "ctrl+alt+r"
 drawer_delete = "ctrl+alt+k"
 git_drawer = "ctrl+alt+g"
+dap_drawer = "ctrl+alt+b"
+# DAP control actions have no default binding; uncomment/remap as needed.
+# dap_start = "ctrl+alt+s"
+# dap_stop = "ctrl+alt+x"
+# dap_continue = "ctrl+alt+c"
+# dap_pause = "ctrl+alt+p"
+# dap_step_over = "ctrl+alt+o"
+# dap_step_into = "ctrl+alt+i"
+# dap_step_out = "ctrl+alt+u"
+# dap_toggle_breakpoint = "ctrl+alt+t"
 # open_settings has no default binding; the File > Settings menu item opens it.
 # open_settings = "ctrl+alt+s"

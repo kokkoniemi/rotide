@@ -414,6 +414,15 @@ enum editorAction {
 	EDITOR_ACTION_DRAWER_DELETE,
 	EDITOR_ACTION_GIT_DRAWER,
 	EDITOR_ACTION_LSP_DRAWER,
+	EDITOR_ACTION_DAP_DRAWER,
+	EDITOR_ACTION_DAP_START,
+	EDITOR_ACTION_DAP_STOP,
+	EDITOR_ACTION_DAP_CONTINUE,
+	EDITOR_ACTION_DAP_PAUSE,
+	EDITOR_ACTION_DAP_STEP_OVER,
+	EDITOR_ACTION_DAP_STEP_INTO,
+	EDITOR_ACTION_DAP_STEP_OUT,
+	EDITOR_ACTION_DAP_TOGGLE_BREAKPOINT,
 	EDITOR_ACTION_OPEN_SETTINGS,
 	EDITOR_ACTION_COUNT
 };
@@ -448,7 +457,91 @@ enum editorDrawerMode {
 	EDITOR_DRAWER_MODE_FILE_SEARCH,
 	EDITOR_DRAWER_MODE_PROJECT_SEARCH,
 	EDITOR_DRAWER_MODE_GIT,
-	EDITOR_DRAWER_MODE_LSP
+	EDITOR_DRAWER_MODE_LSP,
+	EDITOR_DRAWER_MODE_DAP
+};
+
+#define ROTIDE_DAP_MAX_ADAPTERS 16
+#define ROTIDE_DAP_MAX_CONFIGS 16
+#define ROTIDE_DAP_MAX_FIELDS 32
+#define ROTIDE_DAP_MAX_ENV 32
+#define ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS 32
+#define ROTIDE_DAP_ID_MAX 64
+#define ROTIDE_DAP_NAME_MAX 128
+#define ROTIDE_DAP_KEY_MAX 64
+#define ROTIDE_DAP_VALUE_MAX 1024
+#define ROTIDE_DAP_OUTPUT_MAX 4096
+#define ROTIDE_DAP_MAX_BREAKPOINTS 128
+#define ROTIDE_DAP_MAX_THREADS 32
+#define ROTIDE_DAP_MAX_STACK_FRAMES 128
+#define ROTIDE_DAP_MAX_SCOPES 64
+#define ROTIDE_DAP_MAX_VARIABLES 256
+
+enum editorDapLaunchValueKind {
+	EDITOR_DAP_LAUNCH_VALUE_STRING = 0,
+	EDITOR_DAP_LAUNCH_VALUE_BOOL,
+	EDITOR_DAP_LAUNCH_VALUE_INT,
+	EDITOR_DAP_LAUNCH_VALUE_STRING_ARRAY
+};
+
+struct editorDapAdapterConfig {
+	char id[ROTIDE_DAP_ID_MAX];
+	char command[PATH_MAX];
+};
+
+struct editorDapLaunchField {
+	char key[ROTIDE_DAP_KEY_MAX];
+	enum editorDapLaunchValueKind kind;
+	char string_value[ROTIDE_DAP_VALUE_MAX];
+	int int_value;
+	int bool_value;
+	char array_values[ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS][ROTIDE_DAP_VALUE_MAX];
+	int array_count;
+};
+
+struct editorDapEnvVar {
+	char key[ROTIDE_DAP_KEY_MAX];
+	char value[ROTIDE_DAP_VALUE_MAX];
+};
+
+struct editorDapLaunchConfig {
+	char id[ROTIDE_DAP_ID_MAX];
+	char name[ROTIDE_DAP_NAME_MAX];
+	char adapter[ROTIDE_DAP_ID_MAX];
+	char request[32];
+	struct editorDapLaunchField fields[ROTIDE_DAP_MAX_FIELDS];
+	int field_count;
+	struct editorDapEnvVar env[ROTIDE_DAP_MAX_ENV];
+	int env_count;
+};
+
+struct editorDapBreakpoint {
+	char path[PATH_MAX];
+	int line;
+};
+
+struct editorDapThread {
+	int id;
+	char name[ROTIDE_DAP_NAME_MAX];
+};
+
+struct editorDapStackFrame {
+	int id;
+	char name[ROTIDE_DAP_NAME_MAX];
+	char path[PATH_MAX];
+	int line;
+	int column;
+};
+
+struct editorDapScope {
+	int variables_reference;
+	char name[ROTIDE_DAP_NAME_MAX];
+};
+
+struct editorDapVariable {
+	int variables_reference;
+	char name[ROTIDE_DAP_NAME_MAX];
+	char value[ROTIDE_DAP_VALUE_MAX];
 };
 
 struct editorGitEntry {
@@ -589,6 +682,15 @@ struct editorConfig {
 	char lsp_vscode_langservers_install_command[PATH_MAX];
 	int lsp_autocomplete_enabled;
 	int lsp_autocomplete_max_items;
+	struct editorDapAdapterConfig dap_adapters[ROTIDE_DAP_MAX_ADAPTERS];
+	int dap_adapter_count;
+	struct editorDapLaunchConfig dap_defaults[ROTIDE_DAP_MAX_CONFIGS];
+	int dap_default_count;
+	struct editorDapLaunchConfig dap_launches[ROTIDE_DAP_MAX_CONFIGS];
+	int dap_launch_count;
+	int dap_project_config_exists;
+	int dap_project_config_invalid;
+	char dap_project_config_path[PATH_MAX];
 	int lsp_doc_open;
 	int lsp_doc_version;
 	int lsp_eslint_doc_open;
@@ -653,6 +755,7 @@ struct editorConfig {
 	unsigned int drawer_menu_expanded;
 	unsigned int drawer_git_expanded;
 	unsigned int drawer_lsp_expanded;
+	unsigned int drawer_dap_expanded;
 	int drawer_selected_index;
 	int drawer_rowoff;
 	int drawer_last_click_visible_idx;
@@ -694,6 +797,21 @@ struct editorConfig {
 	struct editorGitEntry *git_entries;
 	int git_entry_count;
 	int git_entry_capacity;
+	struct editorDapBreakpoint dap_breakpoints[ROTIDE_DAP_MAX_BREAKPOINTS];
+	int dap_breakpoint_count;
+	struct editorDapThread dap_threads[ROTIDE_DAP_MAX_THREADS];
+	int dap_thread_count;
+	struct editorDapStackFrame dap_stack_frames[ROTIDE_DAP_MAX_STACK_FRAMES];
+	int dap_stack_frame_count;
+	struct editorDapScope dap_scopes[ROTIDE_DAP_MAX_SCOPES];
+	int dap_scope_count;
+	struct editorDapVariable dap_variables[ROTIDE_DAP_MAX_VARIABLES];
+	int dap_variable_count;
+	char dap_output[ROTIDE_DAP_OUTPUT_MAX];
+	size_t dap_output_len;
+	int dap_running;
+	int dap_stopped;
+	int dap_selected_launch;
 	enum editorCursorStyle cursor_style;
 	int cursor_blink_enabled;
 	int line_wrap_enabled;

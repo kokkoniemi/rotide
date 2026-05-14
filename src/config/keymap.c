@@ -88,6 +88,15 @@ static const struct editorActionName editor_action_names[] = {
 	{"drawer_delete", EDITOR_ACTION_DRAWER_DELETE},
 	{"git_drawer", EDITOR_ACTION_GIT_DRAWER},
 	{"lsp_drawer", EDITOR_ACTION_LSP_DRAWER},
+	{"dap_drawer", EDITOR_ACTION_DAP_DRAWER},
+	{"dap_start", EDITOR_ACTION_DAP_START},
+	{"dap_stop", EDITOR_ACTION_DAP_STOP},
+	{"dap_continue", EDITOR_ACTION_DAP_CONTINUE},
+	{"dap_pause", EDITOR_ACTION_DAP_PAUSE},
+	{"dap_step_over", EDITOR_ACTION_DAP_STEP_OVER},
+	{"dap_step_into", EDITOR_ACTION_DAP_STEP_INTO},
+	{"dap_step_out", EDITOR_ACTION_DAP_STEP_OUT},
+	{"dap_toggle_breakpoint", EDITOR_ACTION_DAP_TOGGLE_BREAKPOINT},
 	{"open_settings", EDITOR_ACTION_OPEN_SETTINGS},
 };
 
@@ -685,6 +694,8 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 			EDITOR_ACTION_GIT_DRAWER);
 	(void)editorKeymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('l'),
 			EDITOR_ACTION_LSP_DRAWER);
+	(void)editorKeymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('b'),
+			EDITOR_ACTION_DAP_DRAWER);
 }
 
 int editorKeymapLookupAction(const struct editorKeymap *keymap, int key,

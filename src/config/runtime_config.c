@@ -2,6 +2,7 @@
 
 #include "config/editor_config.h"
 #include "config/keymap.h"
+#include "config/dap_config.h"
 #include "config/lsp_config.h"
 #include "config/theme_config.h"
 #include "editing/edit.h"
@@ -20,6 +21,7 @@ struct editorConfiguredSettingsStatus {
 	enum editorColumnSelectDragModifierLoadStatus column_select_drag_modifier_status;
 	enum editorThemeLoadStatus theme_status;
 	enum editorLspConfigLoadStatus lsp_config_status;
+	enum editorDapConfigLoadStatus dap_config_status;
 };
 
 static void editorConfigLoadConfiguredSettings(
@@ -52,6 +54,7 @@ static void editorConfigLoadConfiguredSettings(
 			E.lsp_vscode_langservers_install_command,
 			sizeof(E.lsp_vscode_langservers_install_command),
 			&E.lsp_autocomplete_enabled, &E.lsp_autocomplete_max_items);
+	status->dap_config_status = editorDapConfigLoadConfiguredGlobal();
 }
 
 static int editorConfigSetConfiguredSettingsStatus(
@@ -77,8 +80,13 @@ static int editorConfigSetConfiguredSettingsStatus(
 			(status->column_select_drag_modifier_status &
 					EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_OUT_OF_MEMORY) != 0 ||
 			(status->theme_status & EDITOR_THEME_LOAD_OUT_OF_MEMORY) != 0 ||
-			(status->lsp_config_status & EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY) != 0) {
+			(status->lsp_config_status & EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY) != 0 ||
+			(status->dap_config_status & EDITOR_DAP_CONFIG_LOAD_OUT_OF_MEMORY) != 0) {
 		editorSetStatusMsg("Out of memory");
+		return 1;
+	}
+	if ((status->dap_config_status & EDITOR_DAP_CONFIG_LOAD_INVALID_GLOBAL) != 0) {
+		editorSetStatusMsg("Invalid [dap] in ~/.rotide/config.toml, ignoring DAP config");
 		return 1;
 	}
 	if ((status->lsp_config_status & EDITOR_LSP_CONFIG_LOAD_INVALID_GLOBAL) != 0 &&

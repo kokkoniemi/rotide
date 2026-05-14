@@ -1,6 +1,7 @@
 #include "test_helpers.h"
 
 #include "alloc_test_hooks.h"
+#include "config/dap_config.h"
 #include "config/keymap.h"
 #include "config/lsp_config.h"
 #include "config/theme_config.h"
@@ -9,6 +10,7 @@
 #include "editing/selection.h"
 #include "editor_test_api.h"
 #include "input/dispatch.h"
+#include "language/dap.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
 #include "render/screen.h"
@@ -45,6 +47,7 @@ static void ensure_test_stdout_open(void) {
 }
 
 void clear_editor_state(void) {
+	editorDapShutdown();
 	editorDrawerShutdown();
 	editorRecoveryShutdown();
 	editorWorkspaceStateShutdown();
@@ -59,6 +62,7 @@ void reset_editor_state(void) {
 	editorTestAllocReset();
 	editorTestSaveSyscallsReset();
 	editorLspTestResetMock();
+	editorDapShutdown();
 	editorDocumentTestResetStats();
 	editorActiveTextSourceDupTestResetCount();
 	clear_editor_state();
@@ -114,6 +118,7 @@ void reset_editor_state(void) {
 	E.lsp_eslint_enabled = 0;
 	E.lsp_autocomplete_enabled = 0;
 	E.lsp_autocomplete_max_items = 50;
+	editorDapConfigInitDefaults();
 	E.lsp_doc_open = 0;
 	E.lsp_doc_version = 0;
 	E.lsp_eslint_doc_open = 0;
@@ -133,6 +138,7 @@ void reset_editor_state(void) {
 	E.drawer_menu_expanded = 0;
 	E.drawer_git_expanded = 0;
 	E.drawer_lsp_expanded = 0;
+	E.drawer_dap_expanded = 0;
 	E.drawer_width_cols = ROTIDE_DRAWER_DEFAULT_WIDTH;
 	E.drawer_width_user_set = 0;
 	E.drawer_collapsed = 0;

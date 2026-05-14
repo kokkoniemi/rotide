@@ -130,6 +130,7 @@ void initEditor(void) {
 	E.drawer_menu_expanded = 0;
 	E.drawer_git_expanded = 0;
 	E.drawer_lsp_expanded = 0;
+	E.drawer_dap_expanded = 0;
 	E.drawer_selected_index = 0;
 	E.drawer_rowoff = 0;
 	E.drawer_last_click_visible_idx = -1;

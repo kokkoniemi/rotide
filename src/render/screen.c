@@ -3,6 +3,7 @@
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
 #include "editing/selection.h"
+#include "language/dap.h"
 #include "language/lsp.h"
 #include "support/size_utils.h"
 #include "support/alloc.h"
@@ -82,6 +83,7 @@ struct writeBuf {
 #define DRAWER_HEADER_FILE_SEARCH_SYMBOL_UTF8 "F"
 #define DRAWER_HEADER_PROJECT_SEARCH_SYMBOL_UTF8 "/"
 #define DRAWER_HEADER_LSP_SYMBOL_UTF8 "L"
+#define DRAWER_HEADER_DAP_SYMBOL_UTF8 "D"
 #define DRAWER_HEADER_GIT_SYMBOL_UTF8 "\xE2\x91\x82"
 #define DRAWER_HEADER_MAIN_MENU_SYMBOL_UTF8 "\xE2\x89\xA1"
 #define DRAWER_NERD_FOLDER_UTF8 "\xEF\x81\xBB"
@@ -99,6 +101,7 @@ struct writeBuf {
 #define DRAWER_NERD_TREE_UTF8 "\xEF\x83\xA8"
 #define DRAWER_NERD_CODE_UTF8 "\xEF\x84\xA1"
 #define DRAWER_NERD_TERMINAL_UTF8 "\xEF\x84\xA0"
+#define DRAWER_NERD_BUG_UTF8 "\xEF\x86\x88"
 #define DRAWER_NERD_BRANCH_UTF8 "\xEF\x84\xA6"
 #define DRAWER_NERD_BARS_UTF8 "\xEF\x83\x89"
 #define DRAWER_NERD_SAVE_UTF8 "\xEF\x83\x87"
@@ -116,7 +119,7 @@ struct writeBuf {
 #define DRAWER_NERD_EYE_UTF8 "\xEF\x81\xAE"
 #define DRAWER_NERD_LINE_CHART_UTF8 "\xEF\x88\x81"
 #define DRAWER_HEADER_MODE_BUTTON_COLS 3
-#define DRAWER_HEADER_MODE_BUTTON_COUNT 6
+#define DRAWER_HEADER_MODE_BUTTON_COUNT 7
 #define DRAWER_HEADER_MODE_BUTTONS_MIN_COLS \
 	(ROTIDE_DRAWER_COLLAPSED_WIDTH + \
 			DRAWER_HEADER_MODE_BUTTON_COLS * DRAWER_HEADER_MODE_BUTTON_COUNT)
@@ -2465,6 +2468,8 @@ static const char *editorDrawerHeaderSymbol(enum editorDrawerMode mode) {
 			return DRAWER_HEADER_PROJECT_SEARCH_SYMBOL_UTF8;
 		case EDITOR_DRAWER_MODE_LSP:
 			return DRAWER_HEADER_LSP_SYMBOL_UTF8;
+		case EDITOR_DRAWER_MODE_DAP:
+			return DRAWER_HEADER_DAP_SYMBOL_UTF8;
 		case EDITOR_DRAWER_MODE_GIT:
 			return DRAWER_HEADER_GIT_SYMBOL_UTF8;
 		case EDITOR_DRAWER_MODE_MAIN_MENU:
@@ -2483,6 +2488,8 @@ static const char *editorDrawerHeaderSymbol(enum editorDrawerMode mode) {
 		return DRAWER_NERD_SEARCH_UTF8;
 	case EDITOR_DRAWER_MODE_LSP:
 		return DRAWER_NERD_TERMINAL_UTF8;
+	case EDITOR_DRAWER_MODE_DAP:
+		return DRAWER_NERD_BUG_UTF8;
 	case EDITOR_DRAWER_MODE_GIT:
 		return DRAWER_NERD_BRANCH_UTF8;
 	case EDITOR_DRAWER_MODE_MAIN_MENU:
@@ -2521,6 +2528,9 @@ static int editorDrawExpandedDrawerHeaderRow(struct writeBuf *wb, int drawer_col
 				!editorDrawDrawerHeaderModeButton(wb,
 					editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_LSP),
 					EDITOR_DRAWER_MODE_LSP, active_mode, &written_cols, drawer_cols) ||
+				!editorDrawDrawerHeaderModeButton(wb,
+					editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_DAP),
+					EDITOR_DRAWER_MODE_DAP, active_mode, &written_cols, drawer_cols) ||
 				!editorDrawDrawerHeaderModeButton(wb,
 					editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_GIT),
 					EDITOR_DRAWER_MODE_GIT, active_mode, &written_cols,
@@ -4026,6 +4036,7 @@ static int editorDrawPopupOverlay(struct writeBuf *wb) {
 
 void editorRefreshScreen(void) {
 	editorLspPumpNotifications();
+	editorDapPumpNotifications();
 	editorScroll();
 	g_editor_output_last_refresh_file_row_draw_count = 0;
 
