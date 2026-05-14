@@ -27,19 +27,21 @@ enum editorSplitOrientation {
 /*
  * Per-pane view state.
  *
- * cached_for_tab_idx is the global active-tab index this view was last
- * captured against. -1 means "no valid cache; on focus-in the new pane
- * should inherit whatever E currently shows." When focus moves into a pane
- * whose cached_for_tab_idx matches the current active tab, the cached
- * cursor/scroll is loaded. When it doesn't, E is left as-is.
+ * active_tab_idx records the tab the pane is currently viewing — Phase 5
+ * lets each pane track its own active tab independently of the global
+ * E.active_tab. -1 means "uninitialized; don't load this view." On focus
+ * change, editorLayoutSetFocusedLeaf saves the outgoing pane's view,
+ * switches the global active tab to the incoming pane's view, then
+ * applies the incoming pane's cursor/scroll.
  *
- * Phase 2 restriction: all panes share the global active tab. The cache
- * therefore stays valid only while the active tab is unchanged; tab
- * switches invalidate every pane's cache via cached_for_tab_idx mismatch.
- * Per-pane independent active tabs are a Phase 5 follow-up.
+ * Phase 5 semantics: a tab switch from a pane (Ctrl+Tab) changes both
+ * E.active_tab and the focused pane's view.active_tab_idx (the latter on
+ * the next capture). Unfocused panes keep their own view records; they
+ * are loaded back into E on focus-in. Tab documents themselves still own
+ * their cursor as a "last-viewed" shadow, but pane state is authoritative.
  */
 struct editorPaneView {
-	int cached_for_tab_idx;
+	int active_tab_idx;
 	int cx;
 	int cy;
 	int rx;
@@ -220,18 +222,22 @@ int editorLayoutFocusedLeafRect(struct editorRect *out);
 /*
  * View state capture/load for focus changes between panes.
  *
- * editorPaneViewInit resets a view to its "no valid cache" state.
+ * editorPaneViewInit resets a view to "uninitialized" (active_tab_idx=-1).
  *
- * editorPaneViewCaptureFromState snapshots E's cursor/scroll into the view
- * and stamps the cache with the current active tab index.
+ * editorPaneViewCaptureFromState snapshots E's cursor/scroll *and* the
+ * current active tab index into the view.
  *
- * editorPaneViewLoadIntoState overwrites E's cursor/scroll from the view,
- * but only if the cached tab matches the current active tab. Returns 1 if
- * the load happened, 0 if the cache was stale (leaving E unchanged).
+ * editorPaneViewLoadIntoState overwrites E's cursor/scroll from the view.
+ * It does NOT switch tabs — the caller is responsible for ensuring
+ * E.active_tab matches view->active_tab_idx if cross-tab semantics are
+ * desired. Returns 0 if the view is uninitialized (active_tab_idx<0),
+ * 1 otherwise.
  *
- * editorLayoutSetFocusedLeaf orchestrates a focus change: captures from E
- * into the previously focused leaf's view, updates E.focused_leaf, and
- * loads the new leaf's view back into E. A no-op when new_leaf is already
+ * editorLayoutSetFocusedLeaf orchestrates a full focus change including
+ * per-pane tab swapping: captures from E into the previously focused
+ * leaf's view, updates E.focused_leaf, switches the active tab if the
+ * incoming pane's view records a different tab, then loads the incoming
+ * pane's cursor over the result. A no-op when new_leaf is already
  * focused or is not a leaf in E.layout_root.
  */
 void editorPaneViewInit(struct editorPaneView *view);

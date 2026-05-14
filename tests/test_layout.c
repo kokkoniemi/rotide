@@ -3,6 +3,7 @@
 #include "test_helpers.h"
 #include "workspace/drawer.h"
 #include "workspace/layout.h"
+#include "workspace/tabs.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -535,7 +536,7 @@ static int test_layout_find_parent_returns_null_for_root(void) {
 static int test_layout_pane_view_capture_records_active_tab(void) {
 	struct editorPaneView view;
 	editorPaneViewInit(&view);
-	if (view.cached_for_tab_idx != -1) {
+	if (view.active_tab_idx != -1) {
 		return 1;
 	}
 	E.active_tab = 3;
@@ -548,14 +549,15 @@ static int test_layout_pane_view_capture_records_active_tab(void) {
 	E.cursor_offset = 42;
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
 	editorPaneViewCaptureFromState(&view);
-	return view.cached_for_tab_idx != 3 || view.cx != 7 || view.cy != 11 ||
+	return view.active_tab_idx != 3 || view.cx != 7 || view.cy != 11 ||
 			view.rowoff != 4 || view.cursor_offset != 42;
 }
 
-static int test_layout_pane_view_load_skips_when_tab_mismatch(void) {
+static int test_layout_pane_view_load_skips_uninitialized(void) {
 	struct editorPaneView view;
 	editorPaneViewInit(&view);
-	view.cached_for_tab_idx = 5;
+	/* active_tab_idx == -1 (uninitialized): load must skip so a fresh
+	 * leaf doesn't clobber E with zeros. */
 	view.cx = 99;
 	view.cy = 99;
 	view.cursor_offset = 999;
@@ -567,11 +569,14 @@ static int test_layout_pane_view_load_skips_when_tab_mismatch(void) {
 	return loaded != 0 || E.cx != 1 || E.cy != 1 || E.cursor_offset != 1;
 }
 
-static int test_layout_pane_view_load_applies_when_tab_matches(void) {
+static int test_layout_pane_view_load_applies_cursor_regardless_of_tab(void) {
 	struct editorPaneView view;
 	editorPaneViewInit(&view);
 	E.active_tab = 4;
-	view.cached_for_tab_idx = 4;
+	/* Phase 5: load now applies the cursor unconditionally as long as
+	 * the view is initialized. Tab switching is the caller's job
+	 * (editorLayoutSetFocusedLeaf handles it). */
+	view.active_tab_idx = 7;
 	view.cx = 12;
 	view.cy = 34;
 	view.rx = 12;
@@ -609,7 +614,7 @@ static int test_layout_split_focused_inherits_view(void) {
 			sibling->as.leaf.view.cx != 5 ||
 			sibling->as.leaf.view.cy != 8 ||
 			sibling->as.leaf.view.cursor_offset != 17 ||
-			sibling->as.leaf.view.cached_for_tab_idx != 0 ||
+			sibling->as.leaf.view.active_tab_idx != 0 ||
 			original->as.leaf.view.cx != 5 ||
 			original->as.leaf.view.cursor_offset != 17 ||
 			editorPaneTreeLeafCount(E.layout_root) != 2;
@@ -939,6 +944,102 @@ static int test_layout_focused_leaf_index_reports_position(void) {
 	return !ok || count != 2 || idx != 1;
 }
 
+static int test_layout_focus_switch_swaps_active_tab(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTabNewEmpty());
+	if (E.tab_count != 2) {
+		return 1;
+	}
+	(void)editorTabSwitchToIndex(0);
+
+	editorPaneNodeFree(E.layout_root);
+	E.layout_root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	if (E.layout_root == NULL) {
+		return 1;
+	}
+	E.focused_leaf = E.layout_root;
+
+	struct editorPaneNode *pane_a = E.focused_leaf;
+	struct editorPaneNode *pane_b =
+			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	if (pane_b == NULL || E.focused_leaf != pane_b) {
+		return 1;
+	}
+
+	/* Simulate the user switching tabs inside pane B (Ctrl+Tab). Both
+	 * E.active_tab and the live pane state move to tab 1. */
+	(void)editorTabSwitchToIndex(1);
+
+	/* Move focus to A: capture B (records tab 1 in its view), switch to
+	 * A's recorded tab (still tab 0), load A's cursor. */
+	if (!editorLayoutSetFocusedLeaf(pane_a)) {
+		return 1;
+	}
+	if (E.active_tab != 0) {
+		return 1;
+	}
+
+	/* Move focus back to B: B's view now records tab 1, so the switch
+	 * brings the active tab back to 1. */
+	if (!editorLayoutSetFocusedLeaf(pane_b)) {
+		return 1;
+	}
+	return E.active_tab != 1;
+}
+
+static int test_layout_focus_switch_preserves_per_pane_cursor(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTabNewEmpty());
+	(void)editorTabSwitchToIndex(0);
+
+	editorPaneNodeFree(E.layout_root);
+	E.layout_root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	if (E.layout_root == NULL) {
+		return 1;
+	}
+	E.focused_leaf = E.layout_root;
+
+	/* Place pane A on tab 0 with cursor (cx=5, cy=8). */
+	E.cx = 5;
+	E.cy = 8;
+	E.cursor_offset = 24;
+
+	struct editorPaneNode *pane_a = E.focused_leaf;
+	struct editorPaneNode *pane_b =
+			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	if (pane_b == NULL || E.focused_leaf != pane_b) {
+		return 1;
+	}
+
+	/* Pane B (currently focused) switches to tab 1 and moves its cursor. */
+	(void)editorTabSwitchToIndex(1);
+	E.cx = 20;
+	E.cy = 30;
+	E.cursor_offset = 600;
+
+	/* Focus pane A: capture B (its view now records tab 1, cursor 20/30),
+	 * switch back to A's tab (0), load A's cursor (5/8). */
+	if (!editorLayoutSetFocusedLeaf(pane_a)) {
+		return 1;
+	}
+	if (E.active_tab != 0 || E.cx != 5 || E.cy != 8) {
+		return 1;
+	}
+
+	/* Focus pane B again: should restore tab 1 and B's stored cursor. */
+	if (!editorLayoutSetFocusedLeaf(pane_b)) {
+		return 1;
+	}
+	return E.active_tab != 1 || E.cx != 20 || E.cy != 30 ||
+			E.cursor_offset != 600;
+}
+
 static int test_layout_set_focused_leaf_rejects_non_leaf(void) {
 	if (E.layout_root == NULL || E.focused_leaf == NULL) {
 		return 1;
@@ -998,10 +1099,10 @@ const struct editorTestCase g_layout_tests[] = {
 			test_layout_find_parent_returns_null_for_root},
 	{"layout_pane_view_capture_records_active_tab",
 			test_layout_pane_view_capture_records_active_tab},
-	{"layout_pane_view_load_skips_when_tab_mismatch",
-			test_layout_pane_view_load_skips_when_tab_mismatch},
-	{"layout_pane_view_load_applies_when_tab_matches",
-			test_layout_pane_view_load_applies_when_tab_matches},
+	{"layout_pane_view_load_skips_uninitialized",
+			test_layout_pane_view_load_skips_uninitialized},
+	{"layout_pane_view_load_applies_cursor_regardless_of_tab",
+			test_layout_pane_view_load_applies_cursor_regardless_of_tab},
 	{"layout_split_focused_inherits_view",
 			test_layout_split_focused_inherits_view},
 	{"layout_close_focused_restores_sibling_view",
@@ -1010,6 +1111,10 @@ const struct editorTestCase g_layout_tests[] = {
 			test_layout_close_focused_no_op_for_single_leaf},
 	{"layout_set_focused_leaf_rejects_non_leaf",
 			test_layout_set_focused_leaf_rejects_non_leaf},
+	{"layout_focus_switch_swaps_active_tab",
+			test_layout_focus_switch_swaps_active_tab},
+	{"layout_focus_switch_preserves_per_pane_cursor",
+			test_layout_focus_switch_preserves_per_pane_cursor},
 	{"layout_find_neighbor_horizontal", test_layout_find_neighbor_horizontal},
 	{"layout_find_neighbor_picks_nearest_among_many",
 			test_layout_find_neighbor_picks_nearest_among_many},

@@ -6,6 +6,7 @@
 #include "rotide.h"
 #include "editing/edit.h"
 #include "workspace/drawer.h"
+#include "workspace/tabs.h"
 
 struct editorPaneNode *editorPaneNodeNewLeaf(enum editorPaneKind kind) {
 	struct editorPaneNode *node = malloc(sizeof(*node));
@@ -498,14 +499,14 @@ void editorPaneViewInit(struct editorPaneView *view) {
 		return;
 	}
 	memset(view, 0, sizeof(*view));
-	view->cached_for_tab_idx = -1;
+	view->active_tab_idx = -1;
 }
 
 void editorPaneViewCaptureFromState(struct editorPaneView *view) {
 	if (view == NULL) {
 		return;
 	}
-	view->cached_for_tab_idx = E.active_tab;
+	view->active_tab_idx = E.active_tab;
 	view->cx = E.cx;
 	view->cy = E.cy;
 	view->rx = E.rx;
@@ -517,7 +518,7 @@ void editorPaneViewCaptureFromState(struct editorPaneView *view) {
 }
 
 int editorPaneViewLoadIntoState(const struct editorPaneView *view) {
-	if (view == NULL || view->cached_for_tab_idx != E.active_tab) {
+	if (view == NULL || view->active_tab_idx < 0) {
 		return 0;
 	}
 	E.cx = view->cx;
@@ -545,6 +546,10 @@ int editorLayoutSetFocusedLeaf(struct editorPaneNode *new_leaf) {
 		editorPaneViewCaptureFromState(&E.focused_leaf->as.leaf.view);
 	}
 	E.focused_leaf = new_leaf;
+	int target_tab = new_leaf->as.leaf.view.active_tab_idx;
+	if (target_tab >= 0 && target_tab != E.active_tab) {
+		(void)editorTabSwitchToIndex(target_tab);
+	}
 	(void)editorPaneViewLoadIntoState(&new_leaf->as.leaf.view);
 	return 1;
 }
