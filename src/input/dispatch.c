@@ -18,6 +18,7 @@
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
+#include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/recovery.h"
 #include "workspace/tabs.h"
@@ -3930,6 +3931,18 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 		case EDITOR_ACTION_DAP_TOGGLE_BREAKPOINT:
 			editorHistoryBreakGroup();
 			(void)editorDapToggleBreakpointAtCursor();
+			break;
+		case EDITOR_ACTION_SPLIT_HORIZONTAL:
+			editorHistoryBreakGroup();
+			(void)editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
+			break;
+		case EDITOR_ACTION_SPLIT_VERTICAL:
+			editorHistoryBreakGroup();
+			(void)editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+			break;
+		case EDITOR_ACTION_CLOSE_PANE:
+			editorHistoryBreakGroup();
+			(void)editorLayoutCloseFocused();
 			break;
 		case EDITOR_ACTION_OPEN_SETTINGS:
 			editorHistoryBreakGroup();

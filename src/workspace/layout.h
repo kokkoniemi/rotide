@@ -23,8 +23,35 @@ enum editorSplitOrientation {
 	EDITOR_SPLIT_VERTICAL
 };
 
+/*
+ * Per-pane view state.
+ *
+ * cached_for_tab_idx is the global active-tab index this view was last
+ * captured against. -1 means "no valid cache; on focus-in the new pane
+ * should inherit whatever E currently shows." When focus moves into a pane
+ * whose cached_for_tab_idx matches the current active tab, the cached
+ * cursor/scroll is loaded. When it doesn't, E is left as-is.
+ *
+ * Phase 2 restriction: all panes share the global active tab. The cache
+ * therefore stays valid only while the active tab is unchanged; tab
+ * switches invalidate every pane's cache via cached_for_tab_idx mismatch.
+ * Per-pane independent active tabs are a Phase 5 follow-up.
+ */
+struct editorPaneView {
+	int cached_for_tab_idx;
+	int cx;
+	int cy;
+	int rx;
+	int rowoff;
+	int coloff;
+	int wrapoff;
+	size_t cursor_offset;
+	int viewport_mode;
+};
+
 struct editorPane {
 	enum editorPaneKind kind;
+	struct editorPaneView view;
 };
 
 struct editorPaneNode {
@@ -130,5 +157,43 @@ int editorLayoutLeafRect(const struct editorPaneNode *root,
  */
 int editorLayoutEditorViewport(struct editorRect *out);
 int editorLayoutFocusedLeafRect(struct editorRect *out);
+
+/*
+ * View state capture/load for focus changes between panes.
+ *
+ * editorPaneViewInit resets a view to its "no valid cache" state.
+ *
+ * editorPaneViewCaptureFromState snapshots E's cursor/scroll into the view
+ * and stamps the cache with the current active tab index.
+ *
+ * editorPaneViewLoadIntoState overwrites E's cursor/scroll from the view,
+ * but only if the cached tab matches the current active tab. Returns 1 if
+ * the load happened, 0 if the cache was stale (leaving E unchanged).
+ *
+ * editorLayoutSetFocusedLeaf orchestrates a focus change: captures from E
+ * into the previously focused leaf's view, updates E.focused_leaf, and
+ * loads the new leaf's view back into E. A no-op when new_leaf is already
+ * focused or is not a leaf in E.layout_root.
+ */
+void editorPaneViewInit(struct editorPaneView *view);
+void editorPaneViewCaptureFromState(struct editorPaneView *view);
+int editorPaneViewLoadIntoState(const struct editorPaneView *view);
+int editorLayoutSetFocusedLeaf(struct editorPaneNode *new_leaf);
+
+/*
+ * High-level actions for the focused pane. These wrap the tree mutation
+ * primitives with the capture/load dance and update E.focused_leaf.
+ *
+ * editorLayoutSplitFocused splits the currently focused leaf with the given
+ * orientation and ratio. The new sibling inherits the splitting leaf's view
+ * and becomes focused. Returns the new sibling on success, NULL on failure.
+ *
+ * editorLayoutCloseFocused removes the currently focused leaf and shifts
+ * focus to its sibling. Returns the newly focused leaf on success, NULL if
+ * the focused leaf is the only leaf (no-op) or on failure.
+ */
+struct editorPaneNode *editorLayoutSplitFocused(
+		enum editorSplitOrientation orientation, double ratio);
+struct editorPaneNode *editorLayoutCloseFocused(void);
 
 #endif

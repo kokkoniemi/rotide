@@ -14,6 +14,7 @@ struct editorPaneNode *editorPaneNodeNewLeaf(enum editorPaneKind kind) {
 	memset(node, 0, sizeof(*node));
 	node->is_split = 0;
 	node->as.leaf.kind = kind;
+	editorPaneViewInit(&node->as.leaf.view);
 	return node;
 }
 
@@ -97,6 +98,7 @@ struct editorPaneNode *editorPaneTreeSplitLeaf(struct editorPaneNode **root_ptr,
 	if (sibling == NULL) {
 		return NULL;
 	}
+	sibling->as.leaf.view = leaf->as.leaf.view;
 	struct editorPaneNode *split = malloc(sizeof(*split));
 	if (split == NULL) {
 		editorPaneNodeFree(sibling);
@@ -350,4 +352,93 @@ int editorLayoutFocusedLeafRect(struct editorRect *out) {
 		return 0;
 	}
 	return editorLayoutLeafRect(E.layout_root, viewport, E.focused_leaf, out);
+}
+
+void editorPaneViewInit(struct editorPaneView *view) {
+	if (view == NULL) {
+		return;
+	}
+	memset(view, 0, sizeof(*view));
+	view->cached_for_tab_idx = -1;
+}
+
+void editorPaneViewCaptureFromState(struct editorPaneView *view) {
+	if (view == NULL) {
+		return;
+	}
+	view->cached_for_tab_idx = E.active_tab;
+	view->cx = E.cx;
+	view->cy = E.cy;
+	view->rx = E.rx;
+	view->rowoff = E.rowoff;
+	view->coloff = E.coloff;
+	view->wrapoff = E.wrapoff;
+	view->cursor_offset = E.cursor_offset;
+	view->viewport_mode = (int)E.viewport_mode;
+}
+
+int editorPaneViewLoadIntoState(const struct editorPaneView *view) {
+	if (view == NULL || view->cached_for_tab_idx != E.active_tab) {
+		return 0;
+	}
+	E.cx = view->cx;
+	E.cy = view->cy;
+	E.rx = view->rx;
+	E.rowoff = view->rowoff;
+	E.coloff = view->coloff;
+	E.wrapoff = view->wrapoff;
+	E.cursor_offset = view->cursor_offset;
+	E.viewport_mode = (enum editorViewportMode)view->viewport_mode;
+	return 1;
+}
+
+int editorLayoutSetFocusedLeaf(struct editorPaneNode *new_leaf) {
+	if (new_leaf == NULL || new_leaf->is_split) {
+		return 0;
+	}
+	if (E.layout_root == NULL || !editorPaneNodeContainsLeaf(E.layout_root, new_leaf)) {
+		return 0;
+	}
+	if (E.focused_leaf == new_leaf) {
+		return 1;
+	}
+	if (E.focused_leaf != NULL && !E.focused_leaf->is_split) {
+		editorPaneViewCaptureFromState(&E.focused_leaf->as.leaf.view);
+	}
+	E.focused_leaf = new_leaf;
+	(void)editorPaneViewLoadIntoState(&new_leaf->as.leaf.view);
+	return 1;
+}
+
+struct editorPaneNode *editorLayoutSplitFocused(
+		enum editorSplitOrientation orientation, double ratio) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL ||
+			E.focused_leaf->is_split) {
+		return NULL;
+	}
+	/* Snapshot current cursor/scroll into the soon-to-be-split leaf so the
+	 * fresh sibling inherits the live view (not a stale cache). */
+	editorPaneViewCaptureFromState(&E.focused_leaf->as.leaf.view);
+	struct editorPaneNode *sibling = editorPaneTreeSplitLeaf(&E.layout_root,
+			E.focused_leaf, orientation, ratio);
+	if (sibling == NULL) {
+		return NULL;
+	}
+	E.focused_leaf = sibling;
+	return sibling;
+}
+
+struct editorPaneNode *editorLayoutCloseFocused(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL ||
+			E.focused_leaf->is_split) {
+		return NULL;
+	}
+	struct editorPaneNode *new_focus =
+			editorPaneTreeCloseLeaf(&E.layout_root, E.focused_leaf);
+	if (new_focus == NULL) {
+		return NULL;
+	}
+	E.focused_leaf = new_focus;
+	(void)editorPaneViewLoadIntoState(&new_focus->as.leaf.view);
+	return new_focus;
 }

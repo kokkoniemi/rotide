@@ -314,5 +314,14 @@ dap_drawer = "ctrl+alt+b"
 # dap_step_into = "ctrl+alt+i"
 # dap_step_out = "ctrl+alt+u"
 # dap_toggle_breakpoint = "ctrl+alt+t"
+# Pane splits have no default binding; uncomment to enable.
+# split_horizontal splits the focused pane top/bottom; split_vertical
+# splits it left/right. close_pane removes the focused pane and promotes
+# its sibling. While only the focused pane renders in the current build,
+# the tree mutation already works — multi-pane rendering and focus moves
+# arrive in a follow-up.
+# split_horizontal = "ctrl+alt+h"
+# split_vertical = "ctrl+alt+v"
+# close_pane = "ctrl+alt+q"
 # open_settings has no default binding; the File > Settings menu item opens it.
 # open_settings = "ctrl+alt+s"

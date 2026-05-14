@@ -532,6 +532,155 @@ static int test_layout_find_parent_returns_null_for_root(void) {
 	return failed;
 }
 
+static int test_layout_pane_view_capture_records_active_tab(void) {
+	struct editorPaneView view;
+	editorPaneViewInit(&view);
+	if (view.cached_for_tab_idx != -1) {
+		return 1;
+	}
+	E.active_tab = 3;
+	E.cx = 7;
+	E.cy = 11;
+	E.rx = 7;
+	E.rowoff = 4;
+	E.coloff = 2;
+	E.wrapoff = 0;
+	E.cursor_offset = 42;
+	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
+	editorPaneViewCaptureFromState(&view);
+	return view.cached_for_tab_idx != 3 || view.cx != 7 || view.cy != 11 ||
+			view.rowoff != 4 || view.cursor_offset != 42;
+}
+
+static int test_layout_pane_view_load_skips_when_tab_mismatch(void) {
+	struct editorPaneView view;
+	editorPaneViewInit(&view);
+	view.cached_for_tab_idx = 5;
+	view.cx = 99;
+	view.cy = 99;
+	view.cursor_offset = 999;
+	E.active_tab = 2;
+	E.cx = 1;
+	E.cy = 1;
+	E.cursor_offset = 1;
+	int loaded = editorPaneViewLoadIntoState(&view);
+	return loaded != 0 || E.cx != 1 || E.cy != 1 || E.cursor_offset != 1;
+}
+
+static int test_layout_pane_view_load_applies_when_tab_matches(void) {
+	struct editorPaneView view;
+	editorPaneViewInit(&view);
+	E.active_tab = 4;
+	view.cached_for_tab_idx = 4;
+	view.cx = 12;
+	view.cy = 34;
+	view.rx = 12;
+	view.rowoff = 6;
+	view.coloff = 1;
+	view.wrapoff = 0;
+	view.cursor_offset = 200;
+	view.viewport_mode = (int)EDITOR_VIEWPORT_FREE_SCROLL;
+	int loaded = editorPaneViewLoadIntoState(&view);
+	return loaded != 1 || E.cx != 12 || E.cy != 34 || E.rowoff != 6 ||
+			E.cursor_offset != 200 ||
+			E.viewport_mode != EDITOR_VIEWPORT_FREE_SCROLL;
+}
+
+static int test_layout_split_focused_inherits_view(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	E.active_tab = 0;
+	E.cx = 5;
+	E.cy = 8;
+	E.rx = 5;
+	E.rowoff = 2;
+	E.coloff = 0;
+	E.wrapoff = 0;
+	E.cursor_offset = 17;
+
+	struct editorPaneNode *original = E.focused_leaf;
+	struct editorPaneNode *sibling =
+			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	if (sibling == NULL) {
+		return 1;
+	}
+	int failed = E.focused_leaf != sibling ||
+			sibling->as.leaf.view.cx != 5 ||
+			sibling->as.leaf.view.cy != 8 ||
+			sibling->as.leaf.view.cursor_offset != 17 ||
+			sibling->as.leaf.view.cached_for_tab_idx != 0 ||
+			original->as.leaf.view.cx != 5 ||
+			original->as.leaf.view.cursor_offset != 17 ||
+			editorPaneTreeLeafCount(E.layout_root) != 2;
+	return failed;
+}
+
+static int test_layout_close_focused_restores_sibling_view(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	E.active_tab = 0;
+	E.cx = 3;
+	E.cy = 4;
+	E.cursor_offset = 30;
+
+	struct editorPaneNode *original = E.focused_leaf;
+	struct editorPaneNode *sibling =
+			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	if (sibling == NULL || E.focused_leaf != sibling) {
+		return 1;
+	}
+	/* Diverge the new (focused) sibling's cursor. */
+	E.cx = 50;
+	E.cy = 60;
+	E.cursor_offset = 600;
+
+	/* Move focus back to original, then close it. Sibling should become
+	 * focused and its captured view (cx=50, cy=60) should be loaded. */
+	if (!editorLayoutSetFocusedLeaf(original)) {
+		return 1;
+	}
+	/* original was captured at (3,4); load brought us back to (3,4). */
+	if (E.cx != 3 || E.cy != 4 || E.cursor_offset != 30) {
+		return 1;
+	}
+	struct editorPaneNode *new_focus = editorLayoutCloseFocused();
+	if (new_focus != sibling || E.focused_leaf != sibling) {
+		return 1;
+	}
+	return E.cx != 50 || E.cy != 60 || E.cursor_offset != 600;
+}
+
+static int test_layout_close_focused_no_op_for_single_leaf(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	struct editorPaneNode *only = E.focused_leaf;
+	struct editorPaneNode *result = editorLayoutCloseFocused();
+	return result != NULL || E.focused_leaf != only || E.layout_root != only;
+}
+
+static int test_layout_set_focused_leaf_rejects_non_leaf(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	struct editorPaneNode *original = E.focused_leaf;
+	struct editorPaneNode *sibling =
+			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	if (sibling == NULL) {
+		return 1;
+	}
+	struct editorPaneNode *internal_node = E.layout_root;
+	if (!internal_node->is_split) {
+		return 1;
+	}
+	int ok = editorLayoutSetFocusedLeaf(internal_node);
+	return ok != 0 || E.focused_leaf != sibling ||
+			editorPaneTreeLeafCount(E.layout_root) != 2 ||
+			!editorPaneNodeContainsLeaf(E.layout_root, original);
+}
+
 const struct editorTestCase g_layout_tests[] = {
 	{"layout_single_leaf_returns_full_viewport",
 			test_layout_single_leaf_returns_full_viewport},
@@ -569,6 +718,20 @@ const struct editorTestCase g_layout_tests[] = {
 	{"layout_close_rejects_unknown_leaf", test_layout_close_rejects_unknown_leaf},
 	{"layout_find_parent_returns_null_for_root",
 			test_layout_find_parent_returns_null_for_root},
+	{"layout_pane_view_capture_records_active_tab",
+			test_layout_pane_view_capture_records_active_tab},
+	{"layout_pane_view_load_skips_when_tab_mismatch",
+			test_layout_pane_view_load_skips_when_tab_mismatch},
+	{"layout_pane_view_load_applies_when_tab_matches",
+			test_layout_pane_view_load_applies_when_tab_matches},
+	{"layout_split_focused_inherits_view",
+			test_layout_split_focused_inherits_view},
+	{"layout_close_focused_restores_sibling_view",
+			test_layout_close_focused_restores_sibling_view},
+	{"layout_close_focused_no_op_for_single_leaf",
+			test_layout_close_focused_no_op_for_single_leaf},
+	{"layout_set_focused_leaf_rejects_non_leaf",
+			test_layout_set_focused_leaf_rejects_non_leaf},
 };
 
 const int g_layout_test_count =

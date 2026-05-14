@@ -97,6 +97,9 @@ static const struct editorActionName editor_action_names[] = {
 	{"dap_step_into", EDITOR_ACTION_DAP_STEP_INTO},
 	{"dap_step_out", EDITOR_ACTION_DAP_STEP_OUT},
 	{"dap_toggle_breakpoint", EDITOR_ACTION_DAP_TOGGLE_BREAKPOINT},
+	{"split_horizontal", EDITOR_ACTION_SPLIT_HORIZONTAL},
+	{"split_vertical", EDITOR_ACTION_SPLIT_VERTICAL},
+	{"close_pane", EDITOR_ACTION_CLOSE_PANE},
 	{"open_settings", EDITOR_ACTION_OPEN_SETTINGS},
 };
 
