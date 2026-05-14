@@ -3530,9 +3530,6 @@ static int editorDrawPaneViewSlice(struct writeBuf *wb,
 		struct editorViewSnapshot snap;
 		editorViewSnapshotCapture(&snap);
 		editorViewSnapshotFromPaneView(view);
-		if (body_row_in_pane == 0) {
-			(void)editorSyntaxPrepareVisibleRowSpansForeground(E.rowoff, pane_rows);
-		}
 		int ok = editorDrawFocusedPaneSlice(wb, body_row_in_pane, slice_cols);
 		editorViewSnapshotRestore(&snap);
 		return ok;
@@ -3561,6 +3558,58 @@ static int editorDrawPaneViewSlice(struct writeBuf *wb,
 				editorFocusedPaneBodyRows());
 	}
 	return ok;
+}
+
+static int editorPrepareVisibleSyntaxForActiveTabPanes(
+		const struct editorLeafLayout *layout) {
+	if (layout == NULL || layout->count <= 0) {
+		return 1;
+	}
+
+	int have_range = 0;
+	int first_row = 0;
+	int end_row_exclusive = 0;
+	for (int i = 0; i < layout->count; i++) {
+		struct editorPaneNode *leaf = layout->rects[i].node;
+		if (leaf == NULL || leaf->is_split ||
+				leaf->as.leaf.kind != EDITOR_PANE_KIND_EDITOR ||
+				leaf->as.leaf.view.active_tab_idx != E.active_tab) {
+			continue;
+		}
+
+		int pane_rows = layout->rects[i].rect.h;
+		if (pane_rows <= 0) {
+			continue;
+		}
+
+		int pane_rowoff = leaf == E.focused_leaf ? E.rowoff : leaf->as.leaf.view.rowoff;
+		if (pane_rowoff < 0) {
+			pane_rowoff = 0;
+		}
+		int pane_end = pane_rowoff + pane_rows;
+		if (pane_end < pane_rowoff) {
+			pane_end = pane_rowoff;
+		}
+
+		if (!have_range) {
+			first_row = pane_rowoff;
+			end_row_exclusive = pane_end;
+			have_range = 1;
+		} else {
+			if (pane_rowoff < first_row) {
+				first_row = pane_rowoff;
+			}
+			if (pane_end > end_row_exclusive) {
+				end_row_exclusive = pane_end;
+			}
+		}
+	}
+
+	if (!have_range) {
+		return 1;
+	}
+	return editorSyntaxPrepareVisibleRowSpansForeground(first_row,
+			end_row_exclusive - first_row);
 }
 
 static int editorUtf8EncodeCodepoint(uint32_t cp, char *out) {
@@ -3794,6 +3843,9 @@ static int editorDrawMultiPaneRows(struct writeBuf *wb,
 	int drawer_cols = editorDrawerWidthForCols(E.window_cols);
 	int separator_cols = editorDrawerSeparatorWidthForCols(E.window_cols);
 	int text_start_col = editorDrawerTextStartColForCols(E.window_cols);
+	if (!editorPrepareVisibleSyntaxForActiveTabPanes(layout)) {
+		return 0;
+	}
 
 	for (int y_body = 0; y_body < E.window_rows; y_body++) {
 		int screen_y = y_body + 1;
@@ -3858,10 +3910,6 @@ static int editorDrawMultiPaneRows(struct writeBuf *wb,
 						leaf_node == E.focused_leaf;
 				if (is_focused_slice) {
 					int body_row_in_pane = screen_y - focused_rect.y;
-					if (body_row_in_pane == 0) {
-						(void)editorSyntaxPrepareVisibleRowSpans(E.rowoff,
-								focused_rect.h);
-					}
 					if (!editorDrawFocusedPaneSlice(wb, body_row_in_pane, slice_cols)) {
 						return 0;
 					}
