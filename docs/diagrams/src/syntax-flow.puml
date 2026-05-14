@@ -9,10 +9,14 @@ start
 if (edit arrives?) then (yes)
 	:apply Tree-sitter edit;
 	:incremental parse, fallback full parse when needed;
+else (no)
+	:keep current parse tree;
 endif
 :collect captures for visible byte ranges;
 if (injection query matches?) then (yes)
 	:parse injected language up to depth/slot limits;
+else (no)
+	:use host-language captures only;
 endif
 :renderer applies syntax spans under overlays;
 stop

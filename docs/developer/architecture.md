@@ -34,9 +34,9 @@ model to active editor state.
 ## Text and Dirty State
 
 Text mutations are represented as `struct editorDocumentEdit` and applied
-through `editorApplyDocumentEdit()`. That path updates the document, rebuilds
-derived rows, synchronizes cursor state, updates syntax and LSP state, records
-history, and changes `E.dirty` according to the edit descriptor.
+through `editorApplyDocumentEdit()`. That descriptor is the contract for byte
+range, inserted text, cursor movement, and dirty-state transitions; the
+step-by-step mutation order is covered in [Workflows](workflows.md).
 
 Navigation, search, viewport changes, drawer changes, and LSP requests do not
 mark a tab dirty. Undo and redo restore both text and dirty metadata from
@@ -48,8 +48,6 @@ Key behavior routes through `enum editorAction`. Defaults are built in
 `src/config/keymap.c`, optional user bindings are loaded from
 `~/.rotide/config.toml`, and `src/input/dispatch.c` maps decoded terminal input
 to actions.
-
-![Action dispatch](../diagrams/svg/action-dispatch.svg)
 
 Keeping commands action-based makes key behavior testable and keeps prompt,
 mouse, drawer, and editor commands on the same dispatch path.
@@ -83,27 +81,26 @@ at build time from `scripts/queries_manifest.txt` into
 `src/language/syntax_query_data.h`.
 
 Tree-sitter parsing uses `editorTextSource`, so syntax can read document bytes
-without requiring a permanent flattened buffer. Incremental edits update the
-syntax tree when possible. Query budgets and injection limits degrade behavior
-before hard-disabling highlighting for large or expensive inputs.
+without requiring a permanent flattened buffer. Query budgets and injection
+limits degrade behavior before hard-disabling highlighting for large or
+expensive inputs.
 
 ## LSP
 
 LSP state is tracked per tab with document-open flags and versions. The process
 clients live under `src/language/lsp.c`, `lsp_protocol.c`, and
-`lsp_transport.c`. RotIDE sends `didOpen`, `didChange`, `didSave`, and
-`didClose` around tab/document events and routes definition, implementation,
-completion, symbols, diagnostics, and ESLint fixes through the same document
-position helpers used by the editor.
+`lsp_transport.c`. Definition, implementation, completion, symbols,
+diagnostics, and ESLint fixes all route through the same document position
+helpers used by the editor.
 
 LSP diagnostics are stored on the owning tab and rendered through the LSP drawer
 and text overlays. ESLint is a separate JavaScript diagnostics/fix provider.
 
 ## Save and Recovery
 
-Saves use `src/support/file_io.c`: write a temporary file, fsync it, rename it
-over the target, fsync the parent directory, and clean up failures. Save syscall
-wrappers in `src/support/save_syscalls.c` make failure paths testable.
+Saves use `src/support/file_io.c` for the atomic temp-file/fsync/rename flow.
+Save syscall wrappers in `src/support/save_syscalls.c` make failure paths
+testable.
 
 Recovery snapshots are document-first. `src/workspace/recovery.c` persists tab
 state and text, restores tabs on startup when requested, and normalizes older

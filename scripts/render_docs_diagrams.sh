@@ -12,6 +12,12 @@ if ! command -v plantuml >/dev/null 2>&1; then
 fi
 
 mkdir -p "$out_dir"
+for source in "$src_dir"/*.puml; do
+	[ -e "$source" ] || continue
+	base=${source##*/}
+	rm -f "$out_dir/${base%.puml}.svg"
+done
+
 JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:+$JAVA_TOOL_OPTIONS }-Djava.awt.headless=true"
 export JAVA_TOOL_OPTIONS
 plantuml -tsvg -o "../svg" "$src_dir"/*.puml
