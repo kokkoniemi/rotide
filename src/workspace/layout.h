@@ -148,6 +148,27 @@ int editorLayoutLeafRect(const struct editorPaneNode *root,
 		struct editorRect *out);
 
 /*
+ * Bordered variants reserve `border_size` cols/rows between siblings of a
+ * split. The border space is not part of either child's rect; it lives in
+ * the gap and is painted separately by the renderer. The non-bordered
+ * variants are wrappers passing border_size=0.
+ *
+ * Pane render uses ROTIDE_PANE_BORDER_SIZE; tree-mutation and pure layout
+ * tests use 0 so split children tile the viewport exactly.
+ */
+#define ROTIDE_PANE_BORDER_SIZE 1
+
+int editorLayoutComputeBorderedInto(const struct editorPaneNode *root,
+		struct editorRect viewport,
+		int border_size,
+		struct editorLeafLayout *out);
+int editorLayoutLeafRectBordered(const struct editorPaneNode *root,
+		struct editorRect viewport,
+		int border_size,
+		const struct editorPaneNode *leaf,
+		struct editorRect *out);
+
+/*
  * Glue helpers that read the current editor state (E) to derive the editor
  * viewport rect (the rectangle the layout tree subdivides) and the focused
  * leaf's rect within it. These are the integration points used by render and

@@ -3288,6 +3288,207 @@ static int editorBuildFileRowLine(struct writeBuf *wb, int y, int drawer_cols, i
 	return 1;
 }
 
+/* "│" U+2502 BOX DRAWINGS LIGHT VERTICAL (UTF-8: e2 94 82) */
+#define EDITOR_PANE_VBORDER "\xe2\x94\x82"
+/* "─" U+2500 BOX DRAWINGS LIGHT HORIZONTAL (UTF-8: e2 94 80) */
+#define EDITOR_PANE_HBORDER "\xe2\x94\x80"
+
+static int editorPaneLeafAt(const struct editorLeafLayout *layout, int x,
+		int y, struct editorRect *out_rect) {
+	for (int i = 0; i < layout->count; i++) {
+		struct editorRect r = layout->rects[i].rect;
+		if (r.x <= x && x < r.x + r.w && r.y <= y && y < r.y + r.h) {
+			if (out_rect != NULL) {
+				*out_rect = r;
+			}
+			return i;
+		}
+	}
+	return -1;
+}
+
+static int editorPaneRowIsHorizontalBorder(int screen_y,
+		const struct editorLeafLayout *layout) {
+	int has_above = 0;
+	int has_below = 0;
+	for (int i = 0; i < layout->count; i++) {
+		struct editorRect r = layout->rects[i].rect;
+		if (r.y <= screen_y && screen_y < r.y + r.h) {
+			return 0;
+		}
+		if (r.y + r.h <= screen_y) {
+			has_above = 1;
+		}
+		if (r.y > screen_y) {
+			has_below = 1;
+		}
+	}
+	return has_above && has_below;
+}
+
+static int editorPaneColIsVerticalBorder(int x, int screen_y,
+		const struct editorLeafLayout *layout) {
+	int has_left = 0;
+	int has_right = 0;
+	for (int i = 0; i < layout->count; i++) {
+		struct editorRect r = layout->rects[i].rect;
+		if (r.y > screen_y || r.y + r.h <= screen_y) {
+			continue;
+		}
+		if (r.x + r.w <= x) {
+			has_left = 1;
+		}
+		if (r.x > x) {
+			has_right = 1;
+		}
+	}
+	return has_left && has_right;
+}
+
+static int editorDrawFocusedPaneSlice(struct writeBuf *wb, int body_row_in_pane,
+		int slice_cols) {
+	int y_offset = body_row_in_pane + E.rowoff;
+	int segment_coloff = 0;
+	if (E.line_wrap_enabled) {
+		if (!editorViewportTextScreenRowToBufferRow(body_row_in_pane, &y_offset,
+				&segment_coloff)) {
+			y_offset = E.numrows;
+			segment_coloff = 0;
+		}
+	}
+
+	int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);
+	if (gutter_cols > slice_cols) {
+		gutter_cols = slice_cols;
+	}
+	int file_cols = slice_cols - gutter_cols;
+	if (file_cols < 0) {
+		file_cols = 0;
+	}
+
+	int highlight_row = y_offset < E.numrows &&
+			editorCurrentLineHighlightApplies(y_offset, segment_coloff);
+	if (highlight_row &&
+			!editorAppendThemeBackgroundRole(wb, EDITOR_THEME_UI_CURRENT_LINE_BG)) {
+		return 0;
+	}
+	g_editor_drawing_current_line_highlight = highlight_row;
+	if (!editorDrawLineNumberGutter(wb, y_offset, segment_coloff, gutter_cols)) {
+		g_editor_drawing_current_line_highlight = 0;
+		return 0;
+	}
+	if (file_cols > 0) {
+		if (y_offset < E.numrows) {
+			if (E.line_wrap_enabled) {
+				if (!editorDrawFileRowWrapped(wb, (size_t)y_offset, file_cols,
+						segment_coloff)) {
+					g_editor_drawing_current_line_highlight = 0;
+					return 0;
+				}
+			} else if (!editorDrawFileRow(wb, (size_t)y_offset, file_cols)) {
+				g_editor_drawing_current_line_highlight = 0;
+				return 0;
+			}
+		} else if (!editorAppendGrayBytes(wb, "~", 1)) {
+			g_editor_drawing_current_line_highlight = 0;
+			return 0;
+		}
+	}
+	g_editor_drawing_current_line_highlight = 0;
+	if (highlight_row && !editorAppendThemeReset(wb)) {
+		return 0;
+	}
+	return 1;
+}
+
+static int editorDrawBlankCells(struct writeBuf *wb, int cells) {
+	for (int i = 0; i < cells; i++) {
+		if (!wbAppend(wb, " ", 1)) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+static int editorDrawMultiPaneRows(struct writeBuf *wb,
+		const struct editorLeafLayout *layout, struct editorRect focused_rect) {
+	int drawer_cols = editorDrawerWidthForCols(E.window_cols);
+	int separator_cols = editorDrawerSeparatorWidthForCols(E.window_cols);
+	int text_start_col = editorDrawerTextStartColForCols(E.window_cols);
+
+	for (int y_body = 0; y_body < E.window_rows; y_body++) {
+		int screen_y = y_body + 1;
+		int terminal_row = y_body + 2;
+		if (!editorAppendCursorMove(wb, terminal_row, 1)) {
+			return 0;
+		}
+		if (!editorDrawDrawerRow(wb, y_body + 1, drawer_cols)) {
+			return 0;
+		}
+		if (!editorDrawDrawerSeparatorCell(wb, separator_cols)) {
+			return 0;
+		}
+
+		if (editorPaneRowIsHorizontalBorder(screen_y, layout)) {
+			int body_cols = E.window_cols - text_start_col;
+			for (int i = 0; i < body_cols; i++) {
+				if (!wbAppend(wb, EDITOR_PANE_HBORDER,
+						sizeof(EDITOR_PANE_HBORDER) - 1)) {
+					return 0;
+				}
+			}
+			if (!wbAppend(wb, VT100_CLEAR_ROW_3, 3)) {
+				return 0;
+			}
+			continue;
+		}
+
+		int focused_intersects =
+				screen_y >= focused_rect.y &&
+				screen_y < focused_rect.y + focused_rect.h;
+		int x = text_start_col;
+		while (x < E.window_cols) {
+			struct editorRect leaf_rect = {0};
+			int leaf_idx = editorPaneLeafAt(layout, x, screen_y, &leaf_rect);
+			if (leaf_idx < 0) {
+				if (editorPaneColIsVerticalBorder(x, screen_y, layout)) {
+					if (!wbAppend(wb, EDITOR_PANE_VBORDER,
+							sizeof(EDITOR_PANE_VBORDER) - 1)) {
+						return 0;
+					}
+				} else if (!wbAppend(wb, " ", 1)) {
+					return 0;
+				}
+				x++;
+				continue;
+			}
+			int slice_cols = leaf_rect.x + leaf_rect.w - x;
+			if (slice_cols <= 0) {
+				slice_cols = 1;
+			}
+			int is_focused_slice = focused_intersects &&
+					layout->rects[leaf_idx].node == E.focused_leaf;
+			if (is_focused_slice) {
+				int body_row_in_pane = screen_y - focused_rect.y;
+				if (!editorDrawFocusedPaneSlice(wb, body_row_in_pane, slice_cols)) {
+					return 0;
+				}
+			} else if (!editorDrawBlankCells(wb, slice_cols)) {
+				return 0;
+			}
+			x += slice_cols;
+		}
+		if (!wbAppend(wb, VT100_CLEAR_ROW_3, 3)) {
+			return 0;
+		}
+	}
+
+	editorFileRowFrameCacheClearRowsFrom(0);
+	g_file_row_frame_cache.valid = 0;
+	g_editor_output_last_refresh_file_row_draw_count = E.window_rows;
+	return 1;
+}
+
 static int editorDrawRows(struct writeBuf *wb) {
 	editorDrawerClampViewport(E.window_rows);
 	(void)editorSyntaxPrepareVisibleRowSpans(E.rowoff, E.window_rows);
@@ -3296,10 +3497,28 @@ static int editorDrawRows(struct writeBuf *wb) {
 	int separator_cols = editorDrawerSeparatorWidthForCols(E.window_cols);
 	struct editorRect leaf_rect = {0};
 	int text_cols;
-	if (editorLayoutFocusedLeafRect(&leaf_rect)) {
+	int has_focused_rect = editorLayoutFocusedLeafRect(&leaf_rect);
+	if (has_focused_rect) {
 		text_cols = leaf_rect.w;
 	} else {
 		text_cols = editorDrawerTextViewportCols(E.window_cols);
+	}
+
+	int leaf_count = editorPaneTreeLeafCount(E.layout_root);
+	if (leaf_count > 1 && has_focused_rect) {
+		struct editorRect viewport;
+		if (!editorLayoutEditorViewport(&viewport)) {
+			return 0;
+		}
+		struct editorLeafLayout layout = {0};
+		if (!editorLayoutComputeBorderedInto(E.layout_root, viewport,
+				ROTIDE_PANE_BORDER_SIZE, &layout)) {
+			editorLeafLayoutFree(&layout);
+			return 0;
+		}
+		int ok = editorDrawMultiPaneRows(wb, &layout, leaf_rect);
+		editorLeafLayoutFree(&layout);
+		return ok;
 	}
 	int file_row_draw_count = 0;
 	int force_full = 0;
@@ -4083,8 +4302,23 @@ void editorRefreshScreen(void) {
 		return;
 	}
 
-	int cursor_row = (E.cy - E.rowoff) + 2;
-	int cursor_col = editorTextBodyStartColForCols(E.window_cols) + (E.rx - E.coloff) + 1;
+	struct editorRect cursor_focused_rect = {0};
+	int has_focus_rect = editorLayoutFocusedLeafRect(&cursor_focused_rect);
+	int cursor_pane_y = has_focus_rect ? cursor_focused_rect.y : 1;
+	int cursor_pane_text_start_col;
+	if (has_focus_rect) {
+		int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);
+		int text_body_cols = cursor_focused_rect.w - gutter_cols;
+		cursor_pane_text_start_col = cursor_focused_rect.x + gutter_cols;
+		if (text_body_cols >= 3) {
+			cursor_pane_text_start_col += 1;
+		}
+	} else {
+		cursor_pane_text_start_col = editorTextBodyStartColForCols(E.window_cols);
+	}
+
+	int cursor_row = cursor_pane_y + (E.cy - E.rowoff) + 1;
+	int cursor_col = cursor_pane_text_start_col + (E.rx - E.coloff) + 1;
 	int cursor_visible = 1;
 	if (E.line_wrap_enabled) {
 		int body_cols = editorWrapBodyCols();
@@ -4109,11 +4343,11 @@ void editorRefreshScreen(void) {
 		int cursor_distance = 0;
 		if (editorWrappedDistanceForward(E.rowoff, E.wrapoff, E.cy, cursor_segment,
 					E.window_rows > 0 ? E.window_rows - 1 : 0, body_cols, &cursor_distance)) {
-			cursor_row = cursor_distance + 2;
+			cursor_row = cursor_pane_y + cursor_distance + 1;
 		} else {
 			cursor_visible = 0;
 		}
-		cursor_col = editorTextBodyStartColForCols(E.window_cols) + cursor_segment_col + 1;
+		cursor_col = cursor_pane_text_start_col + cursor_segment_col + 1;
 	}
 	if (E.pane_focus == EDITOR_PANE_DRAWER && editorDrawerWidthForCols(E.window_cols) > 0) {
 		if (editorFileSearchIsActive()) {

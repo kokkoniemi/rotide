@@ -3,6 +3,7 @@
 #include "render/popup.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
+#include "workspace/layout.h"
 #include "workspace/project_search.h"
 
 #define TEST_HEADER_BG "\x1b[48;5;236m"
@@ -3538,6 +3539,81 @@ static int test_editor_popup_placement_above_when_below_overflows(void) {
 	return 0;
 }
 
+#define EDITOR_PANE_VBORDER_UTF8 "\xe2\x94\x82"
+#define EDITOR_PANE_HBORDER_UTF8 "\xe2\x94\x80"
+
+static int test_editor_refresh_screen_vertical_split_renders_border(void) {
+	add_row("hello world");
+	E.window_rows = 6;
+	E.window_cols = 60;
+	E.cy = 0;
+	E.cx = 0;
+
+	struct editorPaneNode *sibling =
+			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(sibling != NULL);
+	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	int found_vborder = strstr(output, EDITOR_PANE_VBORDER_UTF8) != NULL;
+	ASSERT_TRUE(found_vborder);
+	/* Focused (right-side) pane should still render content. */
+	ASSERT_TRUE(strstr(output, "hello world") != NULL);
+	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_horizontal_split_renders_border(void) {
+	add_row("hello world");
+	E.window_rows = 6;
+	E.window_cols = 60;
+	E.cy = 0;
+	E.cx = 0;
+
+	struct editorPaneNode *sibling =
+			editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
+	ASSERT_TRUE(sibling != NULL);
+	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	int found_hborder = strstr(output, EDITOR_PANE_HBORDER_UTF8) != NULL;
+	ASSERT_TRUE(found_hborder);
+	ASSERT_TRUE(strstr(output, "hello world") != NULL);
+	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_unfocused_pane_omits_content(void) {
+	add_row("unique-marker-row");
+	E.window_rows = 6;
+	E.window_cols = 60;
+	E.cy = 0;
+	E.cx = 0;
+
+	/* Split, then move focus back to the original pane. The new sibling
+	 * (right side) is now unfocused and must not render the buffer line. */
+	struct editorPaneNode *original = E.focused_leaf;
+	struct editorPaneNode *sibling =
+			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(sibling != NULL);
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(original));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	/* Content must appear exactly once: in the focused (left) pane. */
+	const char *first = strstr(output, "unique-marker-row");
+	ASSERT_TRUE(first != NULL);
+	const char *second = strstr(first + 1, "unique-marker-row");
+	ASSERT_TRUE(second == NULL);
+	free(output);
+	return 0;
+}
+
 const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_contains_expected_sequences", test_editor_refresh_screen_contains_expected_sequences},
 	{"editor_refresh_screen_file_row_frame_diff_updates_only_changed_rows", test_editor_refresh_screen_file_row_frame_diff_updates_only_changed_rows},
@@ -3664,6 +3740,12 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_popup_close_repaints_rows_under_overlay", test_editor_popup_close_repaints_rows_under_overlay},
 	{"editor_popup_placement_below_cursor", test_editor_popup_placement_below_cursor},
 	{"editor_popup_placement_above_when_below_overflows", test_editor_popup_placement_above_when_below_overflows},
+	{"editor_refresh_screen_vertical_split_renders_border",
+			test_editor_refresh_screen_vertical_split_renders_border},
+	{"editor_refresh_screen_horizontal_split_renders_border",
+			test_editor_refresh_screen_horizontal_split_renders_border},
+	{"editor_refresh_screen_unfocused_pane_omits_content",
+			test_editor_refresh_screen_unfocused_pane_omits_content},
 };
 
 const int g_render_terminal_test_count =

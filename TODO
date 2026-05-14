@@ -5,3 +5,4 @@
 - FEATURE: left-clicking on files/folders should open popup/popdown with edit options.
 - IMPROVEMENT: Create sample debugger test app with golang that is large enough for testing debugger comprehensively. Wire this up to unit tests. Later I want to create similar test apps for all supported languages.
 - FEATURE: sometimes go-to definition goes to header file instead of real definition. Use popup/popdown if multiple choices or some other solution for this.
+- DOCS: setup plantuml + plantuml-c4 pipeline to visualize rotide architecture. Generate comprehensive developer documentation in docs folder (not root README.md). Documentation should explain architecture, design choices, how rotide works in detail and use plantuml to visualize when possible. Move stuff from root README.md to developer documentation so the root file stays as overview.
