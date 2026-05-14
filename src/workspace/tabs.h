@@ -10,6 +10,24 @@
 void editorResetActiveBufferFields(void);
 void editorFreeActiveBufferState(void);
 
+/*
+ * Render-time tab aliasing.
+ *
+ * editorTabStateAliasSnapshot copies E's current active-tab field values
+ * into `snap` without modifying E. `snap` must be zero-initialized.
+ *
+ * editorTabStateAliasToActive copies `tab`'s field values into E without
+ * transferring ownership (the source struct is left intact, unlike the
+ * internal load path). Use with editorTabStateAliasSnapshot to render a
+ * different tab in place, then restore E by aliasing the snapshot back.
+ *
+ * These helpers are render-only: no LSP/syntax notifications, no
+ * disk-state probing, no edit history mutations. Callers must guarantee
+ * neither E nor the aliased tab is modified between snapshot and restore.
+ */
+void editorTabStateAliasSnapshot(struct editorTabState *snap);
+void editorTabStateAliasToActive(const struct editorTabState *tab);
+
 /* Tab lifecycle and navigation. Preview tabs may be reused until pinned. */
 int editorTabsInit(void);
 void editorTabsFreeAll(void);
