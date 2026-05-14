@@ -1,9 +1,19 @@
-[dap.launch.c_app]
-name = "Debug RotIDE"
+[dap.launch.rotide]
+name = "RotIDE"
 adapter = "c"
 request = "launch"
 program = "${workspaceFolder}/rotide"
 cwd = "${workspaceFolder}"
 args = ["${workspaceFolder}/src/rotide.c"]
+stopOnEntry = false
+console = "terminal"
+
+[dap.launch.c_dap_fixture]
+name = "C DAP Fixture"
+adapter = "c"
+request = "launch"
+program = "${workspaceFolder}/tests/dap/supported/c/rotide_dap_sample"
+cwd = "${workspaceFolder}"
+args = ["branch-a"]
 stopOnEntry = false
 console = "terminal"

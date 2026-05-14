@@ -601,6 +601,19 @@ int editorDapPrepareTerminalConsole(struct editorDapLaunchConfig *config) {
 		return 0;
 	}
 	E.dap_terminal_leaf = terminal_leaf;
+	/*
+	 * The split helper starts a placeholder process (`sleep infinity`) to
+	 * keep the pane alive. For DAP terminal hosting we want the PTY itself,
+	 * not a long-lived process owning the slave side, because some adapters
+	 * (notably gdb-dap) run inferiors more reliably when they can claim the
+	 * PTY without a competing foreground job.
+	 */
+	if (tp != NULL && tp->child.pid > 0) {
+		pid_t pid = tp->child.pid;
+		(void)kill(pid, SIGTERM);
+		(void)waitpid(pid, NULL, 0);
+		tp->child.pid = -1;
+	}
 	editorDapLaunchRemoveField(config, "console");
 	return 1;
 }
