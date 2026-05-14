@@ -1,11 +1,14 @@
 #include "test_case.h"
 #include "test_support.h"
 #include "render/popup.h"
+#include "language/terminal_pane.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
+#include "vterm.h"
+#include <time.h>
 
 #define TEST_HEADER_BG "\x1b[48;5;236m"
 #define TEST_HEADER_ACTIVE "\x1b[7m"
@@ -3657,6 +3660,62 @@ static int test_editor_refresh_screen_nested_horizontal_border_uses_hbox(void) {
 	return 0;
 }
 
+static int test_editor_refresh_screen_renders_terminal_pane(void) {
+	E.window_rows = 8;
+	E.window_cols = 60;
+
+	struct editorPaneNode *leaf = E.layout_root;
+	if (leaf == NULL || leaf->is_split) {
+		return 1;
+	}
+	int viewport_cols = editorDrawerTextViewportCols(E.window_cols);
+	if (viewport_cols < 10) {
+		return 1;
+	}
+	struct editorPaneNode *terminal_leaf = editorPaneNodeNewTerminalLeaf(
+			"printf 'rotide-screen-marker\\n'; sleep 2",
+			viewport_cols, E.window_rows);
+	if (terminal_leaf == NULL) {
+		return 1;
+	}
+	editorPaneNodeFree(E.layout_root);
+	E.layout_root = terminal_leaf;
+	E.focused_leaf = terminal_leaf;
+
+	struct editorTerminalPane *t =
+			(struct editorTerminalPane *)terminal_leaf->as.leaf.kind_state;
+	int waited = 0;
+	int saw_marker = 0;
+	while (waited < 2000 && !saw_marker) {
+		(void)editorTerminalPanePump(t);
+		char buf[4096];
+		VTermRect rect = {.start_row = 0, .end_row = t->rows,
+				.start_col = 0, .end_col = t->cols};
+		size_t n = vterm_screen_get_text(t->screen, buf, sizeof(buf) - 1, rect);
+		if (n >= sizeof(buf)) {
+			n = sizeof(buf) - 1;
+		}
+		buf[n] = '\0';
+		if (strstr(buf, "rotide-screen-marker") != NULL) {
+			saw_marker = 1;
+			break;
+		}
+		struct timespec ts = {0, 20 * 1000 * 1000};
+		nanosleep(&ts, NULL);
+		waited += 20;
+	}
+	if (!saw_marker) {
+		return 1;
+	}
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	int found = strstr(output, "rotide-screen-marker") != NULL;
+	free(output);
+	return found ? 0 : 1;
+}
+
 static int test_editor_refresh_screen_unfocused_pane_omits_content(void) {
 	add_row("unique-marker-row");
 	E.window_rows = 6;
@@ -3818,6 +3877,8 @@ const struct editorTestCase g_render_terminal_tests[] = {
 			test_editor_refresh_screen_nested_horizontal_border_uses_hbox},
 	{"editor_refresh_screen_unfocused_pane_omits_content",
 			test_editor_refresh_screen_unfocused_pane_omits_content},
+	{"editor_refresh_screen_renders_terminal_pane",
+			test_editor_refresh_screen_renders_terminal_pane},
 };
 
 const int g_render_terminal_test_count =

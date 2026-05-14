@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include "vterm.h"
+#include "workspace/layout.h"
 
 static int editorTerminalPaneClampDim(int v) {
 	if (v < 1) {
@@ -140,4 +141,49 @@ int editorTerminalPaneWrite(struct editorTerminalPane *terminal,
 		return 0;
 	}
 	return (int)n;
+}
+
+struct editorPaneNode *editorPaneNodeNewTerminalLeaf(const char *command,
+		int cols, int rows) {
+	struct editorTerminalPane *terminal = editorTerminalPaneCreate(command, cols, rows);
+	if (terminal == NULL) {
+		return NULL;
+	}
+	struct editorPaneNode *node = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_TERMINAL);
+	if (node == NULL) {
+		int saved = errno;
+		editorTerminalPaneFree(terminal);
+		errno = saved;
+		return NULL;
+	}
+	node->as.leaf.kind_state = terminal;
+	node->as.leaf.kind_state_free = editorTerminalPaneFree;
+	return node;
+}
+
+void editorTerminalPanePumpAll(struct editorPaneNode *root) {
+	if (root == NULL) {
+		return;
+	}
+	if (root->is_split) {
+		editorTerminalPanePumpAll(root->as.split.first);
+		editorTerminalPanePumpAll(root->as.split.second);
+		return;
+	}
+	if (root->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
+			root->as.leaf.kind_state != NULL) {
+		(void)editorTerminalPanePump(
+				(struct editorTerminalPane *)root->as.leaf.kind_state);
+	}
+}
+
+int editorTerminalPaneTreeHasTerminal(const struct editorPaneNode *root) {
+	if (root == NULL) {
+		return 0;
+	}
+	if (root->is_split) {
+		return editorTerminalPaneTreeHasTerminal(root->as.split.first) ||
+				editorTerminalPaneTreeHasTerminal(root->as.split.second);
+	}
+	return root->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL;
 }

@@ -10,12 +10,14 @@
 #include "text/row.h"
 #include "text/utf8.h"
 #include "render/popup.h"
+#include "language/terminal_pane.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
+#include "vterm.h"
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
@@ -3397,6 +3399,185 @@ static int editorDrawBlankCells(struct writeBuf *wb, int cells) {
 	return 1;
 }
 
+static int editorUtf8EncodeCodepoint(uint32_t cp, char *out) {
+	if (cp < 0x80) {
+		out[0] = (char)cp;
+		return 1;
+	}
+	if (cp < 0x800) {
+		out[0] = (char)(0xC0 | (cp >> 6));
+		out[1] = (char)(0x80 | (cp & 0x3F));
+		return 2;
+	}
+	if (cp < 0x10000) {
+		out[0] = (char)(0xE0 | (cp >> 12));
+		out[1] = (char)(0x80 | ((cp >> 6) & 0x3F));
+		out[2] = (char)(0x80 | (cp & 0x3F));
+		return 3;
+	}
+	if (cp < 0x110000) {
+		out[0] = (char)(0xF0 | (cp >> 18));
+		out[1] = (char)(0x80 | ((cp >> 12) & 0x3F));
+		out[2] = (char)(0x80 | ((cp >> 6) & 0x3F));
+		out[3] = (char)(0x80 | (cp & 0x3F));
+		return 4;
+	}
+	return 0;
+}
+
+static int editorTerminalAppendColorSgr(struct writeBuf *wb,
+		const VTermColor *color, int is_fg) {
+	char esc[32];
+	int n;
+	if (VTERM_COLOR_IS_DEFAULT_FG(color) || VTERM_COLOR_IS_DEFAULT_BG(color)) {
+		n = snprintf(esc, sizeof(esc), "\x1b[%dm", is_fg ? 39 : 49);
+	} else if (VTERM_COLOR_IS_RGB(color)) {
+		n = snprintf(esc, sizeof(esc), "\x1b[%d;2;%u;%u;%um",
+				is_fg ? 38 : 48,
+				(unsigned)color->rgb.red,
+				(unsigned)color->rgb.green,
+				(unsigned)color->rgb.blue);
+	} else if (VTERM_COLOR_IS_INDEXED(color)) {
+		unsigned idx = color->indexed.idx;
+		if (idx < 8) {
+			n = snprintf(esc, sizeof(esc), "\x1b[%um",
+					(unsigned)((is_fg ? 30 : 40) + idx));
+		} else if (idx < 16) {
+			n = snprintf(esc, sizeof(esc), "\x1b[%um",
+					(unsigned)((is_fg ? 90 : 100) + (idx - 8)));
+		} else {
+			n = snprintf(esc, sizeof(esc), "\x1b[%d;5;%um",
+					is_fg ? 38 : 48, idx);
+		}
+	} else {
+		return 1;
+	}
+	if (n <= 0 || n >= (int)sizeof(esc)) {
+		return 0;
+	}
+	return wbAppend(wb, esc, (size_t)n);
+}
+
+static int editorTerminalCellIsPlain(const VTermScreenCell *cell) {
+	if (cell->attrs.bold || cell->attrs.italic ||
+			cell->attrs.underline != VTERM_UNDERLINE_OFF ||
+			cell->attrs.blink || cell->attrs.reverse ||
+			cell->attrs.conceal || cell->attrs.strike) {
+		return 0;
+	}
+	return VTERM_COLOR_IS_DEFAULT_FG(&cell->fg) &&
+			VTERM_COLOR_IS_DEFAULT_BG(&cell->bg);
+}
+
+static int editorDrawTerminalCellAttrs(struct writeBuf *wb,
+		const VTermScreenCell *cell) {
+	if (!wbAppend(wb, "\x1b[m", 3)) {
+		return 0;
+	}
+	if (editorTerminalCellIsPlain(cell)) {
+		return 1;
+	}
+	if (cell->attrs.bold && !wbAppend(wb, "\x1b[1m", 4)) {
+		return 0;
+	}
+	if (cell->attrs.italic && !wbAppend(wb, "\x1b[3m", 4)) {
+		return 0;
+	}
+	if (cell->attrs.underline != VTERM_UNDERLINE_OFF &&
+			!wbAppend(wb, "\x1b[4m", 4)) {
+		return 0;
+	}
+	if (cell->attrs.blink && !wbAppend(wb, "\x1b[5m", 4)) {
+		return 0;
+	}
+	if (cell->attrs.reverse && !wbAppend(wb, "\x1b[7m", 4)) {
+		return 0;
+	}
+	if (cell->attrs.conceal && !wbAppend(wb, "\x1b[8m", 4)) {
+		return 0;
+	}
+	if (cell->attrs.strike && !wbAppend(wb, "\x1b[9m", 4)) {
+		return 0;
+	}
+	if (!editorTerminalAppendColorSgr(wb, &cell->fg, 1) ||
+			!editorTerminalAppendColorSgr(wb, &cell->bg, 0)) {
+		return 0;
+	}
+	return 1;
+}
+
+static int editorDrawTerminalCells(struct writeBuf *wb,
+		struct editorTerminalPane *terminal, int row_in_pane,
+		int col_in_pane, int slice_cols) {
+	if (terminal == NULL || terminal->screen == NULL || slice_cols <= 0) {
+		return 1;
+	}
+	int emitted = 0;
+	int col = col_in_pane;
+	int last_was_plain = 0;
+	int any_styled_emitted = 0;
+	while (emitted < slice_cols) {
+		VTermPos pos = {.row = row_in_pane, .col = col};
+		VTermScreenCell cell;
+		if (row_in_pane < 0 || row_in_pane >= terminal->rows ||
+				col < 0 || col >= terminal->cols ||
+				!vterm_screen_get_cell(terminal->screen, pos, &cell)) {
+			if (!wbAppend(wb, " ", 1)) {
+				return 0;
+			}
+			emitted++;
+			col++;
+			continue;
+		}
+		int cell_width = cell.width;
+		if (cell_width < 1) {
+			cell_width = 1;
+		}
+		if (emitted + cell_width > slice_cols) {
+			while (emitted < slice_cols) {
+				if (!wbAppend(wb, " ", 1)) {
+					return 0;
+				}
+				emitted++;
+			}
+			break;
+		}
+		int plain = editorTerminalCellIsPlain(&cell);
+		if (plain) {
+			if (any_styled_emitted && !last_was_plain) {
+				if (!wbAppend(wb, "\x1b[m", 3)) {
+					return 0;
+				}
+			}
+		} else {
+			if (!editorDrawTerminalCellAttrs(wb, &cell)) {
+				return 0;
+			}
+			any_styled_emitted = 1;
+		}
+		last_was_plain = plain;
+		if (cell.chars[0] == 0) {
+			if (!wbAppend(wb, " ", 1)) {
+				return 0;
+			}
+		} else {
+			for (int i = 0; i < VTERM_MAX_CHARS_PER_CELL && cell.chars[i] != 0; i++) {
+				char utf8[4];
+				int n = editorUtf8EncodeCodepoint(cell.chars[i], utf8);
+				if (n > 0 && !wbAppend(wb, utf8, (size_t)n)) {
+					return 0;
+				}
+			}
+		}
+		emitted += cell_width;
+		col += cell_width;
+	}
+	if (any_styled_emitted && !wbAppend(wb, "\x1b[m", 3)) {
+		return 0;
+	}
+	return 1;
+}
+
 static int editorDrawMultiPaneRows(struct writeBuf *wb,
 		const struct editorLeafLayout *layout,
 		const struct editorBorderList *borders,
@@ -3453,15 +3634,27 @@ static int editorDrawMultiPaneRows(struct writeBuf *wb,
 			if (slice_cols <= 0) {
 				slice_cols = 1;
 			}
-			int is_focused_slice = focused_intersects &&
-					layout->rects[leaf_idx].node == E.focused_leaf;
-			if (is_focused_slice) {
-				int body_row_in_pane = screen_y - focused_rect.y;
-				if (!editorDrawFocusedPaneSlice(wb, body_row_in_pane, slice_cols)) {
+			struct editorPaneNode *leaf_node = layout->rects[leaf_idx].node;
+			if (leaf_node != NULL &&
+					leaf_node->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL) {
+				int row_in_pane = screen_y - leaf_rect.y;
+				int col_in_pane = x - leaf_rect.x;
+				if (!editorDrawTerminalCells(wb,
+						(struct editorTerminalPane *)leaf_node->as.leaf.kind_state,
+						row_in_pane, col_in_pane, slice_cols)) {
 					return 0;
 				}
-			} else if (!editorDrawBlankCells(wb, slice_cols)) {
-				return 0;
+			} else {
+				int is_focused_slice = focused_intersects &&
+						leaf_node == E.focused_leaf;
+				if (is_focused_slice) {
+					int body_row_in_pane = screen_y - focused_rect.y;
+					if (!editorDrawFocusedPaneSlice(wb, body_row_in_pane, slice_cols)) {
+						return 0;
+					}
+				} else if (!editorDrawBlankCells(wb, slice_cols)) {
+					return 0;
+				}
 			}
 			x += slice_cols;
 		}
@@ -3492,7 +3685,11 @@ static int editorDrawRows(struct writeBuf *wb) {
 	}
 
 	int leaf_count = editorPaneTreeLeafCount(E.layout_root);
-	if (leaf_count > 1 && has_focused_rect) {
+	int has_terminal = editorTerminalPaneTreeHasTerminal(E.layout_root);
+	if (has_terminal) {
+		editorTerminalPanePumpAll(E.layout_root);
+	}
+	if ((leaf_count > 1 || has_terminal) && has_focused_rect) {
 		struct editorRect viewport;
 		if (!editorLayoutEditorViewport(&viewport)) {
 			return 0;
@@ -4312,6 +4509,19 @@ void editorRefreshScreen(void) {
 	int cursor_row = cursor_pane_y + (E.cy - E.rowoff) + 1;
 	int cursor_col = cursor_pane_text_start_col + (E.rx - E.coloff) + 1;
 	int cursor_visible = 1;
+	if (has_focus_rect && E.focused_leaf != NULL &&
+			!E.focused_leaf->is_split &&
+			E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
+			E.focused_leaf->as.leaf.kind_state != NULL) {
+		struct editorTerminalPane *terminal =
+				(struct editorTerminalPane *)E.focused_leaf->as.leaf.kind_state;
+		VTermPos cursor_pos = {0};
+		if (terminal->vt != NULL) {
+			vterm_state_get_cursorpos(vterm_obtain_state(terminal->vt), &cursor_pos);
+		}
+		cursor_row = cursor_focused_rect.y + cursor_pos.row + 1;
+		cursor_col = cursor_focused_rect.x + cursor_pos.col + 1;
+	}
 	if (E.line_wrap_enabled) {
 		int body_cols = editorWrapBodyCols();
 		int cursor_segment = E.cy < E.numrows ?

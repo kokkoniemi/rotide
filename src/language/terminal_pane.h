@@ -70,4 +70,28 @@ int editorTerminalPaneResize(struct editorTerminalPane *terminal,
 int editorTerminalPaneWrite(struct editorTerminalPane *terminal,
 		const char *bytes, size_t len);
 
+/*
+ * Convenience: build a leaf pane node of kind TERMINAL with a freshly
+ * spawned PTY + vterm wired into its kind_state. Caller takes ownership of
+ * the node; closing the pane via editorPaneNodeFree releases everything.
+ * Returns NULL on failure (errno set; nothing leaked).
+ */
+struct editorPaneNode;
+struct editorPaneNode *editorPaneNodeNewTerminalLeaf(const char *command,
+		int cols, int rows);
+
+/*
+ * Walk the pane tree and pump every terminal pane's PTY into its vterm.
+ * Called by the renderer (and any future main-loop tick) so child output
+ * lands on the screen on the next refresh.
+ */
+void editorTerminalPanePumpAll(struct editorPaneNode *root);
+
+/*
+ * Returns 1 if the tree contains at least one terminal-kind leaf. Used by
+ * the renderer to decide whether to take the multi-pane path even with a
+ * single leaf (single-pane fast path doesn't know how to draw terminals).
+ */
+int editorTerminalPaneTreeHasTerminal(const struct editorPaneNode *root);
+
 #endif
