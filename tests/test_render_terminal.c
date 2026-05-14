@@ -3843,6 +3843,35 @@ static int test_editor_refresh_screen_vertical_split_clips_left_pane_row(void) {
 	return 0;
 }
 
+static int test_editor_refresh_screen_vertical_split_eof_tilde_does_not_collapse_into_right_pane(void) {
+	ASSERT_TRUE(editorTabsInit());
+	E.window_rows = 6;
+	E.window_cols = 80;
+	E.line_numbers_enabled = 0;
+	E.cy = 0;
+	E.cx = 0;
+
+	struct editorPaneNode *left = E.focused_leaf;
+	struct editorPaneNode *right =
+			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(right != NULL);
+
+	ASSERT_TRUE(editorTabNewEmpty());
+	add_row("right-pane-marker");
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(left));
+	ASSERT_EQ_INT(0, E.active_tab);
+	ASSERT_EQ_INT(1, right->as.leaf.view.active_tab_idx);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "right-pane-marker") != NULL);
+	ASSERT_TRUE(strstr(output,
+				"\x1b[90m~\x1b[39m\xe2\x94\x82right-pane-marker") == NULL);
+	free(output);
+	return 0;
+}
+
 static int test_editor_refresh_screen_same_tab_panes_keep_selection_independent(void) {
 	add_row("alpha beta gamma");
 	E.window_rows = 8;
@@ -4197,6 +4226,8 @@ const struct editorTestCase g_render_terminal_tests[] = {
 			test_editor_refresh_screen_unfocused_same_tab_pane_renders_content},
 	{"editor_refresh_screen_vertical_split_clips_left_pane_row",
 			test_editor_refresh_screen_vertical_split_clips_left_pane_row},
+	{"editor_refresh_screen_vertical_split_eof_tilde_does_not_collapse_into_right_pane",
+			test_editor_refresh_screen_vertical_split_eof_tilde_does_not_collapse_into_right_pane},
 	{"editor_refresh_screen_same_tab_panes_keep_selection_independent",
 			test_editor_refresh_screen_same_tab_panes_keep_selection_independent},
 	{"editor_refresh_screen_horizontal_scrolled_panes_keep_syntax",

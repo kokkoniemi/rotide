@@ -3494,10 +3494,19 @@ static int editorDrawFocusedPaneSlice(struct writeBuf *wb, int body_row_in_pane,
 				g_editor_wrap_body_cols_override = saved_wrap_body_cols_override;
 				return 0;
 			}
-		} else if (!editorAppendGrayBytes(wb, "~", 1)) {
-			g_editor_drawing_current_line_highlight = 0;
-			g_editor_wrap_body_cols_override = saved_wrap_body_cols_override;
-			return 0;
+		} else {
+			if (!editorAppendGrayBytes(wb, "~", 1)) {
+				g_editor_drawing_current_line_highlight = 0;
+				g_editor_wrap_body_cols_override = saved_wrap_body_cols_override;
+				return 0;
+			}
+			for (int pad = 1; pad < file_cols; pad++) {
+				if (!wbAppend(wb, " ", 1)) {
+					g_editor_drawing_current_line_highlight = 0;
+					g_editor_wrap_body_cols_override = saved_wrap_body_cols_override;
+					return 0;
+				}
+			}
 		}
 	}
 	g_editor_drawing_current_line_highlight = 0;
