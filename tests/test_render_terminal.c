@@ -4002,6 +4002,65 @@ static int test_editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax(
 	return 0;
 }
 
+static int test_editor_refresh_screen_unfocused_different_tab_pane_preserves_free_scroll_mode(void) {
+	ASSERT_TRUE(editorTabsInit());
+	E.window_rows = 8;
+	E.window_cols = 100;
+
+	add_row("left-000");
+	add_row("left-001");
+	add_row("left-002");
+	add_row("left-003");
+	add_row("left-004");
+	add_row("left-005");
+	add_row("left-006");
+	add_row("left-007");
+	add_row("left-008");
+	add_row("left-009");
+	add_row("left-010");
+	add_row("left-011");
+
+	struct editorPaneNode *left = E.focused_leaf;
+	struct editorPaneNode *right =
+			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(right != NULL);
+
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(right));
+	ASSERT_TRUE(editorTabNewEmpty());
+	add_row("right-pane-row");
+	E.cy = 0;
+	E.cx = 0;
+
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(left));
+	ASSERT_EQ_INT(0, E.active_tab);
+	ASSERT_EQ_INT(1, right->as.leaf.view.active_tab_idx);
+
+	E.cy = 0;
+	E.cx = 0;
+	editorViewportScrollByRows(5);
+	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
+	ASSERT_EQ_INT(5, E.rowoff);
+	ASSERT_TRUE(E.cy < E.rowoff);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "right-pane-row") != NULL);
+	free(output);
+
+	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
+	ASSERT_EQ_INT(5, E.rowoff);
+	ASSERT_TRUE(E.cy < E.rowoff);
+
+	output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	free(output);
+	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
+	ASSERT_EQ_INT(5, E.rowoff);
+	ASSERT_TRUE(E.cy < E.rowoff);
+	return 0;
+}
+
 const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_contains_expected_sequences", test_editor_refresh_screen_contains_expected_sequences},
 	{"editor_refresh_screen_file_row_frame_diff_updates_only_changed_rows", test_editor_refresh_screen_file_row_frame_diff_updates_only_changed_rows},
@@ -4148,6 +4207,8 @@ const struct editorTestCase g_render_terminal_tests[] = {
 			test_editor_refresh_screen_unfocused_different_tab_pane_renders_content},
 	{"editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax",
 			test_editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax},
+	{"editor_refresh_screen_unfocused_different_tab_pane_preserves_free_scroll_mode",
+			test_editor_refresh_screen_unfocused_different_tab_pane_preserves_free_scroll_mode},
 	{"editor_refresh_screen_renders_terminal_pane",
 			test_editor_refresh_screen_renders_terminal_pane},
 	{"editor_refresh_screen_terminal_exit_overlay",

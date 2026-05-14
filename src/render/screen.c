@@ -3539,6 +3539,8 @@ static int editorDrawPaneViewSlice(struct writeBuf *wb,
 		return editorDrawBlankCells(wb, slice_cols);
 	}
 
+	struct editorViewSnapshot snap;
+	editorViewSnapshotCapture(&snap);
 	struct editorTabState active_snap = {0};
 	int active_tab = E.active_tab;
 	editorTabStateAliasSnapshot(&active_snap);
@@ -3553,6 +3555,7 @@ static int editorDrawPaneViewSlice(struct writeBuf *wb,
 
 	editorTabStateAliasToActive(&active_snap);
 	E.active_tab = active_tab;
+	editorViewSnapshotRestore(&snap);
 	if (body_row_in_pane == 0) {
 		(void)editorSyntaxPrepareVisibleRowSpansForeground(E.rowoff,
 				editorFocusedPaneBodyRows());
