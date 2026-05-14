@@ -3706,8 +3706,7 @@ static int editorHandleMouseEventInTerminalPane(const struct editorMouseEvent *e
 	if (terminal->mouse_tracking <= 0) {
 		return 0;
 	}
-	/* Refocus the terminal pane on click so the user can type into it
-	 * after clicking. Motion/wheel events don't change focus. */
+	/* Click-to-focus for terminal panes. */
 	if (event->kind == EDITOR_MOUSE_EVENT_LEFT_PRESS && leaf != E.focused_leaf) {
 		(void)editorLayoutSetFocusedLeaf(leaf);
 		editorPaneAnnounceFocus();
@@ -4617,8 +4616,7 @@ void editorProcessKeypress(void) {
 				E.focused_leaf != prev_focus) {
 			(void)editorPaneViewLoadIntoState(&E.focused_leaf->as.leaf.view);
 		}
-		/* Pump already happened inside editorReadKey; the main loop will
-		 * call editorRefreshScreen next, which pumps again and paints. */
+		/* Pump already happened in editorReadKey. */
 		return;
 	}
 	if (c == BRACKETED_PASTE_START_EVENT) {
@@ -4683,15 +4681,7 @@ void editorProcessKeypress(void) {
 		if (editorClearHoverLinkState()) {
 			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 		}
-		/*
-		 * Terminal-pane key routing: when focus is on a terminal leaf and
-		 * the user is not in the drawer, keystrokes go straight to the
-		 * PTY. The exception is the configured terminal_prefix key,
-		 * which arms the next keypress to dispatch as a normal rotide
-		 * action (the tmux-style escape hatch). While the prefix is
-		 * armed we fall through to the regular keymap lookup below and
-		 * clear the flag.
-		 */
+		/* In focused terminal panes keys go to PTY, except terminal_prefix. */
 		if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
 				E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
 				E.focused_leaf->as.leaf.kind_state != NULL &&

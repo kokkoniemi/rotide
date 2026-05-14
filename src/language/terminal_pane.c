@@ -137,7 +137,7 @@ int editorTerminalPanePump(struct editorTerminalPane *terminal) {
 				continue;
 			}
 			if (n == 0) {
-				/* EOF — child closed the slave; will be reaped below. */
+				/* EOF: child closed slave side. */
 				break;
 			}
 			if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -153,8 +153,7 @@ int editorTerminalPanePump(struct editorTerminalPane *terminal) {
 		if (r == 1) {
 			terminal->exited = 1;
 			terminal->exit_status = status;
-			/* Count process exit as terminal activity so callers polling
-			 * for screen changes wake promptly and can close the pane. */
+			/* Treat exit as activity so callers can close the pane promptly. */
 			total += 1;
 		}
 	}
@@ -249,8 +248,7 @@ int editorTerminalPaneSendKey(struct editorTerminalPane *terminal,
 			terminal->child.master_fd < 0) {
 		return 0;
 	}
-	/* Printable ASCII goes through vterm so it handles UTF-8 paste/keypress
-	 * normalization. */
+	/* Route printables through vterm. */
 	if (rotide_key >= 0x20 && rotide_key < 0x7f) {
 		vterm_keyboard_unichar(terminal->vt, (uint32_t)rotide_key, VTERM_MOD_NONE);
 		return 1;
@@ -304,8 +302,7 @@ int editorTerminalPaneSendKey(struct editorTerminalPane *terminal,
 		vterm_keyboard_key(terminal->vt, vk, mod);
 		return 1;
 	}
-	/* Control characters (Ctrl+A .. Ctrl+Z and related) pass through as
-	 * the literal control byte. */
+	/* Forward control bytes directly. */
 	if (rotide_key > 0 && rotide_key < 0x20) {
 		char b = (char)rotide_key;
 		ssize_t written = write(terminal->child.master_fd, &b, 1);
@@ -364,8 +361,7 @@ static void editorTerminalPaneResizeRecursive(struct editorPaneNode *node,
 		}
 		return;
 	}
-	/* Mirror editorLayoutSplitRects so the rects line up exactly with
-	 * what the renderer uses. */
+	/* Keep split math aligned with layout renderer. */
 	struct editorRect first_rect = rect;
 	struct editorRect second_rect = rect;
 	double ratio = node->as.split.ratio;
@@ -474,7 +470,7 @@ int editorTerminalPaneCloseExited(struct editorPaneNode **root_ptr,
 		struct editorPaneNode *new_focus =
 				editorPaneTreeCloseLeaf(root_ptr, exited_leaf);
 		if (new_focus == NULL) {
-			/* Root terminal leaf cannot be closed (single-leaf no-op). */
+			/* Single-root leaf cannot be removed. */
 			break;
 		}
 		if (focused_leaf_ptr != NULL &&

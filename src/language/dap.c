@@ -572,8 +572,7 @@ int editorDapPrepareTerminalConsole(struct editorDapLaunchConfig *config) {
 		return 1;
 	}
 	if (strcmp(console_value, "terminal") != 0) {
-		/* Other values (none, internalConsole) — leave as-is and strip
-		 * the key so adapters don't reject an unknown enum. */
+		/* Strip unsupported console values before forwarding to adapters. */
 		editorDapLaunchRemoveField(config, "console");
 		return 1;
 	}
@@ -601,13 +600,7 @@ int editorDapPrepareTerminalConsole(struct editorDapLaunchConfig *config) {
 		return 0;
 	}
 	E.dap_terminal_leaf = terminal_leaf;
-	/*
-	 * The split helper starts a placeholder process (`sleep infinity`) to
-	 * keep the pane alive. For DAP terminal hosting we want the PTY itself,
-	 * not a long-lived process owning the slave side, because some adapters
-	 * (notably gdb-dap) run inferiors more reliably when they can claim the
-	 * PTY without a competing foreground job.
-	 */
+	/* For DAP terminal hosting keep only the PTY; stop placeholder child. */
 	if (tp != NULL && tp->child.pid > 0) {
 		pid_t pid = tp->child.pid;
 		(void)kill(pid, SIGTERM);
@@ -636,9 +629,7 @@ int editorDapStartLaunch(int launch_idx) {
 
 	editorDapShutdown();
 
-	/* Work on a local copy so spawn-time mutations (e.g. setting `tty`
-	 * after opening a terminal pane for console="terminal") don't pollute
-	 * the persistent launch config in E.dap_launches. */
+	/* Keep launch config immutable while applying spawn-time fields (e.g. tty). */
 	struct editorDapLaunchConfig launch_copy = *config;
 	if (!editorDapPrepareTerminalConsole(&launch_copy)) {
 		return 0;

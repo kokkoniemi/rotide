@@ -4973,8 +4973,7 @@ void editorRefreshScreen(void) {
 		return;
 	}
 
-	/* editorDrawRows can close exited terminal leaves and shift focus. Refresh
-	 * the focused terminal pointer after layout/render mutations. */
+	/* editorDrawRows may close terminal leaves and shift focus. */
 	focused_terminal = editorFocusedTerminalPane();
 
 	struct editorRect cursor_focused_rect = {0};
@@ -4983,7 +4982,7 @@ void editorRefreshScreen(void) {
 	int cursor_pane_text_start_col;
 	if (has_focus_rect) {
 		if (focused_terminal != NULL) {
-			/* Terminal panes render from the pane origin; no editor gutter. */
+			/* Terminal panes have no editor gutter offset. */
 			cursor_pane_text_start_col = cursor_focused_rect.x;
 		} else {
 			int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);
