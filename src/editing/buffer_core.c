@@ -728,6 +728,7 @@ struct editorVisibleSyntaxCache {
 	int first_row;
 	int row_count;
 	int row_capacity;
+	const struct editorSyntaxState *state;
 	enum editorSyntaxLanguage language;
 	uint64_t revision;
 	uint64_t generation;
@@ -743,6 +744,7 @@ void editorSyntaxVisibleCacheInvalidate(void) {
 	g_visible_syntax_cache.prepared = 0;
 	g_visible_syntax_cache.first_row = 0;
 	g_visible_syntax_cache.row_count = 0;
+	g_visible_syntax_cache.state = NULL;
 	g_visible_syntax_cache.language = EDITOR_SYNTAX_NONE;
 	g_visible_syntax_cache.revision = 0;
 	g_visible_syntax_cache.generation = 0;
@@ -831,6 +833,7 @@ static int editorSyntaxVisibleCacheStoreBackgroundResult(
 	g_visible_syntax_cache.prepared = 1;
 	g_visible_syntax_cache.first_row = result->first_row;
 	g_visible_syntax_cache.row_count = result->row_count;
+	g_visible_syntax_cache.state = E.syntax_state;
 	g_visible_syntax_cache.language = result->language;
 	g_visible_syntax_cache.revision = result->revision;
 	g_visible_syntax_cache.generation = result->generation;
@@ -1692,11 +1695,21 @@ static int editorSyntaxBuildVisibleSpanCache(int first_row, int row_count) {
 		return 0;
 	}
 
-	if (!g_visible_syntax_cache.prepared ||
+	int cache_identity_matches = g_visible_syntax_cache.prepared &&
+			g_visible_syntax_cache.state == E.syntax_state &&
+			g_visible_syntax_cache.language == E.syntax_language &&
+			g_visible_syntax_cache.revision == E.syntax_revision &&
+			g_visible_syntax_cache.generation == E.syntax_generation;
+	if (!cache_identity_matches ||
 			g_visible_syntax_cache.first_row != first_row ||
 			g_visible_syntax_cache.row_count != row_count) {
 		g_visible_syntax_cache.prepared = 1;
-		if (!editorSyntaxVisibleCacheSlide(first_row, row_count)) {
+		g_visible_syntax_cache.state = E.syntax_state;
+		g_visible_syntax_cache.language = E.syntax_language;
+		g_visible_syntax_cache.revision = E.syntax_revision;
+		g_visible_syntax_cache.generation = E.syntax_generation;
+		if (!cache_identity_matches ||
+				!editorSyntaxVisibleCacheSlide(first_row, row_count)) {
 			g_visible_syntax_cache.first_row = first_row;
 			g_visible_syntax_cache.row_count = row_count;
 			editorSyntaxVisibleCacheMarkRowsDirty(0, row_count);
@@ -2349,6 +2362,7 @@ int editorSyntaxPrepareVisibleRowSpans(int first_row, int row_count) {
 			return 0;
 		}
 		if (g_visible_syntax_cache.prepared &&
+				g_visible_syntax_cache.state == E.syntax_state &&
 				g_visible_syntax_cache.language == E.syntax_language &&
 				g_visible_syntax_cache.revision == E.syntax_revision &&
 				g_visible_syntax_cache.generation == E.syntax_generation &&
@@ -2364,6 +2378,10 @@ int editorSyntaxPrepareVisibleRowSpans(int first_row, int row_count) {
 		}
 		return editorSyntaxScheduleBackgroundActive(first_row, row_count);
 	}
+	return editorSyntaxBuildVisibleSpanCache(first_row, row_count);
+}
+
+int editorSyntaxPrepareVisibleRowSpansForeground(int first_row, int row_count) {
 	return editorSyntaxBuildVisibleSpanCache(first_row, row_count);
 }
 
@@ -2429,7 +2447,9 @@ int editorSyntaxRowRenderSpans(int row_idx, struct editorRowSyntaxSpan *spans, i
 
 	if (editorSyntaxBackgroundEnabled()) {
 		if (g_visible_syntax_cache.prepared &&
+				g_visible_syntax_cache.state == E.syntax_state &&
 				g_visible_syntax_cache.language == E.syntax_language &&
+				g_visible_syntax_cache.revision == E.syntax_revision &&
 				g_visible_syntax_cache.generation == E.syntax_generation &&
 				row_idx >= g_visible_syntax_cache.first_row &&
 				row_idx < g_visible_syntax_cache.first_row + g_visible_syntax_cache.row_count) {
@@ -2456,6 +2476,10 @@ int editorSyntaxRowRenderSpans(int row_idx, struct editorRowSyntaxSpan *spans, i
 	}
 
 	if (g_visible_syntax_cache.prepared &&
+			g_visible_syntax_cache.state == E.syntax_state &&
+			g_visible_syntax_cache.language == E.syntax_language &&
+			g_visible_syntax_cache.revision == E.syntax_revision &&
+			g_visible_syntax_cache.generation == E.syntax_generation &&
 			row_idx >= g_visible_syntax_cache.first_row &&
 			row_idx < g_visible_syntax_cache.first_row + g_visible_syntax_cache.row_count) {
 		int rel_row = row_idx - g_visible_syntax_cache.first_row;

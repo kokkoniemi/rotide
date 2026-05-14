@@ -39,6 +39,7 @@ int editorSyntaxTreeExists(void);
 enum editorSyntaxLanguage editorSyntaxLanguageActive(void);
 const char *editorSyntaxRootType(void);
 int editorSyntaxPrepareVisibleRowSpans(int first_row, int row_count);
+int editorSyntaxPrepareVisibleRowSpansForeground(int first_row, int row_count);
 int editorSyntaxRowRenderSpans(int row_idx, struct editorRowSyntaxSpan *spans, int max_spans,
 		int *count_out);
 int editorSyntaxBackgroundPoll(void);

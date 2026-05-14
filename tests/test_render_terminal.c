@@ -3810,6 +3810,40 @@ static int test_editor_refresh_screen_unfocused_different_tab_pane_renders_conte
 	return 0;
 }
 
+static int test_editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("left-pane-plain");
+	E.window_rows = 6;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	struct editorPaneNode *left = E.focused_leaf;
+	struct editorPaneNode *right =
+			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(right != NULL);
+
+	ASSERT_TRUE(editorTabNewEmpty());
+	char path[128];
+	ASSERT_TRUE(write_temp_file_with_suffix(path, sizeof(path),
+			"rotide-pane-syntax-", ".c",
+			"int main(void) {\n    return 0;\n}\n"));
+	editorOpen(path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
+
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(left));
+	ASSERT_EQ_INT(0, E.active_tab);
+	ASSERT_EQ_INT(1, right->as.leaf.view.active_tab_idx);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[96mint") != NULL);
+	free(output);
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_contains_expected_sequences", test_editor_refresh_screen_contains_expected_sequences},
 	{"editor_refresh_screen_file_row_frame_diff_updates_only_changed_rows", test_editor_refresh_screen_file_row_frame_diff_updates_only_changed_rows},
@@ -3946,6 +3980,8 @@ const struct editorTestCase g_render_terminal_tests[] = {
 			test_editor_refresh_screen_unfocused_same_tab_pane_renders_content},
 	{"editor_refresh_screen_unfocused_different_tab_pane_renders_content",
 			test_editor_refresh_screen_unfocused_different_tab_pane_renders_content},
+	{"editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax",
+			test_editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax},
 	{"editor_refresh_screen_renders_terminal_pane",
 			test_editor_refresh_screen_renders_terminal_pane},
 	{"editor_refresh_screen_terminal_exit_overlay",

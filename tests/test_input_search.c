@@ -1,8 +1,11 @@
 #include "test_case.h"
 #include "test_support.h"
 #include "editing/selection.h"
+#include "workspace/drawer.h"
 #include "workspace/file_search.h"
+#include "workspace/layout.h"
 #include "workspace/project_search.h"
+#include "workspace/tabs.h"
 
 static int test_editor_task_log_document_stays_authoritative(void) {
 	ASSERT_TRUE(editorTabsInit());
@@ -1266,6 +1269,77 @@ static int test_editor_process_keypress_mouse_left_click_places_cursor_with_offs
 	ASSERT_TRUE(editor_process_keypress_with_input(click, strlen(click)) == 0);
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(5, E.cx);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_click_places_cursor_in_created_pane(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("0123456789");
+	E.window_rows = 6;
+	E.window_cols = 80;
+	E.line_numbers_enabled = 0;
+	E.cy = 0;
+	E.cx = 0;
+
+	struct editorPaneNode *created =
+			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(created != NULL);
+	ASSERT_TRUE(E.focused_leaf == created);
+
+	struct editorRect rect = {0};
+	ASSERT_TRUE(editorLayoutFocusedLeafRect(&rect));
+	int text_cols = rect.w;
+	int text_start = rect.x;
+	if (text_cols >= 3) {
+		text_start++;
+		text_cols -= 2;
+	}
+	ASSERT_TRUE(text_cols > 5);
+
+	char click[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click, sizeof(click), 0,
+			text_start + 5, rect.y + 1, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click, strlen(click)) == 0);
+	ASSERT_TRUE(E.focused_leaf == created);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(4, E.cx);
+	return 0;
+}
+
+static int test_editor_process_keypress_arrow_scrolls_created_pane_width(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+	E.window_rows = 6;
+	E.window_cols = 80;
+	E.line_numbers_enabled = 0;
+	E.cy = 0;
+	E.cx = 0;
+	E.coloff = 0;
+
+	struct editorPaneNode *created =
+			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(created != NULL);
+	ASSERT_TRUE(E.focused_leaf == created);
+
+	struct editorRect rect = {0};
+	ASSERT_TRUE(editorLayoutFocusedLeafRect(&rect));
+	int pane_body_cols = rect.w >= 3 ? rect.w - 2 : rect.w;
+	ASSERT_TRUE(pane_body_cols > 4);
+	int full_body_cols = editorTextBodyViewportCols(E.window_cols);
+	ASSERT_TRUE(pane_body_cols + 5 < full_body_cols);
+
+	const char right[] = "\x1b[C";
+	for (int i = 0; i < pane_body_cols + 5; i++) {
+		ASSERT_TRUE(editor_process_keypress_with_input(right,
+					sizeof(right) - 1) == 0);
+	}
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	free(output);
+	ASSERT_TRUE(E.coloff > 0);
+	ASSERT_TRUE(E.cx > pane_body_cols);
 	return 0;
 }
 
@@ -4028,6 +4102,10 @@ const struct editorTestCase g_input_search_tests[] = {
 	{"editor_process_keypress_alt_n_toggles_line_numbers_without_dirty", test_editor_process_keypress_alt_n_toggles_line_numbers_without_dirty},
 	{"editor_process_keypress_alt_h_toggles_current_line_highlight_without_dirty", test_editor_process_keypress_alt_h_toggles_current_line_highlight_without_dirty},
 	{"editor_process_keypress_mouse_left_click_places_cursor_with_offsets", test_editor_process_keypress_mouse_left_click_places_cursor_with_offsets},
+	{"editor_process_keypress_mouse_click_places_cursor_in_created_pane",
+			test_editor_process_keypress_mouse_click_places_cursor_in_created_pane},
+	{"editor_process_keypress_arrow_scrolls_created_pane_width",
+			test_editor_process_keypress_arrow_scrolls_created_pane_width},
 	{"editor_process_keypress_mouse_click_maps_same_column_with_line_numbers", test_editor_process_keypress_mouse_click_maps_same_column_with_line_numbers},
 	{"editor_process_keypress_mouse_left_click_places_cursor_on_wrapped_segment", test_editor_process_keypress_mouse_left_click_places_cursor_on_wrapped_segment},
 	{"editor_process_keypress_mouse_ctrl_click_does_not_start_drag_selection", test_editor_process_keypress_mouse_ctrl_click_does_not_start_drag_selection},

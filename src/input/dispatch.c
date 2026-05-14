@@ -2978,21 +2978,40 @@ static int editorResolveMouseToBufferOffset(const struct editorMouseEvent *event
 	}
 
 	// SGR mouse coordinates are terminal-absolute and 1-based.
-	// Row 1 is the tab bar; text viewport starts on row 2.
-	int mouse_row = event->y - 2;
 	int raw_col = event->x - 1;
-	int text_cols = editorTextBodyViewportCols(E.window_cols);
-	int text_start_col = editorTextBodyStartColForCols(E.window_cols);
+	int raw_row = event->y - 1;
+	struct editorRect focused_rect = {0};
+	int has_focused_rect = editorLayoutFocusedLeafRect(&focused_rect);
+	int pane_y = has_focused_rect ? focused_rect.y : 1;
+	int pane_w = has_focused_rect ? focused_rect.w :
+			editorDrawerTextViewportCols(E.window_cols);
+	int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);
+	if (gutter_cols > pane_w) {
+		gutter_cols = pane_w;
+	}
+	int text_cols = pane_w - gutter_cols;
+	int text_start_col = has_focused_rect ?
+			focused_rect.x + gutter_cols :
+			editorDrawerTextStartColForCols(E.window_cols) + gutter_cols;
+	if (text_cols < 1) {
+		text_cols = 1;
+	}
+	if (text_cols >= 3) {
+		text_start_col++;
+		text_cols -= 2;
+	}
+	int mouse_row = raw_row - pane_y;
 	int mouse_col = raw_col - text_start_col;
+	int pane_rows = has_focused_rect ? focused_rect.h : E.window_rows;
 	if (clamp_to_viewport) {
-		if (E.window_rows <= 0 || text_cols <= 0) {
+		if (pane_rows <= 0 || text_cols <= 0) {
 			return 0;
 		}
 		if (mouse_row < 0) {
 			mouse_row = 0;
 		}
-		if (mouse_row >= E.window_rows) {
-			mouse_row = E.window_rows - 1;
+		if (mouse_row >= pane_rows) {
+			mouse_row = pane_rows - 1;
 		}
 		if (mouse_col < 0) {
 			mouse_col = 0;
@@ -3002,7 +3021,7 @@ static int editorResolveMouseToBufferOffset(const struct editorMouseEvent *event
 		}
 	} else {
 		// Ignore clicks outside text rows (tab/status/message bars are excluded).
-		if (mouse_row < 0 || mouse_row >= E.window_rows || mouse_col < 0 ||
+		if (mouse_row < 0 || mouse_row >= pane_rows || mouse_col < 0 ||
 				mouse_col >= text_cols) {
 			return 0;
 		}
@@ -3482,8 +3501,25 @@ static int editorHandleMouseLeftDrag(const struct editorMouseEvent *event) {
 	if (E.column_select_active) {
 		// Resolve mouse to an rx/cy and extend the column selection there.
 		int mouse_col = event->x - 1;
-		int text_start = editorTextBodyStartColForCols(E.window_cols);
-		int text_cols = editorTextBodyViewportCols(E.window_cols);
+		struct editorRect focused_rect = {0};
+		int has_focused_rect = editorLayoutFocusedLeafRect(&focused_rect);
+		int pane_w = has_focused_rect ? focused_rect.w :
+				editorDrawerTextViewportCols(E.window_cols);
+		int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);
+		if (gutter_cols > pane_w) {
+			gutter_cols = pane_w;
+		}
+		int text_cols = pane_w - gutter_cols;
+		int text_start = has_focused_rect ?
+				focused_rect.x + gutter_cols :
+				editorDrawerTextStartColForCols(E.window_cols) + gutter_cols;
+		if (text_cols < 1) {
+			text_cols = 1;
+		}
+		if (text_cols >= 3) {
+			text_start++;
+			text_cols -= 2;
+		}
 		int rel_col = mouse_col - text_start;
 		if (rel_col < 0) {
 			rel_col = 0;
