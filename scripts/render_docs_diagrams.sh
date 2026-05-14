@@ -38,5 +38,5 @@ fi
 
 for svg in "$out_dir"/*.svg; do
 	[ -e "$svg" ] || continue
-	perl -0pi -e 's/\r\n/\n/g; s/<!--MD5=.*?-->//gs; s!(<defs/>|</defs>)!$1<rect width="100%" height="100%" fill="#FFFFFF"/>!s' "$svg"
+	perl -0pi -e 's/\r\n/\n/g; s/<!--MD5=.*?-->//gs; s/<\?plantuml.*?\?>//gs; s!(<defs/>|</defs>)!$1<rect width="100%" height="100%" fill="#FFFFFF"/>!s' "$svg"
 done

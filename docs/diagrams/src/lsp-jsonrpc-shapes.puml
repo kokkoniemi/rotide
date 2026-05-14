@@ -1,80 +1,98 @@
-@startuml
-skinparam backgroundColor #FFFFFF
-skinparam NoteFontName Monospaced
-title LSP JSON-RPC payload shapes
-
-left to right direction
-
-rectangle "textDocument/didOpen" as didOpen
-rectangle "textDocument/didChange" as didChange
-rectangle "publishDiagnostics" as diagnostics
-rectangle "definition response" as definition
-
-note bottom of didOpen
+@startjson
 {
-  "jsonrpc": "2.0",
-  "method": "textDocument/didOpen",
-  "params": {
-    "textDocument": {
-      "uri": "file:///path/to/file.c",
-      "languageId": "c",
-      "version": 1,
-      "text": "full document text"
+  "textDocument/didOpen": {
+    "jsonrpc": "2.0",
+    "method": "textDocument/didOpen",
+    "params": {
+      "textDocument": {
+        "uri": "file:///path/to/file.c",
+        "languageId": "c",
+        "version": 1,
+        "text": "full document text"
+      }
     }
-  }
-}
-end note
-
-note bottom of didChange
-{
-  "jsonrpc": "2.0",
-  "method": "textDocument/didChange",
-  "params": {
-    "textDocument": {
-      "uri": "file:///path/to/file.c",
-      "version": 2
-    },
-    "contentChanges": [{
-      "range": {
-        "start": {"line": 10, "character": 4},
-        "end": {"line": 10, "character": 7}
+  },
+  "textDocument/didChange range": {
+    "jsonrpc": "2.0",
+    "method": "textDocument/didChange",
+    "params": {
+      "textDocument": {
+        "uri": "file:///path/to/file.c",
+        "version": 2
       },
-      "text": "new text"
-    }]
-  }
-}
-end note
-
-note bottom of diagnostics
-{
-  "jsonrpc": "2.0",
-  "method": "textDocument/publishDiagnostics",
-  "params": {
-    "uri": "file:///path/to/file.c",
-    "diagnostics": [{
-      "range": {
-        "start": {"line": 3, "character": 8},
-        "end": {"line": 3, "character": 13}
-      },
-      "severity": 1,
-      "message": "diagnostic text"
-    }]
-  }
-}
-end note
-
-note bottom of definition
-{
-  "jsonrpc": "2.0",
-  "id": 42,
-  "result": [{
-    "uri": "file:///path/to/target.c",
-    "range": {
-      "start": {"line": 20, "character": 1},
-      "end": {"line": 20, "character": 1}
+      "contentChanges": [
+        {
+          "range": {
+            "start": {
+              "line": 10,
+              "character": 4
+            },
+            "end": {
+              "line": 10,
+              "character": 7
+            }
+          },
+          "text": "new text"
+        }
+      ]
     }
-  }]
+  },
+  "textDocument/didChange full document": {
+    "jsonrpc": "2.0",
+    "method": "textDocument/didChange",
+    "params": {
+      "textDocument": {
+        "uri": "file:///path/to/file.c",
+        "version": 3
+      },
+      "contentChanges": [
+        {
+          "text": "full document text"
+        }
+      ]
+    }
+  },
+  "textDocument/publishDiagnostics": {
+    "jsonrpc": "2.0",
+    "method": "textDocument/publishDiagnostics",
+    "params": {
+      "uri": "file:///path/to/file.c",
+      "diagnostics": [
+        {
+          "range": {
+            "start": {
+              "line": 3,
+              "character": 8
+            },
+            "end": {
+              "line": 3,
+              "character": 13
+            }
+          },
+          "severity": 1,
+          "message": "diagnostic text"
+        }
+      ]
+    }
+  },
+  "textDocument/definition response": {
+    "jsonrpc": "2.0",
+    "id": 42,
+    "result": [
+      {
+        "uri": "file:///path/to/target.c",
+        "range": {
+          "start": {
+            "line": 20,
+            "character": 1
+          },
+          "end": {
+            "line": 20,
+            "character": 1
+          }
+        }
+      }
+    ]
+  }
 }
-end note
-
-@enduml
+@endjson
