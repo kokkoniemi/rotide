@@ -188,9 +188,9 @@ The main-loop input poll drains terminal panes via
 bytes were consumed, which keeps the screen responsive to long-running
 child output without blocking on stdin. SIGWINCH propagates through
 `editorTerminalPaneResizeAllToLayout`, which mirrors the renderer's
-split-rect math and `TIOCSWINSZ`-resizes each pane. Exited panes show
-a reverse-video `[exited: status N]` banner across the last row until
-the user closes them.
+split-rect math and `TIOCSWINSZ`-resizes each pane. Exited terminal panes
+are closed from the event/draw path, with focus restored to a surviving
+sibling when the focused pane disappears.
 
 Mouse passthrough (`editorTerminalPaneSendMouseButton/Move`) only fires
 when the child has enabled DECSET 1000/1002/1003 via the `settermprop`
@@ -202,13 +202,13 @@ child enabled DECSET 2004.
 ![DAP launch and lifecycle](../diagrams/svg/dap-flow.svg)
 
 A `dap_start` action calls `editorDapStartLaunch`. The launch flow
-takes a local copy of the launch config so render-time mutations stay
+takes a local copy of the launch config so launch-time mutations stay
 out of `E.dap_launches`, then runs `editorDapPrepareTerminalConsole`:
 if `console = "terminal"`, the focused pane is split horizontally, a
-placeholder shell (`sleep infinity`) is spawned to keep the slave tty
-open, `ptsname(master_fd)` resolves the path, and `tty` is injected
-into the outgoing launch JSON. The `console` field itself is always
-stripped — it is a rotide hint, not a DAP standard.
+placeholder shell (`sleep infinity`) is spawned only to allocate the PTY,
+`ptsname(master_fd)` resolves the slave path, the placeholder is stopped,
+and `tty` is injected into the outgoing launch JSON. The `console` field
+itself is always stripped — it is a rotide hint, not a DAP standard.
 
 The adapter (gdb-dap, lldb-dap, dlv dap, …) is spawned over stdio. The
 session runs through `editorDapPumpNotifications` from

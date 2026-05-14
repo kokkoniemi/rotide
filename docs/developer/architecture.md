@@ -1,7 +1,7 @@
 # Architecture
 
-RotIDE keeps one main editor process and state model, with helper threads and
-child processes for Tree-sitter background parsing, LSP servers, task logs,
+RotIDE keeps one main editor process and state model, with helper threads for
+Tree-sitter background parsing and child processes for LSP servers, task logs,
 project search, terminal panes (PTY + libvterm), and DAP adapters. The main
 design rule is that text has one writable owner: `editorDocument`. Rows,
 syntax captures, rendered columns, diagnostics, search matches, and viewports
@@ -178,9 +178,10 @@ The main-loop input poll (`editorReadKey`) calls
 `editorTerminalPanePumpAll` on each VTIME tick (~100 ms). It drains every
 master fd into vterm via `vterm_input_write`, marks `exited` when the
 child has been reaped, and returns `TERMINAL_EVENT` if any bytes were
-consumed so the next refresh repaints. SIGWINCH propagates through
-`editorTerminalPaneResizeAllToLayout` which mirrors the renderer's split
-math and `TIOCSWINSZ`-resizes each pane.
+consumed so the next refresh repaints. Exited terminal panes are closed
+from the event/draw path, with focus restored to the surviving sibling when
+needed. SIGWINCH propagates through `editorTerminalPaneResizeAllToLayout`
+which mirrors the renderer's split math and `TIOCSWINSZ`-resizes each pane.
 
 ![Terminal pane lifecycle](../diagrams/svg/terminal-pane-flow.svg)
 
@@ -200,15 +201,17 @@ rotide-specific `console` field on a local copy of the launch config. If
 the value is `"terminal"`, it opens a terminal pane via
 `editorTerminalPaneOpenSplit("sleep infinity", ...)`, resolves the slave
 tty with `ptsname(master_fd)`, and writes it into the launch JSON's `tty`
-field (which gdb-dap and lldb-dap honor for the inferior's I/O). The leaf
-is tracked in `E.dap_terminal_leaf`; on session teardown
+field (which gdb-dap and lldb-dap honor for the inferior's I/O). The
+placeholder child is stopped after the tty is resolved; the pane keeps the
+PTY host for the inferior. The leaf is tracked in `E.dap_terminal_leaf`; on
+session teardown
 (`editorDapShutdown` or a `terminated`/`exited` event) the owned pane is
 closed automatically. `console` is always stripped from the outgoing JSON
 because it is a rotide layout hint, not a DAP standard field.
 
 ![DAP launch and lifecycle](../diagrams/svg/dap-flow.svg)
 
-The Built-in `c_app`/`cpp_app` defaults ship with `console = "terminal"`,
+The built-in `c_app`/`cpp_app` defaults ship with `console = "terminal"`,
 so debugging C/C++ targets gives the inferior a clean rotide-hosted
 terminal pane out of the box.
 

@@ -13,7 +13,7 @@ System_Boundary(rotide, "RotIDE") {
 	Container(render, "Renderer", "C", "Tab bar, drawer, multi-pane painter, borders, overlays, libvterm cell painter")
 	Container(workspace, "Workspace and layout", "C", "Tabs, drawer, pane tree (splits/focus), task logs, recovery, file search, workspace persistence")
 	Container(language, "Language services", "C", "Tree-sitter syntax, LSP, autocomplete")
-	Container(terminal, "Terminal panes", "C + libvterm", "PTY transport, vterm parser, scrollback, mouse/paste forwarding")
+	Container(terminal, "Terminal panes", "C + libvterm", "PTY transport, vterm parser, mouse/paste forwarding")
 	Container(dap, "DAP", "C", "Adapter spawn, launch with optional terminal console, breakpoints, lifecycle")
 	Container(config, "Config", "TOML", "Editor, theme, keymap, LSP, and DAP settings")
 }

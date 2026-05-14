@@ -15,8 +15,10 @@ if (BRACKETED_PASTE_START/END?) then (yes)
 	stop
 endif
 if (TERMINAL_EVENT?) then (yes)
-	:no-op; next frame redraws
-	with fresh pumped vterm state;
+	:close exited terminal panes
+	if any, restore focus if needed;
+	:next frame redraws fresh
+	pumped vterm state;
 	stop
 endif
 if (prompt active?) then (yes)
