@@ -72,10 +72,34 @@ eslint_command = "~/.local/bin/vscode-eslint-language-server --stdio"
 # Adapter commands are global-only. Project launch configs live in ./.rotide.toml
 # under [dap.launch.<id>]. The DAP drawer can copy one of these defaults into the
 # project config for review.
+# Each key is a free-form id referenced from [dap.launch.<id>].adapter; the
+# value is the command (and arguments) used to start a DAP server on stdio.
+# Commented alternatives below are common installs — uncomment the one that
+# matches your toolchain, or add your own.
 [dap.adapters]
 go = "dlv dap"
-# cpp = "/path/to/OpenDebugAD7"
+c = "gdb -i dap"
+# c = "lldb-dap"
+cpp = "gdb -i dap"
+# cpp = "lldb-dap"
+# rust = "lldb-dap"
+# rust = "gdb -i dap"
+# python = "python -m debugpy.adapter"
+# javascript = "node ~/.local/lib/node_modules/js-debug/src/dapDebugServer.js"
+# typescript = "node ~/.local/lib/node_modules/js-debug/src/dapDebugServer.js"
+# ruby = "rdbg --open"
+# php = "node ~/.local/lib/node_modules/php-debug/out/phpDebug.js"
+# java = "java -jar /path/to/com.microsoft.java.debug.plugin.jar"
+# csharp = "netcoredbg --interpreter=vscode"
+# haskell = "haskell-debug-adapter"
+# ocaml = "ocamlearlybird"
 
+# Each [dap.defaults.<id>] is a launch template the DAP drawer can copy into
+# the project config. Its `adapter` must reference a key in [dap.adapters];
+# loading the global config fails if that id is missing. Uncomment a default
+# only after the matching adapter line above is uncommented. Available
+# substitutions in string values: ${workspaceFolder}, ${file},
+# ${fileDirname}, ${fileBasename}.
 [dap.defaults.go_app]
 name = "Go app"
 adapter = "go"
@@ -85,6 +109,116 @@ cwd = "${workspaceFolder}"
 args = []
 stopOnEntry = false
 mode = "debug"
+
+# C/C++ defaults assume a pre-built executable. Adjust `program` to your
+# binary. The same launch fields work for gdb-dap and lldb-dap.
+[dap.defaults.c_app]
+name = "C app"
+adapter = "c"
+request = "launch"
+program = "${workspaceFolder}/a.out"
+cwd = "${workspaceFolder}"
+args = []
+stopOnEntry = false
+
+[dap.defaults.cpp_app]
+name = "C++ app"
+adapter = "cpp"
+request = "launch"
+program = "${workspaceFolder}/a.out"
+cwd = "${workspaceFolder}"
+args = []
+stopOnEntry = false
+
+# [dap.defaults.rust_app]
+# name = "Rust app"
+# adapter = "rust"
+# request = "launch"
+# program = "${workspaceFolder}/target/debug/app"
+# cwd = "${workspaceFolder}"
+# args = []
+# stopOnEntry = false
+
+# [dap.defaults.python_app]
+# name = "Python app"
+# adapter = "python"
+# request = "launch"
+# program = "${file}"
+# cwd = "${workspaceFolder}"
+# args = []
+# stopOnEntry = false
+
+# [dap.defaults.javascript_app]
+# name = "Node app"
+# adapter = "javascript"
+# request = "launch"
+# program = "${file}"
+# cwd = "${workspaceFolder}"
+# args = []
+# stopOnEntry = false
+
+# [dap.defaults.typescript_app]
+# name = "TypeScript app"
+# adapter = "typescript"
+# request = "launch"
+# program = "${file}"
+# cwd = "${workspaceFolder}"
+# args = []
+# stopOnEntry = false
+
+# [dap.defaults.ruby_app]
+# name = "Ruby app"
+# adapter = "ruby"
+# request = "launch"
+# program = "${file}"
+# cwd = "${workspaceFolder}"
+# args = []
+# stopOnEntry = false
+
+# [dap.defaults.php_app]
+# name = "PHP app"
+# adapter = "php"
+# request = "launch"
+# program = "${file}"
+# cwd = "${workspaceFolder}"
+# args = []
+# stopOnEntry = false
+
+# [dap.defaults.java_app]
+# name = "Java app"
+# adapter = "java"
+# request = "launch"
+# mainClass = "com.example.Main"
+# cwd = "${workspaceFolder}"
+# args = []
+# stopOnEntry = false
+
+# [dap.defaults.csharp_app]
+# name = ".NET app"
+# adapter = "csharp"
+# request = "launch"
+# program = "${workspaceFolder}/bin/Debug/net8.0/app.dll"
+# cwd = "${workspaceFolder}"
+# args = []
+# stopOnEntry = false
+
+# [dap.defaults.haskell_app]
+# name = "Haskell app"
+# adapter = "haskell"
+# request = "launch"
+# program = "${workspaceFolder}/dist-newstyle/build/app"
+# cwd = "${workspaceFolder}"
+# args = []
+# stopOnEntry = false
+
+# [dap.defaults.ocaml_app]
+# name = "OCaml app"
+# adapter = "ocaml"
+# request = "launch"
+# program = "${workspaceFolder}/_build/default/bin/main.exe"
+# cwd = "${workspaceFolder}"
+# args = []
+# stopOnEntry = false
 
 # --- [keymap] -----------------------------------------------------------------
 # Key spec format:

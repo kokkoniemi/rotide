@@ -3817,6 +3817,16 @@ static int test_editor_config_default_global_loads_cleanly(void) {
 		goto cleanup;
 	}
 
+	if (editorDapConfigLoadFromPaths(config_path, NULL) !=
+			EDITOR_DAP_CONFIG_LOAD_OK) {
+		goto cleanup;
+	}
+	if (editorDapAdapterById("go") == NULL ||
+			editorDapAdapterById("c") == NULL ||
+			editorDapAdapterById("cpp") == NULL) {
+		goto cleanup;
+	}
+
 	failed = 0;
 
 cleanup:
