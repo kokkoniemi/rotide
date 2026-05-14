@@ -1,0 +1,8 @@
+[dap.launch.c_app]
+name = "Debug RotIDE"
+adapter = "c"
+request = "launch"
+program = "${workspaceFolder}/rotide"
+cwd = "${workspaceFolder}"
+args = ["${workspaceFolder}/src/rotide.c"]
+stopOnEntry = false
