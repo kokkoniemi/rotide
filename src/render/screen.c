@@ -4655,6 +4655,18 @@ static const char *editorCursorStyleSequence(enum editorCursorStyle style, int b
 	return sequence;
 }
 
+static enum editorCursorStyle editorCursorStyleFromVtermShape(int vterm_shape) {
+	switch (vterm_shape) {
+	case VTERM_PROP_CURSORSHAPE_UNDERLINE:
+		return EDITOR_CURSOR_STYLE_UNDERLINE;
+	case VTERM_PROP_CURSORSHAPE_BAR_LEFT:
+		return EDITOR_CURSOR_STYLE_BAR;
+	case VTERM_PROP_CURSORSHAPE_BLOCK:
+	default:
+		return EDITOR_CURSOR_STYLE_BLOCK;
+	}
+}
+
 static const struct editorLspDiagnostic *editorDiagnosticAtCursor(void) {
 	if (E.pane_focus != EDITOR_PANE_TEXT || E.cy < 0 || E.cy >= E.numrows ||
 			E.lsp_diagnostics == NULL || E.lsp_diagnostic_count <= 0) {
@@ -4899,9 +4911,24 @@ void editorRefreshScreen(void) {
 	g_editor_output_last_refresh_file_row_draw_count = 0;
 
 	struct writeBuf wb = WRITEBUF_INIT;
+	struct editorTerminalPane *focused_terminal = NULL;
+	if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
+			E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
+			E.focused_leaf->as.leaf.kind_state != NULL) {
+		focused_terminal =
+				(struct editorTerminalPane *)E.focused_leaf->as.leaf.kind_state;
+	}
+	enum editorCursorStyle frame_cursor_style = E.cursor_style;
+	int frame_cursor_blink = E.cursor_blink_enabled;
+	if (focused_terminal != NULL) {
+		frame_cursor_style =
+				editorCursorStyleFromVtermShape(focused_terminal->cursor_shape);
+		frame_cursor_blink = focused_terminal->cursor_blink != 0;
+	}
 	size_t cursor_style_len = 0;
 	const char *cursor_style_sequence =
-			editorCursorStyleSequence(E.cursor_style, E.cursor_blink_enabled, &cursor_style_len);
+			editorCursorStyleSequence(frame_cursor_style, frame_cursor_blink,
+					&cursor_style_len);
 
 	// Build a full frame in memory and write once to reduce terminal flicker.
 	if (!wbAppend(&wb, VT100_HIDE_CURSOR_6, 6) ||
@@ -4939,14 +4966,19 @@ void editorRefreshScreen(void) {
 	int cursor_pane_y = has_focus_rect ? cursor_focused_rect.y : 1;
 	int cursor_pane_text_start_col;
 	if (has_focus_rect) {
-		int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);
-		if (gutter_cols > cursor_focused_rect.w) {
-			gutter_cols = cursor_focused_rect.w;
-		}
-		int text_body_cols = cursor_focused_rect.w - gutter_cols;
-		cursor_pane_text_start_col = cursor_focused_rect.x + gutter_cols;
-		if (text_body_cols >= 3) {
-			cursor_pane_text_start_col += 1;
+		if (focused_terminal != NULL) {
+			/* Terminal panes render from the pane origin; no editor gutter. */
+			cursor_pane_text_start_col = cursor_focused_rect.x;
+		} else {
+			int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);
+			if (gutter_cols > cursor_focused_rect.w) {
+				gutter_cols = cursor_focused_rect.w;
+			}
+			int text_body_cols = cursor_focused_rect.w - gutter_cols;
+			cursor_pane_text_start_col = cursor_focused_rect.x + gutter_cols;
+			if (text_body_cols >= 3) {
+				cursor_pane_text_start_col += 1;
+			}
 		}
 	} else {
 		cursor_pane_text_start_col = editorTextBodyStartColForCols(E.window_cols);
@@ -4955,20 +4987,17 @@ void editorRefreshScreen(void) {
 	int cursor_row = cursor_pane_y + (E.cy - E.rowoff) + 1;
 	int cursor_col = cursor_pane_text_start_col + (E.rx - E.coloff) + 1;
 	int cursor_visible = 1;
-	if (has_focus_rect && E.focused_leaf != NULL &&
-			!E.focused_leaf->is_split &&
-			E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
-			E.focused_leaf->as.leaf.kind_state != NULL) {
-		struct editorTerminalPane *terminal =
-				(struct editorTerminalPane *)E.focused_leaf->as.leaf.kind_state;
+	if (has_focus_rect && focused_terminal != NULL) {
 		VTermPos cursor_pos = {0};
-		if (terminal->vt != NULL) {
-			vterm_state_get_cursorpos(vterm_obtain_state(terminal->vt), &cursor_pos);
+		if (focused_terminal->vt != NULL) {
+			vterm_state_get_cursorpos(vterm_obtain_state(focused_terminal->vt),
+					&cursor_pos);
 		}
 		cursor_row = cursor_focused_rect.y + cursor_pos.row + 1;
 		cursor_col = cursor_focused_rect.x + cursor_pos.col + 1;
+		cursor_visible = focused_terminal->cursor_visible != 0;
 	}
-	if (E.line_wrap_enabled) {
+	if (focused_terminal == NULL && E.line_wrap_enabled) {
 		int body_cols = editorWrapBodyCols();
 		int cursor_segment = E.cy < E.numrows ?
 				editorWrapCursorSegmentForRx(&E.rows[E.cy], E.rx, body_cols) : 0;
@@ -5009,35 +5038,60 @@ void editorRefreshScreen(void) {
 			cursor_visible = 0;
 		}
 	} else {
-		int text_row_min = has_focus_rect ? cursor_focused_rect.y + 1 : 2;
-		int text_row_max = has_focus_rect ?
-				cursor_focused_rect.y + cursor_focused_rect.h :
-				E.window_rows + 1;
-		if (text_row_max < text_row_min) {
-			text_row_max = text_row_min;
-		}
-
-		int text_col_min = cursor_pane_text_start_col + 1;
-		int text_col_max = text_col_min + editorFocusedPaneTextBodyViewportCols() - 1;
-		if (text_col_max < text_col_min) {
-			text_col_max = text_col_min;
-		}
-		if (E.viewport_mode == EDITOR_VIEWPORT_FREE_SCROLL &&
-				(cursor_row < text_row_min || cursor_row > text_row_max || cursor_col < text_col_min ||
-						cursor_col > text_col_max)) {
-			cursor_visible = 0;
+		if (focused_terminal != NULL && has_focus_rect) {
+			int pane_row_min = cursor_focused_rect.y + 1;
+			int pane_row_max = cursor_focused_rect.y + cursor_focused_rect.h;
+			int pane_col_min = cursor_focused_rect.x + 1;
+			int pane_col_max = cursor_focused_rect.x + cursor_focused_rect.w;
+			if (pane_row_max < pane_row_min) {
+				pane_row_max = pane_row_min;
+			}
+			if (pane_col_max < pane_col_min) {
+				pane_col_max = pane_col_min;
+			}
+			if (cursor_row < pane_row_min) {
+				cursor_row = pane_row_min;
+			}
+			if (cursor_row > pane_row_max) {
+				cursor_row = pane_row_max;
+			}
+			if (cursor_col < pane_col_min) {
+				cursor_col = pane_col_min;
+			}
+			if (cursor_col > pane_col_max) {
+				cursor_col = pane_col_max;
+			}
 		} else {
-			if (cursor_row < text_row_min) {
-				cursor_row = text_row_min;
+			int text_row_min = has_focus_rect ? cursor_focused_rect.y + 1 : 2;
+			int text_row_max = has_focus_rect ?
+					cursor_focused_rect.y + cursor_focused_rect.h :
+					E.window_rows + 1;
+			if (text_row_max < text_row_min) {
+				text_row_max = text_row_min;
 			}
-			if (cursor_row > text_row_max) {
-				cursor_row = text_row_max;
+
+			int text_col_min = cursor_pane_text_start_col + 1;
+			int text_col_max = text_col_min + editorFocusedPaneTextBodyViewportCols() - 1;
+			if (text_col_max < text_col_min) {
+				text_col_max = text_col_min;
 			}
-			if (cursor_col < text_col_min) {
-				cursor_col = text_col_min;
-			}
-			if (cursor_col > text_col_max) {
-				cursor_col = text_col_max;
+			if (E.viewport_mode == EDITOR_VIEWPORT_FREE_SCROLL &&
+					(cursor_row < text_row_min || cursor_row > text_row_max ||
+							cursor_col < text_col_min || cursor_col > text_col_max)) {
+				cursor_visible = 0;
+			} else {
+				if (cursor_row < text_row_min) {
+					cursor_row = text_row_min;
+				}
+				if (cursor_row > text_row_max) {
+					cursor_row = text_row_max;
+				}
+				if (cursor_col < text_col_min) {
+					cursor_col = text_col_min;
+				}
+				if (cursor_col > text_col_max) {
+					cursor_col = text_col_max;
+				}
 			}
 		}
 	}

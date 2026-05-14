@@ -35,6 +35,15 @@ static int editorTerminalSetTermProp(VTermProp prop, VTermValue *val, void *user
 		return 0;
 	}
 	switch (prop) {
+	case VTERM_PROP_CURSORVISIBLE:
+		t->cursor_visible = val->boolean ? 1 : 0;
+		return 1;
+	case VTERM_PROP_CURSORBLINK:
+		t->cursor_blink = val->boolean ? 1 : 0;
+		return 1;
+	case VTERM_PROP_CURSORSHAPE:
+		t->cursor_shape = val->number;
+		return 1;
 	case VTERM_PROP_MOUSE:
 		t->mouse_tracking = val->number;
 		return 1;
@@ -65,6 +74,9 @@ struct editorTerminalPane *editorTerminalPaneCreate(const char *command,
 	editorPtyChildInit(&t->child);
 	t->cols = cols;
 	t->rows = rows;
+	t->cursor_visible = 1;
+	t->cursor_blink = 1;
+	t->cursor_shape = VTERM_PROP_CURSORSHAPE_BLOCK;
 
 	t->vt = vterm_new(rows, cols);
 	if (t->vt == NULL) {

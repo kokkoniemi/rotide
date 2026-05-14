@@ -266,6 +266,28 @@ static int test_terminal_pane_mouse_tracking_enabled_via_decset(void) {
 	return sent != 1 || sent_off != 0;
 }
 
+static int test_terminal_pane_cursor_props_follow_decset_sequences(void) {
+	struct editorTerminalPane *t = editorTerminalPaneCreate("sleep 5", 40, 8);
+	if (t == NULL) {
+		return 1;
+	}
+	/* DECTCEM off + DECSCUSR steady bar. */
+	const char *hide_and_bar = "\x1b[?25l\x1b[6 q";
+	vterm_input_write(t->vt, hide_and_bar, strlen(hide_and_bar));
+	if (t->cursor_visible != 0 || t->cursor_blink != 0 ||
+			t->cursor_shape != VTERM_PROP_CURSORSHAPE_BAR_LEFT) {
+		editorTerminalPaneFree(t);
+		return 1;
+	}
+	/* DECTCEM on + DECSCUSR blinking block. */
+	const char *show_and_block = "\x1b[?25h\x1b[1 q";
+	vterm_input_write(t->vt, show_and_block, strlen(show_and_block));
+	int failed = t->cursor_visible != 1 || t->cursor_blink != 1 ||
+			t->cursor_shape != VTERM_PROP_CURSORSHAPE_BLOCK;
+	editorTerminalPaneFree(t);
+	return failed;
+}
+
 static int test_terminal_pane_write_forwards_to_child(void) {
 	/* `cat` echoes typed bytes back through the PTY. Write "hi\n", read
 	 * via pump, expect the bytes to land in the vterm screen. */
@@ -310,6 +332,8 @@ const struct editorTestCase g_terminal_pane_tests[] = {
 			test_terminal_pane_mouse_tracking_disabled_by_default},
 	{"terminal_pane_mouse_tracking_enabled_via_decset",
 			test_terminal_pane_mouse_tracking_enabled_via_decset},
+	{"terminal_pane_cursor_props_follow_decset_sequences",
+			test_terminal_pane_cursor_props_follow_decset_sequences},
 	{"terminal_pane_write_forwards_to_child",
 			test_terminal_pane_write_forwards_to_child},
 };

@@ -2549,6 +2549,38 @@ static int test_editor_refresh_screen_hides_cursor_when_drawer_focused(void) {
 	return 0;
 }
 
+static int test_editor_refresh_screen_terminal_cursor_uses_pane_origin(void) {
+	E.window_rows = 6;
+	E.window_cols = 40;
+	E.line_numbers_enabled = 1;
+	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;
+	E.cursor_blink_enabled = 1;
+
+	int viewport_cols = editorDrawerTextViewportCols(E.window_cols);
+	struct editorPaneNode *terminal_leaf =
+			editorPaneNodeNewTerminalLeaf("sleep 2", viewport_cols, E.window_rows);
+	if (terminal_leaf == NULL) {
+		return 1;
+	}
+	editorPaneNodeFree(E.layout_root);
+	E.layout_root = terminal_leaf;
+	E.focused_leaf = terminal_leaf;
+	E.pane_focus = EDITOR_PANE_TEXT;
+
+	struct editorRect rect = {0};
+	ASSERT_TRUE(editorLayoutFocusedLeafRect(&rect));
+	char expected_cursor[32];
+	ASSERT_TRUE(snprintf(expected_cursor, sizeof(expected_cursor), "\x1b[%d;%dH",
+				rect.y + 1, rect.x + 1) > 0);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, expected_cursor) != NULL);
+	free(output);
+	return 0;
+}
+
 static int test_editor_refresh_screen_file_search_header_shows_cursor(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -2971,6 +3003,40 @@ static int test_editor_refresh_screen_uses_configured_cursor_style(void) {
 	ASSERT_TRUE(strstr(output, "\x1b[4 q") != NULL);
 	free(output);
 
+	return 0;
+}
+
+static int test_editor_refresh_screen_terminal_uses_terminal_cursor_style(void) {
+	E.window_rows = 8;
+	E.window_cols = 60;
+	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;
+	E.cursor_blink_enabled = 1;
+
+	int viewport_cols = editorDrawerTextViewportCols(E.window_cols);
+	struct editorPaneNode *terminal_leaf = editorPaneNodeNewTerminalLeaf(
+			"sleep 2", viewport_cols, E.window_rows);
+	if (terminal_leaf == NULL) {
+		return 1;
+	}
+	editorPaneNodeFree(E.layout_root);
+	E.layout_root = terminal_leaf;
+	E.focused_leaf = terminal_leaf;
+
+	struct editorTerminalPane *t =
+			(struct editorTerminalPane *)terminal_leaf->as.leaf.kind_state;
+	if (t == NULL || t->vt == NULL) {
+		return 1;
+	}
+	/* Ask the terminal state machine for a steady block cursor and ensure
+	 * screen refresh honors that instead of editor cursor settings. */
+	vterm_input_write(t->vt, "\x1b[2 q", 5);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[2 q") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[5 q") == NULL);
+	free(output);
 	return 0;
 }
 
@@ -4133,6 +4199,7 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_contains_expected_sequences", test_editor_refresh_screen_contains_expected_sequences},
 	{"editor_refresh_screen_file_row_frame_diff_updates_only_changed_rows", test_editor_refresh_screen_file_row_frame_diff_updates_only_changed_rows},
 	{"editor_refresh_screen_uses_configured_cursor_style", test_editor_refresh_screen_uses_configured_cursor_style},
+	{"editor_refresh_screen_terminal_uses_terminal_cursor_style", test_editor_refresh_screen_terminal_uses_terminal_cursor_style},
 	{"editor_refresh_screen_highlights_active_search_match", test_editor_refresh_screen_highlights_active_search_match},
 	{"editor_refresh_screen_applies_syntax_highlighting_for_c_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_c_tokens},
 	{"editor_refresh_screen_applies_a11y_dark_truecolor_theme", test_editor_refresh_screen_applies_a11y_dark_truecolor_theme},
@@ -4215,6 +4282,8 @@ const struct editorTestCase g_render_terminal_tests[] = {
 	{"editor_refresh_screen_drawer_splitter_spans_editor_rows", test_editor_refresh_screen_drawer_splitter_spans_editor_rows},
 	{"editor_refresh_screen_cursor_column_offsets_for_drawer", test_editor_refresh_screen_cursor_column_offsets_for_drawer},
 	{"editor_refresh_screen_hides_cursor_when_drawer_focused", test_editor_refresh_screen_hides_cursor_when_drawer_focused},
+	{"editor_refresh_screen_terminal_cursor_uses_pane_origin",
+			test_editor_refresh_screen_terminal_cursor_uses_pane_origin},
 	{"editor_refresh_screen_file_search_header_shows_cursor", test_editor_refresh_screen_file_search_header_shows_cursor},
 	{"editor_refresh_screen_project_search_header_shows_cursor", test_editor_refresh_screen_project_search_header_shows_cursor},
 	{"editor_refresh_screen_hides_cursor_when_offscreen_in_free_scroll", test_editor_refresh_screen_hides_cursor_when_offscreen_in_free_scroll},

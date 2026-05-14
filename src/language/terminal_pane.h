@@ -28,6 +28,9 @@ struct editorTerminalPane {
 	int rows;
 	int exited;
 	int exit_status;
+	int cursor_visible;
+	int cursor_blink;
+	int cursor_shape;
 	/*
 	 * VTERM_PROP_MOUSE_* (NONE/CLICK/DRAG/MOVE). Updated by the
 	 * `settermprop` callback whenever the child writes DECSET 1000/1002/
