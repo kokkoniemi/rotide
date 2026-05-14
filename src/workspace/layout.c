@@ -787,3 +787,152 @@ void editorPaneAnnounceFocus(void) {
 	}
 	editorSetStatusMsg("Pane %d/%d", index + 1, count);
 }
+
+#include <stdio.h>
+
+static size_t editorLayoutSerializeRecursive(const struct editorPaneNode *node,
+		char *out, size_t out_size, size_t pos) {
+	if (node == NULL || pos >= out_size) {
+		return 0;
+	}
+	if (!node->is_split) {
+		int n = snprintf(out + pos, out_size - pos, "leaf");
+		if (n < 0 || (size_t)n >= out_size - pos) {
+			return 0;
+		}
+		return pos + (size_t)n;
+	}
+	char kind = node->as.split.orientation == EDITOR_SPLIT_VERTICAL ? 'v' : 'h';
+	int n = snprintf(out + pos, out_size - pos, "(%c %.4f ", kind,
+			node->as.split.ratio);
+	if (n < 0 || (size_t)n >= out_size - pos) {
+		return 0;
+	}
+	pos += (size_t)n;
+	pos = editorLayoutSerializeRecursive(node->as.split.first, out, out_size, pos);
+	if (pos == 0 || pos >= out_size) {
+		return 0;
+	}
+	if (pos + 1 >= out_size) {
+		return 0;
+	}
+	out[pos++] = ' ';
+	pos = editorLayoutSerializeRecursive(node->as.split.second, out, out_size, pos);
+	if (pos == 0 || pos + 1 >= out_size) {
+		return 0;
+	}
+	out[pos++] = ')';
+	if (pos < out_size) {
+		out[pos] = '\0';
+	}
+	return pos;
+}
+
+size_t editorLayoutSerialize(const struct editorPaneNode *root, char *out,
+		size_t out_size) {
+	if (out == NULL || out_size == 0) {
+		return 0;
+	}
+	out[0] = '\0';
+	size_t pos = editorLayoutSerializeRecursive(root, out, out_size, 0);
+	if (pos >= out_size) {
+		return 0;
+	}
+	out[pos] = '\0';
+	return pos;
+}
+
+static const char *editorLayoutSkipWhitespace(const char *s) {
+	while (*s == ' ' || *s == '\t') {
+		s++;
+	}
+	return s;
+}
+
+static struct editorPaneNode *editorLayoutParse(const char **cursor) {
+	const char *s = editorLayoutSkipWhitespace(*cursor);
+	if (*s == '\0') {
+		return NULL;
+	}
+	if (s[0] == 'l' && s[1] == 'e' && s[2] == 'a' && s[3] == 'f') {
+		*cursor = s + 4;
+		return editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	}
+	if (*s != '(') {
+		return NULL;
+	}
+	s++;
+	char kind = *s;
+	if (kind != 'v' && kind != 'h') {
+		return NULL;
+	}
+	s++;
+	if (*s != ' ') {
+		return NULL;
+	}
+	s++;
+	char *endptr = NULL;
+	double ratio = strtod(s, &endptr);
+	if (endptr == s) {
+		return NULL;
+	}
+	s = endptr;
+	s = editorLayoutSkipWhitespace(s);
+	*cursor = s;
+	struct editorPaneNode *first = editorLayoutParse(cursor);
+	if (first == NULL) {
+		return NULL;
+	}
+	s = editorLayoutSkipWhitespace(*cursor);
+	*cursor = s;
+	struct editorPaneNode *second = editorLayoutParse(cursor);
+	if (second == NULL) {
+		editorPaneNodeFree(first);
+		return NULL;
+	}
+	s = editorLayoutSkipWhitespace(*cursor);
+	if (*s != ')') {
+		editorPaneNodeFree(first);
+		editorPaneNodeFree(second);
+		return NULL;
+	}
+	*cursor = s + 1;
+
+	struct editorPaneNode *split = malloc(sizeof(*split));
+	if (split == NULL) {
+		editorPaneNodeFree(first);
+		editorPaneNodeFree(second);
+		return NULL;
+	}
+	memset(split, 0, sizeof(*split));
+	split->is_split = 1;
+	split->as.split.orientation = kind == 'v' ? EDITOR_SPLIT_VERTICAL :
+			EDITOR_SPLIT_HORIZONTAL;
+	split->as.split.ratio = ratio;
+	if (split->as.split.ratio < 0.0) {
+		split->as.split.ratio = 0.0;
+	}
+	if (split->as.split.ratio > 1.0) {
+		split->as.split.ratio = 1.0;
+	}
+	split->as.split.first = first;
+	split->as.split.second = second;
+	return split;
+}
+
+struct editorPaneNode *editorLayoutDeserialize(const char *s) {
+	if (s == NULL) {
+		return NULL;
+	}
+	const char *cursor = s;
+	struct editorPaneNode *root = editorLayoutParse(&cursor);
+	if (root == NULL) {
+		return NULL;
+	}
+	cursor = editorLayoutSkipWhitespace(cursor);
+	if (*cursor != '\0') {
+		editorPaneNodeFree(root);
+		return NULL;
+	}
+	return root;
+}

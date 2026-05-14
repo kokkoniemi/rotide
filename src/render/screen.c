@@ -3334,6 +3334,50 @@ static enum editorBorderCellKind editorBorderCellAt(int x, int screen_y,
 	return EDITOR_BORDER_CELL_NONE;
 }
 
+struct editorViewSnapshot {
+	int cx;
+	int cy;
+	int rx;
+	int rowoff;
+	int coloff;
+	int wrapoff;
+	size_t cursor_offset;
+	enum editorViewportMode viewport_mode;
+};
+
+static void editorViewSnapshotCapture(struct editorViewSnapshot *snap) {
+	snap->cx = E.cx;
+	snap->cy = E.cy;
+	snap->rx = E.rx;
+	snap->rowoff = E.rowoff;
+	snap->coloff = E.coloff;
+	snap->wrapoff = E.wrapoff;
+	snap->cursor_offset = E.cursor_offset;
+	snap->viewport_mode = E.viewport_mode;
+}
+
+static void editorViewSnapshotRestore(const struct editorViewSnapshot *snap) {
+	E.cx = snap->cx;
+	E.cy = snap->cy;
+	E.rx = snap->rx;
+	E.rowoff = snap->rowoff;
+	E.coloff = snap->coloff;
+	E.wrapoff = snap->wrapoff;
+	E.cursor_offset = snap->cursor_offset;
+	E.viewport_mode = snap->viewport_mode;
+}
+
+static void editorViewSnapshotFromPaneView(const struct editorPaneView *view) {
+	E.cx = view->cx;
+	E.cy = view->cy;
+	E.rx = view->rx;
+	E.rowoff = view->rowoff;
+	E.coloff = view->coloff;
+	E.wrapoff = view->wrapoff;
+	E.cursor_offset = view->cursor_offset;
+	E.viewport_mode = (enum editorViewportMode)view->viewport_mode;
+}
+
 static int editorDrawFocusedPaneSlice(struct writeBuf *wb, int body_row_in_pane,
 		int slice_cols) {
 	int y_offset = body_row_in_pane + E.rowoff;
@@ -3695,6 +3739,23 @@ static int editorDrawMultiPaneRows(struct writeBuf *wb,
 				if (is_focused_slice) {
 					int body_row_in_pane = screen_y - focused_rect.y;
 					if (!editorDrawFocusedPaneSlice(wb, body_row_in_pane, slice_cols)) {
+						return 0;
+					}
+				} else if (leaf_node != NULL &&
+						leaf_node->as.leaf.view.active_tab_idx >= 0 &&
+						leaf_node->as.leaf.view.active_tab_idx == E.active_tab) {
+					/* Unfocused editor pane on the same active tab as the
+					 * focused pane: render its own cursor/scroll. Different
+					 * tabs would require a full editorTabSwitch per frame,
+					 * which is too expensive; those stay blank for now. */
+					int body_row_in_pane = screen_y - leaf_rect.y;
+					struct editorViewSnapshot snap;
+					editorViewSnapshotCapture(&snap);
+					editorViewSnapshotFromPaneView(&leaf_node->as.leaf.view);
+					int ok = editorDrawFocusedPaneSlice(wb, body_row_in_pane,
+							slice_cols);
+					editorViewSnapshotRestore(&snap);
+					if (!ok) {
 						return 0;
 					}
 				} else if (!editorDrawBlankCells(wb, slice_cols)) {

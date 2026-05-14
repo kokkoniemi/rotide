@@ -3751,15 +3751,16 @@ static int test_editor_refresh_screen_terminal_exit_overlay(void) {
 	return found ? 0 : 1;
 }
 
-static int test_editor_refresh_screen_unfocused_pane_omits_content(void) {
+static int test_editor_refresh_screen_unfocused_same_tab_pane_renders_content(void) {
 	add_row("unique-marker-row");
 	E.window_rows = 6;
 	E.window_cols = 60;
 	E.cy = 0;
 	E.cx = 0;
 
-	/* Split, then move focus back to the original pane. The new sibling
-	 * (right side) is now unfocused and must not render the buffer line. */
+	/* Same-tab unfocused panes mirror the document at their own cursor.
+	 * Both panes here share the active tab and the same view (split
+	 * copies it), so the marker should render in both halves. */
 	struct editorPaneNode *original = E.focused_leaf;
 	struct editorPaneNode *sibling =
 			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
@@ -3769,11 +3770,10 @@ static int test_editor_refresh_screen_unfocused_pane_omits_content(void) {
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	/* Content must appear exactly once: in the focused (left) pane. */
 	const char *first = strstr(output, "unique-marker-row");
 	ASSERT_TRUE(first != NULL);
 	const char *second = strstr(first + 1, "unique-marker-row");
-	ASSERT_TRUE(second == NULL);
+	ASSERT_TRUE(second != NULL);
 	free(output);
 	return 0;
 }
@@ -3910,8 +3910,8 @@ const struct editorTestCase g_render_terminal_tests[] = {
 			test_editor_refresh_screen_horizontal_split_renders_border},
 	{"editor_refresh_screen_nested_horizontal_border_uses_hbox",
 			test_editor_refresh_screen_nested_horizontal_border_uses_hbox},
-	{"editor_refresh_screen_unfocused_pane_omits_content",
-			test_editor_refresh_screen_unfocused_pane_omits_content},
+	{"editor_refresh_screen_unfocused_same_tab_pane_renders_content",
+			test_editor_refresh_screen_unfocused_same_tab_pane_renders_content},
 	{"editor_refresh_screen_renders_terminal_pane",
 			test_editor_refresh_screen_renders_terminal_pane},
 	{"editor_refresh_screen_terminal_exit_overlay",

@@ -29,6 +29,25 @@ static void editorTerminalOutputCallback(const char *s, size_t len, void *user) 
 	(void)written;
 }
 
+static int editorTerminalSetTermProp(VTermProp prop, VTermValue *val, void *user) {
+	struct editorTerminalPane *t = (struct editorTerminalPane *)user;
+	if (t == NULL || val == NULL) {
+		return 0;
+	}
+	switch (prop) {
+	case VTERM_PROP_MOUSE:
+		t->mouse_tracking = val->number;
+		return 1;
+	default:
+		break;
+	}
+	return 0;
+}
+
+static const VTermScreenCallbacks editor_terminal_screen_callbacks = {
+	.settermprop = editorTerminalSetTermProp,
+};
+
 struct editorTerminalPane *editorTerminalPaneCreate(const char *command,
 		int cols, int rows) {
 	if (command == NULL) {
@@ -60,6 +79,7 @@ struct editorTerminalPane *editorTerminalPaneCreate(const char *command,
 		free(t);
 		return NULL;
 	}
+	vterm_screen_set_callbacks(t->screen, &editor_terminal_screen_callbacks, t);
 	vterm_screen_reset(t->screen, 1);
 
 	if (!editorPtySpawn(command, cols, rows, &t->child)) {
@@ -153,6 +173,59 @@ int editorTerminalPaneWrite(struct editorTerminalPane *terminal,
 		return 0;
 	}
 	return (int)n;
+}
+
+static VTermModifier editorTerminalRotideModifiersToVterm(int rotide_modifiers) {
+	VTermModifier mod = VTERM_MOD_NONE;
+	if (rotide_modifiers & EDITOR_MOUSE_MOD_SHIFT) {
+		mod = (VTermModifier)(mod | VTERM_MOD_SHIFT);
+	}
+	if (rotide_modifiers & EDITOR_MOUSE_MOD_ALT) {
+		mod = (VTermModifier)(mod | VTERM_MOD_ALT);
+	}
+	if (rotide_modifiers & EDITOR_MOUSE_MOD_CTRL) {
+		mod = (VTermModifier)(mod | VTERM_MOD_CTRL);
+	}
+	return mod;
+}
+
+int editorTerminalPaneSendMouseButton(struct editorTerminalPane *terminal,
+		int button, int pressed, int row, int col, int rotide_modifiers) {
+	if (terminal == NULL || terminal->vt == NULL ||
+			terminal->mouse_tracking <= 0) {
+		return 0;
+	}
+	VTermModifier mod = editorTerminalRotideModifiersToVterm(rotide_modifiers);
+	vterm_mouse_move(terminal->vt, row, col, mod);
+	vterm_mouse_button(terminal->vt, button, pressed != 0, mod);
+	return 1;
+}
+
+int editorTerminalPaneSendMouseMove(struct editorTerminalPane *terminal,
+		int row, int col, int rotide_modifiers) {
+	if (terminal == NULL || terminal->vt == NULL ||
+			terminal->mouse_tracking <= 0) {
+		return 0;
+	}
+	VTermModifier mod = editorTerminalRotideModifiersToVterm(rotide_modifiers);
+	vterm_mouse_move(terminal->vt, row, col, mod);
+	return 1;
+}
+
+int editorTerminalPaneSendPasteStart(struct editorTerminalPane *terminal) {
+	if (terminal == NULL || terminal->vt == NULL) {
+		return 0;
+	}
+	vterm_keyboard_start_paste(terminal->vt);
+	return 1;
+}
+
+int editorTerminalPaneSendPasteEnd(struct editorTerminalPane *terminal) {
+	if (terminal == NULL || terminal->vt == NULL) {
+		return 0;
+	}
+	vterm_keyboard_end_paste(terminal->vt);
+	return 1;
 }
 
 int editorTerminalPaneSendKey(struct editorTerminalPane *terminal,

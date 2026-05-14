@@ -310,4 +310,22 @@ int editorLayoutFocusedLeafIndex(int *out_index, int *out_count);
  */
 void editorPaneAnnounceFocus(void);
 
+/*
+ * Serialize the pane tree to a compact s-expression form for persistence.
+ * Format: `leaf` for any leaf (kind is not preserved — terminals lapse to
+ * editor leaves on restore), `(v <ratio> <left> <right>)` for vertical
+ * splits, `(h <ratio> <top> <bottom>)` for horizontal splits. Returns the
+ * number of bytes written to `out` (excluding the null terminator), or 0
+ * if the buffer is too small.
+ */
+size_t editorLayoutSerialize(const struct editorPaneNode *root, char *out,
+		size_t out_size);
+
+/*
+ * Parse a layout string produced by editorLayoutSerialize and return a
+ * fresh tree. Caller takes ownership via editorPaneNodeFree. Returns
+ * NULL on syntax error or allocation failure.
+ */
+struct editorPaneNode *editorLayoutDeserialize(const char *s);
+
 #endif

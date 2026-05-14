@@ -9,6 +9,7 @@
 #include "support/alloc.h"
 #include "support/file_io.h"
 #include "text/row.h"
+#include "workspace/layout.h"
 #include "workspace/drawer.h"
 #include "workspace/tabs.h"
 
@@ -456,6 +457,16 @@ int editorWorkspaceStateLoadAndApply(int total_cols) {
 		} else if (strcmp(key, "active_tab") == 0) {
 			free(g_pending_active_path);
 			g_pending_active_path = strdup(value);
+		} else if (strcmp(key, "layout") == 0) {
+			struct editorPaneNode *restored = editorLayoutDeserialize(value);
+			if (restored != NULL) {
+				editorPaneNodeFree(E.layout_root);
+				E.layout_root = restored;
+				E.focused_leaf = editorPaneNodeFirstLeaf(E.layout_root);
+				if (E.focused_leaf != NULL) {
+					editorPaneViewCaptureFromState(&E.focused_leaf->as.leaf.view);
+				}
+			}
 		}
 		(void)parsed;
 	}
@@ -680,6 +691,19 @@ int editorWorkspaceStateSave(void) {
 				!editorWorkspaceStateWriteAll(fd, "\n", 1)) {
 			(void)close(fd);
 			return 0;
+		}
+	}
+	if (E.layout_root != NULL && E.layout_root->is_split) {
+		char layout_buf[2048];
+		if (editorLayoutSerialize(E.layout_root, layout_buf,
+					sizeof(layout_buf)) > 0) {
+			if (!editorWorkspaceStateWriteAll(fd, "layout=", strlen("layout=")) ||
+					!editorWorkspaceStateWriteAll(fd, layout_buf,
+							strlen(layout_buf)) ||
+					!editorWorkspaceStateWriteAll(fd, "\n", 1)) {
+				(void)close(fd);
+				return 0;
+			}
 		}
 	}
 	if (close(fd) != 0) {

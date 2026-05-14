@@ -2569,6 +2569,22 @@ static int test_editor_prompt_ignores_mouse_events(void) {
 	return 0;
 }
 
+static int test_editor_bracketed_paste_markers_toggle_paste_active(void) {
+	add_row("hello");
+	E.cy = 0;
+	E.cx = 0;
+	E.paste_active = 0;
+
+	char start_seq[] = "\x1b[200~";
+	ASSERT_TRUE(editor_process_keypress_with_input(start_seq, sizeof(start_seq) - 1) == 0);
+	ASSERT_EQ_INT(1, E.paste_active);
+
+	char end_seq[] = "\x1b[201~";
+	ASSERT_TRUE(editor_process_keypress_with_input(end_seq, sizeof(end_seq) - 1) == 0);
+	ASSERT_EQ_INT(0, E.paste_active);
+	return 0;
+}
+
 static int test_editor_prompt_ignores_resize_events(void) {
 	const char input[] = "\x1b[8;20Rok\r";
 	int saved_stdin;
@@ -4053,6 +4069,8 @@ const struct editorTestCase g_input_search_tests[] = {
 	{"editor_process_keypress_mouse_release_stops_drag_session", test_editor_process_keypress_mouse_release_stops_drag_session},
 	{"editor_prompt_ignores_mouse_events", test_editor_prompt_ignores_mouse_events},
 	{"editor_prompt_ignores_resize_events", test_editor_prompt_ignores_resize_events},
+	{"editor_bracketed_paste_markers_toggle_paste_active",
+			test_editor_bracketed_paste_markers_toggle_paste_active},
 	{"editor_process_keypress_ctrl_b_toggles_selection_mode", test_editor_process_keypress_ctrl_b_toggles_selection_mode},
 	{"editor_selection_range_tracks_cursor_movement", test_editor_selection_range_tracks_cursor_movement},
 	{"editor_extract_range_text_uses_document_when_row_cache_corrupt", test_editor_extract_range_text_uses_document_when_row_cache_corrupt},

@@ -1040,6 +1040,65 @@ static int test_layout_focus_switch_preserves_per_pane_cursor(void) {
 			E.cursor_offset != 600;
 }
 
+static int test_layout_serialize_single_leaf(void) {
+	struct editorPaneNode *root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	if (root == NULL) {
+		return 1;
+	}
+	char buf[64];
+	size_t n = editorLayoutSerialize(root, buf, sizeof(buf));
+	int failed = n == 0 || strcmp(buf, "leaf") != 0;
+	editorPaneNodeFree(root);
+	return failed;
+}
+
+static int test_layout_serialize_deserialize_roundtrip(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	struct editorPaneNode *sibling =
+			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	if (sibling == NULL) {
+		return 1;
+	}
+	(void)editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.3);
+	if (editorPaneTreeLeafCount(E.layout_root) != 3) {
+		return 1;
+	}
+	char buf[256];
+	size_t n = editorLayoutSerialize(E.layout_root, buf, sizeof(buf));
+	if (n == 0) {
+		return 1;
+	}
+	/* Quick sanity: serialized form contains both split markers. */
+	if (strstr(buf, "(v") == NULL || strstr(buf, "(h") == NULL) {
+		return 1;
+	}
+	struct editorPaneNode *restored = editorLayoutDeserialize(buf);
+	if (restored == NULL) {
+		return 1;
+	}
+	int leaf_count = editorPaneTreeLeafCount(restored);
+	editorPaneNodeFree(restored);
+	return leaf_count != 3;
+}
+
+static int test_layout_deserialize_rejects_garbage(void) {
+	if (editorLayoutDeserialize("garbage") != NULL) {
+		return 1;
+	}
+	if (editorLayoutDeserialize("(v 0.5 leaf") != NULL) {
+		return 1;
+	}
+	if (editorLayoutDeserialize("(v 0.5 leaf leaf)leaf") != NULL) {
+		return 1;
+	}
+	if (editorLayoutDeserialize("") != NULL) {
+		return 1;
+	}
+	return 0;
+}
+
 static int test_layout_set_focused_leaf_rejects_non_leaf(void) {
 	if (E.layout_root == NULL || E.focused_leaf == NULL) {
 		return 1;
@@ -1115,6 +1174,11 @@ const struct editorTestCase g_layout_tests[] = {
 			test_layout_focus_switch_swaps_active_tab},
 	{"layout_focus_switch_preserves_per_pane_cursor",
 			test_layout_focus_switch_preserves_per_pane_cursor},
+	{"layout_serialize_single_leaf", test_layout_serialize_single_leaf},
+	{"layout_serialize_deserialize_roundtrip",
+			test_layout_serialize_deserialize_roundtrip},
+	{"layout_deserialize_rejects_garbage",
+			test_layout_deserialize_rejects_garbage},
 	{"layout_find_neighbor_horizontal", test_layout_find_neighbor_horizontal},
 	{"layout_find_neighbor_picks_nearest_among_many",
 			test_layout_find_neighbor_picks_nearest_among_many},

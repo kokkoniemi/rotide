@@ -783,6 +783,31 @@ int editorReadKey(void) {
 					}
 					return '\x1b';
 				}
+				if (second == '2' && third == '0') {
+					/* Potential bracketed paste marker: [200~ (start) or
+					 * [201~ (end). Both are 5 bytes after the ESC[. */
+					char fourth = '\0';
+					read_status = editorReadSeqByte(&fourth);
+					if (read_status == EDITOR_READ_EOF) {
+						return INPUT_EOF_EVENT;
+					}
+					if (read_status == EDITOR_READ_BYTE &&
+							(fourth == '0' || fourth == '1')) {
+						char fifth = '\0';
+						read_status = editorReadSeqByte(&fifth);
+						if (read_status == EDITOR_READ_EOF) {
+							return INPUT_EOF_EVENT;
+						}
+						if (read_status == EDITOR_READ_BYTE && fifth == '~') {
+							return fourth == '0' ?
+									BRACKETED_PASTE_START_EVENT :
+									BRACKETED_PASTE_END_EVENT;
+						}
+					}
+					/* Not a recognized marker — fall through, treating the
+					 * sequence as unhandled escape. */
+					return '\x1b';
+				}
 				if (third == '~') {
 					switch (second) {
 						case '1':

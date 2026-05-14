@@ -28,6 +28,13 @@ struct editorTerminalPane {
 	int rows;
 	int exited;
 	int exit_status;
+	/*
+	 * VTERM_PROP_MOUSE_* (NONE/CLICK/DRAG/MOVE). Updated by the
+	 * `settermprop` callback whenever the child writes DECSET 1000/1002/
+	 * 1003. Used by the input dispatcher to decide whether to forward
+	 * host mouse events into the pane.
+	 */
+	int mouse_tracking;
 };
 
 /*
@@ -79,6 +86,29 @@ int editorTerminalPaneWrite(struct editorTerminalPane *terminal,
  */
 int editorTerminalPaneSendKey(struct editorTerminalPane *terminal,
 		int rotide_key);
+
+/*
+ * Forward a mouse event to the focused child. `button` follows libvterm
+ * conventions: 1=left, 2=middle, 3=right, 4/5=wheel up/down. `pressed`
+ * is 1 for press, 0 for release. `row`/`col` are 0-based positions within
+ * the pane's grid. `modifiers` is a bitmask of rotide mouse modifiers
+ * (EDITOR_MOUSE_MOD_*). The bytes the child sees come from vterm's
+ * mouse encoder, which respects the child's chosen SGR/legacy mode.
+ * Returns 1 if forwarded, 0 if the terminal isn't tracking mouse events.
+ */
+int editorTerminalPaneSendMouseButton(struct editorTerminalPane *terminal,
+		int button, int pressed, int row, int col, int rotide_modifiers);
+int editorTerminalPaneSendMouseMove(struct editorTerminalPane *terminal,
+		int row, int col, int rotide_modifiers);
+
+/*
+ * Bracketed-paste forwarding. The caller emits start, then a sequence of
+ * raw byte payloads, then end. When the child has bracketed paste enabled
+ * (DECSET 2004), the markers are wrapped automatically; otherwise just
+ * the raw bytes go through. Returns 1 on success.
+ */
+int editorTerminalPaneSendPasteStart(struct editorTerminalPane *terminal);
+int editorTerminalPaneSendPasteEnd(struct editorTerminalPane *terminal);
 
 /*
  * Convenience: build a leaf pane node of kind TERMINAL with a freshly

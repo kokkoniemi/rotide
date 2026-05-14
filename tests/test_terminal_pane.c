@@ -173,6 +173,43 @@ static int test_terminal_pane_send_key_handles_control(void) {
 	return failed;
 }
 
+static int test_terminal_pane_mouse_tracking_disabled_by_default(void) {
+	struct editorTerminalPane *t = editorTerminalPaneCreate("sleep 5", 40, 8);
+	if (t == NULL) {
+		return 1;
+	}
+	int sent = editorTerminalPaneSendMouseButton(t, 1, 1, 0, 0, 0);
+	editorTerminalPaneFree(t);
+	return sent != 0;
+}
+
+static int test_terminal_pane_mouse_tracking_enabled_via_decset(void) {
+	struct editorTerminalPane *t = editorTerminalPaneCreate("sleep 5", 40, 8);
+	if (t == NULL) {
+		return 1;
+	}
+	/* Simulate the child enabling SGR mouse tracking by writing the DECSET
+	 * 1000 + 1006 sequence through vterm's parser. The settermprop
+	 * callback should bump terminal->mouse_tracking. */
+	const char *enable_mouse = "\x1b[?1000h\x1b[?1006h";
+	vterm_input_write(t->vt, enable_mouse, strlen(enable_mouse));
+	int tracking = t->mouse_tracking;
+	int sent_off = 0;
+	if (tracking <= 0) {
+		editorTerminalPaneFree(t);
+		return 1;
+	}
+	int sent = editorTerminalPaneSendMouseButton(t, 1, 1, 2, 3, 0);
+
+	/* Disable and verify SendMouseButton no longer forwards. */
+	const char *disable_mouse = "\x1b[?1000l";
+	vterm_input_write(t->vt, disable_mouse, strlen(disable_mouse));
+	sent_off = editorTerminalPaneSendMouseButton(t, 1, 1, 2, 3, 0);
+
+	editorTerminalPaneFree(t);
+	return sent != 1 || sent_off != 0;
+}
+
 static int test_terminal_pane_write_forwards_to_child(void) {
 	/* `cat` echoes typed bytes back through the PTY. Write "hi\n", read
 	 * via pump, expect the bytes to land in the vterm screen. */
@@ -209,6 +246,10 @@ const struct editorTestCase g_terminal_pane_tests[] = {
 			test_terminal_pane_send_key_writes_printable_byte},
 	{"terminal_pane_send_key_handles_control",
 			test_terminal_pane_send_key_handles_control},
+	{"terminal_pane_mouse_tracking_disabled_by_default",
+			test_terminal_pane_mouse_tracking_disabled_by_default},
+	{"terminal_pane_mouse_tracking_enabled_via_decset",
+			test_terminal_pane_mouse_tracking_enabled_via_decset},
 	{"terminal_pane_write_forwards_to_child",
 			test_terminal_pane_write_forwards_to_child},
 };

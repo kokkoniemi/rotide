@@ -854,6 +854,13 @@ struct editorConfig {
 	 * and cleared after the following key is dispatched.
 	 */
 	int terminal_prefix_armed;
+	/*
+	 * Non-zero between BRACKETED_PASTE_START_EVENT and
+	 * BRACKETED_PASTE_END_EVENT. Used by terminal panes so the
+	 * libvterm paste markers are sent to the child only when the
+	 * editor was actually told a paste is in progress.
+	 */
+	int paste_active;
 	struct editorKeymap keymap;
 	struct editorPopupState popup;
 	struct termios orig_attrs;
@@ -894,7 +901,9 @@ enum editorKey {
 	TASK_EVENT,
 	SYNTAX_EVENT,
 	WATCH_EVENT,
-	TERMINAL_EVENT
+	TERMINAL_EVENT,
+	BRACKETED_PASTE_START_EVENT,
+	BRACKETED_PASTE_END_EVENT
 };
 
 #endif

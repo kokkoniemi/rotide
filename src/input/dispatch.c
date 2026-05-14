@@ -3642,6 +3642,80 @@ static int editorClearHoverLinkState(void) {
 	return 1;
 }
 
+static int editorHandleMouseEventInTerminalPane(const struct editorMouseEvent *event) {
+	if (E.layout_root == NULL) {
+		return 0;
+	}
+	struct editorRect viewport;
+	if (!editorLayoutEditorViewport(&viewport)) {
+		return 0;
+	}
+	struct editorLeafLayout layout = {0};
+	if (!editorLayoutComputeBorderedInto(E.layout_root, viewport,
+				ROTIDE_PANE_BORDER_SIZE, &layout)) {
+		editorLeafLayoutFree(&layout);
+		return 0;
+	}
+	int sx = event->x - 1;
+	int sy = event->y - 1;
+	struct editorPaneNode *leaf = editorLayoutLeafAt(&layout, sx, sy);
+	editorLeafLayoutFree(&layout);
+	if (leaf == NULL || leaf->is_split ||
+			leaf->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
+			leaf->as.leaf.kind_state == NULL) {
+		return 0;
+	}
+	struct editorTerminalPane *terminal =
+			(struct editorTerminalPane *)leaf->as.leaf.kind_state;
+	if (terminal->mouse_tracking <= 0) {
+		return 0;
+	}
+	/* Refocus the terminal pane on click so the user can type into it
+	 * after clicking. Motion/wheel events don't change focus. */
+	if (event->kind == EDITOR_MOUSE_EVENT_LEFT_PRESS && leaf != E.focused_leaf) {
+		(void)editorLayoutSetFocusedLeaf(leaf);
+		editorPaneAnnounceFocus();
+	}
+	struct editorRect leaf_rect = {0};
+	if (!editorLayoutLeafRectBordered(E.layout_root, viewport,
+				ROTIDE_PANE_BORDER_SIZE, leaf, &leaf_rect)) {
+		return 1;
+	}
+	int row = sy - leaf_rect.y;
+	int col = sx - leaf_rect.x;
+	switch (event->kind) {
+	case EDITOR_MOUSE_EVENT_LEFT_PRESS:
+		(void)editorTerminalPaneSendMouseButton(terminal, 1, 1, row, col,
+				event->modifiers);
+		break;
+	case EDITOR_MOUSE_EVENT_LEFT_RELEASE:
+		(void)editorTerminalPaneSendMouseButton(terminal, 1, 0, row, col,
+				event->modifiers);
+		break;
+	case EDITOR_MOUSE_EVENT_LEFT_DRAG:
+		(void)editorTerminalPaneSendMouseMove(terminal, row, col,
+				event->modifiers);
+		break;
+	case EDITOR_MOUSE_EVENT_MOTION:
+		if (terminal->mouse_tracking >= 3 /* VTERM_PROP_MOUSE_MOVE */) {
+			(void)editorTerminalPaneSendMouseMove(terminal, row, col,
+					event->modifiers);
+		}
+		break;
+	case EDITOR_MOUSE_EVENT_WHEEL_UP:
+		(void)editorTerminalPaneSendMouseButton(terminal, 4, 1, row, col,
+				event->modifiers);
+		break;
+	case EDITOR_MOUSE_EVENT_WHEEL_DOWN:
+		(void)editorTerminalPaneSendMouseButton(terminal, 5, 1, row, col,
+				event->modifiers);
+		break;
+	default:
+		break;
+	}
+	return 1;
+}
+
 static int editorHandleMouseEvent(void) {
 	struct editorMouseEvent event;
 	// terminal.c queues one decoded event per MOUSE_EVENT keycode.
@@ -3651,6 +3725,10 @@ static int editorHandleMouseEvent(void) {
 
 	if (event.kind != EDITOR_MOUSE_EVENT_MOTION && editorClearHoverLinkState()) {
 		// Fall through and dispatch; render will pick up the cleared hover state.
+	}
+
+	if (editorHandleMouseEventInTerminalPane(&event)) {
+		return EDITOR_KEYPRESS_EFFECT_NONE;
 	}
 
 	switch (event.kind) {
@@ -4483,6 +4561,26 @@ void editorProcessKeypress(void) {
 	if (c == TERMINAL_EVENT) {
 		/* Pump already happened inside editorReadKey; the main loop will
 		 * call editorRefreshScreen next, which pumps again and paints. */
+		return;
+	}
+	if (c == BRACKETED_PASTE_START_EVENT) {
+		E.paste_active = 1;
+		if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
+				E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
+				E.focused_leaf->as.leaf.kind_state != NULL) {
+			(void)editorTerminalPaneSendPasteStart(
+					(struct editorTerminalPane *)E.focused_leaf->as.leaf.kind_state);
+		}
+		return;
+	}
+	if (c == BRACKETED_PASTE_END_EVENT) {
+		E.paste_active = 0;
+		if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
+				E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
+				E.focused_leaf->as.leaf.kind_state != NULL) {
+			(void)editorTerminalPaneSendPasteEnd(
+					(struct editorTerminalPane *)E.focused_leaf->as.leaf.kind_state);
+		}
 		return;
 	}
 
