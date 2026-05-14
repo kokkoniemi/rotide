@@ -1040,6 +1040,92 @@ static int test_layout_focus_switch_preserves_per_pane_cursor(void) {
 			E.cursor_offset != 600;
 }
 
+static int test_layout_pane_view_tab_membership_helpers(void) {
+	struct editorPaneView view;
+	editorPaneViewInit(&view);
+	if (view.pane_tab_count != 0) {
+		return 1;
+	}
+	if (!editorPaneViewAddTab(&view, 3) || view.pane_tab_count != 1) {
+		return 1;
+	}
+	/* Adding the same tab again is a no-op. */
+	if (!editorPaneViewAddTab(&view, 3) || view.pane_tab_count != 1) {
+		return 1;
+	}
+	if (!editorPaneViewAddTab(&view, 5) || view.pane_tab_count != 2) {
+		return 1;
+	}
+	if (!editorPaneViewHasTab(&view, 3) || !editorPaneViewHasTab(&view, 5)) {
+		return 1;
+	}
+	if (editorPaneViewHasTab(&view, 4)) {
+		return 1;
+	}
+	if (editorPaneViewIndexOfTab(&view, 3) != 0 ||
+			editorPaneViewIndexOfTab(&view, 5) != 1 ||
+			editorPaneViewIndexOfTab(&view, 7) != -1) {
+		return 1;
+	}
+	editorPaneViewRemoveTab(&view, 3);
+	if (view.pane_tab_count != 1 || view.pane_tabs[0] != 5) {
+		return 1;
+	}
+	view.active_tab_idx = 5;
+	editorPaneViewShiftTabIndicesAfterClose(&view, 3);
+	if (view.pane_tabs[0] != 4 || view.active_tab_idx != 4) {
+		return 1;
+	}
+	return 0;
+}
+
+static int test_layout_split_focused_inherits_active_tab_only(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTabNewEmpty());
+	ASSERT_TRUE(editorTabNewEmpty());
+	if (E.tab_count != 3) {
+		return 1;
+	}
+	(void)editorTabSwitchToIndex(1);
+
+	editorPaneNodeFree(E.layout_root);
+	E.layout_root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	if (E.layout_root == NULL) {
+		return 1;
+	}
+	E.focused_leaf = E.layout_root;
+	/* Re-seed the new root pane with all 3 tabs to simulate "user has
+	 * three tabs open in pane A". */
+	editorPaneViewAddTab(&E.layout_root->as.leaf.view, 0);
+	editorPaneViewAddTab(&E.layout_root->as.leaf.view, 1);
+	editorPaneViewAddTab(&E.layout_root->as.leaf.view, 2);
+	E.layout_root->as.leaf.view.active_tab_idx = 1;
+
+	struct editorPaneNode *sibling =
+			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	if (sibling == NULL) {
+		return 1;
+	}
+	/* Original pane unchanged. */
+	struct editorPaneNode *original = NULL;
+	if (E.layout_root != NULL && E.layout_root->is_split) {
+		original = E.layout_root->as.split.first;
+	}
+	if (original == NULL || original->as.leaf.view.pane_tab_count != 3) {
+		return 1;
+	}
+	/* New sibling has only the splitting pane's active tab. */
+	if (sibling->as.leaf.view.pane_tab_count != 1 ||
+			sibling->as.leaf.view.pane_tabs[0] != 1 ||
+			sibling->as.leaf.view.active_tab_idx != 1) {
+		return 1;
+	}
+	return 0;
+}
+
 static int test_layout_serialize_single_leaf(void) {
 	struct editorPaneNode *root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
 	if (root == NULL) {
@@ -1174,6 +1260,10 @@ const struct editorTestCase g_layout_tests[] = {
 			test_layout_focus_switch_swaps_active_tab},
 	{"layout_focus_switch_preserves_per_pane_cursor",
 			test_layout_focus_switch_preserves_per_pane_cursor},
+	{"layout_pane_view_tab_membership_helpers",
+			test_layout_pane_view_tab_membership_helpers},
+	{"layout_split_focused_inherits_active_tab_only",
+			test_layout_split_focused_inherits_active_tab_only},
 	{"layout_serialize_single_leaf", test_layout_serialize_single_leaf},
 	{"layout_serialize_deserialize_roundtrip",
 			test_layout_serialize_deserialize_roundtrip},

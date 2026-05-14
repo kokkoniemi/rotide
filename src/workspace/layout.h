@@ -34,12 +34,16 @@ enum editorSplitOrientation {
  * switches the global active tab to the incoming pane's view, then
  * applies the incoming pane's cursor/scroll.
  *
- * Phase 5 semantics: a tab switch from a pane (Ctrl+Tab) changes both
- * E.active_tab and the focused pane's view.active_tab_idx (the latter on
- * the next capture). Unfocused panes keep their own view records; they
- * are loaded back into E on focus-in. Tab documents themselves still own
- * their cursor as a "last-viewed" shadow, but pane state is authoritative.
+ * Phase 6: each pane also owns a membership list of which global tab
+ * indices live "inside" the pane (`pane_tabs` / `pane_tab_count`). The
+ * tab bar filters by this list, Ctrl+Tab cycles within it, and a new
+ * split inherits only the splitting pane's active tab. Tabs themselves
+ * still live in the shared E.tabs[] array; the list is a view into it.
  */
+#ifndef ROTIDE_PANE_MAX_TABS
+#define ROTIDE_PANE_MAX_TABS 128
+#endif
+
 struct editorPaneView {
 	int active_tab_idx;
 	int cx;
@@ -50,6 +54,8 @@ struct editorPaneView {
 	int wrapoff;
 	size_t cursor_offset;
 	int viewport_mode;
+	int pane_tabs[ROTIDE_PANE_MAX_TABS];
+	int pane_tab_count;
 };
 
 struct editorPane {
@@ -244,6 +250,39 @@ void editorPaneViewInit(struct editorPaneView *view);
 void editorPaneViewCaptureFromState(struct editorPaneView *view);
 int editorPaneViewLoadIntoState(const struct editorPaneView *view);
 int editorLayoutSetFocusedLeaf(struct editorPaneNode *new_leaf);
+
+/*
+ * Per-pane tab membership helpers.
+ *
+ * editorPaneViewAddTab inserts `tab_idx` into the view's tab list if it
+ * isn't already there. Returns 1 on success, 0 if the list is full.
+ *
+ * editorPaneViewRemoveTab removes `tab_idx` from the list (no-op if
+ * absent) and shifts subsequent entries down. Used by tab close.
+ *
+ * editorPaneViewHasTab returns 1 if the tab is in the view's list.
+ *
+ * editorPaneViewIndexOfTab returns the local position of `tab_idx` in
+ * the list, or -1 if not present.
+ *
+ * editorPaneViewShiftTabIndicesAfterClose decrements every recorded
+ * index that is > `removed_idx` so the membership list stays consistent
+ * with the global E.tabs[] after a tab is removed from the global array.
+ *
+ * editorPaneTreeAnyPaneHasTab returns 1 if any leaf anywhere under
+ * `root` lists `tab_idx`. Used to decide whether closing a tab in one
+ * pane should free the global tab entry.
+ */
+int editorPaneViewAddTab(struct editorPaneView *view, int tab_idx);
+void editorPaneViewRemoveTab(struct editorPaneView *view, int tab_idx);
+int editorPaneViewHasTab(const struct editorPaneView *view, int tab_idx);
+int editorPaneViewIndexOfTab(const struct editorPaneView *view, int tab_idx);
+void editorPaneViewShiftTabIndicesAfterClose(struct editorPaneView *view,
+		int removed_idx);
+int editorPaneTreeAnyPaneHasTab(const struct editorPaneNode *root,
+		int tab_idx);
+void editorPaneTreeShiftTabIndicesAfterClose(struct editorPaneNode *root,
+		int removed_idx);
 
 /*
  * High-level actions for the focused pane. These wrap the tree mutation

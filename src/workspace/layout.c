@@ -500,6 +500,102 @@ void editorPaneViewInit(struct editorPaneView *view) {
 	}
 	memset(view, 0, sizeof(*view));
 	view->active_tab_idx = -1;
+	view->pane_tab_count = 0;
+}
+
+int editorPaneViewAddTab(struct editorPaneView *view, int tab_idx) {
+	if (view == NULL || tab_idx < 0) {
+		return 0;
+	}
+	for (int i = 0; i < view->pane_tab_count; i++) {
+		if (view->pane_tabs[i] == tab_idx) {
+			return 1;
+		}
+	}
+	if (view->pane_tab_count >= ROTIDE_PANE_MAX_TABS) {
+		return 0;
+	}
+	view->pane_tabs[view->pane_tab_count++] = tab_idx;
+	return 1;
+}
+
+void editorPaneViewRemoveTab(struct editorPaneView *view, int tab_idx) {
+	if (view == NULL) {
+		return;
+	}
+	for (int i = 0; i < view->pane_tab_count; i++) {
+		if (view->pane_tabs[i] != tab_idx) {
+			continue;
+		}
+		for (int j = i; j < view->pane_tab_count - 1; j++) {
+			view->pane_tabs[j] = view->pane_tabs[j + 1];
+		}
+		view->pane_tab_count--;
+		return;
+	}
+}
+
+int editorPaneViewHasTab(const struct editorPaneView *view, int tab_idx) {
+	if (view == NULL || tab_idx < 0) {
+		return 0;
+	}
+	for (int i = 0; i < view->pane_tab_count; i++) {
+		if (view->pane_tabs[i] == tab_idx) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+int editorPaneViewIndexOfTab(const struct editorPaneView *view, int tab_idx) {
+	if (view == NULL) {
+		return -1;
+	}
+	for (int i = 0; i < view->pane_tab_count; i++) {
+		if (view->pane_tabs[i] == tab_idx) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+void editorPaneViewShiftTabIndicesAfterClose(struct editorPaneView *view,
+		int removed_idx) {
+	if (view == NULL || removed_idx < 0) {
+		return;
+	}
+	for (int i = 0; i < view->pane_tab_count; i++) {
+		if (view->pane_tabs[i] > removed_idx) {
+			view->pane_tabs[i]--;
+		}
+	}
+	if (view->active_tab_idx > removed_idx) {
+		view->active_tab_idx--;
+	}
+}
+
+int editorPaneTreeAnyPaneHasTab(const struct editorPaneNode *root, int tab_idx) {
+	if (root == NULL) {
+		return 0;
+	}
+	if (root->is_split) {
+		return editorPaneTreeAnyPaneHasTab(root->as.split.first, tab_idx) ||
+				editorPaneTreeAnyPaneHasTab(root->as.split.second, tab_idx);
+	}
+	return editorPaneViewHasTab(&root->as.leaf.view, tab_idx);
+}
+
+void editorPaneTreeShiftTabIndicesAfterClose(struct editorPaneNode *root,
+		int removed_idx) {
+	if (root == NULL) {
+		return;
+	}
+	if (root->is_split) {
+		editorPaneTreeShiftTabIndicesAfterClose(root->as.split.first, removed_idx);
+		editorPaneTreeShiftTabIndicesAfterClose(root->as.split.second, removed_idx);
+		return;
+	}
+	editorPaneViewShiftTabIndicesAfterClose(&root->as.leaf.view, removed_idx);
 }
 
 void editorPaneViewCaptureFromState(struct editorPaneView *view) {
@@ -567,6 +663,16 @@ struct editorPaneNode *editorLayoutSplitFocused(
 			E.focused_leaf, orientation, ratio);
 	if (sibling == NULL) {
 		return NULL;
+	}
+	/* VSCode-style "open current file in new pane": the new pane shows
+	 * ONLY the splitting pane's active tab. Reset the membership list
+	 * the sibling inherited and re-seed it with just that one tab. */
+	if (!sibling->is_split) {
+		sibling->as.leaf.view.pane_tab_count = 0;
+		int tab_idx = sibling->as.leaf.view.active_tab_idx;
+		if (tab_idx >= 0) {
+			(void)editorPaneViewAddTab(&sibling->as.leaf.view, tab_idx);
+		}
 	}
 	E.focused_leaf = sibling;
 	return sibling;

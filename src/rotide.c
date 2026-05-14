@@ -198,6 +198,14 @@ void initEditor(void) {
 		errno = ENOMEM;
 		panic("editorTabsInit");
 	}
+	/* Seed the initial pane's tab-membership list with the bootstrap
+	 * tab so subsequent open/close/cycle operations stay consistent. */
+	if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
+			E.tab_count > 0) {
+		(void)editorPaneViewAddTab(&E.focused_leaf->as.leaf.view,
+				E.active_tab);
+		E.focused_leaf->as.leaf.view.active_tab_idx = E.active_tab;
+	}
 
 	if (!editorRefreshWindowSize()) {
 		panic("readWindowSize");

@@ -9,6 +9,7 @@
 #include "language/syntax_worker.h"
 #include "render/screen.h"
 #include "support/size_utils.h"
+#include "workspace/layout.h"
 #include "support/alloc.h"
 #include "support/file_io.h"
 #include "text/document.h"
@@ -444,6 +445,13 @@ static void editorLoadActiveTab(int tab_idx) {
 		editorViewportSetMode(EDITOR_VIEWPORT_FOLLOW_CURSOR);
 		return;
 	}
+	/* Whenever a tab becomes active we land it in the focused pane's
+	 * membership list so the per-pane tab strip stays in sync regardless
+	 * of which API created/switched the tab. */
+	if (E.focused_leaf != NULL && !E.focused_leaf->is_split) {
+		(void)editorPaneViewAddTab(&E.focused_leaf->as.leaf.view, tab_idx);
+		E.focused_leaf->as.leaf.view.active_tab_idx = tab_idx;
+	}
 	editorTabStateLoadActive(&E.tabs[tab_idx]);
 	if (editorActiveTabIsReadOnly() && E.tab_kind != EDITOR_TAB_GIT_DIFF) {
 		E.syntax_language = EDITOR_SYNTAX_NONE;
@@ -825,17 +833,27 @@ static int editorTabFindEditableFileIndex(const char *path) {
 	return -1;
 }
 
+static void editorTabRegisterWithFocusedPane(int idx) {
+	if (idx < 0 || E.focused_leaf == NULL || E.focused_leaf->is_split) {
+		return;
+	}
+	(void)editorPaneViewAddTab(&E.focused_leaf->as.leaf.view, idx);
+	E.focused_leaf->as.leaf.view.active_tab_idx = idx;
+}
+
 int editorTabSwitchToIndex(int idx) {
 	if (idx < 0 || idx >= E.tab_count) {
 		return 0;
 	}
 	if (idx == E.active_tab) {
+		editorTabRegisterWithFocusedPane(idx);
 		return 1;
 	}
 
 	editorStoreActiveTab();
 	E.active_tab = idx;
 	editorLoadActiveTab(E.active_tab);
+	editorTabRegisterWithFocusedPane(idx);
 	return 1;
 }
 
@@ -843,10 +861,34 @@ int editorTabSwitchByDelta(int delta) {
 	if (E.tab_count <= 0) {
 		return 0;
 	}
-	if (delta == 0 || E.tab_count == 1) {
+	if (delta == 0) {
 		return 1;
 	}
 
+	/* Phase 6: cycle within the focused pane's tab membership list, not
+	 * the global tab array. Fall back to global cycling when no pane is
+	 * focused or the pane has no recorded tabs. */
+	if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
+			E.focused_leaf->as.leaf.view.pane_tab_count > 0) {
+		struct editorPaneView *view = &E.focused_leaf->as.leaf.view;
+		int local = editorPaneViewIndexOfTab(view, E.active_tab);
+		if (local < 0) {
+			local = 0;
+		}
+		if (view->pane_tab_count == 1) {
+			return 1;
+		}
+		int target_local = (local + delta) % view->pane_tab_count;
+		if (target_local < 0) {
+			target_local += view->pane_tab_count;
+		}
+		int target = view->pane_tabs[target_local];
+		return editorTabSwitchToIndex(target);
+	}
+
+	if (E.tab_count == 1) {
+		return 1;
+	}
 	int target = (E.active_tab + delta) % E.tab_count;
 	if (target < 0) {
 		target += E.tab_count;
@@ -859,8 +901,37 @@ int editorTabCloseActive(void) {
 		return 0;
 	}
 
-	editorStoreActiveTab();
 	int closing = E.active_tab;
+
+	/* Phase 6 — pane-scoped close. Remove the tab from the focused
+	 * pane's membership list. If another pane still has the tab, the
+	 * global tab survives; just switch the focused pane to a remaining
+	 * tab. Otherwise fall through to the global removal path. */
+	if (E.focused_leaf != NULL && !E.focused_leaf->is_split) {
+		editorPaneViewRemoveTab(&E.focused_leaf->as.leaf.view, closing);
+	}
+	if (editorPaneTreeAnyPaneHasTab(E.layout_root, closing)) {
+		int next_local = -1;
+		if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
+				E.focused_leaf->as.leaf.view.pane_tab_count > 0) {
+			next_local = E.focused_leaf->as.leaf.view.pane_tabs[0];
+		}
+		if (next_local < 0) {
+			for (int i = 0; i < E.tab_count; i++) {
+				if (i != closing) {
+					next_local = i;
+					break;
+				}
+			}
+		}
+		if (next_local < 0) {
+			next_local = closing;
+		}
+		(void)editorTabSwitchToIndex(next_local);
+		return 1;
+	}
+
+	editorStoreActiveTab();
 	editorLspNotifyDidCloseTabState(&E.tabs[closing]);
 	editorTabStateFree(&E.tabs[closing]);
 
@@ -870,17 +941,25 @@ int editorTabCloseActive(void) {
 		E.tab_count = 1;
 		E.tab_view_start = 0;
 		editorLoadActiveTab(0);
+		editorTabRegisterWithFocusedPane(0);
 		return 1;
 	}
 
 	memmove(&E.tabs[closing], &E.tabs[closing + 1],
 			sizeof(struct editorTabState) * (size_t)(E.tab_count - closing - 1));
 	E.tab_count--;
-	if (closing >= E.tab_count) {
-		closing = E.tab_count - 1;
+	editorPaneTreeShiftTabIndicesAfterClose(E.layout_root, closing);
+	int next_idx = -1;
+	if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
+			E.focused_leaf->as.leaf.view.pane_tab_count > 0) {
+		next_idx = E.focused_leaf->as.leaf.view.pane_tabs[0];
 	}
-	E.active_tab = closing;
+	if (next_idx < 0 || next_idx >= E.tab_count) {
+		next_idx = closing < E.tab_count ? closing : E.tab_count - 1;
+	}
+	E.active_tab = next_idx;
 	editorLoadActiveTab(E.active_tab);
+	editorTabRegisterWithFocusedPane(E.active_tab);
 	return 1;
 }
 
@@ -1640,6 +1719,16 @@ static void editorTabsAlignViewToActiveForWidth(int cols) {
 	}
 }
 
+static int editorTabFocusedPaneVisibleIndex(int tab_idx) {
+	/* When a focused pane has its own membership list, only tabs in that
+	 * list are visible in the strip. Other tabs are filtered out. */
+	if (E.focused_leaf == NULL || E.focused_leaf->is_split ||
+			E.focused_leaf->as.leaf.view.pane_tab_count == 0) {
+		return 1; /* No filter — show every global tab. */
+	}
+	return editorPaneViewHasTab(&E.focused_leaf->as.leaf.view, tab_idx);
+}
+
 int editorTabBuildLayoutForWidth(int cols, struct editorTabLayoutEntry *entries, int max_entries,
 		int *count_out) {
 	if (count_out != NULL) {
@@ -1666,9 +1755,14 @@ int editorTabBuildLayoutForWidth(int cols, struct editorTabLayoutEntry *entries,
 
 	int used_cols = 0;
 	int count = 0;
+	int first_visible = -1;
+	int last_visible = -1;
 	for (int tab_idx = start_idx; tab_idx < E.tab_count && used_cols < cols; tab_idx++) {
 		if (count >= max_entries) {
 			break;
+		}
+		if (!editorTabFocusedPaneVisibleIndex(tab_idx)) {
+			continue;
 		}
 
 		int width_cols = editorTabWidthColsAt(tab_idx);
@@ -1692,6 +1786,10 @@ int editorTabBuildLayoutForWidth(int cols, struct editorTabLayoutEntry *entries,
 		entry->show_left_overflow = 0;
 		entry->show_right_overflow = 0;
 
+		if (first_visible < 0) {
+			first_visible = tab_idx;
+		}
+		last_visible = tab_idx;
 		used_cols += width_cols;
 		count++;
 	}
@@ -1706,10 +1804,25 @@ int editorTabBuildLayoutForWidth(int cols, struct editorTabLayoutEntry *entries,
 		count = 1;
 	}
 
+	/* Overflow indicators reflect whether more *visible* (filtered) tabs
+	 * exist outside the rendered window, not just any global tab. */
+	int has_more_left = 0;
+	int has_more_right = 0;
+	for (int i = 0; i < first_visible; i++) {
+		if (editorTabFocusedPaneVisibleIndex(i)) {
+			has_more_left = 1;
+			break;
+		}
+	}
+	for (int i = last_visible + 1; i < E.tab_count; i++) {
+		if (editorTabFocusedPaneVisibleIndex(i)) {
+			has_more_right = 1;
+			break;
+		}
+	}
 	if (count > 0) {
-		entries[0].show_left_overflow = entries[0].tab_idx > 0;
-		entries[count - 1].show_right_overflow =
-				entries[count - 1].tab_idx < E.tab_count - 1;
+		entries[0].show_left_overflow = has_more_left;
+		entries[count - 1].show_right_overflow = has_more_right;
 	}
 
 	if (count_out != NULL) {
