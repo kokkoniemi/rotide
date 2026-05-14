@@ -333,5 +333,13 @@ dap_drawer = "ctrl+alt+b"
 # focus_down_pane = "ctrl+alt+down"
 # pane_grow = "ctrl+alt+="
 # pane_shrink = "ctrl+alt+-"
+# terminal_open splits the focused pane and runs $SHELL (falling back to
+# /bin/sh) in the new sibling. When focus is on a terminal pane, every
+# keystroke is routed to the child PTY by default — to invoke a rotide
+# action from there, first press terminal_prefix and then the action key.
+# The prefix-armed state lasts for exactly one keypress and is shown in
+# the message bar.
+# terminal_open = "ctrl+alt+t"
+# terminal_prefix = "ctrl+alt+a"
 # open_settings has no default binding; the File > Settings menu item opens it.
 # open_settings = "ctrl+alt+s"

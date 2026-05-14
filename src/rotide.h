@@ -434,6 +434,8 @@ enum editorAction {
 	EDITOR_ACTION_FOCUS_DOWN_PANE,
 	EDITOR_ACTION_PANE_GROW,
 	EDITOR_ACTION_PANE_SHRINK,
+	EDITOR_ACTION_TERMINAL_OPEN,
+	EDITOR_ACTION_TERMINAL_PREFIX,
 	EDITOR_ACTION_OPEN_SETTINGS,
 	EDITOR_ACTION_COUNT
 };
@@ -838,6 +840,13 @@ struct editorConfig {
 	enum editorPaneFocus pane_focus;
 	struct editorPaneNode *layout_root;
 	struct editorPaneNode *focused_leaf;
+	/*
+	 * When non-zero, the next keypress is interpreted as a rotide keymap
+	 * action even though the focused pane is a terminal (which normally
+	 * routes keys straight to its PTY). Set by the terminal_prefix action
+	 * and cleared after the following key is dispatched.
+	 */
+	int terminal_prefix_armed;
 	struct editorKeymap keymap;
 	struct editorPopupState popup;
 	struct termios orig_attrs;

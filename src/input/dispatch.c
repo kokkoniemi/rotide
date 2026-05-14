@@ -15,6 +15,7 @@
 #include "render/screen.h"
 #include "support/alloc.h"
 #include "support/terminal.h"
+#include "language/terminal_pane.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
@@ -3986,6 +3987,25 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			editorHistoryBreakGroup();
 			(void)editorLayoutResizeFocused(0);
 			break;
+		case EDITOR_ACTION_TERMINAL_OPEN: {
+			editorHistoryBreakGroup();
+			const char *shell = getenv("SHELL");
+			if (shell == NULL || shell[0] == '\0') {
+				shell = "/bin/sh";
+			}
+			struct editorPaneNode *terminal_leaf =
+					editorTerminalPaneOpenSplit(shell, EDITOR_SPLIT_HORIZONTAL);
+			if (terminal_leaf != NULL) {
+				editorPaneAnnounceFocus();
+			} else {
+				editorSetStatusMsg("Failed to open terminal pane");
+			}
+			break;
+		}
+		case EDITOR_ACTION_TERMINAL_PREFIX:
+			E.terminal_prefix_armed = 1;
+			editorSetStatusMsg("Terminal prefix armed: next key is rotide");
+			break;
 		case EDITOR_ACTION_OPEN_SETTINGS:
 			editorHistoryBreakGroup();
 			editorOpenSettings();
@@ -4500,6 +4520,37 @@ void editorProcessKeypress(void) {
 	} else {
 		if (editorClearHoverLinkState()) {
 			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+		}
+		/*
+		 * Terminal-pane key routing: when focus is on a terminal leaf and
+		 * the user is not in the drawer, keystrokes go straight to the
+		 * PTY. The exception is the configured terminal_prefix key,
+		 * which arms the next keypress to dispatch as a normal rotide
+		 * action (the tmux-style escape hatch). While the prefix is
+		 * armed we fall through to the regular keymap lookup below and
+		 * clear the flag.
+		 */
+		if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
+				E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
+				E.focused_leaf->as.leaf.kind_state != NULL &&
+				E.pane_focus != EDITOR_PANE_DRAWER) {
+			if (E.terminal_prefix_armed) {
+				E.terminal_prefix_armed = 0;
+				/* Fall through to keymap lookup below. */
+			} else {
+				enum editorAction terminal_action = EDITOR_ACTION_COUNT;
+				if (editorKeymapLookupAction(&E.keymap, c, &terminal_action) &&
+						terminal_action == EDITOR_ACTION_TERMINAL_PREFIX) {
+					E.terminal_prefix_armed = 1;
+					editorSetStatusMsg(
+							"Terminal prefix armed: next key is rotide");
+					return;
+				}
+				struct editorTerminalPane *terminal =
+						(struct editorTerminalPane *)E.focused_leaf->as.leaf.kind_state;
+				(void)editorTerminalPaneSendKey(terminal, c);
+				return;
+			}
 		}
 		if (editorKeymapLookupAction(&E.keymap, c, &action)) {
 			int mapped_effects = EDITOR_KEYPRESS_EFFECT_NONE;

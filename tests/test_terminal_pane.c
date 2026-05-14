@@ -1,5 +1,6 @@
 #include "language/terminal_pane.h"
 #include "test_case.h"
+#include "test_helpers.h"
 
 #include <errno.h>
 #include <poll.h>
@@ -8,7 +9,9 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "rotide.h"
 #include "vterm.h"
+#include "workspace/layout.h"
 
 static int wait_for_text_in_screen(struct editorTerminalPane *t,
 		const char *needle, int timeout_ms) {
@@ -86,6 +89,66 @@ static int test_terminal_pane_resize_updates_grid(void) {
 	return failed;
 }
 
+static int test_terminal_pane_open_split_replaces_sibling_kind(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	E.window_cols = 80;
+	E.window_rows = 24;
+	struct editorPaneNode *original = E.focused_leaf;
+	struct editorPaneNode *terminal_leaf =
+			editorTerminalPaneOpenSplit("sleep 2", EDITOR_SPLIT_HORIZONTAL);
+	if (terminal_leaf == NULL) {
+		return 1;
+	}
+	int failed = E.focused_leaf != terminal_leaf ||
+			terminal_leaf->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
+			terminal_leaf->as.leaf.kind_state == NULL ||
+			terminal_leaf->as.leaf.kind_state_free != editorTerminalPaneFree ||
+			editorPaneTreeLeafCount(E.layout_root) != 2 ||
+			!editorPaneNodeContainsLeaf(E.layout_root, original);
+	return failed;
+}
+
+static int test_terminal_pane_send_key_writes_printable_byte(void) {
+	struct editorTerminalPane *t = editorTerminalPaneCreate("cat", 40, 8);
+	if (t == NULL) {
+		return 1;
+	}
+	int written = 0;
+	written |= editorTerminalPaneSendKey(t, 'Z');
+	written |= editorTerminalPaneSendKey(t, '\r');
+	if (!written) {
+		editorTerminalPaneFree(t);
+		return 1;
+	}
+	int found = wait_for_text_in_screen(t, "Z", 2000);
+	editorTerminalPaneFree(t);
+	return found ? 0 : 1;
+}
+
+static int test_terminal_pane_send_key_handles_control(void) {
+	struct editorTerminalPane *t = editorTerminalPaneCreate("cat", 40, 8);
+	if (t == NULL) {
+		return 1;
+	}
+	(void)editorTerminalPaneSendKey(t, 'A');
+	(void)editorTerminalPaneSendKey(t, 'B');
+	(void)editorTerminalPaneSendKey(t, '\r');
+	int wrote = editorTerminalPaneSendKey(t, 0x04); /* ^D = EOF for cat */
+	int saw_ab = wait_for_text_in_screen(t, "AB", 2000);
+	int waited = 0;
+	while (waited < 2000 && !t->exited) {
+		(void)editorTerminalPanePump(t);
+		struct timespec ts = {0, 20 * 1000 * 1000};
+		nanosleep(&ts, NULL);
+		waited += 20;
+	}
+	int failed = !wrote || !saw_ab || !t->exited;
+	editorTerminalPaneFree(t);
+	return failed;
+}
+
 static int test_terminal_pane_write_forwards_to_child(void) {
 	/* `cat` echoes typed bytes back through the PTY. Write "hi\n", read
 	 * via pump, expect the bytes to land in the vterm screen. */
@@ -114,6 +177,12 @@ const struct editorTestCase g_terminal_pane_tests[] = {
 			test_terminal_pane_pump_marks_exit},
 	{"terminal_pane_resize_updates_grid",
 			test_terminal_pane_resize_updates_grid},
+	{"terminal_pane_open_split_replaces_sibling_kind",
+			test_terminal_pane_open_split_replaces_sibling_kind},
+	{"terminal_pane_send_key_writes_printable_byte",
+			test_terminal_pane_send_key_writes_printable_byte},
+	{"terminal_pane_send_key_handles_control",
+			test_terminal_pane_send_key_handles_control},
 	{"terminal_pane_write_forwards_to_child",
 			test_terminal_pane_write_forwards_to_child},
 };

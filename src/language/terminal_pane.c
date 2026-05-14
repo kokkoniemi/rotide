@@ -5,7 +5,9 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "rotide.h"
 #include "vterm.h"
+#include "vterm_keycodes.h"
 #include "workspace/layout.h"
 
 static int editorTerminalPaneClampDim(int v) {
@@ -16,6 +18,14 @@ static int editorTerminalPaneClampDim(int v) {
 		return 999;
 	}
 	return v;
+}
+
+static void editorTerminalOutputCallback(const char *s, size_t len, void *user) {
+	struct editorTerminalPane *t = (struct editorTerminalPane *)user;
+	if (t == NULL || t->child.master_fd < 0 || s == NULL || len == 0) {
+		return;
+	}
+	(void)write(t->child.master_fd, s, len);
 }
 
 struct editorTerminalPane *editorTerminalPaneCreate(const char *command,
@@ -42,6 +52,7 @@ struct editorTerminalPane *editorTerminalPaneCreate(const char *command,
 		return NULL;
 	}
 	vterm_set_utf8(t->vt, 1);
+	vterm_output_set_callback(t->vt, editorTerminalOutputCallback, t);
 	t->screen = vterm_obtain_screen(t->vt);
 	if (t->screen == NULL) {
 		vterm_free(t->vt);
@@ -143,6 +154,77 @@ int editorTerminalPaneWrite(struct editorTerminalPane *terminal,
 	return (int)n;
 }
 
+int editorTerminalPaneSendKey(struct editorTerminalPane *terminal,
+		int rotide_key) {
+	if (terminal == NULL || terminal->vt == NULL ||
+			terminal->child.master_fd < 0) {
+		return 0;
+	}
+	/* Printable ASCII goes through vterm so it handles UTF-8 paste/keypress
+	 * normalization. */
+	if (rotide_key >= 0x20 && rotide_key < 0x7f) {
+		vterm_keyboard_unichar(terminal->vt, (uint32_t)rotide_key, VTERM_MOD_NONE);
+		return 1;
+	}
+	VTermKey vk = VTERM_KEY_NONE;
+	VTermModifier mod = VTERM_MOD_NONE;
+	switch (rotide_key) {
+	case '\r':
+		vk = VTERM_KEY_ENTER;
+		break;
+	case 27: /* esc */
+		vk = VTERM_KEY_ESCAPE;
+		break;
+	case '\t':
+		vk = VTERM_KEY_TAB;
+		break;
+	case BACKSPACE:
+		vk = VTERM_KEY_BACKSPACE;
+		break;
+	case ARROW_UP:
+		vk = VTERM_KEY_UP;
+		break;
+	case ARROW_DOWN:
+		vk = VTERM_KEY_DOWN;
+		break;
+	case ARROW_LEFT:
+		vk = VTERM_KEY_LEFT;
+		break;
+	case ARROW_RIGHT:
+		vk = VTERM_KEY_RIGHT;
+		break;
+	case DEL_KEY:
+		vk = VTERM_KEY_DEL;
+		break;
+	case HOME_KEY:
+		vk = VTERM_KEY_HOME;
+		break;
+	case END_KEY:
+		vk = VTERM_KEY_END;
+		break;
+	case PAGE_UP:
+		vk = VTERM_KEY_PAGEUP;
+		break;
+	case PAGE_DOWN:
+		vk = VTERM_KEY_PAGEDOWN;
+		break;
+	default:
+		break;
+	}
+	if (vk != VTERM_KEY_NONE) {
+		vterm_keyboard_key(terminal->vt, vk, mod);
+		return 1;
+	}
+	/* Control characters (Ctrl+A .. Ctrl+Z and related) pass through as
+	 * the literal control byte. */
+	if (rotide_key > 0 && rotide_key < 0x20) {
+		char b = (char)rotide_key;
+		(void)write(terminal->child.master_fd, &b, 1);
+		return 1;
+	}
+	return 0;
+}
+
 struct editorPaneNode *editorPaneNodeNewTerminalLeaf(const char *command,
 		int cols, int rows) {
 	struct editorTerminalPane *terminal = editorTerminalPaneCreate(command, cols, rows);
@@ -186,4 +268,33 @@ int editorTerminalPaneTreeHasTerminal(const struct editorPaneNode *root) {
 				editorTerminalPaneTreeHasTerminal(root->as.split.second);
 	}
 	return root->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL;
+}
+
+struct editorPaneNode *editorTerminalPaneOpenSplit(const char *command,
+		int orientation) {
+	if (command == NULL) {
+		errno = EINVAL;
+		return NULL;
+	}
+	struct editorPaneNode *sibling = editorLayoutSplitFocused(
+			(enum editorSplitOrientation)orientation, 0.5);
+	if (sibling == NULL) {
+		return NULL;
+	}
+	struct editorRect rect = {0};
+	int cols = 80;
+	int rows = 24;
+	if (editorLayoutFocusedLeafRect(&rect) && rect.w > 0 && rect.h > 0) {
+		cols = rect.w;
+		rows = rect.h;
+	}
+	struct editorTerminalPane *terminal = editorTerminalPaneCreate(command,
+			cols, rows);
+	if (terminal == NULL) {
+		return NULL;
+	}
+	sibling->as.leaf.kind = EDITOR_PANE_KIND_TERMINAL;
+	sibling->as.leaf.kind_state = terminal;
+	sibling->as.leaf.kind_state_free = editorTerminalPaneFree;
+	return sibling;
 }

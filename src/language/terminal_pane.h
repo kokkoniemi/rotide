@@ -71,6 +71,16 @@ int editorTerminalPaneWrite(struct editorTerminalPane *terminal,
 		const char *bytes, size_t len);
 
 /*
+ * Encode a rotide key code and send it to the PTY child. Handles ASCII
+ * printables, control characters, and rotide's named keys (arrows, home,
+ * end, page up/down, function keys, etc.) by translating to libvterm's
+ * keyboard helpers, which emit the matching terminal byte sequence.
+ * Returns 1 if any bytes were forwarded, 0 if the key produced none.
+ */
+int editorTerminalPaneSendKey(struct editorTerminalPane *terminal,
+		int rotide_key);
+
+/*
  * Convenience: build a leaf pane node of kind TERMINAL with a freshly
  * spawned PTY + vterm wired into its kind_state. Caller takes ownership of
  * the node; closing the pane via editorPaneNodeFree releases everything.
@@ -93,5 +103,17 @@ void editorTerminalPanePumpAll(struct editorPaneNode *root);
  * single leaf (single-pane fast path doesn't know how to draw terminals).
  */
 int editorTerminalPaneTreeHasTerminal(const struct editorPaneNode *root);
+
+/*
+ * Split the focused pane and replace the new sibling with a terminal pane
+ * running `command`. The new terminal pane gains focus. `orientation` is
+ * an `editorSplitOrientation` value cast to int (the parameter type is
+ * int to avoid forcing layout.h on every caller). Returns the new leaf
+ * on success, NULL on failure (errno set; the layout may be left with
+ * an empty editor sibling if the split succeeded but the terminal spawn
+ * failed).
+ */
+struct editorPaneNode *editorTerminalPaneOpenSplit(const char *command,
+		int orientation);
 
 #endif
