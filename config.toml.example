@@ -112,6 +112,11 @@ mode = "debug"
 
 # C/C++ defaults assume a pre-built executable. Adjust `program` to your
 # binary. The same launch fields work for gdb-dap and lldb-dap.
+# `console = "terminal"` makes rotide open a split-screen terminal pane
+# at launch time and pass its tty to the adapter via the `tty` launch
+# field — the inferior renders inside rotide instead of fighting the
+# host tty. Set `console = "none"` (or remove the field) to keep the old
+# behavior where the inferior shares rotide's tty.
 [dap.defaults.c_app]
 name = "C app"
 adapter = "c"
@@ -120,6 +125,7 @@ program = "${workspaceFolder}/a.out"
 cwd = "${workspaceFolder}"
 args = []
 stopOnEntry = false
+console = "terminal"
 
 [dap.defaults.cpp_app]
 name = "C++ app"
@@ -129,6 +135,7 @@ program = "${workspaceFolder}/a.out"
 cwd = "${workspaceFolder}"
 args = []
 stopOnEntry = false
+console = "terminal"
 
 # [dap.defaults.rust_app]
 # name = "Rust app"

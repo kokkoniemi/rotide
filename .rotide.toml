@@ -6,3 +6,4 @@ program = "${workspaceFolder}/rotide"
 cwd = "${workspaceFolder}"
 args = ["${workspaceFolder}/src/rotide.c"]
 stopOnEntry = false
+console = "terminal"

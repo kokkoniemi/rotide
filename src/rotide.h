@@ -825,6 +825,13 @@ struct editorConfig {
 	int dap_running;
 	int dap_stopped;
 	int dap_selected_launch;
+	/*
+	 * If non-NULL, points at a terminal pane leaf that the DAP launch
+	 * opened (via console="terminal") to host the inferior's tty. The
+	 * pane is closed when the DAP session ends, unless the user has
+	 * focused the pane and is interacting with it.
+	 */
+	struct editorPaneNode *dap_terminal_leaf;
 	enum editorCursorStyle cursor_style;
 	int cursor_blink_enabled;
 	int line_wrap_enabled;

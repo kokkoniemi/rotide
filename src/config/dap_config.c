@@ -116,6 +116,57 @@ static struct editorDapLaunchField *editorDapEnsureField(
 	return field;
 }
 
+int editorDapLaunchGetStringField(const struct editorDapLaunchConfig *config,
+		const char *key, char *out, size_t out_size) {
+	if (config == NULL || key == NULL || out == NULL || out_size == 0) {
+		return 0;
+	}
+	for (int i = 0; i < config->field_count; i++) {
+		if (strcmp(config->fields[i].key, key) != 0) {
+			continue;
+		}
+		if (config->fields[i].kind != EDITOR_DAP_LAUNCH_VALUE_STRING) {
+			return 0;
+		}
+		return editorDapCopyString(out, out_size,
+				config->fields[i].string_value);
+	}
+	return 0;
+}
+
+int editorDapLaunchSetStringField(struct editorDapLaunchConfig *config,
+		const char *key, const char *value) {
+	if (value == NULL) {
+		return 0;
+	}
+	struct editorDapLaunchField *field = editorDapEnsureField(config, key);
+	if (field == NULL) {
+		return 0;
+	}
+	field->kind = EDITOR_DAP_LAUNCH_VALUE_STRING;
+	return editorDapCopyString(field->string_value,
+			sizeof(field->string_value), value);
+}
+
+void editorDapLaunchRemoveField(struct editorDapLaunchConfig *config,
+		const char *key) {
+	if (config == NULL || key == NULL) {
+		return;
+	}
+	for (int i = 0; i < config->field_count; i++) {
+		if (strcmp(config->fields[i].key, key) != 0) {
+			continue;
+		}
+		for (int j = i; j < config->field_count - 1; j++) {
+			config->fields[j] = config->fields[j + 1];
+		}
+		config->field_count--;
+		memset(&config->fields[config->field_count], 0,
+				sizeof(config->fields[0]));
+		return;
+	}
+}
+
 static struct editorDapEnvVar *editorDapEnsureEnv(
 		struct editorDapLaunchConfig *config, const char *key) {
 	if (config == NULL || key == NULL || key[0] == '\0') {

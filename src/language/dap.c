@@ -4,9 +4,11 @@
 #include "editing/edit.h"
 #include "language/lsp_protocol.h"
 #include "language/lsp_transport.h"
+#include "language/terminal_pane.h"
 #include "support/file_io.h"
 #include "support/size_utils.h"
 #include "workspace/drawer.h"
+#include "workspace/layout.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -36,6 +38,8 @@ static struct editorDapClient g_dap_client = {
 	.next_seq = 1,
 	.initialized = 0,
 };
+
+static void editorDapCloseOwnedTerminalPane(void);
 
 static void editorDapClientReset(void) {
 	g_dap_client.pid = 0;
@@ -508,6 +512,7 @@ int editorDapProcessIncomingMessage(const char *message) {
 		if (strcmp(event, "terminated") == 0 || strcmp(event, "exited") == 0) {
 			E.dap_running = 0;
 			E.dap_stopped = 0;
+			editorDapCloseOwnedTerminalPane();
 			editorSetStatusMsg("DAP session ended");
 			return 1;
 		}
@@ -560,6 +565,46 @@ void editorDapPumpNotifications(void) {
 	}
 }
 
+int editorDapPrepareTerminalConsole(struct editorDapLaunchConfig *config) {
+	char console_value[ROTIDE_DAP_VALUE_MAX];
+	if (!editorDapLaunchGetStringField(config, "console", console_value,
+			sizeof(console_value))) {
+		return 1;
+	}
+	if (strcmp(console_value, "terminal") != 0) {
+		/* Other values (none, internalConsole) — leave as-is and strip
+		 * the key so adapters don't reject an unknown enum. */
+		editorDapLaunchRemoveField(config, "console");
+		return 1;
+	}
+	struct editorPaneNode *terminal_leaf = editorTerminalPaneOpenSplit(
+			"sleep infinity", EDITOR_SPLIT_HORIZONTAL);
+	if (terminal_leaf == NULL) {
+		editorSetStatusMsg("Could not open terminal pane for DAP console");
+		editorDapLaunchRemoveField(config, "console");
+		return 0;
+	}
+	struct editorTerminalPane *tp =
+			(struct editorTerminalPane *)terminal_leaf->as.leaf.kind_state;
+	const char *slave_path = NULL;
+	if (tp != NULL && tp->child.master_fd >= 0) {
+		slave_path = ptsname(tp->child.master_fd);
+	}
+	if (slave_path == NULL ||
+			!editorDapLaunchSetStringField(config, "tty", slave_path)) {
+		editorSetStatusMsg("Failed to resolve terminal pane tty");
+		(void)editorPaneTreeCloseLeaf(&E.layout_root, terminal_leaf);
+		if (E.focused_leaf != NULL) {
+			(void)editorPaneViewLoadIntoState(&E.focused_leaf->as.leaf.view);
+		}
+		editorDapLaunchRemoveField(config, "console");
+		return 0;
+	}
+	E.dap_terminal_leaf = terminal_leaf;
+	editorDapLaunchRemoveField(config, "console");
+	return 1;
+}
+
 int editorDapStartLaunch(int launch_idx) {
 	if (launch_idx < 0 || launch_idx >= E.dap_launch_count) {
 		editorSetStatusMsg("No DAP launch config selected");
@@ -577,11 +622,21 @@ int editorDapStartLaunch(int launch_idx) {
 	}
 
 	editorDapShutdown();
+
+	/* Work on a local copy so spawn-time mutations (e.g. setting `tty`
+	 * after opening a terminal pane for console="terminal") don't pollute
+	 * the persistent launch config in E.dap_launches. */
+	struct editorDapLaunchConfig launch_copy = *config;
+	if (!editorDapPrepareTerminalConsole(&launch_copy)) {
+		return 0;
+	}
+
 	pid_t pid = 0;
 	int to_fd = -1;
 	int from_fd = -1;
 	if (!editorLspSpawnProcess(adapter->command, &pid, &to_fd, &from_fd)) {
 		editorSetStatusMsg("Could not start DAP adapter");
+		editorDapShutdown();
 		return 0;
 	}
 	g_dap_client.pid = pid;
@@ -599,14 +654,14 @@ int editorDapStartLaunch(int launch_idx) {
 		workspace_root = ".";
 	}
 	if (!editorDapSendRequest(editorDapBuildInitializeRequestJson(g_dap_client.next_seq++,
-				config->adapter)) ||
+				launch_copy.adapter)) ||
 			!editorDapSendRequest(editorDapBuildLaunchRequestJson(g_dap_client.next_seq++,
-					config, workspace_root, E.filename))) {
+					&launch_copy, workspace_root, E.filename))) {
 		editorDapShutdown();
 		editorSetStatusMsg("DAP launch request failed");
 		return 0;
 	}
-	editorSetStatusMsg("DAP launched %s", config->name[0] != '\0' ? config->name : config->id);
+	editorSetStatusMsg("DAP launched %s", launch_copy.name[0] != '\0' ? launch_copy.name : launch_copy.id);
 	return 1;
 }
 
@@ -706,6 +761,24 @@ int editorDapToggleBreakpointAtCursor(void) {
 	return 1;
 }
 
+static void editorDapCloseOwnedTerminalPane(void) {
+	if (E.dap_terminal_leaf == NULL) {
+		return;
+	}
+	struct editorPaneNode *leaf = E.dap_terminal_leaf;
+	E.dap_terminal_leaf = NULL;
+	if (E.layout_root == NULL ||
+			!editorPaneNodeContainsLeaf(E.layout_root, leaf)) {
+		return; /* User already closed it. */
+	}
+	struct editorPaneNode *new_focus =
+			editorPaneTreeCloseLeaf(&E.layout_root, leaf);
+	if (new_focus != NULL) {
+		E.focused_leaf = new_focus;
+		(void)editorPaneViewLoadIntoState(&new_focus->as.leaf.view);
+	}
+}
+
 void editorDapShutdown(void) {
 	if (g_dap_client.to_adapter_fd != -1) {
 		close(g_dap_client.to_adapter_fd);
@@ -722,4 +795,5 @@ void editorDapShutdown(void) {
 		}
 	}
 	editorDapClientReset();
+	editorDapCloseOwnedTerminalPane();
 }

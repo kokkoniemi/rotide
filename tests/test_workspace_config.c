@@ -7,6 +7,7 @@
 #include "config/theme_config.h"
 #include "input/dispatch.h"
 #include "language/dap.h"
+#include "workspace/layout.h"
 #include "workspace/tabs.h"
 #include "workspace/workspace_state.h"
 #include "workspace/file_search.h"
@@ -3962,6 +3963,83 @@ static int test_editor_dap_config_rejects_missing_adapter_and_attach(void) {
 	return 0;
 }
 
+static int test_editor_dap_launch_field_accessors(void) {
+	struct editorDapLaunchConfig cfg;
+	memset(&cfg, 0, sizeof(cfg));
+
+	ASSERT_TRUE(editorDapLaunchSetStringField(&cfg, "program", "/bin/echo"));
+	ASSERT_EQ_INT(1, cfg.field_count);
+	char value[ROTIDE_DAP_VALUE_MAX];
+	ASSERT_TRUE(editorDapLaunchGetStringField(&cfg, "program", value, sizeof(value)));
+	ASSERT_EQ_STR("/bin/echo", value);
+
+	ASSERT_TRUE(editorDapLaunchSetStringField(&cfg, "program", "/bin/true"));
+	ASSERT_EQ_INT(1, cfg.field_count);
+	ASSERT_TRUE(editorDapLaunchGetStringField(&cfg, "program", value, sizeof(value)));
+	ASSERT_EQ_STR("/bin/true", value);
+
+	ASSERT_TRUE(editorDapLaunchSetStringField(&cfg, "extra", "ok"));
+	ASSERT_EQ_INT(2, cfg.field_count);
+	editorDapLaunchRemoveField(&cfg, "program");
+	ASSERT_EQ_INT(1, cfg.field_count);
+	ASSERT_TRUE(editorDapLaunchGetStringField(&cfg, "extra", value, sizeof(value)));
+	ASSERT_EQ_STR("ok", value);
+	ASSERT_TRUE(editorDapLaunchGetStringField(&cfg, "program", value, sizeof(value)) == 0);
+	editorDapLaunchRemoveField(&cfg, "missing");
+	ASSERT_EQ_INT(1, cfg.field_count);
+	return 0;
+}
+
+static int test_editor_dap_prepare_terminal_console_sets_tty(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	E.window_cols = 80;
+	E.window_rows = 24;
+	E.dap_terminal_leaf = NULL;
+
+	struct editorDapLaunchConfig cfg;
+	memset(&cfg, 0, sizeof(cfg));
+	snprintf(cfg.id, sizeof(cfg.id), "%s", "go_app");
+	snprintf(cfg.adapter, sizeof(cfg.adapter), "%s", "go");
+	snprintf(cfg.request, sizeof(cfg.request), "%s", "launch");
+	ASSERT_TRUE(editorDapLaunchSetStringField(&cfg, "console", "terminal"));
+
+	int ok = editorDapPrepareTerminalConsole(&cfg);
+	ASSERT_TRUE(ok);
+	ASSERT_TRUE(E.dap_terminal_leaf != NULL);
+	ASSERT_TRUE(E.dap_terminal_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL);
+
+	/* The console field is gone, replaced by a real tty path. */
+	char value[ROTIDE_DAP_VALUE_MAX];
+	ASSERT_TRUE(editorDapLaunchGetStringField(&cfg, "console", value, sizeof(value)) == 0);
+	ASSERT_TRUE(editorDapLaunchGetStringField(&cfg, "tty", value, sizeof(value)));
+	ASSERT_TRUE(strstr(value, "/dev/pts/") != NULL || strstr(value, "/dev/tty") != NULL);
+
+	/* Cleanup: close the owned terminal pane. */
+	struct editorPaneNode *leaf = E.dap_terminal_leaf;
+	E.dap_terminal_leaf = NULL;
+	if (editorPaneNodeContainsLeaf(E.layout_root, leaf)) {
+		(void)editorPaneTreeCloseLeaf(&E.layout_root, leaf);
+		if (E.focused_leaf == leaf || E.layout_root != NULL) {
+			E.focused_leaf = E.layout_root;
+		}
+	}
+	return 0;
+}
+
+static int test_editor_dap_prepare_terminal_console_strips_non_terminal_value(void) {
+	struct editorDapLaunchConfig cfg;
+	memset(&cfg, 0, sizeof(cfg));
+	snprintf(cfg.id, sizeof(cfg.id), "%s", "test");
+	ASSERT_TRUE(editorDapLaunchSetStringField(&cfg, "console", "internalConsole"));
+	ASSERT_TRUE(editorDapPrepareTerminalConsole(&cfg));
+	char value[ROTIDE_DAP_VALUE_MAX];
+	ASSERT_TRUE(editorDapLaunchGetStringField(&cfg, "console", value, sizeof(value)) == 0);
+	ASSERT_TRUE(E.dap_terminal_leaf == NULL);
+	return 0;
+}
+
 static int test_editor_dap_drawer_prompts_and_creates_project_config_from_default(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -4222,6 +4300,11 @@ const struct editorTestCase g_workspace_config_tests[] = {
 	{"editor_config_default_global_loads_cleanly", test_editor_config_default_global_loads_cleanly},
 	{"editor_dap_config_loads_global_defaults_and_project_launches", test_editor_dap_config_loads_global_defaults_and_project_launches},
 	{"editor_dap_config_rejects_missing_adapter_and_attach", test_editor_dap_config_rejects_missing_adapter_and_attach},
+	{"editor_dap_launch_field_accessors", test_editor_dap_launch_field_accessors},
+	{"editor_dap_prepare_terminal_console_sets_tty",
+			test_editor_dap_prepare_terminal_console_sets_tty},
+	{"editor_dap_prepare_terminal_console_strips_non_terminal_value",
+			test_editor_dap_prepare_terminal_console_strips_non_terminal_value},
 	{"editor_dap_drawer_prompts_and_creates_project_config_from_default", test_editor_dap_drawer_prompts_and_creates_project_config_from_default},
 	{"editor_dap_protocol_builds_initialize_and_launch_requests", test_editor_dap_protocol_builds_initialize_and_launch_requests},
 	{"editor_workspace_state_persists_drawer_state", test_editor_workspace_state_persists_drawer_state},

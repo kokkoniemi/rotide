@@ -19,4 +19,23 @@ int editorDapBuildProjectConfigPath(const char *project_root, char *buf, size_t 
 const struct editorDapAdapterConfig *editorDapAdapterById(const char *id);
 int editorDapCreateProjectLaunchFromDefault(int default_idx, const char *project_root);
 
+/*
+ * Launch-field accessors used at launch time (rotide may want to read or
+ * synthesize a field before sending the JSON to the adapter). All operate
+ * on the generic `fields[]` array shared by both [dap.defaults] and
+ * [dap.launch] tables.
+ *
+ * editorDapLaunchGetStringField copies the value of a string-kind field
+ * into `out` and returns 1 if found and string-valued, 0 otherwise.
+ * editorDapLaunchSetStringField creates or updates a string field;
+ * returns 1 on success.
+ * editorDapLaunchRemoveField drops a field by key (no-op if absent).
+ */
+int editorDapLaunchGetStringField(const struct editorDapLaunchConfig *config,
+		const char *key, char *out, size_t out_size);
+int editorDapLaunchSetStringField(struct editorDapLaunchConfig *config,
+		const char *key, const char *value);
+void editorDapLaunchRemoveField(struct editorDapLaunchConfig *config,
+		const char *key);
+
 #endif
