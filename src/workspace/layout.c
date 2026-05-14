@@ -57,6 +57,104 @@ int editorPaneNodeContainsLeaf(const struct editorPaneNode *node,
 			editorPaneNodeContainsLeaf(node->as.split.second, leaf);
 }
 
+struct editorPaneNode *editorPaneTreeFindParent(struct editorPaneNode *root,
+		const struct editorPaneNode *child) {
+	if (root == NULL || child == NULL || !root->is_split) {
+		return NULL;
+	}
+	if (root->as.split.first == child || root->as.split.second == child) {
+		return root;
+	}
+	struct editorPaneNode *found =
+			editorPaneTreeFindParent(root->as.split.first, child);
+	if (found != NULL) {
+		return found;
+	}
+	return editorPaneTreeFindParent(root->as.split.second, child);
+}
+
+int editorPaneTreeLeafCount(const struct editorPaneNode *root) {
+	if (root == NULL) {
+		return 0;
+	}
+	if (!root->is_split) {
+		return 1;
+	}
+	return editorPaneTreeLeafCount(root->as.split.first) +
+			editorPaneTreeLeafCount(root->as.split.second);
+}
+
+struct editorPaneNode *editorPaneTreeSplitLeaf(struct editorPaneNode **root_ptr,
+		struct editorPaneNode *leaf, enum editorSplitOrientation orientation,
+		double ratio) {
+	if (root_ptr == NULL || *root_ptr == NULL || leaf == NULL || leaf->is_split) {
+		return NULL;
+	}
+	if (!editorPaneNodeContainsLeaf(*root_ptr, leaf)) {
+		return NULL;
+	}
+	struct editorPaneNode *sibling = editorPaneNodeNewLeaf(leaf->as.leaf.kind);
+	if (sibling == NULL) {
+		return NULL;
+	}
+	struct editorPaneNode *split = malloc(sizeof(*split));
+	if (split == NULL) {
+		editorPaneNodeFree(sibling);
+		return NULL;
+	}
+	memset(split, 0, sizeof(*split));
+	split->is_split = 1;
+	split->as.split.orientation = orientation;
+	split->as.split.ratio = ratio < 0.0 ? 0.0 : (ratio > 1.0 ? 1.0 : ratio);
+	split->as.split.first = leaf;
+	split->as.split.second = sibling;
+
+	struct editorPaneNode *parent = editorPaneTreeFindParent(*root_ptr, leaf);
+	if (parent == NULL) {
+		*root_ptr = split;
+	} else if (parent->as.split.first == leaf) {
+		parent->as.split.first = split;
+	} else {
+		parent->as.split.second = split;
+	}
+	return sibling;
+}
+
+struct editorPaneNode *editorPaneTreeCloseLeaf(struct editorPaneNode **root_ptr,
+		struct editorPaneNode *leaf) {
+	if (root_ptr == NULL || *root_ptr == NULL || leaf == NULL || leaf->is_split) {
+		return NULL;
+	}
+	if (!editorPaneNodeContainsLeaf(*root_ptr, leaf)) {
+		return NULL;
+	}
+	struct editorPaneNode *parent = editorPaneTreeFindParent(*root_ptr, leaf);
+	if (parent == NULL) {
+		/* Leaf is the root: close-last-leaf is a no-op. */
+		return NULL;
+	}
+	struct editorPaneNode *sibling = parent->as.split.first == leaf
+			? parent->as.split.second
+			: parent->as.split.first;
+
+	struct editorPaneNode *grand =
+			editorPaneTreeFindParent(*root_ptr, parent);
+	if (grand == NULL) {
+		*root_ptr = sibling;
+	} else if (grand->as.split.first == parent) {
+		grand->as.split.first = sibling;
+	} else {
+		grand->as.split.second = sibling;
+	}
+
+	/* Detach so editorPaneNodeFree on parent doesn't recurse into sibling. */
+	parent->as.split.first = NULL;
+	parent->as.split.second = NULL;
+	editorPaneNodeFree(parent);
+	editorPaneNodeFree(leaf);
+	return editorPaneNodeFirstLeaf(sibling);
+}
+
 static int editorLeafLayoutReserve(struct editorLeafLayout *out, int needed) {
 	if (out == NULL || needed < 0) {
 		return 0;

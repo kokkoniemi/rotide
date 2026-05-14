@@ -67,6 +67,40 @@ struct editorPaneNode *editorPaneNodeFirstLeaf(struct editorPaneNode *node);
 int editorPaneNodeContainsLeaf(const struct editorPaneNode *node,
 		const struct editorPaneNode *leaf);
 
+/*
+ * Tree mutation primitives.
+ *
+ * editorPaneTreeSplitLeaf wraps the focused leaf in a new split node, with
+ * `leaf` placed first (left/top) and a freshly allocated sibling placed
+ * second (right/bottom). `*root_ptr` is updated if the splitting leaf was
+ * the root. Returns the new sibling leaf on success, NULL on allocation
+ * failure or if `leaf` is not found under `*root_ptr`.
+ *
+ * editorPaneTreeCloseLeaf removes `leaf` from the tree, promoting its
+ * sibling in place of the parent split node. `*root_ptr` is updated if the
+ * parent was the root. Returns the sibling leaf that now occupies the
+ * focused position (caller should set focus to it), or NULL if `leaf` is
+ * the only leaf (close-last-leaf is a no-op), or NULL if `leaf` is not
+ * found. The freed leaf and parent split node are released by this call.
+ *
+ * editorPaneTreeFindParent locates the split node whose first/second child
+ * is `child`. Returns NULL if `child` is the root or is not found.
+ *
+ * editorPaneTreeLeafCount returns the number of leaves under `root`.
+ *
+ * editorPaneTreeFirstLeaf is a stable left-most-leaf finder for fallback
+ * focus moves.
+ */
+struct editorPaneNode *editorPaneTreeSplitLeaf(struct editorPaneNode **root_ptr,
+		struct editorPaneNode *leaf,
+		enum editorSplitOrientation orientation,
+		double ratio);
+struct editorPaneNode *editorPaneTreeCloseLeaf(struct editorPaneNode **root_ptr,
+		struct editorPaneNode *leaf);
+struct editorPaneNode *editorPaneTreeFindParent(struct editorPaneNode *root,
+		const struct editorPaneNode *child);
+int editorPaneTreeLeafCount(const struct editorPaneNode *root);
+
 int editorLayoutComputeInto(const struct editorPaneNode *root,
 		struct editorRect viewport,
 		struct editorLeafLayout *out);

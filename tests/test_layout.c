@@ -369,6 +369,169 @@ static int test_layout_focused_leaf_rect_handles_missing_root(void) {
 	return found != 0;
 }
 
+static int test_layout_split_leaf_promotes_root(void) {
+	struct editorPaneNode *root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	if (root == NULL) {
+		return 1;
+	}
+	struct editorPaneNode *leaf = root;
+	struct editorPaneNode *sibling =
+			editorPaneTreeSplitLeaf(&root, leaf, EDITOR_SPLIT_VERTICAL, 0.5);
+	int failed = sibling == NULL ||
+			root == leaf ||
+			!root->is_split ||
+			root->as.split.first != leaf ||
+			root->as.split.second != sibling ||
+			editorPaneTreeLeafCount(root) != 2 ||
+			editorPaneTreeFindParent(root, leaf) != root ||
+			editorPaneTreeFindParent(root, sibling) != root;
+	editorPaneNodeFree(root);
+	return failed;
+}
+
+static int test_layout_split_leaf_inside_existing_split(void) {
+	struct editorPaneNode *root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	if (root == NULL) {
+		return 1;
+	}
+	struct editorPaneNode *original = root;
+	struct editorPaneNode *first_sibling =
+			editorPaneTreeSplitLeaf(&root, original, EDITOR_SPLIT_VERTICAL, 0.5);
+	if (first_sibling == NULL) {
+		editorPaneNodeFree(root);
+		return 1;
+	}
+	struct editorPaneNode *nested =
+			editorPaneTreeSplitLeaf(&root, first_sibling, EDITOR_SPLIT_HORIZONTAL, 0.3);
+	int failed = nested == NULL ||
+			editorPaneTreeLeafCount(root) != 3 ||
+			editorPaneTreeFindParent(root, nested) ==
+					editorPaneTreeFindParent(root, original);
+	editorPaneNodeFree(root);
+	return failed;
+}
+
+static int test_layout_split_leaf_clamps_ratio(void) {
+	struct editorPaneNode *root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	if (root == NULL) {
+		return 1;
+	}
+	struct editorPaneNode *leaf = root;
+	struct editorPaneNode *sibling =
+			editorPaneTreeSplitLeaf(&root, leaf, EDITOR_SPLIT_VERTICAL, 5.0);
+	int failed = sibling == NULL || root->as.split.ratio != 1.0;
+	editorPaneNodeFree(root);
+
+	root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	if (root == NULL) {
+		return 1;
+	}
+	leaf = root;
+	sibling = editorPaneTreeSplitLeaf(&root, leaf, EDITOR_SPLIT_VERTICAL, -0.5);
+	failed = failed || sibling == NULL || root->as.split.ratio != 0.0;
+	editorPaneNodeFree(root);
+	return failed;
+}
+
+static int test_layout_split_rejects_unknown_leaf(void) {
+	struct editorPaneNode *root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	struct editorPaneNode *orphan = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	if (root == NULL || orphan == NULL) {
+		editorPaneNodeFree(root);
+		editorPaneNodeFree(orphan);
+		return 1;
+	}
+	struct editorPaneNode *sibling =
+			editorPaneTreeSplitLeaf(&root, orphan, EDITOR_SPLIT_VERTICAL, 0.5);
+	int failed = sibling != NULL;
+	editorPaneNodeFree(root);
+	editorPaneNodeFree(orphan);
+	return failed;
+}
+
+static int test_layout_close_leaf_promotes_sibling_to_root(void) {
+	struct editorPaneNode *root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	if (root == NULL) {
+		return 1;
+	}
+	struct editorPaneNode *original = root;
+	struct editorPaneNode *sibling =
+			editorPaneTreeSplitLeaf(&root, original, EDITOR_SPLIT_VERTICAL, 0.5);
+	if (sibling == NULL) {
+		editorPaneNodeFree(root);
+		return 1;
+	}
+	struct editorPaneNode *new_focus = editorPaneTreeCloseLeaf(&root, original);
+	int failed = new_focus != sibling ||
+			root != sibling ||
+			root->is_split ||
+			editorPaneTreeLeafCount(root) != 1;
+	editorPaneNodeFree(root);
+	return failed;
+}
+
+static int test_layout_close_leaf_nested(void) {
+	struct editorPaneNode *root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	if (root == NULL) {
+		return 1;
+	}
+	struct editorPaneNode *a = root;
+	struct editorPaneNode *b =
+			editorPaneTreeSplitLeaf(&root, a, EDITOR_SPLIT_VERTICAL, 0.5);
+	struct editorPaneNode *c =
+			editorPaneTreeSplitLeaf(&root, b, EDITOR_SPLIT_HORIZONTAL, 0.5);
+	if (b == NULL || c == NULL) {
+		editorPaneNodeFree(root);
+		return 1;
+	}
+
+	struct editorPaneNode *new_focus = editorPaneTreeCloseLeaf(&root, c);
+	int failed = new_focus != b ||
+			editorPaneTreeLeafCount(root) != 2 ||
+			editorPaneTreeFindParent(root, b) != root ||
+			editorPaneTreeFindParent(root, a) != root;
+	editorPaneNodeFree(root);
+	return failed;
+}
+
+static int test_layout_close_last_leaf_is_no_op(void) {
+	struct editorPaneNode *root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	if (root == NULL) {
+		return 1;
+	}
+	struct editorPaneNode *retained = root;
+	struct editorPaneNode *result = editorPaneTreeCloseLeaf(&root, root);
+	int failed = result != NULL || root != retained;
+	editorPaneNodeFree(root);
+	return failed;
+}
+
+static int test_layout_close_rejects_unknown_leaf(void) {
+	struct editorPaneNode *root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	struct editorPaneNode *orphan = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	if (root == NULL || orphan == NULL) {
+		editorPaneNodeFree(root);
+		editorPaneNodeFree(orphan);
+		return 1;
+	}
+	struct editorPaneNode *retained = root;
+	struct editorPaneNode *result = editorPaneTreeCloseLeaf(&root, orphan);
+	int failed = result != NULL || root != retained;
+	editorPaneNodeFree(root);
+	editorPaneNodeFree(orphan);
+	return failed;
+}
+
+static int test_layout_find_parent_returns_null_for_root(void) {
+	struct editorPaneNode *root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	if (root == NULL) {
+		return 1;
+	}
+	int failed = editorPaneTreeFindParent(root, root) != NULL;
+	editorPaneNodeFree(root);
+	return failed;
+}
+
 const struct editorTestCase g_layout_tests[] = {
 	{"layout_single_leaf_returns_full_viewport",
 			test_layout_single_leaf_returns_full_viewport},
@@ -394,6 +557,18 @@ const struct editorTestCase g_layout_tests[] = {
 			test_layout_focused_leaf_rect_after_resize},
 	{"layout_focused_leaf_rect_handles_missing_root",
 			test_layout_focused_leaf_rect_handles_missing_root},
+	{"layout_split_leaf_promotes_root", test_layout_split_leaf_promotes_root},
+	{"layout_split_leaf_inside_existing_split",
+			test_layout_split_leaf_inside_existing_split},
+	{"layout_split_leaf_clamps_ratio", test_layout_split_leaf_clamps_ratio},
+	{"layout_split_rejects_unknown_leaf", test_layout_split_rejects_unknown_leaf},
+	{"layout_close_leaf_promotes_sibling_to_root",
+			test_layout_close_leaf_promotes_sibling_to_root},
+	{"layout_close_leaf_nested", test_layout_close_leaf_nested},
+	{"layout_close_last_leaf_is_no_op", test_layout_close_last_leaf_is_no_op},
+	{"layout_close_rejects_unknown_leaf", test_layout_close_rejects_unknown_leaf},
+	{"layout_find_parent_returns_null_for_root",
+			test_layout_find_parent_returns_null_for_root},
 };
 
 const int g_layout_test_count =
