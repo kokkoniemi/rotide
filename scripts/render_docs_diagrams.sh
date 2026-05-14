@@ -22,6 +22,20 @@ JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:+$JAVA_TOOL_OPTIONS }-Djava.awt.headless=
 export JAVA_TOOL_OPTIONS
 plantuml -tsvg -o "../svg" "$src_dir"/*.puml
 
+missing=0
+for source in "$src_dir"/*.puml; do
+	[ -e "$source" ] || continue
+	base=${source##*/}
+	svg="$out_dir/${base%.puml}.svg"
+	if [ ! -s "$svg" ]; then
+		echo "error: PlantUML did not produce $svg from $source" >&2
+		missing=1
+	fi
+done
+if [ "$missing" -ne 0 ]; then
+	exit 1
+fi
+
 for svg in "$out_dir"/*.svg; do
 	[ -e "$svg" ] || continue
 	perl -0pi -e 's/\r\n/\n/g; s/<!--MD5=.*?-->//gs; s!(<defs/>|</defs>)!$1<rect width="100%" height="100%" fill="#FFFFFF"/>!s' "$svg"

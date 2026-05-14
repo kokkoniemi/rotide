@@ -1,0 +1,34 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+title Tab lifecycle and save semantics
+
+[*] --> FileTab : new empty tab\nor open normal file
+[*] --> PreviewTab : drawer/search preview
+[*] --> ReadOnlyGenerated : task log, unsupported file,\nor Git diff
+
+state "Editable file tab" as FileTab {
+  [*] --> CleanFile
+  CleanFile --> DirtyFile : text mutation
+  DirtyFile --> CleanFile : successful save
+  DirtyFile --> DirtyFile : undo/redo/edit
+  CleanFile --> CleanFile : navigation/search/view change
+}
+
+PreviewTab --> FileTab : pin, explicit open,\nor edit
+PreviewTab --> PreviewTab : reuse while clean
+PreviewTab --> Closed : close or reuse for another preview
+
+state "Read-only/generated tabs" as ReadOnlyGenerated {
+  [*] --> TaskLog : child-process output
+  [*] --> UnsupportedFile : unsupported file placeholder
+  [*] --> GitDiff : generated diff text
+  TaskLog --> TaskLog : append output\nor final status
+  UnsupportedFile --> UnsupportedFile : preview reuse allowed\nwhile clean
+  GitDiff --> GitDiff : view only
+}
+
+FileTab --> Closed : close
+ReadOnlyGenerated --> Closed : close
+Closed --> [*]
+
+@enduml

@@ -86,6 +86,12 @@ positions. Requests such as definition, implementation, symbols, completion,
 diagnostics, and ESLint code actions route through JSON-RPC helpers and write
 results back to tab-local state.
 
+![LSP JSON-RPC shapes](../diagrams/svg/lsp-jsonrpc-shapes.svg)
+
+Range `didChange` notifications are used when the edit can be represented in
+the server's position encoding. RotIDE falls back to a full-document
+`contentChanges` entry when range conversion would need pre-edit text.
+
 Missing language servers can open install/help task-log tabs. Those tabs are
 generated output views and do not become normal editable files.
 

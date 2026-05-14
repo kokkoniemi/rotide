@@ -1,9 +1,11 @@
 # Architecture
 
-RotIDE is a single-process terminal editor built around explicit state
-transitions. The main design rule is that text has one writable owner:
-`editorDocument`. Rows, syntax captures, rendered columns, diagnostics, search
-matches, and viewports are derived from that document or from tab-local state.
+RotIDE keeps one main editor process and state model, with helper threads and
+child processes for specific work such as Tree-sitter background parsing, LSP
+servers, task logs, project search, and terminal panes. The main design rule is
+that text has one writable owner: `editorDocument`. Rows, syntax captures,
+rendered columns, diagnostics, search matches, and viewports are derived from
+that document or from tab-local state.
 
 ![RotIDE container architecture](../diagrams/svg/architecture-container.svg)
 
@@ -59,6 +61,8 @@ navigation and can be pinned when edited or explicitly opened. Task-log tabs are
 generated documents used for child-process output; they are read-only and not
 savable. Unsupported-file and Git-diff tabs also avoid normal save semantics.
 
+![Tab lifecycle](../diagrams/svg/tab-lifecycle.svg)
+
 The drawer is a view over project tree entries, search results, Git state, and
 LSP problem/symbol entries. It does not own file text.
 
@@ -83,7 +87,9 @@ at build time from `scripts/queries_manifest.txt` into
 Tree-sitter parsing uses `editorTextSource`, so syntax can read document bytes
 without requiring a permanent flattened buffer. Query budgets and injection
 limits degrade behavior before hard-disabling highlighting for large or
-expensive inputs.
+expensive inputs. The background syntax runner is an in-process worker thread
+that receives snapshots and commits only results that still match the tab's
+syntax revision.
 
 ## LSP
 
@@ -92,6 +98,8 @@ clients live under `src/language/lsp.c`, `lsp_protocol.c`, and
 `lsp_transport.c`. Definition, implementation, completion, symbols,
 diagnostics, and ESLint fixes all route through the same document position
 helpers used by the editor.
+
+![LSP document lifecycle](../diagrams/svg/lsp-document-lifecycle.svg)
 
 LSP diagnostics are stored on the owning tab and rendered through the LSP drawer
 and text overlays. ESLint is a separate JavaScript diagnostics/fix provider.

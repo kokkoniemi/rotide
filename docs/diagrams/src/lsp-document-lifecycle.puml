@@ -1,0 +1,26 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+title LSP document lifecycle
+
+[*] --> NotTracked : no filename, disabled,\nor unsupported language
+[*] --> Closed : supported tab loaded\nwith lsp_doc_open = 0
+
+NotTracked --> NotTracked : edits, saves, closes\nreturn without protocol traffic
+NotTracked --> Closed : file becomes supported\nor LSP enabled
+
+Closed --> Open : ensure tracked\ndidOpen(version=max(1, stored))
+Closed --> Closed : server unavailable\nor didOpen send fails
+
+state "Open document" as Open {
+  [*] --> Clean
+  Clean --> Dirty : edit\ndidChange(version + 1)
+  Dirty --> Dirty : edit\ndidChange(version + 1)
+  Dirty --> Clean : save\ndidSave
+  Clean --> Clean : definition, symbols,\ncompletion, diagnostics
+}
+
+Open --> Closed : tab close/reset\ndidClose, clear diagnostics,\nversion = 0
+Closed --> [*] : editor shutdown
+NotTracked --> [*] : editor shutdown
+
+@enduml
