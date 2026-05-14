@@ -18,6 +18,7 @@
 #include "support/terminal.h"
 #include "text/utf8.h"
 #include "workspace/drawer.h"
+#include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/recovery.h"
 #include "workspace/tabs.h"
@@ -55,6 +56,9 @@ void clear_editor_state(void) {
 	editorWatchTestReset();
 	editorOutputTestResetFrameCache();
 	editorClipboardClear();
+	editorPaneNodeFree(E.layout_root);
+	E.layout_root = NULL;
+	E.focused_leaf = NULL;
 }
 
 void reset_editor_state(void) {
@@ -161,6 +165,8 @@ void reset_editor_state(void) {
 	editorSyntaxTestResetParseFailureCountdowns();
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
 	editorKeymapInitDefaults(&E.keymap);
+	E.layout_root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	E.focused_leaf = E.layout_root;
 }
 
 void add_row(const char *s) {

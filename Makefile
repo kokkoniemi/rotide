@@ -93,6 +93,7 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/workspace/project_search.c \
 	$(SRC_DIR)/workspace/recovery.c \
 	$(SRC_DIR)/workspace/workspace_state.c \
+	$(SRC_DIR)/workspace/layout.c \
 	$(SRC_DIR)/input/dispatch.c \
 	$(SRC_DIR)/render/screen.c \
 	$(SRC_DIR)/render/popup.c \
@@ -118,6 +119,7 @@ TEST_SRCS = tests/rotide_tests_main.c tests/test_document_text_editing.c \
 	tests/test_save_recovery.c tests/test_workspace_config.c \
 	tests/test_file_watch.c \
 	tests/test_lsp.c tests/test_input_search.c tests/test_render_terminal.c \
+	tests/test_layout.c \
 	tests/test_support.c tests/test_helpers.c tests/alloc_test_hooks.c \
 	tests/save_syscalls_test_hooks.c
 TEST_OBJS = $(TEST_SRCS:.c=.o)

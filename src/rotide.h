@@ -145,6 +145,8 @@ enum editorPaneFocus {
 	EDITOR_PANE_DRAWER
 };
 
+struct editorPaneNode;
+
 enum editorCursorStyle {
 	EDITOR_CURSOR_STYLE_BLOCK = 0,
 	EDITOR_CURSOR_STYLE_BAR,
@@ -825,6 +827,8 @@ struct editorConfig {
 	struct editorTheme theme;
 	enum editorViewportMode viewport_mode;
 	enum editorPaneFocus pane_focus;
+	struct editorPaneNode *layout_root;
+	struct editorPaneNode *focused_leaf;
 	struct editorKeymap keymap;
 	struct editorPopupState popup;
 	struct termios orig_attrs;

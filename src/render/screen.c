@@ -13,6 +13,7 @@
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
+#include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
 #include <errno.h>
@@ -3293,7 +3294,13 @@ static int editorDrawRows(struct writeBuf *wb) {
 
 	int drawer_cols = editorDrawerWidthForCols(E.window_cols);
 	int separator_cols = editorDrawerSeparatorWidthForCols(E.window_cols);
-	int text_cols = editorDrawerTextViewportCols(E.window_cols);
+	struct editorRect leaf_rect = {0};
+	int text_cols;
+	if (editorLayoutFocusedLeafRect(&leaf_rect)) {
+		text_cols = leaf_rect.w;
+	} else {
+		text_cols = editorDrawerTextViewportCols(E.window_cols);
+	}
 	int file_row_draw_count = 0;
 	int force_full = 0;
 	if (!g_file_row_frame_cache.valid || g_file_row_frame_cache.window_rows != E.window_rows ||

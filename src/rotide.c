@@ -18,6 +18,7 @@
 #include "support/terminal.h"
 #include "workspace/drawer.h"
 #include "workspace/git.h"
+#include "workspace/layout.h"
 #include "workspace/recovery.h"
 #include "workspace/tabs.h"
 #include "workspace/workspace_state.h"
@@ -185,6 +186,12 @@ void initEditor(void) {
 	editorThemeInitDefault(&E.theme);
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
 	E.pane_focus = EDITOR_PANE_TEXT;
+	E.layout_root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	if (E.layout_root == NULL) {
+		errno = ENOMEM;
+		panic("editorPaneNodeNewLeaf");
+	}
+	E.focused_leaf = E.layout_root;
 	editorKeymapInitDefaults(&E.keymap);
 	editorClipboardSetExternalSink(editorClipboardSyncAll);
 	if (!editorTabsInit()) {
