@@ -3716,6 +3716,41 @@ static int test_editor_refresh_screen_renders_terminal_pane(void) {
 	return found ? 0 : 1;
 }
 
+static int test_editor_refresh_screen_terminal_exit_overlay(void) {
+	E.window_rows = 8;
+	E.window_cols = 60;
+
+	int viewport_cols = editorDrawerTextViewportCols(E.window_cols);
+	struct editorPaneNode *terminal_leaf = editorPaneNodeNewTerminalLeaf(
+			"true", viewport_cols, E.window_rows);
+	if (terminal_leaf == NULL) {
+		return 1;
+	}
+	editorPaneNodeFree(E.layout_root);
+	E.layout_root = terminal_leaf;
+	E.focused_leaf = terminal_leaf;
+
+	struct editorTerminalPane *t =
+			(struct editorTerminalPane *)terminal_leaf->as.leaf.kind_state;
+	int waited = 0;
+	while (waited < 2000 && !t->exited) {
+		(void)editorTerminalPanePump(t);
+		struct timespec ts = {0, 20 * 1000 * 1000};
+		nanosleep(&ts, NULL);
+		waited += 20;
+	}
+	if (!t->exited) {
+		return 1;
+	}
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	int found = strstr(output, "[exited:") != NULL;
+	free(output);
+	return found ? 0 : 1;
+}
+
 static int test_editor_refresh_screen_unfocused_pane_omits_content(void) {
 	add_row("unique-marker-row");
 	E.window_rows = 6;
@@ -3879,6 +3914,8 @@ const struct editorTestCase g_render_terminal_tests[] = {
 			test_editor_refresh_screen_unfocused_pane_omits_content},
 	{"editor_refresh_screen_renders_terminal_pane",
 			test_editor_refresh_screen_renders_terminal_pane},
+	{"editor_refresh_screen_terminal_exit_overlay",
+			test_editor_refresh_screen_terminal_exit_overlay},
 };
 
 const int g_render_terminal_test_count =

@@ -3506,11 +3506,56 @@ static int editorDrawTerminalCellAttrs(struct writeBuf *wb,
 	return 1;
 }
 
+static int editorDrawTerminalExitStatusRow(struct writeBuf *wb,
+		const struct editorTerminalPane *terminal, int col_in_pane,
+		int slice_cols) {
+	char banner[128];
+	int n;
+	if (WIFEXITED(terminal->exit_status)) {
+		n = snprintf(banner, sizeof(banner), "[exited: status %d]",
+				WEXITSTATUS(terminal->exit_status));
+	} else if (WIFSIGNALED(terminal->exit_status)) {
+		n = snprintf(banner, sizeof(banner), "[exited: signal %d]",
+				WTERMSIG(terminal->exit_status));
+	} else {
+		n = snprintf(banner, sizeof(banner), "[exited]");
+	}
+	if (n < 0) {
+		return 0;
+	}
+	int banner_len = n < (int)sizeof(banner) ? n : (int)sizeof(banner) - 1;
+	if (!wbAppend(wb, "\x1b[7m", 4)) {
+		return 0;
+	}
+	int emitted = 0;
+	for (int i = 0; emitted < slice_cols && i < banner_len; i++) {
+		if (i < col_in_pane) {
+			continue;
+		}
+		if (!wbAppend(wb, &banner[i], 1)) {
+			return 0;
+		}
+		emitted++;
+	}
+	while (emitted < slice_cols) {
+		if (!wbAppend(wb, " ", 1)) {
+			return 0;
+		}
+		emitted++;
+	}
+	return wbAppend(wb, "\x1b[m", 3);
+}
+
 static int editorDrawTerminalCells(struct writeBuf *wb,
 		struct editorTerminalPane *terminal, int row_in_pane,
 		int col_in_pane, int slice_cols) {
 	if (terminal == NULL || terminal->screen == NULL || slice_cols <= 0) {
 		return 1;
+	}
+	if (terminal->exited && terminal->rows > 0 &&
+			row_in_pane == terminal->rows - 1) {
+		return editorDrawTerminalExitStatusRow(wb, terminal, col_in_pane,
+				slice_cols);
 	}
 	int emitted = 0;
 	int col = col_in_pane;

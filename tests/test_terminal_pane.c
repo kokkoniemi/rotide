@@ -89,6 +89,30 @@ static int test_terminal_pane_resize_updates_grid(void) {
 	return failed;
 }
 
+static int test_terminal_pane_resize_all_to_layout_updates_grids(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	E.window_cols = 120;
+	E.window_rows = 40;
+	struct editorPaneNode *terminal_leaf =
+			editorTerminalPaneOpenSplit("sleep 5", EDITOR_SPLIT_HORIZONTAL);
+	if (terminal_leaf == NULL) {
+		return 1;
+	}
+	struct editorTerminalPane *t =
+			(struct editorTerminalPane *)terminal_leaf->as.leaf.kind_state;
+	int before_rows = t->rows;
+	int before_cols = t->cols;
+
+	E.window_cols = 160;
+	E.window_rows = 60;
+	editorTerminalPaneResizeAllToLayout(E.layout_root);
+
+	int failed = t->rows <= before_rows || t->cols <= before_cols;
+	return failed;
+}
+
 static int test_terminal_pane_open_split_replaces_sibling_kind(void) {
 	if (E.layout_root == NULL || E.focused_leaf == NULL) {
 		return 1;
@@ -177,6 +201,8 @@ const struct editorTestCase g_terminal_pane_tests[] = {
 			test_terminal_pane_pump_marks_exit},
 	{"terminal_pane_resize_updates_grid",
 			test_terminal_pane_resize_updates_grid},
+	{"terminal_pane_resize_all_to_layout_updates_grids",
+			test_terminal_pane_resize_all_to_layout_updates_grids},
 	{"terminal_pane_open_split_replaces_sibling_kind",
 			test_terminal_pane_open_split_replaces_sibling_kind},
 	{"terminal_pane_send_key_writes_printable_byte",

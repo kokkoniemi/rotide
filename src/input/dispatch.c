@@ -4468,6 +4468,7 @@ void editorProcessKeypress(void) {
 	}
 	if (c == RESIZE_EVENT) {
 		(void)editorRefreshWindowSize();
+		editorTerminalPaneResizeAllToLayout(E.layout_root);
 		return;
 	}
 	if (c == TASK_EVENT) {
@@ -4477,6 +4478,11 @@ void editorProcessKeypress(void) {
 		return;
 	}
 	if (c == WATCH_EVENT) {
+		return;
+	}
+	if (c == TERMINAL_EVENT) {
+		/* Pump already happened inside editorReadKey; the main loop will
+		 * call editorRefreshScreen next, which pumps again and paints. */
 		return;
 	}
 

@@ -1,6 +1,8 @@
 #include "support/terminal.h"
 
 #include "language/syntax_worker.h"
+#include "language/terminal_pane.h"
+#include "rotide.h"
 #include "workspace/task.h"
 #include "workspace/watch.h"
 #include <ctype.h>
@@ -654,6 +656,9 @@ int editorReadKey(void) {
 		}
 		if (editorWatchPoll()) {
 			return WATCH_EVENT;
+		}
+		if (editorTerminalPanePumpAll(E.layout_root) > 0) {
+			return TERMINAL_EVENT;
 		}
 
 		char c;

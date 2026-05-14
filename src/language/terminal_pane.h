@@ -92,10 +92,19 @@ struct editorPaneNode *editorPaneNodeNewTerminalLeaf(const char *command,
 
 /*
  * Walk the pane tree and pump every terminal pane's PTY into its vterm.
- * Called by the renderer (and any future main-loop tick) so child output
- * lands on the screen on the next refresh.
+ * Called by the renderer (and the main-loop input poll) so child output
+ * lands on the screen promptly. Returns the total number of bytes drained
+ * across all terminal panes — callers use this to detect "something
+ * changed, redraw" without scanning each pane manually.
  */
-void editorTerminalPanePumpAll(struct editorPaneNode *root);
+int editorTerminalPanePumpAll(struct editorPaneNode *root);
+
+/*
+ * Walk the pane tree and resize every terminal pane to match its current
+ * rect in the given layout viewport. Called from the SIGWINCH path so
+ * children see their windows shrink/grow promptly.
+ */
+void editorTerminalPaneResizeAllToLayout(struct editorPaneNode *root);
 
 /*
  * Returns 1 if the tree contains at least one terminal-kind leaf. Used by

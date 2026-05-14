@@ -243,20 +243,93 @@ struct editorPaneNode *editorPaneNodeNewTerminalLeaf(const char *command,
 	return node;
 }
 
-void editorTerminalPanePumpAll(struct editorPaneNode *root) {
+int editorTerminalPanePumpAll(struct editorPaneNode *root) {
 	if (root == NULL) {
-		return;
+		return 0;
 	}
 	if (root->is_split) {
-		editorTerminalPanePumpAll(root->as.split.first);
-		editorTerminalPanePumpAll(root->as.split.second);
-		return;
+		return editorTerminalPanePumpAll(root->as.split.first) +
+				editorTerminalPanePumpAll(root->as.split.second);
 	}
 	if (root->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
 			root->as.leaf.kind_state != NULL) {
-		(void)editorTerminalPanePump(
+		return editorTerminalPanePump(
 				(struct editorTerminalPane *)root->as.leaf.kind_state);
 	}
+	return 0;
+}
+
+static void editorTerminalPaneResizeRecursive(struct editorPaneNode *node,
+		struct editorRect rect, int border_size) {
+	if (node == NULL) {
+		return;
+	}
+	if (!node->is_split) {
+		if (node->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
+				node->as.leaf.kind_state != NULL &&
+				rect.w > 0 && rect.h > 0) {
+			(void)editorTerminalPaneResize(
+					(struct editorTerminalPane *)node->as.leaf.kind_state,
+					rect.w, rect.h);
+		}
+		return;
+	}
+	/* Mirror editorLayoutSplitRects so the rects line up exactly with
+	 * what the renderer uses. */
+	struct editorRect first_rect = rect;
+	struct editorRect second_rect = rect;
+	double ratio = node->as.split.ratio;
+	if (ratio < 0.0) {
+		ratio = 0.0;
+	} else if (ratio > 1.0) {
+		ratio = 1.0;
+	}
+	if (node->as.split.orientation == EDITOR_SPLIT_VERTICAL) {
+		int available = rect.w - border_size;
+		if (available < 0) {
+			available = 0;
+		}
+		int first_w = (int)((double)available * ratio);
+		if (first_w < 0) {
+			first_w = 0;
+		}
+		if (first_w > available) {
+			first_w = available;
+		}
+		first_rect.w = first_w;
+		second_rect.x = rect.x + first_w + border_size;
+		second_rect.w = available - first_w;
+	} else {
+		int available = rect.h - border_size;
+		if (available < 0) {
+			available = 0;
+		}
+		int first_h = (int)((double)available * ratio);
+		if (first_h < 0) {
+			first_h = 0;
+		}
+		if (first_h > available) {
+			first_h = available;
+		}
+		first_rect.h = first_h;
+		second_rect.y = rect.y + first_h + border_size;
+		second_rect.h = available - first_h;
+	}
+	editorTerminalPaneResizeRecursive(node->as.split.first, first_rect,
+			border_size);
+	editorTerminalPaneResizeRecursive(node->as.split.second, second_rect,
+			border_size);
+}
+
+void editorTerminalPaneResizeAllToLayout(struct editorPaneNode *root) {
+	if (root == NULL) {
+		return;
+	}
+	struct editorRect viewport;
+	if (!editorLayoutEditorViewport(&viewport)) {
+		return;
+	}
+	editorTerminalPaneResizeRecursive(root, viewport, ROTIDE_PANE_BORDER_SIZE);
 }
 
 int editorTerminalPaneTreeHasTerminal(const struct editorPaneNode *root) {
