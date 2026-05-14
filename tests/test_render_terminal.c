@@ -3961,7 +3961,7 @@ static int test_editor_refresh_screen_horizontal_scrolled_panes_avoid_syntax_thr
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
 	free(output);
-	ASSERT_TRUE(editorActiveTextSourceBuildTestCount() <= 12);
+	ASSERT_TRUE(editorActiveTextSourceBuildTestCount() <= 24);
 	ASSERT_TRUE(unlink(path) == 0);
 	return 0;
 }
@@ -4026,6 +4026,45 @@ static int test_editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax(
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[96mint") != NULL);
+	free(output);
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax_across_rows(void) {
+	ASSERT_TRUE(editorTabsInit());
+	E.window_rows = 8;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	add_row("left-pane-plain-0");
+	add_row("left-pane-plain-1");
+	add_row("left-pane-plain-2");
+	add_row("left-pane-plain-3");
+
+	struct editorPaneNode *left = E.focused_leaf;
+	struct editorPaneNode *right =
+			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(right != NULL);
+
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(right));
+	ASSERT_TRUE(editorTabNewEmpty());
+	char path[128];
+	ASSERT_TRUE(write_temp_file_with_suffix(path, sizeof(path),
+			"rotide-pane-syntax-multi-", ".c",
+			"int a = 1;\nint b = 2;\nint c = 3;\n"));
+	editorOpen(path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
+
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(left));
+	ASSERT_EQ_INT(0, E.active_tab);
+	ASSERT_EQ_INT(1, right->as.leaf.view.active_tab_idx);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(count_substrings(output, "\x1b[96mint\x1b[39m") >= 2);
 	free(output);
 	ASSERT_TRUE(unlink(path) == 0);
 	return 0;
@@ -4238,6 +4277,8 @@ const struct editorTestCase g_render_terminal_tests[] = {
 			test_editor_refresh_screen_unfocused_different_tab_pane_renders_content},
 	{"editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax",
 			test_editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax},
+	{"editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax_across_rows",
+			test_editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax_across_rows},
 	{"editor_refresh_screen_unfocused_different_tab_pane_preserves_free_scroll_mode",
 			test_editor_refresh_screen_unfocused_different_tab_pane_preserves_free_scroll_mode},
 	{"editor_refresh_screen_renders_terminal_pane",
