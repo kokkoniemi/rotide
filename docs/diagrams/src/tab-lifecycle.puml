@@ -1,4 +1,5 @@
 @startuml
+skin rose
 skinparam backgroundColor #FFFFFF
 title Tab lifecycle and save semantics
 

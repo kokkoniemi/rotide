@@ -1,4 +1,5 @@
 @startuml
+skin rose
 !include <C4/C4_Container>
 skinparam backgroundColor #FFFFFF
 

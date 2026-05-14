@@ -1,4 +1,6 @@
 @startjson
+skin rose
+skinparam backgroundColor #FFFFFF
 {
   "textDocument/didOpen": {
     "jsonrpc": "2.0",
