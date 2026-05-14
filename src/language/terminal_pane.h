@@ -144,6 +144,19 @@ void editorTerminalPaneResizeAllToLayout(struct editorPaneNode *root);
 int editorTerminalPaneTreeHasTerminal(const struct editorPaneNode *root);
 
 /*
+ * Close all terminal leaves whose child process has exited (`exited!=0`).
+ * Returns the number of panes closed.
+ *
+ * The helper mutates the pane tree via editorPaneTreeCloseLeaf, updates
+ * `*focused_leaf_ptr` when the focused leaf is removed, and clears
+ * `*tracked_leaf_ptr` when that tracked leaf gets closed (used by DAP's
+ * owned-terminal pointer).
+ */
+int editorTerminalPaneCloseExited(struct editorPaneNode **root_ptr,
+		struct editorPaneNode **focused_leaf_ptr,
+		struct editorPaneNode **tracked_leaf_ptr);
+
+/*
  * Split the focused pane and replace the new sibling with a terminal pane
  * running `command`. The new terminal pane gains focus. `orientation` is
  * an `editorSplitOrientation` value cast to int (the parameter type is

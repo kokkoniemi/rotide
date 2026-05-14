@@ -3797,7 +3797,13 @@ static int editorTerminalAppendColorSgr(struct writeBuf *wb,
 		const VTermColor *color, int is_fg) {
 	char esc[32];
 	int n;
-	if (VTERM_COLOR_IS_DEFAULT_FG(color) || VTERM_COLOR_IS_DEFAULT_BG(color)) {
+	if (is_fg ? VTERM_COLOR_IS_DEFAULT_FG(color) : VTERM_COLOR_IS_DEFAULT_BG(color)) {
+		struct editorThemeColor theme_color = E.theme.ui[is_fg ?
+				EDITOR_THEME_UI_FOREGROUND : EDITOR_THEME_UI_BACKGROUND];
+		if (!editorThemeColorIsDefault(theme_color)) {
+			return is_fg ? editorAppendThemeForeground(wb, theme_color) :
+					editorAppendThemeBackground(wb, theme_color);
+		}
 		n = snprintf(esc, sizeof(esc), "\x1b[%dm", is_fg ? 39 : 49);
 	} else if (VTERM_COLOR_IS_RGB(color)) {
 		n = snprintf(esc, sizeof(esc), "\x1b[%d;2;%u;%u;%um",
@@ -3839,7 +3845,7 @@ static int editorTerminalCellIsPlain(const VTermScreenCell *cell) {
 
 static int editorDrawTerminalCellAttrs(struct writeBuf *wb,
 		const VTermScreenCell *cell) {
-	if (!wbAppend(wb, "\x1b[m", 3)) {
+	if (!editorAppendThemeReset(wb)) {
 		return 0;
 	}
 	if (editorTerminalCellIsPlain(cell)) {
@@ -3911,7 +3917,7 @@ static int editorDrawTerminalExitStatusRow(struct writeBuf *wb,
 		}
 		emitted++;
 	}
-	return wbAppend(wb, "\x1b[m", 3);
+	return editorAppendThemeReset(wb);
 }
 
 static int editorDrawTerminalCells(struct writeBuf *wb,
@@ -3924,6 +3930,9 @@ static int editorDrawTerminalCells(struct writeBuf *wb,
 			row_in_pane == terminal->rows - 1) {
 		return editorDrawTerminalExitStatusRow(wb, terminal, col_in_pane,
 				slice_cols);
+	}
+	if (!editorAppendThemeReset(wb)) {
+		return 0;
 	}
 	int emitted = 0;
 	int col = col_in_pane;
@@ -3958,7 +3967,7 @@ static int editorDrawTerminalCells(struct writeBuf *wb,
 		int plain = editorTerminalCellIsPlain(&cell);
 		if (plain) {
 			if (any_styled_emitted && !last_was_plain) {
-				if (!wbAppend(wb, "\x1b[m", 3)) {
+				if (!editorAppendThemeReset(wb)) {
 					return 0;
 				}
 			}
@@ -3985,7 +3994,7 @@ static int editorDrawTerminalCells(struct writeBuf *wb,
 		emitted += cell_width;
 		col += cell_width;
 	}
-	if (any_styled_emitted && !wbAppend(wb, "\x1b[m", 3)) {
+	if (!editorAppendThemeReset(wb)) {
 		return 0;
 	}
 	return 1;

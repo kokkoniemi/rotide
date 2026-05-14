@@ -4101,11 +4101,11 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			editorHistoryBreakGroup();
 			(void)editorLayoutResizeFocused(0);
 			break;
-		case EDITOR_ACTION_TERMINAL_OPEN: {
-			editorHistoryBreakGroup();
-			const char *shell = getenv("SHELL");
-			if (shell == NULL || shell[0] == '\0') {
-				shell = "/bin/sh";
+			case EDITOR_ACTION_TERMINAL_OPEN: {
+				editorHistoryBreakGroup();
+				const char *shell = getenv("SHELL");
+				if (shell == NULL || shell[0] == '\0') {
+					shell = "/bin/sh";
 			}
 			struct editorPaneNode *terminal_leaf =
 					editorTerminalPaneOpenSplit(shell, EDITOR_SPLIT_HORIZONTAL);
@@ -4113,13 +4113,28 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 				editorPaneAnnounceFocus();
 			} else {
 				editorSetStatusMsg("Failed to open terminal pane");
+				}
+				break;
 			}
-			break;
-		}
-		case EDITOR_ACTION_TERMINAL_PREFIX:
-			E.terminal_prefix_armed = 1;
-			editorSetStatusMsg("Terminal prefix armed: next key is rotide");
-			break;
+			case EDITOR_ACTION_TERMINAL_OPEN_VERTICAL: {
+				editorHistoryBreakGroup();
+				const char *shell = getenv("SHELL");
+				if (shell == NULL || shell[0] == '\0') {
+					shell = "/bin/sh";
+				}
+				struct editorPaneNode *terminal_leaf =
+						editorTerminalPaneOpenSplit(shell, EDITOR_SPLIT_VERTICAL);
+				if (terminal_leaf != NULL) {
+					editorPaneAnnounceFocus();
+				} else {
+					editorSetStatusMsg("Failed to open terminal pane");
+				}
+				break;
+			}
+			case EDITOR_ACTION_TERMINAL_PREFIX:
+				E.terminal_prefix_armed = 1;
+				editorSetStatusMsg("Terminal prefix armed: next key is rotide");
+				break;
 		case EDITOR_ACTION_OPEN_SETTINGS:
 			editorHistoryBreakGroup();
 			editorOpenSettings();
@@ -4595,6 +4610,13 @@ void editorProcessKeypress(void) {
 		return;
 	}
 	if (c == TERMINAL_EVENT) {
+		struct editorPaneNode *prev_focus = E.focused_leaf;
+		int closed = editorTerminalPaneCloseExited(&E.layout_root,
+				&E.focused_leaf, &E.dap_terminal_leaf);
+		if (closed > 0 && E.focused_leaf != NULL &&
+				E.focused_leaf != prev_focus) {
+			(void)editorPaneViewLoadIntoState(&E.focused_leaf->as.leaf.view);
+		}
 		/* Pump already happened inside editorReadKey; the main loop will
 		 * call editorRefreshScreen next, which pumps again and paints. */
 		return;

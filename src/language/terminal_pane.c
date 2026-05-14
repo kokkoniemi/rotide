@@ -141,6 +141,9 @@ int editorTerminalPanePump(struct editorTerminalPane *terminal) {
 		if (r == 1) {
 			terminal->exited = 1;
 			terminal->exit_status = status;
+			/* Count process exit as terminal activity so callers polling
+			 * for screen changes wake promptly and can close the pane. */
+			total += 1;
 		}
 	}
 	return total;
@@ -416,6 +419,60 @@ int editorTerminalPaneTreeHasTerminal(const struct editorPaneNode *root) {
 				editorTerminalPaneTreeHasTerminal(root->as.split.second);
 	}
 	return root->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL;
+}
+
+static struct editorPaneNode *editorTerminalPaneFindFirstExitedLeaf(
+		struct editorPaneNode *root) {
+	if (root == NULL) {
+		return NULL;
+	}
+	if (root->is_split) {
+		struct editorPaneNode *found =
+				editorTerminalPaneFindFirstExitedLeaf(root->as.split.first);
+		if (found != NULL) {
+			return found;
+		}
+		return editorTerminalPaneFindFirstExitedLeaf(root->as.split.second);
+	}
+	if (root->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
+			root->as.leaf.kind_state == NULL) {
+		return NULL;
+	}
+	struct editorTerminalPane *terminal =
+			(struct editorTerminalPane *)root->as.leaf.kind_state;
+	return terminal->exited ? root : NULL;
+}
+
+int editorTerminalPaneCloseExited(struct editorPaneNode **root_ptr,
+		struct editorPaneNode **focused_leaf_ptr,
+		struct editorPaneNode **tracked_leaf_ptr) {
+	if (root_ptr == NULL || *root_ptr == NULL) {
+		return 0;
+	}
+	int closed = 0;
+	for (;;) {
+		struct editorPaneNode *exited_leaf =
+				editorTerminalPaneFindFirstExitedLeaf(*root_ptr);
+		if (exited_leaf == NULL) {
+			break;
+		}
+		if (tracked_leaf_ptr != NULL && *tracked_leaf_ptr == exited_leaf) {
+			*tracked_leaf_ptr = NULL;
+		}
+		struct editorPaneNode *new_focus =
+				editorPaneTreeCloseLeaf(root_ptr, exited_leaf);
+		if (new_focus == NULL) {
+			/* Root terminal leaf cannot be closed (single-leaf no-op). */
+			break;
+		}
+		if (focused_leaf_ptr != NULL &&
+				(*focused_leaf_ptr == NULL || *focused_leaf_ptr == exited_leaf ||
+						!editorPaneNodeContainsLeaf(*root_ptr, *focused_leaf_ptr))) {
+			*focused_leaf_ptr = new_focus;
+		}
+		closed++;
+	}
+	return closed;
 }
 
 struct editorPaneNode *editorTerminalPaneOpenSplit(const char *command,

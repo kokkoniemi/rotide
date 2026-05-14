@@ -107,6 +107,7 @@ static const struct editorActionName editor_action_names[] = {
 	{"pane_grow", EDITOR_ACTION_PANE_GROW},
 	{"pane_shrink", EDITOR_ACTION_PANE_SHRINK},
 	{"terminal_open", EDITOR_ACTION_TERMINAL_OPEN},
+	{"terminal_open_vertical", EDITOR_ACTION_TERMINAL_OPEN_VERTICAL},
 	{"terminal_prefix", EDITOR_ACTION_TERMINAL_PREFIX},
 	{"open_settings", EDITOR_ACTION_OPEN_SETTINGS},
 };

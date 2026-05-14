@@ -134,6 +134,62 @@ static int test_terminal_pane_open_split_replaces_sibling_kind(void) {
 	return failed;
 }
 
+static int test_terminal_pane_open_vertical_split_replaces_sibling_kind(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	E.window_cols = 80;
+	E.window_rows = 24;
+	struct editorPaneNode *original = E.focused_leaf;
+	struct editorPaneNode *terminal_leaf =
+			editorTerminalPaneOpenSplit("sleep 2", EDITOR_SPLIT_VERTICAL);
+	if (terminal_leaf == NULL) {
+		return 1;
+	}
+	int failed = E.focused_leaf != terminal_leaf ||
+			terminal_leaf->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
+			terminal_leaf->as.leaf.kind_state == NULL ||
+			terminal_leaf->as.leaf.kind_state_free != editorTerminalPaneFree ||
+			editorPaneTreeLeafCount(E.layout_root) != 2 ||
+			!editorPaneNodeContainsLeaf(E.layout_root, original);
+	return failed;
+}
+
+static int test_terminal_pane_close_exited_removes_leaf_and_restores_focus(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	struct editorPaneNode *original = E.focused_leaf;
+	E.window_cols = 80;
+	E.window_rows = 24;
+	struct editorPaneNode *terminal_leaf =
+			editorTerminalPaneOpenSplit("true", EDITOR_SPLIT_HORIZONTAL);
+	if (terminal_leaf == NULL) {
+		return 1;
+	}
+	struct editorTerminalPane *t =
+			(struct editorTerminalPane *)terminal_leaf->as.leaf.kind_state;
+	if (t == NULL) {
+		return 1;
+	}
+	int waited = 0;
+	while (waited < 2000 && !t->exited) {
+		(void)editorTerminalPanePump(t);
+		struct timespec ts = {0, 20 * 1000 * 1000};
+		nanosleep(&ts, NULL);
+		waited += 20;
+	}
+	if (!t->exited) {
+		return 1;
+	}
+	struct editorPaneNode *focus = E.focused_leaf;
+	int closed = editorTerminalPaneCloseExited(&E.layout_root, &focus, NULL);
+	int failed = closed != 1 || editorPaneTreeLeafCount(E.layout_root) != 1 ||
+			focus != original || !editorPaneNodeContainsLeaf(E.layout_root, original);
+	E.focused_leaf = focus;
+	return failed;
+}
+
 static int test_terminal_pane_send_key_writes_printable_byte(void) {
 	struct editorTerminalPane *t = editorTerminalPaneCreate("cat", 40, 8);
 	if (t == NULL) {
@@ -242,6 +298,10 @@ const struct editorTestCase g_terminal_pane_tests[] = {
 			test_terminal_pane_resize_all_to_layout_updates_grids},
 	{"terminal_pane_open_split_replaces_sibling_kind",
 			test_terminal_pane_open_split_replaces_sibling_kind},
+	{"terminal_pane_open_vertical_split_replaces_sibling_kind",
+			test_terminal_pane_open_vertical_split_replaces_sibling_kind},
+	{"terminal_pane_close_exited_removes_leaf_and_restores_focus",
+			test_terminal_pane_close_exited_removes_leaf_and_restores_focus},
 	{"terminal_pane_send_key_writes_printable_byte",
 			test_terminal_pane_send_key_writes_printable_byte},
 	{"terminal_pane_send_key_handles_control",
