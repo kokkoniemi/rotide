@@ -15,7 +15,8 @@
  */
 
 enum editorPaneKind {
-	EDITOR_PANE_KIND_EDITOR = 0
+	EDITOR_PANE_KIND_EDITOR = 0,
+	EDITOR_PANE_KIND_TERMINAL
 };
 
 enum editorSplitOrientation {
@@ -52,6 +53,15 @@ struct editorPaneView {
 struct editorPane {
 	enum editorPaneKind kind;
 	struct editorPaneView view;
+	/*
+	 * Kind-specific payload. Editor leaves leave this NULL; terminal
+	 * leaves point at a heap-allocated `editorTerminalPane` (or whatever
+	 * future kind owns). `kind_state_free` is invoked by
+	 * `editorPaneNodeFree` so leaf-specific resources release when the
+	 * pane is closed, without layout.c needing to know about every kind.
+	 */
+	void *kind_state;
+	void (*kind_state_free)(void *state);
 };
 
 struct editorPaneNode {

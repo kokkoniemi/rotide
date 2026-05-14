@@ -15,6 +15,8 @@ struct editorPaneNode *editorPaneNodeNewLeaf(enum editorPaneKind kind) {
 	memset(node, 0, sizeof(*node));
 	node->is_split = 0;
 	node->as.leaf.kind = kind;
+	node->as.leaf.kind_state = NULL;
+	node->as.leaf.kind_state_free = NULL;
 	editorPaneViewInit(&node->as.leaf.view);
 	return node;
 }
@@ -26,6 +28,13 @@ void editorPaneNodeFree(struct editorPaneNode *node) {
 	if (node->is_split) {
 		editorPaneNodeFree(node->as.split.first);
 		editorPaneNodeFree(node->as.split.second);
+	} else {
+		if (node->as.leaf.kind_state_free != NULL &&
+				node->as.leaf.kind_state != NULL) {
+			node->as.leaf.kind_state_free(node->as.leaf.kind_state);
+		}
+		node->as.leaf.kind_state = NULL;
+		node->as.leaf.kind_state_free = NULL;
 	}
 	free(node);
 }

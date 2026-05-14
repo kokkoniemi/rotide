@@ -1,6 +1,6 @@
 CC ?= cc
 SRC_DIR := src
-CPPFLAGS ?= -I$(SRC_DIR) -Ivendor/tree_sitter/runtime/include -Ivendor/tree_sitter/runtime/src -Ivendor/tree_sitter/grammars/c/src -Ivendor/tree_sitter/grammars/cpp/src -Ivendor/tree_sitter/grammars/go/src -Ivendor/tree_sitter/grammars/bash/src -Ivendor/tree_sitter/grammars/html/src -Ivendor/tree_sitter/grammars/javascript/src -Ivendor/tree_sitter/grammars/jsdoc/src -Ivendor/tree_sitter/grammars/css/src -Ivendor/tree_sitter/grammars/json/src -Ivendor/tree_sitter/grammars/typescript/src -Ivendor/tree_sitter/grammars/tsx/src -Ivendor/tree_sitter/grammars/python/src -Ivendor/tree_sitter/grammars/php/src -Ivendor/tree_sitter/grammars/rust/src -Ivendor/tree_sitter/grammars/java/src -Ivendor/tree_sitter/grammars/regex/src -Ivendor/tree_sitter/grammars/csharp/src -Ivendor/tree_sitter/grammars/haskell/src -Ivendor/tree_sitter/grammars/ruby/src -Ivendor/tree_sitter/grammars/ocaml/src -Ivendor/tree_sitter/grammars/julia/src -Ivendor/tree_sitter/grammars/scala/src -Ivendor/tree_sitter/grammars/embedded_template/src -Ivendor/tree_sitter/grammars/markdown/src -Ivendor/tree_sitter/grammars/markdown_inline/src -Ivendor/tree_sitter/grammars/toml/src -Ivendor/tree_sitter/grammars/yaml/src -Ivendor/tree_sitter/grammars/xml/src -Ivendor/tree_sitter/grammars/make/src -Ivendor/tree_sitter/grammars/diff/src
+CPPFLAGS ?= -I$(SRC_DIR) -Ivendor/libvterm/include -Ivendor/tree_sitter/runtime/include -Ivendor/tree_sitter/runtime/src -Ivendor/tree_sitter/grammars/c/src -Ivendor/tree_sitter/grammars/cpp/src -Ivendor/tree_sitter/grammars/go/src -Ivendor/tree_sitter/grammars/bash/src -Ivendor/tree_sitter/grammars/html/src -Ivendor/tree_sitter/grammars/javascript/src -Ivendor/tree_sitter/grammars/jsdoc/src -Ivendor/tree_sitter/grammars/css/src -Ivendor/tree_sitter/grammars/json/src -Ivendor/tree_sitter/grammars/typescript/src -Ivendor/tree_sitter/grammars/tsx/src -Ivendor/tree_sitter/grammars/python/src -Ivendor/tree_sitter/grammars/php/src -Ivendor/tree_sitter/grammars/rust/src -Ivendor/tree_sitter/grammars/java/src -Ivendor/tree_sitter/grammars/regex/src -Ivendor/tree_sitter/grammars/csharp/src -Ivendor/tree_sitter/grammars/haskell/src -Ivendor/tree_sitter/grammars/ruby/src -Ivendor/tree_sitter/grammars/ocaml/src -Ivendor/tree_sitter/grammars/julia/src -Ivendor/tree_sitter/grammars/scala/src -Ivendor/tree_sitter/grammars/embedded_template/src -Ivendor/tree_sitter/grammars/markdown/src -Ivendor/tree_sitter/grammars/markdown_inline/src -Ivendor/tree_sitter/grammars/toml/src -Ivendor/tree_sitter/grammars/yaml/src -Ivendor/tree_sitter/grammars/xml/src -Ivendor/tree_sitter/grammars/make/src -Ivendor/tree_sitter/grammars/diff/src
 CFLAGS ?= -Wall -Wextra -Werror -Wshadow -Wdouble-promotion -Wundef -fno-common -pedantic -std=c2x
 LDFLAGS ?=
 PTHREAD_FLAGS ?= -pthread
@@ -125,6 +125,7 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/language/lsp_transport.c \
 	$(SRC_DIR)/language/dap.c \
 	$(SRC_DIR)/language/pty.c \
+	$(SRC_DIR)/language/terminal_pane.c \
 	$(SRC_DIR)/language/autocomplete.c
 SRCS = $(CORE_SRCS) $(TREE_SITTER_SRCS) $(LIBVTERM_SRCS)
 OBJS = $(SRCS:.c=.o)
@@ -138,7 +139,7 @@ TEST_SRCS = tests/rotide_tests_main.c tests/test_document_text_editing.c \
 	tests/test_save_recovery.c tests/test_workspace_config.c \
 	tests/test_file_watch.c \
 	tests/test_lsp.c tests/test_input_search.c tests/test_render_terminal.c \
-	tests/test_layout.c tests/test_pty.c \
+	tests/test_layout.c tests/test_pty.c tests/test_terminal_pane.c \
 	tests/test_support.c tests/test_helpers.c tests/alloc_test_hooks.c \
 	tests/save_syscalls_test_hooks.c
 TEST_OBJS = $(TEST_SRCS:.c=.o)
