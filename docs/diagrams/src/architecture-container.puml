@@ -3,18 +3,18 @@ skin rose
 !include <C4/C4_Container>
 skinparam backgroundColor #FFFFFF
 
-LAYOUT_LEFT_RIGHT()
 title RotIDE container relationships
 
 Person(user, "User", "Edits files in a terminal")
 
 System_Boundary(rotide, "RotIDE") {
-	Container(input, "Input and actions", "C", "Terminal decoding, keymaps, prompts, action dispatch")
+	Container(input, "Input and actions", "C", "Terminal decoding, keymap, prompts, action dispatch")
 	Container(text, "Text engine", "C", "editorDocument, rope, rows, edit pipeline, selection, history")
-	Container(workspace, "Workspace and renderer", "C", "Tabs, drawer, pane tree, status rows, terminal cell painter")
+	Container(workspace, "Workspace", "C", "Tabs, drawer, pane tree, project search, Git, file watch, recovery and snapshots")
+	Container(renderer, "Renderer", "C", "Frame builder, multi-pane painter, libvterm cell painter, overlays")
 	Container(language, "Language services", "C", "Tree-sitter syntax, LSP, diagnostics, autocomplete")
-	Container(terminal, "Terminal and DAP", "C + libvterm", "PTY panes, DAP adapter lifecycle, debug console")
-	Container(config, "Config and persistence", "TOML + files", "Settings, themes, keymaps, recovery, workspace snapshots")
+	Container(terminal, "Terminal and DAP", "C + libvterm", "PTY panes, vterm parser, DAP client (console=terminal opens a pane and supplies its tty to the adapter)")
+	Container(config, "Config", "TOML", "Editor, theme, keymap, LSP and DAP settings; consumed by Input, Language services and Terminal+DAP")
 }
 
 System_Ext(files, "Filesystem", "Source files, config, recovery and workspace snapshots")
@@ -23,29 +23,19 @@ System_Ext(lsp, "Language servers", "gopls, clangd, TypeScript, ESLint")
 System_Ext(pty_children, "PTY children", "Shells and debuggees")
 System_Ext(adapters, "DAP adapters", "gdb -i dap, lldb-dap, dlv dap")
 
-Rel_R(user, input, "Keys/mouse")
-Rel_R(config, input, "Settings")
-Rel_R(input, text, "Editor actions")
-Rel_R(text, workspace, "Rows and state")
-Rel_D(text, language, "Sync text")
-Rel_D(workspace, terminal, "Paint/pump PTYs")
-
-Rel_D(config, files, "Config/snapshots")
-Rel_D(language, ts, "Parse/query")
-Rel_D(language, lsp, "JSON-RPC")
-Rel_D(terminal, pty_children, "PTY")
-Rel_D(terminal, adapters, "DAP")
-
-Lay_L(user, input)
-Lay_U(config, input)
-Lay_R(input, text)
-Lay_R(text, workspace)
-Lay_D(text, language)
-Lay_D(workspace, terminal)
-Lay_D(config, files)
-Lay_D(language, ts)
-Lay_D(language, lsp)
-Lay_D(terminal, pty_children)
-Lay_D(terminal, adapters)
+Rel(user, input, "Keys/mouse")
+Rel(user, renderer, "Views frame")
+Rel(config, input, "Settings")
+Rel(input, text, "Editor actions")
+Rel(input, terminal, "Forwarded keys")
+Rel(text, language, "Sync edits")
+Rel(renderer, text, "Reads rows")
+Rel(renderer, workspace, "Reads layout")
+Rel(renderer, terminal, "Paints vterm cells")
+Rel(workspace, files, "Open, save, recover, watch")
+Rel(language, ts, "Parse/query")
+Rel(language, lsp, "JSON-RPC")
+Rel(terminal, pty_children, "PTY")
+Rel(terminal, adapters, "DAP JSON-RPC")
 
 @enduml
