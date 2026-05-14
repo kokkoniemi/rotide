@@ -21,8 +21,7 @@
 ## Validation
 
 - Always run `make` and `make test`.
-- Run `make test-sanitize` for document/storage/history/save/recovery/syntax/LSP/build-sensitive work.
-- If LeakSanitizer flakes locally, rerun with `ASAN_OPTIONS=detect_leaks=0 make test-sanitize` and mention that limitation.
+- Run `ASAN_OPTIONS=detect_leaks=0 make test-sanitize` for document/storage/history/save/recovery/syntax/LSP/build-sensitive work.
 - Treat warnings as blockers; `-Werror` is enabled.
 
 ## Skill Routing

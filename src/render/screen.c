@@ -3530,7 +3530,9 @@ static int editorDrawPaneViewSlice(struct writeBuf *wb,
 		struct editorViewSnapshot snap;
 		editorViewSnapshotCapture(&snap);
 		editorViewSnapshotFromPaneView(view);
-		(void)editorSyntaxPrepareVisibleRowSpansForeground(E.rowoff, pane_rows);
+		if (body_row_in_pane == 0) {
+			(void)editorSyntaxPrepareVisibleRowSpansForeground(E.rowoff, pane_rows);
+		}
 		int ok = editorDrawFocusedPaneSlice(wb, body_row_in_pane, slice_cols);
 		editorViewSnapshotRestore(&snap);
 		return ok;
@@ -3547,13 +3549,17 @@ static int editorDrawPaneViewSlice(struct writeBuf *wb,
 	E.active_tab = view->active_tab_idx;
 	editorTabStateAliasToActive(&E.tabs[view->active_tab_idx]);
 	editorViewSnapshotFromPaneView(view);
-	(void)editorSyntaxPrepareVisibleRowSpansForeground(E.rowoff, pane_rows);
+	if (body_row_in_pane == 0) {
+		(void)editorSyntaxPrepareVisibleRowSpansForeground(E.rowoff, pane_rows);
+	}
 	int ok = editorDrawFocusedPaneSlice(wb, body_row_in_pane, slice_cols);
 
 	editorTabStateAliasToActive(&active_snap);
 	E.active_tab = active_tab;
-	(void)editorSyntaxPrepareVisibleRowSpansForeground(E.rowoff,
-			editorFocusedPaneBodyRows());
+	if (body_row_in_pane == 0) {
+		(void)editorSyntaxPrepareVisibleRowSpansForeground(E.rowoff,
+				editorFocusedPaneBodyRows());
+	}
 	return ok;
 }
 
@@ -3852,8 +3858,10 @@ static int editorDrawMultiPaneRows(struct writeBuf *wb,
 						leaf_node == E.focused_leaf;
 				if (is_focused_slice) {
 					int body_row_in_pane = screen_y - focused_rect.y;
-					(void)editorSyntaxPrepareVisibleRowSpans(E.rowoff,
-							focused_rect.h);
+					if (body_row_in_pane == 0) {
+						(void)editorSyntaxPrepareVisibleRowSpans(E.rowoff,
+								focused_rect.h);
+					}
 					if (!editorDrawFocusedPaneSlice(wb, body_row_in_pane, slice_cols)) {
 						return 0;
 					}

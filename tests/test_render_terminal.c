@@ -77,6 +77,42 @@ static int count_substrings(const char *haystack, const char *needle) {
 	return count;
 }
 
+static int write_repeated_temp_c_file(char path_buf[], size_t path_buf_size, const char *prefix,
+		const char *line, int repeats) {
+	if (path_buf == NULL || prefix == NULL || line == NULL || repeats < 0) {
+		return 0;
+	}
+	int min_size = snprintf(NULL, 0, "/tmp/%sXXXXXX.c", prefix) + 1;
+	if (min_size <= 0 || (size_t)min_size > path_buf_size) {
+		return 0;
+	}
+	int written = snprintf(path_buf, path_buf_size, "/tmp/%sXXXXXX.c", prefix);
+	if (written <= 0 || (size_t)written >= path_buf_size) {
+		return 0;
+	}
+
+	int fd = mkstemps(path_buf, 2);
+	if (fd == -1) {
+		return 0;
+	}
+
+	size_t line_len = strlen(line);
+	int ok = 1;
+	for (int i = 0; i < repeats; i++) {
+		if (write_all(fd, line, line_len) != 0) {
+			ok = 0;
+			break;
+		}
+	}
+	if (close(fd) != 0) {
+		ok = 0;
+	}
+	if (!ok) {
+		(void)unlink(path_buf);
+	}
+	return ok;
+}
+
 static int test_editor_refresh_screen_highlights_active_search_match(void) {
 	add_row("prefix alpha suffix");
 	E.window_rows = 3;
@@ -3834,6 +3870,73 @@ static int test_editor_refresh_screen_same_tab_panes_keep_selection_independent(
 	return 0;
 }
 
+static int test_editor_refresh_screen_horizontal_scrolled_panes_keep_syntax(void) {
+	ASSERT_TRUE(editorTabsInit());
+	char path[128];
+	ASSERT_TRUE(write_repeated_temp_c_file(path, sizeof(path), "rotide-pane-scroll-",
+			"int value = 42;\n", 200));
+	editorOpen(path);
+	E.window_rows = 12;
+	E.window_cols = 100;
+
+	struct editorPaneNode *top = E.focused_leaf;
+	struct editorPaneNode *bottom =
+			editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
+	ASSERT_TRUE(bottom != NULL);
+
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(bottom));
+	E.rowoff = 120;
+	E.cy = 120;
+	E.cx = 0;
+
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(top));
+	E.rowoff = 40;
+	E.cy = 40;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(count_substrings(output, "\x1b[96mint\x1b[39m") >= 2);
+	free(output);
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_horizontal_scrolled_panes_avoid_syntax_thrash(void) {
+	ASSERT_TRUE(editorTabsInit());
+	char path[128];
+	ASSERT_TRUE(write_repeated_temp_c_file(path, sizeof(path),
+			"rotide-pane-scroll-thrash-", "int value = 42;\n", 300));
+	editorOpen(path);
+	E.window_rows = 14;
+	E.window_cols = 100;
+
+	struct editorPaneNode *top = E.focused_leaf;
+	struct editorPaneNode *bottom =
+			editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
+	ASSERT_TRUE(bottom != NULL);
+
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(bottom));
+	E.rowoff = 180;
+	E.cy = 180;
+	E.cx = 0;
+
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(top));
+	E.rowoff = 60;
+	E.cy = 60;
+	E.cx = 0;
+
+	editorActiveTextSourceBuildTestResetCount();
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	free(output);
+	ASSERT_TRUE(editorActiveTextSourceBuildTestCount() <= 12);
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_unfocused_different_tab_pane_renders_content(void) {
 	ASSERT_TRUE(editorTabsInit());
 	add_row("left-pane-marker");
@@ -4037,6 +4140,10 @@ const struct editorTestCase g_render_terminal_tests[] = {
 			test_editor_refresh_screen_vertical_split_clips_left_pane_row},
 	{"editor_refresh_screen_same_tab_panes_keep_selection_independent",
 			test_editor_refresh_screen_same_tab_panes_keep_selection_independent},
+	{"editor_refresh_screen_horizontal_scrolled_panes_keep_syntax",
+			test_editor_refresh_screen_horizontal_scrolled_panes_keep_syntax},
+	{"editor_refresh_screen_horizontal_scrolled_panes_avoid_syntax_thrash",
+			test_editor_refresh_screen_horizontal_scrolled_panes_avoid_syntax_thrash},
 	{"editor_refresh_screen_unfocused_different_tab_pane_renders_content",
 			test_editor_refresh_screen_unfocused_different_tab_pane_renders_content},
 	{"editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax",
