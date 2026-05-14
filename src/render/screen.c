@@ -4113,6 +4113,18 @@ static int editorDrawRows(struct writeBuf *wb) {
 	editorDrawerClampViewport(E.window_rows);
 	(void)editorSyntaxPrepareVisibleRowSpans(E.rowoff, E.window_rows);
 
+	int had_terminal = editorTerminalPaneTreeHasTerminal(E.layout_root);
+	if (had_terminal) {
+		struct editorPaneNode *prev_focus = E.focused_leaf;
+		(void)editorTerminalPanePumpAll(E.layout_root);
+		int closed = editorTerminalPaneCloseExited(&E.layout_root,
+				&E.focused_leaf, &E.dap_terminal_leaf);
+		if (closed > 0 && E.focused_leaf != NULL &&
+				E.focused_leaf != prev_focus) {
+			(void)editorPaneViewLoadIntoState(&E.focused_leaf->as.leaf.view);
+		}
+	}
+
 	int drawer_cols = editorDrawerWidthForCols(E.window_cols);
 	int separator_cols = editorDrawerSeparatorWidthForCols(E.window_cols);
 	struct editorRect leaf_rect = {0};
@@ -4126,9 +4138,6 @@ static int editorDrawRows(struct writeBuf *wb) {
 
 	int leaf_count = editorPaneTreeLeafCount(E.layout_root);
 	int has_terminal = editorTerminalPaneTreeHasTerminal(E.layout_root);
-	if (has_terminal) {
-		editorTerminalPanePumpAll(E.layout_root);
-	}
 	if ((leaf_count > 1 || has_terminal) && has_focused_rect) {
 		struct editorRect viewport;
 		if (!editorLayoutEditorViewport(&viewport)) {
@@ -4667,6 +4676,15 @@ static enum editorCursorStyle editorCursorStyleFromVtermShape(int vterm_shape) {
 	}
 }
 
+static struct editorTerminalPane *editorFocusedTerminalPane(void) {
+	if (E.focused_leaf == NULL || E.focused_leaf->is_split ||
+			E.focused_leaf->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
+			E.focused_leaf->as.leaf.kind_state == NULL) {
+		return NULL;
+	}
+	return (struct editorTerminalPane *)E.focused_leaf->as.leaf.kind_state;
+}
+
 static const struct editorLspDiagnostic *editorDiagnosticAtCursor(void) {
 	if (E.pane_focus != EDITOR_PANE_TEXT || E.cy < 0 || E.cy >= E.numrows ||
 			E.lsp_diagnostics == NULL || E.lsp_diagnostic_count <= 0) {
@@ -4911,13 +4929,7 @@ void editorRefreshScreen(void) {
 	g_editor_output_last_refresh_file_row_draw_count = 0;
 
 	struct writeBuf wb = WRITEBUF_INIT;
-	struct editorTerminalPane *focused_terminal = NULL;
-	if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
-			E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
-			E.focused_leaf->as.leaf.kind_state != NULL) {
-		focused_terminal =
-				(struct editorTerminalPane *)E.focused_leaf->as.leaf.kind_state;
-	}
+	struct editorTerminalPane *focused_terminal = editorFocusedTerminalPane();
 	enum editorCursorStyle frame_cursor_style = E.cursor_style;
 	int frame_cursor_blink = E.cursor_blink_enabled;
 	if (focused_terminal != NULL) {
@@ -4960,6 +4972,10 @@ void editorRefreshScreen(void) {
 		editorSetStatusMsg("Out of memory");
 		return;
 	}
+
+	/* editorDrawRows can close exited terminal leaves and shift focus. Refresh
+	 * the focused terminal pointer after layout/render mutations. */
+	focused_terminal = editorFocusedTerminalPane();
 
 	struct editorRect cursor_focused_rect = {0};
 	int has_focus_rect = editorLayoutFocusedLeafRect(&cursor_focused_rect);

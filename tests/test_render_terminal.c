@@ -3854,6 +3854,39 @@ static int test_editor_refresh_screen_terminal_exit_overlay(void) {
 	return found ? 0 : 1;
 }
 
+static int test_editor_refresh_screen_closes_exited_terminal_without_keypress(void) {
+	E.window_rows = 8;
+	E.window_cols = 60;
+	add_row("after-terminal");
+
+	struct editorPaneNode *original = E.focused_leaf;
+	struct editorPaneNode *terminal_leaf = editorTerminalPaneOpenSplit(
+			"true", EDITOR_SPLIT_HORIZONTAL);
+	ASSERT_TRUE(terminal_leaf != NULL);
+	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
+
+	struct editorTerminalPane *t =
+			(struct editorTerminalPane *)terminal_leaf->as.leaf.kind_state;
+	ASSERT_TRUE(t != NULL);
+	int waited = 0;
+	while (waited < 2000 && !t->exited) {
+		(void)editorTerminalPanePump(t);
+		struct timespec ts = {0, 20 * 1000 * 1000};
+		nanosleep(&ts, NULL);
+		waited += 20;
+	}
+	ASSERT_TRUE(t->exited);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	free(output);
+
+	ASSERT_EQ_INT(1, editorPaneTreeLeafCount(E.layout_root));
+	ASSERT_TRUE(E.focused_leaf == original);
+	return 0;
+}
+
 static int test_editor_refresh_screen_unfocused_same_tab_pane_renders_content(void) {
 	add_row("pane-x");
 	E.window_rows = 6;
@@ -4354,6 +4387,8 @@ const struct editorTestCase g_render_terminal_tests[] = {
 			test_editor_refresh_screen_renders_terminal_pane},
 	{"editor_refresh_screen_terminal_exit_overlay",
 			test_editor_refresh_screen_terminal_exit_overlay},
+	{"editor_refresh_screen_closes_exited_terminal_without_keypress",
+			test_editor_refresh_screen_closes_exited_terminal_without_keypress},
 };
 
 const int g_render_terminal_test_count =
