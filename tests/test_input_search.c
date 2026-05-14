@@ -1338,6 +1338,67 @@ static int test_editor_process_keypress_mouse_ctrl_click_does_not_start_drag_sel
 	return 0;
 }
 
+static int test_editor_process_keypress_mouse_ctrl_hover_marks_word_as_hover_link(void) {
+	add_row("hello world");
+	E.window_rows = 4;
+	E.window_cols = 20;
+	E.rowoff = 0;
+	E.coloff = 0;
+	E.syntax_language = EDITOR_SYNTAX_C;
+	E.lsp_clangd_enabled = 1;
+	snprintf(E.lsp_clangd_command, sizeof(E.lsp_clangd_command), "clangd");
+	E.filename = strdup("/tmp/hover.c");
+	ASSERT_TRUE(E.filename != NULL);
+	E.pane_focus = EDITOR_PANE_TEXT;
+	E.cy = 0;
+	E.cx = 0;
+
+	int text_start = editorTextBodyStartColForCols(E.window_cols);
+	char motion[32];
+	// cb = motion(32) + Ctrl(16) + button=3 (no button held) = 51
+	ASSERT_TRUE(format_sgr_mouse_event(motion, sizeof(motion), 51, text_start + 3, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(motion, strlen(motion)) == 0);
+	ASSERT_EQ_INT(1, E.hover_link_active);
+	ASSERT_EQ_INT(0, E.hover_link_row);
+	ASSERT_EQ_INT(0, E.hover_link_cx_start);
+	ASSERT_EQ_INT(5, E.hover_link_cx_end);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_motion_without_ctrl_does_not_mark_hover(void) {
+	add_row("hello world");
+	E.window_rows = 4;
+	E.window_cols = 20;
+	E.syntax_language = EDITOR_SYNTAX_C;
+	E.lsp_clangd_enabled = 1;
+	snprintf(E.lsp_clangd_command, sizeof(E.lsp_clangd_command), "clangd");
+	E.filename = strdup("/tmp/hover.c");
+	ASSERT_TRUE(E.filename != NULL);
+	E.pane_focus = EDITOR_PANE_TEXT;
+
+	int text_start = editorTextBodyStartColForCols(E.window_cols);
+	char motion[32];
+	// cb = motion(32) + button=3 (no button, no Ctrl) = 35
+	ASSERT_TRUE(format_sgr_mouse_event(motion, sizeof(motion), 35, text_start + 3, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(motion, strlen(motion)) == 0);
+	ASSERT_EQ_INT(0, E.hover_link_active);
+	return 0;
+}
+
+static int test_editor_keypress_clears_hover_link(void) {
+	add_row("hello world");
+	E.hover_link_active = 1;
+	E.hover_link_row = 0;
+	E.hover_link_cx_start = 0;
+	E.hover_link_cx_end = 5;
+
+	const char letter = 'a';
+	ASSERT_TRUE(editor_process_keypress_with_input(&letter, 1) == 0);
+	ASSERT_EQ_INT(0, E.hover_link_active);
+	ASSERT_EQ_INT(-1, E.hover_link_row);
+	return 0;
+}
+
 static int test_editor_process_keypress_mouse_left_click_ignores_non_text_rows(void) {
 	add_row("abc");
 	E.window_rows = 4;
@@ -3948,6 +4009,9 @@ const struct editorTestCase g_input_search_tests[] = {
 	{"editor_process_keypress_mouse_click_maps_same_column_with_line_numbers", test_editor_process_keypress_mouse_click_maps_same_column_with_line_numbers},
 	{"editor_process_keypress_mouse_left_click_places_cursor_on_wrapped_segment", test_editor_process_keypress_mouse_left_click_places_cursor_on_wrapped_segment},
 	{"editor_process_keypress_mouse_ctrl_click_does_not_start_drag_selection", test_editor_process_keypress_mouse_ctrl_click_does_not_start_drag_selection},
+	{"editor_process_keypress_mouse_ctrl_hover_marks_word_as_hover_link", test_editor_process_keypress_mouse_ctrl_hover_marks_word_as_hover_link},
+	{"editor_process_keypress_mouse_motion_without_ctrl_does_not_mark_hover", test_editor_process_keypress_mouse_motion_without_ctrl_does_not_mark_hover},
+	{"editor_keypress_clears_hover_link", test_editor_keypress_clears_hover_link},
 	{"editor_process_keypress_mouse_left_click_ignores_non_text_rows", test_editor_process_keypress_mouse_left_click_ignores_non_text_rows},
 	{"editor_process_keypress_mouse_left_click_ignores_indicator_padding_columns", test_editor_process_keypress_mouse_left_click_ignores_indicator_padding_columns},
 	{"editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory", test_editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory},

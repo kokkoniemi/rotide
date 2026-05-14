@@ -90,6 +90,10 @@ void initEditor(void) {
 	E.mouse_left_button_down = 0;
 	E.mouse_drag_anchor_offset = 0;
 	E.mouse_drag_started = 0;
+	E.hover_link_active = 0;
+	E.hover_link_row = -1;
+	E.hover_link_cx_start = 0;
+	E.hover_link_cx_end = 0;
 	E.clipboard_text = NULL;
 	E.clipboard_textlen = 0;
 	E.clipboard_external_sink = NULL;

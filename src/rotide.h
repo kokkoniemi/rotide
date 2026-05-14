@@ -53,6 +53,7 @@ enum editorMouseEventKind {
 	EDITOR_MOUSE_EVENT_LEFT_PRESS,
 	EDITOR_MOUSE_EVENT_LEFT_DRAG,
 	EDITOR_MOUSE_EVENT_LEFT_RELEASE,
+	EDITOR_MOUSE_EVENT_MOTION,
 	EDITOR_MOUSE_EVENT_WHEEL_UP,
 	EDITOR_MOUSE_EVENT_WHEEL_DOWN,
 	EDITOR_MOUSE_EVENT_WHEEL_LEFT,
@@ -614,6 +615,10 @@ struct editorConfig {
 	int mouse_left_button_down;
 	size_t mouse_drag_anchor_offset;
 	int mouse_drag_started;
+	int hover_link_active;
+	int hover_link_row;
+	int hover_link_cx_start;
+	int hover_link_cx_end;
 	char *clipboard_text;
 	size_t clipboard_textlen;
 	editorClipboardExternalSink clipboard_external_sink;

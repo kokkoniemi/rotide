@@ -3455,6 +3455,74 @@ static int editorHandleMouseLeftRelease(void) {
 	return EDITOR_KEYPRESS_EFFECT_NONE;
 }
 
+static int editorComputeWordRangeAt(int cy, int cx, int *start_out, int *end_out) {
+	if (cy < 0 || cy >= E.numrows) {
+		return 0;
+	}
+	struct erow *row = &E.rows[cy];
+	cx = editorRowClampCxToCharBoundary(row, cx);
+	if (cx >= row->size) {
+		return 0;
+	}
+	if (!editorIsWordByte((unsigned char)row->chars[cx])) {
+		return 0;
+	}
+	int start = cx;
+	while (start > 0) {
+		int prev = editorRowPrevCharIdx(row, start);
+		if (prev >= start || !editorIsWordByte((unsigned char)row->chars[prev])) {
+			break;
+		}
+		start = prev;
+	}
+	int end = editorRowNextCharIdx(row, cx);
+	while (end < row->size) {
+		if (!editorIsWordByte((unsigned char)row->chars[end])) {
+			break;
+		}
+		int next = editorRowNextCharIdx(row, end);
+		if (next <= end) {
+			break;
+		}
+		end = next;
+	}
+	*start_out = start;
+	*end_out = end;
+	return 1;
+}
+
+static int editorHandleMouseMotion(const struct editorMouseEvent *event) {
+	int new_active = 0;
+	int new_row = -1;
+	int new_start = 0;
+	int new_end = 0;
+
+	if ((event->modifiers & EDITOR_MOUSE_MOD_CTRL) != 0 && E.pane_focus == EDITOR_PANE_TEXT &&
+			editorGoToDefinitionSupportedLanguage(E.syntax_language) &&
+			editorGoToDefinitionEnabledForLanguage()) {
+		size_t offset = 0;
+		if (editorResolveMouseToBufferOffset(event, 0, &offset)) {
+			int row = 0;
+			int cx = 0;
+			if (editorBufferOffsetToPos(offset, &row, &cx) &&
+					editorComputeWordRangeAt(row, cx, &new_start, &new_end)) {
+				new_active = 1;
+				new_row = row;
+			}
+		}
+	}
+
+	if (new_active == E.hover_link_active && new_row == E.hover_link_row &&
+			new_start == E.hover_link_cx_start && new_end == E.hover_link_cx_end) {
+		return EDITOR_KEYPRESS_EFFECT_NONE;
+	}
+	E.hover_link_active = new_active;
+	E.hover_link_row = new_row;
+	E.hover_link_cx_start = new_start;
+	E.hover_link_cx_end = new_end;
+	return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+}
+
 static int editorHandleMouseWheel(const struct editorMouseEvent *event) {
 	int over_drawer = editorMouseIsOverDrawer(event);
 
@@ -3485,11 +3553,26 @@ static int editorHandleMouseWheel(const struct editorMouseEvent *event) {
 	return EDITOR_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 }
 
+static int editorClearHoverLinkState(void) {
+	if (!E.hover_link_active) {
+		return 0;
+	}
+	E.hover_link_active = 0;
+	E.hover_link_row = -1;
+	E.hover_link_cx_start = 0;
+	E.hover_link_cx_end = 0;
+	return 1;
+}
+
 static int editorHandleMouseEvent(void) {
 	struct editorMouseEvent event;
 	// terminal.c queues one decoded event per MOUSE_EVENT keycode.
 	if (!editorConsumeMouseEvent(&event)) {
 		return EDITOR_KEYPRESS_EFFECT_NONE;
+	}
+
+	if (event.kind != EDITOR_MOUSE_EVENT_MOTION && editorClearHoverLinkState()) {
+		// Fall through and dispatch; render will pick up the cleared hover state.
 	}
 
 	switch (event.kind) {
@@ -3499,6 +3582,8 @@ static int editorHandleMouseEvent(void) {
 			return editorHandleMouseLeftDrag(&event);
 		case EDITOR_MOUSE_EVENT_LEFT_RELEASE:
 			return editorHandleMouseLeftRelease();
+		case EDITOR_MOUSE_EVENT_MOTION:
+			return editorHandleMouseMotion(&event);
 		case EDITOR_MOUSE_EVENT_WHEEL_UP:
 		case EDITOR_MOUSE_EVENT_WHEEL_DOWN:
 		case EDITOR_MOUSE_EVENT_WHEEL_LEFT:
@@ -4221,6 +4306,9 @@ void editorProcessKeypress(void) {
 		editorHistoryBreakGroup();
 		effects |= editorHandleMouseEvent();
 	} else {
+		if (editorClearHoverLinkState()) {
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+		}
 		if (editorKeymapLookupAction(&E.keymap, c, &action)) {
 			int mapped_effects = EDITOR_KEYPRESS_EFFECT_NONE;
 			mapped_action = 1;

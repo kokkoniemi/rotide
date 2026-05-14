@@ -1358,20 +1358,24 @@ static int editorBuildDiagnosticRenderSpansForRow(int row_idx, const struct erow
 	return 1;
 }
 
-static int editorAppendDiagnosticUnderlineStart(struct writeBuf *wb) {
-	return wbAppend(wb, VT100_UNDERLINE_ON_4, 4) &&
-			wbAppend(wb, VT100_UNDERLINE_COLOR_RED_9, 9);
+static int editorAppendUnderlineToggle(struct writeBuf *wb, int on) {
+	if (on) {
+		return wbAppend(wb, VT100_UNDERLINE_ON_4, 4);
+	}
+	return wbAppend(wb, VT100_UNDERLINE_OFF_5, 5);
 }
 
-static int editorAppendDiagnosticUnderlineEnd(struct writeBuf *wb) {
-	return wbAppend(wb, VT100_UNDERLINE_OFF_5, 5) &&
-			wbAppend(wb, VT100_UNDERLINE_COLOR_DEFAULT_5, 5);
+static int editorAppendUnderlineColor(struct writeBuf *wb, int red) {
+	if (red) {
+		return wbAppend(wb, VT100_UNDERLINE_COLOR_RED_9, 9);
+	}
+	return wbAppend(wb, VT100_UNDERLINE_COLOR_DEFAULT_5, 5);
 }
 
 static int editorDrawRenderSliceWithSyntax(struct writeBuf *wb, const struct erow *row,
 		int segment_start, int segment_end, const struct editorRowSyntaxSpan *spans,
 		int span_count, const struct editorRowSyntaxSpan *diagnostic_spans,
-		int diagnostic_span_count) {
+		int diagnostic_span_count, int hover_render_start, int hover_render_end) {
 	if (segment_end <= segment_start) {
 		return 1;
 	}
@@ -1384,7 +1388,9 @@ static int editorDrawRenderSliceWithSyntax(struct writeBuf *wb, const struct ero
 	struct editorThemeColor base_color = E.theme.ui[EDITOR_THEME_UI_FOREGROUND];
 	struct editorThemeColor active_color = base_color;
 	int active_color_emitted = 0;
-	int underline_active = 0;
+	int underline_on = 0;
+	int underline_red = 0;
+	int has_hover = hover_render_end > hover_render_start;
 	int pos = segment_start;
 	while (pos < segment_end) {
 		enum editorSyntaxHighlightClass highlight_class =
@@ -1403,17 +1409,22 @@ static int editorDrawRenderSliceWithSyntax(struct writeBuf *wb, const struct ero
 			active_color_emitted = 1;
 		}
 
-		int next_underline = editorDiagnosticAtRenderIdx(diagnostic_spans,
+		int diag_here = editorDiagnosticAtRenderIdx(diagnostic_spans,
 				diagnostic_span_count, pos);
-		if (next_underline != underline_active) {
-			if (next_underline) {
-				if (!editorAppendDiagnosticUnderlineStart(wb)) {
-					return 0;
-				}
-			} else if (!editorAppendDiagnosticUnderlineEnd(wb)) {
+		int hover_here = has_hover && pos >= hover_render_start && pos < hover_render_end;
+		int next_on = diag_here || hover_here;
+		int next_red = diag_here;
+		if (next_on != underline_on) {
+			if (!editorAppendUnderlineToggle(wb, next_on)) {
 				return 0;
 			}
-			underline_active = next_underline;
+			underline_on = next_on;
+		}
+		if (next_red != underline_red) {
+			if (!editorAppendUnderlineColor(wb, next_red)) {
+				return 0;
+			}
+			underline_red = next_red;
 		}
 
 		int next = segment_end;
@@ -1443,6 +1454,14 @@ static int editorDrawRenderSliceWithSyntax(struct writeBuf *wb, const struct ero
 				next = span_end;
 			}
 		}
+		if (has_hover) {
+			if (hover_render_start > pos && hover_render_start < next) {
+				next = hover_render_start;
+			}
+			if (hover_render_end > pos && hover_render_end < next) {
+				next = hover_render_end;
+			}
+		}
 		if (next <= pos) {
 			unsigned int cp = 0;
 			int step = editorUtf8DecodeCodepoint(&row->render[pos], segment_end - pos, &cp);
@@ -1462,7 +1481,10 @@ static int editorDrawRenderSliceWithSyntax(struct writeBuf *wb, const struct ero
 		pos = next;
 	}
 
-	if (underline_active && !editorAppendDiagnosticUnderlineEnd(wb)) {
+	if (underline_on && !editorAppendUnderlineToggle(wb, 0)) {
+		return 0;
+	}
+	if (underline_red && !editorAppendUnderlineColor(wb, 0)) {
 		return 0;
 	}
 	if (active_color_emitted && !editorAppendThemeBaseForeground(wb)) {
@@ -1510,9 +1532,28 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 		diagnostic_span_count = 0;
 	}
 
+	int hover_render_start = -1;
+	int hover_render_end = -1;
+	if (E.hover_link_active && E.hover_link_row == row_idx &&
+			E.hover_link_cx_end > E.hover_link_cx_start) {
+		int hov_start_clamped = E.hover_link_cx_start;
+		int hov_end_clamped = E.hover_link_cx_end;
+		if (hov_start_clamped < 0) {
+			hov_start_clamped = 0;
+		}
+		if (hov_end_clamped > row->size) {
+			hov_end_clamped = row->size;
+		}
+		if (hov_end_clamped > hov_start_clamped) {
+			hover_render_start = editorRowCxToRenderIdx(row, hov_start_clamped);
+			hover_render_end = editorRowCxToRenderIdx(row, hov_end_clamped);
+		}
+	}
+
 	if (highlight_len_chars <= 0) {
 		return editorDrawRenderSliceWithSyntax(wb, row, start, end, syntax_spans,
-				syntax_span_count, diagnostic_spans, diagnostic_span_count);
+				syntax_span_count, diagnostic_spans, diagnostic_span_count,
+				hover_render_start, hover_render_end);
 	}
 
 	int match_start_chars = highlight_start_chars;
@@ -1537,19 +1578,22 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 	int match_render_end = editorRowCxToRenderIdx(row, match_end_chars);
 	if (match_render_end <= match_render_start) {
 		return editorDrawRenderSliceWithSyntax(wb, row, start, end, syntax_spans,
-				syntax_span_count, diagnostic_spans, diagnostic_span_count);
+				syntax_span_count, diagnostic_spans, diagnostic_span_count,
+				hover_render_start, hover_render_end);
 	}
 
 	int highlight_start = start > match_render_start ? start : match_render_start;
 	int highlight_end = end < match_render_end ? end : match_render_end;
 	if (highlight_end <= highlight_start) {
 		return editorDrawRenderSliceWithSyntax(wb, row, start, end, syntax_spans,
-				syntax_span_count, diagnostic_spans, diagnostic_span_count);
+				syntax_span_count, diagnostic_spans, diagnostic_span_count,
+				hover_render_start, hover_render_end);
 	}
 
 	if (highlight_start > start &&
 			!editorDrawRenderSliceWithSyntax(wb, row, start, highlight_start, syntax_spans,
-					syntax_span_count, diagnostic_spans, diagnostic_span_count)) {
+					syntax_span_count, diagnostic_spans, diagnostic_span_count,
+					hover_render_start, hover_render_end)) {
 		return 0;
 	}
 	if (!editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_SELECTION)) {
@@ -1563,7 +1607,8 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 	}
 	if (highlight_end < end &&
 			!editorDrawRenderSliceWithSyntax(wb, row, highlight_end, end, syntax_spans,
-					syntax_span_count, diagnostic_spans, diagnostic_span_count)) {
+					syntax_span_count, diagnostic_spans, diagnostic_span_count,
+					hover_render_start, hover_render_end)) {
 		return 0;
 	}
 
