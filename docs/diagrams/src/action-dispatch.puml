@@ -4,25 +4,61 @@ skinparam backgroundColor #FFFFFF
 title Keypress to editor action
 
 start
-:terminal decodes key/mouse packet;
+:terminal decodes key, mouse, or
+synthetic event (resize, task,
+syntax, watch, terminal, paste);
+if (BRACKETED_PASTE_START/END?) then (yes)
+	:toggle E.paste_active;
+	if (focused leaf is terminal?) then (yes)
+		:vterm_keyboard_start/end_paste;
+	endif
+	stop
+endif
+if (TERMINAL_EVENT?) then (yes)
+	:no-op; next frame redraws
+	with fresh pumped vterm state;
+	stop
+endif
 if (prompt active?) then (yes)
 	:send byte to prompt callback;
 	stop
 endif
 if (mouse event?) then (yes)
+	if (lands in terminal pane with\nmouse tracking enabled?) then (yes)
+		:forward via libvterm
+		(refocus pane on press);
+		stop
+	endif
 	:route to drawer/tab/text handler;
 	stop
 endif
+if (focused leaf is terminal pane?) then (yes)
+	if (key is terminal_prefix?) then (yes)
+		:arm prefix; next key
+		dispatches as normal action;
+		stop
+	endif
+	if (terminal_prefix armed?) then (yes)
+		:clear flag; fall through;
+	else
+		:editorTerminalPaneSendKey
+		(routes via libvterm);
+		stop
+	endif
+endif
 :lookup configured keymap;
 if (bound action?) then (yes)
-	:dispatch enum editorAction;
+	:dispatch enum editorAction
+	(includes split_/focus_/pane_/
+	 terminal_/dap_/close_pane);
 else (text input)
 	:build insert edit;
 endif
 if (text mutation?) then (yes)
 	:apply document edit;
-else (view/navigation)
-	:update cursor/view/search/drawer state;
+else (view/navigation/structure)
+	:update cursor/view/search/drawer
+	state, mutate layout, etc.;
 endif
 stop
 

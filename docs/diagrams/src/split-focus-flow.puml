@@ -1,0 +1,56 @@
+@startuml
+skin rose
+skinparam backgroundColor #FFFFFF
+title Split and focus flow
+
+start
+partition "split_horizontal / split_vertical" {
+	:capture E into focused leaf's view
+	(cursor, scroll, active_tab_idx);
+	:editorPaneTreeSplitLeaf — wrap focused
+	leaf in a fresh split node;
+	:new sibling inherits the splitting
+	leaf's view, then its pane_tabs[] is
+	reset and re-seeded with just the
+	active tab (VSCode-style "open current
+	file in new split");
+	:E.focused_leaf = sibling;
+	:editorPaneAnnounceFocus shows
+	"Pane X/N" in the status bar;
+}
+stop
+
+start
+partition "focus_left/right/up/down / mouse focus" {
+	:compute bordered leaf layout for
+	the current viewport;
+	:find neighbor or hit-test leaf;
+	if (target == focused leaf?) then (yes)
+		stop
+	endif
+	:capture E into outgoing leaf's view;
+	:E.focused_leaf = target leaf;
+	if (target.view.active_tab_idx
+	    != E.active_tab?) then (yes)
+		:editorTabSwitchToIndex(target tab)
+		— save current global tab and load
+		the target tab's document state;
+	endif
+	:editorPaneViewLoadIntoState — copy
+	target leaf's cursor/scroll over E;
+	:editorPaneAnnounceFocus;
+}
+stop
+
+start
+partition "close_pane" {
+	:editorPaneTreeCloseLeaf — promote
+	sibling in place of the parent split;
+	:E.focused_leaf = sibling;
+	:editorPaneViewLoadIntoState on
+	sibling's view (applies cursor and
+	may swap the global tab);
+}
+stop
+
+@enduml

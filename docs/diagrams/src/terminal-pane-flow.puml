@@ -1,0 +1,98 @@
+@startuml
+skin rose
+skinparam backgroundColor #FFFFFF
+title Terminal pane lifecycle
+
+start
+partition "create" {
+	:editorPaneNodeNewTerminalLeaf
+	(or editorTerminalPaneOpenSplit
+	 which splits + converts the new
+	 sibling into kind TERMINAL);
+	:editorTerminalPaneCreate;
+	:vterm_new + vterm_screen_reset
+	(UTF-8 on, settermprop callback
+	 tracks VTERM_PROP_MOUSE);
+	:forkpty(3) — child runs the
+	command via /bin/sh -c; master fd
+	is non-blocking + close-on-exec;
+	:vterm_output_set_callback writes
+	keyboard/mouse output back to
+	the master fd;
+	:leaf->kind_state = pane,
+	leaf->kind_state_free = free fn;
+}
+
+partition "main-loop pump" {
+	repeat
+		:editorReadKey poll tick
+		(VTIME ≈ 100 ms);
+		:editorTerminalPanePumpAll —
+		non-blocking read from each
+		master fd, feed into vterm
+		via vterm_input_write;
+		:vterm callbacks update screen
+		grid and mouse_tracking;
+		if (any bytes drained?) then (yes)
+			:return TERMINAL_EVENT;
+			:dispatch returns; main loop
+			calls editorRefreshScreen
+			which paints the new state;
+		endif
+	repeat while (running)
+}
+
+partition "render" {
+	:editorRefreshScreen → editorDrawRows;
+	if (any terminal leaf in tree?) then (yes)
+		:take multi-pane path
+		(even at leaf count 1);
+		:for each leaf, paint slice
+		via editorDrawTerminalCells
+		(vterm_screen_get_cell loop,
+		 plain-cell run coalescing);
+		if (terminal->exited?) then (yes)
+			:replace last pane row with
+			[exited: status N] banner;
+		endif
+	endif
+	:cursor positioning uses vterm_state
+	cursorpos when the focused leaf is
+	a terminal;
+}
+
+partition "input" {
+	if (focused leaf is terminal AND
+	    prefix not armed?) then (yes)
+		if (key == terminal_prefix?) then (yes)
+			:E.terminal_prefix_armed = 1;
+		else
+			:editorTerminalPaneSendKey
+			(vterm encodes ASCII /
+			 named keys / control bytes);
+		endif
+	endif
+	if (mouse with tracking on?) then (yes)
+		:editorTerminalPaneSendMouseButton
+		or SendMouseMove;
+	endif
+	if (BRACKETED_PASTE_START/END?) then (yes)
+		:vterm_keyboard_start_paste /
+		end_paste (no-ops if child has
+		not enabled DECSET 2004);
+	endif
+}
+
+partition "resize and exit" {
+	:SIGWINCH → editorRefreshWindowSize
+	→ editorTerminalPaneResizeAllToLayout
+	(TIOCSWINSZ + vterm_set_size);
+	:on child exit, editorPtyTryReap
+	from inside Pump sets
+	terminal->exited = 1; close pane
+	via close_pane action or by the
+	DAP session ending;
+}
+stop
+
+@enduml

@@ -1,0 +1,68 @@
+@startuml
+skin rose
+skinparam backgroundColor #FFFFFF
+title Pane layout and per-pane view state
+
+skinparam classBackgroundColor #FFFFFF
+
+class "editorConfig E" as E {
+  layout_root : editorPaneNode*
+  focused_leaf : editorPaneNode*
+  active_tab : int
+  tabs[] : editorTabState
+  cx, cy, rowoff, ...  // live focused-pane view
+}
+
+class editorPaneNode {
+  is_split : int
+  union as { leaf | split }
+}
+
+class "split" as Split {
+  orientation : HORIZONTAL | VERTICAL
+  ratio : double
+  first, second : editorPaneNode*
+}
+
+class editorPane {
+  kind : EDITOR_PANE_KIND_EDITOR
+        | EDITOR_PANE_KIND_TERMINAL
+  view : editorPaneView
+  kind_state : void*  // editorTerminalPane for TERMINAL
+  kind_state_free : void(*)(void*)
+}
+
+class editorPaneView {
+  active_tab_idx : int
+  cx, cy, rx : int
+  rowoff, coloff, wrapoff : int
+  cursor_offset : size_t
+  viewport_mode : int
+  selection_mode_active, ...
+  pane_tabs[] : int        // membership filter
+  pane_tab_count : int
+}
+
+E --> editorPaneNode : owns layout_root
+E ..> editorPaneNode : focused_leaf points at a leaf
+editorPaneNode --> Split : when is_split == 1
+editorPaneNode --> editorPane : when is_split == 0 (leaf)
+editorPane *-- editorPaneView
+editorPane ..> "editorTerminalPane" : kind_state when TERMINAL
+
+note right of editorPaneView
+  Focused leaf's live state lives in E.*.
+  Unfocused leaves keep their snapshot here.
+  editorLayoutSetFocusedLeaf saves outgoing,
+  switches active_tab if it differs, then
+  loads the incoming leaf's cursor.
+end note
+
+note bottom of Split
+  Renderer computes a bordered layout
+  (ROTIDE_PANE_BORDER_SIZE = 1 col/row).
+  Border rects collected from the tree
+  drive '─'/'│' painting in the gaps.
+end note
+
+@enduml

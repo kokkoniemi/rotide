@@ -4,21 +4,35 @@ skinparam backgroundColor #FFFFFF
 title Startup and main loop
 
 start
-:enable terminal raw mode;
-:load runtime config;
-:initialize tabs, drawer, syntax worker, recovery;
-if (recovery snapshot?) then (yes)
-	:prompt and restore or open args;
+:enable terminal raw mode (setRawMode);
+:initEditor — clipboard, theme, drawer state,
+single-leaf layout root + focused leaf, tabs;
+:start Tree-sitter background worker;
+:bootstrap global config file
+(create if missing);
+:initialize recovery and workspace state
+for current directory;
+:apply configured editor/theme/keymap/LSP/DAP settings;
+if (recovery snapshot or CLI args?) then (yes)
+	:load recovery or open CLI args;
 else (no)
-	:open CLI args or empty tab;
+	:fall through to drawer init;
 endif
+:drawer init for startup;
+:load and apply workspace state
+(restore drawer width, tabs, persisted layout);
+:Git init for working tree;
 while (running)
-	:pump LSP and background syntax;
-	:draw terminal frame;
-	:read terminal input;
-	:dispatch action;
+	:editorSyntaxBackgroundPoll;
+	:editorRefreshScreen
+	 (pumps LSP, DAP, terminal panes,
+	  paints frame);
+	:editorProcessKeypress
+	 (decode input, dispatch action,
+	  handle terminal/paste events);
 endwhile
-:cleanup tasks, LSP, syntax, terminal;
+:cleanup tasks, LSP, DAP, syntax,
+terminal pane PTYs, terminal mode;
 stop
 
 @enduml

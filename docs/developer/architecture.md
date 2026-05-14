@@ -1,21 +1,27 @@
 # Architecture
 
 RotIDE keeps one main editor process and state model, with helper threads and
-child processes for specific work such as Tree-sitter background parsing, LSP
-servers, task logs, project search, and terminal panes. The main design rule is
-that text has one writable owner: `editorDocument`. Rows, syntax captures,
-rendered columns, diagnostics, search matches, and viewports are derived from
-that document or from tab-local state.
+child processes for Tree-sitter background parsing, LSP servers, task logs,
+project search, terminal panes (PTY + libvterm), and DAP adapters. The main
+design rule is that text has one writable owner: `editorDocument`. Rows,
+syntax captures, rendered columns, diagnostics, search matches, and viewports
+are derived from that document or from tab-local state.
 
 ![RotIDE container architecture](../diagrams/svg/architecture-container.svg)
 
 ## State Model
 
 The global editor state lives in `struct editorConfig E` (`src/rotide.h`). It
-stores terminal dimensions, active buffer fields, runtime config, task state,
-tab list, drawer state, theme, and clipboard integration. Each real tab stores
-the same buffer-facing fields in `struct editorTabState`, and tab switching
-copies state between the active fields and the selected tab.
+stores terminal dimensions, the active buffer fields, runtime config, task
+state, the global tab list, drawer state, theme, clipboard integration, the
+pane layout tree (`layout_root` and `focused_leaf`), DAP session state plus an
+optional `dap_terminal_leaf`, the terminal-prefix arm flag, and the
+bracketed-paste-active flag.
+
+Each real tab stores the same buffer-facing fields in `struct editorTabState`.
+Switching tabs copies state between the active fields and the selected tab,
+and the focused pane's tab membership is updated so the per-pane tab strip
+stays in sync.
 
 The important ownership split is:
 
@@ -24,14 +30,16 @@ The important ownership split is:
 - `line_starts`: document-owned line index for byte/line mapping.
 - `struct erow`: derived row text and render cache.
 - `cursor_offset`, search offsets, and selection anchors: canonical positions.
-- `cy`, `cx`, `rx`, `rowoff`, `coloff`, `wrapoff`: derived or view state.
+- `cy`, `cx`, `rx`, `rowoff`, `coloff`, `wrapoff`: derived or view state. The
+  focused pane's copy lives directly in `E`; unfocused panes keep their
+  snapshot in `editorPaneView` and swap into `E` on focus change.
 
 ![Document model](../diagrams/svg/document-model.svg)
 
-`src/text/document.c` owns document reset, copy, replace, and byte/line mapping.
-`src/text/rope.c` owns chunked storage. `src/text/row.c` owns UTF-8 and
-grapheme-aware row helpers. `src/editing/buffer_core.c` bridges the document
-model to active editor state.
+`src/text/document.c` owns document reset, copy, replace, and byte/line
+mapping. `src/text/rope.c` owns chunked storage. `src/text/row.c` owns UTF-8
+and grapheme-aware row helpers. `src/editing/buffer_core.c` bridges the
+document model to active editor state.
 
 ## Text and Dirty State
 
@@ -40,92 +48,235 @@ through `editorApplyDocumentEdit()`. That descriptor is the contract for byte
 range, inserted text, cursor movement, and dirty-state transitions; the
 step-by-step mutation order is covered in [Workflows](workflows.md).
 
-Navigation, search, viewport changes, drawer changes, and LSP requests do not
-mark a tab dirty. Undo and redo restore both text and dirty metadata from
-operation history, not from full-buffer snapshots.
+Navigation, search, viewport changes, drawer changes, pane focus moves, and
+LSP requests do not mark a tab dirty. Undo and redo restore both text and
+dirty metadata from operation history, not from full-buffer snapshots.
 
 ## Input and Actions
 
 Key behavior routes through `enum editorAction`. Defaults are built in
 `src/config/keymap.c`, optional user bindings are loaded from
-`~/.rotide/config.toml`, and `src/input/dispatch.c` maps decoded terminal input
-to actions.
+`~/.rotide/config.toml`, and `src/input/dispatch.c` maps decoded terminal
+input to actions.
+
+Several gates run before the keymap lookup:
+
+- **Synthetic events** (`RESIZE_EVENT`, `TASK_EVENT`, `SYNTAX_EVENT`,
+  `WATCH_EVENT`, `TERMINAL_EVENT`, `BRACKETED_PASTE_START/END_EVENT`,
+  `INPUT_EOF_EVENT`) short-circuit before the editor sees them as regular
+  keys.
+- **Prompt mode** forwards the byte to the active prompt callback.
+- **Mouse events** are hit-tested against the layout: clicks/wheel/drag that
+  land in a terminal pane with mouse tracking on are forwarded to libvterm
+  (and a click also refocuses that pane); otherwise they go to the
+  drawer/tab/text handler.
+- **Terminal-pane key gate**: when the focused leaf is a terminal pane and
+  the user is not in the drawer, keystrokes are routed straight to the PTY
+  via `editorTerminalPaneSendKey` unless the next chord is the configured
+  `terminal_prefix`. Pressing the prefix arms a one-shot escape that makes
+  the *next* keypress dispatch through the normal keymap.
 
 Keeping commands action-based makes key behavior testable and keeps prompt,
-mouse, drawer, and editor commands on the same dispatch path.
+mouse, drawer, editor, terminal, pane, and DAP commands on the same dispatch
+path.
+
+## Panes and Layout
+
+`src/workspace/layout.{c,h}` owns a binary tree of `editorPaneNode`s rooted
+at `E.layout_root`. Each leaf carries an `editorPane` with a kind tag, a
+per-pane `editorPaneView` (cursor, scroll, viewport mode, selection state,
+the active tab index, and a per-pane tab membership list), and an optional
+`kind_state` payload released by a `kind_state_free` callback when the leaf
+is closed. Internal nodes describe a vertical or horizontal split with a
+clamped ratio.
+
+![Pane layout and view state](../diagrams/svg/pane-layout.svg)
+
+The renderer computes a bordered layout (`ROTIDE_PANE_BORDER_SIZE = 1`) that
+reserves a single column/row between siblings; `editorLayoutCollectBorders`
+walks the tree to produce border rects, and `editorBorderCellAt` classifies
+each cell during paint so `─`, `│`, and gap cells render correctly even with
+nested splits.
+
+`editorLayoutSetFocusedLeaf` is the canonical focus operation: it captures
+`E.*` into the outgoing leaf's view, optionally calls
+`editorTabSwitchToIndex` if the incoming leaf records a different active
+tab, then loads the incoming leaf's cursor on top. The dispatch handlers for
+`split_horizontal`/`split_vertical`/`close_pane`,
+`focus_left/right/up/down`, mouse focus, and `pane_grow`/`pane_shrink` all
+route through layout-module APIs so the invariants stay in one place. Each
+pane keeps its own membership list of which global tab indices live in it;
+the tab strip filters by that list and `editorTabSwitchByDelta` cycles
+within it.
+
+The layout shape (splits + ratios + orientations) is persisted in the
+workspace state file via `editorLayoutSerialize`'s compact s-expression so
+the user's split layout survives across sessions. Pane kind-state (terminal
+panes in particular) is session-bound and not persisted.
+
+![Split and focus flow](../diagrams/svg/split-focus-flow.svg)
 
 ## Tabs, Drawer, and Read-only Views
 
 File tabs are editable and savable. Preview tabs come from drawer/file-search
-navigation and can be pinned when edited or explicitly opened. Task-log tabs are
-generated documents used for child-process output; they are read-only and not
-savable. Unsupported-file and Git-diff tabs also avoid normal save semantics.
+navigation and can be pinned when edited or explicitly opened. Task-log tabs
+are generated documents used for child-process output; they are read-only and
+not savable. Unsupported-file and Git-diff tabs also avoid normal save
+semantics.
 
 ![Tab lifecycle](../diagrams/svg/tab-lifecycle.svg)
 
-The drawer is a view over project tree entries, search results, Git state, and
-LSP problem/symbol entries. It does not own file text.
+Tabs themselves live in the shared `E.tabs[]` array, but each pane stores
+which tab indices it shows in `editorPaneView.pane_tabs[]`. Splitting a
+pane re-seeds the new sibling's membership with only the splitting pane's
+active tab — VSCode-style "open current file in new split." Closing a tab
+removes it from the focused pane's list; the global entry survives if any
+other pane still holds it.
+
+The drawer is a view over project tree entries, search results, Git state,
+and LSP problem/symbol entries. It does not own file text.
 
 ## Rendering
 
-`src/render/screen.c` builds the terminal frame from active state: tab bar,
-drawer, text viewport, status bar, message bar, popup, syntax spans, selection,
-search highlight, diagnostics, and cursor position. Rendering reads derived
-rows plus overlay state. It does not mutate canonical text.
+`src/render/screen.c` builds the terminal frame from active state. The top
+of `editorDrawRows` chooses between a fast single-pane path and a multi-pane
+path; the multi-pane path is taken whenever there is more than one leaf or
+any leaf is a terminal pane. Multi-pane rendering iterates rows, paints the
+drawer + separator, then walks the editor body cell-by-cell using the
+collected border list and the leaf layout to dispatch each segment to one
+of: focused editor slice (`editorDrawFocusedPaneSlice`), unfocused
+same-tab editor slice (rendered after a transient `editorViewSnapshot`
+swap), terminal slice (`editorDrawTerminalCells`, which iterates the
+libvterm screen and emits SGR-tagged UTF-8 cells), blank, or `─`/`│`
+border.
 
-Soft wrapping and rendered columns depend on row caches. The canonical cursor
-position remains `cursor_offset`; row/column fields are synchronized through
-mapping helpers when text or cursor state changes.
+Cursor positioning is pane-aware: when the focused leaf is a terminal
+pane, cursor row/col come from `vterm_state_get_cursorpos` translated into
+the pane's screen rect; otherwise they come from the editor's
+`cursor_offset`/`rx`/`coloff` math anchored to the focused leaf's rect.
+
+Soft wrapping and rendered columns depend on row caches. The canonical
+cursor position remains `cursor_offset`; row/column fields are synchronized
+through mapping helpers when text or cursor state changes.
+
+## Terminal Panes
+
+`src/language/pty.{c,h}` provides the PTY transport: `editorPtySpawn` runs
+the command via `/bin/sh -c` inside a `forkpty(3)` child, sets the master
+fd non-blocking + close-on-exec, seeds the initial winsize, and exposes
+non-blocking reap and `TIOCSWINSZ` resize.
+
+`src/language/terminal_pane.{c,h}` couples a PTY child with a libvterm
+parser. `editorTerminalPaneCreate` builds a `VTerm` with the
+`settermprop` callback wired so DECSET 1000/1002/1003 updates
+`mouse_tracking` and the `vterm_output_set_callback` writes encoded
+keyboard/mouse/paste output back to the master fd. The struct is heap
+owned, registered on the pane leaf via `kind_state` and `kind_state_free`
+so closing the pane releases everything.
+
+The main-loop input poll (`editorReadKey`) calls
+`editorTerminalPanePumpAll` on each VTIME tick (~100 ms). It drains every
+master fd into vterm via `vterm_input_write`, marks `exited` when the
+child has been reaped, and returns `TERMINAL_EVENT` if any bytes were
+consumed so the next refresh repaints. SIGWINCH propagates through
+`editorTerminalPaneResizeAllToLayout` which mirrors the renderer's split
+math and `TIOCSWINSZ`-resizes each pane.
+
+![Terminal pane lifecycle](../diagrams/svg/terminal-pane-flow.svg)
+
+libvterm is vendored under `vendor/libvterm/` with relaxed warnings in
+the Makefile (mirroring the tree-sitter carve-out).
+
+## DAP
+
+`src/language/dap.{c,h}` and `src/config/dap_config.{c,h}` implement the
+Debug Adapter Protocol client. Adapter commands live under
+`[dap.adapters]` and launch templates under `[dap.defaults]`/`[dap.launch]`
+in TOML; the parser exposes generic launch fields plus a name/adapter/
+request triple.
+
+When a launch is started, `editorDapPrepareTerminalConsole` inspects the
+rotide-specific `console` field on a local copy of the launch config. If
+the value is `"terminal"`, it opens a terminal pane via
+`editorTerminalPaneOpenSplit("sleep infinity", ...)`, resolves the slave
+tty with `ptsname(master_fd)`, and writes it into the launch JSON's `tty`
+field (which gdb-dap and lldb-dap honor for the inferior's I/O). The leaf
+is tracked in `E.dap_terminal_leaf`; on session teardown
+(`editorDapShutdown` or a `terminated`/`exited` event) the owned pane is
+closed automatically. `console` is always stripped from the outgoing JSON
+because it is a rotide layout hint, not a DAP standard field.
+
+![DAP launch and lifecycle](../diagrams/svg/dap-flow.svg)
+
+The Built-in `c_app`/`cpp_app` defaults ship with `console = "terminal"`,
+so debugging C/C++ targets gives the inferior a clean rotide-hosted
+terminal pane out of the box.
 
 ## Syntax
 
-Syntax state is tab-local (`editorSyntaxState`). Language detection and parser
-metadata are table-driven in `src/language/languages.c`. Query text is embedded
-at build time from `scripts/queries_manifest.txt` into
+Syntax state is tab-local (`editorSyntaxState`). Language detection and
+parser metadata are table-driven in `src/language/languages.c`. Query text
+is embedded at build time from `scripts/queries_manifest.txt` into
 `src/language/syntax_query_data.h`.
 
-Tree-sitter parsing uses `editorTextSource`, so syntax can read document bytes
-without requiring a permanent flattened buffer. Query budgets and injection
-limits degrade behavior before hard-disabling highlighting for large or
-expensive inputs. The background syntax runner is an in-process worker thread
-that receives snapshots and commits only results that still match the tab's
-syntax revision.
+Tree-sitter parsing uses `editorTextSource`, so syntax can read document
+bytes without requiring a permanent flattened buffer. Query budgets and
+injection limits degrade behavior before hard-disabling highlighting for
+large or expensive inputs. The background syntax runner is an in-process
+worker thread that receives snapshots and commits only results that still
+match the tab's syntax revision.
 
 ## LSP
 
-LSP state is tracked per tab with document-open flags and versions. The process
-clients live under `src/language/lsp.c`, `lsp_protocol.c`, and
+LSP state is tracked per tab with document-open flags and versions. The
+process clients live under `src/language/lsp.c`, `lsp_protocol.c`, and
 `lsp_transport.c`. Definition, implementation, completion, symbols,
 diagnostics, and ESLint fixes all route through the same document position
 helpers used by the editor.
 
 ![LSP document lifecycle](../diagrams/svg/lsp-document-lifecycle.svg)
 
-LSP diagnostics are stored on the owning tab and rendered through the LSP drawer
-and text overlays. ESLint is a separate JavaScript diagnostics/fix provider.
+LSP diagnostics are stored on the owning tab and rendered through the LSP
+drawer and text overlays. ESLint is a separate JavaScript diagnostics/fix
+provider.
 
 ## Save and Recovery
 
-Saves use `src/support/file_io.c` for the atomic temp-file/fsync/rename flow.
-Save syscall wrappers in `src/support/save_syscalls.c` make failure paths
-testable.
+Saves use `src/support/file_io.c` for the atomic temp-file/fsync/rename
+flow. Save syscall wrappers in `src/support/save_syscalls.c` make failure
+paths testable.
 
-Recovery snapshots are document-first. `src/workspace/recovery.c` persists tab
-state and text, restores tabs on startup when requested, and normalizes older
-row-oriented data into the current document model.
+Recovery snapshots are document-first.  `src/workspace/recovery.c`
+persists tab state and text, restores tabs on startup when requested, and
+normalizes older row-oriented data into the current document model.
+
+`src/workspace/workspace_state.c` is the adjacent persistence path for
+non-document state — drawer width and mode, recent files, the open-tab
+list, and the serialized pane layout tree
+(`editorLayoutSerialize` writes a `layout=<expr>` line; the loader
+deserializes and replaces `E.layout_root`).
 
 ## Module Map
 
-- `src/rotide.c`, `src/rotide.h`: process lifecycle, global state, main loop.
+- `src/rotide.c`, `src/rotide.h`: process lifecycle, global state, main
+  loop.
 - `src/support/`: terminal, allocation, file IO, testable save syscalls.
 - `src/text/`: document, rope, UTF-8, grapheme, row/render helpers.
-- `src/editing/`: document edit application, history, selection, edit builders.
-- `src/input/`: action dispatch, prompts, mouse handling.
-- `src/render/`: frame rendering, viewport, overlays, popups.
-- `src/workspace/`: tabs, drawer, project search, Git, recovery, task logs.
-- `src/config/`: TOML loading for editor, theme, keymap, LSP, and runtime config.
-- `src/language/`: Tree-sitter, LSP, autocomplete, terminal/PTY support.
+- `src/editing/`: document edit application, history, selection, edit
+  builders.
+- `src/input/`: action dispatch, prompts, mouse handling, terminal-pane
+  key gate, bracketed paste.
+- `src/render/`: frame rendering, single- and multi-pane painter, libvterm
+  cell painter, overlays, popups.
+- `src/workspace/`: tabs, drawer, project search, Git, recovery, task
+  logs, file watcher, pane layout (`layout.c`), workspace state.
+- `src/config/`: TOML loading for editor, theme, keymap, LSP, DAP, and
+  runtime config.
+- `src/language/`: Tree-sitter, LSP, autocomplete, DAP client, PTY
+  transport, terminal pane (libvterm bridge).
+- `vendor/libvterm/`: vendored libvterm 0.3.x — built with the same
+  warnings-relaxed carve-out as Tree-sitter.
 - `tests/`: behavior tests split by subsystem.
 
-Keep future architecture docs at this level: explain ownership, contracts, and
-flows before listing functions.
+Keep future architecture docs at this level: explain ownership,
+contracts, and flows before listing functions.

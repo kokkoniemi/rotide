@@ -1,0 +1,56 @@
+@startuml
+skin rose
+skinparam backgroundColor #FFFFFF
+title DAP launch and lifecycle
+
+start
+:user triggers dap_start
+(or DAP drawer "start");
+:editorDapStartLaunch(launch_idx);
+:editorDapShutdown — close any
+prior adapter/PTY/owned pane;
+:work on a local copy of the
+launch config so console="terminal"
+mutations stay out of E.dap_launches;
+:editorDapPrepareTerminalConsole;
+if (console == "terminal"?) then (yes)
+	:editorTerminalPaneOpenSplit
+	("sleep infinity") — split
+	the focused pane horizontally,
+	spawn placeholder so the slave
+	tty stays open;
+	:ptsname(master_fd) → /dev/pts/N;
+	:set launch.tty = "/dev/pts/N";
+	:E.dap_terminal_leaf = leaf;
+else
+	:strip console key so the
+	adapter never sees it;
+endif
+:editorLspSpawnProcess on the
+adapter command (gdb -i dap, etc.);
+:send initialize request;
+:send launch request with mutated
+copy (tty included if applicable);
+:DAP adapter spawns the inferior.
+gdb-dap/lldb-dap honor the tty
+field by attaching the inferior's
+stdin/stdout/stderr to that pts;
+partition "session" {
+	repeat
+		:editorDapPumpNotifications
+		from editorRefreshScreen
+		drains the adapter fd;
+		:handle stopped/output/threads
+		events;
+	repeat while (E.dap_running)
+}
+:on "terminated" or "exited" event
+(or editorDapStop / shutdown):
+:editorDapShutdown;
+:editorDapCloseOwnedTerminalPane —
+verify leaf is still in the tree,
+editorPaneTreeCloseLeaf, restore
+focus to the surviving sibling;
+stop
+
+@enduml
