@@ -124,6 +124,7 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/language/lsp_protocol.c \
 	$(SRC_DIR)/language/lsp_transport.c \
 	$(SRC_DIR)/language/dap.c \
+	$(SRC_DIR)/language/pty.c \
 	$(SRC_DIR)/language/autocomplete.c
 SRCS = $(CORE_SRCS) $(TREE_SITTER_SRCS) $(LIBVTERM_SRCS)
 OBJS = $(SRCS:.c=.o)
@@ -137,7 +138,7 @@ TEST_SRCS = tests/rotide_tests_main.c tests/test_document_text_editing.c \
 	tests/test_save_recovery.c tests/test_workspace_config.c \
 	tests/test_file_watch.c \
 	tests/test_lsp.c tests/test_input_search.c tests/test_render_terminal.c \
-	tests/test_layout.c \
+	tests/test_layout.c tests/test_pty.c \
 	tests/test_support.c tests/test_helpers.c tests/alloc_test_hooks.c \
 	tests/save_syscalls_test_hooks.c
 TEST_OBJS = $(TEST_SRCS:.c=.o)
@@ -154,7 +155,7 @@ GENERATED_HEADERS := $(QUERIES_HEADER) $(DEFAULT_CONFIG_HEADER)
 .DEFAULT_GOAL := rotide
 
 rotide: $(SRC_DIR)/rotide.o $(EDITOR_OBJS)
-	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) $(OBJS) -o $@
+	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) $(OBJS) -lutil -o $@
 
 $(QUERIES_HEADER): $(QUERIES_MANIFEST) scripts/embed_queries.sh $(QUERIES_SCM)
 	$(call LOG,GEN,$@)scripts/embed_queries.sh $(QUERIES_MANIFEST) $@
@@ -332,7 +333,7 @@ vendor/tree_sitter/grammars/diff/src/parser.o: vendor/tree_sitter/grammars/diff/
 	$(call LOG,CC,$<)$(CC) $(CPPFLAGS) $(CFLAGS) $(PTHREAD_FLAGS) $(DEPFLAGS) -c $< -o $@
 
 $(TEST_BIN): $(TEST_OBJS) $(EDITOR_OBJS)
-	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) $^ -o $@
+	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) $^ -lutil -o $@
 
 test: $(TEST_BIN)
 	$(call LOG,TEST,$(TEST_BIN))./$(TEST_BIN)

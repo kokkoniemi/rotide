@@ -28,6 +28,8 @@ extern const struct editorTestCase g_render_terminal_tests[];
 extern const int g_render_terminal_test_count;
 extern const struct editorTestCase g_layout_tests[];
 extern const int g_layout_test_count;
+extern const struct editorTestCase g_pty_tests[];
+extern const int g_pty_test_count;
 
 struct editorTestSuite {
 	const struct editorTestCase *tests;
@@ -55,6 +57,7 @@ int main(void) {
 		{g_input_search_tests, g_input_search_test_count},
 		{g_render_terminal_tests, g_render_terminal_test_count},
 		{g_layout_tests, g_layout_test_count},
+		{g_pty_tests, g_pty_test_count},
 	};
 
 	int total = 0;
