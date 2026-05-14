@@ -3307,42 +3307,29 @@ static int editorPaneLeafAt(const struct editorLeafLayout *layout, int x,
 	return -1;
 }
 
-static int editorPaneRowIsHorizontalBorder(int screen_y,
-		const struct editorLeafLayout *layout) {
-	int has_above = 0;
-	int has_below = 0;
-	for (int i = 0; i < layout->count; i++) {
-		struct editorRect r = layout->rects[i].rect;
-		if (r.y <= screen_y && screen_y < r.y + r.h) {
-			return 0;
-		}
-		if (r.y + r.h <= screen_y) {
-			has_above = 1;
-		}
-		if (r.y > screen_y) {
-			has_below = 1;
-		}
-	}
-	return has_above && has_below;
-}
+enum editorBorderCellKind {
+	EDITOR_BORDER_CELL_NONE = 0,
+	EDITOR_BORDER_CELL_VERTICAL,
+	EDITOR_BORDER_CELL_HORIZONTAL
+};
 
-static int editorPaneColIsVerticalBorder(int x, int screen_y,
-		const struct editorLeafLayout *layout) {
-	int has_left = 0;
-	int has_right = 0;
-	for (int i = 0; i < layout->count; i++) {
-		struct editorRect r = layout->rects[i].rect;
-		if (r.y > screen_y || r.y + r.h <= screen_y) {
+static enum editorBorderCellKind editorBorderCellAt(int x, int screen_y,
+		const struct editorBorderList *borders) {
+	if (borders == NULL) {
+		return EDITOR_BORDER_CELL_NONE;
+	}
+	for (int i = 0; i < borders->count; i++) {
+		struct editorRect r = borders->rects[i].rect;
+		if (x < r.x || x >= r.x + r.w) {
 			continue;
 		}
-		if (r.x + r.w <= x) {
-			has_left = 1;
+		if (screen_y < r.y || screen_y >= r.y + r.h) {
+			continue;
 		}
-		if (r.x > x) {
-			has_right = 1;
-		}
+		return borders->rects[i].orientation == EDITOR_SPLIT_HORIZONTAL ?
+				EDITOR_BORDER_CELL_HORIZONTAL : EDITOR_BORDER_CELL_VERTICAL;
 	}
-	return has_left && has_right;
+	return EDITOR_BORDER_CELL_NONE;
 }
 
 static int editorDrawFocusedPaneSlice(struct writeBuf *wb, int body_row_in_pane,
@@ -3411,7 +3398,9 @@ static int editorDrawBlankCells(struct writeBuf *wb, int cells) {
 }
 
 static int editorDrawMultiPaneRows(struct writeBuf *wb,
-		const struct editorLeafLayout *layout, struct editorRect focused_rect) {
+		const struct editorLeafLayout *layout,
+		const struct editorBorderList *borders,
+		struct editorRect focused_rect) {
 	int drawer_cols = editorDrawerWidthForCols(E.window_cols);
 	int separator_cols = editorDrawerSeparatorWidthForCols(E.window_cols);
 	int text_start_col = editorDrawerTextStartColForCols(E.window_cols);
@@ -3429,34 +3418,32 @@ static int editorDrawMultiPaneRows(struct writeBuf *wb,
 			return 0;
 		}
 
-		if (editorPaneRowIsHorizontalBorder(screen_y, layout)) {
-			int body_cols = E.window_cols - text_start_col;
-			for (int i = 0; i < body_cols; i++) {
-				if (!wbAppend(wb, EDITOR_PANE_HBORDER,
-						sizeof(EDITOR_PANE_HBORDER) - 1)) {
-					return 0;
-				}
-			}
-			if (!wbAppend(wb, VT100_CLEAR_ROW_3, 3)) {
-				return 0;
-			}
-			continue;
-		}
-
 		int focused_intersects =
 				screen_y >= focused_rect.y &&
 				screen_y < focused_rect.y + focused_rect.h;
 		int x = text_start_col;
 		while (x < E.window_cols) {
+			enum editorBorderCellKind border = editorBorderCellAt(x, screen_y, borders);
+			if (border == EDITOR_BORDER_CELL_HORIZONTAL) {
+				if (!wbAppend(wb, EDITOR_PANE_HBORDER,
+						sizeof(EDITOR_PANE_HBORDER) - 1)) {
+					return 0;
+				}
+				x++;
+				continue;
+			}
+			if (border == EDITOR_BORDER_CELL_VERTICAL) {
+				if (!wbAppend(wb, EDITOR_PANE_VBORDER,
+						sizeof(EDITOR_PANE_VBORDER) - 1)) {
+					return 0;
+				}
+				x++;
+				continue;
+			}
 			struct editorRect leaf_rect = {0};
 			int leaf_idx = editorPaneLeafAt(layout, x, screen_y, &leaf_rect);
 			if (leaf_idx < 0) {
-				if (editorPaneColIsVerticalBorder(x, screen_y, layout)) {
-					if (!wbAppend(wb, EDITOR_PANE_VBORDER,
-							sizeof(EDITOR_PANE_VBORDER) - 1)) {
-						return 0;
-					}
-				} else if (!wbAppend(wb, " ", 1)) {
+				if (!wbAppend(wb, " ", 1)) {
 					return 0;
 				}
 				x++;
@@ -3511,12 +3498,17 @@ static int editorDrawRows(struct writeBuf *wb) {
 			return 0;
 		}
 		struct editorLeafLayout layout = {0};
+		struct editorBorderList borders = {0};
 		if (!editorLayoutComputeBorderedInto(E.layout_root, viewport,
-				ROTIDE_PANE_BORDER_SIZE, &layout)) {
+					ROTIDE_PANE_BORDER_SIZE, &layout) ||
+				!editorLayoutCollectBorders(E.layout_root, viewport,
+					ROTIDE_PANE_BORDER_SIZE, &borders)) {
+			editorBorderListFree(&borders);
 			editorLeafLayoutFree(&layout);
 			return 0;
 		}
-		int ok = editorDrawMultiPaneRows(wb, &layout, leaf_rect);
+		int ok = editorDrawMultiPaneRows(wb, &layout, &borders, leaf_rect);
+		editorBorderListFree(&borders);
 		editorLeafLayoutFree(&layout);
 		return ok;
 	}

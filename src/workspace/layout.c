@@ -361,6 +361,100 @@ int editorLayoutLeafRectBordered(const struct editorPaneNode *root,
 	return editorLayoutLeafRectRecursive(root, viewport, border_size, leaf, out);
 }
 
+static int editorBorderListReserve(struct editorBorderList *list, int needed) {
+	if (list == NULL || needed < 0) {
+		return 0;
+	}
+	if (needed <= list->capacity) {
+		return 1;
+	}
+	int new_capacity = list->capacity > 0 ? list->capacity : 4;
+	while (new_capacity < needed) {
+		if (new_capacity > 1 << 20) {
+			return 0;
+		}
+		new_capacity *= 2;
+	}
+	struct editorBorderRect *grown =
+			realloc(list->rects, (size_t)new_capacity * sizeof(*list->rects));
+	if (grown == NULL) {
+		return 0;
+	}
+	list->rects = grown;
+	list->capacity = new_capacity;
+	return 1;
+}
+
+static int editorBorderListAppend(struct editorBorderList *list,
+		struct editorBorderRect br) {
+	if (!editorBorderListReserve(list, list->count + 1)) {
+		return 0;
+	}
+	list->rects[list->count++] = br;
+	return 1;
+}
+
+static int editorLayoutCollectBordersRecursive(const struct editorPaneNode *node,
+		struct editorRect rect, int border_size,
+		struct editorBorderList *out) {
+	if (node == NULL || !node->is_split || border_size <= 0) {
+		return 1;
+	}
+	struct editorRect first_rect;
+	struct editorRect second_rect;
+	editorLayoutSplitRects(node, rect, border_size, &first_rect, &second_rect);
+
+	struct editorBorderRect br = {0};
+	br.orientation = node->as.split.orientation;
+	if (node->as.split.orientation == EDITOR_SPLIT_VERTICAL) {
+		br.rect.x = first_rect.x + first_rect.w;
+		br.rect.y = rect.y;
+		br.rect.w = border_size;
+		br.rect.h = rect.h;
+	} else {
+		br.rect.x = rect.x;
+		br.rect.y = first_rect.y + first_rect.h;
+		br.rect.w = rect.w;
+		br.rect.h = border_size;
+	}
+	if (!editorBorderListAppend(out, br)) {
+		return 0;
+	}
+	return editorLayoutCollectBordersRecursive(node->as.split.first, first_rect,
+			border_size, out) &&
+			editorLayoutCollectBordersRecursive(node->as.split.second, second_rect,
+					border_size, out);
+}
+
+int editorLayoutCollectBorders(const struct editorPaneNode *root,
+		struct editorRect viewport, int border_size,
+		struct editorBorderList *out) {
+	if (out == NULL) {
+		return 0;
+	}
+	out->count = 0;
+	if (viewport.w < 0) {
+		viewport.w = 0;
+	}
+	if (viewport.h < 0) {
+		viewport.h = 0;
+	}
+	if (border_size <= 0 || root == NULL) {
+		return 1;
+	}
+	return editorLayoutCollectBordersRecursive(root, viewport, border_size, out);
+}
+
+void editorBorderListFree(struct editorBorderList *list) {
+	if (list == NULL) {
+		return;
+	}
+	free(list->rects);
+	list->rects = NULL;
+	list->count = 0;
+	list->capacity = 0;
+}
+
 int editorLayoutLeafRect(const struct editorPaneNode *root,
 		struct editorRect viewport, const struct editorPaneNode *leaf,
 		struct editorRect *out) {

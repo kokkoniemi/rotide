@@ -1,6 +1,7 @@
 #include "test_case.h"
 #include "test_support.h"
 #include "render/popup.h"
+#include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
 #include "workspace/layout.h"
@@ -3580,9 +3581,78 @@ static int test_editor_refresh_screen_horizontal_split_renders_border(void) {
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	int found_hborder = strstr(output, EDITOR_PANE_HBORDER_UTF8) != NULL;
-	ASSERT_TRUE(found_hborder);
+	int hbox_count = 0;
+	int vbox_count = 0;
+	for (size_t i = 0; i + 3 <= output_len; i++) {
+		if ((unsigned char)output[i] == 0xe2 &&
+				(unsigned char)output[i + 1] == 0x94) {
+			if ((unsigned char)output[i + 2] == 0x80) {
+				hbox_count++;
+			} else if ((unsigned char)output[i + 2] == 0x82) {
+				vbox_count++;
+			}
+		}
+	}
+	/* Horizontal split must produce horizontal box-drawing characters
+	 * (─) across the editor body width, and the only vertical box-drawing
+	 * characters in the frame should come from the drawer separator
+	 * (drawn once per body row plus once for the tab bar). Any additional
+	 * '│' would indicate the horizontal border row was rendered with the
+	 * wrong glyph. */
+	ASSERT_TRUE(hbox_count > 0);
+	int separator_cols = editorDrawerSeparatorWidthForCols(E.window_cols);
+	int expected_drawer_vbox = separator_cols == 1 ? E.window_rows + 1 : 0;
+	ASSERT_EQ_INT(expected_drawer_vbox, vbox_count);
 	ASSERT_TRUE(strstr(output, "hello world") != NULL);
+	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_nested_horizontal_border_uses_hbox(void) {
+	/* Layout: vertical split with the right child further split horizontally.
+	 * The inner horizontal border row has left-pane leaves above/below x=0
+	 * relative to its y range (full-height left pane), which used to be
+	 * misclassified as a vertical border. Verify the cells in the right
+	 * pane's horizontal border row render as ─, not │. */
+	add_row("alpha");
+	E.window_rows = 12;
+	E.window_cols = 80;
+	E.cy = 0;
+	E.cx = 0;
+
+	struct editorPaneNode *right =
+			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(right != NULL);
+	struct editorPaneNode *right_bottom =
+			editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
+	ASSERT_TRUE(right_bottom != NULL);
+	ASSERT_EQ_INT(3, editorPaneTreeLeafCount(E.layout_root));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	int hbox_count = 0;
+	int vbox_count = 0;
+	for (size_t i = 0; i + 3 <= output_len; i++) {
+		if ((unsigned char)output[i] == 0xe2 &&
+				(unsigned char)output[i + 1] == 0x94) {
+			if ((unsigned char)output[i + 2] == 0x80) {
+				hbox_count++;
+			} else if ((unsigned char)output[i + 2] == 0x82) {
+				vbox_count++;
+			}
+		}
+	}
+	/* Right side's horizontal border row must contain horizontal box-draw
+	 * chars across the right half. Spans roughly window_w/2 cells. */
+	ASSERT_TRUE(hbox_count >= E.window_cols / 4);
+	/* Vertical box-draw count = drawer separators (window_rows + 1 for tab
+	 * bar) + 1 column of inner-pane vertical border per body row. The bug
+	 * we're guarding against would balloon this to body-width × 1 row. */
+	int separator_cols = editorDrawerSeparatorWidthForCols(E.window_cols);
+	int expected_drawer_vbox = separator_cols == 1 ? E.window_rows + 1 : 0;
+	int expected_pane_vbox = E.window_rows;
+	ASSERT_EQ_INT(expected_drawer_vbox + expected_pane_vbox, vbox_count);
 	free(output);
 	return 0;
 }
@@ -3744,6 +3814,8 @@ const struct editorTestCase g_render_terminal_tests[] = {
 			test_editor_refresh_screen_vertical_split_renders_border},
 	{"editor_refresh_screen_horizontal_split_renders_border",
 			test_editor_refresh_screen_horizontal_split_renders_border},
+	{"editor_refresh_screen_nested_horizontal_border_uses_hbox",
+			test_editor_refresh_screen_nested_horizontal_border_uses_hbox},
 	{"editor_refresh_screen_unfocused_pane_omits_content",
 			test_editor_refresh_screen_unfocused_pane_omits_content},
 };

@@ -169,6 +169,34 @@ int editorLayoutLeafRectBordered(const struct editorPaneNode *root,
 		struct editorRect *out);
 
 /*
+ * Border collection from the tree walk.
+ *
+ * Each interior split node contributes one border rect occupying the gap
+ * between its children: orientation VERTICAL → border is `border_size`
+ * columns wide spanning the parent's y range; HORIZONTAL → `border_size`
+ * rows tall spanning the parent's x range. This is the correct way to
+ * classify a gap cell as `─` vs `│` in a nested layout — inferring from
+ * "do any leaves intersect this row/col" gives wrong answers when an
+ * outer split's leaves span across an inner split's border.
+ */
+struct editorBorderRect {
+	struct editorRect rect;
+	enum editorSplitOrientation orientation;
+};
+
+struct editorBorderList {
+	struct editorBorderRect *rects;
+	int count;
+	int capacity;
+};
+
+int editorLayoutCollectBorders(const struct editorPaneNode *root,
+		struct editorRect viewport,
+		int border_size,
+		struct editorBorderList *out);
+void editorBorderListFree(struct editorBorderList *list);
+
+/*
  * Glue helpers that read the current editor state (E) to derive the editor
  * viewport rect (the rectangle the layout tree subdivides) and the focused
  * leaf's rect within it. These are the integration points used by render and

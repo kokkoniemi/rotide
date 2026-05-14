@@ -25,6 +25,22 @@ TREE_SITTER_WARNING_CFLAGS = -Wno-unused-parameter -Wno-unused-value -Wno-sign-c
 TREE_SITTER_CFLAGS = $(filter-out -Werror -Wundef -Wshadow -Wdouble-promotion -pedantic,$(CFLAGS)) \
 	$(TREE_SITTER_WARNING_CFLAGS)
 
+LIBVTERM_CPPFLAGS = $(CPPFLAGS) -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_GNU_SOURCE \
+	-Ivendor/libvterm/include -Ivendor/libvterm/src
+LIBVTERM_WARNING_CFLAGS = -Wno-unused-parameter -Wno-unused-value -Wno-sign-compare \
+	-Wno-implicit-fallthrough -Wno-unused-but-set-variable -Wno-cast-qual
+LIBVTERM_CFLAGS = $(filter-out -Werror -Wundef -Wshadow -Wdouble-promotion -pedantic,$(CFLAGS)) \
+	$(LIBVTERM_WARNING_CFLAGS)
+LIBVTERM_SRCS = vendor/libvterm/src/encoding.c \
+	vendor/libvterm/src/keyboard.c \
+	vendor/libvterm/src/mouse.c \
+	vendor/libvterm/src/parser.c \
+	vendor/libvterm/src/pen.c \
+	vendor/libvterm/src/screen.c \
+	vendor/libvterm/src/state.c \
+	vendor/libvterm/src/unicode.c \
+	vendor/libvterm/src/vterm.c
+
 TREE_SITTER_SRCS = vendor/tree_sitter/runtime/src/lib.c \
 	vendor/tree_sitter/grammars/c/src/parser.c \
 	vendor/tree_sitter/grammars/cpp/src/parser.c \
@@ -109,11 +125,13 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/language/lsp_transport.c \
 	$(SRC_DIR)/language/dap.c \
 	$(SRC_DIR)/language/autocomplete.c
-SRCS = $(CORE_SRCS) $(TREE_SITTER_SRCS)
+SRCS = $(CORE_SRCS) $(TREE_SITTER_SRCS) $(LIBVTERM_SRCS)
 OBJS = $(SRCS:.c=.o)
 CORE_OBJS = $(CORE_SRCS:.c=.o)
 TREE_SITTER_OBJS = $(TREE_SITTER_SRCS:.c=.o)
-EDITOR_OBJS = $(filter-out $(SRC_DIR)/rotide.o,$(CORE_OBJS)) $(TREE_SITTER_OBJS)
+LIBVTERM_OBJS = $(LIBVTERM_SRCS:.c=.o)
+EDITOR_OBJS = $(filter-out $(SRC_DIR)/rotide.o,$(CORE_OBJS)) $(TREE_SITTER_OBJS) \
+	$(LIBVTERM_OBJS)
 TEST_SRCS = tests/rotide_tests_main.c tests/test_document_text_editing.c \
 	tests/test_syntax.c tests/test_syntax_registry.c \
 	tests/test_save_recovery.c tests/test_workspace_config.c \
@@ -147,6 +165,9 @@ $(DEFAULT_CONFIG_HEADER): $(DEFAULT_CONFIG_INPUT) scripts/embed_default_config.s
 $(SRC_DIR)/config/common.o: $(DEFAULT_CONFIG_HEADER)
 $(SRC_DIR)/language/queries.o: $(QUERIES_HEADER)
 $(SRC_DIR)/language/languages.o: $(QUERIES_HEADER)
+
+$(LIBVTERM_OBJS): %.o: %.c
+	$(call LOG,CC,$<)$(CC) $(LIBVTERM_CPPFLAGS) $(LIBVTERM_CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 vendor/tree_sitter/runtime/src/lib.o: vendor/tree_sitter/runtime/src/lib.c
 	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
