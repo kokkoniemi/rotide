@@ -2166,7 +2166,10 @@ static int editorDrawFileRowWrapped(struct writeBuf *wb, size_t i, int text_cols
 		int segment_coloff) {
 	struct erow *row = &E.rows[i];
 	if (text_cols >= 3) {
-		int body_cols = editorTextBodyViewportCols(E.window_cols);
+		int body_cols = text_cols - 2;
+		if (body_cols < 1) {
+			body_cols = 1;
+		}
 		int indent_cols = segment_coloff > 0 ? editorWrapContinuationIndentCols(row, body_cols) : 0;
 		int available_cols = body_cols - indent_cols;
 		if (available_cols < 1) {
@@ -2221,7 +2224,10 @@ static int editorDrawFileRow(struct writeBuf *wb, size_t i, int text_cols) {
 		return editorDrawFileRowWrapped(wb, i, text_cols, 0);
 	}
 	if (text_cols >= 3) {
-		int body_cols = editorTextBodyViewportCols(E.window_cols);
+		int body_cols = text_cols - 2;
+		if (body_cols < 1) {
+			body_cols = 1;
+		}
 		int has_right_overflow = 0;
 		int rendered_cols = editorRenderSliceDisplayCols(row, E.coloff, body_cols, &has_right_overflow);
 		int has_left_overflow = E.coloff > 0 && row->rsize > 0;
@@ -3378,6 +3384,12 @@ struct editorViewSnapshot {
 	int wrapoff;
 	size_t cursor_offset;
 	enum editorViewportMode viewport_mode;
+	int selection_mode_active;
+	size_t selection_anchor_offset;
+	int column_select_active;
+	int column_select_anchor_cy;
+	int column_select_anchor_rx;
+	int column_select_cursor_rx;
 };
 
 static void editorViewSnapshotCapture(struct editorViewSnapshot *snap) {
@@ -3389,6 +3401,12 @@ static void editorViewSnapshotCapture(struct editorViewSnapshot *snap) {
 	snap->wrapoff = E.wrapoff;
 	snap->cursor_offset = E.cursor_offset;
 	snap->viewport_mode = E.viewport_mode;
+	snap->selection_mode_active = E.selection_mode_active;
+	snap->selection_anchor_offset = E.selection_anchor_offset;
+	snap->column_select_active = E.column_select_active;
+	snap->column_select_anchor_cy = E.column_select_anchor_cy;
+	snap->column_select_anchor_rx = E.column_select_anchor_rx;
+	snap->column_select_cursor_rx = E.column_select_cursor_rx;
 }
 
 static void editorViewSnapshotRestore(const struct editorViewSnapshot *snap) {
@@ -3400,6 +3418,12 @@ static void editorViewSnapshotRestore(const struct editorViewSnapshot *snap) {
 	E.wrapoff = snap->wrapoff;
 	E.cursor_offset = snap->cursor_offset;
 	E.viewport_mode = snap->viewport_mode;
+	E.selection_mode_active = snap->selection_mode_active;
+	E.selection_anchor_offset = snap->selection_anchor_offset;
+	E.column_select_active = snap->column_select_active;
+	E.column_select_anchor_cy = snap->column_select_anchor_cy;
+	E.column_select_anchor_rx = snap->column_select_anchor_rx;
+	E.column_select_cursor_rx = snap->column_select_cursor_rx;
 }
 
 static void editorViewSnapshotFromPaneView(const struct editorPaneView *view) {
@@ -3411,6 +3435,12 @@ static void editorViewSnapshotFromPaneView(const struct editorPaneView *view) {
 	E.wrapoff = view->wrapoff;
 	E.cursor_offset = view->cursor_offset;
 	E.viewport_mode = (enum editorViewportMode)view->viewport_mode;
+	E.selection_mode_active = view->selection_mode_active;
+	E.selection_anchor_offset = view->selection_anchor_offset;
+	E.column_select_active = view->column_select_active;
+	E.column_select_anchor_cy = view->column_select_anchor_cy;
+	E.column_select_anchor_rx = view->column_select_anchor_rx;
+	E.column_select_cursor_rx = view->column_select_cursor_rx;
 }
 
 static int editorDrawFocusedPaneSlice(struct writeBuf *wb, int body_row_in_pane,

@@ -611,6 +611,12 @@ void editorPaneViewCaptureFromState(struct editorPaneView *view) {
 	view->wrapoff = E.wrapoff;
 	view->cursor_offset = E.cursor_offset;
 	view->viewport_mode = (int)E.viewport_mode;
+	view->selection_mode_active = E.selection_mode_active;
+	view->selection_anchor_offset = E.selection_anchor_offset;
+	view->column_select_active = E.column_select_active;
+	view->column_select_anchor_cy = E.column_select_anchor_cy;
+	view->column_select_anchor_rx = E.column_select_anchor_rx;
+	view->column_select_cursor_rx = E.column_select_cursor_rx;
 }
 
 int editorPaneViewLoadIntoState(const struct editorPaneView *view) {
@@ -625,6 +631,12 @@ int editorPaneViewLoadIntoState(const struct editorPaneView *view) {
 	E.wrapoff = view->wrapoff;
 	E.cursor_offset = view->cursor_offset;
 	E.viewport_mode = (enum editorViewportMode)view->viewport_mode;
+	E.selection_mode_active = view->selection_mode_active;
+	E.selection_anchor_offset = view->selection_anchor_offset;
+	E.column_select_active = view->column_select_active;
+	E.column_select_anchor_cy = view->column_select_anchor_cy;
+	E.column_select_anchor_rx = view->column_select_anchor_rx;
+	E.column_select_cursor_rx = view->column_select_cursor_rx;
 	return 1;
 }
 

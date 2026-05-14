@@ -54,6 +54,12 @@ struct editorPaneView {
 	int wrapoff;
 	size_t cursor_offset;
 	int viewport_mode;
+	int selection_mode_active;
+	size_t selection_anchor_offset;
+	int column_select_active;
+	int column_select_anchor_cy;
+	int column_select_anchor_rx;
+	int column_select_cursor_rx;
 	int pane_tabs[ROTIDE_PANE_MAX_TABS];
 	int pane_tab_count;
 };
@@ -230,11 +236,11 @@ int editorLayoutFocusedLeafRect(struct editorRect *out);
  *
  * editorPaneViewInit resets a view to "uninitialized" (active_tab_idx=-1).
  *
- * editorPaneViewCaptureFromState snapshots E's cursor/scroll *and* the
- * current active tab index into the view.
+ * editorPaneViewCaptureFromState snapshots E's cursor/scroll/selection
+ * and the current active tab index into the view.
  *
- * editorPaneViewLoadIntoState overwrites E's cursor/scroll from the view.
- * It does NOT switch tabs — the caller is responsible for ensuring
+ * editorPaneViewLoadIntoState overwrites E's cursor/scroll/selection from
+ * the view. It does NOT switch tabs — the caller is responsible for ensuring
  * E.active_tab matches view->active_tab_idx if cross-tab semantics are
  * desired. Returns 0 if the view is uninitialized (active_tab_idx<0),
  * 1 otherwise.
@@ -243,7 +249,7 @@ int editorLayoutFocusedLeafRect(struct editorRect *out);
  * per-pane tab swapping: captures from E into the previously focused
  * leaf's view, updates E.focused_leaf, switches the active tab if the
  * incoming pane's view records a different tab, then loads the incoming
- * pane's cursor over the result. A no-op when new_leaf is already
+ * pane's cursor/selection over the result. A no-op when new_leaf is already
  * focused or is not a leaf in E.layout_root.
  */
 void editorPaneViewInit(struct editorPaneView *view);

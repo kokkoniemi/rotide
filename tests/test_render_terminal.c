@@ -3753,7 +3753,7 @@ static int test_editor_refresh_screen_terminal_exit_overlay(void) {
 }
 
 static int test_editor_refresh_screen_unfocused_same_tab_pane_renders_content(void) {
-	add_row("unique-marker-row");
+	add_row("pane-x");
 	E.window_rows = 6;
 	E.window_cols = 60;
 	E.cy = 0;
@@ -3771,10 +3771,65 @@ static int test_editor_refresh_screen_unfocused_same_tab_pane_renders_content(vo
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	const char *first = strstr(output, "unique-marker-row");
+	const char *first = strstr(output, "pane-x");
 	ASSERT_TRUE(first != NULL);
-	const char *second = strstr(first + 1, "unique-marker-row");
+	const char *second = strstr(first + 1, "pane-x");
 	ASSERT_TRUE(second != NULL);
+	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_vertical_split_clips_left_pane_row(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL");
+	E.window_rows = 6;
+	E.window_cols = 80;
+	E.line_numbers_enabled = 0;
+	E.cy = 0;
+	E.cx = 0;
+
+	struct editorPaneNode *left = E.focused_leaf;
+	struct editorPaneNode *right =
+			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(right != NULL);
+
+	ASSERT_TRUE(editorTabNewEmpty());
+	add_row("right-pane-marker");
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(left));
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output,
+				"LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL") == NULL);
+	ASSERT_TRUE(strstr(output, "right-pane-marker") != NULL);
+	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_same_tab_panes_keep_selection_independent(void) {
+	add_row("alpha beta gamma");
+	E.window_rows = 8;
+	E.window_cols = 80;
+	E.line_numbers_enabled = 0;
+	E.cy = 0;
+	E.cx = 0;
+
+	struct editorPaneNode *top = E.focused_leaf;
+	struct editorPaneNode *bottom =
+			editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
+	ASSERT_TRUE(bottom != NULL);
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(top));
+
+	E.cx = 5;
+	ASSERT_TRUE(set_selection_anchor(0, 0));
+	E.selection_mode_active = 1;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_EQ_INT(1, count_substrings(output, "\x1b[7malpha"));
+	ASSERT_TRUE(strstr(output, "beta gamma") != NULL);
 	free(output);
 	return 0;
 }
@@ -3978,6 +4033,10 @@ const struct editorTestCase g_render_terminal_tests[] = {
 			test_editor_refresh_screen_nested_horizontal_border_uses_hbox},
 	{"editor_refresh_screen_unfocused_same_tab_pane_renders_content",
 			test_editor_refresh_screen_unfocused_same_tab_pane_renders_content},
+	{"editor_refresh_screen_vertical_split_clips_left_pane_row",
+			test_editor_refresh_screen_vertical_split_clips_left_pane_row},
+	{"editor_refresh_screen_same_tab_panes_keep_selection_independent",
+			test_editor_refresh_screen_same_tab_panes_keep_selection_independent},
 	{"editor_refresh_screen_unfocused_different_tab_pane_renders_content",
 			test_editor_refresh_screen_unfocused_different_tab_pane_renders_content},
 	{"editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax",
