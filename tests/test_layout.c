@@ -661,6 +661,284 @@ static int test_layout_close_focused_no_op_for_single_leaf(void) {
 	return result != NULL || E.focused_leaf != only || E.layout_root != only;
 }
 
+static int test_layout_find_neighbor_horizontal(void) {
+	struct editorPaneNode *root = malloc(sizeof(*root));
+	struct editorPaneNode *left = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	struct editorPaneNode *right = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	if (root == NULL || left == NULL || right == NULL) {
+		free(root);
+		editorPaneNodeFree(left);
+		editorPaneNodeFree(right);
+		return 1;
+	}
+	memset(root, 0, sizeof(*root));
+	root->is_split = 1;
+	root->as.split.orientation = EDITOR_SPLIT_VERTICAL;
+	root->as.split.ratio = 0.5;
+	root->as.split.first = left;
+	root->as.split.second = right;
+
+	struct editorRect viewport = {.x = 0, .y = 0, .w = 80, .h = 24};
+	struct editorLeafLayout layout = {0};
+	if (!editorLayoutComputeInto(root, viewport, &layout)) {
+		editorLeafLayoutFree(&layout);
+		editorPaneNodeFree(root);
+		return 1;
+	}
+	int failed = editorLayoutFindNeighborLeaf(&layout, left, EDITOR_FOCUS_RIGHT) != right ||
+			editorLayoutFindNeighborLeaf(&layout, right, EDITOR_FOCUS_LEFT) != left ||
+			editorLayoutFindNeighborLeaf(&layout, left, EDITOR_FOCUS_LEFT) != NULL ||
+			editorLayoutFindNeighborLeaf(&layout, left, EDITOR_FOCUS_UP) != NULL ||
+			editorLayoutFindNeighborLeaf(&layout, left, EDITOR_FOCUS_DOWN) != NULL;
+	editorLeafLayoutFree(&layout);
+	editorPaneNodeFree(root);
+	return failed;
+}
+
+static int test_layout_find_neighbor_picks_nearest_among_many(void) {
+	/* Build:
+	 *   left | top-right
+	 *        | bottom-right
+	 * via a vertical split with the right child being a horizontal split.
+	 */
+	struct editorPaneNode *root = malloc(sizeof(*root));
+	struct editorPaneNode *right = malloc(sizeof(*root));
+	struct editorPaneNode *left = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	struct editorPaneNode *top_right = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	struct editorPaneNode *bot_right = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	if (root == NULL || right == NULL || left == NULL || top_right == NULL ||
+			bot_right == NULL) {
+		free(root);
+		free(right);
+		editorPaneNodeFree(left);
+		editorPaneNodeFree(top_right);
+		editorPaneNodeFree(bot_right);
+		return 1;
+	}
+	memset(root, 0, sizeof(*root));
+	memset(right, 0, sizeof(*right));
+	root->is_split = 1;
+	root->as.split.orientation = EDITOR_SPLIT_VERTICAL;
+	root->as.split.ratio = 0.5;
+	root->as.split.first = left;
+	root->as.split.second = right;
+	right->is_split = 1;
+	right->as.split.orientation = EDITOR_SPLIT_HORIZONTAL;
+	right->as.split.ratio = 0.5;
+	right->as.split.first = top_right;
+	right->as.split.second = bot_right;
+
+	struct editorRect viewport = {.x = 0, .y = 0, .w = 80, .h = 24};
+	struct editorLeafLayout layout = {0};
+	if (!editorLayoutComputeInto(root, viewport, &layout)) {
+		editorLeafLayoutFree(&layout);
+		editorPaneNodeFree(root);
+		return 1;
+	}
+	/* From left, FOCUS_RIGHT should reach top_right (smallest gap among
+	 * right-side candidates whose y range overlaps left). Tied y-overlap
+	 * with bot_right; tie-break by smallest x falls to top_right since
+	 * both have the same x but top_right comes first in layout order. */
+	int failed = editorLayoutFindNeighborLeaf(&layout, left, EDITOR_FOCUS_RIGHT) != top_right ||
+			editorLayoutFindNeighborLeaf(&layout, top_right, EDITOR_FOCUS_DOWN) != bot_right ||
+			editorLayoutFindNeighborLeaf(&layout, bot_right, EDITOR_FOCUS_UP) != top_right ||
+			editorLayoutFindNeighborLeaf(&layout, top_right, EDITOR_FOCUS_LEFT) != left ||
+			editorLayoutFindNeighborLeaf(&layout, bot_right, EDITOR_FOCUS_LEFT) != left;
+	editorLeafLayoutFree(&layout);
+	editorPaneNodeFree(root);
+	return failed;
+}
+
+static int test_layout_focus_direction_swaps_view(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	E.window_cols = 80;
+	E.window_rows = 24;
+	E.active_tab = 0;
+	E.cx = 5;
+	E.cy = 5;
+	E.cursor_offset = 25;
+
+	struct editorPaneNode *original = E.focused_leaf;
+	struct editorPaneNode *sibling =
+			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	if (sibling == NULL) {
+		return 1;
+	}
+	/* Set sibling's cursor distinctly so we can verify the swap. */
+	E.cx = 30;
+	E.cy = 12;
+	E.cursor_offset = 360;
+
+	/* Move focus left → should go to original. */
+	int moved = editorLayoutFocusDirection(EDITOR_FOCUS_LEFT);
+	if (!moved || E.focused_leaf != original) {
+		return 1;
+	}
+	if (E.cx != 5 || E.cy != 5 || E.cursor_offset != 25) {
+		return 1;
+	}
+	/* Move focus right → back to sibling. */
+	moved = editorLayoutFocusDirection(EDITOR_FOCUS_RIGHT);
+	if (!moved || E.focused_leaf != sibling) {
+		return 1;
+	}
+	return E.cx != 30 || E.cy != 12 || E.cursor_offset != 360;
+}
+
+static int test_layout_focus_direction_no_neighbor_is_noop(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	struct editorPaneNode *only = E.focused_leaf;
+	int moved = editorLayoutFocusDirection(EDITOR_FOCUS_LEFT) ||
+			editorLayoutFocusDirection(EDITOR_FOCUS_RIGHT) ||
+			editorLayoutFocusDirection(EDITOR_FOCUS_UP) ||
+			editorLayoutFocusDirection(EDITOR_FOCUS_DOWN);
+	return moved != 0 || E.focused_leaf != only;
+}
+
+static int test_layout_resize_focused_grows_first_child(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	struct editorPaneNode *original = E.focused_leaf;
+	struct editorPaneNode *sibling =
+			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	if (sibling == NULL) {
+		return 1;
+	}
+	/* Refocus original (the "first" child of the split). */
+	if (!editorLayoutSetFocusedLeaf(original)) {
+		return 1;
+	}
+	int changed = editorLayoutResizeFocused(1);
+	struct editorPaneNode *parent =
+			editorPaneTreeFindParent(E.layout_root, original);
+	if (!changed || parent == NULL ||
+			parent->as.split.ratio <= 0.5 + 1e-9 - ROTIDE_PANE_RESIZE_STEP) {
+		return 1;
+	}
+	double after_grow = parent->as.split.ratio;
+	changed = editorLayoutResizeFocused(0);
+	if (!changed || parent->as.split.ratio >= after_grow) {
+		return 1;
+	}
+	return 0;
+}
+
+static int test_layout_resize_focused_grows_second_child(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	struct editorPaneNode *sibling =
+			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	if (sibling == NULL || E.focused_leaf != sibling) {
+		return 1;
+	}
+	/* sibling is parent.second; growing it should DECREASE ratio. */
+	struct editorPaneNode *parent =
+			editorPaneTreeFindParent(E.layout_root, sibling);
+	if (parent == NULL) {
+		return 1;
+	}
+	double before = parent->as.split.ratio;
+	if (!editorLayoutResizeFocused(1)) {
+		return 1;
+	}
+	return parent->as.split.ratio >= before;
+}
+
+static int test_layout_resize_focused_clamps_to_min(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	struct editorPaneNode *original = E.focused_leaf;
+	struct editorPaneNode *sibling =
+			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	if (sibling == NULL) {
+		return 1;
+	}
+	if (!editorLayoutSetFocusedLeaf(original)) {
+		return 1;
+	}
+	/* Shrink many times: ratio should clamp at min_ratio, not go below. */
+	for (int i = 0; i < 100; i++) {
+		(void)editorLayoutResizeFocused(0);
+	}
+	struct editorPaneNode *parent =
+			editorPaneTreeFindParent(E.layout_root, original);
+	if (parent == NULL) {
+		return 1;
+	}
+	return parent->as.split.ratio < ROTIDE_PANE_MIN_RATIO - 1e-9 ||
+			parent->as.split.ratio > ROTIDE_PANE_MIN_RATIO + 1e-9;
+}
+
+static int test_layout_resize_focused_root_is_noop(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	int changed = editorLayoutResizeFocused(1);
+	return changed != 0;
+}
+
+static int test_layout_focus_leaf_at_changes_focus(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	E.window_cols = 80;
+	E.window_rows = 24;
+	E.active_tab = 0;
+	struct editorPaneNode *original = E.focused_leaf;
+	struct editorPaneNode *sibling =
+			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	if (sibling == NULL) {
+		return 1;
+	}
+	struct editorRect viewport = {0};
+	if (!editorLayoutEditorViewport(&viewport)) {
+		return 1;
+	}
+	int left_x = viewport.x + 1;
+	int right_x = viewport.x + viewport.w - 2;
+	int row_y = viewport.y + 1;
+	int moved = editorLayoutFocusLeafAt(left_x, row_y);
+	if (!moved || E.focused_leaf != original) {
+		return 1;
+	}
+	moved = editorLayoutFocusLeafAt(right_x, row_y);
+	if (!moved || E.focused_leaf != sibling) {
+		return 1;
+	}
+	/* Re-click in the focused pane: returns 0 (no change). */
+	moved = editorLayoutFocusLeafAt(right_x, row_y);
+	return moved != 0 || E.focused_leaf != sibling;
+}
+
+static int test_layout_focused_leaf_index_reports_position(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	E.window_cols = 80;
+	E.window_rows = 24;
+	int idx = 99;
+	int count = 99;
+	int ok = editorLayoutFocusedLeafIndex(&idx, &count);
+	if (!ok || count != 1 || idx != 0) {
+		return 1;
+	}
+	struct editorPaneNode *sibling =
+			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	if (sibling == NULL) {
+		return 1;
+	}
+	ok = editorLayoutFocusedLeafIndex(&idx, &count);
+	/* sibling is rightmost → index 1, count 2. */
+	return !ok || count != 2 || idx != 1;
+}
+
 static int test_layout_set_focused_leaf_rejects_non_leaf(void) {
 	if (E.layout_root == NULL || E.focused_leaf == NULL) {
 		return 1;
@@ -732,6 +1010,25 @@ const struct editorTestCase g_layout_tests[] = {
 			test_layout_close_focused_no_op_for_single_leaf},
 	{"layout_set_focused_leaf_rejects_non_leaf",
 			test_layout_set_focused_leaf_rejects_non_leaf},
+	{"layout_find_neighbor_horizontal", test_layout_find_neighbor_horizontal},
+	{"layout_find_neighbor_picks_nearest_among_many",
+			test_layout_find_neighbor_picks_nearest_among_many},
+	{"layout_focus_direction_swaps_view",
+			test_layout_focus_direction_swaps_view},
+	{"layout_focus_direction_no_neighbor_is_noop",
+			test_layout_focus_direction_no_neighbor_is_noop},
+	{"layout_resize_focused_grows_first_child",
+			test_layout_resize_focused_grows_first_child},
+	{"layout_resize_focused_grows_second_child",
+			test_layout_resize_focused_grows_second_child},
+	{"layout_resize_focused_clamps_to_min",
+			test_layout_resize_focused_clamps_to_min},
+	{"layout_resize_focused_root_is_noop",
+			test_layout_resize_focused_root_is_noop},
+	{"layout_focus_leaf_at_changes_focus",
+			test_layout_focus_leaf_at_changes_focus},
+	{"layout_focused_leaf_index_reports_position",
+			test_layout_focused_leaf_index_reports_position},
 };
 
 const int g_layout_test_count =

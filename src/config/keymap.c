@@ -100,6 +100,12 @@ static const struct editorActionName editor_action_names[] = {
 	{"split_horizontal", EDITOR_ACTION_SPLIT_HORIZONTAL},
 	{"split_vertical", EDITOR_ACTION_SPLIT_VERTICAL},
 	{"close_pane", EDITOR_ACTION_CLOSE_PANE},
+	{"focus_left_pane", EDITOR_ACTION_FOCUS_LEFT_PANE},
+	{"focus_right_pane", EDITOR_ACTION_FOCUS_RIGHT_PANE},
+	{"focus_up_pane", EDITOR_ACTION_FOCUS_UP_PANE},
+	{"focus_down_pane", EDITOR_ACTION_FOCUS_DOWN_PANE},
+	{"pane_grow", EDITOR_ACTION_PANE_GROW},
+	{"pane_shrink", EDITOR_ACTION_PANE_SHRINK},
 	{"open_settings", EDITOR_ACTION_OPEN_SETTINGS},
 };
 

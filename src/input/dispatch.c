@@ -3398,6 +3398,10 @@ static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
 		return EDITOR_KEYPRESS_EFFECT_NONE;
 	}
 
+	if (editorLayoutFocusLeafAt(mouse_col, event->y - 1)) {
+		editorPaneAnnounceFocus();
+	}
+
 	if (!editorMoveCursorToMouse(event, 0)) {
 		E.mouse_left_button_down = 0;
 		E.mouse_drag_started = 0;
@@ -3934,15 +3938,53 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			break;
 		case EDITOR_ACTION_SPLIT_HORIZONTAL:
 			editorHistoryBreakGroup();
-			(void)editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
+			if (editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5) != NULL) {
+				editorPaneAnnounceFocus();
+			}
 			break;
 		case EDITOR_ACTION_SPLIT_VERTICAL:
 			editorHistoryBreakGroup();
-			(void)editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+			if (editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5) != NULL) {
+				editorPaneAnnounceFocus();
+			}
 			break;
 		case EDITOR_ACTION_CLOSE_PANE:
 			editorHistoryBreakGroup();
-			(void)editorLayoutCloseFocused();
+			if (editorLayoutCloseFocused() != NULL) {
+				editorPaneAnnounceFocus();
+			}
+			break;
+		case EDITOR_ACTION_FOCUS_LEFT_PANE:
+			editorHistoryBreakGroup();
+			if (editorLayoutFocusDirection(EDITOR_FOCUS_LEFT)) {
+				editorPaneAnnounceFocus();
+			}
+			break;
+		case EDITOR_ACTION_FOCUS_RIGHT_PANE:
+			editorHistoryBreakGroup();
+			if (editorLayoutFocusDirection(EDITOR_FOCUS_RIGHT)) {
+				editorPaneAnnounceFocus();
+			}
+			break;
+		case EDITOR_ACTION_FOCUS_UP_PANE:
+			editorHistoryBreakGroup();
+			if (editorLayoutFocusDirection(EDITOR_FOCUS_UP)) {
+				editorPaneAnnounceFocus();
+			}
+			break;
+		case EDITOR_ACTION_FOCUS_DOWN_PANE:
+			editorHistoryBreakGroup();
+			if (editorLayoutFocusDirection(EDITOR_FOCUS_DOWN)) {
+				editorPaneAnnounceFocus();
+			}
+			break;
+		case EDITOR_ACTION_PANE_GROW:
+			editorHistoryBreakGroup();
+			(void)editorLayoutResizeFocused(1);
+			break;
+		case EDITOR_ACTION_PANE_SHRINK:
+			editorHistoryBreakGroup();
+			(void)editorLayoutResizeFocused(0);
 			break;
 		case EDITOR_ACTION_OPEN_SETTINGS:
 			editorHistoryBreakGroup();

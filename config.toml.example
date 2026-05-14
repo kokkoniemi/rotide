@@ -317,11 +317,20 @@ dap_drawer = "ctrl+alt+b"
 # Pane splits have no default binding; uncomment to enable.
 # split_horizontal splits the focused pane top/bottom; split_vertical
 # splits it left/right. close_pane removes the focused pane and promotes
-# its sibling. While only the focused pane renders in the current build,
-# the tree mutation already works — multi-pane rendering and focus moves
-# arrive in a follow-up.
+# its sibling. focus_left/right/up/down move focus to the nearest pane
+# in that direction. pane_grow / pane_shrink nudge the focused pane's
+# size by 5%, clamped so neither pane drops below 10% of its parent.
+# Mouse left-click in a non-focused pane also moves focus there.
+# Multi-pane rendering arrives in a follow-up — currently only the
+# focused pane is visible, so focus moves swap which pane renders.
 # split_horizontal = "ctrl+alt+h"
 # split_vertical = "ctrl+alt+v"
 # close_pane = "ctrl+alt+q"
+# focus_left_pane = "ctrl+alt+left"  # NOTE: conflicts with scroll_left
+# focus_right_pane = "ctrl+alt+right"  # NOTE: conflicts with scroll_right
+# focus_up_pane = "ctrl+alt+up"
+# focus_down_pane = "ctrl+alt+down"
+# pane_grow = "ctrl+alt+="
+# pane_shrink = "ctrl+alt+-"
 # open_settings has no default binding; the File > Settings menu item opens it.
 # open_settings = "ctrl+alt+s"

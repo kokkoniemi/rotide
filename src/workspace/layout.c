@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "rotide.h"
+#include "editing/edit.h"
 #include "workspace/drawer.h"
 
 struct editorPaneNode *editorPaneNodeNewLeaf(enum editorPaneKind kind) {
@@ -441,4 +442,204 @@ struct editorPaneNode *editorLayoutCloseFocused(void) {
 	E.focused_leaf = new_focus;
 	(void)editorPaneViewLoadIntoState(&new_focus->as.leaf.view);
 	return new_focus;
+}
+
+static int editorRangesOverlap(int a_start, int a_len, int b_start, int b_len) {
+	int a_end = a_start + a_len;
+	int b_end = b_start + b_len;
+	return a_start < b_end && b_start < a_end;
+}
+
+struct editorPaneNode *editorLayoutFindNeighborLeaf(
+		const struct editorLeafLayout *layout,
+		const struct editorPaneNode *from_leaf,
+		enum editorFocusDirection direction) {
+	if (layout == NULL || from_leaf == NULL) {
+		return NULL;
+	}
+	struct editorRect source = {0};
+	int found_source = 0;
+	for (int i = 0; i < layout->count; i++) {
+		if (layout->rects[i].node == from_leaf) {
+			source = layout->rects[i].rect;
+			found_source = 1;
+			break;
+		}
+	}
+	if (!found_source) {
+		return NULL;
+	}
+
+	struct editorPaneNode *best = NULL;
+	int best_gap = 0;
+	for (int i = 0; i < layout->count; i++) {
+		struct editorRect candidate = layout->rects[i].rect;
+		if (layout->rects[i].node == from_leaf) {
+			continue;
+		}
+		int gap;
+		switch (direction) {
+		case EDITOR_FOCUS_LEFT:
+			if (candidate.x + candidate.w > source.x) {
+				continue;
+			}
+			if (!editorRangesOverlap(source.y, source.h, candidate.y,
+					candidate.h)) {
+				continue;
+			}
+			gap = source.x - (candidate.x + candidate.w);
+			break;
+		case EDITOR_FOCUS_RIGHT:
+			if (candidate.x < source.x + source.w) {
+				continue;
+			}
+			if (!editorRangesOverlap(source.y, source.h, candidate.y,
+					candidate.h)) {
+				continue;
+			}
+			gap = candidate.x - (source.x + source.w);
+			break;
+		case EDITOR_FOCUS_UP:
+			if (candidate.y + candidate.h > source.y) {
+				continue;
+			}
+			if (!editorRangesOverlap(source.x, source.w, candidate.x,
+					candidate.w)) {
+				continue;
+			}
+			gap = source.y - (candidate.y + candidate.h);
+			break;
+		case EDITOR_FOCUS_DOWN:
+			if (candidate.y < source.y + source.h) {
+				continue;
+			}
+			if (!editorRangesOverlap(source.x, source.w, candidate.x,
+					candidate.w)) {
+				continue;
+			}
+			gap = candidate.y - (source.y + source.h);
+			break;
+		default:
+			continue;
+		}
+		if (best == NULL || gap < best_gap) {
+			best = layout->rects[i].node;
+			best_gap = gap;
+		}
+	}
+	return best;
+}
+
+static int editorLayoutComputeForFocus(struct editorLeafLayout *out) {
+	struct editorRect viewport;
+	if (!editorLayoutEditorViewport(&viewport)) {
+		return 0;
+	}
+	return editorLayoutComputeInto(E.layout_root, viewport, out);
+}
+
+int editorLayoutFocusDirection(enum editorFocusDirection direction) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 0;
+	}
+	struct editorLeafLayout layout = {0};
+	if (!editorLayoutComputeForFocus(&layout)) {
+		editorLeafLayoutFree(&layout);
+		return 0;
+	}
+	struct editorPaneNode *neighbor =
+			editorLayoutFindNeighborLeaf(&layout, E.focused_leaf, direction);
+	editorLeafLayoutFree(&layout);
+	if (neighbor == NULL) {
+		return 0;
+	}
+	return editorLayoutSetFocusedLeaf(neighbor);
+}
+
+int editorLayoutFocusLeafAt(int x, int y) {
+	if (E.layout_root == NULL) {
+		return 0;
+	}
+	struct editorLeafLayout layout = {0};
+	if (!editorLayoutComputeForFocus(&layout)) {
+		editorLeafLayoutFree(&layout);
+		return 0;
+	}
+	struct editorPaneNode *hit = editorLayoutLeafAt(&layout, x, y);
+	editorLeafLayoutFree(&layout);
+	if (hit == NULL || hit == E.focused_leaf) {
+		return 0;
+	}
+	return editorLayoutSetFocusedLeaf(hit);
+}
+
+int editorLayoutResizeFocused(int grow) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL ||
+			E.focused_leaf->is_split) {
+		return 0;
+	}
+	struct editorPaneNode *parent =
+			editorPaneTreeFindParent(E.layout_root, E.focused_leaf);
+	if (parent == NULL) {
+		return 0;
+	}
+	double step = ROTIDE_PANE_RESIZE_STEP;
+	double signed_step = grow ? step : -step;
+	if (parent->as.split.second == E.focused_leaf) {
+		signed_step = -signed_step;
+	}
+	double new_ratio = parent->as.split.ratio + signed_step;
+	double min_ratio = ROTIDE_PANE_MIN_RATIO;
+	double max_ratio = 1.0 - min_ratio;
+	if (new_ratio < min_ratio) {
+		new_ratio = min_ratio;
+	}
+	if (new_ratio > max_ratio) {
+		new_ratio = max_ratio;
+	}
+	if (new_ratio == parent->as.split.ratio) {
+		return 0;
+	}
+	parent->as.split.ratio = new_ratio;
+	return 1;
+}
+
+int editorLayoutFocusedLeafIndex(int *out_index, int *out_count) {
+	if (out_count == NULL) {
+		return 0;
+	}
+	*out_count = editorPaneTreeLeafCount(E.layout_root);
+	if (out_index == NULL || E.focused_leaf == NULL) {
+		return 0;
+	}
+	struct editorLeafLayout layout = {0};
+	if (!editorLayoutComputeForFocus(&layout)) {
+		editorLeafLayoutFree(&layout);
+		return 0;
+	}
+	int idx = -1;
+	for (int i = 0; i < layout.count; i++) {
+		if (layout.rects[i].node == E.focused_leaf) {
+			idx = i;
+			break;
+		}
+	}
+	editorLeafLayoutFree(&layout);
+	if (idx < 0) {
+		return 0;
+	}
+	*out_index = idx;
+	return 1;
+}
+
+void editorPaneAnnounceFocus(void) {
+	int count = 0;
+	int index = 0;
+	if (!editorLayoutFocusedLeafIndex(&index, &count)) {
+		return;
+	}
+	if (count <= 1) {
+		return;
+	}
+	editorSetStatusMsg("Pane %d/%d", index + 1, count);
 }

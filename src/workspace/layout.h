@@ -196,4 +196,53 @@ struct editorPaneNode *editorLayoutSplitFocused(
 		enum editorSplitOrientation orientation, double ratio);
 struct editorPaneNode *editorLayoutCloseFocused(void);
 
+/*
+ * Geometric neighbor lookup.
+ *
+ * editorLayoutFindNeighborLeaf scans `layout` for the nearest leaf in the
+ * given direction relative to `from_leaf`. "Nearest" means smallest gap on
+ * the major axis among candidates whose minor-axis range overlaps the
+ * source leaf. Returns NULL if no such neighbor exists.
+ */
+enum editorFocusDirection {
+	EDITOR_FOCUS_LEFT = 0,
+	EDITOR_FOCUS_RIGHT,
+	EDITOR_FOCUS_UP,
+	EDITOR_FOCUS_DOWN
+};
+
+struct editorPaneNode *editorLayoutFindNeighborLeaf(
+		const struct editorLeafLayout *layout,
+		const struct editorPaneNode *from_leaf,
+		enum editorFocusDirection direction);
+
+/*
+ * High-level E-aware actions for focus and resize. Each returns 1 if it
+ * mutated state, 0 if it was a no-op (no neighbor, root focused, etc.).
+ *
+ * editorLayoutFocusDirection moves focus to the geometric neighbor.
+ * editorLayoutFocusLeafAt sets focus to the leaf containing screen point
+ * (x, y) in editor-viewport coordinates; returns 0 if no leaf there.
+ * editorLayoutResizeFocused nudges the focused leaf's parent split ratio
+ * by ROTIDE_PANE_RESIZE_STEP, clamped to ROTIDE_PANE_MIN_RATIO. grow=1
+ * makes the focused pane larger; grow=0 makes it smaller.
+ * editorLayoutFocusedLeafIndex writes the focused leaf's 0-based position
+ * in leftmost-leaf order plus the total leaf count.
+ */
+#define ROTIDE_PANE_MIN_RATIO 0.10
+#define ROTIDE_PANE_RESIZE_STEP 0.05
+
+int editorLayoutFocusDirection(enum editorFocusDirection direction);
+int editorLayoutFocusLeafAt(int x, int y);
+int editorLayoutResizeFocused(int grow);
+int editorLayoutFocusedLeafIndex(int *out_index, int *out_count);
+
+/*
+ * When the tree has more than one leaf, push a "Pane X/N" status message
+ * so the user gets feedback after a split / close / focus action. No-op
+ * for the single-leaf case so it doesn't spam the message bar during
+ * normal editing.
+ */
+void editorPaneAnnounceFocus(void);
+
 #endif
