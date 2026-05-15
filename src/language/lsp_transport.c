@@ -2,6 +2,7 @@
 
 #include "language/autocomplete.h"
 #include "language/lsp_protocol.h"
+#include "language/lsp_responses.h"
 #include "support/file_io.h"
 #include "support/size_utils.h"
 

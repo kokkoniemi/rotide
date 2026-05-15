@@ -16,6 +16,7 @@
 #include "language/autocomplete.h"
 #include "language/lsp.h"
 #include "language/lsp_protocol.h"
+#include "language/lsp_responses.h"
 #include "language/syntax.h"
 #include "language/syntax_worker.h"
 #include "render/popup.h"

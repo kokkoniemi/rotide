@@ -459,3 +459,122 @@ const char *editorLspFindJsonArrayEnd(const char *array_start) {
 
 	return NULL;
 }
+
+const char *editorLspStrstrBounded(const char *haystack, const char *needle,
+		const char *limit) {
+	if (haystack == NULL || needle == NULL) {
+		return NULL;
+	}
+	const char *found = strstr(haystack, needle);
+	if (found == NULL) {
+		return NULL;
+	}
+	if (limit != NULL && found >= limit) {
+		return NULL;
+	}
+	return found;
+}
+
+const char *editorLspFindTopLevelKey(const char *object_start, const char *object_end,
+		const char *quoted_key) {
+	if (object_start == NULL || object_end == NULL || quoted_key == NULL ||
+			object_start >= object_end || object_start[0] != '{') {
+		return NULL;
+	}
+	size_t key_len = strlen(quoted_key);
+	int depth = 0;
+	const char *p = object_start + 1;
+	while (p < object_end) {
+		char ch = *p;
+		if (ch == '"') {
+			if (depth == 0 && (size_t)(object_end - p) >= key_len &&
+					memcmp(p, quoted_key, key_len) == 0) {
+				const char *after = p + key_len;
+				while (after < object_end && (*after == ' ' || *after == '\t' ||
+						*after == '\n' || *after == '\r')) {
+					after++;
+				}
+				if (after < object_end && *after == ':') {
+					return p;
+				}
+			}
+			p++;
+			while (p < object_end && *p != '"') {
+				if (*p == '\\' && p + 1 < object_end) {
+					p += 2;
+					continue;
+				}
+				p++;
+			}
+			if (p < object_end) {
+				p++;
+			}
+			continue;
+		}
+		if (ch == '{' || ch == '[') {
+			depth++;
+		} else if (ch == '}' || ch == ']') {
+			if (depth > 0) {
+				depth--;
+			}
+		}
+		p++;
+	}
+	return NULL;
+}
+
+int editorLspParsePositionFromKey(const char *range_json, const char *key_name,
+		const char *limit, int *line_out, int *character_out) {
+	char key_pattern[32];
+	int written = snprintf(key_pattern, sizeof(key_pattern), "\"%s\"", key_name);
+	if (written <= 0 || (size_t)written >= sizeof(key_pattern)) {
+		return 0;
+	}
+	const char *start = editorLspStrstrBounded(range_json, key_pattern, limit);
+	if (start == NULL) {
+		return 0;
+	}
+
+	const char *start_colon = strchr(start, ':');
+	if (start_colon == NULL || (limit != NULL && start_colon >= limit)) {
+		return 0;
+	}
+	const char *start_object = strchr(start_colon + 1, '{');
+	if (start_object == NULL || (limit != NULL && start_object >= limit)) {
+		return 0;
+	}
+	const char *start_end = editorLspFindJsonObjectEnd(start_object);
+	if (start_end == NULL || (limit != NULL && start_end > limit)) {
+		return 0;
+	}
+
+	const char *line_key = editorLspStrstrBounded(start_object, "\"line\"", start_end);
+	if (line_key == NULL) {
+		return 0;
+	}
+	const char *line_colon = strchr(line_key, ':');
+	if (line_colon == NULL || line_colon >= start_end) {
+		return 0;
+	}
+	int line = 0;
+	if (!editorLspParseJsonInt(line_colon + 1, &line, NULL) || line < 0) {
+		return 0;
+	}
+
+	const char *char_key = editorLspStrstrBounded(start_object, "\"character\"", start_end);
+	if (char_key == NULL) {
+		return 0;
+	}
+	const char *char_colon = strchr(char_key, ':');
+	if (char_colon == NULL || char_colon >= start_end) {
+		return 0;
+	}
+	int character = 0;
+	if (!editorLspParseJsonInt(char_colon + 1, &character, NULL) || character < 0) {
+		return 0;
+	}
+
+	*line_out = line;
+	*character_out = character;
+	return 1;
+}
