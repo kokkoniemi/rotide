@@ -1,4 +1,4 @@
-#include "language/terminal_pane.h"
+#include "terminal/terminal_pane.h"
 
 #include <errno.h>
 #include <stdlib.h>

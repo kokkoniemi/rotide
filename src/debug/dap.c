@@ -1,10 +1,10 @@
-#include "language/dap.h"
+#include "debug/dap.h"
 
 #include "config/dap_config.h"
 #include "editing/edit.h"
 #include "language/lsp_protocol.h"
 #include "language/lsp_transport.h"
-#include "language/terminal_pane.h"
+#include "terminal/terminal_pane.h"
 #include "support/file_io.h"
 #include "support/size_utils.h"
 #include "workspace/drawer.h"

@@ -3,7 +3,7 @@
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
 #include "editing/history.h"
-#include "language/dap.h"
+#include "debug/dap.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
 #include "language/syntax_worker.h"

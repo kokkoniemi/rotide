@@ -1,4 +1,4 @@
-#include "language/pty.h"
+#include "terminal/pty.h"
 #include "test_case.h"
 
 #include <errno.h>

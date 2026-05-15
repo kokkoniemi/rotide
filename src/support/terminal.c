@@ -1,7 +1,7 @@
 #include "support/terminal.h"
 
 #include "language/syntax_worker.h"
-#include "language/terminal_pane.h"
+#include "terminal/terminal_pane.h"
 #include "rotide.h"
 #include "workspace/task.h"
 #include "workspace/watch.h"

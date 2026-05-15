@@ -6,7 +6,7 @@
 #include "config/keymap.h"
 #include "config/theme_config.h"
 #include "input/dispatch.h"
-#include "language/dap.h"
+#include "debug/dap.h"
 #include "workspace/layout.h"
 #include "workspace/tabs.h"
 #include "workspace/workspace_state.h"

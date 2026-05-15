@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 
-#include "language/pty.h"
+#include "terminal/pty.h"
 
 /* Terminal pane state: PTY child + libvterm screen model. */
 struct VTerm;

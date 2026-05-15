@@ -133,9 +133,9 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/language/lsp.c \
 	$(SRC_DIR)/language/lsp_protocol.c \
 	$(SRC_DIR)/language/lsp_transport.c \
-	$(SRC_DIR)/language/dap.c \
-	$(SRC_DIR)/language/pty.c \
-	$(SRC_DIR)/language/terminal_pane.c \
+	$(SRC_DIR)/debug/dap.c \
+	$(SRC_DIR)/terminal/pty.c \
+	$(SRC_DIR)/terminal/terminal_pane.c \
 	$(SRC_DIR)/language/autocomplete.c
 SRCS = $(CORE_SRCS) $(TREE_SITTER_SRCS) $(LIBVTERM_SRCS)
 OBJS = $(SRCS:.c=.o)

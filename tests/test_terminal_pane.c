@@ -1,4 +1,4 @@
-#include "language/terminal_pane.h"
+#include "terminal/terminal_pane.h"
 #include "test_case.h"
 #include "test_helpers.h"
 

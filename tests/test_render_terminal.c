@@ -1,7 +1,7 @@
 #include "test_case.h"
 #include "test_support.h"
 #include "render/popup.h"
-#include "language/terminal_pane.h"
+#include "terminal/terminal_pane.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"

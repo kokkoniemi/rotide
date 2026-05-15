@@ -10,7 +10,7 @@
 #include "editing/selection.h"
 #include "editor_test_api.h"
 #include "input/dispatch.h"
-#include "language/dap.h"
+#include "debug/dap.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
 #include "render/screen.h"

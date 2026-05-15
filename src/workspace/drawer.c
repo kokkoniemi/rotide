@@ -3,7 +3,7 @@
 #include "config/dap_config.h"
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
-#include "language/dap.h"
+#include "debug/dap.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
 #include "support/size_utils.h"
