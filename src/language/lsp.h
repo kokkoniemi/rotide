@@ -136,6 +136,17 @@ int editorLspRequestCodeActionFixes(const char *filename, enum editorSyntaxLangu
 void editorLspFreeLocations(struct editorLspLocation *locations, int count);
 int editorLspProtocolCharacterToBufferColumn(int line, int protocol_character);
 enum editorLspStartupFailureReason editorLspLastStartupFailureReason(void);
+/* Test plumbing: reset the cached failure reason between mock test runs. */
+void editorLspClearStartupFailureReason(void);
+/*
+ * Module-internal: ensure the client process for `filename`'s language is
+ * running (real LSP) or has its mock counterpart marked alive (mock mode).
+ * Declared here so siblings split out of lsp.c (lsp_features.c, ...) can
+ * call them without copying lifecycle logic.
+ */
+int editorLspEnsureRunningForFile(const char *filename, enum editorSyntaxLanguage language);
+int editorLspEnsureRunningEslintForFile(const char *filename,
+		enum editorSyntaxLanguage language);
 int editorLspFileSupportsDefinition(const char *filename, enum editorSyntaxLanguage language);
 int editorLspFileEnabled(const char *filename, enum editorSyntaxLanguage language);
 int editorLspFileUsesEslint(const char *filename, enum editorSyntaxLanguage language);
