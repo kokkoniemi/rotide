@@ -212,11 +212,6 @@ int editorLspSendRawJsonToFd(int fd, const char *json) {
 	return 1;
 }
 
-int editorLspSendRawJson(const char *json) {
-	return editorLspSendRawJsonToFd(g_lsp_client.to_server_fd, json);
-}
-
-
 int editorLspProcessAlive(struct editorLspClient *client) {
 	if (client == NULL || client->pid <= 0) {
 		return 0;

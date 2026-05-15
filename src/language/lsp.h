@@ -149,6 +149,17 @@ int editorLspEnsureRunningForFile(const char *filename, enum editorSyntaxLanguag
 int editorLspEnsureRunningEslintForFile(const char *filename,
 		enum editorSyntaxLanguage language);
 /*
+ * Ensure-and-acquire: starts/finds the right (server_kind, workspace_root)
+ * client via the registry and returns the live pointer, or NULL if the file
+ * has no enabled LSP. Per-request and per-notification code should call one
+ * of these instead of reading the registry-active pointer directly, so
+ * client selection is explicit at each call site.
+ */
+struct editorLspClient *editorLspEnsureClientForFile(const char *filename,
+		enum editorSyntaxLanguage language);
+struct editorLspClient *editorLspEnsureEslintClientForFile(const char *filename,
+		enum editorSyntaxLanguage language);
+/*
  * Module-internal: server-kind detection and LSP language-id mapping for a
  * given file. Exposed so the document-tracking and request-building sibling
  * modules can build didOpen/didChange/didClose payloads without duplicating

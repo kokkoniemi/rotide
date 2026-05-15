@@ -203,7 +203,7 @@ void editorLspTestDeliverPendingCompletion(void) {
 	if (!g_lsp_mock.enabled) {
 		return;
 	}
-	struct editorLspCompletionPending *pending = &g_lsp_client.completion_pending;
+	struct editorLspCompletionPending *pending = &editorLspPrimaryClient()->completion_pending;
 	if (pending->request_id == 0) {
 		return;
 	}

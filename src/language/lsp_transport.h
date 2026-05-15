@@ -46,16 +46,12 @@ struct editorLspClient {
 struct editorLspClient *editorLspPrimaryClient(void);
 struct editorLspClient *editorLspEslintClient(void);
 
-#define g_lsp_client (*editorLspPrimaryClient())
-#define g_lsp_eslint_client (*editorLspEslintClient())
-
 int editorLspMockEnabled(void);
 
 void editorLspClientCleanup(struct editorLspClient *client, int graceful_shutdown);
 void editorLspClientResetState(struct editorLspClient *client);
 void editorLspCompletionPendingClear(struct editorLspCompletionPending *pending);
 int editorLspProcessAlive(struct editorLspClient *client);
-int editorLspSendRawJson(const char *json);
 int editorLspSendRawJsonToFd(int fd, const char *json);
 int editorLspSpawnProcess(const char *command, pid_t *pid_out, int *to_server_fd_out,
 		int *from_server_fd_out);

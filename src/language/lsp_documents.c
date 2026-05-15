@@ -41,7 +41,13 @@ int editorLspEnsureDocumentOpen(const char *filename, enum editorSyntaxLanguage 
 	if (*doc_open_in_out) {
 		return 1;
 	}
-	if (!editorLspEnsureRunningForFile(filename, language)) {
+	struct editorLspClient *client = NULL;
+	if (!g_lsp_mock.enabled) {
+		client = editorLspEnsureClientForFile(filename, language);
+		if (client == NULL) {
+			return 0;
+		}
+	} else if (!editorLspEnsureRunningForFile(filename, language)) {
 		return 0;
 	}
 
@@ -96,10 +102,10 @@ int editorLspEnsureDocumentOpen(const char *filename, enum editorSyntaxLanguage 
 		return 0;
 	}
 
-	int sent = editorLspSendRawJson(payload.buf);
+	int sent = editorLspSendRawJsonToFd(client->to_server_fd, payload.buf);
 	free(payload.buf);
 	if (!sent) {
-		editorLspClientCleanup(&g_lsp_client, 0);
+		editorLspClientCleanup(client, 0);
 		return 0;
 	}
 
@@ -162,8 +168,13 @@ int editorLspNotifyDidChange(const char *filename, enum editorSyntaxLanguage lan
 		return 1;
 	}
 
+	struct editorLspClient *client = editorLspEnsureClientForFile(filename, language);
+	if (client == NULL) {
+		return 0;
+	}
+
 	int send_range = edit != NULL;
-	if (send_range && g_lsp_client.position_encoding_utf16 &&
+	if (send_range && client->position_encoding_utf16 &&
 			(edit->start_point.row != edit->old_end_point.row ||
 			 edit->start_point.column != edit->old_end_point.column)) {
 		/*
@@ -219,7 +230,7 @@ int editorLspNotifyDidChange(const char *filename, enum editorSyntaxLanguage lan
 	if (built && send_range) {
 		unsigned int start_character = edit->start_point.column;
 		unsigned int end_character = edit->old_end_point.column;
-		if (g_lsp_client.position_encoding_utf16) {
+		if (client->position_encoding_utf16) {
 			start_character = (unsigned int)editorLspProtocolCharacterFromBufferColumn(
 					(int)edit->start_point.row, (int)edit->start_point.column);
 			end_character = (unsigned int)editorLspProtocolCharacterFromBufferColumn(
@@ -254,10 +265,10 @@ int editorLspNotifyDidChange(const char *filename, enum editorSyntaxLanguage lan
 		return 0;
 	}
 
-	int sent = editorLspSendRawJson(payload.buf);
+	int sent = editorLspSendRawJsonToFd(client->to_server_fd, payload.buf);
 	free(payload.buf);
 	if (!sent) {
-		editorLspClientCleanup(&g_lsp_client, 0);
+		editorLspClientCleanup(client, 0);
 		return 0;
 	}
 
@@ -273,13 +284,18 @@ int editorLspNotifyDidSave(const char *filename, enum editorSyntaxLanguage langu
 	if (!*doc_open_in_out) {
 		return 1;
 	}
-	if (!editorLspEnsureRunningForFile(filename, language)) {
-		return 0;
-	}
 
 	if (g_lsp_mock.enabled) {
+		if (!editorLspEnsureRunningForFile(filename, language)) {
+			return 0;
+		}
 		g_lsp_mock.stats.did_save_count++;
 		return 1;
+	}
+
+	struct editorLspClient *client = editorLspEnsureClientForFile(filename, language);
+	if (client == NULL) {
+		return 0;
 	}
 
 	char *uri = NULL;
@@ -303,10 +319,10 @@ int editorLspNotifyDidSave(const char *filename, enum editorSyntaxLanguage langu
 		return 0;
 	}
 
-	int sent = editorLspSendRawJson(payload.buf);
+	int sent = editorLspSendRawJsonToFd(client->to_server_fd, payload.buf);
 	free(payload.buf);
 	if (!sent) {
-		editorLspClientCleanup(&g_lsp_client, 0);
+		editorLspClientCleanup(client, 0);
 		return 0;
 	}
 	return 1;
@@ -327,7 +343,8 @@ void editorLspNotifyDidClose(const char *filename, enum editorSyntaxLanguage lan
 		return;
 	}
 
-	if (editorLspEnsureRunningForFile(filename, language)) {
+	struct editorLspClient *client = editorLspEnsureClientForFile(filename, language);
+	if (client != NULL) {
 		char *uri = NULL;
 		if (editorLspBuildFileUri(filename, &uri)) {
 			struct editorLspString payload = {0};
@@ -340,8 +357,8 @@ void editorLspNotifyDidClose(const char *filename, enum editorSyntaxLanguage lan
 			if (built) {
 				built = editorLspStringAppend(&payload, "}}}");
 			}
-			if (built && !editorLspSendRawJson(payload.buf)) {
-				editorLspClientCleanup(&g_lsp_client, 0);
+			if (built && !editorLspSendRawJsonToFd(client->to_server_fd, payload.buf)) {
+				editorLspClientCleanup(client, 0);
 			}
 			free(payload.buf);
 			free(uri);
@@ -362,7 +379,13 @@ int editorLspEnsureEslintDocumentOpen(const char *filename, enum editorSyntaxLan
 	if (*doc_open_in_out) {
 		return 1;
 	}
-	if (!editorLspEnsureRunningEslintForFile(filename, language)) {
+	struct editorLspClient *client = NULL;
+	if (!g_lsp_mock.enabled) {
+		client = editorLspEnsureEslintClientForFile(filename, language);
+		if (client == NULL) {
+			return 0;
+		}
+	} else if (!editorLspEnsureRunningEslintForFile(filename, language)) {
 		return 0;
 	}
 
@@ -416,10 +439,10 @@ int editorLspEnsureEslintDocumentOpen(const char *filename, enum editorSyntaxLan
 		return 0;
 	}
 
-	int sent = editorLspSendRawJsonToFd(g_lsp_eslint_client.to_server_fd, payload.buf);
+	int sent = editorLspSendRawJsonToFd(client->to_server_fd, payload.buf);
 	free(payload.buf);
 	if (!sent) {
-		editorLspClientCleanup(&g_lsp_eslint_client, 0);
+		editorLspClientCleanup(client, 0);
 		return 0;
 	}
 
@@ -455,8 +478,13 @@ int editorLspNotifyEslintDidChange(const char *filename, enum editorSyntaxLangua
 		return 1;
 	}
 
+	struct editorLspClient *client = editorLspEnsureEslintClientForFile(filename, language);
+	if (client == NULL) {
+		return 0;
+	}
+
 	int send_range = edit != NULL;
-	if (send_range && g_lsp_eslint_client.position_encoding_utf16 &&
+	if (send_range && client->position_encoding_utf16 &&
 			(edit->start_point.row != edit->old_end_point.row ||
 			 edit->start_point.column != edit->old_end_point.column)) {
 		send_range = 0;
@@ -507,11 +535,11 @@ int editorLspNotifyEslintDidChange(const char *filename, enum editorSyntaxLangua
 	if (built && send_range) {
 		unsigned int start_character = edit->start_point.column;
 		unsigned int end_character = edit->old_end_point.column;
-		if (g_lsp_eslint_client.position_encoding_utf16) {
+		if (client->position_encoding_utf16) {
 			start_character = (unsigned int)editorLspClientProtocolCharacterFromBufferColumn(
-					&g_lsp_eslint_client, (int)edit->start_point.row, (int)edit->start_point.column);
+					client, (int)edit->start_point.row, (int)edit->start_point.column);
 			end_character = (unsigned int)editorLspClientProtocolCharacterFromBufferColumn(
-					&g_lsp_eslint_client, (int)edit->old_end_point.row,
+					client, (int)edit->old_end_point.row,
 					(int)edit->old_end_point.column);
 		}
 		built = editorLspStringAppendf(&payload,
@@ -541,10 +569,10 @@ int editorLspNotifyEslintDidChange(const char *filename, enum editorSyntaxLangua
 		return 0;
 	}
 
-	int sent = editorLspSendRawJsonToFd(g_lsp_eslint_client.to_server_fd, payload.buf);
+	int sent = editorLspSendRawJsonToFd(client->to_server_fd, payload.buf);
 	free(payload.buf);
 	if (!sent) {
-		editorLspClientCleanup(&g_lsp_eslint_client, 0);
+		editorLspClientCleanup(client, 0);
 		return 0;
 	}
 
@@ -560,13 +588,18 @@ int editorLspNotifyEslintDidSave(const char *filename, enum editorSyntaxLanguage
 	if (!*doc_open_in_out) {
 		return 1;
 	}
-	if (!editorLspEnsureRunningEslintForFile(filename, language)) {
-		return 0;
-	}
 
 	if (g_lsp_mock.enabled) {
+		if (!editorLspEnsureRunningEslintForFile(filename, language)) {
+			return 0;
+		}
 		g_lsp_mock.stats.did_save_count++;
 		return 1;
+	}
+
+	struct editorLspClient *client = editorLspEnsureEslintClientForFile(filename, language);
+	if (client == NULL) {
+		return 0;
 	}
 
 	char *uri = NULL;
@@ -590,10 +623,10 @@ int editorLspNotifyEslintDidSave(const char *filename, enum editorSyntaxLanguage
 		return 0;
 	}
 
-	int sent = editorLspSendRawJsonToFd(g_lsp_eslint_client.to_server_fd, payload.buf);
+	int sent = editorLspSendRawJsonToFd(client->to_server_fd, payload.buf);
 	free(payload.buf);
 	if (!sent) {
-		editorLspClientCleanup(&g_lsp_eslint_client, 0);
+		editorLspClientCleanup(client, 0);
 		return 0;
 	}
 	return 1;
@@ -614,7 +647,8 @@ void editorLspNotifyEslintDidClose(const char *filename, enum editorSyntaxLangua
 		return;
 	}
 
-	if (editorLspEnsureRunningEslintForFile(filename, language)) {
+	struct editorLspClient *client = editorLspEnsureEslintClientForFile(filename, language);
+	if (client != NULL) {
 		char *uri = NULL;
 		if (editorLspBuildFileUri(filename, &uri)) {
 			struct editorLspString payload = {0};
@@ -628,8 +662,8 @@ void editorLspNotifyEslintDidClose(const char *filename, enum editorSyntaxLangua
 				built = editorLspStringAppend(&payload, "}}}");
 			}
 			if (built &&
-					!editorLspSendRawJsonToFd(g_lsp_eslint_client.to_server_fd, payload.buf)) {
-				editorLspClientCleanup(&g_lsp_eslint_client, 0);
+					!editorLspSendRawJsonToFd(client->to_server_fd, payload.buf)) {
+				editorLspClientCleanup(client, 0);
 			}
 			free(payload.buf);
 			free(uri);

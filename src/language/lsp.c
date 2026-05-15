@@ -689,6 +689,22 @@ int editorLspEnsureRunningEslintForFile(const char *filename,
 	return editorLspEnsureRunningReal(filename, EDITOR_LSP_SERVER_ESLINT);
 }
 
+struct editorLspClient *editorLspEnsureClientForFile(const char *filename,
+		enum editorSyntaxLanguage language) {
+	if (!editorLspEnsureRunningForFile(filename, language)) {
+		return NULL;
+	}
+	return editorLspPrimaryClient();
+}
+
+struct editorLspClient *editorLspEnsureEslintClientForFile(const char *filename,
+		enum editorSyntaxLanguage language) {
+	if (!editorLspEnsureRunningEslintForFile(filename, language)) {
+		return NULL;
+	}
+	return editorLspEslintClient();
+}
+
 void editorLspShutdown(void) {
 	g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_NONE;
 	if (g_lsp_mock.enabled) {

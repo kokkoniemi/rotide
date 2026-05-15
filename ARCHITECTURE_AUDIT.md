@@ -1,19 +1,24 @@
-# RotIDE Architecture Audit — Revision 2
+# RotIDE Architecture Audit — Revision 3
 
-**Date:** 2026-05-15 (Revision 2, after Phases 6–10)
+**Date:** 2026-05-15 (Revision 3, after Phase 10 close-out)
 **Scope:** [docs/developer/](docs/developer/) and [PLAN.md](PLAN.md) treated as
 source of truth; current source under [src/](src/) verified against doc
 claims. Diagram sources at [docs/diagrams/src/](docs/diagrams/src/).
-**Previous score:** 7/10 (Revision 1).
-**New score: 8.5 / 10.**
+**Score history:** Rev 1: 7/10 · Rev 2: 8.5/10 · **Rev 3: 9 / 10.**
 
-## What Changed Since Revision 1
+## What Changed Since Revision 2
 
-The team has landed 48 commits since the original audit. The two **High** issues
-from Revision 1 — single LSP process and `editorTabState` / `E` field-copy
-duplication — are now structurally addressed in code. Phases 6, 7, 8, 9 are
-complete and Phase 10 is in-progress with the LSP registry already merged. The
-hotspots have shrunk dramatically:
+Phase 10 is now closed out. Beyond the registry, mock, features, and
+documents splits noted in Rev 2, the implicit `g_lsp_client` /
+`g_lsp_eslint_client` singletons are now fully gone: per-request and
+per-notification code captures an explicit `struct editorLspClient *`
+via `editorLspEnsureClientForFile(...)` / `editorLspEnsureEslintClientForFile(...)`
+at the top of each function, then uses `client->...` for every fd, version,
+and cleanup call. The `#define g_lsp_client (*editorLspPrimaryClient())`
+shim is deleted; the bare `editorLspSendRawJson(json)` wrapper that hid the
+"active client fd" is deleted.
+
+Cumulative impact on the hotspots is now:
 
 | File | Rev 1 baseline | Current | Δ |
 | --- | --- | --- | --- |
@@ -21,8 +26,14 @@ hotspots have shrunk dramatically:
 | `src/input/dispatch.c` | 4,773 | 2,059 | −57% |
 | `src/editing/buffer_core.c` | 2,584 | 616 | −76% |
 | `src/workspace/drawer.c` | 2,984 | 316 | −89% |
-| `src/language/lsp.c` | 2,209 | 2,192 | −0.8% (but registry is in) |
+| `src/language/lsp.c` | 2,209 | **766** | **−65%** |
+| `src/language/lsp_protocol.c` | 2,013 | 785 | −61% |
 | `src/language/syntax.c` | 3,042 | 3,042 | unchanged (Phase 11 pending) |
+
+New focused modules under `src/language/`: `lsp_responses.c` (1,121),
+`lsp_documents.c` (643), `lsp_features.c` (564), `lsp_mock.{c,h}`
+(233 + 49), `lsp_registry.{c,h}` (177 + 17), plus growth of `lsp_json.c`
+(461 → 580) for the promoted shared parsing helpers.
 
 Source tree size is roughly flat (~47k lines) — the work was reorganization,
 not deletion. That's the right outcome: behavior preserved, ownership
@@ -32,46 +43,41 @@ clarified.
 
 ## Status of Revision 1 Issues
 
-### Issue 1 — Single LSP process per editor → **Resolved (transitional)**
+### Issue 1 — Single LSP process per editor → **Fully resolved**
 
 A real `(server_kind, workspace_root)` registry is now in place at
-[lsp_registry.c](src/language/lsp_registry.c) with a 16-client cap. The
-critical fix is at
-[lsp.c:531-551](src/language/lsp.c#L531-L551):
+[lsp_registry.c](src/language/lsp_registry.c) with a 16-client cap.
+Switching between a Go and a C tab reuses both live servers instead of
+killing and respawning; opening two workspaces of the same language uses
+two clients.
+
+**The Rev 2 transitional concern is also resolved.** The
+`g_lsp_client` / `g_lsp_eslint_client` macros that hid the "active client"
+singleton are deleted. Per-request and per-notification code now captures
+an explicit client pointer at the top of each function:
 
 ```c
-struct editorLspClient *client =
-        editorLspRegistryAcquireClient(server_kind, workspace_root_path);
-...
-editorLspRegistrySetActiveClient(server_kind, client);
-...
-if (client->initialized && client->server_kind == server_kind &&
-        editorLspProcessAlive(client) &&
-        editorLspWorkspaceRootsMatch(client->workspace_root_path,
-                workspace_root_path)) {
-    free(workspace_root_path);
-    return 1;          // reuse live client; no kill/respawn
+struct editorLspClient *client = editorLspEnsureClientForFile(filename, language);
+if (client == NULL) {
+    return -1;
 }
+... client->next_request_id ...
+editorLspSendRawJsonToFd(client->to_server_fd, payload);
+editorLspClientCleanup(client, 0);
 ```
 
-Switching between a Go and a C tab now reuses both live servers instead of
-killing and respawning. Opening two workspaces of the same language uses two
-clients. That was the entire intent.
+See e.g. [lsp_features.c:57-105](src/language/lsp_features.c#L57-L105),
+[lsp_documents.c:35-110](src/language/lsp_documents.c#L35-L110). All ~50
+former `g_lsp_client.*` use sites have been rewritten; the bare
+`editorLspSendRawJson(json)` wrapper that read the active client's fd
+implicitly is also gone.
 
-**Transitional smell, not a blocker.** The per-call code paths
-(`editorLspSendRawJson`, `editorLspNotifyDidChange`, completion) still talk
-through the `g_lsp_client` macro, which is now
-`*editorLspPrimaryClient()` — i.e., whatever the registry's `primary_active`
-pointer last got set to
-([lsp_transport.h:49-50](src/language/lsp_transport.h#L49-L50)). Because every
-notify/request path calls `editorLspEnsureRunningForFile(...)` first — which
-calls `editorLspRegistrySetActiveClient` for the file's `(server_kind, root)`
-— the right client is selected before each operation. This is correct under
-the editor's single-threaded model. But the implicit "active client" pointer
-is now the next thing to clean up: pass the client explicitly to
-didChange/didSave/completion, then remove `g_lsp_client` entirely. Phase 10
-already lists `lsp_client.{c,h}` as a target, so this slot is the natural
-home for that follow-up.
+The registry still tracks "primary_active" / "eslint_active" pointers
+internally, but they are now an implementation detail of
+`editorLspPrimaryClient()` / `editorLspEslintClient()`, called only by
+state-query accessors (e.g. "is completion supported on the currently
+active server?"). Every code path that actually performs a request or
+notification is explicit about which client it's talking to.
 
 ### Issue 2 — `editorTabState` / `E` field-by-field copy → **Resolved**
 
@@ -272,90 +278,87 @@ and Phase 11. Targets:
 
 These are queued, not problems:
 
-- **Phase 10 finish**: `lsp_client.{c,h}`, `lsp_requests.{c,h}`,
-  `lsp_responses.{c,h}`, `lsp_features.{c,h}` splits, plus delete
-  `g_lsp_client` macro.
 - **Phase 11**: split `syntax.c` (3,042 lines, biggest single remaining file).
 - **Phase 12**: config/theme boilerplate.
 - **Phase 13**: `rotide.h` shrink including grouping `editorConfig`, extracting
   `editorEnvironment`, renaming `editorPaneFocus`.
 - **Phase 14**: split oversized test files.
-- **Cross-cutting**: doc sync after Phase 10, signal-handler shutdown decision,
-  watch poll docs, render-pump decision.
+- **Optional**: a further split of the remaining `lsp.c` (766 lines) into a
+  narrower `lsp_client.{c,h}`. Coherent at current size; lower priority
+  than Phase 11.
+- **Cross-cutting**: doc sync (LSP registry + `editorBuffer` + Phase 10
+  splits), signal-handler shutdown decision, watch poll docs (done),
+  render-pump decision.
 
 ---
 
 ## Updated Risk Register
 
-1. **Phase 10 mid-flight** — registry is in but request helpers aren't yet
-   split. The transitional `g_lsp_client` macro is a soft coupling that will
-   complicate future LSP work until removed. Low if Phase 10 lands soon;
-   moderate if it stalls.
-2. **`syntax.c` still 3k lines** — Phase 11's deferral until Phase 8 was the
+1. **`syntax.c` still 3k lines** — Phase 11's deferral until Phase 8 was the
    right call, but it's now the single largest file in the codebase and
    handles parse, captures, injections, and budgeting in one place. No
    functional risk; just the next obvious refactor target.
-3. **Doc drift** — the gap between docs and code is bigger than it was at
-   Rev 1, because the code moved and the docs didn't. Acceptable for a
-   week; problematic if it lasts a quarter.
-4. **Vendored libraries** — unchanged (still libvterm 0.3.x and pinned
+2. **Doc drift** — the gap between docs and code is bigger than it was at
+   Rev 1, because the code moved and the docs only partially caught up
+   (watch poll mechanism is now documented; LSP registry, `editorBuffer`,
+   and the Phase 10 splits are not yet reflected in architecture.md or
+   the diagrams).
+3. **Vendored libraries** — unchanged (still libvterm 0.3.x and pinned
    Tree-sitter grammars, warning-relaxed). No new issues.
 
 ---
 
 ## Updated Recommendations, Prioritized
 
-| # | Action | Effort | Impact | Status vs Rev 1 |
+| # | Action | Effort | Impact | Status vs Rev 2 |
 | --- | --- | --- | --- | --- |
-| 1 | Finish Phase 10: split `lsp.c`, pass `editorLspClient *` explicitly, delete `g_lsp_client` macro. | M | Removes last LSP singleton. | New (replaces old #1/#2). |
-| 2 | Doc-sync slice: LSP registry, `editorBuffer`, pane-layout diagram. | S | Closes the Rev-1→Rev-2 doc gap. | New. |
-| 3 | Phase 11 syntax core split. | M | Largest remaining file; same playbook as `screen.c`. | Unchanged. |
-| 4 | Phase 13 `rotide.h` shrink, `editorPaneFocus` rename, `editorEnvironment` extraction. | M | Continues clarifying the global root. | Partially mitigated. |
-| 5 | Decide & document the `editorRefreshScreen` pumping question. | S | Restores renderer-as-painter guardrail or formalizes the exception. | Unchanged. |
-| 6 | Wire LSP/DAP/syntax shutdown into signal handler OR fix startup-loop diagram. | S | Honesty + graceful exit. | Unchanged. |
-| 7 | Document file-watch as poll-based; one-sentence fix. | XS | Closes a documented-gap issue. | Unchanged. |
-| 8 | Add LSP registry LRU + an eviction test. | S | Locks in the registry contract. | New. |
-| 9 | Add `concurrency.md` (syntax worker) and `error_handling.md` (OOM policy). | S | Two real invariants without a home. | Unchanged. |
-| 10 | Phase 14 test-file split. | M | After production split stabilizes. | Unchanged. |
+| 1 | Doc-sync slice: LSP registry, `editorBuffer`, Phase 10 module map, pane-layout diagram. | S | Closes the standing doc gap; no longer "one revision behind" — now two. | Carried, more urgent. |
+| 2 | Phase 11 syntax core split. | M | Largest remaining file; same playbook as `screen.c`. | Unchanged. |
+| 3 | Phase 13 `rotide.h` shrink, `editorPaneFocus` rename, `editorEnvironment` extraction. | M | Continues clarifying the global root. | Unchanged. |
+| 4 | Decide & document the `editorRefreshScreen` pumping question. | S | Restores renderer-as-painter guardrail or formalizes the exception. | Unchanged. |
+| 5 | Wire LSP/DAP/syntax shutdown into signal handler OR fix startup-loop diagram. | S | Honesty + graceful exit. | Unchanged. |
+| 6 | Add LSP registry LRU + an eviction test. | S | Locks in the registry contract; matters more now that multi-client coexistence is the steady state. | Unchanged. |
+| 7 | Add `concurrency.md` (syntax worker) and `error_handling.md` (OOM policy). | S | Two real invariants without a home. | Unchanged. |
+| 8 | Phase 14 test-file split. | M | After production split stabilizes. | Unchanged. |
 
 ---
 
-## Updated Score: 8.5 / 10
+## Updated Score: 9 / 10
 
-**What changed since the 7.**
+**What changed since the 8.5.**
 
-The two highest-severity items from Revision 1 have been substantively fixed
-in the code (Issue 1 via the registry, Issue 2 via the `editorBuffer`
-union/X-macro), and the work landed in small, validated slices with the
-`make`/`make test`/`make test-sanitize` cadence preserved throughout. Both
-solutions show good taste — the X-macro field list and the (server_kind,
-root) keying are exactly what those problems wanted. The bulk refactor work
-(Phases 6–9) executed cleanly, with line-count reductions matched by new
-focused modules and no behavioral regressions in 771 tests.
+Phase 10 is now fully closed: the explicit-client-pointer refactor is
+done, the `g_lsp_client` and `g_lsp_eslint_client` macros are deleted, and
+the now-redundant `editorLspSendRawJson` wrapper is gone. Every per-request
+and per-notification code path in `lsp_features.c` and `lsp_documents.c`
+captures its client explicitly via `editorLspEnsureClientForFile(...)` /
+`editorLspEnsureEslintClientForFile(...)`. The implicit "active client"
+pointer that Rev 1 flagged and Rev 2 noted as a transitional smell is gone
+from every code path that actually performs a request — it survives only as
+an internal detail of the registry's primary/eslint pointers, accessed
+through `editorLspPrimaryClient()` / `editorLspEslintClient()` and used
+only by genuine state-query accessors.
 
-**Why not 9 yet.**
+Phase 10 also delivered three more file splits since Rev 2 —
+`lsp_mock.{c,h}`, `lsp_features.c`, and `lsp_documents.c` — taking `lsp.c`
+from 2,192 to 766 lines (−65% versus Rev 1 baseline) while preserving 771/771
+test pass under `make test` and the sanitizer build.
 
-- Phase 10 is mid-flight. The registry exists, but request helpers still
-  flow through the `g_lsp_client` macro. The architectural intent (multi-
-  client coexistence) is in place; the call-site discipline that would let
-  you delete the macro is not.
-- Docs lag the code by one full revision. architecture.md, the LSP diagrams,
-  and `pane-layout.puml` still describe the pre-registry, pre-`editorBuffer`
-  world. The gap is honest (PLAN.md acknowledges it) but real.
-- Several lower-severity Rev 1 items (signal-handler exit path, watch
-  polling, refresh-pumping decision, `editorPaneFocus` rename,
-  `concurrency.md`/`error_handling.md`) remain queued.
+**Why not 10 yet.**
 
-**What gets it to 9–10.**
+- Docs lag two revisions of code now (Phase 10's registry, the
+  `editorBuffer`, and the new module map are still absent from
+  `architecture.md` and the diagrams). One focused doc-sync slice closes
+  this; no code change required.
+- `syntax.c` (Phase 11), the `editorRefreshScreen` pumping decision, the
+  signal-handler shutdown decision, and `editorPaneFocus` rename are all
+  still standing.
+- `concurrency.md` and `error_handling.md` still don't exist.
 
-Finish Phase 10 (registry usage made explicit at every call site, macro
-deleted), land the doc-sync slice, complete `syntax.c` split (Phase 11), and
-clear the four small standing items (signal handler, refresh pumping
-decision, watch docs, `editorPaneFocus` rename). At that point the
-documented architecture, the diagrams, and the implemented architecture
-agree, and there are no implicit singletons left in the model.
+**What gets it to 10.**
 
-A 10 would require those plus the optional polish — `concurrency.md`,
-`error_handling.md`, the LSP registry eviction test, and a finished
-`rotide.h` shrink — none of which is hard, all of which is cheap once the
-prerequisites land.
+The doc-sync slice plus Phase 11 (syntax) plus the four small standing
+items. None is hard; all are cheap. At that point the documented
+architecture, the diagrams, and the implemented architecture agree
+exactly, and the only oversized file in the tree is part of a finished
+plan.

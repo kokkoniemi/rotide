@@ -147,21 +147,8 @@ char *editorLspDecodeFileUri(const char *uri) {
 
 
 int editorLspProtocolCharacterToBufferColumn(int line, int protocol_character) {
-	if (protocol_character < 0) {
-		return 0;
-	}
-	if (!g_lsp_client.position_encoding_utf16) {
-		return protocol_character;
-	}
-
-	char *line_text = NULL;
-	size_t line_len = 0;
-	if (!editorLspReadActiveLineText(line, &line_text, &line_len)) {
-		return protocol_character;
-	}
-	int byte_column = editorLspUtf16UnitsToUtf8Column(line_text, line_len, protocol_character);
-	free(line_text);
-	return byte_column;
+	return editorLspClientProtocolCharacterToBufferColumn(editorLspPrimaryClient(), line,
+			protocol_character);
 }
 
 int editorLspClientProtocolCharacterToBufferColumn(struct editorLspClient *client, int line,
@@ -571,7 +558,7 @@ int editorLspApplyPendingEditsWithClient(struct editorLspClient *client,
 }
 
 int editorLspApplyPendingEdits(const struct editorLspPendingEdit *edits, int count) {
-	return editorLspApplyPendingEditsWithClient(&g_lsp_client, edits, count);
+	return editorLspApplyPendingEditsWithClient(editorLspPrimaryClient(), edits, count);
 }
 
 
@@ -750,20 +737,8 @@ int editorLspReadActiveLineText(int line, char **text_out, size_t *len_out) {
 }
 
 int editorLspProtocolCharacterFromBufferColumn(int line, int byte_column) {
-	if (byte_column < 0) {
-		byte_column = 0;
-	}
-	if (!g_lsp_client.position_encoding_utf16) {
-		return byte_column;
-	}
-	char *line_text = NULL;
-	size_t line_len = 0;
-	if (!editorLspReadActiveLineText(line, &line_text, &line_len)) {
-		return byte_column;
-	}
-	int protocol_character = editorLspUtf8ColumnToUtf16Units(line_text, line_len, byte_column);
-	free(line_text);
-	return protocol_character;
+	return editorLspClientProtocolCharacterFromBufferColumn(editorLspPrimaryClient(), line,
+			byte_column);
 }
 
 int editorLspClientProtocolCharacterFromBufferColumn(struct editorLspClient *client, int line,

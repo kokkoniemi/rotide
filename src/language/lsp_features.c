@@ -54,7 +54,8 @@ static int editorLspRequestLocationsByMethod(const char *method, int *mock_count
 		return 1;
 	}
 
-	if (!editorLspEnsureRunningForFile(filename, language)) {
+	struct editorLspClient *client = editorLspEnsureClientForFile(filename, language);
+	if (client == NULL) {
 		return -1;
 	}
 
@@ -65,7 +66,7 @@ static int editorLspRequestLocationsByMethod(const char *method, int *mock_count
 
 	int protocol_character = editorLspProtocolCharacterFromBufferColumn(line, character);
 
-	int request_id = g_lsp_client.next_request_id++;
+	int request_id = client->next_request_id++;
 	struct editorLspString payload = {0};
 	int built = editorLspStringAppendf(&payload,
 			"{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":\"%s\",\"params\":{"
@@ -84,18 +85,18 @@ static int editorLspRequestLocationsByMethod(const char *method, int *mock_count
 		return -1;
 	}
 
-	if (!editorLspSendRawJson(payload.buf)) {
+	if (!editorLspSendRawJsonToFd(client->to_server_fd, payload.buf)) {
 		free(payload.buf);
-		editorLspClientCleanup(&g_lsp_client, 0);
+		editorLspClientCleanup(client, 0);
 		return -1;
 	}
 	free(payload.buf);
 
 	char *response = NULL;
 	int timed_out = 0;
-	if (!editorLspWaitForResponseId(&g_lsp_client, request_id, ROTIDE_LSP_IO_TIMEOUT_MS, &response,
+	if (!editorLspWaitForResponseId(client, request_id, ROTIDE_LSP_IO_TIMEOUT_MS, &response,
 				&timed_out)) {
-		editorLspClientCleanup(&g_lsp_client, 0);
+		editorLspClientCleanup(client, 0);
 		if (timed_out) {
 			if (timed_out_out != NULL) {
 				*timed_out_out = 1;
@@ -179,7 +180,8 @@ int editorLspRequestDocumentSymbols(const char *filename, enum editorSyntaxLangu
 		return 1;
 	}
 
-	if (!editorLspEnsureRunningForFile(filename, language)) {
+	struct editorLspClient *client = editorLspEnsureClientForFile(filename, language);
+	if (client == NULL) {
 		return -1;
 	}
 
@@ -188,7 +190,7 @@ int editorLspRequestDocumentSymbols(const char *filename, enum editorSyntaxLangu
 		return -1;
 	}
 
-	int request_id = g_lsp_client.next_request_id++;
+	int request_id = client->next_request_id++;
 	struct editorLspString payload = {0};
 	int built = editorLspStringAppendf(&payload,
 			"{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":\"textDocument/documentSymbol\",\"params\":{"
@@ -206,18 +208,18 @@ int editorLspRequestDocumentSymbols(const char *filename, enum editorSyntaxLangu
 		return -1;
 	}
 
-	if (!editorLspSendRawJson(payload.buf)) {
+	if (!editorLspSendRawJsonToFd(client->to_server_fd, payload.buf)) {
 		free(payload.buf);
-		editorLspClientCleanup(&g_lsp_client, 0);
+		editorLspClientCleanup(client, 0);
 		return -1;
 	}
 	free(payload.buf);
 
 	char *response = NULL;
 	int timed_out = 0;
-	if (!editorLspWaitForResponseId(&g_lsp_client, request_id, ROTIDE_LSP_IO_TIMEOUT_MS, &response,
+	if (!editorLspWaitForResponseId(client, request_id, ROTIDE_LSP_IO_TIMEOUT_MS, &response,
 				&timed_out)) {
-		editorLspClientCleanup(&g_lsp_client, 0);
+		editorLspClientCleanup(client, 0);
 		if (timed_out) {
 			if (timed_out_out != NULL) {
 				*timed_out_out = 1;
@@ -255,9 +257,10 @@ int editorLspCompletionEnabledForFile(const char *filename, enum editorSyntaxLan
 	if (g_lsp_mock.enabled) {
 		return 1;
 	}
-	return g_lsp_client.completion_supported &&
-			editorLspWorkspaceRootsMatch(g_lsp_client.workspace_root_path,
-					g_lsp_client.workspace_root_path);
+	struct editorLspClient *client = editorLspPrimaryClient();
+	return client->completion_supported &&
+			editorLspWorkspaceRootsMatch(client->workspace_root_path,
+					client->workspace_root_path);
 }
 
 const char *editorLspCompletionTriggerCharsForFile(const char *filename,
@@ -268,11 +271,11 @@ const char *editorLspCompletionTriggerCharsForFile(const char *filename,
 	if (g_lsp_mock.enabled) {
 		return ".";
 	}
-	return g_lsp_client.completion_trigger_chars;
+	return editorLspPrimaryClient()->completion_trigger_chars;
 }
 
 void editorLspCancelCompletion(void) {
-	editorLspCompletionPendingClear(&g_lsp_client.completion_pending);
+	editorLspCompletionPendingClear(&editorLspPrimaryClient()->completion_pending);
 	g_lsp_mock.completion_pending_request_id = 0;
 }
 
@@ -280,7 +283,7 @@ int editorLspCompletionPendingActive(void) {
 	if (g_lsp_mock.enabled) {
 		return g_lsp_mock.completion_pending_request_id != 0;
 	}
-	return g_lsp_client.completion_pending.request_id != 0;
+	return editorLspPrimaryClient()->completion_pending.request_id != 0;
 }
 
 int editorLspRequestCompletionAsync(const char *filename, enum editorSyntaxLanguage language,
@@ -305,7 +308,8 @@ int editorLspRequestCompletionAsync(const char *filename, enum editorSyntaxLangu
 			request_id = 1;
 			g_lsp_mock.completion_pending_request_id = 1;
 		}
-		struct editorLspCompletionPending *pending = &g_lsp_client.completion_pending;
+		struct editorLspCompletionPending *pending =
+				&editorLspPrimaryClient()->completion_pending;
 		pending->request_id = request_id;
 		pending->document_version = document_version;
 		pending->cy = line;
@@ -320,7 +324,8 @@ int editorLspRequestCompletionAsync(const char *filename, enum editorSyntaxLangu
 		return 1;
 	}
 
-	if (!editorLspEnsureRunningForFile(filename, language)) {
+	struct editorLspClient *client = editorLspEnsureClientForFile(filename, language);
+	if (client == NULL) {
 		return 0;
 	}
 
@@ -330,7 +335,7 @@ int editorLspRequestCompletionAsync(const char *filename, enum editorSyntaxLangu
 	}
 
 	int protocol_character = editorLspProtocolCharacterFromBufferColumn(line, character);
-	int request_id = g_lsp_client.next_request_id++;
+	int request_id = client->next_request_id++;
 	struct editorLspString payload = {0};
 	int built = editorLspStringAppendf(&payload,
 			"{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":\"textDocument/completion\",\"params\":{"
@@ -365,14 +370,14 @@ int editorLspRequestCompletionAsync(const char *filename, enum editorSyntaxLangu
 		return 0;
 	}
 
-	if (!editorLspSendRawJson(payload.buf)) {
+	if (!editorLspSendRawJsonToFd(client->to_server_fd, payload.buf)) {
 		free(payload.buf);
-		editorLspClientCleanup(&g_lsp_client, 0);
+		editorLspClientCleanup(client, 0);
 		return 0;
 	}
 	free(payload.buf);
 
-	struct editorLspCompletionPending *pending = &g_lsp_client.completion_pending;
+	struct editorLspCompletionPending *pending = &client->completion_pending;
 	pending->request_id = request_id;
 	pending->document_version = document_version;
 	pending->cy = line;
@@ -421,12 +426,17 @@ int editorLspRequestCodeActionFixes(const char *filename, enum editorSyntaxLangu
 		return -1;
 	}
 
+	struct editorLspClient *client = editorLspEslintClient();
+	if (client == NULL || client->to_server_fd < 0) {
+		return -1;
+	}
+
 	char *uri = NULL;
 	if (!editorLspBuildFileUri(filename, &uri)) {
 		return -1;
 	}
 
-	int request_id = g_lsp_eslint_client.next_request_id++;
+	int request_id = client->next_request_id++;
 	struct editorLspString payload = {0};
 	int built = editorLspStringAppendf(&payload,
 			"{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":\"textDocument/codeAction\",\"params\":{"
@@ -445,10 +455,10 @@ int editorLspRequestCodeActionFixes(const char *filename, enum editorSyntaxLangu
 			built = editorLspStringAppend(&payload, ",");
 		}
 		int start_character = editorLspClientProtocolCharacterFromBufferColumn(
-				&g_lsp_eslint_client, E.lsp_diagnostics[i].start_line,
+				client, E.lsp_diagnostics[i].start_line,
 				E.lsp_diagnostics[i].start_character);
 		int end_character = editorLspClientProtocolCharacterFromBufferColumn(
-				&g_lsp_eslint_client, E.lsp_diagnostics[i].end_line,
+				client, E.lsp_diagnostics[i].end_line,
 				E.lsp_diagnostics[i].end_character);
 		built = editorLspStringAppendf(&payload,
 				"{\"range\":{\"start\":{\"line\":%d,\"character\":%d},"
@@ -474,18 +484,18 @@ int editorLspRequestCodeActionFixes(const char *filename, enum editorSyntaxLangu
 		return -1;
 	}
 
-	if (!editorLspSendRawJsonToFd(g_lsp_eslint_client.to_server_fd, payload.buf)) {
+	if (!editorLspSendRawJsonToFd(client->to_server_fd, payload.buf)) {
 		free(payload.buf);
-		editorLspClientCleanup(&g_lsp_eslint_client, 0);
+		editorLspClientCleanup(client, 0);
 		return -1;
 	}
 	free(payload.buf);
 
 	char *response = NULL;
 	int timed_out = 0;
-	if (!editorLspWaitForResponseId(&g_lsp_eslint_client, request_id, ROTIDE_LSP_IO_TIMEOUT_MS,
+	if (!editorLspWaitForResponseId(client, request_id, ROTIDE_LSP_IO_TIMEOUT_MS,
 				&response, &timed_out)) {
-		editorLspClientCleanup(&g_lsp_eslint_client, 0);
+		editorLspClientCleanup(client, 0);
 		return timed_out ? -2 : -1;
 	}
 	if (editorLspResponseHasError(response)) {
@@ -529,7 +539,7 @@ int editorLspRequestCodeActionFixes(const char *filename, enum editorSyntaxLangu
 		return 0;
 	}
 
-	int applied = editorLspApplyPendingEditsWithClient(&g_lsp_eslint_client, edits, count);
+	int applied = editorLspApplyPendingEditsWithClient(client, edits, count);
 	editorLspFreePendingEdits(edits, count);
 	return applied >= 0 ? applied : -1;
 }
