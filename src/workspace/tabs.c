@@ -62,74 +62,19 @@ static void editorTabVisibleRangeFromStart(int start_idx, int cols, int *last_id
 static void editorTabsAlignViewToActiveForWidth(int cols);
 
 #define EDITOR_ACTIVE_BUFFER_STATE_FIELDS(X) \
-	X(tab_kind) \
-	X(is_preview) \
-	X(tab_title) \
-	X(cursor_offset) \
-	X(cx) \
-	X(cy) \
-	X(rx) \
-	X(rowoff) \
-	X(coloff) \
-	X(wrapoff) \
-	X(numrows) \
-	X(rows) \
-	X(document) \
-	X(max_render_cols) \
-	X(max_render_cols_valid) \
-	X(dirty) \
-	X(filename) \
-	X(disk_state) \
-	X(disk_conflict) \
-	X(syntax_language) \
-	X(syntax_state) \
-	X(syntax_parse_failures) \
-	X(syntax_revision) \
-	X(syntax_generation) \
-	X(syntax_background_pending) \
-	X(syntax_pending_revision) \
-	X(syntax_pending_first_row) \
-	X(syntax_pending_row_count) \
-	X(lsp_doc_open) \
-	X(lsp_doc_version) \
-	X(lsp_eslint_doc_open) \
-	X(lsp_eslint_doc_version) \
-	X(lsp_diagnostics) \
-	X(lsp_diagnostic_count) \
-	X(lsp_diagnostic_error_count) \
-	X(lsp_diagnostic_warning_count) \
-	X(lsp_symbols) \
-	X(lsp_symbol_count) \
-	X(search_query) \
-	X(search_match_offset) \
-	X(search_match_len) \
-	X(search_direction) \
-	X(search_saved_offset) \
-	X(selection_mode_active) \
-	X(selection_anchor_offset) \
-	X(column_select_active) \
-	X(column_select_anchor_cy) \
-	X(column_select_anchor_rx) \
-	X(column_select_cursor_rx) \
-	X(mouse_left_button_down) \
-	X(mouse_drag_anchor_offset) \
-	X(mouse_drag_started) \
-	X(undo_history) \
-	X(redo_history) \
-	X(edit_pending_entry) \
-	X(edit_pending_entry_valid) \
-	X(edit_group_kind) \
-	X(edit_pending_kind) \
-	X(edit_pending_mode)
+	EDITOR_ACTIVE_BUFFER_CORE_FIELDS(X) \
+	EDITOR_ACTIVE_BUFFER_LSP_FIELDS(X) \
+	EDITOR_ACTIVE_BUFFER_SEARCH_FIELDS(X) \
+	EDITOR_ACTIVE_BUFFER_EDIT_FIELDS(X)
 
 static void editorTabStateCopyFromActive(struct editorTabState *tab) {
-#define COPY_FROM_ACTIVE(field) tab->field = E.field;
+#define COPY_FROM_ACTIVE(type, field) tab->field = E.field;
 	EDITOR_ACTIVE_BUFFER_STATE_FIELDS(COPY_FROM_ACTIVE)
 #undef COPY_FROM_ACTIVE
 }
 
 static void editorActiveBufferCopyFromTab(const struct editorTabState *tab) {
-#define COPY_TO_ACTIVE(field) E.field = tab->field;
+#define COPY_TO_ACTIVE(type, field) E.field = tab->field;
 	EDITOR_ACTIVE_BUFFER_STATE_FIELDS(COPY_TO_ACTIVE)
 #undef COPY_TO_ACTIVE
 }

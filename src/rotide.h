@@ -584,99 +584,86 @@ struct editorHistory {
 	int len;
 };
 
+#define EDITOR_ACTIVE_BUFFER_CORE_FIELDS(X) \
+	X(enum editorTabKind, tab_kind) \
+	X(int, is_preview) \
+	X(char *, tab_title) \
+	X(size_t, cursor_offset) \
+	X(int, cx) \
+	X(int, cy) \
+	X(int, rx) \
+	X(int, rowoff) \
+	X(int, coloff) \
+	X(int, wrapoff) \
+	X(int, numrows) \
+	X(struct erow *, rows) \
+	X(struct editorDocument *, document) \
+	X(int, max_render_cols) \
+	X(int, max_render_cols_valid) \
+	X(int, dirty) \
+	X(char *, filename) \
+	X(struct editorFileDiskState, disk_state) \
+	X(int, disk_conflict) \
+	X(enum editorSyntaxLanguage, syntax_language) \
+	X(struct editorSyntaxState *, syntax_state) \
+	X(int, syntax_parse_failures) \
+	X(uint64_t, syntax_revision) \
+	X(uint64_t, syntax_generation) \
+	X(int, syntax_background_pending) \
+	X(uint64_t, syntax_pending_revision) \
+	X(int, syntax_pending_first_row) \
+	X(int, syntax_pending_row_count)
+
+#define EDITOR_ACTIVE_BUFFER_LSP_FIELDS(X) \
+	X(int, lsp_doc_open) \
+	X(int, lsp_doc_version) \
+	X(int, lsp_eslint_doc_open) \
+	X(int, lsp_eslint_doc_version) \
+	X(struct editorLspDiagnostic *, lsp_diagnostics) \
+	X(int, lsp_diagnostic_count) \
+	X(int, lsp_diagnostic_error_count) \
+	X(int, lsp_diagnostic_warning_count) \
+	X(struct editorLspSymbol *, lsp_symbols) \
+	X(int, lsp_symbol_count)
+
+#define EDITOR_ACTIVE_BUFFER_SEARCH_FIELDS(X) \
+	X(char *, search_query) \
+	X(size_t, search_match_offset) \
+	X(int, search_match_len) \
+	X(int, search_direction) \
+	X(size_t, search_saved_offset) \
+	X(int, selection_mode_active) \
+	X(size_t, selection_anchor_offset) \
+	X(int, column_select_active) \
+	X(int, column_select_anchor_cy) \
+	X(int, column_select_anchor_rx) \
+	X(int, column_select_cursor_rx) \
+	X(int, mouse_left_button_down) \
+	X(size_t, mouse_drag_anchor_offset) \
+	X(int, mouse_drag_started)
+
+#define EDITOR_ACTIVE_BUFFER_EDIT_FIELDS(X) \
+	X(struct editorHistory, undo_history) \
+	X(struct editorHistory, redo_history) \
+	X(struct editorHistoryEntry, edit_pending_entry) \
+	X(int, edit_pending_entry_valid) \
+	X(enum editorEditKind, edit_group_kind) \
+	X(enum editorEditKind, edit_pending_kind) \
+	X(enum editorEditPendingMode, edit_pending_mode)
+
+#define EDITOR_DECLARE_FIELD(type, name) type name;
+
 struct editorTabState {
-	enum editorTabKind tab_kind;
-	int is_preview;
-	char *tab_title;
-	size_t cursor_offset;
-	int cx;
-	int cy;
-	int rx;
-	int rowoff;
-	int coloff;
-	int wrapoff;
-	int numrows;
-	struct erow *rows;
-	struct editorDocument *document;
-	int max_render_cols;
-	int max_render_cols_valid;
-	int dirty;
-	char *filename;
-	struct editorFileDiskState disk_state;
-	int disk_conflict;
-	enum editorSyntaxLanguage syntax_language;
-	struct editorSyntaxState *syntax_state;
-	int syntax_parse_failures;
-	uint64_t syntax_revision;
-	uint64_t syntax_generation;
-	int syntax_background_pending;
-	uint64_t syntax_pending_revision;
-	int syntax_pending_first_row;
-	int syntax_pending_row_count;
-	int lsp_doc_open;
-	int lsp_doc_version;
-	int lsp_eslint_doc_open;
-	int lsp_eslint_doc_version;
-	struct editorLspDiagnostic *lsp_diagnostics;
-	int lsp_diagnostic_count;
-	int lsp_diagnostic_error_count;
-	int lsp_diagnostic_warning_count;
-	struct editorLspSymbol *lsp_symbols;
-	int lsp_symbol_count;
-	char *search_query;
-	size_t search_match_offset;
-	int search_match_len;
-	int search_direction;
-	size_t search_saved_offset;
-	int selection_mode_active;
-	size_t selection_anchor_offset;
-	int column_select_active;
-	int column_select_anchor_cy;
-	int column_select_anchor_rx;
-	int column_select_cursor_rx;
-	int mouse_left_button_down;
-	size_t mouse_drag_anchor_offset;
-	int mouse_drag_started;
-	struct editorHistory undo_history;
-	struct editorHistory redo_history;
-	struct editorHistoryEntry edit_pending_entry;
-	int edit_pending_entry_valid;
-	enum editorEditKind edit_group_kind;
-	enum editorEditKind edit_pending_kind;
-	enum editorEditPendingMode edit_pending_mode;
+	EDITOR_ACTIVE_BUFFER_CORE_FIELDS(EDITOR_DECLARE_FIELD)
+	EDITOR_ACTIVE_BUFFER_LSP_FIELDS(EDITOR_DECLARE_FIELD)
+	EDITOR_ACTIVE_BUFFER_SEARCH_FIELDS(EDITOR_DECLARE_FIELD)
+	EDITOR_ACTIVE_BUFFER_EDIT_FIELDS(EDITOR_DECLARE_FIELD)
 };
 
 struct editorConfig {
 	int window_rows;
 	int window_cols;
-	enum editorTabKind tab_kind;
-	int is_preview;
-	char *tab_title;
-	size_t cursor_offset;
-	int cx;
-	int cy;
-	int rx;
-	int rowoff;
-	int coloff;
-	int wrapoff;
-	int numrows;
-	struct erow *rows;
-	struct editorDocument *document;
-	int max_render_cols;
-	int max_render_cols_valid;
-	int dirty;
-	char *filename;
-	struct editorFileDiskState disk_state;
-	int disk_conflict;
-	enum editorSyntaxLanguage syntax_language;
-	struct editorSyntaxState *syntax_state;
-	int syntax_parse_failures;
-	uint64_t syntax_revision;
-	uint64_t syntax_generation;
-	int syntax_background_pending;
-	uint64_t syntax_pending_revision;
-	int syntax_pending_first_row;
-	int syntax_pending_row_count;
+	EDITOR_ACTIVE_BUFFER_CORE_FIELDS(EDITOR_DECLARE_FIELD)
 	int lsp_gopls_enabled;
 	int lsp_clangd_enabled;
 	int lsp_html_enabled;
@@ -705,32 +692,10 @@ struct editorConfig {
 	int dap_project_config_exists;
 	int dap_project_config_invalid;
 	char dap_project_config_path[PATH_MAX];
-	int lsp_doc_open;
-	int lsp_doc_version;
-	int lsp_eslint_doc_open;
-	int lsp_eslint_doc_version;
-	struct editorLspDiagnostic *lsp_diagnostics;
-	int lsp_diagnostic_count;
-	int lsp_diagnostic_error_count;
-	int lsp_diagnostic_warning_count;
-	struct editorLspSymbol *lsp_symbols;
-	int lsp_symbol_count;
+	EDITOR_ACTIVE_BUFFER_LSP_FIELDS(EDITOR_DECLARE_FIELD)
 	char statusmsg[80];
 	time_t statusmsg_time;
-	char *search_query;
-	size_t search_match_offset;
-	int search_match_len;
-	int search_direction;
-	size_t search_saved_offset;
-	int selection_mode_active;
-	size_t selection_anchor_offset;
-	int column_select_active;
-	int column_select_anchor_cy;
-	int column_select_anchor_rx;
-	int column_select_cursor_rx;
-	int mouse_left_button_down;
-	size_t mouse_drag_anchor_offset;
-	int mouse_drag_started;
+	EDITOR_ACTIVE_BUFFER_SEARCH_FIELDS(EDITOR_DECLARE_FIELD)
 	int hover_link_active;
 	int hover_link_row;
 	int hover_link_cx_start;
@@ -738,13 +703,7 @@ struct editorConfig {
 	char *clipboard_text;
 	size_t clipboard_textlen;
 	editorClipboardExternalSink clipboard_external_sink;
-	struct editorHistory undo_history;
-	struct editorHistory redo_history;
-	struct editorHistoryEntry edit_pending_entry;
-	int edit_pending_entry_valid;
-	enum editorEditKind edit_group_kind;
-	enum editorEditKind edit_pending_kind;
-	enum editorEditPendingMode edit_pending_mode;
+	EDITOR_ACTIVE_BUFFER_EDIT_FIELDS(EDITOR_DECLARE_FIELD)
 	struct editorTabState *tabs;
 	int tab_count;
 	int tab_capacity;
@@ -866,6 +825,8 @@ struct editorConfig {
 	struct editorPopupState popup;
 	struct termios orig_attrs;
 };
+
+#undef EDITOR_DECLARE_FIELD
 
 extern struct editorConfig E;
 
