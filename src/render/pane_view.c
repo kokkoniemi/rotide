@@ -3,6 +3,7 @@
 #include "render/drawer_view.h"
 #include "render/terminal_view.h"
 #include "workspace/drawer.h"
+#include "workspace/tabs.h"
 #include <stdio.h>
 
 #define VT100_CLEAR_ROW_3 "\x1b[K"
@@ -16,9 +17,103 @@ int editorPaneSyntaxFrameBuild(const struct editorLeafLayout *layout);
 void editorPaneSyntaxFrameClear(void);
 int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode *leaf,
 		int body_row_in_pane, int slice_cols);
+
+void editorViewSnapshotCapture(struct editorViewSnapshot *snap) {
+	snap->cx = E.cx;
+	snap->cy = E.cy;
+	snap->rx = E.rx;
+	snap->rowoff = E.rowoff;
+	snap->coloff = E.coloff;
+	snap->wrapoff = E.wrapoff;
+	snap->cursor_offset = E.cursor_offset;
+	snap->viewport_mode = (int)E.viewport_mode;
+	snap->selection_mode_active = E.selection_mode_active;
+	snap->selection_anchor_offset = E.selection_anchor_offset;
+	snap->column_select_active = E.column_select_active;
+	snap->column_select_anchor_cy = E.column_select_anchor_cy;
+	snap->column_select_anchor_rx = E.column_select_anchor_rx;
+	snap->column_select_cursor_rx = E.column_select_cursor_rx;
+}
+
+void editorViewSnapshotRestore(const struct editorViewSnapshot *snap) {
+	E.cx = snap->cx;
+	E.cy = snap->cy;
+	E.rx = snap->rx;
+	E.rowoff = snap->rowoff;
+	E.coloff = snap->coloff;
+	E.wrapoff = snap->wrapoff;
+	E.cursor_offset = snap->cursor_offset;
+	E.viewport_mode = (enum editorViewportMode)snap->viewport_mode;
+	E.selection_mode_active = snap->selection_mode_active;
+	E.selection_anchor_offset = snap->selection_anchor_offset;
+	E.column_select_active = snap->column_select_active;
+	E.column_select_anchor_cy = snap->column_select_anchor_cy;
+	E.column_select_anchor_rx = snap->column_select_anchor_rx;
+	E.column_select_cursor_rx = snap->column_select_cursor_rx;
+}
+
+void editorViewSnapshotFromPaneView(const struct editorPaneView *view) {
+	E.cx = view->cx;
+	E.cy = view->cy;
+	E.rx = view->rx;
+	E.rowoff = view->rowoff;
+	E.coloff = view->coloff;
+	E.wrapoff = view->wrapoff;
+	E.cursor_offset = view->cursor_offset;
+	E.viewport_mode = (enum editorViewportMode)view->viewport_mode;
+	E.selection_mode_active = view->selection_mode_active;
+	E.selection_anchor_offset = view->selection_anchor_offset;
+	E.column_select_active = view->column_select_active;
+	E.column_select_anchor_cy = view->column_select_anchor_cy;
+	E.column_select_anchor_rx = view->column_select_anchor_rx;
+	E.column_select_cursor_rx = view->column_select_cursor_rx;
+}
+
+int editorDrawBlankCells(struct writeBuf *wb, int cells) {
+	for (int i = 0; i < cells; i++) {
+		if (!wbAppend(wb, " ", 1)) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
 int editorDrawPaneViewSlice(struct writeBuf *wb, const struct editorPaneNode *leaf,
-		const struct editorPaneView *view, int body_row_in_pane, int slice_cols);
-int editorDrawBlankCells(struct writeBuf *wb, int cells);
+		const struct editorPaneView *view, int body_row_in_pane, int slice_cols) {
+	if (view == NULL || view->active_tab_idx < 0 ||
+			(E.tab_count > 0 && view->active_tab_idx >= E.tab_count)) {
+		return editorDrawBlankCells(wb, slice_cols);
+	}
+
+	if (view->active_tab_idx == E.active_tab) {
+		struct editorViewSnapshot snap;
+		editorViewSnapshotCapture(&snap);
+		editorViewSnapshotFromPaneView(view);
+		int ok = editorDrawFocusedPaneSlice(wb, leaf, body_row_in_pane, slice_cols);
+		editorViewSnapshotRestore(&snap);
+		return ok;
+	}
+
+	if (E.tabs == NULL || view->active_tab_idx >= E.tab_count) {
+		return editorDrawBlankCells(wb, slice_cols);
+	}
+
+	struct editorViewSnapshot snap;
+	editorViewSnapshotCapture(&snap);
+	struct editorTabState active_snap = {0};
+	int active_tab = E.active_tab;
+	editorTabStateAliasSnapshot(&active_snap);
+
+	E.active_tab = view->active_tab_idx;
+	editorTabStateAliasToActive(&E.tabs[view->active_tab_idx]);
+	editorViewSnapshotFromPaneView(view);
+	int ok = editorDrawFocusedPaneSlice(wb, leaf, body_row_in_pane, slice_cols);
+
+	editorTabStateAliasToActive(&active_snap);
+	E.active_tab = active_tab;
+	editorViewSnapshotRestore(&snap);
+	return ok;
+}
 
 static int editorPaneLeafAt(const struct editorLeafLayout *layout, int x,
 		int y, struct editorRect *out_rect) {
