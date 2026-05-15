@@ -1,6 +1,7 @@
 #ifndef INPUT_H
 #define INPUT_H
 
+#include "input/actions_edit.h"
 #include "input/actions_file_tab.h"
 #include "input/actions_language.h"
 #include "input/actions_terminal_debug.h"

@@ -4,6 +4,7 @@
 #include "config/keymap.h"
 #include "debug/dap.h"
 #include "editing/edit.h"
+#include "editing/history.h"
 #include "language/lsp.h"
 #include "language/syntax_worker.h"
 #include "support/terminal.h"
@@ -124,6 +125,41 @@ void editorActionCloseTab(void) {
 
 	if (editorTabCloseActive()) {
 		E.close_confirmed = 0;
+	}
+}
+
+int editorHandleFileTabMappedAction(enum editorAction action) {
+	switch (action) {
+	case EDITOR_ACTION_QUIT:
+		editorHistoryBreakGroup();
+		editorActionQuit();
+		return 1;
+	case EDITOR_ACTION_SAVE:
+		editorHistoryBreakGroup();
+		editorSave();
+		return 1;
+	case EDITOR_ACTION_NEW_TAB:
+		editorHistoryBreakGroup();
+		(void)editorTabNewEmpty();
+		return 1;
+	case EDITOR_ACTION_CLOSE_TAB:
+		editorHistoryBreakGroup();
+		editorActionCloseTab();
+		return 1;
+	case EDITOR_ACTION_NEXT_TAB:
+		editorHistoryBreakGroup();
+		(void)editorTabSwitchByDelta(1);
+		return 1;
+	case EDITOR_ACTION_PREV_TAB:
+		editorHistoryBreakGroup();
+		(void)editorTabSwitchByDelta(-1);
+		return 1;
+	case EDITOR_ACTION_OPEN_SETTINGS:
+		editorHistoryBreakGroup();
+		editorOpenSettings();
+		return 1;
+	default:
+		return 0;
 	}
 }
 

@@ -59,6 +59,12 @@ static void editorCtrlClickGoToDefinitionAction(void);
 static void editorGoToDefinition(void);
 static void editorGoToImplementation(void);
 static void editorGoToSymbol(void);
+static void editorMoveCursor(int k);
+static void editorMoveCurrentLine(int direction);
+static void editorDeleteCharAction(void);
+static void editorBackspaceAction(void);
+static void editorMoveLineUpAction(void);
+static void editorMoveLineDownAction(void);
 
 static int editorIsWordByte(unsigned char b) {
 	return isalnum(b) || b == '_' || b >= 0x80;
@@ -326,6 +332,64 @@ static void editorPinActivePreviewForEdit(void) {
 	if (E.pane_focus != EDITOR_PANE_DRAWER) {
 		editorTabPinActivePreview();
 	}
+}
+
+static void editorMoveLineUpAction(void) {
+	editorMoveCurrentLine(-1);
+}
+
+static void editorMoveLineDownAction(void) {
+	editorMoveCurrentLine(1);
+}
+
+static void editorDeleteCharAction(void) {
+	struct editorSelectionRange range;
+	if (E.column_select_active) {
+		editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
+		int dirty_before = E.dirty;
+		editorColumnSelectionDeleteForward();
+		editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+		return;
+	}
+	if (editorGetSelectionRange(&range)) {
+		editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
+		int dirty_before = E.dirty;
+		editorDeleteRange(&range);
+		editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+		editorClearSelectionMode();
+		return;
+	}
+	editorClearSelectionMode();
+	editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
+	int dirty_before = E.dirty;
+	// DEL deletes under cursor; editorDelChar() implements backspace semantics.
+	editorMoveCursor(ARROW_RIGHT);
+	editorDelChar();
+	editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+}
+
+static void editorBackspaceAction(void) {
+	struct editorSelectionRange range;
+	if (E.column_select_active) {
+		editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
+		int dirty_before = E.dirty;
+		editorColumnSelectionBackspace();
+		editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+		return;
+	}
+	if (editorGetSelectionRange(&range)) {
+		editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
+		int dirty_before = E.dirty;
+		editorDeleteRange(&range);
+		editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+		editorClearSelectionMode();
+		return;
+	}
+	editorClearSelectionMode();
+	editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
+	int dirty_before = E.dirty;
+	editorDelChar();
+	editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
 }
 
 static int editorActionMutatesReadOnlyBuffer(enum editorAction action) {
@@ -2216,6 +2280,12 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 		}
 	}
 
+	if (editorHandleFileTabMappedAction(action)) {
+		if (effects_out != NULL) {
+			*effects_out = effects;
+		}
+		return 1;
+	}
 	if (editorHandleTerminalDebugMappedAction(action)) {
 		if (effects_out != NULL) {
 			*effects_out = effects;
@@ -2238,39 +2308,20 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 		}
 		return 1;
 	}
+	if (editorHandleEditMappedAction(action, EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT,
+				editorClearSelectionMode, editorPinActivePreviewForEdit,
+				editorClearSearchState, editorToggleSelectionMode, editorCopySelection,
+				editorCutSelection, editorDeleteSelection, editorPasteClipboard,
+				editorDeleteCharAction, editorBackspaceAction,
+				editorMoveLineUpAction, editorMoveLineDownAction,
+				editorToggleCommentLines, &effects)) {
+		if (effects_out != NULL) {
+			*effects_out = effects;
+		}
+		return 1;
+	}
 
 	switch (action) {
-		case EDITOR_ACTION_QUIT:
-			editorHistoryBreakGroup();
-			editorActionQuit();
-			if (effects_out != NULL) {
-				*effects_out = effects;
-			}
-			return 1;
-		case EDITOR_ACTION_SAVE:
-			editorHistoryBreakGroup();
-			editorSave();
-			break;
-		case EDITOR_ACTION_NEW_TAB:
-			editorHistoryBreakGroup();
-			(void)editorTabNewEmpty();
-			break;
-		case EDITOR_ACTION_CLOSE_TAB:
-			editorHistoryBreakGroup();
-			editorActionCloseTab();
-			break;
-		case EDITOR_ACTION_NEXT_TAB:
-			editorHistoryBreakGroup();
-			(void)editorTabSwitchByDelta(1);
-			break;
-		case EDITOR_ACTION_PREV_TAB:
-			editorHistoryBreakGroup();
-			(void)editorTabSwitchByDelta(-1);
-			break;
-		case EDITOR_ACTION_OPEN_SETTINGS:
-			editorHistoryBreakGroup();
-			editorOpenSettings();
-			break;
 		case EDITOR_ACTION_COLUMN_SELECT_UP:
 			editorHistoryBreakGroup();
 			if (E.pane_focus == EDITOR_PANE_DRAWER) {
@@ -2360,48 +2411,6 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			editorHistoryBreakGroup();
 			editorDrawerPromptDelete();
 			break;
-		case EDITOR_ACTION_TOGGLE_SELECTION:
-			editorHistoryBreakGroup();
-			editorToggleSelectionMode();
-			break;
-		case EDITOR_ACTION_COPY_SELECTION:
-			editorHistoryBreakGroup();
-			editorCopySelection();
-			break;
-		case EDITOR_ACTION_CUT_SELECTION:
-			editorHistoryBreakGroup();
-			editorPinActivePreviewForEdit();
-			editorCutSelection();
-			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
-		case EDITOR_ACTION_DELETE_SELECTION:
-			editorHistoryBreakGroup();
-			editorPinActivePreviewForEdit();
-			editorDeleteSelection();
-			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
-		case EDITOR_ACTION_PASTE:
-			editorHistoryBreakGroup();
-			editorPinActivePreviewForEdit();
-			editorPasteClipboard();
-			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
-		case EDITOR_ACTION_UNDO:
-			editorHistoryBreakGroup();
-			editorPinActivePreviewForEdit();
-			if (editorUndo() == 1) {
-				editorClearSearchState();
-				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			}
-			break;
-		case EDITOR_ACTION_REDO:
-			editorHistoryBreakGroup();
-			editorPinActivePreviewForEdit();
-			if (editorRedo() == 1) {
-				editorClearSearchState();
-				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			}
-			break;
 		case EDITOR_ACTION_MOVE_HOME:
 			editorHistoryBreakGroup();
 			(void)editorSetCursorFromPosition(E.cy, 0);
@@ -2482,17 +2491,6 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			editorMoveCursor(ARROW_RIGHT);
 			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			break;
-		case EDITOR_ACTION_NEWLINE:
-			editorClearSelectionMode();
-			editorPinActivePreviewForEdit();
-			editorHistoryBeginEdit(EDITOR_EDIT_NEWLINE);
-			{
-				int dirty_before = E.dirty;
-				editorInsertNewline();
-				editorHistoryCommitEdit(EDITOR_EDIT_NEWLINE, E.dirty != dirty_before);
-			}
-			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
 		case EDITOR_ACTION_ESCAPE:
 			// In normal editor mode Escape only clears transient selection state; quit is configurable.
 			editorHistoryBreakGroup();
@@ -2504,75 +2502,6 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			break;
 		case EDITOR_ACTION_REDRAW:
 			editorHistoryBreakGroup();
-			break;
-		case EDITOR_ACTION_DELETE_CHAR:
-			editorPinActivePreviewForEdit();
-			{
-				struct editorSelectionRange range;
-				if (E.column_select_active) {
-					editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
-					int dirty_before = E.dirty;
-					editorColumnSelectionDeleteForward();
-					editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
-				} else if (editorGetSelectionRange(&range)) {
-					editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
-					int dirty_before = E.dirty;
-					editorDeleteRange(&range);
-					editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
-					editorClearSelectionMode();
-				} else {
-					editorClearSelectionMode();
-					editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
-					int dirty_before = E.dirty;
-					// DEL deletes under cursor; editorDelChar() implements backspace semantics.
-					editorMoveCursor(ARROW_RIGHT);
-					editorDelChar();
-					editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
-				}
-			}
-			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
-		case EDITOR_ACTION_BACKSPACE:
-			editorPinActivePreviewForEdit();
-			{
-				struct editorSelectionRange range;
-				if (E.column_select_active) {
-					editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
-					int dirty_before = E.dirty;
-					editorColumnSelectionBackspace();
-					editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
-				} else if (editorGetSelectionRange(&range)) {
-					editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
-					int dirty_before = E.dirty;
-					editorDeleteRange(&range);
-					editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
-					editorClearSelectionMode();
-				} else {
-					editorClearSelectionMode();
-					editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
-					int dirty_before = E.dirty;
-					editorDelChar();
-					editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
-				}
-			}
-			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
-		case EDITOR_ACTION_MOVE_LINE_UP:
-			editorClearSelectionMode();
-			editorPinActivePreviewForEdit();
-			editorMoveCurrentLine(-1);
-			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
-		case EDITOR_ACTION_MOVE_LINE_DOWN:
-			editorClearSelectionMode();
-			editorPinActivePreviewForEdit();
-			editorMoveCurrentLine(1);
-			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
-		case EDITOR_ACTION_TOGGLE_COMMENT:
-			editorPinActivePreviewForEdit();
-			editorToggleCommentLines();
-			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			break;
 		case EDITOR_ACTION_COUNT:
 		default:

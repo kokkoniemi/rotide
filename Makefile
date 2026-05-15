@@ -110,6 +110,7 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/workspace/recovery.c \
 	$(SRC_DIR)/workspace/workspace_state.c \
 	$(SRC_DIR)/workspace/layout.c \
+	$(SRC_DIR)/input/actions_edit.c \
 	$(SRC_DIR)/input/actions_file_tab.c \
 	$(SRC_DIR)/input/actions_language.c \
 	$(SRC_DIR)/input/actions_terminal_debug.c \

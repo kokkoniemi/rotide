@@ -6,6 +6,7 @@
 void editorActionQuit(void);
 void editorActionCloseTab(void);
 void editorOpenSettings(void);
+int editorHandleFileTabMappedAction(enum editorAction action);
 void editorFileTabActionsAfterKeypress(int mapped_action, enum editorAction action);
 
 #endif
