@@ -157,6 +157,43 @@ int editorOpenSelectedGitDiff(void) {
 	return ok;
 }
 
+int editorJumpToSelectedLspDrawerLocation(int preview, editorJumpToPathLocationFn jump_fn) {
+	const char *path = NULL;
+	int line = 0;
+	int character = 0;
+	if (!editorDrawerSelectedLspLocation(&path, &line, &character) || jump_fn == NULL) {
+		return 0;
+	}
+	return jump_fn(path, line, character, preview, 1);
+}
+
+int editorJumpToSelectedDapDrawerLocation(int preview, editorJumpToPathLocationFn jump_fn) {
+	const char *path = NULL;
+	int line = 0;
+	int character = 0;
+	if (!editorDrawerSelectedDapLocation(&path, &line, &character) || jump_fn == NULL) {
+		return 0;
+	}
+	return jump_fn(path, line, character, preview, 1);
+}
+
+void editorDrawerPreviewSelectionAfterMove(editorJumpToPathLocationFn jump_fn) {
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
+		(void)editorJumpToSelectedLspDrawerLocation(1, jump_fn);
+		E.pane_focus = EDITOR_PANE_DRAWER;
+		return;
+	}
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_DAP) {
+		(void)editorJumpToSelectedDapDrawerLocation(1, jump_fn);
+		E.pane_focus = EDITOR_PANE_DRAWER;
+		return;
+	}
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_TREE) {
+		(void)editorDrawerOpenSelectedFileInPreviewTab();
+		E.pane_focus = EDITOR_PANE_DRAWER;
+	}
+}
+
 int editorHandleDrawerSearchMappedAction(enum editorAction action, int *cursor_or_edit_out,
 		void (*project_replace_from_search)(void)) {
 	int cursor_or_edit = 0;

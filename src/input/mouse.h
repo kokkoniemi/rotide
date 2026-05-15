@@ -3,6 +3,10 @@
 
 #include "rotide.h"
 
+typedef int (*editorProcessMappedActionFn)(enum editorAction action, int *effects_out);
+typedef int (*editorMouseJumpToPathFn)(const char *path, int line, int character, int preview,
+		int center);
+
 void editorResetDrawerClickTracking(void);
 void editorResetTextClickTracking(void);
 void editorResetTabClickTracking(void);
@@ -17,6 +21,9 @@ int editorMoveCursorToMouse(const struct editorMouseEvent *event, int clamp_to_v
 int editorHandleMouseMotion(const struct editorMouseEvent *event);
 int editorHandleMouseLeftDrag(const struct editorMouseEvent *event);
 int editorHandleMouseLeftRelease(void);
+int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long long now_ms,
+		int double_click_threshold_ms, editorProcessMappedActionFn process_mapped_action,
+		editorMouseJumpToPathFn jump_to_path, int *effects_out);
 int editorHandleMouseTopRowTabClick(const struct editorMouseEvent *event, long long now_ms);
 int editorDrawerHeaderModeForColumn(int mouse_col, int drawer_cols,
 		enum editorDrawerMode *mode_out);
