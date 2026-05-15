@@ -1,5 +1,6 @@
 #include "language/lsp.h"
 #include "language/lsp_protocol.h"
+#include "language/lsp_registry.h"
 #include "language/lsp_transport.h"
 #include "language/autocomplete.h"
 
@@ -45,34 +46,6 @@ struct editorLspMockState {
 	int completion_pending_request_id;
 };
 
-struct editorLspClient g_lsp_client = {
-	.pid = 0,
-	.to_server_fd = -1,
-	.from_server_fd = -1,
-	.initialized = 0,
-	.server_kind = EDITOR_LSP_SERVER_NONE,
-	.disabled_for_position_encoding_server_kind = EDITOR_LSP_SERVER_NONE,
-	.next_request_id = 1,
-	.position_encoding_utf16 = 0,
-	.workspace_root_path = NULL,
-	.completion_supported = 0,
-	.completion_trigger_chars = NULL,
-	.completion_pending = {0},
-};
-struct editorLspClient g_lsp_eslint_client = {
-	.pid = 0,
-	.to_server_fd = -1,
-	.from_server_fd = -1,
-	.initialized = 0,
-	.server_kind = EDITOR_LSP_SERVER_NONE,
-	.disabled_for_position_encoding_server_kind = EDITOR_LSP_SERVER_NONE,
-	.next_request_id = 1,
-	.position_encoding_utf16 = 0,
-	.workspace_root_path = NULL,
-	.completion_supported = 0,
-	.completion_trigger_chars = NULL,
-	.completion_pending = {0},
-};
 static struct editorLspMockState g_lsp_mock = {0};
 static enum editorLspStartupFailureReason g_lsp_last_startup_failure_reason =
 		EDITOR_LSP_STARTUP_FAILURE_NONE;
@@ -534,12 +507,8 @@ static char *editorLspBuildWorkspaceRootPathForFile(const char *filename,
 }
 
 
-static int editorLspEnsureRunningReal(struct editorLspClient *client, const char *filename,
-		enum editorLspServerKind server_kind) {
+static int editorLspEnsureRunningReal(const char *filename, enum editorLspServerKind server_kind) {
 	g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_NONE;
-	if (client == NULL) {
-		return 0;
-	}
 	if (!editorLspServerKindEnabled(server_kind)) {
 		return 0;
 	}
@@ -551,9 +520,6 @@ static int editorLspEnsureRunningReal(struct editorLspClient *client, const char
 		}
 		return 0;
 	}
-	if (client->disabled_for_position_encoding_server_kind == server_kind) {
-		return 0;
-	}
 
 	char *workspace_root_path = editorLspBuildWorkspaceRootPathForFile(filename, server_kind);
 	if (workspace_root_path == NULL) {
@@ -562,19 +528,29 @@ static int editorLspEnsureRunningReal(struct editorLspClient *client, const char
 		return 0;
 	}
 
-	if (client->initialized && client->server_kind == server_kind &&
-			editorLspProcessAlive(client) &&
+	struct editorLspClient *client =
+			editorLspRegistryAcquireClient(server_kind, workspace_root_path);
+	if (client == NULL) {
+		free(workspace_root_path);
+		g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_OTHER;
+		editorSetStatusMsg("LSP startup failed: out of memory");
+		return 0;
+	}
+	editorLspRegistrySetActiveClient(server_kind, client);
+
+	if (client->disabled_for_position_encoding_server_kind == server_kind) {
+		free(workspace_root_path);
+		return 0;
+	}
+
+	if (client->initialized && client->server_kind == server_kind && editorLspProcessAlive(client) &&
 			editorLspWorkspaceRootsMatch(client->workspace_root_path, workspace_root_path)) {
 		free(workspace_root_path);
 		g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_NONE;
 		return 1;
 	}
-	if (client->server_kind != EDITOR_LSP_SERVER_NONE &&
-			(client->server_kind != server_kind || !editorLspProcessAlive(client) ||
-			 !editorLspWorkspaceRootsMatch(client->workspace_root_path, workspace_root_path))) {
-		editorLspResetTrackedDocumentsForServerKind(server_kind);
-	}
 
+	editorLspResetTrackedDocumentsForServerKind(server_kind);
 	editorLspClientCleanup(client, 0);
 
 	pid_t pid = 0;
@@ -713,7 +689,7 @@ static int editorLspEnsureRunningForFile(const char *filename, enum editorSyntax
 		}
 		return 1;
 	}
-	return editorLspEnsureRunningReal(&g_lsp_client, filename, server_kind);
+	return editorLspEnsureRunningReal(filename, server_kind);
 }
 
 static int editorLspEnsureRunningEslintForFile(const char *filename,
@@ -744,7 +720,7 @@ static int editorLspEnsureRunningEslintForFile(const char *filename,
 		}
 		return 1;
 	}
-	return editorLspEnsureRunningReal(&g_lsp_eslint_client, filename, EDITOR_LSP_SERVER_ESLINT);
+	return editorLspEnsureRunningReal(filename, EDITOR_LSP_SERVER_ESLINT);
 }
 
 void editorLspShutdown(void) {
@@ -765,8 +741,12 @@ void editorLspShutdown(void) {
 		g_lsp_mock.eslint_workspace_root_path = NULL;
 		return;
 	}
-	editorLspClientCleanup(&g_lsp_client, 1);
-	editorLspClientCleanup(&g_lsp_eslint_client, 1);
+	editorLspRegistryShutdownAll(1);
+}
+
+static void editorLspPumpClientCallback(struct editorLspClient *client, void *ctx) {
+	(void)ctx;
+	(void)editorLspTryDrainIncoming(client, 0);
 }
 
 void editorLspPumpNotifications(void) {
@@ -777,8 +757,7 @@ void editorLspPumpNotifications(void) {
 		}
 		return;
 	}
-	(void)editorLspTryDrainIncoming(&g_lsp_client, 0);
-	(void)editorLspTryDrainIncoming(&g_lsp_eslint_client, 0);
+	editorLspRegistryForEachClient(editorLspPumpClientCallback, NULL);
 }
 
 static int editorLspIsTrackedLanguage(const char *filename, enum editorSyntaxLanguage language,
@@ -1990,8 +1969,7 @@ void editorLspTestResetMock(void) {
 	g_lsp_mock.last_did_open_language_id[0] = '\0';
 	g_lsp_mock.enabled = 0;
 	g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_NONE;
-	editorLspCompletionPendingClear(&g_lsp_client.completion_pending);
-	editorLspCompletionPendingClear(&g_lsp_eslint_client.completion_pending);
+	editorLspRegistryReset();
 }
 
 void editorLspTestGetStats(struct editorLspTestStats *out) {

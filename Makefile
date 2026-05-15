@@ -157,6 +157,7 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/language/lsp.c \
 	$(SRC_DIR)/language/lsp_json.c \
 	$(SRC_DIR)/language/lsp_protocol.c \
+	$(SRC_DIR)/language/lsp_registry.c \
 	$(SRC_DIR)/language/lsp_transport.c \
 	$(SRC_DIR)/debug/dap_client.c \
 	$(SRC_DIR)/debug/dap_console.c \

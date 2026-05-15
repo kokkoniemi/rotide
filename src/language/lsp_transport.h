@@ -43,8 +43,11 @@ struct editorLspClient {
 	struct editorLspCompletionPending completion_pending;
 };
 
-extern struct editorLspClient g_lsp_client;
-extern struct editorLspClient g_lsp_eslint_client;
+struct editorLspClient *editorLspPrimaryClient(void);
+struct editorLspClient *editorLspEslintClient(void);
+
+#define g_lsp_client (*editorLspPrimaryClient())
+#define g_lsp_eslint_client (*editorLspEslintClient())
 
 int editorLspMockEnabled(void);
 
