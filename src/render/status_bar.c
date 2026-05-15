@@ -2,9 +2,11 @@
 
 #include "render/ansi_style.h"
 #include "render/display_text.h"
+#include "workspace/drawer.h"
 #include "workspace/git.h"
 #include "workspace/tabs.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -134,5 +136,116 @@ int editorDrawMessageBar(struct writeBuf *wb) {
 		}
 	}
 
+	return 1;
+}
+
+static int editorStatusAppendCursorMove(struct writeBuf *wb, int row, int col) {
+	char buf[32];
+	int len = snprintf(buf, sizeof(buf), "\x1b[%d;%dH", row, col);
+	if (len <= 0 || len >= (int)sizeof(buf)) {
+		return 0;
+	}
+	return wbAppend(wb, buf, (size_t)len);
+}
+
+int editorDrawDiagnosticPopdownMessage(struct writeBuf *wb, const char *message,
+		int cursor_screen_row, int cursor_screen_col, int *screen_top_out,
+		int *row_count_out) {
+	if (message == NULL || message[0] == '\0') {
+		return 1;
+	}
+
+	int text_start_col = editorTextBodyStartColForCols(E.window_cols);
+	int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);
+	int terminal_col_zero = text_start_col + gutter_cols + cursor_screen_col;
+	int message_cols = 0;
+	char *sanitized = editorSanitizeDiagnosticMessageDup(message, &message_cols);
+	if (sanitized == NULL) {
+		return 0;
+	}
+	int available_cols = E.window_cols - text_start_col;
+	int cols = message_cols + 2;
+	if (cols > available_cols) {
+		cols = available_cols;
+	}
+	if (cols < 4) {
+		free(sanitized);
+		return 1;
+	}
+	int content_cols = cols - 2;
+	int row_count = editorDisplayWrapLineCount(sanitized, content_cols);
+	if (row_count <= 0) {
+		free(sanitized);
+		return 1;
+	}
+
+	int rows_below = E.window_rows - (cursor_screen_row + 1);
+	int rows_above = cursor_screen_row;
+	int popdown_screen_row = -1;
+	int visible_rows = row_count;
+	if (row_count <= rows_below) {
+		popdown_screen_row = cursor_screen_row + 1;
+	} else if (row_count <= rows_above) {
+		popdown_screen_row = cursor_screen_row - row_count;
+	} else if (rows_below >= rows_above && rows_below > 0) {
+		popdown_screen_row = cursor_screen_row + 1;
+		visible_rows = rows_below;
+	} else if (rows_above > 0) {
+		popdown_screen_row = cursor_screen_row - rows_above;
+		visible_rows = rows_above;
+	} else {
+		free(sanitized);
+		return 1;
+	}
+
+	if (terminal_col_zero + cols > E.window_cols) {
+		terminal_col_zero = E.window_cols - cols;
+	}
+	if (terminal_col_zero < text_start_col) {
+		terminal_col_zero = text_start_col;
+	}
+
+	int terminal_col = terminal_col_zero + 1;
+	int text_len = (int)strlen(sanitized);
+	int start_idx = 0;
+	int rows_drawn = 0;
+	for (; rows_drawn < visible_rows && start_idx < text_len; rows_drawn++) {
+		int terminal_row = popdown_screen_row + rows_drawn + 2;
+		int end_idx = start_idx;
+		int wrote = 0;
+		editorDisplayWrapNextLine(sanitized, text_len, start_idx, content_cols, &end_idx,
+				&wrote);
+		if (end_idx <= start_idx) {
+			break;
+		}
+		if (!editorStatusAppendCursorMove(wb, terminal_row, terminal_col) ||
+				!editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_STATUS) ||
+				!wbAppend(wb, " ", 1) ||
+				!wbAppend(wb, &sanitized[start_idx], (size_t)(end_idx - start_idx))) {
+			free(sanitized);
+			return 0;
+		}
+		int padding = cols - 1 - wrote;
+		while (padding > 0) {
+			if (!wbAppend(wb, " ", 1)) {
+				free(sanitized);
+				return 0;
+			}
+			padding--;
+		}
+		if (!editorAppendThemeReset(wb)) {
+			free(sanitized);
+			return 0;
+		}
+		start_idx = end_idx;
+	}
+
+	free(sanitized);
+	if (screen_top_out != NULL) {
+		*screen_top_out = popdown_screen_row + 2;
+	}
+	if (row_count_out != NULL) {
+		*row_count_out = rows_drawn;
+	}
 	return 1;
 }
