@@ -166,168 +166,6 @@ static void editorCtrlClickGoToDefinitionAction(void) {
 	editorGoToDefinition();
 }
 
-enum editorGoToDefinitionInstallFamily {
-	EDITOR_GOTO_DEF_INSTALL_NONE = 0,
-	EDITOR_GOTO_DEF_INSTALL_GOPLS,
-	EDITOR_GOTO_DEF_INSTALL_CLANGD,
-	EDITOR_GOTO_DEF_INSTALL_JAVASCRIPT,
-	EDITOR_GOTO_DEF_INSTALL_VSCODE_LANGSERVERS
-};
-
-static int editorGoToDefinitionSupportedLanguage(enum editorSyntaxLanguage language) {
-	if (editorLspFileSupportsDefinition(E.filename, language)) {
-		return 1;
-	}
-	return language == EDITOR_SYNTAX_GO || language == EDITOR_SYNTAX_C ||
-			language == EDITOR_SYNTAX_HTML || language == EDITOR_SYNTAX_CSS ||
-			language == EDITOR_SYNTAX_JAVASCRIPT;
-}
-
-static int editorGoToDefinitionEnabledForLanguage(void) {
-	return editorLspFileEnabled(E.filename, E.syntax_language);
-}
-
-static const char *editorGoToDefinitionLanguageLabel(void) {
-	const char *label = editorLspLanguageLabelForFile(E.filename, E.syntax_language);
-	if (label != NULL) {
-		return label;
-	}
-	if (E.syntax_language == EDITOR_SYNTAX_GO) {
-		return "Go";
-	}
-	if (E.syntax_language == EDITOR_SYNTAX_C) {
-		return "C/C++";
-	}
-	if (E.syntax_language == EDITOR_SYNTAX_HTML) {
-		return "HTML";
-	}
-	if (E.syntax_language == EDITOR_SYNTAX_CSS) {
-		return "CSS/SCSS";
-	}
-	return NULL;
-}
-
-static const char *editorGoToDefinitionServerName(void) {
-	return editorLspServerNameForFile(E.filename, E.syntax_language);
-}
-
-static const char *editorGoToDefinitionCommand(void) {
-	return editorLspCommandForFile(E.filename, E.syntax_language);
-}
-
-static const char *editorGoToDefinitionCommandSettingName(void) {
-	return editorLspCommandSettingNameForFile(E.filename, E.syntax_language);
-}
-
-static enum editorGoToDefinitionInstallFamily editorGoToDefinitionInstallFamilyForLanguage(void) {
-	const char *server_name = editorGoToDefinitionServerName();
-	if (server_name != NULL && strcmp(server_name, "gopls") == 0) {
-		return EDITOR_GOTO_DEF_INSTALL_GOPLS;
-	}
-	if (server_name != NULL && strcmp(server_name, "clangd") == 0) {
-		return EDITOR_GOTO_DEF_INSTALL_CLANGD;
-	}
-	if (server_name != NULL && strcmp(server_name, "typescript-language-server") == 0) {
-		return EDITOR_GOTO_DEF_INSTALL_JAVASCRIPT;
-	}
-	if (editorLspUsesSharedVscodeInstallPrompt(E.filename, E.syntax_language)) {
-		return EDITOR_GOTO_DEF_INSTALL_VSCODE_LANGSERVERS;
-	}
-	return EDITOR_GOTO_DEF_INSTALL_NONE;
-}
-
-static void editorPromptInstallJavascriptLanguageServer(void) {
-	if (!editorPromptYesNo("typescript-language-server not found. Install now? [y/N] %s")) {
-		editorSetStatusMsg("typescript-language-server not installed");
-		return;
-	}
-	if (!editorTaskStart("Task: Install typescript-language-server",
-				E.lsp_javascript_install_command,
-				"typescript-language-server installed. Retry Ctrl-O",
-				"typescript-language-server install failed; see task log")) {
-		if (E.statusmsg[0] == '\0') {
-			editorSetStatusMsg("Unable to start typescript-language-server install");
-		}
-	}
-}
-
-static void editorPromptInstallSharedVscodeLanguageServers(void) {
-	if (!editorPromptYesNo("vscode-langservers-extracted not found. Install now? [y/N] %s")) {
-		editorSetStatusMsg("vscode-langservers-extracted not installed");
-		return;
-	}
-	if (!editorTaskStart("Task: Install vscode-langservers-extracted",
-				E.lsp_vscode_langservers_install_command,
-				"vscode-langservers-extracted installed. Retry Ctrl-O",
-				"vscode-langservers-extracted install failed; see task log")) {
-		if (E.statusmsg[0] == '\0') {
-			editorSetStatusMsg("Unable to start vscode-langservers-extracted install");
-		}
-	}
-}
-
-static void editorMaybePromptInstallLanguageServer(void) {
-	if (editorLspLastStartupFailureReason() != EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
-		return;
-	}
-	switch (editorGoToDefinitionInstallFamilyForLanguage()) {
-		case EDITOR_GOTO_DEF_INSTALL_GOPLS:
-			if (!editorPromptYesNo("gopls not found. Install now? [y/N] %s")) {
-				editorSetStatusMsg("gopls not installed");
-				return;
-			}
-			if (!editorTaskStart("Task: Install gopls", E.lsp_gopls_install_command,
-						"gopls installed. Retry Ctrl-O",
-						"gopls install failed; see task log")) {
-				if (E.statusmsg[0] == '\0') {
-					editorSetStatusMsg("Unable to start gopls install");
-				}
-			}
-			return;
-		case EDITOR_GOTO_DEF_INSTALL_CLANGD: {
-			static const char message[] =
-					"clangd was not found on PATH.\n"
-					"\n"
-					"Install instructions:\n"
-					"https://clangd.llvm.org/installation\n"
-					"\n"
-					"clangd usually needs a compile_commands.json compilation database for C/C++ projects.\n"
-					"\n"
-					"Create compile_commands.json with CMake:\n"
-					"- cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON\n"
-					"- use build/compile_commands.json, or copy/symlink it into the project root\n"
-					"\n"
-					"Create compile_commands.json with Bear:\n"
-					"- bear -- make\n"
-					"- or bear -- <your normal build command>\n"
-					"- this is often a good fit for pure C projects that already build without CMake\n"
-					"\n"
-					"After installing clangd and setting up compile_commands.json:\n"
-					"- retry Ctrl-O or Ctrl + left click\n"
-					"- set [lsp].clangd_command in .rotide.toml if clangd is installed in a custom location\n";
-			if (!editorPromptYesNo("clangd not found. Show install instructions? [y/N] %s")) {
-				editorSetStatusMsg("clangd not installed");
-				return;
-			}
-			if (!editorTaskShowMessage("Task: Install clangd", message,
-						"clangd not installed; see task log")) {
-				if (E.statusmsg[0] == '\0') {
-					editorSetStatusMsg("clangd not installed");
-				}
-			}
-			return;
-		}
-		case EDITOR_GOTO_DEF_INSTALL_JAVASCRIPT:
-			editorPromptInstallJavascriptLanguageServer();
-			return;
-		case EDITOR_GOTO_DEF_INSTALL_VSCODE_LANGSERVERS:
-			editorPromptInstallSharedVscodeLanguageServers();
-			return;
-		default:
-			return;
-	}
-}
-
 static void editorPinActivePreviewForEdit(void) {
 	if (E.pane_focus != EDITOR_PANE_DRAWER) {
 		editorTabPinActivePreview();
@@ -411,428 +249,23 @@ static int editorActionMutatesReadOnlyBuffer(enum editorAction action) {
 }
 
 static void editorToggleSelectionMode(void) {
-	if (E.selection_mode_active) {
-		editorClearSelectionMode();
-		return;
-	}
-
-	editorColumnSelectionClear();
-	editorAlignCursorWithRowEnd();
-	E.selection_mode_active = 1;
-	E.selection_anchor_offset = E.cursor_offset;
-}
-
-static int editorCopyRangeToClipboard(const struct editorSelectionRange *range, size_t *copied_len_out) {
-	char *copied = NULL;
-	size_t copied_len = 0;
-	int extracted = editorExtractRangeText(range, &copied, &copied_len);
-	if (extracted <= 0) {
-		return extracted;
-	}
-
-	if (!editorClipboardSet(copied, copied_len)) {
-		free(copied);
-		return -1;
-	}
-	free(copied);
-
-	if (copied_len_out != NULL) {
-		*copied_len_out = copied_len;
-	}
-	return 1;
-}
-
-static int editorCopyColumnSelectionToClipboard(size_t *copied_len_out) {
-	char *text = NULL;
-	size_t len = 0;
-	int rc = editorColumnSelectionExtractText(&text, &len);
-	if (rc <= 0) {
-		return rc;
-	}
-	if (!editorClipboardSet(text, len)) {
-		free(text);
-		return -1;
-	}
-	free(text);
-	if (copied_len_out != NULL) {
-		*copied_len_out = len;
-	}
-	return 1;
+	editorEditToggleSelectionMode(editorClearSelectionMode, editorAlignCursorWithRowEnd);
 }
 
 static void editorCopySelection(void) {
-	if (E.column_select_active) {
-		size_t copied_len = 0;
-		int copied = editorCopyColumnSelectionToClipboard(&copied_len);
-		if (copied < 0) {
-			return;
-		}
-		if (copied == 0) {
-			editorSetStatusMsg("Selection is empty");
-			return;
-		}
-		editorSetStatusMsg("Copied %zu bytes", copied_len);
-		return;
-	}
-
-	struct editorSelectionRange range;
-	if (!editorGetSelectionRange(&range)) {
-		editorSetStatusMsg("No selection");
-		return;
-	}
-
-	size_t copied_len = 0;
-	int copied = editorCopyRangeToClipboard(&range, &copied_len);
-	if (copied <= 0) {
-		if (copied == 0) {
-			editorSetStatusMsg("No selection");
-		}
-		return;
-	}
-
-	editorClearSelectionMode();
-	editorSetStatusMsg("Copied %zu bytes", copied_len);
+	editorEditCopySelection(editorClearSelectionMode);
 }
 
 static void editorCutSelection(void) {
-	if (E.column_select_active) {
-		size_t copied_len = 0;
-		int copied = editorCopyColumnSelectionToClipboard(&copied_len);
-		if (copied < 0) {
-			return;
-		}
-		if (copied == 0) {
-			editorSetStatusMsg("Selection is empty");
-			return;
-		}
-		editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
-		int dirty_before = E.dirty;
-		int deleted = editorColumnSelectionDelete();
-		editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
-		if (deleted < 0) {
-			return;
-		}
-		editorSetStatusMsg("Cut %zu bytes", copied_len);
-		return;
-	}
-
-	struct editorSelectionRange range;
-	if (!editorGetSelectionRange(&range)) {
-		editorSetStatusMsg("No selection");
-		return;
-	}
-
-	size_t copied_len = 0;
-	int copied = editorCopyRangeToClipboard(&range, &copied_len);
-	if (copied <= 0) {
-		if (copied == 0) {
-			editorSetStatusMsg("No selection");
-		}
-		return;
-	}
-
-	editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
-	int dirty_before = E.dirty;
-	int deleted = editorDeleteRange(&range);
-	editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
-	if (deleted <= 0) {
-		if (deleted == 0) {
-			editorSetStatusMsg("No selection");
-		}
-		return;
-	}
-
-	editorClearSelectionMode();
-	editorSetStatusMsg("Cut %zu bytes", copied_len);
-}
-
-static const char *editorCommentPrefixForLanguage(enum editorSyntaxLanguage lang) {
-	switch (lang) {
-	case EDITOR_SYNTAX_C:
-	case EDITOR_SYNTAX_CPP:
-	case EDITOR_SYNTAX_GO:
-	case EDITOR_SYNTAX_JAVASCRIPT:
-	case EDITOR_SYNTAX_TYPESCRIPT:
-	case EDITOR_SYNTAX_TSX:
-	case EDITOR_SYNTAX_JAVA:
-	case EDITOR_SYNTAX_RUST:
-	case EDITOR_SYNTAX_CSS:
-	case EDITOR_SYNTAX_CSHARP:
-	case EDITOR_SYNTAX_SCALA:
-	case EDITOR_SYNTAX_PHP:
-		return "//";
-	case EDITOR_SYNTAX_PYTHON:
-	case EDITOR_SYNTAX_SHELL:
-	case EDITOR_SYNTAX_RUBY:
-	case EDITOR_SYNTAX_JULIA:
-		return "#";
-	case EDITOR_SYNTAX_HASKELL:
-		return "--";
-	default:
-		return NULL;
-	}
+	editorEditCutSelection(editorClearSelectionMode);
 }
 
 static void editorToggleCommentLines(void) {
-	const char *prefix = editorCommentPrefixForLanguage(E.syntax_language);
-	if (prefix == NULL) {
-		editorSetStatusMsg("No line comment for this language");
-		return;
-	}
-	int prefix_len = (int)strlen(prefix);
-
-	struct editorSelectionRange range;
-	int had_selection = editorGetSelectionRange(&range);
-	if (!had_selection) {
-		if (E.cy < 0 || E.cy >= E.numrows) {
-			return;
-		}
-		range.start_cy = E.cy;
-		range.start_cx = 0;
-		range.end_cy = E.cy;
-		range.end_cx = E.rows[E.cy].size;
-	}
-
-	int last_row = range.end_cy;
-	if (had_selection && last_row > range.start_cy && range.end_cx == 0) {
-		last_row--;
-	}
-	if (range.start_cy < 0 || last_row >= E.numrows) {
-		return;
-	}
-
-	// Determine toggle direction: all non-empty lines commented → remove, else add
-	int removing = 1;
-	for (int row = range.start_cy; row <= last_row; row++) {
-		const char *chars = E.rows[row].chars;
-		int size = E.rows[row].size;
-		if (size == 0) {
-			continue;
-		}
-		int i = 0;
-		while (i < size && (chars[i] == ' ' || chars[i] == '\t')) {
-			i++;
-		}
-		if (i + prefix_len > size || strncmp(chars + i, prefix, (size_t)prefix_len) != 0) {
-			removing = 0;
-			break;
-		}
-	}
-
-	size_t first_start = 0, dummy = 0, last_end = 0;
-	if (!editorBufferLineByteRange(range.start_cy, &first_start, &dummy) ||
-			!editorBufferLineByteRange(last_row, &dummy, &last_end)) {
-		return;
-	}
-	size_t old_len = last_end - first_start;
-
-	// Compute new_len
-	size_t new_len = old_len;
-	for (int row = range.start_cy; row <= last_row; row++) {
-		const char *chars = E.rows[row].chars;
-		int size = E.rows[row].size;
-		if (size == 0) {
-			continue;
-		}
-		if (!removing) {
-			new_len += (size_t)prefix_len + 1;
-		} else {
-			int i = 0;
-			while (i < size && (chars[i] == ' ' || chars[i] == '\t')) {
-				i++;
-			}
-			int skip = prefix_len;
-			if (i + prefix_len < size && chars[i + prefix_len] == ' ') {
-				skip++;
-			}
-			new_len -= (size_t)skip;
-		}
-	}
-
-	char *new_text = editorMalloc(new_len > 0 ? new_len : 1);
-	if (new_text == NULL) {
-		editorSetAllocFailureStatus();
-		return;
-	}
-
-	size_t out = 0;
-	size_t cur_row_new_start = first_start;
-	size_t cur_row_new_size = 0;
-
-	for (int row = range.start_cy; row <= last_row; row++) {
-		const char *chars = E.rows[row].chars;
-		int size = E.rows[row].size;
-		size_t out_before = out;
-
-		if (size == 0) {
-			// empty: unchanged
-		} else if (!removing) {
-			memcpy(new_text + out, prefix, (size_t)prefix_len);
-			out += (size_t)prefix_len;
-			new_text[out++] = ' ';
-			memcpy(new_text + out, chars, (size_t)size);
-			out += (size_t)size;
-		} else {
-			int i = 0;
-			while (i < size && (chars[i] == ' ' || chars[i] == '\t')) {
-				i++;
-			}
-			memcpy(new_text + out, chars, (size_t)i);
-			out += (size_t)i;
-			int skip = prefix_len;
-			if (i + prefix_len < size && chars[i + prefix_len] == ' ') {
-				skip++;
-			}
-			int rest = size - i - skip;
-			if (rest > 0) {
-				memcpy(new_text + out, chars + i + skip, (size_t)rest);
-				out += (size_t)rest;
-			}
-		}
-
-		if (row < E.cy) {
-			cur_row_new_start += (out - out_before) + 1;
-		} else if (row == E.cy) {
-			cur_row_new_size = out - out_before;
-		}
-
-		if (row < last_row) {
-			new_text[out++] = '\n';
-		}
-	}
-
-	size_t before_offset = 0;
-	(void)editorBufferPosToOffset(E.cy, E.cx, &before_offset);
-
-	size_t after_offset;
-	if (E.cy >= range.start_cy && E.cy <= last_row && E.cy < E.numrows) {
-		int size = E.rows[E.cy].size;
-		size_t new_cx = (size_t)E.cx;
-		if (size > 0) {
-			if (!removing) {
-				new_cx += (size_t)prefix_len + 1;
-			} else {
-				const char *chars = E.rows[E.cy].chars;
-				int i = 0;
-				while (i < size && (chars[i] == ' ' || chars[i] == '\t')) {
-					i++;
-				}
-				int skip = prefix_len;
-				if (i + prefix_len < size && chars[i + prefix_len] == ' ') {
-					skip++;
-				}
-				if (new_cx > (size_t)(i + skip)) {
-					new_cx -= (size_t)skip;
-				} else {
-					new_cx = (size_t)i;
-				}
-			}
-		}
-		if (new_cx > cur_row_new_size) {
-			new_cx = cur_row_new_size;
-		}
-		after_offset = cur_row_new_start + new_cx;
-	} else {
-		ptrdiff_t net = (ptrdiff_t)new_len - (ptrdiff_t)old_len;
-		after_offset = (size_t)((ptrdiff_t)before_offset + net);
-	}
-
-	struct editorDocumentEdit edit = {
-		.kind = EDITOR_EDIT_INSERT_TEXT,
-		.start_offset = first_start,
-		.old_len = old_len,
-		.new_text = new_text,
-		.new_len = new_len,
-		.before_cursor_offset = before_offset,
-		.after_cursor_offset = after_offset,
-		.before_dirty = E.dirty,
-		.after_dirty = E.dirty + 1,
-	};
-
-	editorPinActivePreviewForEdit();
-	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
-	int dirty_before = E.dirty;
-	(void)editorApplyDocumentEdit(&edit);
-	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
-
-	free(new_text);
-	if (had_selection) {
-		editorClearSelectionMode();
-	}
+	editorEditToggleCommentLines(editorClearSelectionMode, editorPinActivePreviewForEdit);
 }
 
 static void editorMoveCurrentLine(int direction) {
-	int cur = E.cy;
-	int other = cur + direction;
-
-	if (cur < 0 || cur >= E.numrows || other < 0 || other >= E.numrows) {
-		return;
-	}
-
-	int first = direction < 0 ? other : cur;
-	int second = direction < 0 ? cur : other;
-
-	size_t first_start = 0, first_end = 0;
-	size_t second_start = 0, second_end = 0;
-	if (!editorBufferLineByteRange(first, &first_start, &first_end) ||
-			!editorBufferLineByteRange(second, &second_start, &second_end)) {
-		return;
-	}
-
-	int first_len = E.rows[first].size;
-	int second_len = E.rows[second].size;
-	const char *first_chars = E.rows[first].chars;
-	const char *second_chars = E.rows[second].chars;
-
-	// new_text = second_content + '\n' + first_content
-	size_t new_len = (size_t)second_len + 1 + (size_t)first_len;
-	char *new_text = editorMalloc(new_len);
-	if (new_text == NULL) {
-		editorSetAllocFailureStatus();
-		return;
-	}
-	memcpy(new_text, second_chars, (size_t)second_len);
-	new_text[second_len] = '\n';
-	memcpy(new_text + second_len + 1, first_chars, (size_t)first_len);
-
-	// Replace the combined content of both rows (including the '\n' between them)
-	size_t old_len = second_end - first_start;
-
-	size_t cx = (size_t)E.cx;
-	size_t after_offset;
-	if (direction < 0) {
-		if (cx > (size_t)second_len) {
-			cx = (size_t)second_len;
-		}
-		after_offset = first_start + cx;
-	} else {
-		if (cx > (size_t)first_len) {
-			cx = (size_t)first_len;
-		}
-		after_offset = first_start + (size_t)second_len + 1 + cx;
-	}
-
-	size_t before_offset = 0;
-	(void)editorBufferPosToOffset(cur, E.cx, &before_offset);
-
-	struct editorDocumentEdit edit = {
-		.kind = EDITOR_EDIT_INSERT_TEXT,
-		.start_offset = first_start,
-		.old_len = old_len,
-		.new_text = new_text,
-		.new_len = new_len,
-		.before_cursor_offset = before_offset,
-		.after_cursor_offset = after_offset,
-		.before_dirty = E.dirty,
-		.after_dirty = E.dirty + 1,
-	};
-
-	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
-	int dirty_before = E.dirty;
-	(void)editorApplyDocumentEdit(&edit);
-	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
-
-	free(new_text);
+	editorEditMoveCurrentLine(direction);
 }
 
 static int editorReplaceSelectionWithChar(int c) {
@@ -957,90 +390,11 @@ static int editorIndentSelection(void) {
 }
 
 static void editorDeleteSelection(void) {
-	if (E.column_select_active) {
-		editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
-		int dirty_before = E.dirty;
-		int deleted = editorColumnSelectionDelete();
-		editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
-		if (deleted < 0) {
-			return;
-		}
-		return;
-	}
-
-	struct editorSelectionRange range;
-	if (!editorGetSelectionRange(&range)) {
-		editorSetStatusMsg("No selection");
-		return;
-	}
-
-	editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
-	int dirty_before = E.dirty;
-	int deleted = editorDeleteRange(&range);
-	editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
-	if (deleted <= 0) {
-		if (deleted == 0) {
-			editorSetStatusMsg("No selection");
-		}
-		return;
-	}
-
-	editorClearSelectionMode();
+	editorEditDeleteSelection(editorClearSelectionMode);
 }
 
 static void editorPasteClipboard(void) {
-	size_t clip_len = 0;
-	const char *clip = editorClipboardGet(&clip_len);
-	if (clip_len <= 0) {
-		editorSetStatusMsg("Clipboard is empty");
-		return;
-	}
-
-	if (E.column_select_active) {
-		editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
-		int dirty_before = E.dirty;
-		int pasted = editorColumnSelectionPasteText(clip, clip_len);
-		editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
-		editorHistoryBreakGroup();
-		if (pasted) {
-			editorSetStatusMsg("Pasted %zu bytes", clip_len);
-		}
-		return;
-	}
-
-	struct editorSelectionRange range;
-	int has_selection = editorGetSelectionRange(&range);
-	int indent_cy = has_selection ? range.start_cy : E.cy;
-	int indent_cx = has_selection ? range.start_cx : E.cx;
-	char *indented_clip = NULL;
-	size_t indented_clip_len = 0;
-	int indent_result = editorBuildAutoIndentedText(clip, clip_len, indent_cy, indent_cx,
-			&indented_clip, &indented_clip_len);
-	if (indent_result < 0) {
-		return;
-	}
-	const char *paste_text = indent_result > 0 ? indented_clip : clip;
-	size_t paste_len = indent_result > 0 ? indented_clip_len : clip_len;
-
-	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
-	int dirty_before = E.dirty;
-	int pasted = 0;
-
-	if (has_selection) {
-		editorClearSelectionMode();
-		pasted = editorReplaceRange(&range, paste_text, paste_len) > 0;
-	} else {
-		editorClearSelectionMode();
-		pasted = editorInsertText(paste_text, paste_len);
-	}
-
-	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
-	editorHistoryBreakGroup();
-	free(indented_clip);
-
-	if (pasted) {
-		editorSetStatusMsg("Pasted %zu bytes", clip_len);
-	}
+	editorEditPasteClipboard(editorClearSelectionMode);
 }
 
 static void editorMoveCursorToSearchMatch(int row_idx, int match_col, int match_len) {
@@ -1771,26 +1125,26 @@ typedef int (*editorLspLocationRequestFn)(const char *filename, enum editorSynta
 
 static void editorRunLocationLookup(const char *kind_lower, const char *kind_capitalized,
 		const char *kind_plural, editorLspLocationRequestFn request_fn) {
-	if (!editorGoToDefinitionSupportedLanguage(E.syntax_language)) {
+	if (!editorLanguageGoToSupported(E.syntax_language)) {
 		editorSetStatusMsg(
 				"Go to %s is available for Go, C, C++, HTML, CSS/SCSS, JSON, and JavaScript files only",
 				kind_lower);
 		return;
 	}
 	if (E.filename == NULL || E.filename[0] == '\0') {
-		const char *language_label = editorGoToDefinitionLanguageLabel();
+		const char *language_label = editorLanguageGoToLabel();
 		if (language_label == NULL) {
 			language_label = "source";
 		}
 		editorSetStatusMsg("Save this %s buffer before using go to %s", language_label, kind_lower);
 		return;
 	}
-	if (!editorGoToDefinitionEnabledForLanguage()) {
-		editorSetStatusMsg("%s is disabled in config", editorGoToDefinitionServerName());
+	if (!editorLanguageGoToEnabled()) {
+		editorSetStatusMsg("%s is disabled in config", editorLanguageGoToServerName());
 		return;
 	}
-	const char *command = editorGoToDefinitionCommand();
-	const char *command_setting = editorGoToDefinitionCommandSettingName();
+	const char *command = editorLanguageGoToCommand();
+	const char *command_setting = editorLanguageGoToCommandSettingName();
 	if (command == NULL || command_setting == NULL) {
 		editorSetStatusMsg("LSP unavailable for this file");
 		return;
@@ -1827,7 +1181,7 @@ static void editorRunLocationLookup(const char *kind_lower, const char *kind_cap
 	free(full_text);
 	if (!ready) {
 		if (editorLspLastStartupFailureReason() == EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
-			editorMaybePromptInstallLanguageServer();
+			editorLanguageMaybePromptInstallServer();
 			return;
 		}
 		if (strncmp(E.statusmsg, "LSP ", strlen("LSP ")) != 0) {
@@ -1889,25 +1243,25 @@ static void editorGoToImplementation(void) {
 }
 
 static void editorGoToSymbol(void) {
-	if (!editorGoToDefinitionSupportedLanguage(E.syntax_language)) {
+	if (!editorLanguageGoToSupported(E.syntax_language)) {
 		editorSetStatusMsg(
 				"Go to symbol is available for Go, C, C++, HTML, CSS/SCSS, JSON, and JavaScript files only");
 		return;
 	}
 	if (E.filename == NULL || E.filename[0] == '\0') {
-		const char *language_label = editorGoToDefinitionLanguageLabel();
+		const char *language_label = editorLanguageGoToLabel();
 		if (language_label == NULL) {
 			language_label = "source";
 		}
 		editorSetStatusMsg("Save this %s buffer before using go to symbol", language_label);
 		return;
 	}
-	if (!editorGoToDefinitionEnabledForLanguage()) {
-		editorSetStatusMsg("%s is disabled in config", editorGoToDefinitionServerName());
+	if (!editorLanguageGoToEnabled()) {
+		editorSetStatusMsg("%s is disabled in config", editorLanguageGoToServerName());
 		return;
 	}
-	const char *command = editorGoToDefinitionCommand();
-	const char *command_setting = editorGoToDefinitionCommandSettingName();
+	const char *command = editorLanguageGoToCommand();
+	const char *command_setting = editorLanguageGoToCommandSettingName();
 	if (command == NULL || command_setting == NULL) {
 		editorSetStatusMsg("LSP unavailable for this file");
 		return;
@@ -1939,7 +1293,7 @@ static void editorGoToSymbol(void) {
 	free(full_text);
 	if (!ready) {
 		if (editorLspLastStartupFailureReason() == EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
-			editorMaybePromptInstallLanguageServer();
+			editorLanguageMaybePromptInstallServer();
 			return;
 		}
 		if (strncmp(E.statusmsg, "LSP ", strlen("LSP ")) != 0) {
@@ -2019,7 +1373,7 @@ static void editorApplyEslintFixes(void) {
 		return;
 	}
 	if (editorLspLastStartupFailureReason() == EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
-		editorPromptInstallSharedVscodeLanguageServers();
+		editorLanguagePromptInstallSharedVscodeServers();
 		return;
 	}
 	if (result == -2) {
