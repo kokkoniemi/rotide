@@ -207,6 +207,53 @@ void editorSyntaxStateRecordQueryUnavailable(struct editorSyntaxState *state,
 		enum editorSyntaxQueryKind kind);
 
 /*
+ * Limit-event and performance-mode helpers implemented in
+ * syntax_budget.c. The injection workflow records "depth exceeded" and
+ * "slots full" events through these helpers; the parse workflow records
+ * "tree has error" through RecordParseTreeHasError; ApplyPerformanceMode
+ * is called from configure-for-source-length and from edit/parse paths
+ * that need to refresh perf flags after a size change.
+ */
+void editorSyntaxStateRecordInjectionDepthExceeded(struct editorSyntaxState *state,
+		enum editorSyntaxLanguage language, int depth);
+void editorSyntaxStateRecordInjectionSlotsFull(struct editorSyntaxState *state,
+		enum editorSyntaxLanguage language);
+void editorSyntaxStateRecordParseTreeHasError(struct editorSyntaxState *state,
+		enum editorSyntaxLanguage language);
+void editorSyntaxStateApplyPerformanceMode(struct editorSyntaxState *state,
+		size_t source_len);
+
+/*
+ * Injection workflow implemented in syntax_injections.c. The host parse
+ * path drives these: after a host-tree edit, ApplyInputEdit propagates
+ * the edit deltas into all live injection trees; ParseInjections then
+ * re-runs the injection query against the host tree and reparses the
+ * affected ranges. Injected-tree slots are reused via the
+ * `(language, ranges)` pool inside `editorSyntaxState`.
+ */
+void editorSyntaxApplyInputEdit(TSTree *tree, const struct editorSyntaxEdit *edit);
+int editorSyntaxStateParseInjections(struct editorSyntaxState *state,
+		const struct editorTextSource *source,
+		const struct editorSyntaxEdit *incremental_edit);
+
+/*
+ * Parsed/injected-tree lifecycle helpers used by both the host parse
+ * code (syntax.c) and the injection code (syntax_injections.c).
+ * Implementations remain in syntax.c since the host state lifecycle
+ * is the primary owner.
+ */
+void editorSyntaxParsedTreeInit(struct editorSyntaxParsedTree *parsed,
+		enum editorSyntaxLanguage language);
+int editorSyntaxParsedTreeCreateParser(struct editorSyntaxParsedTree *parsed,
+		enum editorSyntaxLanguage language);
+void editorSyntaxParsedTreeDestroy(struct editorSyntaxParsedTree *parsed);
+int editorSyntaxParsedTreeParse(struct editorSyntaxParsedTree *parsed,
+		struct editorSyntaxState *state,
+		const struct editorTextSource *source, int incremental);
+void editorSyntaxInjectedTreeInit(struct editorSyntaxInjectedTree *injection);
+void editorSyntaxInjectedTreeDestroy(struct editorSyntaxInjectedTree *injection);
+
+/*
  * Helpers shared between the predicate-evaluation TU and the rest of
  * syntax.c. `editorSyntaxNodeText` copies a TSNode's source bytes into
  * the state's scratch buffer (primary or secondary slot picked by
