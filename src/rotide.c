@@ -10,11 +10,14 @@
 #include "config/lsp_config.h"
 #include "config/runtime_config.h"
 #include "config/theme_config.h"
+#include "debug/dap.h"
 #include "editing/edit.h"
 #include "editing/selection.h"
 #include "input/dispatch.h"
+#include "language/lsp.h"
 #include "language/syntax_worker.h"
 #include "render/screen.h"
+#include "render/viewport.h"
 #include "support/terminal.h"
 #include "workspace/drawer.h"
 #include "workspace/git.h"
@@ -189,6 +192,9 @@ int main(int argc, char *argv[]) {
 
 	while (1) {
 		editorSyntaxBackgroundPoll();
+		editorLspPumpNotifications();
+		editorDapPumpNotifications();
+		editorViewportUpdateForFrame();
 		editorRefreshScreen();
 		editorProcessKeypress();
 	}

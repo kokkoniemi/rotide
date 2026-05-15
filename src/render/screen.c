@@ -3,7 +3,6 @@
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
 #include "editing/selection.h"
-#include "debug/dap.h"
 #include "language/lsp.h"
 #include "render/ansi_style.h"
 #include "render/display_text.h"
@@ -1275,9 +1274,6 @@ static int editorDrawPopupOverlay(struct writeBuf *wb) {
 }
 
 void editorRefreshScreen(void) {
-	editorLspPumpNotifications();
-	editorDapPumpNotifications();
-	editorViewportUpdateForFrame();
 	g_editor_output_last_refresh_file_row_draw_count = 0;
 
 	struct writeBuf wb = WRITEBUF_INIT;

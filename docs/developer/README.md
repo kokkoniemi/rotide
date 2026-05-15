@@ -9,6 +9,10 @@ user-facing; this tree is for maintainers changing behavior.
   design choices that keep editing deterministic.
 - [Workflows](workflows.md): the main runtime paths from input to rendering,
   edits, syntax, LSP, save/recovery, search, and task logs.
+- [Concurrency](concurrency.md): the syntax background worker's
+  snapshot/revision protocol — the one place RotIDE goes multi-threaded.
+- [Error handling](error_handling.md): the OOM-status-bar contract and where
+  validation belongs.
 - [Build and tests](build-and-tests.md): local targets, sanitizer expectations,
   Tree-sitter vendor refresh, and diagram rendering.
 

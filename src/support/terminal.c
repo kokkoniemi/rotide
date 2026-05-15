@@ -1,5 +1,8 @@
 #include "support/terminal.h"
 
+#include "debug/dap.h"
+#include "language/lsp.h"
+#include "language/syntax.h"
 #include "language/syntax_worker.h"
 #include "terminal/terminal_pane.h"
 #include "rotide.h"
@@ -516,6 +519,17 @@ static void editorRestoreTerminalAtExit(void) {
 }
 
 static void editorHandleTerminationSignal(int signo) {
+	/* Tear down long-lived subsystems before restoring the terminal so
+	 * adapter/server processes get a chance to exit cleanly. These calls
+	 * are not strictly async-signal-safe (they touch malloc and run a
+	 * brief shutdown handshake), but in practice the editor is blocked on
+	 * read() when a termination signal arrives, so it is the pragmatic
+	 * choice over leaking adapter children. */
+	editorDapShutdown();
+	editorLspShutdown();
+	editorSyntaxBackgroundStop();
+	editorSyntaxReleaseSharedResources();
+
 	editorRestoreTerminalInternal();
 
 	struct sigaction sa;

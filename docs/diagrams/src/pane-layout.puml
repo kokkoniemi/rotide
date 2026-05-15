@@ -9,8 +9,12 @@ class "editorConfig E" as E {
   layout_root : editorPaneNode*
   focused_leaf : editorPaneNode*
   active_tab : int
-  tabs[] : editorTabState
-  cx, cy, rowoff, ...  // live focused-pane view
+  tabs[].buffer : editorBuffer
+  active_buffer : editorBuffer (union)
+  -- X-macro inlines --
+  cy, rx, rowoff, cursor_offset, ...
+  syntax_state, syntax_revision, ...
+  lsp_doc_open, lsp_doc_version, ...
 }
 
 class editorPaneNode {
@@ -56,6 +60,15 @@ note right of editorPaneView
   editorLayoutSetFocusedLeaf saves outgoing,
   switches active_tab if it differs, then
   loads the incoming leaf's cursor.
+end note
+
+note top of E
+  Active-buffer fields are declared once via
+  the EDITOR_ACTIVE_BUFFER_FIELDS X-macro and
+  shared between E.active_buffer and each
+  tab->buffer. Tab switching swaps the
+  editorBuffer struct in bulk -- no
+  field-by-field copy.
 end note
 
 note bottom of Split

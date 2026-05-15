@@ -12,16 +12,41 @@ are derived from that document or from tab-local state.
 ## State Model
 
 The global editor state lives in `struct editorConfig E` (`src/rotide.h`). It
-stores terminal dimensions, the active buffer fields, runtime config, task
-state, the global tab list, drawer state, theme, clipboard integration, the
-pane layout tree (`layout_root` and `focused_leaf`), DAP session state plus an
-optional `dap_terminal_leaf`, the terminal-prefix arm flag, and the
-bracketed-paste-active flag.
+groups its fields into containers — environment, the active buffer, workspace
+state (tabs, drawer, recovery), Git state, DAP session, editor preferences,
+viewport + layout, and the keymap/popup/termios state — annotated by comment
+in the struct definition so new fields land in the right cluster.
 
-Each real tab stores the same buffer-facing fields in `struct editorTabState`.
-Switching tabs copies state between the active fields and the selected tab,
-and the focused pane's tab membership is updated so the per-pane tab strip
-stays in sync.
+The "active buffer" cluster is the canonical view onto the focused tab. It is
+defined once via the `EDITOR_ACTIVE_BUFFER_FIELDS` X-macro and reused in two
+places:
+
+```c
+struct editorBuffer {
+    EDITOR_ACTIVE_BUFFER_FIELDS(EDITOR_DECLARE_FIELD)
+};
+
+struct editorConfig {
+    /* ... */
+    union {
+        struct editorBuffer active_buffer;
+        struct { EDITOR_ACTIVE_BUFFER_FIELDS(EDITOR_DECLARE_FIELD) };
+    };
+    /* ... */
+};
+```
+
+Each tab in `E.tabs[]` carries its own `struct editorBuffer`. Tab switching
+no longer copies fields one by one: it swaps the X-macro members in bulk
+between `E.active_buffer` and the selected tab's `buffer`. The same X-macro
+declares the field names directly inside `editorConfig` so existing
+`E.cursor_offset`, `E.cy`, `E.rowoff`, ... call sites keep working.
+
+`enum editorPrimaryFocus` (`EDITOR_PRIMARY_FOCUS_TEXT`/`_DRAWER`) records
+whether the keymap routes input at the text body or the drawer. This is
+distinct from pane focus, which is owned by the layout tree — the
+"primary focus" vocabulary keeps the drawer-vs-text concept from being
+overloaded with the actual pane-tree concept.
 
 The important ownership split is:
 
@@ -219,31 +244,76 @@ terminal pane out of the box.
 
 ## Syntax
 
-Syntax state is tab-local (`editorSyntaxState`). Language detection and
-parser metadata are table-driven in `src/language/languages.c`. Query text
-is embedded at build time from `scripts/queries_manifest.txt` into
-`src/language/syntax_query_data.h`.
+Syntax state is tab-local (`editorSyntaxState`). The Tree-sitter integration
+is split into focused modules under `src/language/`:
 
+- `syntax.c` — public API, tab-local state, the main parse driver.
+- `syntax_detect.c` — language detection from filename and shebang.
+- `syntax_predicates.c` — query-predicate evaluation
+  (`#match?`, `#eq?`, etc.).
+- `syntax_locals.c` — locals analysis and the locals-aware capture
+  cache.
+- `syntax_budget.c` — query/parse time budgets, limit events, and the
+  performance-mode degradation ladder.
+- `syntax_indent.c` — bracket-scope-based indent anchors used by
+  newline insertion.
+- `syntax_captures.c` — capture collection for a byte range.
+- `syntax_injections.c` — injected-language tree management.
+- `languages.c` — table-driven parser metadata.
+- `queries.c` — query compilation and the embedded query table.
+- `syntax_worker.c` — background parse worker thread.
+
+Query text is embedded at build time from
+`scripts/queries_manifest.txt` into `src/language/syntax_query_data.h`.
 Tree-sitter parsing uses `editorTextSource`, so syntax can read document
 bytes without requiring a permanent flattened buffer. Query budgets and
 injection limits degrade behavior before hard-disabling highlighting for
-large or expensive inputs. The background syntax runner is an in-process
-worker thread that receives snapshots and commits only results that still
-match the tab's syntax revision.
+large or expensive inputs.
+
+The background syntax worker is documented in
+[concurrency.md](concurrency.md) — it receives snapshots tagged with
+`(revision, generation)` and commits only results that still match the
+tab's current values.
 
 ## LSP
 
-LSP state is tracked per tab with document-open flags and versions. The
-process clients live under `src/language/lsp.c`, `lsp_protocol.c`, and
-`lsp_transport.c`. Definition, implementation, completion, symbols,
-diagnostics, and ESLint fixes all route through the same document position
-helpers used by the editor.
+LSP is split across a family of focused modules:
+
+- `src/language/lsp.c` — the per-`(server_kind, workspace_root)` client
+  type, top-level lifecycle calls, and the public request surface used
+  by editor actions.
+- `src/language/lsp_registry.c` — keyed table of live clients. Tabs do
+  not own clients; they look the right one up by
+  `(server_kind, workspace_root)` whenever they need to issue a request.
+  Switching between two Go tabs from the same workspace reuses the
+  client; switching between two clangd workspaces transparently spawns
+  the second.
+- `src/language/lsp_documents.c` — the per-tab `didOpen` / `didChange` /
+  `didSave` / `didClose` flow, version counters, and full-document vs.
+  range-change selection.
+- `src/language/lsp_features.c` — definition, implementation,
+  completion, document symbols, code actions.
+- `src/language/lsp_responses.c` — JSON-RPC response parsing for
+  request types.
+- `src/language/lsp_protocol.c` — request/response builders.
+- `src/language/lsp_transport.c` — child-process spawn, framed
+  JSON-RPC over pipes.
+- `src/language/lsp_json.c` — JSON encoding/decoding helpers.
+- `src/language/lsp_mock.c` — in-process mock used by tests.
+
+There is no implicit "active LSP" singleton: every call site captures
+the client it needs by name, e.g.
+`struct editorLspClient *client = editorLspEnsureClientForFile(filename, ...);`
+and then issues requests against `client`. This is what makes a single
+rotide session safely talk to several language servers across several
+workspaces at once.
 
 ![LSP document lifecycle](../diagrams/svg/lsp-document-lifecycle.svg)
 
 LSP diagnostics are stored on the owning tab and rendered through the LSP
 drawer and text overlays. ESLint is a separate JavaScript diagnostics/fix
-provider.
+provider that runs alongside the JavaScript/TypeScript server through the
+same registry slot.
 
 ## Save and Recovery
 
@@ -269,27 +339,63 @@ inotify/kqueue dependency.
 ## Module Map
 
 - `src/rotide.c`, `src/rotide.h`: process lifecycle, global state, main
-  loop.
-- `src/support/`: terminal, allocation, file IO, testable save syscalls.
+  loop (incl. per-tick syntax poll + LSP/DAP pump + viewport update,
+  then refresh + keypress dispatch).
+- `src/support/`: terminal raw mode and signal handlers (which also
+  drive LSP/DAP/syntax shutdown), allocation, file IO, testable save
+  syscalls.
 - `src/text/`: document, rope, UTF-8, grapheme, row/render helpers.
-- `src/editing/`: document edit application, history, selection, edit
-  builders.
-- `src/input/`: action dispatch, prompts, mouse handling, terminal-pane
-  key gate, bracketed paste, text-pair handling, action-family helpers.
-- `src/render/`: frame orchestration, single- and multi-pane painter, tab bar,
-  drawer view, status/message bars, libvterm cell painter, wrap/viewport
-  helpers, overlays, popups.
-- `src/workspace/`: tabs, drawer, project search, Git, recovery, task
-  logs, file watcher, pane layout (`layout.c`), workspace state.
+- `src/editing/`: document edit application (`edit.c`,
+  `edit_pipeline.c`), edit-vs-document bridge (`document_bridge.c`,
+  `document_position.c`, `text_source.c`), post-edit notification fanout
+  to syntax/LSP/diagnostics (`post_edit_notify.c`), row cache
+  (`row_cache.c`), history, selection, search range helpers
+  (`buffer_search.c`), active-buffer ownership (`buffer_core.c`).
+- `src/input/`: action dispatch (`dispatch.c`), prompts (`prompt.c`),
+  mouse handling, terminal-pane key gate, bracketed paste, text-pair
+  handling, per-family action helpers (`actions_edit`,
+  `actions_workspace`, `actions_file_tab`, `actions_language`,
+  `actions_terminal_debug`).
+- `src/render/`: frame orchestration (`screen.c`), single- and multi-
+  pane painter (`pane_view.c`), tab bar (`tab_bar.c`), drawer view
+  (`drawer_view.c`), status/message bars (`status_bar.c`), libvterm
+  cell painter (`terminal_view.c`), wrap/viewport helpers
+  (`wrap.c`, `viewport.c`), overlays/popups (`popup.c`), ANSI/theme
+  and write-buffer primitives (`ansi_style.c`, `display_text.c`,
+  `write_buf.c`).
+- `src/workspace/`: tabs, drawer (`drawer.c` + per-mode
+  `drawer_mode_{menu,git,lsp,dap}.c` + `drawer_tree.c`,
+  `drawer_file_ops.c`, `drawer_layout.c`, `drawer_modes.c`), project
+  search, Git, recovery, task logs, file watcher (poll-based),
+  pane layout (`layout.c`), workspace state.
 - `src/config/`: TOML loading for editor, theme, keymap, LSP, DAP, and
-  runtime config.
-- `src/language/`: Tree-sitter, LSP, and autocomplete.
+  runtime config; the theme module is split into builtin tables
+  (`theme_builtin.c`), TOML parser (`theme_parse.c`), and shared
+  internals (`theme_internal.h`).
+- `src/language/`: Tree-sitter (split into the `syntax_*` family above),
+  LSP (split into the `lsp_*` family above), autocomplete, language
+  metadata.
 - `src/terminal/`: PTY transport and terminal pane (libvterm bridge).
 - `src/debug/`: DAP orchestration, adapter transport helpers, and terminal
   console integration.
 - `vendor/libvterm/`: vendored libvterm 0.3.x — built with the same
   warnings-relaxed carve-out as Tree-sitter.
-- `tests/`: behavior tests split by subsystem.
+- `tests/`: behavior tests split by subsystem along the production
+  boundaries — e.g. `test_syntax_{activation,parse,captures,
+  background,state}.c`, `test_render_{frame,chrome,panes,terminal}.c`,
+  `test_workspace_{persistence,theme_config,keymap_view,io}.c`,
+  `test_input_{actions,selection,mouse,search,undo}.c`,
+  `test_lsp_{protocol,lifecycle,completion,diagnostics,navigation}.c`,
+  plus `test_dap.c` and `test_terminal_pane.c`.
+
+Cross-cutting concerns get their own pages:
+
+- [concurrency.md](concurrency.md) — the syntax background worker's
+  snapshot/revision protocol.
+- [error_handling.md](error_handling.md) — the OOM/return-`0`/status-bar
+  contract and where validation belongs (boundaries only).
+- [workflows.md](workflows.md) — sequenced flows through the
+  containers above.
 
 Keep future architecture docs at this level: explain ownership,
 contracts, and flows before listing functions.

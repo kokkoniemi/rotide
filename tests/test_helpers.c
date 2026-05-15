@@ -14,6 +14,7 @@
 #include "language/lsp.h"
 #include "language/syntax.h"
 #include "render/screen.h"
+#include "render/viewport.h"
 #include "save_syscalls_test_hooks.h"
 #include "support/terminal.h"
 #include "text/utf8.h"
@@ -510,6 +511,9 @@ char *refresh_screen_and_capture(size_t *len_out) {
 		return NULL;
 	}
 
+	editorLspPumpNotifications();
+	editorDapPumpNotifications();
+	editorViewportUpdateForFrame();
 	editorRefreshScreen();
 
 	return stop_stdout_capture(&capture, len_out);

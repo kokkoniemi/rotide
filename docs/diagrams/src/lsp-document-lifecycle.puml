@@ -24,4 +24,14 @@ Open --> Closed : tab close/reset\ndidClose, clear diagnostics,\nversion = 0
 Closed --> [*] : editor shutdown
 NotTracked --> [*] : editor shutdown
 
+note bottom of Open
+  The states above describe per-*tab* document
+  status. The underlying language-server *client*
+  is shared across tabs via the lsp_registry,
+  keyed by (server_kind, workspace_root). Tab
+  switches do not kill or respawn the server --
+  they just route the next request to a different
+  registry slot if the workspace or kind differs.
+end note
+
 @enduml

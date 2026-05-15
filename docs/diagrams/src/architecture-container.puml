@@ -8,13 +8,13 @@ title RotIDE container relationships
 Person(user, "User", "Edits files in a terminal")
 
 System_Boundary(rotide, "RotIDE") {
-	Container(input, "Input and actions", "C", "Terminal decoding, keymap, prompts, action dispatch")
-	Container(text, "Text engine", "C", "editorDocument, rope, rows, edit pipeline, selection, history")
-	Container(workspace, "Workspace", "C", "Tabs, drawer, pane tree, project search, Git, file watch, recovery and snapshots")
-	Container(renderer, "Renderer", "C", "Frame builder, multi-pane painter, libvterm cell painter, overlays")
-	Container(language, "Language services", "C", "Tree-sitter syntax, LSP, diagnostics, autocomplete")
+	Container(input, "Input and actions", "C", "Terminal decoding, keymap, prompts, mouse, per-family action helpers")
+	Container(text, "Text engine", "C", "editorDocument + rope, row cache, edit pipeline, post-edit notify, selection, history; active buffer is a shared editorBuffer (X-macro union, swapped on tab switch)")
+	Container(workspace, "Workspace", "C", "Tabs, drawer (per-mode modules), pane tree, project search, Git, poll-based file watch, recovery and snapshots")
+	Container(renderer, "Renderer", "C", "Frame builder (pure render), multi-pane painter, tab bar / drawer view / status bar, libvterm cell painter, wrap/viewport, overlays")
+	Container(language, "Language services", "C", "Tree-sitter (split into syntax_detect/predicates/locals/budget/indent/captures/injections + worker thread), LSP registry keyed by (server_kind, workspace_root) with documents/features/responses/transport/mock submodules")
 	Container(terminal, "Terminal and DAP", "C + libvterm", "PTY panes, vterm parser, DAP client (console=terminal opens a pane and supplies its tty to the adapter)")
-	Container(config, "Config", "TOML", "Editor, theme, keymap, LSP and DAP settings; consumed by Input, Language services and Terminal+DAP")
+	Container(config, "Config", "TOML", "Editor, theme (builtin + parse), keymap, LSP and DAP settings; consumed by Input, Language services and Terminal+DAP")
 }
 
 System_Ext(files, "Filesystem", "Source files, config, recovery and workspace snapshots")

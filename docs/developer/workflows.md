@@ -30,15 +30,31 @@ The main loop then runs forever:
 
 ```
 editorSyntaxBackgroundPoll();
-editorRefreshScreen();   // also pumps LSP/DAP/terminal panes
-editorProcessKeypress(); // dispatches one event per iteration
+editorLspPumpNotifications();
+editorDapPumpNotifications();
+editorViewportUpdateForFrame();
+editorRefreshScreen();
+editorProcessKeypress();   // dispatches one event per iteration
 ```
 
-`editorRefreshScreen` is where LSP, DAP, and terminal-pane pumping happens
-each frame; `editorReadKey` (inside `editorProcessKeypress`) additionally
-pumps terminal panes every VTIME tick (~100 ms) while waiting for input
-and returns `TERMINAL_EVENT` if any bytes were drained so the next
-iteration repaints.
+Each iteration explicitly polls the syntax worker, pumps any
+buffered LSP and DAP traffic, recomputes the viewport, paints the
+frame, then waits for and dispatches one input event.
+`editorRefreshScreen` is now a pure renderer — non-main-loop callers
+(prompt sub-loops, mid-action redraws, recovery flows) call it without
+having to re-run a frame's worth of event pumping.
+
+`editorReadKey` (inside `editorProcessKeypress`) still pumps terminal
+panes every VTIME tick (~100 ms) while waiting for input and returns
+`TERMINAL_EVENT` if any bytes were drained, so child output keeps
+flowing even when the user is idle.
+
+On `SIGINT`/`SIGTERM`/`SIGHUP`/`SIGQUIT`, control jumps into
+`editorHandleTerminationSignal` (`src/support/terminal.c`). That handler
+shuts down the DAP client, LSP registry, syntax background worker, and
+shared syntax resources before restoring the terminal and re-raising the
+default handler. See [concurrency.md](../developer/concurrency.md) for
+the async-signal-safety trade-off.
 
 ## Keypress to Action
 
@@ -77,20 +93,31 @@ glue still lives in `dispatch.c` until that path gets a dedicated extraction.
 ![Edit flow](../diagrams/svg/edit-flow.svg)
 
 Edits are constructed in `src/editing/edit.c` and selection helpers,
-then applied through `editorApplyDocumentEdit()`. The edit descriptor
+then applied through `editorApplyDocumentEdit()` which delegates to the
+edit pipeline in `src/editing/edit_pipeline.c`. The edit descriptor
 carries the byte range, inserted text, before/after cursor offsets, and
 before/after dirty values. This keeps dirty-state behavior deterministic
 across insert, delete, undo, redo, save, and recovery.
 
-Document mutation happens before derived work:
+Document mutation happens before derived work, in this order:
 
-- replace bytes in `editorDocument`
-- rebuild `struct erow` cache
-- sync cursor from byte offset
-- update syntax state
-- notify LSP clients
-- record history entry
-- refresh visible syntax spans on demand
+1. replace bytes in `editorDocument` (`src/text/document.c` via the
+   `document_bridge`).
+2. rebuild the affected `struct erow` cache slice
+   (`src/editing/row_cache.c`).
+3. sync cursor from byte offset (`document_position.c`).
+4. fan out to syntax + LSP + diagnostics via
+   `src/editing/post_edit_notify.c`. That helper applies the edit to
+   the tab-local `editorSyntaxState`, bumps `syntax_revision`,
+   captures `editorLspEnsureClientForFile(...)` and sends `didChange`
+   if appropriate, and invalidates any visible-syntax-span cache rows
+   that the edit touched.
+5. record the history entry (`src/editing/history.c`).
+6. refresh visible syntax spans on demand at the next render.
+
+`post_edit_notify` is the single bridge between the edit pipeline and
+the language services, so adding a new "I care about edits" listener
+means extending it rather than threading the edit through edit.c.
 
 ## Undo and Redo
 
@@ -157,11 +184,30 @@ diagnostic overlays.
 
 ![LSP flow](../diagrams/svg/lsp-flow.svg)
 
-Opening or editing a supported file ensures the LSP document is tracked
-and versioned. Changes are converted from editor byte/row state to
-protocol positions. Requests such as definition, implementation,
+LSP clients are keyed in `lsp_registry` by
+`(server_kind, workspace_root)`. Every action that needs to talk to a
+server explicitly captures the right client first:
+
+```c
+struct editorLspClient *client = editorLspEnsureClientForFile(filename, ...);
+if (client == NULL) {
+    /* report and bail */
+}
+editorLspRequestDefinition(client, ...);
+```
+
+There is no implicit "active LSP" singleton. Switching tabs does not
+kill the server — it just lets the next request pick a different client
+out of the registry. Two Go files in the same workspace share one
+`gopls`; two clangd workspaces each get their own `clangd`.
+
+Opening or editing a supported file ensures the tab's LSP document is
+tracked and versioned (handled in `lsp_documents.c`). Changes are
+converted from editor byte/row state to protocol positions in
+`document_position.c`. Requests such as definition, implementation,
 symbols, completion, diagnostics, and ESLint code actions route through
-JSON-RPC helpers and write results back to tab-local state.
+JSON-RPC helpers in `lsp_protocol.c` / `lsp_responses.c` and write
+results back to tab-local state.
 
 Range `didChange` notifications are used when the edit can be
 represented in the server's position encoding. RotIDE falls back to a
@@ -211,10 +257,10 @@ and `tty` is injected into the outgoing launch JSON. The `console` field
 itself is always stripped — it is a rotide hint, not a DAP standard.
 
 The adapter (gdb-dap, lldb-dap, dlv dap, …) is spawned over stdio. The
-session runs through `editorDapPumpNotifications` from
-`editorRefreshScreen`. On `terminated`/`exited` events or explicit
-shutdown, `editorDapCloseOwnedTerminalPane` retires the owned terminal
-pane and restores focus to the sibling.
+session runs through `editorDapPumpNotifications`, called once per
+main-loop iteration alongside the LSP pump. On `terminated`/`exited`
+events or explicit shutdown, `editorDapCloseOwnedTerminalPane` retires
+the owned terminal pane and restores focus to the sibling.
 
 ## Task Logs
 

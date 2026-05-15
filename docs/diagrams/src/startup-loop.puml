@@ -24,15 +24,23 @@ endif
 :Git init for working tree;
 while (running)
 	:editorSyntaxBackgroundPoll;
+	:editorLspPumpNotifications;
+	:editorDapPumpNotifications;
+	:editorViewportUpdateForFrame;
 	:editorRefreshScreen
-	 (pumps LSP, DAP, terminal panes,
-	  paints frame);
+	 (pure renderer - no pumping);
 	:editorProcessKeypress
 	 (decode input, dispatch action,
 	  handle terminal/paste events);
 endwhile
-:cleanup tasks, LSP, DAP, syntax,
-terminal pane PTYs, terminal mode;
+:on quit action OR
+ SIGINT/SIGTERM/SIGHUP/SIGQUIT
+ -> editorHandleTerminationSignal:
+ editorDapShutdown,
+ editorLspShutdown,
+ editorSyntaxBackgroundStop,
+ editorSyntaxReleaseSharedResources,
+ editorRestoreTerminal;
 stop
 
 @enduml
