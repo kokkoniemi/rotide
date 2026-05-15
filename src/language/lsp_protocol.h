@@ -2,15 +2,10 @@
 #define LSP_PROTOCOL_H
 
 #include "language/lsp.h"
+#include "language/lsp_json.h"
 #include "language/lsp_transport.h"
 
 #include <stddef.h>
-
-struct editorLspString {
-	char *buf;
-	size_t len;
-	size_t cap;
-};
 
 struct editorLspPendingEdit {
 	int start_line;
@@ -20,19 +15,8 @@ struct editorLspPendingEdit {
 	char *new_text;
 };
 
-int editorLspStringAppend(struct editorLspString *sb, const char *text);
-int editorLspStringAppendJsonEscaped(struct editorLspString *sb, const char *text, size_t len);
-int editorLspStringAppendf(struct editorLspString *sb, const char *fmt, ...)
-		__attribute__((format(printf, 2, 3)));
-
 int editorLspBuildFileUri(const char *path, char **uri_out);
 char *editorLspBuildInitializeRequestJson(int request_id, const char *root_uri, int process_id);
-
-const char *editorLspSkipWs(const char *p);
-const char *editorLspFindJsonObjectEnd(const char *object_start);
-int editorLspFindStringField(const char *json, const char *field_name, char **value_out);
-int editorLspExtractResponseId(const char *json, int *id_out);
-int editorLspResponseHasError(const char *json);
 int editorLspParseCompletionProviderInResponse(const char *response_json, int *supported_out,
 		char **trigger_chars_out);
 
