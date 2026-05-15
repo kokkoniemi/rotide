@@ -4,6 +4,7 @@
 #include "rotide.h"
 #include "editing/document_bridge.h"
 #include "editing/document_position.h"
+#include "editing/text_source.h"
 #include <stddef.h>
 
 /* Canonical edit descriptor for text mutations.
@@ -23,7 +24,6 @@ struct editorDocumentEdit {
 };
 
 char *editorRowsToStr(size_t *buflen);
-int editorBuildActiveTextSource(struct editorTextSource *source_out);
 
 int editorBufferFindForward(const char *query, int start_row, int start_col, int *out_row,
 		int *out_col);
@@ -60,6 +60,5 @@ int editorRestoreActiveFromDocument(const struct editorDocument *document,
 
 /* The single active-buffer mutation path. */
 int editorApplyDocumentEdit(const struct editorDocumentEdit *edit);
-char *editorDupActiveTextSource(size_t *len_out);
 
 #endif
