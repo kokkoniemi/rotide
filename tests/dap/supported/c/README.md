@@ -18,7 +18,7 @@ make -C tests/dap/supported/c
 
 Binary output:
 
-- `tests/dap/supported/c/rotide_dap_sample`
+- `tests/dap/supported/c/dap_sample`
 
 ## Suggested launch config
 
@@ -29,9 +29,9 @@ Use this in project `.rotide.toml`:
 name = "C DAP Fixture"
 adapter = "c"
 request = "launch"
-program = "${workspaceFolder}/tests/dap/supported/c/rotide_dap_sample"
+program = "${workspaceFolder}/tests/dap/supported/c/dap_sample.out"
 cwd = "${workspaceFolder}"
-args = ["branch-a"]
+args = ["${workspaceFolder}/tests/dap/supported/c/dap_sample.c"]
 stopOnEntry = false
 console = "terminal"
 ```
