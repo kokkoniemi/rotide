@@ -5,6 +5,7 @@
 #include "editing/history.h"
 #include "editing/row_cache.h"
 #include "editing/selection.h"
+#include "editing/syntax_runtime.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
 #include "language/syntax_worker.h"

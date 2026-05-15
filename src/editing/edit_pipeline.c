@@ -4,9 +4,8 @@
 #include "editing/document_bridge.h"
 #include "editing/document_position.h"
 #include "editing/history.h"
+#include "editing/post_edit_notify.h"
 #include "editing/row_cache.h"
-#include "editing/text_source.h"
-#include "language/lsp.h"
 #include "language/syntax.h"
 #include "language/syntax_worker.h"
 #include "support/size_utils.h"
@@ -15,9 +14,6 @@
 #include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
-
-int editorSyntaxApplyIncrementalEditActive(const struct editorSyntaxEdit *edit,
-		const char *inserted_text, size_t inserted_len);
 
 static int editorSyntaxOffsetToU32(size_t offset, uint32_t *out) {
 	if (out == NULL || offset > UINT32_MAX) {
@@ -114,44 +110,6 @@ static int editorBuildSyntaxEditForDocumentEdit(const struct editorDocument *doc
 	return 1;
 }
 
-static int editorLspActiveBufferTracked(void) {
-	return editorLspFileEnabled(E.filename, E.syntax_language);
-}
-
-static int editorLspActiveBufferTrackedForEslint(void) {
-	return editorLspEslintEnabledForFile(E.filename, E.syntax_language);
-}
-
-static void editorLspNotifyDidChangeActive(const struct editorSyntaxEdit *edit,
-		const char *inserted_text, size_t inserted_len) {
-	if (!editorLspActiveBufferTracked() && !editorLspActiveBufferTrackedForEslint()) {
-		return;
-	}
-
-	char *full_text = NULL;
-	size_t full_text_len = 0;
-	if ((editorLspActiveBufferTracked() && !E.lsp_doc_open) ||
-			(editorLspActiveBufferTrackedForEslint() && !E.lsp_eslint_doc_open)) {
-		full_text = editorDupActiveTextSource(&full_text_len);
-		if (full_text == NULL && full_text_len > 0) {
-			free(full_text);
-			return;
-		}
-	}
-
-	if (editorLspActiveBufferTracked()) {
-		(void)editorLspNotifyDidChange(E.filename, E.syntax_language,
-				&E.lsp_doc_open, &E.lsp_doc_version, edit, inserted_text, inserted_len,
-				full_text, full_text_len);
-	}
-	if (editorLspActiveBufferTrackedForEslint()) {
-		(void)editorLspNotifyEslintDidChange(E.filename, E.syntax_language,
-				&E.lsp_eslint_doc_open, &E.lsp_eslint_doc_version, edit, inserted_text,
-				inserted_len, full_text, full_text_len);
-	}
-	free(full_text);
-}
-
 int editorApplyDocumentEdit(const struct editorDocumentEdit *edit) {
 	const struct editorDocument *active_document = NULL;
 	size_t old_end_offset = 0;
@@ -234,12 +192,8 @@ int editorApplyDocumentEdit(const struct editorDocumentEdit *edit) {
 		}
 	}
 	const char *inserted_text = edit->new_len > 0 ? edit->new_text : "";
-	if (syntax_track) {
-		(void)editorSyntaxApplyIncrementalEditActive(&syntax_edit, inserted_text, edit->new_len);
-	} else {
-		(void)editorSyntaxApplyIncrementalEditActive(NULL, inserted_text, edit->new_len);
-	}
-	editorLspNotifyDidChangeActive(syntax_track ? &syntax_edit : NULL, inserted_text, edit->new_len);
+	editorNotifyPostEditLanguage(syntax_track, syntax_track ? &syntax_edit : NULL,
+			inserted_text, edit->new_len);
 	free(removed_text);
 	return 1;
 }
