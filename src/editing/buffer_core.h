@@ -5,25 +5,10 @@
 #include "editing/buffer_search.h"
 #include "editing/document_bridge.h"
 #include "editing/document_position.h"
+#include "editing/edit_pipeline.h"
 #include "editing/row_cache.h"
 #include "editing/text_source.h"
 #include <stddef.h>
-
-/* Canonical edit descriptor for text mutations.
- * All normal editing, undo, redo, syntax updates, LSP notifications, cursor
- * synchronization, and dirty-state transitions route through this shape.
- */
-struct editorDocumentEdit {
-	enum editorEditKind kind;
-	size_t start_offset;
-	size_t old_len;
-	const char *new_text;
-	size_t new_len;
-	size_t before_cursor_offset;
-	size_t after_cursor_offset;
-	int before_dirty;
-	int after_dirty;
-};
 
 char *editorRowsToStr(size_t *buflen);
 
@@ -51,8 +36,5 @@ void editorSyntaxVisibleCacheInvalidate(void);
 void editorSyntaxVisibleCacheFree(void);
 int editorRestoreActiveFromDocument(const struct editorDocument *document,
 		int target_cy, int target_cx, int dirty, int parse_syntax);
-
-/* The single active-buffer mutation path. */
-int editorApplyDocumentEdit(const struct editorDocumentEdit *edit);
 
 #endif
