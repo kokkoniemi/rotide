@@ -103,7 +103,7 @@ void editorOpenSettings(void) {
 		editorSetStatusMsg("Could not open %s", path);
 	}
 	free(path);
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 }
 
 void editorActionCloseTab(void) {

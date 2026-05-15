@@ -604,7 +604,7 @@ int editorDrawDrawerSelectionOverflow(struct writeBuf *wb, int row_idx, int draw
 	if (overlay_drawn_out != NULL) {
 		*overlay_drawn_out = 0;
 	}
-	if (separator_cols + text_cols <= 0 || E.pane_focus != EDITOR_PANE_DRAWER) {
+	if (separator_cols + text_cols <= 0 || E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER) {
 		return 1;
 	}
 	if (row_idx <= 0) {
@@ -684,7 +684,7 @@ int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols) {
 		const char *entry_name = entry.name != NULL ? entry.name : "";
 		snprintf(entry_name_buf, sizeof(entry_name_buf), "%s", entry_name);
 		entry_name = entry_name_buf;
-		int selected_with_focus = entry.is_selected && E.pane_focus == EDITOR_PANE_DRAWER;
+		int selected_with_focus = entry.is_selected && E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER;
 		row_inverted = selected_with_focus || (entry.is_active_file && !entry.is_dir);
 		int gray_connectors = !row_inverted;
 		if (row_inverted && !editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_SELECTION)) {

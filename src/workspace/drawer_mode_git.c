@@ -220,7 +220,7 @@ int editorDrawerGitToggle(void) {
 		E.drawer_selected_index = -1;
 		E.drawer_rowoff = 0;
 		E.drawer_resize_active = 0;
-		E.pane_focus = EDITOR_PANE_DRAWER;
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 		return 1;
 	}
 
@@ -239,7 +239,7 @@ int editorDrawerGitToggle(void) {
 	E.drawer_rowoff = 0;
 	E.drawer_resize_active = 0;
 	(void)editorDrawerSetCollapsed(0);
-	E.pane_focus = EDITOR_PANE_DRAWER;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 	return 1;
 }
 

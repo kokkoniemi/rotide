@@ -234,7 +234,7 @@ int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long 
 	if (editorDrawerSelectedIsDirectory()) {
 		(void)editorDrawerToggleSelectionExpanded(drawer_view_rows);
 		editorResetDrawerClickTracking();
-		E.pane_focus = EDITOR_PANE_DRAWER;
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 		E.mouse_left_button_down = 0;
 		E.mouse_drag_started = 0;
 		if (effects_out != NULL) {
@@ -263,7 +263,7 @@ int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long 
 
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_GIT) {
 		if (editorOpenSelectedGitDiff()) {
-			E.pane_focus = EDITOR_PANE_TEXT;
+			E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 		}
 		editorResetDrawerClickTracking();
 		E.mouse_left_button_down = 0;
@@ -280,7 +280,7 @@ int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long 
 				now_ms - E.drawer_last_click_ms <= double_click_threshold_ms;
 		if (should_open_location) {
 			if (editorJumpToSelectedLspDrawerLocation(0, jump_to_path)) {
-				E.pane_focus = EDITOR_PANE_TEXT;
+				E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 			}
 			editorResetDrawerClickTracking();
 			E.mouse_left_button_down = 0;
@@ -295,7 +295,7 @@ int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long 
 		}
 		E.drawer_last_click_visible_idx = visible_idx;
 		E.drawer_last_click_ms = now_ms;
-		E.pane_focus = EDITOR_PANE_DRAWER;
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 		E.mouse_left_button_down = 0;
 		E.mouse_drag_started = 0;
 		if (effects_out != NULL) {
@@ -333,7 +333,7 @@ int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long 
 				now_ms - E.drawer_last_click_ms <= double_click_threshold_ms;
 		if (should_open_location) {
 			if (editorJumpToSelectedDapDrawerLocation(0, jump_to_path)) {
-				E.pane_focus = EDITOR_PANE_TEXT;
+				E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 			}
 			editorResetDrawerClickTracking();
 			E.mouse_left_button_down = 0;
@@ -348,7 +348,7 @@ int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long 
 		}
 		E.drawer_last_click_visible_idx = visible_idx;
 		E.drawer_last_click_ms = now_ms;
-		E.pane_focus = EDITOR_PANE_DRAWER;
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 		E.mouse_left_button_down = 0;
 		E.mouse_drag_started = 0;
 		if (effects_out != NULL) {
@@ -364,14 +364,14 @@ int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long 
 	if (should_open_file) {
 		if (editorFileSearchIsActive() || editorProjectSearchIsActive()) {
 			if (editorDrawerOpenSelectedFileInTab()) {
-				E.pane_focus = EDITOR_PANE_DRAWER;
+				E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 			}
 		} else if (editorActiveTabIsPreview()) {
 			editorTabPinActivePreview();
 			editorSetStatusMsg("Tab kept open");
-			E.pane_focus = EDITOR_PANE_TEXT;
+			E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 		} else if (editorDrawerOpenSelectedFileInTab()) {
-			E.pane_focus = EDITOR_PANE_TEXT;
+			E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 		}
 		editorResetDrawerClickTracking();
 	} else {
@@ -380,7 +380,7 @@ int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long 
 		}
 		E.drawer_last_click_visible_idx = visible_idx;
 		E.drawer_last_click_ms = now_ms;
-		E.pane_focus = EDITOR_PANE_DRAWER;
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 	}
 	E.mouse_left_button_down = 0;
 	E.mouse_drag_started = 0;
@@ -416,7 +416,7 @@ int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long lo
 		return 1;
 	}
 
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 	editorMouseClearSelectionMode();
 	if (event->modifiers == EDITOR_MOUSE_MOD_CTRL) {
 		E.mouse_left_button_down = 0;
@@ -894,7 +894,7 @@ int editorHandleMouseMotion(const struct editorMouseEvent *event) {
 	int new_start = 0;
 	int new_end = 0;
 
-	if ((event->modifiers & EDITOR_MOUSE_MOD_CTRL) != 0 && E.pane_focus == EDITOR_PANE_TEXT &&
+	if ((event->modifiers & EDITOR_MOUSE_MOD_CTRL) != 0 && E.primary_focus == EDITOR_PRIMARY_FOCUS_TEXT &&
 			editorLspFileSupportsDefinition(E.filename, E.syntax_language) &&
 			editorLspFileEnabled(E.filename, E.syntax_language)) {
 		size_t offset = 0;

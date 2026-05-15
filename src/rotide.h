@@ -12,6 +12,10 @@
 #include <termios.h>
 #include <time.h>
 
+#include "config/theme_config.h"
+#include "debug/dap.h"
+#include "language/syntax.h"
+
 #define CTRL_KEY(k) ((k) & 0x1f)
 #define ROTIDE_VERSION "0.0.1"
 #define ROTIDE_TAB_WIDTH 8
@@ -26,7 +30,6 @@
 #define ROTIDE_TAB_TRUNC_MARKER "..."
 #define ROTIDE_DRAWER_DEFAULT_WIDTH 24
 #define ROTIDE_DRAWER_COLLAPSED_WIDTH 3
-#define ROTIDE_MAX_SYNTAX_SPANS_PER_ROW 256
 #define ROTIDE_ALT_LETTER_KEY_BASE 91000
 #define ROTIDE_CTRL_ALT_LETTER_KEY_BASE 91026
 #define ROTIDE_TASK_LOG_MAX_BYTES ((size_t)131072)
@@ -140,9 +143,9 @@ struct editorPopupState {
 	int item_count;
 };
 
-enum editorPaneFocus {
-	EDITOR_PANE_TEXT = 0,
-	EDITOR_PANE_DRAWER
+enum editorPrimaryFocus {
+	EDITOR_PRIMARY_FOCUS_TEXT = 0,
+	EDITOR_PRIMARY_FOCUS_DRAWER
 };
 
 struct editorPaneNode;
@@ -153,134 +156,6 @@ enum editorCursorStyle {
 	EDITOR_CURSOR_STYLE_UNDERLINE
 };
 
-enum editorSyntaxLanguage {
-	EDITOR_SYNTAX_NONE = 0,
-	EDITOR_SYNTAX_C,
-	EDITOR_SYNTAX_CPP,
-	EDITOR_SYNTAX_GO,
-	EDITOR_SYNTAX_SHELL,
-	EDITOR_SYNTAX_HTML,
-	EDITOR_SYNTAX_JAVASCRIPT,
-	EDITOR_SYNTAX_JSDOC,
-	EDITOR_SYNTAX_TYPESCRIPT,
-	EDITOR_SYNTAX_TSX,
-	EDITOR_SYNTAX_CSS,
-	EDITOR_SYNTAX_JSON,
-	EDITOR_SYNTAX_PYTHON,
-	EDITOR_SYNTAX_PHP,
-	EDITOR_SYNTAX_RUST,
-	EDITOR_SYNTAX_JAVA,
-	EDITOR_SYNTAX_REGEX,
-	EDITOR_SYNTAX_CSHARP,
-	EDITOR_SYNTAX_HASKELL,
-	EDITOR_SYNTAX_RUBY,
-	EDITOR_SYNTAX_OCAML,
-	EDITOR_SYNTAX_JULIA,
-	EDITOR_SYNTAX_SCALA,
-	EDITOR_SYNTAX_EJS,
-	EDITOR_SYNTAX_ERB,
-	EDITOR_SYNTAX_MARKDOWN,
-	EDITOR_SYNTAX_MARKDOWN_INLINE,
-	EDITOR_SYNTAX_TOML,
-	EDITOR_SYNTAX_YAML,
-	EDITOR_SYNTAX_XML,
-	EDITOR_SYNTAX_MAKE,
-	EDITOR_SYNTAX_DIFF,
-	EDITOR_SYNTAX_LANGUAGE_COUNT
-};
-
-enum editorSyntaxHighlightClass {
-	EDITOR_SYNTAX_HL_NONE = 0,
-	EDITOR_SYNTAX_HL_COMMENT,
-	EDITOR_SYNTAX_HL_KEYWORD,
-	EDITOR_SYNTAX_HL_TYPE,
-	EDITOR_SYNTAX_HL_FUNCTION,
-	EDITOR_SYNTAX_HL_STRING,
-	EDITOR_SYNTAX_HL_NUMBER,
-	EDITOR_SYNTAX_HL_CONSTANT,
-	EDITOR_SYNTAX_HL_VARIABLE,
-	EDITOR_SYNTAX_HL_PARAMETER,
-	EDITOR_SYNTAX_HL_MODULE,
-	EDITOR_SYNTAX_HL_PROPERTY,
-	EDITOR_SYNTAX_HL_PREPROCESSOR,
-	EDITOR_SYNTAX_HL_OPERATOR,
-	EDITOR_SYNTAX_HL_PUNCTUATION,
-	EDITOR_SYNTAX_HL_CLASS_COUNT
-};
-
-enum editorThemeColorKind {
-	EDITOR_THEME_COLOR_DEFAULT = 0,
-	EDITOR_THEME_COLOR_ANSI,
-	EDITOR_THEME_COLOR_256,
-	EDITOR_THEME_COLOR_RGB
-};
-
-enum editorThemeAnsiColor {
-	EDITOR_THEME_ANSI_BLACK = 0,
-	EDITOR_THEME_ANSI_RED,
-	EDITOR_THEME_ANSI_GREEN,
-	EDITOR_THEME_ANSI_YELLOW,
-	EDITOR_THEME_ANSI_BLUE,
-	EDITOR_THEME_ANSI_MAGENTA,
-	EDITOR_THEME_ANSI_CYAN,
-	EDITOR_THEME_ANSI_WHITE,
-	EDITOR_THEME_ANSI_BRIGHT_BLACK,
-	EDITOR_THEME_ANSI_BRIGHT_RED,
-	EDITOR_THEME_ANSI_BRIGHT_GREEN,
-	EDITOR_THEME_ANSI_BRIGHT_YELLOW,
-	EDITOR_THEME_ANSI_BRIGHT_BLUE,
-	EDITOR_THEME_ANSI_BRIGHT_MAGENTA,
-	EDITOR_THEME_ANSI_BRIGHT_CYAN,
-	EDITOR_THEME_ANSI_BRIGHT_WHITE,
-	EDITOR_THEME_ANSI_COUNT
-};
-
-struct editorThemeColor {
-	enum editorThemeColorKind kind;
-	unsigned char value;
-	unsigned char r;
-	unsigned char g;
-	unsigned char b;
-};
-
-struct editorThemeStyle {
-	struct editorThemeColor fg;
-	struct editorThemeColor bg;
-	int reverse;
-};
-
-enum editorThemeUiRole {
-	EDITOR_THEME_UI_FOREGROUND = 0,
-	EDITOR_THEME_UI_BACKGROUND,
-	EDITOR_THEME_UI_LINE_NUMBER,
-	EDITOR_THEME_UI_DRAWER_CONNECTOR,
-	EDITOR_THEME_UI_DRAWER_ICON,
-	EDITOR_THEME_UI_PLACEHOLDER,
-	EDITOR_THEME_UI_CURRENT_LINE_BG,
-	EDITOR_THEME_UI_DRAWER_HEADER_BG,
-	EDITOR_THEME_UI_DIRECTORY,
-	EDITOR_THEME_UI_ROOT,
-	EDITOR_THEME_UI_GIT_MODIFIED,
-	EDITOR_THEME_UI_GIT_UNTRACKED,
-	EDITOR_THEME_UI_GIT_CONFLICT,
-	EDITOR_THEME_UI_CURSOR,
-	EDITOR_THEME_UI_ROLE_COUNT
-};
-
-enum editorThemeStyleRole {
-	EDITOR_THEME_STYLE_SELECTION = 0,
-	EDITOR_THEME_STYLE_STATUS,
-	EDITOR_THEME_STYLE_TAB_ACTIVE,
-	EDITOR_THEME_STYLE_DRAWER_HEADER_ACTIVE,
-	EDITOR_THEME_STYLE_ROLE_COUNT
-};
-
-struct editorTheme {
-	char name[64];
-	struct editorThemeColor syntax[EDITOR_SYNTAX_HL_CLASS_COUNT];
-	struct editorThemeColor ui[EDITOR_THEME_UI_ROLE_COUNT];
-	struct editorThemeStyle styles[EDITOR_THEME_STYLE_ROLE_COUNT];
-};
 
 enum editorViewportMode {
 	EDITOR_VIEWPORT_FOLLOW_CURSOR = 0,
@@ -294,11 +169,6 @@ enum editorTabKind {
 	EDITOR_TAB_GIT_DIFF
 };
 
-struct editorRowSyntaxSpan {
-	int start_render_idx;
-	int end_render_idx;
-	enum editorSyntaxHighlightClass highlight_class;
-};
 
 enum editorGitStatus {
 	EDITOR_GIT_STATUS_CLEAN = 0,
@@ -475,89 +345,6 @@ enum editorDrawerMode {
 	EDITOR_DRAWER_MODE_DAP
 };
 
-#define ROTIDE_DAP_MAX_ADAPTERS 16
-#define ROTIDE_DAP_MAX_CONFIGS 16
-#define ROTIDE_DAP_MAX_FIELDS 32
-#define ROTIDE_DAP_MAX_ENV 32
-#define ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS 32
-#define ROTIDE_DAP_ID_MAX 64
-#define ROTIDE_DAP_NAME_MAX 128
-#define ROTIDE_DAP_KEY_MAX 64
-#define ROTIDE_DAP_VALUE_MAX 1024
-#define ROTIDE_DAP_OUTPUT_MAX 4096
-#define ROTIDE_DAP_MAX_BREAKPOINTS 128
-#define ROTIDE_DAP_MAX_THREADS 32
-#define ROTIDE_DAP_MAX_STACK_FRAMES 128
-#define ROTIDE_DAP_MAX_SCOPES 64
-#define ROTIDE_DAP_MAX_VARIABLES 256
-
-enum editorDapLaunchValueKind {
-	EDITOR_DAP_LAUNCH_VALUE_STRING = 0,
-	EDITOR_DAP_LAUNCH_VALUE_BOOL,
-	EDITOR_DAP_LAUNCH_VALUE_INT,
-	EDITOR_DAP_LAUNCH_VALUE_STRING_ARRAY
-};
-
-struct editorDapAdapterConfig {
-	char id[ROTIDE_DAP_ID_MAX];
-	char command[PATH_MAX];
-};
-
-struct editorDapLaunchField {
-	char key[ROTIDE_DAP_KEY_MAX];
-	enum editorDapLaunchValueKind kind;
-	char string_value[ROTIDE_DAP_VALUE_MAX];
-	int int_value;
-	int bool_value;
-	char array_values[ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS][ROTIDE_DAP_VALUE_MAX];
-	int array_count;
-};
-
-struct editorDapEnvVar {
-	char key[ROTIDE_DAP_KEY_MAX];
-	char value[ROTIDE_DAP_VALUE_MAX];
-};
-
-struct editorDapLaunchConfig {
-	char id[ROTIDE_DAP_ID_MAX];
-	char name[ROTIDE_DAP_NAME_MAX];
-	char adapter[ROTIDE_DAP_ID_MAX];
-	char request[32];
-	struct editorDapLaunchField fields[ROTIDE_DAP_MAX_FIELDS];
-	int field_count;
-	struct editorDapEnvVar env[ROTIDE_DAP_MAX_ENV];
-	int env_count;
-};
-
-struct editorDapBreakpoint {
-	char path[PATH_MAX];
-	int line;
-};
-
-struct editorDapThread {
-	int id;
-	char name[ROTIDE_DAP_NAME_MAX];
-};
-
-struct editorDapStackFrame {
-	int id;
-	char name[ROTIDE_DAP_NAME_MAX];
-	char path[PATH_MAX];
-	int line;
-	int column;
-};
-
-struct editorDapScope {
-	int variables_reference;
-	char name[ROTIDE_DAP_NAME_MAX];
-};
-
-struct editorDapVariable {
-	int variables_reference;
-	char name[ROTIDE_DAP_NAME_MAX];
-	char value[ROTIDE_DAP_VALUE_MAX];
-};
-
 struct editorGitEntry {
 	char *rel_path;
 	enum editorGitStatus status;
@@ -672,15 +459,42 @@ struct editorTabState {
 	};
 };
 
+/*
+ * The global editor state, instantiated once as `extern struct editorConfig E`.
+ * Fields are grouped by C4 container so ownership is visible at a glance:
+ *
+ *   - Environment: terminal dimensions, the global keymap, the cached theme,
+ *     and the saved termios from setRawMode.
+ *   - Active buffer: the per-tab editing state of whichever tab is in focus.
+ *     Aliased into the active tab's editorBuffer via an X-macro union so the
+ *     two views (E.cx vs E.tabs[i].cx, etc.) stay byte-identical.
+ *   - Config-derived settings: LSP enable flags + commands, DAP adapter/launch
+ *     tables, editor preferences. Populated by the TOML loaders in src/config/.
+ *   - Workspace: tab list, drawer model, project/file search results, Git
+ *     status, recovery + workspace-state paths, task-log subprocess state.
+ *   - Debug: live DAP session state (threads, frames, scopes, variables,
+ *     breakpoints, output buffer, owned terminal pane).
+ *   - Input transient state: status/message bar, click timing, hover-link
+ *     position, paste-active gate, terminal-prefix arm flag.
+ *
+ * New per-tab buffer fields go in the EDITOR_ACTIVE_BUFFER_*_FIELDS macros
+ * above, not here. New cross-container fields should land in a domain header
+ * if at all possible, and only as a last resort here.
+ */
 struct editorConfig {
+	/* --- Environment (process/terminal-wide) --- */
 	int window_rows;
 	int window_cols;
+
+	/* --- Active buffer (aliased onto E.tabs[active_tab].buffer) --- */
 	union {
 		struct editorBuffer active_buffer;
 		struct {
 			EDITOR_ACTIVE_BUFFER_FIELDS(EDITOR_DECLARE_FIELD)
 		};
 	};
+
+	/* --- Config-derived: LSP --- */
 	int lsp_gopls_enabled;
 	int lsp_clangd_enabled;
 	int lsp_html_enabled;
@@ -700,6 +514,8 @@ struct editorConfig {
 	char lsp_vscode_langservers_install_command[PATH_MAX];
 	int lsp_autocomplete_enabled;
 	int lsp_autocomplete_max_items;
+
+	/* --- Config-derived: DAP adapter and launch tables --- */
 	struct editorDapAdapterConfig dap_adapters[ROTIDE_DAP_MAX_ADAPTERS];
 	int dap_adapter_count;
 	struct editorDapLaunchConfig dap_defaults[ROTIDE_DAP_MAX_CONFIGS];
@@ -709,6 +525,8 @@ struct editorConfig {
 	int dap_project_config_exists;
 	int dap_project_config_invalid;
 	char dap_project_config_path[PATH_MAX];
+
+	/* --- Input transient: status/message bar, hover, clipboard --- */
 	char statusmsg[80];
 	time_t statusmsg_time;
 	int hover_link_active;
@@ -718,12 +536,16 @@ struct editorConfig {
 	char *clipboard_text;
 	size_t clipboard_textlen;
 	editorClipboardExternalSink clipboard_external_sink;
+
+	/* --- Workspace: tabs --- */
 	struct editorTabState *tabs;
 	int tab_count;
 	int tab_capacity;
 	int active_tab;
 	int tab_view_start;
 	int close_confirmed;
+
+	/* --- Workspace: task-log subprocess --- */
 	pid_t task_pid;
 	int task_output_fd;
 	int task_running;
@@ -733,9 +555,13 @@ struct editorConfig {
 	int task_exit_code;
 	char task_success_status[80];
 	char task_failure_status[80];
+
+	/* --- Workspace: recovery + persisted state paths --- */
 	char *recovery_path;
 	char *workspace_state_path;
 	time_t recovery_last_autosave_time;
+
+	/* --- Workspace: drawer (model + selection + width) --- */
 	char *drawer_root_path;
 	struct editorDrawerNode *drawer_root;
 	enum editorDrawerMode drawer_mode;
@@ -747,16 +573,20 @@ struct editorConfig {
 	int drawer_rowoff;
 	int drawer_last_click_visible_idx;
 	long long drawer_last_click_ms;
+	int drawer_width_cols;
+	int drawer_width_user_set;
+	int drawer_collapsed;
+	int drawer_resize_active;
+
+	/* --- Input transient: text/tab click tracking for multi-clicks --- */
 	int text_last_click_cy;
 	int text_last_click_cx;
 	long long text_last_click_ms;
 	int text_click_count;
 	int tab_last_click_idx;
 	long long tab_last_click_ms;
-	int drawer_width_cols;
-	int drawer_width_user_set;
-	int drawer_collapsed;
-	int drawer_resize_active;
+
+	/* --- Workspace: drawer file-search mode --- */
 	char *drawer_search_query;
 	size_t drawer_search_query_len;
 	char **drawer_search_paths;
@@ -770,6 +600,8 @@ struct editorConfig {
 	char **recent_file_paths;
 	int recent_file_count;
 	int recent_file_capacity;
+
+	/* --- Workspace: drawer project-search mode --- */
 	char *drawer_project_search_query;
 	size_t drawer_project_search_query_len;
 	struct editorProjectSearchResult *drawer_project_search_results;
@@ -779,11 +611,15 @@ struct editorConfig {
 	int drawer_project_search_previewed_line;
 	int drawer_project_search_previewed_col;
 	int drawer_project_search_active_tab_before;
+
+	/* --- Workspace: Git status snapshot --- */
 	char *git_repo_root;
 	char *git_branch;
 	struct editorGitEntry *git_entries;
 	int git_entry_count;
 	int git_entry_capacity;
+
+	/* --- Debug: live DAP session state --- */
 	struct editorDapBreakpoint dap_breakpoints[ROTIDE_DAP_MAX_BREAKPOINTS];
 	int dap_breakpoint_count;
 	struct editorDapThread dap_threads[ROTIDE_DAP_MAX_THREADS];
@@ -806,6 +642,8 @@ struct editorConfig {
 	 * focused the pane and is interacting with it.
 	 */
 	struct editorPaneNode *dap_terminal_leaf;
+
+	/* --- Config-derived: editor preferences --- */
 	enum editorCursorStyle cursor_style;
 	int cursor_blink_enabled;
 	int line_wrap_enabled;
@@ -816,11 +654,15 @@ struct editorConfig {
 	int indent_use_tabs;
 	int indent_width;
 	int column_select_drag_modifier;
+
+	/* --- Environment: theme, viewport, primary focus, layout root --- */
 	struct editorTheme theme;
 	enum editorViewportMode viewport_mode;
-	enum editorPaneFocus pane_focus;
+	enum editorPrimaryFocus primary_focus;
 	struct editorPaneNode *layout_root;
 	struct editorPaneNode *focused_leaf;
+
+	/* --- Input transient: one-shot terminal-prefix and paste gates --- */
 	/*
 	 * When non-zero, the next keypress is interpreted as a rotide keymap
 	 * action even though the focused pane is a terminal (which normally
@@ -835,6 +677,8 @@ struct editorConfig {
 	 * editor was actually told a paste is in progress.
 	 */
 	int paste_active;
+
+	/* --- Environment: keymap, popup overlay, saved termios --- */
 	struct editorKeymap keymap;
 	struct editorPopupState popup;
 	struct termios orig_attrs;

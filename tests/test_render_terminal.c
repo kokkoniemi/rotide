@@ -1939,7 +1939,7 @@ static int test_editor_refresh_screen_renders_drawer_entries_and_selection(void)
 	ASSERT_TRUE(editorDrawerSelectVisibleIndex(src_idx, E.window_rows));
 	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows));
 
-	E.pane_focus = EDITOR_PANE_DRAWER;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 	E.window_rows = 4;
 	E.window_cols = 40;
 	E.line_numbers_enabled = 0;
@@ -2018,7 +2018,7 @@ static int test_editor_refresh_screen_drawer_colors_files_by_git_status(void) {
 	E.git_entries[2].worktree_status = '?';
 	E.git_entry_count = 3;
 
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 	E.window_rows = 8;
 	E.window_cols = 50;
 	E.line_numbers_enabled = 0;
@@ -2056,7 +2056,7 @@ static int test_editor_refresh_screen_drawer_renders_directories_bold_and_cyan(v
 	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
 	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows));
 
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 	E.window_rows = 6;
 	E.window_cols = 40;
 	E.line_numbers_enabled = 0;
@@ -2101,14 +2101,14 @@ static int test_editor_refresh_screen_drawer_hides_selection_marker_when_unfocus
 	E.window_cols = 40;
 	add_row("body");
 
-	E.pane_focus = EDITOR_PANE_DRAWER;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 	size_t focused_len = 0;
 	char *focused = refresh_screen_and_capture(&focused_len);
 	ASSERT_TRUE(focused != NULL);
 	ASSERT_TRUE(strstr(focused, "\x1b[7m \xE2\x96\xB8 src") != NULL);
 	free(focused);
 
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 	size_t unfocused_len = 0;
 	char *unfocused = refresh_screen_and_capture(&unfocused_len);
 	ASSERT_TRUE(unfocused != NULL);
@@ -2134,7 +2134,7 @@ static int test_editor_refresh_screen_drawer_active_file_uses_inverted_backgroun
 	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
 	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
 
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 	E.window_rows = 6;
 	E.window_cols = 60;
 	size_t output_len = 0;
@@ -2291,7 +2291,7 @@ static int test_editor_refresh_screen_drawer_uses_nerd_font_icons_when_enabled(v
 	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows));
 
 	E.nerd_fonts_enabled = 1;
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 	E.window_rows = 8;
 	E.window_cols = 70;
 	E.line_numbers_enabled = 0;
@@ -2396,7 +2396,7 @@ static int test_editor_refresh_screen_drawer_renders_unicode_tree_connectors(voi
 	E.window_rows = 8;
 	E.window_cols = 80;
 	(void)editorDrawerSetWidthForCols(40, E.window_cols);
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
@@ -2435,7 +2435,7 @@ static int test_editor_refresh_screen_drawer_selected_overflow_spills_into_text_
 	ASSERT_TRUE(find_drawer_entry(dirname, &long_idx, NULL));
 	ASSERT_TRUE(editorDrawerSelectVisibleIndex(long_idx, E.window_rows + 1));
 
-	E.pane_focus = EDITOR_PANE_DRAWER;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 	E.window_rows = 4;
 	E.window_cols = 60;
 	ASSERT_TRUE(editorDrawerSetWidthForCols(12, E.window_cols));
@@ -2509,7 +2509,7 @@ static int test_editor_refresh_screen_cursor_column_offsets_for_drawer(void) {
 	E.cx = 1;
 	E.rowoff = 0;
 	E.coloff = 0;
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 
 	int expected_col = editorTextBodyStartColForCols(E.window_cols) + 2;
 	char expected_cursor[32];
@@ -2537,7 +2537,7 @@ static int test_editor_refresh_screen_hides_cursor_when_drawer_focused(void) {
 	E.cx = 1;
 	E.rowoff = 0;
 	E.coloff = 0;
-	E.pane_focus = EDITOR_PANE_DRAWER;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
@@ -2565,7 +2565,7 @@ static int test_editor_refresh_screen_terminal_cursor_uses_pane_origin(void) {
 	editorPaneNodeFree(E.layout_root);
 	E.layout_root = terminal_leaf;
 	E.focused_leaf = terminal_leaf;
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 
 	struct editorRect rect = {0};
 	ASSERT_TRUE(editorLayoutFocusedLeafRect(&rect));
@@ -2592,7 +2592,7 @@ static int test_editor_refresh_screen_file_search_header_shows_cursor(void) {
 	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
 	ASSERT_TRUE(editorFileSearchEnter());
 	ASSERT_TRUE(editorFileSearchAppendByte('b'));
-	E.pane_focus = EDITOR_PANE_DRAWER;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 	E.window_rows = 3;
 	E.window_cols = 40;
 	add_row("body");
@@ -2624,7 +2624,7 @@ static int test_editor_refresh_screen_project_search_header_shows_cursor(void) {
 	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
 	ASSERT_TRUE(editorProjectSearchEnter());
 	ASSERT_TRUE(editorProjectSearchAppendByte('n'));
-	E.pane_focus = EDITOR_PANE_DRAWER;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 	E.window_rows = 3;
 	E.window_cols = 40;
 	add_row("body");
@@ -2658,7 +2658,7 @@ static int test_editor_refresh_screen_hides_cursor_when_offscreen_in_free_scroll
 	E.cx = 0;
 	E.rowoff = 4;
 	E.coloff = 0;
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 	editorViewportSetMode(EDITOR_VIEWPORT_FREE_SCROLL);
 
 	size_t output_len = 0;
@@ -2826,7 +2826,7 @@ static int test_editor_refresh_screen_current_line_highlight_visible_when_drawer
 	E.cx = 0;
 	E.current_line_highlight_enabled = 1;
 	E.is_preview = 1;
-	E.pane_focus = EDITOR_PANE_DRAWER;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 	ASSERT_TRUE(editorDrawerSetWidthForCols(1, E.window_cols));
 
 	size_t output_len = 0;

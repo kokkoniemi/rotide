@@ -24,12 +24,12 @@ void editorExpandDrawerForFocus(void) {
 	if (editorDrawerSetCollapsed(0)) {
 		editorSetDrawerCollapseStatus(0);
 	}
-	E.pane_focus = EDITOR_PANE_DRAWER;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 }
 
 void editorToggleDrawerFocus(void) {
-	if (E.pane_focus == EDITOR_PANE_DRAWER) {
-		E.pane_focus = EDITOR_PANE_TEXT;
+	if (E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 		return;
 	}
 	editorExpandDrawerForFocus();
@@ -46,7 +46,7 @@ void editorOpenFileSearchDrawer(void) {
 	if (!editorFileSearchEnter()) {
 		return;
 	}
-	E.pane_focus = EDITOR_PANE_DRAWER;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 	(void)editorFileSearchPreviewSelection();
 }
 
@@ -61,7 +61,7 @@ void editorOpenProjectSearchDrawer(void) {
 	if (!editorProjectSearchEnter()) {
 		return;
 	}
-	E.pane_focus = EDITOR_PANE_DRAWER;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 }
 
 void editorDrawerPromptCreateFile(void) {
@@ -75,7 +75,7 @@ void editorDrawerPromptCreateFile(void) {
 	}
 	(void)editorDrawerCreateFileAtSelection(name, E.window_rows);
 	free(name);
-	E.pane_focus = EDITOR_PANE_DRAWER;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 }
 
 void editorDrawerPromptCreateFolder(void) {
@@ -89,7 +89,7 @@ void editorDrawerPromptCreateFolder(void) {
 	}
 	(void)editorDrawerCreateFolderAtSelection(name, E.window_rows);
 	free(name);
-	E.pane_focus = EDITOR_PANE_DRAWER;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 }
 
 void editorDrawerPromptRename(void) {
@@ -112,7 +112,7 @@ void editorDrawerPromptRename(void) {
 	}
 	(void)editorDrawerRenameSelection(new_name, E.window_rows);
 	free(new_name);
-	E.pane_focus = EDITOR_PANE_DRAWER;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 }
 
 void editorDrawerPromptDelete(void) {
@@ -134,7 +134,7 @@ void editorDrawerPromptDelete(void) {
 		return;
 	}
 	(void)editorDrawerDeleteSelection(E.window_rows);
-	E.pane_focus = EDITOR_PANE_DRAWER;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 }
 
 int editorOpenSelectedGitDiff(void) {
@@ -183,17 +183,17 @@ int editorJumpToSelectedDapDrawerLocation(int preview, editorJumpToPathLocationF
 void editorDrawerPreviewSelectionAfterMove(editorJumpToPathLocationFn jump_fn) {
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
 		(void)editorJumpToSelectedLspDrawerLocation(1, jump_fn);
-		E.pane_focus = EDITOR_PANE_DRAWER;
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 		return;
 	}
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_DAP) {
 		(void)editorJumpToSelectedDapDrawerLocation(1, jump_fn);
-		E.pane_focus = EDITOR_PANE_DRAWER;
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 		return;
 	}
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_TREE) {
 		(void)editorDrawerOpenSelectedFileInPreviewTab();
-		E.pane_focus = EDITOR_PANE_DRAWER;
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 	}
 }
 
@@ -220,13 +220,13 @@ int editorHandleDrawerSearchMappedAction(enum editorAction action, int *cursor_o
 			break;
 		case EDITOR_ACTION_NEWLINE:
 			if (editorFileSearchOpenSelectedFileInTab()) {
-				E.pane_focus = EDITOR_PANE_DRAWER;
+				E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 				cursor_or_edit = 1;
 			}
 			break;
 		case EDITOR_ACTION_ESCAPE:
 			editorFileSearchExit(1);
-			E.pane_focus = EDITOR_PANE_TEXT;
+			E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 			break;
 		case EDITOR_ACTION_BACKSPACE:
 		case EDITOR_ACTION_DELETE_CHAR:
@@ -296,13 +296,13 @@ int editorHandleDrawerSearchMappedAction(enum editorAction action, int *cursor_o
 			break;
 		case EDITOR_ACTION_NEWLINE:
 			if (editorProjectSearchOpenSelectedFileInTab()) {
-				E.pane_focus = EDITOR_PANE_DRAWER;
+				E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 				cursor_or_edit = 1;
 			}
 			break;
 		case EDITOR_ACTION_ESCAPE:
 			editorProjectSearchExit(1);
-			E.pane_focus = EDITOR_PANE_TEXT;
+			E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 			break;
 		case EDITOR_ACTION_BACKSPACE:
 		case EDITOR_ACTION_DELETE_CHAR:
@@ -361,7 +361,7 @@ static enum editorDrawerMode editorActiveDrawerHeaderMode(void) {
 
 int editorSwitchDrawerHeaderMode(enum editorDrawerMode mode) {
 	if (editorActiveDrawerHeaderMode() == mode) {
-		E.pane_focus = EDITOR_PANE_DRAWER;
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 		return 0;
 	}
 
@@ -379,7 +379,7 @@ int editorSwitchDrawerHeaderMode(enum editorDrawerMode mode) {
 		E.drawer_rowoff = 0;
 		E.drawer_resize_active = 0;
 		(void)editorDrawerSetCollapsed(0);
-		E.pane_focus = EDITOR_PANE_DRAWER;
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 		editorSetStatusMsg("Project drawer shown");
 		return 0;
 	case EDITOR_DRAWER_MODE_FILE_SEARCH:
@@ -395,7 +395,7 @@ int editorSwitchDrawerHeaderMode(enum editorDrawerMode mode) {
 			(void)editorDrawerLspToggle();
 			editorSetStatusMsg("LSP drawer shown");
 		}
-		E.pane_focus = EDITOR_PANE_DRAWER;
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 		return 0;
 	case EDITOR_DRAWER_MODE_DAP:
 		editorHistoryBreakGroup();
@@ -404,7 +404,7 @@ int editorSwitchDrawerHeaderMode(enum editorDrawerMode mode) {
 			(void)editorDrawerDapToggle();
 			editorSetStatusMsg("DAP drawer shown");
 		}
-		E.pane_focus = EDITOR_PANE_DRAWER;
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 		return 0;
 	case EDITOR_DRAWER_MODE_MAIN_MENU:
 		editorHistoryBreakGroup();
@@ -413,7 +413,7 @@ int editorSwitchDrawerHeaderMode(enum editorDrawerMode mode) {
 			(void)editorDrawerMainMenuToggle();
 			editorSetStatusMsg("Main menu opened");
 		}
-		E.pane_focus = EDITOR_PANE_DRAWER;
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 		return 0;
 	case EDITOR_DRAWER_MODE_GIT:
 		editorHistoryBreakGroup();
@@ -423,7 +423,7 @@ int editorSwitchDrawerHeaderMode(enum editorDrawerMode mode) {
 			editorSetStatusMsg(E.git_repo_root != NULL ? "Git changes shown" :
 					"Not in a git repository");
 		}
-		E.pane_focus = EDITOR_PANE_DRAWER;
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 		return 0;
 	default:
 		return 0;
@@ -444,7 +444,7 @@ int editorHandleWorkspaceMappedAction(enum editorAction action,
 		if (editorDrawerToggleCollapsed()) {
 			editorSetDrawerCollapseStatus(editorDrawerIsCollapsed());
 			if (!editorDrawerIsCollapsed()) {
-				E.pane_focus = EDITOR_PANE_DRAWER;
+				E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 			}
 		}
 		return 1;
@@ -548,7 +548,7 @@ int editorHandleWorkspaceMappedAction(enum editorAction action,
 		break;
 	}
 
-	if (E.pane_focus != EDITOR_PANE_DRAWER) {
+	if (E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER) {
 		return 0;
 	}
 
@@ -597,12 +597,12 @@ int editorHandleWorkspaceMappedAction(enum editorAction action,
 			(void)editorDrawerToggleSelectionExpanded(E.window_rows);
 		} else if (E.drawer_mode == EDITOR_DRAWER_MODE_GIT) {
 			if (editorOpenSelectedGitDiff()) {
-				E.pane_focus = EDITOR_PANE_TEXT;
+				E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 				effects |= cursor_or_edit_effect_bit;
 			}
 		} else if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
 			if (editorJumpToSelectedLspDrawerLocation(0, jump_fn)) {
-				E.pane_focus = EDITOR_PANE_TEXT;
+				E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 				effects |= cursor_or_edit_effect_bit;
 			}
 		} else if (E.drawer_mode == EDITOR_DRAWER_MODE_DAP) {
@@ -618,7 +618,7 @@ int editorHandleWorkspaceMappedAction(enum editorAction action,
 					effects |= cursor_or_edit_effect_bit;
 				}
 			} else if (editorJumpToSelectedDapDrawerLocation(0, jump_fn)) {
-				E.pane_focus = EDITOR_PANE_TEXT;
+				E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 				effects |= cursor_or_edit_effect_bit;
 			}
 		} else {
@@ -631,7 +631,7 @@ int editorHandleWorkspaceMappedAction(enum editorAction action,
 				}
 				effects |= mapped_effects;
 			} else if (editorDrawerOpenSelectedFileInTab()) {
-				E.pane_focus = EDITOR_PANE_TEXT;
+				E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 			}
 		}
 		if (effects_io != NULL) {

@@ -167,7 +167,7 @@ static void editorCtrlClickGoToDefinitionAction(void) {
 }
 
 static void editorPinActivePreviewForEdit(void) {
-	if (E.pane_focus != EDITOR_PANE_DRAWER) {
+	if (E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER) {
 		editorTabPinActivePreview();
 	}
 }
@@ -688,7 +688,7 @@ static void editorProjectReplaceFromSearch(void) {
 
 	int saved_active_tab = editorTabActiveIndex();
 	editorProjectSearchExit(0);
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 
 	size_t find_len = strlen(find_copy);
 	size_t replace_len = strlen(replace_query);
@@ -1624,7 +1624,7 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			}
 			return 1;
 		}
-		if (E.pane_focus != EDITOR_PANE_DRAWER && editorActionMutatesReadOnlyBuffer(action)) {
+		if (E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER && editorActionMutatesReadOnlyBuffer(action)) {
 			editorSetStatusMsg(editorActiveTabIsUnsupportedFile() ?
 					"File is unsupported" : "Task log is read-only");
 			if (effects_out != NULL) {
@@ -1678,7 +1678,7 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 	switch (action) {
 		case EDITOR_ACTION_COLUMN_SELECT_UP:
 			editorHistoryBreakGroup();
-			if (E.pane_focus == EDITOR_PANE_DRAWER) {
+			if (E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
 				break;
 			}
 			editorColumnSelectionMove(-1, 0);
@@ -1686,7 +1686,7 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			break;
 		case EDITOR_ACTION_COLUMN_SELECT_DOWN:
 			editorHistoryBreakGroup();
-			if (E.pane_focus == EDITOR_PANE_DRAWER) {
+			if (E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
 				break;
 			}
 			editorColumnSelectionMove(1, 0);
@@ -1745,7 +1745,7 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			break;
 		case EDITOR_ACTION_GOTO_MATCHING_BRACKET:
 			editorHistoryBreakGroup();
-			if (E.pane_focus != EDITOR_PANE_DRAWER && editorJumpToMatchingBracket()) {
+			if (E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER && editorJumpToMatchingBracket()) {
 				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			}
 			break;
@@ -1848,8 +1848,8 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 		case EDITOR_ACTION_ESCAPE:
 			// In normal editor mode Escape only clears transient selection state; quit is configurable.
 			editorHistoryBreakGroup();
-			if (E.pane_focus == EDITOR_PANE_DRAWER) {
-				E.pane_focus = EDITOR_PANE_TEXT;
+			if (E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
+				E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 				break;
 			}
 			editorClearSelectionMode();
@@ -1979,7 +1979,7 @@ void editorProcessKeypress(void) {
 		if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
 				E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
 				E.focused_leaf->as.leaf.kind_state != NULL &&
-				E.pane_focus != EDITOR_PANE_DRAWER) {
+				E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER) {
 			if (E.terminal_prefix_armed) {
 				E.terminal_prefix_armed = 0;
 				/* Fall through to keymap lookup below. */
@@ -2014,7 +2014,7 @@ void editorProcessKeypress(void) {
 				if (editorProjectSearchAppendByte(c)) {
 					(void)editorProjectSearchPreviewSelection();
 				}
-			} else if (E.pane_focus != EDITOR_PANE_DRAWER) {
+			} else if (E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER) {
 				if (editorActiveTabIsReadOnly()) {
 					editorSetStatusMsg(editorActiveTabIsUnsupportedFile() ?
 							"File is unsupported" : "Task log is read-only");

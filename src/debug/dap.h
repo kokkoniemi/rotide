@@ -1,7 +1,90 @@
 #ifndef LANGUAGE_DAP_H
 #define LANGUAGE_DAP_H
 
-#include "rotide.h"
+#include <limits.h>
+
+#define ROTIDE_DAP_MAX_ADAPTERS 16
+#define ROTIDE_DAP_MAX_CONFIGS 16
+#define ROTIDE_DAP_MAX_FIELDS 32
+#define ROTIDE_DAP_MAX_ENV 32
+#define ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS 32
+#define ROTIDE_DAP_ID_MAX 64
+#define ROTIDE_DAP_NAME_MAX 128
+#define ROTIDE_DAP_KEY_MAX 64
+#define ROTIDE_DAP_VALUE_MAX 1024
+#define ROTIDE_DAP_OUTPUT_MAX 4096
+#define ROTIDE_DAP_MAX_BREAKPOINTS 128
+#define ROTIDE_DAP_MAX_THREADS 32
+#define ROTIDE_DAP_MAX_STACK_FRAMES 128
+#define ROTIDE_DAP_MAX_SCOPES 64
+#define ROTIDE_DAP_MAX_VARIABLES 256
+
+enum editorDapLaunchValueKind {
+	EDITOR_DAP_LAUNCH_VALUE_STRING = 0,
+	EDITOR_DAP_LAUNCH_VALUE_BOOL,
+	EDITOR_DAP_LAUNCH_VALUE_INT,
+	EDITOR_DAP_LAUNCH_VALUE_STRING_ARRAY
+};
+
+struct editorDapAdapterConfig {
+	char id[ROTIDE_DAP_ID_MAX];
+	char command[PATH_MAX];
+};
+
+struct editorDapLaunchField {
+	char key[ROTIDE_DAP_KEY_MAX];
+	enum editorDapLaunchValueKind kind;
+	char string_value[ROTIDE_DAP_VALUE_MAX];
+	int int_value;
+	int bool_value;
+	char array_values[ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS][ROTIDE_DAP_VALUE_MAX];
+	int array_count;
+};
+
+struct editorDapEnvVar {
+	char key[ROTIDE_DAP_KEY_MAX];
+	char value[ROTIDE_DAP_VALUE_MAX];
+};
+
+struct editorDapLaunchConfig {
+	char id[ROTIDE_DAP_ID_MAX];
+	char name[ROTIDE_DAP_NAME_MAX];
+	char adapter[ROTIDE_DAP_ID_MAX];
+	char request[32];
+	struct editorDapLaunchField fields[ROTIDE_DAP_MAX_FIELDS];
+	int field_count;
+	struct editorDapEnvVar env[ROTIDE_DAP_MAX_ENV];
+	int env_count;
+};
+
+struct editorDapBreakpoint {
+	char path[PATH_MAX];
+	int line;
+};
+
+struct editorDapThread {
+	int id;
+	char name[ROTIDE_DAP_NAME_MAX];
+};
+
+struct editorDapStackFrame {
+	int id;
+	char name[ROTIDE_DAP_NAME_MAX];
+	char path[PATH_MAX];
+	int line;
+	int column;
+};
+
+struct editorDapScope {
+	int variables_reference;
+	char name[ROTIDE_DAP_NAME_MAX];
+};
+
+struct editorDapVariable {
+	int variables_reference;
+	char name[ROTIDE_DAP_NAME_MAX];
+	char value[ROTIDE_DAP_VALUE_MAX];
+};
 
 void editorDapShutdown(void);
 void editorDapPumpNotifications(void);

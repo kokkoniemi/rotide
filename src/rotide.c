@@ -128,7 +128,7 @@ void initEditor(void) {
 	E.column_select_drag_modifier = EDITOR_MOUSE_MOD_ALT;
 	editorThemeInitDefault(&E.theme);
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 	E.layout_root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
 	if (E.layout_root == NULL) {
 		errno = ENOMEM;

@@ -717,11 +717,11 @@ int editorCurrentLineHighlightApplies(int row_idx, int segment_coloff) {
 	if (!E.current_line_highlight_enabled || row_idx != E.cy) {
 		return 0;
 	}
-	if (E.pane_focus != EDITOR_PANE_TEXT && !E.is_preview) {
+	if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT && !E.is_preview) {
 		const char *lsp_path = NULL;
 		int lsp_line = -1;
 		int lsp_character = -1;
-		if (E.pane_focus != EDITOR_PANE_DRAWER ||
+		if (E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER ||
 				E.drawer_mode != EDITOR_DRAWER_MODE_LSP ||
 				!editorDrawerSelectedLspLocation(&lsp_path, &lsp_line, &lsp_character) ||
 				lsp_path == NULL || E.filename == NULL ||
@@ -1124,7 +1124,7 @@ static struct editorTerminalPane *editorFocusedTerminalPane(void) {
 }
 
 static const struct editorLspDiagnostic *editorDiagnosticAtCursor(void) {
-	if (E.pane_focus != EDITOR_PANE_TEXT || E.cy < 0 || E.cy >= E.numrows ||
+	if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT || E.cy < 0 || E.cy >= E.numrows ||
 			E.lsp_diagnostics == NULL || E.lsp_diagnostic_count <= 0) {
 		return NULL;
 	}
@@ -1397,7 +1397,7 @@ void editorRefreshScreen(void) {
 		}
 		cursor_col = cursor_pane_text_start_col + cursor_segment_col + 1;
 	}
-	if (E.pane_focus == EDITOR_PANE_DRAWER && editorDrawerWidthForCols(E.window_cols) > 0) {
+	if (E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER && editorDrawerWidthForCols(E.window_cols) > 0) {
 		if (editorFileSearchIsActive()) {
 			cursor_row = 2;
 			cursor_col = editorFileSearchHeaderCursorCol(editorDrawerWidthForCols(E.window_cols));

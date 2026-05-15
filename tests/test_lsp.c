@@ -3168,7 +3168,7 @@ static int test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem(void) {
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(lsp_drawer,
 			sizeof(lsp_drawer)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 	ASSERT_TRUE(find_drawer_entry("Symbols", NULL, NULL));
 
 	struct editorDrawerEntryView view = {0};
@@ -3194,7 +3194,7 @@ static int test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem(void) {
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(0, E.cx);
 	ASSERT_EQ_INT(dirty_before, E.dirty);
-	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
 
 	ASSERT_TRUE(unlink(js_path) == 0);
 	return 0;
@@ -3285,7 +3285,7 @@ static int test_editor_lsp_drawer_lists_document_symbols_and_jumps_to_symbol(voi
 	ASSERT_EQ_STR(go_path, E.filename);
 	ASSERT_EQ_INT(2, E.cy);
 	ASSERT_EQ_INT(5, E.cx);
-	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
 
 	ASSERT_TRUE(unlink(go_path) == 0);
 	return 0;
@@ -3334,7 +3334,7 @@ static int test_editor_lsp_drawer_arrow_previews_symbol_centered_away_from_drawe
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(lsp_drawer,
 			sizeof(lsp_drawer)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 
 	const char arrow_down[] = "\x1b[B";
 	for (int i = 0; i < 5; i++) {
@@ -3344,7 +3344,7 @@ static int test_editor_lsp_drawer_arrow_previews_symbol_centered_away_from_drawe
 
 	ASSERT_EQ_INT(20, E.cy);
 	ASSERT_EQ_INT(5, E.cx);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 	ASSERT_EQ_INT(E.window_rows / 2, E.drawer_selected_index - E.drawer_rowoff);
 	ASSERT_TRUE(E.cy - E.rowoff != E.drawer_selected_index - E.drawer_rowoff);
 
@@ -3428,7 +3428,7 @@ static int test_editor_lsp_drawer_selected_problem_spills_into_text_area(void) {
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(lsp_drawer,
 			sizeof(lsp_drawer)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 
 	int problem_idx = -1;
 	ASSERT_TRUE(find_drawer_entry_containing(long_message, &problem_idx, NULL));

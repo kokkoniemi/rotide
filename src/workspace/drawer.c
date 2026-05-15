@@ -134,8 +134,8 @@ int editorDrawerSetCollapsed(int collapsed) {
 
 	E.drawer_collapsed = new_collapsed;
 	E.drawer_resize_active = 0;
-	if (new_collapsed && E.pane_focus == EDITOR_PANE_DRAWER) {
-		E.pane_focus = EDITOR_PANE_TEXT;
+	if (new_collapsed && E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 	}
 	return 1;
 }
@@ -271,7 +271,7 @@ void editorDrawerShutdown(void) {
 	E.drawer_last_click_ms = 0;
 	E.drawer_resize_active = 0;
 	E.drawer_collapsed = 0;
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 }
 
 int editorDrawerInitForStartup(int argc, char *argv[], int restored_session) {
@@ -310,7 +310,7 @@ int editorDrawerInitForStartup(int argc, char *argv[], int restored_session) {
 	}
 	E.drawer_collapsed = 0;
 	E.drawer_resize_active = 0;
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 	editorDrawerClampSelectionAndScroll(E.window_rows);
 	return 1;
 }

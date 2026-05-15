@@ -248,7 +248,7 @@ void editorViewportEnsureCursorVisible(void) {
 }
 
 static int editorViewportCenteredScreenRowAvoidingDrawerSelection(int desired_screen_row) {
-	if (desired_screen_row < 0 || E.pane_focus != EDITOR_PANE_DRAWER ||
+	if (desired_screen_row < 0 || E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER ||
 			E.drawer_selected_index < 0 || E.window_rows <= 1) {
 		return desired_screen_row;
 	}

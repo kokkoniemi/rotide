@@ -169,7 +169,7 @@ static int test_editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped
 static int test_editor_process_keypress_resize_drawer_shortcuts(void) {
 	E.window_cols = 40;
 	E.drawer_width_cols = 10;
-	E.pane_focus = EDITOR_PANE_DRAWER;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 
 	const char alt_shift_right[] = "\x1b[1;4C";
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_right,
@@ -200,24 +200,24 @@ static int test_editor_process_keypress_toggle_drawer_shortcut_collapses_and_exp
 	char toggle_drawer[] = {'\x1b', CTRL_KEY('e')};
 	ASSERT_TRUE(editor_process_keypress_with_input(toggle_drawer, sizeof(toggle_drawer)) == 0);
 	ASSERT_TRUE(editorDrawerIsCollapsed());
-	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
 	ASSERT_EQ_STR("Drawer collapsed", E.statusmsg);
 
 	ASSERT_TRUE(editor_process_keypress_with_input(toggle_drawer, sizeof(toggle_drawer)) == 0);
 	ASSERT_TRUE(!editorDrawerIsCollapsed());
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 	ASSERT_EQ_STR("Drawer expanded", E.statusmsg);
 
 	ASSERT_TRUE(editorDrawerSetCollapsed(1));
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 	char focus_drawer[] = {CTRL_KEY('e')};
 	ASSERT_TRUE(editor_process_keypress_with_input(focus_drawer, sizeof(focus_drawer)) == 0);
 	ASSERT_TRUE(!editorDrawerIsCollapsed());
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 	ASSERT_EQ_STR("Drawer expanded", E.statusmsg);
 	ASSERT_TRUE(editor_process_keypress_with_input(focus_drawer, sizeof(focus_drawer)) == 0);
 	ASSERT_TRUE(!editorDrawerIsCollapsed());
-	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
 
 	cleanup_recovery_test_env(&env);
 	return 0;
@@ -240,7 +240,7 @@ static int test_editor_process_keypress_toggle_drawer_preserves_search_modes(voi
 	ASSERT_TRUE(editor_process_keypress_with_input(toggle_drawer, sizeof(toggle_drawer)) == 0);
 	ASSERT_TRUE(editorDrawerIsCollapsed());
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
-	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
 
 	char hidden_file_query_input[] = {'b'};
 	ASSERT_TRUE(editor_process_keypress_with_input(hidden_file_query_input,
@@ -250,7 +250,7 @@ static int test_editor_process_keypress_toggle_drawer_preserves_search_modes(voi
 	ASSERT_TRUE(editor_process_keypress_with_input(toggle_drawer, sizeof(toggle_drawer)) == 0);
 	ASSERT_TRUE(!editorDrawerIsCollapsed());
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 	ASSERT_EQ_STR("a", editorFileSearchQuery());
 	editorFileSearchExit(1);
 
@@ -264,7 +264,7 @@ static int test_editor_process_keypress_toggle_drawer_preserves_search_modes(voi
 	ASSERT_TRUE(editor_process_keypress_with_input(toggle_drawer, sizeof(toggle_drawer)) == 0);
 	ASSERT_TRUE(editorDrawerIsCollapsed());
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_PROJECT_SEARCH, E.drawer_mode);
-	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
 
 	char hidden_project_query_input[] = {'y'};
 	ASSERT_TRUE(editor_process_keypress_with_input(hidden_project_query_input,
@@ -274,7 +274,7 @@ static int test_editor_process_keypress_toggle_drawer_preserves_search_modes(voi
 	ASSERT_TRUE(editor_process_keypress_with_input(toggle_drawer, sizeof(toggle_drawer)) == 0);
 	ASSERT_TRUE(!editorDrawerIsCollapsed());
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_PROJECT_SEARCH, E.drawer_mode);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 	ASSERT_EQ_STR("x", editorProjectSearchQuery());
 	editorProjectSearchExit(1);
 
@@ -296,7 +296,7 @@ static int test_editor_process_keypress_main_menu_runs_selected_action(void) {
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_m, sizeof(alt_m) - 1) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_MAIN_MENU, E.drawer_mode);
 	ASSERT_EQ_INT(-1, E.drawer_selected_index);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 	ASSERT_EQ_STR("Main menu opened", E.statusmsg);
 
 	int find_file_idx = -1;
@@ -306,7 +306,7 @@ static int test_editor_process_keypress_main_menu_runs_selected_action(void) {
 	char enter[] = {'\r'};
 	ASSERT_TRUE(editor_process_keypress_with_input(enter, sizeof(enter)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 
 	editorFileSearchExit(1);
 	ASSERT_TRUE(unlink(match_file) == 0);
@@ -526,11 +526,11 @@ static int test_editor_process_keypress_focus_drawer_and_arrow_navigation(void) 
 
 	char focus_drawer[] = {CTRL_KEY('e')};
 	ASSERT_TRUE(editor_process_keypress_with_input(focus_drawer, sizeof(focus_drawer)) == 0);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 	ASSERT_TRUE(editor_process_keypress_with_input(focus_drawer, sizeof(focus_drawer)) == 0);
-	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
 	ASSERT_TRUE(editor_process_keypress_with_input(focus_drawer, sizeof(focus_drawer)) == 0);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 
 	const char arrow_down[] = "\x1b[B";
 	ASSERT_TRUE(editor_process_keypress_with_input(arrow_down, sizeof(arrow_down) - 1) == 0);
@@ -554,7 +554,7 @@ static int test_editor_process_keypress_focus_drawer_and_arrow_navigation(void) 
 
 	const char esc_input[] = "\x1b[x";
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(esc_input, sizeof(esc_input) - 1) == 0);
-	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
 
 	ASSERT_TRUE(unlink(child_file) == 0);
 	ASSERT_TRUE(rmdir(src_dir) == 0);
@@ -582,16 +582,16 @@ static int test_editor_process_keypress_drawer_enter_toggles_directory(void) {
 	ASSERT_TRUE(editorDrawerSelectVisibleIndex(src_idx, E.window_rows + 1));
 	int collapsed_count = editorDrawerVisibleCount();
 
-	E.pane_focus = EDITOR_PANE_DRAWER;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 	char enter_key[] = {'\r'};
 	ASSERT_TRUE(editor_process_keypress_with_input(enter_key, sizeof(enter_key)) == 0);
 	ASSERT_TRUE(editorDrawerVisibleCount() > collapsed_count);
 	ASSERT_EQ_INT(1, editorTabCount());
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 
 	ASSERT_TRUE(editor_process_keypress_with_input(enter_key, sizeof(enter_key)) == 0);
 	ASSERT_EQ_INT(collapsed_count, editorDrawerVisibleCount());
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 
 	ASSERT_TRUE(unlink(child_file) == 0);
 	ASSERT_TRUE(rmdir(src_dir) == 0);
@@ -614,13 +614,13 @@ static int test_editor_process_keypress_drawer_enter_opens_file_in_new_tab(void)
 	int file_idx = -1;
 	ASSERT_TRUE(find_drawer_entry("open.txt", &file_idx, NULL));
 	ASSERT_TRUE(editorDrawerSelectVisibleIndex(file_idx, E.window_rows + 1));
-	E.pane_focus = EDITOR_PANE_DRAWER;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 
 	char enter_key[] = {'\r'};
 	ASSERT_TRUE(editor_process_keypress_with_input(enter_key, sizeof(enter_key)) == 0);
 	ASSERT_EQ_INT(2, editorTabCount());
 	ASSERT_EQ_INT(1, editorTabActiveIndex());
-	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_EQ_STR(open_file, E.filename);
 	ASSERT_EQ_INT(1, E.numrows);
@@ -656,7 +656,7 @@ static int test_editor_process_keypress_find_file_filters_previews_and_opens(voi
 	char ctrl_p[] = {CTRL_KEY('p')};
 	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_p, sizeof(ctrl_p)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 	ASSERT_TRUE(editorActiveTabIsPreview());
 
 	char filter[] = {'b'};
@@ -669,7 +669,7 @@ static int test_editor_process_keypress_find_file_filters_previews_and_opens(voi
 	char enter_key[] = {'\r'};
 	ASSERT_TRUE(editor_process_keypress_with_input(enter_key, sizeof(enter_key)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, E.drawer_mode);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 	ASSERT_EQ_INT(0, editorActiveTabIsPreview());
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_EQ_STR(beta_file, E.filename);
@@ -705,7 +705,7 @@ static int test_editor_process_keypress_project_search_filters_previews_and_open
 	char ctrl_alt_f[] = {'\x1b', CTRL_KEY('f')};
 	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_alt_f, sizeof(ctrl_alt_f)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_PROJECT_SEARCH, E.drawer_mode);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 
 	const char *query = "needle";
 	for (size_t i = 0; query[i] != '\0'; i++) {
@@ -721,7 +721,7 @@ static int test_editor_process_keypress_project_search_filters_previews_and_open
 	char enter_key[] = {'\r'};
 	ASSERT_TRUE(editor_process_keypress_with_input(enter_key, sizeof(enter_key)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, E.drawer_mode);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 	ASSERT_EQ_INT(0, editorActiveTabIsPreview());
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_EQ_STR(alpha_file, E.filename);
@@ -1423,7 +1423,7 @@ static int test_editor_process_keypress_mouse_ctrl_hover_marks_word_as_hover_lin
 	snprintf(E.lsp_clangd_command, sizeof(E.lsp_clangd_command), "clangd");
 	E.filename = strdup("/tmp/hover.c");
 	ASSERT_TRUE(E.filename != NULL);
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 	E.cy = 0;
 	E.cx = 0;
 
@@ -1448,7 +1448,7 @@ static int test_editor_process_keypress_mouse_motion_without_ctrl_does_not_mark_
 	snprintf(E.lsp_clangd_command, sizeof(E.lsp_clangd_command), "clangd");
 	E.filename = strdup("/tmp/hover.c");
 	ASSERT_TRUE(E.filename != NULL);
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 
 	int text_start = editorTextBodyStartColForCols(E.window_cols);
 	char motion[32];
@@ -1544,13 +1544,13 @@ static int test_editor_process_keypress_mouse_drawer_click_selects_and_toggles_d
 	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows));
 	int src_idx = -1;
 	ASSERT_TRUE(find_drawer_entry("src", &src_idx, NULL));
-	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
 
 	int row = src_idx - E.drawer_rowoff + 2;
 	char click_src[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click_src, sizeof(click_src), 0, 2, row, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_src, strlen(click_src)) == 0);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 	ASSERT_TRUE(find_drawer_entry("child.txt", NULL, NULL));
 
 	ASSERT_TRUE(editor_process_keypress_with_input(click_src, strlen(click_src)) == 0);
@@ -1571,14 +1571,14 @@ static int test_editor_process_keypress_mouse_click_expands_collapsed_drawer(voi
 	ASSERT_TRUE(format_sgr_mouse_event(click_collapse, sizeof(click_collapse), 0, 1, 1, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_collapse, strlen(click_collapse)) == 0);
 	ASSERT_TRUE(editorDrawerIsCollapsed());
-	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
 	ASSERT_EQ_STR("Drawer collapsed", E.statusmsg);
 
 	char click_toggle[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click_toggle, sizeof(click_toggle), 0, 1, 1, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_toggle, strlen(click_toggle)) == 0);
 	ASSERT_TRUE(!editorDrawerIsCollapsed());
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 	ASSERT_EQ_STR("Drawer expanded", E.statusmsg);
 
 	cleanup_recovery_test_env(&env);
@@ -1600,7 +1600,7 @@ static int test_editor_process_keypress_mouse_drawer_header_mode_buttons(void) {
 	ASSERT_TRUE(editor_process_keypress_with_input(click_file_search,
 				strlen(click_file_search)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 
 	char query_char[] = {'a'};
 	ASSERT_TRUE(editor_process_keypress_with_input(query_char, sizeof(query_char)) == 0);
@@ -1616,7 +1616,7 @@ static int test_editor_process_keypress_mouse_drawer_header_mode_buttons(void) {
 	ASSERT_TRUE(editor_process_keypress_with_input(click_project_search,
 				strlen(click_project_search)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_PROJECT_SEARCH, E.drawer_mode);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 
 	char click_git[32];
 	char click_dap[32];
@@ -1624,17 +1624,17 @@ static int test_editor_process_keypress_mouse_drawer_header_mode_buttons(void) {
 	ASSERT_TRUE(format_sgr_mouse_event(click_lsp, sizeof(click_lsp), 0, 13, 1, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_lsp, strlen(click_lsp)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 
 	ASSERT_TRUE(format_sgr_mouse_event(click_dap, sizeof(click_dap), 0, 16, 1, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_dap, strlen(click_dap)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_DAP, E.drawer_mode);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 
 	ASSERT_TRUE(format_sgr_mouse_event(click_git, sizeof(click_git), 0, 19, 1, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_git, strlen(click_git)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_GIT, E.drawer_mode);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 
 	char click_main_menu[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click_main_menu, sizeof(click_main_menu), 0, 22, 1,
@@ -1643,14 +1643,14 @@ static int test_editor_process_keypress_mouse_drawer_header_mode_buttons(void) {
 				strlen(click_main_menu)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_MAIN_MENU, E.drawer_mode);
 	ASSERT_EQ_INT(-1, E.drawer_selected_index);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 
 	char click_explorer[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click_explorer, sizeof(click_explorer), 0, 4, 1, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_explorer, strlen(click_explorer)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, E.drawer_mode);
 	ASSERT_EQ_INT(-1, E.drawer_selected_index);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 
 	cleanup_recovery_test_env(&env);
 	return 0;
@@ -1667,7 +1667,7 @@ static int test_editor_process_keypress_mouse_collapsed_drawer_body_click_edits_
 	E.line_numbers_enabled = 0;
 	E.cy = 0;
 	E.cx = 2;
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 	ASSERT_TRUE(editorDrawerSetCollapsed(1));
 
 	int text_x = editorTextBodyStartColForCols(E.window_cols) + 1;
@@ -1675,7 +1675,7 @@ static int test_editor_process_keypress_mouse_collapsed_drawer_body_click_edits_
 	ASSERT_TRUE(format_sgr_mouse_event(click_body, sizeof(click_body), 0, text_x, 2, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_body, strlen(click_body)) == 0);
 	ASSERT_TRUE(editorDrawerIsCollapsed());
-	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(0, E.cx);
 
@@ -1706,7 +1706,7 @@ static int test_editor_process_keypress_mouse_drawer_single_file_click_opens_pre
 	ASSERT_EQ_INT(2, editorTabCount());
 	ASSERT_EQ_INT(1, editorTabActiveIndex());
 	ASSERT_EQ_INT(file_idx, E.drawer_selected_index);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 	ASSERT_TRUE(editorActiveTabIsPreview());
 	ASSERT_EQ_STR("Preview tab opened. Double-click to keep it open", E.statusmsg);
 	ASSERT_TRUE(E.filename != NULL);
@@ -1749,12 +1749,12 @@ static int test_editor_drawer_arrow_navigation_opens_preview_tab(void) {
 
 	char focus_drawer[] = {CTRL_KEY('e')};
 	ASSERT_TRUE(editor_process_keypress_with_input(focus_drawer, sizeof(focus_drawer)) == 0);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 
 	int tab_count_before = editorTabCount();
 	const char arrow_down[] = "\x1b[B";
 	ASSERT_TRUE(editor_process_keypress_with_input(arrow_down, sizeof(arrow_down) - 1) == 0);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 	ASSERT_TRUE(editorActiveTabIsPreview());
 	ASSERT_EQ_INT(start_idx, E.drawer_selected_index);
 	ASSERT_TRUE(E.filename != NULL);
@@ -1764,7 +1764,7 @@ static int test_editor_drawer_arrow_navigation_opens_preview_tab(void) {
 	ASSERT_TRUE(tab_count_after_first >= tab_count_before);
 
 	ASSERT_TRUE(editor_process_keypress_with_input(arrow_down, sizeof(arrow_down) - 1) == 0);
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 	ASSERT_TRUE(editorActiveTabIsPreview());
 	const char *second_preview_path = alpha_idx < beta_idx ? second_file : first_file;
 	ASSERT_EQ_STR(second_preview_path, E.filename);
@@ -1839,7 +1839,7 @@ static int test_editor_process_keypress_mouse_drawer_double_click_file_pins_prev
 	ASSERT_TRUE(editor_process_keypress_with_input(click_file, strlen(click_file)) == 0);
 	ASSERT_EQ_INT(2, editorTabCount());
 	ASSERT_EQ_INT(1, editorTabActiveIndex());
-	ASSERT_EQ_INT(EDITOR_PANE_DRAWER, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 	ASSERT_TRUE(editorActiveTabIsPreview());
 	ASSERT_EQ_STR("Preview tab opened. Double-click to keep it open", E.statusmsg);
 	ASSERT_TRUE(E.filename != NULL);
@@ -1848,7 +1848,7 @@ static int test_editor_process_keypress_mouse_drawer_double_click_file_pins_prev
 	ASSERT_TRUE(editor_process_keypress_with_input(click_file, strlen(click_file)) == 0);
 	ASSERT_EQ_INT(2, editorTabCount());
 	ASSERT_EQ_INT(1, editorTabActiveIndex());
-	ASSERT_EQ_INT(EDITOR_PANE_TEXT, E.pane_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
 	ASSERT_TRUE(!editorActiveTabIsPreview());
 	ASSERT_EQ_STR("Tab kept open", E.statusmsg);
 	ASSERT_TRUE(E.filename != NULL);
@@ -2060,7 +2060,7 @@ static int test_editor_process_keypress_mouse_drag_on_splitter_resizes_drawer(vo
 	E.drawer_width_cols = 12;
 	E.cy = 0;
 	E.cx = 3;
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 
 	int separator_x = editorDrawerWidthForCols(E.window_cols) + 1;
 	char press[32];
@@ -2208,7 +2208,7 @@ static int test_editor_process_keypress_mouse_wheel_scrolls_drawer_when_hovered(
 	E.drawer_rowoff = 0;
 
 	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 
 	const char wheel_down[] = "\x1b[<65;1;2M";
 	ASSERT_TRUE(editor_process_keypress_with_input(wheel_down, sizeof(wheel_down) - 1) == 0);
@@ -2282,7 +2282,7 @@ static int test_editor_process_keypress_mouse_wheel_scrolls_text_when_hovered_ev
 	E.cx = 0;
 	E.rowoff = 0;
 	E.drawer_rowoff = 2;
-	E.pane_focus = EDITOR_PANE_DRAWER;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 
 	int text_x = editorTextBodyStartColForCols(E.window_cols) + 1;
 	char wheel_down[32];
@@ -3857,7 +3857,7 @@ static int test_editor_column_select_extends_rectangle_with_shift_alt_arrows(voi
 	add_row("0123456789a");
 	E.cy = 0;
 	E.cx = 2;
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 
 	const char alt_shift_down[] = "\x1b[1;4B";
 	const char alt_shift_right[] = "\x1b[1;4C";
@@ -3886,7 +3886,7 @@ static int test_editor_column_select_copy_joins_per_row_slices_with_newlines(voi
 	add_row("0123456789a");
 	E.cy = 0;
 	E.cx = 2;
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 
 	const char alt_shift_down[] = "\x1b[1;4B";
 	const char alt_shift_right[] = "\x1b[1;4C";
@@ -3914,7 +3914,7 @@ static int test_editor_column_select_delete_removes_rectangle_per_row(void) {
 	add_row("0123456789a");
 	E.cy = 0;
 	E.cx = 2;
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 
 	const char alt_shift_down[] = "\x1b[1;4B";
 	const char alt_shift_right[] = "\x1b[1;4C";
@@ -3941,7 +3941,7 @@ static int test_editor_column_select_typing_inserts_char_on_each_row(void) {
 	add_row("cccc");
 	E.cy = 0;
 	E.cx = 1;
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 
 	const char alt_shift_down[] = "\x1b[1;4B";
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
@@ -3975,7 +3975,7 @@ static int test_editor_column_select_toggling_linear_selection_clears_column_mod
 	add_row("ghijkl");
 	E.cy = 0;
 	E.cx = 1;
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 
 	const char alt_shift_down[] = "\x1b[1;4B";
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
@@ -3996,7 +3996,7 @@ static int test_editor_column_select_alt_mouse_drag_starts_column_selection(void
 	E.window_cols = 30;
 	E.cy = 0;
 	E.cx = 0;
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 
 	int text_start = editorTextBodyStartColForCols(E.window_cols);
 	char press[32];
@@ -4027,7 +4027,7 @@ static int test_editor_column_select_plain_arrow_clears_mode(void) {
 	add_row("ghijkl");
 	E.cy = 0;
 	E.cx = 1;
-	E.pane_focus = EDITOR_PANE_TEXT;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 
 	const char alt_shift_down[] = "\x1b[1;4B";
 	const char arrow_down[] = "\x1b[B";
