@@ -112,6 +112,7 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/workspace/layout.c \
 	$(SRC_DIR)/input/actions_file_tab.c \
 	$(SRC_DIR)/input/actions_workspace.c \
+	$(SRC_DIR)/input/mouse.c \
 	$(SRC_DIR)/input/prompt.c \
 	$(SRC_DIR)/input/text_pairs.c \
 	$(SRC_DIR)/input/dispatch.c \
