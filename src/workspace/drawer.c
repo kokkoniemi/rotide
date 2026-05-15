@@ -758,17 +758,19 @@ static void editorDrawerLspEnsureDefaultExpanded(void) {
 	E.drawer_lsp_expanded = editorDrawerLspAllGroupsMask();
 }
 
-static int editorDrawerTabHasSyntaxProblem(const struct editorTabState *tab, int active,
-		int *line_out, int *character_out) {
-	struct editorSyntaxState *state = active ? E.syntax_state : tab != NULL ? tab->syntax_state : NULL;
+static int editorDrawerTabHasSyntaxProblem(const struct editorBuffer *tab, int *line_out,
+		int *character_out) {
+	struct editorSyntaxState *state = tab != NULL ? tab->syntax_state : NULL;
 	return editorSyntaxStateFirstErrorPosition(state, line_out, character_out);
 }
 
 static int editorDrawerLspTabProblemCount(int tab_idx) {
-	int active = tab_idx == E.active_tab;
-	const struct editorTabState *tab = active ? NULL : &E.tabs[tab_idx];
-	int count = active ? E.lsp_diagnostic_count : tab->lsp_diagnostic_count;
-	if (editorDrawerTabHasSyntaxProblem(tab, active, NULL, NULL)) {
+	const struct editorBuffer *tab = editorTabBufferHandleAt(tab_idx);
+	if (tab == NULL) {
+		return 0;
+	}
+	int count = tab->lsp_diagnostic_count;
+	if (editorDrawerTabHasSyntaxProblem(tab, NULL, NULL)) {
 		count++;
 	}
 	return count;
@@ -789,13 +791,15 @@ static int editorDrawerLspProblemAt(int problem_idx,
 	}
 
 	for (int tab_idx = 0; tab_idx < E.tab_count; tab_idx++) {
-		int active = tab_idx == E.active_tab;
-		const struct editorTabState *tab = active ? NULL : &E.tabs[tab_idx];
-		const char *filename = active ? E.filename : tab->filename;
+		const struct editorBuffer *tab = editorTabBufferHandleAt(tab_idx);
+		if (tab == NULL) {
+			continue;
+		}
+		const char *filename = tab->filename;
 
 		int line = 0;
 		int character = 0;
-		if (editorDrawerTabHasSyntaxProblem(tab, active, &line, &character)) {
+		if (editorDrawerTabHasSyntaxProblem(tab, &line, &character)) {
 			if (problem_idx == 0) {
 				memset(problem_out, 0, sizeof(*problem_out));
 				problem_out->source = EDITOR_DRAWER_LSP_PROBLEM_SYNTAX;
@@ -809,9 +813,8 @@ static int editorDrawerLspProblemAt(int problem_idx,
 			problem_idx--;
 		}
 
-		const struct editorLspDiagnostic *diagnostics =
-				active ? E.lsp_diagnostics : tab->lsp_diagnostics;
-		int diagnostic_count = active ? E.lsp_diagnostic_count : tab->lsp_diagnostic_count;
+		const struct editorLspDiagnostic *diagnostics = tab->lsp_diagnostics;
+		int diagnostic_count = tab->lsp_diagnostic_count;
 		for (int i = 0; i < diagnostic_count; i++) {
 			if (problem_idx == 0) {
 				memset(problem_out, 0, sizeof(*problem_out));

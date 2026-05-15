@@ -11,6 +11,7 @@ void editorResetActiveBufferFields(void);
 void editorFreeActiveBufferState(void);
 struct editorBuffer *editorActiveBufferHandle(void);
 const struct editorBuffer *editorActiveBufferHandleConst(void);
+struct editorBuffer *editorTabBufferHandleAtMutable(int idx);
 const struct editorBuffer *editorTabBufferHandleAt(int idx);
 
 /* Render-time active buffer aliasing (buffer-level API). */

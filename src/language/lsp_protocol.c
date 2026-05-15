@@ -5,6 +5,7 @@
 #include "support/file_io.h"
 #include "support/size_utils.h"
 #include "text/utf8.h"
+#include "workspace/tabs.h"
 
 #include <ctype.h>
 #include <stdarg.h>
@@ -1753,12 +1754,13 @@ static void editorLspSetDiagnosticsForPathWithSource(const char *path,
 				diagnostics, count);
 	}
 	for (int i = 0; i < E.tab_count; i++) {
-		if (!editorLspPathMatches(path, E.tabs[i].filename)) {
+		struct editorBuffer *tab = editorTabBufferHandleAtMutable(i);
+		if (tab == NULL || !editorLspPathMatches(path, tab->filename)) {
 			continue;
 		}
-		editorLspUpdateDiagnosticFields(&E.tabs[i].lsp_diagnostics,
-				&E.tabs[i].lsp_diagnostic_count, &E.tabs[i].lsp_diagnostic_error_count,
-				&E.tabs[i].lsp_diagnostic_warning_count, diagnostics, count);
+		editorLspUpdateDiagnosticFields(&tab->lsp_diagnostics,
+				&tab->lsp_diagnostic_count, &tab->lsp_diagnostic_error_count,
+				&tab->lsp_diagnostic_warning_count, diagnostics, count);
 	}
 
 	if (active_matches &&
@@ -1799,12 +1801,13 @@ void editorLspGetDiagnosticSummaryForFile(const char *filename,
 		return;
 	}
 	for (int i = 0; i < E.tab_count; i++) {
-		if (!editorLspPathMatches(filename, E.tabs[i].filename)) {
+		const struct editorBuffer *tab = editorTabBufferHandleAt(i);
+		if (tab == NULL || !editorLspPathMatches(filename, tab->filename)) {
 			continue;
 		}
-		summary_out->count = E.tabs[i].lsp_diagnostic_count;
-		summary_out->error_count = E.tabs[i].lsp_diagnostic_error_count;
-		summary_out->warning_count = E.tabs[i].lsp_diagnostic_warning_count;
+		summary_out->count = tab->lsp_diagnostic_count;
+		summary_out->error_count = tab->lsp_diagnostic_error_count;
+		summary_out->warning_count = tab->lsp_diagnostic_warning_count;
 		return;
 	}
 }
@@ -2447,4 +2450,3 @@ int editorLspCopyLocations(struct editorLspLocation **out_locations, int *out_co
 	*out_count = count;
 	return 1;
 }
-

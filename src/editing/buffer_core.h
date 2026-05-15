@@ -56,6 +56,7 @@ void editorDocumentFreePtr(struct editorDocument **document_in_out);
 int editorDocumentEnsureActiveCurrent(void);
 int editorDocumentResetActiveFromText(const char *text, size_t len);
 int editorTabDocumentEnsureCurrent(struct editorTabState *tab);
+int editorBufferDocumentEnsureCurrent(struct editorBuffer *buffer);
 int editorSyntaxParseFullActive(void);
 void editorLspNotifyDidCloseTabState(struct editorTabState *tab);
 void editorLspNotifyDidSaveActive(void);

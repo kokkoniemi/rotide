@@ -314,9 +314,13 @@ static int editorRecoveryGetTabView(int idx, struct editorRecoveryTabView *view_
 		return 1;
 	}
 
-	struct editorTabState *tab = &E.tabs[idx];
+	struct editorBuffer *tab = editorTabBufferHandleAtMutable(idx);
+	if (tab == NULL) {
+		errno = EIO;
+		return 0;
+	}
 	if (editorTabKindSupportsDocument(tab->tab_kind) &&
-			(!editorTabDocumentEnsureCurrent(tab) || tab->document == NULL)) {
+			(!editorBufferDocumentEnsureCurrent(tab) || tab->document == NULL)) {
 		errno = EIO;
 		return 0;
 	}

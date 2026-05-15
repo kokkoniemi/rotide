@@ -460,11 +460,16 @@ int editorDocumentEnsureActiveCurrent(void) {
 	return editorDocumentEnsureForTab(E.tab_kind, &E.document) && E.document != NULL;
 }
 
-int editorTabDocumentEnsureCurrent(struct editorTabState *tab) {
-	if (tab == NULL) {
+int editorBufferDocumentEnsureCurrent(struct editorBuffer *buffer) {
+	if (buffer == NULL) {
 		return 0;
 	}
-	return editorDocumentEnsureForTab(tab->tab_kind, &tab->document) && tab->document != NULL;
+	return editorDocumentEnsureForTab(buffer->tab_kind, &buffer->document) &&
+			buffer->document != NULL;
+}
+
+int editorTabDocumentEnsureCurrent(struct editorTabState *tab) {
+	return editorBufferDocumentEnsureCurrent(tab != NULL ? &tab->buffer : NULL);
 }
 
 static int editorActiveDocumentCurrent(const struct editorDocument **document_out) {

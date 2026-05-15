@@ -647,42 +647,28 @@ int editorWorkspaceStateSave(void) {
 
 	const char *active_path = NULL;
 	for (int i = 0; i < E.tab_count; i++) {
-		enum editorTabKind tab_kind;
-		int is_preview;
-		const char *path;
-		int tab_cx;
-		int tab_cy;
-		if (i == E.active_tab) {
-			tab_kind = E.tab_kind;
-			is_preview = E.is_preview;
-			path = E.filename;
-			tab_cx = E.cx;
-			tab_cy = E.cy;
-		} else {
-			tab_kind = E.tabs[i].tab_kind;
-			is_preview = E.tabs[i].is_preview;
-			path = E.tabs[i].filename;
-			tab_cx = E.tabs[i].cx;
-			tab_cy = E.tabs[i].cy;
+		const struct editorBuffer *tab = editorTabBufferHandleAt(i);
+		if (tab == NULL) {
+			continue;
 		}
-		if (tab_kind != EDITOR_TAB_FILE || is_preview ||
-				!editorWorkspaceStatePathCanWriteLine(path)) {
+		if (tab->tab_kind != EDITOR_TAB_FILE || tab->is_preview ||
+				!editorWorkspaceStatePathCanWriteLine(tab->filename)) {
 			continue;
 		}
 		char prefix[64];
-		int prefix_len = snprintf(prefix, sizeof(prefix), "tab=%d|%d|", tab_cx, tab_cy);
+		int prefix_len = snprintf(prefix, sizeof(prefix), "tab=%d|%d|", tab->cx, tab->cy);
 		if (prefix_len <= 0 || (size_t)prefix_len >= sizeof(prefix)) {
 			(void)close(fd);
 			return 0;
 		}
 		if (!editorWorkspaceStateWriteAll(fd, prefix, (size_t)prefix_len) ||
-				!editorWorkspaceStateWriteAll(fd, path, strlen(path)) ||
+				!editorWorkspaceStateWriteAll(fd, tab->filename, strlen(tab->filename)) ||
 				!editorWorkspaceStateWriteAll(fd, "\n", 1)) {
 			(void)close(fd);
 			return 0;
 		}
 		if (i == E.active_tab) {
-			active_path = path;
+			active_path = tab->filename;
 		}
 	}
 	if (active_path != NULL) {

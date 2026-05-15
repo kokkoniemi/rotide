@@ -10,6 +10,7 @@
 #include "text/document.h"
 #include "text/row.h"
 #include "workspace/git.h"
+#include "workspace/tabs.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -94,7 +95,7 @@ static void editorWatchClearActiveHistory(void) {
 	E.edit_pending_mode = EDITOR_EDIT_PENDING_NONE;
 }
 
-static void editorWatchClearTabHistory(struct editorTabState *tab) {
+static void editorWatchClearTabHistory(struct editorBuffer *tab) {
 	if (tab == NULL) {
 		return;
 	}
@@ -107,7 +108,7 @@ static void editorWatchClearTabHistory(struct editorTabState *tab) {
 	tab->edit_pending_mode = EDITOR_EDIT_PENDING_NONE;
 }
 
-static void editorWatchFreeTabDiagnostics(struct editorTabState *tab) {
+static void editorWatchFreeTabDiagnostics(struct editorBuffer *tab) {
 	if (tab == NULL || tab->lsp_diagnostics == NULL) {
 		return;
 	}
@@ -192,7 +193,7 @@ cleanup:
 	return ok;
 }
 
-static int editorWatchReloadTabFile(struct editorTabState *tab,
+static int editorWatchReloadTabFile(struct editorBuffer *tab,
 		const struct editorFileDiskState *observed) {
 	struct editorDocument document;
 	struct editorDocument *new_document = NULL;
@@ -340,7 +341,7 @@ static int editorWatchHandleChangedActive(const struct editorFileDiskState *obse
 	return editorWatchReloadActiveFile(observed);
 }
 
-static int editorWatchHandleChangedTab(struct editorTabState *tab,
+static int editorWatchHandleChangedTab(struct editorBuffer *tab,
 		const struct editorFileDiskState *observed) {
 	if (tab == NULL || observed == NULL) {
 		return 0;
@@ -382,8 +383,9 @@ static int editorWatchPollActiveTab(void) {
 	return editorWatchHandleChangedActive(&observed);
 }
 
-static int editorWatchPollInactiveTab(struct editorTabState *tab) {
+static int editorWatchPollInactiveTab(int tab_idx) {
 	struct editorFileDiskState observed;
+	struct editorBuffer *tab = editorTabBufferHandleAtMutable(tab_idx);
 
 	if (tab == NULL || tab->tab_kind != EDITOR_TAB_FILE ||
 			tab->filename == NULL || tab->filename[0] == '\0') {
@@ -410,7 +412,7 @@ int editorWatchPollNow(void) {
 		if (i == E.active_tab) {
 			continue;
 		}
-		changed |= editorWatchPollInactiveTab(&E.tabs[i]);
+		changed |= editorWatchPollInactiveTab(i);
 	}
 	editorGitRefresh();
 	return changed;
@@ -431,7 +433,7 @@ int editorWatchPoll(void) {
 			if (i == E.active_tab) {
 				continue;
 			}
-			changed |= editorWatchPollInactiveTab(&E.tabs[i]);
+			changed |= editorWatchPollInactiveTab(i);
 		}
 	}
 	if (g_git_watch_last_poll_ms == 0) {

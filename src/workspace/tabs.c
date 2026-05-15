@@ -147,17 +147,21 @@ const struct editorBuffer *editorActiveBufferHandleConst(void) {
 	return &E.active_buffer;
 }
 
-const struct editorBuffer *editorTabBufferHandleAt(int idx) {
+struct editorBuffer *editorTabBufferHandleAtMutable(int idx) {
 	if (idx < 0 || idx >= E.tab_count) {
 		return NULL;
 	}
 	if (idx == E.active_tab) {
-		return editorActiveBufferHandleConst();
+		return editorActiveBufferHandle();
 	}
 	if (E.tabs == NULL) {
 		return NULL;
 	}
 	return &E.tabs[idx].buffer;
+}
+
+const struct editorBuffer *editorTabBufferHandleAt(int idx) {
+	return editorTabBufferHandleAtMutable(idx);
 }
 
 void editorBufferAliasSnapshot(struct editorBuffer *snap) {

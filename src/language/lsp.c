@@ -6,6 +6,7 @@
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
 #include "support/file_io.h"
+#include "workspace/tabs.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -111,12 +112,16 @@ static void editorLspResetTrackedDocumentsForServerKind(enum editorLspServerKind
 		return;
 	}
 	for (int i = 0; i < E.tab_count; i++) {
+		struct editorBuffer *tab = editorTabBufferHandleAtMutable(i);
+		if (tab == NULL) {
+			continue;
+		}
 		if (is_eslint) {
-			E.tabs[i].lsp_eslint_doc_open = 0;
-			E.tabs[i].lsp_eslint_doc_version = 0;
+			tab->lsp_eslint_doc_open = 0;
+			tab->lsp_eslint_doc_version = 0;
 		} else {
-			E.tabs[i].lsp_doc_open = 0;
-			E.tabs[i].lsp_doc_version = 0;
+			tab->lsp_doc_open = 0;
+			tab->lsp_doc_version = 0;
 		}
 	}
 }
