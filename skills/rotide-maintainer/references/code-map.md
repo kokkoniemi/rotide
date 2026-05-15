@@ -22,15 +22,19 @@ Source lives under `src/<area>/`; tests are split per concern under `tests/test_
   - `alloc.c` — allocation hooks/budget plumbing
   - `file_io.c` — atomic save helpers
   - `save_syscalls.c` — syscall seam used by save/recovery tests
-- `src/input/dispatch.c`
-  - action dispatch, prompts, search flow, go-to-line/definition, mouse interactions
+- `src/input/`
+  - `dispatch.c` — top-level key/event pipeline, search/navigation glue
+  - `prompt.c`, `mouse.c`, `text_pairs.c` — input gates and text-pair helpers
+  - `actions_*.c` — edit, file/tab, workspace, language, terminal/DAP action families
 - `src/editing/`
   - `buffer_core.c` — document edit application, row-cache rebuild, tab/drawer transitions, save coordination
   - `edit.c` — edit descriptor construction and apply path
   - `selection.c` — selection/copy/cut/paste primitives
   - `history.c` — undo/redo grouping
-- `src/render/screen.c`
-  - full-screen render pipeline, viewport/cursor scroll, syntax/selection/search overlay precedence
+- `src/render/`
+  - `screen.c` — full-frame orchestration and cursor placement
+  - `pane_view.c`, `terminal_view.c`, `drawer_view.c`, `tab_bar.c`, `status_bar.c` — render surfaces
+  - `wrap.c`, `viewport.c`, `display_text.c`, `ansi_style.c`, `write_buf.c` — render helpers
 - `src/workspace/`
   - `tabs.c` — tab lifecycle and active-tab transitions
   - `drawer.c` — file-tree drawer
@@ -52,7 +56,7 @@ Source lives under `src/<area>/`; tests are split per concern under `tests/test_
 
 ### Text edit path
 
-1. User action in `src/input/dispatch.c`.
+1. User action enters through `src/input/dispatch.c` and an `actions_*.c` family.
 2. Edit descriptor prepared in `src/editing/edit.c`.
 3. `editorApplyDocumentEdit(...)` (in `src/editing/buffer_core.c`) mutates document.
 4. Row cache rebuilt from document (`src/text/row.c`).
@@ -67,7 +71,7 @@ Source lives under `src/<area>/`; tests are split per concern under `tests/test_
 2. `editorFindCallback()` chooses direction/start position.
 3. Forward/backward search runs through the active text source.
 4. Active match stored as offset + length.
-5. Renderer highlights the active match span (`src/render/screen.c`).
+5. Renderer highlights the active match span through the pane/row render path.
 
 ### Task-log path
 
@@ -87,7 +91,7 @@ Source lives under `src/<area>/`; tests are split per concern under `tests/test_
 
 ### Update cursor/search/selection behavior
 
-- Touch: `src/input/dispatch.c`, `src/editing/buffer_core.c`, `src/editing/selection.c`, `src/render/screen.c`, `tests/test_input_search.c`, `tests/test_document_text_editing.c`
+- Touch: `src/input/dispatch.c`, relevant `src/input/actions_*.c`, `src/editing/buffer_core.c`, `src/editing/selection.c`, relevant `src/render/*.c`, `tests/test_input_search.c`, `tests/test_document_text_editing.c`
 - Keep:
   - offset-first invariants (`cursor_offset`, selection/search offsets)
   - UTF-8/grapheme clamping
@@ -95,7 +99,7 @@ Source lives under `src/<area>/`; tests are split per concern under `tests/test_
 
 ### Update syntax behavior
 
-- Touch: `src/language/syntax.c`, `src/language/queries.c`, `src/language/languages.c`, `src/language/syntax.h`, `src/editing/buffer_core.c`, `src/render/screen.c`, `tests/test_syntax.c`, `tests/test_syntax_registry.c`, `tests/test_render_terminal.c`, vendor query files if needed
+- Touch: `src/language/syntax.c`, `src/language/queries.c`, `src/language/languages.c`, `src/language/syntax.h`, `src/editing/buffer_core.c`, relevant `src/render/*.c`, `tests/test_syntax.c`, `tests/test_syntax_registry.c`, `tests/test_render_terminal.c`, vendor query files if needed
 - Keep:
   - tab-local syntax state
   - budget/degraded mode behavior
@@ -103,7 +107,7 @@ Source lives under `src/<area>/`; tests are split per concern under `tests/test_
 
 ### Update LSP behavior
 
-- Touch: `src/language/lsp.c`, `src/language/lsp.h`, `src/language/lsp_internal.h`, `src/input/dispatch.c`, `src/editing/buffer_core.c`, `src/config/lsp_config.c`, `tests/test_lsp.c`
+- Touch: `src/language/lsp.c`, `src/language/lsp.h`, `src/language/lsp_internal.h`, `src/input/dispatch.c`, `src/input/actions_language.c`, `src/editing/buffer_core.c`, `src/config/lsp_config.c`, `tests/test_lsp.c`
 - Keep:
   - per-server enable/disable gating (`gopls`, `clangd`, HTML/CSS/JSON, `typescript-language-server`, `vscode-eslint-language-server`)
   - global vs project precedence for `*_command` keys, with `javascript_install_command` global-only

@@ -31,6 +31,7 @@
 - Search prompt, active match, search highlight flow: `rotide-search-maintainer`
 - Tree-sitter activation, queries, incremental parse, highlighting: `rotide-syntax-maintainer`
 - LSP lifecycle, sync, definition, install/task-log UX: `rotide-lsp-maintainer`
+- Terminal panes, DAP lifecycle/control UX, and pane layout: `rotide-maintainer`
 - Module/file ownership refactors: `rotide-domain-refactor`
 - README, AGENTS, skill/reference docs: `rotide-docs-maintainer`
 

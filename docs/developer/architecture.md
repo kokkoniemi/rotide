@@ -57,7 +57,9 @@ dirty metadata from operation history, not from full-buffer snapshots.
 Key behavior routes through `enum editorAction`. Defaults are built in
 `src/config/keymap.c`, optional user bindings are loaded from
 `~/.rotide/config.toml`, and `src/input/dispatch.c` maps decoded terminal
-input to actions.
+input to actions. `dispatch.c` stays as the orchestrator; larger gate and
+action-family code is split into `src/input/prompt.c`, `mouse.c`,
+`text_pairs.c`, and `actions_*.c`.
 
 Several gates run before the keymap lookup:
 
@@ -138,17 +140,16 @@ and LSP problem/symbol entries. It does not own file text.
 
 ## Rendering
 
-`src/render/screen.c` builds the terminal frame from active state. The top
-of `editorDrawRows` chooses between a fast single-pane path and a multi-pane
-path; the multi-pane path is taken whenever there is more than one leaf or
-any leaf is a terminal pane. Multi-pane rendering iterates rows, paints the
-drawer + separator, then walks the editor body cell-by-cell using the
-collected border list and the leaf layout to dispatch each segment to one
-of: focused editor slice (`editorDrawFocusedPaneSlice`), unfocused
-same-tab editor slice (rendered after a transient `editorViewSnapshot`
-swap), terminal slice (`editorDrawTerminalCells`, which iterates the
-libvterm screen and emits SGR-tagged UTF-8 cells), blank, or `─`/`│`
-border.
+`src/render/screen.c` builds the terminal frame from active state and delegates
+surface work to focused modules: tab bar, drawer view, pane view, status bar,
+terminal cells, wrapping, viewport, popups, and low-level output helpers. The
+top of `editorDrawRows` chooses between a fast single-pane path and a
+multi-pane path; the multi-pane path is taken whenever there is more than one
+leaf or any leaf is a terminal pane. Multi-pane rendering iterates rows, paints
+the drawer + separator, then uses `src/render/pane_view.c` to walk the editor
+body with the collected border list and leaf layout. Pane slices are dispatched
+to focused editor rows, unfocused same-tab editor rows, terminal cells via
+`src/render/terminal_view.c`, blank space, or split borders.
 
 Cursor positioning is pane-aware: when the focused leaf is a terminal
 pane, cursor row/col come from `vterm_state_get_cursorpos` translated into
@@ -161,12 +162,12 @@ through mapping helpers when text or cursor state changes.
 
 ## Terminal Panes
 
-`src/language/pty.{c,h}` provides the PTY transport: `editorPtySpawn` runs
+`src/terminal/pty.{c,h}` provides the PTY transport: `editorPtySpawn` runs
 the command via `/bin/sh -c` inside a `forkpty(3)` child, sets the master
 fd non-blocking + close-on-exec, seeds the initial winsize, and exposes
 non-blocking reap and `TIOCSWINSZ` resize.
 
-`src/language/terminal_pane.{c,h}` couples a PTY child with a libvterm
+`src/terminal/terminal_pane.{c,h}` couples a PTY child with a libvterm
 parser. `editorTerminalPaneCreate` builds a `VTerm` with the
 `settermprop` callback wired so DECSET 1000/1002/1003 updates
 `mouse_tracking` and the `vterm_output_set_callback` writes encoded
@@ -190,7 +191,8 @@ the Makefile (mirroring the tree-sitter carve-out).
 
 ## DAP
 
-`src/language/dap.{c,h}` and `src/config/dap_config.{c,h}` implement the
+`src/debug/dap.{c,h}`, `src/debug/dap_client.{c,h}`,
+`src/debug/dap_console.{c,h}`, and `src/config/dap_config.{c,h}` implement the
 Debug Adapter Protocol client. Adapter commands live under
 `[dap.adapters]` and launch templates under `[dap.defaults]`/`[dap.launch]`
 in TOML; the parser exposes generic launch fields plus a name/adapter/
@@ -268,15 +270,18 @@ deserializes and replaces `E.layout_root`).
 - `src/editing/`: document edit application, history, selection, edit
   builders.
 - `src/input/`: action dispatch, prompts, mouse handling, terminal-pane
-  key gate, bracketed paste.
-- `src/render/`: frame rendering, single- and multi-pane painter, libvterm
-  cell painter, overlays, popups.
+  key gate, bracketed paste, text-pair handling, action-family helpers.
+- `src/render/`: frame orchestration, single- and multi-pane painter, tab bar,
+  drawer view, status/message bars, libvterm cell painter, wrap/viewport
+  helpers, overlays, popups.
 - `src/workspace/`: tabs, drawer, project search, Git, recovery, task
   logs, file watcher, pane layout (`layout.c`), workspace state.
 - `src/config/`: TOML loading for editor, theme, keymap, LSP, DAP, and
   runtime config.
-- `src/language/`: Tree-sitter, LSP, autocomplete, DAP client, PTY
-  transport, terminal pane (libvterm bridge).
+- `src/language/`: Tree-sitter, LSP, and autocomplete.
+- `src/terminal/`: PTY transport and terminal pane (libvterm bridge).
+- `src/debug/`: DAP orchestration, adapter transport helpers, and terminal
+  console integration.
 - `vendor/libvterm/`: vendored libvterm 0.3.x — built with the same
   warnings-relaxed carve-out as Tree-sitter.
 - `tests/`: behavior tests split by subsystem.

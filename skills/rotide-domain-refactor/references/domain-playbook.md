@@ -170,6 +170,8 @@ Owns:
 
 Usually centered in:
 - `src/input/dispatch.c`
+- `src/input/prompt.c`, `src/input/mouse.c`, `src/input/text_pairs.c`
+- `src/input/actions_*.c`
 
 ### Rendering domain
 
@@ -179,6 +181,7 @@ Owns:
 
 Usually centered in:
 - `src/render/screen.c`
+- focused render surfaces/helpers under `src/render/`
 
 ### Syntax/LSP domains
 

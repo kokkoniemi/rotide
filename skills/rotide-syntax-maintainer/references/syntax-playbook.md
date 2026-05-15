@@ -27,8 +27,8 @@
   - syntax activation/reconfiguration
   - full and incremental parse entrypoints
   - visible-row syntax span cache invalidation/rebuild
-- `src/render/screen.c`
-  - syntax span paint path and overlay precedence
+- `src/render/`
+  - syntax span paint path and overlay precedence in the pane/row renderer
 - `Makefile` + `vendor/tree_sitter/*` + refresh script when grammar assets change
 - `tests/test_syntax.c` and `tests/test_render_terminal.c`
   - activation, incremental parse validity, render highlights, budgets, tab isolation

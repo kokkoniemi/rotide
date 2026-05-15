@@ -45,8 +45,9 @@ iteration repaints.
 ![Action dispatch](../diagrams/svg/action-dispatch.svg)
 
 Terminal input is decoded in `src/support/terminal.c`.
-`src/input/dispatch.c` handles a chain of gates before reaching the
-keymap:
+`src/input/dispatch.c` remains the top-level pipeline: it handles a chain of
+gates before reaching the keymap, while delegated modules own the larger gate
+and action-family implementations:
 
 - **Synthetic events** (`RESIZE_EVENT`, `TASK_EVENT`, `SYNTAX_EVENT`,
   `WATCH_EVENT`, `TERMINAL_EVENT`, `BRACKETED_PASTE_START/END_EVENT`,
@@ -58,7 +59,7 @@ keymap:
 - **Mouse events** are hit-tested against the layout: clicks/wheel/drag
   inside a terminal pane with mouse tracking enabled are forwarded via
   libvterm and the pane is focused; otherwise the existing
-  drawer/tab/text handlers run.
+  drawer/tab/text handlers in `src/input/mouse.c` run.
 - **Terminal-pane key gate**: when the focused leaf is a terminal pane
   and we're not in the drawer, keystrokes go straight to the PTY via
   `editorTerminalPaneSendKey` unless the next chord is the configured
@@ -66,11 +67,10 @@ keymap:
   next key dispatches through the normal keymap.
 
 After the gates, keymap lookup resolves configured bindings to
-`enum editorAction`, then the dispatcher calls the behavior
-implementation. New actions added by the layout work include
-`split_horizontal/vertical`, `close_pane`,
-`focus_left/right/up/down_pane`, `pane_grow/shrink`, `terminal_open`,
-`terminal_prefix`, and the DAP control actions.
+`enum editorAction`, then the dispatcher calls action-family helpers such as
+`actions_edit`, `actions_workspace`, `actions_file_tab`,
+`actions_language`, and `actions_terminal_debug`. Search and cursor-navigation
+glue still lives in `dispatch.c` until that path gets a dedicated extraction.
 
 ## Edit Application and Dirty State
 
@@ -137,10 +137,10 @@ loader deserializes it on startup).
 
 ![Search flow](../diagrams/svg/search-flow.svg)
 
-Search uses prompt callbacks in `src/input/dispatch.c` and scans the
-active `editorTextSource`. The active match is stored as byte offset
-plus length. Rendering maps the match back to rows and applies
-highlight overlays without mutating text or dirty state.
+Search uses the prompt API plus search callbacks still hosted in
+`src/input/dispatch.c`, then scans the active `editorTextSource`. The active
+match is stored as byte offset plus length. Rendering maps the match back to
+rows and applies highlight overlays without mutating text or dirty state.
 
 ## Syntax Highlighting
 
@@ -150,7 +150,7 @@ Language detection chooses a table entry from
 `src/language/languages.c`. `editorSyntaxState` owns the Tree-sitter
 tree, injected trees, budgets, and limit events for one tab. Visible
 rows request captures for byte ranges through `src/language/syntax.c`;
-`src/render/screen.c` combines syntax spans with selection, search, and
+the render pane/row path combines syntax spans with selection, search, and
 diagnostic overlays.
 
 ## LSP

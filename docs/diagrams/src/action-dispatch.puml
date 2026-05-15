@@ -4,63 +4,51 @@ skinparam backgroundColor #FFFFFF
 title Keypress to editor action
 
 start
-:terminal decodes key, mouse, or
-synthetic event (resize, task,
-syntax, watch, terminal, paste);
-if (BRACKETED_PASTE_START/END?) then (yes)
-	:toggle E.paste_active;
-	if (focused leaf is terminal?) then (yes)
-		:vterm_keyboard_start/end_paste;
-	endif
+:terminal decodes input
+or synthetic event;
+if (synthetic event?) then (yes)
+	:run event-specific gate
+(resize/task/syntax/watch/
+terminal/paste/EOF);
 	stop
-endif
-if (TERMINAL_EVENT?) then (yes)
-	:close exited terminal panes
-	if any, restore focus if needed;
-	:next frame redraws fresh
-	pumped vterm state;
-	stop
+else (no)
 endif
 if (prompt active?) then (yes)
-	:send byte to prompt callback;
+	:prompt module handles byte;
 	stop
+else (no)
 endif
 if (mouse event?) then (yes)
-	if (lands in terminal pane with\nmouse tracking enabled?) then (yes)
-		:forward via libvterm
-		(refocus pane on press);
-		stop
-	endif
-	:route to drawer/tab/text handler;
+	:mouse module hit-tests and routes
+to terminal/drawer/tab/text;
 	stop
+else (no)
 endif
-if (focused leaf is terminal pane?) then (yes)
-	if (key is terminal_prefix?) then (yes)
-		:arm prefix; next key
-		dispatches as normal action;
-		stop
+if (terminal key gate?) then (yes)
+	if (prefix armed?) then (yes)
+		:clear prefix and fall through;
+	else (no)
+		if (key is terminal_prefix?) then (yes)
+			:arm one-shot prefix;
+			stop
+		else (no)
+			:send key to focused PTY;
+			stop
+		endif
 	endif
-	if (terminal_prefix armed?) then (yes)
-		:clear flag; fall through;
-	else
-		:editorTerminalPaneSendKey
-		(routes via libvterm);
-		stop
-	endif
+else (no)
 endif
 :lookup configured keymap;
 if (bound action?) then (yes)
 	:dispatch enum editorAction
-	(includes split_/focus_/pane_/
-	 terminal_/dap_/close_pane);
-else (text input)
-	:build insert edit;
+to action family helper;
+else (no)
+	:text-pair / insert handling;
 endif
 if (text mutation?) then (yes)
 	:apply document edit;
-else (view/navigation/structure)
-	:update cursor/view/search/drawer
-	state, mutate layout, etc.;
+else (no)
+	:update non-document state;
 endif
 stop
 

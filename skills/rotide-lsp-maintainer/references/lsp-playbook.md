@@ -11,6 +11,7 @@
 - `src/input/dispatch.c`
   - `editorGoToDefinition()`
   - definition picker/jump flow
+- `src/input/actions_language.c`
   - missing-`gopls` install prompt trigger
   - missing-`clangd` instruction-tab trigger
   - missing-`vscode-langservers-extracted` install prompt trigger

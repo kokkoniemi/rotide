@@ -7,12 +7,14 @@
   - `editorFindCallback()`
   - `editorMoveCursorToSearchMatch()`
   - `editorRestoreCursorToSavedSearchPosition()`
+- `src/input/prompt.c`
+  - prompt lifecycle and callback dispatch
 - `src/editing/buffer_core.c`
   - `editorBufferFindForward()`
   - `editorBufferFindBackward()`
   - text-source-backed line range helpers
-- `src/render/screen.c`
-  - active match highlight rendering in row draw path
+- `src/render/`
+  - active match highlight rendering in the pane/row draw path
 - `src/rotide.h`
   - search fields in `editorConfig` / `editorTabState`
 
