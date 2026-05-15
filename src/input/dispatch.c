@@ -55,93 +55,11 @@ static void editorPinActivePreviewForEdit(void);
 static int editorSetCursorFromOffset(size_t offset);
 static int editorSetCursorFromPosition(int cy, int cx);
 static void editorClearSelectionMode(void);
-
-static long long editorMonotonicMillis(void) {
-	struct timespec ts;
-	if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
-		return 0;
-	}
-	return (long long)ts.tv_sec * 1000LL + (long long)(ts.tv_nsec / 1000000L);
-}
+static void editorCtrlClickGoToDefinitionAction(void);
+static void editorGoToDefinition(void);
 
 static int editorIsWordByte(unsigned char b) {
 	return isalnum(b) || b == '_' || b >= 0x80;
-}
-
-static void editorSelectWordAtCursor(void) {
-	if (E.cy < 0 || E.cy >= E.numrows) {
-		return;
-	}
-	struct erow *row = &E.rows[E.cy];
-	int cx = editorRowClampCxToCharBoundary(row, E.cx);
-	if (cx >= row->size) {
-		cx = editorRowPrevCharIdx(row, row->size);
-		if (cx < 0) {
-			return;
-		}
-	}
-	if (!editorIsWordByte((unsigned char)row->chars[cx])) {
-		return;
-	}
-
-	int start = cx;
-	while (start > 0) {
-		int prev = editorRowPrevCharIdx(row, start);
-		if (prev >= start || !editorIsWordByte((unsigned char)row->chars[prev])) {
-			break;
-		}
-		start = prev;
-	}
-	int end = editorRowNextCharIdx(row, cx);
-	while (end < row->size) {
-		if (!editorIsWordByte((unsigned char)row->chars[end])) {
-			break;
-		}
-		int next = editorRowNextCharIdx(row, end);
-		if (next <= end) {
-			break;
-		}
-		end = next;
-	}
-
-	size_t anchor_offset = 0;
-	if (!editorBufferPosToOffset(E.cy, start, &anchor_offset)) {
-		return;
-	}
-	editorColumnSelectionClear();
-	E.selection_mode_active = 1;
-	E.selection_anchor_offset = anchor_offset;
-	E.cx = end;
-	size_t cursor_offset = 0;
-	if (editorBufferPosToOffset(E.cy, end, &cursor_offset)) {
-		E.cursor_offset = cursor_offset;
-	}
-}
-
-static void editorSelectLineAtCursor(void) {
-	if (E.cy < 0 || E.cy >= E.numrows) {
-		return;
-	}
-	size_t anchor_offset = 0;
-	if (!editorBufferPosToOffset(E.cy, 0, &anchor_offset)) {
-		return;
-	}
-	editorColumnSelectionClear();
-	E.selection_mode_active = 1;
-	E.selection_anchor_offset = anchor_offset;
-
-	int end_cy = E.cy;
-	int end_cx = E.rows[E.cy].size;
-	if (E.cy + 1 < E.numrows) {
-		end_cy = E.cy + 1;
-		end_cx = 0;
-	}
-	E.cy = end_cy;
-	E.cx = end_cx;
-	size_t cursor_offset = 0;
-	if (editorBufferPosToOffset(end_cy, end_cx, &cursor_offset)) {
-		E.cursor_offset = cursor_offset;
-	}
 }
 
 static int editorSetCursorFromOffset(size_t offset) {
@@ -233,6 +151,11 @@ static void editorClearSelectionMode(void) {
 	E.selection_mode_active = 0;
 	E.selection_anchor_offset = 0;
 	editorColumnSelectionClear();
+}
+
+static void editorCtrlClickGoToDefinitionAction(void) {
+	editorHistoryBreakGroup();
+	editorGoToDefinition();
 }
 
 enum editorGoToDefinitionInstallFamily {
@@ -2258,138 +2181,6 @@ static void editorColumnSelectionMove(int dy, int drx) {
 	editorColumnSelectionApplyCursorRx();
 }
 
-static int editorHandleMouseLeftPress(const struct editorMouseEvent *event) {
-	int mouse_col = event->x - 1;
-	long long now_ms = editorMonotonicMillis();
-	int drawer_effects = EDITOR_KEYPRESS_EFFECT_NONE;
-	if (editorHandleMouseDrawerLeftPress(event, now_ms,
-				DRAWER_DOUBLE_CLICK_THRESHOLD_MS, editorProcessMappedAction,
-				editorJumpToPathLocation, &drawer_effects)) {
-		if ((drawer_effects & EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT) != 0) {
-			return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-		}
-		return EDITOR_KEYPRESS_EFFECT_NONE;
-	}
-
-	editorResetDrawerClickTracking();
-
-	if (editorHandleMouseTopRowTabClick(event, now_ms)) {
-		return EDITOR_KEYPRESS_EFFECT_NONE;
-	}
-
-	if (editorLayoutFocusLeafAt(mouse_col, event->y - 1)) {
-		editorPaneAnnounceFocus();
-	}
-
-	if (!editorMoveCursorToMouse(event, 0)) {
-		E.mouse_left_button_down = 0;
-		E.mouse_drag_started = 0;
-		editorResetTextClickTracking();
-		return EDITOR_KEYPRESS_EFFECT_NONE;
-	}
-
-	E.pane_focus = EDITOR_PANE_TEXT;
-	// A fresh text click exits any previous selection; dragging can start a new one.
-	editorClearSelectionMode();
-	if (event->modifiers == EDITOR_MOUSE_MOD_CTRL) {
-		E.mouse_left_button_down = 0;
-		E.mouse_drag_started = 0;
-		editorResetTextClickTracking();
-		editorHistoryBreakGroup();
-		editorGoToDefinition();
-		return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-	}
-	int column_modifier = E.column_select_drag_modifier;
-	if (column_modifier != 0 && event->modifiers == column_modifier) {
-		// Anchor a column selection at the click position; drag will extend it.
-		E.column_select_active = 1;
-		E.column_select_anchor_cy = E.cy;
-		E.column_select_anchor_rx = (E.cy < E.numrows)
-				? editorRowCxToRx(&E.rows[E.cy], E.cx) : 0;
-		E.column_select_cursor_rx = E.column_select_anchor_rx;
-		editorResetTextClickTracking();
-		E.mouse_left_button_down = 1;
-		E.mouse_drag_anchor_offset = E.cursor_offset;
-		E.mouse_drag_started = 0;
-		return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-	}
-
-	int click_count = 1;
-	if (event->modifiers == EDITOR_MOUSE_MOD_NONE &&
-			E.text_last_click_ms > 0 && now_ms > 0 &&
-			now_ms - E.text_last_click_ms <= TEXT_MULTI_CLICK_THRESHOLD_MS &&
-			E.text_last_click_cy == E.cy && E.text_last_click_cx == E.cx) {
-		click_count = E.text_click_count + 1;
-		if (click_count > 3) {
-			click_count = 1;
-		}
-	}
-	E.text_click_count = click_count;
-	E.text_last_click_cy = E.cy;
-	E.text_last_click_cx = E.cx;
-	E.text_last_click_ms = now_ms;
-
-	if (click_count == 2) {
-		editorSelectWordAtCursor();
-		E.mouse_left_button_down = 0;
-		E.mouse_drag_started = 0;
-		return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-	}
-	if (click_count == 3) {
-		editorSelectLineAtCursor();
-		E.mouse_left_button_down = 0;
-		E.mouse_drag_started = 0;
-		return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-	}
-
-	E.mouse_left_button_down = 1;
-	E.mouse_drag_anchor_offset = E.cursor_offset;
-	E.mouse_drag_started = 0;
-	return EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-}
-
-static int editorHandleMouseEvent(void) {
-	struct editorMouseEvent event;
-	// terminal.c queues one decoded event per MOUSE_EVENT keycode.
-	if (!editorConsumeMouseEvent(&event)) {
-		return EDITOR_KEYPRESS_EFFECT_NONE;
-	}
-
-	if (event.kind != EDITOR_MOUSE_EVENT_MOTION && editorClearHoverLinkState()) {
-		// Fall through and dispatch; render will pick up the cleared hover state.
-	}
-
-	if (editorHandleMouseEventInTerminalPane(&event)) {
-		return EDITOR_KEYPRESS_EFFECT_NONE;
-	}
-
-	switch (event.kind) {
-		case EDITOR_MOUSE_EVENT_LEFT_PRESS:
-			return editorHandleMouseLeftPress(&event);
-		case EDITOR_MOUSE_EVENT_LEFT_DRAG:
-			return editorHandleMouseLeftDrag(&event) ?
-					EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT :
-					EDITOR_KEYPRESS_EFFECT_NONE;
-		case EDITOR_MOUSE_EVENT_LEFT_RELEASE:
-			return editorHandleMouseLeftRelease() ?
-					EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT :
-					EDITOR_KEYPRESS_EFFECT_NONE;
-		case EDITOR_MOUSE_EVENT_MOTION:
-			return editorHandleMouseMotion(&event) ?
-					EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT :
-					EDITOR_KEYPRESS_EFFECT_NONE;
-		case EDITOR_MOUSE_EVENT_WHEEL_UP:
-		case EDITOR_MOUSE_EVENT_WHEEL_DOWN:
-		case EDITOR_MOUSE_EVENT_WHEEL_LEFT:
-		case EDITOR_MOUSE_EVENT_WHEEL_RIGHT:
-			return editorHandleMouseWheel(&event) ?
-					EDITOR_KEYPRESS_EFFECT_VIEWPORT_SCROLL :
-					EDITOR_KEYPRESS_EFFECT_NONE;
-		default:
-			return EDITOR_KEYPRESS_EFFECT_NONE;
-	}
-}
-
 static int editorProcessMappedAction(enum editorAction action, int *effects_out) {
 	int effects = EDITOR_KEYPRESS_EFFECT_NONE;
 	int drawer_search_cursor_or_edit = 0;
@@ -2421,6 +2212,13 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			}
 			return 1;
 		}
+	}
+
+	if (editorHandleTerminalDebugMappedAction(action)) {
+		if (effects_out != NULL) {
+			*effects_out = effects;
+		}
+		return 1;
 	}
 
 	switch (action) {
@@ -2490,38 +2288,6 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_DAP ?
 					"DAP drawer shown" : "Project drawer shown");
 			break;
-		case EDITOR_ACTION_DAP_START:
-			editorHistoryBreakGroup();
-			(void)editorDapStartSelectedLaunch();
-			break;
-		case EDITOR_ACTION_DAP_STOP:
-			editorHistoryBreakGroup();
-			(void)editorDapStop();
-			break;
-		case EDITOR_ACTION_DAP_CONTINUE:
-			editorHistoryBreakGroup();
-			(void)editorDapContinue();
-			break;
-		case EDITOR_ACTION_DAP_PAUSE:
-			editorHistoryBreakGroup();
-			(void)editorDapPause();
-			break;
-		case EDITOR_ACTION_DAP_STEP_OVER:
-			editorHistoryBreakGroup();
-			(void)editorDapStepOver();
-			break;
-		case EDITOR_ACTION_DAP_STEP_INTO:
-			editorHistoryBreakGroup();
-			(void)editorDapStepInto();
-			break;
-		case EDITOR_ACTION_DAP_STEP_OUT:
-			editorHistoryBreakGroup();
-			(void)editorDapStepOut();
-			break;
-		case EDITOR_ACTION_DAP_TOGGLE_BREAKPOINT:
-			editorHistoryBreakGroup();
-			(void)editorDapToggleBreakpointAtCursor();
-			break;
 		case EDITOR_ACTION_SPLIT_HORIZONTAL:
 			editorHistoryBreakGroup();
 			if (editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5) != NULL) {
@@ -2572,40 +2338,6 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			editorHistoryBreakGroup();
 			(void)editorLayoutResizeFocused(0);
 			break;
-			case EDITOR_ACTION_TERMINAL_OPEN: {
-				editorHistoryBreakGroup();
-				const char *shell = getenv("SHELL");
-				if (shell == NULL || shell[0] == '\0') {
-					shell = "/bin/sh";
-			}
-			struct editorPaneNode *terminal_leaf =
-					editorTerminalPaneOpenSplit(shell, EDITOR_SPLIT_HORIZONTAL);
-			if (terminal_leaf != NULL) {
-				editorPaneAnnounceFocus();
-			} else {
-				editorSetStatusMsg("Failed to open terminal pane");
-				}
-				break;
-			}
-			case EDITOR_ACTION_TERMINAL_OPEN_VERTICAL: {
-				editorHistoryBreakGroup();
-				const char *shell = getenv("SHELL");
-				if (shell == NULL || shell[0] == '\0') {
-					shell = "/bin/sh";
-				}
-				struct editorPaneNode *terminal_leaf =
-						editorTerminalPaneOpenSplit(shell, EDITOR_SPLIT_VERTICAL);
-				if (terminal_leaf != NULL) {
-					editorPaneAnnounceFocus();
-				} else {
-					editorSetStatusMsg("Failed to open terminal pane");
-				}
-				break;
-			}
-			case EDITOR_ACTION_TERMINAL_PREFIX:
-				E.terminal_prefix_armed = 1;
-				editorSetStatusMsg("Terminal prefix armed: next key is rotide");
-				break;
 		case EDITOR_ACTION_OPEN_SETTINGS:
 			editorHistoryBreakGroup();
 			editorOpenSettings();
@@ -3148,7 +2880,17 @@ void editorProcessKeypress(void) {
 	if (c == MOUSE_EVENT) {
 		// Mouse input can move cursor/selection, but it should not create edit history entries.
 		editorHistoryBreakGroup();
-		effects |= editorHandleMouseEvent();
+		int mouse_effects = EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
+		(void)editorHandleMouseEventDispatch(DRAWER_DOUBLE_CLICK_THRESHOLD_MS,
+				TEXT_MULTI_CLICK_THRESHOLD_MS, editorProcessMappedAction,
+				editorJumpToPathLocation, editorCtrlClickGoToDefinitionAction,
+				&mouse_effects);
+		if ((mouse_effects & EDITOR_MOUSE_DISPATCH_EFFECT_VIEWPORT_SCROLL) != 0) {
+			effects |= EDITOR_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
+		}
+		if ((mouse_effects & EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT) != 0) {
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+		}
 	} else {
 		if (editorClearHoverLinkState()) {
 			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;

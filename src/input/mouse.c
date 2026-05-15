@@ -8,6 +8,7 @@
 #include "input/actions_workspace.h"
 #include "language/lsp.h"
 #include "render/viewport.h"
+#include "support/terminal.h"
 #include "terminal/terminal_pane.h"
 #include "text/row.h"
 #include "workspace/drawer.h"
@@ -29,6 +30,10 @@ enum {
 #define DRAWER_HEADER_MODE_BUTTONS_MIN_COLS \
 	(ROTIDE_DRAWER_COLLAPSED_WIDTH + \
 			DRAWER_HEADER_MODE_BUTTON_COLS * DRAWER_HEADER_MODE_BUTTON_COUNT)
+
+static void editorMouseClearSelectionMode(void);
+static void editorMouseSelectWordAtCursor(void);
+static void editorMouseSelectLineAtCursor(void);
 
 int editorDrawerHeaderModeForColumn(int mouse_col, int drawer_cols,
 		enum editorDrawerMode *mode_out) {
@@ -385,6 +390,204 @@ int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long 
 	return 1;
 }
 
+int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long long now_ms,
+		int multi_click_threshold_ms, editorMouseActionFn goto_definition, int *effects_out) {
+	int mouse_col = event->x - 1;
+	int effects = 0;
+
+	if (editorHandleMouseTopRowTabClick(event, now_ms)) {
+		if (effects_out != NULL) {
+			*effects_out = effects;
+		}
+		return 1;
+	}
+
+	if (editorLayoutFocusLeafAt(mouse_col, event->y - 1)) {
+		editorPaneAnnounceFocus();
+	}
+
+	if (!editorMoveCursorToMouse(event, 0)) {
+		E.mouse_left_button_down = 0;
+		E.mouse_drag_started = 0;
+		editorResetTextClickTracking();
+		if (effects_out != NULL) {
+			*effects_out = effects;
+		}
+		return 1;
+	}
+
+	E.pane_focus = EDITOR_PANE_TEXT;
+	editorMouseClearSelectionMode();
+	if (event->modifiers == EDITOR_MOUSE_MOD_CTRL) {
+		E.mouse_left_button_down = 0;
+		E.mouse_drag_started = 0;
+		editorResetTextClickTracking();
+		if (goto_definition != NULL) {
+			goto_definition();
+		}
+		if (effects_out != NULL) {
+			*effects_out = 1;
+		}
+		return 1;
+	}
+
+	int column_modifier = E.column_select_drag_modifier;
+	if (column_modifier != 0 && event->modifiers == column_modifier) {
+		E.column_select_active = 1;
+		E.column_select_anchor_cy = E.cy;
+		E.column_select_anchor_rx = (E.cy < E.numrows) ?
+				editorRowCxToRx(&E.rows[E.cy], E.cx) : 0;
+		E.column_select_cursor_rx = E.column_select_anchor_rx;
+		editorResetTextClickTracking();
+		E.mouse_left_button_down = 1;
+		E.mouse_drag_anchor_offset = E.cursor_offset;
+		E.mouse_drag_started = 0;
+		if (effects_out != NULL) {
+			*effects_out = 1;
+		}
+		return 1;
+	}
+
+	int click_count = 1;
+	if (event->modifiers == EDITOR_MOUSE_MOD_NONE &&
+			E.text_last_click_ms > 0 && now_ms > 0 &&
+			now_ms - E.text_last_click_ms <= multi_click_threshold_ms &&
+			E.text_last_click_cy == E.cy && E.text_last_click_cx == E.cx) {
+		click_count = E.text_click_count + 1;
+		if (click_count > 3) {
+			click_count = 1;
+		}
+	}
+	E.text_click_count = click_count;
+	E.text_last_click_cy = E.cy;
+	E.text_last_click_cx = E.cx;
+	E.text_last_click_ms = now_ms;
+
+	if (click_count == 2) {
+		editorMouseSelectWordAtCursor();
+		E.mouse_left_button_down = 0;
+		E.mouse_drag_started = 0;
+		if (effects_out != NULL) {
+			*effects_out = 1;
+		}
+		return 1;
+	}
+	if (click_count == 3) {
+		editorMouseSelectLineAtCursor();
+		E.mouse_left_button_down = 0;
+		E.mouse_drag_started = 0;
+		if (effects_out != NULL) {
+			*effects_out = 1;
+		}
+		return 1;
+	}
+
+	E.mouse_left_button_down = 1;
+	E.mouse_drag_anchor_offset = E.cursor_offset;
+	E.mouse_drag_started = 0;
+	if (effects_out != NULL) {
+		*effects_out = 1;
+	}
+	return 1;
+}
+
+static long long editorMouseMonotonicMillis(void) {
+	struct timespec ts;
+	if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+		return 0;
+	}
+	return (long long)ts.tv_sec * 1000LL + (long long)(ts.tv_nsec / 1000000L);
+}
+
+static int editorHandleMouseLeftPress(const struct editorMouseEvent *event,
+		int drawer_double_click_threshold_ms, int text_multi_click_threshold_ms,
+		editorProcessMappedActionFn process_mapped_action, editorMouseJumpToPathFn jump_to_path,
+		editorMouseActionFn goto_definition) {
+	long long now_ms = editorMouseMonotonicMillis();
+	int drawer_effects = EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
+	if (editorHandleMouseDrawerLeftPress(event, now_ms, drawer_double_click_threshold_ms,
+				process_mapped_action, jump_to_path, &drawer_effects)) {
+		if ((drawer_effects & EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT) != 0) {
+			return EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT;
+		}
+		return EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
+	}
+
+	editorResetDrawerClickTracking();
+	int text_effects = EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
+	if (editorHandleMouseTextLeftPress(event, now_ms, text_multi_click_threshold_ms,
+				goto_definition, &text_effects)) {
+		return text_effects ? EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT :
+				EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
+	}
+	return EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
+}
+
+int editorHandleMouseEventDispatch(int drawer_double_click_threshold_ms,
+		int text_multi_click_threshold_ms, editorProcessMappedActionFn process_mapped_action,
+		editorMouseJumpToPathFn jump_to_path, editorMouseActionFn goto_definition,
+		int *effects_out) {
+	int effects = EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
+	struct editorMouseEvent event;
+	// terminal.c queues one decoded event per MOUSE_EVENT keycode.
+	if (!editorConsumeMouseEvent(&event)) {
+		if (effects_out != NULL) {
+			*effects_out = effects;
+		}
+		return 1;
+	}
+
+	if (event.kind != EDITOR_MOUSE_EVENT_MOTION && editorClearHoverLinkState()) {
+		// Fall through and dispatch; render will pick up the cleared hover state.
+	}
+
+	if (editorHandleMouseEventInTerminalPane(&event)) {
+		if (effects_out != NULL) {
+			*effects_out = effects;
+		}
+		return 1;
+	}
+
+	switch (event.kind) {
+	case EDITOR_MOUSE_EVENT_LEFT_PRESS:
+		effects = editorHandleMouseLeftPress(&event, drawer_double_click_threshold_ms,
+				text_multi_click_threshold_ms, process_mapped_action, jump_to_path,
+				goto_definition);
+		break;
+	case EDITOR_MOUSE_EVENT_LEFT_DRAG:
+		effects = editorHandleMouseLeftDrag(&event) ?
+				EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT :
+				EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
+		break;
+	case EDITOR_MOUSE_EVENT_LEFT_RELEASE:
+		effects = editorHandleMouseLeftRelease() ?
+				EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT :
+				EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
+		break;
+	case EDITOR_MOUSE_EVENT_MOTION:
+		effects = editorHandleMouseMotion(&event) ?
+				EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT :
+				EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
+		break;
+	case EDITOR_MOUSE_EVENT_WHEEL_UP:
+	case EDITOR_MOUSE_EVENT_WHEEL_DOWN:
+	case EDITOR_MOUSE_EVENT_WHEEL_LEFT:
+	case EDITOR_MOUSE_EVENT_WHEEL_RIGHT:
+		effects = editorHandleMouseWheel(&event) ?
+				EDITOR_MOUSE_DISPATCH_EFFECT_VIEWPORT_SCROLL :
+				EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
+		break;
+	default:
+		effects = EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
+		break;
+	}
+
+	if (effects_out != NULL) {
+		*effects_out = effects;
+	}
+	return 1;
+}
+
 int editorMouseIsOverDrawer(const struct editorMouseEvent *event) {
 	if (event == NULL) {
 		return 0;
@@ -565,6 +768,88 @@ int editorMoveCursorToMouse(const struct editorMouseEvent *event, int clamp_to_v
 
 static int editorMouseIsWordByte(unsigned char b) {
 	return isalnum(b) || b == '_' || b >= 0x80;
+}
+
+static void editorMouseClearSelectionMode(void) {
+	E.selection_mode_active = 0;
+	E.selection_anchor_offset = 0;
+	editorColumnSelectionClear();
+}
+
+static void editorMouseSelectWordAtCursor(void) {
+	if (E.cy < 0 || E.cy >= E.numrows) {
+		return;
+	}
+	struct erow *row = &E.rows[E.cy];
+	int cx = editorRowClampCxToCharBoundary(row, E.cx);
+	if (cx >= row->size) {
+		cx = editorRowPrevCharIdx(row, row->size);
+		if (cx < 0) {
+			return;
+		}
+	}
+	if (!editorMouseIsWordByte((unsigned char)row->chars[cx])) {
+		return;
+	}
+
+	int start = cx;
+	while (start > 0) {
+		int prev = editorRowPrevCharIdx(row, start);
+		if (prev >= start || !editorMouseIsWordByte((unsigned char)row->chars[prev])) {
+			break;
+		}
+		start = prev;
+	}
+	int end = editorRowNextCharIdx(row, cx);
+	while (end < row->size) {
+		if (!editorMouseIsWordByte((unsigned char)row->chars[end])) {
+			break;
+		}
+		int next = editorRowNextCharIdx(row, end);
+		if (next <= end) {
+			break;
+		}
+		end = next;
+	}
+
+	size_t anchor_offset = 0;
+	if (!editorBufferPosToOffset(E.cy, start, &anchor_offset)) {
+		return;
+	}
+	editorColumnSelectionClear();
+	E.selection_mode_active = 1;
+	E.selection_anchor_offset = anchor_offset;
+	E.cx = end;
+	size_t cursor_offset = 0;
+	if (editorBufferPosToOffset(E.cy, end, &cursor_offset)) {
+		E.cursor_offset = cursor_offset;
+	}
+}
+
+static void editorMouseSelectLineAtCursor(void) {
+	if (E.cy < 0 || E.cy >= E.numrows) {
+		return;
+	}
+	size_t anchor_offset = 0;
+	if (!editorBufferPosToOffset(E.cy, 0, &anchor_offset)) {
+		return;
+	}
+	editorColumnSelectionClear();
+	E.selection_mode_active = 1;
+	E.selection_anchor_offset = anchor_offset;
+
+	int end_cy = E.cy;
+	int end_cx = E.rows[E.cy].size;
+	if (E.cy + 1 < E.numrows) {
+		end_cy = E.cy + 1;
+		end_cx = 0;
+	}
+	E.cy = end_cy;
+	E.cx = end_cx;
+	size_t cursor_offset = 0;
+	if (editorBufferPosToOffset(end_cy, end_cx, &cursor_offset)) {
+		E.cursor_offset = cursor_offset;
+	}
 }
 
 static int editorComputeWordRangeAt(int cy, int cx, int *start_out, int *end_out) {

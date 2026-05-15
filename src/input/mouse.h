@@ -6,6 +6,13 @@
 typedef int (*editorProcessMappedActionFn)(enum editorAction action, int *effects_out);
 typedef int (*editorMouseJumpToPathFn)(const char *path, int line, int character, int preview,
 		int center);
+typedef void (*editorMouseActionFn)(void);
+
+enum editorMouseDispatchEffect {
+	EDITOR_MOUSE_DISPATCH_EFFECT_NONE = 0,
+	EDITOR_MOUSE_DISPATCH_EFFECT_VIEWPORT_SCROLL = 1 << 0,
+	EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT = 1 << 1
+};
 
 void editorResetDrawerClickTracking(void);
 void editorResetTextClickTracking(void);
@@ -24,8 +31,14 @@ int editorHandleMouseLeftRelease(void);
 int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long long now_ms,
 		int double_click_threshold_ms, editorProcessMappedActionFn process_mapped_action,
 		editorMouseJumpToPathFn jump_to_path, int *effects_out);
+int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long long now_ms,
+		int multi_click_threshold_ms, editorMouseActionFn goto_definition, int *effects_out);
 int editorHandleMouseTopRowTabClick(const struct editorMouseEvent *event, long long now_ms);
 int editorDrawerHeaderModeForColumn(int mouse_col, int drawer_cols,
 		enum editorDrawerMode *mode_out);
+int editorHandleMouseEventDispatch(int drawer_double_click_threshold_ms,
+		int text_multi_click_threshold_ms, editorProcessMappedActionFn process_mapped_action,
+		editorMouseJumpToPathFn jump_to_path, editorMouseActionFn goto_definition,
+		int *effects_out);
 
 #endif
