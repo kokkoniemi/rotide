@@ -8,6 +8,7 @@
 #include "render/ansi_style.h"
 #include "render/display_text.h"
 #include "render/drawer_view.h"
+#include "render/pane_view.h"
 #include "render/popup.h"
 #include "render/status_bar.h"
 #include "render/tab_bar.h"
@@ -195,7 +196,7 @@ static int editorFileRowFrameCacheStoreRow(int row_idx, const char *row_data, si
 	return 1;
 }
 
-static int editorAppendCursorMove(struct writeBuf *wb, int row, int col) {
+int editorAppendCursorMove(struct writeBuf *wb, int row, int col) {
 	char buf[32];
 	int len = snprintf(buf, sizeof(buf), "\x1b[%d;%dH", row, col);
 	if (len <= 0 || len >= (int)sizeof(buf)) {
@@ -1475,50 +1476,6 @@ static int editorBuildFileRowLine(struct writeBuf *wb, int y, int drawer_cols, i
 	return 1;
 }
 
-/* "│" U+2502 BOX DRAWINGS LIGHT VERTICAL (UTF-8: e2 94 82) */
-#define EDITOR_PANE_VBORDER "\xe2\x94\x82"
-/* "─" U+2500 BOX DRAWINGS LIGHT HORIZONTAL (UTF-8: e2 94 80) */
-#define EDITOR_PANE_HBORDER "\xe2\x94\x80"
-
-static int editorPaneLeafAt(const struct editorLeafLayout *layout, int x,
-		int y, struct editorRect *out_rect) {
-	for (int i = 0; i < layout->count; i++) {
-		struct editorRect r = layout->rects[i].rect;
-		if (r.x <= x && x < r.x + r.w && r.y <= y && y < r.y + r.h) {
-			if (out_rect != NULL) {
-				*out_rect = r;
-			}
-			return i;
-		}
-	}
-	return -1;
-}
-
-enum editorBorderCellKind {
-	EDITOR_BORDER_CELL_NONE = 0,
-	EDITOR_BORDER_CELL_VERTICAL,
-	EDITOR_BORDER_CELL_HORIZONTAL
-};
-
-static enum editorBorderCellKind editorBorderCellAt(int x, int screen_y,
-		const struct editorBorderList *borders) {
-	if (borders == NULL) {
-		return EDITOR_BORDER_CELL_NONE;
-	}
-	for (int i = 0; i < borders->count; i++) {
-		struct editorRect r = borders->rects[i].rect;
-		if (x < r.x || x >= r.x + r.w) {
-			continue;
-		}
-		if (screen_y < r.y || screen_y >= r.y + r.h) {
-			continue;
-		}
-		return borders->rects[i].orientation == EDITOR_SPLIT_HORIZONTAL ?
-				EDITOR_BORDER_CELL_HORIZONTAL : EDITOR_BORDER_CELL_VERTICAL;
-	}
-	return EDITOR_BORDER_CELL_NONE;
-}
-
 struct editorViewSnapshot {
 	int cx;
 	int cy;
@@ -1587,7 +1544,7 @@ static void editorViewSnapshotFromPaneView(const struct editorPaneView *view) {
 	E.column_select_cursor_rx = view->column_select_cursor_rx;
 }
 
-static int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode *leaf,
+int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode *leaf,
 		int body_row_in_pane, int slice_cols) {
 	int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);
 	if (gutter_cols > slice_cols) {
@@ -1699,7 +1656,7 @@ static int editorPaneBodyRowToBufferRow(int body_row_in_pane, int slice_cols, in
 	return 1;
 }
 
-static void editorPaneSyntaxFrameClear(void) {
+void editorPaneSyntaxFrameClear(void) {
 	if (g_editor_pane_syntax_frame.entries != NULL) {
 		for (int i = 0; i < g_editor_pane_syntax_frame.count; i++) {
 			free(g_editor_pane_syntax_frame.entries[i].rows);
@@ -1775,7 +1732,7 @@ static int editorPaneSyntaxFrameBuildEntry(struct editorPaneSyntaxFrameEntry *en
 	return 1;
 }
 
-static int editorPaneSyntaxFrameBuild(const struct editorLeafLayout *layout) {
+int editorPaneSyntaxFrameBuild(const struct editorLeafLayout *layout) {
 	editorPaneSyntaxFrameClear();
 	if (layout == NULL || layout->count <= 0) {
 		return 1;
@@ -1833,7 +1790,7 @@ static int editorPaneSyntaxFrameBuild(const struct editorLeafLayout *layout) {
 	return 1;
 }
 
-static int editorDrawBlankCells(struct writeBuf *wb, int cells) {
+int editorDrawBlankCells(struct writeBuf *wb, int cells) {
 	for (int i = 0; i < cells; i++) {
 		if (!wbAppend(wb, " ", 1)) {
 			return 0;
@@ -1842,7 +1799,7 @@ static int editorDrawBlankCells(struct writeBuf *wb, int cells) {
 	return 1;
 }
 
-static int editorDrawPaneViewSlice(struct writeBuf *wb, const struct editorPaneNode *leaf,
+int editorDrawPaneViewSlice(struct writeBuf *wb, const struct editorPaneNode *leaf,
 		const struct editorPaneView *view, int body_row_in_pane, int slice_cols) {
 	if (view == NULL || view->active_tab_idx < 0 ||
 			(E.tab_count > 0 && view->active_tab_idx >= E.tab_count)) {
@@ -1876,115 +1833,6 @@ static int editorDrawPaneViewSlice(struct writeBuf *wb, const struct editorPaneN
 	editorTabStateAliasToActive(&active_snap);
 	E.active_tab = active_tab;
 	editorViewSnapshotRestore(&snap);
-	return ok;
-}
-
-static int editorDrawMultiPaneRows(struct writeBuf *wb,
-		const struct editorLeafLayout *layout,
-		const struct editorBorderList *borders,
-		struct editorRect focused_rect) {
-	int ok = 0;
-	int drawer_cols = editorDrawerWidthForCols(E.window_cols);
-	int separator_cols = editorDrawerSeparatorWidthForCols(E.window_cols);
-	int text_start_col = editorDrawerTextStartColForCols(E.window_cols);
-	if (!editorPaneSyntaxFrameBuild(layout)) {
-		goto cleanup;
-	}
-
-	for (int y_body = 0; y_body < E.window_rows; y_body++) {
-		int screen_y = y_body + 1;
-		int terminal_row = y_body + 2;
-		if (!editorAppendCursorMove(wb, terminal_row, 1)) {
-			goto cleanup;
-		}
-		if (!editorDrawDrawerRow(wb, y_body + 1, drawer_cols)) {
-			goto cleanup;
-		}
-		if (!editorDrawDrawerSeparatorCell(wb, separator_cols)) {
-			goto cleanup;
-		}
-
-		int focused_intersects =
-				screen_y >= focused_rect.y &&
-				screen_y < focused_rect.y + focused_rect.h;
-		int x = text_start_col;
-		while (x < E.window_cols) {
-				enum editorBorderCellKind border = editorBorderCellAt(x, screen_y, borders);
-				if (border == EDITOR_BORDER_CELL_HORIZONTAL) {
-					if (!wbAppend(wb, EDITOR_PANE_HBORDER,
-							sizeof(EDITOR_PANE_HBORDER) - 1)) {
-						goto cleanup;
-					}
-					x++;
-					continue;
-				}
-				if (border == EDITOR_BORDER_CELL_VERTICAL) {
-					if (!wbAppend(wb, EDITOR_PANE_VBORDER,
-							sizeof(EDITOR_PANE_VBORDER) - 1)) {
-						goto cleanup;
-					}
-					x++;
-					continue;
-				}
-				struct editorRect leaf_rect = {0};
-				int leaf_idx = editorPaneLeafAt(layout, x, screen_y, &leaf_rect);
-				if (leaf_idx < 0) {
-					if (!wbAppend(wb, " ", 1)) {
-						goto cleanup;
-					}
-					x++;
-					continue;
-			}
-			int slice_cols = leaf_rect.x + leaf_rect.w - x;
-			if (slice_cols <= 0) {
-				slice_cols = 1;
-			}
-			struct editorPaneNode *leaf_node = layout->rects[leaf_idx].node;
-			if (leaf_node != NULL &&
-					leaf_node->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL) {
-				int row_in_pane = screen_y - leaf_rect.y;
-				int col_in_pane = x - leaf_rect.x;
-					if (!editorDrawTerminalCells(wb,
-							(struct editorTerminalPane *)leaf_node->as.leaf.kind_state,
-							row_in_pane, col_in_pane, slice_cols)) {
-						goto cleanup;
-					}
-				} else {
-					int is_focused_slice = focused_intersects &&
-							leaf_node == E.focused_leaf;
-					if (is_focused_slice) {
-						int body_row_in_pane = screen_y - focused_rect.y;
-						if (!editorDrawFocusedPaneSlice(wb, leaf_node, body_row_in_pane,
-									slice_cols)) {
-							goto cleanup;
-						}
-					} else if (leaf_node != NULL &&
-							leaf_node->as.leaf.view.active_tab_idx >= 0) {
-						int body_row_in_pane = screen_y - leaf_rect.y;
-						if (!editorDrawPaneViewSlice(wb, leaf_node,
-									&leaf_node->as.leaf.view, body_row_in_pane,
-									slice_cols)) {
-							goto cleanup;
-						}
-					} else if (!editorDrawBlankCells(wb, slice_cols)) {
-						goto cleanup;
-					}
-				}
-				x += slice_cols;
-			}
-			if (!wbAppend(wb, VT100_CLEAR_ROW_3, 3)) {
-				goto cleanup;
-			}
-		}
-
-	ok = 1;
-cleanup:
-	editorPaneSyntaxFrameClear();
-	if (ok) {
-		editorFileRowFrameCacheClearRowsFrom(0);
-		g_file_row_frame_cache.valid = 0;
-		g_editor_output_last_refresh_file_row_draw_count = E.window_rows;
-	}
 	return ok;
 }
 
@@ -2035,6 +1883,11 @@ static int editorDrawRows(struct writeBuf *wb) {
 		int ok = editorDrawMultiPaneRows(wb, &layout, &borders, leaf_rect);
 		editorBorderListFree(&borders);
 		editorLeafLayoutFree(&layout);
+		if (ok) {
+			editorFileRowFrameCacheClearRowsFrom(0);
+			g_file_row_frame_cache.valid = 0;
+			g_editor_output_last_refresh_file_row_draw_count = E.window_rows;
+		}
 		return ok;
 	}
 	int file_row_draw_count = 0;

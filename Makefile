@@ -115,6 +115,7 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/render/ansi_style.c \
 	$(SRC_DIR)/render/display_text.c \
 	$(SRC_DIR)/render/drawer_view.c \
+	$(SRC_DIR)/render/pane_view.c \
 	$(SRC_DIR)/render/status_bar.c \
 	$(SRC_DIR)/render/tab_bar.c \
 	$(SRC_DIR)/render/terminal_view.c \
