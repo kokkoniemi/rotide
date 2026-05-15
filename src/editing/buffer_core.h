@@ -3,6 +3,7 @@
 
 #include "rotide.h"
 #include "editing/document_bridge.h"
+#include "editing/document_position.h"
 #include <stddef.h>
 
 /* Canonical edit descriptor for text mutations.
@@ -24,12 +25,6 @@ struct editorDocumentEdit {
 char *editorRowsToStr(size_t *buflen);
 int editorBuildActiveTextSource(struct editorTextSource *source_out);
 
-/* Offset/row mapping helpers keep cursor, search, and selection state anchored
- * to editorDocument while allowing the renderer to work with derived rows.
- */
-int editorBufferPosToOffset(int cy, int cx, size_t *offset_out);
-int editorBufferOffsetToPos(size_t offset, int *cy_out, int *cx_out);
-int editorBufferLineByteRange(int row_idx, size_t *start_byte_out, size_t *end_byte_out);
 int editorBufferFindForward(const char *query, int start_row, int start_col, int *out_row,
 		int *out_col);
 int editorBufferFindBackward(const char *query, int start_row, int start_col, int *out_row,
@@ -60,8 +55,6 @@ void editorSyntaxVisibleCacheFree(void);
 void editorFreeRowArray(struct erow *rows, int numrows);
 int editorBuildFullRowsFromDocument(const struct editorDocument *document,
 		struct erow **rows_out, int *numrows_out);
-int editorSyncCursorFromOffset(size_t target_offset);
-int editorSyncCursorFromOffsetByteBoundary(size_t target_offset);
 int editorRestoreActiveFromDocument(const struct editorDocument *document,
 		int target_cy, int target_cx, int dirty, int parse_syntax);
 
