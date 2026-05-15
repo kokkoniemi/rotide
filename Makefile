@@ -99,6 +99,7 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/support/save_syscalls.c $(SRC_DIR)/support/file_io.c \
 	$(SRC_DIR)/text/document.c $(SRC_DIR)/text/rope.c \
 	$(SRC_DIR)/text/utf8.c $(SRC_DIR)/text/row.c \
+	$(SRC_DIR)/editing/document_bridge.c \
 	$(SRC_DIR)/editing/buffer_core.c \
 	$(SRC_DIR)/editing/edit.c $(SRC_DIR)/editing/selection.c \
 	$(SRC_DIR)/editing/history.c \

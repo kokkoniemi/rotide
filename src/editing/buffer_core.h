@@ -2,6 +2,7 @@
 #define BUFFER_H
 
 #include "rotide.h"
+#include "editing/document_bridge.h"
 #include <stddef.h>
 
 /* Canonical edit descriptor for text mutations.
@@ -51,12 +52,6 @@ int editorBufferMaxRenderCols(void);
 void editorSetAllocFailureStatus(void);
 void editorSetOperationTooLargeStatus(void);
 void editorSetFileTooLargeStatus(void);
-int editorTabKindSupportsDocument(enum editorTabKind tab_kind);
-void editorDocumentFreePtr(struct editorDocument **document_in_out);
-int editorDocumentEnsureActiveCurrent(void);
-int editorDocumentResetActiveFromText(const char *text, size_t len);
-int editorTabDocumentEnsureCurrent(struct editorTabState *tab);
-int editorBufferDocumentEnsureCurrent(struct editorBuffer *buffer);
 int editorSyntaxParseFullActive(void);
 void editorLspNotifyDidCloseTabState(struct editorTabState *tab);
 void editorLspNotifyDidSaveActive(void);

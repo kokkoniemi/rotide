@@ -1,5 +1,6 @@
 #include "editing/buffer_core.h"
 
+#include "editing/document_bridge.h"
 #include "editing/edit.h"
 #include "editing/history.h"
 #include "editing/selection.h"
@@ -20,6 +21,7 @@
 struct editorRowCacheSpliceRegion;
 static const char *editorDocumentTextSourceRead(const struct editorTextSource *source,
 		size_t byte_index, uint32_t *bytes_read);
+static struct editorDocument *editorDocumentAlloc(void);
 static int editorSyntaxByteRangeToVisibleRows(size_t start_byte, size_t end_byte,
 		int *start_row_out, int *end_row_exclusive_out);
 static int editorSyntaxVisibleCacheInvalidateChangedRowsFromState(void);
@@ -40,12 +42,6 @@ static void editorLspNotifyDidChangeActive(const struct editorSyntaxEdit *edit,
 		const char *inserted_text, size_t inserted_len);
 void editorLspNotifyDidSaveActive(void);
 void editorLspNotifyDidCloseTabState(struct editorTabState *tab);
-int editorTabKindSupportsDocument(enum editorTabKind tab_kind);
-static int editorDocumentStateResetFromText(struct editorDocument **document_in_out,
-		enum editorTabKind tab_kind, const char *text, size_t len);
-int editorDocumentEnsureActiveCurrent(void);
-int editorDocumentResetActiveFromText(const char *text, size_t len);
-int editorTabDocumentEnsureCurrent(struct editorTabState *tab);
 static int editorActiveDocumentCurrent(const struct editorDocument **document_out);
 static int editorBuildRowsFromDocument(const struct editorDocument *document,
 		struct erow **rows_out, int *numrows_out);
@@ -74,8 +70,6 @@ static int editorTextSourceFindForwardInRange(const struct editorTextSource *sou
 static int editorTextSourceFindBackwardInRange(const struct editorTextSource *source,
 		size_t start_byte, size_t end_byte, const char *query, int before_idx, int *out_idx);
 
-static int g_document_full_rebuild_count = 0;
-static int g_document_incremental_update_count = 0;
 static int g_active_text_source_build_count = 0;
 static int g_active_text_source_dup_count = 0;
 static int g_row_cache_full_rebuild_count = 0;
@@ -390,13 +384,6 @@ static const char *editorDocumentTextSourceRead(const struct editorTextSource *s
 	return editorDocumentRead(document, byte_index, bytes_read);
 }
 
-int editorTabKindSupportsDocument(enum editorTabKind tab_kind) {
-	return tab_kind == EDITOR_TAB_FILE ||
-			tab_kind == EDITOR_TAB_TASK_LOG ||
-			tab_kind == EDITOR_TAB_UNSUPPORTED_FILE ||
-			tab_kind == EDITOR_TAB_GIT_DIFF;
-}
-
 static struct editorDocument *editorDocumentAlloc(void) {
 	struct editorDocument *document = editorMalloc(sizeof(*document));
 	if (document == NULL) {
@@ -404,72 +391,6 @@ static struct editorDocument *editorDocumentAlloc(void) {
 	}
 	editorDocumentInit(document);
 	return document;
-}
-
-void editorDocumentFreePtr(struct editorDocument **document_in_out) {
-	if (document_in_out == NULL || *document_in_out == NULL) {
-		return;
-	}
-	editorDocumentFree(*document_in_out);
-	free(*document_in_out);
-	*document_in_out = NULL;
-}
-
-static int editorDocumentStateResetFromText(struct editorDocument **document_in_out,
-		enum editorTabKind tab_kind, const char *text, size_t len) {
-	if (document_in_out == NULL) {
-		return 0;
-	}
-	if (!editorTabKindSupportsDocument(tab_kind)) {
-		editorDocumentFreePtr(document_in_out);
-		return 1;
-	}
-	if (*document_in_out == NULL) {
-		*document_in_out = editorDocumentAlloc();
-		if (*document_in_out == NULL) {
-			return 0;
-		}
-	}
-	if (!editorDocumentResetFromString(*document_in_out, text, len)) {
-		return 0;
-	}
-	g_document_full_rebuild_count++;
-	return 1;
-}
-
-static int editorDocumentEnsureForTab(enum editorTabKind tab_kind,
-		struct editorDocument **document_in_out) {
-	if (document_in_out == NULL) {
-		return 0;
-	}
-	if (!editorTabKindSupportsDocument(tab_kind)) {
-		editorDocumentFreePtr(document_in_out);
-		return 1;
-	}
-	if (*document_in_out != NULL) {
-		return 1;
-	}
-	return editorDocumentStateResetFromText(document_in_out, tab_kind, "", 0);
-}
-
-int editorDocumentResetActiveFromText(const char *text, size_t len) {
-	return editorDocumentStateResetFromText(&E.document, E.tab_kind, text, len);
-}
-
-int editorDocumentEnsureActiveCurrent(void) {
-	return editorDocumentEnsureForTab(E.tab_kind, &E.document) && E.document != NULL;
-}
-
-int editorBufferDocumentEnsureCurrent(struct editorBuffer *buffer) {
-	if (buffer == NULL) {
-		return 0;
-	}
-	return editorDocumentEnsureForTab(buffer->tab_kind, &buffer->document) &&
-			buffer->document != NULL;
-}
-
-int editorTabDocumentEnsureCurrent(struct editorTabState *tab) {
-	return editorBufferDocumentEnsureCurrent(tab != NULL ? &tab->buffer : NULL);
 }
 
 static int editorActiveDocumentCurrent(const struct editorDocument **document_out) {
@@ -1317,7 +1238,7 @@ int editorApplyDocumentEdit(const struct editorDocumentEdit *edit) {
 		editorSyntaxVisibleCacheInvalidate();
 	}
 
-	g_document_incremental_update_count++;
+	editorDocumentStatsRecordIncrementalUpdate();
 	if (E.edit_pending_mode == EDITOR_EDIT_PENDING_CAPTURED &&
 			E.edit_pending_kind != EDITOR_EDIT_NONE) {
 		if (!editorHistoryRecordPendingEditFromOperation(E.edit_pending_kind, edit,
@@ -2305,7 +2226,7 @@ int editorRestoreActiveFromDocument(const struct editorDocument *document,
 		new_offset = 0;
 	}
 	E.cursor_offset = new_offset;
-	g_document_full_rebuild_count++;
+	editorDocumentStatsRecordFullRebuild();
 	if (parse_syntax) {
 		(void)editorSyntaxParseFullActive();
 	}
@@ -2399,18 +2320,17 @@ int editorSyntaxTestVisibleRowRecomputeCount(void) {
 }
 
 void editorDocumentTestResetStats(void) {
-	g_document_full_rebuild_count = 0;
-	g_document_incremental_update_count = 0;
+	editorDocumentStatsReset();
 	g_row_cache_full_rebuild_count = 0;
 	g_row_cache_splice_update_count = 0;
 }
 
 int editorDocumentTestFullRebuildCount(void) {
-	return g_document_full_rebuild_count;
+	return editorDocumentStatsFullRebuildCount();
 }
 
 int editorDocumentTestIncrementalUpdateCount(void) {
-	return g_document_incremental_update_count;
+	return editorDocumentStatsIncrementalUpdateCount();
 }
 
 int editorRowCacheTestFullRebuildCount(void) {
