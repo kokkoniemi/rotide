@@ -151,6 +151,9 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/config/editor_config.c $(SRC_DIR)/config/theme_config.c \
 	$(SRC_DIR)/config/lsp_config.c $(SRC_DIR)/config/dap_config.c \
 	$(SRC_DIR)/language/syntax.c $(SRC_DIR)/language/queries.c \
+	$(SRC_DIR)/language/syntax_detect.c \
+	$(SRC_DIR)/language/syntax_locals.c \
+	$(SRC_DIR)/language/syntax_predicates.c \
 	$(SRC_DIR)/language/syntax_worker.c \
 	$(SRC_DIR)/language/syntax_visible_cache.c \
 	$(SRC_DIR)/language/languages.c \

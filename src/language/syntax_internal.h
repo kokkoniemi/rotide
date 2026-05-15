@@ -206,4 +206,59 @@ void editorSyntaxStateRecordQueryUnavailable(struct editorSyntaxState *state,
 		enum editorSyntaxLanguage language,
 		enum editorSyntaxQueryKind kind);
 
+/*
+ * Helpers shared between the predicate-evaluation TU and the rest of
+ * syntax.c. `editorSyntaxNodeText` copies a TSNode's source bytes into
+ * the state's scratch buffer (primary or secondary slot picked by
+ * scratch_idx) and returns a pointer into that scratch. The pointer is
+ * valid until the next call with the same scratch_idx.
+ */
+int editorSyntaxNodeText(struct editorSyntaxState *state,
+		const struct editorTextSource *source,
+		TSNode node, int scratch_idx,
+		const char **text_out, size_t *len_out);
+int editorSyntaxLocalsContextNodeIsLocal(const struct editorSyntaxLocalsContext *ctx,
+		TSNode node);
+
+/*
+ * Predicate evaluator for #eq?, #not-eq?, #match?, #not-match?, #any-of?,
+ * #not-any-of?, #is?, #is-not? against a TSQueryMatch. Implemented in
+ * syntax_predicates.c.
+ */
+int editorSyntaxMatchPassesPredicates(const TSQuery *query,
+		uint32_t pattern_index,
+		const TSQueryMatch *match,
+		const struct editorSyntaxPredicateContext *ctx);
+
+/*
+ * Locals analysis helpers implemented in syntax_locals.c. The
+ * editorSyntaxLocalsContext lifecycle (Init/Free) is owned here so the
+ * state-lifecycle and injection-tree-lifecycle in syntax.c can manage
+ * embedded locals contexts without duplicating the implementation.
+ *
+ * BuildLocalsContext walks a parsed tree, applies the language's locals
+ * query, and fills `ctx_out` with per-node marks classifying each
+ * identifier as "local" or "external".
+ *
+ * StateEnsureLocalsCached / InvalidateLocalsCaches form the per-tree
+ * cache layer used by the highlight-capture path. LanguageHasLocalsQuery
+ * is a fast predicate that callers use to skip the locals pass when the
+ * language has no locals.scm.
+ */
+void editorSyntaxLocalsContextInit(struct editorSyntaxLocalsContext *ctx);
+void editorSyntaxLocalsContextFree(struct editorSyntaxLocalsContext *ctx);
+int editorSyntaxBuildLocalsContext(const TSTree *tree,
+		struct editorSyntaxState *state,
+		enum editorSyntaxLanguage language,
+		const struct editorTextSource *source,
+		struct editorSyntaxLocalsContext *ctx_out);
+void editorSyntaxStateInvalidateLocalsCaches(struct editorSyntaxState *state);
+int editorSyntaxStateEnsureLocalsCached(struct editorSyntaxState *state,
+		const struct editorSyntaxParsedTree *parsed,
+		const struct editorTextSource *source,
+		enum editorSyntaxLanguage language,
+		struct editorSyntaxInjectedTree *injection,
+		const struct editorSyntaxLocalsContext **locals_out);
+int editorSyntaxLanguageHasLocalsQuery(enum editorSyntaxLanguage language);
+
 #endif
