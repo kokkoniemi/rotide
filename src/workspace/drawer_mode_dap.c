@@ -405,6 +405,19 @@ int editorDrawerDapCollapseSelection(int viewport_rows) {
 	return 1;
 }
 
+int editorDrawerDapToggleSelectionExpanded(int viewport_rows) {
+	struct editorDrawerDapLookup lookup;
+	if (!editorDrawerDapLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
+		return 0;
+	}
+	if (lookup.kind != EDITOR_DRAWER_DAP_ENTRY_GROUP) {
+		return 0;
+	}
+	E.drawer_dap_expanded ^= 1u << (unsigned int)lookup.group_idx;
+	editorDrawerClampSelectionAndScroll(viewport_rows);
+	return 1;
+}
+
 int editorDrawerDapSelectedIsDirectory(void) {
 	struct editorDrawerDapLookup lookup;
 	if (!editorDrawerDapLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {

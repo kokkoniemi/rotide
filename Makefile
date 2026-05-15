@@ -111,6 +111,8 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/editing/history.c \
 	$(SRC_DIR)/workspace/tabs.c $(SRC_DIR)/workspace/drawer.c \
 	$(SRC_DIR)/workspace/drawer_modes.c \
+	$(SRC_DIR)/workspace/drawer_mode_menu.c \
+	$(SRC_DIR)/workspace/drawer_mode_git.c \
 	$(SRC_DIR)/workspace/drawer_mode_lsp.c \
 	$(SRC_DIR)/workspace/drawer_mode_dap.c \
 	$(SRC_DIR)/workspace/drawer_tree.c \
