@@ -261,6 +261,11 @@ list, and the serialized pane layout tree
 (`editorLayoutSerialize` writes a `layout=<expr>` line; the loader
 deserializes and replaces `E.layout_root`).
 
+`src/workspace/watch.c` is poll-based: every `EDITOR_WATCH_FILE_POLL_MS`
+(250 ms) it `stat(2)`s each tab's file to detect external changes, and every
+`EDITOR_WATCH_GIT_POLL_MS` (1000 ms) it refreshes Git state. There is no
+inotify/kqueue dependency.
+
 ## Module Map
 
 - `src/rotide.c`, `src/rotide.h`: process lifecycle, global state, main
