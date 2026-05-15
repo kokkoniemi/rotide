@@ -61,13 +61,17 @@ static int editorTabWidthColsAt(int tab_idx);
 static void editorTabVisibleRangeFromStart(int start_idx, int cols, int *last_idx_out);
 static void editorTabsAlignViewToActiveForWidth(int cols);
 static void editorBufferInitEmpty(struct editorBuffer *buffer);
+static void editorBufferCopy(struct editorBuffer *dst, const struct editorBuffer *src);
+static void editorBufferMove(struct editorBuffer *dst, struct editorBuffer *src);
+static void editorBufferFreeRows(struct editorBuffer *buffer);
+static void editorBufferClearOwnedState(struct editorBuffer *buffer);
 
 static void editorTabStateCopyFromActive(struct editorTabState *tab) {
-	tab->buffer = E.active_buffer;
+	editorBufferCopy(&tab->buffer, &E.active_buffer);
 }
 
 static void editorActiveBufferCopyFromTab(const struct editorTabState *tab) {
-	E.active_buffer = tab->buffer;
+	editorBufferCopy(&E.active_buffer, &tab->buffer);
 }
 
 static void editorBufferInitEmpty(struct editorBuffer *buffer) {
@@ -82,6 +86,59 @@ static void editorBufferInitEmpty(struct editorBuffer *buffer) {
 	buffer->edit_pending_mode = EDITOR_EDIT_PENDING_NONE;
 }
 
+static void editorBufferCopy(struct editorBuffer *dst, const struct editorBuffer *src) {
+	*dst = *src;
+}
+
+static void editorBufferMove(struct editorBuffer *dst, struct editorBuffer *src) {
+	editorBufferCopy(dst, src);
+	editorBufferInitEmpty(src);
+}
+
+static void editorBufferFreeRows(struct editorBuffer *buffer) {
+	for (int i = 0; i < buffer->numrows; i++) {
+		free(buffer->rows[i].chars);
+		free(buffer->rows[i].render);
+		free(buffer->rows[i].wrap_cache_segments);
+	}
+	free(buffer->rows);
+	buffer->rows = NULL;
+	buffer->numrows = 0;
+}
+
+static void editorBufferClearOwnedState(struct editorBuffer *buffer) {
+	if (buffer->lsp_diagnostics != NULL) {
+		for (int i = 0; i < buffer->lsp_diagnostic_count; i++) {
+			free(buffer->lsp_diagnostics[i].message);
+		}
+		free(buffer->lsp_diagnostics);
+		buffer->lsp_diagnostics = NULL;
+	}
+	if (buffer->lsp_symbols != NULL) {
+		editorLspFreeSymbols(buffer->lsp_symbols, buffer->lsp_symbol_count);
+		buffer->lsp_symbols = NULL;
+		buffer->lsp_symbol_count = 0;
+	}
+	editorBufferFreeRows(buffer);
+	editorDocumentFreePtr(&buffer->document);
+	buffer->max_render_cols = 0;
+	buffer->max_render_cols_valid = 1;
+	free(buffer->filename);
+	buffer->filename = NULL;
+	free(buffer->tab_title);
+	buffer->tab_title = NULL;
+	editorSyntaxStateDestroy(buffer->syntax_state);
+	buffer->syntax_state = NULL;
+	buffer->syntax_language = EDITOR_SYNTAX_NONE;
+	free(buffer->search_query);
+	buffer->search_query = NULL;
+	editorHistoryClear(&buffer->undo_history);
+	editorHistoryClear(&buffer->redo_history);
+	editorHistoryEntryFree(&buffer->edit_pending_entry);
+	buffer->edit_pending_entry_valid = 0;
+	editorBufferInitEmpty(buffer);
+}
+
 static void editorTabStateInitEmpty(struct editorTabState *tab) {
 	editorBufferInitEmpty(&tab->buffer);
 }
@@ -91,99 +148,28 @@ void editorResetActiveBufferFields(void) {
 }
 
 static void editorFreeTabRows(struct editorTabState *tab) {
-	for (int i = 0; i < tab->numrows; i++) {
-		free(tab->rows[i].chars);
-		free(tab->rows[i].render);
-	}
-	free(tab->rows);
-	tab->rows = NULL;
-	tab->numrows = 0;
+	editorBufferFreeRows(&tab->buffer);
 }
 
 static void editorTabStateFree(struct editorTabState *tab) {
-	if (tab->lsp_diagnostics != NULL) {
-		for (int i = 0; i < tab->lsp_diagnostic_count; i++) {
-			free(tab->lsp_diagnostics[i].message);
-		}
-		free(tab->lsp_diagnostics);
-		tab->lsp_diagnostics = NULL;
-	}
-	if (tab->lsp_symbols != NULL) {
-		editorLspFreeSymbols(tab->lsp_symbols, tab->lsp_symbol_count);
-		tab->lsp_symbols = NULL;
-		tab->lsp_symbol_count = 0;
-	}
-	editorFreeTabRows(tab);
-	editorDocumentFreePtr(&tab->document);
-	free(tab->filename);
-	tab->filename = NULL;
-	free(tab->tab_title);
-	tab->tab_title = NULL;
-	editorSyntaxStateDestroy(tab->syntax_state);
-	tab->syntax_state = NULL;
-	tab->syntax_language = EDITOR_SYNTAX_NONE;
-	free(tab->search_query);
-	tab->search_query = NULL;
-	editorHistoryClear(&tab->undo_history);
-	editorHistoryClear(&tab->redo_history);
-	editorHistoryEntryFree(&tab->edit_pending_entry);
-	tab->edit_pending_entry_valid = 0;
-	editorTabStateInitEmpty(tab);
+	editorBufferClearOwnedState(&tab->buffer);
 }
 
 void editorFreeActiveBufferState(void) {
-	if (E.lsp_diagnostics != NULL) {
-		for (int i = 0; i < E.lsp_diagnostic_count; i++) {
-			free(E.lsp_diagnostics[i].message);
-		}
-		free(E.lsp_diagnostics);
-		E.lsp_diagnostics = NULL;
-	}
-	if (E.lsp_symbols != NULL) {
-		editorLspFreeSymbols(E.lsp_symbols, E.lsp_symbol_count);
-		E.lsp_symbols = NULL;
-		E.lsp_symbol_count = 0;
-	}
-	for (int i = 0; i < E.numrows; i++) {
-		free(E.rows[i].chars);
-		free(E.rows[i].render);
-		free(E.rows[i].wrap_cache_segments);
-	}
-	free(E.rows);
-	E.rows = NULL;
-	E.numrows = 0;
-	editorDocumentFreePtr(&E.document);
-	E.max_render_cols = 0;
-	E.max_render_cols_valid = 1;
-
-	free(E.filename);
-	E.filename = NULL;
-	free(E.tab_title);
-	E.tab_title = NULL;
-	editorSyntaxStateDestroy(E.syntax_state);
-	E.syntax_state = NULL;
-	E.syntax_language = EDITOR_SYNTAX_NONE;
-	free(E.search_query);
-	E.search_query = NULL;
-	editorHistoryClear(&E.undo_history);
-	editorHistoryClear(&E.redo_history);
-	editorHistoryEntryFree(&E.edit_pending_entry);
-	E.edit_pending_entry_valid = 0;
+	editorBufferClearOwnedState(&E.active_buffer);
 	editorSyntaxVisibleCacheInvalidate();
-	editorResetActiveBufferFields();
 }
 
 static void editorTabStateCaptureActive(struct editorTabState *tab) {
 	editorTabStateFree(tab);
 
-	editorTabStateCopyFromActive(tab);
 	if (E.document != NULL) {
 		size_t cursor_offset = 0;
 		if (editorBufferPosToOffset(E.cy, E.cx, &cursor_offset)) {
-			tab->cursor_offset = cursor_offset;
+			E.cursor_offset = cursor_offset;
 		}
 	}
-	editorResetActiveBufferFields();
+	editorBufferMove(&tab->buffer, &E.active_buffer);
 }
 
 void editorTabStateAliasSnapshot(struct editorTabState *snap) {
@@ -201,7 +187,7 @@ void editorTabStateAliasToActive(const struct editorTabState *tab) {
 }
 
 static void editorTabStateLoadActive(struct editorTabState *tab) {
-	editorActiveBufferCopyFromTab(tab);
+	editorBufferMove(&E.active_buffer, &tab->buffer);
 	editorSyntaxVisibleCacheInvalidate();
 	if (E.document != NULL) {
 		if (!editorSyncCursorFromOffset(E.cursor_offset)) {
@@ -210,8 +196,6 @@ static void editorTabStateLoadActive(struct editorTabState *tab) {
 			E.cx = 0;
 		}
 	}
-
-	editorTabStateInitEmpty(tab);
 }
 
 static int editorEnsureTabCapacity(int needed) {
