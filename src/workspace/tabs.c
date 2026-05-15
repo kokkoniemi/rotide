@@ -61,6 +61,79 @@ static int editorTabWidthColsAt(int tab_idx);
 static void editorTabVisibleRangeFromStart(int start_idx, int cols, int *last_idx_out);
 static void editorTabsAlignViewToActiveForWidth(int cols);
 
+#define EDITOR_ACTIVE_BUFFER_STATE_FIELDS(X) \
+	X(tab_kind) \
+	X(is_preview) \
+	X(tab_title) \
+	X(cursor_offset) \
+	X(cx) \
+	X(cy) \
+	X(rx) \
+	X(rowoff) \
+	X(coloff) \
+	X(wrapoff) \
+	X(numrows) \
+	X(rows) \
+	X(document) \
+	X(max_render_cols) \
+	X(max_render_cols_valid) \
+	X(dirty) \
+	X(filename) \
+	X(disk_state) \
+	X(disk_conflict) \
+	X(syntax_language) \
+	X(syntax_state) \
+	X(syntax_parse_failures) \
+	X(syntax_revision) \
+	X(syntax_generation) \
+	X(syntax_background_pending) \
+	X(syntax_pending_revision) \
+	X(syntax_pending_first_row) \
+	X(syntax_pending_row_count) \
+	X(lsp_doc_open) \
+	X(lsp_doc_version) \
+	X(lsp_eslint_doc_open) \
+	X(lsp_eslint_doc_version) \
+	X(lsp_diagnostics) \
+	X(lsp_diagnostic_count) \
+	X(lsp_diagnostic_error_count) \
+	X(lsp_diagnostic_warning_count) \
+	X(lsp_symbols) \
+	X(lsp_symbol_count) \
+	X(search_query) \
+	X(search_match_offset) \
+	X(search_match_len) \
+	X(search_direction) \
+	X(search_saved_offset) \
+	X(selection_mode_active) \
+	X(selection_anchor_offset) \
+	X(column_select_active) \
+	X(column_select_anchor_cy) \
+	X(column_select_anchor_rx) \
+	X(column_select_cursor_rx) \
+	X(mouse_left_button_down) \
+	X(mouse_drag_anchor_offset) \
+	X(mouse_drag_started) \
+	X(undo_history) \
+	X(redo_history) \
+	X(edit_pending_entry) \
+	X(edit_pending_entry_valid) \
+	X(edit_group_kind) \
+	X(edit_pending_kind) \
+	X(edit_pending_mode)
+
+static void editorTabStateCopyFromActive(struct editorTabState *tab) {
+#define COPY_FROM_ACTIVE(field) tab->field = E.field;
+	EDITOR_ACTIVE_BUFFER_STATE_FIELDS(COPY_FROM_ACTIVE)
+#undef COPY_FROM_ACTIVE
+}
+
+static void editorActiveBufferCopyFromTab(const struct editorTabState *tab) {
+#define COPY_TO_ACTIVE(field) E.field = tab->field;
+	EDITOR_ACTIVE_BUFFER_STATE_FIELDS(COPY_TO_ACTIVE)
+#undef COPY_TO_ACTIVE
+}
+
 static void editorTabStateInitEmpty(struct editorTabState *tab) {
 	memset(tab, 0, sizeof(*tab));
 	tab->tab_kind = EDITOR_TAB_FILE;
@@ -246,72 +319,13 @@ void editorFreeActiveBufferState(void) {
 static void editorTabStateCaptureActive(struct editorTabState *tab) {
 	editorTabStateFree(tab);
 
-	tab->tab_kind = E.tab_kind;
-	tab->is_preview = E.is_preview;
-	tab->tab_title = E.tab_title;
-	tab->cursor_offset = E.cursor_offset;
+	editorTabStateCopyFromActive(tab);
 	if (E.document != NULL) {
 		size_t cursor_offset = 0;
 		if (editorBufferPosToOffset(E.cy, E.cx, &cursor_offset)) {
 			tab->cursor_offset = cursor_offset;
 		}
 	}
-	tab->cx = E.cx;
-	tab->cy = E.cy;
-	tab->rx = E.rx;
-	tab->rowoff = E.rowoff;
-	tab->coloff = E.coloff;
-	tab->wrapoff = E.wrapoff;
-	tab->numrows = E.numrows;
-	tab->rows = E.rows;
-	tab->document = E.document;
-	tab->max_render_cols = E.max_render_cols;
-	tab->max_render_cols_valid = E.max_render_cols_valid;
-	tab->dirty = E.dirty;
-	tab->filename = E.filename;
-	tab->disk_state = E.disk_state;
-	tab->disk_conflict = E.disk_conflict;
-	tab->syntax_language = E.syntax_language;
-	tab->syntax_state = E.syntax_state;
-	tab->syntax_parse_failures = E.syntax_parse_failures;
-	tab->syntax_revision = E.syntax_revision;
-	tab->syntax_generation = E.syntax_generation;
-	tab->syntax_background_pending = E.syntax_background_pending;
-	tab->syntax_pending_revision = E.syntax_pending_revision;
-	tab->syntax_pending_first_row = E.syntax_pending_first_row;
-	tab->syntax_pending_row_count = E.syntax_pending_row_count;
-	tab->lsp_doc_open = E.lsp_doc_open;
-	tab->lsp_doc_version = E.lsp_doc_version;
-	tab->lsp_eslint_doc_open = E.lsp_eslint_doc_open;
-	tab->lsp_eslint_doc_version = E.lsp_eslint_doc_version;
-	tab->lsp_diagnostics = E.lsp_diagnostics;
-	tab->lsp_diagnostic_count = E.lsp_diagnostic_count;
-	tab->lsp_diagnostic_error_count = E.lsp_diagnostic_error_count;
-	tab->lsp_diagnostic_warning_count = E.lsp_diagnostic_warning_count;
-	tab->lsp_symbols = E.lsp_symbols;
-	tab->lsp_symbol_count = E.lsp_symbol_count;
-	tab->search_query = E.search_query;
-	tab->search_match_offset = E.search_match_offset;
-	tab->search_match_len = E.search_match_len;
-	tab->search_direction = E.search_direction;
-	tab->search_saved_offset = E.search_saved_offset;
-	tab->selection_mode_active = E.selection_mode_active;
-	tab->selection_anchor_offset = E.selection_anchor_offset;
-	tab->column_select_active = E.column_select_active;
-	tab->column_select_anchor_cy = E.column_select_anchor_cy;
-	tab->column_select_anchor_rx = E.column_select_anchor_rx;
-	tab->column_select_cursor_rx = E.column_select_cursor_rx;
-	tab->mouse_left_button_down = E.mouse_left_button_down;
-	tab->mouse_drag_anchor_offset = E.mouse_drag_anchor_offset;
-	tab->mouse_drag_started = E.mouse_drag_started;
-	tab->undo_history = E.undo_history;
-	tab->redo_history = E.redo_history;
-	tab->edit_pending_entry = E.edit_pending_entry;
-	tab->edit_pending_entry_valid = E.edit_pending_entry_valid;
-	tab->edit_group_kind = E.edit_group_kind;
-	tab->edit_pending_kind = E.edit_pending_kind;
-	tab->edit_pending_mode = E.edit_pending_mode;
-
 	editorResetActiveBufferFields();
 }
 
@@ -319,192 +333,18 @@ void editorTabStateAliasSnapshot(struct editorTabState *snap) {
 	if (snap == NULL) {
 		return;
 	}
-	snap->tab_kind = E.tab_kind;
-	snap->is_preview = E.is_preview;
-	snap->tab_title = E.tab_title;
-	snap->cursor_offset = E.cursor_offset;
-	snap->cx = E.cx;
-	snap->cy = E.cy;
-	snap->rx = E.rx;
-	snap->rowoff = E.rowoff;
-	snap->coloff = E.coloff;
-	snap->wrapoff = E.wrapoff;
-	snap->numrows = E.numrows;
-	snap->rows = E.rows;
-	snap->document = E.document;
-	snap->max_render_cols = E.max_render_cols;
-	snap->max_render_cols_valid = E.max_render_cols_valid;
-	snap->dirty = E.dirty;
-	snap->filename = E.filename;
-	snap->disk_state = E.disk_state;
-	snap->disk_conflict = E.disk_conflict;
-	snap->syntax_language = E.syntax_language;
-	snap->syntax_state = E.syntax_state;
-	snap->syntax_parse_failures = E.syntax_parse_failures;
-	snap->syntax_revision = E.syntax_revision;
-	snap->syntax_generation = E.syntax_generation;
-	snap->syntax_background_pending = E.syntax_background_pending;
-	snap->syntax_pending_revision = E.syntax_pending_revision;
-	snap->syntax_pending_first_row = E.syntax_pending_first_row;
-	snap->syntax_pending_row_count = E.syntax_pending_row_count;
-	snap->lsp_doc_open = E.lsp_doc_open;
-	snap->lsp_doc_version = E.lsp_doc_version;
-	snap->lsp_eslint_doc_open = E.lsp_eslint_doc_open;
-	snap->lsp_eslint_doc_version = E.lsp_eslint_doc_version;
-	snap->lsp_diagnostics = E.lsp_diagnostics;
-	snap->lsp_diagnostic_count = E.lsp_diagnostic_count;
-	snap->lsp_diagnostic_error_count = E.lsp_diagnostic_error_count;
-	snap->lsp_diagnostic_warning_count = E.lsp_diagnostic_warning_count;
-	snap->lsp_symbols = E.lsp_symbols;
-	snap->lsp_symbol_count = E.lsp_symbol_count;
-	snap->search_query = E.search_query;
-	snap->search_match_offset = E.search_match_offset;
-	snap->search_match_len = E.search_match_len;
-	snap->search_direction = E.search_direction;
-	snap->search_saved_offset = E.search_saved_offset;
-	snap->selection_mode_active = E.selection_mode_active;
-	snap->selection_anchor_offset = E.selection_anchor_offset;
-	snap->column_select_active = E.column_select_active;
-	snap->column_select_anchor_cy = E.column_select_anchor_cy;
-	snap->column_select_anchor_rx = E.column_select_anchor_rx;
-	snap->column_select_cursor_rx = E.column_select_cursor_rx;
-	snap->mouse_left_button_down = E.mouse_left_button_down;
-	snap->mouse_drag_anchor_offset = E.mouse_drag_anchor_offset;
-	snap->mouse_drag_started = E.mouse_drag_started;
-	snap->undo_history = E.undo_history;
-	snap->redo_history = E.redo_history;
-	snap->edit_pending_entry = E.edit_pending_entry;
-	snap->edit_pending_entry_valid = E.edit_pending_entry_valid;
-	snap->edit_group_kind = E.edit_group_kind;
-	snap->edit_pending_kind = E.edit_pending_kind;
-	snap->edit_pending_mode = E.edit_pending_mode;
+	editorTabStateCopyFromActive(snap);
 }
 
 void editorTabStateAliasToActive(const struct editorTabState *tab) {
 	if (tab == NULL) {
 		return;
 	}
-	E.tab_kind = tab->tab_kind;
-	E.is_preview = tab->is_preview;
-	E.tab_title = tab->tab_title;
-	E.cursor_offset = tab->cursor_offset;
-	E.cx = tab->cx;
-	E.cy = tab->cy;
-	E.rx = tab->rx;
-	E.rowoff = tab->rowoff;
-	E.coloff = tab->coloff;
-	E.wrapoff = tab->wrapoff;
-	E.numrows = tab->numrows;
-	E.rows = tab->rows;
-	E.document = tab->document;
-	E.max_render_cols = tab->max_render_cols;
-	E.max_render_cols_valid = tab->max_render_cols_valid;
-	E.dirty = tab->dirty;
-	E.filename = tab->filename;
-	E.disk_state = tab->disk_state;
-	E.disk_conflict = tab->disk_conflict;
-	E.syntax_language = tab->syntax_language;
-	E.syntax_state = tab->syntax_state;
-	E.syntax_parse_failures = tab->syntax_parse_failures;
-	E.syntax_revision = tab->syntax_revision;
-	E.syntax_generation = tab->syntax_generation;
-	E.syntax_background_pending = tab->syntax_background_pending;
-	E.syntax_pending_revision = tab->syntax_pending_revision;
-	E.syntax_pending_first_row = tab->syntax_pending_first_row;
-	E.syntax_pending_row_count = tab->syntax_pending_row_count;
-	E.lsp_doc_open = tab->lsp_doc_open;
-	E.lsp_doc_version = tab->lsp_doc_version;
-	E.lsp_eslint_doc_open = tab->lsp_eslint_doc_open;
-	E.lsp_eslint_doc_version = tab->lsp_eslint_doc_version;
-	E.lsp_diagnostics = tab->lsp_diagnostics;
-	E.lsp_diagnostic_count = tab->lsp_diagnostic_count;
-	E.lsp_diagnostic_error_count = tab->lsp_diagnostic_error_count;
-	E.lsp_diagnostic_warning_count = tab->lsp_diagnostic_warning_count;
-	E.lsp_symbols = tab->lsp_symbols;
-	E.lsp_symbol_count = tab->lsp_symbol_count;
-	E.search_query = tab->search_query;
-	E.search_match_offset = tab->search_match_offset;
-	E.search_match_len = tab->search_match_len;
-	E.search_direction = tab->search_direction;
-	E.search_saved_offset = tab->search_saved_offset;
-	E.selection_mode_active = tab->selection_mode_active;
-	E.selection_anchor_offset = tab->selection_anchor_offset;
-	E.column_select_active = tab->column_select_active;
-	E.column_select_anchor_cy = tab->column_select_anchor_cy;
-	E.column_select_anchor_rx = tab->column_select_anchor_rx;
-	E.column_select_cursor_rx = tab->column_select_cursor_rx;
-	E.mouse_left_button_down = tab->mouse_left_button_down;
-	E.mouse_drag_anchor_offset = tab->mouse_drag_anchor_offset;
-	E.mouse_drag_started = tab->mouse_drag_started;
-	E.undo_history = tab->undo_history;
-	E.redo_history = tab->redo_history;
-	E.edit_pending_entry = tab->edit_pending_entry;
-	E.edit_pending_entry_valid = tab->edit_pending_entry_valid;
-	E.edit_group_kind = tab->edit_group_kind;
-	E.edit_pending_kind = tab->edit_pending_kind;
-	E.edit_pending_mode = tab->edit_pending_mode;
+	editorActiveBufferCopyFromTab(tab);
 }
 
 static void editorTabStateLoadActive(struct editorTabState *tab) {
-	E.tab_kind = tab->tab_kind;
-	E.is_preview = tab->is_preview;
-	E.tab_title = tab->tab_title;
-	E.cursor_offset = tab->cursor_offset;
-	E.cx = tab->cx;
-	E.cy = tab->cy;
-	E.rx = tab->rx;
-	E.rowoff = tab->rowoff;
-	E.coloff = tab->coloff;
-	E.wrapoff = tab->wrapoff;
-	E.numrows = tab->numrows;
-	E.rows = tab->rows;
-	E.document = tab->document;
-	E.max_render_cols = tab->max_render_cols;
-	E.max_render_cols_valid = tab->max_render_cols_valid;
-	E.dirty = tab->dirty;
-	E.filename = tab->filename;
-	E.disk_state = tab->disk_state;
-	E.disk_conflict = tab->disk_conflict;
-	E.syntax_language = tab->syntax_language;
-	E.syntax_state = tab->syntax_state;
-	E.syntax_parse_failures = tab->syntax_parse_failures;
-	E.syntax_revision = tab->syntax_revision;
-	E.syntax_generation = tab->syntax_generation;
-	E.syntax_background_pending = tab->syntax_background_pending;
-	E.syntax_pending_revision = tab->syntax_pending_revision;
-	E.syntax_pending_first_row = tab->syntax_pending_first_row;
-	E.syntax_pending_row_count = tab->syntax_pending_row_count;
-	E.lsp_doc_open = tab->lsp_doc_open;
-	E.lsp_doc_version = tab->lsp_doc_version;
-	E.lsp_eslint_doc_open = tab->lsp_eslint_doc_open;
-	E.lsp_eslint_doc_version = tab->lsp_eslint_doc_version;
-	E.lsp_diagnostics = tab->lsp_diagnostics;
-	E.lsp_diagnostic_count = tab->lsp_diagnostic_count;
-	E.lsp_diagnostic_error_count = tab->lsp_diagnostic_error_count;
-	E.lsp_diagnostic_warning_count = tab->lsp_diagnostic_warning_count;
-	E.lsp_symbols = tab->lsp_symbols;
-	E.lsp_symbol_count = tab->lsp_symbol_count;
-	E.search_query = tab->search_query;
-	E.search_match_offset = tab->search_match_offset;
-	E.search_match_len = tab->search_match_len;
-	E.search_direction = tab->search_direction;
-	E.search_saved_offset = tab->search_saved_offset;
-	E.selection_mode_active = tab->selection_mode_active;
-	E.selection_anchor_offset = tab->selection_anchor_offset;
-	E.column_select_active = tab->column_select_active;
-	E.column_select_anchor_cy = tab->column_select_anchor_cy;
-	E.column_select_anchor_rx = tab->column_select_anchor_rx;
-	E.column_select_cursor_rx = tab->column_select_cursor_rx;
-	E.mouse_left_button_down = tab->mouse_left_button_down;
-	E.mouse_drag_anchor_offset = tab->mouse_drag_anchor_offset;
-	E.mouse_drag_started = tab->mouse_drag_started;
-	E.undo_history = tab->undo_history;
-	E.redo_history = tab->redo_history;
-	E.edit_pending_entry = tab->edit_pending_entry;
-	E.edit_pending_entry_valid = tab->edit_pending_entry_valid;
-	E.edit_group_kind = tab->edit_group_kind;
-	E.edit_pending_kind = tab->edit_pending_kind;
-	E.edit_pending_mode = tab->edit_pending_mode;
+	editorActiveBufferCopyFromTab(tab);
 	editorSyntaxVisibleCacheInvalidate();
 	if (E.document != NULL) {
 		if (!editorSyncCursorFromOffset(E.cursor_offset)) {
