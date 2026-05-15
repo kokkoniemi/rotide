@@ -651,19 +651,36 @@ struct editorHistory {
 	X(enum editorEditKind, edit_pending_kind) \
 	X(enum editorEditPendingMode, edit_pending_mode)
 
+#define EDITOR_ACTIVE_BUFFER_FIELDS(X) \
+	EDITOR_ACTIVE_BUFFER_CORE_FIELDS(X) \
+	EDITOR_ACTIVE_BUFFER_LSP_FIELDS(X) \
+	EDITOR_ACTIVE_BUFFER_SEARCH_FIELDS(X) \
+	EDITOR_ACTIVE_BUFFER_EDIT_FIELDS(X)
+
 #define EDITOR_DECLARE_FIELD(type, name) type name;
 
+struct editorBuffer {
+	EDITOR_ACTIVE_BUFFER_FIELDS(EDITOR_DECLARE_FIELD)
+};
+
 struct editorTabState {
-	EDITOR_ACTIVE_BUFFER_CORE_FIELDS(EDITOR_DECLARE_FIELD)
-	EDITOR_ACTIVE_BUFFER_LSP_FIELDS(EDITOR_DECLARE_FIELD)
-	EDITOR_ACTIVE_BUFFER_SEARCH_FIELDS(EDITOR_DECLARE_FIELD)
-	EDITOR_ACTIVE_BUFFER_EDIT_FIELDS(EDITOR_DECLARE_FIELD)
+	union {
+		struct editorBuffer buffer;
+		struct {
+			EDITOR_ACTIVE_BUFFER_FIELDS(EDITOR_DECLARE_FIELD)
+		};
+	};
 };
 
 struct editorConfig {
 	int window_rows;
 	int window_cols;
-	EDITOR_ACTIVE_BUFFER_CORE_FIELDS(EDITOR_DECLARE_FIELD)
+	union {
+		struct editorBuffer active_buffer;
+		struct {
+			EDITOR_ACTIVE_BUFFER_FIELDS(EDITOR_DECLARE_FIELD)
+		};
+	};
 	int lsp_gopls_enabled;
 	int lsp_clangd_enabled;
 	int lsp_html_enabled;
@@ -692,10 +709,8 @@ struct editorConfig {
 	int dap_project_config_exists;
 	int dap_project_config_invalid;
 	char dap_project_config_path[PATH_MAX];
-	EDITOR_ACTIVE_BUFFER_LSP_FIELDS(EDITOR_DECLARE_FIELD)
 	char statusmsg[80];
 	time_t statusmsg_time;
-	EDITOR_ACTIVE_BUFFER_SEARCH_FIELDS(EDITOR_DECLARE_FIELD)
 	int hover_link_active;
 	int hover_link_row;
 	int hover_link_cx_start;
@@ -703,7 +718,6 @@ struct editorConfig {
 	char *clipboard_text;
 	size_t clipboard_textlen;
 	editorClipboardExternalSink clipboard_external_sink;
-	EDITOR_ACTIVE_BUFFER_EDIT_FIELDS(EDITOR_DECLARE_FIELD)
 	struct editorTabState *tabs;
 	int tab_count;
 	int tab_capacity;

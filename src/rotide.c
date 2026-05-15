@@ -26,31 +26,7 @@
 struct editorConfig E;
 
 void initEditor(void) {
-	E.cx = 0;
-	E.cy = 0;
-	E.rx = 0;
-	E.rowoff = 0;
-	E.coloff = 0;
-	E.wrapoff = 0;
-	E.tab_kind = EDITOR_TAB_FILE;
-	E.is_preview = 0;
-	E.tab_title = NULL;
-	E.cursor_offset = 0;
-	E.numrows = 0;
-	E.rows = NULL;
-	E.dirty = 0;
-	E.filename = NULL;
-	memset(&E.disk_state, 0, sizeof(E.disk_state));
-	E.disk_conflict = 0;
-	E.syntax_language = EDITOR_SYNTAX_NONE;
-	E.syntax_state = NULL;
-	E.syntax_parse_failures = 0;
-	E.syntax_revision = 0;
-	E.syntax_generation = 0;
-	E.syntax_background_pending = 0;
-	E.syntax_pending_revision = 0;
-	E.syntax_pending_first_row = 0;
-	E.syntax_pending_row_count = 0;
+	editorResetActiveBufferFields();
 	editorLspConfigInitDefaults(&E.lsp_gopls_enabled, &E.lsp_clangd_enabled,
 			&E.lsp_html_enabled, &E.lsp_css_enabled, &E.lsp_json_enabled,
 			&E.lsp_javascript_enabled,
@@ -65,32 +41,8 @@ void initEditor(void) {
 			E.lsp_vscode_langservers_install_command,
 			sizeof(E.lsp_vscode_langservers_install_command),
 			&E.lsp_autocomplete_enabled, &E.lsp_autocomplete_max_items);
-	E.lsp_doc_open = 0;
-	E.lsp_doc_version = 0;
-	E.lsp_eslint_doc_open = 0;
-	E.lsp_eslint_doc_version = 0;
-	E.lsp_diagnostics = NULL;
-	E.lsp_diagnostic_count = 0;
-	E.lsp_diagnostic_error_count = 0;
-	E.lsp_diagnostic_warning_count = 0;
-	E.lsp_symbols = NULL;
-	E.lsp_symbol_count = 0;
 	E.statusmsg[0] = '\0';
 	E.statusmsg_time = 0;
-	E.search_query = NULL;
-	E.search_match_offset = 0;
-	E.search_match_len = 0;
-	E.search_direction = 1;
-	E.search_saved_offset = 0;
-	E.selection_mode_active = 0;
-	E.selection_anchor_offset = 0;
-	E.column_select_active = 0;
-	E.column_select_anchor_cy = 0;
-	E.column_select_anchor_rx = 0;
-	E.column_select_cursor_rx = 0;
-	E.mouse_left_button_down = 0;
-	E.mouse_drag_anchor_offset = 0;
-	E.mouse_drag_started = 0;
 	E.hover_link_active = 0;
 	E.hover_link_row = -1;
 	E.hover_link_cx_start = 0;
@@ -98,15 +50,6 @@ void initEditor(void) {
 	E.clipboard_text = NULL;
 	E.clipboard_textlen = 0;
 	E.clipboard_external_sink = NULL;
-	E.undo_history.start = 0;
-	E.undo_history.len = 0;
-	E.redo_history.start = 0;
-	E.redo_history.len = 0;
-	memset(&E.edit_pending_entry, 0, sizeof(E.edit_pending_entry));
-	E.edit_pending_entry_valid = 0;
-	E.edit_group_kind = EDITOR_EDIT_NONE;
-	E.edit_pending_kind = EDITOR_EDIT_NONE;
-	E.edit_pending_mode = EDITOR_EDIT_PENDING_NONE;
 	E.tabs = NULL;
 	E.tab_count = 0;
 	E.tab_capacity = 0;

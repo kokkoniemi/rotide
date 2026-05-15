@@ -60,122 +60,34 @@ static int editorTabLabelColsAt(int tab_idx);
 static int editorTabWidthColsAt(int tab_idx);
 static void editorTabVisibleRangeFromStart(int start_idx, int cols, int *last_idx_out);
 static void editorTabsAlignViewToActiveForWidth(int cols);
-
-#define EDITOR_ACTIVE_BUFFER_STATE_FIELDS(X) \
-	EDITOR_ACTIVE_BUFFER_CORE_FIELDS(X) \
-	EDITOR_ACTIVE_BUFFER_LSP_FIELDS(X) \
-	EDITOR_ACTIVE_BUFFER_SEARCH_FIELDS(X) \
-	EDITOR_ACTIVE_BUFFER_EDIT_FIELDS(X)
+static void editorBufferInitEmpty(struct editorBuffer *buffer);
 
 static void editorTabStateCopyFromActive(struct editorTabState *tab) {
-#define COPY_FROM_ACTIVE(type, field) tab->field = E.field;
-	EDITOR_ACTIVE_BUFFER_STATE_FIELDS(COPY_FROM_ACTIVE)
-#undef COPY_FROM_ACTIVE
+	tab->buffer = E.active_buffer;
 }
 
 static void editorActiveBufferCopyFromTab(const struct editorTabState *tab) {
-#define COPY_TO_ACTIVE(type, field) E.field = tab->field;
-	EDITOR_ACTIVE_BUFFER_STATE_FIELDS(COPY_TO_ACTIVE)
-#undef COPY_TO_ACTIVE
+	E.active_buffer = tab->buffer;
+}
+
+static void editorBufferInitEmpty(struct editorBuffer *buffer) {
+	memset(buffer, 0, sizeof(*buffer));
+	buffer->tab_kind = EDITOR_TAB_FILE;
+	buffer->cursor_offset = 0;
+	buffer->syntax_language = EDITOR_SYNTAX_NONE;
+	buffer->max_render_cols_valid = 1;
+	buffer->search_direction = 1;
+	buffer->edit_group_kind = EDITOR_EDIT_NONE;
+	buffer->edit_pending_kind = EDITOR_EDIT_NONE;
+	buffer->edit_pending_mode = EDITOR_EDIT_PENDING_NONE;
 }
 
 static void editorTabStateInitEmpty(struct editorTabState *tab) {
-	memset(tab, 0, sizeof(*tab));
-	tab->tab_kind = EDITOR_TAB_FILE;
-	tab->is_preview = 0;
-	tab->document = NULL;
-	tab->cursor_offset = 0;
-	tab->syntax_language = EDITOR_SYNTAX_NONE;
-	tab->syntax_state = NULL;
-	tab->syntax_parse_failures = 0;
-	tab->syntax_revision = 0;
-	tab->syntax_generation = 0;
-	tab->syntax_background_pending = 0;
-	tab->syntax_pending_revision = 0;
-	tab->syntax_pending_first_row = 0;
-	tab->syntax_pending_row_count = 0;
-	tab->lsp_doc_open = 0;
-	tab->lsp_doc_version = 0;
-	tab->lsp_eslint_doc_open = 0;
-	tab->lsp_eslint_doc_version = 0;
-	tab->lsp_diagnostics = NULL;
-	tab->lsp_diagnostic_count = 0;
-	tab->lsp_diagnostic_error_count = 0;
-	tab->lsp_diagnostic_warning_count = 0;
-	tab->lsp_symbols = NULL;
-	tab->lsp_symbol_count = 0;
-	tab->max_render_cols = 0;
-	tab->max_render_cols_valid = 1;
-	memset(&tab->disk_state, 0, sizeof(tab->disk_state));
-	tab->disk_conflict = 0;
-	tab->search_match_offset = 0;
-	tab->search_match_len = 0;
-	tab->search_direction = 1;
-	tab->search_saved_offset = 0;
+	editorBufferInitEmpty(&tab->buffer);
 }
 
 void editorResetActiveBufferFields(void) {
-	E.tab_kind = EDITOR_TAB_FILE;
-	E.is_preview = 0;
-	E.tab_title = NULL;
-	E.cursor_offset = 0;
-	E.cx = 0;
-	E.cy = 0;
-	E.rx = 0;
-	E.rowoff = 0;
-	E.coloff = 0;
-	E.wrapoff = 0;
-	E.numrows = 0;
-	E.rows = NULL;
-	E.document = NULL;
-	E.max_render_cols = 0;
-	E.max_render_cols_valid = 1;
-	E.dirty = 0;
-	E.filename = NULL;
-	memset(&E.disk_state, 0, sizeof(E.disk_state));
-	E.disk_conflict = 0;
-	E.syntax_language = EDITOR_SYNTAX_NONE;
-	E.syntax_state = NULL;
-	E.syntax_parse_failures = 0;
-	E.syntax_revision = 0;
-	E.syntax_generation = 0;
-	E.syntax_background_pending = 0;
-	E.syntax_pending_revision = 0;
-	E.syntax_pending_first_row = 0;
-	E.syntax_pending_row_count = 0;
-	E.lsp_doc_open = 0;
-	E.lsp_doc_version = 0;
-	E.lsp_eslint_doc_open = 0;
-	E.lsp_eslint_doc_version = 0;
-	E.lsp_diagnostics = NULL;
-	E.lsp_diagnostic_count = 0;
-	E.lsp_diagnostic_error_count = 0;
-	E.lsp_diagnostic_warning_count = 0;
-	E.lsp_symbols = NULL;
-	E.lsp_symbol_count = 0;
-	E.search_query = NULL;
-	E.search_match_offset = 0;
-	E.search_match_len = 0;
-	E.search_direction = 1;
-	E.search_saved_offset = 0;
-	E.selection_mode_active = 0;
-	E.selection_anchor_offset = 0;
-	E.column_select_active = 0;
-	E.column_select_anchor_cy = 0;
-	E.column_select_anchor_rx = 0;
-	E.column_select_cursor_rx = 0;
-	E.mouse_left_button_down = 0;
-	E.mouse_drag_anchor_offset = 0;
-	E.mouse_drag_started = 0;
-	E.undo_history.start = 0;
-	E.undo_history.len = 0;
-	E.redo_history.start = 0;
-	E.redo_history.len = 0;
-	memset(&E.edit_pending_entry, 0, sizeof(E.edit_pending_entry));
-	E.edit_pending_entry_valid = 0;
-	E.edit_group_kind = EDITOR_EDIT_NONE;
-	E.edit_pending_kind = EDITOR_EDIT_NONE;
-	E.edit_pending_mode = EDITOR_EDIT_PENDING_NONE;
+	editorBufferInitEmpty(&E.active_buffer);
 }
 
 static void editorFreeTabRows(struct editorTabState *tab) {
