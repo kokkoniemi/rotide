@@ -102,6 +102,7 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/editing/document_bridge.c \
 	$(SRC_DIR)/editing/document_position.c \
 	$(SRC_DIR)/editing/buffer_search.c \
+	$(SRC_DIR)/editing/row_cache.c \
 	$(SRC_DIR)/editing/text_source.c \
 	$(SRC_DIR)/editing/buffer_core.c \
 	$(SRC_DIR)/editing/edit.c $(SRC_DIR)/editing/selection.c \

@@ -5,6 +5,7 @@
 #include "editing/buffer_search.h"
 #include "editing/document_bridge.h"
 #include "editing/document_position.h"
+#include "editing/row_cache.h"
 #include "editing/text_source.h"
 #include <stddef.h>
 
@@ -48,9 +49,6 @@ void editorLspNotifyDidCloseTabState(struct editorTabState *tab);
 void editorLspNotifyDidSaveActive(void);
 void editorSyntaxVisibleCacheInvalidate(void);
 void editorSyntaxVisibleCacheFree(void);
-void editorFreeRowArray(struct erow *rows, int numrows);
-int editorBuildFullRowsFromDocument(const struct editorDocument *document,
-		struct erow **rows_out, int *numrows_out);
 int editorRestoreActiveFromDocument(const struct editorDocument *document,
 		int target_cy, int target_cx, int dirty, int parse_syntax);
 
