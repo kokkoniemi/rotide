@@ -2,6 +2,7 @@
 #define LSP_H
 
 #include "rotide.h"
+#include "language/lsp_transport.h"
 #include "language/syntax.h"
 
 #include <stddef.h>
@@ -146,6 +147,16 @@ void editorLspClearStartupFailureReason(void);
  */
 int editorLspEnsureRunningForFile(const char *filename, enum editorSyntaxLanguage language);
 int editorLspEnsureRunningEslintForFile(const char *filename,
+		enum editorSyntaxLanguage language);
+/*
+ * Module-internal: server-kind detection and LSP language-id mapping for a
+ * given file. Exposed so the document-tracking and request-building sibling
+ * modules can build didOpen/didChange/didClose payloads without duplicating
+ * the extension/language-id tables.
+ */
+enum editorLspServerKind editorLspServerKindForFile(const char *filename,
+		enum editorSyntaxLanguage language);
+const char *editorLspLanguageIdForFile(const char *filename,
 		enum editorSyntaxLanguage language);
 int editorLspFileSupportsDefinition(const char *filename, enum editorSyntaxLanguage language);
 int editorLspFileEnabled(const char *filename, enum editorSyntaxLanguage language);
