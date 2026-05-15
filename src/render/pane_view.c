@@ -432,6 +432,98 @@ int editorDrawPaneViewSlice(struct writeBuf *wb, const struct editorPaneNode *le
 	return ok;
 }
 
+static int editorDrawGreeting(struct writeBuf *wb, int cols) {
+	char greet[80];
+	int greetlen = snprintf(greet, sizeof(greet),
+			"RotIDE editor - version %s", ROTIDE_VERSION);
+	if (greetlen > cols) {
+		greetlen = cols;
+	}
+	int pad = (cols - greetlen) / 2;
+	if (pad) {
+		if (!editorAppendGrayBytes(wb, "~", 1)) {
+			return 0;
+		}
+		pad--;
+	}
+	while (pad--) {
+		if (!wbAppend(wb, " ", 1)) {
+			return 0;
+		}
+	}
+	return wbAppend(wb, greet, greetlen);
+}
+
+int editorBuildSinglePaneRowLine(struct writeBuf *wb, int y, int drawer_cols, int separator_cols,
+		int text_cols) {
+	int y_offset = y + E.rowoff;
+	int segment_coloff = 0;
+	if (E.line_wrap_enabled) {
+		if (!editorViewportTextScreenRowToBufferRow(y, &y_offset, &segment_coloff)) {
+			y_offset = E.numrows;
+			segment_coloff = 0;
+		}
+	}
+
+	if (!editorDrawDrawerRow(wb, y + 1, drawer_cols)) {
+		return 0;
+	}
+
+	if (!editorDrawDrawerSeparatorCell(wb, separator_cols)) {
+		return 0;
+	}
+
+	int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);
+	int file_cols = text_cols - gutter_cols;
+	if (file_cols < 1) {
+		file_cols = 1;
+	}
+	int highlight_row = y_offset < E.numrows &&
+			editorCurrentLineHighlightApplies(y_offset, segment_coloff);
+	if (highlight_row &&
+			!editorAppendThemeBackgroundRole(wb, EDITOR_THEME_UI_CURRENT_LINE_BG)) {
+		return 0;
+	}
+	g_editor_drawing_current_line_highlight = highlight_row;
+	if (!editorDrawLineNumberGutter(wb, y_offset, segment_coloff, gutter_cols)) {
+		g_editor_drawing_current_line_highlight = 0;
+		return 0;
+	}
+	if (y_offset < E.numrows) {
+		if (E.line_wrap_enabled) {
+			if (!editorDrawFileRowWrapped(wb, (size_t)y_offset, file_cols, segment_coloff)) {
+				g_editor_drawing_current_line_highlight = 0;
+				return 0;
+			}
+		} else if (!editorDrawFileRow(wb, (size_t)y_offset, file_cols)) {
+			g_editor_drawing_current_line_highlight = 0;
+			return 0;
+		}
+	} else if (E.numrows == 0 && y == E.window_rows / 3) {
+		if (!editorDrawGreeting(wb, file_cols)) {
+			g_editor_drawing_current_line_highlight = 0;
+			return 0;
+		}
+	} else if (!editorAppendGrayBytes(wb, "~", 1)) {
+		g_editor_drawing_current_line_highlight = 0;
+		return 0;
+	}
+	g_editor_drawing_current_line_highlight = 0;
+	if (highlight_row && !editorAppendThemeReset(wb)) {
+		return 0;
+	}
+
+	if (!wbAppend(wb, VT100_CLEAR_ROW_3, 3)) {
+		return 0;
+	}
+	if (!editorDrawDrawerSelectionOverflow(wb, y + 1, drawer_cols, separator_cols, text_cols, y + 2,
+				NULL)) {
+		return 0;
+	}
+
+	return 1;
+}
+
 static int editorPaneLeafAt(const struct editorLeafLayout *layout, int x,
 		int y, struct editorRect *out_rect) {
 	for (int i = 0; i < layout->count; i++) {
