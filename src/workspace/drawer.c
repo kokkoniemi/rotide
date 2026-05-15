@@ -13,6 +13,7 @@
 #include "workspace/git.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
+#include "workspace/drawer_internal.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -23,18 +24,6 @@
 #include <strings.h>
 #include <sys/stat.h>
 #include <unistd.h>
-
-struct editorDrawerNode {
-	char *name;
-	char *path;
-	int is_dir;
-	int is_expanded;
-	int scanned;
-	int scan_error;
-	struct editorDrawerNode *parent;
-	struct editorDrawerNode **children;
-	int child_count;
-};
 
 struct editorDrawerLookup {
 	struct editorDrawerNode *node;
@@ -295,7 +284,6 @@ static int editorDrawerDapLookupByVisibleIndex(int visible_idx,
 		struct editorDrawerDapLookup *lookup_out);
 static void editorDrawerDapEnsureDefaultExpanded(void);
 static int editorDrawerDapGroupExpanded(int group_idx);
-static void editorDrawerClampSelectionAndScroll(int viewport_rows);
 
 static char *editorDrawerResolveRootPathForStartup(int argc, char *argv[], int restored_session) {
 	char *cwd = editorPathGetCwd();
@@ -362,7 +350,7 @@ static struct editorDrawerNode *editorDrawerNodeNew(const char *name, const char
 	return node;
 }
 
-static void editorDrawerNodeFree(struct editorDrawerNode *node) {
+void editorDrawerNodeFree(struct editorDrawerNode *node) {
 	if (node == NULL) {
 		return;
 	}
@@ -391,7 +379,7 @@ static int editorDrawerNodeCmp(const void *a, const void *b) {
 	return strcmp(left->name, right->name);
 }
 
-static int editorDrawerEnsureScanned(struct editorDrawerNode *node) {
+int editorDrawerEnsureScanned(struct editorDrawerNode *node) {
 	if (node == NULL || !node->is_dir || node->scanned) {
 		return 1;
 	}
@@ -1150,7 +1138,7 @@ static int editorDrawerLookupByVisibleIndex(int visible_idx, struct editorDrawer
 			lookup_out);
 }
 
-static struct editorDrawerNode *editorDrawerFindChildByName(struct editorDrawerNode *node,
+struct editorDrawerNode *editorDrawerFindChildByName(struct editorDrawerNode *node,
 		const char *name, size_t name_len) {
 	if (node == NULL || !node->is_dir || name == NULL) {
 		return NULL;
@@ -1191,7 +1179,7 @@ static int editorDrawerFindVisibleIndexForNodeRecursive(struct editorDrawerNode 
 	return 0;
 }
 
-static int editorDrawerFindVisibleIndexForNode(struct editorDrawerNode *target,
+int editorDrawerFindVisibleIndexForNode(struct editorDrawerNode *target,
 		int *visible_idx_out) {
 	int cursor = 0;
 	return editorDrawerFindVisibleIndexForNodeRecursive(E.drawer_root, target, &cursor,
@@ -1237,7 +1225,7 @@ void editorDrawerClampViewport(int viewport_rows) {
 	}
 }
 
-static void editorDrawerClampSelectionAndScroll(int viewport_rows) {
+void editorDrawerClampSelectionAndScroll(int viewport_rows) {
 	editorDrawerClampViewport(viewport_rows);
 
 	int visible_count = editorDrawerVisibleCount();
@@ -2480,20 +2468,7 @@ const char *editorDrawerSelectedPath(void) {
 	return lookup.node->path;
 }
 
-static int editorDrawerNameIsValid(const char *name) {
-	if (name == NULL || name[0] == '\0') {
-		return 0;
-	}
-	if (strchr(name, '/') != NULL) {
-		return 0;
-	}
-	if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
-		return 0;
-	}
-	return 1;
-}
-
-static struct editorDrawerNode *editorDrawerSelectedNode(void) {
+struct editorDrawerNode *editorDrawerSelectedTreeNode(void) {
 	if (E.drawer_mode != EDITOR_DRAWER_MODE_TREE) {
 		return NULL;
 	}
@@ -2502,301 +2477,6 @@ static struct editorDrawerNode *editorDrawerSelectedNode(void) {
 		return NULL;
 	}
 	return lookup.node;
-}
-
-static struct editorDrawerNode *editorDrawerCreationTargetDir(
-		struct editorDrawerNode *selected) {
-	if (selected == NULL) {
-		return E.drawer_root;
-	}
-	if (selected->is_dir) {
-		return selected;
-	}
-	if (selected->parent != NULL) {
-		return selected->parent;
-	}
-	return E.drawer_root;
-}
-
-static void editorDrawerInvalidateScan(struct editorDrawerNode *node) {
-	if (node == NULL) {
-		return;
-	}
-	for (int i = 0; i < node->child_count; i++) {
-		editorDrawerNodeFree(node->children[i]);
-	}
-	free(node->children);
-	node->children = NULL;
-	node->child_count = 0;
-	node->scanned = 0;
-	node->scan_error = 0;
-}
-
-static int editorDrawerSelectChildByName(struct editorDrawerNode *parent,
-		const char *name, int viewport_rows) {
-	if (parent == NULL || name == NULL) {
-		return 0;
-	}
-	struct editorDrawerNode *child = editorDrawerFindChildByName(parent, name, strlen(name));
-	if (child == NULL) {
-		return 0;
-	}
-	int visible_idx = -1;
-	if (!editorDrawerFindVisibleIndexForNode(child, &visible_idx)) {
-		return 0;
-	}
-	E.drawer_selected_index = visible_idx;
-	editorDrawerClampSelectionAndScroll(viewport_rows);
-	return 1;
-}
-
-static int editorDrawerRemovePathRecursive(const char *path) {
-	if (path == NULL || path[0] == '\0') {
-		errno = EINVAL;
-		return 0;
-	}
-
-	struct stat st;
-	if (lstat(path, &st) != 0) {
-		return 0;
-	}
-
-	if (!S_ISDIR(st.st_mode) || S_ISLNK(st.st_mode)) {
-		return unlink(path) == 0;
-	}
-
-	DIR *dir = opendir(path);
-	if (dir == NULL) {
-		return 0;
-	}
-
-	int ok = 1;
-	struct dirent *entry;
-	while (ok && (entry = readdir(dir)) != NULL) {
-		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-			continue;
-		}
-		char *child_path = editorPathJoin(path, entry->d_name);
-		if (child_path == NULL) {
-			ok = 0;
-			errno = ENOMEM;
-			break;
-		}
-		if (!editorDrawerRemovePathRecursive(child_path)) {
-			ok = 0;
-		}
-		free(child_path);
-	}
-	(void)closedir(dir);
-
-	if (ok && rmdir(path) != 0) {
-		ok = 0;
-	}
-	return ok;
-}
-
-int editorDrawerCreateFileAtSelection(const char *name, int viewport_rows) {
-	if (E.drawer_root == NULL) {
-		editorSetStatusMsg("No drawer open");
-		return 0;
-	}
-	if (!editorDrawerNameIsValid(name)) {
-		editorSetStatusMsg("Invalid file name");
-		return 0;
-	}
-
-	struct editorDrawerNode *selected = editorDrawerSelectedNode();
-	struct editorDrawerNode *target_dir = editorDrawerCreationTargetDir(selected);
-	if (target_dir == NULL) {
-		editorSetStatusMsg("No target directory");
-		return 0;
-	}
-
-	char *new_path = editorPathJoin(target_dir->path, name);
-	if (new_path == NULL) {
-		editorSetAllocFailureStatus();
-		return 0;
-	}
-
-	struct stat st;
-	if (lstat(new_path, &st) == 0) {
-		editorSetStatusMsg("'%s' already exists", name);
-		free(new_path);
-		return 0;
-	}
-
-	int fd = open(new_path, O_WRONLY | O_CREAT | O_EXCL, 0644);
-	if (fd < 0) {
-		editorSetStatusMsg("Create failed: %s", strerror(errno));
-		free(new_path);
-		return 0;
-	}
-	(void)close(fd);
-
-	if (target_dir->is_dir) {
-		target_dir->is_expanded = 1;
-	}
-	editorDrawerInvalidateScan(target_dir);
-	(void)editorDrawerEnsureScanned(target_dir);
-	(void)editorDrawerSelectChildByName(target_dir, name, viewport_rows);
-	editorSetStatusMsg("Created %s", new_path);
-	free(new_path);
-	return 1;
-}
-
-int editorDrawerCreateFolderAtSelection(const char *name, int viewport_rows) {
-	if (E.drawer_root == NULL) {
-		editorSetStatusMsg("No drawer open");
-		return 0;
-	}
-	if (!editorDrawerNameIsValid(name)) {
-		editorSetStatusMsg("Invalid folder name");
-		return 0;
-	}
-
-	struct editorDrawerNode *selected = editorDrawerSelectedNode();
-	struct editorDrawerNode *target_dir = editorDrawerCreationTargetDir(selected);
-	if (target_dir == NULL) {
-		editorSetStatusMsg("No target directory");
-		return 0;
-	}
-
-	char *new_path = editorPathJoin(target_dir->path, name);
-	if (new_path == NULL) {
-		editorSetAllocFailureStatus();
-		return 0;
-	}
-
-	struct stat st;
-	if (lstat(new_path, &st) == 0) {
-		editorSetStatusMsg("'%s' already exists", name);
-		free(new_path);
-		return 0;
-	}
-
-	if (mkdir(new_path, 0755) != 0) {
-		editorSetStatusMsg("Create folder failed: %s", strerror(errno));
-		free(new_path);
-		return 0;
-	}
-
-	if (target_dir->is_dir) {
-		target_dir->is_expanded = 1;
-	}
-	editorDrawerInvalidateScan(target_dir);
-	(void)editorDrawerEnsureScanned(target_dir);
-	(void)editorDrawerSelectChildByName(target_dir, name, viewport_rows);
-	editorSetStatusMsg("Created %s", new_path);
-	free(new_path);
-	return 1;
-}
-
-int editorDrawerRenameSelection(const char *new_name, int viewport_rows) {
-	if (E.drawer_root == NULL) {
-		editorSetStatusMsg("No drawer open");
-		return 0;
-	}
-	if (!editorDrawerNameIsValid(new_name)) {
-		editorSetStatusMsg("Invalid name");
-		return 0;
-	}
-
-	struct editorDrawerNode *selected = editorDrawerSelectedNode();
-	if (selected == NULL || selected == E.drawer_root) {
-		editorSetStatusMsg("Select an entry to rename");
-		return 0;
-	}
-	struct editorDrawerNode *parent = selected->parent;
-	if (parent == NULL) {
-		editorSetStatusMsg("Cannot rename root");
-		return 0;
-	}
-
-	if (strcmp(selected->name, new_name) == 0) {
-		return 0;
-	}
-
-	char *new_path = editorPathJoin(parent->path, new_name);
-	if (new_path == NULL) {
-		editorSetAllocFailureStatus();
-		return 0;
-	}
-
-	struct stat st;
-	if (lstat(new_path, &st) == 0) {
-		editorSetStatusMsg("'%s' already exists", new_name);
-		free(new_path);
-		return 0;
-	}
-
-	if (rename(selected->path, new_path) != 0) {
-		editorSetStatusMsg("Rename failed: %s", strerror(errno));
-		free(new_path);
-		return 0;
-	}
-
-	free(new_path);
-	editorDrawerInvalidateScan(parent);
-	(void)editorDrawerEnsureScanned(parent);
-	if (!editorDrawerSelectChildByName(parent, new_name, viewport_rows)) {
-		E.drawer_selected_index = -1;
-		editorDrawerClampSelectionAndScroll(viewport_rows);
-	}
-	editorSetStatusMsg("Renamed to %s", new_name);
-	return 1;
-}
-
-int editorDrawerDeleteSelection(int viewport_rows) {
-	if (E.drawer_root == NULL) {
-		editorSetStatusMsg("No drawer open");
-		return 0;
-	}
-
-	struct editorDrawerNode *selected = editorDrawerSelectedNode();
-	if (selected == NULL || selected == E.drawer_root) {
-		editorSetStatusMsg("Select an entry to delete");
-		return 0;
-	}
-	struct editorDrawerNode *parent = selected->parent;
-	if (parent == NULL) {
-		editorSetStatusMsg("Cannot delete root");
-		return 0;
-	}
-
-	char *path_copy = strdup(selected->path);
-	char *name_copy = strdup(selected->name);
-	if (path_copy == NULL || name_copy == NULL) {
-		free(path_copy);
-		free(name_copy);
-		editorSetAllocFailureStatus();
-		return 0;
-	}
-
-	if (!editorDrawerRemovePathRecursive(path_copy)) {
-		editorSetStatusMsg("Delete failed: %s", strerror(errno));
-		free(path_copy);
-		free(name_copy);
-		return 0;
-	}
-
-	editorDrawerInvalidateScan(parent);
-	(void)editorDrawerEnsureScanned(parent);
-	int parent_visible_idx = -1;
-	if (parent == E.drawer_root) {
-		parent_visible_idx = 0;
-	} else {
-		(void)editorDrawerFindVisibleIndexForNode(parent, &parent_visible_idx);
-	}
-	if (parent_visible_idx >= 0) {
-		E.drawer_selected_index = parent_visible_idx;
-	} else {
-		E.drawer_selected_index = 0;
-	}
-	editorDrawerClampSelectionAndScroll(viewport_rows);
-	editorSetStatusMsg("Deleted %s", name_copy);
-	free(path_copy);
-	free(name_copy);
-	return 1;
 }
 
 int editorDrawerSelectedMenuAction(enum editorAction *action_out) {
@@ -2809,119 +2489,6 @@ int editorDrawerSelectedMenuAction(enum editorAction *action_out) {
 		return 0;
 	}
 	*action_out = editor_drawer_menu_groups[lookup.group_idx].items[lookup.item_idx].action;
-	return 1;
-}
-
-int editorDrawerOpenSelectedFileInTab(void) {
-	if (editorFileSearchIsActive()) {
-		return editorFileSearchOpenSelectedFileInTab();
-	}
-	if (editorProjectSearchIsActive()) {
-		return editorProjectSearchOpenSelectedFileInTab();
-	}
-	if (E.drawer_mode == EDITOR_DRAWER_MODE_MAIN_MENU ||
-			E.drawer_mode == EDITOR_DRAWER_MODE_GIT ||
-			E.drawer_mode == EDITOR_DRAWER_MODE_LSP ||
-			E.drawer_mode == EDITOR_DRAWER_MODE_DAP) {
-		return 0;
-	}
-	struct editorDrawerLookup lookup;
-	if (!editorDrawerLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
-		return 0;
-	}
-	if (lookup.node->is_dir || lookup.node->path == NULL || lookup.node->path[0] == '\0') {
-		return 0;
-	}
-	return editorTabOpenOrSwitchToFile(lookup.node->path);
-}
-
-int editorDrawerOpenSelectedFileInPreviewTab(void) {
-	if (editorFileSearchIsActive()) {
-		return editorFileSearchOpenSelectedFileInPreviewTab();
-	}
-	if (editorProjectSearchIsActive()) {
-		return editorProjectSearchOpenSelectedFileInPreviewTab();
-	}
-	if (E.drawer_mode == EDITOR_DRAWER_MODE_MAIN_MENU ||
-			E.drawer_mode == EDITOR_DRAWER_MODE_GIT ||
-			E.drawer_mode == EDITOR_DRAWER_MODE_LSP ||
-			E.drawer_mode == EDITOR_DRAWER_MODE_DAP) {
-		return 0;
-	}
-	struct editorDrawerLookup lookup;
-	if (!editorDrawerLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
-		return 0;
-	}
-	if (lookup.node->is_dir || lookup.node->path == NULL || lookup.node->path[0] == '\0') {
-		return 0;
-	}
-	return editorTabOpenOrSwitchToPreviewFile(lookup.node->path);
-}
-
-int editorDrawerRevealPath(const char *path, int viewport_rows) {
-	if (path == NULL || path[0] == '\0' || E.drawer_root == NULL || E.drawer_root_path == NULL) {
-		return 0;
-	}
-
-	char *absolute = editorPathAbsoluteDup(path);
-	if (absolute == NULL) {
-		editorSetAllocFailureStatus();
-		return 0;
-	}
-
-	size_t root_len = strlen(E.drawer_root_path);
-	if (strcmp(absolute, E.drawer_root_path) == 0) {
-		E.drawer_root->is_expanded = 1;
-		E.drawer_selected_index = 0;
-		editorDrawerClampSelectionAndScroll(viewport_rows);
-		free(absolute);
-		return 1;
-	}
-	if (root_len == 0 || strncmp(absolute, E.drawer_root_path, root_len) != 0 ||
-			absolute[root_len] != '/') {
-		free(absolute);
-		return 0;
-	}
-
-	struct editorDrawerNode *node = E.drawer_root;
-	node->is_expanded = 1;
-	const char *component = absolute + root_len + 1;
-	while (component[0] != '\0') {
-		const char *slash = strchr(component, '/');
-		size_t component_len =
-				slash != NULL ? (size_t)(slash - component) : strlen(component);
-		if (component_len == 0) {
-			free(absolute);
-			return 0;
-		}
-
-		struct editorDrawerNode *child =
-				editorDrawerFindChildByName(node, component, component_len);
-		if (child == NULL) {
-			free(absolute);
-			return 0;
-		}
-
-		node = child;
-		if (slash == NULL) {
-			break;
-		}
-		if (!node->is_dir) {
-			free(absolute);
-			return 0;
-		}
-		node->is_expanded = 1;
-		component = slash + 1;
-	}
-
-	int visible_idx = 0;
-	if (!editorDrawerFindVisibleIndexForNode(node, &visible_idx)) {
-		free(absolute);
-		return 0;
-	}
-	E.drawer_selected_index = visible_idx;
-	editorDrawerClampSelectionAndScroll(viewport_rows);
-	free(absolute);
 	return 1;
 }
 
