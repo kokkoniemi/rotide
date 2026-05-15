@@ -112,6 +112,7 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/workspace/tabs.c $(SRC_DIR)/workspace/drawer.c \
 	$(SRC_DIR)/workspace/drawer_tree.c \
 	$(SRC_DIR)/workspace/drawer_file_ops.c \
+	$(SRC_DIR)/workspace/drawer_layout.c \
 	$(SRC_DIR)/workspace/file_search.c \
 	$(SRC_DIR)/workspace/git.c \
 	$(SRC_DIR)/workspace/watch.c \
