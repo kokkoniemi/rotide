@@ -2,6 +2,7 @@
 #define BUFFER_H
 
 #include "rotide.h"
+#include "editing/buffer_search.h"
 #include "editing/document_bridge.h"
 #include "editing/document_position.h"
 #include "editing/text_source.h"
@@ -24,11 +25,6 @@ struct editorDocumentEdit {
 };
 
 char *editorRowsToStr(size_t *buflen);
-
-int editorBufferFindForward(const char *query, int start_row, int start_col, int *out_row,
-		int *out_col);
-int editorBufferFindBackward(const char *query, int start_row, int start_col, int *out_row,
-		int *out_col);
 
 int editorSyntaxEnabled(void);
 int editorSyntaxTreeExists(void);
