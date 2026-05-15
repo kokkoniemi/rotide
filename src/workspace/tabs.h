@@ -9,17 +9,19 @@
  */
 void editorResetActiveBufferFields(void);
 void editorFreeActiveBufferState(void);
+struct editorBuffer *editorActiveBufferHandle(void);
+const struct editorBuffer *editorActiveBufferHandleConst(void);
+const struct editorBuffer *editorTabBufferHandleAt(int idx);
+
+/* Render-time active buffer aliasing (buffer-level API). */
+void editorBufferAliasSnapshot(struct editorBuffer *snap);
+void editorBufferAliasToActive(const struct editorBuffer *buffer);
 
 /*
  * Render-time tab aliasing.
  *
- * editorTabStateAliasSnapshot copies E's current active-tab field values
- * into `snap` without modifying E. `snap` must be zero-initialized.
- *
- * editorTabStateAliasToActive copies `tab`'s field values into E without
- * transferring ownership (the source struct is left intact, unlike the
- * internal load path). Use with editorTabStateAliasSnapshot to render a
- * different tab in place, then restore E by aliasing the snapshot back.
+ * Legacy wrappers over the buffer-level alias API. Keep callers moving while
+ * modules migrate from tab-state copies to buffer handles.
  *
  * These helpers are render-only: no LSP/syntax notifications, no
  * disk-state probing, no edit history mutations. Callers must guarantee

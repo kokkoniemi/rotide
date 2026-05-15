@@ -224,21 +224,26 @@ int editorPaneSyntaxFrameBuild(const struct editorLeafLayout *layout) {
 
 		struct editorViewSnapshot view_snap;
 		editorViewSnapshotCapture(&view_snap);
-		struct editorTabState tab_snap = {0};
+		struct editorBuffer buffer_snap = {0};
 		int active_tab = E.active_tab;
-		editorTabStateAliasSnapshot(&tab_snap);
+		editorBufferAliasSnapshot(&buffer_snap);
 
 		int aliased_non_active_tab = tab_idx != active_tab;
 		if (aliased_non_active_tab) {
+			const struct editorBuffer *tab_buffer = editorTabBufferHandleAt(tab_idx);
+			if (tab_buffer == NULL) {
+				editorViewSnapshotRestore(&view_snap);
+				continue;
+			}
 			E.active_tab = tab_idx;
-			editorTabStateAliasToActive(&E.tabs[tab_idx]);
+			editorBufferAliasToActive(tab_buffer);
 		}
 		if (leaf != E.focused_leaf) {
 			editorViewSnapshotFromPaneView(&leaf->as.leaf.view);
 		}
 		int ok = editorPaneSyntaxFrameBuildEntry(entry, layout->rects[i].rect.w);
 
-		editorTabStateAliasToActive(&tab_snap);
+		editorBufferAliasToActive(&buffer_snap);
 		E.active_tab = active_tab;
 		editorViewSnapshotRestore(&view_snap);
 		if (!ok) {
@@ -417,16 +422,21 @@ int editorDrawPaneViewSlice(struct writeBuf *wb, const struct editorPaneNode *le
 
 	struct editorViewSnapshot snap;
 	editorViewSnapshotCapture(&snap);
-	struct editorTabState active_snap = {0};
+	struct editorBuffer active_snap = {0};
 	int active_tab = E.active_tab;
-	editorTabStateAliasSnapshot(&active_snap);
+	editorBufferAliasSnapshot(&active_snap);
 
+	const struct editorBuffer *tab_buffer = editorTabBufferHandleAt(view->active_tab_idx);
+	if (tab_buffer == NULL) {
+		editorViewSnapshotRestore(&snap);
+		return editorDrawBlankCells(wb, slice_cols);
+	}
 	E.active_tab = view->active_tab_idx;
-	editorTabStateAliasToActive(&E.tabs[view->active_tab_idx]);
+	editorBufferAliasToActive(tab_buffer);
 	editorViewSnapshotFromPaneView(view);
 	int ok = editorDrawFocusedPaneSlice(wb, leaf, body_row_in_pane, slice_cols);
 
-	editorTabStateAliasToActive(&active_snap);
+	editorBufferAliasToActive(&active_snap);
 	E.active_tab = active_tab;
 	editorViewSnapshotRestore(&snap);
 	return ok;

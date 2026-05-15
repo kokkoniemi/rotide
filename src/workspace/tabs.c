@@ -66,14 +66,6 @@ static void editorBufferMove(struct editorBuffer *dst, struct editorBuffer *src)
 static void editorBufferFreeRows(struct editorBuffer *buffer);
 static void editorBufferClearOwnedState(struct editorBuffer *buffer);
 
-static void editorTabStateCopyFromActive(struct editorTabState *tab) {
-	editorBufferCopy(&tab->buffer, &E.active_buffer);
-}
-
-static void editorActiveBufferCopyFromTab(const struct editorTabState *tab) {
-	editorBufferCopy(&E.active_buffer, &tab->buffer);
-}
-
 static void editorBufferInitEmpty(struct editorBuffer *buffer) {
 	memset(buffer, 0, sizeof(*buffer));
 	buffer->tab_kind = EDITOR_TAB_FILE;
@@ -147,6 +139,41 @@ void editorResetActiveBufferFields(void) {
 	editorBufferInitEmpty(&E.active_buffer);
 }
 
+struct editorBuffer *editorActiveBufferHandle(void) {
+	return &E.active_buffer;
+}
+
+const struct editorBuffer *editorActiveBufferHandleConst(void) {
+	return &E.active_buffer;
+}
+
+const struct editorBuffer *editorTabBufferHandleAt(int idx) {
+	if (idx < 0 || idx >= E.tab_count) {
+		return NULL;
+	}
+	if (idx == E.active_tab) {
+		return editorActiveBufferHandleConst();
+	}
+	if (E.tabs == NULL) {
+		return NULL;
+	}
+	return &E.tabs[idx].buffer;
+}
+
+void editorBufferAliasSnapshot(struct editorBuffer *snap) {
+	if (snap == NULL) {
+		return;
+	}
+	editorBufferCopy(snap, editorActiveBufferHandleConst());
+}
+
+void editorBufferAliasToActive(const struct editorBuffer *buffer) {
+	if (buffer == NULL) {
+		return;
+	}
+	editorBufferCopy(editorActiveBufferHandle(), buffer);
+}
+
 static void editorFreeTabRows(struct editorTabState *tab) {
 	editorBufferFreeRows(&tab->buffer);
 }
@@ -176,14 +203,14 @@ void editorTabStateAliasSnapshot(struct editorTabState *snap) {
 	if (snap == NULL) {
 		return;
 	}
-	editorTabStateCopyFromActive(snap);
+	editorBufferAliasSnapshot(&snap->buffer);
 }
 
 void editorTabStateAliasToActive(const struct editorTabState *tab) {
 	if (tab == NULL) {
 		return;
 	}
-	editorActiveBufferCopyFromTab(tab);
+	editorBufferAliasToActive(&tab->buffer);
 }
 
 static void editorTabStateLoadActive(struct editorTabState *tab) {
