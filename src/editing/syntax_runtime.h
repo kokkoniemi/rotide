@@ -7,5 +7,6 @@
 
 int editorSyntaxApplyIncrementalEditActive(const struct editorSyntaxEdit *edit,
 		const char *inserted_text, size_t inserted_len);
+void editorSyntaxRuntimeReportStatusIfNeeded(void);
 
 #endif
