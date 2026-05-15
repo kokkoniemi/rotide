@@ -59,5 +59,7 @@ rotide
 *.swp
 tests/rotide_tests
 
+PLAN.md
+
 .codex
 .cache

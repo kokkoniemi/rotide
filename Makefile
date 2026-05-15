@@ -111,6 +111,9 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/workspace/workspace_state.c \
 	$(SRC_DIR)/workspace/layout.c \
 	$(SRC_DIR)/input/dispatch.c \
+	$(SRC_DIR)/render/write_buf.c \
+	$(SRC_DIR)/render/ansi_style.c \
+	$(SRC_DIR)/render/display_text.c \
 	$(SRC_DIR)/render/screen.c \
 	$(SRC_DIR)/render/popup.c \
 	$(SRC_DIR)/config/common.c $(SRC_DIR)/config/keymap.c \
