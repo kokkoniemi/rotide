@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 
+struct editorDrawerEntryView;
+
 struct editorDrawerNode {
 	char *name;
 	char *path;
@@ -33,5 +35,18 @@ struct editorDrawerNode *editorDrawerFindChildByName(struct editorDrawerNode *no
 int editorDrawerFindVisibleIndexForNode(struct editorDrawerNode *target, int *visible_idx_out);
 void editorDrawerClampSelectionAndScroll(int viewport_rows);
 struct editorDrawerNode *editorDrawerSelectedTreeNode(void);
+
+int editorDrawerDapVisibleCount(void);
+int editorDrawerDapGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *view_out);
+int editorDrawerDapExpandSelection(int viewport_rows);
+int editorDrawerDapCollapseSelection(int viewport_rows);
+int editorDrawerDapSelectedIsDirectory(void);
+
+int editorDrawerLspVisibleCount(void);
+int editorDrawerLspGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *view_out);
+int editorDrawerLspExpandSelection(int viewport_rows);
+int editorDrawerLspCollapseSelection(int viewport_rows);
+int editorDrawerLspToggleSelectionExpanded(int viewport_rows);
+int editorDrawerLspSelectedIsDirectory(void);
 
 #endif
