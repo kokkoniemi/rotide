@@ -33,28 +33,19 @@ editorSyntaxBackgroundPoll();
 editorLspPumpNotifications();
 editorDapPumpNotifications();
 editorViewportUpdateForFrame();
-editorRefreshScreen();
-editorProcessKeypress();   // dispatches one event per iteration
+editorRefreshScreen();   // pure renderer
+editorProcessKeypress(); // one event per iteration
 ```
 
-Each iteration explicitly polls the syntax worker, pumps any
-buffered LSP and DAP traffic, recomputes the viewport, paints the
-frame, then waits for and dispatches one input event.
-`editorRefreshScreen` is now a pure renderer — non-main-loop callers
-(prompt sub-loops, mid-action redraws, recovery flows) call it without
-having to re-run a frame's worth of event pumping.
+Pumping is explicit at the top of each tick; `editorRefreshScreen` no
+longer drives it, so sub-loops (prompts, recovery flows) can call refresh
+without re-running a frame. `editorReadKey` still pumps terminal panes
+every VTIME tick (~100 ms) so child output flows while the user is idle.
 
-`editorReadKey` (inside `editorProcessKeypress`) still pumps terminal
-panes every VTIME tick (~100 ms) while waiting for input and returns
-`TERMINAL_EVENT` if any bytes were drained, so child output keeps
-flowing even when the user is idle.
-
-On `SIGINT`/`SIGTERM`/`SIGHUP`/`SIGQUIT`, control jumps into
-`editorHandleTerminationSignal` (`src/support/terminal.c`). That handler
-shuts down the DAP client, LSP registry, syntax background worker, and
-shared syntax resources before restoring the terminal and re-raising the
-default handler. See [concurrency.md](../developer/concurrency.md) for
-the async-signal-safety trade-off.
+`SIGINT`/`SIGTERM`/`SIGHUP`/`SIGQUIT` route through
+`editorHandleTerminationSignal` (`src/support/terminal.c`), which runs the
+DAP/LSP/syntax shutdowns before restoring the terminal. See
+[concurrency.md](concurrency.md).
 
 ## Keypress to Action
 
@@ -92,32 +83,26 @@ glue still lives in `dispatch.c` until that path gets a dedicated extraction.
 
 ![Edit flow](../diagrams/svg/edit-flow.svg)
 
-Edits are constructed in `src/editing/edit.c` and selection helpers,
-then applied through `editorApplyDocumentEdit()` which delegates to the
-edit pipeline in `src/editing/edit_pipeline.c`. The edit descriptor
-carries the byte range, inserted text, before/after cursor offsets, and
-before/after dirty values. This keeps dirty-state behavior deterministic
-across insert, delete, undo, redo, save, and recovery.
+Edits are built in `src/editing/edit.c` and applied via
+`editorApplyDocumentEdit` → the pipeline in `edit_pipeline.c`. The edit
+descriptor carries byte range, inserted text, before/after cursor
+offsets, and before/after dirty values — making dirty state deterministic
+across insert/delete/undo/redo/save/recovery.
 
-Document mutation happens before derived work, in this order:
+Order per edit:
 
-1. replace bytes in `editorDocument` (`src/text/document.c` via the
-   `document_bridge`).
-2. rebuild the affected `struct erow` cache slice
-   (`src/editing/row_cache.c`).
+1. replace bytes in `editorDocument` (via `document_bridge`).
+2. rebuild the affected `erow` slice (`row_cache.c`).
 3. sync cursor from byte offset (`document_position.c`).
-4. fan out to syntax + LSP + diagnostics via
-   `src/editing/post_edit_notify.c`. That helper applies the edit to
-   the tab-local `editorSyntaxState`, bumps `syntax_revision`,
-   captures `editorLspEnsureClientForFile(...)` and sends `didChange`
-   if appropriate, and invalidates any visible-syntax-span cache rows
-   that the edit touched.
-5. record the history entry (`src/editing/history.c`).
-6. refresh visible syntax spans on demand at the next render.
+4. `post_edit_notify.c` fans out: applies the edit to
+   `editorSyntaxState`, bumps `syntax_revision`, captures
+   `editorLspEnsureClientForFile` and sends `didChange` if applicable,
+   invalidates touched visible-syntax-span cache rows.
+5. record history entry.
+6. visible syntax spans refresh on the next render.
 
-`post_edit_notify` is the single bridge between the edit pipeline and
-the language services, so adding a new "I care about edits" listener
-means extending it rather than threading the edit through edit.c.
+`post_edit_notify` is the only bridge from edits to language services;
+new listeners extend it, not `edit.c`.
 
 ## Undo and Redo
 
@@ -184,39 +169,25 @@ diagnostic overlays.
 
 ![LSP flow](../diagrams/svg/lsp-flow.svg)
 
-LSP clients are keyed in `lsp_registry` by
-`(server_kind, workspace_root)`. Every action that needs to talk to a
-server explicitly captures the right client first:
+Clients are keyed in `lsp_registry` by `(server_kind, workspace_root)`.
+Every request acquires its client first:
 
 ```c
 struct editorLspClient *client = editorLspEnsureClientForFile(filename, ...);
-if (client == NULL) {
-    /* report and bail */
-}
+if (client == NULL) { /* report + bail */ }
 editorLspRequestDefinition(client, ...);
 ```
 
-There is no implicit "active LSP" singleton. Switching tabs does not
-kill the server — it just lets the next request pick a different client
-out of the registry. Two Go files in the same workspace share one
-`gopls`; two clangd workspaces each get their own `clangd`.
+No implicit "active LSP" singleton — tab switches just look up a
+different slot. `lsp_documents.c` runs per-tab open/change/save/close;
+`document_position.c` converts byte/row state to protocol positions;
+`lsp_protocol.c`/`lsp_responses.c` are the JSON-RPC wire.
 
-Opening or editing a supported file ensures the tab's LSP document is
-tracked and versioned (handled in `lsp_documents.c`). Changes are
-converted from editor byte/row state to protocol positions in
-`document_position.c`. Requests such as definition, implementation,
-symbols, completion, diagnostics, and ESLint code actions route through
-JSON-RPC helpers in `lsp_protocol.c` / `lsp_responses.c` and write
-results back to tab-local state.
+Range `didChange` is used when the edit fits the server's position
+encoding; full-document `contentChanges` is the fallback (e.g. UTF-16
+deletes need pre-edit text).
 
-Range `didChange` notifications are used when the edit can be
-represented in the server's position encoding. RotIDE falls back to a
-full-document `contentChanges` entry when range conversion would need
-pre-edit text (e.g. UTF-16-encoded deletes).
-
-Missing language servers can open install/help task-log tabs. Those
-tabs are generated output views and do not become normal editable
-files.
+Missing servers open install/help task-log tabs (generated, read-only).
 
 ## Terminal Panes
 
