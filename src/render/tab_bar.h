@@ -3,6 +3,7 @@
 
 #include "render/write_buf.h"
 
+int editorDrawTabBar(struct writeBuf *wb);
 int editorDrawTabSlots(struct writeBuf *wb, int cols);
 
 #endif

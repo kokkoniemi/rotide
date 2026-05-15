@@ -2,11 +2,14 @@
 
 #include "render/ansi_style.h"
 #include "render/display_text.h"
+#include "render/drawer_view.h"
+#include "workspace/drawer.h"
 #include "workspace/tabs.h"
 #include <string.h>
 
 #define VT100_ITALIC_ON_4 "\x1b[3m"
 #define VT100_ITALIC_OFF_5 "\x1b[23m"
+#define VT100_CLEAR_ROW_3 "\x1b[K"
 
 static const char *editorTabLabelFromDisplayName(const char *display_name) {
 	if (display_name == NULL) {
@@ -135,4 +138,43 @@ int editorDrawTabSlots(struct writeBuf *wb, int cols) {
 	}
 
 	return 1;
+}
+
+int editorDrawTabBar(struct writeBuf *wb) {
+	if (E.window_cols <= 0) {
+		return wbAppend(wb, "\r\n", 2);
+	}
+
+	if (editorDrawerIsCollapsed()) {
+		int toggle_cols = editorDrawerCollapsedToggleWidthForCols(E.window_cols);
+		if (!editorDrawDrawerRow(wb, 0, toggle_cols)) {
+			return 0;
+		}
+		if (!editorDrawTabSlots(wb, E.window_cols - toggle_cols)) {
+			return 0;
+		}
+		if (!wbAppend(wb, VT100_CLEAR_ROW_3, 3)) {
+			return 0;
+		}
+		return wbAppend(wb, "\r\n", 2);
+	}
+
+	int drawer_cols = editorDrawerWidthForCols(E.window_cols);
+	int separator_cols = editorDrawerSeparatorWidthForCols(E.window_cols);
+	int text_cols = editorDrawerTextViewportCols(E.window_cols);
+
+	if (!editorDrawDrawerRow(wb, 0, drawer_cols)) {
+		return 0;
+	}
+	if (!editorDrawDrawerSeparatorCell(wb, separator_cols)) {
+		return 0;
+	}
+	if (!editorDrawTabSlots(wb, text_cols)) {
+		return 0;
+	}
+
+	if (!wbAppend(wb, VT100_CLEAR_ROW_3, 3)) {
+		return 0;
+	}
+	return wbAppend(wb, "\r\n", 2);
 }
