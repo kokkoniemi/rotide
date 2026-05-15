@@ -1,526 +1,361 @@
-# RotIDE Architecture Audit
-
-**Date:** 2026-05-15
-**Scope:** Documentation in [docs/developer/](docs/developer/) treated as source of
-truth; codebase under [src/](src/) and [tests/](tests/) inspected to validate.
-PlantUML sources in [docs/diagrams/src/](docs/diagrams/src/) consulted where
-relevant.
-**Method:** Doc-first read; spot-check load-bearing claims against source. All
-findings cite specific files and lines so reviewers can verify independently.
-
----
-
-## TL;DR
-
-RotIDE is a competently-built terminal editor with an unusually disciplined
-documentation set and a serious test culture (≈25k lines of tests for ≈47k
-lines of production C, with ASan/UBSan in CI). The high-level container model
-in [architecture-container.puml](docs/diagrams/src/architecture-container.puml)
-matches the on-disk module layout, and the central invariant — *`editorDocument`
-is the canonical writable text owner, `struct erow` is derived* — is real and
-enforced through a single mutation entry point
-([buffer_core.c:1244](src/editing/buffer_core.c#L1244)).
-
-The architecture is, however, mid-refactor. The current shape still bears the
-fingerprints of its kilo-derived origins: one huge mutable global
-(`struct editorConfig E`), and a per-tab/active-buffer state split implemented
-as **three near-identical 60-field copy functions**
-([tabs.c:246-518](src/workspace/tabs.c#L246-L518)). That, plus a *single*
-non-ESLint LSP client process for the entire editor
-([lsp.c:47-60](src/language/lsp.c#L47-L60), [lsp.c:567-573](src/language/lsp.c#L567-L573))
-quietly killed/respawned on every cross-language tab switch — a fact not
-mentioned in the developer docs — are the two most significant gaps between
-documented architecture and reality.
-
-**Overall score: 7 / 10.** Solid foundations, well-documented intent, honest
-roadmap in [PLAN.md](PLAN.md), but the central state model and the LSP
-"per-tab" framing are doing more work than the docs admit.
-
----
-
-## What the Documentation Gets Right
-
-These are real architectural strengths that the docs accurately describe, and
-the code confirms.
-
-### 1. Canonical text ownership and a single edit pipeline
-
-`editorDocument` (a [rope + line index](src/text/document.h#L11-L16)) really
-is the one writable text owner. All edits — direct typing, paste, undo, redo,
-column edits, autocomplete acceptance, recovery normalization — funnel through
-`editorApplyDocumentEdit`
-([buffer_core.c:1244-1333](src/editing/buffer_core.c#L1244-L1333)). The
-descriptor `struct editorDocumentEdit`
-([buffer_core.h:11-21](src/editing/buffer_core.h#L11-L21)) carries
-before/after cursor and before/after dirty values together with the byte
-range, so dirty-state semantics are part of the contract rather than left to
-each call site. This is the strongest piece of architectural discipline in
-the codebase, and the [edit-flow diagram](docs/diagrams/src/edit-flow.puml)
-faithfully reflects it.
-
-### 2. Action-based input pipeline with explicit gates
-
-`enum editorAction` ([rotide.h:357-442](src/rotide.h#L357-L442)) is the
-single keybinding contract, and `editorProcessKeypress`
-([dispatch.c:1871-2059](src/input/dispatch.c#L1871-L2059)) consistently runs
-synthetic-event, prompt, mouse, and terminal-pane gates **before** keymap
-lookup. The order of gates in the source matches the documented diagram in
-[action-dispatch.puml](docs/diagrams/src/action-dispatch.puml). This made
-Phase 5 of the refactor (extracting `actions_*.c` modules) genuinely
-mechanical, and is why those modules are now small and self-contained.
-
-### 3. Pane layout has a real, narrow API
-
-`src/workspace/layout.{c,h}` owns the binary tree and the focus-change dance,
-and dispatch correctly routes split/close/focus through the layout-module
-APIs rather than mutating the tree directly. The
-[pane-layout diagram](docs/diagrams/src/pane-layout.puml) is unusually
-precise: the focused leaf's live state lives in `E.*`; unfocused leaves keep
-their `editorPaneView` snapshot; `editorLayoutSetFocusedLeaf` is the only
-place that captures→swaps→loads. This is verified at
-[layout.c:647-705](src/workspace/layout.c#L647-L705).
-
-### 4. Recovery is document-first
-
-[recovery.c](src/workspace/recovery.c) restores text through the document
-model rather than through derived rows
-([recovery.c:33-49](src/workspace/recovery.c#L33-L49)), and the format is
-versioned (`ROTIDE_RECOVERY_MAGIC = "RTRECOV1"`, version 3, min version 2).
-The autosave path is debounced rather than write-on-every-edit
-([recovery.c:875-906](src/workspace/recovery.c#L875-L906)). This is a sound
-design that the [save-recovery diagram](docs/diagrams/src/save-recovery.puml)
-captures correctly.
-
-### 5. DAP's `console = "terminal"` is the right call
-
-The decision to model `console = "terminal"` by opening a real
-`editorTerminalPane`, resolving `ptsname(master_fd)`, and injecting `tty`
-into the launch JSON — and to strip the rotide-only `console` field before
-sending — is a clean integration. See
-[dap.c](src/debug/dap.c) and the (well-named)
-[dap_console.{c,h}](src/debug/) split from Phase 4. It uses one mechanism
-(terminal panes) to satisfy two requirements (a place to put the inferior's
-I/O, and a place to host an interactive child) instead of inventing a parallel
-"DAP terminal" type.
-
-### 6. The refactor plan is honest
-
-[PLAN.md](PLAN.md) is exceptionally clear about which phases are done, what
-the line counts looked like before/after each phase, and what is intentionally
-deferred. The fact that `screen.c` went `5159 → 1514` lines and `dispatch.c`
-went `4773 → 2059` is verifiable from the current tree. That track record is
-itself an architectural strength: this team can plan and finish multi-phase
-refactors.
-
----
-
-## Architectural Issues
-
-Severity classification: **High** = blocks a near-term capability or makes
-incidents likely; **Medium** = real cost on every change in this area;
-**Low** = polish/clarity, not load-bearing.
-
-### Issue 1 — One LSP process for all non-ESLint languages [High, undocumented]
-
-**What the docs say.** [architecture.md:236-247](docs/developer/architecture.md#L236-L247)
-describes LSP as "tracked per tab with document-open flags and versions"
-and lists multiple supported servers (gopls, clangd, tsserver, etc.).
-[README.md:79](README.md#L79) advertises "LSP definition lookup for Go, C/C++,
-HTML, CSS/SCSS, JSON, and JavaScript."
-
-**What the code does.** There are exactly two global LSP clients:
-`g_lsp_client` and `g_lsp_eslint_client`
-([lsp.c:47-74](src/language/lsp.c#L47-L74)). When a tab needs a different
-*server kind* than the one currently running, the code kills the existing
-process and spawns a new one:
-
-```c
-if (client->server_kind != EDITOR_LSP_SERVER_NONE &&
-        (client->server_kind != server_kind || ...)) {
-    editorLspResetTrackedDocumentsForServerKind(server_kind);
-}
-editorLspClientCleanup(client, 0);   // SIGTERM + waitpid
-...
-if (!editorLspSpawnProcess(command, &pid, ...)) { ... }
-```
-
-([lsp.c:567-583](src/language/lsp.c#L567-L583), spawn at
-[lsp_transport.c:429](src/language/lsp_transport.c#L429))
-
-**Why it matters.** If a user has one Go and one C tab open and Alt-Tabs
-between them, each switch tears down and reinitializes a language server.
-gopls/clangd cold-start is multi-second. Diagnostics, index, completion all
-restart from scratch. The same applies across two unrelated workspace roots
-of the same language. This is a substantial product limitation and an
-architectural decision (the `g_lsp_client` singleton), not a configuration
-bug.
-
-The phrase "tab-local LSP state" in the docs is technically true — diagnostics,
-versions, and open flags are per-tab — but it implies an architecture where
-multiple servers can coexist, which is not what is built.
-
-**Recommended actions.**
-1. **Document the limitation explicitly** in
-   [architecture.md](docs/developer/architecture.md) and the
-   [lsp-flow diagram](docs/diagrams/src/lsp-flow.puml). One sentence costs
-   nothing and prevents future confusion when readers see "tab-local" and
-   assume "one server per language."
-2. Plan an `lsp_registry` that keys clients by `(server_kind, workspace_root)`
-   so multiple servers can coexist. This is exactly the scope-creep that
-   `g_lsp_client` was probably created to avoid — but at this point the
-   editor advertises six languages and the cost of cross-language tab
-   switching is borne by users. Phase 9 of [PLAN.md](PLAN.md#L625-L656)
-   mentions a "process lifecycle" split for LSP; that is the right slot for
-   this.
-
----
-
-### Issue 2 — `editorTabState` / `editorConfig E` duplication [High]
-
-**What the docs say.** [architecture.md:21-25](docs/developer/architecture.md#L21-L25):
-"Each real tab stores the same buffer-facing fields in
-`struct editorTabState`. Switching tabs copies state between the active
-fields and the selected tab."
-
-**What the code does.** `struct editorConfig` (≈220 fields,
-[rotide.h:649-868](src/rotide.h#L649-L868)) and `struct editorTabState`
-(≈60 fields, [rotide.h:587-647](src/rotide.h#L587-L647)) overlap by
-**every field on `editorTabState`**. The "swap" is implemented as three
-near-identical field-by-field copies:
-[`editorTabStateCaptureActive`](src/workspace/tabs.c#L246-L316),
-[`editorTabStateAliasSnapshot`](src/workspace/tabs.c#L318-L381),
-[`editorTabStateAliasToActive`](src/workspace/tabs.c#L383-L446), plus
-[`editorTabStateLoadActive`](src/workspace/tabs.c#L448-L518) and the
-duplicate field-init in
-[`initEditor`](src/rotide.c#L28-L213) and
-[`editorTabStateInitEmpty`](src/workspace/tabs.c#L64-L246).
-
-This is roughly five copies of "every per-tab field." Any new per-tab field
-requires touching five places. The [`extern struct editorConfig E`
-search](src/) returns >3400 hits.
-
-**Why it matters.**
-- Every per-tab field addition is a five-site change with no compiler help if
-  one site is missed. Silent bugs are likely (a new field that captures but
-  doesn't load on focus change, etc.).
-- The "active buffer is a copy" model means `E.document`, `E.rows`, search,
-  selection, etc. are *aliased* into the active tab during edits. Aliasing
-  works, but it makes every helper that touches `E.*` implicitly tab-coupled.
-  Most of the >3400 `E.` references are tab state pretending to be globals.
-- It actively blocks Phase 12 ("Shrink `rotide.h`"). You can't shrink the
-  header until you've reduced the number of cross-cutting fields, and you
-  can't reduce them while five sites must stay in lockstep.
-
-**Recommended actions.**
-1. Introduce `struct editorBuffer` containing exactly the per-tab fields, used
-   *in place of* both copies. The "active tab" pointer becomes
-   `E.active_buffer = &E.tabs[E.active_tab]` (or equivalent). Capture/load
-   collapses to pointer reassignment. This is consistent with the docs'
-   description of `editorDocument` ownership — extend the same discipline one
-   level up.
-2. Treat this as a prerequisite for, not a follow-up to, the Phase 6/7/9
-   splits. Splitting `buffer_core.c` while five sites still field-copy the
-   active buffer just spreads the duplication across more files.
-
----
-
-### Issue 3 — `struct editorConfig E` is overloaded [Medium]
-
-**What the docs say.** [architecture.md:13-19](docs/developer/architecture.md#L13-L19)
-treats `E` as "the global editor state."
-
-**What the code does.** `E` holds:
-- Terminal/window geometry.
-- *Every per-tab field* (cursor, scroll, search, selection, history, syntax,
-  LSP, dirty, filename, disk state, …).
-- The active drawer mode + tree + selection + 12 drawer-search fields.
-- Recent files list.
-- Git repo state.
-- ≈25 DAP-related fields plus seven fixed-size arrays of breakpoints/threads/
-  scopes/variables/etc.
-- Cursor/theme/wrap/indent settings.
-- The pane layout root + focused leaf.
-- The keymap, popup state, clipboard buffer, `orig_attrs`, `paste_active`,
-  `terminal_prefix_armed`, `task_*`, `recovery_*`, `workspace_state_*`, …
-
-There are at least six different "kinds" of state in here masquerading as one
-type. The container diagram in
-[architecture-container.puml](docs/diagrams/src/architecture-container.puml)
-shows seven containers; `E` is effectively their shared address space.
-
-**Why it matters.** `E` is the implicit coupling that prevents the C4
-container boundaries the diagrams draw from being enforced. The renderer
-"reads `E`" — but `E` is also where tabs, panes, DAP, and config live, so the
-renderer can read (and in some places write — e.g., `g_editor_drawing_current_line_highlight`
-in [screen.c:76](src/render/screen.c#L76)) anything. There's no compiler
-mechanism that says "Renderer is not allowed to write `E.dap_running`."
-
-**Recommended actions.** This is intentionally Phase 12 in
-[PLAN.md](PLAN.md#L713-L733), and that order is right (don't shrink the
-header before the domains exist). But two lower-cost interim steps would
-help:
-1. Group the fields in `editorConfig` by container with comments or empty
-   typedefs (`struct editorConfigDap { ... } dap;` etc.) — this is purely
-   organizational but it makes the next refactor much easier to land.
-2. Identify the truly *global* fields (`window_rows`, `window_cols`,
-   `orig_attrs`, `keymap`, `theme`) and split them into a smaller
-   `editorEnvironment` struct that the rest can depend on without dragging
-   the per-tab fields along.
-
----
-
-### Issue 4 — Documented startup-loop diagram shows cleanup that doesn't exist on most exits [Medium]
-
-**What the docs say.** [startup-loop.puml](docs/diagrams/src/startup-loop.puml)
-ends with `cleanup tasks, LSP, DAP, syntax, terminal pane PTYs, terminal
-mode`.
-
-**What the code does.** [main()](src/rotide.c#L247-L254) has an unconditional
-`while (1) { … }`. The only exits are:
-- The user's `quit` action,
-  [actions_file_tab.c:82-91](src/input/actions_file_tab.c#L82-L91), which
-  *does* shut down DAP, LSP, syntax worker, recovery cleanup, then
-  `exit(EXIT_SUCCESS)`.
-- A termination signal handler,
-  [terminal.c:518-547](src/support/terminal.c#L518-L547), which restores the
-  terminal and re-raises the signal so the kernel cleans up. **It does not
-  call `editorLspShutdown` / `editorDapShutdown` / `editorSyntaxBackgroundStop`.**
-- The `atexit` handler [terminal.c:514](src/support/terminal.c#L514) only
-  restores terminal mode.
-
-**Why it matters.** Mostly correctness-of-documentation, not correctness-of-
-program: when rotide is killed (SIGHUP/SIGINT/SIGTERM/SIGQUIT) the LSP
-servers, DAP adapters, and PTY children are not gracefully shut down. The
-kernel will close the pipes and reap them shortly after, so this is *usually*
-fine. But:
-- Long-running language servers (gopls indexers) may not get the
-  `shutdown`/`exit` JSON-RPC handshake they expect; some servers warn
-  loudly or leave caches in an inconsistent state.
-- If a SIGTERM arrives mid-edit, the recovery snapshot may not be flushed
-  because `editorRecoveryMaybeAutosaveOnActivity`
-  ([dispatch.c:2058](src/input/dispatch.c#L2058)) runs at end-of-keypress,
-  not on signal. Combined with the 5-second autosave debounce, a worst-case
-  loss is ≈5s of edits.
-
-**Recommended actions.**
-1. Either fix the diagram to show the actual exit paths (one clean, one
-   signal-driven) or move the LSP/DAP/syntax shutdown calls into the signal
-   handler with appropriate async-signal-safety care.
-2. Consider a recovery snapshot from the signal handler. `_exit` and the
-   pre-allocated snapshot path mean this is feasible if the write is bounded
-   in size and uses pre-allocated buffers.
-
----
-
-### Issue 5 — "Drawer is a view" is true but `pane_focus` overloads the pane vocabulary [Low]
-
-**What the docs say.** [architecture.md:138-141](docs/developer/architecture.md#L138-L141):
-"The drawer is a view over project tree entries…it does not own file text."
-The pane layout is described as the binary tree of editor/terminal leaves.
-
-**What the code does.** Consistent with the docs — the drawer is not a pane
-in the layout tree. *But* `E.pane_focus` is `enum editorPaneFocus
-{ EDITOR_PANE_TEXT, EDITOR_PANE_DRAWER }`
-([rotide.h:143-146](src/rotide.h#L143-L146)) — a separate "focus is on text
-vs drawer" toggle that uses the word "pane" alongside the actual pane tree
-(`E.focused_leaf`). Readers will conflate the two.
-
-**Why it matters.** Pure clarity. The two concepts are independent (a click on
-the drawer changes `pane_focus`; arrow-pane focus changes `focused_leaf`),
-but they share a noun. A future contributor adding a third focusable surface
-(e.g., a search results pane) will have to invent a third overloaded name.
-
-**Recommended action.** Rename `editorPaneFocus` →
-`editorPrimaryFocus` (or similar) and update the docs accordingly. Cheap and
-worth doing as part of Phase 12.
-
----
-
-### Issue 6 — File watching is poll-based, undocumented [Low]
-
-**What the docs say.** No mention of file-watching mechanism. The
-architecture container diagram shows
-`Rel(workspace, files, "Open, save, recover, watch")`
-([architecture-container.puml:34](docs/diagrams/src/architecture-container.puml#L34))
-without committing to a mechanism.
-
-**What the code does.** [watch.c:419-447](src/workspace/watch.c#L419-L447)
-polls every `EDITOR_WATCH_FILE_POLL_MS` (for editor) and
-`EDITOR_WATCH_GIT_POLL_MS` (for git) by stat()ing each tab's file. There is
-no inotify/kqueue.
-
-**Why it matters.** Modest cost: with many open tabs in a large project, each
-poll cycle stats every tab. For a terminal editor with O(10) tabs this is
-fine. But the user-facing watch loop is not documented, so contributors will
-have to read the code to understand reload behavior.
-
-**Recommended action.** A two-line note in
-[architecture.md](docs/developer/architecture.md) under "Save and Recovery"
-that file watching is poll-based, with the constants. No code change.
-
----
-
-### Issue 7 — `screen.c`'s frame-row cache and global render flags [Low / Medium]
-
-**What the code does.** [screen.c:74-78](src/render/screen.c#L74-L78) holds
-several module-level globals (`g_file_row_frame_cache`,
-`g_editor_drawing_current_line_highlight`, etc.). The render path also
-touches `editorRefreshScreen`, which performs the following on each frame:
-
-```c
-editorLspPumpNotifications();
-editorDapPumpNotifications();
-editorViewportUpdateForFrame();
-```
-
-([screen.c:1277-1281](src/render/screen.c#L1277-L1281))
-
-**Why it matters.** "Renderer reads state only; pane/drawer/tab state
-ownership stays in Workspace" is one of the explicit guardrails in
-[PLAN.md](PLAN.md#L131). Pumping LSP/DAP notifications inside the renderer
-violates that — at minimum it couples frame timing to JSON-RPC processing.
-[workflows.md:37-41](docs/developer/workflows.md#L37-L41) does call this
-out ("`editorRefreshScreen` is where LSP, DAP, and terminal-pane pumping
-happens each frame"), so it's documented, but the choice to make the
-renderer the pump for everything is worth a sentence of justification in
-architecture.md. The trade-off is real: low-latency UI events trigger
-refreshes, so pumping at refresh time is convenient. But it means a slow
-LSP server can slow paint.
-
-**Recommended action.** Either move LSP/DAP/viewport prep into the main loop
-before `editorRefreshScreen` (keeping `screen.c` as a pure painter, which
-matches the container diagram), or document the deliberate exception in
-architecture.md explaining why the renderer is the pump.
-
----
-
-### Issue 8 — Layout serialization loses pane kind [Low, documented]
-
-[layout.h:359-366](src/workspace/layout.h#L359-L366) is explicit:
-"kind is not preserved — terminals lapse to editor leaves on restore." This
-is *documented*, but it's an architectural smell to flag: the layout tree is
-the persisted thing, but kind_state (terminal panes) is session-bound. The
-implication is that restoring a multi-pane workspace with a terminal pane
-results in an empty editor leaf where the terminal used to be. Users may not
-expect this.
-
-**Recommended action.** Either document this in user-facing docs (README
-Configuration section) or persist *something* (e.g., the working directory)
-to re-launch a default shell on restore.
-
----
-
-## Test Coverage
-
-Reading the test layout: ~25k lines of tests, 14 test binaries, organized by
-subsystem with shared `test_case.h`/`test_helpers.{c,h}` infrastructure. CI
-runs `make`, `make test`, and `make test-sanitize`
-([README.md:159-165](README.md#L159-L165)). The test-API surface
-([editor_test_api.h](tests/editor_test_api.h)) is narrow: just rebuild/splice
-counters for verifying invariants.
-
-This is unusually disciplined for a project this size. The one observation:
-the larger test files mirror the larger production files (4k-line tests for
-4k-line modules), and Phase 13 in [PLAN.md](PLAN.md#L735-L759) plans to split
-them along the new boundaries. That ordering is right.
-
----
-
-## Documentation Quality
-
-Strengths:
-- Diagrams are PlantUML + committed SVG, so the markdown renders in plain
-  viewers but the source is editable. The renderer (`make docs-diagrams`)
-  is wired into the build.
-- The two-file split (architecture for ownership, workflows for sequencing)
-  is the right factoring; many projects do only one and produce a confusing
-  blob.
-- [README.md](docs/developer/README.md) has explicit "Documentation Rules"
-  that reinforce the canonical invariants. This is a good defense against
-  doc drift.
-- [PLAN.md](PLAN.md) is an honest, in-progress refactor log, not aspirational
-  marketing.
-
-Gaps:
-- No `error_handling.md` or `concurrency.md`. The syntax background worker
-  ([syntax_worker.c:7-22](src/language/syntax_worker.c#L7-L22)) is the only
-  thread in the system, and it has a documented snapshot-and-revision-check
-  protocol — that's worth its own page. So is the allocation-failure
-  policy: most code paths return `0` on OOM and `editorSetAllocFailureStatus`,
-  but it's worth stating that as an explicit invariant.
-- The LSP "one process at a time" limitation (Issue 1) needs to be in the
-  docs.
-- The signal-handler exit path (Issue 4) is not documented.
-- File watching mechanism (Issue 6) is not documented.
-
----
-
-## Risks (forward-looking)
-
-1. **Multi-language LSP demand will force Issue 1.** As soon as a real user
-   workflow involves alternating Go and TypeScript files, the kill/respawn
-   cycle becomes visible. This will surface as bug reports framed as "LSP
-   slow / loses diagnostics on tab switch," not as the architectural issue it
-   is.
-2. **The `editorTabState` / `E` duplication will block the Phase 6 / Phase 9
-   splits.** Both phases want to push state ownership into smaller modules,
-   but the active-buffer-as-copy model means every helper that touches `E.*`
-   is implicitly tab-coupled. Without Issue 2 fixed first, those refactors
-   will produce smaller files that share the same coupling.
-3. **Single-rooted workspace state.** Workspace state is keyed by `cwd`
-   ([workspace_state.c:83-101](src/workspace/workspace_state.c#L83-L101)).
-   Opening rotide from a parent directory and from a subdirectory produces
-   two unrelated state files. Acceptable for a small editor; mention in docs.
-4. **Vendored libvterm, vendored Tree-sitter.** Both have warning-suppression
-   carve-outs in the Makefile
-   ([architecture.md:189-190](docs/developer/architecture.md#L189-L190),
-   [build-and-tests.md:62-77](docs/developer/build-and-tests.md#L62-L77)).
-   This is fine, but worth a CI job that periodically rebuilds with strict
-   warnings on those subtrees to catch upstream regressions.
-5. **DAP and LSP both spawn via `/bin/sh -c`**
-   ([lsp_transport.c:452](src/language/lsp_transport.c#L452)). The doc note
-   about `.rotide.toml` not being read from the project
-   ([README.md:122-123](README.md#L122-L123)) is the right call. As long as
-   only global config supplies these commands, this is safe. Don't relax
-   that without a hard look.
-
----
-
-## Recommendations, Prioritized
-
-| # | Action | Effort | Impact |
+# RotIDE Architecture Audit — Revision 2
+
+**Date:** 2026-05-15 (Revision 2, after Phases 6–10)
+**Scope:** [docs/developer/](docs/developer/) and [PLAN.md](PLAN.md) treated as
+source of truth; current source under [src/](src/) verified against doc
+claims. Diagram sources at [docs/diagrams/src/](docs/diagrams/src/).
+**Previous score:** 7/10 (Revision 1).
+**New score: 8.5 / 10.**
+
+## What Changed Since Revision 1
+
+The team has landed 48 commits since the original audit. The two **High** issues
+from Revision 1 — single LSP process and `editorTabState` / `E` field-copy
+duplication — are now structurally addressed in code. Phases 6, 7, 8, 9 are
+complete and Phase 10 is in-progress with the LSP registry already merged. The
+hotspots have shrunk dramatically:
+
+| File | Rev 1 baseline | Current | Δ |
 | --- | --- | --- | --- |
-| 1 | Document the single-LSP-client limitation in `architecture.md` and `lsp-flow.puml`. | XS | Prevents user/contributor confusion now. |
-| 2 | Plan and execute an LSP registry keyed by `(server_kind, workspace_root)`. | L | Removes biggest visible product limitation. |
-| 3 | Introduce `struct editorBuffer` and replace the field-by-field tab capture/load with pointer swap. | M | Unblocks Phases 6, 9, 12; eliminates ≈300 lines of duplication. |
-| 4 | Group `struct editorConfig` fields by container (cheap) and extract a small `editorEnvironment`. | S | Lowers cognitive load for every future change. |
-| 5 | Fix the startup-loop diagram or wire LSP/DAP/syntax shutdown into the signal handler. | S | Honesty + slightly cleaner exit on Ctrl-C in a real terminal. |
-| 6 | Decide: renderer-as-pump (document it) vs. main-loop pump (move calls out of `editorRefreshScreen`). | S–M | Restores the "renderer is read-only" guardrail. |
-| 7 | Rename `editorPaneFocus` → `editorPrimaryFocus`. | XS | Vocabulary clarity. |
-| 8 | Add `error_handling.md` and `concurrency.md` pages. | S | Two real invariants (OOM policy, syntax worker revisions) deserve their own page. |
-| 9 | Document file-watching as poll-based. | XS | One-line note. |
-| 10 | Continue Phase 6 → 13 of [PLAN.md](PLAN.md) in the documented order. | L | Already in flight. |
+| `src/render/screen.c` | 5,159 | 1,514 | −71% |
+| `src/input/dispatch.c` | 4,773 | 2,059 | −57% |
+| `src/editing/buffer_core.c` | 2,584 | 616 | −76% |
+| `src/workspace/drawer.c` | 2,984 | 316 | −89% |
+| `src/language/lsp.c` | 2,209 | 2,192 | −0.8% (but registry is in) |
+| `src/language/syntax.c` | 3,042 | 3,042 | unchanged (Phase 11 pending) |
+
+Source tree size is roughly flat (~47k lines) — the work was reorganization,
+not deletion. That's the right outcome: behavior preserved, ownership
+clarified.
 
 ---
 
-## Overall Score: 7 / 10
+## Status of Revision 1 Issues
 
-**What this score means.** RotIDE is in the top quartile for terminal editors
-in this size class. The fundamentals (canonical document model, action-based
-input, single edit pipeline, atomic save, document-first recovery, layout
-tree, vendored libvterm/Tree-sitter with sensible carve-outs) are right and
-documented. The doc set itself is unusually good and clearly co-evolves with
-the code via the PLAN.md ratchet.
+### Issue 1 — Single LSP process per editor → **Resolved (transitional)**
 
-**What keeps it from 8–9.** Two structural issues — the
-single-LSP-per-editor design and the `editorTabState` / `E` field-by-field
-copy model — are doing real work and are not surfaced honestly in the docs.
-The first is a product limitation; the second is an internal one that will
-quietly tax every future refactor. Neither is hard to fix on its own; both
-need a deliberate decision rather than another phase of moving files around.
+A real `(server_kind, workspace_root)` registry is now in place at
+[lsp_registry.c](src/language/lsp_registry.c) with a 16-client cap. The
+critical fix is at
+[lsp.c:531-551](src/language/lsp.c#L531-L551):
 
-**What would get it to 9–10.** Issues 1 and 2 resolved; the renderer becomes
-a true read-only painter; `rotide.h` shrinks below 400 lines as Phase 12
-intends; `concurrency.md` and `error_handling.md` exist. At that point the
-documented architecture and the implemented architecture are the same thing,
-which is the only definition of "well-architected" that matters.
+```c
+struct editorLspClient *client =
+        editorLspRegistryAcquireClient(server_kind, workspace_root_path);
+...
+editorLspRegistrySetActiveClient(server_kind, client);
+...
+if (client->initialized && client->server_kind == server_kind &&
+        editorLspProcessAlive(client) &&
+        editorLspWorkspaceRootsMatch(client->workspace_root_path,
+                workspace_root_path)) {
+    free(workspace_root_path);
+    return 1;          // reuse live client; no kill/respawn
+}
+```
+
+Switching between a Go and a C tab now reuses both live servers instead of
+killing and respawning. Opening two workspaces of the same language uses two
+clients. That was the entire intent.
+
+**Transitional smell, not a blocker.** The per-call code paths
+(`editorLspSendRawJson`, `editorLspNotifyDidChange`, completion) still talk
+through the `g_lsp_client` macro, which is now
+`*editorLspPrimaryClient()` — i.e., whatever the registry's `primary_active`
+pointer last got set to
+([lsp_transport.h:49-50](src/language/lsp_transport.h#L49-L50)). Because every
+notify/request path calls `editorLspEnsureRunningForFile(...)` first — which
+calls `editorLspRegistrySetActiveClient` for the file's `(server_kind, root)`
+— the right client is selected before each operation. This is correct under
+the editor's single-threaded model. But the implicit "active client" pointer
+is now the next thing to clean up: pass the client explicitly to
+didChange/didSave/completion, then remove `g_lsp_client` entirely. Phase 10
+already lists `lsp_client.{c,h}` as a target, so this slot is the natural
+home for that follow-up.
+
+### Issue 2 — `editorTabState` / `E` field-by-field copy → **Resolved**
+
+This is the cleanest fix of the batch. [rotide.h:587-683](src/rotide.h#L587-L683)
+declares one X-macro field list:
+
+```c
+#define EDITOR_ACTIVE_BUFFER_FIELDS(X) \
+    EDITOR_ACTIVE_BUFFER_CORE_FIELDS(X) \
+    EDITOR_ACTIVE_BUFFER_LSP_FIELDS(X) \
+    EDITOR_ACTIVE_BUFFER_SEARCH_FIELDS(X) \
+    EDITOR_ACTIVE_BUFFER_EDIT_FIELDS(X)
+
+struct editorBuffer {
+    EDITOR_ACTIVE_BUFFER_FIELDS(EDITOR_DECLARE_FIELD)
+};
+
+struct editorTabState {
+    union {
+        struct editorBuffer buffer;
+        struct { EDITOR_ACTIVE_BUFFER_FIELDS(EDITOR_DECLARE_FIELD) };
+    };
+};
+
+struct editorConfig {
+    ...
+    union {
+        struct editorBuffer active_buffer;
+        struct { EDITOR_ACTIVE_BUFFER_FIELDS(EDITOR_DECLARE_FIELD) };
+    };
+    ...
+};
+```
+
+Capture and load are now [single struct moves](src/workspace/tabs.c#L194-L230):
+
+```c
+static void editorTabStateCaptureActive(struct editorTabState *tab) {
+    editorTabStateFree(tab);
+    ...
+    editorBufferMove(&tab->buffer, &E.active_buffer);
+}
+
+static void editorTabStateLoadActive(struct editorTabState *tab) {
+    editorBufferMove(&E.active_buffer, &tab->buffer);
+    ...
+}
+```
+
+Three near-identical 60-field copy functions collapsed to one struct
+assignment per direction. The compatibility union preserves `E.cx` /
+`tab->cx` access, so the migration didn't require touching every call site.
+Direct `tab->...` access is now confined to `tabs.c` itself
+(`grep tab->cx` returns nine hits, all in
+[tabs.c:902-915](src/workspace/tabs.c#L902-L915)), and cross-domain access
+goes through [`editorTabBufferHandleAt*`](src/workspace/tabs.c#L150-L165)
+accessors. Adding a per-tab field is now one line in the X-macro list.
+
+This is a model resolution: the duplication is *gone*, but legacy call-site
+syntax (`tab->cx`, `E.cx`) keeps working through the union. The compatibility
+union should eventually disappear after Phase 13, but it carries no cost.
+
+### Issue 3 — `editorConfig` overloading → **Largely deferred to Phase 13, partly mitigated**
+
+The macro grouping (`EDITOR_ACTIVE_BUFFER_CORE_FIELDS`,
+`..._LSP_FIELDS`, `..._SEARCH_FIELDS`, `..._EDIT_FIELDS`) gives readers the
+container structure for the per-tab portion of `E`. The non-tab portion of
+`editorConfig` is unchanged. PLAN.md Phase 13 still owns the rest.
+
+### Issue 4 — Startup-loop diagram vs signal-exit reality → **Still open**
+
+[`main()`](src/rotide.c) still has the unconditional `while(1)`; signal
+handling still doesn't run LSP/DAP/syntax shutdown. PLAN.md acknowledges this
+("keep architecture diagrams honest about current exit paths") but no slice
+has landed for it. Recommendation unchanged: either fix the diagram or wire
+the shutdowns into the signal handler.
+
+### Issue 5 — `pane_focus` vocabulary overload → **Still open**
+
+PLAN.md Phase 13 owns this rename. No change yet.
+
+### Issue 6 — File watching poll mechanism undocumented → **Plan updated, doc not yet**
+
+Phase 9 explicitly says "keep watch poll-based unless changed explicitly,"
+but [architecture.md](docs/developer/architecture.md) still doesn't mention
+the polling mechanism. One-sentence doc change still pending.
+
+### Issue 7 — `editorRefreshScreen` pumps LSP/DAP/viewport → **Decision deferred, surfaced in PLAN**
+
+Phase 3 audit follow-up in PLAN.md now reads:
+
+> Decide whether frame-time pumping … remains a documented exception inside
+> `editorRefreshScreen`, or move it into the main loop before rendering …
+
+The decision is queued, but the code is unchanged and the docs don't reflect
+either choice. Same advice as Rev 1: pick one and document it.
+
+### Issue 8 — Layout serialization loses pane kind → **Unchanged, still documented in header**
+
+No new work; not a load-bearing issue.
+
+---
+
+## New Observations From This Revision
+
+### Strength A — The X-macro field list is the right abstraction
+
+This is worth calling out explicitly because it's the kind of choice that
+ages well. The temptation when fixing Issue 2 would have been a
+heavyweight redesign: introduce an opaque `editorBuffer` type, hide the
+fields behind getters/setters, force every call site to change. Instead the
+fix is a single declarative list of field types and names that both structs
+expand into. The compatibility union means the rest of the codebase didn't
+have to be rewritten in the same slice. That's a load-bearing piece of taste.
+
+### Strength B — `buffer_core.c` shrinkage is real, not just renaming
+
+The 2,584 → 616 line drop on `buffer_core.c` came with seven new files
+(`document_bridge`, `document_position`, `text_source`, `row_cache`,
+`edit_pipeline`, `buffer_search`, `post_edit_notify`, `syntax_runtime.h`),
+each with a narrow header. `buffer_core.c` is no longer the catch-all bridge
+it used to be. The `editorApplyDocumentEdit` contract has *moved* to
+[edit_pipeline.h](src/editing/edit_pipeline.h) where it belongs.
+
+The one design decision worth noting: the Text engine → Language services
+relationship is now an explicit narrow bridge
+([post_edit_notify.{c,h}](src/editing/), [syntax_runtime.h](src/editing/syntax_runtime.h)).
+That's the right factoring — the edit pipeline doesn't directly call into
+syntax/LSP modules, it calls one notify function. This is the kind of seam
+the C4 container diagram has been promising and it finally exists.
+
+### Strength C — Drawer split is the textbook outcome
+
+`drawer.c` went 2,984 → 316 lines, fragmenting into nine focused files
+covering tree, modes (menu/git/lsp/dap), layout, file ops. The renderer
+still consumes [drawer_view.c](src/render/drawer_view.c) view entries, not
+tree internals — that boundary held throughout.
+
+### New Issue (Low) — LSP request paths still call through `g_lsp_client` macro
+
+This was flagged above under Issue 1's resolution. To restate as a discrete
+finding: the registry stores N clients, but the per-call code still
+references `g_lsp_client` (the active primary). The next step is to remove
+the implicit "active client" and pass the client explicitly into request
+helpers. Functionally fine today; structurally still a singleton pretending
+otherwise. Phase 10's `lsp_client.{c,h}` extraction is the right home.
+
+**Recommended action.** When `lsp.c` is split into `lsp_client.{c,h}`,
+`lsp_requests.{c,h}`, etc., make the request helpers take an
+`editorLspClient *` parameter and delete the `g_lsp_client` macro. This is
+mostly a sed job once the splits are mechanical.
+
+### New Issue (Low) — LSP registry has a 16-client cap and a thrash mode
+
+[lsp_registry.c:6](src/language/lsp_registry.c#L6) caps clients at 16. When
+full, [`editorLspRegistrySelectEvictionCandidate`](src/language/lsp_registry.c#L77-L101)
+picks a non-active client to evict, preferring dead or `EDITOR_LSP_SERVER_NONE`
+slots, else any non-active client, else the first slot. This is fine for
+the editor's intended scale (a user is unlikely to span 16 simultaneous
+`(server_kind, workspace_root)` pairs), but two things are worth noting:
+
+1. The eviction policy has no LRU; "first non-active client" is the
+   fallback. A pathological case (open files from many roots cyclically)
+   would thrash. Probably never hits in practice, but worth a comment in
+   the code or a short note in docs.
+2. There's no test in [tests/test_lsp.c](tests/test_lsp.c) for the
+   eviction path (`grep` for `editorLspRegistry` in tests returns nothing).
+   Worth adding one before Phase 10 closes, so the policy is pinned.
+
+**Recommended action.** Add an LRU touch on `editorLspRegistrySetActiveClient`
+and one test covering both reuse and eviction. Small effort, locks in the
+key behavior.
+
+### New Observation — Docs lag the code by one revision
+
+architecture.md, the LSP diagrams, and the LSP-document-lifecycle state
+machine all still describe the pre-registry world ("LSP state is tracked
+per tab"). The `editorBuffer` union is invisible in `pane-layout.puml`
+(which still says "live focused-pane view" inside `E`). This is mostly
+fine — the docs aren't *wrong*, they're outdated — but the gap will grow
+if Phase 10 lands the rest of the LSP split without a doc pass.
+
+**Recommended action.** Schedule a single doc-sync slice between Phase 10
+and Phase 11. Targets:
+- LSP section in [architecture.md](docs/developer/architecture.md): describe
+  the registry, the `(server_kind, workspace_root)` keying, and the eviction
+  bound.
+- [pane-layout.puml](docs/diagrams/src/pane-layout.puml): replace "live
+  focused-pane view" prose with `struct editorBuffer` and the
+  `E.active_buffer` / `tab->buffer` union.
+- [lsp-document-lifecycle.puml](docs/diagrams/src/lsp-document-lifecycle.puml):
+  add a note that the underlying *client* can be reused across tabs, and that
+  tab-local state still owns version/diagnostics/open flags.
+
+---
+
+## What's Still Pending From PLAN.md
+
+These are queued, not problems:
+
+- **Phase 10 finish**: `lsp_client.{c,h}`, `lsp_requests.{c,h}`,
+  `lsp_responses.{c,h}`, `lsp_features.{c,h}` splits, plus delete
+  `g_lsp_client` macro.
+- **Phase 11**: split `syntax.c` (3,042 lines, biggest single remaining file).
+- **Phase 12**: config/theme boilerplate.
+- **Phase 13**: `rotide.h` shrink including grouping `editorConfig`, extracting
+  `editorEnvironment`, renaming `editorPaneFocus`.
+- **Phase 14**: split oversized test files.
+- **Cross-cutting**: doc sync after Phase 10, signal-handler shutdown decision,
+  watch poll docs, render-pump decision.
+
+---
+
+## Updated Risk Register
+
+1. **Phase 10 mid-flight** — registry is in but request helpers aren't yet
+   split. The transitional `g_lsp_client` macro is a soft coupling that will
+   complicate future LSP work until removed. Low if Phase 10 lands soon;
+   moderate if it stalls.
+2. **`syntax.c` still 3k lines** — Phase 11's deferral until Phase 8 was the
+   right call, but it's now the single largest file in the codebase and
+   handles parse, captures, injections, and budgeting in one place. No
+   functional risk; just the next obvious refactor target.
+3. **Doc drift** — the gap between docs and code is bigger than it was at
+   Rev 1, because the code moved and the docs didn't. Acceptable for a
+   week; problematic if it lasts a quarter.
+4. **Vendored libraries** — unchanged (still libvterm 0.3.x and pinned
+   Tree-sitter grammars, warning-relaxed). No new issues.
+
+---
+
+## Updated Recommendations, Prioritized
+
+| # | Action | Effort | Impact | Status vs Rev 1 |
+| --- | --- | --- | --- | --- |
+| 1 | Finish Phase 10: split `lsp.c`, pass `editorLspClient *` explicitly, delete `g_lsp_client` macro. | M | Removes last LSP singleton. | New (replaces old #1/#2). |
+| 2 | Doc-sync slice: LSP registry, `editorBuffer`, pane-layout diagram. | S | Closes the Rev-1→Rev-2 doc gap. | New. |
+| 3 | Phase 11 syntax core split. | M | Largest remaining file; same playbook as `screen.c`. | Unchanged. |
+| 4 | Phase 13 `rotide.h` shrink, `editorPaneFocus` rename, `editorEnvironment` extraction. | M | Continues clarifying the global root. | Partially mitigated. |
+| 5 | Decide & document the `editorRefreshScreen` pumping question. | S | Restores renderer-as-painter guardrail or formalizes the exception. | Unchanged. |
+| 6 | Wire LSP/DAP/syntax shutdown into signal handler OR fix startup-loop diagram. | S | Honesty + graceful exit. | Unchanged. |
+| 7 | Document file-watch as poll-based; one-sentence fix. | XS | Closes a documented-gap issue. | Unchanged. |
+| 8 | Add LSP registry LRU + an eviction test. | S | Locks in the registry contract. | New. |
+| 9 | Add `concurrency.md` (syntax worker) and `error_handling.md` (OOM policy). | S | Two real invariants without a home. | Unchanged. |
+| 10 | Phase 14 test-file split. | M | After production split stabilizes. | Unchanged. |
+
+---
+
+## Updated Score: 8.5 / 10
+
+**What changed since the 7.**
+
+The two highest-severity items from Revision 1 have been substantively fixed
+in the code (Issue 1 via the registry, Issue 2 via the `editorBuffer`
+union/X-macro), and the work landed in small, validated slices with the
+`make`/`make test`/`make test-sanitize` cadence preserved throughout. Both
+solutions show good taste — the X-macro field list and the (server_kind,
+root) keying are exactly what those problems wanted. The bulk refactor work
+(Phases 6–9) executed cleanly, with line-count reductions matched by new
+focused modules and no behavioral regressions in 771 tests.
+
+**Why not 9 yet.**
+
+- Phase 10 is mid-flight. The registry exists, but request helpers still
+  flow through the `g_lsp_client` macro. The architectural intent (multi-
+  client coexistence) is in place; the call-site discipline that would let
+  you delete the macro is not.
+- Docs lag the code by one full revision. architecture.md, the LSP diagrams,
+  and `pane-layout.puml` still describe the pre-registry, pre-`editorBuffer`
+  world. The gap is honest (PLAN.md acknowledges it) but real.
+- Several lower-severity Rev 1 items (signal-handler exit path, watch
+  polling, refresh-pumping decision, `editorPaneFocus` rename,
+  `concurrency.md`/`error_handling.md`) remain queued.
+
+**What gets it to 9–10.**
+
+Finish Phase 10 (registry usage made explicit at every call site, macro
+deleted), land the doc-sync slice, complete `syntax.c` split (Phase 11), and
+clear the four small standing items (signal handler, refresh pumping
+decision, watch docs, `editorPaneFocus` rename). At that point the
+documented architecture, the diagrams, and the implemented architecture
+agree, and there are no implicit singletons left in the model.
+
+A 10 would require those plus the optional polish — `concurrency.md`,
+`error_handling.md`, the LSP registry eviction test, and a finished
+`rotide.h` shrink — none of which is hard, all of which is cheap once the
+prerequisites land.
