@@ -2,9 +2,16 @@
 
 #include "editing/edit.h"
 #include "editing/history.h"
+#include "input/prompt.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
+#include "workspace/git.h"
 #include "workspace/project_search.h"
+#include "workspace/tabs.h"
+
+#include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 void editorSetDrawerCollapseStatus(int collapsed) {
 	editorSetStatusMsg(collapsed ? "Drawer collapsed" : "Drawer expanded");
@@ -52,6 +59,102 @@ void editorOpenProjectSearchDrawer(void) {
 		return;
 	}
 	E.pane_focus = EDITOR_PANE_DRAWER;
+}
+
+void editorDrawerPromptCreateFile(void) {
+	if (editorDrawerIsCollapsed() || E.drawer_root == NULL) {
+		editorSetStatusMsg("Drawer is not visible");
+		return;
+	}
+	char *name = editorPrompt("New file: %s");
+	if (name == NULL) {
+		return;
+	}
+	(void)editorDrawerCreateFileAtSelection(name, E.window_rows);
+	free(name);
+	E.pane_focus = EDITOR_PANE_DRAWER;
+}
+
+void editorDrawerPromptCreateFolder(void) {
+	if (editorDrawerIsCollapsed() || E.drawer_root == NULL) {
+		editorSetStatusMsg("Drawer is not visible");
+		return;
+	}
+	char *name = editorPrompt("New folder: %s");
+	if (name == NULL) {
+		return;
+	}
+	(void)editorDrawerCreateFolderAtSelection(name, E.window_rows);
+	free(name);
+	E.pane_focus = EDITOR_PANE_DRAWER;
+}
+
+void editorDrawerPromptRename(void) {
+	if (editorDrawerIsCollapsed() || E.drawer_root == NULL) {
+		editorSetStatusMsg("Drawer is not visible");
+		return;
+	}
+	if (editorDrawerSelectedIsRoot()) {
+		editorSetStatusMsg("Cannot rename drawer root");
+		return;
+	}
+	const char *path = editorDrawerSelectedPath();
+	if (path == NULL) {
+		editorSetStatusMsg("Select an entry to rename");
+		return;
+	}
+	char *new_name = editorPrompt("Rename to: %s");
+	if (new_name == NULL) {
+		return;
+	}
+	(void)editorDrawerRenameSelection(new_name, E.window_rows);
+	free(new_name);
+	E.pane_focus = EDITOR_PANE_DRAWER;
+}
+
+void editorDrawerPromptDelete(void) {
+	if (editorDrawerIsCollapsed() || E.drawer_root == NULL) {
+		editorSetStatusMsg("Drawer is not visible");
+		return;
+	}
+	if (editorDrawerSelectedIsRoot()) {
+		editorSetStatusMsg("Cannot delete drawer root");
+		return;
+	}
+	const char *path = editorDrawerSelectedPath();
+	if (path == NULL) {
+		editorSetStatusMsg("Select an entry to delete");
+		return;
+	}
+	if (!editorPromptYesNo("Delete selection? [y/N] %s")) {
+		editorSetStatusMsg("Delete cancelled");
+		return;
+	}
+	(void)editorDrawerDeleteSelection(E.window_rows);
+	E.pane_focus = EDITOR_PANE_DRAWER;
+}
+
+int editorOpenSelectedGitDiff(void) {
+	int entry_idx = -1;
+	if (!editorDrawerSelectedGitEntry(&entry_idx)) {
+		return 0;
+	}
+	if (entry_idx < 0 || entry_idx >= E.git_entry_count) {
+		return 0;
+	}
+	const struct editorGitEntry *entry = &E.git_entries[entry_idx];
+	size_t diff_len = 0;
+	char *diff_text = editorGitGenerateDiff(entry->rel_path, entry->index_status,
+			entry->worktree_status, &diff_len);
+	if (diff_text == NULL) {
+		editorSetStatusMsg("Failed to generate git diff");
+		return 0;
+	}
+	char title[PATH_MAX + 16];
+	snprintf(title, sizeof(title), "git diff: %s", entry->rel_path);
+	int ok = editorTabOpenGitDiff(title, diff_text);
+	free(diff_text);
+	return ok;
 }
 
 int editorHandleDrawerSearchMappedAction(enum editorAction action, int *cursor_or_edit_out,

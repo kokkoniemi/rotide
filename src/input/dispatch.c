@@ -1679,79 +1679,6 @@ static void editorGoToLine(void) {
 	}
 }
 
-static void editorDrawerPromptCreateFile(void) {
-	if (editorDrawerIsCollapsed() || E.drawer_root == NULL) {
-		editorSetStatusMsg("Drawer is not visible");
-		return;
-	}
-	char *name = editorPrompt("New file: %s");
-	if (name == NULL) {
-		return;
-	}
-	(void)editorDrawerCreateFileAtSelection(name, E.window_rows);
-	free(name);
-	E.pane_focus = EDITOR_PANE_DRAWER;
-}
-
-static void editorDrawerPromptCreateFolder(void) {
-	if (editorDrawerIsCollapsed() || E.drawer_root == NULL) {
-		editorSetStatusMsg("Drawer is not visible");
-		return;
-	}
-	char *name = editorPrompt("New folder: %s");
-	if (name == NULL) {
-		return;
-	}
-	(void)editorDrawerCreateFolderAtSelection(name, E.window_rows);
-	free(name);
-	E.pane_focus = EDITOR_PANE_DRAWER;
-}
-
-static void editorDrawerPromptRename(void) {
-	if (editorDrawerIsCollapsed() || E.drawer_root == NULL) {
-		editorSetStatusMsg("Drawer is not visible");
-		return;
-	}
-	if (editorDrawerSelectedIsRoot()) {
-		editorSetStatusMsg("Cannot rename drawer root");
-		return;
-	}
-	const char *path = editorDrawerSelectedPath();
-	if (path == NULL) {
-		editorSetStatusMsg("Select an entry to rename");
-		return;
-	}
-	char *new_name = editorPrompt("Rename to: %s");
-	if (new_name == NULL) {
-		return;
-	}
-	(void)editorDrawerRenameSelection(new_name, E.window_rows);
-	free(new_name);
-	E.pane_focus = EDITOR_PANE_DRAWER;
-}
-
-static void editorDrawerPromptDelete(void) {
-	if (editorDrawerIsCollapsed() || E.drawer_root == NULL) {
-		editorSetStatusMsg("Drawer is not visible");
-		return;
-	}
-	if (editorDrawerSelectedIsRoot()) {
-		editorSetStatusMsg("Cannot delete drawer root");
-		return;
-	}
-	const char *path = editorDrawerSelectedPath();
-	if (path == NULL) {
-		editorSetStatusMsg("Select an entry to delete");
-		return;
-	}
-	if (!editorPromptYesNo("Delete selection? [y/N] %s")) {
-		editorSetStatusMsg("Delete cancelled");
-		return;
-	}
-	(void)editorDrawerDeleteSelection(E.window_rows);
-	E.pane_focus = EDITOR_PANE_DRAWER;
-}
-
 static const char *editorBasenameFromPath(const char *path) {
 	if (path == NULL) {
 		return "";
@@ -1761,29 +1688,6 @@ static const char *editorBasenameFromPath(const char *path) {
 		return path;
 	}
 	return base + 1;
-}
-
-static int editorOpenSelectedGitDiff(void) {
-	int entry_idx = -1;
-	if (!editorDrawerSelectedGitEntry(&entry_idx)) {
-		return 0;
-	}
-	if (entry_idx < 0 || entry_idx >= E.git_entry_count) {
-		return 0;
-	}
-	const struct editorGitEntry *entry = &E.git_entries[entry_idx];
-	size_t diff_len = 0;
-	char *diff_text = editorGitGenerateDiff(entry->rel_path, entry->index_status,
-			entry->worktree_status, &diff_len);
-	if (diff_text == NULL) {
-		editorSetStatusMsg("Failed to generate git diff");
-		return 0;
-	}
-	char title[PATH_MAX + 16];
-	snprintf(title, sizeof(title), "git diff: %s", entry->rel_path);
-	int ok = editorTabOpenGitDiff(title, diff_text);
-	free(diff_text);
-	return ok;
 }
 
 static int editorJumpToPathLocation(const char *path, int line, int character, int preview,

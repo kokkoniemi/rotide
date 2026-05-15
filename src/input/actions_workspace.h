@@ -8,6 +8,11 @@ void editorExpandDrawerForFocus(void);
 void editorToggleDrawerFocus(void);
 void editorOpenFileSearchDrawer(void);
 void editorOpenProjectSearchDrawer(void);
+void editorDrawerPromptCreateFile(void);
+void editorDrawerPromptCreateFolder(void);
+void editorDrawerPromptRename(void);
+void editorDrawerPromptDelete(void);
+int editorOpenSelectedGitDiff(void);
 int editorHandleDrawerSearchMappedAction(enum editorAction action, int *cursor_or_edit_out,
 		void (*project_replace_from_search)(void));
 int editorSwitchDrawerHeaderMode(enum editorDrawerMode mode);
