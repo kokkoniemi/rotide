@@ -4,6 +4,8 @@
 #include "render/write_buf.h"
 #include "workspace/layout.h"
 
+struct editorRowSyntaxSpan;
+
 struct editorViewSnapshot {
 	int cx;
 	int cy;
@@ -21,10 +23,16 @@ struct editorViewSnapshot {
 	int column_select_cursor_rx;
 };
 
+int editorPaneSyntaxRowOverrideCopy(int row_idx, struct editorRowSyntaxSpan *spans,
+		int max_spans, int *span_count_out);
+int editorPaneWrapBodyColsOverride(void);
+
 void editorViewSnapshotCapture(struct editorViewSnapshot *snap);
 void editorViewSnapshotRestore(const struct editorViewSnapshot *snap);
 void editorViewSnapshotFromPaneView(const struct editorPaneView *view);
 
+int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode *leaf,
+		int body_row_in_pane, int slice_cols);
 int editorDrawMultiPaneRows(struct writeBuf *wb,
 		const struct editorLeafLayout *layout,
 		const struct editorBorderList *borders,
