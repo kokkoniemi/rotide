@@ -1,8 +1,11 @@
 #include "input/actions_workspace.h"
 
+#include "config/dap_config.h"
+#include "debug/dap.h"
 #include "editing/edit.h"
 #include "editing/history.h"
 #include "input/prompt.h"
+#include "workspace/layout.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
@@ -422,6 +425,220 @@ int editorSwitchDrawerHeaderMode(enum editorDrawerMode mode) {
 		}
 		E.pane_focus = EDITOR_PANE_DRAWER;
 		return 0;
+	default:
+		return 0;
+	}
+}
+
+int editorHandleWorkspaceMappedAction(enum editorAction action,
+		int cursor_or_edit_effect_bit, editorWorkspaceProcessMappedActionFn process_mapped_action,
+		editorJumpToPathLocationFn jump_fn, int *effects_io) {
+	int effects = effects_io != NULL ? *effects_io : 0;
+	switch (action) {
+	case EDITOR_ACTION_FOCUS_DRAWER:
+		editorHistoryBreakGroup();
+		editorToggleDrawerFocus();
+		return 1;
+	case EDITOR_ACTION_TOGGLE_DRAWER:
+		editorHistoryBreakGroup();
+		if (editorDrawerToggleCollapsed()) {
+			editorSetDrawerCollapseStatus(editorDrawerIsCollapsed());
+			if (!editorDrawerIsCollapsed()) {
+				E.pane_focus = EDITOR_PANE_DRAWER;
+			}
+		}
+		return 1;
+	case EDITOR_ACTION_MAIN_MENU:
+		editorHistoryBreakGroup();
+		(void)editorDrawerMainMenuToggle();
+		editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_MAIN_MENU ?
+				"Main menu opened" : "Project drawer shown");
+		return 1;
+	case EDITOR_ACTION_GIT_DRAWER:
+		editorHistoryBreakGroup();
+		(void)editorDrawerGitToggle();
+		editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_GIT ?
+				(E.git_repo_root != NULL ? "Git changes shown" :
+				"Not in a git repository") :
+				"Project drawer shown");
+		return 1;
+	case EDITOR_ACTION_LSP_DRAWER:
+		editorHistoryBreakGroup();
+		(void)editorDrawerLspToggle();
+		editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_LSP ?
+				"LSP drawer shown" : "Project drawer shown");
+		return 1;
+	case EDITOR_ACTION_DAP_DRAWER:
+		editorHistoryBreakGroup();
+		(void)editorDrawerDapToggle();
+		editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_DAP ?
+				"DAP drawer shown" : "Project drawer shown");
+		return 1;
+	case EDITOR_ACTION_SPLIT_HORIZONTAL:
+		editorHistoryBreakGroup();
+		if (editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5) != NULL) {
+			editorPaneAnnounceFocus();
+		}
+		return 1;
+	case EDITOR_ACTION_SPLIT_VERTICAL:
+		editorHistoryBreakGroup();
+		if (editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5) != NULL) {
+			editorPaneAnnounceFocus();
+		}
+		return 1;
+	case EDITOR_ACTION_CLOSE_PANE:
+		editorHistoryBreakGroup();
+		if (editorLayoutCloseFocused() != NULL) {
+			editorPaneAnnounceFocus();
+		}
+		return 1;
+	case EDITOR_ACTION_FOCUS_LEFT_PANE:
+		editorHistoryBreakGroup();
+		if (editorLayoutFocusDirection(EDITOR_FOCUS_LEFT)) {
+			editorPaneAnnounceFocus();
+		}
+		return 1;
+	case EDITOR_ACTION_FOCUS_RIGHT_PANE:
+		editorHistoryBreakGroup();
+		if (editorLayoutFocusDirection(EDITOR_FOCUS_RIGHT)) {
+			editorPaneAnnounceFocus();
+		}
+		return 1;
+	case EDITOR_ACTION_FOCUS_UP_PANE:
+		editorHistoryBreakGroup();
+		if (editorLayoutFocusDirection(EDITOR_FOCUS_UP)) {
+			editorPaneAnnounceFocus();
+		}
+		return 1;
+	case EDITOR_ACTION_FOCUS_DOWN_PANE:
+		editorHistoryBreakGroup();
+		if (editorLayoutFocusDirection(EDITOR_FOCUS_DOWN)) {
+			editorPaneAnnounceFocus();
+		}
+		return 1;
+	case EDITOR_ACTION_PANE_GROW:
+		editorHistoryBreakGroup();
+		(void)editorLayoutResizeFocused(1);
+		return 1;
+	case EDITOR_ACTION_PANE_SHRINK:
+		editorHistoryBreakGroup();
+		(void)editorLayoutResizeFocused(0);
+		return 1;
+	case EDITOR_ACTION_RESIZE_DRAWER_NARROW:
+		editorHistoryBreakGroup();
+		if (editorDrawerIsCollapsed()) {
+			(void)editorDrawerSetCollapsed(0);
+		}
+		(void)editorDrawerResizeByDeltaForCols(-1, E.window_cols);
+		return 1;
+	case EDITOR_ACTION_RESIZE_DRAWER_WIDEN:
+		editorHistoryBreakGroup();
+		if (editorDrawerIsCollapsed()) {
+			(void)editorDrawerSetCollapsed(0);
+		}
+		(void)editorDrawerResizeByDeltaForCols(1, E.window_cols);
+		return 1;
+	case EDITOR_ACTION_FIND_FILE:
+		editorOpenFileSearchDrawer();
+		return 1;
+	case EDITOR_ACTION_PROJECT_SEARCH:
+		editorOpenProjectSearchDrawer();
+		return 1;
+	default:
+		break;
+	}
+
+	if (E.pane_focus != EDITOR_PANE_DRAWER) {
+		return 0;
+	}
+
+	switch (action) {
+	case EDITOR_ACTION_COLUMN_SELECT_LEFT:
+		editorHistoryBreakGroup();
+		if (editorDrawerIsCollapsed()) {
+			(void)editorDrawerSetCollapsed(0);
+		}
+		(void)editorDrawerResizeByDeltaForCols(-1, E.window_cols);
+		return 1;
+	case EDITOR_ACTION_COLUMN_SELECT_RIGHT:
+		editorHistoryBreakGroup();
+		if (editorDrawerIsCollapsed()) {
+			(void)editorDrawerSetCollapsed(0);
+		}
+		(void)editorDrawerResizeByDeltaForCols(1, E.window_cols);
+		return 1;
+	case EDITOR_ACTION_MOVE_UP:
+		editorHistoryBreakGroup();
+		if (editorDrawerMoveSelectionBy(-1, E.window_rows)) {
+			editorDrawerPreviewSelectionAfterMove(jump_fn);
+		}
+		return 1;
+	case EDITOR_ACTION_MOVE_DOWN:
+		editorHistoryBreakGroup();
+		if (editorDrawerMoveSelectionBy(1, E.window_rows)) {
+			editorDrawerPreviewSelectionAfterMove(jump_fn);
+		}
+		return 1;
+	case EDITOR_ACTION_MOVE_LEFT:
+	case EDITOR_ACTION_MOVE_WORD_LEFT:
+		editorHistoryBreakGroup();
+		(void)editorDrawerCollapseSelection(E.window_rows);
+		return 1;
+	case EDITOR_ACTION_MOVE_RIGHT:
+	case EDITOR_ACTION_MOVE_WORD_RIGHT:
+		editorHistoryBreakGroup();
+		(void)editorDrawerExpandSelection(E.window_rows);
+		return 1;
+	case EDITOR_ACTION_NEWLINE: {
+		editorHistoryBreakGroup();
+		E.drawer_last_click_visible_idx = -1;
+		E.drawer_last_click_ms = 0;
+		if (editorDrawerSelectedIsDirectory()) {
+			(void)editorDrawerToggleSelectionExpanded(E.window_rows);
+		} else if (E.drawer_mode == EDITOR_DRAWER_MODE_GIT) {
+			if (editorOpenSelectedGitDiff()) {
+				E.pane_focus = EDITOR_PANE_TEXT;
+				effects |= cursor_or_edit_effect_bit;
+			}
+		} else if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
+			if (editorJumpToSelectedLspDrawerLocation(0, jump_fn)) {
+				E.pane_focus = EDITOR_PANE_TEXT;
+				effects |= cursor_or_edit_effect_bit;
+			}
+		} else if (E.drawer_mode == EDITOR_DRAWER_MODE_DAP) {
+			int launch_idx = -1;
+			int default_idx = -1;
+			if (editorDrawerSelectedDapLaunch(&launch_idx)) {
+				E.dap_selected_launch = launch_idx;
+				if (editorDapStartLaunch(launch_idx)) {
+					effects |= cursor_or_edit_effect_bit;
+				}
+			} else if (editorDrawerSelectedDapDefault(&default_idx)) {
+				if (editorDapCreateProjectLaunchFromDefault(default_idx, E.drawer_root_path)) {
+					effects |= cursor_or_edit_effect_bit;
+				}
+			} else if (editorJumpToSelectedDapDrawerLocation(0, jump_fn)) {
+				E.pane_focus = EDITOR_PANE_TEXT;
+				effects |= cursor_or_edit_effect_bit;
+			}
+		} else {
+			enum editorAction menu_action = EDITOR_ACTION_COUNT;
+			if (editorDrawerSelectedMenuAction(&menu_action)) {
+				int mapped_effects = 0;
+				if (process_mapped_action != NULL &&
+						process_mapped_action(menu_action, &mapped_effects)) {
+					effects |= mapped_effects;
+				}
+				effects |= mapped_effects;
+			} else if (editorDrawerOpenSelectedFileInTab()) {
+				E.pane_focus = EDITOR_PANE_TEXT;
+			}
+		}
+		if (effects_io != NULL) {
+			*effects_io = effects;
+		}
+		return 1;
+	}
 	default:
 		return 0;
 	}

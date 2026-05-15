@@ -57,6 +57,8 @@ static int editorSetCursorFromPosition(int cy, int cx);
 static void editorClearSelectionMode(void);
 static void editorCtrlClickGoToDefinitionAction(void);
 static void editorGoToDefinition(void);
+static void editorGoToImplementation(void);
+static void editorGoToSymbol(void);
 
 static int editorIsWordByte(unsigned char b) {
 	return isalnum(b) || b == '_' || b >= 0x80;
@@ -2220,6 +2222,22 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 		}
 		return 1;
 	}
+	if (editorHandleWorkspaceMappedAction(action, EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT,
+				editorProcessMappedAction, editorJumpToPathLocation, &effects)) {
+		if (effects_out != NULL) {
+			*effects_out = effects;
+		}
+		return 1;
+	}
+	if (editorHandleLanguageMappedAction(action, EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT,
+				editorPinActivePreviewForEdit, editorGoToDefinition,
+				editorGoToImplementation, editorGoToSymbol, editorApplyEslintFixes,
+				&effects)) {
+		if (effects_out != NULL) {
+			*effects_out = effects;
+		}
+		return 1;
+	}
 
 	switch (action) {
 		case EDITOR_ACTION_QUIT:
@@ -2249,112 +2267,9 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			editorHistoryBreakGroup();
 			(void)editorTabSwitchByDelta(-1);
 			break;
-		case EDITOR_ACTION_FOCUS_DRAWER:
-			editorHistoryBreakGroup();
-			editorToggleDrawerFocus();
-			break;
-		case EDITOR_ACTION_TOGGLE_DRAWER:
-			editorHistoryBreakGroup();
-			if (editorDrawerToggleCollapsed()) {
-				editorSetDrawerCollapseStatus(editorDrawerIsCollapsed());
-				if (!editorDrawerIsCollapsed()) {
-					E.pane_focus = EDITOR_PANE_DRAWER;
-				}
-			}
-			break;
-		case EDITOR_ACTION_MAIN_MENU:
-			editorHistoryBreakGroup();
-			(void)editorDrawerMainMenuToggle();
-			editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_MAIN_MENU ?
-					"Main menu opened" : "Project drawer shown");
-			break;
-		case EDITOR_ACTION_GIT_DRAWER:
-			editorHistoryBreakGroup();
-			(void)editorDrawerGitToggle();
-			editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_GIT ?
-					(E.git_repo_root != NULL ? "Git changes shown" :
-					"Not in a git repository") :
-					"Project drawer shown");
-			break;
-		case EDITOR_ACTION_LSP_DRAWER:
-			editorHistoryBreakGroup();
-			(void)editorDrawerLspToggle();
-			editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_LSP ?
-					"LSP drawer shown" : "Project drawer shown");
-			break;
-		case EDITOR_ACTION_DAP_DRAWER:
-			editorHistoryBreakGroup();
-			(void)editorDrawerDapToggle();
-			editorSetStatusMsg(E.drawer_mode == EDITOR_DRAWER_MODE_DAP ?
-					"DAP drawer shown" : "Project drawer shown");
-			break;
-		case EDITOR_ACTION_SPLIT_HORIZONTAL:
-			editorHistoryBreakGroup();
-			if (editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5) != NULL) {
-				editorPaneAnnounceFocus();
-			}
-			break;
-		case EDITOR_ACTION_SPLIT_VERTICAL:
-			editorHistoryBreakGroup();
-			if (editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5) != NULL) {
-				editorPaneAnnounceFocus();
-			}
-			break;
-		case EDITOR_ACTION_CLOSE_PANE:
-			editorHistoryBreakGroup();
-			if (editorLayoutCloseFocused() != NULL) {
-				editorPaneAnnounceFocus();
-			}
-			break;
-		case EDITOR_ACTION_FOCUS_LEFT_PANE:
-			editorHistoryBreakGroup();
-			if (editorLayoutFocusDirection(EDITOR_FOCUS_LEFT)) {
-				editorPaneAnnounceFocus();
-			}
-			break;
-		case EDITOR_ACTION_FOCUS_RIGHT_PANE:
-			editorHistoryBreakGroup();
-			if (editorLayoutFocusDirection(EDITOR_FOCUS_RIGHT)) {
-				editorPaneAnnounceFocus();
-			}
-			break;
-		case EDITOR_ACTION_FOCUS_UP_PANE:
-			editorHistoryBreakGroup();
-			if (editorLayoutFocusDirection(EDITOR_FOCUS_UP)) {
-				editorPaneAnnounceFocus();
-			}
-			break;
-		case EDITOR_ACTION_FOCUS_DOWN_PANE:
-			editorHistoryBreakGroup();
-			if (editorLayoutFocusDirection(EDITOR_FOCUS_DOWN)) {
-				editorPaneAnnounceFocus();
-			}
-			break;
-		case EDITOR_ACTION_PANE_GROW:
-			editorHistoryBreakGroup();
-			(void)editorLayoutResizeFocused(1);
-			break;
-		case EDITOR_ACTION_PANE_SHRINK:
-			editorHistoryBreakGroup();
-			(void)editorLayoutResizeFocused(0);
-			break;
 		case EDITOR_ACTION_OPEN_SETTINGS:
 			editorHistoryBreakGroup();
 			editorOpenSettings();
-			break;
-		case EDITOR_ACTION_RESIZE_DRAWER_NARROW:
-			editorHistoryBreakGroup();
-			if (editorDrawerIsCollapsed()) {
-				(void)editorDrawerSetCollapsed(0);
-			}
-			(void)editorDrawerResizeByDeltaForCols(-DRAWER_RESIZE_STEP, E.window_cols);
-			break;
-		case EDITOR_ACTION_RESIZE_DRAWER_WIDEN:
-			editorHistoryBreakGroup();
-			if (editorDrawerIsCollapsed()) {
-				(void)editorDrawerSetCollapsed(0);
-			}
-			(void)editorDrawerResizeByDeltaForCols(DRAWER_RESIZE_STEP, E.window_cols);
 			break;
 		case EDITOR_ACTION_COLUMN_SELECT_UP:
 			editorHistoryBreakGroup();
@@ -2374,25 +2289,11 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			break;
 		case EDITOR_ACTION_COLUMN_SELECT_LEFT:
 			editorHistoryBreakGroup();
-			if (E.pane_focus == EDITOR_PANE_DRAWER) {
-				if (editorDrawerIsCollapsed()) {
-					(void)editorDrawerSetCollapsed(0);
-				}
-				(void)editorDrawerResizeByDeltaForCols(-DRAWER_RESIZE_STEP, E.window_cols);
-				break;
-			}
 			editorColumnSelectionMove(0, -1);
 			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			break;
 		case EDITOR_ACTION_COLUMN_SELECT_RIGHT:
 			editorHistoryBreakGroup();
-			if (E.pane_focus == EDITOR_PANE_DRAWER) {
-				if (editorDrawerIsCollapsed()) {
-					(void)editorDrawerSetCollapsed(0);
-				}
-				(void)editorDrawerResizeByDeltaForCols(DRAWER_RESIZE_STEP, E.window_cols);
-				break;
-			}
 			editorColumnSelectionMove(0, 1);
 			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			break;
@@ -2421,12 +2322,6 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			editorSetStatusMsg("Current-line highlight %s",
 					E.current_line_highlight_enabled ? "enabled" : "disabled");
 			effects |= EDITOR_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
-			break;
-		case EDITOR_ACTION_FIND_FILE:
-			editorOpenFileSearchDrawer();
-			break;
-		case EDITOR_ACTION_PROJECT_SEARCH:
-			editorOpenProjectSearchDrawer();
 			break;
 		case EDITOR_ACTION_FIND:
 			editorHistoryBreakGroup();
@@ -2464,27 +2359,6 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 		case EDITOR_ACTION_DRAWER_DELETE:
 			editorHistoryBreakGroup();
 			editorDrawerPromptDelete();
-			break;
-		case EDITOR_ACTION_GOTO_DEFINITION:
-			editorHistoryBreakGroup();
-			editorGoToDefinition();
-			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
-		case EDITOR_ACTION_GOTO_IMPLEMENTATION:
-			editorHistoryBreakGroup();
-			editorGoToImplementation();
-			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
-		case EDITOR_ACTION_GOTO_SYMBOL:
-			editorHistoryBreakGroup();
-			editorGoToSymbol();
-			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
-		case EDITOR_ACTION_ESLINT_FIX:
-			editorHistoryBreakGroup();
-			editorPinActivePreviewForEdit();
-			editorApplyEslintFixes();
-			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			break;
 		case EDITOR_ACTION_TOGGLE_SELECTION:
 			editorHistoryBreakGroup();
@@ -2544,23 +2418,15 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			break;
 		case EDITOR_ACTION_MOVE_WORD_LEFT:
 			editorHistoryBreakGroup();
-			if (E.pane_focus == EDITOR_PANE_DRAWER) {
-				(void)editorDrawerCollapseSelection(E.window_rows);
-			} else {
-				editorColumnSelectionClear();
-				editorMoveCursorWordLeft();
-				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			}
+			editorColumnSelectionClear();
+			editorMoveCursorWordLeft();
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			break;
 		case EDITOR_ACTION_MOVE_WORD_RIGHT:
 			editorHistoryBreakGroup();
-			if (E.pane_focus == EDITOR_PANE_DRAWER) {
-				(void)editorDrawerExpandSelection(E.window_rows);
-			} else {
-				editorColumnSelectionClear();
-				editorMoveCursorWordRight();
-				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			}
+			editorColumnSelectionClear();
+			editorMoveCursorWordRight();
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			break;
 		case EDITOR_ACTION_PAGE_UP: {
 			editorHistoryBreakGroup();
@@ -2594,98 +2460,29 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			break;
 		case EDITOR_ACTION_MOVE_UP:
 			editorHistoryBreakGroup();
-			if (E.pane_focus == EDITOR_PANE_DRAWER) {
-				if (editorDrawerMoveSelectionBy(-1, E.window_rows)) {
-					editorDrawerPreviewSelectionAfterMove(editorJumpToPathLocation);
-				}
-			} else {
-				editorColumnSelectionClear();
-				editorMoveCursor(ARROW_UP);
-				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			}
+			editorColumnSelectionClear();
+			editorMoveCursor(ARROW_UP);
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			break;
 		case EDITOR_ACTION_MOVE_DOWN:
 			editorHistoryBreakGroup();
-			if (E.pane_focus == EDITOR_PANE_DRAWER) {
-				if (editorDrawerMoveSelectionBy(1, E.window_rows)) {
-					editorDrawerPreviewSelectionAfterMove(editorJumpToPathLocation);
-				}
-			} else {
-				editorColumnSelectionClear();
-				editorMoveCursor(ARROW_DOWN);
-				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			}
+			editorColumnSelectionClear();
+			editorMoveCursor(ARROW_DOWN);
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			break;
 		case EDITOR_ACTION_MOVE_LEFT:
 			editorHistoryBreakGroup();
-			if (E.pane_focus == EDITOR_PANE_DRAWER) {
-				(void)editorDrawerCollapseSelection(E.window_rows);
-			} else {
-				editorColumnSelectionClear();
-				editorMoveCursor(ARROW_LEFT);
-				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			}
+			editorColumnSelectionClear();
+			editorMoveCursor(ARROW_LEFT);
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			break;
 		case EDITOR_ACTION_MOVE_RIGHT:
 			editorHistoryBreakGroup();
-			if (E.pane_focus == EDITOR_PANE_DRAWER) {
-				(void)editorDrawerExpandSelection(E.window_rows);
-			} else {
-				editorColumnSelectionClear();
-				editorMoveCursor(ARROW_RIGHT);
-				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			}
+			editorColumnSelectionClear();
+			editorMoveCursor(ARROW_RIGHT);
+			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			break;
 		case EDITOR_ACTION_NEWLINE:
-			if (E.pane_focus == EDITOR_PANE_DRAWER) {
-				editorHistoryBreakGroup();
-				editorResetDrawerClickTracking();
-				if (editorDrawerSelectedIsDirectory()) {
-					(void)editorDrawerToggleSelectionExpanded(E.window_rows);
-				} else if (E.drawer_mode == EDITOR_DRAWER_MODE_GIT) {
-					if (editorOpenSelectedGitDiff()) {
-						E.pane_focus = EDITOR_PANE_TEXT;
-						effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-					}
-				} else if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
-					if (editorJumpToSelectedLspDrawerLocation(0, editorJumpToPathLocation)) {
-						E.pane_focus = EDITOR_PANE_TEXT;
-						effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-					}
-				} else if (E.drawer_mode == EDITOR_DRAWER_MODE_DAP) {
-					int launch_idx = -1;
-					int default_idx = -1;
-					if (editorDrawerSelectedDapLaunch(&launch_idx)) {
-						E.dap_selected_launch = launch_idx;
-						if (editorDapStartLaunch(launch_idx)) {
-							effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-						}
-					} else if (editorDrawerSelectedDapDefault(&default_idx)) {
-						if (editorDapCreateProjectLaunchFromDefault(default_idx,
-									E.drawer_root_path)) {
-							effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-						}
-					} else if (editorJumpToSelectedDapDrawerLocation(0, editorJumpToPathLocation)) {
-						E.pane_focus = EDITOR_PANE_TEXT;
-						effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-					}
-				} else {
-					enum editorAction menu_action = EDITOR_ACTION_COUNT;
-					if (editorDrawerSelectedMenuAction(&menu_action)) {
-						int mapped_effects = EDITOR_KEYPRESS_EFFECT_NONE;
-						if (editorProcessMappedAction(menu_action, &mapped_effects)) {
-							if (effects_out != NULL) {
-								*effects_out = effects | mapped_effects;
-							}
-							return 1;
-						}
-						effects |= mapped_effects;
-					} else if (editorDrawerOpenSelectedFileInTab()) {
-						E.pane_focus = EDITOR_PANE_TEXT;
-					}
-				}
-				break;
-			}
 			editorClearSelectionMode();
 			editorPinActivePreviewForEdit();
 			editorHistoryBeginEdit(EDITOR_EDIT_NEWLINE);
