@@ -119,6 +119,8 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(SRC_DIR)/render/status_bar.c \
 	$(SRC_DIR)/render/tab_bar.c \
 	$(SRC_DIR)/render/terminal_view.c \
+	$(SRC_DIR)/render/wrap.c \
+	$(SRC_DIR)/render/viewport.c \
 	$(SRC_DIR)/render/screen.c \
 	$(SRC_DIR)/render/popup.c \
 	$(SRC_DIR)/config/common.c $(SRC_DIR)/config/keymap.c \
