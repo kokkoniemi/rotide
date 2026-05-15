@@ -37,11 +37,6 @@
 
 /*** Input ***/
 
-static int quit_confirmed = 0;
-static int quit_task_confirmed = 0;
-typedef void (*editorPromptCallback)(const char *query, int key);
-static char *editorPromptWithCallback(const char *prompt, int allow_empty,
-		editorPromptCallback callback);
 enum {
 	MOUSE_WHEEL_SCROLL_LINES = 3,
 	MOUSE_WHEEL_SCROLL_COLS = 3,
@@ -207,26 +202,6 @@ static int editorMouseIsOverDrawer(const struct editorMouseEvent *event) {
 	int drawer_row = event->y - 1;
 	return drawer_row >= 0 && drawer_row < drawer_view_rows &&
 			mouse_col >= 0 && mouse_col < drawer_cols;
-}
-
-static size_t editorPromptPrevDeleteIdx(const char *buf, size_t buflen) {
-	if (buflen == 0) {
-		return 0;
-	}
-
-	size_t seq_start = buflen - 1;
-	while (seq_start > 0 &&
-			editorIsUtf8ContinuationByte((unsigned char)buf[seq_start])) {
-		seq_start--;
-	}
-
-	unsigned int cp = 0;
-	int seq_len = editorUtf8DecodeCodepoint(&buf[seq_start], (int)(buflen - seq_start), &cp);
-	if (seq_len > 1 && seq_start + (size_t)seq_len == buflen) {
-		return seq_start;
-	}
-
-	return buflen - 1;
 }
 
 static int editorByteShouldInsertAsText(int c) {
@@ -477,129 +452,6 @@ static int editorJumpToMatchingBracket(void) {
 	return editorSetCursorFromOffset(match_offset);
 }
 
-static void editorSetQuitConfirmStatus(void) {
-	char quit_binding[24];
-	if (editorKeymapFormatBinding(&E.keymap, EDITOR_ACTION_QUIT, quit_binding,
-				sizeof(quit_binding))) {
-		editorSetStatusMsg("File has unsaved changes. Press %s again to quit", quit_binding);
-		return;
-	}
-
-	editorSetStatusMsg("File has unsaved changes. Press quit key again to quit");
-}
-
-static void editorSetQuitTaskConfirmStatus(void) {
-	char quit_binding[24];
-	if (editorKeymapFormatBinding(&E.keymap, EDITOR_ACTION_QUIT, quit_binding,
-				sizeof(quit_binding))) {
-		editorSetStatusMsg("Task is still running. Press %s again to terminate it and quit",
-				quit_binding);
-		return;
-	}
-	editorSetStatusMsg("Task is still running. Press quit key again to terminate it and quit");
-}
-
-static void editorSetCloseTabConfirmStatus(void) {
-	char close_binding[24];
-	if (editorKeymapFormatBinding(&E.keymap, EDITOR_ACTION_CLOSE_TAB, close_binding,
-				sizeof(close_binding))) {
-		editorSetStatusMsg("Tab has unsaved changes. Press %s again to close tab", close_binding);
-		return;
-	}
-
-	editorSetStatusMsg("Tab has unsaved changes. Press close key again to close tab");
-}
-
-static void editorSetCloseTaskConfirmStatus(void) {
-	char close_binding[24];
-	if (editorKeymapFormatBinding(&E.keymap, EDITOR_ACTION_CLOSE_TAB, close_binding,
-				sizeof(close_binding))) {
-		editorSetStatusMsg("Task is still running. Press %s again to terminate it and close tab",
-				close_binding);
-		return;
-	}
-	editorSetStatusMsg("Task is still running. Press close key again to terminate it and close tab");
-}
-
-static void quit(void) {
-	if (editorTaskIsRunning() && !quit_task_confirmed) {
-		editorSetQuitTaskConfirmStatus();
-		quit_task_confirmed = 1;
-		return;
-	}
-	if (editorTaskIsRunning()) {
-		(void)editorTaskTerminate();
-		quit_task_confirmed = 0;
-	}
-
-	if (editorTabAnyDirty() && !quit_confirmed) {
-		editorSetQuitConfirmStatus();
-		quit_confirmed = 1;
-		return;
-	}
-
-	(void)editorWorkspaceStateSave();
-	editorDapShutdown();
-	editorLspShutdown();
-	editorSyntaxBackgroundStop();
-	editorRecoveryCleanupOnCleanExit();
-	editorRestoreTerminal();
-	editorClearScreen();
-	editorResetCursorPos();
-
-	exit(EXIT_SUCCESS);
-}
-
-void editorOpenSettings(void) {
-	enum editorConfigBootstrapStatus bootstrap = editorConfigEnsureGlobalConfig();
-	char *path = editorConfigBuildGlobalConfigPath();
-	if (path == NULL || bootstrap == EDITOR_CONFIG_BOOTSTRAP_FAILED) {
-		free(path);
-		editorSetStatusMsg("Could not open ~/.rotide/config.toml");
-		return;
-	}
-	if (!editorTabOpenOrSwitchToFile(path)) {
-		editorSetStatusMsg("Could not open %s", path);
-	}
-	free(path);
-	E.pane_focus = EDITOR_PANE_TEXT;
-}
-
-static void editorCloseTab(void) {
-	if (editorActiveTaskTabIsRunning() && !E.close_confirmed) {
-		editorSetCloseTaskConfirmStatus();
-		E.close_confirmed = 1;
-		return;
-	}
-	if (editorActiveTaskTabIsRunning()) {
-		(void)editorTaskTerminate();
-		E.close_confirmed = 0;
-	}
-
-	if (E.dirty && !E.close_confirmed) {
-		editorSetCloseTabConfirmStatus();
-		E.close_confirmed = 1;
-		return;
-	}
-
-	if (editorTabCloseActive()) {
-		E.close_confirmed = 0;
-	}
-}
-
-static void editorExitOnInputShutdown(void) {
-	if (editorTaskIsRunning()) {
-		(void)editorTaskTerminate();
-	}
-	editorDapShutdown();
-	editorLspShutdown();
-	editorRestoreTerminal();
-	editorClearScreen();
-	editorResetCursorPos();
-
-	exit(EXIT_FAILURE);
-}
-
 static int editorSetCursorFromOffset(size_t offset) {
 	int cy = 0;
 	int cx = 0;
@@ -689,19 +541,6 @@ static void editorClearSelectionMode(void) {
 	E.selection_mode_active = 0;
 	E.selection_anchor_offset = 0;
 	editorColumnSelectionClear();
-}
-
-int editorPromptYesNo(const char *prompt) {
-	char *response = editorPromptWithCallback(prompt, 1, NULL);
-	int accepted = 0;
-	if (response == NULL) {
-		return 0;
-	}
-	if (strcasecmp(response, "y") == 0 || strcasecmp(response, "yes") == 0) {
-		accepted = 1;
-	}
-	free(response);
-	return accepted;
 }
 
 enum editorGoToDefinitionInstallFamily {
@@ -1601,88 +1440,6 @@ static void editorFindCallback(const char *query, int key) {
 	}
 
 	editorMoveCursorToSearchMatch(match_row, match_col, (int)strlen(query));
-}
-
-static char *editorPromptWithCallback(const char *prompt, int allow_empty,
-		editorPromptCallback callback) {
-	size_t bufmax = 128;
-	char *buf = editorMalloc(bufmax);
-	if (buf == NULL) {
-		editorSetStatusMsg("Out of memory");
-		return NULL;
-	}
-
-	size_t buflen = 0;
-	buf[0] = '\0';
-
-	while (1) {
-		editorSetStatusMsg(prompt, buf);
-		editorRefreshScreen();
-
-		int c = editorReadKey();
-		if (c == INPUT_EOF_EVENT) {
-			free(buf);
-			editorExitOnInputShutdown();
-			return NULL;
-		}
-		if (c == RESIZE_EVENT) {
-			(void)editorRefreshWindowSize();
-			continue;
-		}
-		if (c == SYNTAX_EVENT || c == TASK_EVENT || c == WATCH_EVENT) {
-			continue;
-		}
-		// Prompt editing is keyboard-only; ignore mouse packets without invoking callbacks.
-		if (c == MOUSE_EVENT) {
-			continue;
-		}
-		if (c == DEL_KEY || c == CTRL_KEY('h') || c == BACKSPACE) {
-			if (buflen != 0) {
-				buflen = editorPromptPrevDeleteIdx(buf, buflen);
-				buf[buflen] = '\0';
-			}
-		} else if (c == '\x1b') {
-			if (callback != NULL) {
-				callback(buf, c);
-			}
-			editorSetStatusMsg("");
-			free(buf);
-			return NULL;
-		} else if (c == '\r' && (allow_empty || buflen != 0)) {
-			if (callback != NULL) {
-				callback(buf, c);
-			}
-			editorSetStatusMsg("");
-			return buf;
-		} else if (c >= CHAR_MIN && c <= CHAR_MAX) {
-			unsigned char byte = (unsigned char)c;
-			// Keep non-ASCII bytes verbatim; only filter ASCII control bytes.
-			if (byte >= 0x80 || !iscntrl(byte)) {
-				if (buflen == bufmax - 1) {
-					size_t new_bufmax = bufmax * 2;
-					char *new_buf = editorRealloc(buf, new_bufmax);
-					if (new_buf == NULL) {
-						free(buf);
-						editorSetStatusMsg("Out of memory");
-						return NULL;
-					}
-					buf = new_buf;
-					bufmax = new_bufmax;
-				}
-				buf[buflen] = (char)byte;
-				buflen++;
-				buf[buflen] = '\0';
-			}
-		}
-
-		if (callback != NULL) {
-			callback(buf, c);
-		}
-	}
-}
-
-char *editorPrompt(const char *prompt) {
-	return editorPromptWithCallback(prompt, 0, NULL);
 }
 
 static int editorReplaceAtOffset(size_t offset, size_t old_len,
@@ -3954,7 +3711,7 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 	switch (action) {
 		case EDITOR_ACTION_QUIT:
 			editorHistoryBreakGroup();
-			quit();
+			editorActionQuit();
 			if (effects_out != NULL) {
 				*effects_out = effects;
 			}
@@ -3969,7 +3726,7 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			break;
 		case EDITOR_ACTION_CLOSE_TAB:
 			editorHistoryBreakGroup();
-			editorCloseTab();
+			editorActionCloseTab();
 			break;
 		case EDITOR_ACTION_NEXT_TAB:
 			editorHistoryBreakGroup();
@@ -4756,15 +4513,7 @@ void editorProcessKeypress(void) {
 	}
 
 done:
-	if (!mapped_action || action != EDITOR_ACTION_CLOSE_TAB) {
-		E.close_confirmed = 0;
-	}
-	if (!mapped_action || action != EDITOR_ACTION_QUIT) {
-		quit_confirmed = 0;
-	}
-	if (!mapped_action || action != EDITOR_ACTION_QUIT) {
-		quit_task_confirmed = 0;
-	}
+	editorFileTabActionsAfterKeypress(mapped_action, action);
 	if ((effects & EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT) != 0) {
 		editorViewportEnsureCursorVisible();
 	}
