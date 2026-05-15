@@ -10,20 +10,58 @@
 
 extern const struct editorTestCase g_document_text_editing_tests[];
 extern const int g_document_text_editing_test_count;
-extern const struct editorTestCase g_syntax_tests[];
-extern const int g_syntax_test_count;
+extern const struct editorTestCase g_syntax_activation_tests[];
+extern const int g_syntax_activation_test_count;
+extern const struct editorTestCase g_syntax_parse_tests[];
+extern const int g_syntax_parse_test_count;
+extern const struct editorTestCase g_syntax_captures_tests[];
+extern const int g_syntax_captures_test_count;
+extern const struct editorTestCase g_syntax_background_tests[];
+extern const int g_syntax_background_test_count;
+extern const struct editorTestCase g_syntax_state_tests[];
+extern const int g_syntax_state_test_count;
 extern const struct editorTestCase g_syntax_registry_tests[];
 extern const int g_syntax_registry_test_count;
 extern const struct editorTestCase g_save_recovery_tests[];
 extern const int g_save_recovery_test_count;
-extern const struct editorTestCase g_workspace_config_tests[];
-extern const int g_workspace_config_test_count;
+extern const struct editorTestCase g_workspace_persistence_tests[];
+extern const int g_workspace_persistence_test_count;
+extern const struct editorTestCase g_workspace_theme_config_tests[];
+extern const int g_workspace_theme_config_test_count;
+extern const struct editorTestCase g_workspace_keymap_view_tests[];
+extern const int g_workspace_keymap_view_test_count;
+extern const struct editorTestCase g_workspace_io_tests[];
+extern const int g_workspace_io_test_count;
+extern const struct editorTestCase g_dap_tests[];
+extern const int g_dap_test_count;
 extern const struct editorTestCase g_file_watch_tests[];
 extern const int g_file_watch_test_count;
-extern const struct editorTestCase g_lsp_tests[];
-extern const int g_lsp_test_count;
+extern const struct editorTestCase g_lsp_protocol_tests[];
+extern const int g_lsp_protocol_test_count;
+extern const struct editorTestCase g_lsp_lifecycle_tests[];
+extern const int g_lsp_lifecycle_test_count;
+extern const struct editorTestCase g_lsp_completion_tests[];
+extern const int g_lsp_completion_test_count;
+extern const struct editorTestCase g_lsp_diagnostics_tests[];
+extern const int g_lsp_diagnostics_test_count;
+extern const struct editorTestCase g_lsp_navigation_tests[];
+extern const int g_lsp_navigation_test_count;
+extern const struct editorTestCase g_input_actions_tests[];
+extern const int g_input_actions_test_count;
+extern const struct editorTestCase g_input_selection_tests[];
+extern const int g_input_selection_test_count;
+extern const struct editorTestCase g_input_mouse_tests[];
+extern const int g_input_mouse_test_count;
 extern const struct editorTestCase g_input_search_tests[];
 extern const int g_input_search_test_count;
+extern const struct editorTestCase g_input_undo_tests[];
+extern const int g_input_undo_test_count;
+extern const struct editorTestCase g_render_frame_tests[];
+extern const int g_render_frame_test_count;
+extern const struct editorTestCase g_render_chrome_tests[];
+extern const int g_render_chrome_test_count;
+extern const struct editorTestCase g_render_panes_tests[];
+extern const int g_render_panes_test_count;
 extern const struct editorTestCase g_render_terminal_tests[];
 extern const int g_render_terminal_test_count;
 extern const struct editorTestCase g_layout_tests[];
@@ -50,13 +88,32 @@ int main(void) {
 
 	const struct editorTestSuite suites[] = {
 		{g_document_text_editing_tests, g_document_text_editing_test_count},
-		{g_syntax_tests, g_syntax_test_count},
+		{g_syntax_activation_tests, g_syntax_activation_test_count},
+		{g_syntax_parse_tests, g_syntax_parse_test_count},
+		{g_syntax_captures_tests, g_syntax_captures_test_count},
+		{g_syntax_background_tests, g_syntax_background_test_count},
+		{g_syntax_state_tests, g_syntax_state_test_count},
 		{g_syntax_registry_tests, g_syntax_registry_test_count},
 		{g_save_recovery_tests, g_save_recovery_test_count},
-		{g_workspace_config_tests, g_workspace_config_test_count},
+		{g_workspace_persistence_tests, g_workspace_persistence_test_count},
+		{g_workspace_theme_config_tests, g_workspace_theme_config_test_count},
+		{g_workspace_keymap_view_tests, g_workspace_keymap_view_test_count},
+		{g_workspace_io_tests, g_workspace_io_test_count},
+		{g_dap_tests, g_dap_test_count},
 		{g_file_watch_tests, g_file_watch_test_count},
-		{g_lsp_tests, g_lsp_test_count},
+		{g_lsp_protocol_tests, g_lsp_protocol_test_count},
+		{g_lsp_lifecycle_tests, g_lsp_lifecycle_test_count},
+		{g_lsp_completion_tests, g_lsp_completion_test_count},
+		{g_lsp_diagnostics_tests, g_lsp_diagnostics_test_count},
+		{g_lsp_navigation_tests, g_lsp_navigation_test_count},
+		{g_input_actions_tests, g_input_actions_test_count},
+		{g_input_selection_tests, g_input_selection_test_count},
+		{g_input_mouse_tests, g_input_mouse_test_count},
 		{g_input_search_tests, g_input_search_test_count},
+		{g_input_undo_tests, g_input_undo_test_count},
+		{g_render_frame_tests, g_render_frame_test_count},
+		{g_render_chrome_tests, g_render_chrome_test_count},
+		{g_render_panes_tests, g_render_panes_test_count},
 		{g_render_terminal_tests, g_render_terminal_test_count},
 		{g_layout_tests, g_layout_test_count},
 		{g_pty_tests, g_pty_test_count},

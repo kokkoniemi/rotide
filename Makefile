@@ -185,10 +185,21 @@ LIBVTERM_OBJS = $(LIBVTERM_SRCS:.c=.o)
 EDITOR_OBJS = $(filter-out $(SRC_DIR)/rotide.o,$(CORE_OBJS)) $(TREE_SITTER_OBJS) \
 	$(LIBVTERM_OBJS)
 TEST_SRCS = tests/rotide_tests_main.c tests/test_document_text_editing.c \
-	tests/test_syntax.c tests/test_syntax_registry.c \
-	tests/test_save_recovery.c tests/test_workspace_config.c \
+	tests/test_syntax_activation.c tests/test_syntax_parse.c \
+	tests/test_syntax_captures.c tests/test_syntax_background.c \
+	tests/test_syntax_state.c tests/test_syntax_registry.c \
+	tests/test_save_recovery.c \
+	tests/test_workspace_persistence.c tests/test_workspace_theme_config.c \
+	tests/test_workspace_keymap_view.c tests/test_workspace_io.c \
+	tests/test_dap.c \
 	tests/test_file_watch.c \
-	tests/test_lsp.c tests/test_input_search.c tests/test_render_terminal.c \
+	tests/test_lsp_protocol.c tests/test_lsp_lifecycle.c \
+	tests/test_lsp_completion.c tests/test_lsp_diagnostics.c \
+	tests/test_lsp_navigation.c \
+	tests/test_input_actions.c tests/test_input_selection.c \
+	tests/test_input_mouse.c tests/test_input_search.c tests/test_input_undo.c \
+	tests/test_render_frame.c tests/test_render_chrome.c \
+	tests/test_render_panes.c tests/test_render_terminal.c \
 	tests/test_layout.c tests/test_pty.c tests/test_terminal_pane.c \
 	tests/test_support.c tests/test_helpers.c tests/alloc_test_hooks.c \
 	tests/save_syscalls_test_hooks.c
