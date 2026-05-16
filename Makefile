@@ -82,7 +82,7 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(addprefix $(SRC_DIR)/support/, \
 		terminal.c alloc.c save_syscalls.c file_io.c) \
 	$(addprefix $(SRC_DIR)/text/, \
-		document.c rope.c utf8.c row.c) \
+		document.c rope.c text_summary.c utf8.c row.c) \
 	$(addprefix $(SRC_DIR)/editing/, \
 		document_bridge.c document_position.c buffer_search.c \
 		edit_pipeline.c post_edit_notify.c row_cache.c text_source.c \
@@ -130,7 +130,7 @@ TEST_SRCS = $(addprefix tests/, \
 	test_input_search.c test_input_undo.c \
 	test_render_frame.c test_render_chrome.c test_render_panes.c \
 	test_render_terminal.c test_layout.c test_pty.c \
-	test_terminal_pane.c test_text_invariants.c \
+	test_terminal_pane.c test_text_invariants.c test_text_summary.c \
 	test_syntax_incremental_equiv.c test_runner_internals.c \
 	runner_support.c seed.c parallel_runner.c editor_state_snapshot.c \
 	test_support.c test_helpers.c alloc_test_hooks.c save_syscalls_test_hooks.c)

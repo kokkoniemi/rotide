@@ -1,6 +1,8 @@
 #ifndef ROPE_H
 #define ROPE_H
 
+#include "text/text_summary.h"
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -18,6 +20,7 @@ struct editorRope {
 	int chunk_count;
 	int chunk_capacity;
 	size_t length;
+	struct editorTextSummary summary;
 };
 
 /* Mutating operations preserve the rope length and chunk list invariants. */
@@ -32,5 +35,6 @@ char *editorRopeDupRange(const struct editorRope *rope, size_t start_byte, size_
 		size_t *len_out);
 int editorRopeReplaceRange(struct editorRope *rope, size_t start_byte, size_t old_len,
 		const char *new_text, size_t new_len);
+const struct editorTextSummary *editorRopeSummary(const struct editorRope *rope);
 
 #endif

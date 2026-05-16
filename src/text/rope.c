@@ -2,10 +2,27 @@
 
 #include "support/alloc.h"
 #include "support/size_utils.h"
+#include "text/text_summary.h"
 #include <stdlib.h>
 #include <string.h>
 
 #define EDITOR_ROPE_CHUNK_BYTES 1024
+
+static void editorRopeRecomputeSummary(struct editorRope *rope) {
+	struct editorTextSummary acc;
+	editorTextSummaryZero(&acc);
+	if (rope == NULL) {
+		return;
+	}
+	for (int i = 0; i < rope->chunk_count; i++) {
+		struct editorTextSummary piece;
+		editorTextSummaryFromBytes(rope->chunks[i].bytes, rope->chunks[i].len, &piece);
+		struct editorTextSummary merged;
+		editorTextSummaryMerge(&acc, &piece, &merged);
+		acc = merged;
+	}
+	rope->summary = acc;
+}
 
 static void editorRopeChunkFree(struct editorRopeChunk *chunk) {
 	if (chunk == NULL) {
@@ -245,6 +262,7 @@ int editorRopeAppend(struct editorRope *rope, const char *text, size_t len) {
 		offset += chunk_len;
 	}
 
+	editorRopeRecomputeSummary(rope);
 	return 1;
 }
 
@@ -256,6 +274,7 @@ void editorRopeInit(struct editorRope *rope) {
 	rope->chunk_count = 0;
 	rope->chunk_capacity = 0;
 	rope->length = 0;
+	editorTextSummaryZero(&rope->summary);
 }
 
 void editorRopeFree(struct editorRope *rope) {
@@ -288,7 +307,11 @@ int editorRopeResetFromString(struct editorRope *rope, const char *text, size_t 
 }
 
 size_t editorRopeLength(const struct editorRope *rope) {
-	return rope != NULL ? rope->length : 0;
+	return rope != NULL ? rope->summary.bytes : 0;
+}
+
+const struct editorTextSummary *editorRopeSummary(const struct editorRope *rope) {
+	return rope != NULL ? &rope->summary : NULL;
 }
 
 const char *editorRopeRead(const struct editorRope *rope, size_t byte_index, uint32_t *bytes_read) {
@@ -404,5 +427,6 @@ int editorRopeReplaceRange(struct editorRope *rope, size_t start_byte, size_t ol
 	}
 	free(insert_chunks);
 	rope->length = next_len;
+	editorRopeRecomputeSummary(rope);
 	return 1;
 }

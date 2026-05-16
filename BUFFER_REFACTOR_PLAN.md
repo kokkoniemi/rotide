@@ -127,11 +127,11 @@ Before touching storage, broaden the existing harness so each subsequent phase c
 
 ### Phase 1 — Introduce `editorTextSummary` and merge (~1 day)
 
-- [ ] New header `src/text/text_summary.h` with `struct editorTextSummary`, `editorTextSummaryZero`, `editorTextSummaryFromBytes(const char *, size_t)`, `editorTextSummaryMerge(left, right, out)`.
-- [ ] Unit tests in a new `tests/test_text_summary.c`: associativity (merge associative), identity (zero), randomized cross-checks against a naive byte-scan baseline.
-- [ ] Compute and cache a `struct editorTextSummary summary` on `struct editorRope` (alongside existing fields). Invalidate/recompute on every mutating op for now (cheap — only at the rope boundary).
-- [ ] Route `editorRopeLength` to read `rope->summary.bytes` (already redundant, harmless).
-- [ ] Add `editorRopeSummary(const struct editorRope *)` accessor.
+- [x] New header `src/text/text_summary.h` with `struct editorTextSummary`, `editorTextSummaryZero`, `editorTextSummaryFromBytes(const char *, size_t)`, `editorTextSummaryMerge(left, right, out)`.
+- [x] Unit tests in a new `tests/test_text_summary.c`: associativity (merge associative), identity (zero), randomized cross-checks against a naive byte-scan baseline.
+- [x] Compute and cache a `struct editorTextSummary summary` on `struct editorRope` (alongside existing fields). Invalidate/recompute on every mutating op for now (cheap — only at the rope boundary).
+- [x] Route `editorRopeLength` to read `rope->summary.bytes` (already redundant, harmless).
+- [x] Add `editorRopeSummary(const struct editorRope *)` accessor.
 
 **Intermediate state**: no behavior change. The summary is computed but not consumed yet. Confidence: high.
 
@@ -299,7 +299,7 @@ This phase is large and orthogonal to the storage refactor; it is listed for com
 ## Phase summary checklist
 
 - [x] **Phase 0** — Harden property tests, add benchmarks, line/width invariants.
-- [ ] **Phase 1** — `editorTextSummary` + merge, computed but not consumed.
+- [x] **Phase 1** — `editorTextSummary` + merge, computed but not consumed.
 - [ ] **Phase 2** — Single-leaf tree wrapper; delete `editorRope*` symbols.
 - [ ] **Phase 3** — Real B-tree with multi-leaf descent and `O(log n)` edits.
 - [ ] **Phase 4** — Drop `line_starts[]`; ~250 lines deleted from `document.c`.
