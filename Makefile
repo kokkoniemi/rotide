@@ -201,6 +201,8 @@ TEST_SRCS = tests/rotide_tests_main.c tests/test_document_text_editing.c \
 	tests/test_render_frame.c tests/test_render_chrome.c \
 	tests/test_render_panes.c tests/test_render_terminal.c \
 	tests/test_layout.c tests/test_pty.c tests/test_terminal_pane.c \
+	tests/test_runner_internals.c \
+	tests/runner_support.c tests/seed.c \
 	tests/test_support.c tests/test_helpers.c tests/alloc_test_hooks.c \
 	tests/save_syscalls_test_hooks.c
 TEST_OBJS = $(TEST_SRCS:.c=.o)
