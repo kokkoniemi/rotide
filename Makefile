@@ -28,7 +28,8 @@ TREE_SITTER_CFLAGS = $(filter-out -Werror -Wundef -Wshadow -Wdouble-promotion -p
 LIBVTERM_CPPFLAGS = $(CPPFLAGS) -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_GNU_SOURCE \
 	-Ivendor/libvterm/include -Ivendor/libvterm/src
 LIBVTERM_WARNING_CFLAGS = -Wno-unused-parameter -Wno-unused-value -Wno-sign-compare \
-	-Wno-implicit-fallthrough -Wno-unused-but-set-variable -Wno-cast-qual
+	-Wno-implicit-fallthrough -Wno-unused-but-set-variable -Wno-cast-qual \
+	-Wno-missing-field-initializers -Wno-empty-body -Wno-old-style-declaration
 LIBVTERM_CFLAGS = $(filter-out -Werror -Wundef -Wshadow -Wdouble-promotion -pedantic,$(CFLAGS)) \
 	$(LIBVTERM_WARNING_CFLAGS)
 LIBVTERM_SRCS = vendor/libvterm/src/encoding.c \
