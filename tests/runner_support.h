@@ -9,7 +9,7 @@ struct editorTestSuite {
 	const char *name;
 	const char *tags;
 	const struct editorTestCase *tests;
-	int count;
+	const int *count;
 };
 
 struct testRunnerOptions {
@@ -50,6 +50,13 @@ void quarantineListInit(struct quarantineList *q);
 void quarantineListFree(struct quarantineList *q);
 int quarantineListAppend(struct quarantineList *q, const char *name);
 int quarantineListContains(const struct quarantineList *q, const char *name);
+
+/*
+ * Populate q from path. Returns 0 on success or if path does not exist
+ * (clean checkouts work without a quarantine file). Returns -1 on parse or
+ * I/O failure; on -1, *error_out (if non-NULL) is set to a freshly malloc'd
+ * message and the caller owns the buffer.
+ */
 int quarantineListLoad(struct quarantineList *q, const char *path, char **error_out);
 
 void runnerPrintUsage(void);
