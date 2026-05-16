@@ -31,6 +31,11 @@ make docs-diagrams
   diffs the outcome lines (`PASS`/`FAIL`/`SKIP`/drift/summary). Catches
   nondeterminism in seeded property tests and runner output before it
   costs an engineer half a day chasing an unreproducible bug.
+- `make test-crash-handler`: triggers a synthetic SIGSEGV in one test via
+  `ROTIDE_TEST_CRASH=<suite>/<test>` and asserts the runner reports a
+  `CRASH` line, writes the artifact under
+  `tests/artifacts/crashes/<suite>/<test>.crash`, and exits non-zero.
+  Use this whenever the crash-handler code path changes.
 - `make release`: builds a size-oriented binary and strips it.
 - `make docs-media`: regenerates screenshots under `docs/media/screenshots/`.
 - `make docs-diagrams`: renders PlantUML sources from `docs/diagrams/src/` to
@@ -53,6 +58,12 @@ make docs-diagrams
 - `--validate-reset`: assert that `reset_editor_state` restores
   `editorConfig E` to a canonical state between tests (default in
   `make test`).
+- `--jobs <N>`: run up to N suites in parallel as forked children. Each
+  child writes its stdout/stderr to `tests/artifacts/logs/<suite>.log`
+  and, if it crashes, a stack dump to
+  `tests/artifacts/crashes/<suite>/<test>.crash`. The parent emits
+  output in suite-index order, so determinism is preserved. Wall time
+  scales roughly linearly in cores.
 - `--no-quarantine` / `--quarantine <path>`: bypass or override
   `tests/QUARANTINE.md`. The nightly CI run should use
   `--no-quarantine` so flakes that have started passing again surface

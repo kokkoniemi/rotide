@@ -203,6 +203,7 @@ TEST_SRCS = tests/rotide_tests_main.c tests/test_document_text_editing.c \
 	tests/test_layout.c tests/test_pty.c tests/test_terminal_pane.c \
 	tests/test_runner_internals.c \
 	tests/runner_support.c tests/seed.c \
+	tests/parallel_runner.c tests/editor_state_snapshot.c \
 	tests/test_support.c tests/test_helpers.c tests/alloc_test_hooks.c \
 	tests/save_syscalls_test_hooks.c
 TEST_OBJS = $(TEST_SRCS:.c=.o)
@@ -397,7 +398,7 @@ vendor/tree_sitter/grammars/diff/src/parser.o: vendor/tree_sitter/grammars/diff/
 	$(call LOG,CC,$<)$(CC) $(CPPFLAGS) $(CFLAGS) $(PTHREAD_FLAGS) $(DEPFLAGS) -c $< -o $@
 
 $(TEST_BIN): $(TEST_OBJS) $(EDITOR_OBJS)
-	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) $^ -lutil -o $@
+	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) -rdynamic $^ -lutil -o $@
 
 TEST_FLAGS ?= --validate-reset
 TSAN_FLAGS ?= -fsanitize=thread -fno-omit-frame-pointer -O1 -g
@@ -419,6 +420,9 @@ test-sanitize:
 test-determinism: $(TEST_BIN)
 	$(call LOG,TEST,determinism)scripts/check_test_determinism.sh ./$(TEST_BIN) $(TEST_FLAGS)
 
+test-crash-handler: $(TEST_BIN)
+	$(call LOG,TEST,crash)scripts/check_crash_handler.sh ./$(TEST_BIN)
+
 test-tsan:
 	$(call LOG,CLEAN,build)$(MAKE) clean
 	$(call LOG,MAKE,test-tsan)$(MAKE) CFLAGS="$(CFLAGS) $(TSAN_FLAGS)" \
@@ -439,7 +443,7 @@ docs-diagrams:
 
 -include $(DEPFILES)
 
-.PHONY: clean test test-sanitize test-determinism test-tsan release docs-media docs-diagrams
+.PHONY: clean test test-sanitize test-determinism test-tsan test-crash-handler release docs-media docs-diagrams
 clean:
 	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(DEPFILES) $(TEST_BIN) rotide $(GENERATED_HEADERS)
 	$(call LOG,CLEAN,tree)find $(SRC_DIR) tests vendor/tree_sitter -type f \( -name '*.o' -o -name '*.d' \) -delete

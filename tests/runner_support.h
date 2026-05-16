@@ -41,6 +41,7 @@ struct testRunnerOptions {
 	int no_quarantine;
 	int parse_error;
 	int seed_specified;
+	int jobs;
 	unsigned long long seed;
 	const char *error_msg;
 };

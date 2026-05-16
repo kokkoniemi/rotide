@@ -58,6 +58,7 @@ dkms.conf
 rotide
 *.swp
 tests/rotide_tests
+tests/artifacts/
 
 PLAN.md
 

@@ -1,3 +1,5 @@
+#include "editor_state_snapshot.h"
+#include "parallel_runner.h"
 #include "rotide.h"
 #include "runner_support.h"
 #include "seed.h"
@@ -123,20 +125,17 @@ static int suitePassesTagFilter(const struct editorTestSuite *suite, const struc
  * snapshot. Extending to those singletons is downstream work, naturally
  * paired with the per-suite fork from Phase 2.
  */
-#define EXCLUDE_FIELD(field) \
-	{offsetof(struct editorConfig, field), sizeof(((struct editorConfig *)0)->field)}
-
-static const struct snapshotExcludeRange k_snapshot_excludes[] = {
-	EXCLUDE_FIELD(layout_root),
-	EXCLUDE_FIELD(focused_leaf),
-};
-
-#define K_EXCLUDE_COUNT ((int)(sizeof(k_snapshot_excludes) / sizeof(k_snapshot_excludes[0])))
-
-static int snapshotMatchesEditor(const unsigned char *snapshot, size_t *first_diff_out) {
-	return runnerSnapshotCompare(snapshot, (const unsigned char *)&E, sizeof(E),
-		k_snapshot_excludes, K_EXCLUDE_COUNT, first_diff_out);
-}
+/*
+ * --validate-reset coverage scope.
+ *
+ * The validator snapshots editorConfig E once after the first reset and
+ * asserts every subsequent reset restores those bytes exactly, *except*
+ * for field ranges in the exclude table owned by editor_state_snapshot.c
+ * (layout_root, focused_leaf — fields reset_editor_state intentionally
+ * re-allocates). Coverage is limited to E; singletons outside E
+ * (LSP mock scratch, syntax-worker queue depth, alloc-probe counters)
+ * are not currently snapshotted.
+ */
 
 int main(int argc, char **argv) {
 	setlocale(LC_CTYPE, "");
@@ -237,9 +236,104 @@ int main(int argc, char **argv) {
 		runnerShuffleIndices(order, selected_count, opts.seed);
 	}
 
+	int total_runs = 0;
+	int passed_runs = 0;
+	int failed_unique = 0;
+	int reset_violations = 0;
+	int crashes = 0;
 	unsigned char *snapshot = NULL;
+
+	if (opts.jobs > 1) {
+		struct suiteBatch *batches = calloc((size_t)K_SUITE_COUNT, sizeof(*batches));
+		int *per_suite_capacity = calloc((size_t)K_SUITE_COUNT, sizeof(int));
+		int batch_count = 0;
+		if (batches == NULL || per_suite_capacity == NULL) {
+			fprintf(stderr, "rotide_tests: out of memory for batches\n");
+			free(batches);
+			free(per_suite_capacity);
+			free(order);
+			free(selected);
+			quarantineListFree(&quarantine);
+			return EXIT_FAILURE;
+		}
+		int *suite_to_batch = malloc((size_t)K_SUITE_COUNT * sizeof(int));
+		if (suite_to_batch == NULL) {
+			fprintf(stderr, "rotide_tests: out of memory for batches\n");
+			free(batches);
+			free(per_suite_capacity);
+			free(order);
+			free(selected);
+			quarantineListFree(&quarantine);
+			return EXIT_FAILURE;
+		}
+		for (int s = 0; s < K_SUITE_COUNT; s++) {
+			suite_to_batch[s] = -1;
+		}
+		for (int i = 0; i < selected_count; i++) {
+			int s = selected[i].suite;
+			if (suite_to_batch[s] < 0) {
+				suite_to_batch[s] = batch_count;
+				batches[batch_count].suite_idx = s;
+				batches[batch_count].test_indices = NULL;
+				batches[batch_count].count = 0;
+				per_suite_capacity[batch_count] = 0;
+				batch_count++;
+			}
+			int b = suite_to_batch[s];
+			if (batches[b].count == per_suite_capacity[b]) {
+				int new_cap = per_suite_capacity[b] == 0 ? 16 : per_suite_capacity[b] * 2;
+				int *grown = realloc(batches[b].test_indices, (size_t)new_cap * sizeof(int));
+				if (grown == NULL) {
+					fprintf(stderr, "rotide_tests: out of memory for batches\n");
+					for (int j = 0; j < batch_count; j++) {
+						free(batches[j].test_indices);
+					}
+					free(suite_to_batch);
+					free(per_suite_capacity);
+					free(batches);
+					free(order);
+					free(selected);
+					quarantineListFree(&quarantine);
+					return EXIT_FAILURE;
+				}
+				batches[b].test_indices = grown;
+				per_suite_capacity[b] = new_cap;
+			}
+			batches[b].test_indices[batches[b].count++] = selected[i].index_in_suite;
+		}
+		free(suite_to_batch);
+		free(per_suite_capacity);
+
+		struct parallelRunResult result = {0};
+		(void)parallelRunBatches(&opts, k_suites, batches, batch_count, &result);
+
+		for (int b = 0; b < batch_count; b++) {
+			if (batches[b].output != NULL) {
+				fwrite(batches[b].output, 1, batches[b].output_len, stdout);
+				free(batches[b].output);
+			}
+			if (batches[b].crashed) {
+				fprintf(stderr,
+					"CRASH suite=%s test=%s signal=%d artifact=%s seed=0x%016llx\n",
+					k_suites[batches[b].suite_idx].name,
+					batches[b].crash_test_name[0] ? batches[b].crash_test_name : "(unknown)",
+					batches[b].crash_signal, batches[b].crash_artifact_path,
+					(unsigned long long)opts.seed);
+			}
+			free(batches[b].test_indices);
+		}
+		free(batches);
+
+		total_runs = result.total_runs;
+		passed_runs = result.passed_runs;
+		failed_unique = result.failed_unique;
+		reset_violations = result.reset_violations;
+		crashes = result.crashes;
+		goto done;
+	}
+
 	if (opts.validate_reset) {
-		snapshot = malloc(sizeof(E));
+		snapshot = malloc(EDITOR_STATE_SNAPSHOT_SIZE);
 		if (snapshot == NULL) {
 			fprintf(stderr, "rotide_tests: out of memory for snapshot\n");
 			free(order);
@@ -248,13 +342,8 @@ int main(int argc, char **argv) {
 			return EXIT_FAILURE;
 		}
 		reset_editor_state();
-		memcpy(snapshot, &E, sizeof(E));
+		rotideTestSnapshotEditor(snapshot);
 	}
-
-	int total_runs = 0;
-	int passed_runs = 0;
-	int failed_unique = 0;
-	int reset_violations = 0;
 
 	for (int slot = 0; slot < selected_count; slot++) {
 		int sel = order[slot];
@@ -268,7 +357,7 @@ int main(int argc, char **argv) {
 			reset_editor_state();
 			if (opts.validate_reset) {
 				size_t diff_at = 0;
-				if (!snapshotMatchesEditor(snapshot, &diff_at)) {
+				if (!rotideTestSnapshotMatchesEditor(snapshot, &diff_at)) {
 					reset_violations++;
 					const unsigned char *live = (const unsigned char *)&E;
 					fprintf(stderr,
@@ -307,11 +396,17 @@ done:
 	if (failed_unique > 0) {
 		printf(" (%d test%s failed)", failed_unique, failed_unique == 1 ? "" : "s");
 	}
+	if (crashes > 0) {
+		printf(", %d crashed", crashes);
+	}
 	if (skipped_quarantine > 0) {
 		printf(", %d quarantined", skipped_quarantine);
 	}
 	if (opts.validate_reset) {
 		printf(", reset-drift=%d", reset_violations);
+	}
+	if (opts.jobs > 1) {
+		printf(", jobs=%d", opts.jobs);
 	}
 	printf(", seed=0x%016llx\n", (unsigned long long)opts.seed);
 
@@ -321,7 +416,7 @@ done:
 	quarantineListFree(&quarantine);
 
 	int exit_code = EXIT_SUCCESS;
-	if (failed_unique > 0) {
+	if (failed_unique > 0 || crashes > 0) {
 		exit_code = EXIT_FAILURE;
 	}
 	if (reset_violations > 0) {
