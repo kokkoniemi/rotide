@@ -130,7 +130,8 @@ TEST_SRCS = $(addprefix tests/, \
 	test_input_search.c test_input_undo.c \
 	test_render_frame.c test_render_chrome.c test_render_panes.c \
 	test_render_terminal.c test_layout.c test_pty.c \
-	test_terminal_pane.c test_text_invariants.c test_runner_internals.c \
+	test_terminal_pane.c test_text_invariants.c \
+	test_syntax_incremental_equiv.c test_runner_internals.c \
 	runner_support.c seed.c parallel_runner.c editor_state_snapshot.c \
 	test_support.c test_helpers.c alloc_test_hooks.c save_syscalls_test_hooks.c)
 

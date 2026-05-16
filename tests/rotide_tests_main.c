@@ -49,6 +49,7 @@ SUITE_EXTERN(layout);
 SUITE_EXTERN(pty);
 SUITE_EXTERN(terminal_pane);
 SUITE_EXTERN(text_invariants);
+SUITE_EXTERN(syntax_incremental_equiv);
 SUITE_EXTERN(runner_internals);
 
 #define SUITE(name_str, tags_str, prefix) \
@@ -87,6 +88,7 @@ static const struct editorTestSuite k_suites[] = {
 	SUITE("pty", "pty slow", pty),
 	SUITE("terminal_pane", "pty terminal slow", terminal_pane),
 	SUITE("text_invariants", "document property", text_invariants),
+	SUITE("syntax_incremental_equiv", "syntax property", syntax_incremental_equiv),
 	SUITE("runner_internals", "runner", runner_internals),
 };
 
