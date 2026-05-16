@@ -4,18 +4,18 @@ skinparam backgroundColor #FFFFFF
 title DAP launch and lifecycle
 
 start
-:dap_start selects launch config;
-:shutdown previous DAP session;
-:copy launch config;
+:select launch config;
+:shut down previous DAP session;
+:copy launch config for mutation;
 if (console == "terminal"?) then (yes)
-	:open terminal pane with
-	temporary "sleep infinity";
-	:resolve slave tty via ptsname;
-	:stop placeholder child;
-	:set launch.tty = "/dev/pts/N";
-	:remember owned pane;
+  :open terminal pane with placeholder
+  ("sleep infinity");
+  :resolve slave tty via ptsname;
+  :stop placeholder child;
+  :set launch.tty = "/dev/pts/N";
+  :remember owned pane;
 else (no)
-	:continue without terminal pane;
+  :continue without terminal pane;
 endif
 :strip rotide-only console field;
 :spawn adapter over stdio;
@@ -23,16 +23,20 @@ endif
 :send launch;
 
 partition "session" {
-	repeat
-		:pump adapter notifications;
-		:update DAP state/events;
-	repeat while (running)
+  repeat
+    :pump adapter notifications;
+    :update DAP state / drawer / UI;
+  repeat while (running?) is (yes)
+  ->no;
 }
 
-:terminated, exited, or stop;
-:shutdown adapter;
-:close owned terminal pane if present;
-:restore focus;
+:terminated, exited, or explicit stop;
+:shut down adapter;
+if (owned terminal pane?) then (yes)
+  :close owned terminal pane;
+  :restore focus to sibling;
+else (no)
+endif
 stop
 
 @enduml

@@ -1,23 +1,26 @@
 @startuml
 skin rose
 skinparam backgroundColor #FFFFFF
-title Edit application flow
+title Edit application (editorApplyDocumentEdit)
 
-participant "input/edit helpers" as input
-participant "editorApplyDocumentEdit" as apply
+participant "caller\n(edit / undo / paste / restore)" as input
+participant "edit_pipeline.c" as pipe
 participant "editorDocument" as doc
-participant "erow cache" as rows
-participant "syntax state" as syntax
-participant "LSP clients" as lsp
+participant "row cache" as rows
 participant "history" as history
+participant "post_edit_notify.c" as notify
+participant "syntax state" as syntax
+participant "LSP" as lsp
 
-input -> apply : editorDocumentEdit
-apply -> doc : replace byte range
-apply -> rows : rebuild from document
-apply -> apply : sync cursor_offset to cy/cx/rx
-apply -> syntax : incremental/full parse update
-apply -> lsp : didOpen/didChange as needed
-apply -> history : record operation and dirty metadata
-apply --> input : success/failure
+input -> pipe : editorDocumentEdit\n(byte range, text,\n before/after cursor,\n before/after dirty)
+pipe -> doc : replace byte range
+pipe -> rows : splice + rebuild affected rows
+pipe -> pipe : sync cursor offset
+pipe -> pipe : set dirty = edit.after_dirty
+pipe -> history : record pending op (if any)
+pipe -> notify : editorNotifyPostEditLanguage
+notify -> syntax : apply Tree-sitter edit / invalidate spans
+notify -> lsp : didChange (range or full)
+pipe --> input : ok / fail
 
 @enduml

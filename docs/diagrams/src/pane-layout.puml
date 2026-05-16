@@ -1,81 +1,54 @@
 @startuml
 skin rose
 skinparam backgroundColor #FFFFFF
-title Pane layout and per-pane view state
+title Pane layout and view ownership
 
 skinparam classBackgroundColor #FFFFFF
 
-class "editorConfig E" as E {
-  layout_root : editorPaneNode*
-  focused_leaf : editorPaneNode*
-  active_tab : int
-  tabs[].buffer : editorBuffer
-  active_buffer : editorBuffer (union)
-  -- X-macro inlines --
-  cy, rx, rowoff, cursor_offset, ...
-  syntax_state, syntax_revision, ...
-  lsp_doc_open, lsp_doc_version, ...
+class "editor state" as E {
+  layout_root
+  focused_leaf
+  active_buffer
+  tabs[]
 }
 
-class editorPaneNode {
-  is_split : int
-  union as { leaf | split }
+class "pane node" as Node {
+  split or leaf
 }
 
 class "split" as Split {
-  orientation : HORIZONTAL | VERTICAL
-  ratio : double
-  first, second : editorPaneNode*
+  orientation, ratio
 }
 
-class editorPane {
-  kind : EDITOR_PANE_KIND_EDITOR
-        | EDITOR_PANE_KIND_TERMINAL
-  view : editorPaneView
-  kind_state : void*  // editorTerminalPane for TERMINAL
-  kind_state_free : void(*)(void*)
+class "pane (leaf)" as Pane {
+  kind: editor | terminal
+  view
+  kind_state
 }
 
-class editorPaneView {
-  active_tab_idx : int
-  cx, cy, rx : int
-  rowoff, coloff, wrapoff : int
-  cursor_offset : size_t
-  viewport_mode : int
-  selection_mode_active, ...
-  pane_tabs[] : int        // membership filter
-  pane_tab_count : int
+class "pane view" as View {
+  cursor, scroll, viewport mode
+  selection
+  active tab + tab membership
 }
 
-E --> editorPaneNode : owns layout_root
-E ..> editorPaneNode : focused_leaf points at a leaf
-editorPaneNode --> Split : when is_split == 1
-editorPaneNode --> editorPane : when is_split == 0 (leaf)
-editorPane *-- editorPaneView
-editorPane ..> "editorTerminalPane" : kind_state when TERMINAL
+E --> Node : layout_root
+E ..> Node : focused_leaf
+Node --> Split
+Node --> Pane
+Pane *-- View
 
-note right of editorPaneView
-  Focused leaf's live state lives in E.*.
-  Unfocused leaves keep their snapshot here.
-  editorLayoutSetFocusedLeaf saves outgoing,
-  switches active_tab if it differs, then
-  loads the incoming leaf's cursor.
+note right of View
+  Focused leaf's view is mirrored into
+  the editor's active state. Switching
+  focus saves outgoing view, optionally
+  swaps active tab, loads incoming view.
 end note
 
-note top of E
-  Active-buffer fields are declared once via
-  the EDITOR_ACTIVE_BUFFER_FIELDS X-macro and
-  shared between E.active_buffer and each
-  tab->buffer. Tab switching swaps the
-  editorBuffer struct in bulk -- no
-  field-by-field copy.
-end note
-
-note bottom of Split
-  Renderer computes a bordered layout
-  (ROTIDE_PANE_BORDER_SIZE = 1 col/row).
-  Border rects collected from the tree
-  drive '─'/'│' painting in the gaps.
+note bottom of Node
+  Renderer reserves 1 col/row borders
+  between siblings; persisted as an
+  s-expression in workspace state.
 end note
 
 @enduml

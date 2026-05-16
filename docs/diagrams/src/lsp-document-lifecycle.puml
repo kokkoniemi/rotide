@@ -1,37 +1,33 @@
 @startuml
 skin rose
 skinparam backgroundColor #FFFFFF
-title LSP document lifecycle
+title Per-tab LSP document lifecycle
 
-[*] --> NotTracked : no filename, disabled,\nor unsupported language
-[*] --> Closed : supported tab loaded\nwith lsp_doc_open = 0
+[*] --> NotTracked : unsupported / disabled
+[*] --> Closed : supported, not yet opened
 
-NotTracked --> NotTracked : edits, saves, closes\nreturn without protocol traffic
-NotTracked --> Closed : file becomes supported\nor LSP enabled
+NotTracked --> Closed : becomes supported
 
-Closed --> Open : ensure tracked\ndidOpen(version=max(1, stored))
-Closed --> Closed : server unavailable\nor didOpen send fails
+Closed --> Open : didOpen
+Closed --> Closed : server unavailable
 
-state "Open document" as Open {
+state "Open" as Open {
   [*] --> Clean
-  Clean --> Dirty : edit\ndidChange(version + 1)
-  Dirty --> Dirty : edit\ndidChange(version + 1)
-  Dirty --> Clean : save\ndidSave
-  Clean --> Clean : definition, symbols,\ncompletion, diagnostics
+  Clean --> Dirty : edit (didChange)
+  Dirty --> Dirty : edit (didChange)
+  Dirty --> Clean : save (didSave)
 }
 
-Open --> Closed : tab close/reset\ndidClose, clear diagnostics,\nversion = 0
-Closed --> [*] : editor shutdown
-NotTracked --> [*] : editor shutdown
+Open --> Closed : tab close (didClose)
+Closed --> [*] : shutdown
+NotTracked --> [*] : shutdown
 
 note bottom of Open
-  The states above describe per-*tab* document
-  status. The underlying language-server *client*
-  is shared across tabs via the lsp_registry,
-  keyed by (server_kind, workspace_root). Tab
-  switches do not kill or respawn the server --
-  they just route the next request to a different
-  registry slot if the workspace or kind differs.
+  These states are per-*tab*. The underlying
+  client is shared across tabs by
+  (server_kind, workspace_root); a tab switch
+  may just pick a different client, not
+  respawn one.
 end note
 
 @enduml

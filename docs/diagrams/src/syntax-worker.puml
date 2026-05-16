@@ -1,36 +1,33 @@
 @startuml
 skin rose
 skinparam backgroundColor #FFFFFF
-title Syntax worker snapshot/revision protocol
+title Syntax worker: snapshot / revision protocol
 
 participant "main thread" as main
-participant "g_syntax_worker_mutex\n+ result slot" as slot
+participant "shared slot" as slot
 participant "worker thread" as worker
 
-main -> main : edit -> bump syntax_revision\n(save_as -> bump syntax_generation)
-main -> slot : schedule(job{lang, rev, gen, bytes_copy, rows})
+main -> main : edit -> bump revision\nlanguage change -> bump generation
+main -> slot : schedule(language, revision, generation, bytes copy)
 note right
-  Replaces any pending job
-  (slot holds at most 1 queued).
+  Slot holds at most one queued job.
+  A newer job replaces an older one.
 end note
-slot --> worker : cond_signal
+slot --> worker : wake
 
-worker -> slot : take pending, mark running
-slot --> worker : job
 worker -> worker : parse + collect captures\n(worker-private memory)
-worker -> slot : publish result{lang, rev, gen, state, spans}
+worker -> slot : publish result
 note right
-  Destroys older un-consumed result.
-  Slot holds at most 1 result;
-  intermediate results are dropped.
+  Slot holds at most one result;
+  intermediate results overwrite.
 end note
 
-main -> slot : editorSyntaxBackgroundPoll\n(per main-loop tick)
-slot --> main : result or NULL
-alt result matches current (lang, rev, gen)
-  main -> main : adopt state, merge spans
+main -> slot : poll (per tick)
+slot --> main : result
+alt result tag matches current state
+  main -> main : adopt parser state, merge spans
 else stale
-  main -> main : destroy result, ignore
+  main -> main : discard
 end
 
 @enduml

@@ -1,40 +1,31 @@
 # RotIDE Developer Documentation
 
-This directory explains how RotIDE is built internally. The root README stays
-user-facing; this tree is for maintainers changing behavior.
+For maintainers changing behavior. The root README is user-facing.
 
-## Start Here
+## Start here
 
-- [Architecture](architecture.md): state ownership, module boundaries, and the
-  design choices that keep editing deterministic.
-- [Workflows](workflows.md): the main runtime paths from input to rendering,
-  edits, syntax, LSP, save/recovery, search, and task logs.
-- [Concurrency](concurrency.md): the syntax background worker's
-  snapshot/revision protocol — the one place RotIDE goes multi-threaded.
-- [Error handling](error_handling.md): the OOM-status-bar contract and where
-  validation belongs.
-- [Build and tests](build-and-tests.md): local targets, sanitizer expectations,
-  Tree-sitter vendor refresh, and diagram rendering.
+- [Architecture](architecture.md) — containers, ownership, design rules.
+- [Workflows](workflows.md) — sequenced runtime paths.
+- [Concurrency](concurrency.md) — the syntax worker protocol.
+- [Error handling](error_handling.md) — OOM and validation policy.
+- [Build and tests](build-and-tests.md) — targets, sanitizers, diagrams.
 
 ## Diagrams
 
-PlantUML sources live in [`../diagrams/src/`](../diagrams/src/). Generated SVGs
-live in [`../diagrams/svg/`](../diagrams/svg/) and are committed so these docs
-render in plain Markdown viewers.
-
-Regenerate diagrams with:
+PlantUML sources live in [`../diagrams/src/`](../diagrams/src/); committed
+SVGs in [`../diagrams/svg/`](../diagrams/svg/). Regenerate with:
 
 ```bash
 make docs-diagrams
 ```
 
-The renderer expects a local `plantuml` command. It uses PlantUML stdlib C4
-includes such as `!include <C4/C4_Container>`.
+Requires a local `plantuml`. Diagrams use the PlantUML C4 stdlib.
 
-## Documentation Rules
+## House rules for these docs
 
-- Treat `editorDocument` as the canonical writable text state.
-- Treat `struct erow` as derived render/cache state.
-- Keep syntax and LSP state tab-local in descriptions.
-- Keep task-log tabs described as generated, read-only, and non-savable.
+- Describe responsibilities, boundaries, and data flow — not file lists
+  or function names.
+- Diagrams stay at architectural level; no per-file participants.
 - Document shipped behavior only.
+- If a detail won't help a maintainer change the code safely, leave it
+  out.

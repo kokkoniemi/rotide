@@ -4,22 +4,34 @@ skinparam backgroundColor #FFFFFF
 title Tree-sitter syntax flow
 
 start
-:detect language from filename/shebang;
+:detect language from filename / shebang;
 :create tab-local editorSyntaxState;
-:parse document through editorTextSource;
-if (edit arrives?) then (yes)
-	:apply Tree-sitter edit;
-	:incremental parse, fallback full parse when needed;
-else (no)
-	:keep current parse tree;
-endif
-:collect captures for visible byte ranges;
-if (injection query matches?) then (yes)
-	:parse injected language up to depth/slot limits;
-else (no)
-	:use host-language captures only;
-endif
-:renderer applies syntax spans under overlays;
+:initial full parse through editorTextSource;
+
+repeat
+  if (edit arrived?) then (yes)
+    :apply Tree-sitter edit;
+    :incremental parse (fallback to full parse if needed);
+  else (no)
+    :keep current parse tree;
+  endif
+  :collect captures for visible byte range;
+  if (injection query matches?) then (yes)
+    :parse injected language (bounded depth / slots);
+  else (no)
+    :host-language captures only;
+  endif
+  :renderer applies spans under selection,
+   search, and diagnostic overlays;
+repeat while (tab open?) is (yes)
+->no;
 stop
+
+note right
+  Budgets degrade behavior before failing:
+  drop predicates, then injections, then disable.
+  Large documents are parsed on the worker;
+  see syntax-worker.svg.
+end note
 
 @enduml

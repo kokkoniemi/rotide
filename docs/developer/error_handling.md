@@ -2,47 +2,45 @@
 
 Two categories, two policies.
 
-## Recoverable failures: return 0 + status
+## Recoverable failures
 
 Allocation failures, disk-full, transient I/O. The convention:
 
-> Return `0` (or `NULL`), free any partial work as you unwind, and let the
-> top of the call chain call `editorSetAllocFailureStatus()` (declared in
-> `src/editing/buffer_core.h`). For more specific failures, call
-> `editorSetStatusMsg` with the appropriate message.
+> Return `0` (or `NULL`), free any partial work as you unwind, and let
+> the top of the call chain set a status message — generic
+> (`editorSetAllocFailureStatus`) or specific (`editorSetStatusMsg`).
 
-This is why most internal helpers return `int` — the return value carries
-the recoverable-failure signal. Don't `(void)` it away in callers that
-could surface the failure.
+This is why most internal helpers return `int`: the return value carries
+the recoverable-failure signal. Don't `(void)`-discard it in callers
+that could report the failure.
 
-The next `editorRefreshScreen` paints the status; the document, tabs,
-layout, and undo stack stay consistent.
+The next render paints the status. Document, tabs, layout, and undo
+stack stay consistent because the pipeline frees partial work as it
+unwinds.
 
-## Invariant violations: not handled at runtime
+## Invariant violations
 
-Internal callers are trusted. Values that came out of `E.*` are not
-re-validated downstream. If an invariant breaks, the fix lives in the
-function that produced the bad value, not in defensive checks at the use
-site. Invariants are documented in struct/function comments and locked in
-by tests, not by runtime asserts in the data path.
+Not handled at runtime. Internal callers are trusted; values read out of
+`E.*` are not re-validated downstream. If an invariant breaks, the fix
+lives in the producer, not as a defensive check at the use site.
+Invariants are documented in struct/function comments and locked in by
+tests.
 
-## Where validation belongs
+## Validation belongs at boundaries
 
-Only at system boundaries: command-line args, prompt input, decoded key
-sequences, TOML/JSON payloads, filesystem syscalls, Git porcelain,
-project-search output.
+Only at the edges where untrusted data enters: CLI args, prompt input,
+decoded key sequences, TOML/JSON payloads, filesystem syscalls, Git
+porcelain, project-search output.
 
 ## OOM tests
 
-`tests/alloc_test_hooks.c` can fail the *N*-th allocation. Search for
-`*_oom_*` tests (e.g. in `tests/test_input_*.c`, `tests/test_workspace_io.c`)
-for the pattern. When adding a path that allocates across multiple steps,
-add a matching test so partial-state cleanup stays locked in.
+Allocation-failure paths are exercised by a test hook that fails the
+*N*-th allocation. When adding a path that allocates across multiple
+steps, add a matching test so the unwind cleanup stays locked in.
 
-## Signals
+## Termination signals
 
-`SIGINT`/`SIGTERM`/`SIGHUP`/`SIGQUIT` go through
-`editorHandleTerminationSignal` (`src/support/terminal.c`), which runs the
-LSP/DAP/syntax/terminal shutdowns and exits. This is a *shutdown* path,
-not an error path — no recovery is attempted. See
-[concurrency.md](concurrency.md) for the async-signal-safety trade-off.
+`SIGINT`/`SIGTERM`/`SIGHUP`/`SIGQUIT` are a *shutdown* path, not an
+error path. They run the same teardown as a clean quit; no recovery is
+attempted. See [concurrency.md](concurrency.md) for the
+async-signal-safety trade-off.

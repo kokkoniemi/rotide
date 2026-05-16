@@ -1,243 +1,134 @@
 # Workflows
 
-This page follows high-signal paths through RotIDE. The diagrams are
-intentionally small: they show state ownership and sequencing without
-trying to duplicate the source code.
+Sequenced paths through the containers in [architecture.md](architecture.md).
+Diagrams carry the structure; prose calls out invariants and edge cases that
+matter when changing each path.
 
-## Startup and Main Loop
+## Startup and main loop
 
 ![Startup loop](../diagrams/svg/startup-loop.svg)
 
-`main()` runs roughly in this order (`src/rotide.c`):
+Startup is deterministic: raw mode, editor state, syntax worker, config,
+recovery / CLI args, workspace state, Git. The order matters — config has
+to be applied before tabs are restored so theme and keymap settings reach
+restored buffers.
 
-1. `setRawMode` — terminal raw mode + termios save.
-2. `initEditor` — clipboard sink, theme, drawer state, single-leaf layout
-   root + focused leaf, default keymap, bootstrap tab via
-   `editorTabsInit`.
-3. `editorSyntaxBackgroundStart` — Tree-sitter background worker.
-4. `editorConfigEnsureGlobalConfig` — create the user's
-   `~/.rotide/config.toml` on first launch.
-5. `editorRecoveryInitForCurrentDir` — recovery path setup for the cwd.
-6. `editorWorkspaceStateInitForCurrentDir` — workspace state path.
-7. `editorConfigApplyConfiguredSettings` — apply theme, keymap, LSP, DAP
-   settings from TOML.
-8. `editorStartupLoadRecoveryOrOpenArgs` — restore snapshot or open
-   CLI-named files.
-9. `editorDrawerInitForStartup`, `editorWorkspaceStateLoadAndApply`,
-   `editorWorkspaceStateRestoreTabs`, `editorGitInit`.
+The main loop is six steps per tick: poll the syntax worker, pump LSP,
+pump DAP, update viewport, render, dispatch one input event. The render
+call is a pure renderer; pumping is explicit at the top of the tick. Sub-
+loops (prompt input, recovery confirm, mid-action redraws) can call
+render without re-pumping.
 
-The main loop then runs forever:
+Termination signals route through the same shutdown sequence as a clean
+quit: DAP, LSP, syntax worker, terminal restore. See
+[concurrency.md](concurrency.md) for the async-signal-safety trade-off.
 
-```
-editorSyntaxBackgroundPoll();
-editorLspPumpNotifications();
-editorDapPumpNotifications();
-editorViewportUpdateForFrame();
-editorRefreshScreen();   // pure renderer
-editorProcessKeypress(); // one event per iteration
-```
-
-Pumping is explicit at the top of each tick; `editorRefreshScreen` no
-longer drives it, so sub-loops (prompts, recovery flows) can call refresh
-without re-running a frame. `editorReadKey` still pumps terminal panes
-every VTIME tick (~100 ms) so child output flows while the user is idle.
-
-`SIGINT`/`SIGTERM`/`SIGHUP`/`SIGQUIT` route through
-`editorHandleTerminationSignal` (`src/support/terminal.c`), which runs the
-DAP/LSP/syntax shutdowns before restoring the terminal. See
-[concurrency.md](concurrency.md).
-
-## Keypress to Action
+## Input dispatch
 
 ![Action dispatch](../diagrams/svg/action-dispatch.svg)
 
-Terminal input is decoded in `src/support/terminal.c`.
-`src/input/dispatch.c` remains the top-level pipeline: it handles a chain of
-gates before reaching the keymap, while delegated modules own the larger gate
-and action-family implementations:
+Input flows through gates before reaching the keymap so that prompts,
+mouse hits in terminal panes, and direct-to-PTY keystrokes can short-
+circuit the editor. Anything that reaches the keymap becomes an
+`editorAction`, which is the testable boundary.
 
-- **Synthetic events** (`RESIZE_EVENT`, `TASK_EVENT`, `SYNTAX_EVENT`,
-  `WATCH_EVENT`, `TERMINAL_EVENT`, `BRACKETED_PASTE_START/END_EVENT`,
-  `INPUT_EOF_EVENT`) short-circuit before the editor sees them as regular
-  keys. The bracketed-paste markers also toggle `E.paste_active` and call
-  `vterm_keyboard_start_paste`/`end_paste` on the focused terminal pane
-  if any.
-- **Prompt mode** forwards bytes to the active prompt callback.
-- **Mouse events** are hit-tested against the layout: clicks/wheel/drag
-  inside a terminal pane with mouse tracking enabled are forwarded via
-  libvterm and the pane is focused; otherwise the existing
-  drawer/tab/text handlers in `src/input/mouse.c` run.
-- **Terminal-pane key gate**: when the focused leaf is a terminal pane
-  and we're not in the drawer, keystrokes go straight to the PTY via
-  `editorTerminalPaneSendKey` unless the next chord is the configured
-  `terminal_prefix`. Pressing the prefix arms a one-shot escape so the
-  next key dispatches through the normal keymap.
+The terminal-pane gate has a one-shot prefix arm: when the focused leaf
+is a terminal, keys go to the PTY unless the configured prefix is
+pressed, which makes the *next* key dispatch through the normal keymap.
 
-After the gates, keymap lookup resolves configured bindings to
-`enum editorAction`, then the dispatcher calls action-family helpers such as
-`actions_edit`, `actions_workspace`, `actions_file_tab`,
-`actions_language`, and `actions_terminal_debug`. Search and cursor-navigation
-glue still lives in `dispatch.c` until that path gets a dedicated extraction.
-
-## Edit Application and Dirty State
+## Edits
 
 ![Edit flow](../diagrams/svg/edit-flow.svg)
 
-Edits are built in `src/editing/edit.c` and applied via
-`editorApplyDocumentEdit` → the pipeline in `edit_pipeline.c`. The edit
-descriptor carries byte range, inserted text, before/after cursor
-offsets, and before/after dirty values — making dirty state deterministic
-across insert/delete/undo/redo/save/recovery.
+Every text mutation is an edit descriptor handed to the edit pipeline.
+The pipeline's job is to keep document, row cache, cursor, language
+services, and history consistent. The fan-out to syntax/LSP/diagnostics
+runs *after* the document and row cache have been updated, so listeners
+always observe a consistent state.
 
-Order per edit:
+Undo and redo replay edits through the same pipeline rather than
+restoring snapshots — that is how dirty state stays accurate across
+arbitrary edit sequences.
 
-1. replace bytes in `editorDocument` (via `document_bridge`).
-2. rebuild the affected `erow` slice (`row_cache.c`).
-3. sync cursor from byte offset (`document_position.c`).
-4. `post_edit_notify.c` fans out: applies the edit to
-   `editorSyntaxState`, bumps `syntax_revision`, captures
-   `editorLspEnsureClientForFile` and sends `didChange` if applicable,
-   invalidates touched visible-syntax-span cache rows.
-5. record history entry.
-6. visible syntax spans refresh on the next render.
-
-`post_edit_notify` is the only bridge from edits to language services;
-new listeners extend it, not `edit.c`.
-
-## Undo and Redo
-
-History entries store operations: removed bytes, inserted bytes, cursor
-offsets, dirty values, and edit kind. Typing may coalesce into grouped
-entries. Any new edit after undo clears redo history. Undo and redo
-replay document edits through the same canonical mutation path instead
-of restoring full snapshots.
-
-## Split and Focus
+## Split, focus, close
 
 ![Split and focus](../diagrams/svg/split-focus-flow.svg)
 
-`src/workspace/layout.c` owns the pane tree. Splitting wraps the focused
-leaf in a fresh split node, allocates a new sibling that inherits the
-splitting pane's view, then resets the sibling's `pane_tabs` membership
-to only the splitting pane's active tab — that's the VSCode-style
-"open current file in the new pane" behavior.
+The focused leaf's view is mirrored into `E`; focus change is a
+save/load operation. A split inherits the splitting pane's view and
+re-seeds the new sibling's tab membership to the active tab only —
+the "open current file in new split" behavior. Closing a leaf promotes
+its sibling.
 
-Focus changes go through `editorLayoutSetFocusedLeaf`, which captures
-the outgoing pane's live cursor/scroll/active-tab into its view, swaps
-the global active tab if the incoming pane records a different one
-(invoking `editorTabSwitchToIndex`), then loads the incoming pane's
-cursor on top. Close-pane promotes the sibling and re-loads its view.
-
-## Save and Recovery
+## Save and recovery
 
 ![Save and recovery](../diagrams/svg/save-recovery.svg)
 
-Save reads the active document as text, writes a temporary file,
-fsyncs, renames, fsyncs the parent directory, and clears dirty state
-only after success. Recovery autosaves active workspace state and
-restores through the document-first loading path, so restored rows
-remain derived from `editorDocument`.
+Saves are atomic (temp → fsync → rename → fsync dir). Dirty clears only
+after rename succeeds. Autosave writes a recovery snapshot containing
+the document text; startup detection prompts the user and restores
+through the document model.
 
-Workspace state (`src/workspace/workspace_state.c`) is the adjacent
-persistence path for the non-document state that should survive a
-restart: drawer width and mode, recent files, the open-tab list, the
-active tab, and the serialized pane layout tree
-(`editorLayoutSerialize` writes a compact `layout=<expr>` line and the
-loader deserializes it on startup).
+Workspace state is the parallel persistence path for non-document state
+(drawer width, open tab list, layout tree). The layout tree is an
+s-expression so the user's split shape survives restarts.
 
-## Search and Highlight
+## Search
 
-![Search flow](../diagrams/svg/search-flow.svg)
+![Search](../diagrams/svg/search-flow.svg)
 
-Search uses the prompt API plus search callbacks still hosted in
-`src/input/dispatch.c`, then scans the active `editorTextSource`. The active
-match is stored as byte offset plus length. Rendering maps the match back to
-rows and applies highlight overlays without mutating text or dirty state.
+Search uses the prompt path. Matches are stored as `(byte offset,
+length)`; rendering overlays them at draw time. Search never mutates
+text and never affects dirty state.
 
-## Syntax Highlighting
+## Syntax
 
-![Syntax flow](../diagrams/svg/syntax-flow.svg)
+![Syntax](../diagrams/svg/syntax-flow.svg)
 
-Language detection chooses a table entry from
-`src/language/languages.c`. `editorSyntaxState` owns the Tree-sitter
-tree, injected trees, budgets, and limit events for one tab. Visible
-rows request captures for byte ranges through `src/language/syntax.c`;
-the render pane/row path combines syntax spans with selection, search, and
-diagnostic overlays.
+Per tab: detect language, parse (incrementally on edits), collect
+captures for the visible byte range, parse injections if present.
+Budgets degrade behavior before failing — predicates are dropped, then
+injections, before highlighting is disabled. Large documents are
+parsed on the background worker; see [concurrency.md](concurrency.md).
 
 ## LSP
 
 ![LSP flow](../diagrams/svg/lsp-flow.svg)
 
-Clients are keyed in `lsp_registry` by `(server_kind, workspace_root)`.
-Every request acquires its client first:
+Each request first looks up the relevant client by
+`(server_kind, workspace_root)`. There is no implicit "active LSP" —
+tab switches just pick a different client. Range `didChange` is used
+when the encoding allows; full-document `contentChanges` is the
+fallback. Missing servers open install/help task-log tabs rather
+than failing silently.
 
-```c
-struct editorLspClient *client = editorLspEnsureClientForFile(filename, ...);
-if (client == NULL) { /* report + bail */ }
-editorLspRequestDefinition(client, ...);
-```
+## Terminal panes
 
-No implicit "active LSP" singleton — tab switches just look up a
-different slot. `lsp_documents.c` runs per-tab open/change/save/close;
-`document_position.c` converts byte/row state to protocol positions;
-`lsp_protocol.c`/`lsp_responses.c` are the JSON-RPC wire.
+![Terminal pane](../diagrams/svg/terminal-pane-flow.svg)
 
-Range `didChange` is used when the edit fits the server's position
-encoding; full-document `contentChanges` is the fallback (e.g. UTF-16
-deletes need pre-edit text).
-
-Missing servers open install/help task-log tabs (generated, read-only).
-
-## Terminal Panes
-
-![Terminal pane lifecycle](../diagrams/svg/terminal-pane-flow.svg)
-
-`editorPaneNodeNewTerminalLeaf` (or `editorTerminalPaneOpenSplit`,
-which splits then converts the new sibling) creates a leaf of kind
-`EDITOR_PANE_KIND_TERMINAL` backed by an `editorTerminalPane`. The
-constructor wires a vterm parser to the PTY: child output is fed to
-`vterm_input_write` on every poll tick; libvterm's output callback
-writes encoded keystrokes/mouse events back to the master fd.
-
-The main-loop input poll drains terminal panes via
-`editorTerminalPanePumpAll` and returns `TERMINAL_EVENT` whenever any
-bytes were consumed, which keeps the screen responsive to long-running
-child output without blocking on stdin. SIGWINCH propagates through
-`editorTerminalPaneResizeAllToLayout`, which mirrors the renderer's
-split-rect math and `TIOCSWINSZ`-resizes each pane. Exited terminal panes
-are closed from the event/draw path, with focus restored to a surviving
-sibling when the focused pane disappears.
-
-Mouse passthrough (`editorTerminalPaneSendMouseButton/Move`) only fires
-when the child has enabled DECSET 1000/1002/1003 via the `settermprop`
-callback. Bracketed paste forwarding wraps the pasted bytes only if the
-child enabled DECSET 2004.
+A terminal pane wraps a PTY child with a libvterm parser. Child output
+is drained on each input tick; the pump emits a synthetic event so
+the next frame repaints. Exited panes are closed from the event/draw
+path with focus restored to the surviving sibling. Mouse and bracketed
+paste forwarding is conditional on the child enabling the corresponding
+DECSET modes.
 
 ## DAP
 
-![DAP launch and lifecycle](../diagrams/svg/dap-flow.svg)
+![DAP](../diagrams/svg/dap-flow.svg)
 
-A `dap_start` action calls `editorDapStartLaunch`. The launch flow
-takes a local copy of the launch config so launch-time mutations stay
-out of `E.dap_launches`, then runs `editorDapPrepareTerminalConsole`:
-if `console = "terminal"`, the focused pane is split horizontally, a
-placeholder shell (`sleep infinity`) is spawned only to allocate the PTY,
-`ptsname(master_fd)` resolves the slave path, the placeholder is stopped,
-and `tty` is injected into the outgoing launch JSON. The `console` field
-itself is always stripped — it is a rotide hint, not a DAP standard.
+The launch payload is rotide-augmented with a `console = "terminal"`
+hint: when set, the launch flow opens an owned terminal pane,
+resolves its tty, and injects it into the payload. The hint itself is
+stripped before sending. The adapter runs over stdio JSON-RPC; the
+session pump runs once per main-loop tick. Session teardown closes the
+owned pane and restores focus.
 
-The adapter (gdb-dap, lldb-dap, dlv dap, …) is spawned over stdio. The
-session runs through `editorDapPumpNotifications`, called once per
-main-loop iteration alongside the LSP pump. On `terminated`/`exited`
-events or explicit shutdown, `editorDapCloseOwnedTerminalPane` retires
-the owned terminal pane and restores focus to the sibling.
+## Task logs
 
-## Task Logs
+![Task log](../diagrams/svg/task-log-flow.svg)
 
-![Task log flow](../diagrams/svg/task-log-flow.svg)
-
-Task logs run a child process, merge stdout/stderr, append output to a
-generated document, rebuild rows, and keep the tab open with a final
-status line. They are read-only, non-savable, and capped by
-`ROTIDE_TASK_LOG_MAX_BYTES`.
+A task log is a generated, read-only tab fed by a child process's
+merged stdout/stderr. Output is appended to a document, rows are
+rebuilt, and a cap prevents unbounded growth. The tab stays open
+after the process exits, with a final status line appended.

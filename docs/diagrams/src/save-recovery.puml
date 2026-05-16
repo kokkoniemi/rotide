@@ -5,23 +5,29 @@ title Save and recovery flow
 
 start
 if (save requested?) then (save)
-	:copy active document text;
-	:write temp file;
-	:fsync temp file;
-	:rename temp over target;
-	:fsync parent directory;
-	:clear dirty after success;
-else (recovery autosave)
-	:serialize tab state and document text;
-	:write recovery snapshot;
+  :copy active document text;
+  :mkstemp sibling temp file;
+  :write all bytes;
+  :fsync temp fd;
+  :close temp fd;
+  :rename temp over target;
+  :open parent directory;
+  :fsync directory fd;
+  :close directory fd;
+  :clear dirty (only after success);
+  :notify LSP didSave;
+  :refresh Git status;
+else (autosave)
+  :serialize tab state and document text;
+  :write recovery snapshot;
 endif
 
-if (startup sees snapshot?) then (yes)
-	:prompt user;
-	:restore tabs through document model;
-	:rebuild derived rows;
+if (startup sees recovery snapshot?) then (yes)
+  :prompt user;
+  :restore tabs through document model;
+  :rebuild derived rows;
 else (no)
-	:open args or empty tab;
+  :open CLI args or empty tab;
 endif
 stop
 

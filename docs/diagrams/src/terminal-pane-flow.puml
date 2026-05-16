@@ -4,30 +4,25 @@ skinparam backgroundColor #FFFFFF
 title Terminal pane lifecycle
 
 start
-:Create terminal leaf;
-:forkpty child command;
-:Attach libvterm to PTY master;
+:create terminal leaf;
+:fork PTY child;
+:attach libvterm parser;
 
-partition "event loop" {
-	repeat
-		:Poll input tick;
-		:Pump PTY output into libvterm;
-		if (bytes read?) then (yes)
-			:return TERMINAL_EVENT;
-		endif
-		if (child exited?) then (yes)
-			:mark terminal exited;
-			:close exited panes;
-			:restore focus if needed;
-		endif
-	repeat while (editor running)
-}
+repeat
+  :pump PTY -> vterm on each input tick;
+  if (bytes consumed?) then (yes)
+    :emit TERMINAL_EVENT (repaint);
+  endif
+  if (child exited?) then (yes)
+    :mark exited; close pane;
+    :restore focus to surviving sibling;
+  endif
+repeat while (editor running)
 
-partition "render/input" {
-	:Paint vterm cells inside pane rect;
-	:Use vterm cursor for focused terminal;
-	:Forward keys, paste, and tracked mouse;
-	:Resize PTY on SIGWINCH/layout change;
+partition "render / input" {
+  :paint vterm cells in pane rect;
+  :forward keys, paste, tracked mouse to PTY;
+  :resize PTY on layout / SIGWINCH;
 }
 
 stop

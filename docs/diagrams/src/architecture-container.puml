@@ -5,26 +5,27 @@ skinparam backgroundColor #FFFFFF
 
 title RotIDE container relationships
 
-Person(user, "User", "Edits files in a terminal")
+Person(user, "User")
 
 System_Boundary(rotide, "RotIDE") {
-	Container(input, "Input and actions", "C", "Terminal decoding, keymap, prompts, mouse, per-family action helpers")
-	Container(text, "Text engine", "C", "editorDocument + rope, row cache, edit pipeline, post-edit notify, selection, history; active buffer is a shared editorBuffer (X-macro union, swapped on tab switch)")
-	Container(workspace, "Workspace", "C", "Tabs, drawer (per-mode modules), pane tree, project search, Git, poll-based file watch, recovery and snapshots")
-	Container(renderer, "Renderer", "C", "Frame builder (pure render), multi-pane painter, tab bar / drawer view / status bar, libvterm cell painter, wrap/viewport, overlays")
-	Container(language, "Language services", "C", "Tree-sitter (split into syntax_detect/predicates/locals/budget/indent/captures/injections + worker thread), LSP registry keyed by (server_kind, workspace_root) with documents/features/responses/transport/mock submodules")
-	Container(terminal, "Terminal and DAP", "C + libvterm", "PTY panes, vterm parser, DAP client (console=terminal opens a pane and supplies its tty to the adapter)")
-	Container(config, "Config", "TOML", "Editor, theme (builtin + parse), keymap, LSP and DAP settings; consumed by Input, Language services and Terminal+DAP")
+	Container(input, "Input", "C", "Decodes terminal events; routes to actions, prompts, or pane forwarding")
+	Container(text, "Text engine", "C", "Owns canonical document bytes, edits, history, selection")
+	Container(workspace, "Workspace", "C", "Tabs, pane tree, drawer, project search, Git, recovery, persistence")
+	Container(renderer, "Renderer", "C", "Builds the terminal frame from current state")
+	Container(language, "Language services", "C", "Tree-sitter highlighting and LSP (per-workspace clients)")
+	Container(terminal, "Terminal + DAP", "C + libvterm", "PTY-backed panes; DAP client")
+	Container(config, "Config", "TOML", "User and project settings")
 }
 
-System_Ext(files, "Filesystem", "Source files, config, recovery and workspace snapshots")
+System_Ext(files, "Filesystem", "Source files, snapshots, config")
 System_Ext(ts, "Tree-sitter", "Vendored parsers and runtime")
 System_Ext(lsp, "Language servers", "gopls, clangd, TypeScript, ESLint")
 System_Ext(pty_children, "PTY children", "Shells and debuggees")
-System_Ext(adapters, "DAP adapters", "gdb -i dap, lldb-dap, dlv dap")
+System_Ext(adapters, "DAP adapters", "gdb-dap, lldb-dap, dlv dap")
 
 Rel(user, input, "Keys/mouse")
 Rel(user, renderer, "Views frame")
+
 Rel(config, input, "Settings")
 Rel(input, text, "Editor actions")
 Rel(input, terminal, "Forwarded keys")
@@ -32,6 +33,7 @@ Rel(text, language, "Sync edits")
 Rel(renderer, text, "Reads rows")
 Rel(renderer, workspace, "Reads layout")
 Rel(renderer, terminal, "Paints vterm cells")
+
 Rel(workspace, files, "Open, save, recover, watch")
 Rel(language, ts, "Parse/query")
 Rel(language, lsp, "JSON-RPC")

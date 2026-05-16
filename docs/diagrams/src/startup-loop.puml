@@ -4,43 +4,26 @@ skinparam backgroundColor #FFFFFF
 title Startup and main loop
 
 start
-:enable terminal raw mode (setRawMode);
-:initEditor — clipboard, theme, drawer state,
-single-leaf layout root + focused leaf, tabs;
-:start Tree-sitter background worker;
-:bootstrap global config file
-(create if missing);
-:initialize recovery and workspace state
-for current directory;
-:apply configured editor/theme/keymap/LSP/DAP settings;
-if (recovery snapshot or CLI args?) then (yes)
-	:load recovery or open CLI args;
-else (no)
-	:fall through to drawer init;
-endif
-:drawer init for startup;
-:load and apply workspace state
-(restore drawer width, tabs, persisted layout);
-:Git init for working tree;
+:enable raw terminal mode;
+:initialize editor state
+(theme, drawer, layout, bootstrap tab);
+:start syntax background worker;
+:apply config (theme/keymap/LSP/DAP);
+:restore recovery snapshot or open CLI args;
+:restore workspace state (drawer, tabs, layout);
+
 while (running)
-	:editorSyntaxBackgroundPoll;
-	:editorLspPumpNotifications;
-	:editorDapPumpNotifications;
-	:editorViewportUpdateForFrame;
-	:editorRefreshScreen
-	 (pure renderer - no pumping);
-	:editorProcessKeypress
-	 (decode input, dispatch action,
-	  handle terminal/paste events);
+  :poll syntax worker;
+  :pump LSP / DAP;
+  :update viewport;
+  :render frame;
+  :process one input event;
 endwhile
-:on quit action OR
- SIGINT/SIGTERM/SIGHUP/SIGQUIT
- -> editorHandleTerminationSignal:
- editorDapShutdown,
- editorLspShutdown,
- editorSyntaxBackgroundStop,
- editorSyntaxReleaseSharedResources,
- editorRestoreTerminal;
+
+:on quit or termination signal:
+shut down DAP, LSP, syntax worker,
+release shared resources,
+restore terminal;
 stop
 
 @enduml

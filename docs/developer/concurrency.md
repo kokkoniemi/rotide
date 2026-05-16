@@ -1,43 +1,43 @@
 # Concurrency
 
-RotIDE is single-threaded except for one worker: Tree-sitter parsing for the
-focused tab. Everything else (LSP, DAP, terminal panes, project search) is
-*separate processes* over pipes/PTYs, drained from the main thread.
+RotIDE is single-threaded except for one worker thread that parses
+Tree-sitter for the focused tab. Everything else — language servers, DAP
+adapters, terminal panes, project search — runs in separate processes
+and is drained from the main thread.
 
-## Syntax worker protocol
+## Snapshot / revision protocol
 
 ![Syntax worker](../diagrams/svg/syntax-worker.svg)
 
-Each tab carries two counters in its `editorBuffer` (see [architecture.md](architecture.md)):
+Each tab carries a *revision* (bumped on any edit) and a *generation*
+(bumped when the language changes). The main thread hands the worker a
+self-contained snapshot — language, revision, generation, an owned byte
+copy, and the visible row window. The worker parses on private memory
+and publishes a result tagged with the snapshot's `(language, revision,
+generation)`.
 
-- `syntax_revision` — bumped on any edit / undo / redo / external reload.
-- `syntax_generation` — bumped when the *language* changes (save-as).
+On publish, the main thread compares the tags against current tab
+state. Mismatch → drop. That is the entire safety property: stale
+results never overwrite live state. The slot holds at most one queued
+job and one pending result; staleness is absorbed by overwriting.
 
-The worker owns nothing in `E`: it parses a `malloc`-owned byte copy into a
-fresh `editorSyntaxState` and publishes a result tagged with the snapshot's
-`(language, revision, generation)`. `editorSyntaxBackgroundPoll` drops the
-result unless those three still match — that is the entire safety story.
-
-The slot holds at most one queued job and one pending result; staleness is
-absorbed by overwrite, not by queueing.
+The same pattern is the template if a second worker is ever introduced:
+snapshot, tag, parse on worker-owned memory, validate on publish.
 
 ## Shutdown
 
-`editorSyntaxBackgroundStop` sets the stop flag, broadcasts the condvar, and
-`pthread_join`s the worker. It is called from both clean quit
-(`actions_file_tab.c`) and the termination signal handler in
-`src/support/terminal.c`, alongside `editorLspShutdown` / `editorDapShutdown`.
+Clean quit and termination signals share one shutdown sequence: DAP,
+LSP, syntax worker (stop flag → wake → join), terminal restore.
 
 The signal path is not strictly async-signal-safe (malloc, mutex). The
-trade-off is intentional: when SIGINT/SIGTERM arrives the editor is blocked
-on `read()`, and reaping adapter children beats leaking them.
+trade-off is intentional: when a termination signal arrives the editor
+is blocked on `read()`, and reaping adapter children matters more than
+formal safety.
 
-## Not parallel
+## What is not parallel
 
-- Incremental Tree-sitter edits and small-document parses still run on the
-  main thread; the worker is an optimization, not the primary parser.
-- LSP/DAP/terminal-pane/project-search I/O is poll-driven on the main
-  thread. No I/O threads.
-
-If you ever need another worker, follow the same shape: snapshot, tag,
-parse on worker-owned memory, validate on publish.
+- Incremental Tree-sitter edits and small-document parses still run on
+  the main thread. The worker is an optimization for large documents,
+  not the primary parser.
+- LSP, DAP, terminal-pane, and project-search I/O is poll-driven on the
+  main thread. There are no I/O threads.

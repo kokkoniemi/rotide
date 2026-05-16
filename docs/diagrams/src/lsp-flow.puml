@@ -1,32 +1,39 @@
 @startuml
 skin rose
 skinparam backgroundColor #FFFFFF
-title LSP document and request flow
+title LSP request flow
 
-participant "tab/document" as tab
+participant "tab action" as tab
 participant "lsp_registry.c" as registry
-participant "lsp_documents.c\n/ lsp_features.c" as lsp
+participant "lsp_documents.c" as docs
+participant "lsp_features.c" as features
 participant "lsp_protocol.c" as protocol
 participant "lsp_transport.c" as transport
 participant "language server" as server
-participant "renderer/drawer" as ui
+participant "renderer / drawer" as ui
 
-tab -> registry : editorLspEnsureClientForFile(\n  filename, ...)
-note right of registry
-  Lookup or spawn keyed by
+tab -> registry : editorLspEnsureClientForFile(filename, language)
+note right
+  Lookup or spawn by
   (server_kind, workspace_root).
-  No implicit "active LSP" singleton.
+  Reused across tabs;
+  no implicit "active LSP".
 end note
-registry --> tab : struct editorLspClient *client
+registry --> tab : client handle
 
-tab -> lsp : open / edit / request\n(passes explicit client)
-lsp -> protocol : build didOpen / didChange / request
+tab -> docs : open / edit / save / close
+docs -> protocol : build didOpen / didChange / didSave / didClose
 protocol -> transport : framed JSON-RPC
-transport -> server : stdin/stdout
-server --> transport : diagnostics / response
-transport --> protocol : parse JSON
-protocol --> lsp : locations, symbols, diagnostics, edits
-lsp --> tab : update tab-local state
-tab --> ui : overlays and LSP drawer entries
+transport -> server : stdin
+
+tab -> features : definition / completion / symbols / code action
+features -> protocol : build request
+protocol -> transport : framed JSON-RPC
+transport -> server : stdin
+
+server --> transport : stdout (response or diagnostics)
+transport --> features : parse via lsp_responses.c
+features --> tab : update tab-local state
+tab --> ui : overlays, drawer entries
 
 @enduml

@@ -1,54 +1,53 @@
 @startuml
 skin rose
 skinparam backgroundColor #FFFFFF
-title Keypress to editor action
+title Input dispatch (editorProcessKeypress)
 
 start
-:terminal decodes input
-or synthetic event;
+:editorReadKey returns event or byte;
 if (synthetic event?) then (yes)
-	:run event-specific gate
-(resize/task/syntax/watch/
-terminal/paste/EOF);
-	stop
+  :event-specific handler
+  (EOF / RESIZE / TASK / SYNTAX /
+   WATCH / TERMINAL / PASTE);
+  stop
 else (no)
 endif
-if (prompt active?) then (yes)
-	:prompt module handles byte;
-	stop
+if (popup visible?) then (yes)
+  :route key to popup handler
+  (autocomplete refilter or accept);
+  if (consumed?) then (yes)
+    stop
+  else (no)
+  endif
 else (no)
 endif
 if (mouse event?) then (yes)
-	:mouse module hit-tests and routes
-to terminal/drawer/tab/text;
-	stop
+  :hit-test layout;
+  :route to terminal pane / drawer /
+   tab strip / text area;
+  stop
 else (no)
 endif
-if (terminal key gate?) then (yes)
-	if (prefix armed?) then (yes)
-		:clear prefix and fall through;
-	else (no)
-		if (key is terminal_prefix?) then (yes)
-			:arm one-shot prefix;
-			stop
-		else (no)
-			:send key to focused PTY;
-			stop
-		endif
-	endif
+if (focused leaf is terminal pane
+    and not in drawer focus?) then (yes)
+  if (terminal_prefix armed?) then (yes)
+    :clear prefix and fall through to keymap;
+  else (no)
+    if (key matches terminal_prefix?) then (yes)
+      :arm one-shot prefix;
+      stop
+    else (no)
+      :forward key to PTY;
+      stop
+    endif
+  endif
 else (no)
 endif
-:lookup configured keymap;
-if (bound action?) then (yes)
-	:dispatch enum editorAction
-to action family helper;
+:keymap lookup -> editorAction;
+if (action mutates text?) then (yes)
+  :apply edit through edit pipeline;
 else (no)
-	:text-pair / insert handling;
-endif
-if (text mutation?) then (yes)
-	:apply document edit;
-else (no)
-	:update non-document state;
+  :update non-document state;
 endif
 stop
 
