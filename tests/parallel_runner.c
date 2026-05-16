@@ -30,8 +30,7 @@ static char g_crash_artifact_path[1024];
 static char g_crash_marker_path[1024];
 static unsigned long long g_crash_seed = 0;
 static int g_crash_repeat = 1;
-/* mmap'd 256-byte page shared with the parent; child writes the current
- * test name with a single write(2)-like store, parent reads on crash. */
+/* MAP_SHARED page so parent can read the in-flight test name on crash. */
 static char *g_current_test_marker = NULL;
 static const size_t k_marker_size = 256;
 
@@ -117,16 +116,14 @@ static void crash_signal_handler(int signo, siginfo_t *info, void *ucontext) {
 		(void)write_all_fd(fd, "\nbacktrace:\n", 12);
 		void *frames[64];
 		int nframes = backtrace(frames, 64);
-		/* backtrace_symbols_fd is documented as best-effort under signal;
-		 * in practice glibc's implementation works for SIGSEGV in test
-		 * crashes that aren't holding the malloc lock. */
+		/* Best-effort; backtrace_symbols_fd isn't AS-safe but works for
+		 * test SEGVs that aren't holding the malloc lock. */
 		backtrace_symbols_fd(frames, nframes, fd);
 		(void)close(fd);
 	}
 
-	/* SA_RESETHAND has already restored the default action. Re-raise the
-	 * signal so the child terminates with WIFSIGNALED=true; calling _exit
-	 * here would mask the signal as a normal exit. */
+	/* Re-raise so the child terminates with WIFSIGNALED=true. SA_RESETHAND
+	 * already restored the default action; _exit() here would mask it. */
 	(void)raise(signo);
 }
 
@@ -243,10 +240,6 @@ int parallelChildRunBatch(
 	g_crash_repeat = opts->repeat;
 	snprintf(g_crash_marker_path, sizeof(g_crash_marker_path), "%s/.marker.%d",
 		ARTIFACT_ROOT, (int)getpid());
-	/* Where the signal handler will write the crash dump if this child
-	 * dies. The parent rewrites the same path on reap so it can be
-	 * announced after the fact even if the child cratered before being
-	 * able to update the path with the actual test name. */
 	char crash_dir[512];
 	snprintf(crash_dir, sizeof(crash_dir), "%s/%s", ARTIFACT_CRASHES, suite->name);
 	(void)mkdir_p(crash_dir, 0755);
@@ -278,9 +271,7 @@ int parallelChildRunBatch(
 		}
 		snprintf(g_crash_artifact_path, sizeof(g_crash_artifact_path),
 			"%s/%s/%s.crash", ARTIFACT_CRASHES, suite->name, tc->name);
-		/* Test-only crash injection: ROTIDE_TEST_CRASH=suite/test forces a
-		 * SIGSEGV at that point in the child. Used by the crash-handler
-		 * tests; harmless when the env var is unset. */
+		/* Hook for check_crash_handler.sh; no-op without the env var. */
 		const char *crash_match = getenv("ROTIDE_TEST_CRASH");
 		if (crash_match != NULL) {
 			char want[256];
@@ -342,17 +333,12 @@ int parallelChildRunBatch(
 	return local_failed_unique > 0 ? EXIT_FAILURE : EXIT_SUCCESS;
 }
 
-/*
- * The child writes batch->total_runs / passed_runs / failed_unique into
- * its own copy of the suiteBatch struct, which the parent does not see
- * (fork gives a COW copy). To carry the counts back the child appends a
- * summary line to its log; the parent parses it on reap.
- */
+/* Fork-COW means the child's struct updates aren't visible to the parent;
+ * counts cross the boundary via a __CHILD_SUMMARY trailer in the log. */
 static void parse_child_summary(const char *out, size_t out_len, struct suiteBatch *batch) {
 	if (out == NULL || out_len == 0) {
 		return;
 	}
-	/* Look for the trailer we emit at the end of the child run. */
 	const char *p = out + out_len;
 	const char *start = NULL;
 	while (p > out && (*(p - 1) == '\n' || *(p - 1) == '\r')) {

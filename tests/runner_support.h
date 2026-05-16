@@ -17,12 +17,7 @@ struct snapshotExcludeRange {
 	size_t size;
 };
 
-/*
- * Compare two byte buffers of length size, skipping byte ranges in
- * excludes (must be sorted by ascending offset and non-overlapping).
- * Returns 1 on match, 0 on diff; on diff, *first_diff_out (if non-NULL)
- * is set to the offset of the first differing byte.
- */
+/* excludes must be sorted by ascending offset and non-overlapping. */
 int runnerSnapshotCompare(const unsigned char *a, const unsigned char *b, size_t size,
 		const struct snapshotExcludeRange *excludes, int exclude_count,
 		size_t *first_diff_out);
@@ -67,12 +62,8 @@ void quarantineListFree(struct quarantineList *q);
 int quarantineListAppend(struct quarantineList *q, const char *name);
 int quarantineListContains(const struct quarantineList *q, const char *name);
 
-/*
- * Populate q from path. Returns 0 on success or if path does not exist
- * (clean checkouts work without a quarantine file). Returns -1 on parse or
- * I/O failure; on -1, *error_out (if non-NULL) is set to a freshly malloc'd
- * message and the caller owns the buffer.
- */
+/* Missing path is success with empty list. On -1, *error_out (if non-NULL)
+ * receives a malloc'd message the caller owns. */
 int quarantineListLoad(struct quarantineList *q, const char *path, char **error_out);
 
 void runnerPrintUsage(void);

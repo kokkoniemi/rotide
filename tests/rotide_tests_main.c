@@ -48,6 +48,7 @@ SUITE_EXTERN(render_terminal);
 SUITE_EXTERN(layout);
 SUITE_EXTERN(pty);
 SUITE_EXTERN(terminal_pane);
+SUITE_EXTERN(text_invariants);
 SUITE_EXTERN(runner_internals);
 
 #define SUITE(name_str, tags_str, prefix) \
@@ -85,6 +86,7 @@ static const struct editorTestSuite k_suites[] = {
 	SUITE("layout", "layout", layout),
 	SUITE("pty", "pty slow", pty),
 	SUITE("terminal_pane", "pty terminal slow", terminal_pane),
+	SUITE("text_invariants", "document property", text_invariants),
 	SUITE("runner_internals", "runner", runner_internals),
 };
 
@@ -109,33 +111,9 @@ static int suitePassesTagFilter(const struct editorTestSuite *suite, const struc
 	return 1;
 }
 
-/*
- * Coverage scope of --validate-reset.
- *
- * The validator snapshots the bytes of `editorConfig E` once after the
- * first reset_editor_state() and asserts that every subsequent reset
- * restores those bytes exactly, *with the exception of byte ranges in
- * k_snapshot_excludes* — fields that reset_editor_state intentionally
- * re-allocates (layout_root, focused_leaf), so their pointer value
- * legitimately differs between resets even when logical state matches.
- *
- * Coverage is limited to E. Singletons that live outside E (LSP mock
- * scratch, syntax-worker queue depth, alloc-failure-probe counters) are
- * cleared by reset_editor_state() too but are not currently part of the
- * snapshot. Extending to those singletons is downstream work, naturally
- * paired with the per-suite fork from Phase 2.
- */
-/*
- * --validate-reset coverage scope.
- *
- * The validator snapshots editorConfig E once after the first reset and
- * asserts every subsequent reset restores those bytes exactly, *except*
- * for field ranges in the exclude table owned by editor_state_snapshot.c
- * (layout_root, focused_leaf — fields reset_editor_state intentionally
- * re-allocates). Coverage is limited to E; singletons outside E
- * (LSP mock scratch, syntax-worker queue depth, alloc-probe counters)
- * are not currently snapshotted.
- */
+/* --validate-reset: snapshot E once, compare after each test. Excludes
+ * are in editor_state_snapshot.c. Coverage is E only — singletons
+ * outside E (LSP mock, syntax-worker queue, alloc probes) aren't checked. */
 
 int main(int argc, char **argv) {
 	setlocale(LC_CTYPE, "");

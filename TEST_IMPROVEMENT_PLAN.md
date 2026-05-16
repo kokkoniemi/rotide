@@ -286,7 +286,7 @@ crash repros as regression unit tests under `tests/test_*_fuzz_repro.c`.
 liar's metric):**
 
 - Run `-merge=1` weekly to minimize the corpus and keep coverage.
-- Track edge counts per nightly run; alert if a 24h fuzz adds zero new edges
+- Track edge counts per every-other-night run; alert if a 48h fuzz adds zero new edges
   (target is stuck: corpus needs new seeds, harness is bottlenecked, or the
   parser is genuinely covered).
 - Persist the working corpus across runs in CI cache; a cold corpus on every

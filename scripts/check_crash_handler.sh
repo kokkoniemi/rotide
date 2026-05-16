@@ -1,13 +1,6 @@
 #!/bin/sh
-# Smoke-test the per-suite crash handler.
-#
-# Triggers a synthetic SIGSEGV in one test (via ROTIDE_TEST_CRASH=<suite>/<test>)
-# and verifies:
-#   1. The parent prints a CRASH line to stderr.
-#   2. The artifact file under tests/artifacts/crashes/<suite>/<test>.crash
-#      exists and contains the expected signal/suite/test/seed/backtrace
-#      lines.
-#   3. The parent exits with status 1.
+# Smoke-test the crash handler: inject a SIGSEGV via ROTIDE_TEST_CRASH and
+# verify CRASH line, artifact file fields, and exit status 1.
 #
 # Usage: check_crash_handler.sh <path-to-rotide_tests>
 
@@ -22,8 +15,7 @@ trap 'rm -f "$log"' EXIT
 
 rm -f "$artifact"
 
-# Run; expect non-zero exit. `set +e` because the binary exits 1 on
-# crash, which is the success condition for this test.
+# Non-zero exit is success here.
 set +e
 ROTIDE_TEST_CRASH="$target_suite/$target_test" \
 	"$bin" --jobs 2 --filter "$target_test" --seed 0x1 \

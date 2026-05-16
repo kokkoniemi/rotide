@@ -1,8 +1,6 @@
 #!/bin/sh
-# Determinism gate. Runs the test binary twice with a fixed seed and
-# verifies byte-identical output (PASS/FAIL lines, drift report, summary).
-# Any nondeterminism in tests, seeded RNGs, or runner output fails the gate
-# *before* it costs an engineer half a day chasing an unreproducible bug.
+# Determinism gate. Runs the binary twice with a fixed seed and diffs the
+# outcome lines (PASS/FAIL/SKIP/RESET-DRIFT/summary).
 #
 # Usage: check_test_determinism.sh <path-to-rotide_tests> [extra-flags...]
 
@@ -15,10 +13,8 @@ seed=${ROTIDE_DETERMINISM_SEED:-0xC0FFEE0DDBA11}
 tmpdir=$(mktemp -d -t rotide-determinism.XXXXXX)
 trap 'rm -rf "$tmpdir"' EXIT
 
-# Test stdout legitimately contains nondeterministic data (mkstemp suffixes
-# in captured-screen output, /dev/urandom-seeded RNG when no seed is forced
-# upstream, etc.). The gate cares about test *outcomes* and validator
-# reports, not incidental log content. Filter to those lines.
+# Filter to outcome lines: test stdout has nondeterministic content
+# (mkstemp suffixes in captured screens, etc.) that isn't a real failure.
 filter() {
 	grep -E '^(PASS|FAIL|SKIP|RESET-DRIFT|[0-9]+/[0-9]+ test runs )'
 }
