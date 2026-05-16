@@ -152,6 +152,9 @@ EDITOR_OBJS = $(filter-out $(SRC_DIR)/rotide.o,$(CORE_OBJS)) \
 
 DEPFILES = $(OBJS:.o=.d) $(TEST_OBJS:.o=.d)
 TEST_BIN = tests/rotide_tests
+BENCH_BUFFER_BIN = tests/bench_text_storage
+BENCH_BUFFER_SRC = tests/bench_text_storage.c
+BENCH_BUFFER_OBJ = $(BENCH_BUFFER_SRC:.c=.o)
 
 # ============================================================================
 # Generated headers
@@ -204,6 +207,9 @@ $(TREE_SITTER_OBJS): %.o: %.c
 $(TEST_BIN): $(TEST_OBJS) $(EDITOR_OBJS)
 	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) -rdynamic $^ -lutil -o $@
 
+$(BENCH_BUFFER_BIN): $(BENCH_BUFFER_OBJ) $(EDITOR_OBJS)
+	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) $^ -lutil -o $@
+
 # ============================================================================
 # Test / release / docs targets
 # ============================================================================
@@ -212,6 +218,9 @@ DOCS_MEDIA_FLAGS ?=
 
 test: $(TEST_BIN)
 	$(call LOG,TEST,$(TEST_BIN))./$(TEST_BIN) $(TEST_FLAGS)
+
+bench-buffer: $(BENCH_BUFFER_BIN)
+	$(call LOG,BENCH,$(BENCH_BUFFER_BIN))./$(BENCH_BUFFER_BIN) $(BENCH_BUFFER_FLAGS)
 
 test-sanitize:
 	$(call LOG,CLEAN,build)$(MAKE) clean
@@ -247,8 +256,8 @@ docs-diagrams:
 
 -include $(DEPFILES)
 
-.PHONY: clean test test-sanitize test-determinism test-tsan test-crash-handler release docs-media docs-diagrams
+.PHONY: clean test test-sanitize test-determinism test-tsan test-crash-handler release docs-media docs-diagrams bench-buffer
 
 clean:
-	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(DEPFILES) $(TEST_BIN) rotide $(GENERATED_HEADERS)
+	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(BENCH_BUFFER_OBJ) $(DEPFILES) $(TEST_BIN) $(BENCH_BUFFER_BIN) rotide $(GENERATED_HEADERS)
 	$(call LOG,CLEAN,tree)find $(SRC_DIR) tests $(TS_DIR) -type f \( -name '*.o' -o -name '*.d' \) -delete

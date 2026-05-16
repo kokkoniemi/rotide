@@ -16,4 +16,10 @@ void editorDocumentStatsRecordIncrementalUpdate(void);
 int editorDocumentStatsFullRebuildCount(void);
 int editorDocumentStatsIncrementalUpdateCount(void);
 
+void editorTextTreeStatsReset(void);
+void editorTextTreeStatsRecordFullRebuild(void);
+void editorTextTreeStatsRecordIncrementalUpdate(void);
+int editorTextTreeStatsFullRebuildCount(void);
+int editorTextTreeStatsIncrementalUpdateCount(void);
+
 #endif

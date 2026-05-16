@@ -2,6 +2,8 @@
 
 Operational handbook for executing a single phase of [BUFFER_REFACTOR_PLAN.md](../../../BUFFER_REFACTOR_PLAN.md). Read the plan first; this file tells you *how* to ship a phase, not *what* the phases are.
 
+Follow the comment policy in project's AGENTS.md.
+
 ## How a phase ships
 
 1. **Identify the active phase.** Find the first unchecked entry in the "Phase summary checklist" at the bottom of [BUFFER_REFACTOR_PLAN.md](../../../BUFFER_REFACTOR_PLAN.md). That's your phase. If the previous phase's box is unchecked, finish it first; don't start a new phase out of order.

@@ -115,11 +115,11 @@ Each phase ends in a green test suite. Property tests in [tests/test_text_invari
 
 Before touching storage, broaden the existing harness so each subsequent phase can be validated mechanically.
 
-- [ ] Extend `test_text_invariants.c` to exercise larger documents (≥1 MB) and longer op sequences (≥10k operations).
-- [ ] Add line-index invariants to the differential test: for every offset `b` returned by random ops, assert `byte→line→start_byte ≤ b < line_end_byte` and `start_byte == ref-walked-newlines(b)`.
-- [ ] Add a "max line width" invariant: after every op, compute max line bytes from the reference doc by scanning, and assert against `editorBufferMaxRenderCols` or a dedicated accessor.
-- [ ] Add a microbenchmark target (Makefile) measuring: open 1 MB file, do 10k random single-char inserts, time it. Capture baseline numbers; we'll watch them shrink.
-- [ ] Add `editor*StatsRecord*` counters mirroring those in [src/editing/document_bridge.c](src/editing/document_bridge.c) for the new layer so tests can assert "no full rebuilds."
+- [x] Extend `test_text_invariants.c` to exercise larger documents (≥1 MB) and longer op sequences (≥10k operations).
+- [x] Add line-index invariants to the differential test: for every offset `b` returned by random ops, assert `byte→line→start_byte ≤ b < line_end_byte` and `start_byte == ref-walked-newlines(b)`.
+- [x] Add a "max line width" invariant: after every op, compute max line bytes from the reference doc by scanning, and assert against `editorBufferMaxRenderCols` or a dedicated accessor.
+- [x] Add a microbenchmark target (Makefile) measuring: open 1 MB file, do 10k random single-char inserts, time it. Capture baseline numbers; we'll watch them shrink.
+- [x] Add `editor*StatsRecord*` counters mirroring those in [src/editing/document_bridge.c](src/editing/document_bridge.c) for the new layer so tests can assert "no full rebuilds."
 
 **Intermediate state**: zero production code changes. Tests are stricter.
 
@@ -298,7 +298,7 @@ This phase is large and orthogonal to the storage refactor; it is listed for com
 
 ## Phase summary checklist
 
-- [ ] **Phase 0** — Harden property tests, add benchmarks, line/width invariants.
+- [x] **Phase 0** — Harden property tests, add benchmarks, line/width invariants.
 - [ ] **Phase 1** — `editorTextSummary` + merge, computed but not consumed.
 - [ ] **Phase 2** — Single-leaf tree wrapper; delete `editorRope*` symbols.
 - [ ] **Phase 3** — Real B-tree with multi-leaf descent and `O(log n)` edits.

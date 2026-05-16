@@ -19,6 +19,9 @@
 #define INVARIANTS_MAX_DOC_LEN 16384
 #define INVARIANTS_MAX_INSERT_LEN 64
 #define INVARIANTS_POSITION_SAMPLES 16
+#define INVARIANTS_LINE_INDEX_SAMPLES 16
+#define INVARIANTS_LARGE_DOC_BYTES (1u << 20)  /* 1 MiB */
+#define INVARIANTS_LARGE_OP_COUNT 10000
 
 struct refDoc {
 	char *buf;
@@ -182,6 +185,162 @@ static int checkPositionRoundtrip(struct editorDocument *doc, struct refDoc *ref
 	return 0;
 }
 
+static int refLineForOffset(const struct refDoc *ref, size_t offset, int *line_idx_out,
+		size_t *start_byte_out, size_t *end_byte_out) {
+	if (ref->len == 0) {
+		if (offset != 0) {
+			return -1;
+		}
+		*line_idx_out = 0;
+		*start_byte_out = 0;
+		*end_byte_out = 0;
+		return 0;
+	}
+	if (offset > ref->len) {
+		return -1;
+	}
+	if (offset == ref->len) {
+		int has_trailing_nl = ref->buf[ref->len - 1] == '\n';
+		size_t last_start = 0;
+		int line_count = 1;
+		for (size_t i = 0; i < ref->len; i++) {
+			if (ref->buf[i] == '\n' && i + 1 < ref->len) {
+				last_start = i + 1;
+				line_count++;
+			}
+		}
+		if (has_trailing_nl) {
+			*line_idx_out = line_count;
+			*start_byte_out = ref->len;
+			*end_byte_out = ref->len;
+			return 0;
+		}
+		*line_idx_out = line_count - 1;
+		*start_byte_out = last_start;
+		*end_byte_out = ref->len;
+		return 0;
+	}
+	int line = 0;
+	size_t start = 0;
+	for (size_t i = 0; i < offset; i++) {
+		if (ref->buf[i] == '\n') {
+			line++;
+			start = i + 1;
+		}
+	}
+	size_t end = start;
+	while (end < ref->len && ref->buf[end] != '\n') {
+		end++;
+	}
+	*line_idx_out = line;
+	*start_byte_out = start;
+	*end_byte_out = end;
+	return 0;
+}
+
+static size_t refMaxLineBytes(const struct refDoc *ref) {
+	if (ref->len == 0) {
+		return 0;
+	}
+	size_t max_bytes = 0;
+	size_t start = 0;
+	for (size_t i = 0; i < ref->len; i++) {
+		if (ref->buf[i] == '\n') {
+			size_t line_bytes = i - start;
+			if (line_bytes > max_bytes) {
+				max_bytes = line_bytes;
+			}
+			start = i + 1;
+		}
+	}
+	if (start < ref->len) {
+		size_t line_bytes = ref->len - start;
+		if (line_bytes > max_bytes) {
+			max_bytes = line_bytes;
+		}
+	}
+	return max_bytes;
+}
+
+static int checkLineIndexInvariants(struct editorDocument *doc, struct refDoc *ref,
+		uint64_t seed, const struct opLog *log) {
+	if (ref->len == 0) {
+		return 0;
+	}
+	for (int i = 0; i < INVARIANTS_LINE_INDEX_SAMPLES; i++) {
+		size_t target = (size_t)(rngNext() % (ref->len + 1));
+		int ref_line = 0;
+		size_t ref_start = 0;
+		size_t ref_end = 0;
+		if (refLineForOffset(ref, target, &ref_line, &ref_start, &ref_end) != 0) {
+			fprintf(stderr,
+				"text_invariants: ref line lookup failed off=%zu after op#%d seed=0x%016llx\n",
+				target, log->op_idx, (unsigned long long)seed);
+			return -1;
+		}
+		size_t doc_len = editorDocumentLength(doc);
+		if (target == doc_len) {
+			/* Past-the-end offset has no containing line. */
+			continue;
+		}
+		int line_idx = -1;
+		if (!editorDocumentLineIndexForByteOffset(doc, target, &line_idx)) {
+			fprintf(stderr,
+				"text_invariants: byte->line failed off=%zu after op#%d seed=0x%016llx\n",
+				target, log->op_idx, (unsigned long long)seed);
+			return -1;
+		}
+		if (line_idx != ref_line) {
+			fprintf(stderr,
+				"text_invariants: line index drift off=%zu doc_line=%d ref_line=%d "
+				"after op#%d seed=0x%016llx\n",
+				target, line_idx, ref_line, log->op_idx,
+				(unsigned long long)seed);
+			return -1;
+		}
+		size_t start_byte = 0;
+		size_t end_byte = 0;
+		if (!editorDocumentLineStartByte(doc, line_idx, &start_byte) ||
+				!editorDocumentLineEndByte(doc, line_idx, &end_byte)) {
+			fprintf(stderr,
+				"text_invariants: line bounds lookup failed line=%d off=%zu after op#%d "
+				"seed=0x%016llx\n",
+				line_idx, target, log->op_idx, (unsigned long long)seed);
+			return -1;
+		}
+		if (start_byte != ref_start || end_byte != ref_end) {
+			fprintf(stderr,
+				"text_invariants: line bounds drift line=%d off=%zu doc=[%zu,%zu] "
+				"ref=[%zu,%zu] after op#%d seed=0x%016llx\n",
+				line_idx, target, start_byte, end_byte, ref_start, ref_end,
+				log->op_idx, (unsigned long long)seed);
+			return -1;
+		}
+		if (!(start_byte <= target && target < end_byte + 1)) {
+			fprintf(stderr,
+				"text_invariants: byte not inside line bounds off=%zu start=%zu end=%zu "
+				"after op#%d seed=0x%016llx\n",
+				target, start_byte, end_byte, log->op_idx,
+				(unsigned long long)seed);
+			return -1;
+		}
+	}
+	return 0;
+}
+
+static int checkMaxLineBytesMatchesRef(struct editorDocument *doc, struct refDoc *ref,
+		uint64_t seed, const struct opLog *log) {
+	size_t doc_max = editorDocumentMaxLineBytes(doc);
+	size_t ref_max = refMaxLineBytes(ref);
+	if (doc_max != ref_max) {
+		fprintf(stderr,
+			"text_invariants: max line bytes drift doc=%zu ref=%zu after op#%d seed=0x%016llx\n",
+			doc_max, ref_max, log->op_idx, (unsigned long long)seed);
+		return -1;
+	}
+	return 0;
+}
+
 static int checkLineCountMatchesNewlines(struct editorDocument *doc, struct refDoc *ref,
 		uint64_t seed, const struct opLog *log) {
 	int line_count = editorDocumentLineCount(doc);
@@ -209,7 +368,8 @@ static int checkLineCountMatchesNewlines(struct editorDocument *doc, struct refD
 	return 0;
 }
 
-static int runRandomOps(uint64_t seed, int n_ops, size_t doc_cap, const char *test_name) {
+static int runRandomOpsExtStride(uint64_t seed, int n_ops, size_t doc_cap, size_t max_insert_len,
+		size_t seed_text_cap, int check_stride, const char *test_name) {
 	g_rng = seed;
 	struct editorDocument doc;
 	editorDocumentInit(&doc);
@@ -219,22 +379,48 @@ static int runRandomOps(uint64_t seed, int n_ops, size_t doc_cap, const char *te
 		return 1;
 	}
 
-	char seed_text[256];
-	size_t seed_len = (size_t)(rngNext() % 128);
-	rngFillText(seed_text, seed_len);
+	char *seed_text = NULL;
+	size_t seed_len = 0;
+	if (seed_text_cap > 0) {
+		seed_text = (char *)malloc(seed_text_cap);
+		if (seed_text == NULL) {
+			editorDocumentFree(&doc);
+			refDocFree(&ref);
+			return 1;
+		}
+		seed_len = (size_t)(rngNext() % (seed_text_cap + 1));
+		if (seed_len > seed_text_cap) {
+			seed_len = seed_text_cap;
+		}
+		rngFillText(seed_text, seed_len);
+	}
 	if (!editorDocumentResetFromString(&doc, seed_text, seed_len)) {
 		fprintf(stderr, "%s: reset failed seed=0x%016llx\n", test_name,
 			(unsigned long long)seed);
+		free(seed_text);
 		editorDocumentFree(&doc);
 		refDocFree(&ref);
 		return 1;
 	}
 	(void)refDocReplace(&ref, 0, 0, seed_text, seed_len);
+	free(seed_text);
+	seed_text = NULL;
 
 	struct opLog init_log = {-1, 99, 0, 0, seed_len};
 	if (compareBuffers(&doc, &ref, seed, &init_log) != 0 ||
 		checkPositionRoundtrip(&doc, &ref, seed, &init_log) != 0 ||
-		checkLineCountMatchesNewlines(&doc, &ref, seed, &init_log) != 0) {
+		checkLineCountMatchesNewlines(&doc, &ref, seed, &init_log) != 0 ||
+		checkLineIndexInvariants(&doc, &ref, seed, &init_log) != 0 ||
+		checkMaxLineBytesMatchesRef(&doc, &ref, seed, &init_log) != 0) {
+		editorDocumentFree(&doc);
+		refDocFree(&ref);
+		return 1;
+	}
+
+	editorTextTreeStatsReset();
+
+	char *ins_buf = (char *)malloc(max_insert_len > 0 ? max_insert_len : 1);
+	if (ins_buf == NULL) {
 		editorDocumentFree(&doc);
 		refDocFree(&ref);
 		return 1;
@@ -252,16 +438,16 @@ static int runRandomOps(uint64_t seed, int n_ops, size_t doc_cap, const char *te
 		size_t new_len = 0;
 		if (kind != 1) {
 			size_t budget = doc_cap > cur + old_len ? doc_cap - (cur - old_len) : 0;
-			size_t max_insert = INVARIANTS_MAX_INSERT_LEN < budget
-				? INVARIANTS_MAX_INSERT_LEN : budget;
+			size_t max_insert = max_insert_len < budget ? max_insert_len : budget;
 			new_len = max_insert == 0 ? 0 : (size_t)(rngNext() % (max_insert + 1));
 		}
-		char ins_buf[INVARIANTS_MAX_INSERT_LEN];
 		if (new_len > 0) {
 			rngFillText(ins_buf, new_len);
 		}
 
 		struct opLog log = {i, kind, start, old_len, new_len};
+		int do_invariants = check_stride <= 1 ||
+			(i % check_stride) == 0 || i == n_ops - 1;
 
 		if (!editorDocumentReplaceRange(&doc, start, old_len, ins_buf, new_len)) {
 			fprintf(stderr,
@@ -269,6 +455,7 @@ static int runRandomOps(uint64_t seed, int n_ops, size_t doc_cap, const char *te
 				"cur=%zu seed=0x%016llx\n",
 				test_name, i, start, old_len, new_len, cur,
 				(unsigned long long)seed);
+			free(ins_buf);
 			editorDocumentFree(&doc);
 			refDocFree(&ref);
 			return 1;
@@ -277,22 +464,48 @@ static int runRandomOps(uint64_t seed, int n_ops, size_t doc_cap, const char *te
 			fprintf(stderr,
 				"%s: ref replace failed op#%d (impossible; bug in test) seed=0x%016llx\n",
 				test_name, i, (unsigned long long)seed);
+			free(ins_buf);
 			editorDocumentFree(&doc);
 			refDocFree(&ref);
 			return 1;
 		}
-		if (compareBuffers(&doc, &ref, seed, &log) != 0 ||
+		if (do_invariants && (compareBuffers(&doc, &ref, seed, &log) != 0 ||
 			checkPositionRoundtrip(&doc, &ref, seed, &log) != 0 ||
-			checkLineCountMatchesNewlines(&doc, &ref, seed, &log) != 0) {
+			checkLineCountMatchesNewlines(&doc, &ref, seed, &log) != 0 ||
+			checkLineIndexInvariants(&doc, &ref, seed, &log) != 0 ||
+			checkMaxLineBytesMatchesRef(&doc, &ref, seed, &log) != 0)) {
+			free(ins_buf);
 			editorDocumentFree(&doc);
 			refDocFree(&ref);
 			return 1;
 		}
 	}
 
+	int tree_rebuilds = editorTextTreeStatsFullRebuildCount();
+	if (tree_rebuilds > 0) {
+		fprintf(stderr,
+			"%s: storage layer rebuilt %d time(s) during random ops seed=0x%016llx\n",
+			test_name, tree_rebuilds, (unsigned long long)seed);
+		free(ins_buf);
+		editorDocumentFree(&doc);
+		refDocFree(&ref);
+		return 1;
+	}
+
+	free(ins_buf);
 	editorDocumentFree(&doc);
 	refDocFree(&ref);
 	return 0;
+}
+
+static int runRandomOpsExt(uint64_t seed, int n_ops, size_t doc_cap, size_t max_insert_len,
+		size_t seed_text_cap, const char *test_name) {
+	return runRandomOpsExtStride(seed, n_ops, doc_cap, max_insert_len, seed_text_cap, 1,
+		test_name);
+}
+
+static int runRandomOps(uint64_t seed, int n_ops, size_t doc_cap, const char *test_name) {
+	return runRandomOpsExt(seed, n_ops, doc_cap, INVARIANTS_MAX_INSERT_LEN, 128, test_name);
 }
 
 static uint64_t seedFor(uint64_t salt) {
@@ -314,6 +527,12 @@ static int test_text_invariants_medium_doc(void) {
 static int test_text_invariants_burst(void) {
 	return runRandomOps(seedFor(0xDEADBEEF13371337ULL), 500, INVARIANTS_MAX_DOC_LEN,
 		"burst");
+}
+
+/* Invariant checks scan the whole ref doc; sample every 100 ops to stay tractable. */
+static int test_text_invariants_large_doc_long_run(void) {
+	return runRandomOpsExtStride(seedFor(0xBEEFCAFEFEEDFACEULL), INVARIANTS_LARGE_OP_COUNT,
+		INVARIANTS_LARGE_DOC_BYTES, 256, 4096, 100, "large_doc_long_run");
 }
 
 static int test_text_invariants_empty_doc_grows(void) {
@@ -737,6 +956,7 @@ const struct editorTestCase g_text_invariants_tests[] = {
 	{"text_invariants_small_doc_random_ops", test_text_invariants_small_doc},
 	{"text_invariants_medium_doc_random_ops", test_text_invariants_medium_doc},
 	{"text_invariants_burst_500_ops", test_text_invariants_burst},
+	{"text_invariants_large_doc_long_run", test_text_invariants_large_doc_long_run},
 	{"text_invariants_pipeline_length_and_rows", test_text_invariants_pipeline_length_and_rows},
 	{"text_invariants_pipeline_small_edits_splice", test_text_invariants_pipeline_small_edits_splice},
 	{"text_invariants_pipeline_undo_redo_snapshot", test_text_invariants_pipeline_undo_redo_snapshot},

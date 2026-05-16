@@ -1,5 +1,6 @@
 #include "text/document.h"
 
+#include "editing/document_bridge.h"
 #include "support/alloc.h"
 #include "support/size_utils.h"
 #include <limits.h>
@@ -399,6 +400,7 @@ int editorDocumentResetFromString(struct editorDocument *document, const char *t
 	if (!editorRopeResetFromString(&document->rope, text, len)) {
 		return 0;
 	}
+	editorTextTreeStatsRecordFullRebuild();
 	return editorDocumentRebuildLineIndex(document);
 }
 
@@ -450,6 +452,7 @@ int editorDocumentResetFromTextSource(struct editorDocument *document,
 
 	editorDocumentFree(document);
 	*document = rebuilt;
+	editorTextTreeStatsRecordFullRebuild();
 	return 1;
 }
 
@@ -504,6 +507,7 @@ int editorDocumentReplaceRange(struct editorDocument *document, size_t start_byt
 	if (!editorRopeReplaceRange(&document->rope, start_byte, old_len, new_text, new_len)) {
 		return 0;
 	}
+	editorTextTreeStatsRecordIncrementalUpdate();
 	if (editorDocumentApplyReplaceLineRegion(document, prefix_idx, suffix_idx, prefix_start,
 				suffix_start_old, old_total)) {
 		return 1;
@@ -621,6 +625,26 @@ int editorDocumentPositionToByteOffset(const struct editorDocument *document, in
 	}
 	*byte_offset_out = start + column;
 	return 1;
+}
+
+size_t editorDocumentMaxLineBytes(const struct editorDocument *document) {
+	if (document == NULL || document->line_count == 0) {
+		return 0;
+	}
+	size_t max_bytes = 0;
+	for (int i = 0; i < document->line_count; i++) {
+		size_t start = 0;
+		size_t end = 0;
+		if (!editorDocumentLineStartByte(document, i, &start) ||
+				!editorDocumentLineEndByte(document, i, &end) || end < start) {
+			continue;
+		}
+		size_t line_bytes = end - start;
+		if (line_bytes > max_bytes) {
+			max_bytes = line_bytes;
+		}
+	}
+	return max_bytes;
 }
 
 int editorDocumentByteOffsetToPosition(const struct editorDocument *document, size_t byte_offset,

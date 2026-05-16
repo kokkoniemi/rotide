@@ -604,6 +604,7 @@ const char *editorSyntaxRootType(void) {
 
 void editorDocumentTestResetStats(void) {
 	editorDocumentStatsReset();
+	editorTextTreeStatsReset();
 	editorRowCacheStatsReset();
 }
 
@@ -613,4 +614,12 @@ int editorDocumentTestFullRebuildCount(void) {
 
 int editorDocumentTestIncrementalUpdateCount(void) {
 	return editorDocumentStatsIncrementalUpdateCount();
+}
+
+int editorTextTreeTestFullRebuildCount(void) {
+	return editorTextTreeStatsFullRebuildCount();
+}
+
+int editorTextTreeTestIncrementalUpdateCount(void) {
+	return editorTextTreeStatsIncrementalUpdateCount();
 }

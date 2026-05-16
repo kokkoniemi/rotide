@@ -48,4 +48,6 @@ int editorDocumentPositionToByteOffset(const struct editorDocument *document, in
 int editorDocumentByteOffsetToPosition(const struct editorDocument *document, size_t byte_offset,
 		int *line_idx_out, size_t *column_out);
 
+size_t editorDocumentMaxLineBytes(const struct editorDocument *document);
+
 #endif
