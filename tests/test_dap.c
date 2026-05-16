@@ -284,6 +284,9 @@ static int test_editor_dap_protocol_builds_initialize_and_launch_requests(void) 
 	snprintf(args->key, sizeof(args->key), "%s", "args");
 	args->kind = EDITOR_DAP_LAUNCH_VALUE_STRING_ARRAY;
 	args->array_count = 1;
+	args->array_values = calloc(ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS,
+			sizeof(*args->array_values));
+	ASSERT_TRUE(args->array_values != NULL);
 	snprintf(args->array_values[0], sizeof(args->array_values[0]), "%s", "${fileBasename}");
 
 	char *init = editorDapBuildInitializeRequestJson(1, "go");
@@ -300,6 +303,51 @@ static int test_editor_dap_protocol_builds_initialize_and_launch_requests(void) 
 	ASSERT_TRUE(strstr(launch, "\"program\":\"/tmp/project/main.go\"") != NULL);
 	ASSERT_TRUE(strstr(launch, "\"args\":[\"main.go\"]") != NULL);
 	free(launch);
+	editorDapLaunchConfigClear(&config);
+	return 0;
+}
+
+static int test_editor_dap_launch_field_array_values_lifecycle(void) {
+	struct editorDapLaunchConfig config = {0};
+
+	/* Field 0: a STRING_ARRAY "args" populated directly. */
+	struct editorDapLaunchField *args = &config.fields[config.field_count++];
+	snprintf(args->key, sizeof(args->key), "%s", "args");
+	args->kind = EDITOR_DAP_LAUNCH_VALUE_STRING_ARRAY;
+	args->array_values = calloc(ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS,
+			sizeof(*args->array_values));
+	ASSERT_TRUE(args->array_values != NULL);
+	args->array_count = 2;
+	snprintf(args->array_values[0], sizeof(args->array_values[0]), "--foo");
+	snprintf(args->array_values[1], sizeof(args->array_values[1]), "--bar");
+
+	/* Transitioning the same field STRING_ARRAY -> STRING must drop the
+	 * heap block, not leak it. */
+	ASSERT_TRUE(editorDapLaunchSetStringField(&config, "args", "single"));
+	ASSERT_TRUE(args->array_values == NULL);
+	ASSERT_EQ_INT(0, args->array_count);
+	ASSERT_EQ_INT((int)EDITOR_DAP_LAUNCH_VALUE_STRING, (int)args->kind);
+
+	/* Field 1: a STRING_ARRAY "extra_args" that we then remove. The
+	 * remove path frees array_values before the slot shift; the trailing
+	 * memset NULLs the vacated tail so a subsequent deep-clear can't
+	 * double-free. */
+	struct editorDapLaunchField *extra = &config.fields[config.field_count++];
+	snprintf(extra->key, sizeof(extra->key), "%s", "extra_args");
+	extra->kind = EDITOR_DAP_LAUNCH_VALUE_STRING_ARRAY;
+	extra->array_values = calloc(ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS,
+			sizeof(*extra->array_values));
+	ASSERT_TRUE(extra->array_values != NULL);
+	extra->array_count = 1;
+	snprintf(extra->array_values[0], sizeof(extra->array_values[0]), "--baz");
+
+	int before_count = config.field_count;
+	editorDapLaunchRemoveField(&config, "extra_args");
+	ASSERT_EQ_INT(before_count - 1, config.field_count);
+	ASSERT_TRUE(config.fields[config.field_count].array_values == NULL);
+
+	editorDapLaunchConfigClear(&config);
+	ASSERT_EQ_INT(0, config.field_count);
 	return 0;
 }
 
@@ -311,6 +359,8 @@ const struct editorTestCase g_dap_tests[] = {
 	{"editor_dap_prepare_terminal_console_strips_non_terminal_value", test_editor_dap_prepare_terminal_console_strips_non_terminal_value},
 	{"editor_dap_drawer_prompts_and_creates_project_config_from_default", test_editor_dap_drawer_prompts_and_creates_project_config_from_default},
 	{"editor_dap_protocol_builds_initialize_and_launch_requests", test_editor_dap_protocol_builds_initialize_and_launch_requests},
+	{"editor_dap_launch_field_array_values_lifecycle",
+			test_editor_dap_launch_field_array_values_lifecycle},
 };
 
 const int g_dap_test_count =

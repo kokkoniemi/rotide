@@ -31,13 +31,15 @@ struct editorDapAdapterConfig {
 	char command[PATH_MAX];
 };
 
+typedef char editorDapStringArrayItem[ROTIDE_DAP_VALUE_MAX];
+
 struct editorDapLaunchField {
 	char key[ROTIDE_DAP_KEY_MAX];
 	enum editorDapLaunchValueKind kind;
 	char string_value[ROTIDE_DAP_VALUE_MAX];
 	int int_value;
 	int bool_value;
-	char array_values[ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS][ROTIDE_DAP_VALUE_MAX];
+	editorDapStringArrayItem *array_values;
 	int array_count;
 };
 
@@ -85,6 +87,10 @@ struct editorDapVariable {
 	char name[ROTIDE_DAP_NAME_MAX];
 	char value[ROTIDE_DAP_VALUE_MAX];
 };
+
+void editorDapLaunchFieldClear(struct editorDapLaunchField *field);
+void editorDapLaunchConfigClear(struct editorDapLaunchConfig *config);
+void editorDapLaunchConfigsClear(struct editorDapLaunchConfig *configs, int count);
 
 void editorDapShutdown(void);
 void editorDapPumpNotifications(void);

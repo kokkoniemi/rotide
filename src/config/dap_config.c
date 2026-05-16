@@ -33,6 +33,40 @@ struct editorDapConfigTable {
 	int config_idx;
 };
 
+static void editorDapLaunchFieldDropArrayValues(struct editorDapLaunchField *field) {
+	free(field->array_values);
+	field->array_values = NULL;
+	field->array_count = 0;
+}
+
+void editorDapLaunchFieldClear(struct editorDapLaunchField *field) {
+	if (field == NULL) {
+		return;
+	}
+	free(field->array_values);
+	memset(field, 0, sizeof(*field));
+}
+
+void editorDapLaunchConfigClear(struct editorDapLaunchConfig *config) {
+	if (config == NULL) {
+		return;
+	}
+	for (int i = 0; i < ROTIDE_DAP_MAX_FIELDS; i++) {
+		free(config->fields[i].array_values);
+		config->fields[i].array_values = NULL;
+	}
+	memset(config, 0, sizeof(*config));
+}
+
+void editorDapLaunchConfigsClear(struct editorDapLaunchConfig *configs, int count) {
+	if (configs == NULL) {
+		return;
+	}
+	for (int i = 0; i < count; i++) {
+		editorDapLaunchConfigClear(&configs[i]);
+	}
+}
+
 static int editorDapParseBoolValue(const char *value, int *out) {
 	if (strcmp(value, "true") == 0) {
 		*out = 1;
@@ -143,6 +177,7 @@ int editorDapLaunchSetStringField(struct editorDapLaunchConfig *config,
 	if (field == NULL) {
 		return 0;
 	}
+	editorDapLaunchFieldDropArrayValues(field);
 	field->kind = EDITOR_DAP_LAUNCH_VALUE_STRING;
 	return editorDapCopyString(field->string_value,
 			sizeof(field->string_value), value);
@@ -157,6 +192,11 @@ void editorDapLaunchRemoveField(struct editorDapLaunchConfig *config,
 		if (strcmp(config->fields[i].key, key) != 0) {
 			continue;
 		}
+		/* Free before the shift; the slot-to-slot copies transfer ownership
+		 * of array_values pointers down, and the trailing memset NULLs the
+		 * vacated tail. */
+		free(config->fields[i].array_values);
+		config->fields[i].array_values = NULL;
 		for (int j = i; j < config->field_count - 1; j++) {
 			config->fields[j] = config->fields[j + 1];
 		}
@@ -257,6 +297,7 @@ static int editorDapSetLaunchField(struct editorDapLaunchConfig *config,
 
 	char string_value[ROTIDE_DAP_VALUE_MAX];
 	if (editorConfigParseQuotedValue(value, string_value, sizeof(string_value))) {
+		editorDapLaunchFieldDropArrayValues(field);
 		field->kind = EDITOR_DAP_LAUNCH_VALUE_STRING;
 		return editorDapCopyString(field->string_value, sizeof(field->string_value),
 				string_value);
@@ -264,6 +305,7 @@ static int editorDapSetLaunchField(struct editorDapLaunchConfig *config,
 
 	int bool_value = 0;
 	if (editorDapParseBoolValue(value, &bool_value)) {
+		editorDapLaunchFieldDropArrayValues(field);
 		field->kind = EDITOR_DAP_LAUNCH_VALUE_BOOL;
 		field->bool_value = bool_value;
 		return 1;
@@ -273,17 +315,26 @@ static int editorDapSetLaunchField(struct editorDapLaunchConfig *config,
 	long parsed = strtol(value, &endptr, 10);
 	if (endptr != value && endptr != NULL && *endptr == '\0' &&
 			parsed >= -2147483647L && parsed <= 2147483647L) {
+		editorDapLaunchFieldDropArrayValues(field);
 		field->kind = EDITOR_DAP_LAUNCH_VALUE_INT;
 		field->int_value = (int)parsed;
 		return 1;
 	}
 
+	editorDapStringArrayItem *arr = calloc(ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS,
+			sizeof(*arr));
+	if (arr == NULL) {
+		return 0;
+	}
 	int array_count = 0;
-	if (editorDapParseStringArray(value, field->array_values, &array_count)) {
+	if (editorDapParseStringArray(value, arr, &array_count)) {
+		free(field->array_values);
+		field->array_values = arr;
 		field->kind = EDITOR_DAP_LAUNCH_VALUE_STRING_ARRAY;
 		field->array_count = array_count;
 		return 1;
 	}
+	free(arr);
 
 	return 0;
 }
@@ -531,9 +582,9 @@ static int editorDapLaunchConfigsValid(const struct editorDapLaunchConfig *confi
 void editorDapConfigInitDefaults(void) {
 	memset(E.dap_adapters, 0, sizeof(E.dap_adapters));
 	E.dap_adapter_count = 0;
-	memset(E.dap_defaults, 0, sizeof(E.dap_defaults));
+	editorDapLaunchConfigsClear(E.dap_defaults, ROTIDE_DAP_MAX_CONFIGS);
 	E.dap_default_count = 0;
-	memset(E.dap_launches, 0, sizeof(E.dap_launches));
+	editorDapLaunchConfigsClear(E.dap_launches, ROTIDE_DAP_MAX_CONFIGS);
 	E.dap_launch_count = 0;
 	E.dap_project_config_exists = 0;
 	E.dap_project_config_invalid = 0;
@@ -552,7 +603,7 @@ enum editorDapConfigLoadStatus editorDapConfigLoadFromPaths(
 				!editorDapLaunchConfigsValid(E.dap_defaults, E.dap_default_count)) {
 			memset(E.dap_adapters, 0, sizeof(E.dap_adapters));
 			E.dap_adapter_count = 0;
-			memset(E.dap_defaults, 0, sizeof(E.dap_defaults));
+			editorDapLaunchConfigsClear(E.dap_defaults, ROTIDE_DAP_MAX_CONFIGS);
 			E.dap_default_count = 0;
 			status = (enum editorDapConfigLoadStatus)(
 					status | EDITOR_DAP_CONFIG_LOAD_INVALID_GLOBAL);
@@ -563,7 +614,7 @@ enum editorDapConfigLoadStatus editorDapConfigLoadFromPaths(
 		int missing = 0;
 		if (!editorDapApplyConfigFile(project_path, EDITOR_DAP_CONFIG_FILE_PROJECT, &missing) ||
 				!editorDapLaunchConfigsValid(E.dap_launches, E.dap_launch_count)) {
-			memset(E.dap_launches, 0, sizeof(E.dap_launches));
+			editorDapLaunchConfigsClear(E.dap_launches, ROTIDE_DAP_MAX_CONFIGS);
 			E.dap_launch_count = 0;
 			E.dap_project_config_invalid = 1;
 			status = (enum editorDapConfigLoadStatus)(
@@ -624,7 +675,7 @@ enum editorDapConfigLoadStatus editorDapConfigReloadProject(const char *project_
 	memcpy(adapters, E.dap_adapters, sizeof(E.dap_adapters));
 	memcpy(defaults, E.dap_defaults, sizeof(E.dap_defaults));
 
-	memset(E.dap_launches, 0, sizeof(E.dap_launches));
+	editorDapLaunchConfigsClear(E.dap_launches, ROTIDE_DAP_MAX_CONFIGS);
 	E.dap_launch_count = 0;
 	E.dap_project_config_exists = 0;
 	E.dap_project_config_invalid = 0;
@@ -646,7 +697,7 @@ enum editorDapConfigLoadStatus editorDapConfigReloadProject(const char *project_
 	free(defaults);
 	if (status == EDITOR_DAP_CONFIG_LOAD_OK &&
 			!editorDapLaunchConfigsValid(E.dap_launches, E.dap_launch_count)) {
-		memset(E.dap_launches, 0, sizeof(E.dap_launches));
+		editorDapLaunchConfigsClear(E.dap_launches, ROTIDE_DAP_MAX_CONFIGS);
 		E.dap_launch_count = 0;
 		E.dap_project_config_invalid = 1;
 		status = EDITOR_DAP_CONFIG_LOAD_INVALID_PROJECT;
