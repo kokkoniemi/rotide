@@ -5,3 +5,5 @@
 - FEATURE: left-clicking on files/folders should open popup/popdown with edit options.
 - IMPROVEMENT: Create sample debugger test app with golang that is large enough for testing debugger comprehensively. Wire this up to unit tests. Later I want to create similar test apps for all supported languages.
 - FEATURE: sometimes go-to definition goes to header file instead of real definition. Use popup/popdown if multiple choices or some other solution for this.
+- FEATURE: Split current tab to show tree-sitter output
+- FEATURE: implement diff-based Undo Graph similar to Fred (https://cdacamar.github.io/data%20structures/algorithms/benchmarking/text%20editors/c++/editor-data-structures/). Attribute Cameron for the cool idea in documentation. We have rope-based buffer which differs from Fred but the idea is applicable.
