@@ -14,10 +14,10 @@
   syntax budget/parse-fail countdowns, an LSP mock with rich knobs.
 - Test-only stat hooks already exposed via [editor_test_api.h](tests/editor_test_api.h)
   (full-rebuild vs incremental, text-source builds/dups, row-cache splices).
-- Single global `editorConfig E` — tests are inherently sequential in-process.
+- Single global `editorConfig E`. Tests are inherently sequential in-process.
 
 The foundation is unusually strong for a kilo-derivative. The gaps are not
-"more frameworks" — they are (a) no runner ergonomics for the size the suite has
+"more frameworks". They are (a) no runner ergonomics for the size the suite has
 become, (b) no randomized/property coverage of the invariants the rebuild-stat
 counters already exist to support, (c) no fuzzers on the genuinely risky
 parser/transport boundaries, and (d) no normalized snapshot helper for screen
@@ -56,31 +56,31 @@ Reject outright:
 
 Accept with caveats:
 
-- Snapshot/golden tests — yes, but only if they compare *normalized vterm grids*,
+- Snapshot/golden tests: yes, but only if they compare *normalized vterm grids*,
   not raw bytes. Raw-byte snapshots over the existing
   `refresh_screen_and_capture` would be brittle the day someone changes a
   styling sequence.
-- Fuzzing — yes, but only on a small set of high-risk input boundaries
+- Fuzzing: yes, but only on a small set of high-risk input boundaries
   enumerated below, not "all parsers."
-- `hyperfine` whole-program benchmarks — yes for the build/start path and a
+- `hyperfine` whole-program benchmarks: yes for the build/start path and a
   large-file open scenario. Skip for in-process hot paths; a microbench mode
   in the runner is better signal there.
 
 ---
 
-## Cross-cutting infrastructure (not phases — fold into the relevant phase or land alongside)
+## Cross-cutting infrastructure (not phases; fold into the relevant phase or land alongside)
 
 These are not standalone phases because each is 1–3 days. But they are the
 operational scaffolding without which the phases ship as "interesting" rather
 than "trustworthy in CI six months from now."
 
-### Sanitizer matrix — TSan is missing
+### Sanitizer matrix: TSan is missing
 
 The plan currently runs ASan + UBSan. [src/language/syntax_worker.c](src/language/syntax_worker.c)
 has a real `pthread_create`/`pthread_mutex` worker thread, and the LSP/DAP
 transport does I/O off the main thread. **Add `make test-tsan`** that runs
 the syntax-worker, LSP, DAP, and file-watch suites under
-`-fsanitize=thread`. Don't try to TSan the whole suite — TSan plus a forked
+`-fsanitize=thread`. Don't try to TSan the whole suite. TSan plus a forked
 worker pool gets noisy. Run nightly, not per-PR.
 
 ### Flake quarantine policy
@@ -94,7 +94,7 @@ the first week. Without a written policy, the suite degrades into
 - The runner reads this file and skips listed tests by default with a
   `SKIP <name> (quarantined: <issue>)` line.
 - `--no-quarantine` runs them anyway (used by the nightly job, which fails
-  loudly if a quarantined test starts passing — that's a signal to remove
+  loudly if a quarantined test starts passing. That's a signal to remove
   it, not ignore it).
 - Max age 30 days; older entries fail the per-PR build until either fixed
   or explicitly re-upped with a comment.
@@ -117,7 +117,7 @@ tests use* and the tests start testing the test API. One paragraph in
 > The test API may expose read-only views of internal state and counters.
 > It must not provide mutators that production code wouldn't itself call.
 > Adding a mutator means the test is asserting an arrangement that
-> production cannot reach — write the test against a real code path
+> production cannot reach. Write the test against a real code path
 > instead, or add the missing production path.
 
 ### Continuous improvement metrics
@@ -136,23 +136,23 @@ do not build a dashboard.
 Ordered by ratio of confidence-gained to engineer-time. Each phase is shippable
 on its own; later phases assume earlier ones landed but don't strictly require it.
 
-### Phase 1 — Runner ergonomics (small change, daily payoff)
+### Phase 1: Runner ergonomics (small change, daily payoff)
 
 **Build:** Extend [rotide_tests_main.c](tests/rotide_tests_main.c) to accept:
 
-- `--filter <substring>` — match against `name`. Substring, not regex; cheap.
-- `--tag <name>` / `--exclude-tag <name>` — add an optional `tags` field to
+- `--filter <substring>`: match against `name`. Substring, not regex; cheap.
+- `--tag <name>` / `--exclude-tag <name>`: add an optional `tags` field to
   `editorTestCase` (e.g. `@slow`, `@pty`, `@needs_clangd`, `@fuzz_repro`) and
   select by tag rather than name. Substring filtering is fragile at 1,150 tests
   (`--filter pty` matches `paste_typed`); CI subset selection should be tag-driven.
-- `--list` — print test names and tags, exit 0.
-- `--fail-fast` — stop at first FAIL, print the failing name last.
-- `--repeat N` — run each selected test N times, useful for flake hunting.
+- `--list`: print test names and tags, exit 0.
+- `--fail-fast`: stop at first FAIL, print the failing name last.
+- `--repeat N`: run each selected test N times, useful for flake hunting.
 - `--seed <u64>` and a `tests/seed.h` exposing `rotide_test_seed()` so randomized
   tests in later phases can opt in. Print the seed in every FAIL line.
-- `--shuffle` — shuffle test order with the seed (catches ordering coupling
+- `--shuffle`: shuffle test order with the seed (catches ordering coupling
   in `reset_editor_state`).
-- `--watch` — re-run the currently-filtered set on file change in `src/` or
+- `--watch`: re-run the currently-filtered set on file change in `src/` or
   `tests/` (inotify on Linux). Cheap to add, biggest single dev-loop win on
   top of `--filter`/`--tag`.
 
@@ -167,16 +167,16 @@ papering over it. ~1 day on top of the runner flags above.
 **Why for Rotide:** the suite is already 1,150 tests. Today the only way to
 re-run one failing case is to comment out the others; that is the single biggest
 friction point. Shuffle + seed + the reset-state validator will surface any
-latent test-order coupling the giant `reset_editor_state` is hiding — and tell
+latent test-order coupling the giant `reset_editor_state` is hiding, and tell
 you precisely which global drifted.
 
 **Impact:** high (every developer, every day). **Complexity:** ~200 LoC for
 the runner flags plus ~100 LoC for the state validator, ~1.5 days total.
 **Tradeoffs:** none worth mentioning. **Order:** do first.
 
-### Phase 2 — Per-suite subprocess execution + parallel worker pool
+### Phase 2: Per-suite subprocess execution + parallel worker pool
 
-**Build:** Wrap each `editorTestSuite` (not each test — fork-per-test would
+**Build:** Wrap each `editorTestSuite` (not each test; fork-per-test would
 outweigh the test runtime) in a fork. A small worker pool (`-jN`, default
 `nproc`) hands suites to children; the parent collects PASS/FAIL summaries.
 Crashes/aborts in one suite no longer take down the whole run; you get
@@ -196,14 +196,14 @@ natural unit because they already share fixtures and don't share state across
 suite boundaries by convention. Suite-level isolation also makes it safe to
 add fuzz/property suites that intentionally mutate global state aggressively.
 
-**Impact:** high — drops wall time roughly linearly in cores (the suite is
+**Impact:** high. Drops wall time roughly linearly in cores (the suite is
 embarrassingly parallel at suite granularity), and turns silent crashes into
 diagnosable failures. **Complexity:** ~300 LoC; the trickier part is the
 parent-side reporter, not the fork itself. **Tradeoffs:** each child re-loads
 the 40 MB binary, but mmap+COW makes that cheap; expect <5% per-suite overhead.
 **Order:** second.
 
-### Phase 3 — Property tests for the rope/document/row_cache invariants
+### Phase 3: Property tests for the rope/document/row_cache invariants
 
 **Build:** A new `tests/test_text_invariants.c` suite with a tiny operation
 generator:
@@ -218,9 +218,9 @@ asserts:
 1. `editorDocumentLength(document) == sum_of_row_sizes_with_newlines`
 2. `editorDocumentByteOffsetToPosition` round-trips with `PositionToByteOffset`
 3. `editorActiveSourceMatchesRows()` already exists in
-   [test_support.c](tests/test_support.c) — call it after every op.
+   [test_support.c](tests/test_support.c): call it after every op.
 4. The existing rebuild-vs-splice counters from
-   [editor_test_api.h](tests/editor_test_api.h) — assert that "small edits do
+   [editor_test_api.h](tests/editor_test_api.h): assert that "small edits do
    not full-rebuild." This is exactly what those counters were added for and
    what this test enforces.
 5. Undo+redo back to a recorded snapshot must restore byte-equal text.
@@ -229,7 +229,7 @@ asserts:
    as the production rope; after every op, the two must produce a
    byte-identical buffer dump and identical position↔offset answers.
    Invariant assertions (1–5) catch "internally consistent but wrong" only
-   by accident — both ends of a bad delete can pass `editorActiveSourceMatchesRows`
+   by accident; both ends of a bad delete can pass `editorActiveSourceMatchesRows`
    while still being wrong. Differential testing catches that by
    construction. **This is the single highest-leverage item in this phase**
    and the place where regressions in the editor spine will actually be
@@ -246,12 +246,12 @@ Targeted unit tests cover known shapes; randomized op sequences cover the
 unknown ones, and the counters give you a real assertion that splice-fast-paths
 are still firing.
 
-**Impact:** very high — this is where silent regressions of the editor
+**Impact:** very high. This is where silent regressions of the editor
 spine would land. **Complexity:** ~400 LoC. **Tradeoffs:** seeded randomized
 tests can be flaky if assertions are too tight; counter assertions for
 "splice ratio" should be ratio-based, not exact counts. **Order:** third.
 
-### Phase 4 — libFuzzer harnesses on the four input boundaries that actually take untrusted bytes
+### Phase 4: libFuzzer harnesses on the four input boundaries that actually take untrusted bytes
 
 Pick these four, in this order:
 
@@ -287,7 +287,7 @@ liar's metric):**
 
 - Run `-merge=1` weekly to minimize the corpus and keep coverage.
 - Track edge counts per nightly run; alert if a 24h fuzz adds zero new edges
-  (target is stuck — corpus needs new seeds, harness is bottlenecked, or the
+  (target is stuck: corpus needs new seeds, harness is bottlenecked, or the
   parser is genuinely covered).
 - Persist the working corpus across runs in CI cache; a cold corpus on every
   run wastes the first ~5 minutes rediscovering basic edges.
@@ -299,12 +299,12 @@ untrusted input. Fuzzing anything else is theatre. The vterm boundary in
 particular has the worst blast radius (the screen) and the most opaque parser.
 
 **Impact:** very high on real defects, near-zero on day-to-day workflow.
-**Complexity:** medium — clang-only build, separate link line, corpus
+**Complexity:** medium. Clang-only build, separate link line, corpus
 hygiene. **Tradeoffs:** fuzzers are best run nightly, not per-PR; a 60-second
 smoke target per PR is enough on the merge path. **Order:** fourth, but the
 vterm fuzzer alone is a worthwhile standalone deliverable if scope is tight.
 
-### Phase 5 — Tree-sitter incremental ≡ full reparse property test
+### Phase 5: Tree-sitter incremental ≡ full reparse property test
 
 **Build:** Using the existing [tests/syntax/supported/](tests/syntax/supported/)
 fixtures, for each supported language:
@@ -330,7 +330,7 @@ parametrization table. **Tradeoffs:** some grammars (markdown injections,
 HTML→JS/CSS) will produce differences that are arguably acceptable; document
 known divergences as skip-list entries with an issue link. **Order:** fifth.
 
-### Phase 6 — Normalized vterm grid snapshot helper
+### Phase 6: Normalized vterm grid snapshot helper
 
 **Build:** A `test_grid_snapshot.h` helper that:
 
@@ -350,8 +350,8 @@ known divergences as skip-list entries with an issue link. **Order:** fifth.
    so updates have a review path on day one.
 
 Convert the worst offenders in [test_render_frame.c](tests/test_render_frame.c)
-and [test_render_panes.c](tests/test_render_panes.c) — the ones doing
-multi-`strstr` against escape sequences — to grid snapshots. Don't convert
+and [test_render_panes.c](tests/test_render_panes.c) (the ones doing
+multi-`strstr` against escape sequences) to grid snapshots. Don't convert
 tests that are explicitly checking escape-sequence emission (cursor style,
 OSC52); those should stay byte-level.
 
@@ -359,14 +359,14 @@ OSC52); those should stay byte-level.
 log-grep lines. A grid snapshot says "the user sees this," which is what the
 test should be asserting and what makes a regression diff readable.
 
-**Impact:** medium-high — improves both readability and the chance a render
+**Impact:** medium-high. Improves both readability and the chance a render
 regression is caught with a one-character diff in the expected string.
-**Complexity:** medium — vterm reuse is straightforward; the
+**Complexity:** medium. Vterm reuse is straightforward; the
 `--update-golden` source-rewriting is the fiddly part and should land second.
 **Tradeoffs:** golden tests have a maintenance cost; only convert tests
 where the byte-level assertions are obscuring intent. **Order:** sixth.
 
-### Phase 7 — Long-session memory growth test using the existing alloc hooks
+### Phase 7: Long-session memory growth test using the existing alloc hooks
 
 **Build:** A small suite that, per scenario, captures a baseline RSS,
 runs an op loop for K iterations (open/edit/close, terminal-pane spawn/feed/
@@ -384,18 +384,18 @@ kill, syntax reparse cycles, LSP open/close), and asserts:
 
 Run under sanitizers in CI. ASan/LSan already catches outright leaks; this
 catches *retained* allocations and unbounded caches (scrollback, undo history,
-syntax visible cache, LSP document map) — bugs ASan never reports.
+syntax visible cache, LSP document map): bugs ASan never reports.
 
 **Why for Rotide:** "memory grows over a long session" is the canonical
 editor complaint. The alloc hooks make this measurable today and nothing
 uses them for trend assertions.
 
-**Impact:** medium-high — catches a class of bug ASan misses by design.
+**Impact:** medium-high. Catches a class of bug ASan misses by design.
 **Complexity:** small. **Tradeoffs:** RSS measurement on Linux is granular
 (pages); use iteration counts large enough that drift dominates noise.
 **Order:** seventh.
 
-### Phase 8 — Targeted microbenchmark mode + one whole-program hyperfine scenario
+### Phase 8: Targeted microbenchmark mode + one whole-program hyperfine scenario
 
 **Build:** A `tests/rotide_bench` binary (or a `--bench` mode of the test
 binary) that:
@@ -410,7 +410,7 @@ binary) that:
 Plus one `hyperfine` scenario in CI: cold-open a generated 10 MB C file,
 render once, exit. That's the one whole-program metric users notice.
 
-**Methodology — the part that determines whether this is signal or noise:**
+**Methodology (the part that determines whether this is signal or noise):**
 
 - Microbenches: run N=20 iterations per metric, report median and IQR.
   Compare to baseline using "median delta > 3 × baseline IQR" as the
@@ -430,7 +430,7 @@ render once, exit. That's the one whole-program metric users notice.
 **Why for Rotide:** these are the operations that, when slow, are felt as
 "the editor got laggy."
 
-**Impact:** medium — catches slow-creep regressions on hot paths.
+**Impact:** medium. Catches slow-creep regressions on hot paths.
 **Complexity:** small for the harness, medium for the comparison policy
 (noise control on a shared CI runner is the real challenge; see "CI" below).
 **Tradeoffs:** benchmarks on GitHub-hosted runners are noisy. Treat

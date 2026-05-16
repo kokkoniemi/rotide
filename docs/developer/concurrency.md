@@ -1,8 +1,8 @@
 # Concurrency
 
 RotIDE is single-threaded except for one worker thread that parses
-Tree-sitter for the focused tab. Everything else — language servers, DAP
-adapters, terminal panes, project search — runs in separate processes
+Tree-sitter for the focused tab. Everything else (language servers, DAP
+adapters, terminal panes, project search) runs in separate processes
 and is drained from the main thread.
 
 ## Snapshot / revision protocol
@@ -11,7 +11,7 @@ and is drained from the main thread.
 
 Each tab carries a *revision* (bumped on any edit) and a *generation*
 (bumped when the language changes). The main thread hands the worker a
-self-contained snapshot — language, revision, generation, an owned byte
+self-contained snapshot: language, revision, generation, an owned byte
 copy, and the visible row window. The worker parses on private memory
 and publishes a result tagged with the snapshot's `(language, revision,
 generation)`.

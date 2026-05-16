@@ -16,8 +16,8 @@ them quietly is the fastest way to introduce desync bugs.
 - **One writable owner per text**: each tab's `editorDocument` is the only
   authoritative byte storage. Rows, render columns, syntax spans, search
   matches, diagnostics, and viewport state are derived.
-- **Edits are descriptors, applied through one pipeline**: every mutation —
-  insert, delete, undo, redo, paste, restore — becomes an edit descriptor
+- **Edits are descriptors, applied through one pipeline**: every mutation
+  (insert, delete, undo, redo, paste, restore) becomes an edit descriptor
   (byte range, inserted text, before/after cursor, before/after dirty) run
   through the shared edit pipeline. This is what makes dirty state and
   history deterministic.
@@ -33,8 +33,8 @@ them quietly is the fastest way to introduce desync bugs.
 
 `struct editorConfig E` holds the live editor state, grouped into clusters
 (environment, active buffer, workspace, layout, preferences, …). The
-*active buffer* — cursor, syntax state, LSP doc state, view scroll, etc.
-— is declared once as `struct editorBuffer` and inlined into `E` so call
+*active buffer* (cursor, syntax state, LSP doc state, view scroll, etc.)
+is declared once as `struct editorBuffer` and inlined into `E` so call
 sites continue to read `E.cy`, `E.cursor_offset`, and so on. Each tab
 stores its own `editorBuffer`; switching tabs swaps the struct in bulk
 rather than copying field-by-field.
@@ -47,8 +47,8 @@ the layout tree.
 
 ![Pane layout](../diagrams/svg/pane-layout.svg)
 
-The layout is a binary tree of pane nodes. Leaves carry a `pane view` —
-the cursor/scroll/selection snapshot — plus optional kind-state (e.g. a
+The layout is a binary tree of pane nodes. Leaves carry a `pane view`
+(the cursor/scroll/selection snapshot) plus optional kind-state (e.g. a
 terminal-pane handle). Internal nodes describe a split orientation and
 ratio. The focused leaf's view is mirrored into `E`'s active state, so
 focus change is a save/load operation between leaf view and `E`.
@@ -60,15 +60,15 @@ workspace state file; per-pane kind-state is session-bound.
 ## Containers
 
 **Input** decodes keys, mice, and synthetic events. It is a chain of
-gates — synthetic events, prompts, mouse hit-testing, terminal-pane
-forwarding — before the configured keymap maps a key to an
+gates (synthetic events, prompts, mouse hit-testing, terminal-pane
+forwarding) before the configured keymap maps a key to an
 `editorAction`. The dispatch path is the only entry point to editor
 behavior; mouse, drawer, and DAP commands take the same route.
 
 **Text engine** owns documents, edits, history, selection, and the edit
 pipeline. The pipeline writes the document, refreshes the row cache,
 syncs the cursor, fans the edit out to syntax/LSP/diagnostics, records
-history, and updates dirty state — in that order, atomically per edit.
+history, and updates dirty state, in that order, atomically per edit.
 A single fan-out point is the bridge to the language services, so adding
 a new edit listener does not mean touching the edit code itself.
 
@@ -87,8 +87,8 @@ computed here.
 state is tab-local; the background worker accelerates large-document
 parsing using a snapshot/revision protocol (see
 [concurrency.md](concurrency.md)). LSP clients live in a registry keyed
-by `(server_kind, workspace_root)` — there is no implicit "active
-client". Call sites acquire the client explicitly before each request,
+by `(server_kind, workspace_root)`. There is no implicit "active
+client"; call sites acquire the client explicitly before each request,
 which is what lets a session talk to several servers across several
 workspaces at once.
 

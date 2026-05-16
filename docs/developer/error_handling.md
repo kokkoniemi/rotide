@@ -7,7 +7,7 @@ Two categories, two policies.
 Allocation failures, disk-full, transient I/O. The convention:
 
 > Return `0` (or `NULL`), free any partial work as you unwind, and let
-> the top of the call chain set a status message — generic
+> the top of the call chain set a status message: generic
 > (`editorSetAllocFailureStatus`) or specific (`editorSetStatusMsg`).
 
 This is why most internal helpers return `int`: the return value carries

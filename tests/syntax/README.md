@@ -50,19 +50,19 @@ Notes:
   `(inline)` nodes via injection, not a standalone file detection mode.
   Inline-grammar coverage lives under `supported/markdown/`.
 - Languages with injection coverage in fixtures (`injections.*`):
-  - HTML — nested `<script>` JavaScript and `<style>` CSS.
-  - JavaScript / TypeScript / TSX — tagged-template `html` / `css` / regex
+  - HTML: nested `<script>` JavaScript and `<style>` CSS.
+  - JavaScript / TypeScript / TSX: tagged-template `html` / `css` / regex
     literals and JSDoc doc-comment overlay.
-  - PHP — interleaved HTML text plus heredoc bodies tagged with a language
+  - PHP: interleaved HTML text plus heredoc bodies tagged with a language
     label (`<<<HTML`, `<<<JS`, ...).
-  - C++ — raw string literals tagged with a language delimiter
+  - C++: raw string literals tagged with a language delimiter
     (`R"html(...)html"`).
-  - Haskell — QuasiQuotes (`hamlet`/`lucius`/`julius`/`tsc`/`aesonQQ`/...).
-  - Julia — regex (`r"..."`) and command (`` `...` ``) literals.
-  - EJS — template `content` as HTML and `code` as JavaScript, with the
+  - Haskell: QuasiQuotes (`hamlet`/`lucius`/`julius`/`tsc`/`aesonQQ`/...).
+  - Julia: regex (`r"..."`) and command (`` `...` ``) literals.
+  - EJS: template `content` as HTML and `code` as JavaScript, with the
     injected HTML further injecting its own `<script>` JS and `<style>` CSS.
-  - ERB — same shape as EJS, with `code` injected as Ruby.
-  - Markdown — fenced code blocks routed by their info-string (e.g.
+  - ERB: same shape as EJS, with `code` injected as Ruby.
+  - Markdown: fenced code blocks routed by their info-string (e.g.
     ```` ```python ```` -> Python), plus the inline grammar overlay for
     emphasis, links, and code spans inside paragraphs.
 - Git diff tabs use `EDITOR_SYNTAX_DIFF` directly; they do not rely on a

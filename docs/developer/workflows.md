@@ -9,7 +9,7 @@ matter when changing each path.
 ![Startup loop](../diagrams/svg/startup-loop.svg)
 
 Startup is deterministic: raw mode, editor state, syntax worker, config,
-recovery / CLI args, workspace state, Git. The order matters — config has
+recovery / CLI args, workspace state, Git. The order matters. Config has
 to be applied before tabs are restored so theme and keymap settings reach
 restored buffers.
 
@@ -47,7 +47,7 @@ runs *after* the document and row cache have been updated, so listeners
 always observe a consistent state.
 
 Undo and redo replay edits through the same pipeline rather than
-restoring snapshots — that is how dirty state stays accurate across
+restoring snapshots. That is how dirty state stays accurate across
 arbitrary edit sequences.
 
 ## Split, focus, close
@@ -56,8 +56,8 @@ arbitrary edit sequences.
 
 The focused leaf's view is mirrored into `E`; focus change is a
 save/load operation. A split inherits the splitting pane's view and
-re-seeds the new sibling's tab membership to the active tab only —
-the "open current file in new split" behavior. Closing a leaf promotes
+re-seeds the new sibling's tab membership to the active tab only
+(the "open current file in new split" behavior). Closing a leaf promotes
 its sibling.
 
 ## Save and recovery
@@ -87,7 +87,7 @@ text and never affects dirty state.
 
 Per tab: detect language, parse (incrementally on edits), collect
 captures for the visible byte range, parse injections if present.
-Budgets degrade behavior before failing — predicates are dropped, then
+Budgets degrade behavior before failing: predicates are dropped, then
 injections, before highlighting is disabled. Large documents are
 parsed on the background worker; see [concurrency.md](concurrency.md).
 
@@ -96,7 +96,7 @@ parsed on the background worker; see [concurrency.md](concurrency.md).
 ![LSP flow](../diagrams/svg/lsp-flow.svg)
 
 Each request first looks up the relevant client by
-`(server_kind, workspace_root)`. There is no implicit "active LSP" —
+`(server_kind, workspace_root)`. There is no implicit "active LSP";
 tab switches just pick a different client. Range `didChange` is used
 when the encoding allows; full-document `contentChanges` is the
 fallback. Missing servers open install/help task-log tabs rather
