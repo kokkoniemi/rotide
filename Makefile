@@ -1,216 +1,160 @@
+# ============================================================================
+# Toolchain
+# ============================================================================
 CC ?= cc
-SRC_DIR := src
-CPPFLAGS ?= -I$(SRC_DIR) -Ivendor/libvterm/include -Ivendor/tree_sitter/runtime/include -Ivendor/tree_sitter/runtime/src -Ivendor/tree_sitter/grammars/c/src -Ivendor/tree_sitter/grammars/cpp/src -Ivendor/tree_sitter/grammars/go/src -Ivendor/tree_sitter/grammars/bash/src -Ivendor/tree_sitter/grammars/html/src -Ivendor/tree_sitter/grammars/javascript/src -Ivendor/tree_sitter/grammars/jsdoc/src -Ivendor/tree_sitter/grammars/css/src -Ivendor/tree_sitter/grammars/json/src -Ivendor/tree_sitter/grammars/typescript/src -Ivendor/tree_sitter/grammars/tsx/src -Ivendor/tree_sitter/grammars/python/src -Ivendor/tree_sitter/grammars/php/src -Ivendor/tree_sitter/grammars/rust/src -Ivendor/tree_sitter/grammars/java/src -Ivendor/tree_sitter/grammars/regex/src -Ivendor/tree_sitter/grammars/csharp/src -Ivendor/tree_sitter/grammars/haskell/src -Ivendor/tree_sitter/grammars/ruby/src -Ivendor/tree_sitter/grammars/ocaml/src -Ivendor/tree_sitter/grammars/julia/src -Ivendor/tree_sitter/grammars/scala/src -Ivendor/tree_sitter/grammars/embedded_template/src -Ivendor/tree_sitter/grammars/markdown/src -Ivendor/tree_sitter/grammars/markdown_inline/src -Ivendor/tree_sitter/grammars/toml/src -Ivendor/tree_sitter/grammars/yaml/src -Ivendor/tree_sitter/grammars/xml/src -Ivendor/tree_sitter/grammars/make/src -Ivendor/tree_sitter/grammars/diff/src
-CFLAGS ?= -Wall -Wextra -Werror -Wshadow -Wdouble-promotion -Wundef -fno-common -pedantic -std=c2x
-LDFLAGS ?=
-PTHREAD_FLAGS ?= -pthread
-RELEASE_CFLAGS ?= -Os -ffunction-sections -fdata-sections -fno-unwind-tables -fno-asynchronous-unwind-tables -fno-ident
-RELEASE_LDFLAGS ?= -Wl,--gc-sections
 STRIP ?= strip
 STRIPFLAGS ?= --strip-unneeded
+
+# ============================================================================
+# Project layout
+# ============================================================================
+SRC_DIR := src
+VENDOR_DIR := vendor
+LIBVTERM_DIR := $(VENDOR_DIR)/libvterm
+TS_DIR := $(VENDOR_DIR)/tree_sitter
+TS_GRAMMARS_DIR := $(TS_DIR)/grammars
+
+# Every tree-sitter grammar contributes parser.c; those with a custom external
+# scanner additionally contribute scanner.c, which is picked up via $(wildcard)
+# below so adding/removing a grammar only requires editing this one list.
+TS_GRAMMARS := \
+	c cpp go bash html javascript jsdoc css json typescript tsx \
+	python php rust java regex csharp haskell ruby ocaml julia scala \
+	embedded_template markdown markdown_inline toml yaml xml make diff
+
+# ============================================================================
+# Compiler flags
+# ============================================================================
+CFLAGS ?= -Wall -Wextra -Werror -Wshadow -Wdouble-promotion -Wundef \
+	-fno-common -pedantic -std=c2x
+LDFLAGS ?=
+PTHREAD_FLAGS ?= -pthread
+DEPFLAGS = -MMD -MP
+
+CPPFLAGS ?= -I$(SRC_DIR) \
+	-I$(LIBVTERM_DIR)/include \
+	-I$(TS_DIR)/runtime/include -I$(TS_DIR)/runtime/src \
+	$(patsubst %,-I$(TS_GRAMMARS_DIR)/%/src,$(TS_GRAMMARS))
+
+RELEASE_CFLAGS ?= -Os -ffunction-sections -fdata-sections \
+	-fno-unwind-tables -fno-asynchronous-unwind-tables -fno-ident
+RELEASE_LDFLAGS ?= -Wl,--gc-sections
+
 SANITIZER_CFLAGS ?= -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer
 SANITIZER_LDFLAGS ?= -fsanitize=address,undefined -fno-omit-frame-pointer
-DEPFLAGS = -MMD -MP
-V ?= 0
-DOCS_MEDIA_FLAGS ?=
-MAKEFLAGS += --no-print-directory
-ifeq ($(V),1)
-LOG =
-else
-LOG = @printf '  %-7s %s\n' '$(1)' '$(2)';
-endif
+
+TSAN_FLAGS ?= -fsanitize=thread -fno-omit-frame-pointer -O1 -g
+TSAN_LDFLAGS ?= -fsanitize=thread -fno-omit-frame-pointer
+# TSan's shadow mapping conflicts with the default Linux ASLR layout on
+# glibc; setarch -R disables ASLR for the child so TSan can lay out its
+# shadow at a fixed offset.
+TSAN_LAUNCHER ?= setarch $(shell uname -m) -R
+TSAN_TEST_TAGS ?= threads lsp dap file_watch pty
+
+# Vendored sources are third-party. Drop the strict warning set we apply to
+# our own code and silence the benign warnings these trees legitimately emit.
+VENDOR_CFLAGS = $(filter-out -Werror -Wundef -Wshadow -Wdouble-promotion -pedantic,$(CFLAGS))
+
 TREE_SITTER_CPPFLAGS = $(CPPFLAGS) -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_GNU_SOURCE
-TREE_SITTER_WARNING_CFLAGS = -Wno-unused-parameter -Wno-unused-value -Wno-sign-compare \
+TREE_SITTER_CFLAGS = $(VENDOR_CFLAGS) \
+	-Wno-unused-parameter -Wno-unused-value -Wno-sign-compare \
 	-Wno-implicit-fallthrough -Wno-unused-but-set-variable
-TREE_SITTER_CFLAGS = $(filter-out -Werror -Wundef -Wshadow -Wdouble-promotion -pedantic,$(CFLAGS)) \
-	$(TREE_SITTER_WARNING_CFLAGS)
 
 LIBVTERM_CPPFLAGS = $(CPPFLAGS) -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_GNU_SOURCE \
-	-Ivendor/libvterm/include -Ivendor/libvterm/src
-LIBVTERM_WARNING_CFLAGS = -Wno-unused-parameter -Wno-unused-value -Wno-sign-compare \
+	-I$(LIBVTERM_DIR)/include -I$(LIBVTERM_DIR)/src
+LIBVTERM_CFLAGS = $(VENDOR_CFLAGS) \
+	-Wno-unused-parameter -Wno-unused-value -Wno-sign-compare \
 	-Wno-implicit-fallthrough -Wno-unused-but-set-variable -Wno-cast-qual \
 	-Wno-missing-field-initializers -Wno-empty-body -Wno-old-style-declaration
-LIBVTERM_CFLAGS = $(filter-out -Werror -Wundef -Wshadow -Wdouble-promotion -pedantic,$(CFLAGS)) \
-	$(LIBVTERM_WARNING_CFLAGS)
-LIBVTERM_SRCS = vendor/libvterm/src/encoding.c \
-	vendor/libvterm/src/keyboard.c \
-	vendor/libvterm/src/mouse.c \
-	vendor/libvterm/src/parser.c \
-	vendor/libvterm/src/pen.c \
-	vendor/libvterm/src/screen.c \
-	vendor/libvterm/src/state.c \
-	vendor/libvterm/src/unicode.c \
-	vendor/libvterm/src/vterm.c
 
-TREE_SITTER_SRCS = vendor/tree_sitter/runtime/src/lib.c \
-	vendor/tree_sitter/grammars/c/src/parser.c \
-	vendor/tree_sitter/grammars/cpp/src/parser.c \
-	vendor/tree_sitter/grammars/cpp/src/scanner.c \
-	vendor/tree_sitter/grammars/go/src/parser.c \
-	vendor/tree_sitter/grammars/bash/src/parser.c \
-	vendor/tree_sitter/grammars/bash/src/scanner.c \
-	vendor/tree_sitter/grammars/html/src/parser.c \
-	vendor/tree_sitter/grammars/html/src/scanner.c \
-	vendor/tree_sitter/grammars/javascript/src/parser.c \
-	vendor/tree_sitter/grammars/javascript/src/scanner.c \
-	vendor/tree_sitter/grammars/jsdoc/src/parser.c \
-	vendor/tree_sitter/grammars/jsdoc/src/scanner.c \
-	vendor/tree_sitter/grammars/css/src/parser.c \
-	vendor/tree_sitter/grammars/css/src/scanner.c \
-	vendor/tree_sitter/grammars/json/src/parser.c \
-	vendor/tree_sitter/grammars/typescript/src/parser.c \
-	vendor/tree_sitter/grammars/typescript/src/scanner.c \
-	vendor/tree_sitter/grammars/tsx/src/parser.c \
-	vendor/tree_sitter/grammars/tsx/src/scanner.c \
-	vendor/tree_sitter/grammars/python/src/parser.c \
-	vendor/tree_sitter/grammars/python/src/scanner.c \
-	vendor/tree_sitter/grammars/php/src/parser.c \
-	vendor/tree_sitter/grammars/php/src/scanner.c \
-	vendor/tree_sitter/grammars/rust/src/parser.c \
-	vendor/tree_sitter/grammars/rust/src/scanner.c \
-	vendor/tree_sitter/grammars/java/src/parser.c \
-	vendor/tree_sitter/grammars/regex/src/parser.c \
-	vendor/tree_sitter/grammars/csharp/src/parser.c \
-	vendor/tree_sitter/grammars/csharp/src/scanner.c \
-	vendor/tree_sitter/grammars/haskell/src/parser.c \
-	vendor/tree_sitter/grammars/haskell/src/scanner.c \
-	vendor/tree_sitter/grammars/ruby/src/parser.c \
-	vendor/tree_sitter/grammars/ruby/src/scanner.c \
-	vendor/tree_sitter/grammars/ocaml/src/parser.c \
-	vendor/tree_sitter/grammars/ocaml/src/scanner.c \
-	vendor/tree_sitter/grammars/julia/src/parser.c \
-	vendor/tree_sitter/grammars/julia/src/scanner.c \
-	vendor/tree_sitter/grammars/scala/src/parser.c \
-	vendor/tree_sitter/grammars/scala/src/scanner.c \
-	vendor/tree_sitter/grammars/embedded_template/src/parser.c \
-	vendor/tree_sitter/grammars/markdown/src/parser.c \
-	vendor/tree_sitter/grammars/markdown/src/scanner.c \
-	vendor/tree_sitter/grammars/markdown_inline/src/parser.c \
-	vendor/tree_sitter/grammars/markdown_inline/src/scanner.c \
-	vendor/tree_sitter/grammars/toml/src/parser.c \
-	vendor/tree_sitter/grammars/toml/src/scanner.c \
-	vendor/tree_sitter/grammars/yaml/src/parser.c \
-	vendor/tree_sitter/grammars/yaml/src/scanner.c \
-	vendor/tree_sitter/grammars/xml/src/parser.c \
-	vendor/tree_sitter/grammars/xml/src/scanner.c \
-	vendor/tree_sitter/grammars/make/src/parser.c \
-	vendor/tree_sitter/grammars/diff/src/parser.c
+# ============================================================================
+# Sources
+# ============================================================================
+LIBVTERM_SRCS = $(addprefix $(LIBVTERM_DIR)/src/, \
+	encoding.c keyboard.c mouse.c parser.c pen.c \
+	screen.c state.c unicode.c vterm.c)
+
+TREE_SITTER_SRCS = $(TS_DIR)/runtime/src/lib.c \
+	$(foreach g,$(TS_GRAMMARS),$(TS_GRAMMARS_DIR)/$(g)/src/parser.c) \
+	$(foreach g,$(TS_GRAMMARS),$(wildcard $(TS_GRAMMARS_DIR)/$(g)/src/scanner.c))
+
 CORE_SRCS = $(SRC_DIR)/rotide.c \
-	$(SRC_DIR)/support/terminal.c $(SRC_DIR)/support/alloc.c \
-	$(SRC_DIR)/support/save_syscalls.c $(SRC_DIR)/support/file_io.c \
-	$(SRC_DIR)/text/document.c $(SRC_DIR)/text/rope.c \
-	$(SRC_DIR)/text/utf8.c $(SRC_DIR)/text/row.c \
-	$(SRC_DIR)/editing/document_bridge.c \
-	$(SRC_DIR)/editing/document_position.c \
-	$(SRC_DIR)/editing/buffer_search.c \
-	$(SRC_DIR)/editing/edit_pipeline.c \
-	$(SRC_DIR)/editing/post_edit_notify.c \
-	$(SRC_DIR)/editing/row_cache.c \
-	$(SRC_DIR)/editing/text_source.c \
-	$(SRC_DIR)/editing/buffer_core.c \
-	$(SRC_DIR)/editing/edit.c $(SRC_DIR)/editing/selection.c \
-	$(SRC_DIR)/editing/history.c \
-	$(SRC_DIR)/workspace/tabs.c $(SRC_DIR)/workspace/drawer.c \
-	$(SRC_DIR)/workspace/drawer_modes.c \
-	$(SRC_DIR)/workspace/drawer_mode_menu.c \
-	$(SRC_DIR)/workspace/drawer_mode_git.c \
-	$(SRC_DIR)/workspace/drawer_mode_lsp.c \
-	$(SRC_DIR)/workspace/drawer_mode_dap.c \
-	$(SRC_DIR)/workspace/drawer_tree.c \
-	$(SRC_DIR)/workspace/drawer_file_ops.c \
-	$(SRC_DIR)/workspace/drawer_layout.c \
-	$(SRC_DIR)/workspace/file_search.c \
-	$(SRC_DIR)/workspace/git.c \
-	$(SRC_DIR)/workspace/watch.c \
-	$(SRC_DIR)/workspace/project_search.c \
-	$(SRC_DIR)/workspace/recovery.c \
-	$(SRC_DIR)/workspace/workspace_state.c \
-	$(SRC_DIR)/workspace/layout.c \
-	$(SRC_DIR)/input/actions_edit.c \
-	$(SRC_DIR)/input/actions_file_tab.c \
-	$(SRC_DIR)/input/actions_language.c \
-	$(SRC_DIR)/input/actions_terminal_debug.c \
-	$(SRC_DIR)/input/actions_workspace.c \
-	$(SRC_DIR)/input/mouse.c \
-	$(SRC_DIR)/input/prompt.c \
-	$(SRC_DIR)/input/text_pairs.c \
-	$(SRC_DIR)/input/dispatch.c \
-	$(SRC_DIR)/render/write_buf.c \
-	$(SRC_DIR)/render/ansi_style.c \
-	$(SRC_DIR)/render/display_text.c \
-	$(SRC_DIR)/render/drawer_view.c \
-	$(SRC_DIR)/render/pane_view.c \
-	$(SRC_DIR)/render/status_bar.c \
-	$(SRC_DIR)/render/tab_bar.c \
-	$(SRC_DIR)/render/terminal_view.c \
-	$(SRC_DIR)/render/wrap.c \
-	$(SRC_DIR)/render/viewport.c \
-	$(SRC_DIR)/render/screen.c \
-	$(SRC_DIR)/render/popup.c \
-	$(SRC_DIR)/config/common.c $(SRC_DIR)/config/keymap.c \
-	$(SRC_DIR)/config/runtime_config.c \
-	$(SRC_DIR)/config/editor_config.c \
-	$(SRC_DIR)/config/theme_builtin.c $(SRC_DIR)/config/theme_parse.c \
-	$(SRC_DIR)/config/lsp_config.c $(SRC_DIR)/config/dap_config.c \
-	$(SRC_DIR)/language/syntax.c $(SRC_DIR)/language/queries.c \
-	$(SRC_DIR)/language/syntax_budget.c \
-	$(SRC_DIR)/language/syntax_captures.c \
-	$(SRC_DIR)/language/syntax_detect.c \
-	$(SRC_DIR)/language/syntax_indent.c \
-	$(SRC_DIR)/language/syntax_injections.c \
-	$(SRC_DIR)/language/syntax_locals.c \
-	$(SRC_DIR)/language/syntax_predicates.c \
-	$(SRC_DIR)/language/syntax_worker.c \
-	$(SRC_DIR)/language/syntax_visible_cache.c \
-	$(SRC_DIR)/language/languages.c \
-	$(SRC_DIR)/language/lsp.c \
-	$(SRC_DIR)/language/lsp_documents.c \
-	$(SRC_DIR)/language/lsp_features.c \
-	$(SRC_DIR)/language/lsp_json.c \
-	$(SRC_DIR)/language/lsp_mock.c \
-	$(SRC_DIR)/language/lsp_protocol.c \
-	$(SRC_DIR)/language/lsp_registry.c \
-	$(SRC_DIR)/language/lsp_responses.c \
-	$(SRC_DIR)/language/lsp_transport.c \
-	$(SRC_DIR)/debug/dap_client.c \
-	$(SRC_DIR)/debug/dap_console.c \
-	$(SRC_DIR)/debug/dap.c \
-	$(SRC_DIR)/terminal/pty.c \
-	$(SRC_DIR)/terminal/terminal_pane.c \
-	$(SRC_DIR)/language/autocomplete.c
+	$(addprefix $(SRC_DIR)/support/, \
+		terminal.c alloc.c save_syscalls.c file_io.c) \
+	$(addprefix $(SRC_DIR)/text/, \
+		document.c rope.c utf8.c row.c) \
+	$(addprefix $(SRC_DIR)/editing/, \
+		document_bridge.c document_position.c buffer_search.c \
+		edit_pipeline.c post_edit_notify.c row_cache.c text_source.c \
+		buffer_core.c edit.c selection.c history.c) \
+	$(addprefix $(SRC_DIR)/workspace/, \
+		tabs.c drawer.c drawer_modes.c drawer_mode_menu.c \
+		drawer_mode_git.c drawer_mode_lsp.c drawer_mode_dap.c \
+		drawer_tree.c drawer_file_ops.c drawer_layout.c \
+		file_search.c git.c watch.c project_search.c \
+		recovery.c workspace_state.c layout.c) \
+	$(addprefix $(SRC_DIR)/input/, \
+		actions_edit.c actions_file_tab.c actions_language.c \
+		actions_terminal_debug.c actions_workspace.c mouse.c \
+		prompt.c text_pairs.c dispatch.c) \
+	$(addprefix $(SRC_DIR)/render/, \
+		write_buf.c ansi_style.c display_text.c drawer_view.c \
+		pane_view.c status_bar.c tab_bar.c terminal_view.c \
+		wrap.c viewport.c screen.c popup.c) \
+	$(addprefix $(SRC_DIR)/config/, \
+		common.c keymap.c runtime_config.c editor_config.c \
+		theme_builtin.c theme_parse.c lsp_config.c dap_config.c) \
+	$(addprefix $(SRC_DIR)/language/, \
+		syntax.c queries.c syntax_budget.c syntax_captures.c \
+		syntax_detect.c syntax_indent.c syntax_injections.c \
+		syntax_locals.c syntax_predicates.c syntax_worker.c \
+		syntax_visible_cache.c languages.c lsp.c lsp_documents.c \
+		lsp_features.c lsp_json.c lsp_mock.c lsp_protocol.c \
+		lsp_registry.c lsp_responses.c lsp_transport.c autocomplete.c) \
+	$(addprefix $(SRC_DIR)/debug/, \
+		dap_client.c dap_console.c dap.c) \
+	$(addprefix $(SRC_DIR)/terminal/, \
+		pty.c terminal_pane.c)
+
+TEST_SRCS = $(addprefix tests/, \
+	rotide_tests_main.c test_document_text_editing.c \
+	test_syntax_activation.c test_syntax_parse.c \
+	test_syntax_captures.c test_syntax_background.c \
+	test_syntax_state.c test_syntax_registry.c \
+	test_save_recovery.c test_workspace_persistence.c \
+	test_workspace_theme_config.c test_workspace_keymap_view.c \
+	test_workspace_io.c test_dap.c test_file_watch.c \
+	test_lsp_protocol.c test_lsp_lifecycle.c test_lsp_completion.c \
+	test_lsp_diagnostics.c test_lsp_navigation.c \
+	test_input_actions.c test_input_selection.c test_input_mouse.c \
+	test_input_search.c test_input_undo.c \
+	test_render_frame.c test_render_chrome.c test_render_panes.c \
+	test_render_terminal.c test_layout.c test_pty.c \
+	test_terminal_pane.c test_runner_internals.c \
+	runner_support.c seed.c parallel_runner.c editor_state_snapshot.c \
+	test_support.c test_helpers.c alloc_test_hooks.c save_syscalls_test_hooks.c)
+
+# ============================================================================
+# Objects
+# ============================================================================
 SRCS = $(CORE_SRCS) $(TREE_SITTER_SRCS) $(LIBVTERM_SRCS)
 OBJS = $(SRCS:.c=.o)
 CORE_OBJS = $(CORE_SRCS:.c=.o)
 TREE_SITTER_OBJS = $(TREE_SITTER_SRCS:.c=.o)
 LIBVTERM_OBJS = $(LIBVTERM_SRCS:.c=.o)
-EDITOR_OBJS = $(filter-out $(SRC_DIR)/rotide.o,$(CORE_OBJS)) $(TREE_SITTER_OBJS) \
-	$(LIBVTERM_OBJS)
-TEST_SRCS = tests/rotide_tests_main.c tests/test_document_text_editing.c \
-	tests/test_syntax_activation.c tests/test_syntax_parse.c \
-	tests/test_syntax_captures.c tests/test_syntax_background.c \
-	tests/test_syntax_state.c tests/test_syntax_registry.c \
-	tests/test_save_recovery.c \
-	tests/test_workspace_persistence.c tests/test_workspace_theme_config.c \
-	tests/test_workspace_keymap_view.c tests/test_workspace_io.c \
-	tests/test_dap.c \
-	tests/test_file_watch.c \
-	tests/test_lsp_protocol.c tests/test_lsp_lifecycle.c \
-	tests/test_lsp_completion.c tests/test_lsp_diagnostics.c \
-	tests/test_lsp_navigation.c \
-	tests/test_input_actions.c tests/test_input_selection.c \
-	tests/test_input_mouse.c tests/test_input_search.c tests/test_input_undo.c \
-	tests/test_render_frame.c tests/test_render_chrome.c \
-	tests/test_render_panes.c tests/test_render_terminal.c \
-	tests/test_layout.c tests/test_pty.c tests/test_terminal_pane.c \
-	tests/test_runner_internals.c \
-	tests/runner_support.c tests/seed.c \
-	tests/parallel_runner.c tests/editor_state_snapshot.c \
-	tests/test_support.c tests/test_helpers.c tests/alloc_test_hooks.c \
-	tests/save_syscalls_test_hooks.c
 TEST_OBJS = $(TEST_SRCS:.c=.o)
-TEST_BIN = tests/rotide_tests
-DEPFILES = $(OBJS:.o=.d) $(TEST_OBJS:.o=.d)
 
+# Everything except the rotide entry-point TU, so the test binary can link
+# the editor without colliding on `main`.
+EDITOR_OBJS = $(filter-out $(SRC_DIR)/rotide.o,$(CORE_OBJS)) \
+	$(TREE_SITTER_OBJS) $(LIBVTERM_OBJS)
+
+DEPFILES = $(OBJS:.o=.d) $(TEST_OBJS:.o=.d)
+TEST_BIN = tests/rotide_tests
+
+# ============================================================================
+# Generated headers
+# ============================================================================
 QUERIES_MANIFEST := scripts/queries_manifest.txt
 QUERIES_HEADER := $(SRC_DIR)/language/syntax_query_data.h
 QUERIES_SCM := $(shell awk '/^[[:space:]]*#/ || NF==0 { next } { for (i=2; i<=NF; i++) print $$i }' $(QUERIES_MANIFEST))
@@ -218,6 +162,20 @@ DEFAULT_CONFIG_INPUT := config.toml.example
 DEFAULT_CONFIG_HEADER := $(SRC_DIR)/config/default_config_data.h
 GENERATED_HEADERS := $(QUERIES_HEADER) $(DEFAULT_CONFIG_HEADER)
 
+# ============================================================================
+# Build logging (set V=1 for full compile commands)
+# ============================================================================
+V ?= 0
+MAKEFLAGS += --no-print-directory
+ifeq ($(V),1)
+LOG =
+else
+LOG = @printf '  %-7s %s\n' '$(1)' '$(2)';
+endif
+
+# ============================================================================
+# Build rules
+# ============================================================================
 .DEFAULT_GOAL := rotide
 
 rotide: $(SRC_DIR)/rotide.o $(EDITOR_OBJS)
@@ -236,163 +194,7 @@ $(SRC_DIR)/language/languages.o: $(QUERIES_HEADER)
 $(LIBVTERM_OBJS): %.o: %.c
 	$(call LOG,CC,$<)$(CC) $(LIBVTERM_CPPFLAGS) $(LIBVTERM_CFLAGS) $(DEPFLAGS) -c $< -o $@
 
-vendor/tree_sitter/runtime/src/lib.o: vendor/tree_sitter/runtime/src/lib.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/c/src/parser.o: vendor/tree_sitter/grammars/c/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/cpp/src/parser.o: vendor/tree_sitter/grammars/cpp/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/cpp/src/scanner.o: vendor/tree_sitter/grammars/cpp/src/scanner.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/go/src/parser.o: vendor/tree_sitter/grammars/go/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/bash/src/parser.o: vendor/tree_sitter/grammars/bash/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/bash/src/scanner.o: vendor/tree_sitter/grammars/bash/src/scanner.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/html/src/parser.o: vendor/tree_sitter/grammars/html/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/html/src/scanner.o: vendor/tree_sitter/grammars/html/src/scanner.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/javascript/src/parser.o: vendor/tree_sitter/grammars/javascript/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/javascript/src/scanner.o: vendor/tree_sitter/grammars/javascript/src/scanner.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/jsdoc/src/parser.o: vendor/tree_sitter/grammars/jsdoc/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/jsdoc/src/scanner.o: vendor/tree_sitter/grammars/jsdoc/src/scanner.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/css/src/parser.o: vendor/tree_sitter/grammars/css/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/css/src/scanner.o: vendor/tree_sitter/grammars/css/src/scanner.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/json/src/parser.o: vendor/tree_sitter/grammars/json/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/typescript/src/parser.o: vendor/tree_sitter/grammars/typescript/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/typescript/src/scanner.o: vendor/tree_sitter/grammars/typescript/src/scanner.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/tsx/src/parser.o: vendor/tree_sitter/grammars/tsx/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/tsx/src/scanner.o: vendor/tree_sitter/grammars/tsx/src/scanner.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/python/src/parser.o: vendor/tree_sitter/grammars/python/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/python/src/scanner.o: vendor/tree_sitter/grammars/python/src/scanner.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/php/src/parser.o: vendor/tree_sitter/grammars/php/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/php/src/scanner.o: vendor/tree_sitter/grammars/php/src/scanner.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/rust/src/parser.o: vendor/tree_sitter/grammars/rust/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/rust/src/scanner.o: vendor/tree_sitter/grammars/rust/src/scanner.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/java/src/parser.o: vendor/tree_sitter/grammars/java/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/regex/src/parser.o: vendor/tree_sitter/grammars/regex/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/csharp/src/parser.o: vendor/tree_sitter/grammars/csharp/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/csharp/src/scanner.o: vendor/tree_sitter/grammars/csharp/src/scanner.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/haskell/src/parser.o: vendor/tree_sitter/grammars/haskell/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/haskell/src/scanner.o: vendor/tree_sitter/grammars/haskell/src/scanner.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/ruby/src/parser.o: vendor/tree_sitter/grammars/ruby/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/ruby/src/scanner.o: vendor/tree_sitter/grammars/ruby/src/scanner.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/ocaml/src/parser.o: vendor/tree_sitter/grammars/ocaml/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/ocaml/src/scanner.o: vendor/tree_sitter/grammars/ocaml/src/scanner.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/julia/src/parser.o: vendor/tree_sitter/grammars/julia/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/julia/src/scanner.o: vendor/tree_sitter/grammars/julia/src/scanner.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/scala/src/parser.o: vendor/tree_sitter/grammars/scala/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/scala/src/scanner.o: vendor/tree_sitter/grammars/scala/src/scanner.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/embedded_template/src/parser.o: vendor/tree_sitter/grammars/embedded_template/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/markdown/src/parser.o: vendor/tree_sitter/grammars/markdown/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/markdown/src/scanner.o: vendor/tree_sitter/grammars/markdown/src/scanner.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/markdown_inline/src/parser.o: vendor/tree_sitter/grammars/markdown_inline/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/markdown_inline/src/scanner.o: vendor/tree_sitter/grammars/markdown_inline/src/scanner.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/toml/src/parser.o: vendor/tree_sitter/grammars/toml/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/toml/src/scanner.o: vendor/tree_sitter/grammars/toml/src/scanner.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/yaml/src/parser.o: vendor/tree_sitter/grammars/yaml/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/yaml/src/scanner.o: vendor/tree_sitter/grammars/yaml/src/scanner.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/xml/src/parser.o: vendor/tree_sitter/grammars/xml/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/xml/src/scanner.o: vendor/tree_sitter/grammars/xml/src/scanner.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/make/src/parser.o: vendor/tree_sitter/grammars/make/src/parser.c
-	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
-
-vendor/tree_sitter/grammars/diff/src/parser.o: vendor/tree_sitter/grammars/diff/src/parser.c
+$(TREE_SITTER_OBJS): %.o: %.c
 	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 %.o: %.c
@@ -401,14 +203,11 @@ vendor/tree_sitter/grammars/diff/src/parser.o: vendor/tree_sitter/grammars/diff/
 $(TEST_BIN): $(TEST_OBJS) $(EDITOR_OBJS)
 	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) -rdynamic $^ -lutil -o $@
 
+# ============================================================================
+# Test / release / docs targets
+# ============================================================================
 TEST_FLAGS ?= --validate-reset --jobs 4
-TSAN_FLAGS ?= -fsanitize=thread -fno-omit-frame-pointer -O1 -g
-TSAN_LDFLAGS ?= -fsanitize=thread -fno-omit-frame-pointer
-# TSan's shadow mapping is incompatible with the default Linux ASLR layout
-# on glibc + this binary's 37 MB BSS-resident editorConfig. setarch -R
-# disables ASLR for the child so TSan can lay out its shadow.
-TSAN_TEST_TAGS ?= threads lsp dap file_watch pty
-TSAN_LAUNCHER ?= setarch $(shell uname -m) -R
+DOCS_MEDIA_FLAGS ?=
 
 test: $(TEST_BIN)
 	$(call LOG,TEST,$(TEST_BIN))./$(TEST_BIN) $(TEST_FLAGS)
@@ -428,7 +227,10 @@ test-tsan:
 	$(call LOG,CLEAN,build)$(MAKE) clean
 	$(call LOG,MAKE,test-tsan)$(MAKE) CFLAGS="$(CFLAGS) $(TSAN_FLAGS)" \
 		LDFLAGS="$(LDFLAGS) $(TSAN_LDFLAGS)" $(TEST_BIN)
-	@for tag in $(TSAN_TEST_TAGS); do printf '  %-7s %s\n' 'TSAN' "--tag $$tag"; $(TSAN_LAUNCHER) ./$(TEST_BIN) --tag $$tag $(TEST_FLAGS) || exit $$?; done
+	@for tag in $(TSAN_TEST_TAGS); do \
+		printf '  %-7s %s\n' 'TSAN' "--tag $$tag"; \
+		$(TSAN_LAUNCHER) ./$(TEST_BIN) --tag $$tag $(TEST_FLAGS) || exit $$?; \
+	done
 
 release:
 	$(call LOG,CLEAN,build)$(MAKE) clean
@@ -445,6 +247,7 @@ docs-diagrams:
 -include $(DEPFILES)
 
 .PHONY: clean test test-sanitize test-determinism test-tsan test-crash-handler release docs-media docs-diagrams
+
 clean:
 	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(DEPFILES) $(TEST_BIN) rotide $(GENERATED_HEADERS)
-	$(call LOG,CLEAN,tree)find $(SRC_DIR) tests vendor/tree_sitter -type f \( -name '*.o' -o -name '*.d' \) -delete
+	$(call LOG,CLEAN,tree)find $(SRC_DIR) tests $(TS_DIR) -type f \( -name '*.o' -o -name '*.d' \) -delete
