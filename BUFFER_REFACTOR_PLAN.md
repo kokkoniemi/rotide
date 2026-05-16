@@ -141,13 +141,13 @@ Before touching storage, broaden the existing harness so each subsequent phase c
 
 Introduce the new tree type as a thin wrapper around the existing chunk array, so we can move all callers onto the new API surface before changing internals.
 
-- [ ] New module `src/text/text_tree.{h,c}` with `struct editorTextTree`, `struct editorTextNode`, `editorTextTreeInit/Free/Length/Summary/Read/CopyRange/DupRange/ReplaceRange/Append/ResetFromString/ResetFromTextSource`.
-- [ ] Implementation: the tree contains exactly one leaf, the leaf holds owned byte chunks (effectively reusing the existing chunk layout). Internally, ops still do linear walks — this phase is about the **interface**, not the asymptotics.
-- [ ] Replace `struct editorRope rope` in `struct editorDocument` ([src/text/document.h:11-16](src/text/document.h#L11-L16)) with `struct editorTextTree tree`.
-- [ ] Rewrite the [src/text/document.c](src/text/document.c) bodies to call `editorTextTree*` instead of `editorRope*`. No semantic changes.
-- [ ] Delete `src/text/rope.{h,c}` and the `editorRope*` symbols. (Callers outside `text/document.c` already reach storage through the document API per the audit — verify the grep is clean before deleting.)
-- [ ] Update [src/editing/text_source.c:18](src/editing/text_source.c#L18) read callback to call `editorTextTreeRead` via `editorDocumentRead` (already does; this is just confirming no direct rope reference leaked).
-- [ ] Property tests still pass unchanged.
+- [x] New module `src/text/text_tree.{h,c}` with `struct editorTextTree`, `struct editorTextNode`, `editorTextTreeInit/Free/Length/Summary/Read/CopyRange/DupRange/ReplaceRange/Append/ResetFromString/ResetFromTextSource`.
+- [x] Implementation: the tree contains exactly one leaf, the leaf holds owned byte chunks (effectively reusing the existing chunk layout). Internally, ops still do linear walks — this phase is about the **interface**, not the asymptotics.
+- [x] Replace `struct editorRope rope` in `struct editorDocument` ([src/text/document.h:11-16](src/text/document.h#L11-L16)) with `struct editorTextTree tree`.
+- [x] Rewrite the [src/text/document.c](src/text/document.c) bodies to call `editorTextTree*` instead of `editorRope*`. No semantic changes.
+- [x] Delete `src/text/rope.{h,c}` and the `editorRope*` symbols. (Callers outside `text/document.c` already reach storage through the document API per the audit — verify the grep is clean before deleting.)
+- [x] Update [src/editing/text_source.c:18](src/editing/text_source.c#L18) read callback to call `editorTextTreeRead` via `editorDocumentRead` (already does; this is just confirming no direct rope reference leaked).
+- [x] Property tests still pass unchanged.
 
 **Intermediate state**: rope is gone, tree is in place but acts as a single-leaf container. `O(...)` complexity is unchanged. Naming is now honest.
 
@@ -300,7 +300,7 @@ This phase is large and orthogonal to the storage refactor; it is listed for com
 
 - [x] **Phase 0** — Harden property tests, add benchmarks, line/width invariants.
 - [x] **Phase 1** — `editorTextSummary` + merge, computed but not consumed.
-- [ ] **Phase 2** — Single-leaf tree wrapper; delete `editorRope*` symbols.
+- [x] **Phase 2** — Single-leaf tree wrapper; delete `editorRope*` symbols.
 - [ ] **Phase 3** — Real B-tree with multi-leaf descent and `O(log n)` edits.
 - [ ] **Phase 4** — Drop `line_starts[]`; ~250 lines deleted from `document.c`.
 - [ ] **Phase 5** — Pieces from shared immutable buffers; zero-copy reads.

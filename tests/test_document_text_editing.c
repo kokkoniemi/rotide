@@ -46,37 +46,37 @@ static int test_utf8_decode_invalid_sequences(void) {
 	return 0;
 }
 
-static int test_rope_copy_and_dup_range(void) {
-	struct editorRope rope;
-	editorRopeInit(&rope);
+static int test_text_tree_copy_and_dup_range(void) {
+	struct editorTextTree tree;
+	editorTextTreeInit(&tree);
 
-	ASSERT_TRUE(editorRopeResetFromString(&rope, "hello world", strlen("hello world")));
-	ASSERT_EQ_INT((int)strlen("hello world"), (int)editorRopeLength(&rope));
+	ASSERT_TRUE(editorTextTreeResetFromString(&tree, "hello world", strlen("hello world")));
+	ASSERT_EQ_INT((int)strlen("hello world"), (int)editorTextTreeLength(&tree));
 
 	uint32_t read_len = 0;
-	const char *chunk = editorRopeRead(&rope, 6, &read_len);
+	const char *chunk = editorTextTreeRead(&tree, 6, &read_len);
 	ASSERT_TRUE(chunk != NULL);
 	ASSERT_EQ_INT(5, read_len);
 	ASSERT_TRUE(strncmp(chunk, "world", 5) == 0);
 
 	char copy[6] = {0};
-	ASSERT_TRUE(editorRopeCopyRange(&rope, 0, 5, copy));
+	ASSERT_TRUE(editorTextTreeCopyRange(&tree, 0, 5, copy));
 	ASSERT_EQ_STR("hello", copy);
 
 	size_t dup_len = 0;
-	char *dup = editorRopeDupRange(&rope, 6, 11, &dup_len);
+	char *dup = editorTextTreeDupRange(&tree, 6, 11, &dup_len);
 	ASSERT_TRUE(dup != NULL);
 	ASSERT_EQ_INT(5, (int)dup_len);
 	ASSERT_EQ_STR("world", dup);
 
 	free(dup);
-	editorRopeFree(&rope);
+	editorTextTreeFree(&tree);
 	return 0;
 }
 
-static int test_rope_replace_range_across_large_text(void) {
-	struct editorRope rope;
-	editorRopeInit(&rope);
+static int test_text_tree_replace_range_across_large_text(void) {
+	struct editorTextTree tree;
+	editorTextTreeInit(&tree);
 
 	size_t source_len = 2400;
 	char *source = malloc(source_len + 1);
@@ -86,12 +86,12 @@ static int test_rope_replace_range_across_large_text(void) {
 	}
 	source[source_len] = '\0';
 
-	ASSERT_TRUE(editorRopeResetFromString(&rope, source, source_len));
-	ASSERT_TRUE(editorRopeReplaceRange(&rope, 900, 700, "XYZ", 3));
-	ASSERT_EQ_INT((int)(source_len - 700 + 3), (int)editorRopeLength(&rope));
+	ASSERT_TRUE(editorTextTreeResetFromString(&tree, source, source_len));
+	ASSERT_TRUE(editorTextTreeReplaceRange(&tree, 900, 700, "XYZ", 3));
+	ASSERT_EQ_INT((int)(source_len - 700 + 3), (int)editorTextTreeLength(&tree));
 
 	size_t full_len = 0;
-	char *full = editorRopeDupRange(&rope, 0, editorRopeLength(&rope), &full_len);
+	char *full = editorTextTreeDupRange(&tree, 0, editorTextTreeLength(&tree), &full_len);
 	ASSERT_TRUE(full != NULL);
 	ASSERT_EQ_INT((int)(source_len - 700 + 3), (int)full_len);
 	ASSERT_TRUE(memcmp(full, source, 900) == 0);
@@ -100,7 +100,7 @@ static int test_rope_replace_range_across_large_text(void) {
 
 	free(full);
 	free(source);
-	editorRopeFree(&rope);
+	editorTextTreeFree(&tree);
 	return 0;
 }
 
@@ -1212,8 +1212,8 @@ static int test_editor_open_rejects_binary_file_after_initial_scan_chunk(void) {
 const struct editorTestCase g_document_text_editing_tests[] = {
 	{"utf8_decode_valid_sequences", test_utf8_decode_valid_sequences},
 	{"utf8_decode_invalid_sequences", test_utf8_decode_invalid_sequences},
-	{"rope_copy_and_dup_range", test_rope_copy_and_dup_range},
-	{"rope_replace_range_across_large_text", test_rope_replace_range_across_large_text},
+	{"text_tree_copy_and_dup_range", test_text_tree_copy_and_dup_range},
+	{"text_tree_replace_range_across_large_text", test_text_tree_replace_range_across_large_text},
 	{"document_line_index_tracks_blank_lines_and_trailing_newline", test_document_line_index_tracks_blank_lines_and_trailing_newline},
 	{"document_replace_range_updates_text_and_line_index", test_document_replace_range_updates_text_and_line_index},
 	{"document_position_offset_roundtrip", test_document_position_offset_roundtrip},

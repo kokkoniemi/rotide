@@ -376,7 +376,7 @@ void editorDocumentInit(struct editorDocument *document) {
 	if (document == NULL) {
 		return;
 	}
-	editorRopeInit(&document->rope);
+	editorTextTreeInit(&document->tree);
 	document->line_starts = NULL;
 	document->line_count = 0;
 	document->line_capacity = 0;
@@ -386,7 +386,7 @@ void editorDocumentFree(struct editorDocument *document) {
 	if (document == NULL) {
 		return;
 	}
-	editorRopeFree(&document->rope);
+	editorTextTreeFree(&document->tree);
 	free(document->line_starts);
 	document->line_starts = NULL;
 	document->line_count = 0;
@@ -397,7 +397,7 @@ int editorDocumentResetFromString(struct editorDocument *document, const char *t
 	if (document == NULL) {
 		return 0;
 	}
-	if (!editorRopeResetFromString(&document->rope, text, len)) {
+	if (!editorTextTreeResetFromString(&document->tree, text, len)) {
 		return 0;
 	}
 	editorTextTreeStatsRecordFullRebuild();
@@ -424,40 +424,18 @@ int editorDocumentResetFromTextSource(struct editorDocument *document,
 		return 0;
 	}
 
-	struct editorDocument rebuilt;
-	editorDocumentInit(&rebuilt);
-
-	size_t offset = 0;
-	while (offset < source->length) {
-		uint32_t chunk_len = 0;
-		const char *chunk = source->read(source, offset, &chunk_len);
-		if (chunk == NULL || chunk_len == 0) {
-			editorDocumentFree(&rebuilt);
-			return 0;
-		}
-
-		size_t remaining = source->length - offset;
-		if ((size_t)chunk_len > remaining ||
-				!editorRopeAppend(&rebuilt.rope, chunk, (size_t)chunk_len)) {
-			editorDocumentFree(&rebuilt);
-			return 0;
-		}
-		offset += (size_t)chunk_len;
-	}
-
-	if (!editorDocumentRebuildLineIndex(&rebuilt)) {
-		editorDocumentFree(&rebuilt);
+	if (!editorTextTreeResetFromTextSource(&document->tree, source)) {
 		return 0;
 	}
-
-	editorDocumentFree(document);
-	*document = rebuilt;
+	if (!editorDocumentRebuildLineIndex(document)) {
+		return 0;
+	}
 	editorTextTreeStatsRecordFullRebuild();
 	return 1;
 }
 
 size_t editorDocumentLength(const struct editorDocument *document) {
-	return document != NULL ? editorRopeLength(&document->rope) : 0;
+	return document != NULL ? editorTextTreeLength(&document->tree) : 0;
 }
 
 const char *editorDocumentRead(const struct editorDocument *document, size_t byte_index,
@@ -468,7 +446,7 @@ const char *editorDocumentRead(const struct editorDocument *document, size_t byt
 		}
 		return NULL;
 	}
-	return editorRopeRead(&document->rope, byte_index, bytes_read);
+	return editorTextTreeRead(&document->tree, byte_index, bytes_read);
 }
 
 int editorDocumentCopyRange(const struct editorDocument *document, size_t start_byte,
@@ -476,7 +454,7 @@ int editorDocumentCopyRange(const struct editorDocument *document, size_t start_
 	if (document == NULL) {
 		return 0;
 	}
-	return editorRopeCopyRange(&document->rope, start_byte, end_byte, dst);
+	return editorTextTreeCopyRange(&document->tree, start_byte, end_byte, dst);
 }
 
 char *editorDocumentDupRange(const struct editorDocument *document, size_t start_byte,
@@ -487,7 +465,7 @@ char *editorDocumentDupRange(const struct editorDocument *document, size_t start
 		}
 		return NULL;
 	}
-	return editorRopeDupRange(&document->rope, start_byte, end_byte, len_out);
+	return editorTextTreeDupRange(&document->tree, start_byte, end_byte, len_out);
 }
 
 int editorDocumentReplaceRange(struct editorDocument *document, size_t start_byte, size_t old_len,
@@ -504,7 +482,7 @@ int editorDocumentReplaceRange(struct editorDocument *document, size_t start_byt
 				&prefix_idx, &suffix_idx, &prefix_start, &suffix_start_old)) {
 		return 0;
 	}
-	if (!editorRopeReplaceRange(&document->rope, start_byte, old_len, new_text, new_len)) {
+	if (!editorTextTreeReplaceRange(&document->tree, start_byte, old_len, new_text, new_len)) {
 		return 0;
 	}
 	editorTextTreeStatsRecordIncrementalUpdate();

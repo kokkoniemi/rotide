@@ -2,14 +2,14 @@
 #define DOCUMENT_H
 
 #include "rotide.h"
-#include "text/rope.h"
+#include "text/text_tree.h"
 
 /* Canonical writable text for a tab.
- * The rope owns bytes; line_starts is a derived index maintained with every
+ * The tree owns bytes; line_starts is a derived index maintained with every
  * reset/replace so callers can map between byte offsets and line positions.
  */
 struct editorDocument {
-	struct editorRope rope;
+	struct editorTextTree tree;
 	size_t *line_starts;
 	int line_count;
 	int line_capacity;

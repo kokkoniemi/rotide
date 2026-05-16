@@ -82,7 +82,7 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(addprefix $(SRC_DIR)/support/, \
 		terminal.c alloc.c save_syscalls.c file_io.c) \
 	$(addprefix $(SRC_DIR)/text/, \
-		document.c rope.c text_summary.c utf8.c row.c) \
+		document.c text_summary.c text_tree.c utf8.c row.c) \
 	$(addprefix $(SRC_DIR)/editing/, \
 		document_bridge.c document_position.c buffer_search.c \
 		edit_pipeline.c post_edit_notify.c row_cache.c text_source.c \
