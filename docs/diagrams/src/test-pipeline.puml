@@ -1,0 +1,44 @@
+@startuml
+skin rose
+skinparam backgroundColor #FFFFFF
+title Test pipeline (tests/rotide_tests)
+
+start
+
+:apply filter, tag, exclude-tag flags;
+:skip tests/QUARANTINE.md entries;
+:order by suite index
+(shuffle flag permutes the order);
+
+if (jobs > 1?) then (parallel)
+	:fork one child per suite
+	(up to N concurrent);
+	note right
+		stdout/stderr to
+		tests/artifacts/logs/<suite>.log
+	end note
+	:per test in child:
+	reset, run, reset
+	(verify reset if validate-reset on);
+	:on crash: write artifact,
+	re-raise signal;
+	note right
+		tests/artifacts/crashes/
+		<suite>/<test>.crash
+	end note
+	:parent reaps child,
+	collects log;
+else (sequential)
+	:per test:
+	reset, run, reset
+	(verify reset if validate-reset on);
+endif
+
+:emit PASS / FAIL / SKIP
+in suite-index order;
+:summary line:
+N/M passed, drift, crashes, seed;
+
+stop
+
+@enduml

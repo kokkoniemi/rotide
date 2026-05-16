@@ -3,6 +3,10 @@
 RotIDE uses a plain Makefile. Build output is compact by default; use `V=1` for
 full compiler and linker commands.
 
+For the test pipeline itself — what we run, what each layer catches,
+how to reproduce a failure — see [testing.md](testing.md). This page is
+the command reference.
+
 ## Common Targets
 
 ```bash

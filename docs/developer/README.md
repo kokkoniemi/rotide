@@ -9,6 +9,8 @@ For maintainers changing behavior. The root README is user-facing.
 - [Concurrency](concurrency.md): the syntax worker protocol.
 - [Error handling](error_handling.md): OOM and validation policy.
 - [Build and tests](build-and-tests.md): targets, sanitizers, diagrams.
+- [Testing](testing.md): the test pipeline — what we run, how it's
+  validated, how to reproduce a failure.
 
 ## Diagrams
 
