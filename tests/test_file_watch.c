@@ -95,6 +95,7 @@ static int test_file_watch_save_prompt_can_abort_conflict_overwrite(void) {
 	size_t len = 0;
 	char *contents = NULL;
 	int saved_stdin = -1;
+	int saved_stdout = -1;
 
 	ASSERT_TRUE(make_temp_path(path));
 	ASSERT_TRUE(write_text_file(path, "alpha\n"));
@@ -105,7 +106,9 @@ static int test_file_watch_save_prompt_can_abort_conflict_overwrite(void) {
 	ASSERT_EQ_INT(1, E.disk_conflict);
 
 	ASSERT_TRUE(setup_stdin_bytes("n\r", 2, &saved_stdin) == 0);
+	ASSERT_TRUE(redirect_stdout_to_devnull(&saved_stdout) == 0);
 	editorSave();
+	ASSERT_TRUE(restore_stdout(saved_stdout) == 0);
 	ASSERT_TRUE(restore_stdin(saved_stdin) == 0);
 
 	contents = read_file_contents(path, &len);
@@ -124,6 +127,7 @@ static int test_file_watch_save_prompt_can_overwrite_conflict(void) {
 	size_t len = 0;
 	char *contents = NULL;
 	int saved_stdin = -1;
+	int saved_stdout = -1;
 
 	ASSERT_TRUE(make_temp_path(path));
 	ASSERT_TRUE(write_text_file(path, "alpha\n"));
@@ -134,7 +138,9 @@ static int test_file_watch_save_prompt_can_overwrite_conflict(void) {
 	ASSERT_EQ_INT(1, E.disk_conflict);
 
 	ASSERT_TRUE(setup_stdin_bytes("y\r", 2, &saved_stdin) == 0);
+	ASSERT_TRUE(redirect_stdout_to_devnull(&saved_stdout) == 0);
 	editorSave();
+	ASSERT_TRUE(restore_stdout(saved_stdout) == 0);
 	ASSERT_TRUE(restore_stdin(saved_stdin) == 0);
 
 	contents = read_file_contents(path, &len);
