@@ -400,7 +400,7 @@ vendor/tree_sitter/grammars/diff/src/parser.o: vendor/tree_sitter/grammars/diff/
 $(TEST_BIN): $(TEST_OBJS) $(EDITOR_OBJS)
 	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) -rdynamic $^ -lutil -o $@
 
-TEST_FLAGS ?= --validate-reset
+TEST_FLAGS ?= --validate-reset --jobs 4
 TSAN_FLAGS ?= -fsanitize=thread -fno-omit-frame-pointer -O1 -g
 TSAN_LDFLAGS ?= -fsanitize=thread -fno-omit-frame-pointer
 # TSan's shadow mapping is incompatible with the default Linux ASLR layout
