@@ -1,3 +1,8 @@
+#include "editing/document_bridge.h"
+#include "editing/edit.h"
+#include "editing/history.h"
+#include "editing/selection.h"
+#include "editor_test_api.h"
 #include "rotide.h"
 #include "seed.h"
 #include "test_case.h"
@@ -342,11 +347,399 @@ static int test_text_invariants_empty_doc_grows(void) {
 	return 0;
 }
 
+/* ------------------------------------------------------------------ */
+/* Editor-pipeline invariants (Phase 3 items 1, 4, 5):                  */
+/*   1. editorDocumentLength == sum of row sizes + newlines             */
+/*   4. small edits splice, do not full-rebuild the row cache           */
+/*   5. undo of K ops returns text to the pre-op snapshot               */
+/* ------------------------------------------------------------------ */
+
+static int docHasTrailingNewline(void) {
+	size_t len = editorDocumentLength(E.document);
+	if (len == 0) {
+		return 0;
+	}
+	char last;
+	if (!editorDocumentCopyRange(E.document, len - 1, len, &last)) {
+		return 0;
+	}
+	return last == '\n';
+}
+
+static size_t sumRowBytesIncludingNewlines(void) {
+	size_t total = 0;
+	for (int r = 0; r < E.numrows; r++) {
+		total += (size_t)E.rows[r].size;
+	}
+	if (E.numrows > 0) {
+		total += (size_t)(E.numrows - 1);
+		if (docHasTrailingNewline()) {
+			total++;
+		}
+	}
+	return total;
+}
+
+static int dumpEditorRows(char *out, size_t cap) {
+	size_t pos = 0;
+	int trailing = docHasTrailingNewline();
+	for (int r = 0; r < E.numrows; r++) {
+		size_t n = (size_t)E.rows[r].size;
+		if (pos + n > cap) {
+			return -1;
+		}
+		memcpy(out + pos, E.rows[r].chars, n);
+		pos += n;
+		if (r + 1 < E.numrows || trailing) {
+			if (pos + 1 > cap) {
+				return -1;
+			}
+			out[pos++] = '\n';
+		}
+	}
+	return (int)pos;
+}
+
+static int byteOffsetToPos(size_t offset, int *cy_out, int *cx_out) {
+	int line_idx = 0;
+	size_t col = 0;
+	if (!editorDocumentByteOffsetToPosition(E.document, offset, &line_idx, &col)) {
+		return 0;
+	}
+	*cy_out = line_idx;
+	*cx_out = (int)col;
+	return 1;
+}
+
+static int seedEditorBuffer(const char *text, size_t len) {
+	if (!editorDocumentResetActiveFromText("", 0)) {
+		return 0;
+	}
+	if (E.document == NULL) {
+		return 0;
+	}
+	E.cy = 0;
+	E.cx = 0;
+	if (len > 0) {
+		if (editorInsertText(text, len) != 1) {
+			return 0;
+		}
+	}
+	editorHistoryReset();
+	return 1;
+}
+
+static int assertEditorMatchesRef(struct refDoc *ref, uint64_t seed, int op_idx) {
+	size_t expected_total = sumRowBytesIncludingNewlines();
+	size_t doc_len = editorDocumentLength(E.document);
+	if (doc_len != expected_total) {
+		fprintf(stderr,
+			"text_invariants pipeline: docLen=%zu != row-sum=%zu after op#%d seed=0x%016llx\n",
+			doc_len, expected_total, op_idx, (unsigned long long)seed);
+		return -1;
+	}
+	if (doc_len != ref->len) {
+		fprintf(stderr,
+			"text_invariants pipeline: docLen=%zu != ref=%zu after op#%d seed=0x%016llx\n",
+			doc_len, ref->len, op_idx, (unsigned long long)seed);
+		return -1;
+	}
+	char *dump = (char *)malloc(doc_len + 1);
+	if (dump == NULL) {
+		return -1;
+	}
+	int dumped = dumpEditorRows(dump, doc_len + 1);
+	if (dumped < 0 || (size_t)dumped != doc_len) {
+		fprintf(stderr,
+			"text_invariants pipeline: row dump produced %d bytes for doc=%zu after op#%d\n",
+			dumped, doc_len, op_idx);
+		free(dump);
+		return -1;
+	}
+	if (doc_len > 0 && memcmp(dump, ref->buf, doc_len) != 0) {
+		size_t diff = 0;
+		for (size_t i = 0; i < doc_len; i++) {
+			if (dump[i] != ref->buf[i]) {
+				diff = i;
+				break;
+			}
+		}
+		fprintf(stderr,
+			"text_invariants pipeline: byte diff at %zu after op#%d: editor=0x%02x ref=0x%02x seed=0x%016llx\n",
+			diff, op_idx, (unsigned char)dump[diff], (unsigned char)ref->buf[diff],
+			(unsigned long long)seed);
+		free(dump);
+		return -1;
+	}
+	free(dump);
+	return 0;
+}
+
+static int applyPipelineOp(unsigned kind, size_t start, size_t old_len,
+		const char *text, size_t new_len) {
+	(void)kind;
+	enum editorEditKind ek = (old_len > 0 && new_len == 0)
+		? EDITOR_EDIT_DELETE_TEXT
+		: EDITOR_EDIT_INSERT_TEXT;
+	int dirty_before = E.dirty;
+	int ok = 0;
+	editorHistoryBeginEdit(ek);
+	if (old_len == 0 && new_len > 0) {
+		int cy = 0, cx = 0;
+		if (byteOffsetToPos(start, &cy, &cx)) {
+			E.cy = cy;
+			E.cx = cx;
+			ok = editorInsertText(text, new_len) == 1;
+		}
+	} else {
+		int s_cy = 0, s_cx = 0, e_cy = 0, e_cx = 0;
+		if (byteOffsetToPos(start, &s_cy, &s_cx) &&
+			byteOffsetToPos(start + old_len, &e_cy, &e_cx)) {
+			struct editorSelectionRange range = {s_cy, s_cx, e_cy, e_cx};
+			ok = editorReplaceRange(&range, text, new_len) >= 0;
+		}
+	}
+	editorHistoryCommitEdit(ek, ok && E.dirty != dirty_before);
+	return ok ? 0 : -1;
+}
+
+static int runPipelineOps(uint64_t seed, int n_ops, size_t doc_cap,
+		size_t max_insert, int small_only, const char *test_name) {
+	g_rng = seed;
+	struct refDoc ref;
+	if (refDocInit(&ref) != 0) {
+		return 1;
+	}
+
+	char seed_text[128];
+	size_t seed_len = (size_t)(rngNext() % 96);
+	rngFillText(seed_text, seed_len);
+	if (!seedEditorBuffer(seed_text, seed_len)) {
+		fprintf(stderr, "%s: seedEditorBuffer failed seed=0x%016llx\n",
+			test_name, (unsigned long long)seed);
+		refDocFree(&ref);
+		return 1;
+	}
+	if (refDocReplace(&ref, 0, 0, seed_text, seed_len) != 0) {
+		refDocFree(&ref);
+		return 1;
+	}
+	if (assertEditorMatchesRef(&ref, seed, -1) != 0) {
+		refDocFree(&ref);
+		return 1;
+	}
+
+	int splice_before = editorRowCacheTestSpliceUpdateCount();
+	int rebuild_before = editorRowCacheTestFullRebuildCount();
+
+	for (int i = 0; i < n_ops; i++) {
+		size_t cur = ref.len;
+		unsigned kind = (unsigned)(rngNext() % 4);
+		size_t start = cur == 0 ? 0 : (size_t)(rngNext() % (cur + 1));
+		size_t available = cur - start;
+		size_t old_len = 0;
+		if (kind == 1 || kind == 2) {
+			size_t cap_del = small_only ? (available < 8 ? available : 8) : available;
+			old_len = cap_del == 0 ? 0 : (size_t)(rngNext() % (cap_del + 1));
+		}
+		size_t new_len = 0;
+		if (kind != 1) {
+			size_t budget = doc_cap > cur ? doc_cap - cur : 0;
+			size_t cap_new = max_insert < budget ? max_insert : budget;
+			new_len = cap_new == 0 ? 0 : (size_t)(rngNext() % (cap_new + 1));
+		}
+		char ins[64];
+		if (new_len > sizeof(ins)) {
+			new_len = sizeof(ins);
+		}
+		if (new_len > 0) {
+			if (small_only) {
+				for (size_t j = 0; j < new_len; j++) {
+					ins[j] = (char)('a' + (rngNext() % 26));
+				}
+			} else {
+				rngFillText(ins, new_len);
+			}
+		}
+		editorHistoryBreakGroup();
+		if (applyPipelineOp(kind, start, old_len, ins, new_len) != 0) {
+			fprintf(stderr,
+				"%s: pipeline op#%d failed kind=%u start=%zu old=%zu new=%zu seed=0x%016llx\n",
+				test_name, i, kind, start, old_len, new_len, (unsigned long long)seed);
+			refDocFree(&ref);
+			return 1;
+		}
+		if (refDocReplace(&ref, start, old_len, ins, new_len) != 0) {
+			refDocFree(&ref);
+			return 1;
+		}
+		if (assertEditorMatchesRef(&ref, seed, i) != 0) {
+			refDocFree(&ref);
+			return 1;
+		}
+	}
+
+	if (small_only) {
+		int rebuilds = editorRowCacheTestFullRebuildCount() - rebuild_before;
+		int splices = editorRowCacheTestSpliceUpdateCount() - splice_before;
+		if (rebuilds > 0) {
+			fprintf(stderr,
+				"%s: %d full-rebuild(s) during small-edit run (splices=%d seed=0x%016llx)\n",
+				test_name, rebuilds, splices, (unsigned long long)seed);
+			refDocFree(&ref);
+			return 1;
+		}
+		if (n_ops > 0 && splices == 0) {
+			fprintf(stderr,
+				"%s: no splice updates despite %d small ops (seed=0x%016llx)\n",
+				test_name, n_ops, (unsigned long long)seed);
+			refDocFree(&ref);
+			return 1;
+		}
+	}
+
+	refDocFree(&ref);
+	return 0;
+}
+
+static int test_text_invariants_pipeline_length_and_rows(void) {
+	return runPipelineOps(seedFor(0x123456789ABCDEF0ULL), 80, 2048, 16, 0,
+		"pipeline_length_and_rows");
+}
+
+static int test_text_invariants_pipeline_small_edits_splice(void) {
+	return runPipelineOps(seedFor(0x0E1E2E3E4E5E6E7EULL), 60, 1024, 8, 1,
+		"pipeline_small_edits");
+}
+
+static int test_text_invariants_pipeline_undo_redo_snapshot(void) {
+	uint64_t seed = seedFor(0xFADEFADEFADEFADEULL);
+	g_rng = seed;
+	struct refDoc ref;
+	if (refDocInit(&ref) != 0) {
+		return 1;
+	}
+	const char *base = "alpha\nbeta\ngamma\ndelta\nepsilon\nzeta\n";
+	size_t base_len = strlen(base);
+	if (!seedEditorBuffer(base, base_len)) {
+		fprintf(stderr, "pipeline_undo_redo: seed failed\n");
+		refDocFree(&ref);
+		return 1;
+	}
+	(void)refDocReplace(&ref, 0, 0, base, base_len);
+
+	size_t snap_len = editorDocumentLength(E.document);
+	char *snap = (char *)malloc(snap_len + 1);
+	if (snap == NULL) {
+		refDocFree(&ref);
+		return 1;
+	}
+	int snap_dumped = dumpEditorRows(snap, snap_len + 1);
+	if (snap_dumped < 0 || (size_t)snap_dumped != snap_len) {
+		fprintf(stderr, "pipeline_undo_redo: snapshot dump failed\n");
+		free(snap);
+		refDocFree(&ref);
+		return 1;
+	}
+
+	const int K = 12;
+	for (int i = 0; i < K; i++) {
+		size_t cur = editorDocumentLength(E.document);
+		size_t start = cur == 0 ? 0 : (size_t)(rngNext() % (cur + 1));
+		unsigned kind = (unsigned)(rngNext() % 3);
+		size_t old_len = 0;
+		size_t new_len = 0;
+		char ins[16];
+		if (kind == 0) {
+			new_len = 1 + (size_t)(rngNext() % 8);
+			for (size_t j = 0; j < new_len; j++) {
+				ins[j] = (char)('A' + (rngNext() % 26));
+			}
+		} else if (kind == 1) {
+			size_t avail = cur - start;
+			if (avail == 0) {
+				continue;
+			}
+			old_len = 1 + (size_t)(rngNext() % (avail < 4 ? avail : 4));
+		} else {
+			size_t avail = cur - start;
+			old_len = avail == 0 ? 0 : 1 + (size_t)(rngNext() % (avail < 4 ? avail : 4));
+			new_len = 1 + (size_t)(rngNext() % 8);
+			for (size_t j = 0; j < new_len; j++) {
+				ins[j] = (char)('a' + (rngNext() % 26));
+			}
+		}
+		editorHistoryBreakGroup();
+		if (applyPipelineOp(kind, start, old_len, ins, new_len) != 0) {
+			fprintf(stderr, "pipeline_undo_redo: op#%d failed\n", i);
+			free(snap);
+			refDocFree(&ref);
+			return 1;
+		}
+	}
+
+	int undo_calls = 0;
+	while (editorUndo() == 1) {
+		undo_calls++;
+		if (undo_calls > K + 4) {
+			break;
+		}
+	}
+
+	size_t after_len = editorDocumentLength(E.document);
+	if (after_len != snap_len) {
+		fprintf(stderr,
+			"pipeline_undo_redo: length after undo=%zu, snapshot=%zu (undos=%d, seed=0x%016llx)\n",
+			after_len, snap_len, undo_calls, (unsigned long long)seed);
+		free(snap);
+		refDocFree(&ref);
+		return 1;
+	}
+	char *after = (char *)malloc(after_len + 1);
+	if (after == NULL) {
+		free(snap);
+		refDocFree(&ref);
+		return 1;
+	}
+	int after_dumped = dumpEditorRows(after, after_len + 1);
+	if (after_dumped < 0 || (size_t)after_dumped != after_len) {
+		fprintf(stderr, "pipeline_undo_redo: after-dump failed\n");
+		free(after);
+		free(snap);
+		refDocFree(&ref);
+		return 1;
+	}
+	if (memcmp(snap, after, snap_len) != 0) {
+		size_t diff = 0;
+		for (size_t i = 0; i < snap_len; i++) {
+			if (snap[i] != after[i]) {
+				diff = i;
+				break;
+			}
+		}
+		fprintf(stderr,
+			"pipeline_undo_redo: byte diff at %zu (snap=0x%02x after=0x%02x undos=%d seed=0x%016llx)\n",
+			diff, (unsigned char)snap[diff], (unsigned char)after[diff],
+			undo_calls, (unsigned long long)seed);
+		free(after);
+		free(snap);
+		refDocFree(&ref);
+		return 1;
+	}
+	free(after);
+	free(snap);
+	refDocFree(&ref);
+	return 0;
+}
+
 const struct editorTestCase g_text_invariants_tests[] = {
 	{"text_invariants_empty_doc_grows_and_shrinks", test_text_invariants_empty_doc_grows},
 	{"text_invariants_small_doc_random_ops", test_text_invariants_small_doc},
 	{"text_invariants_medium_doc_random_ops", test_text_invariants_medium_doc},
 	{"text_invariants_burst_500_ops", test_text_invariants_burst},
+	{"text_invariants_pipeline_length_and_rows", test_text_invariants_pipeline_length_and_rows},
+	{"text_invariants_pipeline_small_edits_splice", test_text_invariants_pipeline_small_edits_splice},
+	{"text_invariants_pipeline_undo_redo_snapshot", test_text_invariants_pipeline_undo_redo_snapshot},
 };
 
 const int g_text_invariants_test_count =
