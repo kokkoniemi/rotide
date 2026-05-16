@@ -12,6 +12,21 @@ struct editorTestSuite {
 	const int *count;
 };
 
+struct snapshotExcludeRange {
+	size_t offset;
+	size_t size;
+};
+
+/*
+ * Compare two byte buffers of length size, skipping byte ranges in
+ * excludes (must be sorted by ascending offset and non-overlapping).
+ * Returns 1 on match, 0 on diff; on diff, *first_diff_out (if non-NULL)
+ * is set to the offset of the first differing byte.
+ */
+int runnerSnapshotCompare(const unsigned char *a, const unsigned char *b, size_t size,
+		const struct snapshotExcludeRange *excludes, int exclude_count,
+		size_t *first_diff_out);
+
 struct testRunnerOptions {
 	const char *filter;
 	const char *include_tag;

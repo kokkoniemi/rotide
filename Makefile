@@ -399,13 +399,31 @@ vendor/tree_sitter/grammars/diff/src/parser.o: vendor/tree_sitter/grammars/diff/
 $(TEST_BIN): $(TEST_OBJS) $(EDITOR_OBJS)
 	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) $^ -lutil -o $@
 
+TEST_FLAGS ?= --validate-reset
+TSAN_FLAGS ?= -fsanitize=thread -fno-omit-frame-pointer -O1 -g
+TSAN_LDFLAGS ?= -fsanitize=thread -fno-omit-frame-pointer
+# TSan's shadow mapping is incompatible with the default Linux ASLR layout
+# on glibc + this binary's 37 MB BSS-resident editorConfig. setarch -R
+# disables ASLR for the child so TSan can lay out its shadow.
+TSAN_TEST_TAGS ?= threads lsp dap file_watch pty
+TSAN_LAUNCHER ?= setarch $(shell uname -m) -R
+
 test: $(TEST_BIN)
-	$(call LOG,TEST,$(TEST_BIN))./$(TEST_BIN)
+	$(call LOG,TEST,$(TEST_BIN))./$(TEST_BIN) $(TEST_FLAGS)
 
 test-sanitize:
 	$(call LOG,CLEAN,build)$(MAKE) clean
 	$(call LOG,MAKE,test-sanitize)$(MAKE) CFLAGS="$(CFLAGS) $(SANITIZER_CFLAGS)" \
 		LDFLAGS="$(LDFLAGS) $(SANITIZER_LDFLAGS)" test
+
+test-determinism: $(TEST_BIN)
+	$(call LOG,TEST,determinism)scripts/check_test_determinism.sh ./$(TEST_BIN) $(TEST_FLAGS)
+
+test-tsan:
+	$(call LOG,CLEAN,build)$(MAKE) clean
+	$(call LOG,MAKE,test-tsan)$(MAKE) CFLAGS="$(CFLAGS) $(TSAN_FLAGS)" \
+		LDFLAGS="$(LDFLAGS) $(TSAN_LDFLAGS)" $(TEST_BIN)
+	@for tag in $(TSAN_TEST_TAGS); do printf '  %-7s %s\n' 'TSAN' "--tag $$tag"; $(TSAN_LAUNCHER) ./$(TEST_BIN) --tag $$tag $(TEST_FLAGS) || exit $$?; done
 
 release:
 	$(call LOG,CLEAN,build)$(MAKE) clean
@@ -421,7 +439,7 @@ docs-diagrams:
 
 -include $(DEPFILES)
 
-.PHONY: clean test test-sanitize release docs-media docs-diagrams
+.PHONY: clean test test-sanitize test-determinism test-tsan release docs-media docs-diagrams
 clean:
 	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(DEPFILES) $(TEST_BIN) rotide $(GENERATED_HEADERS)
 	$(call LOG,CLEAN,tree)find $(SRC_DIR) tests vendor/tree_sitter -type f \( -name '*.o' -o -name '*.d' \) -delete

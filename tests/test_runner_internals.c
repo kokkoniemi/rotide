@@ -198,6 +198,84 @@ static int test_quarantine_list_missing_file_is_not_error(void) {
 	return 0;
 }
 
+static int test_snapshot_compare_equal_buffers(void) {
+	unsigned char a[64];
+	unsigned char b[64];
+	for (int i = 0; i < 64; i++) {
+		a[i] = (unsigned char)(i * 7 + 3);
+		b[i] = a[i];
+	}
+	size_t diff = 0;
+	ASSERT_EQ_INT(1, runnerSnapshotCompare(a, b, sizeof(a), NULL, 0, &diff));
+	return 0;
+}
+
+static int test_snapshot_compare_reports_first_diff(void) {
+	unsigned char a[32] = {0};
+	unsigned char b[32] = {0};
+	a[5] = 0xaa;
+	b[5] = 0xbb;
+	a[10] = 0x11;
+	b[10] = 0x22;
+	size_t diff = 999;
+	ASSERT_EQ_INT(0, runnerSnapshotCompare(a, b, sizeof(a), NULL, 0, &diff));
+	ASSERT_EQ_INT(5, (int)diff);
+	return 0;
+}
+
+static int test_snapshot_compare_excludes_skipped_region(void) {
+	unsigned char a[32] = {0};
+	unsigned char b[32] = {0};
+	a[12] = 0xff;
+	b[12] = 0x01;
+	a[13] = 0xff;
+	b[13] = 0x02;
+	struct snapshotExcludeRange excludes[] = {{12, 2}};
+	size_t diff = 999;
+	ASSERT_EQ_INT(1, runnerSnapshotCompare(a, b, sizeof(a), excludes, 1, &diff));
+	return 0;
+}
+
+static int test_snapshot_compare_detects_diff_outside_excludes(void) {
+	unsigned char a[32] = {0};
+	unsigned char b[32] = {0};
+	a[12] = 0xff;
+	b[12] = 0x01;
+	a[20] = 0x11;
+	b[20] = 0x22;
+	struct snapshotExcludeRange excludes[] = {{12, 2}};
+	size_t diff = 999;
+	ASSERT_EQ_INT(0, runnerSnapshotCompare(a, b, sizeof(a), excludes, 1, &diff));
+	ASSERT_EQ_INT(20, (int)diff);
+	return 0;
+}
+
+static int test_snapshot_compare_exclude_at_buffer_tail(void) {
+	unsigned char a[32] = {0};
+	unsigned char b[32] = {0};
+	a[30] = 0x55;
+	b[30] = 0x66;
+	a[31] = 0x77;
+	b[31] = 0x88;
+	struct snapshotExcludeRange excludes[] = {{30, 2}};
+	ASSERT_EQ_INT(1, runnerSnapshotCompare(a, b, sizeof(a), excludes, 1, NULL));
+	return 0;
+}
+
+static int test_snapshot_compare_multiple_excludes(void) {
+	unsigned char a[64] = {0};
+	unsigned char b[64] = {0};
+	a[5] = 1; b[5] = 2;
+	a[20] = 3; b[20] = 4;
+	a[50] = 0xff;
+	b[50] = 0xee;
+	struct snapshotExcludeRange excludes[] = {{5, 1}, {20, 1}};
+	size_t diff = 999;
+	ASSERT_EQ_INT(0, runnerSnapshotCompare(a, b, sizeof(a), excludes, 2, &diff));
+	ASSERT_EQ_INT(50, (int)diff);
+	return 0;
+}
+
 static int test_seed_setter_roundtrip(void) {
 	unsigned long long prev = rotide_test_seed();
 	rotide_test_seed_set(0xABCDEF0123456789ULL);
@@ -218,6 +296,12 @@ const struct editorTestCase g_runner_internals_tests[] = {
 	{"runner_shuffle_differs_for_different_seeds", test_runner_shuffle_differs_for_different_seeds},
 	{"quarantine_list_load_parses_dash_entries", test_quarantine_list_load_parses_dash_entries},
 	{"quarantine_list_missing_file_is_not_error", test_quarantine_list_missing_file_is_not_error},
+	{"snapshot_compare_equal_buffers", test_snapshot_compare_equal_buffers},
+	{"snapshot_compare_reports_first_diff", test_snapshot_compare_reports_first_diff},
+	{"snapshot_compare_excludes_skipped_region", test_snapshot_compare_excludes_skipped_region},
+	{"snapshot_compare_detects_diff_outside_excludes", test_snapshot_compare_detects_diff_outside_excludes},
+	{"snapshot_compare_exclude_at_buffer_tail", test_snapshot_compare_exclude_at_buffer_tail},
+	{"snapshot_compare_multiple_excludes", test_snapshot_compare_multiple_excludes},
 	{"runner_seed_setter_roundtrip", test_seed_setter_roundtrip},
 };
 

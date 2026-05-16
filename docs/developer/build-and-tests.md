@@ -9,19 +9,54 @@ full compiler and linker commands.
 make
 make test
 make test-sanitize
+make test-tsan
+make test-determinism
 make release
 make docs-media
 make docs-diagrams
 ```
 
 - `make`: builds `rotide`.
-- `make test`: builds and runs `tests/rotide_tests`.
+- `make test`: builds and runs `tests/rotide_tests`. Passes
+  `--validate-reset` by default so any future regression that leaves
+  `editorConfig E` dirty across `reset_editor_state` fails the suite.
 - `make test-sanitize`: cleans, rebuilds tests with AddressSanitizer and
   UndefinedBehaviorSanitizer, then runs them.
+- `make test-tsan`: cleans, rebuilds with ThreadSanitizer, and runs the
+  threaded subset (suites tagged `threads`, `lsp`, `dap`, `file_watch`,
+  `pty`). Intended for nightly CI, not per-PR. Linux only. The target
+  wraps the binary in `setarch -R` so TSan's shadow mapping fits
+  alongside the editor's large BSS-resident state.
+- `make test-determinism`: runs the binary twice with a fixed seed and
+  diffs the outcome lines (`PASS`/`FAIL`/`SKIP`/drift/summary). Catches
+  nondeterminism in seeded property tests and runner output before it
+  costs an engineer half a day chasing an unreproducible bug.
 - `make release`: builds a size-oriented binary and strips it.
 - `make docs-media`: regenerates screenshots under `docs/media/screenshots/`.
 - `make docs-diagrams`: renders PlantUML sources from `docs/diagrams/src/` to
   committed SVG files under `docs/diagrams/svg/`.
+
+### Runner flags
+
+`tests/rotide_tests` accepts the following flags; pass them via
+`make test TEST_FLAGS="..."`:
+
+- `--filter <substr>`: run only tests whose name contains `<substr>`.
+- `--tag <name>` / `--exclude-tag <name>`: select suites by tag
+  (`document`, `syntax`, `lsp`, `dap`, `pty`, `slow`, `threads`, etc.).
+  `--list` prints suite/name/tags and exits.
+- `--seed <u64>` + `--shuffle`: deterministic test reordering. The seed
+  is printed on every `FAIL` and in the trailing summary; pass the same
+  seed back to reproduce.
+- `--repeat <N>`: re-run each selected test N times (flake hunting).
+- `--fail-fast`: stop at the first FAIL.
+- `--validate-reset`: assert that `reset_editor_state` restores
+  `editorConfig E` to a canonical state between tests (default in
+  `make test`).
+- `--no-quarantine` / `--quarantine <path>`: bypass or override
+  `tests/QUARANTINE.md`. The nightly CI run should use
+  `--no-quarantine` so flakes that have started passing again surface
+  loudly.
 
 If LeakSanitizer is flaky locally:
 

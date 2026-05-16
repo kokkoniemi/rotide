@@ -112,32 +112,30 @@ static int suitePassesTagFilter(const struct editorTestSuite *suite, const struc
  *
  * The validator snapshots the bytes of `editorConfig E` once after the
  * first reset_editor_state() and asserts that every subsequent reset
- * restores those bytes exactly. It is intentionally limited to E because
- * E is the spine of editor state; singletons that live outside E (LSP mock
+ * restores those bytes exactly, *with the exception of byte ranges in
+ * k_snapshot_excludes* — fields that reset_editor_state intentionally
+ * re-allocates (layout_root, focused_leaf), so their pointer value
+ * legitimately differs between resets even when logical state matches.
+ *
+ * Coverage is limited to E. Singletons that live outside E (LSP mock
  * scratch, syntax-worker queue depth, alloc-failure-probe counters) are
  * cleared by reset_editor_state() too but are not currently part of the
- * snapshot.
- *
- * Phase 1 ships E-only coverage so that the load-bearing single struct
- * gets the assertion. Extending the validator to those singletons is
- * downstream work and should be paired with the per-suite fork from
- * Phase 2, which is when external state coupling stops being a curiosity
- * and starts hurting parallel runs.
+ * snapshot. Extending to those singletons is downstream work, naturally
+ * paired with the per-suite fork from Phase 2.
  */
+#define EXCLUDE_FIELD(field) \
+	{offsetof(struct editorConfig, field), sizeof(((struct editorConfig *)0)->field)}
+
+static const struct snapshotExcludeRange k_snapshot_excludes[] = {
+	EXCLUDE_FIELD(layout_root),
+	EXCLUDE_FIELD(focused_leaf),
+};
+
+#define K_EXCLUDE_COUNT ((int)(sizeof(k_snapshot_excludes) / sizeof(k_snapshot_excludes[0])))
+
 static int snapshotMatchesEditor(const unsigned char *snapshot, size_t *first_diff_out) {
-	if (memcmp(snapshot, &E, sizeof(E)) == 0) {
-		return 1;
-	}
-	const unsigned char *live = (const unsigned char *)&E;
-	for (size_t i = 0; i < sizeof(E); i++) {
-		if (snapshot[i] != live[i]) {
-			if (first_diff_out != NULL) {
-				*first_diff_out = i;
-			}
-			return 0;
-		}
-	}
-	return 1;
+	return runnerSnapshotCompare(snapshot, (const unsigned char *)&E, sizeof(E),
+		k_snapshot_excludes, K_EXCLUDE_COUNT, first_diff_out);
 }
 
 int main(int argc, char **argv) {
@@ -272,9 +270,11 @@ int main(int argc, char **argv) {
 				size_t diff_at = 0;
 				if (!snapshotMatchesEditor(snapshot, &diff_at)) {
 					reset_violations++;
+					const unsigned char *live = (const unsigned char *)&E;
 					fprintf(stderr,
-						"RESET-DRIFT after %s (repeat %d/%d): first differing byte at offset %zu\n",
-						tc->name, rep + 1, opts.repeat, diff_at);
+						"RESET-DRIFT after %s (repeat %d/%d): offset=%zu snap=0x%02x live=0x%02x\n",
+						tc->name, rep + 1, opts.repeat, diff_at,
+						snapshot[diff_at], live[diff_at]);
 				}
 			}
 			if (failed == 0) {

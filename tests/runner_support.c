@@ -266,6 +266,41 @@ unsigned long long runnerSeedFromOsEntropy(void) {
 	return seed;
 }
 
+static int find_first_diff(const unsigned char *a, const unsigned char *b, size_t start, size_t end,
+		size_t *first_diff_out) {
+	for (size_t i = start; i < end; i++) {
+		if (a[i] != b[i]) {
+			if (first_diff_out != NULL) {
+				*first_diff_out = i;
+			}
+			return 0;
+		}
+	}
+	return 1;
+}
+
+int runnerSnapshotCompare(const unsigned char *a, const unsigned char *b, size_t size,
+		const struct snapshotExcludeRange *excludes, int exclude_count,
+		size_t *first_diff_out) {
+	size_t cursor = 0;
+	for (int i = 0; i < exclude_count; i++) {
+		size_t off = excludes[i].offset;
+		size_t end = off + excludes[i].size;
+		if (off > cursor) {
+			if (memcmp(a + cursor, b + cursor, off - cursor) != 0) {
+				return find_first_diff(a, b, cursor, off, first_diff_out);
+			}
+		}
+		cursor = end;
+	}
+	if (cursor < size) {
+		if (memcmp(a + cursor, b + cursor, size - cursor) != 0) {
+			return find_first_diff(a, b, cursor, size, first_diff_out);
+		}
+	}
+	return 1;
+}
+
 void runnerShuffleIndices(int *indices, int count, unsigned long long seed) {
 	if (count <= 1) {
 		return;

@@ -24,6 +24,15 @@
 - Run `ASAN_OPTIONS=detect_leaks=0 make test-sanitize` for document/storage/history/save/recovery/syntax/LSP/build-sensitive work.
 - Treat warnings as blockers; `-Werror` is enabled.
 
+## Test API contract
+
+The test API in [`tests/editor_test_api.h`](tests/editor_test_api.h) and
+similar test-only headers may expose read-only views of internal state
+and counters. It must not provide mutators that production code would
+not itself call. Adding a mutator means the test is asserting an
+arrangement that production cannot reach. Write the test against a real
+code path instead, or add the missing production path.
+
 ## Skill Routing
 
 - Default: `rotide-maintainer`
