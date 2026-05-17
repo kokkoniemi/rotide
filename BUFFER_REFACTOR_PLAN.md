@@ -211,14 +211,15 @@ With the tree carrying `newlines` summaries, the external line index in `editorD
 
 Currently every leaf owns its bytes. Move to a piece-table model so file loads are zero-copy and inserts append to a per-document "add" buffer.
 
-- [ ] Introduce `struct editorTextBuffer` with `editorTextBufferAlloc(capacity)`, `editorTextBufferRetain`, `editorTextBufferRelease`, `editorTextBufferAppend(buf, bytes, len) -> offset`.
-- [ ] `struct editorTextPiece` becomes `{ buf*, offset, len, summary }`. Leaves no longer own bytes directly.
-- [ ] `editorTextTreeResetFromString` and `editorTextTreeResetFromTextSource` build one "original" buffer holding all bytes, then pieces slice it. Single allocation for the file's contents.
-- [ ] Each tree gets an "add buffer" (`tree.add_buf`) that starts empty and grows on inserts; inserts write the new text at the end of `add_buf` and create one piece pointing into it.
-- [ ] When an edit deletes a piece (or part of one), the piece's slice is no longer referenced; the underlying buffer keeps living until its refcount hits zero. Buffers are never compacted (Zed accepts this; for an IDE the add buffer is bounded by edit activity within a session).
-- [ ] `editorTextTreeRead(t, b, &avail)` returns a direct pointer into `piece->buf->bytes + piece->offset + (b - piece_start)`. True zero-copy. The `avail` cap is now the remainder of the piece, not the chunk.
-- [ ] Update [src/editing/text_source.c](src/editing/text_source.c) — same interface, but reads will now be larger contiguous spans, reducing tree-sitter's `read` callback invocations.
-- [ ] **Open question**: when to coalesce (Phase 7) vs. when to let pieces accumulate. Pure piece-table = never coalesce; Zed does coalesce small pieces. Start with "never coalesce in Phase 5, add coalescing in Phase 7."
+- [x] Introduce `struct editorTextBuffer` with `editorTextBufferAlloc(capacity)`, `editorTextBufferRetain`, `editorTextBufferRelease`, `editorTextBufferAppend(buf, bytes, len) -> offset`.
+- [x] `struct editorTextPiece` becomes `{ buf*, offset, len, summary }`. Leaves no longer own bytes directly.
+- [x] `editorTextTreeResetFromString` and `editorTextTreeResetFromTextSource` build one "original" buffer holding all bytes, then pieces slice it. Single allocation for the file's contents.
+- [x] Each tree gets an "add buffer" (`tree.add_buf`) that starts empty and grows on inserts; inserts write the new text at the end of `add_buf` and create one piece pointing into it.
+- [x] When an edit deletes a piece (or part of one), the piece's slice is no longer referenced; the underlying buffer keeps living until its refcount hits zero. Buffers are never compacted (Zed accepts this; for an IDE the add buffer is bounded by edit activity within a session).
+- [x] `editorTextTreeRead(t, b, &avail)` returns a direct pointer into `piece->buf->bytes + piece->offset + (b - piece_start)`. True zero-copy. The `avail` cap is now the remainder of the piece, not the chunk.
+- [x] Update [src/editing/text_source.c](src/editing/text_source.c) — same interface, but reads will now be larger contiguous spans, reducing tree-sitter's `read` callback invocations.
+- [x] **Open question**: when to coalesce (Phase 7) vs. when to let pieces accumulate. Pure piece-table = never coalesce; Zed does coalesce small pieces. Start with "never coalesce in Phase 5, add coalescing in Phase 7." → went with "never coalesce in Phase 5".
+- [x] Made `editorApplyDocumentEdit` ([src/editing/edit_pipeline.c:159-180](src/editing/edit_pipeline.c#L159-L180)) OOM-safe with a compensating revert when post-replace pipeline steps fail. In the old model the alloc-per-piece pattern hid this race; the new model legitimately succeeds storage-side without any malloc, so the revert is needed to preserve the "OOM ⇒ unchanged state" contract.
 
 **Intermediate state**: pieces, shared buffers, zero-copy reads. Memory model is now: original file buffer (long-lived) + add buffer (grows during session) + tree of pieces.
 
@@ -233,9 +234,9 @@ Currently every leaf owns its bytes. Move to a piece-table model so file loads a
 
 Make the long-line metric a tree query instead of a per-row walk.
 
-- [ ] Wire `first_line_bytes`, `last_line_bytes`, `max_line_bytes` through `editorTextSummaryFromBytes` for new pieces.
-- [ ] Confirm `editorTextSummaryMerge` produces correct results across piece boundaries (covered by Phase 1 unit tests; add cross-boundary cases if missing).
-- [ ] Replace `editorBufferMaxRenderCols` ([src/editing/buffer_core.c](src/editing/buffer_core.c)) implementation with a tree-summary read: `max(root.max_line_bytes, root.first_line_bytes, root.last_line_bytes)`. Drop `E.max_render_cols_valid` and the cache-invalidation calls in [src/editing/edit_pipeline.c:173](src/editing/edit_pipeline.c#L173).
+- [x] Wire `first_line_bytes`, `last_line_bytes`, `max_line_bytes` through `editorTextSummaryFromBytes` for new pieces.
+- [x] Confirm `editorTextSummaryMerge` produces correct results across piece boundaries (covered by Phase 1 unit tests; add cross-boundary cases if missing).
+- [x] Replace `editorBufferMaxRenderCols` ([src/editing/buffer_core.c](src/editing/buffer_core.c)) implementation with a tree-summary read via `editorDocumentMaxLineBytes`. Dropped the `max_render_cols` / `max_render_cols_valid` X-macro fields and every cache-invalidation site (edit_pipeline, tabs, watch, buffer_core).
 - [ ] **Open question (call it out in code)**: this gives max line *bytes*, not display columns. Display columns depend on tab expansion, which depends on the column at which each tab sits. Options:
   - (a) Accept "max bytes" as the metric — practical for horizontal scrolling, slightly conservative for cursor clamping. The audit's recommendation lines up with this.
   - (b) Keep `erow.render_display_cols` and take `max` across rows as a fallback for the cases that genuinely need display columns.
@@ -247,9 +248,9 @@ Make the long-line metric a tree query instead of a per-row walk.
 
 After heavy editing, a document accumulates many tiny pieces. Add bounded coalescing to keep traversal cheap.
 
-- [ ] On `editorTextTreeReplaceRange`, if the newly inserted piece is small (e.g., `< 64` bytes) and the previous piece in the same leaf has spare capacity in its underlying buffer (it's the add buffer, and its end offset aligns with the new write), append into the previous piece instead of creating a new one. This is the "typing fast path."
-- [ ] On any leaf operation that leaves a leaf with `count == 1` and a small piece, try to merge with a sibling.
-- [ ] Add a `editorTextTreeStats` accessor exposing piece count, average piece size, max depth. Make property tests assert that after `K` random edits, piece count stays within a sensible factor of `K`.
+- [x] On `editorTextTreeReplaceRange`, if the newly inserted piece is small (`<= 64` bytes) and the previous piece in the same leaf has spare capacity in its underlying buffer (it's the add buffer, and its end offset aligns with the new write), append into the previous piece instead of creating a new one. This is the "typing fast path." Summary is merged incrementally, not recomputed, so the path stays O(insert_len) instead of O(piece_len).
+- [x] Existing `editorTextTreeRebalance` already triggers leaf merges when `count < FANOUT/2`, which covers the `count == 1` underflow case. Verified via `text_tree_merge_collapses_after_drain`.
+- [x] Added `editorTextTreeCollectStats` exposing piece count, leaf count, internal-node count, max depth, total bytes. Two new tests assert (a) sequential typing collapses to one piece via the fast path and (b) 500 random-position edits stay under 1500 pieces with depth ≤ 4.
 
 **Exit criterion**: piece count after a 10k-keystroke run is bounded by a small constant multiple of expected insert-merge fast-path hits.
 
@@ -303,9 +304,9 @@ This phase is large and orthogonal to the storage refactor; it is listed for com
 - [x] **Phase 2** — Single-leaf tree wrapper; delete `editorRope*` symbols.
 - [x] **Phase 3** — Real B-tree with multi-leaf descent and `O(log n)` edits.
 - [x] **Phase 4** — Drop `line_starts[]`; ~250 lines deleted from `document.c`.
-- [ ] **Phase 5** — Pieces from shared immutable buffers; zero-copy reads.
-- [ ] **Phase 6** — `max_line_bytes` summary live; `editorBufferMaxRenderCols` becomes `O(1)`.
-- [ ] **Phase 7** — Coalescing of small pieces; bound piece count under heavy editing.
+- [x] **Phase 5** — Pieces from shared immutable buffers; zero-copy reads.
+- [x] **Phase 6** — `max_line_bytes` summary live; `editorBufferMaxRenderCols` becomes `O(1)`.
+- [x] **Phase 7** — Coalescing of small pieces; bound piece count under heavy editing.
 - [ ] **Phase 8** *(optional)* — Retire `erow.chars`; row cache becomes render-only.
 
 Each phase ships independently. The differential property tests in [tests/test_text_invariants.c](tests/test_text_invariants.c) gate every phase boundary.

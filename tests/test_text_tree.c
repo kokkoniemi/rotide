@@ -276,6 +276,56 @@ static int test_text_tree_line_queries_survive_splits(void) {
 	return 0;
 }
 
+/* Append-style typing should collapse onto a single piece via the add-buf
+ * fast path, not a piece per keystroke. */
+static int test_text_tree_typing_fast_path_coalesces(void) {
+	struct editorTextTree tree;
+	editorTextTreeInit(&tree);
+
+	for (int i = 0; i < 200; i++) {
+		char c = (char)('a' + (i % 26));
+		ASSERT_TRUE(editorTextTreeReplaceRange(&tree,
+			editorTextTreeLength(&tree), 0, &c, 1));
+	}
+	ASSERT_TRUE(editorTextTreeLength(&tree) == 200);
+
+	struct editorTextTreeStats stats;
+	editorTextTreeCollectStats(&tree, &stats);
+	/* All 200 keystrokes append contiguously into add_buf, so they collapse
+	 * into a single piece. */
+	ASSERT_EQ_INT(1, stats.piece_count);
+	ASSERT_EQ_INT(1, stats.leaf_count);
+
+	editorTextTreeFree(&tree);
+	return 0;
+}
+
+/* Bursty random typing keeps the piece count proportional to logical edit
+ * runs, not edit calls. */
+static int test_text_tree_random_edits_bounded_piece_count(void) {
+	struct editorTextTree tree;
+	editorTextTreeInit(&tree);
+	const char *seed = "hello world\n";
+	ASSERT_TRUE(editorTextTreeResetFromString(&tree, seed, strlen(seed)));
+
+	for (int i = 0; i < 500; i++) {
+		size_t at = (size_t)((i * 73u) % (editorTextTreeLength(&tree) + 1));
+		char c = (char)('A' + (i % 26));
+		ASSERT_TRUE(editorTextTreeReplaceRange(&tree, at, 0, &c, 1));
+	}
+
+	struct editorTextTreeStats stats;
+	editorTextTreeCollectStats(&tree, &stats);
+	/* Worst case is ~2 pieces per mid-piece insert. Bound loosely to catch
+	 * an absolute regression (e.g., if a single insert started producing
+	 * many pieces, or stats double-counted). */
+	ASSERT_TRUE(stats.piece_count < 1500);
+	ASSERT_TRUE(stats.max_depth <= 4);
+
+	editorTextTreeFree(&tree);
+	return 0;
+}
+
 const struct editorTestCase g_text_tree_tests[] = {
 	{"text_tree_leaf_split_grows_tree", test_text_tree_leaf_split_grows_tree},
 	{"text_tree_split_grows_internal_nodes", test_text_tree_split_grows_internal_nodes},
@@ -283,6 +333,8 @@ const struct editorTestCase g_text_tree_tests[] = {
 	{"text_tree_locate_line_matches_naive", test_text_tree_locate_line_matches_naive},
 	{"text_tree_line_for_byte_matches_naive", test_text_tree_line_for_byte_matches_naive},
 	{"text_tree_line_queries_survive_splits", test_text_tree_line_queries_survive_splits},
+	{"text_tree_typing_fast_path_coalesces", test_text_tree_typing_fast_path_coalesces},
+	{"text_tree_random_edits_bounded_piece_count", test_text_tree_random_edits_bounded_piece_count},
 };
 
 const int g_text_tree_test_count =

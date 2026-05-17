@@ -255,8 +255,6 @@ static int editorWatchReloadTabFile(struct editorBuffer *tab,
 	new_rows = NULL;
 	new_numrows = 0;
 	new_document = NULL;
-	tab->max_render_cols = 0;
-	tab->max_render_cols_valid = 0;
 	tab->dirty = 0;
 	tab->disk_state = *observed;
 	tab->disk_conflict = 0;

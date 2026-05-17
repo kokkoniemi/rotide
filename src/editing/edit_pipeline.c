@@ -157,20 +157,30 @@ int editorApplyDocumentEdit(const struct editorDocumentEdit *edit) {
 	}
 
 	if (!editorDocumentReplaceRange(E.document, edit->start_offset, edit->old_len,
-				edit->new_len > 0 ? edit->new_text : "", edit->new_len) ||
-			!editorRowCacheSpliceEndRowForDocument(E.document, &row_region,
-					&replacement_end_row_exclusive) ||
+				edit->new_len > 0 ? edit->new_text : "", edit->new_len)) {
+		free(removed_text);
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+	if (!editorRowCacheSpliceEndRowForDocument(E.document, &row_region,
+				&replacement_end_row_exclusive) ||
 			!editorBuildRowsFromDocumentRange(E.document, row_region.start_row,
 					replacement_end_row_exclusive, &replacement_rows, &replacement_numrows) ||
 			!editorSpliceRowCache(&E.rows, &E.numrows, replacement_rows, replacement_numrows,
 					row_region.start_row, row_region.old_end_row_exclusive)) {
+		/* Storage was mutated; revert so callers see no partial state. The
+		 * compensating replace re-installs `removed_text` over the just-
+		 * inserted span and is allocation-free (tree pieces only refcount
+		 * the existing buffers).
+		 */
+		(void)editorDocumentReplaceRange(E.document, edit->start_offset, edit->new_len,
+				removed_text != NULL ? removed_text : "", edit->old_len);
 		editorFreeRowArray(replacement_rows, replacement_numrows);
 		free(removed_text);
 		editorSetAllocFailureStatus();
 		return 0;
 	}
 
-	E.max_render_cols_valid = 0;
 	if (!editorSyncCursorFromOffset(edit->after_cursor_offset)) {
 		free(removed_text);
 		editorSetAllocFailureStatus();

@@ -1,6 +1,7 @@
 #ifndef TEXT_TREE_H
 #define TEXT_TREE_H
 
+#include "text/text_buffer.h"
 #include "text/text_summary.h"
 
 #include <stddef.h>
@@ -14,8 +15,10 @@ struct editorTextSource;
 #define EDITOR_TEXT_TREE_NODE_CAPACITY \
 	(EDITOR_TEXT_TREE_FANOUT + EDITOR_TEXT_TREE_NODE_SLACK)
 
+/* Leaf entry: a slice into a refcounted immutable buffer. */
 struct editorTextChunk {
-	char *bytes;
+	struct editorTextBuffer *buf;
+	size_t offset;
 	size_t len;
 	struct editorTextSummary summary;
 };
@@ -30,8 +33,12 @@ struct editorTextNode {
 	} u;
 };
 
+/* The tree holds the root and an "add" buffer that grows as inserts run.
+ * Original-file bytes live in their own buffer(s), retained by pieces.
+ */
 struct editorTextTree {
 	struct editorTextNode *root;
+	struct editorTextBuffer *add_buf;
 };
 
 void editorTextTreeInit(struct editorTextTree *tree);
@@ -64,5 +71,19 @@ int editorTextTreeLocateLine(const struct editorTextTree *tree, int line_idx,
 /* Returns the line index containing `byte`. `byte` must be in [0, length). */
 int editorTextTreeLineForByte(const struct editorTextTree *tree, size_t byte,
 		int *line_idx_out);
+
+/* Diagnostic snapshot — used by tests/benchmarks to assert that piece counts
+ * stay bounded under heavy editing.
+ */
+struct editorTextTreeStats {
+	int leaf_count;
+	int internal_node_count;
+	int piece_count;
+	int max_depth;
+	size_t total_bytes;
+};
+
+void editorTextTreeCollectStats(const struct editorTextTree *tree,
+		struct editorTextTreeStats *out);
 
 #endif
