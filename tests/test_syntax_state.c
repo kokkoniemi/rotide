@@ -11,7 +11,7 @@ static int test_editor_syntax_undo_redo_preserves_tree(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorHistoryBeginEdit(EDITOR_EDIT_NEWLINE);
 	int dirty_before = E.dirty;
 	editorInsertNewline();
@@ -39,7 +39,7 @@ static int test_editor_syntax_undo_redo_preserves_shell_tree(void) {
 	ASSERT_EQ_INT(EDITOR_SYNTAX_SHELL, editorSyntaxLanguageActive());
 
 	E.cy = 1;
-	E.cx = E.rows[1].size;
+	E.cx = editor_test_row_size(1);
 	editorHistoryBeginEdit(EDITOR_EDIT_NEWLINE);
 	int dirty_before = E.dirty;
 	editorInsertNewline();

@@ -14,14 +14,14 @@ static int test_editor_process_keypress_ctrl_z_ctrl_y_roundtrip_after_cut(void) 
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
 	E.cx = 3;
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('x')) == 0);
-	ASSERT_EQ_STR("ade", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "ade");
 
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
-	ASSERT_EQ_STR("abcde", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "abcde");
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('y')) == 0);
-	ASSERT_EQ_STR("ade", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "ade");
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 	return 0;
 }
@@ -32,7 +32,7 @@ static int test_editor_process_keypress_ctrl_z_ctrl_y_roundtrip_typed_run(void) 
 	ASSERT_TRUE(editor_process_single_key('c') == 0);
 
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_STR("abc", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "abc");
 	int dirty_after_insert = E.dirty;
 
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
@@ -41,7 +41,7 @@ static int test_editor_process_keypress_ctrl_z_ctrl_y_roundtrip_typed_run(void) 
 
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('y')) == 0);
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_STR("abc", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "abc");
 	ASSERT_EQ_INT(dirty_after_insert, E.dirty);
 	return 0;
 }
@@ -53,10 +53,10 @@ static int test_editor_process_keypress_ctrl_z_group_break_on_navigation(void) {
 	char arrow_left[] = "\x1b[D";
 	ASSERT_TRUE(editor_process_keypress_with_input(arrow_left, sizeof(arrow_left) - 1) == 0);
 	ASSERT_TRUE(editor_process_single_key('c') == 0);
-	ASSERT_EQ_STR("acb", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "acb");
 
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
-	ASSERT_EQ_STR("ab", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "ab");
 	ASSERT_EQ_INT(1, E.cx);
 
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
@@ -70,19 +70,19 @@ static int test_editor_process_keypress_ctrl_z_for_delete_and_newline_steps(void
 	E.cx = 2;
 
 	ASSERT_TRUE(editor_process_single_key(BACKSPACE) == 0);
-	ASSERT_EQ_STR("a", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "a");
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
-	ASSERT_EQ_STR("ab", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "ab");
 	ASSERT_EQ_INT(2, E.cx);
 
 	E.cx = 1;
 	ASSERT_TRUE(editor_process_single_key('\r') == 0);
 	ASSERT_EQ_INT(2, E.numrows);
-	ASSERT_EQ_STR("a", E.rows[0].chars);
-	ASSERT_EQ_STR("b", E.rows[1].chars);
+	ASSERT_ROW_TEXT_EQ(0, "a");
+	ASSERT_ROW_TEXT_EQ(1, "b");
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_STR("ab", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "ab");
 	ASSERT_EQ_INT(1, E.cx);
 	return 0;
 }
@@ -91,16 +91,16 @@ static int test_editor_process_keypress_ctrl_y_clears_after_new_edit(void) {
 	ASSERT_TRUE(editor_process_single_key('a') == 0);
 	ASSERT_TRUE(editor_process_single_key('b') == 0);
 	ASSERT_TRUE(editor_process_single_key('c') == 0);
-	ASSERT_EQ_STR("abc", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "abc");
 
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
 	ASSERT_EQ_INT(0, E.numrows);
 
 	ASSERT_TRUE(editor_process_single_key('x') == 0);
-	ASSERT_EQ_STR("x", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "x");
 
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('y')) == 0);
-	ASSERT_EQ_STR("x", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "x");
 	ASSERT_EQ_STR("Nothing to redo", E.statusmsg);
 	return 0;
 }
@@ -128,15 +128,15 @@ static int test_editor_process_keypress_ctrl_z_history_cap_eviction(void) {
 	for (int i = 0; i < ROTIDE_UNDO_HISTORY_LIMIT + 1; i++) {
 		ASSERT_TRUE(editor_process_single_key(BACKSPACE) == 0);
 	}
-	ASSERT_EQ_STR("", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "");
 
 	for (int i = 0; i < ROTIDE_UNDO_HISTORY_LIMIT; i++) {
 		ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
 	}
-	ASSERT_EQ_INT(ROTIDE_UNDO_HISTORY_LIMIT, E.rows[0].size);
+	ASSERT_EQ_INT(ROTIDE_UNDO_HISTORY_LIMIT, editor_test_row_size(0));
 
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
-	ASSERT_EQ_INT(ROTIDE_UNDO_HISTORY_LIMIT, E.rows[0].size);
+	ASSERT_EQ_INT(ROTIDE_UNDO_HISTORY_LIMIT, editor_test_row_size(0));
 	ASSERT_EQ_STR("Nothing to undo", E.statusmsg);
 	return 0;
 }
@@ -147,16 +147,16 @@ static int test_editor_process_keypress_ctrl_z_capture_oom_preserves_state(void)
 	E.cx = 5;
 
 	ASSERT_TRUE(editor_process_single_key(BACKSPACE) == 0);
-	ASSERT_EQ_STR("hell", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "hell");
 
 	editorTestAllocFailAfter(0);
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
-	ASSERT_EQ_STR("hell", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "hell");
 	ASSERT_EQ_STR("Out of memory", E.statusmsg);
 
 	editorTestAllocReset();
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
-	ASSERT_EQ_STR("hello", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "hello");
 	return 0;
 }
 
@@ -166,16 +166,16 @@ static int test_editor_process_keypress_ctrl_z_restore_oom_preserves_state(void)
 	E.cx = 5;
 
 	ASSERT_TRUE(editor_process_single_key(BACKSPACE) == 0);
-	ASSERT_EQ_STR("hell", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "hell");
 
 	editorTestAllocFailAfter(1);
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
-	ASSERT_EQ_STR("hell", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "hell");
 	ASSERT_EQ_STR("Out of memory", E.statusmsg);
 
 	editorTestAllocReset();
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('z')) == 0);
-	ASSERT_EQ_STR("hello", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "hello");
 	return 0;
 }
 

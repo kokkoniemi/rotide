@@ -586,11 +586,11 @@ static int test_editor_drawer_open_selected_file_in_new_tab(void) {
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_EQ_STR(open_file, E.filename);
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_STR("opened", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "opened");
 
 	ASSERT_TRUE(editorTabSwitchToIndex(0));
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_STR("keep", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "keep");
 
 	ASSERT_TRUE(unlink(open_file) == 0);
 	cleanup_recovery_test_env(&env);
@@ -628,7 +628,7 @@ static int test_editor_drawer_open_selected_file_switches_existing_relative_path
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_EQ_STR("dup.txt", E.filename);
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_STR("dup", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "dup");
 
 	ASSERT_TRUE(unlink(abs_file) == 0);
 	cleanup_recovery_test_env(&env);
@@ -663,7 +663,7 @@ static int test_editor_drawer_open_selected_file_respects_tab_limit(void) {
 	ASSERT_EQ_INT(ROTIDE_MAX_TABS, editorTabCount());
 	ASSERT_EQ_INT(active_before, editorTabActiveIndex());
 	ASSERT_EQ_INT(numrows_before, E.numrows);
-	ASSERT_EQ_STR("stay", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "stay");
 	ASSERT_TRUE(strstr(E.statusmsg, "Tab limit reached") != NULL);
 
 	ASSERT_TRUE(unlink(open_file) == 0);
@@ -751,7 +751,7 @@ static int test_editor_file_search_preview_and_open_selected_file(void) {
 	ASSERT_TRUE(editorActiveTabIsPreview());
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_EQ_STR(beta_file, E.filename);
-	ASSERT_EQ_STR("beta", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "beta");
 
 	ASSERT_TRUE(editorFileSearchOpenSelectedFileInTab());
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, E.drawer_mode);
@@ -799,7 +799,7 @@ static int test_editor_file_search_previews_binary_file_as_unsupported_read_only
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_EQ_STR(binary_file, E.filename);
 	ASSERT_TRUE(E.numrows > 0);
-	ASSERT_EQ_STR("File is unsupported", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "File is unsupported");
 	ASSERT_TRUE(E.is_preview);
 	ASSERT_TRUE(editorActiveTabIsUnsupportedFile());
 	ASSERT_TRUE(editorActiveTabIsReadOnly());

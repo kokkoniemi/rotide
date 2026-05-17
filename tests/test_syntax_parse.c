@@ -30,7 +30,7 @@ static int test_editor_syntax_incremental_edits_keep_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -61,13 +61,13 @@ static int test_editor_insert_newline_uses_tree_sitter_block_indent_for_c(void) 
 	E.indent_width = 4;
 	E.dirty = 0;
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 
 	editorInsertNewline();
 	ASSERT_EQ_INT(3, E.numrows);
-	ASSERT_EQ_STR("int main() {", E.rows[0].chars);
-	ASSERT_EQ_STR("    ", E.rows[1].chars);
-	ASSERT_EQ_STR("}", E.rows[2].chars);
+	ASSERT_ROW_TEXT_EQ(0, "int main() {");
+	ASSERT_ROW_TEXT_EQ(1, "    ");
+	ASSERT_ROW_TEXT_EQ(2, "}");
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(4, E.cx);
 	ASSERT_TRUE(editorSyntaxTreeExists());
@@ -94,13 +94,13 @@ static int test_editor_insert_newline_uses_function_header_indent_for_wrapped_c_
 	E.indent_width = 4;
 	E.dirty = 0;
 	E.cy = 4;
-	E.cx = E.rows[4].size;
+	E.cx = editor_test_row_size(4);
 
 	editorInsertNewline();
 	ASSERT_EQ_INT(7, E.numrows);
-	ASSERT_EQ_STR("\t}", E.rows[4].chars);
-	ASSERT_EQ_STR("\t", E.rows[5].chars);
-	ASSERT_EQ_STR("}", E.rows[6].chars);
+	ASSERT_ROW_TEXT_EQ(4, "\t}");
+	ASSERT_ROW_TEXT_EQ(5, "\t");
+	ASSERT_ROW_TEXT_EQ(6, "}");
 	ASSERT_EQ_INT(5, E.cy);
 	ASSERT_EQ_INT(1, E.cx);
 	ASSERT_TRUE(editorSyntaxTreeExists());
@@ -125,13 +125,13 @@ static int test_editor_insert_newline_uses_tree_sitter_header_indent_for_python(
 	E.indent_width = 4;
 	E.dirty = 0;
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 
 	editorInsertNewline();
 	ASSERT_EQ_INT(3, E.numrows);
-	ASSERT_EQ_STR("if True:", E.rows[0].chars);
-	ASSERT_EQ_STR("    ", E.rows[1].chars);
-	ASSERT_EQ_STR("    pass", E.rows[2].chars);
+	ASSERT_ROW_TEXT_EQ(0, "if True:");
+	ASSERT_ROW_TEXT_EQ(1, "    ");
+	ASSERT_ROW_TEXT_EQ(2, "    pass");
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(4, E.cx);
 	ASSERT_TRUE(editorSyntaxTreeExists());
@@ -219,7 +219,7 @@ static int test_editor_syntax_incremental_edits_keep_cpp_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -255,7 +255,7 @@ static int test_editor_syntax_incremental_edits_keep_shell_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -327,7 +327,7 @@ static int test_editor_syntax_incremental_edits_keep_javascript_tree_valid(void)
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -353,7 +353,7 @@ static int test_editor_syntax_incremental_edits_keep_typescript_tree_valid(void)
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -379,7 +379,7 @@ static int test_editor_syntax_incremental_edits_keep_tsx_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -405,7 +405,7 @@ static int test_editor_syntax_incremental_edits_keep_css_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -431,7 +431,7 @@ static int test_editor_syntax_incremental_edits_keep_go_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 2;
-	E.cx = E.rows[2].size;
+	E.cx = editor_test_row_size(2);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -457,7 +457,7 @@ static int test_editor_syntax_incremental_edits_keep_python_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -483,7 +483,7 @@ static int test_editor_syntax_incremental_edits_keep_php_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -509,7 +509,7 @@ static int test_editor_syntax_incremental_edits_keep_rust_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -535,7 +535,7 @@ static int test_editor_syntax_incremental_edits_keep_java_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -561,7 +561,7 @@ static int test_editor_syntax_incremental_edits_keep_csharp_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -587,7 +587,7 @@ static int test_editor_syntax_incremental_edits_keep_haskell_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -613,7 +613,7 @@ static int test_editor_syntax_incremental_edits_keep_ruby_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -639,7 +639,7 @@ static int test_editor_syntax_incremental_edits_keep_ocaml_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -658,14 +658,14 @@ static int test_editor_syntax_incremental_edits_keep_markdown_tree_valid(void) {
 	ASSERT_EQ_INT(EDITOR_SYNTAX_MARKDOWN, editorSyntaxLanguageActive());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertChar('s');
 	ASSERT_TRUE(editorSyntaxTreeExists());
 	editorDelChar();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -691,7 +691,7 @@ static int test_editor_syntax_incremental_edits_keep_toml_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -717,7 +717,7 @@ static int test_editor_syntax_incremental_edits_keep_yaml_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -743,7 +743,7 @@ static int test_editor_syntax_incremental_edits_keep_xml_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -762,14 +762,14 @@ static int test_editor_syntax_incremental_edits_keep_make_tree_valid(void) {
 	ASSERT_EQ_INT(EDITOR_SYNTAX_MAKE, editorSyntaxLanguageActive());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertChar('x');
 	ASSERT_TRUE(editorSyntaxTreeExists());
 	editorDelChar();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 2;
-	E.cx = E.rows[2].size;
+	E.cx = editor_test_row_size(2);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -788,14 +788,14 @@ static int test_editor_syntax_incremental_edits_keep_diff_tree_valid(void) {
 	ASSERT_EQ_INT(EDITOR_SYNTAX_DIFF, editorSyntaxLanguageActive());
 
 	E.cy = 5;
-	E.cx = E.rows[5].size;
+	E.cx = editor_test_row_size(5);
 	editorInsertChar('!');
 	ASSERT_TRUE(editorSyntaxTreeExists());
 	editorDelChar();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 4;
-	E.cx = E.rows[4].size;
+	E.cx = editor_test_row_size(4);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -821,7 +821,7 @@ static int test_editor_syntax_incremental_edits_keep_julia_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -847,7 +847,7 @@ static int test_editor_syntax_incremental_edits_keep_scala_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -873,7 +873,7 @@ static int test_editor_syntax_incremental_edits_keep_ejs_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -899,7 +899,7 @@ static int test_editor_syntax_incremental_edits_keep_erb_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -925,7 +925,7 @@ static int test_editor_syntax_incremental_edits_keep_regex_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	E.cy = 0;
-	E.cx = E.rows[0].size;
+	E.cx = editor_test_row_size(0);
 	editorInsertNewline();
 	ASSERT_TRUE(editorSyntaxTreeExists());
 

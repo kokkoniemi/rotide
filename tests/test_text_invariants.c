@@ -699,7 +699,7 @@ static int docHasTrailingNewline(void) {
 static size_t sumRowBytesIncludingNewlines(void) {
 	size_t total = 0;
 	for (int r = 0; r < E.numrows; r++) {
-		total += (size_t)E.rows[r].size;
+		total += editorDocumentLineLength(E.document, r);
 	}
 	if (E.numrows > 0) {
 		total += (size_t)(E.numrows - 1);
@@ -714,12 +714,18 @@ static int dumpEditorRows(char *out, size_t cap) {
 	size_t pos = 0;
 	int trailing = docHasTrailingNewline();
 	for (int r = 0; r < E.numrows; r++) {
-		size_t n = (size_t)E.rows[r].size;
-		if (pos + n > cap) {
+		struct editorLineView line = {0};
+		if (!editorDocumentLineView(E.document, r, &line)) {
 			return -1;
 		}
-		memcpy(out + pos, E.rows[r].chars, n);
+		size_t n = (size_t)line.size;
+		if (pos + n > cap) {
+			editorLineViewRelease(&line);
+			return -1;
+		}
+		memcpy(out + pos, line.data, n);
 		pos += n;
+		editorLineViewRelease(&line);
 		if (r + 1 < E.numrows || trailing) {
 			if (pos + 1 > cap) {
 				return -1;

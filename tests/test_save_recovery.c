@@ -506,8 +506,8 @@ static int test_editor_insert_row_render_alloc_failure_preserves_state(void) {
 	ASSERT_EQ_INT(0, editorInsertText("xyz\n", 4));
 
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_INT(3, E.rows[0].size);
-	ASSERT_EQ_STR("abc", E.rows[0].chars);
+	ASSERT_EQ_INT(3, editor_test_row_size(0));
+	ASSERT_ROW_TEXT_EQ(0, "abc");
 	ASSERT_EQ_STR("abc", E.rows[0].render);
 	ASSERT_EQ_INT(0, E.dirty);
 	ASSERT_EQ_STR("Out of memory", E.statusmsg);
@@ -524,8 +524,8 @@ static int test_editor_insert_char_render_alloc_failure_preserves_state(void) {
 	editorInsertChar('X');
 
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_INT(2, E.rows[0].size);
-	ASSERT_EQ_STR("ab", E.rows[0].chars);
+	ASSERT_EQ_INT(2, editor_test_row_size(0));
+	ASSERT_ROW_TEXT_EQ(0, "ab");
 	ASSERT_EQ_STR("ab", E.rows[0].render);
 	ASSERT_EQ_INT(0, E.dirty);
 	ASSERT_EQ_STR("Out of memory", E.statusmsg);
@@ -542,7 +542,7 @@ static int test_editor_insert_char_uses_document_when_row_cache_corrupt(void) {
 	editorInsertChar('X');
 
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_STR("Xab", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "Xab");
 	ASSERT_EQ_INT(1, E.dirty);
 	return 0;
 }
@@ -570,8 +570,8 @@ static int test_editor_del_char_merge_alloc_failure_preserves_state(void) {
 	editorDelChar();
 
 	ASSERT_EQ_INT(2, E.numrows);
-	ASSERT_EQ_STR("abc", E.rows[0].chars);
-	ASSERT_EQ_STR("def", E.rows[1].chars);
+	ASSERT_ROW_TEXT_EQ(0, "abc");
+	ASSERT_ROW_TEXT_EQ(1, "def");
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(0, E.cx);
 	ASSERT_EQ_INT(0, E.dirty);
@@ -589,7 +589,7 @@ static int test_editor_insert_newline_alloc_failure_preserves_state(void) {
 	editorInsertNewline();
 
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_STR("hello", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "hello");
 	ASSERT_EQ_STR("hello", E.rows[0].render);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(2, E.cx);
@@ -907,7 +907,7 @@ static int test_editor_recovery_roundtrip_restores_tabs_and_cursor_state(void) {
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_EQ_STR("one.c", E.filename);
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_STR("alpha", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "alpha");
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(3, E.cx);
 	ASSERT_EQ_INT(0, E.rowoff);
@@ -917,8 +917,8 @@ static int test_editor_recovery_roundtrip_restores_tabs_and_cursor_state(void) {
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_EQ_STR("two.c", E.filename);
 	ASSERT_EQ_INT(2, E.numrows);
-	ASSERT_EQ_STR("beta", E.rows[0].chars);
-	ASSERT_EQ_STR("gamma", E.rows[1].chars);
+	ASSERT_ROW_TEXT_EQ(0, "beta");
+	ASSERT_ROW_TEXT_EQ(1, "gamma");
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(2, E.cx);
 	ASSERT_EQ_INT(1, E.rowoff);
@@ -987,7 +987,7 @@ static int test_editor_startup_restore_choice_ignores_cli_args(void) {
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_EQ_STR("recovered.txt", E.filename);
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_STR("recovered", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "recovered");
 
 	cleanup_recovery_test_env(&env);
 	return 0;
@@ -1029,7 +1029,7 @@ static int test_editor_startup_discard_choice_opens_cli_args(void) {
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_EQ_STR(cli_path, E.filename);
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_STR("cli-line", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "cli-line");
 	ASSERT_TRUE(access(recovery_path, F_OK) == -1);
 
 	cleanup_recovery_test_env(&env);

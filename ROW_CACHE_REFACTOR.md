@@ -210,10 +210,12 @@ Tests assert directly on `row->chars` content. Either:
 
 Option (b) keeps test diffs tight.
 
-- [ ] Add `ASSERT_ROW_TEXT_EQ` / `editor_test_row_text(cy)` in
+- [x] Add `ASSERT_ROW_TEXT_EQ` / `editor_test_row_text(cy)` in
   [tests/test_helpers.h](tests/test_helpers.h).
-- [ ] Sweep all `ASSERT_EQ_STR(..., E.rows[r].chars)` / `tab->rows[r].chars`
-  call sites across the 13 test files.
+- [x] Sweep all `ASSERT_EQ_STR(..., E.rows[r].chars)` / `tab->rows[r].chars`
+  call sites across the 13 test files. (Five `E.rows[0].size = INT_MAX`
+  cache-corruption tests remain; they test fallback behaviour that
+  disappears with the field in Phase 8.5 and will be removed there.)
 
 **Exit**: tests pass without referencing `erow.chars` / `erow.size`.
 
