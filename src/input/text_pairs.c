@@ -92,9 +92,12 @@ static int editorTextPairsSetCursorFromOffset(size_t offset) {
 		return 0;
 	}
 	if (cy < E.numrows) {
-		struct erow *row = &E.rows[cy];
-		cx = editorRowClampCxToCharBoundary(row, cx);
-		cx = editorRowClampCxToClusterBoundary(row, cx);
+		struct editorLineView line = {0};
+		if (editorDocumentLineView(E.document, cy, &line)) {
+			cx = editorBytesClampCxToCharBoundary(line.data, line.size, cx);
+			cx = editorBytesClampCxToClusterBoundary(line.data, line.size, cx);
+			editorLineViewRelease(&line);
+		}
 	} else {
 		cx = 0;
 	}
@@ -117,9 +120,12 @@ static int editorTextPairsSetCursorFromPosition(int cy, int cx) {
 		cy = E.numrows;
 	}
 	if (cy < E.numrows) {
-		struct erow *row = &E.rows[cy];
-		cx = editorRowClampCxToCharBoundary(row, cx);
-		cx = editorRowClampCxToClusterBoundary(row, cx);
+		struct editorLineView line = {0};
+		if (editorDocumentLineView(E.document, cy, &line)) {
+			cx = editorBytesClampCxToCharBoundary(line.data, line.size, cx);
+			cx = editorBytesClampCxToClusterBoundary(line.data, line.size, cx);
+			editorLineViewRelease(&line);
+		}
 	} else {
 		cx = 0;
 	}

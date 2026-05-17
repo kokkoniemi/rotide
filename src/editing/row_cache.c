@@ -14,7 +14,6 @@ static int g_row_cache_splice_update_count = 0;
 
 void editorFreeRowArray(struct erow *rows, int numrows) {
 	for (int i = 0; i < numrows; i++) {
-		free(rows[i].chars);
 		free(rows[i].render);
 		free(rows[i].wrap_cache_segments);
 	}
@@ -23,47 +22,33 @@ void editorFreeRowArray(struct erow *rows, int numrows) {
 
 static int editorAppendRestoredRow(struct erow **rows, int *numrows, const char *s, size_t len) {
 	int row_size = 0;
-	size_t row_cap = 0;
 	size_t numrows_size = 0;
 	size_t new_numrows = 0;
 	size_t row_bytes = 0;
 
 	if (!editorSizeToInt(len, &row_size) ||
-			!editorSizeAdd(len, 1, &row_cap) ||
 			!editorIntToSize(*numrows, &numrows_size) ||
 			!editorSizeAdd(numrows_size, 1, &new_numrows) ||
 			!editorSizeMul(sizeof(struct erow), new_numrows, &row_bytes)) {
 		return 0;
 	}
 
-	char *row_chars = editorMalloc(row_cap);
-	if (row_chars == NULL) {
-		return 0;
-	}
-	memcpy(row_chars, s, len);
-	row_chars[len] = '\0';
-
 	char *row_render = NULL;
 	int row_rsize = 0;
 	int row_display_cols = 0;
-	if (!editorRowBuildRender(row_chars, row_size, &row_render, &row_rsize,
-				&row_display_cols)) {
-		free(row_chars);
+	if (!editorRowBuildRender(s, row_size, &row_render, &row_rsize, &row_display_cols)) {
 		return 0;
 	}
 
 	struct erow *new_rows = editorRealloc(*rows, row_bytes);
 	if (new_rows == NULL) {
 		free(row_render);
-		free(row_chars);
 		return 0;
 	}
 
 	*rows = new_rows;
-	(*rows)[*numrows].size = row_size;
 	(*rows)[*numrows].rsize = row_rsize;
 	(*rows)[*numrows].render_display_cols = row_display_cols;
-	(*rows)[*numrows].chars = row_chars;
 	(*rows)[*numrows].render = row_render;
 	(*rows)[*numrows].wrap_cache_body_cols = 0;
 	(*rows)[*numrows].wrap_cache_segment_count = 0;
@@ -89,31 +74,17 @@ int editorBuildRowsFromDocumentRange(const struct editorDocument *document,
 		return 0;
 	}
 	for (int line_idx = start_row; line_idx < end_row_exclusive; line_idx++) {
-		size_t line_start = 0;
-		size_t line_end = 0;
-		if (!editorDocumentLineStartByte(document, line_idx, &line_start) ||
-				!editorDocumentLineEndByte(document, line_idx, &line_end)) {
+		struct editorLineView line = {0};
+		if (!editorDocumentLineView(document, line_idx, &line)) {
 			editorFreeRowArray(rows, numrows);
 			return 0;
 		}
-
-		size_t line_len = line_end - line_start;
-		char *line_text = NULL;
-		if (line_len > 0) {
-			line_text = editorDocumentDupRange(document, line_start, line_end, NULL);
-			if (line_text == NULL) {
-				editorFreeRowArray(rows, numrows);
-				return 0;
-			}
-		}
-
-		if (!editorAppendRestoredRow(&rows, &numrows,
-					line_text != NULL ? line_text : "", line_len)) {
-			free(line_text);
+		int ok = editorAppendRestoredRow(&rows, &numrows, line.data, (size_t)line.size);
+		editorLineViewRelease(&line);
+		if (!ok) {
 			editorFreeRowArray(rows, numrows);
 			return 0;
 		}
-		free(line_text);
 	}
 
 	*rows_out = rows;
@@ -304,10 +275,8 @@ int editorSpliceRowCache(struct erow **rows_in_out, int *numrows_in_out,
 	}
 
 	for (int i = start_row; i < old_end_row_exclusive; i++) {
-		free(rows[i].chars);
 		free(rows[i].render);
 		free(rows[i].wrap_cache_segments);
-		rows[i].chars = NULL;
 		rows[i].render = NULL;
 		rows[i].wrap_cache_segments = NULL;
 		rows[i].wrap_cache_capacity = 0;

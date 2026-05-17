@@ -218,7 +218,13 @@ int editorInsertText(const char *text, size_t len) {
 		return 0;
 	}
 	if (E.cy < E.numrows) {
-		insert_cx = editorRowClampCxToClusterBoundary(&E.rows[E.cy], E.cx);
+		struct editorLineView line = {0};
+		if (editorDocumentLineView(E.document, E.cy, &line)) {
+			insert_cx = editorBytesClampCxToClusterBoundary(line.data, line.size, E.cx);
+			editorLineViewRelease(&line);
+		} else {
+			insert_cx = E.cx;
+		}
 	} else {
 		insert_cx = 0;
 	}
@@ -458,7 +464,13 @@ void editorInsertChar(int c) {
 		 * Terminal UTF-8 input arrives byte-by-byte, so insertion needs to preserve
 		 * in-progress multibyte sequences instead of snapping back to a cluster boundary.
 		 */
-		insert_cx = editorRowClampCxToCharBoundary(&E.rows[E.cy], E.cx);
+		struct editorLineView line = {0};
+		if (editorDocumentLineView(E.document, E.cy, &line)) {
+			insert_cx = editorBytesClampCxToCharBoundary(line.data, line.size, E.cx);
+			editorLineViewRelease(&line);
+		} else {
+			insert_cx = E.cx;
+		}
 	} else {
 		insert_cx = 0;
 	}
@@ -489,7 +501,13 @@ void editorInsertChar(int c) {
 void editorInsertNewline(void) {
 	int split_idx = 0;
 	if (E.cy < E.numrows) {
-		split_idx = editorRowClampCxToClusterBoundary(&E.rows[E.cy], E.cx);
+		struct editorLineView line = {0};
+		if (editorDocumentLineView(E.document, E.cy, &line)) {
+			split_idx = editorBytesClampCxToClusterBoundary(line.data, line.size, E.cx);
+			editorLineViewRelease(&line);
+		} else {
+			split_idx = E.cx;
+		}
 	}
 
 	size_t start_offset = 0;

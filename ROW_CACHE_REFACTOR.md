@@ -223,16 +223,16 @@ Option (b) keeps test diffs tight.
 
 The compiler does the work.
 
-- [ ] Stop populating `chars` / `size` in
+- [x] Stop populating `chars` / `size` in
   [editorBuildRowsFromDocumentRange](src/editing/row_cache.c) — only `render`
   and wrap-cache fields are set.
-- [ ] Remove `free(buffer->rows[i].chars)` from
+- [x] Remove `free(buffer->rows[i].chars)` from
   [editorFreeRowArray](src/editing/row_cache.c) (or wherever the lifecycle
   lives) and from `editorBufferFreeRows` in
   [src/workspace/tabs.c](src/workspace/tabs.c).
-- [ ] Remove `chars` and `size` from `struct erow` in
+- [x] Remove `chars` and `size` from `struct erow` in
   [src/rotide.h](src/rotide.h).
-- [ ] Delete the `editorRow*` shims added in Phase 8.2 (now unused); only the
+- [x] Delete the `editorRow*` shims added in Phase 8.2 (now unused); only the
   `editorBytes*` helpers remain.
 
 **Exit**: clean build. Any straggler reference crashes at compile time and is

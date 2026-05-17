@@ -2,6 +2,7 @@
 
 #include "editing/buffer_core.h"
 #include "render/wrap.h"
+#include "text/document.h"
 #include "text/row.h"
 #include "workspace/drawer.h"
 #include "workspace/layout.h"
@@ -109,7 +110,11 @@ static void editorClampViewportOffsets(void) {
 static void editorUpdateRenderXFromCursor(void) {
 	E.rx = 0;
 	if (E.cy < E.numrows) {
-		E.rx = editorRowCxToRx(&E.rows[E.cy], E.cx);
+		struct editorLineView line = {0};
+		if (editorDocumentLineView(E.document, E.cy, &line)) {
+			E.rx = editorBytesCxToRx(line.data, line.size, E.cx);
+			editorLineViewRelease(&line);
+		}
 	}
 }
 

@@ -532,21 +532,6 @@ static int test_editor_insert_char_render_alloc_failure_preserves_state(void) {
 	return 0;
 }
 
-static int test_editor_insert_char_uses_document_when_row_cache_corrupt(void) {
-	add_row("ab");
-	E.rows[0].size = INT_MAX;
-	E.cy = 0;
-	E.cx = 0;
-	E.dirty = 0;
-
-	editorInsertChar('X');
-
-	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_ROW_TEXT_EQ(0, "Xab");
-	ASSERT_EQ_INT(1, E.dirty);
-	return 0;
-}
-
 static int test_editor_insert_row_rejects_size_overflow(void) {
 	char c = 'x';
 	E.dirty = 0;
@@ -633,34 +618,6 @@ static int test_editor_save_rows_to_str_alloc_failure_preserves_state(void) {
 	char *contents = read_file_contents(path, &content_len);
 	ASSERT_TRUE(contents != NULL);
 	ASSERT_EQ_INT(0, content_len);
-
-	free(contents);
-	unlink(path);
-	return 0;
-}
-
-static int test_editor_save_uses_document_when_row_cache_corrupt(void) {
-	char path[] = "/tmp/rotide-test-save-too-large-XXXXXX";
-	int fd = mkstemp(path);
-	ASSERT_TRUE(fd != -1);
-	ASSERT_TRUE(close(fd) == 0);
-
-	add_row("alpha");
-	E.rows[0].size = INT_MAX;
-	E.filename = strdup(path);
-	ASSERT_TRUE(E.filename != NULL);
-	E.dirty = 1;
-
-	editorSave();
-
-	ASSERT_EQ_INT(0, E.dirty);
-	ASSERT_TRUE(strstr(E.statusmsg, "bytes written to disk") != NULL);
-
-	size_t content_len = 0;
-	char *contents = read_file_contents(path, &content_len);
-	ASSERT_TRUE(contents != NULL);
-	ASSERT_EQ_INT(6, content_len);
-	ASSERT_MEM_EQ("alpha\n", contents, content_len);
 
 	free(contents);
 	unlink(path);
@@ -1095,13 +1052,11 @@ const struct editorTestCase g_save_recovery_tests[] = {
 	{"editor_prompt_fails_on_growth_alloc", test_editor_prompt_fails_on_growth_alloc},
 	{"editor_insert_row_render_alloc_failure_preserves_state", test_editor_insert_row_render_alloc_failure_preserves_state},
 	{"editor_insert_char_render_alloc_failure_preserves_state", test_editor_insert_char_render_alloc_failure_preserves_state},
-	{"editor_insert_char_uses_document_when_row_cache_corrupt", test_editor_insert_char_uses_document_when_row_cache_corrupt},
 	{"editor_insert_row_rejects_size_overflow", test_editor_insert_row_rejects_size_overflow},
 	{"editor_del_char_merge_alloc_failure_preserves_state", test_editor_del_char_merge_alloc_failure_preserves_state},
 	{"editor_insert_newline_alloc_failure_preserves_state", test_editor_insert_newline_alloc_failure_preserves_state},
 	{"editor_save_preserves_prompt_oom_status", test_editor_save_preserves_prompt_oom_status},
 	{"editor_save_rows_to_str_alloc_failure_preserves_state", test_editor_save_rows_to_str_alloc_failure_preserves_state},
-	{"editor_save_uses_document_when_row_cache_corrupt", test_editor_save_uses_document_when_row_cache_corrupt},
 	{"editor_save_tmp_path_alloc_failure_preserves_state", test_editor_save_tmp_path_alloc_failure_preserves_state},
 	{"editor_save_parent_dir_fsync_failure_after_rename_reports_failure", test_editor_save_parent_dir_fsync_failure_after_rename_reports_failure},
 	{"editor_save_parent_dir_open_failure_reports_failure", test_editor_save_parent_dir_open_failure_reports_failure},

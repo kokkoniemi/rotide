@@ -251,48 +251,6 @@ static int test_editor_selection_range_tracks_cursor_movement(void) {
 	return 0;
 }
 
-static int test_editor_extract_range_text_uses_document_when_row_cache_corrupt(void) {
-	add_row("abc");
-	E.rows[0].size = INT_MAX;
-
-	struct editorSelectionRange range = {
-		.start_cy = 0,
-		.start_cx = 0,
-		.end_cy = 1,
-		.end_cx = 0
-	};
-	char *text = (char *)1;
-	size_t len = 123;
-	int extracted = editorExtractRangeText(&range, &text, &len);
-	ASSERT_EQ_INT(1, extracted);
-	ASSERT_TRUE(text != NULL);
-	ASSERT_EQ_INT(4, len);
-	ASSERT_MEM_EQ("abc\n", text, len);
-	free(text);
-	return 0;
-}
-
-static int test_editor_delete_range_uses_document_when_row_cache_corrupt(void) {
-	add_row("abc");
-	E.rows[0].size = INT_MAX;
-
-	struct editorSelectionRange range = {
-		.start_cy = 0,
-		.start_cx = 0,
-		.end_cy = 1,
-		.end_cx = 0
-	};
-	int deleted = editorDeleteRange(&range);
-	ASSERT_EQ_INT(1, deleted);
-	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
-	size_t len = 123;
-	char *text = editorRowsToStr(&len);
-	ASSERT_TRUE(text != NULL);
-	ASSERT_EQ_INT(0, len);
-	free(text);
-	return 0;
-}
-
 static int test_editor_process_keypress_ctrl_c_copies_single_line_selection(void) {
 	add_row("hello");
 	E.cy = 0;
@@ -793,8 +751,6 @@ const struct editorTestCase g_input_selection_tests[] = {
 	{"editor_prompt_ignores_resize_events", test_editor_prompt_ignores_resize_events},
 	{"editor_process_keypress_ctrl_b_toggles_selection_mode", test_editor_process_keypress_ctrl_b_toggles_selection_mode},
 	{"editor_selection_range_tracks_cursor_movement", test_editor_selection_range_tracks_cursor_movement},
-	{"editor_extract_range_text_uses_document_when_row_cache_corrupt", test_editor_extract_range_text_uses_document_when_row_cache_corrupt},
-	{"editor_delete_range_uses_document_when_row_cache_corrupt", test_editor_delete_range_uses_document_when_row_cache_corrupt},
 	{"editor_process_keypress_ctrl_c_copies_single_line_selection", test_editor_process_keypress_ctrl_c_copies_single_line_selection},
 	{"editor_process_keypress_ctrl_c_copies_multiline_selection", test_editor_process_keypress_ctrl_c_copies_multiline_selection},
 	{"editor_process_keypress_ctrl_x_cuts_selection_and_updates_clipboard", test_editor_process_keypress_ctrl_x_cuts_selection_and_updates_clipboard},

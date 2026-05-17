@@ -534,108 +534,59 @@ static int test_char_display_width_basics(void) {
 
 static int test_row_char_boundaries(void) {
 	const char text[] = "A\xC3\xA9" "Z";
-	add_row_bytes(text, sizeof(text) - 1);
-
-	struct erow *row = &E.rows[0];
-	ASSERT_EQ_INT(1, editorRowClampCxToCharBoundary(row, 2));
-	ASSERT_EQ_INT(0, editorRowPrevCharIdx(row, 1));
-	ASSERT_EQ_INT(1, editorRowPrevCharIdx(row, 3));
-	ASSERT_EQ_INT(3, editorRowNextCharIdx(row, 1));
-	ASSERT_EQ_INT(4, editorRowNextCharIdx(row, 3));
+	int size = (int)sizeof(text) - 1;
+	ASSERT_EQ_INT(1, editorBytesClampCxToCharBoundary(text, size, 2));
+	ASSERT_EQ_INT(0, editorBytesPrevCharIdx(text, size, 1));
+	ASSERT_EQ_INT(1, editorBytesPrevCharIdx(text, size, 3));
+	ASSERT_EQ_INT(3, editorBytesNextCharIdx(text, size, 1));
+	ASSERT_EQ_INT(4, editorBytesNextCharIdx(text, size, 3));
 	return 0;
 }
 
 static int test_row_cluster_boundaries_combining(void) {
 	const char text[] = "a\xCC\x81" "b";
-	add_row_bytes(text, sizeof(text) - 1);
-
-	struct erow *row = &E.rows[0];
-	ASSERT_EQ_INT(3, editorRowNextClusterIdx(row, 0));
-	ASSERT_EQ_INT(0, editorRowPrevClusterIdx(row, 3));
-	ASSERT_EQ_INT(4, editorRowNextClusterIdx(row, 3));
-	ASSERT_EQ_INT(0, editorRowClampCxToClusterBoundary(row, 2));
-	ASSERT_EQ_INT(3, editorRowClampCxToClusterBoundary(row, 3));
+	int size = (int)sizeof(text) - 1;
+	ASSERT_EQ_INT(3, editorBytesNextClusterIdx(text, size, 0));
+	ASSERT_EQ_INT(0, editorBytesPrevClusterIdx(text, size, 3));
+	ASSERT_EQ_INT(4, editorBytesNextClusterIdx(text, size, 3));
+	ASSERT_EQ_INT(0, editorBytesClampCxToClusterBoundary(text, size, 2));
+	ASSERT_EQ_INT(3, editorBytesClampCxToClusterBoundary(text, size, 3));
 	return 0;
 }
 
 static int test_row_cluster_boundaries_zwj_sequence(void) {
 	const char woman_technologist[] = "\xF0\x9F\x91\xA9\xE2\x80\x8D\xF0\x9F\x92\xBB";
-	add_row_bytes(woman_technologist, sizeof(woman_technologist) - 1);
-
-	struct erow *row = &E.rows[0];
-	ASSERT_EQ_INT((int)sizeof(woman_technologist) - 1, editorRowNextClusterIdx(row, 0));
-	ASSERT_EQ_INT(0, editorRowPrevClusterIdx(row, (int)sizeof(woman_technologist) - 1));
+	int size = (int)sizeof(woman_technologist) - 1;
+	ASSERT_EQ_INT(size, editorBytesNextClusterIdx(woman_technologist, size, 0));
+	ASSERT_EQ_INT(0, editorBytesPrevClusterIdx(woman_technologist, size, size));
 	return 0;
 }
 
 static int test_row_cluster_boundaries_regional_indicators(void) {
 	const char flag_sequence[] = "\xF0\x9F\x87\xAB\xF0\x9F\x87\xAE\xF0\x9F\x87\xA8";
-	add_row_bytes(flag_sequence, sizeof(flag_sequence) - 1);
-
-	struct erow *row = &E.rows[0];
-	ASSERT_EQ_INT(8, editorRowNextClusterIdx(row, 0));
-	ASSERT_EQ_INT((int)sizeof(flag_sequence) - 1, editorRowNextClusterIdx(row, 8));
-	ASSERT_EQ_INT(8, editorRowPrevClusterIdx(row, (int)sizeof(flag_sequence) - 1));
+	int size = (int)sizeof(flag_sequence) - 1;
+	ASSERT_EQ_INT(8, editorBytesNextClusterIdx(flag_sequence, size, 0));
+	ASSERT_EQ_INT(size, editorBytesNextClusterIdx(flag_sequence, size, 8));
+	ASSERT_EQ_INT(8, editorBytesPrevClusterIdx(flag_sequence, size, size));
 	return 0;
 }
 
 static int test_row_cx_to_rx_with_tabs(void) {
-	add_row("a\tb");
-	struct erow *row = &E.rows[0];
-	ASSERT_EQ_INT(8, editorRowCxToRx(row, 2));
-	ASSERT_EQ_INT(9, editorRowCxToRx(row, 3));
+	const char text[] = "a\tb";
+	int size = (int)sizeof(text) - 1;
+	ASSERT_EQ_INT(8, editorBytesCxToRx(text, size, 2));
+	ASSERT_EQ_INT(9, editorBytesCxToRx(text, size, 3));
 	return 0;
 }
 
 static int test_row_rx_to_cx_with_tabs(void) {
-	add_row("a\tb");
-	struct erow *row = &E.rows[0];
-	ASSERT_EQ_INT(0, editorRowRxToCx(row, 0));
-	ASSERT_EQ_INT(1, editorRowRxToCx(row, 1));
-	ASSERT_EQ_INT(1, editorRowRxToCx(row, 7));
-	ASSERT_EQ_INT(2, editorRowRxToCx(row, 8));
-	ASSERT_EQ_INT(3, editorRowRxToCx(row, 9));
-	return 0;
-}
-
-static int test_editor_bytes_helpers_match_row_shims(void) {
-	const char *texts[] = {
-		"a\tb",
-		"A\xC3\xA9" "Z",
-		"\xC3\xB6\tX",
-		"\xF0\x9F\x91\xA9\xE2\x80\x8D\xF0\x9F\x92\xBB",
-		"A\x1b\x7f",
-		"\xC2\x9BZ",
-		"",
-	};
-	for (size_t t = 0; t < sizeof(texts) / sizeof(texts[0]); t++) {
-		add_row_bytes(texts[t], strlen(texts[t]));
-	}
-	for (size_t t = 0; t < sizeof(texts) / sizeof(texts[0]); t++) {
-		struct erow *row = &E.rows[t];
-		for (int idx = -1; idx <= row->size + 1; idx++) {
-			ASSERT_EQ_INT(editorRowClampCxToCharBoundary(row, idx),
-				editorBytesClampCxToCharBoundary(row->chars, row->size, idx));
-			ASSERT_EQ_INT(editorRowClampCxToClusterBoundary(row, idx),
-				editorBytesClampCxToClusterBoundary(row->chars, row->size, idx));
-			ASSERT_EQ_INT(editorRowPrevCharIdx(row, idx),
-				editorBytesPrevCharIdx(row->chars, row->size, idx));
-			ASSERT_EQ_INT(editorRowNextCharIdx(row, idx),
-				editorBytesNextCharIdx(row->chars, row->size, idx));
-			ASSERT_EQ_INT(editorRowPrevClusterIdx(row, idx),
-				editorBytesPrevClusterIdx(row->chars, row->size, idx));
-			ASSERT_EQ_INT(editorRowNextClusterIdx(row, idx),
-				editorBytesNextClusterIdx(row->chars, row->size, idx));
-			ASSERT_EQ_INT(editorRowCxToRx(row, idx),
-				editorBytesCxToRx(row->chars, row->size, idx));
-			ASSERT_EQ_INT(editorRowCxToRenderIdx(row, idx),
-				editorBytesCxToRenderIdx(row->chars, row->size, row->rsize, idx));
-		}
-		for (int rx = -1; rx <= row->rsize + 1; rx++) {
-			ASSERT_EQ_INT(editorRowRxToCx(row, rx),
-				editorBytesRxToCx(row->chars, row->size, rx));
-		}
-	}
+	const char text[] = "a\tb";
+	int size = (int)sizeof(text) - 1;
+	ASSERT_EQ_INT(0, editorBytesRxToCx(text, size, 0));
+	ASSERT_EQ_INT(1, editorBytesRxToCx(text, size, 1));
+	ASSERT_EQ_INT(1, editorBytesRxToCx(text, size, 7));
+	ASSERT_EQ_INT(2, editorBytesRxToCx(text, size, 8));
+	ASSERT_EQ_INT(3, editorBytesRxToCx(text, size, 9));
 	return 0;
 }
 
@@ -692,26 +643,22 @@ static int test_editor_update_row_preserves_printable_utf8_with_80_9f_continuati
 
 static int test_row_cx_to_rx_with_escaped_controls(void) {
 	const char text[] = "A\x1b" "B";
-	add_row_bytes(text, sizeof(text) - 1);
-	struct erow *row = &E.rows[0];
-
-	ASSERT_EQ_INT(0, editorRowCxToRx(row, 0));
-	ASSERT_EQ_INT(1, editorRowCxToRx(row, 1));
-	ASSERT_EQ_INT(3, editorRowCxToRx(row, 2));
-	ASSERT_EQ_INT(4, editorRowCxToRx(row, 3));
+	int size = (int)sizeof(text) - 1;
+	ASSERT_EQ_INT(0, editorBytesCxToRx(text, size, 0));
+	ASSERT_EQ_INT(1, editorBytesCxToRx(text, size, 1));
+	ASSERT_EQ_INT(3, editorBytesCxToRx(text, size, 2));
+	ASSERT_EQ_INT(4, editorBytesCxToRx(text, size, 3));
 	return 0;
 }
 
 static int test_row_rx_to_cx_with_escaped_controls(void) {
 	const char text[] = "A\x1b" "B";
-	add_row_bytes(text, sizeof(text) - 1);
-	struct erow *row = &E.rows[0];
-
-	ASSERT_EQ_INT(0, editorRowRxToCx(row, 0));
-	ASSERT_EQ_INT(1, editorRowRxToCx(row, 1));
-	ASSERT_EQ_INT(1, editorRowRxToCx(row, 2));
-	ASSERT_EQ_INT(2, editorRowRxToCx(row, 3));
-	ASSERT_EQ_INT(3, editorRowRxToCx(row, 4));
+	int size = (int)sizeof(text) - 1;
+	ASSERT_EQ_INT(0, editorBytesRxToCx(text, size, 0));
+	ASSERT_EQ_INT(1, editorBytesRxToCx(text, size, 1));
+	ASSERT_EQ_INT(1, editorBytesRxToCx(text, size, 2));
+	ASSERT_EQ_INT(2, editorBytesRxToCx(text, size, 3));
+	ASSERT_EQ_INT(3, editorBytesRxToCx(text, size, 4));
 	return 0;
 }
 
@@ -807,7 +754,11 @@ static void set_column_selection(int anchor_row, int cursor_row, int left_rx, in
 	E.cy = cursor_row;
 	E.cx = 0;
 	if (cursor_row >= 0 && cursor_row < E.numrows) {
-		E.cx = editorRowRxToCx(&E.rows[cursor_row], right_rx);
+		struct editorLineView _line = {0};
+		if (editorDocumentLineView(E.document, cursor_row, &_line)) {
+			E.cx = editorBytesRxToCx(_line.data, _line.size, right_rx);
+			editorLineViewRelease(&_line);
+		}
 	}
 	(void)editorBufferPosToOffset(E.cy, E.cx, &E.cursor_offset);
 }
@@ -1167,20 +1118,6 @@ static int test_editor_rows_to_str(void) {
 	return 0;
 }
 
-static int test_editor_rows_to_str_uses_document_when_row_cache_corrupt(void) {
-	add_row("abc");
-	E.rows[0].size = INT_MAX;
-
-	size_t buflen = 0;
-	errno = 0;
-	char *joined = editorRowsToStr(&buflen);
-	ASSERT_TRUE(joined != NULL);
-	ASSERT_EQ_INT(4, buflen);
-	ASSERT_MEM_EQ("abc\n", joined, buflen);
-	free(joined);
-	return 0;
-}
-
 static int test_editor_open_reads_rows_and_clears_dirty(void) {
 	char path[] = "/tmp/rotide-test-open-XXXXXX";
 	int fd = mkstemp(path);
@@ -1398,7 +1335,6 @@ const struct editorTestCase g_document_text_editing_tests[] = {
 	{"row_cluster_boundaries_regional_indicators", test_row_cluster_boundaries_regional_indicators},
 	{"row_cx_to_rx_with_tabs", test_row_cx_to_rx_with_tabs},
 	{"row_rx_to_cx_with_tabs", test_row_rx_to_cx_with_tabs},
-	{"editor_bytes_helpers_match_row_shims", test_editor_bytes_helpers_match_row_shims},
 	{"editor_update_row_expands_tabs", test_editor_update_row_expands_tabs},
 	{"editor_update_row_tab_alignment_after_multibyte", test_editor_update_row_tab_alignment_after_multibyte},
 	{"editor_update_row_escapes_c0_and_esc_in_render", test_editor_update_row_escapes_c0_and_esc_in_render},
@@ -1427,7 +1363,6 @@ const struct editorTestCase g_document_text_editing_tests[] = {
 	{"editor_insert_newline_auto_indents_with_tabs", test_editor_insert_newline_auto_indents_with_tabs},
 	{"editor_del_char_cluster_and_merge", test_editor_del_char_cluster_and_merge},
 	{"editor_rows_to_str", test_editor_rows_to_str},
-	{"editor_rows_to_str_uses_document_when_row_cache_corrupt", test_editor_rows_to_str_uses_document_when_row_cache_corrupt},
 	{"editor_open_reads_rows_and_clears_dirty", test_editor_open_reads_rows_and_clears_dirty},
 	{"editor_open_rejects_binary_file_without_mutating_buffer", test_editor_open_rejects_binary_file_without_mutating_buffer},
 	{"editor_open_rejects_binary_file_after_initial_scan_chunk", test_editor_open_rejects_binary_file_after_initial_scan_chunk},

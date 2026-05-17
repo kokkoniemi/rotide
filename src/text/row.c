@@ -154,12 +154,9 @@ static char editorHexUpperDigit(unsigned int value) {
 }
 
 // Convert the next source token into render-space metadata.
-// This is the single source of truth for:
-// 1) bytes consumed from row->chars,
-// 2) bytes produced in row->render,
-// 3) display columns occupied on screen.
-// Keeping these together ensures render-building, cursor math, and highlight
-// mapping stay consistent when controls are escaped.
+// Single source of truth for: source bytes consumed, render bytes produced,
+// and display columns occupied — render-building, cursor math, and highlight
+// mapping all flow through here so escaped controls stay consistent.
 static int editorBuildRenderToken(const char *s, int len, int rx, int expand_tabs,
 		char *render_out, int *src_len_out, int *render_len_out, int *width_out) {
 	if (s == NULL || len <= 0) {
@@ -352,42 +349,6 @@ int editorBytesCxToRenderIdx(const char *bytes, int size, int rsize, int cx) {
 		render_idx = rsize;
 	}
 	return render_idx;
-}
-
-int editorRowClampCxToCharBoundary(const struct erow *row, int cx) {
-	return editorBytesClampCxToCharBoundary(row->chars, row->size, cx);
-}
-
-int editorRowPrevCharIdx(const struct erow *row, int idx) {
-	return editorBytesPrevCharIdx(row->chars, row->size, idx);
-}
-
-int editorRowNextCharIdx(const struct erow *row, int idx) {
-	return editorBytesNextCharIdx(row->chars, row->size, idx);
-}
-
-int editorRowNextClusterIdx(const struct erow *row, int idx) {
-	return editorBytesNextClusterIdx(row->chars, row->size, idx);
-}
-
-int editorRowPrevClusterIdx(const struct erow *row, int idx) {
-	return editorBytesPrevClusterIdx(row->chars, row->size, idx);
-}
-
-int editorRowClampCxToClusterBoundary(const struct erow *row, int cx) {
-	return editorBytesClampCxToClusterBoundary(row->chars, row->size, cx);
-}
-
-int editorRowCxToRx(const struct erow *row, int cx) {
-	return editorBytesCxToRx(row->chars, row->size, cx);
-}
-
-int editorRowRxToCx(const struct erow *row, int rx) {
-	return editorBytesRxToCx(row->chars, row->size, rx);
-}
-
-int editorRowCxToRenderIdx(const struct erow *row, int cx) {
-	return editorBytesCxToRenderIdx(row->chars, row->size, row->rsize, cx);
 }
 
 int editorRowBuildRender(const char *chars, int size, char **render_out, int *rsize_out,

@@ -88,7 +88,6 @@ static void editorBufferMove(struct editorBuffer *dst, struct editorBuffer *src)
 
 static void editorBufferFreeRows(struct editorBuffer *buffer) {
 	for (int i = 0; i < buffer->numrows; i++) {
-		free(buffer->rows[i].chars);
 		free(buffer->rows[i].render);
 		free(buffer->rows[i].wrap_cache_segments);
 	}

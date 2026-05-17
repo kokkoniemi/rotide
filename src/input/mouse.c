@@ -436,8 +436,15 @@ int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long lo
 	if (column_modifier != 0 && event->modifiers == column_modifier) {
 		E.column_select_active = 1;
 		E.column_select_anchor_cy = E.cy;
-		E.column_select_anchor_rx = (E.cy < E.numrows) ?
-				editorRowCxToRx(&E.rows[E.cy], E.cx) : 0;
+		E.column_select_anchor_rx = 0;
+		if (E.cy < E.numrows) {
+			struct editorLineView line = {0};
+			if (editorDocumentLineView(E.document, E.cy, &line)) {
+				E.column_select_anchor_rx = editorBytesCxToRx(line.data, line.size,
+						E.cx);
+				editorLineViewRelease(&line);
+			}
+		}
 		E.column_select_cursor_rx = E.column_select_anchor_rx;
 		editorResetTextClickTracking();
 		E.mouse_left_button_down = 1;
@@ -731,7 +738,12 @@ int editorResolveMouseToBufferOffset(const struct editorMouseEvent *event,
 	}
 
 	/* Convert rendered column -> buffer byte index while respecting boundaries. */
-	int cx = editorRowRxToCx(&E.rows[row_idx], target_rx);
+	int cx = 0;
+	struct editorLineView line = {0};
+	if (editorDocumentLineView(E.document, row_idx, &line)) {
+		cx = editorBytesRxToCx(line.data, line.size, target_rx);
+		editorLineViewRelease(&line);
+	}
 	return editorBufferPosToOffset(row_idx, cx, offset_out);
 }
 
@@ -744,9 +756,12 @@ static int editorMouseSetCursorFromOffset(size_t offset) {
 		return 0;
 	}
 	if (cy < E.numrows) {
-		struct erow *row = &E.rows[cy];
-		cx = editorRowClampCxToCharBoundary(row, cx);
-		cx = editorRowClampCxToClusterBoundary(row, cx);
+		struct editorLineView line = {0};
+		if (editorDocumentLineView(E.document, cy, &line)) {
+			cx = editorBytesClampCxToCharBoundary(line.data, line.size, cx);
+			cx = editorBytesClampCxToClusterBoundary(line.data, line.size, cx);
+			editorLineViewRelease(&line);
+		}
 	} else {
 		cx = 0;
 	}

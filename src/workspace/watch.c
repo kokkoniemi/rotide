@@ -243,7 +243,11 @@ static int editorWatchReloadTabFile(struct editorBuffer *tab,
 		tab->cx = (int)cursor_column;
 	}
 	if (tab->cy < new_numrows) {
-		tab->cx = editorRowClampCxToClusterBoundary(&new_rows[tab->cy], tab->cx);
+		struct editorLineView line = {0};
+		if (editorDocumentLineView(new_document, tab->cy, &line)) {
+			tab->cx = editorBytesClampCxToClusterBoundary(line.data, line.size, tab->cx);
+			editorLineViewRelease(&line);
+		}
 	}
 	tab->cursor_offset = cursor_offset;
 
