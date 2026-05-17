@@ -131,14 +131,14 @@ containing piece's bounds.
 Decouple the cursor-math primitives from `struct erow` so they can accept
 either an `erow` (today) or an `editorLineView` (tomorrow).
 
-- [ ] Add a `editorBytesCxToRx(const char *bytes, int size, int cx)` (and
+- [x] Add a `editorBytesCxToRx(const char *bytes, int size, int cx)` (and
   similar `_RxToCx`, `_NextCharIdx`, `_PrevCharIdx`, `_NextClusterIdx`,
   `_PrevClusterIdx`, `_ClampCxToCharBoundary`,
   `_ClampCxToClusterBoundary`, `_CxToRenderIdx`) — same logic, raw bytes
   signature.
-- [ ] Reduce existing `editorRow*` wrappers to thin shims that call
+- [x] Reduce existing `editorRow*` wrappers to thin shims that call
   `editorBytes*` with `row->chars, row->size`.
-- [ ] Existing call sites unchanged.
+- [x] Existing call sites unchanged.
 
 **Exit**: tests pass; row helpers are byte-driven internally.
 

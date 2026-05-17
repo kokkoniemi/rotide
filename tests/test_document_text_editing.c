@@ -598,6 +598,47 @@ static int test_row_rx_to_cx_with_tabs(void) {
 	return 0;
 }
 
+static int test_editor_bytes_helpers_match_row_shims(void) {
+	const char *texts[] = {
+		"a\tb",
+		"A\xC3\xA9" "Z",
+		"\xC3\xB6\tX",
+		"\xF0\x9F\x91\xA9\xE2\x80\x8D\xF0\x9F\x92\xBB",
+		"A\x1b\x7f",
+		"\xC2\x9BZ",
+		"",
+	};
+	for (size_t t = 0; t < sizeof(texts) / sizeof(texts[0]); t++) {
+		add_row_bytes(texts[t], strlen(texts[t]));
+	}
+	for (size_t t = 0; t < sizeof(texts) / sizeof(texts[0]); t++) {
+		struct erow *row = &E.rows[t];
+		for (int idx = -1; idx <= row->size + 1; idx++) {
+			ASSERT_EQ_INT(editorRowClampCxToCharBoundary(row, idx),
+				editorBytesClampCxToCharBoundary(row->chars, row->size, idx));
+			ASSERT_EQ_INT(editorRowClampCxToClusterBoundary(row, idx),
+				editorBytesClampCxToClusterBoundary(row->chars, row->size, idx));
+			ASSERT_EQ_INT(editorRowPrevCharIdx(row, idx),
+				editorBytesPrevCharIdx(row->chars, row->size, idx));
+			ASSERT_EQ_INT(editorRowNextCharIdx(row, idx),
+				editorBytesNextCharIdx(row->chars, row->size, idx));
+			ASSERT_EQ_INT(editorRowPrevClusterIdx(row, idx),
+				editorBytesPrevClusterIdx(row->chars, row->size, idx));
+			ASSERT_EQ_INT(editorRowNextClusterIdx(row, idx),
+				editorBytesNextClusterIdx(row->chars, row->size, idx));
+			ASSERT_EQ_INT(editorRowCxToRx(row, idx),
+				editorBytesCxToRx(row->chars, row->size, idx));
+			ASSERT_EQ_INT(editorRowCxToRenderIdx(row, idx),
+				editorBytesCxToRenderIdx(row->chars, row->size, row->rsize, idx));
+		}
+		for (int rx = -1; rx <= row->rsize + 1; rx++) {
+			ASSERT_EQ_INT(editorRowRxToCx(row, rx),
+				editorBytesRxToCx(row->chars, row->size, rx));
+		}
+	}
+	return 0;
+}
+
 static int test_editor_update_row_expands_tabs(void) {
 	add_row("a\tb");
 	struct erow *row = &E.rows[0];
@@ -1357,6 +1398,7 @@ const struct editorTestCase g_document_text_editing_tests[] = {
 	{"row_cluster_boundaries_regional_indicators", test_row_cluster_boundaries_regional_indicators},
 	{"row_cx_to_rx_with_tabs", test_row_cx_to_rx_with_tabs},
 	{"row_rx_to_cx_with_tabs", test_row_rx_to_cx_with_tabs},
+	{"editor_bytes_helpers_match_row_shims", test_editor_bytes_helpers_match_row_shims},
 	{"editor_update_row_expands_tabs", test_editor_update_row_expands_tabs},
 	{"editor_update_row_tab_alignment_after_multibyte", test_editor_update_row_tab_alignment_after_multibyte},
 	{"editor_update_row_escapes_c0_and_esc_in_render", test_editor_update_row_escapes_c0_and_esc_in_render},

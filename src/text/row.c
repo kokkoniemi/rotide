@@ -7,56 +7,56 @@
 #include <stdlib.h>
 #include <string.h>
 
-int editorRowClampCxToCharBoundary(const struct erow *row, int cx) {
+int editorBytesClampCxToCharBoundary(const char *bytes, int size, int cx) {
 	if (cx < 0) {
 		return 0;
 	}
-	if (cx > row->size) {
-		cx = row->size;
+	if (cx > size) {
+		cx = size;
 	}
-	while (cx > 0 && cx < row->size &&
-			editorIsUtf8ContinuationByte((unsigned char)row->chars[cx])) {
+	while (cx > 0 && cx < size &&
+			editorIsUtf8ContinuationByte((unsigned char)bytes[cx])) {
 		cx--;
 	}
 	return cx;
 }
 
-int editorRowPrevCharIdx(const struct erow *row, int idx) {
+int editorBytesPrevCharIdx(const char *bytes, int size, int idx) {
 	if (idx <= 0) {
 		return 0;
 	}
-	idx = editorRowClampCxToCharBoundary(row, idx);
+	idx = editorBytesClampCxToCharBoundary(bytes, size, idx);
 	idx--;
-	while (idx > 0 && editorIsUtf8ContinuationByte((unsigned char)row->chars[idx])) {
+	while (idx > 0 && editorIsUtf8ContinuationByte((unsigned char)bytes[idx])) {
 		idx--;
 	}
 	return idx;
 }
 
-int editorRowNextCharIdx(const struct erow *row, int idx) {
-	if (idx >= row->size) {
-		return row->size;
+int editorBytesNextCharIdx(const char *bytes, int size, int idx) {
+	if (idx >= size) {
+		return size;
 	}
-	idx = editorRowClampCxToCharBoundary(row, idx);
+	idx = editorBytesClampCxToCharBoundary(bytes, size, idx);
 	unsigned int cp = 0;
-	int step = editorUtf8DecodeCodepoint(&row->chars[idx], row->size - idx, &cp);
+	int step = editorUtf8DecodeCodepoint(&bytes[idx], size - idx, &cp);
 	if (step <= 0) {
 		step = 1;
 	}
-	if (idx + step > row->size) {
-		return row->size;
+	if (idx + step > size) {
+		return size;
 	}
 	return idx + step;
 }
 
-int editorRowNextClusterIdx(const struct erow *row, int idx) {
-	idx = editorRowClampCxToCharBoundary(row, idx);
-	if (idx >= row->size) {
-		return row->size;
+int editorBytesNextClusterIdx(const char *bytes, int size, int idx) {
+	idx = editorBytesClampCxToCharBoundary(bytes, size, idx);
+	if (idx >= size) {
+		return size;
 	}
 
 	unsigned int cp = 0;
-	int cp_len = editorUtf8DecodeCodepoint(&row->chars[idx], row->size - idx, &cp);
+	int cp_len = editorUtf8DecodeCodepoint(&bytes[idx], size - idx, &cp);
 	if (cp_len <= 0) {
 		cp_len = 1;
 	}
@@ -64,9 +64,9 @@ int editorRowNextClusterIdx(const struct erow *row, int idx) {
 
 	// Pair regional indicators into one cluster so flag emojis step as one unit.
 	if (editorIsRegionalIndicatorCodepoint(cp)) {
-		if (idx < row->size) {
+		if (idx < size) {
 			unsigned int next_cp = 0;
-			int next_len = editorUtf8DecodeCodepoint(&row->chars[idx], row->size - idx, &next_cp);
+			int next_len = editorUtf8DecodeCodepoint(&bytes[idx], size - idx, &next_cp);
 			if (next_len <= 0) {
 				next_len = 1;
 			}
@@ -77,9 +77,9 @@ int editorRowNextClusterIdx(const struct erow *row, int idx) {
 		return idx;
 	}
 
-	while (idx < row->size) {
+	while (idx < size) {
 		unsigned int next_cp = 0;
-		int next_len = editorUtf8DecodeCodepoint(&row->chars[idx], row->size - idx, &next_cp);
+		int next_len = editorUtf8DecodeCodepoint(&bytes[idx], size - idx, &next_cp);
 		if (next_len <= 0) {
 			next_len = 1;
 		}
@@ -93,12 +93,12 @@ int editorRowNextClusterIdx(const struct erow *row, int idx) {
 		if (next_cp == 0x200D) {
 			int after_zwj = idx + next_len;
 			idx = after_zwj;
-			if (idx >= row->size) {
-				return row->size;
+			if (idx >= size) {
+				return size;
 			}
 
 			int linked_len = editorUtf8DecodeCodepoint(
-					&row->chars[idx], row->size - idx, &next_cp);
+					&bytes[idx], size - idx, &next_cp);
 			if (linked_len <= 0) {
 				linked_len = 1;
 			}
@@ -112,8 +112,8 @@ int editorRowNextClusterIdx(const struct erow *row, int idx) {
 	return idx;
 }
 
-int editorRowPrevClusterIdx(const struct erow *row, int idx) {
-	idx = editorRowClampCxToCharBoundary(row, idx);
+int editorBytesPrevClusterIdx(const char *bytes, int size, int idx) {
+	idx = editorBytesClampCxToCharBoundary(bytes, size, idx);
 	if (idx <= 0) {
 		return 0;
 	}
@@ -122,7 +122,7 @@ int editorRowPrevClusterIdx(const struct erow *row, int idx) {
 	int scan = 0;
 	while (scan < idx) {
 		prev = scan;
-		scan = editorRowNextClusterIdx(row, scan);
+		scan = editorBytesNextClusterIdx(bytes, size, scan);
 		if (scan <= prev) {
 			return prev;
 		}
@@ -131,15 +131,15 @@ int editorRowPrevClusterIdx(const struct erow *row, int idx) {
 	return prev;
 }
 
-int editorRowClampCxToClusterBoundary(const struct erow *row, int cx) {
-	cx = editorRowClampCxToCharBoundary(row, cx);
+int editorBytesClampCxToClusterBoundary(const char *bytes, int size, int cx) {
+	cx = editorBytesClampCxToCharBoundary(bytes, size, cx);
 	if (cx <= 0) {
 		return 0;
 	}
 
 	int boundary = 0;
 	while (boundary < cx) {
-		int next_boundary = editorRowNextClusterIdx(row, boundary);
+		int next_boundary = editorBytesNextClusterIdx(bytes, size, boundary);
 		if (next_boundary > cx || next_boundary <= boundary) {
 			break;
 		}
@@ -267,13 +267,13 @@ static int editorBuildRenderToken(const char *s, int len, int rx, int expand_tab
 	return 1;
 }
 
-int editorRowCxToRx(const struct erow *row, int cx) {
+int editorBytesCxToRx(const char *bytes, int size, int cx) {
 	int rx = 0;
-	cx = editorRowClampCxToClusterBoundary(row, cx);
-	for (int idx = 0; idx < cx && idx < row->size;) {
+	cx = editorBytesClampCxToClusterBoundary(bytes, size, cx);
+	for (int idx = 0; idx < cx && idx < size;) {
 		int src_len = 0;
 		int token_width = 0;
-		if (!editorBuildRenderToken(&row->chars[idx], row->size - idx, rx, 1, NULL,
+		if (!editorBuildRenderToken(&bytes[idx], size - idx, rx, 1, NULL,
 				&src_len, NULL, &token_width)) {
 			break;
 		}
@@ -286,15 +286,15 @@ int editorRowCxToRx(const struct erow *row, int cx) {
 	return rx;
 }
 
-int editorRowRxToCx(const struct erow *row, int rx) {
+int editorBytesRxToCx(const char *bytes, int size, int rx) {
 	if (rx <= 0) {
 		return 0;
 	}
 
 	int cx = 0;
 	int cur_rx = 0;
-	while (cx < row->size) {
-		int next_cx = editorRowNextClusterIdx(row, cx);
+	while (cx < size) {
+		int next_cx = editorBytesNextClusterIdx(bytes, size, cx);
 		if (next_cx <= cx) {
 			break;
 		}
@@ -305,7 +305,7 @@ int editorRowRxToCx(const struct erow *row, int rx) {
 		for (int idx = cx; idx < next_cx;) {
 			int src_len = 0;
 			int token_width = 0;
-			if (!editorBuildRenderToken(&row->chars[idx], row->size - idx, cur_rx + cluster_width,
+			if (!editorBuildRenderToken(&bytes[idx], size - idx, cur_rx + cluster_width,
 					1, NULL, &src_len, NULL, &token_width)) {
 				break;
 			}
@@ -324,20 +324,20 @@ int editorRowRxToCx(const struct erow *row, int rx) {
 		cx = next_cx;
 	}
 
-	return row->size;
+	return size;
 }
 
-int editorRowCxToRenderIdx(const struct erow *row, int cx) {
-	int clamped_cx = editorRowClampCxToClusterBoundary(row, cx);
+int editorBytesCxToRenderIdx(const char *bytes, int size, int rsize, int cx) {
+	int clamped_cx = editorBytesClampCxToClusterBoundary(bytes, size, cx);
 	int render_idx = 0;
 	int rx = 0;
 	// Map logical char-space boundaries to byte offsets in row->render using
 	// the exact same tokenization as render construction and rx/cx conversion.
-	for (int idx = 0; idx < clamped_cx && idx < row->size;) {
+	for (int idx = 0; idx < clamped_cx && idx < size;) {
 		int src_len = 0;
 		int render_len = 0;
 		int token_width = 0;
-		if (!editorBuildRenderToken(&row->chars[idx], row->size - idx, rx, 1, NULL,
+		if (!editorBuildRenderToken(&bytes[idx], size - idx, rx, 1, NULL,
 				&src_len, &render_len, &token_width)) {
 			break;
 		}
@@ -348,10 +348,46 @@ int editorRowCxToRenderIdx(const struct erow *row, int cx) {
 		rx += token_width;
 		idx += src_len;
 	}
-	if (render_idx > row->rsize) {
-		render_idx = row->rsize;
+	if (render_idx > rsize) {
+		render_idx = rsize;
 	}
 	return render_idx;
+}
+
+int editorRowClampCxToCharBoundary(const struct erow *row, int cx) {
+	return editorBytesClampCxToCharBoundary(row->chars, row->size, cx);
+}
+
+int editorRowPrevCharIdx(const struct erow *row, int idx) {
+	return editorBytesPrevCharIdx(row->chars, row->size, idx);
+}
+
+int editorRowNextCharIdx(const struct erow *row, int idx) {
+	return editorBytesNextCharIdx(row->chars, row->size, idx);
+}
+
+int editorRowNextClusterIdx(const struct erow *row, int idx) {
+	return editorBytesNextClusterIdx(row->chars, row->size, idx);
+}
+
+int editorRowPrevClusterIdx(const struct erow *row, int idx) {
+	return editorBytesPrevClusterIdx(row->chars, row->size, idx);
+}
+
+int editorRowClampCxToClusterBoundary(const struct erow *row, int cx) {
+	return editorBytesClampCxToClusterBoundary(row->chars, row->size, cx);
+}
+
+int editorRowCxToRx(const struct erow *row, int cx) {
+	return editorBytesCxToRx(row->chars, row->size, cx);
+}
+
+int editorRowRxToCx(const struct erow *row, int rx) {
+	return editorBytesRxToCx(row->chars, row->size, rx);
+}
+
+int editorRowCxToRenderIdx(const struct erow *row, int cx) {
+	return editorBytesCxToRenderIdx(row->chars, row->size, row->rsize, cx);
 }
 
 int editorRowBuildRender(const char *chars, int size, char **render_out, int *rsize_out,
