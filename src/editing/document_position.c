@@ -70,7 +70,7 @@ int editorBufferLineByteRange(int row_idx, size_t *start_byte_out, size_t *end_b
 }
 
 static int editorCursorPositionForOffset(const struct editorDocument *document,
-		const struct erow *rows, int numrows, size_t offset, int *cy_out, int *cx_out,
+		int numrows, size_t offset, int *cy_out, int *cx_out,
 		size_t *normalized_offset_out) {
 	size_t document_len = 0;
 	int cy = 0;
@@ -78,7 +78,7 @@ static int editorCursorPositionForOffset(const struct editorDocument *document,
 	int cx = 0;
 
 	if (document == NULL || cy_out == NULL || cx_out == NULL || normalized_offset_out == NULL ||
-			numrows < 0 || (numrows > 0 && rows == NULL)) {
+			numrows < 0) {
 		return 0;
 	}
 
@@ -106,15 +106,19 @@ static int editorCursorPositionForOffset(const struct editorDocument *document,
 		if (cx < 0) {
 			cx = 0;
 		}
-		if (cx > rows[cy].size) {
-			cx = rows[cy].size;
-		}
-		cx = editorRowClampCxToClusterBoundary(&rows[cy], cx);
-		if (cx < 0) {
-			cx = 0;
-		}
-		if (cx > rows[cy].size) {
-			cx = rows[cy].size;
+		struct editorLineView line = {0};
+		if (editorDocumentLineView(document, cy, &line)) {
+			if (cx > line.size) {
+				cx = line.size;
+			}
+			cx = editorBytesClampCxToClusterBoundary(line.data, line.size, cx);
+			if (cx < 0) {
+				cx = 0;
+			}
+			if (cx > line.size) {
+				cx = line.size;
+			}
+			editorLineViewRelease(&line);
 		}
 		if (!editorDocumentLineStartByte(document, cy, &line_start) ||
 				!editorIntToSize(cx, &cx_size) ||
@@ -138,7 +142,7 @@ int editorSyncCursorFromOffset(size_t target_offset) {
 	int new_cx = 0;
 
 	if (E.document == NULL ||
-			!editorCursorPositionForOffset(E.document, E.rows, E.numrows, target_offset,
+			!editorCursorPositionForOffset(E.document, E.numrows, target_offset,
 					&new_cy, &new_cx, &normalized_offset)) {
 		return 0;
 	}
@@ -177,19 +181,24 @@ int editorSyncCursorFromOffsetByteBoundary(size_t target_offset) {
 	}
 
 	if (new_cy < E.numrows) {
+		struct editorLineView line = {0};
+		if (!editorDocumentLineView(E.document, new_cy, &line)) {
+			return 0;
+		}
 		if (new_cx < 0) {
 			new_cx = 0;
 		}
-		if (new_cx > E.rows[new_cy].size) {
-			new_cx = E.rows[new_cy].size;
+		if (new_cx > line.size) {
+			new_cx = line.size;
 		}
-		new_cx = editorRowClampCxToCharBoundary(&E.rows[new_cy], new_cx);
+		new_cx = editorBytesClampCxToCharBoundary(line.data, line.size, new_cx);
 		if (new_cx < 0) {
 			new_cx = 0;
 		}
-		if (new_cx > E.rows[new_cy].size) {
-			new_cx = E.rows[new_cy].size;
+		if (new_cx > line.size) {
+			new_cx = line.size;
 		}
+		editorLineViewRelease(&line);
 
 		size_t line_start = 0;
 		size_t cx_size = 0;

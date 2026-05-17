@@ -506,8 +506,8 @@ static int test_editor_insert_row_render_alloc_failure_preserves_state(void) {
 	ASSERT_EQ_INT(0, editorInsertText("xyz\n", 4));
 
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_INT(3, E.rows[0].size);
-	ASSERT_EQ_STR("abc", E.rows[0].chars);
+	ASSERT_EQ_INT(3, editor_test_row_size(0));
+	ASSERT_ROW_TEXT_EQ(0, "abc");
 	ASSERT_EQ_STR("abc", E.rows[0].render);
 	ASSERT_EQ_INT(0, E.dirty);
 	ASSERT_EQ_STR("Out of memory", E.statusmsg);
@@ -524,26 +524,11 @@ static int test_editor_insert_char_render_alloc_failure_preserves_state(void) {
 	editorInsertChar('X');
 
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_INT(2, E.rows[0].size);
-	ASSERT_EQ_STR("ab", E.rows[0].chars);
+	ASSERT_EQ_INT(2, editor_test_row_size(0));
+	ASSERT_ROW_TEXT_EQ(0, "ab");
 	ASSERT_EQ_STR("ab", E.rows[0].render);
 	ASSERT_EQ_INT(0, E.dirty);
 	ASSERT_EQ_STR("Out of memory", E.statusmsg);
-	return 0;
-}
-
-static int test_editor_insert_char_uses_document_when_row_cache_corrupt(void) {
-	add_row("ab");
-	E.rows[0].size = INT_MAX;
-	E.cy = 0;
-	E.cx = 0;
-	E.dirty = 0;
-
-	editorInsertChar('X');
-
-	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_STR("Xab", E.rows[0].chars);
-	ASSERT_EQ_INT(1, E.dirty);
 	return 0;
 }
 
@@ -570,8 +555,8 @@ static int test_editor_del_char_merge_alloc_failure_preserves_state(void) {
 	editorDelChar();
 
 	ASSERT_EQ_INT(2, E.numrows);
-	ASSERT_EQ_STR("abc", E.rows[0].chars);
-	ASSERT_EQ_STR("def", E.rows[1].chars);
+	ASSERT_ROW_TEXT_EQ(0, "abc");
+	ASSERT_ROW_TEXT_EQ(1, "def");
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(0, E.cx);
 	ASSERT_EQ_INT(0, E.dirty);
@@ -589,7 +574,7 @@ static int test_editor_insert_newline_alloc_failure_preserves_state(void) {
 	editorInsertNewline();
 
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_STR("hello", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "hello");
 	ASSERT_EQ_STR("hello", E.rows[0].render);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(2, E.cx);
@@ -633,34 +618,6 @@ static int test_editor_save_rows_to_str_alloc_failure_preserves_state(void) {
 	char *contents = read_file_contents(path, &content_len);
 	ASSERT_TRUE(contents != NULL);
 	ASSERT_EQ_INT(0, content_len);
-
-	free(contents);
-	unlink(path);
-	return 0;
-}
-
-static int test_editor_save_uses_document_when_row_cache_corrupt(void) {
-	char path[] = "/tmp/rotide-test-save-too-large-XXXXXX";
-	int fd = mkstemp(path);
-	ASSERT_TRUE(fd != -1);
-	ASSERT_TRUE(close(fd) == 0);
-
-	add_row("alpha");
-	E.rows[0].size = INT_MAX;
-	E.filename = strdup(path);
-	ASSERT_TRUE(E.filename != NULL);
-	E.dirty = 1;
-
-	editorSave();
-
-	ASSERT_EQ_INT(0, E.dirty);
-	ASSERT_TRUE(strstr(E.statusmsg, "bytes written to disk") != NULL);
-
-	size_t content_len = 0;
-	char *contents = read_file_contents(path, &content_len);
-	ASSERT_TRUE(contents != NULL);
-	ASSERT_EQ_INT(6, content_len);
-	ASSERT_MEM_EQ("alpha\n", contents, content_len);
 
 	free(contents);
 	unlink(path);
@@ -907,7 +864,7 @@ static int test_editor_recovery_roundtrip_restores_tabs_and_cursor_state(void) {
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_EQ_STR("one.c", E.filename);
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_STR("alpha", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "alpha");
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(3, E.cx);
 	ASSERT_EQ_INT(0, E.rowoff);
@@ -917,8 +874,8 @@ static int test_editor_recovery_roundtrip_restores_tabs_and_cursor_state(void) {
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_EQ_STR("two.c", E.filename);
 	ASSERT_EQ_INT(2, E.numrows);
-	ASSERT_EQ_STR("beta", E.rows[0].chars);
-	ASSERT_EQ_STR("gamma", E.rows[1].chars);
+	ASSERT_ROW_TEXT_EQ(0, "beta");
+	ASSERT_ROW_TEXT_EQ(1, "gamma");
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(2, E.cx);
 	ASSERT_EQ_INT(1, E.rowoff);
@@ -987,7 +944,7 @@ static int test_editor_startup_restore_choice_ignores_cli_args(void) {
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_EQ_STR("recovered.txt", E.filename);
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_STR("recovered", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "recovered");
 
 	cleanup_recovery_test_env(&env);
 	return 0;
@@ -1029,7 +986,7 @@ static int test_editor_startup_discard_choice_opens_cli_args(void) {
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_EQ_STR(cli_path, E.filename);
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_STR("cli-line", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "cli-line");
 	ASSERT_TRUE(access(recovery_path, F_OK) == -1);
 
 	cleanup_recovery_test_env(&env);
@@ -1095,13 +1052,11 @@ const struct editorTestCase g_save_recovery_tests[] = {
 	{"editor_prompt_fails_on_growth_alloc", test_editor_prompt_fails_on_growth_alloc},
 	{"editor_insert_row_render_alloc_failure_preserves_state", test_editor_insert_row_render_alloc_failure_preserves_state},
 	{"editor_insert_char_render_alloc_failure_preserves_state", test_editor_insert_char_render_alloc_failure_preserves_state},
-	{"editor_insert_char_uses_document_when_row_cache_corrupt", test_editor_insert_char_uses_document_when_row_cache_corrupt},
 	{"editor_insert_row_rejects_size_overflow", test_editor_insert_row_rejects_size_overflow},
 	{"editor_del_char_merge_alloc_failure_preserves_state", test_editor_del_char_merge_alloc_failure_preserves_state},
 	{"editor_insert_newline_alloc_failure_preserves_state", test_editor_insert_newline_alloc_failure_preserves_state},
 	{"editor_save_preserves_prompt_oom_status", test_editor_save_preserves_prompt_oom_status},
 	{"editor_save_rows_to_str_alloc_failure_preserves_state", test_editor_save_rows_to_str_alloc_failure_preserves_state},
-	{"editor_save_uses_document_when_row_cache_corrupt", test_editor_save_uses_document_when_row_cache_corrupt},
 	{"editor_save_tmp_path_alloc_failure_preserves_state", test_editor_save_tmp_path_alloc_failure_preserves_state},
 	{"editor_save_parent_dir_fsync_failure_after_rename_reports_failure", test_editor_save_parent_dir_fsync_failure_after_rename_reports_failure},
 	{"editor_save_parent_dir_open_failure_reports_failure", test_editor_save_parent_dir_open_failure_reports_failure},

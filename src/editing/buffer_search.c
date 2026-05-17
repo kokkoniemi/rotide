@@ -4,6 +4,7 @@
 #include "editing/text_source.h"
 #include "language/syntax.h"
 #include "support/size_utils.h"
+#include "text/document.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -146,7 +147,7 @@ int editorBufferFindBackward(const char *query, int start_row, int start_col, in
 
 	if (start_row < 0 || start_row >= E.numrows) {
 		start_row = E.numrows - 1;
-		start_col = E.rows[start_row].size;
+		start_col = (int)editorDocumentLineLength(E.document, start_row);
 	}
 
 	size_t line_start = 0;
@@ -164,7 +165,7 @@ int editorBufferFindBackward(const char *query, int start_row, int start_col, in
 		int row = (start_row - offset + E.numrows) % E.numrows;
 		if (editorBufferLineByteRange(row, &line_start, &line_end) &&
 				editorTextSourceFindBackwardInRange(&source, line_start, line_end, query,
-						E.rows[row].size + 1, &col)) {
+						(int)editorDocumentLineLength(E.document, row) + 1, &col)) {
 			*out_row = row;
 			*out_col = col;
 			return 1;

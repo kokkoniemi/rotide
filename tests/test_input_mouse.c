@@ -463,10 +463,10 @@ static int test_editor_process_keypress_mouse_drawer_single_file_click_opens_pre
 	ASSERT_EQ_STR("Preview tab opened. Double-click to keep it open", E.statusmsg);
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_EQ_STR(open_file, E.filename);
-	ASSERT_EQ_STR("single", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "single");
 
 	ASSERT_TRUE(editorTabSwitchToIndex(0));
-	ASSERT_EQ_STR("keep", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "keep");
 
 	ASSERT_TRUE(unlink(open_file) == 0);
 	cleanup_recovery_test_env(&env);
@@ -510,7 +510,7 @@ static int test_editor_process_keypress_mouse_drawer_double_click_file_pins_prev
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_EQ_STR(open_file, E.filename);
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_STR("double", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "double");
 
 	ASSERT_TRUE(unlink(open_file) == 0);
 	cleanup_recovery_test_env(&env);
@@ -590,7 +590,7 @@ static int test_editor_process_keypress_mouse_top_row_click_switches_tab(void) {
 	ASSERT_TRUE(editor_process_keypress_with_input(click_first_tab, strlen(click_first_tab)) == 0);
 	ASSERT_EQ_INT(0, editorTabActiveIndex());
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_STR("zero", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "zero");
 	ASSERT_EQ_INT(0, E.mouse_left_button_down);
 	ASSERT_EQ_INT(0, E.mouse_drag_started);
 	return 0;
@@ -637,7 +637,7 @@ static int test_editor_process_keypress_mouse_top_row_click_uses_variable_tab_la
 				text_start + second_tab_col + 1, 1, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_second_tab, strlen(click_second_tab)) == 0);
 	ASSERT_EQ_INT(1, editorTabActiveIndex());
-	ASSERT_EQ_STR("one", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "one");
 	return 0;
 }
 
@@ -689,7 +689,7 @@ static int test_editor_process_keypress_mouse_tab_bar_carets_switch_hidden_tabs(
 	ASSERT_TRUE(editor_process_keypress_with_input(click_right_caret,
 				strlen(click_right_caret)) == 0);
 	ASSERT_EQ_INT(right_target, editorTabActiveIndex());
-	ASSERT_EQ_STR("one", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "one");
 
 	ASSERT_TRUE(editorTabSwitchToIndex(editorTabCount() - 1));
 	ASSERT_TRUE(editorTabBuildLayoutForWidth(tab_cols, layout, ROTIDE_MAX_TABS, &layout_count));
@@ -705,7 +705,7 @@ static int test_editor_process_keypress_mouse_tab_bar_carets_switch_hidden_tabs(
 	ASSERT_TRUE(editor_process_keypress_with_input(click_left_caret,
 				strlen(click_left_caret)) == 0);
 	ASSERT_EQ_INT(left_target, editorTabActiveIndex());
-	ASSERT_EQ_STR("two", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "two");
 	return 0;
 }
 

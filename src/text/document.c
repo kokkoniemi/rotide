@@ -241,6 +241,108 @@ size_t editorDocumentMaxLineBytes(const struct editorDocument *document) {
 	return max_bytes;
 }
 
+size_t editorDocumentLineLength(const struct editorDocument *document, int line_idx) {
+	size_t start = 0;
+	size_t end = 0;
+	if (!editorDocumentLineStartByte(document, line_idx, &start) ||
+			!editorDocumentLineEndByte(document, line_idx, &end)) {
+		return 0;
+	}
+	return end - start;
+}
+
+const char *editorDocumentLineBytes(const struct editorDocument *document, int line_idx,
+		size_t *len_out) {
+	if (len_out != NULL) {
+		*len_out = 0;
+	}
+	size_t start = 0;
+	size_t end = 0;
+	if (!editorDocumentLineStartByte(document, line_idx, &start) ||
+			!editorDocumentLineEndByte(document, line_idx, &end)) {
+		return NULL;
+	}
+	size_t len = end - start;
+	if (len_out != NULL) {
+		*len_out = len;
+	}
+	if (len == 0) {
+		return "";
+	}
+	uint32_t avail = 0;
+	const char *ptr = editorTextTreeRead(&document->tree, start, &avail);
+	if (ptr == NULL || (size_t)avail < len) {
+		if (len_out != NULL) {
+			*len_out = 0;
+		}
+		return NULL;
+	}
+	return ptr;
+}
+
+char *editorDocumentLineDup(const struct editorDocument *document, int line_idx,
+		size_t *len_out) {
+	if (len_out != NULL) {
+		*len_out = 0;
+	}
+	size_t start = 0;
+	size_t end = 0;
+	if (!editorDocumentLineStartByte(document, line_idx, &start) ||
+			!editorDocumentLineEndByte(document, line_idx, &end)) {
+		return NULL;
+	}
+	return editorDocumentDupRange(document, start, end, len_out);
+}
+
+int editorDocumentLineView(const struct editorDocument *document, int line_idx,
+		struct editorLineView *view_out) {
+	if (view_out == NULL) {
+		return 0;
+	}
+	view_out->data = NULL;
+	view_out->size = 0;
+	view_out->owned = NULL;
+
+	size_t start = 0;
+	size_t end = 0;
+	if (!editorDocumentLineStartByte(document, line_idx, &start) ||
+			!editorDocumentLineEndByte(document, line_idx, &end)) {
+		return 0;
+	}
+	size_t len = end - start;
+	if (len == 0) {
+		view_out->data = "";
+		view_out->size = 0;
+		return 1;
+	}
+	uint32_t avail = 0;
+	const char *ptr = editorTextTreeRead(&document->tree, start, &avail);
+	if (ptr != NULL && (size_t)avail >= len) {
+		view_out->data = ptr;
+		view_out->size = (int)len;
+		return 1;
+	}
+	size_t dup_len = 0;
+	char *dup = editorDocumentDupRange(document, start, end, &dup_len);
+	if (dup == NULL) {
+		return 0;
+	}
+	view_out->data = dup;
+	view_out->owned = dup;
+	view_out->size = (int)dup_len;
+	return 1;
+}
+
+void editorLineViewRelease(struct editorLineView *view) {
+	if (view == NULL) {
+		return;
+	}
+	free(view->owned);
+	view->data = NULL;
+	view->owned = NULL;
+	view->size = 0;
+}
+
 int editorDocumentByteOffsetToPosition(const struct editorDocument *document, size_t byte_offset,
 		int *line_idx_out, size_t *column_out) {
 	if (document == NULL || line_idx_out == NULL || column_out == NULL) {

@@ -5,6 +5,7 @@
 #include "language/syntax.h"
 #include "support/alloc.h"
 #include "support/size_utils.h"
+#include "text/document.h"
 #include "text/row.h"
 #include <errno.h>
 #include <limits.h>
@@ -37,17 +38,21 @@ static void editorClampPositionToBuffer(int *cy, int *cx) {
 		return;
 	}
 
-	struct erow *row = &E.rows[*cy];
+	struct editorLineView line = {0};
+	if (!editorDocumentLineView(E.document, *cy, &line)) {
+		return;
+	}
 	if (*cx < 0) {
 		*cx = 0;
 	}
-	if (*cx > row->size) {
-		*cx = row->size;
+	if (*cx > line.size) {
+		*cx = line.size;
 	}
-	*cx = editorRowClampCxToClusterBoundary(row, *cx);
-	if (*cx > row->size) {
-		*cx = row->size;
+	*cx = editorBytesClampCxToClusterBoundary(line.data, line.size, *cx);
+	if (*cx > line.size) {
+		*cx = line.size;
 	}
+	editorLineViewRelease(&line);
 }
 
 static int editorNormalizeRange(const struct editorSelectionRange *range,
@@ -335,23 +340,27 @@ int editorColumnSelectionRowSpan(int row_idx, int left_rx, int right_rx, int *cx
 	if (row_idx < 0 || row_idx >= E.numrows) {
 		return 0;
 	}
-	struct erow *row = &E.rows[row_idx];
-	int cx_start = editorRowRxToCx(row, left_rx);
-	int cx_end = editorRowRxToCx(row, right_rx);
+	struct editorLineView line = {0};
+	if (!editorDocumentLineView(E.document, row_idx, &line)) {
+		return 0;
+	}
+	int cx_start = editorBytesRxToCx(line.data, line.size, left_rx);
+	int cx_end = editorBytesRxToCx(line.data, line.size, right_rx);
 	if (cx_start < 0) {
 		cx_start = 0;
 	}
-	if (cx_end > row->size) {
-		cx_end = row->size;
+	if (cx_end > line.size) {
+		cx_end = line.size;
 	}
-	if (cx_start > row->size) {
-		cx_start = row->size;
+	if (cx_start > line.size) {
+		cx_start = line.size;
 	}
 	if (cx_end < cx_start) {
 		cx_end = cx_start;
 	}
-	cx_start = editorRowClampCxToClusterBoundary(row, cx_start);
-	cx_end = editorRowClampCxToClusterBoundary(row, cx_end);
+	cx_start = editorBytesClampCxToClusterBoundary(line.data, line.size, cx_start);
+	cx_end = editorBytesClampCxToClusterBoundary(line.data, line.size, cx_end);
+	editorLineViewRelease(&line);
 	*cx_start_out = cx_start;
 	*cx_end_out = cx_end;
 	return 1;
@@ -403,8 +412,15 @@ int editorColumnSelectionExtractText(char **text_out, size_t *len_out) {
 		}
 		size_t row_len = (size_t)(cx_end - cx_start);
 		if (row_len > 0) {
-			memcpy(text + pos, E.rows[r].chars + cx_start, row_len);
+			struct editorLineView line = {0};
+			if (!editorDocumentLineView(E.document, r, &line)) {
+				free(text);
+				editorSetAllocFailureStatus();
+				return -1;
+			}
+			memcpy(text + pos, line.data + cx_start, row_len);
 			pos += row_len;
+			editorLineViewRelease(&line);
 		}
 	}
 	text[pos] = '\0';
@@ -440,11 +456,15 @@ static void editorColumnSelectionMoveCursorToRx(int cy, int rx) {
 
 	int cx = 0;
 	if (cy < E.numrows) {
-		cx = editorRowRxToCx(&E.rows[cy], rx);
-		if (cx > E.rows[cy].size) {
-			cx = E.rows[cy].size;
+		struct editorLineView line = {0};
+		if (editorDocumentLineView(E.document, cy, &line)) {
+			cx = editorBytesRxToCx(line.data, line.size, rx);
+			if (cx > line.size) {
+				cx = line.size;
+			}
+			cx = editorBytesClampCxToClusterBoundary(line.data, line.size, cx);
+			editorLineViewRelease(&line);
 		}
-		cx = editorRowClampCxToClusterBoundary(&E.rows[cy], cx);
 	}
 
 	size_t offset = 0;
@@ -490,7 +510,7 @@ static int editorColumnSelectionApplyMultiRowEdit(const struct editorColumnSelec
 		int cs = 0;
 		int ce = 0;
 		(void)editorColumnSelectionRowSpan(r, rect->left_rx, rect->right_rx, &cs, &ce);
-		size_t row_size = (size_t)E.rows[r].size;
+		size_t row_size = editorDocumentLineLength(E.document, r);
 		int insert_idx = repeat_insert ? 0 : r - top;
 		if (insert_idx < 0 || insert_idx >= insert_line_count) {
 			return 0;
@@ -530,14 +550,20 @@ static int editorColumnSelectionApplyMultiRowEdit(const struct editorColumnSelec
 		int cs = 0;
 		int ce = 0;
 		(void)editorColumnSelectionRowSpan(r, rect->left_rx, rect->right_rx, &cs, &ce);
-		size_t row_size = (size_t)E.rows[r].size;
+		struct editorLineView line = {0};
+		if (!editorDocumentLineView(E.document, r, &line)) {
+			free(new_text);
+			editorSetAllocFailureStatus();
+			return -1;
+		}
+		size_t row_size = (size_t)line.size;
 		int insert_idx = repeat_insert ? 0 : r - top;
 		const char *insert_text = insert_lines[insert_idx].text;
 		size_t insert_len = insert_lines[insert_idx].len;
 		if (r > top) {
 			new_text[pos++] = '\n';
 		}
-		memcpy(new_text + pos, E.rows[r].chars, (size_t)cs);
+		memcpy(new_text + pos, line.data, (size_t)cs);
 		pos += (size_t)cs;
 		if (insert_len > 0) {
 			memcpy(new_text + pos, insert_text, insert_len);
@@ -545,9 +571,10 @@ static int editorColumnSelectionApplyMultiRowEdit(const struct editorColumnSelec
 		}
 		size_t tail = row_size - (size_t)ce;
 		if (tail > 0) {
-			memcpy(new_text + pos, E.rows[r].chars + ce, tail);
+			memcpy(new_text + pos, line.data + ce, tail);
 			pos += tail;
 		}
+		editorLineViewRelease(&line);
 	}
 
 	int dirty_delta = (top != bottom) ? (bottom - top + 1) : 1;
@@ -578,7 +605,8 @@ static int editorColumnSelectionApplyMultiRowEdit(const struct editorColumnSelec
 			after_cursor_offset = start_offset + row_offset + (size_t)cs + insert_len;
 			break;
 		}
-		row_offset += (size_t)E.rows[r].size - (size_t)(ce - cs) + insert_len + 1;
+		row_offset += editorDocumentLineLength(E.document, r) -
+			(size_t)(ce - cs) + insert_len + 1;
 	}
 
 	struct editorDocumentEdit edit = {

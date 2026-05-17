@@ -52,4 +52,32 @@ int editorDocumentByteOffsetToPosition(const struct editorDocument *document, si
 
 size_t editorDocumentMaxLineBytes(const struct editorDocument *document);
 
+size_t editorDocumentLineLength(const struct editorDocument *document, int line_idx);
+
+/* Borrowed pointer to line bytes; valid only until the next document mutation.
+ * Returns NULL when the line straddles tree pieces — callers fall back to
+ * editorDocumentLineDup.
+ */
+const char *editorDocumentLineBytes(const struct editorDocument *document, int line_idx,
+		size_t *len_out);
+
+/* NUL-terminated copy of the line; caller frees. */
+char *editorDocumentLineDup(const struct editorDocument *document, int line_idx,
+		size_t *len_out);
+
+/* Line bytes accessor that hides the zero-copy / fallback split. `owned` is
+ * non-NULL only when the bytes were copied; in either case release via
+ * editorLineViewRelease. When `owned` is NULL, `data` borrows from the tree
+ * and must not outlive the next document mutation.
+ */
+struct editorLineView {
+	const char *data;
+	int size;
+	char *owned;
+};
+
+int editorDocumentLineView(const struct editorDocument *document, int line_idx,
+		struct editorLineView *view_out);
+void editorLineViewRelease(struct editorLineView *view);
+
 #endif

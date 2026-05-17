@@ -534,67 +534,59 @@ static int test_char_display_width_basics(void) {
 
 static int test_row_char_boundaries(void) {
 	const char text[] = "A\xC3\xA9" "Z";
-	add_row_bytes(text, sizeof(text) - 1);
-
-	struct erow *row = &E.rows[0];
-	ASSERT_EQ_INT(1, editorRowClampCxToCharBoundary(row, 2));
-	ASSERT_EQ_INT(0, editorRowPrevCharIdx(row, 1));
-	ASSERT_EQ_INT(1, editorRowPrevCharIdx(row, 3));
-	ASSERT_EQ_INT(3, editorRowNextCharIdx(row, 1));
-	ASSERT_EQ_INT(4, editorRowNextCharIdx(row, 3));
+	int size = (int)sizeof(text) - 1;
+	ASSERT_EQ_INT(1, editorBytesClampCxToCharBoundary(text, size, 2));
+	ASSERT_EQ_INT(0, editorBytesPrevCharIdx(text, size, 1));
+	ASSERT_EQ_INT(1, editorBytesPrevCharIdx(text, size, 3));
+	ASSERT_EQ_INT(3, editorBytesNextCharIdx(text, size, 1));
+	ASSERT_EQ_INT(4, editorBytesNextCharIdx(text, size, 3));
 	return 0;
 }
 
 static int test_row_cluster_boundaries_combining(void) {
 	const char text[] = "a\xCC\x81" "b";
-	add_row_bytes(text, sizeof(text) - 1);
-
-	struct erow *row = &E.rows[0];
-	ASSERT_EQ_INT(3, editorRowNextClusterIdx(row, 0));
-	ASSERT_EQ_INT(0, editorRowPrevClusterIdx(row, 3));
-	ASSERT_EQ_INT(4, editorRowNextClusterIdx(row, 3));
-	ASSERT_EQ_INT(0, editorRowClampCxToClusterBoundary(row, 2));
-	ASSERT_EQ_INT(3, editorRowClampCxToClusterBoundary(row, 3));
+	int size = (int)sizeof(text) - 1;
+	ASSERT_EQ_INT(3, editorBytesNextClusterIdx(text, size, 0));
+	ASSERT_EQ_INT(0, editorBytesPrevClusterIdx(text, size, 3));
+	ASSERT_EQ_INT(4, editorBytesNextClusterIdx(text, size, 3));
+	ASSERT_EQ_INT(0, editorBytesClampCxToClusterBoundary(text, size, 2));
+	ASSERT_EQ_INT(3, editorBytesClampCxToClusterBoundary(text, size, 3));
 	return 0;
 }
 
 static int test_row_cluster_boundaries_zwj_sequence(void) {
 	const char woman_technologist[] = "\xF0\x9F\x91\xA9\xE2\x80\x8D\xF0\x9F\x92\xBB";
-	add_row_bytes(woman_technologist, sizeof(woman_technologist) - 1);
-
-	struct erow *row = &E.rows[0];
-	ASSERT_EQ_INT((int)sizeof(woman_technologist) - 1, editorRowNextClusterIdx(row, 0));
-	ASSERT_EQ_INT(0, editorRowPrevClusterIdx(row, (int)sizeof(woman_technologist) - 1));
+	int size = (int)sizeof(woman_technologist) - 1;
+	ASSERT_EQ_INT(size, editorBytesNextClusterIdx(woman_technologist, size, 0));
+	ASSERT_EQ_INT(0, editorBytesPrevClusterIdx(woman_technologist, size, size));
 	return 0;
 }
 
 static int test_row_cluster_boundaries_regional_indicators(void) {
 	const char flag_sequence[] = "\xF0\x9F\x87\xAB\xF0\x9F\x87\xAE\xF0\x9F\x87\xA8";
-	add_row_bytes(flag_sequence, sizeof(flag_sequence) - 1);
-
-	struct erow *row = &E.rows[0];
-	ASSERT_EQ_INT(8, editorRowNextClusterIdx(row, 0));
-	ASSERT_EQ_INT((int)sizeof(flag_sequence) - 1, editorRowNextClusterIdx(row, 8));
-	ASSERT_EQ_INT(8, editorRowPrevClusterIdx(row, (int)sizeof(flag_sequence) - 1));
+	int size = (int)sizeof(flag_sequence) - 1;
+	ASSERT_EQ_INT(8, editorBytesNextClusterIdx(flag_sequence, size, 0));
+	ASSERT_EQ_INT(size, editorBytesNextClusterIdx(flag_sequence, size, 8));
+	ASSERT_EQ_INT(8, editorBytesPrevClusterIdx(flag_sequence, size, size));
 	return 0;
 }
 
 static int test_row_cx_to_rx_with_tabs(void) {
-	add_row("a\tb");
-	struct erow *row = &E.rows[0];
-	ASSERT_EQ_INT(8, editorRowCxToRx(row, 2));
-	ASSERT_EQ_INT(9, editorRowCxToRx(row, 3));
+	const char text[] = "a\tb";
+	int size = (int)sizeof(text) - 1;
+	ASSERT_EQ_INT(8, editorBytesCxToRx(text, size, 2));
+	ASSERT_EQ_INT(9, editorBytesCxToRx(text, size, 3));
 	return 0;
 }
 
 static int test_row_rx_to_cx_with_tabs(void) {
-	add_row("a\tb");
-	struct erow *row = &E.rows[0];
-	ASSERT_EQ_INT(0, editorRowRxToCx(row, 0));
-	ASSERT_EQ_INT(1, editorRowRxToCx(row, 1));
-	ASSERT_EQ_INT(1, editorRowRxToCx(row, 7));
-	ASSERT_EQ_INT(2, editorRowRxToCx(row, 8));
-	ASSERT_EQ_INT(3, editorRowRxToCx(row, 9));
+	const char text[] = "a\tb";
+	int size = (int)sizeof(text) - 1;
+	ASSERT_EQ_INT(0, editorBytesRxToCx(text, size, 0));
+	ASSERT_EQ_INT(1, editorBytesRxToCx(text, size, 1));
+	ASSERT_EQ_INT(1, editorBytesRxToCx(text, size, 7));
+	ASSERT_EQ_INT(2, editorBytesRxToCx(text, size, 8));
+	ASSERT_EQ_INT(3, editorBytesRxToCx(text, size, 9));
 	return 0;
 }
 
@@ -651,26 +643,22 @@ static int test_editor_update_row_preserves_printable_utf8_with_80_9f_continuati
 
 static int test_row_cx_to_rx_with_escaped_controls(void) {
 	const char text[] = "A\x1b" "B";
-	add_row_bytes(text, sizeof(text) - 1);
-	struct erow *row = &E.rows[0];
-
-	ASSERT_EQ_INT(0, editorRowCxToRx(row, 0));
-	ASSERT_EQ_INT(1, editorRowCxToRx(row, 1));
-	ASSERT_EQ_INT(3, editorRowCxToRx(row, 2));
-	ASSERT_EQ_INT(4, editorRowCxToRx(row, 3));
+	int size = (int)sizeof(text) - 1;
+	ASSERT_EQ_INT(0, editorBytesCxToRx(text, size, 0));
+	ASSERT_EQ_INT(1, editorBytesCxToRx(text, size, 1));
+	ASSERT_EQ_INT(3, editorBytesCxToRx(text, size, 2));
+	ASSERT_EQ_INT(4, editorBytesCxToRx(text, size, 3));
 	return 0;
 }
 
 static int test_row_rx_to_cx_with_escaped_controls(void) {
 	const char text[] = "A\x1b" "B";
-	add_row_bytes(text, sizeof(text) - 1);
-	struct erow *row = &E.rows[0];
-
-	ASSERT_EQ_INT(0, editorRowRxToCx(row, 0));
-	ASSERT_EQ_INT(1, editorRowRxToCx(row, 1));
-	ASSERT_EQ_INT(1, editorRowRxToCx(row, 2));
-	ASSERT_EQ_INT(2, editorRowRxToCx(row, 3));
-	ASSERT_EQ_INT(3, editorRowRxToCx(row, 4));
+	int size = (int)sizeof(text) - 1;
+	ASSERT_EQ_INT(0, editorBytesRxToCx(text, size, 0));
+	ASSERT_EQ_INT(1, editorBytesRxToCx(text, size, 1));
+	ASSERT_EQ_INT(1, editorBytesRxToCx(text, size, 2));
+	ASSERT_EQ_INT(2, editorBytesRxToCx(text, size, 3));
+	ASSERT_EQ_INT(3, editorBytesRxToCx(text, size, 4));
 	return 0;
 }
 
@@ -693,8 +681,8 @@ static int test_insert_and_delete_row_updates_dirty(void) {
 	};
 	ASSERT_EQ_INT(1, editorDeleteRange(&range));
 	ASSERT_EQ_INT(2, E.numrows);
-	ASSERT_EQ_STR("one", E.rows[0].chars);
-	ASSERT_EQ_STR("two", E.rows[1].chars);
+	ASSERT_ROW_TEXT_EQ(0, "one");
+	ASSERT_ROW_TEXT_EQ(1, "two");
 	ASSERT_EQ_INT(3, E.dirty);
 	return 0;
 }
@@ -711,7 +699,7 @@ static int test_editor_delete_row_rejects_idx_at_numrows(void) {
 	};
 	ASSERT_EQ_INT(0, editorDeleteRange(&range));
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_STR("only", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "only");
 	ASSERT_EQ_INT(0, E.dirty);
 	return 0;
 }
@@ -723,7 +711,7 @@ static int test_insert_and_delete_chars(void) {
 	E.cy = 0;
 	E.cx = 1;
 	editorInsertChar('X');
-	ASSERT_EQ_STR("aXbc", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "aXbc");
 	ASSERT_EQ_INT(1, E.dirty);
 
 	struct editorSelectionRange delete_one = {
@@ -733,7 +721,7 @@ static int test_insert_and_delete_chars(void) {
 		.end_cx = 3
 	};
 	ASSERT_EQ_INT(1, editorDeleteRange(&delete_one));
-	ASSERT_EQ_STR("aXc", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "aXc");
 	ASSERT_EQ_INT(2, E.dirty);
 
 	struct editorSelectionRange delete_two = {
@@ -743,7 +731,7 @@ static int test_insert_and_delete_chars(void) {
 		.end_cx = 3
 	};
 	ASSERT_EQ_INT(1, editorDeleteRange(&delete_two));
-	ASSERT_EQ_STR("a", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "a");
 	ASSERT_EQ_INT(3, E.dirty);
 
 	struct editorSelectionRange noop = {
@@ -753,7 +741,7 @@ static int test_insert_and_delete_chars(void) {
 		.end_cx = 1
 	};
 	ASSERT_EQ_INT(0, editorDeleteRange(&noop));
-	ASSERT_EQ_STR("a", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "a");
 	ASSERT_EQ_INT(3, E.dirty);
 	return 0;
 }
@@ -766,7 +754,11 @@ static void set_column_selection(int anchor_row, int cursor_row, int left_rx, in
 	E.cy = cursor_row;
 	E.cx = 0;
 	if (cursor_row >= 0 && cursor_row < E.numrows) {
-		E.cx = editorRowRxToCx(&E.rows[cursor_row], right_rx);
+		struct editorLineView _line = {0};
+		if (editorDocumentLineView(E.document, cursor_row, &_line)) {
+			E.cx = editorBytesRxToCx(_line.data, _line.size, right_rx);
+			editorLineViewRelease(&_line);
+		}
 	}
 	(void)editorBufferPosToOffset(E.cy, E.cx, &E.cursor_offset);
 }
@@ -786,9 +778,9 @@ static int test_editor_column_selection_extracts_and_deletes_each_row_slice(void
 	free(text);
 
 	ASSERT_EQ_INT(1, editorColumnSelectionDelete());
-	ASSERT_EQ_STR("aef", E.rows[0].chars);
-	ASSERT_EQ_STR("AEF", E.rows[1].chars);
-	ASSERT_EQ_STR("156", E.rows[2].chars);
+	ASSERT_ROW_TEXT_EQ(0, "aef");
+	ASSERT_ROW_TEXT_EQ(1, "AEF");
+	ASSERT_ROW_TEXT_EQ(2, "156");
 	ASSERT_EQ_INT(0, E.column_select_active);
 	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
 	return 0;
@@ -801,8 +793,8 @@ static int test_editor_column_selection_insert_replaces_slice_on_each_row(void) 
 	set_column_selection(0, 1, 1, 2);
 
 	ASSERT_EQ_INT(1, editorColumnSelectionInsertChar('x'));
-	ASSERT_EQ_STR("axc", E.rows[0].chars);
-	ASSERT_EQ_STR("AxC", E.rows[1].chars);
+	ASSERT_ROW_TEXT_EQ(0, "axc");
+	ASSERT_ROW_TEXT_EQ(1, "AxC");
 	ASSERT_EQ_INT(1, E.column_select_active);
 	ASSERT_EQ_INT(2, E.column_select_anchor_rx);
 	ASSERT_EQ_INT(2, E.column_select_cursor_rx);
@@ -818,8 +810,8 @@ static int test_editor_column_selection_pastes_matching_lines_by_cursor_row(void
 	set_column_selection(0, 1, 1, 3);
 
 	ASSERT_EQ_INT(1, editorColumnSelectionPasteText("xx\ny", 4));
-	ASSERT_EQ_STR("axxdef", E.rows[0].chars);
-	ASSERT_EQ_STR("AyDEF", E.rows[1].chars);
+	ASSERT_ROW_TEXT_EQ(0, "axxdef");
+	ASSERT_ROW_TEXT_EQ(1, "AyDEF");
 	ASSERT_EQ_INT(1, E.column_select_active);
 	ASSERT_EQ_INT(2, E.column_select_anchor_rx);
 	ASSERT_EQ_INT(2, E.column_select_cursor_rx);
@@ -836,9 +828,9 @@ static int test_editor_column_selection_pastes_single_line_at_each_cursor(void) 
 	set_column_selection(0, 2, 1, 1);
 
 	ASSERT_EQ_INT(1, editorColumnSelectionPasteText("!", 1));
-	ASSERT_EQ_STR("a!b", E.rows[0].chars);
-	ASSERT_EQ_STR("A!B", E.rows[1].chars);
-	ASSERT_EQ_STR("1!2", E.rows[2].chars);
+	ASSERT_ROW_TEXT_EQ(0, "a!b");
+	ASSERT_ROW_TEXT_EQ(1, "A!B");
+	ASSERT_ROW_TEXT_EQ(2, "1!2");
 	ASSERT_EQ_INT(1, E.column_select_active);
 	ASSERT_EQ_INT(2, E.column_select_anchor_rx);
 	ASSERT_EQ_INT(2, E.column_select_cursor_rx);
@@ -853,15 +845,15 @@ static int test_editor_column_selection_zero_width_delete_and_backspace_each_row
 	set_column_selection(0, 1, 2, 2);
 
 	ASSERT_EQ_INT(1, editorColumnSelectionDeleteForward());
-	ASSERT_EQ_STR("abd", E.rows[0].chars);
-	ASSERT_EQ_STR("ABD", E.rows[1].chars);
+	ASSERT_ROW_TEXT_EQ(0, "abd");
+	ASSERT_ROW_TEXT_EQ(1, "ABD");
 	ASSERT_EQ_INT(1, E.column_select_active);
 	ASSERT_EQ_INT(2, E.column_select_anchor_rx);
 	ASSERT_EQ_INT(2, E.column_select_cursor_rx);
 
 	ASSERT_EQ_INT(1, editorColumnSelectionBackspace());
-	ASSERT_EQ_STR("ad", E.rows[0].chars);
-	ASSERT_EQ_STR("AD", E.rows[1].chars);
+	ASSERT_ROW_TEXT_EQ(0, "ad");
+	ASSERT_ROW_TEXT_EQ(1, "AD");
 	ASSERT_EQ_INT(1, E.column_select_active);
 	ASSERT_EQ_INT(1, E.column_select_anchor_rx);
 	ASSERT_EQ_INT(1, E.column_select_cursor_rx);
@@ -882,7 +874,7 @@ static int test_editor_replace_range_replaces_text_in_one_edit(void) {
 		.end_cx = 11
 	};
 	ASSERT_EQ_INT(1, editorReplaceRange(&range, "there", 5));
-	ASSERT_EQ_STR("hello there", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "hello there");
 	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
 	return 0;
 }
@@ -903,14 +895,14 @@ static int test_editor_replace_range_undoes_paste_on_selection_in_one_step(void)
 	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
 	ASSERT_EQ_INT(1, editorReplaceRange(&range, "there", 5));
 	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, 1);
-	ASSERT_EQ_STR("hello there", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "hello there");
 
 	ASSERT_EQ_INT(1, editorUndo());
-	ASSERT_EQ_STR("hello world", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "hello world");
 	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
 
 	ASSERT_EQ_INT(1, editorRedo());
-	ASSERT_EQ_STR("hello there", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "hello there");
 	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
 	return 0;
 }
@@ -928,7 +920,7 @@ static int test_editor_replace_range_inserts_at_empty_range(void) {
 		.end_cx = 1
 	};
 	ASSERT_EQ_INT(1, editorReplaceRange(&range, "XY", 2));
-	ASSERT_EQ_STR("aXYb", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "aXYb");
 	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
 	return 0;
 }
@@ -946,7 +938,7 @@ static int test_editor_replace_range_with_empty_selection_and_empty_text_is_noop
 		.end_cx = 1
 	};
 	ASSERT_EQ_INT(0, editorReplaceRange(&range, "", 0));
-	ASSERT_EQ_STR("abc", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "abc");
 	ASSERT_EQ_INT(0, E.dirty);
 	return 0;
 }
@@ -967,8 +959,8 @@ static int test_editor_replace_range_spans_multiple_lines(void) {
 	};
 	ASSERT_EQ_INT(1, editorReplaceRange(&range, "XYZ", 3));
 	ASSERT_EQ_INT(2, E.numrows);
-	ASSERT_EQ_STR("heXYZld", E.rows[0].chars);
-	ASSERT_EQ_STR("tail", E.rows[1].chars);
+	ASSERT_ROW_TEXT_EQ(0, "heXYZld");
+	ASSERT_ROW_TEXT_EQ(1, "tail");
 	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
 	return 0;
 }
@@ -984,8 +976,8 @@ static int test_editor_del_char_at_rejects_idx_at_row_size(void) {
 		.end_cx = 3
 	};
 	ASSERT_EQ_INT(0, editorDeleteRange(&noop));
-	ASSERT_EQ_INT(3, E.rows[0].size);
-	ASSERT_EQ_STR("abc", E.rows[0].chars);
+	ASSERT_EQ_INT(3, editor_test_row_size(0));
+	ASSERT_ROW_TEXT_EQ(0, "abc");
 	ASSERT_EQ_INT(0, E.dirty);
 	return 0;
 }
@@ -993,7 +985,7 @@ static int test_editor_del_char_at_rejects_idx_at_row_size(void) {
 static int test_editor_insert_char_creates_initial_row(void) {
 	editorInsertChar('Q');
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_STR("Q", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "Q");
 	ASSERT_EQ_INT(1, E.cx);
 	ASSERT_EQ_INT(2, E.dirty);
 	return 0;
@@ -1007,8 +999,8 @@ static int test_editor_insert_newline_splits_row(void) {
 
 	editorInsertNewline();
 	ASSERT_EQ_INT(2, E.numrows);
-	ASSERT_EQ_STR("he", E.rows[0].chars);
-	ASSERT_EQ_STR("llo", E.rows[1].chars);
+	ASSERT_ROW_TEXT_EQ(0, "he");
+	ASSERT_ROW_TEXT_EQ(1, "llo");
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(0, E.cx);
 	ASSERT_EQ_INT(1, E.dirty);
@@ -1023,8 +1015,8 @@ static int test_editor_insert_newline_at_row_start(void) {
 
 	editorInsertNewline();
 	ASSERT_EQ_INT(2, E.numrows);
-	ASSERT_EQ_STR("", E.rows[0].chars);
-	ASSERT_EQ_STR("hello", E.rows[1].chars);
+	ASSERT_ROW_TEXT_EQ(0, "");
+	ASSERT_ROW_TEXT_EQ(1, "hello");
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(1, E.dirty);
 	return 0;
@@ -1041,8 +1033,8 @@ static int test_editor_insert_newline_auto_indents_with_spaces(void) {
 
 	editorInsertNewline();
 	ASSERT_EQ_INT(2, E.numrows);
-	ASSERT_EQ_STR("    hello", E.rows[0].chars);
-	ASSERT_EQ_STR("    ", E.rows[1].chars);
+	ASSERT_ROW_TEXT_EQ(0, "    hello");
+	ASSERT_ROW_TEXT_EQ(1, "    ");
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(4, E.cx);
 	ASSERT_EQ_INT(5, E.dirty);
@@ -1060,8 +1052,8 @@ static int test_editor_insert_newline_auto_indents_with_tabs(void) {
 
 	editorInsertNewline();
 	ASSERT_EQ_INT(2, E.numrows);
-	ASSERT_EQ_STR("        hello", E.rows[0].chars);
-	ASSERT_EQ_STR("\t\t", E.rows[1].chars);
+	ASSERT_ROW_TEXT_EQ(0, "        hello");
+	ASSERT_ROW_TEXT_EQ(1, "\t\t");
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(2, E.cx);
 	ASSERT_EQ_INT(3, E.dirty);
@@ -1076,7 +1068,7 @@ static int test_editor_del_char_cluster_and_merge(void) {
 	E.dirty = 0;
 
 	editorDelChar();
-	ASSERT_EQ_STR("b", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "b");
 	ASSERT_EQ_INT(0, E.cx);
 	ASSERT_EQ_INT(1, E.dirty);
 
@@ -1093,7 +1085,7 @@ static int test_editor_del_char_cluster_and_merge(void) {
 
 	editorDelChar();
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_STR("abcdef", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "abcdef");
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(3, E.cx);
 	ASSERT_EQ_INT(2, E.dirty);
@@ -1126,20 +1118,6 @@ static int test_editor_rows_to_str(void) {
 	return 0;
 }
 
-static int test_editor_rows_to_str_uses_document_when_row_cache_corrupt(void) {
-	add_row("abc");
-	E.rows[0].size = INT_MAX;
-
-	size_t buflen = 0;
-	errno = 0;
-	char *joined = editorRowsToStr(&buflen);
-	ASSERT_TRUE(joined != NULL);
-	ASSERT_EQ_INT(4, buflen);
-	ASSERT_MEM_EQ("abc\n", joined, buflen);
-	free(joined);
-	return 0;
-}
-
 static int test_editor_open_reads_rows_and_clears_dirty(void) {
 	char path[] = "/tmp/rotide-test-open-XXXXXX";
 	int fd = mkstemp(path);
@@ -1151,9 +1129,9 @@ static int test_editor_open_reads_rows_and_clears_dirty(void) {
 
 	ASSERT_EQ_STR(path, E.filename);
 	ASSERT_EQ_INT(3, E.numrows);
-	ASSERT_EQ_STR("alpha", E.rows[0].chars);
-	ASSERT_EQ_STR("beta", E.rows[1].chars);
-	ASSERT_EQ_STR("", E.rows[2].chars);
+	ASSERT_ROW_TEXT_EQ(0, "alpha");
+	ASSERT_ROW_TEXT_EQ(1, "beta");
+	ASSERT_ROW_TEXT_EQ(2, "");
 	ASSERT_EQ_INT(0, E.dirty);
 
 	unlink(path);
@@ -1174,7 +1152,7 @@ static int test_editor_open_rejects_binary_file_without_mutating_buffer(void) {
 
 	ASSERT_TRUE(E.filename == NULL);
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_STR("keep", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "keep");
 	ASSERT_EQ_INT(7, E.dirty);
 	ASSERT_TRUE(strstr(E.statusmsg, "Binary files are not supported") != NULL);
 
@@ -1200,12 +1178,132 @@ static int test_editor_open_rejects_binary_file_after_initial_scan_chunk(void) {
 
 	ASSERT_TRUE(E.filename == NULL);
 	ASSERT_EQ_INT(1, E.numrows);
-	ASSERT_EQ_STR("keep", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "keep");
 	ASSERT_EQ_INT(3, E.dirty);
 	ASSERT_TRUE(strstr(E.statusmsg, "Binary files are not supported") != NULL);
 
 	free(bytes);
 	unlink(path);
+	return 0;
+}
+
+static int test_document_line_view_zero_copy_for_single_piece_doc(void) {
+	struct editorDocument document;
+	editorDocumentInit(&document);
+
+	const char *text = "alpha\nbeta\ngamma";
+	ASSERT_TRUE(editorDocumentResetFromString(&document, text, strlen(text)));
+	ASSERT_EQ_INT(3, editorDocumentLineCount(&document));
+
+	ASSERT_EQ_INT(5, (int)editorDocumentLineLength(&document, 0));
+	ASSERT_EQ_INT(4, (int)editorDocumentLineLength(&document, 1));
+	ASSERT_EQ_INT(5, (int)editorDocumentLineLength(&document, 2));
+
+	const char *expected[] = {"alpha", "beta", "gamma"};
+	int expected_len[] = {5, 4, 5};
+	for (int i = 0; i < 3; i++) {
+		size_t len = 0;
+		const char *bytes = editorDocumentLineBytes(&document, i, &len);
+		ASSERT_TRUE(bytes != NULL);
+		ASSERT_EQ_INT(expected_len[i], (int)len);
+		ASSERT_TRUE(memcmp(bytes, expected[i], len) == 0);
+
+		struct editorLineView view = {0};
+		ASSERT_TRUE(editorDocumentLineView(&document, i, &view));
+		ASSERT_TRUE(view.owned == NULL);
+		ASSERT_EQ_INT(expected_len[i], view.size);
+		ASSERT_TRUE(memcmp(view.data, expected[i], (size_t)view.size) == 0);
+		editorLineViewRelease(&view);
+	}
+
+	editorDocumentFree(&document);
+	return 0;
+}
+
+static int test_document_line_view_falls_back_to_copy_across_piece_boundary(void) {
+	struct editorDocument document;
+	editorDocumentInit(&document);
+
+	const char *text = "alpha\nbetagamma\nepsilon\n";
+	ASSERT_TRUE(editorDocumentResetFromString(&document, text, strlen(text)));
+	ASSERT_TRUE(editorDocumentReplaceRange(&document, 10, 0, "_INS_", 5));
+	ASSERT_EQ_INT(3, editorDocumentLineCount(&document));
+
+	size_t bytes_len = 0;
+	const char *bytes = editorDocumentLineBytes(&document, 1, &bytes_len);
+	ASSERT_TRUE(bytes == NULL);
+	ASSERT_EQ_INT(0, (int)bytes_len);
+
+	size_t dup_len = 0;
+	char *dup = editorDocumentLineDup(&document, 1, &dup_len);
+	ASSERT_TRUE(dup != NULL);
+	ASSERT_EQ_INT((int)strlen("beta_INS_gamma"), (int)dup_len);
+	ASSERT_EQ_STR("beta_INS_gamma", dup);
+	free(dup);
+
+	struct editorLineView view = {0};
+	ASSERT_TRUE(editorDocumentLineView(&document, 1, &view));
+	ASSERT_TRUE(view.owned != NULL);
+	ASSERT_EQ_INT((int)strlen("beta_INS_gamma"), view.size);
+	ASSERT_TRUE(memcmp(view.data, "beta_INS_gamma", (size_t)view.size) == 0);
+	editorLineViewRelease(&view);
+	ASSERT_TRUE(view.data == NULL);
+	ASSERT_TRUE(view.owned == NULL);
+
+	struct editorLineView other = {0};
+	ASSERT_TRUE(editorDocumentLineView(&document, 0, &other));
+	ASSERT_TRUE(other.owned == NULL);
+	ASSERT_EQ_INT(5, other.size);
+	ASSERT_TRUE(memcmp(other.data, "alpha", 5) == 0);
+	editorLineViewRelease(&other);
+
+	editorDocumentFree(&document);
+	return 0;
+}
+
+static int test_document_line_view_empty_doc_and_blank_lines(void) {
+	struct editorDocument document;
+	editorDocumentInit(&document);
+
+	ASSERT_EQ_INT(0, editorDocumentLineCount(&document));
+	size_t bytes_len = 99;
+	ASSERT_TRUE(editorDocumentLineBytes(&document, 0, &bytes_len) == NULL);
+	ASSERT_EQ_INT(0, (int)bytes_len);
+	struct editorLineView view = {0};
+	ASSERT_TRUE(editorDocumentLineView(&document, 0, &view) == 0);
+
+	const char *text = "alpha\n\n\nbeta\n";
+	ASSERT_TRUE(editorDocumentResetFromString(&document, text, strlen(text)));
+	ASSERT_EQ_INT(4, editorDocumentLineCount(&document));
+
+	for (int i = 1; i <= 2; i++) {
+		ASSERT_EQ_INT(0, (int)editorDocumentLineLength(&document, i));
+		size_t len = 99;
+		const char *bytes = editorDocumentLineBytes(&document, i, &len);
+		ASSERT_TRUE(bytes != NULL);
+		ASSERT_EQ_INT(0, (int)len);
+
+		struct editorLineView blank = {0};
+		ASSERT_TRUE(editorDocumentLineView(&document, i, &blank));
+		ASSERT_TRUE(blank.owned == NULL);
+		ASSERT_EQ_INT(0, blank.size);
+		ASSERT_TRUE(blank.data != NULL);
+		editorLineViewRelease(&blank);
+	}
+
+	size_t last_len = 0;
+	char *last = editorDocumentLineDup(&document, 3, &last_len);
+	ASSERT_TRUE(last != NULL);
+	ASSERT_EQ_INT(4, (int)last_len);
+	ASSERT_EQ_STR("beta", last);
+	free(last);
+
+	ASSERT_TRUE(editorDocumentLineDup(&document, 4, NULL) == NULL);
+	ASSERT_TRUE(editorDocumentLineBytes(&document, 4, NULL) == NULL);
+	struct editorLineView oob = {0};
+	ASSERT_TRUE(editorDocumentLineView(&document, 4, &oob) == 0);
+
+	editorDocumentFree(&document);
 	return 0;
 }
 
@@ -1265,10 +1363,12 @@ const struct editorTestCase g_document_text_editing_tests[] = {
 	{"editor_insert_newline_auto_indents_with_tabs", test_editor_insert_newline_auto_indents_with_tabs},
 	{"editor_del_char_cluster_and_merge", test_editor_del_char_cluster_and_merge},
 	{"editor_rows_to_str", test_editor_rows_to_str},
-	{"editor_rows_to_str_uses_document_when_row_cache_corrupt", test_editor_rows_to_str_uses_document_when_row_cache_corrupt},
 	{"editor_open_reads_rows_and_clears_dirty", test_editor_open_reads_rows_and_clears_dirty},
 	{"editor_open_rejects_binary_file_without_mutating_buffer", test_editor_open_rejects_binary_file_without_mutating_buffer},
 	{"editor_open_rejects_binary_file_after_initial_scan_chunk", test_editor_open_rejects_binary_file_after_initial_scan_chunk},
+	{"document_line_view_zero_copy_for_single_piece_doc", test_document_line_view_zero_copy_for_single_piece_doc},
+	{"document_line_view_falls_back_to_copy_across_piece_boundary", test_document_line_view_falls_back_to_copy_across_piece_boundary},
+	{"document_line_view_empty_doc_and_blank_lines", test_document_line_view_empty_doc_and_blank_lines},
 };
 
 const int g_document_text_editing_test_count =

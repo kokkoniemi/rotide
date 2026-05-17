@@ -218,7 +218,13 @@ int editorInsertText(const char *text, size_t len) {
 		return 0;
 	}
 	if (E.cy < E.numrows) {
-		insert_cx = editorRowClampCxToClusterBoundary(&E.rows[E.cy], E.cx);
+		struct editorLineView line = {0};
+		if (editorDocumentLineView(E.document, E.cy, &line)) {
+			insert_cx = editorBytesClampCxToClusterBoundary(line.data, line.size, E.cx);
+			editorLineViewRelease(&line);
+		} else {
+			insert_cx = E.cx;
+		}
 	} else {
 		insert_cx = 0;
 	}
@@ -270,22 +276,22 @@ static int editorEffectiveIndentWidth(void) {
 	return ROTIDE_INDENT_WIDTH_DEFAULT;
 }
 
-static size_t editorIndentPrefixColumns(const struct erow *row, int limit_cx) {
-	if (row == NULL || row->chars == NULL || limit_cx <= 0) {
+static size_t editorIndentPrefixColumnsBytes(const char *bytes, int size, int limit_cx) {
+	if (bytes == NULL || limit_cx <= 0) {
 		return 0;
 	}
-	if (limit_cx > row->size) {
-		limit_cx = row->size;
+	if (limit_cx > size) {
+		limit_cx = size;
 	}
 
 	size_t cols = 0;
 	size_t width = (size_t)editorEffectiveIndentWidth();
 	for (int i = 0; i < limit_cx; i++) {
-		if (row->chars[i] == ' ') {
+		if (bytes[i] == ' ') {
 			cols++;
 			continue;
 		}
-		if (row->chars[i] == '\t') {
+		if (bytes[i] == '\t') {
 			size_t remainder = cols % width;
 			cols += remainder == 0 ? width : width - remainder;
 			continue;
@@ -338,15 +344,26 @@ static int editorBuildIndentForLine(int row_idx, int limit_cx, char **indent_out
 	if (!E.auto_indent_enabled || row_idx < 0 || row_idx >= E.numrows) {
 		return 1;
 	}
-	int clamped_cx = editorRowClampCxToClusterBoundary(&E.rows[row_idx], limit_cx);
-	size_t cols = editorIndentPrefixColumns(&E.rows[row_idx], clamped_cx);
+	struct editorLineView row_view = {0};
+	if (!editorDocumentLineView(E.document, row_idx, &row_view)) {
+		return 0;
+	}
+	int clamped_cx = editorBytesClampCxToClusterBoundary(row_view.data, row_view.size,
+			limit_cx);
+	size_t cols = editorIndentPrefixColumnsBytes(row_view.data, row_view.size, clamped_cx);
+	editorLineViewRelease(&row_view);
 	int anchor_row = 0;
 	int extra_levels = 0;
 	if (editorSyntaxStateSuggestIndentAnchor(E.syntax_state, row_idx, clamped_cx,
 			&anchor_row, &extra_levels) && anchor_row >= 0 && anchor_row < E.numrows &&
 			extra_levels > 0) {
-		size_t syntax_cols = editorIndentPrefixColumns(&E.rows[anchor_row],
-				E.rows[anchor_row].size);
+		struct editorLineView anchor_view = {0};
+		if (!editorDocumentLineView(E.document, anchor_row, &anchor_view)) {
+			return 0;
+		}
+		size_t syntax_cols = editorIndentPrefixColumnsBytes(anchor_view.data,
+				anchor_view.size, anchor_view.size);
+		editorLineViewRelease(&anchor_view);
 		size_t extra_cols = 0;
 		size_t total_cols = 0;
 		if (!editorSizeMul((size_t)extra_levels, (size_t)editorEffectiveIndentWidth(),
@@ -447,7 +464,13 @@ void editorInsertChar(int c) {
 		 * Terminal UTF-8 input arrives byte-by-byte, so insertion needs to preserve
 		 * in-progress multibyte sequences instead of snapping back to a cluster boundary.
 		 */
-		insert_cx = editorRowClampCxToCharBoundary(&E.rows[E.cy], E.cx);
+		struct editorLineView line = {0};
+		if (editorDocumentLineView(E.document, E.cy, &line)) {
+			insert_cx = editorBytesClampCxToCharBoundary(line.data, line.size, E.cx);
+			editorLineViewRelease(&line);
+		} else {
+			insert_cx = E.cx;
+		}
 	} else {
 		insert_cx = 0;
 	}
@@ -478,7 +501,13 @@ void editorInsertChar(int c) {
 void editorInsertNewline(void) {
 	int split_idx = 0;
 	if (E.cy < E.numrows) {
-		split_idx = editorRowClampCxToClusterBoundary(&E.rows[E.cy], E.cx);
+		struct editorLineView line = {0};
+		if (editorDocumentLineView(E.document, E.cy, &line)) {
+			split_idx = editorBytesClampCxToClusterBoundary(line.data, line.size, E.cx);
+			editorLineViewRelease(&line);
+		} else {
+			split_idx = E.cx;
+		}
 	}
 
 	size_t start_offset = 0;
@@ -553,16 +582,20 @@ void editorDelChar(void) {
 	}
 
 	if (E.cx > 0) {
-		struct erow *row = &E.rows[E.cy];
-		int cur_cx = editorRowClampCxToClusterBoundary(row, E.cx);
-		int prev_cx = editorRowPrevClusterIdx(row, cur_cx);
+		struct editorLineView line = {0};
+		if (!editorDocumentLineView(E.document, E.cy, &line)) {
+			return;
+		}
+		int cur_cx = editorBytesClampCxToClusterBoundary(line.data, line.size, E.cx);
+		int prev_cx = editorBytesPrevClusterIdx(line.data, line.size, cur_cx);
+		editorLineViewRelease(&line);
 		if (!editorBufferPosToOffset(E.cy, prev_cx, &start_offset) ||
 				!editorBufferPosToOffset(E.cy, cur_cx, &end_offset) ||
 				end_offset <= start_offset) {
 			return;
 		}
 	} else {
-		int merge_col = E.rows[E.cy - 1].size;
+		int merge_col = (int)editorDocumentLineLength(E.document, E.cy - 1);
 		if (!editorBufferPosToOffset(E.cy - 1, merge_col, &start_offset) ||
 				!editorBufferPosToOffset(E.cy, 0, &end_offset) ||
 				end_offset <= start_offset) {

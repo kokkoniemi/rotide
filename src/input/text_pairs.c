@@ -5,6 +5,7 @@
 #include "editing/history.h"
 #include "editing/selection.h"
 #include "language/autocomplete.h"
+#include "text/document.h"
 #include "text/row.h"
 #include "workspace/tabs.h"
 
@@ -69,13 +70,17 @@ static int editorPairNextCharAllowsAutoClose(void) {
 		return 1;
 	}
 
-	struct erow *row = &E.rows[E.cy];
-	if (E.cx < 0 || E.cx >= row->size) {
+	struct editorLineView line = {0};
+	if (!editorDocumentLineView(E.document, E.cy, &line)) {
 		return 1;
 	}
-
-	unsigned char next = (unsigned char)row->chars[E.cx];
-	return isspace(next) || strchr(")]}'\"`.,;:", next) != NULL;
+	int allow = 1;
+	if (E.cx >= 0 && E.cx < line.size) {
+		unsigned char next = (unsigned char)line.data[E.cx];
+		allow = isspace(next) || strchr(")]}'\"`.,;:", next) != NULL;
+	}
+	editorLineViewRelease(&line);
+	return allow;
 }
 
 static int editorTextPairsSetCursorFromOffset(size_t offset) {
@@ -87,9 +92,12 @@ static int editorTextPairsSetCursorFromOffset(size_t offset) {
 		return 0;
 	}
 	if (cy < E.numrows) {
-		struct erow *row = &E.rows[cy];
-		cx = editorRowClampCxToCharBoundary(row, cx);
-		cx = editorRowClampCxToClusterBoundary(row, cx);
+		struct editorLineView line = {0};
+		if (editorDocumentLineView(E.document, cy, &line)) {
+			cx = editorBytesClampCxToCharBoundary(line.data, line.size, cx);
+			cx = editorBytesClampCxToClusterBoundary(line.data, line.size, cx);
+			editorLineViewRelease(&line);
+		}
 	} else {
 		cx = 0;
 	}
@@ -112,9 +120,12 @@ static int editorTextPairsSetCursorFromPosition(int cy, int cx) {
 		cy = E.numrows;
 	}
 	if (cy < E.numrows) {
-		struct erow *row = &E.rows[cy];
-		cx = editorRowClampCxToCharBoundary(row, cx);
-		cx = editorRowClampCxToClusterBoundary(row, cx);
+		struct editorLineView line = {0};
+		if (editorDocumentLineView(E.document, cy, &line)) {
+			cx = editorBytesClampCxToCharBoundary(line.data, line.size, cx);
+			cx = editorBytesClampCxToClusterBoundary(line.data, line.size, cx);
+			editorLineViewRelease(&line);
+		}
 	} else {
 		cx = 0;
 	}
@@ -135,8 +146,13 @@ int editorTrySkipOverClosingPair(int c) {
 		return 0;
 	}
 
-	struct erow *row = &E.rows[E.cy];
-	if (E.cx < 0 || E.cx >= row->size || row->chars[E.cx] != (char)c) {
+	struct editorLineView line = {0};
+	if (!editorDocumentLineView(E.document, E.cy, &line)) {
+		return 0;
+	}
+	int match = E.cx >= 0 && E.cx < line.size && line.data[E.cx] == (char)c;
+	editorLineViewRelease(&line);
+	if (!match) {
 		return 0;
 	}
 

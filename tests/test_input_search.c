@@ -36,7 +36,7 @@ static int test_editor_process_keypress_find_file_filters_previews_and_opens(voi
 	ASSERT_EQ_STR("b", editorFileSearchQuery());
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_EQ_STR(beta_file, E.filename);
-	ASSERT_EQ_STR("beta", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "beta");
 
 	char enter_key[] = {'\r'};
 	ASSERT_TRUE(editor_process_keypress_with_input(enter_key, sizeof(enter_key)) == 0);

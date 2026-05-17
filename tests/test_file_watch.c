@@ -43,7 +43,7 @@ static int test_file_watch_reloads_clean_active_tab(void) {
 
 	ASSERT_EQ_INT(0, E.dirty);
 	ASSERT_EQ_INT(0, E.disk_conflict);
-	ASSERT_EQ_STR("beta gamma", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "beta gamma");
 
 	unlink(path);
 	return 0;
@@ -65,7 +65,7 @@ static int test_file_watch_reloads_clean_inactive_tab(void) {
 	ASSERT_TRUE(editorTabSwitchToIndex(0));
 
 	ASSERT_EQ_INT(0, E.dirty);
-	ASSERT_EQ_STR("one changed", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "one changed");
 
 	unlink(first);
 	unlink(second);
@@ -84,7 +84,7 @@ static int test_file_watch_marks_dirty_conflict_without_reload(void) {
 
 	ASSERT_TRUE(E.dirty != 0);
 	ASSERT_EQ_INT(1, E.disk_conflict);
-	ASSERT_EQ_STR("Xalpha", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "Xalpha");
 
 	unlink(path);
 	return 0;
@@ -166,7 +166,7 @@ static int test_file_watch_deleted_clean_file_keeps_buffer(void) {
 	ASSERT_EQ_INT(0, E.dirty);
 	ASSERT_EQ_INT(0, E.disk_conflict);
 	ASSERT_EQ_INT(0, E.disk_state.exists);
-	ASSERT_EQ_STR("alpha", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "alpha");
 	ASSERT_TRUE(strstr(E.statusmsg, "File deleted on disk") != NULL);
 	return 0;
 }

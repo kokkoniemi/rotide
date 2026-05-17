@@ -17,7 +17,9 @@
 #include "render/viewport.h"
 #include "save_syscalls_test_hooks.h"
 #include "support/terminal.h"
+#include "text/document.h"
 #include "text/utf8.h"
+#include "workspace/tabs.h"
 #include "workspace/drawer.h"
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
@@ -203,8 +205,9 @@ void add_row_bytes(const char *s, size_t len) {
 		if (saved_cx < 0) {
 			saved_cx = 0;
 		}
-		if (saved_cx > E.rows[saved_cy].size) {
-			saved_cx = E.rows[saved_cy].size;
+		int line_len = (int)editorDocumentLineLength(E.document, saved_cy);
+		if (saved_cx > line_len) {
+			saved_cx = line_len;
 		}
 	} else {
 		saved_cx = 0;
@@ -517,4 +520,53 @@ char *refresh_screen_and_capture(size_t *len_out) {
 	editorRefreshScreen();
 
 	return stop_stdout_capture(&capture, len_out);
+}
+
+static char *editor_test_dup_line(const struct editorDocument *document, int cy) {
+	/* Uses libc malloc directly so the alloc-failure probe in OOM tests does
+	 * not affect post-failure row reads.
+	 */
+	size_t len = 0;
+	const char *bytes = editorDocumentLineBytes(document, cy, &len);
+	if (bytes != NULL) {
+		char *out = (char *)malloc(len + 1);
+		if (out == NULL) {
+			return NULL;
+		}
+		memcpy(out, bytes, len);
+		out[len] = '\0';
+		return out;
+	}
+	size_t start = 0;
+	size_t end = 0;
+	if (!editorDocumentLineStartByte(document, cy, &start) ||
+			!editorDocumentLineEndByte(document, cy, &end)) {
+		return NULL;
+	}
+	size_t span = end - start;
+	char *out = (char *)malloc(span + 1);
+	if (out == NULL) {
+		return NULL;
+	}
+	if (span > 0 && !editorDocumentCopyRange(document, start, end, out)) {
+		free(out);
+		return NULL;
+	}
+	out[span] = '\0';
+	return out;
+}
+
+char *editor_test_row_text(int cy) {
+	return editor_test_dup_line(E.document, cy);
+}
+
+int editor_test_row_size(int cy) {
+	return (int)editorDocumentLineLength(E.document, cy);
+}
+
+char *editor_test_tab_row_text(const struct editorTabState *tab, int cy) {
+	if (tab == NULL) {
+		return NULL;
+	}
+	return editor_test_dup_line(tab->document, cy);
 }

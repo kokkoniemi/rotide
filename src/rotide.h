@@ -88,10 +88,8 @@ struct editorTextSource {
 };
 
 struct erow {
-	int size;
 	int rsize;
 	int render_display_cols;
-	char *chars;
 	char *render;
 	int wrap_cache_body_cols;
 	int wrap_cache_segment_count;

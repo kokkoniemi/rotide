@@ -122,7 +122,7 @@ static int test_editor_lsp_autocomplete_accept_inserts_label(void) {
 
 	ASSERT_TRUE(editorAutocompleteAcceptSelection());
 	ASSERT_EQ_INT(0, editorAutocompleteIsVisible());
-	ASSERT_EQ_STR("foobar", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "foobar");
 
 	editorAutocompleteShutdown();
 	editorLspTestResetMock();
@@ -151,7 +151,7 @@ static int test_editor_lsp_autocomplete_accept_uses_insert_text(void) {
 	editorAutocompleteOnCharInserted('o');
 	editorLspTestDeliverPendingCompletion();
 	ASSERT_TRUE(editorAutocompleteAcceptSelection());
-	ASSERT_EQ_STR("foobar_extra", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "foobar_extra");
 
 	editorAutocompleteShutdown();
 	editorLspTestResetMock();
@@ -225,7 +225,7 @@ static int test_editor_lsp_autocomplete_typing_narrows_popup_keeps_accept_correc
 	ASSERT_EQ_INT(1, editorPopupItemCount());
 
 	ASSERT_TRUE(editorAutocompleteAcceptSelection());
-	ASSERT_EQ_STR("foo", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "foo");
 
 	editorAutocompleteShutdown();
 	editorLspTestResetMock();
@@ -347,7 +347,7 @@ static int test_editor_lsp_autocomplete_accept_uses_filter_text_when_label_decor
 	editorLspTestDeliverPendingCompletion();
 	ASSERT_TRUE(editorAutocompleteAcceptSelection());
 	/* Inserted text must not carry the leading space from label. */
-	ASSERT_EQ_STR("client.completion_pending", E.rows[0].chars);
+	ASSERT_ROW_TEXT_EQ(0, "client.completion_pending");
 
 	editorAutocompleteShutdown();
 	editorLspTestResetMock();

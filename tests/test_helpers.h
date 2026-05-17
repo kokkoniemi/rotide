@@ -5,6 +5,7 @@
 
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define ASSERT_TRUE(expr) \
@@ -72,5 +73,41 @@ int editor_read_key_with_input(const char *input, size_t len, int *key_out);
 int editor_process_keypress_with_input(const char *input, size_t len);
 char *editor_prompt_with_input(const char *input, size_t len, const char *prompt);
 char *refresh_screen_and_capture(size_t *len_out);
+
+struct editorDocument;
+struct editorTabState;
+
+/* Caller frees. Returns NULL on bad cy or OOM. */
+char *editor_test_row_text(int cy);
+int editor_test_row_size(int cy);
+char *editor_test_tab_row_text(const struct editorTabState *tab, int cy);
+
+#define ASSERT_ROW_TEXT_EQ(cy, expected) \
+	do { \
+		char *_actual = editor_test_row_text(cy); \
+		const char *_expected = (expected); \
+		if (_actual == NULL || strcmp(_actual, _expected) != 0) { \
+			fprintf(stderr, "Assertion failed in %s:%d: row %d expected \\\"%s\\\", got \\\"%s\\\"\\n", \
+					__func__, __LINE__, (int)(cy), _expected, \
+					_actual ? _actual : "(null)"); \
+			free(_actual); \
+			return 1; \
+		} \
+		free(_actual); \
+	} while (0)
+
+#define ASSERT_TAB_ROW_TEXT_EQ(tab, cy, expected) \
+	do { \
+		char *_actual = editor_test_tab_row_text((tab), (cy)); \
+		const char *_expected = (expected); \
+		if (_actual == NULL || strcmp(_actual, _expected) != 0) { \
+			fprintf(stderr, "Assertion failed in %s:%d: tab row %d expected \\\"%s\\\", got \\\"%s\\\"\\n", \
+					__func__, __LINE__, (int)(cy), _expected, \
+					_actual ? _actual : "(null)"); \
+			free(_actual); \
+			return 1; \
+		} \
+		free(_actual); \
+	} while (0)
 
 #endif

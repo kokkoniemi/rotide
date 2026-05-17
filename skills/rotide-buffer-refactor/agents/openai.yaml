@@ -1,4 +1,0 @@
-interface:
-  display_name: "Rotide Buffer Refactor"
-  short_description: "Execute one phase of the SumTree-of-pieces text storage migration."
-  default_prompt: "Use this skill for any phase of BUFFER_REFACTOR_PLAN.md. Read the plan first, identify the active phase from AGENTS.md, stay inside that phase's scope, and gate on tests/test_text_invariants.c at every phase boundary."

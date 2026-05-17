@@ -32,6 +32,7 @@
 #include <strings.h>
 #include <string.h>
 
+#include "text/document.h"
 #include "text/row.h"
 #include "text/utf8.h"
 
@@ -79,9 +80,12 @@ static int editorSetCursorFromOffset(size_t offset) {
 		return 0;
 	}
 	if (cy < E.numrows) {
-		struct erow *row = &E.rows[cy];
-		cx = editorRowClampCxToCharBoundary(row, cx);
-		cx = editorRowClampCxToClusterBoundary(row, cx);
+		struct editorLineView line = {0};
+		if (editorDocumentLineView(E.document, cy, &line)) {
+			cx = editorBytesClampCxToCharBoundary(line.data, line.size, cx);
+			cx = editorBytesClampCxToClusterBoundary(line.data, line.size, cx);
+			editorLineViewRelease(&line);
+		}
 	} else {
 		cx = 0;
 	}
@@ -104,9 +108,12 @@ static int editorSetCursorFromPosition(int cy, int cx) {
 		cy = E.numrows;
 	}
 	if (cy < E.numrows) {
-		struct erow *row = &E.rows[cy];
-		cx = editorRowClampCxToCharBoundary(row, cx);
-		cx = editorRowClampCxToClusterBoundary(row, cx);
+		struct editorLineView line = {0};
+		if (editorDocumentLineView(E.document, cy, &line)) {
+			cx = editorBytesClampCxToCharBoundary(line.data, line.size, cx);
+			cx = editorBytesClampCxToClusterBoundary(line.data, line.size, cx);
+			editorLineViewRelease(&line);
+		}
 	} else {
 		cx = 0;
 	}
@@ -123,10 +130,13 @@ static void editorAlignCursorWithRowEnd(void) {
 
 	int rowlen = 0;
 	if (E.numrows > E.cy) {
-		struct erow *row = &E.rows[E.cy];
-		// Never leave the cursor in the middle of a UTF-8 grapheme.
-		rowlen = row->size;
-		E.cx = editorRowClampCxToClusterBoundary(row, E.cx);
+		struct editorLineView line = {0};
+		if (editorDocumentLineView(E.document, E.cy, &line)) {
+			rowlen = line.size;
+			// Never leave the cursor in the middle of a UTF-8 grapheme.
+			E.cx = editorBytesClampCxToClusterBoundary(line.data, line.size, E.cx);
+			editorLineViewRelease(&line);
+		}
 	}
 	if (E.cx > rowlen) {
 		E.cx = rowlen;
@@ -338,9 +348,15 @@ static int editorIndentSelection(void) {
 	size_t out = 0;
 	for (int row = range.start_cy; row <= last_row; row++) {
 		new_text[out++] = '\t';
-		size_t row_len = (size_t)E.rows[row].size;
-		memcpy(new_text + out, E.rows[row].chars, row_len);
-		out += row_len;
+		struct editorLineView line = {0};
+		if (!editorDocumentLineView(E.document, row, &line)) {
+			free(new_text);
+			editorSetAllocFailureStatus();
+			return 1;
+		}
+		memcpy(new_text + out, line.data, (size_t)line.size);
+		out += (size_t)line.size;
+		editorLineViewRelease(&line);
 		if (row < last_row) {
 			new_text[out++] = '\n';
 		}
@@ -354,10 +370,10 @@ static int editorIndentSelection(void) {
 	if (E.cy >= range.start_cy && E.cy <= last_row) {
 		size_t cur_row_new_start = first_start;
 		for (int row = range.start_cy; row < E.cy; row++) {
-			cur_row_new_start += 1 + (size_t)E.rows[row].size + 1;
+			cur_row_new_start += 1 + editorDocumentLineLength(E.document, row) + 1;
 		}
 		size_t new_cx = (size_t)E.cx + 1;
-		size_t max_cx = (size_t)E.rows[E.cy].size + 1;
+		size_t max_cx = editorDocumentLineLength(E.document, E.cy) + 1;
 		if (new_cx > max_cx) {
 			new_cx = max_cx;
 		}
@@ -543,7 +559,7 @@ static int editorCollectMatchOffsets(const char *query, size_t query_len,
 
 		row = match_row;
 		int next_col = match_col + (int)query_len;
-		if (row < E.numrows && next_col > E.rows[row].size) {
+		if (row < E.numrows && (size_t)next_col > editorDocumentLineLength(E.document, row)) {
 			row++;
 			if (row >= E.numrows) {
 				break;
@@ -1064,12 +1080,17 @@ static int editorJumpToPathLocation(const char *path, int line, int character, i
 		character = 0;
 	}
 	character = editorLspProtocolCharacterToBufferColumn(line, character);
-	if (character > E.rows[line].size) {
-		character = E.rows[line].size;
-	}
-	int target_cx = editorRowClampCxToClusterBoundary(&E.rows[line], character);
-	if (target_cx > E.rows[line].size) {
-		target_cx = E.rows[line].size;
+	int target_cx = character;
+	struct editorLineView lview = {0};
+	if (editorDocumentLineView(E.document, line, &lview)) {
+		if (character > lview.size) {
+			character = lview.size;
+		}
+		target_cx = editorBytesClampCxToClusterBoundary(lview.data, lview.size, character);
+		if (target_cx > lview.size) {
+			target_cx = lview.size;
+		}
+		editorLineViewRelease(&lview);
 	}
 	size_t target_offset = 0;
 	if (!editorBufferPosToOffset(line, target_cx, &target_offset) ||
@@ -1390,30 +1411,42 @@ static void editorMoveCursor(int k) {
 	int cx = E.cx;
 	int target_rx = 0;
 	if ((k == ARROW_UP || k == ARROW_DOWN) && cy < E.numrows) {
-		target_rx = editorRowCxToRx(&E.rows[cy], cx);
+		struct editorLineView line = {0};
+		if (editorDocumentLineView(E.document, cy, &line)) {
+			target_rx = editorBytesCxToRx(line.data, line.size, cx);
+			editorLineViewRelease(&line);
+		}
 	}
 
 	switch (k) {
 		case ARROW_LEFT:
 			if (cx != 0) {
 				if (cy < E.numrows) {
-					// Step by grapheme cluster instead of byte index.
-					cx = editorRowPrevClusterIdx(&E.rows[cy], cx);
+					struct editorLineView line = {0};
+					if (editorDocumentLineView(E.document, cy, &line)) {
+						cx = editorBytesPrevClusterIdx(line.data, line.size, cx);
+						editorLineViewRelease(&line);
+					}
 				} else {
 					cx--;
 				}
 			} else if (cy > 0) {
 				cy--;
-				cx = E.rows[cy].size;
+				cx = (int)editorDocumentLineLength(E.document, cy);
 			}
 			break;
 		case ARROW_RIGHT:
-			if (E.numrows > cy && cx < E.rows[cy].size) {
-				// Step by grapheme cluster instead of byte index.
-				cx = editorRowNextClusterIdx(&E.rows[cy], cx);
-			} else if (E.numrows > cy && cx == E.rows[cy].size) {
-				cy++;
-				cx = 0;
+			if (E.numrows > cy) {
+				struct editorLineView line = {0};
+				if (editorDocumentLineView(E.document, cy, &line)) {
+					if (cx < line.size) {
+						cx = editorBytesNextClusterIdx(line.data, line.size, cx);
+					} else if (cx == line.size) {
+						cy++;
+						cx = 0;
+					}
+					editorLineViewRelease(&line);
+				}
 			}
 			break;
 		case ARROW_DOWN:
@@ -1429,14 +1462,18 @@ static void editorMoveCursor(int k) {
 	}
 
 	if ((k == ARROW_UP || k == ARROW_DOWN) && cy < E.numrows) {
-		cx = editorRowRxToCx(&E.rows[cy], target_rx);
+		struct editorLineView line = {0};
+		if (editorDocumentLineView(E.document, cy, &line)) {
+			cx = editorBytesRxToCx(line.data, line.size, target_rx);
+			editorLineViewRelease(&line);
+		}
 	}
 
 	(void)editorSetCursorFromPosition(cy, cx);
 }
 
-static int editorRowIsWordAt(const struct erow *row, int cx) {
-	return cx >= 0 && cx < row->size && editorIsWordByte((unsigned char)row->chars[cx]);
+static int editorBytesIsWordAt(const char *bytes, int size, int cx) {
+	return cx >= 0 && cx < size && editorIsWordByte((unsigned char)bytes[cx]);
 }
 
 static void editorMoveCursorWordLeft(void) {
@@ -1456,24 +1493,27 @@ static void editorMoveCursorWordLeft(void) {
 				break;
 			}
 			cy = E.numrows - 1;
-			cx = E.rows[cy].size;
+			cx = (int)editorDocumentLineLength(E.document, cy);
 			continue;
 		}
 
-		struct erow *row = &E.rows[cy];
-		cx = editorRowClampCxToCharBoundary(row, cx);
+		struct editorLineView line = {0};
+		if (!editorDocumentLineView(E.document, cy, &line)) {
+			break;
+		}
+		cx = editorBytesClampCxToCharBoundary(line.data, line.size, cx);
+		int found_word = 0;
 		if (cx > 0) {
-			int scan = editorRowPrevCharIdx(row, cx);
-			int found_word = 0;
+			int scan = editorBytesPrevCharIdx(line.data, line.size, cx);
 			while (1) {
-				if (editorRowIsWordAt(row, scan)) {
+				if (editorBytesIsWordAt(line.data, line.size, scan)) {
 					found_word = 1;
 					break;
 				}
 				if (scan == 0) {
 					break;
 				}
-				int prev = editorRowPrevCharIdx(row, scan);
+				int prev = editorBytesPrevCharIdx(line.data, line.size, scan);
 				if (prev >= scan) {
 					break;
 				}
@@ -1481,15 +1521,19 @@ static void editorMoveCursorWordLeft(void) {
 			}
 			if (found_word) {
 				while (scan > 0) {
-					int prev = editorRowPrevCharIdx(row, scan);
-					if (prev >= scan || !editorRowIsWordAt(row, prev)) {
+					int prev = editorBytesPrevCharIdx(line.data, line.size, scan);
+					if (prev >= scan ||
+							!editorBytesIsWordAt(line.data, line.size, prev)) {
 						break;
 					}
 					scan = prev;
 				}
 				cx = scan;
-				break;
 			}
+		}
+		editorLineViewRelease(&line);
+		if (found_word) {
+			break;
 		}
 
 		if (cy == 0) {
@@ -1497,7 +1541,7 @@ static void editorMoveCursorWordLeft(void) {
 			break;
 		}
 		cy--;
-		cx = E.rows[cy].size;
+		cx = (int)editorDocumentLineLength(E.document, cy);
 	}
 
 	(void)editorSetCursorFromPosition(cy, cx);
@@ -1514,31 +1558,36 @@ static void editorMoveCursorWordRight(void) {
 	}
 
 	while (cy < E.numrows) {
-		struct erow *row = &E.rows[cy];
-		cx = editorRowClampCxToCharBoundary(row, cx);
+		struct editorLineView line = {0};
+		if (!editorDocumentLineView(E.document, cy, &line)) {
+			break;
+		}
+		cx = editorBytesClampCxToCharBoundary(line.data, line.size, cx);
 		int found_word = 0;
 
-		while (cx < row->size && !editorRowIsWordAt(row, cx)) {
-			int next = editorRowNextCharIdx(row, cx);
+		while (cx < line.size && !editorBytesIsWordAt(line.data, line.size, cx)) {
+			int next = editorBytesNextCharIdx(line.data, line.size, cx);
 			if (next <= cx) {
 				break;
 			}
 			cx = next;
 		}
-		while (cx < row->size && editorRowIsWordAt(row, cx)) {
+		while (cx < line.size && editorBytesIsWordAt(line.data, line.size, cx)) {
 			found_word = 1;
-			int next = editorRowNextCharIdx(row, cx);
+			int next = editorBytesNextCharIdx(line.data, line.size, cx);
 			if (next <= cx) {
 				break;
 			}
 			cx = next;
 		}
+		int line_end = line.size;
+		editorLineViewRelease(&line);
 		if (found_word) {
 			break;
 		}
 
 		if (cy >= E.numrows - 1) {
-			cx = row->size;
+			cx = line_end;
 			break;
 		}
 		cy++;
@@ -1550,7 +1599,13 @@ static void editorMoveCursorWordRight(void) {
 
 static int editorColumnSelectionCurrentRx(void) {
 	if (E.cy >= 0 && E.cy < E.numrows) {
-		return editorRowCxToRx(&E.rows[E.cy], E.cx);
+		struct editorLineView line = {0};
+		if (!editorDocumentLineView(E.document, E.cy, &line)) {
+			return 0;
+		}
+		int rx = editorBytesCxToRx(line.data, line.size, E.cx);
+		editorLineViewRelease(&line);
+		return rx;
 	}
 	return 0;
 }
@@ -1578,7 +1633,11 @@ static void editorColumnSelectionApplyCursorRx(void) {
 		cy = E.numrows;
 	}
 	if (cy < E.numrows) {
-		cx = editorRowRxToCx(&E.rows[cy], target_rx);
+		struct editorLineView line = {0};
+		if (editorDocumentLineView(E.document, cy, &line)) {
+			cx = editorBytesRxToCx(line.data, line.size, target_rx);
+			editorLineViewRelease(&line);
+		}
 	}
 	(void)editorSetCursorFromPosition(cy, cx);
 }
@@ -1773,7 +1832,8 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 		case EDITOR_ACTION_MOVE_END:
 			editorHistoryBreakGroup();
 			if (E.cy < E.numrows) {
-				(void)editorSetCursorFromPosition(E.cy, E.rows[E.cy].size);
+				(void)editorSetCursorFromPosition(E.cy,
+					(int)editorDocumentLineLength(E.document, E.cy));
 			} else {
 				(void)editorSetCursorFromPosition(E.numrows, 0);
 			}

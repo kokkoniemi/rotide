@@ -16,6 +16,7 @@
 #include "render/write_buf.h"
 #include "support/size_utils.h"
 #include "support/alloc.h"
+#include "text/document.h"
 #include "text/row.h"
 #include "text/utf8.h"
 #include "terminal/terminal_pane.h"
@@ -246,7 +247,7 @@ if (cx_end <= cx_start) {
 	}
 
 	int start = 0;
-	int end = E.rows[row_idx].size;
+	int end = (int)editorDocumentLineLength(E.document, row_idx);
 	if (selection.start_cy == selection.end_cy) {
 		start = selection.start_cx;
 		end = selection.end_cx;
@@ -291,7 +292,7 @@ static int editorSearchSpanForRow(int row_idx, int *start_out, int *end_out) {
 	}
 
 	int start = 0;
-	int end = E.rows[row_idx].size;
+	int end = (int)editorDocumentLineLength(E.document, row_idx);
 	if (start_row == end_row) {
 		start = start_col;
 		end = end_col;
@@ -388,6 +389,10 @@ static int editorBuildDiagnosticRenderSpansForRow(int row_idx, const struct erow
 		return 1;
 	}
 
+	struct editorLineView line = {0};
+	if (!editorDocumentLineView(E.document, row_idx, &line)) {
+		return 1;
+	}
 	int count = 0;
 	for (int i = 0; i < E.lsp_diagnostic_count && count < max_spans; i++) {
 		if (!editorDiagnosticSeverityIsError(E.lsp_diagnostics[i].severity)) {
@@ -395,12 +400,12 @@ static int editorBuildDiagnosticRenderSpansForRow(int row_idx, const struct erow
 		}
 		int start = 0;
 		int end = 0;
-		if (!editorDiagnosticRangeForRow(&E.lsp_diagnostics[i], row_idx, row->size, &start,
+		if (!editorDiagnosticRangeForRow(&E.lsp_diagnostics[i], row_idx, line.size, &start,
 					&end)) {
 			continue;
 		}
-		int render_start = editorRowCxToRenderIdx(row, start);
-		int render_end = editorRowCxToRenderIdx(row, end);
+		int render_start = editorBytesCxToRenderIdx(line.data, line.size, row->rsize, start);
+		int render_end = editorBytesCxToRenderIdx(line.data, line.size, row->rsize, end);
 		if (render_end <= render_start) {
 			continue;
 		}
@@ -409,6 +414,7 @@ static int editorBuildDiagnosticRenderSpansForRow(int row_idx, const struct erow
 		spans[count].highlight_class = EDITOR_SYNTAX_HL_NONE;
 		count++;
 	}
+	editorLineViewRelease(&line);
 	*span_count_out = count;
 	return 1;
 }
@@ -589,25 +595,32 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 		diagnostic_span_count = 0;
 	}
 
+	struct editorLineView row_line = {0};
+	int have_row_line = editorDocumentLineView(E.document, row_idx, &row_line);
+	int row_size = have_row_line ? row_line.size : 0;
+
 	int hover_render_start = -1;
 	int hover_render_end = -1;
-	if (E.hover_link_active && E.hover_link_row == row_idx &&
+	if (have_row_line && E.hover_link_active && E.hover_link_row == row_idx &&
 			E.hover_link_cx_end > E.hover_link_cx_start) {
 		int hov_start_clamped = E.hover_link_cx_start;
 		int hov_end_clamped = E.hover_link_cx_end;
 		if (hov_start_clamped < 0) {
 			hov_start_clamped = 0;
 		}
-		if (hov_end_clamped > row->size) {
-			hov_end_clamped = row->size;
+		if (hov_end_clamped > row_size) {
+			hov_end_clamped = row_size;
 		}
 		if (hov_end_clamped > hov_start_clamped) {
-			hover_render_start = editorRowCxToRenderIdx(row, hov_start_clamped);
-			hover_render_end = editorRowCxToRenderIdx(row, hov_end_clamped);
+			hover_render_start = editorBytesCxToRenderIdx(row_line.data, row_size,
+					row->rsize, hov_start_clamped);
+			hover_render_end = editorBytesCxToRenderIdx(row_line.data, row_size,
+					row->rsize, hov_end_clamped);
 		}
 	}
 
 	if (highlight_len_chars <= 0) {
+		editorLineViewRelease(&row_line);
 		return editorDrawRenderSliceWithSyntax(wb, row, start, end, syntax_spans,
 				syntax_span_count, diagnostic_spans, diagnostic_span_count,
 				hover_render_start, hover_render_end);
@@ -617,22 +630,27 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 	if (match_start_chars < 0) {
 		match_start_chars = 0;
 	}
-	if (match_start_chars > row->size) {
-		match_start_chars = row->size;
+	if (match_start_chars > row_size) {
+		match_start_chars = row_size;
 	}
 	long long match_end_ll = (long long)match_start_chars + (long long)highlight_len_chars;
 	if (match_end_ll < match_start_chars) {
 		match_end_ll = match_start_chars;
 	}
-	if (match_end_ll > row->size) {
-		match_end_ll = row->size;
+	if (match_end_ll > row_size) {
+		match_end_ll = row_size;
 	}
 	int match_end_chars = (int)match_end_ll;
 
 	// Convert char-space selection/search boundaries into render byte indices
 	// with the same mapper used by row rendering and cursor calculations.
-	int match_render_start = editorRowCxToRenderIdx(row, match_start_chars);
-	int match_render_end = editorRowCxToRenderIdx(row, match_end_chars);
+	int match_render_start = have_row_line
+		? editorBytesCxToRenderIdx(row_line.data, row_size, row->rsize, match_start_chars)
+		: 0;
+	int match_render_end = have_row_line
+		? editorBytesCxToRenderIdx(row_line.data, row_size, row->rsize, match_end_chars)
+		: 0;
+	editorLineViewRelease(&row_line);
 	if (match_render_end <= match_render_start) {
 		return editorDrawRenderSliceWithSyntax(wb, row, start, end, syntax_spans,
 				syntax_span_count, diagnostic_spans, diagnostic_span_count,
@@ -1127,7 +1145,7 @@ static const struct editorLspDiagnostic *editorDiagnosticAtCursor(void) {
 			E.lsp_diagnostics == NULL || E.lsp_diagnostic_count <= 0) {
 		return NULL;
 	}
-	int row_size = E.rows[E.cy].size;
+	int row_size = (int)editorDocumentLineLength(E.document, E.cy);
 	for (int i = 0; i < E.lsp_diagnostic_count; i++) {
 		int start = 0;
 		int end = 0;

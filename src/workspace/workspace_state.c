@@ -8,6 +8,7 @@
 #include "render/screen.h"
 #include "support/alloc.h"
 #include "support/file_io.h"
+#include "text/document.h"
 #include "text/row.h"
 #include "workspace/layout.h"
 #include "workspace/drawer.h"
@@ -530,15 +531,20 @@ int editorWorkspaceStateRestoreTabs(void) {
 		if (target_cx < 0) {
 			target_cx = 0;
 		}
-		if (target_cx > E.rows[target_cy].size) {
-			target_cx = E.rows[target_cy].size;
-		}
-		target_cx = editorRowClampCxToClusterBoundary(&E.rows[target_cy], target_cx);
-		if (target_cx < 0) {
-			target_cx = 0;
-		}
-		if (target_cx > E.rows[target_cy].size) {
-			target_cx = E.rows[target_cy].size;
+		struct editorLineView line = {0};
+		if (editorDocumentLineView(E.document, target_cy, &line)) {
+			if (target_cx > line.size) {
+				target_cx = line.size;
+			}
+			target_cx = editorBytesClampCxToClusterBoundary(line.data, line.size,
+					target_cx);
+			if (target_cx < 0) {
+				target_cx = 0;
+			}
+			if (target_cx > line.size) {
+				target_cx = line.size;
+			}
+			editorLineViewRelease(&line);
 		}
 		size_t target_offset = 0;
 		if (editorBufferPosToOffset(target_cy, target_cx, &target_offset)) {

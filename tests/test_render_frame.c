@@ -507,10 +507,13 @@ static int test_editor_refresh_screen_repo_buffer_c_stays_highlighted(void) {
 
 	int target_row = -1;
 	for (int row_idx = 0; row_idx < E.numrows; row_idx++) {
-		if (strstr(E.rows[row_idx].chars, "\"Out of memory\"") != NULL) {
+		char *_row = editor_test_row_text(row_idx);
+		if (_row != NULL && strstr(_row, "\"Out of memory\"") != NULL) {
 			target_row = row_idx;
+			free(_row);
 			break;
 		}
+		free(_row);
 	}
 	ASSERT_TRUE(target_row >= 0);
 

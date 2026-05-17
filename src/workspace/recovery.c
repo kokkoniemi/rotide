@@ -697,15 +697,20 @@ static void editorRecoveryClampActiveCursorAndScroll(const struct editorRecovery
 		E.cy = E.numrows - 1;
 	}
 
-	struct erow *row = &E.rows[E.cy];
 	int target_cx = tab->cx;
 	if (target_cx < 0) {
 		target_cx = 0;
 	}
-	if (target_cx > row->size) {
-		target_cx = row->size;
+	struct editorLineView line = {0};
+	if (editorDocumentLineView(E.document, E.cy, &line)) {
+		if (target_cx > line.size) {
+			target_cx = line.size;
+		}
+		E.cx = editorBytesClampCxToClusterBoundary(line.data, line.size, target_cx);
+		editorLineViewRelease(&line);
+	} else {
+		E.cx = target_cx;
 	}
-	E.cx = editorRowClampCxToClusterBoundary(row, target_cx);
 
 	if (tab->rowoff < 0) {
 		E.rowoff = 0;

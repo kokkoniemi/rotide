@@ -341,6 +341,115 @@ static int checkMaxLineBytesMatchesRef(struct editorDocument *doc, struct refDoc
 	return 0;
 }
 
+#define INVARIANTS_LINE_READ_SAMPLES 8
+
+static int checkLineReadsMatch(struct editorDocument *doc, struct refDoc *ref,
+		uint64_t seed, const struct opLog *log) {
+	(void)ref;
+	int line_count = editorDocumentLineCount(doc);
+	if (line_count == 0) {
+		return 0;
+	}
+	int samples = line_count < INVARIANTS_LINE_READ_SAMPLES
+		? line_count : INVARIANTS_LINE_READ_SAMPLES;
+	for (int s = 0; s < samples; s++) {
+		int line_idx = (int)(rngNext() % (uint64_t)line_count);
+		size_t start = 0;
+		size_t end = 0;
+		if (!editorDocumentLineStartByte(doc, line_idx, &start) ||
+				!editorDocumentLineEndByte(doc, line_idx, &end)) {
+			fprintf(stderr,
+				"text_invariants: line bounds lookup failed line=%d after op#%d seed=0x%016llx\n",
+				line_idx, log->op_idx, (unsigned long long)seed);
+			return -1;
+		}
+		size_t expected_len = end - start;
+		if (editorDocumentLineLength(doc, line_idx) != expected_len) {
+			fprintf(stderr,
+				"text_invariants: line length mismatch line=%d expected=%zu got=%zu "
+				"after op#%d seed=0x%016llx\n",
+				line_idx, expected_len, editorDocumentLineLength(doc, line_idx),
+				log->op_idx, (unsigned long long)seed);
+			return -1;
+		}
+		char *copy_buf = NULL;
+		if (expected_len > 0) {
+			copy_buf = (char *)malloc(expected_len);
+			if (copy_buf == NULL) {
+				return -1;
+			}
+			if (!editorDocumentCopyRange(doc, start, end, copy_buf)) {
+				fprintf(stderr,
+					"text_invariants: CopyRange failed line=%d after op#%d seed=0x%016llx\n",
+					line_idx, log->op_idx, (unsigned long long)seed);
+				free(copy_buf);
+				return -1;
+			}
+		}
+
+		size_t dup_len = 0;
+		char *dup = editorDocumentLineDup(doc, line_idx, &dup_len);
+		if (dup == NULL) {
+			fprintf(stderr,
+				"text_invariants: LineDup failed line=%d after op#%d seed=0x%016llx\n",
+				line_idx, log->op_idx, (unsigned long long)seed);
+			free(copy_buf);
+			return -1;
+		}
+		if (dup_len != expected_len ||
+				(expected_len > 0 && memcmp(dup, copy_buf, expected_len) != 0)) {
+			fprintf(stderr,
+				"text_invariants: LineDup bytes differ from CopyRange line=%d "
+				"after op#%d seed=0x%016llx\n",
+				line_idx, log->op_idx, (unsigned long long)seed);
+			free(dup);
+			free(copy_buf);
+			return -1;
+		}
+
+		struct editorLineView view = {0};
+		if (!editorDocumentLineView(doc, line_idx, &view)) {
+			fprintf(stderr,
+				"text_invariants: LineView failed line=%d after op#%d seed=0x%016llx\n",
+				line_idx, log->op_idx, (unsigned long long)seed);
+			free(dup);
+			free(copy_buf);
+			return -1;
+		}
+		if ((size_t)view.size != expected_len ||
+				(expected_len > 0 && memcmp(view.data, dup, expected_len) != 0)) {
+			fprintf(stderr,
+				"text_invariants: LineView bytes differ from LineDup line=%d "
+				"after op#%d seed=0x%016llx\n",
+				line_idx, log->op_idx, (unsigned long long)seed);
+			editorLineViewRelease(&view);
+			free(dup);
+			free(copy_buf);
+			return -1;
+		}
+		editorLineViewRelease(&view);
+
+		size_t bytes_len = 0;
+		const char *bytes = editorDocumentLineBytes(doc, line_idx, &bytes_len);
+		if (bytes != NULL) {
+			if (bytes_len != expected_len ||
+					(expected_len > 0 && memcmp(bytes, dup, expected_len) != 0)) {
+				fprintf(stderr,
+					"text_invariants: LineBytes differ from LineDup line=%d "
+					"after op#%d seed=0x%016llx\n",
+					line_idx, log->op_idx, (unsigned long long)seed);
+				free(dup);
+				free(copy_buf);
+				return -1;
+			}
+		}
+
+		free(dup);
+		free(copy_buf);
+	}
+	return 0;
+}
+
 static int checkLineCountMatchesNewlines(struct editorDocument *doc, struct refDoc *ref,
 		uint64_t seed, const struct opLog *log) {
 	int line_count = editorDocumentLineCount(doc);
@@ -411,7 +520,8 @@ static int runRandomOpsExtStride(uint64_t seed, int n_ops, size_t doc_cap, size_
 		checkPositionRoundtrip(&doc, &ref, seed, &init_log) != 0 ||
 		checkLineCountMatchesNewlines(&doc, &ref, seed, &init_log) != 0 ||
 		checkLineIndexInvariants(&doc, &ref, seed, &init_log) != 0 ||
-		checkMaxLineBytesMatchesRef(&doc, &ref, seed, &init_log) != 0) {
+		checkMaxLineBytesMatchesRef(&doc, &ref, seed, &init_log) != 0 ||
+		checkLineReadsMatch(&doc, &ref, seed, &init_log) != 0) {
 		editorDocumentFree(&doc);
 		refDocFree(&ref);
 		return 1;
@@ -473,7 +583,8 @@ static int runRandomOpsExtStride(uint64_t seed, int n_ops, size_t doc_cap, size_
 			checkPositionRoundtrip(&doc, &ref, seed, &log) != 0 ||
 			checkLineCountMatchesNewlines(&doc, &ref, seed, &log) != 0 ||
 			checkLineIndexInvariants(&doc, &ref, seed, &log) != 0 ||
-			checkMaxLineBytesMatchesRef(&doc, &ref, seed, &log) != 0)) {
+			checkMaxLineBytesMatchesRef(&doc, &ref, seed, &log) != 0 ||
+			checkLineReadsMatch(&doc, &ref, seed, &log) != 0)) {
 			free(ins_buf);
 			editorDocumentFree(&doc);
 			refDocFree(&ref);
@@ -588,7 +699,7 @@ static int docHasTrailingNewline(void) {
 static size_t sumRowBytesIncludingNewlines(void) {
 	size_t total = 0;
 	for (int r = 0; r < E.numrows; r++) {
-		total += (size_t)E.rows[r].size;
+		total += editorDocumentLineLength(E.document, r);
 	}
 	if (E.numrows > 0) {
 		total += (size_t)(E.numrows - 1);
@@ -603,12 +714,18 @@ static int dumpEditorRows(char *out, size_t cap) {
 	size_t pos = 0;
 	int trailing = docHasTrailingNewline();
 	for (int r = 0; r < E.numrows; r++) {
-		size_t n = (size_t)E.rows[r].size;
-		if (pos + n > cap) {
+		struct editorLineView line = {0};
+		if (!editorDocumentLineView(E.document, r, &line)) {
 			return -1;
 		}
-		memcpy(out + pos, E.rows[r].chars, n);
+		size_t n = (size_t)line.size;
+		if (pos + n > cap) {
+			editorLineViewRelease(&line);
+			return -1;
+		}
+		memcpy(out + pos, line.data, n);
 		pos += n;
+		editorLineViewRelease(&line);
 		if (r + 1 < E.numrows || trailing) {
 			if (pos + 1 > cap) {
 				return -1;

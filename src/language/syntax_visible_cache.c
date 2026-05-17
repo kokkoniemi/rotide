@@ -5,6 +5,7 @@
 #include "editing/text_source.h"
 #include "support/alloc.h"
 #include "support/size_utils.h"
+#include "text/document.h"
 #include "text/row.h"
 
 #include "rotide.h"
@@ -573,6 +574,10 @@ static int editorSyntaxBuildVisibleSpanCache(int first_row, int row_count) {
 
 		int row_idx = first_row + rel_row;
 		struct erow *row = &E.rows[row_idx];
+		struct editorLineView line = {0};
+		if (!editorDocumentLineView(E.document, row_idx, &line)) {
+			return 0;
+		}
 		int span_base = rel_row * ROTIDE_MAX_SYNTAX_SPANS_PER_ROW;
 		g_visible_syntax_cache.span_counts[rel_row] = 0;
 
@@ -586,6 +591,7 @@ static int editorSyntaxBuildVisibleSpanCache(int first_row, int row_count) {
 		if (!editorSyntaxOffsetToU32(row_start_offset, &start_byte) ||
 				!editorSyntaxOffsetToU32(row_end_offset, &end_byte) ||
 				start_byte >= end_byte) {
+			editorLineViewRelease(&line);
 			g_visible_syntax_cache.row_dirty[rel_row] = 0;
 			continue;
 		}
@@ -598,17 +604,20 @@ static int editorSyntaxBuildVisibleSpanCache(int first_row, int row_count) {
 		size_t cap_bytes = 0;
 		if (!editorIntToSize(capture_limit, &cap_size) ||
 				!editorSizeMul(sizeof(struct editorSyntaxCapture), cap_size, &cap_bytes)) {
+			editorLineViewRelease(&line);
 			return 0;
 		}
 
 		struct editorSyntaxCapture *captures = editorMalloc(cap_bytes);
 		if (captures == NULL) {
+			editorLineViewRelease(&line);
 			return 0;
 		}
 
 		int capture_count = 0;
 		if (!editorSyntaxStateCollectCapturesForRange(E.syntax_state, &source, start_byte, end_byte,
 					captures, capture_limit, &capture_count)) {
+			editorLineViewRelease(&line);
 			free(captures);
 			return 0;
 		}
@@ -631,27 +640,29 @@ static int editorSyntaxBuildVisibleSpanCache(int first_row, int row_count) {
 			if (local_start < 0) {
 				local_start = 0;
 			}
-			if (local_start > row->size) {
-				local_start = row->size;
+			if (local_start > line.size) {
+				local_start = line.size;
 			}
 			if (local_end < 0) {
 				local_end = 0;
 			}
-			if (local_end > row->size) {
-				local_end = row->size;
+			if (local_end > line.size) {
+				local_end = line.size;
 			}
 
-			local_start = editorRowClampCxToCharBoundary(row, local_start);
-			local_end = editorRowClampCxToCharBoundary(row, local_end);
-			if (local_end <= local_start && local_end < row->size) {
-				local_end = editorRowNextCharIdx(row, local_end);
+			local_start = editorBytesClampCxToCharBoundary(line.data, line.size, local_start);
+			local_end = editorBytesClampCxToCharBoundary(line.data, line.size, local_end);
+			if (local_end <= local_start && local_end < line.size) {
+				local_end = editorBytesNextCharIdx(line.data, line.size, local_end);
 			}
 			if (local_end <= local_start) {
 				continue;
 			}
 
-			int render_start = editorRowCxToRenderIdx(row, local_start);
-			int render_end = editorRowCxToRenderIdx(row, local_end);
+			int render_start = editorBytesCxToRenderIdx(line.data, line.size, row->rsize,
+					local_start);
+			int render_end = editorBytesCxToRenderIdx(line.data, line.size, row->rsize,
+					local_end);
 			if (render_end <= render_start) {
 				continue;
 			}
@@ -662,6 +673,7 @@ static int editorSyntaxBuildVisibleSpanCache(int first_row, int row_count) {
 			g_visible_syntax_cache.span_counts[rel_row] = slot + 1;
 		}
 
+		editorLineViewRelease(&line);
 		free(captures);
 		g_visible_syntax_cache.row_dirty[rel_row] = 0;
 		g_visible_syntax_row_recompute_count++;
@@ -815,6 +827,10 @@ int editorSyntaxRowRenderSpans(int row_idx, struct editorRowSyntaxSpan *spans, i
 	}
 
 	struct erow *row = &E.rows[row_idx];
+	struct editorLineView line = {0};
+	if (!editorDocumentLineView(E.document, row_idx, &line)) {
+		return 0;
+	}
 	int out_count = 0;
 	for (int i = 0; i < capture_count && out_count < max_spans; i++) {
 		if (captures[i].highlight_class == EDITOR_SYNTAX_HL_NONE ||
@@ -827,27 +843,29 @@ int editorSyntaxRowRenderSpans(int row_idx, struct editorRowSyntaxSpan *spans, i
 		if (local_start < 0) {
 			local_start = 0;
 		}
-		if (local_start > row->size) {
-			local_start = row->size;
+		if (local_start > line.size) {
+			local_start = line.size;
 		}
 		if (local_end < 0) {
 			local_end = 0;
 		}
-		if (local_end > row->size) {
-			local_end = row->size;
+		if (local_end > line.size) {
+			local_end = line.size;
 		}
 
-		local_start = editorRowClampCxToCharBoundary(row, local_start);
-		local_end = editorRowClampCxToCharBoundary(row, local_end);
-		if (local_end <= local_start && local_end < row->size) {
-			local_end = editorRowNextCharIdx(row, local_end);
+		local_start = editorBytesClampCxToCharBoundary(line.data, line.size, local_start);
+		local_end = editorBytesClampCxToCharBoundary(line.data, line.size, local_end);
+		if (local_end <= local_start && local_end < line.size) {
+			local_end = editorBytesNextCharIdx(line.data, line.size, local_end);
 		}
 		if (local_end <= local_start) {
 			continue;
 		}
 
-		int render_start = editorRowCxToRenderIdx(row, local_start);
-		int render_end = editorRowCxToRenderIdx(row, local_end);
+		int render_start = editorBytesCxToRenderIdx(line.data, line.size, row->rsize,
+				local_start);
+		int render_end = editorBytesCxToRenderIdx(line.data, line.size, row->rsize,
+				local_end);
 		if (render_end <= render_start) {
 			continue;
 		}
@@ -857,6 +875,7 @@ int editorSyntaxRowRenderSpans(int row_idx, struct editorRowSyntaxSpan *spans, i
 		spans[out_count].highlight_class = captures[i].highlight_class;
 		out_count++;
 	}
+	editorLineViewRelease(&line);
 
 	if (count_out != NULL) {
 		*count_out = out_count;
