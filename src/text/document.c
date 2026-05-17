@@ -16,7 +16,13 @@ void editorDocumentInit(struct editorDocument *document) {
 	if (document == NULL) {
 		return;
 	}
-	editorTextTreeInit(&document->tree);
+	/* Best-effort init. On OOM the tree's root/add_buf are left NULL and the
+	 * first ReplaceRange / Append call retries the allocation via the
+	 * Ensure* helpers inside text_tree.c. Callers that need eager failure
+	 * detection should follow up with a length query or use the explicit
+	 * ResetFrom* paths which do propagate OOM.
+	 */
+	(void)editorTextTreeInit(&document->tree);
 }
 
 void editorDocumentFree(struct editorDocument *document) {
@@ -108,6 +114,13 @@ int editorDocumentReplaceRange(struct editorDocument *document, size_t start_byt
 	}
 	editorTextTreeStatsRecordIncrementalUpdate();
 	return 1;
+}
+
+int editorDocumentReserveInsertCapacity(struct editorDocument *document, size_t additional_bytes) {
+	if (document == NULL) {
+		return 0;
+	}
+	return editorTextTreeReserveAddBufCapacity(&document->tree, additional_bytes);
 }
 
 int editorDocumentLineCount(const struct editorDocument *document) {

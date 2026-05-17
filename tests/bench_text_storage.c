@@ -103,6 +103,37 @@ int main(int argc, char **argv) {
 	}
 	double t_inserts = monotonic_seconds() - t_inserts_start;
 
+	double t_deletes_start = monotonic_seconds();
+	for (int i = 0; i < ops; i++) {
+		size_t cur = editorDocumentLength(&doc);
+		if (cur == 0) {
+			break;
+		}
+		size_t at = (size_t)(bench_rng_next() % cur);
+		if (!editorDocumentReplaceRange(&doc, at, 1, NULL, 0)) {
+			fprintf(stderr, "bench: delete op#%d failed\n", i);
+			editorDocumentFree(&doc);
+			return 1;
+		}
+	}
+	double t_deletes = monotonic_seconds() - t_deletes_start;
+
+	double t_replaces_start = monotonic_seconds();
+	for (int i = 0; i < ops; i++) {
+		size_t cur = editorDocumentLength(&doc);
+		if (cur == 0) {
+			break;
+		}
+		size_t at = (size_t)(bench_rng_next() % cur);
+		char ch = (char)('a' + (bench_rng_next() % 26));
+		if (!editorDocumentReplaceRange(&doc, at, 1, &ch, 1)) {
+			fprintf(stderr, "bench: replace op#%d failed\n", i);
+			editorDocumentFree(&doc);
+			return 1;
+		}
+	}
+	double t_replaces = monotonic_seconds() - t_replaces_start;
+
 	size_t final_len = editorDocumentLength(&doc);
 	int final_lines = editorDocumentLineCount(&doc);
 
@@ -112,6 +143,10 @@ int main(int argc, char **argv) {
 		(double)doc_bytes / (t_open > 0 ? t_open : 1e-12) / 1e6);
 	printf("  random_inserts:  %8.4f s  (%.2f us/op)\n", t_inserts,
 		t_inserts * 1e6 / (double)(ops > 0 ? ops : 1));
+	printf("  random_deletes:  %8.4f s  (%.2f us/op)\n", t_deletes,
+		t_deletes * 1e6 / (double)(ops > 0 ? ops : 1));
+	printf("  random_replaces: %8.4f s  (%.2f us/op)\n", t_replaces,
+		t_replaces * 1e6 / (double)(ops > 0 ? ops : 1));
 	printf("  final_length=%zu final_lines=%d\n", final_len, final_lines);
 
 	editorDocumentFree(&doc);

@@ -316,9 +316,14 @@ static int test_text_tree_random_edits_bounded_piece_count(void) {
 
 	struct editorTextTreeStats stats;
 	editorTextTreeCollectStats(&tree, &stats);
-	/* Worst case is ~2 pieces per mid-piece insert. Bound loosely to catch
-	 * an absolute regression (e.g., if a single insert started producing
-	 * many pieces, or stats double-counted). */
+	/* Per-insert worst case is +2 pieces (mid-piece split into left + new +
+	 * right), so 500 random-position inserts bound at ~1000. The 1500 limit
+	 * leaves headroom for descent-tie behaviour where the random offset
+	 * coincides with a piece boundary and the insert lands on the right side
+	 * of the split; this regression-detects gross changes (e.g., a single
+	 * insert spawning many pieces, or CollectStats double-counting) without
+	 * being brittle to small coalescing/split heuristic tweaks.
+	 */
 	ASSERT_TRUE(stats.piece_count < 1500);
 	ASSERT_TRUE(stats.max_depth <= 4);
 

@@ -29,6 +29,12 @@ char *editorDocumentDupRange(const struct editorDocument *document, size_t start
 int editorDocumentReplaceRange(struct editorDocument *document, size_t start_byte, size_t old_len,
 		const char *new_text, size_t new_len);
 
+/* Reserve add-buffer capacity for `additional_bytes` so the next inserts of
+ * that total size happen without realloc — used by edit pipelines that need
+ * an alloc-free revert path. Returns 1 on success, 0 on OOM.
+ */
+int editorDocumentReserveInsertCapacity(struct editorDocument *document, size_t additional_bytes);
+
 /* Byte/line mapping helpers are the boundary between document storage and
  * editor cursor/search/selection state.
  */

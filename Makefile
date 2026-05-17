@@ -228,6 +228,15 @@ test-sanitize:
 	$(call LOG,MAKE,test-sanitize)$(MAKE) CFLAGS="$(CFLAGS) $(SANITIZER_CFLAGS)" \
 		LDFLAGS="$(LDFLAGS) $(SANITIZER_LDFLAGS)" test
 
+# Builds with -DROTIDE_TEXT_TREE_DEEP_CHECK so every ReplaceRange recomputes
+# the root summary from scratch and asserts it matches the maintained value.
+# O(N) per edit, so run on demand rather than in the default test loop.
+test-text-tree-deep-check:
+	$(call LOG,CLEAN,build)$(MAKE) clean
+	$(call LOG,MAKE,test-text-tree-deep-check)$(MAKE) \
+		CFLAGS="$(CFLAGS) $(SANITIZER_CFLAGS) -DROTIDE_TEXT_TREE_DEEP_CHECK" \
+		LDFLAGS="$(LDFLAGS) $(SANITIZER_LDFLAGS)" test
+
 test-determinism: $(TEST_BIN)
 	$(call LOG,TEST,determinism)scripts/check_test_determinism.sh ./$(TEST_BIN) $(TEST_FLAGS)
 
@@ -257,7 +266,7 @@ docs-diagrams:
 
 -include $(DEPFILES)
 
-.PHONY: clean test test-sanitize test-determinism test-tsan test-crash-handler release docs-media docs-diagrams bench-buffer
+.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler release docs-media docs-diagrams bench-buffer
 
 clean:
 	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(BENCH_BUFFER_OBJ) $(DEPFILES) $(TEST_BIN) $(BENCH_BUFFER_BIN) rotide $(GENERATED_HEADERS)

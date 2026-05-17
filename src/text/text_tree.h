@@ -41,7 +41,11 @@ struct editorTextTree {
 	struct editorTextBuffer *add_buf;
 };
 
-void editorTextTreeInit(struct editorTextTree *tree);
+/* Initialises an empty tree. Returns 1 on success, 0 on OOM (in which case
+ * the tree is zeroed and safe to pass to editorTextTreeFree, which is a
+ * no-op).
+ */
+int editorTextTreeInit(struct editorTextTree *tree);
 void editorTextTreeFree(struct editorTextTree *tree);
 
 size_t editorTextTreeLength(const struct editorTextTree *tree);
@@ -61,6 +65,12 @@ int editorTextTreeResetFromTextSource(struct editorTextTree *tree,
 int editorTextTreeReplaceRange(struct editorTextTree *tree, size_t start_byte, size_t old_len,
 		const char *new_text, size_t new_len);
 
+/* Pre-grow the add buffer so the next `additional_bytes` of insert traffic
+ * can be appended without realloc. Used by edit pipelines that need a revert
+ * path to be allocation-free. Returns 1 on success, 0 on OOM.
+ */
+int editorTextTreeReserveAddBufCapacity(struct editorTextTree *tree, size_t additional_bytes);
+
 /* Returns the byte offset where `line_idx` begins. Line 0 starts at byte 0;
  * line k (k >= 1) starts at the byte immediately after the k-th newline.
  * Valid range: 0 <= line_idx <= summary.newlines.
@@ -74,6 +84,9 @@ int editorTextTreeLineForByte(const struct editorTextTree *tree, size_t byte,
 
 /* Diagnostic snapshot — used by tests/benchmarks to assert that piece counts
  * stay bounded under heavy editing.
+ *
+ * max_depth counts internal-node edges from the root: a single-leaf tree
+ * reports 0, a root-with-leaf-children tree reports 1, and so on.
  */
 struct editorTextTreeStats {
 	int leaf_count;

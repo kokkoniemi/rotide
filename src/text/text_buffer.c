@@ -47,6 +47,30 @@ void editorTextBufferRelease(struct editorTextBuffer *buf) {
 	}
 }
 
+int editorTextBufferReserve(struct editorTextBuffer *buf, size_t min_capacity) {
+	if (buf == NULL) {
+		return 0;
+	}
+	if (min_capacity <= buf->capacity) {
+		return 1;
+	}
+	size_t new_cap = buf->capacity > 0 ? buf->capacity : 64;
+	while (new_cap < min_capacity) {
+		if (new_cap > ((size_t)-1) / 2) {
+			new_cap = min_capacity;
+			break;
+		}
+		new_cap *= 2;
+	}
+	char *grown = editorRealloc(buf->bytes, new_cap);
+	if (grown == NULL) {
+		return 0;
+	}
+	buf->bytes = grown;
+	buf->capacity = new_cap;
+	return 1;
+}
+
 int editorTextBufferAppend(struct editorTextBuffer *buf, const char *bytes, size_t len,
 		size_t *offset_out) {
 	if (buf == NULL || (len > 0 && bytes == NULL)) {
@@ -57,21 +81,8 @@ int editorTextBufferAppend(struct editorTextBuffer *buf, const char *bytes, size
 	if (!editorSizeAdd(buf->len, len, &needed)) {
 		return 0;
 	}
-	if (needed > buf->capacity) {
-		size_t new_cap = buf->capacity > 0 ? buf->capacity : 64;
-		while (new_cap < needed) {
-			if (new_cap > ((size_t)-1) / 2) {
-				new_cap = needed;
-				break;
-			}
-			new_cap *= 2;
-		}
-		char *grown = editorRealloc(buf->bytes, new_cap);
-		if (grown == NULL) {
-			return 0;
-		}
-		buf->bytes = grown;
-		buf->capacity = new_cap;
+	if (!editorTextBufferReserve(buf, needed)) {
+		return 0;
 	}
 	if (len > 0) {
 		memcpy(buf->bytes + start, bytes, len);
