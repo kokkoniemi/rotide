@@ -156,10 +156,133 @@ static int test_text_tree_merge_collapses_after_drain(void) {
 	return 0;
 }
 
+/* Naive reference: byte position immediately after the line_idx-th '\n'. */
+static int ref_line_start_byte(const char *text, size_t len, int line_idx, size_t *out) {
+	if (line_idx == 0) {
+		*out = 0;
+		return 1;
+	}
+	int seen = 0;
+	for (size_t i = 0; i < len; i++) {
+		if (text[i] != '\n') {
+			continue;
+		}
+		seen++;
+		if (seen == line_idx) {
+			*out = i + 1;
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static int ref_line_for_byte(const char *text, size_t byte) {
+	int line = 0;
+	for (size_t i = 0; i < byte; i++) {
+		if (text[i] == '\n') {
+			line++;
+		}
+	}
+	return line;
+}
+
+static int test_text_tree_locate_line_matches_naive(void) {
+	const char *text = "alpha\nbeta\n\ngamma\n\ndelta";
+	size_t len = strlen(text);
+	struct editorTextTree tree;
+	editorTextTreeInit(&tree);
+	ASSERT_TRUE(editorTextTreeResetFromString(&tree, text, len));
+
+	int newlines = editorTextTreeSummary(&tree)->newlines;
+	for (int i = 0; i <= newlines; i++) {
+		size_t tree_start = 0;
+		ASSERT_TRUE(editorTextTreeLocateLine(&tree, i, &tree_start));
+		size_t ref_start = 0;
+		ASSERT_TRUE(ref_line_start_byte(text, len, i, &ref_start));
+		ASSERT_EQ_INT((int)ref_start, (int)tree_start);
+	}
+
+	/* Out of range. */
+	size_t dummy = 0;
+	ASSERT_TRUE(!editorTextTreeLocateLine(&tree, newlines + 1, &dummy));
+	ASSERT_TRUE(!editorTextTreeLocateLine(&tree, -1, &dummy));
+
+	editorTextTreeFree(&tree);
+	return 0;
+}
+
+static int test_text_tree_line_for_byte_matches_naive(void) {
+	const char *text = "alpha\nbeta\n\ngamma\n\ndelta";
+	size_t len = strlen(text);
+	struct editorTextTree tree;
+	editorTextTreeInit(&tree);
+	ASSERT_TRUE(editorTextTreeResetFromString(&tree, text, len));
+
+	for (size_t b = 0; b < len; b++) {
+		int line = -1;
+		ASSERT_TRUE(editorTextTreeLineForByte(&tree, b, &line));
+		ASSERT_EQ_INT(ref_line_for_byte(text, b), line);
+	}
+	int dummy = 0;
+	ASSERT_TRUE(!editorTextTreeLineForByte(&tree, len, &dummy));
+
+	editorTextTreeFree(&tree);
+	return 0;
+}
+
+/* Force a deep tree, then verify LocateLine/LineForByte are still correct. */
+static int test_text_tree_line_queries_survive_splits(void) {
+	struct editorTextTree tree;
+	editorTextTreeInit(&tree);
+
+	/* Build "line0\nline1\n...line99\n" — many newlines so descent matters. */
+	char buf[1024];
+	size_t off = 0;
+	for (int i = 0; i < 100; i++) {
+		int n = snprintf(buf + off, sizeof(buf) - off, "line%d\n", i);
+		ASSERT_TRUE(n > 0);
+		off += (size_t)n;
+	}
+	ASSERT_TRUE(editorTextTreeResetFromString(&tree, buf, off));
+
+	/* Insert one byte at the start many times to force splits. */
+	for (int i = 0; i < 200; i++) {
+		char c = 'x';
+		ASSERT_TRUE(editorTextTreeReplaceRange(&tree, 0, 0, &c, 1));
+	}
+
+	/* Snapshot the actual bytes and re-verify with naive ref. */
+	size_t total = editorTextTreeLength(&tree);
+	char *snap = (char *)malloc(total);
+	ASSERT_TRUE(snap != NULL);
+	ASSERT_TRUE(editorTextTreeCopyRange(&tree, 0, total, snap));
+
+	int newlines = editorTextTreeSummary(&tree)->newlines;
+	for (int i = 0; i <= newlines; i++) {
+		size_t tree_start = 0;
+		ASSERT_TRUE(editorTextTreeLocateLine(&tree, i, &tree_start));
+		size_t ref_start = 0;
+		ASSERT_TRUE(ref_line_start_byte(snap, total, i, &ref_start));
+		ASSERT_EQ_INT((int)ref_start, (int)tree_start);
+	}
+	for (size_t b = 0; b < total; b += 7) {
+		int line = -1;
+		ASSERT_TRUE(editorTextTreeLineForByte(&tree, b, &line));
+		ASSERT_EQ_INT(ref_line_for_byte(snap, b), line);
+	}
+
+	free(snap);
+	editorTextTreeFree(&tree);
+	return 0;
+}
+
 const struct editorTestCase g_text_tree_tests[] = {
 	{"text_tree_leaf_split_grows_tree", test_text_tree_leaf_split_grows_tree},
 	{"text_tree_split_grows_internal_nodes", test_text_tree_split_grows_internal_nodes},
 	{"text_tree_merge_collapses_after_drain", test_text_tree_merge_collapses_after_drain},
+	{"text_tree_locate_line_matches_naive", test_text_tree_locate_line_matches_naive},
+	{"text_tree_line_for_byte_matches_naive", test_text_tree_line_for_byte_matches_naive},
+	{"text_tree_line_queries_survive_splits", test_text_tree_line_queries_survive_splits},
 };
 
 const int g_text_tree_test_count =

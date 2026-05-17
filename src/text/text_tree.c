@@ -927,6 +927,133 @@ int editorTextTreeResetFromString(struct editorTextTree *tree, const char *text,
 	return 1;
 }
 
+int editorTextTreeLocateLine(const struct editorTextTree *tree, int line_idx,
+		size_t *start_byte_out) {
+	if (start_byte_out == NULL || tree == NULL || tree->root == NULL || line_idx < 0) {
+		return 0;
+	}
+	if (line_idx == 0) {
+		*start_byte_out = 0;
+		return 1;
+	}
+	if (line_idx > tree->root->summary.newlines) {
+		return 0;
+	}
+
+	struct editorTextNode *cur = tree->root;
+	int remaining = line_idx;
+	size_t acc_bytes = 0;
+	int depth = 0;
+
+	while (!cur->is_leaf) {
+		if (depth >= EDITOR_TEXT_TREE_MAX_DEPTH || cur->count == 0) {
+			return 0;
+		}
+		int idx = 0;
+		while (idx < cur->count) {
+			int cnl = cur->u.children[idx]->summary.newlines;
+			if (remaining <= cnl) {
+				break;
+			}
+			remaining -= cnl;
+			acc_bytes += cur->u.children[idx]->summary.bytes;
+			idx++;
+		}
+		if (idx >= cur->count) {
+			return 0;
+		}
+		cur = cur->u.children[idx];
+		depth++;
+	}
+
+	int piece_idx = 0;
+	while (piece_idx < cur->count) {
+		int pnl = cur->u.pieces[piece_idx].summary.newlines;
+		if (remaining <= pnl) {
+			break;
+		}
+		remaining -= pnl;
+		acc_bytes += cur->u.pieces[piece_idx].len;
+		piece_idx++;
+	}
+	if (piece_idx >= cur->count) {
+		return 0;
+	}
+
+	const struct editorTextChunk *piece = &cur->u.pieces[piece_idx];
+	int found = 0;
+	for (size_t i = 0; i < piece->len; i++) {
+		if (piece->bytes[i] != '\n') {
+			continue;
+		}
+		found++;
+		if (found == remaining) {
+			*start_byte_out = acc_bytes + i + 1;
+			return 1;
+		}
+	}
+	return 0;
+}
+
+int editorTextTreeLineForByte(const struct editorTextTree *tree, size_t byte,
+		int *line_idx_out) {
+	if (line_idx_out == NULL || tree == NULL || tree->root == NULL) {
+		return 0;
+	}
+	if (byte >= tree->root->summary.bytes) {
+		return 0;
+	}
+
+	struct editorTextNode *cur = tree->root;
+	size_t remaining = byte;
+	int acc_newlines = 0;
+	int depth = 0;
+
+	while (!cur->is_leaf) {
+		if (depth >= EDITOR_TEXT_TREE_MAX_DEPTH || cur->count == 0) {
+			return 0;
+		}
+		int idx = 0;
+		while (idx < cur->count) {
+			size_t cb = cur->u.children[idx]->summary.bytes;
+			if (remaining < cb) {
+				break;
+			}
+			remaining -= cb;
+			acc_newlines += cur->u.children[idx]->summary.newlines;
+			idx++;
+		}
+		if (idx >= cur->count) {
+			return 0;
+		}
+		cur = cur->u.children[idx];
+		depth++;
+	}
+
+	int piece_idx = 0;
+	while (piece_idx < cur->count) {
+		size_t pl = cur->u.pieces[piece_idx].len;
+		if (remaining < pl) {
+			break;
+		}
+		remaining -= pl;
+		acc_newlines += cur->u.pieces[piece_idx].summary.newlines;
+		piece_idx++;
+	}
+	if (piece_idx >= cur->count) {
+		return 0;
+	}
+
+	const struct editorTextChunk *piece = &cur->u.pieces[piece_idx];
+	for (size_t i = 0; i < remaining; i++) {
+		if (piece->bytes[i] == '\n') {
+			acc_newlines++;
+		}
+	}
+	*line_idx_out = acc_newlines;
+	return 1;
+}
+
 int editorTextTreeResetFromTextSource(struct editorTextTree *tree,
 		const struct editorTextSource *source) {
 	if (tree == NULL || source == NULL || source->read == NULL) {

@@ -186,10 +186,10 @@ This is the heart of the refactor. After this phase, all position queries become
 
 With the tree carrying `newlines` summaries, the external line index in `editorDocument` is redundant.
 
-- [ ] Reimplement `editorDocumentLineCount` ([src/text/document.c:514-516](src/text/document.c#L514-L516)) as `tree.root.summary.newlines + 1` (with empty-doc special case).
-- [ ] Reimplement `editorDocumentLineStartByte` ([src/text/document.c:518-526](src/text/document.c#L518-L526)) as `editorTextTreeLocateLine(tree, idx, &byte)`. Implementation: descent using `child_summary.newlines` to pick the right child, then scan within the target leaf piece.
-- [ ] Reimplement `editorDocumentLineEndByte`, `editorDocumentLineIndexForByteOffset`, `editorDocumentPositionToByteOffset`, `editorDocumentByteOffsetToPosition` on top of the tree-descent primitives.
-- [ ] **Delete** the entire incremental line-index machinery in [src/text/document.c](src/text/document.c):
+- [x] Reimplement `editorDocumentLineCount` ([src/text/document.c:514-516](src/text/document.c#L514-L516)) as `tree.root.summary.newlines + 1` (with empty-doc special case).
+- [x] Reimplement `editorDocumentLineStartByte` ([src/text/document.c:518-526](src/text/document.c#L518-L526)) as `editorTextTreeLocateLine(tree, idx, &byte)`. Implementation: descent using `child_summary.newlines` to pick the right child, then scan within the target leaf piece.
+- [x] Reimplement `editorDocumentLineEndByte`, `editorDocumentLineIndexForByteOffset`, `editorDocumentPositionToByteOffset`, `editorDocumentByteOffsetToPosition` on top of the tree-descent primitives.
+- [x] **Delete** the entire incremental line-index machinery in [src/text/document.c](src/text/document.c):
   - `editorDocumentEnsureLineCapacity` (~30 lines)
   - `editorDocumentRebuildLineIndex` (~40 lines)
   - `editorDocumentFindContainingLineFromIndex` (~25 lines)
@@ -198,8 +198,8 @@ With the tree carrying `newlines` summaries, the external line index in `editorD
   - `editorDocumentApplyReplaceLineRegion` (~110 lines)
   - `editorDocumentApplySignedDelta` (~15 lines)
   - The `line_starts`, `line_count`, `line_capacity` fields on `struct editorDocument`.
-- [ ] Update `editorDocumentReplaceRange` ([src/text/document.c:490-512](src/text/document.c#L490-L512)) to only call `editorTextTreeReplaceRange`.
-- [ ] Update `editorDocumentStatsFullRebuildCount` / `editorDocumentStatsRecordFullRebuild` ([src/editing/document_bridge.c:98-112](src/editing/document_bridge.c#L98-L112)) — "full rebuild" loses its old meaning (there's no parallel index to rebuild). Keep the stat as "tree rebuilt from text" for the open-file path; drop it from edits.
+- [x] Update `editorDocumentReplaceRange` ([src/text/document.c:490-512](src/text/document.c#L490-L512)) to only call `editorTextTreeReplaceRange`.
+- [x] Keep `editorDocumentStatsFullRebuildCount` / `editorDocumentStatsRecordFullRebuild` ([src/editing/document_bridge.c:98-112](src/editing/document_bridge.c#L98-L112)) as the "document state reset" and edit-pipeline counters that existing tests rely on; their original line-index meaning is gone but the bookkeeping points are still meaningful.
 
 **Intermediate state**: ~250 lines deleted, `editorDocument` is now `{ tree }` plus nothing else. Storage and line metadata are a single structure.
 
@@ -302,7 +302,7 @@ This phase is large and orthogonal to the storage refactor; it is listed for com
 - [x] **Phase 1** — `editorTextSummary` + merge, computed but not consumed.
 - [x] **Phase 2** — Single-leaf tree wrapper; delete `editorRope*` symbols.
 - [x] **Phase 3** — Real B-tree with multi-leaf descent and `O(log n)` edits.
-- [ ] **Phase 4** — Drop `line_starts[]`; ~250 lines deleted from `document.c`.
+- [x] **Phase 4** — Drop `line_starts[]`; ~250 lines deleted from `document.c`.
 - [ ] **Phase 5** — Pieces from shared immutable buffers; zero-copy reads.
 - [ ] **Phase 6** — `max_line_bytes` summary live; `editorBufferMaxRenderCols` becomes `O(1)`.
 - [ ] **Phase 7** — Coalescing of small pieces; bound piece count under heavy editing.

@@ -4,18 +4,14 @@
 #include "rotide.h"
 #include "text/text_tree.h"
 
-/* Canonical writable text for a tab.
- * The tree owns bytes; line_starts is a derived index maintained with every
- * reset/replace so callers can map between byte offsets and line positions.
+/* Canonical writable text for a tab. Storage and line metadata are unified in
+ * the tree: line and byte position queries descend through the per-node
+ * summaries instead of consulting an external index.
  */
 struct editorDocument {
 	struct editorTextTree tree;
-	size_t *line_starts;
-	int line_count;
-	int line_capacity;
 };
 
-/* Reset/copy/replace operations keep the line index in sync with the rope. */
 void editorDocumentInit(struct editorDocument *document);
 void editorDocumentFree(struct editorDocument *document);
 int editorDocumentResetFromString(struct editorDocument *document, const char *text, size_t len);

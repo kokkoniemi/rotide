@@ -54,4 +54,15 @@ int editorTextTreeResetFromTextSource(struct editorTextTree *tree,
 int editorTextTreeReplaceRange(struct editorTextTree *tree, size_t start_byte, size_t old_len,
 		const char *new_text, size_t new_len);
 
+/* Returns the byte offset where `line_idx` begins. Line 0 starts at byte 0;
+ * line k (k >= 1) starts at the byte immediately after the k-th newline.
+ * Valid range: 0 <= line_idx <= summary.newlines.
+ */
+int editorTextTreeLocateLine(const struct editorTextTree *tree, int line_idx,
+		size_t *start_byte_out);
+
+/* Returns the line index containing `byte`. `byte` must be in [0, length). */
+int editorTextTreeLineForByte(const struct editorTextTree *tree, size_t byte,
+		int *line_idx_out);
+
 #endif
