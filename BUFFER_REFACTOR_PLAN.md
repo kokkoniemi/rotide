@@ -159,19 +159,19 @@ Introduce the new tree type as a thin wrapper around the existing chunk array, s
 
 This is the heart of the refactor. After this phase, all position queries become `O(log n)` and edits stop doing whole-array `memmove`s.
 
-- [ ] Implement leaf split: when a leaf's piece count would exceed `ROTIDE_TEXT_TREE_FANOUT`, split into two leaves under a (possibly new) parent.
-- [ ] Implement internal-node split with the same fanout policy.
-- [ ] Implement leaf/node merge when a node falls below `FANOUT/2` after a delete (B-tree underflow handling).
-- [ ] Implement `editorTextTreeLocateByte`: descent using `child_summary.bytes` to pick the right child at each level, accumulating offset. Returns `(leaf, piece_idx, local_offset)`.
-- [ ] Implement `editorTextTreeReplaceRange` via descent:
+- [x] Implement leaf split: when a leaf's piece count would exceed `ROTIDE_TEXT_TREE_FANOUT`, split into two leaves under a (possibly new) parent.
+- [x] Implement internal-node split with the same fanout policy.
+- [x] Implement leaf/node merge when a node falls below `FANOUT/2` after a delete (B-tree underflow handling).
+- [x] Implement `editorTextTreeLocateByte`: descent using `child_summary.bytes` to pick the right child at each level, accumulating offset. Returns `(leaf, piece_idx, local_offset)`.
+- [x] Implement `editorTextTreeReplaceRange` via descent:
   1. Locate `(leaf_lo, piece_idx_lo, local_lo)` and `(leaf_hi, piece_idx_hi, local_hi)`.
   2. Split the boundary pieces if needed (piece-internal split, just slicing `(buf, offset, len)`).
   3. Drop fully-spanned pieces.
   4. Insert new piece(s) for `new_text` (still owning bytes for now — pieces-from-buffers comes in Phase 5).
   5. Walk back up the spine recomputing summaries and rebalancing.
-- [ ] Maintain the `summary` field on every node/leaf as edits propagate up; never recompute from scratch.
-- [ ] Switch existing callers: nothing changes externally — `editorTextTree*` keeps the same public signature. Internally `editorTextTreeRead` now uses descent instead of a linear walk.
-- [ ] Re-run benchmarks; expect single-keystroke inserts on a 1 MB document to drop from ~`O(n/1024)` walks to `O(log n)`.
+- [x] Maintain the `summary` field on every node/leaf as edits propagate up; never recompute from scratch.
+- [x] Switch existing callers: nothing changes externally — `editorTextTree*` keeps the same public signature. Internally `editorTextTreeRead` now uses descent instead of a linear walk.
+- [x] Re-run benchmarks; expect single-keystroke inserts on a 1 MB document to drop from ~`O(n/1024)` walks to `O(log n)`.
 
 **Intermediate state**: working B-tree, owned-byte leaves. `line_starts[]` in `editorDocument` is still there and still maintained externally — Phase 4 retires it.
 
@@ -301,7 +301,7 @@ This phase is large and orthogonal to the storage refactor; it is listed for com
 - [x] **Phase 0** — Harden property tests, add benchmarks, line/width invariants.
 - [x] **Phase 1** — `editorTextSummary` + merge, computed but not consumed.
 - [x] **Phase 2** — Single-leaf tree wrapper; delete `editorRope*` symbols.
-- [ ] **Phase 3** — Real B-tree with multi-leaf descent and `O(log n)` edits.
+- [x] **Phase 3** — Real B-tree with multi-leaf descent and `O(log n)` edits.
 - [ ] **Phase 4** — Drop `line_starts[]`; ~250 lines deleted from `document.c`.
 - [ ] **Phase 5** — Pieces from shared immutable buffers; zero-copy reads.
 - [ ] **Phase 6** — `max_line_bytes` summary live; `editorBufferMaxRenderCols` becomes `O(1)`.

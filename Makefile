@@ -40,7 +40,8 @@ RELEASE_CFLAGS ?= -Os -ffunction-sections -fdata-sections \
 	-fno-unwind-tables -fno-asynchronous-unwind-tables -fno-ident
 RELEASE_LDFLAGS ?= -Wl,--gc-sections
 
-SANITIZER_CFLAGS ?= -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer
+SANITIZER_CFLAGS ?= -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer \
+	-DROTIDE_TEXT_TREE_DEEP_CHECK
 SANITIZER_LDFLAGS ?= -fsanitize=address,undefined -fno-omit-frame-pointer
 
 TSAN_FLAGS ?= -fsanitize=thread -fno-omit-frame-pointer -O1 -g
@@ -131,7 +132,7 @@ TEST_SRCS = $(addprefix tests/, \
 	test_render_frame.c test_render_chrome.c test_render_panes.c \
 	test_render_terminal.c test_layout.c test_pty.c \
 	test_terminal_pane.c test_text_invariants.c test_text_summary.c \
-	test_syntax_incremental_equiv.c test_runner_internals.c \
+	test_text_tree.c test_syntax_incremental_equiv.c test_runner_internals.c \
 	runner_support.c seed.c parallel_runner.c editor_state_snapshot.c \
 	test_support.c test_helpers.c alloc_test_hooks.c save_syscalls_test_hooks.c)
 

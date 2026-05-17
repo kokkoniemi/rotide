@@ -1,0 +1,166 @@
+#include "test_case.h"
+#include "test_helpers.h"
+#include "text/text_tree.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static int tree_byte_at(const struct editorTextTree *tree, size_t off, char *out) {
+	uint32_t avail = 0;
+	const char *ptr = editorTextTreeRead(tree, off, &avail);
+	if (ptr == NULL || avail == 0) {
+		return 0;
+	}
+	*out = *ptr;
+	return 1;
+}
+
+static int tree_matches_string(const struct editorTextTree *tree, const char *expected,
+		size_t expected_len) {
+	if (editorTextTreeLength(tree) != expected_len) {
+		fprintf(stderr, "tree_len=%zu expected=%zu\n",
+			editorTextTreeLength(tree), expected_len);
+		return 0;
+	}
+	for (size_t i = 0; i < expected_len; i++) {
+		char b = 0;
+		if (!tree_byte_at(tree, i, &b)) {
+			fprintf(stderr, "tree_byte_at(%zu) failed\n", i);
+			return 0;
+		}
+		if (b != expected[i]) {
+			fprintf(stderr,
+				"byte diff at %zu: tree=0x%02x expected=0x%02x\n",
+				i, (unsigned char)b, (unsigned char)expected[i]);
+			return 0;
+		}
+	}
+	return 1;
+}
+
+/* Force a leaf split: insert one byte at a time so each insert lands inside a
+ * piece and produces a piece-split. After enough inserts the leaf overflows
+ * FANOUT and editorTextTreeSplitNode runs.
+ */
+static int test_text_tree_leaf_split_grows_tree(void) {
+	struct editorTextTree tree;
+	editorTextTreeInit(&tree);
+	ASSERT_TRUE(tree.root != NULL);
+
+	const char *seed = "abcdefghij";
+	size_t seed_len = strlen(seed);
+	ASSERT_TRUE(editorTextTreeResetFromString(&tree, seed, seed_len));
+	/* Single leaf, single piece at this point. */
+
+	char expected[256];
+	memcpy(expected, seed, seed_len);
+	size_t cur_len = seed_len;
+
+	/* Insert into the middle 40 times — each mid-piece insert turns 1 piece
+	 * into 3, so the leaf will overflow after a few rounds and split.
+	 */
+	for (int i = 0; i < 40; i++) {
+		size_t at = cur_len / 2;
+		char c = (char)('A' + (i % 26));
+		ASSERT_TRUE(editorTextTreeReplaceRange(&tree, at, 0, &c, 1));
+		memmove(expected + at + 1, expected + at, cur_len - at);
+		expected[at] = c;
+		cur_len++;
+		ASSERT_TRUE(tree_matches_string(&tree, expected, cur_len));
+	}
+
+	/* After many mid-piece inserts, the root must have become an internal
+	 * node (depth >= 1) because the single leaf overflowed and split.
+	 */
+	ASSERT_TRUE(tree.root->is_leaf == 0);
+	ASSERT_TRUE(tree.root->count >= 2);
+
+	editorTextTreeFree(&tree);
+	return 0;
+}
+
+/* Force enough inserts to grow the tree to depth >= 3, exercising both leaf
+ * and internal-node splits.
+ */
+static int test_text_tree_split_grows_internal_nodes(void) {
+	struct editorTextTree tree;
+	editorTextTreeInit(&tree);
+	ASSERT_TRUE(tree.root != NULL);
+
+	char buf[4096];
+	for (int i = 0; i < (int)sizeof(buf); i++) {
+		buf[i] = (char)('a' + (i % 26));
+	}
+	ASSERT_TRUE(editorTextTreeResetFromString(&tree, buf, sizeof(buf)));
+
+	size_t cur_len = sizeof(buf);
+	char expected[8192];
+	memcpy(expected, buf, cur_len);
+
+	/* 600 mid-piece inserts produce thousands of pieces — enough to force at
+	 * least two levels of internal splits at FANOUT 16.
+	 */
+	for (int i = 0; i < 600; i++) {
+		size_t at = (size_t)((i * 37u) % cur_len);
+		char c = (char)('0' + (i % 10));
+		ASSERT_TRUE(editorTextTreeReplaceRange(&tree, at, 0, &c, 1));
+		memmove(expected + at + 1, expected + at, cur_len - at);
+		expected[at] = c;
+		cur_len++;
+	}
+	ASSERT_TRUE(tree_matches_string(&tree, expected, cur_len));
+	ASSERT_TRUE(tree.root->is_leaf == 0);
+
+	editorTextTreeFree(&tree);
+	return 0;
+}
+
+/* Build a wide tree, then drain it from the middle one byte at a time. Both
+ * the leaf-empty cleanup path and the merge-with-sibling path get exercised.
+ * Tree must remain consistent and eventually collapse to a single empty leaf.
+ */
+static int test_text_tree_merge_collapses_after_drain(void) {
+	struct editorTextTree tree;
+	editorTextTreeInit(&tree);
+
+	size_t initial = 4096;
+	char *seed = (char *)malloc(initial);
+	ASSERT_TRUE(seed != NULL);
+	for (size_t i = 0; i < initial; i++) {
+		seed[i] = (char)('a' + (int)(i % 26));
+	}
+	ASSERT_TRUE(editorTextTreeResetFromString(&tree, seed, initial));
+	free(seed);
+
+	for (int i = 0; i < 600; i++) {
+		size_t at = (size_t)((i * 53u) % editorTextTreeLength(&tree));
+		char c = (char)('0' + (i % 10));
+		ASSERT_TRUE(editorTextTreeReplaceRange(&tree, at, 0, &c, 1));
+	}
+	ASSERT_TRUE(editorTextTreeLength(&tree) == initial + 600);
+	ASSERT_TRUE(tree.root->is_leaf == 0);
+
+	size_t cur_len = editorTextTreeLength(&tree);
+	while (cur_len > 0) {
+		size_t at = cur_len > 1 ? cur_len / 2 : 0;
+		ASSERT_TRUE(editorTextTreeReplaceRange(&tree, at, 1, NULL, 0));
+		cur_len--;
+	}
+
+	ASSERT_TRUE(editorTextTreeLength(&tree) == 0);
+	ASSERT_TRUE(tree.root->is_leaf == 1);
+	ASSERT_TRUE(tree.root->count == 0);
+
+	editorTextTreeFree(&tree);
+	return 0;
+}
+
+const struct editorTestCase g_text_tree_tests[] = {
+	{"text_tree_leaf_split_grows_tree", test_text_tree_leaf_split_grows_tree},
+	{"text_tree_split_grows_internal_nodes", test_text_tree_split_grows_internal_nodes},
+	{"text_tree_merge_collapses_after_drain", test_text_tree_merge_collapses_after_drain},
+};
+
+const int g_text_tree_test_count =
+	(int)(sizeof(g_text_tree_tests) / sizeof(g_text_tree_tests[0]));

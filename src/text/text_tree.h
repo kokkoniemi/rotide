@@ -8,20 +8,30 @@
 
 struct editorTextSource;
 
+#define EDITOR_TEXT_TREE_FANOUT 16
+/* Slack so a mid-piece insert (which can add 2 pieces) fits before the split. */
+#define EDITOR_TEXT_TREE_NODE_SLACK 2
+#define EDITOR_TEXT_TREE_NODE_CAPACITY \
+	(EDITOR_TEXT_TREE_FANOUT + EDITOR_TEXT_TREE_NODE_SLACK)
+
 struct editorTextChunk {
 	char *bytes;
 	size_t len;
-};
-
-struct editorTextNode {
-	struct editorTextChunk *chunks;
-	int chunk_count;
-	int chunk_capacity;
 	struct editorTextSummary summary;
 };
 
+struct editorTextNode {
+	unsigned char is_leaf;
+	unsigned char count;
+	struct editorTextSummary summary;
+	union {
+		struct editorTextNode *children[EDITOR_TEXT_TREE_NODE_CAPACITY];
+		struct editorTextChunk pieces[EDITOR_TEXT_TREE_NODE_CAPACITY];
+	} u;
+};
+
 struct editorTextTree {
-	struct editorTextNode root;
+	struct editorTextNode *root;
 };
 
 void editorTextTreeInit(struct editorTextTree *tree);
