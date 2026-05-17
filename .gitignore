@@ -59,6 +59,7 @@ rotide
 *.swp
 tests/rotide_tests
 tests/artifacts/
+tests/bench_text_storage
 
 PLAN.md
 

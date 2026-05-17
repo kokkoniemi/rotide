@@ -2,20 +2,16 @@
 #define DOCUMENT_H
 
 #include "rotide.h"
-#include "text/rope.h"
+#include "text/text_tree.h"
 
-/* Canonical writable text for a tab.
- * The rope owns bytes; line_starts is a derived index maintained with every
- * reset/replace so callers can map between byte offsets and line positions.
+/* Canonical writable text for a tab. Storage and line metadata are unified in
+ * the tree: line and byte position queries descend through the per-node
+ * summaries instead of consulting an external index.
  */
 struct editorDocument {
-	struct editorRope rope;
-	size_t *line_starts;
-	int line_count;
-	int line_capacity;
+	struct editorTextTree tree;
 };
 
-/* Reset/copy/replace operations keep the line index in sync with the rope. */
 void editorDocumentInit(struct editorDocument *document);
 void editorDocumentFree(struct editorDocument *document);
 int editorDocumentResetFromString(struct editorDocument *document, const char *text, size_t len);
@@ -33,6 +29,12 @@ char *editorDocumentDupRange(const struct editorDocument *document, size_t start
 int editorDocumentReplaceRange(struct editorDocument *document, size_t start_byte, size_t old_len,
 		const char *new_text, size_t new_len);
 
+/* Reserve add-buffer capacity for `additional_bytes` so the next inserts of
+ * that total size happen without realloc — used by edit pipelines that need
+ * an alloc-free revert path. Returns 1 on success, 0 on OOM.
+ */
+int editorDocumentReserveInsertCapacity(struct editorDocument *document, size_t additional_bytes);
+
 /* Byte/line mapping helpers are the boundary between document storage and
  * editor cursor/search/selection state.
  */
@@ -47,5 +49,7 @@ int editorDocumentPositionToByteOffset(const struct editorDocument *document, in
 		size_t column, size_t *byte_offset_out);
 int editorDocumentByteOffsetToPosition(const struct editorDocument *document, size_t byte_offset,
 		int *line_idx_out, size_t *column_out);
+
+size_t editorDocumentMaxLineBytes(const struct editorDocument *document);
 
 #endif

@@ -71,7 +71,6 @@ static void editorBufferInitEmpty(struct editorBuffer *buffer) {
 	buffer->tab_kind = EDITOR_TAB_FILE;
 	buffer->cursor_offset = 0;
 	buffer->syntax_language = EDITOR_SYNTAX_NONE;
-	buffer->max_render_cols_valid = 1;
 	buffer->search_direction = 1;
 	buffer->edit_group_kind = EDITOR_EDIT_NONE;
 	buffer->edit_pending_kind = EDITOR_EDIT_NONE;
@@ -113,8 +112,6 @@ static void editorBufferClearOwnedState(struct editorBuffer *buffer) {
 	}
 	editorBufferFreeRows(buffer);
 	editorDocumentFreePtr(&buffer->document);
-	buffer->max_render_cols = 0;
-	buffer->max_render_cols_valid = 1;
 	free(buffer->filename);
 	buffer->filename = NULL;
 	free(buffer->tab_title);
@@ -931,8 +928,6 @@ static int editorRebuildGeneratedTabRows(struct editorTabState *tab) {
 	}
 
 	editorFreeTabRows(tab);
-	tab->max_render_cols = 0;
-	tab->max_render_cols_valid = 0;
 	tab->rows = new_rows;
 	tab->numrows = new_numrows;
 	tab->dirty = 0;

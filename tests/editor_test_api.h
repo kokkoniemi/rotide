@@ -4,6 +4,8 @@
 void editorDocumentTestResetStats(void);
 int editorDocumentTestFullRebuildCount(void);
 int editorDocumentTestIncrementalUpdateCount(void);
+int editorTextTreeTestFullRebuildCount(void);
+int editorTextTreeTestIncrementalUpdateCount(void);
 int editorRowCacheTestFullRebuildCount(void);
 int editorRowCacheTestSpliceUpdateCount(void);
 void editorActiveTextSourceBuildTestResetCount(void);

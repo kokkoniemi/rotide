@@ -149,6 +149,20 @@ int editorApplyDocumentEdit(const struct editorDocumentEdit *edit) {
 		return 0;
 	}
 
+	/* Pre-reserve add-buffer capacity for both the inserted bytes and the
+	 * removed bytes the revert path may need to re-insert. With this in
+	 * place, the compensating editorDocumentReplaceRange below is genuinely
+	 * allocation-free at the buffer layer.
+	 */
+	size_t reserve_bytes = 0;
+	if (!editorSizeAdd(edit->new_len, edit->old_len, &reserve_bytes) ||
+			(reserve_bytes > 0 &&
+				!editorDocumentReserveInsertCapacity(E.document, reserve_bytes))) {
+		free(removed_text);
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+
 	if ((E.syntax_state != NULL || editorSyntaxBackgroundEnabled()) &&
 			E.syntax_language != EDITOR_SYNTAX_NONE) {
 		syntax_track = editorBuildSyntaxEditForDocumentEdit(active_document,
@@ -157,20 +171,32 @@ int editorApplyDocumentEdit(const struct editorDocumentEdit *edit) {
 	}
 
 	if (!editorDocumentReplaceRange(E.document, edit->start_offset, edit->old_len,
-				edit->new_len > 0 ? edit->new_text : "", edit->new_len) ||
-			!editorRowCacheSpliceEndRowForDocument(E.document, &row_region,
-					&replacement_end_row_exclusive) ||
+				edit->new_len > 0 ? edit->new_text : "", edit->new_len)) {
+		free(removed_text);
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+	if (!editorRowCacheSpliceEndRowForDocument(E.document, &row_region,
+				&replacement_end_row_exclusive) ||
 			!editorBuildRowsFromDocumentRange(E.document, row_region.start_row,
 					replacement_end_row_exclusive, &replacement_rows, &replacement_numrows) ||
 			!editorSpliceRowCache(&E.rows, &E.numrows, replacement_rows, replacement_numrows,
 					row_region.start_row, row_region.old_end_row_exclusive)) {
+		/* Storage was mutated; revert so callers see no partial state. The
+		 * add-buffer reservation above guarantees the buffer-layer append
+		 * here succeeds. Internal-node splits inside the tree rebalance
+		 * (the one remaining alloc site) are very unlikely to fail right
+		 * after a successful forward edit; if they do, the doc is left in
+		 * the post-mutation state and OOM is reported.
+		 */
+		(void)editorDocumentReplaceRange(E.document, edit->start_offset, edit->new_len,
+				removed_text != NULL ? removed_text : "", edit->old_len);
 		editorFreeRowArray(replacement_rows, replacement_numrows);
 		free(removed_text);
 		editorSetAllocFailureStatus();
 		return 0;
 	}
 
-	E.max_render_cols_valid = 0;
 	if (!editorSyncCursorFromOffset(edit->after_cursor_offset)) {
 		free(removed_text);
 		editorSetAllocFailureStatus();

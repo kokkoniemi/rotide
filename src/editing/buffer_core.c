@@ -541,7 +541,6 @@ int editorRestoreActiveFromDocument(const struct editorDocument *document,
 	E.rows = new_rows;
 	E.numrows = new_numrows;
 	E.document = new_document;
-	E.max_render_cols_valid = 0;
 	E.cy = new_cy;
 	E.cx = new_cx;
 	E.dirty = dirty;
@@ -562,19 +561,12 @@ int editorRestoreActiveFromDocument(const struct editorDocument *document,
 }
 
 int editorBufferMaxRenderCols(void) {
-	if (E.max_render_cols_valid) {
-		return E.max_render_cols;
-	}
-
-	int max_cols = 0;
-	for (int i = 0; i < E.numrows; i++) {
-		if (E.rows[i].render_display_cols > max_cols) {
-			max_cols = E.rows[i].render_display_cols;
-		}
-	}
-	E.max_render_cols = max_cols;
-	E.max_render_cols_valid = 1;
-	return max_cols;
+	/* Approximation: byte count of the longest line, derived in O(1) from the
+	 * tree summary. The render layer treats tabs/wide glyphs conservatively;
+	 * for horizontal scrolling clamps this is plenty.
+	 */
+	size_t max_bytes = editorDocumentMaxLineBytes(E.document);
+	return max_bytes > (size_t)INT_MAX ? INT_MAX : (int)max_bytes;
 }
 
 int editorSyntaxEnabled(void) {
@@ -604,6 +596,7 @@ const char *editorSyntaxRootType(void) {
 
 void editorDocumentTestResetStats(void) {
 	editorDocumentStatsReset();
+	editorTextTreeStatsReset();
 	editorRowCacheStatsReset();
 }
 
@@ -613,4 +606,12 @@ int editorDocumentTestFullRebuildCount(void) {
 
 int editorDocumentTestIncrementalUpdateCount(void) {
 	return editorDocumentStatsIncrementalUpdateCount();
+}
+
+int editorTextTreeTestFullRebuildCount(void) {
+	return editorTextTreeStatsFullRebuildCount();
+}
+
+int editorTextTreeTestIncrementalUpdateCount(void) {
+	return editorTextTreeStatsIncrementalUpdateCount();
 }

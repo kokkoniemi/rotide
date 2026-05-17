@@ -40,7 +40,8 @@ RELEASE_CFLAGS ?= -Os -ffunction-sections -fdata-sections \
 	-fno-unwind-tables -fno-asynchronous-unwind-tables -fno-ident
 RELEASE_LDFLAGS ?= -Wl,--gc-sections
 
-SANITIZER_CFLAGS ?= -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer
+SANITIZER_CFLAGS ?= -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer \
+	-DROTIDE_TEXT_TREE_DEEP_CHECK
 SANITIZER_LDFLAGS ?= -fsanitize=address,undefined -fno-omit-frame-pointer
 
 TSAN_FLAGS ?= -fsanitize=thread -fno-omit-frame-pointer -O1 -g
@@ -82,7 +83,7 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(addprefix $(SRC_DIR)/support/, \
 		terminal.c alloc.c save_syscalls.c file_io.c) \
 	$(addprefix $(SRC_DIR)/text/, \
-		document.c rope.c utf8.c row.c) \
+		document.c text_buffer.c text_summary.c text_tree.c utf8.c row.c) \
 	$(addprefix $(SRC_DIR)/editing/, \
 		document_bridge.c document_position.c buffer_search.c \
 		edit_pipeline.c post_edit_notify.c row_cache.c text_source.c \
@@ -130,8 +131,8 @@ TEST_SRCS = $(addprefix tests/, \
 	test_input_search.c test_input_undo.c \
 	test_render_frame.c test_render_chrome.c test_render_panes.c \
 	test_render_terminal.c test_layout.c test_pty.c \
-	test_terminal_pane.c test_text_invariants.c \
-	test_syntax_incremental_equiv.c test_runner_internals.c \
+	test_terminal_pane.c test_text_invariants.c test_text_summary.c \
+	test_text_tree.c test_syntax_incremental_equiv.c test_runner_internals.c \
 	runner_support.c seed.c parallel_runner.c editor_state_snapshot.c \
 	test_support.c test_helpers.c alloc_test_hooks.c save_syscalls_test_hooks.c)
 
@@ -152,6 +153,9 @@ EDITOR_OBJS = $(filter-out $(SRC_DIR)/rotide.o,$(CORE_OBJS)) \
 
 DEPFILES = $(OBJS:.o=.d) $(TEST_OBJS:.o=.d)
 TEST_BIN = tests/rotide_tests
+BENCH_BUFFER_BIN = tests/bench_text_storage
+BENCH_BUFFER_SRC = tests/bench_text_storage.c
+BENCH_BUFFER_OBJ = $(BENCH_BUFFER_SRC:.c=.o)
 
 # ============================================================================
 # Generated headers
@@ -204,6 +208,9 @@ $(TREE_SITTER_OBJS): %.o: %.c
 $(TEST_BIN): $(TEST_OBJS) $(EDITOR_OBJS)
 	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) -rdynamic $^ -lutil -o $@
 
+$(BENCH_BUFFER_BIN): $(BENCH_BUFFER_OBJ) $(EDITOR_OBJS)
+	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) $^ -lutil -o $@
+
 # ============================================================================
 # Test / release / docs targets
 # ============================================================================
@@ -213,9 +220,21 @@ DOCS_MEDIA_FLAGS ?=
 test: $(TEST_BIN)
 	$(call LOG,TEST,$(TEST_BIN))./$(TEST_BIN) $(TEST_FLAGS)
 
+bench-buffer: $(BENCH_BUFFER_BIN)
+	$(call LOG,BENCH,$(BENCH_BUFFER_BIN))./$(BENCH_BUFFER_BIN) $(BENCH_BUFFER_FLAGS)
+
 test-sanitize:
 	$(call LOG,CLEAN,build)$(MAKE) clean
 	$(call LOG,MAKE,test-sanitize)$(MAKE) CFLAGS="$(CFLAGS) $(SANITIZER_CFLAGS)" \
+		LDFLAGS="$(LDFLAGS) $(SANITIZER_LDFLAGS)" test
+
+# Builds with -DROTIDE_TEXT_TREE_DEEP_CHECK so every ReplaceRange recomputes
+# the root summary from scratch and asserts it matches the maintained value.
+# O(N) per edit, so run on demand rather than in the default test loop.
+test-text-tree-deep-check:
+	$(call LOG,CLEAN,build)$(MAKE) clean
+	$(call LOG,MAKE,test-text-tree-deep-check)$(MAKE) \
+		CFLAGS="$(CFLAGS) $(SANITIZER_CFLAGS) -DROTIDE_TEXT_TREE_DEEP_CHECK" \
 		LDFLAGS="$(LDFLAGS) $(SANITIZER_LDFLAGS)" test
 
 test-determinism: $(TEST_BIN)
@@ -247,8 +266,8 @@ docs-diagrams:
 
 -include $(DEPFILES)
 
-.PHONY: clean test test-sanitize test-determinism test-tsan test-crash-handler release docs-media docs-diagrams
+.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler release docs-media docs-diagrams bench-buffer
 
 clean:
-	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(DEPFILES) $(TEST_BIN) rotide $(GENERATED_HEADERS)
+	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(BENCH_BUFFER_OBJ) $(DEPFILES) $(TEST_BIN) $(BENCH_BUFFER_BIN) rotide $(GENERATED_HEADERS)
 	$(call LOG,CLEAN,tree)find $(SRC_DIR) tests $(TS_DIR) -type f \( -name '*.o' -o -name '*.d' \) -delete

@@ -7,6 +7,8 @@
 
 static int g_document_full_rebuild_count = 0;
 static int g_document_incremental_update_count = 0;
+static int g_text_tree_full_rebuild_count = 0;
+static int g_text_tree_incremental_update_count = 0;
 
 int editorTabKindSupportsDocument(enum editorTabKind tab_kind) {
 	return tab_kind == EDITOR_TAB_FILE ||
@@ -109,4 +111,25 @@ int editorDocumentStatsFullRebuildCount(void) {
 
 int editorDocumentStatsIncrementalUpdateCount(void) {
 	return g_document_incremental_update_count;
+}
+
+void editorTextTreeStatsReset(void) {
+	g_text_tree_full_rebuild_count = 0;
+	g_text_tree_incremental_update_count = 0;
+}
+
+void editorTextTreeStatsRecordFullRebuild(void) {
+	g_text_tree_full_rebuild_count++;
+}
+
+void editorTextTreeStatsRecordIncrementalUpdate(void) {
+	g_text_tree_incremental_update_count++;
+}
+
+int editorTextTreeStatsFullRebuildCount(void) {
+	return g_text_tree_full_rebuild_count;
+}
+
+int editorTextTreeStatsIncrementalUpdateCount(void) {
+	return g_text_tree_incremental_update_count;
 }

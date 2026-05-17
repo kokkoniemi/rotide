@@ -385,8 +385,6 @@ struct editorHistory {
 	X(int, numrows) \
 	X(struct erow *, rows) \
 	X(struct editorDocument *, document) \
-	X(int, max_render_cols) \
-	X(int, max_render_cols_valid) \
 	X(int, dirty) \
 	X(char *, filename) \
 	X(struct editorFileDiskState, disk_state) \
