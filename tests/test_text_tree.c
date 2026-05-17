@@ -239,8 +239,9 @@ static int test_text_tree_line_queries_survive_splits(void) {
 	char buf[1024];
 	size_t off = 0;
 	for (int i = 0; i < 100; i++) {
-		int n = snprintf(buf + off, sizeof(buf) - off, "line%d\n", i);
-		ASSERT_TRUE(n > 0);
+		size_t remaining = sizeof(buf) - off;
+		int n = snprintf(buf + off, remaining, "line%d\n", i);
+		ASSERT_TRUE(n > 0 && (size_t)n < remaining);
 		off += (size_t)n;
 	}
 	ASSERT_TRUE(editorTextTreeResetFromString(&tree, buf, off));
