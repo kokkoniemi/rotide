@@ -5,6 +5,7 @@
 #include "editing/history.h"
 #include "editing/selection.h"
 #include "support/alloc.h"
+#include "text/document.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -199,7 +200,7 @@ void editorEditToggleCommentLines(editorEditActionFn clear_selection_mode,
 		range.start_cy = E.cy;
 		range.start_cx = 0;
 		range.end_cy = E.cy;
-		range.end_cx = E.rows[E.cy].size;
+		range.end_cx = (int)editorDocumentLineLength(E.document, E.cy);
 	}
 
 	int last_row = range.end_cy;
@@ -213,9 +214,14 @@ void editorEditToggleCommentLines(editorEditActionFn clear_selection_mode,
 	// Determine toggle direction: all non-empty lines commented -> remove, else add
 	int removing = 1;
 	for (int row = range.start_cy; row <= last_row; row++) {
-		const char *chars = E.rows[row].chars;
-		int size = E.rows[row].size;
+		struct editorLineView line = {0};
+		if (!editorDocumentLineView(E.document, row, &line)) {
+			return;
+		}
+		const char *chars = line.data;
+		int size = line.size;
 		if (size == 0) {
+			editorLineViewRelease(&line);
 			continue;
 		}
 		int i = 0;
@@ -224,6 +230,9 @@ void editorEditToggleCommentLines(editorEditActionFn clear_selection_mode,
 		}
 		if (i + prefix_len > size || strncmp(chars + i, prefix, (size_t)prefix_len) != 0) {
 			removing = 0;
+		}
+		editorLineViewRelease(&line);
+		if (!removing) {
 			break;
 		}
 	}
@@ -237,9 +246,14 @@ void editorEditToggleCommentLines(editorEditActionFn clear_selection_mode,
 
 	size_t new_len = old_len;
 	for (int row = range.start_cy; row <= last_row; row++) {
-		const char *chars = E.rows[row].chars;
-		int size = E.rows[row].size;
+		struct editorLineView line = {0};
+		if (!editorDocumentLineView(E.document, row, &line)) {
+			return;
+		}
+		const char *chars = line.data;
+		int size = line.size;
 		if (size == 0) {
+			editorLineViewRelease(&line);
 			continue;
 		}
 		if (!removing) {
@@ -255,6 +269,7 @@ void editorEditToggleCommentLines(editorEditActionFn clear_selection_mode,
 			}
 			new_len -= (size_t)skip;
 		}
+		editorLineViewRelease(&line);
 	}
 
 	char *new_text = editorMalloc(new_len > 0 ? new_len : 1);
@@ -268,8 +283,14 @@ void editorEditToggleCommentLines(editorEditActionFn clear_selection_mode,
 	size_t cur_row_new_size = 0;
 
 	for (int row = range.start_cy; row <= last_row; row++) {
-		const char *chars = E.rows[row].chars;
-		int size = E.rows[row].size;
+		struct editorLineView line = {0};
+		if (!editorDocumentLineView(E.document, row, &line)) {
+			free(new_text);
+			editorSetAllocFailureStatus();
+			return;
+		}
+		const char *chars = line.data;
+		int size = line.size;
 		size_t out_before = out;
 
 		if (size == 0) {
@@ -297,6 +318,7 @@ void editorEditToggleCommentLines(editorEditActionFn clear_selection_mode,
 				out += (size_t)rest;
 			}
 		}
+		editorLineViewRelease(&line);
 
 		if (row < E.cy) {
 			cur_row_new_start += (out - out_before) + 1;
@@ -314,13 +336,19 @@ void editorEditToggleCommentLines(editorEditActionFn clear_selection_mode,
 
 	size_t after_offset;
 	if (E.cy >= range.start_cy && E.cy <= last_row && E.cy < E.numrows) {
-		int size = E.rows[E.cy].size;
+		struct editorLineView line = {0};
+		if (!editorDocumentLineView(E.document, E.cy, &line)) {
+			free(new_text);
+			editorSetAllocFailureStatus();
+			return;
+		}
+		int size = line.size;
 		size_t new_cx = (size_t)E.cx;
 		if (size > 0) {
 			if (!removing) {
 				new_cx += (size_t)prefix_len + 1;
 			} else {
-				const char *chars = E.rows[E.cy].chars;
+				const char *chars = line.data;
 				int i = 0;
 				while (i < size && (chars[i] == ' ' || chars[i] == '\t')) {
 					i++;
@@ -336,6 +364,7 @@ void editorEditToggleCommentLines(editorEditActionFn clear_selection_mode,
 				}
 			}
 		}
+		editorLineViewRelease(&line);
 		if (new_cx > cur_row_new_size) {
 			new_cx = cur_row_new_size;
 		}
@@ -389,20 +418,31 @@ void editorEditMoveCurrentLine(int direction) {
 		return;
 	}
 
-	int first_len = E.rows[first].size;
-	int second_len = E.rows[second].size;
-	const char *first_chars = E.rows[first].chars;
-	const char *second_chars = E.rows[second].chars;
+	struct editorLineView first_view = {0};
+	struct editorLineView second_view = {0};
+	if (!editorDocumentLineView(E.document, first, &first_view)) {
+		return;
+	}
+	if (!editorDocumentLineView(E.document, second, &second_view)) {
+		editorLineViewRelease(&first_view);
+		return;
+	}
+	int first_len = first_view.size;
+	int second_len = second_view.size;
 
 	size_t new_len = (size_t)second_len + 1 + (size_t)first_len;
 	char *new_text = editorMalloc(new_len);
 	if (new_text == NULL) {
+		editorLineViewRelease(&second_view);
+		editorLineViewRelease(&first_view);
 		editorSetAllocFailureStatus();
 		return;
 	}
-	memcpy(new_text, second_chars, (size_t)second_len);
+	memcpy(new_text, second_view.data, (size_t)second_len);
 	new_text[second_len] = '\n';
-	memcpy(new_text + second_len + 1, first_chars, (size_t)first_len);
+	memcpy(new_text + second_len + 1, first_view.data, (size_t)first_len);
+	editorLineViewRelease(&second_view);
+	editorLineViewRelease(&first_view);
 
 	size_t old_len = second_end - first_start;
 

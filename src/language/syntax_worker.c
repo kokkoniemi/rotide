@@ -161,11 +161,13 @@ static int editorSyntaxWorkerBuildSpans(struct editorSyntaxWorkerResult *result,
 			continue;
 		}
 
-		struct erow row = {0};
-		row.chars = (char *)&text[row_start];
-		row.size = (int)(row_end - row_start);
-		if (!editorRowBuildRender(row.chars, row.size, &row.render, &row.rsize,
-					&row.render_display_cols)) {
+		const char *row_bytes = &text[row_start];
+		int row_size = (int)(row_end - row_start);
+		char *row_render = NULL;
+		int row_rsize = 0;
+		int row_display_cols = 0;
+		if (!editorRowBuildRender(row_bytes, row_size, &row_render, &row_rsize,
+					&row_display_cols)) {
 			free(captures);
 			free(line_starts);
 			return 0;
@@ -174,7 +176,7 @@ static int editorSyntaxWorkerBuildSpans(struct editorSyntaxWorkerResult *result,
 		int capture_count = 0;
 		if (!editorSyntaxStateCollectCapturesForRange(result->state, &source, start_byte,
 					end_byte, captures, capture_limit, &capture_count)) {
-			free(row.render);
+			free(row_render);
 			free(captures);
 			free(line_starts);
 			return 0;
@@ -199,27 +201,29 @@ static int editorSyntaxWorkerBuildSpans(struct editorSyntaxWorkerResult *result,
 			if (local_start < 0) {
 				local_start = 0;
 			}
-			if (local_start > row.size) {
-				local_start = row.size;
+			if (local_start > row_size) {
+				local_start = row_size;
 			}
 			if (local_end < 0) {
 				local_end = 0;
 			}
-			if (local_end > row.size) {
-				local_end = row.size;
+			if (local_end > row_size) {
+				local_end = row_size;
 			}
 
-			local_start = editorRowClampCxToCharBoundary(&row, local_start);
-			local_end = editorRowClampCxToCharBoundary(&row, local_end);
-			if (local_end <= local_start && local_end < row.size) {
-				local_end = editorRowNextCharIdx(&row, local_end);
+			local_start = editorBytesClampCxToCharBoundary(row_bytes, row_size, local_start);
+			local_end = editorBytesClampCxToCharBoundary(row_bytes, row_size, local_end);
+			if (local_end <= local_start && local_end < row_size) {
+				local_end = editorBytesNextCharIdx(row_bytes, row_size, local_end);
 			}
 			if (local_end <= local_start) {
 				continue;
 			}
 
-			int render_start = editorRowCxToRenderIdx(&row, local_start);
-			int render_end = editorRowCxToRenderIdx(&row, local_end);
+			int render_start = editorBytesCxToRenderIdx(row_bytes, row_size, row_rsize,
+					local_start);
+			int render_end = editorBytesCxToRenderIdx(row_bytes, row_size, row_rsize,
+					local_end);
 			if (render_end <= render_start) {
 				continue;
 			}
@@ -230,7 +234,7 @@ static int editorSyntaxWorkerBuildSpans(struct editorSyntaxWorkerResult *result,
 			result->span_counts[rel_row] = slot + 1;
 		}
 
-		free(row.render);
+		free(row_render);
 	}
 
 	free(captures);

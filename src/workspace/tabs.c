@@ -310,13 +310,14 @@ static void editorLoadActiveTab(int tab_idx) {
 		editorViewportSetMode(EDITOR_VIEWPORT_FOLLOW_CURSOR);
 		return;
 	}
-	const char *first_line = NULL;
-	if (E.numrows > 0 && E.rows != NULL) {
-		first_line = E.rows[0].chars;
+	char *first_line_copy = NULL;
+	if (E.numrows > 0) {
+		first_line_copy = editorDocumentLineDup(E.document, 0, NULL);
 	}
 	enum editorSyntaxLanguage detected = E.tab_kind == EDITOR_TAB_GIT_DIFF ?
 			EDITOR_SYNTAX_DIFF :
-			editorSyntaxDetectLanguageFromFilenameAndFirstLine(E.filename, first_line);
+			editorSyntaxDetectLanguageFromFilenameAndFirstLine(E.filename, first_line_copy);
+	free(first_line_copy);
 	if (E.syntax_language != detected || (detected != EDITOR_SYNTAX_NONE && E.syntax_state == NULL)) {
 		(void)editorSyntaxParseFullActive();
 	}
@@ -419,7 +420,7 @@ static int editorTabCanReuseActiveEmptyBuffer(void) {
 		return 0;
 	}
 	for (int row_idx = 0; row_idx < E.numrows; row_idx++) {
-		if (E.rows[row_idx].size != 0) {
+		if (editorDocumentLineLength(E.document, row_idx) != 0) {
 			return 0;
 		}
 	}
@@ -908,10 +909,14 @@ static void editorTaskLogClampCursor(struct editorTabState *tab) {
 	if (tab->cx < 0) {
 		tab->cx = 0;
 	}
-	if (tab->cx > tab->rows[tab->cy].size) {
-		tab->cx = tab->rows[tab->cy].size;
+	struct editorLineView line = {0};
+	if (editorDocumentLineView(tab->document, tab->cy, &line)) {
+		if (tab->cx > line.size) {
+			tab->cx = line.size;
+		}
+		tab->cx = editorBytesClampCxToClusterBoundary(line.data, line.size, tab->cx);
+		editorLineViewRelease(&line);
 	}
-	tab->cx = editorRowClampCxToClusterBoundary(&tab->rows[tab->cy], tab->cx);
 }
 
 static int editorRebuildGeneratedTabRows(struct editorTabState *tab) {
@@ -977,7 +982,7 @@ static int editorTaskMutateTab(int tab_idx, int jump_to_end,
 		if (jump_to_end) {
 			if (E.numrows > 0) {
 				E.cy = E.numrows - 1;
-				E.cx = E.rows[E.cy].size;
+				E.cx = (int)editorDocumentLineLength(E.document, E.cy);
 			} else {
 				E.cy = 0;
 				E.cx = 0;
@@ -1210,7 +1215,7 @@ static int editorTaskPrepareLogTab(const char *title, const char *text) {
 	}
 	if (E.numrows > 0) {
 		E.cy = E.numrows - 1;
-		E.cx = E.rows[E.cy].size;
+		E.cx = (int)editorDocumentLineLength(E.document, E.cy);
 	}
 	editorViewportEnsureCursorVisible();
 	editorStoreActiveTab();

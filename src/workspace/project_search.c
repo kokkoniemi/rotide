@@ -6,6 +6,7 @@
 #include "support/alloc.h"
 #include "support/file_io.h"
 #include "support/size_utils.h"
+#include "text/document.h"
 #include "text/utf8.h"
 #include "workspace/drawer.h"
 #include "workspace/tabs.h"
@@ -653,8 +654,11 @@ static int editorProjectSearchApplySelectedLocation(const struct editorProjectSe
 	if (col < 0) {
 		col = 0;
 	}
-	if (row < E.numrows && col > E.rows[row].size) {
-		col = E.rows[row].size;
+	if (row < E.numrows) {
+		int line_len = (int)editorDocumentLineLength(E.document, row);
+		if (col > line_len) {
+			col = line_len;
+		}
 	}
 	size_t offset = 0;
 	if (!editorBufferPosToOffset(row, col, &offset) ||

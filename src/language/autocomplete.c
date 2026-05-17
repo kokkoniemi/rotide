@@ -3,6 +3,7 @@
 #include "editing/selection.h"
 #include "language/lsp.h"
 #include "render/popup.h"
+#include "text/document.h"
 #include "text/row.h"
 #include "rotide.h"
 
@@ -97,17 +98,17 @@ int editorAutocompleteWouldRefilter(int ch) {
 	return 0;
 }
 
-static int editorAutocompletePrefixStartCx(const struct erow *row, int cursor_cx) {
-	if (row == NULL || cursor_cx <= 0) {
+static int editorAutocompletePrefixStartCxBytes(const char *bytes, int size, int cursor_cx) {
+	if (bytes == NULL || cursor_cx <= 0) {
 		return cursor_cx < 0 ? 0 : cursor_cx;
 	}
 	int idx = cursor_cx;
 	while (idx > 0) {
-		int prev = editorRowPrevCharIdx(row, idx);
+		int prev = editorBytesPrevCharIdx(bytes, size, idx);
 		if (prev < 0 || prev >= idx) {
 			break;
 		}
-		unsigned char b = (unsigned char)row->chars[prev];
+		unsigned char b = (unsigned char)bytes[prev];
 		if (!editorAutocompleteIsIdentByte(b)) {
 			break;
 		}
@@ -116,17 +117,17 @@ static int editorAutocompletePrefixStartCx(const struct erow *row, int cursor_cx
 	return idx;
 }
 
-static char *editorAutocompleteCopyPrefix(const struct erow *row, int start_cx, int end_cx) {
+static char *editorAutocompleteCopyPrefixBytes(const char *bytes, int size, int start_cx,
+		int end_cx) {
 	int len = end_cx - start_cx;
-	if (row == NULL || len <= 0) {
-		char *empty = strdup("");
-		return empty;
+	if (bytes == NULL || len <= 0) {
+		return strdup("");
 	}
 	if (start_cx < 0) {
 		start_cx = 0;
 	}
-	if (end_cx > row->size) {
-		end_cx = row->size;
+	if (end_cx > size) {
+		end_cx = size;
 	}
 	len = end_cx - start_cx;
 	if (len <= 0) {
@@ -136,7 +137,7 @@ static char *editorAutocompleteCopyPrefix(const struct erow *row, int start_cx, 
 	if (out == NULL) {
 		return NULL;
 	}
-	memcpy(out, &row->chars[start_cx], (size_t)len);
+	memcpy(out, &bytes[start_cx], (size_t)len);
 	out[len] = '\0';
 	return out;
 }
@@ -319,9 +320,15 @@ void editorAutocompleteOnCharInserted(int ch) {
 		return;
 	}
 
-	struct erow *row = &E.rows[E.cy];
-	int prefix_start_cx = editorAutocompletePrefixStartCx(row, E.cx);
-	char *prefix = editorAutocompleteCopyPrefix(row, prefix_start_cx, E.cx);
+	struct editorLineView line = {0};
+	if (!editorDocumentLineView(E.document, E.cy, &line)) {
+		editorAutocompleteReset();
+		return;
+	}
+	int prefix_start_cx = editorAutocompletePrefixStartCxBytes(line.data, line.size, E.cx);
+	char *prefix = editorAutocompleteCopyPrefixBytes(line.data, line.size, prefix_start_cx,
+			E.cx);
+	editorLineViewRelease(&line);
 	if (prefix == NULL) {
 		editorAutocompleteReset();
 		return;
@@ -483,18 +490,24 @@ void editorAutocompleteHandleCompletionResponse(int request_id, int document_ver
 		return;
 	}
 
-	struct erow *row = (request_cy >= 0 && request_cy < E.numrows) ? &E.rows[request_cy] : NULL;
-	if (row == NULL) {
+	if (request_cy < 0 || request_cy >= E.numrows) {
+		editorLspFreeCompletionItems(items, count);
+		return;
+	}
+	struct editorLineView line = {0};
+	if (!editorDocumentLineView(E.document, request_cy, &line)) {
 		editorLspFreeCompletionItems(items, count);
 		return;
 	}
 	int current_prefix_cx = E.cx;
-	if (current_prefix_cx < prefix_start_cx || current_prefix_cx > row->size) {
+	if (current_prefix_cx < prefix_start_cx || current_prefix_cx > line.size) {
+		editorLineViewRelease(&line);
 		editorLspFreeCompletionItems(items, count);
 		return;
 	}
-	char *current_prefix =
-			editorAutocompleteCopyPrefix(row, prefix_start_cx, current_prefix_cx);
+	char *current_prefix = editorAutocompleteCopyPrefixBytes(line.data, line.size,
+			prefix_start_cx, current_prefix_cx);
+	editorLineViewRelease(&line);
 	if (current_prefix == NULL) {
 		editorLspFreeCompletionItems(items, count);
 		return;

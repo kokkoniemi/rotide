@@ -261,14 +261,15 @@ static struct editorDocument *editorDocumentAlloc(void) {
 }
 
 static int editorSyntaxReconfigureForFilename(void) {
-	const char *first_line = NULL;
-	if (E.numrows > 0 && E.rows != NULL) {
-		first_line = E.rows[0].chars;
+	char *first_line_copy = NULL;
+	if (E.numrows > 0) {
+		first_line_copy = editorDocumentLineDup(E.document, 0, NULL);
 	}
 
 	enum editorSyntaxLanguage wanted = E.tab_kind == EDITOR_TAB_GIT_DIFF ?
 			EDITOR_SYNTAX_DIFF :
-			editorSyntaxDetectLanguageFromFilenameAndFirstLine(E.filename, first_line);
+			editorSyntaxDetectLanguageFromFilenameAndFirstLine(E.filename, first_line_copy);
+	free(first_line_copy);
 	if (wanted == EDITOR_SYNTAX_NONE) {
 		editorSyntaxDeactivateActive();
 		return 1;
@@ -475,8 +476,8 @@ char *editorRowsToStr(size_t *buflen) {
 	return editorTextSourceDupRange(&source, 0, source.length, buflen);
 }
 
-static void editorClampCursorForRows(int target_cy, int target_cx,
-		const struct erow *rows, int numrows, int *cy_out, int *cx_out) {
+static void editorClampCursorForDocument(int target_cy, int target_cx,
+		const struct editorDocument *document, int numrows, int *cy_out, int *cx_out) {
 	int cy = target_cy;
 	int cx = target_cx;
 
@@ -487,19 +488,24 @@ static void editorClampCursorForRows(int target_cy, int target_cx,
 	}
 
 	if (cy < numrows) {
-		const struct erow *row = &rows[cy];
-		if (cx < 0) {
+		struct editorLineView line = {0};
+		if (editorDocumentLineView(document, cy, &line)) {
+			if (cx < 0) {
+				cx = 0;
+			}
+			if (cx > line.size) {
+				cx = line.size;
+			}
+			cx = editorBytesClampCxToClusterBoundary(line.data, line.size, cx);
+			if (cx < 0) {
+				cx = 0;
+			}
+			if (cx > line.size) {
+				cx = line.size;
+			}
+			editorLineViewRelease(&line);
+		} else {
 			cx = 0;
-		}
-		if (cx > row->size) {
-			cx = row->size;
-		}
-		cx = editorRowClampCxToClusterBoundary(row, cx);
-		if (cx < 0) {
-			cx = 0;
-		}
-		if (cx > row->size) {
-			cx = row->size;
 		}
 	} else {
 		cx = 0;
@@ -532,7 +538,8 @@ int editorRestoreActiveFromDocument(const struct editorDocument *document,
 		return 0;
 	}
 
-	editorClampCursorForRows(target_cy, target_cx, new_rows, new_numrows, &new_cy, &new_cx);
+	editorClampCursorForDocument(target_cy, target_cx, new_document, new_numrows, &new_cy,
+			&new_cx);
 
 	struct erow *old_rows = E.rows;
 	int old_numrows = E.numrows;

@@ -177,19 +177,24 @@ int editorSyncCursorFromOffsetByteBoundary(size_t target_offset) {
 	}
 
 	if (new_cy < E.numrows) {
+		struct editorLineView line = {0};
+		if (!editorDocumentLineView(E.document, new_cy, &line)) {
+			return 0;
+		}
 		if (new_cx < 0) {
 			new_cx = 0;
 		}
-		if (new_cx > E.rows[new_cy].size) {
-			new_cx = E.rows[new_cy].size;
+		if (new_cx > line.size) {
+			new_cx = line.size;
 		}
-		new_cx = editorRowClampCxToCharBoundary(&E.rows[new_cy], new_cx);
+		new_cx = editorBytesClampCxToCharBoundary(line.data, line.size, new_cx);
 		if (new_cx < 0) {
 			new_cx = 0;
 		}
-		if (new_cx > E.rows[new_cy].size) {
-			new_cx = E.rows[new_cy].size;
+		if (new_cx > line.size) {
+			new_cx = line.size;
 		}
+		editorLineViewRelease(&line);
 
 		size_t line_start = 0;
 		size_t cx_size = 0;

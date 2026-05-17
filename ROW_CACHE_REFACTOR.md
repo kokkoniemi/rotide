@@ -152,23 +152,30 @@ For each consumer of `row->chars` / `row->size`, replace with an
 
 Order roughly by blast radius (smallest first):
 
-- [ ] [src/input/text_pairs.c](src/input/text_pairs.c) — bracket/quote
+- [x] [src/input/text_pairs.c](src/input/text_pairs.c) — bracket/quote
   matching.
-- [ ] [src/input/mouse.c](src/input/mouse.c) — coord → cx conversion.
-- [ ] [src/input/dispatch.c](src/input/dispatch.c) — input dispatch helpers.
-- [ ] [src/editing/selection.c](src/editing/selection.c) — selection bounds.
-- [ ] [src/editing/edit.c](src/editing/edit.c) — cursor math for edits.
-- [ ] [src/input/actions_edit.c](src/input/actions_edit.c) — input handlers.
-- [ ] [src/language/autocomplete.c](src/language/autocomplete.c) — word
+- [x] [src/input/mouse.c](src/input/mouse.c) — coord → cx conversion.
+- [x] [src/input/dispatch.c](src/input/dispatch.c) — input dispatch helpers.
+- [x] [src/editing/selection.c](src/editing/selection.c) — selection bounds.
+- [x] [src/editing/edit.c](src/editing/edit.c) — cursor math for edits.
+- [x] [src/input/actions_edit.c](src/input/actions_edit.c) — input handlers.
+- [x] [src/language/autocomplete.c](src/language/autocomplete.c) — word
   prefix lookup.
-- [ ] [src/language/syntax_worker.c](src/language/syntax_worker.c) — syntax
+- [x] [src/language/syntax_worker.c](src/language/syntax_worker.c) — syntax
   injection that currently reads row bytes (verify; may already use the
   text source).
-- [ ] [src/workspace/tabs.c](src/workspace/tabs.c),
+- [x] [src/workspace/tabs.c](src/workspace/tabs.c),
   [src/workspace/watch.c](src/workspace/watch.c) — first-line detection and
   buffer reinit.
-- [ ] [src/editing/buffer_core.c](src/editing/buffer_core.c) — last holdouts,
+- [x] [src/editing/buffer_core.c](src/editing/buffer_core.c) — last holdouts,
   including the `first_line = E.rows[0].chars` syntax-detection probe.
+- [x] Files not in the original inventory but found during the sweep:
+  [src/editing/document_position.c](src/editing/document_position.c),
+  [src/editing/buffer_search.c](src/editing/buffer_search.c),
+  [src/workspace/project_search.c](src/workspace/project_search.c),
+  [src/workspace/workspace_state.c](src/workspace/workspace_state.c),
+  [src/workspace/recovery.c](src/workspace/recovery.c),
+  [src/language/syntax_visible_cache.c](src/language/syntax_visible_cache.c).
 
 Pattern at each call site:
 

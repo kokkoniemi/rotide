@@ -259,8 +259,11 @@ static int editorWatchReloadTabFile(struct editorBuffer *tab,
 	tab->disk_state = *observed;
 	tab->disk_conflict = 0;
 	old_language = tab->syntax_language;
+	char *first_line_copy = tab->numrows > 0
+		? editorDocumentLineDup(tab->document, 0, NULL) : NULL;
 	new_language = editorSyntaxDetectLanguageFromFilenameAndFirstLine(tab->filename,
-			tab->numrows > 0 ? tab->rows[0].chars : NULL);
+			first_line_copy);
+	free(first_line_copy);
 	if (old_language != new_language) {
 		editorLspNotifyDidClose(tab->filename, old_language, &tab->lsp_doc_open,
 				&tab->lsp_doc_version);
