@@ -1,0 +1,29 @@
+name: Nightly
+
+permissions:
+  contents: read
+
+on:
+  schedule:
+    # 03:17 UTC daily. Offset from the hour to avoid GitHub Actions cron-hour pile-up.
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  tsan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run TSan suite
+        run: make test-tsan
+
+      - name: Upload artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tsan-artifacts
+          path: tests/artifacts/
+          if-no-files-found: ignore

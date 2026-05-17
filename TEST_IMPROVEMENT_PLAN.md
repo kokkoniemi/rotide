@@ -101,8 +101,9 @@ Accept with caveats:
 
 - [x] `make test-sanitize` (ASan + UBSan) — runs in CI on push/PR.
 - [x] `make test-tsan` target exists in the Makefile.
-- [ ] **Wire `make test-tsan` into a nightly CI job** scoped to the
-      syntax-worker, LSP, DAP, and file-watch suites.
+- [x] `make test-tsan` wired into a nightly CI job
+      ([.github/workflows/nightly.yml](.github/workflows/nightly.yml)),
+      scoped via `TSAN_TEST_TAGS = threads lsp dap file_watch pty`.
 
 ### Flake quarantine policy
 
@@ -119,7 +120,8 @@ Accept with caveats:
 - [x] `make test-determinism` exists.
 - [x] [scripts/check_test_determinism.sh](scripts/check_test_determinism.sh)
       runs property suites twice with the same seed and diffs output.
-- [ ] **Wire `make test-determinism` into CI on push/PR.**
+- [x] Wired into CI on push/PR via the `determinism` job in
+      [.github/workflows/ci.yml](.github/workflows/ci.yml).
 
 ### Test API contract
 
@@ -313,19 +315,34 @@ Methodology:
 
 ## CI changes that follow from the above
 
-The current [.github/workflows/ci.yml](.github/workflows/ci.yml) runs only
-`make` + `make test` + `make test-sanitize`. The Makefile already provides
-`test-tsan`, `test-determinism`, and `test-crash-handler` that are not
-wired in.
+[.github/workflows/ci.yml](.github/workflows/ci.yml) now runs `make` +
+`make test` + `make test-sanitize` + `make test-determinism` +
+`make test-crash-handler` per push/PR.
+[.github/workflows/nightly.yml](.github/workflows/nightly.yml) runs
+`make test-tsan` on the threaded subset.
 
-- [ ] Per push / PR: add `make test-determinism`, `make test-crash-handler`,
-      and (post-Phase 4) `make fuzz-vterm-smoke` (60s).
-- [ ] Nightly: `make test-tsan` on the threaded subset, full fuzz runs
-      (each target ~30 min), property tests with large N, hyperfine +
-      microbench against the committed baseline, the
-      quarantined-tests-pass-now check, and append a row to
-      `tests/metrics.jsonl`. Post results as a comment on `main`'s last
-      commit.
+Per push / PR:
+
+- [x] `make`, `make test`.
+- [x] `make test-sanitize`.
+- [x] `make test-determinism`.
+- [x] `make test-crash-handler`.
+- [ ] `make fuzz-vterm-smoke` (60s) — add post-Phase 4.
+
+Nightly:
+
+- [x] `make test-tsan` on the threaded subset.
+- [ ] Full fuzz runs (~30 min/target) — add post-Phase 4.
+- [ ] Property tests with large N — Phase 3 harness exposes seed/op count;
+      wiring a second invocation with `--seed` + larger op budget is
+      cheap.
+- [ ] Hyperfine + microbench against committed baseline — Phase 8.
+- [ ] Quarantined-tests-pass-now check (runs full suite with
+      `--no-quarantine`, fails if any `^- ` entry from
+      [tests/QUARANTINE.md](tests/QUARANTINE.md) shows PASS).
+- [ ] Append a row to `tests/metrics.jsonl`; post results as a comment on
+      `main`'s last commit.
+
 - [ ] Don't add a separate "coverage" job until Phase 6 lands; until then
       it measures the wrong thing.
 

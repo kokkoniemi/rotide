@@ -33,3 +33,31 @@ jobs:
 
       - name: Run sanitizer suite
         run: make test-sanitize
+
+  determinism:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run determinism gate
+        run: make test-determinism
+
+  crash-handler:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run crash-handler smoke
+        run: make test-crash-handler
+
+      - name: Upload crash artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-artifacts
+          path: tests/artifacts/
+          if-no-files-found: ignore
