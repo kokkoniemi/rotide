@@ -1209,6 +1209,126 @@ static int test_editor_open_rejects_binary_file_after_initial_scan_chunk(void) {
 	return 0;
 }
 
+static int test_document_line_view_zero_copy_for_single_piece_doc(void) {
+	struct editorDocument document;
+	editorDocumentInit(&document);
+
+	const char *text = "alpha\nbeta\ngamma";
+	ASSERT_TRUE(editorDocumentResetFromString(&document, text, strlen(text)));
+	ASSERT_EQ_INT(3, editorDocumentLineCount(&document));
+
+	ASSERT_EQ_INT(5, (int)editorDocumentLineLength(&document, 0));
+	ASSERT_EQ_INT(4, (int)editorDocumentLineLength(&document, 1));
+	ASSERT_EQ_INT(5, (int)editorDocumentLineLength(&document, 2));
+
+	const char *expected[] = {"alpha", "beta", "gamma"};
+	int expected_len[] = {5, 4, 5};
+	for (int i = 0; i < 3; i++) {
+		size_t len = 0;
+		const char *bytes = editorDocumentLineBytes(&document, i, &len);
+		ASSERT_TRUE(bytes != NULL);
+		ASSERT_EQ_INT(expected_len[i], (int)len);
+		ASSERT_TRUE(memcmp(bytes, expected[i], len) == 0);
+
+		struct editorLineView view = {0};
+		ASSERT_TRUE(editorDocumentLineView(&document, i, &view));
+		ASSERT_TRUE(view.owned == NULL);
+		ASSERT_EQ_INT(expected_len[i], view.size);
+		ASSERT_TRUE(memcmp(view.data, expected[i], (size_t)view.size) == 0);
+		editorLineViewRelease(&view);
+	}
+
+	editorDocumentFree(&document);
+	return 0;
+}
+
+static int test_document_line_view_falls_back_to_copy_across_piece_boundary(void) {
+	struct editorDocument document;
+	editorDocumentInit(&document);
+
+	const char *text = "alpha\nbetagamma\nepsilon\n";
+	ASSERT_TRUE(editorDocumentResetFromString(&document, text, strlen(text)));
+	ASSERT_TRUE(editorDocumentReplaceRange(&document, 10, 0, "_INS_", 5));
+	ASSERT_EQ_INT(3, editorDocumentLineCount(&document));
+
+	size_t bytes_len = 0;
+	const char *bytes = editorDocumentLineBytes(&document, 1, &bytes_len);
+	ASSERT_TRUE(bytes == NULL);
+	ASSERT_EQ_INT(0, (int)bytes_len);
+
+	size_t dup_len = 0;
+	char *dup = editorDocumentLineDup(&document, 1, &dup_len);
+	ASSERT_TRUE(dup != NULL);
+	ASSERT_EQ_INT((int)strlen("beta_INS_gamma"), (int)dup_len);
+	ASSERT_EQ_STR("beta_INS_gamma", dup);
+	free(dup);
+
+	struct editorLineView view = {0};
+	ASSERT_TRUE(editorDocumentLineView(&document, 1, &view));
+	ASSERT_TRUE(view.owned != NULL);
+	ASSERT_EQ_INT((int)strlen("beta_INS_gamma"), view.size);
+	ASSERT_TRUE(memcmp(view.data, "beta_INS_gamma", (size_t)view.size) == 0);
+	editorLineViewRelease(&view);
+	ASSERT_TRUE(view.data == NULL);
+	ASSERT_TRUE(view.owned == NULL);
+
+	struct editorLineView other = {0};
+	ASSERT_TRUE(editorDocumentLineView(&document, 0, &other));
+	ASSERT_TRUE(other.owned == NULL);
+	ASSERT_EQ_INT(5, other.size);
+	ASSERT_TRUE(memcmp(other.data, "alpha", 5) == 0);
+	editorLineViewRelease(&other);
+
+	editorDocumentFree(&document);
+	return 0;
+}
+
+static int test_document_line_view_empty_doc_and_blank_lines(void) {
+	struct editorDocument document;
+	editorDocumentInit(&document);
+
+	ASSERT_EQ_INT(0, editorDocumentLineCount(&document));
+	size_t bytes_len = 99;
+	ASSERT_TRUE(editorDocumentLineBytes(&document, 0, &bytes_len) == NULL);
+	ASSERT_EQ_INT(0, (int)bytes_len);
+	struct editorLineView view = {0};
+	ASSERT_TRUE(editorDocumentLineView(&document, 0, &view) == 0);
+
+	const char *text = "alpha\n\n\nbeta\n";
+	ASSERT_TRUE(editorDocumentResetFromString(&document, text, strlen(text)));
+	ASSERT_EQ_INT(4, editorDocumentLineCount(&document));
+
+	for (int i = 1; i <= 2; i++) {
+		ASSERT_EQ_INT(0, (int)editorDocumentLineLength(&document, i));
+		size_t len = 99;
+		const char *bytes = editorDocumentLineBytes(&document, i, &len);
+		ASSERT_TRUE(bytes != NULL);
+		ASSERT_EQ_INT(0, (int)len);
+
+		struct editorLineView blank = {0};
+		ASSERT_TRUE(editorDocumentLineView(&document, i, &blank));
+		ASSERT_TRUE(blank.owned == NULL);
+		ASSERT_EQ_INT(0, blank.size);
+		ASSERT_TRUE(blank.data != NULL);
+		editorLineViewRelease(&blank);
+	}
+
+	size_t last_len = 0;
+	char *last = editorDocumentLineDup(&document, 3, &last_len);
+	ASSERT_TRUE(last != NULL);
+	ASSERT_EQ_INT(4, (int)last_len);
+	ASSERT_EQ_STR("beta", last);
+	free(last);
+
+	ASSERT_TRUE(editorDocumentLineDup(&document, 4, NULL) == NULL);
+	ASSERT_TRUE(editorDocumentLineBytes(&document, 4, NULL) == NULL);
+	struct editorLineView oob = {0};
+	ASSERT_TRUE(editorDocumentLineView(&document, 4, &oob) == 0);
+
+	editorDocumentFree(&document);
+	return 0;
+}
+
 const struct editorTestCase g_document_text_editing_tests[] = {
 	{"utf8_decode_valid_sequences", test_utf8_decode_valid_sequences},
 	{"utf8_decode_invalid_sequences", test_utf8_decode_invalid_sequences},
@@ -1269,6 +1389,9 @@ const struct editorTestCase g_document_text_editing_tests[] = {
 	{"editor_open_reads_rows_and_clears_dirty", test_editor_open_reads_rows_and_clears_dirty},
 	{"editor_open_rejects_binary_file_without_mutating_buffer", test_editor_open_rejects_binary_file_without_mutating_buffer},
 	{"editor_open_rejects_binary_file_after_initial_scan_chunk", test_editor_open_rejects_binary_file_after_initial_scan_chunk},
+	{"document_line_view_zero_copy_for_single_piece_doc", test_document_line_view_zero_copy_for_single_piece_doc},
+	{"document_line_view_falls_back_to_copy_across_piece_boundary", test_document_line_view_falls_back_to_copy_across_piece_boundary},
+	{"document_line_view_empty_doc_and_blank_lines", test_document_line_view_empty_doc_and_blank_lines},
 };
 
 const int g_document_text_editing_test_count =

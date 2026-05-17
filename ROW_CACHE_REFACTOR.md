@@ -104,20 +104,20 @@ Each phase ends green. Property tests in
 
 Storage-only changes. No callers yet.
 
-- [ ] Implement `editorDocumentLineLength`, `editorDocumentLineBytes`,
+- [x] Implement `editorDocumentLineLength`, `editorDocumentLineBytes`,
   `editorDocumentLineDup`, `editorDocumentLineView`, `editorLineViewRelease` in
   [src/text/document.{h,c}](src/text/document.c).
-- [ ] Implement `editorDocumentLineBytes` by descending to the leaf, locating
+- [x] Implement `editorDocumentLineBytes` by descending to the leaf, locating
   the piece containing line start, and checking whether the line's end byte
   falls in the same piece. If yes, return `piece->buf->bytes + piece->offset +
   (line_start - piece_byte_start)`. If no, return NULL.
-- [ ] Implement `editorDocumentLineView` as a thin wrapper: try Bytes, fall
+- [x] Implement `editorDocumentLineView` as a thin wrapper: try Bytes, fall
   back to Dup when Bytes returns NULL.
-- [ ] Unit tests in [test_document_text_editing.c](tests/test_document_text_editing.c):
+- [x] Unit tests in [test_document_text_editing.c](tests/test_document_text_editing.c):
   - Single-piece doc — every line should hit the zero-copy path.
   - Doc with mid-line piece boundaries — those lines should fall back to copy.
   - Empty doc, doc ending in `\n`, empty trailing line.
-- [ ] Property test: assert `LineDup` always matches `LineView.data[0..size)`
+- [x] Property test: assert `LineDup` always matches `LineView.data[0..size)`
   and matches the bytes extracted by `editorDocumentCopyRange(start, end)`.
 
 **Exit**: storage tests pass; zero production-code changes outside of new APIs.
