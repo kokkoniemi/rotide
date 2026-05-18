@@ -1,8 +1,12 @@
 #include "test_case.h"
 #include "test_helpers.h"
+#include "test_support.h"
 
 #include "editing/edit.h"
 #include "editing/history.h"
+#include "language/lsp.h"
+#include "language/syntax.h"
+#include "terminal/terminal_pane.h"
 #include "workspace/tabs.h"
 
 #include <fcntl.h>
@@ -10,6 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/resource.h>
+#include <time.h>
 #include <unistd.h>
 
 #ifdef __GLIBC__
@@ -56,55 +61,46 @@ static int write_session_fixture(char *path_template) {
 	return ok;
 }
 
-/* Drive one open/edit/close iteration. Returns 0 on success, 1 on failure. */
-static int run_open_edit_close(const char *path) {
-	if (!editorTabOpenOrSwitchToFile(path)) {
-		return 1;
-	}
-	/* Touch the buffer so undo history, syntax, and the dirty path all
-	 * participate in the cycle. */
-	editorInsertChar('x');
-	editorUndo();
-	if (!editorTabCloseActive()) {
-		return 1;
-	}
-	return 0;
-}
-
-/* Slop bounds: glibc retains arenas; ASan retains shadow-mapped state;
- * background syntax workers warm up their queues. We are asserting "trend
- * to zero, not slope," so the bounds need to be wide enough to absorb
- * legitimate steady-state caches but narrow enough to catch per-iteration
- * leaks (which would produce delta >= K * leak_per_iter). At K=200, a
- * 1 KiB-per-iter leak would dwarf these bounds.
- */
-#define LONG_SESSION_WARMUP_ITERATIONS 20
-#define LONG_SESSION_MEASURED_ITERATIONS 200
-
 /* ASan + UBSan shadow memory grows in lockstep with heap mappings; RSS under
  * sanitizers is noisier and runs roughly an order of magnitude wider per
  * iteration than the native build. mallinfo2's uordblks is unaffected.
  */
 #if defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__)
-#define LONG_SESSION_MAX_RSS_GROWTH_KIB 32768             /* 32 MiB under sanitizers */
+#define LONG_SESSION_DEFAULT_RSS_KIB 32768            /* 32 MiB under sanitizers */
 #else
-#define LONG_SESSION_MAX_RSS_GROWTH_KIB 2048              /* 2 MiB; catches ~10 KiB/iter */
+#define LONG_SESSION_DEFAULT_RSS_KIB 2048             /* 2 MiB; catches ~10 KiB/iter at K=200 */
 #endif
-#define LONG_SESSION_MAX_LIVE_GROWTH_BYTES (256 * 1024)   /* 256 KiB; catches ~1.3 KiB/iter */
+#define LONG_SESSION_DEFAULT_LIVE_BYTES (256 * 1024)  /* 256 KiB; catches ~1.3 KiB/iter at K=200 */
 
-static int test_long_session_open_edit_close_cycles_have_flat_memory(void) {
-	char path[] = "/tmp/rotide-longsess-XXXXXX";
-	ASSERT_TRUE(write_session_fixture(path));
+struct longSessionScenario {
+	const char *name;
+	int warmup_iterations;
+	int measured_iterations;
+	long max_rss_growth_kib;
+	long max_live_growth_bytes;
+	int (*step)(void *ctx);
+	void *ctx;
+};
 
-	for (int i = 0; i < LONG_SESSION_WARMUP_ITERATIONS; i++) {
-		ASSERT_EQ_INT(0, run_open_edit_close(path));
+/* Run one scenario. Returns 0 if growth bounds held, 1 otherwise. */
+static int run_growth_scenario(const struct longSessionScenario *scenario) {
+	for (int i = 0; i < scenario->warmup_iterations; i++) {
+		if (scenario->step(scenario->ctx) != 0) {
+			fprintf(stderr, "long_session: %s warmup step %d failed\n",
+				scenario->name, i);
+			return 1;
+		}
 	}
 
 	long baseline_rss = current_rss_kib();
 	long baseline_live = current_live_alloc_bytes();
 
-	for (int i = 0; i < LONG_SESSION_MEASURED_ITERATIONS; i++) {
-		ASSERT_EQ_INT(0, run_open_edit_close(path));
+	for (int i = 0; i < scenario->measured_iterations; i++) {
+		if (scenario->step(scenario->ctx) != 0) {
+			fprintf(stderr, "long_session: %s measured step %d failed\n",
+				scenario->name, i);
+			return 1;
+		}
 	}
 
 	long final_rss = current_rss_kib();
@@ -115,33 +111,197 @@ static int test_long_session_open_edit_close_cycles_have_flat_memory(void) {
 	long live_delta = (baseline_live >= 0 && final_live >= 0)
 		? final_live - baseline_live : 0;
 
-	int failed = 0;
 	if (getenv("ROTIDE_LONG_SESSION_REPORT") != NULL) {
 		fprintf(stderr,
-			"long_session_report: iterations=%d "
+			"long_session_report: scenario=%s iterations=%d "
 			"rss_baseline=%ld KiB rss_final=%ld KiB rss_delta=%ld KiB "
 			"live_baseline=%ld live_final=%ld live_delta=%ld\n",
-			LONG_SESSION_MEASURED_ITERATIONS,
+			scenario->name, scenario->measured_iterations,
 			baseline_rss, final_rss, rss_delta,
 			baseline_live, final_live, live_delta);
 	}
-	if (rss_delta > LONG_SESSION_MAX_RSS_GROWTH_KIB) {
-		fprintf(stderr,
-			"long_session: RSS grew %ld KiB over %d iterations "
-			"(baseline=%ld KiB final=%ld KiB max=%d KiB)\n",
-			rss_delta, LONG_SESSION_MEASURED_ITERATIONS,
-			baseline_rss, final_rss, LONG_SESSION_MAX_RSS_GROWTH_KIB);
-		failed = 1;
-	}
-	if (baseline_live >= 0 && live_delta > LONG_SESSION_MAX_LIVE_GROWTH_BYTES) {
-		fprintf(stderr,
-			"long_session: live alloc bytes grew %ld over %d iterations "
-			"(baseline=%ld final=%ld max=%d)\n",
-			live_delta, LONG_SESSION_MEASURED_ITERATIONS,
-			baseline_live, final_live, LONG_SESSION_MAX_LIVE_GROWTH_BYTES);
-		failed = 1;
-	}
 
+	int failed = 0;
+	if (rss_delta > scenario->max_rss_growth_kib) {
+		fprintf(stderr,
+			"long_session: %s RSS grew %ld KiB over %d iterations "
+			"(baseline=%ld KiB final=%ld KiB max=%ld KiB)\n",
+			scenario->name, rss_delta, scenario->measured_iterations,
+			baseline_rss, final_rss, scenario->max_rss_growth_kib);
+		failed = 1;
+	}
+	if (baseline_live >= 0 && live_delta > scenario->max_live_growth_bytes) {
+		fprintf(stderr,
+			"long_session: %s live alloc bytes grew %ld over %d iterations "
+			"(baseline=%ld final=%ld max=%ld)\n",
+			scenario->name, live_delta, scenario->measured_iterations,
+			baseline_live, final_live, scenario->max_live_growth_bytes);
+		failed = 1;
+	}
+	return failed;
+}
+
+/* ------------------------------------------------------------------ */
+/* Scenario: open / edit / undo / close                               */
+/* ------------------------------------------------------------------ */
+
+static int step_open_edit_close(void *ctx) {
+	const char *path = (const char *)ctx;
+	if (!editorTabOpenOrSwitchToFile(path)) {
+		return 1;
+	}
+	editorInsertChar('x');
+	editorUndo();
+	if (!editorTabCloseActive()) {
+		return 1;
+	}
+	return 0;
+}
+
+static int test_long_session_open_edit_close_cycles_have_flat_memory(void) {
+	char path[] = "/tmp/rotide-longsess-XXXXXX";
+	ASSERT_TRUE(write_session_fixture(path));
+
+	struct longSessionScenario scenario = {
+		.name = "open_edit_close",
+		.warmup_iterations = 20,
+		.measured_iterations = 200,
+		.max_rss_growth_kib = LONG_SESSION_DEFAULT_RSS_KIB,
+		.max_live_growth_bytes = LONG_SESSION_DEFAULT_LIVE_BYTES,
+		.step = step_open_edit_close,
+		.ctx = path,
+	};
+	int failed = run_growth_scenario(&scenario);
+	(void)unlink(path);
+	return failed;
+}
+
+/* ------------------------------------------------------------------ */
+/* Scenario: syntax reparse cycle                                     */
+/* ------------------------------------------------------------------ */
+
+static int step_syntax_reparse(void *ctx) {
+	const char *path = (const char *)ctx;
+	if (!editorTabOpenOrSwitchToFile(path)) {
+		return 1;
+	}
+	/* Drive several edits that force incremental reparses. Stay on row 0
+	 * to keep cursor math cheap; the syntax tree still re-evaluates the
+	 * edited region.
+	 */
+	E.cy = 0;
+	E.cx = 0;
+	for (int i = 0; i < 5; i++) {
+		editorInsertChar('a');
+		editorInsertChar('b');
+		editorInsertChar('c');
+		editorUndo();
+		editorUndo();
+		editorUndo();
+	}
+	if (!editorTabCloseActive()) {
+		return 1;
+	}
+	return 0;
+}
+
+static int test_long_session_syntax_reparse_cycles_have_flat_memory(void) {
+	char path[64];
+	ASSERT_TRUE(write_temp_c_file(path, sizeof(path), k_session_fixture));
+
+	struct longSessionScenario scenario = {
+		.name = "syntax_reparse",
+		.warmup_iterations = 10,
+		.measured_iterations = 100,
+		/* Tree-sitter parse state (interned strings, parser stacks) takes
+		 * longer than other scenarios to reach steady-state, and ASan's
+		 * shadow tracks every malloc region it ever saw. live_delta
+		 * (mallinfo2) is the regression signal here. */
+#if defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__)
+		.max_rss_growth_kib = 131072,                  /* 128 MiB under sanitizers */
+#else
+		.max_rss_growth_kib = LONG_SESSION_DEFAULT_RSS_KIB,
+#endif
+		.max_live_growth_bytes = LONG_SESSION_DEFAULT_LIVE_BYTES,
+		.step = step_syntax_reparse,
+		.ctx = path,
+	};
+	int failed = run_growth_scenario(&scenario);
+	(void)unlink(path);
+	return failed;
+}
+
+/* ------------------------------------------------------------------ */
+/* Scenario: terminal pane spawn / pump / free                        */
+/* ------------------------------------------------------------------ */
+
+static int step_terminal_pane(void *ctx) {
+	(void)ctx;
+	struct editorTerminalPane *t = editorTerminalPaneCreate("true", 40, 8);
+	if (t == NULL) {
+		return 1;
+	}
+	/* Pump until child exits or a small timeout (`true` exits immediately
+	 * but the pump still has to ingest the SIGCHLD + drain the PTY). */
+	int waited_ms = 0;
+	while (waited_ms < 500 && !t->exited) {
+		(void)editorTerminalPanePump(t);
+		struct timespec ts = {0, 2 * 1000 * 1000};
+		nanosleep(&ts, NULL);
+		waited_ms += 2;
+	}
+	editorTerminalPaneFree(t);
+	return 0;
+}
+
+static int test_long_session_terminal_pane_cycles_have_flat_memory(void) {
+	struct longSessionScenario scenario = {
+		.name = "terminal_pane",
+		.warmup_iterations = 5,
+		/* Each iter forks+execs a process, so keep K small. 40 iterations
+		 * is enough to surface a per-pane retention of ~10 KiB within
+		 * the default live-bytes slop. */
+		.measured_iterations = 40,
+		.max_rss_growth_kib = LONG_SESSION_DEFAULT_RSS_KIB,
+		.max_live_growth_bytes = LONG_SESSION_DEFAULT_LIVE_BYTES,
+		.step = step_terminal_pane,
+		.ctx = NULL,
+	};
+	return run_growth_scenario(&scenario);
+}
+
+/* ------------------------------------------------------------------ */
+/* Scenario: LSP-tracked file open / close (mock-backed)              */
+/* ------------------------------------------------------------------ */
+
+static int step_lsp_open_close(void *ctx) {
+	const char *path = (const char *)ctx;
+	if (!editorTabOpenOrSwitchToFile(path)) {
+		return 1;
+	}
+	if (!editorTabCloseActive()) {
+		return 1;
+	}
+	return 0;
+}
+
+static int test_long_session_lsp_open_close_cycles_have_flat_memory(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_clangd_enabled = 1;
+
+	char path[64];
+	ASSERT_TRUE(write_temp_c_file(path, sizeof(path), k_session_fixture));
+
+	struct longSessionScenario scenario = {
+		.name = "lsp_open_close",
+		.warmup_iterations = 10,
+		.measured_iterations = 100,
+		.max_rss_growth_kib = LONG_SESSION_DEFAULT_RSS_KIB,
+		.max_live_growth_bytes = LONG_SESSION_DEFAULT_LIVE_BYTES,
+		.step = step_lsp_open_close,
+		.ctx = path,
+	};
+	int failed = run_growth_scenario(&scenario);
 	(void)unlink(path);
 	return failed;
 }
@@ -149,6 +309,12 @@ static int test_long_session_open_edit_close_cycles_have_flat_memory(void) {
 const struct editorTestCase g_long_session_tests[] = {
 	{"long_session_open_edit_close_cycles_have_flat_memory",
 		test_long_session_open_edit_close_cycles_have_flat_memory},
+	{"long_session_syntax_reparse_cycles_have_flat_memory",
+		test_long_session_syntax_reparse_cycles_have_flat_memory},
+	{"long_session_terminal_pane_cycles_have_flat_memory",
+		test_long_session_terminal_pane_cycles_have_flat_memory},
+	{"long_session_lsp_open_close_cycles_have_flat_memory",
+		test_long_session_lsp_open_close_cycles_have_flat_memory},
 };
 
 const int g_long_session_test_count =

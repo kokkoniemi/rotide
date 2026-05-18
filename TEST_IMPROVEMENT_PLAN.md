@@ -259,26 +259,29 @@ liar's metric):
       assertions for tests that specifically check escape-sequence emission
       (cursor style, OSC52).
 
-### Phase 7: Long-session memory growth test — partial
+### Phase 7: Long-session memory growth test — shipped
 
 [tests/test_long_session.c](tests/test_long_session.c) ships the harness
-and a first scenario; structured so additional scenarios drop in as more
-`run_*` helpers.
+plus four scenarios driven through a shared `run_growth_scenario`.
 
 - [x] Per-scenario harness with warmup + K-iteration measured loop.
 - [x] Assert live-alloc bytes (`mallinfo2().uordblks`, glibc only) return
       to within a small bound of baseline (256 KiB slop ≈ 1.3 KiB/iter
-      regression catch threshold).
+      regression catch threshold at K=200).
 - [x] Assert `getrusage(RUSAGE_SELF).ru_maxrss` growth trends to zero
-      (native: 2 MiB slop; sanitizers: 32 MiB slop — ASan/TSan shadow
-      memory inflates RSS).
-- [x] Run under sanitizers in CI (covered by `make test-sanitize` since
-      the suite is in the default set).
-- [x] **Open / edit / undo / close cycle scenario.**
-- [ ] Terminal-pane spawn / feed / kill scenario.
-- [ ] Syntax reparse-cycle scenario (open syntax-tracked language, drive
-      N edits, close).
-- [ ] LSP open / close scenario (LSP-mock-backed, exercise document map).
+      (native: 2 MiB slop; sanitizers: 32 MiB slop default — ASan/TSan
+      shadow memory inflates RSS; syntax_reparse gets a 128 MiB slop
+      because tree-sitter state takes longer to reach steady-state).
+- [x] Run under sanitizers in CI (covered by `make test-sanitize`).
+- [x] Open / edit / undo / close cycle scenario.
+- [x] Syntax reparse-cycle scenario (open .c file, K=100 edit/undo
+      rounds, close — exercises tree-sitter incremental path and the
+      syntax visible cache).
+- [x] Terminal-pane spawn / pump / free scenario (K=40, real fork+exec
+      of `true` per iteration; baseline is currently 0 KiB RSS / 0-byte
+      live delta).
+- [x] LSP open / close scenario (mock-backed via
+      `editorLspTestSetMockEnabled`; clangd path).
 - [ ] **Top-N retained-bytes report grouped by caller** using
       `__builtin_return_address` in the alloc hook. "RSS grew 4 MB" is a
       red light with no next step; "RSS grew 4 MB and 80% of retained
@@ -286,13 +289,16 @@ and a first scenario; structured so additional scenarios drop in as more
       Requires adding `editorFree(void *)` and converting `free()` call
       sites; defer until a regression actually fires.
 
-Suspect caches to exercise specifically: scrollback, undo history, syntax
-visible cache, LSP document map. ASan/LSan does not catch *retained*
-allocations — this fills that gap.
+Steady-state observation worth flagging for follow-up: the
+syntax_reparse scenario retains ~850 bytes/iter in the native build
+(85 KiB over 100 iterations). That's well inside the 256 KiB slop, but
+the slope is non-zero and points at tree-sitter / syntax-visible-cache
+state that doesn't fully release on close. Worth profiling under the
+Top-N caller report once that's built.
 
-`ROTIDE_LONG_SESSION_REPORT=1` env var makes the test emit a
-`long_session_report:` line with baseline/final/delta numbers, useful for
-investigating a CI failure without re-running locally.
+`ROTIDE_LONG_SESSION_REPORT=1` env var makes each scenario emit a
+`long_session_report:` line with baseline / final / delta numbers,
+useful for investigating a CI failure without re-running locally.
 
 ### Phase 8: Microbench coverage + one whole-program hyperfine scenario
 
