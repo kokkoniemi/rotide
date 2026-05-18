@@ -60,6 +60,7 @@ rotide
 tests/rotide_tests
 tests/artifacts/
 tests/bench_text_storage
+tests/rotide_bench
 
 PLAN.md
 

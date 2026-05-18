@@ -158,6 +158,10 @@ BENCH_BUFFER_BIN = tests/bench_text_storage
 BENCH_BUFFER_SRC = tests/bench_text_storage.c
 BENCH_BUFFER_OBJ = $(BENCH_BUFFER_SRC:.c=.o)
 
+BENCH_MICRO_BIN = tests/rotide_bench
+BENCH_MICRO_SRCS = tests/bench_microbenches.c tests/bench_runner.c
+BENCH_MICRO_OBJS = $(BENCH_MICRO_SRCS:.c=.o)
+
 # ============================================================================
 # Generated headers
 # ============================================================================
@@ -212,6 +216,9 @@ $(TEST_BIN): $(TEST_OBJS) $(EDITOR_OBJS)
 $(BENCH_BUFFER_BIN): $(BENCH_BUFFER_OBJ) $(EDITOR_OBJS)
 	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) $^ -lutil -o $@
 
+$(BENCH_MICRO_BIN): $(BENCH_MICRO_OBJS) $(EDITOR_OBJS)
+	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) $^ -lutil -o $@
+
 # ============================================================================
 # Test / release / docs targets
 # ============================================================================
@@ -223,6 +230,9 @@ test: $(TEST_BIN)
 
 bench-buffer: $(BENCH_BUFFER_BIN)
 	$(call LOG,BENCH,$(BENCH_BUFFER_BIN))./$(BENCH_BUFFER_BIN) $(BENCH_BUFFER_FLAGS)
+
+bench: $(BENCH_MICRO_BIN)
+	$(call LOG,BENCH,$(BENCH_MICRO_BIN))./$(BENCH_MICRO_BIN) $(BENCH_FLAGS)
 
 test-sanitize:
 	$(call LOG,CLEAN,build)$(MAKE) clean
@@ -267,7 +277,7 @@ docs-diagrams:
 
 -include $(DEPFILES)
 
-.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler release docs-media docs-diagrams bench-buffer
+.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler release docs-media docs-diagrams bench-buffer bench
 
 clean:
 	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(BENCH_BUFFER_OBJ) $(DEPFILES) $(TEST_BIN) $(BENCH_BUFFER_BIN) rotide $(GENERATED_HEADERS)

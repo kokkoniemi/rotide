@@ -302,24 +302,35 @@ useful for investigating a CI failure without re-running locally.
 
 ### Phase 8: Microbench coverage + one whole-program hyperfine scenario
 
-Storage microbench landed with the row-cache retirement; remaining work
-extends that pattern:
+Storage microbench landed with the row-cache retirement. The percentile
+harness ships in [tests/bench_runner.{c,h}](tests/bench_runner.h);
+benches live in [tests/bench_microbenches.c](tests/bench_microbenches.c);
+run via `make bench`.
 
 - [x] [tests/bench_text_storage.c](tests/bench_text_storage.c) reports
       `open_reset` MB/s, random insert/delete/replace µs/op, and row-cache
       RSS delta. Run via `make bench-buffer`.
-- [ ] Add microbenches for:
-  - [ ] document position↔byte round-trip.
-  - [ ] row_cache splice (small edit vs full rebuild).
-  - [ ] wrap recompute on a 1000-line buffer.
-  - [ ] screen-diff against unchanged frame.
-  - [ ] screen-diff with one row changed.
-  - [ ] syntax incremental edit on a 5k-line C file.
-- [ ] Standard report format `name min p50 p95` in nanoseconds via
-      `clock_gettime(CLOCK_MONOTONIC)`; `--json bench.json` output for CI
-      ingestion.
+- [x] **Percentile-reporting harness**: `name min/p50/p95/iqr` in
+      nanoseconds via `clock_gettime(CLOCK_MONOTONIC)`, N=20 samples by
+      default, `--iterations N`, `--filter SUBSTR`, `--json PATH` flags.
+- [x] document position↔byte round-trip (256 KiB doc, 1024 inner ops/sample).
+- [x] row_cache splice for a small edit (256 KiB doc, 16 inner
+      insert-then-revert cycles/sample).
+- [ ] wrap recompute on a 1000-line buffer.
+- [ ] screen-diff against unchanged frame.
+- [ ] screen-diff with one row changed.
+- [ ] syntax incremental edit on a 5k-line C file.
 - [ ] One `hyperfine` scenario: cold-open a generated 10 MB C file, render
       once, exit. The only whole-program metric users notice.
+
+Baseline numbers on the host this was developed on (rough; do not treat
+as a regression budget yet — needs CI-runner calibration per the
+methodology below):
+
+```
+document_position_byte_roundtrip   p50 ≈ 2 µs   p95 ≈ 2 µs    iqr ≈ 30 ns
+row_cache_splice_small_edit        p50 ≈ 14 µs  p95 ≈ 26 µs   iqr ≈ 9 µs
+```
 
 Methodology:
 
