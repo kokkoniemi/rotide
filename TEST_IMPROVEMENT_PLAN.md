@@ -259,24 +259,40 @@ liar's metric):
       assertions for tests that specifically check escape-sequence emission
       (cursor style, OSC52).
 
-### Phase 7: Long-session memory growth test
+### Phase 7: Long-session memory growth test — partial
 
-- [ ] Per-scenario harness: capture baseline RSS, run an op loop K
-      iterations (open/edit/close, terminal-pane spawn/feed/kill, syntax
-      reparse cycles, LSP open/close).
-- [ ] Assert alloc-hook live-allocation count returns to within a small
-      bound of baseline.
-- [ ] Assert `getrusage(RUSAGE_SELF).ru_maxrss` growth per iteration trends
-      to zero, not to a slope.
+[tests/test_long_session.c](tests/test_long_session.c) ships the harness
+and a first scenario; structured so additional scenarios drop in as more
+`run_*` helpers.
+
+- [x] Per-scenario harness with warmup + K-iteration measured loop.
+- [x] Assert live-alloc bytes (`mallinfo2().uordblks`, glibc only) return
+      to within a small bound of baseline (256 KiB slop ≈ 1.3 KiB/iter
+      regression catch threshold).
+- [x] Assert `getrusage(RUSAGE_SELF).ru_maxrss` growth trends to zero
+      (native: 2 MiB slop; sanitizers: 32 MiB slop — ASan/TSan shadow
+      memory inflates RSS).
+- [x] Run under sanitizers in CI (covered by `make test-sanitize` since
+      the suite is in the default set).
+- [x] **Open / edit / undo / close cycle scenario.**
+- [ ] Terminal-pane spawn / feed / kill scenario.
+- [ ] Syntax reparse-cycle scenario (open syntax-tracked language, drive
+      N edits, close).
+- [ ] LSP open / close scenario (LSP-mock-backed, exercise document map).
 - [ ] **Top-N retained-bytes report grouped by caller** using
       `__builtin_return_address` in the alloc hook. "RSS grew 4 MB" is a
       red light with no next step; "RSS grew 4 MB and 80% of retained
       allocations came from `editorScrollbackAppend`" is a bug report.
-- [ ] Run under sanitizers in CI.
+      Requires adding `editorFree(void *)` and converting `free()` call
+      sites; defer until a regression actually fires.
 
 Suspect caches to exercise specifically: scrollback, undo history, syntax
 visible cache, LSP document map. ASan/LSan does not catch *retained*
 allocations — this fills that gap.
+
+`ROTIDE_LONG_SESSION_REPORT=1` env var makes the test emit a
+`long_session_report:` line with baseline/final/delta numbers, useful for
+investigating a CI failure without re-running locally.
 
 ### Phase 8: Microbench coverage + one whole-program hyperfine scenario
 
