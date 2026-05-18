@@ -316,10 +316,12 @@ run via `make bench`.
 - [x] document position↔byte round-trip (256 KiB doc, 1024 inner ops/sample).
 - [x] row_cache splice for a small edit (256 KiB doc, 16 inner
       insert-then-revert cycles/sample).
-- [ ] wrap recompute on a 1000-line buffer.
+- [x] wrap recompute on a 1000-line buffer (120-char lines wrapping at
+      80 cols, full-cache invalidate + recompute per inner op).
+- [x] syntax incremental edit on a 5k-line C-like source (insert byte +
+      ApplyEditAndParse, then revert + ApplyEditAndParse, 4 cycles/sample).
 - [ ] screen-diff against unchanged frame.
 - [ ] screen-diff with one row changed.
-- [ ] syntax incremental edit on a 5k-line C file.
 - [ ] One `hyperfine` scenario: cold-open a generated 10 MB C file, render
       once, exit. The only whole-program metric users notice.
 
@@ -328,9 +330,15 @@ as a regression budget yet — needs CI-runner calibration per the
 methodology below):
 
 ```
-document_position_byte_roundtrip   p50 ≈ 2 µs   p95 ≈ 2 µs    iqr ≈ 30 ns
-row_cache_splice_small_edit        p50 ≈ 14 µs  p95 ≈ 26 µs   iqr ≈ 9 µs
+document_position_byte_roundtrip   p50 ≈ 2 µs    p95 ≈ 2.4 µs   iqr ≈ 75 ns
+row_cache_splice_small_edit        p50 ≈ 14 µs   p95 ≈ 26 µs    iqr ≈ 9 µs
+wrap_recompute_1k_lines            p50 ≈ 646 µs  p95 ≈ 656 µs   iqr ≈ 6 µs
+syntax_incremental_5k_lines_c      p50 ≈ 22 ms   p95 ≈ 23 ms    iqr ≈ 300 µs
 ```
+
+The syntax bench includes a parse-on-revert cycle (inner_ops=4 means
+4 forward + 4 reverse `ApplyEditAndParse` calls per sample), so a single
+incremental parse on this fixture is roughly p50 ÷ 8 ≈ 2.7 ms.
 
 Methodology:
 
