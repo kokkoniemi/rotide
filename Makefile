@@ -254,6 +254,12 @@ test-determinism: $(TEST_BIN)
 test-crash-handler: $(TEST_BIN)
 	$(call LOG,TEST,crash)scripts/check_crash_handler.sh ./$(TEST_BIN)
 
+test-quarantine-age:
+	$(call LOG,TEST,quarantine-age)scripts/check_quarantine_age.sh
+
+test-quarantine-passing: $(TEST_BIN)
+	$(call LOG,TEST,quarantine-pass)scripts/check_quarantine_passing.sh ./$(TEST_BIN) $(TEST_FLAGS)
+
 test-tsan:
 	$(call LOG,CLEAN,build)$(MAKE) clean
 	$(call LOG,MAKE,test-tsan)$(MAKE) CFLAGS="$(CFLAGS) $(TSAN_FLAGS)" \
@@ -277,7 +283,7 @@ docs-diagrams:
 
 -include $(DEPFILES)
 
-.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler release docs-media docs-diagrams bench-buffer bench
+.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams bench-buffer bench
 
 clean:
 	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(BENCH_BUFFER_OBJ) $(DEPFILES) $(TEST_BIN) $(BENCH_BUFFER_BIN) rotide $(GENERATED_HEADERS)

@@ -110,10 +110,14 @@ Accept with caveats:
 - [x] [tests/QUARANTINE.md](tests/QUARANTINE.md) format documented.
 - [x] Runner reads it and skips listed tests by default.
 - [x] `--no-quarantine` runs them anyway.
-- [ ] **Nightly job that runs with `--no-quarantine` and fails loudly if a
-      quarantined test starts passing again.**
-- [ ] **30-day age enforcement** — per-PR build fails on stale entries
-      unless explicitly re-upped.
+- [x] Nightly job that runs with `--no-quarantine` and fails loudly if a
+      quarantined test starts passing again — `make test-quarantine-passing`,
+      backed by [scripts/check_quarantine_passing.sh](scripts/check_quarantine_passing.sh),
+      wired into [nightly.yml](.github/workflows/nightly.yml).
+- [x] 30-day age enforcement — `make test-quarantine-age`, backed by
+      [scripts/check_quarantine_age.sh](scripts/check_quarantine_age.sh),
+      wired into [ci.yml](.github/workflows/ci.yml) per push/PR. Window
+      configurable via `ROTIDE_QUARANTINE_MAX_AGE_DAYS`.
 
 ### Determinism CI gate
 
@@ -368,19 +372,19 @@ Per push / PR:
 - [x] `make test-sanitize`.
 - [x] `make test-determinism`.
 - [x] `make test-crash-handler`.
+- [x] `make test-quarantine-age`.
 - [ ] `make fuzz-vterm-smoke` (60s) — add post-Phase 4.
 
 Nightly:
 
 - [x] `make test-tsan` on the threaded subset.
+- [x] `make test-quarantine-passing` (fails if any quarantined test now
+      passes).
 - [ ] Full fuzz runs (~30 min/target) — add post-Phase 4.
 - [ ] Property tests with large N — Phase 3 harness exposes seed/op count;
       wiring a second invocation with `--seed` + larger op budget is
       cheap.
 - [ ] Hyperfine + microbench against committed baseline — Phase 8.
-- [ ] Quarantined-tests-pass-now check (runs full suite with
-      `--no-quarantine`, fails if any `^- ` entry from
-      [tests/QUARANTINE.md](tests/QUARANTINE.md) shows PASS).
 - [ ] Append a row to `tests/metrics.jsonl`; post results as a comment on
       `main`'s last commit.
 
