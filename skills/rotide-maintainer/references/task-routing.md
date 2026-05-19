@@ -5,7 +5,7 @@ Use this as the default first-stop map before opening broad repo docs.
 | Task type | Skill | First files | Matching tests | Validation |
 | --- | --- | --- | --- | --- |
 | General editor behavior or mixed bugfix | `rotide-maintainer` | touched module, nearest caller, nearest test file | domain test file below | `make`, `make test` |
-| Document, rope, offset mapping, undo/redo capture | `rotide-document-maintainer` | `src/text/document.c`, `src/text/rope.c`, `src/editing/buffer_core.c` | `tests/test_document_text_editing.c` | `make`, `make test`, sanitizer if storage-sensitive |
+| Document, text tree, offset mapping, undo/redo capture | `rotide-document-maintainer` | `src/text/document.c`, `src/text/text_tree.c`, `src/editing/edit_pipeline.c` | `tests/test_document_text_editing.c` | `make`, `make test`, sanitizer if storage-sensitive |
 | Save, recovery, startup restore | `rotide-document-maintainer` | `src/support/file_io.c`, `src/workspace/recovery.c`, save path in editing layer | `tests/test_save_recovery.c` | `make`, `make test`, `make test-sanitize` |
 | Search prompt, active match, search highlight | `rotide-search-maintainer` | search caller, prompt API, buffer search helpers, renderer highlight path | `tests/test_input_search.c`, `tests/test_render_terminal.c` | `make`, `make test` |
 | Syntax activation, queries, incremental parse, highlight colors | `rotide-syntax-maintainer` | `src/language/syntax.c`, `src/editing/buffer_core.c`, relevant `src/render/*.c` | `tests/test_syntax.c`, `tests/test_render_terminal.c` | `make`, `make test`, `make test-sanitize` |

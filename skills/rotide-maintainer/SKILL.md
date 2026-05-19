@@ -1,6 +1,6 @@
 ---
 name: rotide-maintainer
-description: Maintain and evolve RotIDE across core editor modules, document/rope storage, rendering, keymap/config loading, syntax, LSP, docs, and tests.
+description: Maintain and evolve RotIDE across core editor modules, document/text-tree storage, rendering, keymap/config loading, syntax, LSP, docs, and tests.
 ---
 
 # Rotide Maintainer

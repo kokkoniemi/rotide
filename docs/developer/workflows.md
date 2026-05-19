@@ -42,9 +42,13 @@ pressed, which makes the *next* key dispatch through the normal keymap.
 
 Every text mutation is an edit descriptor handed to the edit pipeline.
 The pipeline's job is to keep document, row cache, cursor, language
-services, and history consistent. The fan-out to syntax/LSP/diagnostics
-runs *after* the document and row cache have been updated, so listeners
-always observe a consistent state.
+services, and history consistent. It computes removed text, the affected
+row range, and any syntax edit from the old document; reserves insert
+capacity for the forward and revert paths; mutates `editorDocument`; then
+derives replacement rows from the new document and splices them into the
+row cache. The fan-out to syntax/LSP/diagnostics runs *after* the
+document and row cache have been updated, so listeners always observe a
+consistent state.
 
 Undo and redo replay edits through the same pipeline rather than
 restoring snapshots. That is how dirty state stays accurate across

@@ -6,12 +6,14 @@ Source lives under `src/<area>/`; tests are split per concern under `tests/test_
 
 - Canonical text storage:
   - `src/text/document.c` / `document.h` (`editorDocument`)
-  - `src/text/rope.c` / `rope.h` (chunked byte storage)
-  - `src/text/row.c` / `row.h` (derived `erow` cache)
+  - `src/text/text_tree.c` / `text_tree.h` (piece-tree storage)
+  - `src/text/text_buffer.c` / `text_buffer.h` (refcounted original/add buffers)
+  - `src/text/text_summary.c` / `text_summary.h` (line/byte summaries)
+  - `src/editing/row_cache.c` and `src/text/row.c` / `row.h` (derived `erow` cache)
   - `src/text/utf8.c` / `utf8.h` (encoding helpers)
 - Shared byte-read abstraction:
   - `struct editorTextSource` declared in `src/rotide.h`
-  - built by `editorBuildActiveTextSource()` in `src/editing/buffer_core.c`
+  - built by `editorBuildActiveTextSource()` in `src/editing/text_source.c`
 
 ## Major modules
 
@@ -27,7 +29,8 @@ Source lives under `src/<area>/`; tests are split per concern under `tests/test_
   - `prompt.c`, `mouse.c`, `text_pairs.c` — input gates and text-pair helpers
   - `actions_*.c` — edit, file/tab, workspace, language, terminal/DAP action families
 - `src/editing/`
-  - `buffer_core.c` — document edit application, row-cache rebuild, tab/drawer transitions, save coordination
+  - `edit_pipeline.c` — document edit application, row-cache splice, cursor/history/language fan-out
+  - `buffer_core.c` — document restore/rebuild, syntax parse coordination, save helpers
   - `edit.c` — edit descriptor construction and apply path
   - `selection.c` — selection/copy/cut/paste primitives
   - `history.c` — undo/redo grouping
