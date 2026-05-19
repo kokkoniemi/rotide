@@ -500,11 +500,17 @@ run via `make bench`.
       `reset_editor_state` from [tests/test_helpers.c](tests/test_helpers.c)
       and redirects stdout to /dev/null so we measure in-process work,
       not the syscall path.
-- [ ] One `hyperfine` scenario: cold-open a generated 10 MB C file,
-      render once, exit. Requires a `--bench-render-once` flag in
-      [rotide.c](src/rotide.c) — the editor's current entry point
-      probes the controlling terminal's window size, which fails under
-      `script(1)` / non-TTY harnesses. Park until that flag lands.
+- [x] One `hyperfine` scenario: `make bench-render-once`. Generates a
+      ~17 MiB synthetic C source in /tmp on first run (cached) and
+      times `./rotide --render-once <fixture>` with default 20 runs /
+      5 warmup. `--render-once` is a general non-interactive
+      single-frame render mode in [rotide.c](src/rotide.c) — it skips
+      raw mode and the TTY window-size probe, uses fixed 80x24
+      dimensions, renders one frame via the existing refresh path, and
+      exits. Rotide itself doesn't know it's being benchmarked; the
+      same flag can drive docs-screenshot or other headless-render
+      callers. Local baseline on the dev host: ~2.2 s wall to cold-open
+      and render the 17 MiB fixture.
 
 Baseline numbers on the host this was developed on (rough; do not treat
 as a regression budget yet — needs CI-runner calibration per the

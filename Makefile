@@ -370,6 +370,37 @@ bench-buffer: $(BENCH_BUFFER_BIN)
 bench: $(BENCH_MICRO_BIN)
 	$(call LOG,BENCH,$(BENCH_MICRO_BIN))./$(BENCH_MICRO_BIN) $(BENCH_FLAGS)
 
+# Whole-program cold-open bench. Uses rotide's --render-once flag (a
+# general non-interactive single-frame mode that any headless caller
+# can use; the editor itself is unaware this is a benchmark) and times
+# the rotide binary under hyperfine. The fixture is a synthetic ~17 MiB
+# C source generated once and cached in /tmp; delete it to regenerate.
+# Override BENCH_RENDER_RUNS / BENCH_RENDER_WARMUP to change the
+# sampling; override HYPERFINE if your binary lives elsewhere.
+HYPERFINE ?= hyperfine
+BENCH_RENDER_FIXTURE ?= /tmp/rotide-bench-10MB.c
+BENCH_RENDER_RUNS ?= 20
+BENCH_RENDER_WARMUP ?= 5
+
+$(BENCH_RENDER_FIXTURE):
+	$(call LOG,GEN,$@)\
+		{ \
+			for i in $$(seq 1 350000); do \
+				printf 'static int fn_%d(int x) { return x + %d; }\n' "$$i" "$$i"; \
+			done; \
+		} > $@; \
+		size=$$(wc -c < $@); \
+		echo "  generated $$size bytes ($$(($$size / 1024 / 1024)) MiB)"
+
+bench-render-once: rotide $(BENCH_RENDER_FIXTURE)
+	@command -v $(HYPERFINE) >/dev/null 2>&1 || { \
+		echo "$(HYPERFINE) not installed. Install via 'cargo install hyperfine' or your package manager." >&2; \
+		exit 1; \
+	}
+	$(call LOG,HYPERFINE,bench-render-once)$(HYPERFINE) \
+		--warmup $(BENCH_RENDER_WARMUP) --runs $(BENCH_RENDER_RUNS) \
+		'./rotide --render-once $(BENCH_RENDER_FIXTURE) > /dev/null'
+
 # Convenience entry point for the --update-golden workflow. Default
 # behaviour is preview-only — captures the stash and runs
 # golden_diff_report so you can review the proposed changes. Add APPLY=1
@@ -594,7 +625,7 @@ docs-diagrams:
 
 -include $(DEPFILES)
 
-.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams bench-buffer bench fuzz-vterm fuzz-vterm-smoke fuzz-vterm-nightly fuzz-lsp fuzz-lsp-smoke fuzz-lsp-nightly fuzz-dap fuzz-dap-smoke fuzz-dap-nightly fuzz-toml-theme fuzz-toml-theme-smoke fuzz-toml-theme-nightly update-goldens
+.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams bench-buffer bench bench-render-once fuzz-vterm fuzz-vterm-smoke fuzz-vterm-nightly fuzz-lsp fuzz-lsp-smoke fuzz-lsp-nightly fuzz-dap fuzz-dap-smoke fuzz-dap-nightly fuzz-toml-theme fuzz-toml-theme-smoke fuzz-toml-theme-nightly update-goldens
 
 clean:
 	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(BENCH_BUFFER_OBJ) $(METRICS_FUZZ_EMIT_OBJS) $(METRICS_SUMMARY_OBJS) $(GOLDEN_APPLY_OBJS) $(GOLDEN_DIFF_REPORT_OBJS) $(DEPFILES) $(TEST_BIN) $(BENCH_BUFFER_BIN) $(METRICS_FUZZ_EMIT_BIN) $(METRICS_SUMMARY_BIN) $(GOLDEN_APPLY_BIN) $(GOLDEN_DIFF_REPORT_BIN) $(FUZZ_VTERM_BIN) $(FUZZ_LSP_BIN) $(FUZZ_DAP_BIN) $(FUZZ_TOML_THEME_BIN) rotide $(GENERATED_HEADERS)
