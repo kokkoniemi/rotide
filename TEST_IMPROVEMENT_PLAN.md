@@ -243,25 +243,39 @@ liar's metric):
       issues if/when grammars in injection-heavy modes (markdown→code,
       HTML→JS/CSS) produce noise.
 
-### Phase 6: Normalised vterm grid snapshot helper
+### Phase 6: Normalised vterm grid snapshot helper — partial
 
-- [ ] `tests/test_grid_snapshot.h` helper:
-  - [ ] Captures `refresh_screen_and_capture()` bytes.
-  - [ ] Feeds them into a `VTerm` of the editor's current size.
-  - [ ] Returns deterministic text representation (one line per row,
-        trailing spaces stripped, optional cursor markers, optional styled
-        spans).
-- [ ] `ASSERT_GRID_EQ(expected_multiline_string, ...)` macro.
+Helper + assertion macro shipped. Source-rewriting (`--update-golden`)
+and the HTML diff renderer are still open.
+
+- [x] [tests/test_grid_snapshot.h](tests/test_grid_snapshot.h) helper:
+  - [x] Captures `refresh_screen_and_capture()` bytes (with a frame-cache
+        reset so the snapshot reflects the full screen, not a delta).
+  - [x] Feeds them into a `VTerm` of the editor's current size.
+  - [x] Returns deterministic text representation (one line per row,
+        trailing spaces stripped, trailing blank rows collapsed).
+  - [ ] Optional cursor markers — not yet; the libvterm screen API
+        doesn't expose cursor position directly, needs a callback hook.
+  - [ ] Optional styled-span rendering — defer until a test actually
+        needs styled assertions.
+- [x] `ASSERT_GRID_EQ(expected_multiline_string)` macro, plus
+      `editor_grid_snapshot_diff()` that emits a unified-ish line diff.
+- [x] Self-test suite [test_grid_snapshot_suite.c](tests/test_grid_snapshot_suite.c)
+      covers capture, trailing-space strip, diff reporting, identity
+      assertion, and a hand-baked chrome layout assertion that
+      demonstrates the API in production-test form.
 - [ ] `--update-golden` runner flag that rewrites expected strings via
-      marker comments.
+      marker comments. Defer until a render-tier suite actually wants
+      bulk-baked goldens.
 - [ ] `scripts/golden_diff_report.py` for side-by-side HTML diff of
-      pending golden updates. Lands at the same time as `--update-golden`
-      so updates have a review path on day one.
+      pending golden updates. Lands together with `--update-golden`.
 - [ ] Convert the worst raw-byte `strstr` offenders in
       [test_render_frame.c](tests/test_render_frame.c) and
       [test_render_panes.c](tests/test_render_panes.c). Keep byte-level
       assertions for tests that specifically check escape-sequence emission
-      (cursor style, OSC52).
+      (cursor style, OSC52). The current render-tier tests mostly check
+      escape sequences (the highlighting/theme suites), so the conversion
+      target is the small handful that check visible text.
 
 ### Phase 7: Long-session memory growth test — shipped
 

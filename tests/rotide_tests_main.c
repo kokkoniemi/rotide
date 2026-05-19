@@ -54,6 +54,7 @@ SUITE_EXTERN(text_tree);
 SUITE_EXTERN(syntax_incremental_equiv);
 SUITE_EXTERN(runner_internals);
 SUITE_EXTERN(long_session);
+SUITE_EXTERN(grid_snapshot);
 
 #define SUITE(name_str, tags_str, prefix) \
 	{name_str, tags_str, g_##prefix##_tests, &g_##prefix##_test_count}
@@ -96,6 +97,7 @@ static const struct editorTestSuite k_suites[] = {
 	SUITE("syntax_incremental_equiv", "syntax property", syntax_incremental_equiv),
 	SUITE("runner_internals", "runner", runner_internals),
 	SUITE("long_session", "memory slow", long_session),
+	SUITE("grid_snapshot", "render", grid_snapshot),
 };
 
 #define K_SUITE_COUNT ((int)(sizeof(k_suites) / sizeof(k_suites[0])))
