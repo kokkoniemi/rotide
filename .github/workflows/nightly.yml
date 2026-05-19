@@ -20,14 +20,14 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Run TSan suite
         run: make test-tsan
 
       - name: Upload artifacts on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tsan-artifacts
           path: tests/artifacts/
@@ -38,7 +38,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Check no quarantined test now passes
         run: make test-quarantine-passing
@@ -70,13 +70,13 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install clang
         run: sudo apt-get update && sudo apt-get install -y clang
 
       - name: Restore grown corpus
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ${{ matrix.target.dir }}
           key: fuzz-${{ matrix.target.name }}-corpus-${{ github.run_id }}
@@ -88,7 +88,7 @@ jobs:
 
       - name: Upload metrics row
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: metrics-fuzz-${{ matrix.target.name }}-nightly
           path: tests/metrics.jsonl
@@ -96,14 +96,14 @@ jobs:
 
       - name: Save grown corpus
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: ${{ matrix.target.dir }}
           key: fuzz-${{ matrix.target.name }}-corpus-${{ github.run_id }}
 
       - name: Upload crash inputs on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fuzz-${{ matrix.target.name }}-nightly-crashes
           path: crash-*
@@ -116,13 +116,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Build summarizer
         run: make tests/metrics_summary
 
       - name: Download nightly fuzz metrics
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: metrics-fuzz-*-nightly
           path: ci-metrics
@@ -139,7 +139,7 @@ jobs:
       # Restore by prefix to find the latest rolling history. Deduping on
       # ci_run_id keeps workflow reruns from counting the same rows twice.
       - name: Restore metrics history
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: tests/metrics-history.jsonl
           key: metrics-history-${{ github.run_id }}
@@ -157,7 +157,7 @@ jobs:
 
       - name: Save metrics history
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: tests/metrics-history.jsonl
           key: metrics-history-${{ github.run_id }}
@@ -179,14 +179,14 @@ jobs:
             || echo "::warning::check-bench-regression flagged a bench — see job log"
 
       - name: Upload merged metrics (this run)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: metrics-merged-nightly
           path: tests/metrics.jsonl
           if-no-files-found: ignore
 
       - name: Upload rolling history
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: metrics-history-nightly
           path: tests/metrics-history.jsonl
