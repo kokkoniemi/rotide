@@ -91,11 +91,11 @@ editorTextTree *-- "root" editorTextNode
 editorTextTree *-- "add buffer" editorTextBuffer
 editorTextNode *-- "children" editorTextNode
 editorTextNode *-- "leaf pieces" editorTextChunk
-editorTextNode *-- "aggregate" editorTextSummary
+editorTextNode *-- editorTextSummary : aggregate
 editorTextChunk --> editorTextBuffer : retained slice
 editorTextChunk *-- "cached" editorTextSummary
 
-editorTextSource ..> editorDocument : chunked read view
+editorTextSource "chunked read view" ..> editorDocument
 
 note right of editorConfig
   E.active_buffer has the same field layout as a tab buffer.
