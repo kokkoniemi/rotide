@@ -61,6 +61,7 @@ tests/rotide_tests
 tests/artifacts/
 tests/bench_text_storage
 tests/rotide_bench
+tests/fuzz/vterm/fuzz_vterm
 
 PLAN.md
 

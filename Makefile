@@ -164,6 +164,20 @@ BENCH_MICRO_BIN = tests/rotide_bench
 BENCH_MICRO_SRCS = tests/bench_microbenches.c tests/bench_runner.c
 BENCH_MICRO_OBJS = $(BENCH_MICRO_SRCS:.c=.o)
 
+FUZZ_CC ?= clang
+FUZZ_VTERM_BIN = tests/fuzz/vterm/fuzz_vterm
+FUZZ_VTERM_HARNESS = tests/fuzz/vterm/fuzz_vterm.c
+FUZZ_VTERM_CORPUS = tests/fuzz/vterm/corpus
+FUZZ_VTERM_SMOKE_RUNS ?= 1000
+# libFuzzer ships its own coverage instrumentation under -fsanitize=fuzzer;
+# explicit -fsanitize-coverage=trace-pc-guard conflicts with that on modern
+# clang. -Wno-unknown-warning-option swallows the gcc-only flags inside
+# LIBVTERM_CFLAGS (which clang doesn't recognise).
+FUZZ_FLAGS = -O1 -g -fno-omit-frame-pointer \
+	-fsanitize=fuzzer,address,undefined \
+	-Wno-unknown-warning-option \
+	-DROTIDE_FUZZ
+
 # ============================================================================
 # Generated headers
 # ============================================================================
@@ -221,6 +235,13 @@ $(BENCH_BUFFER_BIN): $(BENCH_BUFFER_OBJ) $(EDITOR_OBJS)
 $(BENCH_MICRO_BIN): $(BENCH_MICRO_OBJS) $(EDITOR_OBJS)
 	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) $^ -lutil -o $@
 
+# Single-step compile-and-link so libvterm sources see FUZZ_FLAGS instead of
+# the standard build's flags. Don't reuse $(LIBVTERM_OBJS) — they would have
+# been built without the sanitizer coverage hooks libFuzzer needs.
+$(FUZZ_VTERM_BIN): $(FUZZ_VTERM_HARNESS) $(LIBVTERM_SRCS)
+	$(call LOG,FUZZ_CC,$@)$(FUZZ_CC) $(FUZZ_FLAGS) $(LIBVTERM_CPPFLAGS) \
+		$(LIBVTERM_CFLAGS) $^ -o $@
+
 # ============================================================================
 # Test / release / docs targets
 # ============================================================================
@@ -235,6 +256,20 @@ bench-buffer: $(BENCH_BUFFER_BIN)
 
 bench: $(BENCH_MICRO_BIN)
 	$(call LOG,BENCH,$(BENCH_MICRO_BIN))./$(BENCH_MICRO_BIN) $(BENCH_FLAGS)
+
+fuzz-vterm: $(FUZZ_VTERM_BIN)
+	$(call LOG,FUZZ,vterm)./$(FUZZ_VTERM_BIN) $(FUZZ_VTERM_CORPUS)
+
+# Stage the corpus into a tempdir so libFuzzer's new finds don't persist
+# back into the committed seed set. Smoke is run-count-bounded so the
+# wall time is predictable across CI runs.
+fuzz-vterm-smoke: $(FUZZ_VTERM_BIN)
+	$(call LOG,FUZZ-S,vterm)tmp=$$(mktemp -d -t rotide-fuzz-vterm.XXXXXX); \
+		cp $(FUZZ_VTERM_CORPUS)/* $$tmp/; \
+		./$(FUZZ_VTERM_BIN) -runs=$(FUZZ_VTERM_SMOKE_RUNS) $$tmp; \
+		rc=$$?; \
+		rm -rf $$tmp; \
+		exit $$rc
 
 test-sanitize:
 	$(call LOG,CLEAN,build)$(MAKE) clean
@@ -285,7 +320,7 @@ docs-diagrams:
 
 -include $(DEPFILES)
 
-.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams bench-buffer bench
+.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams bench-buffer bench fuzz-vterm fuzz-vterm-smoke
 
 clean:
 	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(BENCH_BUFFER_OBJ) $(DEPFILES) $(TEST_BIN) $(BENCH_BUFFER_BIN) rotide $(GENERATED_HEADERS)

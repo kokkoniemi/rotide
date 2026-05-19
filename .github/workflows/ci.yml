@@ -71,3 +71,27 @@ jobs:
 
       - name: Check quarantine entries are within the 30-day window
         run: make test-quarantine-age
+
+  fuzz-vterm-smoke:
+    runs-on: ubuntu-latest
+    env:
+      ASAN_OPTIONS: detect_leaks=0
+      FUZZ_VTERM_SMOKE_RUNS: 1000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install clang
+        run: sudo apt-get update && sudo apt-get install -y clang
+
+      - name: Run vterm fuzz smoke
+        run: make fuzz-vterm-smoke
+
+      - name: Upload crash inputs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-vterm-crashes
+          path: crash-*
+          if-no-files-found: ignore

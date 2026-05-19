@@ -198,9 +198,11 @@ Ordered by remaining-work, smallest payoff-per-day first → biggest. Phases
 
 Order:
 
-- [ ] **vterm-fed escape stream into `editorTerminalPane`.** Single-function
-      harness: feed `data, size` via `vterm_input_write`, pump, assert
-      cursor in bounds, scrollback below cap, no aborts.
+- [x] **vterm-fed escape stream.**
+      [tests/fuzz/vterm/fuzz_vterm.c](tests/fuzz/vterm/fuzz_vterm.c) feeds
+      `(data, size)` straight into a fresh `VTerm` via `vterm_input_write`,
+      flushes damage, then reads every cell back so ASan surfaces parser
+      overruns that don't manifest during the write itself.
 - [ ] **LSP framing parser** (`Content-Length:`-framed JSON-RPC in
       [src/language/lsp_transport.c](src/language/lsp_transport.c)).
       Chunked, malformed, oversized headers.
@@ -215,22 +217,39 @@ user/network-input parsers above. Cover its corruption-tolerance via the
 Phase 7 long-session test (mid-run, truncate the snapshot file and verify
 next start doesn't crash) rather than a dedicated fuzzer.
 
-Build each as a `LLVMFuzzerTestOneInput` translation unit guarded by
-`-DROTIDE_FUZZ`. Add `make fuzz-vterm`, `make fuzz-lsp`, etc., with
-`-fsanitize=fuzzer,address,undefined` and
-`-fsanitize-coverage=trace-pc-guard,trace-cmp`.
+Build harnesses with `-fsanitize=fuzzer,address,undefined` via `clang`
+(see `FUZZ_FLAGS` in the Makefile). libFuzzer ships its own coverage
+instrumentation under `-fsanitize=fuzzer`; the explicit
+`-fsanitize-coverage=trace-pc-guard` originally listed in this plan
+conflicts with modern clang and is omitted.
 
 Operational hygiene (otherwise "we ran the fuzzer for 30 minutes" is a
 liar's metric):
 
-- [ ] `tests/fuzz/<target>/corpus/` seed corpus checked in (<50 KB total).
+- [x] `tests/fuzz/vterm/corpus/` checked in with 18 seeds, 220 bytes
+      total (well under the 50 KiB ceiling). Seeds cover plain text,
+      cursor moves, SGR colours, mode set, OSC title + clipboard,
+      bracketed paste, DCS, reverse index, malformed CSI, invalid UTF-8
+      leads, C0 controls, scroll regions, DECALN.
+- [x] Smoke target stages the corpus into a tempdir so libFuzzer's
+      discovered mutations don't accrete back into the committed seeds.
+      `make fuzz-vterm` against the committed corpus is the way to grow
+      it deliberately.
+- [x] Per-PR `make fuzz-vterm-smoke` wired into
+      [.github/workflows/ci.yml](.github/workflows/ci.yml) (1000 runs
+      default, ~90 s wall, crash inputs uploaded as job artifact on
+      failure).
+- [ ] LSP / DAP / TOML harnesses for the remaining boundaries.
 - [ ] Crash repros imported as regression unit tests under
       `tests/test_*_fuzz_repro.c`.
 - [ ] Weekly `-merge=1` to minimise corpus.
-- [ ] Per-run edge count tracked in `tests/metrics.jsonl`; alert if 48h
-      run adds zero new edges.
 - [ ] Working corpus persisted across CI runs (cache).
-- [ ] 60-second smoke target on per-PR; full ~30 min runs nightly.
+- [ ] Per-run edge count tracked in `tests/metrics.jsonl`; alert if 48h
+      run adds zero new edges. (Belongs in the `metrics.jsonl` work item
+      under cross-cutting infra.)
+- [ ] Full nightly runs (~30 min/target) — wire `make fuzz-vterm` into
+      [nightly.yml](.github/workflows/nightly.yml) once the corpus cache
+      is set up.
 
 ### Phase 5: Tree-sitter incremental ≡ full reparse — shipped
 
@@ -387,7 +406,7 @@ Per push / PR:
 - [x] `make test-determinism`.
 - [x] `make test-crash-handler`.
 - [x] `make test-quarantine-age`.
-- [ ] `make fuzz-vterm-smoke` (60s) — add post-Phase 4.
+- [x] `make fuzz-vterm-smoke` (~90 s with 1000 runs).
 
 Nightly:
 
