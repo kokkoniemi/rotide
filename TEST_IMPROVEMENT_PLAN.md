@@ -38,11 +38,10 @@
   in-process; parallelism is at suite granularity via fork.
 
 The foundation is now in good shape. Remaining work is concentrated in
-**fuzzing the genuinely-untrusted input boundaries**, a **normalised vterm
-grid snapshot helper**, a **long-session memory-growth test**, broader
-**microbench coverage beyond storage**, and **wiring the existing
-sanitiser/determinism/crash targets into CI** (today only `make test` and
-`make test-sanitize` run on push/PR).
+**fuzzing the remaining DAP and TOML input boundaries** (vterm and LSP
+framing already shipped), broader **microbench coverage beyond storage**,
+and **the `--update-golden` workflow + `metrics.jsonl` continuous-
+improvement signal**.
 
 ---
 
@@ -203,9 +202,20 @@ Order:
       `(data, size)` straight into a fresh `VTerm` via `vterm_input_write`,
       flushes damage, then reads every cell back so ASan surfaces parser
       overruns that don't manifest during the write itself.
-- [ ] **LSP framing parser** (`Content-Length:`-framed JSON-RPC in
-      [src/language/lsp_transport.c](src/language/lsp_transport.c)).
-      Chunked, malformed, oversized headers.
+- [x] **LSP framing parser** ([src/language/lsp_framing.c](src/language/lsp_framing.c),
+      extracted from `lsp_transport.c` so the fuzz binary doesn't have
+      to link the whole editor). Harness pipes bytes through a memfd
+      into `editorLspReadFrame` and drains until the parser refuses
+      ([tests/fuzz/lsp/fuzz_lsp.c](tests/fuzz/lsp/fuzz_lsp.c)). First
+      run found two real bugs in the existing parser:
+      - dead `parsed > SIZE_MAX` overflow check on 64-bit (silent
+        wrap on huge `Content-Length:` strings) — fixed,
+      - no upper bound on `Content-Length`, so a 20-digit value
+        produced a multi-exabyte malloc (ASan
+        `allocation-size-too-big`) — fixed via
+        `ROTIDE_LSP_MAX_PAYLOAD_BYTES = 64 MiB`.
+      Both have regression coverage in
+      [tests/test_lsp_framing.c](tests/test_lsp_framing.c).
 - [ ] **DAP framing parser** ([src/debug/dap.c](src/debug/dap.c) /
       transport layer).
 - [ ] **Theme TOML parser** ([src/config/theme_parse.c](src/config/theme_parse.c))
@@ -239,7 +249,15 @@ liar's metric):
       [.github/workflows/ci.yml](.github/workflows/ci.yml) (1000 runs
       default, ~90 s wall, crash inputs uploaded as job artifact on
       failure).
-- [ ] LSP / DAP / TOML harnesses for the remaining boundaries.
+- [x] `tests/fuzz/lsp/corpus/` checked in with 21 seeds (~1 KB total)
+      covering valid frames, header-case variants, missing/malformed
+      Content-Length, the overflow repro that triggered the fix, and
+      multi-frame streams.
+- [x] Per-PR `make fuzz-lsp-smoke` wired into
+      [.github/workflows/ci.yml](.github/workflows/ci.yml) (5000 runs
+      default, <1 s wall locally; LSP framing is much cheaper per
+      iter than the vterm path).
+- [ ] DAP / TOML harnesses for the remaining boundaries.
 - [ ] Crash repros imported as regression unit tests under
       `tests/test_*_fuzz_repro.c`.
 - [ ] Weekly `-merge=1` to minimise corpus.
@@ -407,6 +425,7 @@ Per push / PR:
 - [x] `make test-crash-handler`.
 - [x] `make test-quarantine-age`.
 - [x] `make fuzz-vterm-smoke` (~90 s with 1000 runs).
+- [x] `make fuzz-lsp-smoke` (~1 s with 5000 runs).
 
 Nightly:
 
