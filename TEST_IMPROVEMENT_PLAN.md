@@ -409,13 +409,24 @@ and the HTML diff renderer are still open.
       CI-log readability. Exits 1 when any entry has a non-empty diff.
       An HTML variant can be layered on later if a PR-comment workflow
       wants it.
-- [ ] Convert the worst raw-byte `strstr` offenders in
+- [x] Convert the worst raw-byte `strstr` offenders in
       [test_render_frame.c](tests/test_render_frame.c) and
-      [test_render_panes.c](tests/test_render_panes.c). Keep byte-level
-      assertions for tests that specifically check escape-sequence emission
-      (cursor style, OSC52). The current render-tier tests mostly check
-      escape sequences (the highlighting/theme suites), so the conversion
-      target is the small handful that check visible text.
+      [test_render_panes.c](tests/test_render_panes.c). Three tests
+      converted as worked examples:
+      - `test_editor_refresh_screen_contains_expected_sequences` —
+        replaced the two visible-text strstrs with one `ASSERT_GRID_EQ`;
+        the five escape-sequence strstrs (cursor style, OSC) remain
+        as-is because they verify on-the-wire byte format.
+      - `test_editor_popup_renders_overlay_in_text_area` — replaced the
+        two completion-label strstrs with one grid snapshot.
+      - `test_editor_refresh_screen_vertical_split_renders_border` —
+        subsumed both the vertical-border-glyph and content-present
+        checks into one snapshot.
+      Other visible-text strstrs in [test_render_panes.c](tests/test_render_panes.c)
+      (nested-split marker checks, popup-close-repaints, popup placement
+      tests) can be converted with the same `--update-golden` workflow;
+      deferred until they actually need maintenance, since each
+      conversion commits the test to a specific full-screen layout.
 
 ### Phase 7: Long-session memory growth test — shipped
 

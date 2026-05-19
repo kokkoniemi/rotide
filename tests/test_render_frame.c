@@ -1,4 +1,5 @@
 #include "test_case.h"
+#include "test_grid_snapshot.h"
 #include "test_support.h"
 #include "render/popup.h"
 #include "terminal/terminal_pane.h"
@@ -100,10 +101,19 @@ static int test_editor_refresh_screen_contains_expected_sequences(void) {
 	ASSERT_TRUE(strstr(output, "\x1b[5 q") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[?25h") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[7m") != NULL);
-	ASSERT_TRUE(strstr(output, "first line") != NULL);
-	ASSERT_TRUE(strstr(output, "status message") != NULL);
-
 	free(output);
+
+	/* Visible-text assertions subsumed by a grid snapshot: stronger
+	 * coverage than the two prior strstr checks, since the whole
+	 * rendered grid is now compared. Use `--update-golden` to refresh. */
+	ASSERT_GRID_EQ(
+		/* golden-start */
+		"              │1  first line\n"
+		"              │2  second line\n"
+		"sample.txt [+]     2,4    100%\n"
+		"status message\n"
+		/* golden-end */
+	);
 	return 0;
 }
 

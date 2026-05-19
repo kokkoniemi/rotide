@@ -1,4 +1,5 @@
 #include "test_case.h"
+#include "test_grid_snapshot.h"
 #include "test_support.h"
 #include "render/popup.h"
 
@@ -170,12 +171,15 @@ static int test_editor_popup_renders_overlay_in_text_area(void) {
 	};
 	ASSERT_TRUE(editorPopupOpen(items, 2, 0, 0));
 
-	size_t output_len = 0;
-	char *output = refresh_screen_and_capture(&output_len);
-	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, "completion_alpha") != NULL);
-	ASSERT_TRUE(strstr(output, "completion_beta") != NULL);
-	free(output);
+	ASSERT_GRID_EQ(
+		/* golden-start */
+		"                   │1  hello world\n"
+		"                   │  ~\n"
+		"                   │  ~ completion_alpha\n"
+		"                   │  ~ completion_beta\n"
+		" No Name] [+]                1,1    100%\n"
+		/* golden-end */
+	);
 
 	editorPopupClose();
 	return 0;
@@ -287,14 +291,17 @@ static int test_editor_refresh_screen_vertical_split_renders_border(void) {
 	ASSERT_TRUE(sibling != NULL);
 	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
 
-	size_t output_len = 0;
-	char *output = refresh_screen_and_capture(&output_len);
-	ASSERT_TRUE(output != NULL);
-	int found_vborder = strstr(output, EDITOR_PANE_VBORDER_UTF8) != NULL;
-	ASSERT_TRUE(found_vborder);
-	/* Focused (right-side) pane should still render content. */
-	ASSERT_TRUE(strstr(output, "hello world") != NULL);
-	free(output);
+	/* Both prior assertions (vertical-border glyph present, focused pane
+	 * content rendered) are subsumed by a full grid snapshot. */
+	ASSERT_GRID_EQ(
+		/* golden-start */
+		"                        │1  hello world   │1  hello world\n"
+		"                        │  ~              │  ~\n"
+		"                        │  ~              │  ~\n"
+		"                        │  ~              │  ~\n"
+		"[No Name] [+]                                    1,1    100%\n"
+		/* golden-end */
+	);
 	return 0;
 }
 
