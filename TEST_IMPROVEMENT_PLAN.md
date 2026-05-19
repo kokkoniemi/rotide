@@ -409,6 +409,10 @@ and the HTML diff renderer are still open.
       CI-log readability. Exits 1 when any entry has a non-empty diff.
       An HTML variant can be layered on later if a PR-comment workflow
       wants it.
+- [x] `make update-goldens` convenience target — captures the stash,
+      prints the unified-diff preview, and (with `APPLY=1`) rewrites
+      the source files. `UPDATE_GOLDEN_FLAGS='--filter NAME'` scopes
+      the capture to a subset of tests.
 - [x] Convert the worst raw-byte `strstr` offenders in
       [test_render_frame.c](tests/test_render_frame.c) and
       [test_render_panes.c](tests/test_render_panes.c). Three tests
@@ -568,13 +572,22 @@ Nightly:
       wiring a second invocation with `--seed` + larger op budget is
       cheap.
 - [ ] Hyperfine + microbench against committed baseline — Phase 8.
-- [ ] Append a row to `tests/metrics.jsonl`; post results as a comment on
-      `main`'s last commit. Runner + bench already accept `--metrics-out
-      PATH`; wiring is a workflow change (set the flag, upload the file
-      as an artifact or push to a metrics branch). Set
-      `ROTIDE_METRICS_GIT_SHA=$GITHUB_SHA`,
-      `ROTIDE_METRICS_GIT_REF=$GITHUB_REF`,
-      `ROTIDE_METRICS_CI_RUN_ID=$GITHUB_RUN_ID` to enrich rows.
+- [x] Per-job metrics rows appended in CI and uploaded as artifacts.
+      [ci.yml](.github/workflows/ci.yml) and
+      [nightly.yml](.github/workflows/nightly.yml) set
+      `ROTIDE_METRICS_GIT_SHA` / `GIT_REF` / `CI_RUN_ID` at the workflow
+      level and pass `METRICS_OUT=tests/metrics.jsonl` to the
+      build-and-test and fuzz Make targets. Each job uploads its row as
+      `metrics-<job>`; a final `metrics-summary` job downloads all of
+      them, runs `tests/metrics_summary summary`, prints to the log, and
+      uploads the merged file as `metrics-merged` (per-workflow snapshot).
+      Cross-run aggregation (e.g. via a metrics branch or
+      `actions/cache`) and the `check-fuzz-stale` / `check-bench-regression`
+      alerting hooks are the next layer; the comparator binary already
+      ships and the `metrics-summary` jobs in both workflows are the
+      natural place to wire them.
+- [ ] Post results as a comment on `main`'s last commit — needs the
+      cross-run aggregation layer above to be useful.
 
 - [ ] Don't add a separate "coverage" job until Phase 6 lands; until then
       it measures the wrong thing.

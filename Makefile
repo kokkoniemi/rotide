@@ -349,6 +349,18 @@ $(FUZZ_TOML_THEME_BIN): $(FUZZ_TOML_THEME_HARNESS) $(FUZZ_TOML_THEME_SRCS) $(GEN
 TEST_FLAGS ?= --validate-reset --jobs 4
 DOCS_MEDIA_FLAGS ?=
 
+# Opt-in metrics emission. Set on the command line:
+#   make test METRICS_OUT=tests/metrics.jsonl
+#   make bench METRICS_OUT=tests/metrics.jsonl
+# The (already-wired) fuzz-*-smoke and fuzz-*-nightly targets honour
+# METRICS_OUT the same way. The runner / bench binaries enrich rows from
+# ROTIDE_METRICS_GIT_SHA / GIT_REF / CI_RUN_ID env vars when set; CI
+# workflows wire those to the matching GitHub Actions GITHUB_* values.
+ifneq ($(strip $(METRICS_OUT)),)
+TEST_FLAGS  += --metrics-out $(METRICS_OUT)
+BENCH_FLAGS += --metrics-out $(METRICS_OUT)
+endif
+
 test: $(TEST_BIN)
 	$(call LOG,TEST,$(TEST_BIN))./$(TEST_BIN) $(TEST_FLAGS)
 
@@ -357,6 +369,30 @@ bench-buffer: $(BENCH_BUFFER_BIN)
 
 bench: $(BENCH_MICRO_BIN)
 	$(call LOG,BENCH,$(BENCH_MICRO_BIN))./$(BENCH_MICRO_BIN) $(BENCH_FLAGS)
+
+# Convenience entry point for the --update-golden workflow. Default
+# behaviour is preview-only — captures the stash and runs
+# golden_diff_report so you can review the proposed changes. Add APPLY=1
+# to actually rewrite the source files. UPDATE_GOLDEN_FLAGS lets you
+# scope which tests run (e.g. UPDATE_GOLDEN_FLAGS='--filter chrome').
+UPDATE_GOLDEN_FLAGS ?= --validate-reset --jobs 4
+UPDATE_GOLDEN_STASH = tests/artifacts/goldens.jsonl
+
+update-goldens: $(TEST_BIN) $(GOLDEN_APPLY_BIN) $(GOLDEN_DIFF_REPORT_BIN)
+	$(call LOG,GOLDEN,capture)mkdir -p tests/artifacts; \
+		rm -f $(UPDATE_GOLDEN_STASH); \
+		./$(TEST_BIN) --update-golden $(UPDATE_GOLDEN_STASH) $(UPDATE_GOLDEN_FLAGS); \
+		: ensure the stash exists even when no test mismatched, so the diff and apply tools see an empty stash instead of a missing file; \
+		touch $(UPDATE_GOLDEN_STASH); \
+		echo; \
+		./$(GOLDEN_DIFF_REPORT_BIN) --stash $(UPDATE_GOLDEN_STASH); \
+		rc=$$?; \
+		echo; \
+		if [ "$(APPLY)" = "1" ]; then \
+			./$(GOLDEN_APPLY_BIN) --stash $(UPDATE_GOLDEN_STASH); \
+		elif [ $$rc -eq 1 ]; then \
+			echo "(re-run with APPLY=1 to rewrite the source files above)"; \
+		fi
 
 fuzz-vterm: $(FUZZ_VTERM_BIN)
 	$(call LOG,FUZZ,vterm)./$(FUZZ_VTERM_BIN) $(FUZZ_VTERM_CORPUS)
@@ -558,7 +594,7 @@ docs-diagrams:
 
 -include $(DEPFILES)
 
-.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams bench-buffer bench fuzz-vterm fuzz-vterm-smoke fuzz-vterm-nightly fuzz-lsp fuzz-lsp-smoke fuzz-lsp-nightly fuzz-dap fuzz-dap-smoke fuzz-dap-nightly fuzz-toml-theme fuzz-toml-theme-smoke fuzz-toml-theme-nightly
+.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams bench-buffer bench fuzz-vterm fuzz-vterm-smoke fuzz-vterm-nightly fuzz-lsp fuzz-lsp-smoke fuzz-lsp-nightly fuzz-dap fuzz-dap-smoke fuzz-dap-nightly fuzz-toml-theme fuzz-toml-theme-smoke fuzz-toml-theme-nightly update-goldens
 
 clean:
 	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(BENCH_BUFFER_OBJ) $(METRICS_FUZZ_EMIT_OBJS) $(METRICS_SUMMARY_OBJS) $(GOLDEN_APPLY_OBJS) $(GOLDEN_DIFF_REPORT_OBJS) $(DEPFILES) $(TEST_BIN) $(BENCH_BUFFER_BIN) $(METRICS_FUZZ_EMIT_BIN) $(METRICS_SUMMARY_BIN) $(GOLDEN_APPLY_BIN) $(GOLDEN_DIFF_REPORT_BIN) $(FUZZ_VTERM_BIN) $(FUZZ_LSP_BIN) $(FUZZ_DAP_BIN) $(FUZZ_TOML_THEME_BIN) rotide $(GENERATED_HEADERS)

@@ -9,6 +9,11 @@ on:
     - cron: '17 3 * * *'
   workflow_dispatch:
 
+env:
+  ROTIDE_METRICS_GIT_SHA: ${{ github.sha }}
+  ROTIDE_METRICS_GIT_REF: ${{ github.ref }}
+  ROTIDE_METRICS_CI_RUN_ID: ${{ github.run_id }}
+
 jobs:
   tsan:
     runs-on: ubuntu-latest
@@ -79,7 +84,15 @@ jobs:
             fuzz-${{ matrix.target.name }}-corpus-
 
       - name: Run nightly fuzz soak
-        run: make ${{ matrix.target.make }}
+        run: make ${{ matrix.target.make }} METRICS_OUT=tests/metrics.jsonl
+
+      - name: Upload metrics row
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metrics-fuzz-${{ matrix.target.name }}-nightly
+          path: tests/metrics.jsonl
+          if-no-files-found: ignore
 
       - name: Save grown corpus
         if: always()
@@ -94,4 +107,47 @@ jobs:
         with:
           name: fuzz-${{ matrix.target.name }}-nightly-crashes
           path: crash-*
+          if-no-files-found: ignore
+
+  # Same shape as ci.yml's metrics-summary: pull the four per-target
+  # fuzz rows back into one file and print a summary so the nightly log
+  # contains the day's coverage / corpus growth at a glance. Once a
+  # multi-day history accumulates (e.g. via a metrics branch or cache),
+  # this is also the natural place to wire `metrics_summary
+  # check-fuzz-stale` for the 48h alert from TEST_IMPROVEMENT_PLAN.md.
+  metrics-summary:
+    if: always()
+    needs:
+      - fuzz-nightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build summarizer
+        run: make tests/metrics_summary
+
+      - name: Download nightly fuzz metrics
+        uses: actions/download-artifact@v4
+        with:
+          pattern: metrics-fuzz-*-nightly
+          path: ci-metrics
+        continue-on-error: true
+
+      - name: Merge per-target rows
+        run: |
+          mkdir -p tests
+          : > tests/metrics.jsonl
+          for f in ci-metrics/metrics-fuzz-*-nightly/metrics.jsonl; do
+            [ -f "$f" ] && cat "$f" >> tests/metrics.jsonl
+          done
+
+      - name: Summary
+        run: ./tests/metrics_summary summary --in tests/metrics.jsonl
+
+      - name: Upload merged metrics
+        uses: actions/upload-artifact@v4
+        with:
+          name: metrics-merged-nightly
+          path: tests/metrics.jsonl
           if-no-files-found: ignore
