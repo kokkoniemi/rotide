@@ -34,7 +34,18 @@ int editor_grid_snapshot_diff(const char *expected, const char *actual);
  * Captures the current screen via editor_grid_snapshot(), strips the
  * common trailing-newlines, and compares. On mismatch, prints the diff
  * and returns 1 from the enclosing test function.
+ *
+ * Update-golden support: when the environment variable
+ * ROTIDE_UPDATE_GOLDEN_STASH names a writable path, mismatches are NOT
+ * reported as failures — the actual capture is appended to the stash
+ * file as a JSONL row, and `tests/golden_apply --stash PATH` will
+ * rewrite the expected literal in place. Wrap the literal in
+ * golden-start and golden-end block-comment markers to opt the call
+ * site into rewriting. See grid_snapshot_update.h for the marker
+ * format and an example.
  */
+#include "grid_snapshot_update.h"
+
 #define ASSERT_GRID_EQ(expected) \
 	do { \
 		size_t _actual_len = 0; \
@@ -46,7 +57,8 @@ int editor_grid_snapshot_diff(const char *expected, const char *actual);
 				__func__, __LINE__); \
 			return 1; \
 		} \
-		if (editor_grid_snapshot_diff(_expected, _actual) != 0) { \
+		if (editor_grid_snapshot_check_or_stash(_expected, _actual, \
+				__FILE__, __LINE__) != 0) { \
 			fprintf(stderr, \
 				"Assertion failed in %s:%d: grid mismatch (see diff above)\n", \
 				__func__, __LINE__); \

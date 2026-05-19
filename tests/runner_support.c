@@ -40,6 +40,8 @@ void runnerPrintUsage(void) {
 		"  --validate-reset       Assert that reset_editor_state restores E byte-identically\n"
 		"  --jobs <N>             Run up to N suites in parallel as forked children\n"
 		"  --metrics-out <path>   Append one JSONL row summarising the run\n"
+		"  --update-golden [path] Capture grid-snapshot mismatches to a stash\n"
+		"                         instead of failing (default: tests/artifacts/goldens.jsonl)\n"
 		"  -h, --help             Show this help\n");
 }
 
@@ -201,6 +203,18 @@ int runnerOptionsParse(struct testRunnerOptions *opts, int argc, char **argv) {
 			}
 			opts->metrics_out = value;
 			i += consumed_next;
+			continue;
+		}
+		/* --update-golden takes an optional path. If the next argv slot
+		 * is missing or looks like another flag, fall back to a default
+		 * stash location under tests/artifacts/. */
+		if (parse_long_arg(arg, "--update-golden", next, &value, &consumed_next)) {
+			if (value != NULL && !(consumed_next && value[0] == '-')) {
+				opts->update_golden_stash = value;
+				i += consumed_next;
+			} else {
+				opts->update_golden_stash = "tests/artifacts/goldens.jsonl";
+			}
 			continue;
 		}
 		if (parse_long_arg(arg, "--seed", next, &value, &consumed_next)) {

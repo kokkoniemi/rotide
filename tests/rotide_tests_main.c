@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -62,6 +63,7 @@ SUITE_EXTERN(grid_snapshot);
 SUITE_EXTERN(metrics_jsonl);
 SUITE_EXTERN(metrics_libfuzzer_parse);
 SUITE_EXTERN(metrics_summary);
+SUITE_EXTERN(golden_apply);
 
 #define SUITE(name_str, tags_str, prefix) \
 	{name_str, tags_str, g_##prefix##_tests, &g_##prefix##_test_count}
@@ -110,6 +112,7 @@ static const struct editorTestSuite k_suites[] = {
 	SUITE("metrics_jsonl", "runner", metrics_jsonl),
 	SUITE("metrics_libfuzzer_parse", "runner", metrics_libfuzzer_parse),
 	SUITE("metrics_summary", "runner", metrics_summary),
+	SUITE("golden_apply", "runner", golden_apply),
 };
 
 #define K_SUITE_COUNT ((int)(sizeof(k_suites) / sizeof(k_suites[0])))
@@ -165,6 +168,23 @@ int main(int argc, char **argv) {
 		opts.seed = runnerSeedFromOsEntropy();
 	}
 	rotide_test_seed_set(opts.seed);
+
+	if (opts.update_golden_stash != NULL && opts.update_golden_stash[0] != '\0') {
+		/* Make sure the directory exists; ASSERT_GRID_EQ won't try to
+		 * create it. Tolerate failure here (e.g. tests/artifacts already
+		 * exists) — the actual write will surface a clearer error. */
+		(void)mkdir("tests/artifacts", 0755);
+		if (setenv("ROTIDE_UPDATE_GOLDEN_STASH",
+				opts.update_golden_stash, 1) != 0) {
+			fprintf(stderr,
+				"rotide_tests: failed to export ROTIDE_UPDATE_GOLDEN_STASH: %s\n",
+				strerror(errno));
+			return EXIT_FAILURE;
+		}
+		fprintf(stderr,
+			"rotide_tests: --update-golden mode — grid mismatches stash to %s\n",
+			opts.update_golden_stash);
+	}
 
 	struct quarantineList quarantine;
 	quarantineListInit(&quarantine);

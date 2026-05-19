@@ -110,12 +110,15 @@ static int test_grid_snapshot_matches_baked_chrome_layout(void) {
 	editorSetStatusMsg("ready");
 
 	ASSERT_GRID_EQ(
+		/* golden-start */
 		"           │1  hello\n"
 		"           │2  world\n"
 		"           │  ~\n"
 		"           │  ~\n"
 		"[No Name] [+]1,1    100%\n"
-		"ready\n");
+		"ready\n"
+		/* golden-end */
+	);
 	return 0;
 }
 

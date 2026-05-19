@@ -389,11 +389,26 @@ and the HTML diff renderer are still open.
       covers capture, trailing-space strip, diff reporting, identity
       assertion, and a hand-baked chrome layout assertion that
       demonstrates the API in production-test form.
-- [ ] `--update-golden` runner flag that rewrites expected strings via
-      marker comments. Defer until a render-tier suite actually wants
-      bulk-baked goldens.
-- [ ] `scripts/golden_diff_report.py` for side-by-side HTML diff of
-      pending golden updates. Lands together with `--update-golden`.
+- [x] `--update-golden [path]` runner flag — when set, `ASSERT_GRID_EQ`
+      mismatches stash to a JSONL file instead of failing. Default
+      stash path is `tests/artifacts/goldens.jsonl`.
+      [tests/golden_apply](tests/golden_apply.c) reads the stash and
+      rewrites each referenced source file between
+      `/* golden-start */` and `/* golden-end */` block markers,
+      preserving the start marker's indentation. Implementation lives
+      in [tests/grid_snapshot_update.{c,h}](tests/grid_snapshot_update.h)
+      (stash writer),
+      [tests/grid_snapshot_format.{c,h}](tests/grid_snapshot_format.h)
+      (shared C-string-literal emitter), and
+      [tests/golden_apply_lib.{c,h}](tests/golden_apply_lib.h) (parser
+      + rewriter). Worked example: the baked chrome layout in
+      [tests/test_grid_snapshot_suite.c](tests/test_grid_snapshot_suite.c).
+- [x] [tests/golden_diff_report](tests/golden_diff_report.c) — text
+      unified-diff preview of pending stash updates. Same shape as the
+      planned HTML report, but emitted as plain text for terminal /
+      CI-log readability. Exits 1 when any entry has a non-empty diff.
+      An HTML variant can be layered on later if a PR-comment workflow
+      wants it.
 - [ ] Convert the worst raw-byte `strstr` offenders in
       [test_render_frame.c](tests/test_render_frame.c) and
       [test_render_panes.c](tests/test_render_panes.c). Keep byte-level

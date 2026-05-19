@@ -138,9 +138,11 @@ TEST_SRCS = $(addprefix tests/, \
 	test_metrics_jsonl.c \
 	test_metrics_libfuzzer_parse.c \
 	test_metrics_summary.c \
+	test_golden_apply.c \
 	runner_support.c seed.c parallel_runner.c editor_state_snapshot.c \
 	metrics_jsonl.c metrics_libfuzzer_parse.c \
 	metrics_jsonl_read.c metrics_summary_cmd.c \
+	grid_snapshot_update.c grid_snapshot_format.c golden_apply_lib.c \
 	test_grid_snapshot.c \
 	test_support.c test_helpers.c alloc_test_hooks.c save_syscalls_test_hooks.c)
 
@@ -190,6 +192,18 @@ METRICS_SUMMARY_BIN = tests/metrics_summary
 METRICS_SUMMARY_SRCS = tests/metrics_summary.c \
 	tests/metrics_jsonl_read.c tests/metrics_summary_cmd.c
 METRICS_SUMMARY_OBJS = $(METRICS_SUMMARY_SRCS:.c=.o)
+
+# Golden-snapshot apply / diff-preview tools. Consume the JSONL stash
+# emitted by `rotide_tests --update-golden`.
+GOLDEN_APPLY_BIN = tests/golden_apply
+GOLDEN_APPLY_SRCS = tests/golden_apply.c \
+	tests/golden_apply_lib.c tests/grid_snapshot_format.c
+GOLDEN_APPLY_OBJS = $(GOLDEN_APPLY_SRCS:.c=.o)
+
+GOLDEN_DIFF_REPORT_BIN = tests/golden_diff_report
+GOLDEN_DIFF_REPORT_SRCS = tests/golden_diff_report.c \
+	tests/golden_apply_lib.c tests/grid_snapshot_format.c
+GOLDEN_DIFF_REPORT_OBJS = $(GOLDEN_DIFF_REPORT_SRCS:.c=.o)
 
 FUZZ_CC ?= clang
 # Nightly soak time per target (seconds). 30 minutes by default — matches
@@ -296,6 +310,12 @@ $(METRICS_FUZZ_EMIT_BIN): $(METRICS_FUZZ_EMIT_OBJS)
 	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $^ -o $@
 
 $(METRICS_SUMMARY_BIN): $(METRICS_SUMMARY_OBJS)
+	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $^ -o $@
+
+$(GOLDEN_APPLY_BIN): $(GOLDEN_APPLY_OBJS)
+	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $^ -o $@
+
+$(GOLDEN_DIFF_REPORT_BIN): $(GOLDEN_DIFF_REPORT_OBJS)
 	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $^ -o $@
 
 # Single-step compile-and-link so libvterm sources see FUZZ_FLAGS instead of
@@ -541,5 +561,5 @@ docs-diagrams:
 .PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams bench-buffer bench fuzz-vterm fuzz-vterm-smoke fuzz-vterm-nightly fuzz-lsp fuzz-lsp-smoke fuzz-lsp-nightly fuzz-dap fuzz-dap-smoke fuzz-dap-nightly fuzz-toml-theme fuzz-toml-theme-smoke fuzz-toml-theme-nightly
 
 clean:
-	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(BENCH_BUFFER_OBJ) $(METRICS_FUZZ_EMIT_OBJS) $(METRICS_SUMMARY_OBJS) $(DEPFILES) $(TEST_BIN) $(BENCH_BUFFER_BIN) $(METRICS_FUZZ_EMIT_BIN) $(METRICS_SUMMARY_BIN) $(FUZZ_VTERM_BIN) $(FUZZ_LSP_BIN) $(FUZZ_DAP_BIN) $(FUZZ_TOML_THEME_BIN) rotide $(GENERATED_HEADERS)
+	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(BENCH_BUFFER_OBJ) $(METRICS_FUZZ_EMIT_OBJS) $(METRICS_SUMMARY_OBJS) $(GOLDEN_APPLY_OBJS) $(GOLDEN_DIFF_REPORT_OBJS) $(DEPFILES) $(TEST_BIN) $(BENCH_BUFFER_BIN) $(METRICS_FUZZ_EMIT_BIN) $(METRICS_SUMMARY_BIN) $(GOLDEN_APPLY_BIN) $(GOLDEN_DIFF_REPORT_BIN) $(FUZZ_VTERM_BIN) $(FUZZ_LSP_BIN) $(FUZZ_DAP_BIN) $(FUZZ_TOML_THEME_BIN) rotide $(GENERATED_HEADERS)
 	$(call LOG,CLEAN,tree)find $(SRC_DIR) tests $(TS_DIR) -type f \( -name '*.o' -o -name '*.d' \) -delete

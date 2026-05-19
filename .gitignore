@@ -68,7 +68,10 @@ tests/fuzz/toml/fuzz_toml_theme
 tests/fuzz/*/corpus_grown/
 tests/metrics_fuzz_emit
 tests/metrics_summary
+tests/golden_apply
+tests/golden_diff_report
 tests/metrics.jsonl
+tests/artifacts/goldens.jsonl
 
 PLAN.md
 
