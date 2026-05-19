@@ -65,6 +65,7 @@ tests/fuzz/vterm/fuzz_vterm
 tests/fuzz/lsp/fuzz_lsp
 tests/fuzz/dap/fuzz_dap
 tests/fuzz/toml/fuzz_toml_theme
+tests/fuzz/*/corpus_grown/
 
 PLAN.md
 

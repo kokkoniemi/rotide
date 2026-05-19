@@ -165,26 +165,35 @@ BENCH_MICRO_SRCS = tests/bench_microbenches.c tests/bench_runner.c
 BENCH_MICRO_OBJS = $(BENCH_MICRO_SRCS:.c=.o)
 
 FUZZ_CC ?= clang
+# Nightly soak time per target (seconds). 30 minutes by default — matches
+# the value in TEST_IMPROVEMENT_PLAN.md and runs comfortably inside a
+# GitHub-hosted runner's job budget.
+FUZZ_NIGHTLY_TIME ?= 1800
+
 FUZZ_VTERM_BIN = tests/fuzz/vterm/fuzz_vterm
 FUZZ_VTERM_HARNESS = tests/fuzz/vterm/fuzz_vterm.c
 FUZZ_VTERM_CORPUS = tests/fuzz/vterm/corpus
+FUZZ_VTERM_CORPUS_GROWN = tests/fuzz/vterm/corpus_grown
 FUZZ_VTERM_SMOKE_RUNS ?= 1000
 
 FUZZ_LSP_BIN = tests/fuzz/lsp/fuzz_lsp
 FUZZ_LSP_HARNESS = tests/fuzz/lsp/fuzz_lsp.c
 FUZZ_LSP_CORPUS = tests/fuzz/lsp/corpus
+FUZZ_LSP_CORPUS_GROWN = tests/fuzz/lsp/corpus_grown
 FUZZ_LSP_SMOKE_RUNS ?= 5000
 FUZZ_LSP_SRCS = $(SRC_DIR)/language/lsp_framing.c
 
 FUZZ_DAP_BIN = tests/fuzz/dap/fuzz_dap
 FUZZ_DAP_HARNESS = tests/fuzz/dap/fuzz_dap.c
 FUZZ_DAP_CORPUS = tests/fuzz/dap/corpus
+FUZZ_DAP_CORPUS_GROWN = tests/fuzz/dap/corpus_grown
 FUZZ_DAP_SMOKE_RUNS ?= 5000
 FUZZ_DAP_SRCS = $(SRC_DIR)/debug/dap_client.c
 
 FUZZ_TOML_THEME_BIN = tests/fuzz/toml/fuzz_toml_theme
 FUZZ_TOML_THEME_HARNESS = tests/fuzz/toml/fuzz_toml_theme.c
 FUZZ_TOML_THEME_CORPUS = tests/fuzz/toml/corpus
+FUZZ_TOML_THEME_CORPUS_GROWN = tests/fuzz/toml/corpus_grown
 FUZZ_TOML_THEME_SMOKE_RUNS ?= 5000
 FUZZ_TOML_THEME_SRCS = $(SRC_DIR)/config/theme_parse.c \
 	$(SRC_DIR)/config/theme_builtin.c \
@@ -343,6 +352,36 @@ fuzz-toml-theme-smoke: $(FUZZ_TOML_THEME_BIN)
 		rm -rf $$tmp; \
 		exit $$rc
 
+# Nightly soaks: persist the grown corpus across CI runs. The `corpus_grown`
+# directory is gitignored and populated from the committed seed set on the
+# first run; subsequent runs restore it via actions/cache and let libFuzzer
+# add new finds in place. -max_total_time is the only stop condition so each
+# target soaks for a predictable wall-clock duration. Override per-target
+# with FUZZ_NIGHTLY_TIME=<seconds>.
+fuzz-vterm-nightly: $(FUZZ_VTERM_BIN)
+	$(call LOG,FUZZ-N,vterm)mkdir -p $(FUZZ_VTERM_CORPUS_GROWN); \
+		cp -n $(FUZZ_VTERM_CORPUS)/* $(FUZZ_VTERM_CORPUS_GROWN)/ 2>/dev/null || true; \
+		./$(FUZZ_VTERM_BIN) -max_total_time=$(FUZZ_NIGHTLY_TIME) \
+			$(FUZZ_VTERM_CORPUS_GROWN)
+
+fuzz-lsp-nightly: $(FUZZ_LSP_BIN)
+	$(call LOG,FUZZ-N,lsp)mkdir -p $(FUZZ_LSP_CORPUS_GROWN); \
+		cp -n $(FUZZ_LSP_CORPUS)/* $(FUZZ_LSP_CORPUS_GROWN)/ 2>/dev/null || true; \
+		./$(FUZZ_LSP_BIN) -max_total_time=$(FUZZ_NIGHTLY_TIME) \
+			$(FUZZ_LSP_CORPUS_GROWN)
+
+fuzz-dap-nightly: $(FUZZ_DAP_BIN)
+	$(call LOG,FUZZ-N,dap)mkdir -p $(FUZZ_DAP_CORPUS_GROWN); \
+		cp -n $(FUZZ_DAP_CORPUS)/* $(FUZZ_DAP_CORPUS_GROWN)/ 2>/dev/null || true; \
+		./$(FUZZ_DAP_BIN) -max_total_time=$(FUZZ_NIGHTLY_TIME) \
+			$(FUZZ_DAP_CORPUS_GROWN)
+
+fuzz-toml-theme-nightly: $(FUZZ_TOML_THEME_BIN)
+	$(call LOG,FUZZ-N,toml-theme)mkdir -p $(FUZZ_TOML_THEME_CORPUS_GROWN); \
+		cp -n $(FUZZ_TOML_THEME_CORPUS)/* $(FUZZ_TOML_THEME_CORPUS_GROWN)/ 2>/dev/null || true; \
+		./$(FUZZ_TOML_THEME_BIN) -max_total_time=$(FUZZ_NIGHTLY_TIME) \
+			$(FUZZ_TOML_THEME_CORPUS_GROWN)
+
 test-sanitize:
 	$(call LOG,CLEAN,build)$(MAKE) clean
 	$(call LOG,MAKE,test-sanitize)$(MAKE) CFLAGS="$(CFLAGS) $(SANITIZER_CFLAGS)" \
@@ -392,7 +431,7 @@ docs-diagrams:
 
 -include $(DEPFILES)
 
-.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams bench-buffer bench fuzz-vterm fuzz-vterm-smoke fuzz-lsp fuzz-lsp-smoke fuzz-dap fuzz-dap-smoke fuzz-toml-theme fuzz-toml-theme-smoke
+.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams bench-buffer bench fuzz-vterm fuzz-vterm-smoke fuzz-vterm-nightly fuzz-lsp fuzz-lsp-smoke fuzz-lsp-nightly fuzz-dap fuzz-dap-smoke fuzz-dap-nightly fuzz-toml-theme fuzz-toml-theme-smoke fuzz-toml-theme-nightly
 
 clean:
 	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(BENCH_BUFFER_OBJ) $(DEPFILES) $(TEST_BIN) $(BENCH_BUFFER_BIN) $(FUZZ_VTERM_BIN) $(FUZZ_LSP_BIN) $(FUZZ_DAP_BIN) $(FUZZ_TOML_THEME_BIN) rotide $(GENERATED_HEADERS)

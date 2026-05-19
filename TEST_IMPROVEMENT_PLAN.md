@@ -285,15 +285,28 @@ liar's metric):
       [.github/workflows/ci.yml](.github/workflows/ci.yml) (5000 runs
       default; <1 s wall locally).
 - [ ] Crash repros imported as regression unit tests under
-      `tests/test_*_fuzz_repro.c`.
-- [ ] Weekly `-merge=1` to minimise corpus.
-- [ ] Working corpus persisted across CI runs (cache).
+      `tests/test_*_fuzz_repro.c`. (Two real bugs found so far: both
+      have regressions in the per-boundary framing suites
+      [tests/test_lsp_framing.c](tests/test_lsp_framing.c) and
+      [tests/test_dap_framing.c](tests/test_dap_framing.c); no
+      crash-input file regressions yet because no minimised crash
+      input outlived the same-PR fix.)
+- [ ] Weekly `-merge=1` to minimise corpus. Defer until a `corpus_grown`
+      cache crosses ~50 KB.
+- [x] Working corpus persisted across CI runs. The nightly
+      `fuzz-nightly` matrix job in [.github/workflows/nightly.yml](.github/workflows/nightly.yml)
+      restores `tests/fuzz/<target>/corpus_grown/` from the previous
+      run, lets libFuzzer add new finds in place, then saves the
+      directory back via `actions/cache`. `corpus_grown/` is
+      gitignored so the committed seed set stays curated.
 - [ ] Per-run edge count tracked in `tests/metrics.jsonl`; alert if 48h
       run adds zero new edges. (Belongs in the `metrics.jsonl` work item
       under cross-cutting infra.)
-- [ ] Full nightly runs (~30 min/target) — wire `make fuzz-vterm` into
-      [nightly.yml](.github/workflows/nightly.yml) once the corpus cache
-      is set up.
+- [x] Full nightly runs (~30 min/target). `make fuzz-{vterm,lsp,dap,toml-theme}-nightly`
+      wired into [nightly.yml](.github/workflows/nightly.yml) as a
+      single matrix job; soak duration governed by `FUZZ_NIGHTLY_TIME`
+      (default 1800 s); the four targets run in parallel on separate
+      runners so total wall time stays ~30 min.
 
 ### Phase 5: Tree-sitter incremental ≡ full reparse — shipped
 
@@ -460,7 +473,10 @@ Nightly:
 - [x] `make test-tsan` on the threaded subset.
 - [x] `make test-quarantine-passing` (fails if any quarantined test now
       passes).
-- [ ] Full fuzz runs (~30 min/target) — add post-Phase 4.
+- [x] Full fuzz runs (~30 min/target) — `fuzz-nightly` matrix in
+      [nightly.yml](.github/workflows/nightly.yml). Each target soaks
+      for `FUZZ_NIGHTLY_TIME` seconds (default 1800) with corpus
+      persisted across runs via `actions/cache`.
 - [ ] Property tests with large N — Phase 3 harness exposes seed/op count;
       wiring a second invocation with `--seed` + larger op budget is
       cheap.

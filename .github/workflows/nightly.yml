@@ -37,3 +37,61 @@ jobs:
 
       - name: Check no quarantined test now passes
         run: make test-quarantine-passing
+
+  fuzz-nightly:
+    # 30-minute soak per target (FUZZ_NIGHTLY_TIME=1800 by default in the
+    # Makefile). The corpus_grown directory is restored from cache, libFuzzer
+    # adds new finds in place, and the cache is saved back at the end of the
+    # job so each nightly run starts where the previous one left off.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - name: vterm
+            make: fuzz-vterm-nightly
+            dir: tests/fuzz/vterm/corpus_grown
+          - name: lsp
+            make: fuzz-lsp-nightly
+            dir: tests/fuzz/lsp/corpus_grown
+          - name: dap
+            make: fuzz-dap-nightly
+            dir: tests/fuzz/dap/corpus_grown
+          - name: toml-theme
+            make: fuzz-toml-theme-nightly
+            dir: tests/fuzz/toml/corpus_grown
+    env:
+      ASAN_OPTIONS: detect_leaks=0
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install clang
+        run: sudo apt-get update && sudo apt-get install -y clang
+
+      - name: Restore grown corpus
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ matrix.target.dir }}
+          key: fuzz-${{ matrix.target.name }}-corpus-${{ github.run_id }}
+          restore-keys: |
+            fuzz-${{ matrix.target.name }}-corpus-
+
+      - name: Run nightly fuzz soak
+        run: make ${{ matrix.target.make }}
+
+      - name: Save grown corpus
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ matrix.target.dir }}
+          key: fuzz-${{ matrix.target.name }}-corpus-${{ github.run_id }}
+
+      - name: Upload crash inputs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-${{ matrix.target.name }}-nightly-crashes
+          path: crash-*
+          if-no-files-found: ignore
