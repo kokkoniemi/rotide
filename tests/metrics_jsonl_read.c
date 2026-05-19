@@ -30,9 +30,7 @@ const char *editorMetricsKindName(enum editorMetricsKind k) {
 	}
 }
 
-/* ---- key lookup ----
- *
- * Each row is a flat object: `{"k1":v1,"k2":v2,...}`. We don't need a
+/* Each row is a flat object: `{"k1":v1,"k2":v2,...}`. We don't need a
  * full JSON parser — string values in our schema never contain a
  * `"<known_key>":` substring (keys are simple identifiers; the only
  * arbitrary strings are ts and short identifiers like target/name/seed).

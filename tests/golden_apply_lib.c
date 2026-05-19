@@ -14,9 +14,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-/* ---- JSON string-value extraction ----
- *
- * Same constrained format we use elsewhere: a flat object with simple
+/* Same constrained JSONL format we use elsewhere: a flat object with simple
  * `"key":"value"` or `"key":NUMBER` pairs. Strings contain only the
  * limited escape set our writer emits: \" \\ \n \t \r \b \f \uXXXX.
  */
@@ -208,8 +206,6 @@ void editor_golden_free_entries(struct goldenStashEntry *entries, int count) {
 	}
 	free(entries);
 }
-
-/* ---- rewriter ---- */
 
 struct outBuf {
 	char *data;

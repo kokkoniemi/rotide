@@ -109,12 +109,6 @@ jobs:
           path: crash-*
           if-no-files-found: ignore
 
-  # Same shape as ci.yml's metrics-summary: pull the four per-target
-  # fuzz rows back into one file and print a summary so the nightly log
-  # contains the day's coverage / corpus growth at a glance. Once a
-  # multi-day history accumulates (e.g. via a metrics branch or cache),
-  # this is also the natural place to wire `metrics_summary
-  # check-fuzz-stale` for the 48h alert from TEST_IMPROVEMENT_PLAN.md.
   metrics-summary:
     if: always()
     needs:
@@ -142,10 +136,8 @@ jobs:
             [ -f "$f" ] && cat "$f" >> tests/metrics.jsonl
           done
 
-      # Same rolling-history pattern as ci.yml: pull the shared cache,
-      # append (with run_id dedup), save back. Nightly is the workflow
-      # where the cross-run comparator earns its keep, since the cache
-      # contains weeks of fuzz rows across both PR and nightly runs.
+      # Restore by prefix to find the latest rolling history. Deduping on
+      # ci_run_id keeps workflow reruns from counting the same rows twice.
       - name: Restore metrics history
         uses: actions/cache/restore@v4
         with:
@@ -173,10 +165,8 @@ jobs:
       - name: Summary (rolling history)
         run: ./tests/metrics_summary summary --in tests/metrics-history.jsonl
 
-      # Warn-only for now. Flip to `|| exit 1` once the false-positive
-      # rate has been characterised in practice. The `::warning::`
-      # annotation surfaces in the workflow run UI without failing the
-      # nightly cron.
+      # Surface noisy-baseline alerts as GitHub annotations without failing
+      # the nightly cron.
       - name: Check fuzz staleness (48h window)
         run: |
           ./tests/metrics_summary check-fuzz-stale --in tests/metrics-history.jsonl \

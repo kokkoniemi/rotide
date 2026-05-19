@@ -41,10 +41,9 @@ struct editorMetricsField {
 int editorMetricsAppend(const char *path, const char *kind,
 		const struct editorMetricsField *fields, int field_count);
 
-/* Test seam: format a single row into `buf` (NUL-terminated, with trailing
- * newline) without touching the filesystem. `env_lookup` is consulted for
- * enrichment env vars; pass NULL to skip enrichment (used in unit tests so
- * results are deterministic regardless of the host environment).
+/* Format a single row into `buf` (NUL-terminated, with trailing newline)
+ * without touching the filesystem. `env_lookup` is consulted for enrichment
+ * env vars; pass NULL to skip enrichment.
  *
  * `now_unix` is the epoch second to embed as `ts` (UTC ISO 8601). Pass 0
  * to call the system clock.

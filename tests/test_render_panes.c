@@ -291,8 +291,6 @@ static int test_editor_refresh_screen_vertical_split_renders_border(void) {
 	ASSERT_TRUE(sibling != NULL);
 	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
 
-	/* Both prior assertions (vertical-border glyph present, focused pane
-	 * content rendered) are subsumed by a full grid snapshot. */
 	ASSERT_GRID_EQ(
 		/* golden-start */
 		"                        │1  hello world   │1  hello world\n"

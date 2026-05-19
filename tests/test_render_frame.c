@@ -103,9 +103,6 @@ static int test_editor_refresh_screen_contains_expected_sequences(void) {
 	ASSERT_TRUE(strstr(output, "\x1b[7m") != NULL);
 	free(output);
 
-	/* Visible-text assertions subsumed by a grid snapshot: stronger
-	 * coverage than the two prior strstr checks, since the whole
-	 * rendered grid is now compared. Use `--update-golden` to refresh. */
 	ASSERT_GRID_EQ(
 		/* golden-start */
 		"              │1  first line\n"

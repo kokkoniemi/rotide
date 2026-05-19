@@ -8,8 +8,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ---- C-string-literal formatter ---- */
-
 static char *emit_to_string(const char *text, const char *indent) {
 	char *buf = NULL;
 	size_t len = 0;
@@ -71,8 +69,6 @@ static int test_emit_c_string_empty_input(void) {
 	return 0;
 }
 
-/* ---- stash row parser ---- */
-
 static int test_parse_stash_row_well_formed(void) {
 	const char *line =
 		"{\"file\":\"tests/foo.c\",\"line\":42,\"actual\":\"a\\nb\\n\"}";
@@ -105,8 +101,6 @@ static int test_parse_stash_row_unicode_control_escape(void) {
 	free(e.actual);
 	return 0;
 }
-
-/* ---- source rewriter ---- */
 
 static int test_rewrite_replaces_block_with_new_content(void) {
 	const char *src =

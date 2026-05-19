@@ -12,9 +12,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-/* Real captured output from a `-runs=500 -print_final_stats=1` run of
- * tests/fuzz/lsp/fuzz_lsp against tests/fuzz/lsp/corpus on 2026-05-19.
- * Kept short by trimming the run lines between the seed pass and the
+/* Representative output from a `-runs=500 -print_final_stats=1` run of
+ * tests/fuzz/lsp/fuzz_lsp against tests/fuzz/lsp/corpus. Kept short by
+ * trimming the run lines between the seed pass and the
  * final ones. The exact byte/edge counts are what we assert against. */
 static const char *k_smoke_log_lsp =
 	"INFO: Running with entropic power schedule (0xFF, 100).\n"
@@ -145,8 +145,6 @@ static int test_parse_rejects_corp_without_b_suffix(void) {
 	ASSERT_TRUE(!s.has_cov_line);
 	return 0;
 }
-
-/* ---- scan corpus ---- */
 
 static char *make_corpus_dir(void) {
 	const char *tmpdir = getenv("TMPDIR");

@@ -141,10 +141,6 @@ static int run_growth_scenario(const struct longSessionScenario *scenario) {
 	return failed;
 }
 
-/* ------------------------------------------------------------------ */
-/* Scenario: open / edit / undo / close                               */
-/* ------------------------------------------------------------------ */
-
 static int step_open_edit_close(void *ctx) {
 	const char *path = (const char *)ctx;
 	if (!editorTabOpenOrSwitchToFile(path)) {
@@ -175,10 +171,6 @@ static int test_long_session_open_edit_close_cycles_have_flat_memory(void) {
 	(void)unlink(path);
 	return failed;
 }
-
-/* ------------------------------------------------------------------ */
-/* Scenario: syntax reparse cycle                                     */
-/* ------------------------------------------------------------------ */
 
 static int step_syntax_reparse(void *ctx) {
 	const char *path = (const char *)ctx;
@@ -231,10 +223,6 @@ static int test_long_session_syntax_reparse_cycles_have_flat_memory(void) {
 	return failed;
 }
 
-/* ------------------------------------------------------------------ */
-/* Scenario: terminal pane spawn / pump / free                        */
-/* ------------------------------------------------------------------ */
-
 static int step_terminal_pane(void *ctx) {
 	(void)ctx;
 	struct editorTerminalPane *t = editorTerminalPaneCreate("true", 40, 8);
@@ -269,10 +257,6 @@ static int test_long_session_terminal_pane_cycles_have_flat_memory(void) {
 	};
 	return run_growth_scenario(&scenario);
 }
-
-/* ------------------------------------------------------------------ */
-/* Scenario: LSP-tracked file open / close (mock-backed)              */
-/* ------------------------------------------------------------------ */
 
 static int step_lsp_open_close(void *ctx) {
 	const char *path = (const char *)ctx;

@@ -352,8 +352,8 @@ DOCS_MEDIA_FLAGS ?=
 # Opt-in metrics emission. Set on the command line:
 #   make test METRICS_OUT=tests/metrics.jsonl
 #   make bench METRICS_OUT=tests/metrics.jsonl
-# The (already-wired) fuzz-*-smoke and fuzz-*-nightly targets honour
-# METRICS_OUT the same way. The runner / bench binaries enrich rows from
+# Fuzz smoke/nightly targets honour METRICS_OUT the same way. The runner and
+# bench binaries enrich rows from
 # ROTIDE_METRICS_GIT_SHA / GIT_REF / CI_RUN_ID env vars when set; CI
 # workflows wire those to the matching GitHub Actions GITHUB_* values.
 ifneq ($(strip $(METRICS_OUT)),)

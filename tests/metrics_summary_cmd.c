@@ -120,8 +120,6 @@ static const char **collectGroupKeys(
 	return keys;
 }
 
-/* ---- summary ---- */
-
 static void printTestRunRow(const struct editorMetricsRow *r, FILE *out) {
 	fprintf(out, "  %s  wall=%.3fs  runs=%lld/%lld  fail=%lld  crash=%lld  exit=%lld",
 		r->ts, r->wall_seconds, r->passed_runs, r->total_runs,
@@ -219,8 +217,6 @@ int editorMetricsCmdSummary(const struct editorMetricsRow *rows, int count,
 	return 0;
 }
 
-/* ---- check-fuzz-stale ---- */
-
 int editorMetricsCmdCheckFuzzStale(const struct editorMetricsRow *rows, int count,
 		const struct editorMetricsCmdOptions *opts, FILE *out) {
 	if (rows == NULL || opts == NULL || out == NULL) {
@@ -287,8 +283,6 @@ int editorMetricsCmdCheckFuzzStale(const struct editorMetricsRow *rows, int coun
 	free(keys);
 	return any_stale ? 1 : 0;
 }
-
-/* ---- check-bench-regression ---- */
 
 int editorMetricsCmdCheckBenchRegression(const struct editorMetricsRow *rows, int count,
 		const struct editorMetricsCmdOptions *opts, FILE *out) {

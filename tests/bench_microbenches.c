@@ -23,10 +23,6 @@
 /* Stub for the global referenced by editor support TUs the bench links. */
 struct editorConfig E;
 
-/* ------------------------------------------------------------------ */
-/* Helpers                                                             */
-/* ------------------------------------------------------------------ */
-
 #define BENCH_DOC_BYTES (256u * 1024u)
 #define BENCH_DOC_AVG_LINE_BYTES 64u
 
@@ -58,10 +54,6 @@ static char *generate_fixture(size_t bytes) {
 	}
 	return buf;
 }
-
-/* ------------------------------------------------------------------ */
-/* Bench: document position ↔ byte roundtrip                          */
-/* ------------------------------------------------------------------ */
 
 struct positionRoundtripState {
 	struct editorDocument *doc;
@@ -138,10 +130,6 @@ static void teardown_position_roundtrip(void *state) {
 	free(s->doc);
 	free(s);
 }
-
-/* ------------------------------------------------------------------ */
-/* Bench: row_cache splice for a small edit                           */
-/* ------------------------------------------------------------------ */
 
 struct rowCacheSpliceState {
 	struct editorDocument *doc;
@@ -248,10 +236,6 @@ static void teardown_row_cache_splice(void *state) {
 	free(s);
 }
 
-/* ------------------------------------------------------------------ */
-/* Bench: wrap recompute on a 1000-line buffer                        */
-/* ------------------------------------------------------------------ */
-
 struct wrapRecomputeState {
 	struct editorDocument *doc;
 	struct erow *rows;
@@ -344,10 +328,6 @@ static void teardown_wrap_recompute(void *state) {
 	free(s->doc);
 	free(s);
 }
-
-/* ------------------------------------------------------------------ */
-/* Bench: tree-sitter incremental edit on a 5k-line C-like source     */
-/* ------------------------------------------------------------------ */
 
 struct syntaxIncrementalState {
 	char *text;
@@ -482,10 +462,6 @@ static void teardown_syntax_incremental(void *state) {
 	free(s);
 }
 
-/* ------------------------------------------------------------------ */
-/* Bench: screen refresh (frame diff) on unchanged + one-row-changed   */
-/* ------------------------------------------------------------------ */
-
 /* `editorRefreshScreen` writes to STDOUT_FILENO. The bench cares about
  * the in-process work — frame assembly, cache comparison, writeBuf
  * construction — not the syscall latency, so we redirect stdout to
@@ -616,10 +592,6 @@ static void op_screen_diff_one_row(void *state, int n) {
 static void teardown_screen_diff_one_row(void *state) {
 	teardown_screen_diff_unchanged(state);
 }
-
-/* ------------------------------------------------------------------ */
-/* Main                                                                */
-/* ------------------------------------------------------------------ */
 
 static const struct editorBenchCase k_cases[] = {
 	{

@@ -106,8 +106,7 @@ static int test_read_frame_malformed_content_length(void) {
 
 static int test_read_frame_rejects_overflowing_content_length(void) {
 	/* 21 nines: must be rejected at parse time rather than silently
-	 * wrapping. Regression for the missing-overflow-check that DAP
-	 * inherited from the original LSP parser. */
+	 * wrapping. */
 	const char *stream = "Content-Length: 999999999999999999999\r\n\r\n";
 	int fd = memfd_with(stream, strlen(stream));
 	ASSERT_TRUE(fd >= 0);

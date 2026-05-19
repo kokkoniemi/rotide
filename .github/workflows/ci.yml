@@ -8,8 +8,7 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Metrics rows from runner / bench / fuzz_emit pick these up via the
-# editor-side env enrichment.
+# Metrics emitters use these to tag rows with the workflow that produced them.
 env:
   ROTIDE_METRICS_GIT_SHA: ${{ github.sha }}
   ROTIDE_METRICS_GIT_REF: ${{ github.ref }}
@@ -215,11 +214,6 @@ jobs:
           path: crash-*
           if-no-files-found: ignore
 
-  # Aggregates per-job metrics rows into a single tests/metrics.jsonl for
-  # the workflow, prints a human-readable summary into the run log, and
-  # uploads the merged file as `metrics-merged`. Runs even when an earlier
-  # job failed so the per-row payloads aren't lost; consumers can inspect
-  # the artifact to triage which job emitted which row.
   metrics-summary:
     if: always()
     needs:
@@ -251,12 +245,8 @@ jobs:
             [ -f "$f" ] && cat "$f" >> tests/metrics.jsonl
           done
 
-      # Cross-run aggregation: pull the rolling history from cache,
-      # append this workflow's rows (deduping on ci_run_id so a re-run of
-      # the same workflow doesn't double-count), and save back under a
-      # unique key. Restore-keys finds the most recent prior entry by
-      # prefix. The strict-quotes pattern with ci_run_id matches the
-      # serialised JSON: `"ci_run_id":"123"`.
+      # Restore by prefix to find the latest rolling history. Deduping on
+      # ci_run_id keeps workflow reruns from counting the same rows twice.
       - name: Restore metrics history
         uses: actions/cache/restore@v4
         with:

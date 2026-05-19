@@ -104,10 +104,8 @@ int editor_grid_snapshot_check_or_stash(const char *expected, const char *actual
 		const char *file, int line) {
 	const char *stash = stash_path();
 	if (stash == NULL) {
-		/* Normal mode: delegate to the existing diff-and-print helper. */
 		return editor_grid_snapshot_diff(expected, actual);
 	}
-	/* Update mode: stash on mismatch, never fail. */
 	if (strcmp(expected, actual) == 0) {
 		return 0;
 	}

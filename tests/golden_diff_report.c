@@ -162,8 +162,8 @@ static char *decode_existing_block(const char *block, size_t block_len) {
 }
 
 /* Print a single unified-ish diff: lines that match get a space prefix,
- * extra lines in `expected` get `-`, extra in `actual` get `+`. This is
- * the same shape editor_grid_snapshot_diff uses on stderr. */
+ * extra lines in `expected` get `-`, extra in `actual` get `+`, matching
+ * editor_grid_snapshot_diff's stderr format. */
 static void print_line_diff(const char *expected, const char *actual, FILE *out) {
 	const char *ep = expected;
 	const char *ap = actual;

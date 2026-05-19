@@ -1,10 +1,9 @@
 /* Unit tests for the LSP framing parser (src/language/lsp_framing.c).
  *
- * The fuzz harness in tests/fuzz/lsp covers untrusted-input edge cases
- * via libFuzzer. This suite locks in the specific guarantees the fuzzer
- * found / would otherwise need to rediscover on every run: header
- * shape, malformed Content-Length, overflow rejection, oversized
- * payload rejection, and multi-frame draining. */
+ * The fuzz harness explores untrusted inputs broadly; this suite pins
+ * the protocol guarantees that should fail loudly in normal regression
+ * runs: header shape, malformed Content-Length, overflow rejection,
+ * oversized payload rejection, and multi-frame draining. */
 
 #define _GNU_SOURCE
 
@@ -82,8 +81,7 @@ static int test_parse_content_length_rejects_negative(void) {
 
 static int test_parse_content_length_rejects_overflow(void) {
 	/* 21 nines: comfortably above 2^64 - 1, must be rejected without
-	 * silently wrapping. Regression for the dead `parsed > SIZE_MAX`
-	 * check in the pre-2026-05 implementation. */
+	 * silently wrapping. */
 	size_t len = 999;
 	ASSERT_EQ_INT(
 			0, editorLspParseContentLength("Content-Length: 999999999999999999999\r\n\r\n", &len));
@@ -165,10 +163,8 @@ static int test_read_frame_malformed_header(void) {
 }
 
 static int test_read_frame_rejects_oversized_payload(void) {
-	/* Regression for the crash the fuzzer found in 2026-05: a 20-digit
-	 * Content-Length parses successfully but the resulting allocation
-	 * exceeds any reasonable bound. Must be rejected with EMSGSIZE
-	 * before malloc is reached. */
+	/* A 20-digit Content-Length can fit in size_t while still exceeding any
+	 * reasonable frame size. Reject it with EMSGSIZE before malloc. */
 	const char *stream = "Content-Length: 07766279631452241918\r\n\r\n";
 	int fd = memfd_with(stream, strlen(stream));
 	ASSERT_TRUE(fd >= 0);

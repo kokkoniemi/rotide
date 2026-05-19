@@ -93,11 +93,8 @@ static int test_grid_snapshot_assert_macro_passes_on_match(void) {
 	return 0;
 }
 
-/* Demonstrates ASSERT_GRID_EQ against a hand-written golden string. If a
- * future change to the chrome (gutter format, tildes-on-empty-rows,
- * status-bar layout) breaks this assertion, the diff makes the
- * regression visible at a glance instead of requiring a byte-by-byte
- * audit of escape-laden output. */
+/* Hand-written golden for the editor chrome. The diff makes layout
+ * regressions visible without auditing escape-laden terminal output. */
 static int test_grid_snapshot_matches_baked_chrome_layout(void) {
 	add_row("hello");
 	add_row("world");

@@ -49,8 +49,7 @@ shape is controlled by another process. Specifically:
 - header byte-by-byte read loop bounded by `ROTIDE_LSP_MAX_HEADER_BYTES`,
 - `Content-Length:` digit parsing (overflow-safe against size_t wrap),
 - `ROTIDE_LSP_MAX_PAYLOAD_BYTES` ceiling so a 20-digit Content-Length
-  cannot coax the client into a multi-exabyte malloc — found by this
-  fuzzer, fixed in 2026-05.
+  cannot coax the client into a multi-exabyte malloc.
 
 What it does **not** cover: JSON payload decoding (handled by
 `lsp_json.c` / `lsp_protocol.c`), behavior under partial reads on a

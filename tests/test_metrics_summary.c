@@ -1,6 +1,5 @@
-/* test_helpers.h includes rotide.h which sets _DEFAULT_SOURCE before any
- * system headers are pulled in by the new metrics_* headers below — keep
- * it first. */
+/* test_helpers.h includes rotide.h, which sets _DEFAULT_SOURCE before the
+ * metrics headers below pull in system headers. */
 #include "test_helpers.h"
 
 #include "metrics_jsonl_read.h"
@@ -11,8 +10,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
-/* ---- parser ---- */
 
 static int test_parse_test_run_row(void) {
 	const char *line =
@@ -191,9 +188,7 @@ static int test_load_missing_file_returns_error(void) {
 	return 0;
 }
 
-/* ---- subcommands ----
- *
- * Build a small in-memory row set with one entry per call so order is
+/* Build a small in-memory row set with one entry per call so order is
  * deterministic. Each row carries a synthetic ts_unix offset, which
  * lets the comparator pick "latest" without depending on the parser's
  * timegm() behaviour on the host. */
@@ -469,7 +464,6 @@ static int test_bench_regression_factor_override(void) {
 }
 
 const struct editorTestCase g_metrics_summary_tests[] = {
-	/* parser */
 	{"metrics_parse_test_run_row", test_parse_test_run_row},
 	{"metrics_parse_bench_row", test_parse_bench_row},
 	{"metrics_parse_fuzz_row", test_parse_fuzz_row},
@@ -481,16 +475,13 @@ const struct editorTestCase g_metrics_summary_tests[] = {
 	{"metrics_parse_ts_iso_unix", test_parse_ts_iso_unix},
 	{"metrics_load_file_with_two_rows_and_blank_and_bad", test_load_file_with_two_rows_and_blank_and_bad},
 	{"metrics_load_missing_file_returns_error", test_load_missing_file_returns_error},
-	/* summary */
 	{"metrics_summary_groups_kinds", test_summary_groups_kinds},
 	{"metrics_summary_kind_filter", test_summary_kind_filter},
 	{"metrics_summary_limit_truncates_oldest", test_summary_limit_truncates_oldest},
-	/* check-fuzz-stale */
 	{"metrics_fuzz_stale_unchanged_returns_one", test_fuzz_stale_unchanged_returns_one},
 	{"metrics_fuzz_stale_growing_returns_zero", test_fuzz_stale_growing_returns_zero},
 	{"metrics_fuzz_stale_single_row_in_window_skips", test_fuzz_stale_single_row_in_window_skips},
 	{"metrics_fuzz_stale_target_filter", test_fuzz_stale_target_filter},
-	/* check-bench-regression */
 	{"metrics_bench_regression_p50_jump_returns_one", test_bench_regression_p50_jump_returns_one},
 	{"metrics_bench_regression_within_iqr_band_returns_zero", test_bench_regression_within_iqr_band_returns_zero},
 	{"metrics_bench_regression_single_row_skips", test_bench_regression_single_row_skips},
