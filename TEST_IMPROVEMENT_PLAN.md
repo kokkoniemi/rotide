@@ -168,7 +168,25 @@ rows out-of-tree (artifact upload or a separate metrics branch).
       deferred until a CI invocation actually sets `--repeat > 1`.
 - [ ] **Property-test ops/sec** in `kind=test_run`: requires the
       property harness to expose op counters via a test-API hook.
-- [ ] **`scripts/metrics_chart.py`** plotting trends over time.
+- [x] **Reader + regression detector** — implemented in C instead of Python
+      to keep the test infrastructure on one toolchain. Binary
+      [tests/metrics_summary](tests/metrics_summary.c) reads
+      `tests/metrics.jsonl` (or any path via `--in`) and offers three
+      subcommands:
+      - `summary` — grouped table of recent rows per kind/target/name.
+      - `check-fuzz-stale` — exit 1 if any fuzz target's `cov_edges`
+        didn't grow within `--window-hours` (default 48). Closes the
+        "alert if 48h run adds zero new edges" item.
+      - `check-bench-regression` — exit 1 if any bench's latest p50
+        moved more than `--factor` × `prev_iqr` (default 3.0). Matches
+        the Phase 8 methodology rule.
+      Parser lives in
+      [tests/metrics_jsonl_read.{c,h}](tests/metrics_jsonl_read.h);
+      subcommand logic in
+      [tests/metrics_summary_cmd.{c,h}](tests/metrics_summary_cmd.h).
+- [ ] Actual plot output (SVG / PNG) — deferred; the comparator covers
+      the load-bearing CI alerting use cases, plots are nice-to-have
+      once a few weeks of rows exist to visualise.
 
 ---
 
@@ -330,9 +348,9 @@ liar's metric):
       gitignored so the committed seed set stays curated.
 - [x] Per-run edge count tracked in `tests/metrics.jsonl` (the
       `kind=fuzz` row described in the cross-cutting metrics section).
-- [ ] Alert if 48h run adds zero new edges — depends on
-      `scripts/metrics_chart.py` (or a small comparator) being able to
-      diff the latest two rows for the same `target`.
+- [x] Alert if 48h run adds zero new edges — `tests/metrics_summary
+      check-fuzz-stale --in tests/metrics.jsonl` exits 1 when any
+      `target`'s `cov_edges` is unchanged across the configured window.
 - [x] Full nightly runs (~30 min/target). `make fuzz-{vterm,lsp,dap,toml-theme}-nightly`
       wired into [nightly.yml](.github/workflows/nightly.yml) as a
       single matrix job; soak duration governed by `FUZZ_NIGHTLY_TIME`

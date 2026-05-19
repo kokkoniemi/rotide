@@ -137,8 +137,10 @@ TEST_SRCS = $(addprefix tests/, \
 	test_grid_snapshot_suite.c \
 	test_metrics_jsonl.c \
 	test_metrics_libfuzzer_parse.c \
+	test_metrics_summary.c \
 	runner_support.c seed.c parallel_runner.c editor_state_snapshot.c \
 	metrics_jsonl.c metrics_libfuzzer_parse.c \
+	metrics_jsonl_read.c metrics_summary_cmd.c \
 	test_grid_snapshot.c \
 	test_support.c test_helpers.c alloc_test_hooks.c save_syscalls_test_hooks.c)
 
@@ -181,6 +183,13 @@ METRICS_FUZZ_EMIT_BIN = tests/metrics_fuzz_emit
 METRICS_FUZZ_EMIT_SRCS = tests/metrics_fuzz_emit.c \
 	tests/metrics_libfuzzer_parse.c tests/metrics_jsonl.c
 METRICS_FUZZ_EMIT_OBJS = $(METRICS_FUZZ_EMIT_SRCS:.c=.o)
+
+# Reader / regression-detector for tests/metrics.jsonl. Subcommands:
+# summary, check-fuzz-stale, check-bench-regression.
+METRICS_SUMMARY_BIN = tests/metrics_summary
+METRICS_SUMMARY_SRCS = tests/metrics_summary.c \
+	tests/metrics_jsonl_read.c tests/metrics_summary_cmd.c
+METRICS_SUMMARY_OBJS = $(METRICS_SUMMARY_SRCS:.c=.o)
 
 FUZZ_CC ?= clang
 # Nightly soak time per target (seconds). 30 minutes by default — matches
@@ -284,6 +293,9 @@ $(BENCH_MICRO_BIN): $(BENCH_MICRO_OBJS) $(EDITOR_OBJS)
 	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) $^ -lutil -o $@
 
 $(METRICS_FUZZ_EMIT_BIN): $(METRICS_FUZZ_EMIT_OBJS)
+	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $^ -o $@
+
+$(METRICS_SUMMARY_BIN): $(METRICS_SUMMARY_OBJS)
 	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $^ -o $@
 
 # Single-step compile-and-link so libvterm sources see FUZZ_FLAGS instead of
@@ -529,5 +541,5 @@ docs-diagrams:
 .PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams bench-buffer bench fuzz-vterm fuzz-vterm-smoke fuzz-vterm-nightly fuzz-lsp fuzz-lsp-smoke fuzz-lsp-nightly fuzz-dap fuzz-dap-smoke fuzz-dap-nightly fuzz-toml-theme fuzz-toml-theme-smoke fuzz-toml-theme-nightly
 
 clean:
-	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(BENCH_BUFFER_OBJ) $(METRICS_FUZZ_EMIT_OBJS) $(DEPFILES) $(TEST_BIN) $(BENCH_BUFFER_BIN) $(METRICS_FUZZ_EMIT_BIN) $(FUZZ_VTERM_BIN) $(FUZZ_LSP_BIN) $(FUZZ_DAP_BIN) $(FUZZ_TOML_THEME_BIN) rotide $(GENERATED_HEADERS)
+	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(BENCH_BUFFER_OBJ) $(METRICS_FUZZ_EMIT_OBJS) $(METRICS_SUMMARY_OBJS) $(DEPFILES) $(TEST_BIN) $(BENCH_BUFFER_BIN) $(METRICS_FUZZ_EMIT_BIN) $(METRICS_SUMMARY_BIN) $(FUZZ_VTERM_BIN) $(FUZZ_LSP_BIN) $(FUZZ_DAP_BIN) $(FUZZ_TOML_THEME_BIN) rotide $(GENERATED_HEADERS)
 	$(call LOG,CLEAN,tree)find $(SRC_DIR) tests $(TS_DIR) -type f \( -name '*.o' -o -name '*.d' \) -delete

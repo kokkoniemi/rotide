@@ -61,6 +61,7 @@ SUITE_EXTERN(long_session);
 SUITE_EXTERN(grid_snapshot);
 SUITE_EXTERN(metrics_jsonl);
 SUITE_EXTERN(metrics_libfuzzer_parse);
+SUITE_EXTERN(metrics_summary);
 
 #define SUITE(name_str, tags_str, prefix) \
 	{name_str, tags_str, g_##prefix##_tests, &g_##prefix##_test_count}
@@ -108,6 +109,7 @@ static const struct editorTestSuite k_suites[] = {
 	SUITE("grid_snapshot", "render", grid_snapshot),
 	SUITE("metrics_jsonl", "runner", metrics_jsonl),
 	SUITE("metrics_libfuzzer_parse", "runner", metrics_libfuzzer_parse),
+	SUITE("metrics_summary", "runner", metrics_summary),
 };
 
 #define K_SUITE_COUNT ((int)(sizeof(k_suites) / sizeof(k_suites[0])))

@@ -67,6 +67,7 @@ tests/fuzz/dap/fuzz_dap
 tests/fuzz/toml/fuzz_toml_theme
 tests/fuzz/*/corpus_grown/
 tests/metrics_fuzz_emit
+tests/metrics_summary
 tests/metrics.jsonl
 
 PLAN.md
