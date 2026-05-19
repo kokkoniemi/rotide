@@ -581,13 +581,23 @@ Nightly:
       `metrics-<job>`; a final `metrics-summary` job downloads all of
       them, runs `tests/metrics_summary summary`, prints to the log, and
       uploads the merged file as `metrics-merged` (per-workflow snapshot).
-      Cross-run aggregation (e.g. via a metrics branch or
-      `actions/cache`) and the `check-fuzz-stale` / `check-bench-regression`
-      alerting hooks are the next layer; the comparator binary already
-      ships and the `metrics-summary` jobs in both workflows are the
-      natural place to wire them.
-- [ ] Post results as a comment on `main`'s last commit — needs the
-      cross-run aggregation layer above to be useful.
+- [x] Cross-run aggregation via `actions/cache`. The `metrics-summary`
+      job in each workflow restores `tests/metrics-history.jsonl` from a
+      `metrics-history-*` cache (prefix-restore, run-id save), drops any
+      rows matching the current `ci_run_id` (so workflow re-runs don't
+      double-count), appends the new rows, and saves back. The rolling
+      history is uploaded as `metrics-history` / `metrics-history-nightly`
+      so it's downloadable for offline analysis.
+- [x] Comparator wired into nightly. `metrics-summary` in
+      [nightly.yml](.github/workflows/nightly.yml) runs
+      `check-fuzz-stale --window-hours 48` and `check-bench-regression`
+      against the rolling history. Both emit `::warning::` annotations
+      on non-zero exit but don't fail the cron yet — flip to hard-fail
+      once the false-positive rate has been characterised.
+- [ ] Post results as a comment on `main`'s last commit — requires a
+      PR-comment / commit-comment action. Both `metrics-history` and
+      `metrics-merged` artifacts are now available for that step to
+      consume.
 
 - [ ] Don't add a separate "coverage" job until Phase 6 lands; until then
       it measures the wrong thing.

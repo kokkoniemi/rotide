@@ -251,12 +251,49 @@ jobs:
             [ -f "$f" ] && cat "$f" >> tests/metrics.jsonl
           done
 
-      - name: Summary
+      # Cross-run aggregation: pull the rolling history from cache,
+      # append this workflow's rows (deduping on ci_run_id so a re-run of
+      # the same workflow doesn't double-count), and save back under a
+      # unique key. Restore-keys finds the most recent prior entry by
+      # prefix. The strict-quotes pattern with ci_run_id matches the
+      # serialised JSON: `"ci_run_id":"123"`.
+      - name: Restore metrics history
+        uses: actions/cache/restore@v4
+        with:
+          path: tests/metrics-history.jsonl
+          key: metrics-history-${{ github.run_id }}
+          restore-keys: |
+            metrics-history-
+
+      - name: Append run rows to history
+        run: |
+          touch tests/metrics-history.jsonl
+          grep -v "\"ci_run_id\":\"${{ github.run_id }}\"" tests/metrics-history.jsonl \
+              > tests/metrics-history.tmp || true
+          mv tests/metrics-history.tmp tests/metrics-history.jsonl
+          cat tests/metrics.jsonl >> tests/metrics-history.jsonl
+          echo "history row count: $(wc -l < tests/metrics-history.jsonl)"
+
+      - name: Save metrics history
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: tests/metrics-history.jsonl
+          key: metrics-history-${{ github.run_id }}
+
+      - name: Summary (this workflow)
         run: ./tests/metrics_summary summary --in tests/metrics.jsonl
 
-      - name: Upload merged metrics
+      - name: Upload merged metrics (this workflow)
         uses: actions/upload-artifact@v4
         with:
           name: metrics-merged
           path: tests/metrics.jsonl
+          if-no-files-found: ignore
+
+      - name: Upload rolling history
+        uses: actions/upload-artifact@v4
+        with:
+          name: metrics-history
+          path: tests/metrics-history.jsonl
           if-no-files-found: ignore

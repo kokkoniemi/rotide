@@ -142,12 +142,62 @@ jobs:
             [ -f "$f" ] && cat "$f" >> tests/metrics.jsonl
           done
 
-      - name: Summary
-        run: ./tests/metrics_summary summary --in tests/metrics.jsonl
+      # Same rolling-history pattern as ci.yml: pull the shared cache,
+      # append (with run_id dedup), save back. Nightly is the workflow
+      # where the cross-run comparator earns its keep, since the cache
+      # contains weeks of fuzz rows across both PR and nightly runs.
+      - name: Restore metrics history
+        uses: actions/cache/restore@v4
+        with:
+          path: tests/metrics-history.jsonl
+          key: metrics-history-${{ github.run_id }}
+          restore-keys: |
+            metrics-history-
 
-      - name: Upload merged metrics
+      - name: Append run rows to history
+        run: |
+          touch tests/metrics-history.jsonl
+          grep -v "\"ci_run_id\":\"${{ github.run_id }}\"" tests/metrics-history.jsonl \
+              > tests/metrics-history.tmp || true
+          mv tests/metrics-history.tmp tests/metrics-history.jsonl
+          cat tests/metrics.jsonl >> tests/metrics-history.jsonl
+          echo "history row count: $(wc -l < tests/metrics-history.jsonl)"
+
+      - name: Save metrics history
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: tests/metrics-history.jsonl
+          key: metrics-history-${{ github.run_id }}
+
+      - name: Summary (rolling history)
+        run: ./tests/metrics_summary summary --in tests/metrics-history.jsonl
+
+      # Warn-only for now. Flip to `|| exit 1` once the false-positive
+      # rate has been characterised in practice. The `::warning::`
+      # annotation surfaces in the workflow run UI without failing the
+      # nightly cron.
+      - name: Check fuzz staleness (48h window)
+        run: |
+          ./tests/metrics_summary check-fuzz-stale --in tests/metrics-history.jsonl \
+              --window-hours 48 \
+            || echo "::warning::check-fuzz-stale flagged a target — see job log"
+
+      - name: Check bench regressions (3× IQR)
+        run: |
+          ./tests/metrics_summary check-bench-regression --in tests/metrics-history.jsonl \
+            || echo "::warning::check-bench-regression flagged a bench — see job log"
+
+      - name: Upload merged metrics (this run)
         uses: actions/upload-artifact@v4
         with:
           name: metrics-merged-nightly
           path: tests/metrics.jsonl
+          if-no-files-found: ignore
+
+      - name: Upload rolling history
+        uses: actions/upload-artifact@v4
+        with:
+          name: metrics-history-nightly
+          path: tests/metrics-history.jsonl
           if-no-files-found: ignore
