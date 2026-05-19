@@ -136,8 +136,9 @@ TEST_SRCS = $(addprefix tests/, \
 	test_long_session.c \
 	test_grid_snapshot_suite.c \
 	test_metrics_jsonl.c \
+	test_metrics_libfuzzer_parse.c \
 	runner_support.c seed.c parallel_runner.c editor_state_snapshot.c \
-	metrics_jsonl.c \
+	metrics_jsonl.c metrics_libfuzzer_parse.c \
 	test_grid_snapshot.c \
 	test_support.c test_helpers.c alloc_test_hooks.c save_syscalls_test_hooks.c)
 
@@ -172,6 +173,14 @@ BENCH_MICRO_SRCS = tests/bench_microbenches.c tests/bench_runner.c \
 	tests/test_helpers.c tests/alloc_test_hooks.c \
 	tests/save_syscalls_test_hooks.c
 BENCH_MICRO_OBJS = $(BENCH_MICRO_SRCS:.c=.o)
+
+# Tiny standalone tool: parses captured libFuzzer stderr + corpus dir and
+# appends a kind=fuzz row to a metrics JSONL file. Lives next to the fuzz
+# infrastructure but builds with the normal C toolchain (no fuzz flags).
+METRICS_FUZZ_EMIT_BIN = tests/metrics_fuzz_emit
+METRICS_FUZZ_EMIT_SRCS = tests/metrics_fuzz_emit.c \
+	tests/metrics_libfuzzer_parse.c tests/metrics_jsonl.c
+METRICS_FUZZ_EMIT_OBJS = $(METRICS_FUZZ_EMIT_SRCS:.c=.o)
 
 FUZZ_CC ?= clang
 # Nightly soak time per target (seconds). 30 minutes by default — matches
@@ -274,6 +283,9 @@ $(BENCH_BUFFER_BIN): $(BENCH_BUFFER_OBJ) $(EDITOR_OBJS)
 $(BENCH_MICRO_BIN): $(BENCH_MICRO_OBJS) $(EDITOR_OBJS)
 	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) $^ -lutil -o $@
 
+$(METRICS_FUZZ_EMIT_BIN): $(METRICS_FUZZ_EMIT_OBJS)
+	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $^ -o $@
+
 # Single-step compile-and-link so libvterm sources see FUZZ_FLAGS instead of
 # the standard build's flags. Don't reuse $(LIBVTERM_OBJS) — they would have
 # been built without the sanitizer coverage hooks libFuzzer needs.
@@ -319,46 +331,76 @@ fuzz-vterm: $(FUZZ_VTERM_BIN)
 
 # Stage the corpus into a tempdir so libFuzzer's new finds don't persist
 # back into the committed seed set. Smoke is run-count-bounded so the
-# wall time is predictable across CI runs.
-fuzz-vterm-smoke: $(FUZZ_VTERM_BIN)
+# wall time is predictable across CI runs. Stderr is captured to a log so
+# the metrics emitter can parse the final-stats block; the log is
+# replayed to the terminal so the human still sees it.
+fuzz-vterm-smoke: $(FUZZ_VTERM_BIN) $(METRICS_FUZZ_EMIT_BIN)
 	$(call LOG,FUZZ-S,vterm)tmp=$$(mktemp -d -t rotide-fuzz-vterm.XXXXXX); \
+		log=$$(mktemp -t rotide-fuzz-vterm-log.XXXXXX); \
 		cp $(FUZZ_VTERM_CORPUS)/* $$tmp/; \
-		./$(FUZZ_VTERM_BIN) -runs=$(FUZZ_VTERM_SMOKE_RUNS) $$tmp; \
+		./$(FUZZ_VTERM_BIN) -print_final_stats=1 \
+			-runs=$(FUZZ_VTERM_SMOKE_RUNS) $$tmp 2>$$log; \
 		rc=$$?; \
-		rm -rf $$tmp; \
+		cat $$log >&2; \
+		if [ -n "$(METRICS_OUT)" ]; then \
+			./$(METRICS_FUZZ_EMIT_BIN) --target vterm --log $$log \
+				--corpus-dir $$tmp --metrics-out $(METRICS_OUT) || true; \
+		fi; \
+		rm -rf $$tmp; rm -f $$log; \
 		exit $$rc
 
 fuzz-lsp: $(FUZZ_LSP_BIN)
 	$(call LOG,FUZZ,lsp)./$(FUZZ_LSP_BIN) $(FUZZ_LSP_CORPUS)
 
-fuzz-lsp-smoke: $(FUZZ_LSP_BIN)
+fuzz-lsp-smoke: $(FUZZ_LSP_BIN) $(METRICS_FUZZ_EMIT_BIN)
 	$(call LOG,FUZZ-S,lsp)tmp=$$(mktemp -d -t rotide-fuzz-lsp.XXXXXX); \
+		log=$$(mktemp -t rotide-fuzz-lsp-log.XXXXXX); \
 		cp $(FUZZ_LSP_CORPUS)/* $$tmp/; \
-		./$(FUZZ_LSP_BIN) -runs=$(FUZZ_LSP_SMOKE_RUNS) $$tmp; \
+		./$(FUZZ_LSP_BIN) -print_final_stats=1 \
+			-runs=$(FUZZ_LSP_SMOKE_RUNS) $$tmp 2>$$log; \
 		rc=$$?; \
-		rm -rf $$tmp; \
+		cat $$log >&2; \
+		if [ -n "$(METRICS_OUT)" ]; then \
+			./$(METRICS_FUZZ_EMIT_BIN) --target lsp --log $$log \
+				--corpus-dir $$tmp --metrics-out $(METRICS_OUT) || true; \
+		fi; \
+		rm -rf $$tmp; rm -f $$log; \
 		exit $$rc
 
 fuzz-dap: $(FUZZ_DAP_BIN)
 	$(call LOG,FUZZ,dap)./$(FUZZ_DAP_BIN) $(FUZZ_DAP_CORPUS)
 
-fuzz-dap-smoke: $(FUZZ_DAP_BIN)
+fuzz-dap-smoke: $(FUZZ_DAP_BIN) $(METRICS_FUZZ_EMIT_BIN)
 	$(call LOG,FUZZ-S,dap)tmp=$$(mktemp -d -t rotide-fuzz-dap.XXXXXX); \
+		log=$$(mktemp -t rotide-fuzz-dap-log.XXXXXX); \
 		cp $(FUZZ_DAP_CORPUS)/* $$tmp/; \
-		./$(FUZZ_DAP_BIN) -runs=$(FUZZ_DAP_SMOKE_RUNS) $$tmp; \
+		./$(FUZZ_DAP_BIN) -print_final_stats=1 \
+			-runs=$(FUZZ_DAP_SMOKE_RUNS) $$tmp 2>$$log; \
 		rc=$$?; \
-		rm -rf $$tmp; \
+		cat $$log >&2; \
+		if [ -n "$(METRICS_OUT)" ]; then \
+			./$(METRICS_FUZZ_EMIT_BIN) --target dap --log $$log \
+				--corpus-dir $$tmp --metrics-out $(METRICS_OUT) || true; \
+		fi; \
+		rm -rf $$tmp; rm -f $$log; \
 		exit $$rc
 
 fuzz-toml-theme: $(FUZZ_TOML_THEME_BIN)
 	$(call LOG,FUZZ,toml-theme)./$(FUZZ_TOML_THEME_BIN) $(FUZZ_TOML_THEME_CORPUS)
 
-fuzz-toml-theme-smoke: $(FUZZ_TOML_THEME_BIN)
+fuzz-toml-theme-smoke: $(FUZZ_TOML_THEME_BIN) $(METRICS_FUZZ_EMIT_BIN)
 	$(call LOG,FUZZ-S,toml-theme)tmp=$$(mktemp -d -t rotide-fuzz-toml-theme.XXXXXX); \
+		log=$$(mktemp -t rotide-fuzz-toml-theme-log.XXXXXX); \
 		cp $(FUZZ_TOML_THEME_CORPUS)/* $$tmp/; \
-		./$(FUZZ_TOML_THEME_BIN) -runs=$(FUZZ_TOML_THEME_SMOKE_RUNS) $$tmp; \
+		./$(FUZZ_TOML_THEME_BIN) -print_final_stats=1 \
+			-runs=$(FUZZ_TOML_THEME_SMOKE_RUNS) $$tmp 2>$$log; \
 		rc=$$?; \
-		rm -rf $$tmp; \
+		cat $$log >&2; \
+		if [ -n "$(METRICS_OUT)" ]; then \
+			./$(METRICS_FUZZ_EMIT_BIN) --target toml-theme --log $$log \
+				--corpus-dir $$tmp --metrics-out $(METRICS_OUT) || true; \
+		fi; \
+		rm -rf $$tmp; rm -f $$log; \
 		exit $$rc
 
 # Nightly soaks: persist the grown corpus across CI runs. The `corpus_grown`
@@ -367,29 +409,73 @@ fuzz-toml-theme-smoke: $(FUZZ_TOML_THEME_BIN)
 # add new finds in place. -max_total_time is the only stop condition so each
 # target soaks for a predictable wall-clock duration. Override per-target
 # with FUZZ_NIGHTLY_TIME=<seconds>.
-fuzz-vterm-nightly: $(FUZZ_VTERM_BIN)
+fuzz-vterm-nightly: $(FUZZ_VTERM_BIN) $(METRICS_FUZZ_EMIT_BIN)
 	$(call LOG,FUZZ-N,vterm)mkdir -p $(FUZZ_VTERM_CORPUS_GROWN); \
 		cp -n $(FUZZ_VTERM_CORPUS)/* $(FUZZ_VTERM_CORPUS_GROWN)/ 2>/dev/null || true; \
-		./$(FUZZ_VTERM_BIN) -max_total_time=$(FUZZ_NIGHTLY_TIME) \
-			$(FUZZ_VTERM_CORPUS_GROWN)
+		log=$$(mktemp -t rotide-fuzz-vterm-log.XXXXXX); \
+		./$(FUZZ_VTERM_BIN) -print_final_stats=1 \
+			-max_total_time=$(FUZZ_NIGHTLY_TIME) $(FUZZ_VTERM_CORPUS_GROWN) 2>$$log; \
+		rc=$$?; \
+		cat $$log >&2; \
+		if [ -n "$(METRICS_OUT)" ]; then \
+			./$(METRICS_FUZZ_EMIT_BIN) --target vterm --log $$log \
+				--corpus-dir $(FUZZ_VTERM_CORPUS_GROWN) \
+				--metrics-out $(METRICS_OUT) \
+				--soak-seconds $(FUZZ_NIGHTLY_TIME) || true; \
+		fi; \
+		rm -f $$log; \
+		exit $$rc
 
-fuzz-lsp-nightly: $(FUZZ_LSP_BIN)
+fuzz-lsp-nightly: $(FUZZ_LSP_BIN) $(METRICS_FUZZ_EMIT_BIN)
 	$(call LOG,FUZZ-N,lsp)mkdir -p $(FUZZ_LSP_CORPUS_GROWN); \
 		cp -n $(FUZZ_LSP_CORPUS)/* $(FUZZ_LSP_CORPUS_GROWN)/ 2>/dev/null || true; \
-		./$(FUZZ_LSP_BIN) -max_total_time=$(FUZZ_NIGHTLY_TIME) \
-			$(FUZZ_LSP_CORPUS_GROWN)
+		log=$$(mktemp -t rotide-fuzz-lsp-log.XXXXXX); \
+		./$(FUZZ_LSP_BIN) -print_final_stats=1 \
+			-max_total_time=$(FUZZ_NIGHTLY_TIME) $(FUZZ_LSP_CORPUS_GROWN) 2>$$log; \
+		rc=$$?; \
+		cat $$log >&2; \
+		if [ -n "$(METRICS_OUT)" ]; then \
+			./$(METRICS_FUZZ_EMIT_BIN) --target lsp --log $$log \
+				--corpus-dir $(FUZZ_LSP_CORPUS_GROWN) \
+				--metrics-out $(METRICS_OUT) \
+				--soak-seconds $(FUZZ_NIGHTLY_TIME) || true; \
+		fi; \
+		rm -f $$log; \
+		exit $$rc
 
-fuzz-dap-nightly: $(FUZZ_DAP_BIN)
+fuzz-dap-nightly: $(FUZZ_DAP_BIN) $(METRICS_FUZZ_EMIT_BIN)
 	$(call LOG,FUZZ-N,dap)mkdir -p $(FUZZ_DAP_CORPUS_GROWN); \
 		cp -n $(FUZZ_DAP_CORPUS)/* $(FUZZ_DAP_CORPUS_GROWN)/ 2>/dev/null || true; \
-		./$(FUZZ_DAP_BIN) -max_total_time=$(FUZZ_NIGHTLY_TIME) \
-			$(FUZZ_DAP_CORPUS_GROWN)
+		log=$$(mktemp -t rotide-fuzz-dap-log.XXXXXX); \
+		./$(FUZZ_DAP_BIN) -print_final_stats=1 \
+			-max_total_time=$(FUZZ_NIGHTLY_TIME) $(FUZZ_DAP_CORPUS_GROWN) 2>$$log; \
+		rc=$$?; \
+		cat $$log >&2; \
+		if [ -n "$(METRICS_OUT)" ]; then \
+			./$(METRICS_FUZZ_EMIT_BIN) --target dap --log $$log \
+				--corpus-dir $(FUZZ_DAP_CORPUS_GROWN) \
+				--metrics-out $(METRICS_OUT) \
+				--soak-seconds $(FUZZ_NIGHTLY_TIME) || true; \
+		fi; \
+		rm -f $$log; \
+		exit $$rc
 
-fuzz-toml-theme-nightly: $(FUZZ_TOML_THEME_BIN)
+fuzz-toml-theme-nightly: $(FUZZ_TOML_THEME_BIN) $(METRICS_FUZZ_EMIT_BIN)
 	$(call LOG,FUZZ-N,toml-theme)mkdir -p $(FUZZ_TOML_THEME_CORPUS_GROWN); \
 		cp -n $(FUZZ_TOML_THEME_CORPUS)/* $(FUZZ_TOML_THEME_CORPUS_GROWN)/ 2>/dev/null || true; \
-		./$(FUZZ_TOML_THEME_BIN) -max_total_time=$(FUZZ_NIGHTLY_TIME) \
-			$(FUZZ_TOML_THEME_CORPUS_GROWN)
+		log=$$(mktemp -t rotide-fuzz-toml-theme-log.XXXXXX); \
+		./$(FUZZ_TOML_THEME_BIN) -print_final_stats=1 \
+			-max_total_time=$(FUZZ_NIGHTLY_TIME) $(FUZZ_TOML_THEME_CORPUS_GROWN) 2>$$log; \
+		rc=$$?; \
+		cat $$log >&2; \
+		if [ -n "$(METRICS_OUT)" ]; then \
+			./$(METRICS_FUZZ_EMIT_BIN) --target toml-theme --log $$log \
+				--corpus-dir $(FUZZ_TOML_THEME_CORPUS_GROWN) \
+				--metrics-out $(METRICS_OUT) \
+				--soak-seconds $(FUZZ_NIGHTLY_TIME) || true; \
+		fi; \
+		rm -f $$log; \
+		exit $$rc
 
 test-sanitize:
 	$(call LOG,CLEAN,build)$(MAKE) clean
@@ -443,5 +529,5 @@ docs-diagrams:
 .PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams bench-buffer bench fuzz-vterm fuzz-vterm-smoke fuzz-vterm-nightly fuzz-lsp fuzz-lsp-smoke fuzz-lsp-nightly fuzz-dap fuzz-dap-smoke fuzz-dap-nightly fuzz-toml-theme fuzz-toml-theme-smoke fuzz-toml-theme-nightly
 
 clean:
-	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(BENCH_BUFFER_OBJ) $(DEPFILES) $(TEST_BIN) $(BENCH_BUFFER_BIN) $(FUZZ_VTERM_BIN) $(FUZZ_LSP_BIN) $(FUZZ_DAP_BIN) $(FUZZ_TOML_THEME_BIN) rotide $(GENERATED_HEADERS)
+	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(BENCH_BUFFER_OBJ) $(METRICS_FUZZ_EMIT_OBJS) $(DEPFILES) $(TEST_BIN) $(BENCH_BUFFER_BIN) $(METRICS_FUZZ_EMIT_BIN) $(FUZZ_VTERM_BIN) $(FUZZ_LSP_BIN) $(FUZZ_DAP_BIN) $(FUZZ_TOML_THEME_BIN) rotide $(GENERATED_HEADERS)
 	$(call LOG,CLEAN,tree)find $(SRC_DIR) tests $(TS_DIR) -type f \( -name '*.o' -o -name '*.d' \) -delete

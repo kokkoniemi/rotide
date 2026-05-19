@@ -152,9 +152,17 @@ rows out-of-tree (artifact upload or a separate metrics branch).
 - [x] **`kind=bench`** emitted by `rotide_bench --metrics-out PATH`,
       one row per case, with `name`, `samples`, `inner_ops`, `min_ns`,
       `p50_ns`, `p95_ns`, `iqr_ns`.
-- [ ] **`kind=fuzz`** emitted post-soak with target name, runs,
-      `cov_edges`, `ft_features`, `corpus_size`, `corpus_bytes`,
-      `time_seconds`. Wrapper script parses libFuzzer's final stats line.
+- [x] **`kind=fuzz`** emitted post-soak by
+      [tests/metrics_fuzz_emit.c](tests/metrics_fuzz_emit.c), which
+      parses captured libFuzzer stderr via
+      [tests/metrics_libfuzzer_parse.{c,h}](tests/metrics_libfuzzer_parse.h)
+      and scans the corpus directory. Wired into all four
+      `fuzz-*-smoke` and `fuzz-*-nightly` Make targets — opt-in via
+      `METRICS_OUT=path/to/metrics.jsonl`. Row fields: `target`,
+      `cov_edges`, `ft_features`, `corp_count`/`corp_bytes` (libFuzzer
+      reported), `corpus_files`/`corpus_bytes` (on-disk),
+      `executed_units`, `avg_exec_per_sec`, `new_units_added`,
+      `peak_rss_mb`, `runtime_seconds`, `has_final_stats`.
 - [ ] **Flake count** in `kind=test_run`: requires the runner to track
       per-test pass/fail tallies across `--repeat`. Trivial when added;
       deferred until a CI invocation actually sets `--repeat > 1`.
@@ -320,9 +328,11 @@ liar's metric):
       run, lets libFuzzer add new finds in place, then saves the
       directory back via `actions/cache`. `corpus_grown/` is
       gitignored so the committed seed set stays curated.
-- [ ] Per-run edge count tracked in `tests/metrics.jsonl` (the
-      `kind=fuzz` row described in the cross-cutting metrics section);
-      alert if 48h run adds zero new edges.
+- [x] Per-run edge count tracked in `tests/metrics.jsonl` (the
+      `kind=fuzz` row described in the cross-cutting metrics section).
+- [ ] Alert if 48h run adds zero new edges — depends on
+      `scripts/metrics_chart.py` (or a small comparator) being able to
+      diff the latest two rows for the same `target`.
 - [x] Full nightly runs (~30 min/target). `make fuzz-{vterm,lsp,dap,toml-theme}-nightly`
       wired into [nightly.yml](.github/workflows/nightly.yml) as a
       single matrix job; soak duration governed by `FUZZ_NIGHTLY_TIME`
