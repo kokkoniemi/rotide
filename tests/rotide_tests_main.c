@@ -1,4 +1,5 @@
 #include "editor_state_snapshot.h"
+#include "metrics_jsonl.h"
 #include "parallel_runner.h"
 #include "rotide.h"
 #include "runner_support.h"
@@ -11,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #define SUITE_EXTERN(prefix) \
@@ -57,6 +59,7 @@ SUITE_EXTERN(syntax_incremental_equiv);
 SUITE_EXTERN(runner_internals);
 SUITE_EXTERN(long_session);
 SUITE_EXTERN(grid_snapshot);
+SUITE_EXTERN(metrics_jsonl);
 
 #define SUITE(name_str, tags_str, prefix) \
 	{name_str, tags_str, g_##prefix##_tests, &g_##prefix##_test_count}
@@ -102,6 +105,7 @@ static const struct editorTestSuite k_suites[] = {
 	SUITE("runner_internals", "runner", runner_internals),
 	SUITE("long_session", "memory slow", long_session),
 	SUITE("grid_snapshot", "render", grid_snapshot),
+	SUITE("metrics_jsonl", "runner", metrics_jsonl),
 };
 
 #define K_SUITE_COUNT ((int)(sizeof(k_suites) / sizeof(k_suites[0])))
@@ -131,6 +135,8 @@ static int suitePassesTagFilter(const struct editorTestSuite *suite, const struc
 
 int main(int argc, char **argv) {
 	setlocale(LC_CTYPE, "");
+	struct timespec wall_start;
+	clock_gettime(CLOCK_MONOTONIC, &wall_start);
 	char *startup_cwd = getcwd(NULL, 0);
 	if (startup_cwd == NULL) {
 		fprintf(stderr, "Failed to capture startup cwd: %s\n", strerror(errno));
@@ -414,5 +420,35 @@ done:
 	if (reset_violations > 0) {
 		exit_code = EXIT_FAILURE;
 	}
+
+	if (opts.metrics_out != NULL && opts.metrics_out[0] != '\0') {
+		struct timespec wall_end;
+		clock_gettime(CLOCK_MONOTONIC, &wall_end);
+		double wall_seconds =
+			(double)(wall_end.tv_sec - wall_start.tv_sec) +
+			(double)(wall_end.tv_nsec - wall_start.tv_nsec) / 1e9;
+		struct editorMetricsField fields[] = {
+			{"wall_seconds", EDITOR_METRICS_DOUBLE, .v.d = wall_seconds},
+			{"total_runs", EDITOR_METRICS_INT, .v.i = total_runs},
+			{"passed_runs", EDITOR_METRICS_INT, .v.i = passed_runs},
+			{"failed_unique", EDITOR_METRICS_INT, .v.i = failed_unique},
+			{"crashes", EDITOR_METRICS_INT, .v.i = crashes},
+			{"reset_violations", EDITOR_METRICS_INT, .v.i = reset_violations},
+			{"skipped_quarantine", EDITOR_METRICS_INT, .v.i = skipped_quarantine},
+			{"jobs", EDITOR_METRICS_INT, .v.i = opts.jobs},
+			{"repeat", EDITOR_METRICS_INT, .v.i = opts.repeat},
+			{"seed", EDITOR_METRICS_HEX64, .v.u = opts.seed},
+			{"shuffle", EDITOR_METRICS_BOOL, .v.b = opts.shuffle},
+			{"validate_reset", EDITOR_METRICS_BOOL, .v.b = opts.validate_reset},
+			{"exit_code", EDITOR_METRICS_INT, .v.i = exit_code},
+		};
+		if (editorMetricsAppend(opts.metrics_out, "test_run", fields,
+				(int)(sizeof(fields) / sizeof(fields[0]))) != 0) {
+			fprintf(stderr,
+				"rotide_tests: warning: failed to append metrics to %s\n",
+				opts.metrics_out);
+		}
+	}
+
 	return exit_code;
 }

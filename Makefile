@@ -135,7 +135,9 @@ TEST_SRCS = $(addprefix tests/, \
 	test_text_tree.c test_syntax_incremental_equiv.c test_runner_internals.c \
 	test_long_session.c \
 	test_grid_snapshot_suite.c \
+	test_metrics_jsonl.c \
 	runner_support.c seed.c parallel_runner.c editor_state_snapshot.c \
+	metrics_jsonl.c \
 	test_grid_snapshot.c \
 	test_support.c test_helpers.c alloc_test_hooks.c save_syscalls_test_hooks.c)
 
@@ -166,6 +168,7 @@ BENCH_MICRO_BIN = tests/rotide_bench
 # the bench actually uses — alloc_test_hooks and save_syscalls_test_hooks are
 # transitive deps of test_helpers.c's reset path.
 BENCH_MICRO_SRCS = tests/bench_microbenches.c tests/bench_runner.c \
+	tests/metrics_jsonl.c \
 	tests/test_helpers.c tests/alloc_test_hooks.c \
 	tests/save_syscalls_test_hooks.c
 BENCH_MICRO_OBJS = $(BENCH_MICRO_SRCS:.c=.o)

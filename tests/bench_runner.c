@@ -1,5 +1,7 @@
 #include "bench_runner.h"
 
+#include "metrics_jsonl.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,6 +60,7 @@ int editorBenchRun(const struct editorBenchCase *cases, int count,
 	}
 	const char *filter = options != NULL ? options->filter : NULL;
 	const char *json_path = options != NULL ? options->json_path : NULL;
+	const char *metrics_path = options != NULL ? options->metrics_path : NULL;
 
 	double *samples = (double *)malloc(sizeof(double) * (size_t)iterations);
 	if (samples == NULL) {
@@ -133,6 +136,23 @@ int editorBenchRun(const struct editorBenchCase *cases, int count,
 				"    }",
 				ran > 0 ? ",\n" : "", c->name, sample_count, inner_ops,
 				min, p50, p95, iqr);
+		}
+		if (metrics_path != NULL && metrics_path[0] != '\0') {
+			struct editorMetricsField fields[] = {
+				{"name", EDITOR_METRICS_STR, .v.s = c->name},
+				{"samples", EDITOR_METRICS_INT, .v.i = sample_count},
+				{"inner_ops", EDITOR_METRICS_INT, .v.i = inner_ops},
+				{"min_ns", EDITOR_METRICS_DOUBLE, .v.d = min},
+				{"p50_ns", EDITOR_METRICS_DOUBLE, .v.d = p50},
+				{"p95_ns", EDITOR_METRICS_DOUBLE, .v.d = p95},
+				{"iqr_ns", EDITOR_METRICS_DOUBLE, .v.d = iqr},
+			};
+			if (editorMetricsAppend(metrics_path, "bench", fields,
+					(int)(sizeof(fields) / sizeof(fields[0]))) != 0) {
+				fprintf(stderr,
+					"bench: warning: failed to append metrics to %s\n",
+					metrics_path);
+			}
 		}
 		ran++;
 	}

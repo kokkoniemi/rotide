@@ -99,6 +99,31 @@ static int test_runner_options_parse_rejects_missing_value(void) {
 	return 0;
 }
 
+static int test_runner_options_parse_metrics_out(void) {
+	char *argv[] = {
+		(char *)"rotide_tests",
+		(char *)"--metrics-out", (char *)"tests/metrics.jsonl",
+	};
+	struct testRunnerOptions opts;
+	runnerOptionsInit(&opts);
+	ASSERT_EQ_INT(0, runnerOptionsParse(&opts, 3, argv));
+	ASSERT_TRUE(opts.metrics_out != NULL);
+	ASSERT_EQ_STR("tests/metrics.jsonl", opts.metrics_out);
+
+	char *argv2[] = {(char *)"rotide_tests", (char *)"--metrics-out=foo.jsonl"};
+	struct testRunnerOptions opts2;
+	runnerOptionsInit(&opts2);
+	ASSERT_EQ_INT(0, runnerOptionsParse(&opts2, 2, argv2));
+	ASSERT_EQ_STR("foo.jsonl", opts2.metrics_out);
+
+	char *argv3[] = {(char *)"rotide_tests", (char *)"--metrics-out"};
+	struct testRunnerOptions opts3;
+	runnerOptionsInit(&opts3);
+	ASSERT_EQ_INT(1, runnerOptionsParse(&opts3, 2, argv3));
+	ASSERT_TRUE(opts3.parse_error);
+	return 0;
+}
+
 static int test_runner_shuffle_is_deterministic_for_same_seed(void) {
 	int a[16];
 	int b[16];
@@ -292,6 +317,7 @@ const struct editorTestCase g_runner_internals_tests[] = {
 	{"runner_options_parse_rejects_unknown", test_runner_options_parse_rejects_unknown},
 	{"runner_options_parse_rejects_bad_repeat", test_runner_options_parse_rejects_bad_repeat},
 	{"runner_options_parse_rejects_missing_value", test_runner_options_parse_rejects_missing_value},
+	{"runner_options_parse_metrics_out", test_runner_options_parse_metrics_out},
 	{"runner_shuffle_is_deterministic_for_same_seed", test_runner_shuffle_is_deterministic_for_same_seed},
 	{"runner_shuffle_differs_for_different_seeds", test_runner_shuffle_differs_for_different_seeds},
 	{"quarantine_list_load_parses_dash_entries", test_quarantine_list_load_parses_dash_entries},

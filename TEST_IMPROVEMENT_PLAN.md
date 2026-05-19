@@ -136,9 +136,30 @@ Accept with caveats:
 
 ### Continuous improvement metrics
 
-- [ ] **`tests/metrics.jsonl`** appended by the runner per CI run: wall time,
-      test count, flake count, fuzz corpus size, fuzz edge count,
-      property-test ops/sec.
+`tests/metrics.jsonl` is JSON-Lines, one row per producer per invocation.
+Shared schema: `kind`, `ts` (ISO 8601 UTC), and optional env-enriched
+`git_sha` / `git_ref` / `ci_run_id` read from `ROTIDE_METRICS_GIT_SHA` /
+`ROTIDE_METRICS_GIT_REF` / `ROTIDE_METRICS_CI_RUN_ID`. The helper lives in
+[tests/metrics_jsonl.{c,h}](tests/metrics_jsonl.h) and writes via
+`O_APPEND` with a row size capped under PIPE_BUF so concurrent producers
+don't tear lines. The file is gitignored — CI is expected to aggregate
+rows out-of-tree (artifact upload or a separate metrics branch).
+
+- [x] **`kind=test_run`** emitted by `rotide_tests --metrics-out PATH`
+      with `wall_seconds`, `total_runs`, `passed_runs`, `failed_unique`,
+      `crashes`, `reset_violations`, `skipped_quarantine`, `jobs`,
+      `repeat`, `seed`, `shuffle`, `validate_reset`, `exit_code`.
+- [x] **`kind=bench`** emitted by `rotide_bench --metrics-out PATH`,
+      one row per case, with `name`, `samples`, `inner_ops`, `min_ns`,
+      `p50_ns`, `p95_ns`, `iqr_ns`.
+- [ ] **`kind=fuzz`** emitted post-soak with target name, runs,
+      `cov_edges`, `ft_features`, `corpus_size`, `corpus_bytes`,
+      `time_seconds`. Wrapper script parses libFuzzer's final stats line.
+- [ ] **Flake count** in `kind=test_run`: requires the runner to track
+      per-test pass/fail tallies across `--repeat`. Trivial when added;
+      deferred until a CI invocation actually sets `--repeat > 1`.
+- [ ] **Property-test ops/sec** in `kind=test_run`: requires the
+      property harness to expose op counters via a test-API hook.
 - [ ] **`scripts/metrics_chart.py`** plotting trends over time.
 
 ---
@@ -299,9 +320,9 @@ liar's metric):
       run, lets libFuzzer add new finds in place, then saves the
       directory back via `actions/cache`. `corpus_grown/` is
       gitignored so the committed seed set stays curated.
-- [ ] Per-run edge count tracked in `tests/metrics.jsonl`; alert if 48h
-      run adds zero new edges. (Belongs in the `metrics.jsonl` work item
-      under cross-cutting infra.)
+- [ ] Per-run edge count tracked in `tests/metrics.jsonl` (the
+      `kind=fuzz` row described in the cross-cutting metrics section);
+      alert if 48h run adds zero new edges.
 - [x] Full nightly runs (~30 min/target). `make fuzz-{vterm,lsp,dap,toml-theme}-nightly`
       wired into [nightly.yml](.github/workflows/nightly.yml) as a
       single matrix job; soak duration governed by `FUZZ_NIGHTLY_TIME`
@@ -454,7 +475,9 @@ Methodology:
       methodology has been validated against ~2 weeks of CI noise. If
       GitHub-hosted runner noise stays unworkable, move to a self-hosted
       bench runner explicitly rather than drifting.
-- [ ] Per-metric medians and IQRs feed `tests/metrics.jsonl`.
+- [x] Per-metric medians and IQRs feed `tests/metrics.jsonl` —
+      `rotide_bench --metrics-out PATH` appends one `kind=bench` row per
+      case with `min_ns`/`p50_ns`/`p95_ns`/`iqr_ns`/`samples`/`inner_ops`.
 
 ---
 
@@ -492,7 +515,12 @@ Nightly:
       cheap.
 - [ ] Hyperfine + microbench against committed baseline — Phase 8.
 - [ ] Append a row to `tests/metrics.jsonl`; post results as a comment on
-      `main`'s last commit.
+      `main`'s last commit. Runner + bench already accept `--metrics-out
+      PATH`; wiring is a workflow change (set the flag, upload the file
+      as an artifact or push to a metrics branch). Set
+      `ROTIDE_METRICS_GIT_SHA=$GITHUB_SHA`,
+      `ROTIDE_METRICS_GIT_REF=$GITHUB_REF`,
+      `ROTIDE_METRICS_CI_RUN_ID=$GITHUB_RUN_ID` to enrich rows.
 
 - [ ] Don't add a separate "coverage" job until Phase 6 lands; until then
       it measures the wrong thing.

@@ -673,10 +673,12 @@ static const struct editorBenchCase k_cases[] = {
 static const int k_case_count = (int)(sizeof(k_cases) / sizeof(k_cases[0]));
 
 static void print_usage(const char *argv0) {
-	printf("usage: %s [--iterations N] [--filter SUBSTR] [--json PATH]\n", argv0);
-	printf("  --iterations N    timing samples per case (default 20)\n");
-	printf("  --filter SUBSTR   only run cases whose name contains SUBSTR\n");
-	printf("  --json PATH       write percentile data as JSON to PATH\n");
+	printf("usage: %s [--iterations N] [--filter SUBSTR] [--json PATH] [--metrics-out PATH]\n",
+		argv0);
+	printf("  --iterations N      timing samples per case (default 20)\n");
+	printf("  --filter SUBSTR     only run cases whose name contains SUBSTR\n");
+	printf("  --json PATH         write percentile data as JSON to PATH\n");
+	printf("  --metrics-out PATH  append one JSONL row per bench to PATH\n");
 }
 
 int main(int argc, char **argv) {
@@ -696,6 +698,10 @@ int main(int argc, char **argv) {
 		}
 		if (strcmp(argv[i], "--json") == 0 && i + 1 < argc) {
 			opts.json_path = argv[++i];
+			continue;
+		}
+		if (strcmp(argv[i], "--metrics-out") == 0 && i + 1 < argc) {
+			opts.metrics_path = argv[++i];
 			continue;
 		}
 		fprintf(stderr, "unknown argument: %s\n", argv[i]);

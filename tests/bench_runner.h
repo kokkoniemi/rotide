@@ -21,6 +21,7 @@ struct editorBenchOptions {
 	int iterations;          /* samples per case; 0 → 20 */
 	const char *filter;      /* optional substring filter on name; NULL → all */
 	const char *json_path;   /* optional JSON output path; NULL → text only */
+	const char *metrics_path; /* optional JSONL output path (append); NULL → off */
 };
 
 int editorBenchRun(const struct editorBenchCase *cases, int count,

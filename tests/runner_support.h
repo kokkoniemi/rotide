@@ -27,6 +27,7 @@ struct testRunnerOptions {
 	const char *include_tag;
 	const char *exclude_tag;
 	const char *quarantine_path;
+	const char *metrics_out;
 	int list_only;
 	int help_requested;
 	int fail_fast;

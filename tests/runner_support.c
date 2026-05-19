@@ -39,6 +39,7 @@ void runnerPrintUsage(void) {
 		"  --shuffle              Shuffle test order (deterministic with --seed)\n"
 		"  --validate-reset       Assert that reset_editor_state restores E byte-identically\n"
 		"  --jobs <N>             Run up to N suites in parallel as forked children\n"
+		"  --metrics-out <path>   Append one JSONL row summarising the run\n"
 		"  -h, --help             Show this help\n");
 }
 
@@ -189,6 +190,16 @@ int runnerOptionsParse(struct testRunnerOptions *opts, int argc, char **argv) {
 				return 1;
 			}
 			opts->jobs = n;
+			i += consumed_next;
+			continue;
+		}
+		if (parse_long_arg(arg, "--metrics-out", next, &value, &consumed_next)) {
+			if (value == NULL) {
+				opts->parse_error = 1;
+				opts->error_msg = "--metrics-out requires an argument";
+				return 1;
+			}
+			opts->metrics_out = value;
 			i += consumed_next;
 			continue;
 		}
