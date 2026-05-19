@@ -1,0 +1,6 @@
+[theme]
+name = "x"
+[theme.syntax]
+keyword.fg = "red"
+keyword.bg = "default"
+comment.fg = "#ff00ff"

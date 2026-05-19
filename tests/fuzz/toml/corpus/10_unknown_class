@@ -1,0 +1,2 @@
+[theme.syntax]
+unknown_class.fg = "red"

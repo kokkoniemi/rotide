@@ -13,9 +13,14 @@ participant "syntax state" as syntax
 participant "LSP" as lsp
 
 input -> pipe : editorDocumentEdit\n(byte range, text,\n before/after cursor,\n before/after dirty)
+pipe -> doc : duplicate removed text
+pipe -> rows : prepare splice region\nfrom old document
+pipe -> doc : reserve add-buffer capacity\nforward edit + revert
+pipe -> pipe : build syntax edit\nfrom old document
 pipe -> doc : replace byte range
-pipe -> rows : splice + rebuild affected rows
-pipe -> pipe : sync cursor offset
+pipe -> rows : rebuild affected rows\nfrom new document
+pipe -> rows : splice row cache
+pipe -> pipe : sync cursor from offset
 pipe -> pipe : set dirty = edit.after_dirty
 pipe -> history : record pending op (if any)
 pipe -> notify : editorNotifyPostEditLanguage

@@ -8,19 +8,33 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Metrics emitters use these to tag rows with the workflow that produced them.
+env:
+  ROTIDE_METRICS_GIT_SHA: ${{ github.sha }}
+  ROTIDE_METRICS_GIT_REF: ${{ github.ref }}
+  ROTIDE_METRICS_CI_RUN_ID: ${{ github.run_id }}
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Build
         run: make
 
       - name: Run test suite
-        run: make test
+        run: make test METRICS_OUT=tests/metrics.jsonl
+
+      - name: Upload metrics row
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: metrics-build-and-test
+          path: tests/metrics.jsonl
+          if-no-files-found: ignore
 
   sanitizers:
     runs-on: ubuntu-latest
@@ -29,7 +43,247 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Run sanitizer suite
         run: make test-sanitize
+
+  determinism:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run determinism gate
+        run: make test-determinism
+
+  crash-handler:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run crash-handler smoke
+        run: make test-crash-handler
+
+      - name: Upload crash artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: crash-artifacts
+          path: tests/artifacts/
+          if-no-files-found: ignore
+
+  quarantine-age:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check quarantine entries are within the 30-day window
+        run: make test-quarantine-age
+
+  fuzz-vterm-smoke:
+    runs-on: ubuntu-latest
+    env:
+      ASAN_OPTIONS: detect_leaks=0
+      FUZZ_VTERM_SMOKE_RUNS: 1000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install clang
+        run: sudo apt-get update && sudo apt-get install -y clang
+
+      - name: Run vterm fuzz smoke
+        run: make fuzz-vterm-smoke METRICS_OUT=tests/metrics.jsonl
+
+      - name: Upload metrics row
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: metrics-fuzz-vterm-smoke
+          path: tests/metrics.jsonl
+          if-no-files-found: ignore
+
+      - name: Upload crash inputs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-vterm-crashes
+          path: crash-*
+          if-no-files-found: ignore
+
+  fuzz-lsp-smoke:
+    runs-on: ubuntu-latest
+    env:
+      ASAN_OPTIONS: detect_leaks=0
+      FUZZ_LSP_SMOKE_RUNS: 5000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install clang
+        run: sudo apt-get update && sudo apt-get install -y clang
+
+      - name: Run LSP framing fuzz smoke
+        run: make fuzz-lsp-smoke METRICS_OUT=tests/metrics.jsonl
+
+      - name: Upload metrics row
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: metrics-fuzz-lsp-smoke
+          path: tests/metrics.jsonl
+          if-no-files-found: ignore
+
+      - name: Upload crash inputs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-lsp-crashes
+          path: crash-*
+          if-no-files-found: ignore
+
+  fuzz-dap-smoke:
+    runs-on: ubuntu-latest
+    env:
+      ASAN_OPTIONS: detect_leaks=0
+      FUZZ_DAP_SMOKE_RUNS: 5000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install clang
+        run: sudo apt-get update && sudo apt-get install -y clang
+
+      - name: Run DAP framing fuzz smoke
+        run: make fuzz-dap-smoke METRICS_OUT=tests/metrics.jsonl
+
+      - name: Upload metrics row
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: metrics-fuzz-dap-smoke
+          path: tests/metrics.jsonl
+          if-no-files-found: ignore
+
+      - name: Upload crash inputs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-dap-crashes
+          path: crash-*
+          if-no-files-found: ignore
+
+  fuzz-toml-theme-smoke:
+    runs-on: ubuntu-latest
+    env:
+      ASAN_OPTIONS: detect_leaks=0
+      FUZZ_TOML_THEME_SMOKE_RUNS: 5000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install clang
+        run: sudo apt-get update && sudo apt-get install -y clang
+
+      - name: Run TOML theme fuzz smoke
+        run: make fuzz-toml-theme-smoke METRICS_OUT=tests/metrics.jsonl
+
+      - name: Upload metrics row
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: metrics-fuzz-toml-theme-smoke
+          path: tests/metrics.jsonl
+          if-no-files-found: ignore
+
+      - name: Upload crash inputs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-toml-theme-crashes
+          path: crash-*
+          if-no-files-found: ignore
+
+  metrics-summary:
+    if: always()
+    needs:
+      - build-and-test
+      - fuzz-vterm-smoke
+      - fuzz-lsp-smoke
+      - fuzz-dap-smoke
+      - fuzz-toml-theme-smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build summarizer
+        run: make tests/metrics_summary
+
+      - name: Download all metrics artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: metrics-*
+          path: ci-metrics
+        continue-on-error: true
+
+      - name: Merge per-job rows
+        run: |
+          mkdir -p tests
+          : > tests/metrics.jsonl
+          for f in ci-metrics/metrics-*/metrics.jsonl; do
+            [ -f "$f" ] && cat "$f" >> tests/metrics.jsonl
+          done
+
+      # Restore by prefix to find the latest rolling history. Deduping on
+      # ci_run_id keeps workflow reruns from counting the same rows twice.
+      - name: Restore metrics history
+        uses: actions/cache/restore@v5
+        with:
+          path: tests/metrics-history.jsonl
+          key: metrics-history-${{ github.run_id }}
+          restore-keys: |
+            metrics-history-
+
+      - name: Append run rows to history
+        run: |
+          touch tests/metrics-history.jsonl
+          grep -v "\"ci_run_id\":\"${{ github.run_id }}\"" tests/metrics-history.jsonl \
+              > tests/metrics-history.tmp || true
+          mv tests/metrics-history.tmp tests/metrics-history.jsonl
+          cat tests/metrics.jsonl >> tests/metrics-history.jsonl
+          echo "history row count: $(wc -l < tests/metrics-history.jsonl)"
+
+      - name: Save metrics history
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: tests/metrics-history.jsonl
+          key: metrics-history-${{ github.run_id }}
+
+      - name: Summary (this workflow)
+        run: ./tests/metrics_summary summary --in tests/metrics.jsonl
+
+      - name: Upload merged metrics (this workflow)
+        uses: actions/upload-artifact@v7
+        with:
+          name: metrics-merged
+          path: tests/metrics.jsonl
+          if-no-files-found: ignore
+
+      - name: Upload rolling history
+        uses: actions/upload-artifact@v7
+        with:
+          name: metrics-history
+          path: tests/metrics-history.jsonl
+          if-no-files-found: ignore

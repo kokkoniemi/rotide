@@ -1,0 +1,13 @@
+# top comment
+[theme]
+name = "custom" # inline
+inherits = "github_dark"
+
+[theme.syntax]
+comment.fg = "#5c6370"
+keyword.fg = "blue"
+string.fg = "#98c379"
+function.fg = "bright_yellow"
+
+[theme.ui]
+status.bg = "default"

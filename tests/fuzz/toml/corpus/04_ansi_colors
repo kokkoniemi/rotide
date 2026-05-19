@@ -1,0 +1,7 @@
+[theme]
+name = "ansi"
+inherits = "terminal"
+[theme.syntax]
+keyword.fg = "black"
+string.fg = "bright_white"
+number.fg = "yellow"

@@ -1,11 +1,11 @@
 ---
 name: rotide-document-maintainer
-description: Maintain RotIDE canonical document/rope/edit-history/recovery pipelines and offset mapping invariants.
+description: Maintain RotIDE canonical document/text-tree/edit-history/recovery pipelines and offset mapping invariants.
 ---
 
 # Rotide Document Maintainer
 
-Use for canonical document, rope, edit-history, and recovery-path changes.
+Use for canonical document, text-tree storage, edit-history, and recovery-path changes.
 
 ## First Inspect
 

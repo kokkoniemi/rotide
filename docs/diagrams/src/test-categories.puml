@@ -3,32 +3,44 @@ skin rose
 !include <C4/C4_Component>
 skinparam backgroundColor #FFFFFF
 
-title Test categories vs. what they exercise
+title Test coverage surfaces
 
 Component(harness, "Test harness", "C", "Single binary; one runner; suites are arrays of editorTestCase")
 
-Component(helpers, "Isolated helpers", "no editor state", "utf8 decode/encode; rope ops; runner internals")
-Component(pipeline, "Pipeline tests", "drive editorConfig E", "Edit pipeline, syntax activation, layout, render, input dispatch, save/recovery")
-Component(property, "Property / differential", "seeded random ops", "text_invariants (rope vs char* + memmove); syntax_incremental_equiv (incremental vs full reparse)")
-Component(subprocess, "Subprocess tests", "real fork/PTY/RPC", "PTY tests; terminal_pane; LSP mock framing; DAP launches; file_watch")
+Component(helpers, "Isolated helpers", "no editor state", "UTF-8; text tree; runner; metrics parsers")
+Component(pipeline, "Pipeline tests", "drive editorConfig E", "Edit, input, render, layout, workspace, syntax, save/recovery, LSP/DAP")
+Component(property, "Property / differential", "seeded random ops", "text_invariants (document vs char* reference); syntax incremental vs full reparse")
+Component(subprocess, "Subprocess / PTY", "real fork/PTY/signals", "PTY; terminal_pane; crash handler; file_watch")
+Component(fuzz, "Fuzz harnesses", "libFuzzer", "vterm, LSP framing, DAP framing, theme TOML")
+Component(golden, "Golden grid snapshots", "libvterm-normalized render", "ASSERT_GRID_EQ; update-goldens")
+Component(metrics, "Metrics + benches", "JSONL + percentiles", "test_run, bench, fuzz rows; metrics_summary")
 
 Component(rotide_lib, "Editor sources", "compiled into test binary", "Same .c files as the rotide binary, minus rotide.c's main")
 Component(fixtures, "Fixtures", "checked-in inputs", "tests/syntax/supported/*; theme/keymap TOMLs; recovery snapshots")
 Component(mocks, "Mocks", "in-process", "LSP mock singleton; save syscalls hook; alloc failure hook")
+Component(corpus, "Fuzz corpora", "checked-in + grown", "tests/fuzz/*/corpus and corpus_grown")
+Component(artifacts, "Artifacts", "ignored output", "logs, crash dumps, golden stash, metrics.jsonl")
 
 Rel(harness, helpers, "dispatches")
 Rel(harness, pipeline, "dispatches")
 Rel(harness, property, "dispatches")
 Rel(harness, subprocess, "dispatches")
+Rel(harness, golden, "asserts")
+Rel(harness, metrics, "emits")
 
 Rel(pipeline, rotide_lib, "calls public API")
 Rel(property, rotide_lib, "calls public API")
 Rel(subprocess, rotide_lib, "calls + forks children")
 Rel(helpers, rotide_lib, "calls leaf functions only")
+Rel(fuzz, rotide_lib, "drives parsers")
+Rel(golden, rotide_lib, "renders")
 
 Rel(pipeline, fixtures, "reads")
 Rel(property, fixtures, "reads")
 Rel(subprocess, mocks, "manipulates LSP/save mocks")
 Rel(pipeline, mocks, "manipulates alloc/save mocks")
+Rel(fuzz, corpus, "mutates copies")
+Rel(golden, artifacts, "writes stash")
+Rel(metrics, artifacts, "writes JSONL")
 
 @enduml

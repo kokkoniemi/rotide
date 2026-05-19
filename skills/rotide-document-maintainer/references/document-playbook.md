@@ -3,16 +3,19 @@
 ## Primary touchpoints
 
 - `src/text/document.c` / `document.h`
-  - line index rebuild
+  - document API boundary over text-tree storage
   - offset <-> line/column conversions
   - range read/copy/dup/replace
-- `src/text/rope.c` / `rope.h`
-  - chunk storage, append/read/copy/replace mechanics
-- `src/text/row.c`, `src/text/utf8.c`
+- `src/text/text_tree.c` / `text_tree.h`
+  - piece-tree storage, append/read/copy/replace mechanics
+  - summary-based line/byte queries
+- `src/text/text_buffer.c` / `text_summary.c`
+  - refcounted original/add buffers and summary arithmetic
+- `src/editing/row_cache.c`, `src/text/row.c`, `src/text/utf8.c`
   - derived row cache rebuild and UTF-8/grapheme helpers
-- `src/editing/buffer_core.c`
+- `src/editing/edit_pipeline.c`, `src/editing/buffer_core.c`
   - `editorApplyDocumentEdit(...)`
-  - row-cache rebuild from document
+  - row-cache splice/rebuild from document
   - cursor/selection/search offset updates
   - active text-source construction
 - `src/editing/edit.c`, `src/editing/selection.c`, `src/editing/history.c`
@@ -33,7 +36,7 @@
 ## Change checklist
 
 1. Validate bounds and overflow on all byte-range operations.
-2. Ensure replace path updates line index correctly for:
+2. Ensure replace path preserves text-tree summaries for:
    - insert
    - delete
    - replace
@@ -45,7 +48,7 @@
 
 ## Tests to touch
 
-- document/rope unit tests
+- document/text-tree unit tests
 - offset roundtrip tests
 - edit behavior tests (insert/newline/delete/range delete)
 - undo/redo behavior tests

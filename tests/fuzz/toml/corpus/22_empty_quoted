@@ -1,0 +1,4 @@
+[theme]
+name = "a"
+[theme.syntax]
+comment.fg = ""

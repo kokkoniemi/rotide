@@ -1,4 +1,5 @@
 #include "editor_state_snapshot.h"
+#include "metrics_jsonl.h"
 #include "parallel_runner.h"
 #include "rotide.h"
 #include "runner_support.h"
@@ -11,6 +12,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 #define SUITE_EXTERN(prefix) \
@@ -30,7 +33,9 @@ SUITE_EXTERN(workspace_theme_config);
 SUITE_EXTERN(workspace_keymap_view);
 SUITE_EXTERN(workspace_io);
 SUITE_EXTERN(dap);
+SUITE_EXTERN(dap_framing);
 SUITE_EXTERN(file_watch);
+SUITE_EXTERN(lsp_framing);
 SUITE_EXTERN(lsp_protocol);
 SUITE_EXTERN(lsp_lifecycle);
 SUITE_EXTERN(lsp_completion);
@@ -53,6 +58,12 @@ SUITE_EXTERN(text_summary);
 SUITE_EXTERN(text_tree);
 SUITE_EXTERN(syntax_incremental_equiv);
 SUITE_EXTERN(runner_internals);
+SUITE_EXTERN(long_session);
+SUITE_EXTERN(grid_snapshot);
+SUITE_EXTERN(metrics_jsonl);
+SUITE_EXTERN(metrics_libfuzzer_parse);
+SUITE_EXTERN(metrics_summary);
+SUITE_EXTERN(golden_apply);
 
 #define SUITE(name_str, tags_str, prefix) \
 	{name_str, tags_str, g_##prefix##_tests, &g_##prefix##_test_count}
@@ -71,7 +82,9 @@ static const struct editorTestSuite k_suites[] = {
 	SUITE("workspace_keymap_view", "workspace", workspace_keymap_view),
 	SUITE("workspace_io", "workspace", workspace_io),
 	SUITE("dap", "dap slow", dap),
+	SUITE("dap_framing", "dap", dap_framing),
 	SUITE("file_watch", "file_watch slow", file_watch),
+	SUITE("lsp_framing", "lsp", lsp_framing),
 	SUITE("lsp_protocol", "lsp", lsp_protocol),
 	SUITE("lsp_lifecycle", "lsp", lsp_lifecycle),
 	SUITE("lsp_completion", "lsp", lsp_completion),
@@ -94,6 +107,12 @@ static const struct editorTestSuite k_suites[] = {
 	SUITE("text_tree", "document", text_tree),
 	SUITE("syntax_incremental_equiv", "syntax property", syntax_incremental_equiv),
 	SUITE("runner_internals", "runner", runner_internals),
+	SUITE("long_session", "memory slow", long_session),
+	SUITE("grid_snapshot", "render", grid_snapshot),
+	SUITE("metrics_jsonl", "runner", metrics_jsonl),
+	SUITE("metrics_libfuzzer_parse", "runner", metrics_libfuzzer_parse),
+	SUITE("metrics_summary", "runner", metrics_summary),
+	SUITE("golden_apply", "runner", golden_apply),
 };
 
 #define K_SUITE_COUNT ((int)(sizeof(k_suites) / sizeof(k_suites[0])))
@@ -123,6 +142,8 @@ static int suitePassesTagFilter(const struct editorTestSuite *suite, const struc
 
 int main(int argc, char **argv) {
 	setlocale(LC_CTYPE, "");
+	struct timespec wall_start;
+	clock_gettime(CLOCK_MONOTONIC, &wall_start);
 	char *startup_cwd = getcwd(NULL, 0);
 	if (startup_cwd == NULL) {
 		fprintf(stderr, "Failed to capture startup cwd: %s\n", strerror(errno));
@@ -147,6 +168,23 @@ int main(int argc, char **argv) {
 		opts.seed = runnerSeedFromOsEntropy();
 	}
 	rotide_test_seed_set(opts.seed);
+
+	if (opts.update_golden_stash != NULL && opts.update_golden_stash[0] != '\0') {
+		/* Make sure the directory exists; ASSERT_GRID_EQ won't try to
+		 * create it. Tolerate failure here (e.g. tests/artifacts already
+		 * exists) — the actual write will surface a clearer error. */
+		(void)mkdir("tests/artifacts", 0755);
+		if (setenv("ROTIDE_UPDATE_GOLDEN_STASH",
+				opts.update_golden_stash, 1) != 0) {
+			fprintf(stderr,
+				"rotide_tests: failed to export ROTIDE_UPDATE_GOLDEN_STASH: %s\n",
+				strerror(errno));
+			return EXIT_FAILURE;
+		}
+		fprintf(stderr,
+			"rotide_tests: --update-golden mode — grid mismatches stash to %s\n",
+			opts.update_golden_stash);
+	}
 
 	struct quarantineList quarantine;
 	quarantineListInit(&quarantine);
@@ -225,6 +263,11 @@ int main(int argc, char **argv) {
 	int failed_unique = 0;
 	int reset_violations = 0;
 	int crashes = 0;
+	int flakes = 0;
+	long long property_ops = 0;
+	double property_ops_seconds = 0.0;
+
+	test_property_ops_reset();
 	unsigned char *snapshot = NULL;
 
 	if (opts.jobs > 1) {
@@ -312,6 +355,9 @@ int main(int argc, char **argv) {
 		passed_runs = result.passed_runs;
 		failed_unique = result.failed_unique;
 		reset_violations = result.reset_violations;
+		flakes = result.flakes;
+		property_ops = result.property_ops;
+		property_ops_seconds = result.property_ops_seconds;
 		crashes = result.crashes;
 		goto done;
 	}
@@ -333,6 +379,7 @@ int main(int argc, char **argv) {
 		int sel = order[slot];
 		const struct editorTestSuite *suite = &k_suites[selected[sel].suite];
 		const struct editorTestCase *tc = &suite->tests[selected[sel].index_in_suite];
+		int local_passed = 0;
 		int local_failed = 0;
 		for (int rep = 0; rep < opts.repeat; rep++) {
 			total_runs++;
@@ -352,6 +399,7 @@ int main(int argc, char **argv) {
 			}
 			if (failed == 0) {
 				passed_runs++;
+				local_passed = 1;
 				printf("PASS %s", tc->name);
 				if (opts.repeat > 1) {
 					printf(" (%d/%d)", rep + 1, opts.repeat);
@@ -373,7 +421,12 @@ int main(int argc, char **argv) {
 		if (local_failed) {
 			failed_unique++;
 		}
+		if (local_passed && local_failed) {
+			flakes++;
+		}
 	}
+	property_ops = test_property_ops_total();
+	property_ops_seconds = test_property_ops_elapsed_seconds();
 
 done:
 	printf("\n%d/%d test runs passed", passed_runs, total_runs);
@@ -388,6 +441,9 @@ done:
 	}
 	if (opts.validate_reset) {
 		printf(", reset-drift=%d", reset_violations);
+	}
+	if (opts.repeat > 1) {
+		printf(", flakes=%d", flakes);
 	}
 	if (opts.jobs > 1) {
 		printf(", jobs=%d", opts.jobs);
@@ -406,5 +462,38 @@ done:
 	if (reset_violations > 0) {
 		exit_code = EXIT_FAILURE;
 	}
+
+	if (opts.metrics_out != NULL && opts.metrics_out[0] != '\0') {
+		struct timespec wall_end;
+		clock_gettime(CLOCK_MONOTONIC, &wall_end);
+		double wall_seconds =
+			(double)(wall_end.tv_sec - wall_start.tv_sec) +
+			(double)(wall_end.tv_nsec - wall_start.tv_nsec) / 1e9;
+		struct editorMetricsField fields[] = {
+			{"wall_seconds", EDITOR_METRICS_DOUBLE, .v.d = wall_seconds},
+			{"total_runs", EDITOR_METRICS_INT, .v.i = total_runs},
+			{"passed_runs", EDITOR_METRICS_INT, .v.i = passed_runs},
+			{"failed_unique", EDITOR_METRICS_INT, .v.i = failed_unique},
+			{"crashes", EDITOR_METRICS_INT, .v.i = crashes},
+			{"reset_violations", EDITOR_METRICS_INT, .v.i = reset_violations},
+			{"flakes", EDITOR_METRICS_INT, .v.i = flakes},
+			{"property_ops", EDITOR_METRICS_INT, .v.i = property_ops},
+			{"property_ops_seconds", EDITOR_METRICS_DOUBLE, .v.d = property_ops_seconds},
+			{"skipped_quarantine", EDITOR_METRICS_INT, .v.i = skipped_quarantine},
+			{"jobs", EDITOR_METRICS_INT, .v.i = opts.jobs},
+			{"repeat", EDITOR_METRICS_INT, .v.i = opts.repeat},
+			{"seed", EDITOR_METRICS_HEX64, .v.u = opts.seed},
+			{"shuffle", EDITOR_METRICS_BOOL, .v.b = opts.shuffle},
+			{"validate_reset", EDITOR_METRICS_BOOL, .v.b = opts.validate_reset},
+			{"exit_code", EDITOR_METRICS_INT, .v.i = exit_code},
+		};
+		if (editorMetricsAppend(opts.metrics_out, "test_run", fields,
+				(int)(sizeof(fields) / sizeof(fields[0]))) != 0) {
+			fprintf(stderr,
+				"rotide_tests: warning: failed to append metrics to %s\n",
+				opts.metrics_out);
+		}
+	}
+
 	return exit_code;
 }

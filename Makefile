@@ -110,7 +110,7 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 		syntax_detect.c syntax_indent.c syntax_injections.c \
 		syntax_locals.c syntax_predicates.c syntax_worker.c \
 		syntax_visible_cache.c languages.c lsp.c lsp_documents.c \
-		lsp_features.c lsp_json.c lsp_mock.c lsp_protocol.c \
+		lsp_features.c lsp_framing.c lsp_json.c lsp_mock.c lsp_protocol.c \
 		lsp_registry.c lsp_responses.c lsp_transport.c autocomplete.c) \
 	$(addprefix $(SRC_DIR)/debug/, \
 		dap_client.c dap_console.c dap.c) \
@@ -124,16 +124,26 @@ TEST_SRCS = $(addprefix tests/, \
 	test_syntax_state.c test_syntax_registry.c \
 	test_save_recovery.c test_workspace_persistence.c \
 	test_workspace_theme_config.c test_workspace_keymap_view.c \
-	test_workspace_io.c test_dap.c test_file_watch.c \
-	test_lsp_protocol.c test_lsp_lifecycle.c test_lsp_completion.c \
-	test_lsp_diagnostics.c test_lsp_navigation.c \
+	test_workspace_io.c test_dap.c test_dap_framing.c test_file_watch.c \
+	test_lsp_framing.c test_lsp_protocol.c test_lsp_lifecycle.c \
+	test_lsp_completion.c test_lsp_diagnostics.c test_lsp_navigation.c \
 	test_input_actions.c test_input_selection.c test_input_mouse.c \
 	test_input_search.c test_input_undo.c \
 	test_render_frame.c test_render_chrome.c test_render_panes.c \
 	test_render_terminal.c test_layout.c test_pty.c \
 	test_terminal_pane.c test_text_invariants.c test_text_summary.c \
 	test_text_tree.c test_syntax_incremental_equiv.c test_runner_internals.c \
+	test_long_session.c \
+	test_grid_snapshot_suite.c \
+	test_metrics_jsonl.c \
+	test_metrics_libfuzzer_parse.c \
+	test_metrics_summary.c \
+	test_golden_apply.c \
 	runner_support.c seed.c parallel_runner.c editor_state_snapshot.c \
+	metrics_jsonl.c metrics_libfuzzer_parse.c \
+	metrics_jsonl_read.c metrics_summary_cmd.c \
+	grid_snapshot_update.c grid_snapshot_format.c golden_apply_lib.c \
+	test_grid_snapshot.c \
 	test_support.c test_helpers.c alloc_test_hooks.c save_syscalls_test_hooks.c)
 
 # ============================================================================
@@ -156,6 +166,88 @@ TEST_BIN = tests/rotide_tests
 BENCH_BUFFER_BIN = tests/bench_text_storage
 BENCH_BUFFER_SRC = tests/bench_text_storage.c
 BENCH_BUFFER_OBJ = $(BENCH_BUFFER_SRC:.c=.o)
+
+BENCH_MICRO_BIN = tests/rotide_bench
+# bench_microbenches drives editorRefreshScreen for the screen-diff cases,
+# which needs reset_editor_state and friends. Pull in just the test helpers
+# the bench actually uses — alloc_test_hooks and save_syscalls_test_hooks are
+# transitive deps of test_helpers.c's reset path.
+BENCH_MICRO_SRCS = tests/bench_microbenches.c tests/bench_runner.c \
+	tests/metrics_jsonl.c \
+	tests/test_helpers.c tests/alloc_test_hooks.c \
+	tests/save_syscalls_test_hooks.c
+BENCH_MICRO_OBJS = $(BENCH_MICRO_SRCS:.c=.o)
+
+# Tiny standalone tool: parses captured libFuzzer stderr + corpus dir and
+# appends a kind=fuzz row to a metrics JSONL file. Lives next to the fuzz
+# infrastructure but builds with the normal C toolchain (no fuzz flags).
+METRICS_FUZZ_EMIT_BIN = tests/metrics_fuzz_emit
+METRICS_FUZZ_EMIT_SRCS = tests/metrics_fuzz_emit.c \
+	tests/metrics_libfuzzer_parse.c tests/metrics_jsonl.c
+METRICS_FUZZ_EMIT_OBJS = $(METRICS_FUZZ_EMIT_SRCS:.c=.o)
+
+# Reader / regression-detector for tests/metrics.jsonl. Subcommands:
+# summary, check-fuzz-stale, check-bench-regression.
+METRICS_SUMMARY_BIN = tests/metrics_summary
+METRICS_SUMMARY_SRCS = tests/metrics_summary.c \
+	tests/metrics_jsonl_read.c tests/metrics_summary_cmd.c
+METRICS_SUMMARY_OBJS = $(METRICS_SUMMARY_SRCS:.c=.o)
+
+# Golden-snapshot apply / diff-preview tools. Consume the JSONL stash
+# emitted by `rotide_tests --update-golden`.
+GOLDEN_APPLY_BIN = tests/golden_apply
+GOLDEN_APPLY_SRCS = tests/golden_apply.c \
+	tests/golden_apply_lib.c tests/grid_snapshot_format.c
+GOLDEN_APPLY_OBJS = $(GOLDEN_APPLY_SRCS:.c=.o)
+
+GOLDEN_DIFF_REPORT_BIN = tests/golden_diff_report
+GOLDEN_DIFF_REPORT_SRCS = tests/golden_diff_report.c \
+	tests/golden_apply_lib.c tests/grid_snapshot_format.c
+GOLDEN_DIFF_REPORT_OBJS = $(GOLDEN_DIFF_REPORT_SRCS:.c=.o)
+
+FUZZ_CC ?= clang
+# Nightly soak time per target (seconds). 30 minutes by default — matches
+# the value in TEST_IMPROVEMENT_PLAN.md and runs comfortably inside a
+# GitHub-hosted runner's job budget.
+FUZZ_NIGHTLY_TIME ?= 1800
+
+FUZZ_VTERM_BIN = tests/fuzz/vterm/fuzz_vterm
+FUZZ_VTERM_HARNESS = tests/fuzz/vterm/fuzz_vterm.c
+FUZZ_VTERM_CORPUS = tests/fuzz/vterm/corpus
+FUZZ_VTERM_CORPUS_GROWN = tests/fuzz/vterm/corpus_grown
+FUZZ_VTERM_SMOKE_RUNS ?= 1000
+
+FUZZ_LSP_BIN = tests/fuzz/lsp/fuzz_lsp
+FUZZ_LSP_HARNESS = tests/fuzz/lsp/fuzz_lsp.c
+FUZZ_LSP_CORPUS = tests/fuzz/lsp/corpus
+FUZZ_LSP_CORPUS_GROWN = tests/fuzz/lsp/corpus_grown
+FUZZ_LSP_SMOKE_RUNS ?= 5000
+FUZZ_LSP_SRCS = $(SRC_DIR)/language/lsp_framing.c
+
+FUZZ_DAP_BIN = tests/fuzz/dap/fuzz_dap
+FUZZ_DAP_HARNESS = tests/fuzz/dap/fuzz_dap.c
+FUZZ_DAP_CORPUS = tests/fuzz/dap/corpus
+FUZZ_DAP_CORPUS_GROWN = tests/fuzz/dap/corpus_grown
+FUZZ_DAP_SMOKE_RUNS ?= 5000
+FUZZ_DAP_SRCS = $(SRC_DIR)/debug/dap_client.c
+
+FUZZ_TOML_THEME_BIN = tests/fuzz/toml/fuzz_toml_theme
+FUZZ_TOML_THEME_HARNESS = tests/fuzz/toml/fuzz_toml_theme.c
+FUZZ_TOML_THEME_CORPUS = tests/fuzz/toml/corpus
+FUZZ_TOML_THEME_CORPUS_GROWN = tests/fuzz/toml/corpus_grown
+FUZZ_TOML_THEME_SMOKE_RUNS ?= 5000
+FUZZ_TOML_THEME_SRCS = $(SRC_DIR)/config/theme_parse.c \
+	$(SRC_DIR)/config/theme_builtin.c \
+	$(SRC_DIR)/config/common.c \
+	$(SRC_DIR)/support/alloc.c
+# libFuzzer ships its own coverage instrumentation under -fsanitize=fuzzer;
+# explicit -fsanitize-coverage=trace-pc-guard conflicts with that on modern
+# clang. -Wno-unknown-warning-option swallows the gcc-only flags inside
+# LIBVTERM_CFLAGS (which clang doesn't recognise).
+FUZZ_FLAGS = -O1 -g -fno-omit-frame-pointer \
+	-fsanitize=fuzzer,address,undefined \
+	-Wno-unknown-warning-option \
+	-DROTIDE_FUZZ
 
 # ============================================================================
 # Generated headers
@@ -211,17 +303,278 @@ $(TEST_BIN): $(TEST_OBJS) $(EDITOR_OBJS)
 $(BENCH_BUFFER_BIN): $(BENCH_BUFFER_OBJ) $(EDITOR_OBJS)
 	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) $^ -lutil -o $@
 
+$(BENCH_MICRO_BIN): $(BENCH_MICRO_OBJS) $(EDITOR_OBJS)
+	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) $^ -lutil -o $@
+
+$(METRICS_FUZZ_EMIT_BIN): $(METRICS_FUZZ_EMIT_OBJS)
+	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $^ -o $@
+
+$(METRICS_SUMMARY_BIN): $(METRICS_SUMMARY_OBJS)
+	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $^ -o $@
+
+$(GOLDEN_APPLY_BIN): $(GOLDEN_APPLY_OBJS)
+	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $^ -o $@
+
+$(GOLDEN_DIFF_REPORT_BIN): $(GOLDEN_DIFF_REPORT_OBJS)
+	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $^ -o $@
+
+# Single-step compile-and-link so libvterm sources see FUZZ_FLAGS instead of
+# the standard build's flags. Don't reuse $(LIBVTERM_OBJS) — they would have
+# been built without the sanitizer coverage hooks libFuzzer needs.
+$(FUZZ_VTERM_BIN): $(FUZZ_VTERM_HARNESS) $(LIBVTERM_SRCS)
+	$(call LOG,FUZZ_CC,$@)$(FUZZ_CC) $(FUZZ_FLAGS) $(LIBVTERM_CPPFLAGS) \
+		$(LIBVTERM_CFLAGS) $^ -o $@
+
+# lsp_framing.c is intentionally dependency-light (only support/size_utils.h,
+# header-only) so the fuzz binary doesn't have to drag in the rest of the
+# editor. CPPFLAGS picks up the -I$(SRC_DIR) needed for the include path.
+$(FUZZ_LSP_BIN): $(FUZZ_LSP_HARNESS) $(FUZZ_LSP_SRCS)
+	$(call LOG,FUZZ_CC,$@)$(FUZZ_CC) $(FUZZ_FLAGS) $(CPPFLAGS) $^ -o $@
+
+# dap_client.c is similarly self-contained; same compile strategy.
+$(FUZZ_DAP_BIN): $(FUZZ_DAP_HARNESS) $(FUZZ_DAP_SRCS)
+	$(call LOG,FUZZ_CC,$@)$(FUZZ_CC) $(FUZZ_FLAGS) $(CPPFLAGS) $^ -o $@
+
+# theme_parse.c needs theme_builtin.c (for editorThemeInitDefault et al.),
+# common.c (trim/comment-strip/quoted-value helpers), and alloc.c (transitively
+# referenced via common.c). default_config_data.h is a generated header
+# pulled in by common.c, so depend on it explicitly.
+$(FUZZ_TOML_THEME_BIN): $(FUZZ_TOML_THEME_HARNESS) $(FUZZ_TOML_THEME_SRCS) $(GENERATED_HEADERS)
+	$(call LOG,FUZZ_CC,$@)$(FUZZ_CC) $(FUZZ_FLAGS) $(CPPFLAGS) \
+		$(FUZZ_TOML_THEME_HARNESS) $(FUZZ_TOML_THEME_SRCS) -o $@
+
 # ============================================================================
 # Test / release / docs targets
 # ============================================================================
 TEST_FLAGS ?= --validate-reset --jobs 4
 DOCS_MEDIA_FLAGS ?=
 
+# Opt-in metrics emission. Set on the command line:
+#   make test METRICS_OUT=tests/metrics.jsonl
+#   make bench METRICS_OUT=tests/metrics.jsonl
+# Fuzz smoke/nightly targets honour METRICS_OUT the same way. The runner and
+# bench binaries enrich rows from
+# ROTIDE_METRICS_GIT_SHA / GIT_REF / CI_RUN_ID env vars when set; CI
+# workflows wire those to the matching GitHub Actions GITHUB_* values.
+ifneq ($(strip $(METRICS_OUT)),)
+TEST_FLAGS  += --metrics-out $(METRICS_OUT)
+BENCH_FLAGS += --metrics-out $(METRICS_OUT)
+endif
+
 test: $(TEST_BIN)
 	$(call LOG,TEST,$(TEST_BIN))./$(TEST_BIN) $(TEST_FLAGS)
 
 bench-buffer: $(BENCH_BUFFER_BIN)
 	$(call LOG,BENCH,$(BENCH_BUFFER_BIN))./$(BENCH_BUFFER_BIN) $(BENCH_BUFFER_FLAGS)
+
+bench: $(BENCH_MICRO_BIN)
+	$(call LOG,BENCH,$(BENCH_MICRO_BIN))./$(BENCH_MICRO_BIN) $(BENCH_FLAGS)
+
+# Whole-program cold-open bench. Uses rotide's --render-once flag (a
+# general non-interactive single-frame mode that any headless caller
+# can use; the editor itself is unaware this is a benchmark) and times
+# the rotide binary under hyperfine. The fixture is a synthetic ~17 MiB
+# C source generated once and cached in /tmp; delete it to regenerate.
+# Override BENCH_RENDER_RUNS / BENCH_RENDER_WARMUP to change the
+# sampling; override HYPERFINE if your binary lives elsewhere.
+HYPERFINE ?= hyperfine
+BENCH_RENDER_FIXTURE ?= /tmp/rotide-bench-10MB.c
+BENCH_RENDER_RUNS ?= 20
+BENCH_RENDER_WARMUP ?= 5
+
+$(BENCH_RENDER_FIXTURE):
+	$(call LOG,GEN,$@)\
+		{ \
+			for i in $$(seq 1 350000); do \
+				printf 'static int fn_%d(int x) { return x + %d; }\n' "$$i" "$$i"; \
+			done; \
+		} > $@; \
+		size=$$(wc -c < $@); \
+		echo "  generated $$size bytes ($$(($$size / 1024 / 1024)) MiB)"
+
+bench-render-once: rotide $(BENCH_RENDER_FIXTURE)
+	@command -v $(HYPERFINE) >/dev/null 2>&1 || { \
+		echo "$(HYPERFINE) not installed. Install via 'cargo install hyperfine' or your package manager." >&2; \
+		exit 1; \
+	}
+	$(call LOG,HYPERFINE,bench-render-once)$(HYPERFINE) \
+		--warmup $(BENCH_RENDER_WARMUP) --runs $(BENCH_RENDER_RUNS) \
+		'./rotide --render-once $(BENCH_RENDER_FIXTURE) > /dev/null'
+
+# Convenience entry point for the --update-golden workflow. Default
+# behaviour is preview-only — captures the stash and runs
+# golden_diff_report so you can review the proposed changes. Add APPLY=1
+# to actually rewrite the source files. UPDATE_GOLDEN_FLAGS lets you
+# scope which tests run (e.g. UPDATE_GOLDEN_FLAGS='--filter chrome').
+UPDATE_GOLDEN_FLAGS ?= --validate-reset --jobs 4
+UPDATE_GOLDEN_STASH = tests/artifacts/goldens.jsonl
+
+update-goldens: $(TEST_BIN) $(GOLDEN_APPLY_BIN) $(GOLDEN_DIFF_REPORT_BIN)
+	$(call LOG,GOLDEN,capture)mkdir -p tests/artifacts; \
+		rm -f $(UPDATE_GOLDEN_STASH); \
+		./$(TEST_BIN) --update-golden $(UPDATE_GOLDEN_STASH) $(UPDATE_GOLDEN_FLAGS); \
+		: ensure the stash exists even when no test mismatched, so the diff and apply tools see an empty stash instead of a missing file; \
+		touch $(UPDATE_GOLDEN_STASH); \
+		echo; \
+		./$(GOLDEN_DIFF_REPORT_BIN) --stash $(UPDATE_GOLDEN_STASH); \
+		rc=$$?; \
+		echo; \
+		if [ "$(APPLY)" = "1" ]; then \
+			./$(GOLDEN_APPLY_BIN) --stash $(UPDATE_GOLDEN_STASH); \
+		elif [ $$rc -eq 1 ]; then \
+			echo "(re-run with APPLY=1 to rewrite the source files above)"; \
+		fi
+
+fuzz-vterm: $(FUZZ_VTERM_BIN)
+	$(call LOG,FUZZ,vterm)./$(FUZZ_VTERM_BIN) $(FUZZ_VTERM_CORPUS)
+
+# Stage the corpus into a tempdir so libFuzzer's new finds don't persist
+# back into the committed seed set. Smoke is run-count-bounded so the
+# wall time is predictable across CI runs. Stderr is captured to a log so
+# the metrics emitter can parse the final-stats block; the log is
+# replayed to the terminal so the human still sees it.
+fuzz-vterm-smoke: $(FUZZ_VTERM_BIN) $(METRICS_FUZZ_EMIT_BIN)
+	$(call LOG,FUZZ-S,vterm)tmp=$$(mktemp -d -t rotide-fuzz-vterm.XXXXXX); \
+		log=$$(mktemp -t rotide-fuzz-vterm-log.XXXXXX); \
+		cp $(FUZZ_VTERM_CORPUS)/* $$tmp/; \
+		./$(FUZZ_VTERM_BIN) -print_final_stats=1 \
+			-runs=$(FUZZ_VTERM_SMOKE_RUNS) $$tmp 2>$$log; \
+		rc=$$?; \
+		cat $$log >&2; \
+		if [ -n "$(METRICS_OUT)" ]; then \
+			./$(METRICS_FUZZ_EMIT_BIN) --target vterm --log $$log \
+				--corpus-dir $$tmp --metrics-out $(METRICS_OUT) || true; \
+		fi; \
+		rm -rf $$tmp; rm -f $$log; \
+		exit $$rc
+
+fuzz-lsp: $(FUZZ_LSP_BIN)
+	$(call LOG,FUZZ,lsp)./$(FUZZ_LSP_BIN) $(FUZZ_LSP_CORPUS)
+
+fuzz-lsp-smoke: $(FUZZ_LSP_BIN) $(METRICS_FUZZ_EMIT_BIN)
+	$(call LOG,FUZZ-S,lsp)tmp=$$(mktemp -d -t rotide-fuzz-lsp.XXXXXX); \
+		log=$$(mktemp -t rotide-fuzz-lsp-log.XXXXXX); \
+		cp $(FUZZ_LSP_CORPUS)/* $$tmp/; \
+		./$(FUZZ_LSP_BIN) -print_final_stats=1 \
+			-runs=$(FUZZ_LSP_SMOKE_RUNS) $$tmp 2>$$log; \
+		rc=$$?; \
+		cat $$log >&2; \
+		if [ -n "$(METRICS_OUT)" ]; then \
+			./$(METRICS_FUZZ_EMIT_BIN) --target lsp --log $$log \
+				--corpus-dir $$tmp --metrics-out $(METRICS_OUT) || true; \
+		fi; \
+		rm -rf $$tmp; rm -f $$log; \
+		exit $$rc
+
+fuzz-dap: $(FUZZ_DAP_BIN)
+	$(call LOG,FUZZ,dap)./$(FUZZ_DAP_BIN) $(FUZZ_DAP_CORPUS)
+
+fuzz-dap-smoke: $(FUZZ_DAP_BIN) $(METRICS_FUZZ_EMIT_BIN)
+	$(call LOG,FUZZ-S,dap)tmp=$$(mktemp -d -t rotide-fuzz-dap.XXXXXX); \
+		log=$$(mktemp -t rotide-fuzz-dap-log.XXXXXX); \
+		cp $(FUZZ_DAP_CORPUS)/* $$tmp/; \
+		./$(FUZZ_DAP_BIN) -print_final_stats=1 \
+			-runs=$(FUZZ_DAP_SMOKE_RUNS) $$tmp 2>$$log; \
+		rc=$$?; \
+		cat $$log >&2; \
+		if [ -n "$(METRICS_OUT)" ]; then \
+			./$(METRICS_FUZZ_EMIT_BIN) --target dap --log $$log \
+				--corpus-dir $$tmp --metrics-out $(METRICS_OUT) || true; \
+		fi; \
+		rm -rf $$tmp; rm -f $$log; \
+		exit $$rc
+
+fuzz-toml-theme: $(FUZZ_TOML_THEME_BIN)
+	$(call LOG,FUZZ,toml-theme)./$(FUZZ_TOML_THEME_BIN) $(FUZZ_TOML_THEME_CORPUS)
+
+fuzz-toml-theme-smoke: $(FUZZ_TOML_THEME_BIN) $(METRICS_FUZZ_EMIT_BIN)
+	$(call LOG,FUZZ-S,toml-theme)tmp=$$(mktemp -d -t rotide-fuzz-toml-theme.XXXXXX); \
+		log=$$(mktemp -t rotide-fuzz-toml-theme-log.XXXXXX); \
+		cp $(FUZZ_TOML_THEME_CORPUS)/* $$tmp/; \
+		./$(FUZZ_TOML_THEME_BIN) -print_final_stats=1 \
+			-runs=$(FUZZ_TOML_THEME_SMOKE_RUNS) $$tmp 2>$$log; \
+		rc=$$?; \
+		cat $$log >&2; \
+		if [ -n "$(METRICS_OUT)" ]; then \
+			./$(METRICS_FUZZ_EMIT_BIN) --target toml-theme --log $$log \
+				--corpus-dir $$tmp --metrics-out $(METRICS_OUT) || true; \
+		fi; \
+		rm -rf $$tmp; rm -f $$log; \
+		exit $$rc
+
+# Nightly soaks: persist the grown corpus across CI runs. The `corpus_grown`
+# directory is gitignored and populated from the committed seed set on the
+# first run; subsequent runs restore it via actions/cache and let libFuzzer
+# add new finds in place. -max_total_time is the only stop condition so each
+# target soaks for a predictable wall-clock duration. Override per-target
+# with FUZZ_NIGHTLY_TIME=<seconds>.
+fuzz-vterm-nightly: $(FUZZ_VTERM_BIN) $(METRICS_FUZZ_EMIT_BIN)
+	$(call LOG,FUZZ-N,vterm)mkdir -p $(FUZZ_VTERM_CORPUS_GROWN); \
+		cp -n $(FUZZ_VTERM_CORPUS)/* $(FUZZ_VTERM_CORPUS_GROWN)/ 2>/dev/null || true; \
+		log=$$(mktemp -t rotide-fuzz-vterm-log.XXXXXX); \
+		./$(FUZZ_VTERM_BIN) -print_final_stats=1 \
+			-max_total_time=$(FUZZ_NIGHTLY_TIME) $(FUZZ_VTERM_CORPUS_GROWN) 2>$$log; \
+		rc=$$?; \
+		cat $$log >&2; \
+		if [ -n "$(METRICS_OUT)" ]; then \
+			./$(METRICS_FUZZ_EMIT_BIN) --target vterm --log $$log \
+				--corpus-dir $(FUZZ_VTERM_CORPUS_GROWN) \
+				--metrics-out $(METRICS_OUT) \
+				--soak-seconds $(FUZZ_NIGHTLY_TIME) || true; \
+		fi; \
+		rm -f $$log; \
+		exit $$rc
+
+fuzz-lsp-nightly: $(FUZZ_LSP_BIN) $(METRICS_FUZZ_EMIT_BIN)
+	$(call LOG,FUZZ-N,lsp)mkdir -p $(FUZZ_LSP_CORPUS_GROWN); \
+		cp -n $(FUZZ_LSP_CORPUS)/* $(FUZZ_LSP_CORPUS_GROWN)/ 2>/dev/null || true; \
+		log=$$(mktemp -t rotide-fuzz-lsp-log.XXXXXX); \
+		./$(FUZZ_LSP_BIN) -print_final_stats=1 \
+			-max_total_time=$(FUZZ_NIGHTLY_TIME) $(FUZZ_LSP_CORPUS_GROWN) 2>$$log; \
+		rc=$$?; \
+		cat $$log >&2; \
+		if [ -n "$(METRICS_OUT)" ]; then \
+			./$(METRICS_FUZZ_EMIT_BIN) --target lsp --log $$log \
+				--corpus-dir $(FUZZ_LSP_CORPUS_GROWN) \
+				--metrics-out $(METRICS_OUT) \
+				--soak-seconds $(FUZZ_NIGHTLY_TIME) || true; \
+		fi; \
+		rm -f $$log; \
+		exit $$rc
+
+fuzz-dap-nightly: $(FUZZ_DAP_BIN) $(METRICS_FUZZ_EMIT_BIN)
+	$(call LOG,FUZZ-N,dap)mkdir -p $(FUZZ_DAP_CORPUS_GROWN); \
+		cp -n $(FUZZ_DAP_CORPUS)/* $(FUZZ_DAP_CORPUS_GROWN)/ 2>/dev/null || true; \
+		log=$$(mktemp -t rotide-fuzz-dap-log.XXXXXX); \
+		./$(FUZZ_DAP_BIN) -print_final_stats=1 \
+			-max_total_time=$(FUZZ_NIGHTLY_TIME) $(FUZZ_DAP_CORPUS_GROWN) 2>$$log; \
+		rc=$$?; \
+		cat $$log >&2; \
+		if [ -n "$(METRICS_OUT)" ]; then \
+			./$(METRICS_FUZZ_EMIT_BIN) --target dap --log $$log \
+				--corpus-dir $(FUZZ_DAP_CORPUS_GROWN) \
+				--metrics-out $(METRICS_OUT) \
+				--soak-seconds $(FUZZ_NIGHTLY_TIME) || true; \
+		fi; \
+		rm -f $$log; \
+		exit $$rc
+
+fuzz-toml-theme-nightly: $(FUZZ_TOML_THEME_BIN) $(METRICS_FUZZ_EMIT_BIN)
+	$(call LOG,FUZZ-N,toml-theme)mkdir -p $(FUZZ_TOML_THEME_CORPUS_GROWN); \
+		cp -n $(FUZZ_TOML_THEME_CORPUS)/* $(FUZZ_TOML_THEME_CORPUS_GROWN)/ 2>/dev/null || true; \
+		log=$$(mktemp -t rotide-fuzz-toml-theme-log.XXXXXX); \
+		./$(FUZZ_TOML_THEME_BIN) -print_final_stats=1 \
+			-max_total_time=$(FUZZ_NIGHTLY_TIME) $(FUZZ_TOML_THEME_CORPUS_GROWN) 2>$$log; \
+		rc=$$?; \
+		cat $$log >&2; \
+		if [ -n "$(METRICS_OUT)" ]; then \
+			./$(METRICS_FUZZ_EMIT_BIN) --target toml-theme --log $$log \
+				--corpus-dir $(FUZZ_TOML_THEME_CORPUS_GROWN) \
+				--metrics-out $(METRICS_OUT) \
+				--soak-seconds $(FUZZ_NIGHTLY_TIME) || true; \
+		fi; \
+		rm -f $$log; \
+		exit $$rc
 
 test-sanitize:
 	$(call LOG,CLEAN,build)$(MAKE) clean
@@ -242,6 +595,12 @@ test-determinism: $(TEST_BIN)
 
 test-crash-handler: $(TEST_BIN)
 	$(call LOG,TEST,crash)scripts/check_crash_handler.sh ./$(TEST_BIN)
+
+test-quarantine-age:
+	$(call LOG,TEST,quarantine-age)scripts/check_quarantine_age.sh
+
+test-quarantine-passing: $(TEST_BIN)
+	$(call LOG,TEST,quarantine-pass)scripts/check_quarantine_passing.sh ./$(TEST_BIN) $(TEST_FLAGS)
 
 test-tsan:
 	$(call LOG,CLEAN,build)$(MAKE) clean
@@ -266,8 +625,8 @@ docs-diagrams:
 
 -include $(DEPFILES)
 
-.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler release docs-media docs-diagrams bench-buffer
+.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams bench-buffer bench bench-render-once fuzz-vterm fuzz-vterm-smoke fuzz-vterm-nightly fuzz-lsp fuzz-lsp-smoke fuzz-lsp-nightly fuzz-dap fuzz-dap-smoke fuzz-dap-nightly fuzz-toml-theme fuzz-toml-theme-smoke fuzz-toml-theme-nightly update-goldens
 
 clean:
-	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(BENCH_BUFFER_OBJ) $(DEPFILES) $(TEST_BIN) $(BENCH_BUFFER_BIN) rotide $(GENERATED_HEADERS)
+	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(BENCH_BUFFER_OBJ) $(METRICS_FUZZ_EMIT_OBJS) $(METRICS_SUMMARY_OBJS) $(GOLDEN_APPLY_OBJS) $(GOLDEN_DIFF_REPORT_OBJS) $(DEPFILES) $(TEST_BIN) $(BENCH_BUFFER_BIN) $(METRICS_FUZZ_EMIT_BIN) $(METRICS_SUMMARY_BIN) $(GOLDEN_APPLY_BIN) $(GOLDEN_DIFF_REPORT_BIN) $(FUZZ_VTERM_BIN) $(FUZZ_LSP_BIN) $(FUZZ_DAP_BIN) $(FUZZ_TOML_THEME_BIN) rotide $(GENERATED_HEADERS)
 	$(call LOG,CLEAN,tree)find $(SRC_DIR) tests $(TS_DIR) -type f \( -name '*.o' -o -name '*.d' \) -delete

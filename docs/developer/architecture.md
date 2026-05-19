@@ -37,7 +37,33 @@ them quietly is the fastest way to introduce desync bugs.
 is declared once as `struct editorBuffer` and inlined into `E` so call
 sites continue to read `E.cy`, `E.cursor_offset`, and so on. Each tab
 stores its own `editorBuffer`; switching tabs swaps the struct in bulk
-rather than copying field-by-field.
+rather than copying field-by-field. Capture normalizes `cursor_offset`
+from `(cy,cx)`; load restores `(cy,cx)` from that offset.
+
+For document-capable tabs, `editorBuffer.document` points to an
+`editorDocument`. The document owns a single `editorTextTree`; it does
+not own rows, syntax spans, LSP state, or a separate line index. The
+tree is a SumTree of pieces: leaves hold `editorTextChunk` slices into
+refcounted `editorTextBuffer` instances, internal nodes aggregate child
+summaries, and the tree also owns an append buffer used for inserts.
+Reset/load paths build chunked pieces over an original buffer; edit
+paths append inserted bytes to the add buffer and splice pieces.
+
+Line metadata lives in `editorTextSummary` values attached to pieces and
+nodes. `editorDocumentLineStartByte`, `editorDocumentLineEndByte`, and
+byte-to-line lookups descend through those summaries instead of reading
+an external index. Cursor, search, selection, and history state store
+byte offsets into the document; `document_position.c` maps them to
+`(cy,cx)` only at UI boundaries and clamps to valid text boundaries.
+
+Rows are owned by the buffer but derived from the document. Full restore
+paths use `editorBuildFullRowsFromDocument`; normal edits prepare a
+splice region from the pre-edit document, mutate the document, then build
+replacement rows from post-edit `editorDocumentLineView` data and splice
+them into `struct erow[]`. An `erow` contains render bytes and wrap cache
+only, so raw text reads must go through the document APIs. Syntax, LSP,
+copy/save, and similar consumers read through `editorTextSource` or
+document line views.
 
 A separate `editorPrimaryFocus` enum tracks whether keys route to the text
 area or the drawer. This is distinct from *pane* focus, which is owned by
@@ -66,11 +92,13 @@ forwarding) before the configured keymap maps a key to an
 behavior; mouse, drawer, and DAP commands take the same route.
 
 **Text engine** owns documents, edits, history, selection, and the edit
-pipeline. The pipeline writes the document, refreshes the row cache,
-syncs the cursor, fans the edit out to syntax/LSP/diagnostics, records
-history, and updates dirty state, in that order, atomically per edit.
-A single fan-out point is the bridge to the language services, so adding
-a new edit listener does not mean touching the edit code itself.
+pipeline. The pipeline receives a descriptor, prepares row-cache and
+syntax bookkeeping from the old document, writes the document, derives
+and splices replacement rows from the new document, syncs the cursor,
+updates dirty/history state, and only then fans the edit out to
+syntax/LSP/diagnostics. A single fan-out point is the bridge to the
+language services, so adding a new edit listener does not mean touching
+the edit code itself.
 
 **Workspace** owns tabs, the pane tree, the drawer (project tree / file
 search / project search / Git / LSP problems / DAP), recovery, and
@@ -132,7 +160,7 @@ same shutdown sequence.
 | Top-level dir | Responsibility |
 |---|---|
 | `support/` | Terminal raw mode, signal handler, allocation, file IO. |
-| `text/` | Document, rope, UTF-8/grapheme, row helpers. |
+| `text/` | Document, SumTree-of-pieces storage, UTF-8/grapheme, row helpers. |
 | `editing/` | Edit pipeline, history, selection, search range. |
 | `input/` | Decoding, dispatch, prompts, mouse, action families. |
 | `render/` | Frame builder, surface painters, wrap, viewport. |

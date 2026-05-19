@@ -1,28 +1,130 @@
 @startuml
 skin rose
 skinparam backgroundColor #FFFFFF
-title Document ownership
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
 
-skinparam componentStyle rectangle
+title Document ownership model
 
-component "editorDocument\ncanonical writable text" as doc
-component "editorRope\nchunked byte storage" as rope
-component "line index\nbyte offsets per line" as index
-component "struct erow\nrender cache" as row
-component "byte offsets\ncursor, search, selection" as offsets
-component "syntax + LSP\ntab-local" as lang
+top to bottom direction
 
-doc *-- rope : owns
-doc *-- index : owns
-doc --> row : derives
-doc --> offsets : positions index into
-doc --> lang : edits and reads
+class editorConfig {
+  editorBuffer active_buffer
+  editorTabState *tabs
+  int active_tab
+}
 
-note bottom of doc
-  Single source of truth.
-  Everything below the document
-  is derived or indexed into it,
-  and is rebuilt on each edit.
+class editorTabState {
+  editorBuffer buffer
+}
+
+class editorBuffer {
+  editorDocument *document
+  erow *rows
+  int numrows
+  size_t cursor_offset
+  search / selection offsets
+  editorHistory undo_history
+  editorHistory redo_history
+  syntax + LSP tab state
+}
+
+class editorDocument {
+  editorTextTree tree
+}
+
+class editorTextTree {
+  editorTextNode *root
+  editorTextBuffer *add_buf
+}
+
+class editorTextNode {
+  unsigned char is_leaf
+  unsigned char count
+  editorTextSummary summary
+  children[] or pieces[]
+}
+
+class editorTextChunk {
+  editorTextBuffer *buf
+  size_t offset
+  size_t len
+  editorTextSummary summary
+}
+
+class editorTextBuffer {
+  char *bytes
+  size_t len
+  size_t capacity
+  int ref_count
+}
+
+class editorTextSummary {
+  size_t bytes
+  int newlines
+  size_t first_line_bytes
+  size_t last_line_bytes
+  size_t max_line_bytes
+}
+
+class erow {
+  char *render
+  int rsize
+  wrap cache fields
+}
+
+class editorTextSource {
+  read(byte_index)
+  const void *context
+  size_t length
+}
+
+editorConfig *-- "active mirror" editorBuffer
+editorConfig *-- "tabs[]" editorTabState
+editorTabState *-- editorBuffer
+
+editorBuffer o-- editorDocument : document pointer
+editorBuffer *-- erow : derived rows
+
+editorDocument *-- editorTextTree
+editorTextTree *-- "root" editorTextNode
+editorTextTree *-- "add buffer" editorTextBuffer
+editorTextNode *-- "children" editorTextNode
+editorTextNode *-- "leaf pieces" editorTextChunk
+editorTextNode *-- editorTextSummary : aggregate
+editorTextChunk --> editorTextBuffer : retained slice
+editorTextChunk *-- "cached" editorTextSummary
+
+editorTextSource "chunked read view" ..> editorDocument
+
+note right of editorConfig
+  E.active_buffer has the same field layout as a tab buffer.
+  Tab switching stores the active buffer into E.tabs[active_tab]
+  and moves the selected tab buffer back into E.
+end note
+
+note right of editorBuffer
+  Rows are derived render/cache state only.
+  Cursor, search, selection, and history positions
+  are byte offsets into editorDocument.
+end note
+
+note right of editorTextSummary
+  There is no separate line index.
+  Line-start and byte-to-line queries descend
+  through summaries stored on pieces and nodes.
+end note
+
+note right of editorTextBuffer
+  Loaded/reset text lives in original buffers.
+  Inserted text is appended to the tree add buffer.
+  Pieces retain buffers and slice by offset/length.
+end note
+
+note right of editorTextSource
+  Syntax, LSP, save, copy, and similar consumers
+  read document bytes through this boundary or
+  through document line views.
 end note
 
 @enduml

@@ -281,6 +281,7 @@ int parallelChildRunBatch(
 				*bad = 1;
 			}
 		}
+		int local_passed = 0;
 		int local_failed = 0;
 		for (int rep = 0; rep < opts->repeat; rep++) {
 			batch->total_runs++;
@@ -300,6 +301,7 @@ int parallelChildRunBatch(
 			}
 			if (failed == 0) {
 				batch->passed_runs++;
+				local_passed = 1;
 				printf("PASS %s", tc->name);
 				if (opts->repeat > 1) {
 					printf(" (%d/%d)", rep + 1, opts->repeat);
@@ -324,12 +326,19 @@ int parallelChildRunBatch(
 		if (local_failed) {
 			local_failed_unique++;
 		}
+		if (local_passed && local_failed) {
+			batch->flakes++;
+		}
 	}
 	batch->failed_unique = local_failed_unique;
+	batch->property_ops = test_property_ops_total();
+	batch->property_ops_seconds = test_property_ops_elapsed_seconds();
 	free(snapshot);
-	printf("__CHILD_SUMMARY total=%d passed=%d failed=%d drift=%d\n",
+	printf("__CHILD_SUMMARY total=%d passed=%d failed=%d drift=%d flakes=%d "
+		"property_ops=%lld property_ops_seconds=%.9f\n",
 		batch->total_runs, batch->passed_runs, batch->failed_unique,
-		batch->reset_violations);
+		batch->reset_violations, batch->flakes,
+		batch->property_ops, batch->property_ops_seconds);
 	return local_failed_unique > 0 ? EXIT_FAILURE : EXIT_SUCCESS;
 }
 
@@ -352,13 +361,21 @@ static void parse_child_summary(const char *out, size_t out_len, struct suiteBat
 	if (end - start < 8) {
 		return;
 	}
-	int total = 0, passed = 0, failed = 0, drift = 0;
-	if (sscanf(start, "__CHILD_SUMMARY total=%d passed=%d failed=%d drift=%d",
-			&total, &passed, &failed, &drift) == 4) {
+	int total = 0, passed = 0, failed = 0, drift = 0, flakes = 0;
+	long long property_ops = 0;
+	double property_ops_seconds = 0.0;
+	if (sscanf(start,
+			"__CHILD_SUMMARY total=%d passed=%d failed=%d drift=%d flakes=%d "
+			"property_ops=%lld property_ops_seconds=%lf",
+			&total, &passed, &failed, &drift, &flakes,
+			&property_ops, &property_ops_seconds) == 7) {
 		batch->total_runs = total;
 		batch->passed_runs = passed;
 		batch->failed_unique = failed;
 		batch->reset_violations = drift;
+		batch->flakes = flakes;
+		batch->property_ops = property_ops;
+		batch->property_ops_seconds = property_ops_seconds;
 	}
 }
 
@@ -436,6 +453,9 @@ static int reap_one_child(struct suiteBatch *batches, int batch_count,
 	result_out->passed_runs += batch->passed_runs;
 	result_out->failed_unique += batch->failed_unique;
 	result_out->reset_violations += batch->reset_violations;
+	result_out->flakes += batch->flakes;
+	result_out->property_ops += batch->property_ops;
+	result_out->property_ops_seconds += batch->property_ops_seconds;
 	return 0;
 }
 

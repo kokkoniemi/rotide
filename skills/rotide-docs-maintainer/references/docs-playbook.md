@@ -7,7 +7,9 @@ When documenting behavior, verify in this order:
 1. `src/rotide.h` (types, enums, state fields)
 2. module implementation under `src/`:
    - editing core: `src/editing/buffer_core.c`, `src/editing/edit.c`, `src/editing/selection.c`, `src/editing/history.c`
-   - text storage: `src/text/document.c`, `src/text/rope.c`, `src/text/row.c`
+   - text storage: `src/text/document.c`, `src/text/text_tree.c`,
+     `src/text/text_buffer.c`, `src/text/text_summary.c`,
+     `src/editing/row_cache.c`
    - input/render: `src/input/dispatch.c`, `src/input/actions_*.c`,
      `src/input/mouse.c`, `src/input/prompt.c`, `src/render/screen.c`,
      `src/render/pane_view.c`, `src/render/*_view.c`
@@ -20,7 +22,7 @@ When documenting behavior, verify in this order:
 
 - README feature list matches actual shipped behavior.
 - README terminology aligns with canonical model:
-  - document/rope canonical storage
+  - document/text-tree canonical storage
   - derived row cache
   - offset-first cursor/search/selection state
 - AGENTS skill list matches directories under `skills/`.

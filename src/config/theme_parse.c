@@ -511,19 +511,13 @@ static int editorThemeParseTable(struct editorThemeParseContext *ctx, char *trim
 	return 1;
 }
 
-static enum editorThemeFileStatus editorThemeApplyFile(struct editorTheme *theme, const char *path,
+/* Drain a theme TOML stream into `theme`. Caller owns `fp` (close it
+ * after the call). Always returns EDITOR_THEME_FILE_APPLIED — caller
+ * inspects `ctx_out->had_invalid` for parse errors. Internal to this
+ * TU; the fuzz harness reaches it via the ROTIDE_FUZZ wrapper at the
+ * bottom of the file. */
+static enum editorThemeFileStatus editorThemeApplyStream(struct editorTheme *theme, FILE *fp,
 		int is_theme_file, struct editorThemeParseContext *ctx_out) {
-	FILE *fp = fopen(path, "r");
-	if (fp == NULL) {
-		if (errno == ENOENT) {
-			return EDITOR_THEME_FILE_MISSING;
-		}
-		if (ctx_out != NULL) {
-			ctx_out->had_invalid = 1;
-		}
-		return EDITOR_THEME_FILE_APPLIED;
-	}
-
 	struct editorThemeParseContext ctx;
 	memset(&ctx, 0, sizeof(ctx));
 	ctx.is_theme_file = is_theme_file;
@@ -559,12 +553,30 @@ static enum editorThemeFileStatus editorThemeApplyFile(struct editorTheme *theme
 	if (ferror(fp)) {
 		ctx.had_invalid = 1;
 	}
-	fclose(fp);
 
 	if (ctx_out != NULL) {
 		*ctx_out = ctx;
 	}
 	return EDITOR_THEME_FILE_APPLIED;
+}
+
+static enum editorThemeFileStatus editorThemeApplyFile(struct editorTheme *theme, const char *path,
+		int is_theme_file, struct editorThemeParseContext *ctx_out) {
+	FILE *fp = fopen(path, "r");
+	if (fp == NULL) {
+		if (errno == ENOENT) {
+			return EDITOR_THEME_FILE_MISSING;
+		}
+		if (ctx_out != NULL) {
+			ctx_out->had_invalid = 1;
+		}
+		return EDITOR_THEME_FILE_APPLIED;
+	}
+
+	enum editorThemeFileStatus status =
+			editorThemeApplyStream(theme, fp, is_theme_file, ctx_out);
+	fclose(fp);
+	return status;
 }
 
 static enum editorThemeLoadStatus editorThemeApplyConfigSelector(const char *path,
@@ -707,3 +719,15 @@ enum editorThemeLoadStatus editorThemeLoadConfigured(struct editorTheme *theme_o
 	free(global_path);
 	return status;
 }
+
+#ifdef ROTIDE_FUZZ
+/* Fuzz-only entry. Drives `editorThemeApplyStream` over an arbitrary
+ * byte stream so the libFuzzer harness in tests/fuzz/toml/ does not
+ * need to see the private parse-context / file-status types. */
+void editorThemeApplyStreamFuzz(FILE *fp) {
+	struct editorTheme scratch;
+	editorThemeInitDefault(&scratch);
+	struct editorThemeParseContext ctx;
+	(void)editorThemeApplyStream(&scratch, fp, 1, &ctx);
+}
+#endif

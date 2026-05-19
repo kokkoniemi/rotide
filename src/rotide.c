@@ -28,6 +28,15 @@
 
 struct editorConfig E;
 
+/* --render-once: non-interactive single-frame render mode. Skips raw
+ * mode and the TTY window-size probe, uses fixed 80x24 dimensions,
+ * runs one editorRefreshScreen, and exits. Useful for any caller that
+ * wants a deterministic one-shot render without a controlling
+ * terminal (headless capture, docs screenshots, cold-open timing). */
+static int g_render_once = 0;
+#define RENDER_ONCE_DEFAULT_COLS 80
+#define RENDER_ONCE_DEFAULT_ROWS 24
+
 void initEditor(void) {
 	editorResetActiveBufferFields();
 	editorLspConfigInitDefaults(&E.lsp_gopls_enabled, &E.lsp_clangd_enabled,
@@ -153,14 +162,46 @@ void initEditor(void) {
 		E.focused_leaf->as.leaf.view.active_tab_idx = E.active_tab;
 	}
 
-	if (!editorRefreshWindowSize()) {
+	if (g_render_once) {
+		/* Skip the TIOCGWINSZ / cursor-position-query path entirely so
+		 * stdin/stdout don't need to be a TTY. Match the text-rows math
+		 * in editorRefreshWindowSize (subtract 3 for chrome). */
+		E.window_cols = RENDER_ONCE_DEFAULT_COLS;
+		E.window_rows = RENDER_ONCE_DEFAULT_ROWS - 3;
+		if (E.window_rows < 1) {
+			E.window_rows = 1;
+		}
+	} else if (!editorRefreshWindowSize()) {
 		panic("readWindowSize");
 	}
 }
 
+/* Strip the first occurrence of `flag` from argv in place. Returns 1
+ * if the flag was present, 0 otherwise. Lets us extract a leading
+ * mode flag without forcing the rest of the argv parsing through a
+ * general option parser. */
+static int strip_flag(int *argc, char *argv[], const char *flag) {
+	for (int i = 1; i < *argc; i++) {
+		if (strcmp(argv[i], flag) == 0) {
+			for (int j = i; j < *argc - 1; j++) {
+				argv[j] = argv[j + 1];
+			}
+			(*argc)--;
+			argv[*argc] = NULL;
+			return 1;
+		}
+	}
+	return 0;
+}
+
 int main(int argc, char *argv[]) {
 	setlocale(LC_CTYPE, "");
-	setRawMode();
+
+	g_render_once = strip_flag(&argc, argv, "--render-once");
+
+	if (!g_render_once) {
+		setRawMode();
+	}
 	initEditor();
 	if (!editorSyntaxBackgroundStart()) {
 		editorSetStatusMsg("Tree-sitter background worker disabled");
@@ -188,6 +229,16 @@ int main(int argc, char *argv[]) {
 		char help_msg[160];
 		editorKeymapBuildHelpStatus(&E.keymap, help_msg, sizeof(help_msg));
 		editorSetStatusMsg("%s", help_msg);
+	}
+
+	if (g_render_once) {
+		/* Single-frame render path: viewport update + one refresh, then
+		 * exit. Skip the background-worker pumps because the contract
+		 * is "render what the editor would draw on the first frame",
+		 * not "render after async workers have caught up". */
+		editorViewportUpdateForFrame();
+		editorRefreshScreen();
+		return EXIT_SUCCESS;
 	}
 
 	while (1) {

@@ -1,12 +1,19 @@
 @startuml
 skin rose
 skinparam backgroundColor #FFFFFF
-title Test pipeline (tests/rotide_tests)
+title Test runner pipeline (tests/rotide_tests)
 
 start
 
-:apply filter, tag, exclude-tag flags;
-:skip tests/QUARANTINE.md entries;
+:parse runner flags
+(filter, tag, repeat, seed,
+jobs, metrics, golden update);
+:select tests;
+if (--no-quarantine?) then (yes)
+	:include quarantined tests;
+else (no)
+	:skip tests/QUARANTINE.md entries;
+endif
 :order by suite index
 (shuffle flag permutes the order);
 
@@ -36,8 +43,16 @@ endif
 
 :emit PASS / FAIL / SKIP
 in suite-index order;
+if (--update-golden?) then (yes)
+	:ASSERT_GRID_EQ mismatches
+	append JSONL stash rows;
+endif
 :summary line:
 N/M passed, drift, crashes, seed;
+if (--metrics-out?) then (yes)
+	:append kind=test_run
+	metrics row;
+endif
 
 stop
 

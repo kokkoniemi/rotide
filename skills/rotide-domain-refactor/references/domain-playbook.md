@@ -108,7 +108,8 @@ These are strong candidates, not rigid law:
 
 Owns:
 - `src/text/document.c`
-- `src/text/rope.c`
+- `src/text/text_tree.c`, `src/text/text_buffer.c`, `src/text/text_summary.c`
+- `src/editing/row_cache.c`
 - `src/text/row.c`, `src/text/utf8.c`
 - offset/line mapping invariants
 

@@ -1,11 +1,10 @@
 #ifndef LSP_TRANSPORT_H
 #define LSP_TRANSPORT_H
 
+#include "language/lsp_framing.h"
 #include "rotide.h"
 
 #include <sys/types.h>
-
-#define ROTIDE_LSP_IO_TIMEOUT_MS 2500
 
 enum editorLspServerKind {
 	EDITOR_LSP_SERVER_NONE = 0,
@@ -52,7 +51,6 @@ void editorLspClientCleanup(struct editorLspClient *client, int graceful_shutdow
 void editorLspClientResetState(struct editorLspClient *client);
 void editorLspCompletionPendingClear(struct editorLspCompletionPending *pending);
 int editorLspProcessAlive(struct editorLspClient *client);
-int editorLspSendRawJsonToFd(int fd, const char *json);
 int editorLspSpawnProcess(const char *command, pid_t *pid_out, int *to_server_fd_out,
 		int *from_server_fd_out);
 int editorLspTryDrainIncoming(struct editorLspClient *client, int timeout_ms);

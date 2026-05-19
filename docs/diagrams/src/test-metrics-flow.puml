@@ -1,0 +1,43 @@
+@startuml
+skin rose
+skinparam backgroundColor #FFFFFF
+title Test metrics and CI history flow
+
+start
+
+fork
+	:rotide_tests --metrics-out;
+	:append kind=test_run row;
+fork again
+	:rotide_bench --metrics-out;
+	:append kind=bench rows;
+fork again
+	:fuzz smoke/nightly;
+	:metrics_fuzz_emit parses
+	libFuzzer log + corpus dir;
+	:append kind=fuzz row;
+end fork
+
+:CI uploads per-job
+metrics artifacts;
+:metrics-summary job downloads
+and concatenates rows;
+:restore metrics-history cache
+by prefix;
+:drop rows for current ci_run_id;
+:append current workflow rows;
+:save cache + upload history artifact;
+:metrics_summary summary;
+
+if (nightly?) then (yes)
+	:check-fuzz-stale
+	(48h default);
+	:check-bench-regression
+	(3 x previous IQR);
+	:emit GitHub warning
+	annotations on non-zero;
+endif
+
+stop
+
+@enduml
