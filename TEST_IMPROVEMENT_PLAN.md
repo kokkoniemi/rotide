@@ -37,11 +37,13 @@
 - Single global `editorConfig E`. Tests are inherently sequential
   in-process; parallelism is at suite granularity via fork.
 
-The foundation is now in good shape. Remaining work is concentrated in
-**fuzzing the remaining DAP and TOML input boundaries** (vterm and LSP
-framing already shipped), broader **microbench coverage beyond storage**,
-and **the `--update-golden` workflow + `metrics.jsonl` continuous-
-improvement signal**.
+The foundation is now in good shape. Phase 4 (untrusted-input fuzzing)
+is complete across all four boundaries — vterm, LSP framing, DAP
+framing, and theme TOML — each with a libFuzzer harness, seed corpus,
+and per-PR CI smoke. Remaining work is concentrated in broader
+**microbench coverage beyond storage**, **the `--update-golden`
+workflow + grid-snapshot conversions**, and **the `metrics.jsonl`
+continuous-improvement signal**.
 
 ---
 
@@ -216,10 +218,23 @@ Order:
         `ROTIDE_LSP_MAX_PAYLOAD_BYTES = 64 MiB`.
       Both have regression coverage in
       [tests/test_lsp_framing.c](tests/test_lsp_framing.c).
-- [ ] **DAP framing parser** ([src/debug/dap.c](src/debug/dap.c) /
-      transport layer).
-- [ ] **Theme TOML parser** ([src/config/theme_parse.c](src/config/theme_parse.c))
-      and the keymap/editor TOML paths.
+- [x] **DAP framing parser** ([src/debug/dap_client.c](src/debug/dap_client.c)).
+      Wire format is identical to LSP but the parser is a duplicate, so
+      it gets its own harness ([tests/fuzz/dap/fuzz_dap.c](tests/fuzz/dap/fuzz_dap.c))
+      and corpus. Same two bugs as the pre-fix LSP parser were present
+      (missing overflow guard + missing payload cap); both fixed,
+      regressions in [tests/test_dap_framing.c](tests/test_dap_framing.c).
+- [x] **Theme TOML parser** ([src/config/theme_parse.c](src/config/theme_parse.c)).
+      Harness wraps the fuzz input in an `fmemopen` stream and drives
+      the same `editorThemeApplyStream` production uses
+      ([tests/fuzz/toml/fuzz_toml_theme.c](tests/fuzz/toml/fuzz_toml_theme.c)).
+      200k mutation runs found zero crashes — the parser's fixed-size
+      stack buffers, overflow-aware line reader, and bounded string
+      ops appear to do their job. Coverage in CI is ~215 edges / 487
+      features; a regression in this parser will surface there.
+- [ ] Keymap / editor-config TOML paths (also TOML, share
+      `editorConfigParseQuotedValue` with the theme parser which is
+      already covered above; lower marginal value).
 
 *Footnote:* the recovery snapshot reader in
 [recovery.c](src/workspace/recovery.c) is lower priority than the three
@@ -257,7 +272,18 @@ liar's metric):
       [.github/workflows/ci.yml](.github/workflows/ci.yml) (5000 runs
       default, <1 s wall locally; LSP framing is much cheaper per
       iter than the vterm path).
-- [ ] DAP / TOML harnesses for the remaining boundaries.
+- [x] `tests/fuzz/dap/corpus/` checked in with 17 seeds covering the
+      DAP-flavoured equivalents of the LSP seeds.
+- [x] Per-PR `make fuzz-dap-smoke` wired into
+      [.github/workflows/ci.yml](.github/workflows/ci.yml) (5000 runs
+      default; ~2k exec/s on a CI runner).
+- [x] `tests/fuzz/toml/corpus/` checked in with 22 seeds (~3 KB total)
+      covering minimal selectors, full themes, padded whitespace,
+      malformed hex, unknown tables/classes, unterminated strings,
+      oversize lines, and embedded NULs.
+- [x] Per-PR `make fuzz-toml-theme-smoke` wired into
+      [.github/workflows/ci.yml](.github/workflows/ci.yml) (5000 runs
+      default; <1 s wall locally).
 - [ ] Crash repros imported as regression unit tests under
       `tests/test_*_fuzz_repro.c`.
 - [ ] Weekly `-merge=1` to minimise corpus.
@@ -426,6 +452,8 @@ Per push / PR:
 - [x] `make test-quarantine-age`.
 - [x] `make fuzz-vterm-smoke` (~90 s with 1000 runs).
 - [x] `make fuzz-lsp-smoke` (~1 s with 5000 runs).
+- [x] `make fuzz-dap-smoke` (~1 s with 5000 runs).
+- [x] `make fuzz-toml-theme-smoke` (<1 s with 5000 runs).
 
 Nightly:
 

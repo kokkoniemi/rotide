@@ -181,6 +181,15 @@ FUZZ_DAP_HARNESS = tests/fuzz/dap/fuzz_dap.c
 FUZZ_DAP_CORPUS = tests/fuzz/dap/corpus
 FUZZ_DAP_SMOKE_RUNS ?= 5000
 FUZZ_DAP_SRCS = $(SRC_DIR)/debug/dap_client.c
+
+FUZZ_TOML_THEME_BIN = tests/fuzz/toml/fuzz_toml_theme
+FUZZ_TOML_THEME_HARNESS = tests/fuzz/toml/fuzz_toml_theme.c
+FUZZ_TOML_THEME_CORPUS = tests/fuzz/toml/corpus
+FUZZ_TOML_THEME_SMOKE_RUNS ?= 5000
+FUZZ_TOML_THEME_SRCS = $(SRC_DIR)/config/theme_parse.c \
+	$(SRC_DIR)/config/theme_builtin.c \
+	$(SRC_DIR)/config/common.c \
+	$(SRC_DIR)/support/alloc.c
 # libFuzzer ships its own coverage instrumentation under -fsanitize=fuzzer;
 # explicit -fsanitize-coverage=trace-pc-guard conflicts with that on modern
 # clang. -Wno-unknown-warning-option swallows the gcc-only flags inside
@@ -264,6 +273,14 @@ $(FUZZ_LSP_BIN): $(FUZZ_LSP_HARNESS) $(FUZZ_LSP_SRCS)
 $(FUZZ_DAP_BIN): $(FUZZ_DAP_HARNESS) $(FUZZ_DAP_SRCS)
 	$(call LOG,FUZZ_CC,$@)$(FUZZ_CC) $(FUZZ_FLAGS) $(CPPFLAGS) $^ -o $@
 
+# theme_parse.c needs theme_builtin.c (for editorThemeInitDefault et al.),
+# common.c (trim/comment-strip/quoted-value helpers), and alloc.c (transitively
+# referenced via common.c). default_config_data.h is a generated header
+# pulled in by common.c, so depend on it explicitly.
+$(FUZZ_TOML_THEME_BIN): $(FUZZ_TOML_THEME_HARNESS) $(FUZZ_TOML_THEME_SRCS) $(GENERATED_HEADERS)
+	$(call LOG,FUZZ_CC,$@)$(FUZZ_CC) $(FUZZ_FLAGS) $(CPPFLAGS) \
+		$(FUZZ_TOML_THEME_HARNESS) $(FUZZ_TOML_THEME_SRCS) -o $@
+
 # ============================================================================
 # Test / release / docs targets
 # ============================================================================
@@ -311,6 +328,17 @@ fuzz-dap-smoke: $(FUZZ_DAP_BIN)
 	$(call LOG,FUZZ-S,dap)tmp=$$(mktemp -d -t rotide-fuzz-dap.XXXXXX); \
 		cp $(FUZZ_DAP_CORPUS)/* $$tmp/; \
 		./$(FUZZ_DAP_BIN) -runs=$(FUZZ_DAP_SMOKE_RUNS) $$tmp; \
+		rc=$$?; \
+		rm -rf $$tmp; \
+		exit $$rc
+
+fuzz-toml-theme: $(FUZZ_TOML_THEME_BIN)
+	$(call LOG,FUZZ,toml-theme)./$(FUZZ_TOML_THEME_BIN) $(FUZZ_TOML_THEME_CORPUS)
+
+fuzz-toml-theme-smoke: $(FUZZ_TOML_THEME_BIN)
+	$(call LOG,FUZZ-S,toml-theme)tmp=$$(mktemp -d -t rotide-fuzz-toml-theme.XXXXXX); \
+		cp $(FUZZ_TOML_THEME_CORPUS)/* $$tmp/; \
+		./$(FUZZ_TOML_THEME_BIN) -runs=$(FUZZ_TOML_THEME_SMOKE_RUNS) $$tmp; \
 		rc=$$?; \
 		rm -rf $$tmp; \
 		exit $$rc
@@ -364,8 +392,8 @@ docs-diagrams:
 
 -include $(DEPFILES)
 
-.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams bench-buffer bench fuzz-vterm fuzz-vterm-smoke fuzz-lsp fuzz-lsp-smoke fuzz-dap fuzz-dap-smoke
+.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams bench-buffer bench fuzz-vterm fuzz-vterm-smoke fuzz-lsp fuzz-lsp-smoke fuzz-dap fuzz-dap-smoke fuzz-toml-theme fuzz-toml-theme-smoke
 
 clean:
-	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(BENCH_BUFFER_OBJ) $(DEPFILES) $(TEST_BIN) $(BENCH_BUFFER_BIN) $(FUZZ_VTERM_BIN) $(FUZZ_LSP_BIN) $(FUZZ_DAP_BIN) rotide $(GENERATED_HEADERS)
+	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(BENCH_BUFFER_OBJ) $(DEPFILES) $(TEST_BIN) $(BENCH_BUFFER_BIN) $(FUZZ_VTERM_BIN) $(FUZZ_LSP_BIN) $(FUZZ_DAP_BIN) $(FUZZ_TOML_THEME_BIN) rotide $(GENERATED_HEADERS)
 	$(call LOG,CLEAN,tree)find $(SRC_DIR) tests $(TS_DIR) -type f \( -name '*.o' -o -name '*.d' \) -delete

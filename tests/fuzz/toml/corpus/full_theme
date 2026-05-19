@@ -1,0 +1,7 @@
+[theme]
+name = "custom"
+inherits = "terminal"
+
+[theme.syntax]
+comment.fg = "#888888"
+keyword.fg = "blue"

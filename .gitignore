@@ -64,6 +64,7 @@ tests/rotide_bench
 tests/fuzz/vterm/fuzz_vterm
 tests/fuzz/lsp/fuzz_lsp
 tests/fuzz/dap/fuzz_dap
+tests/fuzz/toml/fuzz_toml_theme
 
 PLAN.md
 
