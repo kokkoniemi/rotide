@@ -30,6 +30,7 @@ SUITE_EXTERN(workspace_theme_config);
 SUITE_EXTERN(workspace_keymap_view);
 SUITE_EXTERN(workspace_io);
 SUITE_EXTERN(dap);
+SUITE_EXTERN(dap_framing);
 SUITE_EXTERN(file_watch);
 SUITE_EXTERN(lsp_framing);
 SUITE_EXTERN(lsp_protocol);
@@ -74,6 +75,7 @@ static const struct editorTestSuite k_suites[] = {
 	SUITE("workspace_keymap_view", "workspace", workspace_keymap_view),
 	SUITE("workspace_io", "workspace", workspace_io),
 	SUITE("dap", "dap slow", dap),
+	SUITE("dap_framing", "dap", dap_framing),
 	SUITE("file_watch", "file_watch slow", file_watch),
 	SUITE("lsp_framing", "lsp", lsp_framing),
 	SUITE("lsp_protocol", "lsp", lsp_protocol),

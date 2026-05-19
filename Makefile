@@ -124,7 +124,7 @@ TEST_SRCS = $(addprefix tests/, \
 	test_syntax_state.c test_syntax_registry.c \
 	test_save_recovery.c test_workspace_persistence.c \
 	test_workspace_theme_config.c test_workspace_keymap_view.c \
-	test_workspace_io.c test_dap.c test_file_watch.c \
+	test_workspace_io.c test_dap.c test_dap_framing.c test_file_watch.c \
 	test_lsp_framing.c test_lsp_protocol.c test_lsp_lifecycle.c \
 	test_lsp_completion.c test_lsp_diagnostics.c test_lsp_navigation.c \
 	test_input_actions.c test_input_selection.c test_input_mouse.c \
@@ -175,6 +175,12 @@ FUZZ_LSP_HARNESS = tests/fuzz/lsp/fuzz_lsp.c
 FUZZ_LSP_CORPUS = tests/fuzz/lsp/corpus
 FUZZ_LSP_SMOKE_RUNS ?= 5000
 FUZZ_LSP_SRCS = $(SRC_DIR)/language/lsp_framing.c
+
+FUZZ_DAP_BIN = tests/fuzz/dap/fuzz_dap
+FUZZ_DAP_HARNESS = tests/fuzz/dap/fuzz_dap.c
+FUZZ_DAP_CORPUS = tests/fuzz/dap/corpus
+FUZZ_DAP_SMOKE_RUNS ?= 5000
+FUZZ_DAP_SRCS = $(SRC_DIR)/debug/dap_client.c
 # libFuzzer ships its own coverage instrumentation under -fsanitize=fuzzer;
 # explicit -fsanitize-coverage=trace-pc-guard conflicts with that on modern
 # clang. -Wno-unknown-warning-option swallows the gcc-only flags inside
@@ -254,6 +260,10 @@ $(FUZZ_VTERM_BIN): $(FUZZ_VTERM_HARNESS) $(LIBVTERM_SRCS)
 $(FUZZ_LSP_BIN): $(FUZZ_LSP_HARNESS) $(FUZZ_LSP_SRCS)
 	$(call LOG,FUZZ_CC,$@)$(FUZZ_CC) $(FUZZ_FLAGS) $(CPPFLAGS) $^ -o $@
 
+# dap_client.c is similarly self-contained; same compile strategy.
+$(FUZZ_DAP_BIN): $(FUZZ_DAP_HARNESS) $(FUZZ_DAP_SRCS)
+	$(call LOG,FUZZ_CC,$@)$(FUZZ_CC) $(FUZZ_FLAGS) $(CPPFLAGS) $^ -o $@
+
 # ============================================================================
 # Test / release / docs targets
 # ============================================================================
@@ -290,6 +300,17 @@ fuzz-lsp-smoke: $(FUZZ_LSP_BIN)
 	$(call LOG,FUZZ-S,lsp)tmp=$$(mktemp -d -t rotide-fuzz-lsp.XXXXXX); \
 		cp $(FUZZ_LSP_CORPUS)/* $$tmp/; \
 		./$(FUZZ_LSP_BIN) -runs=$(FUZZ_LSP_SMOKE_RUNS) $$tmp; \
+		rc=$$?; \
+		rm -rf $$tmp; \
+		exit $$rc
+
+fuzz-dap: $(FUZZ_DAP_BIN)
+	$(call LOG,FUZZ,dap)./$(FUZZ_DAP_BIN) $(FUZZ_DAP_CORPUS)
+
+fuzz-dap-smoke: $(FUZZ_DAP_BIN)
+	$(call LOG,FUZZ-S,dap)tmp=$$(mktemp -d -t rotide-fuzz-dap.XXXXXX); \
+		cp $(FUZZ_DAP_CORPUS)/* $$tmp/; \
+		./$(FUZZ_DAP_BIN) -runs=$(FUZZ_DAP_SMOKE_RUNS) $$tmp; \
 		rc=$$?; \
 		rm -rf $$tmp; \
 		exit $$rc
@@ -343,8 +364,8 @@ docs-diagrams:
 
 -include $(DEPFILES)
 
-.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams bench-buffer bench fuzz-vterm fuzz-vterm-smoke fuzz-lsp fuzz-lsp-smoke
+.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams bench-buffer bench fuzz-vterm fuzz-vterm-smoke fuzz-lsp fuzz-lsp-smoke fuzz-dap fuzz-dap-smoke
 
 clean:
-	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(BENCH_BUFFER_OBJ) $(DEPFILES) $(TEST_BIN) $(BENCH_BUFFER_BIN) $(FUZZ_VTERM_BIN) $(FUZZ_LSP_BIN) rotide $(GENERATED_HEADERS)
+	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(BENCH_BUFFER_OBJ) $(DEPFILES) $(TEST_BIN) $(BENCH_BUFFER_BIN) $(FUZZ_VTERM_BIN) $(FUZZ_LSP_BIN) $(FUZZ_DAP_BIN) rotide $(GENERATED_HEADERS)
 	$(call LOG,CLEAN,tree)find $(SRC_DIR) tests $(TS_DIR) -type f \( -name '*.o' -o -name '*.d' \) -delete

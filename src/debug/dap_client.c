@@ -2,6 +2,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,7 +50,14 @@ static int editorDapParseContentLength(const char *header, size_t *length_out) {
 				if (!isdigit((unsigned char)*p)) {
 					return 0;
 				}
-				parsed = parsed * 10u + (size_t)(*p - '0');
+				size_t digit = (size_t)(*p - '0');
+				/* Reject overflow before it happens — without this a
+				 * 20+ digit Content-Length silently wraps and produces a
+				 * tiny payload_len from a hostile peer. */
+				if (parsed > (SIZE_MAX - digit) / 10) {
+					return 0;
+				}
+				parsed = parsed * 10 + digit;
 			}
 			*length_out = parsed;
 			return 1;
@@ -88,6 +96,10 @@ char *editorDapClientReadFrame(int from_adapter_fd) {
 	size_t payload_len = 0;
 	if (!editorDapParseContentLength(header, &payload_len)) {
 		errno = EPROTO;
+		return NULL;
+	}
+	if (payload_len > ROTIDE_DAP_MAX_PAYLOAD_BYTES) {
+		errno = EMSGSIZE;
 		return NULL;
 	}
 	char *payload = malloc(payload_len + 1);
