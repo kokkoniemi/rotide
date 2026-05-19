@@ -1,0 +1,37 @@
+@startuml
+skin rose
+skinparam backgroundColor #FFFFFF
+title Golden grid snapshot update flow
+
+start
+
+:test calls ASSERT_GRID_EQ;
+:capture refresh_screen output;
+:feed bytes into fresh VTerm;
+:normalize grid
+(visible cells, no styles,
+trim trailing spaces/blank rows);
+
+if (actual == expected?) then (yes)
+	:PASS;
+	stop
+else (no)
+	if (ROTIDE_UPDATE_GOLDEN_STASH set?) then (yes)
+		:append JSONL stash row
+		(file, line, actual grid);
+		:test still passes;
+		:golden_diff_report previews
+		source-literal diff;
+		if (APPLY=1?) then (yes)
+			:golden_apply rewrites text
+			between golden markers;
+		endif
+	else (no)
+		:print unified-ish grid diff;
+		:FAIL;
+	endif
+endif
+
+stop
+
+@enduml

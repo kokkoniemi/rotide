@@ -6,13 +6,13 @@ title Document ownership
 skinparam componentStyle rectangle
 
 component "editorDocument\ncanonical writable text" as doc
-component "editorRope\nchunked byte storage" as rope
+component "editorTextTree\nSumTree of pieces" as tree
 component "line index\nbyte offsets per line" as index
 component "struct erow\nrender cache" as row
 component "byte offsets\ncursor, search, selection" as offsets
 component "syntax + LSP\ntab-local" as lang
 
-doc *-- rope : owns
+doc *-- tree : owns
 doc *-- index : owns
 doc --> row : derives
 doc --> offsets : positions index into

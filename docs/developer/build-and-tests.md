@@ -15,15 +15,25 @@ make test
 make test-sanitize
 make test-tsan
 make test-determinism
+make test-crash-handler
+make test-quarantine-age
+make test-quarantine-passing
+make bench
+make bench-buffer
+make bench-render-once
+make update-goldens
+make fuzz-vterm-smoke
+make fuzz-lsp-smoke
+make fuzz-dap-smoke
+make fuzz-toml-theme-smoke
 make release
 make docs-media
 make docs-diagrams
 ```
 
 - `make`: builds `rotide`.
-- `make test`: builds and runs `tests/rotide_tests`. Passes
-  `--validate-reset` by default so any future regression that leaves
-  `editorConfig E` dirty across `reset_editor_state` fails the suite.
+- `make test`: builds and runs `tests/rotide_tests` with
+  `--validate-reset --jobs 4` by default.
 - `make test-sanitize`: cleans, rebuilds tests with AddressSanitizer and
   UndefinedBehaviorSanitizer, then runs them.
 - `make test-tsan`: cleans, rebuilds with ThreadSanitizer, and runs the
@@ -40,6 +50,23 @@ make docs-diagrams
   `CRASH` line, writes the artifact under
   `tests/artifacts/crashes/<suite>/<test>.crash`, and exits non-zero.
   Use this whenever the crash-handler code path changes.
+- `make test-quarantine-age`: fails if an active
+  `tests/QUARANTINE.md` entry is older than the configured window
+  (`ROTIDE_QUARANTINE_MAX_AGE_DAYS`, default 30).
+- `make test-quarantine-passing`: runs the quarantined set with
+  `--no-quarantine` and fails if any quarantined test now passes.
+- `make bench`: runs `tests/rotide_bench` microbenches and prints
+  min/p50/p95/IQR nanoseconds.
+- `make bench-buffer`: runs storage throughput/RSS checks.
+- `make bench-render-once`: uses `hyperfine` to time
+  `./rotide --render-once` on a generated large C fixture.
+- `make update-goldens`: captures grid-snapshot diffs; add `APPLY=1` to
+  rewrite `golden-start` / `golden-end` blocks.
+- `make fuzz-*-smoke`: builds the matching libFuzzer harness with
+  `clang -fsanitize=fuzzer,address,undefined`, stages the seed corpus in a
+  tempdir, and runs a bounded per-PR smoke.
+- `make fuzz-*-nightly`: long-running fuzz soaks that write new finds to
+  `tests/fuzz/<target>/corpus_grown/`.
 - `make release`: builds a size-oriented binary and strips it.
 - `make docs-media`: regenerates screenshots under `docs/media/screenshots/`.
 - `make docs-diagrams`: renders PlantUML sources from `docs/diagrams/src/` to
@@ -68,6 +95,10 @@ make docs-diagrams
   `tests/artifacts/crashes/<suite>/<test>.crash`. The parent emits
   output in suite-index order, so determinism is preserved. Wall time
   scales roughly linearly in cores.
+- `--metrics-out <path>`: append one `kind=test_run` JSONL row.
+- `--update-golden [path]`: make `ASSERT_GRID_EQ` mismatches append to a
+  stash instead of failing. The default path is
+  `tests/artifacts/goldens.jsonl`; pair with `make update-goldens`.
 - `--no-quarantine` / `--quarantine <path>`: bypass or override
   `tests/QUARANTINE.md`. The nightly CI run should use
   `--no-quarantine` so flakes that have started passing again surface
@@ -80,6 +111,54 @@ ASAN_OPTIONS=detect_leaks=0 make test-sanitize
 ```
 
 Mention that limitation when reporting validation.
+
+### Metrics
+
+Any target that runs tests, benches, or fuzz smoke can append metrics:
+
+```bash
+make test METRICS_OUT=tests/metrics.jsonl
+make bench METRICS_OUT=tests/metrics.jsonl
+make fuzz-lsp-smoke METRICS_OUT=tests/metrics.jsonl
+```
+
+Rows are JSON Lines. CI sets `ROTIDE_METRICS_GIT_SHA`,
+`ROTIDE_METRICS_GIT_REF`, and `ROTIDE_METRICS_CI_RUN_ID` so rows can be
+merged across jobs and deduplicated across workflow reruns.
+
+Summarize or check a merged file with:
+
+```bash
+make tests/metrics_summary
+./tests/metrics_summary summary --in tests/metrics.jsonl
+./tests/metrics_summary check-fuzz-stale --in tests/metrics-history.jsonl
+./tests/metrics_summary check-bench-regression --in tests/metrics-history.jsonl
+```
+
+### Golden Snapshots
+
+`ASSERT_GRID_EQ` comparisons normally fail with a line diff. Update mode
+captures the actual grid to a stash:
+
+```bash
+make update-goldens UPDATE_GOLDEN_FLAGS='--filter popup'
+make update-goldens APPLY=1 UPDATE_GOLDEN_FLAGS='--filter popup'
+```
+
+Only calls whose expected literal is wrapped by `/* golden-start */` and
+`/* golden-end */` can be rewritten.
+
+### Fuzz Targets
+
+| Target | Boundary | Corpus | Smoke runs |
+|---|---|---|---|
+| `fuzz-vterm-smoke` | libvterm escape stream | `tests/fuzz/vterm/corpus/` | `FUZZ_VTERM_SMOKE_RUNS` (default 1000) |
+| `fuzz-lsp-smoke` | LSP frame parser | `tests/fuzz/lsp/corpus/` | `FUZZ_LSP_SMOKE_RUNS` (default 5000) |
+| `fuzz-dap-smoke` | DAP frame parser | `tests/fuzz/dap/corpus/` | `FUZZ_DAP_SMOKE_RUNS` (default 5000) |
+| `fuzz-toml-theme-smoke` | theme TOML parser | `tests/fuzz/toml/corpus/` | `FUZZ_TOML_THEME_SMOKE_RUNS` (default 5000) |
+
+Nightly variants use `FUZZ_NIGHTLY_TIME` seconds per target (default
+1800) and write to `corpus_grown/`.
 
 ## Diagram Tooling
 

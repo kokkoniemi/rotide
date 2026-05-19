@@ -132,7 +132,7 @@ same shutdown sequence.
 | Top-level dir | Responsibility |
 |---|---|
 | `support/` | Terminal raw mode, signal handler, allocation, file IO. |
-| `text/` | Document, rope, UTF-8/grapheme, row helpers. |
+| `text/` | Document, SumTree-of-pieces storage, UTF-8/grapheme, row helpers. |
 | `editing/` | Edit pipeline, history, selection, search range. |
 | `input/` | Decoding, dispatch, prompts, mouse, action families. |
 | `render/` | Frame builder, surface painters, wrap, viewport. |
