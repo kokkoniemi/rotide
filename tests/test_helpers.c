@@ -306,6 +306,41 @@ int restore_stdout(int saved_stdout) {
 	return 0;
 }
 
+int redirect_stderr_to_devnull(int *saved_stderr) {
+	int devnull_fd = open("/dev/null", O_WRONLY);
+	if (devnull_fd == -1) {
+		return -1;
+	}
+
+	fflush(stderr);
+	*saved_stderr = dup(STDERR_FILENO);
+	if (*saved_stderr == -1) {
+		close(devnull_fd);
+		return -1;
+	}
+	if (dup2(devnull_fd, STDERR_FILENO) == -1) {
+		close(devnull_fd);
+		close(*saved_stderr);
+		return -1;
+	}
+	if (close(devnull_fd) == -1) {
+		close(*saved_stderr);
+		return -1;
+	}
+
+	return 0;
+}
+
+int restore_stderr(int saved_stderr) {
+	fflush(stderr);
+	int ret = dup2(saved_stderr, STDERR_FILENO);
+	int close_ret = close(saved_stderr);
+	if (ret == -1 || close_ret == -1) {
+		return -1;
+	}
+	return 0;
+}
+
 int start_stdout_capture(struct stdoutCapture *capture) {
 	int pipefd[2];
 	if (pipe(pipefd) == -1) {

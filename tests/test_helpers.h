@@ -60,6 +60,8 @@ int setup_stdin_bytes(const char *data, size_t len, int *saved_stdin);
 int restore_stdin(int saved_stdin);
 int redirect_stdout_to_devnull(int *saved_stdout);
 int restore_stdout(int saved_stdout);
+int redirect_stderr_to_devnull(int *saved_stderr);
+int restore_stderr(int saved_stderr);
 
 int start_stdout_capture(struct stdoutCapture *capture);
 char *read_all_fd(int fd, size_t *len_out);

@@ -67,10 +67,15 @@ static int test_grid_snapshot_strips_trailing_spaces(void) {
 static int test_grid_snapshot_diff_reports_match_and_mismatch(void) {
 	int rc = editor_grid_snapshot_diff("foo\nbar\n", "foo\nbar\n");
 	ASSERT_EQ_INT(0, rc);
+
+	int saved_stderr = -1;
+	ASSERT_EQ_INT(0, redirect_stderr_to_devnull(&saved_stderr));
 	rc = editor_grid_snapshot_diff("foo\nbar\n", "foo\nbaz\n");
+	int rc2 = editor_grid_snapshot_diff("foo\n", "foo\nextra\n");
+	ASSERT_EQ_INT(0, restore_stderr(saved_stderr));
+
 	ASSERT_EQ_INT(1, rc);
-	rc = editor_grid_snapshot_diff("foo\n", "foo\nextra\n");
-	ASSERT_EQ_INT(1, rc);
+	ASSERT_EQ_INT(1, rc2);
 	return 0;
 }
 
