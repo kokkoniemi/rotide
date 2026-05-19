@@ -33,6 +33,9 @@ struct editorMetricsRow {
 	long long failed_unique;
 	long long crashes;
 	long long reset_violations;
+	long long flakes;
+	long long property_ops;
+	double property_ops_seconds;
 	long long exit_code;
 
 	/* bench */

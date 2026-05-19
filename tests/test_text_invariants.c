@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 /* Differential property tests: editorDocument vs char*-and-memmove ref. */
 
@@ -536,6 +537,9 @@ static int runRandomOpsExtStride(uint64_t seed, int n_ops, size_t doc_cap, size_
 		return 1;
 	}
 
+	struct timespec ops_start;
+	clock_gettime(CLOCK_MONOTONIC, &ops_start);
+	int executed_ops = 0;
 	for (int i = 0; i < n_ops; i++) {
 		size_t cur = ref.len;
 		unsigned kind = (unsigned)(rngNext() % 4);
@@ -590,7 +594,13 @@ static int runRandomOpsExtStride(uint64_t seed, int n_ops, size_t doc_cap, size_
 			refDocFree(&ref);
 			return 1;
 		}
+		executed_ops++;
 	}
+	struct timespec ops_end;
+	clock_gettime(CLOCK_MONOTONIC, &ops_end);
+	test_property_ops_record((long long)executed_ops,
+		(double)(ops_end.tv_sec - ops_start.tv_sec)
+			+ (double)(ops_end.tv_nsec - ops_start.tv_nsec) / 1e9);
 
 	int tree_rebuilds = editorTextTreeStatsFullRebuildCount();
 	if (tree_rebuilds > 0) {

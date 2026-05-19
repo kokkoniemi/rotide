@@ -263,6 +263,11 @@ int main(int argc, char **argv) {
 	int failed_unique = 0;
 	int reset_violations = 0;
 	int crashes = 0;
+	int flakes = 0;
+	long long property_ops = 0;
+	double property_ops_seconds = 0.0;
+
+	test_property_ops_reset();
 	unsigned char *snapshot = NULL;
 
 	if (opts.jobs > 1) {
@@ -350,6 +355,9 @@ int main(int argc, char **argv) {
 		passed_runs = result.passed_runs;
 		failed_unique = result.failed_unique;
 		reset_violations = result.reset_violations;
+		flakes = result.flakes;
+		property_ops = result.property_ops;
+		property_ops_seconds = result.property_ops_seconds;
 		crashes = result.crashes;
 		goto done;
 	}
@@ -371,6 +379,7 @@ int main(int argc, char **argv) {
 		int sel = order[slot];
 		const struct editorTestSuite *suite = &k_suites[selected[sel].suite];
 		const struct editorTestCase *tc = &suite->tests[selected[sel].index_in_suite];
+		int local_passed = 0;
 		int local_failed = 0;
 		for (int rep = 0; rep < opts.repeat; rep++) {
 			total_runs++;
@@ -390,6 +399,7 @@ int main(int argc, char **argv) {
 			}
 			if (failed == 0) {
 				passed_runs++;
+				local_passed = 1;
 				printf("PASS %s", tc->name);
 				if (opts.repeat > 1) {
 					printf(" (%d/%d)", rep + 1, opts.repeat);
@@ -411,7 +421,12 @@ int main(int argc, char **argv) {
 		if (local_failed) {
 			failed_unique++;
 		}
+		if (local_passed && local_failed) {
+			flakes++;
+		}
 	}
+	property_ops = test_property_ops_total();
+	property_ops_seconds = test_property_ops_elapsed_seconds();
 
 done:
 	printf("\n%d/%d test runs passed", passed_runs, total_runs);
@@ -426,6 +441,9 @@ done:
 	}
 	if (opts.validate_reset) {
 		printf(", reset-drift=%d", reset_violations);
+	}
+	if (opts.repeat > 1) {
+		printf(", flakes=%d", flakes);
 	}
 	if (opts.jobs > 1) {
 		printf(", jobs=%d", opts.jobs);
@@ -458,6 +476,9 @@ done:
 			{"failed_unique", EDITOR_METRICS_INT, .v.i = failed_unique},
 			{"crashes", EDITOR_METRICS_INT, .v.i = crashes},
 			{"reset_violations", EDITOR_METRICS_INT, .v.i = reset_violations},
+			{"flakes", EDITOR_METRICS_INT, .v.i = flakes},
+			{"property_ops", EDITOR_METRICS_INT, .v.i = property_ops},
+			{"property_ops_seconds", EDITOR_METRICS_DOUBLE, .v.d = property_ops_seconds},
 			{"skipped_quarantine", EDITOR_METRICS_INT, .v.i = skipped_quarantine},
 			{"jobs", EDITOR_METRICS_INT, .v.i = opts.jobs},
 			{"repeat", EDITOR_METRICS_INT, .v.i = opts.repeat},

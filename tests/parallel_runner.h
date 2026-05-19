@@ -14,6 +14,9 @@ struct suiteBatch {
 	int passed_runs;
 	int failed_unique;
 	int reset_violations;
+	int flakes;
+	long long property_ops;
+	double property_ops_seconds;
 	int skipped_remaining;
 
 	int crashed;
@@ -33,6 +36,9 @@ struct parallelRunResult {
 	int passed_runs;
 	int failed_unique;
 	int reset_violations;
+	int flakes;
+	long long property_ops;
+	double property_ops_seconds;
 	int crashes;
 	int aborted_for_fail_fast;
 };

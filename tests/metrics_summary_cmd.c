@@ -121,9 +121,9 @@ static const char **collectGroupKeys(
 }
 
 static void printTestRunRow(const struct editorMetricsRow *r, FILE *out) {
-	fprintf(out, "  %s  wall=%.3fs  runs=%lld/%lld  fail=%lld  crash=%lld  exit=%lld",
+	fprintf(out, "  %s  wall=%.3fs  runs=%lld/%lld  fail=%lld  flake=%lld  crash=%lld  exit=%lld",
 		r->ts, r->wall_seconds, r->passed_runs, r->total_runs,
-		r->failed_unique, r->crashes, r->exit_code);
+		r->failed_unique, r->flakes, r->crashes, r->exit_code);
 	if (r->git_sha[0] != '\0') {
 		fprintf(out, "  sha=%s", r->git_sha);
 	}

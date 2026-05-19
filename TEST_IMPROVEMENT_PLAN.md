@@ -163,11 +163,22 @@ rows out-of-tree (artifact upload or a separate metrics branch).
       reported), `corpus_files`/`corpus_bytes` (on-disk),
       `executed_units`, `avg_exec_per_sec`, `new_units_added`,
       `peak_rss_mb`, `runtime_seconds`, `has_final_stats`.
-- [ ] **Flake count** in `kind=test_run`: requires the runner to track
-      per-test pass/fail tallies across `--repeat`. Trivial when added;
-      deferred until a CI invocation actually sets `--repeat > 1`.
-- [ ] **Property-test ops/sec** in `kind=test_run`: requires the
-      property harness to expose op counters via a test-API hook.
+- [x] **Flake count** in `kind=test_run`: runner tracks per-test
+      pass/fail tallies across `--repeat`; a test counts as a flake
+      when it has *both* a pass and a fail. Plumbed through
+      `__CHILD_SUMMARY` so parallel-mode aggregation matches the
+      sequential count. Surfaces as `flakes=N` in the runner summary
+      (only when `repeat > 1`) and as `flakes` in the metrics row.
+- [x] **Property-test ops/sec** in `kind=test_run`: emitted as raw
+      `property_ops` (count) and `property_ops_seconds` (elapsed), so
+      consumers compute ops/sec = ops / seconds. API lives in
+      [test_helpers.h](tests/test_helpers.h)
+      (`test_property_ops_record` / `_total` / `_elapsed_seconds`);
+      [test_text_invariants.c](tests/test_text_invariants.c)'s
+      `runRandomOpsExtStride` is the first caller. Plumbed through
+      `__CHILD_SUMMARY` for parallel-mode aggregation. Other property
+      suites (text_summary, syntax_incremental_equiv) can call the
+      same API when a baseline is wanted.
 - [x] **Reader + regression detector** — implemented in C instead of Python
       to keep the test infrastructure on one toolchain. Binary
       [tests/metrics_summary](tests/metrics_summary.c) reads

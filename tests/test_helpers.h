@@ -74,6 +74,16 @@ int editor_process_keypress_with_input(const char *input, size_t len);
 char *editor_prompt_with_input(const char *input, size_t len, const char *prompt);
 char *refresh_screen_and_capture(size_t *len_out);
 
+/* Property-test throughput accounting. Property suites that drive
+ * randomized op loops (text_invariants, etc.) call test_property_ops_record
+ * with the op count and elapsed wall time of their loop. The runner reads
+ * the totals at end-of-run and emits property_ops / property_ops_seconds
+ * in the kind=test_run metrics row so trends are visible across CI runs. */
+void test_property_ops_reset(void);
+void test_property_ops_record(long long ops, double elapsed_seconds);
+long long test_property_ops_total(void);
+double test_property_ops_elapsed_seconds(void);
+
 struct editorDocument;
 struct editorTabState;
 

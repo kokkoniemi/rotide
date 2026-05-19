@@ -570,3 +570,27 @@ char *editor_test_tab_row_text(const struct editorTabState *tab, int cy) {
 	}
 	return editor_test_dup_line(tab->document, cy);
 }
+
+static long long g_property_ops_total = 0;
+static double g_property_ops_elapsed_seconds = 0.0;
+
+void test_property_ops_reset(void) {
+	g_property_ops_total = 0;
+	g_property_ops_elapsed_seconds = 0.0;
+}
+
+void test_property_ops_record(long long ops, double elapsed_seconds) {
+	if (ops < 0 || elapsed_seconds < 0.0) {
+		return;
+	}
+	g_property_ops_total += ops;
+	g_property_ops_elapsed_seconds += elapsed_seconds;
+}
+
+long long test_property_ops_total(void) {
+	return g_property_ops_total;
+}
+
+double test_property_ops_elapsed_seconds(void) {
+	return g_property_ops_elapsed_seconds;
+}
