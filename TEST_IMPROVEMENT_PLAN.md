@@ -414,10 +414,18 @@ run via `make bench`.
       80 cols, full-cache invalidate + recompute per inner op).
 - [x] syntax incremental edit on a 5k-line C-like source (insert byte +
       ApplyEditAndParse, then revert + ApplyEditAndParse, 4 cycles/sample).
-- [ ] screen-diff against unchanged frame.
-- [ ] screen-diff with one row changed.
-- [ ] One `hyperfine` scenario: cold-open a generated 10 MB C file, render
-      once, exit. The only whole-program metric users notice.
+- [x] screen-diff against unchanged frame (24×80 view of a 100-line
+      doc, 8 refreshes per sample, frame cache primed at setup).
+- [x] screen-diff with one row changed (4 insert/refresh/undo/refresh
+      cycles per sample). Bench setup wires the editor state via
+      `reset_editor_state` from [tests/test_helpers.c](tests/test_helpers.c)
+      and redirects stdout to /dev/null so we measure in-process work,
+      not the syscall path.
+- [ ] One `hyperfine` scenario: cold-open a generated 10 MB C file,
+      render once, exit. Requires a `--bench-render-once` flag in
+      [rotide.c](src/rotide.c) — the editor's current entry point
+      probes the controlling terminal's window size, which fails under
+      `script(1)` / non-TTY harnesses. Park until that flag lands.
 
 Baseline numbers on the host this was developed on (rough; do not treat
 as a regression budget yet — needs CI-runner calibration per the
@@ -428,6 +436,8 @@ document_position_byte_roundtrip   p50 ≈ 2 µs    p95 ≈ 2.4 µs   iqr ≈ 75
 row_cache_splice_small_edit        p50 ≈ 14 µs   p95 ≈ 26 µs    iqr ≈ 9 µs
 wrap_recompute_1k_lines            p50 ≈ 646 µs  p95 ≈ 656 µs   iqr ≈ 6 µs
 syntax_incremental_5k_lines_c      p50 ≈ 22 ms   p95 ≈ 23 ms    iqr ≈ 300 µs
+screen_diff_unchanged_frame        p50 ≈ 71 µs   p95 ≈ 73 µs    iqr ≈ 2 µs   (per refresh)
+screen_diff_one_row_changed        p50 ≈ 133 µs  p95 ≈ 138 µs   iqr ≈ 4 µs   (per insert/refresh/undo/refresh)
 ```
 
 The syntax bench includes a parse-on-revert cycle (inner_ops=4 means

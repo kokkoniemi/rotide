@@ -1,16 +1,24 @@
 #include "bench_runner.h"
+#include "test_helpers.h"
 
+#include "editing/document_position.h"
+#include "editing/edit.h"
+#include "editing/history.h"
 #include "editing/row_cache.h"
 #include "language/syntax.h"
+#include "render/screen.h"
+#include "render/viewport.h"
 #include "render/wrap.h"
 #include "rotide.h"
 #include "text/document.h"
 
+#include <fcntl.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 /* Stub for the global referenced by editor support TUs the bench links. */
 struct editorConfig E;
@@ -475,6 +483,141 @@ static void teardown_syntax_incremental(void *state) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Bench: screen refresh (frame diff) on unchanged + one-row-changed   */
+/* ------------------------------------------------------------------ */
+
+/* `editorRefreshScreen` writes to STDOUT_FILENO. The bench cares about
+ * the in-process work — frame assembly, cache comparison, writeBuf
+ * construction — not the syscall latency, so we redirect stdout to
+ * /dev/null for the duration of the case. */
+
+struct screenDiffState {
+	int saved_stdout;
+	int devnull;
+};
+
+static int screen_diff_redirect_stdout(struct screenDiffState *s) {
+	s->saved_stdout = dup(STDOUT_FILENO);
+	if (s->saved_stdout == -1) {
+		return 0;
+	}
+	s->devnull = open("/dev/null", O_WRONLY);
+	if (s->devnull == -1) {
+		close(s->saved_stdout);
+		return 0;
+	}
+	if (dup2(s->devnull, STDOUT_FILENO) == -1) {
+		close(s->devnull);
+		close(s->saved_stdout);
+		return 0;
+	}
+	return 1;
+}
+
+static void screen_diff_restore_stdout(struct screenDiffState *s) {
+	if (s->saved_stdout != -1) {
+		(void)dup2(s->saved_stdout, STDOUT_FILENO);
+		(void)close(s->saved_stdout);
+		s->saved_stdout = -1;
+	}
+	if (s->devnull != -1) {
+		(void)close(s->devnull);
+		s->devnull = -1;
+	}
+}
+
+/* Build a small editor state (24 × 80 view over a ~100-line document)
+ * and prime the frame cache with one initial render. Both screen-diff
+ * cases share the same setup so the cache state at the start of the
+ * timed loop is identical. */
+static int screen_diff_setup_common(struct screenDiffState **state_out) {
+	struct screenDiffState *s = calloc(1, sizeof(*s));
+	if (s == NULL) {
+		return 0;
+	}
+	s->saved_stdout = -1;
+	s->devnull = -1;
+
+	reset_editor_state();
+	E.window_rows = 24;
+	E.window_cols = 80;
+
+	for (int i = 0; i < 100; i++) {
+		char line[80];
+		int len = snprintf(line, sizeof(line),
+				"line %3d: lorem ipsum dolor sit amet, consectetur adipiscing", i);
+		add_row_bytes(line, (size_t)len);
+	}
+	E.cy = 0;
+	E.cx = 0;
+	(void)editorBufferPosToOffset(0, 0, &E.cursor_offset);
+
+	if (!screen_diff_redirect_stdout(s)) {
+		free(s);
+		return 0;
+	}
+
+	editorViewportUpdateForFrame();
+	editorRefreshScreen();
+	*state_out = s;
+	return 1;
+}
+
+static int setup_screen_diff_unchanged(void **state_out) {
+	struct screenDiffState *s = NULL;
+	if (!screen_diff_setup_common(&s)) {
+		return 0;
+	}
+	*state_out = s;
+	return 1;
+}
+
+static void op_screen_diff_unchanged(void *state, int n) {
+	(void)state;
+	for (int i = 0; i < n; i++) {
+		editorViewportUpdateForFrame();
+		editorRefreshScreen();
+	}
+}
+
+static void teardown_screen_diff_unchanged(void *state) {
+	struct screenDiffState *s = state;
+	if (s == NULL) {
+		return;
+	}
+	screen_diff_restore_stdout(s);
+	free(s);
+}
+
+static int setup_screen_diff_one_row(void **state_out) {
+	return setup_screen_diff_unchanged(state_out);
+}
+
+static void op_screen_diff_one_row(void *state, int n) {
+	(void)state;
+	/* Each iteration: insert one char on row 5, refresh, then undo,
+	 * refresh again. Two `editorRefreshScreen` calls per inner op,
+	 * one of which has exactly one dirty row. The frame cache should
+	 * touch only that row on the redraw. */
+	for (int i = 0; i < n; i++) {
+		E.cy = 5;
+		E.cx = 0;
+		(void)editorBufferPosToOffset(E.cy, E.cx, &E.cursor_offset);
+		editorInsertChar('x');
+		editorViewportUpdateForFrame();
+		editorRefreshScreen();
+
+		editorUndo();
+		editorViewportUpdateForFrame();
+		editorRefreshScreen();
+	}
+}
+
+static void teardown_screen_diff_one_row(void *state) {
+	teardown_screen_diff_unchanged(state);
+}
+
+/* ------------------------------------------------------------------ */
 /* Main                                                                */
 /* ------------------------------------------------------------------ */
 
@@ -505,6 +648,24 @@ static const struct editorBenchCase k_cases[] = {
 		.setup = setup_syntax_incremental,
 		.op = op_syntax_incremental,
 		.teardown = teardown_syntax_incremental,
+		.inner_ops = 4,
+	},
+	{
+		/* All rows match the frame cache after the priming refresh, so
+		 * the timed loop measures cache-hit traversal cost. */
+		.name = "screen_diff_unchanged_frame",
+		.setup = setup_screen_diff_unchanged,
+		.op = op_screen_diff_unchanged,
+		.teardown = teardown_screen_diff_unchanged,
+		.inner_ops = 8,
+	},
+	{
+		/* inner_ops = 4 means 4 forward edits + 4 undos = 8 refreshes
+		 * per sample, with exactly one row dirty per refresh. */
+		.name = "screen_diff_one_row_changed",
+		.setup = setup_screen_diff_one_row,
+		.op = op_screen_diff_one_row,
+		.teardown = teardown_screen_diff_one_row,
 		.inner_ops = 4,
 	},
 };

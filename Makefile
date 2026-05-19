@@ -161,7 +161,13 @@ BENCH_BUFFER_SRC = tests/bench_text_storage.c
 BENCH_BUFFER_OBJ = $(BENCH_BUFFER_SRC:.c=.o)
 
 BENCH_MICRO_BIN = tests/rotide_bench
-BENCH_MICRO_SRCS = tests/bench_microbenches.c tests/bench_runner.c
+# bench_microbenches drives editorRefreshScreen for the screen-diff cases,
+# which needs reset_editor_state and friends. Pull in just the test helpers
+# the bench actually uses — alloc_test_hooks and save_syscalls_test_hooks are
+# transitive deps of test_helpers.c's reset path.
+BENCH_MICRO_SRCS = tests/bench_microbenches.c tests/bench_runner.c \
+	tests/test_helpers.c tests/alloc_test_hooks.c \
+	tests/save_syscalls_test_hooks.c
 BENCH_MICRO_OBJS = $(BENCH_MICRO_SRCS:.c=.o)
 
 FUZZ_CC ?= clang
