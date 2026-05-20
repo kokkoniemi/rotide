@@ -165,7 +165,7 @@ struct editorPaneNode *editorPaneTreeCloseLeaf(struct editorPaneNode **root_ptr,
 	return editorPaneNodeFirstLeaf(sibling);
 }
 
-static int editorLeafLayoutReserve(struct editorLeafLayout *out, int needed) {
+static int layoutLeafReserve(struct editorLeafLayout *out, int needed) {
 	if (out == NULL || needed < 0) {
 		return 0;
 	}
@@ -189,9 +189,9 @@ static int editorLeafLayoutReserve(struct editorLeafLayout *out, int needed) {
 	return 1;
 }
 
-static int editorLeafLayoutAppend(struct editorLeafLayout *out, struct editorPaneNode *node,
-                                  struct editorRect rect) {
-	if (!editorLeafLayoutReserve(out, out->count + 1)) {
+static int layoutLeafAppend(struct editorLeafLayout *out, struct editorPaneNode *node,
+                            struct editorRect rect) {
+	if (!layoutLeafReserve(out, out->count + 1)) {
 		return 0;
 	}
 	out->rects[out->count].node = node;
@@ -200,24 +200,24 @@ static int editorLeafLayoutAppend(struct editorLeafLayout *out, struct editorPan
 	return 1;
 }
 
-static void editorLayoutSplitRects(const struct editorPaneNode *node, struct editorRect rect,
-                                   int border_size, struct editorRect *first_rect_out,
-                                   struct editorRect *second_rect_out);
+static void layoutSplitRects(const struct editorPaneNode *node, struct editorRect rect,
+                             int border_size, struct editorRect *first_rect_out,
+                             struct editorRect *second_rect_out);
 
-static int editorLayoutComputeRecursive(const struct editorPaneNode *node, struct editorRect rect,
-                                        int border_size, struct editorLeafLayout *out) {
+static int layoutComputeRecursive(const struct editorPaneNode *node, struct editorRect rect,
+                                  int border_size, struct editorLeafLayout *out) {
 	if (node == NULL) {
 		return 0;
 	}
 	if (!node->is_split) {
-		return editorLeafLayoutAppend(out, (struct editorPaneNode *)node, rect);
+		return layoutLeafAppend(out, (struct editorPaneNode *)node, rect);
 	}
 
 	struct editorRect first_rect;
 	struct editorRect second_rect;
-	editorLayoutSplitRects(node, rect, border_size, &first_rect, &second_rect);
-	return editorLayoutComputeRecursive(node->as.split.first, first_rect, border_size, out) &&
-	       editorLayoutComputeRecursive(node->as.split.second, second_rect, border_size, out);
+	layoutSplitRects(node, rect, border_size, &first_rect, &second_rect);
+	return layoutComputeRecursive(node->as.split.first, first_rect, border_size, out) &&
+	       layoutComputeRecursive(node->as.split.second, second_rect, border_size, out);
 }
 
 int editorLayoutComputeBorderedInto(const struct editorPaneNode *root, struct editorRect viewport,
@@ -238,7 +238,7 @@ int editorLayoutComputeBorderedInto(const struct editorPaneNode *root, struct ed
 	if (root == NULL) {
 		return 1;
 	}
-	return editorLayoutComputeRecursive(root, viewport, border_size, out);
+	return layoutComputeRecursive(root, viewport, border_size, out);
 }
 
 int editorLayoutComputeInto(const struct editorPaneNode *root, struct editorRect viewport,
@@ -256,7 +256,7 @@ void editorLeafLayoutFree(struct editorLeafLayout *out) {
 	out->capacity = 0;
 }
 
-static int editorRectContains(struct editorRect rect, int x, int y) {
+static int layoutRectContains(struct editorRect rect, int x, int y) {
 	return x >= rect.x && y >= rect.y && x < rect.x + rect.w && y < rect.y + rect.h;
 }
 
@@ -265,16 +265,16 @@ struct editorPaneNode *editorLayoutLeafAt(struct editorLeafLayout *layout, int x
 		return NULL;
 	}
 	for (int i = 0; i < layout->count; i++) {
-		if (editorRectContains(layout->rects[i].rect, x, y)) {
+		if (layoutRectContains(layout->rects[i].rect, x, y)) {
 			return layout->rects[i].node;
 		}
 	}
 	return NULL;
 }
 
-static void editorLayoutSplitRects(const struct editorPaneNode *node, struct editorRect rect,
-                                   int border_size, struct editorRect *first_rect_out,
-                                   struct editorRect *second_rect_out) {
+static void layoutSplitRects(const struct editorPaneNode *node, struct editorRect rect,
+                             int border_size, struct editorRect *first_rect_out,
+                             struct editorRect *second_rect_out) {
 	double ratio = node->as.split.ratio;
 	if (ratio < 0.0) {
 		ratio = 0.0;
@@ -320,9 +320,9 @@ static void editorLayoutSplitRects(const struct editorPaneNode *node, struct edi
 	}
 }
 
-static int editorLayoutLeafRectRecursive(const struct editorPaneNode *node, struct editorRect rect,
-                                         int border_size, const struct editorPaneNode *leaf,
-                                         struct editorRect *out) {
+static int layoutLeafRectRecursive(const struct editorPaneNode *node, struct editorRect rect,
+                                   int border_size, const struct editorPaneNode *leaf,
+                                   struct editorRect *out) {
 	if (node == NULL || leaf == NULL) {
 		return 0;
 	}
@@ -335,11 +335,9 @@ static int editorLayoutLeafRectRecursive(const struct editorPaneNode *node, stru
 	}
 	struct editorRect first_rect;
 	struct editorRect second_rect;
-	editorLayoutSplitRects(node, rect, border_size, &first_rect, &second_rect);
-	return editorLayoutLeafRectRecursive(node->as.split.first, first_rect, border_size, leaf,
-	                                     out) ||
-	       editorLayoutLeafRectRecursive(node->as.split.second, second_rect, border_size, leaf,
-	                                     out);
+	layoutSplitRects(node, rect, border_size, &first_rect, &second_rect);
+	return layoutLeafRectRecursive(node->as.split.first, first_rect, border_size, leaf, out) ||
+	       layoutLeafRectRecursive(node->as.split.second, second_rect, border_size, leaf, out);
 }
 
 int editorLayoutLeafRectBordered(const struct editorPaneNode *root, struct editorRect viewport,
@@ -357,10 +355,10 @@ int editorLayoutLeafRectBordered(const struct editorPaneNode *root, struct edito
 	if (border_size < 0) {
 		border_size = 0;
 	}
-	return editorLayoutLeafRectRecursive(root, viewport, border_size, leaf, out);
+	return layoutLeafRectRecursive(root, viewport, border_size, leaf, out);
 }
 
-static int editorBorderListReserve(struct editorBorderList *list, int needed) {
+static int layoutBorderListReserve(struct editorBorderList *list, int needed) {
 	if (list == NULL || needed < 0) {
 		return 0;
 	}
@@ -384,23 +382,22 @@ static int editorBorderListReserve(struct editorBorderList *list, int needed) {
 	return 1;
 }
 
-static int editorBorderListAppend(struct editorBorderList *list, struct editorBorderRect br) {
-	if (!editorBorderListReserve(list, list->count + 1)) {
+static int layoutBorderListAppend(struct editorBorderList *list, struct editorBorderRect br) {
+	if (!layoutBorderListReserve(list, list->count + 1)) {
 		return 0;
 	}
 	list->rects[list->count++] = br;
 	return 1;
 }
 
-static int editorLayoutCollectBordersRecursive(const struct editorPaneNode *node,
-                                               struct editorRect rect, int border_size,
-                                               struct editorBorderList *out) {
+static int layoutCollectBordersRecursive(const struct editorPaneNode *node, struct editorRect rect,
+                                         int border_size, struct editorBorderList *out) {
 	if (node == NULL || !node->is_split || border_size <= 0) {
 		return 1;
 	}
 	struct editorRect first_rect;
 	struct editorRect second_rect;
-	editorLayoutSplitRects(node, rect, border_size, &first_rect, &second_rect);
+	layoutSplitRects(node, rect, border_size, &first_rect, &second_rect);
 
 	struct editorBorderRect br = {0};
 	br.orientation = node->as.split.orientation;
@@ -415,13 +412,11 @@ static int editorLayoutCollectBordersRecursive(const struct editorPaneNode *node
 		br.rect.w = rect.w;
 		br.rect.h = border_size;
 	}
-	if (!editorBorderListAppend(out, br)) {
+	if (!layoutBorderListAppend(out, br)) {
 		return 0;
 	}
-	return editorLayoutCollectBordersRecursive(node->as.split.first, first_rect, border_size,
-	                                           out) &&
-	       editorLayoutCollectBordersRecursive(node->as.split.second, second_rect, border_size,
-	                                           out);
+	return layoutCollectBordersRecursive(node->as.split.first, first_rect, border_size, out) &&
+	       layoutCollectBordersRecursive(node->as.split.second, second_rect, border_size, out);
 }
 
 int editorLayoutCollectBorders(const struct editorPaneNode *root, struct editorRect viewport,
@@ -439,7 +434,7 @@ int editorLayoutCollectBorders(const struct editorPaneNode *root, struct editorR
 	if (border_size <= 0 || root == NULL) {
 		return 1;
 	}
-	return editorLayoutCollectBordersRecursive(root, viewport, border_size, out);
+	return layoutCollectBordersRecursive(root, viewport, border_size, out);
 }
 
 void editorBorderListFree(struct editorBorderList *list) {
@@ -686,7 +681,7 @@ struct editorPaneNode *editorLayoutCloseFocused(void) {
 	return new_focus;
 }
 
-static int editorRangesOverlap(int a_start, int a_len, int b_start, int b_len) {
+static int layoutRangesOverlap(int a_start, int a_len, int b_start, int b_len) {
 	int a_end = a_start + a_len;
 	int b_end = b_start + b_len;
 	return a_start < b_end && b_start < a_end;
@@ -724,7 +719,7 @@ struct editorPaneNode *editorLayoutFindNeighborLeaf(const struct editorLeafLayou
 				if (candidate.x + candidate.w > source.x) {
 					continue;
 				}
-				if (!editorRangesOverlap(source.y, source.h, candidate.y,
+				if (!layoutRangesOverlap(source.y, source.h, candidate.y,
 				                         candidate.h)) {
 					continue;
 				}
@@ -734,7 +729,7 @@ struct editorPaneNode *editorLayoutFindNeighborLeaf(const struct editorLeafLayou
 				if (candidate.x < source.x + source.w) {
 					continue;
 				}
-				if (!editorRangesOverlap(source.y, source.h, candidate.y,
+				if (!layoutRangesOverlap(source.y, source.h, candidate.y,
 				                         candidate.h)) {
 					continue;
 				}
@@ -744,7 +739,7 @@ struct editorPaneNode *editorLayoutFindNeighborLeaf(const struct editorLeafLayou
 				if (candidate.y + candidate.h > source.y) {
 					continue;
 				}
-				if (!editorRangesOverlap(source.x, source.w, candidate.x,
+				if (!layoutRangesOverlap(source.x, source.w, candidate.x,
 				                         candidate.w)) {
 					continue;
 				}
@@ -754,7 +749,7 @@ struct editorPaneNode *editorLayoutFindNeighborLeaf(const struct editorLeafLayou
 				if (candidate.y < source.y + source.h) {
 					continue;
 				}
-				if (!editorRangesOverlap(source.x, source.w, candidate.x,
+				if (!layoutRangesOverlap(source.x, source.w, candidate.x,
 				                         candidate.w)) {
 					continue;
 				}
@@ -771,7 +766,7 @@ struct editorPaneNode *editorLayoutFindNeighborLeaf(const struct editorLeafLayou
 	return best;
 }
 
-static int editorLayoutComputeForFocus(struct editorLeafLayout *out) {
+static int layoutComputeForFocus(struct editorLeafLayout *out) {
 	struct editorRect viewport;
 	if (!editorLayoutEditorViewport(&viewport)) {
 		return 0;
@@ -785,7 +780,7 @@ int editorLayoutFocusDirection(enum editorFocusDirection direction) {
 		return 0;
 	}
 	struct editorLeafLayout layout = {0};
-	if (!editorLayoutComputeForFocus(&layout)) {
+	if (!layoutComputeForFocus(&layout)) {
 		editorLeafLayoutFree(&layout);
 		return 0;
 	}
@@ -803,7 +798,7 @@ int editorLayoutFocusLeafAt(int x, int y) {
 		return 0;
 	}
 	struct editorLeafLayout layout = {0};
-	if (!editorLayoutComputeForFocus(&layout)) {
+	if (!layoutComputeForFocus(&layout)) {
 		editorLeafLayoutFree(&layout);
 		return 0;
 	}
@@ -853,7 +848,7 @@ int editorLayoutFocusedLeafIndex(int *out_index, int *out_count) {
 		return 0;
 	}
 	struct editorLeafLayout layout = {0};
-	if (!editorLayoutComputeForFocus(&layout)) {
+	if (!layoutComputeForFocus(&layout)) {
 		editorLeafLayoutFree(&layout);
 		return 0;
 	}
@@ -886,8 +881,8 @@ void editorPaneAnnounceFocus(void) {
 
 #include <stdio.h>
 
-static size_t editorLayoutSerializeRecursive(const struct editorPaneNode *node, char *out,
-                                             size_t out_size, size_t pos) {
+static size_t layoutSerializeRecursive(const struct editorPaneNode *node, char *out,
+                                       size_t out_size, size_t pos) {
 	if (node == NULL || pos >= out_size) {
 		return 0;
 	}
@@ -904,7 +899,7 @@ static size_t editorLayoutSerializeRecursive(const struct editorPaneNode *node, 
 		return 0;
 	}
 	pos += (size_t)n;
-	pos = editorLayoutSerializeRecursive(node->as.split.first, out, out_size, pos);
+	pos = layoutSerializeRecursive(node->as.split.first, out, out_size, pos);
 	if (pos == 0 || pos >= out_size) {
 		return 0;
 	}
@@ -912,7 +907,7 @@ static size_t editorLayoutSerializeRecursive(const struct editorPaneNode *node, 
 		return 0;
 	}
 	out[pos++] = ' ';
-	pos = editorLayoutSerializeRecursive(node->as.split.second, out, out_size, pos);
+	pos = layoutSerializeRecursive(node->as.split.second, out, out_size, pos);
 	if (pos == 0 || pos + 1 >= out_size) {
 		return 0;
 	}
@@ -928,7 +923,7 @@ size_t editorLayoutSerialize(const struct editorPaneNode *root, char *out, size_
 		return 0;
 	}
 	out[0] = '\0';
-	size_t pos = editorLayoutSerializeRecursive(root, out, out_size, 0);
+	size_t pos = layoutSerializeRecursive(root, out, out_size, 0);
 	if (pos >= out_size) {
 		return 0;
 	}
@@ -936,15 +931,15 @@ size_t editorLayoutSerialize(const struct editorPaneNode *root, char *out, size_
 	return pos;
 }
 
-static const char *editorLayoutSkipWhitespace(const char *s) {
+static const char *layoutSkipWhitespace(const char *s) {
 	while (*s == ' ' || *s == '\t') {
 		s++;
 	}
 	return s;
 }
 
-static struct editorPaneNode *editorLayoutParse(const char **cursor) {
-	const char *s = editorLayoutSkipWhitespace(*cursor);
+static struct editorPaneNode *layoutParse(const char **cursor) {
+	const char *s = layoutSkipWhitespace(*cursor);
 	if (*s == '\0') {
 		return NULL;
 	}
@@ -971,20 +966,20 @@ static struct editorPaneNode *editorLayoutParse(const char **cursor) {
 		return NULL;
 	}
 	s = endptr;
-	s = editorLayoutSkipWhitespace(s);
+	s = layoutSkipWhitespace(s);
 	*cursor = s;
-	struct editorPaneNode *first = editorLayoutParse(cursor);
+	struct editorPaneNode *first = layoutParse(cursor);
 	if (first == NULL) {
 		return NULL;
 	}
-	s = editorLayoutSkipWhitespace(*cursor);
+	s = layoutSkipWhitespace(*cursor);
 	*cursor = s;
-	struct editorPaneNode *second = editorLayoutParse(cursor);
+	struct editorPaneNode *second = layoutParse(cursor);
 	if (second == NULL) {
 		editorPaneNodeFree(first);
 		return NULL;
 	}
-	s = editorLayoutSkipWhitespace(*cursor);
+	s = layoutSkipWhitespace(*cursor);
 	if (*s != ')') {
 		editorPaneNodeFree(first);
 		editorPaneNodeFree(second);
@@ -1018,11 +1013,11 @@ struct editorPaneNode *editorLayoutDeserialize(const char *s) {
 		return NULL;
 	}
 	const char *cursor = s;
-	struct editorPaneNode *root = editorLayoutParse(&cursor);
+	struct editorPaneNode *root = layoutParse(&cursor);
 	if (root == NULL) {
 		return NULL;
 	}
-	cursor = editorLayoutSkipWhitespace(cursor);
+	cursor = layoutSkipWhitespace(cursor);
 	if (*cursor != '\0') {
 		editorPaneNodeFree(root);
 		return NULL;
