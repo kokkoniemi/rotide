@@ -9,8 +9,8 @@
  *
  * Fuzz strategy: wrap `(data, size)` in an fmemopen stream and feed
  * it through `editorThemeApplyStreamFuzz`, which calls the same
- * `editorThemeApplyStream` that production uses. ASan/UBSan surface
- * any out-of-bounds writes inside `editorThemeParseEntry`,
+ * `themeParseApplyStream` that production uses. ASan/UBSan surface
+ * any out-of-bounds writes inside `themeParseEntry`,
  * `editorConfigParseQuotedValue`, the hex-color decoder, or the
  * table-name dispatch.
  *

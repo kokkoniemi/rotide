@@ -21,17 +21,17 @@ mutations don't accrete back into the committed seed set.
 
 The fuzz wrapper at the bottom of
 [`theme_parse.c`](../../../src/config/theme_parse.c) (gated behind
-`#ifdef ROTIDE_FUZZ`) drives the same `editorThemeApplyStream` that
+`#ifdef ROTIDE_FUZZ`) drives the same `themeParseApplyStream` that
 production calls, but reads from an `fmemopen` stream over the fuzz
 input rather than a real file. That covers:
 
-- `editorThemeApplyStream` line tokenizer (1024-byte `fgets` buffer
+- `themeParseApplyStream` line tokenizer (1024-byte `fgets` buffer
   with overflow detection),
-- `editorThemeParseTable` table-header scanner,
-- `editorThemeParseEntry` / `editorThemeParseKeyValue`,
+- `themeParseTable` table-header scanner,
+- `themeParseEntry` / `themeParseKeyValue`,
 - `editorConfigParseQuotedValue` quoted-string parsing,
-- `editorParseThemeColorValue` hex-color and ANSI-name dispatch,
-- `editorNormalizeThemeToken` whitespace/dash/case folding,
+- `themeParseColorValue` hex-color and ANSI-name dispatch,
+- `themeParseNormalizeToken` whitespace/dash/case folding,
 - the inherit-resolution path through `editorThemeInitBuiltin`.
 
 ## Findings so far

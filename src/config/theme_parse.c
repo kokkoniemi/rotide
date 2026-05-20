@@ -16,13 +16,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum editorThemeFileStatus {
-	EDITOR_THEME_FILE_APPLIED = 0,
-	EDITOR_THEME_FILE_MISSING,
-	EDITOR_THEME_FILE_OUT_OF_MEMORY
+enum themeParseFileStatus {
+	THEME_PARSE_FILE_APPLIED = 0,
+	THEME_PARSE_FILE_MISSING,
+	THEME_PARSE_FILE_OUT_OF_MEMORY
 };
 
-struct editorThemeParseContext {
+struct themeParseContext {
 	int is_theme_file;
 	int in_theme_table;
 	int in_theme_syntax_table;
@@ -34,7 +34,7 @@ struct editorThemeParseContext {
 	int saw_theme_name;
 };
 
-static int editorNormalizeThemeToken(const char *token, char *out, size_t out_size) {
+static int themeParseNormalizeToken(const char *token, char *out, size_t out_size) {
 	if (token == NULL || out == NULL || out_size == 0) {
 		return 0;
 	}
@@ -61,7 +61,7 @@ static int editorNormalizeThemeToken(const char *token, char *out, size_t out_si
 	return 1;
 }
 
-static int editorThemeNameIsValid(const char *name) {
+static int themeParseNameIsValid(const char *name) {
 	if (name == NULL || name[0] == '\0' || strlen(name) >= 64) {
 		return 0;
 	}
@@ -74,10 +74,10 @@ static int editorThemeNameIsValid(const char *name) {
 	return 1;
 }
 
-static int editorParseSyntaxHighlightClassName(const char *name,
-                                               enum editorSyntaxHighlightClass *class_out) {
+static int themeParseSyntaxHighlightClassName(const char *name,
+                                              enum editorSyntaxHighlightClass *class_out) {
 	char normalized[64];
-	if (class_out == NULL || !editorNormalizeThemeToken(name, normalized, sizeof(normalized))) {
+	if (class_out == NULL || !themeParseNormalizeToken(name, normalized, sizeof(normalized))) {
 		return 0;
 	}
 
@@ -143,7 +143,7 @@ static int editorParseSyntaxHighlightClassName(const char *name,
 	return 0;
 }
 
-static int editorParseHexNibble(char ch, unsigned char *out) {
+static int themeParseHexNibble(char ch, unsigned char *out) {
 	if (ch >= '0' && ch <= '9') {
 		*out = (unsigned char)(ch - '0');
 		return 1;
@@ -159,17 +159,17 @@ static int editorParseHexNibble(char ch, unsigned char *out) {
 	return 0;
 }
 
-static int editorParseHexByte(const char *value, unsigned char *out) {
+static int themeParseHexByte(const char *value, unsigned char *out) {
 	unsigned char hi = 0;
 	unsigned char lo = 0;
-	if (!editorParseHexNibble(value[0], &hi) || !editorParseHexNibble(value[1], &lo)) {
+	if (!themeParseHexNibble(value[0], &hi) || !themeParseHexNibble(value[1], &lo)) {
 		return 0;
 	}
 	*out = (unsigned char)((hi << 4) | lo);
 	return 1;
 }
 
-static int editorParseThemeColorValue(const char *value, struct editorThemeColor *color_out) {
+static int themeParseColorValue(const char *value, struct editorThemeColor *color_out) {
 	if (color_out == NULL || value == NULL) {
 		return 0;
 	}
@@ -177,8 +177,8 @@ static int editorParseThemeColorValue(const char *value, struct editorThemeColor
 		unsigned char r = 0;
 		unsigned char g = 0;
 		unsigned char b = 0;
-		if (!editorParseHexByte(value + 1, &r) || !editorParseHexByte(value + 3, &g) ||
-		    !editorParseHexByte(value + 5, &b)) {
+		if (!themeParseHexByte(value + 1, &r) || !themeParseHexByte(value + 3, &g) ||
+		    !themeParseHexByte(value + 5, &b)) {
 			return 0;
 		}
 		*color_out = editorThemeRgbColor(r, g, b);
@@ -186,7 +186,7 @@ static int editorParseThemeColorValue(const char *value, struct editorThemeColor
 	}
 
 	char normalized[64];
-	if (!editorNormalizeThemeToken(value, normalized, sizeof(normalized))) {
+	if (!themeParseNormalizeToken(value, normalized, sizeof(normalized))) {
 		return 0;
 	}
 
@@ -263,11 +263,11 @@ static int editorParseThemeColorValue(const char *value, struct editorThemeColor
 	return 0;
 }
 
-static int editorParseThemeUiRoleName(const char *name, enum editorThemeUiRole *role_out,
-                                      enum editorThemeStyleRole *style_out, int *is_style_fg_out,
-                                      int *is_style_bg_out) {
+static int themeParseUiRoleName(const char *name, enum editorThemeUiRole *role_out,
+                                enum editorThemeStyleRole *style_out, int *is_style_fg_out,
+                                int *is_style_bg_out) {
 	char normalized[64];
-	if (!editorNormalizeThemeToken(name, normalized, sizeof(normalized))) {
+	if (!themeParseNormalizeToken(name, normalized, sizeof(normalized))) {
 		return 0;
 	}
 	if (role_out != NULL) {
@@ -367,7 +367,7 @@ static int editorParseThemeUiRoleName(const char *name, enum editorThemeUiRole *
 	return 0;
 }
 
-static int editorThemeParseKeyValue(char *trimmed, char **key_out, char **value_out) {
+static int themeParseKeyValue(char *trimmed, char **key_out, char **value_out) {
 	char *eq = strchr(trimmed, '=');
 	if (eq == NULL) {
 		return 0;
@@ -384,8 +384,8 @@ static int editorThemeParseKeyValue(char *trimmed, char **key_out, char **value_
 	return 1;
 }
 
-static void editorThemeApplyStyleColor(struct editorTheme *theme, enum editorThemeStyleRole role,
-                                       int is_fg, struct editorThemeColor color) {
+static void themeParseApplyStyleColor(struct editorTheme *theme, enum editorThemeStyleRole role,
+                                      int is_fg, struct editorThemeColor color) {
 	if (role < 0 || role >= EDITOR_THEME_STYLE_ROLE_COUNT) {
 		return;
 	}
@@ -397,15 +397,15 @@ static void editorThemeApplyStyleColor(struct editorTheme *theme, enum editorThe
 	theme->styles[role].reverse = 0;
 }
 
-static void editorThemeParseEntry(struct editorTheme *theme, struct editorThemeParseContext *ctx,
-                                  char *trimmed) {
+static void themeParseEntry(struct editorTheme *theme, struct themeParseContext *ctx,
+                            char *trimmed) {
 	if (!ctx->is_theme_file && !ctx->in_theme_table) {
 		return;
 	}
 
 	char *key = NULL;
 	char *value = NULL;
-	if (!editorThemeParseKeyValue(trimmed, &key, &value)) {
+	if (!themeParseKeyValue(trimmed, &key, &value)) {
 		ctx->had_invalid = 1;
 		return;
 	}
@@ -418,7 +418,7 @@ static void editorThemeParseEntry(struct editorTheme *theme, struct editorThemeP
 
 	if (ctx->is_theme_file && !ctx->in_theme_syntax_table && !ctx->in_theme_ui_table) {
 		if (strcmp(key, "name") == 0) {
-			if (!editorThemeNameIsValid(parsed)) {
+			if (!themeParseNameIsValid(parsed)) {
 				ctx->had_invalid = 1;
 				return;
 			}
@@ -427,7 +427,7 @@ static void editorThemeParseEntry(struct editorTheme *theme, struct editorThemeP
 			return;
 		}
 		if (strcmp(key, "inherits") == 0) {
-			if (!editorThemeNameIsValid(parsed)) {
+			if (!themeParseNameIsValid(parsed)) {
 				ctx->had_invalid = 1;
 				return;
 			}
@@ -441,7 +441,7 @@ static void editorThemeParseEntry(struct editorTheme *theme, struct editorThemeP
 
 	if (!ctx->is_theme_file) {
 		if (strcmp(key, "name") == 0) {
-			if (!editorThemeNameIsValid(parsed)) {
+			if (!themeParseNameIsValid(parsed)) {
 				ctx->had_invalid = 1;
 				return;
 			}
@@ -454,14 +454,14 @@ static void editorThemeParseEntry(struct editorTheme *theme, struct editorThemeP
 	}
 
 	struct editorThemeColor color = editorThemeDefaultColor();
-	if (!editorParseThemeColorValue(parsed, &color)) {
+	if (!themeParseColorValue(parsed, &color)) {
 		ctx->had_invalid = 1;
 		return;
 	}
 
 	if (ctx->in_theme_syntax_table) {
 		enum editorSyntaxHighlightClass highlight_class = EDITOR_SYNTAX_HL_NONE;
-		if (!editorParseSyntaxHighlightClassName(key, &highlight_class) ||
+		if (!themeParseSyntaxHighlightClassName(key, &highlight_class) ||
 		    highlight_class == EDITOR_SYNTAX_HL_NONE) {
 			ctx->had_invalid = 1;
 			return;
@@ -475,14 +475,14 @@ static void editorThemeParseEntry(struct editorTheme *theme, struct editorThemeP
 		enum editorThemeStyleRole style = EDITOR_THEME_STYLE_ROLE_COUNT;
 		int is_style_fg = 0;
 		int is_style_bg = 0;
-		if (!editorParseThemeUiRoleName(key, &role, &style, &is_style_fg, &is_style_bg)) {
+		if (!themeParseUiRoleName(key, &role, &style, &is_style_fg, &is_style_bg)) {
 			ctx->had_invalid = 1;
 			return;
 		}
 		if (role < EDITOR_THEME_UI_ROLE_COUNT) {
 			theme->ui[role] = color;
 		} else if (style < EDITOR_THEME_STYLE_ROLE_COUNT) {
-			editorThemeApplyStyleColor(theme, style, is_style_fg, color);
+			themeParseApplyStyleColor(theme, style, is_style_fg, color);
 		}
 		return;
 	}
@@ -490,7 +490,7 @@ static void editorThemeParseEntry(struct editorTheme *theme, struct editorThemeP
 	ctx->had_invalid = 1;
 }
 
-static int editorThemeParseTable(struct editorThemeParseContext *ctx, char *trimmed) {
+static int themeParseTable(struct themeParseContext *ctx, char *trimmed) {
 	char *close = strchr(trimmed, ']');
 	if (close == NULL) {
 		return 0;
@@ -513,14 +513,14 @@ static int editorThemeParseTable(struct editorThemeParseContext *ctx, char *trim
 }
 
 /* Drain a theme TOML stream into `theme`. Caller owns `fp` (close it
- * after the call). Always returns EDITOR_THEME_FILE_APPLIED — caller
+ * after the call). Always returns THEME_PARSE_FILE_APPLIED — caller
  * inspects `ctx_out->had_invalid` for parse errors. Internal to this
  * TU; the fuzz harness reaches it via the ROTIDE_FUZZ wrapper at the
  * bottom of the file. */
-static enum editorThemeFileStatus editorThemeApplyStream(struct editorTheme *theme, FILE *fp,
-                                                         int is_theme_file,
-                                                         struct editorThemeParseContext *ctx_out) {
-	struct editorThemeParseContext ctx;
+static enum themeParseFileStatus themeParseApplyStream(struct editorTheme *theme, FILE *fp,
+                                                       int is_theme_file,
+                                                       struct themeParseContext *ctx_out) {
+	struct themeParseContext ctx;
 	memset(&ctx, 0, sizeof(ctx));
 	ctx.is_theme_file = is_theme_file;
 	(void)snprintf(ctx.inherits_name, sizeof(ctx.inherits_name), "%s", "terminal");
@@ -544,12 +544,12 @@ static enum editorThemeFileStatus editorThemeApplyStream(struct editorTheme *the
 			continue;
 		}
 		if (trimmed[0] == '[') {
-			if (!editorThemeParseTable(&ctx, trimmed)) {
+			if (!themeParseTable(&ctx, trimmed)) {
 				ctx.had_invalid = 1;
 			}
 			continue;
 		}
-		editorThemeParseEntry(theme, &ctx, trimmed);
+		themeParseEntry(theme, &ctx, trimmed);
 	}
 
 	if (ferror(fp)) {
@@ -559,43 +559,42 @@ static enum editorThemeFileStatus editorThemeApplyStream(struct editorTheme *the
 	if (ctx_out != NULL) {
 		*ctx_out = ctx;
 	}
-	return EDITOR_THEME_FILE_APPLIED;
+	return THEME_PARSE_FILE_APPLIED;
 }
 
-static enum editorThemeFileStatus editorThemeApplyFile(struct editorTheme *theme, const char *path,
-                                                       int is_theme_file,
-                                                       struct editorThemeParseContext *ctx_out) {
+static enum themeParseFileStatus themeParseApplyFile(struct editorTheme *theme, const char *path,
+                                                     int is_theme_file,
+                                                     struct themeParseContext *ctx_out) {
 	FILE *fp = fopen(path, "r");
 	if (fp == NULL) {
 		if (errno == ENOENT) {
-			return EDITOR_THEME_FILE_MISSING;
+			return THEME_PARSE_FILE_MISSING;
 		}
 		if (ctx_out != NULL) {
 			ctx_out->had_invalid = 1;
 		}
-		return EDITOR_THEME_FILE_APPLIED;
+		return THEME_PARSE_FILE_APPLIED;
 	}
 
-	enum editorThemeFileStatus status =
-	        editorThemeApplyStream(theme, fp, is_theme_file, ctx_out);
+	enum themeParseFileStatus status = themeParseApplyStream(theme, fp, is_theme_file, ctx_out);
 	fclose(fp);
 	return status;
 }
 
 static enum editorThemeLoadStatus
-editorThemeApplyConfigSelector(const char *path, char selected_name[64],
-                               enum editorThemeLoadStatus invalid_bit) {
+themeParseApplyConfigSelector(const char *path, char selected_name[64],
+                              enum editorThemeLoadStatus invalid_bit) {
 	if (path == NULL) {
 		return EDITOR_THEME_LOAD_OK;
 	}
 	struct editorTheme scratch;
 	editorThemeInitDefault(&scratch);
-	struct editorThemeParseContext ctx;
-	enum editorThemeFileStatus file_status = editorThemeApplyFile(&scratch, path, 0, &ctx);
-	if (file_status == EDITOR_THEME_FILE_MISSING) {
+	struct themeParseContext ctx;
+	enum themeParseFileStatus file_status = themeParseApplyFile(&scratch, path, 0, &ctx);
+	if (file_status == THEME_PARSE_FILE_MISSING) {
 		return EDITOR_THEME_LOAD_OK;
 	}
-	if (file_status == EDITOR_THEME_FILE_OUT_OF_MEMORY) {
+	if (file_status == THEME_PARSE_FILE_OUT_OF_MEMORY) {
 		return EDITOR_THEME_LOAD_OUT_OF_MEMORY;
 	}
 	enum editorThemeLoadStatus status = EDITOR_THEME_LOAD_OK;
@@ -608,9 +607,9 @@ editorThemeApplyConfigSelector(const char *path, char selected_name[64],
 	return status;
 }
 
-static char *editorThemeBuildCustomThemePath(const char *home_dir, const char *name) {
+static char *themeParseBuildCustomThemePath(const char *home_dir, const char *name) {
 	if (home_dir == NULL || home_dir[0] == '\0' || name == NULL ||
-	    !editorThemeNameIsValid(name)) {
+	    !themeParseNameIsValid(name)) {
 		return NULL;
 	}
 	const char *middle = "/.rotide/themes/";
@@ -628,9 +627,9 @@ static char *editorThemeBuildCustomThemePath(const char *home_dir, const char *n
 	return path;
 }
 
-static enum editorThemeLoadStatus editorThemeLoadCustom(struct editorTheme *theme_out,
-                                                        const char *name, const char *home_dir) {
-	char *path = editorThemeBuildCustomThemePath(home_dir, name);
+static enum editorThemeLoadStatus themeParseLoadCustom(struct editorTheme *theme_out,
+                                                       const char *name, const char *home_dir) {
+	char *path = themeParseBuildCustomThemePath(home_dir, name);
 	if (path == NULL) {
 		editorThemeInitDefault(theme_out);
 		return EDITOR_THEME_LOAD_INVALID_THEME;
@@ -638,10 +637,10 @@ static enum editorThemeLoadStatus editorThemeLoadCustom(struct editorTheme *them
 
 	struct editorTheme parsed;
 	editorThemeInitDefault(&parsed);
-	struct editorThemeParseContext ctx;
-	enum editorThemeFileStatus file_status = editorThemeApplyFile(&parsed, path, 1, &ctx);
+	struct themeParseContext ctx;
+	enum themeParseFileStatus file_status = themeParseApplyFile(&parsed, path, 1, &ctx);
 	free(path);
-	if (file_status != EDITOR_THEME_FILE_APPLIED || ctx.had_invalid) {
+	if (file_status != THEME_PARSE_FILE_APPLIED || ctx.had_invalid) {
 		editorThemeInitDefault(theme_out);
 		return EDITOR_THEME_LOAD_INVALID_THEME;
 	}
@@ -649,14 +648,14 @@ static enum editorThemeLoadStatus editorThemeLoadCustom(struct editorTheme *them
 		editorThemeInitDefault(theme_out);
 		return EDITOR_THEME_LOAD_INVALID_THEME;
 	}
-	path = editorThemeBuildCustomThemePath(home_dir, name);
+	path = themeParseBuildCustomThemePath(home_dir, name);
 	if (path == NULL) {
 		editorThemeInitDefault(theme_out);
 		return EDITOR_THEME_LOAD_INVALID_THEME;
 	}
-	file_status = editorThemeApplyFile(&parsed, path, 1, &ctx);
+	file_status = themeParseApplyFile(&parsed, path, 1, &ctx);
 	free(path);
-	if (file_status != EDITOR_THEME_FILE_APPLIED || ctx.had_invalid) {
+	if (file_status != THEME_PARSE_FILE_APPLIED || ctx.had_invalid) {
 		editorThemeInitDefault(theme_out);
 		return EDITOR_THEME_LOAD_INVALID_THEME;
 	}
@@ -669,12 +668,12 @@ static enum editorThemeLoadStatus editorThemeLoadCustom(struct editorTheme *them
 	return EDITOR_THEME_LOAD_OK;
 }
 
-static enum editorThemeLoadStatus editorThemeLoadNamed(struct editorTheme *theme_out,
-                                                       const char *name, const char *home_dir) {
+static enum editorThemeLoadStatus themeParseLoadNamed(struct editorTheme *theme_out,
+                                                      const char *name, const char *home_dir) {
 	if (editorThemeInitBuiltin(theme_out, name)) {
 		return EDITOR_THEME_LOAD_OK;
 	}
-	return editorThemeLoadCustom(theme_out, name, home_dir);
+	return themeParseLoadCustom(theme_out, name, home_dir);
 }
 
 enum editorThemeLoadStatus editorThemeLoadFromPaths(struct editorTheme *theme_out,
@@ -689,22 +688,22 @@ enum editorThemeLoadStatus editorThemeLoadFromPaths(struct editorTheme *theme_ou
 	(void)snprintf(selected_name, sizeof(selected_name), "%s", "terminal");
 	enum editorThemeLoadStatus status = EDITOR_THEME_LOAD_OK;
 	status = (enum editorThemeLoadStatus)(
-	        status | editorThemeApplyConfigSelector(global_path, selected_name,
-	                                                EDITOR_THEME_LOAD_INVALID_GLOBAL));
+	        status | themeParseApplyConfigSelector(global_path, selected_name,
+	                                               EDITOR_THEME_LOAD_INVALID_GLOBAL));
 	if ((status & EDITOR_THEME_LOAD_OUT_OF_MEMORY) != 0) {
 		editorThemeInitDefault(theme_out);
 		return status;
 	}
 	status = (enum editorThemeLoadStatus)(
-	        status | editorThemeApplyConfigSelector(project_path, selected_name,
-	                                                EDITOR_THEME_LOAD_INVALID_PROJECT));
+	        status | themeParseApplyConfigSelector(project_path, selected_name,
+	                                               EDITOR_THEME_LOAD_INVALID_PROJECT));
 	if ((status & EDITOR_THEME_LOAD_OUT_OF_MEMORY) != 0) {
 		editorThemeInitDefault(theme_out);
 		return status;
 	}
 
 	enum editorThemeLoadStatus theme_status =
-	        editorThemeLoadNamed(theme_out, selected_name, home_dir);
+	        themeParseLoadNamed(theme_out, selected_name, home_dir);
 	status = (enum editorThemeLoadStatus)(status | theme_status);
 	return status;
 }
@@ -728,13 +727,13 @@ enum editorThemeLoadStatus editorThemeLoadConfigured(struct editorTheme *theme_o
 }
 
 #ifdef ROTIDE_FUZZ
-/* Fuzz-only entry. Drives `editorThemeApplyStream` over an arbitrary
+/* Fuzz-only entry. Drives `themeParseApplyStream` over an arbitrary
  * byte stream so the libFuzzer harness in tests/fuzz/toml/ does not
  * need to see the private parse-context / file-status types. */
 void editorThemeApplyStreamFuzz(FILE *fp) {
 	struct editorTheme scratch;
 	editorThemeInitDefault(&scratch);
-	struct editorThemeParseContext ctx;
-	(void)editorThemeApplyStream(&scratch, fp, 1, &ctx);
+	struct themeParseContext ctx;
+	(void)themeParseApplyStream(&scratch, fp, 1, &ctx);
 }
 #endif
