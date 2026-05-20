@@ -4,6 +4,8 @@
 CC ?= cc
 STRIP ?= strip
 STRIPFLAGS ?= --strip-unneeded
+CLANG_FORMAT ?= clang-format
+CLANG_TIDY ?= clang-tidy
 
 # ============================================================================
 # Project layout
@@ -260,6 +262,13 @@ DEFAULT_CONFIG_HEADER := $(SRC_DIR)/config/default_config_data.h
 GENERATED_HEADERS := $(QUERIES_HEADER) $(DEFAULT_CONFIG_HEADER)
 
 # ============================================================================
+# Style tooling
+# ============================================================================
+FORMAT_FILES := $(shell find $(SRC_DIR) tests -type f \( -name '*.c' -o -name '*.h' \) \
+	! -path '$(QUERIES_HEADER)' ! -path '$(DEFAULT_CONFIG_HEADER)' 2>/dev/null)
+LINT_FILES := $(filter %.c,$(FORMAT_FILES))
+
+# ============================================================================
 # Build logging (set V=1 for full compile commands)
 # ============================================================================
 V ?= 0
@@ -424,6 +433,30 @@ update-goldens: $(TEST_BIN) $(GOLDEN_APPLY_BIN) $(GOLDEN_DIFF_REPORT_BIN)
 		elif [ $$rc -eq 1 ]; then \
 			echo "(re-run with APPLY=1 to rewrite the source files above)"; \
 		fi
+
+format:
+	@command -v $(CLANG_FORMAT) >/dev/null 2>&1 || { \
+		echo "$(CLANG_FORMAT) not installed. Install clang-format 18+ or set CLANG_FORMAT=..." >&2; \
+		exit 1; \
+	}
+	$(call LOG,FORMAT,clang-format)$(CLANG_FORMAT) -i $(FORMAT_FILES)
+
+format-check:
+	@command -v $(CLANG_FORMAT) >/dev/null 2>&1 || { \
+		echo "$(CLANG_FORMAT) not installed. Install clang-format 18+ or set CLANG_FORMAT=..." >&2; \
+		exit 1; \
+	}
+	$(call LOG,FMTCHK,clang-format)$(CLANG_FORMAT) --dry-run --Werror $(FORMAT_FILES)
+
+lint:
+	@command -v $(CLANG_TIDY) >/dev/null 2>&1 || { \
+		echo "$(CLANG_TIDY) not installed. Install clang-tidy 18+ or set CLANG_TIDY=..." >&2; \
+		exit 1; \
+	}
+	$(call LOG,LINT,clang-tidy)$(CLANG_TIDY) $(LINT_FILES) -- $(CPPFLAGS) $(CFLAGS) $(PTHREAD_FLAGS)
+
+lint-prefixes:
+	$(call LOG,LINT,prefixes)tools/lint-prefixes.sh
 
 fuzz-vterm: $(FUZZ_VTERM_BIN)
 	$(call LOG,FUZZ,vterm)./$(FUZZ_VTERM_BIN) $(FUZZ_VTERM_CORPUS)
@@ -625,7 +658,7 @@ docs-diagrams:
 
 -include $(DEPFILES)
 
-.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams bench-buffer bench bench-render-once fuzz-vterm fuzz-vterm-smoke fuzz-vterm-nightly fuzz-lsp fuzz-lsp-smoke fuzz-lsp-nightly fuzz-dap fuzz-dap-smoke fuzz-dap-nightly fuzz-toml-theme fuzz-toml-theme-smoke fuzz-toml-theme-nightly update-goldens
+.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams bench-buffer bench bench-render-once format format-check lint lint-prefixes fuzz-vterm fuzz-vterm-smoke fuzz-vterm-nightly fuzz-lsp fuzz-lsp-smoke fuzz-lsp-nightly fuzz-dap fuzz-dap-smoke fuzz-dap-nightly fuzz-toml-theme fuzz-toml-theme-smoke fuzz-toml-theme-nightly update-goldens
 
 clean:
 	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(BENCH_BUFFER_OBJ) $(METRICS_FUZZ_EMIT_OBJS) $(METRICS_SUMMARY_OBJS) $(GOLDEN_APPLY_OBJS) $(GOLDEN_DIFF_REPORT_OBJS) $(DEPFILES) $(TEST_BIN) $(BENCH_BUFFER_BIN) $(METRICS_FUZZ_EMIT_BIN) $(METRICS_SUMMARY_BIN) $(GOLDEN_APPLY_BIN) $(GOLDEN_DIFF_REPORT_BIN) $(FUZZ_VTERM_BIN) $(FUZZ_LSP_BIN) $(FUZZ_DAP_BIN) $(FUZZ_TOML_THEME_BIN) rotide $(GENERATED_HEADERS)

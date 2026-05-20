@@ -33,6 +33,24 @@ Do not add comments that:
 
 When in doubt, omit the comment.
 
+## Code Style
+
+- Base style: K&R. Indent with hard tabs (8 columns). Put braces on the same line.
+- Pointer asterisks attach to the name, for example `char *name`.
+- Keep lines ≤100 columns where practical; 120 columns is the hard limit.
+- New header guards use `ROTIDE_<SUBSYS>_<FILE>_H`. Existing guards are
+  normalized in a later style phase.
+- Macros and constants use `UPPER_SNAKE_CASE`.
+- Out-parameters use the `_out` suffix.
+- Borrowed views / writable byte spans / owned copies use the `View` / `Bytes`
+  / `Dup` accessor family.
+- `make format` and `make format-check` use the repository `.clang-format`;
+  `format-check` becomes blocking only after the formatter baseline lands.
+- `make lint` is advisory until the complexity refactors land. It measures
+  function size, cognitive complexity, and nesting depth.
+- Use `goto` only for cleanup-style exits, with labels named `cleanup`, `done`,
+  `err`, or `out`.
+
 ## Validation
 
 - Always run `make` and `make test`.
