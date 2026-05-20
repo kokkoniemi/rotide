@@ -12,7 +12,7 @@
 #define VT100_ITALIC_OFF_5 "\x1b[23m"
 #define VT100_CLEAR_ROW_3 "\x1b[K"
 
-static const char *editorTabLabelFromDisplayName(const char *display_name) {
+static const char *tabBarLabelFromDisplayName(const char *display_name) {
 	if (display_name == NULL) {
 		return "[No Name]";
 	}
@@ -82,7 +82,7 @@ int editorDrawTabSlots(struct writeBuf *wb, int cols) {
 
 		if (slot_cols < content_width) {
 			const char *label =
-			        editorTabLabelFromDisplayName(editorTabDisplayNameAt(tab_idx));
+			        tabBarLabelFromDisplayName(editorTabDisplayNameAt(tab_idx));
 			int is_preview = editorTabIsPreviewAt(tab_idx);
 			int right_pad_cols = 3;
 			int label_cols = content_width - slot_cols - right_pad_cols;

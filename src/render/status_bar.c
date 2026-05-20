@@ -141,7 +141,7 @@ int editorDrawMessageBar(struct writeBuf *wb) {
 	return 1;
 }
 
-static int editorStatusAppendCursorMove(struct writeBuf *wb, int row, int col) {
+static int statusBarAppendCursorMove(struct writeBuf *wb, int row, int col) {
 	char buf[32];
 	int len = snprintf(buf, sizeof(buf), "\x1b[%d;%dH", row, col);
 	if (len <= 0 || len >= (int)sizeof(buf)) {
@@ -220,7 +220,7 @@ int editorDrawDiagnosticPopdownMessage(struct writeBuf *wb, const char *message,
 		if (end_idx <= start_idx) {
 			break;
 		}
-		if (!editorStatusAppendCursorMove(wb, terminal_row, terminal_col) ||
+		if (!statusBarAppendCursorMove(wb, terminal_row, terminal_col) ||
 		    !editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_STATUS) ||
 		    !wbAppend(wb, " ", 1) ||
 		    !wbAppend(wb, &sanitized[start_idx], (size_t)(end_idx - start_idx))) {

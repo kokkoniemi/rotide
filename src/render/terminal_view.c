@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <sys/wait.h>
 
-static int editorUtf8EncodeCodepoint(uint32_t cp, char *out) {
+static int terminalViewUtf8EncodeCodepoint(uint32_t cp, char *out) {
 	if (cp < 0x80) {
 		out[0] = (char)cp;
 		return 1;
@@ -32,7 +32,7 @@ static int editorUtf8EncodeCodepoint(uint32_t cp, char *out) {
 	return 0;
 }
 
-static int editorTerminalAppendColorSgr(struct writeBuf *wb, const VTermColor *color, int is_fg) {
+static int terminalViewAppendColorSgr(struct writeBuf *wb, const VTermColor *color, int is_fg) {
 	char esc[32];
 	int n;
 	if (is_fg ? VTERM_COLOR_IS_DEFAULT_FG(color) : VTERM_COLOR_IS_DEFAULT_BG(color)) {
@@ -67,7 +67,7 @@ static int editorTerminalAppendColorSgr(struct writeBuf *wb, const VTermColor *c
 	return wbAppend(wb, esc, (size_t)n);
 }
 
-static int editorTerminalCellIsPlain(const VTermScreenCell *cell) {
+static int terminalViewCellIsPlain(const VTermScreenCell *cell) {
 	if (cell->attrs.bold || cell->attrs.italic ||
 	    cell->attrs.underline != VTERM_UNDERLINE_OFF || cell->attrs.blink ||
 	    cell->attrs.reverse || cell->attrs.conceal || cell->attrs.strike) {
@@ -76,11 +76,11 @@ static int editorTerminalCellIsPlain(const VTermScreenCell *cell) {
 	return VTERM_COLOR_IS_DEFAULT_FG(&cell->fg) && VTERM_COLOR_IS_DEFAULT_BG(&cell->bg);
 }
 
-static int editorDrawTerminalCellAttrs(struct writeBuf *wb, const VTermScreenCell *cell) {
+static int terminalViewDrawCellAttrs(struct writeBuf *wb, const VTermScreenCell *cell) {
 	if (!editorAppendThemeReset(wb)) {
 		return 0;
 	}
-	if (editorTerminalCellIsPlain(cell)) {
+	if (terminalViewCellIsPlain(cell)) {
 		return 1;
 	}
 	if (cell->attrs.bold && !wbAppend(wb, "\x1b[1m", 4)) {
@@ -104,16 +104,16 @@ static int editorDrawTerminalCellAttrs(struct writeBuf *wb, const VTermScreenCel
 	if (cell->attrs.strike && !wbAppend(wb, "\x1b[9m", 4)) {
 		return 0;
 	}
-	if (!editorTerminalAppendColorSgr(wb, &cell->fg, 1) ||
-	    !editorTerminalAppendColorSgr(wb, &cell->bg, 0)) {
+	if (!terminalViewAppendColorSgr(wb, &cell->fg, 1) ||
+	    !terminalViewAppendColorSgr(wb, &cell->bg, 0)) {
 		return 0;
 	}
 	return 1;
 }
 
-static int editorDrawTerminalExitStatusRow(struct writeBuf *wb,
-                                           const struct editorTerminalPane *terminal,
-                                           int col_in_pane, int slice_cols) {
+static int terminalViewDrawExitStatusRow(struct writeBuf *wb,
+                                         const struct editorTerminalPane *terminal, int col_in_pane,
+                                         int slice_cols) {
 	char banner[128];
 	int n;
 	if (WIFEXITED(terminal->exit_status)) {
@@ -157,7 +157,7 @@ int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *term
 		return 1;
 	}
 	if (terminal->exited && terminal->rows > 0 && row_in_pane == terminal->rows - 1) {
-		return editorDrawTerminalExitStatusRow(wb, terminal, col_in_pane, slice_cols);
+		return terminalViewDrawExitStatusRow(wb, terminal, col_in_pane, slice_cols);
 	}
 	if (!editorAppendThemeReset(wb)) {
 		return 0;
@@ -191,7 +191,7 @@ int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *term
 			}
 			break;
 		}
-		int plain = editorTerminalCellIsPlain(&cell);
+		int plain = terminalViewCellIsPlain(&cell);
 		if (plain) {
 			if (any_styled_emitted && !last_was_plain) {
 				if (!editorAppendThemeReset(wb)) {
@@ -199,7 +199,7 @@ int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *term
 				}
 			}
 		} else {
-			if (!editorDrawTerminalCellAttrs(wb, &cell)) {
+			if (!terminalViewDrawCellAttrs(wb, &cell)) {
 				return 0;
 			}
 			any_styled_emitted = 1;
@@ -212,7 +212,7 @@ int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *term
 		} else {
 			for (int i = 0; i < VTERM_MAX_CHARS_PER_CELL && cell.chars[i] != 0; i++) {
 				char utf8[4];
-				int n = editorUtf8EncodeCodepoint(cell.chars[i], utf8);
+				int n = terminalViewUtf8EncodeCodepoint(cell.chars[i], utf8);
 				if (n > 0 && !wbAppend(wb, utf8, (size_t)n)) {
 					return 0;
 				}

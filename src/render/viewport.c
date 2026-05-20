@@ -9,7 +9,7 @@
 
 #include <limits.h>
 
-static int editorPaneTextBodyViewportColsForWidth(int pane_cols) {
+static int viewportTextBodyColsForWidth(int pane_cols) {
 	int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);
 	if (gutter_cols > pane_cols) {
 		gutter_cols = pane_cols;
@@ -35,7 +35,7 @@ int editorViewportFocusedPaneBodyRows(void) {
 int editorViewportFocusedPaneTextBodyCols(void) {
 	struct editorRect rect = {0};
 	if (editorLayoutFocusedLeafRect(&rect) && rect.w > 0) {
-		return editorPaneTextBodyViewportColsForWidth(rect.w);
+		return viewportTextBodyColsForWidth(rect.w);
 	}
 	return editorTextBodyViewportCols(E.window_cols);
 }
@@ -82,7 +82,7 @@ int editorViewportTextScreenRowToBufferPosition(int screen_row, int *row_idx_out
 	return 1;
 }
 
-static void editorClampViewportOffsets(void) {
+static void viewportClampOffsets(void) {
 	if (E.line_wrap_enabled) {
 		editorWrappedClampViewportOffsets();
 		return;
@@ -109,7 +109,7 @@ static void editorClampViewportOffsets(void) {
 	E.wrapoff = 0;
 }
 
-static void editorUpdateRenderXFromCursor(void) {
+static void viewportUpdateRenderXFromCursor(void) {
 	E.rx = 0;
 	if (E.cy < E.numrows) {
 		struct editorLineView line = {0};
@@ -120,7 +120,7 @@ static void editorUpdateRenderXFromCursor(void) {
 	}
 }
 
-static void editorFollowCursorViewport(void) {
+static void viewportFollowCursor(void) {
 	int text_cols = editorViewportFocusedPaneTextBodyCols();
 	if (text_cols < 1) {
 		text_cols = 1;
@@ -224,7 +224,7 @@ void editorViewportScrollByRows(int delta_rows) {
 	}
 	E.rowoff = (int)target;
 	E.viewport_mode = EDITOR_VIEWPORT_FREE_SCROLL;
-	editorClampViewportOffsets();
+	viewportClampOffsets();
 }
 
 void editorViewportScrollByCols(int delta_cols) {
@@ -247,17 +247,17 @@ void editorViewportScrollByCols(int delta_cols) {
 	}
 	E.coloff = (int)target;
 	E.viewport_mode = EDITOR_VIEWPORT_FREE_SCROLL;
-	editorClampViewportOffsets();
+	viewportClampOffsets();
 }
 
 void editorViewportEnsureCursorVisible(void) {
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
-	editorUpdateRenderXFromCursor();
-	editorFollowCursorViewport();
-	editorClampViewportOffsets();
+	viewportUpdateRenderXFromCursor();
+	viewportFollowCursor();
+	viewportClampOffsets();
 }
 
-static int editorViewportCenteredScreenRowAvoidingDrawerSelection(int desired_screen_row) {
+static int viewportCenteredScreenRowAvoidingDrawerSelection(int desired_screen_row) {
 	if (desired_screen_row < 0 || E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER ||
 	    E.drawer_selected_index < 0 || E.window_rows <= 1) {
 		return desired_screen_row;
@@ -277,12 +277,11 @@ static int editorViewportCenteredScreenRowAvoidingDrawerSelection(int desired_sc
 
 void editorViewportCenterCursor(void) {
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
-	editorUpdateRenderXFromCursor();
+	viewportUpdateRenderXFromCursor();
 
 	int body_rows = editorViewportFocusedPaneBodyRows();
 	int target_screen_row = body_rows > 0 ? body_rows / 2 : 0;
-	target_screen_row =
-	        editorViewportCenteredScreenRowAvoidingDrawerSelection(target_screen_row);
+	target_screen_row = viewportCenteredScreenRowAvoidingDrawerSelection(target_screen_row);
 
 	if (E.line_wrap_enabled) {
 		int body_cols = editorWrapBodyCols();
@@ -315,13 +314,13 @@ void editorViewportCenterCursor(void) {
 			E.coloff = E.rx - text_cols + 1;
 		}
 	}
-	editorClampViewportOffsets();
+	viewportClampOffsets();
 }
 
 void editorViewportUpdateForFrame(void) {
-	editorUpdateRenderXFromCursor();
+	viewportUpdateRenderXFromCursor();
 	if (E.viewport_mode == EDITOR_VIEWPORT_FOLLOW_CURSOR) {
-		editorFollowCursorViewport();
+		viewportFollowCursor();
 	}
-	editorClampViewportOffsets();
+	viewportClampOffsets();
 }
