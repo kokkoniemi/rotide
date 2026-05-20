@@ -15,7 +15,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-static int editorSyntaxOffsetToU32(size_t offset, uint32_t *out) {
+static int editPipelineSyntaxOffsetToU32(size_t offset, uint32_t *out) {
 	if (out == NULL || offset > UINT32_MAX) {
 		return 0;
 	}
@@ -23,7 +23,7 @@ static int editorSyntaxOffsetToU32(size_t offset, uint32_t *out) {
 	return 1;
 }
 
-static int editorSyntaxPointFromPosition(int cy, int cx, struct editorSyntaxPoint *out) {
+static int editPipelineSyntaxPointFromPosition(int cy, int cx, struct editorSyntaxPoint *out) {
 	if (out == NULL || cy < 0 || cx < 0) {
 		return 0;
 	}
@@ -32,7 +32,7 @@ static int editorSyntaxPointFromPosition(int cy, int cx, struct editorSyntaxPoin
 	return 1;
 }
 
-static int editorActiveDocumentCurrent(const struct editorDocument **document_out) {
+static int editPipelineEnsureActiveDocument(const struct editorDocument **document_out) {
 	if (document_out == NULL || !editorTabKindSupportsDocument(E.tab_kind) ||
 	    !editorDocumentEnsureActiveCurrent() || E.document == NULL) {
 		return 0;
@@ -41,8 +41,8 @@ static int editorActiveDocumentCurrent(const struct editorDocument **document_ou
 	return 1;
 }
 
-static int editorAdvancePositionByText(int start_row, size_t start_col, const char *text,
-                                       size_t len, int *row_out, size_t *col_out) {
+static int editPipelineAdvancePositionByText(int start_row, size_t start_col, const char *text,
+                                             size_t len, int *row_out, size_t *col_out) {
 	int row = start_row;
 	size_t col = start_col;
 
@@ -69,10 +69,9 @@ static int editorAdvancePositionByText(int start_row, size_t start_col, const ch
 	return 1;
 }
 
-static int editorBuildSyntaxEditForDocumentEdit(const struct editorDocument *document,
-                                                size_t start_offset, size_t old_len,
-                                                const char *new_text, size_t new_len,
-                                                struct editorSyntaxEdit *edit_out) {
+static int editPipelineBuildSyntaxEdit(const struct editorDocument *document, size_t start_offset,
+                                       size_t old_len, const char *new_text, size_t new_len,
+                                       struct editorSyntaxEdit *edit_out) {
 	size_t old_end_offset = 0;
 	size_t new_end_offset = 0;
 	int start_row = 0;
@@ -95,19 +94,20 @@ static int editorBuildSyntaxEditForDocumentEdit(const struct editorDocument *doc
 	if (!editorDocumentByteOffsetToPosition(document, start_offset, &start_row, &start_col) ||
 	    !editorDocumentByteOffsetToPosition(document, old_end_offset, &old_end_row,
 	                                        &old_end_col) ||
-	    !editorAdvancePositionByText(start_row, start_col, new_len > 0 ? new_text : "", new_len,
-	                                 &new_end_row, &new_end_col) ||
+	    !editPipelineAdvancePositionByText(start_row, start_col, new_len > 0 ? new_text : "",
+	                                       new_len, &new_end_row, &new_end_col) ||
 	    !editorSizeToInt(start_col, &start_col_int) ||
 	    !editorSizeToInt(old_end_col, &old_end_col_int) ||
 	    !editorSizeToInt(new_end_col, &new_end_col_int) ||
-	    !editorSyntaxOffsetToU32(start_offset, &edit_out->start_byte) ||
-	    !editorSyntaxOffsetToU32(old_end_offset, &edit_out->old_end_byte) ||
-	    !editorSyntaxOffsetToU32(new_end_offset, &edit_out->new_end_byte) ||
-	    !editorSyntaxPointFromPosition(start_row, start_col_int, &edit_out->start_point) ||
-	    !editorSyntaxPointFromPosition(old_end_row, old_end_col_int,
-	                                   &edit_out->old_end_point) ||
-	    !editorSyntaxPointFromPosition(new_end_row, new_end_col_int,
-	                                   &edit_out->new_end_point)) {
+	    !editPipelineSyntaxOffsetToU32(start_offset, &edit_out->start_byte) ||
+	    !editPipelineSyntaxOffsetToU32(old_end_offset, &edit_out->old_end_byte) ||
+	    !editPipelineSyntaxOffsetToU32(new_end_offset, &edit_out->new_end_byte) ||
+	    !editPipelineSyntaxPointFromPosition(start_row, start_col_int,
+	                                         &edit_out->start_point) ||
+	    !editPipelineSyntaxPointFromPosition(old_end_row, old_end_col_int,
+	                                         &edit_out->old_end_point) ||
+	    !editPipelineSyntaxPointFromPosition(new_end_row, new_end_col_int,
+	                                         &edit_out->new_end_point)) {
 		return 0;
 	}
 
@@ -129,7 +129,7 @@ int editorApplyDocumentEdit(const struct editorDocumentEdit *edit) {
 		editorSetOperationTooLargeStatus();
 		return 0;
 	}
-	if (!editorActiveDocumentCurrent(&active_document) || active_document == NULL ||
+	if (!editPipelineEnsureActiveDocument(&active_document) || active_document == NULL ||
 	    E.document == NULL) {
 		editorSetAllocFailureStatus();
 		return 0;
@@ -170,7 +170,7 @@ int editorApplyDocumentEdit(const struct editorDocumentEdit *edit) {
 
 	if ((E.syntax_state != NULL || editorSyntaxBackgroundEnabled()) &&
 	    E.syntax_language != EDITOR_SYNTAX_NONE) {
-		syntax_track = editorBuildSyntaxEditForDocumentEdit(
+		syntax_track = editPipelineBuildSyntaxEdit(
 		        active_document, edit->start_offset, edit->old_len,
 		        edit->new_len > 0 ? edit->new_text : "", edit->new_len, &syntax_edit);
 	}

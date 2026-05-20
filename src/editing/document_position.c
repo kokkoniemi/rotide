@@ -5,7 +5,7 @@
 #include "text/document.h"
 #include "text/row.h"
 
-static int editorActiveDocumentCurrent(const struct editorDocument **document_out) {
+static int documentPositionEnsureActiveDocument(const struct editorDocument **document_out) {
 	if (document_out == NULL || !editorTabKindSupportsDocument(E.tab_kind) ||
 	    !editorDocumentEnsureActiveCurrent() || E.document == NULL) {
 		return 0;
@@ -19,7 +19,7 @@ int editorBufferPosToOffset(int cy, int cx, size_t *offset_out) {
 		return 0;
 	}
 	const struct editorDocument *document = NULL;
-	if (!editorActiveDocumentCurrent(&document)) {
+	if (!documentPositionEnsureActiveDocument(&document)) {
 		return 0;
 	}
 	size_t offset = 0;
@@ -39,7 +39,7 @@ int editorBufferOffsetToPos(size_t offset, int *cy_out, int *cx_out) {
 	}
 
 	const struct editorDocument *document = NULL;
-	if (!editorActiveDocumentCurrent(&document)) {
+	if (!documentPositionEnsureActiveDocument(&document)) {
 		return 0;
 	}
 	int line_idx = 0;
@@ -62,16 +62,16 @@ int editorBufferLineByteRange(int row_idx, size_t *start_byte_out, size_t *end_b
 	}
 
 	const struct editorDocument *document = NULL;
-	if (!editorActiveDocumentCurrent(&document)) {
+	if (!documentPositionEnsureActiveDocument(&document)) {
 		return 0;
 	}
 	return editorDocumentLineStartByte(document, row_idx, start_byte_out) &&
 	       editorDocumentLineEndByte(document, row_idx, end_byte_out);
 }
 
-static int editorCursorPositionForOffset(const struct editorDocument *document, int numrows,
-                                         size_t offset, int *cy_out, int *cx_out,
-                                         size_t *normalized_offset_out) {
+static int documentPositionCursorForOffset(const struct editorDocument *document, int numrows,
+                                           size_t offset, int *cy_out, int *cx_out,
+                                           size_t *normalized_offset_out) {
 	size_t document_len = 0;
 	int cy = 0;
 	size_t column = 0;
@@ -142,8 +142,8 @@ int editorSyncCursorFromOffset(size_t target_offset) {
 	int new_cx = 0;
 
 	if (E.document == NULL ||
-	    !editorCursorPositionForOffset(E.document, E.numrows, target_offset, &new_cy, &new_cx,
-	                                   &normalized_offset)) {
+	    !documentPositionCursorForOffset(E.document, E.numrows, target_offset, &new_cy, &new_cx,
+	                                     &normalized_offset)) {
 		return 0;
 	}
 
