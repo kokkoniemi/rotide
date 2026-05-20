@@ -148,7 +148,7 @@ int editorBytesClampCxToClusterBoundary(const char *bytes, int size, int cx) {
 	return boundary;
 }
 
-static char editorHexUpperDigit(unsigned int value) {
+static char rowHexUpperDigit(unsigned int value) {
 	return value < 10 ? (char)('0' + value) : (char)('A' + (value - 10));
 }
 
@@ -156,8 +156,8 @@ static char editorHexUpperDigit(unsigned int value) {
 // Single source of truth for: source bytes consumed, render bytes produced,
 // and display columns occupied — render-building, cursor math, and highlight
 // mapping all flow through here so escaped controls stay consistent.
-static int editorBuildRenderToken(const char *s, int len, int rx, int expand_tabs, char *render_out,
-                                  int *src_len_out, int *render_len_out, int *width_out) {
+static int rowBuildRenderToken(const char *s, int len, int rx, int expand_tabs, char *render_out,
+                               int *src_len_out, int *render_len_out, int *width_out) {
 	if (s == NULL || len <= 0) {
 		return 0;
 	}
@@ -233,8 +233,8 @@ static int editorBuildRenderToken(const char *s, int len, int rx, int expand_tab
 		if (render_out != NULL) {
 			render_out[0] = '\\';
 			render_out[1] = 'x';
-			render_out[2] = editorHexUpperDigit((cp >> 4) & 0x0F);
-			render_out[3] = editorHexUpperDigit(cp & 0x0F);
+			render_out[2] = rowHexUpperDigit((cp >> 4) & 0x0F);
+			render_out[3] = rowHexUpperDigit(cp & 0x0F);
 		}
 		if (src_len_out != NULL) {
 			*src_len_out = src_len;
@@ -269,8 +269,8 @@ int editorBytesCxToRx(const char *bytes, int size, int cx) {
 	for (int idx = 0; idx < cx && idx < size;) {
 		int src_len = 0;
 		int token_width = 0;
-		if (!editorBuildRenderToken(&bytes[idx], size - idx, rx, 1, NULL, &src_len, NULL,
-		                            &token_width)) {
+		if (!rowBuildRenderToken(&bytes[idx], size - idx, rx, 1, NULL, &src_len, NULL,
+		                         &token_width)) {
 			break;
 		}
 		if (src_len <= 0) {
@@ -301,8 +301,8 @@ int editorBytesRxToCx(const char *bytes, int size, int rx) {
 		for (int idx = cx; idx < next_cx;) {
 			int src_len = 0;
 			int token_width = 0;
-			if (!editorBuildRenderToken(&bytes[idx], size - idx, cur_rx + cluster_width,
-			                            1, NULL, &src_len, NULL, &token_width)) {
+			if (!rowBuildRenderToken(&bytes[idx], size - idx, cur_rx + cluster_width, 1,
+			                         NULL, &src_len, NULL, &token_width)) {
 				break;
 			}
 			if (src_len <= 0) {
@@ -333,8 +333,8 @@ int editorBytesCxToRenderIdx(const char *bytes, int size, int rsize, int cx) {
 		int src_len = 0;
 		int render_len = 0;
 		int token_width = 0;
-		if (!editorBuildRenderToken(&bytes[idx], size - idx, rx, 1, NULL, &src_len,
-		                            &render_len, &token_width)) {
+		if (!rowBuildRenderToken(&bytes[idx], size - idx, rx, 1, NULL, &src_len,
+		                         &render_len, &token_width)) {
 			break;
 		}
 		if (src_len <= 0) {
@@ -359,8 +359,8 @@ int editorRowBuildRender(const char *chars, int size, char **render_out, int *rs
 		int src_len = 0;
 		int render_len = 0;
 		int token_width = 0;
-		if (!editorBuildRenderToken(&chars[idx], size - idx, rx, 1, NULL, &src_len,
-		                            &render_len, &token_width)) {
+		if (!rowBuildRenderToken(&chars[idx], size - idx, rx, 1, NULL, &src_len,
+		                         &render_len, &token_width)) {
 			return 0;
 		}
 		if (src_len <= 0) {
@@ -393,8 +393,8 @@ int editorRowBuildRender(const char *chars, int size, char **render_out, int *rs
 		int src_len = 0;
 		int render_len = 0;
 		int token_width = 0;
-		if (!editorBuildRenderToken(&chars[idx], size - idx, rx, 1, token, &src_len,
-		                            &render_len, &token_width)) {
+		if (!rowBuildRenderToken(&chars[idx], size - idx, rx, 1, token, &src_len,
+		                         &render_len, &token_width)) {
 			free(render);
 			return 0;
 		}

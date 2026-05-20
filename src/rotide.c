@@ -177,7 +177,7 @@ void initEditor(void) {
  * if the flag was present, 0 otherwise. Lets us extract a leading
  * mode flag without forcing the rest of the argv parsing through a
  * general option parser. */
-static int strip_flag(int *argc, char *argv[], const char *flag) {
+static int rotideStripFlag(int *argc, char *argv[], const char *flag) {
 	for (int i = 1; i < *argc; i++) {
 		if (strcmp(argv[i], flag) == 0) {
 			for (int j = i; j < *argc - 1; j++) {
@@ -194,7 +194,7 @@ static int strip_flag(int *argc, char *argv[], const char *flag) {
 int main(int argc, char *argv[]) {
 	setlocale(LC_CTYPE, "");
 
-	g_render_once = strip_flag(&argc, argv, "--render-once");
+	g_render_once = rotideStripFlag(&argc, argv, "--render-once");
 
 	if (!g_render_once) {
 		setRawMode();

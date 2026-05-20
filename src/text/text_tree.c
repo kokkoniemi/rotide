@@ -30,7 +30,7 @@
  */
 #define EDITOR_TEXT_TREE_COALESCE_MAX_BYTES 64
 
-struct descentEntry {
+struct textTreeDescentEntry {
 	struct editorTextNode *node;
 	int child_idx;
 };
@@ -68,7 +68,7 @@ static void pieceDestroy(struct editorTextChunk *piece) {
 /* Node lifecycle                                                     */
 /* ------------------------------------------------------------------ */
 
-static struct editorTextNode *editorTextNodeAlloc(unsigned char is_leaf) {
+static struct editorTextNode *textNodeAlloc(unsigned char is_leaf) {
 	struct editorTextNode *node = editorMalloc(sizeof(*node));
 	if (node == NULL) {
 		return NULL;
@@ -80,7 +80,7 @@ static struct editorTextNode *editorTextNodeAlloc(unsigned char is_leaf) {
 	return node;
 }
 
-static void editorTextNodeFree(struct editorTextNode *node) {
+static void textNodeFree(struct editorTextNode *node) {
 	if (node == NULL) {
 		return;
 	}
@@ -90,7 +90,7 @@ static void editorTextNodeFree(struct editorTextNode *node) {
 		}
 	} else {
 		for (int i = 0; i < node->count; i++) {
-			editorTextNodeFree(node->u.children[i]);
+			textNodeFree(node->u.children[i]);
 		}
 	}
 	free(node);
@@ -100,7 +100,7 @@ static void editorTextNodeFree(struct editorTextNode *node) {
 /* Summary recomputation                                              */
 /* ------------------------------------------------------------------ */
 
-static void editorTextNodeRecomputeSummary(struct editorTextNode *node) {
+static void textNodeRecomputeSummary(struct editorTextNode *node) {
 	struct editorTextSummary acc;
 	editorTextSummaryZero(&acc);
 	if (node == NULL) {
@@ -123,8 +123,8 @@ static void editorTextNodeRecomputeSummary(struct editorTextNode *node) {
 }
 
 #ifdef ROTIDE_TEXT_TREE_DEEP_CHECK
-static void editorTextNodeRecomputeFromLeaves(const struct editorTextNode *node,
-                                              struct editorTextSummary *out) {
+static void textNodeRecomputeFromLeaves(const struct editorTextNode *node,
+                                        struct editorTextSummary *out) {
 	struct editorTextSummary acc;
 	editorTextSummaryZero(&acc);
 	if (node->is_leaf) {
@@ -139,7 +139,7 @@ static void editorTextNodeRecomputeFromLeaves(const struct editorTextNode *node,
 	} else {
 		for (int i = 0; i < node->count; i++) {
 			struct editorTextSummary child_sum;
-			editorTextNodeRecomputeFromLeaves(node->u.children[i], &child_sum);
+			textNodeRecomputeFromLeaves(node->u.children[i], &child_sum);
 			struct editorTextSummary merged;
 			editorTextSummaryMerge(&acc, &child_sum, &merged);
 			acc = merged;
@@ -148,22 +148,23 @@ static void editorTextNodeRecomputeFromLeaves(const struct editorTextNode *node,
 	*out = acc;
 }
 
-static int summariesEqual(const struct editorTextSummary *a, const struct editorTextSummary *b) {
+static int textTreeSummariesEqual(const struct editorTextSummary *a,
+                                  const struct editorTextSummary *b) {
 	return a->bytes == b->bytes && a->newlines == b->newlines &&
 	       a->first_line_bytes == b->first_line_bytes &&
 	       a->last_line_bytes == b->last_line_bytes && a->max_line_bytes == b->max_line_bytes;
 }
 
-static void editorTextTreeAssertSummaryConsistent(const struct editorTextTree *tree) {
+static void textTreeAssertSummaryConsistent(const struct editorTextTree *tree) {
 	if (tree == NULL || tree->root == NULL) {
 		return;
 	}
 	struct editorTextSummary recomputed;
-	editorTextNodeRecomputeFromLeaves(tree->root, &recomputed);
-	assert(summariesEqual(&recomputed, &tree->root->summary));
+	textNodeRecomputeFromLeaves(tree->root, &recomputed);
+	assert(textTreeSummariesEqual(&recomputed, &tree->root->summary));
 }
 #else
-static void editorTextTreeAssertSummaryConsistent(const struct editorTextTree *tree) {
+static void textTreeAssertSummaryConsistent(const struct editorTextTree *tree) {
 	(void)tree;
 }
 #endif
@@ -172,10 +173,10 @@ static void editorTextTreeAssertSummaryConsistent(const struct editorTextTree *t
 /* Descent                                                            */
 /* ------------------------------------------------------------------ */
 
-static int editorTextTreeDescend(const struct editorTextTree *tree, size_t byte_offset,
-                                 struct descentEntry path[EDITOR_TEXT_TREE_MAX_DEPTH],
-                                 int *path_len_out, struct editorTextNode **leaf_out,
-                                 int *leaf_piece_idx_out, size_t *byte_offset_in_piece_out) {
+static int textTreeDescend(const struct editorTextTree *tree, size_t byte_offset,
+                           struct textTreeDescentEntry path[EDITOR_TEXT_TREE_MAX_DEPTH],
+                           int *path_len_out, struct editorTextNode **leaf_out,
+                           int *leaf_piece_idx_out, size_t *byte_offset_in_piece_out) {
 	if (tree == NULL || tree->root == NULL) {
 		return 0;
 	}
@@ -241,9 +242,9 @@ static int editorTextTreeDescend(const struct editorTextTree *tree, size_t byte_
  * just grow that piece's len. Avoids spawning a fresh piece per keystroke and
  * keeps editors with bursty typing close to one-piece-per-typing-run.
  */
-static int editorTextLeafCoalesceOnInsert(struct editorTextNode *leaf, int piece_idx,
-                                          size_t local_off, struct editorTextBuffer *buf,
-                                          size_t buf_offset, size_t buf_len) {
+static int textLeafCoalesceOnInsert(struct editorTextNode *leaf, int piece_idx, size_t local_off,
+                                    struct editorTextBuffer *buf, size_t buf_offset,
+                                    size_t buf_len) {
 	if (buf_len > EDITOR_TEXT_TREE_COALESCE_MAX_BYTES) {
 		return 0;
 	}
@@ -282,14 +283,13 @@ static int editorTextLeafCoalesceOnInsert(struct editorTextNode *leaf, int piece
  * The leaf may temporarily exceed FANOUT (bounded by NODE_SLACK); caller must
  * rebalance. Returns 1 on success, 0 on capacity exhaustion.
  */
-static int editorTextLeafInsertPiece(struct editorTextNode *leaf, int piece_idx, size_t local_off,
-                                     struct editorTextBuffer *buf, size_t buf_offset,
-                                     size_t buf_len) {
+static int textLeafInsertPiece(struct editorTextNode *leaf, int piece_idx, size_t local_off,
+                               struct editorTextBuffer *buf, size_t buf_offset, size_t buf_len) {
 	if (buf_len == 0) {
 		return 1;
 	}
 
-	if (editorTextLeafCoalesceOnInsert(leaf, piece_idx, local_off, buf, buf_offset, buf_len)) {
+	if (textLeafCoalesceOnInsert(leaf, piece_idx, local_off, buf, buf_offset, buf_len)) {
 		return 1;
 	}
 
@@ -343,8 +343,8 @@ static int editorTextLeafInsertPiece(struct editorTextNode *leaf, int piece_idx,
  * guarantees the delete stays within this single piece. Returns 1 on success,
  * 0 on capacity exhaustion.
  */
-static int editorTextLeafDeleteWithinPiece(struct editorTextNode *leaf, int piece_idx,
-                                           size_t local_off, size_t take) {
+static int textLeafDeleteWithinPiece(struct editorTextNode *leaf, int piece_idx, size_t local_off,
+                                     size_t take) {
 	if (take == 0) {
 		return 1;
 	}
@@ -397,7 +397,7 @@ static int editorTextLeafDeleteWithinPiece(struct editorTextNode *leaf, int piec
 /* Split / merge helpers                                              */
 /* ------------------------------------------------------------------ */
 
-static int editorTextTreeMergeNode(struct editorTextNode *left, struct editorTextNode *right) {
+static int textTreeMergeNode(struct editorTextNode *left, struct editorTextNode *right) {
 	if (left == NULL || right == NULL || left->is_leaf != right->is_leaf) {
 		return 0;
 	}
@@ -417,12 +417,12 @@ static int editorTextTreeMergeNode(struct editorTextNode *left, struct editorTex
 	}
 	left->count = (unsigned char)((int)left->count + (int)right->count);
 	right->count = 0;
-	editorTextNodeRecomputeSummary(left);
+	textNodeRecomputeSummary(left);
 	return 1;
 }
 
-static struct editorTextNode *editorTextTreeSplitNode(struct editorTextNode *node) {
-	struct editorTextNode *sibling = editorTextNodeAlloc(node->is_leaf);
+static struct editorTextNode *textTreeSplitNode(struct editorTextNode *node) {
+	struct editorTextNode *sibling = textNodeAlloc(node->is_leaf);
 	if (sibling == NULL) {
 		return NULL;
 	}
@@ -442,8 +442,8 @@ static struct editorTextNode *editorTextTreeSplitNode(struct editorTextNode *nod
 	}
 	sibling->count = (unsigned char)moved;
 	node->count = (unsigned char)mid;
-	editorTextNodeRecomputeSummary(node);
-	editorTextNodeRecomputeSummary(sibling);
+	textNodeRecomputeSummary(node);
+	textNodeRecomputeSummary(sibling);
 	return sibling;
 }
 
@@ -451,16 +451,16 @@ static struct editorTextNode *editorTextTreeSplitNode(struct editorTextNode *nod
 /* Rebalance walk                                                     */
 /* ------------------------------------------------------------------ */
 
-static int editorTextTreeRebalance(struct editorTextTree *tree,
-                                   struct descentEntry path[EDITOR_TEXT_TREE_MAX_DEPTH],
-                                   int path_len, struct editorTextNode *leaf) {
-	editorTextNodeRecomputeSummary(leaf);
+static int textTreeRebalance(struct editorTextTree *tree,
+                             struct textTreeDescentEntry path[EDITOR_TEXT_TREE_MAX_DEPTH],
+                             int path_len, struct editorTextNode *leaf) {
+	textNodeRecomputeSummary(leaf);
 
 	struct editorTextNode *pending_sibling = NULL;
 	struct editorTextNode *current = leaf;
 
 	if (current->count > EDITOR_TEXT_TREE_FANOUT) {
-		pending_sibling = editorTextTreeSplitNode(current);
+		pending_sibling = textTreeSplitNode(current);
 		if (pending_sibling == NULL) {
 			return 0;
 		}
@@ -472,7 +472,7 @@ static int editorTextTreeRebalance(struct editorTextTree *tree,
 		int child_idx = path[level].child_idx;
 
 		if (current_empty) {
-			editorTextNodeFree(parent->u.children[child_idx]);
+			textNodeFree(parent->u.children[child_idx]);
 			for (int i = child_idx; i < parent->count - 1; i++) {
 				parent->u.children[i] = parent->u.children[i + 1];
 			}
@@ -482,18 +482,17 @@ static int editorTextTreeRebalance(struct editorTextTree *tree,
 			struct editorTextNode *merged_with = NULL;
 			int collapsed_child = -1;
 			if (child_idx + 1 < parent->count &&
-			    editorTextTreeMergeNode(current, parent->u.children[child_idx + 1])) {
+			    textTreeMergeNode(current, parent->u.children[child_idx + 1])) {
 				merged_with = parent->u.children[child_idx + 1];
 				collapsed_child = child_idx + 1;
 			} else if (child_idx > 0 &&
-			           editorTextTreeMergeNode(parent->u.children[child_idx - 1],
-			                                   current)) {
+			           textTreeMergeNode(parent->u.children[child_idx - 1], current)) {
 				merged_with = current;
 				collapsed_child = child_idx;
 				current = parent->u.children[child_idx - 1];
 			}
 			if (merged_with != NULL) {
-				editorTextNodeFree(merged_with);
+				textNodeFree(merged_with);
 				for (int i = collapsed_child; i < parent->count - 1; i++) {
 					parent->u.children[i] = parent->u.children[i + 1];
 				}
@@ -513,10 +512,10 @@ static int editorTextTreeRebalance(struct editorTextTree *tree,
 		}
 
 		current_empty = (parent->count == 0);
-		editorTextNodeRecomputeSummary(parent);
+		textNodeRecomputeSummary(parent);
 
 		if (parent->count > EDITOR_TEXT_TREE_FANOUT) {
-			pending_sibling = editorTextTreeSplitNode(parent);
+			pending_sibling = textTreeSplitNode(parent);
 			if (pending_sibling == NULL) {
 				return 0;
 			}
@@ -525,26 +524,26 @@ static int editorTextTreeRebalance(struct editorTextTree *tree,
 	}
 
 	if (pending_sibling != NULL) {
-		struct editorTextNode *new_root = editorTextNodeAlloc(0);
+		struct editorTextNode *new_root = textNodeAlloc(0);
 		if (new_root == NULL) {
-			editorTextNodeFree(pending_sibling);
+			textNodeFree(pending_sibling);
 			return 0;
 		}
 		new_root->u.children[0] = tree->root;
 		new_root->u.children[1] = pending_sibling;
 		new_root->count = 2;
-		editorTextNodeRecomputeSummary(new_root);
+		textNodeRecomputeSummary(new_root);
 		tree->root = new_root;
 	} else if (current_empty && tree->root == current && !current->is_leaf) {
-		editorTextNodeFree(tree->root);
-		tree->root = editorTextNodeAlloc(1);
+		textNodeFree(tree->root);
+		tree->root = textNodeAlloc(1);
 		if (tree->root == NULL) {
 			return 0;
 		}
 	} else if (tree->root == current && !current->is_leaf && current->count == 1) {
 		struct editorTextNode *only = current->u.children[0];
 		current->u.children[0] = NULL;
-		editorTextNodeFree(current);
+		textNodeFree(current);
 		tree->root = only;
 	}
 	return 1;
@@ -558,10 +557,10 @@ int editorTextTreeInit(struct editorTextTree *tree) {
 	if (tree == NULL) {
 		return 0;
 	}
-	tree->root = editorTextNodeAlloc(1);
+	tree->root = textNodeAlloc(1);
 	tree->add_buf = editorTextBufferAlloc(0);
 	if (tree->root == NULL || tree->add_buf == NULL) {
-		editorTextNodeFree(tree->root);
+		textNodeFree(tree->root);
 		editorTextBufferRelease(tree->add_buf);
 		tree->root = NULL;
 		tree->add_buf = NULL;
@@ -574,7 +573,7 @@ void editorTextTreeFree(struct editorTextTree *tree) {
 	if (tree == NULL) {
 		return;
 	}
-	editorTextNodeFree(tree->root);
+	textNodeFree(tree->root);
 	tree->root = NULL;
 	editorTextBufferRelease(tree->add_buf);
 	tree->add_buf = NULL;
@@ -608,13 +607,12 @@ const char *editorTextTreeRead(const struct editorTextTree *tree, size_t byte_in
 		return NULL;
 	}
 
-	struct descentEntry path[EDITOR_TEXT_TREE_MAX_DEPTH];
+	struct textTreeDescentEntry path[EDITOR_TEXT_TREE_MAX_DEPTH];
 	int path_len = 0;
 	struct editorTextNode *leaf = NULL;
 	int piece_idx = 0;
 	size_t local_off = 0;
-	if (!editorTextTreeDescend(tree, byte_index, path, &path_len, &leaf, &piece_idx,
-	                           &local_off)) {
+	if (!textTreeDescend(tree, byte_index, path, &path_len, &leaf, &piece_idx, &local_off)) {
 		return NULL;
 	}
 	if (piece_idx >= leaf->count) {
@@ -687,12 +685,12 @@ char *editorTextTreeDupRange(const struct editorTextTree *tree, size_t start_byt
  * allocate. Mutation entry points call this so callers that ignored an Init
  * failure still get a chance to recover when memory pressure eases.
  */
-static int editorTextTreeEnsureInitialised(struct editorTextTree *tree) {
+static int textTreeEnsureInitialised(struct editorTextTree *tree) {
 	if (tree == NULL) {
 		return 0;
 	}
 	if (tree->root == NULL) {
-		tree->root = editorTextNodeAlloc(1);
+		tree->root = textNodeAlloc(1);
 		if (tree->root == NULL) {
 			return 0;
 		}
@@ -707,33 +705,32 @@ static int editorTextTreeEnsureInitialised(struct editorTextTree *tree) {
 }
 
 /* Insert one piece slice at byte offset `at`. */
-static int editorTextTreeInsertOnePiece(struct editorTextTree *tree, size_t at,
-                                        struct editorTextBuffer *buf, size_t buf_offset,
-                                        size_t buf_len) {
-	struct descentEntry path[EDITOR_TEXT_TREE_MAX_DEPTH];
+static int textTreeInsertOnePiece(struct editorTextTree *tree, size_t at,
+                                  struct editorTextBuffer *buf, size_t buf_offset, size_t buf_len) {
+	struct textTreeDescentEntry path[EDITOR_TEXT_TREE_MAX_DEPTH];
 	int path_len = 0;
 	struct editorTextNode *leaf = NULL;
 	int piece_idx = 0;
 	size_t local_off = 0;
-	if (!editorTextTreeDescend(tree, at, path, &path_len, &leaf, &piece_idx, &local_off)) {
+	if (!textTreeDescend(tree, at, path, &path_len, &leaf, &piece_idx, &local_off)) {
 		return 0;
 	}
-	if (!editorTextLeafInsertPiece(leaf, piece_idx, local_off, buf, buf_offset, buf_len)) {
+	if (!textLeafInsertPiece(leaf, piece_idx, local_off, buf, buf_offset, buf_len)) {
 		return 0;
 	}
-	if (!editorTextTreeRebalance(tree, path, path_len, leaf)) {
+	if (!textTreeRebalance(tree, path, path_len, leaf)) {
 		return 0;
 	}
 	return 1;
 }
 
-static int editorTextTreeDeleteWithinPiece(struct editorTextTree *tree, size_t at, size_t take) {
-	struct descentEntry path[EDITOR_TEXT_TREE_MAX_DEPTH];
+static int textTreeDeleteWithinPiece(struct editorTextTree *tree, size_t at, size_t take) {
+	struct textTreeDescentEntry path[EDITOR_TEXT_TREE_MAX_DEPTH];
 	int path_len = 0;
 	struct editorTextNode *leaf = NULL;
 	int piece_idx = 0;
 	size_t local_off = 0;
-	if (!editorTextTreeDescend(tree, at, path, &path_len, &leaf, &piece_idx, &local_off)) {
+	if (!textTreeDescend(tree, at, path, &path_len, &leaf, &piece_idx, &local_off)) {
 		return 0;
 	}
 	if (piece_idx >= leaf->count) {
@@ -743,10 +740,10 @@ static int editorTextTreeDeleteWithinPiece(struct editorTextTree *tree, size_t a
 	if (local_off + take > piece->len) {
 		return 0;
 	}
-	if (!editorTextLeafDeleteWithinPiece(leaf, piece_idx, local_off, take)) {
+	if (!textLeafDeleteWithinPiece(leaf, piece_idx, local_off, take)) {
 		return 0;
 	}
-	if (!editorTextTreeRebalance(tree, path, path_len, leaf)) {
+	if (!textTreeRebalance(tree, path, path_len, leaf)) {
 		return 0;
 	}
 	return 1;
@@ -757,7 +754,7 @@ int editorTextTreeReplaceRange(struct editorTextTree *tree, size_t start_byte, s
 	if (tree == NULL) {
 		return 0;
 	}
-	if (!editorTextTreeEnsureInitialised(tree)) {
+	if (!textTreeEnsureInitialised(tree)) {
 		return 0;
 	}
 	size_t total = tree->root->summary.bytes;
@@ -779,7 +776,7 @@ int editorTextTreeReplaceRange(struct editorTextTree *tree, size_t start_byte, s
 	 */
 	size_t insert_base = 0;
 	if (new_len > 0) {
-		if (!editorTextTreeEnsureInitialised(tree)) {
+		if (!textTreeEnsureInitialised(tree)) {
 			return 0;
 		}
 		if (!editorTextBufferAppend(tree->add_buf, new_text, new_len, &insert_base)) {
@@ -791,13 +788,12 @@ int editorTextTreeReplaceRange(struct editorTextTree *tree, size_t start_byte, s
 	size_t pos = start_byte;
 	size_t remaining = old_len;
 	while (remaining > 0) {
-		struct descentEntry path[EDITOR_TEXT_TREE_MAX_DEPTH];
+		struct textTreeDescentEntry path[EDITOR_TEXT_TREE_MAX_DEPTH];
 		int path_len = 0;
 		struct editorTextNode *leaf = NULL;
 		int piece_idx = 0;
 		size_t local_off = 0;
-		if (!editorTextTreeDescend(tree, pos, path, &path_len, &leaf, &piece_idx,
-		                           &local_off)) {
+		if (!textTreeDescend(tree, pos, path, &path_len, &leaf, &piece_idx, &local_off)) {
 			return 0;
 		}
 		if (piece_idx >= leaf->count) {
@@ -806,7 +802,7 @@ int editorTextTreeReplaceRange(struct editorTextTree *tree, size_t start_byte, s
 		struct editorTextChunk *piece = &leaf->u.pieces[piece_idx];
 		size_t in_piece_avail = piece->len - local_off;
 		size_t take = in_piece_avail < remaining ? in_piece_avail : remaining;
-		if (!editorTextTreeDeleteWithinPiece(tree, pos, take)) {
+		if (!textTreeDeleteWithinPiece(tree, pos, take)) {
 			return 0;
 		}
 		remaining -= take;
@@ -822,14 +818,14 @@ int editorTextTreeReplaceRange(struct editorTextTree *tree, size_t start_byte, s
 		if (chunk > EDITOR_TEXT_TREE_INSERT_CHUNK_BYTES) {
 			chunk = EDITOR_TEXT_TREE_INSERT_CHUNK_BYTES;
 		}
-		if (!editorTextTreeInsertOnePiece(tree, start_byte + inserted, tree->add_buf,
-		                                  insert_base + inserted, chunk)) {
+		if (!textTreeInsertOnePiece(tree, start_byte + inserted, tree->add_buf,
+		                            insert_base + inserted, chunk)) {
 			return 0;
 		}
 		inserted += chunk;
 	}
 
-	editorTextTreeAssertSummaryConsistent(tree);
+	textTreeAssertSummaryConsistent(tree);
 	return 1;
 }
 
@@ -837,7 +833,7 @@ int editorTextTreeReserveAddBufCapacity(struct editorTextTree *tree, size_t addi
 	if (tree == NULL) {
 		return 0;
 	}
-	if (!editorTextTreeEnsureInitialised(tree)) {
+	if (!textTreeEnsureInitialised(tree)) {
 		return 0;
 	}
 	size_t min_cap = 0;
@@ -851,7 +847,7 @@ int editorTextTreeAppend(struct editorTextTree *tree, const char *text, size_t l
 	if (tree == NULL || (len > 0 && text == NULL)) {
 		return 0;
 	}
-	if (!editorTextTreeEnsureInitialised(tree)) {
+	if (!textTreeEnsureInitialised(tree)) {
 		return 0;
 	}
 	return editorTextTreeReplaceRange(tree, tree->root->summary.bytes, 0, text, len);
@@ -865,8 +861,8 @@ int editorTextTreeAppend(struct editorTextTree *tree, const char *text, size_t l
  * chunked into pieces that share the buffer. The tree retains the buffer for
  * its pieces but does not steal `original`'s ref; caller still owns its ref.
  */
-static int editorTextTreeBuildFromOriginal(struct editorTextTree *out,
-                                           struct editorTextBuffer *original) {
+static int textTreeBuildFromOriginal(struct editorTextTree *out,
+                                     struct editorTextBuffer *original) {
 	if (!editorTextTreeInit(out)) {
 		return 0;
 	}
@@ -877,8 +873,8 @@ static int editorTextTreeBuildFromOriginal(struct editorTextTree *out,
 		if (chunk > EDITOR_TEXT_TREE_INSERT_CHUNK_BYTES) {
 			chunk = EDITOR_TEXT_TREE_INSERT_CHUNK_BYTES;
 		}
-		if (!editorTextTreeInsertOnePiece(out, out->root->summary.bytes, original, offset,
-		                                  chunk)) {
+		if (!textTreeInsertOnePiece(out, out->root->summary.bytes, original, offset,
+		                            chunk)) {
 			editorTextTreeFree(out);
 			return 0;
 		}
@@ -905,7 +901,7 @@ int editorTextTreeResetFromString(struct editorTextTree *tree, const char *text,
 	}
 
 	struct editorTextTree rebuilt;
-	if (!editorTextTreeBuildFromOriginal(&rebuilt, original)) {
+	if (!textTreeBuildFromOriginal(&rebuilt, original)) {
 		editorTextBufferRelease(original);
 		return 0;
 	}
@@ -945,7 +941,7 @@ int editorTextTreeResetFromTextSource(struct editorTextTree *tree,
 	}
 
 	struct editorTextTree rebuilt;
-	if (!editorTextTreeBuildFromOriginal(&rebuilt, original)) {
+	if (!textTreeBuildFromOriginal(&rebuilt, original)) {
 		editorTextBufferRelease(original);
 		return 0;
 	}
@@ -1029,8 +1025,8 @@ int editorTextTreeLocateLine(const struct editorTextTree *tree, int line_idx,
 	return 0;
 }
 
-static void editorTextNodeCollectStats(const struct editorTextNode *node, int depth,
-                                       struct editorTextTreeStats *out) {
+static void textNodeCollectStats(const struct editorTextNode *node, int depth,
+                                 struct editorTextTreeStats *out) {
 	if (node == NULL) {
 		return;
 	}
@@ -1044,7 +1040,7 @@ static void editorTextNodeCollectStats(const struct editorTextNode *node, int de
 	}
 	out->internal_node_count++;
 	for (int i = 0; i < node->count; i++) {
-		editorTextNodeCollectStats(node->u.children[i], depth + 1, out);
+		textNodeCollectStats(node->u.children[i], depth + 1, out);
 	}
 }
 
@@ -1061,7 +1057,7 @@ void editorTextTreeCollectStats(const struct editorTextTree *tree,
 	if (tree == NULL || tree->root == NULL) {
 		return;
 	}
-	editorTextNodeCollectStats(tree->root, 0, out);
+	textNodeCollectStats(tree->root, 0, out);
 	out->total_bytes = tree->root->summary.bytes;
 }
 

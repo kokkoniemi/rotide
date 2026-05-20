@@ -6,8 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-static const char *editorDocumentTextSourceRead(const struct editorTextSource *source,
-                                                size_t byte_index, uint32_t *bytes_read) {
+static const char *documentTextSourceRead(const struct editorTextSource *source, size_t byte_index,
+                                          uint32_t *bytes_read) {
 	const struct editorDocument *document = source != NULL ? source->context : NULL;
 	return editorDocumentRead(document, byte_index, bytes_read);
 }
@@ -49,7 +49,7 @@ int editorDocumentResetFromDocument(struct editorDocument *document,
 		return 0;
 	}
 
-	struct editorTextSource text_source = {.read = editorDocumentTextSourceRead,
+	struct editorTextSource text_source = {.read = documentTextSourceRead,
 	                                       .context = source,
 	                                       .length = editorDocumentLength(source)};
 	return editorDocumentResetFromTextSource(document, &text_source);
