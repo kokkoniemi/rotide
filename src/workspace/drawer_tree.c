@@ -53,7 +53,7 @@ void editorDrawerNodeFree(struct editorDrawerNode *node) {
 	free(node);
 }
 
-static int editorDrawerNodeCmp(const void *a, const void *b) {
+static int drawerTreeNodeCmp(const void *a, const void *b) {
 	const struct editorDrawerNode *left = *(const struct editorDrawerNode *const *)a;
 	const struct editorDrawerNode *right = *(const struct editorDrawerNode *const *)b;
 
@@ -138,7 +138,7 @@ int editorDrawerEnsureScanned(struct editorDrawerNode *node) {
 	(void)closedir(dir);
 
 	if (child_count > 1) {
-		qsort(children, (size_t)child_count, child_entry_size, editorDrawerNodeCmp);
+		qsort(children, (size_t)child_count, child_entry_size, drawerTreeNodeCmp);
 	}
 
 	node->children = children;
@@ -164,10 +164,10 @@ int editorDrawerCountVisibleFromNode(struct editorDrawerNode *node) {
 	return count;
 }
 
-static int editorDrawerLookupByVisibleIndexRecursive(struct editorDrawerNode *node, int depth,
-                                                     int parent_visible_idx, int *cursor,
-                                                     int target_visible_idx,
-                                                     struct editorDrawerLookup *lookup_out) {
+static int drawerTreeLookupByVisibleIndexRecursive(struct editorDrawerNode *node, int depth,
+                                                   int parent_visible_idx, int *cursor,
+                                                   int target_visible_idx,
+                                                   struct editorDrawerLookup *lookup_out) {
 	if (node == NULL || cursor == NULL || lookup_out == NULL) {
 		return 0;
 	}
@@ -188,9 +188,9 @@ static int editorDrawerLookupByVisibleIndexRecursive(struct editorDrawerNode *no
 
 	(void)editorDrawerEnsureScanned(node);
 	for (int i = 0; i < node->child_count; i++) {
-		if (editorDrawerLookupByVisibleIndexRecursive(node->children[i], depth + 1, current,
-		                                              cursor, target_visible_idx,
-		                                              lookup_out)) {
+		if (drawerTreeLookupByVisibleIndexRecursive(node->children[i], depth + 1, current,
+		                                            cursor, target_visible_idx,
+		                                            lookup_out)) {
 			return 1;
 		}
 	}
@@ -203,8 +203,8 @@ int editorDrawerLookupByVisibleIndex(int visible_idx, struct editorDrawerLookup 
 	}
 
 	int cursor = 0;
-	return editorDrawerLookupByVisibleIndexRecursive(E.drawer_root, 0, -1, &cursor, visible_idx,
-	                                                 lookup_out);
+	return drawerTreeLookupByVisibleIndexRecursive(E.drawer_root, 0, -1, &cursor, visible_idx,
+	                                               lookup_out);
 }
 
 struct editorDrawerNode *editorDrawerFindChildByName(struct editorDrawerNode *node,
@@ -225,9 +225,9 @@ struct editorDrawerNode *editorDrawerFindChildByName(struct editorDrawerNode *no
 	return NULL;
 }
 
-static int editorDrawerFindVisibleIndexForNodeRecursive(struct editorDrawerNode *node,
-                                                        struct editorDrawerNode *target,
-                                                        int *cursor, int *visible_idx_out) {
+static int drawerTreeFindVisibleIndexForNodeRecursive(struct editorDrawerNode *node,
+                                                      struct editorDrawerNode *target, int *cursor,
+                                                      int *visible_idx_out) {
 	if (node == NULL || target == NULL || cursor == NULL || visible_idx_out == NULL) {
 		return 0;
 	}
@@ -244,8 +244,8 @@ static int editorDrawerFindVisibleIndexForNodeRecursive(struct editorDrawerNode 
 
 	(void)editorDrawerEnsureScanned(node);
 	for (int i = 0; i < node->child_count; i++) {
-		if (editorDrawerFindVisibleIndexForNodeRecursive(node->children[i], target, cursor,
-		                                                 visible_idx_out)) {
+		if (drawerTreeFindVisibleIndexForNodeRecursive(node->children[i], target, cursor,
+		                                               visible_idx_out)) {
 			return 1;
 		}
 	}
@@ -254,6 +254,6 @@ static int editorDrawerFindVisibleIndexForNodeRecursive(struct editorDrawerNode 
 
 int editorDrawerFindVisibleIndexForNode(struct editorDrawerNode *target, int *visible_idx_out) {
 	int cursor = 0;
-	return editorDrawerFindVisibleIndexForNodeRecursive(E.drawer_root, target, &cursor,
-	                                                    visible_idx_out);
+	return drawerTreeFindVisibleIndexForNodeRecursive(E.drawer_root, target, &cursor,
+	                                                  visible_idx_out);
 }

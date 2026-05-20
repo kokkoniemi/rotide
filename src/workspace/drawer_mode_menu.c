@@ -5,25 +5,25 @@
 
 #include <string.h>
 
-struct editorDrawerMenuItem {
+struct drawerModeMenuItem {
 	const char *name;
 	enum editorAction action;
 };
 
-struct editorDrawerMenuGroup {
+struct drawerModeMenuGroup {
 	const char *name;
-	const struct editorDrawerMenuItem *items;
+	const struct drawerModeMenuItem *items;
 	int item_count;
 };
 
-enum editorDrawerMenuEntryKind {
+enum drawerModeMenuEntryKind {
 	EDITOR_DRAWER_MENU_ENTRY_ROOT = 0,
 	EDITOR_DRAWER_MENU_ENTRY_GROUP,
 	EDITOR_DRAWER_MENU_ENTRY_ITEM
 };
 
-struct editorDrawerMenuLookup {
-	enum editorDrawerMenuEntryKind kind;
+struct drawerModeMenuLookup {
+	enum drawerModeMenuEntryKind kind;
 	int group_idx;
 	int item_idx;
 	int visible_idx;
@@ -31,7 +31,7 @@ struct editorDrawerMenuLookup {
 	int group_visible_idx;
 };
 
-static const struct editorDrawerMenuItem editor_drawer_menu_search_items[] = {
+static const struct drawerModeMenuItem g_drawer_mode_menu_search_items[] = {
         {"Find File", EDITOR_ACTION_FIND_FILE},
         {"Find in Buffer", EDITOR_ACTION_FIND},
         {"Search Project Text", EDITOR_ACTION_PROJECT_SEARCH},
@@ -41,7 +41,7 @@ static const struct editorDrawerMenuItem editor_drawer_menu_search_items[] = {
         {"Go to Definition", EDITOR_ACTION_GOTO_DEFINITION},
 };
 
-static const struct editorDrawerMenuItem editor_drawer_menu_file_items[] = {
+static const struct drawerModeMenuItem g_drawer_mode_menu_file_items[] = {
         {"Save", EDITOR_ACTION_SAVE},
         {"New Tab", EDITOR_ACTION_NEW_TAB},
         {"Close Tab", EDITOR_ACTION_CLOSE_TAB},
@@ -53,12 +53,12 @@ static const struct editorDrawerMenuItem editor_drawer_menu_file_items[] = {
         {"Quit", EDITOR_ACTION_QUIT},
 };
 
-static const struct editorDrawerMenuItem editor_drawer_menu_tabs_items[] = {
+static const struct drawerModeMenuItem g_drawer_mode_menu_tabs_items[] = {
         {"Next Tab", EDITOR_ACTION_NEXT_TAB},
         {"Previous Tab", EDITOR_ACTION_PREV_TAB},
 };
 
-static const struct editorDrawerMenuItem editor_drawer_menu_edit_items[] = {
+static const struct drawerModeMenuItem g_drawer_mode_menu_edit_items[] = {
         {"Undo", EDITOR_ACTION_UNDO},
         {"Redo", EDITOR_ACTION_REDO},
         {"Toggle Selection", EDITOR_ACTION_TOGGLE_SELECTION},
@@ -69,7 +69,7 @@ static const struct editorDrawerMenuItem editor_drawer_menu_edit_items[] = {
         {"Toggle Comment", EDITOR_ACTION_TOGGLE_COMMENT},
 };
 
-static const struct editorDrawerMenuItem editor_drawer_menu_view_items[] = {
+static const struct drawerModeMenuItem g_drawer_mode_menu_view_items[] = {
         {"Project Files", EDITOR_ACTION_MAIN_MENU},
         {"Git Changes", EDITOR_ACTION_GIT_DRAWER},
         {"LSP", EDITOR_ACTION_LSP_DRAWER},
@@ -80,55 +80,55 @@ static const struct editorDrawerMenuItem editor_drawer_menu_view_items[] = {
         {"Toggle Current Line", EDITOR_ACTION_TOGGLE_CURRENT_LINE_HIGHLIGHT},
 };
 
-static const struct editorDrawerMenuGroup editor_drawer_menu_groups[] = {
-        {"Find", editor_drawer_menu_search_items,
-         (int)(sizeof(editor_drawer_menu_search_items) /
-               sizeof(editor_drawer_menu_search_items[0]))},
-        {"File", editor_drawer_menu_file_items,
-         (int)(sizeof(editor_drawer_menu_file_items) / sizeof(editor_drawer_menu_file_items[0]))},
-        {"Tabs", editor_drawer_menu_tabs_items,
-         (int)(sizeof(editor_drawer_menu_tabs_items) / sizeof(editor_drawer_menu_tabs_items[0]))},
-        {"Edit", editor_drawer_menu_edit_items,
-         (int)(sizeof(editor_drawer_menu_edit_items) / sizeof(editor_drawer_menu_edit_items[0]))},
-        {"View", editor_drawer_menu_view_items,
-         (int)(sizeof(editor_drawer_menu_view_items) / sizeof(editor_drawer_menu_view_items[0]))},
+static const struct drawerModeMenuGroup g_drawer_mode_menu_groups[] = {
+        {"Find", g_drawer_mode_menu_search_items,
+         (int)(sizeof(g_drawer_mode_menu_search_items) /
+               sizeof(g_drawer_mode_menu_search_items[0]))},
+        {"File", g_drawer_mode_menu_file_items,
+         (int)(sizeof(g_drawer_mode_menu_file_items) / sizeof(g_drawer_mode_menu_file_items[0]))},
+        {"Tabs", g_drawer_mode_menu_tabs_items,
+         (int)(sizeof(g_drawer_mode_menu_tabs_items) / sizeof(g_drawer_mode_menu_tabs_items[0]))},
+        {"Edit", g_drawer_mode_menu_edit_items,
+         (int)(sizeof(g_drawer_mode_menu_edit_items) / sizeof(g_drawer_mode_menu_edit_items[0]))},
+        {"View", g_drawer_mode_menu_view_items,
+         (int)(sizeof(g_drawer_mode_menu_view_items) / sizeof(g_drawer_mode_menu_view_items[0]))},
 };
 
-static const int editor_drawer_menu_group_count =
-        (int)(sizeof(editor_drawer_menu_groups) / sizeof(editor_drawer_menu_groups[0]));
+static const int g_drawer_mode_menu_group_count =
+        (int)(sizeof(g_drawer_mode_menu_groups) / sizeof(g_drawer_mode_menu_groups[0]));
 
-static unsigned int editorDrawerMenuAllGroupsMask(void) {
+static unsigned int drawerModeMenuAllGroupsMask(void) {
 	unsigned int mask = 0;
-	for (int i = 0; i < editor_drawer_menu_group_count; i++) {
+	for (int i = 0; i < g_drawer_mode_menu_group_count; i++) {
 		mask |= 1u << (unsigned int)i;
 	}
 	return mask;
 }
 
-static int editorDrawerMenuGroupExpanded(int group_idx) {
-	if (group_idx < 0 || group_idx >= editor_drawer_menu_group_count) {
+static int drawerModeMenuGroupExpanded(int group_idx) {
+	if (group_idx < 0 || group_idx >= g_drawer_mode_menu_group_count) {
 		return 0;
 	}
 	return (E.drawer_menu_expanded & (1u << (unsigned int)group_idx)) != 0;
 }
 
-static void editorDrawerMenuEnsureDefaultExpanded(void) {
-	E.drawer_menu_expanded = editorDrawerMenuAllGroupsMask();
+static void drawerModeMenuEnsureDefaultExpanded(void) {
+	E.drawer_menu_expanded = drawerModeMenuAllGroupsMask();
 }
 
 int editorDrawerMenuVisibleCount(void) {
 	int count = 1;
-	for (int group_idx = 0; group_idx < editor_drawer_menu_group_count; group_idx++) {
+	for (int group_idx = 0; group_idx < g_drawer_mode_menu_group_count; group_idx++) {
 		count++;
-		if (editorDrawerMenuGroupExpanded(group_idx)) {
-			count += editor_drawer_menu_groups[group_idx].item_count;
+		if (drawerModeMenuGroupExpanded(group_idx)) {
+			count += g_drawer_mode_menu_groups[group_idx].item_count;
 		}
 	}
 	return count;
 }
 
-static int editorDrawerMenuLookupByVisibleIndex(int visible_idx,
-                                                struct editorDrawerMenuLookup *lookup_out) {
+static int drawerModeMenuLookupByVisibleIndex(int visible_idx,
+                                              struct drawerModeMenuLookup *lookup_out) {
 	if (lookup_out == NULL || visible_idx < 0) {
 		return 0;
 	}
@@ -146,7 +146,7 @@ static int editorDrawerMenuLookupByVisibleIndex(int visible_idx,
 	}
 
 	int cursor = 1;
-	for (int group_idx = 0; group_idx < editor_drawer_menu_group_count; group_idx++) {
+	for (int group_idx = 0; group_idx < g_drawer_mode_menu_group_count; group_idx++) {
 		int group_visible_idx = cursor;
 		if (visible_idx == group_visible_idx) {
 			lookup_out->kind = EDITOR_DRAWER_MENU_ENTRY_GROUP;
@@ -157,11 +157,11 @@ static int editorDrawerMenuLookupByVisibleIndex(int visible_idx,
 		}
 		cursor++;
 
-		if (!editorDrawerMenuGroupExpanded(group_idx)) {
+		if (!drawerModeMenuGroupExpanded(group_idx)) {
 			continue;
 		}
 
-		const struct editorDrawerMenuGroup *group = &editor_drawer_menu_groups[group_idx];
+		const struct drawerModeMenuGroup *group = &g_drawer_mode_menu_groups[group_idx];
 		for (int item_idx = 0; item_idx < group->item_count; item_idx++) {
 			if (visible_idx == cursor) {
 				lookup_out->kind = EDITOR_DRAWER_MENU_ENTRY_ITEM;
@@ -194,7 +194,7 @@ int editorDrawerMainMenuToggle(void) {
 	if (editorProjectSearchIsActive()) {
 		editorProjectSearchExit(1);
 	}
-	editorDrawerMenuEnsureDefaultExpanded();
+	drawerModeMenuEnsureDefaultExpanded();
 	E.drawer_mode = EDITOR_DRAWER_MODE_MAIN_MENU;
 	E.drawer_selected_index = -1;
 	E.drawer_rowoff = 0;
@@ -208,8 +208,8 @@ int editorDrawerMenuGetVisibleEntry(int visible_idx, struct editorDrawerEntryVie
 	if (view_out == NULL) {
 		return 0;
 	}
-	struct editorDrawerMenuLookup lookup;
-	if (!editorDrawerMenuLookupByVisibleIndex(visible_idx, &lookup)) {
+	struct drawerModeMenuLookup lookup;
+	if (!drawerModeMenuLookupByVisibleIndex(visible_idx, &lookup)) {
 		return 0;
 	}
 
@@ -226,21 +226,21 @@ int editorDrawerMenuGetVisibleEntry(int visible_idx, struct editorDrawerEntryVie
 			view_out->is_last_sibling = 1;
 			return 1;
 		case EDITOR_DRAWER_MENU_ENTRY_GROUP:
-			view_out->name = editor_drawer_menu_groups[lookup.group_idx].name;
+			view_out->name = g_drawer_mode_menu_groups[lookup.group_idx].name;
 			view_out->depth = 1;
 			view_out->is_dir = 1;
-			view_out->is_expanded = editorDrawerMenuGroupExpanded(lookup.group_idx);
+			view_out->is_expanded = drawerModeMenuGroupExpanded(lookup.group_idx);
 			view_out->is_last_sibling =
-			        lookup.group_idx == editor_drawer_menu_group_count - 1;
+			        lookup.group_idx == g_drawer_mode_menu_group_count - 1;
 			return 1;
 		case EDITOR_DRAWER_MENU_ENTRY_ITEM:
-			view_out->name = editor_drawer_menu_groups[lookup.group_idx]
+			view_out->name = g_drawer_mode_menu_groups[lookup.group_idx]
 			                         .items[lookup.item_idx]
 			                         .name;
 			view_out->depth = 2;
 			view_out->is_last_sibling =
 			        lookup.item_idx ==
-			        editor_drawer_menu_groups[lookup.group_idx].item_count - 1;
+			        g_drawer_mode_menu_groups[lookup.group_idx].item_count - 1;
 			return 1;
 		default:
 			return 0;
@@ -248,8 +248,8 @@ int editorDrawerMenuGetVisibleEntry(int visible_idx, struct editorDrawerEntryVie
 }
 
 int editorDrawerMenuExpandSelection(int viewport_rows) {
-	struct editorDrawerMenuLookup lookup;
-	if (!editorDrawerMenuLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
+	struct drawerModeMenuLookup lookup;
+	if (!drawerModeMenuLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
 		return 0;
 	}
 	if (lookup.kind == EDITOR_DRAWER_MENU_ENTRY_ROOT) {
@@ -257,7 +257,7 @@ int editorDrawerMenuExpandSelection(int viewport_rows) {
 		return 0;
 	}
 	if (lookup.kind != EDITOR_DRAWER_MENU_ENTRY_GROUP ||
-	    editorDrawerMenuGroupExpanded(lookup.group_idx)) {
+	    drawerModeMenuGroupExpanded(lookup.group_idx)) {
 		return 0;
 	}
 	E.drawer_menu_expanded |= 1u << (unsigned int)lookup.group_idx;
@@ -266,8 +266,8 @@ int editorDrawerMenuExpandSelection(int viewport_rows) {
 }
 
 int editorDrawerMenuCollapseSelection(int viewport_rows) {
-	struct editorDrawerMenuLookup lookup;
-	if (!editorDrawerMenuLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
+	struct drawerModeMenuLookup lookup;
+	if (!drawerModeMenuLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
 		return 0;
 	}
 	if (lookup.kind == EDITOR_DRAWER_MENU_ENTRY_ROOT) {
@@ -275,7 +275,7 @@ int editorDrawerMenuCollapseSelection(int viewport_rows) {
 		return 0;
 	}
 	if (lookup.kind == EDITOR_DRAWER_MENU_ENTRY_GROUP) {
-		if (!editorDrawerMenuGroupExpanded(lookup.group_idx)) {
+		if (!drawerModeMenuGroupExpanded(lookup.group_idx)) {
 			return 0;
 		}
 		E.drawer_menu_expanded &= ~(1u << (unsigned int)lookup.group_idx);
@@ -291,8 +291,8 @@ int editorDrawerMenuCollapseSelection(int viewport_rows) {
 }
 
 int editorDrawerMenuToggleSelectionExpanded(int viewport_rows) {
-	struct editorDrawerMenuLookup lookup;
-	if (!editorDrawerMenuLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
+	struct drawerModeMenuLookup lookup;
+	if (!drawerModeMenuLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
 		return 0;
 	}
 	if (lookup.kind == EDITOR_DRAWER_MENU_ENTRY_ROOT ||
@@ -305,8 +305,8 @@ int editorDrawerMenuToggleSelectionExpanded(int viewport_rows) {
 }
 
 int editorDrawerMenuSelectedIsDirectory(void) {
-	struct editorDrawerMenuLookup lookup;
-	if (!editorDrawerMenuLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
+	struct drawerModeMenuLookup lookup;
+	if (!drawerModeMenuLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
 		return 0;
 	}
 	return lookup.kind == EDITOR_DRAWER_MENU_ENTRY_ROOT ||
@@ -317,11 +317,11 @@ int editorDrawerSelectedMenuAction(enum editorAction *action_out) {
 	if (action_out == NULL || E.drawer_mode != EDITOR_DRAWER_MODE_MAIN_MENU) {
 		return 0;
 	}
-	struct editorDrawerMenuLookup lookup;
-	if (!editorDrawerMenuLookupByVisibleIndex(E.drawer_selected_index, &lookup) ||
+	struct drawerModeMenuLookup lookup;
+	if (!drawerModeMenuLookupByVisibleIndex(E.drawer_selected_index, &lookup) ||
 	    lookup.kind != EDITOR_DRAWER_MENU_ENTRY_ITEM) {
 		return 0;
 	}
-	*action_out = editor_drawer_menu_groups[lookup.group_idx].items[lookup.item_idx].action;
+	*action_out = g_drawer_mode_menu_groups[lookup.group_idx].items[lookup.item_idx].action;
 	return 1;
 }
