@@ -8,28 +8,28 @@
 #include <string.h>
 #include <strings.h>
 
-enum editorCursorStyleFileStatus {
-	EDITOR_CURSOR_STYLE_FILE_APPLIED = 0,
-	EDITOR_CURSOR_STYLE_FILE_MISSING,
-	EDITOR_CURSOR_STYLE_FILE_INVALID,
-	EDITOR_CURSOR_STYLE_FILE_OUT_OF_MEMORY
+enum configEditorCursorStyleFileStatus {
+	CONFIG_EDITOR_CURSOR_STYLE_FILE_APPLIED = 0,
+	CONFIG_EDITOR_CURSOR_STYLE_FILE_MISSING,
+	CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID,
+	CONFIG_EDITOR_CURSOR_STYLE_FILE_OUT_OF_MEMORY
 };
 
-enum editorLineWrapFileStatus {
-	EDITOR_LINE_WRAP_FILE_APPLIED = 0,
-	EDITOR_LINE_WRAP_FILE_MISSING,
-	EDITOR_LINE_WRAP_FILE_INVALID,
-	EDITOR_LINE_WRAP_FILE_OUT_OF_MEMORY
+enum configEditorLineWrapFileStatus {
+	CONFIG_EDITOR_LINE_WRAP_FILE_APPLIED = 0,
+	CONFIG_EDITOR_LINE_WRAP_FILE_MISSING,
+	CONFIG_EDITOR_LINE_WRAP_FILE_INVALID,
+	CONFIG_EDITOR_LINE_WRAP_FILE_OUT_OF_MEMORY
 };
 
-enum editorBoolFileStatus {
-	EDITOR_BOOL_FILE_APPLIED = 0,
-	EDITOR_BOOL_FILE_MISSING,
-	EDITOR_BOOL_FILE_INVALID,
-	EDITOR_BOOL_FILE_OUT_OF_MEMORY
+enum configEditorBoolFileStatus {
+	CONFIG_EDITOR_BOOL_FILE_APPLIED = 0,
+	CONFIG_EDITOR_BOOL_FILE_MISSING,
+	CONFIG_EDITOR_BOOL_FILE_INVALID,
+	CONFIG_EDITOR_BOOL_FILE_OUT_OF_MEMORY
 };
 
-static int editorParseCursorStyleValue(const char *value, enum editorCursorStyle *style_out) {
+static int configEditorParseCursorStyleValue(const char *value, enum editorCursorStyle *style_out) {
 	if (strcasecmp(value, "block") == 0) {
 		*style_out = EDITOR_CURSOR_STYLE_BLOCK;
 		return 1;
@@ -45,7 +45,7 @@ static int editorParseCursorStyleValue(const char *value, enum editorCursorStyle
 	return 0;
 }
 
-static int editorParseBoolValue(const char *value, int *bool_out) {
+static int configEditorParseBoolValue(const char *value, int *bool_out) {
 	if (strcasecmp(value, "true") == 0) {
 		*bool_out = 1;
 		return 1;
@@ -57,14 +57,14 @@ static int editorParseBoolValue(const char *value, int *bool_out) {
 	return 0;
 }
 
-static enum editorCursorStyleFileStatus
-editorCursorStyleApplyConfigFile(enum editorCursorStyle *style_in_out, const char *path) {
+static enum configEditorCursorStyleFileStatus
+configEditorCursorStyleApplyFile(enum editorCursorStyle *style_in_out, const char *path) {
 	FILE *fp = fopen(path, "r");
 	if (fp == NULL) {
 		if (errno == ENOENT) {
-			return EDITOR_CURSOR_STYLE_FILE_MISSING;
+			return CONFIG_EDITOR_CURSOR_STYLE_FILE_MISSING;
 		}
-		return EDITOR_CURSOR_STYLE_FILE_INVALID;
+		return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
 	}
 
 	enum editorCursorStyle updated = *style_in_out;
@@ -74,7 +74,7 @@ editorCursorStyleApplyConfigFile(enum editorCursorStyle *style_in_out, const cha
 		size_t line_len = strlen(line);
 		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
 			fclose(fp);
-			return EDITOR_CURSOR_STYLE_FILE_INVALID;
+			return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
 		}
 
 		editorConfigStripInlineComment(line);
@@ -88,7 +88,7 @@ editorCursorStyleApplyConfigFile(enum editorCursorStyle *style_in_out, const cha
 			char *close = strchr(trimmed, ']');
 			if (close == NULL) {
 				fclose(fp);
-				return EDITOR_CURSOR_STYLE_FILE_INVALID;
+				return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
 			}
 			*close = '\0';
 			char *table = editorConfigTrimLeft(trimmed + 1);
@@ -96,7 +96,7 @@ editorCursorStyleApplyConfigFile(enum editorCursorStyle *style_in_out, const cha
 			char *tail = editorConfigTrimLeft(close + 1);
 			if (tail[0] != '\0') {
 				fclose(fp);
-				return EDITOR_CURSOR_STYLE_FILE_INVALID;
+				return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
 			}
 
 			in_editor_table = strcmp(table, "editor") == 0;
@@ -110,7 +110,7 @@ editorCursorStyleApplyConfigFile(enum editorCursorStyle *style_in_out, const cha
 		char *eq = strchr(trimmed, '=');
 		if (eq == NULL) {
 			fclose(fp);
-			return EDITOR_CURSOR_STYLE_FILE_INVALID;
+			return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
 		}
 
 		*eq = '\0';
@@ -119,7 +119,7 @@ editorCursorStyleApplyConfigFile(enum editorCursorStyle *style_in_out, const cha
 		char *value = editorConfigTrimLeft(eq + 1);
 		if (setting_name[0] == '\0') {
 			fclose(fp);
-			return EDITOR_CURSOR_STYLE_FILE_INVALID;
+			return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
 		}
 		if (strcmp(setting_name, "cursor_style") != 0) {
 			continue;
@@ -129,25 +129,25 @@ editorCursorStyleApplyConfigFile(enum editorCursorStyle *style_in_out, const cha
 		if (!editorConfigParseQuotedValue(value, cursor_style_value,
 		                                  sizeof(cursor_style_value))) {
 			fclose(fp);
-			return EDITOR_CURSOR_STYLE_FILE_INVALID;
+			return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
 		}
 
 		enum editorCursorStyle parsed = EDITOR_CURSOR_STYLE_BAR;
-		if (!editorParseCursorStyleValue(cursor_style_value, &parsed)) {
+		if (!configEditorParseCursorStyleValue(cursor_style_value, &parsed)) {
 			fclose(fp);
-			return EDITOR_CURSOR_STYLE_FILE_INVALID;
+			return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
 		}
 		updated = parsed;
 	}
 
 	if (ferror(fp)) {
 		fclose(fp);
-		return EDITOR_CURSOR_STYLE_FILE_INVALID;
+		return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
 	}
 
 	fclose(fp);
 	*style_in_out = updated;
-	return EDITOR_CURSOR_STYLE_FILE_APPLIED;
+	return CONFIG_EDITOR_CURSOR_STYLE_FILE_APPLIED;
 }
 
 enum editorCursorStyleLoadStatus editorCursorStyleLoadFromPaths(enum editorCursorStyle *style_out,
@@ -161,13 +161,13 @@ enum editorCursorStyleLoadStatus editorCursorStyleLoadFromPaths(enum editorCurso
 	enum editorCursorStyleLoadStatus status = EDITOR_CURSOR_STYLE_LOAD_OK;
 
 	if (global_path != NULL) {
-		enum editorCursorStyleFileStatus global_status =
-		        editorCursorStyleApplyConfigFile(&style, global_path);
-		if (global_status == EDITOR_CURSOR_STYLE_FILE_OUT_OF_MEMORY) {
+		enum configEditorCursorStyleFileStatus global_status =
+		        configEditorCursorStyleApplyFile(&style, global_path);
+		if (global_status == CONFIG_EDITOR_CURSOR_STYLE_FILE_OUT_OF_MEMORY) {
 			*style_out = EDITOR_CURSOR_STYLE_BAR;
 			return EDITOR_CURSOR_STYLE_LOAD_OUT_OF_MEMORY;
 		}
-		if (global_status == EDITOR_CURSOR_STYLE_FILE_INVALID) {
+		if (global_status == CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID) {
 			style = EDITOR_CURSOR_STYLE_BAR;
 			status = (enum editorCursorStyleLoadStatus)(
 			        status | EDITOR_CURSOR_STYLE_LOAD_INVALID_GLOBAL);
@@ -175,13 +175,13 @@ enum editorCursorStyleLoadStatus editorCursorStyleLoadFromPaths(enum editorCurso
 	}
 
 	if (project_path != NULL) {
-		enum editorCursorStyleFileStatus project_status =
-		        editorCursorStyleApplyConfigFile(&style, project_path);
-		if (project_status == EDITOR_CURSOR_STYLE_FILE_OUT_OF_MEMORY) {
+		enum configEditorCursorStyleFileStatus project_status =
+		        configEditorCursorStyleApplyFile(&style, project_path);
+		if (project_status == CONFIG_EDITOR_CURSOR_STYLE_FILE_OUT_OF_MEMORY) {
 			*style_out = EDITOR_CURSOR_STYLE_BAR;
 			return EDITOR_CURSOR_STYLE_LOAD_OUT_OF_MEMORY;
 		}
-		if (project_status == EDITOR_CURSOR_STYLE_FILE_INVALID) {
+		if (project_status == CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID) {
 			style = EDITOR_CURSOR_STYLE_BAR;
 			status = (enum editorCursorStyleLoadStatus)(
 			        status | EDITOR_CURSOR_STYLE_LOAD_INVALID_PROJECT);
@@ -215,14 +215,14 @@ editorCursorStyleLoadConfigured(enum editorCursorStyle *style_out) {
 	return status;
 }
 
-static enum editorLineWrapFileStatus editorLineWrapApplyConfigFile(int *line_wrap_in_out,
-                                                                   const char *path) {
+static enum configEditorLineWrapFileStatus configEditorLineWrapApplyFile(int *line_wrap_in_out,
+                                                                         const char *path) {
 	FILE *fp = fopen(path, "r");
 	if (fp == NULL) {
 		if (errno == ENOENT) {
-			return EDITOR_LINE_WRAP_FILE_MISSING;
+			return CONFIG_EDITOR_LINE_WRAP_FILE_MISSING;
 		}
-		return EDITOR_LINE_WRAP_FILE_INVALID;
+		return CONFIG_EDITOR_LINE_WRAP_FILE_INVALID;
 	}
 
 	int updated = *line_wrap_in_out;
@@ -232,7 +232,7 @@ static enum editorLineWrapFileStatus editorLineWrapApplyConfigFile(int *line_wra
 		size_t line_len = strlen(line);
 		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
 			fclose(fp);
-			return EDITOR_LINE_WRAP_FILE_INVALID;
+			return CONFIG_EDITOR_LINE_WRAP_FILE_INVALID;
 		}
 
 		editorConfigStripInlineComment(line);
@@ -246,7 +246,7 @@ static enum editorLineWrapFileStatus editorLineWrapApplyConfigFile(int *line_wra
 			char *close = strchr(trimmed, ']');
 			if (close == NULL) {
 				fclose(fp);
-				return EDITOR_LINE_WRAP_FILE_INVALID;
+				return CONFIG_EDITOR_LINE_WRAP_FILE_INVALID;
 			}
 			*close = '\0';
 			char *table = editorConfigTrimLeft(trimmed + 1);
@@ -254,7 +254,7 @@ static enum editorLineWrapFileStatus editorLineWrapApplyConfigFile(int *line_wra
 			char *tail = editorConfigTrimLeft(close + 1);
 			if (tail[0] != '\0') {
 				fclose(fp);
-				return EDITOR_LINE_WRAP_FILE_INVALID;
+				return CONFIG_EDITOR_LINE_WRAP_FILE_INVALID;
 			}
 
 			in_editor_table = strcmp(table, "editor") == 0;
@@ -268,7 +268,7 @@ static enum editorLineWrapFileStatus editorLineWrapApplyConfigFile(int *line_wra
 		char *eq = strchr(trimmed, '=');
 		if (eq == NULL) {
 			fclose(fp);
-			return EDITOR_LINE_WRAP_FILE_INVALID;
+			return CONFIG_EDITOR_LINE_WRAP_FILE_INVALID;
 		}
 
 		*eq = '\0';
@@ -278,28 +278,28 @@ static enum editorLineWrapFileStatus editorLineWrapApplyConfigFile(int *line_wra
 		editorConfigTrimRight(value);
 		if (setting_name[0] == '\0') {
 			fclose(fp);
-			return EDITOR_LINE_WRAP_FILE_INVALID;
+			return CONFIG_EDITOR_LINE_WRAP_FILE_INVALID;
 		}
 		if (strcmp(setting_name, "line_wrap") != 0) {
 			continue;
 		}
 
 		int parsed = 0;
-		if (!editorParseBoolValue(value, &parsed)) {
+		if (!configEditorParseBoolValue(value, &parsed)) {
 			fclose(fp);
-			return EDITOR_LINE_WRAP_FILE_INVALID;
+			return CONFIG_EDITOR_LINE_WRAP_FILE_INVALID;
 		}
 		updated = parsed;
 	}
 
 	if (ferror(fp)) {
 		fclose(fp);
-		return EDITOR_LINE_WRAP_FILE_INVALID;
+		return CONFIG_EDITOR_LINE_WRAP_FILE_INVALID;
 	}
 
 	fclose(fp);
 	*line_wrap_in_out = updated;
-	return EDITOR_LINE_WRAP_FILE_APPLIED;
+	return CONFIG_EDITOR_LINE_WRAP_FILE_APPLIED;
 }
 
 enum editorLineWrapLoadStatus
@@ -312,13 +312,13 @@ editorLineWrapLoadFromPaths(int *line_wrap_out, const char *global_path, const c
 	enum editorLineWrapLoadStatus status = EDITOR_LINE_WRAP_LOAD_OK;
 
 	if (global_path != NULL) {
-		enum editorLineWrapFileStatus global_status =
-		        editorLineWrapApplyConfigFile(&line_wrap, global_path);
-		if (global_status == EDITOR_LINE_WRAP_FILE_OUT_OF_MEMORY) {
+		enum configEditorLineWrapFileStatus global_status =
+		        configEditorLineWrapApplyFile(&line_wrap, global_path);
+		if (global_status == CONFIG_EDITOR_LINE_WRAP_FILE_OUT_OF_MEMORY) {
 			*line_wrap_out = 0;
 			return EDITOR_LINE_WRAP_LOAD_OUT_OF_MEMORY;
 		}
-		if (global_status == EDITOR_LINE_WRAP_FILE_INVALID) {
+		if (global_status == CONFIG_EDITOR_LINE_WRAP_FILE_INVALID) {
 			line_wrap = 0;
 			status = (enum editorLineWrapLoadStatus)(
 			        status | EDITOR_LINE_WRAP_LOAD_INVALID_GLOBAL);
@@ -326,13 +326,13 @@ editorLineWrapLoadFromPaths(int *line_wrap_out, const char *global_path, const c
 	}
 
 	if (project_path != NULL) {
-		enum editorLineWrapFileStatus project_status =
-		        editorLineWrapApplyConfigFile(&line_wrap, project_path);
-		if (project_status == EDITOR_LINE_WRAP_FILE_OUT_OF_MEMORY) {
+		enum configEditorLineWrapFileStatus project_status =
+		        configEditorLineWrapApplyFile(&line_wrap, project_path);
+		if (project_status == CONFIG_EDITOR_LINE_WRAP_FILE_OUT_OF_MEMORY) {
 			*line_wrap_out = 0;
 			return EDITOR_LINE_WRAP_LOAD_OUT_OF_MEMORY;
 		}
-		if (project_status == EDITOR_LINE_WRAP_FILE_INVALID) {
+		if (project_status == CONFIG_EDITOR_LINE_WRAP_FILE_INVALID) {
 			line_wrap = 0;
 			status = (enum editorLineWrapLoadStatus)(
 			        status | EDITOR_LINE_WRAP_LOAD_INVALID_PROJECT);
@@ -365,14 +365,14 @@ enum editorLineWrapLoadStatus editorLineWrapLoadConfigured(int *line_wrap_out) {
 	return status;
 }
 
-static enum editorBoolFileStatus editorBoolApplyConfigFile(int *bool_in_out, const char *path,
-                                                           const char *target_setting_name) {
+static enum configEditorBoolFileStatus configEditorBoolApplyFile(int *bool_in_out, const char *path,
+                                                                 const char *target_setting_name) {
 	FILE *fp = fopen(path, "r");
 	if (fp == NULL) {
 		if (errno == ENOENT) {
-			return EDITOR_BOOL_FILE_MISSING;
+			return CONFIG_EDITOR_BOOL_FILE_MISSING;
 		}
-		return EDITOR_BOOL_FILE_INVALID;
+		return CONFIG_EDITOR_BOOL_FILE_INVALID;
 	}
 
 	int updated = *bool_in_out;
@@ -382,7 +382,7 @@ static enum editorBoolFileStatus editorBoolApplyConfigFile(int *bool_in_out, con
 		size_t line_len = strlen(line);
 		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
 			fclose(fp);
-			return EDITOR_BOOL_FILE_INVALID;
+			return CONFIG_EDITOR_BOOL_FILE_INVALID;
 		}
 
 		editorConfigStripInlineComment(line);
@@ -396,7 +396,7 @@ static enum editorBoolFileStatus editorBoolApplyConfigFile(int *bool_in_out, con
 			char *close = strchr(trimmed, ']');
 			if (close == NULL) {
 				fclose(fp);
-				return EDITOR_BOOL_FILE_INVALID;
+				return CONFIG_EDITOR_BOOL_FILE_INVALID;
 			}
 			*close = '\0';
 			char *table = editorConfigTrimLeft(trimmed + 1);
@@ -404,7 +404,7 @@ static enum editorBoolFileStatus editorBoolApplyConfigFile(int *bool_in_out, con
 			char *tail = editorConfigTrimLeft(close + 1);
 			if (tail[0] != '\0') {
 				fclose(fp);
-				return EDITOR_BOOL_FILE_INVALID;
+				return CONFIG_EDITOR_BOOL_FILE_INVALID;
 			}
 
 			in_editor_table = strcmp(table, "editor") == 0;
@@ -418,7 +418,7 @@ static enum editorBoolFileStatus editorBoolApplyConfigFile(int *bool_in_out, con
 		char *eq = strchr(trimmed, '=');
 		if (eq == NULL) {
 			fclose(fp);
-			return EDITOR_BOOL_FILE_INVALID;
+			return CONFIG_EDITOR_BOOL_FILE_INVALID;
 		}
 
 		*eq = '\0';
@@ -428,28 +428,28 @@ static enum editorBoolFileStatus editorBoolApplyConfigFile(int *bool_in_out, con
 		editorConfigTrimRight(value);
 		if (setting_name[0] == '\0') {
 			fclose(fp);
-			return EDITOR_BOOL_FILE_INVALID;
+			return CONFIG_EDITOR_BOOL_FILE_INVALID;
 		}
 		if (strcmp(setting_name, target_setting_name) != 0) {
 			continue;
 		}
 
 		int parsed = 0;
-		if (!editorParseBoolValue(value, &parsed)) {
+		if (!configEditorParseBoolValue(value, &parsed)) {
 			fclose(fp);
-			return EDITOR_BOOL_FILE_INVALID;
+			return CONFIG_EDITOR_BOOL_FILE_INVALID;
 		}
 		updated = parsed;
 	}
 
 	if (ferror(fp)) {
 		fclose(fp);
-		return EDITOR_BOOL_FILE_INVALID;
+		return CONFIG_EDITOR_BOOL_FILE_INVALID;
 	}
 
 	fclose(fp);
 	*bool_in_out = updated;
-	return EDITOR_BOOL_FILE_APPLIED;
+	return CONFIG_EDITOR_BOOL_FILE_APPLIED;
 }
 
 enum editorCursorBlinkLoadStatus editorCursorBlinkLoadFromPaths(int *cursor_blink_out,
@@ -463,13 +463,13 @@ enum editorCursorBlinkLoadStatus editorCursorBlinkLoadFromPaths(int *cursor_blin
 	enum editorCursorBlinkLoadStatus status = EDITOR_CURSOR_BLINK_LOAD_OK;
 
 	if (global_path != NULL) {
-		enum editorBoolFileStatus global_status =
-		        editorBoolApplyConfigFile(&cursor_blink, global_path, "cursor_blink");
-		if (global_status == EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
+		enum configEditorBoolFileStatus global_status =
+		        configEditorBoolApplyFile(&cursor_blink, global_path, "cursor_blink");
+		if (global_status == CONFIG_EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
 			*cursor_blink_out = 1;
 			return EDITOR_CURSOR_BLINK_LOAD_OUT_OF_MEMORY;
 		}
-		if (global_status == EDITOR_BOOL_FILE_INVALID) {
+		if (global_status == CONFIG_EDITOR_BOOL_FILE_INVALID) {
 			cursor_blink = 1;
 			status = (enum editorCursorBlinkLoadStatus)(
 			        status | EDITOR_CURSOR_BLINK_LOAD_INVALID_GLOBAL);
@@ -477,13 +477,13 @@ enum editorCursorBlinkLoadStatus editorCursorBlinkLoadFromPaths(int *cursor_blin
 	}
 
 	if (project_path != NULL) {
-		enum editorBoolFileStatus project_status =
-		        editorBoolApplyConfigFile(&cursor_blink, project_path, "cursor_blink");
-		if (project_status == EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
+		enum configEditorBoolFileStatus project_status =
+		        configEditorBoolApplyFile(&cursor_blink, project_path, "cursor_blink");
+		if (project_status == CONFIG_EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
 			*cursor_blink_out = 1;
 			return EDITOR_CURSOR_BLINK_LOAD_OUT_OF_MEMORY;
 		}
-		if (project_status == EDITOR_BOOL_FILE_INVALID) {
+		if (project_status == CONFIG_EDITOR_BOOL_FILE_INVALID) {
 			cursor_blink = 1;
 			status = (enum editorCursorBlinkLoadStatus)(
 			        status | EDITOR_CURSOR_BLINK_LOAD_INVALID_PROJECT);
@@ -527,13 +527,13 @@ enum editorLineNumbersLoadStatus editorLineNumbersLoadFromPaths(int *line_number
 	enum editorLineNumbersLoadStatus status = EDITOR_LINE_NUMBERS_LOAD_OK;
 
 	if (global_path != NULL) {
-		enum editorBoolFileStatus global_status =
-		        editorBoolApplyConfigFile(&line_numbers, global_path, "line_numbers");
-		if (global_status == EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
+		enum configEditorBoolFileStatus global_status =
+		        configEditorBoolApplyFile(&line_numbers, global_path, "line_numbers");
+		if (global_status == CONFIG_EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
 			*line_numbers_out = 1;
 			return EDITOR_LINE_NUMBERS_LOAD_OUT_OF_MEMORY;
 		}
-		if (global_status == EDITOR_BOOL_FILE_INVALID) {
+		if (global_status == CONFIG_EDITOR_BOOL_FILE_INVALID) {
 			line_numbers = 1;
 			status = (enum editorLineNumbersLoadStatus)(
 			        status | EDITOR_LINE_NUMBERS_LOAD_INVALID_GLOBAL);
@@ -541,13 +541,13 @@ enum editorLineNumbersLoadStatus editorLineNumbersLoadFromPaths(int *line_number
 	}
 
 	if (project_path != NULL) {
-		enum editorBoolFileStatus project_status =
-		        editorBoolApplyConfigFile(&line_numbers, project_path, "line_numbers");
-		if (project_status == EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
+		enum configEditorBoolFileStatus project_status =
+		        configEditorBoolApplyFile(&line_numbers, project_path, "line_numbers");
+		if (project_status == CONFIG_EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
 			*line_numbers_out = 1;
 			return EDITOR_LINE_NUMBERS_LOAD_OUT_OF_MEMORY;
 		}
-		if (project_status == EDITOR_BOOL_FILE_INVALID) {
+		if (project_status == CONFIG_EDITOR_BOOL_FILE_INVALID) {
 			line_numbers = 1;
 			status = (enum editorLineNumbersLoadStatus)(
 			        status | EDITOR_LINE_NUMBERS_LOAD_INVALID_PROJECT);
@@ -591,13 +591,13 @@ editorCurrentLineHighlightLoadFromPaths(int *current_line_highlight_out, const c
 	enum editorCurrentLineHighlightLoadStatus status = EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_OK;
 
 	if (global_path != NULL) {
-		enum editorBoolFileStatus global_status = editorBoolApplyConfigFile(
+		enum configEditorBoolFileStatus global_status = configEditorBoolApplyFile(
 		        &current_line_highlight, global_path, "current_line_highlight");
-		if (global_status == EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
+		if (global_status == CONFIG_EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
 			*current_line_highlight_out = 1;
 			return EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_OUT_OF_MEMORY;
 		}
-		if (global_status == EDITOR_BOOL_FILE_INVALID) {
+		if (global_status == CONFIG_EDITOR_BOOL_FILE_INVALID) {
 			current_line_highlight = 1;
 			status = (enum editorCurrentLineHighlightLoadStatus)(
 			        status | EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_INVALID_GLOBAL);
@@ -605,13 +605,13 @@ editorCurrentLineHighlightLoadFromPaths(int *current_line_highlight_out, const c
 	}
 
 	if (project_path != NULL) {
-		enum editorBoolFileStatus project_status = editorBoolApplyConfigFile(
+		enum configEditorBoolFileStatus project_status = configEditorBoolApplyFile(
 		        &current_line_highlight, project_path, "current_line_highlight");
-		if (project_status == EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
+		if (project_status == CONFIG_EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
 			*current_line_highlight_out = 1;
 			return EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_OUT_OF_MEMORY;
 		}
-		if (project_status == EDITOR_BOOL_FILE_INVALID) {
+		if (project_status == CONFIG_EDITOR_BOOL_FILE_INVALID) {
 			current_line_highlight = 1;
 			status = (enum editorCurrentLineHighlightLoadStatus)(
 			        status | EDITOR_CURRENT_LINE_HIGHLIGHT_LOAD_INVALID_PROJECT);
@@ -657,13 +657,13 @@ enum editorNerdFontsLoadStatus editorNerdFontsLoadFromPaths(int *nerd_fonts_out,
 	enum editorNerdFontsLoadStatus status = EDITOR_NERD_FONTS_LOAD_OK;
 
 	if (global_path != NULL) {
-		enum editorBoolFileStatus global_status =
-		        editorBoolApplyConfigFile(&nerd_fonts, global_path, "nerd_fonts");
-		if (global_status == EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
+		enum configEditorBoolFileStatus global_status =
+		        configEditorBoolApplyFile(&nerd_fonts, global_path, "nerd_fonts");
+		if (global_status == CONFIG_EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
 			*nerd_fonts_out = 0;
 			return EDITOR_NERD_FONTS_LOAD_OUT_OF_MEMORY;
 		}
-		if (global_status == EDITOR_BOOL_FILE_INVALID) {
+		if (global_status == CONFIG_EDITOR_BOOL_FILE_INVALID) {
 			nerd_fonts = 0;
 			status = (enum editorNerdFontsLoadStatus)(
 			        status | EDITOR_NERD_FONTS_LOAD_INVALID_GLOBAL);
@@ -671,13 +671,13 @@ enum editorNerdFontsLoadStatus editorNerdFontsLoadFromPaths(int *nerd_fonts_out,
 	}
 
 	if (project_path != NULL) {
-		enum editorBoolFileStatus project_status =
-		        editorBoolApplyConfigFile(&nerd_fonts, project_path, "nerd_fonts");
-		if (project_status == EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
+		enum configEditorBoolFileStatus project_status =
+		        configEditorBoolApplyFile(&nerd_fonts, project_path, "nerd_fonts");
+		if (project_status == CONFIG_EDITOR_BOOL_FILE_OUT_OF_MEMORY) {
 			*nerd_fonts_out = 0;
 			return EDITOR_NERD_FONTS_LOAD_OUT_OF_MEMORY;
 		}
-		if (project_status == EDITOR_BOOL_FILE_INVALID) {
+		if (project_status == CONFIG_EDITOR_BOOL_FILE_INVALID) {
 			nerd_fonts = 0;
 			status = (enum editorNerdFontsLoadStatus)(
 			        status | EDITOR_NERD_FONTS_LOAD_INVALID_PROJECT);
@@ -710,11 +710,11 @@ enum editorNerdFontsLoadStatus editorNerdFontsLoadConfigured(int *nerd_fonts_out
 	return status;
 }
 
-enum editorIndentConfigFileStatus {
-	EDITOR_INDENT_CONFIG_FILE_APPLIED = 0,
-	EDITOR_INDENT_CONFIG_FILE_MISSING,
-	EDITOR_INDENT_CONFIG_FILE_INVALID,
-	EDITOR_INDENT_CONFIG_FILE_OUT_OF_MEMORY
+enum configEditorIndentFileStatus {
+	CONFIG_EDITOR_INDENT_FILE_APPLIED = 0,
+	CONFIG_EDITOR_INDENT_FILE_MISSING,
+	CONFIG_EDITOR_INDENT_FILE_INVALID,
+	CONFIG_EDITOR_INDENT_FILE_OUT_OF_MEMORY
 };
 
 void editorIndentConfigInitDefaults(int *auto_indent_out, int *indent_use_tabs_out,
@@ -730,7 +730,7 @@ void editorIndentConfigInitDefaults(int *auto_indent_out, int *indent_use_tabs_o
 	}
 }
 
-static int editorParseIndentStyleValue(const char *value, int *indent_use_tabs_out) {
+static int configEditorParseIndentStyleValue(const char *value, int *indent_use_tabs_out) {
 	if (value == NULL || indent_use_tabs_out == NULL) {
 		return 0;
 	}
@@ -745,7 +745,7 @@ static int editorParseIndentStyleValue(const char *value, int *indent_use_tabs_o
 	return 0;
 }
 
-static int editorParseIndentWidthValue(const char *value, int *indent_width_out) {
+static int configEditorParseIndentWidthValue(const char *value, int *indent_width_out) {
 	if (value == NULL || indent_width_out == NULL) {
 		return 0;
 	}
@@ -760,15 +760,16 @@ static int editorParseIndentWidthValue(const char *value, int *indent_width_out)
 	return 1;
 }
 
-static enum editorIndentConfigFileStatus
-editorIndentConfigApplyConfigFile(int *auto_indent_in_out, int *indent_use_tabs_in_out,
-                                  int *indent_width_in_out, const char *path) {
+static enum configEditorIndentFileStatus configEditorIndentApplyFile(int *auto_indent_in_out,
+                                                                     int *indent_use_tabs_in_out,
+                                                                     int *indent_width_in_out,
+                                                                     const char *path) {
 	FILE *fp = fopen(path, "r");
 	if (fp == NULL) {
 		if (errno == ENOENT) {
-			return EDITOR_INDENT_CONFIG_FILE_MISSING;
+			return CONFIG_EDITOR_INDENT_FILE_MISSING;
 		}
-		return EDITOR_INDENT_CONFIG_FILE_INVALID;
+		return CONFIG_EDITOR_INDENT_FILE_INVALID;
 	}
 
 	int updated_auto_indent = *auto_indent_in_out;
@@ -780,7 +781,7 @@ editorIndentConfigApplyConfigFile(int *auto_indent_in_out, int *indent_use_tabs_
 		size_t line_len = strlen(line);
 		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
 			fclose(fp);
-			return EDITOR_INDENT_CONFIG_FILE_INVALID;
+			return CONFIG_EDITOR_INDENT_FILE_INVALID;
 		}
 
 		editorConfigStripInlineComment(line);
@@ -794,7 +795,7 @@ editorIndentConfigApplyConfigFile(int *auto_indent_in_out, int *indent_use_tabs_
 			char *close = strchr(trimmed, ']');
 			if (close == NULL) {
 				fclose(fp);
-				return EDITOR_INDENT_CONFIG_FILE_INVALID;
+				return CONFIG_EDITOR_INDENT_FILE_INVALID;
 			}
 			*close = '\0';
 			char *table = editorConfigTrimLeft(trimmed + 1);
@@ -802,7 +803,7 @@ editorIndentConfigApplyConfigFile(int *auto_indent_in_out, int *indent_use_tabs_
 			char *tail = editorConfigTrimLeft(close + 1);
 			if (tail[0] != '\0') {
 				fclose(fp);
-				return EDITOR_INDENT_CONFIG_FILE_INVALID;
+				return CONFIG_EDITOR_INDENT_FILE_INVALID;
 			}
 
 			in_editor_table = strcmp(table, "editor") == 0;
@@ -816,7 +817,7 @@ editorIndentConfigApplyConfigFile(int *auto_indent_in_out, int *indent_use_tabs_
 		char *eq = strchr(trimmed, '=');
 		if (eq == NULL) {
 			fclose(fp);
-			return EDITOR_INDENT_CONFIG_FILE_INVALID;
+			return CONFIG_EDITOR_INDENT_FILE_INVALID;
 		}
 
 		*eq = '\0';
@@ -826,14 +827,14 @@ editorIndentConfigApplyConfigFile(int *auto_indent_in_out, int *indent_use_tabs_
 		editorConfigTrimRight(value);
 		if (setting_name[0] == '\0') {
 			fclose(fp);
-			return EDITOR_INDENT_CONFIG_FILE_INVALID;
+			return CONFIG_EDITOR_INDENT_FILE_INVALID;
 		}
 
 		if (strcmp(setting_name, "auto_indent") == 0) {
 			int parsed = 0;
-			if (!editorParseBoolValue(value, &parsed)) {
+			if (!configEditorParseBoolValue(value, &parsed)) {
 				fclose(fp);
-				return EDITOR_INDENT_CONFIG_FILE_INVALID;
+				return CONFIG_EDITOR_INDENT_FILE_INVALID;
 			}
 			updated_auto_indent = parsed;
 			continue;
@@ -843,18 +844,18 @@ editorIndentConfigApplyConfigFile(int *auto_indent_in_out, int *indent_use_tabs_
 			int parsed = 0;
 			if (!editorConfigParseQuotedValue(value, style_value,
 			                                  sizeof(style_value)) ||
-			    !editorParseIndentStyleValue(style_value, &parsed)) {
+			    !configEditorParseIndentStyleValue(style_value, &parsed)) {
 				fclose(fp);
-				return EDITOR_INDENT_CONFIG_FILE_INVALID;
+				return CONFIG_EDITOR_INDENT_FILE_INVALID;
 			}
 			updated_indent_use_tabs = parsed;
 			continue;
 		}
 		if (strcmp(setting_name, "indent_width") == 0) {
 			int parsed = 0;
-			if (!editorParseIndentWidthValue(value, &parsed)) {
+			if (!configEditorParseIndentWidthValue(value, &parsed)) {
 				fclose(fp);
-				return EDITOR_INDENT_CONFIG_FILE_INVALID;
+				return CONFIG_EDITOR_INDENT_FILE_INVALID;
 			}
 			updated_indent_width = parsed;
 		}
@@ -862,14 +863,14 @@ editorIndentConfigApplyConfigFile(int *auto_indent_in_out, int *indent_use_tabs_
 
 	if (ferror(fp)) {
 		fclose(fp);
-		return EDITOR_INDENT_CONFIG_FILE_INVALID;
+		return CONFIG_EDITOR_INDENT_FILE_INVALID;
 	}
 
 	fclose(fp);
 	*auto_indent_in_out = updated_auto_indent;
 	*indent_use_tabs_in_out = updated_indent_use_tabs;
 	*indent_width_in_out = updated_indent_width;
-	return EDITOR_INDENT_CONFIG_FILE_APPLIED;
+	return CONFIG_EDITOR_INDENT_FILE_APPLIED;
 }
 
 enum editorIndentConfigLoadStatus editorIndentConfigLoadFromPaths(int *auto_indent_out,
@@ -887,14 +888,14 @@ enum editorIndentConfigLoadStatus editorIndentConfigLoadFromPaths(int *auto_inde
 	enum editorIndentConfigLoadStatus status = EDITOR_INDENT_CONFIG_LOAD_OK;
 
 	if (global_path != NULL) {
-		enum editorIndentConfigFileStatus global_status = editorIndentConfigApplyConfigFile(
+		enum configEditorIndentFileStatus global_status = configEditorIndentApplyFile(
 		        &auto_indent, &indent_use_tabs, &indent_width, global_path);
-		if (global_status == EDITOR_INDENT_CONFIG_FILE_OUT_OF_MEMORY) {
+		if (global_status == CONFIG_EDITOR_INDENT_FILE_OUT_OF_MEMORY) {
 			editorIndentConfigInitDefaults(auto_indent_out, indent_use_tabs_out,
 			                               indent_width_out);
 			return EDITOR_INDENT_CONFIG_LOAD_OUT_OF_MEMORY;
 		}
-		if (global_status == EDITOR_INDENT_CONFIG_FILE_INVALID) {
+		if (global_status == CONFIG_EDITOR_INDENT_FILE_INVALID) {
 			editorIndentConfigInitDefaults(&auto_indent, &indent_use_tabs,
 			                               &indent_width);
 			status = (enum editorIndentConfigLoadStatus)(
@@ -903,15 +904,14 @@ enum editorIndentConfigLoadStatus editorIndentConfigLoadFromPaths(int *auto_inde
 	}
 
 	if (project_path != NULL) {
-		enum editorIndentConfigFileStatus project_status =
-		        editorIndentConfigApplyConfigFile(&auto_indent, &indent_use_tabs,
-		                                          &indent_width, project_path);
-		if (project_status == EDITOR_INDENT_CONFIG_FILE_OUT_OF_MEMORY) {
+		enum configEditorIndentFileStatus project_status = configEditorIndentApplyFile(
+		        &auto_indent, &indent_use_tabs, &indent_width, project_path);
+		if (project_status == CONFIG_EDITOR_INDENT_FILE_OUT_OF_MEMORY) {
 			editorIndentConfigInitDefaults(auto_indent_out, indent_use_tabs_out,
 			                               indent_width_out);
 			return EDITOR_INDENT_CONFIG_LOAD_OUT_OF_MEMORY;
 		}
-		if (project_status == EDITOR_INDENT_CONFIG_FILE_INVALID) {
+		if (project_status == CONFIG_EDITOR_INDENT_FILE_INVALID) {
 			editorIndentConfigInitDefaults(&auto_indent, &indent_use_tabs,
 			                               &indent_width);
 			status = (enum editorIndentConfigLoadStatus)(
@@ -948,7 +948,8 @@ enum editorIndentConfigLoadStatus editorIndentConfigLoadConfigured(int *auto_ind
 	return status;
 }
 
-static int editorColumnSelectDragModifierTokenBit(const char *token, int *bit_out, int *is_none) {
+static int configEditorColumnSelectDragModifierTokenBit(const char *token, int *bit_out,
+                                                        int *is_none) {
 	if (strcmp(token, "alt") == 0) {
 		*bit_out = EDITOR_MOUSE_MOD_ALT;
 		*is_none = 0;
@@ -1011,7 +1012,7 @@ int editorParseColumnSelectDragModifierValue(const char *value, int *modifier_ou
 			}
 			int bit = 0;
 			int is_none = 0;
-			if (!editorColumnSelectDragModifierTokenBit(token, &bit, &is_none)) {
+			if (!configEditorColumnSelectDragModifierTokenBit(token, &bit, &is_none)) {
 				return 0;
 			}
 			if (is_none) {
@@ -1051,21 +1052,21 @@ int editorParseColumnSelectDragModifierValue(const char *value, int *modifier_ou
 	return 1;
 }
 
-enum editorColumnSelectDragModifierFileStatus {
-	EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_APPLIED = 0,
-	EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_MISSING,
-	EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID,
-	EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_OUT_OF_MEMORY
+enum configEditorColumnSelectDragModifierFileStatus {
+	CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_APPLIED = 0,
+	CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_MISSING,
+	CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID,
+	CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_OUT_OF_MEMORY
 };
 
-static enum editorColumnSelectDragModifierFileStatus
-editorColumnSelectDragModifierApplyConfigFile(int *modifier_in_out, const char *path) {
+static enum configEditorColumnSelectDragModifierFileStatus
+configEditorColumnSelectDragModifierApplyFile(int *modifier_in_out, const char *path) {
 	FILE *fp = fopen(path, "r");
 	if (fp == NULL) {
 		if (errno == ENOENT) {
-			return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_MISSING;
+			return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_MISSING;
 		}
-		return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
+		return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
 	}
 
 	int updated = *modifier_in_out;
@@ -1075,7 +1076,7 @@ editorColumnSelectDragModifierApplyConfigFile(int *modifier_in_out, const char *
 		size_t line_len = strlen(line);
 		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
 			fclose(fp);
-			return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
+			return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
 		}
 
 		editorConfigStripInlineComment(line);
@@ -1089,7 +1090,7 @@ editorColumnSelectDragModifierApplyConfigFile(int *modifier_in_out, const char *
 			char *close = strchr(trimmed, ']');
 			if (close == NULL) {
 				fclose(fp);
-				return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
+				return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
 			}
 			*close = '\0';
 			char *table = editorConfigTrimLeft(trimmed + 1);
@@ -1097,7 +1098,7 @@ editorColumnSelectDragModifierApplyConfigFile(int *modifier_in_out, const char *
 			char *tail = editorConfigTrimLeft(close + 1);
 			if (tail[0] != '\0') {
 				fclose(fp);
-				return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
+				return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
 			}
 			in_editor_table = strcmp(table, "editor") == 0;
 			continue;
@@ -1110,7 +1111,7 @@ editorColumnSelectDragModifierApplyConfigFile(int *modifier_in_out, const char *
 		char *eq = strchr(trimmed, '=');
 		if (eq == NULL) {
 			fclose(fp);
-			return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
+			return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
 		}
 
 		*eq = '\0';
@@ -1120,7 +1121,7 @@ editorColumnSelectDragModifierApplyConfigFile(int *modifier_in_out, const char *
 		editorConfigTrimRight(value);
 		if (setting_name[0] == '\0') {
 			fclose(fp);
-			return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
+			return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
 		}
 		if (strcmp(setting_name, "column_select_drag_modifier") != 0) {
 			continue;
@@ -1129,19 +1130,19 @@ editorColumnSelectDragModifierApplyConfigFile(int *modifier_in_out, const char *
 		int parsed = 0;
 		if (!editorParseColumnSelectDragModifierValue(value, &parsed)) {
 			fclose(fp);
-			return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
+			return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
 		}
 		updated = parsed;
 	}
 
 	if (ferror(fp)) {
 		fclose(fp);
-		return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
+		return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
 	}
 
 	fclose(fp);
 	*modifier_in_out = updated;
-	return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_APPLIED;
+	return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_APPLIED;
 }
 
 enum editorColumnSelectDragModifierLoadStatus
@@ -1157,13 +1158,13 @@ editorColumnSelectDragModifierLoadFromPaths(int *modifier_out, const char *globa
 	        EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_OK;
 
 	if (global_path != NULL) {
-		enum editorColumnSelectDragModifierFileStatus s =
-		        editorColumnSelectDragModifierApplyConfigFile(&modifier, global_path);
-		if (s == EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_OUT_OF_MEMORY) {
+		enum configEditorColumnSelectDragModifierFileStatus s =
+		        configEditorColumnSelectDragModifierApplyFile(&modifier, global_path);
+		if (s == CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_OUT_OF_MEMORY) {
 			*modifier_out = default_modifier;
 			return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_OUT_OF_MEMORY;
 		}
-		if (s == EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID) {
+		if (s == CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID) {
 			modifier = default_modifier;
 			status = (enum editorColumnSelectDragModifierLoadStatus)(
 			        status | EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_INVALID_GLOBAL);
@@ -1171,13 +1172,13 @@ editorColumnSelectDragModifierLoadFromPaths(int *modifier_out, const char *globa
 	}
 
 	if (project_path != NULL) {
-		enum editorColumnSelectDragModifierFileStatus s =
-		        editorColumnSelectDragModifierApplyConfigFile(&modifier, project_path);
-		if (s == EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_OUT_OF_MEMORY) {
+		enum configEditorColumnSelectDragModifierFileStatus s =
+		        configEditorColumnSelectDragModifierApplyFile(&modifier, project_path);
+		if (s == CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_OUT_OF_MEMORY) {
 			*modifier_out = default_modifier;
 			return EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_OUT_OF_MEMORY;
 		}
-		if (s == EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID) {
+		if (s == CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID) {
 			modifier = default_modifier;
 			status = (enum editorColumnSelectDragModifierLoadStatus)(
 			        status | EDITOR_COLUMN_SELECT_DRAG_MODIFIER_LOAD_INVALID_PROJECT);
