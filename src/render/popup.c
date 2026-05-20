@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void editorPopupReleaseItems(void) {
+static void popupReleaseItems(void) {
 	if (E.popup.items == NULL) {
 		return;
 	}
@@ -19,7 +19,7 @@ static void editorPopupReleaseItems(void) {
 }
 
 void editorPopupClose(void) {
-	editorPopupReleaseItems();
+	popupReleaseItems();
 	E.popup.visible = 0;
 	E.popup.anchor_row = 0;
 	E.popup.anchor_col = 0;
@@ -105,7 +105,7 @@ int editorPopupVisibleRowCount(void) {
 	return count;
 }
 
-static int editorPopupLabelDisplayWidth(const char *label) {
+static int popupLabelDisplayWidth(const char *label) {
 	if (label == NULL) {
 		return 0;
 	}
@@ -125,7 +125,7 @@ int editorPopupContentColumns(void) {
 	}
 	int max_cols = 0;
 	for (int i = 0; i < E.popup.item_count; i++) {
-		int width = editorPopupLabelDisplayWidth(E.popup.items[i].label);
+		int width = popupLabelDisplayWidth(E.popup.items[i].label);
 		if (width > max_cols) {
 			max_cols = width;
 		}
@@ -140,7 +140,7 @@ int editorPopupContentColumns(void) {
 	return padded;
 }
 
-static void editorPopupClampScroll(void) {
+static void popupClampScroll(void) {
 	int rows = editorPopupVisibleRowCount();
 	if (rows <= 0) {
 		E.popup.row_offset = 0;
@@ -173,13 +173,13 @@ enum editorPopupKeyResult editorPopupHandleKey(int key) {
 			if (E.popup.selected_index > 0) {
 				E.popup.selected_index--;
 			}
-			editorPopupClampScroll();
+			popupClampScroll();
 			return EDITOR_POPUP_KEY_CONSUMED;
 		case ARROW_DOWN:
 			if (E.popup.selected_index + 1 < E.popup.item_count) {
 				E.popup.selected_index++;
 			}
-			editorPopupClampScroll();
+			popupClampScroll();
 			return EDITOR_POPUP_KEY_CONSUMED;
 		case '\r':
 			return EDITOR_POPUP_KEY_ACCEPTED;

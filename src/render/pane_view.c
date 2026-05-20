@@ -22,30 +22,30 @@
 int editorAppendCursorMove(struct writeBuf *wb, int row, int col);
 extern int g_editor_drawing_current_line_highlight;
 
-struct editorPaneSyntaxRowOverride {
+struct paneViewSyntaxRowOverride {
 	int valid;
 	int row_idx;
 	int span_count;
 	struct editorRowSyntaxSpan spans[ROTIDE_MAX_SYNTAX_SPANS_PER_ROW];
 };
 
-struct editorPaneSyntaxFrameEntry {
+struct paneViewSyntaxFrameEntry {
 	const struct editorPaneNode *leaf;
 	int body_rows;
-	struct editorPaneSyntaxRowOverride *rows;
+	struct paneViewSyntaxRowOverride *rows;
 };
 
-struct editorPaneSyntaxFrame {
-	struct editorPaneSyntaxFrameEntry *entries;
+struct paneViewSyntaxFrame {
+	struct paneViewSyntaxFrameEntry *entries;
 	int count;
 };
 
-static struct editorPaneSyntaxFrame g_editor_pane_syntax_frame = {0};
-static const struct editorPaneSyntaxRowOverride *g_editor_active_row_syntax_override = NULL;
-static int g_editor_wrap_body_cols_override = 0;
+static struct paneViewSyntaxFrame g_pane_view_syntax_frame = {0};
+static const struct paneViewSyntaxRowOverride *g_pane_view_active_row_syntax_override = NULL;
+static int g_pane_view_wrap_body_cols_override = 0;
 
 int editorPaneWrapBodyColsOverride(void) {
-	return g_editor_wrap_body_cols_override;
+	return g_pane_view_wrap_body_cols_override;
 }
 
 int editorPaneSyntaxRowOverrideCopy(int row_idx, struct editorRowSyntaxSpan *spans, int max_spans,
@@ -54,13 +54,13 @@ int editorPaneSyntaxRowOverrideCopy(int row_idx, struct editorRowSyntaxSpan *spa
 		*span_count_out = 0;
 	}
 	if (spans == NULL || max_spans <= 0 || span_count_out == NULL ||
-	    g_editor_active_row_syntax_override == NULL ||
-	    !g_editor_active_row_syntax_override->valid ||
-	    g_editor_active_row_syntax_override->row_idx != row_idx) {
+	    g_pane_view_active_row_syntax_override == NULL ||
+	    !g_pane_view_active_row_syntax_override->valid ||
+	    g_pane_view_active_row_syntax_override->row_idx != row_idx) {
 		return 0;
 	}
 
-	int span_count = g_editor_active_row_syntax_override->span_count;
+	int span_count = g_pane_view_active_row_syntax_override->span_count;
 	if (span_count < 0) {
 		span_count = 0;
 	}
@@ -69,13 +69,13 @@ int editorPaneSyntaxRowOverrideCopy(int row_idx, struct editorRowSyntaxSpan *spa
 	}
 	if (span_count > 0) {
 		size_t copy_bytes = sizeof(*spans) * (size_t)span_count;
-		memcpy(spans, g_editor_active_row_syntax_override->spans, copy_bytes);
+		memcpy(spans, g_pane_view_active_row_syntax_override->spans, copy_bytes);
 	}
 	*span_count_out = span_count;
 	return 1;
 }
 
-static int editorPaneTextBodyViewportColsForWidth(int pane_cols) {
+static int paneViewTextBodyViewportColsForWidth(int pane_cols) {
 	int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);
 	if (gutter_cols > pane_cols) {
 		gutter_cols = pane_cols;
@@ -90,7 +90,7 @@ static int editorPaneTextBodyViewportColsForWidth(int pane_cols) {
 	return text_cols;
 }
 
-static int editorPaneBodyRowToBufferRow(int body_row_in_pane, int slice_cols, int *row_idx_out) {
+static int paneViewBodyRowToBufferRow(int body_row_in_pane, int slice_cols, int *row_idx_out) {
 	if (row_idx_out != NULL) {
 		*row_idx_out = E.numrows;
 	}
@@ -98,8 +98,8 @@ static int editorPaneBodyRowToBufferRow(int body_row_in_pane, int slice_cols, in
 		return 0;
 	}
 
-	int saved_wrap_body_cols_override = g_editor_wrap_body_cols_override;
-	g_editor_wrap_body_cols_override = editorPaneTextBodyViewportColsForWidth(slice_cols);
+	int saved_wrap_body_cols_override = g_pane_view_wrap_body_cols_override;
+	g_pane_view_wrap_body_cols_override = paneViewTextBodyViewportColsForWidth(slice_cols);
 
 	int row_idx = body_row_in_pane + E.rowoff;
 	int segment_coloff = 0;
@@ -109,7 +109,7 @@ static int editorPaneBodyRowToBufferRow(int body_row_in_pane, int slice_cols, in
 			row_idx = E.numrows;
 		}
 	}
-	g_editor_wrap_body_cols_override = saved_wrap_body_cols_override;
+	g_pane_view_wrap_body_cols_override = saved_wrap_body_cols_override;
 	(void)segment_coloff;
 	if (row_idx_out != NULL) {
 		*row_idx_out = row_idx;
@@ -118,20 +118,19 @@ static int editorPaneBodyRowToBufferRow(int body_row_in_pane, int slice_cols, in
 }
 
 void editorPaneSyntaxFrameClear(void) {
-	if (g_editor_pane_syntax_frame.entries != NULL) {
-		for (int i = 0; i < g_editor_pane_syntax_frame.count; i++) {
-			free(g_editor_pane_syntax_frame.entries[i].rows);
-			g_editor_pane_syntax_frame.entries[i].rows = NULL;
+	if (g_pane_view_syntax_frame.entries != NULL) {
+		for (int i = 0; i < g_pane_view_syntax_frame.count; i++) {
+			free(g_pane_view_syntax_frame.entries[i].rows);
+			g_pane_view_syntax_frame.entries[i].rows = NULL;
 		}
 	}
-	free(g_editor_pane_syntax_frame.entries);
-	g_editor_pane_syntax_frame.entries = NULL;
-	g_editor_pane_syntax_frame.count = 0;
-	g_editor_active_row_syntax_override = NULL;
+	free(g_pane_view_syntax_frame.entries);
+	g_pane_view_syntax_frame.entries = NULL;
+	g_pane_view_syntax_frame.count = 0;
+	g_pane_view_active_row_syntax_override = NULL;
 }
 
-static int editorPaneSyntaxFrameBuildEntry(struct editorPaneSyntaxFrameEntry *entry,
-                                           int pane_cols) {
+static int paneViewSyntaxFrameBuildEntry(struct paneViewSyntaxFrameEntry *entry, int pane_cols) {
 	if (entry == NULL || entry->body_rows <= 0 || pane_cols <= 0) {
 		return 1;
 	}
@@ -145,7 +144,7 @@ static int editorPaneSyntaxFrameBuildEntry(struct editorPaneSyntaxFrameEntry *en
 	int end_row_exclusive = 0;
 	for (int body_row = 0; body_row < entry->body_rows; body_row++) {
 		int row_idx = E.numrows;
-		if (!editorPaneBodyRowToBufferRow(body_row, pane_cols, &row_idx)) {
+		if (!paneViewBodyRowToBufferRow(body_row, pane_cols, &row_idx)) {
 			return 0;
 		}
 		if (row_idx < 0 || row_idx >= E.numrows) {
@@ -200,17 +199,16 @@ int editorPaneSyntaxFrameBuild(const struct editorLeafLayout *layout) {
 		return 1;
 	}
 
-	struct editorPaneSyntaxFrameEntry *entries =
-	        calloc((size_t)layout->count, sizeof(*entries));
+	struct paneViewSyntaxFrameEntry *entries = calloc((size_t)layout->count, sizeof(*entries));
 	if (entries == NULL) {
 		return 0;
 	}
-	g_editor_pane_syntax_frame.entries = entries;
-	g_editor_pane_syntax_frame.count = layout->count;
+	g_pane_view_syntax_frame.entries = entries;
+	g_pane_view_syntax_frame.count = layout->count;
 
 	for (int i = 0; i < layout->count; i++) {
 		struct editorPaneNode *leaf = layout->rects[i].node;
-		struct editorPaneSyntaxFrameEntry *entry = &g_editor_pane_syntax_frame.entries[i];
+		struct paneViewSyntaxFrameEntry *entry = &g_pane_view_syntax_frame.entries[i];
 		entry->leaf = leaf;
 		entry->body_rows = layout->rects[i].rect.h;
 		if (leaf == NULL || leaf->is_split ||
@@ -244,7 +242,7 @@ int editorPaneSyntaxFrameBuild(const struct editorLeafLayout *layout) {
 		if (leaf != E.focused_leaf) {
 			editorViewSnapshotFromPaneView(&leaf->as.leaf.view);
 		}
-		int ok = editorPaneSyntaxFrameBuildEntry(entry, layout->rects[i].rect.w);
+		int ok = paneViewSyntaxFrameBuildEntry(entry, layout->rects[i].rect.w);
 
 		editorBufferAliasToActive(&buffer_snap);
 		E.active_tab = active_tab;
@@ -268,14 +266,14 @@ int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode 
 		file_cols = 0;
 	}
 
-	int saved_wrap_body_cols_override = g_editor_wrap_body_cols_override;
-	const struct editorPaneSyntaxRowOverride *saved_row_syntax_override =
-	        g_editor_active_row_syntax_override;
-	const struct editorPaneSyntaxRowOverride *row_syntax_override = NULL;
-	if (body_row_in_pane >= 0 && g_editor_pane_syntax_frame.entries != NULL) {
-		for (int i = 0; i < g_editor_pane_syntax_frame.count; i++) {
-			struct editorPaneSyntaxFrameEntry *entry =
-			        &g_editor_pane_syntax_frame.entries[i];
+	int saved_wrap_body_cols_override = g_pane_view_wrap_body_cols_override;
+	const struct paneViewSyntaxRowOverride *saved_row_syntax_override =
+	        g_pane_view_active_row_syntax_override;
+	const struct paneViewSyntaxRowOverride *row_syntax_override = NULL;
+	if (body_row_in_pane >= 0 && g_pane_view_syntax_frame.entries != NULL) {
+		for (int i = 0; i < g_pane_view_syntax_frame.count; i++) {
+			struct paneViewSyntaxFrameEntry *entry =
+			        &g_pane_view_syntax_frame.entries[i];
 			if (entry->leaf != leaf || entry->rows == NULL ||
 			    body_row_in_pane >= entry->body_rows) {
 				continue;
@@ -284,8 +282,8 @@ int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode 
 			break;
 		}
 	}
-	g_editor_active_row_syntax_override = row_syntax_override;
-	g_editor_wrap_body_cols_override = editorPaneTextBodyViewportColsForWidth(slice_cols);
+	g_pane_view_active_row_syntax_override = row_syntax_override;
+	g_pane_view_wrap_body_cols_override = paneViewTextBodyViewportColsForWidth(slice_cols);
 
 	int y_offset = body_row_in_pane + E.rowoff;
 	int segment_coloff = 0;
@@ -332,15 +330,15 @@ int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode 
 	if (highlight_row && !editorAppendThemeReset(wb)) {
 		goto fail_reset;
 	}
-	g_editor_wrap_body_cols_override = saved_wrap_body_cols_override;
-	g_editor_active_row_syntax_override = saved_row_syntax_override;
+	g_pane_view_wrap_body_cols_override = saved_wrap_body_cols_override;
+	g_pane_view_active_row_syntax_override = saved_row_syntax_override;
 	return 1;
 
 fail:
 	g_editor_drawing_current_line_highlight = 0;
 fail_reset:
-	g_editor_wrap_body_cols_override = saved_wrap_body_cols_override;
-	g_editor_active_row_syntax_override = saved_row_syntax_override;
+	g_pane_view_wrap_body_cols_override = saved_wrap_body_cols_override;
+	g_pane_view_active_row_syntax_override = saved_row_syntax_override;
 	return 0;
 }
 
@@ -447,7 +445,7 @@ int editorDrawPaneViewSlice(struct writeBuf *wb, const struct editorPaneNode *le
 	return ok;
 }
 
-static int editorDrawGreeting(struct writeBuf *wb, int cols) {
+static int paneViewDrawGreeting(struct writeBuf *wb, int cols) {
 	char greet[80];
 	int greetlen = snprintf(greet, sizeof(greet), "RotIDE editor - version %s", ROTIDE_VERSION);
 	if (greetlen > cols) {
@@ -515,7 +513,7 @@ int editorBuildSinglePaneRowLine(struct writeBuf *wb, int y, int drawer_cols, in
 			return 0;
 		}
 	} else if (E.numrows == 0 && y == E.window_rows / 3) {
-		if (!editorDrawGreeting(wb, file_cols)) {
+		if (!paneViewDrawGreeting(wb, file_cols)) {
 			g_editor_drawing_current_line_highlight = 0;
 			return 0;
 		}
@@ -539,8 +537,8 @@ int editorBuildSinglePaneRowLine(struct writeBuf *wb, int y, int drawer_cols, in
 	return 1;
 }
 
-static int editorPaneLeafAt(const struct editorLeafLayout *layout, int x, int y,
-                            struct editorRect *out_rect) {
+static int paneViewLeafAt(const struct editorLeafLayout *layout, int x, int y,
+                          struct editorRect *out_rect) {
 	for (int i = 0; i < layout->count; i++) {
 		struct editorRect r = layout->rects[i].rect;
 		if (r.x <= x && x < r.x + r.w && r.y <= y && y < r.y + r.h) {
@@ -553,16 +551,16 @@ static int editorPaneLeafAt(const struct editorLeafLayout *layout, int x, int y,
 	return -1;
 }
 
-enum editorBorderCellKind {
-	EDITOR_BORDER_CELL_NONE = 0,
-	EDITOR_BORDER_CELL_VERTICAL,
-	EDITOR_BORDER_CELL_HORIZONTAL
+enum paneViewBorderCellKind {
+	PANE_VIEW_BORDER_CELL_NONE = 0,
+	PANE_VIEW_BORDER_CELL_VERTICAL,
+	PANE_VIEW_BORDER_CELL_HORIZONTAL
 };
 
-static enum editorBorderCellKind editorBorderCellAt(int x, int screen_y,
-                                                    const struct editorBorderList *borders) {
+static enum paneViewBorderCellKind paneViewBorderCellAt(int x, int screen_y,
+                                                        const struct editorBorderList *borders) {
 	if (borders == NULL) {
-		return EDITOR_BORDER_CELL_NONE;
+		return PANE_VIEW_BORDER_CELL_NONE;
 	}
 	for (int i = 0; i < borders->count; i++) {
 		struct editorRect r = borders->rects[i].rect;
@@ -573,10 +571,10 @@ static enum editorBorderCellKind editorBorderCellAt(int x, int screen_y,
 			continue;
 		}
 		return borders->rects[i].orientation == EDITOR_SPLIT_HORIZONTAL
-		               ? EDITOR_BORDER_CELL_HORIZONTAL
-		               : EDITOR_BORDER_CELL_VERTICAL;
+		               ? PANE_VIEW_BORDER_CELL_HORIZONTAL
+		               : PANE_VIEW_BORDER_CELL_VERTICAL;
 	}
-	return EDITOR_BORDER_CELL_NONE;
+	return PANE_VIEW_BORDER_CELL_NONE;
 }
 
 int editorDrawMultiPaneRows(struct writeBuf *wb, const struct editorLeafLayout *layout,
@@ -607,8 +605,9 @@ int editorDrawMultiPaneRows(struct writeBuf *wb, const struct editorLeafLayout *
 		        screen_y >= focused_rect.y && screen_y < focused_rect.y + focused_rect.h;
 		int x = text_start_col;
 		while (x < E.window_cols) {
-			enum editorBorderCellKind border = editorBorderCellAt(x, screen_y, borders);
-			if (border == EDITOR_BORDER_CELL_HORIZONTAL) {
+			enum paneViewBorderCellKind border =
+			        paneViewBorderCellAt(x, screen_y, borders);
+			if (border == PANE_VIEW_BORDER_CELL_HORIZONTAL) {
 				if (!wbAppend(wb, EDITOR_PANE_HBORDER,
 				              sizeof(EDITOR_PANE_HBORDER) - 1)) {
 					goto cleanup;
@@ -616,7 +615,7 @@ int editorDrawMultiPaneRows(struct writeBuf *wb, const struct editorLeafLayout *
 				x++;
 				continue;
 			}
-			if (border == EDITOR_BORDER_CELL_VERTICAL) {
+			if (border == PANE_VIEW_BORDER_CELL_VERTICAL) {
 				if (!wbAppend(wb, EDITOR_PANE_VBORDER,
 				              sizeof(EDITOR_PANE_VBORDER) - 1)) {
 					goto cleanup;
@@ -625,7 +624,7 @@ int editorDrawMultiPaneRows(struct writeBuf *wb, const struct editorLeafLayout *
 				continue;
 			}
 			struct editorRect leaf_rect = {0};
-			int leaf_idx = editorPaneLeafAt(layout, x, screen_y, &leaf_rect);
+			int leaf_idx = paneViewLeafAt(layout, x, screen_y, &leaf_rect);
 			if (leaf_idx < 0) {
 				if (!wbAppend(wb, " ", 1)) {
 					goto cleanup;
