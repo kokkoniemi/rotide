@@ -8,11 +8,11 @@
 #include <string.h>
 #include <strings.h>
 
-enum editorLspConfigFileStatus {
-	EDITOR_LSP_CONFIG_FILE_APPLIED = 0,
-	EDITOR_LSP_CONFIG_FILE_MISSING,
-	EDITOR_LSP_CONFIG_FILE_INVALID,
-	EDITOR_LSP_CONFIG_FILE_OUT_OF_MEMORY
+enum lspConfigFileStatus {
+	LSP_CONFIG_FILE_APPLIED = 0,
+	LSP_CONFIG_FILE_MISSING,
+	LSP_CONFIG_FILE_INVALID,
+	LSP_CONFIG_FILE_OUT_OF_MEMORY
 };
 
 void editorLspConfigInitDefaults(
@@ -111,7 +111,7 @@ void editorLspConfigInitDefaults(
 	}
 }
 
-static int editorParseBooleanValue(const char *value, int *out) {
+static int lspConfigParseBooleanValue(const char *value, int *out) {
 	if (value == NULL || out == NULL) {
 		return 0;
 	}
@@ -126,7 +126,7 @@ static int editorParseBooleanValue(const char *value, int *out) {
 	return 0;
 }
 
-static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(
+static enum lspConfigFileStatus lspConfigApplyFile(
         int *gopls_enabled_in_out, int *clangd_enabled_in_out, int *html_enabled_in_out,
         int *css_enabled_in_out, int *json_enabled_in_out, int *javascript_enabled_in_out,
         int *eslint_enabled_in_out, char *gopls_command_in_out, size_t gopls_command_in_out_size,
@@ -154,15 +154,15 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(
 	    javascript_install_command_in_out_size == 0 || eslint_command_in_out == NULL ||
 	    eslint_command_in_out_size == 0 || vscode_langservers_install_command_in_out == NULL ||
 	    vscode_langservers_install_command_in_out_size == 0) {
-		return EDITOR_LSP_CONFIG_FILE_OUT_OF_MEMORY;
+		return LSP_CONFIG_FILE_OUT_OF_MEMORY;
 	}
 
 	FILE *fp = fopen(path, "r");
 	if (fp == NULL) {
 		if (errno == ENOENT) {
-			return EDITOR_LSP_CONFIG_FILE_MISSING;
+			return LSP_CONFIG_FILE_MISSING;
 		}
-		return EDITOR_LSP_CONFIG_FILE_INVALID;
+		return LSP_CONFIG_FILE_INVALID;
 	}
 
 	int gopls_enabled = *gopls_enabled_in_out;
@@ -200,7 +200,7 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(
 		free(eslint_command);
 		free(vscode_langservers_install_command);
 		fclose(fp);
-		return EDITOR_LSP_CONFIG_FILE_OUT_OF_MEMORY;
+		return LSP_CONFIG_FILE_OUT_OF_MEMORY;
 	}
 	(void)snprintf(gopls_command, gopls_command_in_out_size, "%s", gopls_command_in_out);
 	gopls_command[gopls_command_in_out_size - 1] = '\0';
@@ -229,7 +229,7 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(
 	vscode_langservers_install_command[vscode_langservers_install_command_in_out_size - 1] =
 	        '\0';
 
-#define EDITOR_LSP_CONFIG_FREE_LOCAL()                                                             \
+#define LSP_CONFIG_FREE_LOCAL()                                                                    \
 	do {                                                                                       \
 		free(gopls_command);                                                               \
 		free(gopls_install_command);                                                       \
@@ -248,9 +248,9 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(
 	while (fgets(line, sizeof(line), fp) != NULL) {
 		size_t line_len = strlen(line);
 		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
-			EDITOR_LSP_CONFIG_FREE_LOCAL();
+			LSP_CONFIG_FREE_LOCAL();
 			fclose(fp);
-			return EDITOR_LSP_CONFIG_FILE_INVALID;
+			return LSP_CONFIG_FILE_INVALID;
 		}
 
 		editorConfigStripInlineComment(line);
@@ -263,18 +263,18 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(
 		if (trimmed[0] == '[') {
 			char *close = strchr(trimmed, ']');
 			if (close == NULL) {
-				EDITOR_LSP_CONFIG_FREE_LOCAL();
+				LSP_CONFIG_FREE_LOCAL();
 				fclose(fp);
-				return EDITOR_LSP_CONFIG_FILE_INVALID;
+				return LSP_CONFIG_FILE_INVALID;
 			}
 			*close = '\0';
 			char *table = editorConfigTrimLeft(trimmed + 1);
 			editorConfigTrimRight(table);
 			char *tail = editorConfigTrimLeft(close + 1);
 			if (tail[0] != '\0') {
-				EDITOR_LSP_CONFIG_FREE_LOCAL();
+				LSP_CONFIG_FREE_LOCAL();
 				fclose(fp);
-				return EDITOR_LSP_CONFIG_FILE_INVALID;
+				return LSP_CONFIG_FILE_INVALID;
 			}
 
 			in_lsp_table = strcmp(table, "lsp") == 0;
@@ -287,9 +287,9 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(
 
 		char *eq = strchr(trimmed, '=');
 		if (eq == NULL) {
-			EDITOR_LSP_CONFIG_FREE_LOCAL();
+			LSP_CONFIG_FREE_LOCAL();
 			fclose(fp);
-			return EDITOR_LSP_CONFIG_FILE_INVALID;
+			return LSP_CONFIG_FILE_INVALID;
 		}
 
 		*eq = '\0';
@@ -297,17 +297,17 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(
 		editorConfigTrimRight(setting_name);
 		char *value = editorConfigTrimLeft(eq + 1);
 		if (setting_name[0] == '\0') {
-			EDITOR_LSP_CONFIG_FREE_LOCAL();
+			LSP_CONFIG_FREE_LOCAL();
 			fclose(fp);
-			return EDITOR_LSP_CONFIG_FILE_INVALID;
+			return LSP_CONFIG_FILE_INVALID;
 		}
 
 		if (strcmp(setting_name, "enabled") == 0) {
 			int parsed_enabled = 0;
-			if (!editorParseBooleanValue(value, &parsed_enabled)) {
-				EDITOR_LSP_CONFIG_FREE_LOCAL();
+			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
+				LSP_CONFIG_FREE_LOCAL();
 				fclose(fp);
-				return EDITOR_LSP_CONFIG_FILE_INVALID;
+				return LSP_CONFIG_FILE_INVALID;
 			}
 			gopls_enabled = parsed_enabled;
 			clangd_enabled = parsed_enabled;
@@ -321,10 +321,10 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(
 
 		if (strcmp(setting_name, "gopls_enabled") == 0) {
 			int parsed_enabled = 0;
-			if (!editorParseBooleanValue(value, &parsed_enabled)) {
-				EDITOR_LSP_CONFIG_FREE_LOCAL();
+			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
+				LSP_CONFIG_FREE_LOCAL();
 				fclose(fp);
-				return EDITOR_LSP_CONFIG_FILE_INVALID;
+				return LSP_CONFIG_FILE_INVALID;
 			}
 			gopls_enabled = parsed_enabled;
 			continue;
@@ -332,10 +332,10 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(
 
 		if (strcmp(setting_name, "clangd_enabled") == 0) {
 			int parsed_enabled = 0;
-			if (!editorParseBooleanValue(value, &parsed_enabled)) {
-				EDITOR_LSP_CONFIG_FREE_LOCAL();
+			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
+				LSP_CONFIG_FREE_LOCAL();
 				fclose(fp);
-				return EDITOR_LSP_CONFIG_FILE_INVALID;
+				return LSP_CONFIG_FILE_INVALID;
 			}
 			clangd_enabled = parsed_enabled;
 			continue;
@@ -343,50 +343,50 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(
 
 		if (strcmp(setting_name, "html_enabled") == 0) {
 			int parsed_enabled = 0;
-			if (!editorParseBooleanValue(value, &parsed_enabled)) {
-				EDITOR_LSP_CONFIG_FREE_LOCAL();
+			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
+				LSP_CONFIG_FREE_LOCAL();
 				fclose(fp);
-				return EDITOR_LSP_CONFIG_FILE_INVALID;
+				return LSP_CONFIG_FILE_INVALID;
 			}
 			html_enabled = parsed_enabled;
 			continue;
 		}
 		if (strcmp(setting_name, "css_enabled") == 0) {
 			int parsed_enabled = 0;
-			if (!editorParseBooleanValue(value, &parsed_enabled)) {
-				EDITOR_LSP_CONFIG_FREE_LOCAL();
+			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
+				LSP_CONFIG_FREE_LOCAL();
 				fclose(fp);
-				return EDITOR_LSP_CONFIG_FILE_INVALID;
+				return LSP_CONFIG_FILE_INVALID;
 			}
 			css_enabled = parsed_enabled;
 			continue;
 		}
 		if (strcmp(setting_name, "json_enabled") == 0) {
 			int parsed_enabled = 0;
-			if (!editorParseBooleanValue(value, &parsed_enabled)) {
-				EDITOR_LSP_CONFIG_FREE_LOCAL();
+			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
+				LSP_CONFIG_FREE_LOCAL();
 				fclose(fp);
-				return EDITOR_LSP_CONFIG_FILE_INVALID;
+				return LSP_CONFIG_FILE_INVALID;
 			}
 			json_enabled = parsed_enabled;
 			continue;
 		}
 		if (strcmp(setting_name, "eslint_enabled") == 0) {
 			int parsed_enabled = 0;
-			if (!editorParseBooleanValue(value, &parsed_enabled)) {
-				EDITOR_LSP_CONFIG_FREE_LOCAL();
+			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
+				LSP_CONFIG_FREE_LOCAL();
 				fclose(fp);
-				return EDITOR_LSP_CONFIG_FILE_INVALID;
+				return LSP_CONFIG_FILE_INVALID;
 			}
 			eslint_enabled = parsed_enabled;
 			continue;
 		}
 		if (strcmp(setting_name, "javascript_enabled") == 0) {
 			int parsed_enabled = 0;
-			if (!editorParseBooleanValue(value, &parsed_enabled)) {
-				EDITOR_LSP_CONFIG_FREE_LOCAL();
+			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
+				LSP_CONFIG_FREE_LOCAL();
 				fclose(fp);
-				return EDITOR_LSP_CONFIG_FILE_INVALID;
+				return LSP_CONFIG_FILE_INVALID;
 			}
 			javascript_enabled = parsed_enabled;
 			continue;
@@ -394,10 +394,10 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(
 
 		if (strcmp(setting_name, "autocomplete") == 0) {
 			int parsed_enabled = 0;
-			if (!editorParseBooleanValue(value, &parsed_enabled)) {
-				EDITOR_LSP_CONFIG_FREE_LOCAL();
+			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
+				LSP_CONFIG_FREE_LOCAL();
 				fclose(fp);
-				return EDITOR_LSP_CONFIG_FILE_INVALID;
+				return LSP_CONFIG_FILE_INVALID;
 			}
 			autocomplete_enabled = parsed_enabled;
 			continue;
@@ -408,9 +408,9 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(
 			long parsed_long = strtol(value, &endptr, 10);
 			if (endptr == value || endptr == NULL || *endptr != '\0' ||
 			    parsed_long < 1 || parsed_long > 1000) {
-				EDITOR_LSP_CONFIG_FREE_LOCAL();
+				LSP_CONFIG_FREE_LOCAL();
 				fclose(fp);
-				return EDITOR_LSP_CONFIG_FILE_INVALID;
+				return LSP_CONFIG_FILE_INVALID;
 			}
 			autocomplete_max_items = (int)parsed_long;
 			continue;
@@ -420,9 +420,9 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(
 			if (!editorConfigParseQuotedValue(value, gopls_command,
 			                                  gopls_command_in_out_size) ||
 			    gopls_command[0] == '\0') {
-				EDITOR_LSP_CONFIG_FREE_LOCAL();
+				LSP_CONFIG_FREE_LOCAL();
 				fclose(fp);
-				return EDITOR_LSP_CONFIG_FILE_INVALID;
+				return LSP_CONFIG_FILE_INVALID;
 			}
 			continue;
 		}
@@ -434,9 +434,9 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(
 			if (!editorConfigParseQuotedValue(value, gopls_install_command,
 			                                  gopls_install_command_in_out_size) ||
 			    gopls_install_command[0] == '\0') {
-				EDITOR_LSP_CONFIG_FREE_LOCAL();
+				LSP_CONFIG_FREE_LOCAL();
 				fclose(fp);
-				return EDITOR_LSP_CONFIG_FILE_INVALID;
+				return LSP_CONFIG_FILE_INVALID;
 			}
 			continue;
 		}
@@ -444,9 +444,9 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(
 			if (!editorConfigParseQuotedValue(value, clangd_command,
 			                                  clangd_command_in_out_size) ||
 			    clangd_command[0] == '\0') {
-				EDITOR_LSP_CONFIG_FREE_LOCAL();
+				LSP_CONFIG_FREE_LOCAL();
 				fclose(fp);
-				return EDITOR_LSP_CONFIG_FILE_INVALID;
+				return LSP_CONFIG_FILE_INVALID;
 			}
 			continue;
 		}
@@ -454,9 +454,9 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(
 			if (!editorConfigParseQuotedValue(value, html_command,
 			                                  html_command_in_out_size) ||
 			    html_command[0] == '\0') {
-				EDITOR_LSP_CONFIG_FREE_LOCAL();
+				LSP_CONFIG_FREE_LOCAL();
 				fclose(fp);
-				return EDITOR_LSP_CONFIG_FILE_INVALID;
+				return LSP_CONFIG_FILE_INVALID;
 			}
 			continue;
 		}
@@ -464,9 +464,9 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(
 			if (!editorConfigParseQuotedValue(value, css_command,
 			                                  css_command_in_out_size) ||
 			    css_command[0] == '\0') {
-				EDITOR_LSP_CONFIG_FREE_LOCAL();
+				LSP_CONFIG_FREE_LOCAL();
 				fclose(fp);
-				return EDITOR_LSP_CONFIG_FILE_INVALID;
+				return LSP_CONFIG_FILE_INVALID;
 			}
 			continue;
 		}
@@ -474,9 +474,9 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(
 			if (!editorConfigParseQuotedValue(value, json_command,
 			                                  json_command_in_out_size) ||
 			    json_command[0] == '\0') {
-				EDITOR_LSP_CONFIG_FREE_LOCAL();
+				LSP_CONFIG_FREE_LOCAL();
 				fclose(fp);
-				return EDITOR_LSP_CONFIG_FILE_INVALID;
+				return LSP_CONFIG_FILE_INVALID;
 			}
 			continue;
 		}
@@ -484,9 +484,9 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(
 			if (!editorConfigParseQuotedValue(value, eslint_command,
 			                                  eslint_command_in_out_size) ||
 			    eslint_command[0] == '\0') {
-				EDITOR_LSP_CONFIG_FREE_LOCAL();
+				LSP_CONFIG_FREE_LOCAL();
 				fclose(fp);
-				return EDITOR_LSP_CONFIG_FILE_INVALID;
+				return LSP_CONFIG_FILE_INVALID;
 			}
 			continue;
 		}
@@ -494,9 +494,9 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(
 			if (!editorConfigParseQuotedValue(value, javascript_command,
 			                                  javascript_command_in_out_size) ||
 			    javascript_command[0] == '\0') {
-				EDITOR_LSP_CONFIG_FREE_LOCAL();
+				LSP_CONFIG_FREE_LOCAL();
 				fclose(fp);
-				return EDITOR_LSP_CONFIG_FILE_INVALID;
+				return LSP_CONFIG_FILE_INVALID;
 			}
 			continue;
 		}
@@ -507,9 +507,9 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(
 			if (!editorConfigParseQuotedValue(value, javascript_install_command,
 			                                  javascript_install_command_in_out_size) ||
 			    javascript_install_command[0] == '\0') {
-				EDITOR_LSP_CONFIG_FREE_LOCAL();
+				LSP_CONFIG_FREE_LOCAL();
 				fclose(fp);
-				return EDITOR_LSP_CONFIG_FILE_INVALID;
+				return LSP_CONFIG_FILE_INVALID;
 			}
 			continue;
 		}
@@ -521,18 +521,18 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(
 			            value, vscode_langservers_install_command,
 			            vscode_langservers_install_command_in_out_size) ||
 			    vscode_langservers_install_command[0] == '\0') {
-				EDITOR_LSP_CONFIG_FREE_LOCAL();
+				LSP_CONFIG_FREE_LOCAL();
 				fclose(fp);
-				return EDITOR_LSP_CONFIG_FILE_INVALID;
+				return LSP_CONFIG_FILE_INVALID;
 			}
 			continue;
 		}
 	}
 
 	if (ferror(fp)) {
-		EDITOR_LSP_CONFIG_FREE_LOCAL();
+		LSP_CONFIG_FREE_LOCAL();
 		fclose(fp);
-		return EDITOR_LSP_CONFIG_FILE_INVALID;
+		return LSP_CONFIG_FILE_INVALID;
 	}
 
 	fclose(fp);
@@ -571,9 +571,9 @@ static enum editorLspConfigFileStatus editorLspConfigApplyConfigFile(
 	               vscode_langservers_install_command);
 	vscode_langservers_install_command_in_out[vscode_langservers_install_command_in_out_size -
 	                                          1] = '\0';
-	EDITOR_LSP_CONFIG_FREE_LOCAL();
-#undef EDITOR_LSP_CONFIG_FREE_LOCAL
-	return EDITOR_LSP_CONFIG_FILE_APPLIED;
+	LSP_CONFIG_FREE_LOCAL();
+#undef LSP_CONFIG_FREE_LOCAL
+	return LSP_CONFIG_FILE_APPLIED;
 }
 
 enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(
@@ -620,7 +620,7 @@ enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(
 	enum editorLspConfigLoadStatus status = EDITOR_LSP_CONFIG_LOAD_OK;
 
 	if (global_path != NULL) {
-		enum editorLspConfigFileStatus global_status = editorLspConfigApplyConfigFile(
+		enum lspConfigFileStatus global_status = lspConfigApplyFile(
 		        gopls_enabled_out, clangd_enabled_out, html_enabled_out, css_enabled_out,
 		        json_enabled_out, javascript_enabled_out, eslint_enabled_out,
 		        gopls_command_out, gopls_command_out_size, gopls_install_command_out,
@@ -633,7 +633,7 @@ enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(
 		        vscode_langservers_install_command_out,
 		        vscode_langservers_install_command_out_size, autocomplete_enabled_out,
 		        autocomplete_max_items_out, 1, global_path);
-		if (global_status == EDITOR_LSP_CONFIG_FILE_OUT_OF_MEMORY) {
+		if (global_status == LSP_CONFIG_FILE_OUT_OF_MEMORY) {
 			editorLspConfigInitDefaults(
 			        gopls_enabled_out, clangd_enabled_out, html_enabled_out,
 			        css_enabled_out, json_enabled_out, javascript_enabled_out,
@@ -649,7 +649,7 @@ enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(
 			        autocomplete_enabled_out, autocomplete_max_items_out);
 			return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
 		}
-		if (global_status == EDITOR_LSP_CONFIG_FILE_INVALID) {
+		if (global_status == LSP_CONFIG_FILE_INVALID) {
 			editorLspConfigInitDefaults(
 			        gopls_enabled_out, clangd_enabled_out, html_enabled_out,
 			        css_enabled_out, json_enabled_out, javascript_enabled_out,
@@ -669,7 +669,7 @@ enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(
 	}
 
 	if (project_path != NULL) {
-		enum editorLspConfigFileStatus project_status = editorLspConfigApplyConfigFile(
+		enum lspConfigFileStatus project_status = lspConfigApplyFile(
 		        gopls_enabled_out, clangd_enabled_out, html_enabled_out, css_enabled_out,
 		        json_enabled_out, javascript_enabled_out, eslint_enabled_out,
 		        gopls_command_out, gopls_command_out_size, gopls_install_command_out,
@@ -682,7 +682,7 @@ enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(
 		        vscode_langservers_install_command_out,
 		        vscode_langservers_install_command_out_size, autocomplete_enabled_out,
 		        autocomplete_max_items_out, 0, project_path);
-		if (project_status == EDITOR_LSP_CONFIG_FILE_OUT_OF_MEMORY) {
+		if (project_status == LSP_CONFIG_FILE_OUT_OF_MEMORY) {
 			editorLspConfigInitDefaults(
 			        gopls_enabled_out, clangd_enabled_out, html_enabled_out,
 			        css_enabled_out, json_enabled_out, javascript_enabled_out,
@@ -698,7 +698,7 @@ enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(
 			        autocomplete_enabled_out, autocomplete_max_items_out);
 			return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
 		}
-		if (project_status == EDITOR_LSP_CONFIG_FILE_INVALID) {
+		if (project_status == LSP_CONFIG_FILE_INVALID) {
 			editorLspConfigInitDefaults(
 			        gopls_enabled_out, clangd_enabled_out, html_enabled_out,
 			        css_enabled_out, json_enabled_out, javascript_enabled_out,

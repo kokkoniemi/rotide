@@ -132,7 +132,7 @@ int editorConfigPathIsGlobalConfig(const char *path) {
 	return matches;
 }
 
-static int editorConfigEnsureDir(const char *path) {
+static int commonEnsureDir(const char *path) {
 	if (mkdir(path, 0700) == 0) {
 		return 1;
 	}
@@ -146,7 +146,7 @@ static int editorConfigEnsureDir(const char *path) {
 	return S_ISDIR(st.st_mode);
 }
 
-static char *editorConfigBuildGlobalConfigDir(void) {
+static char *commonBuildGlobalConfigDir(void) {
 	const char *home = getenv("HOME");
 	if (home == NULL || home[0] == '\0') {
 		return NULL;
@@ -169,7 +169,7 @@ static char *editorConfigBuildGlobalConfigDir(void) {
 }
 
 enum editorConfigBootstrapStatus editorConfigEnsureGlobalConfig(void) {
-	char *dir = editorConfigBuildGlobalConfigDir();
+	char *dir = commonBuildGlobalConfigDir();
 	if (dir == NULL) {
 		return EDITOR_CONFIG_BOOTSTRAP_FAILED;
 	}
@@ -190,7 +190,7 @@ enum editorConfigBootstrapStatus editorConfigEnsureGlobalConfig(void) {
 		goto done;
 	}
 
-	if (!editorConfigEnsureDir(dir)) {
+	if (!commonEnsureDir(dir)) {
 		goto done;
 	}
 
