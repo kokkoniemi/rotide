@@ -699,13 +699,6 @@ static int test_text_invariants_empty_doc_grows(void) {
 	return 0;
 }
 
-/* ------------------------------------------------------------------ */
-/* Editor-pipeline invariants (Phase 3 items 1, 4, 5):                  */
-/*   1. editorDocumentLength == sum of row sizes + newlines             */
-/*   4. small edits splice, do not full-rebuild the row cache           */
-/*   5. undo of K ops returns text to the pre-op snapshot               */
-/* ------------------------------------------------------------------ */
-
 static int docHasTrailingNewline(void) {
 	size_t len = editorDocumentLength(E.document);
 	if (len == 0) {

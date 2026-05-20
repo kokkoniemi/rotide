@@ -1,6 +1,6 @@
 #include "workspace/drawer.h"
 
-static int editorDrawerClampWidthForCols(int desired_width, int total_cols) {
+static int drawerLayoutClampWidthForCols(int desired_width, int total_cols) {
 	if (total_cols <= 1) {
 		return 0;
 	}
@@ -23,7 +23,7 @@ static int editorDrawerClampWidthForCols(int desired_width, int total_cols) {
 	return desired_width;
 }
 
-static int editorDrawerDefaultMaxWidthForCols(int total_cols) {
+static int drawerLayoutDefaultMaxWidthForCols(int total_cols) {
 	if (total_cols <= 1) {
 		return 0;
 	}
@@ -62,9 +62,9 @@ int editorDrawerWidthForCols(int total_cols) {
 		desired_width = ROTIDE_DRAWER_DEFAULT_WIDTH;
 	}
 
-	int width = editorDrawerClampWidthForCols(desired_width, total_cols);
+	int width = drawerLayoutClampWidthForCols(desired_width, total_cols);
 	if (!E.drawer_width_user_set) {
-		int default_max = editorDrawerDefaultMaxWidthForCols(total_cols);
+		int default_max = drawerLayoutDefaultMaxWidthForCols(total_cols);
 		if (width > default_max) {
 			width = default_max;
 		}
@@ -97,7 +97,7 @@ int editorDrawerTextViewportCols(int total_cols) {
 	return text_cols;
 }
 
-static int editorLineNumberDigitCols(void) {
+static int drawerLayoutLineNumberDigitCols(void) {
 	int rows = E.numrows > 0 ? E.numrows : 1;
 	int digits = 1;
 	while (rows >= 10) {
@@ -117,7 +117,7 @@ int editorLineNumberGutterColsForCols(int total_cols) {
 		return 0;
 	}
 
-	int gutter_cols = editorLineNumberDigitCols() + 1;
+	int gutter_cols = drawerLayoutLineNumberDigitCols() + 1;
 	if (gutter_cols >= text_cols) {
 		gutter_cols = text_cols - 1;
 	}
@@ -149,7 +149,7 @@ int editorTextBodyViewportCols(int total_cols) {
 }
 
 int editorDrawerSetWidthForCols(int width, int total_cols) {
-	int clamped = editorDrawerClampWidthForCols(width, total_cols);
+	int clamped = drawerLayoutClampWidthForCols(width, total_cols);
 	E.drawer_width_user_set = 1;
 	if (E.drawer_width_cols == clamped) {
 		return 0;

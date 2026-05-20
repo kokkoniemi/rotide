@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static char *editorDrawerResolveRootPathForStartup(int argc, char *argv[], int restored_session) {
+static char *drawerResolveRootPathForStartup(int argc, char *argv[], int restored_session) {
 	char *cwd = editorPathGetCwd();
 	if (cwd == NULL) {
 		editorSetAllocFailureStatus();
@@ -277,7 +277,7 @@ void editorDrawerShutdown(void) {
 int editorDrawerInitForStartup(int argc, char *argv[], int restored_session) {
 	editorDrawerShutdown();
 
-	char *root_path = editorDrawerResolveRootPathForStartup(argc, argv, restored_session);
+	char *root_path = drawerResolveRootPathForStartup(argc, argv, restored_session);
 	if (root_path == NULL) {
 		return 0;
 	}

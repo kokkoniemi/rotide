@@ -35,10 +35,6 @@ struct textTreeDescentEntry {
 	int child_idx;
 };
 
-/* ------------------------------------------------------------------ */
-/* Pieces                                                             */
-/* ------------------------------------------------------------------ */
-
 static const char *pieceBytes(const struct editorTextChunk *piece) {
 	return piece->buf->bytes + piece->offset;
 }
@@ -63,10 +59,6 @@ static void pieceDestroy(struct editorTextChunk *piece) {
 	piece->len = 0;
 	editorTextSummaryZero(&piece->summary);
 }
-
-/* ------------------------------------------------------------------ */
-/* Node lifecycle                                                     */
-/* ------------------------------------------------------------------ */
 
 static struct editorTextNode *textNodeAlloc(unsigned char is_leaf) {
 	struct editorTextNode *node = editorMalloc(sizeof(*node));
@@ -95,10 +87,6 @@ static void textNodeFree(struct editorTextNode *node) {
 	}
 	free(node);
 }
-
-/* ------------------------------------------------------------------ */
-/* Summary recomputation                                              */
-/* ------------------------------------------------------------------ */
 
 static void textNodeRecomputeSummary(struct editorTextNode *node) {
 	struct editorTextSummary acc;
@@ -169,10 +157,6 @@ static void textTreeAssertSummaryConsistent(const struct editorTextTree *tree) {
 }
 #endif
 
-/* ------------------------------------------------------------------ */
-/* Descent                                                            */
-/* ------------------------------------------------------------------ */
-
 static int textTreeDescend(const struct editorTextTree *tree, size_t byte_offset,
                            struct textTreeDescentEntry path[EDITOR_TEXT_TREE_MAX_DEPTH],
                            int *path_len_out, struct editorTextNode **leaf_out,
@@ -232,10 +216,6 @@ static int textTreeDescend(const struct editorTextTree *tree, size_t byte_offset
 	*byte_offset_in_piece_out = remaining;
 	return 1;
 }
-
-/* ------------------------------------------------------------------ */
-/* Leaf-level mutations                                               */
-/* ------------------------------------------------------------------ */
 
 /* Typing fast path: if the new slice is a contiguous extension of the
  * neighbour piece already sitting in the same buffer at the insertion point,
@@ -393,10 +373,6 @@ static int textLeafDeleteWithinPiece(struct editorTextNode *leaf, int piece_idx,
 	return 1;
 }
 
-/* ------------------------------------------------------------------ */
-/* Split / merge helpers                                              */
-/* ------------------------------------------------------------------ */
-
 static int textTreeMergeNode(struct editorTextNode *left, struct editorTextNode *right) {
 	if (left == NULL || right == NULL || left->is_leaf != right->is_leaf) {
 		return 0;
@@ -446,10 +422,6 @@ static struct editorTextNode *textTreeSplitNode(struct editorTextNode *node) {
 	textNodeRecomputeSummary(sibling);
 	return sibling;
 }
-
-/* ------------------------------------------------------------------ */
-/* Rebalance walk                                                     */
-/* ------------------------------------------------------------------ */
 
 static int textTreeRebalance(struct editorTextTree *tree,
                              struct textTreeDescentEntry path[EDITOR_TEXT_TREE_MAX_DEPTH],
@@ -549,10 +521,6 @@ static int textTreeRebalance(struct editorTextTree *tree,
 	return 1;
 }
 
-/* ------------------------------------------------------------------ */
-/* Tree lifecycle                                                     */
-/* ------------------------------------------------------------------ */
-
 int editorTextTreeInit(struct editorTextTree *tree) {
 	if (tree == NULL) {
 		return 0;
@@ -592,10 +560,6 @@ const struct editorTextSummary *editorTextTreeSummary(const struct editorTextTre
 	}
 	return &tree->root->summary;
 }
-
-/* ------------------------------------------------------------------ */
-/* Reads                                                              */
-/* ------------------------------------------------------------------ */
 
 const char *editorTextTreeRead(const struct editorTextTree *tree, size_t byte_index,
                                uint32_t *bytes_read) {
@@ -676,10 +640,6 @@ char *editorTextTreeDupRange(const struct editorTextTree *tree, size_t start_byt
 	}
 	return dup;
 }
-
-/* ------------------------------------------------------------------ */
-/* Mutation                                                           */
-/* ------------------------------------------------------------------ */
 
 /* Lazily fills in any tree fields editorTextTreeInit may have failed to
  * allocate. Mutation entry points call this so callers that ignored an Init
@@ -853,10 +813,6 @@ int editorTextTreeAppend(struct editorTextTree *tree, const char *text, size_t l
 	return editorTextTreeReplaceRange(tree, tree->root->summary.bytes, 0, text, len);
 }
 
-/* ------------------------------------------------------------------ */
-/* Reset                                                              */
-/* ------------------------------------------------------------------ */
-
 /* Build a fresh tree containing the bytes already loaded into `original`,
  * chunked into pieces that share the buffer. The tree retains the buffer for
  * its pieces but does not steal `original`'s ref; caller still owns its ref.
@@ -951,10 +907,6 @@ int editorTextTreeResetFromTextSource(struct editorTextTree *tree,
 	*tree = rebuilt;
 	return 1;
 }
-
-/* ------------------------------------------------------------------ */
-/* Line descent primitives                                            */
-/* ------------------------------------------------------------------ */
 
 int editorTextTreeLocateLine(const struct editorTextTree *tree, int line_idx,
                              size_t *start_byte_out) {

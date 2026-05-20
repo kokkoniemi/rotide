@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 
-enum editorDrawerDapGroup {
+enum drawerModeDapGroup {
 	EDITOR_DRAWER_DAP_GROUP_CONFIGURATIONS = 0,
 	EDITOR_DRAWER_DAP_GROUP_BREAKPOINTS,
 	EDITOR_DRAWER_DAP_GROUP_THREADS,
@@ -18,7 +18,7 @@ enum editorDrawerDapGroup {
 	EDITOR_DRAWER_DAP_GROUP_COUNT
 };
 
-enum editorDrawerDapEntryKind {
+enum drawerModeDapEntryKind {
 	EDITOR_DRAWER_DAP_ENTRY_ROOT = 0,
 	EDITOR_DRAWER_DAP_ENTRY_GROUP,
 	EDITOR_DRAWER_DAP_ENTRY_LAUNCH,
@@ -33,8 +33,8 @@ enum editorDrawerDapEntryKind {
 	EDITOR_DRAWER_DAP_ENTRY_PLACEHOLDER
 };
 
-struct editorDrawerDapLookup {
-	enum editorDrawerDapEntryKind kind;
+struct drawerModeDapLookup {
+	enum drawerModeDapEntryKind kind;
 	int group_idx;
 	int item_idx;
 	int item_count;
@@ -43,10 +43,10 @@ struct editorDrawerDapLookup {
 	int group_visible_idx;
 };
 
-static const char *editor_drawer_dap_group_names[EDITOR_DRAWER_DAP_GROUP_COUNT] = {
+static const char *g_drawer_mode_dap_group_names[EDITOR_DRAWER_DAP_GROUP_COUNT] = {
         "Configurations", "Breakpoints", "Threads", "Stack", "Variables", "Output"};
 
-static unsigned int editorDrawerDapAllGroupsMask(void) {
+static unsigned int drawerModeDapAllGroupsMask(void) {
 	unsigned int mask = 0;
 	for (int i = 0; i < EDITOR_DRAWER_DAP_GROUP_COUNT; i++) {
 		mask |= 1u << (unsigned int)i;
@@ -54,18 +54,18 @@ static unsigned int editorDrawerDapAllGroupsMask(void) {
 	return mask;
 }
 
-static int editorDrawerDapGroupExpanded(int group_idx) {
+static int drawerModeDapGroupExpanded(int group_idx) {
 	if (group_idx < 0 || group_idx >= EDITOR_DRAWER_DAP_GROUP_COUNT) {
 		return 0;
 	}
 	return (E.drawer_dap_expanded & (1u << (unsigned int)group_idx)) != 0;
 }
 
-static void editorDrawerDapEnsureDefaultExpanded(void) {
-	E.drawer_dap_expanded = editorDrawerDapAllGroupsMask();
+static void drawerModeDapEnsureDefaultExpanded(void) {
+	E.drawer_dap_expanded = drawerModeDapAllGroupsMask();
 }
 
-static int editorDrawerDapGroupItemCount(int group_idx) {
+static int drawerModeDapGroupItemCount(int group_idx) {
 	switch (group_idx) {
 		case EDITOR_DRAWER_DAP_GROUP_CONFIGURATIONS:
 			if (E.dap_launch_count > 0) {
@@ -94,17 +94,17 @@ int editorDrawerDapVisibleCount(void) {
 	int count = 1;
 	for (int group_idx = 0; group_idx < EDITOR_DRAWER_DAP_GROUP_COUNT; group_idx++) {
 		count++;
-		if (!editorDrawerDapGroupExpanded(group_idx)) {
+		if (!drawerModeDapGroupExpanded(group_idx)) {
 			continue;
 		}
-		int item_count = editorDrawerDapGroupItemCount(group_idx);
+		int item_count = drawerModeDapGroupItemCount(group_idx);
 		count += item_count > 0 ? item_count : 1;
 	}
 	return count;
 }
 
-static int editorDrawerDapLookupByVisibleIndex(int visible_idx,
-                                               struct editorDrawerDapLookup *lookup_out) {
+static int drawerModeDapLookupByVisibleIndex(int visible_idx,
+                                             struct drawerModeDapLookup *lookup_out) {
 	if (lookup_out == NULL || visible_idx < 0) {
 		return 0;
 	}
@@ -123,7 +123,7 @@ static int editorDrawerDapLookupByVisibleIndex(int visible_idx,
 	int cursor = 1;
 	for (int group_idx = 0; group_idx < EDITOR_DRAWER_DAP_GROUP_COUNT; group_idx++) {
 		int group_visible_idx = cursor;
-		int item_count = editorDrawerDapGroupItemCount(group_idx);
+		int item_count = drawerModeDapGroupItemCount(group_idx);
 		if (visible_idx == group_visible_idx) {
 			lookup_out->kind = EDITOR_DRAWER_DAP_ENTRY_GROUP;
 			lookup_out->group_idx = group_idx;
@@ -133,7 +133,7 @@ static int editorDrawerDapLookupByVisibleIndex(int visible_idx,
 			return 1;
 		}
 		cursor++;
-		if (!editorDrawerDapGroupExpanded(group_idx)) {
+		if (!drawerModeDapGroupExpanded(group_idx)) {
 			continue;
 		}
 		if (item_count == 0) {
@@ -218,7 +218,7 @@ int editorDrawerDapToggle(void) {
 		editorProjectSearchExit(1);
 	}
 	(void)editorDapConfigReloadProject(E.drawer_root_path);
-	editorDrawerDapEnsureDefaultExpanded();
+	drawerModeDapEnsureDefaultExpanded();
 	E.drawer_mode = EDITOR_DRAWER_MODE_DAP;
 	E.drawer_selected_index = -1;
 	E.drawer_rowoff = 0;
@@ -234,8 +234,8 @@ int editorDrawerDapGetVisibleEntry(int visible_idx, struct editorDrawerEntryView
 	}
 
 	static char dap_name_buf[PATH_MAX + 128];
-	struct editorDrawerDapLookup lookup;
-	if (!editorDrawerDapLookupByVisibleIndex(visible_idx, &lookup)) {
+	struct drawerModeDapLookup lookup;
+	if (!drawerModeDapLookupByVisibleIndex(visible_idx, &lookup)) {
 		return 0;
 	}
 
@@ -264,11 +264,11 @@ int editorDrawerDapGetVisibleEntry(int visible_idx, struct editorDrawerEntryView
 				         E.dap_breakpoint_count);
 				view_out->name = dap_name_buf;
 			} else {
-				view_out->name = editor_drawer_dap_group_names[lookup.group_idx];
+				view_out->name = g_drawer_mode_dap_group_names[lookup.group_idx];
 			}
 			view_out->depth = 1;
 			view_out->is_dir = 1;
-			view_out->is_expanded = editorDrawerDapGroupExpanded(lookup.group_idx);
+			view_out->is_expanded = drawerModeDapGroupExpanded(lookup.group_idx);
 			view_out->is_last_sibling =
 			        lookup.group_idx == EDITOR_DRAWER_DAP_GROUP_COUNT - 1;
 			return 1;
@@ -368,8 +368,8 @@ int editorDrawerDapGetVisibleEntry(int visible_idx, struct editorDrawerEntryView
 }
 
 int editorDrawerDapExpandSelection(int viewport_rows) {
-	struct editorDrawerDapLookup lookup;
-	if (!editorDrawerDapLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
+	struct drawerModeDapLookup lookup;
+	if (!drawerModeDapLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
 		return 0;
 	}
 	if (lookup.kind == EDITOR_DRAWER_DAP_ENTRY_ROOT) {
@@ -377,7 +377,7 @@ int editorDrawerDapExpandSelection(int viewport_rows) {
 		return 0;
 	}
 	if (lookup.kind != EDITOR_DRAWER_DAP_ENTRY_GROUP ||
-	    editorDrawerDapGroupExpanded(lookup.group_idx)) {
+	    drawerModeDapGroupExpanded(lookup.group_idx)) {
 		return 0;
 	}
 	E.drawer_dap_expanded |= 1u << (unsigned int)lookup.group_idx;
@@ -386,8 +386,8 @@ int editorDrawerDapExpandSelection(int viewport_rows) {
 }
 
 int editorDrawerDapCollapseSelection(int viewport_rows) {
-	struct editorDrawerDapLookup lookup;
-	if (!editorDrawerDapLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
+	struct drawerModeDapLookup lookup;
+	if (!drawerModeDapLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
 		return 0;
 	}
 	if (lookup.kind == EDITOR_DRAWER_DAP_ENTRY_ROOT) {
@@ -395,7 +395,7 @@ int editorDrawerDapCollapseSelection(int viewport_rows) {
 		return 0;
 	}
 	if (lookup.kind == EDITOR_DRAWER_DAP_ENTRY_GROUP) {
-		if (!editorDrawerDapGroupExpanded(lookup.group_idx)) {
+		if (!drawerModeDapGroupExpanded(lookup.group_idx)) {
 			return 0;
 		}
 		E.drawer_dap_expanded &= ~(1u << (unsigned int)lookup.group_idx);
@@ -408,8 +408,8 @@ int editorDrawerDapCollapseSelection(int viewport_rows) {
 }
 
 int editorDrawerDapToggleSelectionExpanded(int viewport_rows) {
-	struct editorDrawerDapLookup lookup;
-	if (!editorDrawerDapLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
+	struct drawerModeDapLookup lookup;
+	if (!drawerModeDapLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
 		return 0;
 	}
 	if (lookup.kind != EDITOR_DRAWER_DAP_ENTRY_GROUP) {
@@ -421,8 +421,8 @@ int editorDrawerDapToggleSelectionExpanded(int viewport_rows) {
 }
 
 int editorDrawerDapSelectedIsDirectory(void) {
-	struct editorDrawerDapLookup lookup;
-	if (!editorDrawerDapLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
+	struct drawerModeDapLookup lookup;
+	if (!drawerModeDapLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
 		return 0;
 	}
 	return lookup.kind == EDITOR_DRAWER_DAP_ENTRY_ROOT ||
@@ -433,8 +433,8 @@ int editorDrawerSelectedDapLaunch(int *launch_idx_out) {
 	if (launch_idx_out == NULL || E.drawer_mode != EDITOR_DRAWER_MODE_DAP) {
 		return 0;
 	}
-	struct editorDrawerDapLookup lookup;
-	if (!editorDrawerDapLookupByVisibleIndex(E.drawer_selected_index, &lookup) ||
+	struct drawerModeDapLookup lookup;
+	if (!drawerModeDapLookupByVisibleIndex(E.drawer_selected_index, &lookup) ||
 	    lookup.kind != EDITOR_DRAWER_DAP_ENTRY_LAUNCH) {
 		return 0;
 	}
@@ -446,8 +446,8 @@ int editorDrawerSelectedDapDefault(int *default_idx_out) {
 	if (default_idx_out == NULL || E.drawer_mode != EDITOR_DRAWER_MODE_DAP) {
 		return 0;
 	}
-	struct editorDrawerDapLookup lookup;
-	if (!editorDrawerDapLookupByVisibleIndex(E.drawer_selected_index, &lookup) ||
+	struct drawerModeDapLookup lookup;
+	if (!drawerModeDapLookupByVisibleIndex(E.drawer_selected_index, &lookup) ||
 	    lookup.kind != EDITOR_DRAWER_DAP_ENTRY_DEFAULT) {
 		return 0;
 	}
@@ -460,8 +460,8 @@ int editorDrawerSelectedDapLocation(const char **path_out, int *line_out, int *c
 	    E.drawer_mode != EDITOR_DRAWER_MODE_DAP) {
 		return 0;
 	}
-	struct editorDrawerDapLookup lookup;
-	if (!editorDrawerDapLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
+	struct drawerModeDapLookup lookup;
+	if (!drawerModeDapLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
 		return 0;
 	}
 	if (lookup.kind == EDITOR_DRAWER_DAP_ENTRY_BREAKPOINT) {
