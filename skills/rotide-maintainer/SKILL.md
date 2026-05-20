@@ -22,10 +22,14 @@ Use this for general RotIDE code, docs, and test work when a narrower skill is n
 - Keep task-log tabs generated/read-only/non-savable.
 - Keep syntax and LSP state tab-local.
 - Do not regress dirty-state semantics.
+- For new `.c` files, add an entry to `docs/module-prefixes.md` and
+  `tools/module-prefixes.tsv`.
 
 ## Validation
 
 - Always: `make`, then `make test`.
+- For style, formatting, or naming-table work: add `make format-check` and
+  `make lint-prefixes`.
 - Add sanitizer run (`make test-sanitize`) when touching:
   - memory/UB-sensitive paths
   - syntax/query/parse internals

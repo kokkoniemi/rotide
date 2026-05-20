@@ -38,8 +38,12 @@ When in doubt, omit the comment.
 - Base style: K&R. Indent with hard tabs (8 columns). Put braces on the same line.
 - Pointer asterisks attach to the name, for example `char *name`.
 - Keep lines ≤100 columns where practical; 120 columns is the hard limit.
-- New header guards use `ROTIDE_<SUBSYS>_<FILE>_H`. Existing guards are
-  normalized in a later style phase.
+- Header guards use `ROTIDE_<SUBSYS>_<FILE>_H`.
+- The proposed module-prefix table for file-local naming lives in
+  [`docs/module-prefixes.md`](docs/module-prefixes.md). Existing static helpers
+  may keep the current `editorXxx` convention until that migration is accepted;
+  `make lint-prefixes` enforces table completeness and reports naming drift as
+  advisory output.
 - Macros and constants use `UPPER_SNAKE_CASE`.
 - Out-parameters use the `_out` suffix.
 - Borrowed views / writable byte spans / owned copies use the `View` / `Bytes`
