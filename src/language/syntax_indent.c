@@ -12,7 +12,7 @@
 #include <stddef.h>
 #include <string.h>
 
-static int editorSyntaxTypeEqualsAny(const char *type, const char *const *types, size_t count) {
+static int syntaxIndentTypeEqualsAny(const char *type, const char *const *types, size_t count) {
 	if (type == NULL || types == NULL) {
 		return 0;
 	}
@@ -24,7 +24,7 @@ static int editorSyntaxTypeEqualsAny(const char *type, const char *const *types,
 	return 0;
 }
 
-static int editorSyntaxNodeStartsIndentScope(enum editorSyntaxLanguage language, const char *type) {
+static int syntaxIndentNodeStartsScope(enum editorSyntaxLanguage language, const char *type) {
 	static const char *const brace_scope_types[] = {"block",
 	                                                "compound_statement",
 	                                                "statement_block",
@@ -56,14 +56,14 @@ static int editorSyntaxNodeStartsIndentScope(enum editorSyntaxLanguage language,
 		case EDITOR_SYNTAX_CSHARP:
 		case EDITOR_SYNTAX_JULIA:
 		case EDITOR_SYNTAX_SCALA:
-			return editorSyntaxTypeEqualsAny(type, brace_scope_types,
+			return syntaxIndentTypeEqualsAny(type, brace_scope_types,
 			                                 sizeof(brace_scope_types) /
 			                                         sizeof(brace_scope_types[0]));
 		case EDITOR_SYNTAX_PYTHON:
-			return editorSyntaxTypeEqualsAny(type, brace_scope_types,
+			return syntaxIndentTypeEqualsAny(type, brace_scope_types,
 			                                 sizeof(brace_scope_types) /
 			                                         sizeof(brace_scope_types[0])) ||
-			       editorSyntaxTypeEqualsAny(type, python_scope_types,
+			       syntaxIndentTypeEqualsAny(type, python_scope_types,
 			                                 sizeof(python_scope_types) /
 			                                         sizeof(python_scope_types[0]));
 		default:
@@ -71,7 +71,7 @@ static int editorSyntaxNodeStartsIndentScope(enum editorSyntaxLanguage language,
 	}
 }
 
-static int editorSyntaxLanguageUsesBraceIndentScopes(enum editorSyntaxLanguage language) {
+static int syntaxIndentLanguageUsesBraceScopes(enum editorSyntaxLanguage language) {
 	switch (language) {
 		case EDITOR_SYNTAX_C:
 		case EDITOR_SYNTAX_CPP:
@@ -93,10 +93,10 @@ static int editorSyntaxLanguageUsesBraceIndentScopes(enum editorSyntaxLanguage l
 	}
 }
 
-static int editorSyntaxIndentAnchorRowForScope(enum editorSyntaxLanguage language, TSNode scope) {
+static int syntaxIndentAnchorRowForScope(enum editorSyntaxLanguage language, TSNode scope) {
 	TSPoint start = ts_node_start_point(scope);
 	int anchor_row = (int)start.row;
-	if (!editorSyntaxLanguageUsesBraceIndentScopes(language)) {
+	if (!syntaxIndentLanguageUsesBraceScopes(language)) {
 		return anchor_row;
 	}
 
@@ -107,8 +107,7 @@ static int editorSyntaxIndentAnchorRowForScope(enum editorSyntaxLanguage languag
 
 	TSPoint parent_start = ts_node_start_point(parent);
 	const char *parent_type = ts_node_type(parent);
-	if (parent_start.row < start.row &&
-	    !editorSyntaxNodeStartsIndentScope(language, parent_type)) {
+	if (parent_start.row < start.row && !syntaxIndentNodeStartsScope(language, parent_type)) {
 		return (int)parent_start.row;
 	}
 	return anchor_row;
@@ -137,11 +136,11 @@ int editorSyntaxStateSuggestIndentAnchor(const struct editorSyntaxState *state, 
 		const char *type = ts_node_type(node);
 		TSPoint start = ts_node_start_point(node);
 		TSPoint end = ts_node_end_point(node);
-		if (editorSyntaxNodeStartsIndentScope(state->language, type) &&
-		    start.row <= point.row && point.row < end.row) {
+		if (syntaxIndentNodeStartsScope(state->language, type) && start.row <= point.row &&
+		    point.row < end.row) {
 			if (anchor_row_out != NULL) {
 				*anchor_row_out =
-				        editorSyntaxIndentAnchorRowForScope(state->language, node);
+				        syntaxIndentAnchorRowForScope(state->language, node);
 			}
 			if (extra_levels_out != NULL) {
 				*extra_levels_out = 1;

@@ -15,7 +15,7 @@
 #include <string.h>
 #include <strings.h>
 
-static int editorSyntaxNodeContains(TSNode outer, TSNode inner) {
+static int syntaxLocalsNodeContains(TSNode outer, TSNode inner) {
 	uint32_t outer_start = ts_node_start_byte(outer);
 	uint32_t outer_end = ts_node_end_byte(outer);
 	uint32_t inner_start = ts_node_start_byte(inner);
@@ -23,7 +23,7 @@ static int editorSyntaxNodeContains(TSNode outer, TSNode inner) {
 	return outer_start <= inner_start && outer_end >= inner_end;
 }
 
-static uint32_t editorSyntaxNodeSpan(TSNode node) {
+static uint32_t syntaxLocalsNodeSpan(TSNode node) {
 	uint32_t start = ts_node_start_byte(node);
 	uint32_t end = ts_node_end_byte(node);
 	if (end < start) {
@@ -32,11 +32,10 @@ static uint32_t editorSyntaxNodeSpan(TSNode node) {
 	return end - start;
 }
 
-static int editorSyntaxStateCopySourceRangeToScratch(struct editorSyntaxState *state,
-                                                     const struct editorTextSource *source,
-                                                     size_t start_byte, size_t end_byte,
-                                                     int scratch_idx, const char **text_out,
-                                                     size_t *len_out) {
+static int syntaxLocalsCopySourceRangeToScratch(struct editorSyntaxState *state,
+                                                const struct editorTextSource *source,
+                                                size_t start_byte, size_t end_byte, int scratch_idx,
+                                                const char **text_out, size_t *len_out) {
 	if (state == NULL || source == NULL || text_out == NULL || len_out == NULL ||
 	    end_byte < start_byte || end_byte > source->length) {
 		return 0;
@@ -79,11 +78,11 @@ int editorSyntaxNodeText(struct editorSyntaxState *state, const struct editorTex
 	if (end < start) {
 		return 0;
 	}
-	return editorSyntaxStateCopySourceRangeToScratch(state, source, start, end, scratch_idx,
-	                                                 text_out, len_out);
+	return syntaxLocalsCopySourceRangeToScratch(state, source, start, end, scratch_idx,
+	                                            text_out, len_out);
 }
 
-static int editorSyntaxNodeArrayAppend(TSNode **items, int *count, int *cap, TSNode node) {
+static int syntaxLocalsNodeArrayAppend(TSNode **items, int *count, int *cap, TSNode node) {
 	if (items == NULL || count == NULL || cap == NULL) {
 		return 0;
 	}
@@ -124,8 +123,8 @@ void editorSyntaxLocalsContextFree(struct editorSyntaxLocalsContext *ctx) {
 	ctx->cap = 0;
 }
 
-static int editorSyntaxLocalsContextMarkNode(struct editorSyntaxLocalsContext *ctx, TSNode node,
-                                             int is_local) {
+static int syntaxLocalsContextMarkNode(struct editorSyntaxLocalsContext *ctx, TSNode node,
+                                       int is_local) {
 	if (ctx == NULL) {
 		return 0;
 	}
@@ -170,7 +169,7 @@ int editorSyntaxLocalsContextNodeIsLocal(const struct editorSyntaxLocalsContext 
 	return 0;
 }
 
-static int editorSyntaxScopeAddDefinition(struct editorSyntaxScopeInfo *scope, const char *name,
+static int syntaxLocalsScopeAddDefinition(struct editorSyntaxScopeInfo *scope, const char *name,
                                           size_t name_len) {
 	if (scope == NULL || name == NULL) {
 		return 0;
@@ -209,7 +208,7 @@ static int editorSyntaxScopeAddDefinition(struct editorSyntaxScopeInfo *scope, c
 	return 1;
 }
 
-static int editorSyntaxScopeHasDefinition(const struct editorSyntaxScopeInfo *scope,
+static int syntaxLocalsScopeHasDefinition(const struct editorSyntaxScopeInfo *scope,
                                           const char *name, size_t name_len) {
 	if (scope == NULL || name == NULL) {
 		return 0;
@@ -223,7 +222,7 @@ static int editorSyntaxScopeHasDefinition(const struct editorSyntaxScopeInfo *sc
 	return 0;
 }
 
-static void editorSyntaxScopeInfoFree(struct editorSyntaxScopeInfo *scopes, int scope_count) {
+static void syntaxLocalsScopeInfoFree(struct editorSyntaxScopeInfo *scopes, int scope_count) {
 	if (scopes == NULL) {
 		return;
 	}
@@ -236,15 +235,15 @@ static void editorSyntaxScopeInfoFree(struct editorSyntaxScopeInfo *scopes, int 
 	free(scopes);
 }
 
-static int editorSyntaxFindInnermostScope(const struct editorSyntaxScopeInfo *scopes,
+static int syntaxLocalsFindInnermostScope(const struct editorSyntaxScopeInfo *scopes,
                                           int scope_count, TSNode node) {
 	int best_idx = -1;
 	uint32_t best_span = UINT32_MAX;
 	for (int i = 0; i < scope_count; i++) {
-		if (!editorSyntaxNodeContains(scopes[i].node, node)) {
+		if (!syntaxLocalsNodeContains(scopes[i].node, node)) {
 			continue;
 		}
-		uint32_t span = editorSyntaxNodeSpan(scopes[i].node);
+		uint32_t span = syntaxLocalsNodeSpan(scopes[i].node);
 		if (span < best_span) {
 			best_span = span;
 			best_idx = i;
@@ -301,18 +300,18 @@ int editorSyntaxBuildLocalsContext(const TSTree *tree, struct editorSyntaxState 
 			}
 			uint8_t role = cache->capture_roles[capture.index];
 			if (role == EDITOR_SYNTAX_CAPTURE_ROLE_LOCAL_SCOPE) {
-				if (!editorSyntaxNodeArrayAppend(&scope_nodes, &scope_count,
+				if (!syntaxLocalsNodeArrayAppend(&scope_nodes, &scope_count,
 				                                 &scope_cap, capture.node)) {
 					goto oom;
 				}
 			} else if (role == EDITOR_SYNTAX_CAPTURE_ROLE_LOCAL_DEFINITION) {
-				if (!editorSyntaxNodeArrayAppend(&definition_nodes,
+				if (!syntaxLocalsNodeArrayAppend(&definition_nodes,
 				                                 &definition_count, &definition_cap,
 				                                 capture.node)) {
 					goto oom;
 				}
 			} else if (role == EDITOR_SYNTAX_CAPTURE_ROLE_LOCAL_REFERENCE) {
-				if (!editorSyntaxNodeArrayAppend(&reference_nodes, &reference_count,
+				if (!syntaxLocalsNodeArrayAppend(&reference_nodes, &reference_count,
 				                                 &reference_cap, capture.node)) {
 					goto oom;
 				}
@@ -320,7 +319,7 @@ int editorSyntaxBuildLocalsContext(const TSTree *tree, struct editorSyntaxState 
 		}
 	}
 
-	if (!editorSyntaxNodeArrayAppend(&scope_nodes, &scope_count, &scope_cap, root)) {
+	if (!syntaxLocalsNodeArrayAppend(&scope_nodes, &scope_count, &scope_cap, root)) {
 		goto oom;
 	}
 
@@ -338,17 +337,17 @@ int editorSyntaxBuildLocalsContext(const TSTree *tree, struct editorSyntaxState 
 	}
 
 	for (int i = 0; i < scope_count; i++) {
-		uint32_t span_i = editorSyntaxNodeSpan(scopes[i].node);
+		uint32_t span_i = syntaxLocalsNodeSpan(scopes[i].node);
 		uint32_t best_span = UINT32_MAX;
 		int best_parent = -1;
 		for (int j = 0; j < scope_count; j++) {
 			if (i == j) {
 				continue;
 			}
-			if (!editorSyntaxNodeContains(scopes[j].node, scopes[i].node)) {
+			if (!syntaxLocalsNodeContains(scopes[j].node, scopes[i].node)) {
 				continue;
 			}
-			uint32_t span_j = editorSyntaxNodeSpan(scopes[j].node);
+			uint32_t span_j = syntaxLocalsNodeSpan(scopes[j].node);
 			if (span_j <= span_i) {
 				continue;
 			}
@@ -369,16 +368,16 @@ int editorSyntaxBuildLocalsContext(const TSTree *tree, struct editorSyntaxState 
 			continue;
 		}
 		int scope_idx =
-		        editorSyntaxFindInnermostScope(scopes, scope_count, definition_nodes[i]);
+		        syntaxLocalsFindInnermostScope(scopes, scope_count, definition_nodes[i]);
 		if (scope_idx < 0) {
 			continue;
 		}
-		if (!editorSyntaxScopeAddDefinition(&scopes[scope_idx], text, text_len)) {
-			editorSyntaxScopeInfoFree(scopes, scope_count);
+		if (!syntaxLocalsScopeAddDefinition(&scopes[scope_idx], text, text_len)) {
+			syntaxLocalsScopeInfoFree(scopes, scope_count);
 			goto oom;
 		}
-		if (!editorSyntaxLocalsContextMarkNode(ctx_out, definition_nodes[i], 1)) {
-			editorSyntaxScopeInfoFree(scopes, scope_count);
+		if (!syntaxLocalsContextMarkNode(ctx_out, definition_nodes[i], 1)) {
+			syntaxLocalsScopeInfoFree(scopes, scope_count);
 			goto oom;
 		}
 	}
@@ -391,7 +390,7 @@ int editorSyntaxBuildLocalsContext(const TSTree *tree, struct editorSyntaxState 
 			continue;
 		}
 		int scope_idx =
-		        editorSyntaxFindInnermostScope(scopes, scope_count, reference_nodes[i]);
+		        syntaxLocalsFindInnermostScope(scopes, scope_count, reference_nodes[i]);
 		if (scope_idx < 0) {
 			continue;
 		}
@@ -399,19 +398,19 @@ int editorSyntaxBuildLocalsContext(const TSTree *tree, struct editorSyntaxState 
 		int is_local = 0;
 		int probe = scope_idx;
 		while (probe >= 0) {
-			if (editorSyntaxScopeHasDefinition(&scopes[probe], text, text_len)) {
+			if (syntaxLocalsScopeHasDefinition(&scopes[probe], text, text_len)) {
 				is_local = 1;
 				break;
 			}
 			probe = scopes[probe].parent_idx;
 		}
-		if (!editorSyntaxLocalsContextMarkNode(ctx_out, reference_nodes[i], is_local)) {
-			editorSyntaxScopeInfoFree(scopes, scope_count);
+		if (!syntaxLocalsContextMarkNode(ctx_out, reference_nodes[i], is_local)) {
+			syntaxLocalsScopeInfoFree(scopes, scope_count);
 			goto oom;
 		}
 	}
 
-	editorSyntaxScopeInfoFree(scopes, scope_count);
+	syntaxLocalsScopeInfoFree(scopes, scope_count);
 	ts_query_cursor_delete(cursor);
 	free(scope_nodes);
 	free(definition_nodes);

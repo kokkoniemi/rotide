@@ -20,7 +20,7 @@ static int g_syntax_worker_running = 0;
 static struct editorSyntaxWorkerJob g_syntax_worker_pending = {0};
 static struct editorSyntaxWorkerResult *g_syntax_worker_result = NULL;
 
-static void editorSyntaxWorkerJobFree(struct editorSyntaxWorkerJob *job) {
+static void syntaxWorkerJobFree(struct editorSyntaxWorkerJob *job) {
 	if (job == NULL) {
 		return;
 	}
@@ -38,8 +38,8 @@ void editorSyntaxWorkerResultDestroy(struct editorSyntaxWorkerResult *result) {
 	free(result);
 }
 
-static int editorSyntaxWorkerLineStarts(const char *text, size_t len, size_t **starts_out,
-                                        int *count_out) {
+static int syntaxWorkerLineStarts(const char *text, size_t len, size_t **starts_out,
+                                  int *count_out) {
 	if (starts_out == NULL || count_out == NULL) {
 		return 0;
 	}
@@ -77,8 +77,8 @@ static int editorSyntaxWorkerLineStarts(const char *text, size_t len, size_t **s
 	return 1;
 }
 
-static size_t editorSyntaxWorkerLineEnd(const char *text, size_t len, const size_t *starts,
-                                        int line_count, int row) {
+static size_t syntaxWorkerLineEnd(const char *text, size_t len, const size_t *starts,
+                                  int line_count, int row) {
 	size_t end = len;
 	if (row + 1 < line_count) {
 		end = starts[row + 1];
@@ -92,7 +92,7 @@ static size_t editorSyntaxWorkerLineEnd(const char *text, size_t len, const size
 	return end;
 }
 
-static int editorSyntaxWorkerU32(size_t value, uint32_t *out) {
+static int syntaxWorkerU32(size_t value, uint32_t *out) {
 	if (out == NULL || value > UINT32_MAX) {
 		return 0;
 	}
@@ -100,8 +100,8 @@ static int editorSyntaxWorkerU32(size_t value, uint32_t *out) {
 	return 1;
 }
 
-static int editorSyntaxWorkerBuildSpans(struct editorSyntaxWorkerResult *result, const char *text,
-                                        size_t len) {
+static int syntaxWorkerBuildSpans(struct editorSyntaxWorkerResult *result, const char *text,
+                                  size_t len) {
 	if (result == NULL || result->state == NULL || result->row_count <= 0) {
 		return 1;
 	}
@@ -126,7 +126,7 @@ static int editorSyntaxWorkerBuildSpans(struct editorSyntaxWorkerResult *result,
 
 	size_t *line_starts = NULL;
 	int line_count = 0;
-	if (!editorSyntaxWorkerLineStarts(text, len, &line_starts, &line_count)) {
+	if (!syntaxWorkerLineStarts(text, len, &line_starts, &line_count)) {
 		return 0;
 	}
 
@@ -152,12 +152,11 @@ static int editorSyntaxWorkerBuildSpans(struct editorSyntaxWorkerResult *result,
 		}
 
 		size_t row_start = line_starts[row_idx];
-		size_t row_end =
-		        editorSyntaxWorkerLineEnd(text, len, line_starts, line_count, row_idx);
+		size_t row_end = syntaxWorkerLineEnd(text, len, line_starts, line_count, row_idx);
 		uint32_t start_byte = 0;
 		uint32_t end_byte = 0;
-		if (!editorSyntaxWorkerU32(row_start, &start_byte) ||
-		    !editorSyntaxWorkerU32(row_end, &end_byte) || start_byte >= end_byte) {
+		if (!syntaxWorkerU32(row_start, &start_byte) ||
+		    !syntaxWorkerU32(row_end, &end_byte) || start_byte >= end_byte) {
 			continue;
 		}
 
@@ -266,7 +265,7 @@ editorSyntaxWorkerRunJob(struct editorSyntaxWorkerJob *job) {
 	struct editorTextSource source = {0};
 	editorTextSourceInitString(&source, job->text, job->text_len);
 	result->parsed = editorSyntaxStateParseFull(result->state, &source);
-	if (result->parsed && !editorSyntaxWorkerBuildSpans(result, job->text, job->text_len)) {
+	if (result->parsed && !syntaxWorkerBuildSpans(result, job->text, job->text_len)) {
 		result->parsed = 0;
 	}
 	if (!result->parsed) {
@@ -280,7 +279,7 @@ editorSyntaxWorkerRunJob(struct editorSyntaxWorkerJob *job) {
 	return result;
 }
 
-static void *editorSyntaxWorkerMain(void *arg) {
+static void *syntaxWorkerMain(void *arg) {
 	(void)arg;
 	while (1) {
 		struct editorSyntaxWorkerJob job = {0};
@@ -299,7 +298,7 @@ static void *editorSyntaxWorkerMain(void *arg) {
 		pthread_mutex_unlock(&g_syntax_worker_mutex);
 
 		struct editorSyntaxWorkerResult *result = editorSyntaxWorkerRunJob(&job);
-		editorSyntaxWorkerJobFree(&job);
+		syntaxWorkerJobFree(&job);
 
 		pthread_mutex_lock(&g_syntax_worker_mutex);
 		editorSyntaxWorkerResultDestroy(g_syntax_worker_result);
@@ -320,7 +319,7 @@ int editorSyntaxBackgroundStart(void) {
 	}
 	g_syntax_worker_stopping = 0;
 	pthread_mutex_unlock(&g_syntax_worker_mutex);
-	if (pthread_create(&g_syntax_worker_thread, NULL, editorSyntaxWorkerMain, NULL) != 0) {
+	if (pthread_create(&g_syntax_worker_thread, NULL, syntaxWorkerMain, NULL) != 0) {
 		return 0;
 	}
 	pthread_mutex_lock(&g_syntax_worker_mutex);
@@ -334,7 +333,7 @@ void editorSyntaxBackgroundStop(void) {
 	pthread_mutex_lock(&g_syntax_worker_mutex);
 	if (!g_syntax_worker_started) {
 		g_syntax_worker_enabled = 0;
-		editorSyntaxWorkerJobFree(&g_syntax_worker_pending);
+		syntaxWorkerJobFree(&g_syntax_worker_pending);
 		g_syntax_worker_has_pending = 0;
 		editorSyntaxWorkerResultDestroy(g_syntax_worker_result);
 		g_syntax_worker_result = NULL;
@@ -352,7 +351,7 @@ void editorSyntaxBackgroundStop(void) {
 	g_syntax_worker_started = 0;
 	g_syntax_worker_stopping = 0;
 	g_syntax_worker_running = 0;
-	editorSyntaxWorkerJobFree(&g_syntax_worker_pending);
+	syntaxWorkerJobFree(&g_syntax_worker_pending);
 	g_syntax_worker_has_pending = 0;
 	editorSyntaxWorkerResultDestroy(g_syntax_worker_result);
 	g_syntax_worker_result = NULL;
@@ -383,7 +382,7 @@ int editorSyntaxWorkerSchedule(struct editorSyntaxWorkerJob *job) {
 		pthread_mutex_unlock(&g_syntax_worker_mutex);
 		return 0;
 	}
-	editorSyntaxWorkerJobFree(&g_syntax_worker_pending);
+	syntaxWorkerJobFree(&g_syntax_worker_pending);
 	g_syntax_worker_pending = *job;
 	memset(job, 0, sizeof(*job));
 	g_syntax_worker_has_pending = 1;

@@ -14,9 +14,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int editorSyntaxCaptureVecAppend(struct editorSyntaxCaptureVec *vec, uint32_t start_byte,
-                                        uint32_t end_byte,
-                                        enum editorSyntaxHighlightClass highlight_class) {
+static int syntaxCapturesVecAppend(struct editorSyntaxCaptureVec *vec, uint32_t start_byte,
+                                   uint32_t end_byte,
+                                   enum editorSyntaxHighlightClass highlight_class) {
 	if (vec == NULL) {
 		return 0;
 	}
@@ -41,7 +41,7 @@ static int editorSyntaxCaptureVecAppend(struct editorSyntaxCaptureVec *vec, uint
 	return 1;
 }
 
-static void editorSyntaxCaptureVecFree(struct editorSyntaxCaptureVec *vec) {
+static void syntaxCapturesVecFree(struct editorSyntaxCaptureVec *vec) {
 	if (vec == NULL) {
 		return;
 	}
@@ -51,13 +51,13 @@ static void editorSyntaxCaptureVecFree(struct editorSyntaxCaptureVec *vec) {
 	vec->cap = 0;
 }
 
-static int editorSyntaxCollectCapturesFromTree(
+static int syntaxCapturesCollectFromTree(
         struct editorSyntaxState *state, const TSTree *tree, enum editorSyntaxLanguage language,
         const struct editorTextSource *source, uint32_t start_byte, uint32_t end_byte,
         const struct editorSyntaxLocalsContext *locals, int skip_predicates,
         struct editorSyntaxCaptureVec *captures_out, int *query_unavailable_out);
 
-static int editorSyntaxCollectCapturesFromTree(
+static int syntaxCapturesCollectFromTree(
         struct editorSyntaxState *state, const TSTree *tree, enum editorSyntaxLanguage language,
         const struct editorTextSource *source, uint32_t start_byte, uint32_t end_byte,
         const struct editorSyntaxLocalsContext *locals, int skip_predicates,
@@ -148,8 +148,8 @@ static int editorSyntaxCollectCapturesFromTree(
 			continue;
 		}
 
-		if (!editorSyntaxCaptureVecAppend(captures_out, capture_start, capture_end,
-		                                  highlight_class)) {
+		if (!syntaxCapturesVecAppend(captures_out, capture_start, capture_end,
+		                             highlight_class)) {
 			ts_query_cursor_delete(cursor);
 			return 0;
 		}
@@ -168,8 +168,8 @@ static int editorSyntaxCollectCapturesFromTree(
 	return 1;
 }
 
-static int editorSyntaxCaptureSortKeyCmp(const struct editorSyntaxCapture *left,
-                                         const struct editorSyntaxCapture *right) {
+static int syntaxCapturesSortKeyCmp(const struct editorSyntaxCapture *left,
+                                    const struct editorSyntaxCapture *right) {
 	if (left->start_byte < right->start_byte) {
 		return -1;
 	}
@@ -212,16 +212,16 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 	}
 
 	int query_unavailable = 0;
-	int ok = editorSyntaxCollectCapturesFromTree(
-	        state, state->host.tree, state->language, source, start_byte, end_byte, host_locals,
-	        skip_predicates, &capture_vecs[0], &query_unavailable);
+	int ok = syntaxCapturesCollectFromTree(state, state->host.tree, state->language, source,
+	                                       start_byte, end_byte, host_locals, skip_predicates,
+	                                       &capture_vecs[0], &query_unavailable);
 	if (!ok) {
 		if (query_unavailable) {
 			editorSyntaxStateRecordQueryUnavailable(state, state->language,
 			                                        EDITOR_SYNTAX_QUERY_KIND_HIGHLIGHT);
 			ok = 1;
 		} else {
-			editorSyntaxCaptureVecFree(&capture_vecs[0]);
+			syntaxCapturesVecFree(&capture_vecs[0]);
 			return 0;
 		}
 	}
@@ -246,7 +246,7 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 			}
 			int vec_idx = capture_vec_count;
 			query_unavailable = 0;
-			if (!editorSyntaxCollectCapturesFromTree(
+			if (!syntaxCapturesCollectFromTree(
 			            state, injection->parsed.tree, injection->parsed.language,
 			            source, start_byte, end_byte, injection_locals, skip_predicates,
 			            &capture_vecs[vec_idx], &query_unavailable)) {
@@ -256,7 +256,7 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 					        EDITOR_SYNTAX_QUERY_KIND_HIGHLIGHT);
 					continue;
 				} else {
-					editorSyntaxCaptureVecFree(&capture_vecs[vec_idx]);
+					syntaxCapturesVecFree(&capture_vecs[vec_idx]);
 					ok = 0;
 					break;
 				}
@@ -266,7 +266,7 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 	}
 	if (!ok) {
 		for (int i = 0; i < capture_vec_count; i++) {
-			editorSyntaxCaptureVecFree(&capture_vecs[i]);
+			syntaxCapturesVecFree(&capture_vecs[i]);
 		}
 		return 0;
 	}
@@ -283,8 +283,7 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 			}
 			const struct editorSyntaxCapture *candidate =
 			        &capture_vecs[vec_idx].items[indices[vec_idx]];
-			int cmp = choice == NULL ? -1
-			                         : editorSyntaxCaptureSortKeyCmp(candidate, choice);
+			int cmp = choice == NULL ? -1 : syntaxCapturesSortKeyCmp(candidate, choice);
 			if (choice == NULL || cmp < 0 || (cmp == 0 && vec_idx > source_choice)) {
 				choice = candidate;
 				source_choice = vec_idx;
@@ -310,7 +309,7 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 		*count_out = out_count;
 	}
 	for (int i = 0; i < capture_vec_count; i++) {
-		editorSyntaxCaptureVecFree(&capture_vecs[i]);
+		syntaxCapturesVecFree(&capture_vecs[i]);
 	}
 	return 1;
 }

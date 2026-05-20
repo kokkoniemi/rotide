@@ -14,8 +14,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int editorSyntaxMatchFindCaptureNode(const TSQueryMatch *match, uint32_t capture_id,
-                                            TSNode *node_out) {
+static int syntaxPredicatesFindCaptureNode(const TSQueryMatch *match, uint32_t capture_id,
+                                           TSNode *node_out) {
 	if (match == NULL || node_out == NULL) {
 		return 0;
 	}
@@ -28,10 +28,10 @@ static int editorSyntaxMatchFindCaptureNode(const TSQueryMatch *match, uint32_t 
 	return 0;
 }
 
-static int editorSyntaxPredicateArgText(const TSQuery *query, const TSQueryMatch *match,
-                                        const struct editorSyntaxPredicateContext *ctx,
-                                        const TSQueryPredicateStep *arg, int scratch_idx,
-                                        const char **text_out, size_t *len_out) {
+static int syntaxPredicatesArgText(const TSQuery *query, const TSQueryMatch *match,
+                                   const struct editorSyntaxPredicateContext *ctx,
+                                   const TSQueryPredicateStep *arg, int scratch_idx,
+                                   const char **text_out, size_t *len_out) {
 	if (query == NULL || match == NULL || ctx == NULL || arg == NULL || text_out == NULL ||
 	    len_out == NULL) {
 		return 0;
@@ -50,7 +50,7 @@ static int editorSyntaxPredicateArgText(const TSQuery *query, const TSQueryMatch
 
 	if (arg->type == TSQueryPredicateStepTypeCapture) {
 		TSNode node;
-		if (!editorSyntaxMatchFindCaptureNode(match, arg->value_id, &node)) {
+		if (!syntaxPredicatesFindCaptureNode(match, arg->value_id, &node)) {
 			return 0;
 		}
 		return editorSyntaxNodeText(ctx->state, ctx->source, node, scratch_idx, text_out,
@@ -60,7 +60,7 @@ static int editorSyntaxPredicateArgText(const TSQuery *query, const TSQueryMatch
 	return 0;
 }
 
-static int editorSyntaxRegexMatchCompiled(const char *text, size_t text_len, regex_t *regex) {
+static int syntaxPredicatesRegexMatchCompiled(const char *text, size_t text_len, regex_t *regex) {
 	if (text == NULL || regex == NULL) {
 		return 0;
 	}
@@ -77,8 +77,8 @@ static int editorSyntaxRegexMatchCompiled(const char *text, size_t text_len, reg
 	return matched;
 }
 
-static int editorSyntaxRegexMatch(const char *text, size_t text_len, const char *pattern,
-                                  size_t pattern_len) {
+static int syntaxPredicatesRegexMatch(const char *text, size_t text_len, const char *pattern,
+                                      size_t pattern_len) {
 	if (text == NULL || pattern == NULL) {
 		return 0;
 	}
@@ -97,13 +97,13 @@ static int editorSyntaxRegexMatch(const char *text, size_t text_len, const char 
 		return 0;
 	}
 
-	int matched = editorSyntaxRegexMatchCompiled(text, text_len, &regex);
+	int matched = syntaxPredicatesRegexMatchCompiled(text, text_len, &regex);
 	regfree(&regex);
 	return matched;
 }
 
-static int editorSyntaxRegexMatchCached(const TSQuery *query, uint32_t string_id, const char *text,
-                                        size_t text_len) {
+static int syntaxPredicatesRegexMatchCached(const TSQuery *query, uint32_t string_id,
+                                            const char *text, size_t text_len) {
 	if (query == NULL || text == NULL) {
 		return 0;
 	}
@@ -117,7 +117,7 @@ static int editorSyntaxRegexMatchCached(const TSQuery *query, uint32_t string_id
 		if (pattern == NULL) {
 			return 0;
 		}
-		return editorSyntaxRegexMatch(text, text_len, pattern, (size_t)pattern_len);
+		return syntaxPredicatesRegexMatch(text, text_len, pattern, (size_t)pattern_len);
 	}
 
 	if (!cache->compiled_regex_compiled[string_id] &&
@@ -149,20 +149,21 @@ static int editorSyntaxRegexMatchCached(const TSQuery *query, uint32_t string_id
 		return 0;
 	}
 
-	return editorSyntaxRegexMatchCompiled(text, text_len, &cache->compiled_regexes[string_id]);
+	return syntaxPredicatesRegexMatchCompiled(text, text_len,
+	                                          &cache->compiled_regexes[string_id]);
 }
 
-static int editorSyntaxPredicateTargetNode(const TSQuery *query, const TSQueryMatch *match,
-                                           const TSQueryPredicateStep *args, uint32_t arg_count,
-                                           TSNode *node_out, const char **property_out,
-                                           size_t *property_len_out) {
+static int syntaxPredicatesTargetNode(const TSQuery *query, const TSQueryMatch *match,
+                                      const TSQueryPredicateStep *args, uint32_t arg_count,
+                                      TSNode *node_out, const char **property_out,
+                                      size_t *property_len_out) {
 	if (query == NULL || match == NULL || args == NULL || arg_count == 0 || node_out == NULL ||
 	    property_out == NULL || property_len_out == NULL) {
 		return 0;
 	}
 
 	if (args[0].type == TSQueryPredicateStepTypeCapture) {
-		if (!editorSyntaxMatchFindCaptureNode(match, args[0].value_id, node_out)) {
+		if (!syntaxPredicatesFindCaptureNode(match, args[0].value_id, node_out)) {
 			return 0;
 		}
 		if (arg_count < 2 || args[1].type != TSQueryPredicateStepTypeString) {
@@ -195,13 +196,13 @@ static int editorSyntaxPredicateTargetNode(const TSQuery *query, const TSQueryMa
 	return 0;
 }
 
-typedef int (*editorSyntaxPredicateHandlerFn)(const TSQuery *query, const TSQueryMatch *match,
-                                              const struct editorSyntaxPredicateContext *ctx,
-                                              const TSQueryPredicateStep *args, uint32_t arg_count);
+typedef int (*syntaxPredicatesHandlerFn)(const TSQuery *query, const TSQueryMatch *match,
+                                         const struct editorSyntaxPredicateContext *ctx,
+                                         const TSQueryPredicateStep *args, uint32_t arg_count);
 
-static int editorSyntaxPredicateAlwaysPass(const TSQuery *query, const TSQueryMatch *match,
-                                           const struct editorSyntaxPredicateContext *ctx,
-                                           const TSQueryPredicateStep *args, uint32_t arg_count) {
+static int syntaxPredicatesAlwaysPass(const TSQuery *query, const TSQueryMatch *match,
+                                      const struct editorSyntaxPredicateContext *ctx,
+                                      const TSQueryPredicateStep *args, uint32_t arg_count) {
 	(void)query;
 	(void)match;
 	(void)ctx;
@@ -210,10 +211,9 @@ static int editorSyntaxPredicateAlwaysPass(const TSQuery *query, const TSQueryMa
 	return 1;
 }
 
-static int editorSyntaxPredicateEqShared(int negated, const TSQuery *query,
-                                         const TSQueryMatch *match,
-                                         const struct editorSyntaxPredicateContext *ctx,
-                                         const TSQueryPredicateStep *args, uint32_t arg_count) {
+static int syntaxPredicatesEqShared(int negated, const TSQuery *query, const TSQueryMatch *match,
+                                    const struct editorSyntaxPredicateContext *ctx,
+                                    const TSQueryPredicateStep *args, uint32_t arg_count) {
 	if (arg_count < 2) {
 		return 1;
 	}
@@ -221,30 +221,29 @@ static int editorSyntaxPredicateEqShared(int negated, const TSQuery *query,
 	size_t left_len = 0;
 	const char *right = NULL;
 	size_t right_len = 0;
-	if (!editorSyntaxPredicateArgText(query, match, ctx, &args[0], 0, &left, &left_len) ||
-	    !editorSyntaxPredicateArgText(query, match, ctx, &args[1], 1, &right, &right_len)) {
+	if (!syntaxPredicatesArgText(query, match, ctx, &args[0], 0, &left, &left_len) ||
+	    !syntaxPredicatesArgText(query, match, ctx, &args[1], 1, &right, &right_len)) {
 		return 0;
 	}
 	int equal = (left_len == right_len) && memcmp(left, right, left_len) == 0;
 	return negated ? !equal : equal;
 }
 
-static int editorSyntaxPredicateEq(const TSQuery *query, const TSQueryMatch *match,
-                                   const struct editorSyntaxPredicateContext *ctx,
-                                   const TSQueryPredicateStep *args, uint32_t arg_count) {
-	return editorSyntaxPredicateEqShared(0, query, match, ctx, args, arg_count);
+static int syntaxPredicatesEq(const TSQuery *query, const TSQueryMatch *match,
+                              const struct editorSyntaxPredicateContext *ctx,
+                              const TSQueryPredicateStep *args, uint32_t arg_count) {
+	return syntaxPredicatesEqShared(0, query, match, ctx, args, arg_count);
 }
 
-static int editorSyntaxPredicateNotEq(const TSQuery *query, const TSQueryMatch *match,
-                                      const struct editorSyntaxPredicateContext *ctx,
-                                      const TSQueryPredicateStep *args, uint32_t arg_count) {
-	return editorSyntaxPredicateEqShared(1, query, match, ctx, args, arg_count);
+static int syntaxPredicatesNotEq(const TSQuery *query, const TSQueryMatch *match,
+                                 const struct editorSyntaxPredicateContext *ctx,
+                                 const TSQueryPredicateStep *args, uint32_t arg_count) {
+	return syntaxPredicatesEqShared(1, query, match, ctx, args, arg_count);
 }
 
-static int editorSyntaxPredicateMatchShared(int negated, const TSQuery *query,
-                                            const TSQueryMatch *match,
-                                            const struct editorSyntaxPredicateContext *ctx,
-                                            const TSQueryPredicateStep *args, uint32_t arg_count) {
+static int syntaxPredicatesMatchShared(int negated, const TSQuery *query, const TSQueryMatch *match,
+                                       const struct editorSyntaxPredicateContext *ctx,
+                                       const TSQueryPredicateStep *args, uint32_t arg_count) {
 	if (arg_count < 2) {
 		return 1;
 	}
@@ -252,41 +251,40 @@ static int editorSyntaxPredicateMatchShared(int negated, const TSQuery *query,
 	size_t text_len = 0;
 	const char *pattern = NULL;
 	size_t pattern_len = 0;
-	if (!editorSyntaxPredicateArgText(query, match, ctx, &args[0], 0, &text, &text_len) ||
-	    !editorSyntaxPredicateArgText(query, match, ctx, &args[1], 1, &pattern, &pattern_len)) {
+	if (!syntaxPredicatesArgText(query, match, ctx, &args[0], 0, &text, &text_len) ||
+	    !syntaxPredicatesArgText(query, match, ctx, &args[1], 1, &pattern, &pattern_len)) {
 		return 0;
 	}
 	int matched = 0;
 	if (args[1].type == TSQueryPredicateStepTypeString) {
-		matched = editorSyntaxRegexMatchCached(query, args[1].value_id, text, text_len);
+		matched = syntaxPredicatesRegexMatchCached(query, args[1].value_id, text, text_len);
 	} else {
-		matched = editorSyntaxRegexMatch(text, text_len, pattern, pattern_len);
+		matched = syntaxPredicatesRegexMatch(text, text_len, pattern, pattern_len);
 	}
 	return negated ? !matched : matched;
 }
 
-static int editorSyntaxPredicateMatch(const TSQuery *query, const TSQueryMatch *match,
-                                      const struct editorSyntaxPredicateContext *ctx,
-                                      const TSQueryPredicateStep *args, uint32_t arg_count) {
-	return editorSyntaxPredicateMatchShared(0, query, match, ctx, args, arg_count);
+static int syntaxPredicatesMatch(const TSQuery *query, const TSQueryMatch *match,
+                                 const struct editorSyntaxPredicateContext *ctx,
+                                 const TSQueryPredicateStep *args, uint32_t arg_count) {
+	return syntaxPredicatesMatchShared(0, query, match, ctx, args, arg_count);
 }
 
-static int editorSyntaxPredicateNotMatch(const TSQuery *query, const TSQueryMatch *match,
-                                         const struct editorSyntaxPredicateContext *ctx,
-                                         const TSQueryPredicateStep *args, uint32_t arg_count) {
-	return editorSyntaxPredicateMatchShared(1, query, match, ctx, args, arg_count);
+static int syntaxPredicatesNotMatch(const TSQuery *query, const TSQueryMatch *match,
+                                    const struct editorSyntaxPredicateContext *ctx,
+                                    const TSQueryPredicateStep *args, uint32_t arg_count) {
+	return syntaxPredicatesMatchShared(1, query, match, ctx, args, arg_count);
 }
 
-static int editorSyntaxPredicateAnyOfShared(int negated, const TSQuery *query,
-                                            const TSQueryMatch *match,
-                                            const struct editorSyntaxPredicateContext *ctx,
-                                            const TSQueryPredicateStep *args, uint32_t arg_count) {
+static int syntaxPredicatesAnyOfShared(int negated, const TSQuery *query, const TSQueryMatch *match,
+                                       const struct editorSyntaxPredicateContext *ctx,
+                                       const TSQueryPredicateStep *args, uint32_t arg_count) {
 	if (arg_count < 2) {
 		return 1;
 	}
 	const char *target = NULL;
 	size_t target_len = 0;
-	if (!editorSyntaxPredicateArgText(query, match, ctx, &args[0], 0, &target, &target_len)) {
+	if (!syntaxPredicatesArgText(query, match, ctx, &args[0], 0, &target, &target_len)) {
 		return 0;
 	}
 
@@ -310,29 +308,28 @@ static int editorSyntaxPredicateAnyOfShared(int negated, const TSQuery *query,
 	return negated ? !found : found;
 }
 
-static int editorSyntaxPredicateAnyOf(const TSQuery *query, const TSQueryMatch *match,
-                                      const struct editorSyntaxPredicateContext *ctx,
-                                      const TSQueryPredicateStep *args, uint32_t arg_count) {
-	return editorSyntaxPredicateAnyOfShared(0, query, match, ctx, args, arg_count);
+static int syntaxPredicatesAnyOf(const TSQuery *query, const TSQueryMatch *match,
+                                 const struct editorSyntaxPredicateContext *ctx,
+                                 const TSQueryPredicateStep *args, uint32_t arg_count) {
+	return syntaxPredicatesAnyOfShared(0, query, match, ctx, args, arg_count);
 }
 
-static int editorSyntaxPredicateNotAnyOf(const TSQuery *query, const TSQueryMatch *match,
-                                         const struct editorSyntaxPredicateContext *ctx,
-                                         const TSQueryPredicateStep *args, uint32_t arg_count) {
-	return editorSyntaxPredicateAnyOfShared(1, query, match, ctx, args, arg_count);
+static int syntaxPredicatesNotAnyOf(const TSQuery *query, const TSQueryMatch *match,
+                                    const struct editorSyntaxPredicateContext *ctx,
+                                    const TSQueryPredicateStep *args, uint32_t arg_count) {
+	return syntaxPredicatesAnyOfShared(1, query, match, ctx, args, arg_count);
 }
 
 /* `#is?` / `#is-not?` recognize only the `local` property today; other properties
  * are treated as not-set. Kept as a single helper per the predicate-table plan. */
-static int editorSyntaxPredicateIsShared(int negated, const TSQuery *query,
-                                         const TSQueryMatch *match,
-                                         const struct editorSyntaxPredicateContext *ctx,
-                                         const TSQueryPredicateStep *args, uint32_t arg_count) {
+static int syntaxPredicatesIsShared(int negated, const TSQuery *query, const TSQueryMatch *match,
+                                    const struct editorSyntaxPredicateContext *ctx,
+                                    const TSQueryPredicateStep *args, uint32_t arg_count) {
 	TSNode target;
 	const char *property = NULL;
 	size_t property_len = 0;
-	if (!editorSyntaxPredicateTargetNode(query, match, args, arg_count, &target, &property,
-	                                     &property_len)) {
+	if (!syntaxPredicatesTargetNode(query, match, args, arg_count, &target, &property,
+	                                &property_len)) {
 		return 1;
 	}
 	int is_property = 0;
@@ -342,33 +339,33 @@ static int editorSyntaxPredicateIsShared(int negated, const TSQuery *query,
 	return negated ? !is_property : is_property;
 }
 
-static int editorSyntaxPredicateIs(const TSQuery *query, const TSQueryMatch *match,
-                                   const struct editorSyntaxPredicateContext *ctx,
-                                   const TSQueryPredicateStep *args, uint32_t arg_count) {
-	return editorSyntaxPredicateIsShared(0, query, match, ctx, args, arg_count);
+static int syntaxPredicatesIs(const TSQuery *query, const TSQueryMatch *match,
+                              const struct editorSyntaxPredicateContext *ctx,
+                              const TSQueryPredicateStep *args, uint32_t arg_count) {
+	return syntaxPredicatesIsShared(0, query, match, ctx, args, arg_count);
 }
 
-static int editorSyntaxPredicateIsNot(const TSQuery *query, const TSQueryMatch *match,
-                                      const struct editorSyntaxPredicateContext *ctx,
-                                      const TSQueryPredicateStep *args, uint32_t arg_count) {
-	return editorSyntaxPredicateIsShared(1, query, match, ctx, args, arg_count);
+static int syntaxPredicatesIsNot(const TSQuery *query, const TSQueryMatch *match,
+                                 const struct editorSyntaxPredicateContext *ctx,
+                                 const TSQueryPredicateStep *args, uint32_t arg_count) {
+	return syntaxPredicatesIsShared(1, query, match, ctx, args, arg_count);
 }
 
-struct editorSyntaxPredicateEntry {
+struct syntaxPredicatesEntry {
 	const char *name;
-	editorSyntaxPredicateHandlerFn handler;
+	syntaxPredicatesHandlerFn handler;
 };
 
-static const struct editorSyntaxPredicateEntry g_predicate_table[] = {
-        {"set!", editorSyntaxPredicateAlwaysPass},      {"eq?", editorSyntaxPredicateEq},
-        {"not-eq?", editorSyntaxPredicateNotEq},        {"match?", editorSyntaxPredicateMatch},
-        {"not-match?", editorSyntaxPredicateNotMatch},  {"any-of?", editorSyntaxPredicateAnyOf},
-        {"not-any-of?", editorSyntaxPredicateNotAnyOf}, {"is?", editorSyntaxPredicateIs},
-        {"is-not?", editorSyntaxPredicateIsNot}};
+static const struct syntaxPredicatesEntry g_syntax_predicates_table[] = {
+        {"set!", syntaxPredicatesAlwaysPass},      {"eq?", syntaxPredicatesEq},
+        {"not-eq?", syntaxPredicatesNotEq},        {"match?", syntaxPredicatesMatch},
+        {"not-match?", syntaxPredicatesNotMatch},  {"any-of?", syntaxPredicatesAnyOf},
+        {"not-any-of?", syntaxPredicatesNotAnyOf}, {"is?", syntaxPredicatesIs},
+        {"is-not?", syntaxPredicatesIsNot}};
 
-static int editorSyntaxEvaluatePredicate(const TSQuery *query, const TSQueryMatch *match,
-                                         const struct editorSyntaxPredicateContext *ctx,
-                                         const TSQueryPredicateStep *steps, uint32_t step_count) {
+static int syntaxPredicatesEvaluate(const TSQuery *query, const TSQueryMatch *match,
+                                    const struct editorSyntaxPredicateContext *ctx,
+                                    const TSQueryPredicateStep *steps, uint32_t step_count) {
 	if (query == NULL || match == NULL || ctx == NULL || steps == NULL || step_count == 0) {
 		return 1;
 	}
@@ -385,9 +382,12 @@ static int editorSyntaxEvaluatePredicate(const TSQuery *query, const TSQueryMatc
 	const TSQueryPredicateStep *args = &steps[1];
 	uint32_t arg_count = step_count - 1;
 
-	for (size_t i = 0; i < sizeof(g_predicate_table) / sizeof(g_predicate_table[0]); i++) {
-		if (editorSyntaxStringEquals(command, command_len, g_predicate_table[i].name)) {
-			return g_predicate_table[i].handler(query, match, ctx, args, arg_count);
+	for (size_t i = 0;
+	     i < sizeof(g_syntax_predicates_table) / sizeof(g_syntax_predicates_table[0]); i++) {
+		if (editorSyntaxStringEquals(command, command_len,
+		                             g_syntax_predicates_table[i].name)) {
+			return g_syntax_predicates_table[i].handler(query, match, ctx, args,
+			                                            arg_count);
 		}
 	}
 	return 1;
@@ -415,8 +415,8 @@ int editorSyntaxMatchPassesPredicates(const TSQuery *query, uint32_t pattern_ind
 		}
 		uint32_t end = i;
 		if (end > start) {
-			if (!editorSyntaxEvaluatePredicate(query, match, ctx, &steps[start],
-			                                   end - start)) {
+			if (!syntaxPredicatesEvaluate(query, match, ctx, &steps[start],
+			                              end - start)) {
 				return 0;
 			}
 		}

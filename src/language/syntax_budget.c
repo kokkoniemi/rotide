@@ -10,10 +10,9 @@
 
 #include <stdlib.h>
 
-static void editorSyntaxStateQueueLimitEvent(struct editorSyntaxState *state,
-                                             enum editorSyntaxLimitEventKind kind,
-                                             enum editorSyntaxLanguage language, int row,
-                                             int detail) {
+static void syntaxBudgetQueueLimitEvent(struct editorSyntaxState *state,
+                                        enum editorSyntaxLimitEventKind kind,
+                                        enum editorSyntaxLanguage language, int row, int detail) {
 	if (state == NULL) {
 		return;
 	}
@@ -62,8 +61,8 @@ void editorSyntaxStateRecordCaptureTruncated(struct editorSyntaxState *state, in
 		}
 		state->capture_truncated_rows[state->capture_truncated_row_count++] = row;
 	}
-	editorSyntaxStateQueueLimitEvent(state, EDITOR_SYNTAX_LIMIT_EVENT_CAPTURE_TRUNCATED,
-	                                 state->language, row, ROTIDE_MAX_SYNTAX_SPANS_PER_ROW);
+	syntaxBudgetQueueLimitEvent(state, EDITOR_SYNTAX_LIMIT_EVENT_CAPTURE_TRUNCATED,
+	                            state->language, row, ROTIDE_MAX_SYNTAX_SPANS_PER_ROW);
 }
 
 void editorSyntaxStateRecordInjectionDepthExceeded(struct editorSyntaxState *state,
@@ -72,8 +71,8 @@ void editorSyntaxStateRecordInjectionDepthExceeded(struct editorSyntaxState *sta
 		return;
 	}
 	state->injection_depth_exceeded_reported = 1;
-	editorSyntaxStateQueueLimitEvent(state, EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_DEPTH_EXCEEDED,
-	                                 language, -1, depth);
+	syntaxBudgetQueueLimitEvent(state, EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_DEPTH_EXCEEDED,
+	                            language, -1, depth);
 }
 
 void editorSyntaxStateRecordInjectionSlotsFull(struct editorSyntaxState *state,
@@ -82,16 +81,16 @@ void editorSyntaxStateRecordInjectionSlotsFull(struct editorSyntaxState *state,
 		return;
 	}
 	state->injection_slots_full_reported = 1;
-	editorSyntaxStateQueueLimitEvent(state, EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_SLOTS_FULL,
-	                                 language, -1, ROTIDE_SYNTAX_MAX_INJECTION_TREES);
+	syntaxBudgetQueueLimitEvent(state, EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_SLOTS_FULL, language,
+	                            -1, ROTIDE_SYNTAX_MAX_INJECTION_TREES);
 }
 
 void editorSyntaxStateRecordParseFailed(struct editorSyntaxState *state, int consecutive_failures) {
 	if (state == NULL) {
 		return;
 	}
-	editorSyntaxStateQueueLimitEvent(state, EDITOR_SYNTAX_LIMIT_EVENT_PARSE_FAILED,
-	                                 state->language, -1, consecutive_failures);
+	syntaxBudgetQueueLimitEvent(state, EDITOR_SYNTAX_LIMIT_EVENT_PARSE_FAILED, state->language,
+	                            -1, consecutive_failures);
 }
 
 void editorSyntaxStateRecordParseTreeHasError(struct editorSyntaxState *state,
@@ -99,8 +98,8 @@ void editorSyntaxStateRecordParseTreeHasError(struct editorSyntaxState *state,
 	if (state == NULL) {
 		return;
 	}
-	editorSyntaxStateQueueLimitEvent(state, EDITOR_SYNTAX_LIMIT_EVENT_PARSE_TREE_HAS_ERROR,
-	                                 language, -1, 1);
+	syntaxBudgetQueueLimitEvent(state, EDITOR_SYNTAX_LIMIT_EVENT_PARSE_TREE_HAS_ERROR, language,
+	                            -1, 1);
 }
 
 void editorSyntaxStateApplyPerformanceMode(struct editorSyntaxState *state, size_t source_len) {

@@ -19,7 +19,7 @@ int g_editor_syntax_max_injection_depth = ROTIDE_SYNTAX_DEFAULT_MAX_INJECTION_DE
 static int g_syntax_test_full_parse_failures = 0;
 static int g_syntax_test_incremental_parse_failures = 0;
 
-static int editorSyntaxTestConsumeParseFailure(int incremental) {
+static int syntaxTestConsumeParseFailure(int incremental) {
 	int *failures = incremental ? &g_syntax_test_incremental_parse_failures
 	                            : &g_syntax_test_full_parse_failures;
 	if (*failures <= 0) {
@@ -108,15 +108,14 @@ void editorSyntaxInjectedTreeDestroy(struct editorSyntaxInjectedTree *injection)
 	injection->depth = 0;
 }
 
-static void editorSyntaxStateClearChangedRanges(struct editorSyntaxState *state) {
+static void syntaxStateClearChangedRanges(struct editorSyntaxState *state) {
 	if (state == NULL) {
 		return;
 	}
 	state->last_changed_range_count = 0;
 }
 
-static int editorSyntaxStateEnsureChangedRangeCapacity(struct editorSyntaxState *state,
-                                                       int needed) {
+static int syntaxStateEnsureChangedRangeCapacity(struct editorSyntaxState *state, int needed) {
 	if (state == NULL || needed < 0) {
 		return 0;
 	}
@@ -141,8 +140,8 @@ static int editorSyntaxStateEnsureChangedRangeCapacity(struct editorSyntaxState 
 	return 1;
 }
 
-static int editorSyntaxStateAppendChangedRange(struct editorSyntaxState *state, uint32_t start_byte,
-                                               uint32_t end_byte) {
+static int syntaxStateAppendChangedRange(struct editorSyntaxState *state, uint32_t start_byte,
+                                         uint32_t end_byte) {
 	if (state == NULL || end_byte <= start_byte) {
 		return 1;
 	}
@@ -158,8 +157,7 @@ static int editorSyntaxStateAppendChangedRange(struct editorSyntaxState *state, 
 		}
 	}
 
-	if (!editorSyntaxStateEnsureChangedRangeCapacity(state,
-	                                                 state->last_changed_range_count + 1)) {
+	if (!syntaxStateEnsureChangedRangeCapacity(state, state->last_changed_range_count + 1)) {
 		return 0;
 	}
 	state->last_changed_ranges[state->last_changed_range_count].start_byte = start_byte;
@@ -168,28 +166,26 @@ static int editorSyntaxStateAppendChangedRange(struct editorSyntaxState *state, 
 	return 1;
 }
 
-static int editorSyntaxStateSetChangedRangesFull(struct editorSyntaxState *state,
-                                                 size_t source_len) {
+static int syntaxStateSetChangedRangesFull(struct editorSyntaxState *state, size_t source_len) {
 	if (state == NULL) {
 		return 0;
 	}
-	editorSyntaxStateClearChangedRanges(state);
+	syntaxStateClearChangedRanges(state);
 	if (source_len == 0) {
 		return 1;
 	}
 	if (source_len > UINT32_MAX) {
 		source_len = UINT32_MAX;
 	}
-	return editorSyntaxStateAppendChangedRange(state, 0, (uint32_t)source_len);
+	return syntaxStateAppendChangedRange(state, 0, (uint32_t)source_len);
 }
 
-static int editorSyntaxStateSetChangedRangesFromTrees(struct editorSyntaxState *state,
-                                                      const TSTree *old_tree,
-                                                      const TSTree *new_tree) {
+static int syntaxStateSetChangedRangesFromTrees(struct editorSyntaxState *state,
+                                                const TSTree *old_tree, const TSTree *new_tree) {
 	if (state == NULL) {
 		return 0;
 	}
-	editorSyntaxStateClearChangedRanges(state);
+	syntaxStateClearChangedRanges(state);
 	if (old_tree == NULL || new_tree == NULL) {
 		return 1;
 	}
@@ -202,8 +198,8 @@ static int editorSyntaxStateSetChangedRangesFromTrees(struct editorSyntaxState *
 
 	int ok = 1;
 	for (uint32_t i = 0; i < range_count; i++) {
-		if (!editorSyntaxStateAppendChangedRange(state, ranges[i].start_byte,
-		                                         ranges[i].end_byte)) {
+		if (!syntaxStateAppendChangedRange(state, ranges[i].start_byte,
+		                                   ranges[i].end_byte)) {
 			ok = 0;
 			break;
 		}
@@ -255,7 +251,7 @@ int editorSyntaxParsedTreeParse(struct editorSyntaxParsedTree *parsed,
 	}
 
 	if (state != NULL) {
-		if (!editorSyntaxStateSetChangedRangesFromTrees(state, old_tree, new_tree)) {
+		if (!syntaxStateSetChangedRangesFromTrees(state, old_tree, new_tree)) {
 			ts_tree_delete(new_tree);
 			return 0;
 		}
@@ -365,12 +361,12 @@ int editorSyntaxStateParseFull(struct editorSyntaxState *state,
 	    !editorSyntaxLengthFitsTreeSitter(source->length)) {
 		return 0;
 	}
-	if (editorSyntaxTestConsumeParseFailure(0)) {
+	if (syntaxTestConsumeParseFailure(0)) {
 		return 0;
 	}
 	state->budget_parse_exceeded = 0;
 	state->budget_query_exceeded = 0;
-	editorSyntaxStateClearChangedRanges(state);
+	syntaxStateClearChangedRanges(state);
 	editorSyntaxStateApplyPerformanceMode(state, source->length);
 
 	if (!editorSyntaxParsedTreeParse(&state->host, state, source, 0)) {
@@ -380,7 +376,7 @@ int editorSyntaxStateParseFull(struct editorSyntaxState *state,
 		return 0;
 	}
 	state->source_len = source->length;
-	if (!editorSyntaxStateSetChangedRangesFull(state, source->length)) {
+	if (!syntaxStateSetChangedRangesFull(state, source->length)) {
 		return 0;
 	}
 	return 1;
@@ -394,12 +390,12 @@ int editorSyntaxStateApplyEditAndParse(struct editorSyntaxState *state,
 	    state->host.tree == NULL) {
 		return 0;
 	}
-	if (editorSyntaxTestConsumeParseFailure(1)) {
+	if (syntaxTestConsumeParseFailure(1)) {
 		return 0;
 	}
 	state->budget_parse_exceeded = 0;
 	state->budget_query_exceeded = 0;
-	editorSyntaxStateClearChangedRanges(state);
+	syntaxStateClearChangedRanges(state);
 	if ((size_t)edit->old_end_byte > state->source_len ||
 	    edit->old_end_byte < edit->start_byte) {
 		return 0;
@@ -428,7 +424,7 @@ int editorSyntaxStateHasError(const struct editorSyntaxState *state) {
 	return ts_node_has_error(ts_tree_root_node(state->host.tree));
 }
 
-static int editorSyntaxFirstErrorNode(TSNode node, TSNode *error_out) {
+static int syntaxFirstErrorNode(TSNode node, TSNode *error_out) {
 	if (!ts_node_has_error(node)) {
 		return 0;
 	}
@@ -439,7 +435,7 @@ static int editorSyntaxFirstErrorNode(TSNode node, TSNode *error_out) {
 
 	uint32_t child_count = ts_node_child_count(node);
 	for (uint32_t i = 0; i < child_count; i++) {
-		if (editorSyntaxFirstErrorNode(ts_node_child(node, i), error_out)) {
+		if (syntaxFirstErrorNode(ts_node_child(node, i), error_out)) {
 			return 1;
 		}
 	}
@@ -461,7 +457,7 @@ int editorSyntaxStateFirstErrorPosition(const struct editorSyntaxState *state, i
 
 	TSNode root = ts_tree_root_node(state->host.tree);
 	TSNode error = {0};
-	if (!editorSyntaxFirstErrorNode(root, &error)) {
+	if (!syntaxFirstErrorNode(root, &error)) {
 		return 0;
 	}
 
