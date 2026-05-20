@@ -20,7 +20,7 @@
 #define EDITOR_PANE_HBORDER "\xe2\x94\x80"
 
 int editorAppendCursorMove(struct writeBuf *wb, int row, int col);
-extern int g_editor_drawing_current_line_highlight;
+extern int g_screen_drawing_current_line_highlight;
 
 struct paneViewSyntaxRowOverride {
 	int valid;
@@ -301,7 +301,7 @@ int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode 
 	    !editorAppendThemeBackgroundRole(wb, EDITOR_THEME_UI_CURRENT_LINE_BG)) {
 		goto fail;
 	}
-	g_editor_drawing_current_line_highlight = highlight_row;
+	g_screen_drawing_current_line_highlight = highlight_row;
 	if (!editorDrawLineNumberGutter(wb, y_offset, segment_coloff, gutter_cols)) {
 		goto fail;
 	}
@@ -326,7 +326,7 @@ int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode 
 			}
 		}
 	}
-	g_editor_drawing_current_line_highlight = 0;
+	g_screen_drawing_current_line_highlight = 0;
 	if (highlight_row && !editorAppendThemeReset(wb)) {
 		goto fail_reset;
 	}
@@ -335,7 +335,7 @@ int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode 
 	return 1;
 
 fail:
-	g_editor_drawing_current_line_highlight = 0;
+	g_screen_drawing_current_line_highlight = 0;
 fail_reset:
 	g_pane_view_wrap_body_cols_override = saved_wrap_body_cols_override;
 	g_pane_view_active_row_syntax_override = saved_row_syntax_override;
@@ -496,32 +496,32 @@ int editorBuildSinglePaneRowLine(struct writeBuf *wb, int y, int drawer_cols, in
 	    !editorAppendThemeBackgroundRole(wb, EDITOR_THEME_UI_CURRENT_LINE_BG)) {
 		return 0;
 	}
-	g_editor_drawing_current_line_highlight = highlight_row;
+	g_screen_drawing_current_line_highlight = highlight_row;
 	if (!editorDrawLineNumberGutter(wb, y_offset, segment_coloff, gutter_cols)) {
-		g_editor_drawing_current_line_highlight = 0;
+		g_screen_drawing_current_line_highlight = 0;
 		return 0;
 	}
 	if (y_offset < E.numrows) {
 		if (E.line_wrap_enabled) {
 			if (!editorDrawFileRowWrapped(wb, (size_t)y_offset, file_cols,
 			                              segment_coloff)) {
-				g_editor_drawing_current_line_highlight = 0;
+				g_screen_drawing_current_line_highlight = 0;
 				return 0;
 			}
 		} else if (!editorDrawFileRow(wb, (size_t)y_offset, file_cols)) {
-			g_editor_drawing_current_line_highlight = 0;
+			g_screen_drawing_current_line_highlight = 0;
 			return 0;
 		}
 	} else if (E.numrows == 0 && y == E.window_rows / 3) {
 		if (!paneViewDrawGreeting(wb, file_cols)) {
-			g_editor_drawing_current_line_highlight = 0;
+			g_screen_drawing_current_line_highlight = 0;
 			return 0;
 		}
 	} else if (!editorAppendGrayBytes(wb, "~", 1)) {
-		g_editor_drawing_current_line_highlight = 0;
+		g_screen_drawing_current_line_highlight = 0;
 		return 0;
 	}
-	g_editor_drawing_current_line_highlight = 0;
+	g_screen_drawing_current_line_highlight = 0;
 	if (highlight_row && !editorAppendThemeReset(wb)) {
 		return 0;
 	}

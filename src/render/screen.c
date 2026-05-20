@@ -62,7 +62,7 @@ int editorAppendGrayBytes(struct writeBuf *wb, const char *text, size_t len) {
 
 /*** Output ***/
 
-struct editorFileRowFrameCache {
+struct screenFileRowFrameCache {
 	int valid;
 	int row_capacity;
 	int row_count;
@@ -72,52 +72,52 @@ struct editorFileRowFrameCache {
 	size_t *row_lens;
 };
 
-static struct editorFileRowFrameCache g_file_row_frame_cache = {0};
-static int g_editor_output_last_refresh_file_row_draw_count = 0;
-int g_editor_drawing_current_line_highlight = 0;
-static int g_popup_prev_screen_top = 0;
-static int g_popup_prev_row_count = 0;
+static struct screenFileRowFrameCache g_screen_file_row_frame_cache = {0};
+static int g_screen_last_refresh_file_row_draw_count = 0;
+int g_screen_drawing_current_line_highlight = 0;
+static int g_screen_popup_prev_screen_top = 0;
+static int g_screen_popup_prev_row_count = 0;
 
-static void editorFileRowFrameCacheClearRowsFrom(int start_row) {
+static void screenFileRowFrameCacheClearRowsFrom(int start_row) {
 	if (start_row < 0) {
 		start_row = 0;
 	}
-	if (start_row > g_file_row_frame_cache.row_capacity) {
-		start_row = g_file_row_frame_cache.row_capacity;
+	if (start_row > g_screen_file_row_frame_cache.row_capacity) {
+		start_row = g_screen_file_row_frame_cache.row_capacity;
 	}
-	for (int i = start_row; i < g_file_row_frame_cache.row_capacity; i++) {
-		free(g_file_row_frame_cache.rows[i]);
-		g_file_row_frame_cache.rows[i] = NULL;
-		g_file_row_frame_cache.row_lens[i] = 0;
+	for (int i = start_row; i < g_screen_file_row_frame_cache.row_capacity; i++) {
+		free(g_screen_file_row_frame_cache.rows[i]);
+		g_screen_file_row_frame_cache.rows[i] = NULL;
+		g_screen_file_row_frame_cache.row_lens[i] = 0;
 	}
-	if (g_file_row_frame_cache.row_count < start_row) {
-		g_file_row_frame_cache.row_count = start_row;
+	if (g_screen_file_row_frame_cache.row_count < start_row) {
+		g_screen_file_row_frame_cache.row_count = start_row;
 	}
 }
 
-static void editorFileRowFrameCacheReset(void) {
-	editorFileRowFrameCacheClearRowsFrom(0);
-	g_file_row_frame_cache.valid = 0;
-	g_file_row_frame_cache.row_count = 0;
-	g_file_row_frame_cache.window_rows = 0;
-	g_file_row_frame_cache.window_cols = 0;
-	g_popup_prev_screen_top = 0;
-	g_popup_prev_row_count = 0;
+static void screenFileRowFrameCacheReset(void) {
+	screenFileRowFrameCacheClearRowsFrom(0);
+	g_screen_file_row_frame_cache.valid = 0;
+	g_screen_file_row_frame_cache.row_count = 0;
+	g_screen_file_row_frame_cache.window_rows = 0;
+	g_screen_file_row_frame_cache.window_cols = 0;
+	g_screen_popup_prev_screen_top = 0;
+	g_screen_popup_prev_row_count = 0;
 }
 
-static int editorAppendTextRowReset(struct writeBuf *wb) {
+static int screenAppendTextRowReset(struct writeBuf *wb) {
 	if (!editorAppendThemeReset(wb)) {
 		return 0;
 	}
-	if (g_editor_drawing_current_line_highlight &&
+	if (g_screen_drawing_current_line_highlight &&
 	    !editorAppendThemeBackgroundRole(wb, EDITOR_THEME_UI_CURRENT_LINE_BG)) {
 		return 0;
 	}
 	return 1;
 }
 
-static int editorFileRowFrameCacheEnsureCapacity(int needed_rows) {
-	if (needed_rows <= g_file_row_frame_cache.row_capacity) {
+static int screenFileRowFrameCacheEnsureCapacity(int needed_rows) {
+	if (needed_rows <= g_screen_file_row_frame_cache.row_capacity) {
 		return 1;
 	}
 	if (needed_rows <= 0) {
@@ -127,38 +127,40 @@ static int editorFileRowFrameCacheEnsureCapacity(int needed_rows) {
 	size_t cap_size = 0;
 	size_t rows_bytes = 0;
 	if (!editorIntToSize(needed_rows, &cap_size) ||
-	    !editorSizeMul(sizeof(*g_file_row_frame_cache.rows), cap_size, &rows_bytes)) {
+	    !editorSizeMul(sizeof(*g_screen_file_row_frame_cache.rows), cap_size, &rows_bytes)) {
 		return 0;
 	}
 
-	int old_capacity = g_file_row_frame_cache.row_capacity;
-	char **new_rows = editorRealloc(g_file_row_frame_cache.rows, rows_bytes);
+	int old_capacity = g_screen_file_row_frame_cache.row_capacity;
+	char **new_rows = editorRealloc(g_screen_file_row_frame_cache.rows, rows_bytes);
 	if (new_rows == NULL) {
 		return 0;
 	}
-	g_file_row_frame_cache.rows = new_rows;
+	g_screen_file_row_frame_cache.rows = new_rows;
 
 	size_t lens_bytes = 0;
-	if (!editorSizeMul(sizeof(*g_file_row_frame_cache.row_lens), cap_size, &lens_bytes)) {
+	if (!editorSizeMul(sizeof(*g_screen_file_row_frame_cache.row_lens), cap_size,
+	                   &lens_bytes)) {
 		return 0;
 	}
-	size_t *new_lens = editorRealloc(g_file_row_frame_cache.row_lens, lens_bytes);
+	size_t *new_lens = editorRealloc(g_screen_file_row_frame_cache.row_lens, lens_bytes);
 	if (new_lens == NULL) {
 		return 0;
 	}
-	g_file_row_frame_cache.row_lens = new_lens;
+	g_screen_file_row_frame_cache.row_lens = new_lens;
 
 	for (int i = old_capacity; i < needed_rows; i++) {
-		g_file_row_frame_cache.rows[i] = NULL;
-		g_file_row_frame_cache.row_lens[i] = 0;
+		g_screen_file_row_frame_cache.rows[i] = NULL;
+		g_screen_file_row_frame_cache.row_lens[i] = 0;
 	}
 
-	g_file_row_frame_cache.row_capacity = needed_rows;
+	g_screen_file_row_frame_cache.row_capacity = needed_rows;
 	return 1;
 }
 
-static int editorFileRowFrameCacheStoreRow(int row_idx, const char *row_data, size_t row_len) {
-	if (row_idx < 0 || row_data == NULL || row_idx >= g_file_row_frame_cache.row_capacity) {
+static int screenFileRowFrameCacheStoreRow(int row_idx, const char *row_data, size_t row_len) {
+	if (row_idx < 0 || row_data == NULL ||
+	    row_idx >= g_screen_file_row_frame_cache.row_capacity) {
 		return 0;
 	}
 
@@ -171,9 +173,9 @@ static int editorFileRowFrameCacheStoreRow(int row_idx, const char *row_data, si
 		memcpy(copy, row_data, row_len);
 	}
 
-	free(g_file_row_frame_cache.rows[row_idx]);
-	g_file_row_frame_cache.rows[row_idx] = copy;
-	g_file_row_frame_cache.row_lens[row_idx] = row_len;
+	free(g_screen_file_row_frame_cache.rows[row_idx]);
+	g_screen_file_row_frame_cache.rows[row_idx] = copy;
+	g_screen_file_row_frame_cache.row_lens[row_idx] = row_len;
 	return 1;
 }
 
@@ -186,7 +188,7 @@ int editorAppendCursorMove(struct writeBuf *wb, int row, int col) {
 	return wbAppend(wb, buf, (size_t)len);
 }
 
-static void editorRenderSliceBounds(const struct erow *row, int coloff, int cols, int *start_out,
+static void screenRenderSliceBounds(const struct erow *row, int coloff, int cols, int *start_out,
                                     int *end_out) {
 	int rx = 0;
 	int start = -1;
@@ -213,7 +215,7 @@ static void editorRenderSliceBounds(const struct erow *row, int coloff, int cols
 	*end_out = end;
 }
 
-static int editorSelectionSpanForRow(int row_idx, int *start_out, int *end_out) {
+static int screenSelectionSpanForRow(int row_idx, int *start_out, int *end_out) {
 	if (row_idx < 0 || row_idx >= E.numrows) {
 		return 0;
 	}
@@ -271,7 +273,7 @@ static int editorSelectionSpanForRow(int row_idx, int *start_out, int *end_out) 
 	return 1;
 }
 
-static int editorSearchSpanForRow(int row_idx, int *start_out, int *end_out) {
+static int screenSearchSpanForRow(int row_idx, int *start_out, int *end_out) {
 	if (row_idx < 0 || row_idx >= E.numrows || E.search_match_len <= 0) {
 		return 0;
 	}
@@ -317,7 +319,7 @@ static int editorSearchSpanForRow(int row_idx, int *start_out, int *end_out) {
 }
 
 static enum editorSyntaxHighlightClass
-editorSyntaxClassAtRenderIdx(const struct editorRowSyntaxSpan *spans, int span_count,
+screenSyntaxClassAtRenderIdx(const struct editorRowSyntaxSpan *spans, int span_count,
                              int render_idx) {
 	enum editorSyntaxHighlightClass highlight_class = EDITOR_SYNTAX_HL_NONE;
 	for (int i = 0; i < span_count; i++) {
@@ -332,11 +334,11 @@ editorSyntaxClassAtRenderIdx(const struct editorRowSyntaxSpan *spans, int span_c
 	return highlight_class;
 }
 
-static int editorDiagnosticSeverityIsError(int severity) {
+static int screenDiagnosticSeverityIsError(int severity) {
 	return severity == 1;
 }
 
-static int editorDiagnosticRangeForRow(const struct editorLspDiagnostic *diagnostic, int row_idx,
+static int screenDiagnosticRangeForRow(const struct editorLspDiagnostic *diagnostic, int row_idx,
                                        int row_size, int *start_out, int *end_out) {
 	if (diagnostic == NULL || start_out == NULL || end_out == NULL ||
 	    row_idx < diagnostic->start_line || row_idx > diagnostic->end_line ||
@@ -370,7 +372,7 @@ static int editorDiagnosticRangeForRow(const struct editorLspDiagnostic *diagnos
 	return 1;
 }
 
-static int editorDiagnosticAtRenderIdx(const struct editorRowSyntaxSpan *spans, int span_count,
+static int screenDiagnosticAtRenderIdx(const struct editorRowSyntaxSpan *spans, int span_count,
                                        int render_idx) {
 	for (int i = 0; i < span_count; i++) {
 		if (spans[i].end_render_idx <= spans[i].start_render_idx) {
@@ -384,7 +386,7 @@ static int editorDiagnosticAtRenderIdx(const struct editorRowSyntaxSpan *spans, 
 	return 0;
 }
 
-static int editorBuildDiagnosticRenderSpansForRow(int row_idx, const struct erow *row,
+static int screenBuildDiagnosticRenderSpansForRow(int row_idx, const struct erow *row,
                                                   struct editorRowSyntaxSpan *spans, int max_spans,
                                                   int *span_count_out) {
 	if (span_count_out != NULL) {
@@ -401,12 +403,12 @@ static int editorBuildDiagnosticRenderSpansForRow(int row_idx, const struct erow
 	}
 	int count = 0;
 	for (int i = 0; i < E.lsp_diagnostic_count && count < max_spans; i++) {
-		if (!editorDiagnosticSeverityIsError(E.lsp_diagnostics[i].severity)) {
+		if (!screenDiagnosticSeverityIsError(E.lsp_diagnostics[i].severity)) {
 			continue;
 		}
 		int start = 0;
 		int end = 0;
-		if (!editorDiagnosticRangeForRow(&E.lsp_diagnostics[i], row_idx, line.size, &start,
+		if (!screenDiagnosticRangeForRow(&E.lsp_diagnostics[i], row_idx, line.size, &start,
 		                                 &end)) {
 			continue;
 		}
@@ -426,21 +428,21 @@ static int editorBuildDiagnosticRenderSpansForRow(int row_idx, const struct erow
 	return 1;
 }
 
-static int editorAppendUnderlineToggle(struct writeBuf *wb, int on) {
+static int screenAppendUnderlineToggle(struct writeBuf *wb, int on) {
 	if (on) {
 		return wbAppend(wb, VT100_UNDERLINE_ON_4, 4);
 	}
 	return wbAppend(wb, VT100_UNDERLINE_OFF_5, 5);
 }
 
-static int editorAppendUnderlineColor(struct writeBuf *wb, int red) {
+static int screenAppendUnderlineColor(struct writeBuf *wb, int red) {
 	if (red) {
 		return wbAppend(wb, VT100_UNDERLINE_COLOR_RED_9, 9);
 	}
 	return wbAppend(wb, VT100_UNDERLINE_COLOR_DEFAULT_5, 5);
 }
 
-static int editorDrawRenderSliceWithSyntax(struct writeBuf *wb, const struct erow *row,
+static int screenDrawRenderSliceWithSyntax(struct writeBuf *wb, const struct erow *row,
                                            int segment_start, int segment_end,
                                            const struct editorRowSyntaxSpan *spans, int span_count,
                                            const struct editorRowSyntaxSpan *diagnostic_spans,
@@ -465,7 +467,7 @@ static int editorDrawRenderSliceWithSyntax(struct writeBuf *wb, const struct ero
 	int pos = segment_start;
 	while (pos < segment_end) {
 		enum editorSyntaxHighlightClass highlight_class =
-		        editorSyntaxClassAtRenderIdx(spans, span_count, pos);
+		        screenSyntaxClassAtRenderIdx(spans, span_count, pos);
 		struct editorThemeColor next_color = base_color;
 		if (highlight_class > EDITOR_SYNTAX_HL_NONE &&
 		    highlight_class < EDITOR_SYNTAX_HL_CLASS_COUNT) {
@@ -481,18 +483,18 @@ static int editorDrawRenderSliceWithSyntax(struct writeBuf *wb, const struct ero
 		}
 
 		int diag_here =
-		        editorDiagnosticAtRenderIdx(diagnostic_spans, diagnostic_span_count, pos);
+		        screenDiagnosticAtRenderIdx(diagnostic_spans, diagnostic_span_count, pos);
 		int hover_here = has_hover && pos >= hover_render_start && pos < hover_render_end;
 		int next_on = diag_here || hover_here;
 		int next_red = diag_here;
 		if (next_on != underline_on) {
-			if (!editorAppendUnderlineToggle(wb, next_on)) {
+			if (!screenAppendUnderlineToggle(wb, next_on)) {
 				return 0;
 			}
 			underline_on = next_on;
 		}
 		if (next_red != underline_red) {
-			if (!editorAppendUnderlineColor(wb, next_red)) {
+			if (!screenAppendUnderlineColor(wb, next_red)) {
 				return 0;
 			}
 			underline_red = next_red;
@@ -553,10 +555,10 @@ static int editorDrawRenderSliceWithSyntax(struct writeBuf *wb, const struct ero
 		pos = next;
 	}
 
-	if (underline_on && !editorAppendUnderlineToggle(wb, 0)) {
+	if (underline_on && !screenAppendUnderlineToggle(wb, 0)) {
 		return 0;
 	}
-	if (underline_red && !editorAppendUnderlineColor(wb, 0)) {
+	if (underline_red && !screenAppendUnderlineColor(wb, 0)) {
 		return 0;
 	}
 	if (active_color_emitted && !editorAppendThemeBaseForeground(wb)) {
@@ -565,7 +567,7 @@ static int editorDrawRenderSliceWithSyntax(struct writeBuf *wb, const struct ero
 	return 1;
 }
 
-static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_idx, int coloff,
+static int screenDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_idx, int coloff,
                                  int cols) {
 	if (cols <= 0 || coloff < 0 || row->rsize <= 0) {
 		return 1;
@@ -573,7 +575,7 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 
 	int start = -1;
 	int end = row->rsize;
-	editorRenderSliceBounds(row, coloff, cols, &start, &end);
+	screenRenderSliceBounds(row, coloff, cols, &start, &end);
 	if (start == -1 || end <= start) {
 		return 1;
 	}
@@ -583,10 +585,10 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 
 	int selection_start = 0;
 	int selection_end = 0;
-	if (editorSelectionSpanForRow(row_idx, &selection_start, &selection_end)) {
+	if (screenSelectionSpanForRow(row_idx, &selection_start, &selection_end)) {
 		highlight_start_chars = selection_start;
 		highlight_len_chars = selection_end - selection_start;
-	} else if (editorSearchSpanForRow(row_idx, &selection_start, &selection_end)) {
+	} else if (screenSearchSpanForRow(row_idx, &selection_start, &selection_end)) {
 		highlight_start_chars = selection_start;
 		highlight_len_chars = selection_end - selection_start;
 	}
@@ -601,7 +603,7 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 	}
 	struct editorRowSyntaxSpan diagnostic_spans[EDITOR_DIAGNOSTIC_MAX_RENDER_SPANS_PER_ROW];
 	int diagnostic_span_count = 0;
-	if (!editorBuildDiagnosticRenderSpansForRow(row_idx, row, diagnostic_spans,
+	if (!screenBuildDiagnosticRenderSpansForRow(row_idx, row, diagnostic_spans,
 	                                            EDITOR_DIAGNOSTIC_MAX_RENDER_SPANS_PER_ROW,
 	                                            &diagnostic_span_count)) {
 		diagnostic_span_count = 0;
@@ -633,7 +635,7 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 
 	if (highlight_len_chars <= 0) {
 		editorLineViewRelease(&row_line);
-		return editorDrawRenderSliceWithSyntax(
+		return screenDrawRenderSliceWithSyntax(
 		        wb, row, start, end, syntax_spans, syntax_span_count, diagnostic_spans,
 		        diagnostic_span_count, hover_render_start, hover_render_end);
 	}
@@ -665,7 +667,7 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 	                                     : 0;
 	editorLineViewRelease(&row_line);
 	if (match_render_end <= match_render_start) {
-		return editorDrawRenderSliceWithSyntax(
+		return screenDrawRenderSliceWithSyntax(
 		        wb, row, start, end, syntax_spans, syntax_span_count, diagnostic_spans,
 		        diagnostic_span_count, hover_render_start, hover_render_end);
 	}
@@ -673,13 +675,13 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 	int highlight_start = start > match_render_start ? start : match_render_start;
 	int highlight_end = end < match_render_end ? end : match_render_end;
 	if (highlight_end <= highlight_start) {
-		return editorDrawRenderSliceWithSyntax(
+		return screenDrawRenderSliceWithSyntax(
 		        wb, row, start, end, syntax_spans, syntax_span_count, diagnostic_spans,
 		        diagnostic_span_count, hover_render_start, hover_render_end);
 	}
 
 	if (highlight_start > start &&
-	    !editorDrawRenderSliceWithSyntax(wb, row, start, highlight_start, syntax_spans,
+	    !screenDrawRenderSliceWithSyntax(wb, row, start, highlight_start, syntax_spans,
 	                                     syntax_span_count, diagnostic_spans,
 	                                     diagnostic_span_count, hover_render_start,
 	                                     hover_render_end)) {
@@ -691,11 +693,11 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 	if (!wbAppend(wb, &row->render[highlight_start], highlight_end - highlight_start)) {
 		return 0;
 	}
-	if (!editorAppendTextRowReset(wb)) {
+	if (!screenAppendTextRowReset(wb)) {
 		return 0;
 	}
 	if (highlight_end < end &&
-	    !editorDrawRenderSliceWithSyntax(
+	    !screenDrawRenderSliceWithSyntax(
 	            wb, row, highlight_end, end, syntax_spans, syntax_span_count, diagnostic_spans,
 	            diagnostic_span_count, hover_render_start, hover_render_end)) {
 		return 0;
@@ -704,7 +706,7 @@ static int editorDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 	return 1;
 }
 
-static int editorRenderSliceDisplayCols(const struct erow *row, int coloff, int cols,
+static int screenRenderSliceDisplayCols(const struct erow *row, int coloff, int cols,
                                         int *has_right_overflow_out) {
 	if (has_right_overflow_out != NULL) {
 		*has_right_overflow_out = 0;
@@ -715,7 +717,7 @@ static int editorRenderSliceDisplayCols(const struct erow *row, int coloff, int 
 
 	int start = -1;
 	int end = row->rsize;
-	editorRenderSliceBounds(row, coloff, cols, &start, &end);
+	screenRenderSliceBounds(row, coloff, cols, &start, &end);
 	if (start == -1 || end <= start) {
 		return 0;
 	}
@@ -740,7 +742,7 @@ static int editorRenderSliceDisplayCols(const struct erow *row, int coloff, int 
 	return drawn_cols;
 }
 
-static int editorAppendGrayGlyph(struct writeBuf *wb, const char *glyph, size_t glyph_len) {
+static int screenAppendGrayGlyph(struct writeBuf *wb, const char *glyph, size_t glyph_len) {
 	return editorAppendGrayBytes(wb, glyph, glyph_len);
 }
 
@@ -852,10 +854,10 @@ int editorDrawFileRowWrapped(struct writeBuf *wb, size_t i, int text_cols, int s
 			}
 		}
 		int rendered_cols =
-		        editorRenderSliceDisplayCols(row, segment_coloff, draw_cols, NULL);
+		        screenRenderSliceDisplayCols(row, segment_coloff, draw_cols, NULL);
 
 		if (segment_coloff > 0) {
-			if (!editorAppendGrayGlyph(wb, TEXT_WRAP_CONTINUATION_UTF8,
+			if (!screenAppendGrayGlyph(wb, TEXT_WRAP_CONTINUATION_UTF8,
 			                           sizeof(TEXT_WRAP_CONTINUATION_UTF8) - 1)) {
 				return 0;
 			}
@@ -869,7 +871,7 @@ int editorDrawFileRowWrapped(struct writeBuf *wb, size_t i, int text_cols, int s
 			}
 		}
 
-		if (!editorDrawRenderSlice(wb, row, (int)i, segment_coloff, draw_cols)) {
+		if (!screenDrawRenderSlice(wb, row, (int)i, segment_coloff, draw_cols)) {
 			return 0;
 		}
 
@@ -882,7 +884,7 @@ int editorDrawFileRowWrapped(struct writeBuf *wb, size_t i, int text_cols, int s
 		return wbAppend(wb, " ", 1);
 	}
 
-	return editorDrawRenderSlice(wb, row, (int)i, segment_coloff, text_cols);
+	return screenDrawRenderSlice(wb, row, (int)i, segment_coloff, text_cols);
 }
 
 int editorDrawFileRow(struct writeBuf *wb, size_t i, int text_cols) {
@@ -897,11 +899,11 @@ int editorDrawFileRow(struct writeBuf *wb, size_t i, int text_cols) {
 		}
 		int has_right_overflow = 0;
 		int rendered_cols =
-		        editorRenderSliceDisplayCols(row, E.coloff, body_cols, &has_right_overflow);
+		        screenRenderSliceDisplayCols(row, E.coloff, body_cols, &has_right_overflow);
 		int has_left_overflow = E.coloff > 0 && row->rsize > 0;
 
 		if (has_left_overflow) {
-			if (!editorAppendGrayGlyph(wb, TEXT_OVERFLOW_LEFT_UTF8,
+			if (!screenAppendGrayGlyph(wb, TEXT_OVERFLOW_LEFT_UTF8,
 			                           sizeof(TEXT_OVERFLOW_LEFT_UTF8) - 1)) {
 				return 0;
 			}
@@ -909,7 +911,7 @@ int editorDrawFileRow(struct writeBuf *wb, size_t i, int text_cols) {
 			return 0;
 		}
 
-		if (!editorDrawRenderSlice(wb, row, (int)i, E.coloff, body_cols)) {
+		if (!screenDrawRenderSlice(wb, row, (int)i, E.coloff, body_cols)) {
 			return 0;
 		}
 
@@ -920,7 +922,7 @@ int editorDrawFileRow(struct writeBuf *wb, size_t i, int text_cols) {
 		}
 
 		if (has_right_overflow) {
-			if (!editorAppendGrayGlyph(wb, TEXT_OVERFLOW_RIGHT_UTF8,
+			if (!screenAppendGrayGlyph(wb, TEXT_OVERFLOW_RIGHT_UTF8,
 			                           sizeof(TEXT_OVERFLOW_RIGHT_UTF8) - 1)) {
 				return 0;
 			}
@@ -930,10 +932,10 @@ int editorDrawFileRow(struct writeBuf *wb, size_t i, int text_cols) {
 		return 1;
 	}
 
-	return editorDrawRenderSlice(wb, row, (int)i, E.coloff, text_cols);
+	return screenDrawRenderSlice(wb, row, (int)i, E.coloff, text_cols);
 }
 
-static int editorDrawRows(struct writeBuf *wb) {
+static int screenDrawRows(struct writeBuf *wb) {
 	editorDrawerClampViewport(E.window_rows);
 	(void)editorSyntaxPrepareVisibleRowSpans(E.rowoff, E.window_rows);
 
@@ -980,20 +982,21 @@ static int editorDrawRows(struct writeBuf *wb) {
 		editorBorderListFree(&borders);
 		editorLeafLayoutFree(&layout);
 		if (ok) {
-			editorFileRowFrameCacheClearRowsFrom(0);
-			g_file_row_frame_cache.valid = 0;
-			g_editor_output_last_refresh_file_row_draw_count = E.window_rows;
+			screenFileRowFrameCacheClearRowsFrom(0);
+			g_screen_file_row_frame_cache.valid = 0;
+			g_screen_last_refresh_file_row_draw_count = E.window_rows;
 		}
 		return ok;
 	}
 	int file_row_draw_count = 0;
 	int force_full = 0;
-	if (!g_file_row_frame_cache.valid || g_file_row_frame_cache.window_rows != E.window_rows ||
-	    g_file_row_frame_cache.window_cols != E.window_cols) {
+	if (!g_screen_file_row_frame_cache.valid ||
+	    g_screen_file_row_frame_cache.window_rows != E.window_rows ||
+	    g_screen_file_row_frame_cache.window_cols != E.window_cols) {
 		force_full = 1;
 	}
 
-	if (!editorFileRowFrameCacheEnsureCapacity(E.window_rows)) {
+	if (!screenFileRowFrameCacheEnsureCapacity(E.window_rows)) {
 		return 0;
 	}
 
@@ -1002,19 +1005,19 @@ static int editorDrawRows(struct writeBuf *wb) {
 	 * in the row cache. Drop those entries so the rows beneath them get repainted now that
 	 * the popup may have moved or closed.
 	 */
-	if (g_popup_prev_row_count > 0) {
-		int top_idx = g_popup_prev_screen_top - 2;
-		int end_idx = top_idx + g_popup_prev_row_count;
+	if (g_screen_popup_prev_row_count > 0) {
+		int top_idx = g_screen_popup_prev_screen_top - 2;
+		int end_idx = top_idx + g_screen_popup_prev_row_count;
 		if (top_idx < 0) {
 			top_idx = 0;
 		}
-		if (end_idx > g_file_row_frame_cache.row_capacity) {
-			end_idx = g_file_row_frame_cache.row_capacity;
+		if (end_idx > g_screen_file_row_frame_cache.row_capacity) {
+			end_idx = g_screen_file_row_frame_cache.row_capacity;
 		}
 		for (int i = top_idx; i < end_idx; i++) {
-			free(g_file_row_frame_cache.rows[i]);
-			g_file_row_frame_cache.rows[i] = NULL;
-			g_file_row_frame_cache.row_lens[i] = 0;
+			free(g_screen_file_row_frame_cache.rows[i]);
+			g_screen_file_row_frame_cache.rows[i] = NULL;
+			g_screen_file_row_frame_cache.row_lens[i] = 0;
 		}
 	}
 
@@ -1027,11 +1030,11 @@ static int editorDrawRows(struct writeBuf *wb) {
 		}
 
 		int changed = force_full;
-		if (!changed && y < g_file_row_frame_cache.row_count &&
-		    g_file_row_frame_cache.rows[y] != NULL &&
-		    g_file_row_frame_cache.row_lens[y] == row_buf.len &&
+		if (!changed && y < g_screen_file_row_frame_cache.row_count &&
+		    g_screen_file_row_frame_cache.rows[y] != NULL &&
+		    g_screen_file_row_frame_cache.row_lens[y] == row_buf.len &&
 		    (row_buf.len == 0 ||
-		     memcmp(g_file_row_frame_cache.rows[y], row_buf.b, row_buf.len) == 0)) {
+		     memcmp(g_screen_file_row_frame_cache.rows[y], row_buf.b, row_buf.len) == 0)) {
 			changed = 0;
 		} else {
 			changed = 1;
@@ -1043,7 +1046,7 @@ static int editorDrawRows(struct writeBuf *wb) {
 				wbFree(&row_buf);
 				return 0;
 			}
-			if (!editorFileRowFrameCacheStoreRow(y, row_buf.b, row_buf.len)) {
+			if (!screenFileRowFrameCacheStoreRow(y, row_buf.b, row_buf.len)) {
 				wbFree(&row_buf);
 				return 0;
 			}
@@ -1053,19 +1056,19 @@ static int editorDrawRows(struct writeBuf *wb) {
 		wbFree(&row_buf);
 	}
 
-	if (g_file_row_frame_cache.row_count > E.window_rows) {
-		editorFileRowFrameCacheClearRowsFrom(E.window_rows);
+	if (g_screen_file_row_frame_cache.row_count > E.window_rows) {
+		screenFileRowFrameCacheClearRowsFrom(E.window_rows);
 	}
-	g_file_row_frame_cache.row_count = E.window_rows;
-	g_file_row_frame_cache.window_rows = E.window_rows;
-	g_file_row_frame_cache.window_cols = E.window_cols;
-	g_file_row_frame_cache.valid = 1;
-	g_editor_output_last_refresh_file_row_draw_count = file_row_draw_count;
+	g_screen_file_row_frame_cache.row_count = E.window_rows;
+	g_screen_file_row_frame_cache.window_rows = E.window_rows;
+	g_screen_file_row_frame_cache.window_cols = E.window_cols;
+	g_screen_file_row_frame_cache.valid = 1;
+	g_screen_last_refresh_file_row_draw_count = file_row_draw_count;
 
 	return 1;
 }
 
-static int editorScrollProgressPercent(void) {
+static int screenScrollProgressPercent(void) {
 	int visible_rows = E.window_rows > 0 ? E.window_rows : 1;
 	long long top = 0;
 	long long total = 0;
@@ -1117,7 +1120,7 @@ static int editorScrollProgressPercent(void) {
 	return progress;
 }
 
-static const char *editorCursorStyleSequence(enum editorCursorStyle style, int blink_enabled,
+static const char *screenCursorStyleSequence(enum editorCursorStyle style, int blink_enabled,
                                              size_t *len_out) {
 	const char *sequence =
 	        blink_enabled ? VT100_CURSOR_BLINKING_BAR_5 : VT100_CURSOR_STEADY_BAR_5;
@@ -1142,7 +1145,7 @@ static const char *editorCursorStyleSequence(enum editorCursorStyle style, int b
 	return sequence;
 }
 
-static enum editorCursorStyle editorCursorStyleFromVtermShape(int vterm_shape) {
+static enum editorCursorStyle screenCursorStyleFromVtermShape(int vterm_shape) {
 	switch (vterm_shape) {
 		case VTERM_PROP_CURSORSHAPE_UNDERLINE:
 			return EDITOR_CURSOR_STYLE_UNDERLINE;
@@ -1154,7 +1157,7 @@ static enum editorCursorStyle editorCursorStyleFromVtermShape(int vterm_shape) {
 	}
 }
 
-static struct editorTerminalPane *editorFocusedTerminalPane(void) {
+static struct editorTerminalPane *screenFocusedTerminalPane(void) {
 	if (E.focused_leaf == NULL || E.focused_leaf->is_split ||
 	    E.focused_leaf->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
 	    E.focused_leaf->as.leaf.kind_state == NULL) {
@@ -1163,7 +1166,7 @@ static struct editorTerminalPane *editorFocusedTerminalPane(void) {
 	return (struct editorTerminalPane *)E.focused_leaf->as.leaf.kind_state;
 }
 
-static const struct editorLspDiagnostic *editorDiagnosticAtCursor(void) {
+static const struct editorLspDiagnostic *screenDiagnosticAtCursor(void) {
 	if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT || E.cy < 0 || E.cy >= E.numrows ||
 	    E.lsp_diagnostics == NULL || E.lsp_diagnostic_count <= 0) {
 		return NULL;
@@ -1172,7 +1175,7 @@ static const struct editorLspDiagnostic *editorDiagnosticAtCursor(void) {
 	for (int i = 0; i < E.lsp_diagnostic_count; i++) {
 		int start = 0;
 		int end = 0;
-		if (!editorDiagnosticRangeForRow(&E.lsp_diagnostics[i], E.cy, row_size, &start,
+		if (!screenDiagnosticRangeForRow(&E.lsp_diagnostics[i], E.cy, row_size, &start,
 		                                 &end)) {
 			continue;
 		}
@@ -1183,7 +1186,7 @@ static const struct editorLspDiagnostic *editorDiagnosticAtCursor(void) {
 	return NULL;
 }
 
-static int editorCursorScreenPosition(int *screen_row_out, int *screen_col_out) {
+static int screenCursorScreenPosition(int *screen_row_out, int *screen_col_out) {
 	if (screen_row_out == NULL || screen_col_out == NULL || E.cy < 0 || E.cy >= E.numrows) {
 		return 0;
 	}
@@ -1224,32 +1227,32 @@ static int editorCursorScreenPosition(int *screen_row_out, int *screen_col_out) 
 	return 1;
 }
 
-static int editorDrawDiagnosticPopdown(struct writeBuf *wb) {
+static int screenDrawDiagnosticPopdown(struct writeBuf *wb) {
 	if (editorPopupIsVisible()) {
 		return 1;
 	}
-	const struct editorLspDiagnostic *diagnostic = editorDiagnosticAtCursor();
+	const struct editorLspDiagnostic *diagnostic = screenDiagnosticAtCursor();
 	const char *message =
 	        diagnostic != NULL && diagnostic->message != NULL ? diagnostic->message : NULL;
 
 	int screen_row = 0;
 	int screen_col = 0;
-	if (!editorCursorScreenPosition(&screen_row, &screen_col)) {
+	if (!screenCursorScreenPosition(&screen_row, &screen_col)) {
 		return 1;
 	}
 
 	if (!editorDrawDiagnosticPopdownMessage(wb, message, screen_row, screen_col,
-	                                        &g_popup_prev_screen_top,
-	                                        &g_popup_prev_row_count)) {
+	                                        &g_screen_popup_prev_screen_top,
+	                                        &g_screen_popup_prev_row_count)) {
 		return 0;
 	}
 	return 1;
 }
 
-static int editorDrawPopupOverlay(struct writeBuf *wb) {
+static int screenDrawPopupOverlay(struct writeBuf *wb) {
 	if (!editorPopupIsVisible()) {
-		g_popup_prev_screen_top = 0;
-		g_popup_prev_row_count = 0;
+		g_screen_popup_prev_screen_top = 0;
+		g_screen_popup_prev_row_count = 0;
 		return 1;
 	}
 	int terminal_row = 0;
@@ -1260,12 +1263,12 @@ static int editorDrawPopupOverlay(struct writeBuf *wb) {
 	editorPopupComputePlacement(&terminal_row, &terminal_col, &visible_rows, &cols,
 	                            &place_above);
 	if (visible_rows <= 0 || cols <= 0) {
-		g_popup_prev_screen_top = 0;
-		g_popup_prev_row_count = 0;
+		g_screen_popup_prev_screen_top = 0;
+		g_screen_popup_prev_row_count = 0;
 		return 1;
 	}
-	g_popup_prev_screen_top = terminal_row;
-	g_popup_prev_row_count = visible_rows;
+	g_screen_popup_prev_screen_top = terminal_row;
+	g_screen_popup_prev_row_count = visible_rows;
 
 	int item_count = editorPopupItemCount();
 	int row_offset = E.popup.row_offset;
@@ -1319,19 +1322,19 @@ static int editorDrawPopupOverlay(struct writeBuf *wb) {
 }
 
 void editorRefreshScreen(void) {
-	g_editor_output_last_refresh_file_row_draw_count = 0;
+	g_screen_last_refresh_file_row_draw_count = 0;
 
 	struct writeBuf wb = WRITEBUF_INIT;
-	struct editorTerminalPane *focused_terminal = editorFocusedTerminalPane();
+	struct editorTerminalPane *focused_terminal = screenFocusedTerminalPane();
 	enum editorCursorStyle frame_cursor_style = E.cursor_style;
 	int frame_cursor_blink = E.cursor_blink_enabled;
 	if (focused_terminal != NULL) {
 		frame_cursor_style =
-		        editorCursorStyleFromVtermShape(focused_terminal->cursor_shape);
+		        screenCursorStyleFromVtermShape(focused_terminal->cursor_shape);
 		frame_cursor_blink = focused_terminal->cursor_blink != 0;
 	}
 	size_t cursor_style_len = 0;
-	const char *cursor_style_sequence = editorCursorStyleSequence(
+	const char *cursor_style_sequence = screenCursorStyleSequence(
 	        frame_cursor_style, frame_cursor_blink, &cursor_style_len);
 
 	// Build a full frame in memory and write once to reduce terminal flicker.
@@ -1345,8 +1348,8 @@ void editorRefreshScreen(void) {
 
 	int status_row = E.window_rows + 2;
 	int message_row = E.window_rows + 3;
-	int scroll_progress_percent = editorScrollProgressPercent();
-	if (!editorDrawTabBar(&wb) || !editorDrawRows(&wb) ||
+	int scroll_progress_percent = screenScrollProgressPercent();
+	if (!editorDrawTabBar(&wb) || !screenDrawRows(&wb) ||
 	    !editorAppendCursorMove(&wb, status_row, 1) ||
 	    !editorDrawStatusBar(&wb, scroll_progress_percent) ||
 	    !editorAppendCursorMove(&wb, message_row, 1) || !editorDrawMessageBar(&wb)) {
@@ -1354,19 +1357,19 @@ void editorRefreshScreen(void) {
 		editorSetStatusMsg("Out of memory");
 		return;
 	}
-	if (!editorDrawPopupOverlay(&wb)) {
+	if (!screenDrawPopupOverlay(&wb)) {
 		wbFree(&wb);
 		editorSetStatusMsg("Out of memory");
 		return;
 	}
-	if (!editorDrawDiagnosticPopdown(&wb)) {
+	if (!screenDrawDiagnosticPopdown(&wb)) {
 		wbFree(&wb);
 		editorSetStatusMsg("Out of memory");
 		return;
 	}
 
-	/* editorDrawRows may close terminal leaves and shift focus. */
-	focused_terminal = editorFocusedTerminalPane();
+	/* screenDrawRows may close terminal leaves and shift focus. */
+	focused_terminal = screenFocusedTerminalPane();
 
 	struct editorRect cursor_focused_rect = {0};
 	int has_focus_rect = editorLayoutFocusedLeafRect(&cursor_focused_rect);
@@ -1550,10 +1553,10 @@ void editorRefreshScreen(void) {
 }
 
 void editorOutputTestResetFrameCache(void) {
-	editorFileRowFrameCacheReset();
-	g_editor_output_last_refresh_file_row_draw_count = 0;
+	screenFileRowFrameCacheReset();
+	g_screen_last_refresh_file_row_draw_count = 0;
 }
 
 int editorOutputTestLastRefreshFileRowDrawCount(void) {
-	return g_editor_output_last_refresh_file_row_draw_count;
+	return g_screen_last_refresh_file_row_draw_count;
 }
