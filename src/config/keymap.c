@@ -1,13 +1,13 @@
-#include "config/keymap.h"
 #include "config/common.h"
+#include "config/keymap.h"
 
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <strings.h>
 #include <string.h>
+#include <strings.h>
 
 struct editorActionName {
 	const char *name;

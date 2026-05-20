@@ -6,9 +6,9 @@
  * theme tables live in theme_builtin.c — this module reads them via
  * editorThemeInitBuiltin and overlays user customizations on top.
  */
+#include "config/common.h"
 #include "config/theme_config.h"
 #include "config/theme_internal.h"
-#include "config/common.h"
 
 #include <ctype.h>
 #include <errno.h>

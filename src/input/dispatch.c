@@ -1,21 +1,23 @@
-#include "input/dispatch.h"
-
 #include "config/common.h"
 #include "config/dap_config.h"
 #include "config/keymap.h"
+#include "debug/dap.h"
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
 #include "editing/history.h"
 #include "editing/selection.h"
-#include "debug/dap.h"
+#include "input/dispatch.h"
+#include "language/autocomplete.h"
 #include "language/lsp.h"
 #include "language/syntax_worker.h"
 #include "render/popup.h"
-#include "language/autocomplete.h"
 #include "render/screen.h"
 #include "support/alloc.h"
 #include "support/terminal.h"
 #include "terminal/terminal_pane.h"
+#include "text/document.h"
+#include "text/row.h"
+#include "text/utf8.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
@@ -29,12 +31,8 @@
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <strings.h>
 #include <string.h>
-
-#include "text/document.h"
-#include "text/row.h"
-#include "text/utf8.h"
+#include <strings.h>
 
 /*** Input ***/
 
@@ -51,21 +49,9 @@ enum editorKeypressEffect {
 	EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT = 1 << 1
 };
 
-static int editorProcessMappedAction(enum editorAction action, int *effects_out);
-static void editorPinActivePreviewForEdit(void);
-static int editorSetCursorFromOffset(size_t offset);
-static int editorSetCursorFromPosition(int cy, int cx);
-static void editorClearSelectionMode(void);
-static void editorCtrlClickGoToDefinitionAction(void);
 static void editorGoToDefinition(void);
-static void editorGoToImplementation(void);
-static void editorGoToSymbol(void);
 static void editorMoveCursor(int k);
 static void editorMoveCurrentLine(int direction);
-static void editorDeleteCharAction(void);
-static void editorBackspaceAction(void);
-static void editorMoveLineUpAction(void);
-static void editorMoveLineDownAction(void);
 
 static int editorIsWordByte(unsigned char b) {
 	return isalnum(b) || b == '_' || b >= 0x80;

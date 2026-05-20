@@ -1,13 +1,12 @@
+#include "editing/buffer_core.h"
+#include "editing/edit.h"
+#include "language/autocomplete.h"
 #include "language/lsp.h"
 #include "language/lsp_mock.h"
 #include "language/lsp_protocol.h"
 #include "language/lsp_registry.h"
 #include "language/lsp_responses.h"
 #include "language/lsp_transport.h"
-#include "language/autocomplete.h"
-
-#include "editing/buffer_core.h"
-#include "editing/edit.h"
 #include "support/file_io.h"
 #include "workspace/tabs.h"
 
@@ -779,4 +778,3 @@ void editorLspEnsureActiveDocumentTracked(void) {
 	}
 	free(text);
 }
-

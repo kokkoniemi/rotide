@@ -210,7 +210,7 @@ static int editorSyntaxScopeAddDefinition(struct editorSyntaxScopeInfo *scope,
 	}
 	memcpy(dup, name, name_len);
 	dup[name_len] = '\0';
-	
+
 	scope->definitions[scope->def_count] = dup;
 	scope->def_count++;
 	return 1;
