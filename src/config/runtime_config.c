@@ -8,7 +8,7 @@
 #include "editing/edit.h"
 #include "language/lsp.h"
 
-struct editorConfiguredSettingsStatus {
+struct runtimeConfigStatus {
 	enum editorConfigBootstrapStatus bootstrap_status;
 	enum editorKeymapLoadStatus keymap_status;
 	enum editorCursorStyleLoadStatus cursor_style_status;
@@ -24,7 +24,7 @@ struct editorConfiguredSettingsStatus {
 	enum editorDapConfigLoadStatus dap_config_status;
 };
 
-static void editorConfigLoadConfiguredSettings(struct editorConfiguredSettingsStatus *status) {
+static void runtimeConfigLoadSettings(struct runtimeConfigStatus *status) {
 	status->keymap_status = editorKeymapLoadConfigured(&E.keymap);
 	status->cursor_style_status = editorCursorStyleLoadConfigured(&E.cursor_style);
 	status->cursor_blink_status = editorCursorBlinkLoadConfigured(&E.cursor_blink_enabled);
@@ -54,9 +54,8 @@ static void editorConfigLoadConfiguredSettings(struct editorConfiguredSettingsSt
 	status->dap_config_status = editorDapConfigLoadConfiguredGlobal();
 }
 
-static int
-editorConfigSetConfiguredSettingsStatus(const struct editorConfiguredSettingsStatus *status,
-                                        const char *success_status) {
+static int runtimeConfigSetStatus(const struct runtimeConfigStatus *status,
+                                  const char *success_status) {
 	if (status->keymap_status == EDITOR_KEYMAP_LOAD_INVALID_PROJECT) {
 		editorSetStatusMsg("Invalid keymap config, using defaults");
 		return 1;
@@ -252,11 +251,11 @@ editorConfigSetConfiguredSettingsStatus(const struct editorConfiguredSettingsSta
 
 void editorConfigApplyConfiguredSettings(enum editorConfigBootstrapStatus bootstrap_status,
                                          const char *success_status) {
-	struct editorConfiguredSettingsStatus status = {
+	struct runtimeConfigStatus status = {
 	        .bootstrap_status = bootstrap_status,
 	};
-	editorConfigLoadConfiguredSettings(&status);
-	(void)editorConfigSetConfiguredSettingsStatus(&status, success_status);
+	runtimeConfigLoadSettings(&status);
+	(void)runtimeConfigSetStatus(&status, success_status);
 }
 
 void editorConfigReloadConfiguredSettings(void) {
