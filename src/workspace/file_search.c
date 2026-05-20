@@ -16,13 +16,13 @@
 #include <strings.h>
 #include <sys/stat.h>
 
-static const char *editorFileSearchRoot(void) {
+static const char *fileSearchRoot(void) {
 	const char *root = editorDrawerRootPath();
 	return root != NULL && root[0] != '\0' ? root : ".";
 }
 
-static const char *editorFileSearchDisplayPath(const char *path) {
-	const char *root = editorFileSearchRoot();
+static const char *fileSearchDisplayPath(const char *path) {
+	const char *root = fileSearchRoot();
 	size_t root_len = strlen(root);
 	if (path != NULL && root_len > 0 && strncmp(path, root, root_len) == 0 &&
 	    path[root_len] == '/') {
@@ -31,7 +31,7 @@ static const char *editorFileSearchDisplayPath(const char *path) {
 	return path != NULL ? path : "";
 }
 
-static void editorFileSearchFreePathList(void) {
+static void fileSearchFreePathList(void) {
 	for (int i = 0; i < E.drawer_search_path_count; i++) {
 		free(E.drawer_search_paths[i]);
 	}
@@ -47,7 +47,7 @@ static void editorFileSearchFreePathList(void) {
 }
 
 void editorFileSearchFree(void) {
-	editorFileSearchFreePathList();
+	fileSearchFreePathList();
 	free(E.drawer_search_query);
 	E.drawer_search_query = NULL;
 	E.drawer_search_query_len = 0;
@@ -71,7 +71,7 @@ const char *editorFileSearchHeaderLabel(void) {
 	return "File name: ";
 }
 
-static int editorFileSearchEnsurePathCapacity(int needed) {
+static int fileSearchEnsurePathCapacity(int needed) {
 	if (needed <= E.drawer_search_path_capacity) {
 		return 1;
 	}
@@ -99,8 +99,8 @@ static int editorFileSearchEnsurePathCapacity(int needed) {
 	return 1;
 }
 
-static int editorFileSearchAppendPath(const char *path) {
-	if (!editorFileSearchEnsurePathCapacity(E.drawer_search_path_count + 1)) {
+static int fileSearchAppendPath(const char *path) {
+	if (!fileSearchEnsurePathCapacity(E.drawer_search_path_count + 1)) {
 		return 0;
 	}
 	char *copy = strdup(path);
@@ -112,11 +112,11 @@ static int editorFileSearchAppendPath(const char *path) {
 	return 1;
 }
 
-static int editorFileSearchShouldSkipDir(const char *name) {
+static int fileSearchShouldSkipDir(const char *name) {
 	return strcmp(name, ".git") == 0 || strcmp(name, "node_modules") == 0;
 }
 
-static int editorFileSearchEnumerateDir(const char *dir_path) {
+static int fileSearchEnumerateDir(const char *dir_path) {
 	DIR *dir = opendir(dir_path);
 	if (dir == NULL) {
 		return 1;
@@ -142,14 +142,14 @@ static int editorFileSearchEnumerateDir(const char *dir_path) {
 		}
 
 		if (S_ISDIR(st.st_mode) && !S_ISLNK(st.st_mode)) {
-			if (!editorFileSearchShouldSkipDir(entry->d_name) &&
-			    !editorFileSearchEnumerateDir(child_path)) {
+			if (!fileSearchShouldSkipDir(entry->d_name) &&
+			    !fileSearchEnumerateDir(child_path)) {
 				ok = 0;
 				free(child_path);
 				break;
 			}
 		} else if (S_ISREG(st.st_mode)) {
-			if (!editorFileSearchAppendPath(child_path)) {
+			if (!fileSearchAppendPath(child_path)) {
 				ok = 0;
 				free(child_path);
 				break;
@@ -162,9 +162,9 @@ static int editorFileSearchEnumerateDir(const char *dir_path) {
 	return ok;
 }
 
-static int editorFileSearchPathCmp(const void *a, const void *b) {
-	const char *left = editorFileSearchDisplayPath(*(char *const *)a);
-	const char *right = editorFileSearchDisplayPath(*(char *const *)b);
+static int fileSearchPathCmp(const void *a, const void *b) {
+	const char *left = fileSearchDisplayPath(*(char *const *)a);
+	const char *right = fileSearchDisplayPath(*(char *const *)b);
 	int ci_cmp = strcasecmp(left, right);
 	if (ci_cmp != 0) {
 		return ci_cmp;
@@ -172,7 +172,7 @@ static int editorFileSearchPathCmp(const void *a, const void *b) {
 	return strcmp(left, right);
 }
 
-static int editorFileSearchRecentRankForSort(const char *path) {
+static int fileSearchRecentRankForSort(const char *path) {
 	const char *active_path = editorTabFilenameAt(E.drawer_search_active_tab_before);
 	if (active_path != NULL && editorPathsReferToSameFile(path, active_path)) {
 		return -1;
@@ -180,11 +180,11 @@ static int editorFileSearchRecentRankForSort(const char *path) {
 	return editorWorkspaceStateRecentFileRank(path);
 }
 
-static int editorFileSearchFilteredIndexCmp(const void *a, const void *b) {
+static int fileSearchFilteredIndexCmp(const void *a, const void *b) {
 	int left_idx = *(const int *)a;
 	int right_idx = *(const int *)b;
-	int left_recent = editorFileSearchRecentRankForSort(E.drawer_search_paths[left_idx]);
-	int right_recent = editorFileSearchRecentRankForSort(E.drawer_search_paths[right_idx]);
+	int left_recent = fileSearchRecentRankForSort(E.drawer_search_paths[left_idx]);
+	int right_recent = fileSearchRecentRankForSort(E.drawer_search_paths[right_idx]);
 	if (left_recent >= 0 || right_recent >= 0) {
 		if (left_recent < 0) {
 			return 1;
@@ -196,8 +196,8 @@ static int editorFileSearchFilteredIndexCmp(const void *a, const void *b) {
 			return left_recent < right_recent ? -1 : 1;
 		}
 	}
-	const char *left = editorFileSearchDisplayPath(E.drawer_search_paths[left_idx]);
-	const char *right = editorFileSearchDisplayPath(E.drawer_search_paths[right_idx]);
+	const char *left = fileSearchDisplayPath(E.drawer_search_paths[left_idx]);
+	const char *right = fileSearchDisplayPath(E.drawer_search_paths[right_idx]);
 	size_t left_len = strlen(left);
 	size_t right_len = strlen(right);
 	if (left_len != right_len) {
@@ -210,7 +210,7 @@ static int editorFileSearchFilteredIndexCmp(const void *a, const void *b) {
 	return strcmp(left, right);
 }
 
-static int editorFileSearchEnsureFilteredCapacity(int needed) {
+static int fileSearchEnsureFilteredCapacity(int needed) {
 	if (needed <= E.drawer_search_filtered_capacity) {
 		return 1;
 	}
@@ -238,7 +238,7 @@ static int editorFileSearchEnsureFilteredCapacity(int needed) {
 	return 1;
 }
 
-static int editorAsciiCaseContains(const char *haystack, const char *needle) {
+static int fileSearchAsciiCaseContains(const char *haystack, const char *needle) {
 	if (needle == NULL || needle[0] == '\0') {
 		return 1;
 	}
@@ -261,14 +261,14 @@ static int editorAsciiCaseContains(const char *haystack, const char *needle) {
 	return 0;
 }
 
-static int editorFileSearchRefreshFilter(void) {
+static int fileSearchRefreshFilter(void) {
 	E.drawer_search_filtered_count = 0;
 	for (int i = 0; i < E.drawer_search_path_count; i++) {
-		const char *display_path = editorFileSearchDisplayPath(E.drawer_search_paths[i]);
-		if (!editorAsciiCaseContains(display_path, editorFileSearchQuery())) {
+		const char *display_path = fileSearchDisplayPath(E.drawer_search_paths[i]);
+		if (!fileSearchAsciiCaseContains(display_path, editorFileSearchQuery())) {
 			continue;
 		}
-		if (!editorFileSearchEnsureFilteredCapacity(E.drawer_search_filtered_count + 1)) {
+		if (!fileSearchEnsureFilteredCapacity(E.drawer_search_filtered_count + 1)) {
 			return 0;
 		}
 		E.drawer_search_filtered_indices[E.drawer_search_filtered_count] = i;
@@ -277,7 +277,7 @@ static int editorFileSearchRefreshFilter(void) {
 
 	if (E.drawer_search_filtered_count > 1) {
 		qsort(E.drawer_search_filtered_indices, (size_t)E.drawer_search_filtered_count,
-		      sizeof(*E.drawer_search_filtered_indices), editorFileSearchFilteredIndexCmp);
+		      sizeof(*E.drawer_search_filtered_indices), fileSearchFilteredIndexCmp);
 	}
 	if (E.drawer_selected_index < 1 ||
 	    E.drawer_selected_index >= editorFileSearchVisibleCount()) {
@@ -287,7 +287,7 @@ static int editorFileSearchRefreshFilter(void) {
 	return 1;
 }
 
-static const char *editorFileSearchSelectedPath(void) {
+static const char *fileSearchSelectedPath(void) {
 	int result_idx = E.drawer_selected_index - 1;
 	if (result_idx < 0 || result_idx >= E.drawer_search_filtered_count) {
 		return NULL;
@@ -311,16 +311,16 @@ int editorFileSearchEnter(void) {
 	}
 	E.drawer_search_query_len = 0;
 
-	if (!editorFileSearchEnumerateDir(editorFileSearchRoot())) {
+	if (!fileSearchEnumerateDir(fileSearchRoot())) {
 		editorFileSearchExit(0);
 		editorSetAllocFailureStatus();
 		return 0;
 	}
 	if (E.drawer_search_path_count > 1) {
 		qsort(E.drawer_search_paths, (size_t)E.drawer_search_path_count,
-		      sizeof(*E.drawer_search_paths), editorFileSearchPathCmp);
+		      sizeof(*E.drawer_search_paths), fileSearchPathCmp);
 	}
-	if (!editorFileSearchRefreshFilter()) {
+	if (!fileSearchRefreshFilter()) {
 		editorFileSearchExit(0);
 		editorSetAllocFailureStatus();
 		return 0;
@@ -360,7 +360,7 @@ int editorFileSearchAppendByte(int c) {
 	E.drawer_search_query[E.drawer_search_query_len] = (char)byte;
 	E.drawer_search_query_len = new_len;
 	E.drawer_search_query[E.drawer_search_query_len] = '\0';
-	if (!editorFileSearchRefreshFilter()) {
+	if (!fileSearchRefreshFilter()) {
 		editorSetAllocFailureStatus();
 		return 0;
 	}
@@ -379,7 +379,7 @@ int editorFileSearchBackspace(void) {
 	}
 	E.drawer_search_query[delete_idx] = '\0';
 	E.drawer_search_query_len = delete_idx;
-	if (!editorFileSearchRefreshFilter()) {
+	if (!fileSearchRefreshFilter()) {
 		editorSetAllocFailureStatus();
 		return 0;
 	}
@@ -413,7 +413,7 @@ int editorFileSearchGetVisibleEntry(int visible_idx, struct editorDrawerEntryVie
 
 	int path_idx = E.drawer_search_filtered_indices[visible_idx - 1];
 	const char *path = E.drawer_search_paths[path_idx];
-	view_out->name = editorFileSearchDisplayPath(path);
+	view_out->name = fileSearchDisplayPath(path);
 	view_out->path = path;
 	view_out->is_selected = visible_idx == E.drawer_selected_index;
 	view_out->is_last_sibling = visible_idx == E.drawer_search_filtered_count;
@@ -485,7 +485,7 @@ int editorFileSearchSelectedIsDirectory(void) {
 	return 0;
 }
 
-static int editorFileSearchQueryDisplayCols(void) {
+static int fileSearchQueryDisplayCols(void) {
 	const char *query = editorFileSearchQuery();
 	int query_len = (int)strlen(query);
 	int cols = 0;
@@ -505,7 +505,7 @@ static int editorFileSearchQueryDisplayCols(void) {
 }
 
 int editorFileSearchOpenSelectedFileInTab(void) {
-	const char *path = editorFileSearchSelectedPath();
+	const char *path = fileSearchSelectedPath();
 	if (path == NULL || path[0] == '\0') {
 		return 0;
 	}
@@ -525,7 +525,7 @@ int editorFileSearchOpenSelectedFileInTab(void) {
 }
 
 int editorFileSearchOpenSelectedFileInPreviewTab(void) {
-	const char *path = editorFileSearchSelectedPath();
+	const char *path = fileSearchSelectedPath();
 	if (path == NULL || path[0] == '\0') {
 		return 0;
 	}
@@ -533,7 +533,7 @@ int editorFileSearchOpenSelectedFileInPreviewTab(void) {
 }
 
 int editorFileSearchPreviewSelection(void) {
-	const char *path = editorFileSearchSelectedPath();
+	const char *path = fileSearchSelectedPath();
 	if (path == NULL || path[0] == '\0') {
 		return 0;
 	}
@@ -555,8 +555,7 @@ int editorFileSearchPreviewSelection(void) {
 }
 
 int editorFileSearchHeaderCursorCol(int drawer_cols) {
-	int col =
-	        (int)strlen(editorFileSearchHeaderLabel()) + editorFileSearchQueryDisplayCols() + 1;
+	int col = (int)strlen(editorFileSearchHeaderLabel()) + fileSearchQueryDisplayCols() + 1;
 	if (col < 1) {
 		col = 1;
 	}
