@@ -10,7 +10,7 @@
 #include <string.h>
 #include <unistd.h>
 
-static int editorTerminalPaneClampDim(int v) {
+static int terminalPaneClampDim(int v) {
 	if (v < 1) {
 		return 1;
 	}
@@ -20,7 +20,7 @@ static int editorTerminalPaneClampDim(int v) {
 	return v;
 }
 
-static void editorTerminalOutputCallback(const char *s, size_t len, void *user) {
+static void terminalPaneOutputCallback(const char *s, size_t len, void *user) {
 	struct editorTerminalPane *t = (struct editorTerminalPane *)user;
 	if (t == NULL || t->child.master_fd < 0 || s == NULL || len == 0) {
 		return;
@@ -29,7 +29,7 @@ static void editorTerminalOutputCallback(const char *s, size_t len, void *user) 
 	(void)written;
 }
 
-static int editorTerminalSetTermProp(VTermProp prop, VTermValue *val, void *user) {
+static int terminalPaneSetTermProp(VTermProp prop, VTermValue *val, void *user) {
 	struct editorTerminalPane *t = (struct editorTerminalPane *)user;
 	if (t == NULL || val == NULL) {
 		return 0;
@@ -53,8 +53,8 @@ static int editorTerminalSetTermProp(VTermProp prop, VTermValue *val, void *user
 	return 0;
 }
 
-static const VTermScreenCallbacks editor_terminal_screen_callbacks = {
-        .settermprop = editorTerminalSetTermProp,
+static const VTermScreenCallbacks g_terminal_pane_screen_callbacks = {
+        .settermprop = terminalPaneSetTermProp,
 };
 
 struct editorTerminalPane *editorTerminalPaneCreate(const char *command, int cols, int rows) {
@@ -62,8 +62,8 @@ struct editorTerminalPane *editorTerminalPaneCreate(const char *command, int col
 		errno = EINVAL;
 		return NULL;
 	}
-	cols = editorTerminalPaneClampDim(cols);
-	rows = editorTerminalPaneClampDim(rows);
+	cols = terminalPaneClampDim(cols);
+	rows = terminalPaneClampDim(rows);
 
 	struct editorTerminalPane *t = malloc(sizeof(*t));
 	if (t == NULL) {
@@ -83,14 +83,14 @@ struct editorTerminalPane *editorTerminalPaneCreate(const char *command, int col
 		return NULL;
 	}
 	vterm_set_utf8(t->vt, 1);
-	vterm_output_set_callback(t->vt, editorTerminalOutputCallback, t);
+	vterm_output_set_callback(t->vt, terminalPaneOutputCallback, t);
 	t->screen = vterm_obtain_screen(t->vt);
 	if (t->screen == NULL) {
 		vterm_free(t->vt);
 		free(t);
 		return NULL;
 	}
-	vterm_screen_set_callbacks(t->screen, &editor_terminal_screen_callbacks, t);
+	vterm_screen_set_callbacks(t->screen, &g_terminal_pane_screen_callbacks, t);
 	vterm_screen_reset(t->screen, 1);
 
 	if (!editorPtySpawn(command, cols, rows, &t->child)) {
@@ -163,8 +163,8 @@ int editorTerminalPaneResize(struct editorTerminalPane *terminal, int cols, int 
 	if (terminal == NULL || terminal->vt == NULL) {
 		return 0;
 	}
-	cols = editorTerminalPaneClampDim(cols);
-	rows = editorTerminalPaneClampDim(rows);
+	cols = terminalPaneClampDim(cols);
+	rows = terminalPaneClampDim(rows);
 	vterm_set_size(terminal->vt, rows, cols);
 	terminal->cols = cols;
 	terminal->rows = rows;
@@ -185,7 +185,7 @@ int editorTerminalPaneWrite(struct editorTerminalPane *terminal, const char *byt
 	return (int)n;
 }
 
-static VTermModifier editorTerminalRotideModifiersToVterm(int rotide_modifiers) {
+static VTermModifier terminalPaneModifiersToVterm(int rotide_modifiers) {
 	VTermModifier mod = VTERM_MOD_NONE;
 	if (rotide_modifiers & EDITOR_MOUSE_MOD_SHIFT) {
 		mod = (VTermModifier)(mod | VTERM_MOD_SHIFT);
@@ -204,7 +204,7 @@ int editorTerminalPaneSendMouseButton(struct editorTerminalPane *terminal, int b
 	if (terminal == NULL || terminal->vt == NULL || terminal->mouse_tracking <= 0) {
 		return 0;
 	}
-	VTermModifier mod = editorTerminalRotideModifiersToVterm(rotide_modifiers);
+	VTermModifier mod = terminalPaneModifiersToVterm(rotide_modifiers);
 	vterm_mouse_move(terminal->vt, row, col, mod);
 	vterm_mouse_button(terminal->vt, button, pressed != 0, mod);
 	return 1;
@@ -215,7 +215,7 @@ int editorTerminalPaneSendMouseMove(struct editorTerminalPane *terminal, int row
 	if (terminal == NULL || terminal->vt == NULL || terminal->mouse_tracking <= 0) {
 		return 0;
 	}
-	VTermModifier mod = editorTerminalRotideModifiersToVterm(rotide_modifiers);
+	VTermModifier mod = terminalPaneModifiersToVterm(rotide_modifiers);
 	vterm_mouse_move(terminal->vt, row, col, mod);
 	return 1;
 }
@@ -336,8 +336,8 @@ int editorTerminalPanePumpAll(struct editorPaneNode *root) {
 	return 0;
 }
 
-static void editorTerminalPaneResizeRecursive(struct editorPaneNode *node, struct editorRect rect,
-                                              int border_size) {
+static void terminalPaneResizeRecursive(struct editorPaneNode *node, struct editorRect rect,
+                                        int border_size) {
 	if (node == NULL) {
 		return;
 	}
@@ -390,8 +390,8 @@ static void editorTerminalPaneResizeRecursive(struct editorPaneNode *node, struc
 		second_rect.y = rect.y + first_h + border_size;
 		second_rect.h = available - first_h;
 	}
-	editorTerminalPaneResizeRecursive(node->as.split.first, first_rect, border_size);
-	editorTerminalPaneResizeRecursive(node->as.split.second, second_rect, border_size);
+	terminalPaneResizeRecursive(node->as.split.first, first_rect, border_size);
+	terminalPaneResizeRecursive(node->as.split.second, second_rect, border_size);
 }
 
 void editorTerminalPaneResizeAllToLayout(struct editorPaneNode *root) {
@@ -402,7 +402,7 @@ void editorTerminalPaneResizeAllToLayout(struct editorPaneNode *root) {
 	if (!editorLayoutEditorViewport(&viewport)) {
 		return;
 	}
-	editorTerminalPaneResizeRecursive(root, viewport, ROTIDE_PANE_BORDER_SIZE);
+	terminalPaneResizeRecursive(root, viewport, ROTIDE_PANE_BORDER_SIZE);
 }
 
 int editorTerminalPaneTreeHasTerminal(const struct editorPaneNode *root) {
@@ -416,17 +416,17 @@ int editorTerminalPaneTreeHasTerminal(const struct editorPaneNode *root) {
 	return root->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL;
 }
 
-static struct editorPaneNode *editorTerminalPaneFindFirstExitedLeaf(struct editorPaneNode *root) {
+static struct editorPaneNode *terminalPaneFindFirstExitedLeaf(struct editorPaneNode *root) {
 	if (root == NULL) {
 		return NULL;
 	}
 	if (root->is_split) {
 		struct editorPaneNode *found =
-		        editorTerminalPaneFindFirstExitedLeaf(root->as.split.first);
+		        terminalPaneFindFirstExitedLeaf(root->as.split.first);
 		if (found != NULL) {
 			return found;
 		}
-		return editorTerminalPaneFindFirstExitedLeaf(root->as.split.second);
+		return terminalPaneFindFirstExitedLeaf(root->as.split.second);
 	}
 	if (root->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL || root->as.leaf.kind_state == NULL) {
 		return NULL;
@@ -443,8 +443,7 @@ int editorTerminalPaneCloseExited(struct editorPaneNode **root_ptr,
 	}
 	int closed = 0;
 	for (;;) {
-		struct editorPaneNode *exited_leaf =
-		        editorTerminalPaneFindFirstExitedLeaf(*root_ptr);
+		struct editorPaneNode *exited_leaf = terminalPaneFindFirstExitedLeaf(*root_ptr);
 		if (exited_leaf == NULL) {
 			break;
 		}

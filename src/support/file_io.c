@@ -10,11 +10,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-static int editorPathIsAbsolute(const char *path) {
+static int fileIoPathIsAbsolute(const char *path) {
 	return path != NULL && path[0] == '/';
 }
 
-static int editorPathExists(const char *path) {
+static int fileIoPathExists(const char *path) {
 	struct stat st;
 	return path != NULL && stat(path, &st) == 0;
 }
@@ -135,7 +135,7 @@ char *editorPathAbsoluteDup(const char *path) {
 		return NULL;
 	}
 
-	if (editorPathIsAbsolute(path)) {
+	if (fileIoPathIsAbsolute(path)) {
 		return strdup(path);
 	}
 
@@ -171,7 +171,7 @@ char *editorPathFindMarkerUpward(const char *start_dir, const char *const *marke
 				free(current);
 				return NULL;
 			}
-			if (editorPathExists(candidate)) {
+			if (fileIoPathExists(candidate)) {
 				free(candidate);
 				return current;
 			}
