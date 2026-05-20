@@ -13,18 +13,17 @@
 #include <time.h>
 
 static struct editorSyntaxQueryCacheEntry
-        g_query_caches[EDITOR_SYNTAX_LANGUAGE_COUNT][EDITOR_SYNTAX_QUERY_CACHE_KIND_COUNT] = {0};
+        g_queries_caches[EDITOR_SYNTAX_LANGUAGE_COUNT][EDITOR_SYNTAX_QUERY_CACHE_KIND_COUNT] = {0};
 
-static struct editorSyntaxQueryCacheEntry *
-editorSyntaxQueryCacheSlot(enum editorSyntaxLanguage language,
-                           enum editorSyntaxQueryCacheKind kind) {
+static struct editorSyntaxQueryCacheEntry *queriesCacheSlot(enum editorSyntaxLanguage language,
+                                                            enum editorSyntaxQueryCacheKind kind) {
 	if ((int)language <= 0 || (int)language >= EDITOR_SYNTAX_LANGUAGE_COUNT) {
 		return NULL;
 	}
 	if ((int)kind < 0 || (int)kind >= EDITOR_SYNTAX_QUERY_CACHE_KIND_COUNT) {
 		return NULL;
 	}
-	return &g_query_caches[(int)language][(int)kind];
+	return &g_queries_caches[(int)language][(int)kind];
 }
 
 static struct {
@@ -32,12 +31,12 @@ static struct {
 	uint32_t query_match_limit;
 	uint64_t query_time_budget_ns;
 	uint64_t parse_time_budget_ns;
-} g_editor_syntax_budget_overrides = {0};
+} g_queries_budget_overrides = {0};
 
-static struct editorSyntaxQueryCompileError g_last_query_compile_error = {0};
-static unsigned int g_last_query_compile_error_generation = 0;
-static unsigned int g_drained_query_compile_error_generation = 0;
-static uint64_t g_query_unavailable_reported[ROTIDE_SYNTAX_QUERY_KIND_COUNT] = {0};
+static struct editorSyntaxQueryCompileError g_queries_last_compile_error = {0};
+static unsigned int g_queries_last_compile_error_generation = 0;
+static unsigned int g_queries_drained_compile_error_generation = 0;
+static uint64_t g_queries_unavailable_reported[ROTIDE_SYNTAX_QUERY_KIND_COUNT] = {0};
 
 int editorSyntaxStringEquals(const char *s, size_t len, const char *literal) {
 	if (s == NULL || literal == NULL) {
@@ -54,7 +53,7 @@ int editorSyntaxLengthFitsTreeSitter(size_t len) {
 	return len <= UINT32_MAX;
 }
 
-static uint64_t editorSyntaxMonotonicNanos(void) {
+static uint64_t queriesMonotonicNanos(void) {
 	struct timespec ts;
 	if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
 		return 0;
@@ -66,7 +65,7 @@ uint64_t editorSyntaxComputeDeadlineNs(uint64_t budget_ns) {
 	if (budget_ns == 0) {
 		return 0;
 	}
-	uint64_t now = editorSyntaxMonotonicNanos();
+	uint64_t now = queriesMonotonicNanos();
 	if (now == 0 || budget_ns > UINT64_MAX - now) {
 		return 0;
 	}
@@ -81,7 +80,7 @@ bool editorSyntaxParseProgressCallback(TSParseState *state) {
 	if (deadline->deadline_ns == 0) {
 		return false;
 	}
-	uint64_t now = editorSyntaxMonotonicNanos();
+	uint64_t now = queriesMonotonicNanos();
 	if (now != 0 && now >= deadline->deadline_ns) {
 		deadline->exceeded = 1;
 		return true;
@@ -97,7 +96,7 @@ bool editorSyntaxQueryProgressCallback(TSQueryCursorState *state) {
 	if (deadline->deadline_ns == 0) {
 		return false;
 	}
-	uint64_t now = editorSyntaxMonotonicNanos();
+	uint64_t now = queriesMonotonicNanos();
 	if (now != 0 && now >= deadline->deadline_ns) {
 		deadline->exceeded = 1;
 		return true;
@@ -105,8 +104,8 @@ bool editorSyntaxQueryProgressCallback(TSQueryCursorState *state) {
 	return false;
 }
 
-static const char *editorTextSourceReadFromString(const struct editorTextSource *source,
-                                                  size_t byte_index, uint32_t *bytes_read) {
+static const char *queriesTextSourceReadFromString(const struct editorTextSource *source,
+                                                   size_t byte_index, uint32_t *bytes_read) {
 	if (bytes_read == NULL) {
 		return NULL;
 	}
@@ -127,7 +126,7 @@ void editorTextSourceInitString(struct editorTextSource *source, const char *tex
 	if (source == NULL) {
 		return;
 	}
-	source->read = editorTextSourceReadFromString;
+	source->read = queriesTextSourceReadFromString;
 	source->context = text;
 	source->length = len;
 }
@@ -228,10 +227,10 @@ editorSyntaxBudgetConfigForMode(enum editorSyntaxPerformanceMode mode) {
 		config.parse_budget_ns = ROTIDE_SYNTAX_PARSE_BUDGET_NS_DEGRADED_INJECTIONS;
 	}
 
-	if (g_editor_syntax_budget_overrides.enabled) {
-		config.query_match_limit = g_editor_syntax_budget_overrides.query_match_limit;
-		config.query_budget_ns = g_editor_syntax_budget_overrides.query_time_budget_ns;
-		config.parse_budget_ns = g_editor_syntax_budget_overrides.parse_time_budget_ns;
+	if (g_queries_budget_overrides.enabled) {
+		config.query_match_limit = g_queries_budget_overrides.query_match_limit;
+		config.query_budget_ns = g_queries_budget_overrides.query_time_budget_ns;
+		config.parse_budget_ns = g_queries_budget_overrides.parse_time_budget_ns;
 	}
 
 	return config;
@@ -242,7 +241,7 @@ struct editorSyntaxCaptureRule {
 	enum editorSyntaxHighlightClass highlight_class;
 };
 
-static const struct editorSyntaxCaptureRule g_capture_rules[] = {
+static const struct editorSyntaxCaptureRule g_queries_capture_rules[] = {
         {"keyword.conditional.ternary", EDITOR_SYNTAX_HL_KEYWORD},
         {"reference.implementation", EDITOR_SYNTAX_HL_TYPE},
         {"function.method.builtin", EDITOR_SYNTAX_HL_FUNCTION},
@@ -346,7 +345,7 @@ static const struct editorSyntaxCaptureRule g_capture_rules[] = {
         {"tag", EDITOR_SYNTAX_HL_TYPE},
         {"doc", EDITOR_SYNTAX_HL_COMMENT}};
 
-static int editorSyntaxCaptureNameHasPrefix(const char *name, size_t len, const char *prefix) {
+static int queriesCaptureNameHasPrefix(const char *name, size_t len, const char *prefix) {
 	size_t prefix_len = strlen(prefix);
 	if (name == NULL || prefix == NULL || len < prefix_len) {
 		return 0;
@@ -354,15 +353,15 @@ static int editorSyntaxCaptureNameHasPrefix(const char *name, size_t len, const 
 	return strncmp(name, prefix, prefix_len) == 0;
 }
 
-static enum editorSyntaxHighlightClass editorSyntaxClassFromCaptureName(const char *name,
-                                                                        size_t len) {
+static enum editorSyntaxHighlightClass queriesClassFromCaptureName(const char *name, size_t len) {
 	if (name == NULL || len == 0) {
 		return EDITOR_SYNTAX_HL_NONE;
 	}
 
-	for (size_t i = 0; i < sizeof(g_capture_rules) / sizeof(g_capture_rules[0]); i++) {
-		if (editorSyntaxCaptureNameHasPrefix(name, len, g_capture_rules[i].prefix)) {
-			return g_capture_rules[i].highlight_class;
+	for (size_t i = 0; i < sizeof(g_queries_capture_rules) / sizeof(g_queries_capture_rules[0]);
+	     i++) {
+		if (queriesCaptureNameHasPrefix(name, len, g_queries_capture_rules[i].prefix)) {
+			return g_queries_capture_rules[i].highlight_class;
 		}
 	}
 
@@ -377,7 +376,7 @@ const TSLanguage *editorSyntaxLanguageObject(enum editorSyntaxLanguage language)
 	return def->ts_factory();
 }
 
-static const char *editorSyntaxQueryErrorName(TSQueryError error_type) {
+static const char *queriesErrorName(TSQueryError error_type) {
 	switch (error_type) {
 		case TSQueryErrorNone:
 			return "none";
@@ -398,14 +397,11 @@ static const char *editorSyntaxQueryErrorName(TSQueryError error_type) {
 	}
 }
 
-enum editorSyntaxQueryCompileLog {
-	EDITOR_SYNTAX_QUERY_COMPILE_LOG_QUIET = 0,
-	EDITOR_SYNTAX_QUERY_COMPILE_LOG_ERROR = 1
-};
+enum queriesCompileLog { QUERIES_COMPILE_LOG_QUIET = 0, QUERIES_COMPILE_LOG_ERROR = 1 };
 
-static void
-editorSyntaxCopyQueryErrorContext(const char *query_source, size_t query_len, uint32_t error_offset,
-                                  char context[ROTIDE_SYNTAX_QUERY_ERROR_CONTEXT_MAX + 1]) {
+static void queriesCopyErrorContext(const char *query_source, size_t query_len,
+                                    uint32_t error_offset,
+                                    char context[ROTIDE_SYNTAX_QUERY_ERROR_CONTEXT_MAX + 1]) {
 	if (context == NULL) {
 		return;
 	}
@@ -435,25 +431,24 @@ editorSyntaxCopyQueryErrorContext(const char *query_source, size_t query_len, ui
 	context[len] = '\0';
 }
 
-static void editorSyntaxRecordQueryCompileError(enum editorSyntaxLanguage language,
-                                                const char *query_source, size_t query_len,
-                                                uint32_t error_offset, TSQueryError error_type,
-                                                enum editorSyntaxQueryCompileLog log_mode) {
-	g_last_query_compile_error.has_error = 1;
-	g_last_query_compile_error.language = language;
-	g_last_query_compile_error.error_offset = error_offset;
-	g_last_query_compile_error.error_type = (int)error_type;
-	editorSyntaxCopyQueryErrorContext(query_source, query_len, error_offset,
-	                                  g_last_query_compile_error.context);
-	g_last_query_compile_error_generation++;
+static void queriesRecordCompileError(enum editorSyntaxLanguage language, const char *query_source,
+                                      size_t query_len, uint32_t error_offset,
+                                      TSQueryError error_type, enum queriesCompileLog log_mode) {
+	g_queries_last_compile_error.has_error = 1;
+	g_queries_last_compile_error.language = language;
+	g_queries_last_compile_error.error_offset = error_offset;
+	g_queries_last_compile_error.error_type = (int)error_type;
+	queriesCopyErrorContext(query_source, query_len, error_offset,
+	                        g_queries_last_compile_error.context);
+	g_queries_last_compile_error_generation++;
 
 #ifndef NDEBUG
-	if (log_mode == EDITOR_SYNTAX_QUERY_COMPILE_LOG_ERROR) {
+	if (log_mode == QUERIES_COMPILE_LOG_ERROR) {
 		fprintf(stderr,
 		        "rotide: tree-sitter query compile failed: language=%d offset=%u "
 		        "error=%s context=\"%s\"\n",
-		        (int)language, (unsigned int)error_offset,
-		        editorSyntaxQueryErrorName(error_type), g_last_query_compile_error.context);
+		        (int)language, (unsigned int)error_offset, queriesErrorName(error_type),
+		        g_queries_last_compile_error.context);
 	}
 #else
 	(void)log_mode;
@@ -464,31 +459,30 @@ int editorSyntaxCopyLastQueryCompileError(struct editorSyntaxQueryCompileError *
 	if (error_out == NULL) {
 		return 0;
 	}
-	*error_out = g_last_query_compile_error;
-	return g_last_query_compile_error.has_error;
+	*error_out = g_queries_last_compile_error;
+	return g_queries_last_compile_error.has_error;
 }
 
 int editorSyntaxDrainLastQueryCompileError(struct editorSyntaxQueryCompileError *error_out) {
 	if (error_out != NULL) {
-		*error_out = g_last_query_compile_error;
+		*error_out = g_queries_last_compile_error;
 	}
-	if (!g_last_query_compile_error.has_error ||
-	    g_drained_query_compile_error_generation == g_last_query_compile_error_generation) {
+	if (!g_queries_last_compile_error.has_error ||
+	    g_queries_drained_compile_error_generation == g_queries_last_compile_error_generation) {
 		return 0;
 	}
-	g_drained_query_compile_error_generation = g_last_query_compile_error_generation;
+	g_queries_drained_compile_error_generation = g_queries_last_compile_error_generation;
 	return 1;
 }
 
 void editorSyntaxTestResetLastQueryCompileError(void) {
-	memset(&g_last_query_compile_error, 0, sizeof(g_last_query_compile_error));
-	g_last_query_compile_error_generation = 0;
-	g_drained_query_compile_error_generation = 0;
+	memset(&g_queries_last_compile_error, 0, sizeof(g_queries_last_compile_error));
+	g_queries_last_compile_error_generation = 0;
+	g_queries_drained_compile_error_generation = 0;
 }
 
-static int editorSyntaxCompileQuery(enum editorSyntaxLanguage language, const char *query_source,
-                                    size_t query_len, TSQuery **query_out,
-                                    enum editorSyntaxQueryCompileLog log_mode) {
+static int queriesCompile(enum editorSyntaxLanguage language, const char *query_source,
+                          size_t query_len, TSQuery **query_out, enum queriesCompileLog log_mode) {
 	const TSLanguage *ts_language = editorSyntaxLanguageObject(language);
 	if (ts_language == NULL || query_source == NULL || query_out == NULL ||
 	    !editorSyntaxLengthFitsTreeSitter(query_len)) {
@@ -500,8 +494,8 @@ static int editorSyntaxCompileQuery(enum editorSyntaxLanguage language, const ch
 	TSQuery *query = ts_query_new(ts_language, query_source, (uint32_t)query_len, &error_offset,
 	                              &error_type);
 	if (query == NULL) {
-		editorSyntaxRecordQueryCompileError(language, query_source, query_len, error_offset,
-		                                    error_type, log_mode);
+		queriesRecordCompileError(language, query_source, query_len, error_offset,
+		                          error_type, log_mode);
 		return 0;
 	}
 
@@ -515,17 +509,17 @@ int editorSyntaxTestCompileQueryForDiagnostics(enum editorSyntaxLanguage languag
 		return 0;
 	}
 	TSQuery *query = NULL;
-	int ok = editorSyntaxCompileQuery(language, query_source, strlen(query_source), &query,
-	                                  EDITOR_SYNTAX_QUERY_COMPILE_LOG_QUIET);
+	int ok = queriesCompile(language, query_source, strlen(query_source), &query,
+	                        QUERIES_COMPILE_LOG_QUIET);
 	if (query != NULL) {
 		ts_query_delete(query);
 	}
 	return ok;
 }
 
-static int editorSyntaxPopulateCaptureClasses(TSQuery *query,
-                                              enum editorSyntaxHighlightClass **capture_classes_out,
-                                              uint32_t *capture_count_out) {
+static int queriesPopulateCaptureClasses(TSQuery *query,
+                                         enum editorSyntaxHighlightClass **capture_classes_out,
+                                         uint32_t *capture_count_out) {
 	if (capture_classes_out == NULL || capture_count_out == NULL || query == NULL) {
 		return 0;
 	}
@@ -546,7 +540,7 @@ static int editorSyntaxPopulateCaptureClasses(TSQuery *query,
 		for (uint32_t i = 0; i < capture_count; i++) {
 			uint32_t name_len = 0;
 			const char *name = ts_query_capture_name_for_id(query, i, &name_len);
-			capture_classes[i] = editorSyntaxClassFromCaptureName(name, name_len);
+			capture_classes[i] = queriesClassFromCaptureName(name, name_len);
 		}
 	}
 
@@ -555,8 +549,7 @@ static int editorSyntaxPopulateCaptureClasses(TSQuery *query,
 	return 1;
 }
 
-static int editorSyntaxLocalCaptureRoleMatches(const char *name, uint32_t name_len,
-                                               const char *role) {
+static int queriesLocalCaptureRoleMatches(const char *name, uint32_t name_len, const char *role) {
 	size_t role_len = strlen(role);
 	if (name_len < role_len) {
 		return 0;
@@ -567,8 +560,8 @@ static int editorSyntaxLocalCaptureRoleMatches(const char *name, uint32_t name_l
 	return name_len == role_len || name[role_len] == '.';
 }
 
-static int editorSyntaxPopulateLocalsCaptureRoles(TSQuery *query, uint8_t **capture_roles_out,
-                                                  uint32_t *capture_count_out) {
+static int queriesPopulateLocalsCaptureRoles(TSQuery *query, uint8_t **capture_roles_out,
+                                             uint32_t *capture_count_out) {
 	if (query == NULL || capture_roles_out == NULL || capture_count_out == NULL) {
 		return 0;
 	}
@@ -586,13 +579,13 @@ static int editorSyntaxPopulateLocalsCaptureRoles(TSQuery *query, uint8_t **capt
 		for (uint32_t i = 0; i < capture_count; i++) {
 			uint32_t name_len = 0;
 			const char *name = ts_query_capture_name_for_id(query, i, &name_len);
-			if (editorSyntaxLocalCaptureRoleMatches(name, name_len, "local.scope")) {
+			if (queriesLocalCaptureRoleMatches(name, name_len, "local.scope")) {
 				capture_roles[i] = EDITOR_SYNTAX_CAPTURE_ROLE_LOCAL_SCOPE;
-			} else if (editorSyntaxLocalCaptureRoleMatches(name, name_len,
-			                                               "local.definition")) {
+			} else if (queriesLocalCaptureRoleMatches(name, name_len,
+			                                          "local.definition")) {
 				capture_roles[i] = EDITOR_SYNTAX_CAPTURE_ROLE_LOCAL_DEFINITION;
-			} else if (editorSyntaxLocalCaptureRoleMatches(name, name_len,
-			                                               "local.reference")) {
+			} else if (queriesLocalCaptureRoleMatches(name, name_len,
+			                                          "local.reference")) {
 				capture_roles[i] = EDITOR_SYNTAX_CAPTURE_ROLE_LOCAL_REFERENCE;
 			}
 		}
@@ -603,8 +596,8 @@ static int editorSyntaxPopulateLocalsCaptureRoles(TSQuery *query, uint8_t **capt
 	return 1;
 }
 
-static int editorSyntaxPopulateInjectionCaptureRoles(TSQuery *query, uint8_t **capture_roles_out,
-                                                     uint32_t *capture_count_out) {
+static int queriesPopulateInjectionCaptureRoles(TSQuery *query, uint8_t **capture_roles_out,
+                                                uint32_t *capture_count_out) {
 	if (query == NULL || capture_roles_out == NULL || capture_count_out == NULL) {
 		return 0;
 	}
@@ -622,10 +615,10 @@ static int editorSyntaxPopulateInjectionCaptureRoles(TSQuery *query, uint8_t **c
 		for (uint32_t i = 0; i < capture_count; i++) {
 			uint32_t name_len = 0;
 			const char *name = ts_query_capture_name_for_id(query, i, &name_len);
-			if (editorSyntaxCaptureNameHasPrefix(name, name_len, "injection.content")) {
+			if (queriesCaptureNameHasPrefix(name, name_len, "injection.content")) {
 				capture_roles[i] = EDITOR_SYNTAX_CAPTURE_ROLE_INJECTION_CONTENT;
-			} else if (editorSyntaxCaptureNameHasPrefix(name, name_len,
-			                                            "injection.language")) {
+			} else if (queriesCaptureNameHasPrefix(name, name_len,
+			                                       "injection.language")) {
 				capture_roles[i] = EDITOR_SYNTAX_CAPTURE_ROLE_INJECTION_LANGUAGE;
 			}
 		}
@@ -636,7 +629,7 @@ static int editorSyntaxPopulateInjectionCaptureRoles(TSQuery *query, uint8_t **c
 	return 1;
 }
 
-static int editorSyntaxParsePredicateInt32(const char *value, uint32_t value_len, int32_t *out) {
+static int queriesParsePredicateInt32(const char *value, uint32_t value_len, int32_t *out) {
 	if (value == NULL || value_len == 0 || out == NULL) {
 		return 0;
 	}
@@ -656,8 +649,8 @@ static int editorSyntaxParsePredicateInt32(const char *value, uint32_t value_len
 }
 
 static void
-editorSyntaxFreeInjectionPatternMetadata(struct editorSyntaxInjectionPatternMetadata *metadata,
-                                         uint32_t pattern_count) {
+queriesFreeInjectionPatternMetadata(struct editorSyntaxInjectionPatternMetadata *metadata,
+                                    uint32_t pattern_count) {
 	if (metadata == NULL) {
 		return;
 	}
@@ -667,9 +660,10 @@ editorSyntaxFreeInjectionPatternMetadata(struct editorSyntaxInjectionPatternMeta
 	free(metadata);
 }
 
-static int editorSyntaxPopulateInjectionPatternMetadata(
-        TSQuery *query, struct editorSyntaxInjectionPatternMetadata **metadata_out,
-        uint32_t *pattern_count_out) {
+static int
+queriesPopulateInjectionPatternMetadata(TSQuery *query,
+                                        struct editorSyntaxInjectionPatternMetadata **metadata_out,
+                                        uint32_t *pattern_count_out) {
 	if (query == NULL || metadata_out == NULL || pattern_count_out == NULL) {
 		return 0;
 	}
@@ -719,7 +713,7 @@ static int editorSyntaxPopulateInjectionPatternMetadata(
 						        &value_len);
 						char *dup = malloc((size_t)value_len + 1);
 						if (dup == NULL) {
-							editorSyntaxFreeInjectionPatternMetadata(
+							queriesFreeInjectionPatternMetadata(
 							        metadata, pattern_count);
 							return 0;
 						}
@@ -769,29 +763,29 @@ static int editorSyntaxPopulateInjectionPatternMetadata(
 					uint32_t value_len = 0;
 					const char *value = ts_query_string_value_for_id(
 					        query, steps[start + 2].value_id, &value_len);
-					if (!editorSyntaxParsePredicateInt32(value, value_len,
-					                                     &start_row)) {
+					if (!queriesParsePredicateInt32(value, value_len,
+					                                &start_row)) {
 						i++;
 						continue;
 					}
 					value = ts_query_string_value_for_id(
 					        query, steps[start + 3].value_id, &value_len);
-					if (!editorSyntaxParsePredicateInt32(value, value_len,
-					                                     &start_col)) {
+					if (!queriesParsePredicateInt32(value, value_len,
+					                                &start_col)) {
 						i++;
 						continue;
 					}
 					value = ts_query_string_value_for_id(
 					        query, steps[start + 4].value_id, &value_len);
-					if (!editorSyntaxParsePredicateInt32(value, value_len,
-					                                     &end_row)) {
+					if (!queriesParsePredicateInt32(value, value_len,
+					                                &end_row)) {
 						i++;
 						continue;
 					}
 					value = ts_query_string_value_for_id(
 					        query, steps[start + 5].value_id, &value_len);
-					if (!editorSyntaxParsePredicateInt32(value, value_len,
-					                                     &end_col)) {
+					if (!queriesParsePredicateInt32(value, value_len,
+					                                &end_col)) {
 						i++;
 						continue;
 					}
@@ -813,7 +807,7 @@ static int editorSyntaxPopulateInjectionPatternMetadata(
 	return 1;
 }
 
-static void editorSyntaxClearQueryCacheEntry(struct editorSyntaxQueryCacheEntry *cache) {
+static void queriesClearCacheEntry(struct editorSyntaxQueryCacheEntry *cache) {
 	if (cache == NULL) {
 		return;
 	}
@@ -840,16 +834,16 @@ static void editorSyntaxClearQueryCacheEntry(struct editorSyntaxQueryCacheEntry 
 	cache->capture_classes = NULL;
 	free(cache->capture_roles);
 	cache->capture_roles = NULL;
-	editorSyntaxFreeInjectionPatternMetadata(cache->pattern_injection_metadata,
-	                                         cache->pattern_count);
+	queriesFreeInjectionPatternMetadata(cache->pattern_injection_metadata,
+	                                    cache->pattern_count);
 	cache->pattern_injection_metadata = NULL;
 	cache->capture_count = 0;
 	cache->pattern_count = 0;
 	cache->load_attempted = 0;
 }
 
-static char *editorSyntaxConcatEmbeddedParts(const struct editorSyntaxEmbeddedQueryPart *parts,
-                                             int part_count, size_t *len_out) {
+static char *queriesConcatEmbeddedParts(const struct editorSyntaxEmbeddedQueryPart *parts,
+                                        int part_count, size_t *len_out) {
 	if (len_out != NULL) {
 		*len_out = 0;
 	}
@@ -878,12 +872,12 @@ static char *editorSyntaxConcatEmbeddedParts(const struct editorSyntaxEmbeddedQu
 	return buf;
 }
 
-static int editorSyntaxEnsureQueryCache(struct editorSyntaxQueryCacheEntry *cache,
-                                        enum editorSyntaxLanguage language,
-                                        const struct editorSyntaxEmbeddedQueryPart *embedded_parts,
-                                        int embedded_part_count, int want_capture_classes,
-                                        int want_locals_roles, int want_injection_roles,
-                                        int want_injection_metadata) {
+static int queriesEnsureCache(struct editorSyntaxQueryCacheEntry *cache,
+                              enum editorSyntaxLanguage language,
+                              const struct editorSyntaxEmbeddedQueryPart *embedded_parts,
+                              int embedded_part_count, int want_capture_classes,
+                              int want_locals_roles, int want_injection_roles,
+                              int want_injection_metadata) {
 	if (cache == NULL || embedded_parts == NULL || embedded_part_count <= 0) {
 		return 0;
 	}
@@ -895,12 +889,12 @@ static int editorSyntaxEnsureQueryCache(struct editorSyntaxQueryCacheEntry *cach
 	TSQuery *query = NULL;
 	size_t embedded_len = 0;
 	char *embedded_query =
-	        editorSyntaxConcatEmbeddedParts(embedded_parts, embedded_part_count, &embedded_len);
+	        queriesConcatEmbeddedParts(embedded_parts, embedded_part_count, &embedded_len);
 	if (embedded_query == NULL) {
 		return 0;
 	}
-	(void)editorSyntaxCompileQuery(language, embedded_query, embedded_len, &query,
-	                               EDITOR_SYNTAX_QUERY_COMPILE_LOG_ERROR);
+	(void)queriesCompile(language, embedded_query, embedded_len, &query,
+	                     QUERIES_COMPILE_LOG_ERROR);
 	free(embedded_query);
 	if (query == NULL) {
 		return 0;
@@ -917,27 +911,27 @@ static int editorSyntaxEnsureQueryCache(struct editorSyntaxQueryCacheEntry *cach
 	uint8_t *compiled_regex_failed = NULL;
 
 	if (want_capture_classes &&
-	    !editorSyntaxPopulateCaptureClasses(query, &capture_classes, &capture_count)) {
+	    !queriesPopulateCaptureClasses(query, &capture_classes, &capture_count)) {
 		ts_query_delete(query);
 		return 0;
 	}
 
 	if (want_locals_roles &&
-	    !editorSyntaxPopulateLocalsCaptureRoles(query, &capture_roles, &capture_count)) {
+	    !queriesPopulateLocalsCaptureRoles(query, &capture_roles, &capture_count)) {
 		free(capture_classes);
 		ts_query_delete(query);
 		return 0;
 	}
 
 	if (want_injection_roles &&
-	    !editorSyntaxPopulateInjectionCaptureRoles(query, &capture_roles, &capture_count)) {
+	    !queriesPopulateInjectionCaptureRoles(query, &capture_roles, &capture_count)) {
 		free(capture_classes);
 		ts_query_delete(query);
 		return 0;
 	}
 
-	if (want_injection_metadata && !editorSyntaxPopulateInjectionPatternMetadata(
-	                                       query, &pattern_metadata, &pattern_count)) {
+	if (want_injection_metadata &&
+	    !queriesPopulateInjectionPatternMetadata(query, &pattern_metadata, &pattern_count)) {
 		free(capture_classes);
 		free(capture_roles);
 		ts_query_delete(query);
@@ -956,7 +950,7 @@ static int editorSyntaxEnsureQueryCache(struct editorSyntaxQueryCacheEntry *cach
 			free(compiled_regex_failed);
 			free(capture_classes);
 			free(capture_roles);
-			editorSyntaxFreeInjectionPatternMetadata(pattern_metadata, pattern_count);
+			queriesFreeInjectionPatternMetadata(pattern_metadata, pattern_count);
 			ts_query_delete(query);
 			return 0;
 		}
@@ -975,27 +969,27 @@ static int editorSyntaxEnsureQueryCache(struct editorSyntaxQueryCacheEntry *cach
 	return 1;
 }
 
-static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) {
+static int queriesEnsureHighlight(enum editorSyntaxLanguage language) {
 	const struct editorSyntaxLanguageDef *def = editorSyntaxLookupLanguage(language);
 	if (def == NULL || def->highlight_parts == NULL || def->highlight_part_count <= 0) {
 		return 0;
 	}
 	struct editorSyntaxQueryCacheEntry *slot =
-	        editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_HIGHLIGHT);
+	        queriesCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_HIGHLIGHT);
 	if (slot == NULL) {
 		return 0;
 	}
-	return editorSyntaxEnsureQueryCache(slot, language, def->highlight_parts,
-	                                    def->highlight_part_count, 1, 0, 0, 0);
+	return queriesEnsureCache(slot, language, def->highlight_parts, def->highlight_part_count,
+	                          1, 0, 0, 0);
 }
 
 const struct editorSyntaxQueryCacheEntry *
 editorSyntaxHighlightQueryCachePtr(enum editorSyntaxLanguage language) {
-	if (!editorSyntaxEnsureHighlightQuery(language)) {
+	if (!queriesEnsureHighlight(language)) {
 		return NULL;
 	}
 	const struct editorSyntaxQueryCacheEntry *cache =
-	        editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_HIGHLIGHT);
+	        queriesCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_HIGHLIGHT);
 	if (cache == NULL || cache->query == NULL || cache->capture_classes == NULL) {
 		return NULL;
 	}
@@ -1008,35 +1002,35 @@ int editorSyntaxEnsureLocalsQuery(enum editorSyntaxLanguage language) {
 		return 0;
 	}
 	struct editorSyntaxQueryCacheEntry *slot =
-	        editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_LOCALS);
+	        queriesCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_LOCALS);
 	if (slot == NULL) {
 		return 0;
 	}
-	return editorSyntaxEnsureQueryCache(slot, language, def->locals_parts,
-	                                    def->locals_part_count, 0, 1, 0, 0);
+	return queriesEnsureCache(slot, language, def->locals_parts, def->locals_part_count, 0, 1,
+	                          0, 0);
 }
 
-static int editorSyntaxEnsureInjectionQuery(enum editorSyntaxLanguage language) {
+static int queriesEnsureInjection(enum editorSyntaxLanguage language) {
 	const struct editorSyntaxLanguageDef *def = editorSyntaxLookupLanguage(language);
 	if (def == NULL || def->injection_parts == NULL || def->injection_part_count <= 0) {
 		return 0;
 	}
 	struct editorSyntaxQueryCacheEntry *slot =
-	        editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_INJECTION);
+	        queriesCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_INJECTION);
 	if (slot == NULL) {
 		return 0;
 	}
-	return editorSyntaxEnsureQueryCache(slot, language, def->injection_parts,
-	                                    def->injection_part_count, 0, 0, 1, 1);
+	return queriesEnsureCache(slot, language, def->injection_parts, def->injection_part_count,
+	                          0, 0, 1, 1);
 }
 
 const struct editorSyntaxQueryCacheEntry *
 editorSyntaxInjectionQueryCachePtr(enum editorSyntaxLanguage language) {
-	if (!editorSyntaxEnsureInjectionQuery(language)) {
+	if (!queriesEnsureInjection(language)) {
 		return NULL;
 	}
 	const struct editorSyntaxQueryCacheEntry *cache =
-	        editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_INJECTION);
+	        queriesCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_INJECTION);
 	if (cache == NULL || cache->query == NULL || cache->capture_roles == NULL ||
 	    cache->pattern_injection_metadata == NULL) {
 		return NULL;
@@ -1044,7 +1038,7 @@ editorSyntaxInjectionQueryCachePtr(enum editorSyntaxLanguage language) {
 	return cache;
 }
 
-static int editorSyntaxQueryKindIndex(enum editorSyntaxQueryKind kind) {
+static int queriesKindIndex(enum editorSyntaxQueryKind kind) {
 	switch (kind) {
 		case EDITOR_SYNTAX_QUERY_KIND_HIGHLIGHT:
 			return 0;
@@ -1055,7 +1049,7 @@ static int editorSyntaxQueryKindIndex(enum editorSyntaxQueryKind kind) {
 	}
 }
 
-static uint64_t editorSyntaxLanguageEventBit(enum editorSyntaxLanguage language) {
+static uint64_t queriesLanguageEventBit(enum editorSyntaxLanguage language) {
 	if ((int)language <= 0 || (int)language >= 64) {
 		return 0;
 	}
@@ -1068,15 +1062,15 @@ void editorSyntaxStateRecordQueryUnavailable(struct editorSyntaxState *state,
 	if (state == NULL) {
 		return;
 	}
-	int kind_idx = editorSyntaxQueryKindIndex(kind);
-	uint64_t language_bit = editorSyntaxLanguageEventBit(language);
+	int kind_idx = queriesKindIndex(kind);
+	uint64_t language_bit = queriesLanguageEventBit(language);
 	if (kind_idx < 0 || language_bit == 0) {
 		return;
 	}
-	if ((g_query_unavailable_reported[kind_idx] & language_bit) != 0) {
+	if ((g_queries_unavailable_reported[kind_idx] & language_bit) != 0) {
 		return;
 	}
-	g_query_unavailable_reported[kind_idx] |= language_bit;
+	g_queries_unavailable_reported[kind_idx] |= language_bit;
 	state->query_unavailable_pending = 1;
 	state->query_unavailable_language = language;
 	state->query_unavailable_kind = kind;
@@ -1085,7 +1079,7 @@ void editorSyntaxStateRecordQueryUnavailable(struct editorSyntaxState *state,
 const struct editorSyntaxQueryCacheEntry *
 editorSyntaxLocalsQueryCacheForLanguage(enum editorSyntaxLanguage language) {
 	const struct editorSyntaxQueryCacheEntry *cache =
-	        editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_LOCALS);
+	        queriesCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_LOCALS);
 	if (cache == NULL || cache->query == NULL) {
 		return NULL;
 	}
@@ -1098,7 +1092,7 @@ struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(const TS
 	}
 	for (int lang = 1; lang < EDITOR_SYNTAX_LANGUAGE_COUNT; lang++) {
 		for (int kind = 0; kind < EDITOR_SYNTAX_QUERY_CACHE_KIND_COUNT; kind++) {
-			struct editorSyntaxQueryCacheEntry *cache = &g_query_caches[lang][kind];
+			struct editorSyntaxQueryCacheEntry *cache = &g_queries_caches[lang][kind];
 			if (cache->query == query) {
 				return cache;
 			}
@@ -1110,22 +1104,22 @@ struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(const TS
 void editorSyntaxTestSetBudgetOverrides(int enabled, uint32_t query_match_limit,
                                         uint64_t query_time_budget_ns,
                                         uint64_t parse_time_budget_ns) {
-	g_editor_syntax_budget_overrides.enabled = enabled ? 1 : 0;
-	g_editor_syntax_budget_overrides.query_match_limit = query_match_limit;
-	g_editor_syntax_budget_overrides.query_time_budget_ns = query_time_budget_ns;
-	g_editor_syntax_budget_overrides.parse_time_budget_ns = parse_time_budget_ns;
+	g_queries_budget_overrides.enabled = enabled ? 1 : 0;
+	g_queries_budget_overrides.query_match_limit = query_match_limit;
+	g_queries_budget_overrides.query_time_budget_ns = query_time_budget_ns;
+	g_queries_budget_overrides.parse_time_budget_ns = parse_time_budget_ns;
 }
 
 void editorSyntaxTestResetBudgetOverrides(void) {
-	memset(&g_editor_syntax_budget_overrides, 0, sizeof(g_editor_syntax_budget_overrides));
+	memset(&g_queries_budget_overrides, 0, sizeof(g_queries_budget_overrides));
 }
 
 int editorSyntaxTestBudgetOverridesEnabled(void) {
-	return g_editor_syntax_budget_overrides.enabled;
+	return g_queries_budget_overrides.enabled;
 }
 
 int editorSyntaxTestCaptureRuleCount(void) {
-	return (int)(sizeof(g_capture_rules) / sizeof(g_capture_rules[0]));
+	return (int)(sizeof(g_queries_capture_rules) / sizeof(g_queries_capture_rules[0]));
 }
 
 int editorSyntaxTestCaptureRuleAt(int idx, const char **prefix_out,
@@ -1140,10 +1134,10 @@ int editorSyntaxTestCaptureRuleAt(int idx, const char **prefix_out,
 		return 0;
 	}
 	if (prefix_out != NULL) {
-		*prefix_out = g_capture_rules[idx].prefix;
+		*prefix_out = g_queries_capture_rules[idx].prefix;
 	}
 	if (class_out != NULL) {
-		*class_out = g_capture_rules[idx].highlight_class;
+		*class_out = g_queries_capture_rules[idx].highlight_class;
 	}
 	return 1;
 }
@@ -1152,14 +1146,14 @@ enum editorSyntaxHighlightClass editorSyntaxTestClassFromCaptureName(const char 
 	if (name == NULL) {
 		return EDITOR_SYNTAX_HL_NONE;
 	}
-	return editorSyntaxClassFromCaptureName(name, strlen(name));
+	return queriesClassFromCaptureName(name, strlen(name));
 }
 
 void editorSyntaxReleaseSharedResources(void) {
-	memset(g_query_unavailable_reported, 0, sizeof(g_query_unavailable_reported));
+	memset(g_queries_unavailable_reported, 0, sizeof(g_queries_unavailable_reported));
 	for (int lang = 1; lang < EDITOR_SYNTAX_LANGUAGE_COUNT; lang++) {
 		for (int kind = 0; kind < EDITOR_SYNTAX_QUERY_CACHE_KIND_COUNT; kind++) {
-			editorSyntaxClearQueryCacheEntry(&g_query_caches[lang][kind]);
+			queriesClearCacheEntry(&g_queries_caches[lang][kind]);
 		}
 	}
 }

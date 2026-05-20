@@ -38,15 +38,15 @@ extern const TSLanguage *tree_sitter_xml(void);
 extern const TSLanguage *tree_sitter_make(void);
 extern const TSLanguage *tree_sitter_diff(void);
 
-static const TSLanguage *editorSyntaxFactoryEjs(void) {
+static const TSLanguage *languagesSyntaxFactoryEjs(void) {
 	return tree_sitter_embedded_template();
 }
 
-static const TSLanguage *editorSyntaxFactoryErb(void) {
+static const TSLanguage *languagesSyntaxFactoryErb(void) {
 	return tree_sitter_embedded_template();
 }
 
-static int editorSyntaxStringEqualsNoCaseLen(const char *a, size_t a_len, const char *b) {
+static int languagesStringEqualsNoCaseLen(const char *a, size_t a_len, const char *b) {
 	if (a == NULL || b == NULL) {
 		return 0;
 	}
@@ -57,18 +57,18 @@ static int editorSyntaxStringEqualsNoCaseLen(const char *a, size_t a_len, const 
 	return strncasecmp(a, b, a_len) == 0;
 }
 
-static int editorSyntaxShellShebangMatch(const char *token, size_t len) {
-	return editorSyntaxStringEqualsNoCaseLen(token, len, "sh") ||
-	       editorSyntaxStringEqualsNoCaseLen(token, len, "bash") ||
-	       editorSyntaxStringEqualsNoCaseLen(token, len, "zsh") ||
-	       editorSyntaxStringEqualsNoCaseLen(token, len, "ksh");
+static int languagesShellShebangMatch(const char *token, size_t len) {
+	return languagesStringEqualsNoCaseLen(token, len, "sh") ||
+	       languagesStringEqualsNoCaseLen(token, len, "bash") ||
+	       languagesStringEqualsNoCaseLen(token, len, "zsh") ||
+	       languagesStringEqualsNoCaseLen(token, len, "ksh");
 }
 
-static int editorSyntaxRubyShebangMatch(const char *token, size_t len) {
-	return editorSyntaxStringEqualsNoCaseLen(token, len, "ruby");
+static int languagesRubyShebangMatch(const char *token, size_t len) {
+	return languagesStringEqualsNoCaseLen(token, len, "ruby");
 }
 
-static int editorSyntaxPythonShebangMatch(const char *token, size_t len) {
+static int languagesPythonShebangMatch(const char *token, size_t len) {
 	if (token == NULL || len < 6 || strncasecmp(token, "python", 6) != 0) {
 		return 0;
 	}
@@ -81,7 +81,7 @@ static int editorSyntaxPythonShebangMatch(const char *token, size_t len) {
 	return 1;
 }
 
-static int editorSyntaxPhpShebangMatch(const char *token, size_t len) {
+static int languagesPhpShebangMatch(const char *token, size_t len) {
 	if (token == NULL || len < 3 || strncasecmp(token, "php", 3) != 0) {
 		return 0;
 	}
@@ -186,7 +186,7 @@ static const struct editorSyntaxLanguageDef g_languages[] = {
          .highlight_part_count = EDITOR_QUERY_SHELL_HIGHLIGHT_PART_COUNT,
          .extensions = k_shell_extensions,
          .basenames = k_shell_basenames,
-         .shebang_matches = editorSyntaxShellShebangMatch,
+         .shebang_matches = languagesShellShebangMatch,
          .injection_aliases = k_shell_injection_aliases},
         {.id = EDITOR_SYNTAX_HTML,
          .name = "html",
@@ -256,7 +256,7 @@ static const struct editorSyntaxLanguageDef g_languages[] = {
          .highlight_parts = editor_query_python_highlight_parts,
          .highlight_part_count = EDITOR_QUERY_PYTHON_HIGHLIGHT_PART_COUNT,
          .extensions = k_python_extensions,
-         .shebang_matches = editorSyntaxPythonShebangMatch},
+         .shebang_matches = languagesPythonShebangMatch},
         {.id = EDITOR_SYNTAX_PHP,
          .name = "php",
          .ts_factory = tree_sitter_php,
@@ -265,7 +265,7 @@ static const struct editorSyntaxLanguageDef g_languages[] = {
          .injection_parts = editor_query_php_injection_parts,
          .injection_part_count = EDITOR_QUERY_PHP_INJECTION_PART_COUNT,
          .extensions = k_php_extensions,
-         .shebang_matches = editorSyntaxPhpShebangMatch},
+         .shebang_matches = languagesPhpShebangMatch},
         {.id = EDITOR_SYNTAX_RUST,
          .name = "rust",
          .ts_factory = tree_sitter_rust,
@@ -310,7 +310,7 @@ static const struct editorSyntaxLanguageDef g_languages[] = {
          .locals_part_count = EDITOR_QUERY_RUBY_LOCALS_PART_COUNT,
          .extensions = k_ruby_extensions,
          .basenames = k_ruby_basenames,
-         .shebang_matches = editorSyntaxRubyShebangMatch,
+         .shebang_matches = languagesRubyShebangMatch,
          .injection_aliases = k_ruby_injection_aliases},
         {.id = EDITOR_SYNTAX_OCAML,
          .name = "ocaml",
@@ -340,7 +340,7 @@ static const struct editorSyntaxLanguageDef g_languages[] = {
          .extensions = k_scala_extensions},
         {.id = EDITOR_SYNTAX_EJS,
          .name = "ejs",
-         .ts_factory = editorSyntaxFactoryEjs,
+         .ts_factory = languagesSyntaxFactoryEjs,
          .highlight_parts = editor_query_ejs_highlight_parts,
          .highlight_part_count = EDITOR_QUERY_EJS_HIGHLIGHT_PART_COUNT,
          .injection_parts = editor_query_ejs_injection_parts,
@@ -348,7 +348,7 @@ static const struct editorSyntaxLanguageDef g_languages[] = {
          .extensions = k_ejs_extensions},
         {.id = EDITOR_SYNTAX_ERB,
          .name = "erb",
-         .ts_factory = editorSyntaxFactoryErb,
+         .ts_factory = languagesSyntaxFactoryErb,
          .highlight_parts = editor_query_erb_highlight_parts,
          .highlight_part_count = EDITOR_QUERY_ERB_HIGHLIGHT_PART_COUNT,
          .injection_parts = editor_query_erb_injection_parts,
@@ -442,7 +442,7 @@ const struct editorSyntaxLanguageDef *editorSyntaxLookupLanguageByName(const cha
 	}
 	for (int i = 0; i < ROTIDE_LANGUAGE_DEF_COUNT; i++) {
 		const struct editorSyntaxLanguageDef *def = &g_languages[i];
-		if (editorSyntaxStringEqualsNoCaseLen(name, len, def->name)) {
+		if (languagesStringEqualsNoCaseLen(name, len, def->name)) {
 			return def;
 		}
 	}
@@ -534,7 +534,7 @@ const struct editorSyntaxLanguageDef *editorSyntaxLookupLanguageByInjectionName(
 			continue;
 		}
 		for (const char *const *p = def->injection_aliases; *p != NULL; p++) {
-			if (editorSyntaxStringEqualsNoCaseLen(name, len, *p)) {
+			if (languagesStringEqualsNoCaseLen(name, len, *p)) {
 				return def;
 			}
 		}

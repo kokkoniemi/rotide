@@ -25,13 +25,13 @@ static struct {
 	int *visible_indices;
 	int visible_count;
 	int visible_capacity;
-} g_autocomplete;
+} g_autocomplete_state;
 
-static int editorAutocompleteIsIdentByte(unsigned char b) {
+static int autocompleteIsIdentByte(unsigned char b) {
 	return isalnum(b) || b == '_' || b >= 0x80;
 }
 
-static int editorAutocompleteTriggerCharMatches(const char *trigger_chars, int ch) {
+static int autocompleteTriggerCharMatches(const char *trigger_chars, int ch) {
 	if (trigger_chars == NULL || trigger_chars[0] == '\0') {
 		return 0;
 	}
@@ -43,42 +43,42 @@ static int editorAutocompleteTriggerCharMatches(const char *trigger_chars, int c
 	return 0;
 }
 
-static void editorAutocompleteReset(void) {
+static void autocompleteReset(void) {
 	editorPopupClose();
-	editorLspFreeCompletionItems(g_autocomplete.items, g_autocomplete.count);
-	g_autocomplete.items = NULL;
-	g_autocomplete.count = 0;
-	free(g_autocomplete.visible_indices);
-	g_autocomplete.visible_indices = NULL;
-	g_autocomplete.visible_count = 0;
-	g_autocomplete.visible_capacity = 0;
-	free(g_autocomplete.prefix);
-	g_autocomplete.prefix = NULL;
-	free(g_autocomplete.filename);
-	g_autocomplete.filename = NULL;
-	g_autocomplete.active = 0;
-	g_autocomplete.request_id = 0;
-	g_autocomplete.document_version = 0;
-	g_autocomplete.request_cy = 0;
-	g_autocomplete.request_cx = 0;
-	g_autocomplete.prefix_start_cx = 0;
+	editorLspFreeCompletionItems(g_autocomplete_state.items, g_autocomplete_state.count);
+	g_autocomplete_state.items = NULL;
+	g_autocomplete_state.count = 0;
+	free(g_autocomplete_state.visible_indices);
+	g_autocomplete_state.visible_indices = NULL;
+	g_autocomplete_state.visible_count = 0;
+	g_autocomplete_state.visible_capacity = 0;
+	free(g_autocomplete_state.prefix);
+	g_autocomplete_state.prefix = NULL;
+	free(g_autocomplete_state.filename);
+	g_autocomplete_state.filename = NULL;
+	g_autocomplete_state.active = 0;
+	g_autocomplete_state.request_id = 0;
+	g_autocomplete_state.document_version = 0;
+	g_autocomplete_state.request_cy = 0;
+	g_autocomplete_state.request_cx = 0;
+	g_autocomplete_state.prefix_start_cx = 0;
 }
 
 void editorAutocompleteShutdown(void) {
-	editorAutocompleteReset();
+	autocompleteReset();
 }
 
 void editorAutocompleteCancel(void) {
 	editorLspCancelCompletion();
-	editorAutocompleteReset();
+	autocompleteReset();
 }
 
 int editorAutocompleteIsVisible(void) {
-	return g_autocomplete.active;
+	return g_autocomplete_state.active;
 }
 
 int editorAutocompleteWouldRefilter(int ch) {
-	if (!g_autocomplete.active) {
+	if (!g_autocomplete_state.active) {
 		return 0;
 	}
 	if (E.filename == NULL || E.filename[0] == '\0') {
@@ -89,16 +89,16 @@ int editorAutocompleteWouldRefilter(int ch) {
 	}
 	const char *trigger_chars =
 	        editorLspCompletionTriggerCharsForFile(E.filename, E.syntax_language);
-	if (editorAutocompleteTriggerCharMatches(trigger_chars, ch)) {
+	if (autocompleteTriggerCharMatches(trigger_chars, ch)) {
 		return 1;
 	}
-	if (ch >= 0x20 && ch < 0x80 && editorAutocompleteIsIdentByte((unsigned char)ch)) {
+	if (ch >= 0x20 && ch < 0x80 && autocompleteIsIdentByte((unsigned char)ch)) {
 		return 1;
 	}
 	return 0;
 }
 
-static int editorAutocompletePrefixStartCxBytes(const char *bytes, int size, int cursor_cx) {
+static int autocompletePrefixStartCxBytes(const char *bytes, int size, int cursor_cx) {
 	if (bytes == NULL || cursor_cx <= 0) {
 		return cursor_cx < 0 ? 0 : cursor_cx;
 	}
@@ -109,7 +109,7 @@ static int editorAutocompletePrefixStartCxBytes(const char *bytes, int size, int
 			break;
 		}
 		unsigned char b = (unsigned char)bytes[prev];
-		if (!editorAutocompleteIsIdentByte(b)) {
+		if (!autocompleteIsIdentByte(b)) {
 			break;
 		}
 		idx = prev;
@@ -117,8 +117,7 @@ static int editorAutocompletePrefixStartCxBytes(const char *bytes, int size, int
 	return idx;
 }
 
-static char *editorAutocompleteCopyPrefixBytes(const char *bytes, int size, int start_cx,
-                                               int end_cx) {
+static char *autocompleteCopyPrefixBytes(const char *bytes, int size, int start_cx, int end_cx) {
 	int len = end_cx - start_cx;
 	if (bytes == NULL || len <= 0) {
 		return strdup("");
@@ -142,14 +141,14 @@ static char *editorAutocompleteCopyPrefixBytes(const char *bytes, int size, int 
 	return out;
 }
 
-static const char *editorAutocompleteStripLeadingNonIdent(const char *label) {
+static const char *autocompleteStripLeadingNonIdent(const char *label) {
 	if (label == NULL) {
 		return NULL;
 	}
 	const char *p = label;
 	while (*p != '\0') {
 		unsigned char b = (unsigned char)*p;
-		if (editorAutocompleteIsIdentByte(b)) {
+		if (autocompleteIsIdentByte(b)) {
 			break;
 		}
 		p++;
@@ -157,7 +156,7 @@ static const char *editorAutocompleteStripLeadingNonIdent(const char *label) {
 	return p;
 }
 
-static const char *editorAutocompleteItemMatchText(const struct editorLspCompletionItem *item) {
+static const char *autocompleteItemMatchText(const struct editorLspCompletionItem *item) {
 	if (item == NULL) {
 		return NULL;
 	}
@@ -167,10 +166,10 @@ static const char *editorAutocompleteItemMatchText(const struct editorLspComplet
 	if (item->insert_text != NULL && item->insert_text[0] != '\0') {
 		return item->insert_text;
 	}
-	return editorAutocompleteStripLeadingNonIdent(item->label);
+	return autocompleteStripLeadingNonIdent(item->label);
 }
 
-static int editorAutocompleteMatchBeginsWith(const char *text, const char *prefix) {
+static int autocompleteMatchBeginsWith(const char *text, const char *prefix) {
 	if (text == NULL) {
 		return 0;
 	}
@@ -187,15 +186,15 @@ static int editorAutocompleteMatchBeginsWith(const char *text, const char *prefi
 	return 0;
 }
 
-static int editorAutocompleteShouldFire(int ch, const char *trigger_chars, int *trigger_kind_out,
-                                        int *trigger_character_out) {
+static int autocompleteShouldFire(int ch, const char *trigger_chars, int *trigger_kind_out,
+                                  int *trigger_character_out) {
 	if (trigger_kind_out != NULL) {
 		*trigger_kind_out = 1;
 	}
 	if (trigger_character_out != NULL) {
 		*trigger_character_out = 0;
 	}
-	if (editorAutocompleteTriggerCharMatches(trigger_chars, ch)) {
+	if (autocompleteTriggerCharMatches(trigger_chars, ch)) {
 		if (trigger_kind_out != NULL) {
 			*trigger_kind_out = 2;
 		}
@@ -204,17 +203,17 @@ static int editorAutocompleteShouldFire(int ch, const char *trigger_chars, int *
 		}
 		return 1;
 	}
-	if (ch >= 0x20 && ch < 0x80 && editorAutocompleteIsIdentByte((unsigned char)ch)) {
+	if (ch >= 0x20 && ch < 0x80 && autocompleteIsIdentByte((unsigned char)ch)) {
 		return 1;
 	}
 	return 0;
 }
 
 /*
- * Rebuild the popup from the current raw items, filtering by g_autocomplete.prefix.
+ * Rebuild the popup from the current raw items, filtering by g_autocomplete_state.prefix.
  * Returns 1 if the popup is still shown after filtering, 0 otherwise (no matches).
  */
-static int editorAutocompleteRefreshFiltered(int anchor_row, int anchor_col) {
+static int autocompleteRefreshFiltered(int anchor_row, int anchor_col) {
 	int max_items = E.lsp_autocomplete_max_items > 0 ? E.lsp_autocomplete_max_items : 100;
 
 	struct editorPopupItem *popup_items = NULL;
@@ -222,9 +221,9 @@ static int editorAutocompleteRefreshFiltered(int anchor_row, int anchor_col) {
 	int visible_count = 0;
 	int cap = 0;
 
-	for (int i = 0; i < g_autocomplete.count && visible_count < max_items; i++) {
-		const char *match_text = editorAutocompleteItemMatchText(&g_autocomplete.items[i]);
-		if (!editorAutocompleteMatchBeginsWith(match_text, g_autocomplete.prefix)) {
+	for (int i = 0; i < g_autocomplete_state.count && visible_count < max_items; i++) {
+		const char *match_text = autocompleteItemMatchText(&g_autocomplete_state.items[i]);
+		if (!autocompleteMatchBeginsWith(match_text, g_autocomplete_state.prefix)) {
 			continue;
 		}
 		if (visible_count >= cap) {
@@ -253,9 +252,9 @@ static int editorAutocompleteRefreshFiltered(int anchor_row, int anchor_col) {
 		 * trying to complete.
 		 */
 		const char *display =
-		        editorAutocompleteStripLeadingNonIdent(g_autocomplete.items[i].label);
+		        autocompleteStripLeadingNonIdent(g_autocomplete_state.items[i].label);
 		if (display == NULL || display[0] == '\0') {
-			display = g_autocomplete.items[i].label;
+			display = g_autocomplete_state.items[i].label;
 		}
 		popup_items[visible_count].label = (char *)display;
 		popup_items[visible_count].detail = NULL;
@@ -267,11 +266,11 @@ static int editorAutocompleteRefreshFiltered(int anchor_row, int anchor_col) {
 		free(popup_items);
 		free(visible_indices);
 		editorPopupClose();
-		free(g_autocomplete.visible_indices);
-		g_autocomplete.visible_indices = NULL;
-		g_autocomplete.visible_count = 0;
-		g_autocomplete.visible_capacity = 0;
-		g_autocomplete.active = 0;
+		free(g_autocomplete_state.visible_indices);
+		g_autocomplete_state.visible_indices = NULL;
+		g_autocomplete_state.visible_count = 0;
+		g_autocomplete_state.visible_capacity = 0;
+		g_autocomplete_state.active = 0;
 		return 0;
 	}
 
@@ -281,11 +280,11 @@ static int editorAutocompleteRefreshFiltered(int anchor_row, int anchor_col) {
 		return 0;
 	}
 	free(popup_items);
-	free(g_autocomplete.visible_indices);
-	g_autocomplete.visible_indices = visible_indices;
-	g_autocomplete.visible_count = visible_count;
-	g_autocomplete.visible_capacity = cap;
-	g_autocomplete.active = 1;
+	free(g_autocomplete_state.visible_indices);
+	g_autocomplete_state.visible_indices = visible_indices;
+	g_autocomplete_state.visible_count = visible_count;
+	g_autocomplete_state.visible_capacity = cap;
+	g_autocomplete_state.active = 1;
 	return 1;
 }
 
@@ -296,19 +295,19 @@ void editorAutocompleteOnCharInserted(int ch) {
 	 * the refilter branch below would resurrect the popup on the next keystroke. Lazily
 	 * clear the state so typing after dismissal triggers a fresh request instead.
 	 */
-	if (g_autocomplete.active && !editorPopupIsVisible()) {
-		editorAutocompleteReset();
+	if (g_autocomplete_state.active && !editorPopupIsVisible()) {
+		autocompleteReset();
 	}
 	if (E.filename == NULL || E.filename[0] == '\0') {
-		editorAutocompleteReset();
+		autocompleteReset();
 		return;
 	}
 	if (!editorLspCompletionEnabledForFile(E.filename, E.syntax_language)) {
-		editorAutocompleteReset();
+		autocompleteReset();
 		return;
 	}
 	if (E.cy < 0 || E.cy >= E.numrows) {
-		editorAutocompleteReset();
+		autocompleteReset();
 		return;
 	}
 
@@ -316,22 +315,21 @@ void editorAutocompleteOnCharInserted(int ch) {
 	        editorLspCompletionTriggerCharsForFile(E.filename, E.syntax_language);
 	int trigger_kind = 1;
 	int trigger_character = 0;
-	if (!editorAutocompleteShouldFire(ch, trigger_chars, &trigger_kind, &trigger_character)) {
+	if (!autocompleteShouldFire(ch, trigger_chars, &trigger_kind, &trigger_character)) {
 		editorAutocompleteCancel();
 		return;
 	}
 
 	struct editorLineView line = {0};
 	if (!editorDocumentLineView(E.document, E.cy, &line)) {
-		editorAutocompleteReset();
+		autocompleteReset();
 		return;
 	}
-	int prefix_start_cx = editorAutocompletePrefixStartCxBytes(line.data, line.size, E.cx);
-	char *prefix =
-	        editorAutocompleteCopyPrefixBytes(line.data, line.size, prefix_start_cx, E.cx);
+	int prefix_start_cx = autocompletePrefixStartCxBytes(line.data, line.size, E.cx);
+	char *prefix = autocompleteCopyPrefixBytes(line.data, line.size, prefix_start_cx, E.cx);
 	editorLineViewRelease(&line);
 	if (prefix == NULL) {
-		editorAutocompleteReset();
+		autocompleteReset();
 		return;
 	}
 
@@ -342,14 +340,17 @@ void editorAutocompleteOnCharInserted(int ch) {
 	 * out so the server can return more specific items, which will replace the filtered set
 	 * when it arrives.
 	 */
-	if (g_autocomplete.active && g_autocomplete.filename != NULL && E.filename != NULL &&
-	    strcmp(g_autocomplete.filename, E.filename) == 0 && g_autocomplete.request_cy == E.cy &&
-	    g_autocomplete.prefix_start_cx == prefix_start_cx && g_autocomplete.prefix != NULL &&
-	    strncmp(prefix, g_autocomplete.prefix, strlen(g_autocomplete.prefix)) == 0) {
-		free(g_autocomplete.prefix);
-		g_autocomplete.prefix = strdup(prefix);
-		g_autocomplete.request_cx = E.cx;
-		(void)editorAutocompleteRefreshFiltered(E.cy, prefix_start_cx);
+	if (g_autocomplete_state.active && g_autocomplete_state.filename != NULL &&
+	    E.filename != NULL && strcmp(g_autocomplete_state.filename, E.filename) == 0 &&
+	    g_autocomplete_state.request_cy == E.cy &&
+	    g_autocomplete_state.prefix_start_cx == prefix_start_cx &&
+	    g_autocomplete_state.prefix != NULL &&
+	    strncmp(prefix, g_autocomplete_state.prefix, strlen(g_autocomplete_state.prefix)) ==
+	            0) {
+		free(g_autocomplete_state.prefix);
+		g_autocomplete_state.prefix = strdup(prefix);
+		g_autocomplete_state.request_cx = E.cx;
+		(void)autocompleteRefreshFiltered(E.cy, prefix_start_cx);
 	}
 
 	int requested = editorLspRequestCompletionAsync(E.filename, E.syntax_language, E.cy, E.cx,
@@ -357,29 +358,29 @@ void editorAutocompleteOnCharInserted(int ch) {
 	                                                trigger_kind, trigger_character);
 	free(prefix);
 	if (!requested) {
-		if (!g_autocomplete.active) {
-			editorAutocompleteReset();
+		if (!g_autocomplete_state.active) {
+			autocompleteReset();
 		}
 		return;
 	}
 }
 
 void editorAutocompleteOnCursorMoved(void) {
-	if (!g_autocomplete.active) {
+	if (!g_autocomplete_state.active) {
 		return;
 	}
-	if (E.cy != g_autocomplete.request_cy) {
+	if (E.cy != g_autocomplete_state.request_cy) {
 		editorAutocompleteCancel();
 		return;
 	}
-	if (E.cx < g_autocomplete.prefix_start_cx) {
+	if (E.cx < g_autocomplete_state.prefix_start_cx) {
 		editorAutocompleteCancel();
 		return;
 	}
 }
 
-static int editorAutocompleteApplyItem(const struct editorLspCompletionItem *item,
-                                       int prefix_start_cy, int prefix_start_cx, int cursor_cx) {
+static int autocompleteApplyItem(const struct editorLspCompletionItem *item, int prefix_start_cy,
+                                 int prefix_start_cx, int cursor_cx) {
 	if (item == NULL) {
 		return 0;
 	}
@@ -403,7 +404,7 @@ static int editorAutocompleteApplyItem(const struct editorLspCompletionItem *ite
 		/* Use filterText (e.g. clangd's bare symbol name) when label has decoration. */
 		insert_text = item->filter_text;
 	} else {
-		insert_text = editorAutocompleteStripLeadingNonIdent(item->label);
+		insert_text = autocompleteStripLeadingNonIdent(item->label);
 		if (insert_text == NULL || insert_text[0] == '\0') {
 			insert_text = item->label;
 		}
@@ -429,43 +430,43 @@ int editorAutocompleteAcceptSelection(void) {
 		return 0;
 	}
 	int popup_idx = editorPopupSelectedIndex();
-	if (popup_idx < 0 || popup_idx >= g_autocomplete.visible_count) {
-		editorAutocompleteReset();
+	if (popup_idx < 0 || popup_idx >= g_autocomplete_state.visible_count) {
+		autocompleteReset();
 		return 0;
 	}
-	int raw_idx = g_autocomplete.visible_indices[popup_idx];
-	if (raw_idx < 0 || raw_idx >= g_autocomplete.count) {
-		editorAutocompleteReset();
+	int raw_idx = g_autocomplete_state.visible_indices[popup_idx];
+	if (raw_idx < 0 || raw_idx >= g_autocomplete_state.count) {
+		autocompleteReset();
 		return 0;
 	}
 	struct editorLspCompletionItem item_copy = {0};
-	if (g_autocomplete.items[raw_idx].label != NULL) {
-		item_copy.label = strdup(g_autocomplete.items[raw_idx].label);
+	if (g_autocomplete_state.items[raw_idx].label != NULL) {
+		item_copy.label = strdup(g_autocomplete_state.items[raw_idx].label);
 	}
-	if (g_autocomplete.items[raw_idx].filter_text != NULL) {
-		item_copy.filter_text = strdup(g_autocomplete.items[raw_idx].filter_text);
+	if (g_autocomplete_state.items[raw_idx].filter_text != NULL) {
+		item_copy.filter_text = strdup(g_autocomplete_state.items[raw_idx].filter_text);
 	}
-	if (g_autocomplete.items[raw_idx].insert_text != NULL) {
-		item_copy.insert_text = strdup(g_autocomplete.items[raw_idx].insert_text);
+	if (g_autocomplete_state.items[raw_idx].insert_text != NULL) {
+		item_copy.insert_text = strdup(g_autocomplete_state.items[raw_idx].insert_text);
 	}
-	item_copy.has_text_edit = g_autocomplete.items[raw_idx].has_text_edit;
-	item_copy.text_edit_start_line = g_autocomplete.items[raw_idx].text_edit_start_line;
+	item_copy.has_text_edit = g_autocomplete_state.items[raw_idx].has_text_edit;
+	item_copy.text_edit_start_line = g_autocomplete_state.items[raw_idx].text_edit_start_line;
 	item_copy.text_edit_start_character =
-	        g_autocomplete.items[raw_idx].text_edit_start_character;
-	item_copy.text_edit_end_line = g_autocomplete.items[raw_idx].text_edit_end_line;
-	item_copy.text_edit_end_character = g_autocomplete.items[raw_idx].text_edit_end_character;
-	if (g_autocomplete.items[raw_idx].text_edit_new_text != NULL) {
+	        g_autocomplete_state.items[raw_idx].text_edit_start_character;
+	item_copy.text_edit_end_line = g_autocomplete_state.items[raw_idx].text_edit_end_line;
+	item_copy.text_edit_end_character =
+	        g_autocomplete_state.items[raw_idx].text_edit_end_character;
+	if (g_autocomplete_state.items[raw_idx].text_edit_new_text != NULL) {
 		item_copy.text_edit_new_text =
-		        strdup(g_autocomplete.items[raw_idx].text_edit_new_text);
+		        strdup(g_autocomplete_state.items[raw_idx].text_edit_new_text);
 	}
 
-	int prefix_start_cy = g_autocomplete.request_cy;
-	int prefix_start_cx = g_autocomplete.prefix_start_cx;
+	int prefix_start_cy = g_autocomplete_state.request_cy;
+	int prefix_start_cx = g_autocomplete_state.prefix_start_cx;
 	int cursor_cx = E.cx;
-	editorAutocompleteReset();
+	autocompleteReset();
 
-	int ok = editorAutocompleteApplyItem(&item_copy, prefix_start_cy, prefix_start_cx,
-	                                     cursor_cx);
+	int ok = autocompleteApplyItem(&item_copy, prefix_start_cy, prefix_start_cx, cursor_cx);
 	free(item_copy.label);
 	free(item_copy.filter_text);
 	free(item_copy.insert_text);
@@ -509,8 +510,8 @@ void editorAutocompleteHandleCompletionResponse(int request_id, int document_ver
 		editorLspFreeCompletionItems(items, count);
 		return;
 	}
-	char *current_prefix = editorAutocompleteCopyPrefixBytes(
-	        line.data, line.size, prefix_start_cx, current_prefix_cx);
+	char *current_prefix = autocompleteCopyPrefixBytes(line.data, line.size, prefix_start_cx,
+	                                                   current_prefix_cx);
 	editorLineViewRelease(&line);
 	if (current_prefix == NULL) {
 		editorLspFreeCompletionItems(items, count);
@@ -524,20 +525,20 @@ void editorAutocompleteHandleCompletionResponse(int request_id, int document_ver
 		return;
 	}
 
-	editorAutocompleteReset();
+	autocompleteReset();
 
-	g_autocomplete.items = items;
-	g_autocomplete.count = count;
-	g_autocomplete.request_id = request_id;
-	g_autocomplete.document_version = document_version;
-	g_autocomplete.request_cy = request_cy;
-	g_autocomplete.request_cx = request_cx;
-	g_autocomplete.prefix_start_cx = prefix_start_cx;
-	g_autocomplete.prefix = current_prefix;
-	g_autocomplete.filename = strdup(filename);
+	g_autocomplete_state.items = items;
+	g_autocomplete_state.count = count;
+	g_autocomplete_state.request_id = request_id;
+	g_autocomplete_state.document_version = document_version;
+	g_autocomplete_state.request_cy = request_cy;
+	g_autocomplete_state.request_cx = request_cx;
+	g_autocomplete_state.prefix_start_cx = prefix_start_cx;
+	g_autocomplete_state.prefix = current_prefix;
+	g_autocomplete_state.filename = strdup(filename);
 
-	if (!editorAutocompleteRefreshFiltered(request_cy, prefix_start_cx)) {
-		editorAutocompleteReset();
+	if (!autocompleteRefreshFiltered(request_cy, prefix_start_cx)) {
+		autocompleteReset();
 		return;
 	}
 }

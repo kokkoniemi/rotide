@@ -15,13 +15,13 @@ struct editorLspRegistryState {
 	int client_count;
 };
 
-static struct editorLspRegistryState g_lsp_registry = {0};
+static struct editorLspRegistryState g_lsp_registry_state = {0};
 
-static int editorLspRegistryServerKindIsEslint(enum editorLspServerKind server_kind) {
+static int lspRegistryServerKindIsEslint(enum editorLspServerKind server_kind) {
 	return server_kind == EDITOR_LSP_SERVER_ESLINT;
 }
 
-static void editorLspRegistryResetClientStruct(struct editorLspClient *client) {
+static void lspRegistryResetClientStruct(struct editorLspClient *client) {
 	if (client == NULL) {
 		return;
 	}
@@ -33,37 +33,37 @@ static void editorLspRegistryResetClientStruct(struct editorLspClient *client) {
 	client->next_request_id = 1;
 }
 
-static void editorLspRegistryInitIfNeeded(void) {
-	if (g_lsp_registry.initialized) {
+static void lspRegistryInitIfNeeded(void) {
+	if (g_lsp_registry_state.initialized) {
 		return;
 	}
-	editorLspRegistryResetClientStruct(&g_lsp_registry.fallback_primary);
-	editorLspRegistryResetClientStruct(&g_lsp_registry.fallback_eslint);
-	g_lsp_registry.primary_active = &g_lsp_registry.fallback_primary;
-	g_lsp_registry.eslint_active = &g_lsp_registry.fallback_eslint;
-	g_lsp_registry.initialized = 1;
+	lspRegistryResetClientStruct(&g_lsp_registry_state.fallback_primary);
+	lspRegistryResetClientStruct(&g_lsp_registry_state.fallback_eslint);
+	g_lsp_registry_state.primary_active = &g_lsp_registry_state.fallback_primary;
+	g_lsp_registry_state.eslint_active = &g_lsp_registry_state.fallback_eslint;
+	g_lsp_registry_state.initialized = 1;
 }
 
 struct editorLspClient *editorLspPrimaryClient(void) {
-	editorLspRegistryInitIfNeeded();
-	return g_lsp_registry.primary_active != NULL ? g_lsp_registry.primary_active
-	                                             : &g_lsp_registry.fallback_primary;
+	lspRegistryInitIfNeeded();
+	return g_lsp_registry_state.primary_active != NULL ? g_lsp_registry_state.primary_active
+	                                                   : &g_lsp_registry_state.fallback_primary;
 }
 
 struct editorLspClient *editorLspEslintClient(void) {
-	editorLspRegistryInitIfNeeded();
-	return g_lsp_registry.eslint_active != NULL ? g_lsp_registry.eslint_active
-	                                            : &g_lsp_registry.fallback_eslint;
+	lspRegistryInitIfNeeded();
+	return g_lsp_registry_state.eslint_active != NULL ? g_lsp_registry_state.eslint_active
+	                                                  : &g_lsp_registry_state.fallback_eslint;
 }
 
 struct editorLspClient *editorLspRegistryFindClient(enum editorLspServerKind server_kind,
                                                     const char *workspace_root_path) {
-	editorLspRegistryInitIfNeeded();
+	lspRegistryInitIfNeeded();
 	if (workspace_root_path == NULL || workspace_root_path[0] == '\0') {
 		return NULL;
 	}
-	for (int i = 0; i < g_lsp_registry.client_count; i++) {
-		struct editorLspClient *client = g_lsp_registry.clients[i];
+	for (int i = 0; i < g_lsp_registry_state.client_count; i++) {
+		struct editorLspClient *client = g_lsp_registry_state.clients[i];
 		if (client == NULL || client->server_kind != server_kind) {
 			continue;
 		}
@@ -75,30 +75,30 @@ struct editorLspClient *editorLspRegistryFindClient(enum editorLspServerKind ser
 	return NULL;
 }
 
-static struct editorLspClient *editorLspRegistrySelectEvictionCandidate(void) {
-	for (int i = 0; i < g_lsp_registry.client_count; i++) {
-		struct editorLspClient *candidate = g_lsp_registry.clients[i];
+static struct editorLspClient *lspRegistrySelectEvictionCandidate(void) {
+	for (int i = 0; i < g_lsp_registry_state.client_count; i++) {
+		struct editorLspClient *candidate = g_lsp_registry_state.clients[i];
 		if (candidate == NULL) {
 			continue;
 		}
-		int active = candidate == g_lsp_registry.primary_active ||
-		             candidate == g_lsp_registry.eslint_active;
+		int active = candidate == g_lsp_registry_state.primary_active ||
+		             candidate == g_lsp_registry_state.eslint_active;
 		if (!active && (candidate->server_kind == EDITOR_LSP_SERVER_NONE ||
 		                !editorLspProcessAlive(candidate))) {
 			return candidate;
 		}
 	}
-	for (int i = 0; i < g_lsp_registry.client_count; i++) {
-		struct editorLspClient *candidate = g_lsp_registry.clients[i];
+	for (int i = 0; i < g_lsp_registry_state.client_count; i++) {
+		struct editorLspClient *candidate = g_lsp_registry_state.clients[i];
 		if (candidate == NULL) {
 			continue;
 		}
-		if (candidate != g_lsp_registry.primary_active &&
-		    candidate != g_lsp_registry.eslint_active) {
+		if (candidate != g_lsp_registry_state.primary_active &&
+		    candidate != g_lsp_registry_state.eslint_active) {
 			return candidate;
 		}
 	}
-	return g_lsp_registry.client_count > 0 ? g_lsp_registry.clients[0] : NULL;
+	return g_lsp_registry_state.client_count > 0 ? g_lsp_registry_state.clients[0] : NULL;
 }
 
 struct editorLspClient *editorLspRegistryAcquireClient(enum editorLspServerKind server_kind,
@@ -108,18 +108,18 @@ struct editorLspClient *editorLspRegistryAcquireClient(enum editorLspServerKind 
 	if (existing != NULL) {
 		return existing;
 	}
-	editorLspRegistryInitIfNeeded();
-	if (g_lsp_registry.client_count < ROTIDE_LSP_REGISTRY_MAX_CLIENTS) {
+	lspRegistryInitIfNeeded();
+	if (g_lsp_registry_state.client_count < ROTIDE_LSP_REGISTRY_MAX_CLIENTS) {
 		struct editorLspClient *client = calloc(1, sizeof(*client));
 		if (client == NULL) {
 			return NULL;
 		}
-		editorLspRegistryResetClientStruct(client);
-		g_lsp_registry.clients[g_lsp_registry.client_count++] = client;
+		lspRegistryResetClientStruct(client);
+		g_lsp_registry_state.clients[g_lsp_registry_state.client_count++] = client;
 		return client;
 	}
 
-	struct editorLspClient *evict = editorLspRegistrySelectEvictionCandidate();
+	struct editorLspClient *evict = lspRegistrySelectEvictionCandidate();
 	if (evict == NULL) {
 		return NULL;
 	}
@@ -129,23 +129,24 @@ struct editorLspClient *editorLspRegistryAcquireClient(enum editorLspServerKind 
 
 void editorLspRegistrySetActiveClient(enum editorLspServerKind server_kind,
                                       struct editorLspClient *client) {
-	editorLspRegistryInitIfNeeded();
-	if (editorLspRegistryServerKindIsEslint(server_kind)) {
-		g_lsp_registry.eslint_active =
-		        client != NULL ? client : &g_lsp_registry.fallback_eslint;
+	lspRegistryInitIfNeeded();
+	if (lspRegistryServerKindIsEslint(server_kind)) {
+		g_lsp_registry_state.eslint_active =
+		        client != NULL ? client : &g_lsp_registry_state.fallback_eslint;
 		return;
 	}
-	g_lsp_registry.primary_active = client != NULL ? client : &g_lsp_registry.fallback_primary;
+	g_lsp_registry_state.primary_active =
+	        client != NULL ? client : &g_lsp_registry_state.fallback_primary;
 }
 
 void editorLspRegistryForEachClient(void (*callback)(struct editorLspClient *client, void *ctx),
                                     void *ctx) {
-	editorLspRegistryInitIfNeeded();
+	lspRegistryInitIfNeeded();
 	if (callback == NULL) {
 		return;
 	}
-	for (int i = 0; i < g_lsp_registry.client_count; i++) {
-		struct editorLspClient *client = g_lsp_registry.clients[i];
+	for (int i = 0; i < g_lsp_registry_state.client_count; i++) {
+		struct editorLspClient *client = g_lsp_registry_state.clients[i];
 		if (client == NULL) {
 			continue;
 		}
@@ -154,26 +155,26 @@ void editorLspRegistryForEachClient(void (*callback)(struct editorLspClient *cli
 }
 
 void editorLspRegistryShutdownAll(int graceful_shutdown) {
-	editorLspRegistryInitIfNeeded();
-	for (int i = 0; i < g_lsp_registry.client_count; i++) {
-		struct editorLspClient *client = g_lsp_registry.clients[i];
+	lspRegistryInitIfNeeded();
+	for (int i = 0; i < g_lsp_registry_state.client_count; i++) {
+		struct editorLspClient *client = g_lsp_registry_state.clients[i];
 		if (client == NULL) {
 			continue;
 		}
 		editorLspClientCleanup(client, graceful_shutdown);
 	}
-	editorLspClientCleanup(&g_lsp_registry.fallback_primary, 0);
-	editorLspClientCleanup(&g_lsp_registry.fallback_eslint, 0);
-	g_lsp_registry.primary_active = &g_lsp_registry.fallback_primary;
-	g_lsp_registry.eslint_active = &g_lsp_registry.fallback_eslint;
+	editorLspClientCleanup(&g_lsp_registry_state.fallback_primary, 0);
+	editorLspClientCleanup(&g_lsp_registry_state.fallback_eslint, 0);
+	g_lsp_registry_state.primary_active = &g_lsp_registry_state.fallback_primary;
+	g_lsp_registry_state.eslint_active = &g_lsp_registry_state.fallback_eslint;
 }
 
 void editorLspRegistryReset(void) {
-	editorLspRegistryInitIfNeeded();
+	lspRegistryInitIfNeeded();
 	editorLspRegistryShutdownAll(0);
-	for (int i = 0; i < g_lsp_registry.client_count; i++) {
-		free(g_lsp_registry.clients[i]);
-		g_lsp_registry.clients[i] = NULL;
+	for (int i = 0; i < g_lsp_registry_state.client_count; i++) {
+		free(g_lsp_registry_state.clients[i]);
+		g_lsp_registry_state.clients[i] = NULL;
 	}
-	g_lsp_registry.client_count = 0;
+	g_lsp_registry_state.client_count = 0;
 }

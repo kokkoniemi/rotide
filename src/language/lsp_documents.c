@@ -11,8 +11,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int editorLspIsTrackedLanguage(const char *filename, enum editorSyntaxLanguage language,
-                                      int *doc_open_in_out, int *doc_version_in_out) {
+static int lspDocumentsIsTrackedLanguage(const char *filename, enum editorSyntaxLanguage language,
+                                         int *doc_open_in_out, int *doc_version_in_out) {
 	if (filename == NULL || filename[0] == '\0' || !editorLspFileEnabled(filename, language) ||
 	    doc_open_in_out == NULL || doc_version_in_out == NULL ||
 	    editorLspServerKindForFile(filename, language) == EDITOR_LSP_SERVER_NONE) {
@@ -21,9 +21,9 @@ static int editorLspIsTrackedLanguage(const char *filename, enum editorSyntaxLan
 	return 1;
 }
 
-static int editorLspIsTrackedEslintLanguage(const char *filename,
-                                            enum editorSyntaxLanguage language,
-                                            int *doc_open_in_out, int *doc_version_in_out) {
+static int lspDocumentsIsTrackedEslintLanguage(const char *filename,
+                                               enum editorSyntaxLanguage language,
+                                               int *doc_open_in_out, int *doc_version_in_out) {
 	if (filename == NULL || filename[0] == '\0' ||
 	    !editorLspEslintEnabledForFile(filename, language) || doc_open_in_out == NULL ||
 	    doc_version_in_out == NULL) {
@@ -35,7 +35,8 @@ static int editorLspIsTrackedEslintLanguage(const char *filename,
 int editorLspEnsureDocumentOpen(const char *filename, enum editorSyntaxLanguage language,
                                 int *doc_open_in_out, int *doc_version_in_out,
                                 const char *full_text, size_t full_text_len) {
-	if (!editorLspIsTrackedLanguage(filename, language, doc_open_in_out, doc_version_in_out)) {
+	if (!lspDocumentsIsTrackedLanguage(filename, language, doc_open_in_out,
+	                                   doc_version_in_out)) {
 		return 1;
 	}
 	if (*doc_open_in_out) {
@@ -120,7 +121,8 @@ int editorLspNotifyDidChange(const char *filename, enum editorSyntaxLanguage lan
                              const struct editorSyntaxEdit *edit, const char *inserted_text,
                              size_t inserted_text_len, const char *full_text,
                              size_t full_text_len) {
-	if (!editorLspIsTrackedLanguage(filename, language, doc_open_in_out, doc_version_in_out)) {
+	if (!lspDocumentsIsTrackedLanguage(filename, language, doc_open_in_out,
+	                                   doc_version_in_out)) {
 		return 1;
 	}
 
@@ -284,7 +286,8 @@ int editorLspNotifyDidChange(const char *filename, enum editorSyntaxLanguage lan
 
 int editorLspNotifyDidSave(const char *filename, enum editorSyntaxLanguage language,
                            int *doc_open_in_out, int *doc_version_in_out) {
-	if (!editorLspIsTrackedLanguage(filename, language, doc_open_in_out, doc_version_in_out)) {
+	if (!lspDocumentsIsTrackedLanguage(filename, language, doc_open_in_out,
+	                                   doc_version_in_out)) {
 		return 1;
 	}
 	if (!*doc_open_in_out) {
@@ -336,7 +339,8 @@ int editorLspNotifyDidSave(const char *filename, enum editorSyntaxLanguage langu
 
 void editorLspNotifyDidClose(const char *filename, enum editorSyntaxLanguage language,
                              int *doc_open_in_out, int *doc_version_in_out) {
-	if (!editorLspIsTrackedLanguage(filename, language, doc_open_in_out, doc_version_in_out) ||
+	if (!lspDocumentsIsTrackedLanguage(filename, language, doc_open_in_out,
+	                                   doc_version_in_out) ||
 	    !*doc_open_in_out) {
 		return;
 	}
@@ -381,8 +385,8 @@ void editorLspNotifyDidClose(const char *filename, enum editorSyntaxLanguage lan
 int editorLspEnsureEslintDocumentOpen(const char *filename, enum editorSyntaxLanguage language,
                                       int *doc_open_in_out, int *doc_version_in_out,
                                       const char *full_text, size_t full_text_len) {
-	if (!editorLspIsTrackedEslintLanguage(filename, language, doc_open_in_out,
-	                                      doc_version_in_out)) {
+	if (!lspDocumentsIsTrackedEslintLanguage(filename, language, doc_open_in_out,
+	                                         doc_version_in_out)) {
 		return 1;
 	}
 	if (*doc_open_in_out) {
@@ -466,8 +470,8 @@ int editorLspNotifyEslintDidChange(const char *filename, enum editorSyntaxLangua
                                    const struct editorSyntaxEdit *edit, const char *inserted_text,
                                    size_t inserted_text_len, const char *full_text,
                                    size_t full_text_len) {
-	if (!editorLspIsTrackedEslintLanguage(filename, language, doc_open_in_out,
-	                                      doc_version_in_out)) {
+	if (!lspDocumentsIsTrackedEslintLanguage(filename, language, doc_open_in_out,
+	                                         doc_version_in_out)) {
 		return 1;
 	}
 
@@ -600,8 +604,8 @@ int editorLspNotifyEslintDidChange(const char *filename, enum editorSyntaxLangua
 
 int editorLspNotifyEslintDidSave(const char *filename, enum editorSyntaxLanguage language,
                                  int *doc_open_in_out, int *doc_version_in_out) {
-	if (!editorLspIsTrackedEslintLanguage(filename, language, doc_open_in_out,
-	                                      doc_version_in_out)) {
+	if (!lspDocumentsIsTrackedEslintLanguage(filename, language, doc_open_in_out,
+	                                         doc_version_in_out)) {
 		return 1;
 	}
 	if (!*doc_open_in_out) {
@@ -653,8 +657,8 @@ int editorLspNotifyEslintDidSave(const char *filename, enum editorSyntaxLanguage
 
 void editorLspNotifyEslintDidClose(const char *filename, enum editorSyntaxLanguage language,
                                    int *doc_open_in_out, int *doc_version_in_out) {
-	if (!editorLspIsTrackedEslintLanguage(filename, language, doc_open_in_out,
-	                                      doc_version_in_out) ||
+	if (!lspDocumentsIsTrackedEslintLanguage(filename, language, doc_open_in_out,
+	                                         doc_version_in_out) ||
 	    !*doc_open_in_out) {
 		return;
 	}

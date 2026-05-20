@@ -91,7 +91,7 @@ int editorLspBuildFileUri(const char *path, char **uri_out) {
 	return 1;
 }
 
-static int editorLspHexValue(char c) {
+static int lspProtocolHexValue(char c) {
 	if (c >= '0' && c <= '9') {
 		return c - '0';
 	}
@@ -131,8 +131,8 @@ char *editorLspDecodeFileUri(const char *uri) {
 	size_t write_idx = 0;
 	for (size_t i = 0; i < len; i++) {
 		if (rest[i] == '%' && i + 2 < len) {
-			int hi = editorLspHexValue(rest[i + 1]);
-			int lo = editorLspHexValue(rest[i + 2]);
+			int hi = lspProtocolHexValue(rest[i + 1]);
+			int lo = lspProtocolHexValue(rest[i + 2]);
 			if (hi >= 0 && lo >= 0) {
 				path[write_idx++] = (char)((hi << 4) | lo);
 				i += 2;
@@ -169,8 +169,8 @@ int editorLspClientProtocolCharacterToBufferColumn(struct editorLspClient *clien
 	return byte_column;
 }
 
-static int editorLspDiagnosticsErrorCount(const struct editorLspDiagnostic *diagnostics,
-                                          int count) {
+static int lspProtocolDiagnosticsErrorCount(const struct editorLspDiagnostic *diagnostics,
+                                            int count) {
 	int errors = 0;
 	for (int i = 0; i < count; i++) {
 		if (diagnostics[i].severity == 1) {
@@ -180,8 +180,8 @@ static int editorLspDiagnosticsErrorCount(const struct editorLspDiagnostic *diag
 	return errors;
 }
 
-static int editorLspDiagnosticsWarningCount(const struct editorLspDiagnostic *diagnostics,
-                                            int count) {
+static int lspProtocolDiagnosticsWarningCount(const struct editorLspDiagnostic *diagnostics,
+                                              int count) {
 	int warnings = 0;
 	for (int i = 0; i < count; i++) {
 		if (diagnostics[i].severity == 2) {
@@ -191,15 +191,15 @@ static int editorLspDiagnosticsWarningCount(const struct editorLspDiagnostic *di
 	return warnings;
 }
 
-static int editorLspPathMatches(const char *left, const char *right) {
+static int lspProtocolPathMatches(const char *left, const char *right) {
 	return left != NULL && right != NULL && editorPathsReferToSameFile(left, right);
 }
 
-static void editorLspUpdateDiagnosticFields(struct editorLspDiagnostic **diagnostics_in_out,
-                                            int *count_in_out, int *error_count_out,
-                                            int *warning_count_out,
-                                            const struct editorLspDiagnostic *diagnostics,
-                                            int count) {
+static void lspProtocolUpdateDiagnosticFields(struct editorLspDiagnostic **diagnostics_in_out,
+                                              int *count_in_out, int *error_count_out,
+                                              int *warning_count_out,
+                                              const struct editorLspDiagnostic *diagnostics,
+                                              int count) {
 	editorLspFreeDiagnostics(*diagnostics_in_out, *count_in_out);
 	*diagnostics_in_out = NULL;
 	*count_in_out = 0;
@@ -211,12 +211,12 @@ static void editorLspUpdateDiagnosticFields(struct editorLspDiagnostic **diagnos
 	if (!editorLspCopyDiagnostics(diagnostics_in_out, count_in_out, diagnostics, count)) {
 		return;
 	}
-	*error_count_out = editorLspDiagnosticsErrorCount(*diagnostics_in_out, *count_in_out);
-	*warning_count_out = editorLspDiagnosticsWarningCount(*diagnostics_in_out, *count_in_out);
+	*error_count_out = lspProtocolDiagnosticsErrorCount(*diagnostics_in_out, *count_in_out);
+	*warning_count_out = lspProtocolDiagnosticsWarningCount(*diagnostics_in_out, *count_in_out);
 }
 
 static const char *
-editorLspDiagnosticSourceLabelForServerKind(enum editorLspServerKind server_kind) {
+lspProtocolDiagnosticSourceLabelForServerKind(enum editorLspServerKind server_kind) {
 	switch (server_kind) {
 		case EDITOR_LSP_SERVER_GOPLS:
 			return "gopls";
@@ -237,9 +237,10 @@ editorLspDiagnosticSourceLabelForServerKind(enum editorLspServerKind server_kind
 	}
 }
 
-static void editorLspSetDiagnosticsForPathWithSource(const char *path,
-                                                     const struct editorLspDiagnostic *diagnostics,
-                                                     int count, const char *source_label) {
+static void
+lspProtocolSetDiagnosticsForPathWithSource(const char *path,
+                                           const struct editorLspDiagnostic *diagnostics, int count,
+                                           const char *source_label) {
 	if (path == NULL || path[0] == '\0') {
 		return;
 	}
@@ -247,25 +248,25 @@ static void editorLspSetDiagnosticsForPathWithSource(const char *path,
 		source_label = "LSP";
 	}
 
-	int active_matches = editorLspPathMatches(path, E.filename);
+	int active_matches = lspProtocolPathMatches(path, E.filename);
 	int old_count = active_matches ? E.lsp_diagnostic_count : 0;
 	int old_errors = active_matches ? E.lsp_diagnostic_error_count : 0;
 	int old_warnings = active_matches ? E.lsp_diagnostic_warning_count : 0;
 
 	if (active_matches) {
-		editorLspUpdateDiagnosticFields(
+		lspProtocolUpdateDiagnosticFields(
 		        &E.lsp_diagnostics, &E.lsp_diagnostic_count, &E.lsp_diagnostic_error_count,
 		        &E.lsp_diagnostic_warning_count, diagnostics, count);
 	}
 	for (int i = 0; i < E.tab_count; i++) {
 		struct editorBuffer *tab = editorTabBufferHandleAtMutable(i);
-		if (tab == NULL || !editorLspPathMatches(path, tab->filename)) {
+		if (tab == NULL || !lspProtocolPathMatches(path, tab->filename)) {
 			continue;
 		}
-		editorLspUpdateDiagnosticFields(&tab->lsp_diagnostics, &tab->lsp_diagnostic_count,
-		                                &tab->lsp_diagnostic_error_count,
-		                                &tab->lsp_diagnostic_warning_count, diagnostics,
-		                                count);
+		lspProtocolUpdateDiagnosticFields(&tab->lsp_diagnostics, &tab->lsp_diagnostic_count,
+		                                  &tab->lsp_diagnostic_error_count,
+		                                  &tab->lsp_diagnostic_warning_count, diagnostics,
+		                                  count);
 	}
 
 	if (active_matches &&
@@ -285,7 +286,7 @@ static void editorLspSetDiagnosticsForPathWithSource(const char *path,
 
 void editorLspSetDiagnosticsForPath(const char *path, const struct editorLspDiagnostic *diagnostics,
                                     int count) {
-	editorLspSetDiagnosticsForPathWithSource(path, diagnostics, count, "LSP");
+	lspProtocolSetDiagnosticsForPathWithSource(path, diagnostics, count, "LSP");
 }
 
 void editorLspClearDiagnosticsForFile(const char *filename) {
@@ -298,7 +299,7 @@ void editorLspGetDiagnosticSummaryForFile(const char *filename,
 		return;
 	}
 	memset(summary_out, 0, sizeof(*summary_out));
-	if (editorLspPathMatches(filename, E.filename)) {
+	if (lspProtocolPathMatches(filename, E.filename)) {
 		summary_out->count = E.lsp_diagnostic_count;
 		summary_out->error_count = E.lsp_diagnostic_error_count;
 		summary_out->warning_count = E.lsp_diagnostic_warning_count;
@@ -306,7 +307,7 @@ void editorLspGetDiagnosticSummaryForFile(const char *filename,
 	}
 	for (int i = 0; i < E.tab_count; i++) {
 		const struct editorBuffer *tab = editorTabBufferHandleAt(i);
-		if (tab == NULL || !editorLspPathMatches(filename, tab->filename)) {
+		if (tab == NULL || !lspProtocolPathMatches(filename, tab->filename)) {
 			continue;
 		}
 		summary_out->count = tab->lsp_diagnostic_count;
@@ -316,9 +317,9 @@ void editorLspGetDiagnosticSummaryForFile(const char *filename,
 	}
 }
 
-static int editorLspParseDiagnosticsMessage(const char *message, char **path_out,
-                                            struct editorLspDiagnostic **diagnostics_out,
-                                            int *count_out) {
+static int lspProtocolParseDiagnosticsMessage(const char *message, char **path_out,
+                                              struct editorLspDiagnostic **diagnostics_out,
+                                              int *count_out) {
 	if (path_out == NULL || diagnostics_out == NULL || count_out == NULL) {
 		return 0;
 	}
@@ -487,7 +488,7 @@ static int editorLspParseDiagnosticsMessage(const char *message, char **path_out
 	return 1;
 }
 
-static int editorLspPendingEditCompareDesc(const void *lhs, const void *rhs) {
+static int lspProtocolPendingEditCompareDesc(const void *lhs, const void *rhs) {
 	const struct editorLspPendingEdit *left = lhs;
 	const struct editorLspPendingEdit *right = rhs;
 	if (left->start_line != right->start_line) {
@@ -509,7 +510,7 @@ int editorLspApplyPendingEditsWithClient(struct editorLspClient *client,
 	for (int i = 0; i < count; i++) {
 		sorted[i] = edits[i];
 	}
-	qsort(sorted, (size_t)count, sizeof(*sorted), editorLspPendingEditCompareDesc);
+	qsort(sorted, (size_t)count, sizeof(*sorted), lspProtocolPendingEditCompareDesc);
 
 	for (int i = 0; i < count; i++) {
 		int start_cx = editorLspClientProtocolCharacterToBufferColumn(
@@ -563,8 +564,8 @@ int editorLspApplyPendingEdits(const struct editorLspPendingEdit *edits, int cou
 	return editorLspApplyPendingEditsWithClient(editorLspPrimaryClient(), edits, count);
 }
 
-static int editorLspRespondToRequest(struct editorLspClient *client, int request_id,
-                                     const char *result_json) {
+static int lspProtocolRespondToRequest(struct editorLspClient *client, int request_id,
+                                       const char *result_json) {
 	struct editorLspString payload = {0};
 	int built = editorLspStringAppendf(
 	        &payload, "{\"jsonrpc\":\"2.0\",\"id\":%d,\"result\":", request_id);
@@ -592,11 +593,11 @@ int editorLspProcessIncomingMessage(struct editorLspClient *client, const char *
 	char *path = NULL;
 	struct editorLspDiagnostic *diagnostics = NULL;
 	int diagnostic_count = 0;
-	if (editorLspParseDiagnosticsMessage(message, &path, &diagnostics, &diagnostic_count)) {
-		const char *source_label = editorLspDiagnosticSourceLabelForServerKind(
+	if (lspProtocolParseDiagnosticsMessage(message, &path, &diagnostics, &diagnostic_count)) {
+		const char *source_label = lspProtocolDiagnosticSourceLabelForServerKind(
 		        client != NULL ? client->server_kind : EDITOR_LSP_SERVER_NONE);
-		editorLspSetDiagnosticsForPathWithSource(path, diagnostics, diagnostic_count,
-		                                         source_label);
+		lspProtocolSetDiagnosticsForPathWithSource(path, diagnostics, diagnostic_count,
+		                                           source_label);
 		editorLspFreeDiagnostics(diagnostics, diagnostic_count);
 		free(path);
 		return 1;
@@ -613,14 +614,14 @@ int editorLspProcessIncomingMessage(struct editorLspClient *client, const char *
 	if (strcmp(method, "workspace/configuration") == 0) {
 		free(method);
 		if (has_request_id) {
-			return editorLspRespondToRequest(client, request_id, "[{}]");
+			return lspProtocolRespondToRequest(client, request_id, "[{}]");
 		}
 		return 1;
 	}
 	if (strcmp(method, "client/registerCapability") == 0) {
 		free(method);
 		if (has_request_id) {
-			return editorLspRespondToRequest(client, request_id, "null");
+			return lspProtocolRespondToRequest(client, request_id, "null");
 		}
 		return 1;
 	}
@@ -636,13 +637,13 @@ int editorLspProcessIncomingMessage(struct editorLspClient *client, const char *
 		int applied = parsed && count > 0 &&
 		              editorLspApplyPendingEditsWithClient(client, edits, count) >= 0;
 		editorLspFreePendingEdits(edits, count);
-		return editorLspRespondToRequest(
+		return lspProtocolRespondToRequest(
 		        client, request_id, applied ? "{\"applied\":true}" : "{\"applied\":false}");
 	}
 
 	free(method);
 	if (has_request_id) {
-		return editorLspRespondToRequest(client, request_id, "null");
+		return lspProtocolRespondToRequest(client, request_id, "null");
 	}
 	return 1;
 }

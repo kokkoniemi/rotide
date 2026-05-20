@@ -10,12 +10,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int editorLspRequestLocationsByMethod(const char *method, int *mock_counter,
-                                             const char *filename,
-                                             enum editorSyntaxLanguage language, int line,
-                                             int character,
-                                             struct editorLspLocation **locations_out,
-                                             int *count_out, int *timed_out_out) {
+static int lspFeaturesRequestLocationsByMethod(const char *method, int *mock_counter,
+                                               const char *filename,
+                                               enum editorSyntaxLanguage language, int line,
+                                               int character,
+                                               struct editorLspLocation **locations_out,
+                                               int *count_out, int *timed_out_out) {
 	if (locations_out == NULL || count_out == NULL) {
 		return -1;
 	}
@@ -132,7 +132,7 @@ static int editorLspRequestLocationsByMethod(const char *method, int *mock_count
 int editorLspRequestDefinition(const char *filename, enum editorSyntaxLanguage language, int line,
                                int character, struct editorLspLocation **locations_out,
                                int *count_out, int *timed_out_out) {
-	return editorLspRequestLocationsByMethod(
+	return lspFeaturesRequestLocationsByMethod(
 	        "textDocument/definition", &g_lsp_mock.stats.definition_count, filename, language,
 	        line, character, locations_out, count_out, timed_out_out);
 }
@@ -141,7 +141,7 @@ int editorLspRequestImplementation(const char *filename, enum editorSyntaxLangua
                                    int line, int character,
                                    struct editorLspLocation **locations_out, int *count_out,
                                    int *timed_out_out) {
-	return editorLspRequestLocationsByMethod(
+	return lspFeaturesRequestLocationsByMethod(
 	        "textDocument/implementation", &g_lsp_mock.stats.implementation_count, filename,
 	        language, line, character, locations_out, count_out, timed_out_out);
 }

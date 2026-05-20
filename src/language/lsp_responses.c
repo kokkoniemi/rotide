@@ -172,8 +172,8 @@ int editorLspCopyCompletionItems(struct editorLspCompletionItem **out_items, int
 	return 1;
 }
 
-static int editorLspParsePositionFromObject(const char *position_object, const char *limit,
-                                            int *line_out, int *character_out) {
+static int lspResponsesParsePositionFromObject(const char *position_object, const char *limit,
+                                               int *line_out, int *character_out) {
 	if (position_object == NULL || position_object[0] != '{') {
 		return 0;
 	}
@@ -206,13 +206,13 @@ static int editorLspParsePositionFromObject(const char *position_object, const c
 	return 1;
 }
 
-static int editorLspParsePositionFromStart(const char *range_json, const char *limit, int *line_out,
-                                           int *character_out) {
+static int lspResponsesParsePositionFromStart(const char *range_json, const char *limit,
+                                              int *line_out, int *character_out) {
 	return editorLspParsePositionFromKey(range_json, "start", limit, line_out, character_out);
 }
 
-static int editorLspParseCompletionItemObject(const char *object_start, const char *object_end,
-                                              struct editorLspCompletionItem *out) {
+static int lspResponsesParseCompletionItemObject(const char *object_start, const char *object_end,
+                                                 struct editorLspCompletionItem *out) {
 	memset(out, 0, sizeof(*out));
 
 	const char *label_key = editorLspStrstrBounded(object_start, "\"label\"", object_end);
@@ -327,12 +327,12 @@ static int editorLspParseCompletionItemObject(const char *object_start, const ch
 											            '{' &&
 											    end_obj[0] ==
 											            '{') {
-												if (editorLspParsePositionFromObject(
+												if (lspResponsesParsePositionFromObject(
 												            start_obj,
 												            range_end,
 												            &sl,
 												            &sc) &&
-												    editorLspParsePositionFromObject(
+												    lspResponsesParsePositionFromObject(
 												            end_obj,
 												            range_end,
 												            &el,
@@ -454,7 +454,7 @@ int editorLspParseCompletionResponse(const char *response_json,
 			break;
 		}
 		struct editorLspCompletionItem item = {0};
-		if (editorLspParseCompletionItemObject(object_start, object_end, &item)) {
+		if (lspResponsesParseCompletionItemObject(object_start, object_end, &item)) {
 			if (count >= cap) {
 				int new_cap = cap > 0 ? cap * 2 : 8;
 				struct editorLspCompletionItem *grown =
@@ -483,8 +483,8 @@ int editorLspParseCompletionResponse(const char *response_json,
 	return 1;
 }
 
-static int editorLspAppendLocation(struct editorLspLocation **locations, int *count, int *cap,
-                                   const char *path, int line, int character) {
+static int lspResponsesAppendLocation(struct editorLspLocation **locations, int *count, int *cap,
+                                      const char *path, int line, int character) {
 	if (locations == NULL || count == NULL || cap == NULL || path == NULL) {
 		return 0;
 	}
@@ -516,10 +516,11 @@ static int editorLspAppendLocation(struct editorLspLocation **locations, int *co
 	return 1;
 }
 
-static int editorLspParseLocationObjects(const char *result_json, const char *uri_key,
-                                         const char *range_key_primary,
-                                         const char *range_key_fallback,
-                                         struct editorLspLocation **locations_out, int *count_out) {
+static int lspResponsesParseLocationObjects(const char *result_json, const char *uri_key,
+                                            const char *range_key_primary,
+                                            const char *range_key_fallback,
+                                            struct editorLspLocation **locations_out,
+                                            int *count_out) {
 	struct editorLspLocation *locations = NULL;
 	int count = 0;
 	int cap = 0;
@@ -593,15 +594,15 @@ static int editorLspParseLocationObjects(const char *result_json, const char *ur
 		int line = -1;
 		int character = -1;
 		if (range_pos != NULL) {
-			(void)editorLspParsePositionFromStart(range_pos, object_end, &line,
-			                                      &character);
+			(void)lspResponsesParsePositionFromStart(range_pos, object_end, &line,
+			                                         &character);
 		}
 
 		if (line >= 0 && character >= 0) {
 			char *path = editorLspDecodeFileUri(uri);
 			if (path != NULL) {
-				if (!editorLspAppendLocation(&locations, &count, &cap, path, line,
-				                             character)) {
+				if (!lspResponsesAppendLocation(&locations, &count, &cap, path,
+				                                line, character)) {
 					free(path);
 					free(uri);
 					editorLspFreeLocations(locations, count);
@@ -641,11 +642,11 @@ int editorLspParseDefinitionLocations(const char *response_json,
 	}
 
 	if (strstr(result, "\"targetUri\"") != NULL) {
-		return editorLspParseLocationObjects(result, "targetUri", "targetSelectionRange",
-		                                     "targetRange", locations_out, count_out);
+		return lspResponsesParseLocationObjects(result, "targetUri", "targetSelectionRange",
+		                                        "targetRange", locations_out, count_out);
 	}
-	return editorLspParseLocationObjects(result, "uri", "range", NULL, locations_out,
-	                                     count_out);
+	return lspResponsesParseLocationObjects(result, "uri", "range", NULL, locations_out,
+	                                        count_out);
 }
 
 int editorLspCopyLocations(struct editorLspLocation **out_locations, int *out_count,
@@ -784,8 +785,9 @@ const char *editorLspSymbolKindLabel(int kind) {
 	}
 }
 
-static int editorLspAppendSymbol(struct editorLspSymbol **symbols, int *count, int *cap, char *name,
-                                 int kind, int line, int character, int depth, int parent_index) {
+static int lspResponsesAppendSymbol(struct editorLspSymbol **symbols, int *count, int *cap,
+                                    char *name, int kind, int line, int character, int depth,
+                                    int parent_index) {
 	if (*count >= *cap) {
 		int new_cap = *cap > 0 ? *cap * 2 : 8;
 		struct editorLspSymbol *grown =
@@ -807,9 +809,9 @@ static int editorLspAppendSymbol(struct editorLspSymbol **symbols, int *count, i
 	return 1;
 }
 
-static int editorLspParseDocumentSymbolObject(const char *object_start, const char *object_end,
-                                              struct editorLspSymbol **symbols, int *count,
-                                              int *cap, int depth, int parent_index) {
+static int lspResponsesParseDocumentSymbolObject(const char *object_start, const char *object_end,
+                                                 struct editorLspSymbol **symbols, int *count,
+                                                 int *cap, int depth, int parent_index) {
 	const char *name_key = editorLspFindTopLevelKey(object_start, object_end, "\"name\"");
 	if (name_key == NULL) {
 		return 1;
@@ -876,8 +878,8 @@ static int editorLspParseDocumentSymbolObject(const char *object_start, const ch
 	}
 
 	int my_index = *count;
-	if (!editorLspAppendSymbol(symbols, count, cap, name, kind, line, character, depth,
-	                           parent_index)) {
+	if (!lspResponsesAppendSymbol(symbols, count, cap, name, kind, line, character, depth,
+	                              parent_index)) {
 		free(name);
 		return 0;
 	}
@@ -909,7 +911,7 @@ static int editorLspParseDocumentSymbolObject(const char *object_start, const ch
 							break;
 						}
 						int child_index = *count;
-						if (!editorLspParseDocumentSymbolObject(
+						if (!lspResponsesParseDocumentSymbolObject(
 						            p, child_end, symbols, count, cap,
 						            depth + 1, my_index)) {
 							return 0;
@@ -984,8 +986,8 @@ int editorLspParseDocumentSymbols(const char *response_json, struct editorLspSym
 			break;
 		}
 		int top_index = count;
-		if (!editorLspParseDocumentSymbolObject(p, obj_end, &symbols, &count, &cap, 0,
-		                                        -1)) {
+		if (!lspResponsesParseDocumentSymbolObject(p, obj_end, &symbols, &count, &cap, 0,
+		                                           -1)) {
 			editorLspFreeSymbols(symbols, count);
 			return 0;
 		}

@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int editorLspStringEnsureCap(struct editorLspString *sb, size_t needed) {
+static int lspJsonStringEnsureCap(struct editorLspString *sb, size_t needed) {
 	if (needed <= sb->cap) {
 		return 1;
 	}
@@ -41,7 +41,7 @@ int editorLspStringAppendBytes(struct editorLspString *sb, const char *bytes, si
 	if (!editorSizeAdd(sb->len, len, &needed) || !editorSizeAdd(needed, 1, &needed)) {
 		return 0;
 	}
-	if (!editorLspStringEnsureCap(sb, needed)) {
+	if (!lspJsonStringEnsureCap(sb, needed)) {
 		return 0;
 	}
 
@@ -74,7 +74,7 @@ int editorLspStringAppendf(struct editorLspString *sb, const char *fmt, ...) {
 		va_end(ap_copy);
 		return 0;
 	}
-	if (!editorLspStringEnsureCap(sb, total_needed)) {
+	if (!lspJsonStringEnsureCap(sb, total_needed)) {
 		va_end(ap_copy);
 		return 0;
 	}
@@ -149,7 +149,7 @@ int editorLspStringAppendJsonEscaped(struct editorLspString *sb, const char *tex
 	return editorLspStringAppendBytes(sb, "\"", 1);
 }
 
-static int editorLspHexValue(char c) {
+static int lspJsonHexValue(char c) {
 	if (c >= '0' && c <= '9') {
 		return c - '0';
 	}
@@ -242,10 +242,10 @@ int editorLspParseJsonString(const char *json, char **value_out, const char **af
 						free(sb.buf);
 						return 0;
 					}
-					int h1 = editorLspHexValue(json[i + 1]);
-					int h2 = editorLspHexValue(json[i + 2]);
-					int h3 = editorLspHexValue(json[i + 3]);
-					int h4 = editorLspHexValue(json[i + 4]);
+					int h1 = lspJsonHexValue(json[i + 1]);
+					int h2 = lspJsonHexValue(json[i + 2]);
+					int h3 = lspJsonHexValue(json[i + 3]);
+					int h4 = lspJsonHexValue(json[i + 4]);
 					if (h1 < 0 || h2 < 0 || h3 < 0 || h4 < 0) {
 						free(sb.buf);
 						return 0;

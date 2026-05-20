@@ -93,7 +93,7 @@ int editorLspTryDrainIncoming(struct editorLspClient *client, int timeout_ms) {
 	}
 }
 
-static int editorLspTryGetProcessExitCode(struct editorLspClient *client, int *exit_code_out) {
+static int lspTransportTryGetProcessExitCode(struct editorLspClient *client, int *exit_code_out) {
 	if (client == NULL || exit_code_out == NULL || client->pid <= 0) {
 		return 0;
 	}
@@ -119,7 +119,7 @@ int editorLspTryGetProcessExitCodeWithWait(struct editorLspClient *client, int t
 	long long deadline_ms = editorLspMonotonicMillis() + (long long)timeout_ms;
 
 	for (;;) {
-		if (editorLspTryGetProcessExitCode(client, exit_code_out)) {
+		if (lspTransportTryGetProcessExitCode(client, exit_code_out)) {
 			return 1;
 		}
 		if (client == NULL || client->pid <= 0) {
