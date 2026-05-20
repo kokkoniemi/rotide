@@ -24,8 +24,7 @@ void editorHistoryClear(struct editorHistory *history) {
 	history->len = 0;
 }
 
-static void editorHistoryPushNewest(struct editorHistory *history,
-                                    struct editorHistoryEntry *entry) {
+static void historyPushNewest(struct editorHistory *history, struct editorHistoryEntry *entry) {
 	int slot = 0;
 	if (history->len < ROTIDE_UNDO_HISTORY_LIMIT) {
 		slot = (history->start + history->len) % ROTIDE_UNDO_HISTORY_LIMIT;
@@ -40,7 +39,7 @@ static void editorHistoryPushNewest(struct editorHistory *history,
 	memset(entry, 0, sizeof(*entry));
 }
 
-static int editorHistoryPopNewest(struct editorHistory *history, struct editorHistoryEntry *entry) {
+static int historyPopNewest(struct editorHistory *history, struct editorHistoryEntry *entry) {
 	if (history->len == 0) {
 		return 0;
 	}
@@ -55,7 +54,7 @@ static int editorHistoryPopNewest(struct editorHistory *history, struct editorHi
 	return 1;
 }
 
-static struct editorHistoryEntry *editorHistoryNewest(struct editorHistory *history) {
+static struct editorHistoryEntry *historyNewest(struct editorHistory *history) {
 	if (history == NULL || history->len == 0) {
 		return NULL;
 	}
@@ -63,7 +62,7 @@ static struct editorHistoryEntry *editorHistoryNewest(struct editorHistory *hist
 	return &history->entries[idx];
 }
 
-static int editorHistoryDupSlice(const char *text, size_t len, char **dst_out) {
+static int historyDupSlice(const char *text, size_t len, char **dst_out) {
 	char *dup = NULL;
 
 	if (dst_out == NULL) {
@@ -88,8 +87,8 @@ static int editorHistoryDupSlice(const char *text, size_t len, char **dst_out) {
 	return 1;
 }
 
-static int editorHistoryAppendText(char **text_in_out, size_t *len_in_out, const char *append,
-                                   size_t append_len) {
+static int historyAppendText(char **text_in_out, size_t *len_in_out, const char *append,
+                             size_t append_len) {
 	size_t old_len = 0;
 	size_t new_len = 0;
 	size_t cap = 0;
@@ -115,9 +114,9 @@ static int editorHistoryAppendText(char **text_in_out, size_t *len_in_out, const
 	return 1;
 }
 
-static int editorHistoryTryMergeInsert(struct editorHistory *history,
-                                       const struct editorHistoryEntry *entry) {
-	struct editorHistoryEntry *latest = editorHistoryNewest(history);
+static int historyTryMergeInsert(struct editorHistory *history,
+                                 const struct editorHistoryEntry *entry) {
+	struct editorHistoryEntry *latest = historyNewest(history);
 	int append_at_end = 0;
 	int append_before_trailing_newline = 0;
 	if (latest == NULL || entry == NULL) {
@@ -139,8 +138,8 @@ static int editorHistoryTryMergeInsert(struct editorHistory *history,
 	}
 
 	if (append_at_end) {
-		if (!editorHistoryAppendText(&latest->inserted_text, &latest->inserted_len,
-		                             entry->inserted_text, entry->inserted_len)) {
+		if (!historyAppendText(&latest->inserted_text, &latest->inserted_len,
+		                       entry->inserted_text, entry->inserted_len)) {
 			return 0;
 		}
 	} else {
@@ -188,10 +187,10 @@ int editorHistoryRecordPendingEditFromOperation(enum editorEditKind kind,
 	entry.before_dirty = edit->before_dirty;
 	entry.after_dirty = edit->after_dirty;
 
-	if (!editorHistoryDupSlice(removed_text != NULL ? removed_text : "", removed_len,
-	                           &entry.removed_text) ||
-	    !editorHistoryDupSlice(edit->new_len > 0 ? edit->new_text : "", edit->new_len,
-	                           &entry.inserted_text)) {
+	if (!historyDupSlice(removed_text != NULL ? removed_text : "", removed_len,
+	                     &entry.removed_text) ||
+	    !historyDupSlice(edit->new_len > 0 ? edit->new_text : "", edit->new_len,
+	                     &entry.inserted_text)) {
 		editorHistoryEntryFree(&entry);
 		return 0;
 	}
@@ -202,7 +201,7 @@ int editorHistoryRecordPendingEditFromOperation(enum editorEditKind kind,
 	return 1;
 }
 
-static int editorApplyHistoryEntry(const struct editorHistoryEntry *entry, int inverse) {
+static int historyApplyEntry(const struct editorHistoryEntry *entry, int inverse) {
 	if (entry == NULL) {
 		return -1;
 	}
@@ -266,8 +265,8 @@ void editorHistoryCommitEdit(enum editorEditKind kind, int changed) {
 		recorded = 1;
 		if (!(kind == EDITOR_EDIT_INSERT_TEXT &&
 		      E.edit_group_kind == EDITOR_EDIT_INSERT_TEXT &&
-		      editorHistoryTryMergeInsert(&E.undo_history, &entry))) {
-			editorHistoryPushNewest(&E.undo_history, &entry);
+		      historyTryMergeInsert(&E.undo_history, &entry))) {
+			historyPushNewest(&E.undo_history, &entry);
 		}
 		editorHistoryEntryFree(&entry);
 	}
@@ -294,17 +293,17 @@ int editorUndo(void) {
 	editorHistoryDiscardEdit();
 
 	struct editorHistoryEntry target = {0};
-	if (!editorHistoryPopNewest(&E.undo_history, &target)) {
+	if (!historyPopNewest(&E.undo_history, &target)) {
 		editorSetStatusMsg("Nothing to undo");
 		return 0;
 	}
 
-	if (editorApplyHistoryEntry(&target, 1) != 1) {
-		editorHistoryPushNewest(&E.undo_history, &target);
+	if (historyApplyEntry(&target, 1) != 1) {
+		historyPushNewest(&E.undo_history, &target);
 		return -1;
 	}
 
-	editorHistoryPushNewest(&E.redo_history, &target);
+	historyPushNewest(&E.redo_history, &target);
 	return 1;
 }
 
@@ -313,16 +312,16 @@ int editorRedo(void) {
 	editorHistoryDiscardEdit();
 
 	struct editorHistoryEntry target = {0};
-	if (!editorHistoryPopNewest(&E.redo_history, &target)) {
+	if (!historyPopNewest(&E.redo_history, &target)) {
 		editorSetStatusMsg("Nothing to redo");
 		return 0;
 	}
 
-	if (editorApplyHistoryEntry(&target, 0) != 1) {
-		editorHistoryPushNewest(&E.redo_history, &target);
+	if (historyApplyEntry(&target, 0) != 1) {
+		historyPushNewest(&E.redo_history, &target);
 		return -1;
 	}
 
-	editorHistoryPushNewest(&E.undo_history, &target);
+	historyPushNewest(&E.undo_history, &target);
 	return 1;
 }

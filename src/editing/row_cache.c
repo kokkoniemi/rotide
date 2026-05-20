@@ -20,7 +20,7 @@ void editorFreeRowArray(struct erow *rows, int numrows) {
 	free(rows);
 }
 
-static int editorAppendRestoredRow(struct erow **rows, int *numrows, const char *s, size_t len) {
+static int rowCacheAppendRestoredRow(struct erow **rows, int *numrows, const char *s, size_t len) {
 	int row_size = 0;
 	size_t numrows_size = 0;
 	size_t new_numrows = 0;
@@ -79,7 +79,7 @@ int editorBuildRowsFromDocumentRange(const struct editorDocument *document, int 
 			editorFreeRowArray(rows, numrows);
 			return 0;
 		}
-		int ok = editorAppendRestoredRow(&rows, &numrows, line.data, (size_t)line.size);
+		int ok = rowCacheAppendRestoredRow(&rows, &numrows, line.data, (size_t)line.size);
 		editorLineViewRelease(&line);
 		if (!ok) {
 			editorFreeRowArray(rows, numrows);
@@ -92,8 +92,8 @@ int editorBuildRowsFromDocumentRange(const struct editorDocument *document, int 
 	return 1;
 }
 
-static int editorBuildRowsFromDocument(const struct editorDocument *document,
-                                       struct erow **rows_out, int *numrows_out) {
+static int rowCacheBuildRowsFromDocument(const struct editorDocument *document,
+                                         struct erow **rows_out, int *numrows_out) {
 	if (document == NULL) {
 		return 0;
 	}
@@ -103,15 +103,15 @@ static int editorBuildRowsFromDocument(const struct editorDocument *document,
 
 int editorBuildFullRowsFromDocument(const struct editorDocument *document, struct erow **rows_out,
                                     int *numrows_out) {
-	if (!editorBuildRowsFromDocument(document, rows_out, numrows_out)) {
+	if (!rowCacheBuildRowsFromDocument(document, rows_out, numrows_out)) {
 		return 0;
 	}
 	g_row_cache_full_rebuild_count++;
 	return 1;
 }
 
-static int editorApplySignedByteDelta(size_t value, size_t old_total, size_t new_total,
-                                      size_t *out) {
+static int rowCacheApplySignedByteDelta(size_t value, size_t old_total, size_t new_total,
+                                        size_t *out) {
 	if (out == NULL) {
 		return 0;
 	}
@@ -210,8 +210,8 @@ int editorRowCacheSpliceEndRowForDocument(const struct editorDocument *document,
 		*end_row_exclusive_out = 0;
 		return 1;
 	}
-	if (!editorApplySignedByteDelta(region->suffix_start_old, region->old_total, new_total,
-	                                &new_suffix_start) ||
+	if (!rowCacheApplySignedByteDelta(region->suffix_start_old, region->old_total, new_total,
+	                                  &new_suffix_start) ||
 	    new_suffix_start > new_total) {
 		return 0;
 	}

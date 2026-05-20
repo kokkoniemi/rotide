@@ -22,23 +22,23 @@
 #include <time.h>
 #include <unistd.h>
 
-static struct editorDocument *editorDocumentAlloc(void);
-static void editorSyntaxDisableWithStatus(const char *message);
+static struct editorDocument *bufferCoreAllocDocument(void);
+static void bufferCoreDisableSyntaxWithStatus(const char *message);
 int editorSyntaxParseFullActive(void);
-static void editorSyntaxReportStatusIfNeeded(void);
-static void editorSyntaxReportBudgetStatusIfNeeded(void);
-static void editorSyntaxReportQueryUnavailableStatusIfNeeded(void);
-static int editorLspActiveBufferTracked(void);
+static void bufferCoreReportSyntaxStatusIfNeeded(void);
+static void bufferCoreReportSyntaxBudgetStatusIfNeeded(void);
+static void bufferCoreReportSyntaxQueryUnavailableStatusIfNeeded(void);
+static int bufferCoreLspTracksActiveBuffer(void);
 void editorLspNotifyDidSaveActive(void);
 void editorLspNotifyDidCloseTabState(struct editorTabState *tab);
 
-static uint64_t g_syntax_generation_counter = 0;
+static uint64_t g_buffer_core_syntax_generation_counter = 0;
 
-static uint64_t editorSyntaxNextGeneration(void) {
-	if (g_syntax_generation_counter == UINT64_MAX) {
-		g_syntax_generation_counter = 1;
+static uint64_t bufferCoreNextSyntaxGeneration(void) {
+	if (g_buffer_core_syntax_generation_counter == UINT64_MAX) {
+		g_buffer_core_syntax_generation_counter = 1;
 	}
-	return ++g_syntax_generation_counter;
+	return ++g_buffer_core_syntax_generation_counter;
 }
 
 #define ROTIDE_SYNTAX_PARSE_FAILURE_LIMIT 3
@@ -55,7 +55,7 @@ void editorSetFileTooLargeStatus(void) {
 	editorSetStatusMsg("File too large");
 }
 
-static const char *editorSyntaxPerformanceStatusForMode(enum editorSyntaxPerformanceMode mode) {
+static const char *bufferCoreSyntaxPerformanceStatusForMode(enum editorSyntaxPerformanceMode mode) {
 	switch (mode) {
 		case EDITOR_SYNTAX_PERF_DEGRADED_PREDICATES:
 			return "Tree-sitter degraded (large file: predicates/locals limited)";
@@ -69,7 +69,8 @@ static const char *editorSyntaxPerformanceStatusForMode(enum editorSyntaxPerform
 	}
 }
 
-static int editorSyntaxConfigurePerformanceForLength(size_t source_len, int set_status_on_change) {
+static int bufferCoreConfigureSyntaxPerformanceForLength(size_t source_len,
+                                                         int set_status_on_change) {
 	if (E.syntax_state == NULL) {
 		return 1;
 	}
@@ -77,14 +78,15 @@ static int editorSyntaxConfigurePerformanceForLength(size_t source_len, int set_
 	enum editorSyntaxPerformanceMode old_mode =
 	        editorSyntaxStatePerformanceMode(E.syntax_state);
 	if (!editorSyntaxStateConfigureForSourceLength(E.syntax_state, source_len)) {
-		editorSyntaxDisableWithStatus("Tree-sitter disabled (file too large for syntax)");
+		bufferCoreDisableSyntaxWithStatus(
+		        "Tree-sitter disabled (file too large for syntax)");
 		return 0;
 	}
 
 	enum editorSyntaxPerformanceMode new_mode =
 	        editorSyntaxStatePerformanceMode(E.syntax_state);
 	if (set_status_on_change && new_mode != old_mode) {
-		const char *status = editorSyntaxPerformanceStatusForMode(new_mode);
+		const char *status = bufferCoreSyntaxPerformanceStatusForMode(new_mode);
 		if (status != NULL) {
 			editorSetStatusMsg("%s", status);
 		}
@@ -93,7 +95,7 @@ static int editorSyntaxConfigurePerformanceForLength(size_t source_len, int set_
 	return 1;
 }
 
-static void editorSyntaxReportBudgetStatusIfNeeded(void) {
+static void bufferCoreReportSyntaxBudgetStatusIfNeeded(void) {
 	if (E.syntax_state == NULL) {
 		return;
 	}
@@ -122,7 +124,7 @@ static void editorSyntaxReportBudgetStatusIfNeeded(void) {
 	}
 }
 
-static void editorSyntaxReportQueryUnavailableStatusIfNeeded(void) {
+static void bufferCoreReportSyntaxQueryUnavailableStatusIfNeeded(void) {
 	if (E.syntax_state == NULL) {
 		return;
 	}
@@ -141,7 +143,7 @@ static void editorSyntaxReportQueryUnavailableStatusIfNeeded(void) {
 	}
 }
 
-static void editorSyntaxReportLimitStatusIfNeeded(void) {
+static void bufferCoreReportSyntaxLimitStatusIfNeeded(void) {
 	if (E.syntax_state == NULL) {
 		return;
 	}
@@ -164,39 +166,39 @@ static void editorSyntaxReportLimitStatusIfNeeded(void) {
 	}
 }
 
-static void editorSyntaxReportStatusIfNeeded(void) {
-	editorSyntaxReportBudgetStatusIfNeeded();
-	editorSyntaxReportQueryUnavailableStatusIfNeeded();
-	editorSyntaxReportLimitStatusIfNeeded();
+static void bufferCoreReportSyntaxStatusIfNeeded(void) {
+	bufferCoreReportSyntaxBudgetStatusIfNeeded();
+	bufferCoreReportSyntaxQueryUnavailableStatusIfNeeded();
+	bufferCoreReportSyntaxLimitStatusIfNeeded();
 }
 
 void editorSyntaxRuntimeReportStatusIfNeeded(void) {
-	editorSyntaxReportStatusIfNeeded();
+	bufferCoreReportSyntaxStatusIfNeeded();
 }
 
-static void editorSyntaxDeactivateActive(void) {
+static void bufferCoreDeactivateSyntax(void) {
 	editorSyntaxStateDestroy(E.syntax_state);
 	E.syntax_state = NULL;
 	E.syntax_language = EDITOR_SYNTAX_NONE;
 	E.syntax_parse_failures = 0;
 	E.syntax_background_pending = 0;
 	E.syntax_revision++;
-	E.syntax_generation = editorSyntaxNextGeneration();
+	E.syntax_generation = bufferCoreNextSyntaxGeneration();
 	editorSyntaxVisibleCacheInvalidate();
 }
 
-static void editorSyntaxDisableWithStatus(const char *message) {
-	editorSyntaxDeactivateActive();
+static void bufferCoreDisableSyntaxWithStatus(const char *message) {
+	bufferCoreDeactivateSyntax();
 	if (message != NULL && message[0] != '\0') {
 		editorSetStatusMsg("%s", message);
 	}
 }
 
-static void editorSyntaxResetParseFailures(void) {
+static void bufferCoreResetSyntaxParseFailures(void) {
 	E.syntax_parse_failures = 0;
 }
 
-static int editorSyntaxRecordParseFailureActive(void) {
+static int bufferCoreRecordSyntaxParseFailure(void) {
 	if (E.syntax_parse_failures < ROTIDE_SYNTAX_PARSE_FAILURE_LIMIT) {
 		E.syntax_parse_failures++;
 	}
@@ -206,7 +208,7 @@ static int editorSyntaxRecordParseFailureActive(void) {
 	editorSetStatusMsg("Tree-sitter parse failed (will retry)");
 	editorSyntaxVisibleCacheInvalidate();
 	if (E.syntax_parse_failures >= ROTIDE_SYNTAX_PARSE_FAILURE_LIMIT) {
-		editorSyntaxDisableWithStatus("Tree-sitter disabled (parse failed)");
+		bufferCoreDisableSyntaxWithStatus("Tree-sitter disabled (parse failed)");
 	}
 	return 0;
 }
@@ -226,7 +228,7 @@ int editorSyntaxBackgroundPoll(void) {
 	E.syntax_background_pending = 0;
 	if (!result->parsed || result->state == NULL) {
 		editorSyntaxWorkerResultDestroy(result);
-		(void)editorSyntaxRecordParseFailureActive();
+		(void)bufferCoreRecordSyntaxParseFailure();
 		return 1;
 	}
 
@@ -236,8 +238,8 @@ int editorSyntaxBackgroundPoll(void) {
 	if (!editorSyntaxVisibleCacheStoreBackgroundResult(result)) {
 		editorSetAllocFailureStatus();
 	}
-	editorSyntaxResetParseFailures();
-	editorSyntaxReportStatusIfNeeded();
+	bufferCoreResetSyntaxParseFailures();
+	bufferCoreReportSyntaxStatusIfNeeded();
 	editorSyntaxWorkerResultDestroy(result);
 	return 1;
 }
@@ -251,7 +253,7 @@ int editorSyntaxBackgroundFlushForTests(void) {
 	return 1;
 }
 
-static struct editorDocument *editorDocumentAlloc(void) {
+static struct editorDocument *bufferCoreAllocDocument(void) {
 	struct editorDocument *document = editorMalloc(sizeof(*document));
 	if (document == NULL) {
 		return NULL;
@@ -260,7 +262,7 @@ static struct editorDocument *editorDocumentAlloc(void) {
 	return document;
 }
 
-static int editorSyntaxReconfigureForFilename(void) {
+static int bufferCoreReconfigureSyntaxForFilename(void) {
 	char *first_line_copy = NULL;
 	if (E.numrows > 0) {
 		first_line_copy = editorDocumentLineDup(E.document, 0, NULL);
@@ -273,7 +275,7 @@ static int editorSyntaxReconfigureForFilename(void) {
 	                                                                     first_line_copy);
 	free(first_line_copy);
 	if (wanted == EDITOR_SYNTAX_NONE) {
-		editorSyntaxDeactivateActive();
+		bufferCoreDeactivateSyntax();
 		return 1;
 	}
 
@@ -284,10 +286,10 @@ static int editorSyntaxReconfigureForFilename(void) {
 		editorSyntaxStateDestroy(E.syntax_state);
 		E.syntax_state = NULL;
 		E.syntax_language = wanted;
-		E.syntax_generation = editorSyntaxNextGeneration();
+		E.syntax_generation = bufferCoreNextSyntaxGeneration();
 		E.syntax_revision = 0;
 		E.syntax_background_pending = 0;
-		editorSyntaxResetParseFailures();
+		bufferCoreResetSyntaxParseFailures();
 		editorSyntaxVisibleCacheInvalidate();
 		return 1;
 	}
@@ -296,7 +298,7 @@ static int editorSyntaxReconfigureForFilename(void) {
 		return 1;
 	}
 
-	editorSyntaxDeactivateActive();
+	bufferCoreDeactivateSyntax();
 	E.syntax_state = editorSyntaxStateCreate(wanted);
 	if (E.syntax_state == NULL) {
 		editorSetStatusMsg("Tree-sitter disabled (parser init failed)");
@@ -304,12 +306,12 @@ static int editorSyntaxReconfigureForFilename(void) {
 	}
 
 	E.syntax_language = wanted;
-	editorSyntaxResetParseFailures();
+	bufferCoreResetSyntaxParseFailures();
 	return 1;
 }
 
 int editorSyntaxParseFullActive(void) {
-	if (!editorSyntaxReconfigureForFilename()) {
+	if (!bufferCoreReconfigureSyntaxForFilename()) {
 		return 0;
 	}
 	if (editorSyntaxBackgroundEnabled()) {
@@ -325,20 +327,20 @@ int editorSyntaxParseFullActive(void) {
 
 	struct editorTextSource source = {0};
 	if (!editorBuildActiveTextSource(&source)) {
-		editorSyntaxDisableWithStatus("Tree-sitter disabled (buffer too large)");
+		bufferCoreDisableSyntaxWithStatus("Tree-sitter disabled (buffer too large)");
 		return 0;
 	}
 
-	if (!editorSyntaxConfigurePerformanceForLength(source.length, 1)) {
+	if (!bufferCoreConfigureSyntaxPerformanceForLength(source.length, 1)) {
 		return 0;
 	}
 
 	int parsed = editorSyntaxStateParseFull(E.syntax_state, &source);
 	if (!parsed) {
-		return editorSyntaxRecordParseFailureActive();
+		return bufferCoreRecordSyntaxParseFailure();
 	}
-	editorSyntaxResetParseFailures();
-	editorSyntaxReportStatusIfNeeded();
+	bufferCoreResetSyntaxParseFailures();
+	bufferCoreReportSyntaxStatusIfNeeded();
 	editorSyntaxVisibleCacheInvalidate();
 	return 1;
 }
@@ -370,19 +372,19 @@ int editorSyntaxApplyIncrementalEditActive(const struct editorSyntaxEdit *edit,
 			size_t removed_len = (size_t)(edit->old_end_byte - edit->start_byte);
 			if (removed_len <= old_len) {
 				size_t new_len = old_len - removed_len + inserted_len;
-				if (!editorSyntaxConfigurePerformanceForLength(new_len, 1)) {
+				if (!bufferCoreConfigureSyntaxPerformanceForLength(new_len, 1)) {
 					return 0;
 				}
 				struct editorTextSource source = {0};
 				if (editorBuildActiveTextSource(&source) &&
 				    editorSyntaxStateApplyEditAndParse(E.syntax_state, edit,
 				                                       &source)) {
-					editorSyntaxResetParseFailures();
+					bufferCoreResetSyntaxParseFailures();
 					editorSyntaxVisibleCacheInvalidateRowsForEdit(edit);
 					if (!editorSyntaxVisibleCacheInvalidateChangedRowsFromState()) {
 						editorSyntaxVisibleCacheInvalidate();
 					}
-					editorSyntaxReportStatusIfNeeded();
+					bufferCoreReportSyntaxStatusIfNeeded();
 					return 1;
 				}
 			}
@@ -391,52 +393,52 @@ int editorSyntaxApplyIncrementalEditActive(const struct editorSyntaxEdit *edit,
 
 	struct editorTextSource source = {0};
 	if (!editorBuildActiveTextSource(&source)) {
-		editorSyntaxDisableWithStatus("Tree-sitter disabled (buffer too large)");
+		bufferCoreDisableSyntaxWithStatus("Tree-sitter disabled (buffer too large)");
 		return 0;
 	}
 
-	if (!editorSyntaxConfigurePerformanceForLength(source.length, 1)) {
+	if (!bufferCoreConfigureSyntaxPerformanceForLength(source.length, 1)) {
 		return 0;
 	}
 
 	int parsed = editorSyntaxStateParseFull(E.syntax_state, &source);
 	if (!parsed) {
-		return editorSyntaxRecordParseFailureActive();
+		return bufferCoreRecordSyntaxParseFailure();
 	}
-	editorSyntaxResetParseFailures();
-	editorSyntaxReportStatusIfNeeded();
+	bufferCoreResetSyntaxParseFailures();
+	bufferCoreReportSyntaxStatusIfNeeded();
 	editorSyntaxVisibleCacheInvalidate();
 	return 1;
 }
 
-static int editorLspActiveBufferTracked(void) {
+static int bufferCoreLspTracksActiveBuffer(void) {
 	return editorLspFileEnabled(E.filename, E.syntax_language);
 }
 
-static int editorLspActiveBufferTrackedForEslint(void) {
+static int bufferCoreEslintTracksActiveBuffer(void) {
 	return editorLspEslintEnabledForFile(E.filename, E.syntax_language);
 }
 
 void editorLspNotifyDidSaveActive(void) {
-	if (!editorLspActiveBufferTracked() && !editorLspActiveBufferTrackedForEslint()) {
+	if (!bufferCoreLspTracksActiveBuffer() && !bufferCoreEslintTracksActiveBuffer()) {
 		return;
 	}
 
 	char *full_text = NULL;
 	size_t full_text_len = 0;
-	if ((editorLspActiveBufferTracked() && !E.lsp_doc_open) ||
-	    (editorLspActiveBufferTrackedForEslint() && !E.lsp_eslint_doc_open)) {
+	if ((bufferCoreLspTracksActiveBuffer() && !E.lsp_doc_open) ||
+	    (bufferCoreEslintTracksActiveBuffer() && !E.lsp_eslint_doc_open)) {
 		full_text = editorDupActiveTextSource(&full_text_len);
 		if (full_text == NULL && full_text_len > 0) {
 			free(full_text);
 			return;
 		}
-		if (editorLspActiveBufferTracked()) {
+		if (bufferCoreLspTracksActiveBuffer()) {
 			(void)editorLspEnsureDocumentOpen(
 			        E.filename, E.syntax_language, &E.lsp_doc_open, &E.lsp_doc_version,
 			        full_text != NULL ? full_text : "", full_text_len);
 		}
-		if (editorLspActiveBufferTrackedForEslint()) {
+		if (bufferCoreEslintTracksActiveBuffer()) {
 			(void)editorLspEnsureEslintDocumentOpen(
 			        E.filename, E.syntax_language, &E.lsp_eslint_doc_open,
 			        &E.lsp_eslint_doc_version, full_text != NULL ? full_text : "",
@@ -444,11 +446,11 @@ void editorLspNotifyDidSaveActive(void) {
 		}
 	}
 	free(full_text);
-	if (editorLspActiveBufferTracked()) {
+	if (bufferCoreLspTracksActiveBuffer()) {
 		(void)editorLspNotifyDidSave(E.filename, E.syntax_language, &E.lsp_doc_open,
 		                             &E.lsp_doc_version);
 	}
-	if (editorLspActiveBufferTrackedForEslint()) {
+	if (bufferCoreEslintTracksActiveBuffer()) {
 		(void)editorLspNotifyEslintDidSave(E.filename, E.syntax_language,
 		                                   &E.lsp_eslint_doc_open,
 		                                   &E.lsp_eslint_doc_version);
@@ -480,9 +482,9 @@ char *editorRowsToStr(size_t *buflen) {
 	return editorTextSourceDupRange(&source, 0, source.length, buflen);
 }
 
-static void editorClampCursorForDocument(int target_cy, int target_cx,
-                                         const struct editorDocument *document, int numrows,
-                                         int *cy_out, int *cx_out) {
+static void bufferCoreClampCursorForDocument(int target_cy, int target_cx,
+                                             const struct editorDocument *document, int numrows,
+                                             int *cy_out, int *cx_out) {
 	int cy = target_cy;
 	int cx = target_cx;
 
@@ -533,7 +535,7 @@ int editorRestoreActiveFromDocument(const struct editorDocument *document, int t
 		return 0;
 	}
 
-	new_document = editorDocumentAlloc();
+	new_document = bufferCoreAllocDocument();
 	if (new_document == NULL || !editorDocumentResetFromDocument(new_document, document) ||
 	    !editorBuildFullRowsFromDocument(new_document, &new_rows, &new_numrows)) {
 		editorFreeRowArray(new_rows, new_numrows);
@@ -542,8 +544,8 @@ int editorRestoreActiveFromDocument(const struct editorDocument *document, int t
 		return 0;
 	}
 
-	editorClampCursorForDocument(target_cy, target_cx, new_document, new_numrows, &new_cy,
-	                             &new_cx);
+	bufferCoreClampCursorForDocument(target_cy, target_cx, new_document, new_numrows, &new_cy,
+	                                 &new_cx);
 
 	struct erow *old_rows = E.rows;
 	int old_numrows = E.numrows;
