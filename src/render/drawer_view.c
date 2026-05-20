@@ -64,8 +64,8 @@
 	(ROTIDE_DRAWER_COLLAPSED_WIDTH +                                                           \
 	 DRAWER_HEADER_MODE_BUTTON_COLS * DRAWER_HEADER_MODE_BUTTON_COUNT)
 
-static int editorDrawDrawerHeaderCell(struct writeBuf *wb, const char *label, int active,
-                                      int *written_cols, int drawer_cols) {
+static int drawerViewDrawHeaderCell(struct writeBuf *wb, const char *label, int active,
+                                    int *written_cols, int drawer_cols) {
 	if (label == NULL || written_cols == NULL || *written_cols >= drawer_cols) {
 		return 1;
 	}
@@ -93,10 +93,10 @@ static int editorDrawDrawerHeaderCell(struct writeBuf *wb, const char *label, in
 	return 1;
 }
 
-static int editorDrawCollapsedDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols) {
+static int drawerViewDrawCollapsedRow(struct writeBuf *wb, int row_idx, int drawer_cols) {
 	int written_cols = 0;
-	if (row_idx == 0 && !editorDrawDrawerHeaderCell(wb, DRAWER_EXPAND_INDICATOR, 0,
-	                                                &written_cols, drawer_cols)) {
+	if (row_idx == 0 &&
+	    !drawerViewDrawHeaderCell(wb, DRAWER_EXPAND_INDICATOR, 0, &written_cols, drawer_cols)) {
 		return 0;
 	}
 
@@ -110,7 +110,7 @@ static int editorDrawCollapsedDrawerRow(struct writeBuf *wb, int row_idx, int dr
 	return 1;
 }
 
-static enum editorDrawerMode editorActiveDrawerHeaderMode(void) {
+static enum editorDrawerMode drawerViewActiveHeaderMode(void) {
 	if (editorFileSearchIsActive()) {
 		return EDITOR_DRAWER_MODE_FILE_SEARCH;
 	}
@@ -120,7 +120,7 @@ static enum editorDrawerMode editorActiveDrawerHeaderMode(void) {
 	return E.drawer_mode;
 }
 
-static const char *editorDrawerHeaderSymbol(enum editorDrawerMode mode) {
+static const char *drawerViewHeaderSymbol(enum editorDrawerMode mode) {
 	if (!E.nerd_fonts_enabled) {
 		switch (mode) {
 			case EDITOR_DRAWER_MODE_TREE:
@@ -162,45 +162,44 @@ static const char *editorDrawerHeaderSymbol(enum editorDrawerMode mode) {
 	}
 }
 
-static int editorDrawDrawerHeaderModeButton(struct writeBuf *wb, const char *label,
-                                            enum editorDrawerMode mode,
-                                            enum editorDrawerMode active_mode, int *written_cols,
-                                            int drawer_cols) {
-	return editorDrawDrawerHeaderCell(wb, label, mode == active_mode, written_cols,
-	                                  drawer_cols);
+static int drawerViewDrawHeaderModeButton(struct writeBuf *wb, const char *label,
+                                          enum editorDrawerMode mode,
+                                          enum editorDrawerMode active_mode, int *written_cols,
+                                          int drawer_cols) {
+	return drawerViewDrawHeaderCell(wb, label, mode == active_mode, written_cols, drawer_cols);
 }
 
-static int editorDrawExpandedDrawerHeaderRow(struct writeBuf *wb, int drawer_cols) {
+static int drawerViewDrawExpandedHeaderRow(struct writeBuf *wb, int drawer_cols) {
 	int written_cols = 0;
-	if (!editorDrawDrawerHeaderCell(wb, DRAWER_COLLAPSE_INDICATOR, 0, &written_cols,
-	                                drawer_cols)) {
+	if (!drawerViewDrawHeaderCell(wb, DRAWER_COLLAPSE_INDICATOR, 0, &written_cols,
+	                              drawer_cols)) {
 		return 0;
 	}
 
 	if (drawer_cols >= DRAWER_HEADER_MODE_BUTTONS_MIN_COLS) {
-		enum editorDrawerMode active_mode = editorActiveDrawerHeaderMode();
-		if (!editorDrawDrawerHeaderModeButton(
-		            wb, editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_TREE),
+		enum editorDrawerMode active_mode = drawerViewActiveHeaderMode();
+		if (!drawerViewDrawHeaderModeButton(
+		            wb, drawerViewHeaderSymbol(EDITOR_DRAWER_MODE_TREE),
 		            EDITOR_DRAWER_MODE_TREE, active_mode, &written_cols, drawer_cols) ||
-		    !editorDrawDrawerHeaderModeButton(
-		            wb, editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_FILE_SEARCH),
+		    !drawerViewDrawHeaderModeButton(
+		            wb, drawerViewHeaderSymbol(EDITOR_DRAWER_MODE_FILE_SEARCH),
 		            EDITOR_DRAWER_MODE_FILE_SEARCH, active_mode, &written_cols,
 		            drawer_cols) ||
-		    !editorDrawDrawerHeaderModeButton(
-		            wb, editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_PROJECT_SEARCH),
+		    !drawerViewDrawHeaderModeButton(
+		            wb, drawerViewHeaderSymbol(EDITOR_DRAWER_MODE_PROJECT_SEARCH),
 		            EDITOR_DRAWER_MODE_PROJECT_SEARCH, active_mode, &written_cols,
 		            drawer_cols) ||
-		    !editorDrawDrawerHeaderModeButton(
-		            wb, editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_LSP),
+		    !drawerViewDrawHeaderModeButton(
+		            wb, drawerViewHeaderSymbol(EDITOR_DRAWER_MODE_LSP),
 		            EDITOR_DRAWER_MODE_LSP, active_mode, &written_cols, drawer_cols) ||
-		    !editorDrawDrawerHeaderModeButton(
-		            wb, editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_DAP),
+		    !drawerViewDrawHeaderModeButton(
+		            wb, drawerViewHeaderSymbol(EDITOR_DRAWER_MODE_DAP),
 		            EDITOR_DRAWER_MODE_DAP, active_mode, &written_cols, drawer_cols) ||
-		    !editorDrawDrawerHeaderModeButton(
-		            wb, editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_GIT),
+		    !drawerViewDrawHeaderModeButton(
+		            wb, drawerViewHeaderSymbol(EDITOR_DRAWER_MODE_GIT),
 		            EDITOR_DRAWER_MODE_GIT, active_mode, &written_cols, drawer_cols) ||
-		    !editorDrawDrawerHeaderModeButton(
-		            wb, editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_MAIN_MENU),
+		    !drawerViewDrawHeaderModeButton(
+		            wb, drawerViewHeaderSymbol(EDITOR_DRAWER_MODE_MAIN_MENU),
 		            EDITOR_DRAWER_MODE_MAIN_MENU, active_mode, &written_cols,
 		            drawer_cols)) {
 			return 0;
@@ -217,7 +216,7 @@ static int editorDrawExpandedDrawerHeaderRow(struct writeBuf *wb, int drawer_col
 	return 1;
 }
 
-static int editorDrawerHasSuffixCaseInsensitive(const char *text, const char *suffix) {
+static int drawerViewHasSuffixCaseInsensitive(const char *text, const char *suffix) {
 	if (text == NULL || suffix == NULL) {
 		return 0;
 	}
@@ -229,8 +228,8 @@ static int editorDrawerHasSuffixCaseInsensitive(const char *text, const char *su
 	return strcasecmp(text + text_len - suffix_len, suffix) == 0;
 }
 
-static const char *editorDrawerNameForFileIcon(const struct editorDrawerEntryView *entry,
-                                               const char *entry_name) {
+static const char *drawerViewNameForFileIcon(const struct editorDrawerEntryView *entry,
+                                             const char *entry_name) {
 	if (entry != NULL && entry->path != NULL && entry->path[0] != '\0') {
 		return entry->path;
 	}
@@ -243,7 +242,7 @@ static const char *editorDrawerNameForFileIcon(const struct editorDrawerEntryVie
 	return entry_name;
 }
 
-static const char *editorDrawerNerdIconForMenuLabel(const char *label) {
+static const char *drawerViewNerdIconForMenuLabel(const char *label) {
 	if (label == NULL) {
 		return NULL;
 	}
@@ -320,95 +319,95 @@ static const char *editorDrawerNerdIconForMenuLabel(const char *label) {
 	return DRAWER_NERD_FILE_TEXT_UTF8;
 }
 
-static const char *editorDrawerNerdIconForFileName(const char *name) {
+static const char *drawerViewNerdIconForFileName(const char *name) {
 	if (name == NULL || name[0] == '\0') {
 		return DRAWER_NERD_FILE_UTF8;
 	}
 	const char *slash = strrchr(name, '/');
 	const char *base = slash != NULL ? slash + 1 : name;
 	if (strcmp(base, "Makefile") == 0 || strcmp(base, "makefile") == 0 ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".c") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".h") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".cc") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".cpp") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".cxx") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".hpp") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".go") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".rs") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".js") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".jsx") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".ts") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".tsx") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".py") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".php") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".java") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".rb") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".cs") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".hs") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".ml") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".jl") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".scala") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".sh") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".bash") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".zsh")) {
+	    drawerViewHasSuffixCaseInsensitive(base, ".c") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".h") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".cc") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".cpp") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".cxx") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".hpp") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".go") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".rs") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".js") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".jsx") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".ts") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".tsx") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".py") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".php") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".java") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".rb") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".cs") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".hs") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".ml") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".jl") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".scala") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".sh") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".bash") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".zsh")) {
 		return DRAWER_NERD_FILE_CODE_UTF8;
 	}
-	if (editorDrawerHasSuffixCaseInsensitive(base, ".toml") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".json") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".yaml") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".yml") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".xml") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".ini") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".conf") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".cfg") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".env")) {
+	if (drawerViewHasSuffixCaseInsensitive(base, ".toml") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".json") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".yaml") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".yml") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".xml") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".ini") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".conf") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".cfg") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".env")) {
 		return DRAWER_NERD_GEAR_UTF8;
 	}
-	if (editorDrawerHasSuffixCaseInsensitive(base, ".md") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".markdown") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".txt") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".log")) {
+	if (drawerViewHasSuffixCaseInsensitive(base, ".md") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".markdown") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".txt") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".log")) {
 		return DRAWER_NERD_FILE_TEXT_UTF8;
 	}
-	if (editorDrawerHasSuffixCaseInsensitive(base, ".png") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".jpg") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".jpeg") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".gif") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".svg") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".webp")) {
+	if (drawerViewHasSuffixCaseInsensitive(base, ".png") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".jpg") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".jpeg") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".gif") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".svg") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".webp")) {
 		return DRAWER_NERD_FILE_IMAGE_UTF8;
 	}
-	if (editorDrawerHasSuffixCaseInsensitive(base, ".zip") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".tar") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".gz") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".bz2") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".xz")) {
+	if (drawerViewHasSuffixCaseInsensitive(base, ".zip") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".tar") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".gz") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".bz2") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".xz")) {
 		return DRAWER_NERD_FILE_ARCHIVE_UTF8;
 	}
-	if (editorDrawerHasSuffixCaseInsensitive(base, ".pdf")) {
+	if (drawerViewHasSuffixCaseInsensitive(base, ".pdf")) {
 		return DRAWER_NERD_FILE_PDF_UTF8;
 	}
-	if (editorDrawerHasSuffixCaseInsensitive(base, ".mp3") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".wav") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".flac")) {
+	if (drawerViewHasSuffixCaseInsensitive(base, ".mp3") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".wav") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".flac")) {
 		return DRAWER_NERD_FILE_AUDIO_UTF8;
 	}
-	if (editorDrawerHasSuffixCaseInsensitive(base, ".mp4") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".mov") ||
-	    editorDrawerHasSuffixCaseInsensitive(base, ".webm")) {
+	if (drawerViewHasSuffixCaseInsensitive(base, ".mp4") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".mov") ||
+	    drawerViewHasSuffixCaseInsensitive(base, ".webm")) {
 		return DRAWER_NERD_FILE_VIDEO_UTF8;
 	}
 	return DRAWER_NERD_FILE_UTF8;
 }
 
-static const char *editorDrawerNerdIconForEntry(const struct editorDrawerEntryView *entry,
-                                                const char *entry_name) {
+static const char *drawerViewNerdIconForEntry(const struct editorDrawerEntryView *entry,
+                                              const char *entry_name) {
 	if (!E.nerd_fonts_enabled || entry == NULL || entry->is_search_header ||
 	    entry->is_placeholder) {
 		return NULL;
 	}
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_MAIN_MENU) {
-		return editorDrawerNerdIconForMenuLabel(entry_name);
+		return drawerViewNerdIconForMenuLabel(entry_name);
 	}
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_GIT && entry->is_root) {
 		return NULL;
@@ -419,11 +418,11 @@ static const char *editorDrawerNerdIconForEntry(const struct editorDrawerEntryVi
 	if (entry->is_dir) {
 		return NULL;
 	}
-	return editorDrawerNerdIconForFileName(editorDrawerNameForFileIcon(entry, entry_name));
+	return drawerViewNerdIconForFileName(drawerViewNameForFileIcon(entry, entry_name));
 }
 
-static int editorDrawerAppendNerdIcon(struct writeBuf *wb, const char *icon, int row_inverted,
-                                      int *written_cols, int drawer_cols, int *appended_out) {
+static int drawerViewAppendNerdIcon(struct writeBuf *wb, const char *icon, int row_inverted,
+                                    int *written_cols, int drawer_cols, int *appended_out) {
 	if (appended_out != NULL) {
 		*appended_out = 0;
 	}
@@ -453,8 +452,8 @@ static int editorDrawerAppendNerdIcon(struct writeBuf *wb, const char *icon, int
 	return 1;
 }
 
-static int editorDrawerAppendCell(struct writeBuf *wb, const char *text, size_t len,
-                                  int *written_cols, int drawer_cols) {
+static int drawerViewAppendCell(struct writeBuf *wb, const char *text, size_t len,
+                                int *written_cols, int drawer_cols) {
 	if (written_cols == NULL || *written_cols >= drawer_cols) {
 		return 1;
 	}
@@ -465,8 +464,8 @@ static int editorDrawerAppendCell(struct writeBuf *wb, const char *text, size_t 
 	return 1;
 }
 
-static int editorDrawerAppendGrayCell(struct writeBuf *wb, const char *text, size_t len,
-                                      int *written_cols, int drawer_cols) {
+static int drawerViewAppendGrayCell(struct writeBuf *wb, const char *text, size_t len,
+                                    int *written_cols, int drawer_cols) {
 	if (written_cols == NULL || *written_cols >= drawer_cols) {
 		return 1;
 	}
@@ -478,16 +477,16 @@ static int editorDrawerAppendGrayCell(struct writeBuf *wb, const char *text, siz
 	return 1;
 }
 
-static int editorDrawerAppendConnectorCell(struct writeBuf *wb, const char *text, size_t len,
-                                           int *written_cols, int drawer_cols, int use_gray) {
+static int drawerViewAppendConnectorCell(struct writeBuf *wb, const char *text, size_t len,
+                                         int *written_cols, int drawer_cols, int use_gray) {
 	if (use_gray) {
-		return editorDrawerAppendGrayCell(wb, text, len, written_cols, drawer_cols);
+		return drawerViewAppendGrayCell(wb, text, len, written_cols, drawer_cols);
 	}
-	return editorDrawerAppendCell(wb, text, len, written_cols, drawer_cols);
+	return drawerViewAppendCell(wb, text, len, written_cols, drawer_cols);
 }
 
-static int editorDrawDrawerAncestorGuides(struct writeBuf *wb, int parent_visible_idx,
-                                          int *written_cols, int drawer_cols, int gray_connectors) {
+static int drawerViewDrawAncestorGuides(struct writeBuf *wb, int parent_visible_idx,
+                                        int *written_cols, int drawer_cols, int gray_connectors) {
 	if (parent_visible_idx < 0) {
 		return 1;
 	}
@@ -498,25 +497,25 @@ static int editorDrawDrawerAncestorGuides(struct writeBuf *wb, int parent_visibl
 	}
 
 	if (parent_entry.depth >= 2) {
-		if (!editorDrawDrawerAncestorGuides(wb, parent_entry.parent_visible_idx,
-		                                    written_cols, drawer_cols, gray_connectors)) {
+		if (!drawerViewDrawAncestorGuides(wb, parent_entry.parent_visible_idx, written_cols,
+		                                  drawer_cols, gray_connectors)) {
 			return 0;
 		}
 		if (parent_entry.is_last_sibling) {
-			if (!editorDrawerAppendCell(wb, " ", 1, written_cols, drawer_cols)) {
+			if (!drawerViewAppendCell(wb, " ", 1, written_cols, drawer_cols)) {
 				return 0;
 			}
 		} else {
-			if (!editorDrawerAppendConnectorCell(
+			if (!drawerViewAppendConnectorCell(
 			            wb, DRAWER_SPLITTER_UTF8, sizeof(DRAWER_SPLITTER_UTF8) - 1,
 			            written_cols, drawer_cols, gray_connectors)) {
 				return 0;
 			}
 		}
-		if (!editorDrawerAppendCell(wb, " ", 1, written_cols, drawer_cols)) {
+		if (!drawerViewAppendCell(wb, " ", 1, written_cols, drawer_cols)) {
 			return 0;
 		}
-		if (!editorDrawerAppendCell(wb, " ", 1, written_cols, drawer_cols)) {
+		if (!drawerViewAppendCell(wb, " ", 1, written_cols, drawer_cols)) {
 			return 0;
 		}
 	}
@@ -524,7 +523,7 @@ static int editorDrawDrawerAncestorGuides(struct writeBuf *wb, int parent_visibl
 	return 1;
 }
 
-static int editorBuildDrawerAncestorGuidesPlain(struct writeBuf *wb, int parent_visible_idx) {
+static int drawerViewBuildAncestorGuidesPlain(struct writeBuf *wb, int parent_visible_idx) {
 	if (parent_visible_idx < 0) {
 		return 1;
 	}
@@ -535,7 +534,7 @@ static int editorBuildDrawerAncestorGuidesPlain(struct writeBuf *wb, int parent_
 	}
 
 	if (parent_entry.depth >= 2) {
-		if (!editorBuildDrawerAncestorGuidesPlain(wb, parent_entry.parent_visible_idx)) {
+		if (!drawerViewBuildAncestorGuidesPlain(wb, parent_entry.parent_visible_idx)) {
 			return 0;
 		}
 		if (parent_entry.is_last_sibling) {
@@ -551,7 +550,7 @@ static int editorBuildDrawerAncestorGuidesPlain(struct writeBuf *wb, int parent_
 	return 1;
 }
 
-static int editorBuildDrawerRowPlain(struct writeBuf *wb, int visible_idx) {
+static int drawerViewBuildRowPlain(struct writeBuf *wb, int visible_idx) {
 	struct editorDrawerEntryView entry;
 	if (!editorDrawerGetVisibleEntry(visible_idx, &entry)) {
 		return 1;
@@ -570,7 +569,7 @@ static int editorBuildDrawerRowPlain(struct writeBuf *wb, int visible_idx) {
 		                                           : DRAWER_TREE_BRANCH_MID_UTF8;
 		size_t branch_len = entry.is_last_sibling ? sizeof(DRAWER_TREE_BRANCH_LAST_UTF8) - 1
 		                                          : sizeof(DRAWER_TREE_BRANCH_MID_UTF8) - 1;
-		if (!editorBuildDrawerAncestorGuidesPlain(wb, entry.parent_visible_idx) ||
+		if (!drawerViewBuildAncestorGuidesPlain(wb, entry.parent_visible_idx) ||
 		    !wbAppend(wb, branch, branch_len) ||
 		    !wbAppend(wb, DRAWER_TREE_HORIZONTAL_UTF8 " ",
 		              sizeof(DRAWER_TREE_HORIZONTAL_UTF8 " ") - 1)) {
@@ -595,7 +594,7 @@ static int editorBuildDrawerRowPlain(struct writeBuf *wb, int visible_idx) {
 		}
 	}
 
-	const char *icon = editorDrawerNerdIconForEntry(&entry, entry_name_buf);
+	const char *icon = drawerViewNerdIconForEntry(&entry, entry_name_buf);
 	if (icon != NULL && (!wbAppend(wb, icon, strlen(icon)) || !wbAppend(wb, " ", 1))) {
 		return 0;
 	}
@@ -623,7 +622,7 @@ int editorDrawDrawerSelectionOverflow(struct writeBuf *wb, int row_idx, int draw
 	}
 
 	struct writeBuf plain = WRITEBUF_INIT;
-	if (!editorBuildDrawerRowPlain(&plain, visible_idx)) {
+	if (!drawerViewBuildRowPlain(&plain, visible_idx)) {
 		wbFree(&plain);
 		return 0;
 	}
@@ -675,10 +674,10 @@ int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols) {
 		return 1;
 	}
 	if (editorDrawerIsCollapsed()) {
-		return editorDrawCollapsedDrawerRow(wb, row_idx, drawer_cols);
+		return drawerViewDrawCollapsedRow(wb, row_idx, drawer_cols);
 	}
 	if (row_idx == 0) {
-		return editorDrawExpandedDrawerHeaderRow(wb, drawer_cols);
+		return drawerViewDrawExpandedHeaderRow(wb, drawer_cols);
 	}
 
 	struct editorDrawerEntryView entry;
@@ -722,14 +721,14 @@ int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols) {
 		}
 
 		if (!entry.is_root &&
-		    !editorDrawerAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
+		    !drawerViewAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
 			return 0;
 		}
 
 		if (entry.depth > 1) {
-			if (!editorDrawDrawerAncestorGuides(wb, entry.parent_visible_idx,
-			                                    &written_cols, drawer_cols,
-			                                    gray_connectors)) {
+			if (!drawerViewDrawAncestorGuides(wb, entry.parent_visible_idx,
+			                                  &written_cols, drawer_cols,
+			                                  gray_connectors)) {
 				return 0;
 			}
 			const char *branch = entry.is_last_sibling ? DRAWER_TREE_BRANCH_LAST_UTF8
@@ -737,51 +736,50 @@ int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols) {
 			size_t branch_len = entry.is_last_sibling
 			                            ? sizeof(DRAWER_TREE_BRANCH_LAST_UTF8) - 1
 			                            : sizeof(DRAWER_TREE_BRANCH_MID_UTF8) - 1;
-			if (!editorDrawerAppendConnectorCell(wb, branch, branch_len, &written_cols,
-			                                     drawer_cols, gray_connectors)) {
+			if (!drawerViewAppendConnectorCell(wb, branch, branch_len, &written_cols,
+			                                   drawer_cols, gray_connectors)) {
 				return 0;
 			}
-			if (!editorDrawerAppendConnectorCell(
-			            wb, DRAWER_TREE_HORIZONTAL_UTF8,
-			            sizeof(DRAWER_TREE_HORIZONTAL_UTF8) - 1, &written_cols,
-			            drawer_cols, gray_connectors)) {
+			if (!drawerViewAppendConnectorCell(wb, DRAWER_TREE_HORIZONTAL_UTF8,
+			                                   sizeof(DRAWER_TREE_HORIZONTAL_UTF8) - 1,
+			                                   &written_cols, drawer_cols,
+			                                   gray_connectors)) {
 				return 0;
 			}
-			if (!editorDrawerAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
+			if (!drawerViewAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
 				return 0;
 			}
 		}
 
 		if (entry.is_dir && !entry.is_root) {
 			if (entry.has_scan_error) {
-				if (!editorDrawerAppendCell(wb, "!", 1, &written_cols,
-				                            drawer_cols)) {
+				if (!drawerViewAppendCell(wb, "!", 1, &written_cols, drawer_cols)) {
 					return 0;
 				}
 			} else if (entry.is_expanded) {
-				if (!editorDrawerAppendCell(wb, DRAWER_CARET_EXPANDED_UTF8,
-				                            sizeof(DRAWER_CARET_EXPANDED_UTF8) - 1,
-				                            &written_cols, drawer_cols)) {
+				if (!drawerViewAppendCell(wb, DRAWER_CARET_EXPANDED_UTF8,
+				                          sizeof(DRAWER_CARET_EXPANDED_UTF8) - 1,
+				                          &written_cols, drawer_cols)) {
 					return 0;
 				}
-			} else if (!editorDrawerAppendCell(wb, DRAWER_CARET_COLLAPSED_UTF8,
-			                                   sizeof(DRAWER_CARET_COLLAPSED_UTF8) - 1,
-			                                   &written_cols, drawer_cols)) {
+			} else if (!drawerViewAppendCell(wb, DRAWER_CARET_COLLAPSED_UTF8,
+			                                 sizeof(DRAWER_CARET_COLLAPSED_UTF8) - 1,
+			                                 &written_cols, drawer_cols)) {
 				return 0;
 			}
-			if (!editorDrawerAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
+			if (!drawerViewAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
 				return 0;
 			}
 		}
 
-		const char *icon = editorDrawerNerdIconForEntry(&entry, entry_name);
+		const char *icon = drawerViewNerdIconForEntry(&entry, entry_name);
 		int icon_appended = 0;
-		if (!editorDrawerAppendNerdIcon(wb, icon, row_inverted, &written_cols, drawer_cols,
-		                                &icon_appended)) {
+		if (!drawerViewAppendNerdIcon(wb, icon, row_inverted, &written_cols, drawer_cols,
+		                              &icon_appended)) {
 			return 0;
 		}
 		if (icon_appended &&
-		    !editorDrawerAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
+		    !drawerViewAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
 			return 0;
 		}
 

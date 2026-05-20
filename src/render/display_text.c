@@ -9,13 +9,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-static char editorHexUpperDigit(unsigned int value) {
+static char displayTextHexUpperDigit(unsigned int value) {
 	return value < 10 ? (char)('0' + value) : (char)('A' + (value - 10));
 }
 
-static void editorGetSanitizedToken(const char *text, int text_len, int idx, const char **token_out,
-                                    int *token_len_out, int *token_cols_out, int *src_len_out,
-                                    char escaped[4]) {
+static void displayTextSanitizedToken(const char *text, int text_len, int idx,
+                                      const char **token_out, int *token_len_out,
+                                      int *token_cols_out, int *src_len_out, char escaped[4]) {
 	unsigned int cp = 0;
 	int src_len = editorUtf8DecodeCodepoint(&text[idx], text_len - idx, &cp);
 	if (src_len <= 0) {
@@ -49,8 +49,8 @@ static void editorGetSanitizedToken(const char *text, int text_len, int idx, con
 	} else if (cp >= 0x80 && cp <= 0x9F) {
 		escaped[0] = '\\';
 		escaped[1] = 'x';
-		escaped[2] = editorHexUpperDigit((cp >> 4) & 0x0F);
-		escaped[3] = editorHexUpperDigit(cp & 0x0F);
+		escaped[2] = displayTextHexUpperDigit((cp >> 4) & 0x0F);
+		escaped[3] = displayTextHexUpperDigit(cp & 0x0F);
 		token = escaped;
 		token_len = 4;
 		token_cols = 4;
@@ -330,8 +330,8 @@ char *editorSanitizeTextRangeDup(const char *text, int text_len, int *cols_out) 
 		int token_len = 0;
 		int token_cols = 0;
 		int src_len = 0;
-		editorGetSanitizedToken(text, text_len, idx, &token, &token_len, &token_cols,
-		                        &src_len, escaped);
+		displayTextSanitizedToken(text, text_len, idx, &token, &token_len, &token_cols,
+		                          &src_len, escaped);
 
 		size_t token_len_sz = 0;
 		size_t new_len = 0;
@@ -371,7 +371,7 @@ char *editorSanitizeTextDup(const char *text, int *cols_out) {
 	return editorSanitizeTextRangeDup(text, text_len, cols_out);
 }
 
-static int editorDiagnosticMessageIsInlineSpace(unsigned int cp) {
+static int displayTextDiagnosticMessageIsInlineSpace(unsigned int cp) {
 	return cp <= 0x20 || cp == 0x7F || (cp >= 0x80 && cp <= 0x9F);
 }
 
@@ -401,7 +401,7 @@ char *editorSanitizeDiagnosticMessageDup(const char *text, int *cols_out) {
 			src_len = text_len - idx;
 		}
 
-		if (editorDiagnosticMessageIsInlineSpace(cp)) {
+		if (displayTextDiagnosticMessageIsInlineSpace(cp)) {
 			pending_space = out.len > 0;
 			idx += src_len;
 			continue;
@@ -450,8 +450,8 @@ int editorAppendSanitizedText(struct writeBuf *wb, const char *text, int max_col
 		int token_len = 0;
 		int token_cols = 0;
 		int src_len = 0;
-		editorGetSanitizedToken(text, text_len, idx, &token, &token_len, &token_cols,
-		                        &src_len, escaped);
+		displayTextSanitizedToken(text, text_len, idx, &token, &token_len, &token_cols,
+		                          &src_len, escaped);
 
 		if (max_cols >= 0 && written_cols + token_cols > max_cols) {
 			break;
