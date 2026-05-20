@@ -1,5 +1,5 @@
-#ifndef INPUT_H
-#define INPUT_H
+#ifndef ROTIDE_INPUT_DISPATCH_H
+#define ROTIDE_INPUT_DISPATCH_H
 
 #include "input/actions_edit.h"
 #include "input/actions_file_tab.h"

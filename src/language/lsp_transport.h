@@ -1,5 +1,5 @@
-#ifndef LSP_TRANSPORT_H
-#define LSP_TRANSPORT_H
+#ifndef ROTIDE_LANGUAGE_LSP_TRANSPORT_H
+#define ROTIDE_LANGUAGE_LSP_TRANSPORT_H
 
 #include "language/lsp_framing.h"
 #include "rotide.h"

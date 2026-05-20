@@ -1,5 +1,5 @@
-#ifndef LSP_RESPONSES_H
-#define LSP_RESPONSES_H
+#ifndef ROTIDE_LANGUAGE_LSP_RESPONSES_H
+#define ROTIDE_LANGUAGE_LSP_RESPONSES_H
 
 #include "language/lsp.h"
 #include "language/lsp_protocol.h"

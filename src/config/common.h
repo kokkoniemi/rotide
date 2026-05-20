@@ -1,5 +1,5 @@
-#ifndef CONFIG_COMMON_H
-#define CONFIG_COMMON_H
+#ifndef ROTIDE_CONFIG_COMMON_H
+#define ROTIDE_CONFIG_COMMON_H
 
 #include <stddef.h>
 

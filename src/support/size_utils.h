@@ -1,5 +1,5 @@
-#ifndef SIZE_UTILS_H
-#define SIZE_UTILS_H
+#ifndef ROTIDE_SUPPORT_SIZE_UTILS_H
+#define ROTIDE_SUPPORT_SIZE_UTILS_H
 
 #include <limits.h>
 #include <stddef.h>

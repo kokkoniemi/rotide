@@ -1,5 +1,5 @@
-#ifndef LSP_FRAMING_H
-#define LSP_FRAMING_H
+#ifndef ROTIDE_LANGUAGE_LSP_FRAMING_H
+#define ROTIDE_LANGUAGE_LSP_FRAMING_H
 
 #include <stddef.h>
 

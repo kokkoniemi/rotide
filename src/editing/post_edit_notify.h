@@ -1,5 +1,5 @@
-#ifndef EDITING_POST_EDIT_NOTIFY_H
-#define EDITING_POST_EDIT_NOTIFY_H
+#ifndef ROTIDE_EDITING_POST_EDIT_NOTIFY_H
+#define ROTIDE_EDITING_POST_EDIT_NOTIFY_H
 
 #include "language/syntax.h"
 

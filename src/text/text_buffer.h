@@ -1,5 +1,5 @@
-#ifndef TEXT_BUFFER_H
-#define TEXT_BUFFER_H
+#ifndef ROTIDE_TEXT_TEXT_BUFFER_H
+#define ROTIDE_TEXT_TEXT_BUFFER_H
 
 #include <stddef.h>
 

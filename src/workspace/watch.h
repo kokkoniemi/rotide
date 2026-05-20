@@ -1,5 +1,5 @@
-#ifndef EDITOR_WATCH_H
-#define EDITOR_WATCH_H
+#ifndef ROTIDE_WORKSPACE_WATCH_H
+#define ROTIDE_WORKSPACE_WATCH_H
 
 #include "rotide.h"
 

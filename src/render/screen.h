@@ -1,5 +1,5 @@
-#ifndef OUTPUT_H
-#define OUTPUT_H
+#ifndef ROTIDE_RENDER_SCREEN_H
+#define ROTIDE_RENDER_SCREEN_H
 
 #include "render/viewport.h"
 #include "render/write_buf.h"

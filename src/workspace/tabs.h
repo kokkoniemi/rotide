@@ -1,5 +1,5 @@
-#ifndef EDITOR_TABS_H
-#define EDITOR_TABS_H
+#ifndef ROTIDE_WORKSPACE_TABS_H
+#define ROTIDE_WORKSPACE_TABS_H
 
 #include "rotide.h"
 

@@ -1,5 +1,5 @@
-#ifndef TEXT_TREE_H
-#define TEXT_TREE_H
+#ifndef ROTIDE_TEXT_TEXT_TREE_H
+#define ROTIDE_TEXT_TEXT_TREE_H
 
 #include "text/text_buffer.h"
 #include "text/text_summary.h"

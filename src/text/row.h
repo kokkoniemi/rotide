@@ -1,5 +1,5 @@
-#ifndef TEXT_ROW_H
-#define TEXT_ROW_H
+#ifndef ROTIDE_TEXT_ROW_H
+#define ROTIDE_TEXT_ROW_H
 
 #include "rotide.h"
 

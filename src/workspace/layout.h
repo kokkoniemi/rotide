@@ -1,5 +1,5 @@
-#ifndef ROTIDE_LAYOUT_H
-#define ROTIDE_LAYOUT_H
+#ifndef ROTIDE_WORKSPACE_LAYOUT_H
+#define ROTIDE_WORKSPACE_LAYOUT_H
 
 #include <stddef.h>
 

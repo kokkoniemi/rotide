@@ -1,5 +1,5 @@
-#ifndef RENDER_DISPLAY_TEXT_H
-#define RENDER_DISPLAY_TEXT_H
+#ifndef ROTIDE_RENDER_DISPLAY_TEXT_H
+#define ROTIDE_RENDER_DISPLAY_TEXT_H
 
 #include "render/write_buf.h"
 

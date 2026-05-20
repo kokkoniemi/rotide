@@ -1,5 +1,5 @@
-#ifndef RENDER_VIEWPORT_H
-#define RENDER_VIEWPORT_H
+#ifndef ROTIDE_RENDER_VIEWPORT_H
+#define ROTIDE_RENDER_VIEWPORT_H
 
 #include "rotide.h"
 

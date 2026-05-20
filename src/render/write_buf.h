@@ -1,5 +1,5 @@
-#ifndef RENDER_WRITE_BUF_H
-#define RENDER_WRITE_BUF_H
+#ifndef ROTIDE_RENDER_WRITE_BUF_H
+#define ROTIDE_RENDER_WRITE_BUF_H
 
 #include <stddef.h>
 

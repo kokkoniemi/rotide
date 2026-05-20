@@ -1,5 +1,5 @@
-#ifndef RENDER_WRAP_H
-#define RENDER_WRAP_H
+#ifndef ROTIDE_RENDER_WRAP_H
+#define ROTIDE_RENDER_WRAP_H
 
 #include "rotide.h"
 

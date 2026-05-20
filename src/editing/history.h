@@ -1,5 +1,5 @@
-#ifndef EDITING_HISTORY_H
-#define EDITING_HISTORY_H
+#ifndef ROTIDE_EDITING_HISTORY_H
+#define ROTIDE_EDITING_HISTORY_H
 
 #include "rotide.h"
 

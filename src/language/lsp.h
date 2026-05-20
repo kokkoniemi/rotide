@@ -1,5 +1,5 @@
-#ifndef LSP_H
-#define LSP_H
+#ifndef ROTIDE_LANGUAGE_LSP_H
+#define ROTIDE_LANGUAGE_LSP_H
 
 #include "language/lsp_transport.h"
 #include "language/syntax.h"

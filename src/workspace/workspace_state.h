@@ -1,5 +1,5 @@
-#ifndef WORKSPACE_WORKSPACE_STATE_H
-#define WORKSPACE_WORKSPACE_STATE_H
+#ifndef ROTIDE_WORKSPACE_WORKSPACE_STATE_H
+#define ROTIDE_WORKSPACE_WORKSPACE_STATE_H
 
 int editorWorkspaceStateInitForCurrentDir(void);
 void editorWorkspaceStateShutdown(void);

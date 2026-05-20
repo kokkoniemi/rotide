@@ -1,5 +1,5 @@
-#ifndef CONFIG_LSP_CONFIG_H
-#define CONFIG_LSP_CONFIG_H
+#ifndef ROTIDE_CONFIG_LSP_CONFIG_H
+#define ROTIDE_CONFIG_LSP_CONFIG_H
 
 #include <stddef.h>
 

@@ -1,5 +1,5 @@
-#ifndef EDITING_ROW_CACHE_H
-#define EDITING_ROW_CACHE_H
+#ifndef ROTIDE_EDITING_ROW_CACHE_H
+#define ROTIDE_EDITING_ROW_CACHE_H
 
 #include "rotide.h"
 

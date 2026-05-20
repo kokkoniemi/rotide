@@ -1,5 +1,5 @@
-#ifndef CONFIG_DAP_CONFIG_H
-#define CONFIG_DAP_CONFIG_H
+#ifndef ROTIDE_CONFIG_DAP_CONFIG_H
+#define ROTIDE_CONFIG_DAP_CONFIG_H
 
 #include "rotide.h"
 

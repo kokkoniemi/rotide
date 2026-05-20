@@ -1,5 +1,5 @@
-#ifndef BUFFER_H
-#define BUFFER_H
+#ifndef ROTIDE_EDITING_BUFFER_CORE_H
+#define ROTIDE_EDITING_BUFFER_CORE_H
 
 #include "editing/buffer_search.h"
 #include "editing/document_bridge.h"

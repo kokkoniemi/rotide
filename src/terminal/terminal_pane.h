@@ -1,5 +1,5 @@
-#ifndef ROTIDE_TERMINAL_PANE_H
-#define ROTIDE_TERMINAL_PANE_H
+#ifndef ROTIDE_TERMINAL_TERMINAL_PANE_H
+#define ROTIDE_TERMINAL_TERMINAL_PANE_H
 
 #include "terminal/pty.h"
 

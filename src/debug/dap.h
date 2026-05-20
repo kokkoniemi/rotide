@@ -1,5 +1,5 @@
-#ifndef LANGUAGE_DAP_H
-#define LANGUAGE_DAP_H
+#ifndef ROTIDE_DEBUG_DAP_H
+#define ROTIDE_DEBUG_DAP_H
 
 #include <limits.h>
 

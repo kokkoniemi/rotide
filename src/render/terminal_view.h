@@ -1,5 +1,5 @@
-#ifndef RENDER_TERMINAL_VIEW_H
-#define RENDER_TERMINAL_VIEW_H
+#ifndef ROTIDE_RENDER_TERMINAL_VIEW_H
+#define ROTIDE_RENDER_TERMINAL_VIEW_H
 
 #include "render/write_buf.h"
 #include "terminal/terminal_pane.h"

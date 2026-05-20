@@ -1,5 +1,5 @@
-#ifndef TEXT_SUMMARY_H
-#define TEXT_SUMMARY_H
+#ifndef ROTIDE_TEXT_TEXT_SUMMARY_H
+#define ROTIDE_TEXT_TEXT_SUMMARY_H
 
 #include <stddef.h>
 

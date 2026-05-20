@@ -1,5 +1,5 @@
-#ifndef EDITOR_GIT_H
-#define EDITOR_GIT_H
+#ifndef ROTIDE_WORKSPACE_GIT_H
+#define ROTIDE_WORKSPACE_GIT_H
 
 #include "rotide.h"
 

@@ -1,5 +1,5 @@
-#ifndef EDITOR_FILE_SEARCH_H
-#define EDITOR_FILE_SEARCH_H
+#ifndef ROTIDE_WORKSPACE_FILE_SEARCH_H
+#define ROTIDE_WORKSPACE_FILE_SEARCH_H
 
 #include "rotide.h"
 

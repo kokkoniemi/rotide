@@ -1,5 +1,5 @@
-#ifndef RENDER_STATUS_BAR_H
-#define RENDER_STATUS_BAR_H
+#ifndef ROTIDE_RENDER_STATUS_BAR_H
+#define ROTIDE_RENDER_STATUS_BAR_H
 
 #include "render/write_buf.h"
 

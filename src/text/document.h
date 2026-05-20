@@ -1,5 +1,5 @@
-#ifndef DOCUMENT_H
-#define DOCUMENT_H
+#ifndef ROTIDE_TEXT_DOCUMENT_H
+#define ROTIDE_TEXT_DOCUMENT_H
 
 #include "rotide.h"
 #include "text/text_tree.h"

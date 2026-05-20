@@ -1,5 +1,5 @@
-#ifndef TERMINAL_H
-#define TERMINAL_H
+#ifndef ROTIDE_SUPPORT_TERMINAL_H
+#define ROTIDE_SUPPORT_TERMINAL_H
 
 #include "rotide.h"
 

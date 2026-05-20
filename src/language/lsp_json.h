@@ -1,5 +1,5 @@
-#ifndef LSP_JSON_H
-#define LSP_JSON_H
+#ifndef ROTIDE_LANGUAGE_LSP_JSON_H
+#define ROTIDE_LANGUAGE_LSP_JSON_H
 
 #include <stddef.h>
 

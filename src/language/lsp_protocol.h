@@ -1,5 +1,5 @@
-#ifndef LSP_PROTOCOL_H
-#define LSP_PROTOCOL_H
+#ifndef ROTIDE_LANGUAGE_LSP_PROTOCOL_H
+#define ROTIDE_LANGUAGE_LSP_PROTOCOL_H
 
 #include "language/lsp.h"
 #include "language/lsp_json.h"

@@ -1,5 +1,5 @@
-#ifndef EDITING_SYNTAX_RUNTIME_H
-#define EDITING_SYNTAX_RUNTIME_H
+#ifndef ROTIDE_EDITING_SYNTAX_RUNTIME_H
+#define ROTIDE_EDITING_SYNTAX_RUNTIME_H
 
 #include "language/syntax.h"
 

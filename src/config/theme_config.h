@@ -1,5 +1,5 @@
-#ifndef CONFIG_THEME_CONFIG_H
-#define CONFIG_THEME_CONFIG_H
+#ifndef ROTIDE_CONFIG_THEME_CONFIG_H
+#define ROTIDE_CONFIG_THEME_CONFIG_H
 
 #include "language/syntax.h"
 

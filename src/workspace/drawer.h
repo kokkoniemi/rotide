@@ -1,5 +1,5 @@
-#ifndef EDITOR_DRAWER_H
-#define EDITOR_DRAWER_H
+#ifndef ROTIDE_WORKSPACE_DRAWER_H
+#define ROTIDE_WORKSPACE_DRAWER_H
 
 #include "rotide.h"
 

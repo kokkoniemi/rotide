@@ -1,5 +1,5 @@
-#ifndef ROTIDE_LANGUAGES_H
-#define ROTIDE_LANGUAGES_H
+#ifndef ROTIDE_LANGUAGE_LANGUAGES_H
+#define ROTIDE_LANGUAGE_LANGUAGES_H
 
 #include "rotide.h"
 #include "tree_sitter/api.h"

@@ -1,5 +1,5 @@
-#ifndef EDITOR_RECOVERY_H
-#define EDITOR_RECOVERY_H
+#ifndef ROTIDE_WORKSPACE_RECOVERY_H
+#define ROTIDE_WORKSPACE_RECOVERY_H
 
 int editorRecoveryInitForCurrentDir(void);
 void editorRecoveryShutdown(void);

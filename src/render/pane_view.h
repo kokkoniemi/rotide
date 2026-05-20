@@ -1,5 +1,5 @@
-#ifndef RENDER_PANE_VIEW_H
-#define RENDER_PANE_VIEW_H
+#ifndef ROTIDE_RENDER_PANE_VIEW_H
+#define ROTIDE_RENDER_PANE_VIEW_H
 
 #include "render/write_buf.h"
 #include "workspace/layout.h"

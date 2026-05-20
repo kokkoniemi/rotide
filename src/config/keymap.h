@@ -1,5 +1,5 @@
-#ifndef KEYMAP_H
-#define KEYMAP_H
+#ifndef ROTIDE_CONFIG_KEYMAP_H
+#define ROTIDE_CONFIG_KEYMAP_H
 
 #include "rotide.h"
 

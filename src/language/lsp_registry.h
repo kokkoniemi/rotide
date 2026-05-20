@@ -1,5 +1,5 @@
-#ifndef LSP_REGISTRY_H
-#define LSP_REGISTRY_H
+#ifndef ROTIDE_LANGUAGE_LSP_REGISTRY_H
+#define ROTIDE_LANGUAGE_LSP_REGISTRY_H
 
 #include "language/lsp_transport.h"
 

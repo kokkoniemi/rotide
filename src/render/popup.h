@@ -1,5 +1,5 @@
-#ifndef RENDER_POPUP_H
-#define RENDER_POPUP_H
+#ifndef ROTIDE_RENDER_POPUP_H
+#define ROTIDE_RENDER_POPUP_H
 
 #include "rotide.h"
 

@@ -1,5 +1,5 @@
-#ifndef SYNTAX_H
-#define SYNTAX_H
+#ifndef ROTIDE_LANGUAGE_SYNTAX_H
+#define ROTIDE_LANGUAGE_SYNTAX_H
 
 #include <stddef.h>
 #include <stdint.h>

@@ -1,5 +1,5 @@
-#ifndef EDITOR_FILE_IO_H
-#define EDITOR_FILE_IO_H
+#ifndef ROTIDE_SUPPORT_FILE_IO_H
+#define ROTIDE_SUPPORT_FILE_IO_H
 
 #include <stddef.h>
 

@@ -1,5 +1,5 @@
-#ifndef ROTIDE_PTY_H
-#define ROTIDE_PTY_H
+#ifndef ROTIDE_TERMINAL_PTY_H
+#define ROTIDE_TERMINAL_PTY_H
 
 #include <sys/types.h>
 
