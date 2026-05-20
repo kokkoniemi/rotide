@@ -19,10 +19,7 @@
 #include <sys/stat.h>
 #include <time.h>
 
-enum {
-	EDITOR_WATCH_FILE_POLL_MS = 250,
-	EDITOR_WATCH_GIT_POLL_MS = 1000
-};
+enum { EDITOR_WATCH_FILE_POLL_MS = 250, EDITOR_WATCH_GIT_POLL_MS = 1000 };
 
 static long long g_file_watch_last_poll_ms = 0;
 static long long g_git_watch_last_poll_ms = 0;
@@ -40,7 +37,7 @@ static int editorWatchTimeEqual(struct timespec left, struct timespec right) {
 }
 
 static int editorWatchDiskStateEqual(const struct editorFileDiskState *left,
-		const struct editorFileDiskState *right) {
+                                     const struct editorFileDiskState *right) {
 	if (left == NULL || right == NULL) {
 		return 0;
 	}
@@ -50,14 +47,12 @@ static int editorWatchDiskStateEqual(const struct editorFileDiskState *left,
 	if (!left->known || !left->exists) {
 		return 1;
 	}
-	return left->dev == right->dev && left->ino == right->ino &&
-			left->size == right->size &&
-			editorWatchTimeEqual(left->mtime, right->mtime) &&
-			editorWatchTimeEqual(left->ctime, right->ctime);
+	return left->dev == right->dev && left->ino == right->ino && left->size == right->size &&
+	       editorWatchTimeEqual(left->mtime, right->mtime) &&
+	       editorWatchTimeEqual(left->ctime, right->ctime);
 }
 
-static int editorWatchReadDiskState(const char *filename,
-		struct editorFileDiskState *state_out) {
+static int editorWatchReadDiskState(const char *filename, struct editorFileDiskState *state_out) {
 	struct stat st;
 
 	if (state_out == NULL) {
@@ -123,7 +118,7 @@ static void editorWatchFreeTabDiagnostics(struct editorBuffer *tab) {
 }
 
 static int editorWatchReadDocument(const char *filename, struct editorDocument *document,
-		char **text_out, size_t *text_len_out) {
+                                   char **text_out, size_t *text_len_out) {
 	char *text = NULL;
 	size_t text_len = 0;
 
@@ -149,10 +144,10 @@ static int editorWatchReadDocument(const char *filename, struct editorDocument *
 
 static void editorWatchNotifyActiveReload(const char *text, size_t text_len) {
 	(void)editorLspNotifyDidChange(E.filename, E.syntax_language, &E.lsp_doc_open,
-			&E.lsp_doc_version, NULL, NULL, 0, text, text_len);
-	(void)editorLspNotifyEslintDidChange(E.filename, E.syntax_language,
-			&E.lsp_eslint_doc_open, &E.lsp_eslint_doc_version, NULL, NULL, 0, text,
-			text_len);
+	                               &E.lsp_doc_version, NULL, NULL, 0, text, text_len);
+	(void)editorLspNotifyEslintDidChange(E.filename, E.syntax_language, &E.lsp_eslint_doc_open,
+	                                     &E.lsp_eslint_doc_version, NULL, NULL, 0, text,
+	                                     text_len);
 }
 
 static int editorWatchReloadActiveFile(const struct editorFileDiskState *observed) {
@@ -194,7 +189,7 @@ cleanup:
 }
 
 static int editorWatchReloadTabFile(struct editorBuffer *tab,
-		const struct editorFileDiskState *observed) {
+                                    const struct editorFileDiskState *observed) {
 	struct editorDocument document;
 	struct editorDocument *new_document = NULL;
 	struct erow *new_rows = NULL;
@@ -219,9 +214,8 @@ static int editorWatchReloadTabFile(struct editorBuffer *tab,
 	if (new_document != NULL) {
 		editorDocumentInit(new_document);
 	}
-	if (new_document == NULL ||
-			!editorDocumentResetFromDocument(new_document, &document) ||
-			!editorBuildFullRowsFromDocument(new_document, &new_rows, &new_numrows)) {
+	if (new_document == NULL || !editorDocumentResetFromDocument(new_document, &document) ||
+	    !editorBuildFullRowsFromDocument(new_document, &new_rows, &new_numrows)) {
 		editorFreeRowArray(new_rows, new_numrows);
 		editorDocumentFreePtr(&new_document);
 		editorSetAllocFailureStatus();
@@ -233,7 +227,7 @@ static int editorWatchReloadTabFile(struct editorBuffer *tab,
 		cursor_offset = editorDocumentLength(new_document);
 	}
 	if (!editorDocumentByteOffsetToPosition(new_document, cursor_offset, &tab->cy,
-				&cursor_column)) {
+	                                        &cursor_column)) {
 		tab->cy = 0;
 		tab->cx = 0;
 		cursor_offset = 0;
@@ -245,7 +239,8 @@ static int editorWatchReloadTabFile(struct editorBuffer *tab,
 	if (tab->cy < new_numrows) {
 		struct editorLineView line = {0};
 		if (editorDocumentLineView(new_document, tab->cy, &line)) {
-			tab->cx = editorBytesClampCxToClusterBoundary(line.data, line.size, tab->cx);
+			tab->cx =
+			        editorBytesClampCxToClusterBoundary(line.data, line.size, tab->cx);
 			editorLineViewRelease(&line);
 		}
 	}
@@ -263,16 +258,17 @@ static int editorWatchReloadTabFile(struct editorBuffer *tab,
 	tab->disk_state = *observed;
 	tab->disk_conflict = 0;
 	old_language = tab->syntax_language;
-	char *first_line_copy = tab->numrows > 0
-		? editorDocumentLineDup(tab->document, 0, NULL) : NULL;
-	new_language = editorSyntaxDetectLanguageFromFilenameAndFirstLine(tab->filename,
-			first_line_copy);
+	char *first_line_copy =
+	        tab->numrows > 0 ? editorDocumentLineDup(tab->document, 0, NULL) : NULL;
+	new_language =
+	        editorSyntaxDetectLanguageFromFilenameAndFirstLine(tab->filename, first_line_copy);
 	free(first_line_copy);
 	if (old_language != new_language) {
 		editorLspNotifyDidClose(tab->filename, old_language, &tab->lsp_doc_open,
-				&tab->lsp_doc_version);
+		                        &tab->lsp_doc_version);
 		editorLspNotifyEslintDidClose(tab->filename, old_language,
-				&tab->lsp_eslint_doc_open, &tab->lsp_eslint_doc_version);
+		                              &tab->lsp_eslint_doc_open,
+		                              &tab->lsp_eslint_doc_version);
 	}
 	tab->syntax_language = new_language;
 	editorSyntaxStateDestroy(tab->syntax_state);
@@ -286,13 +282,13 @@ static int editorWatchReloadTabFile(struct editorBuffer *tab,
 	tab->syntax_pending_row_count = 0;
 	if (tab->lsp_doc_open) {
 		(void)editorLspNotifyDidChange(tab->filename, tab->syntax_language,
-				&tab->lsp_doc_open, &tab->lsp_doc_version, NULL, NULL, 0, text,
-				text_len);
+		                               &tab->lsp_doc_open, &tab->lsp_doc_version, NULL,
+		                               NULL, 0, text, text_len);
 	}
 	if (tab->lsp_eslint_doc_open) {
-		(void)editorLspNotifyEslintDidChange(tab->filename, tab->syntax_language,
-				&tab->lsp_eslint_doc_open, &tab->lsp_eslint_doc_version, NULL, NULL,
-				0, text, text_len);
+		(void)editorLspNotifyEslintDidChange(
+		        tab->filename, tab->syntax_language, &tab->lsp_eslint_doc_open,
+		        &tab->lsp_eslint_doc_version, NULL, NULL, 0, text, text_len);
 	}
 	editorWatchFreeTabDiagnostics(tab);
 	editorWatchClearTabHistory(tab);
@@ -332,7 +328,8 @@ static int editorWatchHandleChangedActive(const struct editorFileDiskState *obse
 		E.disk_state = *observed;
 		if (!E.disk_conflict) {
 			E.disk_conflict = 1;
-			editorSetStatusMsg("File changed on disk; save will ask before overwriting");
+			editorSetStatusMsg(
+			        "File changed on disk; save will ask before overwriting");
 			return 1;
 		}
 		return 0;
@@ -347,7 +344,7 @@ static int editorWatchHandleChangedActive(const struct editorFileDiskState *obse
 }
 
 static int editorWatchHandleChangedTab(struct editorBuffer *tab,
-		const struct editorFileDiskState *observed) {
+                                       const struct editorFileDiskState *observed) {
 	if (tab == NULL || observed == NULL) {
 		return 0;
 	}
@@ -355,7 +352,8 @@ static int editorWatchHandleChangedTab(struct editorBuffer *tab,
 		tab->disk_state = *observed;
 		if (!tab->disk_conflict) {
 			tab->disk_conflict = 1;
-			editorSetStatusMsg("File changed on disk; save will ask before overwriting");
+			editorSetStatusMsg(
+			        "File changed on disk; save will ask before overwriting");
 			return 1;
 		}
 		return 0;
@@ -392,8 +390,8 @@ static int editorWatchPollInactiveTab(int tab_idx) {
 	struct editorFileDiskState observed;
 	struct editorBuffer *tab = editorTabBufferHandleAtMutable(tab_idx);
 
-	if (tab == NULL || tab->tab_kind != EDITOR_TAB_FILE ||
-			tab->filename == NULL || tab->filename[0] == '\0') {
+	if (tab == NULL || tab->tab_kind != EDITOR_TAB_FILE || tab->filename == NULL ||
+	    tab->filename[0] == '\0') {
 		return 0;
 	}
 	if (!editorWatchReadDiskState(tab->filename, &observed)) {
@@ -431,7 +429,7 @@ int editorWatchPoll(void) {
 		return editorWatchPollNow();
 	}
 	if (g_file_watch_last_poll_ms == 0 ||
-			now - g_file_watch_last_poll_ms >= EDITOR_WATCH_FILE_POLL_MS) {
+	    now - g_file_watch_last_poll_ms >= EDITOR_WATCH_FILE_POLL_MS) {
 		g_file_watch_last_poll_ms = now;
 		changed |= editorWatchPollActiveTab();
 		for (int i = 0; i < E.tab_count; i++) {

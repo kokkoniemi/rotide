@@ -7,10 +7,8 @@
  * keeps injected trees in sync with the host edit. Limit events
  * (depth-exceeded, slots-full) are emitted through syntax_budget.
  */
-#include "language/syntax_internal.h"
-
 #include "language/languages.h"
-
+#include "language/syntax_internal.h"
 #include "tree_sitter/api.h"
 
 #include <stddef.h>
@@ -29,8 +27,7 @@ static void editorSyntaxParsedTreeResetTree(struct editorSyntaxParsedTree *parse
 }
 
 static int editorSyntaxParsedTreeSetIncludedRanges(struct editorSyntaxParsedTree *parsed,
-		const TSRange *ranges,
-		uint32_t range_count) {
+                                                   const TSRange *ranges, uint32_t range_count) {
 	if (parsed == NULL || parsed->parser == NULL) {
 		return 0;
 	}
@@ -120,9 +117,9 @@ struct editorSyntaxInjectionWork {
 };
 
 static enum editorSyntaxLanguage editorSyntaxLanguageFromInjectionName(const char *name,
-		size_t len) {
+                                                                       size_t len) {
 	const struct editorSyntaxLanguageDef *def =
-			editorSyntaxLookupLanguageByInjectionName(name, len);
+	        editorSyntaxLookupLanguageByInjectionName(name, len);
 	return def != NULL ? def->id : EDITOR_SYNTAX_NONE;
 }
 
@@ -131,9 +128,9 @@ static int editorSyntaxLanguageHasInjectionQuery(enum editorSyntaxLanguage langu
 	return def != NULL && def->injection_parts != NULL && def->injection_part_count > 0;
 }
 
-static struct editorSyntaxInjectionWorkItem *editorSyntaxInjectionWorkFind(
-		struct editorSyntaxInjectionWork *work,
-		enum editorSyntaxLanguage language) {
+static struct editorSyntaxInjectionWorkItem *
+editorSyntaxInjectionWorkFind(struct editorSyntaxInjectionWork *work,
+                              enum editorSyntaxLanguage language) {
 	if (work == NULL || language == EDITOR_SYNTAX_NONE) {
 		return NULL;
 	}
@@ -145,15 +142,13 @@ static struct editorSyntaxInjectionWorkItem *editorSyntaxInjectionWorkFind(
 	return NULL;
 }
 
-static struct editorSyntaxInjectionWorkItem *editorSyntaxInjectionWorkEnsure(
-		struct editorSyntaxInjectionWork *work,
-		enum editorSyntaxLanguage language,
-		int depth) {
+static struct editorSyntaxInjectionWorkItem *
+editorSyntaxInjectionWorkEnsure(struct editorSyntaxInjectionWork *work,
+                                enum editorSyntaxLanguage language, int depth) {
 	if (work == NULL || language == EDITOR_SYNTAX_NONE) {
 		return NULL;
 	}
-	struct editorSyntaxInjectionWorkItem *item =
-			editorSyntaxInjectionWorkFind(work, language);
+	struct editorSyntaxInjectionWorkItem *item = editorSyntaxInjectionWorkFind(work, language);
 	if (item != NULL) {
 		if (depth < item->depth) {
 			item->depth = depth;
@@ -175,23 +170,20 @@ static struct editorSyntaxInjectionWorkItem *editorSyntaxInjectionWorkEnsure(
 }
 
 static int editorSyntaxInjectionWorkAppendRange(struct editorSyntaxInjectionWork *work,
-		enum editorSyntaxLanguage language,
-		int depth,
-		const TSRange *range) {
+                                                enum editorSyntaxLanguage language, int depth,
+                                                const TSRange *range) {
 	struct editorSyntaxInjectionWorkItem *item =
-			editorSyntaxInjectionWorkEnsure(work, language, depth);
+	        editorSyntaxInjectionWorkEnsure(work, language, depth);
 	if (item == NULL) {
 		return 1;
 	}
 	return editorSyntaxRangeVecAppend(&item->ranges, range);
 }
 
-static int editorSyntaxInjectionWorkAppendRangeExcludingChildren(
-		struct editorSyntaxInjectionWork *work,
-		enum editorSyntaxLanguage language,
-		int depth,
-		TSNode node,
-		const TSRange *range) {
+static int
+editorSyntaxInjectionWorkAppendRangeExcludingChildren(struct editorSyntaxInjectionWork *work,
+                                                      enum editorSyntaxLanguage language, int depth,
+                                                      TSNode node, const TSRange *range) {
 	if (work == NULL || range == NULL) {
 		return 0;
 	}
@@ -221,14 +213,13 @@ static int editorSyntaxInjectionWorkAppendRangeExcludingChildren(
 		}
 
 		if (child_start_byte > segment_start_byte) {
-			TSRange segment = {
-				.start_point = segment_start_point,
-				.end_point = ts_node_start_point(child),
-				.start_byte = segment_start_byte,
-				.end_byte = child_start_byte
-			};
+			TSRange segment = {.start_point = segment_start_point,
+			                   .end_point = ts_node_start_point(child),
+			                   .start_byte = segment_start_byte,
+			                   .end_byte = child_start_byte};
 			if (segment.end_byte > segment.start_byte &&
-					!editorSyntaxInjectionWorkAppendRange(work, language, depth, &segment)) {
+			    !editorSyntaxInjectionWorkAppendRange(work, language, depth,
+			                                          &segment)) {
 				return 0;
 			}
 		}
@@ -245,12 +236,10 @@ static int editorSyntaxInjectionWorkAppendRangeExcludingChildren(
 	}
 
 	if (segment_start_byte < range->end_byte) {
-		TSRange segment = {
-			.start_point = segment_start_point,
-			.end_point = range->end_point,
-			.start_byte = segment_start_byte,
-			.end_byte = range->end_byte
-		};
+		TSRange segment = {.start_point = segment_start_point,
+		                   .end_point = range->end_point,
+		                   .start_byte = segment_start_byte,
+		                   .end_byte = range->end_byte};
 		return editorSyntaxInjectionWorkAppendRange(work, language, depth, &segment);
 	}
 	return 1;
@@ -276,9 +265,8 @@ static void editorSyntaxRangeVecSortUnique(struct editorSyntaxRangeVec *ranges) 
 		if (ranges->items[i].end_byte <= ranges->items[i].start_byte) {
 			continue;
 		}
-		if (out > 0 &&
-				ranges->items[out - 1].start_byte == ranges->items[i].start_byte &&
-				ranges->items[out - 1].end_byte == ranges->items[i].end_byte) {
+		if (out > 0 && ranges->items[out - 1].start_byte == ranges->items[i].start_byte &&
+		    ranges->items[out - 1].end_byte == ranges->items[i].end_byte) {
 			continue;
 		}
 		ranges->items[out++] = ranges->items[i];
@@ -286,9 +274,9 @@ static void editorSyntaxRangeVecSortUnique(struct editorSyntaxRangeVec *ranges) 
 	ranges->count = out;
 }
 
-static struct editorSyntaxInjectedTree *editorSyntaxStateFindInjection(
-		struct editorSyntaxState *state,
-		enum editorSyntaxLanguage language) {
+static struct editorSyntaxInjectedTree *
+editorSyntaxStateFindInjection(struct editorSyntaxState *state,
+                               enum editorSyntaxLanguage language) {
 	if (state == NULL || language == EDITOR_SYNTAX_NONE) {
 		return NULL;
 	}
@@ -300,14 +288,14 @@ static struct editorSyntaxInjectedTree *editorSyntaxStateFindInjection(
 	return NULL;
 }
 
-static struct editorSyntaxInjectedTree *editorSyntaxStateEnsureInjection(
-		struct editorSyntaxState *state,
-		enum editorSyntaxLanguage language) {
+static struct editorSyntaxInjectedTree *
+editorSyntaxStateEnsureInjection(struct editorSyntaxState *state,
+                                 enum editorSyntaxLanguage language) {
 	if (state == NULL || language == EDITOR_SYNTAX_NONE) {
 		return NULL;
 	}
 	struct editorSyntaxInjectedTree *injection =
-			editorSyntaxStateFindInjection(state, language);
+	        editorSyntaxStateFindInjection(state, language);
 	if (injection != NULL) {
 		return injection;
 	}
@@ -344,7 +332,7 @@ static int editorSyntaxStateResetInactiveInjections(struct editorSyntaxState *st
 			continue;
 		}
 		if (injection->parsed.parser != NULL &&
-				!editorSyntaxParsedTreeSetIncludedRanges(&injection->parsed, NULL, 0)) {
+		    !editorSyntaxParsedTreeSetIncludedRanges(&injection->parsed, NULL, 0)) {
 			return 0;
 		}
 		editorSyntaxParsedTreeResetTree(&injection->parsed);
@@ -354,7 +342,7 @@ static int editorSyntaxStateResetInactiveInjections(struct editorSyntaxState *st
 }
 
 static void editorSyntaxStateApplyEditToInjections(struct editorSyntaxState *state,
-		const struct editorSyntaxEdit *edit) {
+                                                   const struct editorSyntaxEdit *edit) {
 	if (state == NULL || edit == NULL) {
 		return;
 	}
@@ -365,13 +353,13 @@ static void editorSyntaxStateApplyEditToInjections(struct editorSyntaxState *sta
 	}
 }
 
-static int editorSyntaxPointOffset(TSPoint point, int32_t row_offset,
-		int32_t column_offset, TSPoint *out) {
+static int editorSyntaxPointOffset(TSPoint point, int32_t row_offset, int32_t column_offset,
+                                   TSPoint *out) {
 	if (out == NULL || (row_offset < 0 && point.row < (uint32_t)-row_offset)) {
 		return 0;
 	}
-	uint32_t row = row_offset >= 0 ? point.row + (uint32_t)row_offset :
-			point.row - (uint32_t)-row_offset;
+	uint32_t row = row_offset >= 0 ? point.row + (uint32_t)row_offset
+	                               : point.row - (uint32_t)-row_offset;
 	if (row_offset >= 0 && row < point.row) {
 		return 0;
 	}
@@ -379,8 +367,8 @@ static int editorSyntaxPointOffset(TSPoint point, int32_t row_offset,
 	if (column_offset < 0 && column_base < (uint32_t)-column_offset) {
 		return 0;
 	}
-	uint32_t column = column_offset >= 0 ? column_base + (uint32_t)column_offset :
-			column_base - (uint32_t)-column_offset;
+	uint32_t column = column_offset >= 0 ? column_base + (uint32_t)column_offset
+	                                     : column_base - (uint32_t)-column_offset;
 	if (column_offset >= 0 && column < column_base) {
 		return 0;
 	}
@@ -388,10 +376,10 @@ static int editorSyntaxPointOffset(TSPoint point, int32_t row_offset,
 	return 1;
 }
 
-static int editorSyntaxByteForPoint(const struct editorTextSource *source,
-		TSPoint target, uint32_t *byte_out) {
+static int editorSyntaxByteForPoint(const struct editorTextSource *source, TSPoint target,
+                                    uint32_t *byte_out) {
 	if (source == NULL || source->read == NULL || byte_out == NULL ||
-			source->length > UINT32_MAX) {
+	    source->length > UINT32_MAX) {
 		return 0;
 	}
 	TSPoint pos = {.row = 0, .column = 0};
@@ -401,8 +389,7 @@ static int editorSyntaxByteForPoint(const struct editorTextSource *source,
 			*byte_out = (uint32_t)offset;
 			return 1;
 		}
-		if (pos.row > target.row ||
-				(pos.row == target.row && pos.column > target.column)) {
+		if (pos.row > target.row || (pos.row == target.row && pos.column > target.column)) {
 			return 0;
 		}
 		uint32_t bytes_read = 0;
@@ -435,28 +422,26 @@ static int editorSyntaxByteForPoint(const struct editorTextSource *source,
 	return 0;
 }
 
-static int editorSyntaxApplyInjectionOffset(
-		const struct editorSyntaxInjectionPatternMetadata *metadata,
-		uint32_t capture_id,
-		const struct editorTextSource *source,
-		TSRange *range) {
+static int
+editorSyntaxApplyInjectionOffset(const struct editorSyntaxInjectionPatternMetadata *metadata,
+                                 uint32_t capture_id, const struct editorTextSource *source,
+                                 TSRange *range) {
 	if (metadata == NULL || source == NULL || range == NULL || !metadata->has_offset ||
-			metadata->offset_capture_id != capture_id) {
+	    metadata->offset_capture_id != capture_id) {
 		return 1;
 	}
 	TSPoint start_point = {0};
 	TSPoint end_point = {0};
 	if (!editorSyntaxPointOffset(range->start_point, metadata->start_row_offset,
-				metadata->start_column_offset, &start_point) ||
-			!editorSyntaxPointOffset(range->end_point, metadata->end_row_offset,
-				metadata->end_column_offset, &end_point)) {
+	                             metadata->start_column_offset, &start_point) ||
+	    !editorSyntaxPointOffset(range->end_point, metadata->end_row_offset,
+	                             metadata->end_column_offset, &end_point)) {
 		return 0;
 	}
 	uint32_t start_byte = 0;
 	uint32_t end_byte = 0;
 	if (!editorSyntaxByteForPoint(source, start_point, &start_byte) ||
-			!editorSyntaxByteForPoint(source, end_point, &end_byte) ||
-			end_byte <= start_byte) {
+	    !editorSyntaxByteForPoint(source, end_point, &end_byte) || end_byte <= start_byte) {
 		return 0;
 	}
 	range->start_point = start_point;
@@ -467,9 +452,9 @@ static int editorSyntaxApplyInjectionOffset(
 }
 
 static int editorSyntaxRangeExtendTrailingNewline(const struct editorTextSource *source,
-		TSRange *range) {
+                                                  TSRange *range) {
 	if (source == NULL || source->read == NULL || range == NULL ||
-			range->end_byte >= source->length) {
+	    range->end_byte >= source->length) {
 		return 1;
 	}
 
@@ -489,14 +474,12 @@ static int editorSyntaxRangeExtendTrailingNewline(const struct editorTextSource 
 }
 
 static enum editorSyntaxLanguage editorSyntaxResolveInjectionLanguage(
-		struct editorSyntaxState *state,
-		const struct editorTextSource *source,
-		const struct editorSyntaxQueryCacheEntry *cache,
-		const struct editorSyntaxInjectionPatternMetadata *metadata,
-		const TSQueryMatch *match) {
+        struct editorSyntaxState *state, const struct editorTextSource *source,
+        const struct editorSyntaxQueryCacheEntry *cache,
+        const struct editorSyntaxInjectionPatternMetadata *metadata, const TSQueryMatch *match) {
 	if (metadata != NULL && metadata->language != NULL) {
 		return editorSyntaxLanguageFromInjectionName(metadata->language,
-				strlen(metadata->language));
+		                                             strlen(metadata->language));
 	}
 	if (state == NULL || source == NULL || cache == NULL || match == NULL) {
 		return EDITOR_SYNTAX_NONE;
@@ -504,8 +487,8 @@ static enum editorSyntaxLanguage editorSyntaxResolveInjectionLanguage(
 	for (uint16_t capture_idx = 0; capture_idx < match->capture_count; capture_idx++) {
 		TSQueryCapture capture = match->captures[capture_idx];
 		if (capture.index >= cache->capture_count ||
-				cache->capture_roles[capture.index] !=
-					EDITOR_SYNTAX_CAPTURE_ROLE_INJECTION_LANGUAGE) {
+		    cache->capture_roles[capture.index] !=
+		            EDITOR_SYNTAX_CAPTURE_ROLE_INJECTION_LANGUAGE) {
 			continue;
 		}
 		uint32_t start = ts_node_start_byte(capture.node);
@@ -533,7 +516,7 @@ static enum editorSyntaxLanguage editorSyntaxResolveInjectionLanguage(
 		len = (size_t)(end - start);
 		text[len] = '\0';
 		enum editorSyntaxLanguage language =
-				editorSyntaxLanguageFromInjectionName(text, len);
+		        editorSyntaxLanguageFromInjectionName(text, len);
 		if (language != EDITOR_SYNTAX_NONE) {
 			return language;
 		}
@@ -542,11 +525,11 @@ static enum editorSyntaxLanguage editorSyntaxResolveInjectionLanguage(
 }
 
 static int editorSyntaxCollectInjectionRangesFromTree(struct editorSyntaxState *state,
-		const TSTree *tree,
-		enum editorSyntaxLanguage language,
-		const struct editorTextSource *source,
-		int target_depth,
-		struct editorSyntaxInjectionWork *work) {
+                                                      const TSTree *tree,
+                                                      enum editorSyntaxLanguage language,
+                                                      const struct editorTextSource *source,
+                                                      int target_depth,
+                                                      struct editorSyntaxInjectionWork *work) {
 	if (state == NULL || tree == NULL || source == NULL || work == NULL) {
 		return 0;
 	}
@@ -554,10 +537,10 @@ static int editorSyntaxCollectInjectionRangesFromTree(struct editorSyntaxState *
 		return 1;
 	}
 	const struct editorSyntaxQueryCacheEntry *cache =
-			editorSyntaxInjectionQueryCachePtr(language);
+	        editorSyntaxInjectionQueryCachePtr(language);
 	if (cache == NULL) {
 		editorSyntaxStateRecordQueryUnavailable(state, language,
-				EDITOR_SYNTAX_QUERY_KIND_INJECTION);
+		                                        EDITOR_SYNTAX_QUERY_KIND_INJECTION);
 		return 1;
 	}
 
@@ -567,8 +550,7 @@ static int editorSyntaxCollectInjectionRangesFromTree(struct editorSyntaxState *
 	}
 
 	TSNode root = ts_tree_root_node(tree);
-	struct editorSyntaxBudgetConfig budget =
-			editorSyntaxBudgetConfigForMode(state->perf_mode);
+	struct editorSyntaxBudgetConfig budget = editorSyntaxBudgetConfigForMode(state->perf_mode);
 	if (budget.query_match_limit > 0) {
 		ts_query_cursor_set_match_limit(cursor, budget.query_match_limit);
 	}
@@ -584,10 +566,7 @@ static int editorSyntaxCollectInjectionRangesFromTree(struct editorSyntaxState *
 	}
 
 	struct editorSyntaxPredicateContext predicate_ctx = {
-		.state = state,
-		.source = source,
-		.locals = NULL
-	};
+	        .state = state, .source = source, .locals = NULL};
 
 	TSQueryMatch match;
 	while (ts_query_cursor_next_match(cursor, &match)) {
@@ -595,16 +574,17 @@ static int editorSyntaxCollectInjectionRangesFromTree(struct editorSyntaxState *
 			continue;
 		}
 		if (!state->perf_disable_predicates &&
-				!editorSyntaxMatchPassesPredicates(cache->query, match.pattern_index, &match,
-						&predicate_ctx)) {
+		    !editorSyntaxMatchPassesPredicates(cache->query, match.pattern_index, &match,
+		                                       &predicate_ctx)) {
 			continue;
 		}
 
 		const struct editorSyntaxInjectionPatternMetadata *metadata =
-				&cache->pattern_injection_metadata[match.pattern_index];
-		enum editorSyntaxLanguage target_lang =
-				editorSyntaxResolveInjectionLanguage(state, source, cache, metadata, &match);
-		if (target_lang == EDITOR_SYNTAX_NONE || editorSyntaxLanguageObject(target_lang) == NULL) {
+		        &cache->pattern_injection_metadata[match.pattern_index];
+		enum editorSyntaxLanguage target_lang = editorSyntaxResolveInjectionLanguage(
+		        state, source, cache, metadata, &match);
+		if (target_lang == EDITOR_SYNTAX_NONE ||
+		    editorSyntaxLanguageObject(target_lang) == NULL) {
 			continue;
 		}
 
@@ -614,33 +594,34 @@ static int editorSyntaxCollectInjectionRangesFromTree(struct editorSyntaxState *
 				continue;
 			}
 			if (cache->capture_roles[capture.index] !=
-					EDITOR_SYNTAX_CAPTURE_ROLE_INJECTION_CONTENT) {
+			    EDITOR_SYNTAX_CAPTURE_ROLE_INJECTION_CONTENT) {
 				continue;
 			}
 
-			TSRange range = {
-				.start_point = ts_node_start_point(capture.node),
-				.end_point = ts_node_end_point(capture.node),
-				.start_byte = ts_node_start_byte(capture.node),
-				.end_byte = ts_node_end_byte(capture.node)
-			};
-			if (!editorSyntaxApplyInjectionOffset(metadata, capture.index, source, &range)) {
+			TSRange range = {.start_point = ts_node_start_point(capture.node),
+			                 .end_point = ts_node_end_point(capture.node),
+			                 .start_byte = ts_node_start_byte(capture.node),
+			                 .end_byte = ts_node_end_byte(capture.node)};
+			if (!editorSyntaxApplyInjectionOffset(metadata, capture.index, source,
+			                                      &range)) {
 				continue;
 			}
 			if (range.end_byte <= range.start_byte) {
 				continue;
 			}
 			if (target_lang == EDITOR_SYNTAX_MARKDOWN_INLINE &&
-					!editorSyntaxRangeExtendTrailingNewline(source, &range)) {
+			    !editorSyntaxRangeExtendTrailingNewline(source, &range)) {
 				ts_query_cursor_delete(cursor);
 				return 0;
 			}
 
-			int append_ok = metadata->include_children ?
-					editorSyntaxInjectionWorkAppendRange(work, target_lang,
-							target_depth, &range) :
-					editorSyntaxInjectionWorkAppendRangeExcludingChildren(work,
-							target_lang, target_depth, capture.node, &range);
+			int append_ok =
+			        metadata->include_children
+			                ? editorSyntaxInjectionWorkAppendRange(work, target_lang,
+			                                                       target_depth, &range)
+			                : editorSyntaxInjectionWorkAppendRangeExcludingChildren(
+			                          work, target_lang, target_depth, capture.node,
+			                          &range);
 			if (!append_ok) {
 				ts_query_cursor_delete(cursor);
 				return 0;
@@ -661,19 +642,20 @@ void editorSyntaxApplyInputEdit(TSTree *tree, const struct editorSyntaxEdit *edi
 		return;
 	}
 	TSInputEdit ts_edit = {
-		.start_byte = edit->start_byte,
-		.old_end_byte = edit->old_end_byte,
-		.new_end_byte = edit->new_end_byte,
-		.start_point = {.row = edit->start_point.row, .column = edit->start_point.column},
-		.old_end_point = {.row = edit->old_end_point.row, .column = edit->old_end_point.column},
-		.new_end_point = {.row = edit->new_end_point.row, .column = edit->new_end_point.column}
-	};
+	        .start_byte = edit->start_byte,
+	        .old_end_byte = edit->old_end_byte,
+	        .new_end_byte = edit->new_end_byte,
+	        .start_point = {.row = edit->start_point.row, .column = edit->start_point.column},
+	        .old_end_point = {.row = edit->old_end_point.row,
+	                          .column = edit->old_end_point.column},
+	        .new_end_point = {.row = edit->new_end_point.row,
+	                          .column = edit->new_end_point.column}};
 	ts_tree_edit(tree, &ts_edit);
 }
 
 int editorSyntaxStateParseInjections(struct editorSyntaxState *state,
-		const struct editorTextSource *source,
-		const struct editorSyntaxEdit *incremental_edit) {
+                                     const struct editorTextSource *source,
+                                     const struct editorSyntaxEdit *incremental_edit) {
 	if (state == NULL || source == NULL) {
 		return 0;
 	}
@@ -688,8 +670,8 @@ int editorSyntaxStateParseInjections(struct editorSyntaxState *state,
 	struct editorSyntaxInjectionWork work = {0};
 	int ok = 1;
 	if (state->host.tree != NULL &&
-			!editorSyntaxCollectInjectionRangesFromTree(state, state->host.tree,
-				state->language, source, 1, &work)) {
+	    !editorSyntaxCollectInjectionRangesFromTree(state, state->host.tree, state->language,
+	                                                source, 1, &work)) {
 		ok = 0;
 	}
 	if (work.slots_full) {
@@ -699,7 +681,8 @@ int editorSyntaxStateParseInjections(struct editorSyntaxState *state,
 	for (int work_idx = 0; ok && work_idx < work.count; work_idx++) {
 		struct editorSyntaxInjectionWorkItem *item = &work.items[work_idx];
 		if (item->depth > g_editor_syntax_max_injection_depth) {
-			editorSyntaxStateRecordInjectionDepthExceeded(state, item->language, item->depth);
+			editorSyntaxStateRecordInjectionDepthExceeded(state, item->language,
+			                                              item->depth);
 			continue;
 		}
 		editorSyntaxRangeVecSortUnique(&item->ranges);
@@ -708,9 +691,9 @@ int editorSyntaxStateParseInjections(struct editorSyntaxState *state,
 		}
 
 		struct editorSyntaxInjectedTree *injection =
-				editorSyntaxStateFindInjection(state, item->language);
+		        editorSyntaxStateFindInjection(state, item->language);
 		if (injection == NULL &&
-				state->injection_count >= ROTIDE_SYNTAX_MAX_INJECTION_TREES) {
+		    state->injection_count >= ROTIDE_SYNTAX_MAX_INJECTION_TREES) {
 			editorSyntaxStateRecordInjectionSlotsFull(state, item->language);
 			continue;
 		}
@@ -722,8 +705,8 @@ int editorSyntaxStateParseInjections(struct editorSyntaxState *state,
 		}
 		int incremental = incremental_edit != NULL && injection->parsed.tree != NULL;
 		if (!editorSyntaxParsedTreeSetIncludedRanges(&injection->parsed, item->ranges.items,
-					item->ranges.count) ||
-				!editorSyntaxParsedTreeParse(&injection->parsed, NULL, source, incremental)) {
+		                                             item->ranges.count) ||
+		    !editorSyntaxParsedTreeParse(&injection->parsed, NULL, source, incremental)) {
 			ok = 0;
 			break;
 		}
@@ -732,9 +715,10 @@ int editorSyntaxStateParseInjections(struct editorSyntaxState *state,
 		injection->locals_valid = 0;
 
 		if (item->depth <= g_editor_syntax_max_injection_depth &&
-				editorSyntaxLanguageHasInjectionQuery(item->language) &&
-				!editorSyntaxCollectInjectionRangesFromTree(state, injection->parsed.tree,
-					item->language, source, item->depth + 1, &work)) {
+		    editorSyntaxLanguageHasInjectionQuery(item->language) &&
+		    !editorSyntaxCollectInjectionRangesFromTree(state, injection->parsed.tree,
+		                                                item->language, source,
+		                                                item->depth + 1, &work)) {
 			ok = 0;
 			break;
 		}

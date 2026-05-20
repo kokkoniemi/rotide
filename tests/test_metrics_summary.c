@@ -1,10 +1,9 @@
-/* test_helpers.h includes rotide.h, which sets _DEFAULT_SOURCE before the
- * metrics headers below pull in system headers. */
-#include "test_helpers.h"
+#define _DEFAULT_SOURCE
 
 #include "metrics_jsonl_read.h"
 #include "metrics_summary_cmd.h"
 #include "test_case.h"
+#include "test_helpers.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,15 +11,14 @@
 #include <unistd.h>
 
 static int test_parse_test_run_row(void) {
-	const char *line =
-		"{\"kind\":\"test_run\",\"ts\":\"2026-05-19T13:35:42Z\","
-		"\"git_sha\":\"deadbee\",\"wall_seconds\":4.812,"
-		"\"total_runs\":820,\"passed_runs\":820,\"failed_unique\":0,"
-		"\"crashes\":0,\"reset_violations\":0,\"flakes\":2,"
-		"\"property_ops\":50000,\"property_ops_seconds\":0.5,"
-		"\"jobs\":4,"
-		"\"repeat\":1,\"seed\":\"0x0123456789abcdef\","
-		"\"shuffle\":false,\"validate_reset\":true,\"exit_code\":0}";
+	const char *line = "{\"kind\":\"test_run\",\"ts\":\"2026-05-19T13:35:42Z\","
+	                   "\"git_sha\":\"deadbee\",\"wall_seconds\":4.812,"
+	                   "\"total_runs\":820,\"passed_runs\":820,\"failed_unique\":0,"
+	                   "\"crashes\":0,\"reset_violations\":0,\"flakes\":2,"
+	                   "\"property_ops\":50000,\"property_ops_seconds\":0.5,"
+	                   "\"jobs\":4,"
+	                   "\"repeat\":1,\"seed\":\"0x0123456789abcdef\","
+	                   "\"shuffle\":false,\"validate_reset\":true,\"exit_code\":0}";
 	struct editorMetricsRow r;
 	ASSERT_EQ_INT(1, editorMetricsRowParse(line, &r));
 	ASSERT_TRUE(r.kind == EDITOR_METRICS_KIND_TEST_RUN);
@@ -39,12 +37,11 @@ static int test_parse_test_run_row(void) {
 }
 
 static int test_parse_bench_row(void) {
-	const char *line =
-		"{\"kind\":\"bench\",\"ts\":\"2026-05-19T13:35:54Z\","
-		"\"name\":\"screen_diff_unchanged_frame\","
-		"\"samples\":20,\"inner_ops\":8,"
-		"\"min_ns\":76137,\"p50_ns\":79550.625,"
-		"\"p95_ns\":80218.425,\"iqr_ns\":2077.8125}";
+	const char *line = "{\"kind\":\"bench\",\"ts\":\"2026-05-19T13:35:54Z\","
+	                   "\"name\":\"screen_diff_unchanged_frame\","
+	                   "\"samples\":20,\"inner_ops\":8,"
+	                   "\"min_ns\":76137,\"p50_ns\":79550.625,"
+	                   "\"p95_ns\":80218.425,\"iqr_ns\":2077.8125}";
 	struct editorMetricsRow r;
 	ASSERT_EQ_INT(1, editorMetricsRowParse(line, &r));
 	ASSERT_TRUE(r.kind == EDITOR_METRICS_KIND_BENCH);
@@ -57,14 +54,13 @@ static int test_parse_bench_row(void) {
 }
 
 static int test_parse_fuzz_row(void) {
-	const char *line =
-		"{\"kind\":\"fuzz\",\"ts\":\"2026-05-19T16:42:47Z\","
-		"\"target\":\"lsp\",\"cov_edges\":64,\"ft_features\":193,"
-		"\"corp_count\":35,\"corp_bytes\":1155,"
-		"\"corpus_files\":45,\"corpus_bytes\":1556,"
-		"\"executed_units\":500,\"avg_exec_per_sec\":0,"
-		"\"new_units_added\":30,\"peak_rss_mb\":36,"
-		"\"runtime_seconds\":0,\"has_final_stats\":true}";
+	const char *line = "{\"kind\":\"fuzz\",\"ts\":\"2026-05-19T16:42:47Z\","
+	                   "\"target\":\"lsp\",\"cov_edges\":64,\"ft_features\":193,"
+	                   "\"corp_count\":35,\"corp_bytes\":1155,"
+	                   "\"corpus_files\":45,\"corpus_bytes\":1556,"
+	                   "\"executed_units\":500,\"avg_exec_per_sec\":0,"
+	                   "\"new_units_added\":30,\"peak_rss_mb\":36,"
+	                   "\"runtime_seconds\":0,\"has_final_stats\":true}";
 	struct editorMetricsRow r;
 	ASSERT_EQ_INT(1, editorMetricsRowParse(line, &r));
 	ASSERT_TRUE(r.kind == EDITOR_METRICS_KIND_FUZZ);
@@ -104,10 +100,9 @@ static int test_parse_unknown_kind_keeps_ts(void) {
 }
 
 static int test_parse_unknown_keys_ignored(void) {
-	const char *line =
-		"{\"kind\":\"bench\",\"ts\":\"2026-05-19T13:00:00Z\","
-		"\"name\":\"n\",\"unknown_future_field\":\"hello\","
-		"\"p50_ns\":100}";
+	const char *line = "{\"kind\":\"bench\",\"ts\":\"2026-05-19T13:00:00Z\","
+	                   "\"name\":\"n\",\"unknown_future_field\":\"hello\","
+	                   "\"p50_ns\":100}";
 	struct editorMetricsRow r;
 	ASSERT_EQ_INT(1, editorMetricsRowParse(line, &r));
 	ASSERT_EQ_STR("n", r.bench_name);
@@ -116,9 +111,8 @@ static int test_parse_unknown_keys_ignored(void) {
 }
 
 static int test_parse_string_escapes(void) {
-	const char *line =
-		"{\"kind\":\"bench\",\"ts\":\"2026-05-19T13:00:00Z\","
-		"\"name\":\"a\\\"b\\\\c\",\"p50_ns\":1}";
+	const char *line = "{\"kind\":\"bench\",\"ts\":\"2026-05-19T13:00:00Z\","
+	                   "\"name\":\"a\\\"b\\\\c\",\"p50_ns\":1}";
 	struct editorMetricsRow r;
 	ASSERT_EQ_INT(1, editorMetricsRowParse(line, &r));
 	ASSERT_EQ_STR("a\"b\\c", r.bench_name);
@@ -164,10 +158,11 @@ static int test_load_file_with_two_rows_and_blank_and_bad(void) {
 	char *path = tmpfile_path();
 	ASSERT_TRUE(path != NULL);
 	const char *content =
-		"{\"kind\":\"test_run\",\"ts\":\"2026-05-19T13:00:00Z\",\"exit_code\":0}\n"
-		"\n"
-		"this is not json\n"
-		"{\"kind\":\"bench\",\"ts\":\"2026-05-19T13:01:00Z\",\"name\":\"b\",\"p50_ns\":1}\n";
+	        "{\"kind\":\"test_run\",\"ts\":\"2026-05-19T13:00:00Z\",\"exit_code\":0}\n"
+	        "\n"
+	        "this is not json\n"
+	        "{\"kind\":\"bench\",\"ts\":\"2026-05-19T13:01:00Z\",\"name\":\"b\",\"p50_ns\":1}"
+	        "\n";
 	ASSERT_EQ_INT(0, write_file_contents(path, content));
 
 	struct editorMetricsRow *rows = NULL;
@@ -204,8 +199,8 @@ static void seed_test_run(struct editorMetricsRow *r, long long ts_unix, int exi
 	r->exit_code = exit_code;
 }
 
-static void seed_bench(struct editorMetricsRow *r, long long ts_unix,
-		const char *name, double p50_ns, double iqr_ns) {
+static void seed_bench(struct editorMetricsRow *r, long long ts_unix, const char *name,
+                       double p50_ns, double iqr_ns) {
 	editorMetricsRowInit(r);
 	r->kind = EDITOR_METRICS_KIND_BENCH;
 	snprintf(r->ts, sizeof(r->ts), "ts+%lld", ts_unix);
@@ -215,8 +210,8 @@ static void seed_bench(struct editorMetricsRow *r, long long ts_unix,
 	r->iqr_ns = iqr_ns;
 }
 
-static void seed_fuzz(struct editorMetricsRow *r, long long ts_unix,
-		const char *target, long long cov_edges) {
+static void seed_fuzz(struct editorMetricsRow *r, long long ts_unix, const char *target,
+                      long long cov_edges) {
 	editorMetricsRowInit(r);
 	r->kind = EDITOR_METRICS_KIND_FUZZ;
 	snprintf(r->ts, sizeof(r->ts), "ts+%lld", ts_unix);
@@ -271,7 +266,8 @@ static int test_summary_groups_kinds(void) {
 	ASSERT_TRUE(strstr(captured_stdout, "== test_run") != NULL);
 	ASSERT_TRUE(strstr(captured_stdout, "== bench: bench_a") != NULL);
 	ASSERT_TRUE(strstr(captured_stdout, "== fuzz: vterm") != NULL);
-	free(captured_stdout); captured_stdout = NULL;
+	free(captured_stdout);
+	captured_stdout = NULL;
 	return 0;
 }
 
@@ -291,7 +287,8 @@ static int test_summary_kind_filter(void) {
 	ASSERT_TRUE(strstr(captured_stdout, "== bench: b") != NULL);
 	ASSERT_TRUE(strstr(captured_stdout, "test_run") == NULL);
 	ASSERT_TRUE(strstr(captured_stdout, "fuzz") == NULL);
-	free(captured_stdout); captured_stdout = NULL;
+	free(captured_stdout);
+	captured_stdout = NULL;
 	return 0;
 }
 
@@ -312,7 +309,8 @@ static int test_summary_limit_truncates_oldest(void) {
 	ASSERT_TRUE(strstr(captured_stdout, "ts+1000") == NULL);
 	ASSERT_TRUE(strstr(captured_stdout, "ts+1001") == NULL);
 	ASSERT_TRUE(strstr(captured_stdout, "ts+1004") != NULL);
-	free(captured_stdout); captured_stdout = NULL;
+	free(captured_stdout);
+	captured_stdout = NULL;
 	return 0;
 }
 
@@ -330,7 +328,8 @@ static int test_fuzz_stale_unchanged_returns_one(void) {
 
 	ASSERT_EQ_INT(1, rc);
 	ASSERT_TRUE(strstr(captured_stdout, "STALE") != NULL);
-	free(captured_stdout); captured_stdout = NULL;
+	free(captured_stdout);
+	captured_stdout = NULL;
 	return 0;
 }
 
@@ -349,7 +348,8 @@ static int test_fuzz_stale_growing_returns_zero(void) {
 	ASSERT_EQ_INT(0, rc);
 	ASSERT_TRUE(strstr(captured_stdout, "ok") != NULL);
 	ASSERT_TRUE(strstr(captured_stdout, "STALE") == NULL);
-	free(captured_stdout); captured_stdout = NULL;
+	free(captured_stdout);
+	captured_stdout = NULL;
 	return 0;
 }
 
@@ -366,7 +366,8 @@ static int test_fuzz_stale_single_row_in_window_skips(void) {
 
 	ASSERT_EQ_INT(0, rc);
 	ASSERT_TRUE(strstr(captured_stdout, "insufficient data") != NULL);
-	free(captured_stdout); captured_stdout = NULL;
+	free(captured_stdout);
+	captured_stdout = NULL;
 	return 0;
 }
 
@@ -374,8 +375,8 @@ static int test_fuzz_stale_target_filter(void) {
 	struct editorMetricsRow rows[4];
 	seed_fuzz(&rows[0], 1000, "vterm", 100);
 	seed_fuzz(&rows[1], 2000, "vterm", 100); /* stale */
-	seed_fuzz(&rows[2], 1000, "lsp",   50);
-	seed_fuzz(&rows[3], 2000, "lsp",   80);  /* growing */
+	seed_fuzz(&rows[2], 1000, "lsp", 50);
+	seed_fuzz(&rows[3], 2000, "lsp", 80); /* growing */
 
 	struct editorMetricsCmdOptions opts;
 	editorMetricsCmdOptionsInit(&opts);
@@ -389,7 +390,8 @@ static int test_fuzz_stale_target_filter(void) {
 	ASSERT_TRUE(strstr(captured_stdout, "target=lsp") != NULL);
 	/* vterm row should be filtered out entirely. */
 	ASSERT_TRUE(strstr(captured_stdout, "target=vterm") == NULL);
-	free(captured_stdout); captured_stdout = NULL;
+	free(captured_stdout);
+	captured_stdout = NULL;
 	return 0;
 }
 
@@ -406,7 +408,8 @@ static int test_bench_regression_p50_jump_returns_one(void) {
 
 	ASSERT_EQ_INT(1, rc);
 	ASSERT_TRUE(strstr(captured_stdout, "REGRESSION") != NULL);
-	free(captured_stdout); captured_stdout = NULL;
+	free(captured_stdout);
+	captured_stdout = NULL;
 	return 0;
 }
 
@@ -424,7 +427,8 @@ static int test_bench_regression_within_iqr_band_returns_zero(void) {
 
 	ASSERT_EQ_INT(0, rc);
 	ASSERT_TRUE(strstr(captured_stdout, "ok") != NULL);
-	free(captured_stdout); captured_stdout = NULL;
+	free(captured_stdout);
+	captured_stdout = NULL;
 	return 0;
 }
 
@@ -440,7 +444,8 @@ static int test_bench_regression_single_row_skips(void) {
 
 	ASSERT_EQ_INT(0, rc);
 	ASSERT_TRUE(strstr(captured_stdout, "need >= 2") != NULL);
-	free(captured_stdout); captured_stdout = NULL;
+	free(captured_stdout);
+	captured_stdout = NULL;
 	return 0;
 }
 
@@ -455,41 +460,47 @@ static int test_bench_regression_factor_override(void) {
 	FILE *m = capture_open();
 	ASSERT_EQ_INT(1, editorMetricsCmdCheckBenchRegression(rows, 2, &opts, m));
 	capture_close(m);
-	free(captured_stdout); captured_stdout = NULL;
+	free(captured_stdout);
+	captured_stdout = NULL;
 
 	/* With factor 5.0: threshold 25 → ok. */
 	opts.regression_factor = 5.0;
 	m = capture_open();
 	ASSERT_EQ_INT(0, editorMetricsCmdCheckBenchRegression(rows, 2, &opts, m));
 	capture_close(m);
-	free(captured_stdout); captured_stdout = NULL;
+	free(captured_stdout);
+	captured_stdout = NULL;
 	return 0;
 }
 
 const struct editorTestCase g_metrics_summary_tests[] = {
-	{"metrics_parse_test_run_row", test_parse_test_run_row},
-	{"metrics_parse_bench_row", test_parse_bench_row},
-	{"metrics_parse_fuzz_row", test_parse_fuzz_row},
-	{"metrics_parse_rejects_missing_kind", test_parse_rejects_missing_kind},
-	{"metrics_parse_rejects_missing_ts", test_parse_rejects_missing_ts},
-	{"metrics_parse_unknown_kind_keeps_ts", test_parse_unknown_kind_keeps_ts},
-	{"metrics_parse_unknown_keys_ignored", test_parse_unknown_keys_ignored},
-	{"metrics_parse_string_escapes", test_parse_string_escapes},
-	{"metrics_parse_ts_iso_unix", test_parse_ts_iso_unix},
-	{"metrics_load_file_with_two_rows_and_blank_and_bad", test_load_file_with_two_rows_and_blank_and_bad},
-	{"metrics_load_missing_file_returns_error", test_load_missing_file_returns_error},
-	{"metrics_summary_groups_kinds", test_summary_groups_kinds},
-	{"metrics_summary_kind_filter", test_summary_kind_filter},
-	{"metrics_summary_limit_truncates_oldest", test_summary_limit_truncates_oldest},
-	{"metrics_fuzz_stale_unchanged_returns_one", test_fuzz_stale_unchanged_returns_one},
-	{"metrics_fuzz_stale_growing_returns_zero", test_fuzz_stale_growing_returns_zero},
-	{"metrics_fuzz_stale_single_row_in_window_skips", test_fuzz_stale_single_row_in_window_skips},
-	{"metrics_fuzz_stale_target_filter", test_fuzz_stale_target_filter},
-	{"metrics_bench_regression_p50_jump_returns_one", test_bench_regression_p50_jump_returns_one},
-	{"metrics_bench_regression_within_iqr_band_returns_zero", test_bench_regression_within_iqr_band_returns_zero},
-	{"metrics_bench_regression_single_row_skips", test_bench_regression_single_row_skips},
-	{"metrics_bench_regression_factor_override", test_bench_regression_factor_override},
+        {"metrics_parse_test_run_row", test_parse_test_run_row},
+        {"metrics_parse_bench_row", test_parse_bench_row},
+        {"metrics_parse_fuzz_row", test_parse_fuzz_row},
+        {"metrics_parse_rejects_missing_kind", test_parse_rejects_missing_kind},
+        {"metrics_parse_rejects_missing_ts", test_parse_rejects_missing_ts},
+        {"metrics_parse_unknown_kind_keeps_ts", test_parse_unknown_kind_keeps_ts},
+        {"metrics_parse_unknown_keys_ignored", test_parse_unknown_keys_ignored},
+        {"metrics_parse_string_escapes", test_parse_string_escapes},
+        {"metrics_parse_ts_iso_unix", test_parse_ts_iso_unix},
+        {"metrics_load_file_with_two_rows_and_blank_and_bad",
+         test_load_file_with_two_rows_and_blank_and_bad},
+        {"metrics_load_missing_file_returns_error", test_load_missing_file_returns_error},
+        {"metrics_summary_groups_kinds", test_summary_groups_kinds},
+        {"metrics_summary_kind_filter", test_summary_kind_filter},
+        {"metrics_summary_limit_truncates_oldest", test_summary_limit_truncates_oldest},
+        {"metrics_fuzz_stale_unchanged_returns_one", test_fuzz_stale_unchanged_returns_one},
+        {"metrics_fuzz_stale_growing_returns_zero", test_fuzz_stale_growing_returns_zero},
+        {"metrics_fuzz_stale_single_row_in_window_skips",
+         test_fuzz_stale_single_row_in_window_skips},
+        {"metrics_fuzz_stale_target_filter", test_fuzz_stale_target_filter},
+        {"metrics_bench_regression_p50_jump_returns_one",
+         test_bench_regression_p50_jump_returns_one},
+        {"metrics_bench_regression_within_iqr_band_returns_zero",
+         test_bench_regression_within_iqr_band_returns_zero},
+        {"metrics_bench_regression_single_row_skips", test_bench_regression_single_row_skips},
+        {"metrics_bench_regression_factor_override", test_bench_regression_factor_override},
 };
 
 const int g_metrics_summary_test_count =
-	(int)(sizeof(g_metrics_summary_tests) / sizeof(g_metrics_summary_tests[0]));
+        (int)(sizeof(g_metrics_summary_tests) / sizeof(g_metrics_summary_tests[0]));

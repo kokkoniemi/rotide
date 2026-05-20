@@ -2,8 +2,8 @@
 
 #include "editing/document_bridge.h"
 #include "language/syntax.h"
-#include "support/size_utils.h"
 #include "support/alloc.h"
+#include "support/size_utils.h"
 #include "text/document.h"
 
 #include <errno.h>
@@ -13,7 +13,7 @@ static int g_active_text_source_build_count = 0;
 static int g_active_text_source_dup_count = 0;
 
 static const char *editorDocumentTextSourceRead(const struct editorTextSource *source,
-		size_t byte_index, uint32_t *bytes_read) {
+                                                size_t byte_index, uint32_t *bytes_read) {
 	const struct editorDocument *document = source != NULL ? source->context : NULL;
 	return editorDocumentRead(document, byte_index, bytes_read);
 }
@@ -23,8 +23,8 @@ int editorBuildActiveTextSource(struct editorTextSource *source_out) {
 		return 0;
 	}
 	g_active_text_source_build_count++;
-	if (!editorTabKindSupportsDocument(E.tab_kind) ||
-			!editorDocumentEnsureActiveCurrent() || E.document == NULL) {
+	if (!editorTabKindSupportsDocument(E.tab_kind) || !editorDocumentEnsureActiveCurrent() ||
+	    E.document == NULL) {
 		return 0;
 	}
 	source_out->read = editorDocumentTextSourceRead;
@@ -65,8 +65,7 @@ char *editorDupActiveTextSource(size_t *len_out) {
 		}
 		return NULL;
 	}
-	if (source.length > 0 &&
-			!editorTextSourceCopyRange(&source, 0, source.length, dup)) {
+	if (source.length > 0 && !editorTextSourceCopyRange(&source, 0, source.length, dup)) {
 		free(dup);
 		errno = EIO;
 		return NULL;

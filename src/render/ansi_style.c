@@ -37,28 +37,20 @@ int editorAppendThemeColor(struct writeBuf *wb, struct editorThemeColor color, i
 	}
 	if (color.kind == EDITOR_THEME_COLOR_ANSI) {
 		static const char *fg_sequences[EDITOR_THEME_ANSI_COUNT] = {
-			VT100_FG_BLACK_5,
-			VT100_FG_RED_5,
-			VT100_FG_GREEN_5,
-			VT100_FG_YELLOW_5,
-			VT100_FG_BLUE_5,
-			VT100_FG_MAGENTA_5,
-			VT100_FG_CYAN_5,
-			VT100_FG_WHITE_5,
-			VT100_FG_GRAY_5,
-			VT100_FG_BRIGHT_RED_5,
-			VT100_FG_BRIGHT_GREEN_5,
-			VT100_FG_BRIGHT_YELLOW_5,
-			VT100_FG_BRIGHT_BLUE_5,
-			VT100_FG_BRIGHT_MAGENTA_5,
-			VT100_FG_BRIGHT_CYAN_5,
-			VT100_FG_BRIGHT_WHITE_5,
+		        VT100_FG_BLACK_5,        VT100_FG_RED_5,
+		        VT100_FG_GREEN_5,        VT100_FG_YELLOW_5,
+		        VT100_FG_BLUE_5,         VT100_FG_MAGENTA_5,
+		        VT100_FG_CYAN_5,         VT100_FG_WHITE_5,
+		        VT100_FG_GRAY_5,         VT100_FG_BRIGHT_RED_5,
+		        VT100_FG_BRIGHT_GREEN_5, VT100_FG_BRIGHT_YELLOW_5,
+		        VT100_FG_BRIGHT_BLUE_5,  VT100_FG_BRIGHT_MAGENTA_5,
+		        VT100_FG_BRIGHT_CYAN_5,  VT100_FG_BRIGHT_WHITE_5,
 		};
 		static const char *bg_sequences[EDITOR_THEME_ANSI_COUNT] = {
-			"\x1b[40m", "\x1b[41m", "\x1b[42m", "\x1b[43m",
-			"\x1b[44m", "\x1b[45m", "\x1b[46m", "\x1b[47m",
-			"\x1b[100m", "\x1b[101m", "\x1b[102m", "\x1b[103m",
-			"\x1b[104m", "\x1b[105m", "\x1b[106m", "\x1b[107m",
+		        "\x1b[40m",  "\x1b[41m",  "\x1b[42m",  "\x1b[43m",
+		        "\x1b[44m",  "\x1b[45m",  "\x1b[46m",  "\x1b[47m",
+		        "\x1b[100m", "\x1b[101m", "\x1b[102m", "\x1b[103m",
+		        "\x1b[104m", "\x1b[105m", "\x1b[106m", "\x1b[107m",
 		};
 		if (color.value >= EDITOR_THEME_ANSI_COUNT) {
 			return wbAppend(wb, bg ? "\x1b[49m" : "\x1b[39m", 5);
@@ -71,10 +63,10 @@ int editorAppendThemeColor(struct writeBuf *wb, struct editorThemeColor color, i
 	int len = 0;
 	if (color.kind == EDITOR_THEME_COLOR_256) {
 		len = snprintf(sequence, sizeof(sequence), "\x1b[%d;5;%um", bg ? 48 : 38,
-				(unsigned int)color.value);
+		               (unsigned int)color.value);
 	} else {
 		len = snprintf(sequence, sizeof(sequence), "\x1b[%d;2;%u;%u;%um", bg ? 48 : 38,
-				(unsigned int)color.r, (unsigned int)color.g, (unsigned int)color.b);
+		               (unsigned int)color.r, (unsigned int)color.g, (unsigned int)color.b);
 	}
 	if (len <= 0 || len >= (int)sizeof(sequence)) {
 		return 0;
@@ -96,11 +88,11 @@ int editorAppendThemeBaseForeground(struct writeBuf *wb) {
 
 int editorAppendThemeBaseStyle(struct writeBuf *wb) {
 	if (!editorThemeColorIsDefault(E.theme.ui[EDITOR_THEME_UI_FOREGROUND]) &&
-			!editorAppendThemeForeground(wb, E.theme.ui[EDITOR_THEME_UI_FOREGROUND])) {
+	    !editorAppendThemeForeground(wb, E.theme.ui[EDITOR_THEME_UI_FOREGROUND])) {
 		return 0;
 	}
 	if (!editorThemeColorIsDefault(E.theme.ui[EDITOR_THEME_UI_BACKGROUND]) &&
-			!editorAppendThemeBackground(wb, E.theme.ui[EDITOR_THEME_UI_BACKGROUND])) {
+	    !editorAppendThemeBackground(wb, E.theme.ui[EDITOR_THEME_UI_BACKGROUND])) {
 		return 0;
 	}
 	return 1;
@@ -145,12 +137,15 @@ int editorAppendThemeCursorColor(struct writeBuf *wb) {
 	}
 	if (color.kind == EDITOR_THEME_COLOR_ANSI) {
 		static const char *names[EDITOR_THEME_ANSI_COUNT] = {
-			"black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
-			"brightblack", "brightred", "brightgreen", "brightyellow", "brightblue",
-			"brightmagenta", "brightcyan", "brightwhite",
+		        "black",       "red",           "green",       "yellow",
+		        "blue",        "magenta",       "cyan",        "white",
+		        "brightblack", "brightred",     "brightgreen", "brightyellow",
+		        "brightblue",  "brightmagenta", "brightcyan",  "brightwhite",
 		};
-		if (color.value == EDITOR_THEME_ANSI_WHITE || color.value >= EDITOR_THEME_ANSI_COUNT) {
-			return wbAppend(wb, VT100_CURSOR_COLOR_WHITE, strlen(VT100_CURSOR_COLOR_WHITE));
+		if (color.value == EDITOR_THEME_ANSI_WHITE ||
+		    color.value >= EDITOR_THEME_ANSI_COUNT) {
+			return wbAppend(wb, VT100_CURSOR_COLOR_WHITE,
+			                strlen(VT100_CURSOR_COLOR_WHITE));
 		}
 		char sequence[40];
 		int len = snprintf(sequence, sizeof(sequence), "\x1b]12;%s\a", names[color.value]);
@@ -164,7 +159,7 @@ int editorAppendThemeCursorColor(struct writeBuf *wb) {
 	}
 	char sequence[40];
 	int len = snprintf(sequence, sizeof(sequence), "\x1b]12;rgb:%02x/%02x/%02x\a",
-			(unsigned int)color.r, (unsigned int)color.g, (unsigned int)color.b);
+	                   (unsigned int)color.r, (unsigned int)color.g, (unsigned int)color.b);
 	if (len <= 0 || len >= (int)sizeof(sequence)) {
 		return 0;
 	}

@@ -5,8 +5,7 @@
 #include "language/syntax_worker.h"
 
 int editorSyntaxVisibleCacheScheduleBackground(int first_row, int row_count);
-int editorSyntaxVisibleCacheStoreBackgroundResult(
-		const struct editorSyntaxWorkerResult *result);
+int editorSyntaxVisibleCacheStoreBackgroundResult(const struct editorSyntaxWorkerResult *result);
 int editorSyntaxVisibleCacheInvalidateChangedRowsFromState(void);
 void editorSyntaxVisibleCacheInvalidateRowsForEdit(const struct editorSyntaxEdit *edit);
 
@@ -17,6 +16,6 @@ int editorSyntaxPrepareVisibleRowSpansForeground(int first_row, int row_count);
 void editorSyntaxTestResetVisibleRowRecomputeCount(void);
 int editorSyntaxTestVisibleRowRecomputeCount(void);
 int editorSyntaxRowRenderSpans(int row_idx, struct editorRowSyntaxSpan *spans, int max_spans,
-		int *count_out);
+                               int *count_out);
 
 #endif

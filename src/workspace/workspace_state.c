@@ -1,17 +1,17 @@
 #include "workspace/workspace_state.h"
 
-#include "rotide.h"
 #include "config/dap_config.h"
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
 #include "language/lsp.h"
 #include "render/screen.h"
+#include "rotide.h"
 #include "support/alloc.h"
 #include "support/file_io.h"
 #include "text/document.h"
 #include "text/row.h"
-#include "workspace/layout.h"
 #include "workspace/drawer.h"
+#include "workspace/layout.h"
 #include "workspace/tabs.h"
 
 #include <errno.h>
@@ -69,7 +69,7 @@ static int editorWorkspaceStateEnsureDir(const char *path) {
 static char *editorWorkspaceStateBuildName(uint64_t hash) {
 	char name[128];
 	int written = snprintf(name, sizeof(name), "rotide-workspace-u%lu-%016llx.toml",
-			(unsigned long)getuid(), (unsigned long long)hash);
+	                       (unsigned long)getuid(), (unsigned long long)hash);
 	if (written <= 0 || (size_t)written >= sizeof(name)) {
 		return NULL;
 	}
@@ -105,8 +105,7 @@ static char *editorWorkspaceStateResolvePath(void) {
 	}
 
 	char *path = NULL;
-	if (editorWorkspaceStateEnsureDir(dot_rotide) &&
-			editorWorkspaceStateEnsureDir(state_dir)) {
+	if (editorWorkspaceStateEnsureDir(dot_rotide) && editorWorkspaceStateEnsureDir(state_dir)) {
 		char *name = editorWorkspaceStateBuildName(hash);
 		if (name != NULL) {
 			path = editorPathJoin(state_dir, name);
@@ -174,7 +173,7 @@ static int editorWorkspaceStateAppendPendingTab(int cx, int cy, const char *path
 			new_cap = ROTIDE_WORKSPACE_PENDING_TAB_LIMIT;
 		}
 		struct editorWorkspacePendingTab *grown =
-				realloc(g_pending_tabs, sizeof(*g_pending_tabs) * (size_t)new_cap);
+		        realloc(g_pending_tabs, sizeof(*g_pending_tabs) * (size_t)new_cap);
 		if (grown == NULL) {
 			return 0;
 		}
@@ -210,9 +209,8 @@ static int editorWorkspaceStateEnsureRecentFileCapacity(int needed) {
 		return 0;
 	}
 
-	char **paths =
-			editorRealloc(E.recent_file_paths, sizeof(*E.recent_file_paths) *
-					(size_t)new_capacity);
+	char **paths = editorRealloc(E.recent_file_paths,
+	                             sizeof(*E.recent_file_paths) * (size_t)new_capacity);
 	if (paths == NULL) {
 		return 0;
 	}
@@ -287,10 +285,9 @@ int editorWorkspaceStateRememberRecentFile(const char *path) {
 	}
 	if (existing_idx > 0) {
 		free(E.recent_file_paths[existing_idx]);
-		memmove(&E.recent_file_paths[existing_idx],
-				&E.recent_file_paths[existing_idx + 1],
-				sizeof(*E.recent_file_paths) *
-						(size_t)(E.recent_file_count - existing_idx - 1));
+		memmove(&E.recent_file_paths[existing_idx], &E.recent_file_paths[existing_idx + 1],
+		        sizeof(*E.recent_file_paths) *
+		                (size_t)(E.recent_file_count - existing_idx - 1));
 		E.recent_file_count--;
 	}
 	if (E.recent_file_count >= ROTIDE_WORKSPACE_RECENT_FILE_LIMIT) {
@@ -302,7 +299,7 @@ int editorWorkspaceStateRememberRecentFile(const char *path) {
 		return 0;
 	}
 	memmove(&E.recent_file_paths[1], &E.recent_file_paths[0],
-			sizeof(*E.recent_file_paths) * (size_t)E.recent_file_count);
+	        sizeof(*E.recent_file_paths) * (size_t)E.recent_file_count);
 	E.recent_file_paths[0] = absolute;
 	E.recent_file_count++;
 	return 1;
@@ -356,7 +353,7 @@ static int editorWorkspaceStateParseInt(const char *value, int *out) {
 }
 
 static int editorWorkspaceStateParseTabLine(const char *value, int *cx_out, int *cy_out,
-		const char **path_out) {
+                                            const char **path_out) {
 	if (value == NULL || cx_out == NULL || cy_out == NULL || path_out == NULL) {
 		return 0;
 	}
@@ -382,7 +379,7 @@ static int editorWorkspaceStateParseTabLine(const char *value, int *cx_out, int 
 	int cx = 0;
 	int cy = 0;
 	if (!editorWorkspaceStateParseInt(cx_buf, &cx) ||
-			!editorWorkspaceStateParseInt(cy_buf, &cy)) {
+	    !editorWorkspaceStateParseInt(cy_buf, &cy)) {
 		return 0;
 	}
 	*cx_out = cx;
@@ -453,7 +450,8 @@ int editorWorkspaceStateLoadAndApply(int total_cols) {
 			int tab_cy = 0;
 			const char *tab_path = NULL;
 			if (editorWorkspaceStateParseTabLine(value, &tab_cx, &tab_cy, &tab_path)) {
-				(void)editorWorkspaceStateAppendPendingTab(tab_cx, tab_cy, tab_path);
+				(void)editorWorkspaceStateAppendPendingTab(tab_cx, tab_cy,
+				                                           tab_path);
 			}
 		} else if (strcmp(key, "active_tab") == 0) {
 			free(g_pending_active_path);
@@ -465,7 +463,8 @@ int editorWorkspaceStateLoadAndApply(int total_cols) {
 				E.layout_root = restored;
 				E.focused_leaf = editorPaneNodeFirstLeaf(E.layout_root);
 				if (E.focused_leaf != NULL) {
-					editorPaneViewCaptureFromState(&E.focused_leaf->as.leaf.view);
+					editorPaneViewCaptureFromState(
+					        &E.focused_leaf->as.leaf.view);
 				}
 			}
 		}
@@ -537,7 +536,7 @@ int editorWorkspaceStateRestoreTabs(void) {
 				target_cx = line.size;
 			}
 			target_cx = editorBytesClampCxToClusterBoundary(line.data, line.size,
-					target_cx);
+			                                                target_cx);
 			if (target_cx < 0) {
 				target_cx = 0;
 			}
@@ -606,29 +605,25 @@ int editorWorkspaceStateSave(void) {
 
 	enum editorDrawerMode mode = E.drawer_mode;
 	if (mode != EDITOR_DRAWER_MODE_TREE && mode != EDITOR_DRAWER_MODE_MAIN_MENU &&
-			mode != EDITOR_DRAWER_MODE_GIT && mode != EDITOR_DRAWER_MODE_LSP &&
-			mode != EDITOR_DRAWER_MODE_DAP) {
+	    mode != EDITOR_DRAWER_MODE_GIT && mode != EDITOR_DRAWER_MODE_LSP &&
+	    mode != EDITOR_DRAWER_MODE_DAP) {
 		mode = EDITOR_DRAWER_MODE_TREE;
 	}
 
 	char buf[256];
 	int len = snprintf(buf, sizeof(buf),
-			"drawer_width_cols=%d\n"
-			"drawer_width_user_set=%d\n"
-			"drawer_collapsed=%d\n"
-			"drawer_mode=%s\n"
-			"drawer_menu_expanded=%u\n"
-			"drawer_git_expanded=%u\n"
-			"drawer_lsp_expanded=%u\n"
-			"drawer_dap_expanded=%u\n",
-			E.drawer_width_cols,
-			E.drawer_width_user_set ? 1 : 0,
-			E.drawer_collapsed ? 1 : 0,
-			editorWorkspaceStateModeToString(mode),
-			E.drawer_menu_expanded,
-			E.drawer_git_expanded,
-			E.drawer_lsp_expanded,
-			E.drawer_dap_expanded);
+	                   "drawer_width_cols=%d\n"
+	                   "drawer_width_user_set=%d\n"
+	                   "drawer_collapsed=%d\n"
+	                   "drawer_mode=%s\n"
+	                   "drawer_menu_expanded=%u\n"
+	                   "drawer_git_expanded=%u\n"
+	                   "drawer_lsp_expanded=%u\n"
+	                   "drawer_dap_expanded=%u\n",
+	                   E.drawer_width_cols, E.drawer_width_user_set ? 1 : 0,
+	                   E.drawer_collapsed ? 1 : 0, editorWorkspaceStateModeToString(mode),
+	                   E.drawer_menu_expanded, E.drawer_git_expanded, E.drawer_lsp_expanded,
+	                   E.drawer_dap_expanded);
 	if (len <= 0 || (size_t)len >= sizeof(buf)) {
 		(void)close(fd);
 		return 0;
@@ -644,8 +639,8 @@ int editorWorkspaceStateSave(void) {
 			continue;
 		}
 		if (!editorWorkspaceStateWriteAll(fd, "recent_file=", strlen("recent_file=")) ||
-				!editorWorkspaceStateWriteAll(fd, path, strlen(path)) ||
-				!editorWorkspaceStateWriteAll(fd, "\n", 1)) {
+		    !editorWorkspaceStateWriteAll(fd, path, strlen(path)) ||
+		    !editorWorkspaceStateWriteAll(fd, "\n", 1)) {
 			(void)close(fd);
 			return 0;
 		}
@@ -658,7 +653,7 @@ int editorWorkspaceStateSave(void) {
 			continue;
 		}
 		if (tab->tab_kind != EDITOR_TAB_FILE || tab->is_preview ||
-				!editorWorkspaceStatePathCanWriteLine(tab->filename)) {
+		    !editorWorkspaceStatePathCanWriteLine(tab->filename)) {
 			continue;
 		}
 		char prefix[64];
@@ -668,8 +663,8 @@ int editorWorkspaceStateSave(void) {
 			return 0;
 		}
 		if (!editorWorkspaceStateWriteAll(fd, prefix, (size_t)prefix_len) ||
-				!editorWorkspaceStateWriteAll(fd, tab->filename, strlen(tab->filename)) ||
-				!editorWorkspaceStateWriteAll(fd, "\n", 1)) {
+		    !editorWorkspaceStateWriteAll(fd, tab->filename, strlen(tab->filename)) ||
+		    !editorWorkspaceStateWriteAll(fd, "\n", 1)) {
 			(void)close(fd);
 			return 0;
 		}
@@ -679,20 +674,18 @@ int editorWorkspaceStateSave(void) {
 	}
 	if (active_path != NULL) {
 		if (!editorWorkspaceStateWriteAll(fd, "active_tab=", strlen("active_tab=")) ||
-				!editorWorkspaceStateWriteAll(fd, active_path, strlen(active_path)) ||
-				!editorWorkspaceStateWriteAll(fd, "\n", 1)) {
+		    !editorWorkspaceStateWriteAll(fd, active_path, strlen(active_path)) ||
+		    !editorWorkspaceStateWriteAll(fd, "\n", 1)) {
 			(void)close(fd);
 			return 0;
 		}
 	}
 	if (E.layout_root != NULL && E.layout_root->is_split) {
 		char layout_buf[2048];
-		if (editorLayoutSerialize(E.layout_root, layout_buf,
-					sizeof(layout_buf)) > 0) {
+		if (editorLayoutSerialize(E.layout_root, layout_buf, sizeof(layout_buf)) > 0) {
 			if (!editorWorkspaceStateWriteAll(fd, "layout=", strlen("layout=")) ||
-					!editorWorkspaceStateWriteAll(fd, layout_buf,
-							strlen(layout_buf)) ||
-					!editorWorkspaceStateWriteAll(fd, "\n", 1)) {
+			    !editorWorkspaceStateWriteAll(fd, layout_buf, strlen(layout_buf)) ||
+			    !editorWorkspaceStateWriteAll(fd, "\n", 1)) {
 				(void)close(fd);
 				return 0;
 			}

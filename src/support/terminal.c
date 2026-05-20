@@ -4,10 +4,12 @@
 #include "language/lsp.h"
 #include "language/syntax.h"
 #include "language/syntax_worker.h"
-#include "terminal/terminal_pane.h"
 #include "rotide.h"
+#include "support/size_utils.h"
+#include "terminal/terminal_pane.h"
 #include "workspace/task.h"
 #include "workspace/watch.h"
+
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -20,8 +22,6 @@
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 #include <unistd.h>
-
-#include "support/size_utils.h"
 
 /*** Terminal ***/
 
@@ -50,11 +50,7 @@ static volatile sig_atomic_t terminal_resize_pending = 0;
 static struct editorMouseEvent pending_mouse_event = {EDITOR_MOUSE_EVENT_NONE, 0, 0, 0};
 static int has_pending_mouse_event = 0;
 
-enum editorOsc52Mode {
-	EDITOR_OSC52_MODE_AUTO = 0,
-	EDITOR_OSC52_MODE_OFF,
-	EDITOR_OSC52_MODE_FORCE
-};
+enum editorOsc52Mode { EDITOR_OSC52_MODE_AUTO = 0, EDITOR_OSC52_MODE_OFF, EDITOR_OSC52_MODE_FORCE };
 
 static int editorWriteAll(int fd, const char *buf, size_t len) {
 	while (len > 0) {
@@ -74,11 +70,7 @@ static int editorWriteAll(int fd, const char *buf, size_t len) {
 	return 1;
 }
 
-enum editorReadByteResult {
-	EDITOR_READ_BYTE = 1,
-	EDITOR_READ_RETRY = 0,
-	EDITOR_READ_EOF = -1
-};
+enum editorReadByteResult { EDITOR_READ_BYTE = 1, EDITOR_READ_RETRY = 0, EDITOR_READ_EOF = -1 };
 
 static int editorIsTtyInputClosed(void) {
 	struct pollfd pfd;
@@ -257,7 +249,7 @@ static enum editorReadByteResult editorReadSgrMouseEvent(struct editorMouseEvent
 
 static char *editorBase64Encode(const unsigned char *bytes, size_t len, size_t *out_len) {
 	static const char base64_table[] =
-			"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+	        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 	if (out_len == NULL) {
 		return NULL;
 	}
@@ -271,8 +263,7 @@ static char *editorBase64Encode(const unsigned char *bytes, size_t len, size_t *
 	}
 	groups = group_bytes / 3;
 	if (!editorSizeMul(groups, 4, &encoded_len) ||
-			!editorSizeAdd(encoded_len, 1, &encoded_cap) ||
-			encoded_len > ROTIDE_MAX_TEXT_BYTES) {
+	    !editorSizeAdd(encoded_len, 1, &encoded_cap) || encoded_len > ROTIDE_MAX_TEXT_BYTES) {
 		return NULL;
 	}
 
@@ -289,9 +280,12 @@ static char *editorBase64Encode(const unsigned char *bytes, size_t len, size_t *
 		unsigned int octet_c = remaining > 2 ? bytes[i + 2] : 0;
 
 		encoded[out_idx++] = base64_table[(octet_a >> 2) & 0x3F];
-		encoded[out_idx++] = base64_table[((octet_a & 0x03) << 4) | ((octet_b >> 4) & 0x0F)];
-		encoded[out_idx++] = remaining > 1 ?
-				base64_table[((octet_b & 0x0F) << 2) | ((octet_c >> 6) & 0x03)] : '=';
+		encoded[out_idx++] =
+		        base64_table[((octet_a & 0x03) << 4) | ((octet_b >> 4) & 0x0F)];
+		encoded[out_idx++] =
+		        remaining > 1
+		                ? base64_table[((octet_b & 0x0F) << 2) | ((octet_c >> 6) & 0x03)]
+		                : '=';
 		encoded[out_idx++] = remaining > 2 ? base64_table[octet_c & 0x3F] : '=';
 	}
 
@@ -354,17 +348,21 @@ void editorClipboardSyncOsc52(const char *text, size_t len) {
 	const char *screen = getenv("STY");
 
 	if (tmux != NULL && tmux[0] != '\0') {
-		(void)editorWriteAll(STDOUT_FILENO, OSC52_TMUX_PREFIX, sizeof(OSC52_TMUX_PREFIX) - 1);
+		(void)editorWriteAll(STDOUT_FILENO, OSC52_TMUX_PREFIX,
+		                     sizeof(OSC52_TMUX_PREFIX) - 1);
 		(void)editorWriteAll(STDOUT_FILENO, encoded, encoded_len);
-		(void)editorWriteAll(STDOUT_FILENO, OSC52_TMUX_SUFFIX, sizeof(OSC52_TMUX_SUFFIX) - 1);
+		(void)editorWriteAll(STDOUT_FILENO, OSC52_TMUX_SUFFIX,
+		                     sizeof(OSC52_TMUX_SUFFIX) - 1);
 		free(encoded);
 		return;
 	}
 
 	if (screen != NULL && screen[0] != '\0') {
-		(void)editorWriteAll(STDOUT_FILENO, OSC52_SCREEN_PREFIX, sizeof(OSC52_SCREEN_PREFIX) - 1);
+		(void)editorWriteAll(STDOUT_FILENO, OSC52_SCREEN_PREFIX,
+		                     sizeof(OSC52_SCREEN_PREFIX) - 1);
 		(void)editorWriteAll(STDOUT_FILENO, encoded, encoded_len);
-		(void)editorWriteAll(STDOUT_FILENO, OSC52_SCREEN_SUFFIX, sizeof(OSC52_SCREEN_SUFFIX) - 1);
+		(void)editorWriteAll(STDOUT_FILENO, OSC52_SCREEN_SUFFIX,
+		                     sizeof(OSC52_SCREEN_SUFFIX) - 1);
 		free(encoded);
 		return;
 	}
@@ -490,10 +488,11 @@ int editorRefreshWindowSize(void) {
 
 static void editorRestoreCursorVisualState(void) {
 	(void)editorWriteAll(STDOUT_FILENO, VT100_NORMAL_COLORS_3,
-			sizeof(VT100_NORMAL_COLORS_3) - 1);
-	(void)editorWriteAll(STDOUT_FILENO, VT100_CURSOR_DEFAULT_5, sizeof(VT100_CURSOR_DEFAULT_5) - 1);
+	                     sizeof(VT100_NORMAL_COLORS_3) - 1);
+	(void)editorWriteAll(STDOUT_FILENO, VT100_CURSOR_DEFAULT_5,
+	                     sizeof(VT100_CURSOR_DEFAULT_5) - 1);
 	(void)editorWriteAll(STDOUT_FILENO, VT100_CURSOR_COLOR_DEFAULT,
-			sizeof(VT100_CURSOR_COLOR_DEFAULT) - 1);
+	                     sizeof(VT100_CURSOR_COLOR_DEFAULT) - 1);
 	(void)editorWriteAll(STDOUT_FILENO, VT100_SHOW_CURSOR_6, sizeof(VT100_SHOW_CURSOR_6) - 1);
 }
 
@@ -623,24 +622,11 @@ void setRawMode(void) {
 	struct termios attrs = E.orig_attrs;
 
 	// lflag: disable cooked-mode line editing and signal-generating shortcuts.
-	attrs.c_lflag &= ~(
-		ECHO |
-		ICANON |
-		ISIG |
-		IEXTEN
-	);
+	attrs.c_lflag &= ~(ECHO | ICANON | ISIG | IEXTEN);
 	// iflag: keep byte stream unmodified (no flow control or CR/LF rewriting).
-	attrs.c_iflag &= ~(
-		IXON |
-		ICRNL |
-		BRKINT |
-		INPCK |
-		ISTRIP
-	);
+	attrs.c_iflag &= ~(IXON | ICRNL | BRKINT | INPCK | ISTRIP);
 	// oflag: disable post-processing so writes are emitted exactly as provided.
-	attrs.c_oflag &= ~(
-		OPOST
-	);
+	attrs.c_oflag &= ~(OPOST);
 	// cflag: force 8-bit bytes and non-blocking-ish reads with short timeout.
 	attrs.c_cflag |= (CS8);
 	attrs.c_cc[VMIN] = 0;
@@ -766,7 +752,8 @@ int editorReadKey(void) {
 
 			if (second == '<') {
 				struct editorMouseEvent event;
-				enum editorReadByteResult mouse_status = editorReadSgrMouseEvent(&event);
+				enum editorReadByteResult mouse_status =
+				        editorReadSgrMouseEvent(&event);
 				if (mouse_status == EDITOR_READ_EOF) {
 					return INPUT_EOF_EVENT;
 				}
@@ -777,7 +764,8 @@ int editorReadKey(void) {
 					return '\x1b';
 				}
 				if (event.kind == EDITOR_MOUSE_EVENT_NONE) {
-					// Valid mouse packet we intentionally ignore (unsupported button/modifier combo).
+					// Valid mouse packet we intentionally ignore (unsupported
+					// button/modifier combo).
 					continue;
 				}
 				pending_mouse_event = event;
@@ -806,16 +794,17 @@ int editorReadKey(void) {
 						return INPUT_EOF_EVENT;
 					}
 					if (read_status == EDITOR_READ_BYTE &&
-							(fourth == '0' || fourth == '1')) {
+					    (fourth == '0' || fourth == '1')) {
 						char fifth = '\0';
 						read_status = editorReadSeqByte(&fifth);
 						if (read_status == EDITOR_READ_EOF) {
 							return INPUT_EOF_EVENT;
 						}
-						if (read_status == EDITOR_READ_BYTE && fifth == '~') {
-							return fourth == '0' ?
-									BRACKETED_PASTE_START_EVENT :
-									BRACKETED_PASTE_END_EVENT;
+						if (read_status == EDITOR_READ_BYTE &&
+						    fifth == '~') {
+							return fourth == '0'
+							               ? BRACKETED_PASTE_START_EVENT
+							               : BRACKETED_PASTE_END_EVENT;
 						}
 					}
 					/* Not a recognized marker — fall through, treating the

@@ -7,6 +7,7 @@
 #include "support/size_utils.h"
 #include "text/document.h"
 #include "text/row.h"
+
 #include <errno.h>
 #include <limits.h>
 #include <stdlib.h>
@@ -56,7 +57,7 @@ static void editorClampPositionToBuffer(int *cy, int *cx) {
 }
 
 static int editorNormalizeRange(const struct editorSelectionRange *range,
-		struct editorSelectionRange *out) {
+                                struct editorSelectionRange *out) {
 	if (range == NULL || out == NULL) {
 		return 0;
 	}
@@ -100,11 +101,7 @@ int editorGetSelectionRange(struct editorSelectionRange *range_out) {
 	}
 
 	struct editorSelectionRange range = {
-		.start_cy = anchor_cy,
-		.start_cx = anchor_cx,
-		.end_cy = E.cy,
-		.end_cx = E.cx
-	};
+	        .start_cy = anchor_cy, .start_cx = anchor_cx, .end_cy = E.cy, .end_cx = E.cx};
 	if (!editorNormalizeRange(&range, range_out)) {
 		return 0;
 	}
@@ -113,7 +110,7 @@ int editorGetSelectionRange(struct editorSelectionRange *range_out) {
 }
 
 int editorExtractRangeText(const struct editorSelectionRange *range, char **text_out,
-		size_t *len_out) {
+                           size_t *len_out) {
 	if (text_out == NULL || len_out == NULL) {
 		return 0;
 	}
@@ -139,8 +136,8 @@ int editorExtractRangeText(const struct editorSelectionRange *range, char **text
 	size_t start_offset = 0;
 	size_t end_offset = 0;
 	if (!editorBufferPosToOffset(normalized.start_cy, normalized.start_cx, &start_offset) ||
-			!editorBufferPosToOffset(normalized.end_cy, normalized.end_cx, &end_offset) ||
-			end_offset < start_offset || end_offset > source.length) {
+	    !editorBufferPosToOffset(normalized.end_cy, normalized.end_cx, &end_offset) ||
+	    end_offset < start_offset || end_offset > source.length) {
 		editorSetOperationTooLargeStatus();
 		return -1;
 	}
@@ -171,16 +168,14 @@ int editorReplaceRange(const struct editorSelectionRange *range, const char *tex
 		return -1;
 	}
 
-	struct editorSelectionRange normalized = {
-		.start_cy = range->start_cy,
-		.start_cx = range->start_cx,
-		.end_cy = range->end_cy,
-		.end_cx = range->end_cx
-	};
+	struct editorSelectionRange normalized = {.start_cy = range->start_cy,
+	                                          .start_cx = range->start_cx,
+	                                          .end_cy = range->end_cy,
+	                                          .end_cx = range->end_cx};
 	editorClampPositionToBuffer(&normalized.start_cy, &normalized.start_cx);
 	editorClampPositionToBuffer(&normalized.end_cy, &normalized.end_cx);
-	if (editorPosComesBefore(normalized.end_cy, normalized.end_cx,
-			normalized.start_cy, normalized.start_cx)) {
+	if (editorPosComesBefore(normalized.end_cy, normalized.end_cx, normalized.start_cy,
+	                         normalized.start_cx)) {
 		int tmp_cy = normalized.start_cy;
 		int tmp_cx = normalized.start_cx;
 		normalized.start_cy = normalized.end_cy;
@@ -192,8 +187,8 @@ int editorReplaceRange(const struct editorSelectionRange *range, const char *tex
 	size_t start_offset = 0;
 	size_t end_offset = 0;
 	if (!editorBufferPosToOffset(normalized.start_cy, normalized.start_cx, &start_offset) ||
-			!editorBufferPosToOffset(normalized.end_cy, normalized.end_cx, &end_offset) ||
-			end_offset < start_offset) {
+	    !editorBufferPosToOffset(normalized.end_cy, normalized.end_cx, &end_offset) ||
+	    end_offset < start_offset) {
 		editorSetOperationTooLargeStatus();
 		return -1;
 	}
@@ -204,7 +199,7 @@ int editorReplaceRange(const struct editorSelectionRange *range, const char *tex
 
 	size_t after_offset = 0;
 	if (!editorSizeAdd(start_offset, len, &after_offset) ||
-			after_offset > ROTIDE_MAX_TEXT_BYTES) {
+	    after_offset > ROTIDE_MAX_TEXT_BYTES) {
 		editorSetOperationTooLargeStatus();
 		return -1;
 	}
@@ -229,17 +224,17 @@ int editorReplaceRange(const struct editorSelectionRange *range, const char *tex
 		return -1;
 	}
 
-	struct editorDocumentEdit edit = {
-		.kind = (removed_len > 0 && len == 0) ? EDITOR_EDIT_DELETE_TEXT : EDITOR_EDIT_INSERT_TEXT,
-		.start_offset = start_offset,
-		.old_len = removed_len,
-		.new_text = len > 0 ? text : "",
-		.new_len = len,
-		.before_cursor_offset = before_cursor_offset,
-		.after_cursor_offset = after_offset,
-		.before_dirty = E.dirty,
-		.after_dirty = E.dirty + dirty_delta
-	};
+	struct editorDocumentEdit edit = {.kind = (removed_len > 0 && len == 0)
+	                                                  ? EDITOR_EDIT_DELETE_TEXT
+	                                                  : EDITOR_EDIT_INSERT_TEXT,
+	                                  .start_offset = start_offset,
+	                                  .old_len = removed_len,
+	                                  .new_text = len > 0 ? text : "",
+	                                  .new_len = len,
+	                                  .before_cursor_offset = before_cursor_offset,
+	                                  .after_cursor_offset = after_offset,
+	                                  .before_dirty = E.dirty,
+	                                  .after_dirty = E.dirty + dirty_delta};
 	if (!editorApplyDocumentEdit(&edit)) {
 		return -1;
 	}
@@ -256,8 +251,8 @@ int editorDeleteRange(const struct editorSelectionRange *range) {
 	size_t end_offset = 0;
 	int dirty_delta = 1;
 	if (!editorBufferPosToOffset(normalized.start_cy, normalized.start_cx, &start_offset) ||
-			!editorBufferPosToOffset(normalized.end_cy, normalized.end_cx, &end_offset) ||
-			end_offset < start_offset) {
+	    !editorBufferPosToOffset(normalized.end_cy, normalized.end_cx, &end_offset) ||
+	    end_offset < start_offset) {
 		editorSetOperationTooLargeStatus();
 		return -1;
 	}
@@ -277,17 +272,15 @@ int editorDeleteRange(const struct editorSelectionRange *range) {
 		return -1;
 	}
 
-	struct editorDocumentEdit edit = {
-		.kind = EDITOR_EDIT_DELETE_TEXT,
-		.start_offset = start_offset,
-		.old_len = removed_len,
-		.new_text = "",
-		.new_len = 0,
-		.before_cursor_offset = before_cursor_offset,
-		.after_cursor_offset = start_offset,
-		.before_dirty = E.dirty,
-		.after_dirty = E.dirty + dirty_delta
-	};
+	struct editorDocumentEdit edit = {.kind = EDITOR_EDIT_DELETE_TEXT,
+	                                  .start_offset = start_offset,
+	                                  .old_len = removed_len,
+	                                  .new_text = "",
+	                                  .new_len = 0,
+	                                  .before_cursor_offset = before_cursor_offset,
+	                                  .after_cursor_offset = start_offset,
+	                                  .before_dirty = E.dirty,
+	                                  .after_dirty = E.dirty + dirty_delta};
 	if (!editorApplyDocumentEdit(&edit)) {
 		return -1;
 	}
@@ -308,11 +301,11 @@ int editorColumnSelectionGetRect(struct editorColumnSelectionRect *rect_out) {
 	int top = E.column_select_anchor_cy < E.cy ? E.column_select_anchor_cy : E.cy;
 	int bottom = E.column_select_anchor_cy > E.cy ? E.column_select_anchor_cy : E.cy;
 	int left = E.column_select_anchor_rx < E.column_select_cursor_rx
-			? E.column_select_anchor_rx
-			: E.column_select_cursor_rx;
+	                   ? E.column_select_anchor_rx
+	                   : E.column_select_cursor_rx;
 	int right = E.column_select_anchor_rx > E.column_select_cursor_rx
-			? E.column_select_anchor_rx
-			: E.column_select_cursor_rx;
+	                    ? E.column_select_anchor_rx
+	                    : E.column_select_cursor_rx;
 	if (top < 0) {
 		top = 0;
 	}
@@ -333,7 +326,7 @@ int editorColumnSelectionGetRect(struct editorColumnSelectionRect *rect_out) {
 }
 
 int editorColumnSelectionRowSpan(int row_idx, int left_rx, int right_rx, int *cx_start_out,
-		int *cx_end_out) {
+                                 int *cx_end_out) {
 	if (cx_start_out == NULL || cx_end_out == NULL) {
 		return 0;
 	}
@@ -382,7 +375,8 @@ int editorColumnSelectionExtractText(char **text_out, size_t *len_out) {
 	for (int r = rect.top_cy; r <= rect.bottom_cy && r < E.numrows; r++) {
 		int cx_start = 0;
 		int cx_end = 0;
-		(void)editorColumnSelectionRowSpan(r, rect.left_rx, rect.right_rx, &cx_start, &cx_end);
+		(void)editorColumnSelectionRowSpan(r, rect.left_rx, rect.right_rx, &cx_start,
+		                                   &cx_end);
 		size_t row_len = (size_t)(cx_end - cx_start);
 		size_t add = (r > rect.top_cy) ? row_len + 1 : row_len;
 		if (total > ROTIDE_MAX_TEXT_BYTES - add) {
@@ -406,7 +400,8 @@ int editorColumnSelectionExtractText(char **text_out, size_t *len_out) {
 	for (int r = rect.top_cy; r <= rect.bottom_cy && r < E.numrows; r++) {
 		int cx_start = 0;
 		int cx_end = 0;
-		(void)editorColumnSelectionRowSpan(r, rect.left_rx, rect.right_rx, &cx_start, &cx_end);
+		(void)editorColumnSelectionRowSpan(r, rect.left_rx, rect.right_rx, &cx_start,
+		                                   &cx_end);
 		if (r > rect.top_cy) {
 			text[pos++] = '\n';
 		}
@@ -436,7 +431,7 @@ struct editorColumnInsertLine {
 
 static int editorColumnSelectionRowCount(const struct editorColumnSelectionRect *rect) {
 	if (rect == NULL || rect->top_cy < 0 || rect->bottom_cy < rect->top_cy ||
-			rect->top_cy >= E.numrows) {
+	    rect->top_cy >= E.numrows) {
 		return 0;
 	}
 	int bottom = rect->bottom_cy;
@@ -476,10 +471,12 @@ static void editorColumnSelectionMoveCursorToRx(int cy, int rx) {
 // Apply one document edit that rebuilds every affected row with its own column
 // slice replaced. Width-zero rect with empty inserted text is a no-op.
 static int editorColumnSelectionApplyMultiRowEdit(const struct editorColumnSelectionRect *rect,
-		const struct editorColumnInsertLine *insert_lines, int insert_line_count,
-		int repeat_insert, enum editorEditKind kind, int cursor_cy, size_t *cursor_insert_len_out) {
+                                                  const struct editorColumnInsertLine *insert_lines,
+                                                  int insert_line_count, int repeat_insert,
+                                                  enum editorEditKind kind, int cursor_cy,
+                                                  size_t *cursor_insert_len_out) {
 	if (rect == NULL || rect->top_cy < 0 || rect->top_cy > E.numrows ||
-			rect->bottom_cy < rect->top_cy || insert_lines == NULL || insert_line_count <= 0) {
+	    rect->bottom_cy < rect->top_cy || insert_lines == NULL || insert_line_count <= 0) {
 		return 0;
 	}
 
@@ -496,8 +493,8 @@ static int editorColumnSelectionApplyMultiRowEdit(const struct editorColumnSelec
 	size_t end_offset = 0;
 	size_t ignored = 0;
 	if (!editorBufferLineByteRange(top, &start_offset, &ignored) ||
-			!editorBufferLineByteRange(bottom, &ignored, &end_offset) ||
-			end_offset < start_offset) {
+	    !editorBufferLineByteRange(bottom, &ignored, &end_offset) ||
+	    end_offset < start_offset) {
 		return 0;
 	}
 
@@ -605,21 +602,19 @@ static int editorColumnSelectionApplyMultiRowEdit(const struct editorColumnSelec
 			after_cursor_offset = start_offset + row_offset + (size_t)cs + insert_len;
 			break;
 		}
-		row_offset += editorDocumentLineLength(E.document, r) -
-			(size_t)(ce - cs) + insert_len + 1;
+		row_offset += editorDocumentLineLength(E.document, r) - (size_t)(ce - cs) +
+		              insert_len + 1;
 	}
 
-	struct editorDocumentEdit edit = {
-		.kind = kind,
-		.start_offset = start_offset,
-		.old_len = old_len,
-		.new_text = new_text != NULL ? new_text : "",
-		.new_len = new_len,
-		.before_cursor_offset = before_cursor_offset,
-		.after_cursor_offset = after_cursor_offset,
-		.before_dirty = E.dirty,
-		.after_dirty = E.dirty + dirty_delta
-	};
+	struct editorDocumentEdit edit = {.kind = kind,
+	                                  .start_offset = start_offset,
+	                                  .old_len = old_len,
+	                                  .new_text = new_text != NULL ? new_text : "",
+	                                  .new_len = new_len,
+	                                  .before_cursor_offset = before_cursor_offset,
+	                                  .after_cursor_offset = after_cursor_offset,
+	                                  .before_dirty = E.dirty,
+	                                  .after_dirty = E.dirty + dirty_delta};
 
 	int rc = editorApplyDocumentEdit(&edit);
 	free(new_text);
@@ -633,14 +628,13 @@ static int editorColumnSelectionApplyMultiRowEdit(const struct editorColumnSelec
 }
 
 static int editorColumnSelectionApplyRepeatedText(const struct editorColumnSelectionRect *rect,
-		const char *insert_text, size_t insert_len, enum editorEditKind kind, int cursor_cy,
-		size_t *cursor_insert_len_out) {
-	struct editorColumnInsertLine insert_line = {
-		.text = insert_text != NULL ? insert_text : "",
-		.len = insert_len
-	};
+                                                  const char *insert_text, size_t insert_len,
+                                                  enum editorEditKind kind, int cursor_cy,
+                                                  size_t *cursor_insert_len_out) {
+	struct editorColumnInsertLine insert_line = {.text = insert_text != NULL ? insert_text : "",
+	                                             .len = insert_len};
 	return editorColumnSelectionApplyMultiRowEdit(rect, &insert_line, 1, 1, kind, cursor_cy,
-			cursor_insert_len_out);
+	                                              cursor_insert_len_out);
 }
 
 int editorColumnSelectionDelete(void) {
@@ -648,8 +642,8 @@ int editorColumnSelectionDelete(void) {
 	if (!editorColumnSelectionGetRect(&rect)) {
 		return 0;
 	}
-	int rc = editorColumnSelectionApplyRepeatedText(&rect, NULL, 0, EDITOR_EDIT_DELETE_TEXT, E.cy,
-			NULL);
+	int rc = editorColumnSelectionApplyRepeatedText(&rect, NULL, 0, EDITOR_EDIT_DELETE_TEXT,
+	                                                E.cy, NULL);
 	if (rc <= 0) {
 		if (rc == 0) {
 			editorColumnSelectionClear();
@@ -675,7 +669,7 @@ int editorColumnSelectionDeleteForward(void) {
 	int top = rect.top_cy;
 	int left_rx = rect.left_rx;
 	int rc = editorColumnSelectionApplyRepeatedText(&rect, NULL, 0, EDITOR_EDIT_DELETE_TEXT,
-			saved_cy, NULL);
+	                                                saved_cy, NULL);
 	if (rc <= 0) {
 		if (rc == 0) {
 			editorColumnSelectionClear();
@@ -710,7 +704,7 @@ int editorColumnSelectionInsertChar(int c) {
 	size_t cursor_insert_len = 0;
 
 	int rc = editorColumnSelectionApplyRepeatedText(&rect, &ch, 1, EDITOR_EDIT_INSERT_TEXT,
-			saved_cursor_cy, &cursor_insert_len);
+	                                                saved_cursor_cy, &cursor_insert_len);
 	if (rc <= 0) {
 		return rc;
 	}
@@ -725,7 +719,8 @@ int editorColumnSelectionInsertChar(int c) {
 }
 
 static int editorColumnSelectionSplitLines(const char *text, size_t len,
-		struct editorColumnInsertLine **lines_out, int *line_count_out) {
+                                           struct editorColumnInsertLine **lines_out,
+                                           int *line_count_out) {
 	if (text == NULL || lines_out == NULL || line_count_out == NULL) {
 		return 0;
 	}
@@ -744,7 +739,8 @@ static int editorColumnSelectionSplitLines(const char *text, size_t len,
 	}
 
 	size_t alloc_size = 0;
-	if (!editorSizeMul(sizeof(struct editorColumnInsertLine), (size_t)line_count, &alloc_size)) {
+	if (!editorSizeMul(sizeof(struct editorColumnInsertLine), (size_t)line_count,
+	                   &alloc_size)) {
 		editorSetOperationTooLargeStatus();
 		return -1;
 	}
@@ -807,7 +803,8 @@ int editorColumnSelectionPasteText(const char *text, size_t len) {
 	int left_rx = rect.left_rx;
 	size_t cursor_insert_len = 0;
 	int rc = editorColumnSelectionApplyMultiRowEdit(&rect, lines, line_count, repeat_insert,
-			EDITOR_EDIT_INSERT_TEXT, saved_cursor_cy, &cursor_insert_len);
+	                                                EDITOR_EDIT_INSERT_TEXT, saved_cursor_cy,
+	                                                &cursor_insert_len);
 	free(lines);
 	if (rc <= 0) {
 		return rc;
@@ -841,7 +838,7 @@ int editorColumnSelectionBackspace(void) {
 	int top = rect.top_cy;
 	int left_rx = rect.left_rx;
 	int rc = editorColumnSelectionApplyRepeatedText(&rect, NULL, 0, EDITOR_EDIT_DELETE_TEXT,
-			saved_cy, NULL);
+	                                                saved_cy, NULL);
 	if (rc <= 0) {
 		if (rc == 0) {
 			editorColumnSelectionClear();

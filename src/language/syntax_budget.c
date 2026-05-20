@@ -11,22 +11,21 @@
 #include <stdlib.h>
 
 static void editorSyntaxStateQueueLimitEvent(struct editorSyntaxState *state,
-		enum editorSyntaxLimitEventKind kind,
-		enum editorSyntaxLanguage language,
-		int row,
-		int detail) {
+                                             enum editorSyntaxLimitEventKind kind,
+                                             enum editorSyntaxLanguage language, int row,
+                                             int detail) {
 	if (state == NULL) {
 		return;
 	}
 	int idx = 0;
 	if (state->limit_event_count < ROTIDE_SYNTAX_LIMIT_EVENT_CAP) {
 		idx = (state->limit_event_start + state->limit_event_count) %
-				ROTIDE_SYNTAX_LIMIT_EVENT_CAP;
+		      ROTIDE_SYNTAX_LIMIT_EVENT_CAP;
 		state->limit_event_count++;
 	} else {
 		idx = state->limit_event_start;
-		state->limit_event_start = (state->limit_event_start + 1) %
-				ROTIDE_SYNTAX_LIMIT_EVENT_CAP;
+		state->limit_event_start =
+		        (state->limit_event_start + 1) % ROTIDE_SYNTAX_LIMIT_EVENT_CAP;
 	}
 	state->limit_events[idx].kind = kind;
 	state->limit_events[idx].language = language;
@@ -50,10 +49,11 @@ void editorSyntaxStateRecordCaptureTruncated(struct editorSyntaxState *state, in
 			}
 		}
 		if (state->capture_truncated_row_count >= state->capture_truncated_row_cap) {
-			int new_cap = state->capture_truncated_row_cap == 0 ?
-					8 : state->capture_truncated_row_cap * 2;
+			int new_cap = state->capture_truncated_row_cap == 0
+			                      ? 8
+			                      : state->capture_truncated_row_cap * 2;
 			int *new_rows = realloc(state->capture_truncated_rows,
-					(size_t)new_cap * sizeof(*new_rows));
+			                        (size_t)new_cap * sizeof(*new_rows));
 			if (new_rows == NULL) {
 				return;
 			}
@@ -63,51 +63,47 @@ void editorSyntaxStateRecordCaptureTruncated(struct editorSyntaxState *state, in
 		state->capture_truncated_rows[state->capture_truncated_row_count++] = row;
 	}
 	editorSyntaxStateQueueLimitEvent(state, EDITOR_SYNTAX_LIMIT_EVENT_CAPTURE_TRUNCATED,
-			state->language, row, ROTIDE_MAX_SYNTAX_SPANS_PER_ROW);
+	                                 state->language, row, ROTIDE_MAX_SYNTAX_SPANS_PER_ROW);
 }
 
 void editorSyntaxStateRecordInjectionDepthExceeded(struct editorSyntaxState *state,
-		enum editorSyntaxLanguage language,
-		int depth) {
+                                                   enum editorSyntaxLanguage language, int depth) {
 	if (state == NULL || state->injection_depth_exceeded_reported) {
 		return;
 	}
 	state->injection_depth_exceeded_reported = 1;
-	editorSyntaxStateQueueLimitEvent(state,
-			EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_DEPTH_EXCEEDED, language, -1, depth);
+	editorSyntaxStateQueueLimitEvent(state, EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_DEPTH_EXCEEDED,
+	                                 language, -1, depth);
 }
 
 void editorSyntaxStateRecordInjectionSlotsFull(struct editorSyntaxState *state,
-		enum editorSyntaxLanguage language) {
+                                               enum editorSyntaxLanguage language) {
 	if (state == NULL || state->injection_slots_full_reported) {
 		return;
 	}
 	state->injection_slots_full_reported = 1;
-	editorSyntaxStateQueueLimitEvent(state,
-			EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_SLOTS_FULL, language, -1,
-			ROTIDE_SYNTAX_MAX_INJECTION_TREES);
+	editorSyntaxStateQueueLimitEvent(state, EDITOR_SYNTAX_LIMIT_EVENT_INJECTION_SLOTS_FULL,
+	                                 language, -1, ROTIDE_SYNTAX_MAX_INJECTION_TREES);
 }
 
-void editorSyntaxStateRecordParseFailed(struct editorSyntaxState *state,
-		int consecutive_failures) {
+void editorSyntaxStateRecordParseFailed(struct editorSyntaxState *state, int consecutive_failures) {
 	if (state == NULL) {
 		return;
 	}
 	editorSyntaxStateQueueLimitEvent(state, EDITOR_SYNTAX_LIMIT_EVENT_PARSE_FAILED,
-			state->language, -1, consecutive_failures);
+	                                 state->language, -1, consecutive_failures);
 }
 
 void editorSyntaxStateRecordParseTreeHasError(struct editorSyntaxState *state,
-		enum editorSyntaxLanguage language) {
+                                              enum editorSyntaxLanguage language) {
 	if (state == NULL) {
 		return;
 	}
-	editorSyntaxStateQueueLimitEvent(state,
-			EDITOR_SYNTAX_LIMIT_EVENT_PARSE_TREE_HAS_ERROR, language, -1, 1);
+	editorSyntaxStateQueueLimitEvent(state, EDITOR_SYNTAX_LIMIT_EVENT_PARSE_TREE_HAS_ERROR,
+	                                 language, -1, 1);
 }
 
-void editorSyntaxStateApplyPerformanceMode(struct editorSyntaxState *state,
-		size_t source_len) {
+void editorSyntaxStateApplyPerformanceMode(struct editorSyntaxState *state, size_t source_len) {
 	if (state == NULL) {
 		return;
 	}
@@ -141,8 +137,8 @@ int editorSyntaxStateConfigureForSourceLength(struct editorSyntaxState *state, s
 	return editorSyntaxLengthFitsTreeSitter(source_len);
 }
 
-enum editorSyntaxPerformanceMode editorSyntaxStatePerformanceMode(
-		const struct editorSyntaxState *state) {
+enum editorSyntaxPerformanceMode
+editorSyntaxStatePerformanceMode(const struct editorSyntaxState *state) {
 	if (state == NULL) {
 		return EDITOR_SYNTAX_PERF_NORMAL;
 	}
@@ -157,8 +153,8 @@ size_t editorSyntaxStateSourceLength(const struct editorSyntaxState *state) {
 }
 
 int editorSyntaxStateConsumeBudgetEvents(struct editorSyntaxState *state,
-		int *parse_budget_exceeded_out,
-		int *query_budget_exceeded_out) {
+                                         int *parse_budget_exceeded_out,
+                                         int *query_budget_exceeded_out) {
 	if (parse_budget_exceeded_out != NULL) {
 		*parse_budget_exceeded_out = 0;
 	}
@@ -183,8 +179,8 @@ int editorSyntaxStateConsumeBudgetEvents(struct editorSyntaxState *state,
 }
 
 int editorSyntaxStateConsumeQueryUnavailableEvent(struct editorSyntaxState *state,
-		enum editorSyntaxLanguage *language_out,
-		enum editorSyntaxQueryKind *kind_out) {
+                                                  enum editorSyntaxLanguage *language_out,
+                                                  enum editorSyntaxQueryKind *kind_out) {
 	if (language_out != NULL) {
 		*language_out = EDITOR_SYNTAX_NONE;
 	}
@@ -207,7 +203,7 @@ int editorSyntaxStateConsumeQueryUnavailableEvent(struct editorSyntaxState *stat
 }
 
 int editorSyntaxStateConsumeLimitEvent(struct editorSyntaxState *state,
-		struct editorSyntaxLimitEvent *event_out) {
+                                       struct editorSyntaxLimitEvent *event_out) {
 	if (event_out != NULL) {
 		event_out->kind = EDITOR_SYNTAX_LIMIT_EVENT_CAPTURE_TRUNCATED;
 		event_out->language = EDITOR_SYNTAX_NONE;
@@ -222,8 +218,7 @@ int editorSyntaxStateConsumeLimitEvent(struct editorSyntaxState *state,
 	if (event_out != NULL) {
 		*event_out = state->limit_events[idx];
 	}
-	state->limit_event_start = (state->limit_event_start + 1) %
-			ROTIDE_SYNTAX_LIMIT_EVENT_CAP;
+	state->limit_event_start = (state->limit_event_start + 1) % ROTIDE_SYNTAX_LIMIT_EVENT_CAP;
 	state->limit_event_count--;
 	return 1;
 }

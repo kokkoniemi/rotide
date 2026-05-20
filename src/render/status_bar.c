@@ -5,6 +5,7 @@
 #include "workspace/drawer.h"
 #include "workspace/git.h"
 #include "workspace/tabs.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,7 +27,7 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 	}
 	if (E.lsp_diagnostic_count > 0) {
 		(void)snprintf(diagbuf, sizeof(diagbuf), " [E:%d W:%d]",
-				E.lsp_diagnostic_error_count, E.lsp_diagnostic_warning_count);
+		               E.lsp_diagnostic_error_count, E.lsp_diagnostic_warning_count);
 	}
 
 	int progress = scroll_progress_percent;
@@ -45,11 +46,11 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 		char branch_trunc[25];
 		(void)snprintf(branch_trunc, sizeof(branch_trunc), "%s", git_branch);
 		const char *dirty_marker = E.git_entry_count > 0 ? "+" : "";
-		rlen = snprintf(rightbuf, sizeof(rightbuf), " %s%s  %d,%d    %d%%",
-				branch_trunc, dirty_marker, E.cy + 1, cursor_col, progress);
+		rlen = snprintf(rightbuf, sizeof(rightbuf), " %s%s  %d,%d    %d%%", branch_trunc,
+		                dirty_marker, E.cy + 1, cursor_col, progress);
 	} else {
-		rlen = snprintf(rightbuf, sizeof(rightbuf), "%d,%d    %d%%",
-				E.cy + 1, cursor_col, progress);
+		rlen = snprintf(rightbuf, sizeof(rightbuf), "%d,%d    %d%%", E.cy + 1, cursor_col,
+		                progress);
 	}
 	if (rlen < 0) {
 		rlen = 0;
@@ -88,7 +89,8 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 	}
 	if (diagbuf[0] != '\0' && left_cols < right_start_col) {
 		int appended = 0;
-		if (!editorAppendSanitizedText(wb, diagbuf, right_start_col - left_cols, &appended)) {
+		if (!editorAppendSanitizedText(wb, diagbuf, right_start_col - left_cols,
+		                               &appended)) {
 			return 0;
 		}
 		left_cols += appended;
@@ -149,8 +151,8 @@ static int editorStatusAppendCursorMove(struct writeBuf *wb, int row, int col) {
 }
 
 int editorDrawDiagnosticPopdownMessage(struct writeBuf *wb, const char *message,
-		int cursor_screen_row, int cursor_screen_col, int *screen_top_out,
-		int *row_count_out) {
+                                       int cursor_screen_row, int cursor_screen_col,
+                                       int *screen_top_out, int *row_count_out) {
 	if (message == NULL || message[0] == '\0') {
 		return 1;
 	}
@@ -214,14 +216,14 @@ int editorDrawDiagnosticPopdownMessage(struct writeBuf *wb, const char *message,
 		int end_idx = start_idx;
 		int wrote = 0;
 		editorDisplayWrapNextLine(sanitized, text_len, start_idx, content_cols, &end_idx,
-				&wrote);
+		                          &wrote);
 		if (end_idx <= start_idx) {
 			break;
 		}
 		if (!editorStatusAppendCursorMove(wb, terminal_row, terminal_col) ||
-				!editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_STATUS) ||
-				!wbAppend(wb, " ", 1) ||
-				!wbAppend(wb, &sanitized[start_idx], (size_t)(end_idx - start_idx))) {
+		    !editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_STATUS) ||
+		    !wbAppend(wb, " ", 1) ||
+		    !wbAppend(wb, &sanitized[start_idx], (size_t)(end_idx - start_idx))) {
 			free(sanitized);
 			return 0;
 		}

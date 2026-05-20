@@ -17,24 +17,27 @@
  * trimming the run lines between the seed pass and the
  * final ones. The exact byte/edge counts are what we assert against. */
 static const char *k_smoke_log_lsp =
-	"INFO: Running with entropic power schedule (0xFF, 100).\n"
-	"INFO: Seed: 1234567890\n"
-	"INFO: Loaded 1 modules   (487 inline 8-bit counters): 487 [0x..., 0x...),\n"
-	"INFO: Loaded 1 PC tables (487 PCs): 487 [0x..., 0x...),\n"
-	"INFO: seed corpus: files: 21 min: 8b max: 64b total: 350b rss: 32Mb\n"
-	"#22\tINITED cov: 56 ft: 110 corp: 14/281b exec/s: 0 rss: 33Mb\n"
-	"#59\tNEW    cov: 63 ft: 129 corp: 16/445b lim: 64 exec/s: 0 rss: 34Mb L: 23/64 MS: 1 CopyPart-\n"
-	"#196\tREDUCE cov: 64 ft: 152 corp: 24/734b lim: 64 exec/s: 0 rss: 35Mb L: 46/64 MS: 1 EraseBytes-\n"
-	"#457\tNEW    cov: 64 ft: 162 corp: 28/795b lim: 64 exec/s: 0 rss: 36Mb L: 40/56 MS: 1 ChangeByte-\n"
-	"#500\tDONE   cov: 64 ft: 162 corp: 28/795b lim: 64 exec/s: 0 rss: 36Mb\n"
-	"###### Recommended dictionary. ######\n"
-	"###### End of recommended dictionary. ######\n"
-	"Done 500 runs in 0 second(s)\n"
-	"stat::number_of_executed_units: 500\n"
-	"stat::average_exec_per_sec:     0\n"
-	"stat::new_units_added:          23\n"
-	"stat::slowest_unit_time_sec:    0\n"
-	"stat::peak_rss_mb:              36\n";
+        "INFO: Running with entropic power schedule (0xFF, 100).\n"
+        "INFO: Seed: 1234567890\n"
+        "INFO: Loaded 1 modules   (487 inline 8-bit counters): 487 [0x..., 0x...),\n"
+        "INFO: Loaded 1 PC tables (487 PCs): 487 [0x..., 0x...),\n"
+        "INFO: seed corpus: files: 21 min: 8b max: 64b total: 350b rss: 32Mb\n"
+        "#22\tINITED cov: 56 ft: 110 corp: 14/281b exec/s: 0 rss: 33Mb\n"
+        "#59\tNEW    cov: 63 ft: 129 corp: 16/445b lim: 64 exec/s: 0 rss: 34Mb L: 23/64 MS: 1 "
+        "CopyPart-\n"
+        "#196\tREDUCE cov: 64 ft: 152 corp: 24/734b lim: 64 exec/s: 0 rss: 35Mb L: 46/64 MS: 1 "
+        "EraseBytes-\n"
+        "#457\tNEW    cov: 64 ft: 162 corp: 28/795b lim: 64 exec/s: 0 rss: 36Mb L: 40/56 MS: 1 "
+        "ChangeByte-\n"
+        "#500\tDONE   cov: 64 ft: 162 corp: 28/795b lim: 64 exec/s: 0 rss: 36Mb\n"
+        "###### Recommended dictionary. ######\n"
+        "###### End of recommended dictionary. ######\n"
+        "Done 500 runs in 0 second(s)\n"
+        "stat::number_of_executed_units: 500\n"
+        "stat::average_exec_per_sec:     0\n"
+        "stat::new_units_added:          23\n"
+        "stat::slowest_unit_time_sec:    0\n"
+        "stat::peak_rss_mb:              36\n";
 
 static int test_parse_smoke_log_extracts_final_cov_ft_corp(void) {
 	struct editorLibFuzzerStats s;
@@ -63,15 +66,13 @@ static int test_parse_smoke_log_extracts_final_stats(void) {
 }
 
 static int test_parse_unit_suffixes_kb_mb(void) {
-	const char *log =
-		"#10\tNEW cov: 1 ft: 2 corp: 1/3Kb lim: 4 exec/s: 0 rss: 10Mb\n";
+	const char *log = "#10\tNEW cov: 1 ft: 2 corp: 1/3Kb lim: 4 exec/s: 0 rss: 10Mb\n";
 	struct editorLibFuzzerStats s;
 	editorLibFuzzerStatsParse(log, &s);
 	ASSERT_TRUE(s.has_cov_line);
 	ASSERT_EQ_INT(1024 * 3, (int)s.corp_bytes);
 
-	const char *log2 =
-		"#10\tNEW cov: 1 ft: 2 corp: 1/5Mb lim: 4 exec/s: 0 rss: 10Mb\n";
+	const char *log2 = "#10\tNEW cov: 1 ft: 2 corp: 1/5Mb lim: 4 exec/s: 0 rss: 10Mb\n";
 	editorLibFuzzerStatsParse(log2, &s);
 	ASSERT_TRUE(s.has_cov_line);
 	ASSERT_EQ_INT(5 * 1024 * 1024, (int)s.corp_bytes);
@@ -79,10 +80,9 @@ static int test_parse_unit_suffixes_kb_mb(void) {
 }
 
 static int test_parse_keeps_last_cov_line(void) {
-	const char *log =
-		"#1\tNEW cov: 10 ft: 20 corp: 1/3b lim: 4 exec/s: 0 rss: 1Mb\n"
-		"#2\tNEW cov: 11 ft: 22 corp: 2/7b lim: 4 exec/s: 0 rss: 1Mb\n"
-		"#3\tNEW cov: 12 ft: 25 corp: 3/11b lim: 4 exec/s: 0 rss: 1Mb\n";
+	const char *log = "#1\tNEW cov: 10 ft: 20 corp: 1/3b lim: 4 exec/s: 0 rss: 1Mb\n"
+	                  "#2\tNEW cov: 11 ft: 22 corp: 2/7b lim: 4 exec/s: 0 rss: 1Mb\n"
+	                  "#3\tNEW cov: 12 ft: 25 corp: 3/11b lim: 4 exec/s: 0 rss: 1Mb\n";
 	struct editorLibFuzzerStats s;
 	editorLibFuzzerStatsParse(log, &s);
 	ASSERT_TRUE(s.has_cov_line);
@@ -94,10 +94,9 @@ static int test_parse_keeps_last_cov_line(void) {
 }
 
 static int test_parse_no_cov_line_flags_off(void) {
-	const char *log =
-		"INFO: Running with entropic power schedule (0xFF, 100).\n"
-		"some unrelated noise\n"
-		"Done 1 runs in 0 second(s)\n";
+	const char *log = "INFO: Running with entropic power schedule (0xFF, 100).\n"
+	                  "some unrelated noise\n"
+	                  "Done 1 runs in 0 second(s)\n";
 	struct editorLibFuzzerStats s;
 	editorLibFuzzerStatsParse(log, &s);
 	ASSERT_TRUE(!s.has_cov_line);
@@ -124,9 +123,8 @@ static int test_parse_handles_empty_and_null(void) {
 }
 
 static int test_parse_runtime_seconds_nonzero(void) {
-	const char *log =
-		"#1\tNEW cov: 1 ft: 1 corp: 1/3b lim: 4 exec/s: 0 rss: 1Mb\n"
-		"Done 50000 runs in 42 second(s)\n";
+	const char *log = "#1\tNEW cov: 1 ft: 1 corp: 1/3b lim: 4 exec/s: 0 rss: 1Mb\n"
+	                  "Done 50000 runs in 42 second(s)\n";
 	struct editorLibFuzzerStats s;
 	editorLibFuzzerStatsParse(log, &s);
 	ASSERT_TRUE(s.has_runtime);
@@ -138,8 +136,7 @@ static int test_parse_rejects_corp_without_b_suffix(void) {
 	/* Defensive: if the format ever drifts and the byte suffix is
 	 * missing, we should refuse the line rather than silently report
 	 * a wildly wrong byte count. */
-	const char *log =
-		"#1\tNEW cov: 1 ft: 1 corp: 1/3 lim: 4 exec/s: 0 rss: 1Mb\n";
+	const char *log = "#1\tNEW cov: 1 ft: 1 corp: 1/3 lim: 4 exec/s: 0 rss: 1Mb\n";
 	struct editorLibFuzzerStats s;
 	editorLibFuzzerStatsParse(log, &s);
 	ASSERT_TRUE(!s.has_cov_line);
@@ -218,9 +215,7 @@ static int test_scan_corpus_counts_files_and_bytes(void) {
 
 static int test_scan_corpus_missing_dir_reports_error(void) {
 	long long count = 99, bytes = 99;
-	int rc = editorLibFuzzerScanCorpus(
-		"/nonexistent-rotide-corpus-xyz-1234",
-		&count, &bytes);
+	int rc = editorLibFuzzerScanCorpus("/nonexistent-rotide-corpus-xyz-1234", &count, &bytes);
 	ASSERT_TRUE(rc != 0);
 	/* Zeroed on failure for safe defaults. */
 	ASSERT_EQ_INT(0, (int)count);
@@ -229,18 +224,20 @@ static int test_scan_corpus_missing_dir_reports_error(void) {
 }
 
 const struct editorTestCase g_metrics_libfuzzer_parse_tests[] = {
-	{"libfuzzer_parse_smoke_log_extracts_final_cov_ft_corp", test_parse_smoke_log_extracts_final_cov_ft_corp},
-	{"libfuzzer_parse_smoke_log_extracts_final_stats", test_parse_smoke_log_extracts_final_stats},
-	{"libfuzzer_parse_unit_suffixes_kb_mb", test_parse_unit_suffixes_kb_mb},
-	{"libfuzzer_parse_keeps_last_cov_line", test_parse_keeps_last_cov_line},
-	{"libfuzzer_parse_no_cov_line_flags_off", test_parse_no_cov_line_flags_off},
-	{"libfuzzer_parse_handles_empty_and_null", test_parse_handles_empty_and_null},
-	{"libfuzzer_parse_runtime_seconds_nonzero", test_parse_runtime_seconds_nonzero},
-	{"libfuzzer_parse_rejects_corp_without_b_suffix", test_parse_rejects_corp_without_b_suffix},
-	{"libfuzzer_scan_corpus_counts_files_and_bytes", test_scan_corpus_counts_files_and_bytes},
-	{"libfuzzer_scan_corpus_missing_dir_reports_error", test_scan_corpus_missing_dir_reports_error},
+        {"libfuzzer_parse_smoke_log_extracts_final_cov_ft_corp",
+         test_parse_smoke_log_extracts_final_cov_ft_corp},
+        {"libfuzzer_parse_smoke_log_extracts_final_stats",
+         test_parse_smoke_log_extracts_final_stats},
+        {"libfuzzer_parse_unit_suffixes_kb_mb", test_parse_unit_suffixes_kb_mb},
+        {"libfuzzer_parse_keeps_last_cov_line", test_parse_keeps_last_cov_line},
+        {"libfuzzer_parse_no_cov_line_flags_off", test_parse_no_cov_line_flags_off},
+        {"libfuzzer_parse_handles_empty_and_null", test_parse_handles_empty_and_null},
+        {"libfuzzer_parse_runtime_seconds_nonzero", test_parse_runtime_seconds_nonzero},
+        {"libfuzzer_parse_rejects_corp_without_b_suffix", test_parse_rejects_corp_without_b_suffix},
+        {"libfuzzer_scan_corpus_counts_files_and_bytes", test_scan_corpus_counts_files_and_bytes},
+        {"libfuzzer_scan_corpus_missing_dir_reports_error",
+         test_scan_corpus_missing_dir_reports_error},
 };
 
 const int g_metrics_libfuzzer_parse_test_count =
-	(int)(sizeof(g_metrics_libfuzzer_parse_tests) /
-		sizeof(g_metrics_libfuzzer_parse_tests[0]));
+        (int)(sizeof(g_metrics_libfuzzer_parse_tests) / sizeof(g_metrics_libfuzzer_parse_tests[0]));

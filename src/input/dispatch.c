@@ -1,3 +1,5 @@
+#include "input/dispatch.h"
+
 #include "config/common.h"
 #include "config/dap_config.h"
 #include "config/keymap.h"
@@ -6,7 +8,6 @@
 #include "editing/edit.h"
 #include "editing/history.h"
 #include "editing/selection.h"
-#include "input/dispatch.h"
 #include "language/autocomplete.h"
 #include "language/lsp.h"
 #include "language/syntax_worker.h"
@@ -27,6 +28,7 @@
 #include "workspace/tabs.h"
 #include "workspace/task.h"
 #include "workspace/workspace_state.h"
+
 #include <ctype.h>
 #include <limits.h>
 #include <stdio.h>
@@ -272,22 +274,22 @@ static int editorReplaceSelectionWithChar(int c) {
 
 	size_t start_offset = 0, end_offset = 0;
 	if (!editorBufferPosToOffset(range.start_cy, range.start_cx, &start_offset) ||
-			!editorBufferPosToOffset(range.end_cy, range.end_cx, &end_offset) ||
-			end_offset < start_offset) {
+	    !editorBufferPosToOffset(range.end_cy, range.end_cx, &end_offset) ||
+	    end_offset < start_offset) {
 		return 1;
 	}
 
 	char inserted = (char)c;
 	struct editorDocumentEdit edit = {
-		.kind = EDITOR_EDIT_INSERT_TEXT,
-		.start_offset = start_offset,
-		.old_len = end_offset - start_offset,
-		.new_text = &inserted,
-		.new_len = 1,
-		.before_cursor_offset = start_offset,
-		.after_cursor_offset = start_offset + 1,
-		.before_dirty = E.dirty,
-		.after_dirty = E.dirty + 1,
+	        .kind = EDITOR_EDIT_INSERT_TEXT,
+	        .start_offset = start_offset,
+	        .old_len = end_offset - start_offset,
+	        .new_text = &inserted,
+	        .new_len = 1,
+	        .before_cursor_offset = start_offset,
+	        .after_cursor_offset = start_offset + 1,
+	        .before_dirty = E.dirty,
+	        .after_dirty = E.dirty + 1,
 	};
 
 	editorPinActivePreviewForEdit();
@@ -317,7 +319,7 @@ static int editorIndentSelection(void) {
 	size_t first_start = 0, dummy_end = 0;
 	size_t dummy_start = 0, last_end = 0;
 	if (!editorBufferLineByteRange(range.start_cy, &first_start, &dummy_end) ||
-			!editorBufferLineByteRange(last_row, &dummy_start, &last_end)) {
+	    !editorBufferLineByteRange(last_row, &dummy_start, &last_end)) {
 		return 1;
 	}
 
@@ -369,15 +371,15 @@ static int editorIndentSelection(void) {
 	}
 
 	struct editorDocumentEdit edit = {
-		.kind = EDITOR_EDIT_INSERT_TEXT,
-		.start_offset = first_start,
-		.old_len = old_len,
-		.new_text = new_text,
-		.new_len = new_len,
-		.before_cursor_offset = before_offset,
-		.after_cursor_offset = after_offset,
-		.before_dirty = E.dirty,
-		.after_dirty = E.dirty + 1,
+	        .kind = EDITOR_EDIT_INSERT_TEXT,
+	        .start_offset = first_start,
+	        .old_len = old_len,
+	        .new_text = new_text,
+	        .new_len = new_len,
+	        .before_cursor_offset = before_offset,
+	        .after_cursor_offset = after_offset,
+	        .before_dirty = E.dirty,
+	        .after_dirty = E.dirty + 1,
 	};
 
 	editorPinActivePreviewForEdit();
@@ -466,9 +468,10 @@ static void editorFindCallback(const char *query, int key) {
 	}
 
 	E.search_direction = direction;
-	int found = direction == 1 ?
-			editorBufferFindForward(query, start_row, start_col, &match_row, &match_col) :
-			editorBufferFindBackward(query, start_row, start_col, &match_row, &match_col);
+	int found = direction == 1 ? editorBufferFindForward(query, start_row, start_col,
+	                                                     &match_row, &match_col)
+	                           : editorBufferFindBackward(query, start_row, start_col,
+	                                                      &match_row, &match_col);
 
 	if (!found) {
 		editorRestoreCursorToSavedSearchPosition();
@@ -479,29 +482,26 @@ static void editorFindCallback(const char *query, int key) {
 	editorMoveCursorToSearchMatch(match_row, match_col, (int)strlen(query));
 }
 
-static int editorReplaceAtOffset(size_t offset, size_t old_len,
-		const char *new_text, size_t new_len) {
+static int editorReplaceAtOffset(size_t offset, size_t old_len, const char *new_text,
+                                 size_t new_len) {
 	int dirty_before = E.dirty;
 	editorPinActivePreviewForEdit();
 	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
-	struct editorDocumentEdit edit = {
-		.kind = EDITOR_EDIT_INSERT_TEXT,
-		.start_offset = offset,
-		.old_len = old_len,
-		.new_text = new_text,
-		.new_len = new_len,
-		.before_cursor_offset = offset,
-		.after_cursor_offset = offset + new_len,
-		.before_dirty = E.dirty,
-		.after_dirty = E.dirty + 1
-	};
+	struct editorDocumentEdit edit = {.kind = EDITOR_EDIT_INSERT_TEXT,
+	                                  .start_offset = offset,
+	                                  .old_len = old_len,
+	                                  .new_text = new_text,
+	                                  .new_len = new_len,
+	                                  .before_cursor_offset = offset,
+	                                  .after_cursor_offset = offset + new_len,
+	                                  .before_dirty = E.dirty,
+	                                  .after_dirty = E.dirty + 1};
 	int ok = editorApplyDocumentEdit(&edit);
 	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, ok && E.dirty != dirty_before);
 	return ok;
 }
 
-static int editorCollectMatchOffsets(const char *query, size_t query_len,
-		size_t **offsets_out) {
+static int editorCollectMatchOffsets(const char *query, size_t query_len, size_t **offsets_out) {
 	if (offsets_out == NULL || query == NULL || query_len == 0 || E.numrows == 0) {
 		if (offsets_out != NULL) {
 			*offsets_out = NULL;
@@ -545,7 +545,8 @@ static int editorCollectMatchOffsets(const char *query, size_t query_len,
 
 		row = match_row;
 		int next_col = match_col + (int)query_len;
-		if (row < E.numrows && (size_t)next_col > editorDocumentLineLength(E.document, row)) {
+		if (row < E.numrows &&
+		    (size_t)next_col > editorDocumentLineLength(E.document, row)) {
 			row++;
 			if (row >= E.numrows) {
 				break;
@@ -560,8 +561,8 @@ static int editorCollectMatchOffsets(const char *query, size_t query_len,
 	return count;
 }
 
-static int editorReplaceAllInBuffer(const char *query, size_t query_len,
-		const char *replacement, size_t replacement_len) {
+static int editorReplaceAllInBuffer(const char *query, size_t query_len, const char *replacement,
+                                    size_t replacement_len) {
 	size_t *offsets = NULL;
 	int count = editorCollectMatchOffsets(query, query_len, &offsets);
 	if (count <= 0) {
@@ -623,7 +624,7 @@ static void editorProjectReplaceFromSearch(void) {
 
 	char prompt_buf[256];
 	int pn = snprintf(prompt_buf, sizeof(prompt_buf),
-			"Replace \"%.*s\" with: %%s (Enter to confirm, Esc to cancel)", 40, find);
+	                  "Replace \"%.*s\" with: %%s (Enter to confirm, Esc to cancel)", 40, find);
 	if (pn < 0 || pn >= (int)sizeof(prompt_buf)) {
 		prompt_buf[sizeof(prompt_buf) - 1] = '\0';
 	}
@@ -639,7 +640,10 @@ static void editorProjectReplaceFromSearch(void) {
 		return;
 	}
 
-	typedef struct { char *path; int start_row; } FileEntry;
+	typedef struct {
+		char *path;
+		int start_row;
+	} FileEntry;
 	FileEntry *files = NULL;
 	int file_count = 0;
 	int file_cap = 0;
@@ -662,9 +666,11 @@ static void editorProjectReplaceFromSearch(void) {
 		}
 		if (file_count == file_cap) {
 			int new_cap = file_cap == 0 ? 8 : file_cap * 2;
-			FileEntry *grown = editorRealloc(files, (size_t)new_cap * sizeof(FileEntry));
+			FileEntry *grown =
+			        editorRealloc(files, (size_t)new_cap * sizeof(FileEntry));
 			if (grown == NULL) {
-				for (int j = 0; j < file_count; j++) free(files[j].path);
+				for (int j = 0; j < file_count; j++)
+					free(files[j].path);
 				free(files);
 				free(find_copy);
 				free(replace_query);
@@ -676,7 +682,8 @@ static void editorProjectReplaceFromSearch(void) {
 		}
 		char *path_copy = strdup(r->path);
 		if (path_copy == NULL) {
-			for (int j = 0; j < file_count; j++) free(files[j].path);
+			for (int j = 0; j < file_count; j++)
+				free(files[j].path);
 			free(files);
 			free(find_copy);
 			free(replace_query);
@@ -713,7 +720,7 @@ static void editorProjectReplaceFromSearch(void) {
 
 		if (replace_all_remaining) {
 			int count = editorReplaceAllInBuffer(E.search_query, find_len,
-					replace_query, replace_len);
+			                                     replace_query, replace_len);
 			if (count > 0) {
 				total_replaced += count;
 				total_files++;
@@ -727,11 +734,13 @@ static void editorProjectReplaceFromSearch(void) {
 		}
 		int match_row = -1;
 		int match_col = -1;
-		if (!editorBufferFindForward(E.search_query, start_row, -1, &match_row, &match_col)) {
+		if (!editorBufferFindForward(E.search_query, start_row, -1, &match_row,
+		                             &match_col)) {
 			continue;
 		}
 		if (match_row < start_row) {
-			if (!editorBufferFindForward(E.search_query, 0, -1, &match_row, &match_col)) {
+			if (!editorBufferFindForward(E.search_query, 0, -1, &match_row,
+			                             &match_col)) {
 				continue;
 			}
 		}
@@ -746,9 +755,9 @@ static void editorProjectReplaceFromSearch(void) {
 		int done_with_file = 0;
 
 		while (!done_with_file) {
-			editorSetStatusMsg(
-					"[%s] Replace? Enter=this Tab=skip Ctrl+A=all Esc=done (%d replaced)",
-					basename, total_replaced + file_replaced);
+			editorSetStatusMsg("[%s] Replace? Enter=this Tab=skip Ctrl+A=all Esc=done "
+			                   "(%d replaced)",
+			                   basename, total_replaced + file_replaced);
 			editorRefreshScreen();
 
 			int c = editorReadKey();
@@ -776,24 +785,25 @@ static void editorProjectReplaceFromSearch(void) {
 				if (E.search_match_len > 0) {
 					size_t offset = E.search_match_offset;
 					editorHistoryBreakGroup();
-					if (editorReplaceAtOffset(offset, find_len, replace_query, replace_len)) {
+					if (editorReplaceAtOffset(offset, find_len, replace_query,
+					                          replace_len)) {
 						file_replaced++;
 					}
 				}
 				if (!editorReplaceNavigateNext(E.search_query, (int)find_len) ||
-						E.search_match_offset <= file_start_offset) {
+				    E.search_match_offset <= file_start_offset) {
 					editorClearActiveSearchMatch();
 					done_with_file = 1;
 				}
 			} else if (c == '\t') {
 				if (!editorReplaceNavigateNext(E.search_query, (int)find_len) ||
-						E.search_match_offset <= file_start_offset) {
+				    E.search_match_offset <= file_start_offset) {
 					editorClearActiveSearchMatch();
 					done_with_file = 1;
 				}
 			} else if (c == CTRL_KEY('a')) {
 				int count = editorReplaceAllInBuffer(E.search_query, find_len,
-						replace_query, replace_len);
+				                                     replace_query, replace_len);
 				if (count > 0) {
 					file_replaced += count;
 				}
@@ -824,8 +834,8 @@ static void editorProjectReplaceFromSearch(void) {
 	}
 
 	if (total_replaced > 0 || aborted) {
-		editorSetStatusMsg("Replaced %d occurrence(s) across %d file(s)%s",
-				total_replaced, total_files, aborted ? " (stopped)" : "");
+		editorSetStatusMsg("Replaced %d occurrence(s) across %d file(s)%s", total_replaced,
+		                   total_files, aborted ? " (stopped)" : "");
 	} else {
 		editorSetStatusMsg("No replacements made");
 	}
@@ -838,7 +848,7 @@ static void editorFindReplace(void) {
 	editorClearActiveSearchMatch();
 
 	char *find_query = editorPromptWithCallback(
-			"Find: %s (Arrows/Enter to confirm, Esc to cancel)", 1, editorFindCallback);
+	        "Find: %s (Arrows/Enter to confirm, Esc to cancel)", 1, editorFindCallback);
 	if (find_query == NULL) {
 		return;
 	}
@@ -852,8 +862,8 @@ static void editorFindReplace(void) {
 		int saved_row = 0;
 		int saved_col = 0;
 		(void)editorBufferOffsetToPos(E.search_saved_offset, &saved_row, &saved_col);
-		if (!editorBufferFindForward(find_query, saved_row, saved_col - 1,
-					&match_row, &match_col)) {
+		if (!editorBufferFindForward(find_query, saved_row, saved_col - 1, &match_row,
+		                             &match_col)) {
 			editorSetStatusMsg("No matches for \"%s\"", find_query);
 			return;
 		}
@@ -861,7 +871,7 @@ static void editorFindReplace(void) {
 	}
 
 	char *replace_query = editorPromptWithCallback(
-			"Replace with: %s (Enter to confirm, Esc to cancel)", 1, NULL);
+	        "Replace with: %s (Enter to confirm, Esc to cancel)", 1, NULL);
 	if (replace_query == NULL) {
 		return;
 	}
@@ -871,8 +881,8 @@ static void editorFindReplace(void) {
 	int replaced = 0;
 
 	while (1) {
-		editorSetStatusMsg(
-				"Replace? Enter=this Tab=skip Ctrl+A=all Esc=done (%d replaced)", replaced);
+		editorSetStatusMsg("Replace? Enter=this Tab=skip Ctrl+A=all Esc=done (%d replaced)",
+		                   replaced);
 		editorRefreshScreen();
 
 		int c = editorReadKey();
@@ -902,7 +912,8 @@ static void editorFindReplace(void) {
 			}
 			size_t match_offset = E.search_match_offset;
 			editorHistoryBreakGroup();
-			if (editorReplaceAtOffset(match_offset, find_len, replace_query, replace_len)) {
+			if (editorReplaceAtOffset(match_offset, find_len, replace_query,
+			                          replace_len)) {
 				replaced++;
 			}
 			if (!editorReplaceNavigateNext(find_query, (int)find_len)) {
@@ -912,13 +923,14 @@ static void editorFindReplace(void) {
 			}
 		} else if (c == '\t') {
 			if (!editorReplaceNavigateNext(find_query, (int)find_len)) {
-				editorSetStatusMsg("No more matches. Replaced %d occurrence(s)", replaced);
+				editorSetStatusMsg("No more matches. Replaced %d occurrence(s)",
+				                   replaced);
 				free(replace_query);
 				return;
 			}
 		} else if (c == CTRL_KEY('a')) {
-			int count = editorReplaceAllInBuffer(
-					find_query, find_len, replace_query, replace_len);
+			int count = editorReplaceAllInBuffer(find_query, find_len, replace_query,
+			                                     replace_len);
 			if (count < 0) {
 				editorSetStatusMsg("Replace all failed");
 			} else {
@@ -936,8 +948,8 @@ static void editorFindReplace(void) {
 			int have_active = editorSearchMatchPosition(&match_row, &match_col);
 			int start_row = have_active ? match_row : E.cy;
 			int start_col = have_active ? match_col : E.cx;
-			if (editorBufferFindBackward(find_query, start_row, start_col,
-						&match_row, &match_col)) {
+			if (editorBufferFindBackward(find_query, start_row, start_col, &match_row,
+			                             &match_col)) {
 				editorMoveCursorToSearchMatch(match_row, match_col, (int)find_len);
 			}
 		}
@@ -953,8 +965,8 @@ static void editorFind(void) {
 	E.search_direction = 1;
 	editorClearActiveSearchMatch();
 
-	char *query = editorPromptWithCallback(
-			"Search: %s (Use ESC/Arrows/Enter)", 1, editorFindCallback);
+	char *query = editorPromptWithCallback("Search: %s (Use ESC/Arrows/Enter)", 1,
+	                                       editorFindCallback);
 	if (query == NULL) {
 		return;
 	}
@@ -1019,7 +1031,7 @@ static void editorGoToLine(void) {
 
 	size_t target_offset = 0;
 	if (!editorBufferPosToOffset((int)(line - 1), 0, &target_offset) ||
-			!editorSetCursorFromOffset(target_offset)) {
+	    !editorSetCursorFromOffset(target_offset)) {
 		(void)editorSetCursorFromOffset(0);
 	}
 }
@@ -1036,12 +1048,12 @@ static const char *editorBasenameFromPath(const char *path) {
 }
 
 static int editorJumpToPathLocation(const char *path, int line, int character, int preview,
-		int center) {
+                                    int center) {
 	if (path == NULL || path[0] == '\0') {
 		return 0;
 	}
-	int opened = preview ? editorTabOpenOrSwitchToPreviewFile(path) :
-			editorTabOpenOrSwitchToFile(path);
+	int opened = preview ? editorTabOpenOrSwitchToPreviewFile(path)
+	                     : editorTabOpenOrSwitchToFile(path);
 	if (!opened) {
 		return 0;
 	}
@@ -1080,7 +1092,7 @@ static int editorJumpToPathLocation(const char *path, int line, int character, i
 	}
 	size_t target_offset = 0;
 	if (!editorBufferPosToOffset(line, target_cx, &target_offset) ||
-			!editorSetCursorFromOffset(target_offset)) {
+	    !editorSetCursorFromOffset(target_offset)) {
 		(void)editorSetCursorFromOffset(0);
 	}
 	if (center) {
@@ -1127,15 +1139,17 @@ static int editorPromptLocationChoice(const char *kind_capitalized, int count, i
 }
 
 typedef int (*editorLspLocationRequestFn)(const char *filename, enum editorSyntaxLanguage language,
-		int line, int character, struct editorLspLocation **locations_out, int *count_out,
-		int *timed_out_out);
+                                          int line, int character,
+                                          struct editorLspLocation **locations_out, int *count_out,
+                                          int *timed_out_out);
 
 static void editorRunLocationLookup(const char *kind_lower, const char *kind_capitalized,
-		const char *kind_plural, editorLspLocationRequestFn request_fn) {
+                                    const char *kind_plural,
+                                    editorLspLocationRequestFn request_fn) {
 	if (!editorLanguageGoToSupported(E.syntax_language)) {
-		editorSetStatusMsg(
-				"Go to %s is available for Go, C, C++, HTML, CSS/SCSS, JSON, and JavaScript files only",
-				kind_lower);
+		editorSetStatusMsg("Go to %s is available for Go, C, C++, HTML, CSS/SCSS, JSON, "
+		                   "and JavaScript files only",
+		                   kind_lower);
 		return;
 	}
 	if (E.filename == NULL || E.filename[0] == '\0') {
@@ -1143,7 +1157,8 @@ static void editorRunLocationLookup(const char *kind_lower, const char *kind_cap
 		if (language_label == NULL) {
 			language_label = "source";
 		}
-		editorSetStatusMsg("Save this %s buffer before using go to %s", language_label, kind_lower);
+		editorSetStatusMsg("Save this %s buffer before using go to %s", language_label,
+		                   kind_lower);
 		return;
 	}
 	if (!editorLanguageGoToEnabled()) {
@@ -1182,12 +1197,13 @@ static void editorRunLocationLookup(const char *kind_lower, const char *kind_cap
 		return;
 	}
 
-	int ready = editorLspEnsureDocumentOpen(E.filename, E.syntax_language,
-			&E.lsp_doc_open, &E.lsp_doc_version,
-			full_text != NULL ? full_text : "", full_text_len);
+	int ready = editorLspEnsureDocumentOpen(E.filename, E.syntax_language, &E.lsp_doc_open,
+	                                        &E.lsp_doc_version,
+	                                        full_text != NULL ? full_text : "", full_text_len);
 	free(full_text);
 	if (!ready) {
-		if (editorLspLastStartupFailureReason() == EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
+		if (editorLspLastStartupFailureReason() ==
+		    EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
 			editorLanguageMaybePromptInstallServer();
 			return;
 		}
@@ -1200,8 +1216,8 @@ static void editorRunLocationLookup(const char *kind_lower, const char *kind_cap
 	struct editorLspLocation *locations = NULL;
 	int count = 0;
 	int timed_out = 0;
-	int request_result = request_fn(E.filename, E.syntax_language, E.cy, E.cx,
-			&locations, &count, &timed_out);
+	int request_result = request_fn(E.filename, E.syntax_language, E.cy, E.cx, &locations,
+	                                &count, &timed_out);
 	if (request_result == -2 || timed_out) {
 		editorSetStatusMsg("Go to %s timed out", kind_lower);
 		editorLspFreeLocations(locations, count);
@@ -1235,24 +1251,24 @@ static void editorRunLocationLookup(const char *kind_lower, const char *kind_cap
 	}
 
 	editorSetStatusMsg("%s: %s:%d", kind_capitalized, editorBasenameFromPath(selected->path),
-			selected->line + 1);
+	                   selected->line + 1);
 	editorLspFreeLocations(locations, count);
 }
 
 static void editorGoToDefinition(void) {
 	editorRunLocationLookup("definition", "Definition", "definitions",
-			editorLspRequestDefinition);
+	                        editorLspRequestDefinition);
 }
 
 static void editorGoToImplementation(void) {
 	editorRunLocationLookup("implementation", "Implementation", "implementations",
-			editorLspRequestImplementation);
+	                        editorLspRequestImplementation);
 }
 
 static void editorGoToSymbol(void) {
 	if (!editorLanguageGoToSupported(E.syntax_language)) {
-		editorSetStatusMsg(
-				"Go to symbol is available for Go, C, C++, HTML, CSS/SCSS, JSON, and JavaScript files only");
+		editorSetStatusMsg("Go to symbol is available for Go, C, C++, HTML, CSS/SCSS, "
+		                   "JSON, and JavaScript files only");
 		return;
 	}
 	if (E.filename == NULL || E.filename[0] == '\0') {
@@ -1294,12 +1310,13 @@ static void editorGoToSymbol(void) {
 		return;
 	}
 
-	int ready = editorLspEnsureDocumentOpen(E.filename, E.syntax_language,
-			&E.lsp_doc_open, &E.lsp_doc_version,
-			full_text != NULL ? full_text : "", full_text_len);
+	int ready = editorLspEnsureDocumentOpen(E.filename, E.syntax_language, &E.lsp_doc_open,
+	                                        &E.lsp_doc_version,
+	                                        full_text != NULL ? full_text : "", full_text_len);
 	free(full_text);
 	if (!ready) {
-		if (editorLspLastStartupFailureReason() == EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
+		if (editorLspLastStartupFailureReason() ==
+		    EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
 			editorLanguageMaybePromptInstallServer();
 			return;
 		}
@@ -1313,7 +1330,7 @@ static void editorGoToSymbol(void) {
 	int count = 0;
 	int timed_out = 0;
 	int request_result = editorLspRequestDocumentSymbols(E.filename, E.syntax_language,
-			&symbols, &count, &timed_out);
+	                                                     &symbols, &count, &timed_out);
 	if (request_result == -2 || timed_out) {
 		editorSetStatusMsg("Go to symbol timed out");
 		editorLspFreeSymbols(symbols, count);
@@ -1347,7 +1364,8 @@ static void editorGoToSymbol(void) {
 	}
 
 	editorSetStatusMsg("%s %s:%d", editorLspSymbolKindLabel(selected->kind),
-			selected->name != NULL ? selected->name : "(unnamed)", selected->line + 1);
+	                   selected->name != NULL ? selected->name : "(unnamed)",
+	                   selected->line + 1);
 	editorLspFreeSymbols(symbols, count);
 }
 
@@ -1357,7 +1375,7 @@ static void editorApplyEslintFixes(void) {
 		return;
 	}
 	if (editorLspServerNameForFile(E.filename, E.syntax_language) == NULL ||
-			!editorLspFileUsesEslint(E.filename, E.syntax_language)) {
+	    !editorLspFileUsesEslint(E.filename, E.syntax_language)) {
 		editorSetStatusMsg("ESLint fixes are available for JavaScript files only");
 		return;
 	}
@@ -1410,7 +1428,8 @@ static void editorMoveCursor(int k) {
 				if (cy < E.numrows) {
 					struct editorLineView line = {0};
 					if (editorDocumentLineView(E.document, cy, &line)) {
-						cx = editorBytesPrevClusterIdx(line.data, line.size, cx);
+						cx = editorBytesPrevClusterIdx(line.data, line.size,
+						                               cx);
 						editorLineViewRelease(&line);
 					}
 				} else {
@@ -1426,7 +1445,8 @@ static void editorMoveCursor(int k) {
 				struct editorLineView line = {0};
 				if (editorDocumentLineView(E.document, cy, &line)) {
 					if (cx < line.size) {
-						cx = editorBytesNextClusterIdx(line.data, line.size, cx);
+						cx = editorBytesNextClusterIdx(line.data, line.size,
+						                               cx);
 					} else if (cx == line.size) {
 						cy++;
 						cx = 0;
@@ -1507,9 +1527,10 @@ static void editorMoveCursorWordLeft(void) {
 			}
 			if (found_word) {
 				while (scan > 0) {
-					int prev = editorBytesPrevCharIdx(line.data, line.size, scan);
+					int prev =
+					        editorBytesPrevCharIdx(line.data, line.size, scan);
 					if (prev >= scan ||
-							!editorBytesIsWordAt(line.data, line.size, prev)) {
+					    !editorBytesIsWordAt(line.data, line.size, prev)) {
 						break;
 					}
 					scan = prev;
@@ -1650,7 +1671,7 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 	int effects = EDITOR_KEYPRESS_EFFECT_NONE;
 	int drawer_search_cursor_or_edit = 0;
 	if (editorHandleDrawerSearchMappedAction(action, &drawer_search_cursor_or_edit,
-				editorProjectReplaceFromSearch)) {
+	                                         editorProjectReplaceFromSearch)) {
 		if (drawer_search_cursor_or_edit) {
 			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 		}
@@ -1662,16 +1683,19 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 
 	if (editorActiveTabIsReadOnly()) {
 		if (action == EDITOR_ACTION_SAVE) {
-			editorSetStatusMsg(editorActiveTabIsUnsupportedFile() ?
-					"Unsupported files cannot be saved" : "Task logs cannot be saved");
+			editorSetStatusMsg(editorActiveTabIsUnsupportedFile()
+			                           ? "Unsupported files cannot be saved"
+			                           : "Task logs cannot be saved");
 			if (effects_out != NULL) {
 				*effects_out = effects;
 			}
 			return 1;
 		}
-		if (E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER && editorActionMutatesReadOnlyBuffer(action)) {
-			editorSetStatusMsg(editorActiveTabIsUnsupportedFile() ?
-					"File is unsupported" : "Task log is read-only");
+		if (E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER &&
+		    editorActionMutatesReadOnlyBuffer(action)) {
+			editorSetStatusMsg(editorActiveTabIsUnsupportedFile()
+			                           ? "File is unsupported"
+			                           : "Task log is read-only");
 			if (effects_out != NULL) {
 				*effects_out = effects;
 			}
@@ -1692,28 +1716,29 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 		return 1;
 	}
 	if (editorHandleWorkspaceMappedAction(action, EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT,
-				editorProcessMappedAction, editorJumpToPathLocation, &effects)) {
+	                                      editorProcessMappedAction, editorJumpToPathLocation,
+	                                      &effects)) {
 		if (effects_out != NULL) {
 			*effects_out = effects;
 		}
 		return 1;
 	}
 	if (editorHandleLanguageMappedAction(action, EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT,
-				editorPinActivePreviewForEdit, editorGoToDefinition,
-				editorGoToImplementation, editorGoToSymbol, editorApplyEslintFixes,
-				&effects)) {
+	                                     editorPinActivePreviewForEdit, editorGoToDefinition,
+	                                     editorGoToImplementation, editorGoToSymbol,
+	                                     editorApplyEslintFixes, &effects)) {
 		if (effects_out != NULL) {
 			*effects_out = effects;
 		}
 		return 1;
 	}
-	if (editorHandleEditMappedAction(action, EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT,
-				editorClearSelectionMode, editorPinActivePreviewForEdit,
-				editorClearSearchState, editorToggleSelectionMode, editorCopySelection,
-				editorCutSelection, editorDeleteSelection, editorPasteClipboard,
-				editorDeleteCharAction, editorBackspaceAction,
-				editorMoveLineUpAction, editorMoveLineDownAction,
-				editorToggleCommentLines, &effects)) {
+	if (editorHandleEditMappedAction(
+	            action, EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT, editorClearSelectionMode,
+	            editorPinActivePreviewForEdit, editorClearSearchState,
+	            editorToggleSelectionMode, editorCopySelection, editorCutSelection,
+	            editorDeleteSelection, editorPasteClipboard, editorDeleteCharAction,
+	            editorBackspaceAction, editorMoveLineUpAction, editorMoveLineDownAction,
+	            editorToggleCommentLines, &effects)) {
 		if (effects_out != NULL) {
 			*effects_out = effects;
 		}
@@ -1756,21 +1781,24 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 				E.wrapoff = 0;
 			}
 			editorViewportEnsureCursorVisible();
-			editorSetStatusMsg("Line wrap %s", E.line_wrap_enabled ? "enabled" : "disabled");
+			editorSetStatusMsg("Line wrap %s",
+			                   E.line_wrap_enabled ? "enabled" : "disabled");
 			effects |= EDITOR_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 			break;
 		case EDITOR_ACTION_TOGGLE_LINE_NUMBERS:
 			editorHistoryBreakGroup();
 			E.line_numbers_enabled = !E.line_numbers_enabled;
 			editorViewportEnsureCursorVisible();
-			editorSetStatusMsg("Line numbers %s", E.line_numbers_enabled ? "enabled" : "disabled");
+			editorSetStatusMsg("Line numbers %s",
+			                   E.line_numbers_enabled ? "enabled" : "disabled");
 			effects |= EDITOR_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 			break;
 		case EDITOR_ACTION_TOGGLE_CURRENT_LINE_HIGHLIGHT:
 			editorHistoryBreakGroup();
 			E.current_line_highlight_enabled = !E.current_line_highlight_enabled;
 			editorSetStatusMsg("Current-line highlight %s",
-					E.current_line_highlight_enabled ? "enabled" : "disabled");
+			                   E.current_line_highlight_enabled ? "enabled"
+			                                                    : "disabled");
 			effects |= EDITOR_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 			break;
 		case EDITOR_ACTION_FIND:
@@ -1790,7 +1818,8 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			break;
 		case EDITOR_ACTION_GOTO_MATCHING_BRACKET:
 			editorHistoryBreakGroup();
-			if (E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER && editorJumpToMatchingBracket()) {
+			if (E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER &&
+			    editorJumpToMatchingBracket()) {
 				effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			}
 			break;
@@ -1818,8 +1847,8 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 		case EDITOR_ACTION_MOVE_END:
 			editorHistoryBreakGroup();
 			if (E.cy < E.numrows) {
-				(void)editorSetCursorFromPosition(E.cy,
-					(int)editorDocumentLineLength(E.document, E.cy));
+				(void)editorSetCursorFromPosition(
+				        E.cy, (int)editorDocumentLineLength(E.document, E.cy));
 			} else {
 				(void)editorSetCursorFromPosition(E.numrows, 0);
 			}
@@ -1892,7 +1921,8 @@ static int editorProcessMappedAction(enum editorAction action, int *effects_out)
 			effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			break;
 		case EDITOR_ACTION_ESCAPE:
-			// In normal editor mode Escape only clears transient selection state; quit is configurable.
+			// In normal editor mode Escape only clears transient selection state; quit
+			// is configurable.
 			editorHistoryBreakGroup();
 			if (E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
 				E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
@@ -1940,10 +1970,9 @@ void editorProcessKeypress(void) {
 	}
 	if (c == TERMINAL_EVENT) {
 		struct editorPaneNode *prev_focus = E.focused_leaf;
-		int closed = editorTerminalPaneCloseExited(&E.layout_root,
-				&E.focused_leaf, &E.dap_terminal_leaf);
-		if (closed > 0 && E.focused_leaf != NULL &&
-				E.focused_leaf != prev_focus) {
+		int closed = editorTerminalPaneCloseExited(&E.layout_root, &E.focused_leaf,
+		                                           &E.dap_terminal_leaf);
+		if (closed > 0 && E.focused_leaf != NULL && E.focused_leaf != prev_focus) {
 			(void)editorPaneViewLoadIntoState(&E.focused_leaf->as.leaf.view);
 		}
 		/* Pump already happened in editorReadKey. */
@@ -1952,20 +1981,20 @@ void editorProcessKeypress(void) {
 	if (c == BRACKETED_PASTE_START_EVENT) {
 		E.paste_active = 1;
 		if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
-				E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
-				E.focused_leaf->as.leaf.kind_state != NULL) {
+		    E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
+		    E.focused_leaf->as.leaf.kind_state != NULL) {
 			(void)editorTerminalPaneSendPasteStart(
-					(struct editorTerminalPane *)E.focused_leaf->as.leaf.kind_state);
+			        (struct editorTerminalPane *)E.focused_leaf->as.leaf.kind_state);
 		}
 		return;
 	}
 	if (c == BRACKETED_PASTE_END_EVENT) {
 		E.paste_active = 0;
 		if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
-				E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
-				E.focused_leaf->as.leaf.kind_state != NULL) {
+		    E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
+		    E.focused_leaf->as.leaf.kind_state != NULL) {
 			(void)editorTerminalPaneSendPasteEnd(
-					(struct editorTerminalPane *)E.focused_leaf->as.leaf.kind_state);
+			        (struct editorTerminalPane *)E.focused_leaf->as.leaf.kind_state);
 		}
 		return;
 	}
@@ -1985,7 +2014,8 @@ void editorProcessKeypress(void) {
 					editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
 					int dirty_before = E.dirty;
 					int applied = editorAutocompleteAcceptSelection();
-					editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+					editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT,
+					                        E.dirty != dirty_before);
 					if (applied) {
 						editorViewportEnsureCursorVisible();
 					}
@@ -2004,13 +2034,14 @@ void editorProcessKeypress(void) {
 	}
 
 	if (c == MOUSE_EVENT) {
-		// Mouse input can move cursor/selection, but it should not create edit history entries.
+		// Mouse input can move cursor/selection, but it should not create edit history
+		// entries.
 		editorHistoryBreakGroup();
 		int mouse_effects = EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
-		(void)editorHandleMouseEventDispatch(DRAWER_DOUBLE_CLICK_THRESHOLD_MS,
-				TEXT_MULTI_CLICK_THRESHOLD_MS, editorProcessMappedAction,
-				editorJumpToPathLocation, editorCtrlClickGoToDefinitionAction,
-				&mouse_effects);
+		(void)editorHandleMouseEventDispatch(
+		        DRAWER_DOUBLE_CLICK_THRESHOLD_MS, TEXT_MULTI_CLICK_THRESHOLD_MS,
+		        editorProcessMappedAction, editorJumpToPathLocation,
+		        editorCtrlClickGoToDefinitionAction, &mouse_effects);
 		if ((mouse_effects & EDITOR_MOUSE_DISPATCH_EFFECT_VIEWPORT_SCROLL) != 0) {
 			effects |= EDITOR_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 		}
@@ -2023,23 +2054,24 @@ void editorProcessKeypress(void) {
 		}
 		/* In focused terminal panes keys go to PTY, except terminal_prefix. */
 		if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
-				E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
-				E.focused_leaf->as.leaf.kind_state != NULL &&
-				E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER) {
+		    E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
+		    E.focused_leaf->as.leaf.kind_state != NULL &&
+		    E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER) {
 			if (E.terminal_prefix_armed) {
 				E.terminal_prefix_armed = 0;
 				/* Fall through to keymap lookup below. */
 			} else {
 				enum editorAction terminal_action = EDITOR_ACTION_COUNT;
 				if (editorKeymapLookupAction(&E.keymap, c, &terminal_action) &&
-						terminal_action == EDITOR_ACTION_TERMINAL_PREFIX) {
+				    terminal_action == EDITOR_ACTION_TERMINAL_PREFIX) {
 					E.terminal_prefix_armed = 1;
 					editorSetStatusMsg(
-							"Terminal prefix armed: next key is rotide");
+					        "Terminal prefix armed: next key is rotide");
 					return;
 				}
 				struct editorTerminalPane *terminal =
-						(struct editorTerminalPane *)E.focused_leaf->as.leaf.kind_state;
+				        (struct editorTerminalPane *)
+				                E.focused_leaf->as.leaf.kind_state;
 				(void)editorTerminalPaneSendKey(terminal, c);
 				return;
 			}
@@ -2062,8 +2094,9 @@ void editorProcessKeypress(void) {
 				}
 			} else if (E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER) {
 				if (editorActiveTabIsReadOnly()) {
-					editorSetStatusMsg(editorActiveTabIsUnsupportedFile() ?
-							"File is unsupported" : "Task log is read-only");
+					editorSetStatusMsg(editorActiveTabIsUnsupportedFile()
+					                           ? "File is unsupported"
+					                           : "Task log is read-only");
 					goto done;
 				}
 				if (E.column_select_active && c >= 0x20 && c < 0x7f) {
@@ -2071,7 +2104,8 @@ void editorProcessKeypress(void) {
 					editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
 					int dirty_before = E.dirty;
 					editorColumnSelectionInsertChar(c);
-					editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+					editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT,
+					                        E.dirty != dirty_before);
 					effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 				} else if (c == '\t' && editorIndentSelection()) {
 					effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
@@ -2087,7 +2121,8 @@ void editorProcessKeypress(void) {
 					editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
 					int dirty_before = E.dirty;
 					editorInsertChar(c);
-					editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+					editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT,
+					                        E.dirty != dirty_before);
 					editorAutocompleteOnCharInserted(c);
 					effects |= EDITOR_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 				}

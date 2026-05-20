@@ -6,6 +6,7 @@
 #include "text/row.h"
 #include "workspace/drawer.h"
 #include "workspace/layout.h"
+
 #include <limits.h>
 
 static int editorPaneTextBodyViewportColsForWidth(int pane_cols) {
@@ -40,13 +41,14 @@ int editorViewportFocusedPaneTextBodyCols(void) {
 }
 
 int editorViewportTextScreenRowToBufferRow(int screen_row, int *row_idx_out,
-		int *segment_coloff_out) {
-	return editorViewportTextScreenRowToBufferPosition(screen_row, row_idx_out, segment_coloff_out,
-			NULL);
+                                           int *segment_coloff_out) {
+	return editorViewportTextScreenRowToBufferPosition(screen_row, row_idx_out,
+	                                                   segment_coloff_out, NULL);
 }
 
 int editorViewportTextScreenRowToBufferPosition(int screen_row, int *row_idx_out,
-		int *segment_coloff_out, int *segment_indent_cols_out) {
+                                                int *segment_coloff_out,
+                                                int *segment_indent_cols_out) {
 	if (row_idx_out == NULL || segment_coloff_out == NULL || screen_row < 0) {
 		return 0;
 	}
@@ -70,7 +72,7 @@ int editorViewportTextScreenRowToBufferPosition(int screen_row, int *row_idx_out
 	int indent_cols = 0;
 	if (row >= 0 && row < E.numrows) {
 		editorWrapSegmentInfo(&E.rows[row], segment, body_cols, segment_coloff_out,
-				&available_cols, &indent_cols);
+		                      &available_cols, &indent_cols);
 	} else {
 		*segment_coloff_out = 0;
 	}
@@ -127,8 +129,10 @@ static void editorFollowCursorViewport(void) {
 
 	if (E.line_wrap_enabled) {
 		int body_cols = editorWrapBodyCols();
-		int cursor_segment = E.cy < E.numrows ?
-				editorWrapCursorSegmentForRx(&E.rows[E.cy], E.rx, body_cols) : 0;
+		int cursor_segment =
+		        E.cy < E.numrows
+		                ? editorWrapCursorSegmentForRx(&E.rows[E.cy], E.rx, body_cols)
+		                : 0;
 		E.coloff = 0;
 
 		if (editorWrappedPositionBefore(E.cy, cursor_segment, E.rowoff, E.wrapoff)) {
@@ -139,7 +143,8 @@ static void editorFollowCursorViewport(void) {
 
 		int distance = 0;
 		if (!editorWrappedDistanceForward(E.rowoff, E.wrapoff, E.cy, cursor_segment,
-					body_rows > 0 ? body_rows - 1 : 0, body_cols, &distance)) {
+		                                  body_rows > 0 ? body_rows - 1 : 0, body_cols,
+		                                  &distance)) {
 			int top_row = E.cy;
 			int top_segment = cursor_segment;
 			int back_count = body_rows > 0 ? body_rows - 1 : 0;
@@ -254,7 +259,7 @@ void editorViewportEnsureCursorVisible(void) {
 
 static int editorViewportCenteredScreenRowAvoidingDrawerSelection(int desired_screen_row) {
 	if (desired_screen_row < 0 || E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER ||
-			E.drawer_selected_index < 0 || E.window_rows <= 1) {
+	    E.drawer_selected_index < 0 || E.window_rows <= 1) {
 		return desired_screen_row;
 	}
 	int drawer_screen_row = E.drawer_selected_index - E.drawer_rowoff;
@@ -276,12 +281,15 @@ void editorViewportCenterCursor(void) {
 
 	int body_rows = editorViewportFocusedPaneBodyRows();
 	int target_screen_row = body_rows > 0 ? body_rows / 2 : 0;
-	target_screen_row = editorViewportCenteredScreenRowAvoidingDrawerSelection(target_screen_row);
+	target_screen_row =
+	        editorViewportCenteredScreenRowAvoidingDrawerSelection(target_screen_row);
 
 	if (E.line_wrap_enabled) {
 		int body_cols = editorWrapBodyCols();
-		int cursor_segment = E.cy < E.numrows ?
-				editorWrapCursorSegmentForRx(&E.rows[E.cy], E.rx, body_cols) : 0;
+		int cursor_segment =
+		        E.cy < E.numrows
+		                ? editorWrapCursorSegmentForRx(&E.rows[E.cy], E.rx, body_cols)
+		                : 0;
 		E.coloff = 0;
 		int top_row = E.cy;
 		int top_segment = cursor_segment;

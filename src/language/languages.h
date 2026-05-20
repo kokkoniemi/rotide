@@ -2,10 +2,9 @@
 #define ROTIDE_LANGUAGES_H
 
 #include "rotide.h"
+#include "tree_sitter/api.h"
 
 #include <stddef.h>
-
-#include "tree_sitter/api.h"
 
 struct editorSyntaxEmbeddedQueryPart {
 	const unsigned char *data;
@@ -31,13 +30,14 @@ struct editorSyntaxLanguageDef {
 };
 
 const struct editorSyntaxLanguageDef *editorSyntaxLookupLanguage(enum editorSyntaxLanguage id);
-const struct editorSyntaxLanguageDef *editorSyntaxLookupLanguageByName(const char *name, size_t len);
+const struct editorSyntaxLanguageDef *editorSyntaxLookupLanguageByName(const char *name,
+                                                                       size_t len);
 const struct editorSyntaxLanguageDef *editorSyntaxLookupLanguageByExtension(const char *ext);
 const struct editorSyntaxLanguageDef *editorSyntaxLookupLanguageByBasename(const char *base);
-const struct editorSyntaxLanguageDef *editorSyntaxLookupLanguageByShebangToken(
-		const char *token, size_t len);
-const struct editorSyntaxLanguageDef *editorSyntaxLookupLanguageByInjectionName(
-		const char *name, size_t len);
+const struct editorSyntaxLanguageDef *editorSyntaxLookupLanguageByShebangToken(const char *token,
+                                                                               size_t len);
+const struct editorSyntaxLanguageDef *editorSyntaxLookupLanguageByInjectionName(const char *name,
+                                                                                size_t len);
 
 int editorSyntaxLanguageDefCount(void);
 const struct editorSyntaxLanguageDef *editorSyntaxLanguageDefAt(int idx);

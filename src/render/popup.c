@@ -28,7 +28,7 @@ void editorPopupClose(void) {
 }
 
 int editorPopupOpen(const struct editorPopupItem *items, int count, int anchor_row,
-		int anchor_col) {
+                    int anchor_col) {
 	editorPopupClose();
 	if (items == NULL || count <= 0) {
 		return 0;
@@ -169,31 +169,31 @@ enum editorPopupKeyResult editorPopupHandleKey(int key) {
 	}
 
 	switch (key) {
-	case ARROW_UP:
-		if (E.popup.selected_index > 0) {
-			E.popup.selected_index--;
-		}
-		editorPopupClampScroll();
-		return EDITOR_POPUP_KEY_CONSUMED;
-	case ARROW_DOWN:
-		if (E.popup.selected_index + 1 < E.popup.item_count) {
-			E.popup.selected_index++;
-		}
-		editorPopupClampScroll();
-		return EDITOR_POPUP_KEY_CONSUMED;
-	case '\r':
-		return EDITOR_POPUP_KEY_ACCEPTED;
-	case '\x1b':
-		editorPopupClose();
-		return EDITOR_POPUP_KEY_CONSUMED;
-	default:
-		editorPopupClose();
-		return EDITOR_POPUP_KEY_DISMISSED_PASS_THROUGH;
+		case ARROW_UP:
+			if (E.popup.selected_index > 0) {
+				E.popup.selected_index--;
+			}
+			editorPopupClampScroll();
+			return EDITOR_POPUP_KEY_CONSUMED;
+		case ARROW_DOWN:
+			if (E.popup.selected_index + 1 < E.popup.item_count) {
+				E.popup.selected_index++;
+			}
+			editorPopupClampScroll();
+			return EDITOR_POPUP_KEY_CONSUMED;
+		case '\r':
+			return EDITOR_POPUP_KEY_ACCEPTED;
+		case '\x1b':
+			editorPopupClose();
+			return EDITOR_POPUP_KEY_CONSUMED;
+		default:
+			editorPopupClose();
+			return EDITOR_POPUP_KEY_DISMISSED_PASS_THROUGH;
 	}
 }
 
 void editorPopupComputePlacement(int *terminal_row_out, int *terminal_col_out,
-		int *visible_rows_out, int *cols_out, int *place_above_out) {
+                                 int *visible_rows_out, int *cols_out, int *place_above_out) {
 	int rows = editorPopupVisibleRowCount();
 	int cols = editorPopupContentColumns();
 	int place_above = 0;
@@ -233,7 +233,8 @@ void editorPopupComputePlacement(int *terminal_row_out, int *terminal_col_out,
 	}
 
 	if (terminal_row_out != NULL) {
-		*terminal_row_out = top_row + 2; // +2 to take acccount for 1-based indexing and the tab line
+		*terminal_row_out =
+		        top_row + 2; // +2 to take acccount for 1-based indexing and the tab line
 	}
 	if (terminal_col_out != NULL) {
 		*terminal_col_out = anchor_screen_col + 1;

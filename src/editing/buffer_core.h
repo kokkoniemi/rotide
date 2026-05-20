@@ -1,7 +1,6 @@
 #ifndef BUFFER_H
 #define BUFFER_H
 
-#include "rotide.h"
 #include "editing/buffer_search.h"
 #include "editing/document_bridge.h"
 #include "editing/document_position.h"
@@ -9,6 +8,8 @@
 #include "editing/row_cache.h"
 #include "editing/text_source.h"
 #include "language/syntax_visible_cache.h"
+#include "rotide.h"
+
 #include <stddef.h>
 
 char *editorRowsToStr(size_t *buflen);
@@ -27,7 +28,7 @@ void editorSetFileTooLargeStatus(void);
 int editorSyntaxParseFullActive(void);
 void editorLspNotifyDidCloseTabState(struct editorTabState *tab);
 void editorLspNotifyDidSaveActive(void);
-int editorRestoreActiveFromDocument(const struct editorDocument *document,
-		int target_cy, int target_cx, int dirty, int parse_syntax);
+int editorRestoreActiveFromDocument(const struct editorDocument *document, int target_cy,
+                                    int target_cx, int dirty, int parse_syntax);
 
 #endif

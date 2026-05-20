@@ -2,6 +2,7 @@
 
 #include "render/ansi_style.h"
 #include "vterm.h"
+
 #include <stdio.h>
 #include <sys/wait.h>
 
@@ -31,35 +32,31 @@ static int editorUtf8EncodeCodepoint(uint32_t cp, char *out) {
 	return 0;
 }
 
-static int editorTerminalAppendColorSgr(struct writeBuf *wb,
-		const VTermColor *color, int is_fg) {
+static int editorTerminalAppendColorSgr(struct writeBuf *wb, const VTermColor *color, int is_fg) {
 	char esc[32];
 	int n;
 	if (is_fg ? VTERM_COLOR_IS_DEFAULT_FG(color) : VTERM_COLOR_IS_DEFAULT_BG(color)) {
-		struct editorThemeColor theme_color = E.theme.ui[is_fg ?
-				EDITOR_THEME_UI_FOREGROUND : EDITOR_THEME_UI_BACKGROUND];
+		struct editorThemeColor theme_color =
+		        E.theme.ui[is_fg ? EDITOR_THEME_UI_FOREGROUND : EDITOR_THEME_UI_BACKGROUND];
 		if (!editorThemeColorIsDefault(theme_color)) {
-			return is_fg ? editorAppendThemeForeground(wb, theme_color) :
-					editorAppendThemeBackground(wb, theme_color);
+			return is_fg ? editorAppendThemeForeground(wb, theme_color)
+			             : editorAppendThemeBackground(wb, theme_color);
 		}
 		n = snprintf(esc, sizeof(esc), "\x1b[%dm", is_fg ? 39 : 49);
 	} else if (VTERM_COLOR_IS_RGB(color)) {
-		n = snprintf(esc, sizeof(esc), "\x1b[%d;2;%u;%u;%um",
-				is_fg ? 38 : 48,
-				(unsigned)color->rgb.red,
-				(unsigned)color->rgb.green,
-				(unsigned)color->rgb.blue);
+		n = snprintf(esc, sizeof(esc), "\x1b[%d;2;%u;%u;%um", is_fg ? 38 : 48,
+		             (unsigned)color->rgb.red, (unsigned)color->rgb.green,
+		             (unsigned)color->rgb.blue);
 	} else if (VTERM_COLOR_IS_INDEXED(color)) {
 		unsigned idx = color->indexed.idx;
 		if (idx < 8) {
 			n = snprintf(esc, sizeof(esc), "\x1b[%um",
-					(unsigned)((is_fg ? 30 : 40) + idx));
+			             (unsigned)((is_fg ? 30 : 40) + idx));
 		} else if (idx < 16) {
 			n = snprintf(esc, sizeof(esc), "\x1b[%um",
-					(unsigned)((is_fg ? 90 : 100) + (idx - 8)));
+			             (unsigned)((is_fg ? 90 : 100) + (idx - 8)));
 		} else {
-			n = snprintf(esc, sizeof(esc), "\x1b[%d;5;%um",
-					is_fg ? 38 : 48, idx);
+			n = snprintf(esc, sizeof(esc), "\x1b[%d;5;%um", is_fg ? 38 : 48, idx);
 		}
 	} else {
 		return 1;
@@ -72,17 +69,14 @@ static int editorTerminalAppendColorSgr(struct writeBuf *wb,
 
 static int editorTerminalCellIsPlain(const VTermScreenCell *cell) {
 	if (cell->attrs.bold || cell->attrs.italic ||
-			cell->attrs.underline != VTERM_UNDERLINE_OFF ||
-			cell->attrs.blink || cell->attrs.reverse ||
-			cell->attrs.conceal || cell->attrs.strike) {
+	    cell->attrs.underline != VTERM_UNDERLINE_OFF || cell->attrs.blink ||
+	    cell->attrs.reverse || cell->attrs.conceal || cell->attrs.strike) {
 		return 0;
 	}
-	return VTERM_COLOR_IS_DEFAULT_FG(&cell->fg) &&
-			VTERM_COLOR_IS_DEFAULT_BG(&cell->bg);
+	return VTERM_COLOR_IS_DEFAULT_FG(&cell->fg) && VTERM_COLOR_IS_DEFAULT_BG(&cell->bg);
 }
 
-static int editorDrawTerminalCellAttrs(struct writeBuf *wb,
-		const VTermScreenCell *cell) {
+static int editorDrawTerminalCellAttrs(struct writeBuf *wb, const VTermScreenCell *cell) {
 	if (!editorAppendThemeReset(wb)) {
 		return 0;
 	}
@@ -95,8 +89,7 @@ static int editorDrawTerminalCellAttrs(struct writeBuf *wb,
 	if (cell->attrs.italic && !wbAppend(wb, "\x1b[3m", 4)) {
 		return 0;
 	}
-	if (cell->attrs.underline != VTERM_UNDERLINE_OFF &&
-			!wbAppend(wb, "\x1b[4m", 4)) {
+	if (cell->attrs.underline != VTERM_UNDERLINE_OFF && !wbAppend(wb, "\x1b[4m", 4)) {
 		return 0;
 	}
 	if (cell->attrs.blink && !wbAppend(wb, "\x1b[5m", 4)) {
@@ -112,23 +105,23 @@ static int editorDrawTerminalCellAttrs(struct writeBuf *wb,
 		return 0;
 	}
 	if (!editorTerminalAppendColorSgr(wb, &cell->fg, 1) ||
-			!editorTerminalAppendColorSgr(wb, &cell->bg, 0)) {
+	    !editorTerminalAppendColorSgr(wb, &cell->bg, 0)) {
 		return 0;
 	}
 	return 1;
 }
 
 static int editorDrawTerminalExitStatusRow(struct writeBuf *wb,
-		const struct editorTerminalPane *terminal, int col_in_pane,
-		int slice_cols) {
+                                           const struct editorTerminalPane *terminal,
+                                           int col_in_pane, int slice_cols) {
 	char banner[128];
 	int n;
 	if (WIFEXITED(terminal->exit_status)) {
 		n = snprintf(banner, sizeof(banner), "[exited: status %d]",
-				WEXITSTATUS(terminal->exit_status));
+		             WEXITSTATUS(terminal->exit_status));
 	} else if (WIFSIGNALED(terminal->exit_status)) {
 		n = snprintf(banner, sizeof(banner), "[exited: signal %d]",
-				WTERMSIG(terminal->exit_status));
+		             WTERMSIG(terminal->exit_status));
 	} else {
 		n = snprintf(banner, sizeof(banner), "[exited]");
 	}
@@ -158,16 +151,13 @@ static int editorDrawTerminalExitStatusRow(struct writeBuf *wb,
 	return editorAppendThemeReset(wb);
 }
 
-int editorDrawTerminalCells(struct writeBuf *wb,
-		struct editorTerminalPane *terminal, int row_in_pane,
-		int col_in_pane, int slice_cols) {
+int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *terminal,
+                            int row_in_pane, int col_in_pane, int slice_cols) {
 	if (terminal == NULL || terminal->screen == NULL || slice_cols <= 0) {
 		return 1;
 	}
-	if (terminal->exited && terminal->rows > 0 &&
-			row_in_pane == terminal->rows - 1) {
-		return editorDrawTerminalExitStatusRow(wb, terminal, col_in_pane,
-				slice_cols);
+	if (terminal->exited && terminal->rows > 0 && row_in_pane == terminal->rows - 1) {
+		return editorDrawTerminalExitStatusRow(wb, terminal, col_in_pane, slice_cols);
 	}
 	if (!editorAppendThemeReset(wb)) {
 		return 0;
@@ -179,9 +169,8 @@ int editorDrawTerminalCells(struct writeBuf *wb,
 	while (emitted < slice_cols) {
 		VTermPos pos = {.row = row_in_pane, .col = col};
 		VTermScreenCell cell;
-		if (row_in_pane < 0 || row_in_pane >= terminal->rows ||
-				col < 0 || col >= terminal->cols ||
-				!vterm_screen_get_cell(terminal->screen, pos, &cell)) {
+		if (row_in_pane < 0 || row_in_pane >= terminal->rows || col < 0 ||
+		    col >= terminal->cols || !vterm_screen_get_cell(terminal->screen, pos, &cell)) {
 			if (!wbAppend(wb, " ", 1)) {
 				return 0;
 			}

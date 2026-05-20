@@ -23,8 +23,8 @@ struct editorViewSnapshot {
 	int column_select_cursor_rx;
 };
 
-int editorPaneSyntaxRowOverrideCopy(int row_idx, struct editorRowSyntaxSpan *spans,
-		int max_spans, int *span_count_out);
+int editorPaneSyntaxRowOverrideCopy(int row_idx, struct editorRowSyntaxSpan *spans, int max_spans,
+                                    int *span_count_out);
 int editorPaneWrapBodyColsOverride(void);
 
 void editorViewSnapshotCapture(struct editorViewSnapshot *snap);
@@ -32,12 +32,10 @@ void editorViewSnapshotRestore(const struct editorViewSnapshot *snap);
 void editorViewSnapshotFromPaneView(const struct editorPaneView *view);
 
 int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode *leaf,
-		int body_row_in_pane, int slice_cols);
-int editorBuildSinglePaneRowLine(struct writeBuf *wb, int y, int drawer_cols,
-		int separator_cols, int text_cols);
-int editorDrawMultiPaneRows(struct writeBuf *wb,
-		const struct editorLeafLayout *layout,
-		const struct editorBorderList *borders,
-		struct editorRect focused_rect);
+                               int body_row_in_pane, int slice_cols);
+int editorBuildSinglePaneRowLine(struct writeBuf *wb, int y, int drawer_cols, int separator_cols,
+                                 int text_cols);
+int editorDrawMultiPaneRows(struct writeBuf *wb, const struct editorLeafLayout *layout,
+                            const struct editorBorderList *borders, struct editorRect focused_rect);
 
 #endif

@@ -15,30 +15,32 @@
 #include <string.h>
 #include <strings.h>
 
-char *editorLspBuildInitializeRequestJson(int request_id, const char *root_uri,
-		int process_id) {
+char *editorLspBuildInitializeRequestJson(int request_id, const char *root_uri, int process_id) {
 	if (root_uri == NULL || root_uri[0] == '\0') {
 		return NULL;
 	}
 
 	struct editorLspString init = {0};
-	int built = editorLspStringAppendf(&init,
-			"{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":\"initialize\",\"params\":{"
-			"\"processId\":%d,\"rootUri\":",
-			request_id, process_id);
+	int built = editorLspStringAppendf(
+	        &init,
+	        "{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":\"initialize\",\"params\":{"
+	        "\"processId\":%d,\"rootUri\":",
+	        request_id, process_id);
 	if (built) {
 		built = editorLspStringAppendJsonEscaped(&init, root_uri, strlen(root_uri));
 	}
 	if (built) {
-		built = editorLspStringAppend(&init,
-				",\"capabilities\":{\"general\":{\"positionEncodings\":[\"utf-8\",\"utf-16\"]},"
-				"\"workspace\":{\"applyEdit\":true},"
-				"\"textDocument\":{\"codeAction\":{\"codeActionLiteralSupport\":{"
-				"\"codeActionKind\":{\"valueSet\":[\"quickfix\",\"source.fixAll\","
-				"\"source.fixAll.eslint\"]}}},"
-				"\"completion\":{\"completionItem\":{\"snippetSupport\":false,"
-				"\"insertReplaceSupport\":false}},"
-				"\"documentSymbol\":{\"hierarchicalDocumentSymbolSupport\":true}}}}}");
+		built = editorLspStringAppend(
+		        &init,
+		        ",\"capabilities\":{\"general\":{\"positionEncodings\":[\"utf-8\",\"utf-"
+		        "16\"]},"
+		        "\"workspace\":{\"applyEdit\":true},"
+		        "\"textDocument\":{\"codeAction\":{\"codeActionLiteralSupport\":{"
+		        "\"codeActionKind\":{\"valueSet\":[\"quickfix\",\"source.fixAll\","
+		        "\"source.fixAll.eslint\"]}}},"
+		        "\"completion\":{\"completionItem\":{\"snippetSupport\":false,"
+		        "\"insertReplaceSupport\":false}},"
+		        "\"documentSymbol\":{\"hierarchicalDocumentSymbolSupport\":true}}}}}");
 	}
 	if (!built) {
 		free(init.buf);
@@ -46,7 +48,6 @@ char *editorLspBuildInitializeRequestJson(int request_id, const char *root_uri,
 	}
 	return init.buf;
 }
-
 
 int editorLspBuildFileUri(const char *path, char **uri_out) {
 	if (path == NULL || uri_out == NULL) {
@@ -68,7 +69,8 @@ int editorLspBuildFileUri(const char *path, char **uri_out) {
 
 	for (const unsigned char *p = (const unsigned char *)absolute_path; *p != '\0'; p++) {
 		unsigned char ch = *p;
-		int unreserved = isalnum(ch) || ch == '-' || ch == '_' || ch == '.' || ch == '~' || ch == '/';
+		int unreserved = isalnum(ch) || ch == '-' || ch == '_' || ch == '.' || ch == '~' ||
+		                 ch == '/';
 		if (unreserved) {
 			if (!editorLspStringAppendBytes(&sb, (const char *)&ch, 1)) {
 				free(absolute_path);
@@ -114,7 +116,7 @@ char *editorLspDecodeFileUri(const char *uri) {
 			return NULL;
 		}
 		if ((size_t)(slash - rest) != strlen("localhost") ||
-				strncasecmp(rest, "localhost", strlen("localhost")) != 0) {
+		    strncasecmp(rest, "localhost", strlen("localhost")) != 0) {
 			return NULL;
 		}
 		rest = slash;
@@ -143,16 +145,13 @@ char *editorLspDecodeFileUri(const char *uri) {
 	return path;
 }
 
-
-
-
 int editorLspProtocolCharacterToBufferColumn(int line, int protocol_character) {
 	return editorLspClientProtocolCharacterToBufferColumn(editorLspPrimaryClient(), line,
-			protocol_character);
+	                                                      protocol_character);
 }
 
 int editorLspClientProtocolCharacterToBufferColumn(struct editorLspClient *client, int line,
-		int protocol_character) {
+                                                   int protocol_character) {
 	if (protocol_character < 0) {
 		return 0;
 	}
@@ -170,11 +169,8 @@ int editorLspClientProtocolCharacterToBufferColumn(struct editorLspClient *clien
 	return byte_column;
 }
 
-
-
-
-
-static int editorLspDiagnosticsErrorCount(const struct editorLspDiagnostic *diagnostics, int count) {
+static int editorLspDiagnosticsErrorCount(const struct editorLspDiagnostic *diagnostics,
+                                          int count) {
 	int errors = 0;
 	for (int i = 0; i < count; i++) {
 		if (diagnostics[i].severity == 1) {
@@ -184,7 +180,8 @@ static int editorLspDiagnosticsErrorCount(const struct editorLspDiagnostic *diag
 	return errors;
 }
 
-static int editorLspDiagnosticsWarningCount(const struct editorLspDiagnostic *diagnostics, int count) {
+static int editorLspDiagnosticsWarningCount(const struct editorLspDiagnostic *diagnostics,
+                                            int count) {
 	int warnings = 0;
 	for (int i = 0; i < count; i++) {
 		if (diagnostics[i].severity == 2) {
@@ -199,8 +196,10 @@ static int editorLspPathMatches(const char *left, const char *right) {
 }
 
 static void editorLspUpdateDiagnosticFields(struct editorLspDiagnostic **diagnostics_in_out,
-		int *count_in_out, int *error_count_out, int *warning_count_out,
-		const struct editorLspDiagnostic *diagnostics, int count) {
+                                            int *count_in_out, int *error_count_out,
+                                            int *warning_count_out,
+                                            const struct editorLspDiagnostic *diagnostics,
+                                            int count) {
 	editorLspFreeDiagnostics(*diagnostics_in_out, *count_in_out);
 	*diagnostics_in_out = NULL;
 	*count_in_out = 0;
@@ -216,8 +215,8 @@ static void editorLspUpdateDiagnosticFields(struct editorLspDiagnostic **diagnos
 	*warning_count_out = editorLspDiagnosticsWarningCount(*diagnostics_in_out, *count_in_out);
 }
 
-static const char *editorLspDiagnosticSourceLabelForServerKind(
-		enum editorLspServerKind server_kind) {
+static const char *
+editorLspDiagnosticSourceLabelForServerKind(enum editorLspServerKind server_kind) {
 	switch (server_kind) {
 		case EDITOR_LSP_SERVER_GOPLS:
 			return "gopls";
@@ -239,8 +238,8 @@ static const char *editorLspDiagnosticSourceLabelForServerKind(
 }
 
 static void editorLspSetDiagnosticsForPathWithSource(const char *path,
-		const struct editorLspDiagnostic *diagnostics, int count,
-		const char *source_label) {
+                                                     const struct editorLspDiagnostic *diagnostics,
+                                                     int count, const char *source_label) {
 	if (path == NULL || path[0] == '\0') {
 		return;
 	}
@@ -254,38 +253,38 @@ static void editorLspSetDiagnosticsForPathWithSource(const char *path,
 	int old_warnings = active_matches ? E.lsp_diagnostic_warning_count : 0;
 
 	if (active_matches) {
-		editorLspUpdateDiagnosticFields(&E.lsp_diagnostics, &E.lsp_diagnostic_count,
-				&E.lsp_diagnostic_error_count, &E.lsp_diagnostic_warning_count,
-				diagnostics, count);
+		editorLspUpdateDiagnosticFields(
+		        &E.lsp_diagnostics, &E.lsp_diagnostic_count, &E.lsp_diagnostic_error_count,
+		        &E.lsp_diagnostic_warning_count, diagnostics, count);
 	}
 	for (int i = 0; i < E.tab_count; i++) {
 		struct editorBuffer *tab = editorTabBufferHandleAtMutable(i);
 		if (tab == NULL || !editorLspPathMatches(path, tab->filename)) {
 			continue;
 		}
-		editorLspUpdateDiagnosticFields(&tab->lsp_diagnostics,
-				&tab->lsp_diagnostic_count, &tab->lsp_diagnostic_error_count,
-				&tab->lsp_diagnostic_warning_count, diagnostics, count);
+		editorLspUpdateDiagnosticFields(&tab->lsp_diagnostics, &tab->lsp_diagnostic_count,
+		                                &tab->lsp_diagnostic_error_count,
+		                                &tab->lsp_diagnostic_warning_count, diagnostics,
+		                                count);
 	}
 
 	if (active_matches &&
-			(old_count != E.lsp_diagnostic_count ||
-			 old_errors != E.lsp_diagnostic_error_count ||
-			 old_warnings != E.lsp_diagnostic_warning_count)) {
+	    (old_count != E.lsp_diagnostic_count || old_errors != E.lsp_diagnostic_error_count ||
+	     old_warnings != E.lsp_diagnostic_warning_count)) {
 		if (E.lsp_diagnostic_count == 0) {
 			editorSetStatusMsg("%s: diagnostics cleared", source_label);
 		} else {
 			editorSetStatusMsg("%s: %d error%s, %d warning%s", source_label,
-					E.lsp_diagnostic_error_count,
-					E.lsp_diagnostic_error_count == 1 ? "" : "s",
-					E.lsp_diagnostic_warning_count,
-					E.lsp_diagnostic_warning_count == 1 ? "" : "s");
+			                   E.lsp_diagnostic_error_count,
+			                   E.lsp_diagnostic_error_count == 1 ? "" : "s",
+			                   E.lsp_diagnostic_warning_count,
+			                   E.lsp_diagnostic_warning_count == 1 ? "" : "s");
 		}
 	}
 }
 
-void editorLspSetDiagnosticsForPath(const char *path,
-		const struct editorLspDiagnostic *diagnostics, int count) {
+void editorLspSetDiagnosticsForPath(const char *path, const struct editorLspDiagnostic *diagnostics,
+                                    int count) {
 	editorLspSetDiagnosticsForPathWithSource(path, diagnostics, count, "LSP");
 }
 
@@ -294,7 +293,7 @@ void editorLspClearDiagnosticsForFile(const char *filename) {
 }
 
 void editorLspGetDiagnosticSummaryForFile(const char *filename,
-		struct editorLspDiagnosticSummary *summary_out) {
+                                          struct editorLspDiagnosticSummary *summary_out) {
 	if (summary_out == NULL) {
 		return;
 	}
@@ -318,7 +317,8 @@ void editorLspGetDiagnosticSummaryForFile(const char *filename,
 }
 
 static int editorLspParseDiagnosticsMessage(const char *message, char **path_out,
-		struct editorLspDiagnostic **diagnostics_out, int *count_out) {
+                                            struct editorLspDiagnostic **diagnostics_out,
+                                            int *count_out) {
 	if (path_out == NULL || diagnostics_out == NULL || count_out == NULL) {
 		return 0;
 	}
@@ -402,7 +402,8 @@ static int editorLspParseDiagnosticsMessage(const char *message, char **path_out
 		}
 		scan = object_end;
 
-		const char *range_key = editorLspStrstrBounded(object_start, "\"range\"", object_end);
+		const char *range_key =
+		        editorLspStrstrBounded(object_start, "\"range\"", object_end);
 		if (range_key == NULL) {
 			continue;
 		}
@@ -424,20 +425,20 @@ static int editorLspParseDiagnosticsMessage(const char *message, char **path_out
 		int end_line = 0;
 		int end_character = 0;
 		if (!editorLspParsePositionFromKey(range_object, "start", range_end, &start_line,
-					&start_character) ||
-				!editorLspParsePositionFromKey(range_object, "end", range_end, &end_line,
-						&end_character)) {
+		                                   &start_character) ||
+		    !editorLspParsePositionFromKey(range_object, "end", range_end, &end_line,
+		                                   &end_character)) {
 			continue;
 		}
 
 		int severity = 1;
 		const char *severity_key =
-				editorLspStrstrBounded(object_start, "\"severity\"", object_end);
+		        editorLspStrstrBounded(object_start, "\"severity\"", object_end);
 		if (severity_key != NULL) {
 			const char *severity_colon = strchr(severity_key, ':');
 			int parsed_severity = 0;
 			if (severity_colon != NULL &&
-					editorLspParseJsonInt(severity_colon + 1, &parsed_severity, NULL)) {
+			    editorLspParseJsonInt(severity_colon + 1, &parsed_severity, NULL)) {
 				severity = parsed_severity;
 			}
 		}
@@ -496,7 +497,7 @@ static int editorLspPendingEditCompareDesc(const void *lhs, const void *rhs) {
 }
 
 int editorLspApplyPendingEditsWithClient(struct editorLspClient *client,
-		const struct editorLspPendingEdit *edits, int count) {
+                                         const struct editorLspPendingEdit *edits, int count) {
 	if (edits == NULL || count <= 0) {
 		return 0;
 	}
@@ -511,15 +512,15 @@ int editorLspApplyPendingEditsWithClient(struct editorLspClient *client,
 	qsort(sorted, (size_t)count, sizeof(*sorted), editorLspPendingEditCompareDesc);
 
 	for (int i = 0; i < count; i++) {
-		int start_cx = editorLspClientProtocolCharacterToBufferColumn(client,
-				sorted[i].start_line, sorted[i].start_character);
-		int end_cx = editorLspClientProtocolCharacterToBufferColumn(client,
-				sorted[i].end_line, sorted[i].end_character);
+		int start_cx = editorLspClientProtocolCharacterToBufferColumn(
+		        client, sorted[i].start_line, sorted[i].start_character);
+		int end_cx = editorLspClientProtocolCharacterToBufferColumn(
+		        client, sorted[i].end_line, sorted[i].end_character);
 		size_t start_offset = 0;
 		size_t end_offset = 0;
 		if (!editorBufferPosToOffset(sorted[i].start_line, start_cx, &start_offset) ||
-				!editorBufferPosToOffset(sorted[i].end_line, end_cx, &end_offset) ||
-				end_offset < start_offset) {
+		    !editorBufferPosToOffset(sorted[i].end_line, end_cx, &end_offset) ||
+		    end_offset < start_offset) {
 			free(sorted);
 			return -1;
 		}
@@ -532,20 +533,21 @@ int editorLspApplyPendingEditsWithClient(struct editorLspClient *client,
 			if (cursor_before <= end_offset) {
 				cursor_after = start_offset + new_len;
 			} else {
-				cursor_after = start_offset + new_len + (cursor_before - end_offset);
+				cursor_after =
+				        start_offset + new_len + (cursor_before - end_offset);
 			}
 		}
 
 		struct editorDocumentEdit edit = {
-			.kind = old_len > 0 ? EDITOR_EDIT_DELETE_TEXT : EDITOR_EDIT_INSERT_TEXT,
-			.start_offset = start_offset,
-			.old_len = old_len,
-			.new_text = sorted[i].new_text != NULL ? sorted[i].new_text : "",
-			.new_len = new_len,
-			.before_cursor_offset = cursor_before,
-			.after_cursor_offset = cursor_after,
-			.before_dirty = E.dirty,
-			.after_dirty = E.dirty + 1,
+		        .kind = old_len > 0 ? EDITOR_EDIT_DELETE_TEXT : EDITOR_EDIT_INSERT_TEXT,
+		        .start_offset = start_offset,
+		        .old_len = old_len,
+		        .new_text = sorted[i].new_text != NULL ? sorted[i].new_text : "",
+		        .new_len = new_len,
+		        .before_cursor_offset = cursor_before,
+		        .after_cursor_offset = cursor_after,
+		        .before_dirty = E.dirty,
+		        .after_dirty = E.dirty + 1,
 		};
 		if (!editorApplyDocumentEdit(&edit)) {
 			free(sorted);
@@ -561,12 +563,11 @@ int editorLspApplyPendingEdits(const struct editorLspPendingEdit *edits, int cou
 	return editorLspApplyPendingEditsWithClient(editorLspPrimaryClient(), edits, count);
 }
 
-
 static int editorLspRespondToRequest(struct editorLspClient *client, int request_id,
-		const char *result_json) {
+                                     const char *result_json) {
 	struct editorLspString payload = {0};
-	int built = editorLspStringAppendf(&payload,
-			"{\"jsonrpc\":\"2.0\",\"id\":%d,\"result\":", request_id);
+	int built = editorLspStringAppendf(
+	        &payload, "{\"jsonrpc\":\"2.0\",\"id\":%d,\"result\":", request_id);
 	if (built) {
 		built = editorLspStringAppend(&payload, result_json != NULL ? result_json : "null");
 	}
@@ -577,7 +578,8 @@ static int editorLspRespondToRequest(struct editorLspClient *client, int request
 		free(payload.buf);
 		return 0;
 	}
-	int sent = editorLspSendRawJsonToFd(client != NULL ? client->to_server_fd : -1, payload.buf);
+	int sent =
+	        editorLspSendRawJsonToFd(client != NULL ? client->to_server_fd : -1, payload.buf);
 	free(payload.buf);
 	return sent;
 }
@@ -592,9 +594,9 @@ int editorLspProcessIncomingMessage(struct editorLspClient *client, const char *
 	int diagnostic_count = 0;
 	if (editorLspParseDiagnosticsMessage(message, &path, &diagnostics, &diagnostic_count)) {
 		const char *source_label = editorLspDiagnosticSourceLabelForServerKind(
-				client != NULL ? client->server_kind : EDITOR_LSP_SERVER_NONE);
+		        client != NULL ? client->server_kind : EDITOR_LSP_SERVER_NONE);
 		editorLspSetDiagnosticsForPathWithSource(path, diagnostics, diagnostic_count,
-				source_label);
+		                                         source_label);
 		editorLspFreeDiagnostics(diagnostics, diagnostic_count);
 		free(path);
 		return 1;
@@ -629,12 +631,13 @@ int editorLspProcessIncomingMessage(struct editorLspClient *client, const char *
 		}
 		struct editorLspPendingEdit *edits = NULL;
 		int count = 0;
-		int parsed = editorLspParseWorkspaceEditChanges(message, E.filename, &edits, &count);
-		int applied =
-				parsed && count > 0 && editorLspApplyPendingEditsWithClient(client, edits, count) >= 0;
+		int parsed =
+		        editorLspParseWorkspaceEditChanges(message, E.filename, &edits, &count);
+		int applied = parsed && count > 0 &&
+		              editorLspApplyPendingEditsWithClient(client, edits, count) >= 0;
 		editorLspFreePendingEdits(edits, count);
-		return editorLspRespondToRequest(client, request_id, applied ? "{\"applied\":true}" :
-				"{\"applied\":false}");
+		return editorLspRespondToRequest(
+		        client, request_id, applied ? "{\"applied\":true}" : "{\"applied\":false}");
 	}
 
 	free(method);
@@ -643,7 +646,6 @@ int editorLspProcessIncomingMessage(struct editorLspClient *client, const char *
 	}
 	return 1;
 }
-
 
 int editorLspUtf8ColumnToUtf16Units(const char *text, size_t text_len, int byte_column) {
 	if (text == NULL || byte_column <= 0) {
@@ -662,7 +664,7 @@ int editorLspUtf8ColumnToUtf16Units(const char *text, size_t text_len, int byte_
 		clamped = text_len_int;
 	}
 	while (clamped > 0 && clamped < text_len_int &&
-			editorIsUtf8ContinuationByte((unsigned char)text[clamped])) {
+	       editorIsUtf8ContinuationByte((unsigned char)text[clamped])) {
 		clamped--;
 	}
 
@@ -738,11 +740,11 @@ int editorLspReadActiveLineText(int line, char **text_out, size_t *len_out) {
 
 int editorLspProtocolCharacterFromBufferColumn(int line, int byte_column) {
 	return editorLspClientProtocolCharacterFromBufferColumn(editorLspPrimaryClient(), line,
-			byte_column);
+	                                                        byte_column);
 }
 
 int editorLspClientProtocolCharacterFromBufferColumn(struct editorLspClient *client, int line,
-		int byte_column) {
+                                                     int byte_column) {
 	if (client == NULL || byte_column < 0) {
 		byte_column = 0;
 	}

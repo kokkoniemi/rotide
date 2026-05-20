@@ -52,12 +52,12 @@ void editorLspClientResetState(struct editorLspClient *client);
 void editorLspCompletionPendingClear(struct editorLspCompletionPending *pending);
 int editorLspProcessAlive(struct editorLspClient *client);
 int editorLspSpawnProcess(const char *command, pid_t *pid_out, int *to_server_fd_out,
-		int *from_server_fd_out);
+                          int *from_server_fd_out);
 int editorLspTryDrainIncoming(struct editorLspClient *client, int timeout_ms);
 int editorLspTryGetProcessExitCodeWithWait(struct editorLspClient *client, int timeout_ms,
-		int *exit_code_out);
+                                           int *exit_code_out);
 int editorLspWaitForResponseId(struct editorLspClient *client, int request_id, int timeout_ms,
-		char **response_out, int *timed_out_out);
+                               char **response_out, int *timed_out_out);
 int editorLspWorkspaceRootsMatch(const char *left, const char *right);
 
 #endif

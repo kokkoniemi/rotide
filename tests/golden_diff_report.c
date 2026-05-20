@@ -60,8 +60,8 @@ static char *read_whole_file(const char *path, size_t *len_out) {
  * marker line, and sets *end_of_block to point at the start of the
  * line containing the matching `/ * golden-end * /`. Returns NULL on
  * miss. */
-static const char *find_block_after_line(const char *text, size_t text_len,
-		int from_line, const char **end_of_block) {
+static const char *find_block_after_line(const char *text, size_t text_len, int from_line,
+                                         const char **end_of_block) {
 	int line = 1;
 	size_t i = 0;
 	while (i < text_len && line < from_line) {
@@ -123,31 +123,58 @@ static char *decode_existing_block(const char *block, size_t block_len) {
 		while (p < end && *p != '"') {
 			if (*p == '\\' && p + 1 < end) {
 				switch (p[1]) {
-				case 'n': out[outlen++] = '\n'; p += 2; break;
-				case 't': out[outlen++] = '\t'; p += 2; break;
-				case 'r': out[outlen++] = '\r'; p += 2; break;
-				case 'b': out[outlen++] = '\b'; p += 2; break;
-				case 'f': out[outlen++] = '\f'; p += 2; break;
-				case '\\': out[outlen++] = '\\'; p += 2; break;
-				case '"':  out[outlen++] = '"';  p += 2; break;
-				case '0': case '1': case '2': case '3':
-				case '4': case '5': case '6': case '7': {
-					int octal_chars = 0;
-					int v = 0;
-					p++;
-					while (octal_chars < 3 && p < end
-							&& *p >= '0' && *p <= '7') {
-						v = v * 8 + (*p - '0');
+					case 'n':
+						out[outlen++] = '\n';
+						p += 2;
+						break;
+					case 't':
+						out[outlen++] = '\t';
+						p += 2;
+						break;
+					case 'r':
+						out[outlen++] = '\r';
+						p += 2;
+						break;
+					case 'b':
+						out[outlen++] = '\b';
+						p += 2;
+						break;
+					case 'f':
+						out[outlen++] = '\f';
+						p += 2;
+						break;
+					case '\\':
+						out[outlen++] = '\\';
+						p += 2;
+						break;
+					case '"':
+						out[outlen++] = '"';
+						p += 2;
+						break;
+					case '0':
+					case '1':
+					case '2':
+					case '3':
+					case '4':
+					case '5':
+					case '6':
+					case '7': {
+						int octal_chars = 0;
+						int v = 0;
 						p++;
-						octal_chars++;
+						while (octal_chars < 3 && p < end && *p >= '0' &&
+						       *p <= '7') {
+							v = v * 8 + (*p - '0');
+							p++;
+							octal_chars++;
+						}
+						out[outlen++] = (char)v;
+						break;
 					}
-					out[outlen++] = (char)v;
-					break;
-				}
-				default:
-					out[outlen++] = p[1];
-					p += 2;
-					break;
+					default:
+						out[outlen++] = p[1];
+						p += 2;
+						break;
 				}
 			} else {
 				out[outlen++] = *p++;
@@ -217,9 +244,8 @@ int main(int argc, char **argv) {
 		return 2;
 	}
 	if (skipped_parse > 0) {
-		fprintf(stderr,
-			"golden_diff_report: %d malformed stash row(s) skipped\n",
-			skipped_parse);
+		fprintf(stderr, "golden_diff_report: %d malformed stash row(s) skipped\n",
+		        skipped_parse);
 	}
 	if (count == 0) {
 		fprintf(stdout, "golden_diff_report: stash is empty\n");
@@ -234,25 +260,27 @@ int main(int argc, char **argv) {
 		size_t src_len = 0;
 		char *src = read_whole_file(ent->file, &src_len);
 		if (src == NULL) {
-			fprintf(stderr,
-				"golden_diff_report: %s:%d cannot read source file\n",
-				ent->file, ent->line);
+			fprintf(stderr, "golden_diff_report: %s:%d cannot read source file\n",
+			        ent->file, ent->line);
 			continue;
 		}
 		const char *block_end = NULL;
-		const char *block_start = find_block_after_line(src, src_len, ent->line, &block_end);
+		const char *block_start =
+		        find_block_after_line(src, src_len, ent->line, &block_end);
 		if (block_start == NULL || block_end == NULL || block_end <= block_start) {
 			fprintf(stderr,
-				"golden_diff_report: %s:%d no golden-start/end pair after recorded line\n",
-				ent->file, ent->line);
+			        "golden_diff_report: %s:%d no golden-start/end pair after recorded "
+			        "line\n",
+			        ent->file, ent->line);
 			free(src);
 			continue;
 		}
-		char *existing = decode_existing_block(block_start, (size_t)(block_end - block_start));
+		char *existing =
+		        decode_existing_block(block_start, (size_t)(block_end - block_start));
 		if (existing == NULL) {
 			fprintf(stderr,
-				"golden_diff_report: %s:%d cannot decode existing literal\n",
-				ent->file, ent->line);
+			        "golden_diff_report: %s:%d cannot decode existing literal\n",
+			        ent->file, ent->line);
 			free(src);
 			continue;
 		}

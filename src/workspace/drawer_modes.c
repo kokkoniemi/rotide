@@ -1,6 +1,5 @@
-#include "workspace/drawer.h"
-
 #include "support/file_io.h"
+#include "workspace/drawer.h"
 #include "workspace/drawer_internal.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
@@ -69,13 +68,13 @@ int editorDrawerGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *v
 	view_out->is_root = lookup.node == E.drawer_root;
 	view_out->parent_visible_idx = lookup.parent_visible_idx;
 	if (lookup.node->parent != NULL && lookup.node->parent->child_count > 0 &&
-			lookup.node->parent->children[lookup.node->parent->child_count - 1] == lookup.node) {
+	    lookup.node->parent->children[lookup.node->parent->child_count - 1] == lookup.node) {
 		view_out->is_last_sibling = 1;
 	} else {
 		view_out->is_last_sibling = lookup.node->parent == NULL;
 	}
 	view_out->is_active_file = !lookup.node->is_dir && E.filename != NULL &&
-			editorPathsReferToSameFile(lookup.node->path, E.filename);
+	                           editorPathsReferToSameFile(lookup.node->path, E.filename);
 	if (E.git_repo_root != NULL) {
 		if (lookup.node->is_dir) {
 			view_out->git_status = editorGitDirStatus(lookup.node->path);

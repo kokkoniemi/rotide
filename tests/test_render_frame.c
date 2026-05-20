@@ -1,15 +1,16 @@
+#include "render/popup.h"
+#include "terminal/terminal_pane.h"
 #include "test_case.h"
 #include "test_grid_snapshot.h"
 #include "test_support.h"
-#include "render/popup.h"
-#include "terminal/terminal_pane.h"
+#include "vterm.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
-#include "vterm.h"
+
 #include <time.h>
 
 #define TEST_HEADER_BG "\x1b[48;5;236m"
@@ -32,36 +33,33 @@
 #define TEST_NERD_BRANCH "\xEF\x84\xA6"
 #define TEST_NERD_BARS "\xEF\x83\x89"
 #define TEST_NERD_TERMINAL "\xEF\x84\xA0"
-#define TEST_DRAWER_COLLAPSE_CELL \
+#define TEST_DRAWER_COLLAPSE_CELL                                                                  \
 	TEST_HEADER_BG " " TEST_DRAWER_COLLAPSE_SYMBOL " " TEST_HEADER_RESET
 #define TEST_DRAWER_EXPAND_CELL TEST_HEADER_BG " " TEST_DRAWER_EXPAND_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_EXPLORER_CELL \
+#define TEST_DRAWER_EXPLORER_CELL                                                                  \
 	TEST_HEADER_BG " " TEST_DRAWER_EXPLORER_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_FILE_SEARCH_CELL \
+#define TEST_DRAWER_FILE_SEARCH_CELL                                                               \
 	TEST_HEADER_BG " " TEST_DRAWER_FILE_SEARCH_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_PROJECT_SEARCH_CELL \
+#define TEST_DRAWER_PROJECT_SEARCH_CELL                                                            \
 	TEST_HEADER_BG " " TEST_DRAWER_PROJECT_SEARCH_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_LSP_CELL \
-	TEST_HEADER_BG " " TEST_DRAWER_LSP_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_DAP_CELL \
-	TEST_HEADER_BG " " TEST_DRAWER_DAP_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_GIT_CELL \
-	TEST_HEADER_BG " " TEST_DRAWER_GIT_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_MAIN_MENU_CELL \
+#define TEST_DRAWER_LSP_CELL TEST_HEADER_BG " " TEST_DRAWER_LSP_SYMBOL " " TEST_HEADER_RESET
+#define TEST_DRAWER_DAP_CELL TEST_HEADER_BG " " TEST_DRAWER_DAP_SYMBOL " " TEST_HEADER_RESET
+#define TEST_DRAWER_GIT_CELL TEST_HEADER_BG " " TEST_DRAWER_GIT_SYMBOL " " TEST_HEADER_RESET
+#define TEST_DRAWER_MAIN_MENU_CELL                                                                 \
 	TEST_HEADER_BG " " TEST_DRAWER_MAIN_MENU_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_ACTIVE_EXPLORER_CELL \
+#define TEST_DRAWER_ACTIVE_EXPLORER_CELL                                                           \
 	TEST_HEADER_ACTIVE " " TEST_DRAWER_EXPLORER_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_ACTIVE_FILE_SEARCH_CELL \
+#define TEST_DRAWER_ACTIVE_FILE_SEARCH_CELL                                                        \
 	TEST_HEADER_ACTIVE " " TEST_DRAWER_FILE_SEARCH_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_ACTIVE_PROJECT_SEARCH_CELL \
+#define TEST_DRAWER_ACTIVE_PROJECT_SEARCH_CELL                                                     \
 	TEST_HEADER_ACTIVE " " TEST_DRAWER_PROJECT_SEARCH_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_ACTIVE_LSP_CELL \
+#define TEST_DRAWER_ACTIVE_LSP_CELL                                                                \
 	TEST_HEADER_ACTIVE " " TEST_DRAWER_LSP_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_ACTIVE_DAP_CELL \
+#define TEST_DRAWER_ACTIVE_DAP_CELL                                                                \
 	TEST_HEADER_ACTIVE " " TEST_DRAWER_DAP_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_ACTIVE_GIT_CELL \
+#define TEST_DRAWER_ACTIVE_GIT_CELL                                                                \
 	TEST_HEADER_ACTIVE " " TEST_DRAWER_GIT_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_ACTIVE_MAIN_MENU_CELL \
+#define TEST_DRAWER_ACTIVE_MAIN_MENU_CELL                                                          \
 	TEST_HEADER_ACTIVE " " TEST_DRAWER_MAIN_MENU_SYMBOL " " TEST_HEADER_RESET
 
 static int count_substrings(const char *haystack, const char *needle) {
@@ -104,12 +102,12 @@ static int test_editor_refresh_screen_contains_expected_sequences(void) {
 	free(output);
 
 	ASSERT_GRID_EQ(
-		/* golden-start */
-		"              │1  first line\n"
-		"              │2  second line\n"
-		"sample.txt [+]     2,4    100%\n"
-		"status message\n"
-		/* golden-end */
+	        /* golden-start */
+	        "              │1  first line\n"
+	        "              │2  second line\n"
+	        "sample.txt [+]     2,4    100%\n"
+	        "status message\n"
+	        /* golden-end */
 	);
 	return 0;
 }
@@ -206,8 +204,7 @@ static int test_editor_refresh_screen_highlights_active_search_match(void) {
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_c_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-c-XXXXXX.c";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
-			"tests/syntax/supported/c/highlight.c"));
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2, "tests/syntax/supported/c/highlight.c"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -232,8 +229,7 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_c_tokens(v
 
 static int test_editor_refresh_screen_applies_modus_operandi_theme(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-modus-operandi-XXXXXX.c";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
-			"tests/syntax/supported/c/highlight.c"));
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2, "tests/syntax/supported/c/highlight.c"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorThemeInitBuiltin(&E.theme, "modus-operandi"));
@@ -259,8 +255,7 @@ static int test_editor_refresh_screen_applies_modus_operandi_theme(void) {
 
 static int test_editor_refresh_screen_applies_github_light_theme(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-github-light-XXXXXX.c";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
-			"tests/syntax/supported/c/highlight.c"));
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2, "tests/syntax/supported/c/highlight.c"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorThemeInitBuiltin(&E.theme, "github-light"));
@@ -287,8 +282,7 @@ static int test_editor_refresh_screen_applies_github_light_theme(void) {
 
 static int test_editor_refresh_screen_applies_github_dark_theme(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-github-dark-XXXXXX.c";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
-			"tests/syntax/supported/c/highlight.c"));
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2, "tests/syntax/supported/c/highlight.c"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorThemeInitBuiltin(&E.theme, "github-dark"));
@@ -315,8 +309,7 @@ static int test_editor_refresh_screen_applies_github_dark_theme(void) {
 
 static int test_editor_refresh_screen_applies_acme_theme(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-acme-XXXXXX.c";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
-			"tests/syntax/supported/c/highlight.c"));
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2, "tests/syntax/supported/c/highlight.c"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorThemeInitBuiltin(&E.theme, "acme"));
@@ -341,8 +334,7 @@ static int test_editor_refresh_screen_applies_acme_theme(void) {
 
 static int test_editor_refresh_screen_applies_silentium_theme(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-silentium-XXXXXX.c";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
-			"tests/syntax/supported/c/highlight.c"));
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2, "tests/syntax/supported/c/highlight.c"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorThemeInitBuiltin(&E.theme, "silentium"));
@@ -369,8 +361,7 @@ static int test_editor_refresh_screen_applies_silentium_theme(void) {
 
 static int test_editor_refresh_screen_applies_molokai_theme(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-molokai-XXXXXX.c";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
-			"tests/syntax/supported/c/highlight.c"));
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2, "tests/syntax/supported/c/highlight.c"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorThemeInitBuiltin(&E.theme, "molokai"));
@@ -399,8 +390,7 @@ static int test_editor_refresh_screen_applies_molokai_theme(void) {
 
 static int test_editor_refresh_screen_applies_kanagawa_wave_theme(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-kanagawa-XXXXXX.c";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
-			"tests/syntax/supported/c/highlight.c"));
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2, "tests/syntax/supported/c/highlight.c"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorThemeInitBuiltin(&E.theme, "kanagawa-wave"));
@@ -429,8 +419,7 @@ static int test_editor_refresh_screen_applies_kanagawa_wave_theme(void) {
 
 static int test_editor_refresh_screen_applies_custom_theme_roles(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-custom-theme-XXXXXX.c";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
-			"tests/syntax/supported/c/highlight.c"));
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2, "tests/syntax/supported/c/highlight.c"));
 
 	editorOpen(path);
 	E.theme.syntax[EDITOR_SYNTAX_HL_STRING] = editorThemeRgbColor(0x01, 0x02, 0x03);
@@ -455,8 +444,8 @@ static int test_editor_refresh_screen_applies_custom_theme_roles(void) {
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_cpp_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-cpp-XXXXXX.cpp";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
-			"tests/syntax/supported/cpp/highlight.cpp"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/cpp/highlight.cpp"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -485,8 +474,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_cpp_tokens
 
 static int test_editor_refresh_screen_applies_cpp_raw_string_injections(void) {
 	char path[] = "/tmp/rotide-test-syntax-inject-cpp-XXXXXX.cpp";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
-			"tests/syntax/supported/cpp/injections.cpp"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/cpp/injections.cpp"));
 
 	editorOpen(path);
 	E.window_rows = 6;
@@ -542,8 +531,8 @@ static int test_editor_refresh_screen_repo_buffer_c_stays_highlighted(void) {
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_shell_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-shell-XXXXXX.sh";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/bash/highlight.sh"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/bash/highlight.sh"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -577,8 +566,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_shell_toke
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_html_with_injections(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-html-XXXXXX.html";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
-			"tests/syntax/supported/html/highlight.html"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 5, "tests/syntax/supported/html/highlight.html"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -615,8 +604,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_html_with_
 
 static int test_editor_refresh_screen_html_text_apostrophe_not_javascript_string(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-html-apostrophe-XXXXXX.html";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
-			"tests/syntax/supported/html/apostrophe.html"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 5, "tests/syntax/supported/html/apostrophe.html"));
 
 	editorOpen(path);
 	E.window_rows = 4;
@@ -639,7 +628,7 @@ static int test_editor_refresh_screen_html_text_apostrophe_not_javascript_string
 static int test_editor_refresh_screen_applies_nested_jsdoc_in_html_script(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-html-jsdoc-XXXXXX.html";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
-			"tests/syntax/supported/html/nested_jsdoc.html"));
+	                                       "tests/syntax/supported/html/nested_jsdoc.html"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -662,7 +651,7 @@ static int test_editor_refresh_screen_applies_nested_jsdoc_in_html_script(void) 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_javascript_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-js-XXXXXX.js";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/javascript/highlight.js"));
+	                                       "tests/syntax/supported/javascript/highlight.js"));
 
 	editorOpen(path);
 	E.window_rows = 6;
@@ -686,7 +675,7 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_javascript
 static int test_editor_refresh_screen_applies_javascript_injections(void) {
 	char path[] = "/tmp/rotide-test-syntax-inject-js-XXXXXX.js";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/javascript/injections.js"));
+	                                       "tests/syntax/supported/javascript/injections.js"));
 
 	editorOpen(path);
 	E.window_rows = 10;
@@ -710,8 +699,8 @@ static int test_editor_refresh_screen_applies_javascript_injections(void) {
 
 static int test_editor_refresh_screen_applies_jsdoc_highlighting_for_javascript(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-jsdoc-XXXXXX.js";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/javascript/jsdoc.js"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/javascript/jsdoc.js"));
 
 	editorOpen(path);
 	E.window_rows = 10;
@@ -735,7 +724,7 @@ static int test_editor_refresh_screen_applies_jsdoc_highlighting_for_javascript(
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_typescript_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-ts-XXXXXX.ts";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/typescript/highlight.ts"));
+	                                       "tests/syntax/supported/typescript/highlight.ts"));
 
 	editorOpen(path);
 	E.window_rows = 6;
@@ -759,8 +748,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_typescript
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_tsx_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-tsx-XXXXXX.tsx";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
-			"tests/syntax/supported/tsx/highlight.tsx"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/tsx/highlight.tsx"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -790,8 +779,7 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_tsx_tokens
 
 static int test_editor_refresh_screen_applies_jsdoc_highlighting_for_tsx(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-jsdoc-tsx-XXXXXX.tsx";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
-			"tests/syntax/supported/tsx/jsdoc.tsx"));
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4, "tests/syntax/supported/tsx/jsdoc.tsx"));
 
 	editorOpen(path);
 	E.window_rows = 10;
@@ -814,8 +802,8 @@ static int test_editor_refresh_screen_applies_jsdoc_highlighting_for_tsx(void) {
 
 static int test_editor_refresh_screen_applies_jsdoc_highlighting_for_typescript(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-jsdoc-ts-XXXXXX.ts";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/typescript/jsdoc.ts"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/typescript/jsdoc.ts"));
 
 	editorOpen(path);
 	E.window_rows = 10;
@@ -837,8 +825,8 @@ static int test_editor_refresh_screen_applies_jsdoc_highlighting_for_typescript(
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_python_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-py-XXXXXX.py";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/python/highlight.py"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/python/highlight.py"));
 
 	editorOpen(path);
 	E.window_rows = 6;
@@ -863,8 +851,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_python_tok
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_php_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-php-XXXXXX.php";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
-			"tests/syntax/supported/php/highlight.php"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/php/highlight.php"));
 
 	editorOpen(path);
 	E.window_rows = 6;
@@ -889,8 +877,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_php_tokens
 
 static int test_editor_refresh_screen_applies_php_html_injections(void) {
 	char path[] = "/tmp/rotide-test-syntax-inject-php-XXXXXX.php";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
-			"tests/syntax/supported/php/injections.php"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/php/injections.php"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -911,8 +899,8 @@ static int test_editor_refresh_screen_applies_php_html_injections(void) {
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_rust_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-rs-XXXXXX.rs";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/rust/highlight.rs"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/rust/highlight.rs"));
 
 	editorOpen(path);
 	E.window_rows = 6;
@@ -937,8 +925,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_rust_token
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_java_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-java-XXXXXX.java";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
-			"tests/syntax/supported/java/highlight.java"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 5, "tests/syntax/supported/java/highlight.java"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -964,8 +952,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_java_token
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_csharp_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-csharp-XXXXXX.cs";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/csharp/highlight.cs"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/csharp/highlight.cs"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -991,8 +979,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_csharp_tok
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_haskell_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-haskell-XXXXXX.hs";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/haskell/highlight.hs"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/haskell/highlight.hs"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -1017,7 +1005,7 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_haskell_to
 static int test_editor_refresh_screen_applies_haskell_quasiquote_injections(void) {
 	char path[] = "/tmp/rotide-test-syntax-inject-haskell-XXXXXX.hs";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/haskell/injections.hs"));
+	                                       "tests/syntax/supported/haskell/injections.hs"));
 
 	editorOpen(path);
 	E.window_rows = 12;
@@ -1043,8 +1031,8 @@ static int test_editor_refresh_screen_applies_haskell_quasiquote_injections(void
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_ruby_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-ruby-XXXXXX.rb";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/ruby/highlight.rb"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/ruby/highlight.rb"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -1067,8 +1055,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_ruby_token
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_ocaml_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-ocaml-XXXXXX.ml";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/ocaml/highlight.ml"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/ocaml/highlight.ml"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -1090,8 +1078,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_ocaml_toke
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_julia_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-julia-XXXXXX.jl";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/julia/highlight.jl"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/julia/highlight.jl"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -1113,8 +1101,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_julia_toke
 
 static int test_editor_refresh_screen_applies_julia_literal_injections(void) {
 	char path[] = "/tmp/rotide-test-syntax-inject-julia-XXXXXX.jl";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/julia/injections.jl"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/julia/injections.jl"));
 
 	editorOpen(path);
 	E.window_rows = 6;
@@ -1135,7 +1123,7 @@ static int test_editor_refresh_screen_applies_julia_literal_injections(void) {
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_markdown_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-markdown-XXXXXX.md";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/markdown/highlight.md"));
+	                                       "tests/syntax/supported/markdown/highlight.md"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -1164,8 +1152,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_markdown_t
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_toml_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-toml-XXXXXX.toml";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
-			"tests/syntax/supported/toml/highlight.toml"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 5, "tests/syntax/supported/toml/highlight.toml"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -1190,8 +1178,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_toml_token
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_yaml_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-yaml-XXXXXX.yaml";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
-			"tests/syntax/supported/yaml/highlight.yaml"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 5, "tests/syntax/supported/yaml/highlight.yaml"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -1214,8 +1202,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_yaml_token
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_xml_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-xml-XXXXXX.xml";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
-			"tests/syntax/supported/xml/highlight.xml"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/xml/highlight.xml"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -1237,8 +1225,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_xml_tokens
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_make_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-make-XXXXXX.mk";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/make/highlight.mk"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/make/highlight.mk"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -1261,15 +1249,14 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_make_token
 }
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_git_diff_tab(void) {
-	const char *diff_text =
-			"diff --git a/src/app.c b/src/app.c\n"
-			"index 1111111..2222222 100644\n"
-			"--- a/src/app.c\n"
-			"+++ b/src/app.c\n"
-			"@@ -1,3 +1,3 @@\n"
-			"-old line\n"
-			"+new line\n"
-			" context line\n";
+	const char *diff_text = "diff --git a/src/app.c b/src/app.c\n"
+	                        "index 1111111..2222222 100644\n"
+	                        "--- a/src/app.c\n"
+	                        "+++ b/src/app.c\n"
+	                        "@@ -1,3 +1,3 @@\n"
+	                        "-old line\n"
+	                        "+new line\n"
+	                        " context line\n";
 
 	ASSERT_TRUE(editorTabsInit());
 	ASSERT_TRUE(editorTabOpenGitDiff("git diff: src/app.c", diff_text));
@@ -1291,7 +1278,7 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_git_diff_t
 static int test_editor_refresh_screen_markdown_list_code_spans_stay_highlighted(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-markdown-list-code-XXXXXX.md";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/markdown/list_code.md"));
+	                                       "tests/syntax/supported/markdown/list_code.md"));
 
 	editorOpen(path);
 	E.window_rows = 6;
@@ -1313,7 +1300,7 @@ static int test_editor_refresh_screen_markdown_list_code_spans_stay_highlighted(
 static int test_editor_refresh_screen_applies_markdown_code_fence_injection(void) {
 	char path[] = "/tmp/rotide-test-syntax-inject-markdown-XXXXXX.md";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/markdown/injections.md"));
+	                                       "tests/syntax/supported/markdown/injections.md"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -1344,7 +1331,7 @@ static int test_editor_refresh_screen_applies_markdown_code_fence_injection(void
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_scala_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-scala-XXXXXX.scala";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 6,
-			"tests/syntax/supported/scala/highlight.scala"));
+	                                       "tests/syntax/supported/scala/highlight.scala"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -1366,8 +1353,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_scala_toke
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_ejs_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-ejs-XXXXXX.ejs";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
-			"tests/syntax/supported/ejs/highlight.ejs"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/ejs/highlight.ejs"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -1379,8 +1366,7 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_ejs_tokens
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[94m<%#\x1b[90m greeting \x1b[94m%>") != NULL);
-	ASSERT_TRUE(strstr(output,
-			"\x1b[94m<%=\x1b[39m \x1b[37mname\x1b[39m \x1b[94m%>") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94m<%=\x1b[39m \x1b[37mname\x1b[39m \x1b[94m%>") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[96msection\x1b[39m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[91mclass\x1b[39m") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[94mif\x1b[39m") != NULL);
@@ -1396,8 +1382,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_ejs_tokens
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_erb_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-erb-XXXXXX.erb";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
-			"tests/syntax/supported/erb/highlight.erb"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/erb/highlight.erb"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -1427,7 +1413,7 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_erb_tokens
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_regex_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-regex-XXXXXX.regex";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 6,
-			"tests/syntax/supported/regex/highlight.regex"));
+	                                       "tests/syntax/supported/regex/highlight.regex"));
 
 	editorOpen(path);
 	E.window_rows = 4;
@@ -1451,8 +1437,8 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_regex_toke
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_css_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-css-XXXXXX.css";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
-			"tests/syntax/supported/css/highlight.css"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/css/highlight.css"));
 
 	editorOpen(path);
 	E.window_rows = 4;
@@ -1473,8 +1459,7 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_css_tokens
 
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_go_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-go-XXXXXX.go";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/go/highlight.go"));
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3, "tests/syntax/supported/go/highlight.go"));
 
 	editorOpen(path);
 	E.window_rows = 12;
@@ -1500,7 +1485,7 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_go_tokens(
 static int test_editor_refresh_screen_javascript_predicates_and_locals(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-js-pred-XXXXXX.js";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/javascript/predicates.js"));
+	                                       "tests/syntax/supported/javascript/predicates.js"));
 
 	editorOpen(path);
 	E.window_rows = 10;
@@ -1531,8 +1516,8 @@ static int test_editor_refresh_screen_javascript_predicates_and_locals(void) {
 
 static int test_editor_refresh_screen_javascript_predicates_repeat_refresh(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-js-repeat-XXXXXX.js";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/javascript/repeat_refresh.js"));
+	ASSERT_TRUE(write_fixture_to_temp_path(
+	        path, 3, "tests/syntax/supported/javascript/repeat_refresh.js"));
 
 	editorOpen(path);
 	E.window_rows = 8;
@@ -1593,7 +1578,7 @@ static int test_editor_refresh_screen_reports_query_budget_throttle_status(void)
 
 	ASSERT_TRUE(editorSyntaxEnabled());
 	ASSERT_TRUE(strstr(E.statusmsg, "Tree-sitter highlight throttled (budget)") != NULL ||
-			strstr(E.statusmsg, "Tree-sitter throttled (parse/query budget)") != NULL);
+	            strstr(E.statusmsg, "Tree-sitter throttled (parse/query budget)") != NULL);
 
 	editorSyntaxTestResetBudgetOverrides();
 	ASSERT_TRUE(unlink(path) == 0);
@@ -1602,8 +1587,7 @@ static int test_editor_refresh_screen_reports_query_budget_throttle_status(void)
 
 static int test_editor_refresh_screen_plain_text_file_has_no_syntax_highlighting(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-txt-XXXXXX.txt";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
-			"tests/syntax/supported/c/activation.c"));
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4, "tests/syntax/supported/c/activation.c"));
 
 	editorOpen(path);
 	E.window_rows = 4;
@@ -1625,8 +1609,7 @@ static int test_editor_refresh_screen_plain_text_file_has_no_syntax_highlighting
 
 static int test_editor_refresh_screen_selection_and_search_override_syntax_colors(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-priority-XXXXXX.c";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
-			"tests/syntax/supported/c/priority.c"));
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2, "tests/syntax/supported/c/priority.c"));
 
 	editorOpen(path);
 	E.window_rows = 4;
@@ -1664,8 +1647,7 @@ static int test_editor_refresh_screen_selection_and_search_override_syntax_color
 
 static int test_editor_refresh_screen_shell_selection_and_search_override_syntax_colors(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-priority-shell-XXXXXX.sh";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/bash/priority.sh"));
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3, "tests/syntax/supported/bash/priority.sh"));
 
 	editorOpen(path);
 	E.window_rows = 4;
@@ -1712,7 +1694,8 @@ static int test_editor_refresh_screen_shell_selection_and_search_override_syntax
 }
 
 static int test_editor_refresh_screen_highlight_alignment_with_escaped_controls(void) {
-	const char text[] = "A\x1b" "BC";
+	const char text[] = "A\x1b"
+	                    "BC";
 	add_row_bytes(text, sizeof(text) - 1);
 	E.window_rows = 3;
 	E.window_cols = 40;
@@ -1881,7 +1864,8 @@ static int test_editor_viewport_center_cursor_clamps_near_top(void) {
 	return 0;
 }
 
-static int test_editor_refresh_screen_current_line_highlight_visible_when_drawer_focus_previewing(void) {
+static int
+test_editor_refresh_screen_current_line_highlight_visible_when_drawer_focus_previewing(void) {
 	add_row("first");
 	add_row("second");
 	E.window_rows = 3;
@@ -2095,8 +2079,8 @@ static int test_editor_refresh_screen_wrap_cursor_uses_visual_segment(void) {
 
 	int expected_col = editorTextBodyStartColForCols(E.window_cols) + 3;
 	char expected_cursor[32];
-	ASSERT_TRUE(snprintf(expected_cursor, sizeof(expected_cursor), "\x1b[3;%dH",
-				expected_col) > 0);
+	ASSERT_TRUE(snprintf(expected_cursor, sizeof(expected_cursor), "\x1b[3;%dH", expected_col) >
+	            0);
 
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
@@ -2138,8 +2122,8 @@ static int test_editor_refresh_screen_wrap_cursor_honors_continuation_indent(voi
 
 	int expected_col = editorTextBodyStartColForCols(E.window_cols) + 6;
 	char expected_cursor[32];
-	ASSERT_TRUE(snprintf(expected_cursor, sizeof(expected_cursor), "\x1b[3;%dH",
-				expected_col) > 0);
+	ASSERT_TRUE(snprintf(expected_cursor, sizeof(expected_cursor), "\x1b[3;%dH", expected_col) >
+	            0);
 
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
@@ -2294,8 +2278,7 @@ static int test_editor_refresh_screen_hides_cursor_when_offscreen_in_free_scroll
 
 static int test_editor_refresh_screen_applies_a11y_dark_truecolor_theme(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-a11y-dark-XXXXXX.c";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
-			"tests/syntax/supported/c/highlight.c"));
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2, "tests/syntax/supported/c/highlight.c"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorThemeInitBuiltin(&E.theme, "a11y-dark"));
@@ -2321,8 +2304,7 @@ static int test_editor_refresh_screen_applies_a11y_dark_truecolor_theme(void) {
 
 static int test_editor_refresh_screen_applies_256noir_theme(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-256noir-XXXXXX.c";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
-			"tests/syntax/supported/c/highlight.c"));
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2, "tests/syntax/supported/c/highlight.c"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorThemeInitBuiltin(&E.theme, "256noir"));
@@ -2350,8 +2332,7 @@ static int test_editor_refresh_screen_applies_256noir_theme(void) {
 
 static int test_editor_refresh_screen_a11y_selection_overrides_syntax(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-a11y-selection-XXXXXX.c";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
-			"tests/syntax/supported/c/highlight.c"));
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2, "tests/syntax/supported/c/highlight.c"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorThemeInitBuiltin(&E.theme, "a11y-dark"));
@@ -2359,7 +2340,7 @@ static int test_editor_refresh_screen_a11y_selection_overrides_syntax(void) {
 	E.window_cols = 100;
 	E.cy = 3;
 	E.cx = 0;
-	ASSERT_TRUE(set_active_search_match(3, 2, 6));
+	ASSERT_TRUE(set_active_search_match(3, 1, 6));
 
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
@@ -2373,97 +2354,186 @@ static int test_editor_refresh_screen_a11y_selection_overrides_syntax(void) {
 }
 
 const struct editorTestCase g_render_frame_tests[] = {
-	{"editor_refresh_screen_contains_expected_sequences", test_editor_refresh_screen_contains_expected_sequences},
-	{"editor_refresh_screen_file_row_frame_diff_updates_only_changed_rows", test_editor_refresh_screen_file_row_frame_diff_updates_only_changed_rows},
-	{"editor_refresh_screen_uses_configured_cursor_style", test_editor_refresh_screen_uses_configured_cursor_style},
-	{"editor_refresh_screen_highlights_active_search_match", test_editor_refresh_screen_highlights_active_search_match},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_c_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_c_tokens},
-	{"editor_refresh_screen_applies_modus_operandi_theme", test_editor_refresh_screen_applies_modus_operandi_theme},
-	{"editor_refresh_screen_applies_github_light_theme", test_editor_refresh_screen_applies_github_light_theme},
-	{"editor_refresh_screen_applies_github_dark_theme", test_editor_refresh_screen_applies_github_dark_theme},
-	{"editor_refresh_screen_applies_acme_theme", test_editor_refresh_screen_applies_acme_theme},
-	{"editor_refresh_screen_applies_silentium_theme", test_editor_refresh_screen_applies_silentium_theme},
-	{"editor_refresh_screen_applies_molokai_theme", test_editor_refresh_screen_applies_molokai_theme},
-	{"editor_refresh_screen_applies_kanagawa_wave_theme", test_editor_refresh_screen_applies_kanagawa_wave_theme},
-	{"editor_refresh_screen_applies_custom_theme_roles", test_editor_refresh_screen_applies_custom_theme_roles},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_cpp_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_cpp_tokens},
-	{"editor_refresh_screen_applies_cpp_raw_string_injections", test_editor_refresh_screen_applies_cpp_raw_string_injections},
-	{"editor_refresh_screen_repo_buffer_c_stays_highlighted", test_editor_refresh_screen_repo_buffer_c_stays_highlighted},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_shell_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_shell_tokens},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_html_with_injections", test_editor_refresh_screen_applies_syntax_highlighting_for_html_with_injections},
-	{"editor_refresh_screen_html_text_apostrophe_not_javascript_string", test_editor_refresh_screen_html_text_apostrophe_not_javascript_string},
-	{"editor_refresh_screen_applies_nested_jsdoc_in_html_script", test_editor_refresh_screen_applies_nested_jsdoc_in_html_script},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_javascript_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_javascript_tokens},
-	{"editor_refresh_screen_applies_javascript_injections", test_editor_refresh_screen_applies_javascript_injections},
-	{"editor_refresh_screen_applies_jsdoc_highlighting_for_javascript", test_editor_refresh_screen_applies_jsdoc_highlighting_for_javascript},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_typescript_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_typescript_tokens},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_tsx_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_tsx_tokens},
-	{"editor_refresh_screen_applies_jsdoc_highlighting_for_tsx", test_editor_refresh_screen_applies_jsdoc_highlighting_for_tsx},
-	{"editor_refresh_screen_applies_jsdoc_highlighting_for_typescript", test_editor_refresh_screen_applies_jsdoc_highlighting_for_typescript},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_python_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_python_tokens},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_php_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_php_tokens},
-	{"editor_refresh_screen_applies_php_html_injections", test_editor_refresh_screen_applies_php_html_injections},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_rust_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_rust_tokens},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_java_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_java_tokens},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_csharp_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_csharp_tokens},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_haskell_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_haskell_tokens},
-	{"editor_refresh_screen_applies_haskell_quasiquote_injections", test_editor_refresh_screen_applies_haskell_quasiquote_injections},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_ruby_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_ruby_tokens},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_ocaml_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_ocaml_tokens},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_julia_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_julia_tokens},
-	{"editor_refresh_screen_applies_julia_literal_injections", test_editor_refresh_screen_applies_julia_literal_injections},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_markdown_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_markdown_tokens},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_toml_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_toml_tokens},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_yaml_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_yaml_tokens},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_xml_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_xml_tokens},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_make_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_make_tokens},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_git_diff_tab", test_editor_refresh_screen_applies_syntax_highlighting_for_git_diff_tab},
-	{"editor_refresh_screen_markdown_list_code_spans_stay_highlighted", test_editor_refresh_screen_markdown_list_code_spans_stay_highlighted},
-	{"editor_refresh_screen_applies_markdown_code_fence_injection", test_editor_refresh_screen_applies_markdown_code_fence_injection},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_scala_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_scala_tokens},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_ejs_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_ejs_tokens},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_erb_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_erb_tokens},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_regex_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_regex_tokens},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_css_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_css_tokens},
-	{"editor_refresh_screen_applies_syntax_highlighting_for_go_tokens", test_editor_refresh_screen_applies_syntax_highlighting_for_go_tokens},
-	{"editor_refresh_screen_javascript_predicates_and_locals", test_editor_refresh_screen_javascript_predicates_and_locals},
-	{"editor_refresh_screen_javascript_predicates_repeat_refresh", test_editor_refresh_screen_javascript_predicates_repeat_refresh},
-	{"editor_refresh_screen_reports_query_budget_throttle_status", test_editor_refresh_screen_reports_query_budget_throttle_status},
-	{"editor_refresh_screen_plain_text_file_has_no_syntax_highlighting", test_editor_refresh_screen_plain_text_file_has_no_syntax_highlighting},
-	{"editor_refresh_screen_selection_and_search_override_syntax_colors", test_editor_refresh_screen_selection_and_search_override_syntax_colors},
-	{"editor_refresh_screen_shell_selection_and_search_override_syntax_colors", test_editor_refresh_screen_shell_selection_and_search_override_syntax_colors},
-	{"editor_refresh_screen_highlight_alignment_with_escaped_controls", test_editor_refresh_screen_highlight_alignment_with_escaped_controls},
-	{"editor_refresh_screen_escapes_filename_controls", test_editor_refresh_screen_escapes_filename_controls},
-	{"editor_refresh_screen_escapes_status_controls", test_editor_refresh_screen_escapes_status_controls},
-	{"editor_refresh_screen_escapes_file_content_controls", test_editor_refresh_screen_escapes_file_content_controls},
-	{"editor_line_number_gutter_width_and_absolute_numbers", test_editor_line_number_gutter_width_and_absolute_numbers},
-	{"editor_line_numbers_disabled_removes_gutter", test_editor_line_numbers_disabled_removes_gutter},
-	{"editor_refresh_screen_highlights_current_line", test_editor_refresh_screen_highlights_current_line},
-	{"editor_viewport_center_cursor_centers_target_row", test_editor_viewport_center_cursor_centers_target_row},
-	{"editor_viewport_center_cursor_clamps_near_top", test_editor_viewport_center_cursor_clamps_near_top},
-	{"editor_refresh_screen_current_line_highlight_visible_when_drawer_focus_previewing", test_editor_refresh_screen_current_line_highlight_visible_when_drawer_focus_previewing},
-	{"editor_refresh_screen_current_line_highlight_continues_after_selection", test_editor_refresh_screen_current_line_highlight_continues_after_selection},
-	{"editor_refresh_screen_wrap_continuation_does_not_repeat_line_number", test_editor_refresh_screen_wrap_continuation_does_not_repeat_line_number},
-	{"editor_refresh_screen_hides_expired_message", test_editor_refresh_screen_hides_expired_message},
-	{"editor_refresh_screen_shows_right_overflow_indicator", test_editor_refresh_screen_shows_right_overflow_indicator},
-	{"editor_refresh_screen_shows_left_overflow_indicator", test_editor_refresh_screen_shows_left_overflow_indicator},
-	{"editor_refresh_screen_shows_both_horizontal_overflow_indicators", test_editor_refresh_screen_shows_both_horizontal_overflow_indicators},
-	{"editor_refresh_screen_wraps_long_line_with_continuation_marker", test_editor_refresh_screen_wraps_long_line_with_continuation_marker},
-	{"editor_refresh_screen_wrap_exact_width_has_no_continuation_marker", test_editor_refresh_screen_wrap_exact_width_has_no_continuation_marker},
-	{"editor_refresh_screen_wrap_cursor_uses_visual_segment", test_editor_refresh_screen_wrap_cursor_uses_visual_segment},
-	{"editor_refresh_screen_wrap_prefers_punctuation_breaks", test_editor_refresh_screen_wrap_prefers_punctuation_breaks},
-	{"editor_refresh_screen_wrap_cursor_honors_continuation_indent", test_editor_refresh_screen_wrap_cursor_honors_continuation_indent},
-	{"editor_refresh_screen_wrap_handles_resize_after_render", test_editor_refresh_screen_wrap_handles_resize_after_render},
-	{"editor_refresh_screen_non_file_rows_do_not_show_overflow_indicators", test_editor_refresh_screen_non_file_rows_do_not_show_overflow_indicators},
-	{"editor_refresh_screen_out_of_buffer_tildes_are_gray", test_editor_refresh_screen_out_of_buffer_tildes_are_gray},
-	{"editor_refresh_screen_updates_horizontal_scroll", test_editor_refresh_screen_updates_horizontal_scroll},
-	{"editor_refresh_screen_slice_after_multibyte_scroll", test_editor_refresh_screen_slice_after_multibyte_scroll},
-	{"editor_refresh_screen_cursor_sequence_not_truncated_by_window_width", test_editor_refresh_screen_cursor_sequence_not_truncated_by_window_width},
-	{"editor_refresh_screen_hides_cursor_when_offscreen_in_free_scroll", test_editor_refresh_screen_hides_cursor_when_offscreen_in_free_scroll},
-	{"editor_refresh_screen_applies_a11y_dark_truecolor_theme", test_editor_refresh_screen_applies_a11y_dark_truecolor_theme},
-	{"editor_refresh_screen_applies_256noir_theme", test_editor_refresh_screen_applies_256noir_theme},
-	{"editor_refresh_screen_a11y_selection_overrides_syntax", test_editor_refresh_screen_a11y_selection_overrides_syntax},
+        {"editor_refresh_screen_contains_expected_sequences",
+         test_editor_refresh_screen_contains_expected_sequences},
+        {"editor_refresh_screen_file_row_frame_diff_updates_only_changed_rows",
+         test_editor_refresh_screen_file_row_frame_diff_updates_only_changed_rows},
+        {"editor_refresh_screen_uses_configured_cursor_style",
+         test_editor_refresh_screen_uses_configured_cursor_style},
+        {"editor_refresh_screen_highlights_active_search_match",
+         test_editor_refresh_screen_highlights_active_search_match},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_c_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_c_tokens},
+        {"editor_refresh_screen_applies_modus_operandi_theme",
+         test_editor_refresh_screen_applies_modus_operandi_theme},
+        {"editor_refresh_screen_applies_github_light_theme",
+         test_editor_refresh_screen_applies_github_light_theme},
+        {"editor_refresh_screen_applies_github_dark_theme",
+         test_editor_refresh_screen_applies_github_dark_theme},
+        {"editor_refresh_screen_applies_acme_theme", test_editor_refresh_screen_applies_acme_theme},
+        {"editor_refresh_screen_applies_silentium_theme",
+         test_editor_refresh_screen_applies_silentium_theme},
+        {"editor_refresh_screen_applies_molokai_theme",
+         test_editor_refresh_screen_applies_molokai_theme},
+        {"editor_refresh_screen_applies_kanagawa_wave_theme",
+         test_editor_refresh_screen_applies_kanagawa_wave_theme},
+        {"editor_refresh_screen_applies_custom_theme_roles",
+         test_editor_refresh_screen_applies_custom_theme_roles},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_cpp_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_cpp_tokens},
+        {"editor_refresh_screen_applies_cpp_raw_string_injections",
+         test_editor_refresh_screen_applies_cpp_raw_string_injections},
+        {"editor_refresh_screen_repo_buffer_c_stays_highlighted",
+         test_editor_refresh_screen_repo_buffer_c_stays_highlighted},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_shell_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_shell_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_html_with_injections",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_html_with_injections},
+        {"editor_refresh_screen_html_text_apostrophe_not_javascript_string",
+         test_editor_refresh_screen_html_text_apostrophe_not_javascript_string},
+        {"editor_refresh_screen_applies_nested_jsdoc_in_html_script",
+         test_editor_refresh_screen_applies_nested_jsdoc_in_html_script},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_javascript_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_javascript_tokens},
+        {"editor_refresh_screen_applies_javascript_injections",
+         test_editor_refresh_screen_applies_javascript_injections},
+        {"editor_refresh_screen_applies_jsdoc_highlighting_for_javascript",
+         test_editor_refresh_screen_applies_jsdoc_highlighting_for_javascript},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_typescript_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_typescript_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_tsx_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_tsx_tokens},
+        {"editor_refresh_screen_applies_jsdoc_highlighting_for_tsx",
+         test_editor_refresh_screen_applies_jsdoc_highlighting_for_tsx},
+        {"editor_refresh_screen_applies_jsdoc_highlighting_for_typescript",
+         test_editor_refresh_screen_applies_jsdoc_highlighting_for_typescript},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_python_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_python_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_php_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_php_tokens},
+        {"editor_refresh_screen_applies_php_html_injections",
+         test_editor_refresh_screen_applies_php_html_injections},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_rust_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_rust_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_java_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_java_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_csharp_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_csharp_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_haskell_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_haskell_tokens},
+        {"editor_refresh_screen_applies_haskell_quasiquote_injections",
+         test_editor_refresh_screen_applies_haskell_quasiquote_injections},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_ruby_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_ruby_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_ocaml_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_ocaml_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_julia_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_julia_tokens},
+        {"editor_refresh_screen_applies_julia_literal_injections",
+         test_editor_refresh_screen_applies_julia_literal_injections},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_markdown_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_markdown_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_toml_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_toml_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_yaml_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_yaml_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_xml_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_xml_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_make_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_make_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_git_diff_tab",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_git_diff_tab},
+        {"editor_refresh_screen_markdown_list_code_spans_stay_highlighted",
+         test_editor_refresh_screen_markdown_list_code_spans_stay_highlighted},
+        {"editor_refresh_screen_applies_markdown_code_fence_injection",
+         test_editor_refresh_screen_applies_markdown_code_fence_injection},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_scala_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_scala_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_ejs_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_ejs_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_erb_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_erb_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_regex_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_regex_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_css_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_css_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_go_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_go_tokens},
+        {"editor_refresh_screen_javascript_predicates_and_locals",
+         test_editor_refresh_screen_javascript_predicates_and_locals},
+        {"editor_refresh_screen_javascript_predicates_repeat_refresh",
+         test_editor_refresh_screen_javascript_predicates_repeat_refresh},
+        {"editor_refresh_screen_reports_query_budget_throttle_status",
+         test_editor_refresh_screen_reports_query_budget_throttle_status},
+        {"editor_refresh_screen_plain_text_file_has_no_syntax_highlighting",
+         test_editor_refresh_screen_plain_text_file_has_no_syntax_highlighting},
+        {"editor_refresh_screen_selection_and_search_override_syntax_colors",
+         test_editor_refresh_screen_selection_and_search_override_syntax_colors},
+        {"editor_refresh_screen_shell_selection_and_search_override_syntax_colors",
+         test_editor_refresh_screen_shell_selection_and_search_override_syntax_colors},
+        {"editor_refresh_screen_highlight_alignment_with_escaped_controls",
+         test_editor_refresh_screen_highlight_alignment_with_escaped_controls},
+        {"editor_refresh_screen_escapes_filename_controls",
+         test_editor_refresh_screen_escapes_filename_controls},
+        {"editor_refresh_screen_escapes_status_controls",
+         test_editor_refresh_screen_escapes_status_controls},
+        {"editor_refresh_screen_escapes_file_content_controls",
+         test_editor_refresh_screen_escapes_file_content_controls},
+        {"editor_line_number_gutter_width_and_absolute_numbers",
+         test_editor_line_number_gutter_width_and_absolute_numbers},
+        {"editor_line_numbers_disabled_removes_gutter",
+         test_editor_line_numbers_disabled_removes_gutter},
+        {"editor_refresh_screen_highlights_current_line",
+         test_editor_refresh_screen_highlights_current_line},
+        {"editor_viewport_center_cursor_centers_target_row",
+         test_editor_viewport_center_cursor_centers_target_row},
+        {"editor_viewport_center_cursor_clamps_near_top",
+         test_editor_viewport_center_cursor_clamps_near_top},
+        {"editor_refresh_screen_current_line_highlight_visible_when_drawer_focus_previewing",
+         test_editor_refresh_screen_current_line_highlight_visible_when_drawer_focus_previewing},
+        {"editor_refresh_screen_current_line_highlight_continues_after_selection",
+         test_editor_refresh_screen_current_line_highlight_continues_after_selection},
+        {"editor_refresh_screen_wrap_continuation_does_not_repeat_line_number",
+         test_editor_refresh_screen_wrap_continuation_does_not_repeat_line_number},
+        {"editor_refresh_screen_hides_expired_message",
+         test_editor_refresh_screen_hides_expired_message},
+        {"editor_refresh_screen_shows_right_overflow_indicator",
+         test_editor_refresh_screen_shows_right_overflow_indicator},
+        {"editor_refresh_screen_shows_left_overflow_indicator",
+         test_editor_refresh_screen_shows_left_overflow_indicator},
+        {"editor_refresh_screen_shows_both_horizontal_overflow_indicators",
+         test_editor_refresh_screen_shows_both_horizontal_overflow_indicators},
+        {"editor_refresh_screen_wraps_long_line_with_continuation_marker",
+         test_editor_refresh_screen_wraps_long_line_with_continuation_marker},
+        {"editor_refresh_screen_wrap_exact_width_has_no_continuation_marker",
+         test_editor_refresh_screen_wrap_exact_width_has_no_continuation_marker},
+        {"editor_refresh_screen_wrap_cursor_uses_visual_segment",
+         test_editor_refresh_screen_wrap_cursor_uses_visual_segment},
+        {"editor_refresh_screen_wrap_prefers_punctuation_breaks",
+         test_editor_refresh_screen_wrap_prefers_punctuation_breaks},
+        {"editor_refresh_screen_wrap_cursor_honors_continuation_indent",
+         test_editor_refresh_screen_wrap_cursor_honors_continuation_indent},
+        {"editor_refresh_screen_wrap_handles_resize_after_render",
+         test_editor_refresh_screen_wrap_handles_resize_after_render},
+        {"editor_refresh_screen_non_file_rows_do_not_show_overflow_indicators",
+         test_editor_refresh_screen_non_file_rows_do_not_show_overflow_indicators},
+        {"editor_refresh_screen_out_of_buffer_tildes_are_gray",
+         test_editor_refresh_screen_out_of_buffer_tildes_are_gray},
+        {"editor_refresh_screen_updates_horizontal_scroll",
+         test_editor_refresh_screen_updates_horizontal_scroll},
+        {"editor_refresh_screen_slice_after_multibyte_scroll",
+         test_editor_refresh_screen_slice_after_multibyte_scroll},
+        {"editor_refresh_screen_cursor_sequence_not_truncated_by_window_width",
+         test_editor_refresh_screen_cursor_sequence_not_truncated_by_window_width},
+        {"editor_refresh_screen_hides_cursor_when_offscreen_in_free_scroll",
+         test_editor_refresh_screen_hides_cursor_when_offscreen_in_free_scroll},
+        {"editor_refresh_screen_applies_a11y_dark_truecolor_theme",
+         test_editor_refresh_screen_applies_a11y_dark_truecolor_theme},
+        {"editor_refresh_screen_applies_256noir_theme",
+         test_editor_refresh_screen_applies_256noir_theme},
+        {"editor_refresh_screen_a11y_selection_overrides_syntax",
+         test_editor_refresh_screen_a11y_selection_overrides_syntax},
 };
 
 const int g_render_frame_test_count =
-		(int)(sizeof(g_render_frame_tests) / sizeof(g_render_frame_tests[0]));
+        (int)(sizeof(g_render_frame_tests) / sizeof(g_render_frame_tests[0]));

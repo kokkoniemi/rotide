@@ -1,6 +1,4 @@
 #include "bench_runner.h"
-#include "test_helpers.h"
-
 #include "editing/document_position.h"
 #include "editing/edit.h"
 #include "editing/history.h"
@@ -10,6 +8,7 @@
 #include "render/viewport.h"
 #include "render/wrap.h"
 #include "rotide.h"
+#include "test_helpers.h"
 #include "text/document.h"
 
 #include <fcntl.h>
@@ -193,12 +192,13 @@ static void op_row_cache_splice(void *state, int n) {
 		struct erow *replacement_rows = NULL;
 		int replacement_numrows = 0;
 		if (!editorBuildRowsFromDocumentRange(s->doc, region.start_row, end_row,
-					&replacement_rows, &replacement_numrows)) {
+		                                      &replacement_rows, &replacement_numrows)) {
 			(void)editorDocumentReplaceRange(s->doc, s->edit_offset, 1, NULL, 0);
 			continue;
 		}
 		(void)editorSpliceRowCache(&s->rows, &s->numrows, replacement_rows,
-				replacement_numrows, region.start_row, region.old_end_row_exclusive);
+		                           replacement_numrows, region.start_row,
+		                           region.old_end_row_exclusive);
 
 		/* Revert to keep state stable across the inner loop so the same
 		 * splice work happens each iteration. The revert is *not* timed
@@ -217,11 +217,12 @@ static void op_row_cache_splice(void *state, int n) {
 		struct erow *revert_rows = NULL;
 		int revert_numrows = 0;
 		if (!editorBuildRowsFromDocumentRange(s->doc, revert_region.start_row, revert_end,
-					&revert_rows, &revert_numrows)) {
+		                                      &revert_rows, &revert_numrows)) {
 			continue;
 		}
 		(void)editorSpliceRowCache(&s->rows, &s->numrows, revert_rows, revert_numrows,
-				revert_region.start_row, revert_region.old_end_row_exclusive);
+		                           revert_region.start_row,
+		                           revert_region.old_end_row_exclusive);
 	}
 }
 
@@ -243,7 +244,7 @@ struct wrapRecomputeState {
 };
 
 #define WRAP_BENCH_LINES 1000
-#define WRAP_BENCH_LINE_BYTES 120  /* exceeds 80-col body, so each line wraps */
+#define WRAP_BENCH_LINE_BYTES 120 /* exceeds 80-col body, so each line wraps */
 #define WRAP_BENCH_BODY_COLS 80
 
 static char *generate_wrap_fixture(void) {
@@ -275,8 +276,7 @@ static int setup_wrap_recompute(void **state_out) {
 	editorDocumentInit(s->doc);
 	char *fixture = generate_wrap_fixture();
 	size_t fixture_len = (size_t)WRAP_BENCH_LINES * ((size_t)WRAP_BENCH_LINE_BYTES + 1);
-	if (fixture == NULL ||
-			!editorDocumentResetFromString(s->doc, fixture, fixture_len)) {
+	if (fixture == NULL || !editorDocumentResetFromString(s->doc, fixture, fixture_len)) {
 		free(fixture);
 		editorDocumentFree(s->doc);
 		free(s->doc);
@@ -348,8 +348,7 @@ static char *generate_c_fixture(size_t *len_out) {
 	}
 	size_t pos = 0;
 	for (int i = 0; i < SYNTAX_BENCH_LINES; i++) {
-		int written = snprintf(buf + pos, cap - pos,
-			"int variable_%05d = %d;\n", i, i);
+		int written = snprintf(buf + pos, cap - pos, "int variable_%05d = %d;\n", i, i);
 		if (written < 0 || (size_t)written >= cap - pos) {
 			free(buf);
 			return NULL;
@@ -360,8 +359,7 @@ static char *generate_c_fixture(size_t *len_out) {
 	return buf;
 }
 
-static void bytes_to_point(const char *text, size_t byte,
-		struct editorSyntaxPoint *out) {
+static void bytes_to_point(const char *text, size_t byte, struct editorSyntaxPoint *out) {
 	uint32_t row = 0;
 	uint32_t col = 0;
 	for (size_t i = 0; i < byte; i++) {
@@ -424,8 +422,7 @@ static void op_syntax_incremental(void *state, int n) {
 		edit.old_end_point = edit.start_point;
 
 		/* Splice the byte into the buffer for tree-sitter to read. */
-		memmove(s->text + edit_byte + 1, s->text + edit_byte,
-			s->text_len - edit_byte);
+		memmove(s->text + edit_byte + 1, s->text + edit_byte, s->text_len - edit_byte);
 		s->text[edit_byte] = 'x';
 		s->text_len++;
 		bytes_to_point(s->text, edit_byte + 1, &edit.new_end_point);
@@ -442,8 +439,7 @@ static void op_syntax_incremental(void *state, int n) {
 		bytes_to_point(s->text, edit_byte, &revert.start_point);
 		bytes_to_point(s->text, edit_byte + 1, &revert.old_end_point);
 
-		memmove(s->text + edit_byte, s->text + edit_byte + 1,
-			s->text_len - edit_byte - 1);
+		memmove(s->text + edit_byte, s->text + edit_byte + 1, s->text_len - edit_byte - 1);
 		s->text_len--;
 		revert.new_end_point = revert.start_point;
 
@@ -520,8 +516,9 @@ static int screen_diff_setup_common(struct screenDiffState **state_out) {
 
 	for (int i = 0; i < 100; i++) {
 		char line[80];
-		int len = snprintf(line, sizeof(line),
-				"line %3d: lorem ipsum dolor sit amet, consectetur adipiscing", i);
+		int len =
+		        snprintf(line, sizeof(line),
+		                 "line %3d: lorem ipsum dolor sit amet, consectetur adipiscing", i);
 		add_row_bytes(line, (size_t)len);
 	}
 	E.cy = 0;
@@ -594,59 +591,59 @@ static void teardown_screen_diff_one_row(void *state) {
 }
 
 static const struct editorBenchCase k_cases[] = {
-	{
-		.name = "document_position_byte_roundtrip",
-		.setup = setup_position_roundtrip,
-		.op = op_position_roundtrip,
-		.teardown = teardown_position_roundtrip,
-		.inner_ops = 1024,
-	},
-	{
-		.name = "row_cache_splice_small_edit",
-		.setup = setup_row_cache_splice,
-		.op = op_row_cache_splice,
-		.teardown = teardown_row_cache_splice,
-		.inner_ops = 16,
-	},
-	{
-		.name = "wrap_recompute_1k_lines",
-		.setup = setup_wrap_recompute,
-		.op = op_wrap_recompute,
-		.teardown = teardown_wrap_recompute,
-		.inner_ops = 1,
-	},
-	{
-		.name = "syntax_incremental_5k_lines_c",
-		.setup = setup_syntax_incremental,
-		.op = op_syntax_incremental,
-		.teardown = teardown_syntax_incremental,
-		.inner_ops = 4,
-	},
-	{
-		/* All rows match the frame cache after the priming refresh, so
-		 * the timed loop measures cache-hit traversal cost. */
-		.name = "screen_diff_unchanged_frame",
-		.setup = setup_screen_diff_unchanged,
-		.op = op_screen_diff_unchanged,
-		.teardown = teardown_screen_diff_unchanged,
-		.inner_ops = 8,
-	},
-	{
-		/* inner_ops = 4 means 4 forward edits + 4 undos = 8 refreshes
-		 * per sample, with exactly one row dirty per refresh. */
-		.name = "screen_diff_one_row_changed",
-		.setup = setup_screen_diff_one_row,
-		.op = op_screen_diff_one_row,
-		.teardown = teardown_screen_diff_one_row,
-		.inner_ops = 4,
-	},
+        {
+                .name = "document_position_byte_roundtrip",
+                .setup = setup_position_roundtrip,
+                .op = op_position_roundtrip,
+                .teardown = teardown_position_roundtrip,
+                .inner_ops = 1024,
+        },
+        {
+                .name = "row_cache_splice_small_edit",
+                .setup = setup_row_cache_splice,
+                .op = op_row_cache_splice,
+                .teardown = teardown_row_cache_splice,
+                .inner_ops = 16,
+        },
+        {
+                .name = "wrap_recompute_1k_lines",
+                .setup = setup_wrap_recompute,
+                .op = op_wrap_recompute,
+                .teardown = teardown_wrap_recompute,
+                .inner_ops = 1,
+        },
+        {
+                .name = "syntax_incremental_5k_lines_c",
+                .setup = setup_syntax_incremental,
+                .op = op_syntax_incremental,
+                .teardown = teardown_syntax_incremental,
+                .inner_ops = 4,
+        },
+        {
+                /* All rows match the frame cache after the priming refresh, so
+                 * the timed loop measures cache-hit traversal cost. */
+                .name = "screen_diff_unchanged_frame",
+                .setup = setup_screen_diff_unchanged,
+                .op = op_screen_diff_unchanged,
+                .teardown = teardown_screen_diff_unchanged,
+                .inner_ops = 8,
+        },
+        {
+                /* inner_ops = 4 means 4 forward edits + 4 undos = 8 refreshes
+                 * per sample, with exactly one row dirty per refresh. */
+                .name = "screen_diff_one_row_changed",
+                .setup = setup_screen_diff_one_row,
+                .op = op_screen_diff_one_row,
+                .teardown = teardown_screen_diff_one_row,
+                .inner_ops = 4,
+        },
 };
 
 static const int k_case_count = (int)(sizeof(k_cases) / sizeof(k_cases[0]));
 
 static void print_usage(const char *argv0) {
 	printf("usage: %s [--iterations N] [--filter SUBSTR] [--json PATH] [--metrics-out PATH]\n",
-		argv0);
+	       argv0);
 	printf("  --iterations N      timing samples per case (default 20)\n");
 	printf("  --filter SUBSTR     only run cases whose name contains SUBSTR\n");
 	printf("  --json PATH         write percentile data as JSON to PATH\n");
@@ -682,6 +679,6 @@ int main(int argc, char **argv) {
 	}
 
 	printf("rotide_bench: cases=%d iterations=%d\n", k_case_count,
-		opts.iterations > 0 ? opts.iterations : 20);
+	       opts.iterations > 0 ? opts.iterations : 20);
 	return editorBenchRun(k_cases, k_case_count, &opts);
 }

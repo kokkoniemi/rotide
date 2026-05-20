@@ -124,7 +124,7 @@ int editorConfigPathIsGlobalConfig(const char *path) {
 	int matches = 0;
 	if (stat(path, &path_stat) == 0 && stat(global_path, &global_stat) == 0) {
 		matches = path_stat.st_dev == global_stat.st_dev &&
-				path_stat.st_ino == global_stat.st_ino;
+		          path_stat.st_ino == global_stat.st_ino;
 	} else {
 		matches = strcmp(path, global_path) == 0;
 	}
@@ -183,7 +183,7 @@ enum editorConfigBootstrapStatus editorConfigEnsureGlobalConfig(void) {
 	struct stat st;
 	if (stat(path, &st) == 0) {
 		status = S_ISREG(st.st_mode) ? EDITOR_CONFIG_BOOTSTRAP_OK
-					     : EDITOR_CONFIG_BOOTSTRAP_FAILED;
+		                             : EDITOR_CONFIG_BOOTSTRAP_FAILED;
 		goto done;
 	}
 	if (errno != ENOENT) {

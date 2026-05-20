@@ -19,8 +19,8 @@ struct snapshotExcludeRange {
 
 /* excludes must be sorted by ascending offset and non-overlapping. */
 int runnerSnapshotCompare(const unsigned char *a, const unsigned char *b, size_t size,
-		const struct snapshotExcludeRange *excludes, int exclude_count,
-		size_t *first_diff_out);
+                          const struct snapshotExcludeRange *excludes, int exclude_count,
+                          size_t *first_diff_out);
 
 struct testRunnerOptions {
 	const char *filter;

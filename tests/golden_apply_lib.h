@@ -22,9 +22,8 @@ int editor_golden_parse_stash_line(const char *line, struct goldenStashEntry *ou
  * editor_golden_free_entries(). Returns 0 on success, -1 on I/O failure.
  * Malformed rows are skipped (counted in *skipped_out if non-NULL).
  */
-int editor_golden_load_stash(const char *path,
-		struct goldenStashEntry **entries_out, int *count_out,
-		int *skipped_out);
+int editor_golden_load_stash(const char *path, struct goldenStashEntry **entries_out,
+                             int *count_out, int *skipped_out);
 
 void editor_golden_free_entries(struct goldenStashEntry *entries, int count);
 
@@ -40,13 +39,12 @@ void editor_golden_free_entries(struct goldenStashEntry *entries, int count);
  * (if non-NULL) and a one-line warning to `log` (if non-NULL).
  */
 char *editor_golden_rewrite_text(const char *text, size_t text_len,
-		const struct goldenStashEntry *entries, int entry_count,
-		int *applied_out, int *skipped_out, FILE *log);
+                                 const struct goldenStashEntry *entries, int entry_count,
+                                 int *applied_out, int *skipped_out, FILE *log);
 
 /* Convenience wrapper that loads `path`, rewrites it, and writes it back
  * atomically (temp file + rename). Returns 0 on success, -1 on I/O. */
-int editor_golden_rewrite_file(const char *path,
-		const struct goldenStashEntry *entries, int entry_count,
-		int *applied_out, int *skipped_out, FILE *log);
+int editor_golden_rewrite_file(const char *path, const struct goldenStashEntry *entries,
+                               int entry_count, int *applied_out, int *skipped_out, FILE *log);
 
 #endif

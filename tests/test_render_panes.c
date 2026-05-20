@@ -1,19 +1,20 @@
+#include "render/popup.h"
 #include "test_case.h"
 #include "test_grid_snapshot.h"
 #include "test_support.h"
-#include "render/popup.h"
 
 #define EDITOR_PANE_VBORDER_UTF8 "\xe2\x94\x82"
 #define EDITOR_PANE_HBORDER_UTF8 "\xe2\x94\x80"
 
 #include "terminal/terminal_pane.h"
+#include "vterm.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
-#include "vterm.h"
+
 #include <time.h>
 
 #define TEST_HEADER_BG "\x1b[48;5;236m"
@@ -36,36 +37,33 @@
 #define TEST_NERD_BRANCH "\xEF\x84\xA6"
 #define TEST_NERD_BARS "\xEF\x83\x89"
 #define TEST_NERD_TERMINAL "\xEF\x84\xA0"
-#define TEST_DRAWER_COLLAPSE_CELL \
+#define TEST_DRAWER_COLLAPSE_CELL                                                                  \
 	TEST_HEADER_BG " " TEST_DRAWER_COLLAPSE_SYMBOL " " TEST_HEADER_RESET
 #define TEST_DRAWER_EXPAND_CELL TEST_HEADER_BG " " TEST_DRAWER_EXPAND_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_EXPLORER_CELL \
+#define TEST_DRAWER_EXPLORER_CELL                                                                  \
 	TEST_HEADER_BG " " TEST_DRAWER_EXPLORER_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_FILE_SEARCH_CELL \
+#define TEST_DRAWER_FILE_SEARCH_CELL                                                               \
 	TEST_HEADER_BG " " TEST_DRAWER_FILE_SEARCH_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_PROJECT_SEARCH_CELL \
+#define TEST_DRAWER_PROJECT_SEARCH_CELL                                                            \
 	TEST_HEADER_BG " " TEST_DRAWER_PROJECT_SEARCH_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_LSP_CELL \
-	TEST_HEADER_BG " " TEST_DRAWER_LSP_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_DAP_CELL \
-	TEST_HEADER_BG " " TEST_DRAWER_DAP_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_GIT_CELL \
-	TEST_HEADER_BG " " TEST_DRAWER_GIT_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_MAIN_MENU_CELL \
+#define TEST_DRAWER_LSP_CELL TEST_HEADER_BG " " TEST_DRAWER_LSP_SYMBOL " " TEST_HEADER_RESET
+#define TEST_DRAWER_DAP_CELL TEST_HEADER_BG " " TEST_DRAWER_DAP_SYMBOL " " TEST_HEADER_RESET
+#define TEST_DRAWER_GIT_CELL TEST_HEADER_BG " " TEST_DRAWER_GIT_SYMBOL " " TEST_HEADER_RESET
+#define TEST_DRAWER_MAIN_MENU_CELL                                                                 \
 	TEST_HEADER_BG " " TEST_DRAWER_MAIN_MENU_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_ACTIVE_EXPLORER_CELL \
+#define TEST_DRAWER_ACTIVE_EXPLORER_CELL                                                           \
 	TEST_HEADER_ACTIVE " " TEST_DRAWER_EXPLORER_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_ACTIVE_FILE_SEARCH_CELL \
+#define TEST_DRAWER_ACTIVE_FILE_SEARCH_CELL                                                        \
 	TEST_HEADER_ACTIVE " " TEST_DRAWER_FILE_SEARCH_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_ACTIVE_PROJECT_SEARCH_CELL \
+#define TEST_DRAWER_ACTIVE_PROJECT_SEARCH_CELL                                                     \
 	TEST_HEADER_ACTIVE " " TEST_DRAWER_PROJECT_SEARCH_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_ACTIVE_LSP_CELL \
+#define TEST_DRAWER_ACTIVE_LSP_CELL                                                                \
 	TEST_HEADER_ACTIVE " " TEST_DRAWER_LSP_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_ACTIVE_DAP_CELL \
+#define TEST_DRAWER_ACTIVE_DAP_CELL                                                                \
 	TEST_HEADER_ACTIVE " " TEST_DRAWER_DAP_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_ACTIVE_GIT_CELL \
+#define TEST_DRAWER_ACTIVE_GIT_CELL                                                                \
 	TEST_HEADER_ACTIVE " " TEST_DRAWER_GIT_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_ACTIVE_MAIN_MENU_CELL \
+#define TEST_DRAWER_ACTIVE_MAIN_MENU_CELL                                                          \
 	TEST_HEADER_ACTIVE " " TEST_DRAWER_MAIN_MENU_SYMBOL " " TEST_HEADER_RESET
 
 static int count_substrings(const char *haystack, const char *needle) {
@@ -83,7 +81,7 @@ static int count_substrings(const char *haystack, const char *needle) {
 }
 
 static int write_repeated_temp_c_file(char path_buf[], size_t path_buf_size, const char *prefix,
-		const char *line, int repeats) {
+                                      const char *line, int repeats) {
 	if (path_buf == NULL || prefix == NULL || line == NULL || repeats < 0) {
 		return 0;
 	}
@@ -120,9 +118,9 @@ static int write_repeated_temp_c_file(char path_buf[], size_t path_buf_size, con
 
 static int test_editor_popup_open_select_close(void) {
 	struct editorPopupItem items[3] = {
-		{.label = (char *)"alpha"},
-		{.label = (char *)"beta"},
-		{.label = (char *)"gamma"},
+	        {.label = (char *)"alpha"},
+	        {.label = (char *)"beta"},
+	        {.label = (char *)"gamma"},
 	};
 	ASSERT_TRUE(editorPopupOpen(items, 3, 0, 0));
 	ASSERT_TRUE(editorPopupIsVisible());
@@ -166,19 +164,19 @@ static int test_editor_popup_renders_overlay_in_text_area(void) {
 	E.cx = 0;
 
 	struct editorPopupItem items[2] = {
-		{.label = (char *)"completion_alpha"},
-		{.label = (char *)"completion_beta"},
+	        {.label = (char *)"completion_alpha"},
+	        {.label = (char *)"completion_beta"},
 	};
 	ASSERT_TRUE(editorPopupOpen(items, 2, 0, 0));
 
 	ASSERT_GRID_EQ(
-		/* golden-start */
-		"                   │1  hello world\n"
-		"                   │  ~\n"
-		"                   │  ~ completion_alpha\n"
-		"                   │  ~ completion_beta\n"
-		" No Name] [+]                1,1    100%\n"
-		/* golden-end */
+	        /* golden-start */
+	        "                   │1  hello world\n"
+	        "                   │  ~\n"
+	        "                   │  ~ completion_alpha\n"
+	        "                   │  ~ completion_beta\n"
+	        " No Name] [+]                1,1    100%\n"
+	        /* golden-end */
 	);
 
 	editorPopupClose();
@@ -195,8 +193,8 @@ static int test_editor_popup_close_repaints_rows_under_overlay(void) {
 	E.cx = 0;
 
 	struct editorPopupItem items[2] = {
-		{.label = (char *)"completion_xyz"},
-		{.label = (char *)"completion_abc"},
+	        {.label = (char *)"completion_xyz"},
+	        {.label = (char *)"completion_abc"},
 	};
 	ASSERT_TRUE(editorPopupOpen(items, 2, 0, 0));
 
@@ -230,8 +228,8 @@ static int test_editor_popup_placement_below_cursor(void) {
 	E.cx = 0;
 
 	struct editorPopupItem items[2] = {
-		{.label = (char *)"first"},
-		{.label = (char *)"second"},
+	        {.label = (char *)"first"},
+	        {.label = (char *)"second"},
 	};
 	ASSERT_TRUE(editorPopupOpen(items, 2, 1, 0));
 
@@ -259,9 +257,9 @@ static int test_editor_popup_placement_above_when_below_overflows(void) {
 	E.cx = 0;
 
 	struct editorPopupItem items[3] = {
-		{.label = (char *)"a"},
-		{.label = (char *)"b"},
-		{.label = (char *)"c"},
+	        {.label = (char *)"a"},
+	        {.label = (char *)"b"},
+	        {.label = (char *)"c"},
 	};
 	ASSERT_TRUE(editorPopupOpen(items, 3, 5, 0));
 
@@ -286,19 +284,18 @@ static int test_editor_refresh_screen_vertical_split_renders_border(void) {
 	E.cy = 0;
 	E.cx = 0;
 
-	struct editorPaneNode *sibling =
-			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	struct editorPaneNode *sibling = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
 	ASSERT_TRUE(sibling != NULL);
 	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
 
 	ASSERT_GRID_EQ(
-		/* golden-start */
-		"                        │1  hello world   │1  hello world\n"
-		"                        │  ~              │  ~\n"
-		"                        │  ~              │  ~\n"
-		"                        │  ~              │  ~\n"
-		"[No Name] [+]                                    1,1    100%\n"
-		/* golden-end */
+	        /* golden-start */
+	        "                        │1  hello world   │1  hello world\n"
+	        "                        │  ~              │  ~\n"
+	        "                        │  ~              │  ~\n"
+	        "                        │  ~              │  ~\n"
+	        "[No Name] [+]                                    1,1    100%\n"
+	        /* golden-end */
 	);
 	return 0;
 }
@@ -310,8 +307,7 @@ static int test_editor_refresh_screen_horizontal_split_renders_border(void) {
 	E.cy = 0;
 	E.cx = 0;
 
-	struct editorPaneNode *sibling =
-			editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
+	struct editorPaneNode *sibling = editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
 	ASSERT_TRUE(sibling != NULL);
 	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
 
@@ -321,8 +317,7 @@ static int test_editor_refresh_screen_horizontal_split_renders_border(void) {
 	int hbox_count = 0;
 	int vbox_count = 0;
 	for (size_t i = 0; i + 3 <= output_len; i++) {
-		if ((unsigned char)output[i] == 0xe2 &&
-				(unsigned char)output[i + 1] == 0x94) {
+		if ((unsigned char)output[i] == 0xe2 && (unsigned char)output[i + 1] == 0x94) {
 			if ((unsigned char)output[i + 2] == 0x80) {
 				hbox_count++;
 			} else if ((unsigned char)output[i + 2] == 0x82) {
@@ -357,11 +352,10 @@ static int test_editor_refresh_screen_nested_horizontal_border_uses_hbox(void) {
 	E.cy = 0;
 	E.cx = 0;
 
-	struct editorPaneNode *right =
-			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	struct editorPaneNode *right = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
 	ASSERT_TRUE(right != NULL);
 	struct editorPaneNode *right_bottom =
-			editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
+	        editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
 	ASSERT_TRUE(right_bottom != NULL);
 	ASSERT_EQ_INT(3, editorPaneTreeLeafCount(E.layout_root));
 
@@ -371,8 +365,7 @@ static int test_editor_refresh_screen_nested_horizontal_border_uses_hbox(void) {
 	int hbox_count = 0;
 	int vbox_count = 0;
 	for (size_t i = 0; i + 3 <= output_len; i++) {
-		if ((unsigned char)output[i] == 0xe2 &&
-				(unsigned char)output[i + 1] == 0x94) {
+		if ((unsigned char)output[i] == 0xe2 && (unsigned char)output[i + 1] == 0x94) {
 			if ((unsigned char)output[i + 2] == 0x80) {
 				hbox_count++;
 			} else if ((unsigned char)output[i + 2] == 0x82) {
@@ -405,8 +398,7 @@ static int test_editor_refresh_screen_unfocused_same_tab_pane_renders_content(vo
 	 * Both panes here share the active tab and the same view (split
 	 * copies it), so the marker should render in both halves. */
 	struct editorPaneNode *original = E.focused_leaf;
-	struct editorPaneNode *sibling =
-			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	struct editorPaneNode *sibling = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
 	ASSERT_TRUE(sibling != NULL);
 	ASSERT_TRUE(editorLayoutSetFocusedLeaf(original));
 
@@ -431,8 +423,7 @@ static int test_editor_refresh_screen_vertical_split_clips_left_pane_row(void) {
 	E.cx = 0;
 
 	struct editorPaneNode *left = E.focused_leaf;
-	struct editorPaneNode *right =
-			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	struct editorPaneNode *right = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
 	ASSERT_TRUE(right != NULL);
 
 	ASSERT_TRUE(editorTabNewEmpty());
@@ -442,14 +433,14 @@ static int test_editor_refresh_screen_vertical_split_clips_left_pane_row(void) {
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output,
-				"LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL") == NULL);
+	ASSERT_TRUE(strstr(output, "LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL") == NULL);
 	ASSERT_TRUE(strstr(output, "right-pane-marker") != NULL);
 	free(output);
 	return 0;
 }
 
-static int test_editor_refresh_screen_vertical_split_eof_tilde_does_not_collapse_into_right_pane(void) {
+static int
+test_editor_refresh_screen_vertical_split_eof_tilde_does_not_collapse_into_right_pane(void) {
 	ASSERT_TRUE(editorTabsInit());
 	E.window_rows = 6;
 	E.window_cols = 80;
@@ -458,8 +449,7 @@ static int test_editor_refresh_screen_vertical_split_eof_tilde_does_not_collapse
 	E.cx = 0;
 
 	struct editorPaneNode *left = E.focused_leaf;
-	struct editorPaneNode *right =
-			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	struct editorPaneNode *right = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
 	ASSERT_TRUE(right != NULL);
 
 	ASSERT_TRUE(editorTabNewEmpty());
@@ -472,8 +462,7 @@ static int test_editor_refresh_screen_vertical_split_eof_tilde_does_not_collapse
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, "right-pane-marker") != NULL);
-	ASSERT_TRUE(strstr(output,
-				"\x1b[90m~\x1b[39m\xe2\x94\x82right-pane-marker") == NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m~\x1b[39m\xe2\x94\x82right-pane-marker") == NULL);
 	free(output);
 	return 0;
 }
@@ -487,8 +476,7 @@ static int test_editor_refresh_screen_same_tab_panes_keep_selection_independent(
 	E.cx = 0;
 
 	struct editorPaneNode *top = E.focused_leaf;
-	struct editorPaneNode *bottom =
-			editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
+	struct editorPaneNode *bottom = editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
 	ASSERT_TRUE(bottom != NULL);
 	ASSERT_TRUE(editorLayoutSetFocusedLeaf(top));
 
@@ -509,14 +497,13 @@ static int test_editor_refresh_screen_horizontal_scrolled_panes_keep_syntax(void
 	ASSERT_TRUE(editorTabsInit());
 	char path[128];
 	ASSERT_TRUE(write_repeated_temp_c_file(path, sizeof(path), "rotide-pane-scroll-",
-			"int value = 42;\n", 200));
+	                                       "int value = 42;\n", 200));
 	editorOpen(path);
 	E.window_rows = 12;
 	E.window_cols = 100;
 
 	struct editorPaneNode *top = E.focused_leaf;
-	struct editorPaneNode *bottom =
-			editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
+	struct editorPaneNode *bottom = editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
 	ASSERT_TRUE(bottom != NULL);
 
 	ASSERT_TRUE(editorLayoutSetFocusedLeaf(bottom));
@@ -541,15 +528,14 @@ static int test_editor_refresh_screen_horizontal_scrolled_panes_keep_syntax(void
 static int test_editor_refresh_screen_horizontal_scrolled_panes_avoid_syntax_thrash(void) {
 	ASSERT_TRUE(editorTabsInit());
 	char path[128];
-	ASSERT_TRUE(write_repeated_temp_c_file(path, sizeof(path),
-			"rotide-pane-scroll-thrash-", "int value = 42;\n", 300));
+	ASSERT_TRUE(write_repeated_temp_c_file(path, sizeof(path), "rotide-pane-scroll-thrash-",
+	                                       "int value = 42;\n", 300));
 	editorOpen(path);
 	E.window_rows = 14;
 	E.window_cols = 100;
 
 	struct editorPaneNode *top = E.focused_leaf;
-	struct editorPaneNode *bottom =
-			editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
+	struct editorPaneNode *bottom = editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
 	ASSERT_TRUE(bottom != NULL);
 
 	ASSERT_TRUE(editorLayoutSetFocusedLeaf(bottom));
@@ -581,8 +567,7 @@ static int test_editor_refresh_screen_unfocused_different_tab_pane_renders_conte
 	E.cx = 0;
 
 	struct editorPaneNode *left = E.focused_leaf;
-	struct editorPaneNode *right =
-			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	struct editorPaneNode *right = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
 	ASSERT_TRUE(right != NULL);
 
 	ASSERT_TRUE(editorTabNewEmpty());
@@ -612,15 +597,13 @@ static int test_editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax(
 	E.cx = 0;
 
 	struct editorPaneNode *left = E.focused_leaf;
-	struct editorPaneNode *right =
-			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	struct editorPaneNode *right = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
 	ASSERT_TRUE(right != NULL);
 
 	ASSERT_TRUE(editorTabNewEmpty());
 	char path[128];
-	ASSERT_TRUE(write_temp_file_with_suffix(path, sizeof(path),
-			"rotide-pane-syntax-", ".c",
-			"int main(void) {\n    return 0;\n}\n"));
+	ASSERT_TRUE(write_temp_file_with_suffix(path, sizeof(path), "rotide-pane-syntax-", ".c",
+	                                        "int main(void) {\n    return 0;\n}\n"));
 	editorOpen(path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
 
@@ -650,16 +633,14 @@ static int test_editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax_
 	add_row("left-pane-plain-3");
 
 	struct editorPaneNode *left = E.focused_leaf;
-	struct editorPaneNode *right =
-			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	struct editorPaneNode *right = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
 	ASSERT_TRUE(right != NULL);
 
 	ASSERT_TRUE(editorLayoutSetFocusedLeaf(right));
 	ASSERT_TRUE(editorTabNewEmpty());
 	char path[128];
-	ASSERT_TRUE(write_temp_file_with_suffix(path, sizeof(path),
-			"rotide-pane-syntax-multi-", ".c",
-			"int a = 1;\nint b = 2;\nint c = 3;\n"));
+	ASSERT_TRUE(write_temp_file_with_suffix(path, sizeof(path), "rotide-pane-syntax-multi-",
+	                                        ".c", "int a = 1;\nint b = 2;\nint c = 3;\n"));
 	editorOpen(path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
 
@@ -676,7 +657,8 @@ static int test_editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax_
 	return 0;
 }
 
-static int test_editor_refresh_screen_unfocused_different_tab_pane_preserves_free_scroll_mode(void) {
+static int
+test_editor_refresh_screen_unfocused_different_tab_pane_preserves_free_scroll_mode(void) {
 	ASSERT_TRUE(editorTabsInit());
 	E.window_rows = 8;
 	E.window_cols = 100;
@@ -695,8 +677,7 @@ static int test_editor_refresh_screen_unfocused_different_tab_pane_preserves_fre
 	add_row("left-011");
 
 	struct editorPaneNode *left = E.focused_leaf;
-	struct editorPaneNode *right =
-			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	struct editorPaneNode *right = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
 	ASSERT_TRUE(right != NULL);
 
 	ASSERT_TRUE(editorLayoutSetFocusedLeaf(right));
@@ -736,26 +717,43 @@ static int test_editor_refresh_screen_unfocused_different_tab_pane_preserves_fre
 }
 
 const struct editorTestCase g_render_panes_tests[] = {
-	{"editor_popup_open_select_close", test_editor_popup_open_select_close},
-	{"editor_popup_other_key_dismisses_with_pass_through", test_editor_popup_other_key_dismisses_with_pass_through},
-	{"editor_popup_renders_overlay_in_text_area", test_editor_popup_renders_overlay_in_text_area},
-	{"editor_popup_close_repaints_rows_under_overlay", test_editor_popup_close_repaints_rows_under_overlay},
-	{"editor_popup_placement_below_cursor", test_editor_popup_placement_below_cursor},
-	{"editor_popup_placement_above_when_below_overflows", test_editor_popup_placement_above_when_below_overflows},
-	{"editor_refresh_screen_vertical_split_renders_border", test_editor_refresh_screen_vertical_split_renders_border},
-	{"editor_refresh_screen_horizontal_split_renders_border", test_editor_refresh_screen_horizontal_split_renders_border},
-	{"editor_refresh_screen_nested_horizontal_border_uses_hbox", test_editor_refresh_screen_nested_horizontal_border_uses_hbox},
-	{"editor_refresh_screen_unfocused_same_tab_pane_renders_content", test_editor_refresh_screen_unfocused_same_tab_pane_renders_content},
-	{"editor_refresh_screen_vertical_split_clips_left_pane_row", test_editor_refresh_screen_vertical_split_clips_left_pane_row},
-	{"editor_refresh_screen_vertical_split_eof_tilde_does_not_collapse_into_right_pane", test_editor_refresh_screen_vertical_split_eof_tilde_does_not_collapse_into_right_pane},
-	{"editor_refresh_screen_same_tab_panes_keep_selection_independent", test_editor_refresh_screen_same_tab_panes_keep_selection_independent},
-	{"editor_refresh_screen_horizontal_scrolled_panes_keep_syntax", test_editor_refresh_screen_horizontal_scrolled_panes_keep_syntax},
-	{"editor_refresh_screen_horizontal_scrolled_panes_avoid_syntax_thrash", test_editor_refresh_screen_horizontal_scrolled_panes_avoid_syntax_thrash},
-	{"editor_refresh_screen_unfocused_different_tab_pane_renders_content", test_editor_refresh_screen_unfocused_different_tab_pane_renders_content},
-	{"editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax", test_editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax},
-	{"editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax_across_rows", test_editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax_across_rows},
-	{"editor_refresh_screen_unfocused_different_tab_pane_preserves_free_scroll_mode", test_editor_refresh_screen_unfocused_different_tab_pane_preserves_free_scroll_mode},
+        {"editor_popup_open_select_close", test_editor_popup_open_select_close},
+        {"editor_popup_other_key_dismisses_with_pass_through",
+         test_editor_popup_other_key_dismisses_with_pass_through},
+        {"editor_popup_renders_overlay_in_text_area",
+         test_editor_popup_renders_overlay_in_text_area},
+        {"editor_popup_close_repaints_rows_under_overlay",
+         test_editor_popup_close_repaints_rows_under_overlay},
+        {"editor_popup_placement_below_cursor", test_editor_popup_placement_below_cursor},
+        {"editor_popup_placement_above_when_below_overflows",
+         test_editor_popup_placement_above_when_below_overflows},
+        {"editor_refresh_screen_vertical_split_renders_border",
+         test_editor_refresh_screen_vertical_split_renders_border},
+        {"editor_refresh_screen_horizontal_split_renders_border",
+         test_editor_refresh_screen_horizontal_split_renders_border},
+        {"editor_refresh_screen_nested_horizontal_border_uses_hbox",
+         test_editor_refresh_screen_nested_horizontal_border_uses_hbox},
+        {"editor_refresh_screen_unfocused_same_tab_pane_renders_content",
+         test_editor_refresh_screen_unfocused_same_tab_pane_renders_content},
+        {"editor_refresh_screen_vertical_split_clips_left_pane_row",
+         test_editor_refresh_screen_vertical_split_clips_left_pane_row},
+        {"editor_refresh_screen_vertical_split_eof_tilde_does_not_collapse_into_right_pane",
+         test_editor_refresh_screen_vertical_split_eof_tilde_does_not_collapse_into_right_pane},
+        {"editor_refresh_screen_same_tab_panes_keep_selection_independent",
+         test_editor_refresh_screen_same_tab_panes_keep_selection_independent},
+        {"editor_refresh_screen_horizontal_scrolled_panes_keep_syntax",
+         test_editor_refresh_screen_horizontal_scrolled_panes_keep_syntax},
+        {"editor_refresh_screen_horizontal_scrolled_panes_avoid_syntax_thrash",
+         test_editor_refresh_screen_horizontal_scrolled_panes_avoid_syntax_thrash},
+        {"editor_refresh_screen_unfocused_different_tab_pane_renders_content",
+         test_editor_refresh_screen_unfocused_different_tab_pane_renders_content},
+        {"editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax",
+         test_editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax},
+        {"editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax_across_rows",
+         test_editor_refresh_screen_unfocused_different_tab_pane_keeps_syntax_across_rows},
+        {"editor_refresh_screen_unfocused_different_tab_pane_preserves_free_scroll_mode",
+         test_editor_refresh_screen_unfocused_different_tab_pane_preserves_free_scroll_mode},
 };
 
 const int g_render_panes_test_count =
-		(int)(sizeof(g_render_panes_tests) / sizeof(g_render_panes_tests[0]));
+        (int)(sizeof(g_render_panes_tests) / sizeof(g_render_panes_tests[0]));

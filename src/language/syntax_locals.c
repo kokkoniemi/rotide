@@ -6,10 +6,8 @@
  * and the per-node text extraction helper used by both the locals
  * analysis pass and predicate evaluation.
  */
-#include "language/syntax_internal.h"
-
 #include "language/languages.h"
-
+#include "language/syntax_internal.h"
 #include "tree_sitter/api.h"
 
 #include <stdint.h>
@@ -35,13 +33,12 @@ static uint32_t editorSyntaxNodeSpan(TSNode node) {
 }
 
 static int editorSyntaxStateCopySourceRangeToScratch(struct editorSyntaxState *state,
-		const struct editorTextSource *source,
-		size_t start_byte,
-		size_t end_byte,
-		int scratch_idx,
-		const char **text_out, size_t *len_out) {
+                                                     const struct editorTextSource *source,
+                                                     size_t start_byte, size_t end_byte,
+                                                     int scratch_idx, const char **text_out,
+                                                     size_t *len_out) {
 	if (state == NULL || source == NULL || text_out == NULL || len_out == NULL ||
-			end_byte < start_byte || end_byte > source->length) {
+	    end_byte < start_byte || end_byte > source->length) {
 		return 0;
 	}
 	if (start_byte == end_byte) {
@@ -51,8 +48,8 @@ static int editorSyntaxStateCopySourceRangeToScratch(struct editorSyntaxState *s
 	}
 
 	char **scratch = scratch_idx == 0 ? &state->scratch_primary : &state->scratch_secondary;
-	size_t *scratch_cap = scratch_idx == 0 ?
-			&state->scratch_primary_cap : &state->scratch_secondary_cap;
+	size_t *scratch_cap =
+	        scratch_idx == 0 ? &state->scratch_primary_cap : &state->scratch_secondary_cap;
 	size_t len = end_byte - start_byte;
 	if (*scratch_cap < len + 1) {
 		char *grown = realloc(*scratch, len + 1);
@@ -71,9 +68,8 @@ static int editorSyntaxStateCopySourceRangeToScratch(struct editorSyntaxState *s
 	return 1;
 }
 
-int editorSyntaxNodeText(struct editorSyntaxState *state,
-		const struct editorTextSource *source, TSNode node, int scratch_idx,
-		const char **text_out, size_t *len_out) {
+int editorSyntaxNodeText(struct editorSyntaxState *state, const struct editorTextSource *source,
+                         TSNode node, int scratch_idx, const char **text_out, size_t *len_out) {
 	if (source == NULL || text_out == NULL || len_out == NULL) {
 		return 0;
 	}
@@ -84,7 +80,7 @@ int editorSyntaxNodeText(struct editorSyntaxState *state,
 		return 0;
 	}
 	return editorSyntaxStateCopySourceRangeToScratch(state, source, start, end, scratch_idx,
-			text_out, len_out);
+	                                                 text_out, len_out);
 }
 
 static int editorSyntaxNodeArrayAppend(TSNode **items, int *count, int *cap, TSNode node) {
@@ -128,9 +124,8 @@ void editorSyntaxLocalsContextFree(struct editorSyntaxLocalsContext *ctx) {
 	ctx->cap = 0;
 }
 
-static int editorSyntaxLocalsContextMarkNode(struct editorSyntaxLocalsContext *ctx,
-		TSNode node,
-		int is_local) {
+static int editorSyntaxLocalsContextMarkNode(struct editorSyntaxLocalsContext *ctx, TSNode node,
+                                             int is_local) {
 	if (ctx == NULL) {
 		return 0;
 	}
@@ -163,8 +158,7 @@ static int editorSyntaxLocalsContextMarkNode(struct editorSyntaxLocalsContext *c
 	return 1;
 }
 
-int editorSyntaxLocalsContextNodeIsLocal(const struct editorSyntaxLocalsContext *ctx,
-		TSNode node) {
+int editorSyntaxLocalsContextNodeIsLocal(const struct editorSyntaxLocalsContext *ctx, TSNode node) {
 	if (ctx == NULL) {
 		return 0;
 	}
@@ -176,16 +170,15 @@ int editorSyntaxLocalsContextNodeIsLocal(const struct editorSyntaxLocalsContext 
 	return 0;
 }
 
-static int editorSyntaxScopeAddDefinition(struct editorSyntaxScopeInfo *scope,
-		const char *name,
-		size_t name_len) {
+static int editorSyntaxScopeAddDefinition(struct editorSyntaxScopeInfo *scope, const char *name,
+                                          size_t name_len) {
 	if (scope == NULL || name == NULL) {
 		return 0;
 	}
 
 	for (int i = 0; i < scope->def_count; i++) {
 		if (strlen(scope->definitions[i]) == name_len &&
-				memcmp(scope->definitions[i], name, name_len) == 0) {
+		    memcmp(scope->definitions[i], name, name_len) == 0) {
 			return 1;
 		}
 	}
@@ -217,14 +210,13 @@ static int editorSyntaxScopeAddDefinition(struct editorSyntaxScopeInfo *scope,
 }
 
 static int editorSyntaxScopeHasDefinition(const struct editorSyntaxScopeInfo *scope,
-		const char *name,
-		size_t name_len) {
+                                          const char *name, size_t name_len) {
 	if (scope == NULL || name == NULL) {
 		return 0;
 	}
 	for (int i = 0; i < scope->def_count; i++) {
 		if (strlen(scope->definitions[i]) == name_len &&
-				memcmp(scope->definitions[i], name, name_len) == 0) {
+		    memcmp(scope->definitions[i], name, name_len) == 0) {
 			return 1;
 		}
 	}
@@ -245,8 +237,7 @@ static void editorSyntaxScopeInfoFree(struct editorSyntaxScopeInfo *scopes, int 
 }
 
 static int editorSyntaxFindInnermostScope(const struct editorSyntaxScopeInfo *scopes,
-		int scope_count,
-		TSNode node) {
+                                          int scope_count, TSNode node) {
 	int best_idx = -1;
 	uint32_t best_span = UINT32_MAX;
 	for (int i = 0; i < scope_count; i++) {
@@ -262,11 +253,10 @@ static int editorSyntaxFindInnermostScope(const struct editorSyntaxScopeInfo *sc
 	return best_idx;
 }
 
-int editorSyntaxBuildLocalsContext(const TSTree *tree,
-		struct editorSyntaxState *state,
-		enum editorSyntaxLanguage language,
-		const struct editorTextSource *source,
-		struct editorSyntaxLocalsContext *ctx_out) {
+int editorSyntaxBuildLocalsContext(const TSTree *tree, struct editorSyntaxState *state,
+                                   enum editorSyntaxLanguage language,
+                                   const struct editorTextSource *source,
+                                   struct editorSyntaxLocalsContext *ctx_out) {
 	if (ctx_out == NULL) {
 		return 0;
 	}
@@ -279,7 +269,7 @@ int editorSyntaxBuildLocalsContext(const TSTree *tree,
 	}
 
 	const struct editorSyntaxQueryCacheEntry *cache =
-			editorSyntaxLocalsQueryCacheForLanguage(language);
+	        editorSyntaxLocalsQueryCacheForLanguage(language);
 	if (cache == NULL || cache->query == NULL || cache->capture_roles == NULL) {
 		return 1;
 	}
@@ -311,18 +301,19 @@ int editorSyntaxBuildLocalsContext(const TSTree *tree,
 			}
 			uint8_t role = cache->capture_roles[capture.index];
 			if (role == EDITOR_SYNTAX_CAPTURE_ROLE_LOCAL_SCOPE) {
-				if (!editorSyntaxNodeArrayAppend(&scope_nodes, &scope_count, &scope_cap,
-							capture.node)) {
+				if (!editorSyntaxNodeArrayAppend(&scope_nodes, &scope_count,
+				                                 &scope_cap, capture.node)) {
 					goto oom;
 				}
 			} else if (role == EDITOR_SYNTAX_CAPTURE_ROLE_LOCAL_DEFINITION) {
-				if (!editorSyntaxNodeArrayAppend(&definition_nodes, &definition_count,
-							&definition_cap, capture.node)) {
+				if (!editorSyntaxNodeArrayAppend(&definition_nodes,
+				                                 &definition_count, &definition_cap,
+				                                 capture.node)) {
 					goto oom;
 				}
 			} else if (role == EDITOR_SYNTAX_CAPTURE_ROLE_LOCAL_REFERENCE) {
 				if (!editorSyntaxNodeArrayAppend(&reference_nodes, &reference_count,
-							&reference_cap, capture.node)) {
+				                                 &reference_cap, capture.node)) {
 					goto oom;
 				}
 			}
@@ -372,11 +363,13 @@ int editorSyntaxBuildLocalsContext(const TSTree *tree,
 	for (int i = 0; i < definition_count; i++) {
 		const char *text = NULL;
 		size_t text_len = 0;
-		if (!editorSyntaxNodeText(state, source, definition_nodes[i], 0, &text, &text_len) ||
-				text_len == 0) {
+		if (!editorSyntaxNodeText(state, source, definition_nodes[i], 0, &text,
+		                          &text_len) ||
+		    text_len == 0) {
 			continue;
 		}
-		int scope_idx = editorSyntaxFindInnermostScope(scopes, scope_count, definition_nodes[i]);
+		int scope_idx =
+		        editorSyntaxFindInnermostScope(scopes, scope_count, definition_nodes[i]);
 		if (scope_idx < 0) {
 			continue;
 		}
@@ -394,10 +387,11 @@ int editorSyntaxBuildLocalsContext(const TSTree *tree,
 		const char *text = NULL;
 		size_t text_len = 0;
 		if (!editorSyntaxNodeText(state, source, reference_nodes[i], 0, &text, &text_len) ||
-				text_len == 0) {
+		    text_len == 0) {
 			continue;
 		}
-		int scope_idx = editorSyntaxFindInnermostScope(scopes, scope_count, reference_nodes[i]);
+		int scope_idx =
+		        editorSyntaxFindInnermostScope(scopes, scope_count, reference_nodes[i]);
 		if (scope_idx < 0) {
 			continue;
 		}
@@ -443,13 +437,12 @@ void editorSyntaxStateInvalidateLocalsCaches(struct editorSyntaxState *state) {
 	}
 }
 
-int editorSyntaxStateEnsureLocalsCached(
-		struct editorSyntaxState *state,
-		const struct editorSyntaxParsedTree *parsed,
-		const struct editorTextSource *source,
-		enum editorSyntaxLanguage language,
-		struct editorSyntaxInjectedTree *injection,
-		const struct editorSyntaxLocalsContext **locals_out) {
+int editorSyntaxStateEnsureLocalsCached(struct editorSyntaxState *state,
+                                        const struct editorSyntaxParsedTree *parsed,
+                                        const struct editorTextSource *source,
+                                        enum editorSyntaxLanguage language,
+                                        struct editorSyntaxInjectedTree *injection,
+                                        const struct editorSyntaxLocalsContext **locals_out) {
 	if (locals_out == NULL) {
 		return 0;
 	}
@@ -459,12 +452,11 @@ int editorSyntaxStateEnsureLocalsCached(
 		return 1;
 	}
 
-	struct editorSyntaxLocalsContext *cache = injection != NULL ?
-			&injection->locals : &state->host_locals;
-	uint64_t *cache_revision = injection != NULL ?
-			&injection->locals_revision : &state->host_locals_revision;
-	int *cache_valid = injection != NULL ?
-			&injection->locals_valid : &state->host_locals_valid;
+	struct editorSyntaxLocalsContext *cache =
+	        injection != NULL ? &injection->locals : &state->host_locals;
+	uint64_t *cache_revision =
+	        injection != NULL ? &injection->locals_revision : &state->host_locals_revision;
+	int *cache_valid = injection != NULL ? &injection->locals_valid : &state->host_locals_valid;
 
 	if (*cache_valid && *cache_revision == parsed->revision) {
 		*locals_out = cache;

@@ -20,8 +20,7 @@ static size_t editorPromptPrevDeleteIdx(const char *buf, size_t buflen) {
 	}
 
 	size_t seq_start = buflen - 1;
-	while (seq_start > 0 &&
-			editorIsUtf8ContinuationByte((unsigned char)buf[seq_start])) {
+	while (seq_start > 0 && editorIsUtf8ContinuationByte((unsigned char)buf[seq_start])) {
 		seq_start--;
 	}
 
@@ -47,8 +46,7 @@ void editorExitOnInputShutdown(void) {
 	exit(EXIT_FAILURE);
 }
 
-char *editorPromptWithCallback(const char *prompt, int allow_empty,
-		editorPromptCallback callback) {
+char *editorPromptWithCallback(const char *prompt, int allow_empty, editorPromptCallback callback) {
 	size_t bufmax = 128;
 	char *buf = editorMalloc(bufmax);
 	if (buf == NULL) {

@@ -13,8 +13,7 @@ void editorTextSummaryZero(struct editorTextSummary *out) {
 	out->max_line_bytes = 0;
 }
 
-void editorTextSummaryFromBytes(const char *bytes, size_t len,
-		struct editorTextSummary *out) {
+void editorTextSummaryFromBytes(const char *bytes, size_t len, struct editorTextSummary *out) {
 	if (out == NULL) {
 		return;
 	}
@@ -53,7 +52,7 @@ void editorTextSummaryFromBytes(const char *bytes, size_t len,
 }
 
 void editorTextSummaryMerge(const struct editorTextSummary *left,
-		const struct editorTextSummary *right, struct editorTextSummary *out) {
+                            const struct editorTextSummary *right, struct editorTextSummary *out) {
 	if (out == NULL || left == NULL || right == NULL) {
 		return;
 	}
@@ -64,12 +63,10 @@ void editorTextSummaryMerge(const struct editorTextSummary *left,
 
 	size_t boundary = left->last_line_bytes + right->first_line_bytes;
 
-	merged.first_line_bytes = left->newlines == 0
-		? left->bytes + right->first_line_bytes
-		: left->first_line_bytes;
-	merged.last_line_bytes = right->newlines == 0
-		? left->last_line_bytes + right->bytes
-		: right->last_line_bytes;
+	merged.first_line_bytes = left->newlines == 0 ? left->bytes + right->first_line_bytes
+	                                              : left->first_line_bytes;
+	merged.last_line_bytes = right->newlines == 0 ? left->last_line_bytes + right->bytes
+	                                              : right->last_line_bytes;
 
 	merged.max_line_bytes = left->max_line_bytes;
 	if (right->max_line_bytes > merged.max_line_bytes) {

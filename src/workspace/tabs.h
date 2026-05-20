@@ -54,7 +54,7 @@ int editorTabDirtyAt(int idx);
 
 /* Rendering and hit-testing helpers keep tab bar layout outside the renderer. */
 int editorTabBuildLayoutForWidth(int cols, struct editorTabLayoutEntry *entries, int max_entries,
-		int *count_out);
+                                 int *count_out);
 int editorTabHitTestColumn(int col, int cols);
 int editorTabOverflowHitTestColumn(int col, int cols);
 int editorActiveTabIsTaskLog(void);

@@ -12,8 +12,8 @@ static int test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers(void) {
 	ASSERT_EQ_INT(EDITOR_SYNTAX_NONE, editorSyntaxLanguageActive());
 
 	char goto_def_txt[] = {CTRL_KEY('o')};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def_txt,
-			sizeof(goto_def_txt)) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def_txt, sizeof(goto_def_txt)) ==
+	            0);
 
 	struct editorLspTestStats stats = {0};
 	editorLspTestGetStats(&stats);
@@ -22,14 +22,14 @@ static int test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers(void) {
 
 	char go_path[64];
 	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
-			"package main\n\nfunc main() {\n\tmain()\n}\n"));
+	                               "package main\n\nfunc main() {\n\tmain()\n}\n"));
 	editorOpen(go_path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_GO, editorSyntaxLanguageActive());
 
 	editorLspTestSetMockDefinitionResponse(1, NULL, 0);
 	char goto_def_go[] = {CTRL_KEY('o')};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def_go,
-			sizeof(goto_def_go)) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def_go, sizeof(goto_def_go)) ==
+	            0);
 
 	editorLspTestGetStats(&stats);
 	ASSERT_EQ_INT(1, stats.start_count);
@@ -47,8 +47,8 @@ static int test_editor_lsp_lifecycle_restart_after_mock_crash(void) {
 	E.lsp_clangd_enabled = 1;
 
 	char go_path[64];
-	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
-			"package main\n\nfunc main() {}\n"));
+	ASSERT_TRUE(
+	        write_temp_go_file(go_path, sizeof(go_path), "package main\n\nfunc main() {}\n"));
 	editorOpen(go_path);
 
 	editorLspTestSetMockDefinitionResponse(1, NULL, 0);
@@ -80,21 +80,19 @@ static int test_editor_lsp_lifecycle_restarts_when_switching_between_go_clangd_a
 	char go_path[64];
 	char c_path[64];
 	char html_path[64];
-	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
-			"package main\n\nfunc helper() {}\nfunc main() { helper() }\n"));
-	ASSERT_TRUE(write_temp_c_file(c_path, sizeof(c_path),
-			"int helper(void) { return 1; }\nint main(void) { return helper(); }\n"));
+	ASSERT_TRUE(
+	        write_temp_go_file(go_path, sizeof(go_path),
+	                           "package main\n\nfunc helper() {}\nfunc main() { helper() }\n"));
+	ASSERT_TRUE(write_temp_c_file(
+	        c_path, sizeof(c_path),
+	        "int helper(void) { return 1; }\nint main(void) { return helper(); }\n"));
 	ASSERT_TRUE(write_temp_html_file(html_path, sizeof(html_path),
-			"<div id=\"app\"></div>\n<a href=\"#app\">jump</a>\n"));
+	                                 "<div id=\"app\"></div>\n<a href=\"#app\">jump</a>\n"));
 
 	editorOpen(go_path);
 	E.cy = 3;
 	E.cx = 15;
-	struct editorLspLocation go_target = {
-		.path = go_path,
-		.line = 2,
-		.character = 5
-	};
+	struct editorLspLocation go_target = {.path = go_path, .line = 2, .character = 5};
 	editorLspTestSetMockDefinitionResponse(1, &go_target, 1);
 	char goto_def[] = {CTRL_KEY('o')};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
@@ -102,22 +100,14 @@ static int test_editor_lsp_lifecycle_restarts_when_switching_between_go_clangd_a
 	editorOpen(c_path);
 	E.cy = 1;
 	E.cx = 24;
-	struct editorLspLocation c_target = {
-		.path = c_path,
-		.line = 0,
-		.character = 4
-	};
+	struct editorLspLocation c_target = {.path = c_path, .line = 0, .character = 4};
 	editorLspTestSetMockDefinitionResponse(1, &c_target, 1);
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 
 	editorOpen(html_path);
 	E.cy = 1;
 	E.cx = 11;
-	struct editorLspLocation html_target = {
-		.path = html_path,
-		.line = 0,
-		.character = 9
-	};
+	struct editorLspLocation html_target = {.path = html_path, .line = 0, .character = 9};
 	editorLspTestSetMockDefinitionResponse(1, &html_target, 1);
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 
@@ -164,16 +154,12 @@ static int test_editor_lsp_lifecycle_restarts_when_clangd_workspace_root_changes
 	ASSERT_TRUE(make_dir(project_b));
 	ASSERT_TRUE(write_text_file(marker_a, "[]\n"));
 	ASSERT_TRUE(write_text_file(marker_b, "[]\n"));
-	ASSERT_TRUE(write_text_file(file_a,
-				"int helper(void) { return 1; }\nint main(void) { return helper(); }\n"));
-	ASSERT_TRUE(write_text_file(file_b,
-				"int helper(void) { return 2; }\nint main(void) { return helper(); }\n"));
+	ASSERT_TRUE(write_text_file(
+	        file_a, "int helper(void) { return 1; }\nint main(void) { return helper(); }\n"));
+	ASSERT_TRUE(write_text_file(
+	        file_b, "int helper(void) { return 2; }\nint main(void) { return helper(); }\n"));
 
-	struct editorLspLocation target = {
-		.path = file_a,
-		.line = 0,
-		.character = 4
-	};
+	struct editorLspLocation target = {.path = file_a, .line = 0, .character = 4};
 	editorLspTestSetMockDefinitionResponse(1, &target, 1);
 	editorOpen(file_a);
 	E.cy = 1;
@@ -233,11 +219,7 @@ static int test_editor_lsp_lifecycle_restarts_when_html_workspace_root_changes(v
 	ASSERT_TRUE(write_text_file(file_a, "<div id=\"a\"></div>\n<a href=\"#a\">jump</a>\n"));
 	ASSERT_TRUE(write_text_file(file_b, "<div id=\"b\"></div>\n<a href=\"#b\">jump</a>\n"));
 
-	struct editorLspLocation target = {
-		.path = file_a,
-		.line = 0,
-		.character = 9
-	};
+	struct editorLspLocation target = {.path = file_a, .line = 0, .character = 9};
 	editorLspTestSetMockDefinitionResponse(1, &target, 1);
 	editorOpen(file_a);
 	E.cy = 1;
@@ -275,7 +257,7 @@ static int test_editor_lsp_document_sync_for_go_edit_save_close(void) {
 
 	char go_path[64];
 	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
-			"package main\n\nfunc main() {\n\tprintln(\"ok\")\n}\n"));
+	                               "package main\n\nfunc main() {\n\tprintln(\"ok\")\n}\n"));
 	editorOpen(go_path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_GO, editorSyntaxLanguageActive());
 
@@ -314,8 +296,8 @@ static int test_editor_lsp_document_sync_for_c_edit_save_close(void) {
 	ASSERT_TRUE(editorTabsInit());
 
 	char c_path[64];
-	ASSERT_TRUE(write_temp_c_file(c_path, sizeof(c_path),
-			"int main(void) {\n\treturn 0;\n}\n"));
+	ASSERT_TRUE(
+	        write_temp_c_file(c_path, sizeof(c_path), "int main(void) {\n\treturn 0;\n}\n"));
 	editorOpen(c_path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_C, editorSyntaxLanguageActive());
 
@@ -354,8 +336,8 @@ static int test_editor_lsp_document_did_open_sent_on_file_open(void) {
 	ASSERT_TRUE(editorTabsInit());
 
 	char c_path[64];
-	ASSERT_TRUE(write_temp_c_file(c_path, sizeof(c_path),
-			"int main(void) {\n\treturn 0;\n}\n"));
+	ASSERT_TRUE(
+	        write_temp_c_file(c_path, sizeof(c_path), "int main(void) {\n\treturn 0;\n}\n"));
 	editorOpen(c_path);
 
 	struct editorLspTestStats stats = {0};
@@ -377,8 +359,8 @@ static int test_editor_lsp_did_change_without_syntax_edit_sends_full_buffer(void
 	ASSERT_TRUE(editorTabsInit());
 
 	char go_path[64];
-	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
-			"package main\n\nfunc main() {}\n"));
+	ASSERT_TRUE(
+	        write_temp_go_file(go_path, sizeof(go_path), "package main\n\nfunc main() {}\n"));
 	editorOpen(go_path);
 	ASSERT_EQ_INT(1, E.lsp_doc_open);
 
@@ -412,7 +394,7 @@ static int test_editor_lsp_document_sync_for_html_edit_save_close(void) {
 
 	char html_path[64];
 	ASSERT_TRUE(write_temp_html_file(html_path, sizeof(html_path),
-			"<div id=\"app\"></div>\n<a href=\"#app\">jump</a>\n"));
+	                                 "<div id=\"app\"></div>\n<a href=\"#app\">jump</a>\n"));
 	editorOpen(html_path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_HTML, editorSyntaxLanguageActive());
 
@@ -450,9 +432,9 @@ static int test_editor_lsp_document_sync_for_css_edit_save_close(void) {
 	ASSERT_TRUE(editorTabsInit());
 
 	char css_path[64];
-	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(css_path, sizeof(css_path),
-			"rotide-test-css-lsp-fixture-", ".css",
-			"tests/lsp/supported/css/single_file_definition.css"));
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
+	        css_path, sizeof(css_path), "rotide-test-css-lsp-fixture-", ".css",
+	        "tests/lsp/supported/css/single_file_definition.css"));
 	editorOpen(css_path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_CSS, editorSyntaxLanguageActive());
 
@@ -491,9 +473,9 @@ static int test_editor_lsp_document_sync_for_javascript_edit_save_close(void) {
 	ASSERT_TRUE(editorTabsInit());
 
 	char js_path[64];
-	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(js_path, sizeof(js_path),
-			"rotide-test-javascript-lsp-fixture-", ".js",
-			"tests/lsp/supported/javascript/single_file_definition.js"));
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
+	        js_path, sizeof(js_path), "rotide-test-javascript-lsp-fixture-", ".js",
+	        "tests/lsp/supported/javascript/single_file_definition.js"));
 	editorOpen(js_path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, editorSyntaxLanguageActive());
 
@@ -528,8 +510,8 @@ static int test_editor_lsp_full_document_change_uses_active_source(void) {
 	E.lsp_clangd_enabled = 1;
 
 	char go_path[64];
-	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
-			"package main\n\nfunc main() {}\n"));
+	ASSERT_TRUE(
+	        write_temp_go_file(go_path, sizeof(go_path), "package main\n\nfunc main() {}\n"));
 	editorOpen(go_path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_GO, editorSyntaxLanguageActive());
 
@@ -537,8 +519,8 @@ static int test_editor_lsp_full_document_change_uses_active_source(void) {
 	char goto_def[] = {CTRL_KEY('o')};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
 
-	ASSERT_TRUE(editorLspNotifyDidChange(E.filename, E.syntax_language,
-				&E.lsp_doc_open, &E.lsp_doc_version, NULL, NULL, 0, NULL, 0));
+	ASSERT_TRUE(editorLspNotifyDidChange(E.filename, E.syntax_language, &E.lsp_doc_open,
+	                                     &E.lsp_doc_version, NULL, NULL, 0, NULL, 0));
 
 	struct editorLspTestLastChange change = {0};
 	editorLspTestGetLastChange(&change);
@@ -586,18 +568,16 @@ static int test_editor_lsp_html_language_id_routing_for_supported_extensions(voi
 	char htm_path[64];
 	char xhtml_path[64];
 	ASSERT_TRUE(write_temp_file_with_suffix(html_path, sizeof(html_path),
-			"rotide-test-html-route-", ".html", "<div id=\"a\"></div>\n<a href=\"#a\">jump</a>\n"));
+	                                        "rotide-test-html-route-", ".html",
+	                                        "<div id=\"a\"></div>\n<a href=\"#a\">jump</a>\n"));
 	ASSERT_TRUE(write_temp_file_with_suffix(htm_path, sizeof(htm_path),
-			"rotide-test-html-route-", ".htm", "<div id=\"b\"></div>\n<a href=\"#b\">jump</a>\n"));
+	                                        "rotide-test-html-route-", ".htm",
+	                                        "<div id=\"b\"></div>\n<a href=\"#b\">jump</a>\n"));
 	ASSERT_TRUE(write_temp_file_with_suffix(xhtml_path, sizeof(xhtml_path),
-			"rotide-test-html-route-", ".xhtml",
-			"<div id=\"c\"></div>\n<a href=\"#c\">jump</a>\n"));
+	                                        "rotide-test-html-route-", ".xhtml",
+	                                        "<div id=\"c\"></div>\n<a href=\"#c\">jump</a>\n"));
 
-	struct editorLspLocation target = {
-		.path = html_path,
-		.line = 0,
-		.character = 9
-	};
+	struct editorLspLocation target = {.path = html_path, .line = 0, .character = 9};
 	char language_id[32];
 	char goto_def[] = {CTRL_KEY('o')};
 
@@ -644,21 +624,17 @@ static int test_editor_lsp_language_id_routing_for_css_scss_and_json(void) {
 	char css_path[64];
 	char scss_path[64];
 	char json_path[64];
-	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(css_path, sizeof(css_path),
-			"rotide-test-css-route-", ".css",
-			"tests/lsp/supported/css/single_file_definition.css"));
-	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(scss_path, sizeof(scss_path),
-			"rotide-test-scss-route-", ".scss",
-			"tests/lsp/supported/css/single_file_definition.scss"));
-	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(json_path, sizeof(json_path),
-			"rotide-test-json-route-", ".json",
-			"tests/lsp/supported/json/single_file_definition.json"));
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
+	        css_path, sizeof(css_path), "rotide-test-css-route-", ".css",
+	        "tests/lsp/supported/css/single_file_definition.css"));
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
+	        scss_path, sizeof(scss_path), "rotide-test-scss-route-", ".scss",
+	        "tests/lsp/supported/css/single_file_definition.scss"));
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
+	        json_path, sizeof(json_path), "rotide-test-json-route-", ".json",
+	        "tests/lsp/supported/json/single_file_definition.json"));
 
-	struct editorLspLocation target = {
-		.path = css_path,
-		.line = 0,
-		.character = 8
-	};
+	struct editorLspLocation target = {.path = css_path, .line = 0, .character = 8};
 	char language_id[32];
 	char goto_def[] = {CTRL_KEY('o')};
 
@@ -707,24 +683,20 @@ static int test_editor_lsp_language_id_routing_for_javascript_extensions(void) {
 	char mjs_path[64];
 	char cjs_path[64];
 	char jsx_path[64];
-	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(js_path, sizeof(js_path),
-			"rotide-test-javascript-route-", ".js",
-			"tests/lsp/supported/javascript/single_file_definition.js"));
-	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(mjs_path, sizeof(mjs_path),
-			"rotide-test-javascript-route-", ".mjs",
-			"tests/lsp/supported/javascript/single_file_definition.js"));
-	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(cjs_path, sizeof(cjs_path),
-			"rotide-test-javascript-route-", ".cjs",
-			"tests/lsp/supported/javascript/single_file_definition.js"));
-	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(jsx_path, sizeof(jsx_path),
-			"rotide-test-javascript-route-", ".jsx",
-			"tests/lsp/supported/javascript/single_file_definition.jsx"));
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
+	        js_path, sizeof(js_path), "rotide-test-javascript-route-", ".js",
+	        "tests/lsp/supported/javascript/single_file_definition.js"));
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
+	        mjs_path, sizeof(mjs_path), "rotide-test-javascript-route-", ".mjs",
+	        "tests/lsp/supported/javascript/single_file_definition.js"));
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
+	        cjs_path, sizeof(cjs_path), "rotide-test-javascript-route-", ".cjs",
+	        "tests/lsp/supported/javascript/single_file_definition.js"));
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
+	        jsx_path, sizeof(jsx_path), "rotide-test-javascript-route-", ".jsx",
+	        "tests/lsp/supported/javascript/single_file_definition.jsx"));
 
-	struct editorLspLocation target = {
-		.path = js_path,
-		.line = 0,
-		.character = 6
-	};
+	struct editorLspLocation target = {.path = js_path, .line = 0, .character = 6};
 	char language_id[32];
 	char goto_def[] = {CTRL_KEY('o')};
 
@@ -773,24 +745,41 @@ static int test_editor_lsp_language_id_routing_for_javascript_extensions(void) {
 }
 
 const struct editorTestCase g_lsp_lifecycle_tests[] = {
-	{"editor_lsp_lifecycle_lazy_start_and_non_go_buffers", test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers},
-	{"editor_lsp_lifecycle_restart_after_mock_crash", test_editor_lsp_lifecycle_restart_after_mock_crash},
-	{"editor_lsp_lifecycle_restarts_when_switching_between_go_clangd_and_html", test_editor_lsp_lifecycle_restarts_when_switching_between_go_clangd_and_html},
-	{"editor_lsp_lifecycle_restarts_when_clangd_workspace_root_changes", test_editor_lsp_lifecycle_restarts_when_clangd_workspace_root_changes},
-	{"editor_lsp_lifecycle_restarts_when_html_workspace_root_changes", test_editor_lsp_lifecycle_restarts_when_html_workspace_root_changes},
-	{"editor_lsp_document_sync_for_go_edit_save_close", test_editor_lsp_document_sync_for_go_edit_save_close},
-	{"editor_lsp_document_sync_for_c_edit_save_close", test_editor_lsp_document_sync_for_c_edit_save_close},
-	{"editor_lsp_document_did_open_sent_on_file_open", test_editor_lsp_document_did_open_sent_on_file_open},
-	{"editor_lsp_did_change_without_syntax_edit_sends_full_buffer", test_editor_lsp_did_change_without_syntax_edit_sends_full_buffer},
-	{"editor_lsp_document_sync_for_html_edit_save_close", test_editor_lsp_document_sync_for_html_edit_save_close},
-	{"editor_lsp_document_sync_for_css_edit_save_close", test_editor_lsp_document_sync_for_css_edit_save_close},
-	{"editor_lsp_document_sync_for_javascript_edit_save_close", test_editor_lsp_document_sync_for_javascript_edit_save_close},
-	{"editor_lsp_full_document_change_uses_active_source", test_editor_lsp_full_document_change_uses_active_source},
-	{"editor_lsp_document_sync_ignores_non_go_buffers", test_editor_lsp_document_sync_ignores_non_go_buffers},
-	{"editor_lsp_html_language_id_routing_for_supported_extensions", test_editor_lsp_html_language_id_routing_for_supported_extensions},
-	{"editor_lsp_language_id_routing_for_css_scss_and_json", test_editor_lsp_language_id_routing_for_css_scss_and_json},
-	{"editor_lsp_language_id_routing_for_javascript_extensions", test_editor_lsp_language_id_routing_for_javascript_extensions},
+        {"editor_lsp_lifecycle_lazy_start_and_non_go_buffers",
+         test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers},
+        {"editor_lsp_lifecycle_restart_after_mock_crash",
+         test_editor_lsp_lifecycle_restart_after_mock_crash},
+        {"editor_lsp_lifecycle_restarts_when_switching_between_go_clangd_and_html",
+         test_editor_lsp_lifecycle_restarts_when_switching_between_go_clangd_and_html},
+        {"editor_lsp_lifecycle_restarts_when_clangd_workspace_root_changes",
+         test_editor_lsp_lifecycle_restarts_when_clangd_workspace_root_changes},
+        {"editor_lsp_lifecycle_restarts_when_html_workspace_root_changes",
+         test_editor_lsp_lifecycle_restarts_when_html_workspace_root_changes},
+        {"editor_lsp_document_sync_for_go_edit_save_close",
+         test_editor_lsp_document_sync_for_go_edit_save_close},
+        {"editor_lsp_document_sync_for_c_edit_save_close",
+         test_editor_lsp_document_sync_for_c_edit_save_close},
+        {"editor_lsp_document_did_open_sent_on_file_open",
+         test_editor_lsp_document_did_open_sent_on_file_open},
+        {"editor_lsp_did_change_without_syntax_edit_sends_full_buffer",
+         test_editor_lsp_did_change_without_syntax_edit_sends_full_buffer},
+        {"editor_lsp_document_sync_for_html_edit_save_close",
+         test_editor_lsp_document_sync_for_html_edit_save_close},
+        {"editor_lsp_document_sync_for_css_edit_save_close",
+         test_editor_lsp_document_sync_for_css_edit_save_close},
+        {"editor_lsp_document_sync_for_javascript_edit_save_close",
+         test_editor_lsp_document_sync_for_javascript_edit_save_close},
+        {"editor_lsp_full_document_change_uses_active_source",
+         test_editor_lsp_full_document_change_uses_active_source},
+        {"editor_lsp_document_sync_ignores_non_go_buffers",
+         test_editor_lsp_document_sync_ignores_non_go_buffers},
+        {"editor_lsp_html_language_id_routing_for_supported_extensions",
+         test_editor_lsp_html_language_id_routing_for_supported_extensions},
+        {"editor_lsp_language_id_routing_for_css_scss_and_json",
+         test_editor_lsp_language_id_routing_for_css_scss_and_json},
+        {"editor_lsp_language_id_routing_for_javascript_extensions",
+         test_editor_lsp_language_id_routing_for_javascript_extensions},
 };
 
 const int g_lsp_lifecycle_test_count =
-		(int)(sizeof(g_lsp_lifecycle_tests) / sizeof(g_lsp_lifecycle_tests[0]));
+        (int)(sizeof(g_lsp_lifecycle_tests) / sizeof(g_lsp_lifecycle_tests[0]));

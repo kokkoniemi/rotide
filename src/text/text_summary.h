@@ -18,9 +18,8 @@ struct editorTextSummary {
 };
 
 void editorTextSummaryZero(struct editorTextSummary *out);
-void editorTextSummaryFromBytes(const char *bytes, size_t len,
-		struct editorTextSummary *out);
+void editorTextSummaryFromBytes(const char *bytes, size_t len, struct editorTextSummary *out);
 void editorTextSummaryMerge(const struct editorTextSummary *left,
-		const struct editorTextSummary *right, struct editorTextSummary *out);
+                            const struct editorTextSummary *right, struct editorTextSummary *out);
 
 #endif

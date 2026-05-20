@@ -22,8 +22,7 @@ static char *build_dense_c_expression_source(int terms, size_t *len_out) {
 	}
 	used += (size_t)written;
 	for (int i = 0; i < terms; i++) {
-		written = snprintf(source + used, cap - used, "%s%d",
-				i == 0 ? "" : " + ", i);
+		written = snprintf(source + used, cap - used, "%s%d", i == 0 ? "" : " + ", i);
 		if (written < 0 || (size_t)written >= cap - used) {
 			free(source);
 			return NULL;
@@ -59,9 +58,9 @@ static int test_editor_syntax_query_budget_match_limit_is_graceful(void) {
 
 	struct editorSyntaxCapture captures[1024];
 	int capture_count = 0;
-	ASSERT_TRUE(editorSyntaxStateCollectCapturesForRange(state, &source_view, 0,
-				(uint32_t)source_len, captures,
-				(int)(sizeof(captures) / sizeof(captures[0])), &capture_count));
+	ASSERT_TRUE(editorSyntaxStateCollectCapturesForRange(
+	        state, &source_view, 0, (uint32_t)source_len, captures,
+	        (int)(sizeof(captures) / sizeof(captures[0])), &capture_count));
 	ASSERT_TRUE(editorSyntaxStateConsumeBudgetEvents(state, &parse_budget, &query_budget));
 	ASSERT_EQ_INT(0, parse_budget);
 	ASSERT_EQ_INT(1, query_budget);
@@ -76,8 +75,7 @@ static int test_editor_syntax_query_compile_failure_records_diagnostics(void) {
 	const char *broken_query = "((identifier) @name";
 	editorSyntaxTestResetLastQueryCompileError();
 
-	ASSERT_EQ_INT(0, editorSyntaxTestCompileQueryForDiagnostics(
-				EDITOR_SYNTAX_C, broken_query));
+	ASSERT_EQ_INT(0, editorSyntaxTestCompileQueryForDiagnostics(EDITOR_SYNTAX_C, broken_query));
 
 	struct editorSyntaxQueryCompileError error = {0};
 	ASSERT_TRUE(editorSyntaxCopyLastQueryCompileError(&error));
@@ -121,25 +119,20 @@ static int test_editor_syntax_capture_rules_are_longest_match_first(void) {
 		ASSERT_TRUE(written > 0);
 		ASSERT_TRUE((size_t)written < sizeof(nested_capture));
 		ASSERT_EQ_INT(highlight_class,
-				editorSyntaxTestClassFromCaptureName(nested_capture));
+		              editorSyntaxTestClassFromCaptureName(nested_capture));
 
 		previous_len = prefix_len;
 	}
 
 	ASSERT_EQ_INT(EDITOR_SYNTAX_HL_PARAMETER,
-			editorSyntaxTestClassFromCaptureName("variable.parameter"));
+	              editorSyntaxTestClassFromCaptureName("variable.parameter"));
 	ASSERT_EQ_INT(EDITOR_SYNTAX_HL_PROPERTY,
-			editorSyntaxTestClassFromCaptureName("variable.member"));
-	ASSERT_EQ_INT(EDITOR_SYNTAX_HL_VARIABLE,
-			editorSyntaxTestClassFromCaptureName("variable"));
-	ASSERT_EQ_INT(EDITOR_SYNTAX_HL_MODULE,
-			editorSyntaxTestClassFromCaptureName("namespace"));
-	ASSERT_EQ_INT(EDITOR_SYNTAX_HL_PROPERTY,
-			editorSyntaxTestClassFromCaptureName("property"));
-	ASSERT_EQ_INT(EDITOR_SYNTAX_HL_CONSTANT,
-			editorSyntaxTestClassFromCaptureName("constant"));
-	ASSERT_EQ_INT(EDITOR_SYNTAX_HL_NONE,
-			editorSyntaxTestClassFromCaptureName("none"));
+	              editorSyntaxTestClassFromCaptureName("variable.member"));
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HL_VARIABLE, editorSyntaxTestClassFromCaptureName("variable"));
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HL_MODULE, editorSyntaxTestClassFromCaptureName("namespace"));
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HL_PROPERTY, editorSyntaxTestClassFromCaptureName("property"));
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HL_CONSTANT, editorSyntaxTestClassFromCaptureName("constant"));
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HL_NONE, editorSyntaxTestClassFromCaptureName("none"));
 	return 0;
 }
 
@@ -154,9 +147,9 @@ static int test_editor_syntax_collect_c_captures_without_injection_query_is_grac
 
 	struct editorSyntaxCapture captures[32];
 	int capture_count = 0;
-	ASSERT_TRUE(editorSyntaxStateCollectCapturesForRange(state, &source_view, 0,
-				(uint32_t)strlen(source), captures,
-				(int)(sizeof(captures) / sizeof(captures[0])), &capture_count));
+	ASSERT_TRUE(editorSyntaxStateCollectCapturesForRange(
+	        state, &source_view, 0, (uint32_t)strlen(source), captures,
+	        (int)(sizeof(captures) / sizeof(captures[0])), &capture_count));
 	ASSERT_TRUE(capture_count > 0);
 	ASSERT_TRUE(!editorSyntaxStateConsumeQueryUnavailableEvent(state, NULL, NULL));
 
@@ -178,8 +171,8 @@ static int test_editor_syntax_capture_truncation_reports_event_and_keeps_span_li
 
 	struct editorRowSyntaxSpan spans[ROTIDE_MAX_SYNTAX_SPANS_PER_ROW];
 	int span_count = 0;
-	ASSERT_TRUE(editorSyntaxRowRenderSpans(0, spans,
-				(int)(sizeof(spans) / sizeof(spans[0])), &span_count));
+	ASSERT_TRUE(editorSyntaxRowRenderSpans(0, spans, (int)(sizeof(spans) / sizeof(spans[0])),
+	                                       &span_count));
 	ASSERT_EQ_INT(ROTIDE_MAX_SYNTAX_SPANS_PER_ROW, span_count);
 
 	for (int i = 0; i < span_count; i++) {
@@ -202,8 +195,8 @@ static int test_editor_syntax_capture_truncation_reports_event_and_keeps_span_li
 	ASSERT_TRUE(strstr(E.statusmsg, "Tree-sitter syntax spans truncated") != NULL);
 
 	span_count = 0;
-	ASSERT_TRUE(editorSyntaxRowRenderSpans(0, spans,
-				(int)(sizeof(spans) / sizeof(spans[0])), &span_count));
+	ASSERT_TRUE(editorSyntaxRowRenderSpans(0, spans, (int)(sizeof(spans) / sizeof(spans[0])),
+	                                       &span_count));
 	ASSERT_EQ_INT(ROTIDE_MAX_SYNTAX_SPANS_PER_ROW, span_count);
 
 	ASSERT_TRUE(unlink(path) == 0);
@@ -253,9 +246,8 @@ static int test_editor_syntax_parse_tree_errors_report_event_and_status(void) {
 static int test_editor_syntax_injection_depth_limit_reports_event(void) {
 	editorSyntaxTestSetMaxInjectionDepth(3);
 
-	const char *source =
-			"const nested = cpp`const char *page = "
-			"R\"html(<script>const tooDeep = /abc/;</script>)html\";`;\n";
+	const char *source = "const nested = cpp`const char *page = "
+	                     "R\"html(<script>const tooDeep = /abc/;</script>)html\";`;\n";
 	struct editorTextSource source_view = {0};
 	editorTextSourceInitString(&source_view, source, strlen(source));
 
@@ -273,8 +265,8 @@ static int test_editor_syntax_injection_depth_limit_reports_event(void) {
 	editorSyntaxStateDestroy(state);
 
 	char path[] = "/tmp/rotide-test-syntax-injection-depth-XXXXXX.js";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/javascript/injection_depth.js"));
+	ASSERT_TRUE(write_fixture_to_temp_path(
+	        path, 3, "tests/syntax/supported/javascript/injection_depth.js"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -287,24 +279,23 @@ static int test_editor_syntax_injection_depth_limit_reports_event(void) {
 }
 
 static int test_editor_syntax_injection_slot_limit_reports_event(void) {
-	const char *source =
-			"const a0 = c`x`;\n"
-			"const a1 = cpp`x`;\n"
-			"const a2 = go`x`;\n"
-			"const a3 = bash`x`;\n"
-			"const a4 = html`x`;\n"
-			"const a5 = javascript`x`;\n"
-			"const a6 = jsdoc`x`;\n"
-			"const a7 = typescript`x`;\n"
-			"const a8 = css`x`;\n"
-			"const a9 = json`x`;\n"
-			"const a10 = python`x`;\n"
-			"const a11 = php`x`;\n"
-			"const a12 = rust`x`;\n"
-			"const a13 = java`x`;\n"
-			"const a14 = regex`x`;\n"
-			"const a15 = csharp`x`;\n"
-			"const a16 = haskell`x`;\n";
+	const char *source = "const a0 = c`x`;\n"
+	                     "const a1 = cpp`x`;\n"
+	                     "const a2 = go`x`;\n"
+	                     "const a3 = bash`x`;\n"
+	                     "const a4 = html`x`;\n"
+	                     "const a5 = javascript`x`;\n"
+	                     "const a6 = jsdoc`x`;\n"
+	                     "const a7 = typescript`x`;\n"
+	                     "const a8 = css`x`;\n"
+	                     "const a9 = json`x`;\n"
+	                     "const a10 = python`x`;\n"
+	                     "const a11 = php`x`;\n"
+	                     "const a12 = rust`x`;\n"
+	                     "const a13 = java`x`;\n"
+	                     "const a14 = regex`x`;\n"
+	                     "const a15 = csharp`x`;\n"
+	                     "const a16 = haskell`x`;\n";
 	struct editorTextSource source_view = {0};
 	editorTextSourceInitString(&source_view, source, strlen(source));
 
@@ -366,17 +357,26 @@ static int test_editor_syntax_parse_budget_is_graceful(void) {
 }
 
 const struct editorTestCase g_syntax_captures_tests[] = {
-	{"editor_syntax_query_budget_match_limit_is_graceful", test_editor_syntax_query_budget_match_limit_is_graceful},
-	{"editor_syntax_query_compile_failure_records_diagnostics", test_editor_syntax_query_compile_failure_records_diagnostics},
-	{"editor_syntax_capture_rules_are_longest_match_first", test_editor_syntax_capture_rules_are_longest_match_first},
-	{"editor_syntax_collect_c_captures_without_injection_query_is_graceful", test_editor_syntax_collect_c_captures_without_injection_query_is_graceful},
-	{"editor_syntax_capture_truncation_reports_event_and_keeps_span_limit", test_editor_syntax_capture_truncation_reports_event_and_keeps_span_limit},
-	{"editor_syntax_parse_tree_errors_report_event_and_status", test_editor_syntax_parse_tree_errors_report_event_and_status},
-	{"editor_syntax_injection_depth_limit_reports_event", test_editor_syntax_injection_depth_limit_reports_event},
-	{"editor_syntax_injection_slot_limit_reports_event", test_editor_syntax_injection_slot_limit_reports_event},
-	{"editor_syntax_unknown_injection_target_is_graceful", test_editor_syntax_unknown_injection_target_is_graceful},
-	{"editor_syntax_parse_budget_is_graceful", test_editor_syntax_parse_budget_is_graceful},
+        {"editor_syntax_query_budget_match_limit_is_graceful",
+         test_editor_syntax_query_budget_match_limit_is_graceful},
+        {"editor_syntax_query_compile_failure_records_diagnostics",
+         test_editor_syntax_query_compile_failure_records_diagnostics},
+        {"editor_syntax_capture_rules_are_longest_match_first",
+         test_editor_syntax_capture_rules_are_longest_match_first},
+        {"editor_syntax_collect_c_captures_without_injection_query_is_graceful",
+         test_editor_syntax_collect_c_captures_without_injection_query_is_graceful},
+        {"editor_syntax_capture_truncation_reports_event_and_keeps_span_limit",
+         test_editor_syntax_capture_truncation_reports_event_and_keeps_span_limit},
+        {"editor_syntax_parse_tree_errors_report_event_and_status",
+         test_editor_syntax_parse_tree_errors_report_event_and_status},
+        {"editor_syntax_injection_depth_limit_reports_event",
+         test_editor_syntax_injection_depth_limit_reports_event},
+        {"editor_syntax_injection_slot_limit_reports_event",
+         test_editor_syntax_injection_slot_limit_reports_event},
+        {"editor_syntax_unknown_injection_target_is_graceful",
+         test_editor_syntax_unknown_injection_target_is_graceful},
+        {"editor_syntax_parse_budget_is_graceful", test_editor_syntax_parse_budget_is_graceful},
 };
 
 const int g_syntax_captures_test_count =
-		(int)(sizeof(g_syntax_captures_tests) / sizeof(g_syntax_captures_tests[0]));
+        (int)(sizeof(g_syntax_captures_tests) / sizeof(g_syntax_captures_tests[0]));

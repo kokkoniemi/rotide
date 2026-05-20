@@ -1,21 +1,21 @@
-#include "test_case.h"
-#include "test_support.h"
 #include "config/common.h"
 #include "config/dap_config.h"
 #include "config/editor_config.h"
 #include "config/keymap.h"
 #include "config/theme_config.h"
-#include "input/dispatch.h"
 #include "debug/dap.h"
-#include "workspace/layout.h"
-#include "workspace/tabs.h"
-#include "workspace/workspace_state.h"
+#include "input/dispatch.h"
+#include "test_case.h"
+#include "test_support.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
+#include "workspace/layout.h"
 #include "workspace/project_search.h"
+#include "workspace/tabs.h"
+#include "workspace/workspace_state.h"
 
 static int find_drawer_entry_path(const char *path, int *idx_out,
-		struct editorDrawerEntryView *view_out) {
+                                  struct editorDrawerEntryView *view_out) {
 	int visible = editorDrawerVisibleCount();
 	for (int i = 0; i < visible; i++) {
 		struct editorDrawerEntryView view;
@@ -35,11 +35,11 @@ static int find_drawer_entry_path(const char *path, int *idx_out,
 	return 0;
 }
 
-static int inject_git_entry(const char *rel_path, enum editorGitStatus status,
-		char index_status, char worktree_status) {
+static int inject_git_entry(const char *rel_path, enum editorGitStatus status, char index_status,
+                            char worktree_status) {
 	int new_count = E.git_entry_count + 1;
-	struct editorGitEntry *grown = realloc(E.git_entries,
-			(size_t)new_count * sizeof(struct editorGitEntry));
+	struct editorGitEntry *grown =
+	        realloc(E.git_entries, (size_t)new_count * sizeof(struct editorGitEntry));
 	if (grown == NULL) {
 		return 0;
 	}
@@ -346,8 +346,8 @@ static int test_editor_drawer_git_mode_collapses_group(void) {
 
 	ASSERT_TRUE(editorDrawerGitToggle());
 	int expanded_count = editorDrawerVisibleCount();
-	// 1 root + 4 groups + 0 staged-placeholder + 0 changes-placeholder + 2 untracked + 0 conflicts-placeholder
-	// Each empty group with expansion shows a placeholder row (= 1).
+	// 1 root + 4 groups + 0 staged-placeholder + 0 changes-placeholder + 2 untracked + 0
+	// conflicts-placeholder Each empty group with expansion shows a placeholder row (= 1).
 	ASSERT_EQ_INT(1 + 4 + 1 + 1 + 2 + 1, expanded_count);
 
 	int untracked_idx = -1;
@@ -952,11 +952,11 @@ static int test_editor_path_absolute_dup_makes_relative_paths_absolute(void) {
 	char *absolute = NULL;
 
 	if (original_cwd == NULL || root_path == NULL ||
-			!path_join(nested_dir, sizeof(nested_dir), root_path, "nested") ||
-			!make_dir(nested_dir) ||
-			!path_join(nested_file, sizeof(nested_file), nested_dir, "file.c") ||
-			!write_text_file(nested_file, "int main(void) { return 0; }\n") ||
-			chdir(root_path) != 0) {
+	    !path_join(nested_dir, sizeof(nested_dir), root_path, "nested") ||
+	    !make_dir(nested_dir) ||
+	    !path_join(nested_file, sizeof(nested_file), nested_dir, "file.c") ||
+	    !write_text_file(nested_file, "int main(void) { return 0; }\n") ||
+	    chdir(root_path) != 0) {
 		goto cleanup;
 	}
 
@@ -997,14 +997,15 @@ static int test_editor_path_find_marker_upward_returns_project_root(void) {
 	char marker_path[512];
 	ASSERT_TRUE(path_join(src_dir, sizeof(src_dir), root_path, "src"));
 	ASSERT_TRUE(path_join(nested_dir, sizeof(nested_dir), src_dir, "inner"));
-	ASSERT_TRUE(path_join(marker_path, sizeof(marker_path), root_path, "compile_commands.json"));
+	ASSERT_TRUE(
+	        path_join(marker_path, sizeof(marker_path), root_path, "compile_commands.json"));
 	ASSERT_TRUE(make_dir(src_dir));
 	ASSERT_TRUE(make_dir(nested_dir));
 	ASSERT_TRUE(write_text_file(marker_path, "[]\n"));
 
 	static const char *const markers[] = {"compile_commands.json", ".git"};
 	char *workspace_root = editorPathFindMarkerUpward(nested_dir, markers,
-			sizeof(markers) / sizeof(markers[0]));
+	                                                  sizeof(markers) / sizeof(markers[0]));
 	ASSERT_TRUE(workspace_root != NULL);
 	ASSERT_EQ_STR(root_path, workspace_root);
 
@@ -1045,12 +1046,12 @@ static int test_editor_recovery_clean_quit_removes_snapshot(void) {
 
 	if (!setup_recovery_test_env(&env)) {
 		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
-				"setup_recovery_test_env(&env)");
+		        "setup_recovery_test_env(&env)");
 		goto cleanup;
 	}
 	if (!editorTabsInit()) {
 		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
-				"editorTabsInit()");
+		        "editorTabsInit()");
 		goto cleanup;
 	}
 
@@ -1062,12 +1063,12 @@ static int test_editor_recovery_clean_quit_removes_snapshot(void) {
 	recovery_path = editorRecoveryPath();
 	if (recovery_path == NULL) {
 		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
-				"recovery_path != NULL");
+		        "recovery_path != NULL");
 		goto cleanup;
 	}
 	if (access(recovery_path, F_OK) != 0) {
 		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
-				"access(recovery_path, F_OK) == 0");
+		        "access(recovery_path, F_OK) == 0");
 		goto cleanup;
 	}
 
@@ -1091,22 +1092,23 @@ static int test_editor_recovery_clean_quit_removes_snapshot(void) {
 
 	if (wait_for_child_exit_with_timeout(pid, 1500, &status) != 0) {
 		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
-				"wait_for_child_exit_with_timeout(pid, 1500, &status) == 0");
+		        "wait_for_child_exit_with_timeout(pid, 1500, &status) == 0");
 		goto cleanup;
 	}
 	pid = -1;
 	if (!WIFEXITED(status)) {
-		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__, "WIFEXITED(status)");
+		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
+		        "WIFEXITED(status)");
 		goto cleanup;
 	}
 	if (WEXITSTATUS(status) != EXIT_SUCCESS) {
-		fprintf(stderr, "Assertion failed in %s:%d: expected %d, got %d\n", __func__, __LINE__,
-				EXIT_SUCCESS, WEXITSTATUS(status));
+		fprintf(stderr, "Assertion failed in %s:%d: expected %d, got %d\n", __func__,
+		        __LINE__, EXIT_SUCCESS, WEXITSTATUS(status));
 		goto cleanup;
 	}
 	if (access(recovery_path, F_OK) != -1) {
 		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
-				"access(recovery_path, F_OK) == -1");
+		        "access(recovery_path, F_OK) == -1");
 		goto cleanup;
 	}
 
@@ -1169,8 +1171,7 @@ static int test_editor_workspace_state_persists_drawer_state(void) {
 	E.window_cols = 100;
 	E.window_rows = 40;
 
-	ASSERT_TRUE(editorDrawerSetWidthForCols(42, E.window_cols) ||
-			E.drawer_width_cols == 42);
+	ASSERT_TRUE(editorDrawerSetWidthForCols(42, E.window_cols) || E.drawer_width_cols == 42);
 	(void)editorDrawerSetCollapsed(1);
 	E.drawer_mode = EDITOR_DRAWER_MODE_GIT;
 
@@ -1380,42 +1381,74 @@ static int test_editor_workspace_state_restore_defers_lsp_for_inactive_tabs(void
 }
 
 const struct editorTestCase g_workspace_persistence_tests[] = {
-	{"editor_drawer_root_selection_modes", test_editor_drawer_root_selection_modes},
-	{"editor_drawer_tree_lists_dotfiles_sorted_and_symlink_as_file", test_editor_drawer_tree_lists_dotfiles_sorted_and_symlink_as_file},
-	{"editor_drawer_expand_collapse_reuses_cached_children", test_editor_drawer_expand_collapse_reuses_cached_children},
-	{"editor_drawer_root_is_not_collapsible", test_editor_drawer_root_is_not_collapsible},
-	{"editor_git_file_status_returns_status_for_known_path", test_editor_git_file_status_returns_status_for_known_path},
-	{"editor_git_dir_status_aggregates_worst_descendant", test_editor_git_dir_status_aggregates_worst_descendant},
-	{"editor_git_file_status_returns_clean_outside_repo", test_editor_git_file_status_returns_clean_outside_repo},
-	{"editor_drawer_git_mode_groups_entries_by_status", test_editor_drawer_git_mode_groups_entries_by_status},
-	{"editor_drawer_git_mode_collapses_group", test_editor_drawer_git_mode_collapses_group},
-	{"editor_drawer_git_mode_selects_file_entry", test_editor_drawer_git_mode_selects_file_entry},
-	{"editor_drawer_create_file_under_selected_directory", test_editor_drawer_create_file_under_selected_directory},
-	{"editor_drawer_create_folder_creates_sibling_when_file_selected", test_editor_drawer_create_folder_creates_sibling_when_file_selected},
-	{"editor_drawer_rename_selection_updates_path_and_selection", test_editor_drawer_rename_selection_updates_path_and_selection},
-	{"editor_drawer_rename_selection_rejects_root", test_editor_drawer_rename_selection_rejects_root},
-	{"editor_drawer_delete_selection_removes_directory_recursively", test_editor_drawer_delete_selection_removes_directory_recursively},
-	{"editor_drawer_delete_selection_rejects_root", test_editor_drawer_delete_selection_rejects_root},
-	{"editor_drawer_open_selected_file_in_new_tab", test_editor_drawer_open_selected_file_in_new_tab},
-	{"editor_drawer_open_selected_file_switches_existing_relative_path_tab", test_editor_drawer_open_selected_file_switches_existing_relative_path_tab},
-	{"editor_drawer_open_selected_file_respects_tab_limit", test_editor_drawer_open_selected_file_respects_tab_limit},
-	{"editor_file_search_filters_results_in_drawer", test_editor_file_search_filters_results_in_drawer},
-	{"editor_file_search_preview_and_open_selected_file", test_editor_file_search_preview_and_open_selected_file},
-	{"editor_file_search_previews_binary_file_as_unsupported_read_only_tab", test_editor_file_search_previews_binary_file_as_unsupported_read_only_tab},
-	{"editor_file_search_lists_recent_non_active_files_first_and_persists_order", test_editor_file_search_lists_recent_non_active_files_first_and_persists_order},
-	{"editor_project_search_finds_previews_and_opens_matches", test_editor_project_search_finds_previews_and_opens_matches},
-	{"editor_path_absolute_dup_makes_relative_paths_absolute", test_editor_path_absolute_dup_makes_relative_paths_absolute},
-	{"editor_path_find_marker_upward_returns_project_root", test_editor_path_find_marker_upward_returns_project_root},
-	{"editor_recovery_snapshot_permissions_are_0600", test_editor_recovery_snapshot_permissions_are_0600},
-	{"editor_recovery_clean_quit_removes_snapshot", test_editor_recovery_clean_quit_removes_snapshot},
-	{"editor_recovery_failure_exit_keeps_snapshot", test_editor_recovery_failure_exit_keeps_snapshot},
-	{"editor_workspace_state_persists_drawer_state", test_editor_workspace_state_persists_drawer_state},
-	{"editor_workspace_state_persists_drawer_expanded_masks", test_editor_workspace_state_persists_drawer_expanded_masks},
-	{"editor_workspace_state_ignores_search_modes_on_save", test_editor_workspace_state_ignores_search_modes_on_save},
-	{"editor_workspace_state_load_missing_is_noop", test_editor_workspace_state_load_missing_is_noop},
-	{"editor_workspace_state_restores_open_tabs_with_cursor", test_editor_workspace_state_restores_open_tabs_with_cursor},
-	{"editor_workspace_state_restore_defers_lsp_for_inactive_tabs", test_editor_workspace_state_restore_defers_lsp_for_inactive_tabs},
+        {"editor_drawer_root_selection_modes", test_editor_drawer_root_selection_modes},
+        {"editor_drawer_tree_lists_dotfiles_sorted_and_symlink_as_file",
+         test_editor_drawer_tree_lists_dotfiles_sorted_and_symlink_as_file},
+        {"editor_drawer_expand_collapse_reuses_cached_children",
+         test_editor_drawer_expand_collapse_reuses_cached_children},
+        {"editor_drawer_root_is_not_collapsible", test_editor_drawer_root_is_not_collapsible},
+        {"editor_git_file_status_returns_status_for_known_path",
+         test_editor_git_file_status_returns_status_for_known_path},
+        {"editor_git_dir_status_aggregates_worst_descendant",
+         test_editor_git_dir_status_aggregates_worst_descendant},
+        {"editor_git_file_status_returns_clean_outside_repo",
+         test_editor_git_file_status_returns_clean_outside_repo},
+        {"editor_drawer_git_mode_groups_entries_by_status",
+         test_editor_drawer_git_mode_groups_entries_by_status},
+        {"editor_drawer_git_mode_collapses_group", test_editor_drawer_git_mode_collapses_group},
+        {"editor_drawer_git_mode_selects_file_entry",
+         test_editor_drawer_git_mode_selects_file_entry},
+        {"editor_drawer_create_file_under_selected_directory",
+         test_editor_drawer_create_file_under_selected_directory},
+        {"editor_drawer_create_folder_creates_sibling_when_file_selected",
+         test_editor_drawer_create_folder_creates_sibling_when_file_selected},
+        {"editor_drawer_rename_selection_updates_path_and_selection",
+         test_editor_drawer_rename_selection_updates_path_and_selection},
+        {"editor_drawer_rename_selection_rejects_root",
+         test_editor_drawer_rename_selection_rejects_root},
+        {"editor_drawer_delete_selection_removes_directory_recursively",
+         test_editor_drawer_delete_selection_removes_directory_recursively},
+        {"editor_drawer_delete_selection_rejects_root",
+         test_editor_drawer_delete_selection_rejects_root},
+        {"editor_drawer_open_selected_file_in_new_tab",
+         test_editor_drawer_open_selected_file_in_new_tab},
+        {"editor_drawer_open_selected_file_switches_existing_relative_path_tab",
+         test_editor_drawer_open_selected_file_switches_existing_relative_path_tab},
+        {"editor_drawer_open_selected_file_respects_tab_limit",
+         test_editor_drawer_open_selected_file_respects_tab_limit},
+        {"editor_file_search_filters_results_in_drawer",
+         test_editor_file_search_filters_results_in_drawer},
+        {"editor_file_search_preview_and_open_selected_file",
+         test_editor_file_search_preview_and_open_selected_file},
+        {"editor_file_search_previews_binary_file_as_unsupported_read_only_tab",
+         test_editor_file_search_previews_binary_file_as_unsupported_read_only_tab},
+        {"editor_file_search_lists_recent_non_active_files_first_and_persists_order",
+         test_editor_file_search_lists_recent_non_active_files_first_and_persists_order},
+        {"editor_project_search_finds_previews_and_opens_matches",
+         test_editor_project_search_finds_previews_and_opens_matches},
+        {"editor_path_absolute_dup_makes_relative_paths_absolute",
+         test_editor_path_absolute_dup_makes_relative_paths_absolute},
+        {"editor_path_find_marker_upward_returns_project_root",
+         test_editor_path_find_marker_upward_returns_project_root},
+        {"editor_recovery_snapshot_permissions_are_0600",
+         test_editor_recovery_snapshot_permissions_are_0600},
+        {"editor_recovery_clean_quit_removes_snapshot",
+         test_editor_recovery_clean_quit_removes_snapshot},
+        {"editor_recovery_failure_exit_keeps_snapshot",
+         test_editor_recovery_failure_exit_keeps_snapshot},
+        {"editor_workspace_state_persists_drawer_state",
+         test_editor_workspace_state_persists_drawer_state},
+        {"editor_workspace_state_persists_drawer_expanded_masks",
+         test_editor_workspace_state_persists_drawer_expanded_masks},
+        {"editor_workspace_state_ignores_search_modes_on_save",
+         test_editor_workspace_state_ignores_search_modes_on_save},
+        {"editor_workspace_state_load_missing_is_noop",
+         test_editor_workspace_state_load_missing_is_noop},
+        {"editor_workspace_state_restores_open_tabs_with_cursor",
+         test_editor_workspace_state_restores_open_tabs_with_cursor},
+        {"editor_workspace_state_restore_defers_lsp_for_inactive_tabs",
+         test_editor_workspace_state_restore_defers_lsp_for_inactive_tabs},
 };
 
 const int g_workspace_persistence_test_count =
-		(int)(sizeof(g_workspace_persistence_tests) / sizeof(g_workspace_persistence_tests[0]));
+        (int)(sizeof(g_workspace_persistence_tests) / sizeof(g_workspace_persistence_tests[0]));

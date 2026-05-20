@@ -63,9 +63,8 @@ static char *read_whole_file(const char *path) {
 }
 
 static void usage(FILE *out) {
-	fprintf(out,
-		"usage: metrics_fuzz_emit --target NAME --log PATH "
-		"--corpus-dir PATH --metrics-out PATH [--soak-seconds N]\n");
+	fprintf(out, "usage: metrics_fuzz_emit --target NAME --log PATH "
+	             "--corpus-dir PATH --metrics-out PATH [--soak-seconds N]\n");
 }
 
 int main(int argc, char **argv) {
@@ -82,10 +81,26 @@ int main(int argc, char **argv) {
 			usage(stdout);
 			return 0;
 		}
-		if (strcmp(a, "--target") == 0 && next) { target = next; i++; continue; }
-		if (strcmp(a, "--log") == 0 && next)    { log = next;    i++; continue; }
-		if (strcmp(a, "--corpus-dir") == 0 && next) { corpus_dir = next; i++; continue; }
-		if (strcmp(a, "--metrics-out") == 0 && next) { metrics_out = next; i++; continue; }
+		if (strcmp(a, "--target") == 0 && next) {
+			target = next;
+			i++;
+			continue;
+		}
+		if (strcmp(a, "--log") == 0 && next) {
+			log = next;
+			i++;
+			continue;
+		}
+		if (strcmp(a, "--corpus-dir") == 0 && next) {
+			corpus_dir = next;
+			i++;
+			continue;
+		}
+		if (strcmp(a, "--metrics-out") == 0 && next) {
+			metrics_out = next;
+			i++;
+			continue;
+		}
 		if (strcmp(a, "--soak-seconds") == 0 && next) {
 			char *end = NULL;
 			soak_seconds = strtoll(next, &end, 10);
@@ -108,9 +123,8 @@ int main(int argc, char **argv) {
 
 	char *text = read_whole_file(log);
 	if (text == NULL) {
-		fprintf(stderr,
-			"metrics_fuzz_emit: warning: cannot read log %s: %s\n",
-			log, strerror(errno));
+		fprintf(stderr, "metrics_fuzz_emit: warning: cannot read log %s: %s\n", log,
+		        strerror(errno));
 		/* Still try to emit a row with corpus stats so chart code sees
 		 * something. */
 		text = strdup("");
@@ -124,30 +138,29 @@ int main(int argc, char **argv) {
 	long long corpus_bytes = 0;
 	(void)editorLibFuzzerScanCorpus(corpus_dir, &corpus_count, &corpus_bytes);
 
-	long long runtime = s.has_runtime ? s.runtime_seconds
-		: (soak_seconds >= 0 ? soak_seconds : 0);
+	long long runtime =
+	        s.has_runtime ? s.runtime_seconds : (soak_seconds >= 0 ? soak_seconds : 0);
 
 	struct editorMetricsField fields[] = {
-		{"target", EDITOR_METRICS_STR, .v.s = target},
-		{"cov_edges", EDITOR_METRICS_INT, .v.i = s.cov_edges},
-		{"ft_features", EDITOR_METRICS_INT, .v.i = s.ft_features},
-		{"corp_count", EDITOR_METRICS_INT, .v.i = s.corp_count},
-		{"corp_bytes", EDITOR_METRICS_INT, .v.i = s.corp_bytes},
-		{"corpus_files", EDITOR_METRICS_INT, .v.i = corpus_count},
-		{"corpus_bytes", EDITOR_METRICS_INT, .v.i = corpus_bytes},
-		{"executed_units", EDITOR_METRICS_INT, .v.i = s.executed_units},
-		{"avg_exec_per_sec", EDITOR_METRICS_INT, .v.i = s.avg_exec_per_sec},
-		{"new_units_added", EDITOR_METRICS_INT, .v.i = s.new_units_added},
-		{"peak_rss_mb", EDITOR_METRICS_INT, .v.i = s.peak_rss_mb},
-		{"runtime_seconds", EDITOR_METRICS_INT, .v.i = runtime},
-		{"has_final_stats", EDITOR_METRICS_BOOL, .v.b = s.has_final_stats},
+	        {"target", EDITOR_METRICS_STR, .v.s = target},
+	        {"cov_edges", EDITOR_METRICS_INT, .v.i = s.cov_edges},
+	        {"ft_features", EDITOR_METRICS_INT, .v.i = s.ft_features},
+	        {"corp_count", EDITOR_METRICS_INT, .v.i = s.corp_count},
+	        {"corp_bytes", EDITOR_METRICS_INT, .v.i = s.corp_bytes},
+	        {"corpus_files", EDITOR_METRICS_INT, .v.i = corpus_count},
+	        {"corpus_bytes", EDITOR_METRICS_INT, .v.i = corpus_bytes},
+	        {"executed_units", EDITOR_METRICS_INT, .v.i = s.executed_units},
+	        {"avg_exec_per_sec", EDITOR_METRICS_INT, .v.i = s.avg_exec_per_sec},
+	        {"new_units_added", EDITOR_METRICS_INT, .v.i = s.new_units_added},
+	        {"peak_rss_mb", EDITOR_METRICS_INT, .v.i = s.peak_rss_mb},
+	        {"runtime_seconds", EDITOR_METRICS_INT, .v.i = runtime},
+	        {"has_final_stats", EDITOR_METRICS_BOOL, .v.b = s.has_final_stats},
 	};
 	int rc = editorMetricsAppend(metrics_out, "fuzz", fields,
-		(int)(sizeof(fields) / sizeof(fields[0])));
+	                             (int)(sizeof(fields) / sizeof(fields[0])));
 	if (rc != 0) {
-		fprintf(stderr,
-			"metrics_fuzz_emit: warning: failed to append to %s\n",
-			metrics_out);
+		fprintf(stderr, "metrics_fuzz_emit: warning: failed to append to %s\n",
+		        metrics_out);
 		return 1;
 	}
 	return 0;

@@ -1,8 +1,7 @@
+#include "editing/edit.h"
 #include "test_case.h"
 #include "test_grid_snapshot.h"
 #include "test_helpers.h"
-
-#include "editing/edit.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -53,8 +52,7 @@ static int test_grid_snapshot_strips_trailing_spaces(void) {
 			break;
 		}
 		if (nl > p && nl[-1] == ' ') {
-			fprintf(stderr,
-				"row ends in space, full snapshot follows:\n%s", grid);
+			fprintf(stderr, "row ends in space, full snapshot follows:\n%s", grid);
 			free(grid);
 			return 1;
 		}
@@ -112,25 +110,28 @@ static int test_grid_snapshot_matches_baked_chrome_layout(void) {
 	editorSetStatusMsg("ready");
 
 	ASSERT_GRID_EQ(
-		/* golden-start */
-		"           │1  hello\n"
-		"           │2  world\n"
-		"           │  ~\n"
-		"           │  ~\n"
-		"[No Name] [+]1,1    100%\n"
-		"ready\n"
-		/* golden-end */
+	        /* golden-start */
+	        "           │1  hello\n"
+	        "           │2  world\n"
+	        "           │  ~\n"
+	        "           │  ~\n"
+	        "[No Name] [+]1,1    100%\n"
+	        "ready\n"
+	        /* golden-end */
 	);
 	return 0;
 }
 
 const struct editorTestCase g_grid_snapshot_tests[] = {
-	{"grid_snapshot_captures_text_lines", test_grid_snapshot_captures_text_lines},
-	{"grid_snapshot_strips_trailing_spaces", test_grid_snapshot_strips_trailing_spaces},
-	{"grid_snapshot_diff_reports_match_and_mismatch", test_grid_snapshot_diff_reports_match_and_mismatch},
-	{"grid_snapshot_assert_macro_passes_on_match", test_grid_snapshot_assert_macro_passes_on_match},
-	{"grid_snapshot_matches_baked_chrome_layout", test_grid_snapshot_matches_baked_chrome_layout},
+        {"grid_snapshot_captures_text_lines", test_grid_snapshot_captures_text_lines},
+        {"grid_snapshot_strips_trailing_spaces", test_grid_snapshot_strips_trailing_spaces},
+        {"grid_snapshot_diff_reports_match_and_mismatch",
+         test_grid_snapshot_diff_reports_match_and_mismatch},
+        {"grid_snapshot_assert_macro_passes_on_match",
+         test_grid_snapshot_assert_macro_passes_on_match},
+        {"grid_snapshot_matches_baked_chrome_layout",
+         test_grid_snapshot_matches_baked_chrome_layout},
 };
 
 const int g_grid_snapshot_test_count =
-	(int)(sizeof(g_grid_snapshot_tests) / sizeof(g_grid_snapshot_tests[0]));
+        (int)(sizeof(g_grid_snapshot_tests) / sizeof(g_grid_snapshot_tests[0]));

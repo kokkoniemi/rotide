@@ -14,15 +14,9 @@
  * later phases that introduce splits and additional pane kinds.
  */
 
-enum editorPaneKind {
-	EDITOR_PANE_KIND_EDITOR = 0,
-	EDITOR_PANE_KIND_TERMINAL
-};
+enum editorPaneKind { EDITOR_PANE_KIND_EDITOR = 0, EDITOR_PANE_KIND_TERMINAL };
 
-enum editorSplitOrientation {
-	EDITOR_SPLIT_HORIZONTAL = 0,
-	EDITOR_SPLIT_VERTICAL
-};
+enum editorSplitOrientation { EDITOR_SPLIT_HORIZONTAL = 0, EDITOR_SPLIT_VERTICAL };
 
 /*
  * Per-pane view state.
@@ -116,7 +110,7 @@ int editorPaneNodeIsLeaf(const struct editorPaneNode *node);
 
 struct editorPaneNode *editorPaneNodeFirstLeaf(struct editorPaneNode *node);
 int editorPaneNodeContainsLeaf(const struct editorPaneNode *node,
-		const struct editorPaneNode *leaf);
+                               const struct editorPaneNode *leaf);
 
 /*
  * Tree mutation primitives.
@@ -143,22 +137,20 @@ int editorPaneNodeContainsLeaf(const struct editorPaneNode *node,
  * focus moves.
  */
 struct editorPaneNode *editorPaneTreeSplitLeaf(struct editorPaneNode **root_ptr,
-		struct editorPaneNode *leaf,
-		enum editorSplitOrientation orientation,
-		double ratio);
+                                               struct editorPaneNode *leaf,
+                                               enum editorSplitOrientation orientation,
+                                               double ratio);
 struct editorPaneNode *editorPaneTreeCloseLeaf(struct editorPaneNode **root_ptr,
-		struct editorPaneNode *leaf);
+                                               struct editorPaneNode *leaf);
 struct editorPaneNode *editorPaneTreeFindParent(struct editorPaneNode *root,
-		const struct editorPaneNode *child);
+                                                const struct editorPaneNode *child);
 int editorPaneTreeLeafCount(const struct editorPaneNode *root);
 
-int editorLayoutComputeInto(const struct editorPaneNode *root,
-		struct editorRect viewport,
-		struct editorLeafLayout *out);
+int editorLayoutComputeInto(const struct editorPaneNode *root, struct editorRect viewport,
+                            struct editorLeafLayout *out);
 void editorLeafLayoutFree(struct editorLeafLayout *out);
 
-struct editorPaneNode *editorLayoutLeafAt(struct editorLeafLayout *layout,
-		int x, int y);
+struct editorPaneNode *editorLayoutLeafAt(struct editorLeafLayout *layout, int x, int y);
 
 /*
  * Walks the tree and writes the rect of `leaf` into `*out`. Returns 1 if the
@@ -166,10 +158,8 @@ struct editorPaneNode *editorLayoutLeafAt(struct editorLeafLayout *layout,
  * caller only needs one leaf's rect and wants to avoid materializing the full
  * leaf-layout array.
  */
-int editorLayoutLeafRect(const struct editorPaneNode *root,
-		struct editorRect viewport,
-		const struct editorPaneNode *leaf,
-		struct editorRect *out);
+int editorLayoutLeafRect(const struct editorPaneNode *root, struct editorRect viewport,
+                         const struct editorPaneNode *leaf, struct editorRect *out);
 
 /*
  * Bordered variants reserve `border_size` cols/rows between siblings of a
@@ -182,15 +172,11 @@ int editorLayoutLeafRect(const struct editorPaneNode *root,
  */
 #define ROTIDE_PANE_BORDER_SIZE 1
 
-int editorLayoutComputeBorderedInto(const struct editorPaneNode *root,
-		struct editorRect viewport,
-		int border_size,
-		struct editorLeafLayout *out);
-int editorLayoutLeafRectBordered(const struct editorPaneNode *root,
-		struct editorRect viewport,
-		int border_size,
-		const struct editorPaneNode *leaf,
-		struct editorRect *out);
+int editorLayoutComputeBorderedInto(const struct editorPaneNode *root, struct editorRect viewport,
+                                    int border_size, struct editorLeafLayout *out);
+int editorLayoutLeafRectBordered(const struct editorPaneNode *root, struct editorRect viewport,
+                                 int border_size, const struct editorPaneNode *leaf,
+                                 struct editorRect *out);
 
 /*
  * Border collection from the tree walk.
@@ -214,10 +200,8 @@ struct editorBorderList {
 	int capacity;
 };
 
-int editorLayoutCollectBorders(const struct editorPaneNode *root,
-		struct editorRect viewport,
-		int border_size,
-		struct editorBorderList *out);
+int editorLayoutCollectBorders(const struct editorPaneNode *root, struct editorRect viewport,
+                               int border_size, struct editorBorderList *out);
 void editorBorderListFree(struct editorBorderList *list);
 
 /*
@@ -283,12 +267,9 @@ int editorPaneViewAddTab(struct editorPaneView *view, int tab_idx);
 void editorPaneViewRemoveTab(struct editorPaneView *view, int tab_idx);
 int editorPaneViewHasTab(const struct editorPaneView *view, int tab_idx);
 int editorPaneViewIndexOfTab(const struct editorPaneView *view, int tab_idx);
-void editorPaneViewShiftTabIndicesAfterClose(struct editorPaneView *view,
-		int removed_idx);
-int editorPaneTreeAnyPaneHasTab(const struct editorPaneNode *root,
-		int tab_idx);
-void editorPaneTreeShiftTabIndicesAfterClose(struct editorPaneNode *root,
-		int removed_idx);
+void editorPaneViewShiftTabIndicesAfterClose(struct editorPaneView *view, int removed_idx);
+int editorPaneTreeAnyPaneHasTab(const struct editorPaneNode *root, int tab_idx);
+void editorPaneTreeShiftTabIndicesAfterClose(struct editorPaneNode *root, int removed_idx);
 
 /*
  * High-level actions for the focused pane. These wrap the tree mutation
@@ -302,8 +283,8 @@ void editorPaneTreeShiftTabIndicesAfterClose(struct editorPaneNode *root,
  * focus to its sibling. Returns the newly focused leaf on success, NULL if
  * the focused leaf is the only leaf (no-op) or on failure.
  */
-struct editorPaneNode *editorLayoutSplitFocused(
-		enum editorSplitOrientation orientation, double ratio);
+struct editorPaneNode *editorLayoutSplitFocused(enum editorSplitOrientation orientation,
+                                                double ratio);
 struct editorPaneNode *editorLayoutCloseFocused(void);
 
 /*
@@ -321,10 +302,9 @@ enum editorFocusDirection {
 	EDITOR_FOCUS_DOWN
 };
 
-struct editorPaneNode *editorLayoutFindNeighborLeaf(
-		const struct editorLeafLayout *layout,
-		const struct editorPaneNode *from_leaf,
-		enum editorFocusDirection direction);
+struct editorPaneNode *editorLayoutFindNeighborLeaf(const struct editorLeafLayout *layout,
+                                                    const struct editorPaneNode *from_leaf,
+                                                    enum editorFocusDirection direction);
 
 /*
  * High-level E-aware actions for focus and resize. Each returns 1 if it
@@ -363,8 +343,7 @@ void editorPaneAnnounceFocus(void);
  * number of bytes written to `out` (excluding the null terminator), or 0
  * if the buffer is too small.
  */
-size_t editorLayoutSerialize(const struct editorPaneNode *root, char *out,
-		size_t out_size);
+size_t editorLayoutSerialize(const struct editorPaneNode *root, char *out, size_t out_size);
 
 /*
  * Parse a layout string produced by editorLayoutSerialize and return a

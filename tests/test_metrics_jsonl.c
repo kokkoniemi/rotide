@@ -32,11 +32,11 @@ static const char *env_canned(const char *name) {
 
 static int test_metrics_format_single_line_with_newline(void) {
 	struct editorMetricsField fields[] = {
-		{"total_runs", EDITOR_METRICS_INT, .v.i = 12},
+	        {"total_runs", EDITOR_METRICS_INT, .v.i = 12},
 	};
 	char buf[512];
-	int n = editorMetricsFormatRow(buf, sizeof(buf), "test_run",
-		1747655696LL, env_returns_null, fields, 1);
+	int n = editorMetricsFormatRow(buf, sizeof(buf), "test_run", 1747655696LL, env_returns_null,
+	                               fields, 1);
 	ASSERT_TRUE(n > 0 && (size_t)n < sizeof(buf));
 	ASSERT_EQ_INT(n, (int)strlen(buf));
 	ASSERT_TRUE(buf[n - 1] == '\n');
@@ -53,8 +53,8 @@ static int test_metrics_format_single_line_with_newline(void) {
 
 static int test_metrics_format_includes_kind_and_ts(void) {
 	char buf[512];
-	int n = editorMetricsFormatRow(buf, sizeof(buf), "bench",
-		1747655696LL, env_returns_null, NULL, 0);
+	int n = editorMetricsFormatRow(buf, sizeof(buf), "bench", 1747655696LL, env_returns_null,
+	                               NULL, 0);
 	ASSERT_TRUE(n > 0);
 	ASSERT_TRUE(starts_with(buf, "{\"kind\":\"bench\",\"ts\":\""));
 	/* ISO 8601 UTC for 1747655696 = 2025-05-19T11:54:56Z */
@@ -64,16 +64,16 @@ static int test_metrics_format_includes_kind_and_ts(void) {
 
 static int test_metrics_format_int_uint_double_bool_hex(void) {
 	struct editorMetricsField fields[] = {
-		{"i", EDITOR_METRICS_INT, .v.i = -7},
-		{"u", EDITOR_METRICS_UINT64, .v.u = 9876543210ULL},
-		{"d", EDITOR_METRICS_DOUBLE, .v.d = 4.812},
-		{"b1", EDITOR_METRICS_BOOL, .v.b = 1},
-		{"b0", EDITOR_METRICS_BOOL, .v.b = 0},
-		{"seed", EDITOR_METRICS_HEX64, .v.u = 0x0123456789abcdefULL},
+	        {"i", EDITOR_METRICS_INT, .v.i = -7},
+	        {"u", EDITOR_METRICS_UINT64, .v.u = 9876543210ULL},
+	        {"d", EDITOR_METRICS_DOUBLE, .v.d = 4.812},
+	        {"b1", EDITOR_METRICS_BOOL, .v.b = 1},
+	        {"b0", EDITOR_METRICS_BOOL, .v.b = 0},
+	        {"seed", EDITOR_METRICS_HEX64, .v.u = 0x0123456789abcdefULL},
 	};
 	char buf[512];
-	int n = editorMetricsFormatRow(buf, sizeof(buf), "k", 1747655696LL,
-		env_returns_null, fields, 6);
+	int n = editorMetricsFormatRow(buf, sizeof(buf), "k", 1747655696LL, env_returns_null,
+	                               fields, 6);
 	ASSERT_TRUE(n > 0);
 	ASSERT_TRUE(strstr(buf, "\"i\":-7") != NULL);
 	ASSERT_TRUE(strstr(buf, "\"u\":9876543210") != NULL);
@@ -86,13 +86,13 @@ static int test_metrics_format_int_uint_double_bool_hex(void) {
 
 static int test_metrics_format_escapes_special_chars(void) {
 	struct editorMetricsField fields[] = {
-		/* Octal \001 instead of hex \x01 — hex escapes are greedy in C
-		 * and would absorb the following 'c' into one byte 0x1c. */
-		{"name", EDITOR_METRICS_STR, .v.s = "quote\" back\\slash\nnewline\ttab\001ctrl"},
+	        /* Octal \001 instead of hex \x01 — hex escapes are greedy in C
+	         * and would absorb the following 'c' into one byte 0x1c. */
+	        {"name", EDITOR_METRICS_STR, .v.s = "quote\" back\\slash\nnewline\ttab\001ctrl"},
 	};
 	char buf[512];
-	int n = editorMetricsFormatRow(buf, sizeof(buf), "k", 1747655696LL,
-		env_returns_null, fields, 1);
+	int n = editorMetricsFormatRow(buf, sizeof(buf), "k", 1747655696LL, env_returns_null,
+	                               fields, 1);
 	ASSERT_TRUE(n > 0);
 	ASSERT_TRUE(strstr(buf, "\\\"") != NULL);
 	ASSERT_TRUE(strstr(buf, "\\\\") != NULL);
@@ -108,11 +108,11 @@ static int test_metrics_format_escapes_special_chars(void) {
 
 static int test_metrics_format_escapes_special_chars_in_key(void) {
 	struct editorMetricsField fields[] = {
-		{"weird\"key", EDITOR_METRICS_INT, .v.i = 1},
+	        {"weird\"key", EDITOR_METRICS_INT, .v.i = 1},
 	};
 	char buf[512];
-	int n = editorMetricsFormatRow(buf, sizeof(buf), "k", 1747655696LL,
-		env_returns_null, fields, 1);
+	int n = editorMetricsFormatRow(buf, sizeof(buf), "k", 1747655696LL, env_returns_null,
+	                               fields, 1);
 	ASSERT_TRUE(n > 0);
 	ASSERT_TRUE(strstr(buf, "\"weird\\\"key\":1") != NULL);
 	return 0;
@@ -120,13 +120,13 @@ static int test_metrics_format_escapes_special_chars_in_key(void) {
 
 static int test_metrics_format_skips_empty_keys(void) {
 	struct editorMetricsField fields[] = {
-		{NULL, EDITOR_METRICS_INT, .v.i = 1},
-		{"",   EDITOR_METRICS_INT, .v.i = 2},
-		{"keep", EDITOR_METRICS_INT, .v.i = 3},
+	        {NULL, EDITOR_METRICS_INT, .v.i = 1},
+	        {"", EDITOR_METRICS_INT, .v.i = 2},
+	        {"keep", EDITOR_METRICS_INT, .v.i = 3},
 	};
 	char buf[512];
-	int n = editorMetricsFormatRow(buf, sizeof(buf), "k", 1747655696LL,
-		env_returns_null, fields, 3);
+	int n = editorMetricsFormatRow(buf, sizeof(buf), "k", 1747655696LL, env_returns_null,
+	                               fields, 3);
 	ASSERT_TRUE(n > 0);
 	ASSERT_TRUE(strstr(buf, "\"keep\":3") != NULL);
 	/* Only one comma between metadata and the lone surviving field. */
@@ -144,8 +144,7 @@ static int test_metrics_format_skips_empty_keys(void) {
 
 static int test_metrics_format_env_enrichment_present(void) {
 	char buf[512];
-	int n = editorMetricsFormatRow(buf, sizeof(buf), "k", 1747655696LL,
-		env_canned, NULL, 0);
+	int n = editorMetricsFormatRow(buf, sizeof(buf), "k", 1747655696LL, env_canned, NULL, 0);
 	ASSERT_TRUE(n > 0);
 	ASSERT_TRUE(strstr(buf, "\"git_sha\":\"abc1234\"") != NULL);
 	ASSERT_TRUE(strstr(buf, "\"ci_run_id\":\"987654\"") != NULL);
@@ -156,8 +155,7 @@ static int test_metrics_format_env_enrichment_present(void) {
 
 static int test_metrics_format_env_lookup_null_skips_all(void) {
 	char buf[512];
-	int n = editorMetricsFormatRow(buf, sizeof(buf), "k", 1747655696LL,
-		NULL, NULL, 0);
+	int n = editorMetricsFormatRow(buf, sizeof(buf), "k", 1747655696LL, NULL, NULL, 0);
 	ASSERT_TRUE(n > 0);
 	ASSERT_TRUE(strstr(buf, "\"git_sha\"") == NULL);
 	ASSERT_TRUE(strstr(buf, "\"git_ref\"") == NULL);
@@ -167,11 +165,11 @@ static int test_metrics_format_env_lookup_null_skips_all(void) {
 
 static int test_metrics_format_truncation_safe(void) {
 	struct editorMetricsField fields[] = {
-		{"name", EDITOR_METRICS_STR, .v.s = "abcdefghij"},
+	        {"name", EDITOR_METRICS_STR, .v.s = "abcdefghij"},
 	};
 	char small[16];
-	int n = editorMetricsFormatRow(small, sizeof(small), "k",
-		1747655696LL, env_returns_null, fields, 1);
+	int n = editorMetricsFormatRow(small, sizeof(small), "k", 1747655696LL, env_returns_null,
+	                               fields, 1);
 	ASSERT_TRUE(n > (int)sizeof(small)); /* would have needed more */
 	ASSERT_TRUE(small[sizeof(small) - 1] == '\0');
 	return 0;
@@ -229,8 +227,7 @@ static int test_metrics_append_writes_two_lines(void) {
 static int test_metrics_append_io_failure_returns_negative(void) {
 	struct editorMetricsField f[] = {{"x", EDITOR_METRICS_INT, .v.i = 1}};
 	/* A path inside a non-existent directory cannot be created. */
-	int rc = editorMetricsAppend("/nonexistent-rotide-dir-xyz/m.jsonl",
-		"k", f, 1);
+	int rc = editorMetricsAppend("/nonexistent-rotide-dir-xyz/m.jsonl", "k", f, 1);
 	ASSERT_TRUE(rc != 0);
 	rc = editorMetricsAppend(NULL, "k", f, 1);
 	ASSERT_TRUE(rc != 0);
@@ -240,18 +237,20 @@ static int test_metrics_append_io_failure_returns_negative(void) {
 }
 
 const struct editorTestCase g_metrics_jsonl_tests[] = {
-	{"metrics_format_single_line_with_newline", test_metrics_format_single_line_with_newline},
-	{"metrics_format_includes_kind_and_ts", test_metrics_format_includes_kind_and_ts},
-	{"metrics_format_int_uint_double_bool_hex", test_metrics_format_int_uint_double_bool_hex},
-	{"metrics_format_escapes_special_chars", test_metrics_format_escapes_special_chars},
-	{"metrics_format_escapes_special_chars_in_key", test_metrics_format_escapes_special_chars_in_key},
-	{"metrics_format_skips_empty_keys", test_metrics_format_skips_empty_keys},
-	{"metrics_format_env_enrichment_present", test_metrics_format_env_enrichment_present},
-	{"metrics_format_env_lookup_null_skips_all", test_metrics_format_env_lookup_null_skips_all},
-	{"metrics_format_truncation_safe", test_metrics_format_truncation_safe},
-	{"metrics_append_writes_two_lines", test_metrics_append_writes_two_lines},
-	{"metrics_append_io_failure_returns_negative", test_metrics_append_io_failure_returns_negative},
+        {"metrics_format_single_line_with_newline", test_metrics_format_single_line_with_newline},
+        {"metrics_format_includes_kind_and_ts", test_metrics_format_includes_kind_and_ts},
+        {"metrics_format_int_uint_double_bool_hex", test_metrics_format_int_uint_double_bool_hex},
+        {"metrics_format_escapes_special_chars", test_metrics_format_escapes_special_chars},
+        {"metrics_format_escapes_special_chars_in_key",
+         test_metrics_format_escapes_special_chars_in_key},
+        {"metrics_format_skips_empty_keys", test_metrics_format_skips_empty_keys},
+        {"metrics_format_env_enrichment_present", test_metrics_format_env_enrichment_present},
+        {"metrics_format_env_lookup_null_skips_all", test_metrics_format_env_lookup_null_skips_all},
+        {"metrics_format_truncation_safe", test_metrics_format_truncation_safe},
+        {"metrics_append_writes_two_lines", test_metrics_append_writes_two_lines},
+        {"metrics_append_io_failure_returns_negative",
+         test_metrics_append_io_failure_returns_negative},
 };
 
 const int g_metrics_jsonl_test_count =
-	(int)(sizeof(g_metrics_jsonl_tests) / sizeof(g_metrics_jsonl_tests[0]));
+        (int)(sizeof(g_metrics_jsonl_tests) / sizeof(g_metrics_jsonl_tests[0]));

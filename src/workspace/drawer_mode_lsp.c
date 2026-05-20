@@ -1,7 +1,6 @@
-#include "workspace/drawer.h"
-
 #include "language/lsp.h"
 #include "language/syntax.h"
+#include "workspace/drawer.h"
 #include "workspace/drawer_internal.h"
 #include "workspace/file_search.h"
 #include "workspace/project_search.h"
@@ -63,10 +62,8 @@ struct editorDrawerLspLookup {
 	struct editorDrawerLspSymbolEntry symbol;
 };
 
-static const char *editor_drawer_lsp_group_names[EDITOR_DRAWER_LSP_GROUP_COUNT] = {
-	"Problems",
-	"Symbols"
-};
+static const char *editor_drawer_lsp_group_names[EDITOR_DRAWER_LSP_GROUP_COUNT] = {"Problems",
+                                                                                   "Symbols"};
 
 static unsigned int editorDrawerLspAllGroupsMask(void) {
 	unsigned int mask = 0;
@@ -88,7 +85,7 @@ static void editorDrawerLspEnsureDefaultExpanded(void) {
 }
 
 static int editorDrawerTabHasSyntaxProblem(const struct editorBuffer *tab, int *line_out,
-		int *character_out) {
+                                           int *character_out) {
 	struct editorSyntaxState *state = tab != NULL ? tab->syntax_state : NULL;
 	return editorSyntaxStateFirstErrorPosition(state, line_out, character_out);
 }
@@ -167,7 +164,7 @@ static int editorDrawerLspSymbolCount(void) {
 
 static int editorDrawerLspSymbolAt(int symbol_idx, struct editorDrawerLspSymbolEntry *symbol_out) {
 	if (symbol_out == NULL || symbol_idx < 0 || symbol_idx >= E.lsp_symbol_count ||
-			E.lsp_symbols == NULL) {
+	    E.lsp_symbols == NULL) {
 		return 0;
 	}
 	const struct editorLspSymbol *src = &E.lsp_symbols[symbol_idx];
@@ -207,7 +204,7 @@ int editorDrawerLspVisibleCount(void) {
 }
 
 static int editorDrawerLspLookupByVisibleIndex(int visible_idx,
-		struct editorDrawerLspLookup *lookup_out) {
+                                               struct editorDrawerLspLookup *lookup_out) {
 	if (lookup_out == NULL || visible_idx < 0) {
 		return 0;
 	}
@@ -262,12 +259,15 @@ static int editorDrawerLspLookupByVisibleIndex(int visible_idx,
 				lookup_out->group_visible_idx = group_visible_idx;
 				if (group_idx == EDITOR_DRAWER_LSP_GROUP_SYMBOLS) {
 					lookup_out->kind = EDITOR_DRAWER_LSP_ENTRY_SYMBOL;
-					if (!editorDrawerLspSymbolAt(item_idx, &lookup_out->symbol)) {
+					if (!editorDrawerLspSymbolAt(item_idx,
+					                             &lookup_out->symbol)) {
 						return 0;
 					}
-					lookup_out->parent_visible_idx = lookup_out->symbol.parent_index >= 0 ?
-							group_visible_idx + 1 + lookup_out->symbol.parent_index :
-							group_visible_idx;
+					lookup_out->parent_visible_idx =
+					        lookup_out->symbol.parent_index >= 0
+					                ? group_visible_idx + 1 +
+					                          lookup_out->symbol.parent_index
+					                : group_visible_idx;
 					return 1;
 				}
 				lookup_out->parent_visible_idx = group_visible_idx;
@@ -325,76 +325,81 @@ int editorDrawerLspGetVisibleEntry(int visible_idx, struct editorDrawerEntryView
 	view_out->line = lookup.problem.line;
 	view_out->character = lookup.problem.character;
 	switch (lookup.kind) {
-	case EDITOR_DRAWER_LSP_ENTRY_ROOT:
-		view_out->name = "LSP";
-		view_out->depth = 0;
-		view_out->is_dir = 1;
-		view_out->is_expanded = 1;
-		view_out->is_root = 1;
-		view_out->is_last_sibling = 1;
-		return 1;
-	case EDITOR_DRAWER_LSP_ENTRY_GROUP:
-		if (lookup.group_idx == EDITOR_DRAWER_LSP_GROUP_PROBLEMS) {
-			snprintf(lsp_name_buf, sizeof(lsp_name_buf), "Problems (%d)", lookup.item_count);
-			view_out->name = lsp_name_buf;
-		} else {
-			view_out->name = editor_drawer_lsp_group_names[lookup.group_idx];
-		}
-		view_out->depth = 1;
-		view_out->is_dir = 1;
-		view_out->is_expanded = editorDrawerLspGroupExpanded(lookup.group_idx);
-		view_out->is_last_sibling = lookup.group_idx == EDITOR_DRAWER_LSP_VISIBLE_GROUP_COUNT - 1;
-		return 1;
-	case EDITOR_DRAWER_LSP_ENTRY_PROBLEM: {
-		const char *path = lookup.problem.path != NULL ? lookup.problem.path : "";
-		const char *slash = strrchr(path, '/');
-		const char *base = slash != NULL ? slash + 1 : path;
-		const char *message = lookup.problem.message != NULL ? lookup.problem.message : "";
-		const char *kind = lookup.problem.source == EDITOR_DRAWER_LSP_PROBLEM_SYNTAX ? "Syntax" :
-				"Info";
-		if (lookup.problem.source == EDITOR_DRAWER_LSP_PROBLEM_LSP) {
-			if (lookup.problem.severity == 1) {
-				kind = "Error";
-			} else if (lookup.problem.severity == 2) {
-				kind = "Warning";
+		case EDITOR_DRAWER_LSP_ENTRY_ROOT:
+			view_out->name = "LSP";
+			view_out->depth = 0;
+			view_out->is_dir = 1;
+			view_out->is_expanded = 1;
+			view_out->is_root = 1;
+			view_out->is_last_sibling = 1;
+			return 1;
+		case EDITOR_DRAWER_LSP_ENTRY_GROUP:
+			if (lookup.group_idx == EDITOR_DRAWER_LSP_GROUP_PROBLEMS) {
+				snprintf(lsp_name_buf, sizeof(lsp_name_buf), "Problems (%d)",
+				         lookup.item_count);
+				view_out->name = lsp_name_buf;
+			} else {
+				view_out->name = editor_drawer_lsp_group_names[lookup.group_idx];
 			}
+			view_out->depth = 1;
+			view_out->is_dir = 1;
+			view_out->is_expanded = editorDrawerLspGroupExpanded(lookup.group_idx);
+			view_out->is_last_sibling =
+			        lookup.group_idx == EDITOR_DRAWER_LSP_VISIBLE_GROUP_COUNT - 1;
+			return 1;
+		case EDITOR_DRAWER_LSP_ENTRY_PROBLEM: {
+			const char *path = lookup.problem.path != NULL ? lookup.problem.path : "";
+			const char *slash = strrchr(path, '/');
+			const char *base = slash != NULL ? slash + 1 : path;
+			const char *message =
+			        lookup.problem.message != NULL ? lookup.problem.message : "";
+			const char *kind = lookup.problem.source == EDITOR_DRAWER_LSP_PROBLEM_SYNTAX
+			                           ? "Syntax"
+			                           : "Info";
+			if (lookup.problem.source == EDITOR_DRAWER_LSP_PROBLEM_LSP) {
+				if (lookup.problem.severity == 1) {
+					kind = "Error";
+				} else if (lookup.problem.severity == 2) {
+					kind = "Warning";
+				}
+			}
+			snprintf(lsp_name_buf, sizeof(lsp_name_buf), "%s %s:%d:%d %s", kind,
+			         base != NULL && base[0] != '\0' ? base : "(untitled)",
+			         lookup.problem.line + 1, lookup.problem.character + 1, message);
+			view_out->name = lsp_name_buf;
+			view_out->path = lookup.problem.path;
+			view_out->depth = 2;
+			view_out->is_last_sibling = lookup.item_idx == lookup.item_count - 1;
+			view_out->lsp_problem_severity = lookup.problem.severity;
+			view_out->lsp_problem_kind_len = (int)strlen(kind);
+			return 1;
 		}
-		snprintf(lsp_name_buf, sizeof(lsp_name_buf), "%s %s:%d:%d %s", kind,
-				base != NULL && base[0] != '\0' ? base : "(untitled)", lookup.problem.line + 1,
-				lookup.problem.character + 1, message);
-		view_out->name = lsp_name_buf;
-		view_out->path = lookup.problem.path;
-		view_out->depth = 2;
-		view_out->is_last_sibling = lookup.item_idx == lookup.item_count - 1;
-		view_out->lsp_problem_severity = lookup.problem.severity;
-		view_out->lsp_problem_kind_len = (int)strlen(kind);
-		return 1;
-	}
-	case EDITOR_DRAWER_LSP_ENTRY_SYMBOL: {
-		const char *symbol_name = lookup.symbol.name != NULL && lookup.symbol.name[0] != '\0' ?
-				lookup.symbol.name :
-				"(unnamed)";
-		snprintf(lsp_name_buf, sizeof(lsp_name_buf), "%s %s:%d",
-				editorLspSymbolKindLabel(lookup.symbol.kind), symbol_name,
-				lookup.symbol.line + 1);
-		view_out->name = lsp_name_buf;
-		view_out->path = lookup.symbol.path;
-		view_out->line = lookup.symbol.line;
-		view_out->character = lookup.symbol.character;
-		view_out->depth = 2 + lookup.symbol.depth;
-		view_out->is_last_sibling = lookup.symbol.is_last_sibling;
-		return 1;
-	}
-	case EDITOR_DRAWER_LSP_ENTRY_PLACEHOLDER:
-		view_out->name =
-				lookup.group_idx == EDITOR_DRAWER_LSP_GROUP_SYMBOLS ? "(symbols not loaded yet)" :
-										   "(none)";
-		view_out->depth = 2;
-		view_out->is_placeholder = 1;
-		view_out->is_last_sibling = 1;
-		return 1;
-	default:
-		return 0;
+		case EDITOR_DRAWER_LSP_ENTRY_SYMBOL: {
+			const char *symbol_name =
+			        lookup.symbol.name != NULL && lookup.symbol.name[0] != '\0'
+			                ? lookup.symbol.name
+			                : "(unnamed)";
+			snprintf(lsp_name_buf, sizeof(lsp_name_buf), "%s %s:%d",
+			         editorLspSymbolKindLabel(lookup.symbol.kind), symbol_name,
+			         lookup.symbol.line + 1);
+			view_out->name = lsp_name_buf;
+			view_out->path = lookup.symbol.path;
+			view_out->line = lookup.symbol.line;
+			view_out->character = lookup.symbol.character;
+			view_out->depth = 2 + lookup.symbol.depth;
+			view_out->is_last_sibling = lookup.symbol.is_last_sibling;
+			return 1;
+		}
+		case EDITOR_DRAWER_LSP_ENTRY_PLACEHOLDER:
+			view_out->name = lookup.group_idx == EDITOR_DRAWER_LSP_GROUP_SYMBOLS
+			                         ? "(symbols not loaded yet)"
+			                         : "(none)";
+			view_out->depth = 2;
+			view_out->is_placeholder = 1;
+			view_out->is_last_sibling = 1;
+			return 1;
+		default:
+			return 0;
 	}
 }
 
@@ -408,7 +413,7 @@ int editorDrawerLspExpandSelection(int viewport_rows) {
 		return 0;
 	}
 	if (lookup.kind != EDITOR_DRAWER_LSP_ENTRY_GROUP ||
-			editorDrawerLspGroupExpanded(lookup.group_idx)) {
+	    editorDrawerLspGroupExpanded(lookup.group_idx)) {
 		return 0;
 	}
 	E.drawer_lsp_expanded |= 1u << (unsigned int)lookup.group_idx;
@@ -434,7 +439,7 @@ int editorDrawerLspCollapseSelection(int viewport_rows) {
 		return 1;
 	}
 	if (lookup.kind == EDITOR_DRAWER_LSP_ENTRY_PROBLEM ||
-			lookup.kind == EDITOR_DRAWER_LSP_ENTRY_PLACEHOLDER) {
+	    lookup.kind == EDITOR_DRAWER_LSP_ENTRY_PLACEHOLDER) {
 		E.drawer_selected_index = lookup.group_visible_idx;
 		editorDrawerClampSelectionAndScroll(viewport_rows);
 		return 1;
@@ -461,12 +466,12 @@ int editorDrawerLspSelectedIsDirectory(void) {
 		return 0;
 	}
 	return lookup.kind == EDITOR_DRAWER_LSP_ENTRY_ROOT ||
-			lookup.kind == EDITOR_DRAWER_LSP_ENTRY_GROUP;
+	       lookup.kind == EDITOR_DRAWER_LSP_ENTRY_GROUP;
 }
 
 int editorDrawerSelectedLspLocation(const char **path_out, int *line_out, int *character_out) {
 	if (path_out == NULL || line_out == NULL || character_out == NULL ||
-			E.drawer_mode != EDITOR_DRAWER_MODE_LSP) {
+	    E.drawer_mode != EDITOR_DRAWER_MODE_LSP) {
 		return 0;
 	}
 	struct editorDrawerLspLookup lookup;

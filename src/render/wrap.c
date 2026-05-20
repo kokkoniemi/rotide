@@ -5,6 +5,7 @@
 #include "text/utf8.h"
 #include "workspace/drawer.h"
 #include "workspace/layout.h"
+
 #include <stdlib.h>
 
 static int editorPaneTextBodyViewportColsForWidth(int pane_cols) {
@@ -32,8 +33,7 @@ static int editorFocusedPaneTextBodyViewportCols(void) {
 
 int editorWrapBodyCols(void) {
 	int override_cols = editorPaneWrapBodyColsOverride();
-	int body_cols = override_cols > 0 ? override_cols :
-			editorFocusedPaneTextBodyViewportCols();
+	int body_cols = override_cols > 0 ? override_cols : editorFocusedPaneTextBodyViewportCols();
 	return body_cols < 1 ? 1 : body_cols;
 }
 
@@ -95,7 +95,7 @@ static int editorWrapBreaksAfterCodepoint(unsigned int cp) {
 }
 
 int editorWrapNextStartCol(const struct erow *row, int start_col, int available_cols,
-		int total_cols) {
+                           int total_cols) {
 	if (row == NULL || available_cols <= 0 || start_col < 0 || start_col >= total_cols) {
 		return total_cols;
 	}
@@ -215,8 +215,8 @@ static void editorWrapEnsureCache(struct erow *row, int body_cols) {
 	row->wrap_cache_segment_count = count;
 }
 
-void editorWrapSegmentInfo(struct erow *row, int segment_idx, int body_cols,
-		int *start_col_out, int *available_cols_out, int *indent_cols_out) {
+void editorWrapSegmentInfo(struct erow *row, int segment_idx, int body_cols, int *start_col_out,
+                           int *available_cols_out, int *indent_cols_out) {
 	if (start_col_out != NULL) {
 		*start_col_out = 0;
 	}
@@ -356,7 +356,7 @@ int editorWrappedPositionBefore(int row_a, int segment_a, int row_b, int segment
 }
 
 int editorWrappedDistanceForward(int from_row, int from_segment, int to_row, int to_segment,
-		int max_distance, int body_cols, int *distance_out) {
+                                 int max_distance, int body_cols, int *distance_out) {
 	int row = from_row;
 	int segment = from_segment;
 	for (int distance = 0; distance <= max_distance; distance++) {

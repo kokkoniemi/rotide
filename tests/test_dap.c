@@ -1,18 +1,18 @@
-#include "test_case.h"
-#include "test_support.h"
 #include "config/common.h"
 #include "config/dap_config.h"
 #include "config/editor_config.h"
 #include "config/keymap.h"
 #include "config/theme_config.h"
-#include "input/dispatch.h"
 #include "debug/dap.h"
-#include "workspace/layout.h"
-#include "workspace/tabs.h"
-#include "workspace/workspace_state.h"
+#include "input/dispatch.h"
+#include "test_case.h"
+#include "test_support.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
+#include "workspace/layout.h"
 #include "workspace/project_search.h"
+#include "workspace/tabs.h"
+#include "workspace/workspace_state.h"
 
 static int test_editor_dap_config_loads_global_defaults_and_project_launches(void) {
 	char dir_template[] = "/tmp/rotide-test-dap-config-XXXXXX";
@@ -23,36 +23,34 @@ static int test_editor_dap_config_loads_global_defaults_and_project_launches(voi
 	char project_path[512];
 	ASSERT_TRUE(path_join(global_path, sizeof(global_path), dir_path, "global.toml"));
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
-	ASSERT_TRUE(write_text_file(global_path,
-				"[dap.adapters]\n"
-				"go = \"dlv dap\"\n"
-				"\n"
-				"[dap.defaults.go_app]\n"
-				"name = \"Go app\"\n"
-				"adapter = \"go\"\n"
-				"request = \"launch\"\n"
-				"program = \"${workspaceFolder}/cmd/app\"\n"
-				"args = [\"--port\", \"8080\"]\n"
-				"stopOnEntry = false\n"
-				"mode = \"debug\"\n"
-				"\n"
-				"[dap.defaults.go_app.env]\n"
-				"APP_ENV = \"dev\"\n"));
-	ASSERT_TRUE(write_text_file(project_path,
-				"[dap.launch.project_app]\n"
-				"name = \"Project app\"\n"
-				"adapter = \"go\"\n"
-				"request = \"launch\"\n"
-				"program = \"${workspaceFolder}/main.go\"\n"
-				"args = [\"one\", \"${fileBasename}\"]\n"
-				"stopOnEntry = true\n"
-				"port = 443\n"
-				"\n"
-				"[dap.launch.project_app.env]\n"
-				"FILE = \"${file}\"\n"));
+	ASSERT_TRUE(write_text_file(global_path, "[dap.adapters]\n"
+	                                         "go = \"dlv dap\"\n"
+	                                         "\n"
+	                                         "[dap.defaults.go_app]\n"
+	                                         "name = \"Go app\"\n"
+	                                         "adapter = \"go\"\n"
+	                                         "request = \"launch\"\n"
+	                                         "program = \"${workspaceFolder}/cmd/app\"\n"
+	                                         "args = [\"--port\", \"8080\"]\n"
+	                                         "stopOnEntry = false\n"
+	                                         "mode = \"debug\"\n"
+	                                         "\n"
+	                                         "[dap.defaults.go_app.env]\n"
+	                                         "APP_ENV = \"dev\"\n"));
+	ASSERT_TRUE(write_text_file(project_path, "[dap.launch.project_app]\n"
+	                                          "name = \"Project app\"\n"
+	                                          "adapter = \"go\"\n"
+	                                          "request = \"launch\"\n"
+	                                          "program = \"${workspaceFolder}/main.go\"\n"
+	                                          "args = [\"one\", \"${fileBasename}\"]\n"
+	                                          "stopOnEntry = true\n"
+	                                          "port = 443\n"
+	                                          "\n"
+	                                          "[dap.launch.project_app.env]\n"
+	                                          "FILE = \"${file}\"\n"));
 
 	enum editorDapConfigLoadStatus status =
-			editorDapConfigLoadFromPaths(global_path, project_path);
+	        editorDapConfigLoadFromPaths(global_path, project_path);
 	ASSERT_EQ_INT(EDITOR_DAP_CONFIG_LOAD_OK, status);
 	ASSERT_EQ_INT(1, E.dap_adapter_count);
 	ASSERT_EQ_STR("go", E.dap_adapters[0].id);
@@ -68,7 +66,8 @@ static int test_editor_dap_config_loads_global_defaults_and_project_launches(voi
 	char *json = editorDapBuildLaunchRequestJson(4, &E.dap_launches[0], dir_path, active_file);
 	ASSERT_TRUE(json != NULL);
 	char expected_program[700];
-	snprintf(expected_program, sizeof(expected_program), "\"program\":\"%s/main.go\"", dir_path);
+	snprintf(expected_program, sizeof(expected_program), "\"program\":\"%s/main.go\"",
+	         dir_path);
 	ASSERT_TRUE(strstr(json, expected_program) != NULL);
 	ASSERT_TRUE(strstr(json, "\"args\":[\"one\",\"main.go\"]") != NULL);
 	ASSERT_TRUE(strstr(json, "\"stopOnEntry\":true") != NULL);
@@ -93,33 +92,28 @@ static int test_editor_dap_config_rejects_missing_adapter_and_attach(void) {
 	ASSERT_TRUE(path_join(global_path, sizeof(global_path), dir_path, "global.toml"));
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
 
-	ASSERT_TRUE(write_text_file(global_path,
-				"[dap.defaults.go_app]\n"
-				"name = \"Go app\"\n"
-				"adapter = \"go\"\n"
-				"request = \"launch\"\n"));
-	enum editorDapConfigLoadStatus status =
-			editorDapConfigLoadFromPaths(global_path, NULL);
+	ASSERT_TRUE(write_text_file(global_path, "[dap.defaults.go_app]\n"
+	                                         "name = \"Go app\"\n"
+	                                         "adapter = \"go\"\n"
+	                                         "request = \"launch\"\n"));
+	enum editorDapConfigLoadStatus status = editorDapConfigLoadFromPaths(global_path, NULL);
 	ASSERT_TRUE((status & EDITOR_DAP_CONFIG_LOAD_INVALID_GLOBAL) != 0);
 	ASSERT_EQ_INT(0, E.dap_default_count);
 
-	ASSERT_TRUE(write_text_file(global_path,
-				"[dap.adapters]\n"
-				"go = \"dlv dap\"\n"));
-	ASSERT_TRUE(write_text_file(project_path,
-				"[dap.launch.bad_adapter]\n"
-				"name = \"Bad adapter\"\n"
-				"adapter = \"missing\"\n"
-				"request = \"launch\"\n"));
+	ASSERT_TRUE(write_text_file(global_path, "[dap.adapters]\n"
+	                                         "go = \"dlv dap\"\n"));
+	ASSERT_TRUE(write_text_file(project_path, "[dap.launch.bad_adapter]\n"
+	                                          "name = \"Bad adapter\"\n"
+	                                          "adapter = \"missing\"\n"
+	                                          "request = \"launch\"\n"));
 	status = editorDapConfigLoadFromPaths(global_path, project_path);
 	ASSERT_TRUE((status & EDITOR_DAP_CONFIG_LOAD_INVALID_PROJECT) != 0);
 	ASSERT_EQ_INT(0, E.dap_launch_count);
 
-	ASSERT_TRUE(write_text_file(project_path,
-				"[dap.launch.attach_app]\n"
-				"name = \"Attach app\"\n"
-				"adapter = \"go\"\n"
-				"request = \"attach\"\n"));
+	ASSERT_TRUE(write_text_file(project_path, "[dap.launch.attach_app]\n"
+	                                          "name = \"Attach app\"\n"
+	                                          "adapter = \"go\"\n"
+	                                          "request = \"attach\"\n"));
 	status = editorDapConfigLoadFromPaths(global_path, project_path);
 	ASSERT_TRUE((status & EDITOR_DAP_CONFIG_LOAD_INVALID_PROJECT) != 0);
 	ASSERT_EQ_INT(0, E.dap_launch_count);
@@ -214,15 +208,14 @@ static int test_editor_dap_drawer_prompts_and_creates_project_config_from_defaul
 
 	char global_path[512];
 	ASSERT_TRUE(path_join(global_path, sizeof(global_path), env.root_dir, "global.toml"));
-	ASSERT_TRUE(write_text_file(global_path,
-				"[dap.adapters]\n"
-				"go = \"dlv dap\"\n"
-				"\n"
-				"[dap.defaults.go_app]\n"
-				"name = \"Go app\"\n"
-				"adapter = \"go\"\n"
-				"request = \"launch\"\n"
-				"program = \"${workspaceFolder}\"\n"));
+	ASSERT_TRUE(write_text_file(global_path, "[dap.adapters]\n"
+	                                         "go = \"dlv dap\"\n"
+	                                         "\n"
+	                                         "[dap.defaults.go_app]\n"
+	                                         "name = \"Go app\"\n"
+	                                         "adapter = \"go\"\n"
+	                                         "request = \"launch\"\n"
+	                                         "program = \"${workspaceFolder}\"\n"));
 	ASSERT_EQ_INT(EDITOR_DAP_CONFIG_LOAD_OK, editorDapConfigLoadFromPaths(global_path, NULL));
 	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
 	ASSERT_TRUE(editorDrawerDapToggle());
@@ -279,13 +272,12 @@ static int test_editor_dap_protocol_builds_initialize_and_launch_requests(void) 
 	snprintf(program->key, sizeof(program->key), "%s", "program");
 	program->kind = EDITOR_DAP_LAUNCH_VALUE_STRING;
 	snprintf(program->string_value, sizeof(program->string_value), "%s",
-			"${workspaceFolder}/main.go");
+	         "${workspaceFolder}/main.go");
 	struct editorDapLaunchField *args = &config.fields[config.field_count++];
 	snprintf(args->key, sizeof(args->key), "%s", "args");
 	args->kind = EDITOR_DAP_LAUNCH_VALUE_STRING_ARRAY;
 	args->array_count = 1;
-	args->array_values = calloc(ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS,
-			sizeof(*args->array_values));
+	args->array_values = calloc(ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS, sizeof(*args->array_values));
 	ASSERT_TRUE(args->array_values != NULL);
 	snprintf(args->array_values[0], sizeof(args->array_values[0]), "%s", "${fileBasename}");
 
@@ -295,8 +287,8 @@ static int test_editor_dap_protocol_builds_initialize_and_launch_requests(void) 
 	ASSERT_TRUE(strstr(init, "\"adapterID\":\"go\"") != NULL);
 	free(init);
 
-	char *launch = editorDapBuildLaunchRequestJson(2, &config, "/tmp/project",
-			"/tmp/project/main.go");
+	char *launch =
+	        editorDapBuildLaunchRequestJson(2, &config, "/tmp/project", "/tmp/project/main.go");
 	ASSERT_TRUE(launch != NULL);
 	ASSERT_TRUE(strstr(launch, "\"seq\":2") != NULL);
 	ASSERT_TRUE(strstr(launch, "\"command\":\"launch\"") != NULL);
@@ -314,8 +306,7 @@ static int test_editor_dap_launch_field_array_values_lifecycle(void) {
 	struct editorDapLaunchField *args = &config.fields[config.field_count++];
 	snprintf(args->key, sizeof(args->key), "%s", "args");
 	args->kind = EDITOR_DAP_LAUNCH_VALUE_STRING_ARRAY;
-	args->array_values = calloc(ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS,
-			sizeof(*args->array_values));
+	args->array_values = calloc(ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS, sizeof(*args->array_values));
 	ASSERT_TRUE(args->array_values != NULL);
 	args->array_count = 2;
 	snprintf(args->array_values[0], sizeof(args->array_values[0]), "--foo");
@@ -335,8 +326,8 @@ static int test_editor_dap_launch_field_array_values_lifecycle(void) {
 	struct editorDapLaunchField *extra = &config.fields[config.field_count++];
 	snprintf(extra->key, sizeof(extra->key), "%s", "extra_args");
 	extra->kind = EDITOR_DAP_LAUNCH_VALUE_STRING_ARRAY;
-	extra->array_values = calloc(ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS,
-			sizeof(*extra->array_values));
+	extra->array_values =
+	        calloc(ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS, sizeof(*extra->array_values));
 	ASSERT_TRUE(extra->array_values != NULL);
 	extra->array_count = 1;
 	snprintf(extra->array_values[0], sizeof(extra->array_values[0]), "--baz");
@@ -352,16 +343,21 @@ static int test_editor_dap_launch_field_array_values_lifecycle(void) {
 }
 
 const struct editorTestCase g_dap_tests[] = {
-	{"editor_dap_config_loads_global_defaults_and_project_launches", test_editor_dap_config_loads_global_defaults_and_project_launches},
-	{"editor_dap_config_rejects_missing_adapter_and_attach", test_editor_dap_config_rejects_missing_adapter_and_attach},
-	{"editor_dap_launch_field_accessors", test_editor_dap_launch_field_accessors},
-	{"editor_dap_prepare_terminal_console_sets_tty", test_editor_dap_prepare_terminal_console_sets_tty},
-	{"editor_dap_prepare_terminal_console_strips_non_terminal_value", test_editor_dap_prepare_terminal_console_strips_non_terminal_value},
-	{"editor_dap_drawer_prompts_and_creates_project_config_from_default", test_editor_dap_drawer_prompts_and_creates_project_config_from_default},
-	{"editor_dap_protocol_builds_initialize_and_launch_requests", test_editor_dap_protocol_builds_initialize_and_launch_requests},
-	{"editor_dap_launch_field_array_values_lifecycle",
-			test_editor_dap_launch_field_array_values_lifecycle},
+        {"editor_dap_config_loads_global_defaults_and_project_launches",
+         test_editor_dap_config_loads_global_defaults_and_project_launches},
+        {"editor_dap_config_rejects_missing_adapter_and_attach",
+         test_editor_dap_config_rejects_missing_adapter_and_attach},
+        {"editor_dap_launch_field_accessors", test_editor_dap_launch_field_accessors},
+        {"editor_dap_prepare_terminal_console_sets_tty",
+         test_editor_dap_prepare_terminal_console_sets_tty},
+        {"editor_dap_prepare_terminal_console_strips_non_terminal_value",
+         test_editor_dap_prepare_terminal_console_strips_non_terminal_value},
+        {"editor_dap_drawer_prompts_and_creates_project_config_from_default",
+         test_editor_dap_drawer_prompts_and_creates_project_config_from_default},
+        {"editor_dap_protocol_builds_initialize_and_launch_requests",
+         test_editor_dap_protocol_builds_initialize_and_launch_requests},
+        {"editor_dap_launch_field_array_values_lifecycle",
+         test_editor_dap_launch_field_array_values_lifecycle},
 };
 
-const int g_dap_test_count =
-		(int)(sizeof(g_dap_tests) / sizeof(g_dap_tests[0]));
+const int g_dap_test_count = (int)(sizeof(g_dap_tests) / sizeof(g_dap_tests[0]));

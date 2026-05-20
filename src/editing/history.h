@@ -18,6 +18,7 @@ int editorRedo(void);
 void editorHistoryEntryFree(struct editorHistoryEntry *entry);
 void editorHistoryClear(struct editorHistory *history);
 int editorHistoryRecordPendingEditFromOperation(enum editorEditKind kind,
-		const struct editorDocumentEdit *edit, const char *removed_text, size_t removed_len);
+                                                const struct editorDocumentEdit *edit,
+                                                const char *removed_text, size_t removed_len);
 
 #endif

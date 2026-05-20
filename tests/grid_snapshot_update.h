@@ -34,7 +34,7 @@
  * assertion as passing (match, OR mismatch in update mode); returns 1
  * if the macro should fail the test (mismatch with no update mode).
  */
-int editor_grid_snapshot_check_or_stash(const char *expected, const char *actual,
-		const char *file, int line);
+int editor_grid_snapshot_check_or_stash(const char *expected, const char *actual, const char *file,
+                                        int line);
 
 #endif

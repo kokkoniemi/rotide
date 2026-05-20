@@ -25,26 +25,39 @@ static void json_escape_into(FILE *out, const char *text) {
 	for (const unsigned char *p = (const unsigned char *)text; *p != '\0'; p++) {
 		unsigned char c = *p;
 		switch (c) {
-		case '"':  fputs("\\\"", out); break;
-		case '\\': fputs("\\\\", out); break;
-		case '\b': fputs("\\b", out); break;
-		case '\f': fputs("\\f", out); break;
-		case '\n': fputs("\\n", out); break;
-		case '\r': fputs("\\r", out); break;
-		case '\t': fputs("\\t", out); break;
-		default:
-			if (c < 0x20) {
-				fprintf(out, "\\u%04x", c);
-			} else {
-				fputc(c, out);
-			}
-			break;
+			case '"':
+				fputs("\\\"", out);
+				break;
+			case '\\':
+				fputs("\\\\", out);
+				break;
+			case '\b':
+				fputs("\\b", out);
+				break;
+			case '\f':
+				fputs("\\f", out);
+				break;
+			case '\n':
+				fputs("\\n", out);
+				break;
+			case '\r':
+				fputs("\\r", out);
+				break;
+			case '\t':
+				fputs("\\t", out);
+				break;
+			default:
+				if (c < 0x20) {
+					fprintf(out, "\\u%04x", c);
+				} else {
+					fputc(c, out);
+				}
+				break;
 		}
 	}
 }
 
-static int append_stash_row(const char *path, const char *file,
-		int line, const char *actual) {
+static int append_stash_row(const char *path, const char *file, int line, const char *actual) {
 	int fd = open(path, O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0644);
 	if (fd < 0) {
 		return -1;
@@ -100,8 +113,8 @@ static int append_stash_row(const char *path, const char *file,
 	return 0;
 }
 
-int editor_grid_snapshot_check_or_stash(const char *expected, const char *actual,
-		const char *file, int line) {
+int editor_grid_snapshot_check_or_stash(const char *expected, const char *actual, const char *file,
+                                        int line) {
 	const char *stash = stash_path();
 	if (stash == NULL) {
 		return editor_grid_snapshot_diff(expected, actual);
@@ -111,8 +124,9 @@ int editor_grid_snapshot_check_or_stash(const char *expected, const char *actual
 	}
 	if (append_stash_row(stash, file, line, actual) != 0) {
 		fprintf(stderr,
-			"grid-snapshot-update: warning: failed to write stash row "
-			"for %s:%d: %s\n", file, line, strerror(errno));
+		        "grid-snapshot-update: warning: failed to write stash row "
+		        "for %s:%d: %s\n",
+		        file, line, strerror(errno));
 	}
 	return 0;
 }

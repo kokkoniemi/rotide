@@ -12,7 +12,7 @@ struct editorLspString {
 int editorLspStringAppend(struct editorLspString *sb, const char *text);
 int editorLspStringAppendBytes(struct editorLspString *sb, const char *bytes, size_t len);
 int editorLspStringAppendf(struct editorLspString *sb, const char *fmt, ...)
-		__attribute__((format(printf, 2, 3)));
+        __attribute__((format(printf, 2, 3)));
 int editorLspStringAppendJsonEscaped(struct editorLspString *sb, const char *text, size_t len);
 
 const char *editorLspSkipWs(const char *p);
@@ -29,8 +29,7 @@ const char *editorLspFindJsonArrayEnd(const char *array_start);
  * Returns NULL if the needle is not found before `limit` or either input is
  * NULL. `limit` may be NULL to disable the bound.
  */
-const char *editorLspStrstrBounded(const char *haystack, const char *needle,
-		const char *limit);
+const char *editorLspStrstrBounded(const char *haystack, const char *needle, const char *limit);
 
 /*
  * editorLspFindTopLevelKey: find a quoted key (e.g. "\"name\"") at the
@@ -41,7 +40,7 @@ const char *editorLspStrstrBounded(const char *haystack, const char *needle,
  * matched key, or NULL.
  */
 const char *editorLspFindTopLevelKey(const char *object_start, const char *object_end,
-		const char *quoted_key);
+                                     const char *quoted_key);
 
 /*
  * editorLspParsePositionFromKey: parse an LSP Position object found under
@@ -49,7 +48,7 @@ const char *editorLspFindTopLevelKey(const char *object_start, const char *objec
  * Writes line/character on success. `limit` bounds the search. Returns 1
  * on success, 0 on absence or malformed input.
  */
-int editorLspParsePositionFromKey(const char *range_json, const char *key_name,
-		const char *limit, int *line_out, int *character_out);
+int editorLspParsePositionFromKey(const char *range_json, const char *key_name, const char *limit,
+                                  int *line_out, int *character_out);
 
 #endif

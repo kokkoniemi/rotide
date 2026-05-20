@@ -46,26 +46,25 @@ int editor_grid_snapshot_diff(const char *expected, const char *actual);
  */
 #include "grid_snapshot_update.h"
 
-#define ASSERT_GRID_EQ(expected) \
-	do { \
-		size_t _actual_len = 0; \
-		char *_actual = editor_grid_snapshot(&_actual_len); \
-		const char *_expected = (expected); \
-		if (_actual == NULL) { \
-			fprintf(stderr, \
-				"Assertion failed in %s:%d: grid capture failed\n", \
-				__func__, __LINE__); \
-			return 1; \
-		} \
-		if (editor_grid_snapshot_check_or_stash(_expected, _actual, \
-				__FILE__, __LINE__) != 0) { \
-			fprintf(stderr, \
-				"Assertion failed in %s:%d: grid mismatch (see diff above)\n", \
-				__func__, __LINE__); \
-			free(_actual); \
-			return 1; \
-		} \
-		free(_actual); \
+#define ASSERT_GRID_EQ(expected)                                                                   \
+	do {                                                                                       \
+		size_t _actual_len = 0;                                                            \
+		char *_actual = editor_grid_snapshot(&_actual_len);                                \
+		const char *_expected = (expected);                                                \
+		if (_actual == NULL) {                                                             \
+			fprintf(stderr, "Assertion failed in %s:%d: grid capture failed\n",        \
+			        __func__, __LINE__);                                               \
+			return 1;                                                                  \
+		}                                                                                  \
+		if (editor_grid_snapshot_check_or_stash(_expected, _actual, __FILE__, __LINE__) != \
+		    0) {                                                                           \
+			fprintf(stderr,                                                            \
+			        "Assertion failed in %s:%d: grid mismatch (see diff above)\n",     \
+			        __func__, __LINE__);                                               \
+			free(_actual);                                                             \
+			return 1;                                                                  \
+		}                                                                                  \
+		free(_actual);                                                                     \
 	} while (0)
 
 #endif

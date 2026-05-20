@@ -22,36 +22,53 @@ static int json_escape(char *dst, size_t dst_size, const char *src) {
 	if (dst_size == 0) {
 		dst = NULL;
 	}
-#define EMIT_RAW(c) do { \
-		if (dst != NULL && pos + 1 < dst_size) dst[pos] = (char)(c); \
-		pos++; \
-		need++; \
+#define EMIT_RAW(c)                                                                                \
+	do {                                                                                       \
+		if (dst != NULL && pos + 1 < dst_size)                                             \
+			dst[pos] = (char)(c);                                                      \
+		pos++;                                                                             \
+		need++;                                                                            \
 	} while (0)
-#define EMIT_STR(s, len) do { \
-		for (size_t _i = 0; _i < (size_t)(len); _i++) { \
-			EMIT_RAW((s)[_i]); \
-		} \
+#define EMIT_STR(s, len)                                                                           \
+	do {                                                                                       \
+		for (size_t _i = 0; _i < (size_t)(len); _i++) {                                    \
+			EMIT_RAW((s)[_i]);                                                         \
+		}                                                                                  \
 	} while (0)
 
 	for (const unsigned char *p = (const unsigned char *)src; *p != '\0'; p++) {
 		unsigned char c = *p;
 		switch (c) {
-		case '"':  EMIT_STR("\\\"", 2); break;
-		case '\\': EMIT_STR("\\\\", 2); break;
-		case '\b': EMIT_STR("\\b", 2); break;
-		case '\f': EMIT_STR("\\f", 2); break;
-		case '\n': EMIT_STR("\\n", 2); break;
-		case '\r': EMIT_STR("\\r", 2); break;
-		case '\t': EMIT_STR("\\t", 2); break;
-		default:
-			if (c < 0x20) {
-				char buf[8];
-				int n = snprintf(buf, sizeof(buf), "\\u%04x", c);
-				EMIT_STR(buf, n);
-			} else {
-				EMIT_RAW(c);
-			}
-			break;
+			case '"':
+				EMIT_STR("\\\"", 2);
+				break;
+			case '\\':
+				EMIT_STR("\\\\", 2);
+				break;
+			case '\b':
+				EMIT_STR("\\b", 2);
+				break;
+			case '\f':
+				EMIT_STR("\\f", 2);
+				break;
+			case '\n':
+				EMIT_STR("\\n", 2);
+				break;
+			case '\r':
+				EMIT_STR("\\r", 2);
+				break;
+			case '\t':
+				EMIT_STR("\\t", 2);
+				break;
+			default:
+				if (c < 0x20) {
+					char buf[8];
+					int n = snprintf(buf, sizeof(buf), "\\u%04x", c);
+					EMIT_STR(buf, n);
+				} else {
+					EMIT_RAW(c);
+				}
+				break;
 		}
 	}
 #undef EMIT_RAW
@@ -94,8 +111,8 @@ static void append_str(char *buf, size_t buf_size, size_t *off, const char *s, s
 static void append_escaped_string_value(char *buf, size_t buf_size, size_t *off, const char *s) {
 	append_str(buf, buf_size, off, "\"", 1);
 	size_t pos = *off;
-	int n = json_escape(pos < buf_size ? buf + pos : NULL,
-			pos < buf_size ? buf_size - pos : 0, s);
+	int n = json_escape(pos < buf_size ? buf + pos : NULL, pos < buf_size ? buf_size - pos : 0,
+	                    s);
 	*off += (size_t)n;
 	if (*off < buf_size) {
 		buf[*off] = '\0';
@@ -104,31 +121,30 @@ static void append_escaped_string_value(char *buf, size_t buf_size, size_t *off,
 }
 
 static void append_field_value(char *buf, size_t buf_size, size_t *off,
-		const struct editorMetricsField *f) {
+                               const struct editorMetricsField *f) {
 	switch (f->type) {
-	case EDITOR_METRICS_STR:
-		append_escaped_string_value(buf, buf_size, off, f->v.s ? f->v.s : "");
-		break;
-	case EDITOR_METRICS_INT:
-		append_fmt(buf, buf_size, off, "%lld", f->v.i);
-		break;
-	case EDITOR_METRICS_UINT64:
-		append_fmt(buf, buf_size, off, "%llu", f->v.u);
-		break;
-	case EDITOR_METRICS_DOUBLE:
-		/* %.6g loses precision for nanosecond percentiles; %.6f wastes
-		 * digits for tiny values. %.9g keeps full sample precision for
-		 * the bench numbers (typical range 10..1e8 ns) without trailing
-		 * zeros, and is round-trip safe for the chart script. */
-		append_fmt(buf, buf_size, off, "%.9g", f->v.d);
-		break;
-	case EDITOR_METRICS_BOOL:
-		append_str(buf, buf_size, off, f->v.b ? "true" : "false",
-			f->v.b ? 4 : 5);
-		break;
-	case EDITOR_METRICS_HEX64:
-		append_fmt(buf, buf_size, off, "\"0x%016llx\"", f->v.u);
-		break;
+		case EDITOR_METRICS_STR:
+			append_escaped_string_value(buf, buf_size, off, f->v.s ? f->v.s : "");
+			break;
+		case EDITOR_METRICS_INT:
+			append_fmt(buf, buf_size, off, "%lld", f->v.i);
+			break;
+		case EDITOR_METRICS_UINT64:
+			append_fmt(buf, buf_size, off, "%llu", f->v.u);
+			break;
+		case EDITOR_METRICS_DOUBLE:
+			/* %.6g loses precision for nanosecond percentiles; %.6f wastes
+			 * digits for tiny values. %.9g keeps full sample precision for
+			 * the bench numbers (typical range 10..1e8 ns) without trailing
+			 * zeros, and is round-trip safe for the chart script. */
+			append_fmt(buf, buf_size, off, "%.9g", f->v.d);
+			break;
+		case EDITOR_METRICS_BOOL:
+			append_str(buf, buf_size, off, f->v.b ? "true" : "false", f->v.b ? 4 : 5);
+			break;
+		case EDITOR_METRICS_HEX64:
+			append_fmt(buf, buf_size, off, "\"0x%016llx\"", f->v.u);
+			break;
 	}
 }
 
@@ -136,10 +152,9 @@ static const char *getenv_default(const char *name) {
 	return getenv(name);
 }
 
-int editorMetricsFormatRow(char *buf, size_t buf_size, const char *kind,
-		long long now_unix,
-		const char *(*env_lookup)(const char *name),
-		const struct editorMetricsField *fields, int field_count) {
+int editorMetricsFormatRow(char *buf, size_t buf_size, const char *kind, long long now_unix,
+                           const char *(*env_lookup)(const char *name),
+                           const struct editorMetricsField *fields, int field_count) {
 	if (kind == NULL) {
 		kind = "";
 	}
@@ -163,9 +178,9 @@ int editorMetricsFormatRow(char *buf, size_t buf_size, const char *kind,
 			const char *env;
 			const char *key;
 		} pairs[] = {
-			{"ROTIDE_METRICS_GIT_SHA", "git_sha"},
-			{"ROTIDE_METRICS_GIT_REF", "git_ref"},
-			{"ROTIDE_METRICS_CI_RUN_ID", "ci_run_id"},
+		        {"ROTIDE_METRICS_GIT_SHA", "git_sha"},
+		        {"ROTIDE_METRICS_GIT_REF", "git_ref"},
+		        {"ROTIDE_METRICS_CI_RUN_ID", "ci_run_id"},
 		};
 		for (size_t i = 0; i < sizeof(pairs) / sizeof(pairs[0]); i++) {
 			const char *v = env_lookup(pairs[i].env);
@@ -200,8 +215,8 @@ int editorMetricsFormatRow(char *buf, size_t buf_size, const char *kind,
 	return (int)off;
 }
 
-int editorMetricsAppend(const char *path, const char *kind,
-		const struct editorMetricsField *fields, int field_count) {
+int editorMetricsAppend(const char *path, const char *kind, const struct editorMetricsField *fields,
+                        int field_count) {
 	if (path == NULL || path[0] == '\0') {
 		return -1;
 	}
@@ -210,8 +225,8 @@ int editorMetricsAppend(const char *path, const char *kind,
 	 * this in practice; if a row ever needs more, the format helper
 	 * truncates and we refuse to write a malformed row. */
 	char buf[2048];
-	int written = editorMetricsFormatRow(buf, sizeof(buf), kind, 0,
-			getenv_default, fields, field_count);
+	int written = editorMetricsFormatRow(buf, sizeof(buf), kind, 0, getenv_default, fields,
+	                                     field_count);
 	if (written <= 0 || (size_t)written >= sizeof(buf)) {
 		return -1;
 	}

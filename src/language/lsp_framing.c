@@ -56,9 +56,9 @@ int editorLspReadWithDeadline(int fd, char *buf, size_t len, long long deadline_
 		}
 
 		struct pollfd pfd = {
-			.fd = fd,
-			.events = POLLIN,
-			.revents = 0,
+		        .fd = fd,
+		        .events = POLLIN,
+		        .revents = 0,
 		};
 
 		int polled = poll(&pfd, 1, wait_ms);
@@ -148,11 +148,9 @@ char *editorLspReadFrame(int fd, int timeout_ms) {
 		}
 		header_len++;
 		header[header_len] = '\0';
-		if (header_len >= 4 &&
-				header[header_len - 4] == '\r' &&
-				header[header_len - 3] == '\n' &&
-				header[header_len - 2] == '\r' &&
-				header[header_len - 1] == '\n') {
+		if (header_len >= 4 && header[header_len - 4] == '\r' &&
+		    header[header_len - 3] == '\n' && header[header_len - 2] == '\r' &&
+		    header[header_len - 1] == '\n') {
 			break;
 		}
 	}
@@ -205,7 +203,7 @@ int editorLspSendRawJsonToFd(int fd, const char *json) {
 	}
 
 	if (!editorLspWriteAll(fd, header, (size_t)header_len) ||
-			!editorLspWriteAll(fd, json, json_len)) {
+	    !editorLspWriteAll(fd, json, json_len)) {
 		return 0;
 	}
 	return 1;

@@ -1,18 +1,18 @@
-#include "test_case.h"
-#include "test_support.h"
 #include "config/common.h"
 #include "config/dap_config.h"
 #include "config/editor_config.h"
 #include "config/keymap.h"
 #include "config/theme_config.h"
-#include "input/dispatch.h"
 #include "debug/dap.h"
-#include "workspace/layout.h"
-#include "workspace/tabs.h"
-#include "workspace/workspace_state.h"
+#include "input/dispatch.h"
+#include "test_case.h"
+#include "test_support.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
+#include "workspace/layout.h"
 #include "workspace/project_search.h"
+#include "workspace/tabs.h"
+#include "workspace/workspace_state.h"
 
 static int test_editor_read_key_sequences(void) {
 	int key = 0;
@@ -61,64 +61,80 @@ static int test_editor_read_key_alt_arrow_sequences(void) {
 	const char fallback_alt_right[] = "\x1b\x1b[C";
 	const char fallback_alt_down[] = "\x1b\x1b[B";
 	const char fallback_alt_up[] = "\x1b\x1b[A";
-	const char alt_letter_lower[] = "\x1b" "a";
-	const char alt_letter_upper[] = "\x1b" "A";
+	const char alt_letter_lower[] = "\x1b"
+	                                "a";
+	const char alt_letter_upper[] = "\x1b"
+	                                "A";
 	const char ctrl_alt_letter[] = {'\x1b', CTRL_KEY('b')};
 
 	ASSERT_TRUE(editor_read_key_with_input(csi_alt_left, sizeof(csi_alt_left) - 1, &key) == 0);
 	ASSERT_EQ_INT(ALT_ARROW_LEFT, key);
-	ASSERT_TRUE(editor_read_key_with_input(csi_alt_right, sizeof(csi_alt_right) - 1, &key) == 0);
+	ASSERT_TRUE(editor_read_key_with_input(csi_alt_right, sizeof(csi_alt_right) - 1, &key) ==
+	            0);
 	ASSERT_EQ_INT(ALT_ARROW_RIGHT, key);
 	ASSERT_TRUE(editor_read_key_with_input(csi_alt_down, sizeof(csi_alt_down) - 1, &key) == 0);
 	ASSERT_EQ_INT(ALT_ARROW_DOWN, key);
 	ASSERT_TRUE(editor_read_key_with_input(csi_alt_up, sizeof(csi_alt_up) - 1, &key) == 0);
 	ASSERT_EQ_INT(ALT_ARROW_UP, key);
-	ASSERT_TRUE(editor_read_key_with_input(csi_alt_shift_left,
-				sizeof(csi_alt_shift_left) - 1, &key) == 0);
+	ASSERT_TRUE(editor_read_key_with_input(csi_alt_shift_left, sizeof(csi_alt_shift_left) - 1,
+	                                       &key) == 0);
 	ASSERT_EQ_INT(ALT_SHIFT_ARROW_LEFT, key);
-	ASSERT_TRUE(editor_read_key_with_input(csi_alt_shift_right,
-				sizeof(csi_alt_shift_right) - 1, &key) == 0);
+	ASSERT_TRUE(editor_read_key_with_input(csi_alt_shift_right, sizeof(csi_alt_shift_right) - 1,
+	                                       &key) == 0);
 	ASSERT_EQ_INT(ALT_SHIFT_ARROW_RIGHT, key);
-	ASSERT_TRUE(editor_read_key_with_input(csi_alt_shift_down,
-				sizeof(csi_alt_shift_down) - 1, &key) == 0);
+	ASSERT_TRUE(editor_read_key_with_input(csi_alt_shift_down, sizeof(csi_alt_shift_down) - 1,
+	                                       &key) == 0);
 	ASSERT_EQ_INT(ALT_SHIFT_ARROW_DOWN, key);
-	ASSERT_TRUE(editor_read_key_with_input(csi_alt_shift_up,
-				sizeof(csi_alt_shift_up) - 1, &key) == 0);
+	ASSERT_TRUE(editor_read_key_with_input(csi_alt_shift_up, sizeof(csi_alt_shift_up) - 1,
+	                                       &key) == 0);
 	ASSERT_EQ_INT(ALT_SHIFT_ARROW_UP, key);
 
-	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_left, sizeof(csi_ctrl_left) - 1, &key) == 0);
+	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_left, sizeof(csi_ctrl_left) - 1, &key) ==
+	            0);
 	ASSERT_EQ_INT(CTRL_ARROW_LEFT, key);
-	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_right, sizeof(csi_ctrl_right) - 1, &key) == 0);
+	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_right, sizeof(csi_ctrl_right) - 1, &key) ==
+	            0);
 	ASSERT_EQ_INT(CTRL_ARROW_RIGHT, key);
-	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_down, sizeof(csi_ctrl_down) - 1, &key) == 0);
+	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_down, sizeof(csi_ctrl_down) - 1, &key) ==
+	            0);
 	ASSERT_EQ_INT(CTRL_ARROW_DOWN, key);
 	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_up, sizeof(csi_ctrl_up) - 1, &key) == 0);
 	ASSERT_EQ_INT(CTRL_ARROW_UP, key);
 
-	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_alt_left, sizeof(csi_ctrl_alt_left) - 1, &key) == 0);
+	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_alt_left, sizeof(csi_ctrl_alt_left) - 1,
+	                                       &key) == 0);
 	ASSERT_EQ_INT(CTRL_ALT_ARROW_LEFT, key);
-	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_alt_right, sizeof(csi_ctrl_alt_right) - 1, &key) == 0);
+	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_alt_right, sizeof(csi_ctrl_alt_right) - 1,
+	                                       &key) == 0);
 	ASSERT_EQ_INT(CTRL_ALT_ARROW_RIGHT, key);
-	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_alt_down, sizeof(csi_ctrl_alt_down) - 1, &key) == 0);
+	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_alt_down, sizeof(csi_ctrl_alt_down) - 1,
+	                                       &key) == 0);
 	ASSERT_EQ_INT(CTRL_ALT_ARROW_DOWN, key);
-	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_alt_up, sizeof(csi_ctrl_alt_up) - 1, &key) == 0);
+	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_alt_up, sizeof(csi_ctrl_alt_up) - 1,
+	                                       &key) == 0);
 	ASSERT_EQ_INT(CTRL_ALT_ARROW_UP, key);
 
-	ASSERT_TRUE(editor_read_key_with_input(fallback_alt_left, sizeof(fallback_alt_left) - 1, &key) == 0);
+	ASSERT_TRUE(editor_read_key_with_input(fallback_alt_left, sizeof(fallback_alt_left) - 1,
+	                                       &key) == 0);
 	ASSERT_EQ_INT(ALT_ARROW_LEFT, key);
-	ASSERT_TRUE(editor_read_key_with_input(fallback_alt_right,
-				sizeof(fallback_alt_right) - 1, &key) == 0);
+	ASSERT_TRUE(editor_read_key_with_input(fallback_alt_right, sizeof(fallback_alt_right) - 1,
+	                                       &key) == 0);
 	ASSERT_EQ_INT(ALT_ARROW_RIGHT, key);
-	ASSERT_TRUE(editor_read_key_with_input(fallback_alt_down, sizeof(fallback_alt_down) - 1, &key) == 0);
+	ASSERT_TRUE(editor_read_key_with_input(fallback_alt_down, sizeof(fallback_alt_down) - 1,
+	                                       &key) == 0);
 	ASSERT_EQ_INT(ALT_ARROW_DOWN, key);
-	ASSERT_TRUE(editor_read_key_with_input(fallback_alt_up, sizeof(fallback_alt_up) - 1, &key) == 0);
+	ASSERT_TRUE(editor_read_key_with_input(fallback_alt_up, sizeof(fallback_alt_up) - 1,
+	                                       &key) == 0);
 	ASSERT_EQ_INT(ALT_ARROW_UP, key);
 
-	ASSERT_TRUE(editor_read_key_with_input(alt_letter_lower, sizeof(alt_letter_lower) - 1, &key) == 0);
+	ASSERT_TRUE(editor_read_key_with_input(alt_letter_lower, sizeof(alt_letter_lower) - 1,
+	                                       &key) == 0);
 	ASSERT_EQ_INT(EDITOR_ALT_LETTER_KEY('a'), key);
-	ASSERT_TRUE(editor_read_key_with_input(alt_letter_upper, sizeof(alt_letter_upper) - 1, &key) == 0);
+	ASSERT_TRUE(editor_read_key_with_input(alt_letter_upper, sizeof(alt_letter_upper) - 1,
+	                                       &key) == 0);
 	ASSERT_EQ_INT(EDITOR_ALT_LETTER_KEY('a'), key);
-	ASSERT_TRUE(editor_read_key_with_input(ctrl_alt_letter, sizeof(ctrl_alt_letter), &key) == 0);
+	ASSERT_TRUE(editor_read_key_with_input(ctrl_alt_letter, sizeof(ctrl_alt_letter), &key) ==
+	            0);
 	ASSERT_EQ_INT(EDITOR_CTRL_ALT_LETTER_KEY('b'), key);
 	return 0;
 }
@@ -149,7 +165,8 @@ static int test_editor_read_key_sgr_mouse_events(void) {
 	ASSERT_EQ_INT(EDITOR_MOUSE_MOD_NONE, event.modifiers);
 	ASSERT_EQ_INT(0, editorConsumeMouseEvent(&event));
 
-	ASSERT_TRUE(editor_read_key_with_input(ctrl_left_click, sizeof(ctrl_left_click) - 1, &key) == 0);
+	ASSERT_TRUE(editor_read_key_with_input(ctrl_left_click, sizeof(ctrl_left_click) - 1,
+	                                       &key) == 0);
 	ASSERT_EQ_INT(MOUSE_EVENT, key);
 	ASSERT_TRUE(editorConsumeMouseEvent(&event) == 1);
 	ASSERT_EQ_INT(EDITOR_MOUSE_EVENT_LEFT_PRESS, event.kind);
@@ -173,8 +190,8 @@ static int test_editor_read_key_sgr_mouse_events(void) {
 	ASSERT_EQ_INT(4, event.y);
 	ASSERT_EQ_INT(EDITOR_MOUSE_MOD_NONE, event.modifiers);
 
-	ASSERT_TRUE(editor_read_key_with_input(left_release_alt_cb, sizeof(left_release_alt_cb) - 1, &key) ==
-			0);
+	ASSERT_TRUE(editor_read_key_with_input(left_release_alt_cb, sizeof(left_release_alt_cb) - 1,
+	                                       &key) == 0);
 	ASSERT_EQ_INT(MOUSE_EVENT, key);
 	ASSERT_TRUE(editorConsumeMouseEvent(&event) == 1);
 	ASSERT_EQ_INT(EDITOR_MOUSE_EVENT_LEFT_RELEASE, event.kind);
@@ -209,14 +226,16 @@ static int test_editor_read_key_sgr_mouse_events(void) {
 	ASSERT_EQ_INT(9, event.x);
 	ASSERT_EQ_INT(3, event.y);
 
-	ASSERT_TRUE(editor_read_key_with_input(shift_wheel_up, sizeof(shift_wheel_up) - 1, &key) == 0);
+	ASSERT_TRUE(editor_read_key_with_input(shift_wheel_up, sizeof(shift_wheel_up) - 1, &key) ==
+	            0);
 	ASSERT_EQ_INT(MOUSE_EVENT, key);
 	ASSERT_TRUE(editorConsumeMouseEvent(&event) == 1);
 	ASSERT_EQ_INT(EDITOR_MOUSE_EVENT_WHEEL_LEFT, event.kind);
 	ASSERT_EQ_INT(10, event.x);
 	ASSERT_EQ_INT(5, event.y);
 
-	ASSERT_TRUE(editor_read_key_with_input(shift_wheel_down, sizeof(shift_wheel_down) - 1, &key) == 0);
+	ASSERT_TRUE(editor_read_key_with_input(shift_wheel_down, sizeof(shift_wheel_down) - 1,
+	                                       &key) == 0);
 	ASSERT_EQ_INT(MOUSE_EVENT, key);
 	ASSERT_TRUE(editorConsumeMouseEvent(&event) == 1);
 	ASSERT_EQ_INT(EDITOR_MOUSE_EVENT_WHEEL_RIGHT, event.kind);
@@ -224,14 +243,14 @@ static int test_editor_read_key_sgr_mouse_events(void) {
 	ASSERT_EQ_INT(5, event.y);
 
 	ASSERT_TRUE(editor_read_key_with_input(modifier_drag_then_plain,
-				sizeof(modifier_drag_then_plain) - 1, &key) == 0);
+	                                       sizeof(modifier_drag_then_plain) - 1, &key) == 0);
 	ASSERT_EQ_INT(MOUSE_EVENT, key);
 	ASSERT_TRUE(editorConsumeMouseEvent(&event) == 1);
 	ASSERT_EQ_INT(EDITOR_MOUSE_EVENT_LEFT_DRAG, event.kind);
 	ASSERT_EQ_INT(EDITOR_MOUSE_MOD_SHIFT, event.modifiers);
 
 	ASSERT_TRUE(editor_read_key_with_input(unsupported_then_plain,
-				sizeof(unsupported_then_plain) - 1, &key) == 0);
+	                                       sizeof(unsupported_then_plain) - 1, &key) == 0);
 	ASSERT_EQ_INT('Y', key);
 	ASSERT_EQ_INT(0, editorConsumeMouseEvent(&event));
 	return 0;
@@ -296,14 +315,14 @@ static int test_read_cursor_position_rejects_malformed_responses(void) {
 		const char *response;
 		size_t len;
 	} cases[] = {
-		{"\x1b[", sizeof("\x1b[") - 1},
-		{"\x1b[R", sizeof("\x1b[R") - 1},
-		{"\x1b[24;80", sizeof("\x1b[24;80") - 1},
-		{"\x1b[24;R", sizeof("\x1b[24;R") - 1},
-		{"24;80R", sizeof("24;80R") - 1},
-		{"\x1b[24R", sizeof("\x1b[24R") - 1},
-		{"\x1b[24;xxR", sizeof("\x1b[24;xxR") - 1},
-		{"\x1b[;80R", sizeof("\x1b[;80R") - 1},
+	        {"\x1b[", sizeof("\x1b[") - 1},
+	        {"\x1b[R", sizeof("\x1b[R") - 1},
+	        {"\x1b[24;80", sizeof("\x1b[24;80") - 1},
+	        {"\x1b[24;R", sizeof("\x1b[24;R") - 1},
+	        {"24;80R", sizeof("24;80R") - 1},
+	        {"\x1b[24R", sizeof("\x1b[24R") - 1},
+	        {"\x1b[24;xxR", sizeof("\x1b[24;xxR") - 1},
+	        {"\x1b[;80R", sizeof("\x1b[;80R") - 1},
 	};
 
 	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
@@ -411,19 +430,28 @@ static int test_editor_refresh_screen_reports_oom_without_crash(void) {
 }
 
 const struct editorTestCase g_workspace_io_tests[] = {
-	{"editor_read_key_sequences", test_editor_read_key_sequences},
-	{"editor_read_key_alt_arrow_sequences", test_editor_read_key_alt_arrow_sequences},
-	{"editor_read_key_sgr_mouse_events", test_editor_read_key_sgr_mouse_events},
-	{"editor_read_key_returns_input_eof_event_on_closed_stdin", test_editor_read_key_returns_input_eof_event_on_closed_stdin},
-	{"editor_read_key_escape_parse_eof_returns_input_eof_event", test_editor_read_key_escape_parse_eof_returns_input_eof_event},
-	{"editor_read_key_returns_resize_event_when_queued", test_editor_read_key_returns_resize_event_when_queued},
-	{"read_cursor_position_and_window_size_fallback", test_read_cursor_position_and_window_size_fallback},
-	{"read_cursor_position_rejects_malformed_responses", test_read_cursor_position_rejects_malformed_responses},
-	{"editor_refresh_window_size_clamps_tiny_terminal", test_editor_refresh_window_size_clamps_tiny_terminal},
-	{"editor_refresh_window_size_failure_keeps_previous_dimensions", test_editor_refresh_window_size_failure_keeps_previous_dimensions},
-	{"editor_refresh_window_size_reserves_tab_status_and_message_rows", test_editor_refresh_window_size_reserves_tab_status_and_message_rows},
-	{"editor_refresh_screen_reports_oom_without_crash", test_editor_refresh_screen_reports_oom_without_crash},
+        {"editor_read_key_sequences", test_editor_read_key_sequences},
+        {"editor_read_key_alt_arrow_sequences", test_editor_read_key_alt_arrow_sequences},
+        {"editor_read_key_sgr_mouse_events", test_editor_read_key_sgr_mouse_events},
+        {"editor_read_key_returns_input_eof_event_on_closed_stdin",
+         test_editor_read_key_returns_input_eof_event_on_closed_stdin},
+        {"editor_read_key_escape_parse_eof_returns_input_eof_event",
+         test_editor_read_key_escape_parse_eof_returns_input_eof_event},
+        {"editor_read_key_returns_resize_event_when_queued",
+         test_editor_read_key_returns_resize_event_when_queued},
+        {"read_cursor_position_and_window_size_fallback",
+         test_read_cursor_position_and_window_size_fallback},
+        {"read_cursor_position_rejects_malformed_responses",
+         test_read_cursor_position_rejects_malformed_responses},
+        {"editor_refresh_window_size_clamps_tiny_terminal",
+         test_editor_refresh_window_size_clamps_tiny_terminal},
+        {"editor_refresh_window_size_failure_keeps_previous_dimensions",
+         test_editor_refresh_window_size_failure_keeps_previous_dimensions},
+        {"editor_refresh_window_size_reserves_tab_status_and_message_rows",
+         test_editor_refresh_window_size_reserves_tab_status_and_message_rows},
+        {"editor_refresh_screen_reports_oom_without_crash",
+         test_editor_refresh_screen_reports_oom_without_crash},
 };
 
 const int g_workspace_io_test_count =
-		(int)(sizeof(g_workspace_io_tests) / sizeof(g_workspace_io_tests[0]));
+        (int)(sizeof(g_workspace_io_tests) / sizeof(g_workspace_io_tests[0]));

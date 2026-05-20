@@ -136,8 +136,8 @@ struct editorSyntaxLimitEvent {
 };
 
 enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *filename);
-enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilenameAndFirstLine(
-		const char *filename, const char *first_line);
+enum editorSyntaxLanguage
+editorSyntaxDetectLanguageFromFilenameAndFirstLine(const char *filename, const char *first_line);
 
 /* Create/destroy and parse APIs are per tab. Callers pass editorTextSource so
  * syntax can read document bytes without owning canonical text.
@@ -147,68 +147,68 @@ void editorSyntaxStateDestroy(struct editorSyntaxState *state);
 
 void editorTextSourceInitString(struct editorTextSource *source, const char *text, size_t len);
 size_t editorTextSourceLength(const struct editorTextSource *source);
-int editorTextSourceCopyRange(const struct editorTextSource *source,
-		size_t start_byte, size_t end_byte, char *dst);
-char *editorTextSourceDupRange(const struct editorTextSource *source,
-		size_t start_byte, size_t end_byte, size_t *len_out);
+int editorTextSourceCopyRange(const struct editorTextSource *source, size_t start_byte,
+                              size_t end_byte, char *dst);
+char *editorTextSourceDupRange(const struct editorTextSource *source, size_t start_byte,
+                               size_t end_byte, size_t *len_out);
 
 int editorSyntaxStateParseFull(struct editorSyntaxState *state,
-		const struct editorTextSource *source);
+                               const struct editorTextSource *source);
 int editorSyntaxStateApplyEditAndParse(struct editorSyntaxState *state,
-		const struct editorSyntaxEdit *edit,
-		const struct editorTextSource *source);
+                                       const struct editorSyntaxEdit *edit,
+                                       const struct editorTextSource *source);
 int editorSyntaxStateConfigureForSourceLength(struct editorSyntaxState *state, size_t source_len);
-enum editorSyntaxPerformanceMode editorSyntaxStatePerformanceMode(
-		const struct editorSyntaxState *state);
+enum editorSyntaxPerformanceMode
+editorSyntaxStatePerformanceMode(const struct editorSyntaxState *state);
 size_t editorSyntaxStateSourceLength(const struct editorSyntaxState *state);
 int editorSyntaxStateCopyLastChangedRanges(const struct editorSyntaxState *state,
-		struct editorSyntaxByteRange *ranges, int max_ranges, int *count_out);
+                                           struct editorSyntaxByteRange *ranges, int max_ranges,
+                                           int *count_out);
 int editorSyntaxStateConsumeBudgetEvents(struct editorSyntaxState *state,
-		int *parse_budget_exceeded_out,
-		int *query_budget_exceeded_out);
+                                         int *parse_budget_exceeded_out,
+                                         int *query_budget_exceeded_out);
 int editorSyntaxStateConsumeQueryUnavailableEvent(struct editorSyntaxState *state,
-		enum editorSyntaxLanguage *language_out,
-		enum editorSyntaxQueryKind *kind_out);
+                                                  enum editorSyntaxLanguage *language_out,
+                                                  enum editorSyntaxQueryKind *kind_out);
 int editorSyntaxStateConsumeLimitEvent(struct editorSyntaxState *state,
-		struct editorSyntaxLimitEvent *event_out);
+                                       struct editorSyntaxLimitEvent *event_out);
 void editorSyntaxStateRecordCaptureTruncated(struct editorSyntaxState *state, int row);
-void editorSyntaxStateRecordParseFailed(struct editorSyntaxState *state,
-		int consecutive_failures);
+void editorSyntaxStateRecordParseFailed(struct editorSyntaxState *state, int consecutive_failures);
 int editorSyntaxDrainLastQueryCompileError(struct editorSyntaxQueryCompileError *error_out);
 int editorSyntaxCopyLastQueryCompileError(struct editorSyntaxQueryCompileError *error_out);
 
 int editorSyntaxStateHasTree(const struct editorSyntaxState *state);
 int editorSyntaxStateHasError(const struct editorSyntaxState *state);
-int editorSyntaxStateFirstErrorPosition(const struct editorSyntaxState *state,
-		int *row_out, int *column_out);
+int editorSyntaxStateFirstErrorPosition(const struct editorSyntaxState *state, int *row_out,
+                                        int *column_out);
 const char *editorSyntaxStateRootType(const struct editorSyntaxState *state);
 enum editorSyntaxLanguage editorSyntaxStateLanguage(const struct editorSyntaxState *state);
-int editorSyntaxStateSuggestIndentAnchor(const struct editorSyntaxState *state,
-		int row, int column, int *anchor_row_out, int *extra_levels_out);
+int editorSyntaxStateSuggestIndentAnchor(const struct editorSyntaxState *state, int row, int column,
+                                         int *anchor_row_out, int *extra_levels_out);
 int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
-		const struct editorTextSource *source,
-		uint32_t start_byte, uint32_t end_byte,
-		struct editorSyntaxCapture *captures, int max_captures, int *count_out);
+                                             const struct editorTextSource *source,
+                                             uint32_t start_byte, uint32_t end_byte,
+                                             struct editorSyntaxCapture *captures, int max_captures,
+                                             int *count_out);
 
 /* Test hooks for deterministic budget-path tests. */
-void editorSyntaxTestSetBudgetOverrides(int enabled,
-		uint32_t query_match_limit,
-		uint64_t query_time_budget_ns,
-		uint64_t parse_time_budget_ns);
+void editorSyntaxTestSetBudgetOverrides(int enabled, uint32_t query_match_limit,
+                                        uint64_t query_time_budget_ns,
+                                        uint64_t parse_time_budget_ns);
 void editorSyntaxTestResetBudgetOverrides(void);
 int editorSyntaxTestBudgetOverridesEnabled(void);
 void editorSyntaxTestSetMaxInjectionDepth(int depth);
 void editorSyntaxTestResetMaxInjectionDepth(void);
 int editorSyntaxTestCaptureRuleCount(void);
 int editorSyntaxTestCaptureRuleAt(int idx, const char **prefix_out,
-		enum editorSyntaxHighlightClass *class_out);
+                                  enum editorSyntaxHighlightClass *class_out);
 enum editorSyntaxHighlightClass editorSyntaxTestClassFromCaptureName(const char *name);
 void editorSyntaxTestSetParseFailureCountdowns(int full_parse_failures,
-		int incremental_parse_failures);
+                                               int incremental_parse_failures);
 void editorSyntaxTestResetParseFailureCountdowns(void);
 void editorSyntaxTestResetLastQueryCompileError(void);
 int editorSyntaxTestCompileQueryForDiagnostics(enum editorSyntaxLanguage language,
-		const char *query_source);
+                                               const char *query_source);
 
 void editorSyntaxReleaseSharedResources(void);
 

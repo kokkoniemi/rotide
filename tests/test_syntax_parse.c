@@ -14,8 +14,7 @@ static int assert_editor_syntax_parse_failed_event(int expected_detail) {
 
 static int test_editor_syntax_incremental_edits_keep_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-XXXXXX.c";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
-			"tests/syntax/supported/c/incremental.c"));
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2, "tests/syntax/supported/c/incremental.c"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -35,11 +34,7 @@ static int test_editor_syntax_incremental_edits_keep_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	struct editorSelectionRange delete_line = {
-		.start_cy = 0,
-		.start_cx = 0,
-		.end_cy = 1,
-		.end_cx = 0
-	};
+	        .start_cy = 0, .start_cx = 0, .end_cy = 1, .end_cx = 0};
 	ASSERT_EQ_INT(1, editorDeleteRange(&delete_line));
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -50,8 +45,8 @@ static int test_editor_syntax_incremental_edits_keep_tree_valid(void) {
 static int test_editor_insert_newline_uses_tree_sitter_block_indent_for_c(void) {
 	char path[512];
 	ASSERT_TRUE(write_temp_c_file(path, sizeof(path),
-				"int main() {\n"
-				"}\n"));
+	                              "int main() {\n"
+	                              "}\n"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -79,12 +74,12 @@ static int test_editor_insert_newline_uses_tree_sitter_block_indent_for_c(void) 
 static int test_editor_insert_newline_uses_function_header_indent_for_wrapped_c_args(void) {
 	char path[512];
 	ASSERT_TRUE(write_temp_c_file(path, sizeof(path),
-				"static int foo(int lol, int32_t a,\n"
-				"\t\tint32_t b) {\n"
-				"\tif (a != b) {\n"
-				"\t\treturn lol;\n"
-				"\t}\n"
-				"}\n"));
+	                              "static int foo(int lol, int32_t a,\n"
+	                              "\t\tint32_t b) {\n"
+	                              "\tif (a != b) {\n"
+	                              "\t\treturn lol;\n"
+	                              "\t}\n"
+	                              "}\n"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -111,10 +106,10 @@ static int test_editor_insert_newline_uses_function_header_indent_for_wrapped_c_
 
 static int test_editor_insert_newline_uses_tree_sitter_header_indent_for_python(void) {
 	char path[512];
-	ASSERT_TRUE(write_temp_file_with_suffix(path, sizeof(path),
-				"rotide-test-indent-python-", ".py",
-				"if True:\n"
-				"    pass\n"));
+	ASSERT_TRUE(write_temp_file_with_suffix(path, sizeof(path), "rotide-test-indent-python-",
+	                                        ".py",
+	                                        "if True:\n"
+	                                        "    pass\n"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -142,8 +137,7 @@ static int test_editor_insert_newline_uses_tree_sitter_header_indent_for_python(
 
 static int test_editor_syntax_transient_parse_failure_retries_next_edit(void) {
 	char path[] = "/tmp/rotide-test-syntax-retry-XXXXXX.c";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
-			"tests/syntax/supported/c/incremental.c"));
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2, "tests/syntax/supported/c/incremental.c"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -170,8 +164,7 @@ static int test_editor_syntax_transient_parse_failure_retries_next_edit(void) {
 
 static int test_editor_syntax_deactivates_after_consecutive_parse_failures(void) {
 	char path[] = "/tmp/rotide-test-syntax-retry-limit-XXXXXX.c";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
-			"tests/syntax/supported/c/incremental.c"));
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2, "tests/syntax/supported/c/incremental.c"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -202,8 +195,8 @@ static int test_editor_syntax_deactivates_after_consecutive_parse_failures(void)
 
 static int test_editor_syntax_incremental_edits_keep_cpp_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-cpp-XXXXXX.cpp";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
-			"tests/syntax/supported/cpp/incremental.cpp"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/cpp/incremental.cpp"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -224,11 +217,7 @@ static int test_editor_syntax_incremental_edits_keep_cpp_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	struct editorSelectionRange delete_line = {
-		.start_cy = 0,
-		.start_cx = 0,
-		.end_cy = 1,
-		.end_cx = 0
-	};
+	        .start_cy = 0, .start_cx = 0, .end_cy = 1, .end_cx = 0};
 	ASSERT_EQ_INT(1, editorDeleteRange(&delete_line));
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -238,8 +227,8 @@ static int test_editor_syntax_incremental_edits_keep_cpp_tree_valid(void) {
 
 static int test_editor_syntax_incremental_edits_keep_shell_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-shell-XXXXXX.sh";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/bash/incremental.sh"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/bash/incremental.sh"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -260,11 +249,7 @@ static int test_editor_syntax_incremental_edits_keep_shell_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	struct editorSelectionRange delete_line = {
-		.start_cy = 0,
-		.start_cx = 0,
-		.end_cy = 1,
-		.end_cx = 0
-	};
+	        .start_cy = 0, .start_cx = 0, .end_cy = 1, .end_cx = 0};
 	ASSERT_EQ_INT(1, editorDeleteRange(&delete_line));
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -275,7 +260,7 @@ static int test_editor_syntax_incremental_edits_keep_shell_tree_valid(void) {
 static int test_editor_syntax_incremental_edits_keep_html_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-html-XXXXXX.html";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
-			"tests/syntax/supported/html/incremental.html"));
+	                                       "tests/syntax/supported/html/incremental.html"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -297,11 +282,7 @@ static int test_editor_syntax_incremental_edits_keep_html_tree_valid(void) {
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
 	struct editorSelectionRange delete_line = {
-		.start_cy = 1,
-		.start_cx = 0,
-		.end_cy = 2,
-		.end_cx = 0
-	};
+	        .start_cy = 1, .start_cx = 0, .end_cy = 2, .end_cx = 0};
 	ASSERT_EQ_INT(1, editorDeleteRange(&delete_line));
 	ASSERT_TRUE(editorSyntaxTreeExists());
 
@@ -312,7 +293,7 @@ static int test_editor_syntax_incremental_edits_keep_html_tree_valid(void) {
 static int test_editor_syntax_incremental_edits_keep_javascript_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-js-XXXXXX.js";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/javascript/incremental.js"));
+	                                       "tests/syntax/supported/javascript/incremental.js"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -338,7 +319,7 @@ static int test_editor_syntax_incremental_edits_keep_javascript_tree_valid(void)
 static int test_editor_syntax_incremental_edits_keep_typescript_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-ts-XXXXXX.ts";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/typescript/incremental.ts"));
+	                                       "tests/syntax/supported/typescript/incremental.ts"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -363,8 +344,8 @@ static int test_editor_syntax_incremental_edits_keep_typescript_tree_valid(void)
 
 static int test_editor_syntax_incremental_edits_keep_tsx_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-tsx-XXXXXX.tsx";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
-			"tests/syntax/supported/tsx/incremental.tsx"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/tsx/incremental.tsx"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -389,8 +370,8 @@ static int test_editor_syntax_incremental_edits_keep_tsx_tree_valid(void) {
 
 static int test_editor_syntax_incremental_edits_keep_css_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-css-XXXXXX.css";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
-			"tests/syntax/supported/css/incremental.css"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/css/incremental.css"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -415,8 +396,8 @@ static int test_editor_syntax_incremental_edits_keep_css_tree_valid(void) {
 
 static int test_editor_syntax_incremental_edits_keep_go_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-go-XXXXXX.go";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/go/incremental.go"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/go/incremental.go"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -442,7 +423,7 @@ static int test_editor_syntax_incremental_edits_keep_go_tree_valid(void) {
 static int test_editor_syntax_incremental_edits_keep_python_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-py-XXXXXX.py";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/python/incremental.py"));
+	                                       "tests/syntax/supported/python/incremental.py"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -467,8 +448,8 @@ static int test_editor_syntax_incremental_edits_keep_python_tree_valid(void) {
 
 static int test_editor_syntax_incremental_edits_keep_php_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-php-XXXXXX.php";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
-			"tests/syntax/supported/php/incremental.php"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/php/incremental.php"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -493,8 +474,8 @@ static int test_editor_syntax_incremental_edits_keep_php_tree_valid(void) {
 
 static int test_editor_syntax_incremental_edits_keep_rust_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-rs-XXXXXX.rs";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/rust/incremental.rs"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/rust/incremental.rs"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -520,7 +501,7 @@ static int test_editor_syntax_incremental_edits_keep_rust_tree_valid(void) {
 static int test_editor_syntax_incremental_edits_keep_java_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-java-XXXXXX.java";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
-			"tests/syntax/supported/java/incremental.java"));
+	                                       "tests/syntax/supported/java/incremental.java"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -546,7 +527,7 @@ static int test_editor_syntax_incremental_edits_keep_java_tree_valid(void) {
 static int test_editor_syntax_incremental_edits_keep_csharp_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-csharp-XXXXXX.cs";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/csharp/incremental.cs"));
+	                                       "tests/syntax/supported/csharp/incremental.cs"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -572,7 +553,7 @@ static int test_editor_syntax_incremental_edits_keep_csharp_tree_valid(void) {
 static int test_editor_syntax_incremental_edits_keep_haskell_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-haskell-XXXXXX.hs";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/haskell/incremental.hs"));
+	                                       "tests/syntax/supported/haskell/incremental.hs"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -597,8 +578,8 @@ static int test_editor_syntax_incremental_edits_keep_haskell_tree_valid(void) {
 
 static int test_editor_syntax_incremental_edits_keep_ruby_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-ruby-XXXXXX.rb";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/ruby/incremental.rb"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/ruby/incremental.rb"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -623,8 +604,8 @@ static int test_editor_syntax_incremental_edits_keep_ruby_tree_valid(void) {
 
 static int test_editor_syntax_incremental_edits_keep_ocaml_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-ocaml-XXXXXX.ml";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/ocaml/incremental.ml"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/ocaml/incremental.ml"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -650,7 +631,7 @@ static int test_editor_syntax_incremental_edits_keep_ocaml_tree_valid(void) {
 static int test_editor_syntax_incremental_edits_keep_markdown_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-markdown-XXXXXX.md";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/markdown/incremental.md"));
+	                                       "tests/syntax/supported/markdown/incremental.md"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -676,7 +657,7 @@ static int test_editor_syntax_incremental_edits_keep_markdown_tree_valid(void) {
 static int test_editor_syntax_incremental_edits_keep_toml_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-toml-XXXXXX.toml";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
-			"tests/syntax/supported/toml/incremental.toml"));
+	                                       "tests/syntax/supported/toml/incremental.toml"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -702,7 +683,7 @@ static int test_editor_syntax_incremental_edits_keep_toml_tree_valid(void) {
 static int test_editor_syntax_incremental_edits_keep_yaml_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-yaml-XXXXXX.yaml";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
-			"tests/syntax/supported/yaml/incremental.yaml"));
+	                                       "tests/syntax/supported/yaml/incremental.yaml"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -727,8 +708,8 @@ static int test_editor_syntax_incremental_edits_keep_yaml_tree_valid(void) {
 
 static int test_editor_syntax_incremental_edits_keep_xml_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-xml-XXXXXX.xml";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
-			"tests/syntax/supported/xml/incremental.xml"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/xml/incremental.xml"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -753,8 +734,8 @@ static int test_editor_syntax_incremental_edits_keep_xml_tree_valid(void) {
 
 static int test_editor_syntax_incremental_edits_keep_make_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-make-XXXXXX.mk";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/make/incremental.mk"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/make/incremental.mk"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -780,7 +761,7 @@ static int test_editor_syntax_incremental_edits_keep_make_tree_valid(void) {
 static int test_editor_syntax_incremental_edits_keep_diff_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-diff-XXXXXX.diff";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
-			"tests/syntax/supported/diff/incremental.diff"));
+	                                       "tests/syntax/supported/diff/incremental.diff"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -805,8 +786,8 @@ static int test_editor_syntax_incremental_edits_keep_diff_tree_valid(void) {
 
 static int test_editor_syntax_incremental_edits_keep_julia_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-julia-XXXXXX.jl";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/julia/incremental.jl"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 3, "tests/syntax/supported/julia/incremental.jl"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -832,7 +813,7 @@ static int test_editor_syntax_incremental_edits_keep_julia_tree_valid(void) {
 static int test_editor_syntax_incremental_edits_keep_scala_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-scala-XXXXXX.scala";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 6,
-			"tests/syntax/supported/scala/incremental.scala"));
+	                                       "tests/syntax/supported/scala/incremental.scala"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -857,8 +838,8 @@ static int test_editor_syntax_incremental_edits_keep_scala_tree_valid(void) {
 
 static int test_editor_syntax_incremental_edits_keep_ejs_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-ejs-XXXXXX.ejs";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
-			"tests/syntax/supported/ejs/incremental.ejs"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/ejs/incremental.ejs"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -883,8 +864,8 @@ static int test_editor_syntax_incremental_edits_keep_ejs_tree_valid(void) {
 
 static int test_editor_syntax_incremental_edits_keep_erb_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-erb-XXXXXX.erb";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
-			"tests/syntax/supported/erb/incremental.erb"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/erb/incremental.erb"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -910,7 +891,7 @@ static int test_editor_syntax_incremental_edits_keep_erb_tree_valid(void) {
 static int test_editor_syntax_incremental_edits_keep_regex_tree_valid(void) {
 	char path[] = "/tmp/rotide-test-syntax-inc-regex-XXXXXX.regex";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 6,
-			"tests/syntax/supported/regex/incremental.regex"));
+	                                       "tests/syntax/supported/regex/incremental.regex"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -945,22 +926,20 @@ static int test_editor_syntax_incremental_provider_parse_keeps_tree_valid(void) 
 	ASSERT_TRUE(state != NULL);
 	ASSERT_TRUE(editorSyntaxStateParseFull(state, &before_source));
 
-	struct editorSyntaxEdit edit = {
-		.start_byte = 4,
-		.old_end_byte = 4,
-		.new_end_byte = 5,
-		.start_point = {.row = 0, .column = 4},
-		.old_end_point = {.row = 0, .column = 4},
-		.new_end_point = {.row = 0, .column = 5}
-	};
+	struct editorSyntaxEdit edit = {.start_byte = 4,
+	                                .old_end_byte = 4,
+	                                .new_end_byte = 5,
+	                                .start_point = {.row = 0, .column = 4},
+	                                .old_end_point = {.row = 0, .column = 4},
+	                                .new_end_point = {.row = 0, .column = 5}};
 	ASSERT_TRUE(editorSyntaxStateApplyEditAndParse(state, &edit, &after_source));
 	ASSERT_TRUE(editorSyntaxStateHasTree(state));
 
 	struct editorSyntaxCapture captures[32];
 	int capture_count = 0;
-	ASSERT_TRUE(editorSyntaxStateCollectCapturesForRange(state, &after_source, 0,
-				(uint32_t)strlen(after), captures,
-				(int)(sizeof(captures) / sizeof(captures[0])), &capture_count));
+	ASSERT_TRUE(editorSyntaxStateCollectCapturesForRange(
+	        state, &after_source, 0, (uint32_t)strlen(after), captures,
+	        (int)(sizeof(captures) / sizeof(captures[0])), &capture_count));
 	ASSERT_TRUE(capture_count > 0);
 
 	editorSyntaxStateDestroy(state);
@@ -982,7 +961,7 @@ static int test_editor_syntax_large_file_stays_enabled_in_degraded_mode(void) {
 	ASSERT_TRUE(editorSyntaxStateParseFull(state, &source_view));
 	ASSERT_TRUE(editorSyntaxStateHasTree(state));
 	ASSERT_EQ_INT(EDITOR_SYNTAX_PERF_DEGRADED_INJECTIONS,
-			editorSyntaxStatePerformanceMode(state));
+	              editorSyntaxStatePerformanceMode(state));
 
 	editorSyntaxStateDestroy(state);
 	editorSyntaxTestResetBudgetOverrides();
@@ -991,42 +970,77 @@ static int test_editor_syntax_large_file_stays_enabled_in_degraded_mode(void) {
 }
 
 const struct editorTestCase g_syntax_parse_tests[] = {
-	{"editor_syntax_incremental_edits_keep_tree_valid", test_editor_syntax_incremental_edits_keep_tree_valid},
-	{"editor_insert_newline_uses_tree_sitter_block_indent_for_c", test_editor_insert_newline_uses_tree_sitter_block_indent_for_c},
-	{"editor_insert_newline_uses_function_header_indent_for_wrapped_c_args", test_editor_insert_newline_uses_function_header_indent_for_wrapped_c_args},
-	{"editor_insert_newline_uses_tree_sitter_header_indent_for_python", test_editor_insert_newline_uses_tree_sitter_header_indent_for_python},
-	{"editor_syntax_transient_parse_failure_retries_next_edit", test_editor_syntax_transient_parse_failure_retries_next_edit},
-	{"editor_syntax_deactivates_after_consecutive_parse_failures", test_editor_syntax_deactivates_after_consecutive_parse_failures},
-	{"editor_syntax_incremental_edits_keep_cpp_tree_valid", test_editor_syntax_incremental_edits_keep_cpp_tree_valid},
-	{"editor_syntax_incremental_edits_keep_shell_tree_valid", test_editor_syntax_incremental_edits_keep_shell_tree_valid},
-	{"editor_syntax_incremental_edits_keep_html_tree_valid", test_editor_syntax_incremental_edits_keep_html_tree_valid},
-	{"editor_syntax_incremental_edits_keep_javascript_tree_valid", test_editor_syntax_incremental_edits_keep_javascript_tree_valid},
-	{"editor_syntax_incremental_edits_keep_typescript_tree_valid", test_editor_syntax_incremental_edits_keep_typescript_tree_valid},
-	{"editor_syntax_incremental_edits_keep_tsx_tree_valid", test_editor_syntax_incremental_edits_keep_tsx_tree_valid},
-	{"editor_syntax_incremental_edits_keep_css_tree_valid", test_editor_syntax_incremental_edits_keep_css_tree_valid},
-	{"editor_syntax_incremental_edits_keep_go_tree_valid", test_editor_syntax_incremental_edits_keep_go_tree_valid},
-	{"editor_syntax_incremental_edits_keep_python_tree_valid", test_editor_syntax_incremental_edits_keep_python_tree_valid},
-	{"editor_syntax_incremental_edits_keep_php_tree_valid", test_editor_syntax_incremental_edits_keep_php_tree_valid},
-	{"editor_syntax_incremental_edits_keep_rust_tree_valid", test_editor_syntax_incremental_edits_keep_rust_tree_valid},
-	{"editor_syntax_incremental_edits_keep_java_tree_valid", test_editor_syntax_incremental_edits_keep_java_tree_valid},
-	{"editor_syntax_incremental_edits_keep_csharp_tree_valid", test_editor_syntax_incremental_edits_keep_csharp_tree_valid},
-	{"editor_syntax_incremental_edits_keep_haskell_tree_valid", test_editor_syntax_incremental_edits_keep_haskell_tree_valid},
-	{"editor_syntax_incremental_edits_keep_ruby_tree_valid", test_editor_syntax_incremental_edits_keep_ruby_tree_valid},
-	{"editor_syntax_incremental_edits_keep_ocaml_tree_valid", test_editor_syntax_incremental_edits_keep_ocaml_tree_valid},
-	{"editor_syntax_incremental_edits_keep_markdown_tree_valid", test_editor_syntax_incremental_edits_keep_markdown_tree_valid},
-	{"editor_syntax_incremental_edits_keep_toml_tree_valid", test_editor_syntax_incremental_edits_keep_toml_tree_valid},
-	{"editor_syntax_incremental_edits_keep_yaml_tree_valid", test_editor_syntax_incremental_edits_keep_yaml_tree_valid},
-	{"editor_syntax_incremental_edits_keep_xml_tree_valid", test_editor_syntax_incremental_edits_keep_xml_tree_valid},
-	{"editor_syntax_incremental_edits_keep_make_tree_valid", test_editor_syntax_incremental_edits_keep_make_tree_valid},
-	{"editor_syntax_incremental_edits_keep_diff_tree_valid", test_editor_syntax_incremental_edits_keep_diff_tree_valid},
-	{"editor_syntax_incremental_edits_keep_julia_tree_valid", test_editor_syntax_incremental_edits_keep_julia_tree_valid},
-	{"editor_syntax_incremental_edits_keep_scala_tree_valid", test_editor_syntax_incremental_edits_keep_scala_tree_valid},
-	{"editor_syntax_incremental_edits_keep_ejs_tree_valid", test_editor_syntax_incremental_edits_keep_ejs_tree_valid},
-	{"editor_syntax_incremental_edits_keep_erb_tree_valid", test_editor_syntax_incremental_edits_keep_erb_tree_valid},
-	{"editor_syntax_incremental_edits_keep_regex_tree_valid", test_editor_syntax_incremental_edits_keep_regex_tree_valid},
-	{"editor_syntax_incremental_provider_parse_keeps_tree_valid", test_editor_syntax_incremental_provider_parse_keeps_tree_valid},
-	{"editor_syntax_large_file_stays_enabled_in_degraded_mode", test_editor_syntax_large_file_stays_enabled_in_degraded_mode},
+        {"editor_syntax_incremental_edits_keep_tree_valid",
+         test_editor_syntax_incremental_edits_keep_tree_valid},
+        {"editor_insert_newline_uses_tree_sitter_block_indent_for_c",
+         test_editor_insert_newline_uses_tree_sitter_block_indent_for_c},
+        {"editor_insert_newline_uses_function_header_indent_for_wrapped_c_args",
+         test_editor_insert_newline_uses_function_header_indent_for_wrapped_c_args},
+        {"editor_insert_newline_uses_tree_sitter_header_indent_for_python",
+         test_editor_insert_newline_uses_tree_sitter_header_indent_for_python},
+        {"editor_syntax_transient_parse_failure_retries_next_edit",
+         test_editor_syntax_transient_parse_failure_retries_next_edit},
+        {"editor_syntax_deactivates_after_consecutive_parse_failures",
+         test_editor_syntax_deactivates_after_consecutive_parse_failures},
+        {"editor_syntax_incremental_edits_keep_cpp_tree_valid",
+         test_editor_syntax_incremental_edits_keep_cpp_tree_valid},
+        {"editor_syntax_incremental_edits_keep_shell_tree_valid",
+         test_editor_syntax_incremental_edits_keep_shell_tree_valid},
+        {"editor_syntax_incremental_edits_keep_html_tree_valid",
+         test_editor_syntax_incremental_edits_keep_html_tree_valid},
+        {"editor_syntax_incremental_edits_keep_javascript_tree_valid",
+         test_editor_syntax_incremental_edits_keep_javascript_tree_valid},
+        {"editor_syntax_incremental_edits_keep_typescript_tree_valid",
+         test_editor_syntax_incremental_edits_keep_typescript_tree_valid},
+        {"editor_syntax_incremental_edits_keep_tsx_tree_valid",
+         test_editor_syntax_incremental_edits_keep_tsx_tree_valid},
+        {"editor_syntax_incremental_edits_keep_css_tree_valid",
+         test_editor_syntax_incremental_edits_keep_css_tree_valid},
+        {"editor_syntax_incremental_edits_keep_go_tree_valid",
+         test_editor_syntax_incremental_edits_keep_go_tree_valid},
+        {"editor_syntax_incremental_edits_keep_python_tree_valid",
+         test_editor_syntax_incremental_edits_keep_python_tree_valid},
+        {"editor_syntax_incremental_edits_keep_php_tree_valid",
+         test_editor_syntax_incremental_edits_keep_php_tree_valid},
+        {"editor_syntax_incremental_edits_keep_rust_tree_valid",
+         test_editor_syntax_incremental_edits_keep_rust_tree_valid},
+        {"editor_syntax_incremental_edits_keep_java_tree_valid",
+         test_editor_syntax_incremental_edits_keep_java_tree_valid},
+        {"editor_syntax_incremental_edits_keep_csharp_tree_valid",
+         test_editor_syntax_incremental_edits_keep_csharp_tree_valid},
+        {"editor_syntax_incremental_edits_keep_haskell_tree_valid",
+         test_editor_syntax_incremental_edits_keep_haskell_tree_valid},
+        {"editor_syntax_incremental_edits_keep_ruby_tree_valid",
+         test_editor_syntax_incremental_edits_keep_ruby_tree_valid},
+        {"editor_syntax_incremental_edits_keep_ocaml_tree_valid",
+         test_editor_syntax_incremental_edits_keep_ocaml_tree_valid},
+        {"editor_syntax_incremental_edits_keep_markdown_tree_valid",
+         test_editor_syntax_incremental_edits_keep_markdown_tree_valid},
+        {"editor_syntax_incremental_edits_keep_toml_tree_valid",
+         test_editor_syntax_incremental_edits_keep_toml_tree_valid},
+        {"editor_syntax_incremental_edits_keep_yaml_tree_valid",
+         test_editor_syntax_incremental_edits_keep_yaml_tree_valid},
+        {"editor_syntax_incremental_edits_keep_xml_tree_valid",
+         test_editor_syntax_incremental_edits_keep_xml_tree_valid},
+        {"editor_syntax_incremental_edits_keep_make_tree_valid",
+         test_editor_syntax_incremental_edits_keep_make_tree_valid},
+        {"editor_syntax_incremental_edits_keep_diff_tree_valid",
+         test_editor_syntax_incremental_edits_keep_diff_tree_valid},
+        {"editor_syntax_incremental_edits_keep_julia_tree_valid",
+         test_editor_syntax_incremental_edits_keep_julia_tree_valid},
+        {"editor_syntax_incremental_edits_keep_scala_tree_valid",
+         test_editor_syntax_incremental_edits_keep_scala_tree_valid},
+        {"editor_syntax_incremental_edits_keep_ejs_tree_valid",
+         test_editor_syntax_incremental_edits_keep_ejs_tree_valid},
+        {"editor_syntax_incremental_edits_keep_erb_tree_valid",
+         test_editor_syntax_incremental_edits_keep_erb_tree_valid},
+        {"editor_syntax_incremental_edits_keep_regex_tree_valid",
+         test_editor_syntax_incremental_edits_keep_regex_tree_valid},
+        {"editor_syntax_incremental_provider_parse_keeps_tree_valid",
+         test_editor_syntax_incremental_provider_parse_keeps_tree_valid},
+        {"editor_syntax_large_file_stays_enabled_in_degraded_mode",
+         test_editor_syntax_large_file_stays_enabled_in_degraded_mode},
 };
 
 const int g_syntax_parse_test_count =
-		(int)(sizeof(g_syntax_parse_tests) / sizeof(g_syntax_parse_tests[0]));
+        (int)(sizeof(g_syntax_parse_tests) / sizeof(g_syntax_parse_tests[0]));

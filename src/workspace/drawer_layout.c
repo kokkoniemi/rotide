@@ -159,8 +159,8 @@ int editorDrawerSetWidthForCols(int width, int total_cols) {
 }
 
 int editorDrawerResizeByDeltaForCols(int delta, int total_cols) {
-	int current = editorDrawerIsCollapsed() ? E.drawer_width_cols :
-			editorDrawerWidthForCols(total_cols);
+	int current = editorDrawerIsCollapsed() ? E.drawer_width_cols
+	                                        : editorDrawerWidthForCols(total_cols);
 	if (current <= 0) {
 		current = ROTIDE_DRAWER_DEFAULT_WIDTH;
 	}

@@ -8,17 +8,15 @@
  * consumes.
  */
 #include "language/syntax_internal.h"
-
 #include "tree_sitter/api.h"
 
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
-static int editorSyntaxCaptureVecAppend(struct editorSyntaxCaptureVec *vec,
-		uint32_t start_byte,
-		uint32_t end_byte,
-		enum editorSyntaxHighlightClass highlight_class) {
+static int editorSyntaxCaptureVecAppend(struct editorSyntaxCaptureVec *vec, uint32_t start_byte,
+                                        uint32_t end_byte,
+                                        enum editorSyntaxHighlightClass highlight_class) {
 	if (vec == NULL) {
 		return 0;
 	}
@@ -53,27 +51,17 @@ static void editorSyntaxCaptureVecFree(struct editorSyntaxCaptureVec *vec) {
 	vec->cap = 0;
 }
 
-static int editorSyntaxCollectCapturesFromTree(struct editorSyntaxState *state,
-		const TSTree *tree,
-		enum editorSyntaxLanguage language,
-		const struct editorTextSource *source,
-		uint32_t start_byte,
-		uint32_t end_byte,
-		const struct editorSyntaxLocalsContext *locals,
-		int skip_predicates,
-		struct editorSyntaxCaptureVec *captures_out,
-		int *query_unavailable_out);
+static int editorSyntaxCollectCapturesFromTree(
+        struct editorSyntaxState *state, const TSTree *tree, enum editorSyntaxLanguage language,
+        const struct editorTextSource *source, uint32_t start_byte, uint32_t end_byte,
+        const struct editorSyntaxLocalsContext *locals, int skip_predicates,
+        struct editorSyntaxCaptureVec *captures_out, int *query_unavailable_out);
 
-static int editorSyntaxCollectCapturesFromTree(struct editorSyntaxState *state,
-		const TSTree *tree,
-		enum editorSyntaxLanguage language,
-		const struct editorTextSource *source,
-		uint32_t start_byte,
-		uint32_t end_byte,
-		const struct editorSyntaxLocalsContext *locals,
-		int skip_predicates,
-		struct editorSyntaxCaptureVec *captures_out,
-		int *query_unavailable_out) {
+static int editorSyntaxCollectCapturesFromTree(
+        struct editorSyntaxState *state, const TSTree *tree, enum editorSyntaxLanguage language,
+        const struct editorTextSource *source, uint32_t start_byte, uint32_t end_byte,
+        const struct editorSyntaxLocalsContext *locals, int skip_predicates,
+        struct editorSyntaxCaptureVec *captures_out, int *query_unavailable_out) {
 	if (query_unavailable_out != NULL) {
 		*query_unavailable_out = 0;
 	}
@@ -85,7 +73,7 @@ static int editorSyntaxCollectCapturesFromTree(struct editorSyntaxState *state,
 	}
 
 	const struct editorSyntaxQueryCacheEntry *cache =
-			editorSyntaxHighlightQueryCachePtr(language);
+	        editorSyntaxHighlightQueryCachePtr(language);
 	if (cache == NULL) {
 		if (query_unavailable_out != NULL) {
 			*query_unavailable_out = 1;
@@ -100,9 +88,8 @@ static int editorSyntaxCollectCapturesFromTree(struct editorSyntaxState *state,
 
 	TSNode root = ts_tree_root_node(tree);
 	ts_query_cursor_set_byte_range(cursor, start_byte, end_byte);
-	struct editorSyntaxBudgetConfig budget =
-			editorSyntaxBudgetConfigForMode(state != NULL ? state->perf_mode :
-					EDITOR_SYNTAX_PERF_NORMAL);
+	struct editorSyntaxBudgetConfig budget = editorSyntaxBudgetConfigForMode(
+	        state != NULL ? state->perf_mode : EDITOR_SYNTAX_PERF_NORMAL);
 	if (budget.query_match_limit > 0) {
 		ts_query_cursor_set_match_limit(cursor, budget.query_match_limit);
 	}
@@ -118,17 +105,14 @@ static int editorSyntaxCollectCapturesFromTree(struct editorSyntaxState *state,
 	}
 
 	struct editorSyntaxPredicateContext predicate_ctx = {
-		.state = state,
-		.source = source,
-		.locals = locals
-	};
+	        .state = state, .source = source, .locals = locals};
 
 	TSQueryMatch match;
 	uint32_t capture_idx = 0;
 	while (ts_query_cursor_next_capture(cursor, &match, &capture_idx)) {
 		if (!skip_predicates &&
-				!editorSyntaxMatchPassesPredicates(cache->query, match.pattern_index, &match,
-						&predicate_ctx)) {
+		    !editorSyntaxMatchPassesPredicates(cache->query, match.pattern_index, &match,
+		                                       &predicate_ctx)) {
 			continue;
 		}
 		if (capture_idx >= match.capture_count) {
@@ -139,7 +123,7 @@ static int editorSyntaxCollectCapturesFromTree(struct editorSyntaxState *state,
 			continue;
 		}
 		enum editorSyntaxHighlightClass highlight_class =
-				cache->capture_classes[capture.index];
+		        cache->capture_classes[capture.index];
 		if (highlight_class == EDITOR_SYNTAX_HL_NONE) {
 			continue;
 		}
@@ -165,7 +149,7 @@ static int editorSyntaxCollectCapturesFromTree(struct editorSyntaxState *state,
 		}
 
 		if (!editorSyntaxCaptureVecAppend(captures_out, capture_start, capture_end,
-					highlight_class)) {
+		                                  highlight_class)) {
 			ts_query_cursor_delete(cursor);
 			return 0;
 		}
@@ -185,7 +169,7 @@ static int editorSyntaxCollectCapturesFromTree(struct editorSyntaxState *state,
 }
 
 static int editorSyntaxCaptureSortKeyCmp(const struct editorSyntaxCapture *left,
-		const struct editorSyntaxCapture *right) {
+                                         const struct editorSyntaxCapture *right) {
 	if (left->start_byte < right->start_byte) {
 		return -1;
 	}
@@ -202,18 +186,15 @@ static int editorSyntaxCaptureSortKeyCmp(const struct editorSyntaxCapture *left,
 }
 
 int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
-		const struct editorTextSource *source,
-		uint32_t start_byte,
-		uint32_t end_byte,
-		struct editorSyntaxCapture *captures,
-		int max_captures,
-		int *count_out) {
+                                             const struct editorTextSource *source,
+                                             uint32_t start_byte, uint32_t end_byte,
+                                             struct editorSyntaxCapture *captures, int max_captures,
+                                             int *count_out) {
 	if (count_out != NULL) {
 		*count_out = 0;
 	}
 	if (state == NULL || source == NULL || source->read == NULL || start_byte >= end_byte ||
-			max_captures < 0 ||
-			(max_captures > 0 && captures == NULL)) {
+	    max_captures < 0 || (max_captures > 0 && captures == NULL)) {
 		return 0;
 	}
 	if (max_captures == 0 || state->host.tree == NULL) {
@@ -225,19 +206,19 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 	int capture_vec_count = 1;
 	const struct editorSyntaxLocalsContext *host_locals = NULL;
 	if (!skip_predicates && editorSyntaxLanguageHasLocalsQuery(state->language) &&
-			!editorSyntaxStateEnsureLocalsCached(state, &state->host, source,
-					state->language, NULL, &host_locals)) {
+	    !editorSyntaxStateEnsureLocalsCached(state, &state->host, source, state->language, NULL,
+	                                         &host_locals)) {
 		return 0;
 	}
 
 	int query_unavailable = 0;
-	int ok = editorSyntaxCollectCapturesFromTree(state, state->host.tree, state->language,
-			source, start_byte, end_byte, host_locals, skip_predicates, &capture_vecs[0],
-			&query_unavailable);
+	int ok = editorSyntaxCollectCapturesFromTree(
+	        state, state->host.tree, state->language, source, start_byte, end_byte, host_locals,
+	        skip_predicates, &capture_vecs[0], &query_unavailable);
 	if (!ok) {
 		if (query_unavailable) {
 			editorSyntaxStateRecordQueryUnavailable(state, state->language,
-					EDITOR_SYNTAX_QUERY_KIND_HIGHLIGHT);
+			                                        EDITOR_SYNTAX_QUERY_KIND_HIGHLIGHT);
 			ok = 1;
 		} else {
 			editorSyntaxCaptureVecFree(&capture_vecs[0]);
@@ -246,29 +227,33 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 	}
 
 	if (!state->perf_disable_injections) {
-		for (int i = 0; i < state->injection_count &&
-				capture_vec_count < (int)(sizeof(capture_vecs) / sizeof(capture_vecs[0]));
-				i++) {
+		for (int i = 0;
+		     i < state->injection_count &&
+		     capture_vec_count < (int)(sizeof(capture_vecs) / sizeof(capture_vecs[0]));
+		     i++) {
 			struct editorSyntaxInjectedTree *injection = &state->injections[i];
 			if (!injection->active || injection->parsed.tree == NULL) {
 				continue;
 			}
 			const struct editorSyntaxLocalsContext *injection_locals = NULL;
-			if (!skip_predicates && editorSyntaxLanguageHasLocalsQuery(injection->parsed.language) &&
-					!editorSyntaxStateEnsureLocalsCached(state, &injection->parsed,
-						source, injection->parsed.language, injection, &injection_locals)) {
+			if (!skip_predicates &&
+			    editorSyntaxLanguageHasLocalsQuery(injection->parsed.language) &&
+			    !editorSyntaxStateEnsureLocalsCached(state, &injection->parsed, source,
+			                                         injection->parsed.language,
+			                                         injection, &injection_locals)) {
 				ok = 0;
 				break;
 			}
 			int vec_idx = capture_vec_count;
 			query_unavailable = 0;
-			if (!editorSyntaxCollectCapturesFromTree(state, injection->parsed.tree,
-						injection->parsed.language, source, start_byte, end_byte,
-						injection_locals, skip_predicates,
-						&capture_vecs[vec_idx], &query_unavailable)) {
+			if (!editorSyntaxCollectCapturesFromTree(
+			            state, injection->parsed.tree, injection->parsed.language,
+			            source, start_byte, end_byte, injection_locals, skip_predicates,
+			            &capture_vecs[vec_idx], &query_unavailable)) {
 				if (query_unavailable) {
-					editorSyntaxStateRecordQueryUnavailable(state, injection->parsed.language,
-							EDITOR_SYNTAX_QUERY_KIND_HIGHLIGHT);
+					editorSyntaxStateRecordQueryUnavailable(
+					        state, injection->parsed.language,
+					        EDITOR_SYNTAX_QUERY_KIND_HIGHLIGHT);
 					continue;
 				} else {
 					editorSyntaxCaptureVecFree(&capture_vecs[vec_idx]);
@@ -297,9 +282,9 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 				continue;
 			}
 			const struct editorSyntaxCapture *candidate =
-					&capture_vecs[vec_idx].items[indices[vec_idx]];
-			int cmp = choice == NULL ? -1 :
-					editorSyntaxCaptureSortKeyCmp(candidate, choice);
+			        &capture_vecs[vec_idx].items[indices[vec_idx]];
+			int cmp = choice == NULL ? -1
+			                         : editorSyntaxCaptureSortKeyCmp(candidate, choice);
 			if (choice == NULL || cmp < 0 || (cmp == 0 && vec_idx > source_choice)) {
 				choice = candidate;
 				source_choice = vec_idx;

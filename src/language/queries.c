@@ -2,9 +2,8 @@
  * caches. Paired with syntax.c (parser/edit/orchestration) via syntax_internal.h.
  */
 
-#include "language/syntax_internal.h"
-
 #include "language/languages.h"
+#include "language/syntax_internal.h"
 
 #include <regex.h>
 #include <stdbool.h>
@@ -14,12 +13,11 @@
 #include <time.h>
 
 static struct editorSyntaxQueryCacheEntry
-		g_query_caches[EDITOR_SYNTAX_LANGUAGE_COUNT]
-		              [EDITOR_SYNTAX_QUERY_CACHE_KIND_COUNT] = {0};
+        g_query_caches[EDITOR_SYNTAX_LANGUAGE_COUNT][EDITOR_SYNTAX_QUERY_CACHE_KIND_COUNT] = {0};
 
-static struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheSlot(
-		enum editorSyntaxLanguage language,
-		enum editorSyntaxQueryCacheKind kind) {
+static struct editorSyntaxQueryCacheEntry *
+editorSyntaxQueryCacheSlot(enum editorSyntaxLanguage language,
+                           enum editorSyntaxQueryCacheKind kind) {
 	if ((int)language <= 0 || (int)language >= EDITOR_SYNTAX_LANGUAGE_COUNT) {
 		return NULL;
 	}
@@ -108,7 +106,7 @@ bool editorSyntaxQueryProgressCallback(TSQueryCursorState *state) {
 }
 
 static const char *editorTextSourceReadFromString(const struct editorTextSource *source,
-		size_t byte_index, uint32_t *bytes_read) {
+                                                  size_t byte_index, uint32_t *bytes_read) {
 	if (bytes_read == NULL) {
 		return NULL;
 	}
@@ -141,10 +139,10 @@ size_t editorTextSourceLength(const struct editorTextSource *source) {
 	return source->length;
 }
 
-int editorTextSourceCopyRange(const struct editorTextSource *source,
-		size_t start_byte, size_t end_byte, char *dst) {
+int editorTextSourceCopyRange(const struct editorTextSource *source, size_t start_byte,
+                              size_t end_byte, char *dst) {
 	if (source == NULL || source->read == NULL || dst == NULL || end_byte < start_byte ||
-			end_byte > source->length) {
+	    end_byte > source->length) {
 		return 0;
 	}
 	size_t offset = start_byte;
@@ -168,8 +166,8 @@ int editorTextSourceCopyRange(const struct editorTextSource *source,
 	return 1;
 }
 
-char *editorTextSourceDupRange(const struct editorTextSource *source,
-		size_t start_byte, size_t end_byte, size_t *len_out) {
+char *editorTextSourceDupRange(const struct editorTextSource *source, size_t start_byte,
+                               size_t end_byte, size_t *len_out) {
 	if (len_out != NULL) {
 		*len_out = 0;
 	}
@@ -196,8 +194,8 @@ char *editorTextSourceDupRange(const struct editorTextSource *source,
 	return dup;
 }
 
-const char *editorSyntaxSourceRead(void *payload, uint32_t byte_index,
-		TSPoint position, uint32_t *bytes_read) {
+const char *editorSyntaxSourceRead(void *payload, uint32_t byte_index, TSPoint position,
+                                   uint32_t *bytes_read) {
 	(void)position;
 	if (bytes_read == NULL) {
 		return NULL;
@@ -213,13 +211,12 @@ const char *editorSyntaxSourceRead(void *payload, uint32_t byte_index,
 	return source->read(source, byte_index, bytes_read);
 }
 
-struct editorSyntaxBudgetConfig editorSyntaxBudgetConfigForMode(
-		enum editorSyntaxPerformanceMode mode) {
+struct editorSyntaxBudgetConfig
+editorSyntaxBudgetConfigForMode(enum editorSyntaxPerformanceMode mode) {
 	struct editorSyntaxBudgetConfig config = {
-		.query_match_limit = ROTIDE_SYNTAX_QUERY_MATCH_LIMIT_NORMAL,
-		.query_budget_ns = ROTIDE_SYNTAX_QUERY_BUDGET_NS_NORMAL,
-		.parse_budget_ns = ROTIDE_SYNTAX_PARSE_BUDGET_NS_NORMAL
-	};
+	        .query_match_limit = ROTIDE_SYNTAX_QUERY_MATCH_LIMIT_NORMAL,
+	        .query_budget_ns = ROTIDE_SYNTAX_QUERY_BUDGET_NS_NORMAL,
+	        .parse_budget_ns = ROTIDE_SYNTAX_PARSE_BUDGET_NS_NORMAL};
 
 	if (mode == EDITOR_SYNTAX_PERF_DEGRADED_PREDICATES) {
 		config.query_match_limit = ROTIDE_SYNTAX_QUERY_MATCH_LIMIT_DEGRADED;
@@ -246,109 +243,108 @@ struct editorSyntaxCaptureRule {
 };
 
 static const struct editorSyntaxCaptureRule g_capture_rules[] = {
-	{"keyword.conditional.ternary", EDITOR_SYNTAX_HL_KEYWORD},
-	{"reference.implementation", EDITOR_SYNTAX_HL_TYPE},
-	{"function.method.builtin", EDITOR_SYNTAX_HL_FUNCTION},
-	{"definition.enum_variant", EDITOR_SYNTAX_HL_CONSTANT},
-	{"reference.enum_variant", EDITOR_SYNTAX_HL_CONSTANT},
-	{"punctuation.delimiter", EDITOR_SYNTAX_HL_PUNCTUATION},
-	{"comment.documentation", EDITOR_SYNTAX_HL_COMMENT},
-	{"string.documentation", EDITOR_SYNTAX_HL_STRING},
-	{"definition.interface", EDITOR_SYNTAX_HL_TYPE},
-	{"reference.interface", EDITOR_SYNTAX_HL_TYPE},
-	{"punctuation.special", EDITOR_SYNTAX_HL_PUNCTUATION},
-	{"punctuation.bracket", EDITOR_SYNTAX_HL_PUNCTUATION},
-	{"property.definition", EDITOR_SYNTAX_HL_PROPERTY},
-	{"keyword.conditional", EDITOR_SYNTAX_HL_KEYWORD},
-	{"definition.constant", EDITOR_SYNTAX_HL_CONSTANT},
-	{"definition.function", EDITOR_SYNTAX_HL_FUNCTION},
-	{"definition.operator", EDITOR_SYNTAX_HL_OPERATOR},
-	{"definition.property", EDITOR_SYNTAX_HL_PROPERTY},
-	{"definition.variable", EDITOR_SYNTAX_HL_VARIABLE},
-	{"variable.parameter", EDITOR_SYNTAX_HL_PARAMETER},
-	{"string.special.key", EDITOR_SYNTAX_HL_STRING},
-	{"constant.character", EDITOR_SYNTAX_HL_CONSTANT},
-	{"keyword.exception", EDITOR_SYNTAX_HL_KEYWORD},
-	{"keyword.directive", EDITOR_SYNTAX_HL_KEYWORD},
-	{"definition.method", EDITOR_SYNTAX_HL_FUNCTION},
-	{"definition.module", EDITOR_SYNTAX_HL_MODULE},
-	{"definition.object", EDITOR_SYNTAX_HL_TYPE},
-	{"variable.builtin", EDITOR_SYNTAX_HL_CONSTANT},
-	{"reference.module", EDITOR_SYNTAX_HL_MODULE},
-	{"keyword.operator", EDITOR_SYNTAX_HL_KEYWORD},
-	{"keyword.modifier", EDITOR_SYNTAX_HL_KEYWORD},
-	{"keyword.function", EDITOR_SYNTAX_HL_KEYWORD},
-	{"function.builtin", EDITOR_SYNTAX_HL_FUNCTION},
-	{"function.special", EDITOR_SYNTAX_HL_FUNCTION},
-	{"definition.class", EDITOR_SYNTAX_HL_TYPE},
-	{"definition.field", EDITOR_SYNTAX_HL_PROPERTY},
-	{"definition.macro", EDITOR_SYNTAX_HL_FUNCTION},
-	{"constant.builtin", EDITOR_SYNTAX_HL_CONSTANT},
-	{"variable.member", EDITOR_SYNTAX_HL_PROPERTY},
-	{"type.definition", EDITOR_SYNTAX_HL_TYPE},
-	{"reference.field", EDITOR_SYNTAX_HL_PROPERTY},
-	{"reference.class", EDITOR_SYNTAX_HL_TYPE},
-	{"definition.type", EDITOR_SYNTAX_HL_TYPE},
-	{"function.method", EDITOR_SYNTAX_HL_FUNCTION},
-	{"type.qualifier", EDITOR_SYNTAX_HL_TYPE},
-	{"string.special", EDITOR_SYNTAX_HL_STRING},
-	{"reference.type", EDITOR_SYNTAX_HL_TYPE},
-	{"reference.call", EDITOR_SYNTAX_HL_FUNCTION},
-	{"module.builtin", EDITOR_SYNTAX_HL_MODULE},
-	{"keyword.import", EDITOR_SYNTAX_HL_KEYWORD},
-	{"keyword.repeat", EDITOR_SYNTAX_HL_KEYWORD},
-	{"keyword.return", EDITOR_SYNTAX_HL_KEYWORD},
-	{"function.macro", EDITOR_SYNTAX_HL_FUNCTION},
-	{"text.reference", EDITOR_SYNTAX_HL_CONSTANT},
-	{"string.symbol", EDITOR_SYNTAX_HL_STRING},
-	{"string.escape", EDITOR_SYNTAX_HL_STRING},
-	{"keyword.debug", EDITOR_SYNTAX_HL_KEYWORD},
-	{"function.call", EDITOR_SYNTAX_HL_FUNCTION},
-	{"text.emphasis", EDITOR_SYNTAX_HL_KEYWORD},
-	{"type.builtin", EDITOR_SYNTAX_HL_TYPE},
-	{"string.regex", EDITOR_SYNTAX_HL_STRING},
-	{"text.literal", EDITOR_SYNTAX_HL_STRING},
-	{"storageclass", EDITOR_SYNTAX_HL_PREPROCESSOR},
-	{"preprocessor", EDITOR_SYNTAX_HL_PREPROCESSOR},
-	{"number.float", EDITOR_SYNTAX_HL_NUMBER},
-	{"keyword.type", EDITOR_SYNTAX_HL_KEYWORD},
-	{"punctuation", EDITOR_SYNTAX_HL_PUNCTUATION},
-	{"method.call", EDITOR_SYNTAX_HL_FUNCTION},
-	{"conditional", EDITOR_SYNTAX_HL_KEYWORD},
-	{"constructor", EDITOR_SYNTAX_HL_TYPE},
-	{"text.strong", EDITOR_SYNTAX_HL_KEYWORD},
-	{"text.title", EDITOR_SYNTAX_HL_KEYWORD},
-	{"diff.minus", EDITOR_SYNTAX_HL_PREPROCESSOR},
-	{"diff.plus", EDITOR_SYNTAX_HL_STRING},
-	{"parameter", EDITOR_SYNTAX_HL_PARAMETER},
-	{"namespace", EDITOR_SYNTAX_HL_MODULE},
-	{"exception", EDITOR_SYNTAX_HL_KEYWORD},
-	{"delimiter", EDITOR_SYNTAX_HL_PUNCTUATION},
-	{"character", EDITOR_SYNTAX_HL_STRING},
-	{"attribute", EDITOR_SYNTAX_HL_PREPROCESSOR},
-	{"text.uri", EDITOR_SYNTAX_HL_STRING},
-	{"variable", EDITOR_SYNTAX_HL_VARIABLE},
-	{"property", EDITOR_SYNTAX_HL_PROPERTY},
-	{"operator", EDITOR_SYNTAX_HL_OPERATOR},
-	{"function", EDITOR_SYNTAX_HL_FUNCTION},
-	{"constant", EDITOR_SYNTAX_HL_CONSTANT},
-	{"preproc", EDITOR_SYNTAX_HL_PREPROCESSOR},
-	{"keyword", EDITOR_SYNTAX_HL_KEYWORD},
-	{"include", EDITOR_SYNTAX_HL_KEYWORD},
-	{"comment", EDITOR_SYNTAX_HL_COMMENT},
-	{"command", EDITOR_SYNTAX_HL_FUNCTION},
-	{"boolean", EDITOR_SYNTAX_HL_CONSTANT},
-	{"string", EDITOR_SYNTAX_HL_STRING},
-	{"repeat", EDITOR_SYNTAX_HL_KEYWORD},
-	{"number", EDITOR_SYNTAX_HL_NUMBER},
-	{"module", EDITOR_SYNTAX_HL_MODULE},
-	{"method", EDITOR_SYNTAX_HL_FUNCTION},
-	{"label", EDITOR_SYNTAX_HL_FUNCTION},
-	{"float", EDITOR_SYNTAX_HL_NUMBER},
-	{"type", EDITOR_SYNTAX_HL_TYPE},
-	{"tag", EDITOR_SYNTAX_HL_TYPE},
-	{"doc", EDITOR_SYNTAX_HL_COMMENT}
-};
+        {"keyword.conditional.ternary", EDITOR_SYNTAX_HL_KEYWORD},
+        {"reference.implementation", EDITOR_SYNTAX_HL_TYPE},
+        {"function.method.builtin", EDITOR_SYNTAX_HL_FUNCTION},
+        {"definition.enum_variant", EDITOR_SYNTAX_HL_CONSTANT},
+        {"reference.enum_variant", EDITOR_SYNTAX_HL_CONSTANT},
+        {"punctuation.delimiter", EDITOR_SYNTAX_HL_PUNCTUATION},
+        {"comment.documentation", EDITOR_SYNTAX_HL_COMMENT},
+        {"string.documentation", EDITOR_SYNTAX_HL_STRING},
+        {"definition.interface", EDITOR_SYNTAX_HL_TYPE},
+        {"reference.interface", EDITOR_SYNTAX_HL_TYPE},
+        {"punctuation.special", EDITOR_SYNTAX_HL_PUNCTUATION},
+        {"punctuation.bracket", EDITOR_SYNTAX_HL_PUNCTUATION},
+        {"property.definition", EDITOR_SYNTAX_HL_PROPERTY},
+        {"keyword.conditional", EDITOR_SYNTAX_HL_KEYWORD},
+        {"definition.constant", EDITOR_SYNTAX_HL_CONSTANT},
+        {"definition.function", EDITOR_SYNTAX_HL_FUNCTION},
+        {"definition.operator", EDITOR_SYNTAX_HL_OPERATOR},
+        {"definition.property", EDITOR_SYNTAX_HL_PROPERTY},
+        {"definition.variable", EDITOR_SYNTAX_HL_VARIABLE},
+        {"variable.parameter", EDITOR_SYNTAX_HL_PARAMETER},
+        {"string.special.key", EDITOR_SYNTAX_HL_STRING},
+        {"constant.character", EDITOR_SYNTAX_HL_CONSTANT},
+        {"keyword.exception", EDITOR_SYNTAX_HL_KEYWORD},
+        {"keyword.directive", EDITOR_SYNTAX_HL_KEYWORD},
+        {"definition.method", EDITOR_SYNTAX_HL_FUNCTION},
+        {"definition.module", EDITOR_SYNTAX_HL_MODULE},
+        {"definition.object", EDITOR_SYNTAX_HL_TYPE},
+        {"variable.builtin", EDITOR_SYNTAX_HL_CONSTANT},
+        {"reference.module", EDITOR_SYNTAX_HL_MODULE},
+        {"keyword.operator", EDITOR_SYNTAX_HL_KEYWORD},
+        {"keyword.modifier", EDITOR_SYNTAX_HL_KEYWORD},
+        {"keyword.function", EDITOR_SYNTAX_HL_KEYWORD},
+        {"function.builtin", EDITOR_SYNTAX_HL_FUNCTION},
+        {"function.special", EDITOR_SYNTAX_HL_FUNCTION},
+        {"definition.class", EDITOR_SYNTAX_HL_TYPE},
+        {"definition.field", EDITOR_SYNTAX_HL_PROPERTY},
+        {"definition.macro", EDITOR_SYNTAX_HL_FUNCTION},
+        {"constant.builtin", EDITOR_SYNTAX_HL_CONSTANT},
+        {"variable.member", EDITOR_SYNTAX_HL_PROPERTY},
+        {"type.definition", EDITOR_SYNTAX_HL_TYPE},
+        {"reference.field", EDITOR_SYNTAX_HL_PROPERTY},
+        {"reference.class", EDITOR_SYNTAX_HL_TYPE},
+        {"definition.type", EDITOR_SYNTAX_HL_TYPE},
+        {"function.method", EDITOR_SYNTAX_HL_FUNCTION},
+        {"type.qualifier", EDITOR_SYNTAX_HL_TYPE},
+        {"string.special", EDITOR_SYNTAX_HL_STRING},
+        {"reference.type", EDITOR_SYNTAX_HL_TYPE},
+        {"reference.call", EDITOR_SYNTAX_HL_FUNCTION},
+        {"module.builtin", EDITOR_SYNTAX_HL_MODULE},
+        {"keyword.import", EDITOR_SYNTAX_HL_KEYWORD},
+        {"keyword.repeat", EDITOR_SYNTAX_HL_KEYWORD},
+        {"keyword.return", EDITOR_SYNTAX_HL_KEYWORD},
+        {"function.macro", EDITOR_SYNTAX_HL_FUNCTION},
+        {"text.reference", EDITOR_SYNTAX_HL_CONSTANT},
+        {"string.symbol", EDITOR_SYNTAX_HL_STRING},
+        {"string.escape", EDITOR_SYNTAX_HL_STRING},
+        {"keyword.debug", EDITOR_SYNTAX_HL_KEYWORD},
+        {"function.call", EDITOR_SYNTAX_HL_FUNCTION},
+        {"text.emphasis", EDITOR_SYNTAX_HL_KEYWORD},
+        {"type.builtin", EDITOR_SYNTAX_HL_TYPE},
+        {"string.regex", EDITOR_SYNTAX_HL_STRING},
+        {"text.literal", EDITOR_SYNTAX_HL_STRING},
+        {"storageclass", EDITOR_SYNTAX_HL_PREPROCESSOR},
+        {"preprocessor", EDITOR_SYNTAX_HL_PREPROCESSOR},
+        {"number.float", EDITOR_SYNTAX_HL_NUMBER},
+        {"keyword.type", EDITOR_SYNTAX_HL_KEYWORD},
+        {"punctuation", EDITOR_SYNTAX_HL_PUNCTUATION},
+        {"method.call", EDITOR_SYNTAX_HL_FUNCTION},
+        {"conditional", EDITOR_SYNTAX_HL_KEYWORD},
+        {"constructor", EDITOR_SYNTAX_HL_TYPE},
+        {"text.strong", EDITOR_SYNTAX_HL_KEYWORD},
+        {"text.title", EDITOR_SYNTAX_HL_KEYWORD},
+        {"diff.minus", EDITOR_SYNTAX_HL_PREPROCESSOR},
+        {"diff.plus", EDITOR_SYNTAX_HL_STRING},
+        {"parameter", EDITOR_SYNTAX_HL_PARAMETER},
+        {"namespace", EDITOR_SYNTAX_HL_MODULE},
+        {"exception", EDITOR_SYNTAX_HL_KEYWORD},
+        {"delimiter", EDITOR_SYNTAX_HL_PUNCTUATION},
+        {"character", EDITOR_SYNTAX_HL_STRING},
+        {"attribute", EDITOR_SYNTAX_HL_PREPROCESSOR},
+        {"text.uri", EDITOR_SYNTAX_HL_STRING},
+        {"variable", EDITOR_SYNTAX_HL_VARIABLE},
+        {"property", EDITOR_SYNTAX_HL_PROPERTY},
+        {"operator", EDITOR_SYNTAX_HL_OPERATOR},
+        {"function", EDITOR_SYNTAX_HL_FUNCTION},
+        {"constant", EDITOR_SYNTAX_HL_CONSTANT},
+        {"preproc", EDITOR_SYNTAX_HL_PREPROCESSOR},
+        {"keyword", EDITOR_SYNTAX_HL_KEYWORD},
+        {"include", EDITOR_SYNTAX_HL_KEYWORD},
+        {"comment", EDITOR_SYNTAX_HL_COMMENT},
+        {"command", EDITOR_SYNTAX_HL_FUNCTION},
+        {"boolean", EDITOR_SYNTAX_HL_CONSTANT},
+        {"string", EDITOR_SYNTAX_HL_STRING},
+        {"repeat", EDITOR_SYNTAX_HL_KEYWORD},
+        {"number", EDITOR_SYNTAX_HL_NUMBER},
+        {"module", EDITOR_SYNTAX_HL_MODULE},
+        {"method", EDITOR_SYNTAX_HL_FUNCTION},
+        {"label", EDITOR_SYNTAX_HL_FUNCTION},
+        {"float", EDITOR_SYNTAX_HL_NUMBER},
+        {"type", EDITOR_SYNTAX_HL_TYPE},
+        {"tag", EDITOR_SYNTAX_HL_TYPE},
+        {"doc", EDITOR_SYNTAX_HL_COMMENT}};
 
 static int editorSyntaxCaptureNameHasPrefix(const char *name, size_t len, const char *prefix) {
 	size_t prefix_len = strlen(prefix);
@@ -359,7 +355,7 @@ static int editorSyntaxCaptureNameHasPrefix(const char *name, size_t len, const 
 }
 
 static enum editorSyntaxHighlightClass editorSyntaxClassFromCaptureName(const char *name,
-		size_t len) {
+                                                                        size_t len) {
 	if (name == NULL || len == 0) {
 		return EDITOR_SYNTAX_HL_NONE;
 	}
@@ -407,9 +403,9 @@ enum editorSyntaxQueryCompileLog {
 	EDITOR_SYNTAX_QUERY_COMPILE_LOG_ERROR = 1
 };
 
-static void editorSyntaxCopyQueryErrorContext(
-		const char *query_source, size_t query_len, uint32_t error_offset,
-		char context[ROTIDE_SYNTAX_QUERY_ERROR_CONTEXT_MAX + 1]) {
+static void
+editorSyntaxCopyQueryErrorContext(const char *query_source, size_t query_len, uint32_t error_offset,
+                                  char context[ROTIDE_SYNTAX_QUERY_ERROR_CONTEXT_MAX + 1]) {
 	if (context == NULL) {
 		return;
 	}
@@ -440,23 +436,24 @@ static void editorSyntaxCopyQueryErrorContext(
 }
 
 static void editorSyntaxRecordQueryCompileError(enum editorSyntaxLanguage language,
-		const char *query_source, size_t query_len, uint32_t error_offset,
-		TSQueryError error_type, enum editorSyntaxQueryCompileLog log_mode) {
+                                                const char *query_source, size_t query_len,
+                                                uint32_t error_offset, TSQueryError error_type,
+                                                enum editorSyntaxQueryCompileLog log_mode) {
 	g_last_query_compile_error.has_error = 1;
 	g_last_query_compile_error.language = language;
 	g_last_query_compile_error.error_offset = error_offset;
 	g_last_query_compile_error.error_type = (int)error_type;
 	editorSyntaxCopyQueryErrorContext(query_source, query_len, error_offset,
-			g_last_query_compile_error.context);
+	                                  g_last_query_compile_error.context);
 	g_last_query_compile_error_generation++;
 
 #ifndef NDEBUG
 	if (log_mode == EDITOR_SYNTAX_QUERY_COMPILE_LOG_ERROR) {
 		fprintf(stderr,
-				"rotide: tree-sitter query compile failed: language=%d offset=%u "
-				"error=%s context=\"%s\"\n",
-				(int)language, (unsigned int)error_offset,
-				editorSyntaxQueryErrorName(error_type), g_last_query_compile_error.context);
+		        "rotide: tree-sitter query compile failed: language=%d offset=%u "
+		        "error=%s context=\"%s\"\n",
+		        (int)language, (unsigned int)error_offset,
+		        editorSyntaxQueryErrorName(error_type), g_last_query_compile_error.context);
 	}
 #else
 	(void)log_mode;
@@ -476,8 +473,7 @@ int editorSyntaxDrainLastQueryCompileError(struct editorSyntaxQueryCompileError 
 		*error_out = g_last_query_compile_error;
 	}
 	if (!g_last_query_compile_error.has_error ||
-			g_drained_query_compile_error_generation ==
-					g_last_query_compile_error_generation) {
+	    g_drained_query_compile_error_generation == g_last_query_compile_error_generation) {
 		return 0;
 	}
 	g_drained_query_compile_error_generation = g_last_query_compile_error_generation;
@@ -490,22 +486,22 @@ void editorSyntaxTestResetLastQueryCompileError(void) {
 	g_drained_query_compile_error_generation = 0;
 }
 
-static int editorSyntaxCompileQuery(enum editorSyntaxLanguage language,
-		const char *query_source, size_t query_len, TSQuery **query_out,
-		enum editorSyntaxQueryCompileLog log_mode) {
+static int editorSyntaxCompileQuery(enum editorSyntaxLanguage language, const char *query_source,
+                                    size_t query_len, TSQuery **query_out,
+                                    enum editorSyntaxQueryCompileLog log_mode) {
 	const TSLanguage *ts_language = editorSyntaxLanguageObject(language);
 	if (ts_language == NULL || query_source == NULL || query_out == NULL ||
-			!editorSyntaxLengthFitsTreeSitter(query_len)) {
+	    !editorSyntaxLengthFitsTreeSitter(query_len)) {
 		return 0;
 	}
 
 	uint32_t error_offset = 0;
 	TSQueryError error_type = TSQueryErrorNone;
-	TSQuery *query = ts_query_new(ts_language, query_source, (uint32_t)query_len,
-			&error_offset, &error_type);
+	TSQuery *query = ts_query_new(ts_language, query_source, (uint32_t)query_len, &error_offset,
+	                              &error_type);
 	if (query == NULL) {
-		editorSyntaxRecordQueryCompileError(language, query_source, query_len,
-				error_offset, error_type, log_mode);
+		editorSyntaxRecordQueryCompileError(language, query_source, query_len, error_offset,
+		                                    error_type, log_mode);
 		return 0;
 	}
 
@@ -514,13 +510,13 @@ static int editorSyntaxCompileQuery(enum editorSyntaxLanguage language,
 }
 
 int editorSyntaxTestCompileQueryForDiagnostics(enum editorSyntaxLanguage language,
-		const char *query_source) {
+                                               const char *query_source) {
 	if (query_source == NULL) {
 		return 0;
 	}
 	TSQuery *query = NULL;
 	int ok = editorSyntaxCompileQuery(language, query_source, strlen(query_source), &query,
-			EDITOR_SYNTAX_QUERY_COMPILE_LOG_QUIET);
+	                                  EDITOR_SYNTAX_QUERY_COMPILE_LOG_QUIET);
 	if (query != NULL) {
 		ts_query_delete(query);
 	}
@@ -528,7 +524,8 @@ int editorSyntaxTestCompileQueryForDiagnostics(enum editorSyntaxLanguage languag
 }
 
 static int editorSyntaxPopulateCaptureClasses(TSQuery *query,
-		enum editorSyntaxHighlightClass **capture_classes_out, uint32_t *capture_count_out) {
+                                              enum editorSyntaxHighlightClass **capture_classes_out,
+                                              uint32_t *capture_count_out) {
 	if (capture_classes_out == NULL || capture_count_out == NULL || query == NULL) {
 		return 0;
 	}
@@ -559,7 +556,7 @@ static int editorSyntaxPopulateCaptureClasses(TSQuery *query,
 }
 
 static int editorSyntaxLocalCaptureRoleMatches(const char *name, uint32_t name_len,
-		const char *role) {
+                                               const char *role) {
 	size_t role_len = strlen(role);
 	if (name_len < role_len) {
 		return 0;
@@ -571,7 +568,7 @@ static int editorSyntaxLocalCaptureRoleMatches(const char *name, uint32_t name_l
 }
 
 static int editorSyntaxPopulateLocalsCaptureRoles(TSQuery *query, uint8_t **capture_roles_out,
-		uint32_t *capture_count_out) {
+                                                  uint32_t *capture_count_out) {
 	if (query == NULL || capture_roles_out == NULL || capture_count_out == NULL) {
 		return 0;
 	}
@@ -591,9 +588,11 @@ static int editorSyntaxPopulateLocalsCaptureRoles(TSQuery *query, uint8_t **capt
 			const char *name = ts_query_capture_name_for_id(query, i, &name_len);
 			if (editorSyntaxLocalCaptureRoleMatches(name, name_len, "local.scope")) {
 				capture_roles[i] = EDITOR_SYNTAX_CAPTURE_ROLE_LOCAL_SCOPE;
-			} else if (editorSyntaxLocalCaptureRoleMatches(name, name_len, "local.definition")) {
+			} else if (editorSyntaxLocalCaptureRoleMatches(name, name_len,
+			                                               "local.definition")) {
 				capture_roles[i] = EDITOR_SYNTAX_CAPTURE_ROLE_LOCAL_DEFINITION;
-			} else if (editorSyntaxLocalCaptureRoleMatches(name, name_len, "local.reference")) {
+			} else if (editorSyntaxLocalCaptureRoleMatches(name, name_len,
+			                                               "local.reference")) {
 				capture_roles[i] = EDITOR_SYNTAX_CAPTURE_ROLE_LOCAL_REFERENCE;
 			}
 		}
@@ -605,7 +604,7 @@ static int editorSyntaxPopulateLocalsCaptureRoles(TSQuery *query, uint8_t **capt
 }
 
 static int editorSyntaxPopulateInjectionCaptureRoles(TSQuery *query, uint8_t **capture_roles_out,
-		uint32_t *capture_count_out) {
+                                                     uint32_t *capture_count_out) {
 	if (query == NULL || capture_roles_out == NULL || capture_count_out == NULL) {
 		return 0;
 	}
@@ -625,7 +624,8 @@ static int editorSyntaxPopulateInjectionCaptureRoles(TSQuery *query, uint8_t **c
 			const char *name = ts_query_capture_name_for_id(query, i, &name_len);
 			if (editorSyntaxCaptureNameHasPrefix(name, name_len, "injection.content")) {
 				capture_roles[i] = EDITOR_SYNTAX_CAPTURE_ROLE_INJECTION_CONTENT;
-			} else if (editorSyntaxCaptureNameHasPrefix(name, name_len, "injection.language")) {
+			} else if (editorSyntaxCaptureNameHasPrefix(name, name_len,
+			                                            "injection.language")) {
 				capture_roles[i] = EDITOR_SYNTAX_CAPTURE_ROLE_INJECTION_LANGUAGE;
 			}
 		}
@@ -636,8 +636,7 @@ static int editorSyntaxPopulateInjectionCaptureRoles(TSQuery *query, uint8_t **c
 	return 1;
 }
 
-static int editorSyntaxParsePredicateInt32(const char *value, uint32_t value_len,
-		int32_t *out) {
+static int editorSyntaxParsePredicateInt32(const char *value, uint32_t value_len, int32_t *out) {
 	if (value == NULL || value_len == 0 || out == NULL) {
 		return 0;
 	}
@@ -656,9 +655,9 @@ static int editorSyntaxParsePredicateInt32(const char *value, uint32_t value_len
 	return 1;
 }
 
-static void editorSyntaxFreeInjectionPatternMetadata(
-		struct editorSyntaxInjectionPatternMetadata *metadata,
-		uint32_t pattern_count) {
+static void
+editorSyntaxFreeInjectionPatternMetadata(struct editorSyntaxInjectionPatternMetadata *metadata,
+                                         uint32_t pattern_count) {
 	if (metadata == NULL) {
 		return;
 	}
@@ -668,11 +667,10 @@ static void editorSyntaxFreeInjectionPatternMetadata(
 	free(metadata);
 }
 
-static int editorSyntaxPopulateInjectionPatternMetadata(TSQuery *query,
-		struct editorSyntaxInjectionPatternMetadata **metadata_out,
-		uint32_t *pattern_count_out) {
-	if (query == NULL || metadata_out == NULL ||
-			pattern_count_out == NULL) {
+static int editorSyntaxPopulateInjectionPatternMetadata(
+        TSQuery *query, struct editorSyntaxInjectionPatternMetadata **metadata_out,
+        uint32_t *pattern_count_out) {
+	if (query == NULL || metadata_out == NULL || pattern_count_out == NULL) {
 		return 0;
 	}
 	*metadata_out = NULL;
@@ -689,8 +687,8 @@ static int editorSyntaxPopulateInjectionPatternMetadata(TSQuery *query,
 
 	for (uint32_t pattern_idx = 0; pattern_idx < pattern_count; pattern_idx++) {
 		uint32_t step_count = 0;
-		const TSQueryPredicateStep *steps = ts_query_predicates_for_pattern(query, pattern_idx,
-				&step_count);
+		const TSQueryPredicateStep *steps =
+		        ts_query_predicates_for_pattern(query, pattern_idx, &step_count);
 		if (steps == NULL || step_count == 0) {
 			continue;
 		}
@@ -704,21 +702,25 @@ static int editorSyntaxPopulateInjectionPatternMetadata(TSQuery *query,
 			uint32_t end = i;
 			if (end > start && steps[start].type == TSQueryPredicateStepTypeString) {
 				uint32_t cmd_len = 0;
-				const char *cmd = ts_query_string_value_for_id(query, steps[start].value_id,
-						&cmd_len);
-				if (editorSyntaxStringEquals(cmd, cmd_len, "set!") && end - start >= 3 &&
-						steps[start + 1].type == TSQueryPredicateStepTypeString &&
-						steps[start + 2].type == TSQueryPredicateStepTypeString) {
+				const char *cmd = ts_query_string_value_for_id(
+				        query, steps[start].value_id, &cmd_len);
+				if (editorSyntaxStringEquals(cmd, cmd_len, "set!") &&
+				    end - start >= 3 &&
+				    steps[start + 1].type == TSQueryPredicateStepTypeString &&
+				    steps[start + 2].type == TSQueryPredicateStepTypeString) {
 					uint32_t key_len = 0;
-					const char *key = ts_query_string_value_for_id(query,
-							steps[start + 1].value_id, &key_len);
-					if (editorSyntaxStringEquals(key, key_len, "injection.language")) {
+					const char *key = ts_query_string_value_for_id(
+					        query, steps[start + 1].value_id, &key_len);
+					if (editorSyntaxStringEquals(key, key_len,
+					                             "injection.language")) {
 						uint32_t value_len = 0;
-						const char *value = ts_query_string_value_for_id(query,
-								steps[start + 2].value_id, &value_len);
+						const char *value = ts_query_string_value_for_id(
+						        query, steps[start + 2].value_id,
+						        &value_len);
 						char *dup = malloc((size_t)value_len + 1);
 						if (dup == NULL) {
-							editorSyntaxFreeInjectionPatternMetadata(metadata, pattern_count);
+							editorSyntaxFreeInjectionPatternMetadata(
+							        metadata, pattern_count);
 							return 0;
 						}
 						memcpy(dup, value, value_len);
@@ -726,62 +728,76 @@ static int editorSyntaxPopulateInjectionPatternMetadata(TSQuery *query,
 						free(metadata[pattern_idx].language);
 						metadata[pattern_idx].language = dup;
 					} else if (editorSyntaxStringEquals(key, key_len,
-								"injection.combined")) {
+					                                    "injection.combined")) {
 						metadata[pattern_idx].combined = 1;
-					} else if (editorSyntaxStringEquals(key, key_len,
-								"injection.include-children")) {
+					} else if (editorSyntaxStringEquals(
+					                   key, key_len,
+					                   "injection.include-children")) {
 						metadata[pattern_idx].include_children = 1;
 					}
 				} else if (editorSyntaxStringEquals(cmd, cmd_len, "set!") &&
-						end - start >= 2 &&
-						steps[start + 1].type == TSQueryPredicateStepTypeString) {
+				           end - start >= 2 &&
+				           steps[start + 1].type ==
+				                   TSQueryPredicateStepTypeString) {
 					uint32_t key_len = 0;
-					const char *key = ts_query_string_value_for_id(query,
-							steps[start + 1].value_id, &key_len);
-					if (editorSyntaxStringEquals(key, key_len, "injection.combined")) {
+					const char *key = ts_query_string_value_for_id(
+					        query, steps[start + 1].value_id, &key_len);
+					if (editorSyntaxStringEquals(key, key_len,
+					                             "injection.combined")) {
 						metadata[pattern_idx].combined = 1;
-					} else if (editorSyntaxStringEquals(key, key_len,
-								"injection.include-children")) {
+					} else if (editorSyntaxStringEquals(
+					                   key, key_len,
+					                   "injection.include-children")) {
 						metadata[pattern_idx].include_children = 1;
 					}
 				} else if (editorSyntaxStringEquals(cmd, cmd_len, "offset!") &&
-						end - start >= 6 &&
-						steps[start + 1].type == TSQueryPredicateStepTypeCapture &&
-						steps[start + 2].type == TSQueryPredicateStepTypeString &&
-						steps[start + 3].type == TSQueryPredicateStepTypeString &&
-						steps[start + 4].type == TSQueryPredicateStepTypeString &&
-						steps[start + 5].type == TSQueryPredicateStepTypeString) {
+				           end - start >= 6 &&
+				           steps[start + 1].type ==
+				                   TSQueryPredicateStepTypeCapture &&
+				           steps[start + 2].type ==
+				                   TSQueryPredicateStepTypeString &&
+				           steps[start + 3].type ==
+				                   TSQueryPredicateStepTypeString &&
+				           steps[start + 4].type ==
+				                   TSQueryPredicateStepTypeString &&
+				           steps[start + 5].type ==
+				                   TSQueryPredicateStepTypeString) {
 					int32_t start_row = 0;
 					int32_t start_col = 0;
 					int32_t end_row = 0;
 					int32_t end_col = 0;
 					uint32_t value_len = 0;
-					const char *value = ts_query_string_value_for_id(query,
-							steps[start + 2].value_id, &value_len);
-					if (!editorSyntaxParsePredicateInt32(value, value_len, &start_row)) {
+					const char *value = ts_query_string_value_for_id(
+					        query, steps[start + 2].value_id, &value_len);
+					if (!editorSyntaxParsePredicateInt32(value, value_len,
+					                                     &start_row)) {
 						i++;
 						continue;
 					}
-					value = ts_query_string_value_for_id(query,
-							steps[start + 3].value_id, &value_len);
-					if (!editorSyntaxParsePredicateInt32(value, value_len, &start_col)) {
+					value = ts_query_string_value_for_id(
+					        query, steps[start + 3].value_id, &value_len);
+					if (!editorSyntaxParsePredicateInt32(value, value_len,
+					                                     &start_col)) {
 						i++;
 						continue;
 					}
-					value = ts_query_string_value_for_id(query,
-							steps[start + 4].value_id, &value_len);
-					if (!editorSyntaxParsePredicateInt32(value, value_len, &end_row)) {
+					value = ts_query_string_value_for_id(
+					        query, steps[start + 4].value_id, &value_len);
+					if (!editorSyntaxParsePredicateInt32(value, value_len,
+					                                     &end_row)) {
 						i++;
 						continue;
 					}
-					value = ts_query_string_value_for_id(query,
-							steps[start + 5].value_id, &value_len);
-					if (!editorSyntaxParsePredicateInt32(value, value_len, &end_col)) {
+					value = ts_query_string_value_for_id(
+					        query, steps[start + 5].value_id, &value_len);
+					if (!editorSyntaxParsePredicateInt32(value, value_len,
+					                                     &end_col)) {
 						i++;
 						continue;
 					}
 					metadata[pattern_idx].has_offset = 1;
-					metadata[pattern_idx].offset_capture_id = steps[start + 1].value_id;
+					metadata[pattern_idx].offset_capture_id =
+					        steps[start + 1].value_id;
 					metadata[pattern_idx].start_row_offset = start_row;
 					metadata[pattern_idx].start_column_offset = start_col;
 					metadata[pattern_idx].end_row_offset = end_row;
@@ -825,16 +841,15 @@ static void editorSyntaxClearQueryCacheEntry(struct editorSyntaxQueryCacheEntry 
 	free(cache->capture_roles);
 	cache->capture_roles = NULL;
 	editorSyntaxFreeInjectionPatternMetadata(cache->pattern_injection_metadata,
-			cache->pattern_count);
+	                                         cache->pattern_count);
 	cache->pattern_injection_metadata = NULL;
 	cache->capture_count = 0;
 	cache->pattern_count = 0;
 	cache->load_attempted = 0;
 }
 
-static char *editorSyntaxConcatEmbeddedParts(
-		const struct editorSyntaxEmbeddedQueryPart *parts, int part_count,
-		size_t *len_out) {
+static char *editorSyntaxConcatEmbeddedParts(const struct editorSyntaxEmbeddedQueryPart *parts,
+                                             int part_count, size_t *len_out) {
 	if (len_out != NULL) {
 		*len_out = 0;
 	}
@@ -864,13 +879,11 @@ static char *editorSyntaxConcatEmbeddedParts(
 }
 
 static int editorSyntaxEnsureQueryCache(struct editorSyntaxQueryCacheEntry *cache,
-		enum editorSyntaxLanguage language,
-		const struct editorSyntaxEmbeddedQueryPart *embedded_parts,
-		int embedded_part_count,
-	int want_capture_classes,
-	int want_locals_roles,
-	int want_injection_roles,
-	int want_injection_metadata) {
+                                        enum editorSyntaxLanguage language,
+                                        const struct editorSyntaxEmbeddedQueryPart *embedded_parts,
+                                        int embedded_part_count, int want_capture_classes,
+                                        int want_locals_roles, int want_injection_roles,
+                                        int want_injection_metadata) {
 	if (cache == NULL || embedded_parts == NULL || embedded_part_count <= 0) {
 		return 0;
 	}
@@ -881,13 +894,13 @@ static int editorSyntaxEnsureQueryCache(struct editorSyntaxQueryCacheEntry *cach
 
 	TSQuery *query = NULL;
 	size_t embedded_len = 0;
-	char *embedded_query = editorSyntaxConcatEmbeddedParts(
-			embedded_parts, embedded_part_count, &embedded_len);
+	char *embedded_query =
+	        editorSyntaxConcatEmbeddedParts(embedded_parts, embedded_part_count, &embedded_len);
 	if (embedded_query == NULL) {
 		return 0;
 	}
 	(void)editorSyntaxCompileQuery(language, embedded_query, embedded_len, &query,
-			EDITOR_SYNTAX_QUERY_COMPILE_LOG_ERROR);
+	                               EDITOR_SYNTAX_QUERY_COMPILE_LOG_ERROR);
 	free(embedded_query);
 	if (query == NULL) {
 		return 0;
@@ -904,28 +917,27 @@ static int editorSyntaxEnsureQueryCache(struct editorSyntaxQueryCacheEntry *cach
 	uint8_t *compiled_regex_failed = NULL;
 
 	if (want_capture_classes &&
-			!editorSyntaxPopulateCaptureClasses(query, &capture_classes, &capture_count)) {
+	    !editorSyntaxPopulateCaptureClasses(query, &capture_classes, &capture_count)) {
 		ts_query_delete(query);
 		return 0;
 	}
 
 	if (want_locals_roles &&
-			!editorSyntaxPopulateLocalsCaptureRoles(query, &capture_roles, &capture_count)) {
+	    !editorSyntaxPopulateLocalsCaptureRoles(query, &capture_roles, &capture_count)) {
 		free(capture_classes);
 		ts_query_delete(query);
 		return 0;
 	}
 
 	if (want_injection_roles &&
-			!editorSyntaxPopulateInjectionCaptureRoles(query, &capture_roles, &capture_count)) {
+	    !editorSyntaxPopulateInjectionCaptureRoles(query, &capture_roles, &capture_count)) {
 		free(capture_classes);
 		ts_query_delete(query);
 		return 0;
 	}
 
-	if (want_injection_metadata &&
-			!editorSyntaxPopulateInjectionPatternMetadata(query, &pattern_metadata,
-					&pattern_count)) {
+	if (want_injection_metadata && !editorSyntaxPopulateInjectionPatternMetadata(
+	                                       query, &pattern_metadata, &pattern_count)) {
 		free(capture_classes);
 		free(capture_roles);
 		ts_query_delete(query);
@@ -938,7 +950,7 @@ static int editorSyntaxEnsureQueryCache(struct editorSyntaxQueryCacheEntry *cach
 		compiled_regex_compiled = calloc(strings_bytes, sizeof(*compiled_regex_compiled));
 		compiled_regex_failed = calloc(strings_bytes, sizeof(*compiled_regex_failed));
 		if (compiled_regexes == NULL || compiled_regex_compiled == NULL ||
-				compiled_regex_failed == NULL) {
+		    compiled_regex_failed == NULL) {
 			free(compiled_regexes);
 			free(compiled_regex_compiled);
 			free(compiled_regex_failed);
@@ -969,22 +981,21 @@ static int editorSyntaxEnsureHighlightQuery(enum editorSyntaxLanguage language) 
 		return 0;
 	}
 	struct editorSyntaxQueryCacheEntry *slot =
-			editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_HIGHLIGHT);
+	        editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_HIGHLIGHT);
 	if (slot == NULL) {
 		return 0;
 	}
-	return editorSyntaxEnsureQueryCache(slot, language,
-			def->highlight_parts, def->highlight_part_count,
-			1, 0, 0, 0);
+	return editorSyntaxEnsureQueryCache(slot, language, def->highlight_parts,
+	                                    def->highlight_part_count, 1, 0, 0, 0);
 }
 
-const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCachePtr(
-		enum editorSyntaxLanguage language) {
+const struct editorSyntaxQueryCacheEntry *
+editorSyntaxHighlightQueryCachePtr(enum editorSyntaxLanguage language) {
 	if (!editorSyntaxEnsureHighlightQuery(language)) {
 		return NULL;
 	}
 	const struct editorSyntaxQueryCacheEntry *cache =
-			editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_HIGHLIGHT);
+	        editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_HIGHLIGHT);
 	if (cache == NULL || cache->query == NULL || cache->capture_classes == NULL) {
 		return NULL;
 	}
@@ -997,13 +1008,12 @@ int editorSyntaxEnsureLocalsQuery(enum editorSyntaxLanguage language) {
 		return 0;
 	}
 	struct editorSyntaxQueryCacheEntry *slot =
-			editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_LOCALS);
+	        editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_LOCALS);
 	if (slot == NULL) {
 		return 0;
 	}
-	return editorSyntaxEnsureQueryCache(slot, language,
-			def->locals_parts, def->locals_part_count,
-			0, 1, 0, 0);
+	return editorSyntaxEnsureQueryCache(slot, language, def->locals_parts,
+	                                    def->locals_part_count, 0, 1, 0, 0);
 }
 
 static int editorSyntaxEnsureInjectionQuery(enum editorSyntaxLanguage language) {
@@ -1012,24 +1022,23 @@ static int editorSyntaxEnsureInjectionQuery(enum editorSyntaxLanguage language) 
 		return 0;
 	}
 	struct editorSyntaxQueryCacheEntry *slot =
-			editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_INJECTION);
+	        editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_INJECTION);
 	if (slot == NULL) {
 		return 0;
 	}
-	return editorSyntaxEnsureQueryCache(slot, language,
-			def->injection_parts, def->injection_part_count,
-			0, 0, 1, 1);
+	return editorSyntaxEnsureQueryCache(slot, language, def->injection_parts,
+	                                    def->injection_part_count, 0, 0, 1, 1);
 }
 
-const struct editorSyntaxQueryCacheEntry *editorSyntaxInjectionQueryCachePtr(
-		enum editorSyntaxLanguage language) {
+const struct editorSyntaxQueryCacheEntry *
+editorSyntaxInjectionQueryCachePtr(enum editorSyntaxLanguage language) {
 	if (!editorSyntaxEnsureInjectionQuery(language)) {
 		return NULL;
 	}
 	const struct editorSyntaxQueryCacheEntry *cache =
-			editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_INJECTION);
+	        editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_INJECTION);
 	if (cache == NULL || cache->query == NULL || cache->capture_roles == NULL ||
-			cache->pattern_injection_metadata == NULL) {
+	    cache->pattern_injection_metadata == NULL) {
 		return NULL;
 	}
 	return cache;
@@ -1054,8 +1063,8 @@ static uint64_t editorSyntaxLanguageEventBit(enum editorSyntaxLanguage language)
 }
 
 void editorSyntaxStateRecordQueryUnavailable(struct editorSyntaxState *state,
-		enum editorSyntaxLanguage language,
-		enum editorSyntaxQueryKind kind) {
+                                             enum editorSyntaxLanguage language,
+                                             enum editorSyntaxQueryKind kind) {
 	if (state == NULL) {
 		return;
 	}
@@ -1073,10 +1082,10 @@ void editorSyntaxStateRecordQueryUnavailable(struct editorSyntaxState *state,
 	state->query_unavailable_kind = kind;
 }
 
-const struct editorSyntaxQueryCacheEntry *editorSyntaxLocalsQueryCacheForLanguage(
-		enum editorSyntaxLanguage language) {
+const struct editorSyntaxQueryCacheEntry *
+editorSyntaxLocalsQueryCacheForLanguage(enum editorSyntaxLanguage language) {
 	const struct editorSyntaxQueryCacheEntry *cache =
-			editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_LOCALS);
+	        editorSyntaxQueryCacheSlot(language, EDITOR_SYNTAX_QUERY_CACHE_KIND_LOCALS);
 	if (cache == NULL || cache->query == NULL) {
 		return NULL;
 	}
@@ -1098,10 +1107,9 @@ struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(const TS
 	return NULL;
 }
 
-void editorSyntaxTestSetBudgetOverrides(int enabled,
-		uint32_t query_match_limit,
-		uint64_t query_time_budget_ns,
-		uint64_t parse_time_budget_ns) {
+void editorSyntaxTestSetBudgetOverrides(int enabled, uint32_t query_match_limit,
+                                        uint64_t query_time_budget_ns,
+                                        uint64_t parse_time_budget_ns) {
 	g_editor_syntax_budget_overrides.enabled = enabled ? 1 : 0;
 	g_editor_syntax_budget_overrides.query_match_limit = query_match_limit;
 	g_editor_syntax_budget_overrides.query_time_budget_ns = query_time_budget_ns;
@@ -1121,7 +1129,7 @@ int editorSyntaxTestCaptureRuleCount(void) {
 }
 
 int editorSyntaxTestCaptureRuleAt(int idx, const char **prefix_out,
-		enum editorSyntaxHighlightClass *class_out) {
+                                  enum editorSyntaxHighlightClass *class_out) {
 	if (prefix_out != NULL) {
 		*prefix_out = NULL;
 	}

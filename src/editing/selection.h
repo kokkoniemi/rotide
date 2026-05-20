@@ -7,14 +7,15 @@
 
 void editorClearSelectionState(void);
 int editorGetSelectionRange(struct editorSelectionRange *range_out);
-int editorExtractRangeText(const struct editorSelectionRange *range, char **text_out, size_t *len_out);
+int editorExtractRangeText(const struct editorSelectionRange *range, char **text_out,
+                           size_t *len_out);
 int editorDeleteRange(const struct editorSelectionRange *range);
 int editorReplaceRange(const struct editorSelectionRange *range, const char *text, size_t len);
 
 void editorColumnSelectionClear(void);
 int editorColumnSelectionGetRect(struct editorColumnSelectionRect *rect_out);
 int editorColumnSelectionRowSpan(int row_idx, int left_rx, int right_rx, int *cx_start_out,
-		int *cx_end_out);
+                                 int *cx_end_out);
 int editorColumnSelectionExtractText(char **text_out, size_t *len_out);
 int editorColumnSelectionDelete(void);
 int editorColumnSelectionDeleteForward(void);

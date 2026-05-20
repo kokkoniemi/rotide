@@ -1,5 +1,6 @@
-#include "config/common.h"
 #include "config/keymap.h"
+
+#include "config/common.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -27,104 +28,96 @@ enum editorKeymapFileStatus {
 };
 
 static const struct editorActionName editor_action_names[] = {
-	{"quit", EDITOR_ACTION_QUIT},
-	{"save", EDITOR_ACTION_SAVE},
-	{"new_tab", EDITOR_ACTION_NEW_TAB},
-	{"close_tab", EDITOR_ACTION_CLOSE_TAB},
-	{"next_tab", EDITOR_ACTION_NEXT_TAB},
-	{"prev_tab", EDITOR_ACTION_PREV_TAB},
-	{"focus_drawer", EDITOR_ACTION_FOCUS_DRAWER},
-	{"toggle_drawer", EDITOR_ACTION_TOGGLE_DRAWER},
-	{"main_menu", EDITOR_ACTION_MAIN_MENU},
-	{"resize_drawer_narrow", EDITOR_ACTION_RESIZE_DRAWER_NARROW},
-	{"resize_drawer_widen", EDITOR_ACTION_RESIZE_DRAWER_WIDEN},
-	{"toggle_line_wrap", EDITOR_ACTION_TOGGLE_LINE_WRAP},
-	{"toggle_line_numbers", EDITOR_ACTION_TOGGLE_LINE_NUMBERS},
-	{"toggle_current_line_highlight", EDITOR_ACTION_TOGGLE_CURRENT_LINE_HIGHLIGHT},
-	{"find_file", EDITOR_ACTION_FIND_FILE},
-	{"project_search", EDITOR_ACTION_PROJECT_SEARCH},
-	{"find", EDITOR_ACTION_FIND},
-	{"goto_line", EDITOR_ACTION_GOTO_LINE},
-	{"goto_matching_bracket", EDITOR_ACTION_GOTO_MATCHING_BRACKET},
-	{"goto_definition", EDITOR_ACTION_GOTO_DEFINITION},
-	{"goto_implementation", EDITOR_ACTION_GOTO_IMPLEMENTATION},
-	{"goto_symbol", EDITOR_ACTION_GOTO_SYMBOL},
-	{"eslint_fix", EDITOR_ACTION_ESLINT_FIX},
-	{"toggle_selection", EDITOR_ACTION_TOGGLE_SELECTION},
-	{"copy_selection", EDITOR_ACTION_COPY_SELECTION},
-	{"cut_selection", EDITOR_ACTION_CUT_SELECTION},
-	{"delete_selection", EDITOR_ACTION_DELETE_SELECTION},
-	{"paste", EDITOR_ACTION_PASTE},
-	{"undo", EDITOR_ACTION_UNDO},
-	{"redo", EDITOR_ACTION_REDO},
-	{"move_home", EDITOR_ACTION_MOVE_HOME},
-	{"move_end", EDITOR_ACTION_MOVE_END},
-	{"move_word_left", EDITOR_ACTION_MOVE_WORD_LEFT},
-	{"move_word_right", EDITOR_ACTION_MOVE_WORD_RIGHT},
-	{"page_up", EDITOR_ACTION_PAGE_UP},
-	{"page_down", EDITOR_ACTION_PAGE_DOWN},
-	{"scroll_left", EDITOR_ACTION_SCROLL_LEFT},
-	{"scroll_right", EDITOR_ACTION_SCROLL_RIGHT},
-	{"move_up", EDITOR_ACTION_MOVE_UP},
-	{"move_down", EDITOR_ACTION_MOVE_DOWN},
-	{"move_left", EDITOR_ACTION_MOVE_LEFT},
-	{"move_right", EDITOR_ACTION_MOVE_RIGHT},
-	{"newline", EDITOR_ACTION_NEWLINE},
-	{"escape", EDITOR_ACTION_ESCAPE},
-	{"redraw", EDITOR_ACTION_REDRAW},
-	{"delete_char", EDITOR_ACTION_DELETE_CHAR},
-	{"backspace", EDITOR_ACTION_BACKSPACE},
-	{"move_line_up", EDITOR_ACTION_MOVE_LINE_UP},
-	{"move_line_down", EDITOR_ACTION_MOVE_LINE_DOWN},
-	{"toggle_comment", EDITOR_ACTION_TOGGLE_COMMENT},
-	{"column_select_up", EDITOR_ACTION_COLUMN_SELECT_UP},
-	{"column_select_down", EDITOR_ACTION_COLUMN_SELECT_DOWN},
-	{"column_select_left", EDITOR_ACTION_COLUMN_SELECT_LEFT},
-	{"column_select_right", EDITOR_ACTION_COLUMN_SELECT_RIGHT},
-	{"find_replace", EDITOR_ACTION_FIND_REPLACE},
-	{"drawer_create_file", EDITOR_ACTION_DRAWER_CREATE_FILE},
-	{"drawer_create_folder", EDITOR_ACTION_DRAWER_CREATE_FOLDER},
-	{"drawer_rename", EDITOR_ACTION_DRAWER_RENAME},
-	{"drawer_delete", EDITOR_ACTION_DRAWER_DELETE},
-	{"git_drawer", EDITOR_ACTION_GIT_DRAWER},
-	{"lsp_drawer", EDITOR_ACTION_LSP_DRAWER},
-	{"dap_drawer", EDITOR_ACTION_DAP_DRAWER},
-	{"dap_start", EDITOR_ACTION_DAP_START},
-	{"dap_stop", EDITOR_ACTION_DAP_STOP},
-	{"dap_continue", EDITOR_ACTION_DAP_CONTINUE},
-	{"dap_pause", EDITOR_ACTION_DAP_PAUSE},
-	{"dap_step_over", EDITOR_ACTION_DAP_STEP_OVER},
-	{"dap_step_into", EDITOR_ACTION_DAP_STEP_INTO},
-	{"dap_step_out", EDITOR_ACTION_DAP_STEP_OUT},
-	{"dap_toggle_breakpoint", EDITOR_ACTION_DAP_TOGGLE_BREAKPOINT},
-	{"split_horizontal", EDITOR_ACTION_SPLIT_HORIZONTAL},
-	{"split_vertical", EDITOR_ACTION_SPLIT_VERTICAL},
-	{"close_pane", EDITOR_ACTION_CLOSE_PANE},
-	{"focus_left_pane", EDITOR_ACTION_FOCUS_LEFT_PANE},
-	{"focus_right_pane", EDITOR_ACTION_FOCUS_RIGHT_PANE},
-	{"focus_up_pane", EDITOR_ACTION_FOCUS_UP_PANE},
-	{"focus_down_pane", EDITOR_ACTION_FOCUS_DOWN_PANE},
-	{"pane_grow", EDITOR_ACTION_PANE_GROW},
-	{"pane_shrink", EDITOR_ACTION_PANE_SHRINK},
-	{"terminal_open", EDITOR_ACTION_TERMINAL_OPEN},
-	{"terminal_open_vertical", EDITOR_ACTION_TERMINAL_OPEN_VERTICAL},
-	{"terminal_prefix", EDITOR_ACTION_TERMINAL_PREFIX},
-	{"open_settings", EDITOR_ACTION_OPEN_SETTINGS},
+        {"quit", EDITOR_ACTION_QUIT},
+        {"save", EDITOR_ACTION_SAVE},
+        {"new_tab", EDITOR_ACTION_NEW_TAB},
+        {"close_tab", EDITOR_ACTION_CLOSE_TAB},
+        {"next_tab", EDITOR_ACTION_NEXT_TAB},
+        {"prev_tab", EDITOR_ACTION_PREV_TAB},
+        {"focus_drawer", EDITOR_ACTION_FOCUS_DRAWER},
+        {"toggle_drawer", EDITOR_ACTION_TOGGLE_DRAWER},
+        {"main_menu", EDITOR_ACTION_MAIN_MENU},
+        {"resize_drawer_narrow", EDITOR_ACTION_RESIZE_DRAWER_NARROW},
+        {"resize_drawer_widen", EDITOR_ACTION_RESIZE_DRAWER_WIDEN},
+        {"toggle_line_wrap", EDITOR_ACTION_TOGGLE_LINE_WRAP},
+        {"toggle_line_numbers", EDITOR_ACTION_TOGGLE_LINE_NUMBERS},
+        {"toggle_current_line_highlight", EDITOR_ACTION_TOGGLE_CURRENT_LINE_HIGHLIGHT},
+        {"find_file", EDITOR_ACTION_FIND_FILE},
+        {"project_search", EDITOR_ACTION_PROJECT_SEARCH},
+        {"find", EDITOR_ACTION_FIND},
+        {"goto_line", EDITOR_ACTION_GOTO_LINE},
+        {"goto_matching_bracket", EDITOR_ACTION_GOTO_MATCHING_BRACKET},
+        {"goto_definition", EDITOR_ACTION_GOTO_DEFINITION},
+        {"goto_implementation", EDITOR_ACTION_GOTO_IMPLEMENTATION},
+        {"goto_symbol", EDITOR_ACTION_GOTO_SYMBOL},
+        {"eslint_fix", EDITOR_ACTION_ESLINT_FIX},
+        {"toggle_selection", EDITOR_ACTION_TOGGLE_SELECTION},
+        {"copy_selection", EDITOR_ACTION_COPY_SELECTION},
+        {"cut_selection", EDITOR_ACTION_CUT_SELECTION},
+        {"delete_selection", EDITOR_ACTION_DELETE_SELECTION},
+        {"paste", EDITOR_ACTION_PASTE},
+        {"undo", EDITOR_ACTION_UNDO},
+        {"redo", EDITOR_ACTION_REDO},
+        {"move_home", EDITOR_ACTION_MOVE_HOME},
+        {"move_end", EDITOR_ACTION_MOVE_END},
+        {"move_word_left", EDITOR_ACTION_MOVE_WORD_LEFT},
+        {"move_word_right", EDITOR_ACTION_MOVE_WORD_RIGHT},
+        {"page_up", EDITOR_ACTION_PAGE_UP},
+        {"page_down", EDITOR_ACTION_PAGE_DOWN},
+        {"scroll_left", EDITOR_ACTION_SCROLL_LEFT},
+        {"scroll_right", EDITOR_ACTION_SCROLL_RIGHT},
+        {"move_up", EDITOR_ACTION_MOVE_UP},
+        {"move_down", EDITOR_ACTION_MOVE_DOWN},
+        {"move_left", EDITOR_ACTION_MOVE_LEFT},
+        {"move_right", EDITOR_ACTION_MOVE_RIGHT},
+        {"newline", EDITOR_ACTION_NEWLINE},
+        {"escape", EDITOR_ACTION_ESCAPE},
+        {"redraw", EDITOR_ACTION_REDRAW},
+        {"delete_char", EDITOR_ACTION_DELETE_CHAR},
+        {"backspace", EDITOR_ACTION_BACKSPACE},
+        {"move_line_up", EDITOR_ACTION_MOVE_LINE_UP},
+        {"move_line_down", EDITOR_ACTION_MOVE_LINE_DOWN},
+        {"toggle_comment", EDITOR_ACTION_TOGGLE_COMMENT},
+        {"column_select_up", EDITOR_ACTION_COLUMN_SELECT_UP},
+        {"column_select_down", EDITOR_ACTION_COLUMN_SELECT_DOWN},
+        {"column_select_left", EDITOR_ACTION_COLUMN_SELECT_LEFT},
+        {"column_select_right", EDITOR_ACTION_COLUMN_SELECT_RIGHT},
+        {"find_replace", EDITOR_ACTION_FIND_REPLACE},
+        {"drawer_create_file", EDITOR_ACTION_DRAWER_CREATE_FILE},
+        {"drawer_create_folder", EDITOR_ACTION_DRAWER_CREATE_FOLDER},
+        {"drawer_rename", EDITOR_ACTION_DRAWER_RENAME},
+        {"drawer_delete", EDITOR_ACTION_DRAWER_DELETE},
+        {"git_drawer", EDITOR_ACTION_GIT_DRAWER},
+        {"lsp_drawer", EDITOR_ACTION_LSP_DRAWER},
+        {"dap_drawer", EDITOR_ACTION_DAP_DRAWER},
+        {"dap_start", EDITOR_ACTION_DAP_START},
+        {"dap_stop", EDITOR_ACTION_DAP_STOP},
+        {"dap_continue", EDITOR_ACTION_DAP_CONTINUE},
+        {"dap_pause", EDITOR_ACTION_DAP_PAUSE},
+        {"dap_step_over", EDITOR_ACTION_DAP_STEP_OVER},
+        {"dap_step_into", EDITOR_ACTION_DAP_STEP_INTO},
+        {"dap_step_out", EDITOR_ACTION_DAP_STEP_OUT},
+        {"dap_toggle_breakpoint", EDITOR_ACTION_DAP_TOGGLE_BREAKPOINT},
+        {"split_horizontal", EDITOR_ACTION_SPLIT_HORIZONTAL},
+        {"split_vertical", EDITOR_ACTION_SPLIT_VERTICAL},
+        {"close_pane", EDITOR_ACTION_CLOSE_PANE},
+        {"focus_left_pane", EDITOR_ACTION_FOCUS_LEFT_PANE},
+        {"focus_right_pane", EDITOR_ACTION_FOCUS_RIGHT_PANE},
+        {"focus_up_pane", EDITOR_ACTION_FOCUS_UP_PANE},
+        {"focus_down_pane", EDITOR_ACTION_FOCUS_DOWN_PANE},
+        {"pane_grow", EDITOR_ACTION_PANE_GROW},
+        {"pane_shrink", EDITOR_ACTION_PANE_SHRINK},
+        {"terminal_open", EDITOR_ACTION_TERMINAL_OPEN},
+        {"terminal_open_vertical", EDITOR_ACTION_TERMINAL_OPEN_VERTICAL},
+        {"terminal_prefix", EDITOR_ACTION_TERMINAL_PREFIX},
+        {"open_settings", EDITOR_ACTION_OPEN_SETTINGS},
 };
 
 static const struct editorNamedKey editor_named_keys[] = {
-	{"left", ARROW_LEFT},
-	{"right", ARROW_RIGHT},
-	{"up", ARROW_UP},
-	{"down", ARROW_DOWN},
-	{"home", HOME_KEY},
-	{"end", END_KEY},
-	{"page_up", PAGE_UP},
-	{"page_down", PAGE_DOWN},
-	{"enter", '\r'},
-	{"esc", '\x1b'},
-	{"backspace", BACKSPACE},
-	{"del", DEL_KEY},
+        {"left", ARROW_LEFT}, {"right", ARROW_RIGHT},   {"up", ARROW_UP},
+        {"down", ARROW_DOWN}, {"home", HOME_KEY},       {"end", END_KEY},
+        {"page_up", PAGE_UP}, {"page_down", PAGE_DOWN}, {"enter", '\r'},
+        {"esc", '\x1b'},      {"backspace", BACKSPACE}, {"del", DEL_KEY},
 };
 
 static int editorKeymapHasBindingForKey(const struct editorKeymap *keymap, int key) {
@@ -157,7 +150,8 @@ static int editorKeymapBindingUsesReservedTerminalInput(enum editorAction action
 	}
 }
 
-static void editorKeymapRemoveActionBindings(struct editorKeymap *keymap, enum editorAction action) {
+static void editorKeymapRemoveActionBindings(struct editorKeymap *keymap,
+                                             enum editorAction action) {
 	size_t write_idx = 0;
 	for (size_t read_idx = 0; read_idx < keymap->len; read_idx++) {
 		if (keymap->bindings[read_idx].action == action) {
@@ -169,7 +163,8 @@ static void editorKeymapRemoveActionBindings(struct editorKeymap *keymap, enum e
 	keymap->len = write_idx;
 }
 
-static int editorKeymapAppendBinding(struct editorKeymap *keymap, int key, enum editorAction action) {
+static int editorKeymapAppendBinding(struct editorKeymap *keymap, int key,
+                                     enum editorAction action) {
 	if (keymap->len >= ROTIDE_KEYMAP_MAX_BINDINGS) {
 		return 0;
 	}
@@ -183,7 +178,8 @@ static int editorKeymapAppendBinding(struct editorKeymap *keymap, int key, enum 
 	return 1;
 }
 
-static int editorKeymapSetActionBinding(struct editorKeymap *keymap, enum editorAction action, int key) {
+static int editorKeymapSetActionBinding(struct editorKeymap *keymap, enum editorAction action,
+                                        int key) {
 	struct editorKeymap updated = *keymap;
 
 	if (editorKeymapBindingUsesReservedTerminalInput(action, key)) {
@@ -412,7 +408,8 @@ static int editorKeymapParseKeySpec(const char *spec, int *key_out) {
 	}
 
 	if (modifiers == EDITOR_KEYMAP_MOD_NONE) {
-		for (size_t i = 0; i < sizeof(editor_named_keys) / sizeof(editor_named_keys[0]); i++) {
+		for (size_t i = 0; i < sizeof(editor_named_keys) / sizeof(editor_named_keys[0]);
+		     i++) {
 			if (strcmp(editor_named_keys[i].name, key_token) == 0) {
 				*key_out = editor_named_keys[i].key;
 				return 1;
@@ -447,7 +444,7 @@ static int editorKeymapParseKeySpec(const char *spec, int *key_out) {
 }
 
 static enum editorKeymapFileStatus editorKeymapApplyConfigFile(struct editorKeymap *keymap,
-		const char *path) {
+                                                               const char *path) {
 	FILE *fp = fopen(path, "r");
 	if (fp == NULL) {
 		if (errno == ENOENT) {
@@ -555,11 +552,11 @@ static int editorKeymapFormatKey(int key, char *buf, size_t bufsize) {
 	}
 	if (EDITOR_IS_ALT_LETTER_KEY(key)) {
 		return snprintf(buf, bufsize, "Alt-%c",
-				'A' + (int)(EDITOR_ALT_LETTER_FROM_KEY(key) - 'a')) > 0;
+		                'A' + (int)(EDITOR_ALT_LETTER_FROM_KEY(key) - 'a')) > 0;
 	}
 	if (EDITOR_IS_CTRL_ALT_LETTER_KEY(key)) {
 		return snprintf(buf, bufsize, "Ctrl-Alt-%c",
-				'A' + (int)(EDITOR_CTRL_ALT_LETTER_FROM_KEY(key) - 'a')) > 0;
+		                'A' + (int)(EDITOR_CTRL_ALT_LETTER_FROM_KEY(key) - 'a')) > 0;
 	}
 
 	switch (key) {
@@ -640,33 +637,33 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 	(void)editorKeymapAppendBinding(keymap, ALT_ARROW_LEFT, EDITOR_ACTION_PREV_TAB);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('e'), EDITOR_ACTION_FOCUS_DRAWER);
 	(void)editorKeymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('e'),
-			EDITOR_ACTION_TOGGLE_DRAWER);
-	(void)editorKeymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('m'), EDITOR_ACTION_MAIN_MENU);
+	                                EDITOR_ACTION_TOGGLE_DRAWER);
+	(void)editorKeymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('m'),
+	                                EDITOR_ACTION_MAIN_MENU);
 	(void)editorKeymapAppendBinding(keymap, ALT_SHIFT_ARROW_LEFT,
-			EDITOR_ACTION_COLUMN_SELECT_LEFT);
+	                                EDITOR_ACTION_COLUMN_SELECT_LEFT);
 	(void)editorKeymapAppendBinding(keymap, ALT_SHIFT_ARROW_RIGHT,
-			EDITOR_ACTION_COLUMN_SELECT_RIGHT);
-	(void)editorKeymapAppendBinding(keymap, ALT_SHIFT_ARROW_UP,
-			EDITOR_ACTION_COLUMN_SELECT_UP);
+	                                EDITOR_ACTION_COLUMN_SELECT_RIGHT);
+	(void)editorKeymapAppendBinding(keymap, ALT_SHIFT_ARROW_UP, EDITOR_ACTION_COLUMN_SELECT_UP);
 	(void)editorKeymapAppendBinding(keymap, ALT_SHIFT_ARROW_DOWN,
-			EDITOR_ACTION_COLUMN_SELECT_DOWN);
+	                                EDITOR_ACTION_COLUMN_SELECT_DOWN);
 	(void)editorKeymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('z'),
-			EDITOR_ACTION_TOGGLE_LINE_WRAP);
+	                                EDITOR_ACTION_TOGGLE_LINE_WRAP);
 	(void)editorKeymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('n'),
-			EDITOR_ACTION_TOGGLE_LINE_NUMBERS);
+	                                EDITOR_ACTION_TOGGLE_LINE_NUMBERS);
 	(void)editorKeymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('h'),
-			EDITOR_ACTION_TOGGLE_CURRENT_LINE_HIGHLIGHT);
+	                                EDITOR_ACTION_TOGGLE_CURRENT_LINE_HIGHLIGHT);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('p'), EDITOR_ACTION_FIND_FILE);
 	(void)editorKeymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('f'),
-			EDITOR_ACTION_PROJECT_SEARCH);
+	                                EDITOR_ACTION_PROJECT_SEARCH);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('f'), EDITOR_ACTION_FIND);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('g'), EDITOR_ACTION_GOTO_LINE);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY(']'), EDITOR_ACTION_GOTO_MATCHING_BRACKET);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('o'), EDITOR_ACTION_GOTO_DEFINITION);
 	(void)editorKeymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('i'),
-			EDITOR_ACTION_GOTO_IMPLEMENTATION);
+	                                EDITOR_ACTION_GOTO_IMPLEMENTATION);
 	(void)editorKeymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('s'),
-			EDITOR_ACTION_GOTO_SYMBOL);
+	                                EDITOR_ACTION_GOTO_SYMBOL);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('b'), EDITOR_ACTION_TOGGLE_SELECTION);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('c'), EDITOR_ACTION_COPY_SELECTION);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('x'), EDITOR_ACTION_CUT_SELECTION);
@@ -692,26 +689,27 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('h'), EDITOR_ACTION_BACKSPACE);
 	(void)editorKeymapAppendBinding(keymap, ALT_ARROW_UP, EDITOR_ACTION_MOVE_LINE_UP);
 	(void)editorKeymapAppendBinding(keymap, ALT_ARROW_DOWN, EDITOR_ACTION_MOVE_LINE_DOWN);
-	(void)editorKeymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('c'), EDITOR_ACTION_TOGGLE_COMMENT);
+	(void)editorKeymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('c'),
+	                                EDITOR_ACTION_TOGGLE_COMMENT);
 	(void)editorKeymapAppendBinding(keymap, CTRL_KEY('r'), EDITOR_ACTION_FIND_REPLACE);
 	(void)editorKeymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('n'),
-			EDITOR_ACTION_DRAWER_CREATE_FILE);
+	                                EDITOR_ACTION_DRAWER_CREATE_FILE);
 	(void)editorKeymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('d'),
-			EDITOR_ACTION_DRAWER_CREATE_FOLDER);
+	                                EDITOR_ACTION_DRAWER_CREATE_FOLDER);
 	(void)editorKeymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('r'),
-			EDITOR_ACTION_DRAWER_RENAME);
+	                                EDITOR_ACTION_DRAWER_RENAME);
 	(void)editorKeymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('k'),
-			EDITOR_ACTION_DRAWER_DELETE);
+	                                EDITOR_ACTION_DRAWER_DELETE);
 	(void)editorKeymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('g'),
-			EDITOR_ACTION_GIT_DRAWER);
+	                                EDITOR_ACTION_GIT_DRAWER);
 	(void)editorKeymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('l'),
-			EDITOR_ACTION_LSP_DRAWER);
+	                                EDITOR_ACTION_LSP_DRAWER);
 	(void)editorKeymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('b'),
-			EDITOR_ACTION_DAP_DRAWER);
+	                                EDITOR_ACTION_DAP_DRAWER);
 }
 
 int editorKeymapLookupAction(const struct editorKeymap *keymap, int key,
-		enum editorAction *action_out) {
+                             enum editorAction *action_out) {
 	for (size_t i = 0; i < keymap->len; i++) {
 		if (keymap->bindings[i].key == key) {
 			*action_out = keymap->bindings[i].action;
@@ -722,7 +720,7 @@ int editorKeymapLookupAction(const struct editorKeymap *keymap, int key,
 }
 
 int editorKeymapFormatBinding(const struct editorKeymap *keymap, enum editorAction action,
-		char *buf, size_t bufsize) {
+                              char *buf, size_t bufsize) {
 	for (size_t i = 0; i < keymap->len; i++) {
 		if (keymap->bindings[i].action == action) {
 			return editorKeymapFormatKey(keymap->bindings[i].key, buf, bufsize);
@@ -764,25 +762,28 @@ void editorKeymapBuildHelpStatus(const struct editorKeymap *keymap, char *buf, s
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_NEW_TAB, new_tab, sizeof(new_tab))) {
 		snprintf(new_tab, sizeof(new_tab), "NewTab");
 	}
-	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_CLOSE_TAB, close_tab, sizeof(close_tab))) {
+	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_CLOSE_TAB, close_tab,
+	                               sizeof(close_tab))) {
 		snprintf(close_tab, sizeof(close_tab), "CloseTab");
 	}
-	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_NEXT_TAB, next_tab, sizeof(next_tab))) {
+	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_NEXT_TAB, next_tab,
+	                               sizeof(next_tab))) {
 		snprintf(next_tab, sizeof(next_tab), "NextTab");
 	}
-	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_PREV_TAB, prev_tab, sizeof(prev_tab))) {
+	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_PREV_TAB, prev_tab,
+	                               sizeof(prev_tab))) {
 		snprintf(prev_tab, sizeof(prev_tab), "PrevTab");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_FOCUS_DRAWER, focus_drawer,
-				sizeof(focus_drawer))) {
+	                               sizeof(focus_drawer))) {
 		snprintf(focus_drawer, sizeof(focus_drawer), "Drawer");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_FIND_FILE, find_file,
-				sizeof(find_file))) {
+	                               sizeof(find_file))) {
 		snprintf(find_file, sizeof(find_file), "File");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_PROJECT_SEARCH, project_search,
-				sizeof(project_search))) {
+	                               sizeof(project_search))) {
 		snprintf(project_search, sizeof(project_search), "Text");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_FIND, find, sizeof(find))) {
@@ -791,7 +792,8 @@ void editorKeymapBuildHelpStatus(const struct editorKeymap *keymap, char *buf, s
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_GOTO_LINE, go_to, sizeof(go_to))) {
 		snprintf(go_to, sizeof(go_to), "Goto");
 	}
-	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_TOGGLE_SELECTION, select, sizeof(select))) {
+	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_TOGGLE_SELECTION, select,
+	                               sizeof(select))) {
 		snprintf(select, sizeof(select), "Select");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_COPY_SELECTION, copy, sizeof(copy))) {
@@ -801,7 +803,7 @@ void editorKeymapBuildHelpStatus(const struct editorKeymap *keymap, char *buf, s
 		snprintf(cut, sizeof(cut), "Cut");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_DELETE_SELECTION, delete_sel,
-				sizeof(delete_sel))) {
+	                               sizeof(delete_sel))) {
 		snprintf(delete_sel, sizeof(delete_sel), "Del");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_PASTE, paste, sizeof(paste))) {
@@ -815,13 +817,15 @@ void editorKeymapBuildHelpStatus(const struct editorKeymap *keymap, char *buf, s
 	}
 
 	snprintf(buf, bufsize,
-			"Help: %s save; %s quit; %s new; %s close; %s/%s tabs; %s drawer; %s file; %s text; %s find; %s goto",
-			save, quit, new_tab, close_tab, prev_tab, next_tab, focus_drawer, find_file,
-			project_search, find, go_to);
+	         "Help: %s save; %s quit; %s new; %s close; %s/%s tabs; %s drawer; %s file; %s "
+	         "text; %s find; %s goto",
+	         save, quit, new_tab, close_tab, prev_tab, next_tab, focus_drawer, find_file,
+	         project_search, find, go_to);
 }
 
 enum editorKeymapLoadStatus editorKeymapLoadFromPaths(struct editorKeymap *keymap,
-		const char *global_path, const char *project_path) {
+                                                      const char *global_path,
+                                                      const char *project_path) {
 	if (keymap == NULL) {
 		return EDITOR_KEYMAP_LOAD_OUT_OF_MEMORY;
 	}
@@ -830,7 +834,8 @@ enum editorKeymapLoadStatus editorKeymapLoadFromPaths(struct editorKeymap *keyma
 	enum editorKeymapLoadStatus status = EDITOR_KEYMAP_LOAD_OK;
 
 	if (global_path != NULL) {
-		enum editorKeymapFileStatus global_status = editorKeymapApplyConfigFile(keymap, global_path);
+		enum editorKeymapFileStatus global_status =
+		        editorKeymapApplyConfigFile(keymap, global_path);
 		if (global_status == EDITOR_KEYMAP_FILE_OUT_OF_MEMORY) {
 			editorKeymapInitDefaults(keymap);
 			return EDITOR_KEYMAP_LOAD_OUT_OF_MEMORY;
@@ -842,7 +847,8 @@ enum editorKeymapLoadStatus editorKeymapLoadFromPaths(struct editorKeymap *keyma
 	}
 
 	if (project_path != NULL) {
-		enum editorKeymapFileStatus project_status = editorKeymapApplyConfigFile(keymap, project_path);
+		enum editorKeymapFileStatus project_status =
+		        editorKeymapApplyConfigFile(keymap, project_path);
 		if (project_status == EDITOR_KEYMAP_FILE_OUT_OF_MEMORY) {
 			editorKeymapInitDefaults(keymap);
 			return EDITOR_KEYMAP_LOAD_OUT_OF_MEMORY;
@@ -872,8 +878,7 @@ enum editorKeymapLoadStatus editorKeymapLoadConfigured(struct editorKeymap *keym
 		return EDITOR_KEYMAP_LOAD_OUT_OF_MEMORY;
 	}
 
-	enum editorKeymapLoadStatus status =
-			editorKeymapLoadFromPaths(keymap, global_path, NULL);
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(keymap, global_path, NULL);
 	free(global_path);
 	return status;
 }

@@ -1,5 +1,4 @@
 #include "workspace/drawer.h"
-
 #include "workspace/drawer_internal.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
@@ -36,11 +35,7 @@ struct editorDrawerGitLookup {
 };
 
 static const char *editor_drawer_git_group_names[EDITOR_DRAWER_GIT_GROUP_COUNT] = {
-	"Staged",
-	"Changes",
-	"Untracked",
-	"Conflicts"
-};
+        "Staged", "Changes", "Untracked", "Conflicts"};
 
 static int editorGitEntryIsConflict(const struct editorGitEntry *entry) {
 	char x = entry->index_status;
@@ -59,22 +54,22 @@ static int editorGitEntryInGroup(const struct editorGitEntry *entry, int group_i
 	int conflict = editorGitEntryIsConflict(entry);
 	int untracked = editorGitEntryIsUntracked(entry);
 	switch (group_idx) {
-	case EDITOR_DRAWER_GIT_GROUP_STAGED:
-		if (conflict || untracked) {
+		case EDITOR_DRAWER_GIT_GROUP_STAGED:
+			if (conflict || untracked) {
+				return 0;
+			}
+			return entry->index_status != ' ' && entry->index_status != '?';
+		case EDITOR_DRAWER_GIT_GROUP_CHANGES:
+			if (conflict || untracked) {
+				return 0;
+			}
+			return entry->worktree_status != ' ' && entry->worktree_status != '?';
+		case EDITOR_DRAWER_GIT_GROUP_UNTRACKED:
+			return untracked;
+		case EDITOR_DRAWER_GIT_GROUP_CONFLICTS:
+			return conflict;
+		default:
 			return 0;
-		}
-		return entry->index_status != ' ' && entry->index_status != '?';
-	case EDITOR_DRAWER_GIT_GROUP_CHANGES:
-		if (conflict || untracked) {
-			return 0;
-		}
-		return entry->worktree_status != ' ' && entry->worktree_status != '?';
-	case EDITOR_DRAWER_GIT_GROUP_UNTRACKED:
-		return untracked;
-	case EDITOR_DRAWER_GIT_GROUP_CONFLICTS:
-		return conflict;
-	default:
-		return 0;
 	}
 }
 
@@ -90,16 +85,16 @@ static int editorDrawerGitGroupItemCount(int group_idx) {
 
 static char editorDrawerGitStatusCharForGroup(const struct editorGitEntry *entry, int group_idx) {
 	switch (group_idx) {
-	case EDITOR_DRAWER_GIT_GROUP_STAGED:
-		return entry->index_status;
-	case EDITOR_DRAWER_GIT_GROUP_CHANGES:
-		return entry->worktree_status;
-	case EDITOR_DRAWER_GIT_GROUP_UNTRACKED:
-		return '?';
-	case EDITOR_DRAWER_GIT_GROUP_CONFLICTS:
-		return 'U';
-	default:
-		return ' ';
+		case EDITOR_DRAWER_GIT_GROUP_STAGED:
+			return entry->index_status;
+		case EDITOR_DRAWER_GIT_GROUP_CHANGES:
+			return entry->worktree_status;
+		case EDITOR_DRAWER_GIT_GROUP_UNTRACKED:
+			return '?';
+		case EDITOR_DRAWER_GIT_GROUP_CONFLICTS:
+			return 'U';
+		default:
+			return ' ';
 	}
 }
 
@@ -140,7 +135,7 @@ int editorDrawerGitVisibleCount(void) {
 }
 
 static int editorDrawerGitLookupByVisibleIndex(int visible_idx,
-		struct editorDrawerGitLookup *lookup_out) {
+                                               struct editorDrawerGitLookup *lookup_out) {
 	if (lookup_out == NULL || visible_idx < 0) {
 		return 0;
 	}
@@ -204,7 +199,7 @@ static int editorDrawerGitLookupByVisibleIndex(int visible_idx,
 				lookup_out->parent_visible_idx = group_visible_idx;
 				lookup_out->group_visible_idx = group_visible_idx;
 				lookup_out->status_char = editorDrawerGitStatusCharForGroup(
-						&E.git_entries[i], group_idx);
+				        &E.git_entries[i], group_idx);
 				return 1;
 			}
 			item_idx++;
@@ -258,42 +253,44 @@ int editorDrawerGitGetVisibleEntry(int visible_idx, struct editorDrawerEntryView
 	view_out->is_selected = visible_idx == E.drawer_selected_index;
 	view_out->parent_visible_idx = lookup.parent_visible_idx;
 	switch (lookup.kind) {
-	case EDITOR_DRAWER_GIT_ENTRY_ROOT:
-		view_out->name = "Git";
-		view_out->depth = 0;
-		view_out->is_dir = 1;
-		view_out->is_expanded = 1;
-		view_out->is_root = 1;
-		view_out->is_last_sibling = 1;
-		return 1;
-	case EDITOR_DRAWER_GIT_ENTRY_GROUP:
-		view_out->name = editor_drawer_git_group_names[lookup.group_idx];
-		view_out->depth = 1;
-		view_out->is_dir = 1;
-		view_out->is_expanded = editorDrawerGitGroupExpanded(lookup.group_idx);
-		view_out->is_last_sibling = lookup.group_idx == EDITOR_DRAWER_GIT_GROUP_COUNT - 1;
-		return 1;
-	case EDITOR_DRAWER_GIT_ENTRY_FILE: {
-		const struct editorGitEntry *entry = &E.git_entries[lookup.entry_idx];
-		char status = lookup.status_char;
-		if (status == ' ' || status == '\0') {
-			status = '?';
+		case EDITOR_DRAWER_GIT_ENTRY_ROOT:
+			view_out->name = "Git";
+			view_out->depth = 0;
+			view_out->is_dir = 1;
+			view_out->is_expanded = 1;
+			view_out->is_root = 1;
+			view_out->is_last_sibling = 1;
+			return 1;
+		case EDITOR_DRAWER_GIT_ENTRY_GROUP:
+			view_out->name = editor_drawer_git_group_names[lookup.group_idx];
+			view_out->depth = 1;
+			view_out->is_dir = 1;
+			view_out->is_expanded = editorDrawerGitGroupExpanded(lookup.group_idx);
+			view_out->is_last_sibling =
+			        lookup.group_idx == EDITOR_DRAWER_GIT_GROUP_COUNT - 1;
+			return 1;
+		case EDITOR_DRAWER_GIT_ENTRY_FILE: {
+			const struct editorGitEntry *entry = &E.git_entries[lookup.entry_idx];
+			char status = lookup.status_char;
+			if (status == ' ' || status == '\0') {
+				status = '?';
+			}
+			snprintf(git_name_buf, sizeof(git_name_buf), "%c %s", status,
+			         entry->rel_path);
+			view_out->name = git_name_buf;
+			view_out->depth = 2;
+			view_out->is_last_sibling = lookup.item_idx == lookup.item_count - 1;
+			view_out->git_status = entry->status;
+			return 1;
 		}
-		snprintf(git_name_buf, sizeof(git_name_buf), "%c %s", status, entry->rel_path);
-		view_out->name = git_name_buf;
-		view_out->depth = 2;
-		view_out->is_last_sibling = lookup.item_idx == lookup.item_count - 1;
-		view_out->git_status = entry->status;
-		return 1;
-	}
-	case EDITOR_DRAWER_GIT_ENTRY_PLACEHOLDER:
-		view_out->name = "(empty)";
-		view_out->depth = 2;
-		view_out->is_placeholder = 1;
-		view_out->is_last_sibling = 1;
-		return 1;
-	default:
-		return 0;
+		case EDITOR_DRAWER_GIT_ENTRY_PLACEHOLDER:
+			view_out->name = "(empty)";
+			view_out->depth = 2;
+			view_out->is_placeholder = 1;
+			view_out->is_last_sibling = 1;
+			return 1;
+		default:
+			return 0;
 	}
 }
 
@@ -307,7 +304,7 @@ int editorDrawerGitExpandSelection(int viewport_rows) {
 		return 0;
 	}
 	if (lookup.kind != EDITOR_DRAWER_GIT_ENTRY_GROUP ||
-			editorDrawerGitGroupExpanded(lookup.group_idx)) {
+	    editorDrawerGitGroupExpanded(lookup.group_idx)) {
 		return 0;
 	}
 	E.drawer_git_expanded |= 1u << (unsigned int)lookup.group_idx;
@@ -333,7 +330,7 @@ int editorDrawerGitCollapseSelection(int viewport_rows) {
 		return 1;
 	}
 	if (lookup.kind == EDITOR_DRAWER_GIT_ENTRY_FILE ||
-			lookup.kind == EDITOR_DRAWER_GIT_ENTRY_PLACEHOLDER) {
+	    lookup.kind == EDITOR_DRAWER_GIT_ENTRY_PLACEHOLDER) {
 		E.drawer_selected_index = lookup.group_visible_idx;
 		editorDrawerClampSelectionAndScroll(viewport_rows);
 		return 1;
@@ -360,7 +357,7 @@ int editorDrawerGitSelectedIsDirectory(void) {
 		return 0;
 	}
 	return lookup.kind == EDITOR_DRAWER_GIT_ENTRY_ROOT ||
-			lookup.kind == EDITOR_DRAWER_GIT_ENTRY_GROUP;
+	       lookup.kind == EDITOR_DRAWER_GIT_ENTRY_GROUP;
 }
 
 int editorDrawerSelectedGitEntry(int *entry_idx_out) {
@@ -369,7 +366,7 @@ int editorDrawerSelectedGitEntry(int *entry_idx_out) {
 	}
 	struct editorDrawerGitLookup lookup;
 	if (!editorDrawerGitLookupByVisibleIndex(E.drawer_selected_index, &lookup) ||
-			lookup.kind != EDITOR_DRAWER_GIT_ENTRY_FILE) {
+	    lookup.kind != EDITOR_DRAWER_GIT_ENTRY_FILE) {
 		return 0;
 	}
 	*entry_idx_out = lookup.entry_idx;

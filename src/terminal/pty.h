@@ -31,8 +31,7 @@ void editorPtyChildInit(struct editorPtyChild *child);
  * with `out` populated; the master fd is non-blocking. Returns 0 on failure
  * (errno set; nothing is left allocated).
  */
-int editorPtySpawn(const char *command, int cols, int rows,
-		struct editorPtyChild *out);
+int editorPtySpawn(const char *command, int cols, int rows, struct editorPtyChild *out);
 
 /*
  * Push a new window size to the child via ioctl(TIOCSWINSZ). The child gets

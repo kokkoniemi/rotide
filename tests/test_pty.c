@@ -10,8 +10,7 @@
 #include <time.h>
 #include <unistd.h>
 
-static int pty_read_until(int fd, char *buf, size_t cap, const char *needle,
-		int timeout_ms) {
+static int pty_read_until(int fd, char *buf, size_t cap, const char *needle, int timeout_ms) {
 	size_t len = 0;
 	int waited_ms = 0;
 	while (len + 1 < cap && waited_ms < timeout_ms) {
@@ -72,8 +71,7 @@ static int test_pty_spawn_echo_round_trip(void) {
 		return 1;
 	}
 	char buf[1024];
-	int n = pty_read_until(child.master_fd, buf, sizeof(buf),
-			"rotide-pty-marker", 2000);
+	int n = pty_read_until(child.master_fd, buf, sizeof(buf), "rotide-pty-marker", 2000);
 	int found = n > 0 && strstr(buf, "rotide-pty-marker") != NULL;
 	editorPtyClose(&child);
 	return found ? 0 : 1;
@@ -145,12 +143,11 @@ static int test_pty_close_is_idempotent(void) {
 }
 
 const struct editorTestCase g_pty_tests[] = {
-	{"pty_spawn_rejects_invalid_args", test_pty_spawn_rejects_invalid_args},
-	{"pty_spawn_echo_round_trip", test_pty_spawn_echo_round_trip},
-	{"pty_resize_updates_dimensions", test_pty_resize_updates_dimensions},
-	{"pty_try_reap_detects_exit", test_pty_try_reap_detects_exit},
-	{"pty_close_is_idempotent", test_pty_close_is_idempotent},
+        {"pty_spawn_rejects_invalid_args", test_pty_spawn_rejects_invalid_args},
+        {"pty_spawn_echo_round_trip", test_pty_spawn_echo_round_trip},
+        {"pty_resize_updates_dimensions", test_pty_resize_updates_dimensions},
+        {"pty_try_reap_detects_exit", test_pty_try_reap_detects_exit},
+        {"pty_close_is_idempotent", test_pty_close_is_idempotent},
 };
 
-const int g_pty_test_count =
-		(int)(sizeof(g_pty_tests) / sizeof(g_pty_tests[0]));
+const int g_pty_test_count = (int)(sizeof(g_pty_tests) / sizeof(g_pty_tests[0]));

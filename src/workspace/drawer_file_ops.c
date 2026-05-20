@@ -1,9 +1,8 @@
-#include "workspace/drawer.h"
-
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
 #include "support/alloc.h"
 #include "support/file_io.h"
+#include "workspace/drawer.h"
 #include "workspace/drawer_internal.h"
 #include "workspace/file_search.h"
 #include "workspace/project_search.h"
@@ -31,8 +30,7 @@ static int editorDrawerNameIsValid(const char *name) {
 	return 1;
 }
 
-static struct editorDrawerNode *editorDrawerCreationTargetDir(
-		struct editorDrawerNode *selected) {
+static struct editorDrawerNode *editorDrawerCreationTargetDir(struct editorDrawerNode *selected) {
 	if (selected == NULL) {
 		return E.drawer_root;
 	}
@@ -59,8 +57,8 @@ static void editorDrawerInvalidateScan(struct editorDrawerNode *node) {
 	node->scan_error = 0;
 }
 
-static int editorDrawerSelectChildByName(struct editorDrawerNode *parent,
-		const char *name, int viewport_rows) {
+static int editorDrawerSelectChildByName(struct editorDrawerNode *parent, const char *name,
+                                         int viewport_rows) {
 	if (parent == NULL || name == NULL) {
 		return 0;
 	}
@@ -336,7 +334,7 @@ int editorDrawerOpenSelectedFileInTab(void) {
 
 	struct editorDrawerNode *selected = editorDrawerSelectedTreeNode();
 	if (selected == NULL || selected->is_dir || selected->path == NULL ||
-			selected->path[0] == '\0') {
+	    selected->path[0] == '\0') {
 		return 0;
 	}
 	return editorTabOpenOrSwitchToFile(selected->path);
@@ -352,14 +350,15 @@ int editorDrawerOpenSelectedFileInPreviewTab(void) {
 
 	struct editorDrawerNode *selected = editorDrawerSelectedTreeNode();
 	if (selected == NULL || selected->is_dir || selected->path == NULL ||
-			selected->path[0] == '\0') {
+	    selected->path[0] == '\0') {
 		return 0;
 	}
 	return editorTabOpenOrSwitchToPreviewFile(selected->path);
 }
 
 int editorDrawerRevealPath(const char *path, int viewport_rows) {
-	if (path == NULL || path[0] == '\0' || E.drawer_root == NULL || E.drawer_root_path == NULL) {
+	if (path == NULL || path[0] == '\0' || E.drawer_root == NULL ||
+	    E.drawer_root_path == NULL) {
 		return 0;
 	}
 
@@ -378,7 +377,7 @@ int editorDrawerRevealPath(const char *path, int viewport_rows) {
 		return 1;
 	}
 	if (root_len == 0 || strncmp(absolute, E.drawer_root_path, root_len) != 0 ||
-			absolute[root_len] != '/') {
+	    absolute[root_len] != '/') {
 		free(absolute);
 		return 0;
 	}
@@ -389,14 +388,14 @@ int editorDrawerRevealPath(const char *path, int viewport_rows) {
 	while (component[0] != '\0') {
 		const char *slash = strchr(component, '/');
 		size_t component_len =
-				slash != NULL ? (size_t)(slash - component) : strlen(component);
+		        slash != NULL ? (size_t)(slash - component) : strlen(component);
 		if (component_len == 0) {
 			free(absolute);
 			return 0;
 		}
 
 		struct editorDrawerNode *child =
-				editorDrawerFindChildByName(node, component, component_len);
+		        editorDrawerFindChildByName(node, component, component_len);
 		if (child == NULL) {
 			free(absolute);
 			return 0;

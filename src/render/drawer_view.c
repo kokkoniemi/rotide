@@ -5,6 +5,7 @@
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/project_search.h"
+
 #include <limits.h>
 #include <stdio.h>
 #include <string.h>
@@ -59,12 +60,12 @@
 #define DRAWER_NERD_LINE_CHART_UTF8 "\xEF\x88\x81"
 #define DRAWER_HEADER_MODE_BUTTON_COLS 3
 #define DRAWER_HEADER_MODE_BUTTON_COUNT 7
-#define DRAWER_HEADER_MODE_BUTTONS_MIN_COLS \
-	(ROTIDE_DRAWER_COLLAPSED_WIDTH + \
-			DRAWER_HEADER_MODE_BUTTON_COLS * DRAWER_HEADER_MODE_BUTTON_COUNT)
+#define DRAWER_HEADER_MODE_BUTTONS_MIN_COLS                                                        \
+	(ROTIDE_DRAWER_COLLAPSED_WIDTH +                                                           \
+	 DRAWER_HEADER_MODE_BUTTON_COLS * DRAWER_HEADER_MODE_BUTTON_COUNT)
 
 static int editorDrawDrawerHeaderCell(struct writeBuf *wb, const char *label, int active,
-		int *written_cols, int drawer_cols) {
+                                      int *written_cols, int drawer_cols) {
 	if (label == NULL || written_cols == NULL || *written_cols >= drawer_cols) {
 		return 1;
 	}
@@ -85,7 +86,7 @@ static int editorDrawDrawerHeaderCell(struct writeBuf *wb, const char *label, in
 
 	int wrote = 0;
 	if (!editorAppendSanitizedText(wb, text, drawer_cols - *written_cols, &wrote) ||
-			!editorAppendThemeReset(wb)) {
+	    !editorAppendThemeReset(wb)) {
 		return 0;
 	}
 	*written_cols += wrote;
@@ -95,7 +96,7 @@ static int editorDrawDrawerHeaderCell(struct writeBuf *wb, const char *label, in
 static int editorDrawCollapsedDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols) {
 	int written_cols = 0;
 	if (row_idx == 0 && !editorDrawDrawerHeaderCell(wb, DRAWER_EXPAND_INDICATOR, 0,
-				&written_cols, drawer_cols)) {
+	                                                &written_cols, drawer_cols)) {
 		return 0;
 	}
 
@@ -122,85 +123,86 @@ static enum editorDrawerMode editorActiveDrawerHeaderMode(void) {
 static const char *editorDrawerHeaderSymbol(enum editorDrawerMode mode) {
 	if (!E.nerd_fonts_enabled) {
 		switch (mode) {
-		case EDITOR_DRAWER_MODE_TREE:
-			return DRAWER_HEADER_EXPLORER_SYMBOL_UTF8;
-		case EDITOR_DRAWER_MODE_FILE_SEARCH:
-			return DRAWER_HEADER_FILE_SEARCH_SYMBOL_UTF8;
-		case EDITOR_DRAWER_MODE_PROJECT_SEARCH:
-			return DRAWER_HEADER_PROJECT_SEARCH_SYMBOL_UTF8;
-		case EDITOR_DRAWER_MODE_LSP:
-			return DRAWER_HEADER_LSP_SYMBOL_UTF8;
-		case EDITOR_DRAWER_MODE_DAP:
-			return DRAWER_HEADER_DAP_SYMBOL_UTF8;
-		case EDITOR_DRAWER_MODE_GIT:
-			return DRAWER_HEADER_GIT_SYMBOL_UTF8;
-		case EDITOR_DRAWER_MODE_MAIN_MENU:
-			return DRAWER_HEADER_MAIN_MENU_SYMBOL_UTF8;
-		default:
-			return "";
+			case EDITOR_DRAWER_MODE_TREE:
+				return DRAWER_HEADER_EXPLORER_SYMBOL_UTF8;
+			case EDITOR_DRAWER_MODE_FILE_SEARCH:
+				return DRAWER_HEADER_FILE_SEARCH_SYMBOL_UTF8;
+			case EDITOR_DRAWER_MODE_PROJECT_SEARCH:
+				return DRAWER_HEADER_PROJECT_SEARCH_SYMBOL_UTF8;
+			case EDITOR_DRAWER_MODE_LSP:
+				return DRAWER_HEADER_LSP_SYMBOL_UTF8;
+			case EDITOR_DRAWER_MODE_DAP:
+				return DRAWER_HEADER_DAP_SYMBOL_UTF8;
+			case EDITOR_DRAWER_MODE_GIT:
+				return DRAWER_HEADER_GIT_SYMBOL_UTF8;
+			case EDITOR_DRAWER_MODE_MAIN_MENU:
+				return DRAWER_HEADER_MAIN_MENU_SYMBOL_UTF8;
+			default:
+				return "";
 		}
 	}
 
 	switch (mode) {
-	case EDITOR_DRAWER_MODE_TREE:
-		return DRAWER_NERD_FOLDER_UTF8;
-	case EDITOR_DRAWER_MODE_FILE_SEARCH:
-		return DRAWER_NERD_FILE_TEXT_UTF8;
-	case EDITOR_DRAWER_MODE_PROJECT_SEARCH:
-		return DRAWER_NERD_SEARCH_UTF8;
-	case EDITOR_DRAWER_MODE_LSP:
-		return DRAWER_NERD_TERMINAL_UTF8;
-	case EDITOR_DRAWER_MODE_DAP:
-		return DRAWER_NERD_BUG_UTF8;
-	case EDITOR_DRAWER_MODE_GIT:
-		return DRAWER_NERD_BRANCH_UTF8;
-	case EDITOR_DRAWER_MODE_MAIN_MENU:
-		return DRAWER_NERD_BARS_UTF8;
-	default:
-		return "";
+		case EDITOR_DRAWER_MODE_TREE:
+			return DRAWER_NERD_FOLDER_UTF8;
+		case EDITOR_DRAWER_MODE_FILE_SEARCH:
+			return DRAWER_NERD_FILE_TEXT_UTF8;
+		case EDITOR_DRAWER_MODE_PROJECT_SEARCH:
+			return DRAWER_NERD_SEARCH_UTF8;
+		case EDITOR_DRAWER_MODE_LSP:
+			return DRAWER_NERD_TERMINAL_UTF8;
+		case EDITOR_DRAWER_MODE_DAP:
+			return DRAWER_NERD_BUG_UTF8;
+		case EDITOR_DRAWER_MODE_GIT:
+			return DRAWER_NERD_BRANCH_UTF8;
+		case EDITOR_DRAWER_MODE_MAIN_MENU:
+			return DRAWER_NERD_BARS_UTF8;
+		default:
+			return "";
 	}
 }
 
 static int editorDrawDrawerHeaderModeButton(struct writeBuf *wb, const char *label,
-		enum editorDrawerMode mode, enum editorDrawerMode active_mode, int *written_cols,
-		int drawer_cols) {
-	return editorDrawDrawerHeaderCell(wb, label, mode == active_mode, written_cols, drawer_cols);
+                                            enum editorDrawerMode mode,
+                                            enum editorDrawerMode active_mode, int *written_cols,
+                                            int drawer_cols) {
+	return editorDrawDrawerHeaderCell(wb, label, mode == active_mode, written_cols,
+	                                  drawer_cols);
 }
 
 static int editorDrawExpandedDrawerHeaderRow(struct writeBuf *wb, int drawer_cols) {
 	int written_cols = 0;
 	if (!editorDrawDrawerHeaderCell(wb, DRAWER_COLLAPSE_INDICATOR, 0, &written_cols,
-				drawer_cols)) {
+	                                drawer_cols)) {
 		return 0;
 	}
 
 	if (drawer_cols >= DRAWER_HEADER_MODE_BUTTONS_MIN_COLS) {
 		enum editorDrawerMode active_mode = editorActiveDrawerHeaderMode();
-		if (!editorDrawDrawerHeaderModeButton(wb,
-					editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_TREE),
-					EDITOR_DRAWER_MODE_TREE, active_mode, &written_cols, drawer_cols) ||
-				!editorDrawDrawerHeaderModeButton(wb,
-					editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_FILE_SEARCH),
-					EDITOR_DRAWER_MODE_FILE_SEARCH, active_mode, &written_cols,
-					drawer_cols) ||
-				!editorDrawDrawerHeaderModeButton(wb,
-					editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_PROJECT_SEARCH),
-					EDITOR_DRAWER_MODE_PROJECT_SEARCH, active_mode, &written_cols,
-					drawer_cols) ||
-				!editorDrawDrawerHeaderModeButton(wb,
-					editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_LSP),
-					EDITOR_DRAWER_MODE_LSP, active_mode, &written_cols, drawer_cols) ||
-				!editorDrawDrawerHeaderModeButton(wb,
-					editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_DAP),
-					EDITOR_DRAWER_MODE_DAP, active_mode, &written_cols, drawer_cols) ||
-				!editorDrawDrawerHeaderModeButton(wb,
-					editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_GIT),
-					EDITOR_DRAWER_MODE_GIT, active_mode, &written_cols,
-					drawer_cols) ||
-				!editorDrawDrawerHeaderModeButton(wb,
-					editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_MAIN_MENU),
-					EDITOR_DRAWER_MODE_MAIN_MENU, active_mode, &written_cols,
-					drawer_cols)) {
+		if (!editorDrawDrawerHeaderModeButton(
+		            wb, editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_TREE),
+		            EDITOR_DRAWER_MODE_TREE, active_mode, &written_cols, drawer_cols) ||
+		    !editorDrawDrawerHeaderModeButton(
+		            wb, editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_FILE_SEARCH),
+		            EDITOR_DRAWER_MODE_FILE_SEARCH, active_mode, &written_cols,
+		            drawer_cols) ||
+		    !editorDrawDrawerHeaderModeButton(
+		            wb, editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_PROJECT_SEARCH),
+		            EDITOR_DRAWER_MODE_PROJECT_SEARCH, active_mode, &written_cols,
+		            drawer_cols) ||
+		    !editorDrawDrawerHeaderModeButton(
+		            wb, editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_LSP),
+		            EDITOR_DRAWER_MODE_LSP, active_mode, &written_cols, drawer_cols) ||
+		    !editorDrawDrawerHeaderModeButton(
+		            wb, editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_DAP),
+		            EDITOR_DRAWER_MODE_DAP, active_mode, &written_cols, drawer_cols) ||
+		    !editorDrawDrawerHeaderModeButton(
+		            wb, editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_GIT),
+		            EDITOR_DRAWER_MODE_GIT, active_mode, &written_cols, drawer_cols) ||
+		    !editorDrawDrawerHeaderModeButton(
+		            wb, editorDrawerHeaderSymbol(EDITOR_DRAWER_MODE_MAIN_MENU),
+		            EDITOR_DRAWER_MODE_MAIN_MENU, active_mode, &written_cols,
+		            drawer_cols)) {
 			return 0;
 		}
 	}
@@ -228,7 +230,7 @@ static int editorDrawerHasSuffixCaseInsensitive(const char *text, const char *su
 }
 
 static const char *editorDrawerNameForFileIcon(const struct editorDrawerEntryView *entry,
-		const char *entry_name) {
+                                               const char *entry_name) {
 	if (entry != NULL && entry->path != NULL && entry->path[0] != '\0') {
 		return entry->path;
 	}
@@ -246,8 +248,8 @@ static const char *editorDrawerNerdIconForMenuLabel(const char *label) {
 		return NULL;
 	}
 	if (strcmp(label, "Main Menu") == 0 || strcmp(label, "Find") == 0 ||
-			strcmp(label, "File") == 0 || strcmp(label, "Tabs") == 0 ||
-			strcmp(label, "Edit") == 0 || strcmp(label, "View") == 0) {
+	    strcmp(label, "File") == 0 || strcmp(label, "Tabs") == 0 ||
+	    strcmp(label, "Edit") == 0 || strcmp(label, "View") == 0) {
 		return NULL;
 	}
 	if (strcmp(label, "Find File") == 0 || strcmp(label, "Find in Buffer") == 0) {
@@ -260,7 +262,7 @@ static const char *editorDrawerNerdIconForMenuLabel(const char *label) {
 		return DRAWER_NERD_ARROW_LEFT_UTF8;
 	}
 	if (strcmp(label, "Rename...") == 0 || strcmp(label, "Find & replace") == 0 ||
-			strcmp(label, "Toggle Comment") == 0) {
+	    strcmp(label, "Toggle Comment") == 0) {
 		return DRAWER_NERD_EDIT_UTF8;
 	}
 	if (strncmp(label, "Toggle ", 7) == 0) {
@@ -270,7 +272,7 @@ static const char *editorDrawerNerdIconForMenuLabel(const char *label) {
 		return DRAWER_NERD_SAVE_UTF8;
 	}
 	if (strcmp(label, "New Tab") == 0 || strcmp(label, "New File...") == 0 ||
-			strcmp(label, "New Folder...") == 0) {
+	    strcmp(label, "New Folder...") == 0) {
 		return DRAWER_NERD_PLUS_UTF8;
 	}
 	if (strcmp(label, "Close Tab") == 0 || strcmp(label, "Quit") == 0) {
@@ -325,84 +327,84 @@ static const char *editorDrawerNerdIconForFileName(const char *name) {
 	const char *slash = strrchr(name, '/');
 	const char *base = slash != NULL ? slash + 1 : name;
 	if (strcmp(base, "Makefile") == 0 || strcmp(base, "makefile") == 0 ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".c") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".h") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".cc") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".cpp") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".cxx") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".hpp") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".go") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".rs") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".js") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".jsx") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".ts") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".tsx") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".py") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".php") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".java") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".rb") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".cs") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".hs") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".ml") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".jl") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".scala") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".sh") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".bash") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".zsh")) {
+	    editorDrawerHasSuffixCaseInsensitive(base, ".c") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".h") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".cc") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".cpp") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".cxx") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".hpp") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".go") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".rs") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".js") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".jsx") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".ts") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".tsx") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".py") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".php") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".java") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".rb") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".cs") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".hs") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".ml") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".jl") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".scala") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".sh") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".bash") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".zsh")) {
 		return DRAWER_NERD_FILE_CODE_UTF8;
 	}
 	if (editorDrawerHasSuffixCaseInsensitive(base, ".toml") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".json") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".yaml") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".yml") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".xml") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".ini") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".conf") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".cfg") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".env")) {
+	    editorDrawerHasSuffixCaseInsensitive(base, ".json") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".yaml") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".yml") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".xml") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".ini") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".conf") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".cfg") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".env")) {
 		return DRAWER_NERD_GEAR_UTF8;
 	}
 	if (editorDrawerHasSuffixCaseInsensitive(base, ".md") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".markdown") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".txt") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".log")) {
+	    editorDrawerHasSuffixCaseInsensitive(base, ".markdown") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".txt") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".log")) {
 		return DRAWER_NERD_FILE_TEXT_UTF8;
 	}
 	if (editorDrawerHasSuffixCaseInsensitive(base, ".png") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".jpg") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".jpeg") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".gif") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".svg") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".webp")) {
+	    editorDrawerHasSuffixCaseInsensitive(base, ".jpg") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".jpeg") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".gif") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".svg") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".webp")) {
 		return DRAWER_NERD_FILE_IMAGE_UTF8;
 	}
 	if (editorDrawerHasSuffixCaseInsensitive(base, ".zip") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".tar") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".gz") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".bz2") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".xz")) {
+	    editorDrawerHasSuffixCaseInsensitive(base, ".tar") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".gz") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".bz2") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".xz")) {
 		return DRAWER_NERD_FILE_ARCHIVE_UTF8;
 	}
 	if (editorDrawerHasSuffixCaseInsensitive(base, ".pdf")) {
 		return DRAWER_NERD_FILE_PDF_UTF8;
 	}
 	if (editorDrawerHasSuffixCaseInsensitive(base, ".mp3") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".wav") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".flac")) {
+	    editorDrawerHasSuffixCaseInsensitive(base, ".wav") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".flac")) {
 		return DRAWER_NERD_FILE_AUDIO_UTF8;
 	}
 	if (editorDrawerHasSuffixCaseInsensitive(base, ".mp4") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".mov") ||
-			editorDrawerHasSuffixCaseInsensitive(base, ".webm")) {
+	    editorDrawerHasSuffixCaseInsensitive(base, ".mov") ||
+	    editorDrawerHasSuffixCaseInsensitive(base, ".webm")) {
 		return DRAWER_NERD_FILE_VIDEO_UTF8;
 	}
 	return DRAWER_NERD_FILE_UTF8;
 }
 
 static const char *editorDrawerNerdIconForEntry(const struct editorDrawerEntryView *entry,
-		const char *entry_name) {
+                                                const char *entry_name) {
 	if (!E.nerd_fonts_enabled || entry == NULL || entry->is_search_header ||
-			entry->is_placeholder) {
+	    entry->is_placeholder) {
 		return NULL;
 	}
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_MAIN_MENU) {
@@ -421,7 +423,7 @@ static const char *editorDrawerNerdIconForEntry(const struct editorDrawerEntryVi
 }
 
 static int editorDrawerAppendNerdIcon(struct writeBuf *wb, const char *icon, int row_inverted,
-		int *written_cols, int drawer_cols, int *appended_out) {
+                                      int *written_cols, int drawer_cols, int *appended_out) {
 	if (appended_out != NULL) {
 		*appended_out = 0;
 	}
@@ -452,7 +454,7 @@ static int editorDrawerAppendNerdIcon(struct writeBuf *wb, const char *icon, int
 }
 
 static int editorDrawerAppendCell(struct writeBuf *wb, const char *text, size_t len,
-		int *written_cols, int drawer_cols) {
+                                  int *written_cols, int drawer_cols) {
 	if (written_cols == NULL || *written_cols >= drawer_cols) {
 		return 1;
 	}
@@ -464,12 +466,12 @@ static int editorDrawerAppendCell(struct writeBuf *wb, const char *text, size_t 
 }
 
 static int editorDrawerAppendGrayCell(struct writeBuf *wb, const char *text, size_t len,
-		int *written_cols, int drawer_cols) {
+                                      int *written_cols, int drawer_cols) {
 	if (written_cols == NULL || *written_cols >= drawer_cols) {
 		return 1;
 	}
 	if (!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_DRAWER_CONNECTOR) ||
-			!wbAppend(wb, text, len) || !editorAppendThemeBaseForeground(wb)) {
+	    !wbAppend(wb, text, len) || !editorAppendThemeBaseForeground(wb)) {
 		return 0;
 	}
 	(*written_cols)++;
@@ -477,7 +479,7 @@ static int editorDrawerAppendGrayCell(struct writeBuf *wb, const char *text, siz
 }
 
 static int editorDrawerAppendConnectorCell(struct writeBuf *wb, const char *text, size_t len,
-		int *written_cols, int drawer_cols, int use_gray) {
+                                           int *written_cols, int drawer_cols, int use_gray) {
 	if (use_gray) {
 		return editorDrawerAppendGrayCell(wb, text, len, written_cols, drawer_cols);
 	}
@@ -485,7 +487,7 @@ static int editorDrawerAppendConnectorCell(struct writeBuf *wb, const char *text
 }
 
 static int editorDrawDrawerAncestorGuides(struct writeBuf *wb, int parent_visible_idx,
-		int *written_cols, int drawer_cols, int gray_connectors) {
+                                          int *written_cols, int drawer_cols, int gray_connectors) {
 	if (parent_visible_idx < 0) {
 		return 1;
 	}
@@ -496,8 +498,8 @@ static int editorDrawDrawerAncestorGuides(struct writeBuf *wb, int parent_visibl
 	}
 
 	if (parent_entry.depth >= 2) {
-		if (!editorDrawDrawerAncestorGuides(wb, parent_entry.parent_visible_idx, written_cols,
-					drawer_cols, gray_connectors)) {
+		if (!editorDrawDrawerAncestorGuides(wb, parent_entry.parent_visible_idx,
+		                                    written_cols, drawer_cols, gray_connectors)) {
 			return 0;
 		}
 		if (parent_entry.is_last_sibling) {
@@ -505,9 +507,9 @@ static int editorDrawDrawerAncestorGuides(struct writeBuf *wb, int parent_visibl
 				return 0;
 			}
 		} else {
-			if (!editorDrawerAppendConnectorCell(wb, DRAWER_SPLITTER_UTF8,
-						sizeof(DRAWER_SPLITTER_UTF8) - 1,
-						written_cols, drawer_cols, gray_connectors)) {
+			if (!editorDrawerAppendConnectorCell(
+			            wb, DRAWER_SPLITTER_UTF8, sizeof(DRAWER_SPLITTER_UTF8) - 1,
+			            written_cols, drawer_cols, gray_connectors)) {
 				return 0;
 			}
 		}
@@ -540,7 +542,8 @@ static int editorBuildDrawerAncestorGuidesPlain(struct writeBuf *wb, int parent_
 			if (!wbAppend(wb, "   ", 3)) {
 				return 0;
 			}
-		} else if (!wbAppend(wb, DRAWER_SPLITTER_UTF8 "  ", sizeof(DRAWER_SPLITTER_UTF8) + 2 - 1)) {
+		} else if (!wbAppend(wb, DRAWER_SPLITTER_UTF8 "  ",
+		                     sizeof(DRAWER_SPLITTER_UTF8) + 2 - 1)) {
 			return 0;
 		}
 	}
@@ -556,21 +559,21 @@ static int editorBuildDrawerRowPlain(struct writeBuf *wb, int visible_idx) {
 
 	char entry_name_buf[PATH_MAX + 512];
 	snprintf(entry_name_buf, sizeof(entry_name_buf), "%s",
-			entry.name != NULL ? entry.name : "");
+	         entry.name != NULL ? entry.name : "");
 
 	if (!entry.is_root && !wbAppend(wb, " ", 1)) {
 		return 0;
 	}
 
 	if (entry.depth > 1) {
-		const char *branch = entry.is_last_sibling ? DRAWER_TREE_BRANCH_LAST_UTF8 :
-				DRAWER_TREE_BRANCH_MID_UTF8;
-		size_t branch_len = entry.is_last_sibling ? sizeof(DRAWER_TREE_BRANCH_LAST_UTF8) - 1 :
-				sizeof(DRAWER_TREE_BRANCH_MID_UTF8) - 1;
+		const char *branch = entry.is_last_sibling ? DRAWER_TREE_BRANCH_LAST_UTF8
+		                                           : DRAWER_TREE_BRANCH_MID_UTF8;
+		size_t branch_len = entry.is_last_sibling ? sizeof(DRAWER_TREE_BRANCH_LAST_UTF8) - 1
+		                                          : sizeof(DRAWER_TREE_BRANCH_MID_UTF8) - 1;
 		if (!editorBuildDrawerAncestorGuidesPlain(wb, entry.parent_visible_idx) ||
-				!wbAppend(wb, branch, branch_len) ||
-				!wbAppend(wb, DRAWER_TREE_HORIZONTAL_UTF8 " ",
-						sizeof(DRAWER_TREE_HORIZONTAL_UTF8 " ") - 1)) {
+		    !wbAppend(wb, branch, branch_len) ||
+		    !wbAppend(wb, DRAWER_TREE_HORIZONTAL_UTF8 " ",
+		              sizeof(DRAWER_TREE_HORIZONTAL_UTF8 " ") - 1)) {
 			return 0;
 		}
 	}
@@ -581,10 +584,11 @@ static int editorBuildDrawerRowPlain(struct writeBuf *wb, int visible_idx) {
 				return 0;
 			}
 		} else {
-			const char *caret = entry.is_expanded ? DRAWER_CARET_EXPANDED_UTF8 :
-					DRAWER_CARET_COLLAPSED_UTF8;
-			size_t caret_len = entry.is_expanded ? sizeof(DRAWER_CARET_EXPANDED_UTF8) - 1 :
-					sizeof(DRAWER_CARET_COLLAPSED_UTF8) - 1;
+			const char *caret = entry.is_expanded ? DRAWER_CARET_EXPANDED_UTF8
+			                                      : DRAWER_CARET_COLLAPSED_UTF8;
+			size_t caret_len = entry.is_expanded
+			                           ? sizeof(DRAWER_CARET_EXPANDED_UTF8) - 1
+			                           : sizeof(DRAWER_CARET_COLLAPSED_UTF8) - 1;
 			if (!wbAppend(wb, caret, caret_len) || !wbAppend(wb, " ", 1)) {
 				return 0;
 			}
@@ -600,7 +604,8 @@ static int editorBuildDrawerRowPlain(struct writeBuf *wb, int visible_idx) {
 }
 
 int editorDrawDrawerSelectionOverflow(struct writeBuf *wb, int row_idx, int drawer_cols,
-		int separator_cols, int text_cols, int terminal_row, int *overlay_drawn_out) {
+                                      int separator_cols, int text_cols, int terminal_row,
+                                      int *overlay_drawn_out) {
 	if (overlay_drawn_out != NULL) {
 		*overlay_drawn_out = 0;
 	}
@@ -636,16 +641,17 @@ int editorDrawDrawerSelectionOverflow(struct writeBuf *wb, int row_idx, int draw
 	int overlay_budget = separator_cols + text_cols;
 	int overlay_written = 0;
 	char move_buf[32];
-	int move_len = snprintf(move_buf, sizeof(move_buf), "\x1b[%d;%dH", terminal_row, drawer_cols + 1);
+	int move_len =
+	        snprintf(move_buf, sizeof(move_buf), "\x1b[%d;%dH", terminal_row, drawer_cols + 1);
 	if (move_len <= 0 || move_len >= (int)sizeof(move_buf)) {
 		wbFree(&plain);
 		return 0;
 	}
 	if (!wbAppend(wb, move_buf, (size_t)move_len) ||
-			!editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_SELECTION) ||
-			!editorAppendDisplaySlice(wb, plain.b != NULL ? plain.b : "", drawer_cols, overlay_budget,
-					&overlay_written) ||
-			!editorAppendThemeReset(wb)) {
+	    !editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_SELECTION) ||
+	    !editorAppendDisplaySlice(wb, plain.b != NULL ? plain.b : "", drawer_cols,
+	                              overlay_budget, &overlay_written) ||
+	    !editorAppendThemeReset(wb)) {
 		wbFree(&plain);
 		return 0;
 	}
@@ -684,7 +690,8 @@ int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols) {
 		const char *entry_name = entry.name != NULL ? entry.name : "";
 		snprintf(entry_name_buf, sizeof(entry_name_buf), "%s", entry_name);
 		entry_name = entry_name_buf;
-		int selected_with_focus = entry.is_selected && E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER;
+		int selected_with_focus =
+		        entry.is_selected && E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER;
 		row_inverted = selected_with_focus || (entry.is_active_file && !entry.is_dir);
 		int gray_connectors = !row_inverted;
 		if (row_inverted && !editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_SELECTION)) {
@@ -694,17 +701,19 @@ int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols) {
 		if (entry.is_search_header) {
 			if (written_cols < drawer_cols) {
 				int wrote = 0;
-				const char *label = editorProjectSearchIsActive() ?
-						editorProjectSearchHeaderLabel() : editorFileSearchHeaderLabel();
-				if (!editorAppendSanitizedText(wb, label, drawer_cols - written_cols, &wrote)) {
+				const char *label = editorProjectSearchIsActive()
+				                            ? editorProjectSearchHeaderLabel()
+				                            : editorFileSearchHeaderLabel();
+				if (!editorAppendSanitizedText(
+				            wb, label, drawer_cols - written_cols, &wrote)) {
 					return 0;
 				}
 				written_cols += wrote;
 			}
 			if (written_cols < drawer_cols) {
 				int wrote = 0;
-				if (!editorAppendSanitizedText(wb, entry_name, drawer_cols - written_cols,
-							&wrote)) {
+				if (!editorAppendSanitizedText(
+				            wb, entry_name, drawer_cols - written_cols, &wrote)) {
 					return 0;
 				}
 				written_cols += wrote;
@@ -712,27 +721,30 @@ int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols) {
 			goto pad_drawer_row;
 		}
 
-		if (!entry.is_root && !editorDrawerAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
+		if (!entry.is_root &&
+		    !editorDrawerAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
 			return 0;
 		}
 
 		if (entry.depth > 1) {
-			if (!editorDrawDrawerAncestorGuides(wb, entry.parent_visible_idx, &written_cols,
-						drawer_cols, gray_connectors)) {
+			if (!editorDrawDrawerAncestorGuides(wb, entry.parent_visible_idx,
+			                                    &written_cols, drawer_cols,
+			                                    gray_connectors)) {
 				return 0;
 			}
-			const char *branch = entry.is_last_sibling ?
-					DRAWER_TREE_BRANCH_LAST_UTF8 : DRAWER_TREE_BRANCH_MID_UTF8;
-			size_t branch_len = entry.is_last_sibling ?
-					sizeof(DRAWER_TREE_BRANCH_LAST_UTF8) - 1 :
-					sizeof(DRAWER_TREE_BRANCH_MID_UTF8) - 1;
-			if (!editorDrawerAppendConnectorCell(wb, branch, branch_len, &written_cols, drawer_cols,
-						gray_connectors)) {
+			const char *branch = entry.is_last_sibling ? DRAWER_TREE_BRANCH_LAST_UTF8
+			                                           : DRAWER_TREE_BRANCH_MID_UTF8;
+			size_t branch_len = entry.is_last_sibling
+			                            ? sizeof(DRAWER_TREE_BRANCH_LAST_UTF8) - 1
+			                            : sizeof(DRAWER_TREE_BRANCH_MID_UTF8) - 1;
+			if (!editorDrawerAppendConnectorCell(wb, branch, branch_len, &written_cols,
+			                                     drawer_cols, gray_connectors)) {
 				return 0;
 			}
-			if (!editorDrawerAppendConnectorCell(wb, DRAWER_TREE_HORIZONTAL_UTF8,
-						sizeof(DRAWER_TREE_HORIZONTAL_UTF8) - 1, &written_cols, drawer_cols,
-						gray_connectors)) {
+			if (!editorDrawerAppendConnectorCell(
+			            wb, DRAWER_TREE_HORIZONTAL_UTF8,
+			            sizeof(DRAWER_TREE_HORIZONTAL_UTF8) - 1, &written_cols,
+			            drawer_cols, gray_connectors)) {
 				return 0;
 			}
 			if (!editorDrawerAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
@@ -742,16 +754,19 @@ int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols) {
 
 		if (entry.is_dir && !entry.is_root) {
 			if (entry.has_scan_error) {
-				if (!editorDrawerAppendCell(wb, "!", 1, &written_cols, drawer_cols)) {
+				if (!editorDrawerAppendCell(wb, "!", 1, &written_cols,
+				                            drawer_cols)) {
 					return 0;
 				}
 			} else if (entry.is_expanded) {
 				if (!editorDrawerAppendCell(wb, DRAWER_CARET_EXPANDED_UTF8,
-							sizeof(DRAWER_CARET_EXPANDED_UTF8) - 1, &written_cols, drawer_cols)) {
+				                            sizeof(DRAWER_CARET_EXPANDED_UTF8) - 1,
+				                            &written_cols, drawer_cols)) {
 					return 0;
 				}
 			} else if (!editorDrawerAppendCell(wb, DRAWER_CARET_COLLAPSED_UTF8,
-							sizeof(DRAWER_CARET_COLLAPSED_UTF8) - 1, &written_cols, drawer_cols)) {
+			                                   sizeof(DRAWER_CARET_COLLAPSED_UTF8) - 1,
+			                                   &written_cols, drawer_cols)) {
 				return 0;
 			}
 			if (!editorDrawerAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
@@ -762,11 +777,11 @@ int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols) {
 		const char *icon = editorDrawerNerdIconForEntry(&entry, entry_name);
 		int icon_appended = 0;
 		if (!editorDrawerAppendNerdIcon(wb, icon, row_inverted, &written_cols, drawer_cols,
-					&icon_appended)) {
+		                                &icon_appended)) {
 			return 0;
 		}
 		if (icon_appended &&
-				!editorDrawerAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
+		    !editorDrawerAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
 			return 0;
 		}
 
@@ -778,51 +793,58 @@ int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols) {
 			int dir_color = entry.is_dir && !entry.is_root && !row_inverted;
 			int placeholder_color = entry.is_placeholder;
 			int git_color = 0;
-			int lsp_problem_kind_color =
-					!row_inverted && entry.lsp_problem_kind_len > 0 &&
-					(entry.lsp_problem_severity == 1 || entry.lsp_problem_severity == 2);
+			int lsp_problem_kind_color = !row_inverted &&
+			                             entry.lsp_problem_kind_len > 0 &&
+			                             (entry.lsp_problem_severity == 1 ||
+			                              entry.lsp_problem_severity == 2);
 			if (!row_inverted && E.git_repo_root != NULL) {
 				switch (entry.git_status) {
-				case EDITOR_GIT_STATUS_MODIFIED:
-					git_color = 1;
-					if (!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_GIT_MODIFIED)) {
-						return 0;
-					}
-					break;
-				case EDITOR_GIT_STATUS_UNTRACKED:
-					git_color = 1;
-					if (!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_GIT_UNTRACKED)) {
-						return 0;
-					}
-					break;
-				case EDITOR_GIT_STATUS_CONFLICT:
-					git_color = 1;
-					if (!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_GIT_CONFLICT)) {
-						return 0;
-					}
-					break;
-				default:
-					break;
+					case EDITOR_GIT_STATUS_MODIFIED:
+						git_color = 1;
+						if (!editorAppendThemeForegroundRole(
+						            wb, EDITOR_THEME_UI_GIT_MODIFIED)) {
+							return 0;
+						}
+						break;
+					case EDITOR_GIT_STATUS_UNTRACKED:
+						git_color = 1;
+						if (!editorAppendThemeForegroundRole(
+						            wb, EDITOR_THEME_UI_GIT_UNTRACKED)) {
+							return 0;
+						}
+						break;
+					case EDITOR_GIT_STATUS_CONFLICT:
+						git_color = 1;
+						if (!editorAppendThemeForegroundRole(
+						            wb, EDITOR_THEME_UI_GIT_CONFLICT)) {
+							return 0;
+						}
+						break;
+					default:
+						break;
 				}
 			}
 			if (root_bold && !wbAppend(wb, VT100_BOLD_ON_4, 4)) {
 				return 0;
 			}
-			if (root_color && !editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_ROOT)) {
+			if (root_color &&
+			    !editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_ROOT)) {
 				return 0;
 			}
-			if (dir_color && !editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_DIRECTORY)) {
+			if (dir_color &&
+			    !editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_DIRECTORY)) {
 				return 0;
 			}
 			if (placeholder_color &&
-					!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_PLACEHOLDER)) {
+			    !editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_PLACEHOLDER)) {
 				return 0;
 			}
 			if (lsp_problem_kind_color) {
 				struct editorThemeColor problem_color = {
-					.kind = EDITOR_THEME_COLOR_ANSI,
-					.value = entry.lsp_problem_severity == 1 ?
-							EDITOR_THEME_ANSI_RED : EDITOR_THEME_ANSI_YELLOW,
+				        .kind = EDITOR_THEME_COLOR_ANSI,
+				        .value = entry.lsp_problem_severity == 1
+				                         ? EDITOR_THEME_ANSI_RED
+				                         : EDITOR_THEME_ANSI_YELLOW,
 				};
 				int prefix_budget = entry.lsp_problem_kind_len;
 				if (prefix_budget > remaining) {
@@ -830,17 +852,18 @@ int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols) {
 				}
 				int prefix_wrote = 0;
 				if (!editorAppendThemeForeground(wb, problem_color) ||
-						!editorAppendSanitizedText(wb, entry_name, prefix_budget,
-								&prefix_wrote) ||
-						!editorAppendThemeBaseForeground(wb)) {
+				    !editorAppendSanitizedText(wb, entry_name, prefix_budget,
+				                               &prefix_wrote) ||
+				    !editorAppendThemeBaseForeground(wb)) {
 					return 0;
 				}
 				wrote += prefix_wrote;
-				if (wrote < remaining && prefix_wrote >= entry.lsp_problem_kind_len) {
+				if (wrote < remaining &&
+				    prefix_wrote >= entry.lsp_problem_kind_len) {
 					int rest_wrote = 0;
-					if (!editorAppendSanitizedText(wb,
-								entry_name + entry.lsp_problem_kind_len,
-								remaining - wrote, &rest_wrote)) {
+					if (!editorAppendSanitizedText(
+					            wb, entry_name + entry.lsp_problem_kind_len,
+					            remaining - wrote, &rest_wrote)) {
 						return 0;
 					}
 					wrote += rest_wrote;

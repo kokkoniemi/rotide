@@ -10,10 +10,11 @@
 #include "language/syntax.h"
 #include "language/syntax_visible_cache.h"
 #include "language/syntax_worker.h"
-#include "support/size_utils.h"
 #include "support/alloc.h"
+#include "support/size_utils.h"
 #include "text/document.h"
 #include "text/row.h"
+
 #include <errno.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -74,14 +75,14 @@ static int editorSyntaxConfigurePerformanceForLength(size_t source_len, int set_
 	}
 
 	enum editorSyntaxPerformanceMode old_mode =
-			editorSyntaxStatePerformanceMode(E.syntax_state);
+	        editorSyntaxStatePerformanceMode(E.syntax_state);
 	if (!editorSyntaxStateConfigureForSourceLength(E.syntax_state, source_len)) {
 		editorSyntaxDisableWithStatus("Tree-sitter disabled (file too large for syntax)");
 		return 0;
 	}
 
 	enum editorSyntaxPerformanceMode new_mode =
-			editorSyntaxStatePerformanceMode(E.syntax_state);
+	        editorSyntaxStatePerformanceMode(E.syntax_state);
 	if (set_status_on_change && new_mode != old_mode) {
 		const char *status = editorSyntaxPerformanceStatusForMode(new_mode);
 		if (status != NULL) {
@@ -100,14 +101,14 @@ static void editorSyntaxReportBudgetStatusIfNeeded(void) {
 	int parse_budget_exceeded = 0;
 	int query_budget_exceeded = 0;
 	if (!editorSyntaxStateConsumeBudgetEvents(E.syntax_state, &parse_budget_exceeded,
-				&query_budget_exceeded)) {
+	                                          &query_budget_exceeded)) {
 		return;
 	}
 
 	static time_t last_report_time = 0;
 	time_t now = time(NULL);
-	if (!editorSyntaxTestBudgetOverridesEnabled() &&
-			last_report_time != 0 && now - last_report_time < 2) {
+	if (!editorSyntaxTestBudgetOverridesEnabled() && last_report_time != 0 &&
+	    now - last_report_time < 2) {
 		return;
 	}
 	last_report_time = now;
@@ -216,9 +217,8 @@ int editorSyntaxBackgroundPoll(void) {
 		return 0;
 	}
 
-	if (result->language != E.syntax_language ||
-			result->revision != E.syntax_revision ||
-			result->generation != E.syntax_generation) {
+	if (result->language != E.syntax_language || result->revision != E.syntax_revision ||
+	    result->generation != E.syntax_generation) {
 		editorSyntaxWorkerResultDestroy(result);
 		return 0;
 	}
@@ -266,9 +266,11 @@ static int editorSyntaxReconfigureForFilename(void) {
 		first_line_copy = editorDocumentLineDup(E.document, 0, NULL);
 	}
 
-	enum editorSyntaxLanguage wanted = E.tab_kind == EDITOR_TAB_GIT_DIFF ?
-			EDITOR_SYNTAX_DIFF :
-			editorSyntaxDetectLanguageFromFilenameAndFirstLine(E.filename, first_line_copy);
+	enum editorSyntaxLanguage wanted =
+	        E.tab_kind == EDITOR_TAB_GIT_DIFF
+	                ? EDITOR_SYNTAX_DIFF
+	                : editorSyntaxDetectLanguageFromFilenameAndFirstLine(E.filename,
+	                                                                     first_line_copy);
 	free(first_line_copy);
 	if (wanted == EDITOR_SYNTAX_NONE) {
 		editorSyntaxDeactivateActive();
@@ -342,8 +344,7 @@ int editorSyntaxParseFullActive(void) {
 }
 
 int editorSyntaxApplyIncrementalEditActive(const struct editorSyntaxEdit *edit,
-		const char *inserted_text,
-		size_t inserted_len) {
+                                           const char *inserted_text, size_t inserted_len) {
 	if (E.syntax_language == EDITOR_SYNTAX_NONE) {
 		return 1;
 	}
@@ -362,10 +363,10 @@ int editorSyntaxApplyIncrementalEditActive(const struct editorSyntaxEdit *edit,
 	}
 
 	if (E.syntax_parse_failures == 0 && edit != NULL &&
-			editorSyntaxStateHasTree(E.syntax_state)) {
+	    editorSyntaxStateHasTree(E.syntax_state)) {
 		size_t old_len = editorSyntaxStateSourceLength(E.syntax_state);
 		if (edit->old_end_byte >= edit->start_byte &&
-				(size_t)edit->old_end_byte <= old_len) {
+		    (size_t)edit->old_end_byte <= old_len) {
 			size_t removed_len = (size_t)(edit->old_end_byte - edit->start_byte);
 			if (removed_len <= old_len) {
 				size_t new_len = old_len - removed_len + inserted_len;
@@ -374,7 +375,8 @@ int editorSyntaxApplyIncrementalEditActive(const struct editorSyntaxEdit *edit,
 				}
 				struct editorTextSource source = {0};
 				if (editorBuildActiveTextSource(&source) &&
-						editorSyntaxStateApplyEditAndParse(E.syntax_state, edit, &source)) {
+				    editorSyntaxStateApplyEditAndParse(E.syntax_state, edit,
+				                                       &source)) {
 					editorSyntaxResetParseFailures();
 					editorSyntaxVisibleCacheInvalidateRowsForEdit(edit);
 					if (!editorSyntaxVisibleCacheInvalidateChangedRowsFromState()) {
@@ -423,31 +425,33 @@ void editorLspNotifyDidSaveActive(void) {
 	char *full_text = NULL;
 	size_t full_text_len = 0;
 	if ((editorLspActiveBufferTracked() && !E.lsp_doc_open) ||
-			(editorLspActiveBufferTrackedForEslint() && !E.lsp_eslint_doc_open)) {
+	    (editorLspActiveBufferTrackedForEslint() && !E.lsp_eslint_doc_open)) {
 		full_text = editorDupActiveTextSource(&full_text_len);
 		if (full_text == NULL && full_text_len > 0) {
 			free(full_text);
 			return;
 		}
 		if (editorLspActiveBufferTracked()) {
-			(void)editorLspEnsureDocumentOpen(E.filename, E.syntax_language,
-					&E.lsp_doc_open, &E.lsp_doc_version,
-					full_text != NULL ? full_text : "", full_text_len);
+			(void)editorLspEnsureDocumentOpen(
+			        E.filename, E.syntax_language, &E.lsp_doc_open, &E.lsp_doc_version,
+			        full_text != NULL ? full_text : "", full_text_len);
 		}
 		if (editorLspActiveBufferTrackedForEslint()) {
-			(void)editorLspEnsureEslintDocumentOpen(E.filename, E.syntax_language,
-					&E.lsp_eslint_doc_open, &E.lsp_eslint_doc_version,
-					full_text != NULL ? full_text : "", full_text_len);
+			(void)editorLspEnsureEslintDocumentOpen(
+			        E.filename, E.syntax_language, &E.lsp_eslint_doc_open,
+			        &E.lsp_eslint_doc_version, full_text != NULL ? full_text : "",
+			        full_text_len);
 		}
 	}
 	free(full_text);
 	if (editorLspActiveBufferTracked()) {
-		(void)editorLspNotifyDidSave(E.filename, E.syntax_language,
-				&E.lsp_doc_open, &E.lsp_doc_version);
+		(void)editorLspNotifyDidSave(E.filename, E.syntax_language, &E.lsp_doc_open,
+		                             &E.lsp_doc_version);
 	}
 	if (editorLspActiveBufferTrackedForEslint()) {
 		(void)editorLspNotifyEslintDidSave(E.filename, E.syntax_language,
-				&E.lsp_eslint_doc_open, &E.lsp_eslint_doc_version);
+		                                   &E.lsp_eslint_doc_open,
+		                                   &E.lsp_eslint_doc_version);
 	}
 }
 
@@ -455,10 +459,10 @@ void editorLspNotifyDidCloseTabState(struct editorTabState *tab) {
 	if (tab == NULL) {
 		return;
 	}
-	editorLspNotifyDidClose(tab->filename, tab->syntax_language,
-			&tab->lsp_doc_open, &tab->lsp_doc_version);
+	editorLspNotifyDidClose(tab->filename, tab->syntax_language, &tab->lsp_doc_open,
+	                        &tab->lsp_doc_version);
 	editorLspNotifyEslintDidClose(tab->filename, tab->syntax_language,
-			&tab->lsp_eslint_doc_open, &tab->lsp_eslint_doc_version);
+	                              &tab->lsp_eslint_doc_open, &tab->lsp_eslint_doc_version);
 }
 
 char *editorRowsToStr(size_t *buflen) {
@@ -477,7 +481,8 @@ char *editorRowsToStr(size_t *buflen) {
 }
 
 static void editorClampCursorForDocument(int target_cy, int target_cx,
-		const struct editorDocument *document, int numrows, int *cy_out, int *cx_out) {
+                                         const struct editorDocument *document, int numrows,
+                                         int *cy_out, int *cx_out) {
 	int cy = target_cy;
 	int cx = target_cx;
 
@@ -515,8 +520,8 @@ static void editorClampCursorForDocument(int target_cy, int target_cx,
 	*cx_out = cx;
 }
 
-int editorRestoreActiveFromDocument(const struct editorDocument *document,
-		int target_cy, int target_cx, int dirty, int parse_syntax) {
+int editorRestoreActiveFromDocument(const struct editorDocument *document, int target_cy,
+                                    int target_cx, int dirty, int parse_syntax) {
 	struct editorDocument *new_document = NULL;
 	struct erow *new_rows = NULL;
 	int new_numrows = 0;
@@ -529,9 +534,8 @@ int editorRestoreActiveFromDocument(const struct editorDocument *document,
 	}
 
 	new_document = editorDocumentAlloc();
-	if (new_document == NULL ||
-			!editorDocumentResetFromDocument(new_document, document) ||
-			!editorBuildFullRowsFromDocument(new_document, &new_rows, &new_numrows)) {
+	if (new_document == NULL || !editorDocumentResetFromDocument(new_document, document) ||
+	    !editorBuildFullRowsFromDocument(new_document, &new_rows, &new_numrows)) {
 		editorFreeRowArray(new_rows, new_numrows);
 		editorDocumentFreePtr(&new_document);
 		editorSetAllocFailureStatus();
@@ -539,7 +543,7 @@ int editorRestoreActiveFromDocument(const struct editorDocument *document,
 	}
 
 	editorClampCursorForDocument(target_cy, target_cx, new_document, new_numrows, &new_cy,
-			&new_cx);
+	                             &new_cx);
 
 	struct erow *old_rows = E.rows;
 	int old_numrows = E.numrows;

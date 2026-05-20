@@ -22,30 +22,33 @@ void runnerOptionsInit(struct testRunnerOptions *opts) {
 
 void runnerPrintUsage(void) {
 	fprintf(stderr,
-		"Usage: rotide_tests [options]\n"
-		"\n"
-		"Selection:\n"
-		"  --filter <substr>      Run tests whose name contains <substr>\n"
-		"  --tag <tag>            Run only suites tagged <tag>\n"
-		"  --exclude-tag <tag>    Skip suites tagged <tag>\n"
-		"  --no-quarantine        Run tests listed in tests/QUARANTINE.md too\n"
-		"  --quarantine <path>    Override the quarantine list path\n"
-		"\n"
-		"Execution:\n"
-		"  --list                 Print selected tests (suite\\tname\\ttags) and exit\n"
-		"  --fail-fast            Stop at the first FAIL\n"
-		"  --repeat <N>           Run each selected test N times\n"
-		"  --seed <u64>           Seed for randomized tests and --shuffle\n"
-		"  --shuffle              Shuffle test order (deterministic with --seed)\n"
-		"  --validate-reset       Assert that reset_editor_state restores E byte-identically\n"
-		"  --jobs <N>             Run up to N suites in parallel as forked children\n"
-		"  --metrics-out <path>   Append one JSONL row summarising the run\n"
-		"  --update-golden [path] Capture grid-snapshot mismatches to a stash\n"
-		"                         instead of failing (default: tests/artifacts/goldens.jsonl)\n"
-		"  -h, --help             Show this help\n");
+	        "Usage: rotide_tests [options]\n"
+	        "\n"
+	        "Selection:\n"
+	        "  --filter <substr>      Run tests whose name contains <substr>\n"
+	        "  --tag <tag>            Run only suites tagged <tag>\n"
+	        "  --exclude-tag <tag>    Skip suites tagged <tag>\n"
+	        "  --no-quarantine        Run tests listed in tests/QUARANTINE.md too\n"
+	        "  --quarantine <path>    Override the quarantine list path\n"
+	        "\n"
+	        "Execution:\n"
+	        "  --list                 Print selected tests (suite\\tname\\ttags) and exit\n"
+	        "  --fail-fast            Stop at the first FAIL\n"
+	        "  --repeat <N>           Run each selected test N times\n"
+	        "  --seed <u64>           Seed for randomized tests and --shuffle\n"
+	        "  --shuffle              Shuffle test order (deterministic with --seed)\n"
+	        "  --validate-reset       Assert that reset_editor_state restores E "
+	        "byte-identically\n"
+	        "  --jobs <N>             Run up to N suites in parallel as forked children\n"
+	        "  --metrics-out <path>   Append one JSONL row summarising the run\n"
+	        "  --update-golden [path] Capture grid-snapshot mismatches to a stash\n"
+	        "                         instead of failing (default: "
+	        "tests/artifacts/goldens.jsonl)\n"
+	        "  -h, --help             Show this help\n");
 }
 
-static int parse_long_arg(const char *arg, const char *name, const char *next, const char **value_out, int *consumed_next) {
+static int parse_long_arg(const char *arg, const char *name, const char *next,
+                          const char **value_out, int *consumed_next) {
 	size_t nlen = strlen(name);
 	if (strncmp(arg, name, nlen) != 0) {
 		return 0;
@@ -293,7 +296,8 @@ unsigned long long runnerSeedFromOsEntropy(void) {
 	}
 	struct timespec ts;
 	if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
-		seed = (unsigned long long)ts.tv_sec * 1000000000ULL + (unsigned long long)ts.tv_nsec;
+		seed = (unsigned long long)ts.tv_sec * 1000000000ULL +
+		       (unsigned long long)ts.tv_nsec;
 	} else {
 		seed = (unsigned long long)time(NULL);
 	}
@@ -305,7 +309,7 @@ unsigned long long runnerSeedFromOsEntropy(void) {
 }
 
 static int find_first_diff(const unsigned char *a, const unsigned char *b, size_t start, size_t end,
-		size_t *first_diff_out) {
+                           size_t *first_diff_out) {
 	for (size_t i = start; i < end; i++) {
 		if (a[i] != b[i]) {
 			if (first_diff_out != NULL) {
@@ -318,8 +322,8 @@ static int find_first_diff(const unsigned char *a, const unsigned char *b, size_
 }
 
 int runnerSnapshotCompare(const unsigned char *a, const unsigned char *b, size_t size,
-		const struct snapshotExcludeRange *excludes, int exclude_count,
-		size_t *first_diff_out) {
+                          const struct snapshotExcludeRange *excludes, int exclude_count,
+                          size_t *first_diff_out) {
 	size_t cursor = 0;
 	for (int i = 0; i < exclude_count; i++) {
 		size_t off = excludes[i].offset;

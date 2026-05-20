@@ -139,7 +139,7 @@ static int editorDapClientSendRawJson(int to_adapter_fd, const char *json) {
 		return 0;
 	}
 	return editorDapWriteAll(to_adapter_fd, header, (size_t)header_len) &&
-			editorDapWriteAll(to_adapter_fd, json, json_len);
+	       editorDapWriteAll(to_adapter_fd, json, json_len);
 }
 
 int editorDapClientSendRequest(int to_adapter_fd, char *json) {

@@ -72,7 +72,7 @@ int editorTextBufferReserve(struct editorTextBuffer *buf, size_t min_capacity) {
 }
 
 int editorTextBufferAppend(struct editorTextBuffer *buf, const char *bytes, size_t len,
-		size_t *offset_out) {
+                           size_t *offset_out) {
 	if (buf == NULL || (len > 0 && bytes == NULL)) {
 		return 0;
 	}

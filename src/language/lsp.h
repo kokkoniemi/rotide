@@ -1,9 +1,9 @@
 #ifndef LSP_H
 #define LSP_H
 
-#include "rotide.h"
 #include "language/lsp_transport.h"
 #include "language/syntax.h"
+#include "rotide.h"
 
 #include <stddef.h>
 
@@ -82,52 +82,54 @@ void editorLspPumpNotifications(void);
  * sync with the canonical editorDocument text.
  */
 int editorLspEnsureDocumentOpen(const char *filename, enum editorSyntaxLanguage language,
-		int *doc_open_in_out, int *doc_version_in_out,
-		const char *full_text, size_t full_text_len);
+                                int *doc_open_in_out, int *doc_version_in_out,
+                                const char *full_text, size_t full_text_len);
 int editorLspEnsureEslintDocumentOpen(const char *filename, enum editorSyntaxLanguage language,
-		int *doc_open_in_out, int *doc_version_in_out,
-		const char *full_text, size_t full_text_len);
+                                      int *doc_open_in_out, int *doc_version_in_out,
+                                      const char *full_text, size_t full_text_len);
 int editorLspNotifyDidChange(const char *filename, enum editorSyntaxLanguage language,
-		int *doc_open_in_out, int *doc_version_in_out,
-		const struct editorSyntaxEdit *edit,
-		const char *inserted_text, size_t inserted_text_len,
-		const char *full_text, size_t full_text_len);
+                             int *doc_open_in_out, int *doc_version_in_out,
+                             const struct editorSyntaxEdit *edit, const char *inserted_text,
+                             size_t inserted_text_len, const char *full_text, size_t full_text_len);
 int editorLspNotifyEslintDidChange(const char *filename, enum editorSyntaxLanguage language,
-		int *doc_open_in_out, int *doc_version_in_out,
-		const struct editorSyntaxEdit *edit,
-		const char *inserted_text, size_t inserted_text_len,
-		const char *full_text, size_t full_text_len);
+                                   int *doc_open_in_out, int *doc_version_in_out,
+                                   const struct editorSyntaxEdit *edit, const char *inserted_text,
+                                   size_t inserted_text_len, const char *full_text,
+                                   size_t full_text_len);
 int editorLspNotifyDidSave(const char *filename, enum editorSyntaxLanguage language,
-		int *doc_open_in_out, int *doc_version_in_out);
+                           int *doc_open_in_out, int *doc_version_in_out);
 int editorLspNotifyEslintDidSave(const char *filename, enum editorSyntaxLanguage language,
-		int *doc_open_in_out, int *doc_version_in_out);
+                                 int *doc_open_in_out, int *doc_version_in_out);
 void editorLspNotifyDidClose(const char *filename, enum editorSyntaxLanguage language,
-		int *doc_open_in_out, int *doc_version_in_out);
+                             int *doc_open_in_out, int *doc_version_in_out);
 void editorLspNotifyEslintDidClose(const char *filename, enum editorSyntaxLanguage language,
-		int *doc_open_in_out, int *doc_version_in_out);
+                                   int *doc_open_in_out, int *doc_version_in_out);
 void editorLspResetTrackedDocuments(void);
 
 /* Request helpers synchronously or asynchronously query the active server and
  * return heap-owned result arrays for callers to store or free.
  */
 int editorLspRequestDefinition(const char *filename, enum editorSyntaxLanguage language, int line,
-		int character, struct editorLspLocation **locations_out, int *count_out,
-		int *timed_out_out);
+                               int character, struct editorLspLocation **locations_out,
+                               int *count_out, int *timed_out_out);
 int editorLspRequestImplementation(const char *filename, enum editorSyntaxLanguage language,
-		int line, int character, struct editorLspLocation **locations_out, int *count_out,
-		int *timed_out_out);
+                                   int line, int character,
+                                   struct editorLspLocation **locations_out, int *count_out,
+                                   int *timed_out_out);
 int editorLspRequestDocumentSymbols(const char *filename, enum editorSyntaxLanguage language,
-		struct editorLspSymbol **symbols_out, int *count_out, int *timed_out_out);
+                                    struct editorLspSymbol **symbols_out, int *count_out,
+                                    int *timed_out_out);
 void editorLspFreeSymbols(struct editorLspSymbol *symbols, int count);
 
 int editorLspRequestCompletionAsync(const char *filename, enum editorSyntaxLanguage language,
-		int line, int character, int document_version, int prefix_start_cx,
-		const char *prefix, int trigger_kind, int trigger_character);
+                                    int line, int character, int document_version,
+                                    int prefix_start_cx, const char *prefix, int trigger_kind,
+                                    int trigger_character);
 void editorLspCancelCompletion(void);
 int editorLspCompletionPendingActive(void);
 int editorLspCompletionEnabledForFile(const char *filename, enum editorSyntaxLanguage language);
 const char *editorLspCompletionTriggerCharsForFile(const char *filename,
-		enum editorSyntaxLanguage language);
+                                                   enum editorSyntaxLanguage language);
 void editorLspFreeCompletionItems(struct editorLspCompletionItem *items, int count);
 const char *editorLspSymbolKindLabel(int kind);
 
@@ -146,8 +148,7 @@ void editorLspClearStartupFailureReason(void);
  * call them without copying lifecycle logic.
  */
 int editorLspEnsureRunningForFile(const char *filename, enum editorSyntaxLanguage language);
-int editorLspEnsureRunningEslintForFile(const char *filename,
-		enum editorSyntaxLanguage language);
+int editorLspEnsureRunningEslintForFile(const char *filename, enum editorSyntaxLanguage language);
 /*
  * Ensure-and-acquire: starts/finds the right (server_kind, workspace_root)
  * client via the registry and returns the live pointer, or NULL if the file
@@ -156,9 +157,9 @@ int editorLspEnsureRunningEslintForFile(const char *filename,
  * client selection is explicit at each call site.
  */
 struct editorLspClient *editorLspEnsureClientForFile(const char *filename,
-		enum editorSyntaxLanguage language);
+                                                     enum editorSyntaxLanguage language);
 struct editorLspClient *editorLspEnsureEslintClientForFile(const char *filename,
-		enum editorSyntaxLanguage language);
+                                                           enum editorSyntaxLanguage language);
 /*
  * Module-internal: server-kind detection and LSP language-id mapping for a
  * given file. Exposed so the document-tracking and request-building sibling
@@ -166,9 +167,8 @@ struct editorLspClient *editorLspEnsureEslintClientForFile(const char *filename,
  * the extension/language-id tables.
  */
 enum editorLspServerKind editorLspServerKindForFile(const char *filename,
-		enum editorSyntaxLanguage language);
-const char *editorLspLanguageIdForFile(const char *filename,
-		enum editorSyntaxLanguage language);
+                                                    enum editorSyntaxLanguage language);
+const char *editorLspLanguageIdForFile(const char *filename, enum editorSyntaxLanguage language);
 int editorLspFileSupportsDefinition(const char *filename, enum editorSyntaxLanguage language);
 int editorLspFileEnabled(const char *filename, enum editorSyntaxLanguage language);
 int editorLspFileUsesEslint(const char *filename, enum editorSyntaxLanguage language);
@@ -177,12 +177,12 @@ const char *editorLspLanguageLabelForFile(const char *filename, enum editorSynta
 const char *editorLspServerNameForFile(const char *filename, enum editorSyntaxLanguage language);
 const char *editorLspCommandForFile(const char *filename, enum editorSyntaxLanguage language);
 const char *editorLspCommandSettingNameForFile(const char *filename,
-		enum editorSyntaxLanguage language);
+                                               enum editorSyntaxLanguage language);
 int editorLspUsesSharedVscodeInstallPrompt(const char *filename,
-		enum editorSyntaxLanguage language);
+                                           enum editorSyntaxLanguage language);
 void editorLspClearDiagnosticsForFile(const char *filename);
 void editorLspGetDiagnosticSummaryForFile(const char *filename,
-		struct editorLspDiagnosticSummary *summary_out);
+                                          struct editorLspDiagnosticSummary *summary_out);
 
 /* Test hooks */
 void editorLspTestSetMockEnabled(int enabled);
@@ -192,23 +192,22 @@ void editorLspTestGetStats(struct editorLspTestStats *out);
 void editorLspTestGetLastChange(struct editorLspTestLastChange *out);
 void editorLspTestGetLastDidOpenLanguageId(char *out, size_t out_size);
 void editorLspTestSetMockDefinitionResponse(int result_code,
-		const struct editorLspLocation *locations, int count);
+                                            const struct editorLspLocation *locations, int count);
 void editorLspTestSetMockDocumentSymbolResponse(int result_code,
-		const struct editorLspSymbol *symbols, int count);
-void editorLspTestSetMockDiagnostics(const char *path, const struct editorLspDiagnostic *diagnostics,
-		int count);
-void editorLspTestSetMockCodeActionResult(int result_code,
-		const struct editorLspDiagnostic *edits, int count);
-void editorLspTestSetMockCompletionResponse(const struct editorLspCompletionItem *items,
-		int count);
+                                                const struct editorLspSymbol *symbols, int count);
+void editorLspTestSetMockDiagnostics(const char *path,
+                                     const struct editorLspDiagnostic *diagnostics, int count);
+void editorLspTestSetMockCodeActionResult(int result_code, const struct editorLspDiagnostic *edits,
+                                          int count);
+void editorLspTestSetMockCompletionResponse(const struct editorLspCompletionItem *items, int count);
 int editorLspTestParseDefinitionResponse(const char *response_json,
-		struct editorLspLocation **locations_out, int *count_out);
+                                         struct editorLspLocation **locations_out, int *count_out);
 int editorLspTestParseDocumentSymbolResponse(const char *response_json,
-		struct editorLspSymbol **symbols_out, int *count_out);
+                                             struct editorLspSymbol **symbols_out, int *count_out);
 int editorLspTestParseCompletionResponse(const char *response_json,
-		struct editorLspCompletionItem **items_out, int *count_out);
-char *editorLspTestBuildInitializeRequestJson(int request_id, const char *root_uri,
-		int process_id);
+                                         struct editorLspCompletionItem **items_out,
+                                         int *count_out);
+char *editorLspTestBuildInitializeRequestJson(int request_id, const char *root_uri, int process_id);
 void editorLspTestDeliverPendingCompletion(void);
 
 #endif

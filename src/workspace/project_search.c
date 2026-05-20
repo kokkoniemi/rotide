@@ -41,7 +41,7 @@ static const char *editorProjectSearchDisplayPath(const char *path) {
 	const char *root = editorProjectSearchRoot();
 	size_t root_len = strlen(root);
 	if (path != NULL && root_len > 0 && strncmp(path, root, root_len) == 0 &&
-			path[root_len] == '/') {
+	    path[root_len] == '/') {
 		return path + root_len + 1;
 	}
 	return path != NULL ? path : "";
@@ -98,8 +98,9 @@ static int editorProjectSearchEnsureResultCapacity(int needed) {
 	if (needed <= E.drawer_project_search_result_capacity) {
 		return 1;
 	}
-	int new_capacity = E.drawer_project_search_result_capacity > 0 ?
-			E.drawer_project_search_result_capacity * 2 : 32;
+	int new_capacity = E.drawer_project_search_result_capacity > 0
+	                           ? E.drawer_project_search_result_capacity * 2
+	                           : 32;
 	while (new_capacity < needed) {
 		if (new_capacity > INT_MAX / 2) {
 			return 0;
@@ -110,11 +111,11 @@ static int editorProjectSearchEnsureResultCapacity(int needed) {
 	size_t cap_size = 0;
 	size_t bytes = 0;
 	if (!editorIntToSize(new_capacity, &cap_size) ||
-			!editorSizeMul(sizeof(*E.drawer_project_search_results), cap_size, &bytes)) {
+	    !editorSizeMul(sizeof(*E.drawer_project_search_results), cap_size, &bytes)) {
 		return 0;
 	}
 	struct editorProjectSearchResult *results =
-			editorRealloc(E.drawer_project_search_results, bytes);
+	        editorRealloc(E.drawer_project_search_results, bytes);
 	if (results == NULL) {
 		return 0;
 	}
@@ -127,10 +128,10 @@ static int editorProjectSearchEnsureResultCapacity(int needed) {
 }
 
 static int editorProjectSearchBuildDisplay(const char *path, int line, int col,
-		const char *line_text, char **display_out) {
+                                           const char *line_text, char **display_out) {
 	const char *display_path = editorProjectSearchDisplayPath(path);
 	int len = snprintf(NULL, 0, "%s:%d:%d: %s", display_path, line, col,
-			line_text != NULL ? line_text : "");
+	                   line_text != NULL ? line_text : "");
 	if (len < 0) {
 		return 0;
 	}
@@ -140,13 +141,13 @@ static int editorProjectSearchBuildDisplay(const char *path, int line, int col,
 		return 0;
 	}
 	snprintf(display, bytes, "%s:%d:%d: %s", display_path, line, col,
-			line_text != NULL ? line_text : "");
+	         line_text != NULL ? line_text : "");
 	*display_out = display;
 	return 1;
 }
 
 static int editorProjectSearchAppendResult(const char *path, int line, int col,
-		const char *line_text) {
+                                           const char *line_text) {
 	if (E.drawer_project_search_result_count >= EDITOR_PROJECT_SEARCH_MAX_RESULTS) {
 		return 1;
 	}
@@ -164,8 +165,8 @@ static int editorProjectSearchAppendResult(const char *path, int line, int col,
 	result.col = col;
 	result.line_text = strdup(line_text != NULL ? line_text : "");
 	if (result.path == NULL || result.line_text == NULL ||
-			!editorProjectSearchBuildDisplay(result.path, result.line, result.col,
-					result.line_text, &result.display)) {
+	    !editorProjectSearchBuildDisplay(result.path, result.line, result.col, result.line_text,
+	                                     &result.display)) {
 		editorProjectSearchFreeResult(&result);
 		return 0;
 	}
@@ -176,13 +177,13 @@ static int editorProjectSearchAppendResult(const char *path, int line, int col,
 }
 
 static int editorProjectSearchOutputAppend(struct editorProjectSearchCommandOutput *output,
-		const char *buf, size_t len) {
+                                           const char *buf, size_t len) {
 	if (len == 0 || output->truncated) {
 		return 1;
 	}
 	size_t new_len = 0;
 	if (!editorSizeAdd(output->len, len, &new_len) ||
-			new_len > EDITOR_PROJECT_SEARCH_OUTPUT_MAX) {
+	    new_len > EDITOR_PROJECT_SEARCH_OUTPUT_MAX) {
 		output->truncated = 1;
 		return 1;
 	}
@@ -198,7 +199,7 @@ static int editorProjectSearchOutputAppend(struct editorProjectSearchCommandOutp
 }
 
 static int editorProjectSearchRunCommand(char *const argv[],
-		struct editorProjectSearchCommandOutput *output) {
+                                         struct editorProjectSearchCommandOutput *output) {
 	int pipefd[2] = {-1, -1};
 	if (output == NULL || pipe(pipefd) == -1) {
 		return 0;
@@ -277,8 +278,7 @@ static int editorProjectSearchRunCommand(char *const argv[],
 	return 1;
 }
 
-static int editorProjectSearchParsePositiveInt(const char *start, const char *end,
-		int *value_out) {
+static int editorProjectSearchParsePositiveInt(const char *start, const char *end, int *value_out) {
 	if (start == NULL || end == NULL || start >= end || value_out == NULL) {
 		return 0;
 	}
@@ -316,7 +316,7 @@ static int editorProjectSearchParseRgLine(const char *line) {
 		int line_no = 0;
 		int col = 0;
 		if (!editorProjectSearchParsePositiveInt(first + 1, second, &line_no) ||
-				!editorProjectSearchParsePositiveInt(second + 1, third, &col)) {
+		    !editorProjectSearchParsePositiveInt(second + 1, third, &col)) {
 			continue;
 		}
 		size_t path_len = (size_t)(first - line);
@@ -334,7 +334,7 @@ static int editorProjectSearchParseRgLine(const char *line) {
 }
 
 static const char *editorProjectSearchCaseSensitiveStrstr(const char *haystack,
-		const char *needle) {
+                                                          const char *needle) {
 	if (needle == NULL || needle[0] == '\0') {
 		return haystack;
 	}
@@ -389,14 +389,14 @@ static int editorProjectSearchParseOutput(char *data, const char *query, int rg_
 			line[len - 1] = '\0';
 		}
 		if (line[0] != '\0') {
-			int ok = rg_format ? editorProjectSearchParseRgLine(line) :
-					editorProjectSearchParseGrepLine(line, query);
+			int ok = rg_format ? editorProjectSearchParseRgLine(line)
+			                   : editorProjectSearchParseGrepLine(line, query);
 			if (!ok) {
 				return 0;
 			}
 		}
 		if (next == NULL ||
-				E.drawer_project_search_result_count >= EDITOR_PROJECT_SEARCH_MAX_RESULTS) {
+		    E.drawer_project_search_result_count >= EDITOR_PROJECT_SEARCH_MAX_RESULTS) {
 			break;
 		}
 		line = next + 1;
@@ -415,8 +415,9 @@ static int editorProjectSearchRefreshResults(void) {
 
 	const char *root = editorProjectSearchRoot();
 	struct editorProjectSearchCommandOutput output;
-	char *rg_argv[] = {"rg", "--fixed-strings", "--line-number", "--column", "--no-heading",
-			"--color", "never", "--no-messages", "-e", (char *)query, (char *)root, NULL};
+	char *rg_argv[] = {"rg",           "--fixed-strings", "--line-number", "--column",
+	                   "--no-heading", "--color",         "never",         "--no-messages",
+	                   "-e",           (char *)query,     (char *)root,    NULL};
 	if (!editorProjectSearchRunCommand(rg_argv, &output)) {
 		editorSetAllocFailureStatus();
 		return 0;
@@ -425,9 +426,15 @@ static int editorProjectSearchRefreshResults(void) {
 	int rg_format = 1;
 	if (output.exit_code == 127) {
 		free(output.data);
-		char *grep_argv[] = {"grep", "-RInF", "--exclude-dir=.git",
-				"--exclude-dir=node_modules", "--binary-files=without-match", "-e",
-				(char *)query, (char *)root, NULL};
+		char *grep_argv[] = {"grep",
+		                     "-RInF",
+		                     "--exclude-dir=.git",
+		                     "--exclude-dir=node_modules",
+		                     "--binary-files=without-match",
+		                     "-e",
+		                     (char *)query,
+		                     (char *)root,
+		                     NULL};
 		if (!editorProjectSearchRunCommand(grep_argv, &output)) {
 			editorSetAllocFailureStatus();
 			return 0;
@@ -451,13 +458,13 @@ static int editorProjectSearchRefreshResults(void) {
 		return 0;
 	}
 	if (output.truncated ||
-			E.drawer_project_search_result_count >= EDITOR_PROJECT_SEARCH_MAX_RESULTS) {
+	    E.drawer_project_search_result_count >= EDITOR_PROJECT_SEARCH_MAX_RESULTS) {
 		editorSetStatusMsg("Project search results truncated");
 	}
 	free(output.data);
 
 	if (E.drawer_selected_index < 1 ||
-			E.drawer_selected_index >= editorProjectSearchVisibleCount()) {
+	    E.drawer_selected_index >= editorProjectSearchVisibleCount()) {
 		E.drawer_selected_index = 1;
 	}
 	E.drawer_rowoff = 0;
@@ -531,7 +538,7 @@ int editorProjectSearchBackspace(void) {
 
 	size_t delete_idx = E.drawer_project_search_query_len - 1;
 	while (delete_idx > 0 &&
-			(((unsigned char)E.drawer_project_search_query[delete_idx] & 0xC0) == 0x80)) {
+	       (((unsigned char)E.drawer_project_search_query[delete_idx] & 0xC0) == 0x80)) {
 		delete_idx--;
 	}
 	E.drawer_project_search_query[delete_idx] = '\0';
@@ -540,12 +547,13 @@ int editorProjectSearchBackspace(void) {
 }
 
 int editorProjectSearchVisibleCount(void) {
-	return 1 + (E.drawer_project_search_result_count > 0 ? E.drawer_project_search_result_count : 1);
+	return 1 + (E.drawer_project_search_result_count > 0 ? E.drawer_project_search_result_count
+	                                                     : 1);
 }
 
-int editorProjectSearchGetVisibleEntry(int visible_idx,
-		struct editorDrawerEntryView *view_out) {
-	if (view_out == NULL || visible_idx < 0 || visible_idx >= editorProjectSearchVisibleCount()) {
+int editorProjectSearchGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *view_out) {
+	if (view_out == NULL || visible_idx < 0 ||
+	    visible_idx >= editorProjectSearchVisibleCount()) {
 		return 0;
 	}
 
@@ -560,19 +568,20 @@ int editorProjectSearchGetVisibleEntry(int visible_idx,
 	}
 
 	if (E.drawer_project_search_result_count <= 0) {
-		view_out->name = editorProjectSearchQuery()[0] == '\0' ? "Type to search" : "No matches";
+		view_out->name =
+		        editorProjectSearchQuery()[0] == '\0' ? "Type to search" : "No matches";
 		view_out->is_placeholder = 1;
 		return 1;
 	}
 
 	const struct editorProjectSearchResult *result =
-			&E.drawer_project_search_results[visible_idx - 1];
+	        &E.drawer_project_search_results[visible_idx - 1];
 	view_out->name = result->display;
 	view_out->path = result->path;
 	view_out->is_selected = visible_idx == E.drawer_selected_index;
 	view_out->is_last_sibling = visible_idx == E.drawer_project_search_result_count;
-	view_out->is_active_file = E.filename != NULL &&
-			editorPathsReferToSameFile(result->path, E.filename);
+	view_out->is_active_file =
+	        E.filename != NULL && editorPathsReferToSameFile(result->path, E.filename);
 	return 1;
 }
 
@@ -639,7 +648,8 @@ int editorProjectSearchSelectedIsDirectory(void) {
 	return 0;
 }
 
-static int editorProjectSearchApplySelectedLocation(const struct editorProjectSearchResult *result) {
+static int
+editorProjectSearchApplySelectedLocation(const struct editorProjectSearchResult *result) {
 	if (result == NULL) {
 		return 0;
 	}
@@ -662,7 +672,7 @@ static int editorProjectSearchApplySelectedLocation(const struct editorProjectSe
 	}
 	size_t offset = 0;
 	if (!editorBufferPosToOffset(row, col, &offset) ||
-			!editorSyncCursorFromOffsetByteBoundary(offset)) {
+	    !editorSyncCursorFromOffsetByteBoundary(offset)) {
 		return 0;
 	}
 
@@ -726,9 +736,9 @@ int editorProjectSearchPreviewSelection(void) {
 		return 0;
 	}
 	if (E.drawer_project_search_previewed_path != NULL &&
-			editorPathsReferToSameFile(E.drawer_project_search_previewed_path, result->path) &&
-			E.drawer_project_search_previewed_line == result->line &&
-			E.drawer_project_search_previewed_col == result->col) {
+	    editorPathsReferToSameFile(E.drawer_project_search_previewed_path, result->path) &&
+	    E.drawer_project_search_previewed_line == result->line &&
+	    E.drawer_project_search_previewed_col == result->col) {
 		return editorProjectSearchApplySelectedLocation(result);
 	}
 	if (!editorProjectSearchOpenSelectedFileInPreviewTab()) {
@@ -767,7 +777,7 @@ static int editorProjectSearchQueryDisplayCols(void) {
 
 int editorProjectSearchHeaderCursorCol(int drawer_cols) {
 	int col = (int)strlen(editorProjectSearchHeaderLabel()) +
-			editorProjectSearchQueryDisplayCols() + 1;
+	          editorProjectSearchQueryDisplayCols() + 1;
 	if (col < 1) {
 		col = 1;
 	}

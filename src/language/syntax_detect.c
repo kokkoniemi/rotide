@@ -4,9 +4,8 @@
  * editorSyntaxLanguage by consulting the lookup tables in languages.c. It
  * holds no state and depends only on the language registry.
  */
-#include "language/syntax.h"
-
 #include "language/languages.h"
+#include "language/syntax.h"
 
 #include <ctype.h>
 #include <stddef.h>
@@ -14,7 +13,7 @@
 #include <strings.h>
 
 static int editorSyntaxTokenFromLine(const char *line, size_t line_len, size_t *idx,
-		const char **token_out, size_t *token_len_out) {
+                                     const char **token_out, size_t *token_len_out) {
 	if (line == NULL || idx == NULL || token_out == NULL || token_len_out == NULL) {
 		return 0;
 	}
@@ -40,9 +39,9 @@ static int editorSyntaxTokenFromLine(const char *line, size_t line_len, size_t *
 }
 
 static enum editorSyntaxLanguage editorSyntaxLanguageFromShebangBase(const char *base,
-		size_t base_len) {
+                                                                     size_t base_len) {
 	const struct editorSyntaxLanguageDef *def =
-			editorSyntaxLookupLanguageByShebangToken(base, base_len);
+	        editorSyntaxLookupLanguageByShebangToken(base, base_len);
 	return def != NULL ? def->id : EDITOR_SYNTAX_NONE;
 }
 
@@ -74,7 +73,8 @@ static enum editorSyntaxLanguage editorSyntaxDetectLanguageFromShebang(const cha
 
 	if (base_len == 3 && strncasecmp(base, "env", 3) == 0) {
 		for (;;) {
-			if (!editorSyntaxTokenFromLine(first_line, line_len, &idx, &token, &token_len)) {
+			if (!editorSyntaxTokenFromLine(first_line, line_len, &idx, &token,
+			                               &token_len)) {
 				break;
 			}
 			if (token_len > 0 && token[0] == '-') {
@@ -136,14 +136,13 @@ enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *fil
 
 	for (const char *dot = strchr(base, '.'); dot != NULL; dot = strchr(dot + 1, '.')) {
 		const struct editorSyntaxLanguageDef *def =
-				editorSyntaxLookupLanguageByExtension(dot);
+		        editorSyntaxLookupLanguageByExtension(dot);
 		if (def != NULL) {
 			return def->id;
 		}
 	}
 
-	const struct editorSyntaxLanguageDef *def =
-			editorSyntaxLookupLanguageByBasename(base);
+	const struct editorSyntaxLanguageDef *def = editorSyntaxLookupLanguageByBasename(base);
 	if (def != NULL) {
 		return def->id;
 	}
@@ -151,8 +150,8 @@ enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *fil
 	return EDITOR_SYNTAX_NONE;
 }
 
-enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilenameAndFirstLine(
-		const char *filename, const char *first_line) {
+enum editorSyntaxLanguage
+editorSyntaxDetectLanguageFromFilenameAndFirstLine(const char *filename, const char *first_line) {
 	enum editorSyntaxLanguage from_filename = editorSyntaxDetectLanguageFromFilename(filename);
 	if (from_filename != EDITOR_SYNTAX_NONE) {
 		return from_filename;

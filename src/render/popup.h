@@ -13,8 +13,7 @@ enum editorPopupKeyResult {
 	EDITOR_POPUP_KEY_DISMISSED_PASS_THROUGH
 };
 
-int editorPopupOpen(const struct editorPopupItem *items, int count, int anchor_row,
-		int anchor_col);
+int editorPopupOpen(const struct editorPopupItem *items, int count, int anchor_row, int anchor_col);
 void editorPopupClose(void);
 int editorPopupIsVisible(void);
 int editorPopupSelectedIndex(void);
@@ -24,7 +23,7 @@ int editorPopupItemCount(void);
 int editorPopupVisibleRowCount(void);
 int editorPopupContentColumns(void);
 void editorPopupComputePlacement(int *terminal_row_out, int *terminal_col_out,
-		int *visible_rows_out, int *cols_out, int *place_above_out);
+                                 int *visible_rows_out, int *cols_out, int *place_above_out);
 
 enum editorPopupKeyResult editorPopupHandleKey(int key);
 

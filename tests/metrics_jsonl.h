@@ -38,8 +38,8 @@ struct editorMetricsField {
 };
 
 /* Returns 0 on success, -1 on I/O failure. */
-int editorMetricsAppend(const char *path, const char *kind,
-		const struct editorMetricsField *fields, int field_count);
+int editorMetricsAppend(const char *path, const char *kind, const struct editorMetricsField *fields,
+                        int field_count);
 
 /* Format a single row into `buf` (NUL-terminated, with trailing newline)
  * without touching the filesystem. `env_lookup` is consulted for enrichment
@@ -52,9 +52,8 @@ int editorMetricsAppend(const char *path, const char *kind,
  * NUL), like snprintf. If the return value >= buf_size the output was
  * truncated.
  */
-int editorMetricsFormatRow(char *buf, size_t buf_size, const char *kind,
-		long long now_unix,
-		const char *(*env_lookup)(const char *name),
-		const struct editorMetricsField *fields, int field_count);
+int editorMetricsFormatRow(char *buf, size_t buf_size, const char *kind, long long now_unix,
+                           const char *(*env_lookup)(const char *name),
+                           const struct editorMetricsField *fields, int field_count);
 
 #endif

@@ -32,12 +32,8 @@ static int test_runner_tags_have_exact_token(void) {
 
 static int test_runner_options_parse_basic_flags(void) {
 	char *argv[] = {
-		(char *)"rotide_tests",
-		(char *)"--list",
-		(char *)"--fail-fast",
-		(char *)"--shuffle",
-		(char *)"--validate-reset",
-		(char *)"--no-quarantine",
+	        (char *)"rotide_tests", (char *)"--list",           (char *)"--fail-fast",
+	        (char *)"--shuffle",    (char *)"--validate-reset", (char *)"--no-quarantine",
 	};
 	struct testRunnerOptions opts;
 	runnerOptionsInit(&opts);
@@ -53,12 +49,9 @@ static int test_runner_options_parse_basic_flags(void) {
 
 static int test_runner_options_parse_value_flags_split_and_eq(void) {
 	char *argv[] = {
-		(char *)"rotide_tests",
-		(char *)"--filter", (char *)"sub",
-		(char *)"--tag=lsp",
-		(char *)"--exclude-tag", (char *)"slow",
-		(char *)"--repeat=3",
-		(char *)"--seed", (char *)"0x2A",
+	        (char *)"rotide_tests", (char *)"--filter",      (char *)"sub",
+	        (char *)"--tag=lsp",    (char *)"--exclude-tag", (char *)"slow",
+	        (char *)"--repeat=3",   (char *)"--seed",        (char *)"0x2A",
 	};
 	struct testRunnerOptions opts;
 	runnerOptionsInit(&opts);
@@ -101,8 +94,9 @@ static int test_runner_options_parse_rejects_missing_value(void) {
 
 static int test_runner_options_parse_metrics_out(void) {
 	char *argv[] = {
-		(char *)"rotide_tests",
-		(char *)"--metrics-out", (char *)"tests/metrics.jsonl",
+	        (char *)"rotide_tests",
+	        (char *)"--metrics-out",
+	        (char *)"tests/metrics.jsonl",
 	};
 	struct testRunnerOptions opts;
 	runnerOptionsInit(&opts);
@@ -177,19 +171,18 @@ static int test_quarantine_list_load_parses_dash_entries(void) {
 	char path[] = "/tmp/rotide_quarantine_test_XXXXXX";
 	int fd = mkstemp(path);
 	ASSERT_TRUE(fd >= 0);
-	const char *content =
-		"# Header\n"
-		"\n"
-		"Random prose line.\n"
-		"- alpha_test  # trailing comment\n"
-		"  - beta_test\n"
-		"\n"
-		"```\n"
-		"- ignored_in_fence\n"
-		"```\n"
-		"\n"
-		"- gamma_test\n"
-		"-not_an_entry\n";
+	const char *content = "# Header\n"
+	                      "\n"
+	                      "Random prose line.\n"
+	                      "- alpha_test  # trailing comment\n"
+	                      "  - beta_test\n"
+	                      "\n"
+	                      "```\n"
+	                      "- ignored_in_fence\n"
+	                      "```\n"
+	                      "\n"
+	                      "- gamma_test\n"
+	                      "-not_an_entry\n";
 	ssize_t wrote = write(fd, content, strlen(content));
 	(void)close(fd);
 	ASSERT_EQ_INT((int)strlen(content), (int)wrote);
@@ -290,8 +283,10 @@ static int test_snapshot_compare_exclude_at_buffer_tail(void) {
 static int test_snapshot_compare_multiple_excludes(void) {
 	unsigned char a[64] = {0};
 	unsigned char b[64] = {0};
-	a[5] = 1; b[5] = 2;
-	a[20] = 3; b[20] = 4;
+	a[5] = 1;
+	b[5] = 2;
+	a[20] = 3;
+	b[20] = 4;
 	a[50] = 0xff;
 	b[50] = 0xee;
 	struct snapshotExcludeRange excludes[] = {{5, 1}, {20, 1}};
@@ -310,25 +305,32 @@ static int test_seed_setter_roundtrip(void) {
 }
 
 const struct editorTestCase g_runner_internals_tests[] = {
-	{"runner_name_matches_substring", test_runner_name_matches_substring},
-	{"runner_tags_have_exact_token", test_runner_tags_have_exact_token},
-	{"runner_options_parse_basic_flags", test_runner_options_parse_basic_flags},
-	{"runner_options_parse_value_flags_split_and_eq", test_runner_options_parse_value_flags_split_and_eq},
-	{"runner_options_parse_rejects_unknown", test_runner_options_parse_rejects_unknown},
-	{"runner_options_parse_rejects_bad_repeat", test_runner_options_parse_rejects_bad_repeat},
-	{"runner_options_parse_rejects_missing_value", test_runner_options_parse_rejects_missing_value},
-	{"runner_options_parse_metrics_out", test_runner_options_parse_metrics_out},
-	{"runner_shuffle_is_deterministic_for_same_seed", test_runner_shuffle_is_deterministic_for_same_seed},
-	{"runner_shuffle_differs_for_different_seeds", test_runner_shuffle_differs_for_different_seeds},
-	{"quarantine_list_load_parses_dash_entries", test_quarantine_list_load_parses_dash_entries},
-	{"quarantine_list_missing_file_is_not_error", test_quarantine_list_missing_file_is_not_error},
-	{"snapshot_compare_equal_buffers", test_snapshot_compare_equal_buffers},
-	{"snapshot_compare_reports_first_diff", test_snapshot_compare_reports_first_diff},
-	{"snapshot_compare_excludes_skipped_region", test_snapshot_compare_excludes_skipped_region},
-	{"snapshot_compare_detects_diff_outside_excludes", test_snapshot_compare_detects_diff_outside_excludes},
-	{"snapshot_compare_exclude_at_buffer_tail", test_snapshot_compare_exclude_at_buffer_tail},
-	{"snapshot_compare_multiple_excludes", test_snapshot_compare_multiple_excludes},
-	{"runner_seed_setter_roundtrip", test_seed_setter_roundtrip},
+        {"runner_name_matches_substring", test_runner_name_matches_substring},
+        {"runner_tags_have_exact_token", test_runner_tags_have_exact_token},
+        {"runner_options_parse_basic_flags", test_runner_options_parse_basic_flags},
+        {"runner_options_parse_value_flags_split_and_eq",
+         test_runner_options_parse_value_flags_split_and_eq},
+        {"runner_options_parse_rejects_unknown", test_runner_options_parse_rejects_unknown},
+        {"runner_options_parse_rejects_bad_repeat", test_runner_options_parse_rejects_bad_repeat},
+        {"runner_options_parse_rejects_missing_value",
+         test_runner_options_parse_rejects_missing_value},
+        {"runner_options_parse_metrics_out", test_runner_options_parse_metrics_out},
+        {"runner_shuffle_is_deterministic_for_same_seed",
+         test_runner_shuffle_is_deterministic_for_same_seed},
+        {"runner_shuffle_differs_for_different_seeds",
+         test_runner_shuffle_differs_for_different_seeds},
+        {"quarantine_list_load_parses_dash_entries", test_quarantine_list_load_parses_dash_entries},
+        {"quarantine_list_missing_file_is_not_error",
+         test_quarantine_list_missing_file_is_not_error},
+        {"snapshot_compare_equal_buffers", test_snapshot_compare_equal_buffers},
+        {"snapshot_compare_reports_first_diff", test_snapshot_compare_reports_first_diff},
+        {"snapshot_compare_excludes_skipped_region", test_snapshot_compare_excludes_skipped_region},
+        {"snapshot_compare_detects_diff_outside_excludes",
+         test_snapshot_compare_detects_diff_outside_excludes},
+        {"snapshot_compare_exclude_at_buffer_tail", test_snapshot_compare_exclude_at_buffer_tail},
+        {"snapshot_compare_multiple_excludes", test_snapshot_compare_multiple_excludes},
+        {"runner_seed_setter_roundtrip", test_seed_setter_roundtrip},
 };
 
-const int g_runner_internals_test_count = (int)(sizeof(g_runner_internals_tests) / sizeof(g_runner_internals_tests[0]));
+const int g_runner_internals_test_count =
+        (int)(sizeof(g_runner_internals_tests) / sizeof(g_runner_internals_tests[0]));

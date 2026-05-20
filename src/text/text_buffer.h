@@ -29,7 +29,7 @@ void editorTextBufferRelease(struct editorTextBuffer *buf);
  * *offset_out. Returns 0 on OOM (buffer is left unchanged).
  */
 int editorTextBufferAppend(struct editorTextBuffer *buf, const char *bytes, size_t len,
-		size_t *offset_out);
+                           size_t *offset_out);
 
 /* Ensure capacity for `min_capacity` bytes total without changing len. Used by
  * pre-reservation so subsequent appends are alloc-free. Returns 1 on success,

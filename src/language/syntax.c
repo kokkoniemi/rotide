@@ -1,19 +1,18 @@
 #include "language/syntax.h"
 
+#include "language/languages.h"
+#include "language/syntax_internal.h"
+#include "tree_sitter/api.h"
+
 #include <ctype.h>
 #include <limits.h>
 #include <regex.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <strings.h>
 #include <string.h>
+#include <strings.h>
 #include <time.h>
-
-#include "tree_sitter/api.h"
-
-#include "language/languages.h"
-#include "language/syntax_internal.h"
 
 int g_editor_syntax_max_injection_depth = ROTIDE_SYNTAX_DEFAULT_MAX_INJECTION_DEPTH;
 
@@ -21,8 +20,8 @@ static int g_syntax_test_full_parse_failures = 0;
 static int g_syntax_test_incremental_parse_failures = 0;
 
 static int editorSyntaxTestConsumeParseFailure(int incremental) {
-	int *failures = incremental ? &g_syntax_test_incremental_parse_failures :
-			&g_syntax_test_full_parse_failures;
+	int *failures = incremental ? &g_syntax_test_incremental_parse_failures
+	                            : &g_syntax_test_full_parse_failures;
 	if (*failures <= 0) {
 		return 0;
 	}
@@ -30,9 +29,8 @@ static int editorSyntaxTestConsumeParseFailure(int incremental) {
 	return 1;
 }
 
-
 void editorSyntaxParsedTreeInit(struct editorSyntaxParsedTree *parsed,
-		enum editorSyntaxLanguage language) {
+                                enum editorSyntaxLanguage language) {
 	if (parsed == NULL) {
 		return;
 	}
@@ -46,7 +44,7 @@ void editorSyntaxParsedTreeInit(struct editorSyntaxParsedTree *parsed,
 }
 
 int editorSyntaxParsedTreeCreateParser(struct editorSyntaxParsedTree *parsed,
-		enum editorSyntaxLanguage language) {
+                                       enum editorSyntaxLanguage language) {
 	if (parsed == NULL) {
 		return 0;
 	}
@@ -110,8 +108,6 @@ void editorSyntaxInjectedTreeDestroy(struct editorSyntaxInjectedTree *injection)
 	injection->depth = 0;
 }
 
-
-
 static void editorSyntaxStateClearChangedRanges(struct editorSyntaxState *state) {
 	if (state == NULL) {
 		return;
@@ -119,7 +115,8 @@ static void editorSyntaxStateClearChangedRanges(struct editorSyntaxState *state)
 	state->last_changed_range_count = 0;
 }
 
-static int editorSyntaxStateEnsureChangedRangeCapacity(struct editorSyntaxState *state, int needed) {
+static int editorSyntaxStateEnsureChangedRangeCapacity(struct editorSyntaxState *state,
+                                                       int needed) {
 	if (state == NULL || needed < 0) {
 		return 0;
 	}
@@ -144,15 +141,15 @@ static int editorSyntaxStateEnsureChangedRangeCapacity(struct editorSyntaxState 
 	return 1;
 }
 
-static int editorSyntaxStateAppendChangedRange(struct editorSyntaxState *state,
-		uint32_t start_byte, uint32_t end_byte) {
+static int editorSyntaxStateAppendChangedRange(struct editorSyntaxState *state, uint32_t start_byte,
+                                               uint32_t end_byte) {
 	if (state == NULL || end_byte <= start_byte) {
 		return 1;
 	}
 
 	if (state->last_changed_range_count > 0) {
 		struct editorSyntaxByteRange *last =
-				&state->last_changed_ranges[state->last_changed_range_count - 1];
+		        &state->last_changed_ranges[state->last_changed_range_count - 1];
 		if (start_byte <= last->end_byte) {
 			if (end_byte > last->end_byte) {
 				last->end_byte = end_byte;
@@ -161,7 +158,8 @@ static int editorSyntaxStateAppendChangedRange(struct editorSyntaxState *state,
 		}
 	}
 
-	if (!editorSyntaxStateEnsureChangedRangeCapacity(state, state->last_changed_range_count + 1)) {
+	if (!editorSyntaxStateEnsureChangedRangeCapacity(state,
+	                                                 state->last_changed_range_count + 1)) {
 		return 0;
 	}
 	state->last_changed_ranges[state->last_changed_range_count].start_byte = start_byte;
@@ -170,7 +168,8 @@ static int editorSyntaxStateAppendChangedRange(struct editorSyntaxState *state,
 	return 1;
 }
 
-static int editorSyntaxStateSetChangedRangesFull(struct editorSyntaxState *state, size_t source_len) {
+static int editorSyntaxStateSetChangedRangesFull(struct editorSyntaxState *state,
+                                                 size_t source_len) {
 	if (state == NULL) {
 		return 0;
 	}
@@ -185,8 +184,8 @@ static int editorSyntaxStateSetChangedRangesFull(struct editorSyntaxState *state
 }
 
 static int editorSyntaxStateSetChangedRangesFromTrees(struct editorSyntaxState *state,
-		const TSTree *old_tree,
-		const TSTree *new_tree) {
+                                                      const TSTree *old_tree,
+                                                      const TSTree *new_tree) {
 	if (state == NULL) {
 		return 0;
 	}
@@ -204,7 +203,7 @@ static int editorSyntaxStateSetChangedRangesFromTrees(struct editorSyntaxState *
 	int ok = 1;
 	for (uint32_t i = 0; i < range_count; i++) {
 		if (!editorSyntaxStateAppendChangedRange(state, ranges[i].start_byte,
-					ranges[i].end_byte)) {
+		                                         ranges[i].end_byte)) {
 			ok = 0;
 			break;
 		}
@@ -213,39 +212,32 @@ static int editorSyntaxStateSetChangedRangesFromTrees(struct editorSyntaxState *
 	return ok;
 }
 
-
 int editorSyntaxParsedTreeParse(struct editorSyntaxParsedTree *parsed,
-		struct editorSyntaxState *state,
-		const struct editorTextSource *source,
-		int incremental) {
+                                struct editorSyntaxState *state,
+                                const struct editorTextSource *source, int incremental) {
 	if (parsed == NULL || parsed->parser == NULL || source == NULL || source->read == NULL ||
-			!editorSyntaxLengthFitsTreeSitter(source->length)) {
+	    !editorSyntaxLengthFitsTreeSitter(source->length)) {
 		return 0;
 	}
 
 	TSTree *old_tree = incremental ? parsed->tree : NULL;
-	struct editorSyntaxBudgetConfig budget =
-			editorSyntaxBudgetConfigForMode(state != NULL ? state->perf_mode :
-					EDITOR_SYNTAX_PERF_NORMAL);
-	TSInput input = {
-		.payload = (void *)source,
-		.read = editorSyntaxSourceRead,
-		.encoding = TSInputEncodingUTF8,
-		.decode = NULL
-	};
+	struct editorSyntaxBudgetConfig budget = editorSyntaxBudgetConfigForMode(
+	        state != NULL ? state->perf_mode : EDITOR_SYNTAX_PERF_NORMAL);
+	TSInput input = {.payload = (void *)source,
+	                 .read = editorSyntaxSourceRead,
+	                 .encoding = TSInputEncodingUTF8,
+	                 .decode = NULL};
 
 	TSTree *new_tree = NULL;
 	if (budget.parse_budget_ns > 0) {
 		struct editorSyntaxDeadlineContext parse_deadline = {0};
 		parse_deadline.deadline_ns = editorSyntaxComputeDeadlineNs(budget.parse_budget_ns);
-		TSParseOptions options = {
-			.payload = &parse_deadline,
-			.progress_callback = editorSyntaxParseProgressCallback
-		};
+		TSParseOptions options = {.payload = &parse_deadline,
+		                          .progress_callback = editorSyntaxParseProgressCallback};
 		new_tree = ts_parser_parse_with_options(parsed->parser, old_tree, input, options);
 		if (new_tree == NULL && parse_deadline.exceeded) {
 			if (old_tree == NULL &&
-					source->length <= ROTIDE_SYNTAX_PERF_DEGRADED_PREDICATES_BYTES) {
+			    source->length <= ROTIDE_SYNTAX_PERF_DEGRADED_PREDICATES_BYTES) {
 				new_tree = ts_parser_parse(parsed->parser, old_tree, input);
 			}
 			if (new_tree == NULL) {
@@ -285,11 +277,6 @@ int editorSyntaxParsedTreeParse(struct editorSyntaxParsedTree *parsed,
 	}
 	return 1;
 }
-
-
-
-
-
 
 struct editorSyntaxState *editorSyntaxStateCreate(enum editorSyntaxLanguage language) {
 	const TSLanguage *host_language = editorSyntaxLanguageObject(language);
@@ -373,9 +360,9 @@ void editorSyntaxStateDestroy(struct editorSyntaxState *state) {
 }
 
 int editorSyntaxStateParseFull(struct editorSyntaxState *state,
-		const struct editorTextSource *source) {
+                               const struct editorTextSource *source) {
 	if (state == NULL || source == NULL || source->read == NULL ||
-			!editorSyntaxLengthFitsTreeSitter(source->length)) {
+	    !editorSyntaxLengthFitsTreeSitter(source->length)) {
 		return 0;
 	}
 	if (editorSyntaxTestConsumeParseFailure(0)) {
@@ -400,11 +387,11 @@ int editorSyntaxStateParseFull(struct editorSyntaxState *state,
 }
 
 int editorSyntaxStateApplyEditAndParse(struct editorSyntaxState *state,
-		const struct editorSyntaxEdit *edit,
-		const struct editorTextSource *source) {
+                                       const struct editorSyntaxEdit *edit,
+                                       const struct editorTextSource *source) {
 	if (state == NULL || edit == NULL || source == NULL || source->read == NULL ||
-			!editorSyntaxLengthFitsTreeSitter(source->length) ||
-			state->host.parser == NULL || state->host.tree == NULL) {
+	    !editorSyntaxLengthFitsTreeSitter(source->length) || state->host.parser == NULL ||
+	    state->host.tree == NULL) {
 		return 0;
 	}
 	if (editorSyntaxTestConsumeParseFailure(1)) {
@@ -413,7 +400,8 @@ int editorSyntaxStateApplyEditAndParse(struct editorSyntaxState *state,
 	state->budget_parse_exceeded = 0;
 	state->budget_query_exceeded = 0;
 	editorSyntaxStateClearChangedRanges(state);
-	if ((size_t)edit->old_end_byte > state->source_len || edit->old_end_byte < edit->start_byte) {
+	if ((size_t)edit->old_end_byte > state->source_len ||
+	    edit->old_end_byte < edit->start_byte) {
 		return 0;
 	}
 	editorSyntaxStateApplyPerformanceMode(state, source->length);
@@ -459,8 +447,8 @@ static int editorSyntaxFirstErrorNode(TSNode node, TSNode *error_out) {
 	return 0;
 }
 
-int editorSyntaxStateFirstErrorPosition(const struct editorSyntaxState *state,
-		int *row_out, int *column_out) {
+int editorSyntaxStateFirstErrorPosition(const struct editorSyntaxState *state, int *row_out,
+                                        int *column_out) {
 	if (row_out != NULL) {
 		*row_out = 0;
 	}
@@ -502,10 +490,9 @@ enum editorSyntaxLanguage editorSyntaxStateLanguage(const struct editorSyntaxSta
 	return state->language;
 }
 
-
-
 int editorSyntaxStateCopyLastChangedRanges(const struct editorSyntaxState *state,
-		struct editorSyntaxByteRange *ranges, int max_ranges, int *count_out) {
+                                           struct editorSyntaxByteRange *ranges, int max_ranges,
+                                           int *count_out) {
 	if (count_out != NULL) {
 		*count_out = 0;
 	}
@@ -527,12 +514,11 @@ int editorSyntaxStateCopyLastChangedRanges(const struct editorSyntaxState *state
 	return 1;
 }
 
-
 void editorSyntaxTestSetParseFailureCountdowns(int full_parse_failures,
-		int incremental_parse_failures) {
+                                               int incremental_parse_failures) {
 	g_syntax_test_full_parse_failures = full_parse_failures > 0 ? full_parse_failures : 0;
 	g_syntax_test_incremental_parse_failures =
-			incremental_parse_failures > 0 ? incremental_parse_failures : 0;
+	        incremental_parse_failures > 0 ? incremental_parse_failures : 0;
 }
 
 void editorSyntaxTestResetParseFailureCountdowns(void) {
@@ -540,8 +526,8 @@ void editorSyntaxTestResetParseFailureCountdowns(void) {
 }
 
 void editorSyntaxTestSetMaxInjectionDepth(int depth) {
-	g_editor_syntax_max_injection_depth = depth > 0 ? depth :
-			ROTIDE_SYNTAX_DEFAULT_MAX_INJECTION_DEPTH;
+	g_editor_syntax_max_injection_depth =
+	        depth > 0 ? depth : ROTIDE_SYNTAX_DEFAULT_MAX_INJECTION_DEPTH;
 }
 
 void editorSyntaxTestResetMaxInjectionDepth(void) {

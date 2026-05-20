@@ -4,8 +4,8 @@
 
 #include <ctype.h>
 #include <limits.h>
-#include <stdint.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -70,7 +70,7 @@ int editorLspStringAppendf(struct editorLspString *sb, const char *fmt, ...) {
 	size_t append_len = (size_t)needed;
 	size_t total_needed = 0;
 	if (!editorSizeAdd(sb->len, append_len, &total_needed) ||
-			!editorSizeAdd(total_needed, 1, &total_needed)) {
+	    !editorSizeAdd(total_needed, 1, &total_needed)) {
 		va_end(ap_copy);
 		return 0;
 	}
@@ -133,7 +133,8 @@ int editorLspStringAppendJsonEscaped(struct editorLspString *sb, const char *tex
 				break;
 			default:
 				if (ch < 0x20) {
-					if (!editorLspStringAppendf(sb, "\\u%04x", (unsigned int)ch)) {
+					if (!editorLspStringAppendf(sb, "\\u%04x",
+					                            (unsigned int)ch)) {
 						return 0;
 					}
 				} else {
@@ -236,8 +237,8 @@ int editorLspParseJsonString(const char *json, char **value_out, const char **af
 					}
 					break;
 				case 'u': {
-					if (json[i + 1] == '\0' || json[i + 2] == '\0' || json[i + 3] == '\0' ||
-							json[i + 4] == '\0') {
+					if (json[i + 1] == '\0' || json[i + 2] == '\0' ||
+					    json[i + 3] == '\0' || json[i + 4] == '\0') {
 						free(sb.buf);
 						return 0;
 					}
@@ -249,7 +250,8 @@ int editorLspParseJsonString(const char *json, char **value_out, const char **af
 						free(sb.buf);
 						return 0;
 					}
-					unsigned int code = (unsigned int)((h1 << 12) | (h2 << 8) | (h3 << 4) | h4);
+					unsigned int code = (unsigned int)((h1 << 12) | (h2 << 8) |
+					                                   (h3 << 4) | h4);
 					char out = code <= 0x7F ? (char)code : '?';
 					if (!editorLspStringAppendBytes(&sb, &out, 1)) {
 						free(sb.buf);
@@ -460,8 +462,7 @@ const char *editorLspFindJsonArrayEnd(const char *array_start) {
 	return NULL;
 }
 
-const char *editorLspStrstrBounded(const char *haystack, const char *needle,
-		const char *limit) {
+const char *editorLspStrstrBounded(const char *haystack, const char *needle, const char *limit) {
 	if (haystack == NULL || needle == NULL) {
 		return NULL;
 	}
@@ -476,9 +477,9 @@ const char *editorLspStrstrBounded(const char *haystack, const char *needle,
 }
 
 const char *editorLspFindTopLevelKey(const char *object_start, const char *object_end,
-		const char *quoted_key) {
+                                     const char *quoted_key) {
 	if (object_start == NULL || object_end == NULL || quoted_key == NULL ||
-			object_start >= object_end || object_start[0] != '{') {
+	    object_start >= object_end || object_start[0] != '{') {
 		return NULL;
 	}
 	size_t key_len = strlen(quoted_key);
@@ -488,10 +489,10 @@ const char *editorLspFindTopLevelKey(const char *object_start, const char *objec
 		char ch = *p;
 		if (ch == '"') {
 			if (depth == 0 && (size_t)(object_end - p) >= key_len &&
-					memcmp(p, quoted_key, key_len) == 0) {
+			    memcmp(p, quoted_key, key_len) == 0) {
 				const char *after = p + key_len;
 				while (after < object_end && (*after == ' ' || *after == '\t' ||
-						*after == '\n' || *after == '\r')) {
+				                              *after == '\n' || *after == '\r')) {
 					after++;
 				}
 				if (after < object_end && *after == ':') {
@@ -523,8 +524,8 @@ const char *editorLspFindTopLevelKey(const char *object_start, const char *objec
 	return NULL;
 }
 
-int editorLspParsePositionFromKey(const char *range_json, const char *key_name,
-		const char *limit, int *line_out, int *character_out) {
+int editorLspParsePositionFromKey(const char *range_json, const char *key_name, const char *limit,
+                                  int *line_out, int *character_out) {
 	char key_pattern[32];
 	int written = snprintf(key_pattern, sizeof(key_pattern), "\"%s\"", key_name);
 	if (written <= 0 || (size_t)written >= sizeof(key_pattern)) {

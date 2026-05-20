@@ -11,10 +11,8 @@ static int g_text_tree_full_rebuild_count = 0;
 static int g_text_tree_incremental_update_count = 0;
 
 int editorTabKindSupportsDocument(enum editorTabKind tab_kind) {
-	return tab_kind == EDITOR_TAB_FILE ||
-			tab_kind == EDITOR_TAB_TASK_LOG ||
-			tab_kind == EDITOR_TAB_UNSUPPORTED_FILE ||
-			tab_kind == EDITOR_TAB_GIT_DIFF;
+	return tab_kind == EDITOR_TAB_FILE || tab_kind == EDITOR_TAB_TASK_LOG ||
+	       tab_kind == EDITOR_TAB_UNSUPPORTED_FILE || tab_kind == EDITOR_TAB_GIT_DIFF;
 }
 
 void editorDocumentFreePtr(struct editorDocument **document_in_out) {
@@ -36,7 +34,8 @@ static struct editorDocument *editorDocumentAlloc(void) {
 }
 
 static int editorDocumentStateResetFromText(struct editorDocument **document_in_out,
-		enum editorTabKind tab_kind, const char *text, size_t len) {
+                                            enum editorTabKind tab_kind, const char *text,
+                                            size_t len) {
 	if (document_in_out == NULL) {
 		return 0;
 	}
@@ -58,7 +57,7 @@ static int editorDocumentStateResetFromText(struct editorDocument **document_in_
 }
 
 static int editorDocumentEnsureForTab(enum editorTabKind tab_kind,
-		struct editorDocument **document_in_out) {
+                                      struct editorDocument **document_in_out) {
 	if (document_in_out == NULL) {
 		return 0;
 	}
@@ -85,7 +84,7 @@ int editorBufferDocumentEnsureCurrent(struct editorBuffer *buffer) {
 		return 0;
 	}
 	return editorDocumentEnsureForTab(buffer->tab_kind, &buffer->document) &&
-			buffer->document != NULL;
+	       buffer->document != NULL;
 }
 
 int editorTabDocumentEnsureCurrent(struct editorTabState *tab) {

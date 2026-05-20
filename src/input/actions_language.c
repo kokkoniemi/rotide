@@ -21,8 +21,8 @@ int editorLanguageGoToSupported(enum editorSyntaxLanguage language) {
 		return 1;
 	}
 	return language == EDITOR_SYNTAX_GO || language == EDITOR_SYNTAX_C ||
-			language == EDITOR_SYNTAX_HTML || language == EDITOR_SYNTAX_CSS ||
-			language == EDITOR_SYNTAX_JAVASCRIPT;
+	       language == EDITOR_SYNTAX_HTML || language == EDITOR_SYNTAX_CSS ||
+	       language == EDITOR_SYNTAX_JAVASCRIPT;
 }
 
 int editorLanguageGoToEnabled(void) {
@@ -61,8 +61,7 @@ const char *editorLanguageGoToCommandSettingName(void) {
 	return editorLspCommandSettingNameForFile(E.filename, E.syntax_language);
 }
 
-static enum editorGoToDefinitionInstallFamily
-editorLanguageGoToInstallFamilyForLanguage(void) {
+static enum editorGoToDefinitionInstallFamily editorLanguageGoToInstallFamilyForLanguage(void) {
 	const char *server_name = editorLanguageGoToServerName();
 	if (server_name != NULL && strcmp(server_name, "gopls") == 0) {
 		return EDITOR_GOTO_DEF_INSTALL_GOPLS;
@@ -85,9 +84,9 @@ static void editorLanguagePromptInstallJavascriptServer(void) {
 		return;
 	}
 	if (!editorTaskStart("Task: Install typescript-language-server",
-				E.lsp_javascript_install_command,
-				"typescript-language-server installed. Retry Ctrl-O",
-				"typescript-language-server install failed; see task log")) {
+	                     E.lsp_javascript_install_command,
+	                     "typescript-language-server installed. Retry Ctrl-O",
+	                     "typescript-language-server install failed; see task log")) {
 		if (E.statusmsg[0] == '\0') {
 			editorSetStatusMsg("Unable to start typescript-language-server install");
 		}
@@ -100,9 +99,9 @@ void editorLanguagePromptInstallSharedVscodeServers(void) {
 		return;
 	}
 	if (!editorTaskStart("Task: Install vscode-langservers-extracted",
-				E.lsp_vscode_langservers_install_command,
-				"vscode-langservers-extracted installed. Retry Ctrl-O",
-				"vscode-langservers-extracted install failed; see task log")) {
+	                     E.lsp_vscode_langservers_install_command,
+	                     "vscode-langservers-extracted installed. Retry Ctrl-O",
+	                     "vscode-langservers-extracted install failed; see task log")) {
 		if (E.statusmsg[0] == '\0') {
 			editorSetStatusMsg("Unable to start vscode-langservers-extracted install");
 		}
@@ -120,8 +119,8 @@ void editorLanguageMaybePromptInstallServer(void) {
 				return;
 			}
 			if (!editorTaskStart("Task: Install gopls", E.lsp_gopls_install_command,
-						"gopls installed. Retry Ctrl-O",
-						"gopls install failed; see task log")) {
+			                     "gopls installed. Retry Ctrl-O",
+			                     "gopls install failed; see task log")) {
 				if (E.statusmsg[0] == '\0') {
 					editorSetStatusMsg("Unable to start gopls install");
 				}
@@ -129,31 +128,36 @@ void editorLanguageMaybePromptInstallServer(void) {
 			return;
 		case EDITOR_GOTO_DEF_INSTALL_CLANGD: {
 			static const char message[] =
-					"clangd was not found on PATH.\n"
-					"\n"
-					"Install instructions:\n"
-					"https://clangd.llvm.org/installation\n"
-					"\n"
-					"clangd usually needs a compile_commands.json compilation database for C/C++ projects.\n"
-					"\n"
-					"Create compile_commands.json with CMake:\n"
-					"- cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON\n"
-					"- use build/compile_commands.json, or copy/symlink it into the project root\n"
-					"\n"
-					"Create compile_commands.json with Bear:\n"
-					"- bear -- make\n"
-					"- or bear -- <your normal build command>\n"
-					"- this is often a good fit for pure C projects that already build without CMake\n"
-					"\n"
-					"After installing clangd and setting up compile_commands.json:\n"
-					"- retry Ctrl-O or Ctrl + left click\n"
-					"- set [lsp].clangd_command in .rotide.toml if clangd is installed in a custom location\n";
-			if (!editorPromptYesNo("clangd not found. Show install instructions? [y/N] %s")) {
+			        "clangd was not found on PATH.\n"
+			        "\n"
+			        "Install instructions:\n"
+			        "https://clangd.llvm.org/installation\n"
+			        "\n"
+			        "clangd usually needs a compile_commands.json compilation database "
+			        "for C/C++ projects.\n"
+			        "\n"
+			        "Create compile_commands.json with CMake:\n"
+			        "- cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON\n"
+			        "- use build/compile_commands.json, or copy/symlink it into the "
+			        "project root\n"
+			        "\n"
+			        "Create compile_commands.json with Bear:\n"
+			        "- bear -- make\n"
+			        "- or bear -- <your normal build command>\n"
+			        "- this is often a good fit for pure C projects that already build "
+			        "without CMake\n"
+			        "\n"
+			        "After installing clangd and setting up compile_commands.json:\n"
+			        "- retry Ctrl-O or Ctrl + left click\n"
+			        "- set [lsp].clangd_command in .rotide.toml if clangd is installed "
+			        "in a custom location\n";
+			if (!editorPromptYesNo(
+			            "clangd not found. Show install instructions? [y/N] %s")) {
 				editorSetStatusMsg("clangd not installed");
 				return;
 			}
 			if (!editorTaskShowMessage("Task: Install clangd", message,
-						"clangd not installed; see task log")) {
+			                           "clangd not installed; see task log")) {
 				if (E.statusmsg[0] == '\0') {
 					editorSetStatusMsg("clangd not installed");
 				}
@@ -172,45 +176,47 @@ void editorLanguageMaybePromptInstallServer(void) {
 }
 
 int editorHandleLanguageMappedAction(enum editorAction action, int cursor_or_edit_effect_bit,
-		void (*pin_active_preview_for_edit)(void), editorLanguageActionFn goto_definition,
-		editorLanguageActionFn goto_implementation, editorLanguageActionFn goto_symbol,
-		editorLanguageActionFn apply_eslint_fixes, int *effects_io) {
+                                     void (*pin_active_preview_for_edit)(void),
+                                     editorLanguageActionFn goto_definition,
+                                     editorLanguageActionFn goto_implementation,
+                                     editorLanguageActionFn goto_symbol,
+                                     editorLanguageActionFn apply_eslint_fixes, int *effects_io) {
 	int effects = effects_io != NULL ? *effects_io : 0;
 
 	switch (action) {
-	case EDITOR_ACTION_GOTO_DEFINITION:
-		editorHistoryBreakGroup();
-		if (goto_definition != NULL) {
-			goto_definition();
-		}
-		effects |= cursor_or_edit_effect_bit;
-		break;
-	case EDITOR_ACTION_GOTO_IMPLEMENTATION:
-		editorHistoryBreakGroup();
-		if (goto_implementation != NULL) {
-			goto_implementation();
-		}
-		effects |= cursor_or_edit_effect_bit;
-		break;
-	case EDITOR_ACTION_GOTO_SYMBOL:
-		editorHistoryBreakGroup();
-		if (goto_symbol != NULL) {
-			goto_symbol();
-		}
-		effects |= cursor_or_edit_effect_bit;
-		break;
-	case EDITOR_ACTION_ESLINT_FIX:
-		editorHistoryBreakGroup();
-		if (pin_active_preview_for_edit != NULL) {
-			pin_active_preview_for_edit();
-		}
-		if (apply_eslint_fixes != NULL) {
-			apply_eslint_fixes();
-		}
-		effects |= cursor_or_edit_effect_bit;
-		break;
-	default:
-		return 0;
+		case EDITOR_ACTION_GOTO_DEFINITION:
+			editorHistoryBreakGroup();
+			if (goto_definition != NULL) {
+				goto_definition();
+			}
+			effects |= cursor_or_edit_effect_bit;
+			break;
+		case EDITOR_ACTION_GOTO_IMPLEMENTATION:
+			editorHistoryBreakGroup();
+			if (goto_implementation != NULL) {
+				goto_implementation();
+			}
+			effects |= cursor_or_edit_effect_bit;
+			break;
+		case EDITOR_ACTION_GOTO_SYMBOL:
+			editorHistoryBreakGroup();
+			if (goto_symbol != NULL) {
+				goto_symbol();
+			}
+			effects |= cursor_or_edit_effect_bit;
+			break;
+		case EDITOR_ACTION_ESLINT_FIX:
+			editorHistoryBreakGroup();
+			if (pin_active_preview_for_edit != NULL) {
+				pin_active_preview_for_edit();
+			}
+			if (apply_eslint_fixes != NULL) {
+				apply_eslint_fixes();
+			}
+			effects |= cursor_or_edit_effect_bit;
+			break;
+		default:
+			return 0;
 	}
 
 	if (effects_io != NULL) {

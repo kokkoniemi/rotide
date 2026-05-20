@@ -32,23 +32,19 @@ static void fillRandomText(char *out, size_t n, unsigned newline_pct) {
 	}
 }
 
-static int summariesEqual(const struct editorTextSummary *a,
-		const struct editorTextSummary *b) {
+static int summariesEqual(const struct editorTextSummary *a, const struct editorTextSummary *b) {
 	return a->bytes == b->bytes && a->newlines == b->newlines &&
-		a->first_line_bytes == b->first_line_bytes &&
-		a->last_line_bytes == b->last_line_bytes &&
-		a->max_line_bytes == b->max_line_bytes;
+	       a->first_line_bytes == b->first_line_bytes &&
+	       a->last_line_bytes == b->last_line_bytes && a->max_line_bytes == b->max_line_bytes;
 }
 
 static void printSummary(const char *label, const struct editorTextSummary *s) {
-	fprintf(stderr,
-		"  %s: bytes=%zu newlines=%d first=%zu last=%zu max=%zu\n",
-		label, s->bytes, s->newlines, s->first_line_bytes,
-		s->last_line_bytes, s->max_line_bytes);
+	fprintf(stderr, "  %s: bytes=%zu newlines=%d first=%zu last=%zu max=%zu\n", label, s->bytes,
+	        s->newlines, s->first_line_bytes, s->last_line_bytes, s->max_line_bytes);
 }
 
-static int expectEqualSummaries(const char *case_name,
-		const struct editorTextSummary *got, const struct editorTextSummary *want) {
+static int expectEqualSummaries(const char *case_name, const struct editorTextSummary *got,
+                                const struct editorTextSummary *want) {
 	if (summariesEqual(got, want)) {
 		return 0;
 	}
@@ -60,9 +56,16 @@ static int expectEqualSummaries(const char *case_name,
 
 static int test_text_summary_zero_is_identity(void) {
 	const char *samples[] = {
-		"", "abc", "\n", "\n\n", "abc\n", "\nabc",
-		"abc\ndef\nghi", "abc\ndef", "abc\n\nfoo",
-		"line one\nline two with longer content\nshort",
+	        "",
+	        "abc",
+	        "\n",
+	        "\n\n",
+	        "abc\n",
+	        "\nabc",
+	        "abc\ndef\nghi",
+	        "abc\ndef",
+	        "abc\n\nfoo",
+	        "line one\nline two with longer content\nshort",
 	};
 	const int n = (int)(sizeof(samples) / sizeof(samples[0]));
 	struct editorTextSummary zero;
@@ -127,7 +130,7 @@ static int test_text_summary_from_bytes_matches_naive(void) {
 		naiveSummary(buf, len, &want);
 		if (expectEqualSummaries("FromBytes vs naive", &got, &want) != 0) {
 			fprintf(stderr, "  iter=%d len=%zu seed=0x%016llx\n", iter, len,
-				(unsigned long long)rotide_test_seed());
+			        (unsigned long long)rotide_test_seed());
 			return 1;
 		}
 	}
@@ -160,8 +163,8 @@ static int test_text_summary_merge_associativity(void) {
 		editorTextSummaryMerge(&sa, &sbc, &right_first);
 
 		if (expectEqualSummaries("merge associativity", &left_first, &right_first) != 0) {
-			fprintf(stderr, "  iter=%d la=%zu lb=%zu lc=%zu seed=0x%016llx\n",
-				iter, la, lb, lc, (unsigned long long)rotide_test_seed());
+			fprintf(stderr, "  iter=%d la=%zu lb=%zu lc=%zu seed=0x%016llx\n", iter, la,
+			        lb, lc, (unsigned long long)rotide_test_seed());
 			return 1;
 		}
 	}
@@ -199,8 +202,8 @@ static int test_text_summary_merge_matches_concat(void) {
 		}
 
 		if (expectEqualSummaries("merge of pieces == whole", &acc, &whole) != 0) {
-			fprintf(stderr, "  iter=%d total=%zu splits=%d seed=0x%016llx\n",
-				iter, total, splits, (unsigned long long)rotide_test_seed());
+			fprintf(stderr, "  iter=%d total=%zu splits=%d seed=0x%016llx\n", iter,
+			        total, splits, (unsigned long long)rotide_test_seed());
 			return 1;
 		}
 	}
@@ -212,15 +215,15 @@ static int test_text_summary_doc_level_longest_line(void) {
 		const char *text;
 		size_t want_longest;
 	} cases[] = {
-		{"", 0},
-		{"abc", 3},
-		{"\n", 0},
-		{"abc\n", 3},
-		{"\nabc", 3},
-		{"abc\ndef", 3},
-		{"abc\ndefghi", 6},
-		{"short\nverylonglineinside\nx", 18},
-		{"a\nbb\nccc\ndddd\n", 4},
+	        {"", 0},
+	        {"abc", 3},
+	        {"\n", 0},
+	        {"abc\n", 3},
+	        {"\nabc", 3},
+	        {"abc\ndef", 3},
+	        {"abc\ndefghi", 6},
+	        {"short\nverylonglineinside\nx", 18},
+	        {"a\nbb\nccc\ndddd\n", 4},
 	};
 	const int n = (int)(sizeof(cases) / sizeof(cases[0]));
 	for (int i = 0; i < n; i++) {
@@ -235,8 +238,9 @@ static int test_text_summary_doc_level_longest_line(void) {
 		}
 		if (doc_longest != cases[i].want_longest) {
 			fprintf(stderr,
-				"test_text_summary: doc-level longest mismatch for %s: got=%zu want=%zu\n",
-				cases[i].text, doc_longest, cases[i].want_longest);
+			        "test_text_summary: doc-level longest mismatch for %s: got=%zu "
+			        "want=%zu\n",
+			        cases[i].text, doc_longest, cases[i].want_longest);
 			return 1;
 		}
 	}
@@ -244,12 +248,12 @@ static int test_text_summary_doc_level_longest_line(void) {
 }
 
 const struct editorTestCase g_text_summary_tests[] = {
-	{"text_summary_zero_is_identity", test_text_summary_zero_is_identity},
-	{"text_summary_from_bytes_matches_naive", test_text_summary_from_bytes_matches_naive},
-	{"text_summary_merge_associativity", test_text_summary_merge_associativity},
-	{"text_summary_merge_matches_concat", test_text_summary_merge_matches_concat},
-	{"text_summary_doc_level_longest_line", test_text_summary_doc_level_longest_line},
+        {"text_summary_zero_is_identity", test_text_summary_zero_is_identity},
+        {"text_summary_from_bytes_matches_naive", test_text_summary_from_bytes_matches_naive},
+        {"text_summary_merge_associativity", test_text_summary_merge_associativity},
+        {"text_summary_merge_matches_concat", test_text_summary_merge_matches_concat},
+        {"text_summary_doc_level_longest_line", test_text_summary_doc_level_longest_line},
 };
 
 const int g_text_summary_test_count =
-	(int)(sizeof(g_text_summary_tests) / sizeof(g_text_summary_tests[0]));
+        (int)(sizeof(g_text_summary_tests) / sizeof(g_text_summary_tests[0]));

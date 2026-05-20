@@ -1,6 +1,6 @@
+#include "editing/selection.h"
 #include "test_case.h"
 #include "test_support.h"
-#include "editing/selection.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/layout.h"
@@ -70,8 +70,7 @@ static int test_editor_process_keypress_mouse_click_places_cursor_in_created_pan
 	E.cy = 0;
 	E.cx = 0;
 
-	struct editorPaneNode *created =
-			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	struct editorPaneNode *created = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
 	ASSERT_TRUE(created != NULL);
 	ASSERT_TRUE(E.focused_leaf == created);
 
@@ -86,8 +85,8 @@ static int test_editor_process_keypress_mouse_click_places_cursor_in_created_pan
 	ASSERT_TRUE(text_cols > 5);
 
 	char click[32];
-	ASSERT_TRUE(format_sgr_mouse_event(click, sizeof(click), 0,
-			text_start + 5, rect.y + 1, 'M'));
+	ASSERT_TRUE(
+	        format_sgr_mouse_event(click, sizeof(click), 0, text_start + 5, rect.y + 1, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click, strlen(click)) == 0);
 	ASSERT_TRUE(E.focused_leaf == created);
 	ASSERT_EQ_INT(0, E.cy);
@@ -236,15 +235,16 @@ static int test_editor_process_keypress_mouse_left_click_ignores_non_text_rows(v
 
 	const char click_status_bar[] = "\x1b[<0;2;6M";
 	ASSERT_TRUE(editor_process_keypress_with_input(click_status_bar,
-				sizeof(click_status_bar) - 1) == 0);
+	                                               sizeof(click_status_bar) - 1) == 0);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(1, E.cx);
 
 	int text_start = editorTextBodyStartColForCols(E.window_cols);
 	char click_filler_row[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click_filler_row, sizeof(click_filler_row), 0,
-				text_start + 2, 4, 'M'));
-	ASSERT_TRUE(editor_process_keypress_with_input(click_filler_row, strlen(click_filler_row)) == 0);
+	                                   text_start + 2, 4, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_filler_row,
+	                                               strlen(click_filler_row)) == 0);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(1, E.cx);
 	return 0;
@@ -265,17 +265,17 @@ static int test_editor_process_keypress_mouse_left_click_ignores_indicator_paddi
 
 	char click_left_padding[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click_left_padding, sizeof(click_left_padding), 0,
-				text_start + 1, 2, 'M'));
+	                                   text_start + 1, 2, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_left_padding,
-				strlen(click_left_padding)) == 0);
+	                                               strlen(click_left_padding)) == 0);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(3, E.cx);
 
 	char click_right_padding[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click_right_padding, sizeof(click_right_padding), 0,
-				text_start + text_cols, 2, 'M'));
+	                                   text_start + text_cols, 2, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_right_padding,
-				strlen(click_right_padding)) == 0);
+	                                               strlen(click_right_padding)) == 0);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(3, E.cx);
 	return 0;
@@ -321,7 +321,8 @@ static int test_editor_process_keypress_mouse_click_expands_collapsed_drawer(voi
 
 	char click_collapse[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click_collapse, sizeof(click_collapse), 0, 1, 1, 'M'));
-	ASSERT_TRUE(editor_process_keypress_with_input(click_collapse, strlen(click_collapse)) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(click_collapse, strlen(click_collapse)) ==
+	            0);
 	ASSERT_TRUE(editorDrawerIsCollapsed());
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
 	ASSERT_EQ_STR("Drawer collapsed", E.statusmsg);
@@ -347,10 +348,10 @@ static int test_editor_process_keypress_mouse_drawer_header_mode_buttons(void) {
 	E.window_cols = 60;
 
 	char click_file_search[32];
-	ASSERT_TRUE(format_sgr_mouse_event(click_file_search, sizeof(click_file_search), 0, 7, 1,
-				'M'));
+	ASSERT_TRUE(
+	        format_sgr_mouse_event(click_file_search, sizeof(click_file_search), 0, 7, 1, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_file_search,
-				strlen(click_file_search)) == 0);
+	                                               strlen(click_file_search)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 
@@ -358,15 +359,15 @@ static int test_editor_process_keypress_mouse_drawer_header_mode_buttons(void) {
 	ASSERT_TRUE(editor_process_keypress_with_input(query_char, sizeof(query_char)) == 0);
 	ASSERT_EQ_STR("a", editorFileSearchQuery());
 	ASSERT_TRUE(editor_process_keypress_with_input(click_file_search,
-				strlen(click_file_search)) == 0);
+	                                               strlen(click_file_search)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
 	ASSERT_EQ_STR("a", editorFileSearchQuery());
 
 	char click_project_search[32];
-	ASSERT_TRUE(format_sgr_mouse_event(click_project_search, sizeof(click_project_search), 0, 10,
-				1, 'M'));
+	ASSERT_TRUE(format_sgr_mouse_event(click_project_search, sizeof(click_project_search), 0,
+	                                   10, 1, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_project_search,
-				strlen(click_project_search)) == 0);
+	                                               strlen(click_project_search)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_PROJECT_SEARCH, E.drawer_mode);
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 
@@ -389,17 +390,18 @@ static int test_editor_process_keypress_mouse_drawer_header_mode_buttons(void) {
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 
 	char click_main_menu[32];
-	ASSERT_TRUE(format_sgr_mouse_event(click_main_menu, sizeof(click_main_menu), 0, 22, 1,
-				'M'));
-	ASSERT_TRUE(editor_process_keypress_with_input(click_main_menu,
-				strlen(click_main_menu)) == 0);
+	ASSERT_TRUE(
+	        format_sgr_mouse_event(click_main_menu, sizeof(click_main_menu), 0, 22, 1, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_main_menu, strlen(click_main_menu)) ==
+	            0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_MAIN_MENU, E.drawer_mode);
 	ASSERT_EQ_INT(-1, E.drawer_selected_index);
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 
 	char click_explorer[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click_explorer, sizeof(click_explorer), 0, 4, 1, 'M'));
-	ASSERT_TRUE(editor_process_keypress_with_input(click_explorer, strlen(click_explorer)) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(click_explorer, strlen(click_explorer)) ==
+	            0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, E.drawer_mode);
 	ASSERT_EQ_INT(-1, E.drawer_selected_index);
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
@@ -535,7 +537,8 @@ static int test_editor_process_keypress_mouse_top_row_double_click_pins_preview_
 	int drawer_row = file_idx - E.drawer_rowoff + 2;
 	ASSERT_TRUE(drawer_row >= 2);
 	char drawer_click[32];
-	ASSERT_TRUE(format_sgr_mouse_event(drawer_click, sizeof(drawer_click), 0, 2, drawer_row, 'M'));
+	ASSERT_TRUE(
+	        format_sgr_mouse_event(drawer_click, sizeof(drawer_click), 0, 2, drawer_row, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(drawer_click, strlen(drawer_click)) == 0);
 	ASSERT_EQ_INT(2, editorTabCount());
 	ASSERT_EQ_INT(1, editorTabActiveIndex());
@@ -545,7 +548,7 @@ static int test_editor_process_keypress_mouse_top_row_double_click_pins_preview_
 	struct editorTabLayoutEntry layout[ROTIDE_MAX_TABS];
 	int layout_count = 0;
 	ASSERT_TRUE(editorTabBuildLayoutForWidth(editorDrawerTextViewportCols(E.window_cols),
-				layout, ROTIDE_MAX_TABS, &layout_count));
+	                                         layout, ROTIDE_MAX_TABS, &layout_count));
 	int preview_tab_col = -1;
 	for (int i = 0; i < layout_count; i++) {
 		if (layout[i].tab_idx == 1) {
@@ -557,7 +560,7 @@ static int test_editor_process_keypress_mouse_top_row_double_click_pins_preview_
 
 	char tab_click[32];
 	ASSERT_TRUE(format_sgr_mouse_event(tab_click, sizeof(tab_click), 0,
-				text_start + preview_tab_col + 1, 1, 'M'));
+	                                   text_start + preview_tab_col + 1, 1, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(tab_click, strlen(tab_click)) == 0);
 	ASSERT_EQ_INT(1, editorTabActiveIndex());
 	ASSERT_TRUE(editorActiveTabIsPreview());
@@ -586,8 +589,9 @@ static int test_editor_process_keypress_mouse_top_row_click_switches_tab(void) {
 	int text_start = editorDrawerTextStartColForCols(E.window_cols);
 	char click_first_tab[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click_first_tab, sizeof(click_first_tab), 0,
-				text_start + 1, 1, 'M'));
-	ASSERT_TRUE(editor_process_keypress_with_input(click_first_tab, strlen(click_first_tab)) == 0);
+	                                   text_start + 1, 1, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_first_tab, strlen(click_first_tab)) ==
+	            0);
 	ASSERT_EQ_INT(0, editorTabActiveIndex());
 	ASSERT_EQ_INT(1, E.numrows);
 	ASSERT_ROW_TEXT_EQ(0, "zero");
@@ -619,7 +623,8 @@ static int test_editor_process_keypress_mouse_top_row_click_uses_variable_tab_la
 	int text_cols = editorDrawerTextViewportCols(E.window_cols);
 	struct editorTabLayoutEntry layout[ROTIDE_MAX_TABS];
 	int layout_count = 0;
-	ASSERT_TRUE(editorTabBuildLayoutForWidth(text_cols, layout, ROTIDE_MAX_TABS, &layout_count));
+	ASSERT_TRUE(
+	        editorTabBuildLayoutForWidth(text_cols, layout, ROTIDE_MAX_TABS, &layout_count));
 	ASSERT_TRUE(layout_count >= 2);
 
 	int second_tab_col = -1;
@@ -634,8 +639,9 @@ static int test_editor_process_keypress_mouse_top_row_click_uses_variable_tab_la
 	int text_start = editorDrawerTextStartColForCols(E.window_cols);
 	char click_second_tab[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click_second_tab, sizeof(click_second_tab), 0,
-				text_start + second_tab_col + 1, 1, 'M'));
-	ASSERT_TRUE(editor_process_keypress_with_input(click_second_tab, strlen(click_second_tab)) == 0);
+	                                   text_start + second_tab_col + 1, 1, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_second_tab,
+	                                               strlen(click_second_tab)) == 0);
 	ASSERT_EQ_INT(1, editorTabActiveIndex());
 	ASSERT_ROW_TEXT_EQ(0, "one");
 	return 0;
@@ -678,16 +684,16 @@ static int test_editor_process_keypress_mouse_tab_bar_carets_switch_hidden_tabs(
 	ASSERT_TRUE(editorTabBuildLayoutForWidth(tab_cols, layout, ROTIDE_MAX_TABS, &layout_count));
 	ASSERT_TRUE(layout_count > 0);
 	ASSERT_TRUE(layout[layout_count - 1].show_right_overflow);
-	int right_caret_col = layout[layout_count - 1].start_col +
-			layout[layout_count - 1].width_cols - 1;
+	int right_caret_col =
+	        layout[layout_count - 1].start_col + layout[layout_count - 1].width_cols - 1;
 	int right_target = layout[layout_count - 1].tab_idx + 1;
 	ASSERT_TRUE(right_target < editorTabCount());
 
 	char click_right_caret[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click_right_caret, sizeof(click_right_caret), 0,
-				tab_start + right_caret_col + 1, 1, 'M'));
+	                                   tab_start + right_caret_col + 1, 1, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_right_caret,
-				strlen(click_right_caret)) == 0);
+	                                               strlen(click_right_caret)) == 0);
 	ASSERT_EQ_INT(right_target, editorTabActiveIndex());
 	ASSERT_ROW_TEXT_EQ(0, "one");
 
@@ -701,9 +707,9 @@ static int test_editor_process_keypress_mouse_tab_bar_carets_switch_hidden_tabs(
 
 	char click_left_caret[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click_left_caret, sizeof(click_left_caret), 0,
-				tab_start + left_caret_col + 1, 1, 'M'));
+	                                   tab_start + left_caret_col + 1, 1, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(click_left_caret,
-				strlen(click_left_caret)) == 0);
+	                                               strlen(click_left_caret)) == 0);
 	ASSERT_EQ_INT(left_target, editorTabActiveIndex());
 	ASSERT_ROW_TEXT_EQ(0, "two");
 	return 0;
@@ -928,7 +934,8 @@ static int test_editor_process_keypress_mouse_wheel_scrolls_drawer_with_empty_bu
 	return 0;
 }
 
-static int test_editor_process_keypress_mouse_wheel_scrolls_text_when_hovered_even_if_drawer_focused(void) {
+static int
+test_editor_process_keypress_mouse_wheel_scrolls_text_when_hovered_even_if_drawer_focused(void) {
 	for (int i = 0; i < 10; i++) {
 		add_row("line");
 	}
@@ -1129,7 +1136,7 @@ static int test_editor_process_keypress_mouse_release_stops_drag_session(void) {
 	ASSERT_TRUE(format_sgr_mouse_event(drag, sizeof(drag), 32, text_start + 5, 2, 'M'));
 	ASSERT_TRUE(format_sgr_mouse_event(release, sizeof(release), 0, text_start + 5, 2, 'm'));
 	ASSERT_TRUE(format_sgr_mouse_event(drag_after_release, sizeof(drag_after_release), 32,
-				text_start + 6, 2, 'M'));
+	                                   text_start + 6, 2, 'M'));
 	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
 	ASSERT_TRUE(editor_process_keypress_with_input(drag, strlen(drag)) == 0);
 	ASSERT_EQ_INT(4, E.cx);
@@ -1137,7 +1144,8 @@ static int test_editor_process_keypress_mouse_release_stops_drag_session(void) {
 	ASSERT_EQ_INT(1, E.selection_mode_active);
 	ASSERT_EQ_INT(0, assert_selection_anchor(0, 1));
 	ASSERT_EQ_INT(0, E.mouse_left_button_down);
-	ASSERT_TRUE(editor_process_keypress_with_input(drag_after_release, strlen(drag_after_release)) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(drag_after_release,
+	                                               strlen(drag_after_release)) == 0);
 	ASSERT_EQ_INT(4, E.cx);
 
 	struct editorSelectionRange range;
@@ -1177,44 +1185,79 @@ static int test_editor_bracketed_paste_markers_toggle_paste_active(void) {
 }
 
 const struct editorTestCase g_input_mouse_tests[] = {
-	{"editor_column_select_alt_mouse_drag_starts_column_selection", test_editor_column_select_alt_mouse_drag_starts_column_selection},
-	{"editor_process_keypress_mouse_left_click_places_cursor_with_offsets", test_editor_process_keypress_mouse_left_click_places_cursor_with_offsets},
-	{"editor_process_keypress_mouse_click_places_cursor_in_created_pane", test_editor_process_keypress_mouse_click_places_cursor_in_created_pane},
-	{"editor_process_keypress_mouse_click_maps_same_column_with_line_numbers", test_editor_process_keypress_mouse_click_maps_same_column_with_line_numbers},
-	{"editor_process_keypress_mouse_left_click_places_cursor_on_wrapped_segment", test_editor_process_keypress_mouse_left_click_places_cursor_on_wrapped_segment},
-	{"editor_process_keypress_mouse_ctrl_click_does_not_start_drag_selection", test_editor_process_keypress_mouse_ctrl_click_does_not_start_drag_selection},
-	{"editor_process_keypress_mouse_ctrl_hover_marks_word_as_hover_link", test_editor_process_keypress_mouse_ctrl_hover_marks_word_as_hover_link},
-	{"editor_process_keypress_mouse_motion_without_ctrl_does_not_mark_hover", test_editor_process_keypress_mouse_motion_without_ctrl_does_not_mark_hover},
-	{"editor_keypress_clears_hover_link", test_editor_keypress_clears_hover_link},
-	{"editor_process_keypress_mouse_left_click_ignores_non_text_rows", test_editor_process_keypress_mouse_left_click_ignores_non_text_rows},
-	{"editor_process_keypress_mouse_left_click_ignores_indicator_padding_columns", test_editor_process_keypress_mouse_left_click_ignores_indicator_padding_columns},
-	{"editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory", test_editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory},
-	{"editor_process_keypress_mouse_click_expands_collapsed_drawer", test_editor_process_keypress_mouse_click_expands_collapsed_drawer},
-	{"editor_process_keypress_mouse_drawer_header_mode_buttons", test_editor_process_keypress_mouse_drawer_header_mode_buttons},
-	{"editor_process_keypress_mouse_collapsed_drawer_body_click_edits_text_pane", test_editor_process_keypress_mouse_collapsed_drawer_body_click_edits_text_pane},
-	{"editor_process_keypress_mouse_drawer_single_file_click_opens_preview_tab", test_editor_process_keypress_mouse_drawer_single_file_click_opens_preview_tab},
-	{"editor_process_keypress_mouse_drawer_double_click_file_pins_preview_tab", test_editor_process_keypress_mouse_drawer_double_click_file_pins_preview_tab},
-	{"editor_process_keypress_mouse_top_row_double_click_pins_preview_tab", test_editor_process_keypress_mouse_top_row_double_click_pins_preview_tab},
-	{"editor_process_keypress_mouse_top_row_click_switches_tab", test_editor_process_keypress_mouse_top_row_click_switches_tab},
-	{"editor_process_keypress_mouse_top_row_click_uses_variable_tab_layout", test_editor_process_keypress_mouse_top_row_click_uses_variable_tab_layout},
-	{"editor_process_keypress_mouse_tab_bar_carets_switch_hidden_tabs", test_editor_process_keypress_mouse_tab_bar_carets_switch_hidden_tabs},
-	{"editor_process_keypress_mouse_drag_on_splitter_resizes_drawer", test_editor_process_keypress_mouse_drag_on_splitter_resizes_drawer},
-	{"editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps", test_editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps},
-	{"editor_process_keypress_mouse_wheel_scrolls_wrapped_segments", test_editor_process_keypress_mouse_wheel_scrolls_wrapped_segments},
-	{"editor_process_keypress_mouse_wheel_scrolls_horizontally_and_clamps", test_editor_process_keypress_mouse_wheel_scrolls_horizontally_and_clamps},
-	{"editor_process_keypress_mouse_wheel_scrolls_drawer_when_hovered", test_editor_process_keypress_mouse_wheel_scrolls_drawer_when_hovered},
-	{"editor_process_keypress_mouse_wheel_scrolls_drawer_with_empty_buffer", test_editor_process_keypress_mouse_wheel_scrolls_drawer_with_empty_buffer},
-	{"editor_process_keypress_mouse_wheel_scrolls_text_when_hovered_even_if_drawer_focused", test_editor_process_keypress_mouse_wheel_scrolls_text_when_hovered_even_if_drawer_focused},
-	{"editor_process_keypress_mouse_click_clears_existing_selection", test_editor_process_keypress_mouse_click_clears_existing_selection},
-	{"editor_process_keypress_mouse_drag_starts_selection_without_ctrl_b", test_editor_process_keypress_mouse_drag_starts_selection_without_ctrl_b},
-	{"editor_process_keypress_mouse_press_without_drag_keeps_click_behavior", test_editor_process_keypress_mouse_press_without_drag_keeps_click_behavior},
-	{"editor_process_keypress_mouse_drag_resets_existing_selection_anchor", test_editor_process_keypress_mouse_drag_resets_existing_selection_anchor},
-	{"editor_process_keypress_mouse_drag_clamps_to_viewport_without_autoscroll", test_editor_process_keypress_mouse_drag_clamps_to_viewport_without_autoscroll},
-	{"editor_process_keypress_mouse_drag_honors_rowoff_and_coloff", test_editor_process_keypress_mouse_drag_honors_rowoff_and_coloff},
-	{"editor_process_keypress_mouse_release_stops_drag_session", test_editor_process_keypress_mouse_release_stops_drag_session},
-	{"editor_prompt_ignores_mouse_events", test_editor_prompt_ignores_mouse_events},
-	{"editor_bracketed_paste_markers_toggle_paste_active", test_editor_bracketed_paste_markers_toggle_paste_active},
+        {"editor_column_select_alt_mouse_drag_starts_column_selection",
+         test_editor_column_select_alt_mouse_drag_starts_column_selection},
+        {"editor_process_keypress_mouse_left_click_places_cursor_with_offsets",
+         test_editor_process_keypress_mouse_left_click_places_cursor_with_offsets},
+        {"editor_process_keypress_mouse_click_places_cursor_in_created_pane",
+         test_editor_process_keypress_mouse_click_places_cursor_in_created_pane},
+        {"editor_process_keypress_mouse_click_maps_same_column_with_line_numbers",
+         test_editor_process_keypress_mouse_click_maps_same_column_with_line_numbers},
+        {"editor_process_keypress_mouse_left_click_places_cursor_on_wrapped_segment",
+         test_editor_process_keypress_mouse_left_click_places_cursor_on_wrapped_segment},
+        {"editor_process_keypress_mouse_ctrl_click_does_not_start_drag_selection",
+         test_editor_process_keypress_mouse_ctrl_click_does_not_start_drag_selection},
+        {"editor_process_keypress_mouse_ctrl_hover_marks_word_as_hover_link",
+         test_editor_process_keypress_mouse_ctrl_hover_marks_word_as_hover_link},
+        {"editor_process_keypress_mouse_motion_without_ctrl_does_not_mark_hover",
+         test_editor_process_keypress_mouse_motion_without_ctrl_does_not_mark_hover},
+        {"editor_keypress_clears_hover_link", test_editor_keypress_clears_hover_link},
+        {"editor_process_keypress_mouse_left_click_ignores_non_text_rows",
+         test_editor_process_keypress_mouse_left_click_ignores_non_text_rows},
+        {"editor_process_keypress_mouse_left_click_ignores_indicator_padding_columns",
+         test_editor_process_keypress_mouse_left_click_ignores_indicator_padding_columns},
+        {"editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory",
+         test_editor_process_keypress_mouse_drawer_click_selects_and_toggles_directory},
+        {"editor_process_keypress_mouse_click_expands_collapsed_drawer",
+         test_editor_process_keypress_mouse_click_expands_collapsed_drawer},
+        {"editor_process_keypress_mouse_drawer_header_mode_buttons",
+         test_editor_process_keypress_mouse_drawer_header_mode_buttons},
+        {"editor_process_keypress_mouse_collapsed_drawer_body_click_edits_text_pane",
+         test_editor_process_keypress_mouse_collapsed_drawer_body_click_edits_text_pane},
+        {"editor_process_keypress_mouse_drawer_single_file_click_opens_preview_tab",
+         test_editor_process_keypress_mouse_drawer_single_file_click_opens_preview_tab},
+        {"editor_process_keypress_mouse_drawer_double_click_file_pins_preview_tab",
+         test_editor_process_keypress_mouse_drawer_double_click_file_pins_preview_tab},
+        {"editor_process_keypress_mouse_top_row_double_click_pins_preview_tab",
+         test_editor_process_keypress_mouse_top_row_double_click_pins_preview_tab},
+        {"editor_process_keypress_mouse_top_row_click_switches_tab",
+         test_editor_process_keypress_mouse_top_row_click_switches_tab},
+        {"editor_process_keypress_mouse_top_row_click_uses_variable_tab_layout",
+         test_editor_process_keypress_mouse_top_row_click_uses_variable_tab_layout},
+        {"editor_process_keypress_mouse_tab_bar_carets_switch_hidden_tabs",
+         test_editor_process_keypress_mouse_tab_bar_carets_switch_hidden_tabs},
+        {"editor_process_keypress_mouse_drag_on_splitter_resizes_drawer",
+         test_editor_process_keypress_mouse_drag_on_splitter_resizes_drawer},
+        {"editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps",
+         test_editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps},
+        {"editor_process_keypress_mouse_wheel_scrolls_wrapped_segments",
+         test_editor_process_keypress_mouse_wheel_scrolls_wrapped_segments},
+        {"editor_process_keypress_mouse_wheel_scrolls_horizontally_and_clamps",
+         test_editor_process_keypress_mouse_wheel_scrolls_horizontally_and_clamps},
+        {"editor_process_keypress_mouse_wheel_scrolls_drawer_when_hovered",
+         test_editor_process_keypress_mouse_wheel_scrolls_drawer_when_hovered},
+        {"editor_process_keypress_mouse_wheel_scrolls_drawer_with_empty_buffer",
+         test_editor_process_keypress_mouse_wheel_scrolls_drawer_with_empty_buffer},
+        {"editor_process_keypress_mouse_wheel_scrolls_text_when_hovered_even_if_drawer_focused",
+         test_editor_process_keypress_mouse_wheel_scrolls_text_when_hovered_even_if_drawer_focused},
+        {"editor_process_keypress_mouse_click_clears_existing_selection",
+         test_editor_process_keypress_mouse_click_clears_existing_selection},
+        {"editor_process_keypress_mouse_drag_starts_selection_without_ctrl_b",
+         test_editor_process_keypress_mouse_drag_starts_selection_without_ctrl_b},
+        {"editor_process_keypress_mouse_press_without_drag_keeps_click_behavior",
+         test_editor_process_keypress_mouse_press_without_drag_keeps_click_behavior},
+        {"editor_process_keypress_mouse_drag_resets_existing_selection_anchor",
+         test_editor_process_keypress_mouse_drag_resets_existing_selection_anchor},
+        {"editor_process_keypress_mouse_drag_clamps_to_viewport_without_autoscroll",
+         test_editor_process_keypress_mouse_drag_clamps_to_viewport_without_autoscroll},
+        {"editor_process_keypress_mouse_drag_honors_rowoff_and_coloff",
+         test_editor_process_keypress_mouse_drag_honors_rowoff_and_coloff},
+        {"editor_process_keypress_mouse_release_stops_drag_session",
+         test_editor_process_keypress_mouse_release_stops_drag_session},
+        {"editor_prompt_ignores_mouse_events", test_editor_prompt_ignores_mouse_events},
+        {"editor_bracketed_paste_markers_toggle_paste_active",
+         test_editor_bracketed_paste_markers_toggle_paste_active},
 };
 
 const int g_input_mouse_test_count =
-		(int)(sizeof(g_input_mouse_tests) / sizeof(g_input_mouse_tests[0]));
+        (int)(sizeof(g_input_mouse_tests) / sizeof(g_input_mouse_tests[0]));

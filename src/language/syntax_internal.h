@@ -9,13 +9,12 @@
 
 #include "language/syntax.h"
 #include "rotide.h"
+#include "tree_sitter/api.h"
 
 #include <regex.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-
-#include "tree_sitter/api.h"
 
 #define ROTIDE_SYNTAX_PERF_DEGRADED_PREDICATES_BYTES ((size_t)(512 * 1024))
 #define ROTIDE_SYNTAX_PERF_DEGRADED_INJECTIONS_BYTES ((size_t)(2 * 1024 * 1024))
@@ -185,26 +184,26 @@ struct editorSyntaxPredicateContext {
 const TSLanguage *editorSyntaxLanguageObject(enum editorSyntaxLanguage language);
 int editorSyntaxStringEquals(const char *s, size_t len, const char *literal);
 int editorSyntaxLengthFitsTreeSitter(size_t len);
-struct editorSyntaxBudgetConfig editorSyntaxBudgetConfigForMode(
-		enum editorSyntaxPerformanceMode mode);
+struct editorSyntaxBudgetConfig
+editorSyntaxBudgetConfigForMode(enum editorSyntaxPerformanceMode mode);
 uint64_t editorSyntaxComputeDeadlineNs(uint64_t budget_ns);
 bool editorSyntaxParseProgressCallback(TSParseState *state);
 bool editorSyntaxQueryProgressCallback(TSQueryCursorState *state);
-const char *editorSyntaxSourceRead(void *payload, uint32_t byte_index,
-		TSPoint position, uint32_t *bytes_read);
+const char *editorSyntaxSourceRead(void *payload, uint32_t byte_index, TSPoint position,
+                                   uint32_t *bytes_read);
 
-const struct editorSyntaxQueryCacheEntry *editorSyntaxHighlightQueryCachePtr(
-		enum editorSyntaxLanguage language);
-const struct editorSyntaxQueryCacheEntry *editorSyntaxInjectionQueryCachePtr(
-		enum editorSyntaxLanguage language);
-const struct editorSyntaxQueryCacheEntry *editorSyntaxLocalsQueryCacheForLanguage(
-		enum editorSyntaxLanguage language);
+const struct editorSyntaxQueryCacheEntry *
+editorSyntaxHighlightQueryCachePtr(enum editorSyntaxLanguage language);
+const struct editorSyntaxQueryCacheEntry *
+editorSyntaxInjectionQueryCachePtr(enum editorSyntaxLanguage language);
+const struct editorSyntaxQueryCacheEntry *
+editorSyntaxLocalsQueryCacheForLanguage(enum editorSyntaxLanguage language);
 struct editorSyntaxQueryCacheEntry *editorSyntaxQueryCacheEntryForQuery(const TSQuery *query);
 int editorSyntaxEnsureLocalsQuery(enum editorSyntaxLanguage language);
 
 void editorSyntaxStateRecordQueryUnavailable(struct editorSyntaxState *state,
-		enum editorSyntaxLanguage language,
-		enum editorSyntaxQueryKind kind);
+                                             enum editorSyntaxLanguage language,
+                                             enum editorSyntaxQueryKind kind);
 
 /*
  * Limit-event and performance-mode helpers implemented in
@@ -215,13 +214,12 @@ void editorSyntaxStateRecordQueryUnavailable(struct editorSyntaxState *state,
  * that need to refresh perf flags after a size change.
  */
 void editorSyntaxStateRecordInjectionDepthExceeded(struct editorSyntaxState *state,
-		enum editorSyntaxLanguage language, int depth);
+                                                   enum editorSyntaxLanguage language, int depth);
 void editorSyntaxStateRecordInjectionSlotsFull(struct editorSyntaxState *state,
-		enum editorSyntaxLanguage language);
+                                               enum editorSyntaxLanguage language);
 void editorSyntaxStateRecordParseTreeHasError(struct editorSyntaxState *state,
-		enum editorSyntaxLanguage language);
-void editorSyntaxStateApplyPerformanceMode(struct editorSyntaxState *state,
-		size_t source_len);
+                                              enum editorSyntaxLanguage language);
+void editorSyntaxStateApplyPerformanceMode(struct editorSyntaxState *state, size_t source_len);
 
 /*
  * Injection workflow implemented in syntax_injections.c. The host parse
@@ -233,8 +231,8 @@ void editorSyntaxStateApplyPerformanceMode(struct editorSyntaxState *state,
  */
 void editorSyntaxApplyInputEdit(TSTree *tree, const struct editorSyntaxEdit *edit);
 int editorSyntaxStateParseInjections(struct editorSyntaxState *state,
-		const struct editorTextSource *source,
-		const struct editorSyntaxEdit *incremental_edit);
+                                     const struct editorTextSource *source,
+                                     const struct editorSyntaxEdit *incremental_edit);
 
 /*
  * Parsed/injected-tree lifecycle helpers used by both the host parse
@@ -243,13 +241,13 @@ int editorSyntaxStateParseInjections(struct editorSyntaxState *state,
  * is the primary owner.
  */
 void editorSyntaxParsedTreeInit(struct editorSyntaxParsedTree *parsed,
-		enum editorSyntaxLanguage language);
+                                enum editorSyntaxLanguage language);
 int editorSyntaxParsedTreeCreateParser(struct editorSyntaxParsedTree *parsed,
-		enum editorSyntaxLanguage language);
+                                       enum editorSyntaxLanguage language);
 void editorSyntaxParsedTreeDestroy(struct editorSyntaxParsedTree *parsed);
 int editorSyntaxParsedTreeParse(struct editorSyntaxParsedTree *parsed,
-		struct editorSyntaxState *state,
-		const struct editorTextSource *source, int incremental);
+                                struct editorSyntaxState *state,
+                                const struct editorTextSource *source, int incremental);
 void editorSyntaxInjectedTreeInit(struct editorSyntaxInjectedTree *injection);
 void editorSyntaxInjectedTreeDestroy(struct editorSyntaxInjectedTree *injection);
 
@@ -260,22 +258,18 @@ void editorSyntaxInjectedTreeDestroy(struct editorSyntaxInjectedTree *injection)
  * scratch_idx) and returns a pointer into that scratch. The pointer is
  * valid until the next call with the same scratch_idx.
  */
-int editorSyntaxNodeText(struct editorSyntaxState *state,
-		const struct editorTextSource *source,
-		TSNode node, int scratch_idx,
-		const char **text_out, size_t *len_out);
-int editorSyntaxLocalsContextNodeIsLocal(const struct editorSyntaxLocalsContext *ctx,
-		TSNode node);
+int editorSyntaxNodeText(struct editorSyntaxState *state, const struct editorTextSource *source,
+                         TSNode node, int scratch_idx, const char **text_out, size_t *len_out);
+int editorSyntaxLocalsContextNodeIsLocal(const struct editorSyntaxLocalsContext *ctx, TSNode node);
 
 /*
  * Predicate evaluator for #eq?, #not-eq?, #match?, #not-match?, #any-of?,
  * #not-any-of?, #is?, #is-not? against a TSQueryMatch. Implemented in
  * syntax_predicates.c.
  */
-int editorSyntaxMatchPassesPredicates(const TSQuery *query,
-		uint32_t pattern_index,
-		const TSQueryMatch *match,
-		const struct editorSyntaxPredicateContext *ctx);
+int editorSyntaxMatchPassesPredicates(const TSQuery *query, uint32_t pattern_index,
+                                      const TSQueryMatch *match,
+                                      const struct editorSyntaxPredicateContext *ctx);
 
 /*
  * Locals analysis helpers implemented in syntax_locals.c. The
@@ -294,18 +288,17 @@ int editorSyntaxMatchPassesPredicates(const TSQuery *query,
  */
 void editorSyntaxLocalsContextInit(struct editorSyntaxLocalsContext *ctx);
 void editorSyntaxLocalsContextFree(struct editorSyntaxLocalsContext *ctx);
-int editorSyntaxBuildLocalsContext(const TSTree *tree,
-		struct editorSyntaxState *state,
-		enum editorSyntaxLanguage language,
-		const struct editorTextSource *source,
-		struct editorSyntaxLocalsContext *ctx_out);
+int editorSyntaxBuildLocalsContext(const TSTree *tree, struct editorSyntaxState *state,
+                                   enum editorSyntaxLanguage language,
+                                   const struct editorTextSource *source,
+                                   struct editorSyntaxLocalsContext *ctx_out);
 void editorSyntaxStateInvalidateLocalsCaches(struct editorSyntaxState *state);
 int editorSyntaxStateEnsureLocalsCached(struct editorSyntaxState *state,
-		const struct editorSyntaxParsedTree *parsed,
-		const struct editorTextSource *source,
-		enum editorSyntaxLanguage language,
-		struct editorSyntaxInjectedTree *injection,
-		const struct editorSyntaxLocalsContext **locals_out);
+                                        const struct editorSyntaxParsedTree *parsed,
+                                        const struct editorTextSource *source,
+                                        enum editorSyntaxLanguage language,
+                                        struct editorSyntaxInjectedTree *injection,
+                                        const struct editorSyntaxLocalsContext **locals_out);
 int editorSyntaxLanguageHasLocalsQuery(enum editorSyntaxLanguage language);
 
 #endif

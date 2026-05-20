@@ -29,15 +29,15 @@ static int test_utf8_decode_invalid_sequences(void) {
 	const char bad_continuation[] = "\xE2\x28\xA1";
 	const char overlong[] = "\xC0\xAF";
 
-	ASSERT_EQ_INT(1, editorUtf8DecodeCodepoint(invalid_lead, (int)sizeof(invalid_lead) - 1,
-				&cp));
+	ASSERT_EQ_INT(1,
+	              editorUtf8DecodeCodepoint(invalid_lead, (int)sizeof(invalid_lead) - 1, &cp));
 	ASSERT_EQ_INT(0xFF, cp);
 
 	ASSERT_EQ_INT(1, editorUtf8DecodeCodepoint(truncated, (int)sizeof(truncated) - 1, &cp));
 	ASSERT_EQ_INT(0xC3, cp);
 
 	ASSERT_EQ_INT(1, editorUtf8DecodeCodepoint(bad_continuation,
-				(int)sizeof(bad_continuation) - 1, &cp));
+	                                           (int)sizeof(bad_continuation) - 1, &cp));
 	ASSERT_EQ_INT(0xE2, cp);
 
 	ASSERT_EQ_INT(1, editorUtf8DecodeCodepoint(overlong, (int)sizeof(overlong) - 1, &cp));
@@ -157,7 +157,8 @@ static int test_document_replace_range_updates_text_and_line_index(void) {
 	ASSERT_EQ_INT(11, (int)line_start);
 
 	size_t full_len = 0;
-	char *full = editorDocumentDupRange(&document, 0, editorDocumentLength(&document), &full_len);
+	char *full =
+	        editorDocumentDupRange(&document, 0, editorDocumentLength(&document), &full_len);
 	ASSERT_TRUE(full != NULL);
 	ASSERT_EQ_INT((int)strlen("one\ntwo\n2b\nthree\n"), (int)full_len);
 	ASSERT_EQ_STR("one\ntwo\n2b\nthree\n", full);
@@ -276,11 +277,7 @@ static int test_editor_document_incremental_updates_for_basic_edits(void) {
 	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
 
 	struct editorSelectionRange range = {
-		.start_cy = 0,
-		.start_cx = 0,
-		.end_cy = 1,
-		.end_cx = 1
-	};
+	        .start_cy = 0, .start_cx = 0, .end_cy = 1, .end_cx = 1};
 	ASSERT_EQ_INT(1, editorDeleteRange(&range));
 	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
 	ASSERT_EQ_INT(0, editorDocumentTestFullRebuildCount());
@@ -428,11 +425,7 @@ static int test_editor_document_selection_and_delete_use_active_source(void) {
 	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
 
 	struct editorSelectionRange range = {
-		.start_cy = 0,
-		.start_cx = 1,
-		.end_cy = 1,
-		.end_cx = 2
-	};
+	        .start_cy = 0, .start_cx = 1, .end_cy = 1, .end_cx = 2};
 
 	editorDocumentTestResetStats();
 	editorActiveTextSourceDupTestResetCount();
@@ -533,7 +526,8 @@ static int test_char_display_width_basics(void) {
 }
 
 static int test_row_char_boundaries(void) {
-	const char text[] = "A\xC3\xA9" "Z";
+	const char text[] = "A\xC3\xA9"
+	                    "Z";
 	int size = (int)sizeof(text) - 1;
 	ASSERT_EQ_INT(1, editorBytesClampCxToCharBoundary(text, size, 2));
 	ASSERT_EQ_INT(0, editorBytesPrevCharIdx(text, size, 1));
@@ -544,7 +538,8 @@ static int test_row_char_boundaries(void) {
 }
 
 static int test_row_cluster_boundaries_combining(void) {
-	const char text[] = "a\xCC\x81" "b";
+	const char text[] = "a\xCC\x81"
+	                    "b";
 	int size = (int)sizeof(text) - 1;
 	ASSERT_EQ_INT(3, editorBytesNextClusterIdx(text, size, 0));
 	ASSERT_EQ_INT(0, editorBytesPrevClusterIdx(text, size, 3));
@@ -642,7 +637,8 @@ static int test_editor_update_row_preserves_printable_utf8_with_80_9f_continuati
 }
 
 static int test_row_cx_to_rx_with_escaped_controls(void) {
-	const char text[] = "A\x1b" "B";
+	const char text[] = "A\x1b"
+	                    "B";
 	int size = (int)sizeof(text) - 1;
 	ASSERT_EQ_INT(0, editorBytesCxToRx(text, size, 0));
 	ASSERT_EQ_INT(1, editorBytesCxToRx(text, size, 1));
@@ -652,7 +648,8 @@ static int test_row_cx_to_rx_with_escaped_controls(void) {
 }
 
 static int test_row_rx_to_cx_with_escaped_controls(void) {
-	const char text[] = "A\x1b" "B";
+	const char text[] = "A\x1b"
+	                    "B";
 	int size = (int)sizeof(text) - 1;
 	ASSERT_EQ_INT(0, editorBytesRxToCx(text, size, 0));
 	ASSERT_EQ_INT(1, editorBytesRxToCx(text, size, 1));
@@ -674,11 +671,7 @@ static int test_insert_and_delete_row_updates_dirty(void) {
 	ASSERT_EQ_INT(1, E.dirty);
 
 	struct editorSelectionRange range = {
-		.start_cy = 0,
-		.start_cx = 0,
-		.end_cy = 1,
-		.end_cx = 0
-	};
+	        .start_cy = 0, .start_cx = 0, .end_cy = 1, .end_cx = 0};
 	ASSERT_EQ_INT(1, editorDeleteRange(&range));
 	ASSERT_EQ_INT(2, E.numrows);
 	ASSERT_ROW_TEXT_EQ(0, "one");
@@ -692,11 +685,7 @@ static int test_editor_delete_row_rejects_idx_at_numrows(void) {
 	E.dirty = 0;
 
 	struct editorSelectionRange range = {
-		.start_cy = 0,
-		.start_cx = 4,
-		.end_cy = 0,
-		.end_cx = 4
-	};
+	        .start_cy = 0, .start_cx = 4, .end_cy = 0, .end_cx = 4};
 	ASSERT_EQ_INT(0, editorDeleteRange(&range));
 	ASSERT_EQ_INT(1, E.numrows);
 	ASSERT_ROW_TEXT_EQ(0, "only");
@@ -715,31 +704,18 @@ static int test_insert_and_delete_chars(void) {
 	ASSERT_EQ_INT(1, E.dirty);
 
 	struct editorSelectionRange delete_one = {
-		.start_cy = 0,
-		.start_cx = 2,
-		.end_cy = 0,
-		.end_cx = 3
-	};
+	        .start_cy = 0, .start_cx = 2, .end_cy = 0, .end_cx = 3};
 	ASSERT_EQ_INT(1, editorDeleteRange(&delete_one));
 	ASSERT_ROW_TEXT_EQ(0, "aXc");
 	ASSERT_EQ_INT(2, E.dirty);
 
 	struct editorSelectionRange delete_two = {
-		.start_cy = 0,
-		.start_cx = 1,
-		.end_cy = 0,
-		.end_cx = 3
-	};
+	        .start_cy = 0, .start_cx = 1, .end_cy = 0, .end_cx = 3};
 	ASSERT_EQ_INT(1, editorDeleteRange(&delete_two));
 	ASSERT_ROW_TEXT_EQ(0, "a");
 	ASSERT_EQ_INT(3, E.dirty);
 
-	struct editorSelectionRange noop = {
-		.start_cy = 0,
-		.start_cx = 1,
-		.end_cy = 0,
-		.end_cx = 1
-	};
+	struct editorSelectionRange noop = {.start_cy = 0, .start_cx = 1, .end_cy = 0, .end_cx = 1};
 	ASSERT_EQ_INT(0, editorDeleteRange(&noop));
 	ASSERT_ROW_TEXT_EQ(0, "a");
 	ASSERT_EQ_INT(3, E.dirty);
@@ -868,11 +844,7 @@ static int test_editor_replace_range_replaces_text_in_one_edit(void) {
 	E.dirty = 0;
 
 	struct editorSelectionRange range = {
-		.start_cy = 0,
-		.start_cx = 6,
-		.end_cy = 0,
-		.end_cx = 11
-	};
+	        .start_cy = 0, .start_cx = 6, .end_cy = 0, .end_cx = 11};
 	ASSERT_EQ_INT(1, editorReplaceRange(&range, "there", 5));
 	ASSERT_ROW_TEXT_EQ(0, "hello there");
 	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
@@ -886,11 +858,7 @@ static int test_editor_replace_range_undoes_paste_on_selection_in_one_step(void)
 	E.dirty = 0;
 
 	struct editorSelectionRange range = {
-		.start_cy = 0,
-		.start_cx = 6,
-		.end_cy = 0,
-		.end_cx = 11
-	};
+	        .start_cy = 0, .start_cx = 6, .end_cy = 0, .end_cx = 11};
 
 	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
 	ASSERT_EQ_INT(1, editorReplaceRange(&range, "there", 5));
@@ -914,11 +882,7 @@ static int test_editor_replace_range_inserts_at_empty_range(void) {
 	E.dirty = 0;
 
 	struct editorSelectionRange range = {
-		.start_cy = 0,
-		.start_cx = 1,
-		.end_cy = 0,
-		.end_cx = 1
-	};
+	        .start_cy = 0, .start_cx = 1, .end_cy = 0, .end_cx = 1};
 	ASSERT_EQ_INT(1, editorReplaceRange(&range, "XY", 2));
 	ASSERT_ROW_TEXT_EQ(0, "aXYb");
 	ASSERT_EQ_INT(0, assert_active_source_matches_rows());
@@ -932,11 +896,7 @@ static int test_editor_replace_range_with_empty_selection_and_empty_text_is_noop
 	E.dirty = 0;
 
 	struct editorSelectionRange range = {
-		.start_cy = 0,
-		.start_cx = 1,
-		.end_cy = 0,
-		.end_cx = 1
-	};
+	        .start_cy = 0, .start_cx = 1, .end_cy = 0, .end_cx = 1};
 	ASSERT_EQ_INT(0, editorReplaceRange(&range, "", 0));
 	ASSERT_ROW_TEXT_EQ(0, "abc");
 	ASSERT_EQ_INT(0, E.dirty);
@@ -952,11 +912,7 @@ static int test_editor_replace_range_spans_multiple_lines(void) {
 	E.dirty = 0;
 
 	struct editorSelectionRange range = {
-		.start_cy = 0,
-		.start_cx = 2,
-		.end_cy = 1,
-		.end_cx = 3
-	};
+	        .start_cy = 0, .start_cx = 2, .end_cy = 1, .end_cx = 3};
 	ASSERT_EQ_INT(1, editorReplaceRange(&range, "XYZ", 3));
 	ASSERT_EQ_INT(2, E.numrows);
 	ASSERT_ROW_TEXT_EQ(0, "heXYZld");
@@ -969,12 +925,7 @@ static int test_editor_del_char_at_rejects_idx_at_row_size(void) {
 	add_row("abc");
 	E.dirty = 0;
 
-	struct editorSelectionRange noop = {
-		.start_cy = 0,
-		.start_cx = 3,
-		.end_cy = 0,
-		.end_cx = 3
-	};
+	struct editorSelectionRange noop = {.start_cy = 0, .start_cx = 3, .end_cy = 0, .end_cx = 3};
 	ASSERT_EQ_INT(0, editorDeleteRange(&noop));
 	ASSERT_EQ_INT(3, editor_test_row_size(0));
 	ASSERT_ROW_TEXT_EQ(0, "abc");
@@ -1061,7 +1012,8 @@ static int test_editor_insert_newline_auto_indents_with_tabs(void) {
 }
 
 static int test_editor_del_char_cluster_and_merge(void) {
-	const char with_combining[] = "a\xCC\x81" "b";
+	const char with_combining[] = "a\xCC\x81"
+	                              "b";
 	add_row_bytes(with_combining, sizeof(with_combining) - 1);
 	E.cy = 0;
 	E.cx = 3;
@@ -1308,68 +1260,103 @@ static int test_document_line_view_empty_doc_and_blank_lines(void) {
 }
 
 const struct editorTestCase g_document_text_editing_tests[] = {
-	{"utf8_decode_valid_sequences", test_utf8_decode_valid_sequences},
-	{"utf8_decode_invalid_sequences", test_utf8_decode_invalid_sequences},
-	{"text_tree_copy_and_dup_range", test_text_tree_copy_and_dup_range},
-	{"text_tree_replace_range_across_large_text", test_text_tree_replace_range_across_large_text},
-	{"document_line_index_tracks_blank_lines_and_trailing_newline", test_document_line_index_tracks_blank_lines_and_trailing_newline},
-	{"document_replace_range_updates_text_and_line_index", test_document_replace_range_updates_text_and_line_index},
-	{"document_position_offset_roundtrip", test_document_position_offset_roundtrip},
-	{"document_reset_from_text_source_streams_bytes", test_document_reset_from_text_source_streams_bytes},
-	{"editor_build_active_text_source_uses_document_after_open", test_editor_build_active_text_source_uses_document_after_open},
-	{"editor_document_incremental_updates_for_basic_edits", test_editor_document_incremental_updates_for_basic_edits},
-	{"editor_buffer_offset_roundtrip_uses_document_mapping", test_editor_buffer_offset_roundtrip_uses_document_mapping},
-	{"editor_buffer_offsets_rebuild_document_after_row_mutation", test_editor_buffer_offsets_rebuild_document_after_row_mutation},
-	{"editor_document_lazy_rebuild_after_low_level_row_mutation", test_editor_document_lazy_rebuild_after_low_level_row_mutation},
-	{"editor_document_restored_for_undo_redo", test_editor_document_restored_for_undo_redo},
-	{"editor_document_edit_capture_uses_active_source", test_editor_document_edit_capture_uses_active_source},
-	{"editor_document_selection_and_delete_use_active_source", test_editor_document_selection_and_delete_use_active_source},
-	{"editor_document_save_uses_active_source", test_editor_document_save_uses_active_source},
-	{"editor_buffer_find_uses_active_source_without_full_dup", test_editor_buffer_find_uses_active_source_without_full_dup},
-	{"utf8_continuation_detection", test_utf8_continuation_detection},
-	{"grapheme_extend_classification", test_grapheme_extend_classification},
-	{"char_display_width_basics", test_char_display_width_basics},
-	{"row_char_boundaries", test_row_char_boundaries},
-	{"row_cluster_boundaries_combining", test_row_cluster_boundaries_combining},
-	{"row_cluster_boundaries_zwj_sequence", test_row_cluster_boundaries_zwj_sequence},
-	{"row_cluster_boundaries_regional_indicators", test_row_cluster_boundaries_regional_indicators},
-	{"row_cx_to_rx_with_tabs", test_row_cx_to_rx_with_tabs},
-	{"row_rx_to_cx_with_tabs", test_row_rx_to_cx_with_tabs},
-	{"editor_update_row_expands_tabs", test_editor_update_row_expands_tabs},
-	{"editor_update_row_tab_alignment_after_multibyte", test_editor_update_row_tab_alignment_after_multibyte},
-	{"editor_update_row_escapes_c0_and_esc_in_render", test_editor_update_row_escapes_c0_and_esc_in_render},
-	{"editor_update_row_escapes_c1_codepoints_in_render", test_editor_update_row_escapes_c1_codepoints_in_render},
-	{"editor_update_row_preserves_printable_utf8_with_80_9f_continuations", test_editor_update_row_preserves_printable_utf8_with_80_9f_continuations},
-	{"row_cx_to_rx_with_escaped_controls", test_row_cx_to_rx_with_escaped_controls},
-	{"row_rx_to_cx_with_escaped_controls", test_row_rx_to_cx_with_escaped_controls},
-	{"insert_and_delete_row_updates_dirty", test_insert_and_delete_row_updates_dirty},
-	{"editor_delete_row_rejects_idx_at_numrows", test_editor_delete_row_rejects_idx_at_numrows},
-	{"insert_and_delete_chars", test_insert_and_delete_chars},
-	{"editor_column_selection_extracts_and_deletes_each_row_slice", test_editor_column_selection_extracts_and_deletes_each_row_slice},
-	{"editor_column_selection_insert_replaces_slice_on_each_row", test_editor_column_selection_insert_replaces_slice_on_each_row},
-	{"editor_column_selection_pastes_matching_lines_by_cursor_row", test_editor_column_selection_pastes_matching_lines_by_cursor_row},
-	{"editor_column_selection_pastes_single_line_at_each_cursor", test_editor_column_selection_pastes_single_line_at_each_cursor},
-	{"editor_column_selection_zero_width_delete_and_backspace_each_row", test_editor_column_selection_zero_width_delete_and_backspace_each_row},
-	{"editor_replace_range_replaces_text_in_one_edit", test_editor_replace_range_replaces_text_in_one_edit},
-	{"editor_replace_range_undoes_paste_on_selection_in_one_step", test_editor_replace_range_undoes_paste_on_selection_in_one_step},
-	{"editor_replace_range_inserts_at_empty_range", test_editor_replace_range_inserts_at_empty_range},
-	{"editor_replace_range_with_empty_selection_and_empty_text_is_noop", test_editor_replace_range_with_empty_selection_and_empty_text_is_noop},
-	{"editor_replace_range_spans_multiple_lines", test_editor_replace_range_spans_multiple_lines},
-	{"editor_del_char_at_rejects_idx_at_row_size", test_editor_del_char_at_rejects_idx_at_row_size},
-	{"editor_insert_char_creates_initial_row", test_editor_insert_char_creates_initial_row},
-	{"editor_insert_newline_splits_row", test_editor_insert_newline_splits_row},
-	{"editor_insert_newline_at_row_start", test_editor_insert_newline_at_row_start},
-	{"editor_insert_newline_auto_indents_with_spaces", test_editor_insert_newline_auto_indents_with_spaces},
-	{"editor_insert_newline_auto_indents_with_tabs", test_editor_insert_newline_auto_indents_with_tabs},
-	{"editor_del_char_cluster_and_merge", test_editor_del_char_cluster_and_merge},
-	{"editor_rows_to_str", test_editor_rows_to_str},
-	{"editor_open_reads_rows_and_clears_dirty", test_editor_open_reads_rows_and_clears_dirty},
-	{"editor_open_rejects_binary_file_without_mutating_buffer", test_editor_open_rejects_binary_file_without_mutating_buffer},
-	{"editor_open_rejects_binary_file_after_initial_scan_chunk", test_editor_open_rejects_binary_file_after_initial_scan_chunk},
-	{"document_line_view_zero_copy_for_single_piece_doc", test_document_line_view_zero_copy_for_single_piece_doc},
-	{"document_line_view_falls_back_to_copy_across_piece_boundary", test_document_line_view_falls_back_to_copy_across_piece_boundary},
-	{"document_line_view_empty_doc_and_blank_lines", test_document_line_view_empty_doc_and_blank_lines},
+        {"utf8_decode_valid_sequences", test_utf8_decode_valid_sequences},
+        {"utf8_decode_invalid_sequences", test_utf8_decode_invalid_sequences},
+        {"text_tree_copy_and_dup_range", test_text_tree_copy_and_dup_range},
+        {"text_tree_replace_range_across_large_text",
+         test_text_tree_replace_range_across_large_text},
+        {"document_line_index_tracks_blank_lines_and_trailing_newline",
+         test_document_line_index_tracks_blank_lines_and_trailing_newline},
+        {"document_replace_range_updates_text_and_line_index",
+         test_document_replace_range_updates_text_and_line_index},
+        {"document_position_offset_roundtrip", test_document_position_offset_roundtrip},
+        {"document_reset_from_text_source_streams_bytes",
+         test_document_reset_from_text_source_streams_bytes},
+        {"editor_build_active_text_source_uses_document_after_open",
+         test_editor_build_active_text_source_uses_document_after_open},
+        {"editor_document_incremental_updates_for_basic_edits",
+         test_editor_document_incremental_updates_for_basic_edits},
+        {"editor_buffer_offset_roundtrip_uses_document_mapping",
+         test_editor_buffer_offset_roundtrip_uses_document_mapping},
+        {"editor_buffer_offsets_rebuild_document_after_row_mutation",
+         test_editor_buffer_offsets_rebuild_document_after_row_mutation},
+        {"editor_document_lazy_rebuild_after_low_level_row_mutation",
+         test_editor_document_lazy_rebuild_after_low_level_row_mutation},
+        {"editor_document_restored_for_undo_redo", test_editor_document_restored_for_undo_redo},
+        {"editor_document_edit_capture_uses_active_source",
+         test_editor_document_edit_capture_uses_active_source},
+        {"editor_document_selection_and_delete_use_active_source",
+         test_editor_document_selection_and_delete_use_active_source},
+        {"editor_document_save_uses_active_source", test_editor_document_save_uses_active_source},
+        {"editor_buffer_find_uses_active_source_without_full_dup",
+         test_editor_buffer_find_uses_active_source_without_full_dup},
+        {"utf8_continuation_detection", test_utf8_continuation_detection},
+        {"grapheme_extend_classification", test_grapheme_extend_classification},
+        {"char_display_width_basics", test_char_display_width_basics},
+        {"row_char_boundaries", test_row_char_boundaries},
+        {"row_cluster_boundaries_combining", test_row_cluster_boundaries_combining},
+        {"row_cluster_boundaries_zwj_sequence", test_row_cluster_boundaries_zwj_sequence},
+        {"row_cluster_boundaries_regional_indicators",
+         test_row_cluster_boundaries_regional_indicators},
+        {"row_cx_to_rx_with_tabs", test_row_cx_to_rx_with_tabs},
+        {"row_rx_to_cx_with_tabs", test_row_rx_to_cx_with_tabs},
+        {"editor_update_row_expands_tabs", test_editor_update_row_expands_tabs},
+        {"editor_update_row_tab_alignment_after_multibyte",
+         test_editor_update_row_tab_alignment_after_multibyte},
+        {"editor_update_row_escapes_c0_and_esc_in_render",
+         test_editor_update_row_escapes_c0_and_esc_in_render},
+        {"editor_update_row_escapes_c1_codepoints_in_render",
+         test_editor_update_row_escapes_c1_codepoints_in_render},
+        {"editor_update_row_preserves_printable_utf8_with_80_9f_continuations",
+         test_editor_update_row_preserves_printable_utf8_with_80_9f_continuations},
+        {"row_cx_to_rx_with_escaped_controls", test_row_cx_to_rx_with_escaped_controls},
+        {"row_rx_to_cx_with_escaped_controls", test_row_rx_to_cx_with_escaped_controls},
+        {"insert_and_delete_row_updates_dirty", test_insert_and_delete_row_updates_dirty},
+        {"editor_delete_row_rejects_idx_at_numrows", test_editor_delete_row_rejects_idx_at_numrows},
+        {"insert_and_delete_chars", test_insert_and_delete_chars},
+        {"editor_column_selection_extracts_and_deletes_each_row_slice",
+         test_editor_column_selection_extracts_and_deletes_each_row_slice},
+        {"editor_column_selection_insert_replaces_slice_on_each_row",
+         test_editor_column_selection_insert_replaces_slice_on_each_row},
+        {"editor_column_selection_pastes_matching_lines_by_cursor_row",
+         test_editor_column_selection_pastes_matching_lines_by_cursor_row},
+        {"editor_column_selection_pastes_single_line_at_each_cursor",
+         test_editor_column_selection_pastes_single_line_at_each_cursor},
+        {"editor_column_selection_zero_width_delete_and_backspace_each_row",
+         test_editor_column_selection_zero_width_delete_and_backspace_each_row},
+        {"editor_replace_range_replaces_text_in_one_edit",
+         test_editor_replace_range_replaces_text_in_one_edit},
+        {"editor_replace_range_undoes_paste_on_selection_in_one_step",
+         test_editor_replace_range_undoes_paste_on_selection_in_one_step},
+        {"editor_replace_range_inserts_at_empty_range",
+         test_editor_replace_range_inserts_at_empty_range},
+        {"editor_replace_range_with_empty_selection_and_empty_text_is_noop",
+         test_editor_replace_range_with_empty_selection_and_empty_text_is_noop},
+        {"editor_replace_range_spans_multiple_lines",
+         test_editor_replace_range_spans_multiple_lines},
+        {"editor_del_char_at_rejects_idx_at_row_size",
+         test_editor_del_char_at_rejects_idx_at_row_size},
+        {"editor_insert_char_creates_initial_row", test_editor_insert_char_creates_initial_row},
+        {"editor_insert_newline_splits_row", test_editor_insert_newline_splits_row},
+        {"editor_insert_newline_at_row_start", test_editor_insert_newline_at_row_start},
+        {"editor_insert_newline_auto_indents_with_spaces",
+         test_editor_insert_newline_auto_indents_with_spaces},
+        {"editor_insert_newline_auto_indents_with_tabs",
+         test_editor_insert_newline_auto_indents_with_tabs},
+        {"editor_del_char_cluster_and_merge", test_editor_del_char_cluster_and_merge},
+        {"editor_rows_to_str", test_editor_rows_to_str},
+        {"editor_open_reads_rows_and_clears_dirty", test_editor_open_reads_rows_and_clears_dirty},
+        {"editor_open_rejects_binary_file_without_mutating_buffer",
+         test_editor_open_rejects_binary_file_without_mutating_buffer},
+        {"editor_open_rejects_binary_file_after_initial_scan_chunk",
+         test_editor_open_rejects_binary_file_after_initial_scan_chunk},
+        {"document_line_view_zero_copy_for_single_piece_doc",
+         test_document_line_view_zero_copy_for_single_piece_doc},
+        {"document_line_view_falls_back_to_copy_across_piece_boundary",
+         test_document_line_view_falls_back_to_copy_across_piece_boundary},
+        {"document_line_view_empty_doc_and_blank_lines",
+         test_document_line_view_empty_doc_and_blank_lines},
 };
 
 const int g_document_text_editing_test_count =
-		(int)(sizeof(g_document_text_editing_tests) / sizeof(g_document_text_editing_tests[0]));
+        (int)(sizeof(g_document_text_editing_tests) / sizeof(g_document_text_editing_tests[0]));

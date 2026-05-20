@@ -3,9 +3,9 @@
 #include "editing/selection.h"
 #include "language/lsp.h"
 #include "render/popup.h"
+#include "rotide.h"
 #include "text/document.h"
 #include "text/row.h"
-#include "rotide.h"
 
 #include <ctype.h>
 #include <stdlib.h>
@@ -88,7 +88,7 @@ int editorAutocompleteWouldRefilter(int ch) {
 		return 0;
 	}
 	const char *trigger_chars =
-			editorLspCompletionTriggerCharsForFile(E.filename, E.syntax_language);
+	        editorLspCompletionTriggerCharsForFile(E.filename, E.syntax_language);
 	if (editorAutocompleteTriggerCharMatches(trigger_chars, ch)) {
 		return 1;
 	}
@@ -118,7 +118,7 @@ static int editorAutocompletePrefixStartCxBytes(const char *bytes, int size, int
 }
 
 static char *editorAutocompleteCopyPrefixBytes(const char *bytes, int size, int start_cx,
-		int end_cx) {
+                                               int end_cx) {
 	int len = end_cx - start_cx;
 	if (bytes == NULL || len <= 0) {
 		return strdup("");
@@ -188,7 +188,7 @@ static int editorAutocompleteMatchBeginsWith(const char *text, const char *prefi
 }
 
 static int editorAutocompleteShouldFire(int ch, const char *trigger_chars, int *trigger_kind_out,
-		int *trigger_character_out) {
+                                        int *trigger_character_out) {
 	if (trigger_kind_out != NULL) {
 		*trigger_kind_out = 1;
 	}
@@ -230,14 +230,15 @@ static int editorAutocompleteRefreshFiltered(int anchor_row, int anchor_col) {
 		if (visible_count >= cap) {
 			int new_cap = cap > 0 ? cap * 2 : 16;
 			struct editorPopupItem *grown_popup =
-					realloc(popup_items, sizeof(*popup_items) * (size_t)new_cap);
+			        realloc(popup_items, sizeof(*popup_items) * (size_t)new_cap);
 			if (grown_popup == NULL) {
 				free(popup_items);
 				free(visible_indices);
 				return 0;
 			}
 			popup_items = grown_popup;
-			int *grown_indices = realloc(visible_indices, sizeof(*visible_indices) * (size_t)new_cap);
+			int *grown_indices = realloc(visible_indices,
+			                             sizeof(*visible_indices) * (size_t)new_cap);
 			if (grown_indices == NULL) {
 				free(popup_items);
 				free(visible_indices);
@@ -251,8 +252,8 @@ static int editorAutocompleteRefreshFiltered(int anchor_row, int anchor_col) {
 		 * label for ranking; strip those so the popup shows the bare symbol the user is
 		 * trying to complete.
 		 */
-		const char *display = editorAutocompleteStripLeadingNonIdent(
-				g_autocomplete.items[i].label);
+		const char *display =
+		        editorAutocompleteStripLeadingNonIdent(g_autocomplete.items[i].label);
 		if (display == NULL || display[0] == '\0') {
 			display = g_autocomplete.items[i].label;
 		}
@@ -312,7 +313,7 @@ void editorAutocompleteOnCharInserted(int ch) {
 	}
 
 	const char *trigger_chars =
-			editorLspCompletionTriggerCharsForFile(E.filename, E.syntax_language);
+	        editorLspCompletionTriggerCharsForFile(E.filename, E.syntax_language);
 	int trigger_kind = 1;
 	int trigger_character = 0;
 	if (!editorAutocompleteShouldFire(ch, trigger_chars, &trigger_kind, &trigger_character)) {
@@ -326,8 +327,8 @@ void editorAutocompleteOnCharInserted(int ch) {
 		return;
 	}
 	int prefix_start_cx = editorAutocompletePrefixStartCxBytes(line.data, line.size, E.cx);
-	char *prefix = editorAutocompleteCopyPrefixBytes(line.data, line.size, prefix_start_cx,
-			E.cx);
+	char *prefix =
+	        editorAutocompleteCopyPrefixBytes(line.data, line.size, prefix_start_cx, E.cx);
 	editorLineViewRelease(&line);
 	if (prefix == NULL) {
 		editorAutocompleteReset();
@@ -341,12 +342,10 @@ void editorAutocompleteOnCharInserted(int ch) {
 	 * out so the server can return more specific items, which will replace the filtered set
 	 * when it arrives.
 	 */
-	if (g_autocomplete.active && g_autocomplete.filename != NULL &&
-			E.filename != NULL && strcmp(g_autocomplete.filename, E.filename) == 0 &&
-			g_autocomplete.request_cy == E.cy &&
-			g_autocomplete.prefix_start_cx == prefix_start_cx &&
-			g_autocomplete.prefix != NULL &&
-			strncmp(prefix, g_autocomplete.prefix, strlen(g_autocomplete.prefix)) == 0) {
+	if (g_autocomplete.active && g_autocomplete.filename != NULL && E.filename != NULL &&
+	    strcmp(g_autocomplete.filename, E.filename) == 0 && g_autocomplete.request_cy == E.cy &&
+	    g_autocomplete.prefix_start_cx == prefix_start_cx && g_autocomplete.prefix != NULL &&
+	    strncmp(prefix, g_autocomplete.prefix, strlen(g_autocomplete.prefix)) == 0) {
 		free(g_autocomplete.prefix);
 		g_autocomplete.prefix = strdup(prefix);
 		g_autocomplete.request_cx = E.cx;
@@ -354,7 +353,8 @@ void editorAutocompleteOnCharInserted(int ch) {
 	}
 
 	int requested = editorLspRequestCompletionAsync(E.filename, E.syntax_language, E.cy, E.cx,
-			E.lsp_doc_version, prefix_start_cx, prefix, trigger_kind, trigger_character);
+	                                                E.lsp_doc_version, prefix_start_cx, prefix,
+	                                                trigger_kind, trigger_character);
 	free(prefix);
 	if (!requested) {
 		if (!g_autocomplete.active) {
@@ -379,7 +379,7 @@ void editorAutocompleteOnCursorMoved(void) {
 }
 
 static int editorAutocompleteApplyItem(const struct editorLspCompletionItem *item,
-		int prefix_start_cy, int prefix_start_cx, int cursor_cx) {
+                                       int prefix_start_cy, int prefix_start_cx, int cursor_cx) {
 	if (item == NULL) {
 		return 0;
 	}
@@ -393,10 +393,10 @@ static int editorAutocompleteApplyItem(const struct editorLspCompletionItem *ite
 		insert_text = item->text_edit_new_text;
 		range_start_cy = item->text_edit_start_line;
 		range_end_cy = item->text_edit_end_line;
-		range_start_cx = editorLspProtocolCharacterToBufferColumn(range_start_cy,
-				item->text_edit_start_character);
-		range_end_cx = editorLspProtocolCharacterToBufferColumn(range_end_cy,
-				item->text_edit_end_character);
+		range_start_cx = editorLspProtocolCharacterToBufferColumn(
+		        range_start_cy, item->text_edit_start_character);
+		range_end_cx = editorLspProtocolCharacterToBufferColumn(
+		        range_end_cy, item->text_edit_end_character);
 	} else if (item->insert_text != NULL && item->insert_text[0] != '\0') {
 		insert_text = item->insert_text;
 	} else if (item->filter_text != NULL && item->filter_text[0] != '\0') {
@@ -413,10 +413,10 @@ static int editorAutocompleteApplyItem(const struct editorLspCompletionItem *ite
 	}
 
 	struct editorSelectionRange range = {
-		.start_cy = range_start_cy,
-		.start_cx = range_start_cx,
-		.end_cy = range_end_cy,
-		.end_cx = range_end_cx,
+	        .start_cy = range_start_cy,
+	        .start_cx = range_start_cx,
+	        .end_cy = range_end_cy,
+	        .end_cx = range_end_cx,
 	};
 	if (editorReplaceRange(&range, insert_text, strlen(insert_text)) < 0) {
 		return 0;
@@ -450,11 +450,13 @@ int editorAutocompleteAcceptSelection(void) {
 	}
 	item_copy.has_text_edit = g_autocomplete.items[raw_idx].has_text_edit;
 	item_copy.text_edit_start_line = g_autocomplete.items[raw_idx].text_edit_start_line;
-	item_copy.text_edit_start_character = g_autocomplete.items[raw_idx].text_edit_start_character;
+	item_copy.text_edit_start_character =
+	        g_autocomplete.items[raw_idx].text_edit_start_character;
 	item_copy.text_edit_end_line = g_autocomplete.items[raw_idx].text_edit_end_line;
 	item_copy.text_edit_end_character = g_autocomplete.items[raw_idx].text_edit_end_character;
 	if (g_autocomplete.items[raw_idx].text_edit_new_text != NULL) {
-		item_copy.text_edit_new_text = strdup(g_autocomplete.items[raw_idx].text_edit_new_text);
+		item_copy.text_edit_new_text =
+		        strdup(g_autocomplete.items[raw_idx].text_edit_new_text);
 	}
 
 	int prefix_start_cy = g_autocomplete.request_cy;
@@ -462,7 +464,8 @@ int editorAutocompleteAcceptSelection(void) {
 	int cursor_cx = E.cx;
 	editorAutocompleteReset();
 
-	int ok = editorAutocompleteApplyItem(&item_copy, prefix_start_cy, prefix_start_cx, cursor_cx);
+	int ok = editorAutocompleteApplyItem(&item_copy, prefix_start_cy, prefix_start_cx,
+	                                     cursor_cx);
 	free(item_copy.label);
 	free(item_copy.filter_text);
 	free(item_copy.insert_text);
@@ -471,8 +474,9 @@ int editorAutocompleteAcceptSelection(void) {
 }
 
 void editorAutocompleteHandleCompletionResponse(int request_id, int document_version,
-		int request_cy, int request_cx, int prefix_start_cx, const char *prefix,
-		const char *filename, struct editorLspCompletionItem *items, int count) {
+                                                int request_cy, int request_cx, int prefix_start_cx,
+                                                const char *prefix, const char *filename,
+                                                struct editorLspCompletionItem *items, int count) {
 	if (filename == NULL || E.filename == NULL || strcmp(filename, E.filename) != 0) {
 		editorLspFreeCompletionItems(items, count);
 		return;
@@ -505,8 +509,8 @@ void editorAutocompleteHandleCompletionResponse(int request_id, int document_ver
 		editorLspFreeCompletionItems(items, count);
 		return;
 	}
-	char *current_prefix = editorAutocompleteCopyPrefixBytes(line.data, line.size,
-			prefix_start_cx, current_prefix_cx);
+	char *current_prefix = editorAutocompleteCopyPrefixBytes(
+	        line.data, line.size, prefix_start_cx, current_prefix_cx);
 	editorLineViewRelease(&line);
 	if (current_prefix == NULL) {
 		editorLspFreeCompletionItems(items, count);
@@ -514,7 +518,7 @@ void editorAutocompleteHandleCompletionResponse(int request_id, int document_ver
 	}
 
 	if (prefix != NULL && current_prefix[0] != '\0' &&
-			strncmp(current_prefix, prefix, strlen(prefix)) != 0) {
+	    strncmp(current_prefix, prefix, strlen(prefix)) != 0) {
 		free(current_prefix);
 		editorLspFreeCompletionItems(items, count);
 		return;

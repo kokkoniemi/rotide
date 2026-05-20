@@ -38,8 +38,8 @@ void editorSyntaxWorkerResultDestroy(struct editorSyntaxWorkerResult *result) {
 	free(result);
 }
 
-static int editorSyntaxWorkerLineStarts(const char *text, size_t len,
-		size_t **starts_out, int *count_out) {
+static int editorSyntaxWorkerLineStarts(const char *text, size_t len, size_t **starts_out,
+                                        int *count_out) {
 	if (starts_out == NULL || count_out == NULL) {
 		return 0;
 	}
@@ -77,8 +77,8 @@ static int editorSyntaxWorkerLineStarts(const char *text, size_t len,
 	return 1;
 }
 
-static size_t editorSyntaxWorkerLineEnd(const char *text, size_t len,
-		const size_t *starts, int line_count, int row) {
+static size_t editorSyntaxWorkerLineEnd(const char *text, size_t len, const size_t *starts,
+                                        int line_count, int row) {
 	size_t end = len;
 	if (row + 1 < line_count) {
 		end = starts[row + 1];
@@ -100,8 +100,8 @@ static int editorSyntaxWorkerU32(size_t value, uint32_t *out) {
 	return 1;
 }
 
-static int editorSyntaxWorkerBuildSpans(struct editorSyntaxWorkerResult *result,
-		const char *text, size_t len) {
+static int editorSyntaxWorkerBuildSpans(struct editorSyntaxWorkerResult *result, const char *text,
+                                        size_t len) {
 	if (result == NULL || result->state == NULL || result->row_count <= 0) {
 		return 1;
 	}
@@ -111,9 +111,9 @@ static int editorSyntaxWorkerBuildSpans(struct editorSyntaxWorkerResult *result,
 	size_t counts_bytes = 0;
 	size_t spans_bytes = 0;
 	if (!editorIntToSize(result->row_count, &row_count_size) ||
-			!editorSizeMul(sizeof(*result->span_counts), row_count_size, &counts_bytes) ||
-			!editorSizeMul(row_count_size, ROTIDE_MAX_SYNTAX_SPANS_PER_ROW, &span_rows) ||
-			!editorSizeMul(sizeof(*result->spans), span_rows, &spans_bytes)) {
+	    !editorSizeMul(sizeof(*result->span_counts), row_count_size, &counts_bytes) ||
+	    !editorSizeMul(row_count_size, ROTIDE_MAX_SYNTAX_SPANS_PER_ROW, &span_rows) ||
+	    !editorSizeMul(sizeof(*result->spans), span_rows, &spans_bytes)) {
 		return 0;
 	}
 
@@ -152,12 +152,12 @@ static int editorSyntaxWorkerBuildSpans(struct editorSyntaxWorkerResult *result,
 		}
 
 		size_t row_start = line_starts[row_idx];
-		size_t row_end = editorSyntaxWorkerLineEnd(text, len, line_starts, line_count, row_idx);
+		size_t row_end =
+		        editorSyntaxWorkerLineEnd(text, len, line_starts, line_count, row_idx);
 		uint32_t start_byte = 0;
 		uint32_t end_byte = 0;
 		if (!editorSyntaxWorkerU32(row_start, &start_byte) ||
-				!editorSyntaxWorkerU32(row_end, &end_byte) ||
-				start_byte >= end_byte) {
+		    !editorSyntaxWorkerU32(row_end, &end_byte) || start_byte >= end_byte) {
 			continue;
 		}
 
@@ -167,7 +167,7 @@ static int editorSyntaxWorkerBuildSpans(struct editorSyntaxWorkerResult *result,
 		int row_rsize = 0;
 		int row_display_cols = 0;
 		if (!editorRowBuildRender(row_bytes, row_size, &row_render, &row_rsize,
-					&row_display_cols)) {
+		                          &row_display_cols)) {
 			free(captures);
 			free(line_starts);
 			return 0;
@@ -175,7 +175,8 @@ static int editorSyntaxWorkerBuildSpans(struct editorSyntaxWorkerResult *result,
 
 		int capture_count = 0;
 		if (!editorSyntaxStateCollectCapturesForRange(result->state, &source, start_byte,
-					end_byte, captures, capture_limit, &capture_count)) {
+		                                              end_byte, captures, capture_limit,
+		                                              &capture_count)) {
 			free(row_render);
 			free(captures);
 			free(line_starts);
@@ -186,7 +187,7 @@ static int editorSyntaxWorkerBuildSpans(struct editorSyntaxWorkerResult *result,
 		for (int cap_idx = 0; cap_idx < capture_count; cap_idx++) {
 			struct editorSyntaxCapture capture = captures[cap_idx];
 			if (capture.highlight_class == EDITOR_SYNTAX_HL_NONE ||
-					capture.end_byte <= capture.start_byte) {
+			    capture.end_byte <= capture.start_byte) {
 				continue;
 			}
 
@@ -211,8 +212,10 @@ static int editorSyntaxWorkerBuildSpans(struct editorSyntaxWorkerResult *result,
 				local_end = row_size;
 			}
 
-			local_start = editorBytesClampCxToCharBoundary(row_bytes, row_size, local_start);
-			local_end = editorBytesClampCxToCharBoundary(row_bytes, row_size, local_end);
+			local_start =
+			        editorBytesClampCxToCharBoundary(row_bytes, row_size, local_start);
+			local_end =
+			        editorBytesClampCxToCharBoundary(row_bytes, row_size, local_end);
 			if (local_end <= local_start && local_end < row_size) {
 				local_end = editorBytesNextCharIdx(row_bytes, row_size, local_end);
 			}
@@ -221,9 +224,9 @@ static int editorSyntaxWorkerBuildSpans(struct editorSyntaxWorkerResult *result,
 			}
 
 			int render_start = editorBytesCxToRenderIdx(row_bytes, row_size, row_rsize,
-					local_start);
-			int render_end = editorBytesCxToRenderIdx(row_bytes, row_size, row_rsize,
-					local_end);
+			                                            local_start);
+			int render_end =
+			        editorBytesCxToRenderIdx(row_bytes, row_size, row_rsize, local_end);
 			if (render_end <= render_start) {
 				continue;
 			}
@@ -242,8 +245,8 @@ static int editorSyntaxWorkerBuildSpans(struct editorSyntaxWorkerResult *result,
 	return 1;
 }
 
-static struct editorSyntaxWorkerResult *editorSyntaxWorkerRunJob(
-		struct editorSyntaxWorkerJob *job) {
+static struct editorSyntaxWorkerResult *
+editorSyntaxWorkerRunJob(struct editorSyntaxWorkerJob *job) {
 	struct editorSyntaxWorkerResult *result = editorMalloc(sizeof(*result));
 	if (result == NULL) {
 		return NULL;
@@ -400,7 +403,7 @@ struct editorSyntaxWorkerResult *editorSyntaxWorkerTakeResult(void) {
 int editorSyntaxWorkerHasWork(void) {
 	pthread_mutex_lock(&g_syntax_worker_mutex);
 	int has_work = g_syntax_worker_has_pending || g_syntax_worker_running ||
-			g_syntax_worker_result != NULL;
+	               g_syntax_worker_result != NULL;
 	pthread_mutex_unlock(&g_syntax_worker_mutex);
 	return has_work;
 }

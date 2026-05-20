@@ -25,13 +25,13 @@ struct editorDrawerLookup {
 };
 
 struct editorDrawerNode *editorDrawerNodeNew(const char *name, const char *path, int is_dir,
-		struct editorDrawerNode *parent);
+                                             struct editorDrawerNode *parent);
 void editorDrawerNodeFree(struct editorDrawerNode *node);
 int editorDrawerEnsureScanned(struct editorDrawerNode *node);
 int editorDrawerCountVisibleFromNode(struct editorDrawerNode *node);
 int editorDrawerLookupByVisibleIndex(int visible_idx, struct editorDrawerLookup *lookup_out);
 struct editorDrawerNode *editorDrawerFindChildByName(struct editorDrawerNode *node,
-		const char *name, size_t name_len);
+                                                     const char *name, size_t name_len);
 int editorDrawerFindVisibleIndexForNode(struct editorDrawerNode *target, int *visible_idx_out);
 void editorDrawerClampSelectionAndScroll(int viewport_rows);
 struct editorDrawerNode *editorDrawerSelectedTreeNode(void);

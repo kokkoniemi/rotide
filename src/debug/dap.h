@@ -109,7 +109,7 @@ int editorDapHasBreakpoint(const char *path, int line);
 char *editorDapBuildInitializeRequestJson(int seq, const char *adapter_id);
 char *editorDapBuildSimpleCommandRequestJson(int seq, const char *command);
 char *editorDapBuildLaunchRequestJson(int seq, const struct editorDapLaunchConfig *config,
-		const char *workspace_root, const char *active_file);
+                                      const char *workspace_root, const char *active_file);
 int editorDapProcessIncomingMessage(const char *message);
 
 /*

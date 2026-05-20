@@ -237,7 +237,7 @@ static int editorBracketPairForByte(char c, char *open_out, char *close_out, int
 }
 
 static int editorFindMatchingBracketOffset(const char *text, size_t len, size_t bracket_offset,
-		char open, char close, int forward, size_t *match_out) {
+                                           char open, char close, int forward, size_t *match_out) {
 	int depth = 0;
 
 	if (text == NULL || bracket_offset >= len || match_out == NULL) {
@@ -306,10 +306,10 @@ int editorJumpToMatchingBracket(void) {
 	}
 
 	if (cursor_offset < text_len &&
-			editorBracketPairForByte(text[cursor_offset], &open, &close, &forward)) {
+	    editorBracketPairForByte(text[cursor_offset], &open, &close, &forward)) {
 		bracket_offset = cursor_offset;
 	} else if (cursor_offset > 0 &&
-			editorBracketPairForByte(text[cursor_offset - 1], &open, &close, &forward)) {
+	           editorBracketPairForByte(text[cursor_offset - 1], &open, &close, &forward)) {
 		bracket_offset = cursor_offset - 1;
 	} else {
 		free(text);
@@ -318,7 +318,7 @@ int editorJumpToMatchingBracket(void) {
 	}
 
 	if (!editorFindMatchingBracketOffset(text, text_len, bracket_offset, open, close, forward,
-				&match_offset)) {
+	                                     &match_offset)) {
 		free(text);
 		editorSetStatusMsg("No matching bracket");
 		return 0;

@@ -1,8 +1,9 @@
-#include "test_helpers.h"
+#define _GNU_SOURCE
 
 #include "golden_apply_lib.h"
 #include "grid_snapshot_format.h"
 #include "test_case.h"
+#include "test_helpers.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -70,8 +71,7 @@ static int test_emit_c_string_empty_input(void) {
 }
 
 static int test_parse_stash_row_well_formed(void) {
-	const char *line =
-		"{\"file\":\"tests/foo.c\",\"line\":42,\"actual\":\"a\\nb\\n\"}";
+	const char *line = "{\"file\":\"tests/foo.c\",\"line\":42,\"actual\":\"a\\nb\\n\"}";
 	struct goldenStashEntry e;
 	ASSERT_EQ_INT(1, editor_golden_parse_stash_line(line, &e));
 	ASSERT_EQ_STR("tests/foo.c", e.file);
@@ -83,34 +83,31 @@ static int test_parse_stash_row_well_formed(void) {
 
 static int test_parse_stash_row_rejects_missing_keys(void) {
 	struct goldenStashEntry e;
-	ASSERT_EQ_INT(0, editor_golden_parse_stash_line(
-		"{\"line\":1,\"actual\":\"x\"}", &e));
-	ASSERT_EQ_INT(0, editor_golden_parse_stash_line(
-		"{\"file\":\"x\",\"actual\":\"x\"}", &e));
-	ASSERT_EQ_INT(0, editor_golden_parse_stash_line(
-		"{\"file\":\"x\",\"line\":1}", &e));
+	ASSERT_EQ_INT(0, editor_golden_parse_stash_line("{\"line\":1,\"actual\":\"x\"}", &e));
+	ASSERT_EQ_INT(0, editor_golden_parse_stash_line("{\"file\":\"x\",\"actual\":\"x\"}", &e));
+	ASSERT_EQ_INT(0, editor_golden_parse_stash_line("{\"file\":\"x\",\"line\":1}", &e));
 	return 0;
 }
 
 static int test_parse_stash_row_unicode_control_escape(void) {
-	const char *line =
-		"{\"file\":\"f\",\"line\":1,\"actual\":\"a\\u0001b\"}";
+	const char *line = "{\"file\":\"f\",\"line\":1,\"actual\":\"a\\u0001b\"}";
 	struct goldenStashEntry e;
 	ASSERT_EQ_INT(1, editor_golden_parse_stash_line(line, &e));
-	ASSERT_EQ_STR("a\x01""b", e.actual);
+	ASSERT_EQ_STR("a\x01"
+	              "b",
+	              e.actual);
 	free(e.actual);
 	return 0;
 }
 
 static int test_rewrite_replaces_block_with_new_content(void) {
-	const char *src =
-		"int foo(void) {\n"
-		"\tASSERT_GRID_EQ(\n"
-		"\t\t/* golden-start */\n"
-		"\t\t\"old line\\n\"\n"
-		"\t\t/* golden-end */\n"
-		"\t);\n"
-		"}\n";
+	const char *src = "int foo(void) {\n"
+	                  "\tASSERT_GRID_EQ(\n"
+	                  "\t\t/* golden-start */\n"
+	                  "\t\t\"old line\\n\"\n"
+	                  "\t\t/* golden-end */\n"
+	                  "\t);\n"
+	                  "}\n";
 
 	struct goldenStashEntry e = {0};
 	snprintf(e.file, sizeof(e.file), "%s", "fake.c");
@@ -118,8 +115,7 @@ static int test_rewrite_replaces_block_with_new_content(void) {
 	e.actual = strdup("new line 1\nnew line 2\n");
 
 	int applied = 0, skipped = 0;
-	char *out = editor_golden_rewrite_text(src, strlen(src), &e, 1,
-		&applied, &skipped, NULL);
+	char *out = editor_golden_rewrite_text(src, strlen(src), &e, 1, &applied, &skipped, NULL);
 	ASSERT_TRUE(out != NULL);
 	ASSERT_EQ_INT(1, applied);
 	ASSERT_EQ_INT(0, skipped);
@@ -136,12 +132,11 @@ static int test_rewrite_replaces_block_with_new_content(void) {
 }
 
 static int test_rewrite_preserves_indentation_of_start_marker(void) {
-	const char *src =
-		"\tASSERT_GRID_EQ(\n"
-		"\t    /* golden-start */\n"
-		"\t    \"x\"\n"
-		"\t    /* golden-end */\n"
-		"\t);\n";
+	const char *src = "\tASSERT_GRID_EQ(\n"
+	                  "\t    /* golden-start */\n"
+	                  "\t    \"x\"\n"
+	                  "\t    /* golden-end */\n"
+	                  "\t);\n";
 	struct goldenStashEntry e = {0};
 	snprintf(e.file, sizeof(e.file), "fake.c");
 	e.line = 1;
@@ -158,10 +153,9 @@ static int test_rewrite_preserves_indentation_of_start_marker(void) {
 }
 
 static int test_rewrite_skips_entry_without_markers(void) {
-	const char *src =
-		"int foo(void) {\n"
-		"\tASSERT_GRID_EQ(\"plain\");\n"
-		"}\n";
+	const char *src = "int foo(void) {\n"
+	                  "\tASSERT_GRID_EQ(\"plain\");\n"
+	                  "}\n";
 	struct goldenStashEntry e = {0};
 	snprintf(e.file, sizeof(e.file), "fake.c");
 	e.line = 2;
@@ -169,8 +163,7 @@ static int test_rewrite_skips_entry_without_markers(void) {
 
 	FILE *log = tmpfile();
 	int applied = 0, skipped = 0;
-	char *out = editor_golden_rewrite_text(src, strlen(src), &e, 1,
-		&applied, &skipped, log);
+	char *out = editor_golden_rewrite_text(src, strlen(src), &e, 1, &applied, &skipped, log);
 	ASSERT_TRUE(out != NULL);
 	ASSERT_EQ_INT(0, applied);
 	ASSERT_EQ_INT(1, skipped);
@@ -183,21 +176,20 @@ static int test_rewrite_skips_entry_without_markers(void) {
 }
 
 static int test_rewrite_applies_multiple_in_order(void) {
-	const char *src =
-		"static int a(void) {\n"
-		"\tASSERT_GRID_EQ(\n"
-		"\t\t/* golden-start */\n"
-		"\t\t\"a_old\"\n"
-		"\t\t/* golden-end */\n"
-		"\t);\n"
-		"}\n"
-		"static int b(void) {\n"
-		"\tASSERT_GRID_EQ(\n"
-		"\t\t/* golden-start */\n"
-		"\t\t\"b_old\"\n"
-		"\t\t/* golden-end */\n"
-		"\t);\n"
-		"}\n";
+	const char *src = "static int a(void) {\n"
+	                  "\tASSERT_GRID_EQ(\n"
+	                  "\t\t/* golden-start */\n"
+	                  "\t\t\"a_old\"\n"
+	                  "\t\t/* golden-end */\n"
+	                  "\t);\n"
+	                  "}\n"
+	                  "static int b(void) {\n"
+	                  "\tASSERT_GRID_EQ(\n"
+	                  "\t\t/* golden-start */\n"
+	                  "\t\t\"b_old\"\n"
+	                  "\t\t/* golden-end */\n"
+	                  "\t);\n"
+	                  "}\n";
 
 	struct goldenStashEntry entries[2];
 	memset(entries, 0, sizeof(entries));
@@ -209,8 +201,8 @@ static int test_rewrite_applies_multiple_in_order(void) {
 	entries[1].actual = strdup("b_new\n");
 
 	int applied = 0, skipped = 0;
-	char *out = editor_golden_rewrite_text(src, strlen(src), entries, 2,
-		&applied, &skipped, NULL);
+	char *out =
+	        editor_golden_rewrite_text(src, strlen(src), entries, 2, &applied, &skipped, NULL);
 	ASSERT_TRUE(out != NULL);
 	ASSERT_EQ_INT(2, applied);
 	ASSERT_EQ_INT(0, skipped);
@@ -226,20 +218,23 @@ static int test_rewrite_applies_multiple_in_order(void) {
 }
 
 const struct editorTestCase g_golden_apply_tests[] = {
-	{"emit_c_string_single_line", test_emit_c_string_single_line},
-	{"emit_c_string_splits_at_newline", test_emit_c_string_splits_at_newline},
-	{"emit_c_string_escapes_quote_and_backslash", test_emit_c_string_escapes_quote_and_backslash},
-	{"emit_c_string_escapes_control_bytes", test_emit_c_string_escapes_control_bytes},
-	{"emit_c_string_no_trailing_newline_keeps_open_segment", test_emit_c_string_no_trailing_newline_keeps_open_segment},
-	{"emit_c_string_empty_input", test_emit_c_string_empty_input},
-	{"parse_stash_row_well_formed", test_parse_stash_row_well_formed},
-	{"parse_stash_row_rejects_missing_keys", test_parse_stash_row_rejects_missing_keys},
-	{"parse_stash_row_unicode_control_escape", test_parse_stash_row_unicode_control_escape},
-	{"rewrite_replaces_block_with_new_content", test_rewrite_replaces_block_with_new_content},
-	{"rewrite_preserves_indentation_of_start_marker", test_rewrite_preserves_indentation_of_start_marker},
-	{"rewrite_skips_entry_without_markers", test_rewrite_skips_entry_without_markers},
-	{"rewrite_applies_multiple_in_order", test_rewrite_applies_multiple_in_order},
+        {"emit_c_string_single_line", test_emit_c_string_single_line},
+        {"emit_c_string_splits_at_newline", test_emit_c_string_splits_at_newline},
+        {"emit_c_string_escapes_quote_and_backslash",
+         test_emit_c_string_escapes_quote_and_backslash},
+        {"emit_c_string_escapes_control_bytes", test_emit_c_string_escapes_control_bytes},
+        {"emit_c_string_no_trailing_newline_keeps_open_segment",
+         test_emit_c_string_no_trailing_newline_keeps_open_segment},
+        {"emit_c_string_empty_input", test_emit_c_string_empty_input},
+        {"parse_stash_row_well_formed", test_parse_stash_row_well_formed},
+        {"parse_stash_row_rejects_missing_keys", test_parse_stash_row_rejects_missing_keys},
+        {"parse_stash_row_unicode_control_escape", test_parse_stash_row_unicode_control_escape},
+        {"rewrite_replaces_block_with_new_content", test_rewrite_replaces_block_with_new_content},
+        {"rewrite_preserves_indentation_of_start_marker",
+         test_rewrite_preserves_indentation_of_start_marker},
+        {"rewrite_skips_entry_without_markers", test_rewrite_skips_entry_without_markers},
+        {"rewrite_applies_multiple_in_order", test_rewrite_applies_multiple_in_order},
 };
 
 const int g_golden_apply_test_count =
-	(int)(sizeof(g_golden_apply_tests) / sizeof(g_golden_apply_tests[0]));
+        (int)(sizeof(g_golden_apply_tests) / sizeof(g_golden_apply_tests[0]));

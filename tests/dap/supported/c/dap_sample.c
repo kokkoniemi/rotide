@@ -175,8 +175,8 @@ static void *worker_main(void *arg) {
 			pause_ms(2);
 		}
 	}
-	snprintf(ctx->status, sizeof(ctx->status), "worker-%d done (%d/%d)",
-			ctx->thread_index, ctx->progress, ctx->iterations);
+	snprintf(ctx->status, sizeof(ctx->status), "worker-%d done (%d/%d)", ctx->thread_index,
+	         ctx->progress, ctx->iterations);
 	return NULL;
 }
 
@@ -200,15 +200,14 @@ int main(int argc, char **argv) {
 	int static_b = with_static_state(11);
 
 	int quotient = 0;
-	int divide_ok = safe_divide(total, mode == RUN_MODE_ZERO_DIVISION ? 0 : 3,
-			&quotient);
+	int divide_ok = safe_divide(total, mode == RUN_MODE_ZERO_DIVISION ? 0 : 3, &quotient);
 
 	struct worker_ctx ctx = {
-		.thread_index = 1,
-		.iterations = 40,
-		.progress = 0,
-		.checksum = 0,
-		.status = "",
+	        .thread_index = 1,
+	        .iterations = 40,
+	        .progress = 0,
+	        .checksum = 0,
+	        .status = "",
 	};
 	pthread_t worker;
 	int worker_started = (pthread_create(&worker, NULL, worker_main, &ctx) == 0);
@@ -233,7 +232,7 @@ int main(int argc, char **argv) {
 
 	int labels_len = (int)ARRAY_LEN(g_labels);
 	int debug_sink = rec + fib + total + found_score + static_a + static_b + branch_result +
-			ctx.checksum + (int)ctx.progress + labels_len + g_counter;
+	                 ctx.checksum + (int)ctx.progress + labels_len + g_counter;
 	if (divide_ok) {
 		debug_sink += quotient;
 	}
@@ -242,12 +241,11 @@ int main(int argc, char **argv) {
 	}
 	g_watchdog = debug_sink;
 
-	printf("mode=%d rec=%d fib=%d total=%d quotient=%d divide_ok=%d\n",
-			(int)mode, rec, fib, total, quotient, divide_ok);
-	printf("found_score=%d static=(%d,%d) branch=%d\n",
-			found_score, static_a, static_b, branch_result);
-	printf("worker: %s checksum=%d progress=%d\n",
-			ctx.status, ctx.checksum, (int)ctx.progress);
+	printf("mode=%d rec=%d fib=%d total=%d quotient=%d divide_ok=%d\n", (int)mode, rec, fib,
+	       total, quotient, divide_ok);
+	printf("found_score=%d static=(%d,%d) branch=%d\n", found_score, static_a, static_b,
+	       branch_result);
+	printf("worker: %s checksum=%d progress=%d\n", ctx.status, ctx.checksum, (int)ctx.progress);
 
 	/* DAP_BP_BEFORE_EXIT */
 	printf("debug_sink=%d watchdog=%d\n", debug_sink, (int)g_watchdog);
@@ -255,4 +253,3 @@ int main(int argc, char **argv) {
 	item_list_free(items);
 	return 0;
 }
-

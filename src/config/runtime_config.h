@@ -3,8 +3,8 @@
 
 #include "config/common.h"
 
-void editorConfigApplyConfiguredSettings(
-		enum editorConfigBootstrapStatus bootstrap_status, const char *success_status);
+void editorConfigApplyConfiguredSettings(enum editorConfigBootstrapStatus bootstrap_status,
+                                         const char *success_status);
 void editorConfigReloadConfiguredSettings(void);
 
 #endif

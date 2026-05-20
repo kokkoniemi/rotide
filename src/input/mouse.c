@@ -28,18 +28,18 @@ enum {
 
 #define DRAWER_HEADER_MODE_BUTTON_COLS 3
 #define DRAWER_HEADER_MODE_BUTTON_COUNT 7
-#define DRAWER_HEADER_MODE_BUTTONS_MIN_COLS \
-	(ROTIDE_DRAWER_COLLAPSED_WIDTH + \
-			DRAWER_HEADER_MODE_BUTTON_COLS * DRAWER_HEADER_MODE_BUTTON_COUNT)
+#define DRAWER_HEADER_MODE_BUTTONS_MIN_COLS                                                        \
+	(ROTIDE_DRAWER_COLLAPSED_WIDTH +                                                           \
+	 DRAWER_HEADER_MODE_BUTTON_COLS * DRAWER_HEADER_MODE_BUTTON_COUNT)
 
 static void editorMouseClearSelectionMode(void);
 static void editorMouseSelectWordAtCursor(void);
 static void editorMouseSelectLineAtCursor(void);
 
 int editorDrawerHeaderModeForColumn(int mouse_col, int drawer_cols,
-		enum editorDrawerMode *mode_out) {
+                                    enum editorDrawerMode *mode_out) {
 	if (mode_out == NULL || drawer_cols < DRAWER_HEADER_MODE_BUTTONS_MIN_COLS ||
-			mouse_col < ROTIDE_DRAWER_COLLAPSED_WIDTH) {
+	    mouse_col < ROTIDE_DRAWER_COLLAPSED_WIDTH) {
 		return 0;
 	}
 
@@ -50,29 +50,29 @@ int editorDrawerHeaderModeForColumn(int mouse_col, int drawer_cols,
 	}
 
 	switch (button_idx) {
-	case 0:
-		*mode_out = EDITOR_DRAWER_MODE_TREE;
-		return 1;
-	case 1:
-		*mode_out = EDITOR_DRAWER_MODE_FILE_SEARCH;
-		return 1;
-	case 2:
-		*mode_out = EDITOR_DRAWER_MODE_PROJECT_SEARCH;
-		return 1;
-	case 3:
-		*mode_out = EDITOR_DRAWER_MODE_LSP;
-		return 1;
-	case 4:
-		*mode_out = EDITOR_DRAWER_MODE_DAP;
-		return 1;
-	case 5:
-		*mode_out = EDITOR_DRAWER_MODE_GIT;
-		return 1;
-	case 6:
-		*mode_out = EDITOR_DRAWER_MODE_MAIN_MENU;
-		return 1;
-	default:
-		return 0;
+		case 0:
+			*mode_out = EDITOR_DRAWER_MODE_TREE;
+			return 1;
+		case 1:
+			*mode_out = EDITOR_DRAWER_MODE_FILE_SEARCH;
+			return 1;
+		case 2:
+			*mode_out = EDITOR_DRAWER_MODE_PROJECT_SEARCH;
+			return 1;
+		case 3:
+			*mode_out = EDITOR_DRAWER_MODE_LSP;
+			return 1;
+		case 4:
+			*mode_out = EDITOR_DRAWER_MODE_DAP;
+			return 1;
+		case 5:
+			*mode_out = EDITOR_DRAWER_MODE_GIT;
+			return 1;
+		case 6:
+			*mode_out = EDITOR_DRAWER_MODE_MAIN_MENU;
+			return 1;
+		default:
+			return 0;
 	}
 }
 
@@ -99,12 +99,14 @@ int editorHandleMouseTopRowTabClick(const struct editorMouseEvent *event, long l
 	}
 
 	int mouse_col = event->x - 1;
-	int collapsed_toggle_cols = editorDrawerIsCollapsed() ?
-			editorDrawerCollapsedToggleWidthForCols(E.window_cols) : 0;
+	int collapsed_toggle_cols = editorDrawerIsCollapsed()
+	                                    ? editorDrawerCollapsedToggleWidthForCols(E.window_cols)
+	                                    : 0;
 	int text_start_col = editorDrawerTextStartColForCols(E.window_cols);
 	int text_cols = editorDrawerTextViewportCols(E.window_cols);
 	int tab_start_col = editorDrawerIsCollapsed() ? collapsed_toggle_cols : text_start_col;
-	int tab_cols = editorDrawerIsCollapsed() ? E.window_cols - collapsed_toggle_cols : text_cols;
+	int tab_cols =
+	        editorDrawerIsCollapsed() ? E.window_cols - collapsed_toggle_cols : text_cols;
 	if (tab_cols < 0) {
 		tab_cols = 0;
 	}
@@ -121,9 +123,9 @@ int editorHandleMouseTopRowTabClick(const struct editorMouseEvent *event, long l
 
 	tab_idx = editorTabHitTestColumn(tab_col, tab_cols);
 	if (tab_idx >= 0) {
-		int is_double_click = E.tab_last_click_idx == tab_idx &&
-				E.tab_last_click_ms > 0 && now_ms > 0 &&
-				now_ms - E.tab_last_click_ms <= MOUSE_DOUBLE_CLICK_THRESHOLD_MS;
+		int is_double_click =
+		        E.tab_last_click_idx == tab_idx && E.tab_last_click_ms > 0 && now_ms > 0 &&
+		        now_ms - E.tab_last_click_ms <= MOUSE_DOUBLE_CLICK_THRESHOLD_MS;
 		(void)editorTabSwitchToIndex(tab_idx);
 		if (is_double_click) {
 			if (editorActiveTabIsPreview()) {
@@ -144,19 +146,21 @@ int editorHandleMouseTopRowTabClick(const struct editorMouseEvent *event, long l
 }
 
 int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long long now_ms,
-		int double_click_threshold_ms, editorProcessMappedActionFn process_mapped_action,
-		editorMouseJumpToPathFn jump_to_path, int *effects_out) {
+                                     int double_click_threshold_ms,
+                                     editorProcessMappedActionFn process_mapped_action,
+                                     editorMouseJumpToPathFn jump_to_path, int *effects_out) {
 	int mouse_col = event->x - 1;
 	int drawer_cols = editorDrawerWidthForCols(E.window_cols);
 	int separator_cols = editorDrawerSeparatorWidthForCols(E.window_cols);
-	int collapsed_toggle_cols = editorDrawerIsCollapsed() ?
-			editorDrawerCollapsedToggleWidthForCols(E.window_cols) : 0;
+	int collapsed_toggle_cols = editorDrawerIsCollapsed()
+	                                    ? editorDrawerCollapsedToggleWidthForCols(E.window_cols)
+	                                    : 0;
 	int drawer_view_rows = E.window_rows;
 	int drawer_row = event->y - 1;
 	int effects = 0;
 
-	if (editorDrawerIsCollapsed() && drawer_row == 0 &&
-			mouse_col >= 0 && mouse_col < collapsed_toggle_cols) {
+	if (editorDrawerIsCollapsed() && drawer_row == 0 && mouse_col >= 0 &&
+	    mouse_col < collapsed_toggle_cols) {
 		editorResetDrawerClickTracking();
 		editorExpandDrawerForFocus();
 		E.mouse_left_button_down = 0;
@@ -167,8 +171,8 @@ int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long 
 		return 1;
 	}
 
-	if (drawer_row >= 0 && drawer_row < drawer_view_rows + 1 &&
-			separator_cols == 1 && mouse_col == drawer_cols) {
+	if (drawer_row >= 0 && drawer_row < drawer_view_rows + 1 && separator_cols == 1 &&
+	    mouse_col == drawer_cols) {
 		editorResetDrawerClickTracking();
 		E.drawer_resize_active = 1;
 		(void)editorDrawerSetWidthForCols(mouse_col, E.window_cols);
@@ -181,8 +185,8 @@ int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long 
 	}
 	E.drawer_resize_active = 0;
 
-	if (!(drawer_row >= 0 && drawer_row < drawer_view_rows + 1 &&
-				mouse_col >= 0 && mouse_col < drawer_cols)) {
+	if (!(drawer_row >= 0 && drawer_row < drawer_view_rows + 1 && mouse_col >= 0 &&
+	      mouse_col < drawer_cols)) {
 		if (effects_out != NULL) {
 			*effects_out = effects;
 		}
@@ -251,7 +255,7 @@ int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long 
 		E.mouse_left_button_down = 0;
 		E.mouse_drag_started = 0;
 		if (process_mapped_action != NULL &&
-				process_mapped_action(menu_action, &mapped_effects)) {
+		    process_mapped_action(menu_action, &mapped_effects)) {
 			effects = mapped_effects;
 		} else {
 			effects = mapped_effects;
@@ -275,10 +279,10 @@ int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long 
 		return 1;
 	}
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
-		int should_open_location = E.drawer_last_click_visible_idx == visible_idx &&
-				E.drawer_last_click_ms > 0 &&
-				now_ms > 0 &&
-				now_ms - E.drawer_last_click_ms <= double_click_threshold_ms;
+		int should_open_location =
+		        E.drawer_last_click_visible_idx == visible_idx &&
+		        E.drawer_last_click_ms > 0 && now_ms > 0 &&
+		        now_ms - E.drawer_last_click_ms <= double_click_threshold_ms;
 		if (should_open_location) {
 			if (editorJumpToSelectedLspDrawerLocation(0, jump_to_path)) {
 				E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
@@ -319,7 +323,8 @@ int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long 
 			return 1;
 		}
 		if (editorDrawerSelectedDapDefault(&default_idx)) {
-			(void)editorDapCreateProjectLaunchFromDefault(default_idx, E.drawer_root_path);
+			(void)editorDapCreateProjectLaunchFromDefault(default_idx,
+			                                              E.drawer_root_path);
 			editorResetDrawerClickTracking();
 			E.mouse_left_button_down = 0;
 			E.mouse_drag_started = 0;
@@ -328,10 +333,10 @@ int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long 
 			}
 			return 1;
 		}
-		int should_open_location = E.drawer_last_click_visible_idx == visible_idx &&
-				E.drawer_last_click_ms > 0 &&
-				now_ms > 0 &&
-				now_ms - E.drawer_last_click_ms <= double_click_threshold_ms;
+		int should_open_location =
+		        E.drawer_last_click_visible_idx == visible_idx &&
+		        E.drawer_last_click_ms > 0 && now_ms > 0 &&
+		        now_ms - E.drawer_last_click_ms <= double_click_threshold_ms;
 		if (should_open_location) {
 			if (editorJumpToSelectedDapDrawerLocation(0, jump_to_path)) {
 				E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
@@ -359,9 +364,8 @@ int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long 
 	}
 
 	int should_open_file = E.drawer_last_click_visible_idx == visible_idx &&
-			E.drawer_last_click_ms > 0 &&
-			now_ms > 0 &&
-			now_ms - E.drawer_last_click_ms <= double_click_threshold_ms;
+	                       E.drawer_last_click_ms > 0 && now_ms > 0 &&
+	                       now_ms - E.drawer_last_click_ms <= double_click_threshold_ms;
 	if (should_open_file) {
 		if (editorFileSearchIsActive() || editorProjectSearchIsActive()) {
 			if (editorDrawerOpenSelectedFileInTab()) {
@@ -392,7 +396,8 @@ int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long 
 }
 
 int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long long now_ms,
-		int multi_click_threshold_ms, editorMouseActionFn goto_definition, int *effects_out) {
+                                   int multi_click_threshold_ms,
+                                   editorMouseActionFn goto_definition, int *effects_out) {
 	int mouse_col = event->x - 1;
 	int effects = 0;
 
@@ -440,8 +445,8 @@ int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long lo
 		if (E.cy < E.numrows) {
 			struct editorLineView line = {0};
 			if (editorDocumentLineView(E.document, E.cy, &line)) {
-				E.column_select_anchor_rx = editorBytesCxToRx(line.data, line.size,
-						E.cx);
+				E.column_select_anchor_rx =
+				        editorBytesCxToRx(line.data, line.size, E.cx);
 				editorLineViewRelease(&line);
 			}
 		}
@@ -457,10 +462,9 @@ int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long lo
 	}
 
 	int click_count = 1;
-	if (event->modifiers == EDITOR_MOUSE_MOD_NONE &&
-			E.text_last_click_ms > 0 && now_ms > 0 &&
-			now_ms - E.text_last_click_ms <= multi_click_threshold_ms &&
-			E.text_last_click_cy == E.cy && E.text_last_click_cx == E.cx) {
+	if (event->modifiers == EDITOR_MOUSE_MOD_NONE && E.text_last_click_ms > 0 && now_ms > 0 &&
+	    now_ms - E.text_last_click_ms <= multi_click_threshold_ms &&
+	    E.text_last_click_cy == E.cy && E.text_last_click_cx == E.cx) {
 		click_count = E.text_click_count + 1;
 		if (click_count > 3) {
 			click_count = 1;
@@ -508,13 +512,16 @@ static long long editorMouseMonotonicMillis(void) {
 }
 
 static int editorHandleMouseLeftPress(const struct editorMouseEvent *event,
-		int drawer_double_click_threshold_ms, int text_multi_click_threshold_ms,
-		editorProcessMappedActionFn process_mapped_action, editorMouseJumpToPathFn jump_to_path,
-		editorMouseActionFn goto_definition) {
+                                      int drawer_double_click_threshold_ms,
+                                      int text_multi_click_threshold_ms,
+                                      editorProcessMappedActionFn process_mapped_action,
+                                      editorMouseJumpToPathFn jump_to_path,
+                                      editorMouseActionFn goto_definition) {
 	long long now_ms = editorMouseMonotonicMillis();
 	int drawer_effects = EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
 	if (editorHandleMouseDrawerLeftPress(event, now_ms, drawer_double_click_threshold_ms,
-				process_mapped_action, jump_to_path, &drawer_effects)) {
+	                                     process_mapped_action, jump_to_path,
+	                                     &drawer_effects)) {
 		if ((drawer_effects & EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT) != 0) {
 			return EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT;
 		}
@@ -524,17 +531,18 @@ static int editorHandleMouseLeftPress(const struct editorMouseEvent *event,
 	editorResetDrawerClickTracking();
 	int text_effects = EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
 	if (editorHandleMouseTextLeftPress(event, now_ms, text_multi_click_threshold_ms,
-				goto_definition, &text_effects)) {
-		return text_effects ? EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT :
-				EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
+	                                   goto_definition, &text_effects)) {
+		return text_effects ? EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT
+		                    : EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
 	}
 	return EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
 }
 
 int editorHandleMouseEventDispatch(int drawer_double_click_threshold_ms,
-		int text_multi_click_threshold_ms, editorProcessMappedActionFn process_mapped_action,
-		editorMouseJumpToPathFn jump_to_path, editorMouseActionFn goto_definition,
-		int *effects_out) {
+                                   int text_multi_click_threshold_ms,
+                                   editorProcessMappedActionFn process_mapped_action,
+                                   editorMouseJumpToPathFn jump_to_path,
+                                   editorMouseActionFn goto_definition, int *effects_out) {
 	int effects = EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
 	struct editorMouseEvent event;
 	// terminal.c queues one decoded event per MOUSE_EVENT keycode.
@@ -557,37 +565,38 @@ int editorHandleMouseEventDispatch(int drawer_double_click_threshold_ms,
 	}
 
 	switch (event.kind) {
-	case EDITOR_MOUSE_EVENT_LEFT_PRESS:
-		effects = editorHandleMouseLeftPress(&event, drawer_double_click_threshold_ms,
-				text_multi_click_threshold_ms, process_mapped_action, jump_to_path,
-				goto_definition);
-		break;
-	case EDITOR_MOUSE_EVENT_LEFT_DRAG:
-		effects = editorHandleMouseLeftDrag(&event) ?
-				EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT :
-				EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
-		break;
-	case EDITOR_MOUSE_EVENT_LEFT_RELEASE:
-		effects = editorHandleMouseLeftRelease() ?
-				EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT :
-				EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
-		break;
-	case EDITOR_MOUSE_EVENT_MOTION:
-		effects = editorHandleMouseMotion(&event) ?
-				EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT :
-				EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
-		break;
-	case EDITOR_MOUSE_EVENT_WHEEL_UP:
-	case EDITOR_MOUSE_EVENT_WHEEL_DOWN:
-	case EDITOR_MOUSE_EVENT_WHEEL_LEFT:
-	case EDITOR_MOUSE_EVENT_WHEEL_RIGHT:
-		effects = editorHandleMouseWheel(&event) ?
-				EDITOR_MOUSE_DISPATCH_EFFECT_VIEWPORT_SCROLL :
-				EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
-		break;
-	default:
-		effects = EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
-		break;
+		case EDITOR_MOUSE_EVENT_LEFT_PRESS:
+			effects = editorHandleMouseLeftPress(
+			        &event, drawer_double_click_threshold_ms,
+			        text_multi_click_threshold_ms, process_mapped_action, jump_to_path,
+			        goto_definition);
+			break;
+		case EDITOR_MOUSE_EVENT_LEFT_DRAG:
+			effects = editorHandleMouseLeftDrag(&event)
+			                  ? EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT
+			                  : EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
+			break;
+		case EDITOR_MOUSE_EVENT_LEFT_RELEASE:
+			effects = editorHandleMouseLeftRelease()
+			                  ? EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT
+			                  : EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
+			break;
+		case EDITOR_MOUSE_EVENT_MOTION:
+			effects = editorHandleMouseMotion(&event)
+			                  ? EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT
+			                  : EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
+			break;
+		case EDITOR_MOUSE_EVENT_WHEEL_UP:
+		case EDITOR_MOUSE_EVENT_WHEEL_DOWN:
+		case EDITOR_MOUSE_EVENT_WHEEL_LEFT:
+		case EDITOR_MOUSE_EVENT_WHEEL_RIGHT:
+			effects = editorHandleMouseWheel(&event)
+			                  ? EDITOR_MOUSE_DISPATCH_EFFECT_VIEWPORT_SCROLL
+			                  : EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
+			break;
+		default:
+			effects = EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
+			break;
 	}
 
 	if (effects_out != NULL) {
@@ -608,8 +617,8 @@ int editorMouseIsOverDrawer(const struct editorMouseEvent *event) {
 	int drawer_cols = editorDrawerWidthForCols(E.window_cols);
 	int drawer_view_rows = E.window_rows + 1;
 	int drawer_row = event->y - 1;
-	return drawer_row >= 0 && drawer_row < drawer_view_rows &&
-			mouse_col >= 0 && mouse_col < drawer_cols;
+	return drawer_row >= 0 && drawer_row < drawer_view_rows && mouse_col >= 0 &&
+	       mouse_col < drawer_cols;
 }
 
 int editorHandleMouseWheel(const struct editorMouseEvent *event) {
@@ -618,7 +627,8 @@ int editorHandleMouseWheel(const struct editorMouseEvent *event) {
 	switch (event->kind) {
 		case EDITOR_MOUSE_EVENT_WHEEL_UP:
 			if (over_drawer) {
-				(void)editorDrawerScrollBy(-MOUSE_WHEEL_SCROLL_LINES, E.window_rows);
+				(void)editorDrawerScrollBy(-MOUSE_WHEEL_SCROLL_LINES,
+				                           E.window_rows);
 				break;
 			}
 			editorViewportScrollByRows(-MOUSE_WHEEL_SCROLL_LINES);
@@ -653,8 +663,8 @@ int editorClearHoverLinkState(void) {
 	return 1;
 }
 
-int editorResolveMouseToBufferOffset(const struct editorMouseEvent *event,
-		int clamp_to_viewport, size_t *offset_out) {
+int editorResolveMouseToBufferOffset(const struct editorMouseEvent *event, int clamp_to_viewport,
+                                     size_t *offset_out) {
 	if (event == NULL || offset_out == NULL || E.numrows == 0) {
 		return 0;
 	}
@@ -665,16 +675,16 @@ int editorResolveMouseToBufferOffset(const struct editorMouseEvent *event,
 	struct editorRect focused_rect = {0};
 	int has_focused_rect = editorLayoutFocusedLeafRect(&focused_rect);
 	int pane_y = has_focused_rect ? focused_rect.y : 1;
-	int pane_w = has_focused_rect ? focused_rect.w :
-			editorDrawerTextViewportCols(E.window_cols);
+	int pane_w =
+	        has_focused_rect ? focused_rect.w : editorDrawerTextViewportCols(E.window_cols);
 	int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);
 	if (gutter_cols > pane_w) {
 		gutter_cols = pane_w;
 	}
 	int text_cols = pane_w - gutter_cols;
-	int text_start_col = has_focused_rect ?
-			focused_rect.x + gutter_cols :
-			editorDrawerTextStartColForCols(E.window_cols) + gutter_cols;
+	int text_start_col = has_focused_rect
+	                             ? focused_rect.x + gutter_cols
+	                             : editorDrawerTextStartColForCols(E.window_cols) + gutter_cols;
 	if (text_cols < 1) {
 		text_cols = 1;
 	}
@@ -704,7 +714,7 @@ int editorResolveMouseToBufferOffset(const struct editorMouseEvent *event,
 	} else {
 		/* Ignore clicks outside text rows (tab/status/message bars are excluded). */
 		if (mouse_row < 0 || mouse_row >= pane_rows || mouse_col < 0 ||
-				mouse_col >= text_cols) {
+		    mouse_col >= text_cols) {
 			return 0;
 		}
 	}
@@ -713,8 +723,8 @@ int editorResolveMouseToBufferOffset(const struct editorMouseEvent *event,
 	int segment_coloff = E.coloff;
 	int segment_indent_cols = 0;
 	if (E.line_wrap_enabled) {
-		if (!editorViewportTextScreenRowToBufferPosition(mouse_row, &row_idx, &segment_coloff,
-					&segment_indent_cols)) {
+		if (!editorViewportTextScreenRowToBufferPosition(
+		            mouse_row, &row_idx, &segment_coloff, &segment_indent_cols)) {
 			return 0;
 		}
 	}
@@ -883,8 +893,7 @@ static int editorComputeWordRangeAt(int cy, int cx, int *start_out, int *end_out
 		return 0;
 	}
 	cx = editorBytesClampCxToCharBoundary(line.data, line.size, cx);
-	if (cx >= line.size ||
-			!editorMouseIsWordByte((unsigned char)line.data[cx])) {
+	if (cx >= line.size || !editorMouseIsWordByte((unsigned char)line.data[cx])) {
 		editorLineViewRelease(&line);
 		return 0;
 	}
@@ -919,15 +928,16 @@ int editorHandleMouseMotion(const struct editorMouseEvent *event) {
 	int new_start = 0;
 	int new_end = 0;
 
-	if ((event->modifiers & EDITOR_MOUSE_MOD_CTRL) != 0 && E.primary_focus == EDITOR_PRIMARY_FOCUS_TEXT &&
-			editorLspFileSupportsDefinition(E.filename, E.syntax_language) &&
-			editorLspFileEnabled(E.filename, E.syntax_language)) {
+	if ((event->modifiers & EDITOR_MOUSE_MOD_CTRL) != 0 &&
+	    E.primary_focus == EDITOR_PRIMARY_FOCUS_TEXT &&
+	    editorLspFileSupportsDefinition(E.filename, E.syntax_language) &&
+	    editorLspFileEnabled(E.filename, E.syntax_language)) {
 		size_t offset = 0;
 		if (editorResolveMouseToBufferOffset(event, 0, &offset)) {
 			int row = 0;
 			int cx = 0;
 			if (editorBufferOffsetToPos(offset, &row, &cx) &&
-					editorComputeWordRangeAt(row, cx, &new_start, &new_end)) {
+			    editorComputeWordRangeAt(row, cx, &new_start, &new_end)) {
 				new_active = 1;
 				new_row = row;
 			}
@@ -935,7 +945,7 @@ int editorHandleMouseMotion(const struct editorMouseEvent *event) {
 	}
 
 	if (new_active == E.hover_link_active && new_row == E.hover_link_row &&
-			new_start == E.hover_link_cx_start && new_end == E.hover_link_cx_end) {
+	    new_start == E.hover_link_cx_start && new_end == E.hover_link_cx_end) {
 		return 0;
 	}
 	E.hover_link_active = new_active;
@@ -959,16 +969,16 @@ int editorHandleMouseLeftDrag(const struct editorMouseEvent *event) {
 		int mouse_col = event->x - 1;
 		struct editorRect focused_rect = {0};
 		int has_focused_rect = editorLayoutFocusedLeafRect(&focused_rect);
-		int pane_w = has_focused_rect ? focused_rect.w :
-				editorDrawerTextViewportCols(E.window_cols);
+		int pane_w = has_focused_rect ? focused_rect.w
+		                              : editorDrawerTextViewportCols(E.window_cols);
 		int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);
 		if (gutter_cols > pane_w) {
 			gutter_cols = pane_w;
 		}
 		int text_cols = pane_w - gutter_cols;
-		int text_start = has_focused_rect ?
-				focused_rect.x + gutter_cols :
-				editorDrawerTextStartColForCols(E.window_cols) + gutter_cols;
+		int text_start = has_focused_rect ? focused_rect.x + gutter_cols
+		                                  : editorDrawerTextStartColForCols(E.window_cols) +
+		                                            gutter_cols;
 		if (text_cols < 1) {
 			text_cols = 1;
 		}
@@ -1013,7 +1023,8 @@ int editorHandleMouseLeftDrag(const struct editorMouseEvent *event) {
 	}
 
 	if (!E.mouse_drag_started) {
-		/* A new drag always starts a fresh selection anchored at the initial press point. */
+		/* A new drag always starts a fresh selection anchored at the initial press point.
+		 */
 		editorColumnSelectionClear();
 		E.selection_mode_active = 1;
 		E.selection_anchor_offset = E.mouse_drag_anchor_offset;
@@ -1038,8 +1049,8 @@ int editorHandleMouseEventInTerminalPane(const struct editorMouseEvent *event) {
 		return 0;
 	}
 	struct editorLeafLayout layout = {0};
-	if (!editorLayoutComputeBorderedInto(E.layout_root, viewport,
-				ROTIDE_PANE_BORDER_SIZE, &layout)) {
+	if (!editorLayoutComputeBorderedInto(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE,
+	                                     &layout)) {
 		editorLeafLayoutFree(&layout);
 		return 0;
 	}
@@ -1047,13 +1058,11 @@ int editorHandleMouseEventInTerminalPane(const struct editorMouseEvent *event) {
 	int sy = event->y - 1;
 	struct editorPaneNode *leaf = editorLayoutLeafAt(&layout, sx, sy);
 	editorLeafLayoutFree(&layout);
-	if (leaf == NULL || leaf->is_split ||
-			leaf->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
-			leaf->as.leaf.kind_state == NULL) {
+	if (leaf == NULL || leaf->is_split || leaf->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
+	    leaf->as.leaf.kind_state == NULL) {
 		return 0;
 	}
-	struct editorTerminalPane *terminal =
-			(struct editorTerminalPane *)leaf->as.leaf.kind_state;
+	struct editorTerminalPane *terminal = (struct editorTerminalPane *)leaf->as.leaf.kind_state;
 	if (terminal->mouse_tracking <= 0) {
 		return 0;
 	}
@@ -1063,41 +1072,40 @@ int editorHandleMouseEventInTerminalPane(const struct editorMouseEvent *event) {
 		editorPaneAnnounceFocus();
 	}
 	struct editorRect leaf_rect = {0};
-	if (!editorLayoutLeafRectBordered(E.layout_root, viewport,
-				ROTIDE_PANE_BORDER_SIZE, leaf, &leaf_rect)) {
+	if (!editorLayoutLeafRectBordered(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE, leaf,
+	                                  &leaf_rect)) {
 		return 1;
 	}
 	int row = sy - leaf_rect.y;
 	int col = sx - leaf_rect.x;
 	switch (event->kind) {
-	case EDITOR_MOUSE_EVENT_LEFT_PRESS:
-		(void)editorTerminalPaneSendMouseButton(terminal, 1, 1, row, col,
-				event->modifiers);
-		break;
-	case EDITOR_MOUSE_EVENT_LEFT_RELEASE:
-		(void)editorTerminalPaneSendMouseButton(terminal, 1, 0, row, col,
-				event->modifiers);
-		break;
-	case EDITOR_MOUSE_EVENT_LEFT_DRAG:
-		(void)editorTerminalPaneSendMouseMove(terminal, row, col,
-				event->modifiers);
-		break;
-	case EDITOR_MOUSE_EVENT_MOTION:
-		if (terminal->mouse_tracking >= 3 /* VTERM_PROP_MOUSE_MOVE */) {
-			(void)editorTerminalPaneSendMouseMove(terminal, row, col,
-					event->modifiers);
-		}
-		break;
-	case EDITOR_MOUSE_EVENT_WHEEL_UP:
-		(void)editorTerminalPaneSendMouseButton(terminal, 4, 1, row, col,
-				event->modifiers);
-		break;
-	case EDITOR_MOUSE_EVENT_WHEEL_DOWN:
-		(void)editorTerminalPaneSendMouseButton(terminal, 5, 1, row, col,
-				event->modifiers);
-		break;
-	default:
-		break;
+		case EDITOR_MOUSE_EVENT_LEFT_PRESS:
+			(void)editorTerminalPaneSendMouseButton(terminal, 1, 1, row, col,
+			                                        event->modifiers);
+			break;
+		case EDITOR_MOUSE_EVENT_LEFT_RELEASE:
+			(void)editorTerminalPaneSendMouseButton(terminal, 1, 0, row, col,
+			                                        event->modifiers);
+			break;
+		case EDITOR_MOUSE_EVENT_LEFT_DRAG:
+			(void)editorTerminalPaneSendMouseMove(terminal, row, col, event->modifiers);
+			break;
+		case EDITOR_MOUSE_EVENT_MOTION:
+			if (terminal->mouse_tracking >= 3 /* VTERM_PROP_MOUSE_MOVE */) {
+				(void)editorTerminalPaneSendMouseMove(terminal, row, col,
+				                                      event->modifiers);
+			}
+			break;
+		case EDITOR_MOUSE_EVENT_WHEEL_UP:
+			(void)editorTerminalPaneSendMouseButton(terminal, 4, 1, row, col,
+			                                        event->modifiers);
+			break;
+		case EDITOR_MOUSE_EVENT_WHEEL_DOWN:
+			(void)editorTerminalPaneSendMouseButton(terminal, 5, 1, row, col,
+			                                        event->modifiers);
+			break;
+		default:
+			break;
 	}
 	return 1;
 }

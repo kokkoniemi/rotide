@@ -28,14 +28,13 @@
 #include <time.h>
 
 static void usage(FILE *out) {
-	fprintf(out,
-		"usage: metrics_summary <subcommand> [opts]\n"
-		"  Subcommands: summary | check-fuzz-stale | check-bench-regression\n"
-		"  Common: --in PATH --kind KIND --target NAME --bench-name NAME\n"
-		"          --since-hours N\n"
-		"  summary:                --limit N\n"
-		"  check-fuzz-stale:       --window-hours N\n"
-		"  check-bench-regression: --factor F\n");
+	fprintf(out, "usage: metrics_summary <subcommand> [opts]\n"
+	             "  Subcommands: summary | check-fuzz-stale | check-bench-regression\n"
+	             "  Common: --in PATH --kind KIND --target NAME --bench-name NAME\n"
+	             "          --since-hours N\n"
+	             "  summary:                --limit N\n"
+	             "  check-fuzz-stale:       --window-hours N\n"
+	             "  check-bench-regression: --factor F\n");
 }
 
 static int parse_kind(const char *s, enum editorMetricsKind *out) {
@@ -73,16 +72,29 @@ int main(int argc, char **argv) {
 	for (int i = 2; i < argc; i++) {
 		const char *a = argv[i];
 		const char *next = (i + 1 < argc) ? argv[i + 1] : NULL;
-		if (strcmp(a, "--in") == 0 && next) { in_path = next; i++; continue; }
+		if (strcmp(a, "--in") == 0 && next) {
+			in_path = next;
+			i++;
+			continue;
+		}
 		if (strcmp(a, "--kind") == 0 && next) {
 			if (!parse_kind(next, &opts.kind_filter)) {
 				fprintf(stderr, "metrics_summary: bad --kind: %s\n", next);
 				return 2;
 			}
-			i++; continue;
+			i++;
+			continue;
 		}
-		if (strcmp(a, "--target") == 0 && next) { opts.target_filter = next; i++; continue; }
-		if (strcmp(a, "--bench-name") == 0 && next) { opts.bench_name_filter = next; i++; continue; }
+		if (strcmp(a, "--target") == 0 && next) {
+			opts.target_filter = next;
+			i++;
+			continue;
+		}
+		if (strcmp(a, "--bench-name") == 0 && next) {
+			opts.bench_name_filter = next;
+			i++;
+			continue;
+		}
 		if (strcmp(a, "--since-hours") == 0 && next) {
 			char *end = NULL;
 			since_hours = strtoll(next, &end, 10);
@@ -90,11 +102,13 @@ int main(int argc, char **argv) {
 				fprintf(stderr, "metrics_summary: bad --since-hours\n");
 				return 2;
 			}
-			i++; continue;
+			i++;
+			continue;
 		}
 		if (strcmp(a, "--limit") == 0 && next) {
 			opts.summary_limit = atoi(next);
-			i++; continue;
+			i++;
+			continue;
 		}
 		if (strcmp(a, "--window-hours") == 0 && next) {
 			char *end = NULL;
@@ -103,7 +117,8 @@ int main(int argc, char **argv) {
 				fprintf(stderr, "metrics_summary: bad --window-hours\n");
 				return 2;
 			}
-			i++; continue;
+			i++;
+			continue;
 		}
 		if (strcmp(a, "--factor") == 0 && next) {
 			char *end = NULL;
@@ -112,7 +127,8 @@ int main(int argc, char **argv) {
 				fprintf(stderr, "metrics_summary: bad --factor\n");
 				return 2;
 			}
-			i++; continue;
+			i++;
+			continue;
 		}
 		fprintf(stderr, "metrics_summary: unknown arg: %s\n", a);
 		usage(stderr);
@@ -127,8 +143,7 @@ int main(int argc, char **argv) {
 	int count = 0;
 	int skipped = 0;
 	if (editorMetricsRowsLoad(in_path, &rows, &count, &skipped) != 0) {
-		fprintf(stderr, "metrics_summary: cannot read %s: %s\n",
-			in_path, strerror(errno));
+		fprintf(stderr, "metrics_summary: cannot read %s: %s\n", in_path, strerror(errno));
 		return 2;
 	}
 	if (skipped > 0) {

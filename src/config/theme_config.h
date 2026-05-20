@@ -93,7 +93,8 @@ struct editorThemeColor editorThemeRgbColor(unsigned char r, unsigned char g, un
 void editorThemeInitDefault(struct editorTheme *theme_out);
 int editorThemeInitBuiltin(struct editorTheme *theme_out, const char *name);
 enum editorThemeLoadStatus editorThemeLoadFromPaths(struct editorTheme *theme_out,
-		const char *global_path, const char *project_path, const char *home_dir);
+                                                    const char *global_path,
+                                                    const char *project_path, const char *home_dir);
 enum editorThemeLoadStatus editorThemeLoadConfigured(struct editorTheme *theme_out);
 
 #endif

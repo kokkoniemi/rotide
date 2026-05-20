@@ -52,9 +52,9 @@ static int substring_match(const char *haystack, const char *needle) {
 }
 
 int editorBenchRun(const struct editorBenchCase *cases, int count,
-		const struct editorBenchOptions *options) {
-	int iterations = options != NULL && options->iterations > 0
-		? options->iterations : BENCH_DEFAULT_ITERATIONS;
+                   const struct editorBenchOptions *options) {
+	int iterations = options != NULL && options->iterations > 0 ? options->iterations
+	                                                            : BENCH_DEFAULT_ITERATIONS;
 	if (iterations > BENCH_MAX_ITERATIONS) {
 		iterations = BENCH_MAX_ITERATIONS;
 	}
@@ -93,8 +93,7 @@ int editorBenchRun(const struct editorBenchCase *cases, int count,
 		for (int it = 0; it < iterations; it++) {
 			void *state = NULL;
 			if (!c->setup(&state)) {
-				fprintf(stderr, "bench: %s setup failed on iter %d\n",
-					c->name, it);
+				fprintf(stderr, "bench: %s setup failed on iter %d\n", c->name, it);
 				setup_failed = 1;
 				break;
 			}
@@ -120,38 +119,37 @@ int editorBenchRun(const struct editorBenchCase *cases, int count,
 		double iqr = p75 - p25;
 
 		printf("  %-44s min=%9.1f ns  p50=%9.1f ns  p95=%9.1f ns  "
-			"iqr=%9.1f ns  n=%d inner=%d\n",
-			c->name, min, p50, p95, iqr, sample_count, inner_ops);
+		       "iqr=%9.1f ns  n=%d inner=%d\n",
+		       c->name, min, p50, p95, iqr, sample_count, inner_ops);
 
 		if (json != NULL) {
 			fprintf(json,
-				"%s    {\n"
-				"      \"name\": \"%s\",\n"
-				"      \"samples\": %d,\n"
-				"      \"inner_ops\": %d,\n"
-				"      \"min_ns\": %.3f,\n"
-				"      \"p50_ns\": %.3f,\n"
-				"      \"p95_ns\": %.3f,\n"
-				"      \"iqr_ns\": %.3f\n"
-				"    }",
-				ran > 0 ? ",\n" : "", c->name, sample_count, inner_ops,
-				min, p50, p95, iqr);
+			        "%s    {\n"
+			        "      \"name\": \"%s\",\n"
+			        "      \"samples\": %d,\n"
+			        "      \"inner_ops\": %d,\n"
+			        "      \"min_ns\": %.3f,\n"
+			        "      \"p50_ns\": %.3f,\n"
+			        "      \"p95_ns\": %.3f,\n"
+			        "      \"iqr_ns\": %.3f\n"
+			        "    }",
+			        ran > 0 ? ",\n" : "", c->name, sample_count, inner_ops, min, p50,
+			        p95, iqr);
 		}
 		if (metrics_path != NULL && metrics_path[0] != '\0') {
 			struct editorMetricsField fields[] = {
-				{"name", EDITOR_METRICS_STR, .v.s = c->name},
-				{"samples", EDITOR_METRICS_INT, .v.i = sample_count},
-				{"inner_ops", EDITOR_METRICS_INT, .v.i = inner_ops},
-				{"min_ns", EDITOR_METRICS_DOUBLE, .v.d = min},
-				{"p50_ns", EDITOR_METRICS_DOUBLE, .v.d = p50},
-				{"p95_ns", EDITOR_METRICS_DOUBLE, .v.d = p95},
-				{"iqr_ns", EDITOR_METRICS_DOUBLE, .v.d = iqr},
+			        {"name", EDITOR_METRICS_STR, .v.s = c->name},
+			        {"samples", EDITOR_METRICS_INT, .v.i = sample_count},
+			        {"inner_ops", EDITOR_METRICS_INT, .v.i = inner_ops},
+			        {"min_ns", EDITOR_METRICS_DOUBLE, .v.d = min},
+			        {"p50_ns", EDITOR_METRICS_DOUBLE, .v.d = p50},
+			        {"p95_ns", EDITOR_METRICS_DOUBLE, .v.d = p95},
+			        {"iqr_ns", EDITOR_METRICS_DOUBLE, .v.d = iqr},
 			};
 			if (editorMetricsAppend(metrics_path, "bench", fields,
-					(int)(sizeof(fields) / sizeof(fields[0]))) != 0) {
-				fprintf(stderr,
-					"bench: warning: failed to append metrics to %s\n",
-					metrics_path);
+			                        (int)(sizeof(fields) / sizeof(fields[0]))) != 0) {
+				fprintf(stderr, "bench: warning: failed to append metrics to %s\n",
+				        metrics_path);
 			}
 		}
 		ran++;

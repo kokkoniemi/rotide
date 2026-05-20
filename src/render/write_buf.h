@@ -8,7 +8,8 @@ struct writeBuf {
 	size_t len;
 };
 
-#define WRITEBUF_INIT {NULL, 0}
+#define WRITEBUF_INIT                                                                              \
+	{ NULL, 0 }
 
 int wbAppend(struct writeBuf *wb, const char *s, size_t len);
 void wbFree(struct writeBuf *wb);

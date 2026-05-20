@@ -1,10 +1,9 @@
 #include "test_grid_snapshot.h"
-#include "test_helpers.h"
-
-#include "render/screen.h"
-#include "rotide.h"
 
 #include "../vendor/libvterm/include/vterm.h"
+#include "render/screen.h"
+#include "rotide.h"
+#include "test_helpers.h"
 
 #include <stdio.h>
 #include <stdlib.h>

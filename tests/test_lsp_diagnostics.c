@@ -2,7 +2,7 @@
 #include "test_support.h"
 
 static int find_drawer_entry_containing(const char *needle, int *idx_out,
-		struct editorDrawerEntryView *view_out) {
+                                        struct editorDrawerEntryView *view_out) {
 	int visible = editorDrawerVisibleCount();
 	for (int i = 0; i < visible; i++) {
 		struct editorDrawerEntryView view = {0};
@@ -26,17 +26,15 @@ static int replace_active_text_for_lsp_drawer_test(const char *text) {
 	if (text == NULL || E.document == NULL) {
 		return 0;
 	}
-	struct editorDocumentEdit edit = {
-		.kind = EDITOR_EDIT_INSERT_TEXT,
-		.start_offset = 0,
-		.old_len = editorDocumentLength(E.document),
-		.new_text = text,
-		.new_len = strlen(text),
-		.before_cursor_offset = 0,
-		.after_cursor_offset = 0,
-		.before_dirty = E.dirty,
-		.after_dirty = E.dirty + 1
-	};
+	struct editorDocumentEdit edit = {.kind = EDITOR_EDIT_INSERT_TEXT,
+	                                  .start_offset = 0,
+	                                  .old_len = editorDocumentLength(E.document),
+	                                  .new_text = text,
+	                                  .new_len = strlen(text),
+	                                  .before_cursor_offset = 0,
+	                                  .after_cursor_offset = 0,
+	                                  .before_dirty = E.dirty,
+	                                  .after_dirty = E.dirty + 1};
 	return editorApplyDocumentEdit(&edit);
 }
 
@@ -49,9 +47,9 @@ static int test_editor_lsp_eslint_diagnostics_update_and_status_summary(void) {
 	ASSERT_TRUE(editorTabsInit());
 
 	char js_path[64];
-	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(js_path, sizeof(js_path),
-			"rotide-test-js-lsp-fixture-", ".js",
-			"tests/lsp/supported/javascript/eslint_buffer.js"));
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
+	        js_path, sizeof(js_path), "rotide-test-js-lsp-fixture-", ".js",
+	        "tests/lsp/supported/javascript/eslint_buffer.js"));
 	editorOpen(js_path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, editorSyntaxLanguageActive());
 
@@ -60,10 +58,18 @@ static int test_editor_lsp_eslint_diagnostics_update_and_status_summary(void) {
 	editorInsertChar(' ');
 
 	struct editorLspDiagnostic diagnostics[2] = {
-		{.start_line = 0, .start_character = 0, .end_line = 0, .end_character = 5,
-				.severity = 1, .message = "Unexpected space"},
-		{.start_line = 1, .start_character = 0, .end_line = 1, .end_character = 11,
-				.severity = 2, .message = "Missing semicolon"},
+	        {.start_line = 0,
+	         .start_character = 0,
+	         .end_line = 0,
+	         .end_character = 5,
+	         .severity = 1,
+	         .message = "Unexpected space"},
+	        {.start_line = 1,
+	         .start_character = 0,
+	         .end_line = 1,
+	         .end_character = 11,
+	         .severity = 2,
+	         .message = "Missing semicolon"},
 	};
 	editorLspTestSetMockDiagnostics(js_path, diagnostics, 2);
 
@@ -101,11 +107,11 @@ static int test_editor_lsp_diagnostic_status_uses_publishing_server_label(void) 
 
 	char message[1024];
 	int len = snprintf(message, sizeof(message),
-			"{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/publishDiagnostics\","
-			"\"params\":{\"uri\":\"%s\",\"diagnostics\":[{\"range\":{\"start\":"
-			"{\"line\":0,\"character\":4},\"end\":{\"line\":0,\"character\":8}},"
-			"\"severity\":1,\"message\":\"syntax error\"}]}}",
-			uri);
+	                   "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/publishDiagnostics\","
+	                   "\"params\":{\"uri\":\"%s\",\"diagnostics\":[{\"range\":{\"start\":"
+	                   "{\"line\":0,\"character\":4},\"end\":{\"line\":0,\"character\":8}},"
+	                   "\"severity\":1,\"message\":\"syntax error\"}]}}",
+	                   uri);
 	ASSERT_TRUE(len > 0 && len < (int)sizeof(message));
 
 	struct editorLspClient clangd_client = {0};
@@ -116,9 +122,9 @@ static int test_editor_lsp_diagnostic_status_uses_publishing_server_label(void) 
 	ASSERT_TRUE(strstr(E.statusmsg, "ESLint") == NULL);
 
 	len = snprintf(message, sizeof(message),
-			"{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/publishDiagnostics\","
-			"\"params\":{\"uri\":\"%s\",\"diagnostics\":[]}}",
-			uri);
+	               "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/publishDiagnostics\","
+	               "\"params\":{\"uri\":\"%s\",\"diagnostics\":[]}}",
+	               uri);
 	ASSERT_TRUE(len > 0 && len < (int)sizeof(message));
 	ASSERT_TRUE(editorLspProcessIncomingMessage(&clangd_client, message));
 	ASSERT_EQ_INT(0, E.lsp_diagnostic_count);
@@ -134,7 +140,8 @@ static int test_editor_lsp_diagnostics_render_error_underline_and_cursor_popdown
 
 	char js_path[64];
 	ASSERT_TRUE(write_temp_file_with_suffix(js_path, sizeof(js_path),
-			"rotide-test-lsp-diagnostic-render-", ".js", "const value = 1;\n"));
+	                                        "rotide-test-lsp-diagnostic-render-", ".js",
+	                                        "const value = 1;\n"));
 	editorOpen(js_path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, editorSyntaxLanguageActive());
 	E.window_rows = 8;
@@ -143,11 +150,15 @@ static int test_editor_lsp_diagnostics_render_error_underline_and_cursor_popdown
 	E.cx = 2;
 
 	char long_message[] =
-			"Unexpected token because the parser found a closing brace\nnote:\tbefore the "
-			"statement ended and could not recover from the remaining expression";
+	        "Unexpected token because the parser found a closing brace\nnote:\tbefore the "
+	        "statement ended and could not recover from the remaining expression";
 	struct editorLspDiagnostic diagnostics[1] = {
-		{.start_line = 0, .start_character = 0, .end_line = 0, .end_character = 5,
-				.severity = 1, .message = long_message},
+	        {.start_line = 0,
+	         .start_character = 0,
+	         .end_line = 0,
+	         .end_character = 5,
+	         .severity = 1,
+	         .message = long_message},
 	};
 	editorLspSetDiagnosticsForPath(js_path, diagnostics, 1);
 
@@ -179,9 +190,9 @@ static int test_editor_lsp_eslint_diagnostics_persist_across_tab_switches(void) 
 
 	char js_path[64];
 	char txt_path[64];
-	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(js_path, sizeof(js_path),
-			"rotide-test-js-lsp-fixture-", ".js",
-			"tests/lsp/supported/javascript/eslint_buffer.js"));
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
+	        js_path, sizeof(js_path), "rotide-test-js-lsp-fixture-", ".js",
+	        "tests/lsp/supported/javascript/eslint_buffer.js"));
 	ASSERT_TRUE(write_temp_text_file(txt_path, sizeof(txt_path), "plain text\n"));
 	editorOpen(js_path);
 	E.cy = 0;
@@ -189,8 +200,12 @@ static int test_editor_lsp_eslint_diagnostics_persist_across_tab_switches(void) 
 	editorInsertChar(' ');
 
 	struct editorLspDiagnostic diagnostics[1] = {
-		{.start_line = 1, .start_character = 0, .end_line = 1, .end_character = 11,
-				.severity = 2, .message = "Missing semicolon"},
+	        {.start_line = 1,
+	         .start_character = 0,
+	         .end_line = 1,
+	         .end_character = 11,
+	         .severity = 2,
+	         .message = "Missing semicolon"},
 	};
 	editorLspTestSetMockDiagnostics(js_path, diagnostics, 1);
 	editorLspPumpNotifications();
@@ -219,9 +234,9 @@ static int test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem(void) {
 	ASSERT_TRUE(editorTabsInit());
 
 	char js_path[64];
-	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(js_path, sizeof(js_path),
-			"rotide-test-js-lsp-drawer-", ".js",
-			"tests/lsp/supported/javascript/eslint_buffer.js"));
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
+	        js_path, sizeof(js_path), "rotide-test-js-lsp-drawer-", ".js",
+	        "tests/lsp/supported/javascript/eslint_buffer.js"));
 	editorOpen(js_path);
 	E.cy = 0;
 	E.cx = 0;
@@ -229,15 +244,18 @@ static int test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem(void) {
 	int dirty_before = E.dirty;
 
 	struct editorLspDiagnostic diagnostics[1] = {
-		{.start_line = 1, .start_character = 0, .end_line = 1, .end_character = 11,
-				.severity = 2, .message = "Missing semicolon"},
+	        {.start_line = 1,
+	         .start_character = 0,
+	         .end_line = 1,
+	         .end_character = 11,
+	         .severity = 2,
+	         .message = "Missing semicolon"},
 	};
 	editorLspTestSetMockDiagnostics(js_path, diagnostics, 1);
 	editorLspPumpNotifications();
 
 	char lsp_drawer[] = {'\x1b', CTRL_KEY('l')};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(lsp_drawer,
-			sizeof(lsp_drawer)) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(lsp_drawer, sizeof(lsp_drawer)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 	ASSERT_TRUE(find_drawer_entry("Symbols", NULL, NULL));
@@ -280,23 +298,30 @@ static int test_editor_lsp_drawer_colors_problem_severity_labels(void) {
 	ASSERT_TRUE(editorTabsInit());
 
 	char js_path[64];
-	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(js_path, sizeof(js_path),
-			"rotide-test-js-lsp-drawer-colors-", ".js",
-			"tests/lsp/supported/javascript/eslint_buffer.js"));
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
+	        js_path, sizeof(js_path), "rotide-test-js-lsp-drawer-colors-", ".js",
+	        "tests/lsp/supported/javascript/eslint_buffer.js"));
 	editorOpen(js_path);
 
 	struct editorLspDiagnostic diagnostics[2] = {
-		{.start_line = 0, .start_character = 0, .end_line = 0, .end_character = 5,
-				.severity = 1, .message = "Bad parse"},
-		{.start_line = 1, .start_character = 0, .end_line = 1, .end_character = 11,
-				.severity = 2, .message = "Missing semicolon"},
+	        {.start_line = 0,
+	         .start_character = 0,
+	         .end_line = 0,
+	         .end_character = 5,
+	         .severity = 1,
+	         .message = "Bad parse"},
+	        {.start_line = 1,
+	         .start_character = 0,
+	         .end_line = 1,
+	         .end_character = 11,
+	         .severity = 2,
+	         .message = "Missing semicolon"},
 	};
 	editorLspTestSetMockDiagnostics(js_path, diagnostics, 2);
 	editorLspPumpNotifications();
 
 	char lsp_drawer[] = {'\x1b', CTRL_KEY('l')};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(lsp_drawer,
-			sizeof(lsp_drawer)) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(lsp_drawer, sizeof(lsp_drawer)) == 0);
 	E.window_rows = 8;
 	E.window_cols = 160;
 	ASSERT_TRUE(editorDrawerSetWidthForCols(120, E.window_cols));
@@ -323,22 +348,26 @@ static int test_editor_lsp_drawer_selected_problem_spills_into_text_area(void) {
 	ASSERT_TRUE(editorTabsInit());
 
 	char js_path[64];
-	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(js_path, sizeof(js_path),
-			"rotide-test-js-lsp-drawer-spill-", ".js",
-			"tests/lsp/supported/javascript/eslint_buffer.js"));
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
+	        js_path, sizeof(js_path), "rotide-test-js-lsp-drawer-spill-", ".js",
+	        "tests/lsp/supported/javascript/eslint_buffer.js"));
 	editorOpen(js_path);
 
-	const char *long_message = "very_long_diagnostic_message_that_exceeds_drawer_width_tail_segment";
+	const char *long_message =
+	        "very_long_diagnostic_message_that_exceeds_drawer_width_tail_segment";
 	struct editorLspDiagnostic diagnostics[1] = {
-		{.start_line = 0, .start_character = 0, .end_line = 0, .end_character = 1,
-				.severity = 1, .message = (char *)long_message},
+	        {.start_line = 0,
+	         .start_character = 0,
+	         .end_line = 0,
+	         .end_character = 1,
+	         .severity = 1,
+	         .message = (char *)long_message},
 	};
 	editorLspTestSetMockDiagnostics(js_path, diagnostics, 1);
 	editorLspPumpNotifications();
 
 	char lsp_drawer[] = {'\x1b', CTRL_KEY('l')};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(lsp_drawer,
-			sizeof(lsp_drawer)) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(lsp_drawer, sizeof(lsp_drawer)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
 
@@ -364,7 +393,8 @@ static int test_editor_lsp_drawer_syntax_problem_clears_and_reappears(void) {
 	ASSERT_TRUE(editorTabsInit());
 
 	char c_path[64];
-	ASSERT_TRUE(write_temp_c_file(c_path, sizeof(c_path), "int main(void) {\n\treturn 0;\n}\n"));
+	ASSERT_TRUE(
+	        write_temp_c_file(c_path, sizeof(c_path), "int main(void) {\n\treturn 0;\n}\n"));
 	editorOpen(c_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
 
@@ -431,9 +461,9 @@ static int test_editor_lsp_javascript_definition_coexists_with_eslint_sidecar(vo
 	E.keymap.len++;
 
 	char js_path[64];
-	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(js_path, sizeof(js_path),
-			"rotide-test-js-lsp-fixture-", ".js",
-			"tests/lsp/supported/javascript/eslint_buffer.js"));
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
+	        js_path, sizeof(js_path), "rotide-test-js-lsp-fixture-", ".js",
+	        "tests/lsp/supported/javascript/eslint_buffer.js"));
 	editorOpen(js_path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, editorSyntaxLanguageActive());
 
@@ -441,10 +471,11 @@ static int test_editor_lsp_javascript_definition_coexists_with_eslint_sidecar(vo
 	char *full_text = editorDupActiveTextSource(&full_text_len);
 	ASSERT_TRUE(full_text != NULL || full_text_len == 0);
 	ASSERT_TRUE(editorLspEnsureDocumentOpen(E.filename, E.syntax_language, &E.lsp_doc_open,
-				&E.lsp_doc_version, full_text != NULL ? full_text : "", full_text_len));
-	ASSERT_TRUE(editorLspEnsureEslintDocumentOpen(E.filename, E.syntax_language,
-				&E.lsp_eslint_doc_open, &E.lsp_eslint_doc_version,
-				full_text != NULL ? full_text : "", full_text_len));
+	                                        &E.lsp_doc_version,
+	                                        full_text != NULL ? full_text : "", full_text_len));
+	ASSERT_TRUE(editorLspEnsureEslintDocumentOpen(
+	        E.filename, E.syntax_language, &E.lsp_eslint_doc_open, &E.lsp_eslint_doc_version,
+	        full_text != NULL ? full_text : "", full_text_len));
 	free(full_text);
 
 	struct editorLspTestStats stats = {0};
@@ -455,8 +486,12 @@ static int test_editor_lsp_javascript_definition_coexists_with_eslint_sidecar(vo
 	ASSERT_EQ_INT(1, E.lsp_eslint_doc_open);
 
 	struct editorLspDiagnostic diagnostics[1] = {
-		{.start_line = 1, .start_character = 12, .end_line = 1, .end_character = 15,
-				.severity = 2, .message = "Missing semicolon"},
+	        {.start_line = 1,
+	         .start_character = 12,
+	         .end_line = 1,
+	         .end_character = 15,
+	         .severity = 2,
+	         .message = "Missing semicolon"},
 	};
 	editorLspTestSetMockDiagnostics(js_path, diagnostics, 1);
 	editorLspPumpNotifications();
@@ -465,11 +500,7 @@ static int test_editor_lsp_javascript_definition_coexists_with_eslint_sidecar(vo
 
 	E.cy = 1;
 	E.cx = 13;
-	struct editorLspLocation target = {
-		.path = js_path,
-		.line = 0,
-		.character = 6
-	};
+	struct editorLspLocation target = {.path = js_path, .line = 0, .character = 6};
 	editorLspTestSetMockDefinitionResponse(1, &target, 1);
 
 	char goto_def[] = {CTRL_KEY('o')};
@@ -478,8 +509,11 @@ static int test_editor_lsp_javascript_definition_coexists_with_eslint_sidecar(vo
 	ASSERT_EQ_INT(6, E.cx);
 
 	struct editorLspDiagnostic edits[1] = {
-		{.start_line = 1, .start_character = 16, .end_line = 1, .end_character = 16,
-				.message = ";"},
+	        {.start_line = 1,
+	         .start_character = 16,
+	         .end_line = 1,
+	         .end_character = 16,
+	         .message = ";"},
 	};
 	editorLspTestSetMockCodeActionResult(1, edits, 1);
 	char fix_input[] = {CTRL_KEY('t')};
@@ -513,14 +547,17 @@ static int test_editor_process_keypress_eslint_fix_action_applies_mock_edits(voi
 	E.keymap.len++;
 
 	char js_path[64];
-	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(js_path, sizeof(js_path),
-			"rotide-test-js-lsp-fixture-", ".js",
-			"tests/lsp/supported/javascript/eslint_buffer.js"));
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
+	        js_path, sizeof(js_path), "rotide-test-js-lsp-fixture-", ".js",
+	        "tests/lsp/supported/javascript/eslint_buffer.js"));
 	editorOpen(js_path);
 
 	struct editorLspDiagnostic edits[1] = {
-		{.start_line = 1, .start_character = 16, .end_line = 1, .end_character = 16,
-				.message = ";"},
+	        {.start_line = 1,
+	         .start_character = 16,
+	         .end_line = 1,
+	         .end_character = 16,
+	         .message = ";"},
 	};
 	editorLspTestSetMockCodeActionResult(1, edits, 1);
 
@@ -538,7 +575,8 @@ static int test_editor_process_keypress_eslint_fix_action_applies_mock_edits(voi
 	return 0;
 }
 
-static int test_editor_process_keypress_eslint_fix_missing_vscode_langservers_starts_install_task(void) {
+static int
+test_editor_process_keypress_eslint_fix_missing_vscode_langservers_starts_install_task(void) {
 	E.lsp_gopls_enabled = 0;
 	E.lsp_clangd_enabled = 0;
 	E.lsp_html_enabled = 0;
@@ -550,25 +588,26 @@ static int test_editor_process_keypress_eslint_fix_missing_vscode_langservers_st
 	E.keymap.len++;
 
 	strncpy(E.lsp_eslint_command,
-			"exec >/dev/null; sleep 0.05; rotide_missing_vscode_langservers_install_command",
-			sizeof(E.lsp_eslint_command) - 1);
+	        "exec >/dev/null; sleep 0.05; rotide_missing_vscode_langservers_install_command",
+	        sizeof(E.lsp_eslint_command) - 1);
 	E.lsp_eslint_command[sizeof(E.lsp_eslint_command) - 1] = '\0';
 	strncpy(E.lsp_vscode_langservers_install_command, "printf 'install ok\\n'",
-			sizeof(E.lsp_vscode_langservers_install_command) - 1);
-	E.lsp_vscode_langservers_install_command[
-			sizeof(E.lsp_vscode_langservers_install_command) - 1] = '\0';
+	        sizeof(E.lsp_vscode_langservers_install_command) - 1);
+	E.lsp_vscode_langservers_install_command[sizeof(E.lsp_vscode_langservers_install_command) -
+	                                         1] = '\0';
 
 	char js_path[64];
-	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(js_path, sizeof(js_path),
-			"rotide-test-js-lsp-fixture-", ".js",
-			"tests/lsp/supported/javascript/eslint_buffer.js"));
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
+	        js_path, sizeof(js_path), "rotide-test-js-lsp-fixture-", ".js",
+	        "tests/lsp/supported/javascript/eslint_buffer.js"));
 	editorOpen(js_path);
 
 	char input[] = {CTRL_KEY('t'), 'y', '\r'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
 	ASSERT_TRUE(editorTaskIsRunning());
 	ASSERT_TRUE(editorActiveTabIsTaskLog());
-	ASSERT_EQ_STR("Task: Install vscode-langservers-extracted", editorActiveBufferDisplayName());
+	ASSERT_EQ_STR("Task: Install vscode-langservers-extracted",
+	              editorActiveBufferDisplayName());
 	ASSERT_TRUE(wait_for_task_completion_with_timeout(1500));
 	ASSERT_EQ_STR("vscode-langservers-extracted installed. Retry Ctrl-O", E.statusmsg);
 
@@ -634,20 +673,33 @@ static int test_editor_task_log_read_only_search_and_copy(void) {
 }
 
 const struct editorTestCase g_lsp_diagnostics_tests[] = {
-	{"editor_lsp_eslint_diagnostics_update_and_status_summary", test_editor_lsp_eslint_diagnostics_update_and_status_summary},
-	{"editor_lsp_diagnostic_status_uses_publishing_server_label", test_editor_lsp_diagnostic_status_uses_publishing_server_label},
-	{"editor_lsp_diagnostics_render_error_underline_and_cursor_popdown", test_editor_lsp_diagnostics_render_error_underline_and_cursor_popdown},
-	{"editor_lsp_eslint_diagnostics_persist_across_tab_switches", test_editor_lsp_eslint_diagnostics_persist_across_tab_switches},
-	{"editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem", test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem},
-	{"editor_lsp_drawer_colors_problem_severity_labels", test_editor_lsp_drawer_colors_problem_severity_labels},
-	{"editor_lsp_drawer_selected_problem_spills_into_text_area", test_editor_lsp_drawer_selected_problem_spills_into_text_area},
-	{"editor_lsp_drawer_syntax_problem_clears_and_reappears", test_editor_lsp_drawer_syntax_problem_clears_and_reappears},
-	{"editor_lsp_drawer_lists_syntax_parse_error", test_editor_lsp_drawer_lists_syntax_parse_error},
-	{"editor_lsp_javascript_definition_coexists_with_eslint_sidecar", test_editor_lsp_javascript_definition_coexists_with_eslint_sidecar},
-	{"editor_process_keypress_eslint_fix_action_applies_mock_edits", test_editor_process_keypress_eslint_fix_action_applies_mock_edits},
-	{"editor_process_keypress_eslint_fix_missing_vscode_langservers_starts_install_task", test_editor_process_keypress_eslint_fix_missing_vscode_langservers_starts_install_task},
-	{"editor_task_log_read_only_search_and_copy", test_editor_task_log_read_only_search_and_copy},
+        {"editor_lsp_eslint_diagnostics_update_and_status_summary",
+         test_editor_lsp_eslint_diagnostics_update_and_status_summary},
+        {"editor_lsp_diagnostic_status_uses_publishing_server_label",
+         test_editor_lsp_diagnostic_status_uses_publishing_server_label},
+        {"editor_lsp_diagnostics_render_error_underline_and_cursor_popdown",
+         test_editor_lsp_diagnostics_render_error_underline_and_cursor_popdown},
+        {"editor_lsp_eslint_diagnostics_persist_across_tab_switches",
+         test_editor_lsp_eslint_diagnostics_persist_across_tab_switches},
+        {"editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem",
+         test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem},
+        {"editor_lsp_drawer_colors_problem_severity_labels",
+         test_editor_lsp_drawer_colors_problem_severity_labels},
+        {"editor_lsp_drawer_selected_problem_spills_into_text_area",
+         test_editor_lsp_drawer_selected_problem_spills_into_text_area},
+        {"editor_lsp_drawer_syntax_problem_clears_and_reappears",
+         test_editor_lsp_drawer_syntax_problem_clears_and_reappears},
+        {"editor_lsp_drawer_lists_syntax_parse_error",
+         test_editor_lsp_drawer_lists_syntax_parse_error},
+        {"editor_lsp_javascript_definition_coexists_with_eslint_sidecar",
+         test_editor_lsp_javascript_definition_coexists_with_eslint_sidecar},
+        {"editor_process_keypress_eslint_fix_action_applies_mock_edits",
+         test_editor_process_keypress_eslint_fix_action_applies_mock_edits},
+        {"editor_process_keypress_eslint_fix_missing_vscode_langservers_starts_install_task",
+         test_editor_process_keypress_eslint_fix_missing_vscode_langservers_starts_install_task},
+        {"editor_task_log_read_only_search_and_copy",
+         test_editor_task_log_read_only_search_and_copy},
 };
 
 const int g_lsp_diagnostics_test_count =
-		(int)(sizeof(g_lsp_diagnostics_tests) / sizeof(g_lsp_diagnostics_tests[0]));
+        (int)(sizeof(g_lsp_diagnostics_tests) / sizeof(g_lsp_diagnostics_tests[0]));

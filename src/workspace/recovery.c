@@ -4,9 +4,9 @@
 #include "editing/edit.h"
 #include "language/syntax.h"
 #include "render/screen.h"
-#include "support/size_utils.h"
 #include "support/alloc.h"
 #include "support/file_io.h"
+#include "support/size_utils.h"
 #include "support/terminal.h"
 #include "text/document.h"
 #include "text/row.h"
@@ -141,7 +141,7 @@ static int editorEnsureDirectoryExists(const char *path, mode_t mode) {
 static char *editorRecoveryBuildPathForBase(const char *base, uint64_t hash) {
 	char name[128];
 	int written = snprintf(name, sizeof(name), "rotide-recovery-u%lu-%016llx.swap",
-			(unsigned long)getuid(), (unsigned long long)hash);
+	                       (unsigned long)getuid(), (unsigned long long)hash);
 	if (written <= 0 || (size_t)written >= sizeof(name)) {
 		return NULL;
 	}
@@ -167,8 +167,8 @@ static char *editorResolveRecoveryPath(void) {
 		}
 
 		if (dot_rotide != NULL && recovery_dir != NULL &&
-				editorEnsureDirectoryExists(dot_rotide, 0700) &&
-				editorEnsureDirectoryExists(recovery_dir, 0700)) {
+		    editorEnsureDirectoryExists(dot_rotide, 0700) &&
+		    editorEnsureDirectoryExists(recovery_dir, 0700)) {
 			recovery_path = editorRecoveryBuildPathForBase(recovery_dir, cwd_hash);
 		}
 
@@ -257,10 +257,8 @@ static int editorRecoveryReadU32(int fd, uint32_t *value_out) {
 	if (read_status != EDITOR_READ_EXACT_OK) {
 		return read_status;
 	}
-	*value_out = (uint32_t)bytes[0] |
-			((uint32_t)bytes[1] << 8) |
-			((uint32_t)bytes[2] << 16) |
-			((uint32_t)bytes[3] << 24);
+	*value_out = (uint32_t)bytes[0] | ((uint32_t)bytes[1] << 8) | ((uint32_t)bytes[2] << 16) |
+	             ((uint32_t)bytes[3] << 24);
 	return EDITOR_READ_EXACT_OK;
 }
 
@@ -275,10 +273,8 @@ static int editorRecoveryReadI32(int fd, int32_t *value_out) {
 }
 
 static int editorRecoveryTabKindIsValid(int tab_kind) {
-	return tab_kind == EDITOR_TAB_FILE ||
-			tab_kind == EDITOR_TAB_TASK_LOG ||
-			tab_kind == EDITOR_TAB_UNSUPPORTED_FILE ||
-			tab_kind == EDITOR_TAB_GIT_DIFF;
+	return tab_kind == EDITOR_TAB_FILE || tab_kind == EDITOR_TAB_TASK_LOG ||
+	       tab_kind == EDITOR_TAB_UNSUPPORTED_FILE || tab_kind == EDITOR_TAB_GIT_DIFF;
 }
 
 static int editorRecoveryGetTabView(int idx, struct editorRecoveryTabView *view_out) {
@@ -299,7 +295,7 @@ static int editorRecoveryGetTabView(int idx, struct editorRecoveryTabView *view_
 
 	if (idx == active_tab) {
 		if (editorTabKindSupportsDocument(E.tab_kind) &&
-				(!editorDocumentEnsureActiveCurrent() || E.document == NULL)) {
+		    (!editorDocumentEnsureActiveCurrent() || E.document == NULL)) {
 			errno = EIO;
 			return 0;
 		}
@@ -320,7 +316,7 @@ static int editorRecoveryGetTabView(int idx, struct editorRecoveryTabView *view_
 		return 0;
 	}
 	if (editorTabKindSupportsDocument(tab->tab_kind) &&
-			(!editorBufferDocumentEnsureCurrent(tab) || tab->document == NULL)) {
+	    (!editorBufferDocumentEnsureCurrent(tab) || tab->document == NULL)) {
 		errno = EIO;
 		return 0;
 	}
@@ -363,16 +359,16 @@ static int editorRecoveryWriteSessionToFd(int fd) {
 	if (tab_count == 1) {
 		active_tab = 0;
 	}
-	if (tab_count < 1 || tab_count > ROTIDE_MAX_TABS ||
-			active_tab < 0 || active_tab >= tab_count) {
+	if (tab_count < 1 || tab_count > ROTIDE_MAX_TABS || active_tab < 0 ||
+	    active_tab >= tab_count) {
 		errno = EINVAL;
 		return 0;
 	}
 
 	if (editorRecoveryWriteAll(fd, ROTIDE_RECOVERY_MAGIC, ROTIDE_RECOVERY_MAGIC_LEN) == -1 ||
-			!editorRecoveryWriteU32(fd, ROTIDE_RECOVERY_VERSION) ||
-			!editorRecoveryWriteU32(fd, (uint32_t)tab_count) ||
-			!editorRecoveryWriteU32(fd, (uint32_t)active_tab)) {
+	    !editorRecoveryWriteU32(fd, ROTIDE_RECOVERY_VERSION) ||
+	    !editorRecoveryWriteU32(fd, (uint32_t)tab_count) ||
+	    !editorRecoveryWriteU32(fd, (uint32_t)active_tab)) {
 		if (errno == 0) {
 			errno = EIO;
 		}
@@ -395,24 +391,26 @@ static int editorRecoveryWriteSessionToFd(int fd) {
 		}
 
 		if (!editorRecoveryWriteI32(fd, (int32_t)view.cx) ||
-				!editorRecoveryWriteI32(fd, (int32_t)view.cy) ||
-				!editorRecoveryWriteI32(fd, (int32_t)view.rowoff) ||
-				!editorRecoveryWriteI32(fd, (int32_t)view.coloff) ||
-				!editorRecoveryWriteI32(fd, (int32_t)view.tab_kind) ||
-				!editorRecoveryWriteI32(fd, (int32_t)view.dirty) ||
-				!editorRecoveryWriteU32(fd, (uint32_t)filename_len)) {
+		    !editorRecoveryWriteI32(fd, (int32_t)view.cy) ||
+		    !editorRecoveryWriteI32(fd, (int32_t)view.rowoff) ||
+		    !editorRecoveryWriteI32(fd, (int32_t)view.coloff) ||
+		    !editorRecoveryWriteI32(fd, (int32_t)view.tab_kind) ||
+		    !editorRecoveryWriteI32(fd, (int32_t)view.dirty) ||
+		    !editorRecoveryWriteU32(fd, (uint32_t)filename_len)) {
 			if (errno == 0) {
 				errno = EIO;
 			}
 			return 0;
 		}
-		if (filename_len > 0 && editorRecoveryWriteAll(fd, view.filename, filename_len) == -1) {
+		if (filename_len > 0 &&
+		    editorRecoveryWriteAll(fd, view.filename, filename_len) == -1) {
 			return 0;
 		}
 
 		size_t text_len = 0;
 		char *text = editorRecoveryDupTabText(&view, &text_len);
-		if (text == NULL && view.document != NULL && editorDocumentLength(view.document) > 0) {
+		if (text == NULL && view.document != NULL &&
+		    editorDocumentLength(view.document) > 0) {
 			return 0;
 		}
 		if (!editorRecoveryWriteU32(fd, (uint32_t)text_len)) {
@@ -518,8 +516,8 @@ static int editorRecoveryTabReadText(int fd, struct editorRecoveryTab *tab) {
 	return EDITOR_READ_EXACT_OK;
 }
 
-static enum editorRecoveryLoadStatus editorRecoveryLoadSessionFromPath(const char *path,
-		struct editorRecoverySession *session_out) {
+static enum editorRecoveryLoadStatus
+editorRecoveryLoadSessionFromPath(const char *path, struct editorRecoverySession *session_out) {
 	memset(session_out, 0, sizeof(*session_out));
 
 	int fd = open(path, O_RDONLY);
@@ -534,8 +532,8 @@ static enum editorRecoveryLoadStatus editorRecoveryLoadSessionFromPath(const cha
 	char magic[ROTIDE_RECOVERY_MAGIC_LEN];
 	int read_status = editorRecoveryReadExact(fd, magic, sizeof(magic));
 	if (read_status != EDITOR_READ_EXACT_OK) {
-		status = read_status == EDITOR_READ_EXACT_ERR ? EDITOR_RECOVERY_LOAD_IO :
-				EDITOR_RECOVERY_LOAD_INVALID;
+		status = read_status == EDITOR_READ_EXACT_ERR ? EDITOR_RECOVERY_LOAD_IO
+		                                              : EDITOR_RECOVERY_LOAD_INVALID;
 		goto out;
 	}
 	if (memcmp(magic, ROTIDE_RECOVERY_MAGIC, ROTIDE_RECOVERY_MAGIC_LEN) != 0) {
@@ -547,16 +545,14 @@ static enum editorRecoveryLoadStatus editorRecoveryLoadSessionFromPath(const cha
 	uint32_t tab_count_u32 = 0;
 	uint32_t active_tab_u32 = 0;
 	if (editorRecoveryReadU32(fd, &version) != EDITOR_READ_EXACT_OK ||
-			editorRecoveryReadU32(fd, &tab_count_u32) != EDITOR_READ_EXACT_OK ||
-			editorRecoveryReadU32(fd, &active_tab_u32) != EDITOR_READ_EXACT_OK) {
+	    editorRecoveryReadU32(fd, &tab_count_u32) != EDITOR_READ_EXACT_OK ||
+	    editorRecoveryReadU32(fd, &active_tab_u32) != EDITOR_READ_EXACT_OK) {
 		status = EDITOR_RECOVERY_LOAD_INVALID;
 		goto out;
 	}
-	if (version < ROTIDE_RECOVERY_MIN_VERSION ||
-			version > ROTIDE_RECOVERY_VERSION ||
-			tab_count_u32 < 1 ||
-			tab_count_u32 > ROTIDE_MAX_TABS ||
-			active_tab_u32 >= tab_count_u32) {
+	if (version < ROTIDE_RECOVERY_MIN_VERSION || version > ROTIDE_RECOVERY_VERSION ||
+	    tab_count_u32 < 1 || tab_count_u32 > ROTIDE_MAX_TABS ||
+	    active_tab_u32 >= tab_count_u32) {
 		status = EDITOR_RECOVERY_LOAD_INVALID;
 		goto out;
 	}
@@ -565,7 +561,7 @@ static enum editorRecoveryLoadStatus editorRecoveryLoadSessionFromPath(const cha
 	session_out->active_tab = (int)active_tab_u32;
 	size_t tabs_bytes = 0;
 	if (!editorSizeMul(sizeof(struct editorRecoveryTab), (size_t)session_out->tab_count,
-				&tabs_bytes)) {
+	                   &tabs_bytes)) {
 		status = EDITOR_RECOVERY_LOAD_INVALID;
 		goto out;
 	}
@@ -583,9 +579,9 @@ static enum editorRecoveryLoadStatus editorRecoveryLoadSessionFromPath(const cha
 		int32_t rowoff = 0;
 		int32_t coloff = 0;
 		if (editorRecoveryReadI32(fd, &cx) != EDITOR_READ_EXACT_OK ||
-				editorRecoveryReadI32(fd, &cy) != EDITOR_READ_EXACT_OK ||
-				editorRecoveryReadI32(fd, &rowoff) != EDITOR_READ_EXACT_OK ||
-				editorRecoveryReadI32(fd, &coloff) != EDITOR_READ_EXACT_OK) {
+		    editorRecoveryReadI32(fd, &cy) != EDITOR_READ_EXACT_OK ||
+		    editorRecoveryReadI32(fd, &rowoff) != EDITOR_READ_EXACT_OK ||
+		    editorRecoveryReadI32(fd, &coloff) != EDITOR_READ_EXACT_OK) {
 			status = EDITOR_RECOVERY_LOAD_INVALID;
 			goto out;
 		}
@@ -600,7 +596,7 @@ static enum editorRecoveryLoadStatus editorRecoveryLoadSessionFromPath(const cha
 			int32_t tab_kind = 0;
 			int32_t dirty = 0;
 			if (editorRecoveryReadI32(fd, &tab_kind) != EDITOR_READ_EXACT_OK ||
-					editorRecoveryReadI32(fd, &dirty) != EDITOR_READ_EXACT_OK) {
+			    editorRecoveryReadI32(fd, &dirty) != EDITOR_READ_EXACT_OK) {
 				status = EDITOR_RECOVERY_LOAD_INVALID;
 				goto out;
 			}
@@ -635,8 +631,9 @@ static enum editorRecoveryLoadStatus editorRecoveryLoadSessionFromPath(const cha
 			}
 			read_status = editorRecoveryReadExact(fd, tab->filename, filename_len);
 			if (read_status != EDITOR_READ_EXACT_OK) {
-				status = read_status == EDITOR_READ_EXACT_ERR ? EDITOR_RECOVERY_LOAD_IO :
-						EDITOR_RECOVERY_LOAD_INVALID;
+				status = read_status == EDITOR_READ_EXACT_ERR
+				                 ? EDITOR_RECOVERY_LOAD_IO
+				                 : EDITOR_RECOVERY_LOAD_INVALID;
 				goto out;
 			}
 			tab->filename[filename_len] = '\0';
@@ -645,8 +642,8 @@ static enum editorRecoveryLoadStatus editorRecoveryLoadSessionFromPath(const cha
 		read_status = editorRecoveryTabReadText(fd, tab);
 		if (read_status != EDITOR_READ_EXACT_OK) {
 			if (read_status == EDITOR_READ_EXACT_ERR) {
-				status = errno == ENOMEM ? EDITOR_RECOVERY_LOAD_OOM :
-						EDITOR_RECOVERY_LOAD_IO;
+				status = errno == ENOMEM ? EDITOR_RECOVERY_LOAD_OOM
+				                         : EDITOR_RECOVERY_LOAD_IO;
 			} else {
 				status = EDITOR_RECOVERY_LOAD_INVALID;
 			}
@@ -741,15 +738,15 @@ static int editorRecoveryPopulateActiveFromTab(const struct editorRecoveryTab *t
 
 	editorDocumentInit(&document);
 	document_inited = 1;
-	if (!editorDocumentResetFromString(&document,
-				tab->text != NULL ? tab->text : "", tab->textlen)) {
+	if (!editorDocumentResetFromString(&document, tab->text != NULL ? tab->text : "",
+	                                   tab->textlen)) {
 		editorSetAllocFailureStatus();
 		goto cleanup;
 	}
 
 	int parse_syntax = tab->tab_kind == EDITOR_TAB_FILE;
 	if (!editorRestoreActiveFromDocument(&document, tab->cy, tab->cx, tab->dirty,
-				parse_syntax)) {
+	                                     parse_syntax)) {
 		goto cleanup;
 	}
 	if (editorActiveTabIsReadOnly()) {
@@ -811,7 +808,7 @@ int editorRecoveryRestoreSnapshot(void) {
 
 	struct editorRecoverySession session;
 	enum editorRecoveryLoadStatus load_status =
-			editorRecoveryLoadSessionFromPath(E.recovery_path, &session);
+	        editorRecoveryLoadSessionFromPath(E.recovery_path, &session);
 	if (load_status == EDITOR_RECOVERY_LOAD_NOT_FOUND) {
 		return 0;
 	}
@@ -892,9 +889,8 @@ void editorRecoveryMaybeAutosaveOnActivity(void) {
 	}
 
 	time_t now = time(NULL);
-	if (now != (time_t)-1 &&
-			E.recovery_last_autosave_time != 0 &&
-			now - E.recovery_last_autosave_time < ROTIDE_RECOVERY_AUTOSAVE_DEBOUNCE_SECONDS) {
+	if (now != (time_t)-1 && E.recovery_last_autosave_time != 0 &&
+	    now - E.recovery_last_autosave_time < ROTIDE_RECOVERY_AUTOSAVE_DEBOUNCE_SECONDS) {
 		return;
 	}
 
