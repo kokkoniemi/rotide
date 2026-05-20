@@ -8,7 +8,7 @@
 
 #include <stdlib.h>
 
-static int editorOpenTerminalSplit(enum editorSplitOrientation split) {
+static int actionsTerminalDebugOpenTerminalSplit(enum editorSplitOrientation split) {
 	editorHistoryBreakGroup();
 	const char *shell = getenv("SHELL");
 	if (shell == NULL || shell[0] == '\0') {
@@ -58,9 +58,9 @@ int editorHandleTerminalDebugMappedAction(enum editorAction action) {
 			(void)editorDapToggleBreakpointAtCursor();
 			return 1;
 		case EDITOR_ACTION_TERMINAL_OPEN:
-			return editorOpenTerminalSplit(EDITOR_SPLIT_HORIZONTAL);
+			return actionsTerminalDebugOpenTerminalSplit(EDITOR_SPLIT_HORIZONTAL);
 		case EDITOR_ACTION_TERMINAL_OPEN_VERTICAL:
-			return editorOpenTerminalSplit(EDITOR_SPLIT_VERTICAL);
+			return actionsTerminalDebugOpenTerminalSplit(EDITOR_SPLIT_VERTICAL);
 		case EDITOR_ACTION_TERMINAL_PREFIX:
 			E.terminal_prefix_armed = 1;
 			editorSetStatusMsg("Terminal prefix armed: next key is rotide");

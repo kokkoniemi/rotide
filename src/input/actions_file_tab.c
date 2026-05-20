@@ -15,10 +15,10 @@
 
 #include <stdlib.h>
 
-static int quit_confirmed = 0;
-static int quit_task_confirmed = 0;
+static int g_actions_file_tab_quit_confirmed = 0;
+static int g_actions_file_tab_quit_task_confirmed = 0;
 
-static void editorSetQuitConfirmStatus(void) {
+static void actionsFileTabSetQuitConfirmStatus(void) {
 	char quit_binding[24];
 	if (editorKeymapFormatBinding(&E.keymap, EDITOR_ACTION_QUIT, quit_binding,
 	                              sizeof(quit_binding))) {
@@ -30,7 +30,7 @@ static void editorSetQuitConfirmStatus(void) {
 	editorSetStatusMsg("File has unsaved changes. Press quit key again to quit");
 }
 
-static void editorSetQuitTaskConfirmStatus(void) {
+static void actionsFileTabSetQuitTaskConfirmStatus(void) {
 	char quit_binding[24];
 	if (editorKeymapFormatBinding(&E.keymap, EDITOR_ACTION_QUIT, quit_binding,
 	                              sizeof(quit_binding))) {
@@ -41,7 +41,7 @@ static void editorSetQuitTaskConfirmStatus(void) {
 	editorSetStatusMsg("Task is still running. Press quit key again to terminate it and quit");
 }
 
-static void editorSetCloseTabConfirmStatus(void) {
+static void actionsFileTabSetCloseTabConfirmStatus(void) {
 	char close_binding[24];
 	if (editorKeymapFormatBinding(&E.keymap, EDITOR_ACTION_CLOSE_TAB, close_binding,
 	                              sizeof(close_binding))) {
@@ -53,7 +53,7 @@ static void editorSetCloseTabConfirmStatus(void) {
 	editorSetStatusMsg("Tab has unsaved changes. Press close key again to close tab");
 }
 
-static void editorSetCloseTaskConfirmStatus(void) {
+static void actionsFileTabSetCloseTaskConfirmStatus(void) {
 	char close_binding[24];
 	if (editorKeymapFormatBinding(&E.keymap, EDITOR_ACTION_CLOSE_TAB, close_binding,
 	                              sizeof(close_binding))) {
@@ -67,19 +67,19 @@ static void editorSetCloseTaskConfirmStatus(void) {
 }
 
 void editorActionQuit(void) {
-	if (editorTaskIsRunning() && !quit_task_confirmed) {
-		editorSetQuitTaskConfirmStatus();
-		quit_task_confirmed = 1;
+	if (editorTaskIsRunning() && !g_actions_file_tab_quit_task_confirmed) {
+		actionsFileTabSetQuitTaskConfirmStatus();
+		g_actions_file_tab_quit_task_confirmed = 1;
 		return;
 	}
 	if (editorTaskIsRunning()) {
 		(void)editorTaskTerminate();
-		quit_task_confirmed = 0;
+		g_actions_file_tab_quit_task_confirmed = 0;
 	}
 
-	if (editorTabAnyDirty() && !quit_confirmed) {
-		editorSetQuitConfirmStatus();
-		quit_confirmed = 1;
+	if (editorTabAnyDirty() && !g_actions_file_tab_quit_confirmed) {
+		actionsFileTabSetQuitConfirmStatus();
+		g_actions_file_tab_quit_confirmed = 1;
 		return;
 	}
 
@@ -112,7 +112,7 @@ void editorOpenSettings(void) {
 
 void editorActionCloseTab(void) {
 	if (editorActiveTaskTabIsRunning() && !E.close_confirmed) {
-		editorSetCloseTaskConfirmStatus();
+		actionsFileTabSetCloseTaskConfirmStatus();
 		E.close_confirmed = 1;
 		return;
 	}
@@ -122,7 +122,7 @@ void editorActionCloseTab(void) {
 	}
 
 	if (E.dirty && !E.close_confirmed) {
-		editorSetCloseTabConfirmStatus();
+		actionsFileTabSetCloseTabConfirmStatus();
 		E.close_confirmed = 1;
 		return;
 	}
@@ -172,7 +172,7 @@ void editorFileTabActionsAfterKeypress(int mapped_action, enum editorAction acti
 		E.close_confirmed = 0;
 	}
 	if (!mapped_action || action != EDITOR_ACTION_QUIT) {
-		quit_confirmed = 0;
-		quit_task_confirmed = 0;
+		g_actions_file_tab_quit_confirmed = 0;
+		g_actions_file_tab_quit_task_confirmed = 0;
 	}
 }

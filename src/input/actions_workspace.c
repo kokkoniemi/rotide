@@ -357,7 +357,7 @@ int editorHandleDrawerSearchMappedAction(enum editorAction action, int *cursor_o
 	return 0;
 }
 
-static enum editorDrawerMode editorActiveDrawerHeaderMode(void) {
+static enum editorDrawerMode actionsWorkspaceActiveDrawerHeaderMode(void) {
 	if (editorFileSearchIsActive()) {
 		return EDITOR_DRAWER_MODE_FILE_SEARCH;
 	}
@@ -368,7 +368,7 @@ static enum editorDrawerMode editorActiveDrawerHeaderMode(void) {
 }
 
 int editorSwitchDrawerHeaderMode(enum editorDrawerMode mode) {
-	if (editorActiveDrawerHeaderMode() == mode) {
+	if (actionsWorkspaceActiveDrawerHeaderMode() == mode) {
 		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 		return 0;
 	}

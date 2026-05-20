@@ -8,12 +8,12 @@
 
 #include <string.h>
 
-enum editorGoToDefinitionInstallFamily {
-	EDITOR_GOTO_DEF_INSTALL_NONE = 0,
-	EDITOR_GOTO_DEF_INSTALL_GOPLS,
-	EDITOR_GOTO_DEF_INSTALL_CLANGD,
-	EDITOR_GOTO_DEF_INSTALL_JAVASCRIPT,
-	EDITOR_GOTO_DEF_INSTALL_VSCODE_LANGSERVERS
+enum actionsLanguageGoToDefinitionInstallFamily {
+	ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_NONE = 0,
+	ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_GOPLS,
+	ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_CLANGD,
+	ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_JAVASCRIPT,
+	ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_VSCODE_LANGSERVERS
 };
 
 int editorLanguageGoToSupported(enum editorSyntaxLanguage language) {
@@ -61,24 +61,25 @@ const char *editorLanguageGoToCommandSettingName(void) {
 	return editorLspCommandSettingNameForFile(E.filename, E.syntax_language);
 }
 
-static enum editorGoToDefinitionInstallFamily editorLanguageGoToInstallFamilyForLanguage(void) {
+static enum actionsLanguageGoToDefinitionInstallFamily
+actionsLanguageGoToInstallFamilyForLanguage(void) {
 	const char *server_name = editorLanguageGoToServerName();
 	if (server_name != NULL && strcmp(server_name, "gopls") == 0) {
-		return EDITOR_GOTO_DEF_INSTALL_GOPLS;
+		return ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_GOPLS;
 	}
 	if (server_name != NULL && strcmp(server_name, "clangd") == 0) {
-		return EDITOR_GOTO_DEF_INSTALL_CLANGD;
+		return ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_CLANGD;
 	}
 	if (server_name != NULL && strcmp(server_name, "typescript-language-server") == 0) {
-		return EDITOR_GOTO_DEF_INSTALL_JAVASCRIPT;
+		return ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_JAVASCRIPT;
 	}
 	if (editorLspUsesSharedVscodeInstallPrompt(E.filename, E.syntax_language)) {
-		return EDITOR_GOTO_DEF_INSTALL_VSCODE_LANGSERVERS;
+		return ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_VSCODE_LANGSERVERS;
 	}
-	return EDITOR_GOTO_DEF_INSTALL_NONE;
+	return ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_NONE;
 }
 
-static void editorLanguagePromptInstallJavascriptServer(void) {
+static void actionsLanguagePromptInstallJavascriptServer(void) {
 	if (!editorPromptYesNo("typescript-language-server not found. Install now? [y/N] %s")) {
 		editorSetStatusMsg("typescript-language-server not installed");
 		return;
@@ -112,8 +113,8 @@ void editorLanguageMaybePromptInstallServer(void) {
 	if (editorLspLastStartupFailureReason() != EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
 		return;
 	}
-	switch (editorLanguageGoToInstallFamilyForLanguage()) {
-		case EDITOR_GOTO_DEF_INSTALL_GOPLS:
+	switch (actionsLanguageGoToInstallFamilyForLanguage()) {
+		case ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_GOPLS:
 			if (!editorPromptYesNo("gopls not found. Install now? [y/N] %s")) {
 				editorSetStatusMsg("gopls not installed");
 				return;
@@ -126,7 +127,7 @@ void editorLanguageMaybePromptInstallServer(void) {
 				}
 			}
 			return;
-		case EDITOR_GOTO_DEF_INSTALL_CLANGD: {
+		case ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_CLANGD: {
 			static const char message[] =
 			        "clangd was not found on PATH.\n"
 			        "\n"
@@ -164,10 +165,10 @@ void editorLanguageMaybePromptInstallServer(void) {
 			}
 			return;
 		}
-		case EDITOR_GOTO_DEF_INSTALL_JAVASCRIPT:
-			editorLanguagePromptInstallJavascriptServer();
+		case ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_JAVASCRIPT:
+			actionsLanguagePromptInstallJavascriptServer();
 			return;
-		case EDITOR_GOTO_DEF_INSTALL_VSCODE_LANGSERVERS:
+		case ACTIONS_LANGUAGE_GOTO_DEF_INSTALL_VSCODE_LANGSERVERS:
 			editorLanguagePromptInstallSharedVscodeServers();
 			return;
 		default:

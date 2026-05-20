@@ -32,9 +32,9 @@ enum {
 	(ROTIDE_DRAWER_COLLAPSED_WIDTH +                                                           \
 	 DRAWER_HEADER_MODE_BUTTON_COLS * DRAWER_HEADER_MODE_BUTTON_COUNT)
 
-static void editorMouseClearSelectionMode(void);
-static void editorMouseSelectWordAtCursor(void);
-static void editorMouseSelectLineAtCursor(void);
+static void mouseClearSelectionMode(void);
+static void mouseSelectWordAtCursor(void);
+static void mouseSelectLineAtCursor(void);
 
 int editorDrawerHeaderModeForColumn(int mouse_col, int drawer_cols,
                                     enum editorDrawerMode *mode_out) {
@@ -423,7 +423,7 @@ int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long lo
 	}
 
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
-	editorMouseClearSelectionMode();
+	mouseClearSelectionMode();
 	if (event->modifiers == EDITOR_MOUSE_MOD_CTRL) {
 		E.mouse_left_button_down = 0;
 		E.mouse_drag_started = 0;
@@ -476,7 +476,7 @@ int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long lo
 	E.text_last_click_ms = now_ms;
 
 	if (click_count == 2) {
-		editorMouseSelectWordAtCursor();
+		mouseSelectWordAtCursor();
 		E.mouse_left_button_down = 0;
 		E.mouse_drag_started = 0;
 		if (effects_out != NULL) {
@@ -485,7 +485,7 @@ int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long lo
 		return 1;
 	}
 	if (click_count == 3) {
-		editorMouseSelectLineAtCursor();
+		mouseSelectLineAtCursor();
 		E.mouse_left_button_down = 0;
 		E.mouse_drag_started = 0;
 		if (effects_out != NULL) {
@@ -503,7 +503,7 @@ int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long lo
 	return 1;
 }
 
-static long long editorMouseMonotonicMillis(void) {
+static long long mouseMonotonicMillis(void) {
 	struct timespec ts;
 	if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
 		return 0;
@@ -511,13 +511,13 @@ static long long editorMouseMonotonicMillis(void) {
 	return (long long)ts.tv_sec * 1000LL + (long long)(ts.tv_nsec / 1000000L);
 }
 
-static int editorHandleMouseLeftPress(const struct editorMouseEvent *event,
-                                      int drawer_double_click_threshold_ms,
-                                      int text_multi_click_threshold_ms,
-                                      editorProcessMappedActionFn process_mapped_action,
-                                      editorMouseJumpToPathFn jump_to_path,
-                                      editorMouseActionFn goto_definition) {
-	long long now_ms = editorMouseMonotonicMillis();
+static int mouseHandleLeftPress(const struct editorMouseEvent *event,
+                                int drawer_double_click_threshold_ms,
+                                int text_multi_click_threshold_ms,
+                                editorProcessMappedActionFn process_mapped_action,
+                                editorMouseJumpToPathFn jump_to_path,
+                                editorMouseActionFn goto_definition) {
+	long long now_ms = mouseMonotonicMillis();
 	int drawer_effects = EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
 	if (editorHandleMouseDrawerLeftPress(event, now_ms, drawer_double_click_threshold_ms,
 	                                     process_mapped_action, jump_to_path,
@@ -566,10 +566,10 @@ int editorHandleMouseEventDispatch(int drawer_double_click_threshold_ms,
 
 	switch (event.kind) {
 		case EDITOR_MOUSE_EVENT_LEFT_PRESS:
-			effects = editorHandleMouseLeftPress(
-			        &event, drawer_double_click_threshold_ms,
-			        text_multi_click_threshold_ms, process_mapped_action, jump_to_path,
-			        goto_definition);
+			effects = mouseHandleLeftPress(&event, drawer_double_click_threshold_ms,
+			                               text_multi_click_threshold_ms,
+			                               process_mapped_action, jump_to_path,
+			                               goto_definition);
 			break;
 		case EDITOR_MOUSE_EVENT_LEFT_DRAG:
 			effects = editorHandleMouseLeftDrag(&event)
@@ -757,7 +757,7 @@ int editorResolveMouseToBufferOffset(const struct editorMouseEvent *event, int c
 	return editorBufferPosToOffset(row_idx, cx, offset_out);
 }
 
-static int editorMouseSetCursorFromOffset(size_t offset) {
+static int mouseSetCursorFromOffset(size_t offset) {
 	int cy = 0;
 	int cx = 0;
 	size_t normalized_offset = 0;
@@ -789,20 +789,20 @@ int editorMoveCursorToMouse(const struct editorMouseEvent *event, int clamp_to_v
 	if (!editorResolveMouseToBufferOffset(event, clamp_to_viewport, &offset)) {
 		return 0;
 	}
-	return editorMouseSetCursorFromOffset(offset);
+	return mouseSetCursorFromOffset(offset);
 }
 
-static int editorMouseIsWordByte(unsigned char b) {
+static int mouseIsWordByte(unsigned char b) {
 	return isalnum(b) || b == '_' || b >= 0x80;
 }
 
-static void editorMouseClearSelectionMode(void) {
+static void mouseClearSelectionMode(void) {
 	E.selection_mode_active = 0;
 	E.selection_anchor_offset = 0;
 	editorColumnSelectionClear();
 }
 
-static void editorMouseSelectWordAtCursor(void) {
+static void mouseSelectWordAtCursor(void) {
 	if (E.cy < 0 || E.cy >= E.numrows) {
 		return;
 	}
@@ -818,7 +818,7 @@ static void editorMouseSelectWordAtCursor(void) {
 			return;
 		}
 	}
-	if (!editorMouseIsWordByte((unsigned char)line.data[cx])) {
+	if (!mouseIsWordByte((unsigned char)line.data[cx])) {
 		editorLineViewRelease(&line);
 		return;
 	}
@@ -826,14 +826,14 @@ static void editorMouseSelectWordAtCursor(void) {
 	int start = cx;
 	while (start > 0) {
 		int prev = editorBytesPrevCharIdx(line.data, line.size, start);
-		if (prev >= start || !editorMouseIsWordByte((unsigned char)line.data[prev])) {
+		if (prev >= start || !mouseIsWordByte((unsigned char)line.data[prev])) {
 			break;
 		}
 		start = prev;
 	}
 	int end = editorBytesNextCharIdx(line.data, line.size, cx);
 	while (end < line.size) {
-		if (!editorMouseIsWordByte((unsigned char)line.data[end])) {
+		if (!mouseIsWordByte((unsigned char)line.data[end])) {
 			break;
 		}
 		int next = editorBytesNextCharIdx(line.data, line.size, end);
@@ -858,7 +858,7 @@ static void editorMouseSelectWordAtCursor(void) {
 	}
 }
 
-static void editorMouseSelectLineAtCursor(void) {
+static void mouseSelectLineAtCursor(void) {
 	if (E.cy < 0 || E.cy >= E.numrows) {
 		return;
 	}
@@ -884,7 +884,7 @@ static void editorMouseSelectLineAtCursor(void) {
 	}
 }
 
-static int editorComputeWordRangeAt(int cy, int cx, int *start_out, int *end_out) {
+static int mouseComputeWordRangeAt(int cy, int cx, int *start_out, int *end_out) {
 	if (cy < 0 || cy >= E.numrows) {
 		return 0;
 	}
@@ -893,21 +893,21 @@ static int editorComputeWordRangeAt(int cy, int cx, int *start_out, int *end_out
 		return 0;
 	}
 	cx = editorBytesClampCxToCharBoundary(line.data, line.size, cx);
-	if (cx >= line.size || !editorMouseIsWordByte((unsigned char)line.data[cx])) {
+	if (cx >= line.size || !mouseIsWordByte((unsigned char)line.data[cx])) {
 		editorLineViewRelease(&line);
 		return 0;
 	}
 	int start = cx;
 	while (start > 0) {
 		int prev = editorBytesPrevCharIdx(line.data, line.size, start);
-		if (prev >= start || !editorMouseIsWordByte((unsigned char)line.data[prev])) {
+		if (prev >= start || !mouseIsWordByte((unsigned char)line.data[prev])) {
 			break;
 		}
 		start = prev;
 	}
 	int end = editorBytesNextCharIdx(line.data, line.size, cx);
 	while (end < line.size) {
-		if (!editorMouseIsWordByte((unsigned char)line.data[end])) {
+		if (!mouseIsWordByte((unsigned char)line.data[end])) {
 			break;
 		}
 		int next = editorBytesNextCharIdx(line.data, line.size, end);
@@ -937,7 +937,7 @@ int editorHandleMouseMotion(const struct editorMouseEvent *event) {
 			int row = 0;
 			int cx = 0;
 			if (editorBufferOffsetToPos(offset, &row, &cx) &&
-			    editorComputeWordRangeAt(row, cx, &new_start, &new_end)) {
+			    mouseComputeWordRangeAt(row, cx, &new_start, &new_end)) {
 				new_active = 1;
 				new_row = row;
 			}

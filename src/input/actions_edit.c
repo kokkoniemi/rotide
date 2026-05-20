@@ -27,8 +27,8 @@ void editorEditToggleSelectionMode(editorEditActionFn clear_selection_mode,
 	E.selection_anchor_offset = E.cursor_offset;
 }
 
-static int editorCopyRangeToClipboard(const struct editorSelectionRange *range,
-                                      size_t *copied_len_out) {
+static int actionsEditCopyRangeToClipboard(const struct editorSelectionRange *range,
+                                           size_t *copied_len_out) {
 	char *copied = NULL;
 	size_t copied_len = 0;
 	int extracted = editorExtractRangeText(range, &copied, &copied_len);
@@ -48,7 +48,7 @@ static int editorCopyRangeToClipboard(const struct editorSelectionRange *range,
 	return 1;
 }
 
-static int editorCopyColumnSelectionToClipboard(size_t *copied_len_out) {
+static int actionsEditCopyColumnSelectionToClipboard(size_t *copied_len_out) {
 	char *text = NULL;
 	size_t len = 0;
 	int rc = editorColumnSelectionExtractText(&text, &len);
@@ -69,7 +69,7 @@ static int editorCopyColumnSelectionToClipboard(size_t *copied_len_out) {
 void editorEditCopySelection(editorEditActionFn clear_selection_mode) {
 	if (E.column_select_active) {
 		size_t copied_len = 0;
-		int copied = editorCopyColumnSelectionToClipboard(&copied_len);
+		int copied = actionsEditCopyColumnSelectionToClipboard(&copied_len);
 		if (copied < 0) {
 			return;
 		}
@@ -88,7 +88,7 @@ void editorEditCopySelection(editorEditActionFn clear_selection_mode) {
 	}
 
 	size_t copied_len = 0;
-	int copied = editorCopyRangeToClipboard(&range, &copied_len);
+	int copied = actionsEditCopyRangeToClipboard(&range, &copied_len);
 	if (copied <= 0) {
 		if (copied == 0) {
 			editorSetStatusMsg("No selection");
@@ -105,7 +105,7 @@ void editorEditCopySelection(editorEditActionFn clear_selection_mode) {
 void editorEditCutSelection(editorEditActionFn clear_selection_mode) {
 	if (E.column_select_active) {
 		size_t copied_len = 0;
-		int copied = editorCopyColumnSelectionToClipboard(&copied_len);
+		int copied = actionsEditCopyColumnSelectionToClipboard(&copied_len);
 		if (copied < 0) {
 			return;
 		}
@@ -131,7 +131,7 @@ void editorEditCutSelection(editorEditActionFn clear_selection_mode) {
 	}
 
 	size_t copied_len = 0;
-	int copied = editorCopyRangeToClipboard(&range, &copied_len);
+	int copied = actionsEditCopyRangeToClipboard(&range, &copied_len);
 	if (copied <= 0) {
 		if (copied == 0) {
 			editorSetStatusMsg("No selection");
@@ -156,7 +156,7 @@ void editorEditCutSelection(editorEditActionFn clear_selection_mode) {
 	editorSetStatusMsg("Cut %zu bytes", copied_len);
 }
 
-static const char *editorCommentPrefixForLanguage(enum editorSyntaxLanguage lang) {
+static const char *actionsEditCommentPrefixForLanguage(enum editorSyntaxLanguage lang) {
 	switch (lang) {
 		case EDITOR_SYNTAX_C:
 		case EDITOR_SYNTAX_CPP:
@@ -185,7 +185,7 @@ static const char *editorCommentPrefixForLanguage(enum editorSyntaxLanguage lang
 
 void editorEditToggleCommentLines(editorEditActionFn clear_selection_mode,
                                   editorEditActionFn pin_active_preview_for_edit) {
-	const char *prefix = editorCommentPrefixForLanguage(E.syntax_language);
+	const char *prefix = actionsEditCommentPrefixForLanguage(E.syntax_language);
 	if (prefix == NULL) {
 		editorSetStatusMsg("No line comment for this language");
 		return;

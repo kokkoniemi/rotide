@@ -14,7 +14,7 @@
 #include <stdlib.h>
 #include <strings.h>
 
-static size_t editorPromptPrevDeleteIdx(const char *buf, size_t buflen) {
+static size_t promptPrevDeleteIdx(const char *buf, size_t buflen) {
 	if (buflen == 0) {
 		return 0;
 	}
@@ -80,7 +80,7 @@ char *editorPromptWithCallback(const char *prompt, int allow_empty, editorPrompt
 		}
 		if (c == DEL_KEY || c == CTRL_KEY('h') || c == BACKSPACE) {
 			if (buflen != 0) {
-				buflen = editorPromptPrevDeleteIdx(buf, buflen);
+				buflen = promptPrevDeleteIdx(buf, buflen);
 				buf[buflen] = '\0';
 			}
 		} else if (c == '\x1b') {

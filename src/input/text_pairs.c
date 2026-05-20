@@ -23,7 +23,7 @@ int editorByteShouldInsertAsText(int c) {
 	return byte == '\t' || byte >= 0x80 || !iscntrl(byte);
 }
 
-static int editorPairClosingForOpening(int c, char *closing_out) {
+static int textPairsClosingForOpening(int c, char *closing_out) {
 	char closing = '\0';
 
 	switch (c) {
@@ -51,7 +51,7 @@ static int editorPairClosingForOpening(int c, char *closing_out) {
 	return 1;
 }
 
-static int editorPairIsClosing(int c) {
+static int textPairsIsClosing(int c) {
 	switch (c) {
 		case ')':
 		case ']':
@@ -65,7 +65,7 @@ static int editorPairIsClosing(int c) {
 	}
 }
 
-static int editorPairNextCharAllowsAutoClose(void) {
+static int textPairsNextCharAllowsAutoClose(void) {
 	if (E.cy < 0 || E.cy >= E.numrows) {
 		return 1;
 	}
@@ -83,7 +83,7 @@ static int editorPairNextCharAllowsAutoClose(void) {
 	return allow;
 }
 
-static int editorTextPairsSetCursorFromOffset(size_t offset) {
+static int textPairsSetCursorFromOffset(size_t offset) {
 	int cy = 0;
 	int cx = 0;
 	size_t normalized_offset = 0;
@@ -110,7 +110,7 @@ static int editorTextPairsSetCursorFromOffset(size_t offset) {
 	return 1;
 }
 
-static int editorTextPairsSetCursorFromPosition(int cy, int cx) {
+static int textPairsSetCursorFromPosition(int cy, int cx) {
 	size_t offset = 0;
 
 	if (cy < 0) {
@@ -132,17 +132,17 @@ static int editorTextPairsSetCursorFromPosition(int cy, int cx) {
 	if (!editorBufferPosToOffset(cy, cx, &offset)) {
 		return 0;
 	}
-	return editorTextPairsSetCursorFromOffset(offset);
+	return textPairsSetCursorFromOffset(offset);
 }
 
-static void editorTextPairsPinActivePreviewForEdit(void) {
+static void textPairsPinActivePreviewForEdit(void) {
 	if (editorTabIsPreviewAt(E.active_tab)) {
 		editorTabPinActivePreview();
 	}
 }
 
 int editorTrySkipOverClosingPair(int c) {
-	if (!editorPairIsClosing(c) || E.cy < 0 || E.cy >= E.numrows) {
+	if (!textPairsIsClosing(c) || E.cy < 0 || E.cy >= E.numrows) {
 		return 0;
 	}
 
@@ -158,13 +158,13 @@ int editorTrySkipOverClosingPair(int c) {
 
 	editorHistoryBreakGroup();
 	editorClearSelectionState();
-	(void)editorTextPairsSetCursorFromPosition(E.cy, E.cx + 1);
+	(void)textPairsSetCursorFromPosition(E.cy, E.cx + 1);
 	return 1;
 }
 
 int editorTryAutoClosePair(int c) {
 	char closing = '\0';
-	if (!editorPairClosingForOpening(c, &closing) || !editorPairNextCharAllowsAutoClose()) {
+	if (!textPairsClosingForOpening(c, &closing) || !textPairsNextCharAllowsAutoClose()) {
 		return 0;
 	}
 
@@ -175,19 +175,19 @@ int editorTryAutoClosePair(int c) {
 
 	char pair[2] = {(char)c, closing};
 	editorClearSelectionState();
-	editorTextPairsPinActivePreviewForEdit();
+	textPairsPinActivePreviewForEdit();
 	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
 	int dirty_before = E.dirty;
 	(void)editorInsertText(pair, sizeof(pair));
 	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
 	if (E.dirty != dirty_before) {
-		(void)editorTextPairsSetCursorFromOffset(start_offset + 1);
+		(void)textPairsSetCursorFromOffset(start_offset + 1);
 		editorAutocompleteOnCharInserted(c);
 	}
 	return 1;
 }
 
-static int editorBracketPairForByte(char c, char *open_out, char *close_out, int *forward_out) {
+static int textPairsBracketPairForByte(char c, char *open_out, char *close_out, int *forward_out) {
 	char open = '\0';
 	char close = '\0';
 	int forward = 1;
@@ -236,8 +236,9 @@ static int editorBracketPairForByte(char c, char *open_out, char *close_out, int
 	return 1;
 }
 
-static int editorFindMatchingBracketOffset(const char *text, size_t len, size_t bracket_offset,
-                                           char open, char close, int forward, size_t *match_out) {
+static int textPairsFindMatchingBracketOffset(const char *text, size_t len, size_t bracket_offset,
+                                              char open, char close, int forward,
+                                              size_t *match_out) {
 	int depth = 0;
 
 	if (text == NULL || bracket_offset >= len || match_out == NULL) {
@@ -306,10 +307,10 @@ int editorJumpToMatchingBracket(void) {
 	}
 
 	if (cursor_offset < text_len &&
-	    editorBracketPairForByte(text[cursor_offset], &open, &close, &forward)) {
+	    textPairsBracketPairForByte(text[cursor_offset], &open, &close, &forward)) {
 		bracket_offset = cursor_offset;
 	} else if (cursor_offset > 0 &&
-	           editorBracketPairForByte(text[cursor_offset - 1], &open, &close, &forward)) {
+	           textPairsBracketPairForByte(text[cursor_offset - 1], &open, &close, &forward)) {
 		bracket_offset = cursor_offset - 1;
 	} else {
 		free(text);
@@ -317,13 +318,13 @@ int editorJumpToMatchingBracket(void) {
 		return 0;
 	}
 
-	if (!editorFindMatchingBracketOffset(text, text_len, bracket_offset, open, close, forward,
-	                                     &match_offset)) {
+	if (!textPairsFindMatchingBracketOffset(text, text_len, bracket_offset, open, close,
+	                                        forward, &match_offset)) {
 		free(text);
 		editorSetStatusMsg("No matching bracket");
 		return 0;
 	}
 
 	free(text);
-	return editorTextPairsSetCursorFromOffset(match_offset);
+	return textPairsSetCursorFromOffset(match_offset);
 }
