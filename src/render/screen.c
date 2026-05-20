@@ -188,8 +188,8 @@ int editorAppendCursorMove(struct writeBuf *wb, int row, int col) {
 	return wbAppend(wb, buf, (size_t)len);
 }
 
-static void screenRenderSliceBounds(const struct erow *row, int coloff, int cols, int *start_out,
-                                    int *end_out) {
+static void screenRenderSliceBounds(const struct editorRow *row, int coloff, int cols,
+                                    int *start_out, int *end_out) {
 	int rx = 0;
 	int start = -1;
 	int end = row->rsize;
@@ -386,7 +386,7 @@ static int screenDiagnosticAtRenderIdx(const struct editorRowSyntaxSpan *spans, 
 	return 0;
 }
 
-static int screenBuildDiagnosticRenderSpansForRow(int row_idx, const struct erow *row,
+static int screenBuildDiagnosticRenderSpansForRow(int row_idx, const struct editorRow *row,
                                                   struct editorRowSyntaxSpan *spans, int max_spans,
                                                   int *span_count_out) {
 	if (span_count_out != NULL) {
@@ -442,7 +442,7 @@ static int screenAppendUnderlineColor(struct writeBuf *wb, int red) {
 	return wbAppend(wb, VT100_UNDERLINE_COLOR_DEFAULT_5, 5);
 }
 
-static int screenDrawRenderSliceWithSyntax(struct writeBuf *wb, const struct erow *row,
+static int screenDrawRenderSliceWithSyntax(struct writeBuf *wb, const struct editorRow *row,
                                            int segment_start, int segment_end,
                                            const struct editorRowSyntaxSpan *spans, int span_count,
                                            const struct editorRowSyntaxSpan *diagnostic_spans,
@@ -567,8 +567,8 @@ static int screenDrawRenderSliceWithSyntax(struct writeBuf *wb, const struct ero
 	return 1;
 }
 
-static int screenDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_idx, int coloff,
-                                 int cols) {
+static int screenDrawRenderSlice(struct writeBuf *wb, struct editorRow *row, int row_idx,
+                                 int coloff, int cols) {
 	if (cols <= 0 || coloff < 0 || row->rsize <= 0) {
 		return 1;
 	}
@@ -706,7 +706,7 @@ static int screenDrawRenderSlice(struct writeBuf *wb, struct erow *row, int row_
 	return 1;
 }
 
-static int screenRenderSliceDisplayCols(const struct erow *row, int coloff, int cols,
+static int screenRenderSliceDisplayCols(const struct editorRow *row, int coloff, int cols,
                                         int *has_right_overflow_out) {
 	if (has_right_overflow_out != NULL) {
 		*has_right_overflow_out = 0;
@@ -830,7 +830,7 @@ int editorDrawLineNumberGutter(struct writeBuf *wb, int row_idx, int segment_col
 }
 
 int editorDrawFileRowWrapped(struct writeBuf *wb, size_t i, int text_cols, int segment_coloff) {
-	struct erow *row = &E.rows[i];
+	struct editorRow *row = &E.rows[i];
 	if (text_cols >= 3) {
 		int body_cols = text_cols - 2;
 		if (body_cols < 1) {
@@ -888,7 +888,7 @@ int editorDrawFileRowWrapped(struct writeBuf *wb, size_t i, int text_cols, int s
 }
 
 int editorDrawFileRow(struct writeBuf *wb, size_t i, int text_cols) {
-	struct erow *row = &E.rows[i];
+	struct editorRow *row = &E.rows[i];
 	if (E.line_wrap_enabled) {
 		return editorDrawFileRowWrapped(wb, i, text_cols, 0);
 	}

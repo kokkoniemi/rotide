@@ -10,7 +10,7 @@
 ## Non-Negotiables
 
 - `editorDocument` is the canonical writable text state.
-- `struct erow` stays derived render/cache state only — no raw byte storage.
+- `struct editorRow` stays derived render/cache state only — no raw byte storage.
   Read raw line bytes via `editorDocumentLineView` / `editorDocumentLineBytes`
   / `editorDocumentLineDup`.
 - Text mutations update `E.dirty`; navigation/search/view changes do not.

@@ -132,7 +132,7 @@ static void teardown_position_roundtrip(void *state) {
 
 struct rowCacheSpliceState {
 	struct editorDocument *doc;
-	struct erow *rows;
+	struct editorRow *rows;
 	int numrows;
 	size_t edit_offset;
 };
@@ -189,7 +189,7 @@ static void op_row_cache_splice(void *state, int n) {
 			(void)editorDocumentReplaceRange(s->doc, s->edit_offset, 1, NULL, 0);
 			continue;
 		}
-		struct erow *replacement_rows = NULL;
+		struct editorRow *replacement_rows = NULL;
 		int replacement_numrows = 0;
 		if (!editorBuildRowsFromDocumentRange(s->doc, region.start_row, end_row,
 		                                      &replacement_rows, &replacement_numrows)) {
@@ -214,7 +214,7 @@ static void op_row_cache_splice(void *state, int n) {
 		if (!editorRowCacheSpliceEndRowForDocument(s->doc, &revert_region, &revert_end)) {
 			continue;
 		}
-		struct erow *revert_rows = NULL;
+		struct editorRow *revert_rows = NULL;
 		int revert_numrows = 0;
 		if (!editorBuildRowsFromDocumentRange(s->doc, revert_region.start_row, revert_end,
 		                                      &revert_rows, &revert_numrows)) {
@@ -239,7 +239,7 @@ static void teardown_row_cache_splice(void *state) {
 
 struct wrapRecomputeState {
 	struct editorDocument *doc;
-	struct erow *rows;
+	struct editorRow *rows;
 	int numrows;
 };
 

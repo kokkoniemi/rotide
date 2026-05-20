@@ -587,7 +587,7 @@ static int test_row_rx_to_cx_with_tabs(void) {
 
 static int test_editor_update_row_expands_tabs(void) {
 	add_row("a\tb");
-	struct erow *row = &E.rows[0];
+	struct editorRow *row = &E.rows[0];
 	ASSERT_EQ_INT(9, row->rsize);
 	ASSERT_EQ_STR("a       b", row->render);
 	return 0;
@@ -596,7 +596,7 @@ static int test_editor_update_row_expands_tabs(void) {
 static int test_editor_update_row_tab_alignment_after_multibyte(void) {
 	const char text[] = "\xC3\xB6\tX";
 	add_row_bytes(text, sizeof(text) - 1);
-	struct erow *row = &E.rows[0];
+	struct editorRow *row = &E.rows[0];
 
 	const char expected[] = "\xC3\xB6       X";
 	ASSERT_EQ_INT((int)sizeof(expected) - 1, row->rsize);
@@ -607,7 +607,7 @@ static int test_editor_update_row_tab_alignment_after_multibyte(void) {
 static int test_editor_update_row_escapes_c0_and_esc_in_render(void) {
 	const char text[] = "A\x1b\x7f";
 	add_row_bytes(text, sizeof(text) - 1);
-	struct erow *row = &E.rows[0];
+	struct editorRow *row = &E.rows[0];
 
 	const char expected[] = "A^[^?";
 	ASSERT_EQ_INT((int)sizeof(expected) - 1, row->rsize);
@@ -618,7 +618,7 @@ static int test_editor_update_row_escapes_c0_and_esc_in_render(void) {
 static int test_editor_update_row_escapes_c1_codepoints_in_render(void) {
 	const char text[] = "\xC2\x9BZ";
 	add_row_bytes(text, sizeof(text) - 1);
-	struct erow *row = &E.rows[0];
+	struct editorRow *row = &E.rows[0];
 
 	const char expected[] = "\\x9BZ";
 	ASSERT_EQ_INT((int)sizeof(expected) - 1, row->rsize);
@@ -629,7 +629,7 @@ static int test_editor_update_row_escapes_c1_codepoints_in_render(void) {
 static int test_editor_update_row_preserves_printable_utf8_with_80_9f_continuations(void) {
 	const char text[] = "\xC4\x80X";
 	add_row_bytes(text, sizeof(text) - 1);
-	struct erow *row = &E.rows[0];
+	struct editorRow *row = &E.rows[0];
 
 	ASSERT_EQ_INT((int)sizeof(text) - 1, row->rsize);
 	ASSERT_MEM_EQ(text, row->render, (size_t)row->rsize);

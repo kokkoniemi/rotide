@@ -927,7 +927,7 @@ static int tabsRebuildGeneratedTabRows(struct editorTabState *tab) {
 	if (!editorTabDocumentEnsureCurrent(tab) || tab->document == NULL) {
 		return 0;
 	}
-	struct erow *new_rows = NULL;
+	struct editorRow *new_rows = NULL;
 	int new_numrows = 0;
 	if (!editorBuildFullRowsFromDocument(tab->document, &new_rows, &new_numrows)) {
 		return 0;

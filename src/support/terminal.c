@@ -92,7 +92,7 @@ static int terminalIsTtyInputClosed(void) {
 	} while (polled == -1 && errno == EINTR);
 
 	if (polled == -1) {
-		panic("poll");
+		editorPanic("poll");
 		return 1;
 	}
 	if (polled == 0) {
@@ -113,7 +113,7 @@ static enum terminalReadByteResult terminalReadInputByte(char *out) {
 		return terminalIsTtyInputClosed() ? TERMINAL_READ_EOF : TERMINAL_READ_RETRY;
 	}
 	if (nread == -1 && errno != EAGAIN && errno != EINTR) {
-		panic("read");
+		editorPanic("read");
 		return TERMINAL_READ_RETRY;
 	}
 	return TERMINAL_READ_RETRY;
@@ -476,7 +476,7 @@ void editorQueueResizeEvent(void) {
 int editorRefreshWindowSize(void) {
 	int rows = 0;
 	int cols = 0;
-	if (readWindowSize(&rows, &cols) == -1) {
+	if (editorReadWindowSize(&rows, &cols) == -1) {
 		return 0;
 	}
 
@@ -598,7 +598,7 @@ void editorRestoreTerminal(void) {
 	terminalRestoreInternal();
 }
 
-void panic(const char *s) {
+void editorPanic(const char *s) {
 	terminalRestoreInternal();
 	editorClearScreen();
 	editorResetCursorPos();
@@ -607,17 +607,17 @@ void panic(const char *s) {
 	exit(EXIT_FAILURE);
 }
 
-void setDefaultMode(void) {
+void editorSetDefaultMode(void) {
 	terminalRestoreInternal();
 }
 
-void setRawMode(void) {
+void editorSetRawMode(void) {
 	if (g_terminal_raw_enabled) {
 		return;
 	}
 
 	if (tcgetattr(STDIN_FILENO, &E.orig_attrs) == -1) {
-		panic("tcgetattr");
+		editorPanic("tcgetattr");
 	}
 	g_terminal_attrs_captured = 1;
 	// Always restore terminal settings on exit so the shell stays usable.
@@ -641,7 +641,7 @@ void setRawMode(void) {
 	attrs.c_cc[VTIME] = 1;
 
 	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &attrs) == -1) {
-		panic("tcsetattr");
+		editorPanic("tcsetattr");
 	}
 	// Mouse enable is best-effort: unsupported terminals simply ignore the control sequence.
 	(void)terminalWriteAll(STDOUT_FILENO, VT100_ENABLE_MOUSE, sizeof(VT100_ENABLE_MOUSE) - 1);
@@ -964,7 +964,7 @@ int editorReadKey(void) {
 	}
 }
 
-int readCursorPosition(int *rows, int *cols) {
+int editorReadCursorPosition(int *rows, int *cols) {
 	enum { CURSOR_POS_MAX_RESPONSE = 31 };
 	size_t i = 0;
 	char c = '\0';
@@ -1033,7 +1033,7 @@ int readCursorPosition(int *rows, int *cols) {
 	return -1;
 }
 
-int readWindowSize(int *rows, int *cols) {
+int editorReadWindowSize(int *rows, int *cols) {
 	struct winsize ws;
 
 	if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
@@ -1042,7 +1042,7 @@ int readWindowSize(int *rows, int *cols) {
 		if (write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12) != 12) {
 			return -1;
 		}
-		return readCursorPosition(rows, cols);
+		return editorReadCursorPosition(rows, cols);
 	}
 
 	*cols = ws.ws_col;

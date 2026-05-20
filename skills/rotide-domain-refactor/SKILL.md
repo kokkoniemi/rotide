@@ -16,7 +16,7 @@ Use this when the main task is code ownership cleanup: splitting oversized modul
 ## Guardrails
 
 - Keep `editorDocument` canonical for writable text.
-- Keep `struct erow` rows derived, never authoritative.
+- Keep `struct editorRow` rows derived, never authoritative.
 - Prefer domain names over technical accident names.
 - In C, “domain boundary” usually means:
   - file ownership

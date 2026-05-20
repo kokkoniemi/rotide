@@ -570,7 +570,7 @@ static int syntaxVisibleCacheBuildSpans(int first_row, int row_count) {
 		}
 
 		int row_idx = first_row + rel_row;
-		struct erow *row = &E.rows[row_idx];
+		struct editorRow *row = &E.rows[row_idx];
 		struct editorLineView line = {0};
 		if (!editorDocumentLineView(E.document, row_idx, &line)) {
 			return 0;
@@ -832,7 +832,7 @@ int editorSyntaxRowRenderSpans(int row_idx, struct editorRowSyntaxSpan *spans, i
 		return 0;
 	}
 
-	struct erow *row = &E.rows[row_idx];
+	struct editorRow *row = &E.rows[row_idx];
 	struct editorLineView line = {0};
 	if (!editorDocumentLineView(E.document, row_idx, &line)) {
 		return 0;

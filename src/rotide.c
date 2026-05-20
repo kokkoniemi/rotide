@@ -37,7 +37,7 @@ static int g_render_once = 0;
 #define RENDER_ONCE_DEFAULT_COLS 80
 #define RENDER_ONCE_DEFAULT_ROWS 24
 
-void initEditor(void) {
+void editorInit(void) {
 	editorResetActiveBufferFields();
 	editorLspConfigInitDefaults(
 	        &E.lsp_gopls_enabled, &E.lsp_clangd_enabled, &E.lsp_html_enabled,
@@ -143,14 +143,14 @@ void initEditor(void) {
 	E.layout_root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
 	if (E.layout_root == NULL) {
 		errno = ENOMEM;
-		panic("editorPaneNodeNewLeaf");
+		editorPanic("editorPaneNodeNewLeaf");
 	}
 	E.focused_leaf = E.layout_root;
 	editorKeymapInitDefaults(&E.keymap);
 	editorClipboardSetExternalSink(editorClipboardSyncAll);
 	if (!editorTabsInit()) {
 		errno = ENOMEM;
-		panic("editorTabsInit");
+		editorPanic("editorTabsInit");
 	}
 	/* Seed the initial pane's tab-membership list with the bootstrap
 	 * tab so subsequent open/close/cycle operations stay consistent. */
@@ -169,7 +169,7 @@ void initEditor(void) {
 			E.window_rows = 1;
 		}
 	} else if (!editorRefreshWindowSize()) {
-		panic("readWindowSize");
+		editorPanic("editorReadWindowSize");
 	}
 }
 
@@ -197,9 +197,9 @@ int main(int argc, char *argv[]) {
 	g_render_once = rotideStripFlag(&argc, argv, "--render-once");
 
 	if (!g_render_once) {
-		setRawMode();
+		editorSetRawMode();
 	}
-	initEditor();
+	editorInit();
 	if (!editorSyntaxBackgroundStart()) {
 		editorSetStatusMsg("Tree-sitter background worker disabled");
 	}

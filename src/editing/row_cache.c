@@ -12,7 +12,7 @@
 static int g_row_cache_full_rebuild_count = 0;
 static int g_row_cache_splice_update_count = 0;
 
-void editorFreeRowArray(struct erow *rows, int numrows) {
+void editorFreeRowArray(struct editorRow *rows, int numrows) {
 	for (int i = 0; i < numrows; i++) {
 		free(rows[i].render);
 		free(rows[i].wrap_cache_segments);
@@ -20,7 +20,8 @@ void editorFreeRowArray(struct erow *rows, int numrows) {
 	free(rows);
 }
 
-static int rowCacheAppendRestoredRow(struct erow **rows, int *numrows, const char *s, size_t len) {
+static int rowCacheAppendRestoredRow(struct editorRow **rows, int *numrows, const char *s,
+                                     size_t len) {
 	int row_size = 0;
 	size_t numrows_size = 0;
 	size_t new_numrows = 0;
@@ -28,7 +29,7 @@ static int rowCacheAppendRestoredRow(struct erow **rows, int *numrows, const cha
 
 	if (!editorSizeToInt(len, &row_size) || !editorIntToSize(*numrows, &numrows_size) ||
 	    !editorSizeAdd(numrows_size, 1, &new_numrows) ||
-	    !editorSizeMul(sizeof(struct erow), new_numrows, &row_bytes)) {
+	    !editorSizeMul(sizeof(struct editorRow), new_numrows, &row_bytes)) {
 		return 0;
 	}
 
@@ -39,7 +40,7 @@ static int rowCacheAppendRestoredRow(struct erow **rows, int *numrows, const cha
 		return 0;
 	}
 
-	struct erow *new_rows = editorRealloc(*rows, row_bytes);
+	struct editorRow *new_rows = editorRealloc(*rows, row_bytes);
 	if (new_rows == NULL) {
 		free(row_render);
 		return 0;
@@ -59,9 +60,9 @@ static int rowCacheAppendRestoredRow(struct erow **rows, int *numrows, const cha
 }
 
 int editorBuildRowsFromDocumentRange(const struct editorDocument *document, int start_row,
-                                     int end_row_exclusive, struct erow **rows_out,
+                                     int end_row_exclusive, struct editorRow **rows_out,
                                      int *numrows_out) {
-	struct erow *rows = NULL;
+	struct editorRow *rows = NULL;
 	int numrows = 0;
 
 	if (document == NULL || rows_out == NULL || numrows_out == NULL || start_row < 0 ||
@@ -93,7 +94,7 @@ int editorBuildRowsFromDocumentRange(const struct editorDocument *document, int 
 }
 
 static int rowCacheBuildRowsFromDocument(const struct editorDocument *document,
-                                         struct erow **rows_out, int *numrows_out) {
+                                         struct editorRow **rows_out, int *numrows_out) {
 	if (document == NULL) {
 		return 0;
 	}
@@ -101,8 +102,8 @@ static int rowCacheBuildRowsFromDocument(const struct editorDocument *document,
 	                                        rows_out, numrows_out);
 }
 
-int editorBuildFullRowsFromDocument(const struct editorDocument *document, struct erow **rows_out,
-                                    int *numrows_out) {
+int editorBuildFullRowsFromDocument(const struct editorDocument *document,
+                                    struct editorRow **rows_out, int *numrows_out) {
 	if (!rowCacheBuildRowsFromDocument(document, rows_out, numrows_out)) {
 		return 0;
 	}
@@ -233,15 +234,15 @@ int editorRowCacheSpliceEndRowForDocument(const struct editorDocument *document,
 	return 1;
 }
 
-int editorSpliceRowCache(struct erow **rows_in_out, int *numrows_in_out,
-                         struct erow *replacement_rows, int replacement_numrows, int start_row,
+int editorSpliceRowCache(struct editorRow **rows_in_out, int *numrows_in_out,
+                         struct editorRow *replacement_rows, int replacement_numrows, int start_row,
                          int old_end_row_exclusive) {
 	int numrows = 0;
-	struct erow *rows = NULL;
+	struct editorRow *rows = NULL;
 	int remove_count = 0;
 	int tail_count = 0;
 	int new_numrows = 0;
-	struct erow *grown = NULL;
+	struct editorRow *grown = NULL;
 
 	if (rows_in_out == NULL || numrows_in_out == NULL) {
 		return 0;

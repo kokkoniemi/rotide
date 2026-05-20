@@ -295,7 +295,7 @@ static int test_read_cursor_position_and_window_size_fallback(void) {
 	ASSERT_TRUE(start_stdout_capture(&capture) == 0);
 	ASSERT_TRUE(setup_stdin_bytes(response, sizeof(response) - 1, &saved_stdin) == 0);
 
-	ASSERT_EQ_INT(0, readWindowSize(&rows, &cols));
+	ASSERT_EQ_INT(0, editorReadWindowSize(&rows, &cols));
 
 	ASSERT_TRUE(restore_stdin(saved_stdin) == 0);
 	char *stdout_bytes = stop_stdout_capture(&capture, &stdout_len);
@@ -334,7 +334,7 @@ static int test_read_cursor_position_rejects_malformed_responses(void) {
 
 		ASSERT_TRUE(start_stdout_capture(&capture) == 0);
 		ASSERT_TRUE(setup_stdin_bytes(cases[i].response, cases[i].len, &saved_stdin) == 0);
-		ASSERT_EQ_INT(-1, readCursorPosition(&rows, &cols));
+		ASSERT_EQ_INT(-1, editorReadCursorPosition(&rows, &cols));
 		ASSERT_TRUE(restore_stdin(saved_stdin) == 0);
 		char *stdout_bytes = stop_stdout_capture(&capture, &stdout_len);
 		ASSERT_TRUE(stdout_bytes != NULL);

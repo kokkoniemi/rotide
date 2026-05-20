@@ -37,7 +37,7 @@ int editorWrapBodyCols(void) {
 	return body_cols < 1 ? 1 : body_cols;
 }
 
-int editorWrapContinuationIndentCols(const struct erow *row, int body_cols) {
+int editorWrapContinuationIndentCols(const struct editorRow *row, int body_cols) {
 	if (row == NULL || body_cols <= 1 || row->rsize <= 0) {
 		return 0;
 	}
@@ -94,7 +94,7 @@ static int wrapBreaksAfterCodepoint(unsigned int cp) {
 	}
 }
 
-int editorWrapNextStartCol(const struct erow *row, int start_col, int available_cols,
+int editorWrapNextStartCol(const struct editorRow *row, int start_col, int available_cols,
                            int total_cols) {
 	if (row == NULL || available_cols <= 0 || start_col < 0 || start_col >= total_cols) {
 		return total_cols;
@@ -147,7 +147,7 @@ int editorWrapNextStartCol(const struct erow *row, int start_col, int available_
 	return total_cols;
 }
 
-static int wrapCacheReserve(struct erow *row, int needed_capacity) {
+static int wrapCacheReserve(struct editorRow *row, int needed_capacity) {
 	if (needed_capacity <= row->wrap_cache_capacity) {
 		return 1;
 	}
@@ -164,7 +164,7 @@ static int wrapCacheReserve(struct erow *row, int needed_capacity) {
 	return 1;
 }
 
-static void wrapEnsureCache(struct erow *row, int body_cols) {
+static void wrapEnsureCache(struct editorRow *row, int body_cols) {
 	if (row == NULL) {
 		return;
 	}
@@ -215,8 +215,8 @@ static void wrapEnsureCache(struct erow *row, int body_cols) {
 	row->wrap_cache_segment_count = count;
 }
 
-void editorWrapSegmentInfo(struct erow *row, int segment_idx, int body_cols, int *start_col_out,
-                           int *available_cols_out, int *indent_cols_out) {
+void editorWrapSegmentInfo(struct editorRow *row, int segment_idx, int body_cols,
+                           int *start_col_out, int *available_cols_out, int *indent_cols_out) {
 	if (start_col_out != NULL) {
 		*start_col_out = 0;
 	}
@@ -275,7 +275,7 @@ int editorWrapSegmentCountForRowIndex(int row_idx, int body_cols) {
 	return count > 0 ? count : 1;
 }
 
-int editorWrapCursorSegmentForRx(struct erow *row, int rx, int body_cols) {
+int editorWrapCursorSegmentForRx(struct editorRow *row, int rx, int body_cols) {
 	if (body_cols < 1) {
 		body_cols = 1;
 	}

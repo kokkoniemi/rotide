@@ -192,7 +192,7 @@ static int watchReloadTabFile(struct editorBuffer *tab,
                               const struct editorFileDiskState *observed) {
 	struct editorDocument document;
 	struct editorDocument *new_document = NULL;
-	struct erow *new_rows = NULL;
+	struct editorRow *new_rows = NULL;
 	int new_numrows = 0;
 	char *text = NULL;
 	size_t text_len = 0;

@@ -121,7 +121,7 @@ int editorApplyDocumentEdit(const struct editorDocumentEdit *edit) {
 	int syntax_track = 0;
 	char *removed_text = NULL;
 	struct editorRowCacheSpliceRegion row_region = {0};
-	struct erow *replacement_rows = NULL;
+	struct editorRow *replacement_rows = NULL;
 	int replacement_numrows = 0;
 	int replacement_end_row_exclusive = 0;
 

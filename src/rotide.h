@@ -90,7 +90,7 @@ struct editorTextSource {
 	size_t length;
 };
 
-struct erow {
+struct editorRow {
 	int rsize;
 	int render_display_cols;
 	char *render;
@@ -376,7 +376,7 @@ struct editorHistory {
 	X(int, coloff)                                                                             \
 	X(int, wrapoff)                                                                            \
 	X(int, numrows)                                                                            \
-	X(struct erow *, rows)                                                                     \
+	X(struct editorRow *, rows)                                                                \
 	X(struct editorDocument *, document)                                                       \
 	X(int, dirty)                                                                              \
 	X(char *, filename)                                                                        \
@@ -455,7 +455,7 @@ struct editorTabState {
  * Fields are grouped by C4 container so ownership is visible at a glance:
  *
  *   - Environment: terminal dimensions, the global keymap, the cached theme,
- *     and the saved termios from setRawMode.
+ *     and the saved termios from editorSetRawMode.
  *   - Active buffer: the per-tab editing state of whichever tab is in focus.
  *     Aliased into the active tab's editorBuffer via an X-macro union so the
  *     two views (E.cx vs E.tabs[i].cx, etc.) stay byte-identical.

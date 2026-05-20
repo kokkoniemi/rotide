@@ -16,7 +16,7 @@ Use this for general RotIDE code, docs, and test work when a narrower skill is n
 ## Guardrails
 
 - Treat `editorDocument` as canonical writable text state.
-- Treat `struct erow` rows as derived render/cache state.
+- Treat `struct editorRow` rows as derived render/cache state.
 - Keep cursor/search/selection logic offset-safe and boundary-safe for UTF-8/graphemes.
 - Keep key behavior action-driven via `enum editorAction` and keymap lookups.
 - Keep task-log tabs generated/read-only/non-savable.

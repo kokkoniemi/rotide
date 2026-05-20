@@ -525,7 +525,7 @@ static void bufferCoreClampCursorForDocument(int target_cy, int target_cx,
 int editorRestoreActiveFromDocument(const struct editorDocument *document, int target_cy,
                                     int target_cx, int dirty, int parse_syntax) {
 	struct editorDocument *new_document = NULL;
-	struct erow *new_rows = NULL;
+	struct editorRow *new_rows = NULL;
 	int new_numrows = 0;
 	int new_cy = 0;
 	int new_cx = 0;
@@ -547,7 +547,7 @@ int editorRestoreActiveFromDocument(const struct editorDocument *document, int t
 	bufferCoreClampCursorForDocument(target_cy, target_cx, new_document, new_numrows, &new_cy,
 	                                 &new_cx);
 
-	struct erow *old_rows = E.rows;
+	struct editorRow *old_rows = E.rows;
 	int old_numrows = E.numrows;
 	struct editorDocument *old_document = E.document;
 

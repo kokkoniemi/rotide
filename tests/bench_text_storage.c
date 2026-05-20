@@ -149,7 +149,7 @@ int main(int argc, char **argv) {
 	int final_lines = editorDocumentLineCount(&doc);
 
 	long rss_before_rows = process_rss_kib();
-	struct erow *rows = NULL;
+	struct editorRow *rows = NULL;
 	int numrows = 0;
 	if (!editorBuildFullRowsFromDocument(&doc, &rows, &numrows)) {
 		fprintf(stderr, "bench: row-cache build failed\n");
