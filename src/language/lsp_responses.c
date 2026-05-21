@@ -211,6 +211,117 @@ static int lspResponsesParsePositionFromStart(const char *range_json, const char
 	return editorLspParsePositionFromKey(range_json, "start", limit, line_out, character_out);
 }
 
+static int lspResponsesFindObjectField(const char *object_start, const char *object_end,
+                                       const char *quoted_key, const char **field_object_out,
+                                       const char **field_end_out) {
+	if (field_object_out != NULL) {
+		*field_object_out = NULL;
+	}
+	if (field_end_out != NULL) {
+		*field_end_out = NULL;
+	}
+	if (object_start == NULL || object_end == NULL || quoted_key == NULL) {
+		return 0;
+	}
+	const char *field_key = editorLspStrstrBounded(object_start, quoted_key, object_end);
+	if (field_key == NULL) {
+		return 0;
+	}
+	const char *field_colon = strchr(field_key, ':');
+	if (field_colon == NULL || field_colon >= object_end) {
+		return 0;
+	}
+	const char *field_object = editorLspSkipWs(field_colon + 1);
+	if (field_object == NULL || field_object >= object_end || field_object[0] != '{') {
+		return 0;
+	}
+	const char *field_end = editorLspFindJsonObjectEnd(field_object);
+	if (field_end == NULL || field_end > object_end) {
+		return 0;
+	}
+	if (field_object_out != NULL) {
+		*field_object_out = field_object;
+	}
+	if (field_end_out != NULL) {
+		*field_end_out = field_end;
+	}
+	return 1;
+}
+
+static int lspResponsesParseRangePosition(const char *range_object, const char *range_end,
+                                          const char *quoted_key, int *line_out,
+                                          int *character_out) {
+	const char *position_object = NULL;
+	if (!lspResponsesFindObjectField(range_object, range_end, quoted_key, &position_object,
+	                                 NULL)) {
+		return 0;
+	}
+	return lspResponsesParsePositionFromObject(position_object, range_end, line_out,
+	                                           character_out);
+}
+
+static int lspResponsesParseCompletionTextEditRange(const char *text_edit_object,
+                                                    const char *text_edit_end,
+                                                    struct editorLspCompletionItem *out) {
+	const char *range_object = NULL;
+	const char *range_end = NULL;
+	if (!lspResponsesFindObjectField(text_edit_object, text_edit_end, "\"range\"",
+	                                 &range_object, &range_end)) {
+		return 0;
+	}
+
+	int start_line = 0;
+	int start_character = 0;
+	int end_line = 0;
+	int end_character = 0;
+	if (!lspResponsesParseRangePosition(range_object, range_end, "\"start\"", &start_line,
+	                                    &start_character) ||
+	    !lspResponsesParseRangePosition(range_object, range_end, "\"end\"", &end_line,
+	                                    &end_character)) {
+		return 0;
+	}
+
+	out->text_edit_start_line = start_line;
+	out->text_edit_start_character = start_character;
+	out->text_edit_end_line = end_line;
+	out->text_edit_end_character = end_character;
+	return 1;
+}
+
+static void lspResponsesParseCompletionTextEdit(const char *object_start, const char *object_end,
+                                                struct editorLspCompletionItem *out) {
+	const char *text_edit_object = NULL;
+	const char *text_edit_end = NULL;
+	if (!lspResponsesFindObjectField(object_start, object_end, "\"textEdit\"",
+	                                 &text_edit_object, &text_edit_end)) {
+		return;
+	}
+	if (!lspResponsesParseCompletionTextEditRange(text_edit_object, text_edit_end, out)) {
+		return;
+	}
+
+	const char *new_text_key =
+	        editorLspStrstrBounded(text_edit_object, "\"newText\"", text_edit_end);
+	if (new_text_key == NULL) {
+		return;
+	}
+	const char *new_text_colon = strchr(new_text_key, ':');
+	if (new_text_colon == NULL || new_text_colon >= text_edit_end) {
+		return;
+	}
+	const char *new_text_value = editorLspSkipWs(new_text_colon + 1);
+	if (new_text_value == NULL || new_text_value >= text_edit_end || new_text_value[0] != '"') {
+		return;
+	}
+
+	char *new_text = NULL;
+	if (!editorLspParseJsonString(new_text_value, &new_text, NULL) || new_text == NULL) {
+		return;
+	}
+	out->text_edit_new_text = new_text;
+	out->has_text_edit = 1;
+}
+
 static int lspResponsesParseCompletionItemObject(const char *object_start, const char *object_end,
                                                  struct editorLspCompletionItem *out) {
 	memset(out, 0, sizeof(*out));
@@ -261,123 +372,7 @@ static int lspResponsesParseCompletionItemObject(const char *object_start, const
 		}
 	}
 
-	const char *text_edit_key =
-	        editorLspStrstrBounded(object_start, "\"textEdit\"", object_end);
-	if (text_edit_key != NULL) {
-		const char *te_colon = strchr(text_edit_key, ':');
-		if (te_colon != NULL && te_colon < object_end) {
-			const char *te_object = editorLspSkipWs(te_colon + 1);
-			if (te_object != NULL && te_object[0] == '{') {
-				const char *te_end = editorLspFindJsonObjectEnd(te_object);
-				if (te_end != NULL && te_end <= object_end) {
-					const char *range_key = editorLspStrstrBounded(
-					        te_object, "\"range\"", te_end);
-					const char *new_text_key = editorLspStrstrBounded(
-					        te_object, "\"newText\"", te_end);
-					int parsed_range = 0;
-					if (range_key != NULL) {
-						const char *range_colon = strchr(range_key, ':');
-						if (range_colon != NULL && range_colon < te_end) {
-							const char *range_object =
-							        editorLspSkipWs(range_colon + 1);
-							if (range_object != NULL &&
-							    range_object[0] == '{') {
-								const char *range_end =
-								        editorLspFindJsonObjectEnd(
-								                range_object);
-								if (range_end != NULL &&
-								    range_end <= te_end) {
-									int sl = 0;
-									int sc = 0;
-									int el = 0;
-									int ec = 0;
-									const char *start_pos =
-									        editorLspStrstrBounded(
-									                range_object,
-									                "\"start\"",
-									                range_end);
-									const char *end_pos =
-									        editorLspStrstrBounded(
-									                range_object,
-									                "\"end\"",
-									                range_end);
-									if (start_pos != NULL &&
-									    end_pos != NULL) {
-										const char *sc_colon =
-										        strchr(start_pos,
-										               ':');
-										const char *ec_colon =
-										        strchr(end_pos,
-										               ':');
-										if (sc_colon !=
-										            NULL &&
-										    ec_colon !=
-										            NULL) {
-											const char *start_obj = editorLspSkipWs(
-											        sc_colon +
-											        1);
-											const char *end_obj = editorLspSkipWs(
-											        ec_colon +
-											        1);
-											if (start_obj !=
-											            NULL &&
-											    end_obj !=
-											            NULL &&
-											    start_obj[0] ==
-											            '{' &&
-											    end_obj[0] ==
-											            '{') {
-												if (lspResponsesParsePositionFromObject(
-												            start_obj,
-												            range_end,
-												            &sl,
-												            &sc) &&
-												    lspResponsesParsePositionFromObject(
-												            end_obj,
-												            range_end,
-												            &el,
-												            &ec)) {
-													out->text_edit_start_line =
-													        sl;
-													out->text_edit_start_character =
-													        sc;
-													out->text_edit_end_line =
-													        el;
-													out->text_edit_end_character =
-													        ec;
-													parsed_range =
-													        1;
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-					if (parsed_range && new_text_key != NULL) {
-						const char *nt_colon = strchr(new_text_key, ':');
-						if (nt_colon != NULL && nt_colon < te_end) {
-							const char *nt_value =
-							        editorLspSkipWs(nt_colon + 1);
-							if (nt_value != NULL &&
-							    nt_value[0] == '"') {
-								char *new_text = NULL;
-								if (editorLspParseJsonString(
-								            nt_value, &new_text,
-								            NULL) &&
-								    new_text != NULL) {
-									out->text_edit_new_text =
-									        new_text;
-									out->has_text_edit = 1;
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
+	lspResponsesParseCompletionTextEdit(object_start, object_end, out);
 	return 1;
 }
 
