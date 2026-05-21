@@ -50,8 +50,8 @@ When in doubt, omit the comment.
   / `Dup` accessor family.
 - `make format` and `make format-check` use the repository `.clang-format`;
   CI enforces `format-check`.
-- `make lint` runs clang-tidy and is CI-blocking. It measures function size,
-  cognitive complexity, and nesting depth.
+- `make lint` runs clang-tidy in CI. Clang-tidy diagnostics remain warnings
+  unless `.clang-tidy` promotes them with `WarningsAsErrors`.
 - Use `goto` only for cleanup-style exits, with labels named `cleanup`, `done`,
   `err`, or `out`.
 
