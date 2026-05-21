@@ -51,6 +51,11 @@ enum dispatchKeypressEffect {
 	DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT = 1 << 1
 };
 
+struct dispatchFileEntry {
+	char *path;
+	int start_row;
+};
+
 static void dispatchGoToDefinition(void);
 static void dispatchMoveCursor(int k);
 static void dispatchMoveCurrentLine(int direction);
@@ -640,11 +645,7 @@ static void dispatchProjectReplaceFromSearch(void) {
 		return;
 	}
 
-	typedef struct {
-		char *path;
-		int start_row;
-	} FileEntry;
-	FileEntry *files = NULL;
+	struct dispatchFileEntry *files = NULL;
 	int file_count = 0;
 	int file_cap = 0;
 	int result_count = E.drawer_project_search_result_count;
@@ -666,8 +667,8 @@ static void dispatchProjectReplaceFromSearch(void) {
 		}
 		if (file_count == file_cap) {
 			int new_cap = file_cap == 0 ? 8 : file_cap * 2;
-			FileEntry *grown =
-			        editorRealloc(files, (size_t)new_cap * sizeof(FileEntry));
+			struct dispatchFileEntry *grown =
+			        editorRealloc(files, (size_t)new_cap * sizeof(*files));
 			if (grown == NULL) {
 				for (int j = 0; j < file_count; j++)
 					free(files[j].path);
