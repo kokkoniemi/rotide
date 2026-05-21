@@ -29,7 +29,7 @@ int editorTextBodyViewportCols(int total_cols);
 int editorDrawerSetWidthForCols(int width, int total_cols);
 int editorDrawerResizeByDeltaForCols(int delta, int total_cols);
 int editorDrawerVisibleCount(void);
-int editorDrawerGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *view_out);
+int editorDrawerVisibleEntryView(int visible_idx, struct editorDrawerEntryView *view_out);
 void editorDrawerClampViewport(int viewport_rows);
 int editorDrawerMoveSelectionBy(int delta, int viewport_rows);
 int editorDrawerScrollBy(int delta, int viewport_rows);

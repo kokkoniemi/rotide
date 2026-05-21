@@ -106,7 +106,7 @@ static int gitAddEntry(const char *rel_path, enum editorGitStatus status, char i
 }
 
 int editorGitInit(void) {
-	char *cwd = editorPathGetCwd();
+	char *cwd = editorPathCwdDup();
 	if (cwd == NULL) {
 		return 0;
 	}

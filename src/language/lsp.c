@@ -447,7 +447,7 @@ static char *lspBuildWorkspaceRootPathForFile(const char *filename,
 		return editorPathAbsoluteDup(E.drawer_root_path);
 	}
 
-	return editorPathGetCwd();
+	return editorPathCwdDup();
 }
 
 static int lspEnsureRunningReal(const char *filename, enum editorLspServerKind server_kind) {

@@ -208,7 +208,7 @@ static int test_editor_refresh_screen_renders_drawer_entries_and_selection(void)
 	E.line_numbers_enabled = 0;
 	add_row("body");
 	struct editorDrawerEntryView root_view;
-	ASSERT_TRUE(editorDrawerGetVisibleEntry(0, &root_view));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(0, &root_view));
 	char expected_root_bold[256];
 	ASSERT_TRUE(snprintf(expected_root_bold, sizeof(expected_root_bold),
 	                     "\x1b[1m\x1b[37m%s\x1b[39m\x1b[22m", root_view.name) > 0);

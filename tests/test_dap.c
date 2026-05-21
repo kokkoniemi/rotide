@@ -228,7 +228,7 @@ static int test_editor_dap_drawer_prompts_and_creates_project_config_from_defaul
 	int visible = editorDrawerVisibleCount();
 	for (int i = 0; i < visible; i++) {
 		struct editorDrawerEntryView view;
-		ASSERT_TRUE(editorDrawerGetVisibleEntry(i, &view));
+		ASSERT_TRUE(editorDrawerVisibleEntryView(i, &view));
 		if (strcmp(view.name, "Create debug config from default") == 0) {
 			found_prompt = 1;
 		}

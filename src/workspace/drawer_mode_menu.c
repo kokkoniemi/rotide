@@ -204,7 +204,7 @@ int editorDrawerMainMenuToggle(void) {
 	return 1;
 }
 
-int editorDrawerMenuGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *view_out) {
+int editorDrawerMenuVisibleEntryView(int visible_idx, struct editorDrawerEntryView *view_out) {
 	if (view_out == NULL) {
 		return 0;
 	}

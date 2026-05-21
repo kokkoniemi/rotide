@@ -121,7 +121,7 @@ char *editorPathDirnameDup(const char *path) {
 	return dir;
 }
 
-char *editorPathGetCwd(void) {
+char *editorPathCwdDup(void) {
 	char *cwd = getcwd(NULL, 0);
 	if (cwd != NULL) {
 		return cwd;
@@ -139,7 +139,7 @@ char *editorPathAbsoluteDup(const char *path) {
 		return strdup(path);
 	}
 
-	char *cwd = editorPathGetCwd();
+	char *cwd = editorPathCwdDup();
 	if (cwd == NULL) {
 		return NULL;
 	}

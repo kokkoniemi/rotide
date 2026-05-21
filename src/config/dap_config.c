@@ -640,7 +640,7 @@ int editorDapBuildProjectConfigPath(const char *project_root, char *buf, size_t 
 	if (project_root != NULL && project_root[0] != '\0') {
 		root = strdup(project_root);
 	} else {
-		root = editorPathGetCwd();
+		root = editorPathCwdDup();
 	}
 	if (root == NULL) {
 		return 0;

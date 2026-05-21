@@ -19,7 +19,7 @@ static int find_drawer_entry_path(const char *path, int *idx_out,
 	int visible = editorDrawerVisibleCount();
 	for (int i = 0; i < visible; i++) {
 		struct editorDrawerEntryView view;
-		if (!editorDrawerGetVisibleEntry(i, &view) || view.path == NULL) {
+		if (!editorDrawerVisibleEntryView(i, &view) || view.path == NULL) {
 			continue;
 		}
 		if (strcmp(view.path, path) == 0) {
@@ -306,29 +306,29 @@ static int test_editor_drawer_git_mode_groups_entries_by_status(void) {
 	ASSERT_EQ_INT(11, visible);
 
 	struct editorDrawerEntryView view;
-	ASSERT_TRUE(editorDrawerGetVisibleEntry(0, &view));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(0, &view));
 	ASSERT_EQ_STR("Git", view.name);
 	ASSERT_TRUE(view.is_root);
 
-	ASSERT_TRUE(editorDrawerGetVisibleEntry(1, &view));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(1, &view));
 	ASSERT_EQ_STR("Staged", view.name);
-	ASSERT_TRUE(editorDrawerGetVisibleEntry(2, &view));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(2, &view));
 	ASSERT_EQ_STR("M both.c", view.name);
-	ASSERT_TRUE(editorDrawerGetVisibleEntry(3, &view));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(3, &view));
 	ASSERT_EQ_STR("M staged.c", view.name);
-	ASSERT_TRUE(editorDrawerGetVisibleEntry(4, &view));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(4, &view));
 	ASSERT_EQ_STR("Changes", view.name);
-	ASSERT_TRUE(editorDrawerGetVisibleEntry(5, &view));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(5, &view));
 	ASSERT_EQ_STR("M both.c", view.name);
-	ASSERT_TRUE(editorDrawerGetVisibleEntry(6, &view));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(6, &view));
 	ASSERT_EQ_STR("M changed.c", view.name);
-	ASSERT_TRUE(editorDrawerGetVisibleEntry(7, &view));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(7, &view));
 	ASSERT_EQ_STR("Untracked", view.name);
-	ASSERT_TRUE(editorDrawerGetVisibleEntry(8, &view));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(8, &view));
 	ASSERT_EQ_STR("? new.c", view.name);
-	ASSERT_TRUE(editorDrawerGetVisibleEntry(9, &view));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(9, &view));
 	ASSERT_EQ_STR("Conflicts", view.name);
-	ASSERT_TRUE(editorDrawerGetVisibleEntry(10, &view));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(10, &view));
 	ASSERT_EQ_STR("U conflict.c", view.name);
 
 	editorGitFree();
@@ -353,7 +353,7 @@ static int test_editor_drawer_git_mode_collapses_group(void) {
 	int untracked_idx = -1;
 	for (int i = 0; i < expanded_count; i++) {
 		struct editorDrawerEntryView view;
-		ASSERT_TRUE(editorDrawerGetVisibleEntry(i, &view));
+		ASSERT_TRUE(editorDrawerVisibleEntryView(i, &view));
 		if (strcmp(view.name, "Untracked") == 0) {
 			untracked_idx = i;
 			break;
@@ -384,7 +384,7 @@ static int test_editor_drawer_git_mode_selects_file_entry(void) {
 	int visible = editorDrawerVisibleCount();
 	for (int i = 0; i < visible; i++) {
 		struct editorDrawerEntryView view;
-		ASSERT_TRUE(editorDrawerGetVisibleEntry(i, &view));
+		ASSERT_TRUE(editorDrawerVisibleEntryView(i, &view));
 		if (strcmp(view.name, "? only.c") == 0) {
 			file_idx = i;
 			break;
@@ -696,7 +696,7 @@ static int test_editor_file_search_filters_results_in_drawer(void) {
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
 
 	struct editorDrawerEntryView header;
-	ASSERT_TRUE(editorDrawerGetVisibleEntry(0, &header));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(0, &header));
 	ASSERT_EQ_INT(1, header.is_search_header);
 	ASSERT_EQ_STR("", header.name);
 
@@ -708,7 +708,7 @@ static int test_editor_file_search_filters_results_in_drawer(void) {
 	ASSERT_EQ_INT(2, editorDrawerVisibleCount());
 
 	struct editorDrawerEntryView result;
-	ASSERT_TRUE(editorDrawerGetVisibleEntry(1, &result));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(1, &result));
 	ASSERT_EQ_STR("src/main.c", result.name);
 	ASSERT_EQ_STR(main_file, result.path);
 	ASSERT_EQ_INT(1, result.is_selected);
@@ -849,9 +849,9 @@ static int test_editor_file_search_lists_recent_non_active_files_first_and_persi
 	struct editorDrawerEntryView first;
 	struct editorDrawerEntryView second;
 	struct editorDrawerEntryView third;
-	ASSERT_TRUE(editorDrawerGetVisibleEntry(1, &first));
-	ASSERT_TRUE(editorDrawerGetVisibleEntry(2, &second));
-	ASSERT_TRUE(editorDrawerGetVisibleEntry(3, &third));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(1, &first));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(2, &second));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(3, &third));
 	ASSERT_EQ_STR("beta.txt", first.name);
 	ASSERT_EQ_STR(beta_file, first.path);
 	ASSERT_EQ_STR("alpha.txt", second.name);
@@ -888,7 +888,7 @@ static int test_editor_project_search_finds_previews_and_opens_matches(void) {
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_PROJECT_SEARCH, E.drawer_mode);
 
 	struct editorDrawerEntryView header;
-	ASSERT_TRUE(editorDrawerGetVisibleEntry(0, &header));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(0, &header));
 	ASSERT_EQ_INT(1, header.is_search_header);
 	ASSERT_EQ_STR("", header.name);
 

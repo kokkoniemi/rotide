@@ -392,7 +392,7 @@ int find_drawer_entry(const char *name, int *idx_out, struct editorDrawerEntryVi
 	int visible = editorDrawerVisibleCount();
 	for (int i = 0; i < visible; i++) {
 		struct editorDrawerEntryView view;
-		if (!editorDrawerGetVisibleEntry(i, &view)) {
+		if (!editorDrawerVisibleEntryView(i, &view)) {
 			continue;
 		}
 		if (strcmp(view.name, name) == 0) {

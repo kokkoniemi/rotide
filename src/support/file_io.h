@@ -6,7 +6,7 @@
 char *editorPathJoin(const char *left, const char *right);
 char *editorPathBasenameDup(const char *path);
 char *editorPathDirnameDup(const char *path);
-char *editorPathGetCwd(void);
+char *editorPathCwdDup(void);
 char *editorPathAbsoluteDup(const char *path);
 char *editorPathFindMarkerUpward(const char *start_dir, const char *const *markers,
                                  size_t marker_count);

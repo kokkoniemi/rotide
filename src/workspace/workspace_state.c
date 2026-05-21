@@ -82,7 +82,7 @@ static char *workspaceStateBuildName(uint64_t hash) {
 }
 
 static char *workspaceStateResolvePath(void) {
-	char *cwd = editorPathGetCwd();
+	char *cwd = editorPathCwdDup();
 	if (cwd == NULL) {
 		return NULL;
 	}

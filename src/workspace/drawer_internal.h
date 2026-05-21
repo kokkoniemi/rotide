@@ -37,28 +37,28 @@ void editorDrawerClampSelectionAndScroll(int viewport_rows);
 struct editorDrawerNode *editorDrawerSelectedTreeNode(void);
 
 int editorDrawerDapVisibleCount(void);
-int editorDrawerDapGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *view_out);
+int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryView *view_out);
 int editorDrawerDapExpandSelection(int viewport_rows);
 int editorDrawerDapCollapseSelection(int viewport_rows);
 int editorDrawerDapToggleSelectionExpanded(int viewport_rows);
 int editorDrawerDapSelectedIsDirectory(void);
 
 int editorDrawerLspVisibleCount(void);
-int editorDrawerLspGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *view_out);
+int editorDrawerLspVisibleEntryView(int visible_idx, struct editorDrawerEntryView *view_out);
 int editorDrawerLspExpandSelection(int viewport_rows);
 int editorDrawerLspCollapseSelection(int viewport_rows);
 int editorDrawerLspToggleSelectionExpanded(int viewport_rows);
 int editorDrawerLspSelectedIsDirectory(void);
 
 int editorDrawerMenuVisibleCount(void);
-int editorDrawerMenuGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *view_out);
+int editorDrawerMenuVisibleEntryView(int visible_idx, struct editorDrawerEntryView *view_out);
 int editorDrawerMenuExpandSelection(int viewport_rows);
 int editorDrawerMenuCollapseSelection(int viewport_rows);
 int editorDrawerMenuToggleSelectionExpanded(int viewport_rows);
 int editorDrawerMenuSelectedIsDirectory(void);
 
 int editorDrawerGitVisibleCount(void);
-int editorDrawerGitGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *view_out);
+int editorDrawerGitVisibleEntryView(int visible_idx, struct editorDrawerEntryView *view_out);
 int editorDrawerGitExpandSelection(int viewport_rows);
 int editorDrawerGitCollapseSelection(int viewport_rows);
 int editorDrawerGitToggleSelectionExpanded(int viewport_rows);

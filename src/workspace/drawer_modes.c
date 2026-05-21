@@ -29,27 +29,27 @@ int editorDrawerVisibleCount(void) {
 	return editorDrawerCountVisibleFromNode(E.drawer_root);
 }
 
-int editorDrawerGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *view_out) {
+int editorDrawerVisibleEntryView(int visible_idx, struct editorDrawerEntryView *view_out) {
 	if (view_out == NULL) {
 		return 0;
 	}
 	if (editorFileSearchIsActive()) {
-		return editorFileSearchGetVisibleEntry(visible_idx, view_out);
+		return editorFileSearchVisibleEntryView(visible_idx, view_out);
 	}
 	if (editorProjectSearchIsActive()) {
-		return editorProjectSearchGetVisibleEntry(visible_idx, view_out);
+		return editorProjectSearchVisibleEntryView(visible_idx, view_out);
 	}
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_MAIN_MENU) {
-		return editorDrawerMenuGetVisibleEntry(visible_idx, view_out);
+		return editorDrawerMenuVisibleEntryView(visible_idx, view_out);
 	}
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_GIT) {
-		return editorDrawerGitGetVisibleEntry(visible_idx, view_out);
+		return editorDrawerGitVisibleEntryView(visible_idx, view_out);
 	}
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
-		return editorDrawerLspGetVisibleEntry(visible_idx, view_out);
+		return editorDrawerLspVisibleEntryView(visible_idx, view_out);
 	}
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_DAP) {
-		return editorDrawerDapGetVisibleEntry(visible_idx, view_out);
+		return editorDrawerDapVisibleEntryView(visible_idx, view_out);
 	}
 
 	struct editorDrawerLookup lookup;

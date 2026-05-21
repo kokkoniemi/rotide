@@ -548,7 +548,7 @@ int editorProjectSearchVisibleCount(void) {
 	                                                     : 1);
 }
 
-int editorProjectSearchGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *view_out) {
+int editorProjectSearchVisibleEntryView(int visible_idx, struct editorDrawerEntryView *view_out) {
 	if (view_out == NULL || visible_idx < 0 ||
 	    visible_idx >= editorProjectSearchVisibleCount()) {
 		return 0;

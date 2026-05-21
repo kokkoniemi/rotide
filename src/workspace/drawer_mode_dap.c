@@ -228,7 +228,7 @@ int editorDrawerDapToggle(void) {
 	return 1;
 }
 
-int editorDrawerDapGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *view_out) {
+int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryView *view_out) {
 	if (view_out == NULL) {
 		return 0;
 	}

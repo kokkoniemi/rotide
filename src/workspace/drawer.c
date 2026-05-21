@@ -10,7 +10,7 @@
 #include <string.h>
 
 static char *drawerResolveRootPathForStartup(int argc, char *argv[], int restored_session) {
-	char *cwd = editorPathGetCwd();
+	char *cwd = editorPathCwdDup();
 	if (cwd == NULL) {
 		editorSetAllocFailureStatus();
 		return NULL;

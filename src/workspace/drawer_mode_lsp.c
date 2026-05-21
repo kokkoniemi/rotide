@@ -307,7 +307,7 @@ int editorDrawerLspToggle(void) {
 	return 1;
 }
 
-int editorDrawerLspGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *view_out) {
+int editorDrawerLspVisibleEntryView(int visible_idx, struct editorDrawerEntryView *view_out) {
 	if (view_out == NULL) {
 		return 0;
 	}

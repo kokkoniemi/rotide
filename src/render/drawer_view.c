@@ -492,7 +492,7 @@ static int drawerViewDrawAncestorGuides(struct writeBuf *wb, int parent_visible_
 	}
 
 	struct editorDrawerEntryView parent_entry;
-	if (!editorDrawerGetVisibleEntry(parent_visible_idx, &parent_entry)) {
+	if (!editorDrawerVisibleEntryView(parent_visible_idx, &parent_entry)) {
 		return 1;
 	}
 
@@ -529,7 +529,7 @@ static int drawerViewBuildAncestorGuidesPlain(struct writeBuf *wb, int parent_vi
 	}
 
 	struct editorDrawerEntryView parent_entry;
-	if (!editorDrawerGetVisibleEntry(parent_visible_idx, &parent_entry)) {
+	if (!editorDrawerVisibleEntryView(parent_visible_idx, &parent_entry)) {
 		return 1;
 	}
 
@@ -552,7 +552,7 @@ static int drawerViewBuildAncestorGuidesPlain(struct writeBuf *wb, int parent_vi
 
 static int drawerViewBuildRowPlain(struct writeBuf *wb, int visible_idx) {
 	struct editorDrawerEntryView entry;
-	if (!editorDrawerGetVisibleEntry(visible_idx, &entry)) {
+	if (!editorDrawerVisibleEntryView(visible_idx, &entry)) {
 		return 1;
 	}
 
@@ -617,7 +617,7 @@ int editorDrawDrawerSelectionOverflow(struct writeBuf *wb, int row_idx, int draw
 
 	int visible_idx = E.drawer_rowoff + row_idx - 1;
 	struct editorDrawerEntryView entry;
-	if (!editorDrawerGetVisibleEntry(visible_idx, &entry) || !entry.is_selected) {
+	if (!editorDrawerVisibleEntryView(visible_idx, &entry) || !entry.is_selected) {
 		return 1;
 	}
 
@@ -684,7 +684,7 @@ int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols) {
 	int visible_idx = E.drawer_rowoff + row_idx - 1;
 	int written_cols = 0;
 	int row_inverted = 0;
-	if (editorDrawerGetVisibleEntry(visible_idx, &entry)) {
+	if (editorDrawerVisibleEntryView(visible_idx, &entry)) {
 		char entry_name_buf[PATH_MAX + 512];
 		const char *entry_name = entry.name != NULL ? entry.name : "";
 		snprintf(entry_name_buf, sizeof(entry_name_buf), "%s", entry_name);

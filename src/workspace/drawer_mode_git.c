@@ -238,7 +238,7 @@ int editorDrawerGitToggle(void) {
 	return 1;
 }
 
-int editorDrawerGitGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *view_out) {
+int editorDrawerGitVisibleEntryView(int visible_idx, struct editorDrawerEntryView *view_out) {
 	if (view_out == NULL) {
 		return 0;
 	}

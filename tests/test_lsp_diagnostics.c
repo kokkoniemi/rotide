@@ -6,7 +6,7 @@ static int find_drawer_entry_containing(const char *needle, int *idx_out,
 	int visible = editorDrawerVisibleCount();
 	for (int i = 0; i < visible; i++) {
 		struct editorDrawerEntryView view = {0};
-		if (!editorDrawerGetVisibleEntry(i, &view) || view.name == NULL) {
+		if (!editorDrawerVisibleEntryView(i, &view) || view.name == NULL) {
 			continue;
 		}
 		if (strstr(view.name, needle) != NULL) {

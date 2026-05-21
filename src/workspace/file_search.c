@@ -390,7 +390,7 @@ int editorFileSearchVisibleCount(void) {
 	return 1 + (E.drawer_search_filtered_count > 0 ? E.drawer_search_filtered_count : 1);
 }
 
-int editorFileSearchGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *view_out) {
+int editorFileSearchVisibleEntryView(int visible_idx, struct editorDrawerEntryView *view_out) {
 	if (view_out == NULL || visible_idx < 0 || visible_idx >= editorFileSearchVisibleCount()) {
 		return 0;
 	}

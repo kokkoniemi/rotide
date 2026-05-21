@@ -149,7 +149,7 @@ static char *recoveryBuildPathForBase(const char *base, uint64_t hash) {
 }
 
 static char *recoveryResolvePath(void) {
-	char *cwd = editorPathGetCwd();
+	char *cwd = editorPathCwdDup();
 	if (cwd == NULL) {
 		return NULL;
 	}
