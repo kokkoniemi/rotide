@@ -448,7 +448,7 @@ format-check:
 	}
 	$(call LOG,FMTCHK,clang-format)$(CLANG_FORMAT) --dry-run --Werror $(FORMAT_FILES)
 
-lint:
+lint: $(GENERATED_HEADERS)
 	@command -v $(CLANG_TIDY) >/dev/null 2>&1 || { \
 		echo "$(CLANG_TIDY) not installed. Install clang-tidy 18+ or set CLANG_TIDY=..." >&2; \
 		exit 1; \
@@ -457,6 +457,8 @@ lint:
 
 lint-prefixes:
 	$(call LOG,LINT,prefixes)tools/lint-prefixes.sh
+
+lint-check: format-check lint lint-prefixes
 
 fuzz-vterm: $(FUZZ_VTERM_BIN)
 	$(call LOG,FUZZ,vterm)./$(FUZZ_VTERM_BIN) $(FUZZ_VTERM_CORPUS)
@@ -658,7 +660,7 @@ docs-diagrams:
 
 -include $(DEPFILES)
 
-.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams bench-buffer bench bench-render-once format format-check lint lint-prefixes fuzz-vterm fuzz-vterm-smoke fuzz-vterm-nightly fuzz-lsp fuzz-lsp-smoke fuzz-lsp-nightly fuzz-dap fuzz-dap-smoke fuzz-dap-nightly fuzz-toml-theme fuzz-toml-theme-smoke fuzz-toml-theme-nightly update-goldens
+.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams bench-buffer bench bench-render-once format format-check lint lint-prefixes lint-check fuzz-vterm fuzz-vterm-smoke fuzz-vterm-nightly fuzz-lsp fuzz-lsp-smoke fuzz-lsp-nightly fuzz-dap fuzz-dap-smoke fuzz-dap-nightly fuzz-toml-theme fuzz-toml-theme-smoke fuzz-toml-theme-nightly update-goldens
 
 clean:
 	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(BENCH_BUFFER_OBJ) $(METRICS_FUZZ_EMIT_OBJS) $(METRICS_SUMMARY_OBJS) $(GOLDEN_APPLY_OBJS) $(GOLDEN_DIFF_REPORT_OBJS) $(DEPFILES) $(TEST_BIN) $(BENCH_BUFFER_BIN) $(METRICS_FUZZ_EMIT_BIN) $(METRICS_SUMMARY_BIN) $(GOLDEN_APPLY_BIN) $(GOLDEN_DIFF_REPORT_BIN) $(FUZZ_VTERM_BIN) $(FUZZ_LSP_BIN) $(FUZZ_DAP_BIN) $(FUZZ_TOML_THEME_BIN) rotide $(GENERATED_HEADERS)

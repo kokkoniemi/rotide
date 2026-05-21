@@ -36,6 +36,19 @@ jobs:
           path: tests/metrics.jsonl
           if-no-files-found: ignore
 
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install lint tools
+        run: sudo apt-get update && sudo apt-get install -y clang-format clang-tidy
+
+      - name: Run lint gates
+        run: make lint-check
+
   sanitizers:
     runs-on: ubuntu-latest
     env:
