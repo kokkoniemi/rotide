@@ -205,6 +205,7 @@ struct editorTabLayoutEntry {
 	int width_cols;
 	int show_left_overflow;
 	int show_right_overflow;
+	int is_active;
 };
 
 struct editorFileDiskState {

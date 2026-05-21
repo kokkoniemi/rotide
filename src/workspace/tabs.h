@@ -3,6 +3,8 @@
 
 #include "rotide.h"
 
+struct editorPaneView;
+
 /* Active-buffer helpers move state between E and editorTabState. File tabs own
  * editable documents; task-log, unsupported-file, and Git-diff tabs are
  * read-only/non-normal save targets.
@@ -53,6 +55,11 @@ const char *editorTabDisplayNameAt(int idx);
 int editorTabDirtyAt(int idx);
 
 /* Rendering and hit-testing helpers keep tab bar layout outside the renderer. */
+int editorTabBuildLayoutForPane(struct editorPaneView *view, int cols,
+                                struct editorTabLayoutEntry *entries, int max_entries,
+                                int *count_out);
+int editorTabHitTestColumnForPane(struct editorPaneView *view, int col, int cols);
+int editorTabOverflowHitTestColumnForPane(struct editorPaneView *view, int col, int cols);
 int editorTabBuildLayoutForWidth(int cols, struct editorTabLayoutEntry *entries, int max_entries,
                                  int *count_out);
 int editorTabHitTestColumn(int col, int cols);

@@ -520,6 +520,7 @@ static int test_layout_pane_view_capture_records_active_tab(void) {
 		return 1;
 	}
 	E.active_tab = 3;
+	E.tab_view_start = 2;
 	E.cx = 7;
 	E.cy = 11;
 	E.rx = 7;
@@ -529,8 +530,8 @@ static int test_layout_pane_view_capture_records_active_tab(void) {
 	E.cursor_offset = 42;
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
 	editorPaneViewCaptureFromState(&view);
-	return view.active_tab_idx != 3 || view.cx != 7 || view.cy != 11 || view.rowoff != 4 ||
-	       view.cursor_offset != 42;
+	return view.active_tab_idx != 3 || view.tab_view_start != 2 || view.cx != 7 ||
+	       view.cy != 11 || view.rowoff != 4 || view.cursor_offset != 42;
 }
 
 static int test_layout_pane_view_load_skips_uninitialized(void) {
@@ -542,14 +543,16 @@ static int test_layout_pane_view_load_skips_uninitialized(void) {
 	view.cy = 99;
 	view.cursor_offset = 999;
 	E.active_tab = 2;
+	E.tab_view_start = 5;
 	E.cx = 1;
 	E.cy = 1;
 	E.cursor_offset = 1;
 	int loaded = editorPaneViewLoadIntoState(&view);
-	return loaded != 0 || E.cx != 1 || E.cy != 1 || E.cursor_offset != 1;
+	return loaded != 0 || E.tab_view_start != 5 || E.cx != 1 || E.cy != 1 ||
+	       E.cursor_offset != 1;
 }
 
-static int test_layout_pane_view_load_applies_cursor_regardless_of_tab(void) {
+static int test_layout_pane_view_load_applies_state_regardless_of_tab(void) {
 	struct editorPaneView view;
 	editorPaneViewInit(&view);
 	E.active_tab = 4;
@@ -557,6 +560,7 @@ static int test_layout_pane_view_load_applies_cursor_regardless_of_tab(void) {
 	 * initialized. Tab switching is the caller's job (handled by
 	 * editorLayoutSetFocusedLeaf). */
 	view.active_tab_idx = 7;
+	view.tab_view_start = 3;
 	view.cx = 12;
 	view.cy = 34;
 	view.rx = 12;
@@ -566,8 +570,8 @@ static int test_layout_pane_view_load_applies_cursor_regardless_of_tab(void) {
 	view.cursor_offset = 200;
 	view.viewport_mode = (int)EDITOR_VIEWPORT_FREE_SCROLL;
 	int loaded = editorPaneViewLoadIntoState(&view);
-	return loaded != 1 || E.cx != 12 || E.cy != 34 || E.rowoff != 6 || E.cursor_offset != 200 ||
-	       E.viewport_mode != EDITOR_VIEWPORT_FREE_SCROLL;
+	return loaded != 1 || E.tab_view_start != 3 || E.cx != 12 || E.cy != 34 || E.rowoff != 6 ||
+	       E.cursor_offset != 200 || E.viewport_mode != EDITOR_VIEWPORT_FREE_SCROLL;
 }
 
 static int test_layout_split_focused_inherits_view(void) {
@@ -1041,6 +1045,94 @@ static int test_layout_pane_view_tab_membership_helpers(void) {
 	return 0;
 }
 
+static int test_layout_tab_layout_for_pane_filters_membership(void) {
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTabNewEmpty());
+	ASSERT_TRUE(editorTabNewEmpty());
+	ASSERT_TRUE(editorTabNewEmpty());
+
+	struct editorPaneView view;
+	editorPaneViewInit(&view);
+	view.active_tab_idx = 2;
+	ASSERT_TRUE(editorPaneViewAddTab(&view, 2));
+	ASSERT_TRUE(editorPaneViewAddTab(&view, 0));
+
+	struct editorTabLayoutEntry layout[ROTIDE_MAX_TABS];
+	int layout_count = 0;
+	ASSERT_TRUE(editorTabBuildLayoutForPane(&view, 80, layout, ROTIDE_MAX_TABS, &layout_count));
+	ASSERT_EQ_INT(2, layout_count);
+	ASSERT_EQ_INT(2, layout[0].tab_idx);
+	ASSERT_EQ_INT(1, layout[0].is_active);
+	ASSERT_EQ_INT(0, layout[1].tab_idx);
+	ASSERT_EQ_INT(0, layout[1].is_active);
+	return 0;
+}
+
+static int test_layout_tab_layout_for_pane_active_is_view_local(void) {
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTabNewEmpty());
+	ASSERT_TRUE(editorTabNewEmpty());
+	E.active_tab = 0;
+
+	struct editorPaneView view;
+	editorPaneViewInit(&view);
+	view.active_tab_idx = 2;
+	ASSERT_TRUE(editorPaneViewAddTab(&view, 1));
+	ASSERT_TRUE(editorPaneViewAddTab(&view, 2));
+
+	struct editorTabLayoutEntry layout[ROTIDE_MAX_TABS];
+	int layout_count = 0;
+	ASSERT_TRUE(editorTabBuildLayoutForPane(&view, 80, layout, ROTIDE_MAX_TABS, &layout_count));
+	ASSERT_EQ_INT(2, layout_count);
+	ASSERT_EQ_INT(0, layout[0].is_active);
+	ASSERT_EQ_INT(1, layout[1].is_active);
+	ASSERT_EQ_INT(0, E.active_tab);
+	return 0;
+}
+
+static int test_layout_tab_overflow_for_pane_uses_filtered_slots(void) {
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTabNewEmpty());
+	ASSERT_TRUE(editorTabNewEmpty());
+	ASSERT_TRUE(editorTabNewEmpty());
+	ASSERT_TRUE(editorTabNewEmpty());
+
+	struct editorPaneView view;
+	editorPaneViewInit(&view);
+	view.active_tab_idx = 2;
+	view.tab_view_start = 1;
+	ASSERT_TRUE(editorPaneViewAddTab(&view, 0));
+	ASSERT_TRUE(editorPaneViewAddTab(&view, 2));
+	ASSERT_TRUE(editorPaneViewAddTab(&view, 4));
+
+	struct editorTabLayoutEntry layout[ROTIDE_MAX_TABS];
+	int layout_count = 0;
+	ASSERT_TRUE(editorTabBuildLayoutForPane(&view, 15, layout, ROTIDE_MAX_TABS, &layout_count));
+	ASSERT_EQ_INT(1, layout_count);
+	ASSERT_EQ_INT(2, layout[0].tab_idx);
+	ASSERT_EQ_INT(1, layout[0].show_left_overflow);
+	ASSERT_EQ_INT(1, layout[0].show_right_overflow);
+	ASSERT_EQ_INT(0, editorTabOverflowHitTestColumnForPane(&view, 0, 15));
+	ASSERT_EQ_INT(4, editorTabOverflowHitTestColumnForPane(&view, 14, 15));
+	return 0;
+}
+
+static int test_layout_tab_hit_test_for_pane_returns_member_tab(void) {
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTabNewEmpty());
+	ASSERT_TRUE(editorTabNewEmpty());
+
+	struct editorPaneView view;
+	editorPaneViewInit(&view);
+	view.active_tab_idx = 2;
+	view.tab_view_start = 1;
+	ASSERT_TRUE(editorPaneViewAddTab(&view, 0));
+	ASSERT_TRUE(editorPaneViewAddTab(&view, 2));
+
+	ASSERT_EQ_INT(2, editorTabHitTestColumnForPane(&view, 1, 15));
+	return 0;
+}
+
 static int test_layout_split_focused_inherits_active_tab_only(void) {
 	if (E.layout_root == NULL || E.focused_leaf == NULL) {
 		return 1;
@@ -1379,8 +1471,8 @@ const struct editorTestCase g_layout_tests[] = {
          test_layout_pane_view_capture_records_active_tab},
         {"layout_pane_view_load_skips_uninitialized",
          test_layout_pane_view_load_skips_uninitialized},
-        {"layout_pane_view_load_applies_cursor_regardless_of_tab",
-         test_layout_pane_view_load_applies_cursor_regardless_of_tab},
+        {"layout_pane_view_load_applies_state_regardless_of_tab",
+         test_layout_pane_view_load_applies_state_regardless_of_tab},
         {"layout_split_focused_inherits_view", test_layout_split_focused_inherits_view},
         {"layout_close_focused_restores_sibling_view",
          test_layout_close_focused_restores_sibling_view},
@@ -1391,6 +1483,14 @@ const struct editorTestCase g_layout_tests[] = {
         {"layout_focus_switch_preserves_per_pane_cursor",
          test_layout_focus_switch_preserves_per_pane_cursor},
         {"layout_pane_view_tab_membership_helpers", test_layout_pane_view_tab_membership_helpers},
+        {"layout_tab_layout_for_pane_filters_membership",
+         test_layout_tab_layout_for_pane_filters_membership},
+        {"layout_tab_layout_for_pane_active_is_view_local",
+         test_layout_tab_layout_for_pane_active_is_view_local},
+        {"layout_tab_overflow_for_pane_uses_filtered_slots",
+         test_layout_tab_overflow_for_pane_uses_filtered_slots},
+        {"layout_tab_hit_test_for_pane_returns_member_tab",
+         test_layout_tab_hit_test_for_pane_returns_member_tab},
         {"layout_split_focused_inherits_active_tab_only",
          test_layout_split_focused_inherits_active_tab_only},
         {"layout_serialize_single_leaf", test_layout_serialize_single_leaf},

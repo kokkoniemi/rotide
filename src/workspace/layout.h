@@ -36,6 +36,7 @@ enum editorSplitOrientation { EDITOR_SPLIT_HORIZONTAL = 0, EDITOR_SPLIT_VERTICAL
 
 struct editorPaneView {
 	int active_tab_idx;
+	int tab_view_start;
 	int cx;
 	int cy;
 	int rx;
@@ -229,8 +230,8 @@ int editorLayoutFocusedLeafRect(struct editorRect *out);
  *
  * editorPaneViewInit resets a view to "uninitialized" (active_tab_idx=-1).
  *
- * editorPaneViewCaptureFromState snapshots E's cursor/scroll/selection
- * and the current active tab index into the view.
+ * editorPaneViewCaptureFromState snapshots E's cursor/scroll/selection,
+ * tab-strip scroll, and the current active tab index into the view.
  *
  * editorPaneViewLoadIntoState overwrites E's cursor/scroll/selection from
  * the view. It does NOT switch tabs — the caller is responsible for ensuring
