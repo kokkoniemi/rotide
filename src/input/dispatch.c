@@ -59,6 +59,7 @@ struct dispatchFileEntry {
 static void dispatchGoToDefinition(void);
 static void dispatchMoveCursor(int k);
 static void dispatchMoveCurrentLine(int direction);
+static int dispatchProcessMappedAction(enum editorAction action, int *effects_out);
 
 static int dispatchIsWordByte(unsigned char b) {
 	return isalnum(b) || b == '_' || b >= 0x80;
@@ -1677,70 +1678,65 @@ static void dispatchColumnSelectionMove(int dy, int drx) {
 	dispatchColumnSelectionApplyCursorRx();
 }
 
-static int dispatchProcessMappedAction(enum editorAction action, int *effects_out) {
-	int effects = DISPATCH_KEYPRESS_EFFECT_NONE;
+static void dispatchSetEffectsOut(int *effects_out, int effects) {
+	if (effects_out != NULL) {
+		*effects_out = effects;
+	}
+}
+
+static int dispatchFinishMappedAction(int result, int effects, int *effects_out) {
+	dispatchSetEffectsOut(effects_out, effects);
+	return result;
+}
+
+static int dispatchHandleDrawerSearchAction(enum editorAction action, int *effects) {
 	int drawer_search_cursor_or_edit = 0;
-	if (editorHandleDrawerSearchMappedAction(action, &drawer_search_cursor_or_edit,
-	                                         dispatchProjectReplaceFromSearch)) {
-		if (drawer_search_cursor_or_edit) {
-			effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-		}
-		if (effects_out != NULL) {
-			*effects_out = effects;
-		}
+	if (!editorHandleDrawerSearchMappedAction(action, &drawer_search_cursor_or_edit,
+	                                          dispatchProjectReplaceFromSearch)) {
 		return 0;
 	}
-
-	if (editorActiveTabIsReadOnly()) {
-		if (action == EDITOR_ACTION_SAVE) {
-			editorSetStatusMsg(editorActiveTabIsUnsupportedFile()
-			                           ? "Unsupported files cannot be saved"
-			                           : "Task logs cannot be saved");
-			if (effects_out != NULL) {
-				*effects_out = effects;
-			}
-			return 1;
-		}
-		if (E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER &&
-		    dispatchActionMutatesReadOnlyBuffer(action)) {
-			editorSetStatusMsg(editorActiveTabIsUnsupportedFile()
-			                           ? "File is unsupported"
-			                           : "Task log is read-only");
-			if (effects_out != NULL) {
-				*effects_out = effects;
-			}
-			return 1;
-		}
+	if (drawer_search_cursor_or_edit) {
+		*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 	}
+	return 1;
+}
 
+static int dispatchHandleReadOnlyAction(enum editorAction action) {
+	if (!editorActiveTabIsReadOnly()) {
+		return 0;
+	}
+	if (action == EDITOR_ACTION_SAVE) {
+		editorSetStatusMsg(editorActiveTabIsUnsupportedFile()
+		                           ? "Unsupported files cannot be saved"
+		                           : "Task logs cannot be saved");
+		return 1;
+	}
+	if (E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER &&
+	    dispatchActionMutatesReadOnlyBuffer(action)) {
+		editorSetStatusMsg(editorActiveTabIsUnsupportedFile() ? "File is unsupported"
+		                                                      : "Task log is read-only");
+		return 1;
+	}
+	return 0;
+}
+
+static int dispatchHandleDelegatedAction(enum editorAction action, int *effects) {
 	if (editorHandleFileTabMappedAction(action)) {
-		if (effects_out != NULL) {
-			*effects_out = effects;
-		}
 		return 1;
 	}
 	if (editorHandleTerminalDebugMappedAction(action)) {
-		if (effects_out != NULL) {
-			*effects_out = effects;
-		}
 		return 1;
 	}
 	if (editorHandleWorkspaceMappedAction(action, DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT,
 	                                      dispatchProcessMappedAction,
-	                                      dispatchJumpToPathLocation, &effects)) {
-		if (effects_out != NULL) {
-			*effects_out = effects;
-		}
+	                                      dispatchJumpToPathLocation, effects)) {
 		return 1;
 	}
 	if (editorHandleLanguageMappedAction(action, DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT,
 	                                     dispatchPinActivePreviewForEdit,
 	                                     dispatchGoToDefinition, dispatchGoToImplementation,
 	                                     dispatchGoToSymbol, dispatchApplyEslintFixes,
-	                                     &effects)) {
-		if (effects_out != NULL) {
-			*effects_out = effects;
-		}
+	                                     effects)) {
 		return 1;
 	}
 	if (editorHandleEditMappedAction(
@@ -1749,40 +1745,47 @@ static int dispatchProcessMappedAction(enum editorAction action, int *effects_ou
 	            dispatchToggleSelectionMode, dispatchCopySelection, dispatchCutSelection,
 	            dispatchDeleteSelection, dispatchPasteClipboard, dispatchDeleteCharAction,
 	            dispatchBackspaceAction, dispatchMoveLineUpAction, dispatchMoveLineDownAction,
-	            dispatchToggleCommentLines, &effects)) {
-		if (effects_out != NULL) {
-			*effects_out = effects;
-		}
+	            dispatchToggleCommentLines, effects)) {
 		return 1;
 	}
+	return 0;
+}
 
+static int dispatchHandleColumnSelectionAction(enum editorAction action, int *effects) {
 	switch (action) {
 		case EDITOR_ACTION_COLUMN_SELECT_UP:
 			editorHistoryBreakGroup();
 			if (E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
-				break;
+				return 1;
 			}
 			dispatchColumnSelectionMove(-1, 0);
-			effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
+			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			return 1;
 		case EDITOR_ACTION_COLUMN_SELECT_DOWN:
 			editorHistoryBreakGroup();
 			if (E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
-				break;
+				return 1;
 			}
 			dispatchColumnSelectionMove(1, 0);
-			effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
+			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			return 1;
 		case EDITOR_ACTION_COLUMN_SELECT_LEFT:
 			editorHistoryBreakGroup();
 			dispatchColumnSelectionMove(0, -1);
-			effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
+			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			return 1;
 		case EDITOR_ACTION_COLUMN_SELECT_RIGHT:
 			editorHistoryBreakGroup();
 			dispatchColumnSelectionMove(0, 1);
-			effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
+			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			return 1;
+		default:
+			return 0;
+	}
+}
+
+static int dispatchHandleViewAction(enum editorAction action, int *effects) {
+	switch (action) {
 		case EDITOR_ACTION_TOGGLE_LINE_WRAP:
 			editorHistoryBreakGroup();
 			E.line_wrap_enabled = !E.line_wrap_enabled;
@@ -1794,89 +1797,24 @@ static int dispatchProcessMappedAction(enum editorAction action, int *effects_ou
 			editorViewportEnsureCursorVisible();
 			editorSetStatusMsg("Line wrap %s",
 			                   E.line_wrap_enabled ? "enabled" : "disabled");
-			effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
-			break;
+			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
+			return 1;
 		case EDITOR_ACTION_TOGGLE_LINE_NUMBERS:
 			editorHistoryBreakGroup();
 			E.line_numbers_enabled = !E.line_numbers_enabled;
 			editorViewportEnsureCursorVisible();
 			editorSetStatusMsg("Line numbers %s",
 			                   E.line_numbers_enabled ? "enabled" : "disabled");
-			effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
-			break;
+			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
+			return 1;
 		case EDITOR_ACTION_TOGGLE_CURRENT_LINE_HIGHLIGHT:
 			editorHistoryBreakGroup();
 			E.current_line_highlight_enabled = !E.current_line_highlight_enabled;
 			editorSetStatusMsg("Current-line highlight %s",
 			                   E.current_line_highlight_enabled ? "enabled"
 			                                                    : "disabled");
-			effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
-			break;
-		case EDITOR_ACTION_FIND:
-			editorHistoryBreakGroup();
-			dispatchFind();
-			effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
-		case EDITOR_ACTION_FIND_REPLACE:
-			editorHistoryBreakGroup();
-			dispatchFindReplace();
-			effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
-		case EDITOR_ACTION_GOTO_LINE:
-			editorHistoryBreakGroup();
-			dispatchGoToLine();
-			effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
-		case EDITOR_ACTION_GOTO_MATCHING_BRACKET:
-			editorHistoryBreakGroup();
-			if (E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER &&
-			    editorJumpToMatchingBracket()) {
-				effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			}
-			break;
-		case EDITOR_ACTION_DRAWER_CREATE_FILE:
-			editorHistoryBreakGroup();
-			editorDrawerPromptCreateFile();
-			break;
-		case EDITOR_ACTION_DRAWER_CREATE_FOLDER:
-			editorHistoryBreakGroup();
-			editorDrawerPromptCreateFolder();
-			break;
-		case EDITOR_ACTION_DRAWER_RENAME:
-			editorHistoryBreakGroup();
-			editorDrawerPromptRename();
-			break;
-		case EDITOR_ACTION_DRAWER_DELETE:
-			editorHistoryBreakGroup();
-			editorDrawerPromptDelete();
-			break;
-		case EDITOR_ACTION_MOVE_HOME:
-			editorHistoryBreakGroup();
-			(void)dispatchSetCursorFromPosition(E.cy, 0);
-			effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
-		case EDITOR_ACTION_MOVE_END:
-			editorHistoryBreakGroup();
-			if (E.cy < E.numrows) {
-				(void)dispatchSetCursorFromPosition(
-				        E.cy, (int)editorDocumentLineLength(E.document, E.cy));
-			} else {
-				(void)dispatchSetCursorFromPosition(E.numrows, 0);
-			}
-			effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
-		case EDITOR_ACTION_MOVE_WORD_LEFT:
-			editorHistoryBreakGroup();
-			editorColumnSelectionClear();
-			dispatchMoveCursorWordLeft();
-			effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
-		case EDITOR_ACTION_MOVE_WORD_RIGHT:
-			editorHistoryBreakGroup();
-			editorColumnSelectionClear();
-			dispatchMoveCursorWordRight();
-			effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
+			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
+			return 1;
 		case EDITOR_ACTION_PAGE_UP: {
 			editorHistoryBreakGroup();
 			int page_rows = E.window_rows;
@@ -1884,8 +1822,8 @@ static int dispatchProcessMappedAction(enum editorAction action, int *effects_ou
 				page_rows = 1;
 			}
 			editorViewportScrollByRows(-page_rows);
-			effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
-			break;
+			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
+			return 1;
 		}
 		case EDITOR_ACTION_PAGE_DOWN: {
 			editorHistoryBreakGroup();
@@ -1894,65 +1832,176 @@ static int dispatchProcessMappedAction(enum editorAction action, int *effects_ou
 				page_rows = 1;
 			}
 			editorViewportScrollByRows(page_rows);
-			effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
-			break;
+			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
+			return 1;
 		}
 		case EDITOR_ACTION_SCROLL_LEFT:
 			editorHistoryBreakGroup();
 			editorViewportScrollByCols(-KEYBOARD_SCROLL_COLS);
-			effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
-			break;
+			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
+			return 1;
 		case EDITOR_ACTION_SCROLL_RIGHT:
 			editorHistoryBreakGroup();
 			editorViewportScrollByCols(KEYBOARD_SCROLL_COLS);
-			effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
-			break;
+			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
+			return 1;
+		default:
+			return 0;
+	}
+}
+
+static int dispatchHandleSearchAction(enum editorAction action, int *effects) {
+	switch (action) {
+		case EDITOR_ACTION_FIND:
+			editorHistoryBreakGroup();
+			dispatchFind();
+			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			return 1;
+		case EDITOR_ACTION_FIND_REPLACE:
+			editorHistoryBreakGroup();
+			dispatchFindReplace();
+			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			return 1;
+		case EDITOR_ACTION_GOTO_LINE:
+			editorHistoryBreakGroup();
+			dispatchGoToLine();
+			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			return 1;
+		case EDITOR_ACTION_GOTO_MATCHING_BRACKET:
+			editorHistoryBreakGroup();
+			if (E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER &&
+			    editorJumpToMatchingBracket()) {
+				*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			}
+			return 1;
+		default:
+			return 0;
+	}
+}
+
+static int dispatchHandleDrawerAction(enum editorAction action) {
+	switch (action) {
+		case EDITOR_ACTION_DRAWER_CREATE_FILE:
+			editorHistoryBreakGroup();
+			editorDrawerPromptCreateFile();
+			return 1;
+		case EDITOR_ACTION_DRAWER_CREATE_FOLDER:
+			editorHistoryBreakGroup();
+			editorDrawerPromptCreateFolder();
+			return 1;
+		case EDITOR_ACTION_DRAWER_RENAME:
+			editorHistoryBreakGroup();
+			editorDrawerPromptRename();
+			return 1;
+		case EDITOR_ACTION_DRAWER_DELETE:
+			editorHistoryBreakGroup();
+			editorDrawerPromptDelete();
+			return 1;
+		default:
+			return 0;
+	}
+}
+
+static int dispatchHandleCursorAction(enum editorAction action, int *effects) {
+	switch (action) {
+		case EDITOR_ACTION_MOVE_HOME:
+			editorHistoryBreakGroup();
+			(void)dispatchSetCursorFromPosition(E.cy, 0);
+			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			return 1;
+		case EDITOR_ACTION_MOVE_END:
+			editorHistoryBreakGroup();
+			if (E.cy < E.numrows) {
+				(void)dispatchSetCursorFromPosition(
+				        E.cy, (int)editorDocumentLineLength(E.document, E.cy));
+			} else {
+				(void)dispatchSetCursorFromPosition(E.numrows, 0);
+			}
+			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			return 1;
+		case EDITOR_ACTION_MOVE_WORD_LEFT:
+			editorHistoryBreakGroup();
+			editorColumnSelectionClear();
+			dispatchMoveCursorWordLeft();
+			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			return 1;
+		case EDITOR_ACTION_MOVE_WORD_RIGHT:
+			editorHistoryBreakGroup();
+			editorColumnSelectionClear();
+			dispatchMoveCursorWordRight();
+			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			return 1;
 		case EDITOR_ACTION_MOVE_UP:
 			editorHistoryBreakGroup();
 			editorColumnSelectionClear();
 			dispatchMoveCursor(ARROW_UP);
-			effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
+			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			return 1;
 		case EDITOR_ACTION_MOVE_DOWN:
 			editorHistoryBreakGroup();
 			editorColumnSelectionClear();
 			dispatchMoveCursor(ARROW_DOWN);
-			effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
+			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			return 1;
 		case EDITOR_ACTION_MOVE_LEFT:
 			editorHistoryBreakGroup();
 			editorColumnSelectionClear();
 			dispatchMoveCursor(ARROW_LEFT);
-			effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
+			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			return 1;
 		case EDITOR_ACTION_MOVE_RIGHT:
 			editorHistoryBreakGroup();
 			editorColumnSelectionClear();
 			dispatchMoveCursor(ARROW_RIGHT);
-			effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-			break;
+			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			return 1;
+		default:
+			return 0;
+	}
+}
+
+static int dispatchHandleModeAction(enum editorAction action) {
+	switch (action) {
 		case EDITOR_ACTION_ESCAPE:
 			// In normal editor mode Escape only clears transient selection state; quit
 			// is configurable.
 			editorHistoryBreakGroup();
 			if (E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
 				E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
-				break;
+				return 1;
 			}
 			dispatchClearSelectionMode();
-			break;
+			return 1;
 		case EDITOR_ACTION_REDRAW:
 			editorHistoryBreakGroup();
-			break;
+			return 1;
 		case EDITOR_ACTION_COUNT:
 		default:
-			break;
+			return 0;
 	}
+}
 
-	if (effects_out != NULL) {
-		*effects_out = effects;
+static int dispatchHandleLocalAction(enum editorAction action, int *effects) {
+	return dispatchHandleColumnSelectionAction(action, effects) ||
+	       dispatchHandleViewAction(action, effects) ||
+	       dispatchHandleSearchAction(action, effects) || dispatchHandleDrawerAction(action) ||
+	       dispatchHandleCursorAction(action, effects) || dispatchHandleModeAction(action);
+}
+
+static int dispatchProcessMappedAction(enum editorAction action, int *effects_out) {
+	int effects = DISPATCH_KEYPRESS_EFFECT_NONE;
+
+	if (dispatchHandleDrawerSearchAction(action, &effects)) {
+		return dispatchFinishMappedAction(0, effects, effects_out);
 	}
-	return 0;
+	if (dispatchHandleReadOnlyAction(action)) {
+		return dispatchFinishMappedAction(1, effects, effects_out);
+	}
+	if (dispatchHandleDelegatedAction(action, &effects)) {
+		return dispatchFinishMappedAction(1, effects, effects_out);
+	}
+	(void)dispatchHandleLocalAction(action, &effects);
+	return dispatchFinishMappedAction(0, effects, effects_out);
 }
 
 void editorProcessKeypress(void) {
