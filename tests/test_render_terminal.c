@@ -250,6 +250,32 @@ static int test_editor_refresh_screen_terminal_uses_terminal_cursor_style(void) 
 	return 0;
 }
 
+/* libvterm REP (CSI N b) without any preceding printable character used to
+ * spin forever because state->combine_width is 0. Found by fuzz target
+ * `fuzz-vterm-nightly`; reproducer in tests/fuzz/vterm/corpus/rep_no_combine.
+ * If this test ever hangs, the patch in vendor/libvterm/src/state.c REP
+ * handler has been reverted. */
+static int test_vterm_rep_without_preceding_char_does_not_hang(void) {
+	VTerm *vt = vterm_new(24, 80);
+	ASSERT_TRUE(vt != NULL);
+	vterm_set_utf8(vt, 1);
+	VTermScreen *screen = vterm_obtain_screen(vt);
+	ASSERT_TRUE(screen != NULL);
+	vterm_screen_reset(screen, 1);
+
+	const char input[] = "\x1b[51;b";
+	vterm_input_write(vt, input, sizeof(input) - 1);
+	vterm_screen_flush_damage(screen);
+
+	VTermPos pos = {.row = 0, .col = 0};
+	VTermScreenCell cell = {0};
+	(void)vterm_screen_get_cell(screen, pos, &cell);
+	ASSERT_EQ_INT(cell.chars[0], 0);
+
+	vterm_free(vt);
+	return 0;
+}
+
 const struct editorTestCase g_render_terminal_tests[] = {
         {"editor_refresh_screen_renders_terminal_pane",
          test_editor_refresh_screen_renders_terminal_pane},
@@ -261,6 +287,8 @@ const struct editorTestCase g_render_terminal_tests[] = {
          test_editor_refresh_screen_terminal_cursor_uses_pane_origin},
         {"editor_refresh_screen_terminal_uses_terminal_cursor_style",
          test_editor_refresh_screen_terminal_uses_terminal_cursor_style},
+        {"vterm_rep_without_preceding_char_does_not_hang",
+         test_vterm_rep_without_preceding_char_does_not_hang},
 };
 
 const int g_render_terminal_test_count =
