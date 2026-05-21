@@ -553,9 +553,9 @@ static int test_layout_pane_view_load_applies_cursor_regardless_of_tab(void) {
 	struct editorPaneView view;
 	editorPaneViewInit(&view);
 	E.active_tab = 4;
-	/* Phase 5: load now applies the cursor unconditionally as long as
-	 * the view is initialized. Tab switching is the caller's job
-	 * (editorLayoutSetFocusedLeaf handles it). */
+	/* Load applies the cursor unconditionally as long as the view is
+	 * initialized. Tab switching is the caller's job (handled by
+	 * editorLayoutSetFocusedLeaf). */
 	view.active_tab_idx = 7;
 	view.cx = 12;
 	view.cy = 34;
@@ -1163,6 +1163,191 @@ static int test_layout_set_focused_leaf_rejects_non_leaf(void) {
 	       !editorPaneNodeContainsLeaf(E.layout_root, original);
 }
 
+static struct editorPaneNode *make_split(enum editorSplitOrientation orientation, double ratio,
+                                         struct editorPaneNode *first,
+                                         struct editorPaneNode *second) {
+	struct editorPaneNode *node = malloc(sizeof(*node));
+	if (node == NULL) {
+		return NULL;
+	}
+	memset(node, 0, sizeof(*node));
+	node->is_split = 1;
+	node->as.split.orientation = orientation;
+	node->as.split.ratio = ratio;
+	node->as.split.first = first;
+	node->as.split.second = second;
+	return node;
+}
+
+static int test_layout_border_at_single_leaf_returns_zero(void) {
+	struct editorPaneNode *root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	if (root == NULL) {
+		return 1;
+	}
+	struct editorRect viewport = {.x = 0, .y = 0, .w = 40, .h = 20};
+	struct editorPaneNode *hit = (struct editorPaneNode *)0x1;
+	enum editorSplitOrientation orientation = EDITOR_SPLIT_VERTICAL;
+	int got = editorLayoutBorderAt(root, viewport, 1, 10, 10, &hit, &orientation);
+	editorPaneNodeFree(root);
+	return got != 0 || hit != (struct editorPaneNode *)0x1;
+}
+
+static int test_layout_border_at_vertical_split_finds_gap(void) {
+	struct editorPaneNode *left = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	struct editorPaneNode *right = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	struct editorPaneNode *root = make_split(EDITOR_SPLIT_VERTICAL, 0.5, left, right);
+	if (left == NULL || right == NULL || root == NULL) {
+		editorPaneNodeFree(left);
+		editorPaneNodeFree(right);
+		free(root);
+		return 1;
+	}
+	struct editorRect viewport = {.x = 0, .y = 0, .w = 41, .h = 20};
+	/* w=41, border_size=1, available=40, first_w=20 → border at x=20. */
+	struct editorPaneNode *hit = NULL;
+	enum editorSplitOrientation orientation = EDITOR_SPLIT_HORIZONTAL;
+	int ok = editorLayoutBorderAt(root, viewport, 1, 20, 5, &hit, &orientation);
+	int failed = !ok || hit != root || orientation != EDITOR_SPLIT_VERTICAL;
+	editorPaneNodeFree(root);
+	return failed;
+}
+
+static int test_layout_border_at_horizontal_split_finds_gap(void) {
+	struct editorPaneNode *top = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	struct editorPaneNode *bottom = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	struct editorPaneNode *root = make_split(EDITOR_SPLIT_HORIZONTAL, 0.5, top, bottom);
+	if (top == NULL || bottom == NULL || root == NULL) {
+		editorPaneNodeFree(top);
+		editorPaneNodeFree(bottom);
+		free(root);
+		return 1;
+	}
+	struct editorRect viewport = {.x = 0, .y = 0, .w = 40, .h = 21};
+	/* h=21, border_size=1, available=20, first_h=10 → border at y=10. */
+	struct editorPaneNode *hit = NULL;
+	enum editorSplitOrientation orientation = EDITOR_SPLIT_VERTICAL;
+	int ok = editorLayoutBorderAt(root, viewport, 1, 5, 10, &hit, &orientation);
+	int failed = !ok || hit != root || orientation != EDITOR_SPLIT_HORIZONTAL;
+	editorPaneNodeFree(root);
+	return failed;
+}
+
+static int test_layout_border_at_nested_prefers_inner(void) {
+	/* Outer vertical split: left leaf, right is a horizontal split. The
+	 * inner horizontal border should win when both are hit-tested. */
+	struct editorPaneNode *left = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	struct editorPaneNode *inner_top = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	struct editorPaneNode *inner_bottom = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	struct editorPaneNode *inner =
+	        make_split(EDITOR_SPLIT_HORIZONTAL, 0.5, inner_top, inner_bottom);
+	struct editorPaneNode *root = make_split(EDITOR_SPLIT_VERTICAL, 0.5, left, inner);
+	if (left == NULL || inner_top == NULL || inner_bottom == NULL || inner == NULL ||
+	    root == NULL) {
+		editorPaneNodeFree(left);
+		editorPaneNodeFree(inner_top);
+		editorPaneNodeFree(inner_bottom);
+		free(inner);
+		free(root);
+		return 1;
+	}
+	struct editorRect viewport = {.x = 0, .y = 0, .w = 41, .h = 21};
+	/* Outer: available=40, first_w=20 → outer gap at x=20.
+	 * Inner right rect: x=21, w=20, full height. Inner h=21, available=20,
+	 * first_h=10 → inner horizontal gap at y=10 inside that rect. */
+	struct editorPaneNode *hit = NULL;
+	enum editorSplitOrientation orientation = EDITOR_SPLIT_VERTICAL;
+	int ok = editorLayoutBorderAt(root, viewport, 1, 25, 10, &hit, &orientation);
+	int failed = !ok || hit != inner || orientation != EDITOR_SPLIT_HORIZONTAL;
+	editorPaneNodeFree(root);
+	return failed;
+}
+
+static int test_layout_border_at_off_by_one_misses(void) {
+	struct editorPaneNode *left = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	struct editorPaneNode *right = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	struct editorPaneNode *root = make_split(EDITOR_SPLIT_VERTICAL, 0.5, left, right);
+	if (left == NULL || right == NULL || root == NULL) {
+		editorPaneNodeFree(left);
+		editorPaneNodeFree(right);
+		free(root);
+		return 1;
+	}
+	struct editorRect viewport = {.x = 0, .y = 0, .w = 41, .h = 20};
+	struct editorPaneNode *hit = (struct editorPaneNode *)0x1;
+	enum editorSplitOrientation orientation = EDITOR_SPLIT_HORIZONTAL;
+	/* Border lives at x=20. x=19 is in the left leaf; x=21 is in the right
+	 * leaf; both should miss. */
+	int got_left = editorLayoutBorderAt(root, viewport, 1, 19, 5, &hit, &orientation);
+	int got_right = editorLayoutBorderAt(root, viewport, 1, 21, 5, &hit, &orientation);
+	int failed = got_left != 0 || got_right != 0;
+	editorPaneNodeFree(root);
+	return failed;
+}
+
+static int test_layout_close_focused_clears_split_resize_state(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	struct editorPaneNode *original = E.focused_leaf;
+	struct editorPaneNode *sibling = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	if (sibling == NULL) {
+		return 1;
+	}
+	/* Simulate an in-progress drag of the parent split node. */
+	E.split_resize_active = 1;
+	E.split_resize_node = editorPaneTreeFindParent(E.layout_root, sibling);
+	if (E.split_resize_node == NULL) {
+		return 1;
+	}
+	(void)original;
+	struct editorPaneNode *promoted = editorLayoutCloseFocused();
+	if (promoted == NULL) {
+		return 1;
+	}
+	return E.split_resize_active != 0 || E.split_resize_node != NULL;
+}
+
+static int test_layout_split_node_rect_returns_parent_rect(void) {
+	struct editorPaneNode *left = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	struct editorPaneNode *right = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	struct editorPaneNode *root = make_split(EDITOR_SPLIT_VERTICAL, 0.5, left, right);
+	if (left == NULL || right == NULL || root == NULL) {
+		editorPaneNodeFree(left);
+		editorPaneNodeFree(right);
+		free(root);
+		return 1;
+	}
+	struct editorRect viewport = {.x = 4, .y = 1, .w = 41, .h = 20};
+	struct editorRect out = {0};
+	int ok = editorLayoutSplitNodeRect(root, viewport, 1, root, &out);
+	int failed = !ok || out.x != viewport.x || out.y != viewport.y || out.w != viewport.w ||
+	             out.h != viewport.h;
+	if (!failed) {
+		/* Nested: rect of the inner node is the right child's rect. */
+		struct editorPaneNode *inner_a = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+		struct editorPaneNode *inner_b = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+		struct editorPaneNode *inner =
+		        make_split(EDITOR_SPLIT_HORIZONTAL, 0.5, inner_a, inner_b);
+		if (inner_a == NULL || inner_b == NULL || inner == NULL) {
+			editorPaneNodeFree(inner_a);
+			editorPaneNodeFree(inner_b);
+			free(inner);
+			editorPaneNodeFree(root);
+			return 1;
+		}
+		editorPaneNodeFree(right);
+		root->as.split.second = inner;
+		struct editorRect inner_rect = {0};
+		ok = editorLayoutSplitNodeRect(root, viewport, 1, inner, &inner_rect);
+		/* w=41, border=1, available=40, first_w=20 → right rect: x=4+20+1=25,
+		 * y=1, w=20, h=20. */
+		failed = !ok || inner_rect.x != 25 || inner_rect.y != 1 || inner_rect.w != 20 ||
+		         inner_rect.h != 20;
+	}
+	editorPaneNodeFree(root);
+	return failed;
+}
+
 const struct editorTestCase g_layout_tests[] = {
         {"layout_single_leaf_returns_full_viewport", test_layout_single_leaf_returns_full_viewport},
         {"layout_vertical_split_tiles_viewport", test_layout_vertical_split_tiles_viewport},
@@ -1224,6 +1409,18 @@ const struct editorTestCase g_layout_tests[] = {
         {"layout_focus_leaf_at_changes_focus", test_layout_focus_leaf_at_changes_focus},
         {"layout_focused_leaf_index_reports_position",
          test_layout_focused_leaf_index_reports_position},
+        {"layout_border_at_single_leaf_returns_zero",
+         test_layout_border_at_single_leaf_returns_zero},
+        {"layout_border_at_vertical_split_finds_gap",
+         test_layout_border_at_vertical_split_finds_gap},
+        {"layout_border_at_horizontal_split_finds_gap",
+         test_layout_border_at_horizontal_split_finds_gap},
+        {"layout_border_at_nested_prefers_inner", test_layout_border_at_nested_prefers_inner},
+        {"layout_border_at_off_by_one_misses", test_layout_border_at_off_by_one_misses},
+        {"layout_split_node_rect_returns_parent_rect",
+         test_layout_split_node_rect_returns_parent_rect},
+        {"layout_close_focused_clears_split_resize_state",
+         test_layout_close_focused_clears_split_resize_state},
 };
 
 const int g_layout_test_count = (int)(sizeof(g_layout_tests) / sizeof(g_layout_tests[0]));

@@ -568,6 +568,14 @@ struct editorConfig {
 	int drawer_width_user_set;
 	int drawer_collapsed;
 	int drawer_resize_active;
+	/*
+	 * Split-border drag-resize: when split_resize_active is non-zero,
+	 * mouse-drag events update split_resize_node->as.split.ratio instead
+	 * of moving the cursor. Cleared on left-release and whenever the tree
+	 * mutates so the pointer cannot dangle.
+	 */
+	int split_resize_active;
+	struct editorPaneNode *split_resize_node;
 
 	/* --- Input transient: text/tab click tracking for multi-clicks --- */
 	int text_last_click_cy;

@@ -331,6 +331,9 @@ dap_drawer = "ctrl+alt+b"
 # focused pane shows its buffer content; unfocused panes render as blank
 # rectangles separated by box-drawing borders. Same-buffer-different-
 # tabs (true editor splits) is on the roadmap.
+# A split's border can also be grabbed with the left mouse button and
+# dragged to resize the two adjoining panes; release ends the drag. The
+# drag clamps to the same 10%/90% bounds as pane_grow / pane_shrink.
 # split_horizontal = "ctrl+alt+h"
 # split_vertical = "ctrl+alt+v"
 # close_pane = "ctrl+alt+q"
@@ -338,8 +341,10 @@ dap_drawer = "ctrl+alt+b"
 # focus_right_pane = "ctrl+alt+right"  # NOTE: conflicts with scroll_right
 # focus_up_pane = "ctrl+alt+up"
 # focus_down_pane = "ctrl+alt+down"
-# pane_grow = "ctrl+alt+="
-# pane_shrink = "ctrl+alt+-"
+# pane_grow / pane_shrink: key tokens must be a letter today, so the
+# example uses ctrl+alt+y / ctrl+alt+u (any unused letter works).
+# pane_grow = "ctrl+alt+y"
+# pane_shrink = "ctrl+alt+u"
 # terminal_open splits the focused pane top/bottom and runs $SHELL
 # (falling back to /bin/sh) in the new sibling. terminal_open_vertical
 # does the same with a left/right split. When focus is on a terminal pane, every

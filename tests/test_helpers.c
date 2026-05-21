@@ -150,6 +150,8 @@ void reset_editor_state(void) {
 	E.drawer_width_user_set = 0;
 	E.drawer_collapsed = 0;
 	E.drawer_resize_active = 0;
+	E.split_resize_active = 0;
+	E.split_resize_node = NULL;
 	E.drawer_search_active_tab_before = -1;
 	E.drawer_project_search_active_tab_before = -1;
 	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;

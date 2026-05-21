@@ -447,6 +447,109 @@ void editorBorderListFree(struct editorBorderList *list) {
 	list->capacity = 0;
 }
 
+static int layoutBorderAtRecursive(const struct editorPaneNode *node, struct editorRect rect,
+                                   int border_size, int x, int y,
+                                   const struct editorPaneNode **out_node,
+                                   enum editorSplitOrientation *out_orientation) {
+	if (node == NULL || !node->is_split || border_size <= 0) {
+		return 0;
+	}
+	struct editorRect first_rect;
+	struct editorRect second_rect;
+	layoutSplitRects(node, rect, border_size, &first_rect, &second_rect);
+
+	if (layoutBorderAtRecursive(node->as.split.first, first_rect, border_size, x, y, out_node,
+	                            out_orientation)) {
+		return 1;
+	}
+	if (layoutBorderAtRecursive(node->as.split.second, second_rect, border_size, x, y, out_node,
+	                            out_orientation)) {
+		return 1;
+	}
+
+	struct editorRect border;
+	if (node->as.split.orientation == EDITOR_SPLIT_VERTICAL) {
+		border.x = first_rect.x + first_rect.w;
+		border.y = rect.y;
+		border.w = border_size;
+		border.h = rect.h;
+	} else {
+		border.x = rect.x;
+		border.y = first_rect.y + first_rect.h;
+		border.w = rect.w;
+		border.h = border_size;
+	}
+	if (layoutRectContains(border, x, y)) {
+		*out_node = node;
+		*out_orientation = node->as.split.orientation;
+		return 1;
+	}
+	return 0;
+}
+
+int editorLayoutBorderAt(const struct editorPaneNode *root, struct editorRect viewport,
+                         int border_size, int x, int y, struct editorPaneNode **out_node,
+                         enum editorSplitOrientation *out_orientation) {
+	if (out_node == NULL || out_orientation == NULL || root == NULL || border_size <= 0) {
+		return 0;
+	}
+	if (viewport.w < 0) {
+		viewport.w = 0;
+	}
+	if (viewport.h < 0) {
+		viewport.h = 0;
+	}
+	const struct editorPaneNode *found = NULL;
+	enum editorSplitOrientation found_orientation = EDITOR_SPLIT_HORIZONTAL;
+	if (!layoutBorderAtRecursive(root, viewport, border_size, x, y, &found,
+	                             &found_orientation)) {
+		return 0;
+	}
+	*out_node = (struct editorPaneNode *)found;
+	*out_orientation = found_orientation;
+	return 1;
+}
+
+static int layoutSplitNodeRectRecursive(const struct editorPaneNode *node, struct editorRect rect,
+                                        int border_size, const struct editorPaneNode *target,
+                                        struct editorRect *out) {
+	if (node == NULL) {
+		return 0;
+	}
+	if (node == target) {
+		*out = rect;
+		return 1;
+	}
+	if (!node->is_split) {
+		return 0;
+	}
+	struct editorRect first_rect;
+	struct editorRect second_rect;
+	layoutSplitRects(node, rect, border_size, &first_rect, &second_rect);
+	return layoutSplitNodeRectRecursive(node->as.split.first, first_rect, border_size, target,
+	                                    out) ||
+	       layoutSplitNodeRectRecursive(node->as.split.second, second_rect, border_size, target,
+	                                    out);
+}
+
+int editorLayoutSplitNodeRect(const struct editorPaneNode *root, struct editorRect viewport,
+                              int border_size, const struct editorPaneNode *node,
+                              struct editorRect *out) {
+	if (out == NULL || root == NULL || node == NULL) {
+		return 0;
+	}
+	if (viewport.w < 0) {
+		viewport.w = 0;
+	}
+	if (viewport.h < 0) {
+		viewport.h = 0;
+	}
+	if (border_size < 0) {
+		border_size = 0;
+	}
+	return layoutSplitNodeRectRecursive(root, viewport, border_size, node, out);
+}
+
 int editorLayoutLeafRect(const struct editorPaneNode *root, struct editorRect viewport,
                          const struct editorPaneNode *leaf, struct editorRect *out) {
 	return editorLayoutLeafRectBordered(root, viewport, 0, leaf, out);
@@ -672,6 +775,11 @@ struct editorPaneNode *editorLayoutCloseFocused(void) {
 	if (E.layout_root == NULL || E.focused_leaf == NULL || E.focused_leaf->is_split) {
 		return NULL;
 	}
+	/* A close mutates the tree (frees the parent split node), so any
+	 * in-progress mouse-drag of a split border must be abandoned — its
+	 * cached pointer may be about to dangle. */
+	E.split_resize_active = 0;
+	E.split_resize_node = NULL;
 	struct editorPaneNode *new_focus = editorPaneTreeCloseLeaf(&E.layout_root, E.focused_leaf);
 	if (new_focus == NULL) {
 		return NULL;

@@ -408,6 +408,28 @@ int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long lo
 		return 1;
 	}
 
+	/* Border-press arms a drag-resize; mirrors the drawer-separator path. */
+	if (E.layout_root != NULL) {
+		struct editorRect viewport = {0};
+		if (editorLayoutEditorViewport(&viewport)) {
+			struct editorPaneNode *border_node = NULL;
+			enum editorSplitOrientation border_orientation = EDITOR_SPLIT_VERTICAL;
+			if (editorLayoutBorderAt(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE,
+			                         mouse_col, event->y - 1, &border_node,
+			                         &border_orientation)) {
+				E.split_resize_active = 1;
+				E.split_resize_node = border_node;
+				E.mouse_left_button_down = 0;
+				E.mouse_drag_started = 0;
+				editorResetTextClickTracking();
+				if (effects_out != NULL) {
+					*effects_out = effects;
+				}
+				return 1;
+			}
+		}
+	}
+
 	if (editorLayoutFocusLeafAt(mouse_col, event->y - 1)) {
 		editorPaneAnnounceFocus();
 	}
@@ -956,6 +978,46 @@ int editorHandleMouseMotion(const struct editorMouseEvent *event) {
 }
 
 int editorHandleMouseLeftDrag(const struct editorMouseEvent *event) {
+	if (E.split_resize_active && E.split_resize_node != NULL && E.split_resize_node->is_split) {
+		struct editorRect viewport = {0};
+		if (!editorLayoutEditorViewport(&viewport)) {
+			return 0;
+		}
+		struct editorRect node_rect = {0};
+		if (!editorLayoutSplitNodeRect(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE,
+		                               E.split_resize_node, &node_rect)) {
+			return 0;
+		}
+		double new_ratio;
+		if (E.split_resize_node->as.split.orientation == EDITOR_SPLIT_VERTICAL) {
+			int available = node_rect.w - ROTIDE_PANE_BORDER_SIZE;
+			if (available <= 0) {
+				return 0;
+			}
+			int rel = event->x - 1 - node_rect.x;
+			new_ratio = (double)rel / (double)available;
+		} else {
+			int available = node_rect.h - ROTIDE_PANE_BORDER_SIZE;
+			if (available <= 0) {
+				return 0;
+			}
+			int rel = event->y - 1 - node_rect.y;
+			new_ratio = (double)rel / (double)available;
+		}
+		double min_ratio = ROTIDE_PANE_MIN_RATIO;
+		double max_ratio = 1.0 - ROTIDE_PANE_MIN_RATIO;
+		if (new_ratio < min_ratio) {
+			new_ratio = min_ratio;
+		}
+		if (new_ratio > max_ratio) {
+			new_ratio = max_ratio;
+		}
+		if (new_ratio == E.split_resize_node->as.split.ratio) {
+			return 0;
+		}
+		E.split_resize_node->as.split.ratio = new_ratio;
+		return 1;
+	}
 	if (E.drawer_resize_active) {
 		int mouse_col = event->x - 1;
 		(void)editorDrawerSetWidthForCols(mouse_col, E.window_cols);
@@ -1035,6 +1097,8 @@ int editorHandleMouseLeftDrag(const struct editorMouseEvent *event) {
 
 int editorHandleMouseLeftRelease(void) {
 	E.drawer_resize_active = 0;
+	E.split_resize_active = 0;
+	E.split_resize_node = NULL;
 	E.mouse_left_button_down = 0;
 	E.mouse_drag_started = 0;
 	return 0;

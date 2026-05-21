@@ -100,6 +100,8 @@ void editorInit(void) {
 	E.drawer_width_user_set = 0;
 	E.drawer_collapsed = 0;
 	E.drawer_resize_active = 0;
+	E.split_resize_active = 0;
+	E.split_resize_node = NULL;
 	E.drawer_search_query = NULL;
 	E.drawer_search_query_len = 0;
 	E.drawer_search_paths = NULL;
