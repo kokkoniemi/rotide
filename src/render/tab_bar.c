@@ -4,6 +4,7 @@
 #include "render/display_text.h"
 #include "render/drawer_view.h"
 #include "workspace/drawer.h"
+#include "workspace/layout.h"
 #include "workspace/tabs.h"
 
 #include <string.h>
@@ -23,18 +24,8 @@ static const char *tabBarLabelFromDisplayName(const char *display_name) {
 	return display_name;
 }
 
-int editorDrawTabSlots(struct writeBuf *wb, int cols) {
-	if (cols <= 0) {
-		return 1;
-	}
-
-	struct editorTabLayoutEntry layout[ROTIDE_MAX_TABS];
-	int layout_count = 0;
-	if (!editorTabBuildLayoutForWidth(cols, layout, ROTIDE_MAX_TABS, &layout_count)) {
-		return 0;
-	}
-
-	int active = editorTabActiveIndex();
+static int tabBarDrawLayout(struct writeBuf *wb, const struct editorTabLayoutEntry *layout,
+                            int layout_count, int cols) {
 	int drawn_cols = 0;
 	for (int i = 0; i < layout_count; i++) {
 		const struct editorTabLayoutEntry *entry = &layout[i];
@@ -43,8 +34,8 @@ int editorDrawTabSlots(struct writeBuf *wb, int cols) {
 		if (slot_width <= 0) {
 			continue;
 		}
-		int is_active = tab_idx == active;
-		if (is_active && !editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_TAB_ACTIVE)) {
+		if (entry->is_active &&
+		    !editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_TAB_ACTIVE)) {
 			return 0;
 		}
 
@@ -126,7 +117,7 @@ int editorDrawTabSlots(struct writeBuf *wb, int cols) {
 			slot_cols++;
 		}
 
-		if (is_active && !editorAppendThemeReset(wb)) {
+		if (entry->is_active && !editorAppendThemeReset(wb)) {
 			return 0;
 		}
 
@@ -141,6 +132,30 @@ int editorDrawTabSlots(struct writeBuf *wb, int cols) {
 	}
 
 	return 1;
+}
+
+int editorDrawPaneTabStrip(struct writeBuf *wb, struct editorPaneNode *leaf, int cols) {
+	if (cols <= 0) {
+		return 1;
+	}
+
+	struct editorTabLayoutEntry layout[ROTIDE_MAX_TABS];
+	int layout_count = 0;
+	int ok = 0;
+	if (leaf != NULL && !leaf->is_split && leaf->as.leaf.kind == EDITOR_PANE_KIND_EDITOR) {
+		ok = editorTabBuildLayoutForPane(&leaf->as.leaf.view, cols, layout, ROTIDE_MAX_TABS,
+		                                 &layout_count);
+	} else {
+		ok = editorTabBuildLayoutForWidth(cols, layout, ROTIDE_MAX_TABS, &layout_count);
+	}
+	if (!ok) {
+		return 0;
+	}
+	return tabBarDrawLayout(wb, layout, layout_count, cols);
+}
+
+int editorDrawTabSlots(struct writeBuf *wb, int cols) {
+	return editorDrawPaneTabStrip(wb, E.focused_leaf, cols);
 }
 
 int editorDrawTabBar(struct writeBuf *wb) {
