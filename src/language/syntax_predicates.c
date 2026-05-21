@@ -321,7 +321,7 @@ static int syntaxPredicatesNotAnyOf(const TSQuery *query, const TSQueryMatch *ma
 }
 
 /* `#is?` / `#is-not?` recognize only the `local` property today; other properties
- * are treated as not-set. Kept as a single helper per the predicate-table plan. */
+ * are treated as not-set. */
 static int syntaxPredicatesIsShared(int negated, const TSQuery *query, const TSQueryMatch *match,
                                     const struct editorSyntaxPredicateContext *ctx,
                                     const TSQueryPredicateStep *args, uint32_t arg_count) {
