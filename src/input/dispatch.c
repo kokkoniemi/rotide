@@ -633,22 +633,34 @@ static void dispatchProjectReplaceFromSearch(void) {
 	if (pn < 0 || pn >= (int)sizeof(prompt_buf)) {
 		prompt_buf[sizeof(prompt_buf) - 1] = '\0';
 	}
-	char *replace_query = editorPromptWithCallback(prompt_buf, 1, NULL);
-	if (replace_query == NULL) {
-		return;
-	}
-
-	char *find_copy = strdup(find);
-	if (find_copy == NULL) {
-		free(replace_query);
-		editorSetAllocFailureStatus();
-		return;
-	}
-
+	char *replace_query = NULL;
+	char *find_copy = NULL;
 	struct dispatchFileEntry *files = NULL;
 	int file_count = 0;
 	int file_cap = 0;
-	int result_count = E.drawer_project_search_result_count;
+	int result_count = 0;
+	int saved_active_tab = -1;
+	size_t find_len = 0;
+	size_t replace_len = 0;
+	int total_replaced = 0;
+	int total_files = 0;
+	int aborted = 0;
+	int replace_all_remaining = 0;
+	int alloc_failed = 0;
+	int replacement_started = 0;
+
+	replace_query = editorPromptWithCallback(prompt_buf, 1, NULL);
+	if (replace_query == NULL) {
+		goto cleanup;
+	}
+
+	find_copy = strdup(find);
+	if (find_copy == NULL) {
+		alloc_failed = 1;
+		goto cleanup;
+	}
+
+	result_count = E.drawer_project_search_result_count;
 
 	for (int i = 0; i < result_count; i++) {
 		const struct editorProjectSearchResult *r = &E.drawer_project_search_results[i];
@@ -670,42 +682,29 @@ static void dispatchProjectReplaceFromSearch(void) {
 			struct dispatchFileEntry *grown =
 			        editorRealloc(files, (size_t)new_cap * sizeof(*files));
 			if (grown == NULL) {
-				for (int j = 0; j < file_count; j++)
-					free(files[j].path);
-				free(files);
-				free(find_copy);
-				free(replace_query);
-				editorSetAllocFailureStatus();
-				return;
+				alloc_failed = 1;
+				goto cleanup;
 			}
 			files = grown;
 			file_cap = new_cap;
 		}
 		char *path_copy = strdup(r->path);
 		if (path_copy == NULL) {
-			for (int j = 0; j < file_count; j++)
-				free(files[j].path);
-			free(files);
-			free(find_copy);
-			free(replace_query);
-			editorSetAllocFailureStatus();
-			return;
+			alloc_failed = 1;
+			goto cleanup;
 		}
 		files[file_count].path = path_copy;
 		files[file_count].start_row = r->line > 0 ? r->line - 1 : 0;
 		file_count++;
 	}
 
-	int saved_active_tab = editorTabActiveIndex();
+	saved_active_tab = editorTabActiveIndex();
 	editorProjectSearchExit(0);
+	replacement_started = 1;
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 
-	size_t find_len = strlen(find_copy);
-	size_t replace_len = strlen(replace_query);
-	int total_replaced = 0;
-	int total_files = 0;
-	int aborted = 0;
-	int replace_all_remaining = 0;
+	find_len = strlen(find_copy);
+	replace_len = strlen(replace_query);
 
 	for (int fi = 0; fi < file_count; fi++) {
 		if (!editorTabOpenOrSwitchToFile(files[fi].path)) {
@@ -823,6 +822,7 @@ static void dispatchProjectReplaceFromSearch(void) {
 		}
 	}
 
+cleanup:
 	free(replace_query);
 	free(find_copy);
 	for (int j = 0; j < file_count; j++) {
@@ -830,6 +830,13 @@ static void dispatchProjectReplaceFromSearch(void) {
 	}
 	free(files);
 
+	if (alloc_failed) {
+		editorSetAllocFailureStatus();
+		return;
+	}
+	if (!replacement_started) {
+		return;
+	}
 	if (!aborted && saved_active_tab < 0) {
 		(void)editorTabSwitchToIndex(0);
 	}
