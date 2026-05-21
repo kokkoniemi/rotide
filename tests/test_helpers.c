@@ -29,6 +29,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -516,7 +517,19 @@ int editor_process_keypress_with_input(const char *input, size_t len) {
 		return -1;
 	}
 
-	editorProcessKeypress();
+	/* editorReadKey polls task/syntax/etc. before reading stdin and can
+	 * return *_EVENT without consuming any queued bytes, which leaves the
+	 * simulated keypress unprocessed (test_editor_task_runner_merges_stderr
+	 * flake at test_input_actions.c:133). Loop until stdin is fully drained
+	 * so every queued byte gets a real keypress dispatch. */
+	while (1) {
+		struct pollfd pfd = {.fd = STDIN_FILENO, .events = POLLIN};
+		int rc = poll(&pfd, 1, 0);
+		if (rc <= 0 || !(pfd.revents & POLLIN)) {
+			break;
+		}
+		editorProcessKeypress();
+	}
 
 	if (restore_stdin(saved_stdin) == -1) {
 		return -1;
