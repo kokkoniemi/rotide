@@ -38,13 +38,18 @@ When in doubt, omit the comment.
 - Base style: K&R. Indent with hard tabs (8 columns). Put braces on the same line.
 - Pointer asterisks attach to the name, for example `char *name`.
 - Keep lines ≤100 columns where practical; 120 columns is the hard limit.
+- Naming uses a public/static boundary:
+  - Public (header-declared) functions, structs, enums, typedefs: `editorXxx`.
+  - File-local (`static` / .c-only) functions, structs, enums, typedefs:
+    `<module>Xxx`, where `<module>` is the lowercase camelCase slug listed
+    in [`docs/module-prefixes.md`](docs/module-prefixes.md).
+  - The prefix `editor` is reserved for the public surface; no `.c` file
+    may declare it as its module prefix.
+  - Permitted naming exceptions (do not rename): `main`.
+- File-local globals use `g_<module>_xxx` snake_case.
 - Header guards use `ROTIDE_<SUBSYS>_<FILE>_H`.
-- The proposed module-prefix table for file-local naming lives in
-  [`docs/module-prefixes.md`](docs/module-prefixes.md). Existing static helpers
-  may keep the current `editorXxx` convention until that migration is accepted;
-  `make lint-prefixes` enforces table completeness. Static-name drift remains
-  advisory unless `LINT_PREFIXES_STRICT=1` is set.
-- Macros and constants use `UPPER_SNAKE_CASE`.
+- Macros and constants use `UPPER_SNAKE_CASE`. Project-wide constants use
+  `ROTIDE_*`; subsystem-public feature macros use `EDITOR_*`.
 - Out-parameters use the `_out` suffix.
 - Borrowed views / writable byte spans / owned copies use the `View` / `Bytes`
   / `Dup` accessor family.
@@ -52,6 +57,9 @@ When in doubt, omit the comment.
   CI enforces `format-check`.
 - `make lint` runs clang-tidy in CI. Clang-tidy diagnostics remain warnings
   unless `.clang-tidy` promotes them with `WarningsAsErrors`.
+- `make lint-prefixes` enforces module-prefix table completeness; new `.c`
+  files under `src/` must add an entry. Static-name drift is reported as
+  advisory output and fails the target only when `LINT_PREFIXES_STRICT=1`.
 - Use `goto` only for cleanup-style exits, with labels named `cleanup`, `done`,
   `err`, or `out`.
 
