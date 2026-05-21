@@ -1337,10 +1337,7 @@ static int screenDrawPopupOverlay(struct writeBuf *wb) {
 	return 1;
 }
 
-void editorRefreshScreen(void) {
-	g_screen_last_refresh_file_row_draw_count = 0;
-
-	struct writeBuf wb = WRITEBUF_INIT;
+static int screenAppendFramePreamble(struct writeBuf *wb) {
 	struct editorTerminalPane *focused_terminal = screenFocusedTerminalPane();
 	enum editorCursorStyle frame_cursor_style = E.cursor_style;
 	int frame_cursor_blink = E.cursor_blink_enabled;
@@ -1353,215 +1350,257 @@ void editorRefreshScreen(void) {
 	const char *cursor_style_sequence = screenCursorStyleSequence(
 	        frame_cursor_style, frame_cursor_blink, &cursor_style_len);
 
-	// Build a full frame in memory and write once to reduce terminal flicker.
-	if (!wbAppend(&wb, VT100_HIDE_CURSOR_6, 6) || !editorAppendThemeCursorColor(&wb) ||
-	    !wbAppend(&wb, cursor_style_sequence, cursor_style_len) ||
-	    !wbAppend(&wb, VT100_RESET_CURSOR_POS_3, 3) || !editorAppendThemeBaseStyle(&wb)) {
-		wbFree(&wb);
-		editorSetStatusMsg("Out of memory");
-		return;
-	}
+	return wbAppend(wb, VT100_HIDE_CURSOR_6, 6) && editorAppendThemeCursorColor(wb) &&
+	       wbAppend(wb, cursor_style_sequence, cursor_style_len) &&
+	       wbAppend(wb, VT100_RESET_CURSOR_POS_3, 3) && editorAppendThemeBaseStyle(wb);
+}
 
+static int screenDrawFrameContent(struct writeBuf *wb) {
 	int status_row = E.window_rows + 2;
 	int message_row = E.window_rows + 3;
 	int scroll_progress_percent = screenScrollProgressPercent();
-	if (!editorDrawTabBar(&wb) || !screenDrawRows(&wb) ||
-	    !editorAppendCursorMove(&wb, status_row, 1) ||
-	    !editorDrawStatusBar(&wb, scroll_progress_percent) ||
-	    !editorAppendCursorMove(&wb, message_row, 1) || !editorDrawMessageBar(&wb)) {
-		wbFree(&wb);
-		editorSetStatusMsg("Out of memory");
-		return;
+	return editorDrawTabBar(wb) && screenDrawRows(wb) &&
+	       editorAppendCursorMove(wb, status_row, 1) &&
+	       editorDrawStatusBar(wb, scroll_progress_percent) &&
+	       editorAppendCursorMove(wb, message_row, 1) && editorDrawMessageBar(wb) &&
+	       screenDrawPopupOverlay(wb) && screenDrawDiagnosticPopdown(wb);
+}
+
+static int screenCursorPaneTextStartCol(const struct editorRect *cursor_focused_rect,
+                                        int has_focus_rect,
+                                        const struct editorTerminalPane *focused_terminal) {
+	if (has_focus_rect) {
+		if (focused_terminal != NULL) {
+			return cursor_focused_rect->x;
+		}
+		int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);
+		if (gutter_cols > cursor_focused_rect->w) {
+			gutter_cols = cursor_focused_rect->w;
+		}
+		int text_body_cols = cursor_focused_rect->w - gutter_cols;
+		int cursor_pane_text_start_col = cursor_focused_rect->x + gutter_cols;
+		if (text_body_cols >= 3) {
+			cursor_pane_text_start_col += 1;
+		}
+		return cursor_pane_text_start_col;
 	}
-	if (!screenDrawPopupOverlay(&wb)) {
-		wbFree(&wb);
-		editorSetStatusMsg("Out of memory");
-		return;
+
+	return editorTextBodyStartColForCols(E.window_cols);
+}
+
+static void screenApplyTerminalCursor(const struct editorTerminalPane *focused_terminal,
+                                      const struct editorRect *cursor_focused_rect, int *cursor_row,
+                                      int *cursor_col, int *cursor_visible) {
+	VTermPos cursor_pos = {0};
+	if (focused_terminal->vt != NULL) {
+		vterm_state_get_cursorpos(vterm_obtain_state(focused_terminal->vt), &cursor_pos);
 	}
-	if (!screenDrawDiagnosticPopdown(&wb)) {
-		wbFree(&wb);
-		editorSetStatusMsg("Out of memory");
+	*cursor_row = cursor_focused_rect->y + cursor_pos.row + 1;
+	*cursor_col = cursor_focused_rect->x + cursor_pos.col + 1;
+	*cursor_visible = focused_terminal->cursor_visible != 0;
+}
+
+static void screenApplyWrappedCursor(int cursor_pane_y, int cursor_pane_text_start_col,
+                                     int *cursor_row, int *cursor_col, int *cursor_visible) {
+	int body_cols = editorWrapBodyCols();
+	int cursor_segment =
+	        E.cy < E.numrows ? editorWrapCursorSegmentForRx(&E.rows[E.cy], E.rx, body_cols) : 0;
+	int segment_start_col = 0;
+	int segment_indent_cols = 0;
+	if (E.cy < E.numrows) {
+		editorWrapSegmentInfo(&E.rows[E.cy], cursor_segment, body_cols, &segment_start_col,
+		                      NULL, &segment_indent_cols);
+	}
+	int cursor_segment_col = segment_indent_cols + E.rx - segment_start_col;
+	if (cursor_segment_col >= body_cols) {
+		cursor_segment_col = body_cols - 1;
+	}
+	if (cursor_segment_col < 0) {
+		cursor_segment_col = segment_indent_cols;
+		if (cursor_segment_col >= body_cols) {
+			cursor_segment_col = body_cols - 1;
+		}
+	}
+	int cursor_distance = 0;
+	if (editorWrappedDistanceForward(E.rowoff, E.wrapoff, E.cy, cursor_segment,
+	                                 editorViewportFocusedPaneBodyRows() > 0
+	                                         ? editorViewportFocusedPaneBodyRows() - 1
+	                                         : 0,
+	                                 body_cols, &cursor_distance)) {
+		*cursor_row = cursor_pane_y + cursor_distance + 1;
+	} else {
+		*cursor_visible = 0;
+	}
+	*cursor_col = cursor_pane_text_start_col + cursor_segment_col + 1;
+}
+
+static int screenApplyDrawerCursor(int *cursor_row, int *cursor_col, int *cursor_visible) {
+	int drawer_width = editorDrawerWidthForCols(E.window_cols);
+	if (E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER || drawer_width <= 0) {
+		return 0;
+	}
+
+	if (editorFileSearchIsActive()) {
+		*cursor_row = 2;
+		*cursor_col = editorFileSearchHeaderCursorCol(drawer_width);
+	} else if (editorProjectSearchIsActive()) {
+		*cursor_row = 2;
+		*cursor_col = editorProjectSearchHeaderCursorCol(drawer_width);
+	} else {
+		*cursor_visible = 0;
+	}
+	return 1;
+}
+
+static void screenClampTerminalCursor(const struct editorRect *cursor_focused_rect, int *cursor_row,
+                                      int *cursor_col) {
+	int pane_row_min = cursor_focused_rect->y + 1;
+	int pane_row_max = cursor_focused_rect->y + cursor_focused_rect->h;
+	int pane_col_min = cursor_focused_rect->x + 1;
+	int pane_col_max = cursor_focused_rect->x + cursor_focused_rect->w;
+	if (pane_row_max < pane_row_min) {
+		pane_row_max = pane_row_min;
+	}
+	if (pane_col_max < pane_col_min) {
+		pane_col_max = pane_col_min;
+	}
+	if (*cursor_row < pane_row_min) {
+		*cursor_row = pane_row_min;
+	}
+	if (*cursor_row > pane_row_max) {
+		*cursor_row = pane_row_max;
+	}
+	if (*cursor_col < pane_col_min) {
+		*cursor_col = pane_col_min;
+	}
+	if (*cursor_col > pane_col_max) {
+		*cursor_col = pane_col_max;
+	}
+}
+
+static void screenClampTextCursor(const struct editorRect *cursor_focused_rect, int has_focus_rect,
+                                  int cursor_pane_text_start_col, int *cursor_row, int *cursor_col,
+                                  int *cursor_visible) {
+	int text_row_min = has_focus_rect ? cursor_focused_rect->y + 1 : 2;
+	int text_row_max = has_focus_rect ? cursor_focused_rect->y + cursor_focused_rect->h
+	                                  : E.window_rows + 1;
+	if (text_row_max < text_row_min) {
+		text_row_max = text_row_min;
+	}
+
+	int text_col_min = cursor_pane_text_start_col + 1;
+	int text_col_max = text_col_min + editorViewportFocusedPaneTextBodyCols() - 1;
+	if (text_col_max < text_col_min) {
+		text_col_max = text_col_min;
+	}
+	if (E.viewport_mode == EDITOR_VIEWPORT_FREE_SCROLL &&
+	    (*cursor_row < text_row_min || *cursor_row > text_row_max ||
+	     *cursor_col < text_col_min || *cursor_col > text_col_max)) {
+		*cursor_visible = 0;
 		return;
 	}
 
-	/* screenDrawRows may close terminal leaves and shift focus. */
-	focused_terminal = screenFocusedTerminalPane();
+	if (*cursor_row < text_row_min) {
+		*cursor_row = text_row_min;
+	}
+	if (*cursor_row > text_row_max) {
+		*cursor_row = text_row_max;
+	}
+	if (*cursor_col < text_col_min) {
+		*cursor_col = text_col_min;
+	}
+	if (*cursor_col > text_col_max) {
+		*cursor_col = text_col_max;
+	}
+}
+
+static void screenClampCursor(const struct editorTerminalPane *focused_terminal,
+                              const struct editorRect *cursor_focused_rect, int has_focus_rect,
+                              int cursor_pane_text_start_col, int *cursor_row, int *cursor_col,
+                              int *cursor_visible) {
+	if (focused_terminal != NULL && has_focus_rect) {
+		screenClampTerminalCursor(cursor_focused_rect, cursor_row, cursor_col);
+		return;
+	}
+	screenClampTextCursor(cursor_focused_rect, has_focus_rect, cursor_pane_text_start_col,
+	                      cursor_row, cursor_col, cursor_visible);
+}
+
+static int screenAppendCursorMoveAndShow(struct writeBuf *wb, int cursor_row, int cursor_col) {
+	if (cursor_row < 1) {
+		cursor_row = 1;
+	}
+	if (cursor_col < 1) {
+		cursor_col = 1;
+	}
+
+	char buf[32];
+	int buflen = snprintf(buf, sizeof(buf), "\x1b[%d;%dH", cursor_row, cursor_col);
+	if (buflen > 0 && buflen < (int)sizeof(buf) && !wbAppend(wb, buf, (size_t)buflen)) {
+		return 0;
+	}
+
+	return wbAppend(wb, VT100_SHOW_CURSOR_6, 6);
+}
+
+static int screenAppendFrameCursor(struct writeBuf *wb) {
+	struct editorTerminalPane *focused_terminal = screenFocusedTerminalPane();
 
 	struct editorRect cursor_focused_rect = {0};
 	int has_focus_rect = editorLayoutFocusedLeafRect(&cursor_focused_rect);
 	int cursor_pane_y = has_focus_rect ? cursor_focused_rect.y : 1;
-	int cursor_pane_text_start_col;
-	if (has_focus_rect) {
-		if (focused_terminal != NULL) {
-			/* Terminal panes have no editor gutter offset. */
-			cursor_pane_text_start_col = cursor_focused_rect.x;
-		} else {
-			int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);
-			if (gutter_cols > cursor_focused_rect.w) {
-				gutter_cols = cursor_focused_rect.w;
-			}
-			int text_body_cols = cursor_focused_rect.w - gutter_cols;
-			cursor_pane_text_start_col = cursor_focused_rect.x + gutter_cols;
-			if (text_body_cols >= 3) {
-				cursor_pane_text_start_col += 1;
-			}
-		}
-	} else {
-		cursor_pane_text_start_col = editorTextBodyStartColForCols(E.window_cols);
-	}
+	int cursor_pane_text_start_col = screenCursorPaneTextStartCol(
+	        &cursor_focused_rect, has_focus_rect, focused_terminal);
 
 	int cursor_row = cursor_pane_y + (E.cy - E.rowoff) + 1;
 	int cursor_col = cursor_pane_text_start_col + (E.rx - E.coloff) + 1;
 	int cursor_visible = 1;
 	if (has_focus_rect && focused_terminal != NULL) {
-		VTermPos cursor_pos = {0};
-		if (focused_terminal->vt != NULL) {
-			vterm_state_get_cursorpos(vterm_obtain_state(focused_terminal->vt),
-			                          &cursor_pos);
-		}
-		cursor_row = cursor_focused_rect.y + cursor_pos.row + 1;
-		cursor_col = cursor_focused_rect.x + cursor_pos.col + 1;
-		cursor_visible = focused_terminal->cursor_visible != 0;
+		screenApplyTerminalCursor(focused_terminal, &cursor_focused_rect, &cursor_row,
+		                          &cursor_col, &cursor_visible);
 	}
 	if (focused_terminal == NULL && E.line_wrap_enabled) {
-		int body_cols = editorWrapBodyCols();
-		int cursor_segment =
-		        E.cy < E.numrows
-		                ? editorWrapCursorSegmentForRx(&E.rows[E.cy], E.rx, body_cols)
-		                : 0;
-		int segment_start_col = 0;
-		int segment_indent_cols = 0;
-		if (E.cy < E.numrows) {
-			editorWrapSegmentInfo(&E.rows[E.cy], cursor_segment, body_cols,
-			                      &segment_start_col, NULL, &segment_indent_cols);
-		}
-		int cursor_segment_col = segment_indent_cols + E.rx - segment_start_col;
-		if (cursor_segment_col >= body_cols) {
-			cursor_segment_col = body_cols - 1;
-		}
-		if (cursor_segment_col < 0) {
-			cursor_segment_col = segment_indent_cols;
-			if (cursor_segment_col >= body_cols) {
-				cursor_segment_col = body_cols - 1;
-			}
-		}
-		int cursor_distance = 0;
-		if (editorWrappedDistanceForward(E.rowoff, E.wrapoff, E.cy, cursor_segment,
-		                                 editorViewportFocusedPaneBodyRows() > 0
-		                                         ? editorViewportFocusedPaneBodyRows() - 1
-		                                         : 0,
-		                                 body_cols, &cursor_distance)) {
-			cursor_row = cursor_pane_y + cursor_distance + 1;
-		} else {
-			cursor_visible = 0;
-		}
-		cursor_col = cursor_pane_text_start_col + cursor_segment_col + 1;
+		screenApplyWrappedCursor(cursor_pane_y, cursor_pane_text_start_col, &cursor_row,
+		                         &cursor_col, &cursor_visible);
 	}
-	if (E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER &&
-	    editorDrawerWidthForCols(E.window_cols) > 0) {
-		if (editorFileSearchIsActive()) {
-			cursor_row = 2;
-			cursor_col = editorFileSearchHeaderCursorCol(
-			        editorDrawerWidthForCols(E.window_cols));
-		} else if (editorProjectSearchIsActive()) {
-			cursor_row = 2;
-			cursor_col = editorProjectSearchHeaderCursorCol(
-			        editorDrawerWidthForCols(E.window_cols));
-		} else {
-			cursor_visible = 0;
-		}
-	} else {
-		if (focused_terminal != NULL && has_focus_rect) {
-			int pane_row_min = cursor_focused_rect.y + 1;
-			int pane_row_max = cursor_focused_rect.y + cursor_focused_rect.h;
-			int pane_col_min = cursor_focused_rect.x + 1;
-			int pane_col_max = cursor_focused_rect.x + cursor_focused_rect.w;
-			if (pane_row_max < pane_row_min) {
-				pane_row_max = pane_row_min;
-			}
-			if (pane_col_max < pane_col_min) {
-				pane_col_max = pane_col_min;
-			}
-			if (cursor_row < pane_row_min) {
-				cursor_row = pane_row_min;
-			}
-			if (cursor_row > pane_row_max) {
-				cursor_row = pane_row_max;
-			}
-			if (cursor_col < pane_col_min) {
-				cursor_col = pane_col_min;
-			}
-			if (cursor_col > pane_col_max) {
-				cursor_col = pane_col_max;
-			}
-		} else {
-			int text_row_min = has_focus_rect ? cursor_focused_rect.y + 1 : 2;
-			int text_row_max = has_focus_rect
-			                           ? cursor_focused_rect.y + cursor_focused_rect.h
-			                           : E.window_rows + 1;
-			if (text_row_max < text_row_min) {
-				text_row_max = text_row_min;
-			}
-
-			int text_col_min = cursor_pane_text_start_col + 1;
-			int text_col_max =
-			        text_col_min + editorViewportFocusedPaneTextBodyCols() - 1;
-			if (text_col_max < text_col_min) {
-				text_col_max = text_col_min;
-			}
-			if (E.viewport_mode == EDITOR_VIEWPORT_FREE_SCROLL &&
-			    (cursor_row < text_row_min || cursor_row > text_row_max ||
-			     cursor_col < text_col_min || cursor_col > text_col_max)) {
-				cursor_visible = 0;
-			} else {
-				if (cursor_row < text_row_min) {
-					cursor_row = text_row_min;
-				}
-				if (cursor_row > text_row_max) {
-					cursor_row = text_row_max;
-				}
-				if (cursor_col < text_col_min) {
-					cursor_col = text_col_min;
-				}
-				if (cursor_col > text_col_max) {
-					cursor_col = text_col_max;
-				}
-			}
-		}
+	if (!screenApplyDrawerCursor(&cursor_row, &cursor_col, &cursor_visible)) {
+		screenClampCursor(focused_terminal, &cursor_focused_rect, has_focus_rect,
+		                  cursor_pane_text_start_col, &cursor_row, &cursor_col,
+		                  &cursor_visible);
 	}
 	if (cursor_visible) {
-		if (cursor_row < 1) {
-			cursor_row = 1;
-		}
-		if (cursor_col < 1) {
-			cursor_col = 1;
-		}
+		return screenAppendCursorMoveAndShow(wb, cursor_row, cursor_col);
+	}
+	return 1;
+}
 
-		char buf[32];
-		int buflen = snprintf(buf, sizeof(buf), "\x1b[%d;%dH", cursor_row, cursor_col);
-		if (buflen > 0 && buflen < (int)sizeof(buf)) {
-			if (!wbAppend(&wb, buf, buflen)) {
-				wbFree(&wb);
-				editorSetStatusMsg("Out of memory");
-				return;
-			}
-		}
+static void screenAbortRefreshOom(struct writeBuf *wb) {
+	wbFree(wb);
+	editorSetStatusMsg("Out of memory");
+}
 
-		if (!wbAppend(&wb, VT100_SHOW_CURSOR_6, 6)) {
-			wbFree(&wb);
-			editorSetStatusMsg("Out of memory");
-			return;
-		}
+static void screenAbortRefreshWriteFailure(struct writeBuf *wb) {
+	int saved_errno = errno;
+	wbFree(wb);
+	if (saved_errno != 0) {
+		editorSetStatusMsg("Output write failed: %s", strerror(saved_errno));
+	} else {
+		editorSetStatusMsg("Output write failed");
+	}
+}
+
+void editorRefreshScreen(void) {
+	g_screen_last_refresh_file_row_draw_count = 0;
+
+	struct writeBuf wb = WRITEBUF_INIT;
+	if (!screenAppendFramePreamble(&wb) || !screenDrawFrameContent(&wb) ||
+	    !screenAppendFrameCursor(&wb)) {
+		screenAbortRefreshOom(&wb);
+		return;
 	}
 
 	if (!wbWriteAllToStdout(&wb)) {
-		int saved_errno = errno;
-		wbFree(&wb);
-		if (saved_errno != 0) {
-			editorSetStatusMsg("Output write failed: %s", strerror(saved_errno));
-		} else {
-			editorSetStatusMsg("Output write failed");
-		}
+		screenAbortRefreshWriteFailure(&wb);
 		return;
 	}
 
