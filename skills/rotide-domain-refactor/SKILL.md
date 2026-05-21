@@ -26,6 +26,11 @@ Use this when the main task is code ownership cleanup: splitting oversized modul
 - Avoid umbrella headers that re-export half the system.
 - Avoid introducing abstraction layers that do not reduce real coupling.
 - Refactors should reduce cognitive load for a human reader.
+- New headers use `ROTIDE_<SUBSYS>_<FILE>_H` guards.
+- New `.c` files need entries in `docs/module-prefixes.md` and
+  `tools/module-prefixes.tsv`; file-local helpers use that prefix once the
+  naming migration is accepted.
+- Public header-declared APIs keep the `editorXxx` naming surface.
 
 ## References
 

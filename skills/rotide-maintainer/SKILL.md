@@ -22,6 +22,8 @@ Use this for general RotIDE code, docs, and test work when a narrower skill is n
 - Keep task-log tabs generated/read-only/non-savable.
 - Keep syntax and LSP state tab-local.
 - Do not regress dirty-state semantics.
+- CI enforces `make lint-check`; keep new code inside the active formatter,
+  clang-tidy, and module-prefix gates.
 - For new `.c` files, add an entry to `docs/module-prefixes.md` and
   `tools/module-prefixes.tsv`.
 
@@ -30,6 +32,8 @@ Use this for general RotIDE code, docs, and test work when a narrower skill is n
 - Always: `make`, then `make test`.
 - For style, formatting, or naming-table work: add `make format-check` and
   `make lint-prefixes`.
+- For new functions or significant restructuring: add `make lint` when
+  `clang-tidy` is available.
 - Add sanitizer run (`make test-sanitize`) when touching:
   - memory/UB-sensitive paths
   - syntax/query/parse internals

@@ -32,6 +32,10 @@ Use for LSP lifecycle, sync, definition flow, config gating, and install/task-lo
   - run configured install command in task-log tab
   - do not auto-retry original definition request
 - Keep generated task-log tabs read-only/non-savable.
+- Keep broad behavior-preserving style and complexity cleanup separate from
+  LSP feature changes.
+- New file-local helpers follow the module prefix in `docs/module-prefixes.md`
+  once the naming migration is accepted.
 
 ## References
 

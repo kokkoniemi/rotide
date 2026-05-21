@@ -42,16 +42,16 @@ When in doubt, omit the comment.
 - The proposed module-prefix table for file-local naming lives in
   [`docs/module-prefixes.md`](docs/module-prefixes.md). Existing static helpers
   may keep the current `editorXxx` convention until that migration is accepted;
-  `make lint-prefixes` enforces table completeness and reports naming drift as
-  advisory output.
+  `make lint-prefixes` enforces table completeness. Static-name drift remains
+  advisory unless `LINT_PREFIXES_STRICT=1` is set.
 - Macros and constants use `UPPER_SNAKE_CASE`.
 - Out-parameters use the `_out` suffix.
 - Borrowed views / writable byte spans / owned copies use the `View` / `Bytes`
   / `Dup` accessor family.
 - `make format` and `make format-check` use the repository `.clang-format`;
-  `format-check` becomes blocking only after the formatter baseline lands.
-- `make lint` is advisory until the complexity refactors land. It measures
-  function size, cognitive complexity, and nesting depth.
+  CI enforces `format-check`.
+- `make lint` runs clang-tidy and is CI-blocking. It measures function size,
+  cognitive complexity, and nesting depth.
 - Use `goto` only for cleanup-style exits, with labels named `cleanup`, `done`,
   `err`, or `out`.
 

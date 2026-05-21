@@ -266,7 +266,9 @@ GENERATED_HEADERS := $(QUERIES_HEADER) $(DEFAULT_CONFIG_HEADER)
 # ============================================================================
 FORMAT_FILES := $(shell find $(SRC_DIR) tests -type f \( -name '*.c' -o -name '*.h' \) \
 	! -path '$(QUERIES_HEADER)' ! -path '$(DEFAULT_CONFIG_HEADER)' 2>/dev/null)
-LINT_FILES := $(filter %.c,$(FORMAT_FILES))
+LINT_FILES := $(sort $(CORE_SRCS) $(TEST_SRCS) $(BENCH_BUFFER_SRC) \
+	$(BENCH_MICRO_SRCS) $(METRICS_FUZZ_EMIT_SRCS) $(METRICS_SUMMARY_SRCS) \
+	$(GOLDEN_APPLY_SRCS) $(GOLDEN_DIFF_REPORT_SRCS))
 
 # ============================================================================
 # Build logging (set V=1 for full compile commands)
