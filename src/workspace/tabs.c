@@ -705,9 +705,9 @@ int editorTabSwitchByDelta(int delta) {
 		return 1;
 	}
 
-	/* Phase 6: cycle within the focused pane's tab membership list, not
-	 * the global tab array. Fall back to global cycling when no pane is
-	 * focused or the pane has no recorded tabs. */
+	/* Cycle within the focused pane's tab membership list, not the global
+	 * tab array. Fall back to global cycling when no pane is focused or
+	 * the pane has no recorded tabs. */
 	if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
 	    E.focused_leaf->as.leaf.view.pane_tab_count > 0) {
 		struct editorPaneView *view = &E.focused_leaf->as.leaf.view;
@@ -743,10 +743,10 @@ int editorTabCloseActive(void) {
 
 	int closing = E.active_tab;
 
-	/* Phase 6 — pane-scoped close. Remove the tab from the focused
-	 * pane's membership list. If another pane still has the tab, the
-	 * global tab survives; just switch the focused pane to a remaining
-	 * tab. Otherwise fall through to the global removal path. */
+	/* Pane-scoped close: remove the tab from the focused pane's membership
+	 * list. If another pane still has the tab, the global tab survives;
+	 * just switch the focused pane to a remaining tab. Otherwise fall
+	 * through to the global removal path. */
 	if (E.focused_leaf != NULL && !E.focused_leaf->is_split) {
 		editorPaneViewRemoveTab(&E.focused_leaf->as.leaf.view, closing);
 	}

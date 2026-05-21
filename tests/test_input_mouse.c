@@ -715,6 +715,342 @@ static int test_editor_process_keypress_mouse_tab_bar_carets_switch_hidden_tabs(
 	return 0;
 }
 
+static int test_editor_process_keypress_mouse_press_on_pane_border_arms_split_resize(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("abcdef");
+	E.window_rows = 8;
+	E.window_cols = 80;
+	E.line_numbers_enabled = 0;
+	E.cy = 0;
+	E.cx = 3;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+
+	struct editorPaneNode *sibling = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(sibling != NULL);
+
+	struct editorRect viewport = {0};
+	ASSERT_TRUE(editorLayoutEditorViewport(&viewport));
+	/* Vertical split, ratio 0.5, border_size=1 → border lives at
+	 * viewport.x + (viewport.w - 1) * 0.5 (truncated). */
+	int border_x = viewport.x + (int)((double)(viewport.w - ROTIDE_PANE_BORDER_SIZE) * 0.5);
+	struct editorPaneNode *parent_split = editorPaneTreeFindParent(E.layout_root, sibling);
+	ASSERT_TRUE(parent_split != NULL);
+	int cx_before = E.cx;
+	int cy_before = E.cy;
+	struct editorPaneNode *focused_before = E.focused_leaf;
+
+	char press[32];
+	ASSERT_TRUE(
+	        format_sgr_mouse_event(press, sizeof(press), 0, border_x + 1, viewport.y + 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
+	ASSERT_EQ_INT(1, E.split_resize_active);
+	ASSERT_TRUE(E.split_resize_node == parent_split);
+	ASSERT_EQ_INT(0, E.mouse_left_button_down);
+	ASSERT_EQ_INT(0, E.mouse_drag_started);
+	ASSERT_EQ_INT(cx_before, E.cx);
+	ASSERT_EQ_INT(cy_before, E.cy);
+	ASSERT_TRUE(E.focused_leaf == focused_before);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_press_off_border_acts_as_text_click(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("abcdefghij");
+	E.window_rows = 8;
+	E.window_cols = 80;
+	E.line_numbers_enabled = 0;
+	E.cy = 0;
+	E.cx = 0;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+
+	struct editorPaneNode *sibling = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(sibling != NULL);
+
+	struct editorRect viewport = {0};
+	ASSERT_TRUE(editorLayoutEditorViewport(&viewport));
+	int border_x = viewport.x + (int)((double)(viewport.w - ROTIDE_PANE_BORDER_SIZE) * 0.5);
+	/* Click in the left pane, two columns left of the border — never on it. */
+	int text_x = border_x - 2;
+
+	char press[32];
+	ASSERT_TRUE(
+	        format_sgr_mouse_event(press, sizeof(press), 0, text_x + 1, viewport.y + 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
+	ASSERT_EQ_INT(0, E.split_resize_active);
+	ASSERT_TRUE(E.split_resize_node == NULL);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_press_single_pane_never_arms_split(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("abcdef");
+	E.window_rows = 8;
+	E.window_cols = 80;
+	E.line_numbers_enabled = 0;
+	E.cy = 0;
+	E.cx = 0;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+
+	/* No split → no borders, no possible arm. */
+	struct editorRect viewport = {0};
+	ASSERT_TRUE(editorLayoutEditorViewport(&viewport));
+	int mid_x = viewport.x + viewport.w / 2;
+
+	char press[32];
+	ASSERT_TRUE(
+	        format_sgr_mouse_event(press, sizeof(press), 0, mid_x + 1, viewport.y + 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
+	ASSERT_EQ_INT(0, E.split_resize_active);
+	ASSERT_TRUE(E.split_resize_node == NULL);
+	return 0;
+}
+
+static int drag_vertical_split_helper(int drag_x, double *ratio_out) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("abcdef");
+	E.window_rows = 8;
+	E.window_cols = 80;
+	E.line_numbers_enabled = 0;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+
+	struct editorPaneNode *sibling = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(sibling != NULL);
+
+	struct editorRect viewport = {0};
+	ASSERT_TRUE(editorLayoutEditorViewport(&viewport));
+	int border_x = viewport.x + (int)((double)(viewport.w - ROTIDE_PANE_BORDER_SIZE) * 0.5);
+
+	char press[32];
+	ASSERT_TRUE(
+	        format_sgr_mouse_event(press, sizeof(press), 0, border_x + 1, viewport.y + 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
+	ASSERT_EQ_INT(1, E.split_resize_active);
+
+	char drag[32];
+	ASSERT_TRUE(
+	        format_sgr_mouse_event(drag, sizeof(drag), 32, drag_x + 1, viewport.y + 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(drag, strlen(drag)) == 0);
+	*ratio_out = E.split_resize_node->as.split.ratio;
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drag_vertical_split_decreases_ratio(void) {
+	double ratio = 0.0;
+	struct editorRect viewport = {0};
+	ASSERT_TRUE(editorTabsInit());
+	add_row("a");
+	E.window_rows = 8;
+	E.window_cols = 80;
+	E.line_numbers_enabled = 0;
+	ASSERT_TRUE(editorLayoutEditorViewport(&viewport));
+	int drag_x = viewport.x + (int)((double)(viewport.w - ROTIDE_PANE_BORDER_SIZE) * 0.25);
+	ASSERT_TRUE(drag_vertical_split_helper(drag_x, &ratio) == 0);
+	ASSERT_TRUE(ratio < 0.5 - 1e-9);
+	ASSERT_TRUE(ratio > 0.20);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drag_vertical_split_increases_ratio(void) {
+	double ratio = 0.0;
+	struct editorRect viewport = {0};
+	ASSERT_TRUE(editorTabsInit());
+	add_row("a");
+	E.window_rows = 8;
+	E.window_cols = 80;
+	E.line_numbers_enabled = 0;
+	ASSERT_TRUE(editorLayoutEditorViewport(&viewport));
+	int drag_x = viewport.x + (int)((double)(viewport.w - ROTIDE_PANE_BORDER_SIZE) * 0.75);
+	ASSERT_TRUE(drag_vertical_split_helper(drag_x, &ratio) == 0);
+	ASSERT_TRUE(ratio > 0.5 + 1e-9);
+	ASSERT_TRUE(ratio < 0.80);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drag_horizontal_split_updates_ratio(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("a");
+	E.window_rows = 20;
+	E.window_cols = 80;
+	E.line_numbers_enabled = 0;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+
+	struct editorPaneNode *sibling = editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
+	ASSERT_TRUE(sibling != NULL);
+
+	struct editorRect viewport = {0};
+	ASSERT_TRUE(editorLayoutEditorViewport(&viewport));
+	int border_y = viewport.y + (int)((double)(viewport.h - ROTIDE_PANE_BORDER_SIZE) * 0.5);
+	int mid_x = viewport.x + viewport.w / 2;
+
+	char press[32];
+	ASSERT_TRUE(format_sgr_mouse_event(press, sizeof(press), 0, mid_x + 1, border_y + 1, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
+	ASSERT_EQ_INT(1, E.split_resize_active);
+
+	/* Drag down: ratio increases. */
+	int drag_y = viewport.y + (int)((double)(viewport.h - ROTIDE_PANE_BORDER_SIZE) * 0.75);
+	char drag[32];
+	ASSERT_TRUE(format_sgr_mouse_event(drag, sizeof(drag), 32, mid_x + 1, drag_y + 1, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(drag, strlen(drag)) == 0);
+	double down_ratio = E.split_resize_node->as.split.ratio;
+	ASSERT_TRUE(down_ratio > 0.5 + 1e-9);
+
+	/* Drag up: ratio decreases. */
+	int up_drag_y = viewport.y + (int)((double)(viewport.h - ROTIDE_PANE_BORDER_SIZE) * 0.25);
+	ASSERT_TRUE(format_sgr_mouse_event(drag, sizeof(drag), 32, mid_x + 1, up_drag_y + 1, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(drag, strlen(drag)) == 0);
+	ASSERT_TRUE(E.split_resize_node->as.split.ratio < down_ratio);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drag_clamps_to_min_and_max(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("a");
+	E.window_rows = 8;
+	E.window_cols = 80;
+	E.line_numbers_enabled = 0;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+
+	struct editorPaneNode *sibling = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(sibling != NULL);
+
+	struct editorRect viewport = {0};
+	ASSERT_TRUE(editorLayoutEditorViewport(&viewport));
+	int border_x = viewport.x + (int)((double)(viewport.w - ROTIDE_PANE_BORDER_SIZE) * 0.5);
+
+	char press[32];
+	ASSERT_TRUE(
+	        format_sgr_mouse_event(press, sizeof(press), 0, border_x + 1, viewport.y + 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
+
+	char drag[32];
+	/* Drag well off the left edge. */
+	ASSERT_TRUE(format_sgr_mouse_event(drag, sizeof(drag), 32, 1, viewport.y + 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(drag, strlen(drag)) == 0);
+	double low = E.split_resize_node->as.split.ratio;
+	ASSERT_TRUE(low > ROTIDE_PANE_MIN_RATIO - 1e-9);
+	ASSERT_TRUE(low < ROTIDE_PANE_MIN_RATIO + 1e-9);
+
+	/* Drag well off the right edge. */
+	ASSERT_TRUE(format_sgr_mouse_event(drag, sizeof(drag), 32, E.window_cols + 50,
+	                                   viewport.y + 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(drag, strlen(drag)) == 0);
+	double high = E.split_resize_node->as.split.ratio;
+	double max_ratio = 1.0 - ROTIDE_PANE_MIN_RATIO;
+	ASSERT_TRUE(high > max_ratio - 1e-9);
+	ASSERT_TRUE(high < max_ratio + 1e-9);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drag_inner_split_only_updates_inner(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("a");
+	E.window_rows = 20;
+	E.window_cols = 80;
+	E.line_numbers_enabled = 0;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+
+	/* Outer vertical: focus moves to right (sibling). Then split the right
+	 * with a horizontal split → focus is the new inner_bottom. */
+	struct editorPaneNode *right = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(right != NULL);
+	struct editorPaneNode *inner_bottom =
+	        editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
+	ASSERT_TRUE(inner_bottom != NULL);
+
+	struct editorPaneNode *inner_split = editorPaneTreeFindParent(E.layout_root, inner_bottom);
+	struct editorPaneNode *outer_split = editorPaneTreeFindParent(E.layout_root, inner_split);
+	ASSERT_TRUE(inner_split != NULL && outer_split != NULL);
+	double outer_ratio_before = outer_split->as.split.ratio;
+
+	struct editorRect viewport = {0};
+	ASSERT_TRUE(editorLayoutEditorViewport(&viewport));
+	struct editorRect inner_rect = {0};
+	ASSERT_TRUE(editorLayoutSplitNodeRect(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE,
+	                                      inner_split, &inner_rect));
+	int border_y = inner_rect.y + (int)((double)(inner_rect.h - ROTIDE_PANE_BORDER_SIZE) * 0.5);
+	int mid_x = inner_rect.x + inner_rect.w / 2;
+
+	char press[32];
+	ASSERT_TRUE(format_sgr_mouse_event(press, sizeof(press), 0, mid_x + 1, border_y + 1, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
+	ASSERT_TRUE(E.split_resize_node == inner_split);
+
+	int drag_y = inner_rect.y + (int)((double)(inner_rect.h - ROTIDE_PANE_BORDER_SIZE) * 0.75);
+	char drag[32];
+	ASSERT_TRUE(format_sgr_mouse_event(drag, sizeof(drag), 32, mid_x + 1, drag_y + 1, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(drag, strlen(drag)) == 0);
+	ASSERT_TRUE(inner_split->as.split.ratio > 0.5 + 1e-9);
+	ASSERT_TRUE(outer_split->as.split.ratio == outer_ratio_before);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drag_does_not_move_cursor_during_resize(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("abcdefghij");
+	add_row("klmnopqrst");
+	E.window_rows = 8;
+	E.window_cols = 80;
+	E.line_numbers_enabled = 0;
+	E.cy = 1;
+	E.cx = 4;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+
+	struct editorPaneNode *sibling = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(sibling != NULL);
+	int cx_before = E.cx;
+	int cy_before = E.cy;
+
+	struct editorRect viewport = {0};
+	ASSERT_TRUE(editorLayoutEditorViewport(&viewport));
+	int border_x = viewport.x + (int)((double)(viewport.w - ROTIDE_PANE_BORDER_SIZE) * 0.5);
+
+	char press[32];
+	ASSERT_TRUE(
+	        format_sgr_mouse_event(press, sizeof(press), 0, border_x + 1, viewport.y + 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
+
+	int drag_x = viewport.x + (int)((double)(viewport.w - ROTIDE_PANE_BORDER_SIZE) * 0.7);
+	char drag[32];
+	ASSERT_TRUE(
+	        format_sgr_mouse_event(drag, sizeof(drag), 32, drag_x + 1, viewport.y + 4, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(drag, strlen(drag)) == 0);
+	ASSERT_EQ_INT(cx_before, E.cx);
+	ASSERT_EQ_INT(cy_before, E.cy);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_release_clears_split_resize_state(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("a");
+	E.window_rows = 8;
+	E.window_cols = 80;
+	E.line_numbers_enabled = 0;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+
+	struct editorPaneNode *sibling = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(sibling != NULL);
+
+	struct editorRect viewport = {0};
+	ASSERT_TRUE(editorLayoutEditorViewport(&viewport));
+	int border_x = viewport.x + (int)((double)(viewport.w - ROTIDE_PANE_BORDER_SIZE) * 0.5);
+
+	char press[32];
+	ASSERT_TRUE(
+	        format_sgr_mouse_event(press, sizeof(press), 0, border_x + 1, viewport.y + 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
+	ASSERT_EQ_INT(1, E.split_resize_active);
+
+	char release[32];
+	ASSERT_TRUE(format_sgr_mouse_event(release, sizeof(release), 0, border_x + 1,
+	                                   viewport.y + 2, 'm'));
+	ASSERT_TRUE(editor_process_keypress_with_input(release, strlen(release)) == 0);
+	ASSERT_EQ_INT(0, E.split_resize_active);
+	ASSERT_TRUE(E.split_resize_node == NULL);
+	return 0;
+}
+
 static int test_editor_process_keypress_mouse_drag_on_splitter_resizes_drawer(void) {
 	add_row("abcdef");
 	E.window_rows = 4;
@@ -1226,6 +1562,26 @@ const struct editorTestCase g_input_mouse_tests[] = {
          test_editor_process_keypress_mouse_top_row_click_uses_variable_tab_layout},
         {"editor_process_keypress_mouse_tab_bar_carets_switch_hidden_tabs",
          test_editor_process_keypress_mouse_tab_bar_carets_switch_hidden_tabs},
+        {"editor_process_keypress_mouse_press_on_pane_border_arms_split_resize",
+         test_editor_process_keypress_mouse_press_on_pane_border_arms_split_resize},
+        {"editor_process_keypress_mouse_press_off_border_acts_as_text_click",
+         test_editor_process_keypress_mouse_press_off_border_acts_as_text_click},
+        {"editor_process_keypress_mouse_press_single_pane_never_arms_split",
+         test_editor_process_keypress_mouse_press_single_pane_never_arms_split},
+        {"editor_process_keypress_mouse_drag_vertical_split_decreases_ratio",
+         test_editor_process_keypress_mouse_drag_vertical_split_decreases_ratio},
+        {"editor_process_keypress_mouse_drag_vertical_split_increases_ratio",
+         test_editor_process_keypress_mouse_drag_vertical_split_increases_ratio},
+        {"editor_process_keypress_mouse_drag_horizontal_split_updates_ratio",
+         test_editor_process_keypress_mouse_drag_horizontal_split_updates_ratio},
+        {"editor_process_keypress_mouse_drag_clamps_to_min_and_max",
+         test_editor_process_keypress_mouse_drag_clamps_to_min_and_max},
+        {"editor_process_keypress_mouse_drag_inner_split_only_updates_inner",
+         test_editor_process_keypress_mouse_drag_inner_split_only_updates_inner},
+        {"editor_process_keypress_mouse_drag_does_not_move_cursor_during_resize",
+         test_editor_process_keypress_mouse_drag_does_not_move_cursor_during_resize},
+        {"editor_process_keypress_mouse_release_clears_split_resize_state",
+         test_editor_process_keypress_mouse_release_clears_split_resize_state},
         {"editor_process_keypress_mouse_drag_on_splitter_resizes_drawer",
          test_editor_process_keypress_mouse_drag_on_splitter_resizes_drawer},
         {"editor_process_keypress_mouse_wheel_scrolls_three_lines_and_clamps",

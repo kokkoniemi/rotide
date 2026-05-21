@@ -295,7 +295,6 @@ void editorEditToggleCommentLines(editorEditActionFn clear_selection_mode,
 		size_t out_before = out;
 
 		if (size == 0) {
-			// empty: unchanged
 		} else if (!removing) {
 			memcpy(new_text + out, prefix, (size_t)prefix_len);
 			out += (size_t)prefix_len;

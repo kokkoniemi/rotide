@@ -6,12 +6,10 @@
 /*
  * Pane tree for the editor area.
  *
- * The tree describes how the editor viewport (the rectangle left of the
- * drawer, between the tab bar and the status/message bars) is subdivided
- * into leaf panes. Phase 1 only supports a single leaf of kind EDITOR, so
- * the tree is always one node and every layout computation returns a
- * single rect equal to the viewport. The data model is in place for the
- * later phases that introduce splits and additional pane kinds.
+ * The tree subdivides the editor viewport (the rectangle left of the
+ * drawer, between the tab bar and the status/message bars) into leaf
+ * panes. Leaves carry editor or terminal content; interior nodes hold a
+ * split orientation, a ratio, and two children.
  */
 
 enum editorPaneKind { EDITOR_PANE_KIND_EDITOR = 0, EDITOR_PANE_KIND_TERMINAL };
@@ -21,17 +19,15 @@ enum editorSplitOrientation { EDITOR_SPLIT_HORIZONTAL = 0, EDITOR_SPLIT_VERTICAL
 /*
  * Per-pane view state.
  *
- * active_tab_idx records the tab the pane is currently viewing — Phase 5
- * lets each pane track its own active tab independently of the global
- * E.active_tab. -1 means "uninitialized; don't load this view." On focus
- * change, editorLayoutSetFocusedLeaf saves the outgoing pane's view,
- * switches the global active tab to the incoming pane's view, then
- * applies the incoming pane's cursor/scroll.
+ * Each pane tracks its own active tab independently of the global
+ * E.active_tab. active_tab_idx = -1 means "uninitialized; don't load this
+ * view." On focus change, editorLayoutSetFocusedLeaf saves the outgoing
+ * pane's view, switches the global active tab to the incoming pane's
+ * view, then applies the incoming pane's cursor/scroll.
  *
- * Phase 6: each pane also owns a membership list of which global tab
- * indices live "inside" the pane (`pane_tabs` / `pane_tab_count`). The
- * tab bar filters by this list, Ctrl+Tab cycles within it, and a new
- * split inherits only the splitting pane's active tab. Tabs themselves
+ * `pane_tabs` / `pane_tab_count` are the pane's membership list of global
+ * tab indices: the tab bar filters by this list, Ctrl+Tab cycles within
+ * it, and a new split inherits only the splitting pane's active tab. Tabs
  * still live in the shared E.tabs[] array; the list is a view into it.
  */
 #ifndef ROTIDE_PANE_MAX_TABS
@@ -203,6 +199,19 @@ struct editorBorderList {
 int editorLayoutCollectBorders(const struct editorPaneNode *root, struct editorRect viewport,
                                int border_size, struct editorBorderList *out);
 void editorBorderListFree(struct editorBorderList *list);
+
+/*
+ * Innermost matching border wins, so a hit inside a nested split's gap
+ * resolves to the nested node, not its ancestor.
+ */
+int editorLayoutBorderAt(const struct editorPaneNode *root, struct editorRect viewport,
+                         int border_size, int x, int y, struct editorPaneNode **out_node,
+                         enum editorSplitOrientation *out_orientation);
+
+/* The returned rect spans both children of `node` and the gap between them. */
+int editorLayoutSplitNodeRect(const struct editorPaneNode *root, struct editorRect viewport,
+                              int border_size, const struct editorPaneNode *node,
+                              struct editorRect *out);
 
 /*
  * Glue helpers that read the current editor state (E) to derive the editor

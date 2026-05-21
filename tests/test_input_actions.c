@@ -192,6 +192,52 @@ static int test_editor_process_keypress_resize_drawer_shortcuts(void) {
 	return 0;
 }
 
+static int test_editor_process_keypress_pane_grow_shrink_via_custom_keymap(void) {
+	char dir_template[] = "/tmp/rotide-test-pane-resize-keymap-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	/* keymapParseLetterToken accepts only [A-Za-z], so non-letter tokens
+	 * like ctrl+alt+= silently fail to bind. */
+	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	                                          "pane_grow = \"ctrl+alt+y\"\n"
+	                                          "pane_shrink = \"ctrl+alt+u\"\n"));
+
+	enum editorKeymapLoadStatus status =
+	        editorKeymapLoadFromPaths(&E.keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("a");
+	E.window_rows = 8;
+	E.window_cols = 80;
+
+	struct editorPaneNode *original = E.focused_leaf;
+	struct editorPaneNode *sibling = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(sibling != NULL);
+	/* Refocus original so growing it changes ratio in the "first" direction. */
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(original));
+
+	struct editorPaneNode *parent = editorPaneTreeFindParent(E.layout_root, original);
+	ASSERT_TRUE(parent != NULL);
+	double baseline = parent->as.split.ratio;
+
+	char ctrl_alt_y[] = {'\x1b', CTRL_KEY('y')};
+	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_alt_y, sizeof(ctrl_alt_y)) == 0);
+	ASSERT_TRUE(parent->as.split.ratio > baseline + 1e-9);
+
+	double after_grow = parent->as.split.ratio;
+	char ctrl_alt_u[] = {'\x1b', CTRL_KEY('u')};
+	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_alt_u, sizeof(ctrl_alt_u)) == 0);
+	ASSERT_TRUE(parent->as.split.ratio < after_grow - 1e-9);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 static int test_editor_process_keypress_toggle_drawer_shortcut_collapses_and_expands(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -1763,6 +1809,8 @@ const struct editorTestCase g_input_actions_tests[] = {
          test_editor_task_runner_truncates_large_output},
         {"editor_process_keypress_resize_drawer_shortcuts",
          test_editor_process_keypress_resize_drawer_shortcuts},
+        {"editor_process_keypress_pane_grow_shrink_via_custom_keymap",
+         test_editor_process_keypress_pane_grow_shrink_via_custom_keymap},
         {"editor_process_keypress_toggle_drawer_shortcut_collapses_and_expands",
          test_editor_process_keypress_toggle_drawer_shortcut_collapses_and_expands},
         {"editor_process_keypress_toggle_drawer_preserves_search_modes",
