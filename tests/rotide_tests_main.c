@@ -143,6 +143,11 @@ static int suitePassesTagFilter(const struct editorTestSuite *suite,
 
 int main(int argc, char **argv) {
 	setlocale(LC_CTYPE, "");
+	/* Line-buffer stdout so PASS/FAIL lines flush at each newline. Without
+	 * this, captured output (the parallel-runner log file or CI stdout
+	 * redirection) is fully buffered, and unbuffered stderr writes from
+	 * ASSERT macros can split a half-flushed PASS/FAIL line mid-write. */
+	setvbuf(stdout, NULL, _IOLBF, 0);
 	struct timespec wall_start;
 	clock_gettime(CLOCK_MONOTONIC, &wall_start);
 	char *startup_cwd = getcwd(NULL, 0);

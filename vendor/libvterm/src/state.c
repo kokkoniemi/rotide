@@ -1230,6 +1230,12 @@ static int on_csi(const char *leader, const long args[], int argcount, const cha
     break;
 
   case 0x62: { // REP - ECMA-48 8.3.103
+    /* rotide patch: REP repeats the preceding character. If nothing has
+     * been put yet, combine_width is 0, which made the loop below spin
+     * forever. Fuzz timeout artifact:
+     * d6dd887135d3375a5848472714d47bd5420d5a2c. Guard and bail. */
+    if (state->combine_width <= 0)
+      break;
     const int row_width = THISROWWIDTH(state);
     count = CSI_ARG_COUNT(args[0]);
     col = state->pos.col + count;

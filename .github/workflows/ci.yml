@@ -71,6 +71,14 @@ jobs:
       - name: Run determinism gate
         run: make test-determinism
 
+      - name: Upload determinism artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: determinism-artifacts
+          path: tests/artifacts/determinism/
+          if-no-files-found: ignore
+
   crash-handler:
     runs-on: ubuntu-latest
 

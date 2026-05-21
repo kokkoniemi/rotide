@@ -31,6 +31,7 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <unistd.h>
 
 static char *g_test_repo_root = NULL;
@@ -516,7 +517,21 @@ int editor_process_keypress_with_input(const char *input, size_t len) {
 		return -1;
 	}
 
-	editorProcessKeypress();
+	/* Always dispatch at least once: empty-input callers (the EOF tests)
+	 * rely on a single editorProcessKeypress to read EOF and trigger
+	 * editorExitOnInputShutdown. After that, editorReadKey can return
+	 * *_EVENT without consuming the queued byte if task/syntax polling
+	 * fires first; loop while bytes remain so every queued byte gets a
+	 * real keypress dispatch. FIONREAD distinguishes "bytes still
+	 * queued" from "EOF only" — stopping on the latter avoids retriggering
+	 * the EOF-exit path. */
+	do {
+		editorProcessKeypress();
+		int avail = 0;
+		if (ioctl(STDIN_FILENO, FIONREAD, &avail) == -1 || avail <= 0) {
+			break;
+		}
+	} while (1);
 
 	if (restore_stdin(saved_stdin) == -1) {
 		return -1;
