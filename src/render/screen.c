@@ -72,6 +72,17 @@ struct screenFileRowFrameCache {
 	size_t *row_lens;
 };
 
+struct screenRenderSliceArgs {
+	struct writeBuf *wb;
+	const struct editorRow *row;
+	const struct editorRowSyntaxSpan *syntax_spans;
+	int syntax_span_count;
+	const struct editorRowSyntaxSpan *diagnostic_spans;
+	int diagnostic_span_count;
+	int hover_render_start;
+	int hover_render_end;
+};
+
 static struct screenFileRowFrameCache g_screen_file_row_frame_cache = {0};
 static int g_screen_last_refresh_file_row_draw_count = 0;
 int g_screen_drawing_current_line_highlight = 0;
@@ -442,15 +453,21 @@ static int screenAppendUnderlineColor(struct writeBuf *wb, int red) {
 	return wbAppend(wb, VT100_UNDERLINE_COLOR_DEFAULT_5, 5);
 }
 
-static int screenDrawRenderSliceWithSyntax(struct writeBuf *wb, const struct editorRow *row,
-                                           int segment_start, int segment_end,
-                                           const struct editorRowSyntaxSpan *spans, int span_count,
-                                           const struct editorRowSyntaxSpan *diagnostic_spans,
-                                           int diagnostic_span_count, int hover_render_start,
-                                           int hover_render_end) {
+static int screenDrawRenderSliceWithSyntax(const struct screenRenderSliceArgs *args,
+                                           int segment_start, int segment_end) {
 	if (segment_end <= segment_start) {
 		return 1;
 	}
+
+	struct writeBuf *wb = args->wb;
+	const struct editorRow *row = args->row;
+	const struct editorRowSyntaxSpan *spans = args->syntax_spans;
+	int span_count = args->syntax_span_count;
+	const struct editorRowSyntaxSpan *diagnostic_spans = args->diagnostic_spans;
+	int diagnostic_span_count = args->diagnostic_span_count;
+	int hover_render_start = args->hover_render_start;
+	int hover_render_end = args->hover_render_end;
+
 	if ((spans == NULL || span_count <= 0 || E.syntax_state == NULL ||
 	     E.syntax_language == EDITOR_SYNTAX_NONE) &&
 	    (diagnostic_spans == NULL || diagnostic_span_count <= 0)) {
@@ -633,11 +650,20 @@ static int screenDrawRenderSlice(struct writeBuf *wb, struct editorRow *row, int
 		}
 	}
 
+	struct screenRenderSliceArgs slice = {
+	        .wb = wb,
+	        .row = row,
+	        .syntax_spans = syntax_spans,
+	        .syntax_span_count = syntax_span_count,
+	        .diagnostic_spans = diagnostic_spans,
+	        .diagnostic_span_count = diagnostic_span_count,
+	        .hover_render_start = hover_render_start,
+	        .hover_render_end = hover_render_end,
+	};
+
 	if (highlight_len_chars <= 0) {
 		editorLineViewRelease(&row_line);
-		return screenDrawRenderSliceWithSyntax(
-		        wb, row, start, end, syntax_spans, syntax_span_count, diagnostic_spans,
-		        diagnostic_span_count, hover_render_start, hover_render_end);
+		return screenDrawRenderSliceWithSyntax(&slice, start, end);
 	}
 
 	int match_start_chars = highlight_start_chars;
@@ -667,24 +693,17 @@ static int screenDrawRenderSlice(struct writeBuf *wb, struct editorRow *row, int
 	                                     : 0;
 	editorLineViewRelease(&row_line);
 	if (match_render_end <= match_render_start) {
-		return screenDrawRenderSliceWithSyntax(
-		        wb, row, start, end, syntax_spans, syntax_span_count, diagnostic_spans,
-		        diagnostic_span_count, hover_render_start, hover_render_end);
+		return screenDrawRenderSliceWithSyntax(&slice, start, end);
 	}
 
 	int highlight_start = start > match_render_start ? start : match_render_start;
 	int highlight_end = end < match_render_end ? end : match_render_end;
 	if (highlight_end <= highlight_start) {
-		return screenDrawRenderSliceWithSyntax(
-		        wb, row, start, end, syntax_spans, syntax_span_count, diagnostic_spans,
-		        diagnostic_span_count, hover_render_start, hover_render_end);
+		return screenDrawRenderSliceWithSyntax(&slice, start, end);
 	}
 
 	if (highlight_start > start &&
-	    !screenDrawRenderSliceWithSyntax(wb, row, start, highlight_start, syntax_spans,
-	                                     syntax_span_count, diagnostic_spans,
-	                                     diagnostic_span_count, hover_render_start,
-	                                     hover_render_end)) {
+	    !screenDrawRenderSliceWithSyntax(&slice, start, highlight_start)) {
 		return 0;
 	}
 	if (!editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_SELECTION)) {
@@ -696,10 +715,7 @@ static int screenDrawRenderSlice(struct writeBuf *wb, struct editorRow *row, int
 	if (!screenAppendTextRowReset(wb)) {
 		return 0;
 	}
-	if (highlight_end < end &&
-	    !screenDrawRenderSliceWithSyntax(
-	            wb, row, highlight_end, end, syntax_spans, syntax_span_count, diagnostic_spans,
-	            diagnostic_span_count, hover_render_start, hover_render_end)) {
+	if (highlight_end < end && !screenDrawRenderSliceWithSyntax(&slice, highlight_end, end)) {
 		return 0;
 	}
 
