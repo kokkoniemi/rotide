@@ -1,21 +1,21 @@
 #include "workspace/tabs.h"
 
+#include "debug/dap.h"
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
 #include "editing/history.h"
-#include "debug/dap.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
 #include "language/syntax_worker.h"
 #include "render/screen.h"
-#include "support/size_utils.h"
-#include "workspace/layout.h"
 #include "support/alloc.h"
 #include "support/file_io.h"
+#include "support/size_utils.h"
 #include "text/document.h"
 #include "text/row.h"
 #include "text/utf8.h"
 #include "workspace/git.h"
+#include "workspace/layout.h"
 #include "workspace/task.h"
 #include "workspace/workspace_state.h"
 
@@ -31,42 +31,42 @@
 
 #define EDITOR_UNSUPPORTED_FILE_TEXT "File is unsupported\n\nBinary files are not supported.\n"
 
-static void editorTabStateInitEmpty(struct editorTabState *tab);
-static void editorTabStateFree(struct editorTabState *tab);
-static void editorTabStateCaptureActive(struct editorTabState *tab);
-static void editorTabStateLoadActive(struct editorTabState *tab);
-static int editorEnsureTabCapacity(int needed);
-static void editorStoreActiveTab(void);
-static void editorLoadActiveTab(int tab_idx);
-static int editorTabCanReuseActiveEmptyBuffer(void);
-static int editorTabKindCanReuseAsPreview(enum editorTabKind tab_kind);
-static int editorTabFindReusablePreviewIndex(void);
-static const char *editorTabPathAt(int idx);
-static int editorTabFindOpenFileIndex(const char *path);
-static int editorTabFindEditableFileIndex(const char *path);
-static int editorTabLoadUnsupportedFilePreview(const char *filename);
-static void editorTaskLogClampCursor(struct editorTabState *tab);
-static int editorRebuildGeneratedTabRows(struct editorTabState *tab);
-static int editorTaskMutateTab(int tab_idx, int jump_to_end,
-		int (*mutator)(struct editorTabState *tab, void *ctx), void *ctx);
-static void editorTaskResetState(void);
-static void editorTaskFinalize(int success, int exit_code);
-static void editorTaskSetFinalStatus(int success);
-static int editorTaskPrepareLogTab(const char *title, const char *text);
-static const char *editorTabLabelFromDisplayName(const char *display_name);
-static int editorSanitizedTokenDisplayCols(const char *text, int text_len, int *src_len_out);
-static int editorSanitizedTextDisplayCols(const char *text, int max_cols);
-static int editorTabLabelColsAt(int tab_idx);
-static int editorTabWidthColsAt(int tab_idx);
-static void editorTabVisibleRangeFromStart(int start_idx, int cols, int *last_idx_out);
-static void editorTabsAlignViewToActiveForWidth(int cols);
-static void editorBufferInitEmpty(struct editorBuffer *buffer);
-static void editorBufferCopy(struct editorBuffer *dst, const struct editorBuffer *src);
-static void editorBufferMove(struct editorBuffer *dst, struct editorBuffer *src);
-static void editorBufferFreeRows(struct editorBuffer *buffer);
-static void editorBufferClearOwnedState(struct editorBuffer *buffer);
+static void tabsStateInitEmpty(struct editorTabState *tab);
+static void tabsStateFree(struct editorTabState *tab);
+static void tabsStateCaptureActive(struct editorTabState *tab);
+static void tabsStateLoadActive(struct editorTabState *tab);
+static int tabsEnsureTabCapacity(int needed);
+static void tabsStoreActiveTab(void);
+static void tabsLoadActiveTab(int tab_idx);
+static int tabsCanReuseActiveEmptyBuffer(void);
+static int tabsKindCanReuseAsPreview(enum editorTabKind tab_kind);
+static int tabsFindReusablePreviewIndex(void);
+static const char *tabsPathAt(int idx);
+static int tabsFindOpenFileIndex(const char *path);
+static int tabsFindEditableFileIndex(const char *path);
+static int tabsLoadUnsupportedFilePreview(const char *filename);
+static void tabsTaskLogClampCursor(struct editorTabState *tab);
+static int tabsRebuildGeneratedTabRows(struct editorTabState *tab);
+static int tabsTaskMutateTab(int tab_idx, int jump_to_end,
+                             int (*mutator)(struct editorTabState *tab, void *ctx), void *ctx);
+static void tabsTaskResetState(void);
+static void tabsTaskFinalize(int success, int exit_code);
+static void tabsTaskSetFinalStatus(int success);
+static int tabsTaskPrepareLogTab(const char *title, const char *text);
+static const char *tabsLabelFromDisplayName(const char *display_name);
+static int tabsSanitizedTokenDisplayCols(const char *text, int text_len, int *src_len_out);
+static int tabsSanitizedTextDisplayCols(const char *text, int max_cols);
+static int tabsLabelColsAt(int tab_idx);
+static int tabsWidthColsAt(int tab_idx);
+static void tabsVisibleRangeFromStart(int start_idx, int cols, int *last_idx_out);
+static void tabsAlignViewToActiveForWidth(int cols);
+static void tabsBufferInitEmpty(struct editorBuffer *buffer);
+static void tabsBufferCopy(struct editorBuffer *dst, const struct editorBuffer *src);
+static void tabsBufferMove(struct editorBuffer *dst, struct editorBuffer *src);
+static void tabsBufferFreeRows(struct editorBuffer *buffer);
+static void tabsBufferClearOwnedState(struct editorBuffer *buffer);
 
-static void editorBufferInitEmpty(struct editorBuffer *buffer) {
+static void tabsBufferInitEmpty(struct editorBuffer *buffer) {
 	memset(buffer, 0, sizeof(*buffer));
 	buffer->tab_kind = EDITOR_TAB_FILE;
 	buffer->cursor_offset = 0;
@@ -77,16 +77,16 @@ static void editorBufferInitEmpty(struct editorBuffer *buffer) {
 	buffer->edit_pending_mode = EDITOR_EDIT_PENDING_NONE;
 }
 
-static void editorBufferCopy(struct editorBuffer *dst, const struct editorBuffer *src) {
+static void tabsBufferCopy(struct editorBuffer *dst, const struct editorBuffer *src) {
 	*dst = *src;
 }
 
-static void editorBufferMove(struct editorBuffer *dst, struct editorBuffer *src) {
-	editorBufferCopy(dst, src);
-	editorBufferInitEmpty(src);
+static void tabsBufferMove(struct editorBuffer *dst, struct editorBuffer *src) {
+	tabsBufferCopy(dst, src);
+	tabsBufferInitEmpty(src);
 }
 
-static void editorBufferFreeRows(struct editorBuffer *buffer) {
+static void tabsBufferFreeRows(struct editorBuffer *buffer) {
 	for (int i = 0; i < buffer->numrows; i++) {
 		free(buffer->rows[i].render);
 		free(buffer->rows[i].wrap_cache_segments);
@@ -96,7 +96,7 @@ static void editorBufferFreeRows(struct editorBuffer *buffer) {
 	buffer->numrows = 0;
 }
 
-static void editorBufferClearOwnedState(struct editorBuffer *buffer) {
+static void tabsBufferClearOwnedState(struct editorBuffer *buffer) {
 	if (buffer->lsp_diagnostics != NULL) {
 		for (int i = 0; i < buffer->lsp_diagnostic_count; i++) {
 			free(buffer->lsp_diagnostics[i].message);
@@ -109,7 +109,7 @@ static void editorBufferClearOwnedState(struct editorBuffer *buffer) {
 		buffer->lsp_symbols = NULL;
 		buffer->lsp_symbol_count = 0;
 	}
-	editorBufferFreeRows(buffer);
+	tabsBufferFreeRows(buffer);
 	editorDocumentFreePtr(&buffer->document);
 	free(buffer->filename);
 	buffer->filename = NULL;
@@ -124,15 +124,15 @@ static void editorBufferClearOwnedState(struct editorBuffer *buffer) {
 	editorHistoryClear(&buffer->redo_history);
 	editorHistoryEntryFree(&buffer->edit_pending_entry);
 	buffer->edit_pending_entry_valid = 0;
-	editorBufferInitEmpty(buffer);
+	tabsBufferInitEmpty(buffer);
 }
 
-static void editorTabStateInitEmpty(struct editorTabState *tab) {
-	editorBufferInitEmpty(&tab->buffer);
+static void tabsStateInitEmpty(struct editorTabState *tab) {
+	tabsBufferInitEmpty(&tab->buffer);
 }
 
 void editorResetActiveBufferFields(void) {
-	editorBufferInitEmpty(&E.active_buffer);
+	tabsBufferInitEmpty(&E.active_buffer);
 }
 
 struct editorBuffer *editorActiveBufferHandle(void) {
@@ -164,31 +164,31 @@ void editorBufferAliasSnapshot(struct editorBuffer *snap) {
 	if (snap == NULL) {
 		return;
 	}
-	editorBufferCopy(snap, editorActiveBufferHandleConst());
+	tabsBufferCopy(snap, editorActiveBufferHandleConst());
 }
 
 void editorBufferAliasToActive(const struct editorBuffer *buffer) {
 	if (buffer == NULL) {
 		return;
 	}
-	editorBufferCopy(editorActiveBufferHandle(), buffer);
+	tabsBufferCopy(editorActiveBufferHandle(), buffer);
 }
 
-static void editorFreeTabRows(struct editorTabState *tab) {
-	editorBufferFreeRows(&tab->buffer);
+static void tabsFreeTabRows(struct editorTabState *tab) {
+	tabsBufferFreeRows(&tab->buffer);
 }
 
-static void editorTabStateFree(struct editorTabState *tab) {
-	editorBufferClearOwnedState(&tab->buffer);
+static void tabsStateFree(struct editorTabState *tab) {
+	tabsBufferClearOwnedState(&tab->buffer);
 }
 
 void editorFreeActiveBufferState(void) {
-	editorBufferClearOwnedState(&E.active_buffer);
+	tabsBufferClearOwnedState(&E.active_buffer);
 	editorSyntaxVisibleCacheInvalidate();
 }
 
-static void editorTabStateCaptureActive(struct editorTabState *tab) {
-	editorTabStateFree(tab);
+static void tabsStateCaptureActive(struct editorTabState *tab) {
+	tabsStateFree(tab);
 
 	if (E.document != NULL) {
 		size_t cursor_offset = 0;
@@ -196,7 +196,7 @@ static void editorTabStateCaptureActive(struct editorTabState *tab) {
 			E.cursor_offset = cursor_offset;
 		}
 	}
-	editorBufferMove(&tab->buffer, &E.active_buffer);
+	tabsBufferMove(&tab->buffer, &E.active_buffer);
 }
 
 void editorTabStateAliasSnapshot(struct editorTabState *snap) {
@@ -213,8 +213,8 @@ void editorTabStateAliasToActive(const struct editorTabState *tab) {
 	editorBufferAliasToActive(&tab->buffer);
 }
 
-static void editorTabStateLoadActive(struct editorTabState *tab) {
-	editorBufferMove(&E.active_buffer, &tab->buffer);
+static void tabsStateLoadActive(struct editorTabState *tab) {
+	tabsBufferMove(&E.active_buffer, &tab->buffer);
 	editorSyntaxVisibleCacheInvalidate();
 	if (E.document != NULL) {
 		if (!editorSyncCursorFromOffset(E.cursor_offset)) {
@@ -225,7 +225,7 @@ static void editorTabStateLoadActive(struct editorTabState *tab) {
 	}
 }
 
-static int editorEnsureTabCapacity(int needed) {
+static int tabsEnsureTabCapacity(int needed) {
 	if (needed <= E.tab_capacity) {
 		return 1;
 	}
@@ -248,7 +248,7 @@ static int editorEnsureTabCapacity(int needed) {
 	size_t cap_size = 0;
 	size_t tabs_bytes = 0;
 	if (!editorIntToSize(new_capacity, &cap_size) ||
-			!editorSizeMul(sizeof(struct editorTabState), cap_size, &tabs_bytes)) {
+	    !editorSizeMul(sizeof(struct editorTabState), cap_size, &tabs_bytes)) {
 		return 0;
 	}
 
@@ -258,7 +258,7 @@ static int editorEnsureTabCapacity(int needed) {
 	}
 
 	for (int i = E.tab_capacity; i < new_capacity; i++) {
-		editorTabStateInitEmpty(&new_tabs[i]);
+		tabsStateInitEmpty(&new_tabs[i]);
 	}
 
 	E.tabs = new_tabs;
@@ -266,18 +266,17 @@ static int editorEnsureTabCapacity(int needed) {
 	return 1;
 }
 
-static void editorStoreActiveTab(void) {
-	if (E.tabs == NULL || E.tab_count <= 0 ||
-			E.active_tab < 0 || E.active_tab >= E.tab_count) {
+static void tabsStoreActiveTab(void) {
+	if (E.tabs == NULL || E.tab_count <= 0 || E.active_tab < 0 || E.active_tab >= E.tab_count) {
 		return;
 	}
 	if (E.is_preview && E.dirty != 0) {
 		E.is_preview = 0;
 	}
-	editorTabStateCaptureActive(&E.tabs[E.active_tab]);
+	tabsStateCaptureActive(&E.tabs[E.active_tab]);
 }
 
-static void editorLoadActiveTab(int tab_idx) {
+static void tabsLoadActiveTab(int tab_idx) {
 	if (E.tabs == NULL || tab_idx < 0 || tab_idx >= E.tab_count) {
 		editorResetActiveBufferFields();
 		editorViewportSetMode(EDITOR_VIEWPORT_FOLLOW_CURSOR);
@@ -290,7 +289,7 @@ static void editorLoadActiveTab(int tab_idx) {
 		(void)editorPaneViewAddTab(&E.focused_leaf->as.leaf.view, tab_idx);
 		E.focused_leaf->as.leaf.view.active_tab_idx = tab_idx;
 	}
-	editorTabStateLoadActive(&E.tabs[tab_idx]);
+	tabsStateLoadActive(&E.tabs[tab_idx]);
 	if (editorActiveTabIsReadOnly() && E.tab_kind != EDITOR_TAB_GIT_DIFF) {
 		E.syntax_language = EDITOR_SYNTAX_NONE;
 		editorSyntaxStateDestroy(E.syntax_state);
@@ -313,11 +312,14 @@ static void editorLoadActiveTab(int tab_idx) {
 	if (E.numrows > 0) {
 		first_line_copy = editorDocumentLineDup(E.document, 0, NULL);
 	}
-	enum editorSyntaxLanguage detected = E.tab_kind == EDITOR_TAB_GIT_DIFF ?
-			EDITOR_SYNTAX_DIFF :
-			editorSyntaxDetectLanguageFromFilenameAndFirstLine(E.filename, first_line_copy);
+	enum editorSyntaxLanguage detected =
+	        E.tab_kind == EDITOR_TAB_GIT_DIFF
+	                ? EDITOR_SYNTAX_DIFF
+	                : editorSyntaxDetectLanguageFromFilenameAndFirstLine(E.filename,
+	                                                                     first_line_copy);
 	free(first_line_copy);
-	if (E.syntax_language != detected || (detected != EDITOR_SYNTAX_NONE && E.syntax_state == NULL)) {
+	if (E.syntax_language != detected ||
+	    (detected != EDITOR_SYNTAX_NONE && E.syntax_state == NULL)) {
 		(void)editorSyntaxParseFullActive();
 	}
 	/*
@@ -331,7 +333,7 @@ static void editorLoadActiveTab(int tab_idx) {
 
 int editorTabsInit(void) {
 	editorTabsFreeAll();
-	if (!editorEnsureTabCapacity(1)) {
+	if (!tabsEnsureTabCapacity(1)) {
 		editorSetAllocFailureStatus();
 		return 0;
 	}
@@ -339,8 +341,8 @@ int editorTabsInit(void) {
 	E.tab_count = 1;
 	E.active_tab = 0;
 	E.tab_view_start = 0;
-	editorTabStateInitEmpty(&E.tabs[0]);
-	editorLoadActiveTab(0);
+	tabsStateInitEmpty(&E.tabs[0]);
+	tabsLoadActiveTab(0);
 	return 1;
 }
 
@@ -350,11 +352,11 @@ void editorTabsFreeAll(void) {
 		(void)kill(E.task_pid, SIGTERM);
 		(void)waitpid(E.task_pid, &status, 0);
 	}
-	editorTaskResetState();
+	tabsTaskResetState();
 
 	editorLspNotifyDidClose(E.filename, E.syntax_language, &E.lsp_doc_open, &E.lsp_doc_version);
 	editorLspNotifyEslintDidClose(E.filename, E.syntax_language, &E.lsp_eslint_doc_open,
-			&E.lsp_eslint_doc_version);
+	                              &E.lsp_eslint_doc_version);
 	if (E.tabs != NULL) {
 		for (int i = 0; i < E.tab_count; i++) {
 			editorLspNotifyDidCloseTabState(&E.tabs[i]);
@@ -368,7 +370,7 @@ void editorTabsFreeAll(void) {
 
 	if (E.tabs != NULL) {
 		for (int i = 0; i < E.tab_count; i++) {
-			editorTabStateFree(&E.tabs[i]);
+			tabsStateFree(&E.tabs[i]);
 		}
 	}
 	free(E.tabs);
@@ -390,22 +392,22 @@ int editorTabNewEmpty(void) {
 		return editorTabsInit();
 	}
 
-	editorStoreActiveTab();
+	tabsStoreActiveTab();
 	int new_idx = E.tab_count;
-	if (!editorEnsureTabCapacity(E.tab_count + 1)) {
-		editorLoadActiveTab(E.active_tab);
+	if (!tabsEnsureTabCapacity(E.tab_count + 1)) {
+		tabsLoadActiveTab(E.active_tab);
 		editorSetAllocFailureStatus();
 		return 0;
 	}
 
-	editorTabStateInitEmpty(&E.tabs[new_idx]);
+	tabsStateInitEmpty(&E.tabs[new_idx]);
 	E.tab_count++;
 	E.active_tab = new_idx;
-	editorLoadActiveTab(E.active_tab);
+	tabsLoadActiveTab(E.active_tab);
 	return 1;
 }
 
-static int editorTabCanReuseActiveEmptyBuffer(void) {
+static int tabsCanReuseActiveEmptyBuffer(void) {
 	if (E.tab_count <= 0) {
 		return 0;
 	}
@@ -426,21 +428,20 @@ static int editorTabCanReuseActiveEmptyBuffer(void) {
 	return 1;
 }
 
-static int editorTabKindCanReuseAsPreview(enum editorTabKind tab_kind) {
+static int tabsKindCanReuseAsPreview(enum editorTabKind tab_kind) {
 	return tab_kind == EDITOR_TAB_FILE || tab_kind == EDITOR_TAB_UNSUPPORTED_FILE;
 }
 
-static int editorTabFindReusablePreviewIndex(void) {
+static int tabsFindReusablePreviewIndex(void) {
 	for (int tab_idx = 0; tab_idx < E.tab_count; tab_idx++) {
 		if (tab_idx == E.active_tab) {
-			if (editorTabKindCanReuseAsPreview(E.tab_kind) && E.is_preview && E.dirty == 0) {
+			if (tabsKindCanReuseAsPreview(E.tab_kind) && E.is_preview && E.dirty == 0) {
 				return tab_idx;
 			}
 			continue;
 		}
-		if (editorTabKindCanReuseAsPreview(E.tabs[tab_idx].tab_kind) &&
-				E.tabs[tab_idx].is_preview &&
-				E.tabs[tab_idx].dirty == 0) {
+		if (tabsKindCanReuseAsPreview(E.tabs[tab_idx].tab_kind) &&
+		    E.tabs[tab_idx].is_preview && E.tabs[tab_idx].dirty == 0) {
 			return tab_idx;
 		}
 	}
@@ -448,13 +449,13 @@ static int editorTabFindReusablePreviewIndex(void) {
 }
 
 void editorTabPinActivePreview(void) {
-	if (editorTabKindCanReuseAsPreview(E.tab_kind)) {
+	if (tabsKindCanReuseAsPreview(E.tab_kind)) {
 		E.is_preview = 0;
 	}
 }
 
 int editorActiveTabIsPreview(void) {
-	return editorTabKindCanReuseAsPreview(E.tab_kind) && E.is_preview;
+	return tabsKindCanReuseAsPreview(E.tab_kind) && E.is_preview;
 }
 
 int editorTabIsPreviewAt(int idx) {
@@ -464,10 +465,10 @@ int editorTabIsPreviewAt(int idx) {
 	if (idx == E.active_tab) {
 		return editorActiveTabIsPreview();
 	}
-	return editorTabKindCanReuseAsPreview(E.tabs[idx].tab_kind) && E.tabs[idx].is_preview;
+	return tabsKindCanReuseAsPreview(E.tabs[idx].tab_kind) && E.tabs[idx].is_preview;
 }
 
-static int editorTabLoadUnsupportedFilePreview(const char *filename) {
+static int tabsLoadUnsupportedFilePreview(const char *filename) {
 	struct editorDocument document;
 	int document_inited = 0;
 	char *filename_copy = NULL;
@@ -485,14 +486,14 @@ static int editorTabLoadUnsupportedFilePreview(const char *filename) {
 	editorDocumentInit(&document);
 	document_inited = 1;
 	if (!editorDocumentResetFromString(&document, EDITOR_UNSUPPORTED_FILE_TEXT,
-				strlen(EDITOR_UNSUPPORTED_FILE_TEXT))) {
+	                                   strlen(EDITOR_UNSUPPORTED_FILE_TEXT))) {
 		editorSetAllocFailureStatus();
 		goto cleanup;
 	}
 
 	editorLspNotifyDidClose(E.filename, E.syntax_language, &E.lsp_doc_open, &E.lsp_doc_version);
 	editorLspNotifyEslintDidClose(E.filename, E.syntax_language, &E.lsp_eslint_doc_open,
-			&E.lsp_eslint_doc_version);
+	                              &E.lsp_eslint_doc_version);
 	editorFreeActiveBufferState();
 	E.tab_kind = EDITOR_TAB_UNSUPPORTED_FILE;
 	E.is_preview = 1;
@@ -513,7 +514,7 @@ cleanup:
 }
 
 int editorTabOpenFileAsNew(const char *filename) {
-	if (editorTabCanReuseActiveEmptyBuffer()) {
+	if (tabsCanReuseActiveEmptyBuffer()) {
 		if (!editorOpen(filename)) {
 			return 0;
 		}
@@ -540,7 +541,7 @@ int editorTabOpenOrSwitchToFile(const char *filename) {
 		return 0;
 	}
 
-	int existing_tab = editorTabFindEditableFileIndex(filename);
+	int existing_tab = tabsFindEditableFileIndex(filename);
 	if (existing_tab >= 0) {
 		if (!editorTabSwitchToIndex(existing_tab)) {
 			return 0;
@@ -558,7 +559,7 @@ int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
 		return 0;
 	}
 
-	int existing_tab = editorTabFindOpenFileIndex(filename);
+	int existing_tab = tabsFindOpenFileIndex(filename);
 	if (existing_tab >= 0) {
 		return editorTabSwitchToIndex(existing_tab);
 	}
@@ -571,7 +572,7 @@ int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
 		can_open = editorFileCanOpen(filename);
 	}
 
-	int preview_tab = editorTabFindReusablePreviewIndex();
+	int preview_tab = tabsFindReusablePreviewIndex();
 	if (preview_tab >= 0) {
 		if (can_open) {
 			if (!editorTabSwitchToIndex(preview_tab)) {
@@ -589,10 +590,10 @@ int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
 		if (!editorTabSwitchToIndex(preview_tab)) {
 			return 0;
 		}
-		return editorTabLoadUnsupportedFilePreview(filename);
+		return tabsLoadUnsupportedFilePreview(filename);
 	}
 
-	if (editorTabCanReuseActiveEmptyBuffer()) {
+	if (tabsCanReuseActiveEmptyBuffer()) {
 		if (can_open) {
 			if (!editorOpen(filename)) {
 				return 0;
@@ -603,7 +604,7 @@ int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
 		if (!is_binary) {
 			return 0;
 		}
-		return editorTabLoadUnsupportedFilePreview(filename);
+		return tabsLoadUnsupportedFilePreview(filename);
 	}
 	if (!can_open && !is_binary) {
 		return 0;
@@ -618,10 +619,10 @@ int editorTabOpenOrSwitchToPreviewFile(const char *filename) {
 		E.is_preview = 1;
 		return 1;
 	}
-	return editorTabLoadUnsupportedFilePreview(filename);
+	return tabsLoadUnsupportedFilePreview(filename);
 }
 
-static const char *editorTabPathAt(int idx) {
+static const char *tabsPathAt(int idx) {
 	if (idx < 0 || idx >= E.tab_count) {
 		return NULL;
 	}
@@ -631,13 +632,13 @@ static const char *editorTabPathAt(int idx) {
 	return E.tabs[idx].filename;
 }
 
-static int editorTabFindOpenFileIndex(const char *path) {
+static int tabsFindOpenFileIndex(const char *path) {
 	if (path == NULL || path[0] == '\0') {
 		return -1;
 	}
 
 	for (int tab_idx = 0; tab_idx < E.tab_count; tab_idx++) {
-		const char *tab_path = editorTabPathAt(tab_idx);
+		const char *tab_path = tabsPathAt(tab_idx);
 		if (tab_path == NULL || tab_path[0] == '\0') {
 			continue;
 		}
@@ -649,18 +650,18 @@ static int editorTabFindOpenFileIndex(const char *path) {
 	return -1;
 }
 
-static int editorTabFindEditableFileIndex(const char *path) {
+static int tabsFindEditableFileIndex(const char *path) {
 	if (path == NULL || path[0] == '\0') {
 		return -1;
 	}
 
 	for (int tab_idx = 0; tab_idx < E.tab_count; tab_idx++) {
-		enum editorTabKind tab_kind = tab_idx == E.active_tab ? E.tab_kind :
-				E.tabs[tab_idx].tab_kind;
+		enum editorTabKind tab_kind =
+		        tab_idx == E.active_tab ? E.tab_kind : E.tabs[tab_idx].tab_kind;
 		if (tab_kind != EDITOR_TAB_FILE) {
 			continue;
 		}
-		const char *tab_path = editorTabPathAt(tab_idx);
+		const char *tab_path = tabsPathAt(tab_idx);
 		if (tab_path == NULL || tab_path[0] == '\0') {
 			continue;
 		}
@@ -672,7 +673,7 @@ static int editorTabFindEditableFileIndex(const char *path) {
 	return -1;
 }
 
-static void editorTabRegisterWithFocusedPane(int idx) {
+static void tabsRegisterWithFocusedPane(int idx) {
 	if (idx < 0 || E.focused_leaf == NULL || E.focused_leaf->is_split) {
 		return;
 	}
@@ -685,14 +686,14 @@ int editorTabSwitchToIndex(int idx) {
 		return 0;
 	}
 	if (idx == E.active_tab) {
-		editorTabRegisterWithFocusedPane(idx);
+		tabsRegisterWithFocusedPane(idx);
 		return 1;
 	}
 
-	editorStoreActiveTab();
+	tabsStoreActiveTab();
 	E.active_tab = idx;
-	editorLoadActiveTab(E.active_tab);
-	editorTabRegisterWithFocusedPane(idx);
+	tabsLoadActiveTab(E.active_tab);
+	tabsRegisterWithFocusedPane(idx);
 	return 1;
 }
 
@@ -708,7 +709,7 @@ int editorTabSwitchByDelta(int delta) {
 	 * the global tab array. Fall back to global cycling when no pane is
 	 * focused or the pane has no recorded tabs. */
 	if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
-			E.focused_leaf->as.leaf.view.pane_tab_count > 0) {
+	    E.focused_leaf->as.leaf.view.pane_tab_count > 0) {
 		struct editorPaneView *view = &E.focused_leaf->as.leaf.view;
 		int local = editorPaneViewIndexOfTab(view, E.active_tab);
 		if (local < 0) {
@@ -752,7 +753,7 @@ int editorTabCloseActive(void) {
 	if (editorPaneTreeAnyPaneHasTab(E.layout_root, closing)) {
 		int next_local = -1;
 		if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
-				E.focused_leaf->as.leaf.view.pane_tab_count > 0) {
+		    E.focused_leaf->as.leaf.view.pane_tab_count > 0) {
 			next_local = E.focused_leaf->as.leaf.view.pane_tabs[0];
 		}
 		if (next_local < 0) {
@@ -770,35 +771,35 @@ int editorTabCloseActive(void) {
 		return 1;
 	}
 
-	editorStoreActiveTab();
+	tabsStoreActiveTab();
 	editorLspNotifyDidCloseTabState(&E.tabs[closing]);
-	editorTabStateFree(&E.tabs[closing]);
+	tabsStateFree(&E.tabs[closing]);
 
 	if (E.tab_count == 1) {
-		editorTabStateInitEmpty(&E.tabs[0]);
+		tabsStateInitEmpty(&E.tabs[0]);
 		E.active_tab = 0;
 		E.tab_count = 1;
 		E.tab_view_start = 0;
-		editorLoadActiveTab(0);
-		editorTabRegisterWithFocusedPane(0);
+		tabsLoadActiveTab(0);
+		tabsRegisterWithFocusedPane(0);
 		return 1;
 	}
 
 	memmove(&E.tabs[closing], &E.tabs[closing + 1],
-			sizeof(struct editorTabState) * (size_t)(E.tab_count - closing - 1));
+	        sizeof(struct editorTabState) * (size_t)(E.tab_count - closing - 1));
 	E.tab_count--;
 	editorPaneTreeShiftTabIndicesAfterClose(E.layout_root, closing);
 	int next_idx = -1;
 	if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
-			E.focused_leaf->as.leaf.view.pane_tab_count > 0) {
+	    E.focused_leaf->as.leaf.view.pane_tab_count > 0) {
 		next_idx = E.focused_leaf->as.leaf.view.pane_tabs[0];
 	}
 	if (next_idx < 0 || next_idx >= E.tab_count) {
 		next_idx = closing < E.tab_count ? closing : E.tab_count - 1;
 	}
 	E.active_tab = next_idx;
-	editorLoadActiveTab(E.active_tab);
-	editorTabRegisterWithFocusedPane(E.active_tab);
+	tabsLoadActiveTab(E.active_tab);
+	tabsRegisterWithFocusedPane(E.active_tab);
 	return 1;
 }
 
@@ -844,14 +845,14 @@ const char *editorTabDisplayNameAt(int idx) {
 	}
 	if (idx == E.active_tab) {
 		if ((E.tab_kind == EDITOR_TAB_TASK_LOG || E.tab_kind == EDITOR_TAB_GIT_DIFF) &&
-				E.tab_title != NULL && E.tab_title[0] != '\0') {
+		    E.tab_title != NULL && E.tab_title[0] != '\0') {
 			return E.tab_title;
 		}
 		return E.filename != NULL ? E.filename : "[No Name]";
 	}
 	if ((E.tabs[idx].tab_kind == EDITOR_TAB_TASK_LOG ||
-			E.tabs[idx].tab_kind == EDITOR_TAB_GIT_DIFF) &&
-			E.tabs[idx].tab_title != NULL && E.tabs[idx].tab_title[0] != '\0') {
+	     E.tabs[idx].tab_kind == EDITOR_TAB_GIT_DIFF) &&
+	    E.tabs[idx].tab_title != NULL && E.tabs[idx].tab_title[0] != '\0') {
 		return E.tabs[idx].tab_title;
 	}
 	return E.tabs[idx].filename != NULL ? E.tabs[idx].filename : "[No Name]";
@@ -859,7 +860,7 @@ const char *editorTabDisplayNameAt(int idx) {
 
 const char *editorActiveBufferDisplayName(void) {
 	if ((E.tab_kind == EDITOR_TAB_TASK_LOG || E.tab_kind == EDITOR_TAB_GIT_DIFF) &&
-			E.tab_title != NULL && E.tab_title[0] != '\0') {
+	    E.tab_title != NULL && E.tab_title[0] != '\0') {
 		return E.tab_title;
 	}
 	return E.filename != NULL ? E.filename : "[No Name]";
@@ -885,14 +886,15 @@ int editorActiveTabIsUnsupportedFile(void) {
 
 int editorActiveTabIsReadOnly(void) {
 	return E.tab_kind == EDITOR_TAB_TASK_LOG || E.tab_kind == EDITOR_TAB_UNSUPPORTED_FILE ||
-			E.tab_kind == EDITOR_TAB_GIT_DIFF;
+	       E.tab_kind == EDITOR_TAB_GIT_DIFF;
 }
 
 int editorActiveTaskTabIsRunning(void) {
-	return E.task_running && E.task_tab_idx == E.active_tab && E.tab_kind == EDITOR_TAB_TASK_LOG;
+	return E.task_running && E.task_tab_idx == E.active_tab &&
+	       E.tab_kind == EDITOR_TAB_TASK_LOG;
 }
 
-static void editorTaskLogClampCursor(struct editorTabState *tab) {
+static void tabsTaskLogClampCursor(struct editorTabState *tab) {
 	if (tab == NULL) {
 		return;
 	}
@@ -918,20 +920,20 @@ static void editorTaskLogClampCursor(struct editorTabState *tab) {
 	}
 }
 
-static int editorRebuildGeneratedTabRows(struct editorTabState *tab) {
+static int tabsRebuildGeneratedTabRows(struct editorTabState *tab) {
 	if (tab == NULL) {
 		return 0;
 	}
 	if (!editorTabDocumentEnsureCurrent(tab) || tab->document == NULL) {
 		return 0;
 	}
-	struct erow *new_rows = NULL;
+	struct editorRow *new_rows = NULL;
 	int new_numrows = 0;
 	if (!editorBuildFullRowsFromDocument(tab->document, &new_rows, &new_numrows)) {
 		return 0;
 	}
 
-	editorFreeTabRows(tab);
+	tabsFreeTabRows(tab);
 	tab->rows = new_rows;
 	tab->numrows = new_numrows;
 	tab->dirty = 0;
@@ -961,23 +963,23 @@ static int editorRebuildGeneratedTabRows(struct editorTabState *tab) {
 	}
 	tab->lsp_symbols = NULL;
 	tab->lsp_symbol_count = 0;
-	editorTaskLogClampCursor(tab);
+	tabsTaskLogClampCursor(tab);
 	return 1;
 }
 
-static int editorTaskMutateTab(int tab_idx, int jump_to_end,
-		int (*mutator)(struct editorTabState *tab, void *ctx), void *ctx) {
+static int tabsTaskMutateTab(int tab_idx, int jump_to_end,
+                             int (*mutator)(struct editorTabState *tab, void *ctx), void *ctx) {
 	if (mutator == NULL || tab_idx < 0 || tab_idx >= E.tab_count) {
 		return 0;
 	}
 
 	if (tab_idx == E.active_tab) {
-		editorStoreActiveTab();
+		tabsStoreActiveTab();
 		if (!mutator(&E.tabs[tab_idx], ctx)) {
-			editorLoadActiveTab(tab_idx);
+			tabsLoadActiveTab(tab_idx);
 			return 0;
 		}
-		editorLoadActiveTab(tab_idx);
+		tabsLoadActiveTab(tab_idx);
 		if (jump_to_end) {
 			if (E.numrows > 0) {
 				E.cy = E.numrows - 1;
@@ -994,14 +996,14 @@ static int editorTaskMutateTab(int tab_idx, int jump_to_end,
 	return mutator(&E.tabs[tab_idx], ctx);
 }
 
-struct editorTaskAppendContext {
+struct tabsTaskAppendContext {
 	const char *text;
 	size_t len;
 };
 
-static int editorTaskAppendOutputMutator(struct editorTabState *tab, void *ctx) {
+static int tabsTaskAppendOutputMutator(struct editorTabState *tab, void *ctx) {
 	static const char truncation_note[] = "\n[output truncated]\n";
-	struct editorTaskAppendContext *append = ctx;
+	struct tabsTaskAppendContext *append = ctx;
 	size_t log_limit = ROTIDE_TASK_LOG_MAX_BYTES - (sizeof(truncation_note) - 1);
 	size_t append_len = 0;
 	size_t old_len = 0;
@@ -1022,37 +1024,33 @@ static int editorTaskAppendOutputMutator(struct editorTabState *tab, void *ctx) 
 		if (append_len > log_limit - old_len) {
 			append_len = log_limit - old_len;
 		}
-		if (append_len > 0 &&
-				!editorDocumentReplaceRange(tab->document, old_len, 0,
-						append->text, append_len)) {
+		if (append_len > 0 && !editorDocumentReplaceRange(tab->document, old_len, 0,
+		                                                  append->text, append_len)) {
 			return 0;
 		}
 		E.task_output_bytes += append_len;
 	}
 
 	if (append_len < append->len) {
-		if (!editorDocumentReplaceRange(tab->document, editorDocumentLength(tab->document), 0,
-					truncation_note, sizeof(truncation_note) - 1)) {
+		if (!editorDocumentReplaceRange(tab->document, editorDocumentLength(tab->document),
+		                                0, truncation_note, sizeof(truncation_note) - 1)) {
 			return 0;
 		}
 		E.task_output_truncated = 1;
 	}
 
-	if (!editorRebuildGeneratedTabRows(tab)) {
+	if (!tabsRebuildGeneratedTabRows(tab)) {
 		return 0;
 	}
 	return 1;
 }
 
-static int editorTaskAppendOutput(int tab_idx, const char *text, size_t len, int jump_to_end) {
-	struct editorTaskAppendContext ctx = {
-		.text = text,
-		.len = len
-	};
-	return editorTaskMutateTab(tab_idx, jump_to_end, editorTaskAppendOutputMutator, &ctx);
+static int tabsTaskAppendOutput(int tab_idx, const char *text, size_t len, int jump_to_end) {
+	struct tabsTaskAppendContext ctx = {.text = text, .len = len};
+	return tabsTaskMutateTab(tab_idx, jump_to_end, tabsTaskAppendOutputMutator, &ctx);
 }
 
-static void editorTaskResetState(void) {
+static void tabsTaskResetState(void) {
 	if (E.task_running && E.task_output_fd > STDERR_FILENO) {
 		close(E.task_output_fd);
 	}
@@ -1075,7 +1073,7 @@ int editorTaskRunningTabIndex(void) {
 	return E.task_running ? E.task_tab_idx : -1;
 }
 
-static int editorTaskDrainOutput(int tab_idx, int jump_to_end, int *saw_eof_out) {
+static int tabsTaskDrainOutput(int tab_idx, int jump_to_end, int *saw_eof_out) {
 	char buf[4096];
 	int changed = 0;
 
@@ -1092,7 +1090,7 @@ static int editorTaskDrainOutput(int tab_idx, int jump_to_end, int *saw_eof_out)
 	for (;;) {
 		ssize_t nread = read(E.task_output_fd, buf, sizeof(buf));
 		if (nread > 0) {
-			if (!editorTaskAppendOutput(tab_idx, buf, (size_t)nread, jump_to_end)) {
+			if (!tabsTaskAppendOutput(tab_idx, buf, (size_t)nread, jump_to_end)) {
 				editorSetAllocFailureStatus();
 				return changed;
 			}
@@ -1122,7 +1120,7 @@ static int editorTaskDrainOutput(int tab_idx, int jump_to_end, int *saw_eof_out)
 	}
 }
 
-static int editorTaskAppendFinalLineMutator(struct editorTabState *tab, void *ctx) {
+static int tabsTaskAppendFinalLineMutator(struct editorTabState *tab, void *ctx) {
 	const char *line = ctx;
 	if (tab == NULL || line == NULL) {
 		return 0;
@@ -1130,38 +1128,38 @@ static int editorTaskAppendFinalLineMutator(struct editorTabState *tab, void *ct
 	if (!editorTabDocumentEnsureCurrent(tab) || tab->document == NULL) {
 		return 0;
 	}
-	if (!editorDocumentReplaceRange(tab->document, editorDocumentLength(tab->document), 0,
-				line, strlen(line))) {
+	if (!editorDocumentReplaceRange(tab->document, editorDocumentLength(tab->document), 0, line,
+	                                strlen(line))) {
 		return 0;
 	}
-	return editorRebuildGeneratedTabRows(tab);
+	return tabsRebuildGeneratedTabRows(tab);
 }
 
-static void editorTaskFinalize(int success, int exit_code) {
+static void tabsTaskFinalize(int success, int exit_code) {
 	char final_line[96];
 	int tab_idx = E.task_tab_idx;
 	if (tab_idx >= 0 && tab_idx < E.tab_count) {
 		if (success) {
 			(void)snprintf(final_line, sizeof(final_line),
-					"\n[task completed successfully]\n");
+			               "\n[task completed successfully]\n");
 		} else {
 			(void)snprintf(final_line, sizeof(final_line),
-					"\n[task failed with exit code %d]\n", exit_code);
+			               "\n[task failed with exit code %d]\n", exit_code);
 		}
-		(void)editorTaskMutateTab(tab_idx, 1, editorTaskAppendFinalLineMutator, final_line);
+		(void)tabsTaskMutateTab(tab_idx, 1, tabsTaskAppendFinalLineMutator, final_line);
 	}
 
 	E.task_exit_code = exit_code;
 	if (success) {
-		editorTaskSetFinalStatus(1);
+		tabsTaskSetFinalStatus(1);
 	} else {
-		editorTaskSetFinalStatus(0);
+		tabsTaskSetFinalStatus(0);
 	}
-	editorTaskResetState();
+	tabsTaskResetState();
 	editorGitRefresh();
 }
 
-static void editorTaskSetFinalStatus(int success) {
+static void tabsTaskSetFinalStatus(int success) {
 	if (success) {
 		if (E.task_success_status[0] != '\0') {
 			editorSetStatusMsg("%s", E.task_success_status);
@@ -1178,7 +1176,7 @@ static void editorTaskSetFinalStatus(int success) {
 	editorSetStatusMsg("Task failed");
 }
 
-static int editorTaskPrepareLogTab(const char *title, const char *text) {
+static int tabsTaskPrepareLogTab(const char *title, const char *text) {
 	if (title == NULL || title[0] == '\0' || text == NULL) {
 		return 0;
 	}
@@ -1217,8 +1215,8 @@ static int editorTaskPrepareLogTab(const char *title, const char *text) {
 		E.cx = (int)editorDocumentLineLength(E.document, E.cy);
 	}
 	editorViewportEnsureCursorVisible();
-	editorStoreActiveTab();
-	editorLoadActiveTab(E.active_tab);
+	tabsStoreActiveTab();
+	tabsLoadActiveTab(E.active_tab);
 	return 1;
 }
 
@@ -1228,12 +1226,12 @@ int editorTabOpenGitDiff(const char *title, const char *diff_text) {
 	}
 
 	for (int idx = 0; idx < E.tab_count; idx++) {
-		const char *existing_title = idx == E.active_tab ? E.tab_title :
-				E.tabs[idx].tab_title;
-		enum editorTabKind existing_kind = idx == E.active_tab ? E.tab_kind :
-				E.tabs[idx].tab_kind;
+		const char *existing_title =
+		        idx == E.active_tab ? E.tab_title : E.tabs[idx].tab_title;
+		enum editorTabKind existing_kind =
+		        idx == E.active_tab ? E.tab_kind : E.tabs[idx].tab_kind;
 		if (existing_kind == EDITOR_TAB_GIT_DIFF && existing_title != NULL &&
-				strcmp(existing_title, title) == 0) {
+		    strcmp(existing_title, title) == 0) {
 			return editorTabSwitchToIndex(idx);
 		}
 	}
@@ -1272,8 +1270,8 @@ int editorTabOpenGitDiff(const char *title, const char *diff_text) {
 	E.cx = 0;
 	(void)editorSyntaxParseFullActive();
 	editorViewportEnsureCursorVisible();
-	editorStoreActiveTab();
-	editorLoadActiveTab(E.active_tab);
+	tabsStoreActiveTab();
+	tabsLoadActiveTab(E.active_tab);
 	return 1;
 }
 
@@ -1287,7 +1285,7 @@ int editorTaskPoll(void) {
 		return 0;
 	}
 
-	changed |= editorTaskDrainOutput(E.task_tab_idx, 1, &saw_eof);
+	changed |= tabsTaskDrainOutput(E.task_tab_idx, 1, &saw_eof);
 
 	do {
 		waited = waitpid(E.task_pid, &status, WNOHANG);
@@ -1295,13 +1293,13 @@ int editorTaskPoll(void) {
 
 	if (waited == E.task_pid) {
 		int exit_code = 1;
-		changed |= editorTaskDrainOutput(E.task_tab_idx, 1, &saw_eof);
+		changed |= tabsTaskDrainOutput(E.task_tab_idx, 1, &saw_eof);
 		if (WIFEXITED(status)) {
 			exit_code = WEXITSTATUS(status);
 		} else if (WIFSIGNALED(status)) {
 			exit_code = 128 + WTERMSIG(status);
 		}
-		editorTaskFinalize(exit_code == 0, exit_code);
+		tabsTaskFinalize(exit_code == 0, exit_code);
 		return 1;
 	}
 
@@ -1327,18 +1325,18 @@ int editorTaskTerminate(void) {
 		}
 	} while (errno == EINTR);
 
-	(void)editorTaskDrainOutput(E.task_tab_idx, 1, NULL);
+	(void)tabsTaskDrainOutput(E.task_tab_idx, 1, NULL);
 	if (WIFEXITED(status)) {
 		exit_code = WEXITSTATUS(status);
 	} else if (WIFSIGNALED(status)) {
 		exit_code = 128 + WTERMSIG(status);
 	}
-	editorTaskFinalize(0, exit_code);
+	tabsTaskFinalize(0, exit_code);
 	return 1;
 }
 
-int editorTaskStart(const char *title, const char *command,
-		const char *success_status, const char *failure_status) {
+int editorTaskStart(const char *title, const char *command, const char *success_status,
+                    const char *failure_status) {
 	int output_pipe[2] = {-1, -1};
 	pid_t pid = 0;
 	int flags = 0;
@@ -1352,7 +1350,7 @@ int editorTaskStart(const char *title, const char *command,
 		return 0;
 	}
 	(void)snprintf(header, sizeof(header), "$ %s\n\n", command);
-	if (!editorTaskPrepareLogTab(title, header)) {
+	if (!tabsTaskPrepareLogTab(title, header)) {
 		return 0;
 	}
 
@@ -1397,12 +1395,14 @@ int editorTaskStart(const char *title, const char *command,
 	E.task_output_bytes = 0;
 	E.task_exit_code = 0;
 	if (success_status != NULL) {
-		(void)snprintf(E.task_success_status, sizeof(E.task_success_status), "%s", success_status);
+		(void)snprintf(E.task_success_status, sizeof(E.task_success_status), "%s",
+		               success_status);
 	} else {
 		E.task_success_status[0] = '\0';
 	}
 	if (failure_status != NULL) {
-		(void)snprintf(E.task_failure_status, sizeof(E.task_failure_status), "%s", failure_status);
+		(void)snprintf(E.task_failure_status, sizeof(E.task_failure_status), "%s",
+		               failure_status);
 	} else {
 		E.task_failure_status[0] = '\0';
 	}
@@ -1411,7 +1411,7 @@ int editorTaskStart(const char *title, const char *command,
 }
 
 int editorTaskShowMessage(const char *title, const char *text, const char *status) {
-	if (!editorTaskPrepareLogTab(title, text)) {
+	if (!tabsTaskPrepareLogTab(title, text)) {
 		return 0;
 	}
 	if (status != NULL && status[0] != '\0') {
@@ -1420,7 +1420,7 @@ int editorTaskShowMessage(const char *title, const char *text, const char *statu
 	return 1;
 }
 
-static const char *editorTabLabelFromDisplayName(const char *display_name) {
+static const char *tabsLabelFromDisplayName(const char *display_name) {
 	if (display_name == NULL) {
 		return "[No Name]";
 	}
@@ -1431,7 +1431,7 @@ static const char *editorTabLabelFromDisplayName(const char *display_name) {
 	return display_name;
 }
 
-static int editorSanitizedTokenDisplayCols(const char *text, int text_len, int *src_len_out) {
+static int tabsSanitizedTokenDisplayCols(const char *text, int text_len, int *src_len_out) {
 	unsigned int cp = 0;
 	int src_len = editorUtf8DecodeCodepoint(text, text_len, &cp);
 	if (src_len <= 0) {
@@ -1453,7 +1453,7 @@ static int editorSanitizedTokenDisplayCols(const char *text, int text_len, int *
 	return editorCharDisplayWidth(text, text_len);
 }
 
-static int editorSanitizedTextDisplayCols(const char *text, int max_cols) {
+static int tabsSanitizedTextDisplayCols(const char *text, int max_cols) {
 	if (text == NULL) {
 		return 0;
 	}
@@ -1462,7 +1462,8 @@ static int editorSanitizedTextDisplayCols(const char *text, int max_cols) {
 	int total_cols = 0;
 	for (int idx = 0; idx < text_len;) {
 		int src_len = 0;
-		int token_cols = editorSanitizedTokenDisplayCols(&text[idx], text_len - idx, &src_len);
+		int token_cols =
+		        tabsSanitizedTokenDisplayCols(&text[idx], text_len - idx, &src_len);
 		if (max_cols >= 0 && total_cols + token_cols > max_cols) {
 			break;
 		}
@@ -1473,20 +1474,20 @@ static int editorSanitizedTextDisplayCols(const char *text, int max_cols) {
 	return total_cols;
 }
 
-static int editorTabLabelColsAt(int tab_idx) {
-	const char *label = editorTabLabelFromDisplayName(editorTabDisplayNameAt(tab_idx));
-	int cols = editorSanitizedTextDisplayCols(label, ROTIDE_TAB_TITLE_MAX_COLS);
+static int tabsLabelColsAt(int tab_idx) {
+	const char *label = tabsLabelFromDisplayName(editorTabDisplayNameAt(tab_idx));
+	int cols = tabsSanitizedTextDisplayCols(label, ROTIDE_TAB_TITLE_MAX_COLS);
 	if (cols < 1) {
 		cols = 1;
 	}
 	return cols;
 }
 
-static int editorTabWidthColsAt(int tab_idx) {
-	return 6 + editorTabLabelColsAt(tab_idx);
+static int tabsWidthColsAt(int tab_idx) {
+	return 6 + tabsLabelColsAt(tab_idx);
 }
 
-static void editorTabVisibleRangeFromStart(int start_idx, int cols, int *last_idx_out) {
+static void tabsVisibleRangeFromStart(int start_idx, int cols, int *last_idx_out) {
 	int last_idx = start_idx - 1;
 	if (E.tab_count <= 0 || cols <= 0 || start_idx < 0 || start_idx >= E.tab_count) {
 		*last_idx_out = last_idx;
@@ -1495,7 +1496,7 @@ static void editorTabVisibleRangeFromStart(int start_idx, int cols, int *last_id
 
 	int used_cols = 0;
 	for (int tab_idx = start_idx; tab_idx < E.tab_count; tab_idx++) {
-		int width_cols = editorTabWidthColsAt(tab_idx);
+		int width_cols = tabsWidthColsAt(tab_idx);
 		if (width_cols < 1) {
 			width_cols = 1;
 		}
@@ -1522,7 +1523,7 @@ static void editorTabVisibleRangeFromStart(int start_idx, int cols, int *last_id
 	*last_idx_out = last_idx;
 }
 
-static void editorTabsAlignViewToActiveForWidth(int cols) {
+static void tabsAlignViewToActiveForWidth(int cols) {
 	if (E.tab_count <= 0) {
 		E.tab_view_start = 0;
 		return;
@@ -1553,25 +1554,25 @@ static void editorTabsAlignViewToActiveForWidth(int cols) {
 	}
 
 	int last_visible = E.tab_view_start;
-	editorTabVisibleRangeFromStart(E.tab_view_start, cols, &last_visible);
+	tabsVisibleRangeFromStart(E.tab_view_start, cols, &last_visible);
 	while (E.active_tab > last_visible && E.tab_view_start < E.active_tab) {
 		E.tab_view_start++;
-		editorTabVisibleRangeFromStart(E.tab_view_start, cols, &last_visible);
+		tabsVisibleRangeFromStart(E.tab_view_start, cols, &last_visible);
 	}
 }
 
-static int editorTabFocusedPaneVisibleIndex(int tab_idx) {
+static int tabsFocusedPaneVisibleIndex(int tab_idx) {
 	/* When a focused pane has its own membership list, only tabs in that
 	 * list are visible in the strip. Other tabs are filtered out. */
 	if (E.focused_leaf == NULL || E.focused_leaf->is_split ||
-			E.focused_leaf->as.leaf.view.pane_tab_count == 0) {
+	    E.focused_leaf->as.leaf.view.pane_tab_count == 0) {
 		return 1; /* No filter — show every global tab. */
 	}
 	return editorPaneViewHasTab(&E.focused_leaf->as.leaf.view, tab_idx);
 }
 
 int editorTabBuildLayoutForWidth(int cols, struct editorTabLayoutEntry *entries, int max_entries,
-		int *count_out) {
+                                 int *count_out) {
 	if (count_out != NULL) {
 		*count_out = 0;
 	}
@@ -1585,7 +1586,7 @@ int editorTabBuildLayoutForWidth(int cols, struct editorTabLayoutEntry *entries,
 		return 0;
 	}
 
-	editorTabsAlignViewToActiveForWidth(cols);
+	tabsAlignViewToActiveForWidth(cols);
 	int start_idx = E.tab_view_start;
 	if (start_idx < 0) {
 		start_idx = 0;
@@ -1602,11 +1603,11 @@ int editorTabBuildLayoutForWidth(int cols, struct editorTabLayoutEntry *entries,
 		if (count >= max_entries) {
 			break;
 		}
-		if (!editorTabFocusedPaneVisibleIndex(tab_idx)) {
+		if (!tabsFocusedPaneVisibleIndex(tab_idx)) {
 			continue;
 		}
 
-		int width_cols = editorTabWidthColsAt(tab_idx);
+		int width_cols = tabsWidthColsAt(tab_idx);
 		if (width_cols < 1) {
 			width_cols = 1;
 		}
@@ -1650,13 +1651,13 @@ int editorTabBuildLayoutForWidth(int cols, struct editorTabLayoutEntry *entries,
 	int has_more_left = 0;
 	int has_more_right = 0;
 	for (int i = 0; i < first_visible; i++) {
-		if (editorTabFocusedPaneVisibleIndex(i)) {
+		if (tabsFocusedPaneVisibleIndex(i)) {
 			has_more_left = 1;
 			break;
 		}
 	}
 	for (int i = last_visible + 1; i < E.tab_count; i++) {
-		if (editorTabFocusedPaneVisibleIndex(i)) {
+		if (tabsFocusedPaneVisibleIndex(i)) {
 			has_more_right = 1;
 			break;
 		}

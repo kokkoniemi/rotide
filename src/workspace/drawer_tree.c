@@ -1,10 +1,9 @@
-#include "workspace/drawer.h"
-
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
 #include "support/alloc.h"
 #include "support/file_io.h"
 #include "support/size_utils.h"
+#include "workspace/drawer.h"
 #include "workspace/drawer_internal.h"
 
 #include <dirent.h>
@@ -15,7 +14,7 @@
 #include <sys/stat.h>
 
 struct editorDrawerNode *editorDrawerNodeNew(const char *name, const char *path, int is_dir,
-		struct editorDrawerNode *parent) {
+                                             struct editorDrawerNode *parent) {
 	struct editorDrawerNode *node = editorMalloc(sizeof(*node));
 	if (node == NULL) {
 		return NULL;
@@ -54,9 +53,9 @@ void editorDrawerNodeFree(struct editorDrawerNode *node) {
 	free(node);
 }
 
-static int editorDrawerNodeCmp(const void *a, const void *b) {
-	const struct editorDrawerNode *left = *(const struct editorDrawerNode * const *)a;
-	const struct editorDrawerNode *right = *(const struct editorDrawerNode * const *)b;
+static int drawerTreeNodeCmp(const void *a, const void *b) {
+	const struct editorDrawerNode *left = *(const struct editorDrawerNode *const *)a;
+	const struct editorDrawerNode *right = *(const struct editorDrawerNode *const *)b;
 
 	if (left->is_dir != right->is_dir) {
 		return right->is_dir - left->is_dir;
@@ -104,7 +103,8 @@ int editorDrawerEnsureScanned(struct editorDrawerNode *node) {
 			is_dir = S_ISDIR(st.st_mode) && !S_ISLNK(st.st_mode);
 		}
 
-		struct editorDrawerNode *child = editorDrawerNodeNew(entry->d_name, child_path, is_dir, node);
+		struct editorDrawerNode *child =
+		        editorDrawerNodeNew(entry->d_name, child_path, is_dir, node);
 		free(child_path);
 		if (child == NULL) {
 			editorSetAllocFailureStatus();
@@ -116,7 +116,7 @@ int editorDrawerEnsureScanned(struct editorDrawerNode *node) {
 			size_t cap_size = 0;
 			size_t bytes = 0;
 			if (!editorIntToSize(new_capacity, &cap_size) ||
-					!editorSizeMul(child_entry_size, cap_size, &bytes)) {
+			    !editorSizeMul(child_entry_size, cap_size, &bytes)) {
 				editorDrawerNodeFree(child);
 				editorSetAllocFailureStatus();
 				break;
@@ -138,7 +138,7 @@ int editorDrawerEnsureScanned(struct editorDrawerNode *node) {
 	(void)closedir(dir);
 
 	if (child_count > 1) {
-		qsort(children, (size_t)child_count, child_entry_size, editorDrawerNodeCmp);
+		qsort(children, (size_t)child_count, child_entry_size, drawerTreeNodeCmp);
 	}
 
 	node->children = children;
@@ -164,9 +164,10 @@ int editorDrawerCountVisibleFromNode(struct editorDrawerNode *node) {
 	return count;
 }
 
-static int editorDrawerLookupByVisibleIndexRecursive(struct editorDrawerNode *node, int depth,
-		int parent_visible_idx, int *cursor, int target_visible_idx,
-		struct editorDrawerLookup *lookup_out) {
+static int drawerTreeLookupByVisibleIndexRecursive(struct editorDrawerNode *node, int depth,
+                                                   int parent_visible_idx, int *cursor,
+                                                   int target_visible_idx,
+                                                   struct editorDrawerLookup *lookup_out) {
 	if (node == NULL || cursor == NULL || lookup_out == NULL) {
 		return 0;
 	}
@@ -187,8 +188,9 @@ static int editorDrawerLookupByVisibleIndexRecursive(struct editorDrawerNode *no
 
 	(void)editorDrawerEnsureScanned(node);
 	for (int i = 0; i < node->child_count; i++) {
-		if (editorDrawerLookupByVisibleIndexRecursive(node->children[i], depth + 1, current, cursor,
-					target_visible_idx, lookup_out)) {
+		if (drawerTreeLookupByVisibleIndexRecursive(node->children[i], depth + 1, current,
+		                                            cursor, target_visible_idx,
+		                                            lookup_out)) {
 			return 1;
 		}
 	}
@@ -201,12 +203,12 @@ int editorDrawerLookupByVisibleIndex(int visible_idx, struct editorDrawerLookup 
 	}
 
 	int cursor = 0;
-	return editorDrawerLookupByVisibleIndexRecursive(E.drawer_root, 0, -1, &cursor, visible_idx,
-			lookup_out);
+	return drawerTreeLookupByVisibleIndexRecursive(E.drawer_root, 0, -1, &cursor, visible_idx,
+	                                               lookup_out);
 }
 
 struct editorDrawerNode *editorDrawerFindChildByName(struct editorDrawerNode *node,
-		const char *name, size_t name_len) {
+                                                     const char *name, size_t name_len) {
 	if (node == NULL || name == NULL || name_len == 0) {
 		return NULL;
 	}
@@ -223,8 +225,9 @@ struct editorDrawerNode *editorDrawerFindChildByName(struct editorDrawerNode *no
 	return NULL;
 }
 
-static int editorDrawerFindVisibleIndexForNodeRecursive(struct editorDrawerNode *node,
-		struct editorDrawerNode *target, int *cursor, int *visible_idx_out) {
+static int drawerTreeFindVisibleIndexForNodeRecursive(struct editorDrawerNode *node,
+                                                      struct editorDrawerNode *target, int *cursor,
+                                                      int *visible_idx_out) {
 	if (node == NULL || target == NULL || cursor == NULL || visible_idx_out == NULL) {
 		return 0;
 	}
@@ -241,8 +244,8 @@ static int editorDrawerFindVisibleIndexForNodeRecursive(struct editorDrawerNode 
 
 	(void)editorDrawerEnsureScanned(node);
 	for (int i = 0; i < node->child_count; i++) {
-		if (editorDrawerFindVisibleIndexForNodeRecursive(node->children[i], target, cursor,
-					visible_idx_out)) {
+		if (drawerTreeFindVisibleIndexForNodeRecursive(node->children[i], target, cursor,
+		                                               visible_idx_out)) {
 			return 1;
 		}
 	}
@@ -251,6 +254,6 @@ static int editorDrawerFindVisibleIndexForNodeRecursive(struct editorDrawerNode 
 
 int editorDrawerFindVisibleIndexForNode(struct editorDrawerNode *target, int *visible_idx_out) {
 	int cursor = 0;
-	return editorDrawerFindVisibleIndexForNodeRecursive(E.drawer_root, target, &cursor,
-			visible_idx_out);
+	return drawerTreeFindVisibleIndexForNodeRecursive(E.drawer_root, target, &cursor,
+	                                                  visible_idx_out);
 }

@@ -1,5 +1,5 @@
-#ifndef TEXT_UTF8_H
-#define TEXT_UTF8_H
+#ifndef ROTIDE_TEXT_UTF8_H
+#define ROTIDE_TEXT_UTF8_H
 
 #include <stddef.h>
 

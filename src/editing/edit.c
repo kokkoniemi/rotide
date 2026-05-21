@@ -10,11 +10,12 @@
 #include "support/file_io.h"
 #include "support/save_syscalls.h"
 #include "support/size_utils.h"
+#include "text/document.h"
+#include "text/row.h"
 #include "workspace/git.h"
 #include "workspace/tabs.h"
 #include "workspace/watch.h"
-#include "text/document.h"
-#include "text/row.h"
+
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -29,7 +30,7 @@
 #define NEWLINE_CHAR_WIDTH 1
 #define BINARY_DETECT_SAMPLE_BYTES 8192
 
-static int editorFileStreamLooksBinary(FILE *fp, int *binary_out) {
+static int editFileStreamLooksBinary(FILE *fp, int *binary_out) {
 	unsigned char buf[BINARY_DETECT_SAMPLE_BYTES];
 
 	if (fp == NULL || binary_out == NULL) {
@@ -58,7 +59,7 @@ static int editorFileStreamLooksBinary(FILE *fp, int *binary_out) {
 	return 1;
 }
 
-static int editorCheckOpenFileStream(const char *filename, FILE **fp_out) {
+static int editCheckOpenFileStream(const char *filename, FILE **fp_out) {
 	FILE *fp = NULL;
 	int is_binary = 0;
 
@@ -76,7 +77,7 @@ static int editorCheckOpenFileStream(const char *filename, FILE **fp_out) {
 		editorSetStatusMsg("Unable to open file: %s", strerror(errno));
 		return 0;
 	}
-	if (!editorFileStreamLooksBinary(fp, &is_binary)) {
+	if (!editFileStreamLooksBinary(fp, &is_binary)) {
 		fclose(fp);
 		editorSetStatusMsg("Unable to inspect file: %s", strerror(errno));
 		return 0;
@@ -99,7 +100,7 @@ int editorFilePathLooksBinary(const char *filename, int *binary_out) {
 		}
 		return 0;
 	}
-	if (!editorFileStreamLooksBinary(fp, binary_out)) {
+	if (!editFileStreamLooksBinary(fp, binary_out)) {
 		fclose(fp);
 		return 0;
 	}
@@ -109,14 +110,14 @@ int editorFilePathLooksBinary(const char *filename, int *binary_out) {
 
 int editorFileCanOpen(const char *filename) {
 	FILE *fp = NULL;
-	if (!editorCheckOpenFileStream(filename, &fp)) {
+	if (!editCheckOpenFileStream(filename, &fp)) {
 		return 0;
 	}
 	fclose(fp);
 	return 1;
 }
 
-static int editorReadNormalizedFileToText(FILE *fp, char **text_out, size_t *len_out) {
+static int editReadNormalizedFileToText(FILE *fp, char **text_out, size_t *len_out) {
 	char *line = NULL;
 	size_t line_cap = 0;
 	ssize_t line_len = 0;
@@ -141,14 +142,14 @@ static int editorReadNormalizedFileToText(FILE *fp, char **text_out, size_t *len
 			break;
 		}
 		while (normalized_len > 0 &&
-				(line[normalized_len - 1] == '\n' || line[normalized_len - 1] == '\r')) {
+		       (line[normalized_len - 1] == '\n' || line[normalized_len - 1] == '\r')) {
 			normalized_len--;
 		}
 
 		if (!editorSizeAdd(normalized_len, NEWLINE_CHAR_WIDTH, &row_total) ||
-				!editorSizeAdd(text_len, row_total, &next_total) ||
-				next_total > ROTIDE_MAX_TEXT_BYTES ||
-				!editorSizeAdd(next_total, 1, &next_cap)) {
+		    !editorSizeAdd(text_len, row_total, &next_total) ||
+		    next_total > ROTIDE_MAX_TEXT_BYTES ||
+		    !editorSizeAdd(next_total, 1, &next_cap)) {
 			editorSetFileTooLargeStatus();
 			break;
 		}
@@ -194,10 +195,10 @@ int editorReadFileToText(const char *filename, char **text_out, size_t *len_out)
 	*text_out = NULL;
 	*len_out = 0;
 
-	if (!editorCheckOpenFileStream(filename, &fp)) {
+	if (!editCheckOpenFileStream(filename, &fp)) {
 		return 0;
 	}
-	ok = editorReadNormalizedFileToText(fp, text_out, len_out);
+	ok = editReadNormalizedFileToText(fp, text_out, len_out);
 	fclose(fp);
 	return ok;
 }
@@ -229,8 +230,8 @@ int editorInsertText(const char *text, size_t len) {
 		insert_cx = 0;
 	}
 	if (!editorBufferPosToOffset(E.cy, insert_cx, &start_offset) ||
-			!editorSizeAdd(start_offset, len, &after_offset) ||
-			after_offset > ROTIDE_MAX_TEXT_BYTES) {
+	    !editorSizeAdd(start_offset, len, &after_offset) ||
+	    after_offset > ROTIDE_MAX_TEXT_BYTES) {
 		editorSetOperationTooLargeStatus();
 		return 0;
 	}
@@ -255,28 +256,26 @@ int editorInsertText(const char *text, size_t len) {
 		return 0;
 	}
 
-	struct editorDocumentEdit edit = {
-		.kind = EDITOR_EDIT_INSERT_TEXT,
-		.start_offset = start_offset,
-		.old_len = 0,
-		.new_text = text,
-		.new_len = len,
-		.before_cursor_offset = start_offset,
-		.after_cursor_offset = after_offset,
-		.before_dirty = E.dirty,
-		.after_dirty = E.dirty + dirty_delta
-	};
+	struct editorDocumentEdit edit = {.kind = EDITOR_EDIT_INSERT_TEXT,
+	                                  .start_offset = start_offset,
+	                                  .old_len = 0,
+	                                  .new_text = text,
+	                                  .new_len = len,
+	                                  .before_cursor_offset = start_offset,
+	                                  .after_cursor_offset = after_offset,
+	                                  .before_dirty = E.dirty,
+	                                  .after_dirty = E.dirty + dirty_delta};
 	return editorApplyDocumentEdit(&edit);
 }
 
-static int editorEffectiveIndentWidth(void) {
+static int editEffectiveIndentWidth(void) {
 	if (E.indent_width >= 1 && E.indent_width <= ROTIDE_INDENT_WIDTH_MAX) {
 		return E.indent_width;
 	}
 	return ROTIDE_INDENT_WIDTH_DEFAULT;
 }
 
-static size_t editorIndentPrefixColumnsBytes(const char *bytes, int size, int limit_cx) {
+static size_t editIndentPrefixColumnsBytes(const char *bytes, int size, int limit_cx) {
 	if (bytes == NULL || limit_cx <= 0) {
 		return 0;
 	}
@@ -285,7 +284,7 @@ static size_t editorIndentPrefixColumnsBytes(const char *bytes, int size, int li
 	}
 
 	size_t cols = 0;
-	size_t width = (size_t)editorEffectiveIndentWidth();
+	size_t width = (size_t)editEffectiveIndentWidth();
 	for (int i = 0; i < limit_cx; i++) {
 		if (bytes[i] == ' ') {
 			cols++;
@@ -301,7 +300,7 @@ static size_t editorIndentPrefixColumnsBytes(const char *bytes, int size, int li
 	return cols;
 }
 
-static int editorBuildIndentString(size_t cols, char **indent_out, size_t *indent_len_out) {
+static int editBuildIndentString(size_t cols, char **indent_out, size_t *indent_len_out) {
 	if (indent_out == NULL || indent_len_out == NULL) {
 		return 0;
 	}
@@ -311,12 +310,11 @@ static int editorBuildIndentString(size_t cols, char **indent_out, size_t *inden
 		return 1;
 	}
 
-	size_t width = (size_t)editorEffectiveIndentWidth();
+	size_t width = (size_t)editEffectiveIndentWidth();
 	size_t tabs = E.indent_use_tabs ? cols / width : 0;
 	size_t spaces = E.indent_use_tabs ? cols % width : cols;
 	size_t len = 0;
-	if (!editorSizeAdd(tabs, spaces, &len) ||
-			len > ROTIDE_MAX_TEXT_BYTES) {
+	if (!editorSizeAdd(tabs, spaces, &len) || len > ROTIDE_MAX_TEXT_BYTES) {
 		editorSetOperationTooLargeStatus();
 		return 0;
 	}
@@ -334,8 +332,8 @@ static int editorBuildIndentString(size_t cols, char **indent_out, size_t *inden
 	return 1;
 }
 
-static int editorBuildIndentForLine(int row_idx, int limit_cx, char **indent_out,
-		size_t *indent_len_out) {
+static int editBuildIndentForLine(int row_idx, int limit_cx, char **indent_out,
+                                  size_t *indent_len_out) {
 	if (indent_out == NULL || indent_len_out == NULL) {
 		return 0;
 	}
@@ -348,27 +346,27 @@ static int editorBuildIndentForLine(int row_idx, int limit_cx, char **indent_out
 	if (!editorDocumentLineView(E.document, row_idx, &row_view)) {
 		return 0;
 	}
-	int clamped_cx = editorBytesClampCxToClusterBoundary(row_view.data, row_view.size,
-			limit_cx);
-	size_t cols = editorIndentPrefixColumnsBytes(row_view.data, row_view.size, clamped_cx);
+	int clamped_cx =
+	        editorBytesClampCxToClusterBoundary(row_view.data, row_view.size, limit_cx);
+	size_t cols = editIndentPrefixColumnsBytes(row_view.data, row_view.size, clamped_cx);
 	editorLineViewRelease(&row_view);
 	int anchor_row = 0;
 	int extra_levels = 0;
-	if (editorSyntaxStateSuggestIndentAnchor(E.syntax_state, row_idx, clamped_cx,
-			&anchor_row, &extra_levels) && anchor_row >= 0 && anchor_row < E.numrows &&
-			extra_levels > 0) {
+	if (editorSyntaxStateSuggestIndentAnchor(E.syntax_state, row_idx, clamped_cx, &anchor_row,
+	                                         &extra_levels) &&
+	    anchor_row >= 0 && anchor_row < E.numrows && extra_levels > 0) {
 		struct editorLineView anchor_view = {0};
 		if (!editorDocumentLineView(E.document, anchor_row, &anchor_view)) {
 			return 0;
 		}
-		size_t syntax_cols = editorIndentPrefixColumnsBytes(anchor_view.data,
-				anchor_view.size, anchor_view.size);
+		size_t syntax_cols = editIndentPrefixColumnsBytes(
+		        anchor_view.data, anchor_view.size, anchor_view.size);
 		editorLineViewRelease(&anchor_view);
 		size_t extra_cols = 0;
 		size_t total_cols = 0;
-		if (!editorSizeMul((size_t)extra_levels, (size_t)editorEffectiveIndentWidth(),
-				&extra_cols) ||
-				!editorSizeAdd(syntax_cols, extra_cols, &total_cols)) {
+		if (!editorSizeMul((size_t)extra_levels, (size_t)editEffectiveIndentWidth(),
+		                   &extra_cols) ||
+		    !editorSizeAdd(syntax_cols, extra_cols, &total_cols)) {
 			editorSetOperationTooLargeStatus();
 			return 0;
 		}
@@ -376,11 +374,11 @@ static int editorBuildIndentForLine(int row_idx, int limit_cx, char **indent_out
 			cols = total_cols;
 		}
 	}
-	return editorBuildIndentString(cols, indent_out, indent_len_out);
+	return editBuildIndentString(cols, indent_out, indent_len_out);
 }
 
-int editorBuildAutoIndentedText(const char *text, size_t len, int indent_cy,
-		int indent_cx, char **text_out, size_t *len_out) {
+int editorBuildAutoIndentedText(const char *text, size_t len, int indent_cy, int indent_cx,
+                                char **text_out, size_t *len_out) {
 	if (text_out == NULL || len_out == NULL) {
 		return -1;
 	}
@@ -409,7 +407,7 @@ int editorBuildAutoIndentedText(const char *text, size_t len, int indent_cy,
 
 	char *indent = NULL;
 	size_t indent_len = 0;
-	if (!editorBuildIndentForLine(indent_cy, indent_cx, &indent, &indent_len)) {
+	if (!editBuildIndentForLine(indent_cy, indent_cx, &indent, &indent_len)) {
 		return -1;
 	}
 	if (indent_len == 0) {
@@ -420,8 +418,7 @@ int editorBuildAutoIndentedText(const char *text, size_t len, int indent_cy,
 	size_t extra_len = 0;
 	size_t total_len = 0;
 	if (!editorSizeMul(indent_len, extra_lines, &extra_len) ||
-			!editorSizeAdd(len, extra_len, &total_len) ||
-			total_len > ROTIDE_MAX_TEXT_BYTES) {
+	    !editorSizeAdd(len, extra_len, &total_len) || total_len > ROTIDE_MAX_TEXT_BYTES) {
 		free(indent);
 		editorSetOperationTooLargeStatus();
 		return -1;
@@ -482,17 +479,15 @@ void editorInsertChar(int c) {
 		dirty_delta = 2;
 	}
 
-	struct editorDocumentEdit edit = {
-		.kind = EDITOR_EDIT_INSERT_TEXT,
-		.start_offset = start_offset,
-		.old_len = 0,
-		.new_text = inserted_text,
-		.new_len = inserted_len,
-		.before_cursor_offset = start_offset,
-		.after_cursor_offset = start_offset + 1,
-		.before_dirty = E.dirty,
-		.after_dirty = E.dirty + dirty_delta
-	};
+	struct editorDocumentEdit edit = {.kind = EDITOR_EDIT_INSERT_TEXT,
+	                                  .start_offset = start_offset,
+	                                  .old_len = 0,
+	                                  .new_text = inserted_text,
+	                                  .new_len = inserted_len,
+	                                  .before_cursor_offset = start_offset,
+	                                  .after_cursor_offset = start_offset + 1,
+	                                  .before_dirty = E.dirty,
+	                                  .after_dirty = E.dirty + dirty_delta};
 	if (editorApplyDocumentEdit(&edit)) {
 		(void)editorSyncCursorFromOffsetByteBoundary(start_offset + 1);
 	}
@@ -517,14 +512,14 @@ void editorInsertNewline(void) {
 
 	char *indent = NULL;
 	size_t indent_len = 0;
-	if (!editorBuildIndentForLine(E.cy, split_idx, &indent, &indent_len)) {
+	if (!editBuildIndentForLine(E.cy, split_idx, &indent, &indent_len)) {
 		return;
 	}
 	size_t inserted_len = 0;
 	size_t after_offset = 0;
 	if (!editorSizeAdd(1, indent_len, &inserted_len) ||
-			!editorSizeAdd(start_offset, inserted_len, &after_offset) ||
-			after_offset > ROTIDE_MAX_TEXT_BYTES) {
+	    !editorSizeAdd(start_offset, inserted_len, &after_offset) ||
+	    after_offset > ROTIDE_MAX_TEXT_BYTES) {
 		free(indent);
 		editorSetOperationTooLargeStatus();
 		return;
@@ -551,17 +546,15 @@ void editorInsertNewline(void) {
 	}
 	int dirty_delta = (int)inserted_len;
 
-	struct editorDocumentEdit edit = {
-		.kind = EDITOR_EDIT_NEWLINE,
-		.start_offset = start_offset,
-		.old_len = 0,
-		.new_text = inserted_text,
-		.new_len = inserted_len,
-		.before_cursor_offset = start_offset,
-		.after_cursor_offset = after_offset,
-		.before_dirty = E.dirty,
-		.after_dirty = E.dirty + dirty_delta
-	};
+	struct editorDocumentEdit edit = {.kind = EDITOR_EDIT_NEWLINE,
+	                                  .start_offset = start_offset,
+	                                  .old_len = 0,
+	                                  .new_text = inserted_text,
+	                                  .new_len = inserted_len,
+	                                  .before_cursor_offset = start_offset,
+	                                  .after_cursor_offset = after_offset,
+	                                  .before_dirty = E.dirty,
+	                                  .after_dirty = E.dirty + dirty_delta};
 	(void)editorApplyDocumentEdit(&edit);
 	free(allocated_text);
 	free(indent);
@@ -590,39 +583,36 @@ void editorDelChar(void) {
 		int prev_cx = editorBytesPrevClusterIdx(line.data, line.size, cur_cx);
 		editorLineViewRelease(&line);
 		if (!editorBufferPosToOffset(E.cy, prev_cx, &start_offset) ||
-				!editorBufferPosToOffset(E.cy, cur_cx, &end_offset) ||
-				end_offset <= start_offset) {
+		    !editorBufferPosToOffset(E.cy, cur_cx, &end_offset) ||
+		    end_offset <= start_offset) {
 			return;
 		}
 	} else {
 		int merge_col = (int)editorDocumentLineLength(E.document, E.cy - 1);
 		if (!editorBufferPosToOffset(E.cy - 1, merge_col, &start_offset) ||
-				!editorBufferPosToOffset(E.cy, 0, &end_offset) ||
-				end_offset <= start_offset) {
+		    !editorBufferPosToOffset(E.cy, 0, &end_offset) || end_offset <= start_offset) {
 			return;
 		}
 		dirty_delta = 2;
 	}
 
 	old_len = end_offset - start_offset;
-	struct editorDocumentEdit edit = {
-		.kind = EDITOR_EDIT_DELETE_TEXT,
-		.start_offset = start_offset,
-		.old_len = old_len,
-		.new_text = "",
-		.new_len = 0,
-		.before_cursor_offset = before_cursor_offset,
-		.after_cursor_offset = start_offset,
-		.before_dirty = E.dirty,
-		.after_dirty = E.dirty + dirty_delta
-	};
+	struct editorDocumentEdit edit = {.kind = EDITOR_EDIT_DELETE_TEXT,
+	                                  .start_offset = start_offset,
+	                                  .old_len = old_len,
+	                                  .new_text = "",
+	                                  .new_len = 0,
+	                                  .before_cursor_offset = before_cursor_offset,
+	                                  .after_cursor_offset = start_offset,
+	                                  .before_dirty = E.dirty,
+	                                  .after_dirty = E.dirty + dirty_delta};
 	(void)editorApplyDocumentEdit(&edit);
 }
 
-static int g_editor_open_defer_lsp = 0;
+static int g_edit_open_defer_lsp = 0;
 
 void editorOpenSetDeferLsp(int defer) {
-	g_editor_open_defer_lsp = defer ? 1 : 0;
+	g_edit_open_defer_lsp = defer ? 1 : 0;
 }
 
 int editorOpen(const char *filename) {
@@ -641,10 +631,10 @@ int editorOpen(const char *filename) {
 		return 0;
 	}
 
-	if (!editorCheckOpenFileStream(filename, &fp)) {
+	if (!editCheckOpenFileStream(filename, &fp)) {
 		goto cleanup;
 	}
-	if (!editorReadNormalizedFileToText(fp, &text, &text_len)) {
+	if (!editReadNormalizedFileToText(fp, &text, &text_len)) {
 		goto cleanup;
 	}
 	fclose(fp);
@@ -659,7 +649,7 @@ int editorOpen(const char *filename) {
 
 	editorLspNotifyDidClose(E.filename, E.syntax_language, &E.lsp_doc_open, &E.lsp_doc_version);
 	editorLspNotifyEslintDidClose(E.filename, E.syntax_language, &E.lsp_eslint_doc_open,
-			&E.lsp_eslint_doc_version);
+	                              &E.lsp_eslint_doc_version);
 	editorFreeActiveBufferState();
 	E.tab_kind = EDITOR_TAB_FILE;
 	E.is_preview = was_preview;
@@ -669,13 +659,13 @@ int editorOpen(const char *filename) {
 		goto cleanup;
 	}
 	editorWatchRefreshActiveBaseline();
-	if (!g_editor_open_defer_lsp) {
-		(void)editorLspEnsureDocumentOpen(E.filename, E.syntax_language,
-				&E.lsp_doc_open, &E.lsp_doc_version,
-				text != NULL ? text : "", text_len);
-		(void)editorLspEnsureEslintDocumentOpen(E.filename, E.syntax_language,
-				&E.lsp_eslint_doc_open, &E.lsp_eslint_doc_version,
-				text != NULL ? text : "", text_len);
+	if (!g_edit_open_defer_lsp) {
+		(void)editorLspEnsureDocumentOpen(E.filename, E.syntax_language, &E.lsp_doc_open,
+		                                  &E.lsp_doc_version, text != NULL ? text : "",
+		                                  text_len);
+		(void)editorLspEnsureEslintDocumentOpen(
+		        E.filename, E.syntax_language, &E.lsp_eslint_doc_open,
+		        &E.lsp_eslint_doc_version, text != NULL ? text : "", text_len);
 	}
 	ok = 1;
 
@@ -699,7 +689,7 @@ void editorSetStatusMsg(const char *fmt, ...) {
 	E.statusmsg_time = time(NULL);
 }
 
-static int editorWriteAll(int fd, const char *buf, size_t len) {
+static int editWriteAll(int fd, const char *buf, size_t len) {
 	size_t total = 0;
 	while (total < len) {
 		ssize_t written = write(fd, buf + total, len - total);
@@ -718,8 +708,8 @@ static int editorWriteAll(int fd, const char *buf, size_t len) {
 	return 0;
 }
 
-static int editorSaveCleanupOnError(int *fd, int *dir_fd, const char *tmp_path,
-		int tmp_created, int tmp_renamed, int *cleanup_errno) {
+static int editSaveCleanupOnError(int *fd, int *dir_fd, const char *tmp_path, int tmp_created,
+                                  int tmp_renamed, int *cleanup_errno) {
 	int first_cleanup_errno = 0;
 
 	if (*fd != -1) {
@@ -737,7 +727,7 @@ static int editorSaveCleanupOnError(int *fd, int *dir_fd, const char *tmp_path,
 
 	if (tmp_path != NULL && tmp_created && !tmp_renamed) {
 		if (editorSaveUnlink(tmp_path) == -1 && errno != ENOENT &&
-				first_cleanup_errno == 0) {
+		    first_cleanup_errno == 0) {
 			first_cleanup_errno = errno;
 		}
 	}
@@ -748,7 +738,7 @@ static int editorSaveCleanupOnError(int *fd, int *dir_fd, const char *tmp_path,
 	return first_cleanup_errno == 0 ? 0 : -1;
 }
 
-static const char *editorSaveFailureClass(int errnum) {
+static const char *editSaveFailureClass(int errnum) {
 	switch (errnum) {
 		case EACCES:
 		case EPERM:
@@ -768,26 +758,26 @@ static const char *editorSaveFailureClass(int errnum) {
 	}
 }
 
-static void editorSetSaveFailureStatus(int saved_errno, int cleanup_errno) {
-	const char *error_class = editorSaveFailureClass(saved_errno);
+static void editSetSaveFailureStatus(int saved_errno, int cleanup_errno) {
+	const char *error_class = editSaveFailureClass(saved_errno);
 	const char *error_text = strerror(saved_errno);
 
 	if (cleanup_errno != 0) {
 		editorSetStatusMsg("Save failed: %s (%s); cleanup failed (%s)", error_class,
-				error_text, strerror(cleanup_errno));
+		                   error_text, strerror(cleanup_errno));
 		return;
 	}
 
 	editorSetStatusMsg("Save failed: %s (%s)", error_class, error_text);
 }
 
-static mode_t editorDefaultCreateMode(void) {
+static mode_t editDefaultCreateMode(void) {
 	mode_t mask = umask(0);
 	umask(mask);
 	return 0644 & ~mask;
 }
 
-static void editorMaybePromptReloadSettingsAfterSave(const char *filename) {
+static void editMaybePromptReloadSettingsAfterSave(const char *filename) {
 	if (!editorConfigPathIsGlobalConfig(filename)) {
 		return;
 	}
@@ -818,7 +808,7 @@ void editorSave(void) {
 		(void)editorSyntaxParseFullActive();
 	}
 	if (editorWatchActiveHasDiskConflict() &&
-			!editorPromptYesNo("File changed on disk. Overwrite? [y/N] %s")) {
+	    !editorPromptYesNo("File changed on disk. Overwrite? [y/N] %s")) {
 		editorSetStatusMsg("Save aborted; file changed on disk");
 		return;
 	}
@@ -831,7 +821,7 @@ void editorSave(void) {
 	int dir_fd = -1;
 	int tmp_created = 0;
 	int tmp_renamed = 0;
-	mode_t mode = editorDefaultCreateMode();
+	mode_t mode = editDefaultCreateMode();
 	struct stat st;
 
 	if (buf == NULL && (len > 0 || errno != 0)) {
@@ -864,7 +854,7 @@ void editorSave(void) {
 	if (fchmod(fd, mode) == -1) {
 		goto err;
 	}
-	if (editorWriteAll(fd, buf, len) == -1) {
+	if (editWriteAll(fd, buf, len) == -1) {
 		goto err;
 	}
 	if (editorSaveFsync(fd) == -1) {
@@ -900,7 +890,7 @@ void editorSave(void) {
 	editorLspNotifyDidSaveActive();
 	editorGitRefresh();
 	if (editorConfigPathIsGlobalConfig(E.filename)) {
-		editorMaybePromptReloadSettingsAfterSave(E.filename);
+		editMaybePromptReloadSettingsAfterSave(E.filename);
 	} else {
 		editorSetStatusMsg("%zu bytes written to disk", len);
 	}
@@ -909,10 +899,10 @@ void editorSave(void) {
 err: {
 	int saved_errno = errno;
 	int cleanup_errno = 0;
-	(void)editorSaveCleanupOnError(&fd, &dir_fd, tmp_path, tmp_created, tmp_renamed,
-			&cleanup_errno);
+	(void)editSaveCleanupOnError(&fd, &dir_fd, tmp_path, tmp_created, tmp_renamed,
+	                             &cleanup_errno);
 	free(tmp_path);
 	free(buf);
-	editorSetSaveFailureStatus(saved_errno, cleanup_errno);
+	editSetSaveFailureStatus(saved_errno, cleanup_errno);
 }
 }

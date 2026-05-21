@@ -11,7 +11,7 @@
 #include <string.h>
 
 void editorEditToggleSelectionMode(editorEditActionFn clear_selection_mode,
-		editorEditActionFn align_cursor_with_row_end) {
+                                   editorEditActionFn align_cursor_with_row_end) {
 	if (E.selection_mode_active) {
 		if (clear_selection_mode != NULL) {
 			clear_selection_mode();
@@ -27,7 +27,8 @@ void editorEditToggleSelectionMode(editorEditActionFn clear_selection_mode,
 	E.selection_anchor_offset = E.cursor_offset;
 }
 
-static int editorCopyRangeToClipboard(const struct editorSelectionRange *range, size_t *copied_len_out) {
+static int actionsEditCopyRangeToClipboard(const struct editorSelectionRange *range,
+                                           size_t *copied_len_out) {
 	char *copied = NULL;
 	size_t copied_len = 0;
 	int extracted = editorExtractRangeText(range, &copied, &copied_len);
@@ -47,7 +48,7 @@ static int editorCopyRangeToClipboard(const struct editorSelectionRange *range, 
 	return 1;
 }
 
-static int editorCopyColumnSelectionToClipboard(size_t *copied_len_out) {
+static int actionsEditCopyColumnSelectionToClipboard(size_t *copied_len_out) {
 	char *text = NULL;
 	size_t len = 0;
 	int rc = editorColumnSelectionExtractText(&text, &len);
@@ -68,7 +69,7 @@ static int editorCopyColumnSelectionToClipboard(size_t *copied_len_out) {
 void editorEditCopySelection(editorEditActionFn clear_selection_mode) {
 	if (E.column_select_active) {
 		size_t copied_len = 0;
-		int copied = editorCopyColumnSelectionToClipboard(&copied_len);
+		int copied = actionsEditCopyColumnSelectionToClipboard(&copied_len);
 		if (copied < 0) {
 			return;
 		}
@@ -87,7 +88,7 @@ void editorEditCopySelection(editorEditActionFn clear_selection_mode) {
 	}
 
 	size_t copied_len = 0;
-	int copied = editorCopyRangeToClipboard(&range, &copied_len);
+	int copied = actionsEditCopyRangeToClipboard(&range, &copied_len);
 	if (copied <= 0) {
 		if (copied == 0) {
 			editorSetStatusMsg("No selection");
@@ -104,7 +105,7 @@ void editorEditCopySelection(editorEditActionFn clear_selection_mode) {
 void editorEditCutSelection(editorEditActionFn clear_selection_mode) {
 	if (E.column_select_active) {
 		size_t copied_len = 0;
-		int copied = editorCopyColumnSelectionToClipboard(&copied_len);
+		int copied = actionsEditCopyColumnSelectionToClipboard(&copied_len);
 		if (copied < 0) {
 			return;
 		}
@@ -130,7 +131,7 @@ void editorEditCutSelection(editorEditActionFn clear_selection_mode) {
 	}
 
 	size_t copied_len = 0;
-	int copied = editorCopyRangeToClipboard(&range, &copied_len);
+	int copied = actionsEditCopyRangeToClipboard(&range, &copied_len);
 	if (copied <= 0) {
 		if (copied == 0) {
 			editorSetStatusMsg("No selection");
@@ -155,36 +156,36 @@ void editorEditCutSelection(editorEditActionFn clear_selection_mode) {
 	editorSetStatusMsg("Cut %zu bytes", copied_len);
 }
 
-static const char *editorCommentPrefixForLanguage(enum editorSyntaxLanguage lang) {
+static const char *actionsEditCommentPrefixForLanguage(enum editorSyntaxLanguage lang) {
 	switch (lang) {
-	case EDITOR_SYNTAX_C:
-	case EDITOR_SYNTAX_CPP:
-	case EDITOR_SYNTAX_GO:
-	case EDITOR_SYNTAX_JAVASCRIPT:
-	case EDITOR_SYNTAX_TYPESCRIPT:
-	case EDITOR_SYNTAX_TSX:
-	case EDITOR_SYNTAX_JAVA:
-	case EDITOR_SYNTAX_RUST:
-	case EDITOR_SYNTAX_CSS:
-	case EDITOR_SYNTAX_CSHARP:
-	case EDITOR_SYNTAX_SCALA:
-	case EDITOR_SYNTAX_PHP:
-		return "//";
-	case EDITOR_SYNTAX_PYTHON:
-	case EDITOR_SYNTAX_SHELL:
-	case EDITOR_SYNTAX_RUBY:
-	case EDITOR_SYNTAX_JULIA:
-		return "#";
-	case EDITOR_SYNTAX_HASKELL:
-		return "--";
-	default:
-		return NULL;
+		case EDITOR_SYNTAX_C:
+		case EDITOR_SYNTAX_CPP:
+		case EDITOR_SYNTAX_GO:
+		case EDITOR_SYNTAX_JAVASCRIPT:
+		case EDITOR_SYNTAX_TYPESCRIPT:
+		case EDITOR_SYNTAX_TSX:
+		case EDITOR_SYNTAX_JAVA:
+		case EDITOR_SYNTAX_RUST:
+		case EDITOR_SYNTAX_CSS:
+		case EDITOR_SYNTAX_CSHARP:
+		case EDITOR_SYNTAX_SCALA:
+		case EDITOR_SYNTAX_PHP:
+			return "//";
+		case EDITOR_SYNTAX_PYTHON:
+		case EDITOR_SYNTAX_SHELL:
+		case EDITOR_SYNTAX_RUBY:
+		case EDITOR_SYNTAX_JULIA:
+			return "#";
+		case EDITOR_SYNTAX_HASKELL:
+			return "--";
+		default:
+			return NULL;
 	}
 }
 
 void editorEditToggleCommentLines(editorEditActionFn clear_selection_mode,
-		editorEditActionFn pin_active_preview_for_edit) {
-	const char *prefix = editorCommentPrefixForLanguage(E.syntax_language);
+                                  editorEditActionFn pin_active_preview_for_edit) {
+	const char *prefix = actionsEditCommentPrefixForLanguage(E.syntax_language);
 	if (prefix == NULL) {
 		editorSetStatusMsg("No line comment for this language");
 		return;
@@ -239,7 +240,7 @@ void editorEditToggleCommentLines(editorEditActionFn clear_selection_mode,
 
 	size_t first_start = 0, dummy = 0, last_end = 0;
 	if (!editorBufferLineByteRange(range.start_cy, &first_start, &dummy) ||
-			!editorBufferLineByteRange(last_row, &dummy, &last_end)) {
+	    !editorBufferLineByteRange(last_row, &dummy, &last_end)) {
 		return;
 	}
 	size_t old_len = last_end - first_start;
@@ -375,15 +376,15 @@ void editorEditToggleCommentLines(editorEditActionFn clear_selection_mode,
 	}
 
 	struct editorDocumentEdit edit = {
-		.kind = EDITOR_EDIT_INSERT_TEXT,
-		.start_offset = first_start,
-		.old_len = old_len,
-		.new_text = new_text,
-		.new_len = new_len,
-		.before_cursor_offset = before_offset,
-		.after_cursor_offset = after_offset,
-		.before_dirty = E.dirty,
-		.after_dirty = E.dirty + 1,
+	        .kind = EDITOR_EDIT_INSERT_TEXT,
+	        .start_offset = first_start,
+	        .old_len = old_len,
+	        .new_text = new_text,
+	        .new_len = new_len,
+	        .before_cursor_offset = before_offset,
+	        .after_cursor_offset = after_offset,
+	        .before_dirty = E.dirty,
+	        .after_dirty = E.dirty + 1,
 	};
 
 	if (pin_active_preview_for_edit != NULL) {
@@ -414,7 +415,7 @@ void editorEditMoveCurrentLine(int direction) {
 	size_t first_start = 0, first_end = 0;
 	size_t second_start = 0, second_end = 0;
 	if (!editorBufferLineByteRange(first, &first_start, &first_end) ||
-			!editorBufferLineByteRange(second, &second_start, &second_end)) {
+	    !editorBufferLineByteRange(second, &second_start, &second_end)) {
 		return;
 	}
 
@@ -464,15 +465,15 @@ void editorEditMoveCurrentLine(int direction) {
 	(void)editorBufferPosToOffset(cur, E.cx, &before_offset);
 
 	struct editorDocumentEdit edit = {
-		.kind = EDITOR_EDIT_INSERT_TEXT,
-		.start_offset = first_start,
-		.old_len = old_len,
-		.new_text = new_text,
-		.new_len = new_len,
-		.before_cursor_offset = before_offset,
-		.after_cursor_offset = after_offset,
-		.before_dirty = E.dirty,
-		.after_dirty = E.dirty + 1,
+	        .kind = EDITOR_EDIT_INSERT_TEXT,
+	        .start_offset = first_start,
+	        .old_len = old_len,
+	        .new_text = new_text,
+	        .new_len = new_len,
+	        .before_cursor_offset = before_offset,
+	        .after_cursor_offset = after_offset,
+	        .before_dirty = E.dirty,
+	        .after_dirty = E.dirty + 1,
 	};
 
 	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
@@ -544,7 +545,7 @@ void editorEditPasteClipboard(editorEditActionFn clear_selection_mode) {
 	char *indented_clip = NULL;
 	size_t indented_clip_len = 0;
 	int indent_result = editorBuildAutoIndentedText(clip, clip_len, indent_cy, indent_cx,
-			&indented_clip, &indented_clip_len);
+	                                                &indented_clip, &indented_clip_len);
 	if (indent_result < 0) {
 		return;
 	}
@@ -576,151 +577,153 @@ void editorEditPasteClipboard(editorEditActionFn clear_selection_mode) {
 	}
 }
 
-int editorHandleEditMappedAction(enum editorAction action, int cursor_or_edit_effect_bit,
-		editorEditActionFn clear_selection_mode, editorEditActionFn pin_active_preview_for_edit,
-		editorEditActionFn clear_search_state, editorEditActionFn toggle_selection_mode,
-		editorEditActionFn copy_selection, editorEditActionFn cut_selection,
-		editorEditActionFn delete_selection, editorEditActionFn paste_clipboard,
-		editorEditActionFn delete_char_action, editorEditActionFn backspace_action,
-		editorEditActionFn move_line_up, editorEditActionFn move_line_down,
-		editorEditActionFn toggle_comment_lines, int *effects_io) {
+int editorHandleEditMappedAction(
+        enum editorAction action, int cursor_or_edit_effect_bit,
+        editorEditActionFn clear_selection_mode, editorEditActionFn pin_active_preview_for_edit,
+        editorEditActionFn clear_search_state, editorEditActionFn toggle_selection_mode,
+        editorEditActionFn copy_selection, editorEditActionFn cut_selection,
+        editorEditActionFn delete_selection, editorEditActionFn paste_clipboard,
+        editorEditActionFn delete_char_action, editorEditActionFn backspace_action,
+        editorEditActionFn move_line_up, editorEditActionFn move_line_down,
+        editorEditActionFn toggle_comment_lines, int *effects_io) {
 	int effects = effects_io != NULL ? *effects_io : 0;
 
 	switch (action) {
-	case EDITOR_ACTION_NEWLINE:
-		if (clear_selection_mode != NULL) {
-			clear_selection_mode();
-		}
-		if (pin_active_preview_for_edit != NULL) {
-			pin_active_preview_for_edit();
-		}
-		editorHistoryBeginEdit(EDITOR_EDIT_NEWLINE);
-		{
-			int dirty_before = E.dirty;
-			editorInsertNewline();
-			editorHistoryCommitEdit(EDITOR_EDIT_NEWLINE, E.dirty != dirty_before);
-		}
-		effects |= cursor_or_edit_effect_bit;
-		break;
-	case EDITOR_ACTION_TOGGLE_SELECTION:
-		editorHistoryBreakGroup();
-		if (toggle_selection_mode != NULL) {
-			toggle_selection_mode();
-		}
-		break;
-	case EDITOR_ACTION_COPY_SELECTION:
-		editorHistoryBreakGroup();
-		if (copy_selection != NULL) {
-			copy_selection();
-		}
-		break;
-	case EDITOR_ACTION_CUT_SELECTION:
-		editorHistoryBreakGroup();
-		if (pin_active_preview_for_edit != NULL) {
-			pin_active_preview_for_edit();
-		}
-		if (cut_selection != NULL) {
-			cut_selection();
-		}
-		effects |= cursor_or_edit_effect_bit;
-		break;
-	case EDITOR_ACTION_DELETE_SELECTION:
-		editorHistoryBreakGroup();
-		if (pin_active_preview_for_edit != NULL) {
-			pin_active_preview_for_edit();
-		}
-		if (delete_selection != NULL) {
-			delete_selection();
-		}
-		effects |= cursor_or_edit_effect_bit;
-		break;
-	case EDITOR_ACTION_PASTE:
-		editorHistoryBreakGroup();
-		if (pin_active_preview_for_edit != NULL) {
-			pin_active_preview_for_edit();
-		}
-		if (paste_clipboard != NULL) {
-			paste_clipboard();
-		}
-		effects |= cursor_or_edit_effect_bit;
-		break;
-	case EDITOR_ACTION_UNDO:
-		editorHistoryBreakGroup();
-		if (pin_active_preview_for_edit != NULL) {
-			pin_active_preview_for_edit();
-		}
-		if (editorUndo() == 1) {
-			if (clear_search_state != NULL) {
-				clear_search_state();
+		case EDITOR_ACTION_NEWLINE:
+			if (clear_selection_mode != NULL) {
+				clear_selection_mode();
+			}
+			if (pin_active_preview_for_edit != NULL) {
+				pin_active_preview_for_edit();
+			}
+			editorHistoryBeginEdit(EDITOR_EDIT_NEWLINE);
+			{
+				int dirty_before = E.dirty;
+				editorInsertNewline();
+				editorHistoryCommitEdit(EDITOR_EDIT_NEWLINE,
+				                        E.dirty != dirty_before);
 			}
 			effects |= cursor_or_edit_effect_bit;
-		}
-		break;
-	case EDITOR_ACTION_REDO:
-		editorHistoryBreakGroup();
-		if (pin_active_preview_for_edit != NULL) {
-			pin_active_preview_for_edit();
-		}
-		if (editorRedo() == 1) {
-			if (clear_search_state != NULL) {
-				clear_search_state();
+			break;
+		case EDITOR_ACTION_TOGGLE_SELECTION:
+			editorHistoryBreakGroup();
+			if (toggle_selection_mode != NULL) {
+				toggle_selection_mode();
+			}
+			break;
+		case EDITOR_ACTION_COPY_SELECTION:
+			editorHistoryBreakGroup();
+			if (copy_selection != NULL) {
+				copy_selection();
+			}
+			break;
+		case EDITOR_ACTION_CUT_SELECTION:
+			editorHistoryBreakGroup();
+			if (pin_active_preview_for_edit != NULL) {
+				pin_active_preview_for_edit();
+			}
+			if (cut_selection != NULL) {
+				cut_selection();
 			}
 			effects |= cursor_or_edit_effect_bit;
-		}
-		break;
-	case EDITOR_ACTION_DELETE_CHAR:
-		if (pin_active_preview_for_edit != NULL) {
-			pin_active_preview_for_edit();
-		}
-		if (delete_char_action != NULL) {
-			delete_char_action();
-		}
-		effects |= cursor_or_edit_effect_bit;
-		break;
-	case EDITOR_ACTION_BACKSPACE:
-		if (pin_active_preview_for_edit != NULL) {
-			pin_active_preview_for_edit();
-		}
-		if (backspace_action != NULL) {
-			backspace_action();
-		}
-		effects |= cursor_or_edit_effect_bit;
-		break;
-	case EDITOR_ACTION_MOVE_LINE_UP:
-		if (clear_selection_mode != NULL) {
-			clear_selection_mode();
-		}
-		if (pin_active_preview_for_edit != NULL) {
-			pin_active_preview_for_edit();
-		}
-		if (move_line_up != NULL) {
-			move_line_up();
-		}
-		effects |= cursor_or_edit_effect_bit;
-		break;
-	case EDITOR_ACTION_MOVE_LINE_DOWN:
-		if (clear_selection_mode != NULL) {
-			clear_selection_mode();
-		}
-		if (pin_active_preview_for_edit != NULL) {
-			pin_active_preview_for_edit();
-		}
-		if (move_line_down != NULL) {
-			move_line_down();
-		}
-		effects |= cursor_or_edit_effect_bit;
-		break;
-	case EDITOR_ACTION_TOGGLE_COMMENT:
-		if (pin_active_preview_for_edit != NULL) {
-			pin_active_preview_for_edit();
-		}
-		if (toggle_comment_lines != NULL) {
-			toggle_comment_lines();
-		}
-		effects |= cursor_or_edit_effect_bit;
-		break;
-	default:
-		return 0;
+			break;
+		case EDITOR_ACTION_DELETE_SELECTION:
+			editorHistoryBreakGroup();
+			if (pin_active_preview_for_edit != NULL) {
+				pin_active_preview_for_edit();
+			}
+			if (delete_selection != NULL) {
+				delete_selection();
+			}
+			effects |= cursor_or_edit_effect_bit;
+			break;
+		case EDITOR_ACTION_PASTE:
+			editorHistoryBreakGroup();
+			if (pin_active_preview_for_edit != NULL) {
+				pin_active_preview_for_edit();
+			}
+			if (paste_clipboard != NULL) {
+				paste_clipboard();
+			}
+			effects |= cursor_or_edit_effect_bit;
+			break;
+		case EDITOR_ACTION_UNDO:
+			editorHistoryBreakGroup();
+			if (pin_active_preview_for_edit != NULL) {
+				pin_active_preview_for_edit();
+			}
+			if (editorUndo() == 1) {
+				if (clear_search_state != NULL) {
+					clear_search_state();
+				}
+				effects |= cursor_or_edit_effect_bit;
+			}
+			break;
+		case EDITOR_ACTION_REDO:
+			editorHistoryBreakGroup();
+			if (pin_active_preview_for_edit != NULL) {
+				pin_active_preview_for_edit();
+			}
+			if (editorRedo() == 1) {
+				if (clear_search_state != NULL) {
+					clear_search_state();
+				}
+				effects |= cursor_or_edit_effect_bit;
+			}
+			break;
+		case EDITOR_ACTION_DELETE_CHAR:
+			if (pin_active_preview_for_edit != NULL) {
+				pin_active_preview_for_edit();
+			}
+			if (delete_char_action != NULL) {
+				delete_char_action();
+			}
+			effects |= cursor_or_edit_effect_bit;
+			break;
+		case EDITOR_ACTION_BACKSPACE:
+			if (pin_active_preview_for_edit != NULL) {
+				pin_active_preview_for_edit();
+			}
+			if (backspace_action != NULL) {
+				backspace_action();
+			}
+			effects |= cursor_or_edit_effect_bit;
+			break;
+		case EDITOR_ACTION_MOVE_LINE_UP:
+			if (clear_selection_mode != NULL) {
+				clear_selection_mode();
+			}
+			if (pin_active_preview_for_edit != NULL) {
+				pin_active_preview_for_edit();
+			}
+			if (move_line_up != NULL) {
+				move_line_up();
+			}
+			effects |= cursor_or_edit_effect_bit;
+			break;
+		case EDITOR_ACTION_MOVE_LINE_DOWN:
+			if (clear_selection_mode != NULL) {
+				clear_selection_mode();
+			}
+			if (pin_active_preview_for_edit != NULL) {
+				pin_active_preview_for_edit();
+			}
+			if (move_line_down != NULL) {
+				move_line_down();
+			}
+			effects |= cursor_or_edit_effect_bit;
+			break;
+		case EDITOR_ACTION_TOGGLE_COMMENT:
+			if (pin_active_preview_for_edit != NULL) {
+				pin_active_preview_for_edit();
+			}
+			if (toggle_comment_lines != NULL) {
+				toggle_comment_lines();
+			}
+			effects |= cursor_or_edit_effect_bit;
+			break;
+		default:
+			return 0;
 	}
 
 	if (effects_io != NULL) {

@@ -6,9 +6,11 @@
 typedef void (*editorLanguageActionFn)(void);
 
 int editorHandleLanguageMappedAction(enum editorAction action, int cursor_or_edit_effect_bit,
-		void (*pin_active_preview_for_edit)(void), editorLanguageActionFn goto_definition,
-		editorLanguageActionFn goto_implementation, editorLanguageActionFn goto_symbol,
-		editorLanguageActionFn apply_eslint_fixes, int *effects_io);
+                                     void (*pin_active_preview_for_edit)(void),
+                                     editorLanguageActionFn goto_definition,
+                                     editorLanguageActionFn goto_implementation,
+                                     editorLanguageActionFn goto_symbol,
+                                     editorLanguageActionFn apply_eslint_fixes, int *effects_io);
 int editorLanguageGoToSupported(enum editorSyntaxLanguage language);
 int editorLanguageGoToEnabled(void);
 const char *editorLanguageGoToLabel(void);

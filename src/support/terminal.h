@@ -1,5 +1,5 @@
-#ifndef TERMINAL_H
-#define TERMINAL_H
+#ifndef ROTIDE_SUPPORT_TERMINAL_H
+#define ROTIDE_SUPPORT_TERMINAL_H
 
 #include "rotide.h"
 
@@ -11,11 +11,11 @@ int editorConsumeMouseEvent(struct editorMouseEvent *out);
 int editorRefreshWindowSize(void);
 void editorQueueResizeEvent(void);
 void editorRestoreTerminal(void);
-void panic(const char *s);
-void setDefaultMode(void);
-void setRawMode(void);
+void editorPanic(const char *s);
+void editorSetDefaultMode(void);
+void editorSetRawMode(void);
 int editorReadKey(void);
-int readCursorPosition(int *rows, int *cols);
-int readWindowSize(int *rows, int *cols);
+int editorReadCursorPosition(int *rows, int *cols);
+int editorReadWindowSize(int *rows, int *cols);
 
 #endif

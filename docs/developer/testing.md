@@ -28,7 +28,7 @@ and which validation layer wraps the run:
 
 `editorDocument` is the canonical writable text state. Tests should read line
 bytes through document APIs or the read-only test API; do not assert raw text
-through `struct erow`.
+through `struct editorRow`.
 
 ## Runner Pipeline
 
@@ -145,7 +145,7 @@ time a real `./rotide --render-once <large fixture>` cold-open/render path.
 2. Drive production paths. Test-only APIs may expose read-only state and
    counters, not mutators that production cannot call.
 3. For text behavior, assert through `editorDocument` views or read-only row
-   helpers, not `erow` raw storage.
+   helpers, not `editorRow` raw storage.
 4. For property tests, derive per-test randomness from `rotide_test_seed()` so
    one printed seed reproduces the whole run.
 5. For visible render behavior, use `ASSERT_GRID_EQ`; keep raw byte assertions

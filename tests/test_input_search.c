@@ -1,6 +1,6 @@
+#include "editing/selection.h"
 #include "test_case.h"
 #include "test_support.h"
-#include "editing/selection.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/layout.h"
@@ -129,14 +129,9 @@ static int test_editor_process_keypress_ctrl_f_arrow_navigation_wraps(void) {
 	E.cy = 0;
 	E.cx = 0;
 
-	const char input[] = {
-		CTRL_KEY('f'), 'a', 'l', 'p', 'h', 'a',
-		'\x1b', '[', 'B',
-		'\x1b', '[', 'B',
-		'\x1b', '[', 'B',
-		'\x1b', '[', 'A',
-		'\r'
-	};
+	const char input[] = {CTRL_KEY('f'), 'a',    'l',    'p', 'h', 'a',    '\x1b',
+	                      '[',           'B',    '\x1b', '[', 'B', '\x1b', '[',
+	                      'B',           '\x1b', '[',    'A', '\r'};
 	ASSERT_TRUE(editor_process_keypress_with_input_silent(input, sizeof(input)) == 0);
 
 	ASSERT_TRUE(E.search_query != NULL);
@@ -199,14 +194,21 @@ static int test_editor_process_keypress_ctrl_f_no_match_preserves_cursor_and_set
 }
 
 const struct editorTestCase g_input_search_tests[] = {
-	{"editor_process_keypress_find_file_filters_previews_and_opens", test_editor_process_keypress_find_file_filters_previews_and_opens},
-	{"editor_process_keypress_project_search_filters_previews_and_opens", test_editor_process_keypress_project_search_filters_previews_and_opens},
-	{"editor_process_keypress_ctrl_f_incremental_find_first_match", test_editor_process_keypress_ctrl_f_incremental_find_first_match},
-	{"editor_process_keypress_ctrl_f_arrow_navigation_wraps", test_editor_process_keypress_ctrl_f_arrow_navigation_wraps},
-	{"editor_process_keypress_ctrl_f_escape_restores_cursor_and_clears_match", test_editor_process_keypress_ctrl_f_escape_restores_cursor_and_clears_match},
-	{"editor_process_keypress_ctrl_f_enter_keeps_active_match", test_editor_process_keypress_ctrl_f_enter_keeps_active_match},
-	{"editor_process_keypress_ctrl_f_no_match_preserves_cursor_and_sets_status", test_editor_process_keypress_ctrl_f_no_match_preserves_cursor_and_sets_status},
+        {"editor_process_keypress_find_file_filters_previews_and_opens",
+         test_editor_process_keypress_find_file_filters_previews_and_opens},
+        {"editor_process_keypress_project_search_filters_previews_and_opens",
+         test_editor_process_keypress_project_search_filters_previews_and_opens},
+        {"editor_process_keypress_ctrl_f_incremental_find_first_match",
+         test_editor_process_keypress_ctrl_f_incremental_find_first_match},
+        {"editor_process_keypress_ctrl_f_arrow_navigation_wraps",
+         test_editor_process_keypress_ctrl_f_arrow_navigation_wraps},
+        {"editor_process_keypress_ctrl_f_escape_restores_cursor_and_clears_match",
+         test_editor_process_keypress_ctrl_f_escape_restores_cursor_and_clears_match},
+        {"editor_process_keypress_ctrl_f_enter_keeps_active_match",
+         test_editor_process_keypress_ctrl_f_enter_keeps_active_match},
+        {"editor_process_keypress_ctrl_f_no_match_preserves_cursor_and_sets_status",
+         test_editor_process_keypress_ctrl_f_no_match_preserves_cursor_and_sets_status},
 };
 
 const int g_input_search_test_count =
-		(int)(sizeof(g_input_search_tests) / sizeof(g_input_search_tests[0]));
+        (int)(sizeof(g_input_search_tests) / sizeof(g_input_search_tests[0]));

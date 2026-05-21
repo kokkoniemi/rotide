@@ -3,6 +3,7 @@
 #include "rotide.h"
 #include "support/alloc.h"
 #include "support/size_utils.h"
+
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>

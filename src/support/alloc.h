@@ -1,5 +1,5 @@
-#ifndef ALLOC_H
-#define ALLOC_H
+#ifndef ROTIDE_SUPPORT_ALLOC_H
+#define ROTIDE_SUPPORT_ALLOC_H
 
 #include <stddef.h>
 

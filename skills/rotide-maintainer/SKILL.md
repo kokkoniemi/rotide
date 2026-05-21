@@ -16,16 +16,24 @@ Use this for general RotIDE code, docs, and test work when a narrower skill is n
 ## Guardrails
 
 - Treat `editorDocument` as canonical writable text state.
-- Treat `struct erow` rows as derived render/cache state.
+- Treat `struct editorRow` rows as derived render/cache state.
 - Keep cursor/search/selection logic offset-safe and boundary-safe for UTF-8/graphemes.
 - Keep key behavior action-driven via `enum editorAction` and keymap lookups.
 - Keep task-log tabs generated/read-only/non-savable.
 - Keep syntax and LSP state tab-local.
 - Do not regress dirty-state semantics.
+- CI enforces `make lint-check`; keep new code inside the active formatter,
+  clang-tidy, and module-prefix gates.
+- For new `.c` files, add an entry to `docs/module-prefixes.md` and
+  `tools/module-prefixes.tsv`.
 
 ## Validation
 
 - Always: `make`, then `make test`.
+- For style, formatting, or naming-table work: add `make format-check` and
+  `make lint-prefixes`.
+- For new functions or significant restructuring: add `make lint` when
+  `clang-tidy` is available.
 - Add sanitizer run (`make test-sanitize`) when touching:
   - memory/UB-sensitive paths
   - syntax/query/parse internals

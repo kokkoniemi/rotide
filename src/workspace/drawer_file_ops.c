@@ -1,9 +1,8 @@
-#include "workspace/drawer.h"
-
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
 #include "support/alloc.h"
 #include "support/file_io.h"
+#include "workspace/drawer.h"
 #include "workspace/drawer_internal.h"
 #include "workspace/file_search.h"
 #include "workspace/project_search.h"
@@ -18,7 +17,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-static int editorDrawerNameIsValid(const char *name) {
+static int drawerFileOpsNameIsValid(const char *name) {
 	if (name == NULL || name[0] == '\0') {
 		return 0;
 	}
@@ -31,8 +30,7 @@ static int editorDrawerNameIsValid(const char *name) {
 	return 1;
 }
 
-static struct editorDrawerNode *editorDrawerCreationTargetDir(
-		struct editorDrawerNode *selected) {
+static struct editorDrawerNode *drawerFileOpsCreationTargetDir(struct editorDrawerNode *selected) {
 	if (selected == NULL) {
 		return E.drawer_root;
 	}
@@ -45,7 +43,7 @@ static struct editorDrawerNode *editorDrawerCreationTargetDir(
 	return E.drawer_root;
 }
 
-static void editorDrawerInvalidateScan(struct editorDrawerNode *node) {
+static void drawerFileOpsInvalidateScan(struct editorDrawerNode *node) {
 	if (node == NULL) {
 		return;
 	}
@@ -59,8 +57,8 @@ static void editorDrawerInvalidateScan(struct editorDrawerNode *node) {
 	node->scan_error = 0;
 }
 
-static int editorDrawerSelectChildByName(struct editorDrawerNode *parent,
-		const char *name, int viewport_rows) {
+static int drawerFileOpsSelectChildByName(struct editorDrawerNode *parent, const char *name,
+                                          int viewport_rows) {
 	if (parent == NULL || name == NULL) {
 		return 0;
 	}
@@ -77,7 +75,7 @@ static int editorDrawerSelectChildByName(struct editorDrawerNode *parent,
 	return 1;
 }
 
-static int editorDrawerRemovePathRecursive(const char *path) {
+static int drawerFileOpsRemovePathRecursive(const char *path) {
 	if (path == NULL || path[0] == '\0') {
 		errno = EINVAL;
 		return 0;
@@ -109,7 +107,7 @@ static int editorDrawerRemovePathRecursive(const char *path) {
 			errno = ENOMEM;
 			break;
 		}
-		if (!editorDrawerRemovePathRecursive(child_path)) {
+		if (!drawerFileOpsRemovePathRecursive(child_path)) {
 			ok = 0;
 		}
 		free(child_path);
@@ -127,13 +125,13 @@ int editorDrawerCreateFileAtSelection(const char *name, int viewport_rows) {
 		editorSetStatusMsg("No drawer open");
 		return 0;
 	}
-	if (!editorDrawerNameIsValid(name)) {
+	if (!drawerFileOpsNameIsValid(name)) {
 		editorSetStatusMsg("Invalid file name");
 		return 0;
 	}
 
 	struct editorDrawerNode *selected = editorDrawerSelectedTreeNode();
-	struct editorDrawerNode *target_dir = editorDrawerCreationTargetDir(selected);
+	struct editorDrawerNode *target_dir = drawerFileOpsCreationTargetDir(selected);
 	if (target_dir == NULL) {
 		editorSetStatusMsg("No target directory");
 		return 0;
@@ -163,9 +161,9 @@ int editorDrawerCreateFileAtSelection(const char *name, int viewport_rows) {
 	if (target_dir->is_dir) {
 		target_dir->is_expanded = 1;
 	}
-	editorDrawerInvalidateScan(target_dir);
+	drawerFileOpsInvalidateScan(target_dir);
 	(void)editorDrawerEnsureScanned(target_dir);
-	(void)editorDrawerSelectChildByName(target_dir, name, viewport_rows);
+	(void)drawerFileOpsSelectChildByName(target_dir, name, viewport_rows);
 	editorSetStatusMsg("Created %s", new_path);
 	free(new_path);
 	return 1;
@@ -176,13 +174,13 @@ int editorDrawerCreateFolderAtSelection(const char *name, int viewport_rows) {
 		editorSetStatusMsg("No drawer open");
 		return 0;
 	}
-	if (!editorDrawerNameIsValid(name)) {
+	if (!drawerFileOpsNameIsValid(name)) {
 		editorSetStatusMsg("Invalid folder name");
 		return 0;
 	}
 
 	struct editorDrawerNode *selected = editorDrawerSelectedTreeNode();
-	struct editorDrawerNode *target_dir = editorDrawerCreationTargetDir(selected);
+	struct editorDrawerNode *target_dir = drawerFileOpsCreationTargetDir(selected);
 	if (target_dir == NULL) {
 		editorSetStatusMsg("No target directory");
 		return 0;
@@ -210,9 +208,9 @@ int editorDrawerCreateFolderAtSelection(const char *name, int viewport_rows) {
 	if (target_dir->is_dir) {
 		target_dir->is_expanded = 1;
 	}
-	editorDrawerInvalidateScan(target_dir);
+	drawerFileOpsInvalidateScan(target_dir);
 	(void)editorDrawerEnsureScanned(target_dir);
-	(void)editorDrawerSelectChildByName(target_dir, name, viewport_rows);
+	(void)drawerFileOpsSelectChildByName(target_dir, name, viewport_rows);
 	editorSetStatusMsg("Created %s", new_path);
 	free(new_path);
 	return 1;
@@ -223,7 +221,7 @@ int editorDrawerRenameSelection(const char *new_name, int viewport_rows) {
 		editorSetStatusMsg("No drawer open");
 		return 0;
 	}
-	if (!editorDrawerNameIsValid(new_name)) {
+	if (!drawerFileOpsNameIsValid(new_name)) {
 		editorSetStatusMsg("Invalid name");
 		return 0;
 	}
@@ -263,9 +261,9 @@ int editorDrawerRenameSelection(const char *new_name, int viewport_rows) {
 	}
 
 	free(new_path);
-	editorDrawerInvalidateScan(parent);
+	drawerFileOpsInvalidateScan(parent);
 	(void)editorDrawerEnsureScanned(parent);
-	if (!editorDrawerSelectChildByName(parent, new_name, viewport_rows)) {
+	if (!drawerFileOpsSelectChildByName(parent, new_name, viewport_rows)) {
 		E.drawer_selected_index = -1;
 		editorDrawerClampSelectionAndScroll(viewport_rows);
 	}
@@ -299,14 +297,14 @@ int editorDrawerDeleteSelection(int viewport_rows) {
 		return 0;
 	}
 
-	if (!editorDrawerRemovePathRecursive(path_copy)) {
+	if (!drawerFileOpsRemovePathRecursive(path_copy)) {
 		editorSetStatusMsg("Delete failed: %s", strerror(errno));
 		free(path_copy);
 		free(name_copy);
 		return 0;
 	}
 
-	editorDrawerInvalidateScan(parent);
+	drawerFileOpsInvalidateScan(parent);
 	(void)editorDrawerEnsureScanned(parent);
 	int parent_visible_idx = -1;
 	if (parent == E.drawer_root) {
@@ -336,7 +334,7 @@ int editorDrawerOpenSelectedFileInTab(void) {
 
 	struct editorDrawerNode *selected = editorDrawerSelectedTreeNode();
 	if (selected == NULL || selected->is_dir || selected->path == NULL ||
-			selected->path[0] == '\0') {
+	    selected->path[0] == '\0') {
 		return 0;
 	}
 	return editorTabOpenOrSwitchToFile(selected->path);
@@ -352,14 +350,15 @@ int editorDrawerOpenSelectedFileInPreviewTab(void) {
 
 	struct editorDrawerNode *selected = editorDrawerSelectedTreeNode();
 	if (selected == NULL || selected->is_dir || selected->path == NULL ||
-			selected->path[0] == '\0') {
+	    selected->path[0] == '\0') {
 		return 0;
 	}
 	return editorTabOpenOrSwitchToPreviewFile(selected->path);
 }
 
 int editorDrawerRevealPath(const char *path, int viewport_rows) {
-	if (path == NULL || path[0] == '\0' || E.drawer_root == NULL || E.drawer_root_path == NULL) {
+	if (path == NULL || path[0] == '\0' || E.drawer_root == NULL ||
+	    E.drawer_root_path == NULL) {
 		return 0;
 	}
 
@@ -378,7 +377,7 @@ int editorDrawerRevealPath(const char *path, int viewport_rows) {
 		return 1;
 	}
 	if (root_len == 0 || strncmp(absolute, E.drawer_root_path, root_len) != 0 ||
-			absolute[root_len] != '/') {
+	    absolute[root_len] != '/') {
 		free(absolute);
 		return 0;
 	}
@@ -389,14 +388,14 @@ int editorDrawerRevealPath(const char *path, int viewport_rows) {
 	while (component[0] != '\0') {
 		const char *slash = strchr(component, '/');
 		size_t component_len =
-				slash != NULL ? (size_t)(slash - component) : strlen(component);
+		        slash != NULL ? (size_t)(slash - component) : strlen(component);
 		if (component_len == 0) {
 			free(absolute);
 			return 0;
 		}
 
 		struct editorDrawerNode *child =
-				editorDrawerFindChildByName(node, component, component_len);
+		        editorDrawerFindChildByName(node, component, component_len);
 		if (child == NULL) {
 			free(absolute);
 			return 0;

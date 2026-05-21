@@ -1,5 +1,5 @@
-#ifndef DOCUMENT_H
-#define DOCUMENT_H
+#ifndef ROTIDE_TEXT_DOCUMENT_H
+#define ROTIDE_TEXT_DOCUMENT_H
 
 #include "rotide.h"
 #include "text/text_tree.h"
@@ -16,18 +16,18 @@ void editorDocumentInit(struct editorDocument *document);
 void editorDocumentFree(struct editorDocument *document);
 int editorDocumentResetFromString(struct editorDocument *document, const char *text, size_t len);
 int editorDocumentResetFromDocument(struct editorDocument *document,
-		const struct editorDocument *source);
+                                    const struct editorDocument *source);
 int editorDocumentResetFromTextSource(struct editorDocument *document,
-		const struct editorTextSource *source);
+                                      const struct editorTextSource *source);
 size_t editorDocumentLength(const struct editorDocument *document);
 const char *editorDocumentRead(const struct editorDocument *document, size_t byte_index,
-		uint32_t *bytes_read);
+                               uint32_t *bytes_read);
 int editorDocumentCopyRange(const struct editorDocument *document, size_t start_byte,
-		size_t end_byte, char *dst);
+                            size_t end_byte, char *dst);
 char *editorDocumentDupRange(const struct editorDocument *document, size_t start_byte,
-		size_t end_byte, size_t *len_out);
+                             size_t end_byte, size_t *len_out);
 int editorDocumentReplaceRange(struct editorDocument *document, size_t start_byte, size_t old_len,
-		const char *new_text, size_t new_len);
+                               const char *new_text, size_t new_len);
 
 /* Reserve add-buffer capacity for `additional_bytes` so the next inserts of
  * that total size happen without realloc — used by edit pipelines that need
@@ -40,15 +40,15 @@ int editorDocumentReserveInsertCapacity(struct editorDocument *document, size_t 
  */
 int editorDocumentLineCount(const struct editorDocument *document);
 int editorDocumentLineStartByte(const struct editorDocument *document, int line_idx,
-		size_t *start_byte_out);
+                                size_t *start_byte_out);
 int editorDocumentLineEndByte(const struct editorDocument *document, int line_idx,
-		size_t *end_byte_out);
+                              size_t *end_byte_out);
 int editorDocumentLineIndexForByteOffset(const struct editorDocument *document, size_t byte_offset,
-		int *line_idx_out);
+                                         int *line_idx_out);
 int editorDocumentPositionToByteOffset(const struct editorDocument *document, int line_idx,
-		size_t column, size_t *byte_offset_out);
+                                       size_t column, size_t *byte_offset_out);
 int editorDocumentByteOffsetToPosition(const struct editorDocument *document, size_t byte_offset,
-		int *line_idx_out, size_t *column_out);
+                                       int *line_idx_out, size_t *column_out);
 
 size_t editorDocumentMaxLineBytes(const struct editorDocument *document);
 
@@ -59,11 +59,10 @@ size_t editorDocumentLineLength(const struct editorDocument *document, int line_
  * editorDocumentLineDup.
  */
 const char *editorDocumentLineBytes(const struct editorDocument *document, int line_idx,
-		size_t *len_out);
+                                    size_t *len_out);
 
 /* NUL-terminated copy of the line; caller frees. */
-char *editorDocumentLineDup(const struct editorDocument *document, int line_idx,
-		size_t *len_out);
+char *editorDocumentLineDup(const struct editorDocument *document, int line_idx, size_t *len_out);
 
 /* Line bytes accessor that hides the zero-copy / fallback split. `owned` is
  * non-NULL only when the bytes were copied; in either case release via
@@ -77,7 +76,7 @@ struct editorLineView {
 };
 
 int editorDocumentLineView(const struct editorDocument *document, int line_idx,
-		struct editorLineView *view_out);
+                           struct editorLineView *view_out);
 void editorLineViewRelease(struct editorLineView *view);
 
 #endif

@@ -1,5 +1,5 @@
-#ifndef RENDER_ANSI_STYLE_H
-#define RENDER_ANSI_STYLE_H
+#ifndef ROTIDE_RENDER_ANSI_STYLE_H
+#define ROTIDE_RENDER_ANSI_STYLE_H
 
 #include "render/write_buf.h"
 #include "rotide.h"

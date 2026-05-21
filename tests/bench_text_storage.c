@@ -149,7 +149,7 @@ int main(int argc, char **argv) {
 	int final_lines = editorDocumentLineCount(&doc);
 
 	long rss_before_rows = process_rss_kib();
-	struct erow *rows = NULL;
+	struct editorRow *rows = NULL;
 	int numrows = 0;
 	if (!editorBuildFullRowsFromDocument(&doc, &rows, &numrows)) {
 		fprintf(stderr, "bench: row-cache build failed\n");
@@ -158,22 +158,21 @@ int main(int argc, char **argv) {
 	}
 	long rss_after_rows = process_rss_kib();
 
-	printf("bench_text_storage: seed=0x%016llx bytes=%zu ops=%d\n",
-		(unsigned long long)seed, doc_bytes, ops);
+	printf("bench_text_storage: seed=0x%016llx bytes=%zu ops=%d\n", (unsigned long long)seed,
+	       doc_bytes, ops);
 	printf("  open_reset:      %8.4f s  (%.2f MB/s)\n", t_open,
-		(double)doc_bytes / (t_open > 0 ? t_open : 1e-12) / 1e6);
+	       (double)doc_bytes / (t_open > 0 ? t_open : 1e-12) / 1e6);
 	printf("  random_inserts:  %8.4f s  (%.2f us/op)\n", t_inserts,
-		t_inserts * 1e6 / (double)(ops > 0 ? ops : 1));
+	       t_inserts * 1e6 / (double)(ops > 0 ? ops : 1));
 	printf("  random_deletes:  %8.4f s  (%.2f us/op)\n", t_deletes,
-		t_deletes * 1e6 / (double)(ops > 0 ? ops : 1));
+	       t_deletes * 1e6 / (double)(ops > 0 ? ops : 1));
 	printf("  random_replaces: %8.4f s  (%.2f us/op)\n", t_replaces,
-		t_replaces * 1e6 / (double)(ops > 0 ? ops : 1));
+	       t_replaces * 1e6 / (double)(ops > 0 ? ops : 1));
 	printf("  final_length=%zu final_lines=%d\n", final_len, final_lines);
 	if (rss_before_rows >= 0 && rss_after_rows >= 0) {
 		printf("  row_cache_build: rows=%d rss_before=%ld KiB rss_after=%ld KiB "
-			"delta=%ld KiB\n",
-			numrows, rss_before_rows, rss_after_rows,
-			rss_after_rows - rss_before_rows);
+		       "delta=%ld KiB\n",
+		       numrows, rss_before_rows, rss_after_rows, rss_after_rows - rss_before_rows);
 	}
 
 	editorFreeRowArray(rows, numrows);

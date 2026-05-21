@@ -60,7 +60,7 @@ Rows are owned by the buffer but derived from the document. Full restore
 paths use `editorBuildFullRowsFromDocument`; normal edits prepare a
 splice region from the pre-edit document, mutate the document, then build
 replacement rows from post-edit `editorDocumentLineView` data and splice
-them into `struct erow[]`. An `erow` contains render bytes and wrap cache
+them into `struct editorRow[]`. An `editorRow` contains render bytes and wrap cache
 only, so raw text reads must go through the document APIs. Syntax, LSP,
 copy/save, and similar consumers read through `editorTextSource` or
 document line views.

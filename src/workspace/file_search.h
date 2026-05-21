@@ -1,5 +1,5 @@
-#ifndef EDITOR_FILE_SEARCH_H
-#define EDITOR_FILE_SEARCH_H
+#ifndef ROTIDE_WORKSPACE_FILE_SEARCH_H
+#define ROTIDE_WORKSPACE_FILE_SEARCH_H
 
 #include "rotide.h"
 
@@ -10,7 +10,7 @@ int editorFileSearchIsActive(void);
 int editorFileSearchAppendByte(int c);
 int editorFileSearchBackspace(void);
 int editorFileSearchVisibleCount(void);
-int editorFileSearchGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *view_out);
+int editorFileSearchVisibleEntryView(int visible_idx, struct editorDrawerEntryView *view_out);
 void editorFileSearchClampViewport(int viewport_rows);
 int editorFileSearchMoveSelectionBy(int delta, int viewport_rows);
 int editorFileSearchSelectVisibleIndex(int visible_idx, int viewport_rows);

@@ -4,16 +4,18 @@
 #include "support/alloc.h"
 #include "support/size_utils.h"
 #include "text/utf8.h"
+
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
-static char editorHexUpperDigit(unsigned int value) {
+static char displayTextHexUpperDigit(unsigned int value) {
 	return value < 10 ? (char)('0' + value) : (char)('A' + (value - 10));
 }
 
-static void editorGetSanitizedToken(const char *text, int text_len, int idx, const char **token_out,
-		int *token_len_out, int *token_cols_out, int *src_len_out, char escaped[4]) {
+static void displayTextSanitizedToken(const char *text, int text_len, int idx,
+                                      const char **token_out, int *token_len_out,
+                                      int *token_cols_out, int *src_len_out, char escaped[4]) {
 	unsigned int cp = 0;
 	int src_len = editorUtf8DecodeCodepoint(&text[idx], text_len - idx, &cp);
 	if (src_len <= 0) {
@@ -47,8 +49,8 @@ static void editorGetSanitizedToken(const char *text, int text_len, int idx, con
 	} else if (cp >= 0x80 && cp <= 0x9F) {
 		escaped[0] = '\\';
 		escaped[1] = 'x';
-		escaped[2] = editorHexUpperDigit((cp >> 4) & 0x0F);
-		escaped[3] = editorHexUpperDigit(cp & 0x0F);
+		escaped[2] = displayTextHexUpperDigit((cp >> 4) & 0x0F);
+		escaped[3] = displayTextHexUpperDigit(cp & 0x0F);
 		token = escaped;
 		token_len = 4;
 		token_cols = 4;
@@ -83,8 +85,8 @@ int editorDisplayTextCols(const char *text) {
 	return cols;
 }
 
-void editorDisplayWrapNextLine(const char *text, int text_len, int start_idx,
-		int max_cols, int *end_idx_out, int *cols_out) {
+void editorDisplayWrapNextLine(const char *text, int text_len, int start_idx, int max_cols,
+                               int *end_idx_out, int *cols_out) {
 	if (end_idx_out != NULL) {
 		*end_idx_out = start_idx;
 	}
@@ -92,7 +94,7 @@ void editorDisplayWrapNextLine(const char *text, int text_len, int start_idx,
 		*cols_out = 0;
 	}
 	if (text == NULL || text_len <= 0 || start_idx < 0 || start_idx >= text_len ||
-			max_cols <= 0) {
+	    max_cols <= 0) {
 		return;
 	}
 
@@ -169,7 +171,7 @@ int editorDisplayWrapLineCount(const char *text, int max_cols) {
 }
 
 int editorAppendDisplayPrefix(struct writeBuf *wb, const char *text, int max_cols,
-		int *written_cols_out) {
+                              int *written_cols_out) {
 	if (written_cols_out != NULL) {
 		*written_cols_out = 0;
 	}
@@ -206,7 +208,7 @@ int editorAppendDisplayPrefix(struct writeBuf *wb, const char *text, int max_col
 }
 
 int editorAppendDisplaySuffix(struct writeBuf *wb, const char *text, int max_cols,
-		int *written_cols_out) {
+                              int *written_cols_out) {
 	if (written_cols_out != NULL) {
 		*written_cols_out = 0;
 	}
@@ -231,7 +233,8 @@ int editorAppendDisplaySuffix(struct writeBuf *wb, const char *text, int max_col
 	int start_idx = 0;
 	while (start_idx < text_len && remaining_cols > max_cols) {
 		unsigned int cp = 0;
-		int src_len = editorUtf8DecodeCodepoint(&text[start_idx], text_len - start_idx, &cp);
+		int src_len =
+		        editorUtf8DecodeCodepoint(&text[start_idx], text_len - start_idx, &cp);
 		if (src_len <= 0) {
 			src_len = 1;
 		}
@@ -242,7 +245,8 @@ int editorAppendDisplaySuffix(struct writeBuf *wb, const char *text, int max_col
 		start_idx += src_len;
 	}
 
-	if (start_idx < text_len && !wbAppend(wb, &text[start_idx], (size_t)(text_len - start_idx))) {
+	if (start_idx < text_len &&
+	    !wbAppend(wb, &text[start_idx], (size_t)(text_len - start_idx))) {
 		return 0;
 	}
 
@@ -253,7 +257,7 @@ int editorAppendDisplaySuffix(struct writeBuf *wb, const char *text, int max_col
 }
 
 int editorAppendDisplaySlice(struct writeBuf *wb, const char *text, int start_col, int max_cols,
-		int *written_cols_out) {
+                             int *written_cols_out) {
 	if (written_cols_out != NULL) {
 		*written_cols_out = 0;
 	}
@@ -326,16 +330,15 @@ char *editorSanitizeTextRangeDup(const char *text, int text_len, int *cols_out) 
 		int token_len = 0;
 		int token_cols = 0;
 		int src_len = 0;
-		editorGetSanitizedToken(text, text_len, idx, &token, &token_len, &token_cols, &src_len,
-				escaped);
+		displayTextSanitizedToken(text, text_len, idx, &token, &token_len, &token_cols,
+		                          &src_len, escaped);
 
 		size_t token_len_sz = 0;
 		size_t new_len = 0;
 		size_t alloc_len = 0;
 		if (!editorIntToSize(token_len, &token_len_sz) ||
-				!editorSizeAdd(out_len, token_len_sz, &new_len) ||
-				new_len > ROTIDE_MAX_TEXT_BYTES ||
-				!editorSizeAdd(new_len, 1, &alloc_len)) {
+		    !editorSizeAdd(out_len, token_len_sz, &new_len) ||
+		    new_len > ROTIDE_MAX_TEXT_BYTES || !editorSizeAdd(new_len, 1, &alloc_len)) {
 			free(out);
 			return NULL;
 		}
@@ -368,7 +371,7 @@ char *editorSanitizeTextDup(const char *text, int *cols_out) {
 	return editorSanitizeTextRangeDup(text, text_len, cols_out);
 }
 
-static int editorDiagnosticMessageIsInlineSpace(unsigned int cp) {
+static int displayTextDiagnosticMessageIsInlineSpace(unsigned int cp) {
 	return cp <= 0x20 || cp == 0x7F || (cp >= 0x80 && cp <= 0x9F);
 }
 
@@ -398,7 +401,7 @@ char *editorSanitizeDiagnosticMessageDup(const char *text, int *cols_out) {
 			src_len = text_len - idx;
 		}
 
-		if (editorDiagnosticMessageIsInlineSpace(cp)) {
+		if (displayTextDiagnosticMessageIsInlineSpace(cp)) {
 			pending_space = out.len > 0;
 			idx += src_len;
 			continue;
@@ -431,7 +434,7 @@ char *editorSanitizeDiagnosticMessageDup(const char *text, int *cols_out) {
 }
 
 int editorAppendSanitizedText(struct writeBuf *wb, const char *text, int max_cols,
-		int *written_cols_out) {
+                              int *written_cols_out) {
 	if (written_cols_out != NULL) {
 		*written_cols_out = 0;
 	}
@@ -447,8 +450,8 @@ int editorAppendSanitizedText(struct writeBuf *wb, const char *text, int max_col
 		int token_len = 0;
 		int token_cols = 0;
 		int src_len = 0;
-		editorGetSanitizedToken(text, text_len, idx, &token, &token_len, &token_cols, &src_len,
-				escaped);
+		displayTextSanitizedToken(text, text_len, idx, &token, &token_len, &token_cols,
+		                          &src_len, escaped);
 
 		if (max_cols >= 0 && written_cols + token_cols > max_cols) {
 			break;
@@ -468,7 +471,7 @@ int editorAppendSanitizedText(struct writeBuf *wb, const char *text, int max_col
 }
 
 int editorAppendSanitizedMiddleTruncated(struct writeBuf *wb, const char *text, int max_cols,
-		int *written_cols_out) {
+                                         int *written_cols_out) {
 	if (written_cols_out != NULL) {
 		*written_cols_out = 0;
 	}
@@ -504,7 +507,8 @@ int editorAppendSanitizedMiddleTruncated(struct writeBuf *wb, const char *text, 
 
 			int prefix_written = 0;
 			int suffix_written = 0;
-			if (!editorAppendDisplayPrefix(wb, sanitized, prefix_cols, &prefix_written)) {
+			if (!editorAppendDisplayPrefix(wb, sanitized, prefix_cols,
+			                               &prefix_written)) {
 				free(sanitized);
 				return 0;
 			}
@@ -512,7 +516,8 @@ int editorAppendSanitizedMiddleTruncated(struct writeBuf *wb, const char *text, 
 				free(sanitized);
 				return 0;
 			}
-			if (!editorAppendDisplaySuffix(wb, sanitized, suffix_cols, &suffix_written)) {
+			if (!editorAppendDisplaySuffix(wb, sanitized, suffix_cols,
+			                               &suffix_written)) {
 				free(sanitized);
 				return 0;
 			}
@@ -528,7 +533,7 @@ int editorAppendSanitizedMiddleTruncated(struct writeBuf *wb, const char *text, 
 }
 
 int editorAppendSanitizedStatusPath(struct writeBuf *wb, const char *path, int max_cols,
-		int *written_cols_out) {
+                                    int *written_cols_out) {
 	if (written_cols_out != NULL) {
 		*written_cols_out = 0;
 	}
@@ -586,8 +591,8 @@ int editorAppendSanitizedStatusPath(struct writeBuf *wb, const char *path, int m
 		} else {
 			int suffix_written = 0;
 			if (!wbAppend(wb, marker, strlen(marker)) ||
-					!editorAppendDisplaySuffix(wb, sanitized_basename, max_cols - marker_cols,
-							&suffix_written)) {
+			    !editorAppendDisplaySuffix(wb, sanitized_basename,
+			                               max_cols - marker_cols, &suffix_written)) {
 				free(sanitized_basename);
 				free(sanitized_full);
 				return 0;
@@ -607,14 +612,16 @@ int editorAppendSanitizedStatusPath(struct writeBuf *wb, const char *path, int m
 			}
 
 			if (dir_cols <= prefix_budget) {
-				if (!editorAppendDisplayPrefix(wb, sanitized_dir, prefix_budget, &prefix_written)) {
+				if (!editorAppendDisplayPrefix(wb, sanitized_dir, prefix_budget,
+				                               &prefix_written)) {
 					free(sanitized_dir);
 					free(sanitized_basename);
 					free(sanitized_full);
 					return 0;
 				}
 			} else if (prefix_budget <= marker_cols) {
-				if (!editorAppendDisplaySuffix(wb, sanitized_dir, prefix_budget, &prefix_written)) {
+				if (!editorAppendDisplaySuffix(wb, sanitized_dir, prefix_budget,
+				                               &prefix_written)) {
 					free(sanitized_dir);
 					free(sanitized_basename);
 					free(sanitized_full);
@@ -623,8 +630,9 @@ int editorAppendSanitizedStatusPath(struct writeBuf *wb, const char *path, int m
 			} else {
 				int suffix_written = 0;
 				if (!wbAppend(wb, marker, strlen(marker)) ||
-						!editorAppendDisplaySuffix(wb, sanitized_dir, prefix_budget - marker_cols,
-								&suffix_written)) {
+				    !editorAppendDisplaySuffix(wb, sanitized_dir,
+				                               prefix_budget - marker_cols,
+				                               &suffix_written)) {
 					free(sanitized_dir);
 					free(sanitized_basename);
 					free(sanitized_full);
@@ -638,7 +646,7 @@ int editorAppendSanitizedStatusPath(struct writeBuf *wb, const char *path, int m
 
 		int basename_written = 0;
 		if (!editorAppendDisplayPrefix(wb, sanitized_basename, max_cols - prefix_written,
-					&basename_written)) {
+		                               &basename_written)) {
 			free(sanitized_basename);
 			free(sanitized_full);
 			return 0;

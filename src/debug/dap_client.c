@@ -11,7 +11,7 @@
 
 #define ROTIDE_DAP_MAX_HEADER_BYTES 8192
 
-static int editorDapWriteAll(int fd, const char *buf, size_t len) {
+static int dapClientWriteAll(int fd, const char *buf, size_t len) {
 	while (len > 0) {
 		ssize_t written = write(fd, buf, len);
 		if (written == -1) {
@@ -30,7 +30,7 @@ static int editorDapWriteAll(int fd, const char *buf, size_t len) {
 	return 1;
 }
 
-static int editorDapParseContentLength(const char *header, size_t *length_out) {
+static int dapClientParseContentLength(const char *header, size_t *length_out) {
 	const char *line = header;
 	while (line != NULL && *line != '\0') {
 		const char *line_end = strstr(line, "\r\n");
@@ -94,7 +94,7 @@ char *editorDapClientReadFrame(int from_adapter_fd) {
 		return NULL;
 	}
 	size_t payload_len = 0;
-	if (!editorDapParseContentLength(header, &payload_len)) {
+	if (!dapClientParseContentLength(header, &payload_len)) {
 		errno = EPROTO;
 		return NULL;
 	}
@@ -128,7 +128,7 @@ char *editorDapClientReadFrame(int from_adapter_fd) {
 	return payload;
 }
 
-static int editorDapClientSendRawJson(int to_adapter_fd, const char *json) {
+static int dapClientSendRawJson(int to_adapter_fd, const char *json) {
 	if (json == NULL || to_adapter_fd == -1) {
 		return 0;
 	}
@@ -138,15 +138,15 @@ static int editorDapClientSendRawJson(int to_adapter_fd, const char *json) {
 	if (header_len <= 0 || (size_t)header_len >= sizeof(header)) {
 		return 0;
 	}
-	return editorDapWriteAll(to_adapter_fd, header, (size_t)header_len) &&
-			editorDapWriteAll(to_adapter_fd, json, json_len);
+	return dapClientWriteAll(to_adapter_fd, header, (size_t)header_len) &&
+	       dapClientWriteAll(to_adapter_fd, json, json_len);
 }
 
 int editorDapClientSendRequest(int to_adapter_fd, char *json) {
 	if (json == NULL) {
 		return 0;
 	}
-	int ok = editorDapClientSendRawJson(to_adapter_fd, json);
+	int ok = dapClientSendRawJson(to_adapter_fd, json);
 	free(json);
 	return ok;
 }

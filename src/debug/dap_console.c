@@ -17,12 +17,10 @@ void editorDapConsoleCloseOwnedTerminalPane(void) {
 	}
 	struct editorPaneNode *leaf = E.dap_terminal_leaf;
 	E.dap_terminal_leaf = NULL;
-	if (E.layout_root == NULL ||
-			!editorPaneNodeContainsLeaf(E.layout_root, leaf)) {
+	if (E.layout_root == NULL || !editorPaneNodeContainsLeaf(E.layout_root, leaf)) {
 		return; /* User already closed it. */
 	}
-	struct editorPaneNode *new_focus =
-			editorPaneTreeCloseLeaf(&E.layout_root, leaf);
+	struct editorPaneNode *new_focus = editorPaneTreeCloseLeaf(&E.layout_root, leaf);
 	if (new_focus != NULL) {
 		E.focused_leaf = new_focus;
 		(void)editorPaneViewLoadIntoState(&new_focus->as.leaf.view);
@@ -32,7 +30,7 @@ void editorDapConsoleCloseOwnedTerminalPane(void) {
 int editorDapPrepareTerminalConsole(struct editorDapLaunchConfig *config) {
 	char console_value[ROTIDE_DAP_VALUE_MAX];
 	if (!editorDapLaunchGetStringField(config, "console", console_value,
-			sizeof(console_value))) {
+	                                   sizeof(console_value))) {
 		return 1;
 	}
 	if (strcmp(console_value, "terminal") != 0) {
@@ -40,21 +38,20 @@ int editorDapPrepareTerminalConsole(struct editorDapLaunchConfig *config) {
 		editorDapLaunchRemoveField(config, "console");
 		return 1;
 	}
-	struct editorPaneNode *terminal_leaf = editorTerminalPaneOpenSplit(
-			"sleep infinity", EDITOR_SPLIT_HORIZONTAL);
+	struct editorPaneNode *terminal_leaf =
+	        editorTerminalPaneOpenSplit("sleep infinity", EDITOR_SPLIT_HORIZONTAL);
 	if (terminal_leaf == NULL) {
 		editorSetStatusMsg("Could not open terminal pane for DAP console");
 		editorDapLaunchRemoveField(config, "console");
 		return 0;
 	}
 	struct editorTerminalPane *tp =
-			(struct editorTerminalPane *)terminal_leaf->as.leaf.kind_state;
+	        (struct editorTerminalPane *)terminal_leaf->as.leaf.kind_state;
 	const char *slave_path = NULL;
 	if (tp != NULL && tp->child.master_fd >= 0) {
 		slave_path = ptsname(tp->child.master_fd);
 	}
-	if (slave_path == NULL ||
-			!editorDapLaunchSetStringField(config, "tty", slave_path)) {
+	if (slave_path == NULL || !editorDapLaunchSetStringField(config, "tty", slave_path)) {
 		editorSetStatusMsg("Failed to resolve terminal pane tty");
 		(void)editorPaneTreeCloseLeaf(&E.layout_root, terminal_leaf);
 		if (E.focused_leaf != NULL) {

@@ -4,10 +4,12 @@
 #include "language/lsp.h"
 #include "language/syntax.h"
 #include "language/syntax_worker.h"
-#include "terminal/terminal_pane.h"
 #include "rotide.h"
+#include "support/size_utils.h"
+#include "terminal/terminal_pane.h"
 #include "workspace/task.h"
 #include "workspace/watch.h"
+
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -20,8 +22,6 @@
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 #include <unistd.h>
-
-#include "support/size_utils.h"
 
 /*** Terminal ***/
 
@@ -41,22 +41,22 @@
 #define OSC52_SCREEN_SUFFIX "\a\x1b\\"
 #define SGR_MOUSE_MAX_PAYLOAD 64
 
-static volatile sig_atomic_t terminal_attrs_captured = 0;
-static volatile sig_atomic_t terminal_raw_enabled = 0;
-static volatile sig_atomic_t terminal_handlers_installed = 0;
-static volatile sig_atomic_t terminal_resize_handler_installed = 0;
-static volatile sig_atomic_t terminal_restore_atexit_registered = 0;
-static volatile sig_atomic_t terminal_resize_pending = 0;
-static struct editorMouseEvent pending_mouse_event = {EDITOR_MOUSE_EVENT_NONE, 0, 0, 0};
-static int has_pending_mouse_event = 0;
+static volatile sig_atomic_t g_terminal_attrs_captured = 0;
+static volatile sig_atomic_t g_terminal_raw_enabled = 0;
+static volatile sig_atomic_t g_terminal_handlers_installed = 0;
+static volatile sig_atomic_t g_terminal_resize_handler_installed = 0;
+static volatile sig_atomic_t g_terminal_atexit_registered = 0;
+static volatile sig_atomic_t g_terminal_resize_pending = 0;
+static struct editorMouseEvent g_terminal_pending_mouse_event = {EDITOR_MOUSE_EVENT_NONE, 0, 0, 0};
+static int g_terminal_has_pending_mouse_event = 0;
 
-enum editorOsc52Mode {
-	EDITOR_OSC52_MODE_AUTO = 0,
-	EDITOR_OSC52_MODE_OFF,
-	EDITOR_OSC52_MODE_FORCE
+enum terminalOsc52Mode {
+	TERMINAL_OSC52_MODE_AUTO = 0,
+	TERMINAL_OSC52_MODE_OFF,
+	TERMINAL_OSC52_MODE_FORCE
 };
 
-static int editorWriteAll(int fd, const char *buf, size_t len) {
+static int terminalWriteAll(int fd, const char *buf, size_t len) {
 	while (len > 0) {
 		ssize_t written = write(fd, buf, len);
 		if (written == -1) {
@@ -74,13 +74,15 @@ static int editorWriteAll(int fd, const char *buf, size_t len) {
 	return 1;
 }
 
-enum editorReadByteResult {
-	EDITOR_READ_BYTE = 1,
-	EDITOR_READ_RETRY = 0,
-	EDITOR_READ_EOF = -1
+enum terminalReadByteResult {
+	TERMINAL_READ_BYTE = 1,
+	TERMINAL_READ_RETRY = 0,
+	TERMINAL_READ_EOF = -1
 };
 
-static int editorIsTtyInputClosed(void) {
+enum { TERMINAL_KEY_CONTINUE = -1 };
+
+static int terminalIsTtyInputClosed(void) {
 	struct pollfd pfd;
 	pfd.fd = STDIN_FILENO;
 	pfd.events = POLLIN;
@@ -92,7 +94,7 @@ static int editorIsTtyInputClosed(void) {
 	} while (polled == -1 && errno == EINTR);
 
 	if (polled == -1) {
-		panic("poll");
+		editorPanic("poll");
 		return 1;
 	}
 	if (polled == 0) {
@@ -101,37 +103,37 @@ static int editorIsTtyInputClosed(void) {
 	return (pfd.revents & (POLLHUP | POLLERR | POLLNVAL)) != 0;
 }
 
-static enum editorReadByteResult editorReadInputByte(char *out) {
+static enum terminalReadByteResult terminalReadInputByte(char *out) {
 	ssize_t nread = read(STDIN_FILENO, out, 1);
 	if (nread == 1) {
-		return EDITOR_READ_BYTE;
+		return TERMINAL_READ_BYTE;
 	}
 	if (nread == 0) {
 		if (!isatty(STDIN_FILENO)) {
-			return EDITOR_READ_EOF;
+			return TERMINAL_READ_EOF;
 		}
-		return editorIsTtyInputClosed() ? EDITOR_READ_EOF : EDITOR_READ_RETRY;
+		return terminalIsTtyInputClosed() ? TERMINAL_READ_EOF : TERMINAL_READ_RETRY;
 	}
 	if (nread == -1 && errno != EAGAIN && errno != EINTR) {
-		panic("read");
-		return EDITOR_READ_RETRY;
+		editorPanic("read");
+		return TERMINAL_READ_RETRY;
 	}
-	return EDITOR_READ_RETRY;
+	return TERMINAL_READ_RETRY;
 }
 
-static enum editorReadByteResult editorReadSeqByte(char *out) {
-	return editorReadInputByte(out);
+static enum terminalReadByteResult terminalReadSeqByte(char *out) {
+	return terminalReadInputByte(out);
 }
 
-static int editorTakeResizeEvent(void) {
-	if (!terminal_resize_pending) {
+static int terminalTakeResizeEvent(void) {
+	if (!g_terminal_resize_pending) {
 		return 0;
 	}
-	terminal_resize_pending = 0;
+	g_terminal_resize_pending = 0;
 	return 1;
 }
 
-static int editorDecodeSgrMousePayload(const char *payload, struct editorMouseEvent *event_out) {
+static int terminalDecodeSgrMousePayload(const char *payload, struct editorMouseEvent *event_out) {
 	int cb = 0;
 	int cx = 0;
 	int cy = 0;
@@ -224,19 +226,19 @@ static int editorDecodeSgrMousePayload(const char *payload, struct editorMouseEv
 	return 1;
 }
 
-static enum editorReadByteResult editorReadSgrMouseEvent(struct editorMouseEvent *event_out) {
+static enum terminalReadByteResult terminalReadSgrMouseEvent(struct editorMouseEvent *event_out) {
 	char payload[SGR_MOUSE_MAX_PAYLOAD];
 	int payload_len = 0;
 	char term = '\0';
 
 	// Bound payload length so malformed streams cannot grow indefinitely.
 	while (payload_len < (int)sizeof(payload) - 1) {
-		enum editorReadByteResult byte_status = editorReadSeqByte(&term);
-		if (byte_status == EDITOR_READ_EOF) {
-			return EDITOR_READ_EOF;
+		enum terminalReadByteResult byte_status = terminalReadSeqByte(&term);
+		if (byte_status == TERMINAL_READ_EOF) {
+			return TERMINAL_READ_EOF;
 		}
-		if (byte_status != EDITOR_READ_BYTE) {
-			return EDITOR_READ_RETRY;
+		if (byte_status != TERMINAL_READ_BYTE) {
+			return TERMINAL_READ_RETRY;
 		}
 		payload[payload_len++] = term;
 		if (term == 'M' || term == 'm') {
@@ -245,19 +247,181 @@ static enum editorReadByteResult editorReadSgrMouseEvent(struct editorMouseEvent
 	}
 
 	if (payload_len == (int)sizeof(payload) - 1 && term != 'M' && term != 'm') {
-		return EDITOR_READ_RETRY;
+		return TERMINAL_READ_RETRY;
 	}
 
 	payload[payload_len] = '\0';
-	if (!editorDecodeSgrMousePayload(payload, event_out)) {
-		return EDITOR_READ_RETRY;
+	if (!terminalDecodeSgrMousePayload(payload, event_out)) {
+		return TERMINAL_READ_RETRY;
 	}
-	return EDITOR_READ_BYTE;
+	return TERMINAL_READ_BYTE;
 }
 
-static char *editorBase64Encode(const unsigned char *bytes, size_t len, size_t *out_len) {
+static int terminalEscapeFallback(void) {
+	if (terminalTakeResizeEvent()) {
+		return RESIZE_EVENT;
+	}
+	return '\x1b';
+}
+
+static int terminalReadSeqByteOrKey(char *out, int fallback_key) {
+	enum terminalReadByteResult read_status = terminalReadSeqByte(out);
+	if (read_status == TERMINAL_READ_EOF) {
+		return INPUT_EOF_EVENT;
+	}
+	if (read_status != TERMINAL_READ_BYTE) {
+		if (terminalTakeResizeEvent()) {
+			return RESIZE_EVENT;
+		}
+		return fallback_key;
+	}
+	return 0;
+}
+
+static int terminalArrowKeyFromFinal(char final, int up_key, int down_key, int right_key,
+                                     int left_key) {
+	switch (final) {
+		case 'A':
+			return up_key;
+		case 'B':
+			return down_key;
+		case 'C':
+			return right_key;
+		case 'D':
+			return left_key;
+	}
+	return '\x1b';
+}
+
+static int terminalReadBracketedPasteMarker(void) {
+	char fourth = '\0';
+	enum terminalReadByteResult read_status = terminalReadSeqByte(&fourth);
+	if (read_status == TERMINAL_READ_EOF) {
+		return INPUT_EOF_EVENT;
+	}
+	if (read_status == TERMINAL_READ_BYTE && (fourth == '0' || fourth == '1')) {
+		char fifth = '\0';
+		read_status = terminalReadSeqByte(&fifth);
+		if (read_status == TERMINAL_READ_EOF) {
+			return INPUT_EOF_EVENT;
+		}
+		if (read_status == TERMINAL_READ_BYTE && fifth == '~') {
+			return fourth == '0' ? BRACKETED_PASTE_START_EVENT
+			                     : BRACKETED_PASTE_END_EVENT;
+		}
+	}
+	return '\x1b';
+}
+
+static int terminalReadCsiMouseKey(void) {
+	struct editorMouseEvent event;
+	enum terminalReadByteResult mouse_status = terminalReadSgrMouseEvent(&event);
+	if (mouse_status == TERMINAL_READ_EOF) {
+		return INPUT_EOF_EVENT;
+	}
+	if (mouse_status != TERMINAL_READ_BYTE) {
+		return terminalEscapeFallback();
+	}
+	if (event.kind == EDITOR_MOUSE_EVENT_NONE) {
+		return TERMINAL_KEY_CONTINUE;
+	}
+	g_terminal_pending_mouse_event = event;
+	g_terminal_has_pending_mouse_event = 1;
+	return MOUSE_EVENT;
+}
+
+static int terminalReadCsiModifiedArrowKey(char second) {
+	char modifier = '\0';
+	int key = terminalReadSeqByteOrKey(&modifier, '\x1b');
+	if (key != 0) {
+		return key;
+	}
+	char final = '\0';
+	key = terminalReadSeqByteOrKey(&final, '\x1b');
+	if (key != 0) {
+		return key;
+	}
+
+	if (second != '1') {
+		return '\x1b';
+	}
+	if (modifier == '3') {
+		return terminalArrowKeyFromFinal(final, ALT_ARROW_UP, ALT_ARROW_DOWN,
+		                                 ALT_ARROW_RIGHT, ALT_ARROW_LEFT);
+	}
+	if (modifier == '4') {
+		return terminalArrowKeyFromFinal(final, ALT_SHIFT_ARROW_UP, ALT_SHIFT_ARROW_DOWN,
+		                                 ALT_SHIFT_ARROW_RIGHT, ALT_SHIFT_ARROW_LEFT);
+	}
+	if (modifier == '5') {
+		return terminalArrowKeyFromFinal(final, CTRL_ARROW_UP, CTRL_ARROW_DOWN,
+		                                 CTRL_ARROW_RIGHT, CTRL_ARROW_LEFT);
+	}
+	if (modifier == '7') {
+		return terminalArrowKeyFromFinal(final, CTRL_ALT_ARROW_UP, CTRL_ALT_ARROW_DOWN,
+		                                 CTRL_ALT_ARROW_RIGHT, CTRL_ALT_ARROW_LEFT);
+	}
+	return '\x1b';
+}
+
+static int terminalReadCsiNumericKey(char second) {
+	char third = '\0';
+	int key = terminalReadSeqByteOrKey(&third, '\x1b');
+	if (key != 0) {
+		return key;
+	}
+	if (second == '2' && third == '0') {
+		return terminalReadBracketedPasteMarker();
+	}
+	if (third == '~') {
+		switch (second) {
+			case '1':
+				return HOME_KEY;
+			case '3':
+				return DEL_KEY;
+			case '4':
+				return END_KEY;
+			case '5':
+				return PAGE_UP;
+			case '6':
+				return PAGE_DOWN;
+			case '7':
+				return HOME_KEY;
+			case '8':
+				return END_KEY;
+		}
+	}
+	if (third == ';') {
+		return terminalReadCsiModifiedArrowKey(second);
+	}
+	return '\x1b';
+}
+
+static int terminalReadCsiKey(void) {
+	char second = '\0';
+	int key = terminalReadSeqByteOrKey(&second, '\x1b');
+	if (key != 0) {
+		return key;
+	}
+
+	if (second == '<') {
+		return terminalReadCsiMouseKey();
+	}
+	if (second >= '0' && second <= '9') {
+		return terminalReadCsiNumericKey(second);
+	}
+	if (second == 'H') {
+		return HOME_KEY;
+	}
+	if (second == 'F') {
+		return END_KEY;
+	}
+	return terminalArrowKeyFromFinal(second, ARROW_UP, ARROW_DOWN, ARROW_RIGHT, ARROW_LEFT);
+}
+
+static char *terminalBase64Encode(const unsigned char *bytes, size_t len, size_t *out_len) {
 	static const char base64_table[] =
-			"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+	        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 	if (out_len == NULL) {
 		return NULL;
 	}
@@ -271,8 +435,7 @@ static char *editorBase64Encode(const unsigned char *bytes, size_t len, size_t *
 	}
 	groups = group_bytes / 3;
 	if (!editorSizeMul(groups, 4, &encoded_len) ||
-			!editorSizeAdd(encoded_len, 1, &encoded_cap) ||
-			encoded_len > ROTIDE_MAX_TEXT_BYTES) {
+	    !editorSizeAdd(encoded_len, 1, &encoded_cap) || encoded_len > ROTIDE_MAX_TEXT_BYTES) {
 		return NULL;
 	}
 
@@ -289,9 +452,12 @@ static char *editorBase64Encode(const unsigned char *bytes, size_t len, size_t *
 		unsigned int octet_c = remaining > 2 ? bytes[i + 2] : 0;
 
 		encoded[out_idx++] = base64_table[(octet_a >> 2) & 0x3F];
-		encoded[out_idx++] = base64_table[((octet_a & 0x03) << 4) | ((octet_b >> 4) & 0x0F)];
-		encoded[out_idx++] = remaining > 1 ?
-				base64_table[((octet_b & 0x0F) << 2) | ((octet_c >> 6) & 0x03)] : '=';
+		encoded[out_idx++] =
+		        base64_table[((octet_a & 0x03) << 4) | ((octet_b >> 4) & 0x0F)];
+		encoded[out_idx++] =
+		        remaining > 1
+		                ? base64_table[((octet_b & 0x0F) << 2) | ((octet_c >> 6) & 0x03)]
+		                : '=';
 		encoded[out_idx++] = remaining > 2 ? base64_table[octet_c & 0x3F] : '=';
 	}
 
@@ -300,28 +466,28 @@ static char *editorBase64Encode(const unsigned char *bytes, size_t len, size_t *
 	return encoded;
 }
 
-static enum editorOsc52Mode editorGetOsc52Mode(void) {
+static enum terminalOsc52Mode terminalGetOsc52Mode(void) {
 	const char *mode = getenv("ROTIDE_OSC52");
 	if (mode == NULL || mode[0] == '\0' || strcmp(mode, "auto") == 0) {
-		return EDITOR_OSC52_MODE_AUTO;
+		return TERMINAL_OSC52_MODE_AUTO;
 	}
 	if (strcmp(mode, "off") == 0) {
-		return EDITOR_OSC52_MODE_OFF;
+		return TERMINAL_OSC52_MODE_OFF;
 	}
 	if (strcmp(mode, "force") == 0) {
-		return EDITOR_OSC52_MODE_FORCE;
+		return TERMINAL_OSC52_MODE_FORCE;
 	}
-	return EDITOR_OSC52_MODE_AUTO;
+	return TERMINAL_OSC52_MODE_AUTO;
 }
 
-static int editorCanUseOsc52(enum editorOsc52Mode mode, size_t len) {
-	if (mode == EDITOR_OSC52_MODE_OFF) {
+static int terminalCanUseOsc52(enum terminalOsc52Mode mode, size_t len) {
+	if (mode == TERMINAL_OSC52_MODE_OFF) {
 		return 0;
 	}
 	if (len > ROTIDE_OSC52_MAX_COPY_BYTES) {
 		return 0;
 	}
-	if (mode == EDITOR_OSC52_MODE_FORCE) {
+	if (mode == TERMINAL_OSC52_MODE_FORCE) {
 		return 1;
 	}
 	if (!isatty(STDOUT_FILENO)) {
@@ -339,13 +505,13 @@ void editorClipboardSyncOsc52(const char *text, size_t len) {
 		return;
 	}
 
-	enum editorOsc52Mode mode = editorGetOsc52Mode();
-	if (!editorCanUseOsc52(mode, len)) {
+	enum terminalOsc52Mode mode = terminalGetOsc52Mode();
+	if (!terminalCanUseOsc52(mode, len)) {
 		return;
 	}
 
 	size_t encoded_len = 0;
-	char *encoded = editorBase64Encode((const unsigned char *)text, len, &encoded_len);
+	char *encoded = terminalBase64Encode((const unsigned char *)text, len, &encoded_len);
 	if (encoded == NULL) {
 		return;
 	}
@@ -354,28 +520,32 @@ void editorClipboardSyncOsc52(const char *text, size_t len) {
 	const char *screen = getenv("STY");
 
 	if (tmux != NULL && tmux[0] != '\0') {
-		(void)editorWriteAll(STDOUT_FILENO, OSC52_TMUX_PREFIX, sizeof(OSC52_TMUX_PREFIX) - 1);
-		(void)editorWriteAll(STDOUT_FILENO, encoded, encoded_len);
-		(void)editorWriteAll(STDOUT_FILENO, OSC52_TMUX_SUFFIX, sizeof(OSC52_TMUX_SUFFIX) - 1);
+		(void)terminalWriteAll(STDOUT_FILENO, OSC52_TMUX_PREFIX,
+		                       sizeof(OSC52_TMUX_PREFIX) - 1);
+		(void)terminalWriteAll(STDOUT_FILENO, encoded, encoded_len);
+		(void)terminalWriteAll(STDOUT_FILENO, OSC52_TMUX_SUFFIX,
+		                       sizeof(OSC52_TMUX_SUFFIX) - 1);
 		free(encoded);
 		return;
 	}
 
 	if (screen != NULL && screen[0] != '\0') {
-		(void)editorWriteAll(STDOUT_FILENO, OSC52_SCREEN_PREFIX, sizeof(OSC52_SCREEN_PREFIX) - 1);
-		(void)editorWriteAll(STDOUT_FILENO, encoded, encoded_len);
-		(void)editorWriteAll(STDOUT_FILENO, OSC52_SCREEN_SUFFIX, sizeof(OSC52_SCREEN_SUFFIX) - 1);
+		(void)terminalWriteAll(STDOUT_FILENO, OSC52_SCREEN_PREFIX,
+		                       sizeof(OSC52_SCREEN_PREFIX) - 1);
+		(void)terminalWriteAll(STDOUT_FILENO, encoded, encoded_len);
+		(void)terminalWriteAll(STDOUT_FILENO, OSC52_SCREEN_SUFFIX,
+		                       sizeof(OSC52_SCREEN_SUFFIX) - 1);
 		free(encoded);
 		return;
 	}
 
-	(void)editorWriteAll(STDOUT_FILENO, OSC52_PLAIN_PREFIX, sizeof(OSC52_PLAIN_PREFIX) - 1);
-	(void)editorWriteAll(STDOUT_FILENO, encoded, encoded_len);
-	(void)editorWriteAll(STDOUT_FILENO, OSC52_PLAIN_SUFFIX, sizeof(OSC52_PLAIN_SUFFIX) - 1);
+	(void)terminalWriteAll(STDOUT_FILENO, OSC52_PLAIN_PREFIX, sizeof(OSC52_PLAIN_PREFIX) - 1);
+	(void)terminalWriteAll(STDOUT_FILENO, encoded, encoded_len);
+	(void)terminalWriteAll(STDOUT_FILENO, OSC52_PLAIN_SUFFIX, sizeof(OSC52_PLAIN_SUFFIX) - 1);
 	free(encoded);
 }
 
-static void editorClipboardSyncNative(const char *text, size_t len) {
+static void terminalClipboardSyncNative(const char *text, size_t len) {
 	if (len == 0) {
 		return;
 	}
@@ -445,32 +615,32 @@ static void editorClipboardSyncNative(const char *text, size_t len) {
 }
 
 void editorClipboardSyncAll(const char *text, size_t len) {
-	editorClipboardSyncNative(text, len);
+	terminalClipboardSyncNative(text, len);
 	editorClipboardSyncOsc52(text, len);
 }
 
 int editorConsumeMouseEvent(struct editorMouseEvent *out) {
-	if (out == NULL || !has_pending_mouse_event) {
+	if (out == NULL || !g_terminal_has_pending_mouse_event) {
 		return 0;
 	}
 
-	*out = pending_mouse_event;
-	pending_mouse_event.kind = EDITOR_MOUSE_EVENT_NONE;
-	pending_mouse_event.x = 0;
-	pending_mouse_event.y = 0;
-	pending_mouse_event.modifiers = EDITOR_MOUSE_MOD_NONE;
-	has_pending_mouse_event = 0;
+	*out = g_terminal_pending_mouse_event;
+	g_terminal_pending_mouse_event.kind = EDITOR_MOUSE_EVENT_NONE;
+	g_terminal_pending_mouse_event.x = 0;
+	g_terminal_pending_mouse_event.y = 0;
+	g_terminal_pending_mouse_event.modifiers = EDITOR_MOUSE_MOD_NONE;
+	g_terminal_has_pending_mouse_event = 0;
 	return 1;
 }
 
 void editorQueueResizeEvent(void) {
-	terminal_resize_pending = 1;
+	g_terminal_resize_pending = 1;
 }
 
 int editorRefreshWindowSize(void) {
 	int rows = 0;
 	int cols = 0;
-	if (readWindowSize(&rows, &cols) == -1) {
+	if (editorReadWindowSize(&rows, &cols) == -1) {
 		return 0;
 	}
 
@@ -488,37 +658,38 @@ int editorRefreshWindowSize(void) {
 	return 1;
 }
 
-static void editorRestoreCursorVisualState(void) {
-	(void)editorWriteAll(STDOUT_FILENO, VT100_NORMAL_COLORS_3,
-			sizeof(VT100_NORMAL_COLORS_3) - 1);
-	(void)editorWriteAll(STDOUT_FILENO, VT100_CURSOR_DEFAULT_5, sizeof(VT100_CURSOR_DEFAULT_5) - 1);
-	(void)editorWriteAll(STDOUT_FILENO, VT100_CURSOR_COLOR_DEFAULT,
-			sizeof(VT100_CURSOR_COLOR_DEFAULT) - 1);
-	(void)editorWriteAll(STDOUT_FILENO, VT100_SHOW_CURSOR_6, sizeof(VT100_SHOW_CURSOR_6) - 1);
+static void terminalRestoreCursorVisualState(void) {
+	(void)terminalWriteAll(STDOUT_FILENO, VT100_NORMAL_COLORS_3,
+	                       sizeof(VT100_NORMAL_COLORS_3) - 1);
+	(void)terminalWriteAll(STDOUT_FILENO, VT100_CURSOR_DEFAULT_5,
+	                       sizeof(VT100_CURSOR_DEFAULT_5) - 1);
+	(void)terminalWriteAll(STDOUT_FILENO, VT100_CURSOR_COLOR_DEFAULT,
+	                       sizeof(VT100_CURSOR_COLOR_DEFAULT) - 1);
+	(void)terminalWriteAll(STDOUT_FILENO, VT100_SHOW_CURSOR_6, sizeof(VT100_SHOW_CURSOR_6) - 1);
 }
 
-static void editorRestoreTerminalInternal(void) {
-	if (terminal_attrs_captured && terminal_raw_enabled) {
+static void terminalRestoreInternal(void) {
+	if (g_terminal_attrs_captured && g_terminal_raw_enabled) {
 		if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_attrs) == 0) {
-			terminal_raw_enabled = 0;
+			g_terminal_raw_enabled = 0;
 		}
 	}
-	(void)editorWriteAll(STDOUT_FILENO, VT100_DISABLE_MOUSE, sizeof(VT100_DISABLE_MOUSE) - 1);
-	editorRestoreCursorVisualState();
+	(void)terminalWriteAll(STDOUT_FILENO, VT100_DISABLE_MOUSE, sizeof(VT100_DISABLE_MOUSE) - 1);
+	terminalRestoreCursorVisualState();
 	// Drop any queued event so a later key read cannot consume stale mouse data.
-	pending_mouse_event.kind = EDITOR_MOUSE_EVENT_NONE;
-	pending_mouse_event.x = 0;
-	pending_mouse_event.y = 0;
-	pending_mouse_event.modifiers = EDITOR_MOUSE_MOD_NONE;
-	has_pending_mouse_event = 0;
-	terminal_resize_pending = 0;
+	g_terminal_pending_mouse_event.kind = EDITOR_MOUSE_EVENT_NONE;
+	g_terminal_pending_mouse_event.x = 0;
+	g_terminal_pending_mouse_event.y = 0;
+	g_terminal_pending_mouse_event.modifiers = EDITOR_MOUSE_MOD_NONE;
+	g_terminal_has_pending_mouse_event = 0;
+	g_terminal_resize_pending = 0;
 }
 
-static void editorRestoreTerminalAtExit(void) {
-	editorRestoreTerminalInternal();
+static void terminalRestoreAtExit(void) {
+	terminalRestoreInternal();
 }
 
-static void editorHandleTerminationSignal(int signo) {
+static void terminalHandleTerminationSignal(int signo) {
 	/* Tear down long-lived subsystems before restoring the terminal so
 	 * adapter/server processes get a chance to exit cleanly. These calls
 	 * are not strictly async-signal-safe (they touch malloc and run a
@@ -530,7 +701,7 @@ static void editorHandleTerminationSignal(int signo) {
 	editorSyntaxBackgroundStop();
 	editorSyntaxReleaseSharedResources();
 
-	editorRestoreTerminalInternal();
+	terminalRestoreInternal();
 
 	struct sigaction sa;
 	memset(&sa, 0, sizeof(sa));
@@ -541,15 +712,15 @@ static void editorHandleTerminationSignal(int signo) {
 	_exit(128 + signo);
 }
 
-static void editorInstallTerminationHandlers(void) {
-	if (terminal_handlers_installed) {
+static void terminalInstallTerminationHandlers(void) {
+	if (g_terminal_handlers_installed) {
 		return;
 	}
 
 	const int signals[] = {SIGHUP, SIGINT, SIGTERM, SIGQUIT};
 	struct sigaction sa;
 	memset(&sa, 0, sizeof(sa));
-	sa.sa_handler = editorHandleTerminationSignal;
+	sa.sa_handler = terminalHandleTerminationSignal;
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = SA_RESTART;
 
@@ -557,26 +728,26 @@ static void editorInstallTerminationHandlers(void) {
 		(void)sigaction(signals[i], &sa, NULL);
 	}
 
-	terminal_handlers_installed = 1;
+	g_terminal_handlers_installed = 1;
 }
 
-static void editorHandleResizeSignal(int signo) {
+static void terminalHandleResizeSignal(int signo) {
 	(void)signo;
-	terminal_resize_pending = 1;
+	g_terminal_resize_pending = 1;
 }
 
-static void editorInstallResizeHandler(void) {
-	if (terminal_resize_handler_installed) {
+static void terminalInstallResizeHandler(void) {
+	if (g_terminal_resize_handler_installed) {
 		return;
 	}
 
 	struct sigaction sa;
 	memset(&sa, 0, sizeof(sa));
-	sa.sa_handler = editorHandleResizeSignal;
+	sa.sa_handler = terminalHandleResizeSignal;
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;
 	(void)sigaction(SIGWINCH, &sa, NULL);
-	terminal_resize_handler_installed = 1;
+	g_terminal_resize_handler_installed = 1;
 }
 
 int editorClearScreen(void) {
@@ -588,11 +759,11 @@ int editorResetCursorPos(void) {
 }
 
 void editorRestoreTerminal(void) {
-	editorRestoreTerminalInternal();
+	terminalRestoreInternal();
 }
 
-void panic(const char *s) {
-	editorRestoreTerminalInternal();
+void editorPanic(const char *s) {
+	terminalRestoreInternal();
 	editorClearScreen();
 	editorResetCursorPos();
 
@@ -600,61 +771,48 @@ void panic(const char *s) {
 	exit(EXIT_FAILURE);
 }
 
-void setDefaultMode(void) {
-	editorRestoreTerminalInternal();
+void editorSetDefaultMode(void) {
+	terminalRestoreInternal();
 }
 
-void setRawMode(void) {
-	if (terminal_raw_enabled) {
+void editorSetRawMode(void) {
+	if (g_terminal_raw_enabled) {
 		return;
 	}
 
 	if (tcgetattr(STDIN_FILENO, &E.orig_attrs) == -1) {
-		panic("tcgetattr");
+		editorPanic("tcgetattr");
 	}
-	terminal_attrs_captured = 1;
+	g_terminal_attrs_captured = 1;
 	// Always restore terminal settings on exit so the shell stays usable.
-	if (!terminal_restore_atexit_registered) {
-		if (atexit(editorRestoreTerminalAtExit) == 0) {
-			terminal_restore_atexit_registered = 1;
+	if (!g_terminal_atexit_registered) {
+		if (atexit(terminalRestoreAtExit) == 0) {
+			g_terminal_atexit_registered = 1;
 		}
 	}
 
 	struct termios attrs = E.orig_attrs;
 
 	// lflag: disable cooked-mode line editing and signal-generating shortcuts.
-	attrs.c_lflag &= ~(
-		ECHO |
-		ICANON |
-		ISIG |
-		IEXTEN
-	);
+	attrs.c_lflag &= ~(ECHO | ICANON | ISIG | IEXTEN);
 	// iflag: keep byte stream unmodified (no flow control or CR/LF rewriting).
-	attrs.c_iflag &= ~(
-		IXON |
-		ICRNL |
-		BRKINT |
-		INPCK |
-		ISTRIP
-	);
+	attrs.c_iflag &= ~(IXON | ICRNL | BRKINT | INPCK | ISTRIP);
 	// oflag: disable post-processing so writes are emitted exactly as provided.
-	attrs.c_oflag &= ~(
-		OPOST
-	);
+	attrs.c_oflag &= ~(OPOST);
 	// cflag: force 8-bit bytes and non-blocking-ish reads with short timeout.
 	attrs.c_cflag |= (CS8);
 	attrs.c_cc[VMIN] = 0;
 	attrs.c_cc[VTIME] = 1;
 
 	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &attrs) == -1) {
-		panic("tcsetattr");
+		editorPanic("tcsetattr");
 	}
 	// Mouse enable is best-effort: unsupported terminals simply ignore the control sequence.
-	(void)editorWriteAll(STDOUT_FILENO, VT100_ENABLE_MOUSE, sizeof(VT100_ENABLE_MOUSE) - 1);
-	terminal_raw_enabled = 1;
+	(void)terminalWriteAll(STDOUT_FILENO, VT100_ENABLE_MOUSE, sizeof(VT100_ENABLE_MOUSE) - 1);
+	g_terminal_raw_enabled = 1;
 	signal(SIGPIPE, SIG_IGN);
-	editorInstallTerminationHandlers();
-	editorInstallResizeHandler();
+	terminalInstallTerminationHandlers();
+	terminalInstallResizeHandler();
 }
 
 int editorReadKey(void) {
@@ -662,7 +820,7 @@ int editorReadKey(void) {
 		if (editorSyntaxBackgroundPoll()) {
 			return SYNTAX_EVENT;
 		}
-		if (editorTakeResizeEvent()) {
+		if (terminalTakeResizeEvent()) {
 			return RESIZE_EVENT;
 		}
 		if (editorTaskPoll()) {
@@ -676,12 +834,12 @@ int editorReadKey(void) {
 		}
 
 		char c;
-		enum editorReadByteResult read_status;
-		while ((read_status = editorReadInputByte(&c)) != EDITOR_READ_BYTE) {
+		enum terminalReadByteResult read_status;
+		while ((read_status = terminalReadInputByte(&c)) != TERMINAL_READ_BYTE) {
 			if (editorSyntaxBackgroundPoll()) {
 				return SYNTAX_EVENT;
 			}
-			if (editorTakeResizeEvent()) {
+			if (terminalTakeResizeEvent()) {
 				return RESIZE_EVENT;
 			}
 			if (editorTaskPoll()) {
@@ -690,7 +848,7 @@ int editorReadKey(void) {
 			if (editorWatchPoll()) {
 				return WATCH_EVENT;
 			}
-			if (read_status == EDITOR_READ_EOF) {
+			if (read_status == TERMINAL_READ_EOF) {
 				return INPUT_EOF_EVENT;
 			}
 		}
@@ -700,250 +858,43 @@ int editorReadKey(void) {
 		}
 
 		char first = '\0';
-		// Parse common ANSI escape sequences used by arrows/home/end/page keys.
-		// If the sequence is incomplete, treat it as a plain Escape keypress.
-		read_status = editorReadSeqByte(&first);
-		if (read_status == EDITOR_READ_EOF) {
-			return INPUT_EOF_EVENT;
-		}
-		if (read_status != EDITOR_READ_BYTE) {
-			if (editorTakeResizeEvent()) {
-				return RESIZE_EVENT;
-			}
-			return '\x1b';
+		int key = terminalReadSeqByteOrKey(&first, '\x1b');
+		if (key != 0) {
+			return key;
 		}
 
 		if (first == '\x1b') {
 			char second = '\0';
 			char third = '\0';
-			read_status = editorReadSeqByte(&second);
-			if (read_status == EDITOR_READ_EOF) {
-				return INPUT_EOF_EVENT;
-			}
-			if (read_status != EDITOR_READ_BYTE) {
-				if (editorTakeResizeEvent()) {
-					return RESIZE_EVENT;
-				}
-				return '\x1b';
+			key = terminalReadSeqByteOrKey(&second, '\x1b');
+			if (key != 0) {
+				return key;
 			}
 			if (second == '[') {
-				read_status = editorReadSeqByte(&third);
-				if (read_status == EDITOR_READ_EOF) {
-					return INPUT_EOF_EVENT;
+				key = terminalReadSeqByteOrKey(&third, '\x1b');
+				if (key != 0) {
+					return key;
 				}
-				if (read_status != EDITOR_READ_BYTE) {
-					if (editorTakeResizeEvent()) {
-						return RESIZE_EVENT;
-					}
-					return '\x1b';
-				}
-				switch (third) {
-					case 'A':
-						return ALT_ARROW_UP;
-					case 'B':
-						return ALT_ARROW_DOWN;
-					case 'C':
-						return ALT_ARROW_RIGHT;
-					case 'D':
-						return ALT_ARROW_LEFT;
-				}
+				return terminalArrowKeyFromFinal(third, ALT_ARROW_UP,
+				                                 ALT_ARROW_DOWN, ALT_ARROW_RIGHT,
+				                                 ALT_ARROW_LEFT);
 			}
 			return '\x1b';
 		}
 
 		if (first == '[') {
-			char second = '\0';
-			read_status = editorReadSeqByte(&second);
-			if (read_status == EDITOR_READ_EOF) {
-				return INPUT_EOF_EVENT;
+			key = terminalReadCsiKey();
+			if (key == TERMINAL_KEY_CONTINUE) {
+				continue;
 			}
-			if (read_status != EDITOR_READ_BYTE) {
-				if (editorTakeResizeEvent()) {
-					return RESIZE_EVENT;
-				}
-				return '\x1b';
-			}
-
-			if (second == '<') {
-				struct editorMouseEvent event;
-				enum editorReadByteResult mouse_status = editorReadSgrMouseEvent(&event);
-				if (mouse_status == EDITOR_READ_EOF) {
-					return INPUT_EOF_EVENT;
-				}
-				if (mouse_status != EDITOR_READ_BYTE) {
-					if (editorTakeResizeEvent()) {
-						return RESIZE_EVENT;
-					}
-					return '\x1b';
-				}
-				if (event.kind == EDITOR_MOUSE_EVENT_NONE) {
-					// Valid mouse packet we intentionally ignore (unsupported button/modifier combo).
-					continue;
-				}
-				pending_mouse_event = event;
-				has_pending_mouse_event = 1;
-				return MOUSE_EVENT;
-			}
-
-			if (second >= '0' && second <= '9') {
-				char third = '\0';
-				read_status = editorReadSeqByte(&third);
-				if (read_status == EDITOR_READ_EOF) {
-					return INPUT_EOF_EVENT;
-				}
-				if (read_status != EDITOR_READ_BYTE) {
-					if (editorTakeResizeEvent()) {
-						return RESIZE_EVENT;
-					}
-					return '\x1b';
-				}
-				if (second == '2' && third == '0') {
-					/* Potential bracketed paste marker: [200~ (start) or
-					 * [201~ (end). Both are 5 bytes after the ESC[. */
-					char fourth = '\0';
-					read_status = editorReadSeqByte(&fourth);
-					if (read_status == EDITOR_READ_EOF) {
-						return INPUT_EOF_EVENT;
-					}
-					if (read_status == EDITOR_READ_BYTE &&
-							(fourth == '0' || fourth == '1')) {
-						char fifth = '\0';
-						read_status = editorReadSeqByte(&fifth);
-						if (read_status == EDITOR_READ_EOF) {
-							return INPUT_EOF_EVENT;
-						}
-						if (read_status == EDITOR_READ_BYTE && fifth == '~') {
-							return fourth == '0' ?
-									BRACKETED_PASTE_START_EVENT :
-									BRACKETED_PASTE_END_EVENT;
-						}
-					}
-					/* Not a recognized marker — fall through, treating the
-					 * sequence as unhandled escape. */
-					return '\x1b';
-				}
-				if (third == '~') {
-					switch (second) {
-						case '1':
-							return HOME_KEY;
-						case '3':
-							return DEL_KEY;
-						case '4':
-							return END_KEY;
-						case '5':
-							return PAGE_UP;
-						case '6':
-							return PAGE_DOWN;
-						case '7':
-							return HOME_KEY;
-						case '8':
-							return END_KEY;
-					}
-				}
-				if (third == ';') {
-					char modifier = '\0';
-					char final = '\0';
-					read_status = editorReadSeqByte(&modifier);
-					if (read_status == EDITOR_READ_EOF) {
-						return INPUT_EOF_EVENT;
-					}
-					if (read_status != EDITOR_READ_BYTE) {
-						if (editorTakeResizeEvent()) {
-							return RESIZE_EVENT;
-						}
-						return '\x1b';
-					}
-					read_status = editorReadSeqByte(&final);
-					if (read_status == EDITOR_READ_EOF) {
-						return INPUT_EOF_EVENT;
-					}
-					if (read_status != EDITOR_READ_BYTE) {
-						if (editorTakeResizeEvent()) {
-							return RESIZE_EVENT;
-						}
-						return '\x1b';
-					}
-
-					if (second == '1') {
-						if (modifier == '3') {
-							switch (final) {
-								case 'A':
-									return ALT_ARROW_UP;
-								case 'B':
-									return ALT_ARROW_DOWN;
-								case 'C':
-									return ALT_ARROW_RIGHT;
-								case 'D':
-									return ALT_ARROW_LEFT;
-							}
-						}
-						if (modifier == '4') {
-							switch (final) {
-								case 'A':
-									return ALT_SHIFT_ARROW_UP;
-								case 'B':
-									return ALT_SHIFT_ARROW_DOWN;
-								case 'C':
-									return ALT_SHIFT_ARROW_RIGHT;
-								case 'D':
-									return ALT_SHIFT_ARROW_LEFT;
-							}
-						}
-						if (modifier == '5') {
-							switch (final) {
-								case 'A':
-									return CTRL_ARROW_UP;
-								case 'B':
-									return CTRL_ARROW_DOWN;
-								case 'C':
-									return CTRL_ARROW_RIGHT;
-								case 'D':
-									return CTRL_ARROW_LEFT;
-							}
-						}
-						if (modifier == '7') {
-							switch (final) {
-								case 'A':
-									return CTRL_ALT_ARROW_UP;
-								case 'B':
-									return CTRL_ALT_ARROW_DOWN;
-								case 'C':
-									return CTRL_ALT_ARROW_RIGHT;
-								case 'D':
-									return CTRL_ALT_ARROW_LEFT;
-							}
-						}
-					}
-				}
-			}
-
-			switch (second) {
-				case 'A':
-					return ARROW_UP;
-				case 'B':
-					return ARROW_DOWN;
-				case 'C':
-					return ARROW_RIGHT;
-				case 'D':
-					return ARROW_LEFT;
-				case 'H':
-					return HOME_KEY;
-				case 'F':
-					return END_KEY;
-			}
+			return key;
 		}
 
 		if (first == 'O') {
 			char second = '\0';
-			read_status = editorReadSeqByte(&second);
-			if (read_status == EDITOR_READ_EOF) {
-				return INPUT_EOF_EVENT;
-			}
-			if (read_status != EDITOR_READ_BYTE) {
-				if (editorTakeResizeEvent()) {
-					return RESIZE_EVENT;
-				}
-				return EDITOR_ALT_LETTER_KEY('o');
+			key = terminalReadSeqByteOrKey(&second, EDITOR_ALT_LETTER_KEY('o'));
+			if (key != 0) {
+				return key;
 			}
 			switch (second) {
 				case 'H':
@@ -967,7 +918,7 @@ int editorReadKey(void) {
 	}
 }
 
-int readCursorPosition(int *rows, int *cols) {
+int editorReadCursorPosition(int *rows, int *cols) {
 	enum { CURSOR_POS_MAX_RESPONSE = 31 };
 	size_t i = 0;
 	char c = '\0';
@@ -1036,7 +987,7 @@ int readCursorPosition(int *rows, int *cols) {
 	return -1;
 }
 
-int readWindowSize(int *rows, int *cols) {
+int editorReadWindowSize(int *rows, int *cols) {
 	struct winsize ws;
 
 	if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
@@ -1045,7 +996,7 @@ int readWindowSize(int *rows, int *cols) {
 		if (write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12) != 12) {
 			return -1;
 		}
-		return readCursorPosition(rows, cols);
+		return editorReadCursorPosition(rows, cols);
 	}
 
 	*cols = ws.ws_col;

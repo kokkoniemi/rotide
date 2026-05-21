@@ -1,6 +1,6 @@
+#include "editing/selection.h"
 #include "test_case.h"
 #include "test_support.h"
-#include "editing/selection.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/layout.h"
@@ -14,12 +14,12 @@ static int test_editor_process_keypress_keymap_remap_changes_dispatch(void) {
 
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
-	ASSERT_TRUE(write_text_file(project_path,
-				"[keymap]\n"
-				"save = \"ctrl+a\"\n"
-				"redraw = \"ctrl+s\"\n"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	                                          "save = \"ctrl+a\"\n"
+	                                          "redraw = \"ctrl+s\"\n"));
 
-	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&E.keymap, NULL, project_path);
+	enum editorKeymapLoadStatus status =
+	        editorKeymapLoadFromPaths(&E.keymap, NULL, project_path);
 	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
 
 	char save_path[] = "/tmp/rotide-test-keymap-dispatch-save-XXXXXX";
@@ -65,11 +65,11 @@ static int test_editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped
 
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
-	ASSERT_TRUE(write_text_file(project_path,
-				"[keymap]\n"
-				"new_tab = \"ctrl+alt+a\"\n"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	                                          "new_tab = \"ctrl+alt+a\"\n"));
 
-	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&E.keymap, NULL, project_path);
+	enum editorKeymapLoadStatus status =
+	        editorKeymapLoadFromPaths(&E.keymap, NULL, project_path);
 	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
 	ASSERT_TRUE(editorTabsInit());
 	ASSERT_EQ_INT(1, editorTabCount());
@@ -100,7 +100,7 @@ static int test_editor_task_log_document_stays_authoritative(void) {
 static int test_editor_task_log_streams_output_while_inactive(void) {
 	ASSERT_TRUE(editorTabsInit());
 	ASSERT_TRUE(editorTaskStart("Task: Background",
-			"printf 'alpha\\n'; sleep 0.1; printf 'beta\\n'", NULL, NULL));
+	                            "printf 'alpha\\n'; sleep 0.1; printf 'beta\\n'", NULL, NULL));
 	ASSERT_EQ_INT(2, editorTabCount());
 	ASSERT_TRUE(editorActiveTabIsTaskLog());
 	ASSERT_TRUE(editorTabNewEmpty());
@@ -124,8 +124,8 @@ static int test_editor_task_log_streams_output_while_inactive(void) {
 
 static int test_editor_task_runner_merges_stderr_and_close_requires_confirmation(void) {
 	ASSERT_TRUE(editorTabsInit());
-	ASSERT_TRUE(editorTaskStart("Task: Mixed",
-			"printf 'out\\n'; printf 'err\\n' 1>&2; sleep 1", NULL, NULL));
+	ASSERT_TRUE(editorTaskStart("Task: Mixed", "printf 'out\\n'; printf 'err\\n' 1>&2; sleep 1",
+	                            NULL, NULL));
 	ASSERT_TRUE(editorTaskIsRunning());
 
 	char close_once[] = {CTRL_KEY('w')};
@@ -139,8 +139,8 @@ static int test_editor_task_runner_merges_stderr_and_close_requires_confirmation
 	ASSERT_EQ_INT(1, editorTabCount());
 	ASSERT_TRUE(!editorActiveTabIsTaskLog());
 
-	ASSERT_TRUE(editorTaskStart("Task: Mixed Output",
-			"printf 'out\\n'; printf 'err\\n' 1>&2", NULL, NULL));
+	ASSERT_TRUE(editorTaskStart("Task: Mixed Output", "printf 'out\\n'; printf 'err\\n' 1>&2",
+	                            NULL, NULL));
 	ASSERT_TRUE(wait_for_task_completion_with_timeout(1500));
 	size_t textlen = 0;
 	char *text = editorRowsToStr(&textlen);
@@ -153,8 +153,8 @@ static int test_editor_task_runner_merges_stderr_and_close_requires_confirmation
 
 static int test_editor_task_runner_truncates_large_output(void) {
 	ASSERT_TRUE(editorTabsInit());
-	ASSERT_TRUE(editorTaskStart("Task: Large Output",
-			"yes 1234567890 | head -c 150000", NULL, NULL));
+	ASSERT_TRUE(editorTaskStart("Task: Large Output", "yes 1234567890 | head -c 150000", NULL,
+	                            NULL));
 	ASSERT_TRUE(wait_for_task_completion_with_timeout(3000));
 
 	size_t textlen = 0;
@@ -173,21 +173,21 @@ static int test_editor_process_keypress_resize_drawer_shortcuts(void) {
 
 	const char alt_shift_right[] = "\x1b[1;4C";
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_right,
-				sizeof(alt_shift_right) - 1) == 0);
+	                                               sizeof(alt_shift_right) - 1) == 0);
 	ASSERT_EQ_INT(11, editorDrawerWidthForCols(E.window_cols));
 
 	const char alt_shift_left[] = "\x1b[1;4D";
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_left,
-				sizeof(alt_shift_left) - 1) == 0);
+	                                               sizeof(alt_shift_left) - 1) == 0);
 	ASSERT_EQ_INT(10, editorDrawerWidthForCols(E.window_cols));
 
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_left,
-				sizeof(alt_shift_left) - 1) == 0);
+	                                               sizeof(alt_shift_left) - 1) == 0);
 	ASSERT_EQ_INT(9, editorDrawerWidthForCols(E.window_cols));
 
 	E.drawer_width_cols = 1;
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_left,
-				sizeof(alt_shift_left) - 1) == 0);
+	                                               sizeof(alt_shift_left) - 1) == 0);
 	ASSERT_EQ_INT(1, editorDrawerWidthForCols(E.window_cols));
 	return 0;
 }
@@ -244,7 +244,7 @@ static int test_editor_process_keypress_toggle_drawer_preserves_search_modes(voi
 
 	char hidden_file_query_input[] = {'b'};
 	ASSERT_TRUE(editor_process_keypress_with_input(hidden_file_query_input,
-				sizeof(hidden_file_query_input)) == 0);
+	                                               sizeof(hidden_file_query_input)) == 0);
 	ASSERT_EQ_STR("a", editorFileSearchQuery());
 
 	ASSERT_TRUE(editor_process_keypress_with_input(toggle_drawer, sizeof(toggle_drawer)) == 0);
@@ -255,7 +255,8 @@ static int test_editor_process_keypress_toggle_drawer_preserves_search_modes(voi
 	editorFileSearchExit(1);
 
 	char project_search[] = {'\x1b', CTRL_KEY('f')};
-	ASSERT_TRUE(editor_process_keypress_with_input(project_search, sizeof(project_search)) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(project_search, sizeof(project_search)) ==
+	            0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_PROJECT_SEARCH, E.drawer_mode);
 	char project_query[] = {'x'};
 	ASSERT_TRUE(editor_process_keypress_with_input(project_query, sizeof(project_query)) == 0);
@@ -268,7 +269,7 @@ static int test_editor_process_keypress_toggle_drawer_preserves_search_modes(voi
 
 	char hidden_project_query_input[] = {'y'};
 	ASSERT_TRUE(editor_process_keypress_with_input(hidden_project_query_input,
-				sizeof(hidden_project_query_input)) == 0);
+	                                               sizeof(hidden_project_query_input)) == 0);
 	ASSERT_EQ_STR("x", editorProjectSearchQuery());
 
 	ASSERT_TRUE(editor_process_keypress_with_input(toggle_drawer, sizeof(toggle_drawer)) == 0);
@@ -439,7 +440,7 @@ static int test_editor_process_keypress_tab_actions_new_next_prev(void) {
 
 	const char alt_right_fallback[] = "\x1b\x1b[C";
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_right_fallback,
-				sizeof(alt_right_fallback) - 1) == 0);
+	                                               sizeof(alt_right_fallback) - 1) == 0);
 	ASSERT_EQ_INT(1, editorTabActiveIndex());
 	ASSERT_EQ_INT(1, E.numrows);
 	ASSERT_ROW_TEXT_EQ(0, "right");
@@ -553,7 +554,8 @@ static int test_editor_process_keypress_focus_drawer_and_arrow_navigation(void) 
 	ASSERT_EQ_INT(collapsed_count, editorDrawerVisibleCount());
 
 	const char esc_input[] = "\x1b[x";
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(esc_input, sizeof(esc_input) - 1) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(esc_input, sizeof(esc_input) - 1) ==
+	            0);
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
 
 	ASSERT_TRUE(unlink(child_file) == 0);
@@ -670,7 +672,8 @@ static int test_editor_process_keypress_alt_c_toggles_line_comment(void) {
 	E.cx = 0;
 	E.syntax_language = EDITOR_SYNTAX_C;
 
-	const char alt_c[] = "\x1b" "c";
+	const char alt_c[] = "\x1b"
+	                     "c";
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_c, sizeof(alt_c) - 1) == 0);
 	ASSERT_ROW_TEXT_EQ(0, "// hello");
 
@@ -686,7 +689,8 @@ static int test_editor_process_keypress_alt_c_toggles_python_comment(void) {
 	E.cx = 0;
 	E.syntax_language = EDITOR_SYNTAX_PYTHON;
 
-	const char alt_c[] = "\x1b" "c";
+	const char alt_c[] = "\x1b"
+	                     "c";
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_c, sizeof(alt_c) - 1) == 0);
 	ASSERT_ROW_TEXT_EQ(0, "# foo()");
 
@@ -708,7 +712,8 @@ static int test_editor_process_keypress_alt_c_toggles_comment_for_selection(void
 	E.cy = 2;
 	E.cx = editor_test_row_size(2);
 
-	const char alt_c[] = "\x1b" "c";
+	const char alt_c[] = "\x1b"
+	                     "c";
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_c, sizeof(alt_c) - 1) == 0);
 	ASSERT_ROW_TEXT_EQ(0, "// first");
 	ASSERT_ROW_TEXT_EQ(1, "// second");
@@ -735,7 +740,8 @@ static int test_editor_process_keypress_alt_c_no_op_for_unsupported_language(voi
 	E.syntax_language = EDITOR_SYNTAX_NONE;
 	int dirty_before = E.dirty;
 
-	const char alt_c[] = "\x1b" "c";
+	const char alt_c[] = "\x1b"
+	                     "c";
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_c, sizeof(alt_c) - 1) == 0);
 	ASSERT_ROW_TEXT_EQ(0, "plain");
 	ASSERT_EQ_INT(dirty_before, E.dirty);
@@ -1152,8 +1158,7 @@ static int test_editor_process_keypress_arrow_scrolls_created_pane_width(void) {
 	E.cx = 0;
 	E.coloff = 0;
 
-	struct editorPaneNode *created =
-			editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	struct editorPaneNode *created = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
 	ASSERT_TRUE(created != NULL);
 	ASSERT_TRUE(E.focused_leaf == created);
 
@@ -1166,8 +1171,7 @@ static int test_editor_process_keypress_arrow_scrolls_created_pane_width(void) {
 
 	const char right[] = "\x1b[C";
 	for (int i = 0; i < pane_body_cols + 5; i++) {
-		ASSERT_TRUE(editor_process_keypress_with_input(right,
-					sizeof(right) - 1) == 0);
+		ASSERT_TRUE(editor_process_keypress_with_input(right, sizeof(right) - 1) == 0);
 	}
 
 	size_t output_len = 0;
@@ -1512,8 +1516,8 @@ static int test_editor_process_keypress_ctrl_g_breaks_undo_typed_run_group(void)
 	ASSERT_ROW_TEXT_EQ(0, "ab");
 
 	const char goto_first_line[] = {CTRL_KEY('g'), '1', '\r'};
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(
-				goto_first_line, sizeof(goto_first_line)) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_first_line,
+	                                                      sizeof(goto_first_line)) == 0);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(0, E.cx);
 
@@ -1613,7 +1617,8 @@ static int test_editor_process_keypress_ctrl_q_dirty_requires_second_press(void)
 		if (editor_process_keypress_with_input(ctrl_q, sizeof(ctrl_q)) == -1) {
 			_exit(102);
 		}
-		if (strcmp(E.statusmsg, "File has unsaved changes. Press Ctrl-Q again to quit") != 0) {
+		if (strcmp(E.statusmsg, "File has unsaved changes. Press Ctrl-Q again to quit") !=
+		    0) {
 			_exit(103);
 		}
 		if (editor_process_keypress_with_input(ctrl_q, sizeof(ctrl_q)) == -1) {
@@ -1744,77 +1749,145 @@ static int test_process_terminates_promptly_on_sigterm(void) {
 }
 
 const struct editorTestCase g_input_actions_tests[] = {
-	{"editor_process_keypress_keymap_remap_changes_dispatch", test_editor_process_keypress_keymap_remap_changes_dispatch},
-	{"editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped_action", test_editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped_action},
-	{"editor_task_log_document_stays_authoritative", test_editor_task_log_document_stays_authoritative},
-	{"editor_task_log_streams_output_while_inactive", test_editor_task_log_streams_output_while_inactive},
-	{"editor_task_runner_merges_stderr_and_close_requires_confirmation", test_editor_task_runner_merges_stderr_and_close_requires_confirmation},
-	{"editor_task_runner_truncates_large_output", test_editor_task_runner_truncates_large_output},
-	{"editor_process_keypress_resize_drawer_shortcuts", test_editor_process_keypress_resize_drawer_shortcuts},
-	{"editor_process_keypress_toggle_drawer_shortcut_collapses_and_expands", test_editor_process_keypress_toggle_drawer_shortcut_collapses_and_expands},
-	{"editor_process_keypress_toggle_drawer_preserves_search_modes", test_editor_process_keypress_toggle_drawer_preserves_search_modes},
-	{"editor_process_keypress_main_menu_runs_selected_action", test_editor_process_keypress_main_menu_runs_selected_action},
-	{"editor_tabs_switch_restores_per_tab_state", test_editor_tabs_switch_restores_per_tab_state},
-	{"editor_tab_close_last_tab_keeps_one_empty_tab", test_editor_tab_close_last_tab_keeps_one_empty_tab},
-	{"editor_process_keypress_ctrl_w_dirty_requires_second_press", test_editor_process_keypress_ctrl_w_dirty_requires_second_press},
-	{"editor_process_keypress_close_tab_confirmation_resets_on_other_action", test_editor_process_keypress_close_tab_confirmation_resets_on_other_action},
-	{"editor_process_keypress_ctrl_q_checks_dirty_tabs_globally", test_editor_process_keypress_ctrl_q_checks_dirty_tabs_globally},
-	{"editor_process_keypress_tab_actions_new_next_prev", test_editor_process_keypress_tab_actions_new_next_prev},
-	{"editor_tab_open_file_reuses_active_clean_empty_buffer", test_editor_tab_open_file_reuses_active_clean_empty_buffer},
-	{"editor_tab_open_file_opens_new_tab_when_empty_buffer_is_inactive", test_editor_tab_open_file_opens_new_tab_when_empty_buffer_is_inactive},
-	{"editor_process_keypress_focus_drawer_and_arrow_navigation", test_editor_process_keypress_focus_drawer_and_arrow_navigation},
-	{"editor_process_keypress_drawer_enter_toggles_directory", test_editor_process_keypress_drawer_enter_toggles_directory},
-	{"editor_process_keypress_drawer_enter_opens_file_in_new_tab", test_editor_process_keypress_drawer_enter_opens_file_in_new_tab},
-	{"editor_process_keypress_insert_move_and_backspace", test_editor_process_keypress_insert_move_and_backspace},
-	{"editor_process_keypress_alt_c_toggles_line_comment", test_editor_process_keypress_alt_c_toggles_line_comment},
-	{"editor_process_keypress_alt_c_toggles_python_comment", test_editor_process_keypress_alt_c_toggles_python_comment},
-	{"editor_process_keypress_alt_c_toggles_comment_for_selection", test_editor_process_keypress_alt_c_toggles_comment_for_selection},
-	{"editor_process_keypress_alt_c_no_op_for_unsupported_language", test_editor_process_keypress_alt_c_no_op_for_unsupported_language},
-	{"editor_process_keypress_opening_pair_autocloses_and_undoes_together", test_editor_process_keypress_opening_pair_autocloses_and_undoes_together},
-	{"editor_process_keypress_quote_pair_autocloses", test_editor_process_keypress_quote_pair_autocloses},
-	{"editor_process_keypress_closing_pair_skips_existing_byte", test_editor_process_keypress_closing_pair_skips_existing_byte},
-	{"editor_process_keypress_opening_pair_before_word_inserts_literal", test_editor_process_keypress_opening_pair_before_word_inserts_literal},
-	{"editor_process_keypress_ctrl_bracket_jumps_to_matching_bracket", test_editor_process_keypress_ctrl_bracket_jumps_to_matching_bracket},
-	{"editor_process_keypress_ctrl_bracket_reports_missing_match", test_editor_process_keypress_ctrl_bracket_reports_missing_match},
-	{"editor_process_keypress_tab_indents_selection", test_editor_process_keypress_tab_indents_selection},
-	{"editor_process_keypress_tab_indents_selection_drops_terminating_zero_column", test_editor_process_keypress_tab_indents_selection_drops_terminating_zero_column},
-	{"editor_process_keypress_alt_arrow_up_moves_line_up", test_editor_process_keypress_alt_arrow_up_moves_line_up},
-	{"editor_process_keypress_alt_arrow_down_moves_line_down", test_editor_process_keypress_alt_arrow_down_moves_line_down},
-	{"editor_process_keypress_alt_arrow_up_at_top_no_op", test_editor_process_keypress_alt_arrow_up_at_top_no_op},
-	{"editor_process_keypress_backspace_deletes_active_selection", test_editor_process_keypress_backspace_deletes_active_selection},
-	{"editor_process_keypress_delete_deletes_active_selection", test_editor_process_keypress_delete_deletes_active_selection},
-	{"editor_process_keypress_ctrl_j_does_not_insert_newline", test_editor_process_keypress_ctrl_j_does_not_insert_newline},
-	{"editor_process_keypress_tab_inserts_literal_tab", test_editor_process_keypress_tab_inserts_literal_tab},
-	{"editor_process_keypress_utf8_bytes_insert_verbatim", test_editor_process_keypress_utf8_bytes_insert_verbatim},
-	{"editor_process_keypress_delete_key", test_editor_process_keypress_delete_key},
-	{"editor_process_keypress_arrow_down_keeps_visual_column", test_editor_process_keypress_arrow_down_keeps_visual_column},
-	{"editor_process_keypress_ctrl_s_saves_file", test_editor_process_keypress_ctrl_s_saves_file},
-	{"editor_process_keypress_resize_event_updates_window_size", test_editor_process_keypress_resize_event_updates_window_size},
-	{"editor_process_keypress_alt_z_toggles_line_wrap_without_dirty", test_editor_process_keypress_alt_z_toggles_line_wrap_without_dirty},
-	{"editor_process_keypress_alt_n_toggles_line_numbers_without_dirty", test_editor_process_keypress_alt_n_toggles_line_numbers_without_dirty},
-	{"editor_process_keypress_alt_h_toggles_current_line_highlight_without_dirty", test_editor_process_keypress_alt_h_toggles_current_line_highlight_without_dirty},
-	{"editor_process_keypress_arrow_scrolls_created_pane_width", test_editor_process_keypress_arrow_scrolls_created_pane_width},
-	{"editor_drawer_open_selected_file_in_preview_reuses_preview_tab", test_editor_drawer_open_selected_file_in_preview_reuses_preview_tab},
-	{"editor_drawer_arrow_navigation_opens_preview_tab", test_editor_drawer_arrow_navigation_opens_preview_tab},
-	{"editor_process_keypress_page_up_down_scroll_viewport_without_moving_cursor", test_editor_process_keypress_page_up_down_scroll_viewport_without_moving_cursor},
-	{"editor_process_keypress_ctrl_arrow_moves_by_word", test_editor_process_keypress_ctrl_arrow_moves_by_word},
-	{"editor_process_keypress_free_scroll_can_leave_cursor_offscreen", test_editor_process_keypress_free_scroll_can_leave_cursor_offscreen},
-	{"editor_process_keypress_cursor_move_resyncs_follow_scroll", test_editor_process_keypress_cursor_move_resyncs_follow_scroll},
-	{"editor_process_keypress_edit_resyncs_follow_scroll", test_editor_process_keypress_edit_resyncs_follow_scroll},
-	{"editor_process_keypress_ctrl_g_jumps_to_line_and_sets_col_zero", test_editor_process_keypress_ctrl_g_jumps_to_line_and_sets_col_zero},
-	{"editor_process_keypress_ctrl_g_clamps_to_last_line", test_editor_process_keypress_ctrl_g_clamps_to_last_line},
-	{"editor_process_keypress_ctrl_g_rejects_invalid_input", test_editor_process_keypress_ctrl_g_rejects_invalid_input},
-	{"editor_process_keypress_ctrl_g_escape_cancels", test_editor_process_keypress_ctrl_g_escape_cancels},
-	{"editor_process_keypress_ctrl_g_empty_buffer_sets_status", test_editor_process_keypress_ctrl_g_empty_buffer_sets_status},
-	{"editor_process_keypress_ctrl_g_breaks_undo_typed_run_group", test_editor_process_keypress_ctrl_g_breaks_undo_typed_run_group},
-	{"editor_process_keypress_ctrl_q_exits_promptly", test_editor_process_keypress_ctrl_q_exits_promptly},
-	{"editor_process_keypress_ctrl_q_restores_cursor_shape", test_editor_process_keypress_ctrl_q_restores_cursor_shape},
-	{"editor_process_keypress_ctrl_q_dirty_requires_second_press", test_editor_process_keypress_ctrl_q_dirty_requires_second_press},
-	{"editor_process_keypress_eof_exits_promptly_with_failure", test_editor_process_keypress_eof_exits_promptly_with_failure},
-	{"editor_process_keypress_eof_restores_terminal_visual_state", test_editor_process_keypress_eof_restores_terminal_visual_state},
-	{"editor_process_keypress_prompt_eof_exits_with_failure", test_editor_process_keypress_prompt_eof_exits_with_failure},
-	{"process_terminates_promptly_on_sigterm", test_process_terminates_promptly_on_sigterm},
+        {"editor_process_keypress_keymap_remap_changes_dispatch",
+         test_editor_process_keypress_keymap_remap_changes_dispatch},
+        {"editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped_action",
+         test_editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped_action},
+        {"editor_task_log_document_stays_authoritative",
+         test_editor_task_log_document_stays_authoritative},
+        {"editor_task_log_streams_output_while_inactive",
+         test_editor_task_log_streams_output_while_inactive},
+        {"editor_task_runner_merges_stderr_and_close_requires_confirmation",
+         test_editor_task_runner_merges_stderr_and_close_requires_confirmation},
+        {"editor_task_runner_truncates_large_output",
+         test_editor_task_runner_truncates_large_output},
+        {"editor_process_keypress_resize_drawer_shortcuts",
+         test_editor_process_keypress_resize_drawer_shortcuts},
+        {"editor_process_keypress_toggle_drawer_shortcut_collapses_and_expands",
+         test_editor_process_keypress_toggle_drawer_shortcut_collapses_and_expands},
+        {"editor_process_keypress_toggle_drawer_preserves_search_modes",
+         test_editor_process_keypress_toggle_drawer_preserves_search_modes},
+        {"editor_process_keypress_main_menu_runs_selected_action",
+         test_editor_process_keypress_main_menu_runs_selected_action},
+        {"editor_tabs_switch_restores_per_tab_state",
+         test_editor_tabs_switch_restores_per_tab_state},
+        {"editor_tab_close_last_tab_keeps_one_empty_tab",
+         test_editor_tab_close_last_tab_keeps_one_empty_tab},
+        {"editor_process_keypress_ctrl_w_dirty_requires_second_press",
+         test_editor_process_keypress_ctrl_w_dirty_requires_second_press},
+        {"editor_process_keypress_close_tab_confirmation_resets_on_other_action",
+         test_editor_process_keypress_close_tab_confirmation_resets_on_other_action},
+        {"editor_process_keypress_ctrl_q_checks_dirty_tabs_globally",
+         test_editor_process_keypress_ctrl_q_checks_dirty_tabs_globally},
+        {"editor_process_keypress_tab_actions_new_next_prev",
+         test_editor_process_keypress_tab_actions_new_next_prev},
+        {"editor_tab_open_file_reuses_active_clean_empty_buffer",
+         test_editor_tab_open_file_reuses_active_clean_empty_buffer},
+        {"editor_tab_open_file_opens_new_tab_when_empty_buffer_is_inactive",
+         test_editor_tab_open_file_opens_new_tab_when_empty_buffer_is_inactive},
+        {"editor_process_keypress_focus_drawer_and_arrow_navigation",
+         test_editor_process_keypress_focus_drawer_and_arrow_navigation},
+        {"editor_process_keypress_drawer_enter_toggles_directory",
+         test_editor_process_keypress_drawer_enter_toggles_directory},
+        {"editor_process_keypress_drawer_enter_opens_file_in_new_tab",
+         test_editor_process_keypress_drawer_enter_opens_file_in_new_tab},
+        {"editor_process_keypress_insert_move_and_backspace",
+         test_editor_process_keypress_insert_move_and_backspace},
+        {"editor_process_keypress_alt_c_toggles_line_comment",
+         test_editor_process_keypress_alt_c_toggles_line_comment},
+        {"editor_process_keypress_alt_c_toggles_python_comment",
+         test_editor_process_keypress_alt_c_toggles_python_comment},
+        {"editor_process_keypress_alt_c_toggles_comment_for_selection",
+         test_editor_process_keypress_alt_c_toggles_comment_for_selection},
+        {"editor_process_keypress_alt_c_no_op_for_unsupported_language",
+         test_editor_process_keypress_alt_c_no_op_for_unsupported_language},
+        {"editor_process_keypress_opening_pair_autocloses_and_undoes_together",
+         test_editor_process_keypress_opening_pair_autocloses_and_undoes_together},
+        {"editor_process_keypress_quote_pair_autocloses",
+         test_editor_process_keypress_quote_pair_autocloses},
+        {"editor_process_keypress_closing_pair_skips_existing_byte",
+         test_editor_process_keypress_closing_pair_skips_existing_byte},
+        {"editor_process_keypress_opening_pair_before_word_inserts_literal",
+         test_editor_process_keypress_opening_pair_before_word_inserts_literal},
+        {"editor_process_keypress_ctrl_bracket_jumps_to_matching_bracket",
+         test_editor_process_keypress_ctrl_bracket_jumps_to_matching_bracket},
+        {"editor_process_keypress_ctrl_bracket_reports_missing_match",
+         test_editor_process_keypress_ctrl_bracket_reports_missing_match},
+        {"editor_process_keypress_tab_indents_selection",
+         test_editor_process_keypress_tab_indents_selection},
+        {"editor_process_keypress_tab_indents_selection_drops_terminating_zero_column",
+         test_editor_process_keypress_tab_indents_selection_drops_terminating_zero_column},
+        {"editor_process_keypress_alt_arrow_up_moves_line_up",
+         test_editor_process_keypress_alt_arrow_up_moves_line_up},
+        {"editor_process_keypress_alt_arrow_down_moves_line_down",
+         test_editor_process_keypress_alt_arrow_down_moves_line_down},
+        {"editor_process_keypress_alt_arrow_up_at_top_no_op",
+         test_editor_process_keypress_alt_arrow_up_at_top_no_op},
+        {"editor_process_keypress_backspace_deletes_active_selection",
+         test_editor_process_keypress_backspace_deletes_active_selection},
+        {"editor_process_keypress_delete_deletes_active_selection",
+         test_editor_process_keypress_delete_deletes_active_selection},
+        {"editor_process_keypress_ctrl_j_does_not_insert_newline",
+         test_editor_process_keypress_ctrl_j_does_not_insert_newline},
+        {"editor_process_keypress_tab_inserts_literal_tab",
+         test_editor_process_keypress_tab_inserts_literal_tab},
+        {"editor_process_keypress_utf8_bytes_insert_verbatim",
+         test_editor_process_keypress_utf8_bytes_insert_verbatim},
+        {"editor_process_keypress_delete_key", test_editor_process_keypress_delete_key},
+        {"editor_process_keypress_arrow_down_keeps_visual_column",
+         test_editor_process_keypress_arrow_down_keeps_visual_column},
+        {"editor_process_keypress_ctrl_s_saves_file",
+         test_editor_process_keypress_ctrl_s_saves_file},
+        {"editor_process_keypress_resize_event_updates_window_size",
+         test_editor_process_keypress_resize_event_updates_window_size},
+        {"editor_process_keypress_alt_z_toggles_line_wrap_without_dirty",
+         test_editor_process_keypress_alt_z_toggles_line_wrap_without_dirty},
+        {"editor_process_keypress_alt_n_toggles_line_numbers_without_dirty",
+         test_editor_process_keypress_alt_n_toggles_line_numbers_without_dirty},
+        {"editor_process_keypress_alt_h_toggles_current_line_highlight_without_dirty",
+         test_editor_process_keypress_alt_h_toggles_current_line_highlight_without_dirty},
+        {"editor_process_keypress_arrow_scrolls_created_pane_width",
+         test_editor_process_keypress_arrow_scrolls_created_pane_width},
+        {"editor_drawer_open_selected_file_in_preview_reuses_preview_tab",
+         test_editor_drawer_open_selected_file_in_preview_reuses_preview_tab},
+        {"editor_drawer_arrow_navigation_opens_preview_tab",
+         test_editor_drawer_arrow_navigation_opens_preview_tab},
+        {"editor_process_keypress_page_up_down_scroll_viewport_without_moving_cursor",
+         test_editor_process_keypress_page_up_down_scroll_viewport_without_moving_cursor},
+        {"editor_process_keypress_ctrl_arrow_moves_by_word",
+         test_editor_process_keypress_ctrl_arrow_moves_by_word},
+        {"editor_process_keypress_free_scroll_can_leave_cursor_offscreen",
+         test_editor_process_keypress_free_scroll_can_leave_cursor_offscreen},
+        {"editor_process_keypress_cursor_move_resyncs_follow_scroll",
+         test_editor_process_keypress_cursor_move_resyncs_follow_scroll},
+        {"editor_process_keypress_edit_resyncs_follow_scroll",
+         test_editor_process_keypress_edit_resyncs_follow_scroll},
+        {"editor_process_keypress_ctrl_g_jumps_to_line_and_sets_col_zero",
+         test_editor_process_keypress_ctrl_g_jumps_to_line_and_sets_col_zero},
+        {"editor_process_keypress_ctrl_g_clamps_to_last_line",
+         test_editor_process_keypress_ctrl_g_clamps_to_last_line},
+        {"editor_process_keypress_ctrl_g_rejects_invalid_input",
+         test_editor_process_keypress_ctrl_g_rejects_invalid_input},
+        {"editor_process_keypress_ctrl_g_escape_cancels",
+         test_editor_process_keypress_ctrl_g_escape_cancels},
+        {"editor_process_keypress_ctrl_g_empty_buffer_sets_status",
+         test_editor_process_keypress_ctrl_g_empty_buffer_sets_status},
+        {"editor_process_keypress_ctrl_g_breaks_undo_typed_run_group",
+         test_editor_process_keypress_ctrl_g_breaks_undo_typed_run_group},
+        {"editor_process_keypress_ctrl_q_exits_promptly",
+         test_editor_process_keypress_ctrl_q_exits_promptly},
+        {"editor_process_keypress_ctrl_q_restores_cursor_shape",
+         test_editor_process_keypress_ctrl_q_restores_cursor_shape},
+        {"editor_process_keypress_ctrl_q_dirty_requires_second_press",
+         test_editor_process_keypress_ctrl_q_dirty_requires_second_press},
+        {"editor_process_keypress_eof_exits_promptly_with_failure",
+         test_editor_process_keypress_eof_exits_promptly_with_failure},
+        {"editor_process_keypress_eof_restores_terminal_visual_state",
+         test_editor_process_keypress_eof_restores_terminal_visual_state},
+        {"editor_process_keypress_prompt_eof_exits_with_failure",
+         test_editor_process_keypress_prompt_eof_exits_with_failure},
+        {"process_terminates_promptly_on_sigterm", test_process_terminates_promptly_on_sigterm},
 };
 
 const int g_input_actions_test_count =
-		(int)(sizeof(g_input_actions_tests) / sizeof(g_input_actions_tests[0]));
+        (int)(sizeof(g_input_actions_tests) / sizeof(g_input_actions_tests[0]));

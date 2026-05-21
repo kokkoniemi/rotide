@@ -1,14 +1,15 @@
-#include "test_case.h"
-#include "test_support.h"
 #include "render/popup.h"
 #include "terminal/terminal_pane.h"
+#include "test_case.h"
+#include "test_support.h"
+#include "vterm.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
-#include "vterm.h"
+
 #include <time.h>
 
 #define TEST_HEADER_BG "\x1b[48;5;236m"
@@ -31,42 +32,40 @@
 #define TEST_NERD_BRANCH "\xEF\x84\xA6"
 #define TEST_NERD_BARS "\xEF\x83\x89"
 #define TEST_NERD_TERMINAL "\xEF\x84\xA0"
-#define TEST_DRAWER_COLLAPSE_CELL \
+#define TEST_DRAWER_COLLAPSE_CELL                                                                  \
 	TEST_HEADER_BG " " TEST_DRAWER_COLLAPSE_SYMBOL " " TEST_HEADER_RESET
 #define TEST_DRAWER_EXPAND_CELL TEST_HEADER_BG " " TEST_DRAWER_EXPAND_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_EXPLORER_CELL \
+#define TEST_DRAWER_EXPLORER_CELL                                                                  \
 	TEST_HEADER_BG " " TEST_DRAWER_EXPLORER_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_FILE_SEARCH_CELL \
+#define TEST_DRAWER_FILE_SEARCH_CELL                                                               \
 	TEST_HEADER_BG " " TEST_DRAWER_FILE_SEARCH_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_PROJECT_SEARCH_CELL \
+#define TEST_DRAWER_PROJECT_SEARCH_CELL                                                            \
 	TEST_HEADER_BG " " TEST_DRAWER_PROJECT_SEARCH_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_LSP_CELL \
-	TEST_HEADER_BG " " TEST_DRAWER_LSP_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_DAP_CELL \
-	TEST_HEADER_BG " " TEST_DRAWER_DAP_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_GIT_CELL \
-	TEST_HEADER_BG " " TEST_DRAWER_GIT_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_MAIN_MENU_CELL \
+#define TEST_DRAWER_LSP_CELL TEST_HEADER_BG " " TEST_DRAWER_LSP_SYMBOL " " TEST_HEADER_RESET
+#define TEST_DRAWER_DAP_CELL TEST_HEADER_BG " " TEST_DRAWER_DAP_SYMBOL " " TEST_HEADER_RESET
+#define TEST_DRAWER_GIT_CELL TEST_HEADER_BG " " TEST_DRAWER_GIT_SYMBOL " " TEST_HEADER_RESET
+#define TEST_DRAWER_MAIN_MENU_CELL                                                                 \
 	TEST_HEADER_BG " " TEST_DRAWER_MAIN_MENU_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_ACTIVE_EXPLORER_CELL \
+#define TEST_DRAWER_ACTIVE_EXPLORER_CELL                                                           \
 	TEST_HEADER_ACTIVE " " TEST_DRAWER_EXPLORER_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_ACTIVE_FILE_SEARCH_CELL \
+#define TEST_DRAWER_ACTIVE_FILE_SEARCH_CELL                                                        \
 	TEST_HEADER_ACTIVE " " TEST_DRAWER_FILE_SEARCH_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_ACTIVE_PROJECT_SEARCH_CELL \
+#define TEST_DRAWER_ACTIVE_PROJECT_SEARCH_CELL                                                     \
 	TEST_HEADER_ACTIVE " " TEST_DRAWER_PROJECT_SEARCH_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_ACTIVE_LSP_CELL \
+#define TEST_DRAWER_ACTIVE_LSP_CELL                                                                \
 	TEST_HEADER_ACTIVE " " TEST_DRAWER_LSP_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_ACTIVE_DAP_CELL \
+#define TEST_DRAWER_ACTIVE_DAP_CELL                                                                \
 	TEST_HEADER_ACTIVE " " TEST_DRAWER_DAP_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_ACTIVE_GIT_CELL \
+#define TEST_DRAWER_ACTIVE_GIT_CELL                                                                \
 	TEST_HEADER_ACTIVE " " TEST_DRAWER_GIT_SYMBOL " " TEST_HEADER_RESET
-#define TEST_DRAWER_ACTIVE_MAIN_MENU_CELL \
+#define TEST_DRAWER_ACTIVE_MAIN_MENU_CELL                                                          \
 	TEST_HEADER_ACTIVE " " TEST_DRAWER_MAIN_MENU_SYMBOL " " TEST_HEADER_RESET
 
 static int test_editor_refresh_screen_renders_tab_bar_with_overflow_and_sanitized_labels(void) {
 	ASSERT_TRUE(editorTabsInit());
 	free(E.filename);
-	E.filename = strdup("/tmp/a\x1b" "[31m.txt");
+	E.filename = strdup("/tmp/a\x1b"
+	                    "[31m.txt");
 	ASSERT_TRUE(E.filename != NULL);
 	E.dirty = 1;
 
@@ -169,7 +168,8 @@ static int test_editor_tabs_align_view_keeps_active_visible_with_variable_widths
 
 	struct editorTabLayoutEntry layout[ROTIDE_MAX_TABS];
 	int layout_count = 0;
-	ASSERT_TRUE(editorTabBuildLayoutForWidth(text_cols, layout, ROTIDE_MAX_TABS, &layout_count));
+	ASSERT_TRUE(
+	        editorTabBuildLayoutForWidth(text_cols, layout, ROTIDE_MAX_TABS, &layout_count));
 	ASSERT_TRUE(layout_count >= 1);
 	ASSERT_TRUE(E.tab_view_start > 0);
 
@@ -208,11 +208,10 @@ static int test_editor_refresh_screen_renders_drawer_entries_and_selection(void)
 	E.line_numbers_enabled = 0;
 	add_row("body");
 	struct editorDrawerEntryView root_view;
-	ASSERT_TRUE(editorDrawerGetVisibleEntry(0, &root_view));
+	ASSERT_TRUE(editorDrawerVisibleEntryView(0, &root_view));
 	char expected_root_bold[256];
 	ASSERT_TRUE(snprintf(expected_root_bold, sizeof(expected_root_bold),
-				"\x1b[1m\x1b[37m%s\x1b[39m\x1b[22m",
-				root_view.name) > 0);
+	                     "\x1b[1m\x1b[37m%s\x1b[39m\x1b[22m", root_view.name) > 0);
 
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
@@ -249,9 +248,12 @@ static int test_editor_refresh_screen_drawer_colors_files_by_git_status(void) {
 	char modified_file[512];
 	char untracked_file[512];
 	char conflict_file[512];
-	ASSERT_TRUE(path_join(modified_file, sizeof(modified_file), env.project_dir, "modified.txt"));
-	ASSERT_TRUE(path_join(untracked_file, sizeof(untracked_file), env.project_dir, "untracked.txt"));
-	ASSERT_TRUE(path_join(conflict_file, sizeof(conflict_file), env.project_dir, "conflict.txt"));
+	ASSERT_TRUE(
+	        path_join(modified_file, sizeof(modified_file), env.project_dir, "modified.txt"));
+	ASSERT_TRUE(path_join(untracked_file, sizeof(untracked_file), env.project_dir,
+	                      "untracked.txt"));
+	ASSERT_TRUE(
+	        path_join(conflict_file, sizeof(conflict_file), env.project_dir, "conflict.txt"));
 	ASSERT_TRUE(write_text_file(modified_file, "m\n"));
 	ASSERT_TRUE(write_text_file(untracked_file, "u\n"));
 	ASSERT_TRUE(write_text_file(conflict_file, "c\n"));
@@ -452,69 +454,89 @@ static int test_editor_refresh_screen_drawer_header_mode_buttons(void) {
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, TEST_DRAWER_COLLAPSE_CELL TEST_DRAWER_ACTIVE_EXPLORER_CELL
-				TEST_DRAWER_FILE_SEARCH_CELL TEST_DRAWER_PROJECT_SEARCH_CELL
-				TEST_DRAWER_LSP_CELL TEST_DRAWER_DAP_CELL TEST_DRAWER_GIT_CELL
-				TEST_DRAWER_MAIN_MENU_CELL) != NULL);
+	ASSERT_TRUE(
+	        strstr(output,
+	               TEST_DRAWER_COLLAPSE_CELL TEST_DRAWER_ACTIVE_EXPLORER_CELL
+	                       TEST_DRAWER_FILE_SEARCH_CELL TEST_DRAWER_PROJECT_SEARCH_CELL
+	                               TEST_DRAWER_LSP_CELL TEST_DRAWER_DAP_CELL
+	                                       TEST_DRAWER_GIT_CELL TEST_DRAWER_MAIN_MENU_CELL) !=
+	        NULL);
 	free(output);
 
 	ASSERT_TRUE(editorFileSearchEnter());
 	output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, TEST_DRAWER_COLLAPSE_CELL TEST_DRAWER_EXPLORER_CELL
-				TEST_DRAWER_ACTIVE_FILE_SEARCH_CELL TEST_DRAWER_PROJECT_SEARCH_CELL
-				TEST_DRAWER_LSP_CELL TEST_DRAWER_DAP_CELL TEST_DRAWER_GIT_CELL
-				TEST_DRAWER_MAIN_MENU_CELL) != NULL);
+	ASSERT_TRUE(
+	        strstr(output,
+	               TEST_DRAWER_COLLAPSE_CELL TEST_DRAWER_EXPLORER_CELL
+	                       TEST_DRAWER_ACTIVE_FILE_SEARCH_CELL TEST_DRAWER_PROJECT_SEARCH_CELL
+	                               TEST_DRAWER_LSP_CELL TEST_DRAWER_DAP_CELL
+	                                       TEST_DRAWER_GIT_CELL TEST_DRAWER_MAIN_MENU_CELL) !=
+	        NULL);
 	free(output);
 	editorFileSearchExit(1);
 
 	ASSERT_TRUE(editorProjectSearchEnter());
 	output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, TEST_DRAWER_COLLAPSE_CELL TEST_DRAWER_EXPLORER_CELL
-				TEST_DRAWER_FILE_SEARCH_CELL TEST_DRAWER_ACTIVE_PROJECT_SEARCH_CELL
-				TEST_DRAWER_LSP_CELL TEST_DRAWER_DAP_CELL TEST_DRAWER_GIT_CELL
-				TEST_DRAWER_MAIN_MENU_CELL) != NULL);
+	ASSERT_TRUE(
+	        strstr(output,
+	               TEST_DRAWER_COLLAPSE_CELL TEST_DRAWER_EXPLORER_CELL
+	                       TEST_DRAWER_FILE_SEARCH_CELL TEST_DRAWER_ACTIVE_PROJECT_SEARCH_CELL
+	                               TEST_DRAWER_LSP_CELL TEST_DRAWER_DAP_CELL
+	                                       TEST_DRAWER_GIT_CELL TEST_DRAWER_MAIN_MENU_CELL) !=
+	        NULL);
 	free(output);
 	editorProjectSearchExit(1);
 
 	ASSERT_TRUE(editorDrawerLspToggle());
 	output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, TEST_DRAWER_COLLAPSE_CELL TEST_DRAWER_EXPLORER_CELL
-				TEST_DRAWER_FILE_SEARCH_CELL TEST_DRAWER_PROJECT_SEARCH_CELL
-				TEST_DRAWER_ACTIVE_LSP_CELL TEST_DRAWER_DAP_CELL TEST_DRAWER_GIT_CELL
-				TEST_DRAWER_MAIN_MENU_CELL) != NULL);
+	ASSERT_TRUE(
+	        strstr(output,
+	               TEST_DRAWER_COLLAPSE_CELL TEST_DRAWER_EXPLORER_CELL
+	                       TEST_DRAWER_FILE_SEARCH_CELL TEST_DRAWER_PROJECT_SEARCH_CELL
+	                               TEST_DRAWER_ACTIVE_LSP_CELL TEST_DRAWER_DAP_CELL
+	                                       TEST_DRAWER_GIT_CELL TEST_DRAWER_MAIN_MENU_CELL) !=
+	        NULL);
 	free(output);
 	ASSERT_TRUE(editorDrawerLspToggle());
 
 	ASSERT_TRUE(editorDrawerDapToggle());
 	output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, TEST_DRAWER_COLLAPSE_CELL TEST_DRAWER_EXPLORER_CELL
-				TEST_DRAWER_FILE_SEARCH_CELL TEST_DRAWER_PROJECT_SEARCH_CELL
-				TEST_DRAWER_LSP_CELL TEST_DRAWER_ACTIVE_DAP_CELL TEST_DRAWER_GIT_CELL
-				TEST_DRAWER_MAIN_MENU_CELL) != NULL);
+	ASSERT_TRUE(
+	        strstr(output,
+	               TEST_DRAWER_COLLAPSE_CELL TEST_DRAWER_EXPLORER_CELL
+	                       TEST_DRAWER_FILE_SEARCH_CELL TEST_DRAWER_PROJECT_SEARCH_CELL
+	                               TEST_DRAWER_LSP_CELL TEST_DRAWER_ACTIVE_DAP_CELL
+	                                       TEST_DRAWER_GIT_CELL TEST_DRAWER_MAIN_MENU_CELL) !=
+	        NULL);
 	free(output);
 	ASSERT_TRUE(editorDrawerDapToggle());
 
 	ASSERT_TRUE(editorDrawerGitToggle());
 	output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, TEST_DRAWER_COLLAPSE_CELL TEST_DRAWER_EXPLORER_CELL
-				TEST_DRAWER_FILE_SEARCH_CELL TEST_DRAWER_PROJECT_SEARCH_CELL
-				TEST_DRAWER_LSP_CELL TEST_DRAWER_DAP_CELL TEST_DRAWER_ACTIVE_GIT_CELL
-				TEST_DRAWER_MAIN_MENU_CELL) != NULL);
+	ASSERT_TRUE(strstr(output,
+	                   TEST_DRAWER_COLLAPSE_CELL TEST_DRAWER_EXPLORER_CELL
+	                           TEST_DRAWER_FILE_SEARCH_CELL TEST_DRAWER_PROJECT_SEARCH_CELL
+	                                   TEST_DRAWER_LSP_CELL TEST_DRAWER_DAP_CELL
+	                                           TEST_DRAWER_ACTIVE_GIT_CELL
+	                                                   TEST_DRAWER_MAIN_MENU_CELL) != NULL);
 	free(output);
 	ASSERT_TRUE(editorDrawerGitToggle());
 
 	ASSERT_TRUE(editorDrawerMainMenuToggle());
 	output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, TEST_DRAWER_COLLAPSE_CELL TEST_DRAWER_EXPLORER_CELL
-				TEST_DRAWER_FILE_SEARCH_CELL TEST_DRAWER_PROJECT_SEARCH_CELL
-				TEST_DRAWER_LSP_CELL TEST_DRAWER_DAP_CELL TEST_DRAWER_GIT_CELL
-				TEST_DRAWER_ACTIVE_MAIN_MENU_CELL) != NULL);
+	ASSERT_TRUE(strstr(output,
+	                   TEST_DRAWER_COLLAPSE_CELL TEST_DRAWER_EXPLORER_CELL
+	                           TEST_DRAWER_FILE_SEARCH_CELL TEST_DRAWER_PROJECT_SEARCH_CELL
+	                                   TEST_DRAWER_LSP_CELL TEST_DRAWER_DAP_CELL
+	                                           TEST_DRAWER_GIT_CELL
+	                                                   TEST_DRAWER_ACTIVE_MAIN_MENU_CELL) !=
+	            NULL);
 	free(output);
 
 	ASSERT_TRUE(editorDrawerSetWidthForCols(14, E.window_cols));
@@ -525,7 +547,7 @@ static int test_editor_refresh_screen_drawer_header_mode_buttons(void) {
 	const char *header_end = strstr(drawer_header, "\r\n");
 	ASSERT_TRUE(header_end != NULL);
 	ASSERT_TRUE(strstr(drawer_header, TEST_DRAWER_EXPLORER_SYMBOL) == NULL ||
-			strstr(drawer_header, TEST_DRAWER_EXPLORER_SYMBOL) > header_end);
+	            strstr(drawer_header, TEST_DRAWER_EXPLORER_SYMBOL) > header_end);
 	free(output);
 
 	cleanup_recovery_test_env(&env);
@@ -776,7 +798,8 @@ static int test_editor_refresh_screen_cursor_column_offsets_for_drawer(void) {
 
 	int expected_col = editorTextBodyStartColForCols(E.window_cols) + 2;
 	char expected_cursor[32];
-	ASSERT_TRUE(snprintf(expected_cursor, sizeof(expected_cursor), "\x1b[2;%dH", expected_col) > 0);
+	ASSERT_TRUE(snprintf(expected_cursor, sizeof(expected_cursor), "\x1b[2;%dH", expected_col) >
+	            0);
 
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
@@ -999,7 +1022,8 @@ static int test_editor_refresh_screen_status_bar_wrapped_percent_uses_visual_top
 }
 
 static int test_editor_refresh_screen_status_bar_cursor_multibyte_col(void) {
-	add_row("\xC3\xB6" "a");
+	add_row("\xC3\xB6"
+	        "a");
 	E.window_rows = 3;
 	E.window_cols = 40;
 	E.cy = 0;
@@ -1088,36 +1112,64 @@ static int test_editor_refresh_screen_tab_labels_middle_truncate_at_25_cols(void
 }
 
 const struct editorTestCase g_render_chrome_tests[] = {
-	{"editor_refresh_screen_renders_tab_bar_with_overflow_and_sanitized_labels", test_editor_refresh_screen_renders_tab_bar_with_overflow_and_sanitized_labels},
-	{"editor_refresh_screen_preview_tab_label_uses_italics", test_editor_refresh_screen_preview_tab_label_uses_italics},
-	{"editor_tab_layout_width_includes_right_label_padding", test_editor_tab_layout_width_includes_right_label_padding},
-	{"editor_tabs_align_view_keeps_active_visible_with_variable_widths", test_editor_tabs_align_view_keeps_active_visible_with_variable_widths},
-	{"editor_refresh_screen_renders_drawer_entries_and_selection", test_editor_refresh_screen_renders_drawer_entries_and_selection},
-	{"editor_refresh_screen_drawer_colors_files_by_git_status", test_editor_refresh_screen_drawer_colors_files_by_git_status},
-	{"editor_refresh_screen_drawer_renders_directories_bold_and_cyan", test_editor_refresh_screen_drawer_renders_directories_bold_and_cyan},
-	{"editor_refresh_screen_drawer_hides_selection_marker_when_unfocused", test_editor_refresh_screen_drawer_hides_selection_marker_when_unfocused},
-	{"editor_refresh_screen_drawer_active_file_uses_inverted_background", test_editor_refresh_screen_drawer_active_file_uses_inverted_background},
-	{"editor_refresh_screen_drawer_collapsed_renders_expand_indicator", test_editor_refresh_screen_drawer_collapsed_renders_expand_indicator},
-	{"editor_refresh_screen_drawer_header_mode_buttons", test_editor_refresh_screen_drawer_header_mode_buttons},
-	{"editor_refresh_screen_drawer_uses_nerd_font_icons_when_enabled", test_editor_refresh_screen_drawer_uses_nerd_font_icons_when_enabled},
-	{"editor_refresh_screen_main_menu_drawer_groups_actions", test_editor_refresh_screen_main_menu_drawer_groups_actions},
-	{"editor_refresh_screen_drawer_renders_unicode_tree_connectors", test_editor_refresh_screen_drawer_renders_unicode_tree_connectors},
-	{"editor_refresh_screen_drawer_selected_overflow_spills_into_text_area", test_editor_refresh_screen_drawer_selected_overflow_spills_into_text_area},
-	{"editor_refresh_screen_drawer_splitter_spans_editor_rows", test_editor_refresh_screen_drawer_splitter_spans_editor_rows},
-	{"editor_refresh_screen_cursor_column_offsets_for_drawer", test_editor_refresh_screen_cursor_column_offsets_for_drawer},
-	{"editor_refresh_screen_hides_cursor_when_drawer_focused", test_editor_refresh_screen_hides_cursor_when_drawer_focused},
-	{"editor_refresh_screen_file_search_header_shows_cursor", test_editor_refresh_screen_file_search_header_shows_cursor},
-	{"editor_refresh_screen_project_search_header_shows_cursor", test_editor_refresh_screen_project_search_header_shows_cursor},
-	{"editor_drawer_layout_clamps_tiny_widths", test_editor_drawer_layout_clamps_tiny_widths},
-	{"editor_refresh_screen_status_bar_single_row_percent", test_editor_refresh_screen_status_bar_single_row_percent},
-	{"editor_refresh_screen_status_bar_percent_uses_viewport_top", test_editor_refresh_screen_status_bar_percent_uses_viewport_top},
-	{"editor_refresh_screen_status_bar_wrapped_percent_uses_visual_top", test_editor_refresh_screen_status_bar_wrapped_percent_uses_visual_top},
-	{"editor_refresh_screen_status_bar_cursor_multibyte_col", test_editor_refresh_screen_status_bar_cursor_multibyte_col},
-	{"editor_refresh_screen_status_bar_cursor_tab_display_col", test_editor_refresh_screen_status_bar_cursor_tab_display_col},
-	{"editor_refresh_screen_status_bar_shows_full_path_when_space_allows", test_editor_refresh_screen_status_bar_shows_full_path_when_space_allows},
-	{"editor_refresh_screen_status_bar_truncates_prefix_keeps_basename_visible", test_editor_refresh_screen_status_bar_truncates_prefix_keeps_basename_visible},
-	{"editor_refresh_screen_tab_labels_middle_truncate_at_25_cols", test_editor_refresh_screen_tab_labels_middle_truncate_at_25_cols},
+        {"editor_refresh_screen_renders_tab_bar_with_overflow_and_sanitized_labels",
+         test_editor_refresh_screen_renders_tab_bar_with_overflow_and_sanitized_labels},
+        {"editor_refresh_screen_preview_tab_label_uses_italics",
+         test_editor_refresh_screen_preview_tab_label_uses_italics},
+        {"editor_tab_layout_width_includes_right_label_padding",
+         test_editor_tab_layout_width_includes_right_label_padding},
+        {"editor_tabs_align_view_keeps_active_visible_with_variable_widths",
+         test_editor_tabs_align_view_keeps_active_visible_with_variable_widths},
+        {"editor_refresh_screen_renders_drawer_entries_and_selection",
+         test_editor_refresh_screen_renders_drawer_entries_and_selection},
+        {"editor_refresh_screen_drawer_colors_files_by_git_status",
+         test_editor_refresh_screen_drawer_colors_files_by_git_status},
+        {"editor_refresh_screen_drawer_renders_directories_bold_and_cyan",
+         test_editor_refresh_screen_drawer_renders_directories_bold_and_cyan},
+        {"editor_refresh_screen_drawer_hides_selection_marker_when_unfocused",
+         test_editor_refresh_screen_drawer_hides_selection_marker_when_unfocused},
+        {"editor_refresh_screen_drawer_active_file_uses_inverted_background",
+         test_editor_refresh_screen_drawer_active_file_uses_inverted_background},
+        {"editor_refresh_screen_drawer_collapsed_renders_expand_indicator",
+         test_editor_refresh_screen_drawer_collapsed_renders_expand_indicator},
+        {"editor_refresh_screen_drawer_header_mode_buttons",
+         test_editor_refresh_screen_drawer_header_mode_buttons},
+        {"editor_refresh_screen_drawer_uses_nerd_font_icons_when_enabled",
+         test_editor_refresh_screen_drawer_uses_nerd_font_icons_when_enabled},
+        {"editor_refresh_screen_main_menu_drawer_groups_actions",
+         test_editor_refresh_screen_main_menu_drawer_groups_actions},
+        {"editor_refresh_screen_drawer_renders_unicode_tree_connectors",
+         test_editor_refresh_screen_drawer_renders_unicode_tree_connectors},
+        {"editor_refresh_screen_drawer_selected_overflow_spills_into_text_area",
+         test_editor_refresh_screen_drawer_selected_overflow_spills_into_text_area},
+        {"editor_refresh_screen_drawer_splitter_spans_editor_rows",
+         test_editor_refresh_screen_drawer_splitter_spans_editor_rows},
+        {"editor_refresh_screen_cursor_column_offsets_for_drawer",
+         test_editor_refresh_screen_cursor_column_offsets_for_drawer},
+        {"editor_refresh_screen_hides_cursor_when_drawer_focused",
+         test_editor_refresh_screen_hides_cursor_when_drawer_focused},
+        {"editor_refresh_screen_file_search_header_shows_cursor",
+         test_editor_refresh_screen_file_search_header_shows_cursor},
+        {"editor_refresh_screen_project_search_header_shows_cursor",
+         test_editor_refresh_screen_project_search_header_shows_cursor},
+        {"editor_drawer_layout_clamps_tiny_widths", test_editor_drawer_layout_clamps_tiny_widths},
+        {"editor_refresh_screen_status_bar_single_row_percent",
+         test_editor_refresh_screen_status_bar_single_row_percent},
+        {"editor_refresh_screen_status_bar_percent_uses_viewport_top",
+         test_editor_refresh_screen_status_bar_percent_uses_viewport_top},
+        {"editor_refresh_screen_status_bar_wrapped_percent_uses_visual_top",
+         test_editor_refresh_screen_status_bar_wrapped_percent_uses_visual_top},
+        {"editor_refresh_screen_status_bar_cursor_multibyte_col",
+         test_editor_refresh_screen_status_bar_cursor_multibyte_col},
+        {"editor_refresh_screen_status_bar_cursor_tab_display_col",
+         test_editor_refresh_screen_status_bar_cursor_tab_display_col},
+        {"editor_refresh_screen_status_bar_shows_full_path_when_space_allows",
+         test_editor_refresh_screen_status_bar_shows_full_path_when_space_allows},
+        {"editor_refresh_screen_status_bar_truncates_prefix_keeps_basename_visible",
+         test_editor_refresh_screen_status_bar_truncates_prefix_keeps_basename_visible},
+        {"editor_refresh_screen_tab_labels_middle_truncate_at_25_cols",
+         test_editor_refresh_screen_tab_labels_middle_truncate_at_25_cols},
 };
 
 const int g_render_chrome_test_count =
-		(int)(sizeof(g_render_chrome_tests) / sizeof(g_render_chrome_tests[0]));
+        (int)(sizeof(g_render_chrome_tests) / sizeof(g_render_chrome_tests[0]));

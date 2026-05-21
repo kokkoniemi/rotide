@@ -33,7 +33,8 @@ void editorLspTestSetMockServerAlive(int alive) {
 }
 
 void editorLspTestResetMock(void) {
-	editorLspFreeLocations(g_lsp_mock.definition_locations, g_lsp_mock.definition_location_count);
+	editorLspFreeLocations(g_lsp_mock.definition_locations,
+	                       g_lsp_mock.definition_location_count);
 	editorLspFreeSymbols(g_lsp_mock.document_symbols, g_lsp_mock.document_symbol_count);
 	editorLspFreeDiagnostics(g_lsp_mock.diagnostics, g_lsp_mock.diagnostic_count);
 	editorLspFreePendingEdits(g_lsp_mock.code_action_edits, g_lsp_mock.code_action_edit_count);
@@ -92,8 +93,9 @@ void editorLspTestGetLastDidOpenLanguageId(char *out, size_t out_size) {
 }
 
 void editorLspTestSetMockDefinitionResponse(int result_code,
-		const struct editorLspLocation *locations, int count) {
-	editorLspFreeLocations(g_lsp_mock.definition_locations, g_lsp_mock.definition_location_count);
+                                            const struct editorLspLocation *locations, int count) {
+	editorLspFreeLocations(g_lsp_mock.definition_locations,
+	                       g_lsp_mock.definition_location_count);
 	g_lsp_mock.definition_locations = NULL;
 	g_lsp_mock.definition_location_count = 0;
 	g_lsp_mock.definition_result_code = result_code;
@@ -102,11 +104,11 @@ void editorLspTestSetMockDefinitionResponse(int result_code,
 		return;
 	}
 	(void)editorLspCopyLocations(&g_lsp_mock.definition_locations,
-			&g_lsp_mock.definition_location_count, locations, count);
+	                             &g_lsp_mock.definition_location_count, locations, count);
 }
 
 void editorLspTestSetMockDocumentSymbolResponse(int result_code,
-		const struct editorLspSymbol *symbols, int count) {
+                                                const struct editorLspSymbol *symbols, int count) {
 	editorLspFreeSymbols(g_lsp_mock.document_symbols, g_lsp_mock.document_symbol_count);
 	g_lsp_mock.document_symbols = NULL;
 	g_lsp_mock.document_symbol_count = 0;
@@ -115,23 +117,23 @@ void editorLspTestSetMockDocumentSymbolResponse(int result_code,
 	if (symbols == NULL || count <= 0) {
 		return;
 	}
-	(void)editorLspCopySymbols(&g_lsp_mock.document_symbols,
-			&g_lsp_mock.document_symbol_count, symbols, count);
+	(void)editorLspCopySymbols(&g_lsp_mock.document_symbols, &g_lsp_mock.document_symbol_count,
+	                           symbols, count);
 }
 
-void editorLspTestSetMockDiagnostics(const char *path, const struct editorLspDiagnostic *diagnostics,
-		int count) {
+void editorLspTestSetMockDiagnostics(const char *path,
+                                     const struct editorLspDiagnostic *diagnostics, int count) {
 	editorLspFreeDiagnostics(g_lsp_mock.diagnostics, g_lsp_mock.diagnostic_count);
 	g_lsp_mock.diagnostics = NULL;
 	g_lsp_mock.diagnostic_count = 0;
 	free(g_lsp_mock.diagnostic_path);
 	g_lsp_mock.diagnostic_path = path != NULL ? strdup(path) : NULL;
 	(void)editorLspCopyDiagnostics(&g_lsp_mock.diagnostics, &g_lsp_mock.diagnostic_count,
-			diagnostics, count);
+	                               diagnostics, count);
 }
 
-void editorLspTestSetMockCodeActionResult(int result_code,
-		const struct editorLspDiagnostic *edits, int count) {
+void editorLspTestSetMockCodeActionResult(int result_code, const struct editorLspDiagnostic *edits,
+                                          int count) {
 	editorLspFreePendingEdits(g_lsp_mock.code_action_edits, g_lsp_mock.code_action_edit_count);
 	g_lsp_mock.code_action_edits = NULL;
 	g_lsp_mock.code_action_edit_count = 0;
@@ -151,10 +153,10 @@ void editorLspTestSetMockCodeActionResult(int result_code,
 		g_lsp_mock.code_action_edits[i].end_line = edits[i].end_line;
 		g_lsp_mock.code_action_edits[i].end_character = edits[i].end_character;
 		g_lsp_mock.code_action_edits[i].new_text =
-				edits[i].message != NULL ? strdup(edits[i].message) : strdup("");
+		        edits[i].message != NULL ? strdup(edits[i].message) : strdup("");
 		if (g_lsp_mock.code_action_edits[i].new_text == NULL) {
 			editorLspFreePendingEdits(g_lsp_mock.code_action_edits,
-					g_lsp_mock.code_action_edit_count);
+			                          g_lsp_mock.code_action_edit_count);
 			g_lsp_mock.code_action_edits = NULL;
 			g_lsp_mock.code_action_edit_count = 0;
 			g_lsp_mock.code_action_result_code = -1;
@@ -164,7 +166,7 @@ void editorLspTestSetMockCodeActionResult(int result_code,
 }
 
 int editorLspTestParseDefinitionResponse(const char *response_json,
-		struct editorLspLocation **locations_out, int *count_out) {
+                                         struct editorLspLocation **locations_out, int *count_out) {
 	if (response_json == NULL) {
 		return 0;
 	}
@@ -172,7 +174,7 @@ int editorLspTestParseDefinitionResponse(const char *response_json,
 }
 
 int editorLspTestParseDocumentSymbolResponse(const char *response_json,
-		struct editorLspSymbol **symbols_out, int *count_out) {
+                                             struct editorLspSymbol **symbols_out, int *count_out) {
 	if (response_json == NULL) {
 		return 0;
 	}
@@ -180,7 +182,8 @@ int editorLspTestParseDocumentSymbolResponse(const char *response_json,
 }
 
 int editorLspTestParseCompletionResponse(const char *response_json,
-		struct editorLspCompletionItem **items_out, int *count_out) {
+                                         struct editorLspCompletionItem **items_out,
+                                         int *count_out) {
 	if (response_json == NULL) {
 		return 0;
 	}
@@ -188,7 +191,7 @@ int editorLspTestParseCompletionResponse(const char *response_json,
 }
 
 void editorLspTestSetMockCompletionResponse(const struct editorLspCompletionItem *items,
-		int count) {
+                                            int count) {
 	editorLspFreeCompletionItems(g_lsp_mock.completion_items, g_lsp_mock.completion_item_count);
 	g_lsp_mock.completion_items = NULL;
 	g_lsp_mock.completion_item_count = 0;
@@ -196,7 +199,7 @@ void editorLspTestSetMockCompletionResponse(const struct editorLspCompletionItem
 		return;
 	}
 	(void)editorLspCopyCompletionItems(&g_lsp_mock.completion_items,
-			&g_lsp_mock.completion_item_count, items, count);
+	                                   &g_lsp_mock.completion_item_count, items, count);
 }
 
 void editorLspTestDeliverPendingCompletion(void) {
@@ -210,7 +213,7 @@ void editorLspTestDeliverPendingCompletion(void) {
 	struct editorLspCompletionItem *items = NULL;
 	int count = 0;
 	(void)editorLspCopyCompletionItems(&items, &count, g_lsp_mock.completion_items,
-			g_lsp_mock.completion_item_count);
+	                                   g_lsp_mock.completion_item_count);
 	int request_id = pending->request_id;
 	int document_version = pending->document_version;
 	int request_cy = pending->cy;
@@ -222,12 +225,13 @@ void editorLspTestDeliverPendingCompletion(void) {
 	g_lsp_mock.completion_pending_request_id = 0;
 
 	editorAutocompleteHandleCompletionResponse(request_id, document_version, request_cy,
-			request_cx, prefix_start_cx, prefix, filename, items, count);
+	                                           request_cx, prefix_start_cx, prefix, filename,
+	                                           items, count);
 	free(prefix);
 	free(filename);
 }
 
 char *editorLspTestBuildInitializeRequestJson(int request_id, const char *root_uri,
-		int process_id) {
+                                              int process_id) {
 	return editorLspBuildInitializeRequestJson(request_id, root_uri, process_id);
 }

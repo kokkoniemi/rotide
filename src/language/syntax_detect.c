@@ -4,17 +4,16 @@
  * editorSyntaxLanguage by consulting the lookup tables in languages.c. It
  * holds no state and depends only on the language registry.
  */
-#include "language/syntax.h"
-
 #include "language/languages.h"
+#include "language/syntax.h"
 
 #include <ctype.h>
 #include <stddef.h>
 #include <string.h>
 #include <strings.h>
 
-static int editorSyntaxTokenFromLine(const char *line, size_t line_len, size_t *idx,
-		const char **token_out, size_t *token_len_out) {
+static int syntaxDetectTokenFromLine(const char *line, size_t line_len, size_t *idx,
+                                     const char **token_out, size_t *token_len_out) {
 	if (line == NULL || idx == NULL || token_out == NULL || token_len_out == NULL) {
 		return 0;
 	}
@@ -39,14 +38,14 @@ static int editorSyntaxTokenFromLine(const char *line, size_t line_len, size_t *
 	return 1;
 }
 
-static enum editorSyntaxLanguage editorSyntaxLanguageFromShebangBase(const char *base,
-		size_t base_len) {
+static enum editorSyntaxLanguage syntaxDetectLanguageFromShebangBase(const char *base,
+                                                                     size_t base_len) {
 	const struct editorSyntaxLanguageDef *def =
-			editorSyntaxLookupLanguageByShebangToken(base, base_len);
+	        editorSyntaxLookupLanguageByShebangToken(base, base_len);
 	return def != NULL ? def->id : EDITOR_SYNTAX_NONE;
 }
 
-static enum editorSyntaxLanguage editorSyntaxDetectLanguageFromShebang(const char *first_line) {
+static enum editorSyntaxLanguage syntaxDetectLanguageFromShebang(const char *first_line) {
 	if (first_line == NULL || first_line[0] != '#' || first_line[1] != '!') {
 		return EDITOR_SYNTAX_NONE;
 	}
@@ -55,7 +54,7 @@ static enum editorSyntaxLanguage editorSyntaxDetectLanguageFromShebang(const cha
 	size_t idx = 2;
 	const char *token = NULL;
 	size_t token_len = 0;
-	if (!editorSyntaxTokenFromLine(first_line, line_len, &idx, &token, &token_len)) {
+	if (!syntaxDetectTokenFromLine(first_line, line_len, &idx, &token, &token_len)) {
 		return EDITOR_SYNTAX_NONE;
 	}
 
@@ -67,14 +66,15 @@ static enum editorSyntaxLanguage editorSyntaxDetectLanguageFromShebang(const cha
 	}
 	size_t base_len = token_len - (size_t)(base - token);
 
-	enum editorSyntaxLanguage lang = editorSyntaxLanguageFromShebangBase(base, base_len);
+	enum editorSyntaxLanguage lang = syntaxDetectLanguageFromShebangBase(base, base_len);
 	if (lang != EDITOR_SYNTAX_NONE) {
 		return lang;
 	}
 
 	if (base_len == 3 && strncasecmp(base, "env", 3) == 0) {
 		for (;;) {
-			if (!editorSyntaxTokenFromLine(first_line, line_len, &idx, &token, &token_len)) {
+			if (!syntaxDetectTokenFromLine(first_line, line_len, &idx, &token,
+			                               &token_len)) {
 				break;
 			}
 			if (token_len > 0 && token[0] == '-') {
@@ -88,7 +88,7 @@ static enum editorSyntaxLanguage editorSyntaxDetectLanguageFromShebang(const cha
 				}
 			}
 			base_len = token_len - (size_t)(base - token);
-			lang = editorSyntaxLanguageFromShebangBase(base, base_len);
+			lang = syntaxDetectLanguageFromShebangBase(base, base_len);
 			if (lang != EDITOR_SYNTAX_NONE) {
 				return lang;
 			}
@@ -99,7 +99,7 @@ static enum editorSyntaxLanguage editorSyntaxDetectLanguageFromShebang(const cha
 	return EDITOR_SYNTAX_NONE;
 }
 
-static int editorSyntaxFilenameIsExtensionless(const char *filename) {
+static int syntaxDetectFilenameIsExtensionless(const char *filename) {
 	if (filename == NULL || filename[0] == '\0') {
 		return 1;
 	}
@@ -136,14 +136,13 @@ enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *fil
 
 	for (const char *dot = strchr(base, '.'); dot != NULL; dot = strchr(dot + 1, '.')) {
 		const struct editorSyntaxLanguageDef *def =
-				editorSyntaxLookupLanguageByExtension(dot);
+		        editorSyntaxLookupLanguageByExtension(dot);
 		if (def != NULL) {
 			return def->id;
 		}
 	}
 
-	const struct editorSyntaxLanguageDef *def =
-			editorSyntaxLookupLanguageByBasename(base);
+	const struct editorSyntaxLanguageDef *def = editorSyntaxLookupLanguageByBasename(base);
 	if (def != NULL) {
 		return def->id;
 	}
@@ -151,15 +150,15 @@ enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilename(const char *fil
 	return EDITOR_SYNTAX_NONE;
 }
 
-enum editorSyntaxLanguage editorSyntaxDetectLanguageFromFilenameAndFirstLine(
-		const char *filename, const char *first_line) {
+enum editorSyntaxLanguage
+editorSyntaxDetectLanguageFromFilenameAndFirstLine(const char *filename, const char *first_line) {
 	enum editorSyntaxLanguage from_filename = editorSyntaxDetectLanguageFromFilename(filename);
 	if (from_filename != EDITOR_SYNTAX_NONE) {
 		return from_filename;
 	}
-	if (!editorSyntaxFilenameIsExtensionless(filename)) {
+	if (!syntaxDetectFilenameIsExtensionless(filename)) {
 		return EDITOR_SYNTAX_NONE;
 	}
 
-	return editorSyntaxDetectLanguageFromShebang(first_line);
+	return syntaxDetectLanguageFromShebang(first_line);
 }

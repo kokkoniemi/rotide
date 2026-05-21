@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void editorPopupReleaseItems(void) {
+static void popupReleaseItems(void) {
 	if (E.popup.items == NULL) {
 		return;
 	}
@@ -19,7 +19,7 @@ static void editorPopupReleaseItems(void) {
 }
 
 void editorPopupClose(void) {
-	editorPopupReleaseItems();
+	popupReleaseItems();
 	E.popup.visible = 0;
 	E.popup.anchor_row = 0;
 	E.popup.anchor_col = 0;
@@ -28,7 +28,7 @@ void editorPopupClose(void) {
 }
 
 int editorPopupOpen(const struct editorPopupItem *items, int count, int anchor_row,
-		int anchor_col) {
+                    int anchor_col) {
 	editorPopupClose();
 	if (items == NULL || count <= 0) {
 		return 0;
@@ -105,7 +105,7 @@ int editorPopupVisibleRowCount(void) {
 	return count;
 }
 
-static int editorPopupLabelDisplayWidth(const char *label) {
+static int popupLabelDisplayWidth(const char *label) {
 	if (label == NULL) {
 		return 0;
 	}
@@ -125,7 +125,7 @@ int editorPopupContentColumns(void) {
 	}
 	int max_cols = 0;
 	for (int i = 0; i < E.popup.item_count; i++) {
-		int width = editorPopupLabelDisplayWidth(E.popup.items[i].label);
+		int width = popupLabelDisplayWidth(E.popup.items[i].label);
 		if (width > max_cols) {
 			max_cols = width;
 		}
@@ -140,7 +140,7 @@ int editorPopupContentColumns(void) {
 	return padded;
 }
 
-static void editorPopupClampScroll(void) {
+static void popupClampScroll(void) {
 	int rows = editorPopupVisibleRowCount();
 	if (rows <= 0) {
 		E.popup.row_offset = 0;
@@ -169,31 +169,31 @@ enum editorPopupKeyResult editorPopupHandleKey(int key) {
 	}
 
 	switch (key) {
-	case ARROW_UP:
-		if (E.popup.selected_index > 0) {
-			E.popup.selected_index--;
-		}
-		editorPopupClampScroll();
-		return EDITOR_POPUP_KEY_CONSUMED;
-	case ARROW_DOWN:
-		if (E.popup.selected_index + 1 < E.popup.item_count) {
-			E.popup.selected_index++;
-		}
-		editorPopupClampScroll();
-		return EDITOR_POPUP_KEY_CONSUMED;
-	case '\r':
-		return EDITOR_POPUP_KEY_ACCEPTED;
-	case '\x1b':
-		editorPopupClose();
-		return EDITOR_POPUP_KEY_CONSUMED;
-	default:
-		editorPopupClose();
-		return EDITOR_POPUP_KEY_DISMISSED_PASS_THROUGH;
+		case ARROW_UP:
+			if (E.popup.selected_index > 0) {
+				E.popup.selected_index--;
+			}
+			popupClampScroll();
+			return EDITOR_POPUP_KEY_CONSUMED;
+		case ARROW_DOWN:
+			if (E.popup.selected_index + 1 < E.popup.item_count) {
+				E.popup.selected_index++;
+			}
+			popupClampScroll();
+			return EDITOR_POPUP_KEY_CONSUMED;
+		case '\r':
+			return EDITOR_POPUP_KEY_ACCEPTED;
+		case '\x1b':
+			editorPopupClose();
+			return EDITOR_POPUP_KEY_CONSUMED;
+		default:
+			editorPopupClose();
+			return EDITOR_POPUP_KEY_DISMISSED_PASS_THROUGH;
 	}
 }
 
 void editorPopupComputePlacement(int *terminal_row_out, int *terminal_col_out,
-		int *visible_rows_out, int *cols_out, int *place_above_out) {
+                                 int *visible_rows_out, int *cols_out, int *place_above_out) {
 	int rows = editorPopupVisibleRowCount();
 	int cols = editorPopupContentColumns();
 	int place_above = 0;
@@ -233,7 +233,8 @@ void editorPopupComputePlacement(int *terminal_row_out, int *terminal_col_out,
 	}
 
 	if (terminal_row_out != NULL) {
-		*terminal_row_out = top_row + 2; // +2 to take acccount for 1-based indexing and the tab line
+		*terminal_row_out =
+		        top_row + 2; // +2 to take acccount for 1-based indexing and the tab line
 	}
 	if (terminal_col_out != NULL) {
 		*terminal_col_out = anchor_screen_col + 1;

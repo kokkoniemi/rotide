@@ -1,5 +1,5 @@
-#ifndef KEYMAP_H
-#define KEYMAP_H
+#ifndef ROTIDE_CONFIG_KEYMAP_H
+#define ROTIDE_CONFIG_KEYMAP_H
 
 #include "rotide.h"
 
@@ -12,13 +12,14 @@ enum editorKeymapLoadStatus {
 
 void editorKeymapInitDefaults(struct editorKeymap *keymap);
 int editorKeymapLookupAction(const struct editorKeymap *keymap, int key,
-		enum editorAction *action_out);
+                             enum editorAction *action_out);
 int editorKeymapFormatBinding(const struct editorKeymap *keymap, enum editorAction action,
-		char *buf, size_t bufsize);
+                              char *buf, size_t bufsize);
 void editorKeymapBuildHelpStatus(const struct editorKeymap *keymap, char *buf, size_t bufsize);
 
 enum editorKeymapLoadStatus editorKeymapLoadFromPaths(struct editorKeymap *keymap,
-		const char *global_path, const char *project_path);
+                                                      const char *global_path,
+                                                      const char *project_path);
 enum editorKeymapLoadStatus editorKeymapLoadConfigured(struct editorKeymap *keymap);
 
 #endif

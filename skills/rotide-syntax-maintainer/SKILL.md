@@ -20,6 +20,10 @@ Use for Tree-sitter activation, query wiring, incremental parse behavior, and sy
 - Preserve query/parse budget behavior and degraded modes.
 - Keep text-source/document-backed parsing path intact.
 - Keep selection/search highlight precedence over syntax colors.
+- Keep broad behavior-preserving style and complexity cleanup separate from
+  syntax feature changes.
+- New file-local helpers follow the module prefix in
+  `docs/module-prefixes.md` once the naming migration is accepted.
 
 ## Vendoring a new grammar
 

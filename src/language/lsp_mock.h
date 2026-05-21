@@ -1,5 +1,5 @@
-#ifndef LSP_MOCK_H
-#define LSP_MOCK_H
+#ifndef ROTIDE_LANGUAGE_LSP_MOCK_H
+#define ROTIDE_LANGUAGE_LSP_MOCK_H
 
 #include "language/lsp.h"
 #include "language/lsp_protocol.h"

@@ -38,8 +38,8 @@ static void refBufFree(struct refBuf *b) {
 	b->len = b->cap = 0;
 }
 
-static int refBufReplace(struct refBuf *b, size_t start, size_t old_len,
-		const char *text, size_t new_len) {
+static int refBufReplace(struct refBuf *b, size_t start, size_t old_len, const char *text,
+                         size_t new_len) {
 	if (start + old_len > b->len) {
 		return -1;
 	}
@@ -56,15 +56,13 @@ static int refBufReplace(struct refBuf *b, size_t start, size_t old_len,
 		b->bytes = grown;
 		b->cap = nc;
 	}
-	memmove(b->bytes + start + new_len, b->bytes + start + old_len,
-		b->len - (start + old_len));
+	memmove(b->bytes + start + new_len, b->bytes + start + old_len, b->len - (start + old_len));
 	memcpy(b->bytes + start, text, new_len);
 	b->len = after;
 	return 0;
 }
 
-static void byteToPoint(const char *text, size_t len, size_t byte,
-		struct editorSyntaxPoint *out) {
+static void byteToPoint(const char *text, size_t len, size_t byte, struct editorSyntaxPoint *out) {
 	uint32_t row = 0;
 	uint32_t col = 0;
 	for (size_t i = 0; i < byte && i < len; i++) {
@@ -107,13 +105,12 @@ static int captureCompare(const void *a_in, const void *b_in) {
 	return 0;
 }
 
-static int collectAndSortCaptures(struct editorSyntaxState *state,
-		const char *text, size_t len,
-		struct editorSyntaxCapture *out, int max, int *count_out) {
+static int collectAndSortCaptures(struct editorSyntaxState *state, const char *text, size_t len,
+                                  struct editorSyntaxCapture *out, int max, int *count_out) {
 	struct editorTextSource view = {0};
 	editorTextSourceInitString(&view, text, len);
-	if (!editorSyntaxStateCollectCapturesForRange(state, &view, 0,
-				(uint32_t)len, out, max, count_out)) {
+	if (!editorSyntaxStateCollectCapturesForRange(state, &view, 0, (uint32_t)len, out, max,
+	                                              count_out)) {
 		return 0;
 	}
 	if (*count_out > 1) {
@@ -130,16 +127,18 @@ struct langCase {
 };
 
 static const struct langCase k_lang_cases[] = {
-	{"c", EDITOR_SYNTAX_C, "tests/syntax/supported/c/highlight.c", 20},
-	{"cpp", EDITOR_SYNTAX_CPP, "tests/syntax/supported/cpp/highlight.cpp", 20},
-	{"go", EDITOR_SYNTAX_GO, "tests/syntax/supported/go/highlight.go", 20},
-	{"python", EDITOR_SYNTAX_PYTHON, "tests/syntax/supported/python/highlight.py", 20},
-	{"javascript", EDITOR_SYNTAX_JAVASCRIPT, "tests/syntax/supported/javascript/highlight.js", 20},
-	{"typescript", EDITOR_SYNTAX_TYPESCRIPT, "tests/syntax/supported/typescript/highlight.ts", 20},
-	{"rust", EDITOR_SYNTAX_RUST, "tests/syntax/supported/rust/highlight.rs", 20},
-	{"json", EDITOR_SYNTAX_JSON, "tests/syntax/supported/json/activation.json", 20},
-	{"bash", EDITOR_SYNTAX_SHELL, "tests/syntax/supported/bash/highlight.sh", 20},
-	{"toml", EDITOR_SYNTAX_TOML, "tests/syntax/supported/toml/highlight.toml", 20},
+        {"c", EDITOR_SYNTAX_C, "tests/syntax/supported/c/highlight.c", 20},
+        {"cpp", EDITOR_SYNTAX_CPP, "tests/syntax/supported/cpp/highlight.cpp", 20},
+        {"go", EDITOR_SYNTAX_GO, "tests/syntax/supported/go/highlight.go", 20},
+        {"python", EDITOR_SYNTAX_PYTHON, "tests/syntax/supported/python/highlight.py", 20},
+        {"javascript", EDITOR_SYNTAX_JAVASCRIPT, "tests/syntax/supported/javascript/highlight.js",
+         20},
+        {"typescript", EDITOR_SYNTAX_TYPESCRIPT, "tests/syntax/supported/typescript/highlight.ts",
+         20},
+        {"rust", EDITOR_SYNTAX_RUST, "tests/syntax/supported/rust/highlight.rs", 20},
+        {"json", EDITOR_SYNTAX_JSON, "tests/syntax/supported/json/activation.json", 20},
+        {"bash", EDITOR_SYNTAX_SHELL, "tests/syntax/supported/bash/highlight.sh", 20},
+        {"toml", EDITOR_SYNTAX_TOML, "tests/syntax/supported/toml/highlight.toml", 20},
 };
 
 #define K_LANG_CASE_COUNT ((int)(sizeof(k_lang_cases) / sizeof(k_lang_cases[0])))
@@ -199,9 +198,15 @@ static int runIncrementalEquivTest(const struct langCase *lc, uint64_t seed) {
 		if (kind == 0) {
 			new_len = 1 + (size_t)(rngNext() % 12);
 		} else if (kind == 1) {
-			old_len = available == 0 ? 0 : 1 + (size_t)(rngNext() % (available < 8 ? available : 8));
+			old_len =
+			        available == 0
+			                ? 0
+			                : 1 + (size_t)(rngNext() % (available < 8 ? available : 8));
 		} else {
-			old_len = available == 0 ? 0 : 1 + (size_t)(rngNext() % (available < 6 ? available : 6));
+			old_len =
+			        available == 0
+			                ? 0
+			                : 1 + (size_t)(rngNext() % (available < 6 ? available : 6));
 			new_len = 1 + (size_t)(rngNext() % 12);
 		}
 		if (new_len > sizeof(ins)) {
@@ -233,18 +238,20 @@ static int runIncrementalEquivTest(const struct langCase *lc, uint64_t seed) {
 		editorTextSourceInitString(&after_view, buf.bytes, buf.len);
 		if (!editorSyntaxStateApplyEditAndParse(incremental, &edit, &after_view)) {
 			fprintf(stderr,
-				"%s: ApplyEditAndParse failed op#%d start=%zu old=%zu new=%zu seed=0x%016llx\n",
-				lc->suite_name, i, start, old_len, new_len, (unsigned long long)seed);
+			        "%s: ApplyEditAndParse failed op#%d start=%zu old=%zu new=%zu "
+			        "seed=0x%016llx\n",
+			        lc->suite_name, i, start, old_len, new_len,
+			        (unsigned long long)seed);
 			editorSyntaxStateDestroy(incremental);
 			refBufFree(&buf);
 			return 1;
 		}
 	}
 
-	struct editorSyntaxCapture *inc_caps = (struct editorSyntaxCapture *)
-		malloc(sizeof(*inc_caps) * INC_MAX_CAPTURES);
-	struct editorSyntaxCapture *full_caps = (struct editorSyntaxCapture *)
-		malloc(sizeof(*full_caps) * INC_MAX_CAPTURES);
+	struct editorSyntaxCapture *inc_caps =
+	        (struct editorSyntaxCapture *)malloc(sizeof(*inc_caps) * INC_MAX_CAPTURES);
+	struct editorSyntaxCapture *full_caps =
+	        (struct editorSyntaxCapture *)malloc(sizeof(*full_caps) * INC_MAX_CAPTURES);
 	if (inc_caps == NULL || full_caps == NULL) {
 		free(inc_caps);
 		free(full_caps);
@@ -253,8 +260,8 @@ static int runIncrementalEquivTest(const struct langCase *lc, uint64_t seed) {
 		return 1;
 	}
 	int inc_count = 0;
-	if (!collectAndSortCaptures(incremental, buf.bytes, buf.len,
-				inc_caps, INC_MAX_CAPTURES, &inc_count)) {
+	if (!collectAndSortCaptures(incremental, buf.bytes, buf.len, inc_caps, INC_MAX_CAPTURES,
+	                            &inc_count)) {
 		fprintf(stderr, "%s: incremental capture collect failed\n", lc->suite_name);
 		free(inc_caps);
 		free(full_caps);
@@ -283,8 +290,8 @@ static int runIncrementalEquivTest(const struct langCase *lc, uint64_t seed) {
 		return 1;
 	}
 	int full_count = 0;
-	if (!collectAndSortCaptures(full, buf.bytes, buf.len,
-				full_caps, INC_MAX_CAPTURES, &full_count)) {
+	if (!collectAndSortCaptures(full, buf.bytes, buf.len, full_caps, INC_MAX_CAPTURES,
+	                            &full_count)) {
 		fprintf(stderr, "%s: full capture collect failed\n", lc->suite_name);
 		editorSyntaxStateDestroy(full);
 		free(inc_caps);
@@ -297,20 +304,20 @@ static int runIncrementalEquivTest(const struct langCase *lc, uint64_t seed) {
 	int ok = 1;
 	if (inc_count != full_count) {
 		fprintf(stderr,
-			"%s: capture count mismatch incremental=%d full=%d seed=0x%016llx\n",
-			lc->suite_name, inc_count, full_count, (unsigned long long)seed);
+		        "%s: capture count mismatch incremental=%d full=%d seed=0x%016llx\n",
+		        lc->suite_name, inc_count, full_count, (unsigned long long)seed);
 		ok = 0;
 	} else {
 		for (int i = 0; i < inc_count; i++) {
 			if (captureCompare(&inc_caps[i], &full_caps[i]) != 0) {
 				fprintf(stderr,
-					"%s: capture #%d differs: inc=[%u..%u cls=%d] full=[%u..%u cls=%d] seed=0x%016llx\n",
-					lc->suite_name, i,
-					inc_caps[i].start_byte, inc_caps[i].end_byte,
-					(int)inc_caps[i].highlight_class,
-					full_caps[i].start_byte, full_caps[i].end_byte,
-					(int)full_caps[i].highlight_class,
-					(unsigned long long)seed);
+				        "%s: capture #%d differs: inc=[%u..%u cls=%d] full=[%u..%u "
+				        "cls=%d] seed=0x%016llx\n",
+				        lc->suite_name, i, inc_caps[i].start_byte,
+				        inc_caps[i].end_byte, (int)inc_caps[i].highlight_class,
+				        full_caps[i].start_byte, full_caps[i].end_byte,
+				        (int)full_caps[i].highlight_class,
+				        (unsigned long long)seed);
 				ok = 0;
 				break;
 			}
@@ -325,11 +332,13 @@ static int runIncrementalEquivTest(const struct langCase *lc, uint64_t seed) {
 	return ok ? 0 : 1;
 }
 
-#define INCR_EQUIV_TEST(lang, idx) \
-	static int test_syntax_incremental_equiv_##lang(void) { \
-		uint64_t base = rotide_test_seed(); \
-		if (base == 0) base = 0x9E3779B97F4A7C15ULL; \
-		return runIncrementalEquivTest(&k_lang_cases[idx], base ^ ((uint64_t)0xA5A5A5A5ULL * (idx + 1))); \
+#define INCR_EQUIV_TEST(lang, idx)                                                                 \
+	static int test_syntax_incremental_equiv_##lang(void) {                                    \
+		uint64_t base = rotide_test_seed();                                                \
+		if (base == 0)                                                                     \
+			base = 0x9E3779B97F4A7C15ULL;                                              \
+		return runIncrementalEquivTest(&k_lang_cases[idx],                                 \
+		                               base ^ ((uint64_t)0xA5A5A5A5ULL * (idx + 1)));      \
 	}
 
 INCR_EQUIV_TEST(c, 0)
@@ -344,17 +353,18 @@ INCR_EQUIV_TEST(bash, 8)
 INCR_EQUIV_TEST(toml, 9)
 
 const struct editorTestCase g_syntax_incremental_equiv_tests[] = {
-	{"syntax_incremental_equiv_c", test_syntax_incremental_equiv_c},
-	{"syntax_incremental_equiv_cpp", test_syntax_incremental_equiv_cpp},
-	{"syntax_incremental_equiv_go", test_syntax_incremental_equiv_go},
-	{"syntax_incremental_equiv_python", test_syntax_incremental_equiv_python},
-	{"syntax_incremental_equiv_javascript", test_syntax_incremental_equiv_javascript},
-	{"syntax_incremental_equiv_typescript", test_syntax_incremental_equiv_typescript},
-	{"syntax_incremental_equiv_rust", test_syntax_incremental_equiv_rust},
-	{"syntax_incremental_equiv_json", test_syntax_incremental_equiv_json},
-	{"syntax_incremental_equiv_bash", test_syntax_incremental_equiv_bash},
-	{"syntax_incremental_equiv_toml", test_syntax_incremental_equiv_toml},
+        {"syntax_incremental_equiv_c", test_syntax_incremental_equiv_c},
+        {"syntax_incremental_equiv_cpp", test_syntax_incremental_equiv_cpp},
+        {"syntax_incremental_equiv_go", test_syntax_incremental_equiv_go},
+        {"syntax_incremental_equiv_python", test_syntax_incremental_equiv_python},
+        {"syntax_incremental_equiv_javascript", test_syntax_incremental_equiv_javascript},
+        {"syntax_incremental_equiv_typescript", test_syntax_incremental_equiv_typescript},
+        {"syntax_incremental_equiv_rust", test_syntax_incremental_equiv_rust},
+        {"syntax_incremental_equiv_json", test_syntax_incremental_equiv_json},
+        {"syntax_incremental_equiv_bash", test_syntax_incremental_equiv_bash},
+        {"syntax_incremental_equiv_toml", test_syntax_incremental_equiv_toml},
 };
 
 const int g_syntax_incremental_equiv_test_count =
-	(int)(sizeof(g_syntax_incremental_equiv_tests) / sizeof(g_syntax_incremental_equiv_tests[0]));
+        (int)(sizeof(g_syntax_incremental_equiv_tests) /
+              sizeof(g_syntax_incremental_equiv_tests[0]));

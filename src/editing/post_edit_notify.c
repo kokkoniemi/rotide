@@ -3,29 +3,28 @@
 #include "editing/syntax_runtime.h"
 #include "editing/text_source.h"
 #include "language/lsp.h"
-
 #include "rotide.h"
 
 #include <stdlib.h>
 
-static int editorLspActiveBufferTracked(void) {
+static int postEditNotifyLspTracked(void) {
 	return editorLspFileEnabled(E.filename, E.syntax_language);
 }
 
-static int editorLspActiveBufferTrackedForEslint(void) {
+static int postEditNotifyEslintTracked(void) {
 	return editorLspEslintEnabledForFile(E.filename, E.syntax_language);
 }
 
-static void editorLspNotifyDidChangeActive(const struct editorSyntaxEdit *edit,
-		const char *inserted_text, size_t inserted_len) {
-	if (!editorLspActiveBufferTracked() && !editorLspActiveBufferTrackedForEslint()) {
+static void postEditNotifyLspDidChangeActive(const struct editorSyntaxEdit *edit,
+                                             const char *inserted_text, size_t inserted_len) {
+	if (!postEditNotifyLspTracked() && !postEditNotifyEslintTracked()) {
 		return;
 	}
 
 	char *full_text = NULL;
 	size_t full_text_len = 0;
-	if ((editorLspActiveBufferTracked() && !E.lsp_doc_open) ||
-			(editorLspActiveBufferTrackedForEslint() && !E.lsp_eslint_doc_open)) {
+	if ((postEditNotifyLspTracked() && !E.lsp_doc_open) ||
+	    (postEditNotifyEslintTracked() && !E.lsp_eslint_doc_open)) {
 		full_text = editorDupActiveTextSource(&full_text_len);
 		if (full_text == NULL && full_text_len > 0) {
 			free(full_text);
@@ -33,27 +32,29 @@ static void editorLspNotifyDidChangeActive(const struct editorSyntaxEdit *edit,
 		}
 	}
 
-	if (editorLspActiveBufferTracked()) {
-		(void)editorLspNotifyDidChange(E.filename, E.syntax_language,
-				&E.lsp_doc_open, &E.lsp_doc_version, edit, inserted_text, inserted_len,
-				full_text, full_text_len);
+	if (postEditNotifyLspTracked()) {
+		(void)editorLspNotifyDidChange(E.filename, E.syntax_language, &E.lsp_doc_open,
+		                               &E.lsp_doc_version, edit, inserted_text,
+		                               inserted_len, full_text, full_text_len);
 	}
-	if (editorLspActiveBufferTrackedForEslint()) {
+	if (postEditNotifyEslintTracked()) {
 		(void)editorLspNotifyEslintDidChange(E.filename, E.syntax_language,
-				&E.lsp_eslint_doc_open, &E.lsp_eslint_doc_version, edit, inserted_text,
-				inserted_len, full_text, full_text_len);
+		                                     &E.lsp_eslint_doc_open,
+		                                     &E.lsp_eslint_doc_version, edit, inserted_text,
+		                                     inserted_len, full_text, full_text_len);
 	}
 	free(full_text);
 }
 
 void editorNotifyPostEditLanguage(int syntax_track, const struct editorSyntaxEdit *syntax_edit,
-		const char *inserted_text, size_t inserted_len) {
+                                  const char *inserted_text, size_t inserted_len) {
 	if (syntax_track) {
-		(void)editorSyntaxApplyIncrementalEditActive(syntax_edit, inserted_text, inserted_len);
-		editorLspNotifyDidChangeActive(syntax_edit, inserted_text, inserted_len);
+		(void)editorSyntaxApplyIncrementalEditActive(syntax_edit, inserted_text,
+		                                             inserted_len);
+		postEditNotifyLspDidChangeActive(syntax_edit, inserted_text, inserted_len);
 		return;
 	}
 
 	(void)editorSyntaxApplyIncrementalEditActive(NULL, inserted_text, inserted_len);
-	editorLspNotifyDidChangeActive(NULL, inserted_text, inserted_len);
+	postEditNotifyLspDidChangeActive(NULL, inserted_text, inserted_len);
 }

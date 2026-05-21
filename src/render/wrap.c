@@ -5,9 +5,10 @@
 #include "text/utf8.h"
 #include "workspace/drawer.h"
 #include "workspace/layout.h"
+
 #include <stdlib.h>
 
-static int editorPaneTextBodyViewportColsForWidth(int pane_cols) {
+static int wrapTextBodyColsForWidth(int pane_cols) {
 	int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);
 	if (gutter_cols > pane_cols) {
 		gutter_cols = pane_cols;
@@ -22,22 +23,21 @@ static int editorPaneTextBodyViewportColsForWidth(int pane_cols) {
 	return text_cols;
 }
 
-static int editorFocusedPaneTextBodyViewportCols(void) {
+static int wrapFocusedPaneTextBodyCols(void) {
 	struct editorRect rect = {0};
 	if (editorLayoutFocusedLeafRect(&rect) && rect.w > 0) {
-		return editorPaneTextBodyViewportColsForWidth(rect.w);
+		return wrapTextBodyColsForWidth(rect.w);
 	}
 	return editorTextBodyViewportCols(E.window_cols);
 }
 
 int editorWrapBodyCols(void) {
 	int override_cols = editorPaneWrapBodyColsOverride();
-	int body_cols = override_cols > 0 ? override_cols :
-			editorFocusedPaneTextBodyViewportCols();
+	int body_cols = override_cols > 0 ? override_cols : wrapFocusedPaneTextBodyCols();
 	return body_cols < 1 ? 1 : body_cols;
 }
 
-int editorWrapContinuationIndentCols(const struct erow *row, int body_cols) {
+int editorWrapContinuationIndentCols(const struct editorRow *row, int body_cols) {
 	if (row == NULL || body_cols <= 1 || row->rsize <= 0) {
 		return 0;
 	}
@@ -66,7 +66,7 @@ int editorWrapContinuationIndentCols(const struct erow *row, int body_cols) {
 	return cols;
 }
 
-static int editorWrapBreaksAfterCodepoint(unsigned int cp) {
+static int wrapBreaksAfterCodepoint(unsigned int cp) {
 	switch (cp) {
 		case ' ':
 		case '\t':
@@ -94,8 +94,8 @@ static int editorWrapBreaksAfterCodepoint(unsigned int cp) {
 	}
 }
 
-int editorWrapNextStartCol(const struct erow *row, int start_col, int available_cols,
-		int total_cols) {
+int editorWrapNextStartCol(const struct editorRow *row, int start_col, int available_cols,
+                           int total_cols) {
 	if (row == NULL || available_cols <= 0 || start_col < 0 || start_col >= total_cols) {
 		return total_cols;
 	}
@@ -124,7 +124,7 @@ int editorWrapNextStartCol(const struct erow *row, int start_col, int available_
 		}
 		if (next_rx > start_col && next_rx <= target_col) {
 			best_fit_col = next_rx;
-			if (editorWrapBreaksAfterCodepoint(cp)) {
+			if (wrapBreaksAfterCodepoint(cp)) {
 				best_break_col = next_rx;
 			}
 		}
@@ -147,7 +147,7 @@ int editorWrapNextStartCol(const struct erow *row, int start_col, int available_
 	return total_cols;
 }
 
-static int editorWrapCacheReserve(struct erow *row, int needed_capacity) {
+static int wrapCacheReserve(struct editorRow *row, int needed_capacity) {
 	if (needed_capacity <= row->wrap_cache_capacity) {
 		return 1;
 	}
@@ -164,7 +164,7 @@ static int editorWrapCacheReserve(struct erow *row, int needed_capacity) {
 	return 1;
 }
 
-static void editorWrapEnsureCache(struct erow *row, int body_cols) {
+static void wrapEnsureCache(struct editorRow *row, int body_cols) {
 	if (row == NULL) {
 		return;
 	}
@@ -178,7 +178,7 @@ static void editorWrapEnsureCache(struct erow *row, int body_cols) {
 	row->wrap_cache_body_cols = body_cols;
 	row->wrap_cache_indent_cols = 0;
 	row->wrap_cache_segment_count = 1;
-	if (!editorWrapCacheReserve(row, 1)) {
+	if (!wrapCacheReserve(row, 1)) {
 		row->wrap_cache_body_cols = 0;
 		row->wrap_cache_segment_count = 0;
 		return;
@@ -205,7 +205,7 @@ static void editorWrapEnsureCache(struct erow *row, int body_cols) {
 		if (next_start >= total_cols || next_start <= start_col) {
 			break;
 		}
-		if (!editorWrapCacheReserve(row, count + 1)) {
+		if (!wrapCacheReserve(row, count + 1)) {
 			break;
 		}
 		row->wrap_cache_segments[count] = next_start;
@@ -215,8 +215,8 @@ static void editorWrapEnsureCache(struct erow *row, int body_cols) {
 	row->wrap_cache_segment_count = count;
 }
 
-void editorWrapSegmentInfo(struct erow *row, int segment_idx, int body_cols,
-		int *start_col_out, int *available_cols_out, int *indent_cols_out) {
+void editorWrapSegmentInfo(struct editorRow *row, int segment_idx, int body_cols,
+                           int *start_col_out, int *available_cols_out, int *indent_cols_out) {
 	if (start_col_out != NULL) {
 		*start_col_out = 0;
 	}
@@ -236,7 +236,7 @@ void editorWrapSegmentInfo(struct erow *row, int segment_idx, int body_cols,
 		segment_idx = 0;
 	}
 
-	editorWrapEnsureCache(row, body_cols);
+	wrapEnsureCache(row, body_cols);
 	if (row->wrap_cache_segment_count <= 0) {
 		return;
 	}
@@ -270,19 +270,19 @@ int editorWrapSegmentCountForRowIndex(int row_idx, int body_cols) {
 	if (row_idx < 0 || row_idx >= E.numrows) {
 		return 1;
 	}
-	editorWrapEnsureCache(&E.rows[row_idx], body_cols);
+	wrapEnsureCache(&E.rows[row_idx], body_cols);
 	int count = E.rows[row_idx].wrap_cache_segment_count;
 	return count > 0 ? count : 1;
 }
 
-int editorWrapCursorSegmentForRx(struct erow *row, int rx, int body_cols) {
+int editorWrapCursorSegmentForRx(struct editorRow *row, int rx, int body_cols) {
 	if (body_cols < 1) {
 		body_cols = 1;
 	}
 	if (rx <= 0 || row == NULL) {
 		return 0;
 	}
-	editorWrapEnsureCache(row, body_cols);
+	wrapEnsureCache(row, body_cols);
 	int count = row->wrap_cache_segment_count;
 	if (count <= 1) {
 		return 0;
@@ -356,7 +356,7 @@ int editorWrappedPositionBefore(int row_a, int segment_a, int row_b, int segment
 }
 
 int editorWrappedDistanceForward(int from_row, int from_segment, int to_row, int to_segment,
-		int max_distance, int body_cols, int *distance_out) {
+                                 int max_distance, int body_cols, int *distance_out) {
 	int row = from_row;
 	int segment = from_segment;
 	for (int distance = 0; distance <= max_distance; distance++) {

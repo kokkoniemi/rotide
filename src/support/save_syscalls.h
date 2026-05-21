@@ -1,5 +1,5 @@
-#ifndef SAVE_SYSCALLS_H
-#define SAVE_SYSCALLS_H
+#ifndef ROTIDE_SUPPORT_SAVE_SYSCALLS_H
+#define ROTIDE_SUPPORT_SAVE_SYSCALLS_H
 
 enum editorSaveSyscallOp {
 	EDITOR_SAVE_SYSCALL_RENAME = 1,
@@ -9,8 +9,7 @@ enum editorSaveSyscallOp {
 	EDITOR_SAVE_SYSCALL_UNLINK
 };
 
-typedef int (*editorSaveSyscallFailureProbe)(enum editorSaveSyscallOp op,
-		int *failure_errno);
+typedef int (*editorSaveSyscallFailureProbe)(enum editorSaveSyscallOp op, int *failure_errno);
 
 void editorSaveSyscallsSetFailureProbe(editorSaveSyscallFailureProbe probe);
 void editorSaveSyscallsClearFailureProbe(void);

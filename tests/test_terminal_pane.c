@@ -1,6 +1,9 @@
+#include "rotide.h"
 #include "terminal/terminal_pane.h"
 #include "test_case.h"
 #include "test_helpers.h"
+#include "vterm.h"
+#include "workspace/layout.h"
 
 #include <errno.h>
 #include <poll.h>
@@ -9,18 +12,14 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "rotide.h"
-#include "vterm.h"
-#include "workspace/layout.h"
-
-static int wait_for_text_in_screen(struct editorTerminalPane *t,
-		const char *needle, int timeout_ms) {
+static int wait_for_text_in_screen(struct editorTerminalPane *t, const char *needle,
+                                   int timeout_ms) {
 	int waited = 0;
 	while (waited < timeout_ms) {
 		(void)editorTerminalPanePump(t);
 		char buf[4096];
-		VTermRect rect = {.start_row = 0, .end_row = t->rows,
-				.start_col = 0, .end_col = t->cols};
+		VTermRect rect = {
+		        .start_row = 0, .end_row = t->rows, .start_col = 0, .end_col = t->cols};
 		size_t n = vterm_screen_get_text(t->screen, buf, sizeof(buf) - 1, rect);
 		if (n >= sizeof(buf)) {
 			n = sizeof(buf) - 1;
@@ -47,7 +46,7 @@ static int test_terminal_pane_create_rejects_null_command(void) {
 
 static int test_terminal_pane_pump_captures_child_output(void) {
 	struct editorTerminalPane *t =
-			editorTerminalPaneCreate("printf 'rotide-vt-marker\\n'", 40, 8);
+	        editorTerminalPaneCreate("printf 'rotide-vt-marker\\n'", 40, 8);
 	if (t == NULL) {
 		return 1;
 	}
@@ -96,12 +95,12 @@ static int test_terminal_pane_resize_all_to_layout_updates_grids(void) {
 	E.window_cols = 120;
 	E.window_rows = 40;
 	struct editorPaneNode *terminal_leaf =
-			editorTerminalPaneOpenSplit("sleep 5", EDITOR_SPLIT_HORIZONTAL);
+	        editorTerminalPaneOpenSplit("sleep 5", EDITOR_SPLIT_HORIZONTAL);
 	if (terminal_leaf == NULL) {
 		return 1;
 	}
 	struct editorTerminalPane *t =
-			(struct editorTerminalPane *)terminal_leaf->as.leaf.kind_state;
+	        (struct editorTerminalPane *)terminal_leaf->as.leaf.kind_state;
 	int before_rows = t->rows;
 	int before_cols = t->cols;
 
@@ -121,16 +120,16 @@ static int test_terminal_pane_open_split_replaces_sibling_kind(void) {
 	E.window_rows = 24;
 	struct editorPaneNode *original = E.focused_leaf;
 	struct editorPaneNode *terminal_leaf =
-			editorTerminalPaneOpenSplit("sleep 2", EDITOR_SPLIT_HORIZONTAL);
+	        editorTerminalPaneOpenSplit("sleep 2", EDITOR_SPLIT_HORIZONTAL);
 	if (terminal_leaf == NULL) {
 		return 1;
 	}
 	int failed = E.focused_leaf != terminal_leaf ||
-			terminal_leaf->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
-			terminal_leaf->as.leaf.kind_state == NULL ||
-			terminal_leaf->as.leaf.kind_state_free != editorTerminalPaneFree ||
-			editorPaneTreeLeafCount(E.layout_root) != 2 ||
-			!editorPaneNodeContainsLeaf(E.layout_root, original);
+	             terminal_leaf->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
+	             terminal_leaf->as.leaf.kind_state == NULL ||
+	             terminal_leaf->as.leaf.kind_state_free != editorTerminalPaneFree ||
+	             editorPaneTreeLeafCount(E.layout_root) != 2 ||
+	             !editorPaneNodeContainsLeaf(E.layout_root, original);
 	return failed;
 }
 
@@ -142,16 +141,16 @@ static int test_terminal_pane_open_vertical_split_replaces_sibling_kind(void) {
 	E.window_rows = 24;
 	struct editorPaneNode *original = E.focused_leaf;
 	struct editorPaneNode *terminal_leaf =
-			editorTerminalPaneOpenSplit("sleep 2", EDITOR_SPLIT_VERTICAL);
+	        editorTerminalPaneOpenSplit("sleep 2", EDITOR_SPLIT_VERTICAL);
 	if (terminal_leaf == NULL) {
 		return 1;
 	}
 	int failed = E.focused_leaf != terminal_leaf ||
-			terminal_leaf->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
-			terminal_leaf->as.leaf.kind_state == NULL ||
-			terminal_leaf->as.leaf.kind_state_free != editorTerminalPaneFree ||
-			editorPaneTreeLeafCount(E.layout_root) != 2 ||
-			!editorPaneNodeContainsLeaf(E.layout_root, original);
+	             terminal_leaf->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
+	             terminal_leaf->as.leaf.kind_state == NULL ||
+	             terminal_leaf->as.leaf.kind_state_free != editorTerminalPaneFree ||
+	             editorPaneTreeLeafCount(E.layout_root) != 2 ||
+	             !editorPaneNodeContainsLeaf(E.layout_root, original);
 	return failed;
 }
 
@@ -163,12 +162,12 @@ static int test_terminal_pane_close_exited_removes_leaf_and_restores_focus(void)
 	E.window_cols = 80;
 	E.window_rows = 24;
 	struct editorPaneNode *terminal_leaf =
-			editorTerminalPaneOpenSplit("true", EDITOR_SPLIT_HORIZONTAL);
+	        editorTerminalPaneOpenSplit("true", EDITOR_SPLIT_HORIZONTAL);
 	if (terminal_leaf == NULL) {
 		return 1;
 	}
 	struct editorTerminalPane *t =
-			(struct editorTerminalPane *)terminal_leaf->as.leaf.kind_state;
+	        (struct editorTerminalPane *)terminal_leaf->as.leaf.kind_state;
 	if (t == NULL) {
 		return 1;
 	}
@@ -185,7 +184,7 @@ static int test_terminal_pane_close_exited_removes_leaf_and_restores_focus(void)
 	struct editorPaneNode *focus = E.focused_leaf;
 	int closed = editorTerminalPaneCloseExited(&E.layout_root, &focus, NULL);
 	int failed = closed != 1 || editorPaneTreeLeafCount(E.layout_root) != 1 ||
-			focus != original || !editorPaneNodeContainsLeaf(E.layout_root, original);
+	             focus != original || !editorPaneNodeContainsLeaf(E.layout_root, original);
 	E.focused_leaf = focus;
 	return failed;
 }
@@ -275,7 +274,7 @@ static int test_terminal_pane_cursor_props_follow_decset_sequences(void) {
 	const char *hide_and_bar = "\x1b[?25l\x1b[6 q";
 	vterm_input_write(t->vt, hide_and_bar, strlen(hide_and_bar));
 	if (t->cursor_visible != 0 || t->cursor_blink != 0 ||
-			t->cursor_shape != VTERM_PROP_CURSORSHAPE_BAR_LEFT) {
+	    t->cursor_shape != VTERM_PROP_CURSORSHAPE_BAR_LEFT) {
 		editorTerminalPaneFree(t);
 		return 1;
 	}
@@ -283,7 +282,7 @@ static int test_terminal_pane_cursor_props_follow_decset_sequences(void) {
 	const char *show_and_block = "\x1b[?25h\x1b[1 q";
 	vterm_input_write(t->vt, show_and_block, strlen(show_and_block));
 	int failed = t->cursor_visible != 1 || t->cursor_blink != 1 ||
-			t->cursor_shape != VTERM_PROP_CURSORSHAPE_BLOCK;
+	             t->cursor_shape != VTERM_PROP_CURSORSHAPE_BLOCK;
 	editorTerminalPaneFree(t);
 	return failed;
 }
@@ -308,36 +307,30 @@ static int test_terminal_pane_write_forwards_to_child(void) {
 }
 
 const struct editorTestCase g_terminal_pane_tests[] = {
-	{"terminal_pane_create_rejects_null_command",
-			test_terminal_pane_create_rejects_null_command},
-	{"terminal_pane_pump_captures_child_output",
-			test_terminal_pane_pump_captures_child_output},
-	{"terminal_pane_pump_marks_exit",
-			test_terminal_pane_pump_marks_exit},
-	{"terminal_pane_resize_updates_grid",
-			test_terminal_pane_resize_updates_grid},
-	{"terminal_pane_resize_all_to_layout_updates_grids",
-			test_terminal_pane_resize_all_to_layout_updates_grids},
-	{"terminal_pane_open_split_replaces_sibling_kind",
-			test_terminal_pane_open_split_replaces_sibling_kind},
-	{"terminal_pane_open_vertical_split_replaces_sibling_kind",
-			test_terminal_pane_open_vertical_split_replaces_sibling_kind},
-	{"terminal_pane_close_exited_removes_leaf_and_restores_focus",
-			test_terminal_pane_close_exited_removes_leaf_and_restores_focus},
-	{"terminal_pane_send_key_writes_printable_byte",
-			test_terminal_pane_send_key_writes_printable_byte},
-	{"terminal_pane_send_key_handles_control",
-			test_terminal_pane_send_key_handles_control},
-	{"terminal_pane_mouse_tracking_disabled_by_default",
-			test_terminal_pane_mouse_tracking_disabled_by_default},
-	{"terminal_pane_mouse_tracking_enabled_via_decset",
-			test_terminal_pane_mouse_tracking_enabled_via_decset},
-	{"terminal_pane_cursor_props_follow_decset_sequences",
-			test_terminal_pane_cursor_props_follow_decset_sequences},
-	{"terminal_pane_write_forwards_to_child",
-			test_terminal_pane_write_forwards_to_child},
+        {"terminal_pane_create_rejects_null_command",
+         test_terminal_pane_create_rejects_null_command},
+        {"terminal_pane_pump_captures_child_output", test_terminal_pane_pump_captures_child_output},
+        {"terminal_pane_pump_marks_exit", test_terminal_pane_pump_marks_exit},
+        {"terminal_pane_resize_updates_grid", test_terminal_pane_resize_updates_grid},
+        {"terminal_pane_resize_all_to_layout_updates_grids",
+         test_terminal_pane_resize_all_to_layout_updates_grids},
+        {"terminal_pane_open_split_replaces_sibling_kind",
+         test_terminal_pane_open_split_replaces_sibling_kind},
+        {"terminal_pane_open_vertical_split_replaces_sibling_kind",
+         test_terminal_pane_open_vertical_split_replaces_sibling_kind},
+        {"terminal_pane_close_exited_removes_leaf_and_restores_focus",
+         test_terminal_pane_close_exited_removes_leaf_and_restores_focus},
+        {"terminal_pane_send_key_writes_printable_byte",
+         test_terminal_pane_send_key_writes_printable_byte},
+        {"terminal_pane_send_key_handles_control", test_terminal_pane_send_key_handles_control},
+        {"terminal_pane_mouse_tracking_disabled_by_default",
+         test_terminal_pane_mouse_tracking_disabled_by_default},
+        {"terminal_pane_mouse_tracking_enabled_via_decset",
+         test_terminal_pane_mouse_tracking_enabled_via_decset},
+        {"terminal_pane_cursor_props_follow_decset_sequences",
+         test_terminal_pane_cursor_props_follow_decset_sequences},
+        {"terminal_pane_write_forwards_to_child", test_terminal_pane_write_forwards_to_child},
 };
 
 const int g_terminal_pane_test_count =
-		(int)(sizeof(g_terminal_pane_tests) /
-				sizeof(g_terminal_pane_tests[0]));
+        (int)(sizeof(g_terminal_pane_tests) / sizeof(g_terminal_pane_tests[0]));

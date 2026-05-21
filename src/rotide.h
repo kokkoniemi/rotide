@@ -1,9 +1,19 @@
 #ifndef ROTIDE_H
 #define ROTIDE_H
 
+#ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE
+#endif
+#ifndef _BSD_SOURCE
 #define _BSD_SOURCE
+#endif
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
+
+#include "config/theme_config.h"
+#include "debug/dap.h"
+#include "language/syntax.h"
 
 #include <limits.h>
 #include <stddef.h>
@@ -11,10 +21,6 @@
 #include <sys/types.h>
 #include <termios.h>
 #include <time.h>
-
-#include "config/theme_config.h"
-#include "debug/dap.h"
-#include "language/syntax.h"
 
 #define CTRL_KEY(k) ((k) & 0x1f)
 #define ROTIDE_VERSION "0.0.1"
@@ -35,18 +41,15 @@
 #define ROTIDE_TASK_LOG_MAX_BYTES ((size_t)131072)
 
 #define EDITOR_ALT_LETTER_KEY(ch) (ROTIDE_ALT_LETTER_KEY_BASE + ((int)(ch) - (int)'a'))
-#define EDITOR_CTRL_ALT_LETTER_KEY(ch) \
-	(ROTIDE_CTRL_ALT_LETTER_KEY_BASE + ((int)(ch) - (int)'a'))
+#define EDITOR_CTRL_ALT_LETTER_KEY(ch) (ROTIDE_CTRL_ALT_LETTER_KEY_BASE + ((int)(ch) - (int)'a'))
 
-#define EDITOR_IS_ALT_LETTER_KEY(key) \
+#define EDITOR_IS_ALT_LETTER_KEY(key)                                                              \
 	((key) >= ROTIDE_ALT_LETTER_KEY_BASE && (key) < ROTIDE_ALT_LETTER_KEY_BASE + 26)
-#define EDITOR_IS_CTRL_ALT_LETTER_KEY(key) \
-	((key) >= ROTIDE_CTRL_ALT_LETTER_KEY_BASE && \
-			(key) < ROTIDE_CTRL_ALT_LETTER_KEY_BASE + 26)
+#define EDITOR_IS_CTRL_ALT_LETTER_KEY(key)                                                         \
+	((key) >= ROTIDE_CTRL_ALT_LETTER_KEY_BASE && (key) < ROTIDE_CTRL_ALT_LETTER_KEY_BASE + 26)
 
-#define EDITOR_ALT_LETTER_FROM_KEY(key) \
-	((char)('a' + ((int)(key) - ROTIDE_ALT_LETTER_KEY_BASE)))
-#define EDITOR_CTRL_ALT_LETTER_FROM_KEY(key) \
+#define EDITOR_ALT_LETTER_FROM_KEY(key) ((char)('a' + ((int)(key) - ROTIDE_ALT_LETTER_KEY_BASE)))
+#define EDITOR_CTRL_ALT_LETTER_FROM_KEY(key)                                                       \
 	((char)('a' + ((int)(key) - ROTIDE_CTRL_ALT_LETTER_KEY_BASE)))
 
 typedef void (*editorClipboardExternalSink)(const char *text, size_t len);
@@ -79,7 +82,7 @@ struct editorMouseEvent {
 
 struct editorTextSource;
 typedef const char *(*editorTextSourceReadFn)(const struct editorTextSource *source,
-		size_t byte_index, uint32_t *bytes_read);
+                                              size_t byte_index, uint32_t *bytes_read);
 
 struct editorTextSource {
 	editorTextSourceReadFn read;
@@ -87,7 +90,7 @@ struct editorTextSource {
 	size_t length;
 };
 
-struct erow {
+struct editorRow {
 	int rsize;
 	int render_display_cols;
 	char *render;
@@ -141,10 +144,7 @@ struct editorPopupState {
 	int item_count;
 };
 
-enum editorPrimaryFocus {
-	EDITOR_PRIMARY_FOCUS_TEXT = 0,
-	EDITOR_PRIMARY_FOCUS_DRAWER
-};
+enum editorPrimaryFocus { EDITOR_PRIMARY_FOCUS_TEXT = 0, EDITOR_PRIMARY_FOCUS_DRAWER };
 
 struct editorPaneNode;
 
@@ -154,11 +154,7 @@ enum editorCursorStyle {
 	EDITOR_CURSOR_STYLE_UNDERLINE
 };
 
-
-enum editorViewportMode {
-	EDITOR_VIEWPORT_FOLLOW_CURSOR = 0,
-	EDITOR_VIEWPORT_FREE_SCROLL
-};
+enum editorViewportMode { EDITOR_VIEWPORT_FOLLOW_CURSOR = 0, EDITOR_VIEWPORT_FREE_SCROLL };
 
 enum editorTabKind {
 	EDITOR_TAB_FILE = 0,
@@ -166,7 +162,6 @@ enum editorTabKind {
 	EDITOR_TAB_UNSUPPORTED_FILE,
 	EDITOR_TAB_GIT_DIFF
 };
-
 
 enum editorGitStatus {
 	EDITOR_GIT_STATUS_CLEAN = 0,
@@ -369,75 +364,75 @@ struct editorHistory {
 	int len;
 };
 
-#define EDITOR_ACTIVE_BUFFER_CORE_FIELDS(X) \
-	X(enum editorTabKind, tab_kind) \
-	X(int, is_preview) \
-	X(char *, tab_title) \
-	X(size_t, cursor_offset) \
-	X(int, cx) \
-	X(int, cy) \
-	X(int, rx) \
-	X(int, rowoff) \
-	X(int, coloff) \
-	X(int, wrapoff) \
-	X(int, numrows) \
-	X(struct erow *, rows) \
-	X(struct editorDocument *, document) \
-	X(int, dirty) \
-	X(char *, filename) \
-	X(struct editorFileDiskState, disk_state) \
-	X(int, disk_conflict) \
-	X(enum editorSyntaxLanguage, syntax_language) \
-	X(struct editorSyntaxState *, syntax_state) \
-	X(int, syntax_parse_failures) \
-	X(uint64_t, syntax_revision) \
-	X(uint64_t, syntax_generation) \
-	X(int, syntax_background_pending) \
-	X(uint64_t, syntax_pending_revision) \
-	X(int, syntax_pending_first_row) \
+#define EDITOR_ACTIVE_BUFFER_CORE_FIELDS(X)                                                        \
+	X(enum editorTabKind, tab_kind)                                                            \
+	X(int, is_preview)                                                                         \
+	X(char *, tab_title)                                                                       \
+	X(size_t, cursor_offset)                                                                   \
+	X(int, cx)                                                                                 \
+	X(int, cy)                                                                                 \
+	X(int, rx)                                                                                 \
+	X(int, rowoff)                                                                             \
+	X(int, coloff)                                                                             \
+	X(int, wrapoff)                                                                            \
+	X(int, numrows)                                                                            \
+	X(struct editorRow *, rows)                                                                \
+	X(struct editorDocument *, document)                                                       \
+	X(int, dirty)                                                                              \
+	X(char *, filename)                                                                        \
+	X(struct editorFileDiskState, disk_state)                                                  \
+	X(int, disk_conflict)                                                                      \
+	X(enum editorSyntaxLanguage, syntax_language)                                              \
+	X(struct editorSyntaxState *, syntax_state)                                                \
+	X(int, syntax_parse_failures)                                                              \
+	X(uint64_t, syntax_revision)                                                               \
+	X(uint64_t, syntax_generation)                                                             \
+	X(int, syntax_background_pending)                                                          \
+	X(uint64_t, syntax_pending_revision)                                                       \
+	X(int, syntax_pending_first_row)                                                           \
 	X(int, syntax_pending_row_count)
 
-#define EDITOR_ACTIVE_BUFFER_LSP_FIELDS(X) \
-	X(int, lsp_doc_open) \
-	X(int, lsp_doc_version) \
-	X(int, lsp_eslint_doc_open) \
-	X(int, lsp_eslint_doc_version) \
-	X(struct editorLspDiagnostic *, lsp_diagnostics) \
-	X(int, lsp_diagnostic_count) \
-	X(int, lsp_diagnostic_error_count) \
-	X(int, lsp_diagnostic_warning_count) \
-	X(struct editorLspSymbol *, lsp_symbols) \
+#define EDITOR_ACTIVE_BUFFER_LSP_FIELDS(X)                                                         \
+	X(int, lsp_doc_open)                                                                       \
+	X(int, lsp_doc_version)                                                                    \
+	X(int, lsp_eslint_doc_open)                                                                \
+	X(int, lsp_eslint_doc_version)                                                             \
+	X(struct editorLspDiagnostic *, lsp_diagnostics)                                           \
+	X(int, lsp_diagnostic_count)                                                               \
+	X(int, lsp_diagnostic_error_count)                                                         \
+	X(int, lsp_diagnostic_warning_count)                                                       \
+	X(struct editorLspSymbol *, lsp_symbols)                                                   \
 	X(int, lsp_symbol_count)
 
-#define EDITOR_ACTIVE_BUFFER_SEARCH_FIELDS(X) \
-	X(char *, search_query) \
-	X(size_t, search_match_offset) \
-	X(int, search_match_len) \
-	X(int, search_direction) \
-	X(size_t, search_saved_offset) \
-	X(int, selection_mode_active) \
-	X(size_t, selection_anchor_offset) \
-	X(int, column_select_active) \
-	X(int, column_select_anchor_cy) \
-	X(int, column_select_anchor_rx) \
-	X(int, column_select_cursor_rx) \
-	X(int, mouse_left_button_down) \
-	X(size_t, mouse_drag_anchor_offset) \
+#define EDITOR_ACTIVE_BUFFER_SEARCH_FIELDS(X)                                                      \
+	X(char *, search_query)                                                                    \
+	X(size_t, search_match_offset)                                                             \
+	X(int, search_match_len)                                                                   \
+	X(int, search_direction)                                                                   \
+	X(size_t, search_saved_offset)                                                             \
+	X(int, selection_mode_active)                                                              \
+	X(size_t, selection_anchor_offset)                                                         \
+	X(int, column_select_active)                                                               \
+	X(int, column_select_anchor_cy)                                                            \
+	X(int, column_select_anchor_rx)                                                            \
+	X(int, column_select_cursor_rx)                                                            \
+	X(int, mouse_left_button_down)                                                             \
+	X(size_t, mouse_drag_anchor_offset)                                                        \
 	X(int, mouse_drag_started)
 
-#define EDITOR_ACTIVE_BUFFER_EDIT_FIELDS(X) \
-	X(struct editorHistory, undo_history) \
-	X(struct editorHistory, redo_history) \
-	X(struct editorHistoryEntry, edit_pending_entry) \
-	X(int, edit_pending_entry_valid) \
-	X(enum editorEditKind, edit_group_kind) \
-	X(enum editorEditKind, edit_pending_kind) \
+#define EDITOR_ACTIVE_BUFFER_EDIT_FIELDS(X)                                                        \
+	X(struct editorHistory, undo_history)                                                      \
+	X(struct editorHistory, redo_history)                                                      \
+	X(struct editorHistoryEntry, edit_pending_entry)                                           \
+	X(int, edit_pending_entry_valid)                                                           \
+	X(enum editorEditKind, edit_group_kind)                                                    \
+	X(enum editorEditKind, edit_pending_kind)                                                  \
 	X(enum editorEditPendingMode, edit_pending_mode)
 
-#define EDITOR_ACTIVE_BUFFER_FIELDS(X) \
-	EDITOR_ACTIVE_BUFFER_CORE_FIELDS(X) \
-	EDITOR_ACTIVE_BUFFER_LSP_FIELDS(X) \
-	EDITOR_ACTIVE_BUFFER_SEARCH_FIELDS(X) \
+#define EDITOR_ACTIVE_BUFFER_FIELDS(X)                                                             \
+	EDITOR_ACTIVE_BUFFER_CORE_FIELDS(X)                                                        \
+	EDITOR_ACTIVE_BUFFER_LSP_FIELDS(X)                                                         \
+	EDITOR_ACTIVE_BUFFER_SEARCH_FIELDS(X)                                                      \
 	EDITOR_ACTIVE_BUFFER_EDIT_FIELDS(X)
 
 #define EDITOR_DECLARE_FIELD(type, name) type name;
@@ -460,7 +455,7 @@ struct editorTabState {
  * Fields are grouped by C4 container so ownership is visible at a glance:
  *
  *   - Environment: terminal dimensions, the global keymap, the cached theme,
- *     and the saved termios from setRawMode.
+ *     and the saved termios from editorSetRawMode.
  *   - Active buffer: the per-tab editing state of whichever tab is in focus.
  *     Aliased into the active tab's editorBuffer via an X-macro union so the
  *     two views (E.cx vs E.tabs[i].cx, etc.) stay byte-identical.

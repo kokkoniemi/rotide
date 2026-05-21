@@ -1,5 +1,5 @@
-#ifndef CONFIG_DAP_CONFIG_H
-#define CONFIG_DAP_CONFIG_H
+#ifndef ROTIDE_CONFIG_DAP_CONFIG_H
+#define ROTIDE_CONFIG_DAP_CONFIG_H
 
 #include "rotide.h"
 
@@ -11,8 +11,8 @@ enum editorDapConfigLoadStatus {
 };
 
 void editorDapConfigInitDefaults(void);
-enum editorDapConfigLoadStatus editorDapConfigLoadFromPaths(
-		const char *global_path, const char *project_path);
+enum editorDapConfigLoadStatus editorDapConfigLoadFromPaths(const char *global_path,
+                                                            const char *project_path);
 enum editorDapConfigLoadStatus editorDapConfigLoadConfiguredGlobal(void);
 enum editorDapConfigLoadStatus editorDapConfigReloadProject(const char *project_root);
 int editorDapBuildProjectConfigPath(const char *project_root, char *buf, size_t bufsize);
@@ -31,11 +31,10 @@ int editorDapCreateProjectLaunchFromDefault(int default_idx, const char *project
  * returns 1 on success.
  * editorDapLaunchRemoveField drops a field by key (no-op if absent).
  */
-int editorDapLaunchGetStringField(const struct editorDapLaunchConfig *config,
-		const char *key, char *out, size_t out_size);
-int editorDapLaunchSetStringField(struct editorDapLaunchConfig *config,
-		const char *key, const char *value);
-void editorDapLaunchRemoveField(struct editorDapLaunchConfig *config,
-		const char *key);
+int editorDapLaunchGetStringField(const struct editorDapLaunchConfig *config, const char *key,
+                                  char *out, size_t out_size);
+int editorDapLaunchSetStringField(struct editorDapLaunchConfig *config, const char *key,
+                                  const char *value);
+void editorDapLaunchRemoveField(struct editorDapLaunchConfig *config, const char *key);
 
 #endif

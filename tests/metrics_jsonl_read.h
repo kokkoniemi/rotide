@@ -18,8 +18,8 @@ enum editorMetricsKind {
 
 struct editorMetricsRow {
 	enum editorMetricsKind kind;
-	char ts[32];       /* ISO 8601 UTC, e.g. 2026-05-19T13:35:42Z. */
-	time_t ts_unix;    /* 0 if ts didn't parse. */
+	char ts[32];    /* ISO 8601 UTC, e.g. 2026-05-19T13:35:42Z. */
+	time_t ts_unix; /* 0 if ts didn't parse. */
 
 	/* env enrichment */
 	char git_sha[64];
@@ -71,9 +71,8 @@ int editorMetricsRowParse(const char *line, struct editorMetricsRow *row);
  * owns *rows_out and must call editorMetricsRowsFree(). Returns 0 on
  * success, -1 on I/O failure. Lines that fail to parse are skipped
  * (counted via *skipped_out if non-NULL). */
-int editorMetricsRowsLoad(const char *path,
-		struct editorMetricsRow **rows_out, int *count_out,
-		int *skipped_out);
+int editorMetricsRowsLoad(const char *path, struct editorMetricsRow **rows_out, int *count_out,
+                          int *skipped_out);
 
 void editorMetricsRowsFree(struct editorMetricsRow *rows, int count);
 

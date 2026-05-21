@@ -9,7 +9,7 @@ Source lives under `src/<area>/`; tests are split per concern under `tests/test_
   - `src/text/text_tree.c` / `text_tree.h` (piece-tree storage)
   - `src/text/text_buffer.c` / `text_buffer.h` (refcounted original/add buffers)
   - `src/text/text_summary.c` / `text_summary.h` (line/byte summaries)
-  - `src/editing/row_cache.c` and `src/text/row.c` / `row.h` (derived `erow` cache)
+  - `src/editing/row_cache.c` and `src/text/row.c` / `row.h` (derived `editorRow` cache)
   - `src/text/utf8.c` / `utf8.h` (encoding helpers)
 - Shared byte-read abstraction:
   - `struct editorTextSource` declared in `src/rotide.h`

@@ -1,20 +1,21 @@
-#include "rotide.h"
 #include "save_syscalls.h"
+
+#include "rotide.h"
 
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <unistd.h>
 
-static editorSaveSyscallFailureProbe editor_save_syscall_failure_probe = NULL;
+static editorSaveSyscallFailureProbe g_save_syscalls_failure_probe = NULL;
 
-static int editorSaveSyscallsShouldFail(enum editorSaveSyscallOp op, int *failure_errno) {
+static int saveSyscallsShouldFail(enum editorSaveSyscallOp op, int *failure_errno) {
 	int probe_errno = 0;
 
-	if (editor_save_syscall_failure_probe == NULL) {
+	if (g_save_syscalls_failure_probe == NULL) {
 		return 0;
 	}
-	if (!editor_save_syscall_failure_probe(op, &probe_errno)) {
+	if (!g_save_syscalls_failure_probe(op, &probe_errno)) {
 		return 0;
 	}
 	if (failure_errno != NULL) {
@@ -24,16 +25,16 @@ static int editorSaveSyscallsShouldFail(enum editorSaveSyscallOp op, int *failur
 }
 
 void editorSaveSyscallsSetFailureProbe(editorSaveSyscallFailureProbe probe) {
-	editor_save_syscall_failure_probe = probe;
+	g_save_syscalls_failure_probe = probe;
 }
 
 void editorSaveSyscallsClearFailureProbe(void) {
-	editor_save_syscall_failure_probe = NULL;
+	g_save_syscalls_failure_probe = NULL;
 }
 
 int editorSaveRename(const char *oldpath, const char *newpath) {
 	int failure_errno = 0;
-	if (editorSaveSyscallsShouldFail(EDITOR_SAVE_SYSCALL_RENAME, &failure_errno)) {
+	if (saveSyscallsShouldFail(EDITOR_SAVE_SYSCALL_RENAME, &failure_errno)) {
 		errno = failure_errno != 0 ? failure_errno : EIO;
 		return -1;
 	}
@@ -43,7 +44,7 @@ int editorSaveRename(const char *oldpath, const char *newpath) {
 
 int editorSaveFsync(int fd) {
 	int failure_errno = 0;
-	if (editorSaveSyscallsShouldFail(EDITOR_SAVE_SYSCALL_FSYNC, &failure_errno)) {
+	if (saveSyscallsShouldFail(EDITOR_SAVE_SYSCALL_FSYNC, &failure_errno)) {
 		errno = failure_errno != 0 ? failure_errno : EIO;
 		return -1;
 	}
@@ -53,7 +54,7 @@ int editorSaveFsync(int fd) {
 
 int editorSaveOpenDir(const char *path) {
 	int failure_errno = 0;
-	if (editorSaveSyscallsShouldFail(EDITOR_SAVE_SYSCALL_OPEN_DIR, &failure_errno)) {
+	if (saveSyscallsShouldFail(EDITOR_SAVE_SYSCALL_OPEN_DIR, &failure_errno)) {
 		errno = failure_errno != 0 ? failure_errno : EIO;
 		return -1;
 	}
@@ -63,7 +64,7 @@ int editorSaveOpenDir(const char *path) {
 
 int editorSaveClose(int fd) {
 	int failure_errno = 0;
-	if (editorSaveSyscallsShouldFail(EDITOR_SAVE_SYSCALL_CLOSE, &failure_errno)) {
+	if (saveSyscallsShouldFail(EDITOR_SAVE_SYSCALL_CLOSE, &failure_errno)) {
 		errno = failure_errno != 0 ? failure_errno : EIO;
 		return -1;
 	}
@@ -73,7 +74,7 @@ int editorSaveClose(int fd) {
 
 int editorSaveUnlink(const char *path) {
 	int failure_errno = 0;
-	if (editorSaveSyscallsShouldFail(EDITOR_SAVE_SYSCALL_UNLINK, &failure_errno)) {
+	if (saveSyscallsShouldFail(EDITOR_SAVE_SYSCALL_UNLINK, &failure_errno)) {
 		errno = failure_errno != 0 ? failure_errno : EIO;
 		return -1;
 	}

@@ -9,10 +9,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int editorTextSourceFindForwardInRange(const struct editorTextSource *source,
-		size_t start_byte, size_t end_byte, const char *query, int from_idx, int *out_idx) {
+static int bufferSearchFindForwardInRange(const struct editorTextSource *source, size_t start_byte,
+                                          size_t end_byte, const char *query, int from_idx,
+                                          int *out_idx) {
 	if (source == NULL || query == NULL || out_idx == NULL || from_idx < 0 ||
-			end_byte < start_byte) {
+	    end_byte < start_byte) {
 		return 0;
 	}
 
@@ -39,8 +40,9 @@ static int editorTextSourceFindForwardInRange(const struct editorTextSource *sou
 	return 1;
 }
 
-static int editorTextSourceFindBackwardInRange(const struct editorTextSource *source,
-		size_t start_byte, size_t end_byte, const char *query, int before_idx, int *out_idx) {
+static int bufferSearchFindBackwardInRange(const struct editorTextSource *source, size_t start_byte,
+                                           size_t end_byte, const char *query, int before_idx,
+                                           int *out_idx) {
 	if (source == NULL || query == NULL || out_idx == NULL || end_byte < start_byte) {
 		return 0;
 	}
@@ -87,7 +89,7 @@ static int editorTextSourceFindBackwardInRange(const struct editorTextSource *so
 }
 
 int editorBufferFindForward(const char *query, int start_row, int start_col, int *out_row,
-		int *out_col) {
+                            int *out_col) {
 	if (query == NULL || out_row == NULL || out_col == NULL || E.numrows == 0) {
 		return 0;
 	}
@@ -106,8 +108,8 @@ int editorBufferFindForward(const char *query, int start_row, int start_col, int
 	size_t line_end = 0;
 	int col = 0;
 	if (editorBufferLineByteRange(start_row, &line_start, &line_end) &&
-			editorTextSourceFindForwardInRange(&source, line_start, line_end, query,
-					start_col + 1, &col)) {
+	    bufferSearchFindForwardInRange(&source, line_start, line_end, query, start_col + 1,
+	                                   &col)) {
 		*out_row = start_row;
 		*out_col = col;
 		return 1;
@@ -116,7 +118,7 @@ int editorBufferFindForward(const char *query, int start_row, int start_col, int
 	for (int offset = 1; offset < E.numrows; offset++) {
 		int row = (start_row + offset) % E.numrows;
 		if (editorBufferLineByteRange(row, &line_start, &line_end) &&
-				editorTextSourceFindForwardInRange(&source, line_start, line_end, query, 0, &col)) {
+		    bufferSearchFindForwardInRange(&source, line_start, line_end, query, 0, &col)) {
 			*out_row = row;
 			*out_col = col;
 			return 1;
@@ -124,8 +126,8 @@ int editorBufferFindForward(const char *query, int start_row, int start_col, int
 	}
 
 	if (editorBufferLineByteRange(start_row, &line_start, &line_end) &&
-			editorTextSourceFindForwardInRange(&source, line_start, line_end, query, 0, &col) &&
-			col <= start_col) {
+	    bufferSearchFindForwardInRange(&source, line_start, line_end, query, 0, &col) &&
+	    col <= start_col) {
 		*out_row = start_row;
 		*out_col = col;
 		return 1;
@@ -135,7 +137,7 @@ int editorBufferFindForward(const char *query, int start_row, int start_col, int
 }
 
 int editorBufferFindBackward(const char *query, int start_row, int start_col, int *out_row,
-		int *out_col) {
+                             int *out_col) {
 	if (query == NULL || out_row == NULL || out_col == NULL || E.numrows == 0) {
 		return 0;
 	}
@@ -154,8 +156,8 @@ int editorBufferFindBackward(const char *query, int start_row, int start_col, in
 	size_t line_end = 0;
 	int col = 0;
 	if (editorBufferLineByteRange(start_row, &line_start, &line_end) &&
-			editorTextSourceFindBackwardInRange(&source, line_start, line_end, query,
-					start_col, &col)) {
+	    bufferSearchFindBackwardInRange(&source, line_start, line_end, query, start_col,
+	                                    &col)) {
 		*out_row = start_row;
 		*out_col = col;
 		return 1;
@@ -164,8 +166,9 @@ int editorBufferFindBackward(const char *query, int start_row, int start_col, in
 	for (int offset = 1; offset < E.numrows; offset++) {
 		int row = (start_row - offset + E.numrows) % E.numrows;
 		if (editorBufferLineByteRange(row, &line_start, &line_end) &&
-				editorTextSourceFindBackwardInRange(&source, line_start, line_end, query,
-						(int)editorDocumentLineLength(E.document, row) + 1, &col)) {
+		    bufferSearchFindBackwardInRange(
+		            &source, line_start, line_end, query,
+		            (int)editorDocumentLineLength(E.document, row) + 1, &col)) {
 			*out_row = row;
 			*out_col = col;
 			return 1;
@@ -173,9 +176,9 @@ int editorBufferFindBackward(const char *query, int start_row, int start_col, in
 	}
 
 	if (editorBufferLineByteRange(start_row, &line_start, &line_end) &&
-			editorTextSourceFindBackwardInRange(&source, line_start, line_end, query,
-					(int)(line_end - line_start + 1), &col) &&
-			col > start_col) {
+	    bufferSearchFindBackwardInRange(&source, line_start, line_end, query,
+	                                    (int)(line_end - line_start + 1), &col) &&
+	    col > start_col) {
 		*out_row = start_row;
 		*out_col = col;
 		return 1;

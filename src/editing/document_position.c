@@ -5,9 +5,9 @@
 #include "text/document.h"
 #include "text/row.h"
 
-static int editorActiveDocumentCurrent(const struct editorDocument **document_out) {
+static int documentPositionEnsureActiveDocument(const struct editorDocument **document_out) {
 	if (document_out == NULL || !editorTabKindSupportsDocument(E.tab_kind) ||
-			!editorDocumentEnsureActiveCurrent() || E.document == NULL) {
+	    !editorDocumentEnsureActiveCurrent() || E.document == NULL) {
 		return 0;
 	}
 	*document_out = E.document;
@@ -19,14 +19,14 @@ int editorBufferPosToOffset(int cy, int cx, size_t *offset_out) {
 		return 0;
 	}
 	const struct editorDocument *document = NULL;
-	if (!editorActiveDocumentCurrent(&document)) {
+	if (!documentPositionEnsureActiveDocument(&document)) {
 		return 0;
 	}
 	size_t offset = 0;
 	size_t column = 0;
 	if (!editorIntToSize(cx, &column) ||
-			!editorDocumentPositionToByteOffset(document, cy, column, &offset) ||
-			offset > ROTIDE_MAX_TEXT_BYTES) {
+	    !editorDocumentPositionToByteOffset(document, cy, column, &offset) ||
+	    offset > ROTIDE_MAX_TEXT_BYTES) {
 		return 0;
 	}
 	*offset_out = offset;
@@ -39,7 +39,7 @@ int editorBufferOffsetToPos(size_t offset, int *cy_out, int *cx_out) {
 	}
 
 	const struct editorDocument *document = NULL;
-	if (!editorActiveDocumentCurrent(&document)) {
+	if (!documentPositionEnsureActiveDocument(&document)) {
 		return 0;
 	}
 	int line_idx = 0;
@@ -62,23 +62,23 @@ int editorBufferLineByteRange(int row_idx, size_t *start_byte_out, size_t *end_b
 	}
 
 	const struct editorDocument *document = NULL;
-	if (!editorActiveDocumentCurrent(&document)) {
+	if (!documentPositionEnsureActiveDocument(&document)) {
 		return 0;
 	}
 	return editorDocumentLineStartByte(document, row_idx, start_byte_out) &&
-			editorDocumentLineEndByte(document, row_idx, end_byte_out);
+	       editorDocumentLineEndByte(document, row_idx, end_byte_out);
 }
 
-static int editorCursorPositionForOffset(const struct editorDocument *document,
-		int numrows, size_t offset, int *cy_out, int *cx_out,
-		size_t *normalized_offset_out) {
+static int documentPositionCursorForOffset(const struct editorDocument *document, int numrows,
+                                           size_t offset, int *cy_out, int *cx_out,
+                                           size_t *normalized_offset_out) {
 	size_t document_len = 0;
 	int cy = 0;
 	size_t column = 0;
 	int cx = 0;
 
 	if (document == NULL || cy_out == NULL || cx_out == NULL || normalized_offset_out == NULL ||
-			numrows < 0) {
+	    numrows < 0) {
 		return 0;
 	}
 
@@ -121,8 +121,8 @@ static int editorCursorPositionForOffset(const struct editorDocument *document,
 			editorLineViewRelease(&line);
 		}
 		if (!editorDocumentLineStartByte(document, cy, &line_start) ||
-				!editorIntToSize(cx, &cx_size) ||
-				!editorSizeAdd(line_start, cx_size, &offset)) {
+		    !editorIntToSize(cx, &cx_size) ||
+		    !editorSizeAdd(line_start, cx_size, &offset)) {
 			return 0;
 		}
 	} else {
@@ -142,8 +142,8 @@ int editorSyncCursorFromOffset(size_t target_offset) {
 	int new_cx = 0;
 
 	if (E.document == NULL ||
-			!editorCursorPositionForOffset(E.document, E.numrows, target_offset,
-					&new_cy, &new_cx, &normalized_offset)) {
+	    !documentPositionCursorForOffset(E.document, E.numrows, target_offset, &new_cy, &new_cx,
+	                                     &normalized_offset)) {
 		return 0;
 	}
 
@@ -169,7 +169,7 @@ int editorSyncCursorFromOffsetByteBoundary(size_t target_offset) {
 		target_offset = document_len;
 	}
 	if (!editorDocumentByteOffsetToPosition(E.document, target_offset, &new_cy, &column) ||
-			!editorSizeToInt(column, &new_cx)) {
+	    !editorSizeToInt(column, &new_cx)) {
 		return 0;
 	}
 
@@ -203,8 +203,8 @@ int editorSyncCursorFromOffsetByteBoundary(size_t target_offset) {
 		size_t line_start = 0;
 		size_t cx_size = 0;
 		if (!editorDocumentLineStartByte(E.document, new_cy, &line_start) ||
-				!editorIntToSize(new_cx, &cx_size) ||
-				!editorSizeAdd(line_start, cx_size, &normalized_offset)) {
+		    !editorIntToSize(new_cx, &cx_size) ||
+		    !editorSizeAdd(line_start, cx_size, &normalized_offset)) {
 			return 0;
 		}
 	} else {

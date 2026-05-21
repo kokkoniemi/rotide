@@ -21,8 +21,7 @@ void editorPtyChildInit(struct editorPtyChild *child) {
 	child->height = 0;
 }
 
-int editorPtySpawn(const char *command, int cols, int rows,
-		struct editorPtyChild *out) {
+int editorPtySpawn(const char *command, int cols, int rows, struct editorPtyChild *out) {
 	if (command == NULL || out == NULL || cols <= 0 || rows <= 0) {
 		errno = EINVAL;
 		return 0;

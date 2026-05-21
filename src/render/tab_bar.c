@@ -5,13 +5,14 @@
 #include "render/drawer_view.h"
 #include "workspace/drawer.h"
 #include "workspace/tabs.h"
+
 #include <string.h>
 
 #define VT100_ITALIC_ON_4 "\x1b[3m"
 #define VT100_ITALIC_OFF_5 "\x1b[23m"
 #define VT100_CLEAR_ROW_3 "\x1b[K"
 
-static const char *editorTabLabelFromDisplayName(const char *display_name) {
+static const char *tabBarLabelFromDisplayName(const char *display_name) {
 	if (display_name == NULL) {
 		return "[No Name]";
 	}
@@ -80,7 +81,8 @@ int editorDrawTabSlots(struct writeBuf *wb, int cols) {
 		}
 
 		if (slot_cols < content_width) {
-			const char *label = editorTabLabelFromDisplayName(editorTabDisplayNameAt(tab_idx));
+			const char *label =
+			        tabBarLabelFromDisplayName(editorTabDisplayNameAt(tab_idx));
 			int is_preview = editorTabIsPreviewAt(tab_idx);
 			int right_pad_cols = 3;
 			int label_cols = content_width - slot_cols - right_pad_cols;
@@ -91,7 +93,8 @@ int editorDrawTabSlots(struct writeBuf *wb, int cols) {
 			if (is_preview && !wbAppend(wb, VT100_ITALIC_ON_4, 4)) {
 				return 0;
 			}
-			if (!editorAppendSanitizedMiddleTruncated(wb, label, label_cols, &written)) {
+			if (!editorAppendSanitizedMiddleTruncated(wb, label, label_cols,
+			                                          &written)) {
 				return 0;
 			}
 			if (is_preview && !wbAppend(wb, VT100_ITALIC_OFF_5, 5)) {

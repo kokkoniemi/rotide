@@ -148,11 +148,11 @@ static void parse_one_line(const char *line, struct editorLibFuzzerStats *out) {
 			const char *key;
 			long long *dst;
 		} mapping[] = {
-			{"stat::number_of_executed_units", &out->executed_units},
-			{"stat::average_exec_per_sec", &out->avg_exec_per_sec},
-			{"stat::new_units_added", &out->new_units_added},
-			{"stat::slowest_unit_time_sec", &out->slowest_unit_seconds},
-			{"stat::peak_rss_mb", &out->peak_rss_mb},
+		        {"stat::number_of_executed_units", &out->executed_units},
+		        {"stat::average_exec_per_sec", &out->avg_exec_per_sec},
+		        {"stat::new_units_added", &out->new_units_added},
+		        {"stat::slowest_unit_time_sec", &out->slowest_unit_seconds},
+		        {"stat::peak_rss_mb", &out->peak_rss_mb},
 		};
 		for (size_t i = 0; i < sizeof(mapping) / sizeof(mapping[0]); i++) {
 			size_t klen = strlen(mapping[i].key);
@@ -202,8 +202,8 @@ void editorLibFuzzerStatsParse(const char *text, struct editorLibFuzzerStats *ou
 	}
 }
 
-int editorLibFuzzerScanCorpus(const char *dir,
-		long long *file_count_out, long long *byte_count_out) {
+int editorLibFuzzerScanCorpus(const char *dir, long long *file_count_out,
+                              long long *byte_count_out) {
 	if (file_count_out != NULL) {
 		*file_count_out = 0;
 	}

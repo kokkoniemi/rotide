@@ -11,20 +11,20 @@
 
 struct editorBenchCase {
 	const char *name;
-	int (*setup)(void **state_out);  /* return 1 on success, 0 on failure */
-	void (*op)(void *state, int n);  /* run op n times against state */
+	int (*setup)(void **state_out); /* return 1 on success, 0 on failure */
+	void (*op)(void *state, int n); /* run op n times against state */
 	void (*teardown)(void *state);
-	int inner_ops;                   /* batch size per sample; 0 → 1 */
+	int inner_ops; /* batch size per sample; 0 → 1 */
 };
 
 struct editorBenchOptions {
-	int iterations;          /* samples per case; 0 → 20 */
-	const char *filter;      /* optional substring filter on name; NULL → all */
-	const char *json_path;   /* optional JSON output path; NULL → text only */
+	int iterations;           /* samples per case; 0 → 20 */
+	const char *filter;       /* optional substring filter on name; NULL → all */
+	const char *json_path;    /* optional JSON output path; NULL → text only */
 	const char *metrics_path; /* optional JSONL output path (append); NULL → off */
 };
 
 int editorBenchRun(const struct editorBenchCase *cases, int count,
-		const struct editorBenchOptions *options);
+                   const struct editorBenchOptions *options);
 
 #endif

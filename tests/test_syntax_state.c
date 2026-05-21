@@ -3,8 +3,7 @@
 
 static int test_editor_syntax_undo_redo_preserves_tree(void) {
 	char path[] = "/tmp/rotide-test-syntax-history-XXXXXX.c";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 2,
-			"tests/syntax/supported/c/history.c"));
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 2, "tests/syntax/supported/c/history.c"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -30,8 +29,7 @@ static int test_editor_syntax_undo_redo_preserves_tree(void) {
 
 static int test_editor_syntax_undo_redo_preserves_shell_tree(void) {
 	char path[] = "/tmp/rotide-test-syntax-history-shell-XXXXXX.sh";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/bash/history.sh"));
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 3, "tests/syntax/supported/bash/history.sh"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -60,8 +58,7 @@ static int test_editor_tabs_keep_independent_syntax_states(void) {
 	ASSERT_TRUE(editorTabsInit());
 
 	char c_path[] = "/tmp/rotide-test-syntax-tabs-c-XXXXXX.c";
-	ASSERT_TRUE(write_fixture_to_temp_path(c_path, 2,
-			"tests/syntax/supported/c/activation.c"));
+	ASSERT_TRUE(write_fixture_to_temp_path(c_path, 2, "tests/syntax/supported/c/activation.c"));
 
 	char txt_path[] = "/tmp/rotide-test-syntax-tabs-txt-XXXXXX.txt";
 	int txt_fd = mkstemps(txt_path, 4);
@@ -96,12 +93,10 @@ static int test_editor_tabs_keep_shell_and_c_syntax_states(void) {
 	ASSERT_TRUE(editorTabsInit());
 
 	char sh_path[] = "/tmp/rotide-test-syntax-tabs-shell-XXXXXX.sh";
-	ASSERT_TRUE(write_fixture_to_temp_path(sh_path, 3,
-			"tests/syntax/supported/bash/tab.sh"));
+	ASSERT_TRUE(write_fixture_to_temp_path(sh_path, 3, "tests/syntax/supported/bash/tab.sh"));
 
 	char c_path[] = "/tmp/rotide-test-syntax-tabs-c2-XXXXXX.c";
-	ASSERT_TRUE(write_fixture_to_temp_path(c_path, 2,
-			"tests/syntax/supported/c/activation.c"));
+	ASSERT_TRUE(write_fixture_to_temp_path(c_path, 2, "tests/syntax/supported/c/activation.c"));
 
 	editorOpen(sh_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -130,12 +125,11 @@ static int test_editor_tabs_keep_web_and_c_syntax_states(void) {
 	ASSERT_TRUE(editorTabsInit());
 
 	char html_path[] = "/tmp/rotide-test-syntax-tabs-html-XXXXXX.html";
-	ASSERT_TRUE(write_fixture_to_temp_path(html_path, 5,
-			"tests/syntax/supported/html/tab.html"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(html_path, 5, "tests/syntax/supported/html/tab.html"));
 
 	char c_path[] = "/tmp/rotide-test-syntax-tabs-c3-XXXXXX.c";
-	ASSERT_TRUE(write_fixture_to_temp_path(c_path, 2,
-			"tests/syntax/supported/c/activation.c"));
+	ASSERT_TRUE(write_fixture_to_temp_path(c_path, 2, "tests/syntax/supported/c/activation.c"));
 
 	editorOpen(html_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -214,14 +208,19 @@ static int test_editor_recovery_restore_rebuilds_shell_syntax_tree(void) {
 }
 
 const struct editorTestCase g_syntax_state_tests[] = {
-	{"editor_syntax_undo_redo_preserves_tree", test_editor_syntax_undo_redo_preserves_tree},
-	{"editor_syntax_undo_redo_preserves_shell_tree", test_editor_syntax_undo_redo_preserves_shell_tree},
-	{"editor_tabs_keep_independent_syntax_states", test_editor_tabs_keep_independent_syntax_states},
-	{"editor_tabs_keep_shell_and_c_syntax_states", test_editor_tabs_keep_shell_and_c_syntax_states},
-	{"editor_tabs_keep_web_and_c_syntax_states", test_editor_tabs_keep_web_and_c_syntax_states},
-	{"editor_recovery_restore_rebuilds_c_syntax_tree", test_editor_recovery_restore_rebuilds_c_syntax_tree},
-	{"editor_recovery_restore_rebuilds_shell_syntax_tree", test_editor_recovery_restore_rebuilds_shell_syntax_tree},
+        {"editor_syntax_undo_redo_preserves_tree", test_editor_syntax_undo_redo_preserves_tree},
+        {"editor_syntax_undo_redo_preserves_shell_tree",
+         test_editor_syntax_undo_redo_preserves_shell_tree},
+        {"editor_tabs_keep_independent_syntax_states",
+         test_editor_tabs_keep_independent_syntax_states},
+        {"editor_tabs_keep_shell_and_c_syntax_states",
+         test_editor_tabs_keep_shell_and_c_syntax_states},
+        {"editor_tabs_keep_web_and_c_syntax_states", test_editor_tabs_keep_web_and_c_syntax_states},
+        {"editor_recovery_restore_rebuilds_c_syntax_tree",
+         test_editor_recovery_restore_rebuilds_c_syntax_tree},
+        {"editor_recovery_restore_rebuilds_shell_syntax_tree",
+         test_editor_recovery_restore_rebuilds_shell_syntax_tree},
 };
 
 const int g_syntax_state_test_count =
-		(int)(sizeof(g_syntax_state_tests) / sizeof(g_syntax_state_tests[0]));
+        (int)(sizeof(g_syntax_state_tests) / sizeof(g_syntax_state_tests[0]));

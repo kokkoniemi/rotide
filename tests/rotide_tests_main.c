@@ -16,8 +16,8 @@
 #include <time.h>
 #include <unistd.h>
 
-#define SUITE_EXTERN(prefix) \
-	extern const struct editorTestCase g_##prefix##_tests[]; \
+#define SUITE_EXTERN(prefix)                                                                       \
+	extern const struct editorTestCase g_##prefix##_tests[];                                   \
 	extern const int g_##prefix##_test_count
 
 SUITE_EXTERN(document_text_editing);
@@ -65,54 +65,54 @@ SUITE_EXTERN(metrics_libfuzzer_parse);
 SUITE_EXTERN(metrics_summary);
 SUITE_EXTERN(golden_apply);
 
-#define SUITE(name_str, tags_str, prefix) \
-	{name_str, tags_str, g_##prefix##_tests, &g_##prefix##_test_count}
+#define SUITE(name_str, tags_str, prefix)                                                          \
+	{ name_str, tags_str, g_##prefix##_tests, &g_##prefix##_test_count }
 
 static const struct editorTestSuite k_suites[] = {
-	SUITE("document_text_editing", "document", document_text_editing),
-	SUITE("syntax_activation", "syntax", syntax_activation),
-	SUITE("syntax_parse", "syntax", syntax_parse),
-	SUITE("syntax_captures", "syntax", syntax_captures),
-	SUITE("syntax_background", "syntax threads", syntax_background),
-	SUITE("syntax_state", "syntax", syntax_state),
-	SUITE("syntax_registry", "syntax", syntax_registry),
-	SUITE("save_recovery", "save recovery", save_recovery),
-	SUITE("workspace_persistence", "workspace", workspace_persistence),
-	SUITE("workspace_theme_config", "workspace", workspace_theme_config),
-	SUITE("workspace_keymap_view", "workspace", workspace_keymap_view),
-	SUITE("workspace_io", "workspace", workspace_io),
-	SUITE("dap", "dap slow", dap),
-	SUITE("dap_framing", "dap", dap_framing),
-	SUITE("file_watch", "file_watch slow", file_watch),
-	SUITE("lsp_framing", "lsp", lsp_framing),
-	SUITE("lsp_protocol", "lsp", lsp_protocol),
-	SUITE("lsp_lifecycle", "lsp", lsp_lifecycle),
-	SUITE("lsp_completion", "lsp", lsp_completion),
-	SUITE("lsp_diagnostics", "lsp", lsp_diagnostics),
-	SUITE("lsp_navigation", "lsp", lsp_navigation),
-	SUITE("input_actions", "input", input_actions),
-	SUITE("input_selection", "input", input_selection),
-	SUITE("input_mouse", "input", input_mouse),
-	SUITE("input_search", "input", input_search),
-	SUITE("input_undo", "input", input_undo),
-	SUITE("render_frame", "render", render_frame),
-	SUITE("render_chrome", "render", render_chrome),
-	SUITE("render_panes", "render", render_panes),
-	SUITE("render_terminal", "render", render_terminal),
-	SUITE("layout", "layout", layout),
-	SUITE("pty", "pty slow", pty),
-	SUITE("terminal_pane", "pty terminal slow", terminal_pane),
-	SUITE("text_invariants", "document property", text_invariants),
-	SUITE("text_summary", "document property", text_summary),
-	SUITE("text_tree", "document", text_tree),
-	SUITE("syntax_incremental_equiv", "syntax property", syntax_incremental_equiv),
-	SUITE("runner_internals", "runner", runner_internals),
-	SUITE("long_session", "memory slow", long_session),
-	SUITE("grid_snapshot", "render", grid_snapshot),
-	SUITE("metrics_jsonl", "runner", metrics_jsonl),
-	SUITE("metrics_libfuzzer_parse", "runner", metrics_libfuzzer_parse),
-	SUITE("metrics_summary", "runner", metrics_summary),
-	SUITE("golden_apply", "runner", golden_apply),
+        SUITE("document_text_editing", "document", document_text_editing),
+        SUITE("syntax_activation", "syntax", syntax_activation),
+        SUITE("syntax_parse", "syntax", syntax_parse),
+        SUITE("syntax_captures", "syntax", syntax_captures),
+        SUITE("syntax_background", "syntax threads", syntax_background),
+        SUITE("syntax_state", "syntax", syntax_state),
+        SUITE("syntax_registry", "syntax", syntax_registry),
+        SUITE("save_recovery", "save recovery", save_recovery),
+        SUITE("workspace_persistence", "workspace", workspace_persistence),
+        SUITE("workspace_theme_config", "workspace", workspace_theme_config),
+        SUITE("workspace_keymap_view", "workspace", workspace_keymap_view),
+        SUITE("workspace_io", "workspace", workspace_io),
+        SUITE("dap", "dap slow", dap),
+        SUITE("dap_framing", "dap", dap_framing),
+        SUITE("file_watch", "file_watch slow", file_watch),
+        SUITE("lsp_framing", "lsp", lsp_framing),
+        SUITE("lsp_protocol", "lsp", lsp_protocol),
+        SUITE("lsp_lifecycle", "lsp", lsp_lifecycle),
+        SUITE("lsp_completion", "lsp", lsp_completion),
+        SUITE("lsp_diagnostics", "lsp", lsp_diagnostics),
+        SUITE("lsp_navigation", "lsp", lsp_navigation),
+        SUITE("input_actions", "input", input_actions),
+        SUITE("input_selection", "input", input_selection),
+        SUITE("input_mouse", "input", input_mouse),
+        SUITE("input_search", "input", input_search),
+        SUITE("input_undo", "input", input_undo),
+        SUITE("render_frame", "render", render_frame),
+        SUITE("render_chrome", "render", render_chrome),
+        SUITE("render_panes", "render", render_panes),
+        SUITE("render_terminal", "render", render_terminal),
+        SUITE("layout", "layout", layout),
+        SUITE("pty", "pty slow", pty),
+        SUITE("terminal_pane", "pty terminal slow", terminal_pane),
+        SUITE("text_invariants", "document property", text_invariants),
+        SUITE("text_summary", "document property", text_summary),
+        SUITE("text_tree", "document", text_tree),
+        SUITE("syntax_incremental_equiv", "syntax property", syntax_incremental_equiv),
+        SUITE("runner_internals", "runner", runner_internals),
+        SUITE("long_session", "memory slow", long_session),
+        SUITE("grid_snapshot", "render", grid_snapshot),
+        SUITE("metrics_jsonl", "runner", metrics_jsonl),
+        SUITE("metrics_libfuzzer_parse", "runner", metrics_libfuzzer_parse),
+        SUITE("metrics_summary", "runner", metrics_summary),
+        SUITE("golden_apply", "runner", golden_apply),
 };
 
 #define K_SUITE_COUNT ((int)(sizeof(k_suites) / sizeof(k_suites[0])))
@@ -122,7 +122,8 @@ struct selectedTest {
 	int index_in_suite;
 };
 
-static int suitePassesTagFilter(const struct editorTestSuite *suite, const struct testRunnerOptions *opts) {
+static int suitePassesTagFilter(const struct editorTestSuite *suite,
+                                const struct testRunnerOptions *opts) {
 	if (opts->include_tag != NULL && opts->include_tag[0] != '\0') {
 		if (!runnerTagsHave(suite->tags, opts->include_tag)) {
 			return 0;
@@ -155,7 +156,8 @@ int main(int argc, char **argv) {
 	struct testRunnerOptions opts;
 	runnerOptionsInit(&opts);
 	if (runnerOptionsParse(&opts, argc, argv) != 0) {
-		fprintf(stderr, "rotide_tests: %s\n", opts.error_msg ? opts.error_msg : "argument parse error");
+		fprintf(stderr, "rotide_tests: %s\n",
+		        opts.error_msg ? opts.error_msg : "argument parse error");
 		runnerPrintUsage();
 		return EXIT_FAILURE;
 	}
@@ -174,16 +176,15 @@ int main(int argc, char **argv) {
 		 * create it. Tolerate failure here (e.g. tests/artifacts already
 		 * exists) — the actual write will surface a clearer error. */
 		(void)mkdir("tests/artifacts", 0755);
-		if (setenv("ROTIDE_UPDATE_GOLDEN_STASH",
-				opts.update_golden_stash, 1) != 0) {
+		if (setenv("ROTIDE_UPDATE_GOLDEN_STASH", opts.update_golden_stash, 1) != 0) {
 			fprintf(stderr,
-				"rotide_tests: failed to export ROTIDE_UPDATE_GOLDEN_STASH: %s\n",
-				strerror(errno));
+			        "rotide_tests: failed to export ROTIDE_UPDATE_GOLDEN_STASH: %s\n",
+			        strerror(errno));
 			return EXIT_FAILURE;
 		}
 		fprintf(stderr,
-			"rotide_tests: --update-golden mode — grid mismatches stash to %s\n",
-			opts.update_golden_stash);
+		        "rotide_tests: --update-golden mode — grid mismatches stash to %s\n",
+		        opts.update_golden_stash);
 	}
 
 	struct quarantineList quarantine;
@@ -191,7 +192,8 @@ int main(int argc, char **argv) {
 	if (!opts.no_quarantine) {
 		char *err = NULL;
 		if (quarantineListLoad(&quarantine, opts.quarantine_path, &err) != 0) {
-			fprintf(stderr, "rotide_tests: %s\n", err ? err : "failed to load quarantine list");
+			fprintf(stderr, "rotide_tests: %s\n",
+			        err ? err : "failed to load quarantine list");
 			free(err);
 			quarantineListFree(&quarantine);
 			return EXIT_FAILURE;
@@ -203,7 +205,8 @@ int main(int argc, char **argv) {
 		total_candidates += *k_suites[s].count;
 	}
 
-	struct selectedTest *selected = calloc((size_t)(total_candidates > 0 ? total_candidates : 1), sizeof(*selected));
+	struct selectedTest *selected =
+	        calloc((size_t)(total_candidates > 0 ? total_candidates : 1), sizeof(*selected));
 	if (selected == NULL) {
 		fprintf(stderr, "rotide_tests: out of memory\n");
 		quarantineListFree(&quarantine);
@@ -308,10 +311,13 @@ int main(int argc, char **argv) {
 			}
 			int b = suite_to_batch[s];
 			if (batches[b].count == per_suite_capacity[b]) {
-				int new_cap = per_suite_capacity[b] == 0 ? 16 : per_suite_capacity[b] * 2;
-				int *grown = realloc(batches[b].test_indices, (size_t)new_cap * sizeof(int));
+				int new_cap =
+				        per_suite_capacity[b] == 0 ? 16 : per_suite_capacity[b] * 2;
+				int *grown = realloc(batches[b].test_indices,
+				                     (size_t)new_cap * sizeof(int));
 				if (grown == NULL) {
-					fprintf(stderr, "rotide_tests: out of memory for batches\n");
+					fprintf(stderr,
+					        "rotide_tests: out of memory for batches\n");
 					for (int j = 0; j < batch_count; j++) {
 						free(batches[j].test_indices);
 					}
@@ -341,11 +347,13 @@ int main(int argc, char **argv) {
 			}
 			if (batches[b].crashed) {
 				fprintf(stderr,
-					"CRASH suite=%s test=%s signal=%d artifact=%s seed=0x%016llx\n",
-					k_suites[batches[b].suite_idx].name,
-					batches[b].crash_test_name[0] ? batches[b].crash_test_name : "(unknown)",
-					batches[b].crash_signal, batches[b].crash_artifact_path,
-					(unsigned long long)opts.seed);
+				        "CRASH suite=%s test=%s signal=%d artifact=%s "
+				        "seed=0x%016llx\n",
+				        k_suites[batches[b].suite_idx].name,
+				        batches[b].crash_test_name[0] ? batches[b].crash_test_name
+				                                      : "(unknown)",
+				        batches[b].crash_signal, batches[b].crash_artifact_path,
+				        (unsigned long long)opts.seed);
 			}
 			free(batches[b].test_indices);
 		}
@@ -392,9 +400,10 @@ int main(int argc, char **argv) {
 					reset_violations++;
 					const unsigned char *live = (const unsigned char *)&E;
 					fprintf(stderr,
-						"RESET-DRIFT after %s (repeat %d/%d): offset=%zu snap=0x%02x live=0x%02x\n",
-						tc->name, rep + 1, opts.repeat, diff_at,
-						snapshot[diff_at], live[diff_at]);
+					        "RESET-DRIFT after %s (repeat %d/%d): offset=%zu "
+					        "snap=0x%02x live=0x%02x\n",
+					        tc->name, rep + 1, opts.repeat, diff_at,
+					        snapshot[diff_at], live[diff_at]);
 				}
 			}
 			if (failed == 0) {
@@ -466,32 +475,31 @@ done:
 	if (opts.metrics_out != NULL && opts.metrics_out[0] != '\0') {
 		struct timespec wall_end;
 		clock_gettime(CLOCK_MONOTONIC, &wall_end);
-		double wall_seconds =
-			(double)(wall_end.tv_sec - wall_start.tv_sec) +
-			(double)(wall_end.tv_nsec - wall_start.tv_nsec) / 1e9;
+		double wall_seconds = (double)(wall_end.tv_sec - wall_start.tv_sec) +
+		                      (double)(wall_end.tv_nsec - wall_start.tv_nsec) / 1e9;
 		struct editorMetricsField fields[] = {
-			{"wall_seconds", EDITOR_METRICS_DOUBLE, .v.d = wall_seconds},
-			{"total_runs", EDITOR_METRICS_INT, .v.i = total_runs},
-			{"passed_runs", EDITOR_METRICS_INT, .v.i = passed_runs},
-			{"failed_unique", EDITOR_METRICS_INT, .v.i = failed_unique},
-			{"crashes", EDITOR_METRICS_INT, .v.i = crashes},
-			{"reset_violations", EDITOR_METRICS_INT, .v.i = reset_violations},
-			{"flakes", EDITOR_METRICS_INT, .v.i = flakes},
-			{"property_ops", EDITOR_METRICS_INT, .v.i = property_ops},
-			{"property_ops_seconds", EDITOR_METRICS_DOUBLE, .v.d = property_ops_seconds},
-			{"skipped_quarantine", EDITOR_METRICS_INT, .v.i = skipped_quarantine},
-			{"jobs", EDITOR_METRICS_INT, .v.i = opts.jobs},
-			{"repeat", EDITOR_METRICS_INT, .v.i = opts.repeat},
-			{"seed", EDITOR_METRICS_HEX64, .v.u = opts.seed},
-			{"shuffle", EDITOR_METRICS_BOOL, .v.b = opts.shuffle},
-			{"validate_reset", EDITOR_METRICS_BOOL, .v.b = opts.validate_reset},
-			{"exit_code", EDITOR_METRICS_INT, .v.i = exit_code},
+		        {"wall_seconds", EDITOR_METRICS_DOUBLE, .v.d = wall_seconds},
+		        {"total_runs", EDITOR_METRICS_INT, .v.i = total_runs},
+		        {"passed_runs", EDITOR_METRICS_INT, .v.i = passed_runs},
+		        {"failed_unique", EDITOR_METRICS_INT, .v.i = failed_unique},
+		        {"crashes", EDITOR_METRICS_INT, .v.i = crashes},
+		        {"reset_violations", EDITOR_METRICS_INT, .v.i = reset_violations},
+		        {"flakes", EDITOR_METRICS_INT, .v.i = flakes},
+		        {"property_ops", EDITOR_METRICS_INT, .v.i = property_ops},
+		        {"property_ops_seconds", EDITOR_METRICS_DOUBLE,
+		         .v.d = property_ops_seconds},
+		        {"skipped_quarantine", EDITOR_METRICS_INT, .v.i = skipped_quarantine},
+		        {"jobs", EDITOR_METRICS_INT, .v.i = opts.jobs},
+		        {"repeat", EDITOR_METRICS_INT, .v.i = opts.repeat},
+		        {"seed", EDITOR_METRICS_HEX64, .v.u = opts.seed},
+		        {"shuffle", EDITOR_METRICS_BOOL, .v.b = opts.shuffle},
+		        {"validate_reset", EDITOR_METRICS_BOOL, .v.b = opts.validate_reset},
+		        {"exit_code", EDITOR_METRICS_INT, .v.i = exit_code},
 		};
 		if (editorMetricsAppend(opts.metrics_out, "test_run", fields,
-				(int)(sizeof(fields) / sizeof(fields[0]))) != 0) {
-			fprintf(stderr,
-				"rotide_tests: warning: failed to append metrics to %s\n",
-				opts.metrics_out);
+		                        (int)(sizeof(fields) / sizeof(fields[0]))) != 0) {
+			fprintf(stderr, "rotide_tests: warning: failed to append metrics to %s\n",
+			        opts.metrics_out);
 		}
 	}
 

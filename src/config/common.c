@@ -124,7 +124,7 @@ int editorConfigPathIsGlobalConfig(const char *path) {
 	int matches = 0;
 	if (stat(path, &path_stat) == 0 && stat(global_path, &global_stat) == 0) {
 		matches = path_stat.st_dev == global_stat.st_dev &&
-				path_stat.st_ino == global_stat.st_ino;
+		          path_stat.st_ino == global_stat.st_ino;
 	} else {
 		matches = strcmp(path, global_path) == 0;
 	}
@@ -132,7 +132,7 @@ int editorConfigPathIsGlobalConfig(const char *path) {
 	return matches;
 }
 
-static int editorConfigEnsureDir(const char *path) {
+static int commonEnsureDir(const char *path) {
 	if (mkdir(path, 0700) == 0) {
 		return 1;
 	}
@@ -146,7 +146,7 @@ static int editorConfigEnsureDir(const char *path) {
 	return S_ISDIR(st.st_mode);
 }
 
-static char *editorConfigBuildGlobalConfigDir(void) {
+static char *commonBuildGlobalConfigDir(void) {
 	const char *home = getenv("HOME");
 	if (home == NULL || home[0] == '\0') {
 		return NULL;
@@ -169,7 +169,7 @@ static char *editorConfigBuildGlobalConfigDir(void) {
 }
 
 enum editorConfigBootstrapStatus editorConfigEnsureGlobalConfig(void) {
-	char *dir = editorConfigBuildGlobalConfigDir();
+	char *dir = commonBuildGlobalConfigDir();
 	if (dir == NULL) {
 		return EDITOR_CONFIG_BOOTSTRAP_FAILED;
 	}
@@ -183,14 +183,14 @@ enum editorConfigBootstrapStatus editorConfigEnsureGlobalConfig(void) {
 	struct stat st;
 	if (stat(path, &st) == 0) {
 		status = S_ISREG(st.st_mode) ? EDITOR_CONFIG_BOOTSTRAP_OK
-					     : EDITOR_CONFIG_BOOTSTRAP_FAILED;
+		                             : EDITOR_CONFIG_BOOTSTRAP_FAILED;
 		goto done;
 	}
 	if (errno != ENOENT) {
 		goto done;
 	}
 
-	if (!editorConfigEnsureDir(dir)) {
+	if (!commonEnsureDir(dir)) {
 		goto done;
 	}
 

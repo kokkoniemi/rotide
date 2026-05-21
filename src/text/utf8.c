@@ -1,5 +1,6 @@
-#include "rotide.h"
 #include "text/utf8.h"
+
+#include "rotide.h"
 
 #include <limits.h>
 #include <wchar.h>
@@ -59,7 +60,7 @@ int editorUtf8DecodeCodepoint(const char *s, int len, unsigned int *cp) {
 
 	// Reject overlong forms, surrogate range, and out-of-range codepoints.
 	if (codepoint < min_codepoint || codepoint > 0x10FFFF ||
-			(codepoint >= 0xD800 && codepoint <= 0xDFFF)) {
+	    (codepoint >= 0xD800 && codepoint <= 0xDFFF)) {
 		*cp = b0;
 		return 1;
 	}
@@ -74,16 +75,13 @@ int editorIsRegionalIndicatorCodepoint(unsigned int cp) {
 
 int editorIsGraphemeExtendCodepoint(unsigned int cp) {
 	// Unicode combining mark blocks that should stay in the same grapheme.
-	if ((cp >= 0x0300 && cp <= 0x036F) ||
-			(cp >= 0x1AB0 && cp <= 0x1AFF) ||
-			(cp >= 0x1DC0 && cp <= 0x1DFF) ||
-			(cp >= 0x20D0 && cp <= 0x20FF) ||
-			(cp >= 0xFE20 && cp <= 0xFE2F)) {
+	if ((cp >= 0x0300 && cp <= 0x036F) || (cp >= 0x1AB0 && cp <= 0x1AFF) ||
+	    (cp >= 0x1DC0 && cp <= 0x1DFF) || (cp >= 0x20D0 && cp <= 0x20FF) ||
+	    (cp >= 0xFE20 && cp <= 0xFE2F)) {
 		return 1;
 	}
 	// Variation selectors modify the previous glyph and should not split clusters.
-	if ((cp >= 0xFE00 && cp <= 0xFE0F) ||
-			(cp >= 0xE0100 && cp <= 0xE01EF)) {
+	if ((cp >= 0xFE00 && cp <= 0xFE0F) || (cp >= 0xE0100 && cp <= 0xE01EF)) {
 		return 1;
 	}
 	// Emoji skin-tone modifiers are attached to the previous emoji.

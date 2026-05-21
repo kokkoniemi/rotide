@@ -5,12 +5,12 @@
 #include "config/keymap.h"
 #include "config/lsp_config.h"
 #include "config/theme_config.h"
+#include "debug/dap.h"
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
 #include "editing/selection.h"
 #include "editor_test_api.h"
 #include "input/dispatch.h"
-#include "debug/dap.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
 #include "render/screen.h"
@@ -19,7 +19,6 @@
 #include "support/terminal.h"
 #include "text/document.h"
 #include "text/utf8.h"
-#include "workspace/tabs.h"
 #include "workspace/drawer.h"
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
@@ -27,6 +26,7 @@
 #include "workspace/tabs.h"
 #include "workspace/watch.h"
 #include "workspace/workspace_state.h"
+
 #include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -102,20 +102,19 @@ void reset_editor_state(void) {
 	E.syntax_pending_revision = 0;
 	E.syntax_pending_first_row = 0;
 	E.syntax_pending_row_count = 0;
-	editorLspConfigInitDefaults(&E.lsp_gopls_enabled, &E.lsp_clangd_enabled,
-			&E.lsp_html_enabled, &E.lsp_css_enabled, &E.lsp_json_enabled,
-			&E.lsp_javascript_enabled,
-			&E.lsp_eslint_enabled, E.lsp_gopls_command, sizeof(E.lsp_gopls_command),
-			E.lsp_gopls_install_command, sizeof(E.lsp_gopls_install_command),
-			E.lsp_clangd_command, sizeof(E.lsp_clangd_command), E.lsp_html_command,
-			sizeof(E.lsp_html_command), E.lsp_css_command, sizeof(E.lsp_css_command),
-			E.lsp_json_command, sizeof(E.lsp_json_command), E.lsp_javascript_command,
-			sizeof(E.lsp_javascript_command), E.lsp_javascript_install_command,
-			sizeof(E.lsp_javascript_install_command),
-			E.lsp_eslint_command, sizeof(E.lsp_eslint_command),
-			E.lsp_vscode_langservers_install_command,
-			sizeof(E.lsp_vscode_langservers_install_command),
-			&E.lsp_autocomplete_enabled, &E.lsp_autocomplete_max_items);
+	editorLspConfigInitDefaults(
+	        &E.lsp_gopls_enabled, &E.lsp_clangd_enabled, &E.lsp_html_enabled,
+	        &E.lsp_css_enabled, &E.lsp_json_enabled, &E.lsp_javascript_enabled,
+	        &E.lsp_eslint_enabled, E.lsp_gopls_command, sizeof(E.lsp_gopls_command),
+	        E.lsp_gopls_install_command, sizeof(E.lsp_gopls_install_command),
+	        E.lsp_clangd_command, sizeof(E.lsp_clangd_command), E.lsp_html_command,
+	        sizeof(E.lsp_html_command), E.lsp_css_command, sizeof(E.lsp_css_command),
+	        E.lsp_json_command, sizeof(E.lsp_json_command), E.lsp_javascript_command,
+	        sizeof(E.lsp_javascript_command), E.lsp_javascript_install_command,
+	        sizeof(E.lsp_javascript_install_command), E.lsp_eslint_command,
+	        sizeof(E.lsp_eslint_command), E.lsp_vscode_langservers_install_command,
+	        sizeof(E.lsp_vscode_langservers_install_command), &E.lsp_autocomplete_enabled,
+	        &E.lsp_autocomplete_max_items);
 	E.lsp_gopls_enabled = 0;
 	E.lsp_clangd_enabled = 0;
 	E.lsp_html_enabled = 0;
@@ -575,7 +574,7 @@ static char *editor_test_dup_line(const struct editorDocument *document, int cy)
 	size_t start = 0;
 	size_t end = 0;
 	if (!editorDocumentLineStartByte(document, cy, &start) ||
-			!editorDocumentLineEndByte(document, cy, &end)) {
+	    !editorDocumentLineEndByte(document, cy, &end)) {
 		return NULL;
 	}
 	size_t span = end - start;

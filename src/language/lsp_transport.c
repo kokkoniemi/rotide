@@ -33,7 +33,6 @@ int editorLspProcessAlive(struct editorLspClient *client) {
 	return 0;
 }
 
-
 int editorLspTryDrainIncoming(struct editorLspClient *client, int timeout_ms) {
 	if (editorLspMockEnabled() || client == NULL || client->from_server_fd == -1) {
 		return 1;
@@ -42,9 +41,9 @@ int editorLspTryDrainIncoming(struct editorLspClient *client, int timeout_ms) {
 	int wait_ms = timeout_ms;
 	for (;;) {
 		struct pollfd pfd = {
-			.fd = client->from_server_fd,
-			.events = POLLIN,
-			.revents = 0,
+		        .fd = client->from_server_fd,
+		        .events = POLLIN,
+		        .revents = 0,
 		};
 		int polled = poll(&pfd, 1, wait_ms);
 		if (polled == -1) {
@@ -60,15 +59,16 @@ int editorLspTryDrainIncoming(struct editorLspClient *client, int timeout_ms) {
 			return 0;
 		}
 
-		char *message = editorLspReadFrame(client->from_server_fd, ROTIDE_LSP_IO_TIMEOUT_MS);
+		char *message =
+		        editorLspReadFrame(client->from_server_fd, ROTIDE_LSP_IO_TIMEOUT_MS);
 		if (message == NULL) {
 			return 0;
 		}
 		int processed = 1;
 		int message_id = 0;
 		if (client->completion_pending.request_id != 0 &&
-				editorLspExtractResponseId(message, &message_id) &&
-				message_id == client->completion_pending.request_id) {
+		    editorLspExtractResponseId(message, &message_id) &&
+		    message_id == client->completion_pending.request_id) {
 			struct editorLspCompletionPending pending = client->completion_pending;
 			memset(&client->completion_pending, 0, sizeof(client->completion_pending));
 			struct editorLspCompletionItem *items = NULL;
@@ -76,9 +76,10 @@ int editorLspTryDrainIncoming(struct editorLspClient *client, int timeout_ms) {
 			if (!editorLspResponseHasError(message)) {
 				(void)editorLspParseCompletionResponse(message, &items, &count);
 			}
-			editorAutocompleteHandleCompletionResponse(pending.request_id,
-					pending.document_version, pending.cy, pending.cx,
-					pending.prefix_start_cx, pending.prefix, pending.filename, items, count);
+			editorAutocompleteHandleCompletionResponse(
+			        pending.request_id, pending.document_version, pending.cy,
+			        pending.cx, pending.prefix_start_cx, pending.prefix,
+			        pending.filename, items, count);
 			free(pending.prefix);
 			free(pending.filename);
 		} else {
@@ -92,7 +93,7 @@ int editorLspTryDrainIncoming(struct editorLspClient *client, int timeout_ms) {
 	}
 }
 
-static int editorLspTryGetProcessExitCode(struct editorLspClient *client, int *exit_code_out) {
+static int lspTransportTryGetProcessExitCode(struct editorLspClient *client, int *exit_code_out) {
 	if (client == NULL || exit_code_out == NULL || client->pid <= 0) {
 		return 0;
 	}
@@ -114,11 +115,11 @@ static int editorLspTryGetProcessExitCode(struct editorLspClient *client, int *e
 }
 
 int editorLspTryGetProcessExitCodeWithWait(struct editorLspClient *client, int timeout_ms,
-		int *exit_code_out) {
+                                           int *exit_code_out) {
 	long long deadline_ms = editorLspMonotonicMillis() + (long long)timeout_ms;
 
 	for (;;) {
-		if (editorLspTryGetProcessExitCode(client, exit_code_out)) {
+		if (lspTransportTryGetProcessExitCode(client, exit_code_out)) {
 			return 1;
 		}
 		if (client == NULL || client->pid <= 0) {
@@ -128,13 +129,12 @@ int editorLspTryGetProcessExitCodeWithWait(struct editorLspClient *client, int t
 			return 0;
 		}
 		struct timespec sleep_time = {
-			.tv_sec = 0,
-			.tv_nsec = 1000000L,
+		        .tv_sec = 0,
+		        .tv_nsec = 1000000L,
 		};
 		(void)nanosleep(&sleep_time, NULL);
 	}
 }
-
 
 void editorLspCompletionPendingClear(struct editorLspCompletionPending *pending) {
 	if (pending == NULL) {
@@ -179,19 +179,21 @@ void editorLspClientCleanup(struct editorLspClient *client, int graceful_shutdow
 	}
 
 	if (graceful_shutdown && client->initialized && client->to_server_fd != -1 &&
-			client->from_server_fd != -1) {
+	    client->from_server_fd != -1) {
 		int shutdown_id = client->next_request_id++;
 		struct editorLspString shutdown = {0};
 		if (editorLspStringAppendf(&shutdown,
-					"{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":\"shutdown\",\"params\":null}",
-					shutdown_id)) {
+		                           "{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":\"shutdown\","
+		                           "\"params\":null}",
+		                           shutdown_id)) {
 			(void)editorLspSendRawJsonToFd(client->to_server_fd, shutdown.buf);
 			char *response = editorLspReadFrame(client->from_server_fd, 500);
 			free(response);
 		}
 		free(shutdown.buf);
-		(void)editorLspSendRawJsonToFd(client->to_server_fd,
-				"{\"jsonrpc\":\"2.0\",\"method\":\"exit\",\"params\":null}");
+		(void)editorLspSendRawJsonToFd(
+		        client->to_server_fd,
+		        "{\"jsonrpc\":\"2.0\",\"method\":\"exit\",\"params\":null}");
 	}
 
 	if (client->to_server_fd != -1) {
@@ -215,7 +217,7 @@ void editorLspClientCleanup(struct editorLspClient *client, int graceful_shutdow
 }
 
 int editorLspSpawnProcess(const char *command, pid_t *pid_out, int *to_server_fd_out,
-		int *from_server_fd_out) {
+                          int *from_server_fd_out) {
 	int stdin_pipe[2] = {-1, -1};
 	int stdout_pipe[2] = {-1, -1};
 	if (pipe(stdin_pipe) == -1) {
@@ -270,9 +272,8 @@ int editorLspWorkspaceRootsMatch(const char *left, const char *right) {
 	return editorPathsReferToSameFile(left, right);
 }
 
-
 int editorLspWaitForResponseId(struct editorLspClient *client, int request_id, int timeout_ms,
-		char **response_out, int *timed_out_out) {
+                               char **response_out, int *timed_out_out) {
 	if (response_out == NULL) {
 		return 0;
 	}
@@ -282,8 +283,8 @@ int editorLspWaitForResponseId(struct editorLspClient *client, int request_id, i
 	}
 
 	for (;;) {
-		char *response =
-				editorLspReadFrame(client != NULL ? client->from_server_fd : -1, timeout_ms);
+		char *response = editorLspReadFrame(client != NULL ? client->from_server_fd : -1,
+		                                    timeout_ms);
 		if (response == NULL) {
 			if (timed_out_out != NULL && errno == ETIMEDOUT) {
 				*timed_out_out = 1;
@@ -298,7 +299,7 @@ int editorLspWaitForResponseId(struct editorLspClient *client, int request_id, i
 			return 1;
 		}
 		if (has_id && client != NULL && client->completion_pending.request_id != 0 &&
-				id == client->completion_pending.request_id) {
+		    id == client->completion_pending.request_id) {
 			struct editorLspCompletionPending pending = client->completion_pending;
 			memset(&client->completion_pending, 0, sizeof(client->completion_pending));
 			struct editorLspCompletionItem *items = NULL;
@@ -306,9 +307,10 @@ int editorLspWaitForResponseId(struct editorLspClient *client, int request_id, i
 			if (!editorLspResponseHasError(response)) {
 				(void)editorLspParseCompletionResponse(response, &items, &count);
 			}
-			editorAutocompleteHandleCompletionResponse(pending.request_id,
-					pending.document_version, pending.cy, pending.cx,
-					pending.prefix_start_cx, pending.prefix, pending.filename, items, count);
+			editorAutocompleteHandleCompletionResponse(
+			        pending.request_id, pending.document_version, pending.cy,
+			        pending.cx, pending.prefix_start_cx, pending.prefix,
+			        pending.filename, items, count);
 			free(pending.prefix);
 			free(pending.filename);
 		} else {
@@ -317,5 +319,3 @@ int editorLspWaitForResponseId(struct editorLspClient *client, int request_id, i
 		free(response);
 	}
 }
-
-

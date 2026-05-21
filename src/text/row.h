@@ -1,5 +1,5 @@
-#ifndef TEXT_ROW_H
-#define TEXT_ROW_H
+#ifndef ROTIDE_TEXT_ROW_H
+#define ROTIDE_TEXT_ROW_H
 
 #include "rotide.h"
 
@@ -14,6 +14,6 @@ int editorBytesRxToCx(const char *bytes, int size, int rx);
 int editorBytesCxToRenderIdx(const char *bytes, int size, int rsize, int cx);
 
 int editorRowBuildRender(const char *chars, int size, char **render_out, int *rsize_out,
-		int *display_cols_out);
+                         int *display_cols_out);
 
 #endif

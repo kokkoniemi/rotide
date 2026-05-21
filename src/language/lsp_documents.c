@@ -1,41 +1,42 @@
+#include "editing/buffer_core.h"
+#include "editing/edit.h"
+#include "editing/text_source.h"
 #include "language/lsp.h"
 #include "language/lsp_json.h"
 #include "language/lsp_mock.h"
 #include "language/lsp_protocol.h"
 #include "language/lsp_transport.h"
 
-#include "editing/buffer_core.h"
-#include "editing/edit.h"
-#include "editing/text_source.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-static int editorLspIsTrackedLanguage(const char *filename, enum editorSyntaxLanguage language,
-		int *doc_open_in_out, int *doc_version_in_out) {
+static int lspDocumentsIsTrackedLanguage(const char *filename, enum editorSyntaxLanguage language,
+                                         int *doc_open_in_out, int *doc_version_in_out) {
 	if (filename == NULL || filename[0] == '\0' || !editorLspFileEnabled(filename, language) ||
-			doc_open_in_out == NULL || doc_version_in_out == NULL ||
-			editorLspServerKindForFile(filename, language) == EDITOR_LSP_SERVER_NONE) {
+	    doc_open_in_out == NULL || doc_version_in_out == NULL ||
+	    editorLspServerKindForFile(filename, language) == EDITOR_LSP_SERVER_NONE) {
 		return 0;
 	}
 	return 1;
 }
 
-static int editorLspIsTrackedEslintLanguage(const char *filename,
-		enum editorSyntaxLanguage language, int *doc_open_in_out, int *doc_version_in_out) {
+static int lspDocumentsIsTrackedEslintLanguage(const char *filename,
+                                               enum editorSyntaxLanguage language,
+                                               int *doc_open_in_out, int *doc_version_in_out) {
 	if (filename == NULL || filename[0] == '\0' ||
-			!editorLspEslintEnabledForFile(filename, language) ||
-			doc_open_in_out == NULL || doc_version_in_out == NULL) {
+	    !editorLspEslintEnabledForFile(filename, language) || doc_open_in_out == NULL ||
+	    doc_version_in_out == NULL) {
 		return 0;
 	}
 	return 1;
 }
 
 int editorLspEnsureDocumentOpen(const char *filename, enum editorSyntaxLanguage language,
-		int *doc_open_in_out, int *doc_version_in_out,
-		const char *full_text, size_t full_text_len) {
-	if (!editorLspIsTrackedLanguage(filename, language, doc_open_in_out, doc_version_in_out)) {
+                                int *doc_open_in_out, int *doc_version_in_out,
+                                const char *full_text, size_t full_text_len) {
+	if (!lspDocumentsIsTrackedLanguage(filename, language, doc_open_in_out,
+	                                   doc_version_in_out)) {
 		return 1;
 	}
 	if (*doc_open_in_out) {
@@ -59,9 +60,9 @@ int editorLspEnsureDocumentOpen(const char *filename, enum editorSyntaxLanguage 
 	int version = *doc_version_in_out > 0 ? *doc_version_in_out : 1;
 	if (g_lsp_mock.enabled) {
 		(void)snprintf(g_lsp_mock.last_did_open_language_id,
-				sizeof(g_lsp_mock.last_did_open_language_id), "%s", language_id);
-		g_lsp_mock.last_did_open_language_id[
-				sizeof(g_lsp_mock.last_did_open_language_id) - 1] = '\0';
+		               sizeof(g_lsp_mock.last_did_open_language_id), "%s", language_id);
+		g_lsp_mock.last_did_open_language_id[sizeof(g_lsp_mock.last_did_open_language_id) -
+		                                     1] = '\0';
 		g_lsp_mock.stats.did_open_count++;
 		*doc_open_in_out = 1;
 		*doc_version_in_out = version;
@@ -79,19 +80,20 @@ int editorLspEnsureDocumentOpen(const char *filename, enum editorSyntaxLanguage 
 	}
 
 	struct editorLspString payload = {0};
-	int built = editorLspStringAppend(&payload,
-			"{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{"
-			"\"textDocument\":{\"uri\":");
+	int built = editorLspStringAppend(
+	        &payload, "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{"
+	                  "\"textDocument\":{\"uri\":");
 	if (built) {
 		built = editorLspStringAppendJsonEscaped(&payload, uri, strlen(uri));
 	}
 	if (built) {
-		built = editorLspStringAppendf(&payload,
-				",\"languageId\":\"%s\",\"version\":%d,\"text\":", language_id, version);
+		built = editorLspStringAppendf(
+		        &payload, ",\"languageId\":\"%s\",\"version\":%d,\"text\":", language_id,
+		        version);
 	}
 	if (built) {
-		built = editorLspStringAppendJsonEscaped(&payload,
-				full_text != NULL ? full_text : "", full_text_len);
+		built = editorLspStringAppendJsonEscaped(
+		        &payload, full_text != NULL ? full_text : "", full_text_len);
 	}
 	if (built) {
 		built = editorLspStringAppend(&payload, "}}}");
@@ -115,16 +117,17 @@ int editorLspEnsureDocumentOpen(const char *filename, enum editorSyntaxLanguage 
 }
 
 int editorLspNotifyDidChange(const char *filename, enum editorSyntaxLanguage language,
-		int *doc_open_in_out, int *doc_version_in_out,
-		const struct editorSyntaxEdit *edit,
-		const char *inserted_text, size_t inserted_text_len,
-		const char *full_text, size_t full_text_len) {
-	if (!editorLspIsTrackedLanguage(filename, language, doc_open_in_out, doc_version_in_out)) {
+                             int *doc_open_in_out, int *doc_version_in_out,
+                             const struct editorSyntaxEdit *edit, const char *inserted_text,
+                             size_t inserted_text_len, const char *full_text,
+                             size_t full_text_len) {
+	if (!lspDocumentsIsTrackedLanguage(filename, language, doc_open_in_out,
+	                                   doc_version_in_out)) {
 		return 1;
 	}
 
 	if (!editorLspEnsureDocumentOpen(filename, language, doc_open_in_out, doc_version_in_out,
-				full_text, full_text_len)) {
+	                                 full_text, full_text_len)) {
 		return 0;
 	}
 
@@ -133,9 +136,11 @@ int editorLspNotifyDidChange(const char *filename, enum editorSyntaxLanguage lan
 		g_lsp_mock.stats.did_change_count++;
 		g_lsp_mock.last_change.had_range = edit != NULL;
 		g_lsp_mock.last_change.start_line = edit != NULL ? (int)edit->start_point.row : 0;
-		g_lsp_mock.last_change.start_character = edit != NULL ? (int)edit->start_point.column : 0;
+		g_lsp_mock.last_change.start_character =
+		        edit != NULL ? (int)edit->start_point.column : 0;
 		g_lsp_mock.last_change.end_line = edit != NULL ? (int)edit->old_end_point.row : 0;
-		g_lsp_mock.last_change.end_character = edit != NULL ? (int)edit->old_end_point.column : 0;
+		g_lsp_mock.last_change.end_character =
+		        edit != NULL ? (int)edit->old_end_point.column : 0;
 		g_lsp_mock.last_change.version = next_version;
 		const char *mock_text = inserted_text;
 		size_t mock_text_len = inserted_text_len;
@@ -147,7 +152,8 @@ int editorLspNotifyDidChange(const char *filename, enum editorSyntaxLanguage lan
 				if (!editorBuildActiveTextSource(&source)) {
 					return 0;
 				}
-				mock_text = editorTextSourceDupRange(&source, 0, source.length, &mock_text_len);
+				mock_text = editorTextSourceDupRange(&source, 0, source.length,
+				                                     &mock_text_len);
 				if (mock_text == NULL && mock_text_len > 0) {
 					return 0;
 				}
@@ -175,8 +181,8 @@ int editorLspNotifyDidChange(const char *filename, enum editorSyntaxLanguage lan
 
 	int send_range = edit != NULL;
 	if (send_range && client->position_encoding_utf16 &&
-			(edit->start_point.row != edit->old_end_point.row ||
-			 edit->start_point.column != edit->old_end_point.column)) {
+	    (edit->start_point.row != edit->old_end_point.row ||
+	     edit->start_point.column != edit->old_end_point.column)) {
 		/*
 		 * UTF-16 range conversion for deletes would require pre-edit text.
 		 * Fall back to whole-document sync for those edits.
@@ -201,7 +207,8 @@ int editorLspNotifyDidChange(const char *filename, enum editorSyntaxLanguage lan
 			if (!editorBuildActiveTextSource(&source)) {
 				return 0;
 			}
-			owned_full_text = editorTextSourceDupRange(&source, 0, source.length, &change_text_len);
+			owned_full_text = editorTextSourceDupRange(&source, 0, source.length,
+			                                           &change_text_len);
 			if (owned_full_text == NULL && change_text_len > 0) {
 				return 0;
 			}
@@ -216,15 +223,15 @@ int editorLspNotifyDidChange(const char *filename, enum editorSyntaxLanguage lan
 	}
 
 	struct editorLspString payload = {0};
-	int built = editorLspStringAppend(&payload,
-			"{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didChange\",\"params\":{"
-			"\"textDocument\":{\"uri\":");
+	int built = editorLspStringAppend(
+	        &payload, "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didChange\",\"params\":{"
+	                  "\"textDocument\":{\"uri\":");
 	if (built) {
 		built = editorLspStringAppendJsonEscaped(&payload, uri, strlen(uri));
 	}
 	if (built) {
 		built = editorLspStringAppendf(&payload, ",\"version\":%d},\"contentChanges\":[{",
-				next_version);
+		                               next_version);
 	}
 
 	if (built && send_range) {
@@ -232,16 +239,17 @@ int editorLspNotifyDidChange(const char *filename, enum editorSyntaxLanguage lan
 		unsigned int end_character = edit->old_end_point.column;
 		if (client->position_encoding_utf16) {
 			start_character = (unsigned int)editorLspProtocolCharacterFromBufferColumn(
-					(int)edit->start_point.row, (int)edit->start_point.column);
+			        (int)edit->start_point.row, (int)edit->start_point.column);
 			end_character = (unsigned int)editorLspProtocolCharacterFromBufferColumn(
-					(int)edit->old_end_point.row, (int)edit->old_end_point.column);
+			        (int)edit->old_end_point.row, (int)edit->old_end_point.column);
 		}
 
-		built = editorLspStringAppendf(&payload,
-				"\"range\":{\"start\":{\"line\":%u,\"character\":%u},"
-				"\"end\":{\"line\":%u,\"character\":%u}},",
-				edit->start_point.row, start_character,
-				edit->old_end_point.row, end_character);
+		built = editorLspStringAppendf(
+		        &payload,
+		        "\"range\":{\"start\":{\"line\":%u,\"character\":%u},"
+		        "\"end\":{\"line\":%u,\"character\":%u}},",
+		        edit->start_point.row, start_character, edit->old_end_point.row,
+		        end_character);
 	}
 
 	if (built) {
@@ -251,8 +259,8 @@ int editorLspNotifyDidChange(const char *filename, enum editorSyntaxLanguage lan
 		if (change_text_len > 0 && change_text == NULL) {
 			built = 0;
 		} else {
-			built = editorLspStringAppendJsonEscaped(&payload,
-					change_text != NULL ? change_text : "", change_text_len);
+			built = editorLspStringAppendJsonEscaped(
+			        &payload, change_text != NULL ? change_text : "", change_text_len);
 		}
 	}
 	if (built) {
@@ -277,8 +285,9 @@ int editorLspNotifyDidChange(const char *filename, enum editorSyntaxLanguage lan
 }
 
 int editorLspNotifyDidSave(const char *filename, enum editorSyntaxLanguage language,
-		int *doc_open_in_out, int *doc_version_in_out) {
-	if (!editorLspIsTrackedLanguage(filename, language, doc_open_in_out, doc_version_in_out)) {
+                           int *doc_open_in_out, int *doc_version_in_out) {
+	if (!lspDocumentsIsTrackedLanguage(filename, language, doc_open_in_out,
+	                                   doc_version_in_out)) {
 		return 1;
 	}
 	if (!*doc_open_in_out) {
@@ -304,9 +313,9 @@ int editorLspNotifyDidSave(const char *filename, enum editorSyntaxLanguage langu
 	}
 
 	struct editorLspString payload = {0};
-	int built = editorLspStringAppend(&payload,
-			"{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didSave\",\"params\":{"
-			"\"textDocument\":{\"uri\":");
+	int built = editorLspStringAppend(
+	        &payload, "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didSave\",\"params\":{"
+	                  "\"textDocument\":{\"uri\":");
 	if (built) {
 		built = editorLspStringAppendJsonEscaped(&payload, uri, strlen(uri));
 	}
@@ -329,9 +338,10 @@ int editorLspNotifyDidSave(const char *filename, enum editorSyntaxLanguage langu
 }
 
 void editorLspNotifyDidClose(const char *filename, enum editorSyntaxLanguage language,
-		int *doc_open_in_out, int *doc_version_in_out) {
-	if (!editorLspIsTrackedLanguage(filename, language, doc_open_in_out, doc_version_in_out) ||
-			!*doc_open_in_out) {
+                             int *doc_open_in_out, int *doc_version_in_out) {
+	if (!lspDocumentsIsTrackedLanguage(filename, language, doc_open_in_out,
+	                                   doc_version_in_out) ||
+	    !*doc_open_in_out) {
 		return;
 	}
 
@@ -349,10 +359,12 @@ void editorLspNotifyDidClose(const char *filename, enum editorSyntaxLanguage lan
 		if (editorLspBuildFileUri(filename, &uri)) {
 			struct editorLspString payload = {0};
 			int built = editorLspStringAppend(&payload,
-					"{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didClose\",\"params\":{"
-					"\"textDocument\":{\"uri\":");
+			                                  "{\"jsonrpc\":\"2.0\",\"method\":"
+			                                  "\"textDocument/didClose\",\"params\":{"
+			                                  "\"textDocument\":{\"uri\":");
 			if (built) {
-				built = editorLspStringAppendJsonEscaped(&payload, uri, strlen(uri));
+				built = editorLspStringAppendJsonEscaped(&payload, uri,
+				                                         strlen(uri));
 			}
 			if (built) {
 				built = editorLspStringAppend(&payload, "}}}");
@@ -371,9 +383,10 @@ void editorLspNotifyDidClose(const char *filename, enum editorSyntaxLanguage lan
 }
 
 int editorLspEnsureEslintDocumentOpen(const char *filename, enum editorSyntaxLanguage language,
-		int *doc_open_in_out, int *doc_version_in_out,
-		const char *full_text, size_t full_text_len) {
-	if (!editorLspIsTrackedEslintLanguage(filename, language, doc_open_in_out, doc_version_in_out)) {
+                                      int *doc_open_in_out, int *doc_version_in_out,
+                                      const char *full_text, size_t full_text_len) {
+	if (!lspDocumentsIsTrackedEslintLanguage(filename, language, doc_open_in_out,
+	                                         doc_version_in_out)) {
 		return 1;
 	}
 	if (*doc_open_in_out) {
@@ -397,9 +410,9 @@ int editorLspEnsureEslintDocumentOpen(const char *filename, enum editorSyntaxLan
 	int version = *doc_version_in_out > 0 ? *doc_version_in_out : 1;
 	if (g_lsp_mock.enabled) {
 		(void)snprintf(g_lsp_mock.last_did_open_language_id,
-				sizeof(g_lsp_mock.last_did_open_language_id), "%s", language_id);
-		g_lsp_mock.last_did_open_language_id[
-				sizeof(g_lsp_mock.last_did_open_language_id) - 1] = '\0';
+		               sizeof(g_lsp_mock.last_did_open_language_id), "%s", language_id);
+		g_lsp_mock.last_did_open_language_id[sizeof(g_lsp_mock.last_did_open_language_id) -
+		                                     1] = '\0';
 		g_lsp_mock.stats.did_open_count++;
 		*doc_open_in_out = 1;
 		*doc_version_in_out = version;
@@ -416,19 +429,20 @@ int editorLspEnsureEslintDocumentOpen(const char *filename, enum editorSyntaxLan
 	}
 
 	struct editorLspString payload = {0};
-	int built = editorLspStringAppend(&payload,
-			"{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{"
-			"\"textDocument\":{\"uri\":");
+	int built = editorLspStringAppend(
+	        &payload, "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{"
+	                  "\"textDocument\":{\"uri\":");
 	if (built) {
 		built = editorLspStringAppendJsonEscaped(&payload, uri, strlen(uri));
 	}
 	if (built) {
-		built = editorLspStringAppendf(&payload,
-				",\"languageId\":\"%s\",\"version\":%d,\"text\":", language_id, version);
+		built = editorLspStringAppendf(
+		        &payload, ",\"languageId\":\"%s\",\"version\":%d,\"text\":", language_id,
+		        version);
 	}
 	if (built) {
-		built = editorLspStringAppendJsonEscaped(&payload,
-				full_text != NULL ? full_text : "", full_text_len);
+		built = editorLspStringAppendJsonEscaped(
+		        &payload, full_text != NULL ? full_text : "", full_text_len);
 	}
 	if (built) {
 		built = editorLspStringAppend(&payload, "}}}");
@@ -452,16 +466,17 @@ int editorLspEnsureEslintDocumentOpen(const char *filename, enum editorSyntaxLan
 }
 
 int editorLspNotifyEslintDidChange(const char *filename, enum editorSyntaxLanguage language,
-		int *doc_open_in_out, int *doc_version_in_out,
-		const struct editorSyntaxEdit *edit,
-		const char *inserted_text, size_t inserted_text_len,
-		const char *full_text, size_t full_text_len) {
-	if (!editorLspIsTrackedEslintLanguage(filename, language, doc_open_in_out, doc_version_in_out)) {
+                                   int *doc_open_in_out, int *doc_version_in_out,
+                                   const struct editorSyntaxEdit *edit, const char *inserted_text,
+                                   size_t inserted_text_len, const char *full_text,
+                                   size_t full_text_len) {
+	if (!lspDocumentsIsTrackedEslintLanguage(filename, language, doc_open_in_out,
+	                                         doc_version_in_out)) {
 		return 1;
 	}
 
-	if (!editorLspEnsureEslintDocumentOpen(filename, language, doc_open_in_out, doc_version_in_out,
-				full_text, full_text_len)) {
+	if (!editorLspEnsureEslintDocumentOpen(filename, language, doc_open_in_out,
+	                                       doc_version_in_out, full_text, full_text_len)) {
 		return 0;
 	}
 
@@ -470,9 +485,11 @@ int editorLspNotifyEslintDidChange(const char *filename, enum editorSyntaxLangua
 		g_lsp_mock.stats.did_change_count++;
 		g_lsp_mock.last_change.had_range = edit != NULL;
 		g_lsp_mock.last_change.start_line = edit != NULL ? (int)edit->start_point.row : 0;
-		g_lsp_mock.last_change.start_character = edit != NULL ? (int)edit->start_point.column : 0;
+		g_lsp_mock.last_change.start_character =
+		        edit != NULL ? (int)edit->start_point.column : 0;
 		g_lsp_mock.last_change.end_line = edit != NULL ? (int)edit->old_end_point.row : 0;
-		g_lsp_mock.last_change.end_character = edit != NULL ? (int)edit->old_end_point.column : 0;
+		g_lsp_mock.last_change.end_character =
+		        edit != NULL ? (int)edit->old_end_point.column : 0;
 		g_lsp_mock.last_change.version = next_version;
 		*doc_version_in_out = next_version;
 		return 1;
@@ -485,8 +502,8 @@ int editorLspNotifyEslintDidChange(const char *filename, enum editorSyntaxLangua
 
 	int send_range = edit != NULL;
 	if (send_range && client->position_encoding_utf16 &&
-			(edit->start_point.row != edit->old_end_point.row ||
-			 edit->start_point.column != edit->old_end_point.column)) {
+	    (edit->start_point.row != edit->old_end_point.row ||
+	     edit->start_point.column != edit->old_end_point.column)) {
 		send_range = 0;
 	}
 
@@ -507,7 +524,8 @@ int editorLspNotifyEslintDidChange(const char *filename, enum editorSyntaxLangua
 			if (!editorBuildActiveTextSource(&source)) {
 				return 0;
 			}
-			owned_full_text = editorTextSourceDupRange(&source, 0, source.length, &change_text_len);
+			owned_full_text = editorTextSourceDupRange(&source, 0, source.length,
+			                                           &change_text_len);
 			if (owned_full_text == NULL && change_text_len > 0) {
 				return 0;
 			}
@@ -522,31 +540,35 @@ int editorLspNotifyEslintDidChange(const char *filename, enum editorSyntaxLangua
 	}
 
 	struct editorLspString payload = {0};
-	int built = editorLspStringAppend(&payload,
-			"{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didChange\",\"params\":{"
-			"\"textDocument\":{\"uri\":");
+	int built = editorLspStringAppend(
+	        &payload, "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didChange\",\"params\":{"
+	                  "\"textDocument\":{\"uri\":");
 	if (built) {
 		built = editorLspStringAppendJsonEscaped(&payload, uri, strlen(uri));
 	}
 	if (built) {
 		built = editorLspStringAppendf(&payload, ",\"version\":%d},\"contentChanges\":[{",
-				next_version);
+		                               next_version);
 	}
 	if (built && send_range) {
 		unsigned int start_character = edit->start_point.column;
 		unsigned int end_character = edit->old_end_point.column;
 		if (client->position_encoding_utf16) {
-			start_character = (unsigned int)editorLspClientProtocolCharacterFromBufferColumn(
-					client, (int)edit->start_point.row, (int)edit->start_point.column);
-			end_character = (unsigned int)editorLspClientProtocolCharacterFromBufferColumn(
-					client, (int)edit->old_end_point.row,
-					(int)edit->old_end_point.column);
+			start_character =
+			        (unsigned int)editorLspClientProtocolCharacterFromBufferColumn(
+			                client, (int)edit->start_point.row,
+			                (int)edit->start_point.column);
+			end_character =
+			        (unsigned int)editorLspClientProtocolCharacterFromBufferColumn(
+			                client, (int)edit->old_end_point.row,
+			                (int)edit->old_end_point.column);
 		}
-		built = editorLspStringAppendf(&payload,
-				"\"range\":{\"start\":{\"line\":%u,\"character\":%u},"
-				"\"end\":{\"line\":%u,\"character\":%u}},",
-				edit->start_point.row, start_character,
-				edit->old_end_point.row, end_character);
+		built = editorLspStringAppendf(
+		        &payload,
+		        "\"range\":{\"start\":{\"line\":%u,\"character\":%u},"
+		        "\"end\":{\"line\":%u,\"character\":%u}},",
+		        edit->start_point.row, start_character, edit->old_end_point.row,
+		        end_character);
 	}
 	if (built) {
 		built = editorLspStringAppend(&payload, "\"text\":");
@@ -555,8 +577,8 @@ int editorLspNotifyEslintDidChange(const char *filename, enum editorSyntaxLangua
 		if (change_text_len > 0 && change_text == NULL) {
 			built = 0;
 		} else {
-			built = editorLspStringAppendJsonEscaped(&payload,
-					change_text != NULL ? change_text : "", change_text_len);
+			built = editorLspStringAppendJsonEscaped(
+			        &payload, change_text != NULL ? change_text : "", change_text_len);
 		}
 	}
 	if (built) {
@@ -581,8 +603,9 @@ int editorLspNotifyEslintDidChange(const char *filename, enum editorSyntaxLangua
 }
 
 int editorLspNotifyEslintDidSave(const char *filename, enum editorSyntaxLanguage language,
-		int *doc_open_in_out, int *doc_version_in_out) {
-	if (!editorLspIsTrackedEslintLanguage(filename, language, doc_open_in_out, doc_version_in_out)) {
+                                 int *doc_open_in_out, int *doc_version_in_out) {
+	if (!lspDocumentsIsTrackedEslintLanguage(filename, language, doc_open_in_out,
+	                                         doc_version_in_out)) {
 		return 1;
 	}
 	if (!*doc_open_in_out) {
@@ -608,9 +631,9 @@ int editorLspNotifyEslintDidSave(const char *filename, enum editorSyntaxLanguage
 	}
 
 	struct editorLspString payload = {0};
-	int built = editorLspStringAppend(&payload,
-			"{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didSave\",\"params\":{"
-			"\"textDocument\":{\"uri\":");
+	int built = editorLspStringAppend(
+	        &payload, "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didSave\",\"params\":{"
+	                  "\"textDocument\":{\"uri\":");
 	if (built) {
 		built = editorLspStringAppendJsonEscaped(&payload, uri, strlen(uri));
 	}
@@ -633,9 +656,10 @@ int editorLspNotifyEslintDidSave(const char *filename, enum editorSyntaxLanguage
 }
 
 void editorLspNotifyEslintDidClose(const char *filename, enum editorSyntaxLanguage language,
-		int *doc_open_in_out, int *doc_version_in_out) {
-	if (!editorLspIsTrackedEslintLanguage(filename, language, doc_open_in_out, doc_version_in_out) ||
-			!*doc_open_in_out) {
+                                   int *doc_open_in_out, int *doc_version_in_out) {
+	if (!lspDocumentsIsTrackedEslintLanguage(filename, language, doc_open_in_out,
+	                                         doc_version_in_out) ||
+	    !*doc_open_in_out) {
 		return;
 	}
 
@@ -653,16 +677,17 @@ void editorLspNotifyEslintDidClose(const char *filename, enum editorSyntaxLangua
 		if (editorLspBuildFileUri(filename, &uri)) {
 			struct editorLspString payload = {0};
 			int built = editorLspStringAppend(&payload,
-					"{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didClose\",\"params\":{"
-					"\"textDocument\":{\"uri\":");
+			                                  "{\"jsonrpc\":\"2.0\",\"method\":"
+			                                  "\"textDocument/didClose\",\"params\":{"
+			                                  "\"textDocument\":{\"uri\":");
 			if (built) {
-				built = editorLspStringAppendJsonEscaped(&payload, uri, strlen(uri));
+				built = editorLspStringAppendJsonEscaped(&payload, uri,
+				                                         strlen(uri));
 			}
 			if (built) {
 				built = editorLspStringAppend(&payload, "}}}");
 			}
-			if (built &&
-					!editorLspSendRawJsonToFd(client->to_server_fd, payload.buf)) {
+			if (built && !editorLspSendRawJsonToFd(client->to_server_fd, payload.buf)) {
 				editorLspClientCleanup(client, 0);
 			}
 			free(payload.buf);
@@ -674,4 +699,3 @@ void editorLspNotifyEslintDidClose(const char *filename, enum editorSyntaxLangua
 	*doc_version_in_out = 0;
 	editorLspClearDiagnosticsForFile(filename);
 }
-

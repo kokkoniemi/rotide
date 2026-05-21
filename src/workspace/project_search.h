@@ -1,5 +1,5 @@
-#ifndef EDITOR_PROJECT_SEARCH_H
-#define EDITOR_PROJECT_SEARCH_H
+#ifndef ROTIDE_WORKSPACE_PROJECT_SEARCH_H
+#define ROTIDE_WORKSPACE_PROJECT_SEARCH_H
 
 #include "rotide.h"
 
@@ -10,8 +10,7 @@ int editorProjectSearchIsActive(void);
 int editorProjectSearchAppendByte(int c);
 int editorProjectSearchBackspace(void);
 int editorProjectSearchVisibleCount(void);
-int editorProjectSearchGetVisibleEntry(int visible_idx,
-		struct editorDrawerEntryView *view_out);
+int editorProjectSearchVisibleEntryView(int visible_idx, struct editorDrawerEntryView *view_out);
 void editorProjectSearchClampViewport(int viewport_rows);
 int editorProjectSearchMoveSelectionBy(int delta, int viewport_rows);
 int editorProjectSearchSelectVisibleIndex(int visible_idx, int viewport_rows);

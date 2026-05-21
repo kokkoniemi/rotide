@@ -3,8 +3,7 @@
 
 static int test_editor_syntax_activation_for_c_and_h_files(void) {
 	char c_path[] = "/tmp/rotide-test-syntax-c-XXXXXX.c";
-	ASSERT_TRUE(write_fixture_to_temp_path(c_path, 2,
-			"tests/syntax/supported/c/activation.c"));
+	ASSERT_TRUE(write_fixture_to_temp_path(c_path, 2, "tests/syntax/supported/c/activation.c"));
 
 	editorOpen(c_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -14,8 +13,7 @@ static int test_editor_syntax_activation_for_c_and_h_files(void) {
 	ASSERT_EQ_STR("translation_unit", editorSyntaxRootType());
 
 	char h_path[] = "/tmp/rotide-test-syntax-h-XXXXXX.h";
-	ASSERT_TRUE(write_fixture_to_temp_path(h_path, 2,
-			"tests/syntax/supported/c/activation.h"));
+	ASSERT_TRUE(write_fixture_to_temp_path(h_path, 2, "tests/syntax/supported/c/activation.h"));
 
 	editorOpen(h_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -26,7 +24,7 @@ static int test_editor_syntax_activation_for_c_and_h_files(void) {
 
 	char cpp_path[] = "/tmp/rotide-test-syntax-cpp-XXXXXX.cpp";
 	ASSERT_TRUE(write_fixture_to_temp_path(cpp_path, 4,
-			"tests/syntax/supported/cpp/activation.cpp"));
+	                                       "tests/syntax/supported/cpp/activation.cpp"));
 
 	editorOpen(cpp_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -37,7 +35,7 @@ static int test_editor_syntax_activation_for_c_and_h_files(void) {
 
 	char hpp_path[] = "/tmp/rotide-test-syntax-hpp-XXXXXX.hpp";
 	ASSERT_TRUE(write_fixture_to_temp_path(hpp_path, 4,
-			"tests/syntax/supported/cpp/activation.hpp"));
+	                                       "tests/syntax/supported/cpp/activation.hpp"));
 
 	editorOpen(hpp_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -56,7 +54,7 @@ static int test_editor_syntax_activation_for_c_and_h_files(void) {
 static int test_editor_syntax_activation_for_shell_files_and_shebang(void) {
 	char sh_path[] = "/tmp/rotide-test-syntax-shell-XXXXXX.sh";
 	ASSERT_TRUE(write_fixture_to_temp_path(sh_path, 3,
-			"tests/syntax/supported/bash/activation.sh"));
+	                                       "tests/syntax/supported/bash/activation.sh"));
 
 	editorOpen(sh_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -78,8 +76,8 @@ static int test_editor_syntax_activation_for_shell_files_and_shebang(void) {
 	ASSERT_EQ_INT(EDITOR_SYNTAX_SHELL, editorSyntaxLanguageActive());
 
 	char shebang_path[] = "/tmp/rotide-test-syntax-shell-shebang-XXXXXX";
-	ASSERT_TRUE(write_fixture_to_temp_path(shebang_path, 0,
-			"tests/syntax/supported/bash/extensionless_shebang"));
+	ASSERT_TRUE(write_fixture_to_temp_path(
+	        shebang_path, 0, "tests/syntax/supported/bash/extensionless_shebang"));
 
 	ASSERT_TRUE(editorTabsInit());
 	editorOpen(shebang_path);
@@ -111,7 +109,7 @@ static int test_editor_syntax_activation_for_shell_files_and_shebang(void) {
 static int test_editor_syntax_activation_for_html_js_and_css_files(void) {
 	char html_path[] = "/tmp/rotide-test-syntax-html-XXXXXX.html";
 	ASSERT_TRUE(write_fixture_to_temp_path(html_path, 5,
-			"tests/syntax/supported/html/activation.html"));
+	                                       "tests/syntax/supported/html/activation.html"));
 
 	editorOpen(html_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -121,7 +119,7 @@ static int test_editor_syntax_activation_for_html_js_and_css_files(void) {
 
 	char htm_path[] = "/tmp/rotide-test-syntax-html2-XXXXXX.htm";
 	ASSERT_TRUE(write_fixture_to_temp_path(htm_path, 4,
-			"tests/syntax/supported/html/activation.htm"));
+	                                       "tests/syntax/supported/html/activation.htm"));
 	editorOpen(htm_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
 	ASSERT_TRUE(editorSyntaxTreeExists());
@@ -129,7 +127,7 @@ static int test_editor_syntax_activation_for_html_js_and_css_files(void) {
 
 	char xhtml_path[] = "/tmp/rotide-test-syntax-xhtml-XXXXXX.xhtml";
 	ASSERT_TRUE(write_fixture_to_temp_path(xhtml_path, 6,
-			"tests/syntax/supported/html/activation.xhtml"));
+	                                       "tests/syntax/supported/html/activation.xhtml"));
 	editorOpen(xhtml_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
 	ASSERT_TRUE(editorSyntaxTreeExists());
@@ -137,7 +135,7 @@ static int test_editor_syntax_activation_for_html_js_and_css_files(void) {
 
 	char js_path[] = "/tmp/rotide-test-syntax-js-XXXXXX.js";
 	ASSERT_TRUE(write_fixture_to_temp_path(js_path, 3,
-			"tests/syntax/supported/javascript/activation.js"));
+	                                       "tests/syntax/supported/javascript/activation.js"));
 	editorOpen(js_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
 	ASSERT_TRUE(editorSyntaxTreeExists());
@@ -145,25 +143,25 @@ static int test_editor_syntax_activation_for_html_js_and_css_files(void) {
 
 	char mjs_path[] = "/tmp/rotide-test-syntax-mjs-XXXXXX.mjs";
 	ASSERT_TRUE(write_fixture_to_temp_path(mjs_path, 4,
-			"tests/syntax/supported/javascript/module.mjs"));
+	                                       "tests/syntax/supported/javascript/module.mjs"));
 	editorOpen(mjs_path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, editorSyntaxLanguageActive());
 
 	char cjs_path[] = "/tmp/rotide-test-syntax-cjs-XXXXXX.cjs";
 	ASSERT_TRUE(write_fixture_to_temp_path(cjs_path, 4,
-			"tests/syntax/supported/javascript/commonjs.cjs"));
+	                                       "tests/syntax/supported/javascript/commonjs.cjs"));
 	editorOpen(cjs_path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, editorSyntaxLanguageActive());
 
 	char jsx_path[] = "/tmp/rotide-test-syntax-jsx-XXXXXX.jsx";
 	ASSERT_TRUE(write_fixture_to_temp_path(jsx_path, 4,
-			"tests/syntax/supported/javascript/component.jsx"));
+	                                       "tests/syntax/supported/javascript/component.jsx"));
 	editorOpen(jsx_path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, editorSyntaxLanguageActive());
 
 	char css_path[] = "/tmp/rotide-test-syntax-css-XXXXXX.css";
 	ASSERT_TRUE(write_fixture_to_temp_path(css_path, 4,
-			"tests/syntax/supported/css/activation.css"));
+	                                       "tests/syntax/supported/css/activation.css"));
 	editorOpen(css_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
 	ASSERT_TRUE(editorSyntaxTreeExists());
@@ -171,7 +169,7 @@ static int test_editor_syntax_activation_for_html_js_and_css_files(void) {
 
 	char scss_path[] = "/tmp/rotide-test-syntax-scss-XXXXXX.scss";
 	ASSERT_TRUE(write_fixture_to_temp_path(scss_path, 5,
-			"tests/syntax/supported/css/activation.scss"));
+	                                       "tests/syntax/supported/css/activation.scss"));
 	editorOpen(scss_path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_CSS, editorSyntaxLanguageActive());
 
@@ -190,7 +188,7 @@ static int test_editor_syntax_activation_for_html_js_and_css_files(void) {
 static int test_editor_syntax_activation_for_json_files(void) {
 	char json_path[] = "/tmp/rotide-test-syntax-json-XXXXXX.json";
 	ASSERT_TRUE(write_fixture_to_temp_path(json_path, 5,
-			"tests/syntax/supported/json/activation.json"));
+	                                       "tests/syntax/supported/json/activation.json"));
 
 	editorOpen(json_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -201,7 +199,7 @@ static int test_editor_syntax_activation_for_json_files(void) {
 
 	char jsonc_path[] = "/tmp/rotide-test-syntax-jsonc-XXXXXX.jsonc";
 	ASSERT_TRUE(write_fixture_to_temp_path(jsonc_path, 6,
-			"tests/syntax/supported/json/activation.json"));
+	                                       "tests/syntax/supported/json/activation.json"));
 	editorOpen(jsonc_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
 	ASSERT_TRUE(editorSyntaxTreeExists());
@@ -215,7 +213,7 @@ static int test_editor_syntax_activation_for_json_files(void) {
 static int test_editor_syntax_activation_for_typescript_files(void) {
 	char ts_path[] = "/tmp/rotide-test-syntax-ts-XXXXXX.ts";
 	ASSERT_TRUE(write_fixture_to_temp_path(ts_path, 3,
-			"tests/syntax/supported/typescript/activation.ts"));
+	                                       "tests/syntax/supported/typescript/activation.ts"));
 
 	editorOpen(ts_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -231,7 +229,7 @@ static int test_editor_syntax_activation_for_typescript_files(void) {
 static int test_editor_syntax_activation_for_tsx_files(void) {
 	char tsx_path[] = "/tmp/rotide-test-syntax-tsx-XXXXXX.tsx";
 	ASSERT_TRUE(write_fixture_to_temp_path(tsx_path, 4,
-			"tests/syntax/supported/tsx/activation.tsx"));
+	                                       "tests/syntax/supported/tsx/activation.tsx"));
 
 	editorOpen(tsx_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -247,7 +245,7 @@ static int test_editor_syntax_activation_for_tsx_files(void) {
 static int test_editor_syntax_activation_for_python_files_and_shebang(void) {
 	char py_path[] = "/tmp/rotide-test-syntax-py-XXXXXX.py";
 	ASSERT_TRUE(write_fixture_to_temp_path(py_path, 3,
-			"tests/syntax/supported/python/activation.py"));
+	                                       "tests/syntax/supported/python/activation.py"));
 
 	editorOpen(py_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -258,7 +256,7 @@ static int test_editor_syntax_activation_for_python_files_and_shebang(void) {
 
 	char pyi_path[] = "/tmp/rotide-test-syntax-pyi-XXXXXX.pyi";
 	ASSERT_TRUE(write_fixture_to_temp_path(pyi_path, 4,
-			"tests/syntax/supported/python/activation.pyi"));
+	                                       "tests/syntax/supported/python/activation.pyi"));
 	editorOpen(pyi_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
 	ASSERT_TRUE(editorSyntaxTreeExists());
@@ -266,13 +264,13 @@ static int test_editor_syntax_activation_for_python_files_and_shebang(void) {
 
 	char pyw_path[] = "/tmp/rotide-test-syntax-pyw-XXXXXX.pyw";
 	ASSERT_TRUE(write_fixture_to_temp_path(pyw_path, 4,
-			"tests/syntax/supported/python/activation.pyw"));
+	                                       "tests/syntax/supported/python/activation.pyw"));
 	editorOpen(pyw_path);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_PYTHON, editorSyntaxLanguageActive());
 
 	char shebang_path[] = "/tmp/rotide-test-syntax-py-shebang-XXXXXX";
-	ASSERT_TRUE(write_fixture_to_temp_path(shebang_path, 0,
-			"tests/syntax/supported/python/extensionless_shebang"));
+	ASSERT_TRUE(write_fixture_to_temp_path(
+	        shebang_path, 0, "tests/syntax/supported/python/extensionless_shebang"));
 
 	ASSERT_TRUE(editorTabsInit());
 	editorOpen(shebang_path);
@@ -290,7 +288,7 @@ static int test_editor_syntax_activation_for_python_files_and_shebang(void) {
 static int test_editor_syntax_activation_for_php_files_and_shebang(void) {
 	char php_path[] = "/tmp/rotide-test-syntax-php-XXXXXX.php";
 	ASSERT_TRUE(write_fixture_to_temp_path(php_path, 4,
-			"tests/syntax/supported/php/activation.php"));
+	                                       "tests/syntax/supported/php/activation.php"));
 
 	editorOpen(php_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -301,7 +299,7 @@ static int test_editor_syntax_activation_for_php_files_and_shebang(void) {
 
 	char phtml_path[] = "/tmp/rotide-test-syntax-phtml-XXXXXX.phtml";
 	ASSERT_TRUE(write_fixture_to_temp_path(phtml_path, 6,
-			"tests/syntax/supported/php/activation.phtml"));
+	                                       "tests/syntax/supported/php/activation.phtml"));
 	editorOpen(phtml_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
 	ASSERT_TRUE(editorSyntaxTreeExists());
@@ -309,7 +307,7 @@ static int test_editor_syntax_activation_for_php_files_and_shebang(void) {
 
 	char shebang_path[] = "/tmp/rotide-test-syntax-php-shebang-XXXXXX";
 	ASSERT_TRUE(write_fixture_to_temp_path(shebang_path, 0,
-			"tests/syntax/supported/php/extensionless_shebang"));
+	                                       "tests/syntax/supported/php/extensionless_shebang"));
 
 	ASSERT_TRUE(editorTabsInit());
 	editorOpen(shebang_path);
@@ -326,7 +324,7 @@ static int test_editor_syntax_activation_for_php_files_and_shebang(void) {
 static int test_editor_syntax_activation_for_rust_files(void) {
 	char rs_path[] = "/tmp/rotide-test-syntax-rs-XXXXXX.rs";
 	ASSERT_TRUE(write_fixture_to_temp_path(rs_path, 3,
-			"tests/syntax/supported/rust/activation.rs"));
+	                                       "tests/syntax/supported/rust/activation.rs"));
 
 	editorOpen(rs_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -342,7 +340,7 @@ static int test_editor_syntax_activation_for_rust_files(void) {
 static int test_editor_syntax_activation_for_java_files(void) {
 	char java_path[] = "/tmp/rotide-test-syntax-java-XXXXXX.java";
 	ASSERT_TRUE(write_fixture_to_temp_path(java_path, 5,
-			"tests/syntax/supported/java/activation.java"));
+	                                       "tests/syntax/supported/java/activation.java"));
 
 	editorOpen(java_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -358,7 +356,7 @@ static int test_editor_syntax_activation_for_java_files(void) {
 static int test_editor_syntax_activation_for_csharp_files(void) {
 	char cs_path[] = "/tmp/rotide-test-syntax-csharp-XXXXXX.cs";
 	ASSERT_TRUE(write_fixture_to_temp_path(cs_path, 3,
-			"tests/syntax/supported/csharp/activation.cs"));
+	                                       "tests/syntax/supported/csharp/activation.cs"));
 
 	editorOpen(cs_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -374,7 +372,7 @@ static int test_editor_syntax_activation_for_csharp_files(void) {
 static int test_editor_syntax_activation_for_haskell_files(void) {
 	char hs_path[] = "/tmp/rotide-test-syntax-haskell-XXXXXX.hs";
 	ASSERT_TRUE(write_fixture_to_temp_path(hs_path, 3,
-			"tests/syntax/supported/haskell/activation.hs"));
+	                                       "tests/syntax/supported/haskell/activation.hs"));
 
 	editorOpen(hs_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -390,7 +388,7 @@ static int test_editor_syntax_activation_for_haskell_files(void) {
 static int test_editor_syntax_activation_for_ruby_files(void) {
 	char rb_path[] = "/tmp/rotide-test-syntax-ruby-XXXXXX.rb";
 	ASSERT_TRUE(write_fixture_to_temp_path(rb_path, 3,
-			"tests/syntax/supported/ruby/activation.rb"));
+	                                       "tests/syntax/supported/ruby/activation.rb"));
 
 	editorOpen(rb_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -406,7 +404,7 @@ static int test_editor_syntax_activation_for_ruby_files(void) {
 static int test_editor_syntax_activation_for_ocaml_files(void) {
 	char ml_path[] = "/tmp/rotide-test-syntax-ocaml-XXXXXX.ml";
 	ASSERT_TRUE(write_fixture_to_temp_path(ml_path, 3,
-			"tests/syntax/supported/ocaml/activation.ml"));
+	                                       "tests/syntax/supported/ocaml/activation.ml"));
 
 	editorOpen(ml_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -422,7 +420,7 @@ static int test_editor_syntax_activation_for_ocaml_files(void) {
 static int test_editor_syntax_activation_for_markdown_files(void) {
 	char path[] = "/tmp/rotide-test-syntax-markdown-XXXXXX.md";
 	ASSERT_TRUE(write_fixture_to_temp_path(path, 3,
-			"tests/syntax/supported/markdown/activation.md"));
+	                                       "tests/syntax/supported/markdown/activation.md"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -437,8 +435,8 @@ static int test_editor_syntax_activation_for_markdown_files(void) {
 
 static int test_editor_syntax_activation_for_toml_files(void) {
 	char path[] = "/tmp/rotide-test-syntax-toml-XXXXXX.toml";
-	ASSERT_TRUE(write_fixture_to_temp_path(path, 5,
-			"tests/syntax/supported/toml/activation.toml"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 5, "tests/syntax/supported/toml/activation.toml"));
 
 	editorOpen(path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -449,7 +447,7 @@ static int test_editor_syntax_activation_for_toml_files(void) {
 
 	char example_path[] = "/tmp/rotide-test-syntax-toml-example-XXXXXX.toml.example";
 	ASSERT_TRUE(write_fixture_to_temp_path(example_path, 13,
-			"tests/syntax/supported/toml/activation.toml"));
+	                                       "tests/syntax/supported/toml/activation.toml"));
 
 	editorOpen(example_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -466,7 +464,7 @@ static int test_editor_syntax_activation_for_toml_files(void) {
 static int test_editor_syntax_activation_for_yaml_files(void) {
 	char yaml_path[] = "/tmp/rotide-test-syntax-yaml-XXXXXX.yaml";
 	ASSERT_TRUE(write_fixture_to_temp_path(yaml_path, 5,
-			"tests/syntax/supported/yaml/activation.yaml"));
+	                                       "tests/syntax/supported/yaml/activation.yaml"));
 
 	editorOpen(yaml_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -477,7 +475,7 @@ static int test_editor_syntax_activation_for_yaml_files(void) {
 
 	char yml_path[] = "/tmp/rotide-test-syntax-yml-XXXXXX.yml";
 	ASSERT_TRUE(write_fixture_to_temp_path(yml_path, 4,
-			"tests/syntax/supported/yaml/activation.yaml"));
+	                                       "tests/syntax/supported/yaml/activation.yaml"));
 
 	editorOpen(yml_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -486,10 +484,9 @@ static int test_editor_syntax_activation_for_yaml_files(void) {
 	ASSERT_TRUE(editorSyntaxRootType() != NULL);
 	ASSERT_EQ_STR("stream", editorSyntaxRootType());
 
-	char yaml_example_path[] =
-			"/tmp/rotide-test-syntax-yaml-example-XXXXXX.yaml.example";
+	char yaml_example_path[] = "/tmp/rotide-test-syntax-yaml-example-XXXXXX.yaml.example";
 	ASSERT_TRUE(write_fixture_to_temp_path(yaml_example_path, 13,
-			"tests/syntax/supported/yaml/activation.yaml"));
+	                                       "tests/syntax/supported/yaml/activation.yaml"));
 
 	editorOpen(yaml_example_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -498,10 +495,9 @@ static int test_editor_syntax_activation_for_yaml_files(void) {
 	ASSERT_TRUE(editorSyntaxRootType() != NULL);
 	ASSERT_EQ_STR("stream", editorSyntaxRootType());
 
-	char yml_example_path[] =
-			"/tmp/rotide-test-syntax-yml-example-XXXXXX.yml.example";
+	char yml_example_path[] = "/tmp/rotide-test-syntax-yml-example-XXXXXX.yml.example";
 	ASSERT_TRUE(write_fixture_to_temp_path(yml_example_path, 12,
-			"tests/syntax/supported/yaml/activation.yaml"));
+	                                       "tests/syntax/supported/yaml/activation.yaml"));
 
 	editorOpen(yml_example_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -520,7 +516,7 @@ static int test_editor_syntax_activation_for_yaml_files(void) {
 static int test_editor_syntax_activation_for_xml_files(void) {
 	char xml_path[] = "/tmp/rotide-test-syntax-xml-XXXXXX.xml";
 	ASSERT_TRUE(write_fixture_to_temp_path(xml_path, 4,
-			"tests/syntax/supported/xml/activation.xml"));
+	                                       "tests/syntax/supported/xml/activation.xml"));
 
 	editorOpen(xml_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -531,7 +527,7 @@ static int test_editor_syntax_activation_for_xml_files(void) {
 
 	char svg_path[] = "/tmp/rotide-test-syntax-svg-XXXXXX.svg";
 	ASSERT_TRUE(write_fixture_to_temp_path(svg_path, 4,
-			"tests/syntax/supported/xml/activation.xml"));
+	                                       "tests/syntax/supported/xml/activation.xml"));
 
 	editorOpen(svg_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -548,7 +544,7 @@ static int test_editor_syntax_activation_for_xml_files(void) {
 static int test_editor_syntax_activation_for_make_files(void) {
 	char mk_path[] = "/tmp/rotide-test-syntax-make-XXXXXX.mk";
 	ASSERT_TRUE(write_fixture_to_temp_path(mk_path, 3,
-			"tests/syntax/supported/make/activation.mk"));
+	                                       "tests/syntax/supported/make/activation.mk"));
 
 	editorOpen(mk_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -563,8 +559,8 @@ static int test_editor_syntax_activation_for_make_files(void) {
 
 	char makefile_path[512];
 	ASSERT_TRUE(path_join(makefile_path, sizeof(makefile_path), make_dir, "Makefile"));
-	ASSERT_TRUE(copyTestFixtureToPath(
-				"tests/syntax/supported/make/activation.mk", makefile_path));
+	ASSERT_TRUE(
+	        copyTestFixtureToPath("tests/syntax/supported/make/activation.mk", makefile_path));
 
 	editorOpen(makefile_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -582,7 +578,7 @@ static int test_editor_syntax_activation_for_make_files(void) {
 static int test_editor_syntax_activation_for_diff_files(void) {
 	char diff_path[] = "/tmp/rotide-test-syntax-diff-XXXXXX.diff";
 	ASSERT_TRUE(write_fixture_to_temp_path(diff_path, 5,
-			"tests/syntax/supported/diff/activation.diff"));
+	                                       "tests/syntax/supported/diff/activation.diff"));
 
 	editorOpen(diff_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -593,7 +589,7 @@ static int test_editor_syntax_activation_for_diff_files(void) {
 
 	char patch_path[] = "/tmp/rotide-test-syntax-patch-XXXXXX.patch";
 	ASSERT_TRUE(write_fixture_to_temp_path(patch_path, 6,
-			"tests/syntax/supported/diff/activation.diff"));
+	                                       "tests/syntax/supported/diff/activation.diff"));
 
 	editorOpen(patch_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -608,14 +604,13 @@ static int test_editor_syntax_activation_for_diff_files(void) {
 }
 
 static int test_editor_syntax_git_diff_tab_uses_diff_language(void) {
-	const char *diff_text =
-			"diff --git a/src/app.c b/src/app.c\n"
-			"index 1111111..2222222 100644\n"
-			"--- a/src/app.c\n"
-			"+++ b/src/app.c\n"
-			"@@ -1,2 +1,2 @@\n"
-			"-old line\n"
-			"+new line\n";
+	const char *diff_text = "diff --git a/src/app.c b/src/app.c\n"
+	                        "index 1111111..2222222 100644\n"
+	                        "--- a/src/app.c\n"
+	                        "+++ b/src/app.c\n"
+	                        "@@ -1,2 +1,2 @@\n"
+	                        "-old line\n"
+	                        "+new line\n";
 
 	ASSERT_TRUE(editorTabsInit());
 	ASSERT_TRUE(editorTabOpenGitDiff("git diff: src/app.c", diff_text));
@@ -632,7 +627,7 @@ static int test_editor_syntax_git_diff_tab_uses_diff_language(void) {
 static int test_editor_syntax_activation_for_julia_files(void) {
 	char jl_path[] = "/tmp/rotide-test-syntax-julia-XXXXXX.jl";
 	ASSERT_TRUE(write_fixture_to_temp_path(jl_path, 3,
-			"tests/syntax/supported/julia/activation.jl"));
+	                                       "tests/syntax/supported/julia/activation.jl"));
 
 	editorOpen(jl_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -648,7 +643,7 @@ static int test_editor_syntax_activation_for_julia_files(void) {
 static int test_editor_syntax_activation_for_scala_files(void) {
 	char scala_path[] = "/tmp/rotide-test-syntax-scala-XXXXXX.scala";
 	ASSERT_TRUE(write_fixture_to_temp_path(scala_path, 6,
-			"tests/syntax/supported/scala/activation.scala"));
+	                                       "tests/syntax/supported/scala/activation.scala"));
 
 	editorOpen(scala_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -664,7 +659,7 @@ static int test_editor_syntax_activation_for_scala_files(void) {
 static int test_editor_syntax_activation_for_ejs_files(void) {
 	char ejs_path[] = "/tmp/rotide-test-syntax-ejs-XXXXXX.ejs";
 	ASSERT_TRUE(write_fixture_to_temp_path(ejs_path, 4,
-			"tests/syntax/supported/ejs/activation.ejs"));
+	                                       "tests/syntax/supported/ejs/activation.ejs"));
 
 	editorOpen(ejs_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -680,7 +675,7 @@ static int test_editor_syntax_activation_for_ejs_files(void) {
 static int test_editor_syntax_activation_for_erb_files(void) {
 	char erb_path[] = "/tmp/rotide-test-syntax-erb-XXXXXX.erb";
 	ASSERT_TRUE(write_fixture_to_temp_path(erb_path, 4,
-			"tests/syntax/supported/erb/activation.erb"));
+	                                       "tests/syntax/supported/erb/activation.erb"));
 
 	editorOpen(erb_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -696,7 +691,7 @@ static int test_editor_syntax_activation_for_erb_files(void) {
 static int test_editor_syntax_activation_for_regex_files(void) {
 	char regex_path[] = "/tmp/rotide-test-syntax-regex-XXXXXX.regex";
 	ASSERT_TRUE(write_fixture_to_temp_path(regex_path, 6,
-			"tests/syntax/supported/regex/activation.regex"));
+	                                       "tests/syntax/supported/regex/activation.regex"));
 
 	editorOpen(regex_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -711,8 +706,8 @@ static int test_editor_syntax_activation_for_regex_files(void) {
 
 static int test_editor_syntax_activation_for_go_and_mod_files(void) {
 	char go_path[] = "/tmp/rotide-test-syntax-go-XXXXXX.go";
-	ASSERT_TRUE(write_fixture_to_temp_path(go_path, 3,
-			"tests/syntax/supported/go/activation.go"));
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(go_path, 3, "tests/syntax/supported/go/activation.go"));
 
 	editorOpen(go_path);
 	ASSERT_TRUE(editorSyntaxEnabled());
@@ -990,39 +985,53 @@ static int test_editor_save_as_web_and_plain_updates_syntax(void) {
 }
 
 const struct editorTestCase g_syntax_activation_tests[] = {
-	{"editor_syntax_activation_for_c_and_h_files", test_editor_syntax_activation_for_c_and_h_files},
-	{"editor_syntax_activation_for_shell_files_and_shebang", test_editor_syntax_activation_for_shell_files_and_shebang},
-	{"editor_syntax_activation_for_html_js_and_css_files", test_editor_syntax_activation_for_html_js_and_css_files},
-	{"editor_syntax_activation_for_json_files", test_editor_syntax_activation_for_json_files},
-	{"editor_syntax_activation_for_typescript_files", test_editor_syntax_activation_for_typescript_files},
-	{"editor_syntax_activation_for_tsx_files", test_editor_syntax_activation_for_tsx_files},
-	{"editor_syntax_activation_for_python_files_and_shebang", test_editor_syntax_activation_for_python_files_and_shebang},
-	{"editor_syntax_activation_for_php_files_and_shebang", test_editor_syntax_activation_for_php_files_and_shebang},
-	{"editor_syntax_activation_for_rust_files", test_editor_syntax_activation_for_rust_files},
-	{"editor_syntax_activation_for_java_files", test_editor_syntax_activation_for_java_files},
-	{"editor_syntax_activation_for_csharp_files", test_editor_syntax_activation_for_csharp_files},
-	{"editor_syntax_activation_for_haskell_files", test_editor_syntax_activation_for_haskell_files},
-	{"editor_syntax_activation_for_ruby_files", test_editor_syntax_activation_for_ruby_files},
-	{"editor_syntax_activation_for_ocaml_files", test_editor_syntax_activation_for_ocaml_files},
-	{"editor_syntax_activation_for_markdown_files", test_editor_syntax_activation_for_markdown_files},
-	{"editor_syntax_activation_for_toml_files", test_editor_syntax_activation_for_toml_files},
-	{"editor_syntax_activation_for_yaml_files", test_editor_syntax_activation_for_yaml_files},
-	{"editor_syntax_activation_for_xml_files", test_editor_syntax_activation_for_xml_files},
-	{"editor_syntax_activation_for_make_files", test_editor_syntax_activation_for_make_files},
-	{"editor_syntax_activation_for_diff_files", test_editor_syntax_activation_for_diff_files},
-	{"editor_syntax_git_diff_tab_uses_diff_language", test_editor_syntax_git_diff_tab_uses_diff_language},
-	{"editor_syntax_activation_for_julia_files", test_editor_syntax_activation_for_julia_files},
-	{"editor_syntax_activation_for_scala_files", test_editor_syntax_activation_for_scala_files},
-	{"editor_syntax_activation_for_ejs_files", test_editor_syntax_activation_for_ejs_files},
-	{"editor_syntax_activation_for_erb_files", test_editor_syntax_activation_for_erb_files},
-	{"editor_syntax_activation_for_regex_files", test_editor_syntax_activation_for_regex_files},
-	{"editor_syntax_activation_for_go_and_mod_files", test_editor_syntax_activation_for_go_and_mod_files},
-	{"editor_syntax_disabled_for_non_c_or_shell_files", test_editor_syntax_disabled_for_non_c_or_shell_files},
-	{"editor_save_as_c_file_enables_syntax", test_editor_save_as_c_file_enables_syntax},
-	{"editor_save_as_go_file_enables_syntax", test_editor_save_as_go_file_enables_syntax},
-	{"editor_save_as_shell_and_non_shell_updates_syntax", test_editor_save_as_shell_and_non_shell_updates_syntax},
-	{"editor_save_as_web_and_plain_updates_syntax", test_editor_save_as_web_and_plain_updates_syntax},
+        {"editor_syntax_activation_for_c_and_h_files",
+         test_editor_syntax_activation_for_c_and_h_files},
+        {"editor_syntax_activation_for_shell_files_and_shebang",
+         test_editor_syntax_activation_for_shell_files_and_shebang},
+        {"editor_syntax_activation_for_html_js_and_css_files",
+         test_editor_syntax_activation_for_html_js_and_css_files},
+        {"editor_syntax_activation_for_json_files", test_editor_syntax_activation_for_json_files},
+        {"editor_syntax_activation_for_typescript_files",
+         test_editor_syntax_activation_for_typescript_files},
+        {"editor_syntax_activation_for_tsx_files", test_editor_syntax_activation_for_tsx_files},
+        {"editor_syntax_activation_for_python_files_and_shebang",
+         test_editor_syntax_activation_for_python_files_and_shebang},
+        {"editor_syntax_activation_for_php_files_and_shebang",
+         test_editor_syntax_activation_for_php_files_and_shebang},
+        {"editor_syntax_activation_for_rust_files", test_editor_syntax_activation_for_rust_files},
+        {"editor_syntax_activation_for_java_files", test_editor_syntax_activation_for_java_files},
+        {"editor_syntax_activation_for_csharp_files",
+         test_editor_syntax_activation_for_csharp_files},
+        {"editor_syntax_activation_for_haskell_files",
+         test_editor_syntax_activation_for_haskell_files},
+        {"editor_syntax_activation_for_ruby_files", test_editor_syntax_activation_for_ruby_files},
+        {"editor_syntax_activation_for_ocaml_files", test_editor_syntax_activation_for_ocaml_files},
+        {"editor_syntax_activation_for_markdown_files",
+         test_editor_syntax_activation_for_markdown_files},
+        {"editor_syntax_activation_for_toml_files", test_editor_syntax_activation_for_toml_files},
+        {"editor_syntax_activation_for_yaml_files", test_editor_syntax_activation_for_yaml_files},
+        {"editor_syntax_activation_for_xml_files", test_editor_syntax_activation_for_xml_files},
+        {"editor_syntax_activation_for_make_files", test_editor_syntax_activation_for_make_files},
+        {"editor_syntax_activation_for_diff_files", test_editor_syntax_activation_for_diff_files},
+        {"editor_syntax_git_diff_tab_uses_diff_language",
+         test_editor_syntax_git_diff_tab_uses_diff_language},
+        {"editor_syntax_activation_for_julia_files", test_editor_syntax_activation_for_julia_files},
+        {"editor_syntax_activation_for_scala_files", test_editor_syntax_activation_for_scala_files},
+        {"editor_syntax_activation_for_ejs_files", test_editor_syntax_activation_for_ejs_files},
+        {"editor_syntax_activation_for_erb_files", test_editor_syntax_activation_for_erb_files},
+        {"editor_syntax_activation_for_regex_files", test_editor_syntax_activation_for_regex_files},
+        {"editor_syntax_activation_for_go_and_mod_files",
+         test_editor_syntax_activation_for_go_and_mod_files},
+        {"editor_syntax_disabled_for_non_c_or_shell_files",
+         test_editor_syntax_disabled_for_non_c_or_shell_files},
+        {"editor_save_as_c_file_enables_syntax", test_editor_save_as_c_file_enables_syntax},
+        {"editor_save_as_go_file_enables_syntax", test_editor_save_as_go_file_enables_syntax},
+        {"editor_save_as_shell_and_non_shell_updates_syntax",
+         test_editor_save_as_shell_and_non_shell_updates_syntax},
+        {"editor_save_as_web_and_plain_updates_syntax",
+         test_editor_save_as_web_and_plain_updates_syntax},
 };
 
 const int g_syntax_activation_test_count =
-		(int)(sizeof(g_syntax_activation_tests) / sizeof(g_syntax_activation_tests[0]));
+        (int)(sizeof(g_syntax_activation_tests) / sizeof(g_syntax_activation_tests[0]));

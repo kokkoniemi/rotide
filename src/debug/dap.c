@@ -1,8 +1,8 @@
 #include "debug/dap.h"
 
+#include "config/dap_config.h"
 #include "debug/dap_client.h"
 #include "debug/dap_console.h"
-#include "config/dap_config.h"
 #include "editing/edit.h"
 #include "language/lsp_protocol.h"
 #include "language/lsp_transport.h"
@@ -21,7 +21,7 @@
 
 #define ROTIDE_DAP_IO_TIMEOUT_MS 2500
 
-struct editorDapClient {
+struct dapClient {
 	pid_t pid;
 	int to_adapter_fd;
 	int from_adapter_fd;
@@ -29,15 +29,15 @@ struct editorDapClient {
 	int initialized;
 };
 
-static struct editorDapClient g_dap_client = {
-	.pid = 0,
-	.to_adapter_fd = -1,
-	.from_adapter_fd = -1,
-	.next_seq = 1,
-	.initialized = 0,
+static struct dapClient g_dap_client = {
+        .pid = 0,
+        .to_adapter_fd = -1,
+        .from_adapter_fd = -1,
+        .next_seq = 1,
+        .initialized = 0,
 };
 
-static void editorDapClientReset(void) {
+static void dapClientReset(void) {
 	g_dap_client.pid = 0;
 	g_dap_client.to_adapter_fd = -1;
 	g_dap_client.from_adapter_fd = -1;
@@ -51,7 +51,7 @@ static void editorDapClientReset(void) {
 	E.dap_variable_count = 0;
 }
 
-static void editorDapAppendOutput(const char *text) {
+static void dapAppendOutput(const char *text) {
 	if (text == NULL || text[0] == '\0') {
 		return;
 	}
@@ -71,62 +71,61 @@ static void editorDapAppendOutput(const char *text) {
 	E.dap_output[E.dap_output_len] = '\0';
 }
 
-static int editorDapSendRequest(char *json) {
+static int dapSendRequest(char *json) {
 	return editorDapClientSendRequest(g_dap_client.to_adapter_fd, json);
 }
 
-static int editorDapAppendJsonEscapedRaw(struct editorLspString *sb,
-		const char *text, size_t len) {
+static int dapAppendJsonEscapedRaw(struct editorLspString *sb, const char *text, size_t len) {
 	for (size_t i = 0; i < len; i++) {
 		unsigned char ch = (unsigned char)text[i];
 		switch (ch) {
-		case '"':
-			if (!editorLspStringAppend(sb, "\\\"")) {
-				return 0;
-			}
-			break;
-		case '\\':
-			if (!editorLspStringAppend(sb, "\\\\")) {
-				return 0;
-			}
-			break;
-		case '\n':
-			if (!editorLspStringAppend(sb, "\\n")) {
-				return 0;
-			}
-			break;
-		case '\r':
-			if (!editorLspStringAppend(sb, "\\r")) {
-				return 0;
-			}
-			break;
-		case '\t':
-			if (!editorLspStringAppend(sb, "\\t")) {
-				return 0;
-			}
-			break;
-		default:
-			if (ch < 0x20) {
-				if (!editorLspStringAppendf(sb, "\\u%04x", (unsigned int)ch)) {
+			case '"':
+				if (!editorLspStringAppend(sb, "\\\"")) {
 					return 0;
 				}
-			} else if (!editorLspStringAppendf(sb, "%c", ch)) {
-				return 0;
-			}
-			break;
+				break;
+			case '\\':
+				if (!editorLspStringAppend(sb, "\\\\")) {
+					return 0;
+				}
+				break;
+			case '\n':
+				if (!editorLspStringAppend(sb, "\\n")) {
+					return 0;
+				}
+				break;
+			case '\r':
+				if (!editorLspStringAppend(sb, "\\r")) {
+					return 0;
+				}
+				break;
+			case '\t':
+				if (!editorLspStringAppend(sb, "\\t")) {
+					return 0;
+				}
+				break;
+			default:
+				if (ch < 0x20) {
+					if (!editorLspStringAppendf(sb, "\\u%04x",
+					                            (unsigned int)ch)) {
+						return 0;
+					}
+				} else if (!editorLspStringAppendf(sb, "%c", ch)) {
+					return 0;
+				}
+				break;
 		}
 	}
 	return 1;
 }
 
-static int editorDapAppendJsonString(struct editorLspString *sb, const char *text) {
+static int dapAppendJsonString(struct editorLspString *sb, const char *text) {
 	const char *safe = text != NULL ? text : "";
-	return editorLspStringAppend(sb, "\"") &&
-			editorDapAppendJsonEscapedRaw(sb, safe, strlen(safe)) &&
-			editorLspStringAppend(sb, "\"");
+	return editorLspStringAppend(sb, "\"") && dapAppendJsonEscapedRaw(sb, safe, strlen(safe)) &&
+	       editorLspStringAppend(sb, "\"");
 }
 
-static int editorDapJsonStringField(const char *json, const char *field, char *buf, size_t bufsize) {
+static int dapJsonStringField(const char *json, const char *field, char *buf, size_t bufsize) {
 	char *value = NULL;
 	if (!editorLspFindStringField(json, field, &value) || value == NULL) {
 		return 0;
@@ -138,14 +137,15 @@ static int editorDapJsonStringField(const char *json, const char *field, char *b
 
 char *editorDapBuildInitializeRequestJson(int seq, const char *adapter_id) {
 	struct editorLspString sb = {0};
-	if (!editorLspStringAppendf(&sb,
-				"{\"seq\":%d,\"type\":\"request\",\"command\":\"initialize\","
-				"\"arguments\":{\"clientID\":\"rotide\",\"clientName\":\"RotIDE\","
-				"\"adapterID\":", seq) ||
-			!editorDapAppendJsonString(&sb, adapter_id) ||
-			!editorLspStringAppend(&sb,
-					",\"pathFormat\":\"path\",\"linesStartAt1\":true,"
-					"\"columnsStartAt1\":true}}")) {
+	if (!editorLspStringAppendf(
+	            &sb,
+	            "{\"seq\":%d,\"type\":\"request\",\"command\":\"initialize\","
+	            "\"arguments\":{\"clientID\":\"rotide\",\"clientName\":\"RotIDE\","
+	            "\"adapterID\":",
+	            seq) ||
+	    !dapAppendJsonString(&sb, adapter_id) ||
+	    !editorLspStringAppend(&sb, ",\"pathFormat\":\"path\",\"linesStartAt1\":true,"
+	                                "\"columnsStartAt1\":true}}")) {
 		free(sb.buf);
 		return NULL;
 	}
@@ -154,18 +154,16 @@ char *editorDapBuildInitializeRequestJson(int seq, const char *adapter_id) {
 
 char *editorDapBuildSimpleCommandRequestJson(int seq, const char *command) {
 	struct editorLspString sb = {0};
-	if (!editorLspStringAppendf(&sb, "{\"seq\":%d,\"type\":\"request\",\"command\":",
-				seq) ||
-			!editorDapAppendJsonString(&sb, command) ||
-			!editorLspStringAppend(&sb, "}")) {
+	if (!editorLspStringAppendf(&sb, "{\"seq\":%d,\"type\":\"request\",\"command\":", seq) ||
+	    !dapAppendJsonString(&sb, command) || !editorLspStringAppend(&sb, "}")) {
 		free(sb.buf);
 		return NULL;
 	}
 	return sb.buf;
 }
 
-static int editorDapAppendSubstitutedString(struct editorLspString *sb, const char *value,
-		const char *workspace_root, const char *active_file) {
+static int dapAppendSubstitutedString(struct editorLspString *sb, const char *value,
+                                      const char *workspace_root, const char *active_file) {
 	char *file_dir = active_file != NULL ? editorPathDirnameDup(active_file) : NULL;
 	char *file_base = active_file != NULL ? editorPathBasenameDup(active_file) : NULL;
 	const char *p = value != NULL ? value : "";
@@ -186,7 +184,7 @@ static int editorDapAppendSubstitutedString(struct editorLspString *sb, const ch
 			token_len = 7;
 		}
 		if (replacement != NULL) {
-			if (!editorDapAppendJsonEscapedRaw(sb, replacement, strlen(replacement))) {
+			if (!dapAppendJsonEscapedRaw(sb, replacement, strlen(replacement))) {
 				free(file_dir);
 				free(file_base);
 				return 0;
@@ -194,7 +192,7 @@ static int editorDapAppendSubstitutedString(struct editorLspString *sb, const ch
 			p += token_len;
 			continue;
 		}
-		if (!editorDapAppendJsonEscapedRaw(sb, p, 1)) {
+		if (!dapAppendJsonEscapedRaw(sb, p, 1)) {
 			free(file_dir);
 			free(file_base);
 			return 0;
@@ -206,52 +204,51 @@ static int editorDapAppendSubstitutedString(struct editorLspString *sb, const ch
 	return 1;
 }
 
-static int editorDapAppendLaunchFieldJson(struct editorLspString *sb,
-		const struct editorDapLaunchField *field, const char *workspace_root,
-		const char *active_file) {
-	if (!editorDapAppendJsonString(sb, field->key) ||
-			!editorLspStringAppend(sb, ":")) {
+static int dapAppendLaunchFieldJson(struct editorLspString *sb,
+                                    const struct editorDapLaunchField *field,
+                                    const char *workspace_root, const char *active_file) {
+	if (!dapAppendJsonString(sb, field->key) || !editorLspStringAppend(sb, ":")) {
 		return 0;
 	}
 	switch (field->kind) {
-	case EDITOR_DAP_LAUNCH_VALUE_STRING:
-		return editorLspStringAppend(sb, "\"") &&
-				editorDapAppendSubstitutedString(sb, field->string_value, workspace_root,
-						active_file) &&
-				editorLspStringAppend(sb, "\"");
-	case EDITOR_DAP_LAUNCH_VALUE_BOOL:
-		return editorLspStringAppend(sb, field->bool_value ? "true" : "false");
-	case EDITOR_DAP_LAUNCH_VALUE_INT:
-		return editorLspStringAppendf(sb, "%d", field->int_value);
-	case EDITOR_DAP_LAUNCH_VALUE_STRING_ARRAY:
-		if (!editorLspStringAppend(sb, "[")) {
-			return 0;
-		}
-		for (int i = 0; i < field->array_count; i++) {
-			if (i > 0 && !editorLspStringAppend(sb, ",")) {
+		case EDITOR_DAP_LAUNCH_VALUE_STRING:
+			return editorLspStringAppend(sb, "\"") &&
+			       dapAppendSubstitutedString(sb, field->string_value, workspace_root,
+			                                  active_file) &&
+			       editorLspStringAppend(sb, "\"");
+		case EDITOR_DAP_LAUNCH_VALUE_BOOL:
+			return editorLspStringAppend(sb, field->bool_value ? "true" : "false");
+		case EDITOR_DAP_LAUNCH_VALUE_INT:
+			return editorLspStringAppendf(sb, "%d", field->int_value);
+		case EDITOR_DAP_LAUNCH_VALUE_STRING_ARRAY:
+			if (!editorLspStringAppend(sb, "[")) {
 				return 0;
 			}
-			if (!editorLspStringAppend(sb, "\"") ||
-					!editorDapAppendSubstitutedString(sb, field->array_values[i],
-							workspace_root, active_file) ||
-					!editorLspStringAppend(sb, "\"")) {
-				return 0;
+			for (int i = 0; i < field->array_count; i++) {
+				if (i > 0 && !editorLspStringAppend(sb, ",")) {
+					return 0;
+				}
+				if (!editorLspStringAppend(sb, "\"") ||
+				    !dapAppendSubstitutedString(sb, field->array_values[i],
+				                                workspace_root, active_file) ||
+				    !editorLspStringAppend(sb, "\"")) {
+					return 0;
+				}
 			}
-		}
-		return editorLspStringAppend(sb, "]");
+			return editorLspStringAppend(sb, "]");
 	}
 	return 0;
 }
 
 char *editorDapBuildLaunchRequestJson(int seq, const struct editorDapLaunchConfig *config,
-		const char *workspace_root, const char *active_file) {
+                                      const char *workspace_root, const char *active_file) {
 	if (config == NULL) {
 		return NULL;
 	}
 	struct editorLspString sb = {0};
-	if (!editorLspStringAppendf(&sb,
-				"{\"seq\":%d,\"type\":\"request\",\"command\":\"%s\",\"arguments\":{",
-				seq, config->request[0] != '\0' ? config->request : "launch")) {
+	if (!editorLspStringAppendf(
+	            &sb, "{\"seq\":%d,\"type\":\"request\",\"command\":\"%s\",\"arguments\":{", seq,
+	            config->request[0] != '\0' ? config->request : "launch")) {
 		free(sb.buf);
 		return NULL;
 	}
@@ -261,8 +258,8 @@ char *editorDapBuildLaunchRequestJson(int seq, const struct editorDapLaunchConfi
 			free(sb.buf);
 			return NULL;
 		}
-		if (!editorDapAppendLaunchFieldJson(&sb, &config->fields[i], workspace_root,
-					active_file)) {
+		if (!dapAppendLaunchFieldJson(&sb, &config->fields[i], workspace_root,
+		                              active_file)) {
 			free(sb.buf);
 			return NULL;
 		}
@@ -282,11 +279,11 @@ char *editorDapBuildLaunchRequestJson(int seq, const struct editorDapLaunchConfi
 				free(sb.buf);
 				return NULL;
 			}
-			if (!editorDapAppendJsonString(&sb, config->env[i].key) ||
-					!editorLspStringAppend(&sb, ":\"") ||
-					!editorDapAppendSubstitutedString(&sb, config->env[i].value,
-							workspace_root, active_file) ||
-					!editorLspStringAppend(&sb, "\"")) {
+			if (!dapAppendJsonString(&sb, config->env[i].key) ||
+			    !editorLspStringAppend(&sb, ":\"") ||
+			    !dapAppendSubstitutedString(&sb, config->env[i].value, workspace_root,
+			                                active_file) ||
+			    !editorLspStringAppend(&sb, "\"")) {
 				free(sb.buf);
 				return NULL;
 			}
@@ -303,13 +300,14 @@ char *editorDapBuildLaunchRequestJson(int seq, const struct editorDapLaunchConfi
 	return sb.buf;
 }
 
-static char *editorDapBuildSetBreakpointsRequestJson(int seq, const char *path) {
+static char *dapBuildSetBreakpointsRequestJson(int seq, const char *path) {
 	struct editorLspString sb = {0};
-	if (!editorLspStringAppendf(&sb,
-				"{\"seq\":%d,\"type\":\"request\",\"command\":\"setBreakpoints\","
-				"\"arguments\":{\"source\":{\"path\":", seq) ||
-			!editorDapAppendJsonString(&sb, path) ||
-			!editorLspStringAppend(&sb, "},\"breakpoints\":[")) {
+	if (!editorLspStringAppendf(
+	            &sb,
+	            "{\"seq\":%d,\"type\":\"request\",\"command\":\"setBreakpoints\","
+	            "\"arguments\":{\"source\":{\"path\":",
+	            seq) ||
+	    !dapAppendJsonString(&sb, path) || !editorLspStringAppend(&sb, "},\"breakpoints\":[")) {
 		free(sb.buf);
 		return NULL;
 	}
@@ -335,7 +333,7 @@ static char *editorDapBuildSetBreakpointsRequestJson(int seq, const char *path) 
 	return sb.buf;
 }
 
-static void editorDapSendAllBreakpoints(void) {
+static void dapSendAllBreakpoints(void) {
 	for (int i = 0; i < E.dap_breakpoint_count; i++) {
 		int seen = 0;
 		for (int j = 0; j < i; j++) {
@@ -345,8 +343,8 @@ static void editorDapSendAllBreakpoints(void) {
 			}
 		}
 		if (!seen) {
-			(void)editorDapSendRequest(editorDapBuildSetBreakpointsRequestJson(
-					g_dap_client.next_seq++, E.dap_breakpoints[i].path));
+			(void)dapSendRequest(dapBuildSetBreakpointsRequestJson(
+			        g_dap_client.next_seq++, E.dap_breakpoints[i].path));
 		}
 	}
 }
@@ -358,21 +356,20 @@ int editorDapProcessIncomingMessage(const char *message) {
 	char type[32];
 	char event[64];
 	char command[64];
-	if (editorDapJsonStringField(message, "type", type, sizeof(type)) &&
-			strcmp(type, "event") == 0 &&
-			editorDapJsonStringField(message, "event", event, sizeof(event))) {
+	if (dapJsonStringField(message, "type", type, sizeof(type)) && strcmp(type, "event") == 0 &&
+	    dapJsonStringField(message, "event", event, sizeof(event))) {
 		if (strcmp(event, "initialized") == 0) {
 			g_dap_client.initialized = 1;
-			editorDapSendAllBreakpoints();
-			(void)editorDapSendRequest(editorDapBuildSimpleCommandRequestJson(
-					g_dap_client.next_seq++, "configurationDone"));
+			dapSendAllBreakpoints();
+			(void)dapSendRequest(editorDapBuildSimpleCommandRequestJson(
+			        g_dap_client.next_seq++, "configurationDone"));
 			return 1;
 		}
 		if (strcmp(event, "stopped") == 0) {
 			E.dap_stopped = 1;
 			editorSetStatusMsg("DAP stopped");
-			(void)editorDapSendRequest(editorDapBuildSimpleCommandRequestJson(
-					g_dap_client.next_seq++, "threads"));
+			(void)dapSendRequest(editorDapBuildSimpleCommandRequestJson(
+			        g_dap_client.next_seq++, "threads"));
 			return 1;
 		}
 		if (strcmp(event, "continued") == 0) {
@@ -389,17 +386,18 @@ int editorDapProcessIncomingMessage(const char *message) {
 		}
 		if (strcmp(event, "output") == 0) {
 			char output[ROTIDE_DAP_VALUE_MAX];
-			if (editorDapJsonStringField(message, "output", output, sizeof(output))) {
-				editorDapAppendOutput(output);
+			if (dapJsonStringField(message, "output", output, sizeof(output))) {
+				dapAppendOutput(output);
 			}
 			return 1;
 		}
 		return 1;
 	}
 
-	if (editorDapJsonStringField(message, "command", command, sizeof(command))) {
+	if (dapJsonStringField(message, "command", command, sizeof(command))) {
 		if (strcmp(command, "threads") == 0) {
-			/* v1 keeps response parsing intentionally conservative; output/state still update. */
+			/* v1 keeps response parsing intentionally conservative; output/state still
+			 * update. */
 			return 1;
 		}
 	}
@@ -412,9 +410,9 @@ void editorDapPumpNotifications(void) {
 	}
 	for (;;) {
 		struct pollfd pfd = {
-			.fd = g_dap_client.from_adapter_fd,
-			.events = POLLIN,
-			.revents = 0,
+		        .fd = g_dap_client.from_adapter_fd,
+		        .events = POLLIN,
+		        .revents = 0,
 		};
 		int polled = poll(&pfd, 1, 0);
 		if (polled <= 0) {
@@ -482,15 +480,16 @@ int editorDapStartLaunch(int launch_idx) {
 	if (workspace_root == NULL) {
 		workspace_root = ".";
 	}
-	if (!editorDapSendRequest(editorDapBuildInitializeRequestJson(g_dap_client.next_seq++,
-				launch_copy.adapter)) ||
-			!editorDapSendRequest(editorDapBuildLaunchRequestJson(g_dap_client.next_seq++,
-					&launch_copy, workspace_root, E.filename))) {
+	if (!dapSendRequest(editorDapBuildInitializeRequestJson(g_dap_client.next_seq++,
+	                                                        launch_copy.adapter)) ||
+	    !dapSendRequest(editorDapBuildLaunchRequestJson(g_dap_client.next_seq++, &launch_copy,
+	                                                    workspace_root, E.filename))) {
 		editorDapShutdown();
 		editorSetStatusMsg("DAP launch request failed");
 		return 0;
 	}
-	editorSetStatusMsg("DAP launched %s", launch_copy.name[0] != '\0' ? launch_copy.name : launch_copy.id);
+	editorSetStatusMsg("DAP launched %s",
+	                   launch_copy.name[0] != '\0' ? launch_copy.name : launch_copy.id);
 	return 1;
 }
 
@@ -502,13 +501,13 @@ int editorDapStartSelectedLaunch(void) {
 	return editorDapStartLaunch(launch_idx);
 }
 
-static int editorDapSendControl(const char *command) {
+static int dapSendControl(const char *command) {
 	if (!E.dap_running || g_dap_client.to_adapter_fd == -1) {
 		editorSetStatusMsg("No DAP session running");
 		return 0;
 	}
-	if (!editorDapSendRequest(editorDapBuildSimpleCommandRequestJson(g_dap_client.next_seq++,
-				command))) {
+	if (!dapSendRequest(
+	            editorDapBuildSimpleCommandRequestJson(g_dap_client.next_seq++, command))) {
 		editorSetStatusMsg("DAP command failed");
 		return 0;
 	}
@@ -517,23 +516,23 @@ static int editorDapSendControl(const char *command) {
 
 int editorDapContinue(void) {
 	E.dap_stopped = 0;
-	return editorDapSendControl("continue");
+	return dapSendControl("continue");
 }
 
 int editorDapPause(void) {
-	return editorDapSendControl("pause");
+	return dapSendControl("pause");
 }
 
 int editorDapStepOver(void) {
-	return editorDapSendControl("next");
+	return dapSendControl("next");
 }
 
 int editorDapStepInto(void) {
-	return editorDapSendControl("stepIn");
+	return dapSendControl("stepIn");
 }
 
 int editorDapStepOut(void) {
-	return editorDapSendControl("stepOut");
+	return dapSendControl("stepOut");
 }
 
 int editorDapStop(void) {
@@ -541,7 +540,7 @@ int editorDapStop(void) {
 		editorSetStatusMsg("No DAP session running");
 		return 0;
 	}
-	(void)editorDapSendControl("disconnect");
+	(void)dapSendControl("disconnect");
 	editorDapShutdown();
 	editorSetStatusMsg("DAP stopped");
 	return 1;
@@ -553,7 +552,7 @@ int editorDapHasBreakpoint(const char *path, int line) {
 	}
 	for (int i = 0; i < E.dap_breakpoint_count; i++) {
 		if (E.dap_breakpoints[i].line == line &&
-				strcmp(E.dap_breakpoints[i].path, path) == 0) {
+		    strcmp(E.dap_breakpoints[i].path, path) == 0) {
 			return i;
 		}
 	}
@@ -574,7 +573,7 @@ int editorDapToggleBreakpointAtCursor(void) {
 		editorSetStatusMsg("Breakpoint removed");
 	} else {
 		if (E.dap_breakpoint_count >= ROTIDE_DAP_MAX_BREAKPOINTS ||
-				strlen(E.filename) >= PATH_MAX) {
+		    strlen(E.filename) >= PATH_MAX) {
 			editorSetStatusMsg("Too many DAP breakpoints");
 			return 0;
 		}
@@ -584,8 +583,8 @@ int editorDapToggleBreakpointAtCursor(void) {
 		editorSetStatusMsg("Breakpoint set");
 	}
 	if (E.dap_running) {
-		(void)editorDapSendRequest(editorDapBuildSetBreakpointsRequestJson(
-				g_dap_client.next_seq++, E.filename));
+		(void)dapSendRequest(
+		        dapBuildSetBreakpointsRequestJson(g_dap_client.next_seq++, E.filename));
 	}
 	return 1;
 }
@@ -605,6 +604,6 @@ void editorDapShutdown(void) {
 			(void)waitpid(g_dap_client.pid, &status, 0);
 		}
 	}
-	editorDapClientReset();
+	dapClientReset();
 	editorDapConsoleCloseOwnedTerminalPane();
 }

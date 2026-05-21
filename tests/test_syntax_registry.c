@@ -1,12 +1,11 @@
-#include "test_case.h"
-#include "test_helpers.h"
-
-#include <string.h>
-
 #include "language/languages.h"
 #include "language/syntax.h"
 #include "rotide.h"
+#include "test_case.h"
+#include "test_helpers.h"
 #include "tree_sitter/api.h"
+
+#include <string.h>
 
 static int test_editor_syntax_registry_has_entries(void) {
 	int count = editorSyntaxLanguageDefCount();
@@ -43,7 +42,7 @@ static int test_editor_syntax_registry_lookup_by_id_round_trips(void) {
 		const struct editorSyntaxLanguageDef *def = editorSyntaxLanguageDefAt(i);
 		ASSERT_TRUE(def != NULL);
 		const struct editorSyntaxLanguageDef *looked_up =
-				editorSyntaxLookupLanguage(def->id);
+		        editorSyntaxLookupLanguage(def->id);
 		ASSERT_TRUE(looked_up == def);
 	}
 	ASSERT_TRUE(editorSyntaxLookupLanguage(EDITOR_SYNTAX_NONE) == NULL);
@@ -72,9 +71,9 @@ static int test_editor_syntax_registry_compiles_every_query(void) {
 
 		struct editorSyntaxCapture captures[4];
 		int capture_count = 0;
-		(void)editorSyntaxStateCollectCapturesForRange(state, &source, 0, 0,
-				captures, (int)(sizeof(captures) / sizeof(captures[0])),
-				&capture_count);
+		(void)editorSyntaxStateCollectCapturesForRange(
+		        state, &source, 0, 0, captures,
+		        (int)(sizeof(captures) / sizeof(captures[0])), &capture_count);
 
 		struct editorSyntaxQueryCompileError err = {0};
 		ASSERT_TRUE(!editorSyntaxCopyLastQueryCompileError(&err));
@@ -108,9 +107,9 @@ static int test_editor_syntax_registry_compiles_every_locals_query(void) {
 
 		struct editorSyntaxCapture captures[4];
 		int capture_count = 0;
-		(void)editorSyntaxStateCollectCapturesForRange(state, &source, 0, 1,
-				captures, (int)(sizeof(captures) / sizeof(captures[0])),
-				&capture_count);
+		(void)editorSyntaxStateCollectCapturesForRange(
+		        state, &source, 0, 1, captures,
+		        (int)(sizeof(captures) / sizeof(captures[0])), &capture_count);
 
 		struct editorSyntaxQueryCompileError err = {0};
 		ASSERT_TRUE(!editorSyntaxCopyLastQueryCompileError(&err));
@@ -122,8 +121,7 @@ static int test_editor_syntax_registry_compiles_every_locals_query(void) {
 }
 
 static int test_editor_syntax_registry_lookup_by_extension(void) {
-	const struct editorSyntaxLanguageDef *def =
-			editorSyntaxLookupLanguageByExtension(".c");
+	const struct editorSyntaxLanguageDef *def = editorSyntaxLookupLanguageByExtension(".c");
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_C, (int)def->id);
 
@@ -165,7 +163,7 @@ static int test_editor_syntax_registry_lookup_by_extension(void) {
 
 static int test_editor_syntax_registry_lookup_by_basename(void) {
 	const struct editorSyntaxLanguageDef *def =
-			editorSyntaxLookupLanguageByBasename("Rakefile");
+	        editorSyntaxLookupLanguageByBasename("Rakefile");
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_RUBY, (int)def->id);
 
@@ -184,7 +182,7 @@ static int test_editor_syntax_registry_lookup_by_basename(void) {
 static int test_editor_syntax_registry_lookup_by_shebang(void) {
 	const char *python3 = "python3";
 	const struct editorSyntaxLanguageDef *def =
-			editorSyntaxLookupLanguageByShebangToken(python3, strlen(python3));
+	        editorSyntaxLookupLanguageByShebangToken(python3, strlen(python3));
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_PYTHON, (int)def->id);
 
@@ -201,7 +199,7 @@ static int test_editor_syntax_registry_lookup_by_shebang(void) {
 static int test_editor_syntax_registry_lookup_by_injection_name(void) {
 	const char *jsx = "jsx";
 	const struct editorSyntaxLanguageDef *def =
-			editorSyntaxLookupLanguageByInjectionName(jsx, strlen(jsx));
+	        editorSyntaxLookupLanguageByInjectionName(jsx, strlen(jsx));
 	ASSERT_TRUE(def != NULL);
 	ASSERT_EQ_INT(EDITOR_SYNTAX_JAVASCRIPT, (int)def->id);
 
@@ -241,16 +239,22 @@ static int test_editor_syntax_registry_lookup_by_injection_name(void) {
 }
 
 const struct editorTestCase g_syntax_registry_tests[] = {
-	{"editor_syntax_registry_has_entries", test_editor_syntax_registry_has_entries},
-	{"editor_syntax_registry_factories_succeed", test_editor_syntax_registry_factories_succeed},
-	{"editor_syntax_registry_lookup_by_id_round_trips", test_editor_syntax_registry_lookup_by_id_round_trips},
-	{"editor_syntax_registry_compiles_every_query", test_editor_syntax_registry_compiles_every_query},
-	{"editor_syntax_registry_compiles_every_locals_query", test_editor_syntax_registry_compiles_every_locals_query},
-	{"editor_syntax_registry_lookup_by_extension", test_editor_syntax_registry_lookup_by_extension},
-	{"editor_syntax_registry_lookup_by_basename", test_editor_syntax_registry_lookup_by_basename},
-	{"editor_syntax_registry_lookup_by_shebang", test_editor_syntax_registry_lookup_by_shebang},
-	{"editor_syntax_registry_lookup_by_injection_name", test_editor_syntax_registry_lookup_by_injection_name},
+        {"editor_syntax_registry_has_entries", test_editor_syntax_registry_has_entries},
+        {"editor_syntax_registry_factories_succeed", test_editor_syntax_registry_factories_succeed},
+        {"editor_syntax_registry_lookup_by_id_round_trips",
+         test_editor_syntax_registry_lookup_by_id_round_trips},
+        {"editor_syntax_registry_compiles_every_query",
+         test_editor_syntax_registry_compiles_every_query},
+        {"editor_syntax_registry_compiles_every_locals_query",
+         test_editor_syntax_registry_compiles_every_locals_query},
+        {"editor_syntax_registry_lookup_by_extension",
+         test_editor_syntax_registry_lookup_by_extension},
+        {"editor_syntax_registry_lookup_by_basename",
+         test_editor_syntax_registry_lookup_by_basename},
+        {"editor_syntax_registry_lookup_by_shebang", test_editor_syntax_registry_lookup_by_shebang},
+        {"editor_syntax_registry_lookup_by_injection_name",
+         test_editor_syntax_registry_lookup_by_injection_name},
 };
 
 const int g_syntax_registry_test_count =
-		(int)(sizeof(g_syntax_registry_tests) / sizeof(g_syntax_registry_tests[0]));
+        (int)(sizeof(g_syntax_registry_tests) / sizeof(g_syntax_registry_tests[0]));

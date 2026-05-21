@@ -12,5 +12,6 @@ Use this as the default first-stop map before opening broad repo docs.
 | LSP lifecycle, definition flow, install/task-log UX | `rotide-lsp-maintainer` | `src/language/lsp.c`, `src/input/dispatch.c`, `src/input/actions_language.c`, `src/config/lsp_config.c` | `tests/test_lsp.c` | `make`, `make test`, `make test-sanitize` |
 | Drawer, tabs, config loading, terminal/window sizing | `rotide-maintainer` | `src/workspace/*.c`, `src/config/*.c`, terminal/render caller | `tests/test_workspace_config.c`, `tests/test_input_search.c` | `make`, `make test` |
 | Rendering-only output regressions | `rotide-maintainer` | `src/render/screen.c`, relevant render surface/helper, and closest state producer | `tests/test_render_terminal.c` | `make`, `make test` |
+| Style / formatter / naming sweeps | `rotide-maintainer` | reformatted or table-touched files | no domain test needed | `make`, `make test`, `make format-check`, `make lint`, `make lint-prefixes` |
 | File/module ownership cleanup | `rotide-domain-refactor` | touched module plus nearest owner/caller | matching domain test file | `make`, `make test`, sanitizer when refactor touches sensitive paths |
 | README/AGENTS/skill docs | `rotide-docs-maintainer` | touched docs, then source-of-truth modules | doc-adjacent tests only if behavior wording changes | `make`, `make test` |

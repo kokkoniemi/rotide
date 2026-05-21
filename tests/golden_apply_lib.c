@@ -47,35 +47,58 @@ static int json_decode_string(const char *p, char **out) {
 		char c;
 		if (*p == '\\' && p[1] != '\0') {
 			switch (p[1]) {
-			case '"':  c = '"'; p += 2; break;
-			case '\\': c = '\\'; p += 2; break;
-			case 'n':  c = '\n'; p += 2; break;
-			case 't':  c = '\t'; p += 2; break;
-			case 'r':  c = '\r'; p += 2; break;
-			case 'b':  c = '\b'; p += 2; break;
-			case 'f':  c = '\f'; p += 2; break;
-			case 'u': {
-				if (!isxdigit((unsigned char)p[2]) || !isxdigit((unsigned char)p[3]) ||
-						!isxdigit((unsigned char)p[4]) || !isxdigit((unsigned char)p[5])) {
+				case '"':
+					c = '"';
+					p += 2;
+					break;
+				case '\\':
+					c = '\\';
+					p += 2;
+					break;
+				case 'n':
+					c = '\n';
+					p += 2;
+					break;
+				case 't':
+					c = '\t';
+					p += 2;
+					break;
+				case 'r':
+					c = '\r';
+					p += 2;
+					break;
+				case 'b':
+					c = '\b';
+					p += 2;
+					break;
+				case 'f':
+					c = '\f';
+					p += 2;
+					break;
+				case 'u': {
+					if (!isxdigit((unsigned char)p[2]) ||
+					    !isxdigit((unsigned char)p[3]) ||
+					    !isxdigit((unsigned char)p[4]) ||
+					    !isxdigit((unsigned char)p[5])) {
+						free(buf);
+						return 0;
+					}
+					char hex[5] = {p[2], p[3], p[4], p[5], '\0'};
+					unsigned v = (unsigned)strtoul(hex, NULL, 16);
+					if (v > 0x7F) {
+						/* Our writer only emits \uXXXX for control bytes;
+						 * higher code points appear as raw UTF-8. Refuse to
+						 * decode anything we wouldn't have emitted. */
+						free(buf);
+						return 0;
+					}
+					c = (char)v;
+					p += 6;
+					break;
+				}
+				default:
 					free(buf);
 					return 0;
-				}
-				char hex[5] = {p[2], p[3], p[4], p[5], '\0'};
-				unsigned v = (unsigned)strtoul(hex, NULL, 16);
-				if (v > 0x7F) {
-					/* Our writer only emits \uXXXX for control bytes;
-					 * higher code points appear as raw UTF-8. Refuse to
-					 * decode anything we wouldn't have emitted. */
-					free(buf);
-					return 0;
-				}
-				c = (char)v;
-				p += 6;
-				break;
-			}
-			default:
-				free(buf);
-				return 0;
 			}
 		} else {
 			c = *p++;
@@ -139,9 +162,8 @@ int editor_golden_parse_stash_line(const char *line, struct goldenStashEntry *ou
 	return 1;
 }
 
-int editor_golden_load_stash(const char *path,
-		struct goldenStashEntry **entries_out, int *count_out,
-		int *skipped_out) {
+int editor_golden_load_stash(const char *path, struct goldenStashEntry **entries_out,
+                             int *count_out, int *skipped_out) {
 	if (path == NULL || entries_out == NULL || count_out == NULL) {
 		return -1;
 	}
@@ -171,7 +193,7 @@ int editor_golden_load_stash(const char *path,
 		if (count == cap) {
 			int new_cap = cap == 0 ? 16 : cap * 2;
 			struct goldenStashEntry *grown = (struct goldenStashEntry *)realloc(
-				arr, (size_t)new_cap * sizeof(*arr));
+			        arr, (size_t)new_cap * sizeof(*arr));
 			if (grown == NULL) {
 				free(line);
 				editor_golden_free_entries(arr, count);
@@ -247,8 +269,8 @@ static int out_append(struct outBuf *o, const char *s, size_t n) {
  * leading whitespace before the marker. `*line_end_out` gets the offset
  * of the first byte AFTER the line containing the marker (the byte
  * after '\n', or text_len if no trailing newline). */
-static size_t find_marker_line(const char *text, size_t from, size_t text_len,
-		const char *needle, size_t *indent_len_out, size_t *line_end_out) {
+static size_t find_marker_line(const char *text, size_t from, size_t text_len, const char *needle,
+                               size_t *indent_len_out, size_t *line_end_out) {
 	size_t nlen = strlen(needle);
 	size_t pos = from;
 	while (pos < text_len) {
@@ -259,8 +281,8 @@ static size_t find_marker_line(const char *text, size_t from, size_t text_len,
 			i++;
 		}
 		size_t after_indent = i;
-		if (after_indent + nlen <= text_len
-				&& memcmp(text + after_indent, needle, nlen) == 0) {
+		if (after_indent + nlen <= text_len &&
+		    memcmp(text + after_indent, needle, nlen) == 0) {
 			if (indent_len_out != NULL) {
 				*indent_len_out = after_indent - line_start;
 			}
@@ -307,8 +329,8 @@ static size_t offset_of_line(const char *text, size_t text_len, int target_line)
 }
 
 char *editor_golden_rewrite_text(const char *text, size_t text_len,
-		const struct goldenStashEntry *entries, int entry_count,
-		int *applied_out, int *skipped_out, FILE *log) {
+                                 const struct goldenStashEntry *entries, int entry_count,
+                                 int *applied_out, int *skipped_out, FILE *log) {
 	if (applied_out != NULL) {
 		*applied_out = 0;
 	}
@@ -329,8 +351,9 @@ char *editor_golden_rewrite_text(const char *text, size_t text_len,
 			 * overlapping); skip with a warning. */
 			if (log != NULL) {
 				fprintf(log,
-					"golden_apply: %s:%d entry overlaps a previous one — skipped\n",
-					ent->file, ent->line);
+				        "golden_apply: %s:%d entry overlaps a previous one — "
+				        "skipped\n",
+				        ent->file, ent->line);
 			}
 			if (skipped_out != NULL) {
 				(*skipped_out)++;
@@ -339,13 +362,15 @@ char *editor_golden_rewrite_text(const char *text, size_t text_len,
 		}
 		size_t indent_len = 0;
 		size_t start_line_end = 0;
-		size_t start_pos = find_marker_line(text, entry_offset, text_len,
-			"/* golden-start */", &indent_len, &start_line_end);
+		size_t start_pos =
+		        find_marker_line(text, entry_offset, text_len, "/* golden-start */",
+		                         &indent_len, &start_line_end);
 		if (start_pos == (size_t)-1) {
 			if (log != NULL) {
 				fprintf(log,
-					"golden_apply: %s:%d no /* golden-start */ marker after line — skipped\n",
-					ent->file, ent->line);
+				        "golden_apply: %s:%d no /* golden-start */ marker after "
+				        "line — skipped\n",
+				        ent->file, ent->line);
 			}
 			if (skipped_out != NULL) {
 				(*skipped_out)++;
@@ -354,12 +379,13 @@ char *editor_golden_rewrite_text(const char *text, size_t text_len,
 		}
 		size_t end_line_end = 0;
 		size_t end_pos = find_marker_line(text, start_line_end, text_len,
-			"/* golden-end */", NULL, &end_line_end);
+		                                  "/* golden-end */", NULL, &end_line_end);
 		if (end_pos == (size_t)-1) {
 			if (log != NULL) {
 				fprintf(log,
-					"golden_apply: %s:%d /* golden-start */ at offset %zu lacks closing /* golden-end */ — skipped\n",
-					ent->file, ent->line, start_pos);
+				        "golden_apply: %s:%d /* golden-start */ at offset %zu "
+				        "lacks closing /* golden-end */ — skipped\n",
+				        ent->file, ent->line, start_pos);
 			}
 			if (skipped_out != NULL) {
 				(*skipped_out)++;
@@ -375,8 +401,8 @@ char *editor_golden_rewrite_text(const char *text, size_t text_len,
 		/* Format the new content as concatenated C string literals,
 		 * indented to match the start marker. */
 		char indent_buf[128];
-		size_t use = indent_len < sizeof(indent_buf) - 1
-			? indent_len : sizeof(indent_buf) - 1;
+		size_t use =
+		        indent_len < sizeof(indent_buf) - 1 ? indent_len : sizeof(indent_buf) - 1;
 		memcpy(indent_buf, text + start_pos - indent_len, use);
 		indent_buf[use] = '\0';
 
@@ -388,8 +414,8 @@ char *editor_golden_rewrite_text(const char *text, size_t text_len,
 		}
 		editor_grid_snapshot_emit_c_string(ent->actual, indent_buf, m);
 		(void)fclose(m);
-		int append_rc = literal_buf != NULL
-			? out_append(&out, literal_buf, literal_len) : 0;
+		int append_rc =
+		        literal_buf != NULL ? out_append(&out, literal_buf, literal_len) : 0;
 		free(literal_buf);
 		if (append_rc != 0) {
 			goto oom;
@@ -421,9 +447,8 @@ oom:
 	return NULL;
 }
 
-int editor_golden_rewrite_file(const char *path,
-		const struct goldenStashEntry *entries, int entry_count,
-		int *applied_out, int *skipped_out, FILE *log) {
+int editor_golden_rewrite_file(const char *path, const struct goldenStashEntry *entries,
+                               int entry_count, int *applied_out, int *skipped_out, FILE *log) {
 	if (path == NULL) {
 		return -1;
 	}
@@ -461,8 +486,8 @@ int editor_golden_rewrite_file(const char *path,
 	(void)close(fd);
 	buf[off] = '\0';
 
-	char *rewritten = editor_golden_rewrite_text(buf, off, entries, entry_count,
-		applied_out, skipped_out, log);
+	char *rewritten = editor_golden_rewrite_text(buf, off, entries, entry_count, applied_out,
+	                                             skipped_out, log);
 	free(buf);
 	if (rewritten == NULL) {
 		return -1;
@@ -470,8 +495,8 @@ int editor_golden_rewrite_file(const char *path,
 	size_t rewritten_len = strlen(rewritten);
 
 	char tmp_path[1100];
-	if ((size_t)snprintf(tmp_path, sizeof(tmp_path), "%s.tmp.XXXXXX", path)
-			>= sizeof(tmp_path)) {
+	if ((size_t)snprintf(tmp_path, sizeof(tmp_path), "%s.tmp.XXXXXX", path) >=
+	    sizeof(tmp_path)) {
 		free(rewritten);
 		return -1;
 	}

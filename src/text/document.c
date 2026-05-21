@@ -6,8 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-static const char *editorDocumentTextSourceRead(const struct editorTextSource *source,
-		size_t byte_index, uint32_t *bytes_read) {
+static const char *documentTextSourceRead(const struct editorTextSource *source, size_t byte_index,
+                                          uint32_t *bytes_read) {
 	const struct editorDocument *document = source != NULL ? source->context : NULL;
 	return editorDocumentRead(document, byte_index, bytes_read);
 }
@@ -44,21 +44,19 @@ int editorDocumentResetFromString(struct editorDocument *document, const char *t
 }
 
 int editorDocumentResetFromDocument(struct editorDocument *document,
-		const struct editorDocument *source) {
+                                    const struct editorDocument *source) {
 	if (document == NULL || source == NULL) {
 		return 0;
 	}
 
-	struct editorTextSource text_source = {
-		.read = editorDocumentTextSourceRead,
-		.context = source,
-		.length = editorDocumentLength(source)
-	};
+	struct editorTextSource text_source = {.read = documentTextSourceRead,
+	                                       .context = source,
+	                                       .length = editorDocumentLength(source)};
 	return editorDocumentResetFromTextSource(document, &text_source);
 }
 
 int editorDocumentResetFromTextSource(struct editorDocument *document,
-		const struct editorTextSource *source) {
+                                      const struct editorTextSource *source) {
 	if (document == NULL || source == NULL || source->read == NULL) {
 		return 0;
 	}
@@ -75,7 +73,7 @@ size_t editorDocumentLength(const struct editorDocument *document) {
 }
 
 const char *editorDocumentRead(const struct editorDocument *document, size_t byte_index,
-		uint32_t *bytes_read) {
+                               uint32_t *bytes_read) {
 	if (document == NULL) {
 		if (bytes_read != NULL) {
 			*bytes_read = 0;
@@ -86,7 +84,7 @@ const char *editorDocumentRead(const struct editorDocument *document, size_t byt
 }
 
 int editorDocumentCopyRange(const struct editorDocument *document, size_t start_byte,
-		size_t end_byte, char *dst) {
+                            size_t end_byte, char *dst) {
 	if (document == NULL) {
 		return 0;
 	}
@@ -94,7 +92,7 @@ int editorDocumentCopyRange(const struct editorDocument *document, size_t start_
 }
 
 char *editorDocumentDupRange(const struct editorDocument *document, size_t start_byte,
-		size_t end_byte, size_t *len_out) {
+                             size_t end_byte, size_t *len_out) {
 	if (document == NULL) {
 		if (len_out != NULL) {
 			*len_out = 0;
@@ -105,7 +103,7 @@ char *editorDocumentDupRange(const struct editorDocument *document, size_t start
 }
 
 int editorDocumentReplaceRange(struct editorDocument *document, size_t start_byte, size_t old_len,
-		const char *new_text, size_t new_len) {
+                               const char *new_text, size_t new_len) {
 	if (document == NULL) {
 		return 0;
 	}
@@ -138,7 +136,7 @@ int editorDocumentLineCount(const struct editorDocument *document) {
 }
 
 int editorDocumentLineStartByte(const struct editorDocument *document, int line_idx,
-		size_t *start_byte_out) {
+                                size_t *start_byte_out) {
 	if (document == NULL || start_byte_out == NULL || line_idx < 0) {
 		return 0;
 	}
@@ -149,7 +147,7 @@ int editorDocumentLineStartByte(const struct editorDocument *document, int line_
 }
 
 int editorDocumentLineEndByte(const struct editorDocument *document, int line_idx,
-		size_t *end_byte_out) {
+                              size_t *end_byte_out) {
 	if (document == NULL || end_byte_out == NULL || line_idx < 0) {
 		return 0;
 	}
@@ -160,7 +158,7 @@ int editorDocumentLineEndByte(const struct editorDocument *document, int line_id
 	if (line_idx + 1 <= summary->newlines) {
 		size_t next_start = 0;
 		if (!editorTextTreeLocateLine(&document->tree, line_idx + 1, &next_start) ||
-				next_start == 0) {
+		    next_start == 0) {
 			return 0;
 		}
 		*end_byte_out = next_start - 1;
@@ -171,7 +169,7 @@ int editorDocumentLineEndByte(const struct editorDocument *document, int line_id
 }
 
 int editorDocumentLineIndexForByteOffset(const struct editorDocument *document, size_t byte_offset,
-		int *line_idx_out) {
+                                         int *line_idx_out) {
 	if (document == NULL || line_idx_out == NULL) {
 		return 0;
 	}
@@ -186,7 +184,7 @@ int editorDocumentLineIndexForByteOffset(const struct editorDocument *document, 
 }
 
 int editorDocumentPositionToByteOffset(const struct editorDocument *document, int line_idx,
-		size_t column, size_t *byte_offset_out) {
+                                       size_t column, size_t *byte_offset_out) {
 	if (document == NULL || byte_offset_out == NULL || line_idx < 0) {
 		return 0;
 	}
@@ -215,8 +213,7 @@ int editorDocumentPositionToByteOffset(const struct editorDocument *document, in
 	size_t start = 0;
 	size_t end = 0;
 	if (!editorDocumentLineStartByte(document, line_idx, &start) ||
-			!editorDocumentLineEndByte(document, line_idx, &end) ||
-			column > end - start) {
+	    !editorDocumentLineEndByte(document, line_idx, &end) || column > end - start) {
 		return 0;
 	}
 	*byte_offset_out = start + column;
@@ -245,21 +242,21 @@ size_t editorDocumentLineLength(const struct editorDocument *document, int line_
 	size_t start = 0;
 	size_t end = 0;
 	if (!editorDocumentLineStartByte(document, line_idx, &start) ||
-			!editorDocumentLineEndByte(document, line_idx, &end)) {
+	    !editorDocumentLineEndByte(document, line_idx, &end)) {
 		return 0;
 	}
 	return end - start;
 }
 
 const char *editorDocumentLineBytes(const struct editorDocument *document, int line_idx,
-		size_t *len_out) {
+                                    size_t *len_out) {
 	if (len_out != NULL) {
 		*len_out = 0;
 	}
 	size_t start = 0;
 	size_t end = 0;
 	if (!editorDocumentLineStartByte(document, line_idx, &start) ||
-			!editorDocumentLineEndByte(document, line_idx, &end)) {
+	    !editorDocumentLineEndByte(document, line_idx, &end)) {
 		return NULL;
 	}
 	size_t len = end - start;
@@ -280,22 +277,21 @@ const char *editorDocumentLineBytes(const struct editorDocument *document, int l
 	return ptr;
 }
 
-char *editorDocumentLineDup(const struct editorDocument *document, int line_idx,
-		size_t *len_out) {
+char *editorDocumentLineDup(const struct editorDocument *document, int line_idx, size_t *len_out) {
 	if (len_out != NULL) {
 		*len_out = 0;
 	}
 	size_t start = 0;
 	size_t end = 0;
 	if (!editorDocumentLineStartByte(document, line_idx, &start) ||
-			!editorDocumentLineEndByte(document, line_idx, &end)) {
+	    !editorDocumentLineEndByte(document, line_idx, &end)) {
 		return NULL;
 	}
 	return editorDocumentDupRange(document, start, end, len_out);
 }
 
 int editorDocumentLineView(const struct editorDocument *document, int line_idx,
-		struct editorLineView *view_out) {
+                           struct editorLineView *view_out) {
 	if (view_out == NULL) {
 		return 0;
 	}
@@ -306,7 +302,7 @@ int editorDocumentLineView(const struct editorDocument *document, int line_idx,
 	size_t start = 0;
 	size_t end = 0;
 	if (!editorDocumentLineStartByte(document, line_idx, &start) ||
-			!editorDocumentLineEndByte(document, line_idx, &end)) {
+	    !editorDocumentLineEndByte(document, line_idx, &end)) {
 		return 0;
 	}
 	size_t len = end - start;
@@ -344,7 +340,7 @@ void editorLineViewRelease(struct editorLineView *view) {
 }
 
 int editorDocumentByteOffsetToPosition(const struct editorDocument *document, size_t byte_offset,
-		int *line_idx_out, size_t *column_out) {
+                                       int *line_idx_out, size_t *column_out) {
 	if (document == NULL || line_idx_out == NULL || column_out == NULL) {
 		return 0;
 	}

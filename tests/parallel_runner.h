@@ -44,17 +44,12 @@ struct parallelRunResult {
 };
 
 /* batches[i].output is malloc'd; caller frees. */
-int parallelRunBatches(
-	const struct testRunnerOptions *opts,
-	const struct editorTestSuite *suites,
-	struct suiteBatch *batches,
-	int batch_count,
-	struct parallelRunResult *result_out);
+int parallelRunBatches(const struct testRunnerOptions *opts, const struct editorTestSuite *suites,
+                       struct suiteBatch *batches, int batch_count,
+                       struct parallelRunResult *result_out);
 
-int parallelChildRunBatch(
-	const struct testRunnerOptions *opts,
-	const struct editorTestSuite *suite,
-	struct suiteBatch *batch);
+int parallelChildRunBatch(const struct testRunnerOptions *opts, const struct editorTestSuite *suite,
+                          struct suiteBatch *batch);
 
 void parallelEnsureArtifactDirs(const char *root);
 

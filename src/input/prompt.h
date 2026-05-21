@@ -3,8 +3,7 @@
 
 typedef void (*editorPromptCallback)(const char *query, int key);
 
-char *editorPromptWithCallback(const char *prompt, int allow_empty,
-		editorPromptCallback callback);
+char *editorPromptWithCallback(const char *prompt, int allow_empty, editorPromptCallback callback);
 char *editorPrompt(const char *prompt);
 int editorPromptYesNo(const char *prompt);
 

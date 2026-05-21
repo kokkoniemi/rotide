@@ -1,13 +1,13 @@
 #include "language/lsp.h"
+
+#include "editing/buffer_core.h"
+#include "editing/edit.h"
+#include "language/autocomplete.h"
 #include "language/lsp_mock.h"
 #include "language/lsp_protocol.h"
 #include "language/lsp_registry.h"
 #include "language/lsp_responses.h"
 #include "language/lsp_transport.h"
-#include "language/autocomplete.h"
-
-#include "editing/buffer_core.h"
-#include "editing/edit.h"
 #include "support/file_io.h"
 #include "workspace/tabs.h"
 
@@ -22,23 +22,22 @@
 #include <unistd.h>
 
 static enum editorLspStartupFailureReason g_lsp_last_startup_failure_reason =
-		EDITOR_LSP_STARTUP_FAILURE_NONE;
+        EDITOR_LSP_STARTUP_FAILURE_NONE;
 
-static void editorLspResetTrackedDocumentsForServerKind(enum editorLspServerKind server_kind);
-static int editorLspFilenameHasHtmlExtension(const char *filename);
-static int editorLspFilenameHasCssExtension(const char *filename);
-static int editorLspFilenameHasJsonExtension(const char *filename);
-static int editorLspFilenameHasJavascriptExtension(const char *filename);
-static const char *editorLspCommandForServerKind(enum editorLspServerKind server_kind);
-static const char *editorLspServerNameForServerKind(enum editorLspServerKind server_kind);
-static const char *editorLspCommandSettingNameForServerKind(
-		enum editorLspServerKind server_kind);
-static const char *editorLspLanguageLabelForServerKind(enum editorLspServerKind server_kind);
-static int editorLspServerKindSupportsDefinition(enum editorLspServerKind server_kind);
-static char *editorLspBuildWorkspaceRootPathForFile(const char *filename,
-		enum editorLspServerKind server_kind);
+static void lspResetTrackedDocumentsForServerKind(enum editorLspServerKind server_kind);
+static int lspFilenameHasHtmlExtension(const char *filename);
+static int lspFilenameHasCssExtension(const char *filename);
+static int lspFilenameHasJsonExtension(const char *filename);
+static int lspFilenameHasJavascriptExtension(const char *filename);
+static const char *lspCommandForServerKind(enum editorLspServerKind server_kind);
+static const char *lspServerNameForServerKind(enum editorLspServerKind server_kind);
+static const char *lspCommandSettingNameForServerKind(enum editorLspServerKind server_kind);
+static const char *lspLanguageLabelForServerKind(enum editorLspServerKind server_kind);
+static int lspServerKindSupportsDefinition(enum editorLspServerKind server_kind);
+static char *lspBuildWorkspaceRootPathForFile(const char *filename,
+                                              enum editorLspServerKind server_kind);
 
-static void editorLspResetTrackedDocumentsForServerKind(enum editorLspServerKind server_kind) {
+static void lspResetTrackedDocumentsForServerKind(enum editorLspServerKind server_kind) {
 	int is_eslint = server_kind == EDITOR_LSP_SERVER_ESLINT;
 	if (is_eslint) {
 		E.lsp_eslint_doc_open = 0;
@@ -66,11 +65,11 @@ static void editorLspResetTrackedDocumentsForServerKind(enum editorLspServerKind
 }
 
 void editorLspResetTrackedDocuments(void) {
-	editorLspResetTrackedDocumentsForServerKind(EDITOR_LSP_SERVER_GOPLS);
-	editorLspResetTrackedDocumentsForServerKind(EDITOR_LSP_SERVER_ESLINT);
+	lspResetTrackedDocumentsForServerKind(EDITOR_LSP_SERVER_GOPLS);
+	lspResetTrackedDocumentsForServerKind(EDITOR_LSP_SERVER_ESLINT);
 }
 
-static int editorLspFilenameHasCppExtension(const char *filename) {
+static int lspFilenameHasCppExtension(const char *filename) {
 	if (filename == NULL || filename[0] == '\0') {
 		return 0;
 	}
@@ -79,11 +78,11 @@ static int editorLspFilenameHasCppExtension(const char *filename) {
 		return 0;
 	}
 	return strcmp(dot, ".cc") == 0 || strcmp(dot, ".cpp") == 0 || strcmp(dot, ".cxx") == 0 ||
-			strcmp(dot, ".c++") == 0 || strcmp(dot, ".hh") == 0 || strcmp(dot, ".hpp") == 0 ||
-			strcmp(dot, ".hxx") == 0;
+	       strcmp(dot, ".c++") == 0 || strcmp(dot, ".hh") == 0 || strcmp(dot, ".hpp") == 0 ||
+	       strcmp(dot, ".hxx") == 0;
 }
 
-static int editorLspFilenameHasHtmlExtension(const char *filename) {
+static int lspFilenameHasHtmlExtension(const char *filename) {
 	if (filename == NULL || filename[0] == '\0') {
 		return 0;
 	}
@@ -94,7 +93,7 @@ static int editorLspFilenameHasHtmlExtension(const char *filename) {
 	return strcmp(dot, ".html") == 0 || strcmp(dot, ".htm") == 0 || strcmp(dot, ".xhtml") == 0;
 }
 
-static int editorLspFilenameHasCssExtension(const char *filename) {
+static int lspFilenameHasCssExtension(const char *filename) {
 	if (filename == NULL || filename[0] == '\0') {
 		return 0;
 	}
@@ -105,7 +104,7 @@ static int editorLspFilenameHasCssExtension(const char *filename) {
 	return strcmp(dot, ".css") == 0 || strcmp(dot, ".scss") == 0;
 }
 
-static int editorLspFilenameHasJsonExtension(const char *filename) {
+static int lspFilenameHasJsonExtension(const char *filename) {
 	if (filename == NULL || filename[0] == '\0') {
 		return 0;
 	}
@@ -116,7 +115,7 @@ static int editorLspFilenameHasJsonExtension(const char *filename) {
 	return strcmp(dot, ".json") == 0;
 }
 
-static int editorLspFilenameHasJavascriptExtension(const char *filename) {
+static int lspFilenameHasJavascriptExtension(const char *filename) {
 	if (filename == NULL || filename[0] == '\0') {
 		return 0;
 	}
@@ -125,21 +124,21 @@ static int editorLspFilenameHasJavascriptExtension(const char *filename) {
 		return 0;
 	}
 	return strcmp(dot, ".js") == 0 || strcmp(dot, ".mjs") == 0 || strcmp(dot, ".cjs") == 0 ||
-			strcmp(dot, ".jsx") == 0;
+	       strcmp(dot, ".jsx") == 0;
 }
 
 enum editorLspServerKind editorLspServerKindForFile(const char *filename,
-		enum editorSyntaxLanguage language) {
-	if (editorLspFilenameHasHtmlExtension(filename)) {
+                                                    enum editorSyntaxLanguage language) {
+	if (lspFilenameHasHtmlExtension(filename)) {
 		return EDITOR_LSP_SERVER_HTML;
 	}
-	if (editorLspFilenameHasCssExtension(filename)) {
+	if (lspFilenameHasCssExtension(filename)) {
 		return EDITOR_LSP_SERVER_CSS;
 	}
-	if (editorLspFilenameHasJsonExtension(filename)) {
+	if (lspFilenameHasJsonExtension(filename)) {
 		return EDITOR_LSP_SERVER_JSON;
 	}
-	if (editorLspFilenameHasJavascriptExtension(filename)) {
+	if (lspFilenameHasJavascriptExtension(filename)) {
 		return EDITOR_LSP_SERVER_JAVASCRIPT;
 	}
 	switch (language) {
@@ -159,7 +158,7 @@ enum editorLspServerKind editorLspServerKindForFile(const char *filename,
 	}
 }
 
-static const char *editorLspCommandForServerKind(enum editorLspServerKind server_kind) {
+static const char *lspCommandForServerKind(enum editorLspServerKind server_kind) {
 	switch (server_kind) {
 		case EDITOR_LSP_SERVER_GOPLS:
 			return E.lsp_gopls_command;
@@ -180,7 +179,7 @@ static const char *editorLspCommandForServerKind(enum editorLspServerKind server
 	}
 }
 
-static const char *editorLspServerNameForServerKind(enum editorLspServerKind server_kind) {
+static const char *lspServerNameForServerKind(enum editorLspServerKind server_kind) {
 	switch (server_kind) {
 		case EDITOR_LSP_SERVER_GOPLS:
 			return "gopls";
@@ -201,8 +200,7 @@ static const char *editorLspServerNameForServerKind(enum editorLspServerKind ser
 	}
 }
 
-static const char *editorLspCommandSettingNameForServerKind(
-		enum editorLspServerKind server_kind) {
+static const char *lspCommandSettingNameForServerKind(enum editorLspServerKind server_kind) {
 	switch (server_kind) {
 		case EDITOR_LSP_SERVER_GOPLS:
 			return "gopls_command";
@@ -223,7 +221,7 @@ static const char *editorLspCommandSettingNameForServerKind(
 	}
 }
 
-static const char *editorLspLanguageLabelForServerKind(enum editorLspServerKind server_kind) {
+static const char *lspLanguageLabelForServerKind(enum editorLspServerKind server_kind) {
 	switch (server_kind) {
 		case EDITOR_LSP_SERVER_GOPLS:
 			return "Go";
@@ -244,7 +242,7 @@ static const char *editorLspLanguageLabelForServerKind(enum editorLspServerKind 
 	}
 }
 
-static int editorLspServerKindEnabled(enum editorLspServerKind server_kind) {
+static int lspServerKindEnabled(enum editorLspServerKind server_kind) {
 	switch (server_kind) {
 		case EDITOR_LSP_SERVER_GOPLS:
 			return E.lsp_gopls_enabled;
@@ -266,104 +264,101 @@ static int editorLspServerKindEnabled(enum editorLspServerKind server_kind) {
 }
 
 int editorLspFileEnabled(const char *filename, enum editorSyntaxLanguage language) {
-	return editorLspServerKindEnabled(editorLspServerKindForFile(filename, language));
+	return lspServerKindEnabled(editorLspServerKindForFile(filename, language));
 }
 
 int editorLspFileUsesEslint(const char *filename, enum editorSyntaxLanguage language) {
-	return editorLspFilenameHasJavascriptExtension(filename) || language == EDITOR_SYNTAX_JAVASCRIPT;
+	return lspFilenameHasJavascriptExtension(filename) || language == EDITOR_SYNTAX_JAVASCRIPT;
 }
 
 int editorLspEslintEnabledForFile(const char *filename, enum editorSyntaxLanguage language) {
 	return editorLspFileUsesEslint(filename, language) && E.lsp_eslint_enabled;
 }
 
-static int editorLspServerKindSupportsDefinition(enum editorLspServerKind server_kind) {
+static int lspServerKindSupportsDefinition(enum editorLspServerKind server_kind) {
 	return server_kind == EDITOR_LSP_SERVER_GOPLS || server_kind == EDITOR_LSP_SERVER_CLANGD ||
-			server_kind == EDITOR_LSP_SERVER_HTML || server_kind == EDITOR_LSP_SERVER_CSS ||
-			server_kind == EDITOR_LSP_SERVER_JSON ||
-			server_kind == EDITOR_LSP_SERVER_JAVASCRIPT;
+	       server_kind == EDITOR_LSP_SERVER_HTML || server_kind == EDITOR_LSP_SERVER_CSS ||
+	       server_kind == EDITOR_LSP_SERVER_JSON || server_kind == EDITOR_LSP_SERVER_JAVASCRIPT;
 }
 
 int editorLspFileSupportsDefinition(const char *filename, enum editorSyntaxLanguage language) {
-	return editorLspServerKindSupportsDefinition(editorLspServerKindForFile(filename, language));
+	return lspServerKindSupportsDefinition(editorLspServerKindForFile(filename, language));
 }
 
-const char *editorLspLanguageIdForFile(const char *filename,
-		enum editorSyntaxLanguage language) {
+const char *editorLspLanguageIdForFile(const char *filename, enum editorSyntaxLanguage language) {
 	switch (language) {
 		case EDITOR_SYNTAX_GO:
 			return "go";
 		case EDITOR_SYNTAX_C:
-			return editorLspFilenameHasCppExtension(filename) ? "cpp" : "c";
+			return lspFilenameHasCppExtension(filename) ? "cpp" : "c";
 		case EDITOR_SYNTAX_CPP:
 			return "cpp";
 		case EDITOR_SYNTAX_HTML:
 			return "html";
 		case EDITOR_SYNTAX_CSS:
-			return editorLspFilenameHasCssExtension(filename) &&
-						 strrchr(filename, '.') != NULL &&
-						 strcmp(strrchr(filename, '.'), ".scss") == 0 ?
-					"scss" :
-					"css";
+			return lspFilenameHasCssExtension(filename) &&
+			                       strrchr(filename, '.') != NULL &&
+			                       strcmp(strrchr(filename, '.'), ".scss") == 0
+			               ? "scss"
+			               : "css";
 		case EDITOR_SYNTAX_JAVASCRIPT:
-			return editorLspFilenameHasJavascriptExtension(filename) &&
-						 strrchr(filename, '.') != NULL &&
-						 strcmp(strrchr(filename, '.'), ".jsx") == 0 ?
-					"javascriptreact" :
-					"javascript";
+			return lspFilenameHasJavascriptExtension(filename) &&
+			                       strrchr(filename, '.') != NULL &&
+			                       strcmp(strrchr(filename, '.'), ".jsx") == 0
+			               ? "javascriptreact"
+			               : "javascript";
 		default:
 			break;
 	}
-	if (editorLspFilenameHasHtmlExtension(filename)) {
+	if (lspFilenameHasHtmlExtension(filename)) {
 		return "html";
 	}
-	if (editorLspFilenameHasCssExtension(filename)) {
-		return strrchr(filename, '.') != NULL && strcmp(strrchr(filename, '.'), ".scss") == 0 ?
-				"scss" :
-				"css";
+	if (lspFilenameHasCssExtension(filename)) {
+		return strrchr(filename, '.') != NULL &&
+		                       strcmp(strrchr(filename, '.'), ".scss") == 0
+		               ? "scss"
+		               : "css";
 	}
-	if (editorLspFilenameHasJsonExtension(filename)) {
+	if (lspFilenameHasJsonExtension(filename)) {
 		return "json";
 	}
-	if (editorLspFilenameHasJavascriptExtension(filename)) {
-		return strrchr(filename, '.') != NULL && strcmp(strrchr(filename, '.'), ".jsx") == 0 ?
-				"javascriptreact" :
-				"javascript";
+	if (lspFilenameHasJavascriptExtension(filename)) {
+		return strrchr(filename, '.') != NULL && strcmp(strrchr(filename, '.'), ".jsx") == 0
+		               ? "javascriptreact"
+		               : "javascript";
 	}
 	return NULL;
 }
 
 const char *editorLspLanguageLabelForFile(const char *filename,
-		enum editorSyntaxLanguage language) {
-	return editorLspLanguageLabelForServerKind(editorLspServerKindForFile(filename, language));
+                                          enum editorSyntaxLanguage language) {
+	return lspLanguageLabelForServerKind(editorLspServerKindForFile(filename, language));
 }
 
 const char *editorLspServerNameForFile(const char *filename, enum editorSyntaxLanguage language) {
-	return editorLspServerNameForServerKind(editorLspServerKindForFile(filename, language));
+	return lspServerNameForServerKind(editorLspServerKindForFile(filename, language));
 }
 
 const char *editorLspCommandForFile(const char *filename, enum editorSyntaxLanguage language) {
-	return editorLspCommandForServerKind(editorLspServerKindForFile(filename, language));
+	return lspCommandForServerKind(editorLspServerKindForFile(filename, language));
 }
 
 const char *editorLspCommandSettingNameForFile(const char *filename,
-		enum editorSyntaxLanguage language) {
-	return editorLspCommandSettingNameForServerKind(
-			editorLspServerKindForFile(filename, language));
+                                               enum editorSyntaxLanguage language) {
+	return lspCommandSettingNameForServerKind(editorLspServerKindForFile(filename, language));
 }
 
 int editorLspUsesSharedVscodeInstallPrompt(const char *filename,
-		enum editorSyntaxLanguage language) {
+                                           enum editorSyntaxLanguage language) {
 	enum editorLspServerKind server_kind = editorLspServerKindForFile(filename, language);
 	return server_kind == EDITOR_LSP_SERVER_HTML || server_kind == EDITOR_LSP_SERVER_CSS ||
-			server_kind == EDITOR_LSP_SERVER_JSON || server_kind == EDITOR_LSP_SERVER_ESLINT;
+	       server_kind == EDITOR_LSP_SERVER_JSON || server_kind == EDITOR_LSP_SERVER_ESLINT;
 }
 
-
-static void editorLspSetStartupFailureStatus(struct editorLspClient *client, int timed_out) {
+static void lspSetStartupFailureStatus(struct editorLspClient *client, int timed_out) {
 	g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_OTHER;
-	const char *command = editorLspCommandForServerKind(client != NULL ? client->server_kind :
-			EDITOR_LSP_SERVER_NONE);
+	const char *command = lspCommandForServerKind(client != NULL ? client->server_kind
+	                                                             : EDITOR_LSP_SERVER_NONE);
 	if (command == NULL || command[0] == '\0') {
 		command = "language server";
 	}
@@ -375,8 +370,10 @@ static void editorLspSetStartupFailureStatus(struct editorLspClient *client, int
 	int saved_errno = errno;
 	if (saved_errno == EPIPE) {
 		int exit_code = 0;
-		if (editorLspTryGetProcessExitCodeWithWait(client, 100, &exit_code) && exit_code == 127) {
-			g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND;
+		if (editorLspTryGetProcessExitCodeWithWait(client, 100, &exit_code) &&
+		    exit_code == 127) {
+			g_lsp_last_startup_failure_reason =
+			        EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND;
 			editorSetStatusMsg("LSP startup failed: command not found (%s)", command);
 			return;
 		}
@@ -395,34 +392,14 @@ static void editorLspSetStartupFailureStatus(struct editorLspClient *client, int
 	editorSetStatusMsg("LSP startup failed: initialize I/O error");
 }
 
-
-static char *editorLspBuildWorkspaceRootPathForFile(const char *filename,
-		enum editorLspServerKind server_kind) {
-	static const char *const gopls_markers[] = {
-		"go.work",
-		"go.mod",
-		".rotide.toml",
-		".git"
-	};
-	static const char *const clangd_markers[] = {
-		"compile_commands.json",
-		"compile_flags.txt",
-		".clangd",
-		".rotide.toml",
-		".git"
-	};
-	static const char *const html_markers[] = {
-		"package.json",
-		".rotide.toml",
-		".git"
-	};
-	static const char *const javascript_markers[] = {
-		"tsconfig.json",
-		"jsconfig.json",
-		"package.json",
-		".rotide.toml",
-		".git"
-	};
+static char *lspBuildWorkspaceRootPathForFile(const char *filename,
+                                              enum editorLspServerKind server_kind) {
+	static const char *const gopls_markers[] = {"go.work", "go.mod", ".rotide.toml", ".git"};
+	static const char *const clangd_markers[] = {"compile_commands.json", "compile_flags.txt",
+	                                             ".clangd", ".rotide.toml", ".git"};
+	static const char *const html_markers[] = {"package.json", ".rotide.toml", ".git"};
+	static const char *const javascript_markers[] = {"tsconfig.json", "jsconfig.json",
+	                                                 "package.json", ".rotide.toml", ".git"};
 
 	char *file_path = editorPathAbsoluteDup(filename);
 	char *file_dir = NULL;
@@ -440,22 +417,23 @@ static char *editorLspBuildWorkspaceRootPathForFile(const char *filename,
 		if (server_kind == EDITOR_LSP_SERVER_GOPLS) {
 			markers = gopls_markers;
 			marker_count = sizeof(gopls_markers) / sizeof(gopls_markers[0]);
-	} else if (server_kind == EDITOR_LSP_SERVER_CLANGD) {
-		markers = clangd_markers;
-		marker_count = sizeof(clangd_markers) / sizeof(clangd_markers[0]);
-	} else if (server_kind == EDITOR_LSP_SERVER_HTML ||
-			server_kind == EDITOR_LSP_SERVER_CSS ||
-			server_kind == EDITOR_LSP_SERVER_JSON ||
-			server_kind == EDITOR_LSP_SERVER_ESLINT) {
-		markers = html_markers;
-		marker_count = sizeof(html_markers) / sizeof(html_markers[0]);
-	} else if (server_kind == EDITOR_LSP_SERVER_JAVASCRIPT) {
-		markers = javascript_markers;
-		marker_count = sizeof(javascript_markers) / sizeof(javascript_markers[0]);
-	}
+		} else if (server_kind == EDITOR_LSP_SERVER_CLANGD) {
+			markers = clangd_markers;
+			marker_count = sizeof(clangd_markers) / sizeof(clangd_markers[0]);
+		} else if (server_kind == EDITOR_LSP_SERVER_HTML ||
+		           server_kind == EDITOR_LSP_SERVER_CSS ||
+		           server_kind == EDITOR_LSP_SERVER_JSON ||
+		           server_kind == EDITOR_LSP_SERVER_ESLINT) {
+			markers = html_markers;
+			marker_count = sizeof(html_markers) / sizeof(html_markers[0]);
+		} else if (server_kind == EDITOR_LSP_SERVER_JAVASCRIPT) {
+			markers = javascript_markers;
+			marker_count = sizeof(javascript_markers) / sizeof(javascript_markers[0]);
+		}
 
 		if (markers != NULL) {
-			workspace_root = editorPathFindMarkerUpward(file_dir, markers, marker_count);
+			workspace_root =
+			        editorPathFindMarkerUpward(file_dir, markers, marker_count);
 		}
 		if (workspace_root == NULL) {
 			workspace_root = strdup(file_dir);
@@ -469,25 +447,24 @@ static char *editorLspBuildWorkspaceRootPathForFile(const char *filename,
 		return editorPathAbsoluteDup(E.drawer_root_path);
 	}
 
-	return editorPathGetCwd();
+	return editorPathCwdDup();
 }
 
-
-static int editorLspEnsureRunningReal(const char *filename, enum editorLspServerKind server_kind) {
+static int lspEnsureRunningReal(const char *filename, enum editorLspServerKind server_kind) {
 	g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_NONE;
-	if (!editorLspServerKindEnabled(server_kind)) {
+	if (!lspServerKindEnabled(server_kind)) {
 		return 0;
 	}
-	const char *command = editorLspCommandForServerKind(server_kind);
+	const char *command = lspCommandForServerKind(server_kind);
 	if (command == NULL || command[0] == '\0') {
-		const char *setting_name = editorLspCommandSettingNameForServerKind(server_kind);
+		const char *setting_name = lspCommandSettingNameForServerKind(server_kind);
 		if (setting_name != NULL) {
 			editorSetStatusMsg("LSP disabled: [lsp].%s is empty", setting_name);
 		}
 		return 0;
 	}
 
-	char *workspace_root_path = editorLspBuildWorkspaceRootPathForFile(filename, server_kind);
+	char *workspace_root_path = lspBuildWorkspaceRootPathForFile(filename, server_kind);
 	if (workspace_root_path == NULL) {
 		g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_OTHER;
 		editorSetStatusMsg("LSP startup failed: workspace root unavailable");
@@ -495,7 +472,7 @@ static int editorLspEnsureRunningReal(const char *filename, enum editorLspServer
 	}
 
 	struct editorLspClient *client =
-			editorLspRegistryAcquireClient(server_kind, workspace_root_path);
+	        editorLspRegistryAcquireClient(server_kind, workspace_root_path);
 	if (client == NULL) {
 		free(workspace_root_path);
 		g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_OTHER;
@@ -509,14 +486,15 @@ static int editorLspEnsureRunningReal(const char *filename, enum editorLspServer
 		return 0;
 	}
 
-	if (client->initialized && client->server_kind == server_kind && editorLspProcessAlive(client) &&
-			editorLspWorkspaceRootsMatch(client->workspace_root_path, workspace_root_path)) {
+	if (client->initialized && client->server_kind == server_kind &&
+	    editorLspProcessAlive(client) &&
+	    editorLspWorkspaceRootsMatch(client->workspace_root_path, workspace_root_path)) {
 		free(workspace_root_path);
 		g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_NONE;
 		return 1;
 	}
 
-	editorLspResetTrackedDocumentsForServerKind(server_kind);
+	lspResetTrackedDocumentsForServerKind(server_kind);
 	editorLspClientCleanup(client, 0);
 
 	pid_t pid = 0;
@@ -569,8 +547,8 @@ static int editorLspEnsureRunningReal(const char *filename, enum editorLspServer
 	char *response = NULL;
 	int timed_out = 0;
 	if (!editorLspWaitForResponseId(client, request_id, ROTIDE_LSP_IO_TIMEOUT_MS, &response,
-				&timed_out)) {
-		editorLspSetStartupFailureStatus(client, timed_out);
+	                                &timed_out)) {
+		lspSetStartupFailureStatus(client, timed_out);
 		editorLspClientCleanup(client, 0);
 		return 0;
 	}
@@ -583,11 +561,12 @@ static int editorLspEnsureRunningReal(const char *filename, enum editorLspServer
 	}
 
 	char *position_encoding = NULL;
-	int have_encoding = editorLspFindStringField(response, "positionEncoding", &position_encoding);
+	int have_encoding =
+	        editorLspFindStringField(response, "positionEncoding", &position_encoding);
 	int completion_supported = 0;
 	char *trigger_chars = NULL;
 	(void)editorLspParseCompletionProviderInResponse(response, &completion_supported,
-			&trigger_chars);
+	                                                 &trigger_chars);
 	free(response);
 	client->completion_supported = completion_supported;
 	free(client->completion_trigger_chars);
@@ -608,8 +587,9 @@ static int editorLspEnsureRunningReal(const char *filename, enum editorLspServer
 	}
 	free(position_encoding);
 
-	if (!editorLspSendRawJsonToFd(client->to_server_fd,
-				"{\"jsonrpc\":\"2.0\",\"method\":\"initialized\",\"params\":{}}")) {
+	if (!editorLspSendRawJsonToFd(
+	            client->to_server_fd,
+	            "{\"jsonrpc\":\"2.0\",\"method\":\"initialized\",\"params\":{}}")) {
 		g_lsp_last_startup_failure_reason = EDITOR_LSP_STARTUP_FAILURE_OTHER;
 		editorSetStatusMsg("LSP startup failed: initialized notification failed");
 		editorLspClientCleanup(client, 0);
@@ -627,23 +607,24 @@ int editorLspEnsureRunningForFile(const char *filename, enum editorSyntaxLanguag
 		return 0;
 	}
 	if (g_lsp_mock.enabled) {
-		char *workspace_root_path = editorLspBuildWorkspaceRootPathForFile(filename, server_kind);
+		char *workspace_root_path = lspBuildWorkspaceRootPathForFile(filename, server_kind);
 		if (workspace_root_path == NULL) {
 			return 0;
 		}
-		if (!editorLspServerKindEnabled(server_kind)) {
+		if (!lspServerKindEnabled(server_kind)) {
 			free(workspace_root_path);
 			return 0;
 		}
-		if (!g_lsp_mock.primary_server_alive || g_lsp_mock.primary_server_kind != server_kind ||
-				!editorLspWorkspaceRootsMatch(g_lsp_mock.primary_workspace_root_path,
-						workspace_root_path)) {
+		if (!g_lsp_mock.primary_server_alive ||
+		    g_lsp_mock.primary_server_kind != server_kind ||
+		    !editorLspWorkspaceRootsMatch(g_lsp_mock.primary_workspace_root_path,
+		                                  workspace_root_path)) {
 			if (g_lsp_mock.primary_server_kind != EDITOR_LSP_SERVER_NONE &&
-					(!g_lsp_mock.primary_server_alive ||
-					 g_lsp_mock.primary_server_kind != server_kind ||
-					 !editorLspWorkspaceRootsMatch(g_lsp_mock.primary_workspace_root_path,
-							 workspace_root_path))) {
-				editorLspResetTrackedDocumentsForServerKind(server_kind);
+			    (!g_lsp_mock.primary_server_alive ||
+			     g_lsp_mock.primary_server_kind != server_kind ||
+			     !editorLspWorkspaceRootsMatch(g_lsp_mock.primary_workspace_root_path,
+			                                   workspace_root_path))) {
+				lspResetTrackedDocumentsForServerKind(server_kind);
 			}
 			g_lsp_mock.primary_server_alive = 1;
 			g_lsp_mock.primary_server_kind = server_kind;
@@ -655,27 +636,26 @@ int editorLspEnsureRunningForFile(const char *filename, enum editorSyntaxLanguag
 		}
 		return 1;
 	}
-	return editorLspEnsureRunningReal(filename, server_kind);
+	return lspEnsureRunningReal(filename, server_kind);
 }
 
-int editorLspEnsureRunningEslintForFile(const char *filename,
-		enum editorSyntaxLanguage language) {
+int editorLspEnsureRunningEslintForFile(const char *filename, enum editorSyntaxLanguage language) {
 	if (!editorLspEslintEnabledForFile(filename, language)) {
 		return 0;
 	}
 	if (g_lsp_mock.enabled) {
 		char *workspace_root_path =
-				editorLspBuildWorkspaceRootPathForFile(filename, EDITOR_LSP_SERVER_ESLINT);
+		        lspBuildWorkspaceRootPathForFile(filename, EDITOR_LSP_SERVER_ESLINT);
 		if (workspace_root_path == NULL) {
 			return 0;
 		}
 		if (!g_lsp_mock.eslint_server_alive ||
-				!editorLspWorkspaceRootsMatch(g_lsp_mock.eslint_workspace_root_path,
-						workspace_root_path)) {
+		    !editorLspWorkspaceRootsMatch(g_lsp_mock.eslint_workspace_root_path,
+		                                  workspace_root_path)) {
 			if (g_lsp_mock.eslint_server_alive &&
-					!editorLspWorkspaceRootsMatch(g_lsp_mock.eslint_workspace_root_path,
-							workspace_root_path)) {
-				editorLspResetTrackedDocumentsForServerKind(EDITOR_LSP_SERVER_ESLINT);
+			    !editorLspWorkspaceRootsMatch(g_lsp_mock.eslint_workspace_root_path,
+			                                  workspace_root_path)) {
+				lspResetTrackedDocumentsForServerKind(EDITOR_LSP_SERVER_ESLINT);
 			}
 			g_lsp_mock.eslint_server_alive = 1;
 			free(g_lsp_mock.eslint_workspace_root_path);
@@ -686,11 +666,11 @@ int editorLspEnsureRunningEslintForFile(const char *filename,
 		}
 		return 1;
 	}
-	return editorLspEnsureRunningReal(filename, EDITOR_LSP_SERVER_ESLINT);
+	return lspEnsureRunningReal(filename, EDITOR_LSP_SERVER_ESLINT);
 }
 
 struct editorLspClient *editorLspEnsureClientForFile(const char *filename,
-		enum editorSyntaxLanguage language) {
+                                                     enum editorSyntaxLanguage language) {
 	if (!editorLspEnsureRunningForFile(filename, language)) {
 		return NULL;
 	}
@@ -698,7 +678,7 @@ struct editorLspClient *editorLspEnsureClientForFile(const char *filename,
 }
 
 struct editorLspClient *editorLspEnsureEslintClientForFile(const char *filename,
-		enum editorSyntaxLanguage language) {
+                                                           enum editorSyntaxLanguage language) {
 	if (!editorLspEnsureRunningEslintForFile(filename, language)) {
 		return NULL;
 	}
@@ -726,7 +706,7 @@ void editorLspShutdown(void) {
 	editorLspRegistryShutdownAll(1);
 }
 
-static void editorLspPumpClientCallback(struct editorLspClient *client, void *ctx) {
+static void lspPumpClientCallback(struct editorLspClient *client, void *ctx) {
 	(void)ctx;
 	(void)editorLspTryDrainIncoming(client, 0);
 }
@@ -734,15 +714,14 @@ static void editorLspPumpClientCallback(struct editorLspClient *client, void *ct
 void editorLspPumpNotifications(void) {
 	if (g_lsp_mock.enabled) {
 		if (g_lsp_mock.diagnostic_path != NULL) {
-			editorLspSetDiagnosticsForPath(g_lsp_mock.diagnostic_path, g_lsp_mock.diagnostics,
-					g_lsp_mock.diagnostic_count);
+			editorLspSetDiagnosticsForPath(g_lsp_mock.diagnostic_path,
+			                               g_lsp_mock.diagnostics,
+			                               g_lsp_mock.diagnostic_count);
 		}
 		return;
 	}
-	editorLspRegistryForEachClient(editorLspPumpClientCallback, NULL);
+	editorLspRegistryForEachClient(lspPumpClientCallback, NULL);
 }
-
-
 
 enum editorLspStartupFailureReason editorLspLastStartupFailureReason(void) {
 	return g_lsp_last_startup_failure_reason;
@@ -754,7 +733,7 @@ void editorLspClearStartupFailureReason(void) {
 
 void editorLspEnsureActiveDocumentTracked(void) {
 	if (E.tab_kind != EDITOR_TAB_FILE || E.filename == NULL || E.filename[0] == '\0' ||
-			E.document == NULL) {
+	    E.document == NULL) {
 		return;
 	}
 	if (E.lsp_doc_open && E.lsp_eslint_doc_open) {
@@ -770,13 +749,13 @@ void editorLspEnsureActiveDocumentTracked(void) {
 		return;
 	}
 	if (!E.lsp_doc_open) {
-		(void)editorLspEnsureDocumentOpen(E.filename, E.syntax_language,
-				&E.lsp_doc_open, &E.lsp_doc_version, text, text_len);
+		(void)editorLspEnsureDocumentOpen(E.filename, E.syntax_language, &E.lsp_doc_open,
+		                                  &E.lsp_doc_version, text, text_len);
 	}
 	if (!E.lsp_eslint_doc_open) {
 		(void)editorLspEnsureEslintDocumentOpen(E.filename, E.syntax_language,
-				&E.lsp_eslint_doc_open, &E.lsp_eslint_doc_version, text, text_len);
+		                                        &E.lsp_eslint_doc_open,
+		                                        &E.lsp_eslint_doc_version, text, text_len);
 	}
 	free(text);
 }
-

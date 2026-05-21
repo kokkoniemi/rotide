@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void editorGitFreeEntries(void) {
+static void gitFreeEntries(void) {
 	for (int i = 0; i < E.git_entry_count; i++) {
 		free(E.git_entries[i].rel_path);
 	}
@@ -19,7 +19,7 @@ static void editorGitFreeEntries(void) {
 	E.git_entry_capacity = 0;
 }
 
-static void editorGitRefreshBranch(void) {
+static void gitRefreshBranch(void) {
 	char head_path[PATH_MAX];
 	int n = 0;
 
@@ -59,13 +59,13 @@ static void editorGitRefreshBranch(void) {
 	fclose(f);
 }
 
-static int editorGitEntryCompare(const void *a, const void *b) {
+static int gitEntryCompare(const void *a, const void *b) {
 	const struct editorGitEntry *ea = (const struct editorGitEntry *)a;
 	const struct editorGitEntry *eb = (const struct editorGitEntry *)b;
 	return strcmp(ea->rel_path, eb->rel_path);
 }
 
-static enum editorGitStatus editorGitStatusFromXY(char x, char y) {
+static enum editorGitStatus gitStatusFromXY(char x, char y) {
 	if (x == 'U' || y == 'U' || (x == 'A' && y == 'A') || (x == 'D' && y == 'D')) {
 		return EDITOR_GIT_STATUS_CONFLICT;
 	}
@@ -81,12 +81,12 @@ static enum editorGitStatus editorGitStatusFromXY(char x, char y) {
 	return EDITOR_GIT_STATUS_CLEAN;
 }
 
-static int editorGitAddEntry(const char *rel_path, enum editorGitStatus status,
-		char index_status, char worktree_status) {
+static int gitAddEntry(const char *rel_path, enum editorGitStatus status, char index_status,
+                       char worktree_status) {
 	if (E.git_entry_count >= E.git_entry_capacity) {
 		int new_cap = E.git_entry_capacity == 0 ? 16 : E.git_entry_capacity * 2;
-		struct editorGitEntry *new_entries = editorRealloc(E.git_entries,
-				(size_t)new_cap * sizeof(struct editorGitEntry));
+		struct editorGitEntry *new_entries = editorRealloc(
+		        E.git_entries, (size_t)new_cap * sizeof(struct editorGitEntry));
 		if (new_entries == NULL) {
 			return 0;
 		}
@@ -106,7 +106,7 @@ static int editorGitAddEntry(const char *rel_path, enum editorGitStatus status,
 }
 
 int editorGitInit(void) {
-	char *cwd = editorPathGetCwd();
+	char *cwd = editorPathCwdDup();
 	if (cwd == NULL) {
 		return 0;
 	}
@@ -121,7 +121,7 @@ int editorGitInit(void) {
 
 	E.git_repo_root = repo_root;
 
-	editorGitRefreshBranch();
+	gitRefreshBranch();
 
 	editorGitRefresh();
 	return 1;
@@ -132,8 +132,8 @@ void editorGitRefresh(void) {
 		return;
 	}
 
-	editorGitRefreshBranch();
-	editorGitFreeEntries();
+	gitRefreshBranch();
+	gitFreeEntries();
 
 	// Single-quote-wrap the repo root so paths with spaces are handled safely.
 	// Any single quotes in the path itself are escaped as '\''.
@@ -232,17 +232,17 @@ void editorGitRefresh(void) {
 			p++;
 		}
 
-		enum editorGitStatus status = editorGitStatusFromXY(x, y);
+		enum editorGitStatus status = gitStatusFromXY(x, y);
 		if (status != EDITOR_GIT_STATUS_CLEAN) {
-			(void)editorGitAddEntry(rel_path, status, x, y);
+			(void)gitAddEntry(rel_path, status, x, y);
 		}
 	}
 
 	free(buf);
 
 	if (E.git_entry_count > 1) {
-		qsort(E.git_entries, (size_t)E.git_entry_count,
-				sizeof(struct editorGitEntry), editorGitEntryCompare);
+		qsort(E.git_entries, (size_t)E.git_entry_count, sizeof(struct editorGitEntry),
+		      gitEntryCompare);
 	}
 }
 
@@ -251,7 +251,7 @@ void editorGitFree(void) {
 	E.git_repo_root = NULL;
 	free(E.git_branch);
 	E.git_branch = NULL;
-	editorGitFreeEntries();
+	gitFreeEntries();
 }
 
 const char *editorGitBranch(void) {
@@ -259,8 +259,8 @@ const char *editorGitBranch(void) {
 }
 
 enum editorGitStatus editorGitFileStatus(const char *abs_path) {
-	if (E.git_repo_root == NULL || E.git_entries == NULL ||
-			E.git_entry_count == 0 || abs_path == NULL) {
+	if (E.git_repo_root == NULL || E.git_entries == NULL || E.git_entry_count == 0 ||
+	    abs_path == NULL) {
 		return EDITOR_GIT_STATUS_CLEAN;
 	}
 
@@ -289,8 +289,7 @@ enum editorGitStatus editorGitFileStatus(const char *abs_path) {
 	return EDITOR_GIT_STATUS_CLEAN;
 }
 
-static int editorGitAppendShellQuotedArg(char *cmd, size_t cmd_size, size_t *pos,
-		const char *value) {
+static int gitAppendShellQuotedArg(char *cmd, size_t cmd_size, size_t *pos, const char *value) {
 	if (cmd == NULL || pos == NULL || value == NULL) {
 		return 0;
 	}
@@ -323,7 +322,7 @@ static int editorGitAppendShellQuotedArg(char *cmd, size_t cmd_size, size_t *pos
 	return 1;
 }
 
-static int editorGitAppendLiteral(char *cmd, size_t cmd_size, size_t *pos, const char *literal) {
+static int gitAppendLiteral(char *cmd, size_t cmd_size, size_t *pos, const char *literal) {
 	size_t literal_len = strlen(literal);
 	if (*pos + literal_len + 1 > cmd_size) {
 		return 0;
@@ -335,7 +334,7 @@ static int editorGitAppendLiteral(char *cmd, size_t cmd_size, size_t *pos, const
 }
 
 char *editorGitGenerateDiff(const char *rel_path, char index_status, char worktree_status,
-		size_t *len_out) {
+                            size_t *len_out) {
 	if (len_out != NULL) {
 		*len_out = 0;
 	}
@@ -353,22 +352,23 @@ char *editorGitGenerateDiff(const char *rel_path, char index_status, char worktr
 
 	if (is_untracked) {
 		// For untracked files, simulate a diff against /dev/null using git diff --no-index.
-		if (!editorGitAppendLiteral(cmd, sizeof(cmd), &pos, "git -C ") ||
-				!editorGitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, E.git_repo_root) ||
-				!editorGitAppendLiteral(cmd, sizeof(cmd), &pos,
-					" --no-pager diff --no-color --no-index -- /dev/null ") ||
-				!editorGitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, rel_path) ||
-				!editorGitAppendLiteral(cmd, sizeof(cmd), &pos, " 2>/dev/null")) {
+		if (!gitAppendLiteral(cmd, sizeof(cmd), &pos, "git -C ") ||
+		    !gitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, E.git_repo_root) ||
+		    !gitAppendLiteral(cmd, sizeof(cmd), &pos,
+		                      " --no-pager diff --no-color --no-index -- /dev/null ") ||
+		    !gitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, rel_path) ||
+		    !gitAppendLiteral(cmd, sizeof(cmd), &pos, " 2>/dev/null")) {
 			return NULL;
 		}
 	} else {
-		const char *diff_subcommand = has_staged ? " --no-pager diff --no-color --cached -- " :
-				" --no-pager diff --no-color -- ";
-		if (!editorGitAppendLiteral(cmd, sizeof(cmd), &pos, "git -C ") ||
-				!editorGitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, E.git_repo_root) ||
-				!editorGitAppendLiteral(cmd, sizeof(cmd), &pos, diff_subcommand) ||
-				!editorGitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, rel_path) ||
-				!editorGitAppendLiteral(cmd, sizeof(cmd), &pos, " 2>/dev/null")) {
+		const char *diff_subcommand = has_staged
+		                                      ? " --no-pager diff --no-color --cached -- "
+		                                      : " --no-pager diff --no-color -- ";
+		if (!gitAppendLiteral(cmd, sizeof(cmd), &pos, "git -C ") ||
+		    !gitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, E.git_repo_root) ||
+		    !gitAppendLiteral(cmd, sizeof(cmd), &pos, diff_subcommand) ||
+		    !gitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, rel_path) ||
+		    !gitAppendLiteral(cmd, sizeof(cmd), &pos, " 2>/dev/null")) {
 			return NULL;
 		}
 	}
@@ -427,8 +427,8 @@ char *editorGitGenerateDiff(const char *rel_path, char index_status, char worktr
 }
 
 enum editorGitStatus editorGitDirStatus(const char *abs_path) {
-	if (E.git_repo_root == NULL || E.git_entries == NULL ||
-			E.git_entry_count == 0 || abs_path == NULL) {
+	if (E.git_repo_root == NULL || E.git_entries == NULL || E.git_entry_count == 0 ||
+	    abs_path == NULL) {
 		return EDITOR_GIT_STATUS_CLEAN;
 	}
 
@@ -446,8 +446,8 @@ enum editorGitStatus editorGitDirStatus(const char *abs_path) {
 	enum editorGitStatus worst = EDITOR_GIT_STATUS_CLEAN;
 	for (int i = 0; i < E.git_entry_count; i++) {
 		const char *entry_path = E.git_entries[i].rel_path;
-		int matches = (rel_len == 0) ||
-				(strncmp(entry_path, rel, rel_len) == 0 && entry_path[rel_len] == '/');
+		int matches = (rel_len == 0) || (strncmp(entry_path, rel, rel_len) == 0 &&
+		                                 entry_path[rel_len] == '/');
 		if (matches) {
 			enum editorGitStatus s = E.git_entries[i].status;
 			if (s > worst) {

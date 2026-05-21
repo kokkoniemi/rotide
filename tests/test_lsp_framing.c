@@ -60,7 +60,7 @@ static int test_parse_content_length_case_insensitive(void) {
 
 static int test_parse_content_length_skips_other_headers(void) {
 	const char *header = "Content-Type: application/vscode-jsonrpc\r\n"
-			"Content-Length: 12\r\n\r\n";
+	                     "Content-Length: 12\r\n\r\n";
 	size_t len = 0;
 	ASSERT_EQ_INT(1, editorLspParseContentLength(header, &len));
 	ASSERT_EQ_INT(12, (long)len);
@@ -83,8 +83,8 @@ static int test_parse_content_length_rejects_overflow(void) {
 	/* 21 nines: comfortably above 2^64 - 1, must be rejected without
 	 * silently wrapping. */
 	size_t len = 999;
-	ASSERT_EQ_INT(
-			0, editorLspParseContentLength("Content-Length: 999999999999999999999\r\n\r\n", &len));
+	ASSERT_EQ_INT(0, editorLspParseContentLength(
+	                         "Content-Length: 999999999999999999999\r\n\r\n", &len));
 	return 0;
 }
 
@@ -211,23 +211,24 @@ static int test_send_raw_json_round_trip(void) {
 }
 
 const struct editorTestCase g_lsp_framing_tests[] = {
-	{"parse_content_length_valid", test_parse_content_length_valid},
-	{"parse_content_length_zero", test_parse_content_length_zero},
-	{"parse_content_length_case_insensitive", test_parse_content_length_case_insensitive},
-	{"parse_content_length_skips_other_headers", test_parse_content_length_skips_other_headers},
-	{"parse_content_length_rejects_non_digits", test_parse_content_length_rejects_non_digits},
-	{"parse_content_length_rejects_negative", test_parse_content_length_rejects_negative},
-	{"parse_content_length_rejects_overflow", test_parse_content_length_rejects_overflow},
-	{"parse_content_length_missing_returns_zero", test_parse_content_length_missing_returns_zero},
-	{"read_frame_valid", test_read_frame_valid},
-	{"read_frame_zero_length", test_read_frame_zero_length},
-	{"read_frame_two_back_to_back", test_read_frame_two_back_to_back},
-	{"read_frame_truncated_payload", test_read_frame_truncated_payload},
-	{"read_frame_malformed_header", test_read_frame_malformed_header},
-	{"read_frame_rejects_oversized_payload", test_read_frame_rejects_oversized_payload},
-	{"read_frame_header_too_long", test_read_frame_header_too_long},
-	{"send_raw_json_round_trip", test_send_raw_json_round_trip},
+        {"parse_content_length_valid", test_parse_content_length_valid},
+        {"parse_content_length_zero", test_parse_content_length_zero},
+        {"parse_content_length_case_insensitive", test_parse_content_length_case_insensitive},
+        {"parse_content_length_skips_other_headers", test_parse_content_length_skips_other_headers},
+        {"parse_content_length_rejects_non_digits", test_parse_content_length_rejects_non_digits},
+        {"parse_content_length_rejects_negative", test_parse_content_length_rejects_negative},
+        {"parse_content_length_rejects_overflow", test_parse_content_length_rejects_overflow},
+        {"parse_content_length_missing_returns_zero",
+         test_parse_content_length_missing_returns_zero},
+        {"read_frame_valid", test_read_frame_valid},
+        {"read_frame_zero_length", test_read_frame_zero_length},
+        {"read_frame_two_back_to_back", test_read_frame_two_back_to_back},
+        {"read_frame_truncated_payload", test_read_frame_truncated_payload},
+        {"read_frame_malformed_header", test_read_frame_malformed_header},
+        {"read_frame_rejects_oversized_payload", test_read_frame_rejects_oversized_payload},
+        {"read_frame_header_too_long", test_read_frame_header_too_long},
+        {"send_raw_json_round_trip", test_send_raw_json_round_trip},
 };
 
 const int g_lsp_framing_test_count =
-		(int)(sizeof(g_lsp_framing_tests) / sizeof(g_lsp_framing_tests[0]));
+        (int)(sizeof(g_lsp_framing_tests) / sizeof(g_lsp_framing_tests[0]));

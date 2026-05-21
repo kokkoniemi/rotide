@@ -17,10 +17,10 @@ static int tree_byte_at(const struct editorTextTree *tree, size_t off, char *out
 }
 
 static int tree_matches_string(const struct editorTextTree *tree, const char *expected,
-		size_t expected_len) {
+                               size_t expected_len) {
 	if (editorTextTreeLength(tree) != expected_len) {
-		fprintf(stderr, "tree_len=%zu expected=%zu\n",
-			editorTextTreeLength(tree), expected_len);
+		fprintf(stderr, "tree_len=%zu expected=%zu\n", editorTextTreeLength(tree),
+		        expected_len);
 		return 0;
 	}
 	for (size_t i = 0; i < expected_len; i++) {
@@ -30,9 +30,8 @@ static int tree_matches_string(const struct editorTextTree *tree, const char *ex
 			return 0;
 		}
 		if (b != expected[i]) {
-			fprintf(stderr,
-				"byte diff at %zu: tree=0x%02x expected=0x%02x\n",
-				i, (unsigned char)b, (unsigned char)expected[i]);
+			fprintf(stderr, "byte diff at %zu: tree=0x%02x expected=0x%02x\n", i,
+			        (unsigned char)b, (unsigned char)expected[i]);
 			return 0;
 		}
 	}
@@ -285,8 +284,8 @@ static int test_text_tree_typing_fast_path_coalesces(void) {
 
 	for (int i = 0; i < 200; i++) {
 		char c = (char)('a' + (i % 26));
-		ASSERT_TRUE(editorTextTreeReplaceRange(&tree,
-			editorTextTreeLength(&tree), 0, &c, 1));
+		ASSERT_TRUE(
+		        editorTextTreeReplaceRange(&tree, editorTextTreeLength(&tree), 0, &c, 1));
 	}
 	ASSERT_TRUE(editorTextTreeLength(&tree) == 200);
 
@@ -333,15 +332,15 @@ static int test_text_tree_random_edits_bounded_piece_count(void) {
 }
 
 const struct editorTestCase g_text_tree_tests[] = {
-	{"text_tree_leaf_split_grows_tree", test_text_tree_leaf_split_grows_tree},
-	{"text_tree_split_grows_internal_nodes", test_text_tree_split_grows_internal_nodes},
-	{"text_tree_merge_collapses_after_drain", test_text_tree_merge_collapses_after_drain},
-	{"text_tree_locate_line_matches_naive", test_text_tree_locate_line_matches_naive},
-	{"text_tree_line_for_byte_matches_naive", test_text_tree_line_for_byte_matches_naive},
-	{"text_tree_line_queries_survive_splits", test_text_tree_line_queries_survive_splits},
-	{"text_tree_typing_fast_path_coalesces", test_text_tree_typing_fast_path_coalesces},
-	{"text_tree_random_edits_bounded_piece_count", test_text_tree_random_edits_bounded_piece_count},
+        {"text_tree_leaf_split_grows_tree", test_text_tree_leaf_split_grows_tree},
+        {"text_tree_split_grows_internal_nodes", test_text_tree_split_grows_internal_nodes},
+        {"text_tree_merge_collapses_after_drain", test_text_tree_merge_collapses_after_drain},
+        {"text_tree_locate_line_matches_naive", test_text_tree_locate_line_matches_naive},
+        {"text_tree_line_for_byte_matches_naive", test_text_tree_line_for_byte_matches_naive},
+        {"text_tree_line_queries_survive_splits", test_text_tree_line_queries_survive_splits},
+        {"text_tree_typing_fast_path_coalesces", test_text_tree_typing_fast_path_coalesces},
+        {"text_tree_random_edits_bounded_piece_count",
+         test_text_tree_random_edits_bounded_piece_count},
 };
 
-const int g_text_tree_test_count =
-	(int)(sizeof(g_text_tree_tests) / sizeof(g_text_tree_tests[0]));
+const int g_text_tree_test_count = (int)(sizeof(g_text_tree_tests) / sizeof(g_text_tree_tests[0]));

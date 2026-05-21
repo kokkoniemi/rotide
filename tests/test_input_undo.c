@@ -1,6 +1,6 @@
+#include "editing/selection.h"
 #include "test_case.h"
 #include "test_support.h"
-#include "editing/selection.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/layout.h"
@@ -180,16 +180,25 @@ static int test_editor_process_keypress_ctrl_z_restore_oom_preserves_state(void)
 }
 
 const struct editorTestCase g_input_undo_tests[] = {
-	{"editor_process_keypress_ctrl_z_ctrl_y_roundtrip_after_cut", test_editor_process_keypress_ctrl_z_ctrl_y_roundtrip_after_cut},
-	{"editor_process_keypress_ctrl_z_ctrl_y_roundtrip_typed_run", test_editor_process_keypress_ctrl_z_ctrl_y_roundtrip_typed_run},
-	{"editor_process_keypress_ctrl_z_group_break_on_navigation", test_editor_process_keypress_ctrl_z_group_break_on_navigation},
-	{"editor_process_keypress_ctrl_z_for_delete_and_newline_steps", test_editor_process_keypress_ctrl_z_for_delete_and_newline_steps},
-	{"editor_process_keypress_ctrl_y_clears_after_new_edit", test_editor_process_keypress_ctrl_y_clears_after_new_edit},
-	{"editor_process_keypress_ctrl_z_ctrl_y_empty_stack_status", test_editor_process_keypress_ctrl_z_ctrl_y_empty_stack_status},
-	{"editor_process_keypress_ctrl_z_history_cap_eviction", test_editor_process_keypress_ctrl_z_history_cap_eviction},
-	{"editor_process_keypress_ctrl_z_capture_oom_preserves_state", test_editor_process_keypress_ctrl_z_capture_oom_preserves_state},
-	{"editor_process_keypress_ctrl_z_restore_oom_preserves_state", test_editor_process_keypress_ctrl_z_restore_oom_preserves_state},
+        {"editor_process_keypress_ctrl_z_ctrl_y_roundtrip_after_cut",
+         test_editor_process_keypress_ctrl_z_ctrl_y_roundtrip_after_cut},
+        {"editor_process_keypress_ctrl_z_ctrl_y_roundtrip_typed_run",
+         test_editor_process_keypress_ctrl_z_ctrl_y_roundtrip_typed_run},
+        {"editor_process_keypress_ctrl_z_group_break_on_navigation",
+         test_editor_process_keypress_ctrl_z_group_break_on_navigation},
+        {"editor_process_keypress_ctrl_z_for_delete_and_newline_steps",
+         test_editor_process_keypress_ctrl_z_for_delete_and_newline_steps},
+        {"editor_process_keypress_ctrl_y_clears_after_new_edit",
+         test_editor_process_keypress_ctrl_y_clears_after_new_edit},
+        {"editor_process_keypress_ctrl_z_ctrl_y_empty_stack_status",
+         test_editor_process_keypress_ctrl_z_ctrl_y_empty_stack_status},
+        {"editor_process_keypress_ctrl_z_history_cap_eviction",
+         test_editor_process_keypress_ctrl_z_history_cap_eviction},
+        {"editor_process_keypress_ctrl_z_capture_oom_preserves_state",
+         test_editor_process_keypress_ctrl_z_capture_oom_preserves_state},
+        {"editor_process_keypress_ctrl_z_restore_oom_preserves_state",
+         test_editor_process_keypress_ctrl_z_restore_oom_preserves_state},
 };
 
 const int g_input_undo_test_count =
-		(int)(sizeof(g_input_undo_tests) / sizeof(g_input_undo_tests[0]));
+        (int)(sizeof(g_input_undo_tests) / sizeof(g_input_undo_tests[0]));

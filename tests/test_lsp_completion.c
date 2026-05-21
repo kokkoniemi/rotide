@@ -41,8 +41,8 @@ static int test_editor_lsp_autocomplete_identifier_trigger_opens_popup(void) {
 	E.cx = 3;
 
 	struct editorLspCompletionItem mock_items[2] = {
-		{.label = (char *)"foobar"},
-		{.label = (char *)"foobaz"},
+	        {.label = (char *)"foobar"},
+	        {.label = (char *)"foobaz"},
 	};
 	editorLspTestSetMockCompletionResponse(mock_items, 2);
 
@@ -79,7 +79,7 @@ static int test_editor_lsp_autocomplete_stale_response_after_cursor_move_is_igno
 	E.cx = 3;
 
 	struct editorLspCompletionItem mock_items[1] = {
-		{.label = (char *)"foobar"},
+	        {.label = (char *)"foobar"},
 	};
 	editorLspTestSetMockCompletionResponse(mock_items, 1);
 	editorAutocompleteOnCharInserted('o');
@@ -113,7 +113,7 @@ static int test_editor_lsp_autocomplete_accept_inserts_label(void) {
 	E.cx = 3;
 
 	struct editorLspCompletionItem mock_items[1] = {
-		{.label = (char *)"foobar"},
+	        {.label = (char *)"foobar"},
 	};
 	editorLspTestSetMockCompletionResponse(mock_items, 1);
 	editorAutocompleteOnCharInserted('o');
@@ -145,7 +145,7 @@ static int test_editor_lsp_autocomplete_accept_uses_insert_text(void) {
 	E.cx = 3;
 
 	struct editorLspCompletionItem mock_items[1] = {
-		{.label = (char *)"foobar", .insert_text = (char *)"foobar_extra"},
+	        {.label = (char *)"foobar", .insert_text = (char *)"foobar_extra"},
 	};
 	editorLspTestSetMockCompletionResponse(mock_items, 1);
 	editorAutocompleteOnCharInserted('o');
@@ -174,9 +174,9 @@ static int test_editor_lsp_autocomplete_typing_narrows_popup_without_response(vo
 	E.cx = 1;
 
 	struct editorLspCompletionItem mock_items[3] = {
-		{.label = (char *)"foo"},
-		{.label = (char *)"fbar"},
-		{.label = (char *)"fbaz"},
+	        {.label = (char *)"foo"},
+	        {.label = (char *)"fbar"},
+	        {.label = (char *)"fbaz"},
 	};
 	editorLspTestSetMockCompletionResponse(mock_items, 3);
 	editorAutocompleteOnCharInserted('f');
@@ -211,9 +211,9 @@ static int test_editor_lsp_autocomplete_typing_narrows_popup_keeps_accept_correc
 	E.cx = 1;
 
 	struct editorLspCompletionItem mock_items[3] = {
-		{.label = (char *)"foo"},
-		{.label = (char *)"fbar"},
-		{.label = (char *)"fbaz"},
+	        {.label = (char *)"foo"},
+	        {.label = (char *)"fbar"},
+	        {.label = (char *)"fbaz"},
 	};
 	editorLspTestSetMockCompletionResponse(mock_items, 3);
 	editorAutocompleteOnCharInserted('f');
@@ -248,9 +248,9 @@ static int test_editor_lsp_autocomplete_dispatch_typing_keeps_popup_open(void) {
 	E.cx = 1;
 
 	struct editorLspCompletionItem mock_items[3] = {
-		{.label = (char *)"foo"},
-		{.label = (char *)"fbar"},
-		{.label = (char *)"fbaz"},
+	        {.label = (char *)"foo"},
+	        {.label = (char *)"fbar"},
+	        {.label = (char *)"fbaz"},
 	};
 	editorLspTestSetMockCompletionResponse(mock_items, 3);
 	editorAutocompleteOnCharInserted('f');
@@ -295,12 +295,11 @@ static int test_editor_lsp_autocomplete_filters_clangd_decorated_labels(void) {
 	/* Mirror clangd: labels carry leading whitespace/markers; filterText holds the
 	 * bare symbol that should drive prefix matching. */
 	struct editorLspCompletionItem mock_items[3] = {
-		{.label = (char *)" completion_pending",
-		 .filter_text = (char *)"completion_pending"},
-		{.label = (char *)" completion_supported",
-		 .filter_text = (char *)"completion_supported"},
-		{.label = (char *)" flags",
-		 .filter_text = (char *)"flags"},
+	        {.label = (char *)" completion_pending",
+	         .filter_text = (char *)"completion_pending"},
+	        {.label = (char *)" completion_supported",
+	         .filter_text = (char *)"completion_supported"},
+	        {.label = (char *)" flags", .filter_text = (char *)"flags"},
 	};
 	editorLspTestSetMockCompletionResponse(mock_items, 3);
 	editorAutocompleteOnCharInserted('.');
@@ -339,8 +338,8 @@ static int test_editor_lsp_autocomplete_accept_uses_filter_text_when_label_decor
 	E.cx = 7;
 
 	struct editorLspCompletionItem mock_items[1] = {
-		{.label = (char *)" completion_pending",
-		 .filter_text = (char *)"completion_pending"},
+	        {.label = (char *)" completion_pending",
+	         .filter_text = (char *)"completion_pending"},
 	};
 	editorLspTestSetMockCompletionResponse(mock_items, 1);
 	editorAutocompleteOnCharInserted('.');
@@ -370,9 +369,9 @@ static int test_editor_lsp_autocomplete_dispatch_typing_after_trigger_char_keeps
 	E.cx = 7;
 
 	struct editorLspCompletionItem mock_items[3] = {
-		{.label = (char *)"count"},
-		{.label = (char *)"connect"},
-		{.label = (char *)"flags"},
+	        {.label = (char *)"count"},
+	        {.label = (char *)"connect"},
+	        {.label = (char *)"flags"},
 	};
 	editorLspTestSetMockCompletionResponse(mock_items, 3);
 	editorAutocompleteOnCharInserted('.');
@@ -394,18 +393,29 @@ static int test_editor_lsp_autocomplete_dispatch_typing_after_trigger_char_keeps
 }
 
 const struct editorTestCase g_lsp_completion_tests[] = {
-	{"editor_lsp_autocomplete_disabled_by_config_does_not_trigger", test_editor_lsp_autocomplete_disabled_by_config_does_not_trigger},
-	{"editor_lsp_autocomplete_identifier_trigger_opens_popup", test_editor_lsp_autocomplete_identifier_trigger_opens_popup},
-	{"editor_lsp_autocomplete_stale_response_after_cursor_move_is_ignored", test_editor_lsp_autocomplete_stale_response_after_cursor_move_is_ignored},
-	{"editor_lsp_autocomplete_accept_inserts_label", test_editor_lsp_autocomplete_accept_inserts_label},
-	{"editor_lsp_autocomplete_accept_uses_insert_text", test_editor_lsp_autocomplete_accept_uses_insert_text},
-	{"editor_lsp_autocomplete_typing_narrows_popup_without_response", test_editor_lsp_autocomplete_typing_narrows_popup_without_response},
-	{"editor_lsp_autocomplete_typing_narrows_popup_keeps_accept_correct", test_editor_lsp_autocomplete_typing_narrows_popup_keeps_accept_correct},
-	{"editor_lsp_autocomplete_dispatch_typing_keeps_popup_open", test_editor_lsp_autocomplete_dispatch_typing_keeps_popup_open},
-	{"editor_lsp_autocomplete_filters_clangd_decorated_labels", test_editor_lsp_autocomplete_filters_clangd_decorated_labels},
-	{"editor_lsp_autocomplete_accept_uses_filter_text_when_label_decorated", test_editor_lsp_autocomplete_accept_uses_filter_text_when_label_decorated},
-	{"editor_lsp_autocomplete_dispatch_typing_after_trigger_char_keeps_popup", test_editor_lsp_autocomplete_dispatch_typing_after_trigger_char_keeps_popup},
+        {"editor_lsp_autocomplete_disabled_by_config_does_not_trigger",
+         test_editor_lsp_autocomplete_disabled_by_config_does_not_trigger},
+        {"editor_lsp_autocomplete_identifier_trigger_opens_popup",
+         test_editor_lsp_autocomplete_identifier_trigger_opens_popup},
+        {"editor_lsp_autocomplete_stale_response_after_cursor_move_is_ignored",
+         test_editor_lsp_autocomplete_stale_response_after_cursor_move_is_ignored},
+        {"editor_lsp_autocomplete_accept_inserts_label",
+         test_editor_lsp_autocomplete_accept_inserts_label},
+        {"editor_lsp_autocomplete_accept_uses_insert_text",
+         test_editor_lsp_autocomplete_accept_uses_insert_text},
+        {"editor_lsp_autocomplete_typing_narrows_popup_without_response",
+         test_editor_lsp_autocomplete_typing_narrows_popup_without_response},
+        {"editor_lsp_autocomplete_typing_narrows_popup_keeps_accept_correct",
+         test_editor_lsp_autocomplete_typing_narrows_popup_keeps_accept_correct},
+        {"editor_lsp_autocomplete_dispatch_typing_keeps_popup_open",
+         test_editor_lsp_autocomplete_dispatch_typing_keeps_popup_open},
+        {"editor_lsp_autocomplete_filters_clangd_decorated_labels",
+         test_editor_lsp_autocomplete_filters_clangd_decorated_labels},
+        {"editor_lsp_autocomplete_accept_uses_filter_text_when_label_decorated",
+         test_editor_lsp_autocomplete_accept_uses_filter_text_when_label_decorated},
+        {"editor_lsp_autocomplete_dispatch_typing_after_trigger_char_keeps_popup",
+         test_editor_lsp_autocomplete_dispatch_typing_after_trigger_char_keeps_popup},
 };
 
 const int g_lsp_completion_test_count =
-		(int)(sizeof(g_lsp_completion_tests) / sizeof(g_lsp_completion_tests[0]));
+        (int)(sizeof(g_lsp_completion_tests) / sizeof(g_lsp_completion_tests[0]));

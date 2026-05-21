@@ -1,8 +1,7 @@
 #ifndef TEST_SUPPORT_H
 #define TEST_SUPPORT_H
 
-#include "rotide.h"
-
+#include "alloc_test_hooks.h"
 #include "config/editor_config.h"
 #include "config/keymap.h"
 #include "config/lsp_config.h"
@@ -21,25 +20,26 @@
 #include "language/syntax_worker.h"
 #include "render/popup.h"
 #include "render/screen.h"
+#include "rotide.h"
+#include "save_syscalls_test_hooks.h"
 #include "support/file_io.h"
 #include "support/terminal.h"
+#include "test_helpers.h"
 #include "text/document.h"
 #include "text/row.h"
 #include "text/utf8.h"
 #include "workspace/drawer.h"
 #include "workspace/recovery.h"
-#include "workspace/task.h"
 #include "workspace/tabs.h"
-#include "alloc_test_hooks.h"
-#include "save_syscalls_test_hooks.h"
-#include "test_helpers.h"
+#include "workspace/task.h"
+
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <locale.h>
 #include <signal.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -54,7 +54,6 @@ struct envVarBackup {
 	int was_set;
 };
 
-
 struct recoveryTestEnv {
 	struct envVarBackup home_backup;
 	char *original_cwd;
@@ -63,15 +62,13 @@ struct recoveryTestEnv {
 	char project_dir[512];
 };
 
-
 int count_tmp_save_artifacts(const char *target_path);
 int remove_tmp_save_artifacts(const char *target_path);
-int write_fixture_to_temp_path(char path_buf[], int suffix_len,
-		const char *fixture_relative_path);
+int write_fixture_to_temp_path(char path_buf[], int suffix_len, const char *fixture_relative_path);
 int write_temp_file_with_suffix(char path_buf[], size_t path_buf_size, const char *prefix,
-		const char *suffix, const char *content);
-int copy_fixture_to_temp_file_with_suffix(char path_buf[], size_t path_buf_size,
-		const char *prefix, const char *suffix, const char *fixture_relative_path);
+                                const char *suffix, const char *content);
+int copy_fixture_to_temp_file_with_suffix(char path_buf[], size_t path_buf_size, const char *prefix,
+                                          const char *suffix, const char *fixture_relative_path);
 int copy_fixture_to_path(const char *dest_path, const char *fixture_relative_path);
 int write_temp_go_file(char path_buf[], size_t path_buf_size, const char *content);
 int write_temp_c_file(char path_buf[], size_t path_buf_size, const char *content);

@@ -2,7 +2,6 @@
 
 struct editorConfig E;
 
-
 int count_tmp_save_artifacts(const char *target_path) {
 	const char *base = strrchr(target_path, '/');
 	if (base != NULL) {
@@ -92,11 +91,10 @@ int remove_tmp_save_artifacts(const char *target_path) {
 	return failures == 0 ? 0 : -1;
 }
 
-int write_fixture_to_temp_path(char path_buf[], int suffix_len,
-		const char *fixture_relative_path);
+int write_fixture_to_temp_path(char path_buf[], int suffix_len, const char *fixture_relative_path);
 
 int write_temp_file_with_suffix(char path_buf[], size_t path_buf_size, const char *prefix,
-		const char *suffix, const char *content) {
+                                const char *suffix, const char *content) {
 	if (path_buf == NULL || prefix == NULL || suffix == NULL || content == NULL) {
 		return 0;
 	}
@@ -123,8 +121,8 @@ int write_temp_file_with_suffix(char path_buf[], size_t path_buf_size, const cha
 	return ok;
 }
 
-int copy_fixture_to_temp_file_with_suffix(char path_buf[], size_t path_buf_size,
-		const char *prefix, const char *suffix, const char *fixture_relative_path) {
+int copy_fixture_to_temp_file_with_suffix(char path_buf[], size_t path_buf_size, const char *prefix,
+                                          const char *suffix, const char *fixture_relative_path) {
 	if (path_buf == NULL || prefix == NULL || suffix == NULL || fixture_relative_path == NULL) {
 		return 0;
 	}
@@ -148,22 +146,22 @@ int copy_fixture_to_path(const char *dest_path, const char *fixture_relative_pat
 
 int write_temp_go_file(char path_buf[], size_t path_buf_size, const char *content) {
 	return write_temp_file_with_suffix(path_buf, path_buf_size, "rotide-test-go-lsp-", ".go",
-			content);
+	                                   content);
 }
 
 int write_temp_c_file(char path_buf[], size_t path_buf_size, const char *content) {
 	return write_temp_file_with_suffix(path_buf, path_buf_size, "rotide-test-c-lsp-", ".c",
-			content);
+	                                   content);
 }
 
 int write_temp_html_file(char path_buf[], size_t path_buf_size, const char *content) {
-	return write_temp_file_with_suffix(path_buf, path_buf_size, "rotide-test-html-lsp-", ".html",
-			content);
+	return write_temp_file_with_suffix(path_buf, path_buf_size, "rotide-test-html-lsp-",
+	                                   ".html", content);
 }
 
 int write_temp_text_file(char path_buf[], size_t path_buf_size, const char *content) {
 	return write_temp_file_with_suffix(path_buf, path_buf_size, "rotide-test-lsp-", ".txt",
-			content);
+	                                   content);
 }
 
 char *dup_active_source_text(size_t *len_out) {
@@ -230,8 +228,7 @@ int assert_selection_anchor(int row, int col) {
 	return 0;
 }
 
-int write_fixture_to_temp_path(char path_buf[], int suffix_len,
-		const char *fixture_relative_path) {
+int write_fixture_to_temp_path(char path_buf[], int suffix_len, const char *fixture_relative_path) {
 	int fd = suffix_len > 0 ? mkstemps(path_buf, suffix_len) : mkstemp(path_buf);
 	if (fd == -1) {
 		return 0;
@@ -395,7 +392,7 @@ int find_drawer_entry(const char *name, int *idx_out, struct editorDrawerEntryVi
 	int visible = editorDrawerVisibleCount();
 	for (int i = 0; i < visible; i++) {
 		struct editorDrawerEntryView view;
-		if (!editorDrawerGetVisibleEntry(i, &view)) {
+		if (!editorDrawerVisibleEntryView(i, &view)) {
 			continue;
 		}
 		if (strcmp(view.name, name) == 0) {
@@ -448,9 +445,9 @@ void cleanup_recovery_test_env(struct recoveryTestEnv *env) {
 	char recovery_dir[512];
 	char state_dir[512];
 	if (env->home_dir[0] != '\0' &&
-			path_join(dot_rotide_dir, sizeof(dot_rotide_dir), env->home_dir, ".rotide") &&
-			path_join(recovery_dir, sizeof(recovery_dir), dot_rotide_dir, "recovery") &&
-			path_join(state_dir, sizeof(state_dir), dot_rotide_dir, "state")) {
+	    path_join(dot_rotide_dir, sizeof(dot_rotide_dir), env->home_dir, ".rotide") &&
+	    path_join(recovery_dir, sizeof(recovery_dir), dot_rotide_dir, "recovery") &&
+	    path_join(state_dir, sizeof(state_dir), dot_rotide_dir, "state")) {
 		remove_files_in_dir(recovery_dir);
 		(void)rmdir(recovery_dir);
 		remove_files_in_dir(state_dir);
@@ -498,13 +495,13 @@ int setup_recovery_test_env(struct recoveryTestEnv *env) {
 		return 0;
 	}
 	if (snprintf(env->root_dir, sizeof(env->root_dir), "%s", root_path) >=
-			(int)sizeof(env->root_dir)) {
+	    (int)sizeof(env->root_dir)) {
 		cleanup_recovery_test_env(env);
 		return 0;
 	}
 
 	if (!path_join(env->home_dir, sizeof(env->home_dir), env->root_dir, "home") ||
-			!path_join(env->project_dir, sizeof(env->project_dir), env->root_dir, "project")) {
+	    !path_join(env->project_dir, sizeof(env->project_dir), env->root_dir, "project")) {
 		cleanup_recovery_test_env(env);
 		return 0;
 	}

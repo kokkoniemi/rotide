@@ -1,8 +1,7 @@
-#include "test_case.h"
-#include "test_helpers.h"
-
 #include "editing/edit.h"
 #include "input/dispatch.h"
+#include "test_case.h"
+#include "test_helpers.h"
 #include "workspace/tabs.h"
 #include "workspace/task.h"
 #include "workspace/watch.h"
@@ -184,18 +183,18 @@ static int test_file_watch_ignores_task_log_tabs(void) {
 }
 
 const struct editorTestCase g_file_watch_tests[] = {
-	{"file_watch_reloads_clean_active_tab", test_file_watch_reloads_clean_active_tab},
-	{"file_watch_reloads_clean_inactive_tab", test_file_watch_reloads_clean_inactive_tab},
-	{"file_watch_marks_dirty_conflict_without_reload",
-			test_file_watch_marks_dirty_conflict_without_reload},
-	{"file_watch_save_prompt_can_abort_conflict_overwrite",
-			test_file_watch_save_prompt_can_abort_conflict_overwrite},
-	{"file_watch_save_prompt_can_overwrite_conflict",
-			test_file_watch_save_prompt_can_overwrite_conflict},
-	{"file_watch_deleted_clean_file_keeps_buffer",
-			test_file_watch_deleted_clean_file_keeps_buffer},
-	{"file_watch_ignores_task_log_tabs", test_file_watch_ignores_task_log_tabs},
+        {"file_watch_reloads_clean_active_tab", test_file_watch_reloads_clean_active_tab},
+        {"file_watch_reloads_clean_inactive_tab", test_file_watch_reloads_clean_inactive_tab},
+        {"file_watch_marks_dirty_conflict_without_reload",
+         test_file_watch_marks_dirty_conflict_without_reload},
+        {"file_watch_save_prompt_can_abort_conflict_overwrite",
+         test_file_watch_save_prompt_can_abort_conflict_overwrite},
+        {"file_watch_save_prompt_can_overwrite_conflict",
+         test_file_watch_save_prompt_can_overwrite_conflict},
+        {"file_watch_deleted_clean_file_keeps_buffer",
+         test_file_watch_deleted_clean_file_keeps_buffer},
+        {"file_watch_ignores_task_log_tabs", test_file_watch_ignores_task_log_tabs},
 };
 
 const int g_file_watch_test_count =
-		(int)(sizeof(g_file_watch_tests) / sizeof(g_file_watch_tests[0]));
+        (int)(sizeof(g_file_watch_tests) / sizeof(g_file_watch_tests[0]));

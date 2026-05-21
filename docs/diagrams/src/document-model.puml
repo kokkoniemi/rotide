@@ -20,7 +20,7 @@ class editorTabState {
 
 class editorBuffer {
   editorDocument *document
-  erow *rows
+  editorRow *rows
   int numrows
   size_t cursor_offset
   search / selection offsets
@@ -67,7 +67,7 @@ class editorTextSummary {
   size_t max_line_bytes
 }
 
-class erow {
+class editorRow {
   char *render
   int rsize
   wrap cache fields
@@ -84,7 +84,7 @@ editorConfig *-- "tabs[]" editorTabState
 editorTabState *-- editorBuffer
 
 editorBuffer o-- editorDocument : document pointer
-editorBuffer *-- erow : derived rows
+editorBuffer *-- editorRow : derived rows
 
 editorDocument *-- editorTextTree
 editorTextTree *-- "root" editorTextNode

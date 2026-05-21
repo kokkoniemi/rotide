@@ -55,7 +55,7 @@ void editorLibFuzzerStatsParse(const char *text, struct editorLibFuzzerStats *ou
  * *file_count_out and *byte_count_out are populated. The function does
  * not descend into subdirectories (libFuzzer's corpus is flat).
  */
-int editorLibFuzzerScanCorpus(const char *dir,
-		long long *file_count_out, long long *byte_count_out);
+int editorLibFuzzerScanCorpus(const char *dir, long long *file_count_out,
+                              long long *byte_count_out);
 
 #endif

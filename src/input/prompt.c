@@ -14,14 +14,13 @@
 #include <stdlib.h>
 #include <strings.h>
 
-static size_t editorPromptPrevDeleteIdx(const char *buf, size_t buflen) {
+static size_t promptPrevDeleteIdx(const char *buf, size_t buflen) {
 	if (buflen == 0) {
 		return 0;
 	}
 
 	size_t seq_start = buflen - 1;
-	while (seq_start > 0 &&
-			editorIsUtf8ContinuationByte((unsigned char)buf[seq_start])) {
+	while (seq_start > 0 && editorIsUtf8ContinuationByte((unsigned char)buf[seq_start])) {
 		seq_start--;
 	}
 
@@ -47,8 +46,7 @@ void editorExitOnInputShutdown(void) {
 	exit(EXIT_FAILURE);
 }
 
-char *editorPromptWithCallback(const char *prompt, int allow_empty,
-		editorPromptCallback callback) {
+char *editorPromptWithCallback(const char *prompt, int allow_empty, editorPromptCallback callback) {
 	size_t bufmax = 128;
 	char *buf = editorMalloc(bufmax);
 	if (buf == NULL) {
@@ -82,7 +80,7 @@ char *editorPromptWithCallback(const char *prompt, int allow_empty,
 		}
 		if (c == DEL_KEY || c == CTRL_KEY('h') || c == BACKSPACE) {
 			if (buflen != 0) {
-				buflen = editorPromptPrevDeleteIdx(buf, buflen);
+				buflen = promptPrevDeleteIdx(buf, buflen);
 				buf[buflen] = '\0';
 			}
 		} else if (c == '\x1b') {

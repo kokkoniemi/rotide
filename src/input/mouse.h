@@ -5,7 +5,7 @@
 
 typedef int (*editorProcessMappedActionFn)(enum editorAction action, int *effects_out);
 typedef int (*editorMouseJumpToPathFn)(const char *path, int line, int character, int preview,
-		int center);
+                                       int center);
 typedef void (*editorMouseActionFn)(void);
 
 enum editorMouseDispatchEffect {
@@ -22,23 +22,26 @@ int editorMouseIsOverDrawer(const struct editorMouseEvent *event);
 int editorClearHoverLinkState(void);
 int editorHandleMouseWheel(const struct editorMouseEvent *event);
 int editorHandleMouseEventInTerminalPane(const struct editorMouseEvent *event);
-int editorResolveMouseToBufferOffset(const struct editorMouseEvent *event,
-		int clamp_to_viewport, size_t *offset_out);
+int editorResolveMouseToBufferOffset(const struct editorMouseEvent *event, int clamp_to_viewport,
+                                     size_t *offset_out);
 int editorMoveCursorToMouse(const struct editorMouseEvent *event, int clamp_to_viewport);
 int editorHandleMouseMotion(const struct editorMouseEvent *event);
 int editorHandleMouseLeftDrag(const struct editorMouseEvent *event);
 int editorHandleMouseLeftRelease(void);
 int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long long now_ms,
-		int double_click_threshold_ms, editorProcessMappedActionFn process_mapped_action,
-		editorMouseJumpToPathFn jump_to_path, int *effects_out);
+                                     int double_click_threshold_ms,
+                                     editorProcessMappedActionFn process_mapped_action,
+                                     editorMouseJumpToPathFn jump_to_path, int *effects_out);
 int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long long now_ms,
-		int multi_click_threshold_ms, editorMouseActionFn goto_definition, int *effects_out);
+                                   int multi_click_threshold_ms,
+                                   editorMouseActionFn goto_definition, int *effects_out);
 int editorHandleMouseTopRowTabClick(const struct editorMouseEvent *event, long long now_ms);
 int editorDrawerHeaderModeForColumn(int mouse_col, int drawer_cols,
-		enum editorDrawerMode *mode_out);
+                                    enum editorDrawerMode *mode_out);
 int editorHandleMouseEventDispatch(int drawer_double_click_threshold_ms,
-		int text_multi_click_threshold_ms, editorProcessMappedActionFn process_mapped_action,
-		editorMouseJumpToPathFn jump_to_path, editorMouseActionFn goto_definition,
-		int *effects_out);
+                                   int text_multi_click_threshold_ms,
+                                   editorProcessMappedActionFn process_mapped_action,
+                                   editorMouseJumpToPathFn jump_to_path,
+                                   editorMouseActionFn goto_definition, int *effects_out);
 
 #endif

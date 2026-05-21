@@ -1,6 +1,6 @@
+#include "editing/selection.h"
 #include "test_case.h"
 #include "test_support.h"
-#include "editing/selection.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/layout.h"
@@ -18,12 +18,12 @@ static int test_editor_column_select_extends_rectangle_with_shift_alt_arrows(voi
 	const char alt_shift_down[] = "\x1b[1;4B";
 	const char alt_shift_right[] = "\x1b[1;4C";
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
-				sizeof(alt_shift_down) - 1) == 0);
+	                                               sizeof(alt_shift_down) - 1) == 0);
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
-				sizeof(alt_shift_down) - 1) == 0);
+	                                               sizeof(alt_shift_down) - 1) == 0);
 	for (int i = 0; i < 4; i++) {
 		ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_right,
-					sizeof(alt_shift_right) - 1) == 0);
+		                                               sizeof(alt_shift_right) - 1) == 0);
 	}
 	ASSERT_EQ_INT(1, E.column_select_active);
 
@@ -47,12 +47,12 @@ static int test_editor_column_select_copy_joins_per_row_slices_with_newlines(voi
 	const char alt_shift_down[] = "\x1b[1;4B";
 	const char alt_shift_right[] = "\x1b[1;4C";
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
-				sizeof(alt_shift_down) - 1) == 0);
+	                                               sizeof(alt_shift_down) - 1) == 0);
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
-				sizeof(alt_shift_down) - 1) == 0);
+	                                               sizeof(alt_shift_down) - 1) == 0);
 	for (int i = 0; i < 4; i++) {
 		ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_right,
-					sizeof(alt_shift_right) - 1) == 0);
+		                                               sizeof(alt_shift_right) - 1) == 0);
 	}
 
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('c')) == 0);
@@ -75,12 +75,12 @@ static int test_editor_column_select_delete_removes_rectangle_per_row(void) {
 	const char alt_shift_down[] = "\x1b[1;4B";
 	const char alt_shift_right[] = "\x1b[1;4C";
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
-				sizeof(alt_shift_down) - 1) == 0);
+	                                               sizeof(alt_shift_down) - 1) == 0);
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
-				sizeof(alt_shift_down) - 1) == 0);
+	                                               sizeof(alt_shift_down) - 1) == 0);
 	for (int i = 0; i < 4; i++) {
 		ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_right,
-					sizeof(alt_shift_right) - 1) == 0);
+		                                               sizeof(alt_shift_right) - 1) == 0);
 	}
 
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('d')) == 0);
@@ -101,9 +101,9 @@ static int test_editor_column_select_typing_inserts_char_on_each_row(void) {
 
 	const char alt_shift_down[] = "\x1b[1;4B";
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
-				sizeof(alt_shift_down) - 1) == 0);
+	                                               sizeof(alt_shift_down) - 1) == 0);
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
-				sizeof(alt_shift_down) - 1) == 0);
+	                                               sizeof(alt_shift_down) - 1) == 0);
 
 	ASSERT_TRUE(editor_process_single_key('X') == 0);
 	ASSERT_ROW_TEXT_EQ(0, "aXaaa");
@@ -135,7 +135,7 @@ static int test_editor_column_select_toggling_linear_selection_clears_column_mod
 
 	const char alt_shift_down[] = "\x1b[1;4B";
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
-				sizeof(alt_shift_down) - 1) == 0);
+	                                               sizeof(alt_shift_down) - 1) == 0);
 	ASSERT_EQ_INT(1, E.column_select_active);
 
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
@@ -154,11 +154,10 @@ static int test_editor_column_select_plain_arrow_clears_mode(void) {
 	const char alt_shift_down[] = "\x1b[1;4B";
 	const char arrow_down[] = "\x1b[B";
 	ASSERT_TRUE(editor_process_keypress_with_input(alt_shift_down,
-				sizeof(alt_shift_down) - 1) == 0);
+	                                               sizeof(alt_shift_down) - 1) == 0);
 	ASSERT_EQ_INT(1, E.column_select_active);
 
-	ASSERT_TRUE(editor_process_keypress_with_input(arrow_down,
-				sizeof(arrow_down) - 1) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(arrow_down, sizeof(arrow_down) - 1) == 0);
 	ASSERT_EQ_INT(0, E.column_select_active);
 	return 0;
 }
@@ -316,7 +315,8 @@ static int test_editor_process_keypress_ctrl_x_cuts_selection_and_updates_clipbo
 	return 0;
 }
 
-static int test_editor_process_keypress_ctrl_d_deletes_selection_without_overwriting_clipboard(void) {
+static int
+test_editor_process_keypress_ctrl_d_deletes_selection_without_overwriting_clipboard(void) {
 	ASSERT_TRUE(editorClipboardSet("keep", 4));
 
 	add_row("hello");
@@ -650,7 +650,8 @@ static int test_editor_process_keypress_escape_clears_selection_mode(void) {
 	ASSERT_EQ_INT(1, E.selection_mode_active);
 
 	const char esc_input[] = "\x1b[x";
-	ASSERT_TRUE(editor_process_keypress_with_input_silent(esc_input, sizeof(esc_input) - 1) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(esc_input, sizeof(esc_input) - 1) ==
+	            0);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 
 	struct editorSelectionRange range;
@@ -741,38 +742,68 @@ static int test_editor_refresh_screen_highlights_active_selection_spans(void) {
 }
 
 const struct editorTestCase g_input_selection_tests[] = {
-	{"editor_column_select_extends_rectangle_with_shift_alt_arrows", test_editor_column_select_extends_rectangle_with_shift_alt_arrows},
-	{"editor_column_select_copy_joins_per_row_slices_with_newlines", test_editor_column_select_copy_joins_per_row_slices_with_newlines},
-	{"editor_column_select_delete_removes_rectangle_per_row", test_editor_column_select_delete_removes_rectangle_per_row},
-	{"editor_column_select_typing_inserts_char_on_each_row", test_editor_column_select_typing_inserts_char_on_each_row},
-	{"editor_column_select_toggling_linear_selection_clears_column_mode", test_editor_column_select_toggling_linear_selection_clears_column_mode},
-	{"editor_column_select_plain_arrow_clears_mode", test_editor_column_select_plain_arrow_clears_mode},
-	{"editor_process_keypress_typed_char_replaces_selection", test_editor_process_keypress_typed_char_replaces_selection},
-	{"editor_prompt_ignores_resize_events", test_editor_prompt_ignores_resize_events},
-	{"editor_process_keypress_ctrl_b_toggles_selection_mode", test_editor_process_keypress_ctrl_b_toggles_selection_mode},
-	{"editor_selection_range_tracks_cursor_movement", test_editor_selection_range_tracks_cursor_movement},
-	{"editor_process_keypress_ctrl_c_copies_single_line_selection", test_editor_process_keypress_ctrl_c_copies_single_line_selection},
-	{"editor_process_keypress_ctrl_c_copies_multiline_selection", test_editor_process_keypress_ctrl_c_copies_multiline_selection},
-	{"editor_process_keypress_ctrl_x_cuts_selection_and_updates_clipboard", test_editor_process_keypress_ctrl_x_cuts_selection_and_updates_clipboard},
-	{"editor_process_keypress_ctrl_d_deletes_selection_without_overwriting_clipboard", test_editor_process_keypress_ctrl_d_deletes_selection_without_overwriting_clipboard},
-	{"editor_process_keypress_ctrl_v_pastes_clipboard_text", test_editor_process_keypress_ctrl_v_pastes_clipboard_text},
-	{"editor_process_keypress_ctrl_v_pastes_multiline_clipboard_text", test_editor_process_keypress_ctrl_v_pastes_multiline_clipboard_text},
-	{"editor_process_keypress_ctrl_v_auto_indents_multiline_clipboard_text", test_editor_process_keypress_ctrl_v_auto_indents_multiline_clipboard_text},
-	{"editor_process_keypress_ctrl_v_empty_clipboard_is_noop", test_editor_process_keypress_ctrl_v_empty_clipboard_is_noop},
-	{"editor_clipboard_sync_osc52_plain_sequence", test_editor_clipboard_sync_osc52_plain_sequence},
-	{"editor_clipboard_sync_osc52_tmux_wrapped_sequence", test_editor_clipboard_sync_osc52_tmux_wrapped_sequence},
-	{"editor_clipboard_sync_osc52_screen_wrapped_sequence", test_editor_clipboard_sync_osc52_screen_wrapped_sequence},
-	{"editor_clipboard_sync_osc52_mode_off_emits_nothing", test_editor_clipboard_sync_osc52_mode_off_emits_nothing},
-	{"editor_clipboard_sync_osc52_auto_mode_skips_non_tty", test_editor_clipboard_sync_osc52_auto_mode_skips_non_tty},
-	{"editor_clipboard_sync_osc52_payload_cap_skips_external_write", test_editor_clipboard_sync_osc52_payload_cap_skips_external_write},
-	{"editor_process_keypress_ctrl_v_clears_selection_mode", test_editor_process_keypress_ctrl_v_clears_selection_mode},
-	{"editor_process_keypress_ctrl_v_undo_roundtrip_single_step", test_editor_process_keypress_ctrl_v_undo_roundtrip_single_step},
-	{"editor_process_keypress_selection_ops_noop_without_selection", test_editor_process_keypress_selection_ops_noop_without_selection},
-	{"editor_process_keypress_escape_clears_selection_mode", test_editor_process_keypress_escape_clears_selection_mode},
-	{"editor_process_keypress_edit_ops_clear_selection_mode", test_editor_process_keypress_edit_ops_clear_selection_mode},
-	{"editor_process_keypress_ctrl_c_oom_preserves_buffer", test_editor_process_keypress_ctrl_c_oom_preserves_buffer},
-	{"editor_refresh_screen_highlights_active_selection_spans", test_editor_refresh_screen_highlights_active_selection_spans},
+        {"editor_column_select_extends_rectangle_with_shift_alt_arrows",
+         test_editor_column_select_extends_rectangle_with_shift_alt_arrows},
+        {"editor_column_select_copy_joins_per_row_slices_with_newlines",
+         test_editor_column_select_copy_joins_per_row_slices_with_newlines},
+        {"editor_column_select_delete_removes_rectangle_per_row",
+         test_editor_column_select_delete_removes_rectangle_per_row},
+        {"editor_column_select_typing_inserts_char_on_each_row",
+         test_editor_column_select_typing_inserts_char_on_each_row},
+        {"editor_column_select_toggling_linear_selection_clears_column_mode",
+         test_editor_column_select_toggling_linear_selection_clears_column_mode},
+        {"editor_column_select_plain_arrow_clears_mode",
+         test_editor_column_select_plain_arrow_clears_mode},
+        {"editor_process_keypress_typed_char_replaces_selection",
+         test_editor_process_keypress_typed_char_replaces_selection},
+        {"editor_prompt_ignores_resize_events", test_editor_prompt_ignores_resize_events},
+        {"editor_process_keypress_ctrl_b_toggles_selection_mode",
+         test_editor_process_keypress_ctrl_b_toggles_selection_mode},
+        {"editor_selection_range_tracks_cursor_movement",
+         test_editor_selection_range_tracks_cursor_movement},
+        {"editor_process_keypress_ctrl_c_copies_single_line_selection",
+         test_editor_process_keypress_ctrl_c_copies_single_line_selection},
+        {"editor_process_keypress_ctrl_c_copies_multiline_selection",
+         test_editor_process_keypress_ctrl_c_copies_multiline_selection},
+        {"editor_process_keypress_ctrl_x_cuts_selection_and_updates_clipboard",
+         test_editor_process_keypress_ctrl_x_cuts_selection_and_updates_clipboard},
+        {"editor_process_keypress_ctrl_d_deletes_selection_without_overwriting_clipboard",
+         test_editor_process_keypress_ctrl_d_deletes_selection_without_overwriting_clipboard},
+        {"editor_process_keypress_ctrl_v_pastes_clipboard_text",
+         test_editor_process_keypress_ctrl_v_pastes_clipboard_text},
+        {"editor_process_keypress_ctrl_v_pastes_multiline_clipboard_text",
+         test_editor_process_keypress_ctrl_v_pastes_multiline_clipboard_text},
+        {"editor_process_keypress_ctrl_v_auto_indents_multiline_clipboard_text",
+         test_editor_process_keypress_ctrl_v_auto_indents_multiline_clipboard_text},
+        {"editor_process_keypress_ctrl_v_empty_clipboard_is_noop",
+         test_editor_process_keypress_ctrl_v_empty_clipboard_is_noop},
+        {"editor_clipboard_sync_osc52_plain_sequence",
+         test_editor_clipboard_sync_osc52_plain_sequence},
+        {"editor_clipboard_sync_osc52_tmux_wrapped_sequence",
+         test_editor_clipboard_sync_osc52_tmux_wrapped_sequence},
+        {"editor_clipboard_sync_osc52_screen_wrapped_sequence",
+         test_editor_clipboard_sync_osc52_screen_wrapped_sequence},
+        {"editor_clipboard_sync_osc52_mode_off_emits_nothing",
+         test_editor_clipboard_sync_osc52_mode_off_emits_nothing},
+        {"editor_clipboard_sync_osc52_auto_mode_skips_non_tty",
+         test_editor_clipboard_sync_osc52_auto_mode_skips_non_tty},
+        {"editor_clipboard_sync_osc52_payload_cap_skips_external_write",
+         test_editor_clipboard_sync_osc52_payload_cap_skips_external_write},
+        {"editor_process_keypress_ctrl_v_clears_selection_mode",
+         test_editor_process_keypress_ctrl_v_clears_selection_mode},
+        {"editor_process_keypress_ctrl_v_undo_roundtrip_single_step",
+         test_editor_process_keypress_ctrl_v_undo_roundtrip_single_step},
+        {"editor_process_keypress_selection_ops_noop_without_selection",
+         test_editor_process_keypress_selection_ops_noop_without_selection},
+        {"editor_process_keypress_escape_clears_selection_mode",
+         test_editor_process_keypress_escape_clears_selection_mode},
+        {"editor_process_keypress_edit_ops_clear_selection_mode",
+         test_editor_process_keypress_edit_ops_clear_selection_mode},
+        {"editor_process_keypress_ctrl_c_oom_preserves_buffer",
+         test_editor_process_keypress_ctrl_c_oom_preserves_buffer},
+        {"editor_refresh_screen_highlights_active_selection_spans",
+         test_editor_refresh_screen_highlights_active_selection_spans},
 };
 
 const int g_input_selection_test_count =
-		(int)(sizeof(g_input_selection_tests) / sizeof(g_input_selection_tests[0]));
+        (int)(sizeof(g_input_selection_tests) / sizeof(g_input_selection_tests[0]));

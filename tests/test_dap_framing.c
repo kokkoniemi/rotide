@@ -133,15 +133,15 @@ static int test_read_frame_rejects_oversized_payload(void) {
 }
 
 const struct editorTestCase g_dap_framing_tests[] = {
-	{"read_frame_valid", test_read_frame_valid},
-	{"read_frame_zero_length", test_read_frame_zero_length},
-	{"read_frame_two_back_to_back", test_read_frame_two_back_to_back},
-	{"read_frame_truncated_payload", test_read_frame_truncated_payload},
-	{"read_frame_malformed_content_length", test_read_frame_malformed_content_length},
-	{"read_frame_rejects_overflowing_content_length",
-			test_read_frame_rejects_overflowing_content_length},
-	{"read_frame_rejects_oversized_payload", test_read_frame_rejects_oversized_payload},
+        {"read_frame_valid", test_read_frame_valid},
+        {"read_frame_zero_length", test_read_frame_zero_length},
+        {"read_frame_two_back_to_back", test_read_frame_two_back_to_back},
+        {"read_frame_truncated_payload", test_read_frame_truncated_payload},
+        {"read_frame_malformed_content_length", test_read_frame_malformed_content_length},
+        {"read_frame_rejects_overflowing_content_length",
+         test_read_frame_rejects_overflowing_content_length},
+        {"read_frame_rejects_oversized_payload", test_read_frame_rejects_oversized_payload},
 };
 
 const int g_dap_framing_test_count =
-		(int)(sizeof(g_dap_framing_tests) / sizeof(g_dap_framing_tests[0]));
+        (int)(sizeof(g_dap_framing_tests) / sizeof(g_dap_framing_tests[0]));

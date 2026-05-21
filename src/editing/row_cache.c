@@ -12,7 +12,7 @@
 static int g_row_cache_full_rebuild_count = 0;
 static int g_row_cache_splice_update_count = 0;
 
-void editorFreeRowArray(struct erow *rows, int numrows) {
+void editorFreeRowArray(struct editorRow *rows, int numrows) {
 	for (int i = 0; i < numrows; i++) {
 		free(rows[i].render);
 		free(rows[i].wrap_cache_segments);
@@ -20,16 +20,16 @@ void editorFreeRowArray(struct erow *rows, int numrows) {
 	free(rows);
 }
 
-static int editorAppendRestoredRow(struct erow **rows, int *numrows, const char *s, size_t len) {
+static int rowCacheAppendRestoredRow(struct editorRow **rows, int *numrows, const char *s,
+                                     size_t len) {
 	int row_size = 0;
 	size_t numrows_size = 0;
 	size_t new_numrows = 0;
 	size_t row_bytes = 0;
 
-	if (!editorSizeToInt(len, &row_size) ||
-			!editorIntToSize(*numrows, &numrows_size) ||
-			!editorSizeAdd(numrows_size, 1, &new_numrows) ||
-			!editorSizeMul(sizeof(struct erow), new_numrows, &row_bytes)) {
+	if (!editorSizeToInt(len, &row_size) || !editorIntToSize(*numrows, &numrows_size) ||
+	    !editorSizeAdd(numrows_size, 1, &new_numrows) ||
+	    !editorSizeMul(sizeof(struct editorRow), new_numrows, &row_bytes)) {
 		return 0;
 	}
 
@@ -40,7 +40,7 @@ static int editorAppendRestoredRow(struct erow **rows, int *numrows, const char 
 		return 0;
 	}
 
-	struct erow *new_rows = editorRealloc(*rows, row_bytes);
+	struct editorRow *new_rows = editorRealloc(*rows, row_bytes);
 	if (new_rows == NULL) {
 		free(row_render);
 		return 0;
@@ -59,13 +59,14 @@ static int editorAppendRestoredRow(struct erow **rows, int *numrows, const char 
 	return 1;
 }
 
-int editorBuildRowsFromDocumentRange(const struct editorDocument *document,
-		int start_row, int end_row_exclusive, struct erow **rows_out, int *numrows_out) {
-	struct erow *rows = NULL;
+int editorBuildRowsFromDocumentRange(const struct editorDocument *document, int start_row,
+                                     int end_row_exclusive, struct editorRow **rows_out,
+                                     int *numrows_out) {
+	struct editorRow *rows = NULL;
 	int numrows = 0;
 
-	if (document == NULL || rows_out == NULL || numrows_out == NULL ||
-			start_row < 0 || end_row_exclusive < start_row) {
+	if (document == NULL || rows_out == NULL || numrows_out == NULL || start_row < 0 ||
+	    end_row_exclusive < start_row) {
 		return 0;
 	}
 
@@ -79,7 +80,7 @@ int editorBuildRowsFromDocumentRange(const struct editorDocument *document,
 			editorFreeRowArray(rows, numrows);
 			return 0;
 		}
-		int ok = editorAppendRestoredRow(&rows, &numrows, line.data, (size_t)line.size);
+		int ok = rowCacheAppendRestoredRow(&rows, &numrows, line.data, (size_t)line.size);
 		editorLineViewRelease(&line);
 		if (!ok) {
 			editorFreeRowArray(rows, numrows);
@@ -92,26 +93,26 @@ int editorBuildRowsFromDocumentRange(const struct editorDocument *document,
 	return 1;
 }
 
-static int editorBuildRowsFromDocument(const struct editorDocument *document,
-		struct erow **rows_out, int *numrows_out) {
+static int rowCacheBuildRowsFromDocument(const struct editorDocument *document,
+                                         struct editorRow **rows_out, int *numrows_out) {
 	if (document == NULL) {
 		return 0;
 	}
 	return editorBuildRowsFromDocumentRange(document, 0, editorDocumentLineCount(document),
-			rows_out, numrows_out);
+	                                        rows_out, numrows_out);
 }
 
 int editorBuildFullRowsFromDocument(const struct editorDocument *document,
-		struct erow **rows_out, int *numrows_out) {
-	if (!editorBuildRowsFromDocument(document, rows_out, numrows_out)) {
+                                    struct editorRow **rows_out, int *numrows_out) {
+	if (!rowCacheBuildRowsFromDocument(document, rows_out, numrows_out)) {
 		return 0;
 	}
 	g_row_cache_full_rebuild_count++;
 	return 1;
 }
 
-static int editorApplySignedByteDelta(size_t value, size_t old_total, size_t new_total,
-		size_t *out) {
+static int rowCacheApplySignedByteDelta(size_t value, size_t old_total, size_t new_total,
+                                        size_t *out) {
 	if (out == NULL) {
 		return 0;
 	}
@@ -126,8 +127,9 @@ static int editorApplySignedByteDelta(size_t value, size_t old_total, size_t new
 	return 1;
 }
 
-int editorPrepareRowCacheSpliceRegion(const struct editorDocument *document,
-		size_t start_offset, size_t old_len, struct editorRowCacheSpliceRegion *region_out) {
+int editorPrepareRowCacheSpliceRegion(const struct editorDocument *document, size_t start_offset,
+                                      size_t old_len,
+                                      struct editorRowCacheSpliceRegion *region_out) {
 	size_t old_total = 0;
 	size_t first_lookup = 0;
 	size_t last_lookup = 0;
@@ -146,13 +148,11 @@ int editorPrepareRowCacheSpliceRegion(const struct editorDocument *document,
 	old_end_offset = start_offset + old_len;
 
 	if (old_total == 0) {
-		*region_out = (struct editorRowCacheSpliceRegion) {
-			.start_row = 0,
-			.old_end_row_exclusive = 0,
-			.prefix_start = 0,
-			.suffix_start_old = 0,
-			.old_total = 0
-		};
+		*region_out = (struct editorRowCacheSpliceRegion){.start_row = 0,
+		                                                  .old_end_row_exclusive = 0,
+		                                                  .prefix_start = 0,
+		                                                  .suffix_start_old = 0,
+		                                                  .old_total = 0};
 		return 1;
 	}
 
@@ -163,15 +163,16 @@ int editorPrepareRowCacheSpliceRegion(const struct editorDocument *document,
 	last_lookup = old_len > 0 ? start_offset + old_len - 1 : first_lookup;
 
 	if (!editorDocumentLineIndexForByteOffset(document, first_lookup, &start_row) ||
-			!editorDocumentLineIndexForByteOffset(document, last_lookup, &end_row) ||
-			!editorDocumentLineStartByte(document, start_row, &region_out->prefix_start)) {
+	    !editorDocumentLineIndexForByteOffset(document, last_lookup, &end_row) ||
+	    !editorDocumentLineStartByte(document, start_row, &region_out->prefix_start)) {
 		return 0;
 	}
 	if (old_len > 0 && old_end_offset < old_total) {
 		int boundary_row = 0;
 		size_t boundary_start = 0;
-		if (!editorDocumentLineIndexForByteOffset(document, old_end_offset, &boundary_row) ||
-				!editorDocumentLineStartByte(document, boundary_row, &boundary_start)) {
+		if (!editorDocumentLineIndexForByteOffset(document, old_end_offset,
+		                                          &boundary_row) ||
+		    !editorDocumentLineStartByte(document, boundary_row, &boundary_start)) {
 			return 0;
 		}
 		if (boundary_start == old_end_offset && boundary_row > end_row) {
@@ -183,8 +184,8 @@ int editorPrepareRowCacheSpliceRegion(const struct editorDocument *document,
 	region_out->old_end_row_exclusive = end_row + 1;
 	region_out->old_total = old_total;
 	if (region_out->old_end_row_exclusive < editorDocumentLineCount(document) &&
-			!editorDocumentLineStartByte(document, region_out->old_end_row_exclusive,
-					&region_out->suffix_start_old)) {
+	    !editorDocumentLineStartByte(document, region_out->old_end_row_exclusive,
+	                                 &region_out->suffix_start_old)) {
 		return 0;
 	}
 	if (region_out->old_end_row_exclusive >= editorDocumentLineCount(document)) {
@@ -194,7 +195,8 @@ int editorPrepareRowCacheSpliceRegion(const struct editorDocument *document,
 }
 
 int editorRowCacheSpliceEndRowForDocument(const struct editorDocument *document,
-		const struct editorRowCacheSpliceRegion *region, int *end_row_exclusive_out) {
+                                          const struct editorRowCacheSpliceRegion *region,
+                                          int *end_row_exclusive_out) {
 	size_t new_total = 0;
 	size_t new_suffix_start = 0;
 	size_t last_lookup = 0;
@@ -209,8 +211,9 @@ int editorRowCacheSpliceEndRowForDocument(const struct editorDocument *document,
 		*end_row_exclusive_out = 0;
 		return 1;
 	}
-	if (!editorApplySignedByteDelta(region->suffix_start_old, region->old_total, new_total,
-				&new_suffix_start) || new_suffix_start > new_total) {
+	if (!rowCacheApplySignedByteDelta(region->suffix_start_old, region->old_total, new_total,
+	                                  &new_suffix_start) ||
+	    new_suffix_start > new_total) {
 		return 0;
 	}
 
@@ -231,31 +234,30 @@ int editorRowCacheSpliceEndRowForDocument(const struct editorDocument *document,
 	return 1;
 }
 
-int editorSpliceRowCache(struct erow **rows_in_out, int *numrows_in_out,
-		struct erow *replacement_rows, int replacement_numrows, int start_row,
-		int old_end_row_exclusive) {
+int editorSpliceRowCache(struct editorRow **rows_in_out, int *numrows_in_out,
+                         struct editorRow *replacement_rows, int replacement_numrows, int start_row,
+                         int old_end_row_exclusive) {
 	int numrows = 0;
-	struct erow *rows = NULL;
+	struct editorRow *rows = NULL;
 	int remove_count = 0;
 	int tail_count = 0;
 	int new_numrows = 0;
-	struct erow *grown = NULL;
+	struct editorRow *grown = NULL;
 
 	if (rows_in_out == NULL || numrows_in_out == NULL) {
 		return 0;
 	}
 	rows = *rows_in_out;
 	numrows = *numrows_in_out;
-	if (start_row < 0 || old_end_row_exclusive < start_row ||
-			old_end_row_exclusive > numrows || replacement_numrows < 0 ||
-			(replacement_numrows > 0 && replacement_rows == NULL)) {
+	if (start_row < 0 || old_end_row_exclusive < start_row || old_end_row_exclusive > numrows ||
+	    replacement_numrows < 0 || (replacement_numrows > 0 && replacement_rows == NULL)) {
 		return 0;
 	}
 
 	remove_count = old_end_row_exclusive - start_row;
 	tail_count = numrows - old_end_row_exclusive;
 	if (start_row > INT_MAX - replacement_numrows ||
-			start_row + replacement_numrows > INT_MAX - tail_count) {
+	    start_row + replacement_numrows > INT_MAX - tail_count) {
 		return 0;
 	}
 	new_numrows = start_row + replacement_numrows + tail_count;
@@ -264,7 +266,7 @@ int editorSpliceRowCache(struct erow **rows_in_out, int *numrows_in_out,
 		size_t row_count_size = 0;
 		size_t row_bytes = 0;
 		if (!editorIntToSize(new_numrows, &row_count_size) ||
-				!editorSizeMul(sizeof(*rows), row_count_size, &row_bytes)) {
+		    !editorSizeMul(sizeof(*rows), row_count_size, &row_bytes)) {
 			return 0;
 		}
 		grown = editorRealloc(rows, row_bytes);
@@ -287,7 +289,7 @@ int editorSpliceRowCache(struct erow **rows_in_out, int *numrows_in_out,
 
 	if (tail_count > 0 && replacement_numrows != remove_count) {
 		memmove(&rows[start_row + replacement_numrows], &rows[old_end_row_exclusive],
-				sizeof(*rows) * (size_t)tail_count);
+		        sizeof(*rows) * (size_t)tail_count);
 	}
 	for (int i = 0; i < replacement_numrows; i++) {
 		rows[start_row + i] = replacement_rows[i];
@@ -300,7 +302,7 @@ int editorSpliceRowCache(struct erow **rows_in_out, int *numrows_in_out,
 		size_t row_count_size = 0;
 		size_t row_bytes = 0;
 		if (!editorIntToSize(new_numrows, &row_count_size) ||
-				!editorSizeMul(sizeof(*rows), row_count_size, &row_bytes)) {
+		    !editorSizeMul(sizeof(*rows), row_count_size, &row_bytes)) {
 			return 0;
 		}
 		grown = editorRealloc(rows, row_bytes);

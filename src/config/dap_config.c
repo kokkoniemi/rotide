@@ -14,26 +14,23 @@
 #include <string.h>
 #include <sys/stat.h>
 
-enum editorDapConfigFileKind {
-	EDITOR_DAP_CONFIG_FILE_GLOBAL = 0,
-	EDITOR_DAP_CONFIG_FILE_PROJECT
+enum dapConfigFileKind { DAP_CONFIG_FILE_GLOBAL = 0, DAP_CONFIG_FILE_PROJECT };
+
+enum dapConfigTableKind {
+	DAP_CONFIG_TABLE_NONE = 0,
+	DAP_CONFIG_TABLE_ADAPTERS,
+	DAP_CONFIG_TABLE_DEFAULT,
+	DAP_CONFIG_TABLE_DEFAULT_ENV,
+	DAP_CONFIG_TABLE_LAUNCH,
+	DAP_CONFIG_TABLE_LAUNCH_ENV
 };
 
-enum editorDapConfigTableKind {
-	EDITOR_DAP_CONFIG_TABLE_NONE = 0,
-	EDITOR_DAP_CONFIG_TABLE_ADAPTERS,
-	EDITOR_DAP_CONFIG_TABLE_DEFAULT,
-	EDITOR_DAP_CONFIG_TABLE_DEFAULT_ENV,
-	EDITOR_DAP_CONFIG_TABLE_LAUNCH,
-	EDITOR_DAP_CONFIG_TABLE_LAUNCH_ENV
-};
-
-struct editorDapConfigTable {
-	enum editorDapConfigTableKind kind;
+struct dapConfigTable {
+	enum dapConfigTableKind kind;
 	int config_idx;
 };
 
-static void editorDapLaunchFieldDropArrayValues(struct editorDapLaunchField *field) {
+static void dapConfigLaunchFieldDropArrayValues(struct editorDapLaunchField *field) {
 	free(field->array_values);
 	field->array_values = NULL;
 	field->array_count = 0;
@@ -67,7 +64,7 @@ void editorDapLaunchConfigsClear(struct editorDapLaunchConfig *configs, int coun
 	}
 }
 
-static int editorDapParseBoolValue(const char *value, int *out) {
+static int dapConfigParseBoolValue(const char *value, int *out) {
 	if (strcmp(value, "true") == 0) {
 		*out = 1;
 		return 1;
@@ -79,7 +76,7 @@ static int editorDapParseBoolValue(const char *value, int *out) {
 	return 0;
 }
 
-static int editorDapConfigIdValid(const char *id) {
+static int dapConfigIdValid(const char *id) {
 	if (id == NULL || id[0] == '\0') {
 		return 0;
 	}
@@ -91,7 +88,7 @@ static int editorDapConfigIdValid(const char *id) {
 	return 1;
 }
 
-static int editorDapCopyString(char *dst, size_t dst_size, const char *src) {
+static int dapConfigCopyString(char *dst, size_t dst_size, const char *src) {
 	if (dst == NULL || dst_size == 0 || src == NULL) {
 		return 0;
 	}
@@ -103,9 +100,9 @@ static int editorDapCopyString(char *dst, size_t dst_size, const char *src) {
 	return 1;
 }
 
-static struct editorDapLaunchConfig *editorDapEnsureConfig(
-		struct editorDapLaunchConfig *configs, int *count, const char *id) {
-	if (configs == NULL || count == NULL || id == NULL || !editorDapConfigIdValid(id)) {
+static struct editorDapLaunchConfig *dapConfigEnsureLaunch(struct editorDapLaunchConfig *configs,
+                                                           int *count, const char *id) {
+	if (configs == NULL || count == NULL || id == NULL || !dapConfigIdValid(id)) {
 		return NULL;
 	}
 	for (int i = 0; i < *count; i++) {
@@ -118,18 +115,18 @@ static struct editorDapLaunchConfig *editorDapEnsureConfig(
 	}
 	struct editorDapLaunchConfig *config = &configs[*count];
 	memset(config, 0, sizeof(*config));
-	if (!editorDapCopyString(config->id, sizeof(config->id), id)) {
+	if (!dapConfigCopyString(config->id, sizeof(config->id), id)) {
 		return NULL;
 	}
-	if (!editorDapCopyString(config->request, sizeof(config->request), "launch")) {
+	if (!dapConfigCopyString(config->request, sizeof(config->request), "launch")) {
 		return NULL;
 	}
 	(*count)++;
 	return config;
 }
 
-static struct editorDapLaunchField *editorDapEnsureField(
-		struct editorDapLaunchConfig *config, const char *key) {
+static struct editorDapLaunchField *dapConfigEnsureLaunchField(struct editorDapLaunchConfig *config,
+                                                               const char *key) {
 	if (config == NULL || key == NULL || key[0] == '\0') {
 		return NULL;
 	}
@@ -143,15 +140,15 @@ static struct editorDapLaunchField *editorDapEnsureField(
 	}
 	struct editorDapLaunchField *field = &config->fields[config->field_count];
 	memset(field, 0, sizeof(*field));
-	if (!editorDapCopyString(field->key, sizeof(field->key), key)) {
+	if (!dapConfigCopyString(field->key, sizeof(field->key), key)) {
 		return NULL;
 	}
 	config->field_count++;
 	return field;
 }
 
-int editorDapLaunchGetStringField(const struct editorDapLaunchConfig *config,
-		const char *key, char *out, size_t out_size) {
+int editorDapLaunchGetStringField(const struct editorDapLaunchConfig *config, const char *key,
+                                  char *out, size_t out_size) {
 	if (config == NULL || key == NULL || out == NULL || out_size == 0) {
 		return 0;
 	}
@@ -162,29 +159,26 @@ int editorDapLaunchGetStringField(const struct editorDapLaunchConfig *config,
 		if (config->fields[i].kind != EDITOR_DAP_LAUNCH_VALUE_STRING) {
 			return 0;
 		}
-		return editorDapCopyString(out, out_size,
-				config->fields[i].string_value);
+		return dapConfigCopyString(out, out_size, config->fields[i].string_value);
 	}
 	return 0;
 }
 
-int editorDapLaunchSetStringField(struct editorDapLaunchConfig *config,
-		const char *key, const char *value) {
+int editorDapLaunchSetStringField(struct editorDapLaunchConfig *config, const char *key,
+                                  const char *value) {
 	if (value == NULL) {
 		return 0;
 	}
-	struct editorDapLaunchField *field = editorDapEnsureField(config, key);
+	struct editorDapLaunchField *field = dapConfigEnsureLaunchField(config, key);
 	if (field == NULL) {
 		return 0;
 	}
-	editorDapLaunchFieldDropArrayValues(field);
+	dapConfigLaunchFieldDropArrayValues(field);
 	field->kind = EDITOR_DAP_LAUNCH_VALUE_STRING;
-	return editorDapCopyString(field->string_value,
-			sizeof(field->string_value), value);
+	return dapConfigCopyString(field->string_value, sizeof(field->string_value), value);
 }
 
-void editorDapLaunchRemoveField(struct editorDapLaunchConfig *config,
-		const char *key) {
+void editorDapLaunchRemoveField(struct editorDapLaunchConfig *config, const char *key) {
 	if (config == NULL || key == NULL) {
 		return;
 	}
@@ -201,14 +195,13 @@ void editorDapLaunchRemoveField(struct editorDapLaunchConfig *config,
 			config->fields[j] = config->fields[j + 1];
 		}
 		config->field_count--;
-		memset(&config->fields[config->field_count], 0,
-				sizeof(config->fields[0]));
+		memset(&config->fields[config->field_count], 0, sizeof(config->fields[0]));
 		return;
 	}
 }
 
-static struct editorDapEnvVar *editorDapEnsureEnv(
-		struct editorDapLaunchConfig *config, const char *key) {
+static struct editorDapEnvVar *dapConfigEnsureEnv(struct editorDapLaunchConfig *config,
+                                                  const char *key) {
 	if (config == NULL || key == NULL || key[0] == '\0') {
 		return NULL;
 	}
@@ -222,16 +215,17 @@ static struct editorDapEnvVar *editorDapEnsureEnv(
 	}
 	struct editorDapEnvVar *env = &config->env[config->env_count];
 	memset(env, 0, sizeof(*env));
-	if (!editorDapCopyString(env->key, sizeof(env->key), key)) {
+	if (!dapConfigCopyString(env->key, sizeof(env->key), key)) {
 		return NULL;
 	}
 	config->env_count++;
 	return env;
 }
 
-static int editorDapParseStringArray(const char *value,
-		char out[ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS][ROTIDE_DAP_VALUE_MAX],
-		int *count_out) {
+static int
+dapConfigParseStringArray(const char *value,
+                          char out[ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS][ROTIDE_DAP_VALUE_MAX],
+                          int *count_out) {
 	const char *p = editorConfigTrimLeft((char *)value);
 	if (*p != '[') {
 		return 0;
@@ -288,24 +282,24 @@ static int editorDapParseStringArray(const char *value,
 	}
 }
 
-static int editorDapSetLaunchField(struct editorDapLaunchConfig *config,
-		const char *key, const char *value) {
-	struct editorDapLaunchField *field = editorDapEnsureField(config, key);
+static int dapConfigSetLaunchField(struct editorDapLaunchConfig *config, const char *key,
+                                   const char *value) {
+	struct editorDapLaunchField *field = dapConfigEnsureLaunchField(config, key);
 	if (field == NULL) {
 		return 0;
 	}
 
 	char string_value[ROTIDE_DAP_VALUE_MAX];
 	if (editorConfigParseQuotedValue(value, string_value, sizeof(string_value))) {
-		editorDapLaunchFieldDropArrayValues(field);
+		dapConfigLaunchFieldDropArrayValues(field);
 		field->kind = EDITOR_DAP_LAUNCH_VALUE_STRING;
-		return editorDapCopyString(field->string_value, sizeof(field->string_value),
-				string_value);
+		return dapConfigCopyString(field->string_value, sizeof(field->string_value),
+		                           string_value);
 	}
 
 	int bool_value = 0;
-	if (editorDapParseBoolValue(value, &bool_value)) {
-		editorDapLaunchFieldDropArrayValues(field);
+	if (dapConfigParseBoolValue(value, &bool_value)) {
+		dapConfigLaunchFieldDropArrayValues(field);
 		field->kind = EDITOR_DAP_LAUNCH_VALUE_BOOL;
 		field->bool_value = bool_value;
 		return 1;
@@ -313,21 +307,20 @@ static int editorDapSetLaunchField(struct editorDapLaunchConfig *config,
 
 	char *endptr = NULL;
 	long parsed = strtol(value, &endptr, 10);
-	if (endptr != value && endptr != NULL && *endptr == '\0' &&
-			parsed >= -2147483647L && parsed <= 2147483647L) {
-		editorDapLaunchFieldDropArrayValues(field);
+	if (endptr != value && endptr != NULL && *endptr == '\0' && parsed >= -2147483647L &&
+	    parsed <= 2147483647L) {
+		dapConfigLaunchFieldDropArrayValues(field);
 		field->kind = EDITOR_DAP_LAUNCH_VALUE_INT;
 		field->int_value = (int)parsed;
 		return 1;
 	}
 
-	editorDapStringArrayItem *arr = calloc(ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS,
-			sizeof(*arr));
+	editorDapStringArrayItem *arr = calloc(ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS, sizeof(*arr));
 	if (arr == NULL) {
 		return 0;
 	}
 	int array_count = 0;
-	if (editorDapParseStringArray(value, arr, &array_count)) {
+	if (dapConfigParseStringArray(value, arr, &array_count)) {
 		free(field->array_values);
 		field->array_values = arr;
 		field->kind = EDITOR_DAP_LAUNCH_VALUE_STRING_ARRAY;
@@ -339,33 +332,33 @@ static int editorDapSetLaunchField(struct editorDapLaunchConfig *config,
 	return 0;
 }
 
-static int editorDapApplyLaunchSetting(struct editorDapLaunchConfig *config,
-		const char *key, const char *value) {
+static int dapConfigApplyLaunchSetting(struct editorDapLaunchConfig *config, const char *key,
+                                       const char *value) {
 	if (strcmp(key, "name") == 0) {
 		char parsed[ROTIDE_DAP_NAME_MAX];
 		return editorConfigParseQuotedValue(value, parsed, sizeof(parsed)) &&
-				editorDapCopyString(config->name, sizeof(config->name), parsed);
+		       dapConfigCopyString(config->name, sizeof(config->name), parsed);
 	}
 	if (strcmp(key, "adapter") == 0) {
 		char parsed[ROTIDE_DAP_ID_MAX];
 		return editorConfigParseQuotedValue(value, parsed, sizeof(parsed)) &&
-				editorDapConfigIdValid(parsed) &&
-				editorDapCopyString(config->adapter, sizeof(config->adapter), parsed);
+		       dapConfigIdValid(parsed) &&
+		       dapConfigCopyString(config->adapter, sizeof(config->adapter), parsed);
 	}
 	if (strcmp(key, "request") == 0) {
 		char parsed[32];
 		return editorConfigParseQuotedValue(value, parsed, sizeof(parsed)) &&
-				editorDapCopyString(config->request, sizeof(config->request), parsed);
+		       dapConfigCopyString(config->request, sizeof(config->request), parsed);
 	}
-	return editorDapSetLaunchField(config, key, value);
+	return dapConfigSetLaunchField(config, key, value);
 }
 
-static int editorDapParseTable(const char *table, enum editorDapConfigFileKind file_kind,
-		struct editorDapConfigTable *table_out) {
+static int dapConfigParseTable(const char *table, enum dapConfigFileKind file_kind,
+                               struct dapConfigTable *table_out) {
 	memset(table_out, 0, sizeof(*table_out));
 	if (strcmp(table, "dap.adapters") == 0) {
-		table_out->kind = file_kind == EDITOR_DAP_CONFIG_FILE_GLOBAL ?
-				EDITOR_DAP_CONFIG_TABLE_ADAPTERS : EDITOR_DAP_CONFIG_TABLE_NONE;
+		table_out->kind = file_kind == DAP_CONFIG_FILE_GLOBAL ? DAP_CONFIG_TABLE_ADAPTERS
+		                                                      : DAP_CONFIG_TABLE_NONE;
 		table_out->config_idx = -1;
 		return 1;
 	}
@@ -375,22 +368,22 @@ static int editorDapParseTable(const char *table, enum editorDapConfigFileKind f
 	const char *id = NULL;
 	int is_default = 0;
 	if (strncmp(table, default_prefix, strlen(default_prefix)) == 0) {
-		if (file_kind != EDITOR_DAP_CONFIG_FILE_GLOBAL) {
-			table_out->kind = EDITOR_DAP_CONFIG_TABLE_NONE;
+		if (file_kind != DAP_CONFIG_FILE_GLOBAL) {
+			table_out->kind = DAP_CONFIG_TABLE_NONE;
 			table_out->config_idx = -1;
 			return 1;
 		}
 		id = table + strlen(default_prefix);
 		is_default = 1;
 	} else if (strncmp(table, launch_prefix, strlen(launch_prefix)) == 0) {
-		if (file_kind != EDITOR_DAP_CONFIG_FILE_PROJECT) {
-			table_out->kind = EDITOR_DAP_CONFIG_TABLE_NONE;
+		if (file_kind != DAP_CONFIG_FILE_PROJECT) {
+			table_out->kind = DAP_CONFIG_TABLE_NONE;
 			table_out->config_idx = -1;
 			return 1;
 		}
 		id = table + strlen(launch_prefix);
 	} else {
-		table_out->kind = EDITOR_DAP_CONFIG_TABLE_NONE;
+		table_out->kind = DAP_CONFIG_TABLE_NONE;
 		table_out->config_idx = -1;
 		return 1;
 	}
@@ -409,30 +402,28 @@ static int editorDapParseTable(const char *table, enum editorDapConfigFileKind f
 	}
 	memcpy(id_buf, id, id_len);
 	id_buf[id_len] = '\0';
-	if (!editorDapConfigIdValid(id_buf)) {
+	if (!dapConfigIdValid(id_buf)) {
 		return 0;
 	}
 
-	struct editorDapLaunchConfig *configs =
-			is_default ? E.dap_defaults : E.dap_launches;
+	struct editorDapLaunchConfig *configs = is_default ? E.dap_defaults : E.dap_launches;
 	int *count = is_default ? &E.dap_default_count : &E.dap_launch_count;
-	struct editorDapLaunchConfig *config = editorDapEnsureConfig(configs, count, id_buf);
+	struct editorDapLaunchConfig *config = dapConfigEnsureLaunch(configs, count, id_buf);
 	if (config == NULL) {
 		return 0;
 	}
 	table_out->config_idx = (int)(config - configs);
 	if (is_default) {
-		table_out->kind = env_table ? EDITOR_DAP_CONFIG_TABLE_DEFAULT_ENV :
-				EDITOR_DAP_CONFIG_TABLE_DEFAULT;
+		table_out->kind =
+		        env_table ? DAP_CONFIG_TABLE_DEFAULT_ENV : DAP_CONFIG_TABLE_DEFAULT;
 	} else {
-		table_out->kind = env_table ? EDITOR_DAP_CONFIG_TABLE_LAUNCH_ENV :
-				EDITOR_DAP_CONFIG_TABLE_LAUNCH;
+		table_out->kind = env_table ? DAP_CONFIG_TABLE_LAUNCH_ENV : DAP_CONFIG_TABLE_LAUNCH;
 	}
 	return 1;
 }
 
-static int editorDapApplyConfigFile(const char *path,
-		enum editorDapConfigFileKind file_kind, int *missing_out) {
+static int dapConfigApplyFile(const char *path, enum dapConfigFileKind file_kind,
+                              int *missing_out) {
 	if (missing_out != NULL) {
 		*missing_out = 0;
 	}
@@ -448,8 +439,8 @@ static int editorDapApplyConfigFile(const char *path,
 		return 0;
 	}
 
-	struct editorDapConfigTable table = {0};
-	table.kind = EDITOR_DAP_CONFIG_TABLE_NONE;
+	struct dapConfigTable table = {0};
+	table.kind = DAP_CONFIG_TABLE_NONE;
 	table.config_idx = -1;
 	char line[2048];
 	while (fgets(line, sizeof(line), fp) != NULL) {
@@ -476,7 +467,8 @@ static int editorDapApplyConfigFile(const char *path,
 			char *table_name = editorConfigTrimLeft(trimmed + 1);
 			editorConfigTrimRight(table_name);
 			char *tail = editorConfigTrimLeft(close + 1);
-			if (tail[0] != '\0' || !editorDapParseTable(table_name, file_kind, &table)) {
+			if (tail[0] != '\0' ||
+			    !dapConfigParseTable(table_name, file_kind, &table)) {
 				fclose(fp);
 				return 0;
 			}
@@ -497,28 +489,28 @@ static int editorDapApplyConfigFile(const char *path,
 			return 0;
 		}
 
-		if (table.kind == EDITOR_DAP_CONFIG_TABLE_NONE) {
+		if (table.kind == DAP_CONFIG_TABLE_NONE) {
 			continue;
 		}
 
-		if (table.kind == EDITOR_DAP_CONFIG_TABLE_ADAPTERS) {
+		if (table.kind == DAP_CONFIG_TABLE_ADAPTERS) {
 			if (E.dap_adapter_count >= ROTIDE_DAP_MAX_ADAPTERS ||
-					!editorDapConfigIdValid(key)) {
+			    !dapConfigIdValid(key)) {
 				fclose(fp);
 				return 0;
 			}
 			char command[PATH_MAX];
 			if (!editorConfigParseQuotedValue(value, command, sizeof(command)) ||
-					command[0] == '\0') {
+			    command[0] == '\0') {
 				fclose(fp);
 				return 0;
 			}
 			struct editorDapAdapterConfig *adapter =
-					&E.dap_adapters[E.dap_adapter_count++];
+			        &E.dap_adapters[E.dap_adapter_count++];
 			memset(adapter, 0, sizeof(*adapter));
-			if (!editorDapCopyString(adapter->id, sizeof(adapter->id), key) ||
-					!editorDapCopyString(adapter->command, sizeof(adapter->command),
-							command)) {
+			if (!dapConfigCopyString(adapter->id, sizeof(adapter->id), key) ||
+			    !dapConfigCopyString(adapter->command, sizeof(adapter->command),
+			                         command)) {
 				fclose(fp);
 				return 0;
 			}
@@ -526,23 +518,25 @@ static int editorDapApplyConfigFile(const char *path,
 		}
 
 		struct editorDapLaunchConfig *configs =
-				table.kind == EDITOR_DAP_CONFIG_TABLE_DEFAULT ||
-						table.kind == EDITOR_DAP_CONFIG_TABLE_DEFAULT_ENV ?
-						E.dap_defaults : E.dap_launches;
+		        table.kind == DAP_CONFIG_TABLE_DEFAULT ||
+		                        table.kind == DAP_CONFIG_TABLE_DEFAULT_ENV
+		                ? E.dap_defaults
+		                : E.dap_launches;
 		struct editorDapLaunchConfig *config = &configs[table.config_idx];
-		if (table.kind == EDITOR_DAP_CONFIG_TABLE_DEFAULT_ENV ||
-				table.kind == EDITOR_DAP_CONFIG_TABLE_LAUNCH_ENV) {
-			struct editorDapEnvVar *env = editorDapEnsureEnv(config, key);
+		if (table.kind == DAP_CONFIG_TABLE_DEFAULT_ENV ||
+		    table.kind == DAP_CONFIG_TABLE_LAUNCH_ENV) {
+			struct editorDapEnvVar *env = dapConfigEnsureEnv(config, key);
 			char parsed[ROTIDE_DAP_VALUE_MAX];
-			if (env == NULL || !editorConfigParseQuotedValue(value, parsed, sizeof(parsed)) ||
-					!editorDapCopyString(env->value, sizeof(env->value), parsed)) {
+			if (env == NULL ||
+			    !editorConfigParseQuotedValue(value, parsed, sizeof(parsed)) ||
+			    !dapConfigCopyString(env->value, sizeof(env->value), parsed)) {
 				fclose(fp);
 				return 0;
 			}
 			continue;
 		}
 
-		if (!editorDapApplyLaunchSetting(config, key, value)) {
+		if (!dapConfigApplyLaunchSetting(config, key, value)) {
 			fclose(fp);
 			return 0;
 		}
@@ -553,7 +547,7 @@ static int editorDapApplyConfigFile(const char *path,
 	return !failed;
 }
 
-static int editorDapAdapterIdExists(const char *id) {
+static int dapConfigAdapterIdExists(const char *id) {
 	if (id == NULL || id[0] == '\0') {
 		return 0;
 	}
@@ -565,11 +559,10 @@ static int editorDapAdapterIdExists(const char *id) {
 	return 0;
 }
 
-static int editorDapLaunchConfigsValid(const struct editorDapLaunchConfig *configs,
-		int count) {
+static int dapConfigLaunchesValid(const struct editorDapLaunchConfig *configs, int count) {
 	for (int i = 0; i < count; i++) {
 		const struct editorDapLaunchConfig *config = &configs[i];
-		if (!editorDapAdapterIdExists(config->adapter)) {
+		if (!dapConfigAdapterIdExists(config->adapter)) {
 			return 0;
 		}
 		if (strcmp(config->request, "launch") != 0) {
@@ -592,37 +585,37 @@ void editorDapConfigInitDefaults(void) {
 	E.dap_selected_launch = -1;
 }
 
-enum editorDapConfigLoadStatus editorDapConfigLoadFromPaths(
-		const char *global_path, const char *project_path) {
+enum editorDapConfigLoadStatus editorDapConfigLoadFromPaths(const char *global_path,
+                                                            const char *project_path) {
 	editorDapConfigInitDefaults();
 	enum editorDapConfigLoadStatus status = EDITOR_DAP_CONFIG_LOAD_OK;
 
 	if (global_path != NULL) {
 		int missing = 0;
-		if (!editorDapApplyConfigFile(global_path, EDITOR_DAP_CONFIG_FILE_GLOBAL, &missing) ||
-				!editorDapLaunchConfigsValid(E.dap_defaults, E.dap_default_count)) {
+		if (!dapConfigApplyFile(global_path, DAP_CONFIG_FILE_GLOBAL, &missing) ||
+		    !dapConfigLaunchesValid(E.dap_defaults, E.dap_default_count)) {
 			memset(E.dap_adapters, 0, sizeof(E.dap_adapters));
 			E.dap_adapter_count = 0;
 			editorDapLaunchConfigsClear(E.dap_defaults, ROTIDE_DAP_MAX_CONFIGS);
 			E.dap_default_count = 0;
 			status = (enum editorDapConfigLoadStatus)(
-					status | EDITOR_DAP_CONFIG_LOAD_INVALID_GLOBAL);
+			        status | EDITOR_DAP_CONFIG_LOAD_INVALID_GLOBAL);
 		}
 	}
 
 	if (project_path != NULL) {
 		int missing = 0;
-		if (!editorDapApplyConfigFile(project_path, EDITOR_DAP_CONFIG_FILE_PROJECT, &missing) ||
-				!editorDapLaunchConfigsValid(E.dap_launches, E.dap_launch_count)) {
+		if (!dapConfigApplyFile(project_path, DAP_CONFIG_FILE_PROJECT, &missing) ||
+		    !dapConfigLaunchesValid(E.dap_launches, E.dap_launch_count)) {
 			editorDapLaunchConfigsClear(E.dap_launches, ROTIDE_DAP_MAX_CONFIGS);
 			E.dap_launch_count = 0;
 			E.dap_project_config_invalid = 1;
 			status = (enum editorDapConfigLoadStatus)(
-					status | EDITOR_DAP_CONFIG_LOAD_INVALID_PROJECT);
+			        status | EDITOR_DAP_CONFIG_LOAD_INVALID_PROJECT);
 		}
 		E.dap_project_config_exists = !missing;
-		(void)editorDapCopyString(E.dap_project_config_path,
-				sizeof(E.dap_project_config_path), project_path);
+		(void)dapConfigCopyString(E.dap_project_config_path,
+		                          sizeof(E.dap_project_config_path), project_path);
 	}
 
 	return status;
@@ -647,7 +640,7 @@ int editorDapBuildProjectConfigPath(const char *project_root, char *buf, size_t 
 	if (project_root != NULL && project_root[0] != '\0') {
 		root = strdup(project_root);
 	} else {
-		root = editorPathGetCwd();
+		root = editorPathCwdDup();
 	}
 	if (root == NULL) {
 		return 0;
@@ -679,12 +672,12 @@ enum editorDapConfigLoadStatus editorDapConfigReloadProject(const char *project_
 	E.dap_launch_count = 0;
 	E.dap_project_config_exists = 0;
 	E.dap_project_config_invalid = 0;
-	(void)editorDapCopyString(E.dap_project_config_path,
-			sizeof(E.dap_project_config_path), project_path);
+	(void)dapConfigCopyString(E.dap_project_config_path, sizeof(E.dap_project_config_path),
+	                          project_path);
 
 	int missing = 0;
 	enum editorDapConfigLoadStatus status = EDITOR_DAP_CONFIG_LOAD_OK;
-	if (!editorDapApplyConfigFile(project_path, EDITOR_DAP_CONFIG_FILE_PROJECT, &missing)) {
+	if (!dapConfigApplyFile(project_path, DAP_CONFIG_FILE_PROJECT, &missing)) {
 		E.dap_project_config_invalid = 1;
 		status = EDITOR_DAP_CONFIG_LOAD_INVALID_PROJECT;
 	}
@@ -696,7 +689,7 @@ enum editorDapConfigLoadStatus editorDapConfigReloadProject(const char *project_
 	free(adapters);
 	free(defaults);
 	if (status == EDITOR_DAP_CONFIG_LOAD_OK &&
-			!editorDapLaunchConfigsValid(E.dap_launches, E.dap_launch_count)) {
+	    !dapConfigLaunchesValid(E.dap_launches, E.dap_launch_count)) {
 		editorDapLaunchConfigsClear(E.dap_launches, ROTIDE_DAP_MAX_CONFIGS);
 		E.dap_launch_count = 0;
 		E.dap_project_config_invalid = 1;
@@ -720,7 +713,7 @@ const struct editorDapAdapterConfig *editorDapAdapterById(const char *id) {
 	return NULL;
 }
 
-static void editorDapWriteTomlString(FILE *fp, const char *value) {
+static void dapConfigWriteTomlString(FILE *fp, const char *value) {
 	fputc('"', fp);
 	for (const char *p = value != NULL ? value : ""; *p != '\0'; p++) {
 		if (*p == '"' || *p == '\\') {
@@ -731,28 +724,28 @@ static void editorDapWriteTomlString(FILE *fp, const char *value) {
 	fputc('"', fp);
 }
 
-static void editorDapWriteLaunchField(FILE *fp, const struct editorDapLaunchField *field) {
+static void dapConfigWriteLaunchField(FILE *fp, const struct editorDapLaunchField *field) {
 	fprintf(fp, "%s = ", field->key);
 	switch (field->kind) {
-	case EDITOR_DAP_LAUNCH_VALUE_STRING:
-		editorDapWriteTomlString(fp, field->string_value);
-		break;
-	case EDITOR_DAP_LAUNCH_VALUE_BOOL:
-		fprintf(fp, "%s", field->bool_value ? "true" : "false");
-		break;
-	case EDITOR_DAP_LAUNCH_VALUE_INT:
-		fprintf(fp, "%d", field->int_value);
-		break;
-	case EDITOR_DAP_LAUNCH_VALUE_STRING_ARRAY:
-		fputc('[', fp);
-		for (int i = 0; i < field->array_count; i++) {
-			if (i > 0) {
-				fprintf(fp, ", ");
+		case EDITOR_DAP_LAUNCH_VALUE_STRING:
+			dapConfigWriteTomlString(fp, field->string_value);
+			break;
+		case EDITOR_DAP_LAUNCH_VALUE_BOOL:
+			fprintf(fp, "%s", field->bool_value ? "true" : "false");
+			break;
+		case EDITOR_DAP_LAUNCH_VALUE_INT:
+			fprintf(fp, "%d", field->int_value);
+			break;
+		case EDITOR_DAP_LAUNCH_VALUE_STRING_ARRAY:
+			fputc('[', fp);
+			for (int i = 0; i < field->array_count; i++) {
+				if (i > 0) {
+					fprintf(fp, ", ");
+				}
+				dapConfigWriteTomlString(fp, field->array_values[i]);
 			}
-			editorDapWriteTomlString(fp, field->array_values[i]);
-		}
-		fputc(']', fp);
-		break;
+			fputc(']', fp);
+			break;
 	}
 	fputc('\n', fp);
 }
@@ -782,22 +775,22 @@ int editorDapCreateProjectLaunchFromDefault(int default_idx, const char *project
 	}
 	fprintf(fp, "[dap.launch.%s]\n", config->id);
 	fprintf(fp, "name = ");
-	editorDapWriteTomlString(fp, config->name[0] != '\0' ? config->name : config->id);
+	dapConfigWriteTomlString(fp, config->name[0] != '\0' ? config->name : config->id);
 	fputc('\n', fp);
 	fprintf(fp, "adapter = ");
-	editorDapWriteTomlString(fp, config->adapter);
+	dapConfigWriteTomlString(fp, config->adapter);
 	fputc('\n', fp);
 	fprintf(fp, "request = ");
-	editorDapWriteTomlString(fp, config->request[0] != '\0' ? config->request : "launch");
+	dapConfigWriteTomlString(fp, config->request[0] != '\0' ? config->request : "launch");
 	fputc('\n', fp);
 	for (int i = 0; i < config->field_count; i++) {
-		editorDapWriteLaunchField(fp, &config->fields[i]);
+		dapConfigWriteLaunchField(fp, &config->fields[i]);
 	}
 	if (config->env_count > 0) {
 		fprintf(fp, "\n[dap.launch.%s.env]\n", config->id);
 		for (int i = 0; i < config->env_count; i++) {
 			fprintf(fp, "%s = ", config->env[i].key);
-			editorDapWriteTomlString(fp, config->env[i].value);
+			dapConfigWriteTomlString(fp, config->env[i].value);
 			fputc('\n', fp);
 		}
 	}

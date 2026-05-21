@@ -2,8 +2,9 @@
 #define _BSD_SOURCE
 #define _GNU_SOURCE
 
-#include "editor_state_snapshot.h"
 #include "parallel_runner.h"
+
+#include "editor_state_snapshot.h"
 #include "rotide.h"
 #include "test_helpers.h"
 
@@ -92,11 +93,11 @@ static void crash_signal_handler(int signo, siginfo_t *info, void *ucontext) {
 		(void)write_all_fd(fd, buf, (size_t)n);
 		(void)write_all_fd(fd, "\nsuite=", 7);
 		(void)write_all_fd(fd, g_crash_suite_name,
-			(size_t)signal_safe_strlen(g_crash_suite_name));
+		                   (size_t)signal_safe_strlen(g_crash_suite_name));
 		(void)write_all_fd(fd, "\ntest=", 6);
 		if (g_current_test_marker != NULL && g_current_test_marker[0] != '\0') {
 			(void)write_all_fd(fd, g_current_test_marker,
-				(size_t)signal_safe_strlen(g_current_test_marker));
+			                   (size_t)signal_safe_strlen(g_current_test_marker));
 		} else {
 			(void)write_all_fd(fd, "(unknown)", 9);
 		}
@@ -231,20 +232,18 @@ static char *slurp_file(const char *path, size_t *len_out) {
 	return buf;
 }
 
-int parallelChildRunBatch(
-	const struct testRunnerOptions *opts,
-	const struct editorTestSuite *suite,
-	struct suiteBatch *batch) {
+int parallelChildRunBatch(const struct testRunnerOptions *opts, const struct editorTestSuite *suite,
+                          struct suiteBatch *batch) {
 	g_crash_suite_name = suite->name;
 	g_crash_seed = opts->seed;
 	g_crash_repeat = opts->repeat;
-	snprintf(g_crash_marker_path, sizeof(g_crash_marker_path), "%s/.marker.%d",
-		ARTIFACT_ROOT, (int)getpid());
+	snprintf(g_crash_marker_path, sizeof(g_crash_marker_path), "%s/.marker.%d", ARTIFACT_ROOT,
+	         (int)getpid());
 	char crash_dir[512];
 	snprintf(crash_dir, sizeof(crash_dir), "%s/%s", ARTIFACT_CRASHES, suite->name);
 	(void)mkdir_p(crash_dir, 0755);
-	snprintf(g_crash_artifact_path, sizeof(g_crash_artifact_path),
-		"%s/%s.crash", crash_dir, "unknown");
+	snprintf(g_crash_artifact_path, sizeof(g_crash_artifact_path), "%s/%s.crash", crash_dir,
+	         "unknown");
 	(void)install_crash_handlers();
 
 	unsigned char *snapshot = NULL;
@@ -269,8 +268,8 @@ int parallelChildRunBatch(
 			memcpy(g_current_test_marker, tc->name, n);
 			g_current_test_marker[n] = '\0';
 		}
-		snprintf(g_crash_artifact_path, sizeof(g_crash_artifact_path),
-			"%s/%s/%s.crash", ARTIFACT_CRASHES, suite->name, tc->name);
+		snprintf(g_crash_artifact_path, sizeof(g_crash_artifact_path), "%s/%s/%s.crash",
+		         ARTIFACT_CRASHES, suite->name, tc->name);
 		/* Hook for check_crash_handler.sh; no-op without the env var. */
 		const char *crash_match = getenv("ROTIDE_TEST_CRASH");
 		if (crash_match != NULL) {
@@ -294,9 +293,10 @@ int parallelChildRunBatch(
 					batch->reset_violations++;
 					const unsigned char *live = (const unsigned char *)&E;
 					fprintf(stderr,
-						"RESET-DRIFT after %s (repeat %d/%d): offset=%zu snap=0x%02x live=0x%02x\n",
-						tc->name, rep + 1, opts->repeat, diff_at,
-						snapshot[diff_at], live[diff_at]);
+					        "RESET-DRIFT after %s (repeat %d/%d): offset=%zu "
+					        "snap=0x%02x live=0x%02x\n",
+					        tc->name, rep + 1, opts->repeat, diff_at,
+					        snapshot[diff_at], live[diff_at]);
 				}
 			}
 			if (failed == 0) {
@@ -335,10 +335,9 @@ int parallelChildRunBatch(
 	batch->property_ops_seconds = test_property_ops_elapsed_seconds();
 	free(snapshot);
 	printf("__CHILD_SUMMARY total=%d passed=%d failed=%d drift=%d flakes=%d "
-		"property_ops=%lld property_ops_seconds=%.9f\n",
-		batch->total_runs, batch->passed_runs, batch->failed_unique,
-		batch->reset_violations, batch->flakes,
-		batch->property_ops, batch->property_ops_seconds);
+	       "property_ops=%lld property_ops_seconds=%.9f\n",
+	       batch->total_runs, batch->passed_runs, batch->failed_unique, batch->reset_violations,
+	       batch->flakes, batch->property_ops, batch->property_ops_seconds);
 	return local_failed_unique > 0 ? EXIT_FAILURE : EXIT_SUCCESS;
 }
 
@@ -365,10 +364,10 @@ static void parse_child_summary(const char *out, size_t out_len, struct suiteBat
 	long long property_ops = 0;
 	double property_ops_seconds = 0.0;
 	if (sscanf(start,
-			"__CHILD_SUMMARY total=%d passed=%d failed=%d drift=%d flakes=%d "
-			"property_ops=%lld property_ops_seconds=%lf",
-			&total, &passed, &failed, &drift, &flakes,
-			&property_ops, &property_ops_seconds) == 7) {
+	           "__CHILD_SUMMARY total=%d passed=%d failed=%d drift=%d flakes=%d "
+	           "property_ops=%lld property_ops_seconds=%lf",
+	           &total, &passed, &failed, &drift, &flakes, &property_ops,
+	           &property_ops_seconds) == 7) {
 		batch->total_runs = total;
 		batch->passed_runs = passed;
 		batch->failed_unique = failed;
@@ -393,8 +392,8 @@ static char *strip_summary_trailer(char *out, size_t *out_len) {
 }
 
 static int reap_one_child(struct suiteBatch *batches, int batch_count,
-		const struct editorTestSuite *suites, pid_t *child_pids,
-		struct parallelRunResult *result_out) {
+                          const struct editorTestSuite *suites, pid_t *child_pids,
+                          struct parallelRunResult *result_out) {
 	(void)suites;
 	int status = 0;
 	pid_t pid = waitpid(-1, &status, 0);
@@ -427,8 +426,8 @@ static int reap_one_child(struct suiteBatch *batches, int batch_count,
 
 	int marker_fd = open(batch->marker_path, O_RDONLY);
 	if (marker_fd >= 0) {
-		ssize_t n = read(marker_fd, batch->crash_test_name,
-			sizeof(batch->crash_test_name) - 1);
+		ssize_t n =
+		        read(marker_fd, batch->crash_test_name, sizeof(batch->crash_test_name) - 1);
 		if (n > 0) {
 			batch->crash_test_name[n] = '\0';
 		}
@@ -440,10 +439,9 @@ static int reap_one_child(struct suiteBatch *batches, int batch_count,
 	if (WIFSIGNALED(status)) {
 		batch->crashed = 1;
 		batch->crash_signal = WTERMSIG(status);
-		snprintf(batch->crash_artifact_path,
-			sizeof(batch->crash_artifact_path), "%s/%s/%s.crash",
-			ARTIFACT_CRASHES, suite->name,
-			batch->crash_test_name[0] ? batch->crash_test_name : "unknown");
+		snprintf(batch->crash_artifact_path, sizeof(batch->crash_artifact_path),
+		         "%s/%s/%s.crash", ARTIFACT_CRASHES, suite->name,
+		         batch->crash_test_name[0] ? batch->crash_test_name : "unknown");
 		result_out->crashes++;
 		result_out->failed_unique++;
 		return 0;
@@ -459,16 +457,13 @@ static int reap_one_child(struct suiteBatch *batches, int batch_count,
 	return 0;
 }
 
-static int spawn_child_for_batch(
-	const struct testRunnerOptions *opts,
-	const struct editorTestSuite *suites,
-	struct suiteBatch *batch,
-	pid_t *pid_out) {
+static int spawn_child_for_batch(const struct testRunnerOptions *opts,
+                                 const struct editorTestSuite *suites, struct suiteBatch *batch,
+                                 pid_t *pid_out) {
 	const struct editorTestSuite *suite = &suites[batch->suite_idx];
-	snprintf(batch->log_path, sizeof(batch->log_path), "%s/%s.log",
-		ARTIFACT_LOGS, suite->name);
-	snprintf(batch->marker_path, sizeof(batch->marker_path), "%s/.marker.%s",
-		ARTIFACT_ROOT, suite->name);
+	snprintf(batch->log_path, sizeof(batch->log_path), "%s/%s.log", ARTIFACT_LOGS, suite->name);
+	snprintf(batch->marker_path, sizeof(batch->marker_path), "%s/.marker.%s", ARTIFACT_ROOT,
+	         suite->name);
 
 	int log_fd = open(batch->log_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
 	if (log_fd < 0) {
@@ -492,8 +487,8 @@ static int spawn_child_for_batch(
 		return -1;
 	}
 	if (pid == 0) {
-		void *map = mmap(NULL, k_marker_size, PROT_READ | PROT_WRITE,
-			MAP_SHARED, marker_fd, 0);
+		void *map =
+		        mmap(NULL, k_marker_size, PROT_READ | PROT_WRITE, MAP_SHARED, marker_fd, 0);
 		(void)close(marker_fd);
 		if (map != MAP_FAILED) {
 			g_current_test_marker = (char *)map;
@@ -515,17 +510,14 @@ static int spawn_child_for_batch(
 	return 0;
 }
 
-int parallelRunBatches(
-	const struct testRunnerOptions *opts,
-	const struct editorTestSuite *suites,
-	struct suiteBatch *batches,
-	int batch_count,
-	struct parallelRunResult *result_out) {
+int parallelRunBatches(const struct testRunnerOptions *opts, const struct editorTestSuite *suites,
+                       struct suiteBatch *batches, int batch_count,
+                       struct parallelRunResult *result_out) {
 	memset(result_out, 0, sizeof(*result_out));
 	parallelEnsureArtifactDirs(ARTIFACT_ROOT);
 
-	pid_t *child_pids = calloc((size_t)(batch_count > 0 ? batch_count : 1),
-		sizeof(*child_pids));
+	pid_t *child_pids =
+	        calloc((size_t)(batch_count > 0 ? batch_count : 1), sizeof(*child_pids));
 	if (child_pids == NULL) {
 		return -ENOMEM;
 	}
@@ -539,7 +531,8 @@ int parallelRunBatches(
 	while (next_to_spawn < batch_count || in_flight > 0) {
 		while (in_flight < max_jobs && next_to_spawn < batch_count) {
 			pid_t pid = -1;
-			if (spawn_child_for_batch(opts, suites, &batches[next_to_spawn], &pid) != 0) {
+			if (spawn_child_for_batch(opts, suites, &batches[next_to_spawn], &pid) !=
+			    0) {
 				free(child_pids);
 				return -EIO;
 			}
@@ -548,7 +541,8 @@ int parallelRunBatches(
 			in_flight++;
 		}
 		if (in_flight > 0) {
-			if (reap_one_child(batches, batch_count, suites, child_pids, result_out) != 0) {
+			if (reap_one_child(batches, batch_count, suites, child_pids, result_out) !=
+			    0) {
 				free(child_pids);
 				return -ECHILD;
 			}

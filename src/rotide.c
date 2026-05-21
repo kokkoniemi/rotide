@@ -1,10 +1,5 @@
 #include "rotide.h"
 
-#include <errno.h>
-#include <locale.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "config/common.h"
 #include "config/keymap.h"
 #include "config/lsp_config.h"
@@ -26,6 +21,11 @@
 #include "workspace/tabs.h"
 #include "workspace/workspace_state.h"
 
+#include <errno.h>
+#include <locale.h>
+#include <stdlib.h>
+#include <string.h>
+
 struct editorConfig E;
 
 /* --render-once: non-interactive single-frame render mode. Skips raw
@@ -37,22 +37,21 @@ static int g_render_once = 0;
 #define RENDER_ONCE_DEFAULT_COLS 80
 #define RENDER_ONCE_DEFAULT_ROWS 24
 
-void initEditor(void) {
+void editorInit(void) {
 	editorResetActiveBufferFields();
-	editorLspConfigInitDefaults(&E.lsp_gopls_enabled, &E.lsp_clangd_enabled,
-			&E.lsp_html_enabled, &E.lsp_css_enabled, &E.lsp_json_enabled,
-			&E.lsp_javascript_enabled,
-			&E.lsp_eslint_enabled, E.lsp_gopls_command, sizeof(E.lsp_gopls_command),
-			E.lsp_gopls_install_command, sizeof(E.lsp_gopls_install_command),
-			E.lsp_clangd_command, sizeof(E.lsp_clangd_command), E.lsp_html_command,
-			sizeof(E.lsp_html_command), E.lsp_css_command, sizeof(E.lsp_css_command),
-			E.lsp_json_command, sizeof(E.lsp_json_command), E.lsp_javascript_command,
-			sizeof(E.lsp_javascript_command), E.lsp_javascript_install_command,
-			sizeof(E.lsp_javascript_install_command),
-			E.lsp_eslint_command, sizeof(E.lsp_eslint_command),
-			E.lsp_vscode_langservers_install_command,
-			sizeof(E.lsp_vscode_langservers_install_command),
-			&E.lsp_autocomplete_enabled, &E.lsp_autocomplete_max_items);
+	editorLspConfigInitDefaults(
+	        &E.lsp_gopls_enabled, &E.lsp_clangd_enabled, &E.lsp_html_enabled,
+	        &E.lsp_css_enabled, &E.lsp_json_enabled, &E.lsp_javascript_enabled,
+	        &E.lsp_eslint_enabled, E.lsp_gopls_command, sizeof(E.lsp_gopls_command),
+	        E.lsp_gopls_install_command, sizeof(E.lsp_gopls_install_command),
+	        E.lsp_clangd_command, sizeof(E.lsp_clangd_command), E.lsp_html_command,
+	        sizeof(E.lsp_html_command), E.lsp_css_command, sizeof(E.lsp_css_command),
+	        E.lsp_json_command, sizeof(E.lsp_json_command), E.lsp_javascript_command,
+	        sizeof(E.lsp_javascript_command), E.lsp_javascript_install_command,
+	        sizeof(E.lsp_javascript_install_command), E.lsp_eslint_command,
+	        sizeof(E.lsp_eslint_command), E.lsp_vscode_langservers_install_command,
+	        sizeof(E.lsp_vscode_langservers_install_command), &E.lsp_autocomplete_enabled,
+	        &E.lsp_autocomplete_max_items);
 	E.statusmsg[0] = '\0';
 	E.statusmsg_time = 0;
 	E.hover_link_active = 0;
@@ -144,21 +143,19 @@ void initEditor(void) {
 	E.layout_root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
 	if (E.layout_root == NULL) {
 		errno = ENOMEM;
-		panic("editorPaneNodeNewLeaf");
+		editorPanic("editorPaneNodeNewLeaf");
 	}
 	E.focused_leaf = E.layout_root;
 	editorKeymapInitDefaults(&E.keymap);
 	editorClipboardSetExternalSink(editorClipboardSyncAll);
 	if (!editorTabsInit()) {
 		errno = ENOMEM;
-		panic("editorTabsInit");
+		editorPanic("editorTabsInit");
 	}
 	/* Seed the initial pane's tab-membership list with the bootstrap
 	 * tab so subsequent open/close/cycle operations stay consistent. */
-	if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
-			E.tab_count > 0) {
-		(void)editorPaneViewAddTab(&E.focused_leaf->as.leaf.view,
-				E.active_tab);
+	if (E.focused_leaf != NULL && !E.focused_leaf->is_split && E.tab_count > 0) {
+		(void)editorPaneViewAddTab(&E.focused_leaf->as.leaf.view, E.active_tab);
 		E.focused_leaf->as.leaf.view.active_tab_idx = E.active_tab;
 	}
 
@@ -172,7 +169,7 @@ void initEditor(void) {
 			E.window_rows = 1;
 		}
 	} else if (!editorRefreshWindowSize()) {
-		panic("readWindowSize");
+		editorPanic("editorReadWindowSize");
 	}
 }
 
@@ -180,7 +177,7 @@ void initEditor(void) {
  * if the flag was present, 0 otherwise. Lets us extract a leading
  * mode flag without forcing the rest of the argv parsing through a
  * general option parser. */
-static int strip_flag(int *argc, char *argv[], const char *flag) {
+static int rotideStripFlag(int *argc, char *argv[], const char *flag) {
 	for (int i = 1; i < *argc; i++) {
 		if (strcmp(argv[i], flag) == 0) {
 			for (int j = i; j < *argc - 1; j++) {
@@ -197,12 +194,12 @@ static int strip_flag(int *argc, char *argv[], const char *flag) {
 int main(int argc, char *argv[]) {
 	setlocale(LC_CTYPE, "");
 
-	g_render_once = strip_flag(&argc, argv, "--render-once");
+	g_render_once = rotideStripFlag(&argc, argv, "--render-once");
 
 	if (!g_render_once) {
-		setRawMode();
+		editorSetRawMode();
 	}
-	initEditor();
+	editorInit();
 	if (!editorSyntaxBackgroundStart()) {
 		editorSetStatusMsg("Tree-sitter background worker disabled");
 	}

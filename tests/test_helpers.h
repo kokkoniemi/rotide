@@ -8,41 +8,44 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define ASSERT_TRUE(expr) \
-	do { \
-		if (!(expr)) { \
-			fprintf(stderr, "Assertion failed in %s:%d: %s\\n", __func__, __LINE__, #expr); \
-			return 1; \
-		} \
+#define ASSERT_TRUE(expr)                                                                          \
+	do {                                                                                       \
+		if (!(expr)) {                                                                     \
+			fprintf(stderr, "Assertion failed in %s:%d: %s\\n", __func__, __LINE__,    \
+			        #expr);                                                            \
+			return 1;                                                                  \
+		}                                                                                  \
 	} while (0)
 
-#define ASSERT_EQ_INT(expected, actual) \
-	do { \
-		long expected_val = (long)(expected); \
-		long actual_val = (long)(actual); \
-		if (expected_val != actual_val) { \
-			fprintf(stderr, "Assertion failed in %s:%d: expected %ld, got %ld\\n", \
-					__func__, __LINE__, expected_val, actual_val); \
-			return 1; \
-		} \
+#define ASSERT_EQ_INT(expected, actual)                                                            \
+	do {                                                                                       \
+		long expected_val = (long)(expected);                                              \
+		long actual_val = (long)(actual);                                                  \
+		if (expected_val != actual_val) {                                                  \
+			fprintf(stderr, "Assertion failed in %s:%d: expected %ld, got %ld\\n",     \
+			        __func__, __LINE__, expected_val, actual_val);                     \
+			return 1;                                                                  \
+		}                                                                                  \
 	} while (0)
 
-#define ASSERT_EQ_STR(expected, actual) \
-	do { \
-		if (strcmp((expected), (actual)) != 0) { \
-			fprintf(stderr, "Assertion failed in %s:%d: expected \\\"%s\\\", got \\\"%s\\\"\\n", \
-					__func__, __LINE__, (expected), (actual)); \
-			return 1; \
-		} \
+#define ASSERT_EQ_STR(expected, actual)                                                            \
+	do {                                                                                       \
+		if (strcmp((expected), (actual)) != 0) {                                           \
+			fprintf(stderr,                                                            \
+			        "Assertion failed in %s:%d: expected \\\"%s\\\", got "             \
+			        "\\\"%s\\\"\\n",                                                   \
+			        __func__, __LINE__, (expected), (actual));                         \
+			return 1;                                                                  \
+		}                                                                                  \
 	} while (0)
 
-#define ASSERT_MEM_EQ(expected, actual, nbytes) \
-	do { \
-		if (memcmp((expected), (actual), (nbytes)) != 0) { \
-			fprintf(stderr, "Assertion failed in %s:%d: memory mismatch\\n", \
-					__func__, __LINE__); \
-			return 1; \
-		} \
+#define ASSERT_MEM_EQ(expected, actual, nbytes)                                                    \
+	do {                                                                                       \
+		if (memcmp((expected), (actual), (nbytes)) != 0) {                                 \
+			fprintf(stderr, "Assertion failed in %s:%d: memory mismatch\\n", __func__, \
+			        __LINE__);                                                         \
+			return 1;                                                                  \
+		}                                                                                  \
 	} while (0)
 
 struct stdoutCapture {
@@ -94,32 +97,36 @@ char *editor_test_row_text(int cy);
 int editor_test_row_size(int cy);
 char *editor_test_tab_row_text(const struct editorTabState *tab, int cy);
 
-#define ASSERT_ROW_TEXT_EQ(cy, expected) \
-	do { \
-		char *_actual = editor_test_row_text(cy); \
-		const char *_expected = (expected); \
-		if (_actual == NULL || strcmp(_actual, _expected) != 0) { \
-			fprintf(stderr, "Assertion failed in %s:%d: row %d expected \\\"%s\\\", got \\\"%s\\\"\\n", \
-					__func__, __LINE__, (int)(cy), _expected, \
-					_actual ? _actual : "(null)"); \
-			free(_actual); \
-			return 1; \
-		} \
-		free(_actual); \
+#define ASSERT_ROW_TEXT_EQ(cy, expected)                                                           \
+	do {                                                                                       \
+		char *_actual = editor_test_row_text(cy);                                          \
+		const char *_expected = (expected);                                                \
+		if (_actual == NULL || strcmp(_actual, _expected) != 0) {                          \
+			fprintf(stderr,                                                            \
+			        "Assertion failed in %s:%d: row %d expected \\\"%s\\\", got "      \
+			        "\\\"%s\\\"\\n",                                                   \
+			        __func__, __LINE__, (int)(cy), _expected,                          \
+			        _actual ? _actual : "(null)");                                     \
+			free(_actual);                                                             \
+			return 1;                                                                  \
+		}                                                                                  \
+		free(_actual);                                                                     \
 	} while (0)
 
-#define ASSERT_TAB_ROW_TEXT_EQ(tab, cy, expected) \
-	do { \
-		char *_actual = editor_test_tab_row_text((tab), (cy)); \
-		const char *_expected = (expected); \
-		if (_actual == NULL || strcmp(_actual, _expected) != 0) { \
-			fprintf(stderr, "Assertion failed in %s:%d: tab row %d expected \\\"%s\\\", got \\\"%s\\\"\\n", \
-					__func__, __LINE__, (int)(cy), _expected, \
-					_actual ? _actual : "(null)"); \
-			free(_actual); \
-			return 1; \
-		} \
-		free(_actual); \
+#define ASSERT_TAB_ROW_TEXT_EQ(tab, cy, expected)                                                  \
+	do {                                                                                       \
+		char *_actual = editor_test_tab_row_text((tab), (cy));                             \
+		const char *_expected = (expected);                                                \
+		if (_actual == NULL || strcmp(_actual, _expected) != 0) {                          \
+			fprintf(stderr,                                                            \
+			        "Assertion failed in %s:%d: tab row %d expected \\\"%s\\\", got "  \
+			        "\\\"%s\\\"\\n",                                                   \
+			        __func__, __LINE__, (int)(cy), _expected,                          \
+			        _actual ? _actual : "(null)");                                     \
+			free(_actual);                                                             \
+			return 1;                                                                  \
+		}                                                                                  \
+		free(_actual);                                                                     \
 	} while (0)
 
 #endif

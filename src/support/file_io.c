@@ -10,11 +10,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-static int editorPathIsAbsolute(const char *path) {
+static int fileIoPathIsAbsolute(const char *path) {
 	return path != NULL && path[0] == '/';
 }
 
-static int editorPathExists(const char *path) {
+static int fileIoPathExists(const char *path) {
 	struct stat st;
 	return path != NULL && stat(path, &st) == 0;
 }
@@ -37,8 +37,7 @@ char *editorPathJoin(const char *left, const char *right) {
 
 	size_t total = 0;
 	if (!editorSizeAdd(left_len, right_len, &total) ||
-			(need_slash && !editorSizeAdd(total, 1, &total)) ||
-			!editorSizeAdd(total, 1, &total)) {
+	    (need_slash && !editorSizeAdd(total, 1, &total)) || !editorSizeAdd(total, 1, &total)) {
 		return NULL;
 	}
 
@@ -122,7 +121,7 @@ char *editorPathDirnameDup(const char *path) {
 	return dir;
 }
 
-char *editorPathGetCwd(void) {
+char *editorPathCwdDup(void) {
 	char *cwd = getcwd(NULL, 0);
 	if (cwd != NULL) {
 		return cwd;
@@ -136,11 +135,11 @@ char *editorPathAbsoluteDup(const char *path) {
 		return NULL;
 	}
 
-	if (editorPathIsAbsolute(path)) {
+	if (fileIoPathIsAbsolute(path)) {
 		return strdup(path);
 	}
 
-	char *cwd = editorPathGetCwd();
+	char *cwd = editorPathCwdDup();
 	if (cwd == NULL) {
 		return NULL;
 	}
@@ -151,7 +150,7 @@ char *editorPathAbsoluteDup(const char *path) {
 }
 
 char *editorPathFindMarkerUpward(const char *start_dir, const char *const *markers,
-		size_t marker_count) {
+                                 size_t marker_count) {
 	if (start_dir == NULL || start_dir[0] == '\0' || markers == NULL || marker_count == 0) {
 		return NULL;
 	}
@@ -172,7 +171,7 @@ char *editorPathFindMarkerUpward(const char *start_dir, const char *const *marke
 				free(current);
 				return NULL;
 			}
-			if (editorPathExists(candidate)) {
+			if (fileIoPathExists(candidate)) {
 				free(candidate);
 				return current;
 			}
@@ -229,7 +228,7 @@ char *editorTempPathForTarget(const char *target) {
 	size_t base_len = strlen(basename);
 	size_t total_len = 0;
 	if (!editorSizeAdd(dir_len, base_len, &total_len) ||
-			!editorSizeAdd(total_len, sizeof(suffix), &total_len)) {
+	    !editorSizeAdd(total_len, sizeof(suffix), &total_len)) {
 		return NULL;
 	}
 	char *tmp_path = editorMalloc(total_len);

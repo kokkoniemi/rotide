@@ -1,6 +1,5 @@
-#include "workspace/drawer.h"
-
 #include "support/file_io.h"
+#include "workspace/drawer.h"
 #include "workspace/drawer_internal.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
@@ -30,27 +29,27 @@ int editorDrawerVisibleCount(void) {
 	return editorDrawerCountVisibleFromNode(E.drawer_root);
 }
 
-int editorDrawerGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *view_out) {
+int editorDrawerVisibleEntryView(int visible_idx, struct editorDrawerEntryView *view_out) {
 	if (view_out == NULL) {
 		return 0;
 	}
 	if (editorFileSearchIsActive()) {
-		return editorFileSearchGetVisibleEntry(visible_idx, view_out);
+		return editorFileSearchVisibleEntryView(visible_idx, view_out);
 	}
 	if (editorProjectSearchIsActive()) {
-		return editorProjectSearchGetVisibleEntry(visible_idx, view_out);
+		return editorProjectSearchVisibleEntryView(visible_idx, view_out);
 	}
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_MAIN_MENU) {
-		return editorDrawerMenuGetVisibleEntry(visible_idx, view_out);
+		return editorDrawerMenuVisibleEntryView(visible_idx, view_out);
 	}
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_GIT) {
-		return editorDrawerGitGetVisibleEntry(visible_idx, view_out);
+		return editorDrawerGitVisibleEntryView(visible_idx, view_out);
 	}
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
-		return editorDrawerLspGetVisibleEntry(visible_idx, view_out);
+		return editorDrawerLspVisibleEntryView(visible_idx, view_out);
 	}
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_DAP) {
-		return editorDrawerDapGetVisibleEntry(visible_idx, view_out);
+		return editorDrawerDapVisibleEntryView(visible_idx, view_out);
 	}
 
 	struct editorDrawerLookup lookup;
@@ -69,13 +68,13 @@ int editorDrawerGetVisibleEntry(int visible_idx, struct editorDrawerEntryView *v
 	view_out->is_root = lookup.node == E.drawer_root;
 	view_out->parent_visible_idx = lookup.parent_visible_idx;
 	if (lookup.node->parent != NULL && lookup.node->parent->child_count > 0 &&
-			lookup.node->parent->children[lookup.node->parent->child_count - 1] == lookup.node) {
+	    lookup.node->parent->children[lookup.node->parent->child_count - 1] == lookup.node) {
 		view_out->is_last_sibling = 1;
 	} else {
 		view_out->is_last_sibling = lookup.node->parent == NULL;
 	}
 	view_out->is_active_file = !lookup.node->is_dir && E.filename != NULL &&
-			editorPathsReferToSameFile(lookup.node->path, E.filename);
+	                           editorPathsReferToSameFile(lookup.node->path, E.filename);
 	if (E.git_repo_root != NULL) {
 		if (lookup.node->is_dir) {
 			view_out->git_status = editorGitDirStatus(lookup.node->path);
