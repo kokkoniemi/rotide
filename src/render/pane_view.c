@@ -5,6 +5,7 @@
 #include "render/ansi_style.h"
 #include "render/drawer_view.h"
 #include "render/screen.h"
+#include "render/tab_bar.h"
 #include "render/terminal_view.h"
 #include "workspace/drawer.h"
 #include "workspace/tabs.h"
@@ -567,7 +568,12 @@ static enum paneViewBorderCellKind paneViewBorderCellAt(int x, int screen_y,
 		if (x < r.x || x >= r.x + r.w) {
 			continue;
 		}
-		if (screen_y < r.y || screen_y >= r.y + r.h) {
+		int in_row = screen_y >= r.y && screen_y < r.y + r.h;
+		if (!in_row && borders->rects[i].orientation == EDITOR_SPLIT_VERTICAL &&
+		    screen_y == r.y - 1) {
+			in_row = 1;
+		}
+		if (!in_row) {
 			continue;
 		}
 		return borders->rects[i].orientation == EDITOR_SPLIT_HORIZONTAL
@@ -575,6 +581,122 @@ static enum paneViewBorderCellKind paneViewBorderCellAt(int x, int screen_y,
 		               : PANE_VIEW_BORDER_CELL_VERTICAL;
 	}
 	return PANE_VIEW_BORDER_CELL_NONE;
+}
+
+static int paneViewStripCellAt(const struct editorLeafLayout *layout, int x, int screen_y,
+                               struct editorPaneNode **leaf_out, int *local_col_out,
+                               int *strip_cols_out) {
+	if (layout == NULL) {
+		return 0;
+	}
+	for (int i = 0; i < layout->count; i++) {
+		struct editorPaneNode *leaf = layout->rects[i].node;
+		struct editorRect r = layout->rects[i].rect;
+		if (leaf == NULL || leaf->is_split ||
+		    leaf->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
+			continue;
+		}
+		if (screen_y != r.y - 1 || x < r.x || x >= r.x + r.w) {
+			continue;
+		}
+		if (leaf_out != NULL) {
+			*leaf_out = leaf;
+		}
+		if (local_col_out != NULL) {
+			*local_col_out = x - r.x;
+		}
+		if (strip_cols_out != NULL) {
+			*strip_cols_out = r.w;
+		}
+		return 1;
+	}
+	return 0;
+}
+
+static int paneViewDrawStripSpan(struct writeBuf *wb, struct editorPaneNode *leaf, int local_col,
+                                 int strip_cols, int slice_cols) {
+	struct writeBuf strip = WRITEBUF_INIT;
+	int ok = 0;
+	if (slice_cols <= 0) {
+		return 1;
+	}
+	if (local_col == 0 && slice_cols == strip_cols) {
+		return editorDrawPaneTabStrip(wb, leaf, strip_cols);
+	}
+	if (!editorDrawPaneTabStrip(&strip, leaf, strip_cols)) {
+		goto cleanup;
+	}
+	if ((size_t)local_col > strip.len) {
+		if (!editorDrawBlankCells(wb, slice_cols)) {
+			goto cleanup;
+		}
+		ok = 1;
+		goto cleanup;
+	}
+	size_t available = strip.len - (size_t)local_col;
+	size_t take = (size_t)slice_cols < available ? (size_t)slice_cols : available;
+	if (take > 0 && !wbAppend(wb, strip.b + local_col, take)) {
+		goto cleanup;
+	}
+	for (int i = (int)take; i < slice_cols; i++) {
+		if (!wbAppend(wb, " ", 1)) {
+			goto cleanup;
+		}
+	}
+	ok = 1;
+cleanup:
+	wbFree(&strip);
+	return ok;
+}
+
+int editorDrawMultiPaneTabStripRow(struct writeBuf *wb) {
+	struct editorRect viewport;
+	if (!editorLayoutEditorViewport(&viewport)) {
+		return 0;
+	}
+	struct editorLeafLayout layout = {0};
+	struct editorBorderList borders = {0};
+	if (!editorLayoutComputeBorderedInto(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE,
+	                                     &layout) ||
+	    !editorLayoutCollectBorders(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE,
+	                                &borders)) {
+		editorBorderListFree(&borders);
+		editorLeafLayoutFree(&layout);
+		return 0;
+	}
+
+	int ok = 0;
+	int x = viewport.x;
+	while (x < viewport.x + viewport.w) {
+		enum paneViewBorderCellKind border = paneViewBorderCellAt(x, 0, &borders);
+		if (border == PANE_VIEW_BORDER_CELL_VERTICAL) {
+			if (!wbAppend(wb, EDITOR_PANE_VBORDER, sizeof(EDITOR_PANE_VBORDER) - 1)) {
+				goto cleanup;
+			}
+			x++;
+			continue;
+		}
+		struct editorPaneNode *leaf = NULL;
+		int local_col = 0;
+		int strip_cols = 0;
+		if (paneViewStripCellAt(&layout, x, 0, &leaf, &local_col, &strip_cols)) {
+			int slice_cols = strip_cols - local_col;
+			if (!paneViewDrawStripSpan(wb, leaf, local_col, strip_cols, slice_cols)) {
+				goto cleanup;
+			}
+			x += slice_cols;
+			continue;
+		}
+		if (!wbAppend(wb, " ", 1)) {
+			goto cleanup;
+		}
+		x++;
+	}
+	ok = 1;
+cleanup:
+	editorBorderListFree(&borders);
+	editorLeafLayoutFree(&layout);
+	return ok;
 }
 
 int editorDrawMultiPaneRows(struct writeBuf *wb, const struct editorLeafLayout *layout,
@@ -607,17 +729,30 @@ int editorDrawMultiPaneRows(struct writeBuf *wb, const struct editorLeafLayout *
 		while (x < E.window_cols) {
 			enum paneViewBorderCellKind border =
 			        paneViewBorderCellAt(x, screen_y, borders);
-			if (border == PANE_VIEW_BORDER_CELL_HORIZONTAL) {
-				if (!wbAppend(wb, EDITOR_PANE_HBORDER,
-				              sizeof(EDITOR_PANE_HBORDER) - 1)) {
+			if (border == PANE_VIEW_BORDER_CELL_VERTICAL) {
+				if (!wbAppend(wb, EDITOR_PANE_VBORDER,
+				              sizeof(EDITOR_PANE_VBORDER) - 1)) {
 					goto cleanup;
 				}
 				x++;
 				continue;
 			}
-			if (border == PANE_VIEW_BORDER_CELL_VERTICAL) {
-				if (!wbAppend(wb, EDITOR_PANE_VBORDER,
-				              sizeof(EDITOR_PANE_VBORDER) - 1)) {
+			struct editorPaneNode *strip_leaf = NULL;
+			int strip_local_col = 0;
+			int strip_cols = 0;
+			if (paneViewStripCellAt(layout, x, screen_y, &strip_leaf, &strip_local_col,
+			                        &strip_cols)) {
+				int slice_cols = strip_cols - strip_local_col;
+				if (!paneViewDrawStripSpan(wb, strip_leaf, strip_local_col,
+				                           strip_cols, slice_cols)) {
+					goto cleanup;
+				}
+				x += slice_cols;
+				continue;
+			}
+			if (border == PANE_VIEW_BORDER_CELL_HORIZONTAL) {
+				if (!wbAppend(wb, EDITOR_PANE_HBORDER,
+				              sizeof(EDITOR_PANE_HBORDER) - 1)) {
 					goto cleanup;
 				}
 				x++;

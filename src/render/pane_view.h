@@ -35,6 +35,7 @@ int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode 
                                int body_row_in_pane, int slice_cols);
 int editorBuildSinglePaneRowLine(struct writeBuf *wb, int y, int drawer_cols, int separator_cols,
                                  int text_cols);
+int editorDrawMultiPaneTabStripRow(struct writeBuf *wb);
 int editorDrawMultiPaneRows(struct writeBuf *wb, const struct editorLeafLayout *layout,
                             const struct editorBorderList *borders, struct editorRect focused_rect);
 

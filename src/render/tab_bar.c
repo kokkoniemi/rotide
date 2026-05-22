@@ -3,6 +3,7 @@
 #include "render/ansi_style.h"
 #include "render/display_text.h"
 #include "render/drawer_view.h"
+#include "render/pane_view.h"
 #include "workspace/drawer.h"
 #include "workspace/layout.h"
 #include "workspace/tabs.h"
@@ -168,7 +169,11 @@ int editorDrawTabBar(struct writeBuf *wb) {
 		if (!editorDrawDrawerRow(wb, 0, toggle_cols)) {
 			return 0;
 		}
-		if (!editorDrawTabSlots(wb, E.window_cols - toggle_cols)) {
+		if (editorPaneTreeLeafCount(E.layout_root) > 1) {
+			if (!editorDrawMultiPaneTabStripRow(wb)) {
+				return 0;
+			}
+		} else if (!editorDrawTabSlots(wb, E.window_cols - toggle_cols)) {
 			return 0;
 		}
 		if (!wbAppend(wb, VT100_CLEAR_ROW_3, 3)) {
@@ -186,6 +191,15 @@ int editorDrawTabBar(struct writeBuf *wb) {
 	}
 	if (!editorDrawDrawerSeparatorCell(wb, separator_cols)) {
 		return 0;
+	}
+	if (editorPaneTreeLeafCount(E.layout_root) > 1) {
+		if (!editorDrawMultiPaneTabStripRow(wb)) {
+			return 0;
+		}
+		if (!wbAppend(wb, VT100_CLEAR_ROW_3, 3)) {
+			return 0;
+		}
+		return wbAppend(wb, "\r\n", 2);
 	}
 	if (!editorDrawTabSlots(wb, text_cols)) {
 		return 0;
