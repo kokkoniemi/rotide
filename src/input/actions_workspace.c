@@ -439,6 +439,68 @@ int editorSwitchDrawerHeaderMode(enum editorDrawerMode mode) {
 	}
 }
 
+int editorActionMoveActiveTabToNeighborPane(enum editorFocusDirection direction) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL || E.focused_leaf->is_split ||
+	    E.focused_leaf->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
+		return 0;
+	}
+
+	struct editorPaneView *source_view = &E.focused_leaf->as.leaf.view;
+	if (source_view->pane_tab_count <= 0) {
+		return 0;
+	}
+	editorPaneViewCaptureFromState(source_view);
+	int tab_idx = source_view->active_tab_idx;
+	int source_slot = editorPaneViewIndexOfTab(source_view, tab_idx);
+	if (source_slot < 0) {
+		return 0;
+	}
+
+	struct editorRect viewport = {0};
+	if (!editorLayoutEditorViewport(&viewport)) {
+		return 0;
+	}
+	struct editorLeafLayout layout = {0};
+	if (!editorLayoutComputeBorderedInto(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE,
+	                                     &layout)) {
+		editorLeafLayoutFree(&layout);
+		return 0;
+	}
+	struct editorPaneNode *target =
+	        editorLayoutFindNeighborLeaf(&layout, E.focused_leaf, direction);
+	editorLeafLayoutFree(&layout);
+	if (target == NULL || target->is_split || target->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
+		return 0;
+	}
+
+	struct editorPaneView *target_view = &target->as.leaf.view;
+	if (!editorPaneViewHasTab(target_view, tab_idx) &&
+	    target_view->pane_tab_count >= ROTIDE_PANE_MAX_TABS) {
+		return 0;
+	}
+
+	int source_next_active = source_view->pane_tab_count > 1
+	                                 ? source_view->pane_tabs[source_slot == 0 ? 1 : 0]
+	                                 : -1;
+	editorPaneViewRemoveTab(source_view, tab_idx);
+	source_view->active_tab_idx = source_next_active;
+	if (!editorPaneViewAddTab(target_view, tab_idx)) {
+		(void)editorPaneViewAddTab(source_view, tab_idx);
+		source_view->active_tab_idx = tab_idx;
+		return 0;
+	}
+	target_view->active_tab_idx = tab_idx;
+	if (editorLayoutSetFocusedLeaf(target)) {
+		source_view->active_tab_idx = source_next_active;
+		editorPaneAnnounceFocus();
+		return 1;
+	}
+	editorPaneViewRemoveTab(target_view, tab_idx);
+	(void)editorPaneViewAddTab(source_view, tab_idx);
+	source_view->active_tab_idx = tab_idx;
+	return 0;
+}
+
 int editorHandleWorkspaceMappedAction(enum editorAction action, int cursor_or_edit_effect_bit,
                                       editorWorkspaceProcessMappedActionFn process_mapped_action,
                                       editorJumpToPathLocationFn jump_fn, int *effects_io) {
@@ -528,6 +590,22 @@ int editorHandleWorkspaceMappedAction(enum editorAction action, int cursor_or_ed
 			if (editorLayoutFocusDirection(EDITOR_FOCUS_DOWN)) {
 				editorPaneAnnounceFocus();
 			}
+			return 1;
+		case EDITOR_ACTION_MOVE_TAB_LEFT_PANE:
+			editorHistoryBreakGroup();
+			(void)editorActionMoveActiveTabToNeighborPane(EDITOR_FOCUS_LEFT);
+			return 1;
+		case EDITOR_ACTION_MOVE_TAB_RIGHT_PANE:
+			editorHistoryBreakGroup();
+			(void)editorActionMoveActiveTabToNeighborPane(EDITOR_FOCUS_RIGHT);
+			return 1;
+		case EDITOR_ACTION_MOVE_TAB_UP_PANE:
+			editorHistoryBreakGroup();
+			(void)editorActionMoveActiveTabToNeighborPane(EDITOR_FOCUS_UP);
+			return 1;
+		case EDITOR_ACTION_MOVE_TAB_DOWN_PANE:
+			editorHistoryBreakGroup();
+			(void)editorActionMoveActiveTabToNeighborPane(EDITOR_FOCUS_DOWN);
 			return 1;
 		case EDITOR_ACTION_PANE_GROW:
 			editorHistoryBreakGroup();

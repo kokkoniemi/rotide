@@ -361,6 +361,11 @@ static int terminalReadCsiModifiedArrowKey(char second) {
 		return terminalArrowKeyFromFinal(final, CTRL_ALT_ARROW_UP, CTRL_ALT_ARROW_DOWN,
 		                                 CTRL_ALT_ARROW_RIGHT, CTRL_ALT_ARROW_LEFT);
 	}
+	if (modifier == '8') {
+		return terminalArrowKeyFromFinal(
+		        final, CTRL_SHIFT_ALT_ARROW_UP, CTRL_SHIFT_ALT_ARROW_DOWN,
+		        CTRL_SHIFT_ALT_ARROW_RIGHT, CTRL_SHIFT_ALT_ARROW_LEFT);
+	}
 	return '\x1b';
 }
 

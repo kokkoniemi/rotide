@@ -1,4 +1,5 @@
 #include "editing/selection.h"
+#include "input/actions_workspace.h"
 #include "test_case.h"
 #include "test_support.h"
 #include "workspace/drawer.h"
@@ -235,6 +236,159 @@ static int test_editor_process_keypress_pane_grow_shrink_via_custom_keymap(void)
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int setup_move_tab_split(enum editorSplitOrientation orientation,
+                                struct editorPaneNode **first_out,
+                                struct editorPaneNode **second_out) {
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+	ASSERT_TRUE(editorTabNewEmpty());
+	ASSERT_TRUE(editorTabNewEmpty());
+	ASSERT_TRUE(editorTabNewEmpty());
+	ASSERT_EQ_INT(4, editorTabCount());
+	E.window_rows = 10;
+	E.window_cols = 80;
+
+	struct editorPaneNode *first = E.focused_leaf;
+	ASSERT_TRUE(first != NULL);
+	struct editorPaneNode *second = editorLayoutSplitFocused(orientation, 0.5);
+	ASSERT_TRUE(second != NULL);
+
+	first->as.leaf.view.pane_tab_count = 0;
+	first->as.leaf.view.active_tab_idx = -1;
+	second->as.leaf.view.pane_tab_count = 0;
+	second->as.leaf.view.active_tab_idx = -1;
+	ASSERT_TRUE(editorPaneViewAddTab(&first->as.leaf.view, 0));
+	ASSERT_TRUE(editorPaneViewAddTab(&first->as.leaf.view, 1));
+	first->as.leaf.view.active_tab_idx = 1;
+	ASSERT_TRUE(editorPaneViewAddTab(&second->as.leaf.view, 2));
+	ASSERT_TRUE(editorPaneViewAddTab(&second->as.leaf.view, 3));
+	second->as.leaf.view.active_tab_idx = 2;
+
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(first));
+	ASSERT_TRUE(editorTabSwitchToIndex(1));
+	*first_out = first;
+	*second_out = second;
+	return 0;
+}
+
+static int test_editor_action_move_active_tab_right_pane_moves_and_focuses_right(void) {
+	struct editorPaneNode *left = NULL;
+	struct editorPaneNode *right = NULL;
+	ASSERT_TRUE(setup_move_tab_split(EDITOR_SPLIT_VERTICAL, &left, &right) == 0);
+
+	ASSERT_TRUE(editorActionMoveActiveTabToNeighborPane(EDITOR_FOCUS_RIGHT));
+
+	ASSERT_TRUE(E.focused_leaf == right);
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_EQ_INT(1, left->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(0, left->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(0, left->as.leaf.view.active_tab_idx);
+	ASSERT_EQ_INT(3, right->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(2, right->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(3, right->as.leaf.view.pane_tabs[1]);
+	ASSERT_EQ_INT(1, right->as.leaf.view.pane_tabs[2]);
+	ASSERT_EQ_INT(1, right->as.leaf.view.active_tab_idx);
+	ASSERT_TRUE(strstr(E.statusmsg, "Pane ") != NULL);
+	return 0;
+}
+
+static int test_editor_action_move_active_tab_left_pane_moves_and_focuses_left(void) {
+	struct editorPaneNode *left = NULL;
+	struct editorPaneNode *right = NULL;
+	ASSERT_TRUE(setup_move_tab_split(EDITOR_SPLIT_VERTICAL, &left, &right) == 0);
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(right));
+	ASSERT_TRUE(editorTabSwitchToIndex(2));
+
+	ASSERT_TRUE(editorActionMoveActiveTabToNeighborPane(EDITOR_FOCUS_LEFT));
+
+	ASSERT_TRUE(E.focused_leaf == left);
+	ASSERT_EQ_INT(2, editorTabActiveIndex());
+	ASSERT_EQ_INT(3, left->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(0, left->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(1, left->as.leaf.view.pane_tabs[1]);
+	ASSERT_EQ_INT(2, left->as.leaf.view.pane_tabs[2]);
+	ASSERT_EQ_INT(2, left->as.leaf.view.active_tab_idx);
+	ASSERT_EQ_INT(1, right->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(3, right->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(3, right->as.leaf.view.active_tab_idx);
+	return 0;
+}
+
+static int test_editor_action_move_active_tab_down_pane_moves_and_focuses_down(void) {
+	struct editorPaneNode *top = NULL;
+	struct editorPaneNode *bottom = NULL;
+	ASSERT_TRUE(setup_move_tab_split(EDITOR_SPLIT_HORIZONTAL, &top, &bottom) == 0);
+
+	ASSERT_TRUE(editorActionMoveActiveTabToNeighborPane(EDITOR_FOCUS_DOWN));
+
+	ASSERT_TRUE(E.focused_leaf == bottom);
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_EQ_INT(1, top->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(0, top->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(3, bottom->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(2, bottom->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(3, bottom->as.leaf.view.pane_tabs[1]);
+	ASSERT_EQ_INT(1, bottom->as.leaf.view.pane_tabs[2]);
+	ASSERT_EQ_INT(1, bottom->as.leaf.view.active_tab_idx);
+	return 0;
+}
+
+static int test_editor_action_move_active_tab_up_pane_moves_and_focuses_up(void) {
+	struct editorPaneNode *top = NULL;
+	struct editorPaneNode *bottom = NULL;
+	ASSERT_TRUE(setup_move_tab_split(EDITOR_SPLIT_HORIZONTAL, &top, &bottom) == 0);
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(bottom));
+	ASSERT_TRUE(editorTabSwitchToIndex(2));
+
+	ASSERT_TRUE(editorActionMoveActiveTabToNeighborPane(EDITOR_FOCUS_UP));
+
+	ASSERT_TRUE(E.focused_leaf == top);
+	ASSERT_EQ_INT(2, editorTabActiveIndex());
+	ASSERT_EQ_INT(3, top->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(0, top->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(1, top->as.leaf.view.pane_tabs[1]);
+	ASSERT_EQ_INT(2, top->as.leaf.view.pane_tabs[2]);
+	ASSERT_EQ_INT(1, bottom->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(3, bottom->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(3, bottom->as.leaf.view.active_tab_idx);
+	return 0;
+}
+
+static int test_editor_action_move_active_tab_no_neighbor_is_no_op(void) {
+	struct editorPaneNode *left = NULL;
+	struct editorPaneNode *right = NULL;
+	ASSERT_TRUE(setup_move_tab_split(EDITOR_SPLIT_VERTICAL, &left, &right) == 0);
+
+	ASSERT_TRUE(!editorActionMoveActiveTabToNeighborPane(EDITOR_FOCUS_LEFT));
+
+	ASSERT_TRUE(E.focused_leaf == left);
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_EQ_INT(2, left->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(0, left->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(1, left->as.leaf.view.pane_tabs[1]);
+	ASSERT_EQ_INT(2, right->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(2, right->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(3, right->as.leaf.view.pane_tabs[1]);
+	return 0;
+}
+
+static int test_editor_action_move_active_tab_empty_pane_is_no_op(void) {
+	struct editorPaneNode *left = NULL;
+	struct editorPaneNode *right = NULL;
+	ASSERT_TRUE(setup_move_tab_split(EDITOR_SPLIT_VERTICAL, &left, &right) == 0);
+	left->as.leaf.view.pane_tab_count = 0;
+	left->as.leaf.view.active_tab_idx = -1;
+
+	ASSERT_TRUE(!editorActionMoveActiveTabToNeighborPane(EDITOR_FOCUS_RIGHT));
+
+	ASSERT_TRUE(E.focused_leaf == left);
+	ASSERT_EQ_INT(0, left->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(2, right->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(2, right->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(3, right->as.leaf.view.pane_tabs[1]);
 	return 0;
 }
 
@@ -1811,6 +1965,18 @@ const struct editorTestCase g_input_actions_tests[] = {
          test_editor_process_keypress_resize_drawer_shortcuts},
         {"editor_process_keypress_pane_grow_shrink_via_custom_keymap",
          test_editor_process_keypress_pane_grow_shrink_via_custom_keymap},
+        {"editor_action_move_active_tab_right_pane_moves_and_focuses_right",
+         test_editor_action_move_active_tab_right_pane_moves_and_focuses_right},
+        {"editor_action_move_active_tab_left_pane_moves_and_focuses_left",
+         test_editor_action_move_active_tab_left_pane_moves_and_focuses_left},
+        {"editor_action_move_active_tab_down_pane_moves_and_focuses_down",
+         test_editor_action_move_active_tab_down_pane_moves_and_focuses_down},
+        {"editor_action_move_active_tab_up_pane_moves_and_focuses_up",
+         test_editor_action_move_active_tab_up_pane_moves_and_focuses_up},
+        {"editor_action_move_active_tab_no_neighbor_is_no_op",
+         test_editor_action_move_active_tab_no_neighbor_is_no_op},
+        {"editor_action_move_active_tab_empty_pane_is_no_op",
+         test_editor_action_move_active_tab_empty_pane_is_no_op},
         {"editor_process_keypress_toggle_drawer_shortcut_collapses_and_expands",
          test_editor_process_keypress_toggle_drawer_shortcut_collapses_and_expands},
         {"editor_process_keypress_toggle_drawer_preserves_search_modes",

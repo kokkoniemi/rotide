@@ -57,6 +57,10 @@ static int test_editor_read_key_alt_arrow_sequences(void) {
 	const char csi_ctrl_alt_right[] = "\x1b[1;7C";
 	const char csi_ctrl_alt_down[] = "\x1b[1;7B";
 	const char csi_ctrl_alt_up[] = "\x1b[1;7A";
+	const char csi_ctrl_shift_alt_left[] = "\x1b[1;8D";
+	const char csi_ctrl_shift_alt_right[] = "\x1b[1;8C";
+	const char csi_ctrl_shift_alt_down[] = "\x1b[1;8B";
+	const char csi_ctrl_shift_alt_up[] = "\x1b[1;8A";
 	const char fallback_alt_left[] = "\x1b\x1b[D";
 	const char fallback_alt_right[] = "\x1b\x1b[C";
 	const char fallback_alt_down[] = "\x1b\x1b[B";
@@ -113,6 +117,18 @@ static int test_editor_read_key_alt_arrow_sequences(void) {
 	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_alt_up, sizeof(csi_ctrl_alt_up) - 1,
 	                                       &key) == 0);
 	ASSERT_EQ_INT(CTRL_ALT_ARROW_UP, key);
+	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_shift_alt_left,
+	                                       sizeof(csi_ctrl_shift_alt_left) - 1, &key) == 0);
+	ASSERT_EQ_INT(CTRL_SHIFT_ALT_ARROW_LEFT, key);
+	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_shift_alt_right,
+	                                       sizeof(csi_ctrl_shift_alt_right) - 1, &key) == 0);
+	ASSERT_EQ_INT(CTRL_SHIFT_ALT_ARROW_RIGHT, key);
+	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_shift_alt_down,
+	                                       sizeof(csi_ctrl_shift_alt_down) - 1, &key) == 0);
+	ASSERT_EQ_INT(CTRL_SHIFT_ALT_ARROW_DOWN, key);
+	ASSERT_TRUE(editor_read_key_with_input(csi_ctrl_shift_alt_up,
+	                                       sizeof(csi_ctrl_shift_alt_up) - 1, &key) == 0);
+	ASSERT_EQ_INT(CTRL_SHIFT_ALT_ARROW_UP, key);
 
 	ASSERT_TRUE(editor_read_key_with_input(fallback_alt_left, sizeof(fallback_alt_left) - 1,
 	                                       &key) == 0);
