@@ -781,6 +781,20 @@ static int pane_tab_sgr_point(struct editorPaneNode *leaf, int tab_idx, int *x_o
 	return 1;
 }
 
+static int send_mouse_drag_sequence(int press_x, int press_y, int drag_x, int drag_y, int release_x,
+                                    int release_y) {
+	char press[32];
+	char drag[32];
+	char release[32];
+	ASSERT_TRUE(format_sgr_mouse_event(press, sizeof(press), 0, press_x, press_y, 'M'));
+	ASSERT_TRUE(format_sgr_mouse_event(drag, sizeof(drag), 32, drag_x, drag_y, 'M'));
+	ASSERT_TRUE(format_sgr_mouse_event(release, sizeof(release), 0, release_x, release_y, 'm'));
+	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(drag, strlen(drag)) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(release, strlen(release)) == 0);
+	return 0;
+}
+
 static int test_editor_process_keypress_mouse_pane_strip_click_activates_pane_tab(void) {
 	struct editorPaneNode *top = NULL;
 	struct editorPaneNode *bottom = NULL;
@@ -877,6 +891,120 @@ static int test_editor_process_keypress_mouse_pane_strip_double_click_pins_previ
 	ASSERT_EQ_INT(3, editorTabActiveIndex());
 	ASSERT_TRUE(!editorActiveTabIsPreview());
 	ASSERT_EQ_STR("Tab kept open", E.statusmsg);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_tab_drag_reorders_within_pane(void) {
+	struct editorPaneNode *top = NULL;
+	struct editorPaneNode *bottom = NULL;
+	ASSERT_TRUE(setup_four_tab_split(EDITOR_SPLIT_HORIZONTAL, &top, &bottom) == 0);
+	ASSERT_TRUE(editorPaneViewAddTab(&top->as.leaf.view, 2));
+	editorPaneViewRemoveTab(&bottom->as.leaf.view, 2);
+	bottom->as.leaf.view.active_tab_idx = 3;
+
+	int source_x = 0;
+	int source_y = 0;
+	int target_x = 0;
+	int target_y = 0;
+	ASSERT_TRUE(pane_tab_sgr_point(top, 0, &source_x, &source_y) == 0);
+	ASSERT_TRUE(pane_tab_sgr_point(top, 2, &target_x, &target_y) == 0);
+	ASSERT_TRUE(send_mouse_drag_sequence(source_x, source_y, target_x, target_y, target_x,
+	                                     target_y) == 0);
+
+	ASSERT_TRUE(E.focused_leaf == top);
+	ASSERT_EQ_INT(3, top->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(1, top->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(2, top->as.leaf.view.pane_tabs[1]);
+	ASSERT_EQ_INT(0, top->as.leaf.view.pane_tabs[2]);
+	ASSERT_EQ_INT(0, top->as.leaf.view.active_tab_idx);
+	ASSERT_EQ_INT(0, E.tab_drag_armed);
+	ASSERT_EQ_INT(0, E.tab_drag_active);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_tab_drag_moves_across_panes(void) {
+	struct editorPaneNode *top = NULL;
+	struct editorPaneNode *bottom = NULL;
+	ASSERT_TRUE(setup_four_tab_split(EDITOR_SPLIT_HORIZONTAL, &top, &bottom) == 0);
+
+	int source_x = 0;
+	int source_y = 0;
+	int target_x = 0;
+	int target_y = 0;
+	ASSERT_TRUE(pane_tab_sgr_point(top, 1, &source_x, &source_y) == 0);
+	ASSERT_TRUE(pane_tab_sgr_point(bottom, 3, &target_x, &target_y) == 0);
+	ASSERT_TRUE(send_mouse_drag_sequence(source_x, source_y, target_x, target_y, target_x,
+	                                     target_y) == 0);
+
+	ASSERT_TRUE(E.focused_leaf == bottom);
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_EQ_INT(1, bottom->as.leaf.view.active_tab_idx);
+	ASSERT_EQ_INT(0, top->as.leaf.view.active_tab_idx);
+	ASSERT_EQ_INT(1, top->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(0, top->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(3, bottom->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(2, bottom->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(1, bottom->as.leaf.view.pane_tabs[1]);
+	ASSERT_EQ_INT(3, bottom->as.leaf.view.pane_tabs[2]);
+	ASSERT_EQ_INT(0, E.tab_drag_armed);
+	ASSERT_EQ_INT(0, E.tab_drag_active);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_tab_drag_release_off_strip_cancels(void) {
+	struct editorPaneNode *top = NULL;
+	struct editorPaneNode *bottom = NULL;
+	ASSERT_TRUE(setup_four_tab_split(EDITOR_SPLIT_HORIZONTAL, &top, &bottom) == 0);
+
+	int source_x = 0;
+	int source_y = 0;
+	ASSERT_TRUE(pane_tab_sgr_point(top, 1, &source_x, &source_y) == 0);
+	struct editorRect viewport = {0};
+	struct editorRect top_rect = {0};
+	ASSERT_TRUE(editorLayoutEditorViewport(&viewport));
+	ASSERT_TRUE(editorLayoutLeafRectBordered(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE,
+	                                         top, &top_rect));
+	int body_x = top_rect.x + 1;
+	int body_y = top_rect.y + 1;
+	ASSERT_TRUE(send_mouse_drag_sequence(source_x, source_y, body_x + 4, body_y, body_x + 4,
+	                                     body_y) == 0);
+
+	ASSERT_TRUE(E.focused_leaf == top);
+	ASSERT_EQ_INT(2, top->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(0, top->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(1, top->as.leaf.view.pane_tabs[1]);
+	ASSERT_EQ_INT(2, bottom->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(2, bottom->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(3, bottom->as.leaf.view.pane_tabs[1]);
+	ASSERT_EQ_INT(0, E.tab_drag_armed);
+	ASSERT_EQ_INT(0, E.tab_drag_active);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_tab_click_without_drag_clears_drag(void) {
+	struct editorPaneNode *top = NULL;
+	struct editorPaneNode *bottom = NULL;
+	ASSERT_TRUE(setup_four_tab_split(EDITOR_SPLIT_HORIZONTAL, &top, &bottom) == 0);
+
+	int click_x = 0;
+	int click_y = 0;
+	ASSERT_TRUE(pane_tab_sgr_point(top, 1, &click_x, &click_y) == 0);
+	char press[32];
+	char release[32];
+	ASSERT_TRUE(format_sgr_mouse_event(press, sizeof(press), 0, click_x, click_y, 'M'));
+	ASSERT_TRUE(format_sgr_mouse_event(release, sizeof(release), 0, click_x, click_y, 'm'));
+	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
+	ASSERT_EQ_INT(1, E.tab_drag_armed);
+	ASSERT_EQ_INT(0, E.tab_drag_active);
+	ASSERT_TRUE(editor_process_keypress_with_input(release, strlen(release)) == 0);
+
+	ASSERT_TRUE(E.focused_leaf == top);
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_EQ_INT(2, top->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(0, top->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(1, top->as.leaf.view.pane_tabs[1]);
+	ASSERT_EQ_INT(0, E.tab_drag_armed);
+	ASSERT_EQ_INT(0, E.tab_drag_active);
 	return 0;
 }
 
@@ -1735,6 +1863,14 @@ const struct editorTestCase g_input_mouse_tests[] = {
          test_editor_process_keypress_mouse_top_strip_vborder_arms_resize},
         {"editor_process_keypress_mouse_pane_strip_double_click_pins_preview_tab",
          test_editor_process_keypress_mouse_pane_strip_double_click_pins_preview_tab},
+        {"editor_process_keypress_mouse_tab_drag_reorders_within_pane",
+         test_editor_process_keypress_mouse_tab_drag_reorders_within_pane},
+        {"editor_process_keypress_mouse_tab_drag_moves_across_panes",
+         test_editor_process_keypress_mouse_tab_drag_moves_across_panes},
+        {"editor_process_keypress_mouse_tab_drag_release_off_strip_cancels",
+         test_editor_process_keypress_mouse_tab_drag_release_off_strip_cancels},
+        {"editor_process_keypress_mouse_tab_click_without_drag_clears_drag",
+         test_editor_process_keypress_mouse_tab_click_without_drag_clears_drag},
         {"editor_process_keypress_mouse_press_on_pane_border_arms_split_resize",
          test_editor_process_keypress_mouse_press_on_pane_border_arms_split_resize},
         {"editor_process_keypress_mouse_press_off_border_acts_as_text_click",

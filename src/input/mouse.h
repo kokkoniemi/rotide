@@ -27,7 +27,7 @@ int editorResolveMouseToBufferOffset(const struct editorMouseEvent *event, int c
 int editorMoveCursorToMouse(const struct editorMouseEvent *event, int clamp_to_viewport);
 int editorHandleMouseMotion(const struct editorMouseEvent *event);
 int editorHandleMouseLeftDrag(const struct editorMouseEvent *event);
-int editorHandleMouseLeftRelease(void);
+int editorHandleMouseLeftRelease(const struct editorMouseEvent *event);
 int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long long now_ms,
                                      int double_click_threshold_ms,
                                      editorProcessMappedActionFn process_mapped_action,

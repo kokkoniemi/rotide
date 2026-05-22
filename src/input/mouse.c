@@ -23,7 +23,8 @@
 enum {
 	MOUSE_WHEEL_SCROLL_LINES = 3,
 	MOUSE_WHEEL_SCROLL_COLS = 3,
-	MOUSE_DOUBLE_CLICK_THRESHOLD_MS = 400
+	MOUSE_DOUBLE_CLICK_THRESHOLD_MS = 400,
+	MOUSE_TAB_DRAG_THRESHOLD_COLS = 1
 };
 
 #define DRAWER_HEADER_MODE_BUTTON_COLS 3
@@ -35,6 +36,7 @@ enum {
 static void mouseClearSelectionMode(void);
 static void mouseSelectWordAtCursor(void);
 static void mouseSelectLineAtCursor(void);
+static void mouseClearTabDrag(void);
 
 int editorDrawerHeaderModeForColumn(int mouse_col, int drawer_cols,
                                     enum editorDrawerMode *mode_out) {
@@ -93,6 +95,153 @@ void editorResetTabClickTracking(void) {
 	E.tab_last_click_ms = 0;
 }
 
+static void mouseClearTabDrag(void) {
+	E.tab_drag_armed = 0;
+	E.tab_drag_active = 0;
+	E.tab_drag_source_leaf = NULL;
+	E.tab_drag_source_tab_idx = -1;
+	E.tab_drag_start_x = 0;
+	E.tab_drag_start_y = 0;
+}
+
+static void mouseArmTabDrag(struct editorPaneNode *leaf, int tab_idx,
+                            const struct editorMouseEvent *event) {
+	E.tab_drag_armed = 1;
+	E.tab_drag_active = 0;
+	E.tab_drag_source_leaf = leaf;
+	E.tab_drag_source_tab_idx = tab_idx;
+	E.tab_drag_start_x = event->x - 1;
+	E.tab_drag_start_y = event->y - 1;
+}
+
+static int mousePaneViewInsertTabAt(struct editorPaneView *view, int tab_idx, int slot) {
+	if (view == NULL || tab_idx < 0) {
+		return 0;
+	}
+	int existing = editorPaneViewIndexOfTab(view, tab_idx);
+	if (existing >= 0) {
+		for (int i = existing; i < view->pane_tab_count - 1; i++) {
+			view->pane_tabs[i] = view->pane_tabs[i + 1];
+		}
+		view->pane_tab_count--;
+	}
+	if (slot < 0) {
+		slot = 0;
+	}
+	if (slot > view->pane_tab_count) {
+		slot = view->pane_tab_count;
+	}
+	if (view->pane_tab_count >= ROTIDE_PANE_MAX_TABS) {
+		return 0;
+	}
+	for (int i = view->pane_tab_count; i > slot; i--) {
+		view->pane_tabs[i] = view->pane_tabs[i - 1];
+	}
+	view->pane_tabs[slot] = tab_idx;
+	view->pane_tab_count++;
+	return 1;
+}
+
+static int mousePaneTabSlotForColumn(struct editorPaneView *view, int col, int cols) {
+	if (view == NULL) {
+		return -1;
+	}
+	if (view->pane_tab_count == 0) {
+		return 0;
+	}
+	int tab_idx = editorTabOverflowHitTestColumnForPane(view, col, cols);
+	if (tab_idx < 0) {
+		tab_idx = editorTabHitTestColumnForPane(view, col, cols);
+	}
+	if (tab_idx >= 0) {
+		return editorPaneViewIndexOfTab(view, tab_idx);
+	}
+	return view->pane_tab_count;
+}
+
+static int mouseResolvePaneTabStripCell(const struct editorMouseEvent *event,
+                                        struct editorPaneNode **leaf_out, int *local_col_out,
+                                        int *strip_cols_out) {
+	if (event == NULL || E.layout_root == NULL) {
+		return 0;
+	}
+	struct editorRect viewport = {0};
+	if (!editorLayoutEditorViewport(&viewport)) {
+		return 0;
+	}
+	struct editorLeafLayout layout = {0};
+	if (!editorLayoutComputeBorderedInto(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE,
+	                                     &layout)) {
+		editorLeafLayoutFree(&layout);
+		return 0;
+	}
+	int mouse_col = event->x - 1;
+	int mouse_row = event->y - 1;
+	int ok = editorLayoutPaneTabStripAt(&layout, mouse_col, mouse_row, leaf_out, local_col_out,
+	                                    strip_cols_out);
+	editorLeafLayoutFree(&layout);
+	return ok;
+}
+
+static int mouseFinishTabDrag(const struct editorMouseEvent *event) {
+	struct editorPaneNode *source = E.tab_drag_source_leaf;
+	int tab_idx = E.tab_drag_source_tab_idx;
+	if (source == NULL || source->is_split || tab_idx < 0 || E.layout_root == NULL ||
+	    !editorPaneNodeContainsLeaf(E.layout_root, source)) {
+		return 0;
+	}
+
+	struct editorPaneNode *target = NULL;
+	int target_col = 0;
+	int target_cols = 0;
+	if (!mouseResolvePaneTabStripCell(event, &target, &target_col, &target_cols) ||
+	    target == NULL || target->is_split) {
+		return 0;
+	}
+
+	struct editorPaneView *source_view = &source->as.leaf.view;
+	struct editorPaneView *target_view = &target->as.leaf.view;
+	int source_slot = editorPaneViewIndexOfTab(source_view, tab_idx);
+	if (source_slot < 0) {
+		return 0;
+	}
+	int target_slot = mousePaneTabSlotForColumn(target_view, target_col, target_cols);
+	if (target_slot < 0) {
+		return 0;
+	}
+
+	if (source == target) {
+		if (!mousePaneViewInsertTabAt(source_view, tab_idx, target_slot)) {
+			return 0;
+		}
+		source_view->active_tab_idx = tab_idx;
+		return 1;
+	}
+
+	if (!editorPaneViewHasTab(target_view, tab_idx) &&
+	    target_view->pane_tab_count >= ROTIDE_PANE_MAX_TABS) {
+		return 0;
+	}
+	int source_next_active = source_view->active_tab_idx;
+	if (source_next_active == tab_idx) {
+		source_next_active = source_view->pane_tab_count > 1
+		                             ? source_view->pane_tabs[source_slot == 0 ? 1 : 0]
+		                             : -1;
+	}
+	editorPaneViewRemoveTab(source_view, tab_idx);
+	source_view->active_tab_idx = source_next_active;
+	if (!mousePaneViewInsertTabAt(target_view, tab_idx, target_slot)) {
+		(void)mousePaneViewInsertTabAt(source_view, tab_idx, source_slot);
+		source_view->active_tab_idx = tab_idx;
+		return 0;
+	}
+	target_view->active_tab_idx = tab_idx;
+	if (editorLayoutSetFocusedLeaf(target)) {
+		source_view->active_tab_idx = source_next_active;
+	}
+	return 1;
+}
+
 int editorHandleMousePaneTabStripClick(const struct editorMouseEvent *event, long long now_ms) {
 	if (event == NULL || E.layout_root == NULL) {
 		return 0;
@@ -107,6 +256,7 @@ int editorHandleMousePaneTabStripClick(const struct editorMouseEvent *event, lon
 	struct editorLeafLayout layout = {0};
 	if (!editorLayoutComputeBorderedInto(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE,
 	                                     &layout)) {
+		editorLeafLayoutFree(&layout);
 		return 0;
 	}
 
@@ -134,6 +284,7 @@ int editorHandleMousePaneTabStripClick(const struct editorMouseEvent *event, lon
 	if (tab_idx >= 0) {
 		(void)editorLayoutSetFocusedLeaf(leaf);
 		(void)editorTabSwitchToIndex(tab_idx);
+		mouseArmTabDrag(leaf, tab_idx, event);
 		editorResetTabClickTracking();
 		E.mouse_left_button_down = 0;
 		E.mouse_drag_started = 0;
@@ -147,6 +298,7 @@ int editorHandleMousePaneTabStripClick(const struct editorMouseEvent *event, lon
 		        now_ms - E.tab_last_click_ms <= MOUSE_DOUBLE_CLICK_THRESHOLD_MS;
 		(void)editorLayoutSetFocusedLeaf(leaf);
 		(void)editorTabSwitchToIndex(tab_idx);
+		mouseArmTabDrag(leaf, tab_idx, event);
 		if (is_double_click) {
 			if (editorActiveTabIsPreview()) {
 				editorTabPinActivePreview();
@@ -561,6 +713,7 @@ static int mouseHandleLeftPress(const struct editorMouseEvent *event,
                                 editorMouseJumpToPathFn jump_to_path,
                                 editorMouseActionFn goto_definition) {
 	long long now_ms = mouseMonotonicMillis();
+	mouseClearTabDrag();
 	int drawer_effects = EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
 	if (editorHandleMouseDrawerLeftPress(event, now_ms, drawer_double_click_threshold_ms,
 	                                     process_mapped_action, jump_to_path,
@@ -620,7 +773,7 @@ int editorHandleMouseEventDispatch(int drawer_double_click_threshold_ms,
 			                  : EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
 			break;
 		case EDITOR_MOUSE_EVENT_LEFT_RELEASE:
-			effects = editorHandleMouseLeftRelease()
+			effects = editorHandleMouseLeftRelease(&event)
 			                  ? EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT
 			                  : EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
 			break;
@@ -999,6 +1152,21 @@ int editorHandleMouseMotion(const struct editorMouseEvent *event) {
 }
 
 int editorHandleMouseLeftDrag(const struct editorMouseEvent *event) {
+	if (E.tab_drag_armed) {
+		if (E.tab_drag_source_leaf == NULL || E.tab_drag_source_leaf->is_split ||
+		    E.layout_root == NULL ||
+		    !editorPaneNodeContainsLeaf(E.layout_root, E.tab_drag_source_leaf)) {
+			mouseClearTabDrag();
+			return 0;
+		}
+		int dx = event->x - 1 - E.tab_drag_start_x;
+		int dy = event->y - 1 - E.tab_drag_start_y;
+		if (!E.tab_drag_active && (dx > MOUSE_TAB_DRAG_THRESHOLD_COLS ||
+		                           dx < -MOUSE_TAB_DRAG_THRESHOLD_COLS || dy != 0)) {
+			E.tab_drag_active = 1;
+		}
+		return E.tab_drag_active ? 1 : 0;
+	}
 	if (E.split_resize_active && E.split_resize_node != NULL && E.split_resize_node->is_split) {
 		struct editorRect viewport = {0};
 		if (!editorLayoutEditorViewport(&viewport)) {
@@ -1116,7 +1284,20 @@ int editorHandleMouseLeftDrag(const struct editorMouseEvent *event) {
 	return 1;
 }
 
-int editorHandleMouseLeftRelease(void) {
+int editorHandleMouseLeftRelease(const struct editorMouseEvent *event) {
+	int changed = 0;
+	if (E.tab_drag_armed) {
+		if (E.tab_drag_active) {
+			changed = mouseFinishTabDrag(event);
+		}
+		mouseClearTabDrag();
+		E.drawer_resize_active = 0;
+		E.split_resize_active = 0;
+		E.split_resize_node = NULL;
+		E.mouse_left_button_down = 0;
+		E.mouse_drag_started = 0;
+		return changed;
+	}
 	E.drawer_resize_active = 0;
 	E.split_resize_active = 0;
 	E.split_resize_node = NULL;

@@ -577,6 +577,12 @@ struct editorConfig {
 	 */
 	int split_resize_active;
 	struct editorPaneNode *split_resize_node;
+	int tab_drag_armed;
+	int tab_drag_active;
+	struct editorPaneNode *tab_drag_source_leaf;
+	int tab_drag_source_tab_idx;
+	int tab_drag_start_x;
+	int tab_drag_start_y;
 
 	/* --- Input transient: text/tab click tracking for multi-clicks --- */
 	int text_last_click_cy;

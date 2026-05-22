@@ -221,6 +221,8 @@ static int test_editor_draw_pane_tab_strip_uses_pane_membership_and_active_tab(v
 	struct writeBuf right_wb = WRITEBUF_INIT;
 	ASSERT_TRUE(editorDrawPaneTabStrip(&left_wb, left, 80));
 	ASSERT_TRUE(editorDrawPaneTabStrip(&right_wb, right, 80));
+	ASSERT_TRUE(wbAppend(&left_wb, "\0", 1));
+	ASSERT_TRUE(wbAppend(&right_wb, "\0", 1));
 
 	ASSERT_TRUE(strstr(left_wb.b, "alpha.txt") != NULL);
 	ASSERT_TRUE(strstr(left_wb.b, "beta.txt") != NULL);
