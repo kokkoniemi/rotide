@@ -148,6 +148,9 @@ int editorLayoutComputeInto(const struct editorPaneNode *root, struct editorRect
 void editorLeafLayoutFree(struct editorLeafLayout *out);
 
 struct editorPaneNode *editorLayoutLeafAt(struct editorLeafLayout *layout, int x, int y);
+int editorLayoutPaneTabStripAt(const struct editorLeafLayout *layout, int x, int y,
+                               struct editorPaneNode **leaf_out, int *local_col_out,
+                               int *strip_cols_out);
 
 /*
  * Walks the tree and writes the rect of `leaf` into `*out`. Returns 1 if the

@@ -93,27 +93,46 @@ void editorResetTabClickTracking(void) {
 	E.tab_last_click_ms = 0;
 }
 
-int editorHandleMouseTopRowTabClick(const struct editorMouseEvent *event, long long now_ms) {
-	if (event->y != 1) {
+int editorHandleMousePaneTabStripClick(const struct editorMouseEvent *event, long long now_ms) {
+	if (event == NULL || E.layout_root == NULL) {
 		return 0;
 	}
 
 	int mouse_col = event->x - 1;
-	int collapsed_toggle_cols = editorDrawerIsCollapsed()
-	                                    ? editorDrawerCollapsedToggleWidthForCols(E.window_cols)
-	                                    : 0;
-	int text_start_col = editorDrawerTextStartColForCols(E.window_cols);
-	int text_cols = editorDrawerTextViewportCols(E.window_cols);
-	int tab_start_col = editorDrawerIsCollapsed() ? collapsed_toggle_cols : text_start_col;
-	int tab_cols =
-	        editorDrawerIsCollapsed() ? E.window_cols - collapsed_toggle_cols : text_cols;
-	if (tab_cols < 0) {
-		tab_cols = 0;
+	int mouse_row = event->y - 1;
+	struct editorRect viewport = {0};
+	if (!editorLayoutEditorViewport(&viewport)) {
+		return 0;
+	}
+	struct editorLeafLayout layout = {0};
+	if (!editorLayoutComputeBorderedInto(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE,
+	                                     &layout)) {
+		return 0;
 	}
 
-	int tab_col = mouse_col - tab_start_col;
-	int tab_idx = editorTabOverflowHitTestColumn(tab_col, tab_cols);
+	struct editorPaneNode *leaf = NULL;
+	int tab_col = 0;
+	int tab_cols = 0;
+	int on_strip = editorLayoutPaneTabStripAt(&layout, mouse_col, mouse_row, &leaf, &tab_col,
+	                                          &tab_cols);
+	editorLeafLayoutFree(&layout);
+	if (!on_strip || leaf == NULL || leaf->is_split) {
+		return 0;
+	}
+	if (mouse_row == 0 && editorDrawerIsCollapsed() &&
+	    editorPaneTreeLeafCount(E.layout_root) <= 1) {
+		int toggle_cols = editorDrawerCollapsedToggleWidthForCols(E.window_cols);
+		if (mouse_col < toggle_cols) {
+			return 0;
+		}
+		tab_col = mouse_col - toggle_cols;
+		tab_cols = E.window_cols - toggle_cols;
+	}
+
+	struct editorPaneView *view = &leaf->as.leaf.view;
+	int tab_idx = editorTabOverflowHitTestColumnForPane(view, tab_col, tab_cols);
 	if (tab_idx >= 0) {
+		(void)editorLayoutSetFocusedLeaf(leaf);
 		(void)editorTabSwitchToIndex(tab_idx);
 		editorResetTabClickTracking();
 		E.mouse_left_button_down = 0;
@@ -121,11 +140,12 @@ int editorHandleMouseTopRowTabClick(const struct editorMouseEvent *event, long l
 		return 1;
 	}
 
-	tab_idx = editorTabHitTestColumn(tab_col, tab_cols);
+	tab_idx = editorTabHitTestColumnForPane(view, tab_col, tab_cols);
 	if (tab_idx >= 0) {
 		int is_double_click =
 		        E.tab_last_click_idx == tab_idx && E.tab_last_click_ms > 0 && now_ms > 0 &&
 		        now_ms - E.tab_last_click_ms <= MOUSE_DOUBLE_CLICK_THRESHOLD_MS;
+		(void)editorLayoutSetFocusedLeaf(leaf);
 		(void)editorTabSwitchToIndex(tab_idx);
 		if (is_double_click) {
 			if (editorActiveTabIsPreview()) {
@@ -139,6 +159,7 @@ int editorHandleMouseTopRowTabClick(const struct editorMouseEvent *event, long l
 		}
 	} else {
 		editorResetTabClickTracking();
+		return 0;
 	}
 	E.mouse_left_button_down = 0;
 	E.mouse_drag_started = 0;
@@ -401,7 +422,7 @@ int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long lo
 	int mouse_col = event->x - 1;
 	int effects = 0;
 
-	if (editorHandleMouseTopRowTabClick(event, now_ms)) {
+	if (editorHandleMousePaneTabStripClick(event, now_ms)) {
 		if (effects_out != NULL) {
 			*effects_out = effects;
 		}

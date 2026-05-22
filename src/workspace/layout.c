@@ -272,6 +272,36 @@ struct editorPaneNode *editorLayoutLeafAt(struct editorLeafLayout *layout, int x
 	return NULL;
 }
 
+int editorLayoutPaneTabStripAt(const struct editorLeafLayout *layout, int x, int y,
+                               struct editorPaneNode **leaf_out, int *local_col_out,
+                               int *strip_cols_out) {
+	if (layout == NULL) {
+		return 0;
+	}
+	for (int i = 0; i < layout->count; i++) {
+		struct editorPaneNode *leaf = layout->rects[i].node;
+		struct editorRect r = layout->rects[i].rect;
+		if (leaf == NULL || leaf->is_split ||
+		    leaf->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
+			continue;
+		}
+		if (y != r.y - 1 || x < r.x || x >= r.x + r.w) {
+			continue;
+		}
+		if (leaf_out != NULL) {
+			*leaf_out = leaf;
+		}
+		if (local_col_out != NULL) {
+			*local_col_out = x - r.x;
+		}
+		if (strip_cols_out != NULL) {
+			*strip_cols_out = r.w;
+		}
+		return 1;
+	}
+	return 0;
+}
+
 static void layoutSplitRects(const struct editorPaneNode *node, struct editorRect rect,
                              int border_size, struct editorRect *first_rect_out,
                              struct editorRect *second_rect_out) {
@@ -473,6 +503,10 @@ static int layoutBorderAtRecursive(const struct editorPaneNode *node, struct edi
 		border.y = rect.y;
 		border.w = border_size;
 		border.h = rect.h;
+		if (border.y > 0) {
+			border.y--;
+			border.h++;
+		}
 	} else {
 		border.x = rect.x;
 		border.y = first_rect.y + first_rect.h;

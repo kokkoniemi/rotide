@@ -583,36 +583,6 @@ static enum paneViewBorderCellKind paneViewBorderCellAt(int x, int screen_y,
 	return PANE_VIEW_BORDER_CELL_NONE;
 }
 
-static int paneViewStripCellAt(const struct editorLeafLayout *layout, int x, int screen_y,
-                               struct editorPaneNode **leaf_out, int *local_col_out,
-                               int *strip_cols_out) {
-	if (layout == NULL) {
-		return 0;
-	}
-	for (int i = 0; i < layout->count; i++) {
-		struct editorPaneNode *leaf = layout->rects[i].node;
-		struct editorRect r = layout->rects[i].rect;
-		if (leaf == NULL || leaf->is_split ||
-		    leaf->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
-			continue;
-		}
-		if (screen_y != r.y - 1 || x < r.x || x >= r.x + r.w) {
-			continue;
-		}
-		if (leaf_out != NULL) {
-			*leaf_out = leaf;
-		}
-		if (local_col_out != NULL) {
-			*local_col_out = x - r.x;
-		}
-		if (strip_cols_out != NULL) {
-			*strip_cols_out = r.w;
-		}
-		return 1;
-	}
-	return 0;
-}
-
 static int paneViewDrawStripSpan(struct writeBuf *wb, struct editorPaneNode *leaf, int local_col,
                                  int strip_cols, int slice_cols) {
 	struct writeBuf strip = WRITEBUF_INIT;
@@ -679,7 +649,7 @@ int editorDrawMultiPaneTabStripRow(struct writeBuf *wb) {
 		struct editorPaneNode *leaf = NULL;
 		int local_col = 0;
 		int strip_cols = 0;
-		if (paneViewStripCellAt(&layout, x, 0, &leaf, &local_col, &strip_cols)) {
+		if (editorLayoutPaneTabStripAt(&layout, x, 0, &leaf, &local_col, &strip_cols)) {
 			int slice_cols = strip_cols - local_col;
 			if (!paneViewDrawStripSpan(wb, leaf, local_col, strip_cols, slice_cols)) {
 				goto cleanup;
@@ -740,8 +710,8 @@ int editorDrawMultiPaneRows(struct writeBuf *wb, const struct editorLeafLayout *
 			struct editorPaneNode *strip_leaf = NULL;
 			int strip_local_col = 0;
 			int strip_cols = 0;
-			if (paneViewStripCellAt(layout, x, screen_y, &strip_leaf, &strip_local_col,
-			                        &strip_cols)) {
+			if (editorLayoutPaneTabStripAt(layout, x, screen_y, &strip_leaf,
+			                               &strip_local_col, &strip_cols)) {
 				int slice_cols = strip_cols - strip_local_col;
 				if (!paneViewDrawStripSpan(wb, strip_leaf, strip_local_col,
 				                           strip_cols, slice_cols)) {

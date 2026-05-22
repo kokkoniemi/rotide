@@ -715,6 +715,171 @@ static int test_editor_process_keypress_mouse_tab_bar_carets_switch_hidden_tabs(
 	return 0;
 }
 
+static int setup_four_tab_split(enum editorSplitOrientation orientation,
+                                struct editorPaneNode **first_out,
+                                struct editorPaneNode **second_out) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("zero");
+	ASSERT_TRUE(editorTabNewEmpty());
+	add_row("one");
+	ASSERT_TRUE(editorTabNewEmpty());
+	add_row("two");
+	ASSERT_TRUE(editorTabNewEmpty());
+	add_row("three");
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+
+	E.window_rows = 10;
+	E.window_cols = 80;
+	E.line_numbers_enabled = 0;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+
+	struct editorPaneNode *first = E.focused_leaf;
+	struct editorPaneNode *second = editorLayoutSplitFocused(orientation, 0.5);
+	ASSERT_TRUE(first != NULL);
+	ASSERT_TRUE(second != NULL);
+
+	first->as.leaf.view.pane_tab_count = 0;
+	ASSERT_TRUE(editorPaneViewAddTab(&first->as.leaf.view, 0));
+	ASSERT_TRUE(editorPaneViewAddTab(&first->as.leaf.view, 1));
+	first->as.leaf.view.active_tab_idx = 0;
+	second->as.leaf.view.pane_tab_count = 0;
+	ASSERT_TRUE(editorPaneViewAddTab(&second->as.leaf.view, 2));
+	ASSERT_TRUE(editorPaneViewAddTab(&second->as.leaf.view, 3));
+	second->as.leaf.view.active_tab_idx = 2;
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(first));
+	editorResetTabClickTracking();
+
+	*first_out = first;
+	*second_out = second;
+	return 0;
+}
+
+static int pane_tab_sgr_point(struct editorPaneNode *leaf, int tab_idx, int *x_out, int *y_out) {
+	struct editorRect viewport = {0};
+	struct editorRect rect = {0};
+	ASSERT_TRUE(editorLayoutEditorViewport(&viewport));
+	ASSERT_TRUE(editorLayoutLeafRectBordered(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE,
+	                                         leaf, &rect));
+
+	struct editorTabLayoutEntry layout[ROTIDE_MAX_TABS];
+	int layout_count = 0;
+	ASSERT_TRUE(editorTabBuildLayoutForPane(&leaf->as.leaf.view, rect.w, layout,
+	                                        ROTIDE_MAX_TABS, &layout_count));
+	for (int i = 0; i < layout_count; i++) {
+		if (layout[i].tab_idx != tab_idx) {
+			continue;
+		}
+		int local_col = layout[i].start_col;
+		if (layout[i].width_cols > 2) {
+			local_col++;
+		}
+		*x_out = rect.x + local_col + 1;
+		*y_out = rect.y;
+		return 0;
+	}
+	ASSERT_TRUE(0);
+	return 1;
+}
+
+static int test_editor_process_keypress_mouse_pane_strip_click_activates_pane_tab(void) {
+	struct editorPaneNode *top = NULL;
+	struct editorPaneNode *bottom = NULL;
+	ASSERT_TRUE(setup_four_tab_split(EDITOR_SPLIT_HORIZONTAL, &top, &bottom) == 0);
+
+	int click_x = 0;
+	int click_y = 0;
+	ASSERT_TRUE(pane_tab_sgr_point(top, 1, &click_x, &click_y) == 0);
+	char click_top[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click_top, sizeof(click_top), 0, click_x, click_y, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_top, strlen(click_top)) == 0);
+	ASSERT_TRUE(E.focused_leaf == top);
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_EQ_INT(1, top->as.leaf.view.active_tab_idx);
+
+	ASSERT_TRUE(pane_tab_sgr_point(bottom, 3, &click_x, &click_y) == 0);
+	char click_bottom[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click_bottom, sizeof(click_bottom), 0, click_x, click_y,
+	                                   'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_bottom, strlen(click_bottom)) == 0);
+	ASSERT_TRUE(E.focused_leaf == bottom);
+	ASSERT_EQ_INT(3, editorTabActiveIndex());
+	ASSERT_EQ_INT(3, bottom->as.leaf.view.active_tab_idx);
+	ASSERT_EQ_INT(1, top->as.leaf.view.active_tab_idx);
+	ASSERT_EQ_INT(0, E.split_resize_active);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_strip_blank_border_arms_resize(void) {
+	struct editorPaneNode *top = NULL;
+	struct editorPaneNode *bottom = NULL;
+	ASSERT_TRUE(setup_four_tab_split(EDITOR_SPLIT_HORIZONTAL, &top, &bottom) == 0);
+
+	struct editorRect viewport = {0};
+	struct editorRect bottom_rect = {0};
+	ASSERT_TRUE(editorLayoutEditorViewport(&viewport));
+	ASSERT_TRUE(editorLayoutLeafRectBordered(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE,
+	                                         bottom, &bottom_rect));
+	int local_col = bottom_rect.w - 1;
+	ASSERT_EQ_INT(
+	        -1, editorTabHitTestColumnForPane(&bottom->as.leaf.view, local_col, bottom_rect.w));
+	struct editorPaneNode *parent_split = editorPaneTreeFindParent(E.layout_root, bottom);
+	ASSERT_TRUE(parent_split != NULL);
+
+	char press[32];
+	ASSERT_TRUE(format_sgr_mouse_event(press, sizeof(press), 0, bottom_rect.x + local_col + 1,
+	                                   bottom_rect.y, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
+	ASSERT_EQ_INT(1, E.split_resize_active);
+	ASSERT_TRUE(E.split_resize_node == parent_split);
+	ASSERT_TRUE(E.focused_leaf == top);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_top_strip_vborder_arms_resize(void) {
+	struct editorPaneNode *left = NULL;
+	struct editorPaneNode *right = NULL;
+	ASSERT_TRUE(setup_four_tab_split(EDITOR_SPLIT_VERTICAL, &left, &right) == 0);
+
+	struct editorRect viewport = {0};
+	ASSERT_TRUE(editorLayoutEditorViewport(&viewport));
+	int border_x = viewport.x + (int)((double)(viewport.w - ROTIDE_PANE_BORDER_SIZE) * 0.5);
+	struct editorPaneNode *parent_split = editorPaneTreeFindParent(E.layout_root, right);
+	ASSERT_TRUE(parent_split != NULL);
+
+	char press[32];
+	ASSERT_TRUE(format_sgr_mouse_event(press, sizeof(press), 0, border_x + 1, 1, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
+	ASSERT_EQ_INT(1, E.split_resize_active);
+	ASSERT_TRUE(E.split_resize_node == parent_split);
+	ASSERT_TRUE(E.focused_leaf == left);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_pane_strip_double_click_pins_preview_tab(void) {
+	struct editorPaneNode *top = NULL;
+	struct editorPaneNode *bottom = NULL;
+	ASSERT_TRUE(setup_four_tab_split(EDITOR_SPLIT_HORIZONTAL, &top, &bottom) == 0);
+	bottom->as.leaf.view.active_tab_idx = 3;
+	E.tabs[3].is_preview = 1;
+	editorResetTabClickTracking();
+
+	int click_x = 0;
+	int click_y = 0;
+	ASSERT_TRUE(pane_tab_sgr_point(bottom, 3, &click_x, &click_y) == 0);
+	char click[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click, sizeof(click), 0, click_x, click_y, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click, strlen(click)) == 0);
+	ASSERT_TRUE(E.focused_leaf == bottom);
+	ASSERT_EQ_INT(3, editorTabActiveIndex());
+	ASSERT_TRUE(editorActiveTabIsPreview());
+
+	ASSERT_TRUE(editor_process_keypress_with_input(click, strlen(click)) == 0);
+	ASSERT_EQ_INT(3, editorTabActiveIndex());
+	ASSERT_TRUE(!editorActiveTabIsPreview());
+	ASSERT_EQ_STR("Tab kept open", E.statusmsg);
+	return 0;
+}
+
 static int test_editor_process_keypress_mouse_press_on_pane_border_arms_split_resize(void) {
 	ASSERT_TRUE(editorTabsInit());
 	add_row("abcdef");
@@ -969,7 +1134,7 @@ static int test_editor_process_keypress_mouse_drag_inner_split_only_updates_inne
 	ASSERT_TRUE(editorLayoutSplitNodeRect(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE,
 	                                      inner_split, &inner_rect));
 	int border_y = inner_rect.y + (int)((double)(inner_rect.h - ROTIDE_PANE_BORDER_SIZE) * 0.5);
-	int mid_x = inner_rect.x + inner_rect.w / 2;
+	int mid_x = inner_rect.x + inner_rect.w - 1;
 
 	char press[32];
 	ASSERT_TRUE(format_sgr_mouse_event(press, sizeof(press), 0, mid_x + 1, border_y + 1, 'M'));
@@ -1562,6 +1727,14 @@ const struct editorTestCase g_input_mouse_tests[] = {
          test_editor_process_keypress_mouse_top_row_click_uses_variable_tab_layout},
         {"editor_process_keypress_mouse_tab_bar_carets_switch_hidden_tabs",
          test_editor_process_keypress_mouse_tab_bar_carets_switch_hidden_tabs},
+        {"editor_process_keypress_mouse_pane_strip_click_activates_pane_tab",
+         test_editor_process_keypress_mouse_pane_strip_click_activates_pane_tab},
+        {"editor_process_keypress_mouse_strip_blank_border_arms_resize",
+         test_editor_process_keypress_mouse_strip_blank_border_arms_resize},
+        {"editor_process_keypress_mouse_top_strip_vborder_arms_resize",
+         test_editor_process_keypress_mouse_top_strip_vborder_arms_resize},
+        {"editor_process_keypress_mouse_pane_strip_double_click_pins_preview_tab",
+         test_editor_process_keypress_mouse_pane_strip_double_click_pins_preview_tab},
         {"editor_process_keypress_mouse_press_on_pane_border_arms_split_resize",
          test_editor_process_keypress_mouse_press_on_pane_border_arms_split_resize},
         {"editor_process_keypress_mouse_press_off_border_acts_as_text_click",

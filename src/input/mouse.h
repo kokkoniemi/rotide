@@ -35,7 +35,7 @@ int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long 
 int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long long now_ms,
                                    int multi_click_threshold_ms,
                                    editorMouseActionFn goto_definition, int *effects_out);
-int editorHandleMouseTopRowTabClick(const struct editorMouseEvent *event, long long now_ms);
+int editorHandleMousePaneTabStripClick(const struct editorMouseEvent *event, long long now_ms);
 int editorDrawerHeaderModeForColumn(int mouse_col, int drawer_cols,
                                     enum editorDrawerMode *mode_out);
 int editorHandleMouseEventDispatch(int drawer_double_click_threshold_ms,
