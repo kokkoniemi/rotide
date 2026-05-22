@@ -1312,21 +1312,19 @@ static int test_editor_keymap_load_accommodates_full_example_config_customizatio
 
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
-	ASSERT_TRUE(write_text_file(
-	        project_path,
-	        "[keymap]\n"
-	        "dap_start = \"ctrl+alt+s\"\n"
-	        "dap_stop = \"ctrl+alt+x\"\n"
-	        "dap_continue = \"ctrl+alt+c\"\n"
-	        "dap_pause = \"ctrl+alt+p\"\n"
-	        "dap_step_over = \"ctrl+alt+o\"\n"
-	        "dap_step_into = \"ctrl+alt+i\"\n"
-	        "dap_toggle_breakpoint = \"ctrl+alt+y\"\n"
-	        "split_horizontal = \"ctrl+alt+h\"\n"
-	        "split_vertical = \"ctrl+alt+v\"\n"
-	        "close_pane = \"ctrl+alt+q\"\n"
-	        "terminal_open = \"ctrl+alt+u\"\n"
-	        "terminal_open_vertical = \"ctrl+alt+j\"\n"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	                                          "dap_start = \"ctrl+alt+s\"\n"
+	                                          "dap_stop = \"ctrl+alt+x\"\n"
+	                                          "dap_continue = \"ctrl+alt+c\"\n"
+	                                          "dap_pause = \"ctrl+alt+p\"\n"
+	                                          "dap_step_over = \"ctrl+alt+o\"\n"
+	                                          "dap_step_into = \"ctrl+alt+i\"\n"
+	                                          "dap_toggle_breakpoint = \"ctrl+alt+y\"\n"
+	                                          "split_horizontal = \"ctrl+alt+h\"\n"
+	                                          "split_vertical = \"ctrl+alt+v\"\n"
+	                                          "close_pane = \"ctrl+alt+q\"\n"
+	                                          "terminal_open = \"ctrl+alt+u\"\n"
+	                                          "terminal_open_vertical = \"ctrl+alt+j\"\n"));
 
 	struct editorKeymap keymap;
 	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);

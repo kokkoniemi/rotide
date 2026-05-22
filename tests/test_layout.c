@@ -520,7 +520,6 @@ static int test_layout_pane_view_capture_records_active_tab(void) {
 		return 1;
 	}
 	E.active_tab = 3;
-	E.tab_view_start = 2;
 	E.cx = 7;
 	E.cy = 11;
 	E.rx = 7;
@@ -530,8 +529,8 @@ static int test_layout_pane_view_capture_records_active_tab(void) {
 	E.cursor_offset = 42;
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
 	editorPaneViewCaptureFromState(&view);
-	return view.active_tab_idx != 3 || view.tab_view_start != 2 || view.cx != 7 ||
-	       view.cy != 11 || view.rowoff != 4 || view.cursor_offset != 42;
+	return view.active_tab_idx != 3 || view.cx != 7 || view.cy != 11 || view.rowoff != 4 ||
+	       view.cursor_offset != 42;
 }
 
 static int test_layout_pane_view_load_skips_uninitialized(void) {
@@ -543,13 +542,11 @@ static int test_layout_pane_view_load_skips_uninitialized(void) {
 	view.cy = 99;
 	view.cursor_offset = 999;
 	E.active_tab = 2;
-	E.tab_view_start = 5;
 	E.cx = 1;
 	E.cy = 1;
 	E.cursor_offset = 1;
 	int loaded = editorPaneViewLoadIntoState(&view);
-	return loaded != 0 || E.tab_view_start != 5 || E.cx != 1 || E.cy != 1 ||
-	       E.cursor_offset != 1;
+	return loaded != 0 || E.cx != 1 || E.cy != 1 || E.cursor_offset != 1;
 }
 
 static int test_layout_pane_view_load_applies_state_regardless_of_tab(void) {
@@ -560,7 +557,6 @@ static int test_layout_pane_view_load_applies_state_regardless_of_tab(void) {
 	 * initialized. Tab switching is the caller's job (handled by
 	 * editorLayoutSetFocusedLeaf). */
 	view.active_tab_idx = 7;
-	view.tab_view_start = 3;
 	view.cx = 12;
 	view.cy = 34;
 	view.rx = 12;
@@ -570,8 +566,8 @@ static int test_layout_pane_view_load_applies_state_regardless_of_tab(void) {
 	view.cursor_offset = 200;
 	view.viewport_mode = (int)EDITOR_VIEWPORT_FREE_SCROLL;
 	int loaded = editorPaneViewLoadIntoState(&view);
-	return loaded != 1 || E.tab_view_start != 3 || E.cx != 12 || E.cy != 34 || E.rowoff != 6 ||
-	       E.cursor_offset != 200 || E.viewport_mode != EDITOR_VIEWPORT_FREE_SCROLL;
+	return loaded != 1 || E.cx != 12 || E.cy != 34 || E.rowoff != 6 || E.cursor_offset != 200 ||
+	       E.viewport_mode != EDITOR_VIEWPORT_FREE_SCROLL;
 }
 
 static int test_layout_split_focused_inherits_view(void) {

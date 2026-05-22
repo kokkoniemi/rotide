@@ -172,7 +172,8 @@ static int test_editor_tabs_align_view_keeps_active_visible_with_variable_widths
 	ASSERT_TRUE(
 	        editorTabBuildLayoutForWidth(text_cols, layout, ROTIDE_MAX_TABS, &layout_count));
 	ASSERT_TRUE(layout_count >= 1);
-	ASSERT_TRUE(E.tab_view_start > 0);
+	ASSERT_TRUE(E.focused_leaf != NULL);
+	ASSERT_TRUE(E.focused_leaf->as.leaf.view.tab_view_start > 0);
 
 	int active_visible = 0;
 	for (int i = 0; i < layout_count; i++) {

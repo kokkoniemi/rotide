@@ -538,7 +538,6 @@ struct editorConfig {
 	int tab_count;
 	int tab_capacity;
 	int active_tab;
-	int tab_view_start;
 	int close_confirmed;
 
 	/* --- Workspace: task-log subprocess --- */

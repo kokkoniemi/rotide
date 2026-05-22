@@ -341,6 +341,13 @@ dap_drawer = "ctrl+alt+b"
 # focus_right_pane = "ctrl+alt+right"  # NOTE: conflicts with scroll_right
 # focus_up_pane = "ctrl+alt+up"
 # focus_down_pane = "ctrl+alt+down"
+# move_tab_<dir>_pane moves the focused pane's active tab into the
+# neighbouring pane in that direction; if the source pane has no more
+# tabs after the move, an empty buffer is opened in it. Defaults below.
+move_tab_left_pane = "ctrl+shift+alt+left"
+move_tab_right_pane = "ctrl+shift+alt+right"
+move_tab_up_pane = "ctrl+shift+alt+up"
+move_tab_down_pane = "ctrl+shift+alt+down"
 # pane_grow / pane_shrink: key tokens must be a letter today, so the
 # example uses ctrl+alt+y / ctrl+alt+u (any unused letter works).
 # pane_grow = "ctrl+alt+y"

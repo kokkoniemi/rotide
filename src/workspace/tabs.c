@@ -339,7 +339,6 @@ int editorTabsInit(void) {
 
 	E.tab_count = 1;
 	E.active_tab = 0;
-	E.tab_view_start = 0;
 	tabsStateInitEmpty(&E.tabs[0]);
 	tabsLoadActiveTab(0);
 	return 1;
@@ -377,7 +376,6 @@ void editorTabsFreeAll(void) {
 	E.tab_count = 0;
 	E.tab_capacity = 0;
 	E.active_tab = 0;
-	E.tab_view_start = 0;
 	editorSyntaxVisibleCacheFree();
 	editorSyntaxReleaseSharedResources();
 }
@@ -877,7 +875,6 @@ int editorTabCloseActive(void) {
 		tabsStateInitEmpty(&E.tabs[0]);
 		E.active_tab = 0;
 		E.tab_count = 1;
-		E.tab_view_start = 0;
 		tabsLoadActiveTab(0);
 		tabsRegisterWithFocusedPane(0);
 		return 1;
@@ -1718,7 +1715,6 @@ static int tabsWrapperView(struct editorPaneView *scratch, struct editorPaneView
 	}
 	editorPaneViewInit(scratch);
 	scratch->active_tab_idx = E.active_tab;
-	scratch->tab_view_start = E.tab_view_start;
 	*view_out = scratch;
 	return 1;
 }
@@ -1841,9 +1837,7 @@ int editorTabBuildLayoutForWidth(int cols, struct editorTabLayoutEntry *entries,
 	if (!tabsWrapperView(&scratch, &view)) {
 		return 0;
 	}
-	int ok = editorTabBuildLayoutForPane(view, cols, entries, max_entries, count_out);
-	E.tab_view_start = view->tab_view_start;
-	return ok;
+	return editorTabBuildLayoutForPane(view, cols, entries, max_entries, count_out);
 }
 
 int editorTabHitTestColumnForPane(struct editorPaneView *view, int col, int cols) {
@@ -1872,9 +1866,7 @@ int editorTabHitTestColumn(int col, int cols) {
 	if (!tabsWrapperView(&scratch, &view)) {
 		return -1;
 	}
-	int tab_idx = editorTabHitTestColumnForPane(view, col, cols);
-	E.tab_view_start = view->tab_view_start;
-	return tab_idx;
+	return editorTabHitTestColumnForPane(view, col, cols);
 }
 
 int editorTabOverflowHitTestColumnForPane(struct editorPaneView *view, int col, int cols) {
@@ -1908,7 +1900,5 @@ int editorTabOverflowHitTestColumn(int col, int cols) {
 	if (!tabsWrapperView(&scratch, &view)) {
 		return -1;
 	}
-	int tab_idx = editorTabOverflowHitTestColumnForPane(view, col, cols);
-	E.tab_view_start = view->tab_view_start;
-	return tab_idx;
+	return editorTabOverflowHitTestColumnForPane(view, col, cols);
 }

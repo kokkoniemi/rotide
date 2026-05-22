@@ -748,7 +748,6 @@ void editorPaneViewCaptureFromState(struct editorPaneView *view) {
 		return;
 	}
 	view->active_tab_idx = E.active_tab;
-	view->tab_view_start = E.tab_view_start;
 	view->cx = E.cx;
 	view->cy = E.cy;
 	view->rx = E.rx;
@@ -769,7 +768,6 @@ int editorPaneViewLoadIntoState(const struct editorPaneView *view) {
 	if (view == NULL || view->active_tab_idx < 0) {
 		return 0;
 	}
-	E.tab_view_start = view->tab_view_start;
 	E.cx = view->cx;
 	E.cy = view->cy;
 	E.rx = view->rx;

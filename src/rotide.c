@@ -65,7 +65,6 @@ void editorInit(void) {
 	E.tab_count = 0;
 	E.tab_capacity = 0;
 	E.active_tab = 0;
-	E.tab_view_start = 0;
 	E.close_confirmed = 0;
 	E.task_pid = 0;
 	E.task_output_fd = -1;
