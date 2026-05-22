@@ -4,6 +4,7 @@
 #include "rotide.h"
 
 struct editorPaneView;
+struct editorPaneNode;
 
 /* Active-buffer helpers move state between E and editorTabState. File tabs own
  * editable documents; task-log, unsupported-file, and Git-diff tabs are
@@ -37,6 +38,17 @@ void editorTabStateAliasToActive(const struct editorTabState *tab);
 int editorTabsInit(void);
 void editorTabsFreeAll(void);
 int editorTabNewEmpty(void);
+
+/* Invariant: every editor leaf in E.layout_root has pane_tab_count >= 1 once
+ * an operation has settled. Operations that may transiently empty a pane
+ * call editorTabsEnsurePaneOccupancy before returning; it walks the tree
+ * and backfills empty leaves. Renderers and navigation rely on this. */
+int editorTabAppendEmptyForPane(struct editorPaneNode *pane);
+void editorTabsEnsurePaneOccupancy(void);
+
+/* Cross-pane move transfers focus to target. Same-pane call reorders. */
+int editorPaneMoveTab(struct editorPaneNode *source, struct editorPaneNode *target, int tab_idx,
+                      int target_slot);
 int editorTabOpenFileAsNew(const char *filename);
 int editorTabOpenOrSwitchToFile(const char *filename);
 int editorTabOpenOrSwitchToPreviewFile(const char *filename);

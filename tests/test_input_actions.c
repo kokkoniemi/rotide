@@ -375,6 +375,31 @@ static int test_editor_action_move_active_tab_no_neighbor_is_no_op(void) {
 	return 0;
 }
 
+static int test_editor_action_move_last_tab_replaces_source_with_empty_buffer(void) {
+	struct editorPaneNode *left = NULL;
+	struct editorPaneNode *right = NULL;
+	ASSERT_TRUE(setup_move_tab_split(EDITOR_SPLIT_VERTICAL, &left, &right) == 0);
+	left->as.leaf.view.pane_tab_count = 0;
+	left->as.leaf.view.active_tab_idx = -1;
+	ASSERT_TRUE(editorPaneViewAddTab(&left->as.leaf.view, 0));
+	left->as.leaf.view.active_tab_idx = 0;
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(left));
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+	int tab_count_before = editorTabCount();
+
+	ASSERT_TRUE(editorActionMoveActiveTabToNeighborPane(EDITOR_FOCUS_RIGHT));
+
+	ASSERT_TRUE(E.focused_leaf == right);
+	ASSERT_EQ_INT(tab_count_before + 1, editorTabCount());
+	ASSERT_EQ_INT(1, left->as.leaf.view.pane_tab_count);
+	ASSERT_TRUE(left->as.leaf.view.active_tab_idx >= 0);
+	ASSERT_TRUE(left->as.leaf.view.active_tab_idx != 0);
+	ASSERT_TRUE(left->as.leaf.view.pane_tabs[0] == left->as.leaf.view.active_tab_idx);
+	ASSERT_EQ_INT(3, right->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(0, right->as.leaf.view.active_tab_idx);
+	return 0;
+}
+
 static int test_editor_action_move_active_tab_empty_pane_is_no_op(void) {
 	struct editorPaneNode *left = NULL;
 	struct editorPaneNode *right = NULL;
@@ -392,24 +417,21 @@ static int test_editor_action_move_active_tab_empty_pane_is_no_op(void) {
 	return 0;
 }
 
-static int test_editor_tab_actions_empty_focused_pane_do_not_touch_other_panes(void) {
+static int test_editor_tabs_ensure_pane_occupancy_backfills_empty_leaves(void) {
 	struct editorPaneNode *left = NULL;
 	struct editorPaneNode *right = NULL;
 	ASSERT_TRUE(setup_move_tab_split(EDITOR_SPLIT_VERTICAL, &left, &right) == 0);
 	left->as.leaf.view.pane_tab_count = 0;
 	left->as.leaf.view.active_tab_idx = -1;
-	ASSERT_TRUE(editorLayoutSetFocusedLeaf(left));
-	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	int tab_count_before = editorTabCount();
 
-	ASSERT_TRUE(editorTabSwitchByDelta(1));
-	ASSERT_EQ_INT(1, editorTabActiveIndex());
-	ASSERT_EQ_INT(0, left->as.leaf.view.pane_tab_count);
-	ASSERT_EQ_INT(-1, left->as.leaf.view.active_tab_idx);
-	ASSERT_TRUE(!editorTabCloseActive());
-	ASSERT_EQ_INT(4, editorTabCount());
+	editorTabsEnsurePaneOccupancy();
+
+	ASSERT_EQ_INT(tab_count_before + 1, editorTabCount());
+	ASSERT_EQ_INT(1, left->as.leaf.view.pane_tab_count);
+	ASSERT_TRUE(left->as.leaf.view.active_tab_idx >= 0);
+	ASSERT_EQ_INT(left->as.leaf.view.pane_tabs[0], left->as.leaf.view.active_tab_idx);
 	ASSERT_EQ_INT(2, right->as.leaf.view.pane_tab_count);
-	ASSERT_EQ_INT(2, right->as.leaf.view.pane_tabs[0]);
-	ASSERT_EQ_INT(3, right->as.leaf.view.pane_tabs[1]);
 	return 0;
 }
 
@@ -1998,8 +2020,10 @@ const struct editorTestCase g_input_actions_tests[] = {
          test_editor_action_move_active_tab_no_neighbor_is_no_op},
         {"editor_action_move_active_tab_empty_pane_is_no_op",
          test_editor_action_move_active_tab_empty_pane_is_no_op},
-        {"editor_tab_actions_empty_focused_pane_do_not_touch_other_panes",
-         test_editor_tab_actions_empty_focused_pane_do_not_touch_other_panes},
+        {"editor_action_move_last_tab_replaces_source_with_empty_buffer",
+         test_editor_action_move_last_tab_replaces_source_with_empty_buffer},
+        {"editor_tabs_ensure_pane_occupancy_backfills_empty_leaves",
+         test_editor_tabs_ensure_pane_occupancy_backfills_empty_leaves},
         {"editor_process_keypress_toggle_drawer_shortcut_collapses_and_expands",
          test_editor_process_keypress_toggle_drawer_shortcut_collapses_and_expands},
         {"editor_process_keypress_toggle_drawer_preserves_search_modes",

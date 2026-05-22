@@ -114,34 +114,6 @@ static void mouseArmTabDrag(struct editorPaneNode *leaf, int tab_idx,
 	E.tab_drag_start_y = event->y - 1;
 }
 
-static int mousePaneViewInsertTabAt(struct editorPaneView *view, int tab_idx, int slot) {
-	if (view == NULL || tab_idx < 0) {
-		return 0;
-	}
-	int existing = editorPaneViewIndexOfTab(view, tab_idx);
-	if (existing >= 0) {
-		for (int i = existing; i < view->pane_tab_count - 1; i++) {
-			view->pane_tabs[i] = view->pane_tabs[i + 1];
-		}
-		view->pane_tab_count--;
-	}
-	if (slot < 0) {
-		slot = 0;
-	}
-	if (slot > view->pane_tab_count) {
-		slot = view->pane_tab_count;
-	}
-	if (view->pane_tab_count >= ROTIDE_PANE_MAX_TABS) {
-		return 0;
-	}
-	for (int i = view->pane_tab_count; i > slot; i--) {
-		view->pane_tabs[i] = view->pane_tabs[i - 1];
-	}
-	view->pane_tabs[slot] = tab_idx;
-	view->pane_tab_count++;
-	return 1;
-}
-
 static int mousePaneTabSlotForColumn(struct editorPaneView *view, int col, int cols) {
 	if (view == NULL) {
 		return -1;
@@ -199,47 +171,11 @@ static int mouseFinishTabDrag(const struct editorMouseEvent *event) {
 		return 0;
 	}
 
-	struct editorPaneView *source_view = &source->as.leaf.view;
-	struct editorPaneView *target_view = &target->as.leaf.view;
-	int source_slot = editorPaneViewIndexOfTab(source_view, tab_idx);
-	if (source_slot < 0) {
-		return 0;
-	}
-	int target_slot = mousePaneTabSlotForColumn(target_view, target_col, target_cols);
+	int target_slot = mousePaneTabSlotForColumn(&target->as.leaf.view, target_col, target_cols);
 	if (target_slot < 0) {
 		return 0;
 	}
-
-	if (source == target) {
-		if (!mousePaneViewInsertTabAt(source_view, tab_idx, target_slot)) {
-			return 0;
-		}
-		source_view->active_tab_idx = tab_idx;
-		return 1;
-	}
-
-	if (!editorPaneViewHasTab(target_view, tab_idx) &&
-	    target_view->pane_tab_count >= ROTIDE_PANE_MAX_TABS) {
-		return 0;
-	}
-	int source_next_active = source_view->active_tab_idx;
-	if (source_next_active == tab_idx) {
-		source_next_active = source_view->pane_tab_count > 1
-		                             ? source_view->pane_tabs[source_slot == 0 ? 1 : 0]
-		                             : -1;
-	}
-	editorPaneViewRemoveTab(source_view, tab_idx);
-	source_view->active_tab_idx = source_next_active;
-	if (!mousePaneViewInsertTabAt(target_view, tab_idx, target_slot)) {
-		(void)mousePaneViewInsertTabAt(source_view, tab_idx, source_slot);
-		source_view->active_tab_idx = tab_idx;
-		return 0;
-	}
-	target_view->active_tab_idx = tab_idx;
-	if (editorLayoutSetFocusedLeaf(target)) {
-		source_view->active_tab_idx = source_next_active;
-	}
-	return 1;
+	return editorPaneMoveTab(source, target, tab_idx, target_slot);
 }
 
 int editorHandleMousePaneTabStripClick(const struct editorMouseEvent *event, long long now_ms) {

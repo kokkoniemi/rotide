@@ -951,6 +951,39 @@ static int test_editor_process_keypress_mouse_tab_drag_moves_across_panes(void) 
 	return 0;
 }
 
+static int test_editor_process_keypress_mouse_tab_drag_last_tab_repopulates_source_pane(void) {
+	struct editorPaneNode *top = NULL;
+	struct editorPaneNode *bottom = NULL;
+	ASSERT_TRUE(setup_four_tab_split(EDITOR_SPLIT_HORIZONTAL, &top, &bottom) == 0);
+	editorPaneViewRemoveTab(&top->as.leaf.view, 1);
+	top->as.leaf.view.active_tab_idx = 0;
+	ASSERT_EQ_INT(1, top->as.leaf.view.pane_tab_count);
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(top));
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+	int tab_count_before = editorTabCount();
+
+	int source_x = 0;
+	int source_y = 0;
+	int target_x = 0;
+	int target_y = 0;
+	ASSERT_TRUE(pane_tab_sgr_point(top, 0, &source_x, &source_y) == 0);
+	ASSERT_TRUE(pane_tab_sgr_point(bottom, 3, &target_x, &target_y) == 0);
+	ASSERT_TRUE(send_mouse_drag_sequence(source_x, source_y, target_x, target_y, target_x,
+	                                     target_y) == 0);
+
+	ASSERT_TRUE(E.focused_leaf == bottom);
+	ASSERT_EQ_INT(tab_count_before + 1, editorTabCount());
+	ASSERT_EQ_INT(1, top->as.leaf.view.pane_tab_count);
+	ASSERT_TRUE(top->as.leaf.view.active_tab_idx >= 0);
+	ASSERT_TRUE(top->as.leaf.view.active_tab_idx != 0);
+	ASSERT_EQ_INT(top->as.leaf.view.active_tab_idx, top->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(3, bottom->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(0, bottom->as.leaf.view.active_tab_idx);
+	ASSERT_EQ_INT(0, E.tab_drag_armed);
+	ASSERT_EQ_INT(0, E.tab_drag_active);
+	return 0;
+}
+
 static int test_editor_process_keypress_mouse_tab_drag_release_off_strip_cancels(void) {
 	struct editorPaneNode *top = NULL;
 	struct editorPaneNode *bottom = NULL;
@@ -1869,6 +1902,8 @@ const struct editorTestCase g_input_mouse_tests[] = {
          test_editor_process_keypress_mouse_tab_drag_moves_across_panes},
         {"editor_process_keypress_mouse_tab_drag_release_off_strip_cancels",
          test_editor_process_keypress_mouse_tab_drag_release_off_strip_cancels},
+        {"editor_process_keypress_mouse_tab_drag_last_tab_repopulates_source_pane",
+         test_editor_process_keypress_mouse_tab_drag_last_tab_repopulates_source_pane},
         {"editor_process_keypress_mouse_tab_click_without_drag_clears_drag",
          test_editor_process_keypress_mouse_tab_click_without_drag_clears_drag},
         {"editor_process_keypress_mouse_press_on_pane_border_arms_split_resize",

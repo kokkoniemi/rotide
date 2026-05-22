@@ -29,6 +29,9 @@ enum editorSplitOrientation { EDITOR_SPLIT_HORIZONTAL = 0, EDITOR_SPLIT_VERTICAL
  * tab indices: the tab bar filters by this list, Ctrl+Tab cycles within
  * it, and a new split inherits only the splitting pane's active tab. Tabs
  * still live in the shared E.tabs[] array; the list is a view into it.
+ *
+ * Invariant: every editor leaf has pane_tab_count >= 1 in settled state.
+ * See editorTabsEnsurePaneOccupancy in workspace/tabs.h.
  */
 #ifndef ROTIDE_PANE_MAX_TABS
 #define ROTIDE_PANE_MAX_TABS 128
@@ -277,6 +280,7 @@ int editorLayoutSetFocusedLeaf(struct editorPaneNode *new_leaf);
  * pane should free the global tab entry.
  */
 int editorPaneViewAddTab(struct editorPaneView *view, int tab_idx);
+int editorPaneViewInsertTabAt(struct editorPaneView *view, int tab_idx, int slot);
 void editorPaneViewRemoveTab(struct editorPaneView *view, int tab_idx);
 int editorPaneViewHasTab(const struct editorPaneView *view, int tab_idx);
 int editorPaneViewIndexOfTab(const struct editorPaneView *view, int tab_idx);

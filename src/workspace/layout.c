@@ -638,6 +638,34 @@ int editorPaneViewAddTab(struct editorPaneView *view, int tab_idx) {
 	return 1;
 }
 
+int editorPaneViewInsertTabAt(struct editorPaneView *view, int tab_idx, int slot) {
+	if (view == NULL || tab_idx < 0) {
+		return 0;
+	}
+	int existing = editorPaneViewIndexOfTab(view, tab_idx);
+	if (existing >= 0) {
+		for (int i = existing; i < view->pane_tab_count - 1; i++) {
+			view->pane_tabs[i] = view->pane_tabs[i + 1];
+		}
+		view->pane_tab_count--;
+	}
+	if (slot < 0) {
+		slot = 0;
+	}
+	if (slot > view->pane_tab_count) {
+		slot = view->pane_tab_count;
+	}
+	if (view->pane_tab_count >= ROTIDE_PANE_MAX_TABS) {
+		return 0;
+	}
+	for (int i = view->pane_tab_count; i > slot; i--) {
+		view->pane_tabs[i] = view->pane_tabs[i - 1];
+	}
+	view->pane_tabs[slot] = tab_idx;
+	view->pane_tab_count++;
+	return 1;
+}
+
 void editorPaneViewRemoveTab(struct editorPaneView *view, int tab_idx) {
 	if (view == NULL) {
 		return;

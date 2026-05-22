@@ -39,7 +39,6 @@ static int tabsEnsureTabCapacity(int needed);
 static void tabsStoreActiveTab(void);
 static void tabsLoadActiveTab(int tab_idx);
 static void tabsRegisterWithFocusedPane(int idx);
-static int tabsFocusedPaneIsEmpty(void);
 static int tabsCanReuseActiveEmptyBuffer(void);
 static int tabsKindCanReuseAsPreview(enum editorTabKind tab_kind);
 static int tabsFindReusablePreviewIndex(void);
@@ -392,9 +391,7 @@ int editorTabNewEmpty(void) {
 		return editorTabsInit();
 	}
 
-	if (!tabsFocusedPaneIsEmpty()) {
-		tabsRegisterWithFocusedPane(E.active_tab);
-	}
+	tabsRegisterWithFocusedPane(E.active_tab);
 	tabsStoreActiveTab();
 	int new_idx = E.tab_count;
 	if (!tabsEnsureTabCapacity(E.tab_count + 1)) {
@@ -408,6 +405,103 @@ int editorTabNewEmpty(void) {
 	E.active_tab = new_idx;
 	tabsLoadActiveTab(E.active_tab);
 	tabsRegisterWithFocusedPane(new_idx);
+	return 1;
+}
+
+int editorTabAppendEmptyForPane(struct editorPaneNode *pane) {
+	if (pane == NULL || pane->is_split || pane->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
+		return -1;
+	}
+	if (E.tab_count >= ROTIDE_MAX_TABS) {
+		return -1;
+	}
+	if (!tabsEnsureTabCapacity(E.tab_count + 1)) {
+		return -1;
+	}
+	int new_idx = E.tab_count;
+	tabsStateInitEmpty(&E.tabs[new_idx]);
+	E.tab_count++;
+	if (!editorPaneViewAddTab(&pane->as.leaf.view, new_idx)) {
+		tabsStateFree(&E.tabs[new_idx]);
+		E.tab_count--;
+		return -1;
+	}
+	pane->as.leaf.view.active_tab_idx = new_idx;
+	return new_idx;
+}
+
+static void tabsEnsurePaneOccupancyRecursive(struct editorPaneNode *node) {
+	if (node == NULL) {
+		return;
+	}
+	if (node->is_split) {
+		tabsEnsurePaneOccupancyRecursive(node->as.split.first);
+		tabsEnsurePaneOccupancyRecursive(node->as.split.second);
+		return;
+	}
+	if (node->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
+		return;
+	}
+	if (node->as.leaf.view.pane_tab_count == 0) {
+		(void)editorTabAppendEmptyForPane(node);
+	}
+}
+
+void editorTabsEnsurePaneOccupancy(void) {
+	tabsEnsurePaneOccupancyRecursive(E.layout_root);
+}
+
+int editorPaneMoveTab(struct editorPaneNode *source, struct editorPaneNode *target, int tab_idx,
+                      int target_slot) {
+	if (source == NULL || target == NULL || source->is_split || target->is_split ||
+	    source->as.leaf.kind != EDITOR_PANE_KIND_EDITOR ||
+	    target->as.leaf.kind != EDITOR_PANE_KIND_EDITOR || tab_idx < 0) {
+		return 0;
+	}
+	struct editorPaneView *source_view = &source->as.leaf.view;
+	struct editorPaneView *target_view = &target->as.leaf.view;
+	int source_slot = editorPaneViewIndexOfTab(source_view, tab_idx);
+	if (source_slot < 0) {
+		return 0;
+	}
+
+	if (source == target) {
+		if (!editorPaneViewInsertTabAt(source_view, tab_idx, target_slot)) {
+			return 0;
+		}
+		source_view->active_tab_idx = tab_idx;
+		return 1;
+	}
+
+	if (!editorPaneViewHasTab(target_view, tab_idx) &&
+	    target_view->pane_tab_count >= ROTIDE_PANE_MAX_TABS) {
+		return 0;
+	}
+
+	int source_next_active = source_view->pane_tab_count > 1
+	                                 ? source_view->pane_tabs[source_slot == 0 ? 1 : 0]
+	                                 : -1;
+	if (source == E.focused_leaf) {
+		editorPaneViewCaptureFromState(source_view);
+	}
+	editorPaneViewRemoveTab(source_view, tab_idx);
+	source_view->active_tab_idx = source_next_active;
+	if (!editorPaneViewInsertTabAt(target_view, tab_idx, target_slot)) {
+		(void)editorPaneViewInsertTabAt(source_view, tab_idx, source_slot);
+		source_view->active_tab_idx = tab_idx;
+		return 0;
+	}
+	target_view->active_tab_idx = tab_idx;
+	if (!editorLayoutSetFocusedLeaf(target)) {
+		editorPaneViewRemoveTab(target_view, tab_idx);
+		(void)editorPaneViewInsertTabAt(source_view, tab_idx, source_slot);
+		source_view->active_tab_idx = tab_idx;
+		return 0;
+	}
+	/* editorLayoutSetFocusedLeaf captured source's view from live E, clobbering
+	 * the active_tab_idx we just set. Re-apply. */
+	source_view->active_tab_idx = source_next_active;
+	editorTabsEnsurePaneOccupancy();
 	return 1;
 }
 
@@ -685,16 +779,6 @@ static void tabsRegisterWithFocusedPane(int idx) {
 	E.focused_leaf->as.leaf.view.active_tab_idx = idx;
 }
 
-static int tabsFocusedPaneIsEmpty(void) {
-	if (E.layout_root == NULL || E.focused_leaf == NULL || E.focused_leaf->is_split ||
-	    E.focused_leaf->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
-		return 0;
-	}
-	const struct editorPaneView *view = &E.focused_leaf->as.leaf.view;
-	return editorPaneTreeLeafCount(E.layout_root) > 1 && view->pane_tab_count == 0 &&
-	       view->active_tab_idx < 0;
-}
-
 int editorTabSwitchToIndex(int idx) {
 	if (idx < 0 || idx >= E.tab_count) {
 		return 0;
@@ -714,9 +798,6 @@ int editorTabSwitchToIndex(int idx) {
 int editorTabSwitchByDelta(int delta) {
 	if (E.tab_count <= 0) {
 		return 0;
-	}
-	if (tabsFocusedPaneIsEmpty()) {
-		return 1;
 	}
 	if (delta == 0) {
 		return 1;
@@ -755,9 +836,6 @@ int editorTabSwitchByDelta(int delta) {
 
 int editorTabCloseActive(void) {
 	if (E.tab_count <= 0 || E.tabs == NULL) {
-		return 0;
-	}
-	if (tabsFocusedPaneIsEmpty()) {
 		return 0;
 	}
 

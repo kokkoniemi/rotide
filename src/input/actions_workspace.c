@@ -445,14 +445,13 @@ int editorActionMoveActiveTabToNeighborPane(enum editorFocusDirection direction)
 		return 0;
 	}
 
-	struct editorPaneView *source_view = &E.focused_leaf->as.leaf.view;
+	struct editorPaneNode *source = E.focused_leaf;
+	struct editorPaneView *source_view = &source->as.leaf.view;
 	if (source_view->pane_tab_count <= 0) {
 		return 0;
 	}
-	editorPaneViewCaptureFromState(source_view);
 	int tab_idx = source_view->active_tab_idx;
-	int source_slot = editorPaneViewIndexOfTab(source_view, tab_idx);
-	if (source_slot < 0) {
+	if (tab_idx < 0) {
 		return 0;
 	}
 
@@ -466,39 +465,17 @@ int editorActionMoveActiveTabToNeighborPane(enum editorFocusDirection direction)
 		editorLeafLayoutFree(&layout);
 		return 0;
 	}
-	struct editorPaneNode *target =
-	        editorLayoutFindNeighborLeaf(&layout, E.focused_leaf, direction);
+	struct editorPaneNode *target = editorLayoutFindNeighborLeaf(&layout, source, direction);
 	editorLeafLayoutFree(&layout);
 	if (target == NULL || target->is_split || target->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
 		return 0;
 	}
 
-	struct editorPaneView *target_view = &target->as.leaf.view;
-	if (!editorPaneViewHasTab(target_view, tab_idx) &&
-	    target_view->pane_tab_count >= ROTIDE_PANE_MAX_TABS) {
+	if (!editorPaneMoveTab(source, target, tab_idx, target->as.leaf.view.pane_tab_count)) {
 		return 0;
 	}
-
-	int source_next_active = source_view->pane_tab_count > 1
-	                                 ? source_view->pane_tabs[source_slot == 0 ? 1 : 0]
-	                                 : -1;
-	editorPaneViewRemoveTab(source_view, tab_idx);
-	source_view->active_tab_idx = source_next_active;
-	if (!editorPaneViewAddTab(target_view, tab_idx)) {
-		(void)editorPaneViewAddTab(source_view, tab_idx);
-		source_view->active_tab_idx = tab_idx;
-		return 0;
-	}
-	target_view->active_tab_idx = tab_idx;
-	if (editorLayoutSetFocusedLeaf(target)) {
-		source_view->active_tab_idx = source_next_active;
-		editorPaneAnnounceFocus();
-		return 1;
-	}
-	editorPaneViewRemoveTab(target_view, tab_idx);
-	(void)editorPaneViewAddTab(source_view, tab_idx);
-	source_view->active_tab_idx = tab_idx;
-	return 0;
+	editorPaneAnnounceFocus();
+	return 1;
 }
 
 int editorHandleWorkspaceMappedAction(enum editorAction action, int cursor_or_edit_effect_bit,

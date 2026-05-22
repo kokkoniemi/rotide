@@ -560,6 +560,9 @@ int editorWorkspaceStateRestoreTabs(void) {
 	if (opened_any) {
 		editorLspEnsureActiveDocumentTracked();
 	}
+	/* Layout deserialize restores tree structure but not pane membership;
+	 * the loop above only populated the first leaf. Backfill the rest. */
+	editorTabsEnsurePaneOccupancy();
 	/*
 	 * Document symbols are only refreshed on explicit LSP-drawer activation. If the drawer
 	 * was left in LSP mode across restarts, populate them now.
