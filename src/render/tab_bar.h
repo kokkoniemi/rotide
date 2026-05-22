@@ -6,7 +6,11 @@
 struct editorPaneNode;
 
 int editorDrawTabBar(struct writeBuf *wb);
-int editorDrawPaneTabStrip(struct writeBuf *wb, struct editorPaneNode *leaf, int cols);
+/* `trailing_hborder` fills cols beyond the last visible tab with `─` instead
+ * of spaces — used when the strip occupies a horizontal-split border row so
+ * the line still reads as a split divider past the tabs. */
+int editorDrawPaneTabStrip(struct writeBuf *wb, struct editorPaneNode *leaf, int cols,
+                           int trailing_hborder);
 int editorDrawTabSlots(struct writeBuf *wb, int cols);
 
 #endif

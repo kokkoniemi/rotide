@@ -13,6 +13,8 @@
 #define VT100_ITALIC_ON_4 "\x1b[3m"
 #define VT100_ITALIC_OFF_5 "\x1b[23m"
 #define VT100_CLEAR_ROW_3 "\x1b[K"
+/* "─" U+2500 BOX DRAWINGS LIGHT HORIZONTAL (UTF-8: e2 94 80) */
+#define TAB_BAR_HBORDER "\xe2\x94\x80"
 
 static const char *tabBarLabelFromDisplayName(const char *display_name) {
 	if (display_name == NULL) {
@@ -26,7 +28,7 @@ static const char *tabBarLabelFromDisplayName(const char *display_name) {
 }
 
 static int tabBarDrawLayout(struct writeBuf *wb, const struct editorTabLayoutEntry *layout,
-                            int layout_count, int cols) {
+                            int layout_count, int cols, int trailing_hborder) {
 	int drawn_cols = 0;
 	for (int i = 0; i < layout_count; i++) {
 		const struct editorTabLayoutEntry *entry = &layout[i];
@@ -126,7 +128,11 @@ static int tabBarDrawLayout(struct writeBuf *wb, const struct editorTabLayoutEnt
 	}
 
 	while (drawn_cols < cols) {
-		if (!wbAppend(wb, " ", 1)) {
+		if (trailing_hborder) {
+			if (!wbAppend(wb, TAB_BAR_HBORDER, sizeof(TAB_BAR_HBORDER) - 1)) {
+				return 0;
+			}
+		} else if (!wbAppend(wb, " ", 1)) {
 			return 0;
 		}
 		drawn_cols++;
@@ -135,7 +141,8 @@ static int tabBarDrawLayout(struct writeBuf *wb, const struct editorTabLayoutEnt
 	return 1;
 }
 
-int editorDrawPaneTabStrip(struct writeBuf *wb, struct editorPaneNode *leaf, int cols) {
+int editorDrawPaneTabStrip(struct writeBuf *wb, struct editorPaneNode *leaf, int cols,
+                           int trailing_hborder) {
 	if (cols <= 0) {
 		return 1;
 	}
@@ -152,11 +159,11 @@ int editorDrawPaneTabStrip(struct writeBuf *wb, struct editorPaneNode *leaf, int
 	if (!ok) {
 		return 0;
 	}
-	return tabBarDrawLayout(wb, layout, layout_count, cols);
+	return tabBarDrawLayout(wb, layout, layout_count, cols, trailing_hborder);
 }
 
 int editorDrawTabSlots(struct writeBuf *wb, int cols) {
-	return editorDrawPaneTabStrip(wb, E.focused_leaf, cols);
+	return editorDrawPaneTabStrip(wb, E.focused_leaf, cols, 0);
 }
 
 int editorDrawTabBar(struct writeBuf *wb) {

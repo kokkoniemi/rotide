@@ -411,7 +411,9 @@ static int test_editor_refresh_screen_horizontal_split_renders_bottom_tab_strip(
 	char *snapshot = editor_grid_snapshot(&snapshot_len);
 	ASSERT_TRUE(snapshot != NULL);
 	ASSERT_TRUE(snapshot_line_contains(snapshot, 2, "bottom.txt"));
-	ASSERT_TRUE(!snapshot_line_contains(snapshot, 2, EDITOR_PANE_HBORDER_UTF8));
+	/* The strip row continues as a horizontal border to the right of the tabs
+	 * so the split divider remains visually contiguous past the last tab. */
+	ASSERT_TRUE(snapshot_line_contains(snapshot, 2, EDITOR_PANE_HBORDER_UTF8));
 	free(snapshot);
 	return 0;
 }
@@ -488,7 +490,8 @@ static int test_editor_refresh_screen_nested_split_strip_keeps_outer_vborder(voi
 	ASSERT_TRUE(snapshot != NULL);
 	ASSERT_TRUE(snapshot_line_contains(snapshot, 5, "right-bottom.txt"));
 	ASSERT_TRUE(snapshot_line_count_substrings(snapshot, 5, EDITOR_PANE_VBORDER_UTF8) >= 2);
-	ASSERT_TRUE(!snapshot_line_contains(snapshot, 5, EDITOR_PANE_HBORDER_UTF8));
+	/* Strip's trailing area renders as the horizontal split divider. */
+	ASSERT_TRUE(snapshot_line_contains(snapshot, 5, EDITOR_PANE_HBORDER_UTF8));
 	free(snapshot);
 	return 0;
 }

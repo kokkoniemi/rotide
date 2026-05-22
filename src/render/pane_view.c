@@ -584,16 +584,16 @@ static enum paneViewBorderCellKind paneViewBorderCellAt(int x, int screen_y,
 }
 
 static int paneViewDrawStripSpan(struct writeBuf *wb, struct editorPaneNode *leaf, int local_col,
-                                 int strip_cols, int slice_cols) {
+                                 int strip_cols, int slice_cols, int trailing_hborder) {
 	struct writeBuf strip = WRITEBUF_INIT;
 	int ok = 0;
 	if (slice_cols <= 0) {
 		return 1;
 	}
 	if (local_col == 0 && slice_cols == strip_cols) {
-		return editorDrawPaneTabStrip(wb, leaf, strip_cols);
+		return editorDrawPaneTabStrip(wb, leaf, strip_cols, trailing_hborder);
 	}
-	if (!editorDrawPaneTabStrip(&strip, leaf, strip_cols)) {
+	if (!editorDrawPaneTabStrip(&strip, leaf, strip_cols, trailing_hborder)) {
 		goto cleanup;
 	}
 	if ((size_t)local_col > strip.len) {
@@ -651,7 +651,8 @@ int editorDrawMultiPaneTabStripRow(struct writeBuf *wb) {
 		int strip_cols = 0;
 		if (editorLayoutPaneTabStripAt(&layout, x, 0, &leaf, &local_col, &strip_cols)) {
 			int slice_cols = strip_cols - local_col;
-			if (!paneViewDrawStripSpan(wb, leaf, local_col, strip_cols, slice_cols)) {
+			if (!paneViewDrawStripSpan(wb, leaf, local_col, strip_cols, slice_cols,
+			                           0)) {
 				goto cleanup;
 			}
 			x += slice_cols;
@@ -714,7 +715,7 @@ int editorDrawMultiPaneRows(struct writeBuf *wb, const struct editorLeafLayout *
 			                               &strip_local_col, &strip_cols)) {
 				int slice_cols = strip_cols - strip_local_col;
 				if (!paneViewDrawStripSpan(wb, strip_leaf, strip_local_col,
-				                           strip_cols, slice_cols)) {
+				                           strip_cols, slice_cols, 1)) {
 					goto cleanup;
 				}
 				x += slice_cols;
