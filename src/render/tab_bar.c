@@ -139,6 +139,11 @@ int editorDrawPaneTabStrip(struct writeBuf *wb, struct editorPaneNode *leaf, int
 	if (cols <= 0) {
 		return 1;
 	}
+	if (leaf != NULL && !leaf->is_split && leaf->as.leaf.kind == EDITOR_PANE_KIND_EDITOR &&
+	    leaf->as.leaf.view.pane_tab_count == 0 && leaf->as.leaf.view.active_tab_idx < 0 &&
+	    editorPaneTreeLeafCount(E.layout_root) > 1) {
+		return tabBarDrawLayout(wb, NULL, 0, cols);
+	}
 
 	struct editorTabLayoutEntry layout[ROTIDE_MAX_TABS];
 	int layout_count = 0;

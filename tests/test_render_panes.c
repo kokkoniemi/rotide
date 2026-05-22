@@ -416,6 +416,76 @@ static int test_editor_refresh_screen_horizontal_split_renders_bottom_tab_strip(
 	return 0;
 }
 
+static int test_editor_refresh_screen_empty_pane_renders_blank_strip_and_body(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("top-body");
+	free(E.filename);
+	E.filename = strdup("/tmp/top.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	E.window_rows = 8;
+	E.window_cols = 60;
+
+	struct editorPaneNode *top = E.focused_leaf;
+	struct editorPaneNode *bottom = editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
+	ASSERT_TRUE(bottom != NULL);
+	top->as.leaf.view.pane_tab_count = 0;
+	ASSERT_TRUE(editorPaneViewAddTab(&top->as.leaf.view, 0));
+	top->as.leaf.view.active_tab_idx = 0;
+	bottom->as.leaf.view.pane_tab_count = 0;
+	bottom->as.leaf.view.active_tab_idx = -1;
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(bottom));
+
+	size_t snapshot_len = 0;
+	char *snapshot = editor_grid_snapshot(&snapshot_len);
+	ASSERT_TRUE(snapshot != NULL);
+	ASSERT_TRUE(snapshot_line_contains(snapshot, 0, "top-body"));
+	ASSERT_TRUE(!snapshot_line_contains(snapshot, 3, "top.txt"));
+	ASSERT_TRUE(!snapshot_line_contains(snapshot, 3, EDITOR_PANE_HBORDER_UTF8));
+	ASSERT_TRUE(!snapshot_line_contains(snapshot, 3, "~"));
+	ASSERT_TRUE(!snapshot_line_contains(snapshot, 4, "top-body"));
+	ASSERT_TRUE(!snapshot_line_contains(snapshot, 4, "~"));
+	free(snapshot);
+	return 0;
+}
+
+static int test_editor_tab_new_empty_populates_only_empty_focused_pane(void) {
+	ASSERT_TRUE(editorTabsInit());
+	free(E.filename);
+	E.filename = strdup("/tmp/top.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	E.window_rows = 8;
+	E.window_cols = 60;
+
+	struct editorPaneNode *top = E.focused_leaf;
+	struct editorPaneNode *bottom = editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
+	ASSERT_TRUE(bottom != NULL);
+	top->as.leaf.view.pane_tab_count = 0;
+	ASSERT_TRUE(editorPaneViewAddTab(&top->as.leaf.view, 0));
+	top->as.leaf.view.active_tab_idx = 0;
+	bottom->as.leaf.view.pane_tab_count = 0;
+	bottom->as.leaf.view.active_tab_idx = -1;
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(bottom));
+
+	ASSERT_TRUE(editorTabNewEmpty());
+	free(E.filename);
+	E.filename = strdup("/tmp/bottom-new.txt");
+	ASSERT_TRUE(E.filename != NULL);
+
+	ASSERT_EQ_INT(1, top->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(0, top->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(1, bottom->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(1, bottom->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(1, bottom->as.leaf.view.active_tab_idx);
+
+	size_t snapshot_len = 0;
+	char *snapshot = editor_grid_snapshot(&snapshot_len);
+	ASSERT_TRUE(snapshot != NULL);
+	ASSERT_TRUE(!snapshot_line_contains(snapshot, 0, "bottom-new.txt"));
+	ASSERT_TRUE(snapshot_line_contains(snapshot, 3, "bottom-new.txt"));
+	free(snapshot);
+	return 0;
+}
+
 static int test_editor_refresh_screen_nested_split_strip_keeps_outer_vborder(void) {
 	/* Layout: vertical split with the right child further split horizontally.
 	 * The inner horizontal border row is now the lower-right pane's tab strip,
@@ -812,6 +882,10 @@ const struct editorTestCase g_render_panes_tests[] = {
          test_editor_refresh_screen_vertical_split_renders_top_pane_strips},
         {"editor_refresh_screen_horizontal_split_renders_bottom_tab_strip",
          test_editor_refresh_screen_horizontal_split_renders_bottom_tab_strip},
+        {"editor_refresh_screen_empty_pane_renders_blank_strip_and_body",
+         test_editor_refresh_screen_empty_pane_renders_blank_strip_and_body},
+        {"editor_tab_new_empty_populates_only_empty_focused_pane",
+         test_editor_tab_new_empty_populates_only_empty_focused_pane},
         {"editor_refresh_screen_nested_split_strip_keeps_outer_vborder",
          test_editor_refresh_screen_nested_split_strip_keeps_outer_vborder},
         {"editor_refresh_screen_unfocused_same_tab_pane_renders_content",

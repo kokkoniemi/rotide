@@ -759,8 +759,14 @@ int editorDrawMultiPaneRows(struct writeBuf *wb, const struct editorLeafLayout *
 				        focused_intersects && leaf_node == E.focused_leaf;
 				if (is_focused_slice) {
 					int body_row_in_pane = screen_y - focused_rect.y;
-					if (!editorDrawFocusedPaneSlice(
-					            wb, leaf_node, body_row_in_pane, slice_cols)) {
+					if (leaf_node != NULL &&
+					    leaf_node->as.leaf.view.active_tab_idx < 0) {
+						if (!editorDrawBlankCells(wb, slice_cols)) {
+							goto cleanup;
+						}
+					} else if (!editorDrawFocusedPaneSlice(wb, leaf_node,
+					                                       body_row_in_pane,
+					                                       slice_cols)) {
 						goto cleanup;
 					}
 				} else if (leaf_node != NULL &&
