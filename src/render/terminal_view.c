@@ -220,11 +220,12 @@ int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *term
 			}
 			break;
 		}
-		int selected = in_bounds &&
-		               editorTerminalPaneSelectionContains(terminal, log_row, col);
+		int selected =
+		        in_bounds && editorTerminalPaneSelectionContains(terminal, log_row, col);
 		int plain = terminalViewCellIsPlain(&cell);
 		if (plain) {
-			if ((any_styled_emitted && !last_was_plain) || last_was_selected != selected) {
+			if ((any_styled_emitted && !last_was_plain) ||
+			    last_was_selected != selected) {
 				if (!editorAppendThemeReset(wb)) {
 					return 0;
 				}

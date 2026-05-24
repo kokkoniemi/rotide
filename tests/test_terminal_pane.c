@@ -370,10 +370,9 @@ static int test_terminal_pane_erase_oob_rect_does_not_crash(void) {
 	if (screen != NULL) {
 		vterm_screen_reset(screen, 1);
 	}
-	const char crash[] =
-	        "\x1b\x32\xc2\x9f\x1b[\x00\x14\x0b"
-	        "0K\x0b\x0b\x0a\x1b[\x00\x14\x0b"
-	        "0\x1bK";
+	const char crash[] = "\x1b\x32\xc2\x9f\x1b[\x00\x14\x0b"
+	                     "0K\x0b\x0b\x0a\x1b[\x00\x14\x0b"
+	                     "0\x1bK";
 	vterm_input_write(vt, crash, sizeof(crash) - 1);
 	if (screen != NULL) {
 		vterm_screen_flush_damage(screen);
@@ -396,9 +395,8 @@ static int test_terminal_pane_tbc_out_of_range_col_does_not_crash(void) {
 	if (screen != NULL) {
 		vterm_screen_reset(screen, 1);
 	}
-	const char crash[] =
-	        "\x1b\x32\x1b[52;4X\xc2\x00\x9f\x1b[0g\x09\x00@P\x00\x00"
-	        "\x1b[\x00\x1b[\x00";
+	const char crash[] = "\x1b\x32\x1b[52;4X\xc2\x00\x9f\x1b[0g\x09\x00@P\x00\x00"
+	                     "\x1b[\x00\x1b[\x00";
 	vterm_input_write(vt, crash, sizeof(crash) - 1);
 	if (screen != NULL) {
 		vterm_screen_flush_damage(screen);

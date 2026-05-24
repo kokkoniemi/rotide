@@ -33,8 +33,8 @@ int editorTerminalPaneGetDefaultScrollbackLines(void) {
 
 /* Ring helpers. Newest line is at sb_rows[(sb_head-1+sb_cap)%sb_cap]; back=1
  * returns that row, back=2 the next-older, up to back=sb_size. */
-static const struct terminalScrollbackRow *terminalPaneScrollbackAt(
-        const struct editorTerminalPane *t, int back) {
+static const struct terminalScrollbackRow *
+terminalPaneScrollbackAt(const struct editorTerminalPane *t, int back) {
 	if (t == NULL || t->sb_rows == NULL || back < 1 || back > t->sb_size) {
 		return NULL;
 	}
@@ -861,8 +861,8 @@ int editorTerminalPaneCollectMasterFds(struct editorPaneNode *root, int *fds_out
 		return 0;
 	}
 	if (root->is_split) {
-		int first = editorTerminalPaneCollectMasterFds(root->as.split.first, fds_out,
-		                                               capacity);
+		int first =
+		        editorTerminalPaneCollectMasterFds(root->as.split.first, fds_out, capacity);
 		int *next_out = NULL;
 		int next_cap = 0;
 		if (first < capacity && fds_out != NULL) {

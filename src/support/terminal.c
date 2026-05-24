@@ -187,8 +187,8 @@ static void terminalWaitForInput(int timeout_ms) {
 	pfds[nfds].revents = 0;
 	nfds++;
 	int pty_fds[TERMINAL_POLL_FDS_CAP];
-	int pty_count = editorTerminalPaneCollectMasterFds(E.layout_root, pty_fds,
-	                                                   TERMINAL_POLL_FDS_CAP);
+	int pty_count =
+	        editorTerminalPaneCollectMasterFds(E.layout_root, pty_fds, TERMINAL_POLL_FDS_CAP);
 	int pty_use = pty_count;
 	if (pty_use > TERMINAL_POLL_FDS_CAP - 1) {
 		pty_use = TERMINAL_POLL_FDS_CAP - 1;

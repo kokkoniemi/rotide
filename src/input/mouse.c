@@ -1283,10 +1283,12 @@ int editorHandleMouseEventInTerminalPane(const struct editorMouseEvent *event) {
 		int log_row = row - terminal->scroll_offset;
 		switch (event->kind) {
 			case EDITOR_MOUSE_EVENT_WHEEL_UP:
-				(void)editorTerminalPaneScrollBy(terminal, MOUSE_WHEEL_SCROLL_LINES);
+				(void)editorTerminalPaneScrollBy(terminal,
+				                                 MOUSE_WHEEL_SCROLL_LINES);
 				return 1;
 			case EDITOR_MOUSE_EVENT_WHEEL_DOWN:
-				(void)editorTerminalPaneScrollBy(terminal, -MOUSE_WHEEL_SCROLL_LINES);
+				(void)editorTerminalPaneScrollBy(terminal,
+				                                 -MOUSE_WHEEL_SCROLL_LINES);
 				return 1;
 			case EDITOR_MOUSE_EVENT_LEFT_PRESS:
 				editorTerminalPaneSelectionBegin(terminal, log_row, col);

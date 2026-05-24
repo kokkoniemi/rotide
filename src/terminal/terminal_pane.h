@@ -109,7 +109,8 @@ void editorTerminalPaneSelectionBegin(struct editorTerminalPane *terminal, int r
 void editorTerminalPaneSelectionUpdate(struct editorTerminalPane *terminal, int row, int col);
 void editorTerminalPaneSelectionClear(struct editorTerminalPane *terminal);
 
-int editorTerminalPaneSelectionContains(const struct editorTerminalPane *terminal, int row, int col);
+int editorTerminalPaneSelectionContains(const struct editorTerminalPane *terminal, int row,
+                                        int col);
 
 /* Extract the selection as a malloc'd UTF-8 string (NUL-terminated). Caller
  * frees. Returns NULL with *len_out=0 if no selection. */
