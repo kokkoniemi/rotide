@@ -134,8 +134,8 @@ int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *term
 		return 1;
 	}
 	if (terminal->exited && terminal->rows > 0 && row_in_pane == terminal->rows - 1) {
-		/* The exit banner is static once the child exits, so the dirty bit
-		 * lets us skip the row after the first frame that drew it. */
+		/* Exit banner is static once drawn — apply the same dirty-bit skip
+		 * as the live-cell path. */
 		if (terminal->row_dirty != NULL && row_in_pane < terminal->row_dirty_cap &&
 		    !terminal->row_dirty[row_in_pane]) {
 			if (!editorAppendThemeReset(wb)) {
@@ -153,11 +153,9 @@ int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *term
 		}
 		return ok;
 	}
-	/* Damage-aware fast path: if libvterm hasn't reported any cell changes on
-	 * this row since the last frame and no scroll/selection event invalidated
-	 * it, we can leave the terminal's existing output untouched and just
-	 * advance the cursor past the pane's slice. The earlier frame already
-	 * painted these cells; the host terminal still has them on screen. */
+	/* If nothing damaged this row since the previous frame, advance the
+	 * cursor past it without re-emitting cells — the prior frame's output
+	 * is still on screen. */
 	if (terminal->row_dirty != NULL && row_in_pane >= 0 &&
 	    row_in_pane < terminal->row_dirty_cap && !terminal->row_dirty[row_in_pane]) {
 		if (!editorAppendThemeReset(wb)) {

@@ -139,8 +139,8 @@ static int terminalTakeResizeEvent(void) {
  * bound on how stale their results can get when nothing else wakes the loop. */
 #define TERMINAL_SOFT_WORK_POLL_MS 50
 
-/* Cap on how many pollfd entries we set up per wait. One stdin plus the
- * terminal panes; in practice users have a handful at most. */
+/* Upper bound on pollfd entries (stdin + terminal panes), sized to keep the
+ * pollfd[] on the stack. */
 #define TERMINAL_POLL_FDS_CAP 64
 
 /* Minimum wall-clock gap between consecutive full-screen refreshes when the
@@ -165,8 +165,6 @@ void editorMarkFrameRendered(void) {
 	g_terminal_last_frame_ms = terminalMonotonicMs();
 }
 
-/* Pump all terminal panes while recording timing + bytes into the per-frame
- * perf accumulator. Returns the number of bytes pumped (0 if none). */
 static int terminalPumpAllWithPerf(void) {
 	long t0 = editorPerfEnabled() ? editorPerfMonotonicUs() : 0;
 	int bytes = editorTerminalPanePumpAll(E.layout_root);
@@ -964,10 +962,6 @@ int editorReadKey(void) {
 				terminalCoalesceFloodFrame();
 				return TERMINAL_EVENT;
 			}
-			/* Sleep until stdin, any PTY master, or SIGWINCH wakes us — or
-			 * until the soft-work poll window elapses. Replaces the old
-			 * VTIME=1-driven busy loop (which capped redraws at ~10 FPS and
-			 * blocked PTY output behind stdin). */
 			terminalWaitForInput(TERMINAL_SOFT_WORK_POLL_MS);
 		}
 

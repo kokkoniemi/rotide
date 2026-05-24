@@ -50,16 +50,14 @@ struct editorTerminalPane {
 	int sel_cursor_row;
 	int sel_cursor_col;
 
-	/* Scratch buffer reused by the renderer for one row of cells per draw.
-	 * Owned by the pane; grown on demand and freed in PaneFree. */
+	/* Pane-owned scratch reused by the renderer to read one row of cells per
+	 * draw, so refreshes don't malloc per drawn row. */
 	VTermScreenCell *render_row_scratch;
 	int render_row_scratch_cap;
 
-	/* Per-row dirty bits for the live screen (length == rows). 1 == needs
-	 * a redraw this frame; 0 == cells unchanged since the last frame so the
-	 * renderer may skip the emit and leave the terminal's previous output in
-	 * place. Set by libvterm damage callbacks, by sb_pushline/popline (when
-	 * content shifted), by scroll/selection/resize, and at pane creation. */
+	/* Per-row dirty bits for the live screen. 0 means the cells are
+	 * unchanged since the last frame, so the renderer may skip the emit and
+	 * leave the terminal's previous output in place. */
 	unsigned char *row_dirty;
 	int row_dirty_cap;
 };
@@ -111,7 +109,6 @@ void editorTerminalPaneSelectionBegin(struct editorTerminalPane *terminal, int r
 void editorTerminalPaneSelectionUpdate(struct editorTerminalPane *terminal, int row, int col);
 void editorTerminalPaneSelectionClear(struct editorTerminalPane *terminal);
 
-/* Returns 1 if (row,col) falls inside the active selection, else 0. */
 int editorTerminalPaneSelectionContains(const struct editorTerminalPane *terminal, int row, int col);
 
 /* Extract the selection as a malloc'd UTF-8 string (NUL-terminated). Caller
@@ -124,7 +121,6 @@ char *editorTerminalPaneSelectionExtract(const struct editorTerminalPane *termin
  * copy or on allocation failure. */
 int editorTerminalPaneCopySelection(struct editorTerminalPane *terminal);
 
-/* Set the global default scrollback cap for new panes (lines). */
 void editorTerminalPaneSetDefaultScrollbackLines(int lines);
 int editorTerminalPaneGetDefaultScrollbackLines(void);
 

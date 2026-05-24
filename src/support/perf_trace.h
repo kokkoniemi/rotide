@@ -21,7 +21,6 @@ void editorPerfRecordRefreshUs(long us);
 void editorPerfRecordFdsReady(int count);
 void editorPerfEndFrame(void);
 
-/* Convenience: returns microseconds since an arbitrary monotonic epoch. */
 long editorPerfMonotonicUs(void);
 
 #endif

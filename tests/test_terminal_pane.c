@@ -302,7 +302,6 @@ static int test_terminal_pane_csi_excess_args_does_not_crash(void) {
 	if (screen != NULL) {
 		vterm_screen_reset(screen, 1);
 	}
-	/* The exact bytes from the nightly fuzz crash artifact. */
 	const char crash[] = "\x1b[1;;;;;;;;;;;;;;;;;;;;;;;;;;;E5\x1b[1E5frr0m7";
 	vterm_input_write(vt, crash, sizeof(crash) - 1);
 	if (screen != NULL) {
@@ -414,7 +413,6 @@ static int test_terminal_pane_scrollback_ring_captures_evicted_rows(void) {
 	if (t == NULL) {
 		return 1;
 	}
-	/* Feed lines directly through the vterm parser. */
 	const char *input = "line1\r\nline2\r\nline3\r\nline4\r\nline5\r\n";
 	vterm_input_write(t->vt, input, strlen(input));
 	vterm_screen_flush_damage(t->screen);

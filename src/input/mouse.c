@@ -1296,7 +1296,6 @@ int editorHandleMouseEventInTerminalPane(const struct editorMouseEvent *event) {
 				return 1;
 			case EDITOR_MOUSE_EVENT_LEFT_RELEASE:
 				editorTerminalPaneSelectionUpdate(terminal, log_row, col);
-				/* Auto-copy on release if there's a real range. */
 				if (terminal->sel_active &&
 				    (terminal->sel_anchor_row != terminal->sel_cursor_row ||
 				     terminal->sel_anchor_col != terminal->sel_cursor_col)) {

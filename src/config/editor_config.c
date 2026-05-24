@@ -1210,8 +1210,6 @@ editorColumnSelectDragModifierLoadConfigured(int *modifier_out) {
 	return status;
 }
 
-/* ----- terminal.scrollback_lines (silent loader) ------------------- */
-
 static int terminalConfigParseScrollbackLines(const char *path, int *value_out) {
 	FILE *fp = fopen(path, "r");
 	if (fp == NULL) {
