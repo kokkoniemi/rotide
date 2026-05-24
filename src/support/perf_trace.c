@@ -13,7 +13,7 @@ struct perfFrameAccum {
 	int fds_ready;
 };
 
-static struct perfFrameAccum g_frame;
+static struct perfFrameAccum g_perf_frame;
 
 long editorPerfMonotonicUs(void) {
 	struct timespec ts;
@@ -36,38 +36,38 @@ void editorPerfBeginFrame(void) {
 	if (!g_perf_enabled) {
 		return;
 	}
-	g_frame.pump_us = 0;
-	g_frame.refresh_us = 0;
-	g_frame.bytes_pumped = 0;
-	g_frame.fds_ready = 0;
+	g_perf_frame.pump_us = 0;
+	g_perf_frame.refresh_us = 0;
+	g_perf_frame.bytes_pumped = 0;
+	g_perf_frame.fds_ready = 0;
 }
 
 void editorPerfRecordPumpBytes(int bytes) {
 	if (!g_perf_enabled || bytes <= 0) {
 		return;
 	}
-	g_frame.bytes_pumped += bytes;
+	g_perf_frame.bytes_pumped += bytes;
 }
 
 void editorPerfRecordPumpUs(long us) {
 	if (!g_perf_enabled || us <= 0) {
 		return;
 	}
-	g_frame.pump_us += us;
+	g_perf_frame.pump_us += us;
 }
 
 void editorPerfRecordRefreshUs(long us) {
 	if (!g_perf_enabled || us <= 0) {
 		return;
 	}
-	g_frame.refresh_us += us;
+	g_perf_frame.refresh_us += us;
 }
 
 void editorPerfRecordFdsReady(int count) {
 	if (!g_perf_enabled || count <= 0) {
 		return;
 	}
-	g_frame.fds_ready += count;
+	g_perf_frame.fds_ready += count;
 }
 
 void editorPerfEndFrame(void) {
@@ -75,6 +75,6 @@ void editorPerfEndFrame(void) {
 		return;
 	}
 	long ms = editorPerfMonotonicUs() / 1000L;
-	fprintf(stderr, "ROTIDE_PERF,%ld,%ld,%ld,%d,%d\n", ms, g_frame.pump_us, g_frame.refresh_us,
-	        g_frame.bytes_pumped, g_frame.fds_ready);
+	fprintf(stderr, "ROTIDE_PERF,%ld,%ld,%ld,%d,%d\n", ms, g_perf_frame.pump_us,
+	        g_perf_frame.refresh_us, g_perf_frame.bytes_pumped, g_perf_frame.fds_ready);
 }

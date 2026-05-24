@@ -1210,7 +1210,7 @@ editorColumnSelectDragModifierLoadConfigured(int *modifier_out) {
 	return status;
 }
 
-static int terminalConfigParseScrollbackLines(const char *path, int *value_out) {
+static int configEditorParseTerminalScrollbackLines(const char *path, int *value_out) {
 	FILE *fp = fopen(path, "r");
 	if (fp == NULL) {
 		return 0;
@@ -1292,7 +1292,7 @@ void editorTerminalConfigLoadConfigured(void) {
 		return;
 	}
 	int lines = editorTerminalPaneGetDefaultScrollbackLines();
-	if (terminalConfigParseScrollbackLines(global_path, &lines)) {
+	if (configEditorParseTerminalScrollbackLines(global_path, &lines)) {
 		editorTerminalPaneSetDefaultScrollbackLines(lines);
 	}
 	free(global_path);

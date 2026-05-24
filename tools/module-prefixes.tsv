@@ -68,6 +68,7 @@ src/render/write_buf.c	wb
 src/rotide.c	rotide
 src/support/alloc.c	alloc
 src/support/file_io.c	fileIo
+src/support/perf_trace.c	perf
 src/support/save_syscalls.c	saveSyscalls
 src/support/terminal.c	terminal
 src/terminal/pty.c	pty
