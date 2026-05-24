@@ -27,6 +27,12 @@ auto_indent = false
 indent_style = "spaces"
 indent_width = 4
 
+# --- [terminal] ---------------------------------------------------------------
+# scrollback_lines: how many lines of terminal-pane history to keep for
+# wheel-scroll / selection. Default 10000. 0 disables scrollback.
+[terminal]
+scrollback_lines = 10000
+
 # --- [theme] ------------------------------------------------------------------
 # name selects a built-in theme or a custom theme at ~/.rotide/themes/<name>.toml.
 # Built-ins:

@@ -408,6 +408,99 @@ static int test_terminal_pane_tbc_out_of_range_col_does_not_crash(void) {
 	return 0;
 }
 
+static int test_terminal_pane_scrollback_ring_captures_evicted_rows(void) {
+	/* 3-row screen so a couple of LFs push lines into scrollback. */
+	struct editorTerminalPane *t = editorTerminalPaneCreate("sleep 5", 20, 3);
+	if (t == NULL) {
+		return 1;
+	}
+	/* Feed lines directly through the vterm parser. */
+	const char *input = "line1\r\nline2\r\nline3\r\nline4\r\nline5\r\n";
+	vterm_input_write(t->vt, input, strlen(input));
+	vterm_screen_flush_damage(t->screen);
+	int failed = t->sb_size < 1;
+	/* Pull most-recent scrollback row; expect "line1" (or "line2") depending
+	 * on where the screen scroll lands relative to the cursor. Just verify
+	 * something was captured and the row is non-empty. */
+	if (!failed) {
+		VTermScreenCell row[20];
+		failed = !editorTerminalPaneGetLogRow(t, -1, row);
+		if (!failed) {
+			int has_text = 0;
+			for (int i = 0; i < 20; i++) {
+				if (row[i].chars[0] != 0 && row[i].chars[0] != ' ') {
+					has_text = 1;
+					break;
+				}
+			}
+			failed = !has_text;
+		}
+	}
+	editorTerminalPaneFree(t);
+	return failed;
+}
+
+static int test_terminal_pane_scroll_by_clamps_to_history(void) {
+	struct editorTerminalPane *t = editorTerminalPaneCreate("sleep 5", 20, 3);
+	if (t == NULL) {
+		return 1;
+	}
+	const char *input = "a\r\nb\r\nc\r\nd\r\ne\r\n";
+	vterm_input_write(t->vt, input, strlen(input));
+	vterm_screen_flush_damage(t->screen);
+	int sb = t->sb_size;
+	int failed = sb < 1;
+	/* Way past the end clamps. */
+	if (!failed) {
+		(void)editorTerminalPaneScrollBy(t, 9999);
+		failed = t->scroll_offset != sb;
+	}
+	/* Way past the front clamps to 0. */
+	if (!failed) {
+		(void)editorTerminalPaneScrollBy(t, -9999);
+		failed = t->scroll_offset != 0;
+	}
+	editorTerminalPaneFree(t);
+	return failed;
+}
+
+static int test_terminal_pane_selection_extract_returns_visible_text(void) {
+	struct editorTerminalPane *t = editorTerminalPaneCreate("sleep 5", 20, 3);
+	if (t == NULL) {
+		return 1;
+	}
+	const char *input = "hello world";
+	vterm_input_write(t->vt, input, strlen(input));
+	vterm_screen_flush_damage(t->screen);
+	/* Select cols 0..5 on live row 0 (i.e. "hello"). */
+	editorTerminalPaneSelectionBegin(t, 0, 0);
+	editorTerminalPaneSelectionUpdate(t, 0, 5);
+	size_t len = 0;
+	char *text = editorTerminalPaneSelectionExtract(t, &len);
+	int failed = text == NULL || strncmp(text, "hello", 5) != 0;
+	free(text);
+	editorTerminalPaneFree(t);
+	return failed;
+}
+
+static int test_terminal_pane_selection_contains_matches_bounds(void) {
+	struct editorTerminalPane *t = editorTerminalPaneCreate("sleep 5", 20, 3);
+	if (t == NULL) {
+		return 1;
+	}
+	editorTerminalPaneSelectionBegin(t, 1, 2);
+	editorTerminalPaneSelectionUpdate(t, 1, 5);
+	int failed = 0;
+	failed |= !editorTerminalPaneSelectionContains(t, 1, 2);
+	failed |= !editorTerminalPaneSelectionContains(t, 1, 4);
+	failed |= editorTerminalPaneSelectionContains(t, 1, 5); /* exclusive end */
+	failed |= editorTerminalPaneSelectionContains(t, 0, 3);
+	editorTerminalPaneSelectionClear(t);
+	failed |= editorTerminalPaneSelectionContains(t, 1, 3);
+	editorTerminalPaneFree(t);
+	return failed ? 1 : 0;
+}
+
 static int test_terminal_pane_write_forwards_to_child(void) {
 	/* `cat` echoes typed bytes back through the PTY. Write "hi\n", read
 	 * via pump, expect the bytes to land in the vterm screen. */
@@ -461,6 +554,14 @@ const struct editorTestCase g_terminal_pane_tests[] = {
          test_terminal_pane_erase_oob_rect_does_not_crash},
         {"terminal_pane_tbc_out_of_range_col_does_not_crash",
          test_terminal_pane_tbc_out_of_range_col_does_not_crash},
+        {"terminal_pane_scrollback_ring_captures_evicted_rows",
+         test_terminal_pane_scrollback_ring_captures_evicted_rows},
+        {"terminal_pane_scroll_by_clamps_to_history",
+         test_terminal_pane_scroll_by_clamps_to_history},
+        {"terminal_pane_selection_extract_returns_visible_text",
+         test_terminal_pane_selection_extract_returns_visible_text},
+        {"terminal_pane_selection_contains_matches_bounds",
+         test_terminal_pane_selection_contains_matches_bounds},
 };
 
 const int g_terminal_pane_test_count =

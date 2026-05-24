@@ -101,4 +101,9 @@ enum editorColumnSelectDragModifierLoadStatus
 editorColumnSelectDragModifierLoadConfigured(int *modifier_out);
 int editorParseColumnSelectDragModifierValue(const char *value, int *modifier_out);
 
+/* Reads [terminal] scrollback_lines from the global config (if present) and
+ * applies it to the terminal pane default. Silently ignores missing/invalid
+ * values — they fall back to the built-in default. */
+void editorTerminalConfigLoadConfigured(void);
+
 #endif

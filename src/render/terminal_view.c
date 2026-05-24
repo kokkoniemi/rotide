@@ -4,6 +4,8 @@
 #include "vterm.h"
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/wait.h>
 
 static int terminalViewUtf8EncodeCodepoint(uint32_t cp, char *out) {
@@ -162,21 +164,34 @@ int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *term
 	if (!editorAppendThemeReset(wb)) {
 		return 0;
 	}
+	/* Translate pane-local row into the pane's log-row coordinate so we can
+	 * pull from scrollback when the user has scrolled up, and so selection
+	 * checks (which use log-row) line up. */
+	int log_row = row_in_pane - terminal->scroll_offset;
+	int row_cols = terminal->cols;
+	if (row_cols <= 0) {
+		row_cols = slice_cols;
+	}
+	VTermScreenCell *row_buf = NULL;
+	int have_row = 0;
+	if (row_cols > 0) {
+		row_buf = calloc((size_t)row_cols, sizeof(*row_buf));
+		if (row_buf != NULL) {
+			have_row = editorTerminalPaneGetLogRow(terminal, log_row, row_buf);
+		}
+	}
 	int emitted = 0;
 	int col = col_in_pane;
 	int last_was_plain = 0;
 	int any_styled_emitted = 0;
+	int last_was_selected = 0;
 	while (emitted < slice_cols) {
-		VTermPos pos = {.row = row_in_pane, .col = col};
 		VTermScreenCell cell;
-		if (row_in_pane < 0 || row_in_pane >= terminal->rows || col < 0 ||
-		    col >= terminal->cols || !vterm_screen_get_cell(terminal->screen, pos, &cell)) {
-			if (!wbAppend(wb, " ", 1)) {
-				return 0;
-			}
-			emitted++;
-			col++;
-			continue;
+		int in_bounds = have_row && col >= 0 && col < row_cols;
+		if (!in_bounds) {
+			memset(&cell, 0, sizeof(cell));
+		} else {
+			cell = row_buf[col];
 		}
 		int cell_width = cell.width;
 		if (cell_width < 1) {
@@ -185,28 +200,41 @@ int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *term
 		if (emitted + cell_width > slice_cols) {
 			while (emitted < slice_cols) {
 				if (!wbAppend(wb, " ", 1)) {
+					free(row_buf);
 					return 0;
 				}
 				emitted++;
 			}
 			break;
 		}
+		int selected = in_bounds &&
+		               editorTerminalPaneSelectionContains(terminal, log_row, col);
 		int plain = terminalViewCellIsPlain(&cell);
 		if (plain) {
-			if (any_styled_emitted && !last_was_plain) {
+			if ((any_styled_emitted && !last_was_plain) || last_was_selected != selected) {
 				if (!editorAppendThemeReset(wb)) {
+					free(row_buf);
 					return 0;
 				}
+				last_was_plain = 0;
+				any_styled_emitted = 0;
 			}
 		} else {
 			if (!terminalViewDrawCellAttrs(wb, &cell)) {
+				free(row_buf);
 				return 0;
 			}
 			any_styled_emitted = 1;
 		}
-		last_was_plain = plain;
-		if (cell.chars[0] == 0) {
+		if (selected && !wbAppend(wb, "\x1b[7m", 4)) {
+			free(row_buf);
+			return 0;
+		}
+		last_was_plain = plain && !selected;
+		last_was_selected = selected;
+		if (!in_bounds || cell.chars[0] == 0) {
 			if (!wbAppend(wb, " ", 1)) {
+				free(row_buf);
 				return 0;
 			}
 		} else {
@@ -214,6 +242,7 @@ int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *term
 				char utf8[4];
 				int n = terminalViewUtf8EncodeCodepoint(cell.chars[i], utf8);
 				if (n > 0 && !wbAppend(wb, utf8, (size_t)n)) {
+					free(row_buf);
 					return 0;
 				}
 			}
@@ -221,6 +250,7 @@ int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *term
 		emitted += cell_width;
 		col += cell_width;
 	}
+	free(row_buf);
 	if (!editorAppendThemeReset(wb)) {
 		return 0;
 	}
