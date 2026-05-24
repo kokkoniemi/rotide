@@ -1832,7 +1832,9 @@ static void request_status_string(VTermState *state, VTermStringFragment frag)
   if(!frag.final)
     return;
 
-  switch(tmp[0] | tmp[1]<<8 | tmp[2]<<16) {
+  /* rotide patch: cast each byte to unsigned char so a high-bit byte doesn't
+   * sign-extend to a negative int and trip UBSan on the left shift. */
+  switch((unsigned char)tmp[0] | (unsigned char)tmp[1]<<8 | (unsigned char)tmp[2]<<16) {
     case 'm': {
       // Query SGR
       long args[20];
