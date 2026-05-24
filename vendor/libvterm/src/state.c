@@ -184,20 +184,29 @@ static void grow_combine_buffer(VTermState *state)
   state->combine_chars_size = new_size;
 }
 
+/* rotide patch: bound col against state->cols before indexing tabstops[].
+ * pos.col can transiently go out of range under crafted CSI sequences and
+ * a negative col would index the byte before the allocation. */
 static void set_col_tabstop(VTermState *state, int col)
 {
+  if(col < 0 || col >= state->cols)
+    return;
   unsigned char mask = 1 << (col & 7);
   state->tabstops[col >> 3] |= mask;
 }
 
 static void clear_col_tabstop(VTermState *state, int col)
 {
+  if(col < 0 || col >= state->cols)
+    return;
   unsigned char mask = 1 << (col & 7);
   state->tabstops[col >> 3] &= ~mask;
 }
 
 static int is_col_tabstop(VTermState *state, int col)
 {
+  if(col < 0 || col >= state->cols)
+    return 0;
   unsigned char mask = 1 << (col & 7);
   return state->tabstops[col >> 3] & mask;
 }

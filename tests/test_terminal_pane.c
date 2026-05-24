@@ -383,6 +383,31 @@ static int test_terminal_pane_erase_oob_rect_does_not_crash(void) {
 	return 0;
 }
 
+/* Regression: TBC (CSI g) calls clear_col_tabstop(state, state->pos.col)
+ * directly. Under crafted sequences pos.col can go out of range and the
+ * helper used to index tabstops[col >> 3] without bounding col, reading
+ * (or writing) the byte before the allocation when col was negative. */
+static int test_terminal_pane_tbc_out_of_range_col_does_not_crash(void) {
+	VTerm *vt = vterm_new(24, 80);
+	if (vt == NULL) {
+		return 1;
+	}
+	vterm_set_utf8(vt, 1);
+	VTermScreen *screen = vterm_obtain_screen(vt);
+	if (screen != NULL) {
+		vterm_screen_reset(screen, 1);
+	}
+	const char crash[] =
+	        "\x1b\x32\x1b[52;4X\xc2\x00\x9f\x1b[0g\x09\x00@P\x00\x00"
+	        "\x1b[\x00\x1b[\x00";
+	vterm_input_write(vt, crash, sizeof(crash) - 1);
+	if (screen != NULL) {
+		vterm_screen_flush_damage(screen);
+	}
+	vterm_free(vt);
+	return 0;
+}
+
 static int test_terminal_pane_write_forwards_to_child(void) {
 	/* `cat` echoes typed bytes back through the PTY. Write "hi\n", read
 	 * via pump, expect the bytes to land in the vterm screen. */
@@ -434,6 +459,8 @@ const struct editorTestCase g_terminal_pane_tests[] = {
          test_terminal_pane_dcs_embedded_esc_does_not_overread},
         {"terminal_pane_erase_oob_rect_does_not_crash",
          test_terminal_pane_erase_oob_rect_does_not_crash},
+        {"terminal_pane_tbc_out_of_range_col_does_not_crash",
+         test_terminal_pane_tbc_out_of_range_col_does_not_crash},
 };
 
 const int g_terminal_pane_test_count =
