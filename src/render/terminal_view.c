@@ -1,38 +1,13 @@
 #include "render/terminal_view.h"
 
 #include "render/ansi_style.h"
+#include "text/utf8.h"
 #include "vterm.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
-
-static int terminalViewUtf8EncodeCodepoint(uint32_t cp, char *out) {
-	if (cp < 0x80) {
-		out[0] = (char)cp;
-		return 1;
-	}
-	if (cp < 0x800) {
-		out[0] = (char)(0xC0 | (cp >> 6));
-		out[1] = (char)(0x80 | (cp & 0x3F));
-		return 2;
-	}
-	if (cp < 0x10000) {
-		out[0] = (char)(0xE0 | (cp >> 12));
-		out[1] = (char)(0x80 | ((cp >> 6) & 0x3F));
-		out[2] = (char)(0x80 | (cp & 0x3F));
-		return 3;
-	}
-	if (cp < 0x110000) {
-		out[0] = (char)(0xF0 | (cp >> 18));
-		out[1] = (char)(0x80 | ((cp >> 12) & 0x3F));
-		out[2] = (char)(0x80 | ((cp >> 6) & 0x3F));
-		out[3] = (char)(0x80 | (cp & 0x3F));
-		return 4;
-	}
-	return 0;
-}
 
 static int terminalViewAppendColorSgr(struct writeBuf *wb, const VTermColor *color, int is_fg) {
 	char esc[32];
@@ -175,8 +150,10 @@ int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *term
 	VTermScreenCell *row_buf = NULL;
 	int have_row = 0;
 	if (row_cols > 0) {
-		row_buf = calloc((size_t)row_cols, sizeof(*row_buf));
+		/* Pane-scoped scratch — avoids a malloc/free per drawn row per frame. */
+		row_buf = editorTerminalPaneEnsureRenderRowScratch(terminal, row_cols);
 		if (row_buf != NULL) {
+			memset(row_buf, 0, (size_t)row_cols * sizeof(*row_buf));
 			have_row = editorTerminalPaneGetLogRow(terminal, log_row, row_buf);
 		}
 	}
@@ -200,7 +177,6 @@ int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *term
 		if (emitted + cell_width > slice_cols) {
 			while (emitted < slice_cols) {
 				if (!wbAppend(wb, " ", 1)) {
-					free(row_buf);
 					return 0;
 				}
 				emitted++;
@@ -213,7 +189,6 @@ int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *term
 		if (plain) {
 			if ((any_styled_emitted && !last_was_plain) || last_was_selected != selected) {
 				if (!editorAppendThemeReset(wb)) {
-					free(row_buf);
 					return 0;
 				}
 				last_was_plain = 0;
@@ -221,28 +196,24 @@ int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *term
 			}
 		} else {
 			if (!terminalViewDrawCellAttrs(wb, &cell)) {
-				free(row_buf);
 				return 0;
 			}
 			any_styled_emitted = 1;
 		}
-		if (selected && !wbAppend(wb, "\x1b[7m", 4)) {
-			free(row_buf);
+		if (selected && !editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_SELECTION)) {
 			return 0;
 		}
 		last_was_plain = plain && !selected;
 		last_was_selected = selected;
 		if (!in_bounds || cell.chars[0] == 0) {
 			if (!wbAppend(wb, " ", 1)) {
-				free(row_buf);
 				return 0;
 			}
 		} else {
 			for (int i = 0; i < VTERM_MAX_CHARS_PER_CELL && cell.chars[i] != 0; i++) {
 				char utf8[4];
-				int n = terminalViewUtf8EncodeCodepoint(cell.chars[i], utf8);
+				int n = editorUtf8EncodeCodepoint(cell.chars[i], utf8);
 				if (n > 0 && !wbAppend(wb, utf8, (size_t)n)) {
-					free(row_buf);
 					return 0;
 				}
 			}
@@ -250,7 +221,6 @@ int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *term
 		emitted += cell_width;
 		col += cell_width;
 	}
-	free(row_buf);
 	if (!editorAppendThemeReset(wb)) {
 		return 0;
 	}

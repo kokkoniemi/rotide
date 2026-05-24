@@ -49,6 +49,11 @@ struct editorTerminalPane {
 	int sel_anchor_col;
 	int sel_cursor_row;
 	int sel_cursor_col;
+
+	/* Scratch buffer reused by the renderer for one row of cells per draw.
+	 * Owned by the pane; grown on demand and freed in PaneFree. */
+	VTermScreenCell *render_row_scratch;
+	int render_row_scratch_cap;
 };
 
 /* Spawn command in PTY + vterm. Caller owns returned pane. */
@@ -114,6 +119,11 @@ int editorTerminalPaneCopySelection(struct editorTerminalPane *terminal);
 /* Set the global default scrollback cap for new panes (lines). */
 void editorTerminalPaneSetDefaultScrollbackLines(int lines);
 int editorTerminalPaneGetDefaultScrollbackLines(void);
+
+/* Ensures pane->render_row_scratch holds at least `cells` slots, growing it
+ * if needed. Returns the scratch pointer, or NULL on allocation failure. */
+VTermScreenCell *editorTerminalPaneEnsureRenderRowScratch(struct editorTerminalPane *terminal,
+                                                          int cells);
 
 /* Build a TERMINAL leaf node with owned terminal pane state. */
 struct editorPaneNode;

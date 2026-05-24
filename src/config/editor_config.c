@@ -1221,6 +1221,16 @@ static int terminalConfigParseScrollbackLines(const char *path, int *value_out) 
 	int found = 0;
 	char line[1024];
 	while (fgets(line, sizeof(line), fp) != NULL) {
+		/* Skip the rest of any over-long line so we don't half-parse a key
+		 * that spans more than the buffer. Matches the strictness of the
+		 * other [editor]/[lsp]/etc. loaders. */
+		size_t line_len = strlen(line);
+		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
+			int ch;
+			while ((ch = fgetc(fp)) != EOF && ch != '\n') {
+			}
+			continue;
+		}
 		editorConfigStripInlineComment(line);
 		editorConfigTrimRight(line);
 		char *trimmed = editorConfigTrimLeft(line);
@@ -1233,6 +1243,12 @@ static int terminalConfigParseScrollbackLines(const char *path, int *value_out) 
 				continue;
 			}
 			*close = '\0';
+			char *tail = editorConfigTrimLeft(close + 1);
+			if (tail[0] != '\0') {
+				/* `[terminal] junk` shouldn't activate the table. */
+				in_terminal_table = 0;
+				continue;
+			}
 			char *table = editorConfigTrimLeft(trimmed + 1);
 			editorConfigTrimRight(table);
 			in_terminal_table = strcmp(table, "terminal") == 0;

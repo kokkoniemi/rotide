@@ -29,7 +29,11 @@ indent_width = 4
 
 # --- [terminal] ---------------------------------------------------------------
 # scrollback_lines: how many lines of terminal-pane history to keep for
-# wheel-scroll / selection. Default 10000. 0 disables scrollback.
+# wheel-scroll / selection. Default 10000. 0 disables scrollback. Capped at
+# 1,000,000. Each retained row owns a cell array sized to the column width at
+# capture time (roughly 80 bytes/cell), so a wide pane with the cap maxed out
+# can cost in the tens of MB per pane — bump cautiously if you keep many
+# terminal panes open.
 [terminal]
 scrollback_lines = 10000
 

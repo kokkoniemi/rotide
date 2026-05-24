@@ -2,6 +2,7 @@
 
 #include "editing/selection.h"
 #include "rotide.h"
+#include "text/utf8.h"
 #include "vterm.h"
 #include "vterm_keycodes.h"
 #include "workspace/layout.h"
@@ -89,23 +90,15 @@ static int terminalPaneSbPushline(int cols, const VTermScreenCell *cells, void *
 	if (t == NULL || cols <= 0 || cells == NULL) {
 		return 1;
 	}
-	/* Selection log-rows shift up by one when a new row enters scrollback. */
-	if (t->sel_active) {
-		t->sel_anchor_row -= 1;
-		t->sel_cursor_row -= 1;
-	}
-	/* If the user is actively scrolled-up, keep the same content under their
-	 * eyes by bumping scroll_offset to compensate. */
-	if (t->scroll_offset > 0 && t->scroll_offset < t->sb_cap) {
-		t->scroll_offset += 1;
-	}
 	if (t->sb_cap <= 0 || t->sb_rows == NULL) {
 		return 1;
 	}
+	/* Resize the destination slot before mutating any user-visible state — if
+	 * realloc fails we drop the row, and the user's selection / scroll_offset
+	 * must not skew as if the row had landed. */
 	struct terminalScrollbackRow *slot = &t->sb_rows[t->sb_head];
 	VTermScreenCell *new_cells = realloc(slot->cells, (size_t)cols * sizeof(*new_cells));
 	if (new_cells == NULL) {
-		/* Drop the row rather than crash; sb_size stays unchanged. */
 		return 1;
 	}
 	memcpy(new_cells, cells, (size_t)cols * sizeof(*new_cells));
@@ -114,6 +107,16 @@ static int terminalPaneSbPushline(int cols, const VTermScreenCell *cells, void *
 	t->sb_head = (t->sb_head + 1) % t->sb_cap;
 	if (t->sb_size < t->sb_cap) {
 		t->sb_size += 1;
+	}
+	/* Now that the row really entered scrollback, shift the selection up by
+	 * one and bump scroll_offset so the user's view stays anchored to the
+	 * same content. */
+	if (t->sel_active) {
+		t->sel_anchor_row -= 1;
+		t->sel_cursor_row -= 1;
+	}
+	if (t->scroll_offset > 0 && t->scroll_offset < t->sb_cap) {
+		t->scroll_offset += 1;
 	}
 	if (t->scroll_offset > t->sb_size) {
 		t->scroll_offset = t->sb_size;
@@ -246,7 +249,27 @@ void editorTerminalPaneFree(void *pane) {
 		free(t->sb_rows);
 		t->sb_rows = NULL;
 	}
+	free(t->render_row_scratch);
+	t->render_row_scratch = NULL;
 	free(t);
+}
+
+VTermScreenCell *editorTerminalPaneEnsureRenderRowScratch(struct editorTerminalPane *terminal,
+                                                          int cells) {
+	if (terminal == NULL || cells <= 0) {
+		return NULL;
+	}
+	if (terminal->render_row_scratch_cap >= cells) {
+		return terminal->render_row_scratch;
+	}
+	VTermScreenCell *grown =
+	        realloc(terminal->render_row_scratch, (size_t)cells * sizeof(*grown));
+	if (grown == NULL) {
+		return NULL;
+	}
+	terminal->render_row_scratch = grown;
+	terminal->render_row_scratch_cap = cells;
+	return grown;
 }
 
 int editorTerminalPanePump(struct editorTerminalPane *terminal) {
@@ -564,32 +587,6 @@ int editorTerminalPaneSelectionContains(const struct editorTerminalPane *termina
 	return 1;
 }
 
-static int terminalPaneUtf8Encode(uint32_t cp, char *out) {
-	if (cp < 0x80) {
-		out[0] = (char)cp;
-		return 1;
-	}
-	if (cp < 0x800) {
-		out[0] = (char)(0xC0 | (cp >> 6));
-		out[1] = (char)(0x80 | (cp & 0x3F));
-		return 2;
-	}
-	if (cp < 0x10000) {
-		out[0] = (char)(0xE0 | (cp >> 12));
-		out[1] = (char)(0x80 | ((cp >> 6) & 0x3F));
-		out[2] = (char)(0x80 | (cp & 0x3F));
-		return 3;
-	}
-	if (cp < 0x110000) {
-		out[0] = (char)(0xF0 | (cp >> 18));
-		out[1] = (char)(0x80 | ((cp >> 12) & 0x3F));
-		out[2] = (char)(0x80 | ((cp >> 6) & 0x3F));
-		out[3] = (char)(0x80 | (cp & 0x3F));
-		return 4;
-	}
-	return 0;
-}
-
 char *editorTerminalPaneSelectionExtract(const struct editorTerminalPane *terminal,
                                          size_t *len_out) {
 	if (len_out != NULL) {
@@ -661,7 +658,7 @@ char *editorTerminalPaneSelectionExtract(const struct editorTerminalPane *termin
 			}
 			for (int i = 0; i < VTERM_MAX_CHARS_PER_CELL && cell->chars[i] != 0; i++) {
 				char utf8[4];
-				int n = terminalPaneUtf8Encode(cell->chars[i], utf8);
+				int n = editorUtf8EncodeCodepoint(cell->chars[i], utf8);
 				if (n <= 0) {
 					continue;
 				}

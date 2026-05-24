@@ -9,6 +9,32 @@ int editorIsUtf8ContinuationByte(unsigned char c) {
 	return (c & 0xC0) == 0x80;
 }
 
+int editorUtf8EncodeCodepoint(unsigned int cp, char *out) {
+	if (cp < 0x80) {
+		out[0] = (char)cp;
+		return 1;
+	}
+	if (cp < 0x800) {
+		out[0] = (char)(0xC0 | (cp >> 6));
+		out[1] = (char)(0x80 | (cp & 0x3F));
+		return 2;
+	}
+	if (cp < 0x10000) {
+		out[0] = (char)(0xE0 | (cp >> 12));
+		out[1] = (char)(0x80 | ((cp >> 6) & 0x3F));
+		out[2] = (char)(0x80 | (cp & 0x3F));
+		return 3;
+	}
+	if (cp < 0x110000) {
+		out[0] = (char)(0xF0 | (cp >> 18));
+		out[1] = (char)(0x80 | ((cp >> 12) & 0x3F));
+		out[2] = (char)(0x80 | ((cp >> 6) & 0x3F));
+		out[3] = (char)(0x80 | (cp & 0x3F));
+		return 4;
+	}
+	return 0;
+}
+
 int editorUtf8DecodeCodepoint(const char *s, int len, unsigned int *cp) {
 	if (len <= 0) {
 		*cp = 0;
