@@ -345,11 +345,9 @@ static int test_editor_refresh_screen_vertical_split_renders_border(void) {
 
 static int test_editor_refresh_screen_vertical_split_renders_top_pane_strips(void) {
 	ASSERT_TRUE(editorTabsInit());
-	free(E.filename);
 	E.filename = strdup("/tmp/left.txt");
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_TRUE(editorTabNewEmpty());
-	free(E.filename);
 	E.filename = strdup("/tmp/right.txt");
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_TRUE(editorTabSwitchToIndex(0));
@@ -383,11 +381,9 @@ static int test_editor_refresh_screen_vertical_split_renders_top_pane_strips(voi
 
 static int test_editor_refresh_screen_horizontal_split_renders_bottom_tab_strip(void) {
 	ASSERT_TRUE(editorTabsInit());
-	free(E.filename);
 	E.filename = strdup("/tmp/top.txt");
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_TRUE(editorTabNewEmpty());
-	free(E.filename);
 	E.filename = strdup("/tmp/bottom.txt");
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_TRUE(editorTabSwitchToIndex(0));
@@ -421,7 +417,6 @@ static int test_editor_refresh_screen_horizontal_split_renders_bottom_tab_strip(
 static int test_editor_ensure_pane_occupancy_replaces_empty_pane_with_buffer(void) {
 	ASSERT_TRUE(editorTabsInit());
 	add_row("top-body");
-	free(E.filename);
 	E.filename = strdup("/tmp/top.txt");
 	ASSERT_TRUE(E.filename != NULL);
 	E.window_rows = 8;
@@ -450,15 +445,12 @@ static int test_editor_refresh_screen_nested_split_strip_keeps_outer_vborder(voi
 	 * The inner horizontal border row is now the lower-right pane's tab strip,
 	 * while the outer vertical border must still cross that row. */
 	ASSERT_TRUE(editorTabsInit());
-	free(E.filename);
 	E.filename = strdup("/tmp/left.txt");
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_TRUE(editorTabNewEmpty());
-	free(E.filename);
 	E.filename = strdup("/tmp/right-top.txt");
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_TRUE(editorTabNewEmpty());
-	free(E.filename);
 	E.filename = strdup("/tmp/right-bottom.txt");
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_TRUE(editorTabSwitchToIndex(0));

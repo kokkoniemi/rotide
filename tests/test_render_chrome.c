@@ -64,20 +64,17 @@
 
 static int test_editor_refresh_screen_renders_tab_bar_with_overflow_and_sanitized_labels(void) {
 	ASSERT_TRUE(editorTabsInit());
-	free(E.filename);
 	E.filename = strdup("/tmp/a\x1b"
 	                    "[31m.txt");
 	ASSERT_TRUE(E.filename != NULL);
 	E.dirty = 1;
 
 	ASSERT_TRUE(editorTabNewEmpty());
-	free(E.filename);
 	E.filename = strdup("/tmp/beta.txt");
 	ASSERT_TRUE(E.filename != NULL);
 	E.dirty = 0;
 
 	ASSERT_TRUE(editorTabNewEmpty());
-	free(E.filename);
 	E.filename = strdup("/tmp/gamma.txt");
 	ASSERT_TRUE(E.filename != NULL);
 	E.dirty = 0;
@@ -103,12 +100,10 @@ static int test_editor_refresh_screen_renders_tab_bar_with_overflow_and_sanitize
 
 static int test_editor_refresh_screen_preview_tab_label_uses_italics(void) {
 	ASSERT_TRUE(editorTabsInit());
-	free(E.filename);
 	E.filename = strdup("/tmp/sticky.txt");
 	ASSERT_TRUE(E.filename != NULL);
 
 	ASSERT_TRUE(editorTabNewEmpty());
-	free(E.filename);
 	E.filename = strdup("/tmp/preview.txt");
 	ASSERT_TRUE(E.filename != NULL);
 	E.is_preview = 1;
@@ -130,7 +125,6 @@ static int test_editor_refresh_screen_preview_tab_label_uses_italics(void) {
 
 static int test_editor_tab_layout_width_includes_right_label_padding(void) {
 	ASSERT_TRUE(editorTabsInit());
-	free(E.filename);
 	E.filename = strdup("/tmp/ab.txt");
 	ASSERT_TRUE(E.filename != NULL);
 
@@ -144,22 +138,18 @@ static int test_editor_tab_layout_width_includes_right_label_padding(void) {
 
 static int test_editor_tabs_align_view_keeps_active_visible_with_variable_widths(void) {
 	ASSERT_TRUE(editorTabsInit());
-	free(E.filename);
 	E.filename = strdup("/tmp/first_tab_with_a_long_name_001.txt");
 	ASSERT_TRUE(E.filename != NULL);
 
 	ASSERT_TRUE(editorTabNewEmpty());
-	free(E.filename);
 	E.filename = strdup("/tmp/second_tab_with_a_long_name_002.txt");
 	ASSERT_TRUE(E.filename != NULL);
 
 	ASSERT_TRUE(editorTabNewEmpty());
-	free(E.filename);
 	E.filename = strdup("/tmp/third_tab_with_a_long_name_003.txt");
 	ASSERT_TRUE(E.filename != NULL);
 
 	ASSERT_TRUE(editorTabNewEmpty());
-	free(E.filename);
 	E.filename = strdup("/tmp/fourth_tab_with_a_long_name_004.txt");
 	ASSERT_TRUE(E.filename != NULL);
 
@@ -188,22 +178,18 @@ static int test_editor_tabs_align_view_keeps_active_visible_with_variable_widths
 
 static int test_editor_draw_pane_tab_strip_uses_pane_membership_and_active_tab(void) {
 	ASSERT_TRUE(editorTabsInit());
-	free(E.filename);
 	E.filename = strdup("/tmp/alpha.txt");
 	ASSERT_TRUE(E.filename != NULL);
 
 	ASSERT_TRUE(editorTabNewEmpty());
-	free(E.filename);
 	E.filename = strdup("/tmp/beta.txt");
 	ASSERT_TRUE(E.filename != NULL);
 
 	ASSERT_TRUE(editorTabNewEmpty());
-	free(E.filename);
 	E.filename = strdup("/tmp/gamma.txt");
 	ASSERT_TRUE(E.filename != NULL);
 
 	ASSERT_TRUE(editorTabNewEmpty());
-	free(E.filename);
 	E.filename = strdup("/tmp/delta.txt");
 	ASSERT_TRUE(E.filename != NULL);
 
@@ -1157,7 +1143,6 @@ static int test_editor_refresh_screen_status_bar_truncates_prefix_keeps_basename
 
 static int test_editor_refresh_screen_tab_labels_middle_truncate_at_25_cols(void) {
 	ASSERT_TRUE(editorTabsInit());
-	free(E.filename);
 	E.filename = strdup("/tmp/aaaaaaaaaaabbbbbbbbbbbccccccccccc");
 	ASSERT_TRUE(E.filename != NULL);
 	E.window_rows = 3;
