@@ -387,7 +387,12 @@ string_state:
 
   if(string_start) {
     size_t string_len = bytes + pos - string_start;
-    if(vt->parser.in_esc)
+    /* rotide patch: guard the size_t underflow when string_start has been
+     * advanced past the trailing ESC by intervening C0 handling — without
+     * this an embedded ESC inside a DCS/OSC string ends the loop with
+     * string_len=0 and in_esc=true, producing a SIZE_MAX length that
+     * walks off the end of the input. */
+    if(vt->parser.in_esc && string_len)
       string_len -= 1;
     string_fragment(vt, string_start, string_len, false);
   }

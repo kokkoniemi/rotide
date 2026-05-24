@@ -333,6 +333,29 @@ static int test_terminal_pane_csi_huge_arg_does_not_overflow(void) {
 	return 0;
 }
 
+/* Regression: a DCS sequence with an embedded ESC followed by C0/NUL bytes
+ * used to leave the parser with string_start advanced past pos and in_esc
+ * still set, so the end-of-input fixup underflowed size_t (0 - 1) and the
+ * DECRQSS handler walked off the end of the input. */
+static int test_terminal_pane_dcs_embedded_esc_does_not_overread(void) {
+	VTerm *vt = vterm_new(24, 80);
+	if (vt == NULL) {
+		return 1;
+	}
+	vterm_set_utf8(vt, 1);
+	VTermScreen *screen = vterm_obtain_screen(vt);
+	if (screen != NULL) {
+		vterm_screen_reset(screen, 1);
+	}
+	const char crash[] = "\x1bP$q\x11\x1b\x1f\x1f\x1f\x1f\x1f\x00\x1f";
+	vterm_input_write(vt, crash, sizeof(crash) - 1);
+	if (screen != NULL) {
+		vterm_screen_flush_damage(screen);
+	}
+	vterm_free(vt);
+	return 0;
+}
+
 static int test_terminal_pane_write_forwards_to_child(void) {
 	/* `cat` echoes typed bytes back through the PTY. Write "hi\n", read
 	 * via pump, expect the bytes to land in the vterm screen. */
@@ -380,6 +403,8 @@ const struct editorTestCase g_terminal_pane_tests[] = {
          test_terminal_pane_csi_excess_args_does_not_crash},
         {"terminal_pane_csi_huge_arg_does_not_overflow",
          test_terminal_pane_csi_huge_arg_does_not_overflow},
+        {"terminal_pane_dcs_embedded_esc_does_not_overread",
+         test_terminal_pane_dcs_embedded_esc_does_not_overread},
 };
 
 const int g_terminal_pane_test_count =
