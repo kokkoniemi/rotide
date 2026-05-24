@@ -278,13 +278,22 @@ int editorTerminalPanePump(struct editorTerminalPane *terminal) {
 	}
 	int total = 0;
 	if (terminal->child.master_fd >= 0) {
-		char buf[4096];
+		/* Larger buffer amortizes the per-read syscall + vterm_input_write
+		 * call overhead under flood. Drop the old short-read break — on a
+		 * non-blocking fd the next read returns EAGAIN and we stop anyway,
+		 * and bursts that perfectly fill a 4 KB chunk used to cost us the
+		 * follow-up read. */
+		char buf[32 * 1024];
+		/* Per-pump cap so one runaway pane can't starve siblings or the
+		 * input loop. After this many bytes we bail; the main loop will
+		 * come back around and drain more on the next iteration. */
+		const int per_pump_cap = 1024 * 1024;
 		for (;;) {
 			ssize_t n = read(terminal->child.master_fd, buf, sizeof(buf));
 			if (n > 0) {
 				vterm_input_write(terminal->vt, buf, (size_t)n);
 				total += (int)n;
-				if ((size_t)n < sizeof(buf)) {
+				if (total >= per_pump_cap) {
 					break;
 				}
 				continue;
@@ -756,6 +765,36 @@ int editorTerminalPanePumpAll(struct editorPaneNode *root) {
 		        (struct editorTerminalPane *)root->as.leaf.kind_state);
 	}
 	return 0;
+}
+
+int editorTerminalPaneCollectMasterFds(struct editorPaneNode *root, int *fds_out, int capacity) {
+	if (root == NULL) {
+		return 0;
+	}
+	if (root->is_split) {
+		int first = editorTerminalPaneCollectMasterFds(root->as.split.first, fds_out,
+		                                               capacity);
+		int *next_out = NULL;
+		int next_cap = 0;
+		if (first < capacity && fds_out != NULL) {
+			next_out = fds_out + first;
+			next_cap = capacity - first;
+		}
+		int second = editorTerminalPaneCollectMasterFds(root->as.split.second, next_out,
+		                                                next_cap);
+		return first + second;
+	}
+	if (root->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL || root->as.leaf.kind_state == NULL) {
+		return 0;
+	}
+	struct editorTerminalPane *t = (struct editorTerminalPane *)root->as.leaf.kind_state;
+	if (t->child.master_fd < 0) {
+		return 0;
+	}
+	if (fds_out != NULL && capacity > 0) {
+		fds_out[0] = t->child.master_fd;
+	}
+	return 1;
 }
 
 static void terminalPaneResizeRecursive(struct editorPaneNode *node, struct editorRect rect,

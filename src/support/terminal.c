@@ -5,6 +5,7 @@
 #include "language/syntax.h"
 #include "language/syntax_worker.h"
 #include "rotide.h"
+#include "support/perf_trace.h"
 #include "support/size_utils.h"
 #include "terminal/terminal_pane.h"
 #include "workspace/task.h"
@@ -131,6 +132,85 @@ static int terminalTakeResizeEvent(void) {
 	}
 	g_terminal_resize_pending = 0;
 	return 1;
+}
+
+/* How long poll() may sleep before we re-check the soft-work pollers (syntax /
+ * task / watch). They have no fd we can wait on; this interval is the upper
+ * bound on how stale their results can get when nothing else wakes the loop. */
+#define TERMINAL_SOFT_WORK_POLL_MS 50
+
+/* Cap on how many pollfd entries we set up per wait. One stdin plus the
+ * terminal panes; in practice users have a handful at most. */
+#define TERMINAL_POLL_FDS_CAP 64
+
+/* Minimum wall-clock gap between consecutive full-screen refreshes when the
+ * wake is driven by terminal-pane output (~125 FPS). Below this, we coalesce
+ * further PTY output into the same frame instead of returning a flurry of
+ * TERMINAL_EVENTs that each trigger a redraw. */
+#define TERMINAL_MIN_FRAME_INTERVAL_MS 8
+
+/* Last monotonic ms at which the editor finished a full refresh, or -1 if no
+ * refresh has happened yet. Updated by editorMarkFrameRendered. */
+static long g_terminal_last_frame_ms = -1;
+
+static long terminalMonotonicMs(void) {
+	struct timespec ts;
+	if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+		return 0;
+	}
+	return (long)ts.tv_sec * 1000L + (long)(ts.tv_nsec / 1000000L);
+}
+
+void editorMarkFrameRendered(void) {
+	g_terminal_last_frame_ms = terminalMonotonicMs();
+}
+
+/* Pump all terminal panes while recording timing + bytes into the per-frame
+ * perf accumulator. Returns the number of bytes pumped (0 if none). */
+static int terminalPumpAllWithPerf(void) {
+	long t0 = editorPerfEnabled() ? editorPerfMonotonicUs() : 0;
+	int bytes = editorTerminalPanePumpAll(E.layout_root);
+	if (editorPerfEnabled()) {
+		editorPerfRecordPumpUs(editorPerfMonotonicUs() - t0);
+		editorPerfRecordPumpBytes(bytes);
+	}
+	return bytes;
+}
+
+/* Block in poll() until stdin, any PTY master, or SIGWINCH wakes us, with at
+ * most TERMINAL_SOFT_WORK_POLL_MS sleep so the soft-work pollers stay live.
+ * Returns when either input is ready or the timeout fires; the caller loops
+ * back and re-checks every source. */
+static void terminalWaitForInput(int timeout_ms) {
+	struct pollfd pfds[TERMINAL_POLL_FDS_CAP];
+	nfds_t nfds = 0;
+	pfds[nfds].fd = STDIN_FILENO;
+	pfds[nfds].events = POLLIN;
+	pfds[nfds].revents = 0;
+	nfds++;
+	int pty_fds[TERMINAL_POLL_FDS_CAP];
+	int pty_count = editorTerminalPaneCollectMasterFds(E.layout_root, pty_fds,
+	                                                   TERMINAL_POLL_FDS_CAP);
+	int pty_use = pty_count;
+	if (pty_use > TERMINAL_POLL_FDS_CAP - 1) {
+		pty_use = TERMINAL_POLL_FDS_CAP - 1;
+	}
+	for (int i = 0; i < pty_use; i++) {
+		pfds[nfds].fd = pty_fds[i];
+		pfds[nfds].events = POLLIN;
+		pfds[nfds].revents = 0;
+		nfds++;
+	}
+	int r;
+	do {
+		r = poll(pfds, nfds, timeout_ms);
+	} while (r == -1 && errno == EINTR);
+	if (r == -1) {
+		editorPanic("poll");
+	}
+	if (r > 0) {
+		editorPerfRecordFdsReady(r);
+	}
 }
 
 static int terminalDecodeSgrMousePayload(const char *payload, struct editorMouseEvent *event_out) {
@@ -804,10 +884,12 @@ void editorSetRawMode(void) {
 	attrs.c_iflag &= ~(IXON | ICRNL | BRKINT | INPCK | ISTRIP);
 	// oflag: disable post-processing so writes are emitted exactly as provided.
 	attrs.c_oflag &= ~(OPOST);
-	// cflag: force 8-bit bytes and non-blocking-ish reads with short timeout.
+	// cflag: force 8-bit bytes. Reads are fully non-blocking — the main
+	// input loop drives the wait with poll() over stdin + every PTY master
+	// fd, so stdin returning 0 bytes immediately is the desired behavior.
 	attrs.c_cflag |= (CS8);
 	attrs.c_cc[VMIN] = 0;
-	attrs.c_cc[VTIME] = 1;
+	attrs.c_cc[VTIME] = 0;
 
 	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &attrs) == -1) {
 		editorPanic("tcsetattr");
@@ -818,6 +900,27 @@ void editorSetRawMode(void) {
 	signal(SIGPIPE, SIG_IGN);
 	terminalInstallTerminationHandlers();
 	terminalInstallResizeHandler();
+}
+
+/* If a refresh fired recently, sleep out the remainder of the frame window
+ * before returning a TERMINAL_EVENT. Lets bursty PTY output (fuzzers, build
+ * tools spewing logs) coalesce into one redraw per frame instead of one per
+ * read. Returns when the budget elapses, stdin/resize wakes us early, or
+ * there's no budget to wait on. */
+static void terminalCoalesceFloodFrame(void) {
+	if (g_terminal_last_frame_ms < 0) {
+		return;
+	}
+	long now = terminalMonotonicMs();
+	long elapsed = now - g_terminal_last_frame_ms;
+	if (elapsed >= TERMINAL_MIN_FRAME_INTERVAL_MS) {
+		return;
+	}
+	int remaining = (int)(TERMINAL_MIN_FRAME_INTERVAL_MS - elapsed);
+	terminalWaitForInput(remaining);
+	/* Fold in anything that arrived during the wait so the upcoming refresh
+	 * captures the full burst. */
+	(void)terminalPumpAllWithPerf();
 }
 
 int editorReadKey(void) {
@@ -834,18 +937,22 @@ int editorReadKey(void) {
 		if (editorWatchPoll()) {
 			return WATCH_EVENT;
 		}
-		if (editorTerminalPanePumpAll(E.layout_root) > 0) {
+		if (terminalPumpAllWithPerf() > 0) {
+			terminalCoalesceFloodFrame();
 			return TERMINAL_EVENT;
 		}
 
 		char c;
 		enum terminalReadByteResult read_status;
 		while ((read_status = terminalReadInputByte(&c)) != TERMINAL_READ_BYTE) {
-			if (editorSyntaxBackgroundPoll()) {
-				return SYNTAX_EVENT;
+			if (read_status == TERMINAL_READ_EOF) {
+				return INPUT_EOF_EVENT;
 			}
 			if (terminalTakeResizeEvent()) {
 				return RESIZE_EVENT;
+			}
+			if (editorSyntaxBackgroundPoll()) {
+				return SYNTAX_EVENT;
 			}
 			if (editorTaskPoll()) {
 				return TASK_EVENT;
@@ -853,9 +960,15 @@ int editorReadKey(void) {
 			if (editorWatchPoll()) {
 				return WATCH_EVENT;
 			}
-			if (read_status == TERMINAL_READ_EOF) {
-				return INPUT_EOF_EVENT;
+			if (terminalPumpAllWithPerf() > 0) {
+				terminalCoalesceFloodFrame();
+				return TERMINAL_EVENT;
 			}
+			/* Sleep until stdin, any PTY master, or SIGWINCH wakes us — or
+			 * until the soft-work poll window elapses. Replaces the old
+			 * VTIME=1-driven busy loop (which capped redraws at ~10 FPS and
+			 * blocked PTY output behind stdin). */
+			terminalWaitForInput(TERMINAL_SOFT_WORK_POLL_MS);
 		}
 
 		if (c != '\x1b') {

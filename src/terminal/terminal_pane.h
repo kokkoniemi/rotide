@@ -132,6 +132,12 @@ struct editorPaneNode *editorPaneNodeNewTerminalLeaf(const char *command, int co
 /* Pump all terminal leaves; returns total bytes/activity count. */
 int editorTerminalPanePumpAll(struct editorPaneNode *root);
 
+/* Append every terminal pane's master_fd (only those >= 0) into fds_out[],
+ * writing at most `capacity` entries. Returns the number of fds that would
+ * exist regardless of capacity — caller can detect truncation by comparing
+ * against `capacity`. */
+int editorTerminalPaneCollectMasterFds(struct editorPaneNode *root, int *fds_out, int capacity);
+
 /* Resize all terminal leaves to current layout rects. */
 void editorTerminalPaneResizeAllToLayout(struct editorPaneNode *root);
 
