@@ -439,6 +439,45 @@ int editorSwitchDrawerHeaderMode(enum editorDrawerMode mode) {
 	}
 }
 
+int editorActionMoveActiveTabToNeighborPane(enum editorFocusDirection direction) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL || E.focused_leaf->is_split ||
+	    E.focused_leaf->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
+		return 0;
+	}
+
+	struct editorPaneNode *source = E.focused_leaf;
+	struct editorPaneView *source_view = &source->as.leaf.view;
+	if (source_view->pane_tab_count <= 0) {
+		return 0;
+	}
+	int tab_idx = source_view->active_tab_idx;
+	if (tab_idx < 0) {
+		return 0;
+	}
+
+	struct editorRect viewport = {0};
+	if (!editorLayoutEditorViewport(&viewport)) {
+		return 0;
+	}
+	struct editorLeafLayout layout = {0};
+	if (!editorLayoutComputeBorderedInto(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE,
+	                                     &layout)) {
+		editorLeafLayoutFree(&layout);
+		return 0;
+	}
+	struct editorPaneNode *target = editorLayoutFindNeighborLeaf(&layout, source, direction);
+	editorLeafLayoutFree(&layout);
+	if (target == NULL || target->is_split || target->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
+		return 0;
+	}
+
+	if (!editorPaneMoveTab(source, target, tab_idx, target->as.leaf.view.pane_tab_count)) {
+		return 0;
+	}
+	editorPaneAnnounceFocus();
+	return 1;
+}
+
 int editorHandleWorkspaceMappedAction(enum editorAction action, int cursor_or_edit_effect_bit,
                                       editorWorkspaceProcessMappedActionFn process_mapped_action,
                                       editorJumpToPathLocationFn jump_fn, int *effects_io) {
@@ -528,6 +567,22 @@ int editorHandleWorkspaceMappedAction(enum editorAction action, int cursor_or_ed
 			if (editorLayoutFocusDirection(EDITOR_FOCUS_DOWN)) {
 				editorPaneAnnounceFocus();
 			}
+			return 1;
+		case EDITOR_ACTION_MOVE_TAB_LEFT_PANE:
+			editorHistoryBreakGroup();
+			(void)editorActionMoveActiveTabToNeighborPane(EDITOR_FOCUS_LEFT);
+			return 1;
+		case EDITOR_ACTION_MOVE_TAB_RIGHT_PANE:
+			editorHistoryBreakGroup();
+			(void)editorActionMoveActiveTabToNeighborPane(EDITOR_FOCUS_RIGHT);
+			return 1;
+		case EDITOR_ACTION_MOVE_TAB_UP_PANE:
+			editorHistoryBreakGroup();
+			(void)editorActionMoveActiveTabToNeighborPane(EDITOR_FOCUS_UP);
+			return 1;
+		case EDITOR_ACTION_MOVE_TAB_DOWN_PANE:
+			editorHistoryBreakGroup();
+			(void)editorActionMoveActiveTabToNeighborPane(EDITOR_FOCUS_DOWN);
 			return 1;
 		case EDITOR_ACTION_PANE_GROW:
 			editorHistoryBreakGroup();

@@ -80,6 +80,49 @@ static int count_substrings(const char *haystack, const char *needle) {
 	return count;
 }
 
+static const char *snapshot_line_start(const char *snapshot, int line_idx) {
+	const char *line = snapshot;
+	for (int i = 0; i < line_idx && line != NULL; i++) {
+		line = strchr(line, '\n');
+		if (line != NULL) {
+			line++;
+		}
+	}
+	return line;
+}
+
+static int snapshot_line_contains(const char *snapshot, int line_idx, const char *needle) {
+	const char *line = snapshot_line_start(snapshot, line_idx);
+	if (line == NULL || needle == NULL) {
+		return 0;
+	}
+	const char *line_end = strchr(line, '\n');
+	const char *match = strstr(line, needle);
+	return match != NULL && (line_end == NULL || match < line_end);
+}
+
+static int snapshot_line_count_substrings(const char *snapshot, int line_idx, const char *needle) {
+	const char *line = snapshot_line_start(snapshot, line_idx);
+	if (line == NULL || needle == NULL || needle[0] == '\0') {
+		return 0;
+	}
+	const char *line_end = strchr(line, '\n');
+	if (line_end == NULL) {
+		line_end = line + strlen(line);
+	}
+	int count = 0;
+	size_t needle_len = strlen(needle);
+	for (const char *cursor = line; cursor < line_end;) {
+		const char *match = strstr(cursor, needle);
+		if (match == NULL || match >= line_end) {
+			break;
+		}
+		count++;
+		cursor = match + needle_len;
+	}
+	return count;
+}
+
 static int write_repeated_temp_c_file(char path_buf[], size_t path_buf_size, const char *prefix,
                                       const char *line, int repeats) {
 	if (path_buf == NULL || prefix == NULL || line == NULL || repeats < 0) {
@@ -300,8 +343,50 @@ static int test_editor_refresh_screen_vertical_split_renders_border(void) {
 	return 0;
 }
 
-static int test_editor_refresh_screen_horizontal_split_renders_border(void) {
-	add_row("hello world");
+static int test_editor_refresh_screen_vertical_split_renders_top_pane_strips(void) {
+	ASSERT_TRUE(editorTabsInit());
+	E.filename = strdup("/tmp/left.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_TRUE(editorTabNewEmpty());
+	E.filename = strdup("/tmp/right.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+	E.window_rows = 6;
+	E.window_cols = 70;
+
+	struct editorPaneNode *left = E.focused_leaf;
+	struct editorPaneNode *right = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(right != NULL);
+	left->as.leaf.view.pane_tab_count = 0;
+	ASSERT_TRUE(editorPaneViewAddTab(&left->as.leaf.view, 0));
+	left->as.leaf.view.active_tab_idx = 0;
+	right->as.leaf.view.pane_tab_count = 0;
+	ASSERT_TRUE(editorPaneViewAddTab(&right->as.leaf.view, 1));
+	right->as.leaf.view.active_tab_idx = 1;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	const char *left_label = strstr(output, "left.txt");
+	const char *right_label = strstr(output, "right.txt");
+	ASSERT_TRUE(left_label != NULL);
+	ASSERT_TRUE(right_label != NULL);
+	const char *pane_border = strstr(left_label, EDITOR_PANE_VBORDER_UTF8);
+	ASSERT_TRUE(pane_border != NULL);
+	ASSERT_TRUE(left_label < pane_border);
+	ASSERT_TRUE(pane_border < right_label);
+	free(output);
+	return 0;
+}
+
+static int test_editor_refresh_screen_horizontal_split_renders_bottom_tab_strip(void) {
+	ASSERT_TRUE(editorTabsInit());
+	E.filename = strdup("/tmp/top.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_TRUE(editorTabNewEmpty());
+	E.filename = strdup("/tmp/bottom.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
 	E.window_rows = 6;
 	E.window_cols = 60;
 	E.cy = 0;
@@ -310,80 +395,96 @@ static int test_editor_refresh_screen_horizontal_split_renders_border(void) {
 	struct editorPaneNode *sibling = editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
 	ASSERT_TRUE(sibling != NULL);
 	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
+	struct editorPaneNode *top = E.layout_root->as.split.first;
+	top->as.leaf.view.pane_tab_count = 0;
+	ASSERT_TRUE(editorPaneViewAddTab(&top->as.leaf.view, 0));
+	top->as.leaf.view.active_tab_idx = 0;
+	sibling->as.leaf.view.pane_tab_count = 0;
+	ASSERT_TRUE(editorPaneViewAddTab(&sibling->as.leaf.view, 1));
+	sibling->as.leaf.view.active_tab_idx = 1;
 
-	size_t output_len = 0;
-	char *output = refresh_screen_and_capture(&output_len);
-	ASSERT_TRUE(output != NULL);
-	int hbox_count = 0;
-	int vbox_count = 0;
-	for (size_t i = 0; i + 3 <= output_len; i++) {
-		if ((unsigned char)output[i] == 0xe2 && (unsigned char)output[i + 1] == 0x94) {
-			if ((unsigned char)output[i + 2] == 0x80) {
-				hbox_count++;
-			} else if ((unsigned char)output[i + 2] == 0x82) {
-				vbox_count++;
-			}
-		}
-	}
-	/* Horizontal split must produce horizontal box-drawing characters
-	 * (─) across the editor body width, and the only vertical box-drawing
-	 * characters in the frame should come from the drawer separator
-	 * (drawn once per body row plus once for the tab bar). Any additional
-	 * '│' would indicate the horizontal border row was rendered with the
-	 * wrong glyph. */
-	ASSERT_TRUE(hbox_count > 0);
-	int separator_cols = editorDrawerSeparatorWidthForCols(E.window_cols);
-	int expected_drawer_vbox = separator_cols == 1 ? E.window_rows + 1 : 0;
-	ASSERT_EQ_INT(expected_drawer_vbox, vbox_count);
-	ASSERT_TRUE(strstr(output, "hello world") != NULL);
-	free(output);
+	size_t snapshot_len = 0;
+	char *snapshot = editor_grid_snapshot(&snapshot_len);
+	ASSERT_TRUE(snapshot != NULL);
+	ASSERT_TRUE(snapshot_line_contains(snapshot, 2, "bottom.txt"));
+	/* The strip row continues as a horizontal border to the right of the tabs
+	 * so the split divider remains visually contiguous past the last tab. */
+	ASSERT_TRUE(snapshot_line_contains(snapshot, 2, EDITOR_PANE_HBORDER_UTF8));
+	free(snapshot);
 	return 0;
 }
 
-static int test_editor_refresh_screen_nested_horizontal_border_uses_hbox(void) {
+static int test_editor_ensure_pane_occupancy_replaces_empty_pane_with_buffer(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("top-body");
+	E.filename = strdup("/tmp/top.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	E.window_rows = 8;
+	E.window_cols = 60;
+
+	struct editorPaneNode *top = E.focused_leaf;
+	struct editorPaneNode *bottom = editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
+	ASSERT_TRUE(bottom != NULL);
+	top->as.leaf.view.pane_tab_count = 0;
+	ASSERT_TRUE(editorPaneViewAddTab(&top->as.leaf.view, 0));
+	top->as.leaf.view.active_tab_idx = 0;
+	bottom->as.leaf.view.pane_tab_count = 0;
+	bottom->as.leaf.view.active_tab_idx = -1;
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(bottom));
+
+	editorTabsEnsurePaneOccupancy();
+
+	ASSERT_EQ_INT(1, bottom->as.leaf.view.pane_tab_count);
+	ASSERT_TRUE(bottom->as.leaf.view.active_tab_idx >= 0);
+	ASSERT_EQ_INT(bottom->as.leaf.view.active_tab_idx, bottom->as.leaf.view.pane_tabs[0]);
+	return 0;
+}
+
+static int test_editor_refresh_screen_nested_split_strip_keeps_outer_vborder(void) {
 	/* Layout: vertical split with the right child further split horizontally.
-	 * The inner horizontal border row has left-pane leaves above/below x=0
-	 * relative to its y range (full-height left pane), which used to be
-	 * misclassified as a vertical border. Verify the cells in the right
-	 * pane's horizontal border row render as ─, not │. */
-	add_row("alpha");
+	 * The inner horizontal border row is now the lower-right pane's tab strip,
+	 * while the outer vertical border must still cross that row. */
+	ASSERT_TRUE(editorTabsInit());
+	E.filename = strdup("/tmp/left.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_TRUE(editorTabNewEmpty());
+	E.filename = strdup("/tmp/right-top.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_TRUE(editorTabNewEmpty());
+	E.filename = strdup("/tmp/right-bottom.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
 	E.window_rows = 12;
 	E.window_cols = 80;
 	E.cy = 0;
 	E.cx = 0;
 
+	struct editorPaneNode *left = E.focused_leaf;
 	struct editorPaneNode *right = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
 	ASSERT_TRUE(right != NULL);
 	struct editorPaneNode *right_bottom =
 	        editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
 	ASSERT_TRUE(right_bottom != NULL);
 	ASSERT_EQ_INT(3, editorPaneTreeLeafCount(E.layout_root));
+	struct editorPaneNode *right_top = right;
+	left->as.leaf.view.pane_tab_count = 0;
+	ASSERT_TRUE(editorPaneViewAddTab(&left->as.leaf.view, 0));
+	left->as.leaf.view.active_tab_idx = 0;
+	right_top->as.leaf.view.pane_tab_count = 0;
+	ASSERT_TRUE(editorPaneViewAddTab(&right_top->as.leaf.view, 1));
+	right_top->as.leaf.view.active_tab_idx = 1;
+	right_bottom->as.leaf.view.pane_tab_count = 0;
+	ASSERT_TRUE(editorPaneViewAddTab(&right_bottom->as.leaf.view, 2));
+	right_bottom->as.leaf.view.active_tab_idx = 2;
 
-	size_t output_len = 0;
-	char *output = refresh_screen_and_capture(&output_len);
-	ASSERT_TRUE(output != NULL);
-	int hbox_count = 0;
-	int vbox_count = 0;
-	for (size_t i = 0; i + 3 <= output_len; i++) {
-		if ((unsigned char)output[i] == 0xe2 && (unsigned char)output[i + 1] == 0x94) {
-			if ((unsigned char)output[i + 2] == 0x80) {
-				hbox_count++;
-			} else if ((unsigned char)output[i + 2] == 0x82) {
-				vbox_count++;
-			}
-		}
-	}
-	/* Right side's horizontal border row must contain horizontal box-draw
-	 * chars across the right half. Spans roughly window_w/2 cells. */
-	ASSERT_TRUE(hbox_count >= E.window_cols / 4);
-	/* Vertical box-draw count = drawer separators (window_rows + 1 for tab
-	 * bar) + 1 column of inner-pane vertical border per body row. The bug
-	 * we're guarding against would balloon this to body-width × 1 row. */
-	int separator_cols = editorDrawerSeparatorWidthForCols(E.window_cols);
-	int expected_drawer_vbox = separator_cols == 1 ? E.window_rows + 1 : 0;
-	int expected_pane_vbox = E.window_rows;
-	ASSERT_EQ_INT(expected_drawer_vbox + expected_pane_vbox, vbox_count);
-	free(output);
+	size_t snapshot_len = 0;
+	char *snapshot = editor_grid_snapshot(&snapshot_len);
+	ASSERT_TRUE(snapshot != NULL);
+	ASSERT_TRUE(snapshot_line_contains(snapshot, 5, "right-bottom.txt"));
+	ASSERT_TRUE(snapshot_line_count_substrings(snapshot, 5, EDITOR_PANE_VBORDER_UTF8) >= 2);
+	/* Strip's trailing area renders as the horizontal split divider. */
+	ASSERT_TRUE(snapshot_line_contains(snapshot, 5, EDITOR_PANE_HBORDER_UTF8));
+	free(snapshot);
 	return 0;
 }
 
@@ -729,10 +830,14 @@ const struct editorTestCase g_render_panes_tests[] = {
          test_editor_popup_placement_above_when_below_overflows},
         {"editor_refresh_screen_vertical_split_renders_border",
          test_editor_refresh_screen_vertical_split_renders_border},
-        {"editor_refresh_screen_horizontal_split_renders_border",
-         test_editor_refresh_screen_horizontal_split_renders_border},
-        {"editor_refresh_screen_nested_horizontal_border_uses_hbox",
-         test_editor_refresh_screen_nested_horizontal_border_uses_hbox},
+        {"editor_refresh_screen_vertical_split_renders_top_pane_strips",
+         test_editor_refresh_screen_vertical_split_renders_top_pane_strips},
+        {"editor_refresh_screen_horizontal_split_renders_bottom_tab_strip",
+         test_editor_refresh_screen_horizontal_split_renders_bottom_tab_strip},
+        {"editor_ensure_pane_occupancy_replaces_empty_pane_with_buffer",
+         test_editor_ensure_pane_occupancy_replaces_empty_pane_with_buffer},
+        {"editor_refresh_screen_nested_split_strip_keeps_outer_vborder",
+         test_editor_refresh_screen_nested_split_strip_keeps_outer_vborder},
         {"editor_refresh_screen_unfocused_same_tab_pane_renders_content",
          test_editor_refresh_screen_unfocused_same_tab_pane_renders_content},
         {"editor_refresh_screen_vertical_split_clips_left_pane_row",

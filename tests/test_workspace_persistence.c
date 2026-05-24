@@ -1160,6 +1160,43 @@ static int test_editor_recovery_failure_exit_keeps_snapshot(void) {
 	return 0;
 }
 
+static int test_editor_recovery_autosave_persists_workspace_state(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	E.window_cols = 100;
+	E.window_rows = 40;
+
+	const char *state_path = editorWorkspaceStatePath();
+	ASSERT_TRUE(state_path != NULL);
+	ASSERT_TRUE(access(state_path, F_OK) == -1);
+
+	E.drawer_mode = EDITOR_DRAWER_MODE_GIT;
+	E.drawer_collapsed = 1;
+
+	/* No dirty buffers — the activity hook should still persist workspace
+	 * state so layout/drawer changes survive a crash. */
+	E.dirty = 0;
+	E.recovery_last_autosave_time = 0;
+	editorRecoveryMaybeAutosaveOnActivity();
+
+	ASSERT_TRUE(access(state_path, F_OK) == 0);
+
+	E.drawer_mode = EDITOR_DRAWER_MODE_TREE;
+	E.drawer_collapsed = 0;
+
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_GIT, (int)E.drawer_mode);
+	ASSERT_EQ_INT(1, E.drawer_collapsed);
+
+	editorTabsFreeAll();
+	editorWorkspaceStateShutdown();
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_workspace_state_persists_drawer_state(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -1236,6 +1273,37 @@ static int test_editor_workspace_state_ignores_search_modes_on_save(void) {
 
 	E.drawer_mode = EDITOR_DRAWER_MODE_GIT;
 	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, (int)E.drawer_mode);
+
+	editorWorkspaceStateShutdown();
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_workspace_state_rejects_unknown_future_version(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	E.window_cols = 100;
+	E.window_rows = 40;
+	E.drawer_width_cols = 50;
+	E.drawer_collapsed = 0;
+	E.drawer_mode = EDITOR_DRAWER_MODE_TREE;
+
+	const char *state_path = editorWorkspaceStatePath();
+	ASSERT_TRUE(state_path != NULL);
+	ASSERT_TRUE(write_text_file(state_path, "version=9999\n"
+	                                        "drawer_width_cols=12\n"
+	                                        "drawer_collapsed=1\n"
+	                                        "drawer_mode=git\n"));
+
+	int loaded = editorWorkspaceStateLoadAndApply(E.window_cols);
+	ASSERT_EQ_INT(0, loaded);
+	/* Bailing out must leave the in-memory state untouched. */
+	ASSERT_EQ_INT(50, E.drawer_width_cols);
+	ASSERT_EQ_INT(0, E.drawer_collapsed);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, (int)E.drawer_mode);
 
 	editorWorkspaceStateShutdown();
@@ -1380,6 +1448,279 @@ static int test_editor_workspace_state_restore_defers_lsp_for_inactive_tabs(void
 	return 0;
 }
 
+static int test_editor_workspace_state_restores_tabs_to_split_panes(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char alpha_file[512];
+	char beta_file[512];
+	ASSERT_TRUE(path_join(alpha_file, sizeof(alpha_file), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(path_join(beta_file, sizeof(beta_file), env.project_dir, "beta.txt"));
+	ASSERT_TRUE(write_text_file(alpha_file, "alpha\n"));
+	ASSERT_TRUE(write_text_file(beta_file, "beta\n"));
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	ASSERT_TRUE(editorTabsInit());
+
+	/* Open alpha in the bootstrap leaf, split, then open beta in the new leaf
+	 * so the two panes hold different active tabs. */
+	ASSERT_TRUE(editorTabOpenFileAsNew(alpha_file));
+	struct editorPaneNode *first_leaf = E.focused_leaf;
+	ASSERT_TRUE(first_leaf != NULL);
+
+	struct editorPaneNode *sibling = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(sibling != NULL);
+	ASSERT_TRUE(E.focused_leaf == sibling);
+
+	ASSERT_TRUE(editorTabOpenFileAsNew(beta_file));
+	ASSERT_EQ_INT(2, editorTabCount());
+
+	/* Sanity-check pre-save layout: first leaf has alpha only, sibling has
+	 * alpha + beta with beta active. */
+	int alpha_idx = -1;
+	int beta_idx = -1;
+	for (int i = 0; i < editorTabCount(); i++) {
+		const char *path = editorTabFilenameAt(i);
+		if (path == NULL) {
+			continue;
+		}
+		if (strcmp(path, alpha_file) == 0) {
+			alpha_idx = i;
+		} else if (strcmp(path, beta_file) == 0) {
+			beta_idx = i;
+		}
+	}
+	ASSERT_TRUE(alpha_idx >= 0 && beta_idx >= 0);
+	ASSERT_EQ_INT(1, first_leaf->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(alpha_idx, first_leaf->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(2, sibling->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(beta_idx, sibling->as.leaf.view.active_tab_idx);
+
+	ASSERT_TRUE(editorWorkspaceStateSave());
+
+	editorTabsFreeAll();
+	editorWorkspaceStateShutdown();
+	editorPaneNodeFree(E.layout_root);
+	E.layout_root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	ASSERT_TRUE(E.layout_root != NULL);
+	E.focused_leaf = E.layout_root;
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_TRUE(editorWorkspaceStateRestoreTabs());
+
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
+
+	int restored_alpha = -1;
+	int restored_beta = -1;
+	for (int i = 0; i < editorTabCount(); i++) {
+		const char *path = editorTabFilenameAt(i);
+		if (path == NULL) {
+			continue;
+		}
+		if (strcmp(path, alpha_file) == 0) {
+			restored_alpha = i;
+		} else if (strcmp(path, beta_file) == 0) {
+			restored_beta = i;
+		}
+	}
+	ASSERT_TRUE(restored_alpha >= 0 && restored_beta >= 0);
+
+	ASSERT_TRUE(E.layout_root != NULL && E.layout_root->is_split);
+	struct editorPaneNode *restored_first = E.layout_root->as.split.first;
+	struct editorPaneNode *restored_second = E.layout_root->as.split.second;
+	ASSERT_TRUE(restored_first != NULL && !restored_first->is_split);
+	ASSERT_TRUE(restored_second != NULL && !restored_second->is_split);
+
+	ASSERT_EQ_INT(1, restored_first->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(restored_alpha, restored_first->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(restored_alpha, restored_first->as.leaf.view.active_tab_idx);
+
+	ASSERT_EQ_INT(2, restored_second->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(restored_beta, restored_second->as.leaf.view.active_tab_idx);
+
+	ASSERT_TRUE(E.focused_leaf == restored_second);
+	ASSERT_EQ_STR(beta_file, editorTabFilenameAt(E.active_tab));
+
+	editorTabsFreeAll();
+	editorWorkspaceStateShutdown();
+	ASSERT_TRUE(unlink(beta_file) == 0);
+	ASSERT_TRUE(unlink(alpha_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_workspace_state_restores_three_leaf_split_assignment(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char alpha_file[512];
+	char beta_file[512];
+	char gamma_file[512];
+	ASSERT_TRUE(path_join(alpha_file, sizeof(alpha_file), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(path_join(beta_file, sizeof(beta_file), env.project_dir, "beta.txt"));
+	ASSERT_TRUE(path_join(gamma_file, sizeof(gamma_file), env.project_dir, "gamma.txt"));
+	ASSERT_TRUE(write_text_file(alpha_file, "alpha\n"));
+	ASSERT_TRUE(write_text_file(beta_file, "beta\n"));
+	ASSERT_TRUE(write_text_file(gamma_file, "gamma\n"));
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	ASSERT_TRUE(editorTabsInit());
+
+	ASSERT_TRUE(editorTabOpenFileAsNew(alpha_file));
+	struct editorPaneNode *first_leaf = E.focused_leaf;
+	ASSERT_TRUE(first_leaf != NULL);
+	struct editorPaneNode *second = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(second != NULL);
+	ASSERT_TRUE(editorTabOpenFileAsNew(beta_file));
+	struct editorPaneNode *third = editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
+	ASSERT_TRUE(third != NULL);
+	ASSERT_TRUE(editorTabOpenFileAsNew(gamma_file));
+
+	ASSERT_EQ_INT(3, editorPaneTreeLeafCount(E.layout_root));
+	int gamma_idx = -1;
+	for (int i = 0; i < editorTabCount(); i++) {
+		const char *path = editorTabFilenameAt(i);
+		if (path != NULL && strcmp(path, gamma_file) == 0) {
+			gamma_idx = i;
+		}
+	}
+	ASSERT_TRUE(gamma_idx >= 0);
+
+	/* Focus the second (middle) leaf before saving so we can verify focused_pane= */
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(second));
+
+	ASSERT_TRUE(editorWorkspaceStateSave());
+
+	editorTabsFreeAll();
+	editorWorkspaceStateShutdown();
+	editorPaneNodeFree(E.layout_root);
+	E.layout_root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	ASSERT_TRUE(E.layout_root != NULL);
+	E.focused_leaf = E.layout_root;
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_TRUE(editorWorkspaceStateRestoreTabs());
+
+	ASSERT_EQ_INT(3, editorPaneTreeLeafCount(E.layout_root));
+	ASSERT_TRUE(E.focused_leaf != NULL);
+	const char *focused_name = editorTabFilenameAt(E.focused_leaf->as.leaf.view.active_tab_idx);
+	ASSERT_TRUE(focused_name != NULL);
+	ASSERT_EQ_STR(beta_file, focused_name);
+
+	editorTabsFreeAll();
+	editorWorkspaceStateShutdown();
+	ASSERT_TRUE(unlink(gamma_file) == 0);
+	ASSERT_TRUE(unlink(beta_file) == 0);
+	ASSERT_TRUE(unlink(alpha_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_workspace_state_clamps_focused_pane_out_of_range(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char alpha_file[512];
+	char beta_file[512];
+	ASSERT_TRUE(path_join(alpha_file, sizeof(alpha_file), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(path_join(beta_file, sizeof(beta_file), env.project_dir, "beta.txt"));
+	ASSERT_TRUE(write_text_file(alpha_file, "alpha\n"));
+	ASSERT_TRUE(write_text_file(beta_file, "beta\n"));
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	const char *state_path = editorWorkspaceStatePath();
+	ASSERT_TRUE(state_path != NULL);
+
+	/* Hand-craft a state file that claims a 2-leaf layout but a focused_pane
+	 * that doesn't exist. Restore should clamp focus to leaf 0 instead of
+	 * crashing or leaving E.focused_leaf NULL. */
+	char buf[1024];
+	int n = snprintf(buf, sizeof(buf),
+	                 "version=1\n"
+	                 "tab=0|0|%s\n"
+	                 "tab=0|0|%s\n"
+	                 "layout=(v 0.5 leaf leaf)\n"
+	                 "pane_tab=0|1|%s\n"
+	                 "pane_tab=1|1|%s\n"
+	                 "focused_pane=7\n",
+	                 alpha_file, beta_file, alpha_file, beta_file);
+	ASSERT_TRUE(n > 0 && (size_t)n < sizeof(buf));
+	ASSERT_TRUE(write_text_file(state_path, buf));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_TRUE(editorWorkspaceStateRestoreTabs());
+
+	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
+	ASSERT_TRUE(E.layout_root != NULL && E.layout_root->is_split);
+	ASSERT_TRUE(E.focused_leaf == E.layout_root->as.split.first);
+
+	editorTabsFreeAll();
+	editorWorkspaceStateShutdown();
+	ASSERT_TRUE(unlink(beta_file) == 0);
+	ASSERT_TRUE(unlink(alpha_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_workspace_state_ignores_orphan_pane_tab_paths(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char alpha_file[512];
+	char beta_file[512];
+	ASSERT_TRUE(path_join(alpha_file, sizeof(alpha_file), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(path_join(beta_file, sizeof(beta_file), env.project_dir, "beta.txt"));
+	ASSERT_TRUE(write_text_file(alpha_file, "alpha\n"));
+	ASSERT_TRUE(write_text_file(beta_file, "beta\n"));
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	const char *state_path = editorWorkspaceStatePath();
+	ASSERT_TRUE(state_path != NULL);
+
+	/* pane_tab references a path that has no matching tab= line. The orphan
+	 * must be skipped silently without affecting the other pane's assignment. */
+	char buf[1024];
+	int n = snprintf(buf, sizeof(buf),
+	                 "version=1\n"
+	                 "tab=0|0|%s\n"
+	                 "tab=0|0|%s\n"
+	                 "layout=(v 0.5 leaf leaf)\n"
+	                 "pane_tab=0|1|%s\n"
+	                 "pane_tab=1|1|/nonexistent/ghost.txt\n"
+	                 "pane_tab=1|0|%s\n"
+	                 "focused_pane=1\n",
+	                 alpha_file, beta_file, alpha_file, beta_file);
+	ASSERT_TRUE(n > 0 && (size_t)n < sizeof(buf));
+	ASSERT_TRUE(write_text_file(state_path, buf));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_TRUE(editorWorkspaceStateRestoreTabs());
+
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
+	struct editorPaneNode *second_leaf = E.layout_root->as.split.second;
+	ASSERT_TRUE(second_leaf != NULL && !second_leaf->is_split);
+	/* The orphan was dropped; only the beta entry survived on leaf 1. */
+	ASSERT_EQ_INT(1, second_leaf->as.leaf.view.pane_tab_count);
+	const char *focused_name = editorTabFilenameAt(second_leaf->as.leaf.view.active_tab_idx);
+	ASSERT_TRUE(focused_name != NULL);
+	ASSERT_EQ_STR(beta_file, focused_name);
+
+	editorTabsFreeAll();
+	editorWorkspaceStateShutdown();
+	ASSERT_TRUE(unlink(beta_file) == 0);
+	ASSERT_TRUE(unlink(alpha_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 const struct editorTestCase g_workspace_persistence_tests[] = {
         {"editor_drawer_root_selection_modes", test_editor_drawer_root_selection_modes},
         {"editor_drawer_tree_lists_dotfiles_sorted_and_symlink_as_file",
@@ -1436,6 +1777,8 @@ const struct editorTestCase g_workspace_persistence_tests[] = {
          test_editor_recovery_clean_quit_removes_snapshot},
         {"editor_recovery_failure_exit_keeps_snapshot",
          test_editor_recovery_failure_exit_keeps_snapshot},
+        {"editor_recovery_autosave_persists_workspace_state",
+         test_editor_recovery_autosave_persists_workspace_state},
         {"editor_workspace_state_persists_drawer_state",
          test_editor_workspace_state_persists_drawer_state},
         {"editor_workspace_state_persists_drawer_expanded_masks",
@@ -1444,10 +1787,20 @@ const struct editorTestCase g_workspace_persistence_tests[] = {
          test_editor_workspace_state_ignores_search_modes_on_save},
         {"editor_workspace_state_load_missing_is_noop",
          test_editor_workspace_state_load_missing_is_noop},
+        {"editor_workspace_state_rejects_unknown_future_version",
+         test_editor_workspace_state_rejects_unknown_future_version},
         {"editor_workspace_state_restores_open_tabs_with_cursor",
          test_editor_workspace_state_restores_open_tabs_with_cursor},
         {"editor_workspace_state_restore_defers_lsp_for_inactive_tabs",
          test_editor_workspace_state_restore_defers_lsp_for_inactive_tabs},
+        {"editor_workspace_state_restores_tabs_to_split_panes",
+         test_editor_workspace_state_restores_tabs_to_split_panes},
+        {"editor_workspace_state_restores_three_leaf_split_assignment",
+         test_editor_workspace_state_restores_three_leaf_split_assignment},
+        {"editor_workspace_state_clamps_focused_pane_out_of_range",
+         test_editor_workspace_state_clamps_focused_pane_out_of_range},
+        {"editor_workspace_state_ignores_orphan_pane_tab_paths",
+         test_editor_workspace_state_ignores_orphan_pane_tab_paths},
 };
 
 const int g_workspace_persistence_test_count =

@@ -435,56 +435,19 @@ static int recoveryWriteSnapshotAtomic(void) {
 		return 0;
 	}
 
-	char *tmp_path = editorTempPathForTarget(E.recovery_path);
-	if (tmp_path == NULL) {
-		errno = ENOMEM;
-		return 0;
-	}
-
-	int fd = -1;
-	int tmp_created = 0;
-	fd = mkstemp(tmp_path);
+	char *tmp_path = NULL;
+	int fd = editorAtomicOpenTemp(E.recovery_path, &tmp_path, 0600);
 	if (fd == -1) {
-		goto err;
-	}
-	tmp_created = 1;
-	if (fchmod(fd, 0600) == -1) {
-		goto err;
+		return 0;
 	}
 	if (!recoveryWriteSessionToFd(fd)) {
 		if (errno == 0) {
 			errno = EIO;
 		}
-		goto err;
+		editorAtomicAbortTemp(fd, tmp_path);
+		return 0;
 	}
-	if (fsync(fd) == -1) {
-		goto err;
-	}
-	if (close(fd) == -1) {
-		fd = -1;
-		goto err;
-	}
-	fd = -1;
-
-	if (rename(tmp_path, E.recovery_path) == -1) {
-		goto err;
-	}
-
-	free(tmp_path);
-	return 1;
-
-err: {
-	int saved_errno = errno;
-	if (fd != -1) {
-		(void)close(fd);
-	}
-	if (tmp_created) {
-		(void)unlink(tmp_path);
-	}
-	free(tmp_path);
-	errno = saved_errno;
-	return 0;
-}
+	return editorAtomicCommitTemp(fd, tmp_path, E.recovery_path);
 }
 
 static int recoveryTabReadText(int fd, struct recoveryTab *tab) {
@@ -878,13 +841,10 @@ int editorRecoveryPromptAndMaybeRestore(void) {
 }
 
 void editorRecoveryMaybeAutosaveOnActivity(void) {
-	if (E.recovery_path == NULL) {
-		return;
-	}
+	int recovery_dirty = (E.recovery_path != NULL && editorTabAnyDirty());
 
-	if (!editorTabAnyDirty()) {
+	if (E.recovery_path != NULL && !recovery_dirty) {
 		editorRecoveryCleanupOnCleanExit();
-		return;
 	}
 
 	time_t now = time(NULL);
@@ -893,7 +853,7 @@ void editorRecoveryMaybeAutosaveOnActivity(void) {
 		return;
 	}
 
-	if (!recoveryWriteSnapshotAtomic()) {
+	if (recovery_dirty && !recoveryWriteSnapshotAtomic()) {
 		int saved_errno = errno;
 		if (saved_errno != 0) {
 			editorSetStatusMsg("Recovery autosave failed (%s)", strerror(saved_errno));
@@ -905,6 +865,8 @@ void editorRecoveryMaybeAutosaveOnActivity(void) {
 		}
 		return;
 	}
+
+	(void)editorWorkspaceStateSave();
 
 	if (now != (time_t)-1) {
 		E.recovery_last_autosave_time = now;

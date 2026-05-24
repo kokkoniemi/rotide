@@ -90,6 +90,7 @@ Syntax fixture samples are stored in [`tests/syntax/`](tests/syntax/README.md).
 - `Ctrl-N`: new tab
 - `Ctrl-W`: close tab
 - `Alt-Right` / `Alt-Left`: next/previous tab
+- `Ctrl-Shift-Alt-Left` / `-Right` / `-Up` / `-Down`: move the active tab to the neighbouring pane
 - `Ctrl-E`: toggle focus between editor and drawer
 - `Ctrl-\`: collapse/expand drawer
 - `Alt-M`: open the main menu in the drawer

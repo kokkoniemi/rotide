@@ -3,7 +3,9 @@
 #include "render/ansi_style.h"
 #include "render/display_text.h"
 #include "render/drawer_view.h"
+#include "render/pane_view.h"
 #include "workspace/drawer.h"
+#include "workspace/layout.h"
 #include "workspace/tabs.h"
 
 #include <string.h>
@@ -11,6 +13,8 @@
 #define VT100_ITALIC_ON_4 "\x1b[3m"
 #define VT100_ITALIC_OFF_5 "\x1b[23m"
 #define VT100_CLEAR_ROW_3 "\x1b[K"
+/* "─" U+2500 BOX DRAWINGS LIGHT HORIZONTAL (UTF-8: e2 94 80) */
+#define TAB_BAR_HBORDER "\xe2\x94\x80"
 
 static const char *tabBarLabelFromDisplayName(const char *display_name) {
 	if (display_name == NULL) {
@@ -23,18 +27,8 @@ static const char *tabBarLabelFromDisplayName(const char *display_name) {
 	return display_name;
 }
 
-int editorDrawTabSlots(struct writeBuf *wb, int cols) {
-	if (cols <= 0) {
-		return 1;
-	}
-
-	struct editorTabLayoutEntry layout[ROTIDE_MAX_TABS];
-	int layout_count = 0;
-	if (!editorTabBuildLayoutForWidth(cols, layout, ROTIDE_MAX_TABS, &layout_count)) {
-		return 0;
-	}
-
-	int active = editorTabActiveIndex();
+static int tabBarDrawLayout(struct writeBuf *wb, const struct editorTabLayoutEntry *layout,
+                            int layout_count, int cols, int trailing_hborder) {
 	int drawn_cols = 0;
 	for (int i = 0; i < layout_count; i++) {
 		const struct editorTabLayoutEntry *entry = &layout[i];
@@ -43,8 +37,8 @@ int editorDrawTabSlots(struct writeBuf *wb, int cols) {
 		if (slot_width <= 0) {
 			continue;
 		}
-		int is_active = tab_idx == active;
-		if (is_active && !editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_TAB_ACTIVE)) {
+		if (entry->is_active &&
+		    !editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_TAB_ACTIVE)) {
 			return 0;
 		}
 
@@ -126,7 +120,7 @@ int editorDrawTabSlots(struct writeBuf *wb, int cols) {
 			slot_cols++;
 		}
 
-		if (is_active && !editorAppendThemeReset(wb)) {
+		if (entry->is_active && !editorAppendThemeReset(wb)) {
 			return 0;
 		}
 
@@ -134,13 +128,42 @@ int editorDrawTabSlots(struct writeBuf *wb, int cols) {
 	}
 
 	while (drawn_cols < cols) {
-		if (!wbAppend(wb, " ", 1)) {
+		if (trailing_hborder) {
+			if (!wbAppend(wb, TAB_BAR_HBORDER, sizeof(TAB_BAR_HBORDER) - 1)) {
+				return 0;
+			}
+		} else if (!wbAppend(wb, " ", 1)) {
 			return 0;
 		}
 		drawn_cols++;
 	}
 
 	return 1;
+}
+
+int editorDrawPaneTabStrip(struct writeBuf *wb, struct editorPaneNode *leaf, int cols,
+                           int trailing_hborder) {
+	if (cols <= 0) {
+		return 1;
+	}
+
+	struct editorTabLayoutEntry layout[ROTIDE_MAX_TABS];
+	int layout_count = 0;
+	int ok = 0;
+	if (leaf != NULL && !leaf->is_split && leaf->as.leaf.kind == EDITOR_PANE_KIND_EDITOR) {
+		ok = editorTabBuildLayoutForPane(&leaf->as.leaf.view, cols, layout, ROTIDE_MAX_TABS,
+		                                 &layout_count);
+	} else {
+		ok = editorTabBuildLayoutForWidth(cols, layout, ROTIDE_MAX_TABS, &layout_count);
+	}
+	if (!ok) {
+		return 0;
+	}
+	return tabBarDrawLayout(wb, layout, layout_count, cols, trailing_hborder);
+}
+
+int editorDrawTabSlots(struct writeBuf *wb, int cols) {
+	return editorDrawPaneTabStrip(wb, E.focused_leaf, cols, 0);
 }
 
 int editorDrawTabBar(struct writeBuf *wb) {
@@ -153,7 +176,11 @@ int editorDrawTabBar(struct writeBuf *wb) {
 		if (!editorDrawDrawerRow(wb, 0, toggle_cols)) {
 			return 0;
 		}
-		if (!editorDrawTabSlots(wb, E.window_cols - toggle_cols)) {
+		if (editorPaneTreeLeafCount(E.layout_root) > 1) {
+			if (!editorDrawMultiPaneTabStripRow(wb)) {
+				return 0;
+			}
+		} else if (!editorDrawTabSlots(wb, E.window_cols - toggle_cols)) {
 			return 0;
 		}
 		if (!wbAppend(wb, VT100_CLEAR_ROW_3, 3)) {
@@ -171,6 +198,15 @@ int editorDrawTabBar(struct writeBuf *wb) {
 	}
 	if (!editorDrawDrawerSeparatorCell(wb, separator_cols)) {
 		return 0;
+	}
+	if (editorPaneTreeLeafCount(E.layout_root) > 1) {
+		if (!editorDrawMultiPaneTabStripRow(wb)) {
+			return 0;
+		}
+		if (!wbAppend(wb, VT100_CLEAR_ROW_3, 3)) {
+			return 0;
+		}
+		return wbAppend(wb, "\r\n", 2);
 	}
 	if (!editorDrawTabSlots(wb, text_cols)) {
 		return 0;

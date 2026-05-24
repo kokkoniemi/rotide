@@ -1,3 +1,10 @@
+#ifndef _DEFAULT_SOURCE
+#define _DEFAULT_SOURCE
+#endif
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include "support/file_io.h"
 
 #include "support/alloc.h"
@@ -5,9 +12,11 @@
 #include "support/size_utils.h"
 
 #include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 static int fileIoPathIsAbsolute(const char *path) {
@@ -243,6 +252,88 @@ char *editorTempPathForTarget(const char *target) {
 	memcpy(tmp_path + dir_len + base_len, suffix, sizeof(suffix));
 
 	return tmp_path;
+}
+
+int editorAtomicOpenTemp(const char *target, char **tmp_path_out, mode_t mode) {
+	if (target == NULL || tmp_path_out == NULL) {
+		errno = EINVAL;
+		return -1;
+	}
+	*tmp_path_out = NULL;
+
+	char *tmp_path = editorTempPathForTarget(target);
+	if (tmp_path == NULL) {
+		errno = ENOMEM;
+		return -1;
+	}
+
+	int fd = mkstemp(tmp_path);
+	if (fd == -1) {
+		int saved_errno = errno;
+		free(tmp_path);
+		errno = saved_errno;
+		return -1;
+	}
+	if (fchmod(fd, mode) == -1) {
+		int saved_errno = errno;
+		(void)close(fd);
+		(void)unlink(tmp_path);
+		free(tmp_path);
+		errno = saved_errno;
+		return -1;
+	}
+
+	*tmp_path_out = tmp_path;
+	return fd;
+}
+
+int editorAtomicCommitTemp(int fd, char *tmp_path, const char *target) {
+	if (tmp_path == NULL || target == NULL) {
+		if (fd != -1) {
+			(void)close(fd);
+		}
+		free(tmp_path);
+		errno = EINVAL;
+		return 0;
+	}
+
+	if (fsync(fd) == -1) {
+		int saved_errno = errno;
+		(void)close(fd);
+		(void)unlink(tmp_path);
+		free(tmp_path);
+		errno = saved_errno;
+		return 0;
+	}
+	if (close(fd) == -1) {
+		int saved_errno = errno;
+		(void)unlink(tmp_path);
+		free(tmp_path);
+		errno = saved_errno;
+		return 0;
+	}
+	if (rename(tmp_path, target) == -1) {
+		int saved_errno = errno;
+		(void)unlink(tmp_path);
+		free(tmp_path);
+		errno = saved_errno;
+		return 0;
+	}
+
+	free(tmp_path);
+	return 1;
+}
+
+void editorAtomicAbortTemp(int fd, char *tmp_path) {
+	int saved_errno = errno;
+	if (fd != -1) {
+		(void)close(fd);
+	}
+	if (tmp_path != NULL) {
+		(void)unlink(tmp_path);
+		free(tmp_path);
+	}
+	errno = saved_errno;
 }
 
 int editorOpenParentDirForTarget(const char *target) {

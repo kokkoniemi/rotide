@@ -30,7 +30,7 @@
 #define ROTIDE_UNDO_HISTORY_LIMIT 200
 #define ROTIDE_OSC52_MAX_COPY_BYTES ((size_t)100000)
 #define ROTIDE_MAX_TEXT_BYTES ((size_t)INT_MAX)
-#define ROTIDE_KEYMAP_MAX_BINDINGS 64
+#define ROTIDE_KEYMAP_MAX_BINDINGS 128
 #define ROTIDE_MAX_TABS 128
 #define ROTIDE_TAB_TITLE_MAX_COLS 25
 #define ROTIDE_TAB_TRUNC_MARKER "..."
@@ -205,6 +205,7 @@ struct editorTabLayoutEntry {
 	int width_cols;
 	int show_left_overflow;
 	int show_right_overflow;
+	int is_active;
 };
 
 struct editorFileDiskState {
@@ -295,6 +296,10 @@ enum editorAction {
 	EDITOR_ACTION_FOCUS_RIGHT_PANE,
 	EDITOR_ACTION_FOCUS_UP_PANE,
 	EDITOR_ACTION_FOCUS_DOWN_PANE,
+	EDITOR_ACTION_MOVE_TAB_LEFT_PANE,
+	EDITOR_ACTION_MOVE_TAB_RIGHT_PANE,
+	EDITOR_ACTION_MOVE_TAB_UP_PANE,
+	EDITOR_ACTION_MOVE_TAB_DOWN_PANE,
 	EDITOR_ACTION_PANE_GROW,
 	EDITOR_ACTION_PANE_SHRINK,
 	EDITOR_ACTION_TERMINAL_OPEN,
@@ -533,7 +538,6 @@ struct editorConfig {
 	int tab_count;
 	int tab_capacity;
 	int active_tab;
-	int tab_view_start;
 	int close_confirmed;
 
 	/* --- Workspace: task-log subprocess --- */
@@ -576,6 +580,12 @@ struct editorConfig {
 	 */
 	int split_resize_active;
 	struct editorPaneNode *split_resize_node;
+	int tab_drag_armed;
+	int tab_drag_active;
+	struct editorPaneNode *tab_drag_source_leaf;
+	int tab_drag_source_tab_idx;
+	int tab_drag_start_x;
+	int tab_drag_start_y;
 
 	/* --- Input transient: text/tab click tracking for multi-clicks --- */
 	int text_last_click_cy;
@@ -709,6 +719,10 @@ enum editorKey {
 	CTRL_ALT_ARROW_RIGHT,
 	CTRL_ALT_ARROW_DOWN,
 	CTRL_ALT_ARROW_UP,
+	CTRL_SHIFT_ALT_ARROW_LEFT,
+	CTRL_SHIFT_ALT_ARROW_RIGHT,
+	CTRL_SHIFT_ALT_ARROW_DOWN,
+	CTRL_SHIFT_ALT_ARROW_UP,
 	PAGE_UP,
 	PAGE_DOWN,
 	HOME_KEY,

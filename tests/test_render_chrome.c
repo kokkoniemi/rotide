@@ -1,4 +1,5 @@
 #include "render/popup.h"
+#include "render/tab_bar.h"
 #include "terminal/terminal_pane.h"
 #include "test_case.h"
 #include "test_support.h"
@@ -63,20 +64,17 @@
 
 static int test_editor_refresh_screen_renders_tab_bar_with_overflow_and_sanitized_labels(void) {
 	ASSERT_TRUE(editorTabsInit());
-	free(E.filename);
 	E.filename = strdup("/tmp/a\x1b"
 	                    "[31m.txt");
 	ASSERT_TRUE(E.filename != NULL);
 	E.dirty = 1;
 
 	ASSERT_TRUE(editorTabNewEmpty());
-	free(E.filename);
 	E.filename = strdup("/tmp/beta.txt");
 	ASSERT_TRUE(E.filename != NULL);
 	E.dirty = 0;
 
 	ASSERT_TRUE(editorTabNewEmpty());
-	free(E.filename);
 	E.filename = strdup("/tmp/gamma.txt");
 	ASSERT_TRUE(E.filename != NULL);
 	E.dirty = 0;
@@ -102,12 +100,10 @@ static int test_editor_refresh_screen_renders_tab_bar_with_overflow_and_sanitize
 
 static int test_editor_refresh_screen_preview_tab_label_uses_italics(void) {
 	ASSERT_TRUE(editorTabsInit());
-	free(E.filename);
 	E.filename = strdup("/tmp/sticky.txt");
 	ASSERT_TRUE(E.filename != NULL);
 
 	ASSERT_TRUE(editorTabNewEmpty());
-	free(E.filename);
 	E.filename = strdup("/tmp/preview.txt");
 	ASSERT_TRUE(E.filename != NULL);
 	E.is_preview = 1;
@@ -129,7 +125,6 @@ static int test_editor_refresh_screen_preview_tab_label_uses_italics(void) {
 
 static int test_editor_tab_layout_width_includes_right_label_padding(void) {
 	ASSERT_TRUE(editorTabsInit());
-	free(E.filename);
 	E.filename = strdup("/tmp/ab.txt");
 	ASSERT_TRUE(E.filename != NULL);
 
@@ -143,22 +138,18 @@ static int test_editor_tab_layout_width_includes_right_label_padding(void) {
 
 static int test_editor_tabs_align_view_keeps_active_visible_with_variable_widths(void) {
 	ASSERT_TRUE(editorTabsInit());
-	free(E.filename);
 	E.filename = strdup("/tmp/first_tab_with_a_long_name_001.txt");
 	ASSERT_TRUE(E.filename != NULL);
 
 	ASSERT_TRUE(editorTabNewEmpty());
-	free(E.filename);
 	E.filename = strdup("/tmp/second_tab_with_a_long_name_002.txt");
 	ASSERT_TRUE(E.filename != NULL);
 
 	ASSERT_TRUE(editorTabNewEmpty());
-	free(E.filename);
 	E.filename = strdup("/tmp/third_tab_with_a_long_name_003.txt");
 	ASSERT_TRUE(E.filename != NULL);
 
 	ASSERT_TRUE(editorTabNewEmpty());
-	free(E.filename);
 	E.filename = strdup("/tmp/fourth_tab_with_a_long_name_004.txt");
 	ASSERT_TRUE(E.filename != NULL);
 
@@ -171,7 +162,8 @@ static int test_editor_tabs_align_view_keeps_active_visible_with_variable_widths
 	ASSERT_TRUE(
 	        editorTabBuildLayoutForWidth(text_cols, layout, ROTIDE_MAX_TABS, &layout_count));
 	ASSERT_TRUE(layout_count >= 1);
-	ASSERT_TRUE(E.tab_view_start > 0);
+	ASSERT_TRUE(E.focused_leaf != NULL);
+	ASSERT_TRUE(E.focused_leaf->as.leaf.view.tab_view_start > 0);
 
 	int active_visible = 0;
 	for (int i = 0; i < layout_count; i++) {
@@ -181,6 +173,62 @@ static int test_editor_tabs_align_view_keeps_active_visible_with_variable_widths
 		}
 	}
 	ASSERT_TRUE(active_visible);
+	return 0;
+}
+
+static int test_editor_draw_pane_tab_strip_uses_pane_membership_and_active_tab(void) {
+	ASSERT_TRUE(editorTabsInit());
+	E.filename = strdup("/tmp/alpha.txt");
+	ASSERT_TRUE(E.filename != NULL);
+
+	ASSERT_TRUE(editorTabNewEmpty());
+	E.filename = strdup("/tmp/beta.txt");
+	ASSERT_TRUE(E.filename != NULL);
+
+	ASSERT_TRUE(editorTabNewEmpty());
+	E.filename = strdup("/tmp/gamma.txt");
+	ASSERT_TRUE(E.filename != NULL);
+
+	ASSERT_TRUE(editorTabNewEmpty());
+	E.filename = strdup("/tmp/delta.txt");
+	ASSERT_TRUE(E.filename != NULL);
+
+	struct editorPaneNode *left = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	struct editorPaneNode *right = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	ASSERT_TRUE(left != NULL);
+	ASSERT_TRUE(right != NULL);
+	ASSERT_TRUE(editorPaneViewAddTab(&left->as.leaf.view, 0));
+	ASSERT_TRUE(editorPaneViewAddTab(&left->as.leaf.view, 1));
+	left->as.leaf.view.active_tab_idx = 1;
+	ASSERT_TRUE(editorPaneViewAddTab(&right->as.leaf.view, 2));
+	ASSERT_TRUE(editorPaneViewAddTab(&right->as.leaf.view, 3));
+	right->as.leaf.view.active_tab_idx = 2;
+
+	struct writeBuf left_wb = WRITEBUF_INIT;
+	struct writeBuf right_wb = WRITEBUF_INIT;
+	ASSERT_TRUE(editorDrawPaneTabStrip(&left_wb, left, 80, 0));
+	ASSERT_TRUE(editorDrawPaneTabStrip(&right_wb, right, 80, 0));
+	ASSERT_TRUE(wbAppend(&left_wb, "\0", 1));
+	ASSERT_TRUE(wbAppend(&right_wb, "\0", 1));
+
+	ASSERT_TRUE(strstr(left_wb.b, "alpha.txt") != NULL);
+	ASSERT_TRUE(strstr(left_wb.b, "beta.txt") != NULL);
+	ASSERT_TRUE(strstr(left_wb.b, "gamma.txt") == NULL);
+	ASSERT_TRUE(strstr(left_wb.b, "delta.txt") == NULL);
+	ASSERT_TRUE(strstr(left_wb.b, "\x1b[7m   beta.txt") != NULL);
+	ASSERT_TRUE(strstr(left_wb.b, "\x1b[7m   alpha.txt") == NULL);
+
+	ASSERT_TRUE(strstr(right_wb.b, "alpha.txt") == NULL);
+	ASSERT_TRUE(strstr(right_wb.b, "beta.txt") == NULL);
+	ASSERT_TRUE(strstr(right_wb.b, "gamma.txt") != NULL);
+	ASSERT_TRUE(strstr(right_wb.b, "delta.txt") != NULL);
+	ASSERT_TRUE(strstr(right_wb.b, "\x1b[7m   gamma.txt") != NULL);
+	ASSERT_TRUE(strstr(right_wb.b, "\x1b[7m   delta.txt") == NULL);
+
+	wbFree(&left_wb);
+	wbFree(&right_wb);
+	editorPaneNodeFree(left);
+	editorPaneNodeFree(right);
 	return 0;
 }
 
@@ -1095,7 +1143,6 @@ static int test_editor_refresh_screen_status_bar_truncates_prefix_keeps_basename
 
 static int test_editor_refresh_screen_tab_labels_middle_truncate_at_25_cols(void) {
 	ASSERT_TRUE(editorTabsInit());
-	free(E.filename);
 	E.filename = strdup("/tmp/aaaaaaaaaaabbbbbbbbbbbccccccccccc");
 	ASSERT_TRUE(E.filename != NULL);
 	E.window_rows = 3;
@@ -1120,6 +1167,8 @@ const struct editorTestCase g_render_chrome_tests[] = {
          test_editor_tab_layout_width_includes_right_label_padding},
         {"editor_tabs_align_view_keeps_active_visible_with_variable_widths",
          test_editor_tabs_align_view_keeps_active_visible_with_variable_widths},
+        {"editor_draw_pane_tab_strip_uses_pane_membership_and_active_tab",
+         test_editor_draw_pane_tab_strip_uses_pane_membership_and_active_tab},
         {"editor_refresh_screen_renders_drawer_entries_and_selection",
          test_editor_refresh_screen_renders_drawer_entries_and_selection},
         {"editor_refresh_screen_drawer_colors_files_by_git_status",

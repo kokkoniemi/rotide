@@ -105,6 +105,10 @@ static const struct keymapActionName g_keymap_action_names[] = {
         {"focus_right_pane", EDITOR_ACTION_FOCUS_RIGHT_PANE},
         {"focus_up_pane", EDITOR_ACTION_FOCUS_UP_PANE},
         {"focus_down_pane", EDITOR_ACTION_FOCUS_DOWN_PANE},
+        {"move_tab_left_pane", EDITOR_ACTION_MOVE_TAB_LEFT_PANE},
+        {"move_tab_right_pane", EDITOR_ACTION_MOVE_TAB_RIGHT_PANE},
+        {"move_tab_up_pane", EDITOR_ACTION_MOVE_TAB_UP_PANE},
+        {"move_tab_down_pane", EDITOR_ACTION_MOVE_TAB_DOWN_PANE},
         {"pane_grow", EDITOR_ACTION_PANE_GROW},
         {"pane_shrink", EDITOR_ACTION_PANE_SHRINK},
         {"terminal_open", EDITOR_ACTION_TERMINAL_OPEN},
@@ -337,6 +341,23 @@ static int keymapArrowWithModifiers(int arrow, int modifiers, int *key_out) {
 					return 1;
 				case ARROW_UP:
 					*key_out = CTRL_ALT_ARROW_UP;
+					return 1;
+				default:
+					return 0;
+			}
+		case KEYMAP_MOD_CTRL | KEYMAP_MOD_SHIFT | KEYMAP_MOD_ALT:
+			switch (arrow) {
+				case ARROW_LEFT:
+					*key_out = CTRL_SHIFT_ALT_ARROW_LEFT;
+					return 1;
+				case ARROW_RIGHT:
+					*key_out = CTRL_SHIFT_ALT_ARROW_RIGHT;
+					return 1;
+				case ARROW_DOWN:
+					*key_out = CTRL_SHIFT_ALT_ARROW_DOWN;
+					return 1;
+				case ARROW_UP:
+					*key_out = CTRL_SHIFT_ALT_ARROW_UP;
 					return 1;
 				default:
 					return 0;
@@ -589,6 +610,14 @@ static int keymapFormatKey(int key, char *buf, size_t bufsize) {
 			return snprintf(buf, bufsize, "Ctrl-Alt-Down") > 0;
 		case CTRL_ALT_ARROW_UP:
 			return snprintf(buf, bufsize, "Ctrl-Alt-Up") > 0;
+		case CTRL_SHIFT_ALT_ARROW_LEFT:
+			return snprintf(buf, bufsize, "Ctrl-Shift-Alt-Left") > 0;
+		case CTRL_SHIFT_ALT_ARROW_RIGHT:
+			return snprintf(buf, bufsize, "Ctrl-Shift-Alt-Right") > 0;
+		case CTRL_SHIFT_ALT_ARROW_DOWN:
+			return snprintf(buf, bufsize, "Ctrl-Shift-Alt-Down") > 0;
+		case CTRL_SHIFT_ALT_ARROW_UP:
+			return snprintf(buf, bufsize, "Ctrl-Shift-Alt-Up") > 0;
 		case ARROW_LEFT:
 			return snprintf(buf, bufsize, "Left") > 0;
 		case ARROW_RIGHT:
@@ -632,6 +661,13 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 	(void)keymapAppendBinding(keymap, CTRL_KEY('w'), EDITOR_ACTION_CLOSE_TAB);
 	(void)keymapAppendBinding(keymap, ALT_ARROW_RIGHT, EDITOR_ACTION_NEXT_TAB);
 	(void)keymapAppendBinding(keymap, ALT_ARROW_LEFT, EDITOR_ACTION_PREV_TAB);
+	(void)keymapAppendBinding(keymap, CTRL_SHIFT_ALT_ARROW_LEFT,
+	                          EDITOR_ACTION_MOVE_TAB_LEFT_PANE);
+	(void)keymapAppendBinding(keymap, CTRL_SHIFT_ALT_ARROW_RIGHT,
+	                          EDITOR_ACTION_MOVE_TAB_RIGHT_PANE);
+	(void)keymapAppendBinding(keymap, CTRL_SHIFT_ALT_ARROW_UP, EDITOR_ACTION_MOVE_TAB_UP_PANE);
+	(void)keymapAppendBinding(keymap, CTRL_SHIFT_ALT_ARROW_DOWN,
+	                          EDITOR_ACTION_MOVE_TAB_DOWN_PANE);
 	(void)keymapAppendBinding(keymap, CTRL_KEY('e'), EDITOR_ACTION_FOCUS_DRAWER);
 	(void)keymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('e'),
 	                          EDITOR_ACTION_TOGGLE_DRAWER);

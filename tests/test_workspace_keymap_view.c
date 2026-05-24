@@ -905,6 +905,7 @@ static int test_editor_keymap_load_modifier_combo_specs_case_insensitive(void) {
 	                                          "toggle_drawer = \"ctrl+alt+e\"\n"
 	                                          "column_select_left = \"SHIFT+ALT+LEFT\"\n"
 	                                          "column_select_right = \"aLt+ShIfT+RiGhT\"\n"
+	                                          "move_tab_right_pane = \"ctrl+SHIFT+alt+RIGHT\"\n"
 	                                          "move_left = \"AlT+b\"\n"
 	                                          "move_right = \"cTrL+aLt+z\"\n"));
 
@@ -928,6 +929,8 @@ static int test_editor_keymap_load_modifier_combo_specs_case_insensitive(void) {
 	ASSERT_EQ_INT(EDITOR_ACTION_COLUMN_SELECT_LEFT, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_SHIFT_ARROW_RIGHT, &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_COLUMN_SELECT_RIGHT, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_SHIFT_ALT_ARROW_RIGHT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_MOVE_TAB_RIGHT_PANE, action);
 
 	char binding[24];
 	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_MOVE_LEFT, binding,
@@ -951,6 +954,9 @@ static int test_editor_keymap_load_modifier_combo_specs_case_insensitive(void) {
 	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_COLUMN_SELECT_RIGHT, binding,
 	                                      sizeof(binding)));
 	ASSERT_EQ_STR("Alt-Shift-Right", binding);
+	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_MOVE_TAB_RIGHT_PANE, binding,
+	                                      sizeof(binding)));
+	ASSERT_EQ_STR("Ctrl-Shift-Alt-Right", binding);
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(rmdir(dir_path) == 0);
@@ -1055,6 +1061,14 @@ static int test_editor_keymap_defaults_include_tab_actions(void) {
 	ASSERT_EQ_INT(EDITOR_ACTION_NEXT_TAB, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_ARROW_LEFT, &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_PREV_TAB, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_SHIFT_ALT_ARROW_LEFT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_MOVE_TAB_LEFT_PANE, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_SHIFT_ALT_ARROW_RIGHT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_MOVE_TAB_RIGHT_PANE, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_SHIFT_ALT_ARROW_UP, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_MOVE_TAB_UP_PANE, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_SHIFT_ALT_ARROW_DOWN, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_MOVE_TAB_DOWN_PANE, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('e'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_FOCUS_DRAWER, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_CTRL_ALT_LETTER_KEY('e'), &action));
@@ -1291,6 +1305,42 @@ static int test_editor_keymap_load_rejects_reserved_terminal_aliases_for_other_a
 	return 0;
 }
 
+static int test_editor_keymap_load_accommodates_full_example_config_customizations(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-fullcfg-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	                                          "dap_start = \"ctrl+alt+s\"\n"
+	                                          "dap_stop = \"ctrl+alt+x\"\n"
+	                                          "dap_continue = \"ctrl+alt+c\"\n"
+	                                          "dap_pause = \"ctrl+alt+p\"\n"
+	                                          "dap_step_over = \"ctrl+alt+o\"\n"
+	                                          "dap_step_into = \"ctrl+alt+i\"\n"
+	                                          "dap_toggle_breakpoint = \"ctrl+alt+y\"\n"
+	                                          "split_horizontal = \"ctrl+alt+h\"\n"
+	                                          "split_vertical = \"ctrl+alt+v\"\n"
+	                                          "close_pane = \"ctrl+alt+q\"\n"
+	                                          "terminal_open = \"ctrl+alt+u\"\n"
+	                                          "terminal_open_vertical = \"ctrl+alt+j\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_CTRL_ALT_LETTER_KEY('q'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_CLOSE_PANE, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_CTRL_ALT_LETTER_KEY('h'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SPLIT_HORIZONTAL, action);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 static int test_editor_keymap_load_accepts_reserved_terminal_aliases_for_matching_actions(void) {
 	char dir_template[] = "/tmp/rotide-test-keymap-reserved-allowed-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -1329,6 +1379,8 @@ const struct editorTestCase g_workspace_keymap_view_tests[] = {
          test_editor_keymap_load_unknown_keyspec_falls_back_to_defaults},
         {"editor_keymap_load_duplicate_binding_falls_back_to_defaults",
          test_editor_keymap_load_duplicate_binding_falls_back_to_defaults},
+        {"editor_keymap_load_accommodates_full_example_config_customizations",
+         test_editor_keymap_load_accommodates_full_example_config_customizations},
         {"editor_keymap_load_malformed_toml_falls_back_to_defaults",
          test_editor_keymap_load_malformed_toml_falls_back_to_defaults},
         {"editor_keymap_global_then_project_precedence",
