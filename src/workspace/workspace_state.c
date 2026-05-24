@@ -193,12 +193,13 @@ static int workspaceStateAppendPendingPaneTab(int pane_idx, int is_active, const
 		return 0;
 	}
 	if (g_pending_pane_tab_count >= g_pending_pane_tab_capacity) {
-		int new_cap = g_pending_pane_tab_capacity > 0 ? g_pending_pane_tab_capacity * 2 : 16;
+		int new_cap =
+		        g_pending_pane_tab_capacity > 0 ? g_pending_pane_tab_capacity * 2 : 16;
 		if (new_cap > ROTIDE_WORKSPACE_PENDING_PANE_TAB_LIMIT) {
 			new_cap = ROTIDE_WORKSPACE_PENDING_PANE_TAB_LIMIT;
 		}
-		struct workspaceStatePendingPaneTab *grown =
-		        realloc(g_pending_pane_tabs, sizeof(*g_pending_pane_tabs) * (size_t)new_cap);
+		struct workspaceStatePendingPaneTab *grown = realloc(
+		        g_pending_pane_tabs, sizeof(*g_pending_pane_tabs) * (size_t)new_cap);
 		if (grown == NULL) {
 			return 0;
 		}
@@ -408,8 +409,8 @@ static int workspaceStateParseInt(const char *value, int *out) {
 	return 1;
 }
 
-static int workspaceStateParsePaneTabLine(const char *value, int *pane_idx_out,
-                                          int *is_active_out, const char **path_out) {
+static int workspaceStateParsePaneTabLine(const char *value, int *pane_idx_out, int *is_active_out,
+                                          const char **path_out) {
 	if (value == NULL || pane_idx_out == NULL || is_active_out == NULL || path_out == NULL) {
 		return 0;
 	}
@@ -564,7 +565,7 @@ int editorWorkspaceStateLoadAndApply(int total_cols) {
 			if (workspaceStateParsePaneTabLine(value, &pane_idx, &is_active,
 			                                   &pane_path)) {
 				(void)workspaceStateAppendPendingPaneTab(pane_idx, is_active,
-				                                        pane_path);
+				                                         pane_path);
 			}
 		} else if (strcmp(key, "focused_pane") == 0) {
 			int focused = -1;
@@ -665,8 +666,8 @@ static void workspaceStateApplyPendingPaneAssignment(void) {
 		return;
 	}
 	struct editorPaneNode *leaves[ROTIDE_WORKSPACE_MAX_LEAVES];
-	int leaf_count = workspaceStateCollectLeaves(E.layout_root, leaves,
-	                                             ROTIDE_WORKSPACE_MAX_LEAVES);
+	int leaf_count =
+	        workspaceStateCollectLeaves(E.layout_root, leaves, ROTIDE_WORKSPACE_MAX_LEAVES);
 	if (leaf_count <= 0) {
 		return;
 	}
@@ -867,8 +868,7 @@ int editorWorkspaceStateSave(void) {
 	                   ROTIDE_WORKSPACE_STATE_VERSION, E.drawer_width_cols,
 	                   E.drawer_width_user_set ? 1 : 0, E.drawer_collapsed ? 1 : 0,
 	                   workspaceStateModeToString(mode), E.drawer_menu_expanded,
-	                   E.drawer_git_expanded, E.drawer_lsp_expanded,
-	                   E.drawer_dap_expanded);
+	                   E.drawer_git_expanded, E.drawer_lsp_expanded, E.drawer_dap_expanded);
 	if (len <= 0 || (size_t)len >= sizeof(buf)) {
 		editorAtomicAbortTemp(fd, tmp_path);
 		return 0;

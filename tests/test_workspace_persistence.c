@@ -1294,11 +1294,10 @@ static int test_editor_workspace_state_rejects_unknown_future_version(void) {
 
 	const char *state_path = editorWorkspaceStatePath();
 	ASSERT_TRUE(state_path != NULL);
-	ASSERT_TRUE(write_text_file(state_path,
-	                            "version=9999\n"
-	                            "drawer_width_cols=12\n"
-	                            "drawer_collapsed=1\n"
-	                            "drawer_mode=git\n"));
+	ASSERT_TRUE(write_text_file(state_path, "version=9999\n"
+	                                        "drawer_width_cols=12\n"
+	                                        "drawer_collapsed=1\n"
+	                                        "drawer_mode=git\n"));
 
 	int loaded = editorWorkspaceStateLoadAndApply(E.window_cols);
 	ASSERT_EQ_INT(0, loaded);
