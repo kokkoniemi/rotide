@@ -622,6 +622,15 @@ void editorPaneViewInit(struct editorPaneView *view) {
 	view->pane_tab_count = 0;
 }
 
+void editorPaneViewClearTabs(struct editorPaneView *view) {
+	if (view == NULL) {
+		return;
+	}
+	view->pane_tab_count = 0;
+	view->active_tab_idx = -1;
+	view->tab_view_start = 0;
+}
+
 int editorPaneViewAddTab(struct editorPaneView *view, int tab_idx) {
 	if (view == NULL || tab_idx < 0) {
 		return 0;

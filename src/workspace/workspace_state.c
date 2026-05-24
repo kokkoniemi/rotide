@@ -27,6 +27,11 @@
 #define ROTIDE_WORKSPACE_PENDING_TAB_LIMIT 256
 #define ROTIDE_WORKSPACE_PENDING_PANE_TAB_LIMIT 512
 
+/* Bumped on incompatible file-format changes so an older binary reading a
+ * newer state file can refuse rather than silently misinterpret unknown
+ * keys. Unversioned files (pre-versioning) are treated as version 1. */
+#define ROTIDE_WORKSPACE_STATE_VERSION 1
+
 struct workspaceStatePendingTab {
 	char *path;
 	int cx;
@@ -42,8 +47,6 @@ struct workspaceStatePendingPaneTab {
 static struct workspaceStatePendingTab *g_pending_tabs;
 static int g_pending_tab_count;
 static int g_pending_tab_capacity;
-static int g_pending_active_idx;
-static char *g_pending_active_path;
 static struct workspaceStatePendingPaneTab *g_pending_pane_tabs;
 static int g_pending_pane_tab_count;
 static int g_pending_pane_tab_capacity;
@@ -169,9 +172,6 @@ static void workspaceStateFreePendingTabs(void) {
 	g_pending_tabs = NULL;
 	g_pending_tab_count = 0;
 	g_pending_tab_capacity = 0;
-	g_pending_active_idx = -1;
-	free(g_pending_active_path);
-	g_pending_active_path = NULL;
 }
 
 static void workspaceStateFreePendingPaneTabs(void) {
@@ -502,7 +502,6 @@ int editorWorkspaceStateLoadAndApply(int total_cols) {
 	int dap_expanded = -1;
 	workspaceStateFreePendingTabs();
 	workspaceStateFreePendingPaneTabs();
-	g_pending_active_idx = -1;
 
 	char line[4096];
 	while (fgets(line, sizeof(line), fp) != NULL) {
@@ -521,7 +520,18 @@ int editorWorkspaceStateLoadAndApply(int total_cols) {
 		const char *key = line;
 		const char *value = eq + 1;
 		int parsed = 0;
-		if (strcmp(key, "drawer_width_cols") == 0) {
+		if (strcmp(key, "version") == 0) {
+			int parsed_version = 0;
+			if (workspaceStateParseInt(value, &parsed_version) &&
+			    parsed_version > ROTIDE_WORKSPACE_STATE_VERSION) {
+				/* Newer-format file: bail rather than partially apply
+				 * settings whose semantics we don't understand. */
+				fclose(fp);
+				workspaceStateFreePendingTabs();
+				workspaceStateFreePendingPaneTabs();
+				return 0;
+			}
+		} else if (strcmp(key, "drawer_width_cols") == 0) {
 			(void)workspaceStateParseInt(value, &width);
 		} else if (strcmp(key, "drawer_width_user_set") == 0) {
 			(void)workspaceStateParseInt(value, &width_user_set);
@@ -547,9 +557,6 @@ int editorWorkspaceStateLoadAndApply(int total_cols) {
 			if (workspaceStateParseTabLine(value, &tab_cx, &tab_cy, &tab_path)) {
 				(void)workspaceStateAppendPendingTab(tab_cx, tab_cy, tab_path);
 			}
-		} else if (strcmp(key, "active_tab") == 0) {
-			free(g_pending_active_path);
-			g_pending_active_path = strdup(value);
 		} else if (strcmp(key, "pane_tab") == 0) {
 			int pane_idx = -1;
 			int is_active = 0;
@@ -670,9 +677,7 @@ static void workspaceStateApplyPendingPaneAssignment(void) {
 		if (leaves[i]->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
 			continue;
 		}
-		leaves[i]->as.leaf.view.pane_tab_count = 0;
-		leaves[i]->as.leaf.view.active_tab_idx = -1;
-		leaves[i]->as.leaf.view.tab_view_start = 0;
+		editorPaneViewClearTabs(&leaves[i]->as.leaf.view);
 	}
 
 	for (int j = 0; j < g_pending_pane_tab_count; j++) {
@@ -729,6 +734,9 @@ static void workspaceStateApplyPendingPaneAssignment(void) {
 
 int editorWorkspaceStateRestoreTabs(void) {
 	if (g_pending_tab_count <= 0) {
+		/* Symmetric cleanup so pending pane-tab state doesn't linger to the
+		 * next session shutdown when no tabs were queued for restore. */
+		workspaceStateFreePendingPaneTabs();
 		return 0;
 	}
 	int opened_any = 0;
@@ -784,8 +792,6 @@ int editorWorkspaceStateRestoreTabs(void) {
 		/* Redistribute the opened tabs across the saved panes; this also
 		 * sets E.focused_leaf and switches to the focused pane's active tab. */
 		workspaceStateApplyPendingPaneAssignment();
-	} else if (opened_any && g_pending_active_path != NULL) {
-		(void)editorTabOpenOrSwitchToFile(g_pending_active_path);
 	}
 	/*
 	 * When the active path is the last tab we opened, editorTabSwitchToIndex returns early
@@ -834,7 +840,8 @@ int editorWorkspaceStateSave(void) {
 		return 0;
 	}
 
-	int fd = open(E.workspace_state_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+	char *tmp_path = NULL;
+	int fd = editorAtomicOpenTemp(E.workspace_state_path, &tmp_path, 0600);
 	if (fd == -1) {
 		return 0;
 	}
@@ -848,6 +855,7 @@ int editorWorkspaceStateSave(void) {
 
 	char buf[256];
 	int len = snprintf(buf, sizeof(buf),
+	                   "version=%d\n"
 	                   "drawer_width_cols=%d\n"
 	                   "drawer_width_user_set=%d\n"
 	                   "drawer_collapsed=%d\n"
@@ -856,17 +864,18 @@ int editorWorkspaceStateSave(void) {
 	                   "drawer_git_expanded=%u\n"
 	                   "drawer_lsp_expanded=%u\n"
 	                   "drawer_dap_expanded=%u\n",
-	                   E.drawer_width_cols, E.drawer_width_user_set ? 1 : 0,
-	                   E.drawer_collapsed ? 1 : 0, workspaceStateModeToString(mode),
-	                   E.drawer_menu_expanded, E.drawer_git_expanded, E.drawer_lsp_expanded,
+	                   ROTIDE_WORKSPACE_STATE_VERSION, E.drawer_width_cols,
+	                   E.drawer_width_user_set ? 1 : 0, E.drawer_collapsed ? 1 : 0,
+	                   workspaceStateModeToString(mode), E.drawer_menu_expanded,
+	                   E.drawer_git_expanded, E.drawer_lsp_expanded,
 	                   E.drawer_dap_expanded);
 	if (len <= 0 || (size_t)len >= sizeof(buf)) {
-		(void)close(fd);
+		editorAtomicAbortTemp(fd, tmp_path);
 		return 0;
 	}
 
 	if (!workspaceStateWriteAll(fd, buf, (size_t)len)) {
-		(void)close(fd);
+		editorAtomicAbortTemp(fd, tmp_path);
 		return 0;
 	}
 	for (int i = 0; i < E.recent_file_count; i++) {
@@ -877,12 +886,11 @@ int editorWorkspaceStateSave(void) {
 		if (!workspaceStateWriteAll(fd, "recent_file=", strlen("recent_file=")) ||
 		    !workspaceStateWriteAll(fd, path, strlen(path)) ||
 		    !workspaceStateWriteAll(fd, "\n", 1)) {
-			(void)close(fd);
+			editorAtomicAbortTemp(fd, tmp_path);
 			return 0;
 		}
 	}
 
-	const char *active_path = NULL;
 	for (int i = 0; i < E.tab_count; i++) {
 		const struct editorBuffer *tab = editorTabBufferHandleAt(i);
 		if (tab == NULL) {
@@ -895,24 +903,13 @@ int editorWorkspaceStateSave(void) {
 		char prefix[64];
 		int prefix_len = snprintf(prefix, sizeof(prefix), "tab=%d|%d|", tab->cx, tab->cy);
 		if (prefix_len <= 0 || (size_t)prefix_len >= sizeof(prefix)) {
-			(void)close(fd);
+			editorAtomicAbortTemp(fd, tmp_path);
 			return 0;
 		}
 		if (!workspaceStateWriteAll(fd, prefix, (size_t)prefix_len) ||
 		    !workspaceStateWriteAll(fd, tab->filename, strlen(tab->filename)) ||
 		    !workspaceStateWriteAll(fd, "\n", 1)) {
-			(void)close(fd);
-			return 0;
-		}
-		if (i == E.active_tab) {
-			active_path = tab->filename;
-		}
-	}
-	if (active_path != NULL) {
-		if (!workspaceStateWriteAll(fd, "active_tab=", strlen("active_tab=")) ||
-		    !workspaceStateWriteAll(fd, active_path, strlen(active_path)) ||
-		    !workspaceStateWriteAll(fd, "\n", 1)) {
-			(void)close(fd);
+			editorAtomicAbortTemp(fd, tmp_path);
 			return 0;
 		}
 	}
@@ -922,7 +919,7 @@ int editorWorkspaceStateSave(void) {
 			if (!workspaceStateWriteAll(fd, "layout=", strlen("layout=")) ||
 			    !workspaceStateWriteAll(fd, layout_buf, strlen(layout_buf)) ||
 			    !workspaceStateWriteAll(fd, "\n", 1)) {
-				(void)close(fd);
+				editorAtomicAbortTemp(fd, tmp_path);
 				return 0;
 			}
 		}
@@ -957,14 +954,14 @@ int editorWorkspaceStateSave(void) {
 				int prefix_len = snprintf(prefix, sizeof(prefix), "pane_tab=%d|%d|",
 				                          i, is_active);
 				if (prefix_len <= 0 || (size_t)prefix_len >= sizeof(prefix)) {
-					(void)close(fd);
+					editorAtomicAbortTemp(fd, tmp_path);
 					return 0;
 				}
 				if (!workspaceStateWriteAll(fd, prefix, (size_t)prefix_len) ||
 				    !workspaceStateWriteAll(fd, tab->filename,
 				                            strlen(tab->filename)) ||
 				    !workspaceStateWriteAll(fd, "\n", 1)) {
-					(void)close(fd);
+					editorAtomicAbortTemp(fd, tmp_path);
 					return 0;
 				}
 			}
@@ -975,14 +972,11 @@ int editorWorkspaceStateSave(void) {
 			                 focused_idx);
 			if (n > 0 && (size_t)n < sizeof(focus_buf)) {
 				if (!workspaceStateWriteAll(fd, focus_buf, (size_t)n)) {
-					(void)close(fd);
+					editorAtomicAbortTemp(fd, tmp_path);
 					return 0;
 				}
 			}
 		}
 	}
-	if (close(fd) != 0) {
-		return 0;
-	}
-	return 1;
+	return editorAtomicCommitTemp(fd, tmp_path, E.workspace_state_path);
 }

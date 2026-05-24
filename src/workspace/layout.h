@@ -113,28 +113,11 @@ int editorPaneNodeContainsLeaf(const struct editorPaneNode *node,
                                const struct editorPaneNode *leaf);
 
 /*
- * Tree mutation primitives.
- *
- * editorPaneTreeSplitLeaf wraps the focused leaf in a new split node, with
- * `leaf` placed first (left/top) and a freshly allocated sibling placed
- * second (right/bottom). `*root_ptr` is updated if the splitting leaf was
- * the root. Returns the new sibling leaf on success, NULL on allocation
- * failure or if `leaf` is not found under `*root_ptr`.
- *
- * editorPaneTreeCloseLeaf removes `leaf` from the tree, promoting its
- * sibling in place of the parent split node. `*root_ptr` is updated if the
- * parent was the root. Returns the sibling leaf that now occupies the
- * focused position (caller should set focus to it), or NULL if `leaf` is
- * the only leaf (close-last-leaf is a no-op), or NULL if `leaf` is not
- * found. The freed leaf and parent split node are released by this call.
- *
- * editorPaneTreeFindParent locates the split node whose first/second child
- * is `child`. Returns NULL if `child` is the root or is not found.
- *
- * editorPaneTreeLeafCount returns the number of leaves under `root`.
- *
- * editorPaneTreeFirstLeaf is a stable left-most-leaf finder for fallback
- * focus moves.
+ * Tree mutation primitives. Both SplitLeaf and CloseLeaf may rewrite
+ * `*root_ptr` when the affected node was the root. CloseLeaf is a no-op
+ * (returns NULL) on the last remaining leaf; otherwise it returns the
+ * sibling that took the freed leaf's position, leaving the freed leaf and
+ * its parent split node released.
  */
 struct editorPaneNode *editorPaneTreeSplitLeaf(struct editorPaneNode **root_ptr,
                                                struct editorPaneNode *leaf,
@@ -155,12 +138,7 @@ int editorLayoutPaneTabStripAt(const struct editorLeafLayout *layout, int x, int
                                struct editorPaneNode **leaf_out, int *local_col_out,
                                int *strip_cols_out);
 
-/*
- * Walks the tree and writes the rect of `leaf` into `*out`. Returns 1 if the
- * leaf is found under `root`, else 0. Does not allocate. Useful when the
- * caller only needs one leaf's rect and wants to avoid materializing the full
- * leaf-layout array.
- */
+/* Non-allocating single-leaf variant of editorLayoutComputeInto. */
 int editorLayoutLeafRect(const struct editorPaneNode *root, struct editorRect viewport,
                          const struct editorPaneNode *leaf, struct editorRect *out);
 
@@ -231,57 +209,37 @@ int editorLayoutSplitNodeRect(const struct editorPaneNode *root, struct editorRe
 int editorLayoutEditorViewport(struct editorRect *out);
 int editorLayoutFocusedLeafRect(struct editorRect *out);
 
-/*
- * View state capture/load for focus changes between panes.
- *
- * editorPaneViewInit resets a view to "uninitialized" (active_tab_idx=-1).
- *
- * editorPaneViewCaptureFromState snapshots E's cursor/scroll/selection,
- * tab-strip scroll, and the current active tab index into the view.
- *
- * editorPaneViewLoadIntoState overwrites E's cursor/scroll/selection from
- * the view. It does NOT switch tabs — the caller is responsible for ensuring
- * E.active_tab matches view->active_tab_idx if cross-tab semantics are
- * desired. Returns 0 if the view is uninitialized (active_tab_idx<0),
- * 1 otherwise.
- *
- * editorLayoutSetFocusedLeaf orchestrates a full focus change including
- * per-pane tab swapping: captures from E into the previously focused
- * leaf's view, updates E.focused_leaf, switches the active tab if the
- * incoming pane's view records a different tab, then loads the incoming
- * pane's cursor/selection over the result. A no-op when new_leaf is already
- * focused or is not a leaf in E.layout_root.
- */
+/* Init marks a view uninitialized (active_tab_idx = -1). */
 void editorPaneViewInit(struct editorPaneView *view);
 void editorPaneViewCaptureFromState(struct editorPaneView *view);
+/*
+ * LoadIntoState overwrites E's cursor/scroll/selection but does NOT switch
+ * tabs; the caller must align E.active_tab with view->active_tab_idx first
+ * if cross-tab semantics are desired. Returns 0 if uninitialized.
+ */
 int editorPaneViewLoadIntoState(const struct editorPaneView *view);
+/*
+ * Capture-from-E into the outgoing view, update E.focused_leaf, switch tabs
+ * if the incoming view records a different active_tab_idx, then load the
+ * incoming view over E. No-op if new_leaf is already focused or not in
+ * E.layout_root.
+ */
 int editorLayoutSetFocusedLeaf(struct editorPaneNode *new_leaf);
 
 /*
- * Per-pane tab membership helpers.
+ * Per-pane tab membership helpers. AddTab is a no-op if the index is
+ * already present; both AddTab and InsertTabAt return 0 if the list is
+ * full. ClearTabs leaves cursor/scroll/selection untouched.
  *
- * editorPaneViewAddTab inserts `tab_idx` into the view's tab list if it
- * isn't already there. Returns 1 on success, 0 if the list is full.
- *
- * editorPaneViewRemoveTab removes `tab_idx` from the list (no-op if
- * absent) and shifts subsequent entries down. Used by tab close.
- *
- * editorPaneViewHasTab returns 1 if the tab is in the view's list.
- *
- * editorPaneViewIndexOfTab returns the local position of `tab_idx` in
- * the list, or -1 if not present.
- *
- * editorPaneViewShiftTabIndicesAfterClose decrements every recorded
- * index that is > `removed_idx` so the membership list stays consistent
- * with the global E.tabs[] after a tab is removed from the global array.
- *
- * editorPaneTreeAnyPaneHasTab returns 1 if any leaf anywhere under
- * `root` lists `tab_idx`. Used to decide whether closing a tab in one
- * pane should free the global tab entry.
+ * ShiftTabIndicesAfterClose (view and tree variants) must run after a tab
+ * is removed from the global E.tabs[] so membership indices stay aligned.
+ * AnyPaneHasTab gates whether closing a tab in one pane should free the
+ * global entry — only the last pane referencing it should.
  */
 int editorPaneViewAddTab(struct editorPaneView *view, int tab_idx);
 int editorPaneViewInsertTabAt(struct editorPaneView *view, int tab_idx, int slot);
 void editorPaneViewRemoveTab(struct editorPaneView *view, int tab_idx);
+void editorPaneViewClearTabs(struct editorPaneView *view);
 int editorPaneViewHasTab(const struct editorPaneView *view, int tab_idx);
 int editorPaneViewIndexOfTab(const struct editorPaneView *view, int tab_idx);
 void editorPaneViewShiftTabIndicesAfterClose(struct editorPaneView *view, int removed_idx);
@@ -289,28 +247,20 @@ int editorPaneTreeAnyPaneHasTab(const struct editorPaneNode *root, int tab_idx);
 void editorPaneTreeShiftTabIndicesAfterClose(struct editorPaneNode *root, int removed_idx);
 
 /*
- * High-level actions for the focused pane. These wrap the tree mutation
- * primitives with the capture/load dance and update E.focused_leaf.
- *
- * editorLayoutSplitFocused splits the currently focused leaf with the given
- * orientation and ratio. The new sibling inherits the splitting leaf's view
- * and becomes focused. Returns the new sibling on success, NULL on failure.
- *
- * editorLayoutCloseFocused removes the currently focused leaf and shifts
- * focus to its sibling. Returns the newly focused leaf on success, NULL if
- * the focused leaf is the only leaf (no-op) or on failure.
+ * E-aware wrappers around the tree primitives: they perform the
+ * capture/load dance and update E.focused_leaf. SplitFocused makes the new
+ * sibling focused and inheriting the splitter's view. Both return NULL on
+ * no-op (CloseFocused on the last leaf) or failure.
  */
 struct editorPaneNode *editorLayoutSplitFocused(enum editorSplitOrientation orientation,
                                                 double ratio);
 struct editorPaneNode *editorLayoutCloseFocused(void);
 
 /*
- * Geometric neighbor lookup.
- *
- * editorLayoutFindNeighborLeaf scans `layout` for the nearest leaf in the
- * given direction relative to `from_leaf`. "Nearest" means smallest gap on
- * the major axis among candidates whose minor-axis range overlaps the
- * source leaf. Returns NULL if no such neighbor exists.
+ * "Nearest" in the requested direction means smallest major-axis gap among
+ * candidates whose minor-axis range overlaps `from_leaf` — purely overlap-
+ * based, not center-distance, so a tall pane next to two short panes picks
+ * a unique winner.
  */
 enum editorFocusDirection {
 	EDITOR_FOCUS_LEFT = 0,
@@ -324,17 +274,10 @@ struct editorPaneNode *editorLayoutFindNeighborLeaf(const struct editorLeafLayou
                                                     enum editorFocusDirection direction);
 
 /*
- * High-level E-aware actions for focus and resize. Each returns 1 if it
- * mutated state, 0 if it was a no-op (no neighbor, root focused, etc.).
- *
- * editorLayoutFocusDirection moves focus to the geometric neighbor.
- * editorLayoutFocusLeafAt sets focus to the leaf containing screen point
- * (x, y) in editor-viewport coordinates; returns 0 if no leaf there.
- * editorLayoutResizeFocused nudges the focused leaf's parent split ratio
- * by ROTIDE_PANE_RESIZE_STEP, clamped to ROTIDE_PANE_MIN_RATIO. grow=1
- * makes the focused pane larger; grow=0 makes it smaller.
- * editorLayoutFocusedLeafIndex writes the focused leaf's 0-based position
- * in leftmost-leaf order plus the total leaf count.
+ * Focus/resize actions return 1 on mutation, 0 on no-op (no neighbor, no
+ * leaf at point, root focused). ResizeFocused nudges the parent split
+ * ratio by RESIZE_STEP, clamped to MIN_RATIO; grow=1 enlarges the focused
+ * pane. FocusLeafAt takes editor-viewport coordinates.
  */
 #define ROTIDE_PANE_MIN_RATIO 0.10
 #define ROTIDE_PANE_RESIZE_STEP 0.05
@@ -345,10 +288,9 @@ int editorLayoutResizeFocused(int grow);
 int editorLayoutFocusedLeafIndex(int *out_index, int *out_count);
 
 /*
- * When the tree has more than one leaf, push a "Pane X/N" status message
- * so the user gets feedback after a split / close / focus action. No-op
- * for the single-leaf case so it doesn't spam the message bar during
- * normal editing.
+ * Posts a "Pane X/N" status message after split/close/focus actions, but
+ * stays silent in the single-leaf case to avoid spamming during normal
+ * editing.
  */
 void editorPaneAnnounceFocus(void);
 
