@@ -54,6 +54,14 @@ struct editorTerminalPane {
 	 * Owned by the pane; grown on demand and freed in PaneFree. */
 	VTermScreenCell *render_row_scratch;
 	int render_row_scratch_cap;
+
+	/* Per-row dirty bits for the live screen (length == rows). 1 == needs
+	 * a redraw this frame; 0 == cells unchanged since the last frame so the
+	 * renderer may skip the emit and leave the terminal's previous output in
+	 * place. Set by libvterm damage callbacks, by sb_pushline/popline (when
+	 * content shifted), by scroll/selection/resize, and at pane creation. */
+	unsigned char *row_dirty;
+	int row_dirty_cap;
 };
 
 /* Spawn command in PTY + vterm. Caller owns returned pane. */

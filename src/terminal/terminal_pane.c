@@ -61,6 +61,72 @@ static void terminalPaneOutputCallback(const char *s, size_t len, void *user) {
 	(void)written;
 }
 
+/* (Re)allocate row_dirty to hold `rows` entries, init all to dirty so the next
+ * frame paints from scratch. Returns 1 on success, 0 on OOM (row_dirty kept
+ * at its prior size; caller falls back to "everything dirty" via row_dirty==NULL). */
+static int terminalPaneAllocRowDirty(struct editorTerminalPane *t, int rows) {
+	if (t == NULL || rows <= 0) {
+		return 1;
+	}
+	if (t->row_dirty != NULL && t->row_dirty_cap >= rows) {
+		memset(t->row_dirty, 1, (size_t)rows);
+		return 1;
+	}
+	unsigned char *grown = realloc(t->row_dirty, (size_t)rows);
+	if (grown == NULL) {
+		return 0;
+	}
+	memset(grown, 1, (size_t)rows);
+	t->row_dirty = grown;
+	t->row_dirty_cap = rows;
+	return 1;
+}
+
+static void terminalPaneMarkAllRowsDirty(struct editorTerminalPane *t) {
+	if (t == NULL || t->row_dirty == NULL) {
+		return;
+	}
+	int n = t->rows < t->row_dirty_cap ? t->rows : t->row_dirty_cap;
+	if (n > 0) {
+		memset(t->row_dirty, 1, (size_t)n);
+	}
+}
+
+static int terminalPaneDamage(VTermRect rect, void *user) {
+	struct editorTerminalPane *t = (struct editorTerminalPane *)user;
+	if (t == NULL || t->row_dirty == NULL) {
+		return 1;
+	}
+	int r0 = rect.start_row < 0 ? 0 : rect.start_row;
+	int r1 = rect.end_row;
+	if (r1 > t->row_dirty_cap) {
+		r1 = t->row_dirty_cap;
+	}
+	for (int r = r0; r < r1; r++) {
+		t->row_dirty[r] = 1;
+	}
+	return 1;
+}
+
+static int terminalPaneMoverect(VTermRect dest, VTermRect src, void *user) {
+	(void)dest;
+	(void)src;
+	struct editorTerminalPane *t = (struct editorTerminalPane *)user;
+	/* Internal scrolls touch large rectangles and libvterm follows up with
+	 * damage events for the new content, but the simplest correct thing is
+	 * to repaint every row this frame. */
+	terminalPaneMarkAllRowsDirty(t);
+	return 1;
+}
+
+static int terminalPaneResizeCb(int rows, int cols, void *user) {
+	(void)rows;
+	(void)cols;
+	struct editorTerminalPane *t = (struct editorTerminalPane *)user;
+	terminalPaneMarkAllRowsDirty(t);
+	return 1;
+}
+
 static int terminalPaneSetTermProp(VTermProp prop, VTermValue *val, void *user) {
 	struct editorTerminalPane *t = (struct editorTerminalPane *)user;
 	if (t == NULL || val == NULL) {
@@ -121,6 +187,9 @@ static int terminalPaneSbPushline(int cols, const VTermScreenCell *cells, void *
 	if (t->scroll_offset > t->sb_size) {
 		t->scroll_offset = t->sb_size;
 	}
+	/* Live cells shifted up under the user's view (or selection rows shifted
+	 * if scrolled), so the whole pane needs a fresh paint this frame. */
+	terminalPaneMarkAllRowsDirty(t);
 	return 1;
 }
 
@@ -149,6 +218,7 @@ static int terminalPaneSbPopline(int cols, VTermScreenCell *cells, void *user) {
 	}
 	t->sb_head = back_idx;
 	t->sb_size -= 1;
+	terminalPaneMarkAllRowsDirty(t);
 	return 1;
 }
 
@@ -166,11 +236,15 @@ static int terminalPaneSbClear(void *user) {
 	t->sb_head = 0;
 	t->scroll_offset = 0;
 	t->sel_active = 0;
+	terminalPaneMarkAllRowsDirty(t);
 	return 1;
 }
 
 static const VTermScreenCallbacks g_terminal_pane_screen_callbacks = {
+        .damage = terminalPaneDamage,
+        .moverect = terminalPaneMoverect,
         .settermprop = terminalPaneSetTermProp,
+        .resize = terminalPaneResizeCb,
         .sb_pushline = terminalPaneSbPushline,
         .sb_popline = terminalPaneSbPopline,
         .sb_clear = terminalPaneSbClear,
@@ -203,6 +277,7 @@ struct editorTerminalPane *editorTerminalPaneCreate(const char *command, int col
 			t->sb_cap = sb_cap;
 		}
 	}
+	(void)terminalPaneAllocRowDirty(t, rows);
 
 	t->vt = vterm_new(rows, cols);
 	if (t->vt == NULL) {
@@ -251,6 +326,8 @@ void editorTerminalPaneFree(void *pane) {
 	}
 	free(t->render_row_scratch);
 	t->render_row_scratch = NULL;
+	free(t->row_dirty);
+	t->row_dirty = NULL;
 	free(t);
 }
 
@@ -331,6 +408,7 @@ int editorTerminalPaneResize(struct editorTerminalPane *terminal, int cols, int 
 	vterm_set_size(terminal->vt, rows, cols);
 	terminal->cols = cols;
 	terminal->rows = rows;
+	(void)terminalPaneAllocRowDirty(terminal, rows);
 	if (terminal->child.master_fd >= 0) {
 		(void)editorPtyResize(&terminal->child, cols, rows);
 	}
@@ -405,8 +483,11 @@ int editorTerminalPaneSendKey(struct editorTerminalPane *terminal, int rotide_ke
 	}
 	/* Any key returns the pane to live view and drops a stale selection.
 	 * Mirrors how most terminals (iterm, tmux copy-mode) behave. */
-	terminal->sel_active = 0;
-	terminal->scroll_offset = 0;
+	if (terminal->sel_active || terminal->scroll_offset != 0) {
+		terminal->sel_active = 0;
+		terminal->scroll_offset = 0;
+		terminalPaneMarkAllRowsDirty(terminal);
+	}
 	/* Route printables through vterm. */
 	if (rotide_key >= 0x20 && rotide_key < 0x7f) {
 		vterm_keyboard_unichar(terminal->vt, (uint32_t)rotide_key, VTERM_MOD_NONE);
@@ -486,6 +567,7 @@ int editorTerminalPaneScrollBy(struct editorTerminalPane *terminal, int lines) {
 		return 0;
 	}
 	terminal->scroll_offset = target;
+	terminalPaneMarkAllRowsDirty(terminal);
 	return 1;
 }
 
@@ -494,6 +576,7 @@ int editorTerminalPaneScrollReset(struct editorTerminalPane *terminal) {
 		return 0;
 	}
 	terminal->scroll_offset = 0;
+	terminalPaneMarkAllRowsDirty(terminal);
 	return 1;
 }
 
@@ -557,21 +640,27 @@ void editorTerminalPaneSelectionBegin(struct editorTerminalPane *terminal, int r
 	terminal->sel_anchor_col = col;
 	terminal->sel_cursor_row = row;
 	terminal->sel_cursor_col = col;
+	terminalPaneMarkAllRowsDirty(terminal);
 }
 
 void editorTerminalPaneSelectionUpdate(struct editorTerminalPane *terminal, int row, int col) {
 	if (terminal == NULL || !terminal->sel_active) {
 		return;
 	}
+	if (terminal->sel_cursor_row == row && terminal->sel_cursor_col == col) {
+		return;
+	}
 	terminal->sel_cursor_row = row;
 	terminal->sel_cursor_col = col;
+	terminalPaneMarkAllRowsDirty(terminal);
 }
 
 void editorTerminalPaneSelectionClear(struct editorTerminalPane *terminal) {
-	if (terminal == NULL) {
+	if (terminal == NULL || !terminal->sel_active) {
 		return;
 	}
 	terminal->sel_active = 0;
+	terminalPaneMarkAllRowsDirty(terminal);
 }
 
 int editorTerminalPaneSelectionContains(const struct editorTerminalPane *terminal, int row,

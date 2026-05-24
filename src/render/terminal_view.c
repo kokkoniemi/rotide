@@ -134,10 +134,49 @@ int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *term
 		return 1;
 	}
 	if (terminal->exited && terminal->rows > 0 && row_in_pane == terminal->rows - 1) {
-		return terminalViewDrawExitStatusRow(wb, terminal, col_in_pane, slice_cols);
+		/* The exit banner is static once the child exits, so the dirty bit
+		 * lets us skip the row after the first frame that drew it. */
+		if (terminal->row_dirty != NULL && row_in_pane < terminal->row_dirty_cap &&
+		    !terminal->row_dirty[row_in_pane]) {
+			if (!editorAppendThemeReset(wb)) {
+				return 0;
+			}
+			char esc[16];
+			int n = snprintf(esc, sizeof(esc), "\x1b[%dC", slice_cols);
+			if (n > 0 && n < (int)sizeof(esc)) {
+				return wbAppend(wb, esc, (size_t)n);
+			}
+		}
+		int ok = terminalViewDrawExitStatusRow(wb, terminal, col_in_pane, slice_cols);
+		if (ok && terminal->row_dirty != NULL && row_in_pane < terminal->row_dirty_cap) {
+			terminal->row_dirty[row_in_pane] = 0;
+		}
+		return ok;
+	}
+	/* Damage-aware fast path: if libvterm hasn't reported any cell changes on
+	 * this row since the last frame and no scroll/selection event invalidated
+	 * it, we can leave the terminal's existing output untouched and just
+	 * advance the cursor past the pane's slice. The earlier frame already
+	 * painted these cells; the host terminal still has them on screen. */
+	if (terminal->row_dirty != NULL && row_in_pane >= 0 &&
+	    row_in_pane < terminal->row_dirty_cap && !terminal->row_dirty[row_in_pane]) {
+		if (!editorAppendThemeReset(wb)) {
+			return 0;
+		}
+		char esc[16];
+		int n = snprintf(esc, sizeof(esc), "\x1b[%dC", slice_cols);
+		if (n <= 0 || n >= (int)sizeof(esc)) {
+			/* Fall through to a full redraw rather than emit a bogus escape. */
+		} else {
+			return wbAppend(wb, esc, (size_t)n);
+		}
 	}
 	if (!editorAppendThemeReset(wb)) {
 		return 0;
+	}
+	if (terminal->row_dirty != NULL && row_in_pane >= 0 &&
+	    row_in_pane < terminal->row_dirty_cap) {
+		terminal->row_dirty[row_in_pane] = 0;
 	}
 	/* Translate pane-local row into the pane's log-row coordinate so we can
 	 * pull from scrollback when the user has scrolled up, and so selection
