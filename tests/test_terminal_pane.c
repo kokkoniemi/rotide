@@ -356,6 +356,33 @@ static int test_terminal_pane_dcs_embedded_esc_does_not_overread(void) {
 	return 0;
 }
 
+/* Regression: erase_internal used to iterate columns up to rect.end_col
+ * with no upper bound, and rows against state->rows rather than the
+ * screen's own row count. Crafted sequences (an ESC 2 resetting state
+ * followed by a CSI K with embedded C0 bytes) could push the rect out
+ * of bounds, getcell() then returned NULL and the erase deref crashed. */
+static int test_terminal_pane_erase_oob_rect_does_not_crash(void) {
+	VTerm *vt = vterm_new(24, 80);
+	if (vt == NULL) {
+		return 1;
+	}
+	vterm_set_utf8(vt, 1);
+	VTermScreen *screen = vterm_obtain_screen(vt);
+	if (screen != NULL) {
+		vterm_screen_reset(screen, 1);
+	}
+	const char crash[] =
+	        "\x1b\x32\xc2\x9f\x1b[\x00\x14\x0b"
+	        "0K\x0b\x0b\x0a\x1b[\x00\x14\x0b"
+	        "0\x1bK";
+	vterm_input_write(vt, crash, sizeof(crash) - 1);
+	if (screen != NULL) {
+		vterm_screen_flush_damage(screen);
+	}
+	vterm_free(vt);
+	return 0;
+}
+
 static int test_terminal_pane_write_forwards_to_child(void) {
 	/* `cat` echoes typed bytes back through the PTY. Write "hi\n", read
 	 * via pump, expect the bytes to land in the vterm screen. */
@@ -405,6 +432,8 @@ const struct editorTestCase g_terminal_pane_tests[] = {
          test_terminal_pane_csi_huge_arg_does_not_overflow},
         {"terminal_pane_dcs_embedded_esc_does_not_overread",
          test_terminal_pane_dcs_embedded_esc_does_not_overread},
+        {"terminal_pane_erase_oob_rect_does_not_crash",
+         test_terminal_pane_erase_oob_rect_does_not_crash},
 };
 
 const int g_terminal_pane_test_count =
