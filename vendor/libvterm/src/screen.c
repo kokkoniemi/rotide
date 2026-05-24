@@ -271,11 +271,17 @@ static int erase_internal(VTermRect rect, int selective, void *user)
 {
   VTermScreen *screen = user;
 
-  for(int row = rect.start_row; row < screen->state->rows && row < rect.end_row; row++) {
+  /* rotide patch: clamp the rect to the screen's own dimensions. State and
+   * screen row/col counts can disagree (e.g. mid-resize, or after an ESC
+   * sequence that resets state), and rect.end_col was previously unbounded
+   * — both let getcell() return NULL and we'd crash dereferencing it. */
+  for(int row = rect.start_row; row < screen->state->rows && row < screen->rows && row < rect.end_row; row++) {
     const VTermLineInfo *info = vterm_state_get_lineinfo(screen->state, row);
 
-    for(int col = rect.start_col; col < rect.end_col; col++) {
+    for(int col = rect.start_col; col < screen->cols && col < rect.end_col; col++) {
       ScreenCell *cell = getcell(screen, row, col);
+      if(!cell)
+        continue;
 
       if(selective && cell->pen.protected_cell)
         continue;

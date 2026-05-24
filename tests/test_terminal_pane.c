@@ -287,6 +287,216 @@ static int test_terminal_pane_cursor_props_follow_decset_sequences(void) {
 	return failed;
 }
 
+/* Regression: a CSI sequence with more semicolon-separated arguments than
+ * CSI_ARGS_MAX (16 in the vendored libvterm) used to overrun the parser's
+ * args[] array and clobber the callbacks pointer that follows it, causing
+ * a segfault inside do_csi. Excess separators must be folded into the last
+ * slot instead of writing past the array. */
+static int test_terminal_pane_csi_excess_args_does_not_crash(void) {
+	VTerm *vt = vterm_new(24, 80);
+	if (vt == NULL) {
+		return 1;
+	}
+	vterm_set_utf8(vt, 1);
+	VTermScreen *screen = vterm_obtain_screen(vt);
+	if (screen != NULL) {
+		vterm_screen_reset(screen, 1);
+	}
+	const char crash[] = "\x1b[1;;;;;;;;;;;;;;;;;;;;;;;;;;;E5\x1b[1E5frr0m7";
+	vterm_input_write(vt, crash, sizeof(crash) - 1);
+	if (screen != NULL) {
+		vterm_screen_flush_damage(screen);
+	}
+	vterm_free(vt);
+	return 0;
+}
+
+/* Regression: argument digits that would overflow a long in `args *= 10`
+ * must be saturated rather than tripping UBSan. */
+static int test_terminal_pane_csi_huge_arg_does_not_overflow(void) {
+	VTerm *vt = vterm_new(24, 80);
+	if (vt == NULL) {
+		return 1;
+	}
+	vterm_set_utf8(vt, 1);
+	VTermScreen *screen = vterm_obtain_screen(vt);
+	if (screen != NULL) {
+		vterm_screen_reset(screen, 1);
+	}
+	const char huge[] = "\x1b[33333333333333333333H";
+	vterm_input_write(vt, huge, sizeof(huge) - 1);
+	if (screen != NULL) {
+		vterm_screen_flush_damage(screen);
+	}
+	vterm_free(vt);
+	return 0;
+}
+
+/* Regression: a DCS sequence with an embedded ESC followed by C0/NUL bytes
+ * used to leave the parser with string_start advanced past pos and in_esc
+ * still set, so the end-of-input fixup underflowed size_t (0 - 1) and the
+ * DECRQSS handler walked off the end of the input. */
+static int test_terminal_pane_dcs_embedded_esc_does_not_overread(void) {
+	VTerm *vt = vterm_new(24, 80);
+	if (vt == NULL) {
+		return 1;
+	}
+	vterm_set_utf8(vt, 1);
+	VTermScreen *screen = vterm_obtain_screen(vt);
+	if (screen != NULL) {
+		vterm_screen_reset(screen, 1);
+	}
+	const char crash[] = "\x1bP$q\x11\x1b\x1f\x1f\x1f\x1f\x1f\x00\x1f";
+	vterm_input_write(vt, crash, sizeof(crash) - 1);
+	if (screen != NULL) {
+		vterm_screen_flush_damage(screen);
+	}
+	vterm_free(vt);
+	return 0;
+}
+
+/* Regression: erase_internal used to iterate columns up to rect.end_col
+ * with no upper bound, and rows against state->rows rather than the
+ * screen's own row count. Crafted sequences (an ESC 2 resetting state
+ * followed by a CSI K with embedded C0 bytes) could push the rect out
+ * of bounds, getcell() then returned NULL and the erase deref crashed. */
+static int test_terminal_pane_erase_oob_rect_does_not_crash(void) {
+	VTerm *vt = vterm_new(24, 80);
+	if (vt == NULL) {
+		return 1;
+	}
+	vterm_set_utf8(vt, 1);
+	VTermScreen *screen = vterm_obtain_screen(vt);
+	if (screen != NULL) {
+		vterm_screen_reset(screen, 1);
+	}
+	const char crash[] = "\x1b\x32\xc2\x9f\x1b[\x00\x14\x0b"
+	                     "0K\x0b\x0b\x0a\x1b[\x00\x14\x0b"
+	                     "0\x1bK";
+	vterm_input_write(vt, crash, sizeof(crash) - 1);
+	if (screen != NULL) {
+		vterm_screen_flush_damage(screen);
+	}
+	vterm_free(vt);
+	return 0;
+}
+
+/* Regression: TBC (CSI g) calls clear_col_tabstop(state, state->pos.col)
+ * directly. Under crafted sequences pos.col can go out of range and the
+ * helper used to index tabstops[col >> 3] without bounding col, reading
+ * (or writing) the byte before the allocation when col was negative. */
+static int test_terminal_pane_tbc_out_of_range_col_does_not_crash(void) {
+	VTerm *vt = vterm_new(24, 80);
+	if (vt == NULL) {
+		return 1;
+	}
+	vterm_set_utf8(vt, 1);
+	VTermScreen *screen = vterm_obtain_screen(vt);
+	if (screen != NULL) {
+		vterm_screen_reset(screen, 1);
+	}
+	const char crash[] = "\x1b\x32\x1b[52;4X\xc2\x00\x9f\x1b[0g\x09\x00@P\x00\x00"
+	                     "\x1b[\x00\x1b[\x00";
+	vterm_input_write(vt, crash, sizeof(crash) - 1);
+	if (screen != NULL) {
+		vterm_screen_flush_damage(screen);
+	}
+	vterm_free(vt);
+	return 0;
+}
+
+static int test_terminal_pane_scrollback_ring_captures_evicted_rows(void) {
+	/* 3-row screen so a couple of LFs push lines into scrollback. */
+	struct editorTerminalPane *t = editorTerminalPaneCreate("sleep 5", 20, 3);
+	if (t == NULL) {
+		return 1;
+	}
+	const char *input = "line1\r\nline2\r\nline3\r\nline4\r\nline5\r\n";
+	vterm_input_write(t->vt, input, strlen(input));
+	vterm_screen_flush_damage(t->screen);
+	int failed = t->sb_size < 1;
+	/* Pull most-recent scrollback row; expect "line1" (or "line2") depending
+	 * on where the screen scroll lands relative to the cursor. Just verify
+	 * something was captured and the row is non-empty. */
+	if (!failed) {
+		VTermScreenCell row[20];
+		failed = !editorTerminalPaneGetLogRow(t, -1, row);
+		if (!failed) {
+			int has_text = 0;
+			for (int i = 0; i < 20; i++) {
+				if (row[i].chars[0] != 0 && row[i].chars[0] != ' ') {
+					has_text = 1;
+					break;
+				}
+			}
+			failed = !has_text;
+		}
+	}
+	editorTerminalPaneFree(t);
+	return failed;
+}
+
+static int test_terminal_pane_scroll_by_clamps_to_history(void) {
+	struct editorTerminalPane *t = editorTerminalPaneCreate("sleep 5", 20, 3);
+	if (t == NULL) {
+		return 1;
+	}
+	const char *input = "a\r\nb\r\nc\r\nd\r\ne\r\n";
+	vterm_input_write(t->vt, input, strlen(input));
+	vterm_screen_flush_damage(t->screen);
+	int sb = t->sb_size;
+	int failed = sb < 1;
+	/* Way past the end clamps. */
+	if (!failed) {
+		(void)editorTerminalPaneScrollBy(t, 9999);
+		failed = t->scroll_offset != sb;
+	}
+	/* Way past the front clamps to 0. */
+	if (!failed) {
+		(void)editorTerminalPaneScrollBy(t, -9999);
+		failed = t->scroll_offset != 0;
+	}
+	editorTerminalPaneFree(t);
+	return failed;
+}
+
+static int test_terminal_pane_selection_extract_returns_visible_text(void) {
+	struct editorTerminalPane *t = editorTerminalPaneCreate("sleep 5", 20, 3);
+	if (t == NULL) {
+		return 1;
+	}
+	const char *input = "hello world";
+	vterm_input_write(t->vt, input, strlen(input));
+	vterm_screen_flush_damage(t->screen);
+	/* Select cols 0..5 on live row 0 (i.e. "hello"). */
+	editorTerminalPaneSelectionBegin(t, 0, 0);
+	editorTerminalPaneSelectionUpdate(t, 0, 5);
+	size_t len = 0;
+	char *text = editorTerminalPaneSelectionExtract(t, &len);
+	int failed = text == NULL || strncmp(text, "hello", 5) != 0;
+	free(text);
+	editorTerminalPaneFree(t);
+	return failed;
+}
+
+static int test_terminal_pane_selection_contains_matches_bounds(void) {
+	struct editorTerminalPane *t = editorTerminalPaneCreate("sleep 5", 20, 3);
+	if (t == NULL) {
+		return 1;
+	}
+	editorTerminalPaneSelectionBegin(t, 1, 2);
+	editorTerminalPaneSelectionUpdate(t, 1, 5);
+	int failed = 0;
+	failed |= !editorTerminalPaneSelectionContains(t, 1, 2);
+	failed |= !editorTerminalPaneSelectionContains(t, 1, 4);
+	failed |= editorTerminalPaneSelectionContains(t, 1, 5); /* exclusive end */
+	failed |= editorTerminalPaneSelectionContains(t, 0, 3);
+	editorTerminalPaneSelectionClear(t);
+	failed |= editorTerminalPaneSelectionContains(t, 1, 3);
+	editorTerminalPaneFree(t);
+	return failed ? 1 : 0;
+}
+
 static int test_terminal_pane_write_forwards_to_child(void) {
 	/* `cat` echoes typed bytes back through the PTY. Write "hi\n", read
 	 * via pump, expect the bytes to land in the vterm screen. */
@@ -330,6 +540,24 @@ const struct editorTestCase g_terminal_pane_tests[] = {
         {"terminal_pane_cursor_props_follow_decset_sequences",
          test_terminal_pane_cursor_props_follow_decset_sequences},
         {"terminal_pane_write_forwards_to_child", test_terminal_pane_write_forwards_to_child},
+        {"terminal_pane_csi_excess_args_does_not_crash",
+         test_terminal_pane_csi_excess_args_does_not_crash},
+        {"terminal_pane_csi_huge_arg_does_not_overflow",
+         test_terminal_pane_csi_huge_arg_does_not_overflow},
+        {"terminal_pane_dcs_embedded_esc_does_not_overread",
+         test_terminal_pane_dcs_embedded_esc_does_not_overread},
+        {"terminal_pane_erase_oob_rect_does_not_crash",
+         test_terminal_pane_erase_oob_rect_does_not_crash},
+        {"terminal_pane_tbc_out_of_range_col_does_not_crash",
+         test_terminal_pane_tbc_out_of_range_col_does_not_crash},
+        {"terminal_pane_scrollback_ring_captures_evicted_rows",
+         test_terminal_pane_scrollback_ring_captures_evicted_rows},
+        {"terminal_pane_scroll_by_clamps_to_history",
+         test_terminal_pane_scroll_by_clamps_to_history},
+        {"terminal_pane_selection_extract_returns_visible_text",
+         test_terminal_pane_selection_extract_returns_visible_text},
+        {"terminal_pane_selection_contains_matches_bounds",
+         test_terminal_pane_selection_contains_matches_bounds},
 };
 
 const int g_terminal_pane_test_count =

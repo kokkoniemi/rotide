@@ -13,6 +13,7 @@
 #include "language/syntax_worker.h"
 #include "render/screen.h"
 #include "render/viewport.h"
+#include "support/perf_trace.h"
 #include "support/terminal.h"
 #include "workspace/drawer.h"
 #include "workspace/git.h"
@@ -197,6 +198,7 @@ int main(int argc, char *argv[]) {
 
 	g_render_once = rotideStripFlag(&argc, argv, "--render-once");
 
+	editorPerfInit();
 	if (!g_render_once) {
 		editorSetRawMode();
 	}
@@ -240,11 +242,18 @@ int main(int argc, char *argv[]) {
 	}
 
 	while (1) {
+		editorPerfBeginFrame();
 		editorSyntaxBackgroundPoll();
 		editorLspPumpNotifications();
 		editorDapPumpNotifications();
 		editorViewportUpdateForFrame();
+		long refresh_t0 = editorPerfEnabled() ? editorPerfMonotonicUs() : 0;
 		editorRefreshScreen();
+		if (editorPerfEnabled()) {
+			editorPerfRecordRefreshUs(editorPerfMonotonicUs() - refresh_t0);
+		}
+		editorMarkFrameRendered();
+		editorPerfEndFrame();
 		editorProcessKeypress();
 	}
 

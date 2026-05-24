@@ -52,6 +52,7 @@ static void runtimeConfigLoadSettings(struct runtimeConfigStatus *status) {
 	        sizeof(E.lsp_vscode_langservers_install_command), &E.lsp_autocomplete_enabled,
 	        &E.lsp_autocomplete_max_items);
 	status->dap_config_status = editorDapConfigLoadConfiguredGlobal();
+	editorTerminalConfigLoadConfigured();
 }
 
 static int runtimeConfigSetStatus(const struct runtimeConfigStatus *status,

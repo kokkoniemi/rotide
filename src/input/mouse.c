@@ -1265,21 +1265,54 @@ int editorHandleMouseEventInTerminalPane(const struct editorMouseEvent *event) {
 		return 0;
 	}
 	struct editorTerminalPane *terminal = (struct editorTerminalPane *)leaf->as.leaf.kind_state;
+	struct editorRect leaf_rect = {0};
+	if (!editorLayoutLeafRectBordered(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE, leaf,
+	                                  &leaf_rect)) {
+		return terminal->mouse_tracking > 0 ? 1 : 0;
+	}
+	int row = sy - leaf_rect.y;
+	int col = sx - leaf_rect.x;
+	/* When the child isn't tracking the mouse, the wheel and left-drag are
+	 * ours: wheel scrolls scrollback, left-drag selects, release+copy lands
+	 * in the clipboard. */
 	if (terminal->mouse_tracking <= 0) {
-		return 0;
+		if (event->kind == EDITOR_MOUSE_EVENT_LEFT_PRESS && leaf != E.focused_leaf) {
+			(void)editorLayoutSetFocusedLeaf(leaf);
+			editorPaneAnnounceFocus();
+		}
+		int log_row = row - terminal->scroll_offset;
+		switch (event->kind) {
+			case EDITOR_MOUSE_EVENT_WHEEL_UP:
+				(void)editorTerminalPaneScrollBy(terminal,
+				                                 MOUSE_WHEEL_SCROLL_LINES);
+				return 1;
+			case EDITOR_MOUSE_EVENT_WHEEL_DOWN:
+				(void)editorTerminalPaneScrollBy(terminal,
+				                                 -MOUSE_WHEEL_SCROLL_LINES);
+				return 1;
+			case EDITOR_MOUSE_EVENT_LEFT_PRESS:
+				editorTerminalPaneSelectionBegin(terminal, log_row, col);
+				return 1;
+			case EDITOR_MOUSE_EVENT_LEFT_DRAG:
+				editorTerminalPaneSelectionUpdate(terminal, log_row, col);
+				return 1;
+			case EDITOR_MOUSE_EVENT_LEFT_RELEASE:
+				editorTerminalPaneSelectionUpdate(terminal, log_row, col);
+				if (terminal->sel_active &&
+				    (terminal->sel_anchor_row != terminal->sel_cursor_row ||
+				     terminal->sel_anchor_col != terminal->sel_cursor_col)) {
+					(void)editorTerminalPaneCopySelection(terminal);
+				}
+				return 1;
+			default:
+				return 0;
+		}
 	}
 	/* Click-to-focus for terminal panes. */
 	if (event->kind == EDITOR_MOUSE_EVENT_LEFT_PRESS && leaf != E.focused_leaf) {
 		(void)editorLayoutSetFocusedLeaf(leaf);
 		editorPaneAnnounceFocus();
 	}
-	struct editorRect leaf_rect = {0};
-	if (!editorLayoutLeafRectBordered(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE, leaf,
-	                                  &leaf_rect)) {
-		return 1;
-	}
-	int row = sy - leaf_rect.y;
-	int col = sx - leaf_rect.x;
 	switch (event->kind) {
 		case EDITOR_MOUSE_EVENT_LEFT_PRESS:
 			(void)editorTerminalPaneSendMouseButton(terminal, 1, 1, row, col,

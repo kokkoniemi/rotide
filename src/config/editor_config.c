@@ -1,6 +1,7 @@
 #include "config/editor_config.h"
 
 #include "config/common.h"
+#include "terminal/terminal_pane.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -1207,4 +1208,92 @@ editorColumnSelectDragModifierLoadConfigured(int *modifier_out) {
 	        editorColumnSelectDragModifierLoadFromPaths(modifier_out, global_path, NULL);
 	free(global_path);
 	return status;
+}
+
+static int configEditorParseTerminalScrollbackLines(const char *path, int *value_out) {
+	FILE *fp = fopen(path, "r");
+	if (fp == NULL) {
+		return 0;
+	}
+	int in_terminal_table = 0;
+	int found = 0;
+	char line[1024];
+	while (fgets(line, sizeof(line), fp) != NULL) {
+		/* Skip the rest of any over-long line so we don't half-parse a key
+		 * that spans more than the buffer. Matches the strictness of the
+		 * other [editor]/[lsp]/etc. loaders. */
+		size_t line_len = strlen(line);
+		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
+			int ch;
+			while ((ch = fgetc(fp)) != EOF && ch != '\n') {
+			}
+			continue;
+		}
+		editorConfigStripInlineComment(line);
+		editorConfigTrimRight(line);
+		char *trimmed = editorConfigTrimLeft(line);
+		if (trimmed[0] == 0) {
+			continue;
+		}
+		if (trimmed[0] == '[') {
+			char *close = strchr(trimmed, ']');
+			if (close == NULL) {
+				continue;
+			}
+			*close = '\0';
+			char *tail = editorConfigTrimLeft(close + 1);
+			if (tail[0] != '\0') {
+				/* `[terminal] junk` shouldn't activate the table. */
+				in_terminal_table = 0;
+				continue;
+			}
+			char *table = editorConfigTrimLeft(trimmed + 1);
+			editorConfigTrimRight(table);
+			in_terminal_table = strcmp(table, "terminal") == 0;
+			continue;
+		}
+		if (!in_terminal_table) {
+			continue;
+		}
+		char *eq = strchr(trimmed, '=');
+		if (eq == NULL) {
+			continue;
+		}
+		*eq = '\0';
+		char *name = editorConfigTrimLeft(trimmed);
+		editorConfigTrimRight(name);
+		char *value = editorConfigTrimLeft(eq + 1);
+		editorConfigTrimRight(value);
+		if (strcmp(name, "scrollback_lines") != 0) {
+			continue;
+		}
+		char *end = NULL;
+		errno = 0;
+		long parsed = strtol(value, &end, 10);
+		if (errno != 0 || end == value || (end != NULL && *end != '\0')) {
+			continue;
+		}
+		if (parsed < 0) {
+			parsed = 0;
+		}
+		if (parsed > 1000000) {
+			parsed = 1000000;
+		}
+		*value_out = (int)parsed;
+		found = 1;
+	}
+	fclose(fp);
+	return found;
+}
+
+void editorTerminalConfigLoadConfigured(void) {
+	char *global_path = editorConfigBuildGlobalConfigPath();
+	if (global_path == NULL) {
+		return;
+	}
+	int lines = editorTerminalPaneGetDefaultScrollbackLines();
+	if (configEditorParseTerminalScrollbackLines(global_path, &lines)) {
+		editorTerminalPaneSetDefaultScrollbackLines(lines);
+	}
+	free(global_path);
 }

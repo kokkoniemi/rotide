@@ -83,7 +83,7 @@ TREE_SITTER_SRCS = $(TS_DIR)/runtime/src/lib.c \
 
 CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(addprefix $(SRC_DIR)/support/, \
-		terminal.c alloc.c save_syscalls.c file_io.c) \
+		terminal.c alloc.c save_syscalls.c file_io.c perf_trace.c) \
 	$(addprefix $(SRC_DIR)/text/, \
 		document.c text_buffer.c text_summary.c text_tree.c utf8.c row.c) \
 	$(addprefix $(SRC_DIR)/editing/, \

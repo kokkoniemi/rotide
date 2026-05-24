@@ -1,36 +1,13 @@
 #include "render/terminal_view.h"
 
 #include "render/ansi_style.h"
+#include "text/utf8.h"
 #include "vterm.h"
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/wait.h>
-
-static int terminalViewUtf8EncodeCodepoint(uint32_t cp, char *out) {
-	if (cp < 0x80) {
-		out[0] = (char)cp;
-		return 1;
-	}
-	if (cp < 0x800) {
-		out[0] = (char)(0xC0 | (cp >> 6));
-		out[1] = (char)(0x80 | (cp & 0x3F));
-		return 2;
-	}
-	if (cp < 0x10000) {
-		out[0] = (char)(0xE0 | (cp >> 12));
-		out[1] = (char)(0x80 | ((cp >> 6) & 0x3F));
-		out[2] = (char)(0x80 | (cp & 0x3F));
-		return 3;
-	}
-	if (cp < 0x110000) {
-		out[0] = (char)(0xF0 | (cp >> 18));
-		out[1] = (char)(0x80 | ((cp >> 12) & 0x3F));
-		out[2] = (char)(0x80 | ((cp >> 6) & 0x3F));
-		out[3] = (char)(0x80 | (cp & 0x3F));
-		return 4;
-	}
-	return 0;
-}
 
 static int terminalViewAppendColorSgr(struct writeBuf *wb, const VTermColor *color, int is_fg) {
 	char esc[32];
@@ -157,26 +134,78 @@ int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *term
 		return 1;
 	}
 	if (terminal->exited && terminal->rows > 0 && row_in_pane == terminal->rows - 1) {
-		return terminalViewDrawExitStatusRow(wb, terminal, col_in_pane, slice_cols);
+		/* Exit banner is static once drawn — apply the same dirty-bit skip
+		 * as the live-cell path. */
+		if (terminal->row_dirty != NULL && row_in_pane < terminal->row_dirty_cap &&
+		    !terminal->row_dirty[row_in_pane]) {
+			if (!editorAppendThemeReset(wb)) {
+				return 0;
+			}
+			char esc[16];
+			int n = snprintf(esc, sizeof(esc), "\x1b[%dC", slice_cols);
+			if (n > 0 && n < (int)sizeof(esc)) {
+				return wbAppend(wb, esc, (size_t)n);
+			}
+		}
+		int ok = terminalViewDrawExitStatusRow(wb, terminal, col_in_pane, slice_cols);
+		if (ok && terminal->row_dirty != NULL && row_in_pane < terminal->row_dirty_cap) {
+			terminal->row_dirty[row_in_pane] = 0;
+		}
+		return ok;
+	}
+	/* If nothing damaged this row since the previous frame, advance the
+	 * cursor past it without re-emitting cells — the prior frame's output
+	 * is still on screen. */
+	if (terminal->row_dirty != NULL && row_in_pane >= 0 &&
+	    row_in_pane < terminal->row_dirty_cap && !terminal->row_dirty[row_in_pane]) {
+		if (!editorAppendThemeReset(wb)) {
+			return 0;
+		}
+		char esc[16];
+		int n = snprintf(esc, sizeof(esc), "\x1b[%dC", slice_cols);
+		if (n <= 0 || n >= (int)sizeof(esc)) {
+			/* Fall through to a full redraw rather than emit a bogus escape. */
+		} else {
+			return wbAppend(wb, esc, (size_t)n);
+		}
 	}
 	if (!editorAppendThemeReset(wb)) {
 		return 0;
+	}
+	if (terminal->row_dirty != NULL && row_in_pane >= 0 &&
+	    row_in_pane < terminal->row_dirty_cap) {
+		terminal->row_dirty[row_in_pane] = 0;
+	}
+	/* Translate pane-local row into the pane's log-row coordinate so we can
+	 * pull from scrollback when the user has scrolled up, and so selection
+	 * checks (which use log-row) line up. */
+	int log_row = row_in_pane - terminal->scroll_offset;
+	int row_cols = terminal->cols;
+	if (row_cols <= 0) {
+		row_cols = slice_cols;
+	}
+	VTermScreenCell *row_buf = NULL;
+	int have_row = 0;
+	if (row_cols > 0) {
+		/* Pane-scoped scratch — avoids a malloc/free per drawn row per frame. */
+		row_buf = editorTerminalPaneEnsureRenderRowScratch(terminal, row_cols);
+		if (row_buf != NULL) {
+			memset(row_buf, 0, (size_t)row_cols * sizeof(*row_buf));
+			have_row = editorTerminalPaneGetLogRow(terminal, log_row, row_buf);
+		}
 	}
 	int emitted = 0;
 	int col = col_in_pane;
 	int last_was_plain = 0;
 	int any_styled_emitted = 0;
+	int last_was_selected = 0;
 	while (emitted < slice_cols) {
-		VTermPos pos = {.row = row_in_pane, .col = col};
 		VTermScreenCell cell;
-		if (row_in_pane < 0 || row_in_pane >= terminal->rows || col < 0 ||
-		    col >= terminal->cols || !vterm_screen_get_cell(terminal->screen, pos, &cell)) {
-			if (!wbAppend(wb, " ", 1)) {
-				return 0;
-			}
-			emitted++;
-			col++;
-			continue;
+		int in_bounds = have_row && col >= 0 && col < row_cols;
+		if (!in_bounds) {
+			memset(&cell, 0, sizeof(cell));
+		} else {
+			cell = row_buf[col];
 		}
 		int cell_width = cell.width;
 		if (cell_width < 1) {
@@ -191,12 +220,17 @@ int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *term
 			}
 			break;
 		}
+		int selected =
+		        in_bounds && editorTerminalPaneSelectionContains(terminal, log_row, col);
 		int plain = terminalViewCellIsPlain(&cell);
 		if (plain) {
-			if (any_styled_emitted && !last_was_plain) {
+			if ((any_styled_emitted && !last_was_plain) ||
+			    last_was_selected != selected) {
 				if (!editorAppendThemeReset(wb)) {
 					return 0;
 				}
+				last_was_plain = 0;
+				any_styled_emitted = 0;
 			}
 		} else {
 			if (!terminalViewDrawCellAttrs(wb, &cell)) {
@@ -204,15 +238,19 @@ int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *term
 			}
 			any_styled_emitted = 1;
 		}
-		last_was_plain = plain;
-		if (cell.chars[0] == 0) {
+		if (selected && !editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_SELECTION)) {
+			return 0;
+		}
+		last_was_plain = plain && !selected;
+		last_was_selected = selected;
+		if (!in_bounds || cell.chars[0] == 0) {
 			if (!wbAppend(wb, " ", 1)) {
 				return 0;
 			}
 		} else {
 			for (int i = 0; i < VTERM_MAX_CHARS_PER_CELL && cell.chars[i] != 0; i++) {
 				char utf8[4];
-				int n = terminalViewUtf8EncodeCodepoint(cell.chars[i], utf8);
+				int n = editorUtf8EncodeCodepoint(cell.chars[i], utf8);
 				if (n > 0 && !wbAppend(wb, utf8, (size_t)n)) {
 					return 0;
 				}

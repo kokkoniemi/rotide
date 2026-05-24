@@ -1,6 +1,8 @@
 #include "terminal/terminal_pane.h"
 
+#include "editing/selection.h"
 #include "rotide.h"
+#include "text/utf8.h"
 #include "vterm.h"
 #include "vterm_keycodes.h"
 #include "workspace/layout.h"
@@ -9,6 +11,36 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+#define TERMINAL_SCROLLBACK_DEFAULT 10000
+#define TERMINAL_SCROLLBACK_MAX 1000000
+
+static int g_terminal_scrollback_lines = TERMINAL_SCROLLBACK_DEFAULT;
+
+void editorTerminalPaneSetDefaultScrollbackLines(int lines) {
+	if (lines < 0) {
+		lines = 0;
+	}
+	if (lines > TERMINAL_SCROLLBACK_MAX) {
+		lines = TERMINAL_SCROLLBACK_MAX;
+	}
+	g_terminal_scrollback_lines = lines;
+}
+
+int editorTerminalPaneGetDefaultScrollbackLines(void) {
+	return g_terminal_scrollback_lines;
+}
+
+/* Ring helpers. Newest line is at sb_rows[(sb_head-1+sb_cap)%sb_cap]; back=1
+ * returns that row, back=2 the next-older, up to back=sb_size. */
+static const struct terminalScrollbackRow *
+terminalPaneScrollbackAt(const struct editorTerminalPane *t, int back) {
+	if (t == NULL || t->sb_rows == NULL || back < 1 || back > t->sb_size) {
+		return NULL;
+	}
+	int idx = ((t->sb_head - back) % t->sb_cap + t->sb_cap) % t->sb_cap;
+	return &t->sb_rows[idx];
+}
 
 static int terminalPaneClampDim(int v) {
 	if (v < 1) {
@@ -27,6 +59,72 @@ static void terminalPaneOutputCallback(const char *s, size_t len, void *user) {
 	}
 	ssize_t written = write(t->child.master_fd, s, len);
 	(void)written;
+}
+
+/* (Re)allocate row_dirty to hold `rows` entries, init all to dirty so the next
+ * frame paints from scratch. Returns 1 on success, 0 on OOM (row_dirty kept
+ * at its prior size; caller falls back to "everything dirty" via row_dirty==NULL). */
+static int terminalPaneAllocRowDirty(struct editorTerminalPane *t, int rows) {
+	if (t == NULL || rows <= 0) {
+		return 1;
+	}
+	if (t->row_dirty != NULL && t->row_dirty_cap >= rows) {
+		memset(t->row_dirty, 1, (size_t)rows);
+		return 1;
+	}
+	unsigned char *grown = realloc(t->row_dirty, (size_t)rows);
+	if (grown == NULL) {
+		return 0;
+	}
+	memset(grown, 1, (size_t)rows);
+	t->row_dirty = grown;
+	t->row_dirty_cap = rows;
+	return 1;
+}
+
+static void terminalPaneMarkAllRowsDirty(struct editorTerminalPane *t) {
+	if (t == NULL || t->row_dirty == NULL) {
+		return;
+	}
+	int n = t->rows < t->row_dirty_cap ? t->rows : t->row_dirty_cap;
+	if (n > 0) {
+		memset(t->row_dirty, 1, (size_t)n);
+	}
+}
+
+static int terminalPaneDamage(VTermRect rect, void *user) {
+	struct editorTerminalPane *t = (struct editorTerminalPane *)user;
+	if (t == NULL || t->row_dirty == NULL) {
+		return 1;
+	}
+	int r0 = rect.start_row < 0 ? 0 : rect.start_row;
+	int r1 = rect.end_row;
+	if (r1 > t->row_dirty_cap) {
+		r1 = t->row_dirty_cap;
+	}
+	for (int r = r0; r < r1; r++) {
+		t->row_dirty[r] = 1;
+	}
+	return 1;
+}
+
+static int terminalPaneMoverect(VTermRect dest, VTermRect src, void *user) {
+	(void)dest;
+	(void)src;
+	struct editorTerminalPane *t = (struct editorTerminalPane *)user;
+	/* Internal scrolls touch large rectangles and libvterm follows up with
+	 * damage events for the new content, but the simplest correct thing is
+	 * to repaint every row this frame. */
+	terminalPaneMarkAllRowsDirty(t);
+	return 1;
+}
+
+static int terminalPaneResizeCb(int rows, int cols, void *user) {
+	(void)rows;
+	(void)cols;
+	struct editorTerminalPane *t = (struct editorTerminalPane *)user;
+	terminalPaneMarkAllRowsDirty(t);
+	return 1;
 }
 
 static int terminalPaneSetTermProp(VTermProp prop, VTermValue *val, void *user) {
@@ -53,8 +151,103 @@ static int terminalPaneSetTermProp(VTermProp prop, VTermValue *val, void *user) 
 	return 0;
 }
 
+static int terminalPaneSbPushline(int cols, const VTermScreenCell *cells, void *user) {
+	struct editorTerminalPane *t = (struct editorTerminalPane *)user;
+	if (t == NULL || cols <= 0 || cells == NULL) {
+		return 1;
+	}
+	if (t->sb_cap <= 0 || t->sb_rows == NULL) {
+		return 1;
+	}
+	/* Resize the destination slot before mutating any user-visible state — if
+	 * realloc fails we drop the row, and the user's selection / scroll_offset
+	 * must not skew as if the row had landed. */
+	struct terminalScrollbackRow *slot = &t->sb_rows[t->sb_head];
+	VTermScreenCell *new_cells = realloc(slot->cells, (size_t)cols * sizeof(*new_cells));
+	if (new_cells == NULL) {
+		return 1;
+	}
+	memcpy(new_cells, cells, (size_t)cols * sizeof(*new_cells));
+	slot->cells = new_cells;
+	slot->cols = cols;
+	t->sb_head = (t->sb_head + 1) % t->sb_cap;
+	if (t->sb_size < t->sb_cap) {
+		t->sb_size += 1;
+	}
+	/* Now that the row really entered scrollback, shift the selection up by
+	 * one and bump scroll_offset so the user's view stays anchored to the
+	 * same content. */
+	if (t->sel_active) {
+		t->sel_anchor_row -= 1;
+		t->sel_cursor_row -= 1;
+	}
+	if (t->scroll_offset > 0 && t->scroll_offset < t->sb_cap) {
+		t->scroll_offset += 1;
+	}
+	if (t->scroll_offset > t->sb_size) {
+		t->scroll_offset = t->sb_size;
+	}
+	/* Live cells shifted up under the user's view (or selection rows shifted
+	 * if scrolled), so the whole pane needs a fresh paint this frame. */
+	terminalPaneMarkAllRowsDirty(t);
+	return 1;
+}
+
+static int terminalPaneSbPopline(int cols, VTermScreenCell *cells, void *user) {
+	struct editorTerminalPane *t = (struct editorTerminalPane *)user;
+	if (t == NULL || cells == NULL || cols <= 0 || t->sb_size <= 0) {
+		return 0;
+	}
+	int back_idx = ((t->sb_head - 1) % t->sb_cap + t->sb_cap) % t->sb_cap;
+	struct terminalScrollbackRow *slot = &t->sb_rows[back_idx];
+	if (slot->cells == NULL) {
+		return 0;
+	}
+	int copy_cols = slot->cols < cols ? slot->cols : cols;
+	memcpy(cells, slot->cells, (size_t)copy_cols * sizeof(*cells));
+	for (int c = copy_cols; c < cols; c++) {
+		memset(&cells[c], 0, sizeof(cells[c]));
+	}
+	/* Inverse of push: selection rows shift down. */
+	if (t->sel_active) {
+		t->sel_anchor_row += 1;
+		t->sel_cursor_row += 1;
+	}
+	if (t->scroll_offset > 0) {
+		t->scroll_offset -= 1;
+	}
+	t->sb_head = back_idx;
+	t->sb_size -= 1;
+	terminalPaneMarkAllRowsDirty(t);
+	return 1;
+}
+
+static int terminalPaneSbClear(void *user) {
+	struct editorTerminalPane *t = (struct editorTerminalPane *)user;
+	if (t == NULL || t->sb_rows == NULL) {
+		return 1;
+	}
+	for (int i = 0; i < t->sb_cap; i++) {
+		free(t->sb_rows[i].cells);
+		t->sb_rows[i].cells = NULL;
+		t->sb_rows[i].cols = 0;
+	}
+	t->sb_size = 0;
+	t->sb_head = 0;
+	t->scroll_offset = 0;
+	t->sel_active = 0;
+	terminalPaneMarkAllRowsDirty(t);
+	return 1;
+}
+
 static const VTermScreenCallbacks g_terminal_pane_screen_callbacks = {
+        .damage = terminalPaneDamage,
+        .moverect = terminalPaneMoverect,
         .settermprop = terminalPaneSetTermProp,
+        .resize = terminalPaneResizeCb,
+        .sb_pushline = terminalPaneSbPushline,
+        .sb_popline = terminalPaneSbPopline,
+        .sb_clear = terminalPaneSbClear,
 };
 
 struct editorTerminalPane *editorTerminalPaneCreate(const char *command, int cols, int rows) {
@@ -76,6 +269,15 @@ struct editorTerminalPane *editorTerminalPaneCreate(const char *command, int col
 	t->cursor_visible = 1;
 	t->cursor_blink = 1;
 	t->cursor_shape = VTERM_PROP_CURSORSHAPE_BLOCK;
+
+	int sb_cap = g_terminal_scrollback_lines;
+	if (sb_cap > 0) {
+		t->sb_rows = calloc((size_t)sb_cap, sizeof(*t->sb_rows));
+		if (t->sb_rows != NULL) {
+			t->sb_cap = sb_cap;
+		}
+	}
+	(void)terminalPaneAllocRowDirty(t, rows);
 
 	t->vt = vterm_new(rows, cols);
 	if (t->vt == NULL) {
@@ -115,7 +317,36 @@ void editorTerminalPaneFree(void *pane) {
 		t->vt = NULL;
 		t->screen = NULL;
 	}
+	if (t->sb_rows != NULL) {
+		for (int i = 0; i < t->sb_cap; i++) {
+			free(t->sb_rows[i].cells);
+		}
+		free(t->sb_rows);
+		t->sb_rows = NULL;
+	}
+	free(t->render_row_scratch);
+	t->render_row_scratch = NULL;
+	free(t->row_dirty);
+	t->row_dirty = NULL;
 	free(t);
+}
+
+VTermScreenCell *editorTerminalPaneEnsureRenderRowScratch(struct editorTerminalPane *terminal,
+                                                          int cells) {
+	if (terminal == NULL || cells <= 0) {
+		return NULL;
+	}
+	if (terminal->render_row_scratch_cap >= cells) {
+		return terminal->render_row_scratch;
+	}
+	VTermScreenCell *grown =
+	        realloc(terminal->render_row_scratch, (size_t)cells * sizeof(*grown));
+	if (grown == NULL) {
+		return NULL;
+	}
+	terminal->render_row_scratch = grown;
+	terminal->render_row_scratch_cap = cells;
+	return grown;
 }
 
 int editorTerminalPanePump(struct editorTerminalPane *terminal) {
@@ -124,13 +355,22 @@ int editorTerminalPanePump(struct editorTerminalPane *terminal) {
 	}
 	int total = 0;
 	if (terminal->child.master_fd >= 0) {
-		char buf[4096];
+		/* Larger buffer amortizes the per-read syscall + vterm_input_write
+		 * call overhead under flood. Drop the old short-read break — on a
+		 * non-blocking fd the next read returns EAGAIN and we stop anyway,
+		 * and bursts that perfectly fill a 4 KB chunk used to cost us the
+		 * follow-up read. */
+		char buf[32 * 1024];
+		/* Per-pump cap so one runaway pane can't starve siblings or the
+		 * input loop. After this many bytes we bail; the main loop will
+		 * come back around and drain more on the next iteration. */
+		const int per_pump_cap = 1024 * 1024;
 		for (;;) {
 			ssize_t n = read(terminal->child.master_fd, buf, sizeof(buf));
 			if (n > 0) {
 				vterm_input_write(terminal->vt, buf, (size_t)n);
 				total += (int)n;
-				if ((size_t)n < sizeof(buf)) {
+				if (total >= per_pump_cap) {
 					break;
 				}
 				continue;
@@ -168,6 +408,7 @@ int editorTerminalPaneResize(struct editorTerminalPane *terminal, int cols, int 
 	vterm_set_size(terminal->vt, rows, cols);
 	terminal->cols = cols;
 	terminal->rows = rows;
+	(void)terminalPaneAllocRowDirty(terminal, rows);
 	if (terminal->child.master_fd >= 0) {
 		(void)editorPtyResize(&terminal->child, cols, rows);
 	}
@@ -240,6 +481,13 @@ int editorTerminalPaneSendKey(struct editorTerminalPane *terminal, int rotide_ke
 	if (terminal == NULL || terminal->vt == NULL || terminal->child.master_fd < 0) {
 		return 0;
 	}
+	/* Any key returns the pane to live view and drops a stale selection.
+	 * Mirrors how most terminals (iterm, tmux copy-mode) behave. */
+	if (terminal->sel_active || terminal->scroll_offset != 0) {
+		terminal->sel_active = 0;
+		terminal->scroll_offset = 0;
+		terminalPaneMarkAllRowsDirty(terminal);
+	}
 	/* Route printables through vterm. */
 	if (rotide_key >= 0x20 && rotide_key < 0x7f) {
 		vterm_keyboard_unichar(terminal->vt, (uint32_t)rotide_key, VTERM_MOD_NONE);
@@ -304,6 +552,278 @@ int editorTerminalPaneSendKey(struct editorTerminalPane *terminal, int rotide_ke
 	return 0;
 }
 
+int editorTerminalPaneScrollBy(struct editorTerminalPane *terminal, int lines) {
+	if (terminal == NULL) {
+		return 0;
+	}
+	int target = terminal->scroll_offset + lines;
+	if (target < 0) {
+		target = 0;
+	}
+	if (target > terminal->sb_size) {
+		target = terminal->sb_size;
+	}
+	if (target == terminal->scroll_offset) {
+		return 0;
+	}
+	terminal->scroll_offset = target;
+	terminalPaneMarkAllRowsDirty(terminal);
+	return 1;
+}
+
+int editorTerminalPaneScrollReset(struct editorTerminalPane *terminal) {
+	if (terminal == NULL || terminal->scroll_offset == 0) {
+		return 0;
+	}
+	terminal->scroll_offset = 0;
+	terminalPaneMarkAllRowsDirty(terminal);
+	return 1;
+}
+
+int editorTerminalPaneGetLogRow(const struct editorTerminalPane *terminal, int row,
+                                VTermScreenCell *cells_out) {
+	if (terminal == NULL || cells_out == NULL || terminal->cols <= 0) {
+		return 0;
+	}
+	int cols = terminal->cols;
+	if (row >= 0) {
+		if (row >= terminal->rows || terminal->screen == NULL) {
+			return 0;
+		}
+		for (int c = 0; c < cols; c++) {
+			VTermPos pos = {.row = row, .col = c};
+			VTermScreenCell cell;
+			memset(&cell, 0, sizeof(cell));
+			(void)vterm_screen_get_cell(terminal->screen, pos, &cell);
+			cells_out[c] = cell;
+		}
+		return 1;
+	}
+	int back = -row;
+	const struct terminalScrollbackRow *sb = terminalPaneScrollbackAt(terminal, back);
+	if (sb == NULL || sb->cells == NULL) {
+		return 0;
+	}
+	int copy = sb->cols < cols ? sb->cols : cols;
+	memcpy(cells_out, sb->cells, (size_t)copy * sizeof(*cells_out));
+	for (int c = copy; c < cols; c++) {
+		memset(&cells_out[c], 0, sizeof(cells_out[c]));
+	}
+	return 1;
+}
+
+/* Sort (anchor, cursor) into (start, end) in reading order — top-to-bottom,
+ * left-to-right. */
+static void terminalPaneSelectionBounds(const struct editorTerminalPane *t, int *r0, int *c0,
+                                        int *r1, int *c1) {
+	int ar = t->sel_anchor_row, ac = t->sel_anchor_col;
+	int br = t->sel_cursor_row, bc = t->sel_cursor_col;
+	if (ar < br || (ar == br && ac <= bc)) {
+		*r0 = ar;
+		*c0 = ac;
+		*r1 = br;
+		*c1 = bc;
+	} else {
+		*r0 = br;
+		*c0 = bc;
+		*r1 = ar;
+		*c1 = ac;
+	}
+}
+
+void editorTerminalPaneSelectionBegin(struct editorTerminalPane *terminal, int row, int col) {
+	if (terminal == NULL) {
+		return;
+	}
+	terminal->sel_active = 1;
+	terminal->sel_anchor_row = row;
+	terminal->sel_anchor_col = col;
+	terminal->sel_cursor_row = row;
+	terminal->sel_cursor_col = col;
+	terminalPaneMarkAllRowsDirty(terminal);
+}
+
+void editorTerminalPaneSelectionUpdate(struct editorTerminalPane *terminal, int row, int col) {
+	if (terminal == NULL || !terminal->sel_active) {
+		return;
+	}
+	if (terminal->sel_cursor_row == row && terminal->sel_cursor_col == col) {
+		return;
+	}
+	terminal->sel_cursor_row = row;
+	terminal->sel_cursor_col = col;
+	terminalPaneMarkAllRowsDirty(terminal);
+}
+
+void editorTerminalPaneSelectionClear(struct editorTerminalPane *terminal) {
+	if (terminal == NULL || !terminal->sel_active) {
+		return;
+	}
+	terminal->sel_active = 0;
+	terminalPaneMarkAllRowsDirty(terminal);
+}
+
+int editorTerminalPaneSelectionContains(const struct editorTerminalPane *terminal, int row,
+                                        int col) {
+	if (terminal == NULL || !terminal->sel_active) {
+		return 0;
+	}
+	int r0, c0, r1, c1;
+	terminalPaneSelectionBounds(terminal, &r0, &c0, &r1, &c1);
+	if (r0 == r1) {
+		return row == r0 && col >= c0 && col < c1;
+	}
+	if (row < r0 || row > r1) {
+		return 0;
+	}
+	if (row == r0) {
+		return col >= c0;
+	}
+	if (row == r1) {
+		return col < c1;
+	}
+	return 1;
+}
+
+char *editorTerminalPaneSelectionExtract(const struct editorTerminalPane *terminal,
+                                         size_t *len_out) {
+	if (len_out != NULL) {
+		*len_out = 0;
+	}
+	if (terminal == NULL || !terminal->sel_active || terminal->cols <= 0) {
+		return NULL;
+	}
+	int r0, c0, r1, c1;
+	terminalPaneSelectionBounds(terminal, &r0, &c0, &r1, &c1);
+	int cols = terminal->cols;
+	VTermScreenCell *row_cells = calloc((size_t)cols, sizeof(*row_cells));
+	if (row_cells == NULL) {
+		return NULL;
+	}
+	size_t cap = 256;
+	size_t len = 0;
+	char *buf = malloc(cap);
+	if (buf == NULL) {
+		free(row_cells);
+		return NULL;
+	}
+	for (int row = r0; row <= r1; row++) {
+		if (!editorTerminalPaneGetLogRow(terminal, row, row_cells)) {
+			continue;
+		}
+		int col_start = (row == r0) ? c0 : 0;
+		int col_end = (row == r1) ? c1 : cols;
+		if (col_start < 0) {
+			col_start = 0;
+		}
+		if (col_end > cols) {
+			col_end = cols;
+		}
+		/* Trim trailing blanks of each row except when the user explicitly
+		 * selected up to (and possibly past) a blank tail on a partial row. */
+		int row_end = col_end;
+		if (row != r1 || col_end == cols) {
+			while (row_end > col_start) {
+				const VTermScreenCell *cell = &row_cells[row_end - 1];
+				if (cell->chars[0] != 0 && cell->chars[0] != ' ') {
+					break;
+				}
+				if (cell->chars[0] == ' ') {
+					row_end--;
+					continue;
+				}
+				row_end--;
+			}
+		}
+		for (int c = col_start; c < row_end; c++) {
+			const VTermScreenCell *cell = &row_cells[c];
+			if (cell->chars[0] == (uint32_t)-1) {
+				/* Continuation half of a wide cell. */
+				continue;
+			}
+			if (cell->chars[0] == 0) {
+				if (len + 1 >= cap) {
+					size_t ncap = cap * 2;
+					char *nb = realloc(buf, ncap);
+					if (nb == NULL) {
+						goto oom;
+					}
+					buf = nb;
+					cap = ncap;
+				}
+				buf[len++] = ' ';
+				continue;
+			}
+			for (int i = 0; i < VTERM_MAX_CHARS_PER_CELL && cell->chars[i] != 0; i++) {
+				char utf8[4];
+				int n = editorUtf8EncodeCodepoint(cell->chars[i], utf8);
+				if (n <= 0) {
+					continue;
+				}
+				if (len + (size_t)n + 1 >= cap) {
+					size_t ncap = cap * 2;
+					while (len + (size_t)n + 1 >= ncap) {
+						ncap *= 2;
+					}
+					char *nb = realloc(buf, ncap);
+					if (nb == NULL) {
+						goto oom;
+					}
+					buf = nb;
+					cap = ncap;
+				}
+				memcpy(buf + len, utf8, (size_t)n);
+				len += (size_t)n;
+			}
+		}
+		if (row != r1) {
+			if (len + 1 >= cap) {
+				size_t ncap = cap * 2;
+				char *nb = realloc(buf, ncap);
+				if (nb == NULL) {
+					goto oom;
+				}
+				buf = nb;
+				cap = ncap;
+			}
+			buf[len++] = '\n';
+		}
+	}
+	if (len + 1 >= cap) {
+		char *nb = realloc(buf, len + 1);
+		if (nb == NULL) {
+			goto oom;
+		}
+		buf = nb;
+	}
+	buf[len] = '\0';
+	free(row_cells);
+	if (len_out != NULL) {
+		*len_out = len;
+	}
+	return buf;
+
+oom:
+	free(buf);
+	free(row_cells);
+	return NULL;
+}
+
+int editorTerminalPaneCopySelection(struct editorTerminalPane *terminal) {
+	if (terminal == NULL || !terminal->sel_active) {
+		return 0;
+	}
+	size_t len = 0;
+	char *text = editorTerminalPaneSelectionExtract(terminal, &len);
+	if (text == NULL || len == 0) {
+		free(text);
+		return 0;
+	}
+	int ok = editorClipboardSet(text, len);
+	free(text);
+	return ok;
+}
+
 struct editorPaneNode *editorPaneNodeNewTerminalLeaf(const char *command, int cols, int rows) {
 	struct editorTerminalPane *terminal = editorTerminalPaneCreate(command, cols, rows);
 	if (terminal == NULL) {
@@ -334,6 +854,36 @@ int editorTerminalPanePumpAll(struct editorPaneNode *root) {
 		        (struct editorTerminalPane *)root->as.leaf.kind_state);
 	}
 	return 0;
+}
+
+int editorTerminalPaneCollectMasterFds(struct editorPaneNode *root, int *fds_out, int capacity) {
+	if (root == NULL) {
+		return 0;
+	}
+	if (root->is_split) {
+		int first =
+		        editorTerminalPaneCollectMasterFds(root->as.split.first, fds_out, capacity);
+		int *next_out = NULL;
+		int next_cap = 0;
+		if (first < capacity && fds_out != NULL) {
+			next_out = fds_out + first;
+			next_cap = capacity - first;
+		}
+		int second = editorTerminalPaneCollectMasterFds(root->as.split.second, next_out,
+		                                                next_cap);
+		return first + second;
+	}
+	if (root->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL || root->as.leaf.kind_state == NULL) {
+		return 0;
+	}
+	struct editorTerminalPane *t = (struct editorTerminalPane *)root->as.leaf.kind_state;
+	if (t->child.master_fd < 0) {
+		return 0;
+	}
+	if (fds_out != NULL && capacity > 0) {
+		fds_out[0] = t->child.master_fd;
+	}
+	return 1;
 }
 
 static void terminalPaneResizeRecursive(struct editorPaneNode *node, struct editorRect rect,

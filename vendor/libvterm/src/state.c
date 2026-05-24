@@ -184,20 +184,29 @@ static void grow_combine_buffer(VTermState *state)
   state->combine_chars_size = new_size;
 }
 
+/* rotide patch: bound col against state->cols before indexing tabstops[].
+ * pos.col can transiently go out of range under crafted CSI sequences and
+ * a negative col would index the byte before the allocation. */
 static void set_col_tabstop(VTermState *state, int col)
 {
+  if(col < 0 || col >= state->cols)
+    return;
   unsigned char mask = 1 << (col & 7);
   state->tabstops[col >> 3] |= mask;
 }
 
 static void clear_col_tabstop(VTermState *state, int col)
 {
+  if(col < 0 || col >= state->cols)
+    return;
   unsigned char mask = 1 << (col & 7);
   state->tabstops[col >> 3] &= ~mask;
 }
 
 static int is_col_tabstop(VTermState *state, int col)
 {
+  if(col < 0 || col >= state->cols)
+    return 0;
   unsigned char mask = 1 << (col & 7);
   return state->tabstops[col >> 3] & mask;
 }
@@ -1832,7 +1841,9 @@ static void request_status_string(VTermState *state, VTermStringFragment frag)
   if(!frag.final)
     return;
 
-  switch(tmp[0] | tmp[1]<<8 | tmp[2]<<16) {
+  /* rotide patch: cast each byte to unsigned char so a high-bit byte doesn't
+   * sign-extend to a negative int and trip UBSan on the left shift. */
+  switch((unsigned char)tmp[0] | (unsigned char)tmp[1]<<8 | (unsigned char)tmp[2]<<16) {
     case 'm': {
       // Query SGR
       long args[20];
