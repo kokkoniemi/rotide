@@ -222,8 +222,11 @@ size_t vterm_input_write(VTerm *vt, const char *bytes, size_t len)
       if(c >= '0' && c <= '9') {
         if(vt->parser.v.csi.args[vt->parser.v.csi.argi] == CSI_ARG_MISSING)
           vt->parser.v.csi.args[vt->parser.v.csi.argi] = 0;
-        vt->parser.v.csi.args[vt->parser.v.csi.argi] *= 10;
-        vt->parser.v.csi.args[vt->parser.v.csi.argi] += c - '0';
+        /* rotide patch: Saturate at CSI_ARG_MASK so further digits don't overflow
+         *the signed long (UBSan) and don't intrude on CSI_ARG_FLAG_MORE. */
+        if(vt->parser.v.csi.args[vt->parser.v.csi.argi] < (long)CSI_ARG_MASK / 10)
+          vt->parser.v.csi.args[vt->parser.v.csi.argi] =
+              vt->parser.v.csi.args[vt->parser.v.csi.argi] * 10 + (c - '0');
         break;
       }
       if(c == ':') {
@@ -231,13 +234,20 @@ size_t vterm_input_write(VTerm *vt, const char *bytes, size_t len)
         c = ';';
       }
       if(c == ';') {
-        vt->parser.v.csi.argi++;
-        vt->parser.v.csi.args[vt->parser.v.csi.argi] = CSI_ARG_MISSING;
+        /* rotide patch: Cap argi at CSI_ARGS_MAX-1 so excess separators fold into
+         * the last slot instead of writing past args[] (which clobbers the
+         * parser callbacks pointer that sits right after it). */
+        if(vt->parser.v.csi.argi + 1 < CSI_ARGS_MAX) {
+          vt->parser.v.csi.argi++;
+          vt->parser.v.csi.args[vt->parser.v.csi.argi] = CSI_ARG_MISSING;
+        }
         break;
       }
 
       /* else fallthrough */
-      vt->parser.v.csi.argi++;
+      if(vt->parser.v.csi.argi < CSI_ARGS_MAX) {
+        vt->parser.v.csi.argi++;
+      }
       vt->parser.intermedlen = 0;
       vt->parser.state = CSI_INTERMED;
     case CSI_INTERMED:

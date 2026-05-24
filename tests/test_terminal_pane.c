@@ -287,6 +287,52 @@ static int test_terminal_pane_cursor_props_follow_decset_sequences(void) {
 	return failed;
 }
 
+/* Regression: a CSI sequence with more semicolon-separated arguments than
+ * CSI_ARGS_MAX (16 in the vendored libvterm) used to overrun the parser's
+ * args[] array and clobber the callbacks pointer that follows it, causing
+ * a segfault inside do_csi. Excess separators must be folded into the last
+ * slot instead of writing past the array. */
+static int test_terminal_pane_csi_excess_args_does_not_crash(void) {
+	VTerm *vt = vterm_new(24, 80);
+	if (vt == NULL) {
+		return 1;
+	}
+	vterm_set_utf8(vt, 1);
+	VTermScreen *screen = vterm_obtain_screen(vt);
+	if (screen != NULL) {
+		vterm_screen_reset(screen, 1);
+	}
+	/* The exact bytes from the nightly fuzz crash artifact. */
+	const char crash[] = "\x1b[1;;;;;;;;;;;;;;;;;;;;;;;;;;;E5\x1b[1E5frr0m7";
+	vterm_input_write(vt, crash, sizeof(crash) - 1);
+	if (screen != NULL) {
+		vterm_screen_flush_damage(screen);
+	}
+	vterm_free(vt);
+	return 0;
+}
+
+/* Regression: argument digits that would overflow a long in `args *= 10`
+ * must be saturated rather than tripping UBSan. */
+static int test_terminal_pane_csi_huge_arg_does_not_overflow(void) {
+	VTerm *vt = vterm_new(24, 80);
+	if (vt == NULL) {
+		return 1;
+	}
+	vterm_set_utf8(vt, 1);
+	VTermScreen *screen = vterm_obtain_screen(vt);
+	if (screen != NULL) {
+		vterm_screen_reset(screen, 1);
+	}
+	const char huge[] = "\x1b[33333333333333333333H";
+	vterm_input_write(vt, huge, sizeof(huge) - 1);
+	if (screen != NULL) {
+		vterm_screen_flush_damage(screen);
+	}
+	vterm_free(vt);
+	return 0;
+}
+
 static int test_terminal_pane_write_forwards_to_child(void) {
 	/* `cat` echoes typed bytes back through the PTY. Write "hi\n", read
 	 * via pump, expect the bytes to land in the vterm screen. */
@@ -330,6 +376,10 @@ const struct editorTestCase g_terminal_pane_tests[] = {
         {"terminal_pane_cursor_props_follow_decset_sequences",
          test_terminal_pane_cursor_props_follow_decset_sequences},
         {"terminal_pane_write_forwards_to_child", test_terminal_pane_write_forwards_to_child},
+        {"terminal_pane_csi_excess_args_does_not_crash",
+         test_terminal_pane_csi_excess_args_does_not_crash},
+        {"terminal_pane_csi_huge_arg_does_not_overflow",
+         test_terminal_pane_csi_huge_arg_does_not_overflow},
 };
 
 const int g_terminal_pane_test_count =
