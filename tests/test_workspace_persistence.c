@@ -1380,6 +1380,110 @@ static int test_editor_workspace_state_restore_defers_lsp_for_inactive_tabs(void
 	return 0;
 }
 
+static int test_editor_workspace_state_restores_tabs_to_split_panes(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char alpha_file[512];
+	char beta_file[512];
+	ASSERT_TRUE(path_join(alpha_file, sizeof(alpha_file), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(path_join(beta_file, sizeof(beta_file), env.project_dir, "beta.txt"));
+	ASSERT_TRUE(write_text_file(alpha_file, "alpha\n"));
+	ASSERT_TRUE(write_text_file(beta_file, "beta\n"));
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	ASSERT_TRUE(editorTabsInit());
+
+	/* Open alpha in the bootstrap leaf, split, then open beta in the new leaf
+	 * so the two panes hold different active tabs. */
+	ASSERT_TRUE(editorTabOpenFileAsNew(alpha_file));
+	struct editorPaneNode *first_leaf = E.focused_leaf;
+	ASSERT_TRUE(first_leaf != NULL);
+
+	struct editorPaneNode *sibling = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(sibling != NULL);
+	ASSERT_TRUE(E.focused_leaf == sibling);
+
+	ASSERT_TRUE(editorTabOpenFileAsNew(beta_file));
+	ASSERT_EQ_INT(2, editorTabCount());
+
+	/* Sanity-check pre-save layout: first leaf has alpha only, sibling has
+	 * alpha + beta with beta active. */
+	int alpha_idx = -1;
+	int beta_idx = -1;
+	for (int i = 0; i < editorTabCount(); i++) {
+		const char *path = editorTabFilenameAt(i);
+		if (path == NULL) {
+			continue;
+		}
+		if (strcmp(path, alpha_file) == 0) {
+			alpha_idx = i;
+		} else if (strcmp(path, beta_file) == 0) {
+			beta_idx = i;
+		}
+	}
+	ASSERT_TRUE(alpha_idx >= 0 && beta_idx >= 0);
+	ASSERT_EQ_INT(1, first_leaf->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(alpha_idx, first_leaf->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(2, sibling->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(beta_idx, sibling->as.leaf.view.active_tab_idx);
+
+	ASSERT_TRUE(editorWorkspaceStateSave());
+
+	editorTabsFreeAll();
+	editorWorkspaceStateShutdown();
+	editorPaneNodeFree(E.layout_root);
+	E.layout_root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	ASSERT_TRUE(E.layout_root != NULL);
+	E.focused_leaf = E.layout_root;
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_TRUE(editorWorkspaceStateRestoreTabs());
+
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
+
+	int restored_alpha = -1;
+	int restored_beta = -1;
+	for (int i = 0; i < editorTabCount(); i++) {
+		const char *path = editorTabFilenameAt(i);
+		if (path == NULL) {
+			continue;
+		}
+		if (strcmp(path, alpha_file) == 0) {
+			restored_alpha = i;
+		} else if (strcmp(path, beta_file) == 0) {
+			restored_beta = i;
+		}
+	}
+	ASSERT_TRUE(restored_alpha >= 0 && restored_beta >= 0);
+
+	ASSERT_TRUE(E.layout_root != NULL && E.layout_root->is_split);
+	struct editorPaneNode *restored_first = E.layout_root->as.split.first;
+	struct editorPaneNode *restored_second = E.layout_root->as.split.second;
+	ASSERT_TRUE(restored_first != NULL && !restored_first->is_split);
+	ASSERT_TRUE(restored_second != NULL && !restored_second->is_split);
+
+	ASSERT_EQ_INT(1, restored_first->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(restored_alpha, restored_first->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(restored_alpha, restored_first->as.leaf.view.active_tab_idx);
+
+	ASSERT_EQ_INT(2, restored_second->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(restored_beta, restored_second->as.leaf.view.active_tab_idx);
+
+	ASSERT_TRUE(E.focused_leaf == restored_second);
+	ASSERT_EQ_STR(beta_file, editorTabFilenameAt(E.active_tab));
+
+	editorTabsFreeAll();
+	editorWorkspaceStateShutdown();
+	ASSERT_TRUE(unlink(beta_file) == 0);
+	ASSERT_TRUE(unlink(alpha_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 const struct editorTestCase g_workspace_persistence_tests[] = {
         {"editor_drawer_root_selection_modes", test_editor_drawer_root_selection_modes},
         {"editor_drawer_tree_lists_dotfiles_sorted_and_symlink_as_file",
@@ -1448,6 +1552,8 @@ const struct editorTestCase g_workspace_persistence_tests[] = {
          test_editor_workspace_state_restores_open_tabs_with_cursor},
         {"editor_workspace_state_restore_defers_lsp_for_inactive_tabs",
          test_editor_workspace_state_restore_defers_lsp_for_inactive_tabs},
+        {"editor_workspace_state_restores_tabs_to_split_panes",
+         test_editor_workspace_state_restores_tabs_to_split_panes},
 };
 
 const int g_workspace_persistence_test_count =
