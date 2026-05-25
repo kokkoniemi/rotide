@@ -1250,6 +1250,14 @@ int editorHandleMouseEventInTerminalPane(const struct editorMouseEvent *event) {
 	if (E.layout_root == NULL) {
 		return 0;
 	}
+	/* Defer to the normal mouse handlers while a split-border drag is in
+	 * progress; otherwise, when the user drags toward a terminal pane the
+	 * drag event lands inside the terminal's leaf rect and gets hijacked
+	 * as a terminal selection, freezing the border and preventing shrink. */
+	if (E.split_resize_active && (event->kind == EDITOR_MOUSE_EVENT_LEFT_DRAG ||
+	                              event->kind == EDITOR_MOUSE_EVENT_LEFT_RELEASE)) {
+		return 0;
+	}
 	struct editorRect viewport;
 	if (!editorLayoutEditorViewport(&viewport)) {
 		return 0;

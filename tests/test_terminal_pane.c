@@ -161,6 +161,64 @@ static int test_terminal_pane_mouse_drag_resizes_terminal_pane(void) {
 	return failed;
 }
 
+static int test_terminal_pane_mouse_drag_shrinks_terminal_pane(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	E.window_cols = 120;
+	E.window_rows = 40;
+	struct editorPaneNode *terminal_leaf =
+	        editorTerminalPaneOpenSplit("sleep 5", EDITOR_SPLIT_VERTICAL);
+	if (terminal_leaf == NULL) {
+		return 1;
+	}
+	struct editorTerminalPane *t =
+	        (struct editorTerminalPane *)terminal_leaf->as.leaf.kind_state;
+	if (E.layout_root == NULL || !E.layout_root->is_split) {
+		return 1;
+	}
+
+	/* Start by growing the terminal pane to ratio 0.25 (left pane small,
+	 * terminal pane large). Then attempt to shrink it back. The shrink
+	 * drag moves the mouse INTO the terminal pane area, which used to be
+	 * intercepted by the terminal pane mouse handler. */
+	E.layout_root->as.split.ratio = 0.25;
+	editorTerminalPaneResizeAllToLayout(E.layout_root);
+	int grown_cols = t->cols;
+
+	struct editorRect viewport = {0};
+	if (!editorLayoutEditorViewport(&viewport)) {
+		return 1;
+	}
+	E.split_resize_active = 1;
+	E.split_resize_node = E.layout_root;
+	E.mouse_left_button_down = 1;
+
+	/* Drag toward ratio 0.75 — i.e., the mouse moves rightward into the
+	 * terminal pane to shrink it. */
+	int target_x = viewport.x + (int)((double)(viewport.w - 1) * 0.75);
+	struct editorMouseEvent event = {
+	        .kind = EDITOR_MOUSE_EVENT_LEFT_DRAG,
+	        .x = target_x + 1,
+	        .y = viewport.y + 2,
+	        .modifiers = 0,
+	};
+	/* Mirror the dispatch in editorHandleMouseEventDispatch: the
+	 * terminal-pane interceptor runs first and, if it claims the event,
+	 * the normal drag handler is skipped. That short-circuit used to
+	 * freeze the border whenever the drag landed inside a terminal leaf. */
+	if (!editorHandleMouseEventInTerminalPane(&event)) {
+		(void)editorHandleMouseLeftDrag(&event);
+	}
+
+	E.split_resize_active = 0;
+	E.split_resize_node = NULL;
+	E.mouse_left_button_down = 0;
+
+	int failed = t->cols >= grown_cols;
+	return failed;
+}
+
 static int test_terminal_pane_open_split_replaces_sibling_kind(void) {
 	if (E.layout_root == NULL || E.focused_leaf == NULL) {
 		return 1;
@@ -630,6 +688,8 @@ const struct editorTestCase g_terminal_pane_tests[] = {
          test_terminal_pane_resize_all_to_layout_updates_grids},
         {"terminal_pane_mouse_drag_resizes_terminal_pane",
          test_terminal_pane_mouse_drag_resizes_terminal_pane},
+        {"terminal_pane_mouse_drag_shrinks_terminal_pane",
+         test_terminal_pane_mouse_drag_shrinks_terminal_pane},
         {"terminal_pane_open_split_replaces_sibling_kind",
          test_terminal_pane_open_split_replaces_sibling_kind},
         {"terminal_pane_open_vertical_split_replaces_sibling_kind",
