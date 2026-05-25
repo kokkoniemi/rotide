@@ -479,10 +479,39 @@ static int test_editor_refresh_screen_drawer_collapsed_renders_expand_indicator(
 	ASSERT_TRUE(strstr(output, TEST_DRAWER_EXPAND_CELL) != NULL);
 	ASSERT_TRUE(strstr(output, TEST_DRAWER_COLLAPSE_SYMBOL) == NULL);
 	ASSERT_TRUE(strstr(output, "\xE2\x94\x82") == NULL);
-	ASSERT_EQ_INT(0, editorDrawerWidthForCols(E.window_cols));
+	ASSERT_EQ_INT(ROTIDE_DRAWER_COLLAPSED_WIDTH, editorDrawerWidthForCols(E.window_cols));
 	ASSERT_EQ_INT(0, editorDrawerSeparatorWidthForCols(E.window_cols));
-	ASSERT_EQ_INT(0, editorDrawerTextStartColForCols(E.window_cols));
-	ASSERT_EQ_INT(E.window_cols, editorDrawerTextViewportCols(E.window_cols));
+	ASSERT_EQ_INT(ROTIDE_DRAWER_COLLAPSED_WIDTH, editorDrawerTextStartColForCols(E.window_cols));
+	ASSERT_EQ_INT(E.window_cols - ROTIDE_DRAWER_COLLAPSED_WIDTH,
+	              editorDrawerTextViewportCols(E.window_cols));
+	free(output);
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_refresh_screen_multi_pane_collapsed_reserves_toggle_area(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	add_row("alpha");
+	E.window_rows = 4;
+	E.window_cols = 40;
+	E.line_numbers_enabled = 0;
+	ASSERT_TRUE(editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5) != NULL);
+	ASSERT_TRUE(editorDrawerSetCollapsed(1));
+
+	struct editorRect viewport;
+	ASSERT_TRUE(editorLayoutEditorViewport(&viewport));
+	ASSERT_EQ_INT(ROTIDE_DRAWER_COLLAPSED_WIDTH, viewport.x);
+	ASSERT_EQ_INT(E.window_cols - ROTIDE_DRAWER_COLLAPSED_WIDTH, viewport.w);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, TEST_DRAWER_EXPAND_CELL) != NULL);
 	free(output);
 
 	cleanup_recovery_test_env(&env);
@@ -987,10 +1016,10 @@ static int test_editor_drawer_layout_clamps_tiny_widths(void) {
 
 	ASSERT_TRUE(editorDrawerSetCollapsed(1));
 	ASSERT_EQ_INT(3, editorDrawerCollapsedToggleWidthForCols(10));
-	ASSERT_EQ_INT(0, editorDrawerWidthForCols(10));
+	ASSERT_EQ_INT(3, editorDrawerWidthForCols(10));
 	ASSERT_EQ_INT(0, editorDrawerSeparatorWidthForCols(10));
-	ASSERT_EQ_INT(0, editorDrawerTextStartColForCols(10));
-	ASSERT_EQ_INT(10, editorDrawerTextViewportCols(10));
+	ASSERT_EQ_INT(3, editorDrawerTextStartColForCols(10));
+	ASSERT_EQ_INT(7, editorDrawerTextViewportCols(10));
 	return 0;
 }
 
@@ -1181,6 +1210,8 @@ const struct editorTestCase g_render_chrome_tests[] = {
          test_editor_refresh_screen_drawer_active_file_uses_inverted_background},
         {"editor_refresh_screen_drawer_collapsed_renders_expand_indicator",
          test_editor_refresh_screen_drawer_collapsed_renders_expand_indicator},
+        {"editor_refresh_screen_multi_pane_collapsed_reserves_toggle_area",
+         test_editor_refresh_screen_multi_pane_collapsed_reserves_toggle_area},
         {"editor_refresh_screen_drawer_header_mode_buttons",
          test_editor_refresh_screen_drawer_header_mode_buttons},
         {"editor_refresh_screen_drawer_uses_nerd_font_icons_when_enabled",

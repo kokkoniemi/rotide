@@ -54,7 +54,7 @@ int editorDrawerCollapsedToggleWidthForCols(int total_cols) {
 
 int editorDrawerWidthForCols(int total_cols) {
 	if (editorDrawerIsCollapsed()) {
-		return 0;
+		return editorDrawerCollapsedToggleWidthForCols(total_cols);
 	}
 
 	int desired_width = E.drawer_width_cols;
@@ -73,6 +73,9 @@ int editorDrawerWidthForCols(int total_cols) {
 }
 
 int editorDrawerSeparatorWidthForCols(int total_cols) {
+	if (editorDrawerIsCollapsed()) {
+		return 0;
+	}
 	int drawer_cols = editorDrawerWidthForCols(total_cols);
 	if (drawer_cols <= 0) {
 		return 0;
