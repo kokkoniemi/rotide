@@ -430,6 +430,37 @@ static int test_terminal_pane_scroll_oob_rect_does_not_crash(void) {
 	return 0;
 }
 
+/* Regression: putglyph NULL-checked the leading cell of a wide glyph but
+ * blindly dereferenced the continuation cell at pos.col+1. A width-2 glyph
+ * landing at the rightmost column (or any col where pos.col+1 >= screen->cols)
+ * crashed the unchecked deref. */
+static int test_terminal_pane_wide_glyph_at_edge_does_not_crash(void) {
+	VTerm *vt = vterm_new(24, 80);
+	if (vt == NULL) {
+		return 1;
+	}
+	vterm_set_utf8(vt, 1);
+	VTermScreen *screen = vterm_obtain_screen(vt);
+	if (screen != NULL) {
+		vterm_screen_reset(screen, 1);
+	}
+	const unsigned char crash[] = {
+	        0x00, 0x6c, 0xca, 0x00, 0xff, 0xff, 0x27, 0x44, 0xff, 0xff, 0xff, 0xff,
+	        0xff, 0x6c, 0x1b, 0x5b, 0x3f, 0x3a, 0x37, 0x6c, 0xf4, 0x00, 0x62, 0x42,
+	        0xb3, 0xff, 0x00, 0x00, 0x35, 0x50, 0x00, 0x00, 0x20, 0x9e, 0x9d, 0x1b,
+	        0x5b, 0x36, 0x39, 0x62, 0x1b, 0xff, 0xff, 0x63, 0x30, 0x79, 0x29, 0x5b,
+	        0x63, 0x09, 0x0b, 0x6c, 0x2c, 0x00, 0x1b, 0x5b, 0x3f, 0x3a, 0x37, 0xff,
+	        0xff, 0x4f, 0x30, 0x00, 0x0b, 0xf6, 0xe9, 0x9e, 0x9d, 0x1b, 0x5b, 0x36,
+	        0x39, 0x62, 0xff, 0xff, 0x00,
+	};
+	vterm_input_write(vt, (const char *)crash, sizeof(crash));
+	if (screen != NULL) {
+		vterm_screen_flush_damage(screen);
+	}
+	vterm_free(vt);
+	return 0;
+}
+
 static int test_terminal_pane_scrollback_ring_captures_evicted_rows(void) {
 	/* 3-row screen so a couple of LFs push lines into scrollback. */
 	struct editorTerminalPane *t = editorTerminalPaneCreate("sleep 5", 20, 3);
@@ -577,6 +608,8 @@ const struct editorTestCase g_terminal_pane_tests[] = {
          test_terminal_pane_tbc_out_of_range_col_does_not_crash},
         {"terminal_pane_scroll_oob_rect_does_not_crash",
          test_terminal_pane_scroll_oob_rect_does_not_crash},
+        {"terminal_pane_wide_glyph_at_edge_does_not_crash",
+         test_terminal_pane_wide_glyph_at_edge_does_not_crash},
         {"terminal_pane_scrollback_ring_captures_evicted_rows",
          test_terminal_pane_scrollback_ring_captures_evicted_rows},
         {"terminal_pane_scroll_by_clamps_to_history",

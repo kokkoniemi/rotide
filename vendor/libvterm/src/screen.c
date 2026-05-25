@@ -186,8 +186,15 @@ static int putglyph(VTermGlyphInfo *info, VTermPos pos, void *user)
   if(i < VTERM_MAX_CHARS_PER_CELL)
     cell->chars[i] = 0;
 
-  for(int col = 1; col < info->width; col++)
-    getcell(screen, pos.row, pos.col + col)->chars[0] = (uint32_t)-1;
+  /* rotide patch: NULL-guard the continuation cells of a wide glyph. A
+   * width-2 glyph written at the rightmost column makes getcell() return
+   * NULL for pos.col+1; the unchecked deref segfaulted before this clamp. */
+  for(int col = 1; col < info->width; col++) {
+    ScreenCell *cont = getcell(screen, pos.row, pos.col + col);
+    if(!cont)
+      continue;
+    cont->chars[0] = (uint32_t)-1;
+  }
 
   VTermRect rect = {
     .start_row = pos.row,
