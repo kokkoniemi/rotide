@@ -241,10 +241,34 @@ static int moverect_internal(VTermRect dest, VTermRect src, void *user)
     inc_row  = +1;
   }
 
-  for(int row = init_row; row != test_row; row += inc_row)
-    memmove(getcell(screen, row, dest.start_col),
-            getcell(screen, row + downward, src.start_col),
-            cols * sizeof(ScreenCell));
+  /* rotide patch: clamp both the row range and the column width to the
+   * screen's own dimensions before each memmove. Crafted CSI sequences
+   * (mode toggles + C1 bytes) can drive scroll with rects that lie
+   * partially outside the grid — getcell() guards the row start but not
+   * end_col, so an unclamped memmove() still walks past the buffer. Mirrors
+   * the clamp pattern in erase_internal above. Note: state.c updates
+   * state->lineinfo before calling here, so a row we skip will report a
+   * scrolled lineinfo even though its cells didn't move — cosmetic only,
+   * no crash or leak. */
+  for(int row = init_row; row != test_row; row += inc_row) {
+    if(row < 0 || row >= screen->rows)
+      continue;
+    int src_row = row + downward;
+    if(src_row < 0 || src_row >= screen->rows)
+      continue;
+    int copy_cols = cols;
+    int dest_room = screen->cols - dest.start_col;
+    int src_room = screen->cols - src.start_col;
+    if(copy_cols > dest_room) copy_cols = dest_room;
+    if(copy_cols > src_room)  copy_cols = src_room;
+    if(copy_cols <= 0)
+      continue;
+    ScreenCell *dst = getcell(screen, row, dest.start_col);
+    ScreenCell *src_cell = getcell(screen, src_row, src.start_col);
+    if(!dst || !src_cell)
+      continue;
+    memmove(dst, src_cell, copy_cols * sizeof(ScreenCell));
+  }
 
   return 1;
 }
