@@ -481,7 +481,8 @@ static int test_editor_refresh_screen_drawer_collapsed_renders_expand_indicator(
 	ASSERT_TRUE(strstr(output, "\xE2\x94\x82") == NULL);
 	ASSERT_EQ_INT(ROTIDE_DRAWER_COLLAPSED_WIDTH, editorDrawerWidthForCols(E.window_cols));
 	ASSERT_EQ_INT(0, editorDrawerSeparatorWidthForCols(E.window_cols));
-	ASSERT_EQ_INT(ROTIDE_DRAWER_COLLAPSED_WIDTH, editorDrawerTextStartColForCols(E.window_cols));
+	ASSERT_EQ_INT(ROTIDE_DRAWER_COLLAPSED_WIDTH,
+	              editorDrawerTextStartColForCols(E.window_cols));
 	ASSERT_EQ_INT(E.window_cols - ROTIDE_DRAWER_COLLAPSED_WIDTH,
 	              editorDrawerTextViewportCols(E.window_cols));
 	free(output);
