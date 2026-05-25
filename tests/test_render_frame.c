@@ -348,10 +348,10 @@ static int test_editor_refresh_screen_applies_silentium_theme(void) {
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b]12;rgb:e6/e6/e6\a") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[48;2;20;20;20m") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[38;2;246;206;78mreturn") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[38;2;255;126;107mreturn") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[38;2;166;166;166m\"txt\"") != NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[38;2;115;115;115m// comment") != NULL);
-	ASSERT_TRUE(strstr(output, "\x1b[38;2;246;206;78mmain") == NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[38;2;255;126;107mmain") == NULL);
 	ASSERT_TRUE(strstr(output, "\x1b[48;2;40;40;40m") != NULL);
 	free(output);
 

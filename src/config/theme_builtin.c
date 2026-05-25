@@ -284,7 +284,7 @@ static void themeBuiltinInitAcme(struct editorTheme *theme) {
 }
 
 static void themeBuiltinInitSilentium(struct editorTheme *theme) {
-	struct editorThemeColor accent = editorThemeRgbColor(0xF6, 0xCE, 0x4E);
+	struct editorThemeColor accent = editorThemeRgbColor(0xFF, 0x7E, 0x6B);
 	struct editorThemeColor white = editorThemeRgbColor(0xE6, 0xE6, 0xE6);
 	struct editorThemeColor light_gray = editorThemeRgbColor(0xA6, 0xA6, 0xA6);
 	struct editorThemeColor gray = editorThemeRgbColor(0x73, 0x73, 0x73);
@@ -464,6 +464,7 @@ static void themeBuiltinInitGithubLight(struct editorTheme *theme) {
 	                                      .type = editorThemeRgbColor(0x1F, 0x23, 0x28),
 	                              });
 	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = editorThemeRgbColor(0x57, 0x60, 0x6A);
+	theme->styles[EDITOR_THEME_STYLE_TAB_ACTIVE].bg = editorThemeRgbColor(0xBB, 0xDF, 0xFF);
 }
 
 static void themeBuiltinInitGithubDark(struct editorTheme *theme) {
@@ -490,6 +491,7 @@ static void themeBuiltinInitGithubDark(struct editorTheme *theme) {
 	                              });
 	theme->ui[EDITOR_THEME_UI_DIRECTORY] = editorThemeRgbColor(0x79, 0xC0, 0xFF);
 	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = editorThemeRgbColor(0xB1, 0xBA, 0xC4);
+	theme->styles[EDITOR_THEME_STYLE_TAB_ACTIVE].bg = editorThemeRgbColor(0x24, 0x3B, 0x61);
 }
 
 static void themeBuiltinInitMolokai(struct editorTheme *theme) {
@@ -531,7 +533,6 @@ struct themeBuiltinModusPalette {
 	struct editorThemeColor bg_mode_line_active;
 	struct editorThemeColor fg_mode_line_active;
 	struct editorThemeColor bg_mode_line_inactive;
-	struct editorThemeColor bg_tab_current;
 	struct editorThemeColor cursor;
 	struct editorThemeColor red;
 	struct editorThemeColor green;
@@ -591,7 +592,7 @@ static void themeBuiltinInitModus(struct editorTheme *theme, struct themeBuiltin
 	theme->styles[EDITOR_THEME_STYLE_STATUS] =
 	        themeBuiltinStylePair(p.fg_mode_line_active, p.bg_mode_line_active);
 	theme->styles[EDITOR_THEME_STYLE_TAB_ACTIVE] =
-	        themeBuiltinStylePair(p.fg_main, p.bg_tab_current);
+	        themeBuiltinStylePair(p.fg_main, p.bg_mode_line_active);
 	theme->styles[EDITOR_THEME_STYLE_DRAWER_HEADER_ACTIVE] =
 	        themeBuiltinStylePair(p.fg_mode_line_active, p.bg_mode_line_active);
 }
@@ -612,7 +613,6 @@ static void themeBuiltinInitModusOperandi(struct editorTheme *theme) {
 	                       .bg_mode_line_active = editorThemeRgbColor(0xC8, 0xC8, 0xC8),
 	                       .fg_mode_line_active = editorThemeRgbColor(0x00, 0x00, 0x00),
 	                       .bg_mode_line_inactive = editorThemeRgbColor(0xE6, 0xE6, 0xE6),
-	                       .bg_tab_current = editorThemeRgbColor(0xFF, 0xFF, 0xFF),
 	                       .cursor = editorThemeRgbColor(0x00, 0x00, 0x00),
 	                       .red = editorThemeRgbColor(0xA6, 0x00, 0x00),
 	                       .green = editorThemeRgbColor(0x00, 0x68, 0x00),
@@ -650,7 +650,6 @@ static void themeBuiltinInitModusOperandiTinted(struct editorTheme *theme) {
 	                       .bg_mode_line_active = editorThemeRgbColor(0xCA, 0xB9, 0xB2),
 	                       .fg_mode_line_active = editorThemeRgbColor(0x00, 0x00, 0x00),
 	                       .bg_mode_line_inactive = editorThemeRgbColor(0xDF, 0xD9, 0xCF),
-	                       .bg_tab_current = editorThemeRgbColor(0xFB, 0xF7, 0xF0),
 	                       .cursor = editorThemeRgbColor(0xD0, 0x00, 0x00),
 	                       .red = editorThemeRgbColor(0xA6, 0x00, 0x00),
 	                       .green = editorThemeRgbColor(0x00, 0x63, 0x00),
@@ -688,7 +687,6 @@ static void themeBuiltinInitModusVivendi(struct editorTheme *theme) {
 	                       .bg_mode_line_active = editorThemeRgbColor(0x50, 0x50, 0x50),
 	                       .fg_mode_line_active = editorThemeRgbColor(0xFF, 0xFF, 0xFF),
 	                       .bg_mode_line_inactive = editorThemeRgbColor(0x2D, 0x2D, 0x2D),
-	                       .bg_tab_current = editorThemeRgbColor(0x00, 0x00, 0x00),
 	                       .cursor = editorThemeRgbColor(0xFF, 0xFF, 0xFF),
 	                       .red = editorThemeRgbColor(0xFF, 0x5F, 0x59),
 	                       .green = editorThemeRgbColor(0x44, 0xBC, 0x44),
@@ -726,7 +724,6 @@ static void themeBuiltinInitModusVivendiTinted(struct editorTheme *theme) {
 	                       .bg_mode_line_active = editorThemeRgbColor(0x48, 0x4D, 0x67),
 	                       .fg_mode_line_active = editorThemeRgbColor(0xFF, 0xFF, 0xFF),
 	                       .bg_mode_line_inactive = editorThemeRgbColor(0x29, 0x2D, 0x48),
-	                       .bg_tab_current = editorThemeRgbColor(0x0D, 0x0E, 0x1C),
 	                       .cursor = editorThemeRgbColor(0xFF, 0x66, 0xFF),
 	                       .red = editorThemeRgbColor(0xFF, 0x5F, 0x59),
 	                       .green = editorThemeRgbColor(0x44, 0xBC, 0x44),
