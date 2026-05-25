@@ -56,7 +56,8 @@ static struct editorMetricsRow **collectGroup(const struct editorMetricsRow *row
                                               int *out_count) {
 	*out_count = 0;
 	struct editorMetricsRow **out =
-	        (struct editorMetricsRow **)malloc((size_t)(count > 0 ? count : 1) * sizeof(*out));
+	        (struct editorMetricsRow **)malloc((size_t)(count > 0 ? count : 1) *
+	                                           sizeof(struct editorMetricsRow *));
 	if (out == NULL) {
 		return NULL;
 	}
@@ -78,7 +79,7 @@ static struct editorMetricsRow **collectGroup(const struct editorMetricsRow *row
 		}
 		out[n++] = (struct editorMetricsRow *)r;
 	}
-	qsort(out, (size_t)n, sizeof(*out), compareByTs);
+	qsort(out, (size_t)n, sizeof(struct editorMetricsRow *), compareByTs);
 	*out_count = n;
 	return out;
 }

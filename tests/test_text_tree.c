@@ -54,6 +54,7 @@ static int test_text_tree_leaf_split_grows_tree(void) {
 
 	char expected[256];
 	memcpy(expected, seed, seed_len);
+	expected[seed_len] = '\0';
 	size_t cur_len = seed_len;
 
 	/* Insert into the middle 40 times — each mid-piece insert turns 1 piece

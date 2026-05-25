@@ -360,10 +360,14 @@ static void parse_child_summary(const char *out, size_t out_len, struct suiteBat
 	if (end - start < 8) {
 		return;
 	}
-	int total = 0, passed = 0, failed = 0, drift = 0, flakes = 0;
+	int total = 0;
+	int passed = 0;
+	int failed = 0;
+	int drift = 0;
+	int flakes = 0;
 	long long property_ops = 0;
 	double property_ops_seconds = 0.0;
-	if (sscanf(start,
+	if (sscanf(start, // NOLINT(cert-err34-c)
 	           "__CHILD_SUMMARY total=%d passed=%d failed=%d drift=%d flakes=%d "
 	           "property_ops=%lld property_ops_seconds=%lf",
 	           &total, &passed, &failed, &drift, &flakes, &property_ops,

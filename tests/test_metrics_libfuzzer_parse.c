@@ -203,7 +203,8 @@ static int test_scan_corpus_counts_files_and_bytes(void) {
 	/* Hidden file must be ignored. */
 	ASSERT_EQ_INT(0, write_file_bytes(dir, ".hidden", "xxx", 3));
 
-	long long count = -1, bytes = -1;
+	long long count = -1;
+	long long bytes = -1;
 	ASSERT_EQ_INT(0, editorLibFuzzerScanCorpus(dir, &count, &bytes));
 	ASSERT_EQ_INT(3, (int)count);
 	ASSERT_EQ_INT(8, (int)bytes);
@@ -214,7 +215,8 @@ static int test_scan_corpus_counts_files_and_bytes(void) {
 }
 
 static int test_scan_corpus_missing_dir_reports_error(void) {
-	long long count = 99, bytes = 99;
+	long long count = 99;
+	long long bytes = 99;
 	int rc = editorLibFuzzerScanCorpus("/nonexistent-rotide-corpus-xyz-1234", &count, &bytes);
 	ASSERT_TRUE(rc != 0);
 	/* Zeroed on failure for safe defaults. */

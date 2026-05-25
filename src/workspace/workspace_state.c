@@ -527,7 +527,7 @@ int editorWorkspaceStateLoadAndApply(int total_cols) {
 			    parsed_version > ROTIDE_WORKSPACE_STATE_VERSION) {
 				/* Newer-format file: bail rather than partially apply
 				 * settings whose semantics we don't understand. */
-				fclose(fp);
+				(void)fclose(fp);
 				workspaceStateFreePendingTabs();
 				workspaceStateFreePendingPaneTabs();
 				return 0;
@@ -586,7 +586,7 @@ int editorWorkspaceStateLoadAndApply(int total_cols) {
 		}
 		(void)parsed;
 	}
-	fclose(fp);
+	(void)fclose(fp);
 
 	if (width > 0 && total_cols > 0) {
 		(void)editorDrawerSetWidthForCols(width, total_cols);

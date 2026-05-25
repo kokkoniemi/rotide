@@ -444,7 +444,7 @@ static void queriesRecordCompileError(enum editorSyntaxLanguage language, const 
 
 #ifndef NDEBUG
 	if (log_mode == QUERIES_COMPILE_LOG_ERROR) {
-		fprintf(stderr,
+		(void)fprintf(stderr,
 		        "rotide: tree-sitter query compile failed: language=%d offset=%u "
 		        "error=%s context=\"%s\"\n",
 		        (int)language, (unsigned int)error_offset, queriesErrorName(error_type),

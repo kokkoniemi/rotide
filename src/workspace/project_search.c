@@ -140,7 +140,7 @@ static int projectSearchBuildDisplay(const char *path, int line, int col, const 
 	if (display == NULL) {
 		return 0;
 	}
-	snprintf(display, bytes, "%s:%d:%d: %s", display_path, line, col,
+	(void)snprintf(display, bytes, "%s:%d:%d: %s", display_path, line, col,
 	         line_text != NULL ? line_text : "");
 	*display_out = display;
 	return 1;

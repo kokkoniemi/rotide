@@ -106,7 +106,7 @@ int main(int argc, char **argv) {
 			continue;
 		}
 		if (strcmp(a, "--limit") == 0 && next) {
-			opts.summary_limit = atoi(next);
+			opts.summary_limit = (int)strtol(next, NULL, 10);
 			i++;
 			continue;
 		}

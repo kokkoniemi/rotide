@@ -173,9 +173,9 @@ static int dapAppendSubstitutedString(struct editorLspString *sb, const char *va
 		if (strncmp(p, "${workspaceFolder}", 18) == 0) {
 			replacement = workspace_root != NULL ? workspace_root : "";
 			token_len = 18;
-		} else if (strncmp(p, "${fileDirname}", 15) == 0) {
+		} else if (strncmp(p, "${fileDirname}", 14) == 0) {
 			replacement = file_dir != NULL ? file_dir : "";
-			token_len = 15;
+			token_len = 14;
 		} else if (strncmp(p, "${fileBasename}", 15) == 0) {
 			replacement = file_base != NULL ? file_base : "";
 			token_len = 15;
@@ -578,7 +578,7 @@ int editorDapToggleBreakpointAtCursor(void) {
 			return 0;
 		}
 		struct editorDapBreakpoint *bp = &E.dap_breakpoints[E.dap_breakpoint_count++];
-		snprintf(bp->path, sizeof(bp->path), "%s", E.filename);
+		(void)snprintf(bp->path, sizeof(bp->path), "%s", E.filename);
 		bp->line = E.cy;
 		editorSetStatusMsg("Breakpoint set");
 	}

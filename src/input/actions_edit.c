@@ -238,7 +238,9 @@ void editorEditToggleCommentLines(editorEditActionFn clear_selection_mode,
 		}
 	}
 
-	size_t first_start = 0, dummy = 0, last_end = 0;
+	size_t first_start = 0;
+	size_t dummy = 0;
+	size_t last_end = 0;
 	if (!editorBufferLineByteRange(range.start_cy, &first_start, &dummy) ||
 	    !editorBufferLineByteRange(last_row, &dummy, &last_end)) {
 		return;
@@ -357,7 +359,7 @@ void editorEditToggleCommentLines(editorEditActionFn clear_selection_mode,
 				if (i + prefix_len < size && chars[i + prefix_len] == ' ') {
 					skip++;
 				}
-				if (new_cx > (size_t)(i + skip)) {
+				if (new_cx > (size_t)i + (size_t)skip) {
 					new_cx -= (size_t)skip;
 				} else {
 					new_cx = (size_t)i;
@@ -411,8 +413,10 @@ void editorEditMoveCurrentLine(int direction) {
 	int first = direction < 0 ? other : cur;
 	int second = direction < 0 ? cur : other;
 
-	size_t first_start = 0, first_end = 0;
-	size_t second_start = 0, second_end = 0;
+	size_t first_start = 0;
+	size_t first_end = 0;
+	size_t second_start = 0;
+	size_t second_end = 0;
 	if (!editorBufferLineByteRange(first, &first_start, &first_end) ||
 	    !editorBufferLineByteRange(second, &second_start, &second_end)) {
 		return;

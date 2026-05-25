@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
 		} else if (strcmp(argv[i], "--bytes") == 0) {
 			doc_bytes = (size_t)strtoull(argv[i + 1], NULL, 0);
 		} else if (strcmp(argv[i], "--ops") == 0) {
-			ops = atoi(argv[i + 1]);
+			ops = (int)strtol(argv[i + 1], NULL, 10);
 		} else {
 			fprintf(stderr, "unknown flag: %s\n", argv[i]);
 			return 2;

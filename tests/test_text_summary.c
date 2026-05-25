@@ -143,12 +143,16 @@ static int test_text_summary_merge_associativity(void) {
 		size_t la = (size_t)(rngNext() % 128);
 		size_t lb = (size_t)(rngNext() % 128);
 		size_t lc = (size_t)(rngNext() % 128);
-		char a[128], b[128], c[128];
+		char a[128];
+		char b[128];
+		char c[128];
 		fillRandomText(a, la, 20);
 		fillRandomText(b, lb, 20);
 		fillRandomText(c, lc, 20);
 
-		struct editorTextSummary sa, sb, sc;
+		struct editorTextSummary sa;
+		struct editorTextSummary sb;
+		struct editorTextSummary sc;
 		editorTextSummaryFromBytes(a, la, &sa);
 		editorTextSummaryFromBytes(b, lb, &sb);
 		editorTextSummaryFromBytes(c, lc, &sc);

@@ -114,7 +114,8 @@ static int test_rewrite_replaces_block_with_new_content(void) {
 	e.line = 2; /* ASSERT_GRID_EQ call site */
 	e.actual = strdup("new line 1\nnew line 2\n");
 
-	int applied = 0, skipped = 0;
+	int applied = 0;
+	int skipped = 0;
 	char *out = editor_golden_rewrite_text(src, strlen(src), &e, 1, &applied, &skipped, NULL);
 	ASSERT_TRUE(out != NULL);
 	ASSERT_EQ_INT(1, applied);
@@ -162,7 +163,8 @@ static int test_rewrite_skips_entry_without_markers(void) {
 	e.actual = strdup("new");
 
 	FILE *log = tmpfile();
-	int applied = 0, skipped = 0;
+	int applied = 0;
+	int skipped = 0;
 	char *out = editor_golden_rewrite_text(src, strlen(src), &e, 1, &applied, &skipped, log);
 	ASSERT_TRUE(out != NULL);
 	ASSERT_EQ_INT(0, applied);
@@ -200,7 +202,8 @@ static int test_rewrite_applies_multiple_in_order(void) {
 	entries[1].line = 9;
 	entries[1].actual = strdup("b_new\n");
 
-	int applied = 0, skipped = 0;
+	int applied = 0;
+	int skipped = 0;
 	char *out =
 	        editor_golden_rewrite_text(src, strlen(src), entries, 2, &applied, &skipped, NULL);
 	ASSERT_TRUE(out != NULL);

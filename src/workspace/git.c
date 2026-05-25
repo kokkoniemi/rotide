@@ -56,7 +56,7 @@ static void gitRefreshBranch(void) {
 			E.git_branch = strdup(sha_short);
 		}
 	}
-	fclose(f);
+	(void)fclose(f);
 }
 
 static int gitEntryCompare(const void *a, const void *b) {
@@ -145,6 +145,7 @@ void editorGitRefresh(void) {
 		return;
 	}
 	memcpy(cmd, prefix, prefix_len);
+	cmd[prefix_len] = '\0';
 	pos = prefix_len;
 	for (const char *p = E.git_repo_root; *p != '\0'; p++) {
 		if (*p == '\'') {
@@ -274,7 +275,8 @@ enum editorGitStatus editorGitFileStatus(const char *abs_path) {
 		rel++;
 	}
 
-	int lo = 0, hi = E.git_entry_count - 1;
+	int lo = 0;
+	int hi = E.git_entry_count - 1;
 	while (lo <= hi) {
 		int mid = lo + (hi - lo) / 2;
 		int cmp = strcmp(E.git_entries[mid].rel_path, rel);

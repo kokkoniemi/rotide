@@ -217,7 +217,7 @@ static int terminalDecodeSgrMousePayload(const char *payload, struct editorMouse
 	int cy = 0;
 	char suffix = '\0';
 	int consumed = 0;
-	if (sscanf(payload, "%d;%d;%d%c%n", &cb, &cx, &cy, &suffix, &consumed) != 4) {
+	if (sscanf(payload, "%d;%d;%d%c%n", &cb, &cx, &cy, &suffix, &consumed) != 4) { // NOLINT(cert-err34-c)
 		return 0;
 	}
 	if (payload[consumed] != '\0') {
@@ -895,7 +895,7 @@ void editorSetRawMode(void) {
 	// Mouse enable is best-effort: unsupported terminals simply ignore the control sequence.
 	(void)terminalWriteAll(STDOUT_FILENO, VT100_ENABLE_MOUSE, sizeof(VT100_ENABLE_MOUSE) - 1);
 	g_terminal_raw_enabled = 1;
-	signal(SIGPIPE, SIG_IGN);
+	(void)signal(SIGPIPE, SIG_IGN);
 	terminalInstallTerminationHandlers();
 	terminalInstallResizeHandler();
 }

@@ -82,7 +82,8 @@ static int test_terminal_pane_resize_updates_grid(void) {
 		editorTerminalPaneFree(t);
 		return 1;
 	}
-	int rows = 0, cols = 0;
+	int rows = 0;
+	int cols = 0;
 	vterm_get_size(t->vt, &rows, &cols);
 	int failed = t->cols != 100 || t->rows != 30 || cols != 100 || rows != 30;
 	editorTerminalPaneFree(t);

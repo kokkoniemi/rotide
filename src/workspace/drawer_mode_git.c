@@ -275,7 +275,7 @@ int editorDrawerGitVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 			if (status == ' ' || status == '\0') {
 				status = '?';
 			}
-			snprintf(git_name_buf, sizeof(git_name_buf), "%c %s", status,
+			(void)snprintf(git_name_buf, sizeof(git_name_buf), "%c %s", status,
 			         entry->rel_path);
 			view_out->name = git_name_buf;
 			view_out->depth = 2;

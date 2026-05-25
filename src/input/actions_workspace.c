@@ -155,7 +155,7 @@ int editorOpenSelectedGitDiff(void) {
 		return 0;
 	}
 	char title[PATH_MAX + 16];
-	snprintf(title, sizeof(title), "git diff: %s", entry->rel_path);
+	(void)snprintf(title, sizeof(title), "git diff: %s", entry->rel_path);
 	int ok = editorTabOpenGitDiff(title, diff_text);
 	free(diff_text);
 	return ok;

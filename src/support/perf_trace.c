@@ -75,6 +75,6 @@ void editorPerfEndFrame(void) {
 		return;
 	}
 	long ms = editorPerfMonotonicUs() / 1000L;
-	fprintf(stderr, "ROTIDE_PERF,%ld,%ld,%ld,%d,%d\n", ms, g_perf_frame.pump_us,
+	(void)fprintf(stderr, "ROTIDE_PERF,%ld,%ld,%ld,%d,%d\n", ms, g_perf_frame.pump_us,
 	        g_perf_frame.refresh_us, g_perf_frame.bytes_pumped, g_perf_frame.fds_ready);
 }

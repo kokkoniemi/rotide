@@ -249,7 +249,8 @@ char *editorTempPathForTarget(const char *target) {
 		memcpy(tmp_path, target, dir_len);
 	}
 	memcpy(tmp_path + dir_len, basename, base_len);
-	memcpy(tmp_path + dir_len + base_len, suffix, sizeof(suffix));
+	memcpy(tmp_path + dir_len + base_len, suffix, sizeof(suffix) - 1);
+	tmp_path[dir_len + base_len + sizeof(suffix) - 1] = '\0';
 
 	return tmp_path;
 }

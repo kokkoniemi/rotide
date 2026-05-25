@@ -839,14 +839,18 @@ static int applyPipelineOp(unsigned kind, size_t start, size_t old_len, const ch
 	int ok = 0;
 	editorHistoryBeginEdit(ek);
 	if (old_len == 0 && new_len > 0) {
-		int cy = 0, cx = 0;
+		int cy = 0;
+		int cx = 0;
 		if (byteOffsetToPos(start, &cy, &cx)) {
 			E.cy = cy;
 			E.cx = cx;
 			ok = editorInsertText(text, new_len) == 1;
 		}
 	} else {
-		int s_cy = 0, s_cx = 0, e_cy = 0, e_cx = 0;
+		int s_cy = 0;
+		int s_cx = 0;
+		int e_cy = 0;
+		int e_cx = 0;
 		if (byteOffsetToPos(start, &s_cy, &s_cx) &&
 		    byteOffsetToPos(start + old_len, &e_cy, &e_cx)) {
 			struct editorSelectionRange range = {s_cy, s_cx, e_cy, e_cx};

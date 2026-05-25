@@ -658,7 +658,7 @@ int main(int argc, char **argv) {
 			return 0;
 		}
 		if (strcmp(argv[i], "--iterations") == 0 && i + 1 < argc) {
-			opts.iterations = atoi(argv[++i]);
+			opts.iterations = (int)strtol(argv[++i], NULL, 10);
 			continue;
 		}
 		if (strcmp(argv[i], "--filter") == 0 && i + 1 < argc) {

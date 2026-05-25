@@ -278,7 +278,8 @@ static int dispatchReplaceSelectionWithChar(int c) {
 		return 0;
 	}
 
-	size_t start_offset = 0, end_offset = 0;
+	size_t start_offset = 0;
+	size_t end_offset = 0;
 	if (!editorBufferPosToOffset(range.start_cy, range.start_cx, &start_offset) ||
 	    !editorBufferPosToOffset(range.end_cy, range.end_cx, &end_offset) ||
 	    end_offset < start_offset) {
@@ -322,8 +323,10 @@ static int dispatchIndentSelection(void) {
 		last_row--;
 	}
 
-	size_t first_start = 0, dummy_end = 0;
-	size_t dummy_start = 0, last_end = 0;
+	size_t first_start = 0;
+	size_t dummy_end = 0;
+	size_t dummy_start = 0;
+	size_t last_end = 0;
 	if (!editorBufferLineByteRange(range.start_cy, &first_start, &dummy_end) ||
 	    !editorBufferLineByteRange(last_row, &dummy_start, &last_end)) {
 		return 1;

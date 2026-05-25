@@ -199,7 +199,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 		free(javascript_install_command);
 		free(eslint_command);
 		free(vscode_langservers_install_command);
-		fclose(fp);
+		(void)fclose(fp);
 		return LSP_CONFIG_FILE_OUT_OF_MEMORY;
 	}
 	(void)snprintf(gopls_command, gopls_command_in_out_size, "%s", gopls_command_in_out);
@@ -249,7 +249,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 		size_t line_len = strlen(line);
 		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
 			LSP_CONFIG_FREE_LOCAL();
-			fclose(fp);
+			(void)fclose(fp);
 			return LSP_CONFIG_FILE_INVALID;
 		}
 
@@ -264,7 +264,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 			char *close = strchr(trimmed, ']');
 			if (close == NULL) {
 				LSP_CONFIG_FREE_LOCAL();
-				fclose(fp);
+				(void)fclose(fp);
 				return LSP_CONFIG_FILE_INVALID;
 			}
 			*close = '\0';
@@ -273,7 +273,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 			char *tail = editorConfigTrimLeft(close + 1);
 			if (tail[0] != '\0') {
 				LSP_CONFIG_FREE_LOCAL();
-				fclose(fp);
+				(void)fclose(fp);
 				return LSP_CONFIG_FILE_INVALID;
 			}
 
@@ -288,7 +288,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 		char *eq = strchr(trimmed, '=');
 		if (eq == NULL) {
 			LSP_CONFIG_FREE_LOCAL();
-			fclose(fp);
+			(void)fclose(fp);
 			return LSP_CONFIG_FILE_INVALID;
 		}
 
@@ -298,7 +298,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 		char *value = editorConfigTrimLeft(eq + 1);
 		if (setting_name[0] == '\0') {
 			LSP_CONFIG_FREE_LOCAL();
-			fclose(fp);
+			(void)fclose(fp);
 			return LSP_CONFIG_FILE_INVALID;
 		}
 
@@ -306,7 +306,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 			int parsed_enabled = 0;
 			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
 				LSP_CONFIG_FREE_LOCAL();
-				fclose(fp);
+				(void)fclose(fp);
 				return LSP_CONFIG_FILE_INVALID;
 			}
 			gopls_enabled = parsed_enabled;
@@ -323,7 +323,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 			int parsed_enabled = 0;
 			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
 				LSP_CONFIG_FREE_LOCAL();
-				fclose(fp);
+				(void)fclose(fp);
 				return LSP_CONFIG_FILE_INVALID;
 			}
 			gopls_enabled = parsed_enabled;
@@ -334,7 +334,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 			int parsed_enabled = 0;
 			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
 				LSP_CONFIG_FREE_LOCAL();
-				fclose(fp);
+				(void)fclose(fp);
 				return LSP_CONFIG_FILE_INVALID;
 			}
 			clangd_enabled = parsed_enabled;
@@ -345,7 +345,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 			int parsed_enabled = 0;
 			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
 				LSP_CONFIG_FREE_LOCAL();
-				fclose(fp);
+				(void)fclose(fp);
 				return LSP_CONFIG_FILE_INVALID;
 			}
 			html_enabled = parsed_enabled;
@@ -355,7 +355,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 			int parsed_enabled = 0;
 			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
 				LSP_CONFIG_FREE_LOCAL();
-				fclose(fp);
+				(void)fclose(fp);
 				return LSP_CONFIG_FILE_INVALID;
 			}
 			css_enabled = parsed_enabled;
@@ -365,7 +365,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 			int parsed_enabled = 0;
 			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
 				LSP_CONFIG_FREE_LOCAL();
-				fclose(fp);
+				(void)fclose(fp);
 				return LSP_CONFIG_FILE_INVALID;
 			}
 			json_enabled = parsed_enabled;
@@ -375,7 +375,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 			int parsed_enabled = 0;
 			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
 				LSP_CONFIG_FREE_LOCAL();
-				fclose(fp);
+				(void)fclose(fp);
 				return LSP_CONFIG_FILE_INVALID;
 			}
 			eslint_enabled = parsed_enabled;
@@ -385,7 +385,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 			int parsed_enabled = 0;
 			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
 				LSP_CONFIG_FREE_LOCAL();
-				fclose(fp);
+				(void)fclose(fp);
 				return LSP_CONFIG_FILE_INVALID;
 			}
 			javascript_enabled = parsed_enabled;
@@ -396,7 +396,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 			int parsed_enabled = 0;
 			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
 				LSP_CONFIG_FREE_LOCAL();
-				fclose(fp);
+				(void)fclose(fp);
 				return LSP_CONFIG_FILE_INVALID;
 			}
 			autocomplete_enabled = parsed_enabled;
@@ -409,7 +409,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 			if (endptr == value || endptr == NULL || *endptr != '\0' ||
 			    parsed_long < 1 || parsed_long > 1000) {
 				LSP_CONFIG_FREE_LOCAL();
-				fclose(fp);
+				(void)fclose(fp);
 				return LSP_CONFIG_FILE_INVALID;
 			}
 			autocomplete_max_items = (int)parsed_long;
@@ -421,7 +421,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 			                                  gopls_command_in_out_size) ||
 			    gopls_command[0] == '\0') {
 				LSP_CONFIG_FREE_LOCAL();
-				fclose(fp);
+				(void)fclose(fp);
 				return LSP_CONFIG_FILE_INVALID;
 			}
 			continue;
@@ -435,7 +435,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 			                                  gopls_install_command_in_out_size) ||
 			    gopls_install_command[0] == '\0') {
 				LSP_CONFIG_FREE_LOCAL();
-				fclose(fp);
+				(void)fclose(fp);
 				return LSP_CONFIG_FILE_INVALID;
 			}
 			continue;
@@ -445,7 +445,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 			                                  clangd_command_in_out_size) ||
 			    clangd_command[0] == '\0') {
 				LSP_CONFIG_FREE_LOCAL();
-				fclose(fp);
+				(void)fclose(fp);
 				return LSP_CONFIG_FILE_INVALID;
 			}
 			continue;
@@ -455,7 +455,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 			                                  html_command_in_out_size) ||
 			    html_command[0] == '\0') {
 				LSP_CONFIG_FREE_LOCAL();
-				fclose(fp);
+				(void)fclose(fp);
 				return LSP_CONFIG_FILE_INVALID;
 			}
 			continue;
@@ -465,7 +465,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 			                                  css_command_in_out_size) ||
 			    css_command[0] == '\0') {
 				LSP_CONFIG_FREE_LOCAL();
-				fclose(fp);
+				(void)fclose(fp);
 				return LSP_CONFIG_FILE_INVALID;
 			}
 			continue;
@@ -475,7 +475,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 			                                  json_command_in_out_size) ||
 			    json_command[0] == '\0') {
 				LSP_CONFIG_FREE_LOCAL();
-				fclose(fp);
+				(void)fclose(fp);
 				return LSP_CONFIG_FILE_INVALID;
 			}
 			continue;
@@ -485,7 +485,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 			                                  eslint_command_in_out_size) ||
 			    eslint_command[0] == '\0') {
 				LSP_CONFIG_FREE_LOCAL();
-				fclose(fp);
+				(void)fclose(fp);
 				return LSP_CONFIG_FILE_INVALID;
 			}
 			continue;
@@ -495,7 +495,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 			                                  javascript_command_in_out_size) ||
 			    javascript_command[0] == '\0') {
 				LSP_CONFIG_FREE_LOCAL();
-				fclose(fp);
+				(void)fclose(fp);
 				return LSP_CONFIG_FILE_INVALID;
 			}
 			continue;
@@ -508,7 +508,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 			                                  javascript_install_command_in_out_size) ||
 			    javascript_install_command[0] == '\0') {
 				LSP_CONFIG_FREE_LOCAL();
-				fclose(fp);
+				(void)fclose(fp);
 				return LSP_CONFIG_FILE_INVALID;
 			}
 			continue;
@@ -522,7 +522,7 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 			            vscode_langservers_install_command_in_out_size) ||
 			    vscode_langservers_install_command[0] == '\0') {
 				LSP_CONFIG_FREE_LOCAL();
-				fclose(fp);
+				(void)fclose(fp);
 				return LSP_CONFIG_FILE_INVALID;
 			}
 			continue;
@@ -531,11 +531,11 @@ static enum lspConfigFileStatus lspConfigApplyFile(
 
 	if (ferror(fp)) {
 		LSP_CONFIG_FREE_LOCAL();
-		fclose(fp);
+		(void)fclose(fp);
 		return LSP_CONFIG_FILE_INVALID;
 	}
 
-	fclose(fp);
+	(void)fclose(fp);
 	*gopls_enabled_in_out = gopls_enabled;
 	*clangd_enabled_in_out = clangd_enabled;
 	*html_enabled_in_out = html_enabled;
