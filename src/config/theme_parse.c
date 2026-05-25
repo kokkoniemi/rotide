@@ -27,6 +27,7 @@ struct themeParseContext {
 	int in_theme_table;
 	int in_theme_syntax_table;
 	int in_theme_ui_table;
+	int in_theme_ansi_table;
 	int had_invalid;
 	char selected_name[64];
 	char theme_name[64];
@@ -384,6 +385,43 @@ static int themeParseKeyValue(char *trimmed, char **key_out, char **value_out) {
 	return 1;
 }
 
+static int themeParseAnsiSlotName(const char *name, enum editorThemeAnsiColor *slot_out) {
+	char normalized[64];
+	if (!themeParseNormalizeToken(name, normalized, sizeof(normalized))) {
+		return 0;
+	}
+	static const struct {
+		const char *name;
+		enum editorThemeAnsiColor slot;
+	} slot_names[] = {
+	        {"black", EDITOR_THEME_ANSI_BLACK},
+	        {"red", EDITOR_THEME_ANSI_RED},
+	        {"green", EDITOR_THEME_ANSI_GREEN},
+	        {"yellow", EDITOR_THEME_ANSI_YELLOW},
+	        {"blue", EDITOR_THEME_ANSI_BLUE},
+	        {"magenta", EDITOR_THEME_ANSI_MAGENTA},
+	        {"cyan", EDITOR_THEME_ANSI_CYAN},
+	        {"white", EDITOR_THEME_ANSI_WHITE},
+	        {"bright_black", EDITOR_THEME_ANSI_BRIGHT_BLACK},
+	        {"gray", EDITOR_THEME_ANSI_BRIGHT_BLACK},
+	        {"grey", EDITOR_THEME_ANSI_BRIGHT_BLACK},
+	        {"bright_red", EDITOR_THEME_ANSI_BRIGHT_RED},
+	        {"bright_green", EDITOR_THEME_ANSI_BRIGHT_GREEN},
+	        {"bright_yellow", EDITOR_THEME_ANSI_BRIGHT_YELLOW},
+	        {"bright_blue", EDITOR_THEME_ANSI_BRIGHT_BLUE},
+	        {"bright_magenta", EDITOR_THEME_ANSI_BRIGHT_MAGENTA},
+	        {"bright_cyan", EDITOR_THEME_ANSI_BRIGHT_CYAN},
+	        {"bright_white", EDITOR_THEME_ANSI_BRIGHT_WHITE},
+	};
+	for (size_t i = 0; i < sizeof(slot_names) / sizeof(slot_names[0]); i++) {
+		if (strcmp(normalized, slot_names[i].name) == 0) {
+			*slot_out = slot_names[i].slot;
+			return 1;
+		}
+	}
+	return 0;
+}
+
 static void themeParseApplyStyleColor(struct editorTheme *theme, enum editorThemeStyleRole role,
                                       int is_fg, struct editorThemeColor color) {
 	if (role < 0 || role >= EDITOR_THEME_STYLE_ROLE_COUNT) {
@@ -416,7 +454,8 @@ static void themeParseEntry(struct editorTheme *theme, struct themeParseContext 
 		return;
 	}
 
-	if (ctx->is_theme_file && !ctx->in_theme_syntax_table && !ctx->in_theme_ui_table) {
+	if (ctx->is_theme_file && !ctx->in_theme_syntax_table && !ctx->in_theme_ui_table &&
+	    !ctx->in_theme_ansi_table) {
 		if (strcmp(key, "name") == 0) {
 			if (!themeParseNameIsValid(parsed)) {
 				ctx->had_invalid = 1;
@@ -487,6 +526,16 @@ static void themeParseEntry(struct editorTheme *theme, struct themeParseContext 
 		return;
 	}
 
+	if (ctx->in_theme_ansi_table) {
+		enum editorThemeAnsiColor slot = EDITOR_THEME_ANSI_COUNT;
+		if (!themeParseAnsiSlotName(key, &slot) || slot >= EDITOR_THEME_ANSI_COUNT) {
+			ctx->had_invalid = 1;
+			return;
+		}
+		theme->ansi[slot] = color;
+		return;
+	}
+
 	ctx->had_invalid = 1;
 }
 
@@ -506,7 +555,9 @@ static int themeParseTable(struct themeParseContext *ctx, char *trimmed) {
 	ctx->in_theme_table = strcmp(table, "theme") == 0;
 	ctx->in_theme_syntax_table = strcmp(table, "theme.syntax") == 0;
 	ctx->in_theme_ui_table = strcmp(table, "theme.ui") == 0;
-	if (!ctx->is_theme_file && (ctx->in_theme_syntax_table || ctx->in_theme_ui_table)) {
+	ctx->in_theme_ansi_table = strcmp(table, "theme.ansi") == 0;
+	if (!ctx->is_theme_file && (ctx->in_theme_syntax_table || ctx->in_theme_ui_table ||
+	                            ctx->in_theme_ansi_table)) {
 		ctx->had_invalid = 1;
 	}
 	return 1;

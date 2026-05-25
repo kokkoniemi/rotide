@@ -136,12 +136,10 @@ static int test_terminal_pane_mouse_drag_resizes_terminal_pane(void) {
 	if (!editorLayoutEditorViewport(&viewport)) {
 		return 1;
 	}
-	/* Arm the split-resize state as if the user had clicked the border. */
 	E.split_resize_active = 1;
 	E.split_resize_node = E.layout_root;
 	E.mouse_left_button_down = 1;
 
-	/* Drag the border to ratio = 0.25 (shrinking the left/first pane). */
 	int target_x = viewport.x + (int)((double)(viewport.w - 1) * 0.25);
 	struct editorMouseEvent event = {
 	        .kind = EDITOR_MOUSE_EVENT_LEFT_DRAG,
@@ -178,10 +176,9 @@ static int test_terminal_pane_mouse_drag_shrinks_terminal_pane(void) {
 		return 1;
 	}
 
-	/* Start by growing the terminal pane to ratio 0.25 (left pane small,
-	 * terminal pane large). Then attempt to shrink it back. The shrink
-	 * drag moves the mouse INTO the terminal pane area, which used to be
-	 * intercepted by the terminal pane mouse handler. */
+	/* Grow first, then attempt to shrink — the shrink drag moves the mouse
+	 * into the terminal pane area, which used to be intercepted by the
+	 * terminal pane mouse handler. */
 	E.layout_root->as.split.ratio = 0.25;
 	editorTerminalPaneResizeAllToLayout(E.layout_root);
 	int grown_cols = t->cols;
@@ -194,8 +191,6 @@ static int test_terminal_pane_mouse_drag_shrinks_terminal_pane(void) {
 	E.split_resize_node = E.layout_root;
 	E.mouse_left_button_down = 1;
 
-	/* Drag toward ratio 0.75 — i.e., the mouse moves rightward into the
-	 * terminal pane to shrink it. */
 	int target_x = viewport.x + (int)((double)(viewport.w - 1) * 0.75);
 	struct editorMouseEvent event = {
 	        .kind = EDITOR_MOUSE_EVENT_LEFT_DRAG,
@@ -203,10 +198,9 @@ static int test_terminal_pane_mouse_drag_shrinks_terminal_pane(void) {
 	        .y = viewport.y + 2,
 	        .modifiers = 0,
 	};
-	/* Mirror the dispatch in editorHandleMouseEventDispatch: the
-	 * terminal-pane interceptor runs first and, if it claims the event,
-	 * the normal drag handler is skipped. That short-circuit used to
-	 * freeze the border whenever the drag landed inside a terminal leaf. */
+	/* Mirror editorHandleMouseEventDispatch: the terminal-pane interceptor
+	 * runs first, and a non-zero return short-circuits the drag handler.
+	 * That short-circuit used to freeze the border. */
 	if (!editorHandleMouseEventInTerminalPane(&event)) {
 		(void)editorHandleMouseLeftDrag(&event);
 	}
