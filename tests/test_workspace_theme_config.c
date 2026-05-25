@@ -97,21 +97,29 @@ static int test_editor_theme_loads_modus_builtins(void) {
 	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_KEYWORD], 0x53, 0x1A, 0xB6));
 	ASSERT_TRUE(theme_color_is_rgb(theme.styles[EDITOR_THEME_STYLE_SELECTION].bg, 0xBD, 0xBD,
 	                               0xBD));
+	ASSERT_TRUE(theme_color_is_rgb(theme.styles[EDITOR_THEME_STYLE_TAB_ACTIVE].bg, 0xC8, 0xC8,
+	                               0xC8));
 
 	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "modus-operandi-tinted"));
 	ASSERT_EQ_STR("modus-operandi-tinted", theme.name);
 	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_BACKGROUND], 0xFB, 0xF7, 0xF0));
 	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_CURSOR], 0xD0, 0x00, 0x00));
+	ASSERT_TRUE(theme_color_is_rgb(theme.styles[EDITOR_THEME_STYLE_TAB_ACTIVE].bg, 0xCA, 0xB9,
+	                               0xB2));
 
 	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "modus-vivendi"));
 	ASSERT_EQ_STR("modus-vivendi", theme.name);
 	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_BACKGROUND], 0x00, 0x00, 0x00));
 	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_KEYWORD], 0xB6, 0xA0, 0xFF));
+	ASSERT_TRUE(theme_color_is_rgb(theme.styles[EDITOR_THEME_STYLE_TAB_ACTIVE].bg, 0x50, 0x50,
+	                               0x50));
 
 	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "modus-vivendi-tinted"));
 	ASSERT_EQ_STR("modus-vivendi-tinted", theme.name);
 	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_BACKGROUND], 0x0D, 0x0E, 0x1C));
 	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_CURSOR], 0xFF, 0x66, 0xFF));
+	ASSERT_TRUE(theme_color_is_rgb(theme.styles[EDITOR_THEME_STYLE_TAB_ACTIVE].bg, 0x48, 0x4D,
+	                               0x67));
 	return 0;
 }
 
@@ -128,6 +136,8 @@ static int test_editor_theme_loads_github_builtins(void) {
 	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_VARIABLE], 0x1F, 0x23, 0x28));
 	ASSERT_TRUE(theme_color_is_rgb(theme.styles[EDITOR_THEME_STYLE_SELECTION].bg, 0xBB, 0xDF,
 	                               0xFF));
+	ASSERT_TRUE(theme_color_is_rgb(theme.styles[EDITOR_THEME_STYLE_TAB_ACTIVE].bg, 0xBB, 0xDF,
+	                               0xFF));
 
 	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "github-dark"));
 	ASSERT_EQ_STR("github-dark", theme.name);
@@ -143,8 +153,10 @@ static int test_editor_theme_loads_github_builtins(void) {
 	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_VARIABLE], 0xE6, 0xED, 0xF3));
 	ASSERT_TRUE(
 	        theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_CURRENT_LINE_BG], 0x17, 0x1C, 0x23));
-	ASSERT_TRUE(theme_color_is_rgb(theme.styles[EDITOR_THEME_STYLE_TAB_ACTIVE].bg, 0x16, 0x1B,
-	                               0x22));
+	ASSERT_TRUE(theme_color_is_rgb(theme.styles[EDITOR_THEME_STYLE_TAB_ACTIVE].bg, 0x24, 0x3B,
+	                               0x61));
+	ASSERT_TRUE(theme_color_is_rgb(theme.styles[EDITOR_THEME_STYLE_SELECTION].bg, 0x24, 0x3B,
+	                               0x61));
 	ASSERT_TRUE(theme_color_is_rgb(theme.styles[EDITOR_THEME_STYLE_DRAWER_HEADER_ACTIVE].bg,
 	                               0x0D, 0x11, 0x17));
 	return 0;
@@ -177,11 +189,11 @@ static int test_editor_theme_loads_silentium_builtin(void) {
 	ASSERT_EQ_STR("silentium", theme.name);
 	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_BACKGROUND], 0x14, 0x14, 0x14));
 	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_FOREGROUND], 0xE6, 0xE6, 0xE6));
-	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_DIRECTORY], 0xF6, 0xCE, 0x4E));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_DIRECTORY], 0xFF, 0x7E, 0x6B));
 	ASSERT_TRUE(
 	        theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_CURRENT_LINE_BG], 0x28, 0x28, 0x28));
 	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_COMMENT], 0x73, 0x73, 0x73));
-	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_KEYWORD], 0xF6, 0xCE, 0x4E));
+	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_KEYWORD], 0xFF, 0x7E, 0x6B));
 	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_STRING], 0xA6, 0xA6, 0xA6));
 	ASSERT_TRUE(theme_color_is_rgb(theme.syntax[EDITOR_SYNTAX_HL_FUNCTION], 0xE6, 0xE6, 0xE6));
 	return 0;
