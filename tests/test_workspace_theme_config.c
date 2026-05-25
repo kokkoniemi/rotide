@@ -762,13 +762,12 @@ static int test_editor_theme_loads_custom_ansi_table(void) {
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
 	ASSERT_TRUE(make_dir(dot_rotide));
 	ASSERT_TRUE(make_dir(themes_dir));
-	ASSERT_TRUE(write_text_file(theme_path,
-	                            "name = \"ansi-custom\"\n"
-	                            "inherits = \"terminal\"\n"
-	                            "[theme.ansi]\n"
-	                            "red = \"#FF0011\"\n"
-	                            "green = \"bright_green\"\n"
-	                            "bright_magenta = \"#AA00BB\"\n"));
+	ASSERT_TRUE(write_text_file(theme_path, "name = \"ansi-custom\"\n"
+	                                        "inherits = \"terminal\"\n"
+	                                        "[theme.ansi]\n"
+	                                        "red = \"#FF0011\"\n"
+	                                        "green = \"bright_green\"\n"
+	                                        "bright_magenta = \"#AA00BB\"\n"));
 	ASSERT_TRUE(write_text_file(project_path, "[theme]\n"
 	                                          "name = \"ansi-custom\"\n"));
 
@@ -780,8 +779,8 @@ static int test_editor_theme_loads_custom_ansi_table(void) {
 	ASSERT_TRUE(theme_color_is_rgb(theme.ansi[EDITOR_THEME_ANSI_RED], 0xFF, 0x00, 0x11));
 	ASSERT_TRUE(theme_color_is_ansi(theme.ansi[EDITOR_THEME_ANSI_GREEN],
 	                                EDITOR_THEME_ANSI_BRIGHT_GREEN));
-	ASSERT_TRUE(theme_color_is_rgb(theme.ansi[EDITOR_THEME_ANSI_BRIGHT_MAGENTA], 0xAA, 0x00,
-	                               0xBB));
+	ASSERT_TRUE(
+	        theme_color_is_rgb(theme.ansi[EDITOR_THEME_ANSI_BRIGHT_MAGENTA], 0xAA, 0x00, 0xBB));
 	/* Slots not mentioned remain default. */
 	ASSERT_TRUE(editorThemeColorIsDefault(theme.ansi[EDITOR_THEME_ANSI_BLUE]));
 

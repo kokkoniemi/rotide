@@ -556,8 +556,8 @@ static int themeParseTable(struct themeParseContext *ctx, char *trimmed) {
 	ctx->in_theme_syntax_table = strcmp(table, "theme.syntax") == 0;
 	ctx->in_theme_ui_table = strcmp(table, "theme.ui") == 0;
 	ctx->in_theme_ansi_table = strcmp(table, "theme.ansi") == 0;
-	if (!ctx->is_theme_file && (ctx->in_theme_syntax_table || ctx->in_theme_ui_table ||
-	                            ctx->in_theme_ansi_table)) {
+	if (!ctx->is_theme_file &&
+	    (ctx->in_theme_syntax_table || ctx->in_theme_ui_table || ctx->in_theme_ansi_table)) {
 		ctx->had_invalid = 1;
 	}
 	return 1;
