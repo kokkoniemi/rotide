@@ -22,7 +22,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 static char *read_whole_file(const char *path) {
@@ -63,7 +62,7 @@ static char *read_whole_file(const char *path) {
 }
 
 static void usage(FILE *out) {
-	fprintf(out, "usage: metrics_fuzz_emit --target NAME --log PATH "
+	(void)fprintf(out, "usage: metrics_fuzz_emit --target NAME --log PATH "
 	             "--corpus-dir PATH --metrics-out PATH [--soak-seconds N]\n");
 }
 
@@ -105,13 +104,13 @@ int main(int argc, char **argv) {
 			char *end = NULL;
 			soak_seconds = strtoll(next, &end, 10);
 			if (end == NULL || *end != '\0' || soak_seconds < 0) {
-				fprintf(stderr, "metrics_fuzz_emit: bad --soak-seconds\n");
+				(void)fprintf(stderr, "metrics_fuzz_emit: bad --soak-seconds\n");
 				return 2;
 			}
 			i++;
 			continue;
 		}
-		fprintf(stderr, "metrics_fuzz_emit: unknown arg: %s\n", a);
+		(void)fprintf(stderr, "metrics_fuzz_emit: unknown arg: %s\n", a);
 		usage(stderr);
 		return 2;
 	}
@@ -123,7 +122,7 @@ int main(int argc, char **argv) {
 
 	char *text = read_whole_file(log);
 	if (text == NULL) {
-		fprintf(stderr, "metrics_fuzz_emit: warning: cannot read log %s: %s\n", log,
+		(void)fprintf(stderr, "metrics_fuzz_emit: warning: cannot read log %s: %s\n", log,
 		        strerror(errno));
 		/* Still try to emit a row with corpus stats so chart code sees
 		 * something. */
@@ -159,7 +158,7 @@ int main(int argc, char **argv) {
 	int rc = editorMetricsAppend(metrics_out, "fuzz", fields,
 	                             (int)(sizeof(fields) / sizeof(fields[0])));
 	if (rc != 0) {
-		fprintf(stderr, "metrics_fuzz_emit: warning: failed to append to %s\n",
+		(void)fprintf(stderr, "metrics_fuzz_emit: warning: failed to append to %s\n",
 		        metrics_out);
 		return 1;
 	}

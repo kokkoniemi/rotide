@@ -79,7 +79,7 @@ int remove_tmp_save_artifacts(const char *target_path) {
 			continue;
 		}
 
-		snprintf(full_path, path_len, "/tmp/%s", entry->d_name);
+		(void)snprintf(full_path, path_len, "/tmp/%s", entry->d_name);
 		if (unlink(full_path) == -1) {
 			failures++;
 		}

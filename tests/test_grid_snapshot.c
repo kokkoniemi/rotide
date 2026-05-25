@@ -151,7 +151,7 @@ int editor_grid_snapshot_diff(const char *expected, const char *actual) {
 		return 0;
 	}
 
-	fprintf(stderr, "grid_snapshot_diff:\n");
+	(void)fprintf(stderr, "grid_snapshot_diff:\n");
 	const char *ep = expected;
 	const char *ap = actual;
 	int line = 1;
@@ -161,10 +161,10 @@ int editor_grid_snapshot_diff(const char *expected, const char *actual) {
 		size_t elen = (size_t)(eend - ep);
 		size_t alen = (size_t)(aend - ap);
 		if (elen == alen && memcmp(ep, ap, elen) == 0) {
-			fprintf(stderr, "  %3d   %.*s\n", line, (int)elen, ep);
+			(void)fprintf(stderr, "  %3d   %.*s\n", line, (int)elen, ep);
 		} else {
-			fprintf(stderr, "  %3d - %.*s\n", line, (int)elen, ep);
-			fprintf(stderr, "  %3d + %.*s\n", line, (int)alen, ap);
+			(void)fprintf(stderr, "  %3d - %.*s\n", line, (int)elen, ep);
+			(void)fprintf(stderr, "  %3d + %.*s\n", line, (int)alen, ap);
 		}
 		line++;
 		ep = eend;

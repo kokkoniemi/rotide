@@ -1,5 +1,4 @@
 #include "editing/edit.h"
-#include "input/dispatch.h"
 #include "test_case.h"
 #include "test_helpers.h"
 #include "workspace/tabs.h"

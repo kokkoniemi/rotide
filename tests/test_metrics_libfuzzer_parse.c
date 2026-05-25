@@ -9,7 +9,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <unistd.h>
 
 /* Representative output from a `-runs=500 -print_final_stats=1` run of
@@ -153,7 +152,7 @@ static char *make_corpus_dir(void) {
 	if (path == NULL) {
 		return NULL;
 	}
-	snprintf(path, need, "%s/rotide-corpus-XXXXXX", tmpdir);
+	(void)snprintf(path, need, "%s/rotide-corpus-XXXXXX", tmpdir);
 	if (mkdtemp(path) == NULL) {
 		free(path);
 		return NULL;
@@ -187,7 +186,7 @@ static void rmdir_recursive_simple(const char *dir) {
 		if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) {
 			continue;
 		}
-		snprintf(path, sizeof(path), "%s/%s", dir, ent->d_name);
+		(void)snprintf(path, sizeof(path), "%s/%s", dir, ent->d_name);
 		(void)unlink(path);
 	}
 	(void)closedir(d);

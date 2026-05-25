@@ -1,9 +1,10 @@
 #include "input/text_pairs.h"
 
-#include "editing/buffer_core.h"
+#include "editing/document_position.h"
 #include "editing/edit.h"
 #include "editing/history.h"
 #include "editing/selection.h"
+#include "editing/text_source.h"
 #include "language/autocomplete.h"
 #include "text/document.h"
 #include "text/row.h"

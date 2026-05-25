@@ -1,7 +1,6 @@
 #include "text/document.h"
 
 #include "editing/document_bridge.h"
-#include "support/alloc.h"
 
 #include <stdlib.h>
 #include <string.h>

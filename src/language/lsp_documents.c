@@ -1,5 +1,3 @@
-#include "editing/buffer_core.h"
-#include "editing/edit.h"
 #include "editing/text_source.h"
 #include "language/lsp.h"
 #include "language/lsp_json.h"

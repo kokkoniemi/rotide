@@ -7,7 +7,6 @@
 #include <stdlib.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
-#include <termios.h>
 #include <time.h>
 #include <unistd.h>
 

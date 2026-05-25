@@ -1,18 +1,8 @@
 #include "config/common.h"
-#include "config/dap_config.h"
 #include "config/editor_config.h"
 #include "config/keymap.h"
-#include "config/theme_config.h"
-#include "debug/dap.h"
-#include "input/dispatch.h"
 #include "test_case.h"
 #include "test_support.h"
-#include "workspace/file_search.h"
-#include "workspace/git.h"
-#include "workspace/layout.h"
-#include "workspace/project_search.h"
-#include "workspace/tabs.h"
-#include "workspace/workspace_state.h"
 
 static int test_editor_keymap_load_valid_project_overrides_defaults(void) {
 	char dir_template[] = "/tmp/rotide-test-keymap-valid-XXXXXX";

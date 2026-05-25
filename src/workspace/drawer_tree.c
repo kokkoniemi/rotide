@@ -3,7 +3,6 @@
 #include "support/alloc.h"
 #include "support/file_io.h"
 #include "support/size_utils.h"
-#include "workspace/drawer.h"
 #include "workspace/drawer_internal.h"
 
 #include <dirent.h>

@@ -1,6 +1,6 @@
-#include "save_syscalls.h"
+#define _DEFAULT_SOURCE
 
-#include "rotide.h"
+#include "save_syscalls.h"
 
 #include <errno.h>
 #include <fcntl.h>

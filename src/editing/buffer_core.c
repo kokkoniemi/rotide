@@ -2,7 +2,6 @@
 
 #include "editing/document_bridge.h"
 #include "editing/edit.h"
-#include "editing/history.h"
 #include "editing/row_cache.h"
 #include "editing/selection.h"
 #include "editing/syntax_runtime.h"
@@ -11,7 +10,6 @@
 #include "language/syntax_visible_cache.h"
 #include "language/syntax_worker.h"
 #include "support/alloc.h"
-#include "support/size_utils.h"
 #include "text/document.h"
 #include "text/row.h"
 
@@ -20,7 +18,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <unistd.h>
 
 static struct editorDocument *bufferCoreAllocDocument(void);
 static void bufferCoreDisableSyntaxWithStatus(const char *message);

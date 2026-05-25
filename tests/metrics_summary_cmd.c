@@ -119,23 +119,23 @@ static const char **collectGroupKeys(const struct editorMetricsRow *rows, int co
 }
 
 static void printTestRunRow(const struct editorMetricsRow *r, FILE *out) {
-	fprintf(out,
+	(void)fprintf(out,
 	        "  %s  wall=%.3fs  runs=%lld/%lld  fail=%lld  flake=%lld  crash=%lld  exit=%lld",
 	        r->ts, r->wall_seconds, r->passed_runs, r->total_runs, r->failed_unique, r->flakes,
 	        r->crashes, r->exit_code);
 	if (r->git_sha[0] != '\0') {
-		fprintf(out, "  sha=%s", r->git_sha);
+		(void)fprintf(out, "  sha=%s", r->git_sha);
 	}
-	fprintf(out, "\n");
+	(void)fprintf(out, "\n");
 }
 
 static void printBenchRow(const struct editorMetricsRow *r, FILE *out) {
-	fprintf(out, "  %s  p50=%.0fns  p95=%.0fns  iqr=%.0fns  n=%lld inner=%lld\n", r->ts,
+	(void)fprintf(out, "  %s  p50=%.0fns  p95=%.0fns  iqr=%.0fns  n=%lld inner=%lld\n", r->ts,
 	        r->p50_ns, r->p95_ns, r->iqr_ns, r->samples, r->inner_ops);
 }
 
 static void printFuzzRow(const struct editorMetricsRow *r, FILE *out) {
-	fprintf(out,
+	(void)fprintf(out,
 	        "  %s  cov=%lld  ft=%lld  corp=%lld/%lldb  on_disk=%lld/%lldb  "
 	        "exec=%lld  runtime=%llds\n",
 	        r->ts, r->cov_edges, r->ft_features, r->corp_count, r->corp_bytes, r->corpus_files,
@@ -157,16 +157,16 @@ static void summarizeGroup(const struct editorMetricsRow *rows, int count,
 	int shown = group_count - start;
 
 	if (group_key != NULL) {
-		fprintf(out, "== %s: %s (%d row%s shown", editorMetricsKindName(kind), group_key,
+		(void)fprintf(out, "== %s: %s (%d row%s shown", editorMetricsKindName(kind), group_key,
 		        shown, shown == 1 ? "" : "s");
 	} else {
-		fprintf(out, "== %s (%d row%s shown", editorMetricsKindName(kind), shown,
+		(void)fprintf(out, "== %s (%d row%s shown", editorMetricsKindName(kind), shown,
 		        shown == 1 ? "" : "s");
 	}
 	if (start > 0) {
-		fprintf(out, ", %d earlier omitted", start);
+		(void)fprintf(out, ", %d earlier omitted", start);
 	}
-	fprintf(out, ") ==\n");
+	(void)fprintf(out, ") ==\n");
 
 	for (int i = start; i < group_count; i++) {
 		const struct editorMetricsRow *r = group[i];
@@ -235,7 +235,7 @@ int editorMetricsCmdCheckFuzzStale(const struct editorMetricsRow *rows, int coun
 	const char **keys =
 	        collectGroupKeys(rows, count, EDITOR_METRICS_KIND_FUZZ, &effective, &n_keys);
 	if (keys == NULL || n_keys == 0) {
-		fprintf(out, "fuzz-stale: no fuzz rows match the given filters\n");
+		(void)fprintf(out, "fuzz-stale: no fuzz rows match the given filters\n");
 		free(keys);
 		return 0;
 	}
@@ -259,7 +259,7 @@ int editorMetricsCmdCheckFuzzStale(const struct editorMetricsRow *rows, int coun
 			}
 		}
 		if (baseline == NULL || baseline == latest) {
-			fprintf(out,
+			(void)fprintf(out,
 			        "fuzz-stale: target=%s window=%lldh "
 			        "insufficient data (only 1 row in window) — skipping\n",
 			        keys[i], window_hours);
@@ -268,13 +268,13 @@ int editorMetricsCmdCheckFuzzStale(const struct editorMetricsRow *rows, int coun
 		}
 		long long delta = latest->cov_edges - baseline->cov_edges;
 		if (delta <= 0) {
-			fprintf(out,
+			(void)fprintf(out,
 			        "fuzz-stale: target=%s window=%lldh "
 			        "cov_edges unchanged at %lld across %d run(s) in window — STALE\n",
 			        keys[i], window_hours, latest->cov_edges, gc);
 			any_stale = 1;
 		} else {
-			fprintf(out,
+			(void)fprintf(out,
 			        "fuzz-stale: target=%s window=%lldh "
 			        "cov_edges grew %lld -> %lld (+%lld) across %d run(s) — ok\n",
 			        keys[i], window_hours, baseline->cov_edges, latest->cov_edges,
@@ -301,7 +301,7 @@ int editorMetricsCmdCheckBenchRegression(const struct editorMetricsRow *rows, in
 	const char **keys =
 	        collectGroupKeys(rows, count, EDITOR_METRICS_KIND_BENCH, &effective, &n_keys);
 	if (keys == NULL || n_keys == 0) {
-		fprintf(out, "bench-regression: no bench rows match the given filters\n");
+		(void)fprintf(out, "bench-regression: no bench rows match the given filters\n");
 		free(keys);
 		return 0;
 	}
@@ -312,7 +312,7 @@ int editorMetricsCmdCheckBenchRegression(const struct editorMetricsRow *rows, in
 		struct editorMetricsRow **group = collectGroup(
 		        rows, count, EDITOR_METRICS_KIND_BENCH, keys[i], &effective, &gc);
 		if (group == NULL || gc < 2) {
-			fprintf(out,
+			(void)fprintf(out,
 			        "bench-regression: name=%s only %d row — need >= 2 to compare\n",
 			        keys[i], gc);
 			free(group);
@@ -323,13 +323,13 @@ int editorMetricsCmdCheckBenchRegression(const struct editorMetricsRow *rows, in
 		double delta = latest->p50_ns - prev->p50_ns;
 		double threshold = factor * prev->iqr_ns;
 		if (delta > threshold) {
-			fprintf(out,
+			(void)fprintf(out,
 			        "bench-regression: name=%s prev_p50=%.0fns latest_p50=%.0fns "
 			        "delta=%.0fns > %.1f*prev_iqr (%.0fns) — REGRESSION\n",
 			        keys[i], prev->p50_ns, latest->p50_ns, delta, factor, threshold);
 			any_regressed = 1;
 		} else {
-			fprintf(out,
+			(void)fprintf(out,
 			        "bench-regression: name=%s prev_p50=%.0fns latest_p50=%.0fns "
 			        "delta=%.0fns within %.1f*prev_iqr (%.0fns) — ok\n",
 			        keys[i], prev->p50_ns, latest->p50_ns, delta, factor, threshold);

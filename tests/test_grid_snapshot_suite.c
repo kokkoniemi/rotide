@@ -52,7 +52,7 @@ static int test_grid_snapshot_strips_trailing_spaces(void) {
 			break;
 		}
 		if (nl > p && nl[-1] == ' ') {
-			fprintf(stderr, "row ends in space, full snapshot follows:\n%s", grid);
+			(void)fprintf(stderr, "row ends in space, full snapshot follows:\n%s", grid);
 			free(grid);
 			return 1;
 		}

@@ -110,7 +110,7 @@ static int test_rewrite_replaces_block_with_new_content(void) {
 	                  "}\n";
 
 	struct goldenStashEntry e = {0};
-	snprintf(e.file, sizeof(e.file), "%s", "fake.c");
+	(void)snprintf(e.file, sizeof(e.file), "%s", "fake.c");
 	e.line = 2; /* ASSERT_GRID_EQ call site */
 	e.actual = strdup("new line 1\nnew line 2\n");
 
@@ -139,7 +139,7 @@ static int test_rewrite_preserves_indentation_of_start_marker(void) {
 	                  "\t    /* golden-end */\n"
 	                  "\t);\n";
 	struct goldenStashEntry e = {0};
-	snprintf(e.file, sizeof(e.file), "fake.c");
+	(void)snprintf(e.file, sizeof(e.file), "fake.c");
 	e.line = 1;
 	e.actual = strdup("y\n");
 
@@ -158,7 +158,7 @@ static int test_rewrite_skips_entry_without_markers(void) {
 	                  "\tASSERT_GRID_EQ(\"plain\");\n"
 	                  "}\n";
 	struct goldenStashEntry e = {0};
-	snprintf(e.file, sizeof(e.file), "fake.c");
+	(void)snprintf(e.file, sizeof(e.file), "fake.c");
 	e.line = 2;
 	e.actual = strdup("new");
 
@@ -195,10 +195,10 @@ static int test_rewrite_applies_multiple_in_order(void) {
 
 	struct goldenStashEntry entries[2];
 	memset(entries, 0, sizeof(entries));
-	snprintf(entries[0].file, sizeof(entries[0].file), "fake.c");
+	(void)snprintf(entries[0].file, sizeof(entries[0].file), "fake.c");
 	entries[0].line = 2;
 	entries[0].actual = strdup("a_new\n");
-	snprintf(entries[1].file, sizeof(entries[1].file), "fake.c");
+	(void)snprintf(entries[1].file, sizeof(entries[1].file), "fake.c");
 	entries[1].line = 9;
 	entries[1].actual = strdup("b_new\n");
 

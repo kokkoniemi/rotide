@@ -9,7 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
-#include <unistd.h>
 
 void editorDapConsoleCloseOwnedTerminalPane(void) {
 	if (E.dap_terminal_leaf == NULL) {

@@ -6,7 +6,7 @@
 #include "config/lsp_config.h"
 #include "config/theme_config.h"
 #include "debug/dap.h"
-#include "editing/buffer_core.h"
+#include "editing/document_position.h"
 #include "editing/edit.h"
 #include "editing/selection.h"
 #include "editor_test_api.h"
@@ -18,10 +18,8 @@
 #include "save_syscalls_test_hooks.h"
 #include "support/terminal.h"
 #include "text/document.h"
-#include "text/utf8.h"
 #include "workspace/drawer.h"
 #include "workspace/layout.h"
-#include "workspace/project_search.h"
 #include "workspace/recovery.h"
 #include "workspace/tabs.h"
 #include "workspace/watch.h"
@@ -314,7 +312,7 @@ int redirect_stderr_to_devnull(int *saved_stderr) {
 		return -1;
 	}
 
-	fflush(stderr);
+	(void)fflush(stderr);
 	*saved_stderr = dup(STDERR_FILENO);
 	if (*saved_stderr == -1) {
 		close(devnull_fd);
@@ -334,7 +332,7 @@ int redirect_stderr_to_devnull(int *saved_stderr) {
 }
 
 int restore_stderr(int saved_stderr) {
-	fflush(stderr);
+	(void)fflush(stderr);
 	int ret = dup2(saved_stderr, STDERR_FILENO);
 	int close_ret = close(saved_stderr);
 	if (ret == -1 || close_ret == -1) {

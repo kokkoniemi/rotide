@@ -64,7 +64,7 @@ int editorBenchRun(const struct editorBenchCase *cases, int count,
 
 	double *samples = (double *)malloc(sizeof(double) * (size_t)iterations);
 	if (samples == NULL) {
-		fprintf(stderr, "bench: malloc samples failed\n");
+		(void)fprintf(stderr, "bench: malloc samples failed\n");
 		return 1;
 	}
 
@@ -72,11 +72,11 @@ int editorBenchRun(const struct editorBenchCase *cases, int count,
 	if (json_path != NULL) {
 		json = fopen(json_path, "w");
 		if (json == NULL) {
-			fprintf(stderr, "bench: open %s failed\n", json_path);
+			(void)fprintf(stderr, "bench: open %s failed\n", json_path);
 			free(samples);
 			return 1;
 		}
-		fprintf(json, "{\n  \"iterations\": %d,\n  \"benches\": [\n", iterations);
+		(void)fprintf(json, "{\n  \"iterations\": %d,\n  \"benches\": [\n", iterations);
 	}
 
 	int ran = 0;
@@ -93,7 +93,7 @@ int editorBenchRun(const struct editorBenchCase *cases, int count,
 		for (int it = 0; it < iterations; it++) {
 			void *state = NULL;
 			if (!c->setup(&state)) {
-				fprintf(stderr, "bench: %s setup failed on iter %d\n", c->name, it);
+				(void)fprintf(stderr, "bench: %s setup failed on iter %d\n", c->name, it);
 				setup_failed = 1;
 				break;
 			}
@@ -123,7 +123,7 @@ int editorBenchRun(const struct editorBenchCase *cases, int count,
 		       c->name, min, p50, p95, iqr, sample_count, inner_ops);
 
 		if (json != NULL) {
-			fprintf(json,
+			(void)fprintf(json,
 			        "%s    {\n"
 			        "      \"name\": \"%s\",\n"
 			        "      \"samples\": %d,\n"
@@ -148,7 +148,7 @@ int editorBenchRun(const struct editorBenchCase *cases, int count,
 			};
 			if (editorMetricsAppend(metrics_path, "bench", fields,
 			                        (int)(sizeof(fields) / sizeof(fields[0]))) != 0) {
-				fprintf(stderr, "bench: warning: failed to append metrics to %s\n",
+				(void)fprintf(stderr, "bench: warning: failed to append metrics to %s\n",
 				        metrics_path);
 			}
 		}
@@ -156,14 +156,14 @@ int editorBenchRun(const struct editorBenchCase *cases, int count,
 	}
 
 	if (json != NULL) {
-		fprintf(json, "\n  ]\n}\n");
-		fclose(json);
+		(void)fprintf(json, "\n  ]\n}\n");
+		(void)fclose(json);
 	}
 
 	free(samples);
 
 	if (ran == 0 && filter != NULL && filter[0] != '\0') {
-		fprintf(stderr, "bench: no cases matched filter \"%s\"\n", filter);
+		(void)fprintf(stderr, "bench: no cases matched filter \"%s\"\n", filter);
 		return 1;
 	}
 	return failures == 0 ? 0 : 1;

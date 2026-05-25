@@ -2,7 +2,7 @@
 
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
-#include "render/screen.h"
+#include "render/viewport.h"
 #include "support/alloc.h"
 #include "support/file_io.h"
 #include "support/size_utils.h"

@@ -134,7 +134,7 @@ static char *tmpfile_path(void) {
 	}
 	size_t need = strlen(tmpdir) + sizeof("/rotide-metrics-XXXXXX") + 1;
 	char *path = (char *)malloc(need);
-	snprintf(path, need, "%s/rotide-metrics-XXXXXX", tmpdir);
+	(void)snprintf(path, need, "%s/rotide-metrics-XXXXXX", tmpdir);
 	int fd = mkstemp(path);
 	if (fd < 0) {
 		free(path);
@@ -194,7 +194,7 @@ static int test_load_missing_file_returns_error(void) {
 static void seed_test_run(struct editorMetricsRow *r, long long ts_unix, int exit_code) {
 	editorMetricsRowInit(r);
 	r->kind = EDITOR_METRICS_KIND_TEST_RUN;
-	snprintf(r->ts, sizeof(r->ts), "ts+%lld", ts_unix);
+	(void)snprintf(r->ts, sizeof(r->ts), "ts+%lld", ts_unix);
 	r->ts_unix = ts_unix;
 	r->exit_code = exit_code;
 }
@@ -203,9 +203,9 @@ static void seed_bench(struct editorMetricsRow *r, long long ts_unix, const char
                        double p50_ns, double iqr_ns) {
 	editorMetricsRowInit(r);
 	r->kind = EDITOR_METRICS_KIND_BENCH;
-	snprintf(r->ts, sizeof(r->ts), "ts+%lld", ts_unix);
+	(void)snprintf(r->ts, sizeof(r->ts), "ts+%lld", ts_unix);
 	r->ts_unix = ts_unix;
-	snprintf(r->bench_name, sizeof(r->bench_name), "%s", name);
+	(void)snprintf(r->bench_name, sizeof(r->bench_name), "%s", name);
 	r->p50_ns = p50_ns;
 	r->iqr_ns = iqr_ns;
 }
@@ -214,9 +214,9 @@ static void seed_fuzz(struct editorMetricsRow *r, long long ts_unix, const char 
                       long long cov_edges) {
 	editorMetricsRowInit(r);
 	r->kind = EDITOR_METRICS_KIND_FUZZ;
-	snprintf(r->ts, sizeof(r->ts), "ts+%lld", ts_unix);
+	(void)snprintf(r->ts, sizeof(r->ts), "ts+%lld", ts_unix);
 	r->ts_unix = ts_unix;
-	snprintf(r->fuzz_target, sizeof(r->fuzz_target), "%s", target);
+	(void)snprintf(r->fuzz_target, sizeof(r->fuzz_target), "%s", target);
 	r->cov_edges = cov_edges;
 }
 
@@ -235,7 +235,7 @@ static void capture_close(FILE *f) {
 	if (f == NULL) {
 		return;
 	}
-	fflush(f);
+	(void)fflush(f);
 	long len = ftell(f);
 	if (len < 0) {
 		(void)fclose(f);

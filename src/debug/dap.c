@@ -4,13 +4,11 @@
 #include "debug/dap_client.h"
 #include "debug/dap_console.h"
 #include "editing/edit.h"
-#include "language/lsp_protocol.h"
+#include "language/lsp_json.h"
 #include "language/lsp_transport.h"
 #include "support/file_io.h"
-#include "support/size_utils.h"
 #include "workspace/drawer.h"
 
-#include <errno.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdio.h>

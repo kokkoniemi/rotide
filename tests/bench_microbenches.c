@@ -673,7 +673,7 @@ int main(int argc, char **argv) {
 			opts.metrics_path = argv[++i];
 			continue;
 		}
-		fprintf(stderr, "unknown argument: %s\n", argv[i]);
+		(void)fprintf(stderr, "unknown argument: %s\n", argv[i]);
 		print_usage(argv[0]);
 		return 2;
 	}

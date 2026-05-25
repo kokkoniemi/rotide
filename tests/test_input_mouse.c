@@ -4,7 +4,6 @@
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/layout.h"
-#include "workspace/project_search.h"
 #include "workspace/tabs.h"
 
 static int test_editor_column_select_alt_mouse_drag_starts_column_selection(void) {
@@ -171,7 +170,7 @@ static int test_editor_process_keypress_mouse_ctrl_hover_marks_word_as_hover_lin
 	E.coloff = 0;
 	E.syntax_language = EDITOR_SYNTAX_C;
 	E.lsp_clangd_enabled = 1;
-	snprintf(E.lsp_clangd_command, sizeof(E.lsp_clangd_command), "clangd");
+	(void)snprintf(E.lsp_clangd_command, sizeof(E.lsp_clangd_command), "clangd");
 	E.filename = strdup("/tmp/hover.c");
 	ASSERT_TRUE(E.filename != NULL);
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
@@ -196,7 +195,7 @@ static int test_editor_process_keypress_mouse_motion_without_ctrl_does_not_mark_
 	E.window_cols = 20;
 	E.syntax_language = EDITOR_SYNTAX_C;
 	E.lsp_clangd_enabled = 1;
-	snprintf(E.lsp_clangd_command, sizeof(E.lsp_clangd_command), "clangd");
+	(void)snprintf(E.lsp_clangd_command, sizeof(E.lsp_clangd_command), "clangd");
 	E.filename = strdup("/tmp/hover.c");
 	ASSERT_TRUE(E.filename != NULL);
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;

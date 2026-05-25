@@ -1,7 +1,6 @@
-#include "editing/buffer_core.h"
-#include "editing/edit.h"
 #include "language/lsp.h"
 #include "language/lsp_json.h"
+#include "editing/text_source.h"
 #include "language/lsp_mock.h"
 #include "language/lsp_protocol.h"
 #include "language/lsp_responses.h"

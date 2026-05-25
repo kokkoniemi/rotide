@@ -14,7 +14,6 @@
  */
 
 #include "golden_apply_lib.h"
-#include "grid_snapshot_format.h"
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -201,13 +200,13 @@ static void print_line_diff(const char *expected, const char *actual, FILE *out)
 		size_t alen = a_eol != NULL ? (size_t)(a_eol - ap) : strlen(ap);
 		int same = (elen == alen) && memcmp(ep, ap, elen) == 0;
 		if (same) {
-			fprintf(out, "  %.*s\n", (int)elen, ep);
+			(void)fprintf(out, "  %.*s\n", (int)elen, ep);
 		} else {
 			if (*ep != '\0') {
-				fprintf(out, "- %.*s\n", (int)elen, ep);
+				(void)fprintf(out, "- %.*s\n", (int)elen, ep);
 			}
 			if (*ap != '\0') {
-				fprintf(out, "+ %.*s\n", (int)alen, ap);
+				(void)fprintf(out, "+ %.*s\n", (int)alen, ap);
 			}
 		}
 		ep += elen;
@@ -225,14 +224,14 @@ int main(int argc, char **argv) {
 	const char *stash_path = "tests/artifacts/goldens.jsonl";
 	for (int i = 1; i < argc; i++) {
 		if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
-			fprintf(stdout, "usage: golden_diff_report [--stash PATH]\n");
+			(void)fprintf(stdout, "usage: golden_diff_report [--stash PATH]\n");
 			return 0;
 		}
 		if (strcmp(argv[i], "--stash") == 0 && i + 1 < argc) {
 			stash_path = argv[++i];
 			continue;
 		}
-		fprintf(stderr, "golden_diff_report: unknown arg: %s\n", argv[i]);
+		(void)fprintf(stderr, "golden_diff_report: unknown arg: %s\n", argv[i]);
 		return 2;
 	}
 
@@ -240,15 +239,15 @@ int main(int argc, char **argv) {
 	int count = 0;
 	int skipped_parse = 0;
 	if (editor_golden_load_stash(stash_path, &entries, &count, &skipped_parse) != 0) {
-		fprintf(stderr, "golden_diff_report: cannot read %s\n", stash_path);
+		(void)fprintf(stderr, "golden_diff_report: cannot read %s\n", stash_path);
 		return 2;
 	}
 	if (skipped_parse > 0) {
-		fprintf(stderr, "golden_diff_report: %d malformed stash row(s) skipped\n",
+		(void)fprintf(stderr, "golden_diff_report: %d malformed stash row(s) skipped\n",
 		        skipped_parse);
 	}
 	if (count == 0) {
-		fprintf(stdout, "golden_diff_report: stash is empty\n");
+		(void)fprintf(stdout, "golden_diff_report: stash is empty\n");
 		editor_golden_free_entries(entries, count);
 		return 0;
 	}
@@ -260,7 +259,7 @@ int main(int argc, char **argv) {
 		size_t src_len = 0;
 		char *src = read_whole_file(ent->file, &src_len);
 		if (src == NULL) {
-			fprintf(stderr, "golden_diff_report: %s:%d cannot read source file\n",
+			(void)fprintf(stderr, "golden_diff_report: %s:%d cannot read source file\n",
 			        ent->file, ent->line);
 			continue;
 		}
@@ -268,7 +267,7 @@ int main(int argc, char **argv) {
 		const char *block_start =
 		        find_block_after_line(src, src_len, ent->line, &block_end);
 		if (block_start == NULL || block_end == NULL || block_end <= block_start) {
-			fprintf(stderr,
+			(void)fprintf(stderr,
 			        "golden_diff_report: %s:%d no golden-start/end pair after recorded "
 			        "line\n",
 			        ent->file, ent->line);
@@ -278,15 +277,15 @@ int main(int argc, char **argv) {
 		char *existing =
 		        decode_existing_block(block_start, (size_t)(block_end - block_start));
 		if (existing == NULL) {
-			fprintf(stderr,
+			(void)fprintf(stderr,
 			        "golden_diff_report: %s:%d cannot decode existing literal\n",
 			        ent->file, ent->line);
 			free(src);
 			continue;
 		}
-		fprintf(stdout, "=== %s:%d ===\n", ent->file, ent->line);
+		(void)fprintf(stdout, "=== %s:%d ===\n", ent->file, ent->line);
 		if (strcmp(existing, ent->actual) == 0) {
-			fprintf(stdout, "  (no change)\n");
+			(void)fprintf(stdout, "  (no change)\n");
 		} else {
 			any_diff = 1;
 			print_line_diff(existing, ent->actual, stdout);

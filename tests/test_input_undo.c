@@ -1,11 +1,5 @@
-#include "editing/selection.h"
 #include "test_case.h"
 #include "test_support.h"
-#include "workspace/drawer.h"
-#include "workspace/file_search.h"
-#include "workspace/layout.h"
-#include "workspace/project_search.h"
-#include "workspace/tabs.h"
 
 static int test_editor_process_keypress_ctrl_z_ctrl_y_roundtrip_after_cut(void) {
 	add_row("abcde");

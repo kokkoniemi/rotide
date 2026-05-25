@@ -3,7 +3,7 @@
 #include "config/common.h"
 #include "config/runtime_config.h"
 #include "editing/buffer_core.h"
-#include "input/dispatch.h"
+#include "input/prompt.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
 #include "support/alloc.h"

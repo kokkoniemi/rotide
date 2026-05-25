@@ -1,4 +1,3 @@
-#include "editing/selection.h"
 #include "input/actions_workspace.h"
 #include "test_case.h"
 #include "test_support.h"

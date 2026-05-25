@@ -1,7 +1,9 @@
 #include "language/lsp_protocol.h"
 
-#include "editing/buffer_core.h"
+#include "editing/document_position.h"
 #include "editing/edit.h"
+#include "editing/edit_pipeline.h"
+#include "editing/text_source.h"
 #include "language/lsp_responses.h"
 #include "support/file_io.h"
 #include "support/size_utils.h"

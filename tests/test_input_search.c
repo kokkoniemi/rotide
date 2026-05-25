@@ -1,9 +1,7 @@
-#include "editing/selection.h"
 #include "test_case.h"
 #include "test_support.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
-#include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
 

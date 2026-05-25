@@ -4,7 +4,6 @@
 
 #include "test_grid_snapshot.h"
 
-#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -26,31 +25,31 @@ static void json_escape_into(FILE *out, const char *text) {
 		unsigned char c = *p;
 		switch (c) {
 			case '"':
-				fputs("\\\"", out);
+				(void)fputs("\\\"", out);
 				break;
 			case '\\':
-				fputs("\\\\", out);
+				(void)fputs("\\\\", out);
 				break;
 			case '\b':
-				fputs("\\b", out);
+				(void)fputs("\\b", out);
 				break;
 			case '\f':
-				fputs("\\f", out);
+				(void)fputs("\\f", out);
 				break;
 			case '\n':
-				fputs("\\n", out);
+				(void)fputs("\\n", out);
 				break;
 			case '\r':
-				fputs("\\r", out);
+				(void)fputs("\\r", out);
 				break;
 			case '\t':
-				fputs("\\t", out);
+				(void)fputs("\\t", out);
 				break;
 			default:
 				if (c < 0x20) {
-					fprintf(out, "\\u%04x", c);
+					(void)fprintf(out, "\\u%04x", c);
 				} else {
-					fputc(c, out);
+					(void)fputc(c, out);
 				}
 				break;
 		}
@@ -83,11 +82,11 @@ static int append_stash_row(const char *path, const char *file, int line, const 
 		(void)close(fd);
 		return -1;
 	}
-	fputs("{\"file\":\"", mem);
+	(void)fputs("{\"file\":\"", mem);
 	json_escape_into(mem, file);
-	fprintf(mem, "\",\"line\":%d,\"actual\":\"", line);
+	(void)fprintf(mem, "\",\"line\":%d,\"actual\":\"", line);
 	json_escape_into(mem, actual);
-	fputs("\"}\n", mem);
+	(void)fputs("\"}\n", mem);
 	long len = ftell(mem);
 	(void)fclose(mem);
 	if (len <= 0) {
@@ -123,7 +122,7 @@ int editor_grid_snapshot_check_or_stash(const char *expected, const char *actual
 		return 0;
 	}
 	if (append_stash_row(stash, file, line, actual) != 0) {
-		fprintf(stderr,
+		(void)fprintf(stderr,
 		        "grid-snapshot-update: warning: failed to write stash row "
 		        "for %s:%d: %s\n",
 		        file, line, strerror(errno));

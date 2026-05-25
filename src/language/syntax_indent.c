@@ -5,7 +5,6 @@
  * and how many additional levels to add. Used by the auto-indent action
  * when the language registers indent rules.
  */
-#include "language/languages.h"
 #include "language/syntax_internal.h"
 #include "tree_sitter/api.h"
 

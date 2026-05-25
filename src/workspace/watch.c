@@ -2,10 +2,10 @@
 
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
+#include "render/viewport.h"
 #include "editing/history.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
-#include "render/screen.h"
 #include "support/alloc.h"
 #include "text/document.h"
 #include "text/row.h"

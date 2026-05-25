@@ -7,12 +7,7 @@
 #define EDITOR_PANE_HBORDER_UTF8 "\xe2\x94\x80"
 
 #include "terminal/terminal_pane.h"
-#include "vterm.h"
-#include "workspace/drawer.h"
-#include "workspace/file_search.h"
-#include "workspace/git.h"
 #include "workspace/layout.h"
-#include "workspace/project_search.h"
 #include "workspace/tabs.h"
 
 #include <time.h>

@@ -8,7 +8,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 
 void editorLibFuzzerStatsInit(struct editorLibFuzzerStats *out) {
 	if (out == NULL) {

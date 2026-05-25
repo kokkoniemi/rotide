@@ -1,10 +1,10 @@
 #include "workspace/workspace_state.h"
 
 #include "config/dap_config.h"
-#include "editing/buffer_core.h"
+#include "editing/document_position.h"
 #include "editing/edit.h"
 #include "language/lsp.h"
-#include "render/screen.h"
+#include "render/viewport.h"
 #include "rotide.h"
 #include "support/alloc.h"
 #include "support/file_io.h"

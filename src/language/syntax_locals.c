@@ -13,7 +13,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 
 static int syntaxLocalsNodeContains(TSNode outer, TSNode inner) {
 	uint32_t outer_start = ts_node_start_byte(outer);

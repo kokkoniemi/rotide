@@ -2,7 +2,7 @@
 
 #include "config/dap_config.h"
 #include "debug/dap.h"
-#include "editing/buffer_core.h"
+#include "editing/document_position.h"
 #include "editing/edit.h"
 #include "editing/selection.h"
 #include "input/actions_workspace.h"

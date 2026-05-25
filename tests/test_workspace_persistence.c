@@ -1,10 +1,4 @@
 #include "config/common.h"
-#include "config/dap_config.h"
-#include "config/editor_config.h"
-#include "config/keymap.h"
-#include "config/theme_config.h"
-#include "debug/dap.h"
-#include "input/dispatch.h"
 #include "test_case.h"
 #include "test_support.h"
 #include "workspace/file_search.h"
@@ -1045,12 +1039,12 @@ static int test_editor_recovery_clean_quit_removes_snapshot(void) {
 	int result = 1;
 
 	if (!setup_recovery_test_env(&env)) {
-		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
+		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
 		        "setup_recovery_test_env(&env)");
 		goto cleanup;
 	}
 	if (!editorTabsInit()) {
-		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
+		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
 		        "editorTabsInit()");
 		goto cleanup;
 	}
@@ -1062,12 +1056,12 @@ static int test_editor_recovery_clean_quit_removes_snapshot(void) {
 
 	recovery_path = editorRecoveryPath();
 	if (recovery_path == NULL) {
-		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
+		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
 		        "recovery_path != NULL");
 		goto cleanup;
 	}
 	if (access(recovery_path, F_OK) != 0) {
-		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
+		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
 		        "access(recovery_path, F_OK) == 0");
 		goto cleanup;
 	}
@@ -1075,7 +1069,7 @@ static int test_editor_recovery_clean_quit_removes_snapshot(void) {
 	E.dirty = 0;
 	pid = fork();
 	if (pid == -1) {
-		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__, "pid != -1");
+		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__, "pid != -1");
 		goto cleanup;
 	}
 	if (pid == 0) {
@@ -1091,23 +1085,23 @@ static int test_editor_recovery_clean_quit_removes_snapshot(void) {
 	}
 
 	if (wait_for_child_exit_with_timeout(pid, 1500, &status) != 0) {
-		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
+		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
 		        "wait_for_child_exit_with_timeout(pid, 1500, &status) == 0");
 		goto cleanup;
 	}
 	pid = -1;
 	if (!WIFEXITED(status)) {
-		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
+		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
 		        "WIFEXITED(status)");
 		goto cleanup;
 	}
 	if (WEXITSTATUS(status) != EXIT_SUCCESS) {
-		fprintf(stderr, "Assertion failed in %s:%d: expected %d, got %d\n", __func__,
+		(void)fprintf(stderr, "Assertion failed in %s:%d: expected %d, got %d\n", __func__,
 		        __LINE__, EXIT_SUCCESS, WEXITSTATUS(status));
 		goto cleanup;
 	}
 	if (access(recovery_path, F_OK) != -1) {
-		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
+		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
 		        "access(recovery_path, F_OK) == -1");
 		goto cleanup;
 	}

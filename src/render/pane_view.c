@@ -1,7 +1,7 @@
 #include "render/pane_view.h"
 
-#include "editing/buffer_core.h"
 #include "language/syntax.h"
+#include "language/syntax_visible_cache.h"
 #include "render/ansi_style.h"
 #include "render/drawer_view.h"
 #include "render/screen.h"

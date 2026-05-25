@@ -1,16 +1,12 @@
 #include "input/dispatch.h"
 
-#include "config/common.h"
-#include "config/dap_config.h"
 #include "config/keymap.h"
-#include "debug/dap.h"
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
 #include "editing/history.h"
 #include "editing/selection.h"
 #include "language/autocomplete.h"
 #include "language/lsp.h"
-#include "language/syntax_worker.h"
 #include "render/popup.h"
 #include "render/screen.h"
 #include "support/alloc.h"
@@ -18,23 +14,18 @@
 #include "terminal/terminal_pane.h"
 #include "text/document.h"
 #include "text/row.h"
-#include "text/utf8.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
-#include "workspace/git.h"
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/recovery.h"
 #include "workspace/tabs.h"
-#include "workspace/task.h"
-#include "workspace/workspace_state.h"
 
 #include <ctype.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 
 /*** Input ***/
 
