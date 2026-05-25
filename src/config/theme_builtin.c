@@ -59,6 +59,13 @@ static struct editorThemeStyle themeBuiltinStylePair(struct editorThemeColor fg,
 	return style;
 }
 
+static void themeBuiltinApplyAnsi(struct editorTheme *theme,
+                                  const struct editorThemeColor palette[EDITOR_THEME_ANSI_COUNT]) {
+	for (int i = 0; i < EDITOR_THEME_ANSI_COUNT; i++) {
+		theme->ansi[i] = palette[i];
+	}
+}
+
 void editorThemeSetName(struct editorTheme *theme, const char *name) {
 	if (theme == NULL) {
 		return;
@@ -177,6 +184,16 @@ static void themeBuiltinInitA11yDark(struct editorTheme *theme) {
 	theme->styles[EDITOR_THEME_STYLE_STATUS] = themeBuiltinStylePair(bg, fg);
 	theme->styles[EDITOR_THEME_STYLE_TAB_ACTIVE] = themeBuiltinStylePair(bg, fg);
 	theme->styles[EDITOR_THEME_STYLE_DRAWER_HEADER_ACTIVE] = themeBuiltinStylePair(bg, fg);
+
+	struct editorThemeColor black = editorThemeRgbColor(0x2B, 0x2B, 0x2B);
+	struct editorThemeColor bright_black = comment;
+	struct editorThemeColor white = editorThemeRgbColor(0xD0, 0xD0, 0xD0);
+	struct editorThemeColor bright_white = fg;
+	struct editorThemeColor palette[EDITOR_THEME_ANSI_COUNT] = {
+	        black,        red, green, yellow, blue, purple, cyan, white,
+	        bright_black, red, green, yellow, blue, purple, cyan, bright_white,
+	};
+	themeBuiltinApplyAnsi(theme, palette);
 }
 
 static void themeBuiltinInitA11yLight(struct editorTheme *theme) {
@@ -230,6 +247,16 @@ static void themeBuiltinInitA11yLight(struct editorTheme *theme) {
 	theme->styles[EDITOR_THEME_STYLE_STATUS] = themeBuiltinStylePair(bg, fg);
 	theme->styles[EDITOR_THEME_STYLE_TAB_ACTIVE] = themeBuiltinStylePair(bg, fg);
 	theme->styles[EDITOR_THEME_STYLE_DRAWER_HEADER_ACTIVE] = themeBuiltinStylePair(bg, fg);
+
+	struct editorThemeColor black = editorThemeRgbColor(0x00, 0x00, 0x00);
+	struct editorThemeColor bright_black = gray;
+	struct editorThemeColor white = editorThemeRgbColor(0xB3, 0xB3, 0xB3);
+	struct editorThemeColor bright_white = fg;
+	struct editorThemeColor palette[EDITOR_THEME_ANSI_COUNT] = {
+	        black,        red, green, yellow, blue, purple, cyan, white,
+	        bright_black, red, green, yellow, blue, purple, cyan, bright_white,
+	};
+	themeBuiltinApplyAnsi(theme, palette);
 }
 
 static void themeBuiltinInitAcme(struct editorTheme *theme) {
@@ -398,6 +425,10 @@ struct themeBuiltinGithubPalette {
 	struct editorThemeColor string;
 	struct editorThemeColor variable;
 	struct editorThemeColor type;
+	struct editorThemeColor ansi_black;
+	struct editorThemeColor ansi_white;
+	struct editorThemeColor ansi_bright_black;
+	struct editorThemeColor ansi_bright_white;
 };
 
 static void themeBuiltinInitGithub(struct editorTheme *theme, struct themeBuiltinGithubPalette p) {
@@ -439,83 +470,118 @@ static void themeBuiltinInitGithub(struct editorTheme *theme, struct themeBuilti
 	theme->styles[EDITOR_THEME_STYLE_STATUS] = themeBuiltinStylePair(p.muted, p.header_bg);
 	theme->styles[EDITOR_THEME_STYLE_TAB_ACTIVE] = themeBuiltinStylePair(p.fg, p.header_bg);
 	theme->styles[EDITOR_THEME_STYLE_DRAWER_HEADER_ACTIVE] = themeBuiltinStylePair(p.fg, p.bg);
+
+	struct editorThemeColor palette[EDITOR_THEME_ANSI_COUNT] = {
+	        p.ansi_black,
+	        p.danger,
+	        p.success,
+	        p.attention,
+	        p.accent,
+	        p.entity,
+	        p.type,
+	        p.ansi_white,
+	        p.ansi_bright_black,
+	        p.danger,
+	        p.success,
+	        p.attention,
+	        p.accent,
+	        p.entity,
+	        p.type,
+	        p.ansi_bright_white,
+	};
+	themeBuiltinApplyAnsi(theme, palette);
 }
 
 static void themeBuiltinInitGithubLight(struct editorTheme *theme) {
-	themeBuiltinInitGithub(theme, (struct themeBuiltinGithubPalette){
-	                                      .name = "github-light",
-	                                      .bg = editorThemeRgbColor(0xFF, 0xFF, 0xFF),
-	                                      .fg = editorThemeRgbColor(0x1F, 0x23, 0x28),
-	                                      .muted = editorThemeRgbColor(0x65, 0x6D, 0x76),
-	                                      .border = editorThemeRgbColor(0xD0, 0xD7, 0xDE),
-	                                      .current_line = editorThemeRgbColor(0xF4, 0xF6, 0xF8),
-	                                      .header_bg = editorThemeRgbColor(0xF6, 0xF8, 0xFA),
-	                                      .selection_bg = editorThemeRgbColor(0xBB, 0xDF, 0xFF),
-	                                      .accent = editorThemeRgbColor(0x09, 0x69, 0xDA),
-	                                      .success = editorThemeRgbColor(0x1A, 0x7F, 0x37),
-	                                      .attention = editorThemeRgbColor(0x9A, 0x67, 0x00),
-	                                      .danger = editorThemeRgbColor(0xCF, 0x22, 0x2E),
-	                                      .comment = editorThemeRgbColor(0x57, 0x60, 0x6A),
-	                                      .constant = editorThemeRgbColor(0x05, 0x50, 0xAE),
-	                                      .entity = editorThemeRgbColor(0x82, 0x50, 0xDF),
-	                                      .keyword = editorThemeRgbColor(0xCF, 0x22, 0x2E),
-	                                      .string = editorThemeRgbColor(0x0A, 0x30, 0x69),
-	                                      .variable = editorThemeRgbColor(0x1F, 0x23, 0x28),
-	                                      .type = editorThemeRgbColor(0x1F, 0x23, 0x28),
-	                              });
+	themeBuiltinInitGithub(theme,
+	                       (struct themeBuiltinGithubPalette){
+	                               .name = "github-light",
+	                               .bg = editorThemeRgbColor(0xFF, 0xFF, 0xFF),
+	                               .fg = editorThemeRgbColor(0x1F, 0x23, 0x28),
+	                               .muted = editorThemeRgbColor(0x65, 0x6D, 0x76),
+	                               .border = editorThemeRgbColor(0xD0, 0xD7, 0xDE),
+	                               .current_line = editorThemeRgbColor(0xF4, 0xF6, 0xF8),
+	                               .header_bg = editorThemeRgbColor(0xF6, 0xF8, 0xFA),
+	                               .selection_bg = editorThemeRgbColor(0xBB, 0xDF, 0xFF),
+	                               .accent = editorThemeRgbColor(0x09, 0x69, 0xDA),
+	                               .success = editorThemeRgbColor(0x1A, 0x7F, 0x37),
+	                               .attention = editorThemeRgbColor(0x9A, 0x67, 0x00),
+	                               .danger = editorThemeRgbColor(0xCF, 0x22, 0x2E),
+	                               .comment = editorThemeRgbColor(0x57, 0x60, 0x6A),
+	                               .constant = editorThemeRgbColor(0x05, 0x50, 0xAE),
+	                               .entity = editorThemeRgbColor(0x82, 0x50, 0xDF),
+	                               .keyword = editorThemeRgbColor(0xCF, 0x22, 0x2E),
+	                               .string = editorThemeRgbColor(0x0A, 0x30, 0x69),
+	                               .variable = editorThemeRgbColor(0x1F, 0x23, 0x28),
+	                               .type = editorThemeRgbColor(0x1F, 0x23, 0x28),
+	                               .ansi_black = editorThemeRgbColor(0x24, 0x29, 0x2F),
+	                               .ansi_white = editorThemeRgbColor(0x6E, 0x77, 0x81),
+	                               .ansi_bright_black = editorThemeRgbColor(0x57, 0x60, 0x6A),
+	                               .ansi_bright_white = editorThemeRgbColor(0x1F, 0x23, 0x28),
+	                       });
 	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = editorThemeRgbColor(0x57, 0x60, 0x6A);
 	theme->styles[EDITOR_THEME_STYLE_TAB_ACTIVE].bg = editorThemeRgbColor(0xBB, 0xDF, 0xFF);
 }
 
 static void themeBuiltinInitGithubDark(struct editorTheme *theme) {
-	themeBuiltinInitGithub(theme, (struct themeBuiltinGithubPalette){
-	                                      .name = "github-dark",
-	                                      .bg = editorThemeRgbColor(0x0D, 0x11, 0x17),
-	                                      .fg = editorThemeRgbColor(0xE6, 0xED, 0xF3),
-	                                      .muted = editorThemeRgbColor(0x84, 0x8D, 0x97),
-	                                      .border = editorThemeRgbColor(0x30, 0x36, 0x3D),
-	                                      .current_line = editorThemeRgbColor(0x17, 0x1C, 0x23),
-	                                      .header_bg = editorThemeRgbColor(0x16, 0x1B, 0x22),
-	                                      .selection_bg = editorThemeRgbColor(0x24, 0x3B, 0x61),
-	                                      .accent = editorThemeRgbColor(0x2F, 0x81, 0xF7),
-	                                      .success = editorThemeRgbColor(0x3F, 0xB9, 0x50),
-	                                      .attention = editorThemeRgbColor(0xD2, 0x99, 0x22),
-	                                      .danger = editorThemeRgbColor(0xF8, 0x51, 0x49),
-	                                      .comment = editorThemeRgbColor(0x8B, 0x94, 0x9E),
-	                                      .constant = editorThemeRgbColor(0x79, 0xC0, 0xFF),
-	                                      .entity = editorThemeRgbColor(0xD2, 0xA8, 0xFF),
-	                                      .keyword = editorThemeRgbColor(0xFF, 0x7B, 0x72),
-	                                      .string = editorThemeRgbColor(0xA5, 0xD6, 0xFF),
-	                                      .variable = editorThemeRgbColor(0xE6, 0xED, 0xF3),
-	                                      .type = editorThemeRgbColor(0xE6, 0xED, 0xF3),
-	                              });
+	themeBuiltinInitGithub(theme,
+	                       (struct themeBuiltinGithubPalette){
+	                               .name = "github-dark",
+	                               .bg = editorThemeRgbColor(0x0D, 0x11, 0x17),
+	                               .fg = editorThemeRgbColor(0xE6, 0xED, 0xF3),
+	                               .muted = editorThemeRgbColor(0x84, 0x8D, 0x97),
+	                               .border = editorThemeRgbColor(0x30, 0x36, 0x3D),
+	                               .current_line = editorThemeRgbColor(0x17, 0x1C, 0x23),
+	                               .header_bg = editorThemeRgbColor(0x16, 0x1B, 0x22),
+	                               .selection_bg = editorThemeRgbColor(0x24, 0x3B, 0x61),
+	                               .accent = editorThemeRgbColor(0x2F, 0x81, 0xF7),
+	                               .success = editorThemeRgbColor(0x3F, 0xB9, 0x50),
+	                               .attention = editorThemeRgbColor(0xD2, 0x99, 0x22),
+	                               .danger = editorThemeRgbColor(0xF8, 0x51, 0x49),
+	                               .comment = editorThemeRgbColor(0x8B, 0x94, 0x9E),
+	                               .constant = editorThemeRgbColor(0x79, 0xC0, 0xFF),
+	                               .entity = editorThemeRgbColor(0xD2, 0xA8, 0xFF),
+	                               .keyword = editorThemeRgbColor(0xFF, 0x7B, 0x72),
+	                               .string = editorThemeRgbColor(0xA5, 0xD6, 0xFF),
+	                               .variable = editorThemeRgbColor(0xE6, 0xED, 0xF3),
+	                               .type = editorThemeRgbColor(0xE6, 0xED, 0xF3),
+	                               .ansi_black = editorThemeRgbColor(0x48, 0x4F, 0x58),
+	                               .ansi_white = editorThemeRgbColor(0xB1, 0xBA, 0xC4),
+	                               .ansi_bright_black = editorThemeRgbColor(0x6E, 0x76, 0x81),
+	                               .ansi_bright_white = editorThemeRgbColor(0xF0, 0xF6, 0xFC),
+	                       });
 	theme->ui[EDITOR_THEME_UI_DIRECTORY] = editorThemeRgbColor(0x79, 0xC0, 0xFF);
 	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = editorThemeRgbColor(0xB1, 0xBA, 0xC4);
 	theme->styles[EDITOR_THEME_STYLE_TAB_ACTIVE].bg = editorThemeRgbColor(0x24, 0x3B, 0x61);
 }
 
 static void themeBuiltinInitMolokai(struct editorTheme *theme) {
-	themeBuiltinInitGithub(theme, (struct themeBuiltinGithubPalette){
-	                                      .name = "molokai",
-	                                      .bg = editorThemeRgbColor(0x1B, 0x1D, 0x1E),
-	                                      .fg = editorThemeRgbColor(0xF8, 0xF8, 0xF2),
-	                                      .muted = editorThemeRgbColor(0x7E, 0x8E, 0x91),
-	                                      .border = editorThemeRgbColor(0x45, 0x53, 0x54),
-	                                      .current_line = editorThemeRgbColor(0x29, 0x37, 0x39),
-	                                      .header_bg = editorThemeRgbColor(0x23, 0x25, 0x26),
-	                                      .selection_bg = editorThemeRgbColor(0x40, 0x3D, 0x3D),
-	                                      .accent = editorThemeRgbColor(0x66, 0xD9, 0xEF),
-	                                      .success = editorThemeRgbColor(0xA6, 0xE2, 0x2E),
-	                                      .attention = editorThemeRgbColor(0xFD, 0x97, 0x1F),
-	                                      .danger = editorThemeRgbColor(0xF9, 0x26, 0x72),
-	                                      .comment = editorThemeRgbColor(0x7E, 0x8E, 0x91),
-	                                      .constant = editorThemeRgbColor(0xAE, 0x81, 0xFF),
-	                                      .entity = editorThemeRgbColor(0xA6, 0xE2, 0x2E),
-	                                      .keyword = editorThemeRgbColor(0xF9, 0x26, 0x72),
-	                                      .string = editorThemeRgbColor(0xE6, 0xDB, 0x74),
-	                                      .variable = editorThemeRgbColor(0xFD, 0x97, 0x1F),
-	                                      .type = editorThemeRgbColor(0x66, 0xD9, 0xEF),
-	                              });
+	themeBuiltinInitGithub(theme,
+	                       (struct themeBuiltinGithubPalette){
+	                               .name = "molokai",
+	                               .bg = editorThemeRgbColor(0x1B, 0x1D, 0x1E),
+	                               .fg = editorThemeRgbColor(0xF8, 0xF8, 0xF2),
+	                               .muted = editorThemeRgbColor(0x7E, 0x8E, 0x91),
+	                               .border = editorThemeRgbColor(0x45, 0x53, 0x54),
+	                               .current_line = editorThemeRgbColor(0x29, 0x37, 0x39),
+	                               .header_bg = editorThemeRgbColor(0x23, 0x25, 0x26),
+	                               .selection_bg = editorThemeRgbColor(0x40, 0x3D, 0x3D),
+	                               .accent = editorThemeRgbColor(0x66, 0xD9, 0xEF),
+	                               .success = editorThemeRgbColor(0xA6, 0xE2, 0x2E),
+	                               .attention = editorThemeRgbColor(0xFD, 0x97, 0x1F),
+	                               .danger = editorThemeRgbColor(0xF9, 0x26, 0x72),
+	                               .comment = editorThemeRgbColor(0x7E, 0x8E, 0x91),
+	                               .constant = editorThemeRgbColor(0xAE, 0x81, 0xFF),
+	                               .entity = editorThemeRgbColor(0xA6, 0xE2, 0x2E),
+	                               .keyword = editorThemeRgbColor(0xF9, 0x26, 0x72),
+	                               .string = editorThemeRgbColor(0xE6, 0xDB, 0x74),
+	                               .variable = editorThemeRgbColor(0xFD, 0x97, 0x1F),
+	                               .type = editorThemeRgbColor(0x66, 0xD9, 0xEF),
+	                               .ansi_black = editorThemeRgbColor(0x1B, 0x1D, 0x1E),
+	                               .ansi_white = editorThemeRgbColor(0xB5, 0xC4, 0xC7),
+	                               .ansi_bright_black = editorThemeRgbColor(0x7E, 0x8E, 0x91),
+	                               .ansi_bright_white = editorThemeRgbColor(0xF8, 0xF8, 0xF2),
+	                       });
 	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = editorThemeRgbColor(0xB5, 0xC4, 0xC7);
 }
 
@@ -550,6 +616,12 @@ struct themeBuiltinModusPalette {
 	struct editorThemeColor module;
 	struct editorThemeColor property;
 	struct editorThemeColor preprocessor;
+	struct editorThemeColor ansi_black;
+	struct editorThemeColor ansi_white;
+	struct editorThemeColor ansi_blue;
+	struct editorThemeColor ansi_magenta;
+	struct editorThemeColor ansi_bright_black;
+	struct editorThemeColor ansi_bright_white;
 };
 
 static void themeBuiltinInitModus(struct editorTheme *theme, struct themeBuiltinModusPalette p) {
@@ -595,6 +667,14 @@ static void themeBuiltinInitModus(struct editorTheme *theme, struct themeBuiltin
 	        themeBuiltinStylePair(p.fg_main, p.bg_mode_line_active);
 	theme->styles[EDITOR_THEME_STYLE_DRAWER_HEADER_ACTIVE] =
 	        themeBuiltinStylePair(p.fg_mode_line_active, p.bg_mode_line_active);
+
+	struct editorThemeColor palette[EDITOR_THEME_ANSI_COUNT] = {
+	        p.ansi_black,        p.red,          p.green, p.yellow,
+	        p.ansi_blue,         p.ansi_magenta, p.cyan,  p.ansi_white,
+	        p.ansi_bright_black, p.red,          p.green, p.yellow,
+	        p.ansi_blue,         p.ansi_magenta, p.cyan,  p.ansi_bright_white,
+	};
+	themeBuiltinApplyAnsi(theme, palette);
 }
 
 static void themeBuiltinInitModusOperandi(struct editorTheme *theme) {
@@ -630,6 +710,12 @@ static void themeBuiltinInitModusOperandi(struct editorTheme *theme) {
 	                       .module = editorThemeRgbColor(0x00, 0x5F, 0x5F),
 	                       .property = editorThemeRgbColor(0x00, 0x5E, 0x8B),
 	                       .preprocessor = editorThemeRgbColor(0xA0, 0x13, 0x2F),
+	                       .ansi_black = editorThemeRgbColor(0x00, 0x00, 0x00),
+	                       .ansi_white = editorThemeRgbColor(0xB3, 0xB3, 0xB3),
+	                       .ansi_blue = editorThemeRgbColor(0x35, 0x48, 0xCF),
+	                       .ansi_magenta = editorThemeRgbColor(0x53, 0x1A, 0xB6),
+	                       .ansi_bright_black = editorThemeRgbColor(0x59, 0x59, 0x59),
+	                       .ansi_bright_white = editorThemeRgbColor(0xE6, 0xE6, 0xE6),
 	               });
 	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = editorThemeRgbColor(0x40, 0x40, 0x40);
 }
@@ -667,6 +753,12 @@ static void themeBuiltinInitModusOperandiTinted(struct editorTheme *theme) {
 	                       .module = editorThemeRgbColor(0x00, 0x5F, 0x5F),
 	                       .property = editorThemeRgbColor(0x00, 0x60, 0x3F),
 	                       .preprocessor = editorThemeRgbColor(0x89, 0x40, 0x00),
+	                       .ansi_black = editorThemeRgbColor(0x1A, 0x10, 0x07),
+	                       .ansi_white = editorThemeRgbColor(0xA8, 0xA1, 0x96),
+	                       .ansi_blue = editorThemeRgbColor(0x00, 0x31, 0xA9),
+	                       .ansi_magenta = editorThemeRgbColor(0x53, 0x1A, 0xB6),
+	                       .ansi_bright_black = editorThemeRgbColor(0x59, 0x55, 0x4F),
+	                       .ansi_bright_white = editorThemeRgbColor(0xDF, 0xD9, 0xCF),
 	               });
 	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = editorThemeRgbColor(0x40, 0x3D, 0x38);
 }
@@ -704,6 +796,12 @@ static void themeBuiltinInitModusVivendi(struct editorTheme *theme) {
 	                       .module = editorThemeRgbColor(0x6A, 0xE4, 0xB9),
 	                       .property = editorThemeRgbColor(0x00, 0xD3, 0xD0),
 	                       .preprocessor = editorThemeRgbColor(0xFF, 0x7F, 0x86),
+	                       .ansi_black = editorThemeRgbColor(0x1E, 0x1E, 0x1E),
+	                       .ansi_white = editorThemeRgbColor(0xC6, 0xC6, 0xC6),
+	                       .ansi_blue = editorThemeRgbColor(0x79, 0xA8, 0xFF),
+	                       .ansi_magenta = editorThemeRgbColor(0xB6, 0xA0, 0xFF),
+	                       .ansi_bright_black = editorThemeRgbColor(0x98, 0x98, 0x98),
+	                       .ansi_bright_white = editorThemeRgbColor(0xFF, 0xFF, 0xFF),
 	               });
 	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = editorThemeRgbColor(0xB5, 0xB5, 0xB5);
 }
@@ -741,6 +839,12 @@ static void themeBuiltinInitModusVivendiTinted(struct editorTheme *theme) {
 	                       .module = editorThemeRgbColor(0x6A, 0xE4, 0xB9),
 	                       .property = editorThemeRgbColor(0x4A, 0xE2, 0xF0),
 	                       .preprocessor = editorThemeRgbColor(0xFF, 0x7F, 0x86),
+	                       .ansi_black = editorThemeRgbColor(0x1D, 0x22, 0x35),
+	                       .ansi_white = editorThemeRgbColor(0xB0, 0xB5, 0xC5),
+	                       .ansi_blue = editorThemeRgbColor(0x79, 0xA8, 0xFF),
+	                       .ansi_magenta = editorThemeRgbColor(0xB6, 0xA0, 0xFF),
+	                       .ansi_bright_black = editorThemeRgbColor(0x98, 0x98, 0x98),
+	                       .ansi_bright_white = editorThemeRgbColor(0xFF, 0xFF, 0xFF),
 	               });
 	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = editorThemeRgbColor(0xB0, 0xB5, 0xC5);
 }
@@ -770,6 +874,12 @@ struct themeBuiltinKanagawaPalette {
 	struct editorThemeColor property;
 	struct editorThemeColor preprocessor;
 	struct editorThemeColor op;
+	struct editorThemeColor ansi_black;
+	struct editorThemeColor ansi_white;
+	struct editorThemeColor ansi_cyan;
+	struct editorThemeColor ansi_magenta;
+	struct editorThemeColor ansi_bright_black;
+	struct editorThemeColor ansi_bright_white;
 };
 
 static void themeBuiltinInitKanagawa(struct editorTheme *theme,
@@ -812,6 +922,14 @@ static void themeBuiltinInitKanagawa(struct editorTheme *theme,
 	theme->styles[EDITOR_THEME_STYLE_STATUS] = themeBuiltinStylePair(p.muted, p.header_bg);
 	theme->styles[EDITOR_THEME_STYLE_TAB_ACTIVE] = themeBuiltinStylePair(p.fg, p.header_bg);
 	theme->styles[EDITOR_THEME_STYLE_DRAWER_HEADER_ACTIVE] = themeBuiltinStylePair(p.fg, p.bg);
+
+	struct editorThemeColor palette[EDITOR_THEME_ANSI_COUNT] = {
+	        p.ansi_black,        p.danger,    p.success,    p.attention,         p.accent,
+	        p.ansi_magenta,      p.ansi_cyan, p.ansi_white, p.ansi_bright_black, p.danger,
+	        p.success,           p.attention, p.accent,     p.ansi_magenta,      p.ansi_cyan,
+	        p.ansi_bright_white,
+	};
+	themeBuiltinApplyAnsi(theme, palette);
 }
 
 static void themeBuiltinInitKanagawaWave(struct editorTheme *theme) {
@@ -841,6 +959,12 @@ static void themeBuiltinInitKanagawaWave(struct editorTheme *theme) {
 	                                 .property = editorThemeRgbColor(0xE6, 0xC3, 0x84),
 	                                 .preprocessor = editorThemeRgbColor(0xFF, 0xA0, 0x66),
 	                                 .op = editorThemeRgbColor(0xC0, 0xA3, 0x6E),
+	                                 .ansi_black = editorThemeRgbColor(0x1F, 0x1F, 0x28),
+	                                 .ansi_white = editorThemeRgbColor(0xC8, 0xC0, 0x93),
+	                                 .ansi_cyan = editorThemeRgbColor(0x7A, 0xA8, 0x9F),
+	                                 .ansi_magenta = editorThemeRgbColor(0x95, 0x7F, 0xB8),
+	                                 .ansi_bright_black = editorThemeRgbColor(0x72, 0x71, 0x69),
+	                                 .ansi_bright_white = editorThemeRgbColor(0xDC, 0xD7, 0xBA),
 	                         });
 	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = editorThemeRgbColor(0x9D, 0x9C, 0xB0);
 }
@@ -872,6 +996,12 @@ static void themeBuiltinInitKanagawaDragon(struct editorTheme *theme) {
 	                                 .property = editorThemeRgbColor(0xC4, 0xB2, 0x8A),
 	                                 .preprocessor = editorThemeRgbColor(0xB6, 0x92, 0x7B),
 	                                 .op = editorThemeRgbColor(0xC4, 0xB2, 0x8A),
+	                                 .ansi_black = editorThemeRgbColor(0x18, 0x16, 0x16),
+	                                 .ansi_white = editorThemeRgbColor(0xA6, 0x9F, 0x9C),
+	                                 .ansi_cyan = editorThemeRgbColor(0x8E, 0xA4, 0xA2),
+	                                 .ansi_magenta = editorThemeRgbColor(0xA2, 0x92, 0xA3),
+	                                 .ansi_bright_black = editorThemeRgbColor(0x73, 0x7C, 0x73),
+	                                 .ansi_bright_white = editorThemeRgbColor(0xC5, 0xC9, 0xC5),
 	                         });
 	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = editorThemeRgbColor(0x9C, 0x95, 0x8E);
 }
@@ -903,6 +1033,12 @@ static void themeBuiltinInitKanagawaLotus(struct editorTheme *theme) {
 	                                 .property = editorThemeRgbColor(0x83, 0x6F, 0x4A),
 	                                 .preprocessor = editorThemeRgbColor(0xCC, 0x6D, 0x00),
 	                                 .op = editorThemeRgbColor(0x77, 0x71, 0x3F),
+	                                 .ansi_black = editorThemeRgbColor(0x1F, 0x1F, 0x28),
+	                                 .ansi_white = editorThemeRgbColor(0x6F, 0x6A, 0x55),
+	                                 .ansi_cyan = editorThemeRgbColor(0x59, 0x7B, 0x75),
+	                                 .ansi_magenta = editorThemeRgbColor(0x62, 0x4C, 0x83),
+	                                 .ansi_bright_black = editorThemeRgbColor(0x8A, 0x83, 0x6F),
+	                                 .ansi_bright_white = editorThemeRgbColor(0x43, 0x59, 0x65),
 	                         });
 	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = editorThemeRgbColor(0x5A, 0x57, 0x4D);
 }

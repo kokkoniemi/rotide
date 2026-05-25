@@ -17,4 +17,8 @@ int editorAppendThemeForegroundRole(struct writeBuf *wb, enum editorThemeUiRole 
 int editorAppendThemeBackgroundRole(struct writeBuf *wb, enum editorThemeUiRole role);
 int editorAppendThemeCursorColor(struct writeBuf *wb);
 
+/* idx >= 16 returns the fg/bg fallback — callers must handle 256-color
+ * indices themselves. */
+struct editorThemeColor editorThemeResolveAnsi(unsigned idx, int is_fg);
+
 #endif

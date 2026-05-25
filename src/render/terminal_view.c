@@ -26,12 +26,22 @@ static int terminalViewAppendColorSgr(struct writeBuf *wb, const VTermColor *col
 		             (unsigned)color->rgb.blue);
 	} else if (VTERM_COLOR_IS_INDEXED(color)) {
 		unsigned idx = color->indexed.idx;
-		if (idx < 8) {
-			n = snprintf(esc, sizeof(esc), "\x1b[%um",
-			             (unsigned)((is_fg ? 30 : 40) + idx));
-		} else if (idx < 16) {
-			n = snprintf(esc, sizeof(esc), "\x1b[%um",
-			             (unsigned)((is_fg ? 90 : 100) + (idx - 8)));
+		if (idx < 16) {
+			struct editorThemeColor resolved = editorThemeResolveAnsi(idx, is_fg);
+			if (!editorThemeColorIsDefault(resolved)) {
+				return is_fg ? editorAppendThemeForeground(wb, resolved)
+				             : editorAppendThemeBackground(wb, resolved);
+			}
+			/* Both the palette slot and the fallback fg/bg are
+			 * default — emit the raw ANSI code so the host
+			 * terminal supplies a color. */
+			if (idx < 8) {
+				n = snprintf(esc, sizeof(esc), "\x1b[%um",
+				             (unsigned)((is_fg ? 30 : 40) + idx));
+			} else {
+				n = snprintf(esc, sizeof(esc), "\x1b[%um",
+				             (unsigned)((is_fg ? 90 : 100) + (idx - 8)));
+			}
 		} else {
 			n = snprintf(esc, sizeof(esc), "\x1b[%d;5;%um", is_fg ? 38 : 48, idx);
 		}

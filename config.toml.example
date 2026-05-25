@@ -45,10 +45,14 @@ scrollback_lines = 10000
 #   modus-operandi | modus-operandi-tinted | modus-vivendi | modus-vivendi-tinted |
 #   molokai | kanagawa-wave | kanagawa-dragon | kanagawa-lotus
 #   (alias: kanagawa => kanagawa-wave)
-# Custom theme files own [theme.syntax] and [theme.ui]; color values are
-# ANSI 16-color names (default|black|red|green|yellow|blue|magenta|cyan|white|
+# Custom theme files own [theme.syntax], [theme.ui], and [theme.ansi];
+# color values are ANSI 16-color names
+# (default|black|red|green|yellow|blue|magenta|cyan|white|
 # bright_black|bright_red|bright_green|bright_yellow|bright_blue|bright_magenta|
 # bright_cyan|bright_white; aliases: gray/grey => bright_black) or "#RRGGBB".
+# [theme.ansi] keys are the same 16 color names and override what the
+# terminal pane renders for ANSI-indexed cells (0–15). Slots left unset
+# fall back to the theme foreground so output stays inside the theme.
 # Invalid custom themes fall back to terminal with a warning.
 [theme]
 name = "terminal"

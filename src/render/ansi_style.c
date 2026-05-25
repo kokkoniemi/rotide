@@ -116,6 +116,16 @@ int editorAppendThemeStyle(struct writeBuf *wb, enum editorThemeStyleRole role) 
 	return editorAppendThemeBackground(wb, style.bg);
 }
 
+struct editorThemeColor editorThemeResolveAnsi(unsigned idx, int is_fg) {
+	if (idx < EDITOR_THEME_ANSI_COUNT) {
+		struct editorThemeColor palette = E.theme.ansi[idx];
+		if (!editorThemeColorIsDefault(palette)) {
+			return palette;
+		}
+	}
+	return E.theme.ui[is_fg ? EDITOR_THEME_UI_FOREGROUND : EDITOR_THEME_UI_BACKGROUND];
+}
+
 int editorAppendThemeForegroundRole(struct writeBuf *wb, enum editorThemeUiRole role) {
 	if (role < 0 || role >= EDITOR_THEME_UI_ROLE_COUNT) {
 		return 1;

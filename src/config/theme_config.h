@@ -75,6 +75,7 @@ struct editorTheme {
 	struct editorThemeColor syntax[EDITOR_SYNTAX_HL_CLASS_COUNT];
 	struct editorThemeColor ui[EDITOR_THEME_UI_ROLE_COUNT];
 	struct editorThemeStyle styles[EDITOR_THEME_STYLE_ROLE_COUNT];
+	struct editorThemeColor ansi[EDITOR_THEME_ANSI_COUNT];
 };
 
 enum editorThemeLoadStatus {

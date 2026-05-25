@@ -5,6 +5,7 @@
 #include "config/theme_config.h"
 #include "debug/dap.h"
 #include "input/dispatch.h"
+#include "render/ansi_style.h"
 #include "test_case.h"
 #include "test_support.h"
 #include "workspace/file_search.h"
@@ -721,6 +722,96 @@ cleanup:
 	return failed;
 }
 
+static int test_editor_theme_builtin_kanagawa_wave_populates_ansi_palette(void) {
+	struct editorTheme theme;
+	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "kanagawa-wave"));
+
+	ASSERT_TRUE(theme_color_is_rgb(theme.ansi[EDITOR_THEME_ANSI_RED], 0xC3, 0x40, 0x43));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ansi[EDITOR_THEME_ANSI_GREEN], 0x76, 0x94, 0x6A));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ansi[EDITOR_THEME_ANSI_YELLOW], 0xDC, 0xA5, 0x61));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ansi[EDITOR_THEME_ANSI_BLUE], 0x7E, 0x9C, 0xD8));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ansi[EDITOR_THEME_ANSI_MAGENTA], 0x95, 0x7F, 0xB8));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ansi[EDITOR_THEME_ANSI_CYAN], 0x7A, 0xA8, 0x9F));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ansi[EDITOR_THEME_ANSI_BRIGHT_RED], 0xC3, 0x40, 0x43));
+	ASSERT_TRUE(
+	        theme_color_is_rgb(theme.ansi[EDITOR_THEME_ANSI_BRIGHT_BLUE], 0x7E, 0x9C, 0xD8));
+	return 0;
+}
+
+static int test_editor_theme_terminal_builtin_leaves_ansi_default(void) {
+	struct editorTheme theme;
+	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "terminal"));
+	for (int i = 0; i < EDITOR_THEME_ANSI_COUNT; i++) {
+		ASSERT_TRUE(editorThemeColorIsDefault(theme.ansi[i]));
+	}
+	return 0;
+}
+
+static int test_editor_theme_loads_custom_ansi_table(void) {
+	char dir_template[] = "/tmp/rotide-test-theme-ansi-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char dot_rotide[512];
+	char themes_dir[512];
+	char theme_path[512];
+	char project_path[512];
+	ASSERT_TRUE(path_join(dot_rotide, sizeof(dot_rotide), dir_path, ".rotide"));
+	ASSERT_TRUE(path_join(themes_dir, sizeof(themes_dir), dot_rotide, "themes"));
+	ASSERT_TRUE(path_join(theme_path, sizeof(theme_path), themes_dir, "ansi-custom.toml"));
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
+	ASSERT_TRUE(make_dir(dot_rotide));
+	ASSERT_TRUE(make_dir(themes_dir));
+	ASSERT_TRUE(write_text_file(theme_path, "name = \"ansi-custom\"\n"
+	                                        "inherits = \"terminal\"\n"
+	                                        "[theme.ansi]\n"
+	                                        "red = \"#FF0011\"\n"
+	                                        "green = \"bright_green\"\n"
+	                                        "bright_magenta = \"#AA00BB\"\n"));
+	ASSERT_TRUE(write_text_file(project_path, "[theme]\n"
+	                                          "name = \"ansi-custom\"\n"));
+
+	struct editorTheme theme;
+	enum editorThemeLoadStatus status =
+	        editorThemeLoadFromPaths(&theme, NULL, project_path, dir_path);
+	ASSERT_EQ_INT(EDITOR_THEME_LOAD_OK, status);
+	ASSERT_EQ_STR("ansi-custom", theme.name);
+	ASSERT_TRUE(theme_color_is_rgb(theme.ansi[EDITOR_THEME_ANSI_RED], 0xFF, 0x00, 0x11));
+	ASSERT_TRUE(theme_color_is_ansi(theme.ansi[EDITOR_THEME_ANSI_GREEN],
+	                                EDITOR_THEME_ANSI_BRIGHT_GREEN));
+	ASSERT_TRUE(
+	        theme_color_is_rgb(theme.ansi[EDITOR_THEME_ANSI_BRIGHT_MAGENTA], 0xAA, 0x00, 0xBB));
+	/* Slots not mentioned remain default. */
+	ASSERT_TRUE(editorThemeColorIsDefault(theme.ansi[EDITOR_THEME_ANSI_BLUE]));
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(unlink(theme_path) == 0);
+	ASSERT_TRUE(rmdir(themes_dir) == 0);
+	ASSERT_TRUE(rmdir(dot_rotide) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_theme_resolve_ansi_falls_back_to_foreground(void) {
+	struct editorTheme saved = E.theme;
+	struct editorTheme theme;
+	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "kanagawa-wave"));
+	theme.ansi[EDITOR_THEME_ANSI_RED] = editorThemeDefaultColor();
+	E.theme = theme;
+
+	struct editorThemeColor resolved = editorThemeResolveAnsi(EDITOR_THEME_ANSI_RED, 1);
+	ASSERT_TRUE(theme_color_is_rgb(resolved, 0xDC, 0xD7, 0xBA)); /* fg of kanagawa-wave */
+
+	resolved = editorThemeResolveAnsi(EDITOR_THEME_ANSI_BLUE, 1);
+	ASSERT_TRUE(theme_color_is_rgb(resolved, 0x7E, 0x9C, 0xD8)); /* populated */
+
+	resolved = editorThemeResolveAnsi(EDITOR_THEME_ANSI_RED, 0);
+	ASSERT_TRUE(theme_color_is_rgb(resolved, 0x1F, 0x1F, 0x28)); /* bg fallback */
+
+	E.theme = saved;
+	return 0;
+}
+
 static int test_editor_config_default_global_loads_cleanly(void) {
 	int failed = 1;
 	struct envVarBackup home_backup;
@@ -823,6 +914,13 @@ const struct editorTestCase g_workspace_theme_config_tests[] = {
          test_editor_theme_loads_custom_theme_from_home_themes},
         {"editor_theme_invalid_values_fall_back_to_terminal",
          test_editor_theme_invalid_values_fall_back_to_terminal},
+        {"editor_theme_builtin_kanagawa_wave_populates_ansi_palette",
+         test_editor_theme_builtin_kanagawa_wave_populates_ansi_palette},
+        {"editor_theme_terminal_builtin_leaves_ansi_default",
+         test_editor_theme_terminal_builtin_leaves_ansi_default},
+        {"editor_theme_loads_custom_ansi_table", test_editor_theme_loads_custom_ansi_table},
+        {"editor_theme_resolve_ansi_falls_back_to_foreground",
+         test_editor_theme_resolve_ansi_falls_back_to_foreground},
         {"editor_config_ensure_global_creates_default_when_missing",
          test_editor_config_ensure_global_creates_default_when_missing},
         {"editor_open_settings_opens_global_config_in_tab",
