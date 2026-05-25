@@ -1,3 +1,4 @@
+#include "input/mouse.h"
 #include "rotide.h"
 #include "terminal/terminal_pane.h"
 #include "test_case.h"
@@ -109,6 +110,57 @@ static int test_terminal_pane_resize_all_to_layout_updates_grids(void) {
 	editorTerminalPaneResizeAllToLayout(E.layout_root);
 
 	int failed = t->rows <= before_rows || t->cols <= before_cols;
+	return failed;
+}
+
+static int test_terminal_pane_mouse_drag_resizes_terminal_pane(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	E.window_cols = 120;
+	E.window_rows = 40;
+	struct editorPaneNode *terminal_leaf =
+	        editorTerminalPaneOpenSplit("sleep 5", EDITOR_SPLIT_VERTICAL);
+	if (terminal_leaf == NULL) {
+		return 1;
+	}
+	struct editorTerminalPane *t =
+	        (struct editorTerminalPane *)terminal_leaf->as.leaf.kind_state;
+	int before_cols = t->cols;
+	int before_rows = t->rows;
+
+	if (E.layout_root == NULL || !E.layout_root->is_split) {
+		return 1;
+	}
+	struct editorRect viewport = {0};
+	if (!editorLayoutEditorViewport(&viewport)) {
+		return 1;
+	}
+	/* Arm the split-resize state as if the user had clicked the border. */
+	E.split_resize_active = 1;
+	E.split_resize_node = E.layout_root;
+	E.mouse_left_button_down = 1;
+
+	/* Drag the border to ratio = 0.25 (shrinking the left/first pane). */
+	int target_x = viewport.x + (int)((double)(viewport.w - 1) * 0.25);
+	struct editorMouseEvent event = {
+	        .kind = EDITOR_MOUSE_EVENT_LEFT_DRAG,
+	        .x = target_x + 1,
+	        .y = viewport.y + 2,
+	        .modifiers = 0,
+	};
+	(void)editorHandleMouseLeftDrag(&event);
+
+	E.split_resize_active = 0;
+	E.split_resize_node = NULL;
+	E.mouse_left_button_down = 0;
+
+	/* The focused (newly-created) terminal pane is the right/second child,
+	 * so shrinking the left half grows the terminal's column count. The key
+	 * regression check is simply that the terminal dimensions changed at
+	 * all — before the fix the ratio updated but vterm/pty kept the stale
+	 * size. */
+	int failed = (t->cols == before_cols && t->rows == before_rows);
 	return failed;
 }
 
@@ -579,6 +631,8 @@ const struct editorTestCase g_terminal_pane_tests[] = {
         {"terminal_pane_resize_updates_grid", test_terminal_pane_resize_updates_grid},
         {"terminal_pane_resize_all_to_layout_updates_grids",
          test_terminal_pane_resize_all_to_layout_updates_grids},
+        {"terminal_pane_mouse_drag_resizes_terminal_pane",
+         test_terminal_pane_mouse_drag_resizes_terminal_pane},
         {"terminal_pane_open_split_replaces_sibling_kind",
          test_terminal_pane_open_split_replaces_sibling_kind},
         {"terminal_pane_open_vertical_split_replaces_sibling_kind",

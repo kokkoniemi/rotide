@@ -5,6 +5,7 @@
 #include "editing/edit.h"
 #include "editing/history.h"
 #include "input/prompt.h"
+#include "terminal/terminal_pane.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
@@ -586,11 +587,15 @@ int editorHandleWorkspaceMappedAction(enum editorAction action, int cursor_or_ed
 			return 1;
 		case EDITOR_ACTION_PANE_GROW:
 			editorHistoryBreakGroup();
-			(void)editorLayoutResizeFocused(1);
+			if (editorLayoutResizeFocused(1)) {
+				editorTerminalPaneResizeAllToLayout(E.layout_root);
+			}
 			return 1;
 		case EDITOR_ACTION_PANE_SHRINK:
 			editorHistoryBreakGroup();
-			(void)editorLayoutResizeFocused(0);
+			if (editorLayoutResizeFocused(0)) {
+				editorTerminalPaneResizeAllToLayout(E.layout_root);
+			}
 			return 1;
 		case EDITOR_ACTION_RESIZE_DRAWER_NARROW:
 			editorHistoryBreakGroup();

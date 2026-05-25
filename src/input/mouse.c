@@ -1141,6 +1141,10 @@ int editorHandleMouseLeftDrag(const struct editorMouseEvent *event) {
 			return 0;
 		}
 		E.split_resize_node->as.split.ratio = new_ratio;
+		/* Keep child vterm/pty sizes in sync with the new split ratio so
+		 * terminal panes don't render with stale dimensions (which causes
+		 * border artifacts and prevents shrinking back down). */
+		editorTerminalPaneResizeAllToLayout(E.layout_root);
 		return 1;
 	}
 	if (E.drawer_resize_active) {
