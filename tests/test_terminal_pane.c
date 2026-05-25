@@ -156,10 +156,7 @@ static int test_terminal_pane_mouse_drag_resizes_terminal_pane(void) {
 	E.mouse_left_button_down = 0;
 
 	/* The focused (newly-created) terminal pane is the right/second child,
-	 * so shrinking the left half grows the terminal's column count. The key
-	 * regression check is simply that the terminal dimensions changed at
-	 * all — before the fix the ratio updated but vterm/pty kept the stale
-	 * size. */
+	 * so shrinking the left half grows the terminal's column count.*/
 	int failed = (t->cols == before_cols && t->rows == before_rows);
 	return failed;
 }
