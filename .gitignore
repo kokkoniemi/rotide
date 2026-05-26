@@ -55,21 +55,13 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
-rotide
 *.swp
-tests/rotide_tests
+
+# Build artifacts (objects, deps, and binaries) all live under build/.
+/build/
+
 tests/artifacts/
-tests/bench_text_storage
-tests/rotide_bench
-tests/fuzz/vterm/fuzz_vterm
-tests/fuzz/lsp/fuzz_lsp
-tests/fuzz/dap/fuzz_dap
-tests/fuzz/toml/fuzz_toml_theme
 tests/fuzz/*/corpus_grown/
-tests/metrics_fuzz_emit
-tests/metrics_summary
-tests/golden_apply
-tests/golden_diff_report
 tests/metrics.jsonl
 tests/artifacts/goldens.jsonl
 
