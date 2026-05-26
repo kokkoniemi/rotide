@@ -219,7 +219,12 @@ int main(int argc, char *argv[]) {
 	if (!editorDrawerInitForStartup(argc, argv, restored_session)) {
 		editorSetStatusMsg("Drawer disabled (init failed)");
 	}
-	(void)editorWorkspaceStateLoadAndApply(E.window_cols);
+	/* When a file argument is given on startup we keep the fresh single-pane
+	 * layout the open path built — restoring the persisted pane tree would
+	 * resurrect terminal placeholders without hydrating them, leaving an
+	 * empty terminal pane that steals nothing but renders dead. */
+	int reset_panes = !restored_session && argc >= 2;
+	(void)editorWorkspaceStateLoadAndApply(E.window_cols, reset_panes);
 	if (!restored_session && argc < 2) {
 		(void)editorWorkspaceStateRestoreTabs();
 	}

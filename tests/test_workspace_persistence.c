@@ -855,7 +855,7 @@ static int test_editor_file_search_lists_recent_non_active_files_first_and_persi
 
 	editorWorkspaceStateShutdown();
 	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
-	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols, 0));
 	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
 	ASSERT_TRUE(editorFileSearchEnter());
 
@@ -1201,7 +1201,7 @@ static int test_editor_recovery_autosave_persists_workspace_state(void) {
 	E.drawer_mode = EDITOR_DRAWER_MODE_TREE;
 	E.drawer_collapsed = 0;
 
-	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols, 0));
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_GIT, (int)E.drawer_mode);
 	ASSERT_EQ_INT(1, E.drawer_collapsed);
 
@@ -1233,7 +1233,7 @@ static int test_editor_workspace_state_persists_drawer_state(void) {
 	E.drawer_collapsed = 0;
 	E.drawer_mode = EDITOR_DRAWER_MODE_TREE;
 
-	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols, 0));
 
 	ASSERT_EQ_INT(42, E.drawer_width_cols);
 	ASSERT_EQ_INT(1, E.drawer_collapsed);
@@ -1262,7 +1262,7 @@ static int test_editor_workspace_state_persists_drawer_expanded_masks(void) {
 	E.drawer_git_expanded = 0;
 	E.drawer_lsp_expanded = 0;
 
-	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols, 0));
 
 	ASSERT_EQ_INT(0x5, (int)E.drawer_menu_expanded);
 	ASSERT_EQ_INT(0x2, (int)E.drawer_git_expanded);
@@ -1286,7 +1286,7 @@ static int test_editor_workspace_state_ignores_search_modes_on_save(void) {
 	ASSERT_TRUE(editorWorkspaceStateSave());
 
 	E.drawer_mode = EDITOR_DRAWER_MODE_GIT;
-	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols, 0));
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, (int)E.drawer_mode);
 
 	editorWorkspaceStateShutdown();
@@ -1313,7 +1313,7 @@ static int test_editor_workspace_state_rejects_unknown_future_version(void) {
 	                                        "drawer_collapsed=1\n"
 	                                        "drawer_mode=git\n"));
 
-	int loaded = editorWorkspaceStateLoadAndApply(E.window_cols);
+	int loaded = editorWorkspaceStateLoadAndApply(E.window_cols, 0);
 	ASSERT_EQ_INT(0, loaded);
 	/* Bailing out must leave the in-memory state untouched. */
 	ASSERT_EQ_INT(50, E.drawer_width_cols);
@@ -1337,7 +1337,7 @@ static int test_editor_workspace_state_load_missing_is_noop(void) {
 	E.drawer_collapsed = 0;
 	E.drawer_mode = EDITOR_DRAWER_MODE_TREE;
 
-	int loaded = editorWorkspaceStateLoadAndApply(E.window_cols);
+	int loaded = editorWorkspaceStateLoadAndApply(E.window_cols, 0);
 	ASSERT_EQ_INT(0, loaded);
 	ASSERT_EQ_INT(35, E.drawer_width_cols);
 
@@ -1372,7 +1372,7 @@ static int test_editor_workspace_state_restores_open_tabs_with_cursor(void) {
 
 	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
 	ASSERT_TRUE(editorTabsInit());
-	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols, 0));
 	ASSERT_TRUE(editorWorkspaceStateRestoreTabs());
 
 	ASSERT_EQ_INT(2, editorTabCount());
@@ -1430,7 +1430,7 @@ static int test_editor_workspace_state_restore_defers_lsp_for_inactive_tabs(void
 
 	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
 	ASSERT_TRUE(editorTabsInit());
-	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols, 0));
 	ASSERT_TRUE(editorWorkspaceStateRestoreTabs());
 	ASSERT_EQ_INT(2, editorTabCount());
 
@@ -1521,7 +1521,7 @@ static int test_editor_workspace_state_restores_tabs_to_split_panes(void) {
 
 	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
 	ASSERT_TRUE(editorTabsInit());
-	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols, 0));
 	ASSERT_TRUE(editorWorkspaceStateRestoreTabs());
 
 	ASSERT_EQ_INT(2, editorTabCount());
@@ -1617,7 +1617,7 @@ static int test_editor_workspace_state_restores_three_leaf_split_assignment(void
 
 	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
 	ASSERT_TRUE(editorTabsInit());
-	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols, 0));
 	ASSERT_TRUE(editorWorkspaceStateRestoreTabs());
 
 	ASSERT_EQ_INT(3, editorPaneTreeLeafCount(E.layout_root));
@@ -1667,7 +1667,7 @@ static int test_editor_workspace_state_clamps_focused_pane_out_of_range(void) {
 	ASSERT_TRUE(write_text_file(state_path, buf));
 
 	ASSERT_TRUE(editorTabsInit());
-	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols, 0));
 	ASSERT_TRUE(editorWorkspaceStateRestoreTabs());
 
 	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
@@ -1714,7 +1714,7 @@ static int test_editor_workspace_state_ignores_orphan_pane_tab_paths(void) {
 	ASSERT_TRUE(write_text_file(state_path, buf));
 
 	ASSERT_TRUE(editorTabsInit());
-	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols, 0));
 	ASSERT_TRUE(editorWorkspaceStateRestoreTabs());
 
 	ASSERT_EQ_INT(2, editorTabCount());
@@ -1823,7 +1823,7 @@ static int test_editor_workspace_state_restore_hydrates_terminal_placeholder(voi
 	E.window_cols = 100;
 	E.window_rows = 40;
 	ASSERT_TRUE(editorTabsInit());
-	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols, 0));
 	ASSERT_TRUE(editorWorkspaceStateRestoreTabs());
 
 	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
@@ -1856,7 +1856,7 @@ static int test_editor_workspace_state_restore_terminal_only_layout(void) {
 	E.window_cols = 100;
 	E.window_rows = 40;
 	ASSERT_TRUE(editorTabsInit());
-	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols, 0));
 	/* RestoreTabs returns opened_any; with zero tab= lines it returns 0 but
 	 * must still hydrate the terminal leaf via the early-return path. */
 	(void)editorWorkspaceStateRestoreTabs();
@@ -1868,6 +1868,54 @@ static int test_editor_workspace_state_restore_terminal_only_layout(void) {
 
 	editorTabsFreeAll();
 	editorWorkspaceStateShutdown();
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_workspace_state_reset_panes_skips_saved_layout(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char alpha_file[512];
+	ASSERT_TRUE(path_join(alpha_file, sizeof(alpha_file), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(write_text_file(alpha_file, "alpha\n"));
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	const char *state_path = editorWorkspaceStatePath();
+	ASSERT_TRUE(state_path != NULL);
+
+	char buf[1024];
+	int n = snprintf(buf, sizeof(buf),
+	                 "version=2\n"
+	                 "drawer_width_cols=20\n"
+	                 "tab=0|0|%s\n"
+	                 "layout=(h 0.5 leaf term)\n"
+	                 "pane_tab=0|1|%s\n"
+	                 "focused_pane=0\n",
+	                 alpha_file, alpha_file);
+	ASSERT_TRUE(n > 0 && (size_t)n < sizeof(buf));
+	ASSERT_TRUE(write_text_file(state_path, buf));
+
+	E.window_cols = 100;
+	E.window_rows = 40;
+	ASSERT_TRUE(editorTabsInit());
+
+	/* reset_panes=1 simulates the "file argument on startup" path: the
+	 * fresh single-leaf layout must survive, otherwise we'd resurrect an
+	 * unhydrated terminal placeholder and keystrokes would silently land on
+	 * the editor leaf instead. */
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols, 1));
+
+	ASSERT_EQ_INT(1, editorPaneTreeLeafCount(E.layout_root));
+	ASSERT_TRUE(E.layout_root != NULL && !E.layout_root->is_split);
+	ASSERT_EQ_INT(EDITOR_PANE_KIND_EDITOR, (int)E.layout_root->as.leaf.kind);
+	/* Drawer settings are still applied — only layout/tab/pane state is
+	 * skipped under reset_panes. */
+	ASSERT_EQ_INT(20, E.drawer_width_cols);
+
+	editorTabsFreeAll();
+	editorWorkspaceStateShutdown();
+	ASSERT_TRUE(unlink(alpha_file) == 0);
 	cleanup_recovery_test_env(&env);
 	return 0;
 }
@@ -1958,6 +2006,8 @@ const struct editorTestCase g_workspace_persistence_tests[] = {
          test_editor_workspace_state_restore_hydrates_terminal_placeholder},
         {"editor_workspace_state_restore_terminal_only_layout",
          test_editor_workspace_state_restore_terminal_only_layout},
+        {"editor_workspace_state_reset_panes_skips_saved_layout",
+         test_editor_workspace_state_reset_panes_skips_saved_layout},
 };
 
 const int g_workspace_persistence_test_count =
