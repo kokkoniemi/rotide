@@ -1,5 +1,3 @@
-#define _DEFAULT_SOURCE
-
 #include "save_syscalls.h"
 
 #include <errno.h>

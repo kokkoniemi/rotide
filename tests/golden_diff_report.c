@@ -1,6 +1,3 @@
-#define _DEFAULT_SOURCE
-#define _GNU_SOURCE
-
 /* Read a JSONL stash and print a unified-style line diff per entry,
  * comparing the actual capture to the literal that currently lives
  * between the source file's golden markers. Never modifies the source

@@ -1,6 +1,3 @@
-#define _DEFAULT_SOURCE
-#define _GNU_SOURCE
-
 /* Append a `kind=fuzz` row to a metrics JSONL file, parsing the captured
  * libFuzzer stderr at --log and scanning the corpus dir at --corpus-dir.
  *

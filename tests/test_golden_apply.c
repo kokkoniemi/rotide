@@ -1,5 +1,3 @@
-#define _GNU_SOURCE
-
 #include "golden_apply_lib.h"
 #include "grid_snapshot_format.h"
 #include "test_case.h"

@@ -1,5 +1,3 @@
-#define _DEFAULT_SOURCE
-
 #include "metrics_jsonl_read.h"
 #include "metrics_summary_cmd.h"
 #include "test_case.h"
@@ -220,9 +218,7 @@ static void seed_fuzz(struct editorMetricsRow *r, long long ts_unix, const char 
 	r->cov_edges = cov_edges;
 }
 
-/* tmpfile() + rewind() + fread() gives us a portable FILE* sink without
- * open_memstream (which requires _GNU_SOURCE, in conflict with the
- * project-wide _DEFAULT_SOURCE setting). */
+/* tmpfile() + rewind() + fread() gives us a portable FILE* sink. */
 static char *captured_stdout = NULL;
 
 static FILE *capture_open(void) {

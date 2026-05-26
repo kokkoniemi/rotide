@@ -1,4 +1,3 @@
-#define _DEFAULT_SOURCE
 #define _XOPEN_SOURCE 700
 
 #include "text/utf8.h"

@@ -1,5 +1,3 @@
-#define _DEFAULT_SOURCE
-
 /* Thin CLI over metrics_summary_cmd.c. Subcommands:
  *   summary                    print recent rows grouped by kind/target/name
  *   check-fuzz-stale           exit 1 if any fuzz target gained zero edges in window

@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
+#include <sys/wait.h> // NOLINT(misc-include-cleaner) — provides WIFEXITED/WEXITSTATUS/WTERMSIG, which clang-tidy maps to <bits/waitstatus.h>
 
 static int terminalViewAppendColorSgr(struct writeBuf *wb, const VTermColor *color, int is_fg) {
 	char esc[32];

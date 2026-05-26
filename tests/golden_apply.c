@@ -1,6 +1,3 @@
-#define _DEFAULT_SOURCE
-#define _GNU_SOURCE
-
 /* Read a JSONL stash produced by `rotide_tests --update-golden` and
  * rewrite each referenced source file's `/ * golden-start * / ... / *
  * golden-end * /` block with the captured grid.

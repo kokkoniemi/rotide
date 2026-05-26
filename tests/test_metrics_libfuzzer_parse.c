@@ -1,5 +1,3 @@
-#define _GNU_SOURCE
-
 #include "metrics_libfuzzer_parse.h"
 #include "test_case.h"
 #include "test_helpers.h"

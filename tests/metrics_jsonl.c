@@ -1,6 +1,3 @@
-#define _DEFAULT_SOURCE
-#define _GNU_SOURCE
-
 #include "metrics_jsonl.h"
 
 #include <errno.h>

@@ -1,5 +1,3 @@
-#define _DEFAULT_SOURCE
-
 #include "grid_snapshot_update.h"
 
 #include "test_grid_snapshot.h"

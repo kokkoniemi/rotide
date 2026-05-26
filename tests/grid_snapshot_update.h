@@ -2,9 +2,6 @@
 #define TESTS_GRID_SNAPSHOT_UPDATE_H
 
 #include <stddef.h>
-/* Intentionally no <stdio.h> here: this header is pulled in transitively
- * by tests that haven't yet defined _DEFAULT_SOURCE via rotide.h. The
- * .c file owns the FILE* operations. */
 
 /* --update-golden support for ASSERT_GRID_EQ.
  *

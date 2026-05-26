@@ -1,6 +1,3 @@
-#define _DEFAULT_SOURCE
-#define _GNU_SOURCE
-
 #include "golden_apply_lib.h"
 
 #include "grid_snapshot_format.h"

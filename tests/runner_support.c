@@ -1,7 +1,3 @@
-#define _DEFAULT_SOURCE
-#define _BSD_SOURCE
-#define _GNU_SOURCE
-
 #include "runner_support.h"
 
 #include <ctype.h>

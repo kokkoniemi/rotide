@@ -5,8 +5,6 @@
  * runs: header shape, malformed Content-Length, overflow rejection,
  * oversized payload rejection, and multi-frame draining. */
 
-#define _GNU_SOURCE
-
 #include "language/lsp_framing.h"
 #include "test_case.h"
 #include "test_helpers.h"

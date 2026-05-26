@@ -220,8 +220,8 @@ static int terminalDecodeSgrMousePayload(const char *payload, struct editorMouse
 	int cy = 0;
 	char suffix = '\0';
 	int consumed = 0;
-	if (sscanf(payload, "%d;%d;%d%c%n", &cb, &cx, &cy, &suffix, &consumed) !=
-	    4) { // NOLINT(cert-err34-c)
+	// NOLINTNEXTLINE(cert-err34-c)
+	if (sscanf(payload, "%d;%d;%d%c%n", &cb, &cx, &cy, &suffix, &consumed) != 4) {
 		return 0;
 	}
 	if (payload[consumed] != '\0') {

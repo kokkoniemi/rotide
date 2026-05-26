@@ -5,8 +5,6 @@
  * Content-Length, overflow rejection, oversized payload rejection,
  * and multi-frame draining. */
 
-#define _GNU_SOURCE
-
 #include "debug/dap_client.h"
 #include "test_case.h"
 #include "test_helpers.h"

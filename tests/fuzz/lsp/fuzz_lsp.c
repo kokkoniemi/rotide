@@ -16,8 +16,6 @@
  * Build: see the `fuzz-lsp` Makefile target. clang + libFuzzer required.
  */
 
-#define _GNU_SOURCE
-
 #include "language/lsp_framing.h"
 
 #include <stddef.h>
