@@ -3,8 +3,17 @@
 #include "test_support.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
+#include "test_helpers.h"
 #include "workspace/layout.h"
 #include "workspace/tabs.h"
+#include "language/syntax.h"
+#include "rotide.h"
+
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 static int test_editor_column_select_alt_mouse_drag_starts_column_selection(void) {
 	add_row("abcdef");

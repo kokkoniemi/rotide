@@ -4,6 +4,8 @@
 #include "language/lsp_protocol.h"
 #include "support/file_io.h"
 #include "support/size_utils.h"
+#include "language/lsp.h"
+#include "rotide.h"
 
 #include <stdio.h>
 #include <stdlib.h>

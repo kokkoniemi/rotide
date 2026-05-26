@@ -1,4 +1,7 @@
 #include "render/ansi_style.h"
+#include "render/write_buf.h"
+#include "rotide.h"
+#include "config/theme_config.h"
 
 #include <stdio.h>
 #include <string.h>

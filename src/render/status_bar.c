@@ -5,6 +5,8 @@
 #include "workspace/drawer.h"
 #include "workspace/git.h"
 #include "workspace/tabs.h"
+#include "render/write_buf.h"
+#include "rotide.h"
 
 #include <stdio.h>
 #include <stdlib.h>

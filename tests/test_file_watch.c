@@ -4,6 +4,7 @@
 #include "workspace/tabs.h"
 #include "workspace/task.h"
 #include "workspace/watch.h"
+#include "rotide.h"
 
 #include <fcntl.h>
 #include <stdlib.h>

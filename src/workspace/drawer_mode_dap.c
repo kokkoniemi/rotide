@@ -4,9 +4,11 @@
 #include "workspace/drawer_internal.h"
 #include "workspace/file_search.h"
 #include "workspace/project_search.h"
+#include "rotide.h"
 
 #include <stdio.h>
 #include <string.h>
+#include <limits.h>
 
 enum drawerModeDapGroup {
 	EDITOR_DRAWER_DAP_GROUP_CONFIGURATIONS = 0,

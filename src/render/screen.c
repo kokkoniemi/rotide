@@ -24,6 +24,9 @@
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
+#include "language/syntax.h"
+#include "rotide.h"
+#include "config/theme_config.h"
 
 #include <errno.h>
 #include <stdio.h>

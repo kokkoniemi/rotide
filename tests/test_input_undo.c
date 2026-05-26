@@ -1,5 +1,6 @@
 #include "test_case.h"
 #include "test_support.h"
+#include "test_helpers.h"
 
 static int test_editor_process_keypress_ctrl_z_ctrl_y_roundtrip_after_cut(void) {
 	add_row("abcde");
@@ -196,3 +197,6 @@ const struct editorTestCase g_input_undo_tests[] = {
 
 const int g_input_undo_test_count =
         (int)(sizeof(g_input_undo_tests) / sizeof(g_input_undo_tests[0]));
+#include "rotide.h"
+#include "alloc_test_hooks.h"
+#include <string.h>

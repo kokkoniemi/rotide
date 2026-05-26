@@ -1,5 +1,6 @@
 #include "test_case.h"
 #include "test_support.h"
+#include "test_helpers.h"
 
 static int find_drawer_entry_containing(const char *needle, int *idx_out,
                                         struct editorDrawerEntryView *view_out) {
@@ -703,3 +704,21 @@ const struct editorTestCase g_lsp_diagnostics_tests[] = {
 
 const int g_lsp_diagnostics_test_count =
         (int)(sizeof(g_lsp_diagnostics_tests) / sizeof(g_lsp_diagnostics_tests[0]));
+#include "editing/edit.h"
+#include "language/syntax.h"
+#include "rotide.h"
+#include "editing/buffer_core.h"
+#include "editing/edit_pipeline.h"
+#include "language/lsp.h"
+#include "workspace/drawer.h"
+#include "workspace/tabs.h"
+#include "workspace/task.h"
+#include "editor_test_api.h"
+#include "language/lsp_transport.h"
+#include "editing/text_source.h"
+#include "text/document.h"
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>

@@ -9,6 +9,7 @@
 #include "config/common.h"
 #include "config/theme_config.h"
 #include "config/theme_internal.h"
+#include "language/syntax.h"
 
 #include <ctype.h>
 #include <errno.h>

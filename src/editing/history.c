@@ -5,6 +5,7 @@
 #include "editing/selection.h"
 #include "support/alloc.h"
 #include "support/size_utils.h"
+#include "rotide.h"
 
 #include <stdlib.h>
 #include <string.h>

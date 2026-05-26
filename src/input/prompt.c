@@ -8,6 +8,7 @@
 #include "support/terminal.h"
 #include "text/utf8.h"
 #include "workspace/task.h"
+#include "rotide.h"
 
 #include <ctype.h>
 #include <limits.h>

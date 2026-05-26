@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 /* Insert and bulk-load operations split their bytes into pieces of this size.
  * Smaller = more pieces but cheaper mid-piece splits later (each split rescans

@@ -12,6 +12,7 @@
 #include "workspace/tabs.h"
 #include "workspace/task.h"
 #include "workspace/workspace_state.h"
+#include "rotide.h"
 
 #include <stdlib.h>
 

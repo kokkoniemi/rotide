@@ -5,6 +5,7 @@
 #include "editing/history.h"
 #include "terminal/terminal_pane.h"
 #include "workspace/layout.h"
+#include "rotide.h"
 
 #include <stdlib.h>
 

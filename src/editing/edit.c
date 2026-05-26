@@ -15,6 +15,10 @@
 #include "workspace/git.h"
 #include "workspace/tabs.h"
 #include "workspace/watch.h"
+#include "editing/document_position.h"
+#include "rotide.h"
+#include "editing/edit_pipeline.h"
+#include "editing/text_source.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -26,6 +30,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/types.h>
 
 #define NEWLINE_CHAR_WIDTH 1
 #define BINARY_DETECT_SAMPLE_BYTES 8192

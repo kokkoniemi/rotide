@@ -1,6 +1,7 @@
 #include "config/keymap.h"
 
 #include "config/common.h"
+#include "rotide.h"
 
 #include <ctype.h>
 #include <errno.h>

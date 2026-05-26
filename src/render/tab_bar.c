@@ -7,6 +7,9 @@
 #include "workspace/drawer.h"
 #include "workspace/layout.h"
 #include "workspace/tabs.h"
+#include "render/write_buf.h"
+#include "rotide.h"
+#include "config/theme_config.h"
 
 #include <string.h>
 

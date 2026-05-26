@@ -9,6 +9,8 @@
 #include "text/document.h"
 #include "text/row.h"
 #include "workspace/tabs.h"
+#include "rotide.h"
+#include "language/syntax.h"
 
 #include <ctype.h>
 #include <stdlib.h>

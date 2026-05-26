@@ -7,6 +7,10 @@
 #include "support/size_utils.h"
 #include "text/document.h"
 #include "text/row.h"
+#include "editing/document_position.h"
+#include "rotide.h"
+#include "editing/edit_pipeline.h"
+#include "editing/text_source.h"
 
 #include <errno.h>
 #include <limits.h>

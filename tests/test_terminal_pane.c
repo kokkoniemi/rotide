@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <stdlib.h>
 
 static int wait_for_text_in_screen(struct editorTerminalPane *t, const char *needle,
                                    int timeout_ms) {

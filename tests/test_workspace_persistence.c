@@ -2,11 +2,27 @@
 #include "test_case.h"
 #include "test_support.h"
 #include "workspace/file_search.h"
+#include "test_helpers.h"
 #include "workspace/git.h"
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
 #include "workspace/workspace_state.h"
+#include "rotide.h"
+#include "language/lsp.h"
+#include "workspace/drawer.h"
+#include "workspace/recovery.h"
+
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <sys/wait.h>
 
 static int find_drawer_entry_path(const char *path, int *idx_out,
                                   struct editorDrawerEntryView *view_out) {

@@ -7,9 +7,11 @@
  */
 #include "language/syntax_internal.h"
 #include "tree_sitter/api.h"
+#include "language/syntax.h"
 
 #include <stddef.h>
 #include <string.h>
+#include <stdint.h>
 
 static int syntaxIndentTypeEqualsAny(const char *type, const char *const *types, size_t count) {
 	if (type == NULL || types == NULL) {

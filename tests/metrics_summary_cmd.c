@@ -4,6 +4,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #define DEFAULT_SUMMARY_LIMIT 5
 #define DEFAULT_WINDOW_HOURS 48

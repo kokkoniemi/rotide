@@ -6,6 +6,7 @@
 #include "workspace/file_search.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
+#include "rotide.h"
 
 #include <dirent.h>
 #include <errno.h>

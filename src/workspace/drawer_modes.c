@@ -4,6 +4,7 @@
 #include "workspace/file_search.h"
 #include "workspace/git.h"
 #include "workspace/project_search.h"
+#include "rotide.h"
 
 #include <string.h>
 

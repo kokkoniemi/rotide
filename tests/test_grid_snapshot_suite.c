@@ -1,4 +1,5 @@
 #include "editing/edit.h"
+#include "rotide.h"
 #include "test_case.h"
 #include "test_grid_snapshot.h"
 #include "test_helpers.h"

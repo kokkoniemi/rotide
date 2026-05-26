@@ -10,6 +10,8 @@
 #include "language/syntax_worker.h"
 #include "support/size_utils.h"
 #include "text/document.h"
+#include "rotide.h"
+#include "language/syntax_visible_cache.h"
 
 #include <limits.h>
 #include <stdint.h>

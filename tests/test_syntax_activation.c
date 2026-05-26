@@ -1,5 +1,6 @@
 #include "test_case.h"
 #include "test_support.h"
+#include "test_helpers.h"
 
 static int test_editor_syntax_activation_for_c_and_h_files(void) {
 	char c_path[] = "/tmp/rotide-test-syntax-c-XXXXXX.c";
@@ -1035,3 +1036,13 @@ const struct editorTestCase g_syntax_activation_tests[] = {
 
 const int g_syntax_activation_test_count =
         (int)(sizeof(g_syntax_activation_tests) / sizeof(g_syntax_activation_tests[0]));
+#include "editing/edit.h"
+#include "language/syntax.h"
+#include "rotide.h"
+#include "editing/buffer_core.h"
+#include "workspace/tabs.h"
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>

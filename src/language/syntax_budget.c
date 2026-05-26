@@ -7,6 +7,8 @@
  * or query work happens here.
  */
 #include "language/syntax_internal.h"
+#include "language/syntax.h"
+#include "rotide.h"
 
 #include <stdlib.h>
 

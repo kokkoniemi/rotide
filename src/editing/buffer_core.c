@@ -12,12 +12,16 @@
 #include "support/alloc.h"
 #include "text/document.h"
 #include "text/row.h"
+#include "editing/document_position.h"
+#include "rotide.h"
+#include "editing/text_source.h"
 
 #include <errno.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <limits.h>
 
 static struct editorDocument *bufferCoreAllocDocument(void);
 static void bufferCoreDisableSyntaxWithStatus(const char *message);

@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <stdint.h>
 
 int g_editor_syntax_max_injection_depth = ROTIDE_SYNTAX_DEFAULT_MAX_INJECTION_DEPTH;
 

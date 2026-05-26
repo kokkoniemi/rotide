@@ -7,6 +7,9 @@
 #include "config/theme_config.h"
 #include "editing/edit.h"
 #include "language/lsp.h"
+#include "rotide.h"
+
+#include <stddef.h>
 
 struct runtimeConfigStatus {
 	enum editorConfigBootstrapStatus bootstrap_status;

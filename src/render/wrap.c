@@ -4,6 +4,7 @@
 #include "text/utf8.h"
 #include "workspace/drawer.h"
 #include "workspace/layout.h"
+#include "rotide.h"
 
 #include <stdlib.h>
 

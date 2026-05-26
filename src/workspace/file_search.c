@@ -8,6 +8,7 @@
 #include "workspace/drawer.h"
 #include "workspace/tabs.h"
 #include "workspace/workspace_state.h"
+#include "rotide.h"
 
 #include <ctype.h>
 #include <dirent.h>
@@ -15,6 +16,7 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/stat.h>
+#include <limits.h>
 
 static const char *fileSearchRoot(void) {
 	const char *root = editorDrawerRootPath();

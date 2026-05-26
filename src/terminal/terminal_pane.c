@@ -11,6 +11,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdint.h>
+#include <sys/types.h>
 
 #define TERMINAL_SCROLLBACK_DEFAULT 10000
 #define TERMINAL_SCROLLBACK_MAX 1000000

@@ -4,6 +4,7 @@
 #include "support/alloc.h"
 #include "support/size_utils.h"
 #include "text/utf8.h"
+#include "render/write_buf.h"
 
 #include <limits.h>
 #include <stdlib.h>

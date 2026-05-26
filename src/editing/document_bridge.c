@@ -2,6 +2,7 @@
 
 #include "support/alloc.h"
 #include "text/document.h"
+#include "rotide.h"
 
 #include <stdlib.h>
 

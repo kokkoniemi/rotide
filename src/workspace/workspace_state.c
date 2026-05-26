@@ -22,6 +22,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <sys/types.h>
 
 #define ROTIDE_WORKSPACE_RECENT_FILE_LIMIT 64
 #define ROTIDE_WORKSPACE_PENDING_TAB_LIMIT 256

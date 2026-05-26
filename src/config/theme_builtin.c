@@ -11,6 +11,7 @@
  */
 #include "config/theme_config.h"
 #include "config/theme_internal.h"
+#include "language/syntax.h"
 
 #include <stdio.h>
 #include <string.h>

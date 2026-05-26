@@ -12,6 +12,8 @@
 #include "text/row.h"
 #include "workspace/tabs.h"
 #include "workspace/workspace_state.h"
+#include "editing/document_position.h"
+#include "rotide.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -22,6 +24,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/types.h>
 
 #define ROTIDE_RECOVERY_MAGIC "RTRECOV1"
 #define ROTIDE_RECOVERY_MAGIC_LEN 8

@@ -13,6 +13,7 @@
 #include <strings.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/types.h>
 
 long long editorLspMonotonicMillis(void) {
 	struct timespec ts;

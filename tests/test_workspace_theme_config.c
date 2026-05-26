@@ -7,6 +7,16 @@
 #include "test_case.h"
 #include "test_support.h"
 #include "workspace/tabs.h"
+#include "editing/edit.h"
+#include "test_helpers.h"
+#include "rotide.h"
+#include "language/syntax.h"
+
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/stat.h>
 
 static int theme_color_is_ansi(struct editorThemeColor color, enum editorThemeAnsiColor ansi) {
 	return color.kind == EDITOR_THEME_COLOR_ANSI && color.value == (unsigned char)ansi;

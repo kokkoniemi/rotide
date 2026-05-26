@@ -10,6 +10,8 @@
 #include "language/languages.h"
 #include "language/syntax_internal.h"
 #include "tree_sitter/api.h"
+#include "language/syntax.h"
+#include "rotide.h"
 
 #include <stddef.h>
 #include <stdint.h>

@@ -10,6 +10,8 @@
 #include "text/utf8.h"
 #include "workspace/drawer.h"
 #include "workspace/tabs.h"
+#include "editing/document_position.h"
+#include "rotide.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -21,6 +23,7 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <sys/types.h>
 
 #define EDITOR_PROJECT_SEARCH_MAX_RESULTS 500
 #define EDITOR_PROJECT_SEARCH_OUTPUT_MAX (2U * 1024U * 1024U)

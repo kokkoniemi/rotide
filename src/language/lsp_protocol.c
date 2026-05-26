@@ -9,6 +9,11 @@
 #include "support/size_utils.h"
 #include "text/utf8.h"
 #include "workspace/tabs.h"
+#include "rotide.h"
+#include "language/lsp_framing.h"
+#include "language/syntax.h"
+#include "language/lsp_transport.h"
+#include "language/lsp_json.h"
 
 #include <ctype.h>
 #include <stdint.h>
@@ -16,6 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <limits.h>
 
 char *editorLspBuildInitializeRequestJson(int request_id, const char *root_uri, int process_id) {
 	if (root_uri == NULL || root_uri[0] == '\0') {

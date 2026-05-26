@@ -20,6 +20,14 @@
 #include "workspace/project_search.h"
 #include "workspace/recovery.h"
 #include "workspace/tabs.h"
+#include "editing/document_position.h"
+#include "input/prompt.h"
+#include "language/syntax.h"
+#include "rotide.h"
+#include "editing/edit_pipeline.h"
+#include "editing/text_source.h"
+#include "render/viewport.h"
+#include "editing/buffer_search.h"
 
 #include <ctype.h>
 #include <limits.h>

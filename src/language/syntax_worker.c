@@ -3,6 +3,8 @@
 #include "support/alloc.h"
 #include "support/size_utils.h"
 #include "text/row.h"
+#include "language/syntax.h"
+#include "rotide.h"
 
 #include <pthread.h>
 #include <stdint.h>

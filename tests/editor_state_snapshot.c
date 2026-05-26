@@ -1,6 +1,7 @@
 #include "editor_state_snapshot.h"
 
 #include "runner_support.h"
+#include "rotide.h"
 
 #include <stddef.h>
 #include <string.h>

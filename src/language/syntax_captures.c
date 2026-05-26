@@ -9,6 +9,8 @@
  */
 #include "language/syntax_internal.h"
 #include "tree_sitter/api.h"
+#include "language/syntax.h"
+#include "rotide.h"
 
 #include <stdint.h>
 #include <stdlib.h>

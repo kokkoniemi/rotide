@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 static int tree_byte_at(const struct editorTextTree *tree, size_t off, char *out) {
 	uint32_t avail = 0;

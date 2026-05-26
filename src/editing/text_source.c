@@ -5,9 +5,11 @@
 #include "support/alloc.h"
 #include "support/size_utils.h"
 #include "text/document.h"
+#include "rotide.h"
 
 #include <errno.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 static int g_text_source_active_build_count = 0;
 static int g_text_source_active_dup_count = 0;

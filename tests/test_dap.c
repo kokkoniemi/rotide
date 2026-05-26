@@ -4,7 +4,16 @@
 #include "test_case.h"
 #include "test_support.h"
 #include "workspace/layout.h"
+#include "test_helpers.h"
 #include "workspace/tabs.h"
+#include "rotide.h"
+#include "workspace/drawer.h"
+
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 static int test_editor_dap_config_loads_global_defaults_and_project_launches(void) {
 	char dir_template[] = "/tmp/rotide-test-dap-config-XXXXXX";

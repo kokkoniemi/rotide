@@ -5,6 +5,8 @@
 #include "input/prompt.h"
 #include "language/lsp.h"
 #include "workspace/task.h"
+#include "language/syntax.h"
+#include "rotide.h"
 
 #include <string.h>
 

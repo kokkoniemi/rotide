@@ -2,6 +2,7 @@
 #include "workspace/drawer_internal.h"
 #include "workspace/file_search.h"
 #include "workspace/project_search.h"
+#include "rotide.h"
 
 #include <string.h>
 

@@ -4,11 +4,13 @@
 #include "rotide.h"
 #include "terminal/terminal_pane.h"
 #include "workspace/layout.h"
+#include "debug/dap.h"
 
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <sys/types.h>
 
 void editorDapConsoleCloseOwnedTerminalPane(void) {
 	if (E.dap_terminal_leaf == NULL) {

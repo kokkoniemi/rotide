@@ -17,8 +17,11 @@
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
+#include "rotide.h"
 
 #include <ctype.h>
+#include <stddef.h>
+#include <time.h>
 
 enum {
 	MOUSE_WHEEL_SCROLL_LINES = 3,

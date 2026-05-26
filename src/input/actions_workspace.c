@@ -12,6 +12,7 @@
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
+#include "rotide.h"
 
 #include <limits.h>
 #include <stdio.h>

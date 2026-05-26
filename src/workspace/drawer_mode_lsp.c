@@ -5,9 +5,11 @@
 #include "workspace/file_search.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
+#include "rotide.h"
 
 #include <stdio.h>
 #include <string.h>
+#include <limits.h>
 
 enum drawerModeLspGroup {
 	EDITOR_DRAWER_LSP_GROUP_PROBLEMS = 0,

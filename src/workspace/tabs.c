@@ -18,6 +18,11 @@
 #include "workspace/layout.h"
 #include "workspace/task.h"
 #include "workspace/workspace_state.h"
+#include "editing/document_position.h"
+#include "rotide.h"
+#include "language/syntax_visible_cache.h"
+#include "editing/document_bridge.h"
+#include "editing/row_cache.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -28,6 +33,7 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <sys/types.h>
 
 #define EDITOR_UNSUPPORTED_FILE_TEXT "File is unsupported\n\nBinary files are not supported.\n"
 

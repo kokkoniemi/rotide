@@ -9,6 +9,7 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/types.h>
 
 void editorPtyChildInit(struct editorPtyChild *child) {
 	if (child == NULL) {

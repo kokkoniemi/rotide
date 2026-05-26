@@ -5,6 +5,9 @@
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/project_search.h"
+#include "render/write_buf.h"
+#include "rotide.h"
+#include "config/theme_config.h"
 
 #include <limits.h>
 #include <stdio.h>

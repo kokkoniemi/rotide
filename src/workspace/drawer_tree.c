@@ -4,6 +4,7 @@
 #include "support/file_io.h"
 #include "support/size_utils.h"
 #include "workspace/drawer_internal.h"
+#include "rotide.h"
 
 #include <dirent.h>
 #include <errno.h>

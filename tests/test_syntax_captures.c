@@ -1,5 +1,6 @@
 #include "test_case.h"
 #include "test_support.h"
+#include "test_helpers.h"
 
 static char *build_dense_c_expression_source(int terms, size_t *len_out) {
 	if (terms <= 0 || len_out == NULL) {
@@ -380,3 +381,14 @@ const struct editorTestCase g_syntax_captures_tests[] = {
 
 const int g_syntax_captures_test_count =
         (int)(sizeof(g_syntax_captures_tests) / sizeof(g_syntax_captures_tests[0]));
+#include "editing/edit.h"
+#include "language/syntax.h"
+#include "rotide.h"
+#include "editing/buffer_core.h"
+#include "language/syntax_visible_cache.h"
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>

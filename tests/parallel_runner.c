@@ -6,6 +6,7 @@
 
 #include "editor_state_snapshot.h"
 #include "rotide.h"
+#include "runner_support.h"
 #include "test_helpers.h"
 
 #include <errno.h>

@@ -6,8 +6,10 @@
 #include "text/row.h"
 #include "workspace/drawer.h"
 #include "workspace/layout.h"
+#include "rotide.h"
 
 #include <limits.h>
+#include <stddef.h>
 
 static int viewportTextBodyColsForWidth(int pane_cols) {
 	int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);

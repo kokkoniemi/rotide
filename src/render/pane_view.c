@@ -9,6 +9,11 @@
 #include "render/terminal_view.h"
 #include "workspace/drawer.h"
 #include "workspace/tabs.h"
+#include "render/write_buf.h"
+#include "rotide.h"
+#include "config/theme_config.h"
+#include "terminal/terminal_pane.h"
+#include "workspace/layout.h"
 
 #include <stdio.h>
 #include <stdlib.h>

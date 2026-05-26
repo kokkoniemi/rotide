@@ -2,11 +2,16 @@
 #include "test_case.h"
 #include "test_support.h"
 #include "vterm.h"
+#include "test_helpers.h"
 #include "workspace/drawer.h"
 #include "workspace/layout.h"
 #include "workspace/tabs.h"
+#include "rotide.h"
 
 #include <time.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define TEST_HEADER_BG "\x1b[48;5;236m"
 #define TEST_HEADER_ACTIVE "\x1b[7m"

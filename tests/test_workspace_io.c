@@ -1,6 +1,14 @@
 #include "config/common.h"
+#include "rotide.h"
+#include "support/terminal.h"
+#include "alloc_test_hooks.h"
 #include "test_case.h"
+
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include "test_support.h"
+#include "test_helpers.h"
 
 static int test_editor_read_key_sequences(void) {
 	int key = 0;

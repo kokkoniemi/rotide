@@ -8,6 +8,7 @@
 #include "support/size_utils.h"
 #include "text/document.h"
 #include "text/row.h"
+#include "language/syntax.h"
 
 #include <stdint.h>
 #include <stdlib.h>

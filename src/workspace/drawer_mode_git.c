@@ -3,9 +3,11 @@
 #include "workspace/file_search.h"
 #include "workspace/git.h"
 #include "workspace/project_search.h"
+#include "rotide.h"
 
 #include <stdio.h>
 #include <string.h>
+#include <limits.h>
 
 enum drawerModeGitGroup {
 	EDITOR_DRAWER_GIT_GROUP_STAGED = 0,

@@ -4,6 +4,9 @@
 #include "support/size_utils.h"
 #include "text/document.h"
 #include "text/row.h"
+#include "rotide.h"
+
+#include <stddef.h>
 
 static int documentPositionEnsureActiveDocument(const struct editorDocument **document_out) {
 	if (document_out == NULL || !editorTabKindSupportsDocument(E.tab_kind) ||

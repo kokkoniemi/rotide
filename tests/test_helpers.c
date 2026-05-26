@@ -24,6 +24,8 @@
 #include "workspace/tabs.h"
 #include "workspace/watch.h"
 #include "workspace/workspace_state.h"
+#include "input/prompt.h"
+#include "rotide.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -31,6 +33,8 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+#include <stdio.h>
+#include <sys/types.h>
 
 static char *g_test_repo_root = NULL;
 

@@ -5,6 +5,7 @@
 #include "language/syntax.h"
 #include "support/size_utils.h"
 #include "text/document.h"
+#include "rotide.h"
 
 #include <stdlib.h>
 #include <string.h>

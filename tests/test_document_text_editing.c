@@ -1,5 +1,6 @@
 #include "test_case.h"
 #include "test_support.h"
+#include "test_helpers.h"
 
 static int test_utf8_decode_valid_sequences(void) {
 	unsigned int cp = 0;
@@ -1360,3 +1361,17 @@ const struct editorTestCase g_document_text_editing_tests[] = {
 
 const int g_document_text_editing_test_count =
         (int)(sizeof(g_document_text_editing_tests) / sizeof(g_document_text_editing_tests[0]));
+#include "editing/document_position.h"
+#include "editing/edit.h"
+#include "rotide.h"
+#include "editing/buffer_core.h"
+#include "editing/history.h"
+#include "text/text_tree.h"
+#include "editing/buffer_search.h"
+#include "text/document.h"
+#include "editor_test_api.h"
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>

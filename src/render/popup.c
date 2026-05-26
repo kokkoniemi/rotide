@@ -1,6 +1,7 @@
 #include "render/popup.h"
 
 #include "workspace/drawer.h"
+#include "rotide.h"
 
 #include <stdlib.h>
 #include <string.h>

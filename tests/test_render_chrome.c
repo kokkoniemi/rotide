@@ -4,12 +4,20 @@
 #include "test_support.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
+#include "test_helpers.h"
 #include "workspace/git.h"
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
+#include "render/write_buf.h"
+#include "rotide.h"
+#include "render/viewport.h"
 
 #include <time.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 #define TEST_HEADER_BG "\x1b[48;5;236m"
 #define TEST_HEADER_ACTIVE "\x1b[7m"
