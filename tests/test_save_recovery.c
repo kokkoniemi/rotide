@@ -1,6 +1,6 @@
 #include "test_case.h"
-#include "test_support.h"
 #include "test_helpers.h"
+#include "test_support.h"
 
 static int test_editor_save_writes_file_and_clears_dirty(void) {
 	char path[] = "/tmp/rotide-test-save-XXXXXX";
@@ -1102,18 +1102,19 @@ const struct editorTestCase g_save_recovery_tests[] = {
 
 const int g_save_recovery_test_count =
         (int)(sizeof(g_save_recovery_tests) / sizeof(g_save_recovery_tests[0]));
+#include "alloc_test_hooks.h"
 #include "editing/edit.h"
-#include "workspace/tabs.h"
-#include "workspace/recovery.h"
 #include "rotide.h"
 #include "save_syscalls_test_hooks.h"
-#include "alloc_test_hooks.h"
+#include "workspace/recovery.h"
+#include "workspace/tabs.h"
+
+#include <fcntl.h>
 #include <limits.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <sys/stat.h>
-#include <fcntl.h>
 #include <time.h>
+#include <unistd.h>

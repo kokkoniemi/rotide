@@ -1,8 +1,10 @@
 #include "workspace/project_search.h"
 
 #include "editing/buffer_core.h"
+#include "editing/document_position.h"
 #include "editing/edit.h"
 #include "render/viewport.h"
+#include "rotide.h"
 #include "support/alloc.h"
 #include "support/file_io.h"
 #include "support/size_utils.h"
@@ -10,8 +12,6 @@
 #include "text/utf8.h"
 #include "workspace/drawer.h"
 #include "workspace/tabs.h"
-#include "editing/document_position.h"
-#include "rotide.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -21,9 +21,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <sys/types.h>
 
 #define EDITOR_PROJECT_SEARCH_MAX_RESULTS 500
 #define EDITOR_PROJECT_SEARCH_OUTPUT_MAX (2U * 1024U * 1024U)
@@ -144,7 +144,7 @@ static int projectSearchBuildDisplay(const char *path, int line, int col, const 
 		return 0;
 	}
 	(void)snprintf(display, bytes, "%s:%d:%d: %s", display_path, line, col,
-	         line_text != NULL ? line_text : "");
+	               line_text != NULL ? line_text : "");
 	*display_out = display;
 	return 1;
 }

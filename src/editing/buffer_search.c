@@ -3,9 +3,9 @@
 #include "editing/document_position.h"
 #include "editing/text_source.h"
 #include "language/syntax.h"
+#include "rotide.h"
 #include "support/size_utils.h"
 #include "text/document.h"
-#include "rotide.h"
 
 #include <stdlib.h>
 #include <string.h>

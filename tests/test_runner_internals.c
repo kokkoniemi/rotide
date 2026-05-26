@@ -6,8 +6,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 static int test_runner_name_matches_substring(void) {
 	ASSERT_TRUE(runnerNameMatches("lsp_protocol_handshake", "lsp"));

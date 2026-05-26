@@ -1,10 +1,10 @@
+#include "rotide.h"
 #include "support/file_io.h"
 #include "workspace/drawer.h"
 #include "workspace/drawer_internal.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
 #include "workspace/project_search.h"
-#include "rotide.h"
 
 #include <string.h>
 

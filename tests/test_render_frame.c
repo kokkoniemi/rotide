@@ -1,22 +1,22 @@
+#include "config/theme_config.h"
+#include "editing/buffer_core.h"
+#include "editing/edit.h"
+#include "language/syntax.h"
+#include "language/syntax_visible_cache.h"
+#include "render/screen.h"
+#include "render/viewport.h"
+#include "rotide.h"
 #include "test_case.h"
 #include "test_grid_snapshot.h"
+#include "test_helpers.h"
 #include "test_support.h"
 #include "workspace/drawer.h"
 #include "workspace/tabs.h"
-#include "editing/edit.h"
-#include "test_helpers.h"
-#include "language/syntax.h"
-#include "rotide.h"
-#include "editing/buffer_core.h"
-#include "config/theme_config.h"
-#include "language/syntax_visible_cache.h"
-#include "render/viewport.h"
-#include "render/screen.h"
 
-#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #define TEST_HEADER_BG "\x1b[48;5;236m"

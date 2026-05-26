@@ -3,9 +3,13 @@
 #include "config/common.h"
 #include "config/runtime_config.h"
 #include "editing/buffer_core.h"
+#include "editing/document_position.h"
+#include "editing/edit_pipeline.h"
+#include "editing/text_source.h"
 #include "input/prompt.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
+#include "rotide.h"
 #include "support/alloc.h"
 #include "support/file_io.h"
 #include "support/save_syscalls.h"
@@ -15,10 +19,6 @@
 #include "workspace/git.h"
 #include "workspace/tabs.h"
 #include "workspace/watch.h"
-#include "editing/document_position.h"
-#include "rotide.h"
-#include "editing/edit_pipeline.h"
-#include "editing/text_source.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -28,9 +28,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
-#include <sys/types.h>
 
 #define NEWLINE_CHAR_WIDTH 1
 #define BINARY_DETECT_SAMPLE_BYTES 8192

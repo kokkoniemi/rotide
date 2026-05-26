@@ -3,9 +3,9 @@
 #include "debug/dap.h"
 #include "editing/edit.h"
 #include "editing/history.h"
+#include "rotide.h"
 #include "terminal/terminal_pane.h"
 #include "workspace/layout.h"
-#include "rotide.h"
 
 #include <stdlib.h>
 

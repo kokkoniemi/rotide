@@ -9,8 +9,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 /* Representative output from a `-runs=500 -print_final_stats=1` run of
  * tests/fuzz/lsp/fuzz_lsp against tests/fuzz/lsp/corpus. Kept short by

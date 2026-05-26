@@ -2,10 +2,10 @@
 #include "test_helpers.h"
 #include "text/text_tree.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
 
 static int tree_byte_at(const struct editorTextTree *tree, size_t off, char *out) {
 	uint32_t avail = 0;
@@ -21,7 +21,7 @@ static int tree_matches_string(const struct editorTextTree *tree, const char *ex
                                size_t expected_len) {
 	if (editorTextTreeLength(tree) != expected_len) {
 		(void)fprintf(stderr, "tree_len=%zu expected=%zu\n", editorTextTreeLength(tree),
-		        expected_len);
+		              expected_len);
 		return 0;
 	}
 	for (size_t i = 0; i < expected_len; i++) {
@@ -32,7 +32,7 @@ static int tree_matches_string(const struct editorTextTree *tree, const char *ex
 		}
 		if (b != expected[i]) {
 			(void)fprintf(stderr, "byte diff at %zu: tree=0x%02x expected=0x%02x\n", i,
-			        (unsigned char)b, (unsigned char)expected[i]);
+			              (unsigned char)b, (unsigned char)expected[i]);
 			return 0;
 		}
 	}

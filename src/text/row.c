@@ -1,9 +1,9 @@
 #include "text/row.h"
 
+#include "rotide.h"
 #include "support/alloc.h"
 #include "support/size_utils.h"
 #include "text/utf8.h"
-#include "rotide.h"
 
 #include <stdlib.h>
 #include <string.h>

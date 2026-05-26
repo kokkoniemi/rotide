@@ -8,6 +8,7 @@
 #include "input/actions_workspace.h"
 #include "language/lsp.h"
 #include "render/viewport.h"
+#include "rotide.h"
 #include "support/terminal.h"
 #include "terminal/terminal_pane.h"
 #include "text/document.h"
@@ -17,7 +18,6 @@
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
-#include "rotide.h"
 
 #include <ctype.h>
 #include <stddef.h>

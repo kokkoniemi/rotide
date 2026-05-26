@@ -145,7 +145,8 @@ static int parseIsoTs(const char *ts, time_t *out) {
 	/* Accept exactly the writer's format: YYYY-MM-DDTHH:MM:SSZ. */
 	struct tm tm;
 	memset(&tm, 0, sizeof(tm));
-	if (sscanf(ts, "%4d-%2d-%2dT%2d:%2d:%2dZ", &tm.tm_year, &tm.tm_mon, &tm.tm_mday, // NOLINT(cert-err34-c)
+	if (sscanf(ts, "%4d-%2d-%2dT%2d:%2d:%2dZ", &tm.tm_year, &tm.tm_mon,
+	           &tm.tm_mday, // NOLINT(cert-err34-c)
 	           &tm.tm_hour, &tm.tm_min, &tm.tm_sec) != 6) {
 		return 0;
 	}

@@ -1,9 +1,12 @@
 #include "workspace/recovery.h"
 
 #include "editing/buffer_core.h"
+#include "editing/document_bridge.h"
+#include "editing/document_position.h"
 #include "editing/edit.h"
 #include "language/syntax.h"
 #include "render/screen.h"
+#include "rotide.h"
 #include "support/alloc.h"
 #include "support/file_io.h"
 #include "support/size_utils.h"
@@ -12,9 +15,6 @@
 #include "text/row.h"
 #include "workspace/tabs.h"
 #include "workspace/workspace_state.h"
-#include "editing/document_position.h"
-#include "rotide.h"
-#include "editing/document_bridge.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -23,9 +23,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
-#include <sys/types.h>
 
 #define ROTIDE_RECOVERY_MAGIC "RTRECOV1"
 #define ROTIDE_RECOVERY_MAGIC_LEN 8

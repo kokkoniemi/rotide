@@ -1,17 +1,17 @@
 #include "debug/dap_console.h"
 
+#include "config/dap_config.h"
+#include "debug/dap.h"
 #include "editing/edit.h"
 #include "rotide.h"
 #include "terminal/terminal_pane.h"
 #include "workspace/layout.h"
-#include "debug/dap.h"
-#include "config/dap_config.h"
 
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 
 void editorDapConsoleCloseOwnedTerminalPane(void) {
 	if (E.dap_terminal_leaf == NULL) {

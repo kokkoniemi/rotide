@@ -1,10 +1,10 @@
 #include "editing/edit.h"
+#include "rotide.h"
 #include "test_case.h"
 #include "test_helpers.h"
 #include "workspace/tabs.h"
 #include "workspace/task.h"
 #include "workspace/watch.h"
-#include "rotide.h"
 
 #include <fcntl.h>
 #include <stdlib.h>

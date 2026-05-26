@@ -29,12 +29,12 @@
 
 static void usage(FILE *out) {
 	(void)fprintf(out, "usage: metrics_summary <subcommand> [opts]\n"
-	             "  Subcommands: summary | check-fuzz-stale | check-bench-regression\n"
-	             "  Common: --in PATH --kind KIND --target NAME --bench-name NAME\n"
-	             "          --since-hours N\n"
-	             "  summary:                --limit N\n"
-	             "  check-fuzz-stale:       --window-hours N\n"
-	             "  check-bench-regression: --factor F\n");
+	                   "  Subcommands: summary | check-fuzz-stale | check-bench-regression\n"
+	                   "  Common: --in PATH --kind KIND --target NAME --bench-name NAME\n"
+	                   "          --since-hours N\n"
+	                   "  summary:                --limit N\n"
+	                   "  check-fuzz-stale:       --window-hours N\n"
+	                   "  check-bench-regression: --factor F\n");
 }
 
 static int parse_kind(const char *s, enum editorMetricsKind *out) {
@@ -143,7 +143,8 @@ int main(int argc, char **argv) {
 	int count = 0;
 	int skipped = 0;
 	if (editorMetricsRowsLoad(in_path, &rows, &count, &skipped) != 0) {
-		(void)fprintf(stderr, "metrics_summary: cannot read %s: %s\n", in_path, strerror(errno));
+		(void)fprintf(stderr, "metrics_summary: cannot read %s: %s\n", in_path,
+		              strerror(errno));
 		return 2;
 	}
 	if (skipped > 0) {

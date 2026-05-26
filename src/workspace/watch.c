@@ -1,20 +1,20 @@
 #include "workspace/watch.h"
 
 #include "editing/buffer_core.h"
+#include "editing/document_bridge.h"
+#include "editing/document_position.h"
 #include "editing/edit.h"
-#include "render/viewport.h"
 #include "editing/history.h"
+#include "editing/row_cache.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
+#include "render/viewport.h"
+#include "rotide.h"
 #include "support/alloc.h"
 #include "text/document.h"
 #include "text/row.h"
 #include "workspace/git.h"
 #include "workspace/tabs.h"
-#include "editing/document_position.h"
-#include "rotide.h"
-#include "editing/document_bridge.h"
-#include "editing/row_cache.h"
 
 #include <errno.h>
 #include <limits.h>

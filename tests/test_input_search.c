@@ -1,11 +1,11 @@
+#include "rotide.h"
 #include "test_case.h"
+#include "test_helpers.h"
 #include "test_support.h"
 #include "workspace/drawer.h"
-#include "test_helpers.h"
 #include "workspace/file_search.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
-#include "rotide.h"
 
 #include <stddef.h>
 #include <unistd.h>

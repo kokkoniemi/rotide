@@ -2,12 +2,12 @@
 
 #include "editing/document_bridge.h"
 #include "rotide.h"
-#include "text/text_tree.h"
 #include "text/text_summary.h"
+#include "text/text_tree.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
 
 static const char *documentTextSourceRead(const struct editorTextSource *source, size_t byte_index,
                                           uint32_t *bytes_read) {

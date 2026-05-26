@@ -1,6 +1,6 @@
 #include "test_case.h"
-#include "test_support.h"
 #include "test_helpers.h"
+#include "test_support.h"
 
 static int test_editor_lsp_autocomplete_disabled_by_config_does_not_trigger(void) {
 	editorLspTestResetMock();
@@ -421,9 +421,10 @@ const struct editorTestCase g_lsp_completion_tests[] = {
 const int g_lsp_completion_test_count =
         (int)(sizeof(g_lsp_completion_tests) / sizeof(g_lsp_completion_tests[0]));
 #include "editing/edit.h"
-#include "language/syntax.h"
-#include "language/lsp.h"
 #include "language/autocomplete.h"
+#include "language/lsp.h"
+#include "language/syntax.h"
 #include "render/popup.h"
+
 #include <stddef.h>
 #include <stdlib.h>

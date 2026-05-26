@@ -63,7 +63,7 @@ static char *read_whole_file(const char *path) {
 
 static void usage(FILE *out) {
 	(void)fprintf(out, "usage: metrics_fuzz_emit --target NAME --log PATH "
-	             "--corpus-dir PATH --metrics-out PATH [--soak-seconds N]\n");
+	                   "--corpus-dir PATH --metrics-out PATH [--soak-seconds N]\n");
 }
 
 int main(int argc, char **argv) {
@@ -123,7 +123,7 @@ int main(int argc, char **argv) {
 	char *text = read_whole_file(log);
 	if (text == NULL) {
 		(void)fprintf(stderr, "metrics_fuzz_emit: warning: cannot read log %s: %s\n", log,
-		        strerror(errno));
+		              strerror(errno));
 		/* Still try to emit a row with corpus stats so chart code sees
 		 * something. */
 		text = strdup("");
@@ -159,7 +159,7 @@ int main(int argc, char **argv) {
 	                             (int)(sizeof(fields) / sizeof(fields[0])));
 	if (rc != 0) {
 		(void)fprintf(stderr, "metrics_fuzz_emit: warning: failed to append to %s\n",
-		        metrics_out);
+		              metrics_out);
 		return 1;
 	}
 	return 0;

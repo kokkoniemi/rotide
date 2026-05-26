@@ -1,13 +1,13 @@
 #include "render/drawer_view.h"
 
+#include "config/theme_config.h"
 #include "render/ansi_style.h"
 #include "render/display_text.h"
+#include "render/write_buf.h"
+#include "rotide.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/project_search.h"
-#include "render/write_buf.h"
-#include "rotide.h"
-#include "config/theme_config.h"
 
 #include <limits.h>
 #include <stdio.h>
@@ -561,7 +561,7 @@ static int drawerViewBuildRowPlain(struct writeBuf *wb, int visible_idx) {
 
 	char entry_name_buf[PATH_MAX + 512];
 	(void)snprintf(entry_name_buf, sizeof(entry_name_buf), "%s",
-	         entry.name != NULL ? entry.name : "");
+	               entry.name != NULL ? entry.name : "");
 
 	if (!entry.is_root && !wbAppend(wb, " ", 1)) {
 		return 0;

@@ -1,11 +1,11 @@
 #include "language/lsp_mock.h"
 
 #include "language/autocomplete.h"
+#include "language/lsp.h"
+#include "language/lsp_protocol.h"
 #include "language/lsp_registry.h"
 #include "language/lsp_responses.h"
-#include "language/lsp.h"
 #include "language/lsp_transport.h"
-#include "language/lsp_protocol.h"
 #include "rotide.h"
 
 #include <stdio.h>

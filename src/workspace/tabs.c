@@ -2,14 +2,19 @@
 
 #include "debug/dap.h"
 #include "editing/buffer_core.h"
+#include "editing/document_bridge.h"
+#include "editing/document_position.h"
 #include "editing/edit.h"
 #include "editing/history.h"
+#include "editing/row_cache.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
+#include "language/syntax_visible_cache.h"
 #include "language/syntax_worker.h"
+#include "render/viewport.h"
+#include "rotide.h"
 #include "support/alloc.h"
 #include "support/file_io.h"
-#include "render/viewport.h"
 #include "support/size_utils.h"
 #include "text/document.h"
 #include "text/row.h"
@@ -18,11 +23,6 @@
 #include "workspace/layout.h"
 #include "workspace/task.h"
 #include "workspace/workspace_state.h"
-#include "editing/document_position.h"
-#include "rotide.h"
-#include "language/syntax_visible_cache.h"
-#include "editing/document_bridge.h"
-#include "editing/row_cache.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -31,9 +31,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <sys/types.h>
 
 #define EDITOR_UNSUPPORTED_FILE_TEXT "File is unsupported\n\nBinary files are not supported.\n"
 

@@ -3,21 +3,21 @@
 #include "config/editor_config.h"
 #include "config/keymap.h"
 #include "config/theme_config.h"
+#include "editing/edit.h"
+#include "input/actions_file_tab.h"
+#include "language/syntax.h"
 #include "render/ansi_style.h"
+#include "rotide.h"
 #include "test_case.h"
+#include "test_helpers.h"
 #include "test_support.h"
 #include "workspace/tabs.h"
-#include "editing/edit.h"
-#include "test_helpers.h"
-#include "rotide.h"
-#include "language/syntax.h"
-#include "input/actions_file_tab.h"
 
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 static int theme_color_is_ansi(struct editorThemeColor color, enum editorThemeAnsiColor ansi) {
 	return color.kind == EDITOR_THEME_COLOR_ANSI && color.value == (unsigned char)ansi;

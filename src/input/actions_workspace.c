@@ -5,6 +5,7 @@
 #include "editing/edit.h"
 #include "editing/history.h"
 #include "input/prompt.h"
+#include "rotide.h"
 #include "terminal/terminal_pane.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
@@ -12,7 +13,6 @@
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
-#include "rotide.h"
 
 #include <limits.h>
 #include <stdio.h>

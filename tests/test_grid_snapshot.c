@@ -5,10 +5,10 @@
 #include "rotide.h"
 #include "test_helpers.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
 
 /* Encode a single Unicode codepoint as UTF-8. Returns bytes written. */
 static int encode_utf8(uint32_t cp, char *out) {

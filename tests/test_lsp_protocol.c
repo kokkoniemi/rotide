@@ -1,6 +1,6 @@
 #include "test_case.h"
-#include "test_support.h"
 #include "test_helpers.h"
+#include "test_support.h"
 
 static int test_editor_lsp_config_defaults_and_precedence(void) {
 	int gopls_enabled = 0;
@@ -514,8 +514,8 @@ const struct editorTestCase g_lsp_protocol_tests[] = {
 
 const int g_lsp_protocol_test_count =
         (int)(sizeof(g_lsp_protocol_tests) / sizeof(g_lsp_protocol_tests[0]));
-#include "language/lsp.h"
 #include "config/lsp_config.h"
+#include "language/lsp.h"
 #include "language/lsp_responses.h"
 
 #include <limits.h>

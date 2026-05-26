@@ -1,8 +1,8 @@
 #include "config/editor_config.h"
 
 #include "config/common.h"
-#include "terminal/terminal_pane.h"
 #include "rotide.h"
+#include "terminal/terminal_pane.h"
 
 #include <errno.h>
 #include <stdio.h>

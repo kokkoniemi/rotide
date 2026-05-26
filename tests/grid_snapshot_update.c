@@ -123,9 +123,9 @@ int editor_grid_snapshot_check_or_stash(const char *expected, const char *actual
 	}
 	if (append_stash_row(stash, file, line, actual) != 0) {
 		(void)fprintf(stderr,
-		        "grid-snapshot-update: warning: failed to write stash row "
-		        "for %s:%d: %s\n",
-		        file, line, strerror(errno));
+		              "grid-snapshot-update: warning: failed to write stash row "
+		              "for %s:%d: %s\n",
+		              file, line, strerror(errno));
 	}
 	return 0;
 }

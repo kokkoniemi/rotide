@@ -1,5 +1,6 @@
 #include "config/runtime_config.h"
 
+#include "config/common.h"
 #include "config/dap_config.h"
 #include "config/editor_config.h"
 #include "config/keymap.h"
@@ -8,7 +9,6 @@
 #include "editing/edit.h"
 #include "language/lsp.h"
 #include "rotide.h"
-#include "config/common.h"
 
 #include <stddef.h>
 

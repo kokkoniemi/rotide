@@ -244,7 +244,7 @@ int main(int argc, char **argv) {
 	}
 	if (skipped_parse > 0) {
 		(void)fprintf(stderr, "golden_diff_report: %d malformed stash row(s) skipped\n",
-		        skipped_parse);
+		              skipped_parse);
 	}
 	if (count == 0) {
 		(void)fprintf(stdout, "golden_diff_report: stash is empty\n");
@@ -260,14 +260,15 @@ int main(int argc, char **argv) {
 		char *src = read_whole_file(ent->file, &src_len);
 		if (src == NULL) {
 			(void)fprintf(stderr, "golden_diff_report: %s:%d cannot read source file\n",
-			        ent->file, ent->line);
+			              ent->file, ent->line);
 			continue;
 		}
 		const char *block_end = NULL;
 		const char *block_start =
 		        find_block_after_line(src, src_len, ent->line, &block_end);
 		if (block_start == NULL || block_end == NULL || block_end <= block_start) {
-			(void)fprintf(stderr,
+			(void)fprintf(
+			        stderr,
 			        "golden_diff_report: %s:%d no golden-start/end pair after recorded "
 			        "line\n",
 			        ent->file, ent->line);
@@ -278,8 +279,8 @@ int main(int argc, char **argv) {
 		        decode_existing_block(block_start, (size_t)(block_end - block_start));
 		if (existing == NULL) {
 			(void)fprintf(stderr,
-			        "golden_diff_report: %s:%d cannot decode existing literal\n",
-			        ent->file, ent->line);
+			              "golden_diff_report: %s:%d cannot decode existing literal\n",
+			              ent->file, ent->line);
 			free(src);
 			continue;
 		}

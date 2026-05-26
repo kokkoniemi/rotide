@@ -1,7 +1,7 @@
 #include "editor_state_snapshot.h"
 
-#include "runner_support.h"
 #include "rotide.h"
+#include "runner_support.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -10,8 +10,8 @@
 	{ offsetof(struct editorConfig, field), sizeof(((struct editorConfig *)0)->field) }
 
 static const struct snapshotExcludeRange k_excludes[] = {
-        EXCLUDE_FIELD(layout_root),   // NOLINT(bugprone-sizeof-expression)
-        EXCLUDE_FIELD(focused_leaf),  // NOLINT(bugprone-sizeof-expression)
+        EXCLUDE_FIELD(layout_root),  // NOLINT(bugprone-sizeof-expression)
+        EXCLUDE_FIELD(focused_leaf), // NOLINT(bugprone-sizeof-expression)
 };
 
 #define K_EXCLUDE_COUNT ((int)(sizeof(k_excludes) / sizeof(k_excludes[0])))

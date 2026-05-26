@@ -1,11 +1,11 @@
 #include "language/lsp_responses.h"
 
+#include "language/lsp.h"
 #include "language/lsp_json.h"
 #include "language/lsp_protocol.h"
+#include "rotide.h"
 #include "support/file_io.h"
 #include "support/size_utils.h"
-#include "language/lsp.h"
-#include "rotide.h"
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -2,17 +2,17 @@
 
 #include "editing/edit.h"
 #include "editing/text_source.h"
+#include "language/lsp_framing.h"
+#include "language/lsp_json.h"
 #include "language/lsp_mock.h"
 #include "language/lsp_protocol.h"
 #include "language/lsp_registry.h"
 #include "language/lsp_responses.h"
 #include "language/lsp_transport.h"
-#include "support/file_io.h"
-#include "workspace/tabs.h"
 #include "language/syntax.h"
 #include "rotide.h"
-#include "language/lsp_framing.h"
-#include "language/lsp_json.h"
+#include "support/file_io.h"
+#include "workspace/tabs.h"
 
 #include <errno.h>
 #include <stdio.h>

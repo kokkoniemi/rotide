@@ -3,8 +3,8 @@
 #include "editing/syntax_runtime.h"
 #include "editing/text_source.h"
 #include "language/lsp.h"
-#include "rotide.h"
 #include "language/syntax.h"
+#include "rotide.h"
 
 #include <stdlib.h>
 

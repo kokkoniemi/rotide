@@ -22,7 +22,8 @@
 		long expected_val = (long)(expected);                                              \
 		long actual_val = (long)(actual);                                                  \
 		if (expected_val != actual_val) {                                                  \
-			(void)fprintf(stderr, "Assertion failed in %s:%d: expected %ld, got %ld\n", \
+			(void)fprintf(stderr,                                                      \
+			              "Assertion failed in %s:%d: expected %ld, got %ld\n",        \
 			              __func__, __LINE__, expected_val, actual_val);               \
 			return 1;                                                                  \
 		}                                                                                  \
@@ -117,11 +118,12 @@ char *editor_test_tab_row_text(const struct editorTabState *tab, int cy);
 		char *_actual = editor_test_tab_row_text((tab), (cy));                             \
 		const char *_expected = (expected);                                                \
 		if (_actual == NULL || strcmp(_actual, _expected) != 0) {                          \
-			(void)fprintf(stderr,                                                      \
-			              "Assertion failed in %s:%d: tab row %d expected \"%s\", got " \
-			              "\"%s\"\n",                                                  \
-			              __func__, __LINE__, (int)(cy), _expected,                    \
-			              _actual ? _actual : "(null)");                               \
+			(void)fprintf(                                                             \
+			        stderr,                                                            \
+			        "Assertion failed in %s:%d: tab row %d expected \"%s\", got "      \
+			        "\"%s\"\n",                                                        \
+			        __func__, __LINE__, (int)(cy), _expected,                          \
+			        _actual ? _actual : "(null)");                                     \
 			free(_actual);                                                             \
 			return 1;                                                                  \
 		}                                                                                  \

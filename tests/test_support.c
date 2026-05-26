@@ -1,4 +1,5 @@
 #include "test_support.h"
+
 #include "test_helpers.h"
 
 struct editorConfig E;
@@ -524,23 +525,24 @@ int setup_recovery_test_env(struct recoveryTestEnv *env) {
 	}
 	return 1;
 }
-#include "editing/document_position.h"
-#include "rotide.h"
 #include "editing/buffer_core.h"
-#include "workspace/drawer.h"
+#include "editing/document_position.h"
 #include "editing/text_source.h"
-#include "workspace/task.h"
 #include "language/syntax.h"
+#include "rotide.h"
+#include "workspace/drawer.h"
 #include "workspace/recovery.h"
+#include "workspace/task.h"
+
+#include <dirent.h>
+#include <fcntl.h>
+#include <signal.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <signal.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <sys/wait.h>
-#include <dirent.h>
-#include <stdint.h>
+#include <unistd.h>

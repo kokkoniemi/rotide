@@ -1,20 +1,20 @@
 #include "config/dap_config.h"
 
 #include "config/common.h"
+#include "debug/dap.h"
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
+#include "rotide.h"
 #include "support/file_io.h"
 #include "workspace/tabs.h"
-#include "rotide.h"
-#include "debug/dap.h"
 
 #include <ctype.h>
 #include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <limits.h>
 
 enum dapConfigFileKind { DAP_CONFIG_FILE_GLOBAL = 0, DAP_CONFIG_FILE_PROJECT };
 

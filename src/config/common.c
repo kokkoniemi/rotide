@@ -11,8 +11,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <unistd.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 char *editorConfigTrimLeft(char *s) {
 	while (*s != '\0' && isspace((unsigned char)*s)) {

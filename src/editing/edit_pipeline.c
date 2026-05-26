@@ -7,11 +7,11 @@
 #include "editing/post_edit_notify.h"
 #include "editing/row_cache.h"
 #include "language/syntax.h"
+#include "language/syntax_visible_cache.h"
 #include "language/syntax_worker.h"
+#include "rotide.h"
 #include "support/size_utils.h"
 #include "text/document.h"
-#include "rotide.h"
-#include "language/syntax_visible_cache.h"
 
 #include <limits.h>
 #include <stdint.h>

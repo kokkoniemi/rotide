@@ -3,9 +3,9 @@
 #include "editing/edit.h"
 #include "editing/edit_pipeline.h"
 #include "editing/selection.h"
+#include "rotide.h"
 #include "support/alloc.h"
 #include "support/size_utils.h"
-#include "rotide.h"
 
 #include <stdlib.h>
 #include <string.h>

@@ -3,18 +3,18 @@
  */
 
 #include "language/languages.h"
-#include "language/syntax_internal.h"
 #include "language/syntax.h"
+#include "language/syntax_internal.h"
 #include "rotide.h"
 #include "tree_sitter/api.h"
 
 #include <regex.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <stdint.h>
 
 static struct editorSyntaxQueryCacheEntry
         g_queries_caches[EDITOR_SYNTAX_LANGUAGE_COUNT][EDITOR_SYNTAX_QUERY_CACHE_KIND_COUNT] = {0};
@@ -449,10 +449,10 @@ static void queriesRecordCompileError(enum editorSyntaxLanguage language, const 
 #ifndef NDEBUG
 	if (log_mode == QUERIES_COMPILE_LOG_ERROR) {
 		(void)fprintf(stderr,
-		        "rotide: tree-sitter query compile failed: language=%d offset=%u "
-		        "error=%s context=\"%s\"\n",
-		        (int)language, (unsigned int)error_offset, queriesErrorName(error_type),
-		        g_queries_last_compile_error.context);
+		              "rotide: tree-sitter query compile failed: language=%d offset=%u "
+		              "error=%s context=\"%s\"\n",
+		              (int)language, (unsigned int)error_offset,
+		              queriesErrorName(error_type), g_queries_last_compile_error.context);
 	}
 #else
 	(void)log_mode;

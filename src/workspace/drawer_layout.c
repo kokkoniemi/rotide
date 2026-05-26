@@ -1,5 +1,5 @@
-#include "workspace/drawer.h"
 #include "rotide.h"
+#include "workspace/drawer.h"
 
 static int drawerLayoutClampWidthForCols(int desired_width, int total_cols) {
 	if (total_cols <= 1) {

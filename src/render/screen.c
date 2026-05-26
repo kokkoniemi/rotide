@@ -1,8 +1,10 @@
 #include "render/screen.h"
 
+#include "config/theme_config.h"
 #include "editing/document_position.h"
 #include "editing/edit.h"
 #include "editing/selection.h"
+#include "language/syntax.h"
 #include "language/syntax_visible_cache.h"
 #include "render/ansi_style.h"
 #include "render/display_text.h"
@@ -10,8 +12,10 @@
 #include "render/popup.h"
 #include "render/status_bar.h"
 #include "render/tab_bar.h"
+#include "render/viewport.h"
 #include "render/wrap.h"
 #include "render/write_buf.h"
+#include "rotide.h"
 #include "support/alloc.h"
 #include "support/size_utils.h"
 #include "terminal/terminal_pane.h"
@@ -24,10 +28,6 @@
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
-#include "language/syntax.h"
-#include "rotide.h"
-#include "config/theme_config.h"
-#include "render/viewport.h"
 
 #include <errno.h>
 #include <stdio.h>

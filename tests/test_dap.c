@@ -1,13 +1,13 @@
 #include "config/common.h"
 #include "config/dap_config.h"
 #include "debug/dap.h"
-#include "test_case.h"
-#include "test_support.h"
-#include "workspace/layout.h"
-#include "test_helpers.h"
-#include "workspace/tabs.h"
 #include "rotide.h"
+#include "test_case.h"
+#include "test_helpers.h"
+#include "test_support.h"
 #include "workspace/drawer.h"
+#include "workspace/layout.h"
+#include "workspace/tabs.h"
 
 #include <stddef.h>
 #include <stdio.h>
@@ -68,7 +68,7 @@ static int test_editor_dap_config_loads_global_defaults_and_project_launches(voi
 	ASSERT_TRUE(json != NULL);
 	char expected_program[700];
 	(void)snprintf(expected_program, sizeof(expected_program), "\"program\":\"%s/main.go\"",
-	         dir_path);
+	               dir_path);
 	ASSERT_TRUE(strstr(json, expected_program) != NULL);
 	ASSERT_TRUE(strstr(json, "\"args\":[\"one\",\"main.go\"]") != NULL);
 	ASSERT_TRUE(strstr(json, "\"stopOnEntry\":true") != NULL);
@@ -273,14 +273,15 @@ static int test_editor_dap_protocol_builds_initialize_and_launch_requests(void) 
 	(void)snprintf(program->key, sizeof(program->key), "%s", "program");
 	program->kind = EDITOR_DAP_LAUNCH_VALUE_STRING;
 	(void)snprintf(program->string_value, sizeof(program->string_value), "%s",
-	         "${workspaceFolder}/main.go");
+	               "${workspaceFolder}/main.go");
 	struct editorDapLaunchField *args = &config.fields[config.field_count++];
 	(void)snprintf(args->key, sizeof(args->key), "%s", "args");
 	args->kind = EDITOR_DAP_LAUNCH_VALUE_STRING_ARRAY;
 	args->array_count = 1;
 	args->array_values = calloc(ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS, sizeof(*args->array_values));
 	ASSERT_TRUE(args->array_values != NULL);
-	(void)snprintf(args->array_values[0], sizeof(args->array_values[0]), "%s", "${fileBasename}");
+	(void)snprintf(args->array_values[0], sizeof(args->array_values[0]), "%s",
+	               "${fileBasename}");
 
 	char *init = editorDapBuildInitializeRequestJson(1, "go");
 	ASSERT_TRUE(init != NULL);

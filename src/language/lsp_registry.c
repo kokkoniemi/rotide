@@ -1,4 +1,5 @@
 #include "language/lsp_registry.h"
+
 #include "language/lsp_transport.h"
 
 #include <stdlib.h>

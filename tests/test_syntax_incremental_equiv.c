@@ -146,7 +146,8 @@ static const struct langCase k_lang_cases[] = {
 static int runIncrementalEquivTest(const struct langCase *lc, uint64_t seed) {
 	char *resolved = testResolveRepoPath(lc->fixture_path);
 	if (resolved == NULL) {
-		(void)fprintf(stderr, "%s: failed to resolve %s\n", lc->suite_name, lc->fixture_path);
+		(void)fprintf(stderr, "%s: failed to resolve %s\n", lc->suite_name,
+		              lc->fixture_path);
 		return 1;
 	}
 	size_t initial_len = 0;
@@ -227,7 +228,8 @@ static int runIncrementalEquivTest(const struct langCase *lc, uint64_t seed) {
 		byteToPoint(buf.bytes, buf.len, start + old_len, &edit.old_end_point);
 
 		if (refBufReplace(&buf, start, old_len, ins, new_len) != 0) {
-			(void)fprintf(stderr, "%s: refBufReplace failed at op %d\n", lc->suite_name, i);
+			(void)fprintf(stderr, "%s: refBufReplace failed at op %d\n", lc->suite_name,
+			              i);
 			editorSyntaxStateDestroy(incremental);
 			refBufFree(&buf);
 			return 1;
@@ -237,7 +239,8 @@ static int runIncrementalEquivTest(const struct langCase *lc, uint64_t seed) {
 		struct editorTextSource after_view = {0};
 		editorTextSourceInitString(&after_view, buf.bytes, buf.len);
 		if (!editorSyntaxStateApplyEditAndParse(incremental, &edit, &after_view)) {
-			(void)fprintf(stderr,
+			(void)fprintf(
+			        stderr,
 			        "%s: ApplyEditAndParse failed op#%d start=%zu old=%zu new=%zu "
 			        "seed=0x%016llx\n",
 			        lc->suite_name, i, start, old_len, new_len,
@@ -304,13 +307,14 @@ static int runIncrementalEquivTest(const struct langCase *lc, uint64_t seed) {
 	int ok = 1;
 	if (inc_count != full_count) {
 		(void)fprintf(stderr,
-		        "%s: capture count mismatch incremental=%d full=%d seed=0x%016llx\n",
-		        lc->suite_name, inc_count, full_count, (unsigned long long)seed);
+		              "%s: capture count mismatch incremental=%d full=%d seed=0x%016llx\n",
+		              lc->suite_name, inc_count, full_count, (unsigned long long)seed);
 		ok = 0;
 	} else {
 		for (int i = 0; i < inc_count; i++) {
 			if (captureCompare(&inc_caps[i], &full_caps[i]) != 0) {
-				(void)fprintf(stderr,
+				(void)fprintf(
+				        stderr,
 				        "%s: capture #%d differs: inc=[%u..%u cls=%d] full=[%u..%u "
 				        "cls=%d] seed=0x%016llx\n",
 				        lc->suite_name, i, inc_caps[i].start_byte,

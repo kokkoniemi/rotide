@@ -1,19 +1,19 @@
 #include "input/actions_edit.h"
 
 #include "editing/buffer_core.h"
+#include "editing/document_position.h"
 #include "editing/edit.h"
+#include "editing/edit_pipeline.h"
 #include "editing/history.h"
 #include "editing/selection.h"
-#include "support/alloc.h"
-#include "text/document.h"
-#include "editing/document_position.h"
 #include "language/syntax.h"
 #include "rotide.h"
-#include "editing/edit_pipeline.h"
+#include "support/alloc.h"
+#include "text/document.h"
 
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stddef.h>
 
 void editorEditToggleSelectionMode(editorEditActionFn clear_selection_mode,
                                    editorEditActionFn align_cursor_with_row_end) {

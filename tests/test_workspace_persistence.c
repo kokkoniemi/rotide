@@ -1,30 +1,30 @@
 #include "config/common.h"
+#include "editing/edit.h"
+#include "language/lsp.h"
+#include "rotide.h"
+#include "support/file_io.h"
 #include "test_case.h"
-#include "test_support.h"
-#include "workspace/file_search.h"
 #include "test_helpers.h"
+#include "test_support.h"
+#include "workspace/drawer.h"
+#include "workspace/file_search.h"
 #include "workspace/git.h"
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
+#include "workspace/recovery.h"
 #include "workspace/tabs.h"
 #include "workspace/workspace_state.h"
-#include "rotide.h"
-#include "language/lsp.h"
-#include "workspace/drawer.h"
-#include "workspace/recovery.h"
-#include "editing/edit.h"
-#include "support/file_io.h"
 
+#include <fcntl.h>
+#include <signal.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
-#include <unistd.h>
 #include <sys/stat.h>
-#include <fcntl.h>
-#include <signal.h>
+#include <sys/types.h>
 #include <sys/wait.h>
+#include <unistd.h>
 
 static int find_drawer_entry_path(const char *path, int *idx_out,
                                   struct editorDrawerEntryView *view_out) {
@@ -1058,12 +1058,12 @@ static int test_editor_recovery_clean_quit_removes_snapshot(void) {
 
 	if (!setup_recovery_test_env(&env)) {
 		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
-		        "setup_recovery_test_env(&env)");
+		              "setup_recovery_test_env(&env)");
 		goto cleanup;
 	}
 	if (!editorTabsInit()) {
 		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
-		        "editorTabsInit()");
+		              "editorTabsInit()");
 		goto cleanup;
 	}
 
@@ -1075,19 +1075,20 @@ static int test_editor_recovery_clean_quit_removes_snapshot(void) {
 	recovery_path = editorRecoveryPath();
 	if (recovery_path == NULL) {
 		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
-		        "recovery_path != NULL");
+		              "recovery_path != NULL");
 		goto cleanup;
 	}
 	if (access(recovery_path, F_OK) != 0) {
 		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
-		        "access(recovery_path, F_OK) == 0");
+		              "access(recovery_path, F_OK) == 0");
 		goto cleanup;
 	}
 
 	E.dirty = 0;
 	pid = fork();
 	if (pid == -1) {
-		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__, "pid != -1");
+		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
+		              "pid != -1");
 		goto cleanup;
 	}
 	if (pid == 0) {
@@ -1104,23 +1105,23 @@ static int test_editor_recovery_clean_quit_removes_snapshot(void) {
 
 	if (wait_for_child_exit_with_timeout(pid, 1500, &status) != 0) {
 		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
-		        "wait_for_child_exit_with_timeout(pid, 1500, &status) == 0");
+		              "wait_for_child_exit_with_timeout(pid, 1500, &status) == 0");
 		goto cleanup;
 	}
 	pid = -1;
 	if (!WIFEXITED(status)) {
 		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
-		        "WIFEXITED(status)");
+		              "WIFEXITED(status)");
 		goto cleanup;
 	}
 	if (WEXITSTATUS(status) != EXIT_SUCCESS) {
 		(void)fprintf(stderr, "Assertion failed in %s:%d: expected %d, got %d\n", __func__,
-		        __LINE__, EXIT_SUCCESS, WEXITSTATUS(status));
+		              __LINE__, EXIT_SUCCESS, WEXITSTATUS(status));
 		goto cleanup;
 	}
 	if (access(recovery_path, F_OK) != -1) {
 		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
-		        "access(recovery_path, F_OK) == -1");
+		              "access(recovery_path, F_OK) == -1");
 		goto cleanup;
 	}
 

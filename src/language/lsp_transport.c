@@ -1,12 +1,12 @@
 #include "language/lsp_transport.h"
 
 #include "language/autocomplete.h"
-#include "language/lsp_protocol.h"
-#include "language/lsp_responses.h"
-#include "support/file_io.h"
 #include "language/lsp.h"
 #include "language/lsp_framing.h"
 #include "language/lsp_json.h"
+#include "language/lsp_protocol.h"
+#include "language/lsp_responses.h"
+#include "support/file_io.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -16,10 +16,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
-#include <sys/types.h>
 
 int editorLspProcessAlive(struct editorLspClient *client) {
 	if (client == NULL || client->pid <= 0) {

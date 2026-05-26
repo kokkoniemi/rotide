@@ -8,10 +8,10 @@
  * (depth-exceeded, slots-full) are emitted through syntax_budget.
  */
 #include "language/languages.h"
-#include "language/syntax_internal.h"
-#include "tree_sitter/api.h"
 #include "language/syntax.h"
+#include "language/syntax_internal.h"
 #include "rotide.h"
+#include "tree_sitter/api.h"
 
 #include <stddef.h>
 #include <stdint.h>

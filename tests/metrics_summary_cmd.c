@@ -1,11 +1,12 @@
 #define _DEFAULT_SOURCE
 
 #include "metrics_summary_cmd.h"
+
 #include "metrics_jsonl_read.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 #define DEFAULT_SUMMARY_LIMIT 5
 #define DEFAULT_WINDOW_HOURS 48
@@ -57,9 +58,8 @@ static struct editorMetricsRow **collectGroup(const struct editorMetricsRow *row
                                               const struct editorMetricsCmdOptions *opts,
                                               int *out_count) {
 	*out_count = 0;
-	struct editorMetricsRow **out =
-	        (struct editorMetricsRow **)malloc((size_t)(count > 0 ? count : 1) *
-	                                           sizeof(struct editorMetricsRow *));
+	struct editorMetricsRow **out = (struct editorMetricsRow **)malloc(
+	        (size_t)(count > 0 ? count : 1) * sizeof(struct editorMetricsRow *));
 	if (out == NULL) {
 		return NULL;
 	}
@@ -121,7 +121,8 @@ static const char **collectGroupKeys(const struct editorMetricsRow *rows, int co
 }
 
 static void printTestRunRow(const struct editorMetricsRow *r, FILE *out) {
-	(void)fprintf(out,
+	(void)fprintf(
+	        out,
 	        "  %s  wall=%.3fs  runs=%lld/%lld  fail=%lld  flake=%lld  crash=%lld  exit=%lld",
 	        r->ts, r->wall_seconds, r->passed_runs, r->total_runs, r->failed_unique, r->flakes,
 	        r->crashes, r->exit_code);
@@ -133,15 +134,15 @@ static void printTestRunRow(const struct editorMetricsRow *r, FILE *out) {
 
 static void printBenchRow(const struct editorMetricsRow *r, FILE *out) {
 	(void)fprintf(out, "  %s  p50=%.0fns  p95=%.0fns  iqr=%.0fns  n=%lld inner=%lld\n", r->ts,
-	        r->p50_ns, r->p95_ns, r->iqr_ns, r->samples, r->inner_ops);
+	              r->p50_ns, r->p95_ns, r->iqr_ns, r->samples, r->inner_ops);
 }
 
 static void printFuzzRow(const struct editorMetricsRow *r, FILE *out) {
 	(void)fprintf(out,
-	        "  %s  cov=%lld  ft=%lld  corp=%lld/%lldb  on_disk=%lld/%lldb  "
-	        "exec=%lld  runtime=%llds\n",
-	        r->ts, r->cov_edges, r->ft_features, r->corp_count, r->corp_bytes, r->corpus_files,
-	        r->corpus_bytes, r->executed_units, r->runtime_seconds);
+	              "  %s  cov=%lld  ft=%lld  corp=%lld/%lldb  on_disk=%lld/%lldb  "
+	              "exec=%lld  runtime=%llds\n",
+	              r->ts, r->cov_edges, r->ft_features, r->corp_count, r->corp_bytes,
+	              r->corpus_files, r->corpus_bytes, r->executed_units, r->runtime_seconds);
 }
 
 static void summarizeGroup(const struct editorMetricsRow *rows, int count,
@@ -159,11 +160,11 @@ static void summarizeGroup(const struct editorMetricsRow *rows, int count,
 	int shown = group_count - start;
 
 	if (group_key != NULL) {
-		(void)fprintf(out, "== %s: %s (%d row%s shown", editorMetricsKindName(kind), group_key,
-		        shown, shown == 1 ? "" : "s");
+		(void)fprintf(out, "== %s: %s (%d row%s shown", editorMetricsKindName(kind),
+		              group_key, shown, shown == 1 ? "" : "s");
 	} else {
 		(void)fprintf(out, "== %s (%d row%s shown", editorMetricsKindName(kind), shown,
-		        shown == 1 ? "" : "s");
+		              shown == 1 ? "" : "s");
 	}
 	if (start > 0) {
 		(void)fprintf(out, ", %d earlier omitted", start);
@@ -262,25 +263,26 @@ int editorMetricsCmdCheckFuzzStale(const struct editorMetricsRow *rows, int coun
 		}
 		if (baseline == NULL || baseline == latest) {
 			(void)fprintf(out,
-			        "fuzz-stale: target=%s window=%lldh "
-			        "insufficient data (only 1 row in window) — skipping\n",
-			        keys[i], window_hours);
+			              "fuzz-stale: target=%s window=%lldh "
+			              "insufficient data (only 1 row in window) — skipping\n",
+			              keys[i], window_hours);
 			free(group);
 			continue;
 		}
 		long long delta = latest->cov_edges - baseline->cov_edges;
 		if (delta <= 0) {
-			(void)fprintf(out,
+			(void)fprintf(
+			        out,
 			        "fuzz-stale: target=%s window=%lldh "
 			        "cov_edges unchanged at %lld across %d run(s) in window — STALE\n",
 			        keys[i], window_hours, latest->cov_edges, gc);
 			any_stale = 1;
 		} else {
 			(void)fprintf(out,
-			        "fuzz-stale: target=%s window=%lldh "
-			        "cov_edges grew %lld -> %lld (+%lld) across %d run(s) — ok\n",
-			        keys[i], window_hours, baseline->cov_edges, latest->cov_edges,
-			        delta, gc);
+			              "fuzz-stale: target=%s window=%lldh "
+			              "cov_edges grew %lld -> %lld (+%lld) across %d run(s) — ok\n",
+			              keys[i], window_hours, baseline->cov_edges, latest->cov_edges,
+			              delta, gc);
 		}
 		free(group);
 	}
@@ -314,7 +316,8 @@ int editorMetricsCmdCheckBenchRegression(const struct editorMetricsRow *rows, in
 		struct editorMetricsRow **group = collectGroup(
 		        rows, count, EDITOR_METRICS_KIND_BENCH, keys[i], &effective, &gc);
 		if (group == NULL || gc < 2) {
-			(void)fprintf(out,
+			(void)fprintf(
+			        out,
 			        "bench-regression: name=%s only %d row — need >= 2 to compare\n",
 			        keys[i], gc);
 			free(group);
@@ -326,15 +329,17 @@ int editorMetricsCmdCheckBenchRegression(const struct editorMetricsRow *rows, in
 		double threshold = factor * prev->iqr_ns;
 		if (delta > threshold) {
 			(void)fprintf(out,
-			        "bench-regression: name=%s prev_p50=%.0fns latest_p50=%.0fns "
-			        "delta=%.0fns > %.1f*prev_iqr (%.0fns) — REGRESSION\n",
-			        keys[i], prev->p50_ns, latest->p50_ns, delta, factor, threshold);
+			              "bench-regression: name=%s prev_p50=%.0fns latest_p50=%.0fns "
+			              "delta=%.0fns > %.1f*prev_iqr (%.0fns) — REGRESSION\n",
+			              keys[i], prev->p50_ns, latest->p50_ns, delta, factor,
+			              threshold);
 			any_regressed = 1;
 		} else {
 			(void)fprintf(out,
-			        "bench-regression: name=%s prev_p50=%.0fns latest_p50=%.0fns "
-			        "delta=%.0fns within %.1f*prev_iqr (%.0fns) — ok\n",
-			        keys[i], prev->p50_ns, latest->p50_ns, delta, factor, threshold);
+			              "bench-regression: name=%s prev_p50=%.0fns latest_p50=%.0fns "
+			              "delta=%.0fns within %.1f*prev_iqr (%.0fns) — ok\n",
+			              keys[i], prev->p50_ns, latest->p50_ns, delta, factor,
+			              threshold);
 		}
 		free(group);
 	}

@@ -2,11 +2,11 @@
 
 #include "editing/buffer_core.h"
 #include "render/wrap.h"
+#include "rotide.h"
 #include "text/document.h"
 #include "text/row.h"
 #include "workspace/drawer.h"
 #include "workspace/layout.h"
-#include "rotide.h"
 
 #include <limits.h>
 #include <stddef.h>

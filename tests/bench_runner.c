@@ -93,7 +93,8 @@ int editorBenchRun(const struct editorBenchCase *cases, int count,
 		for (int it = 0; it < iterations; it++) {
 			void *state = NULL;
 			if (!c->setup(&state)) {
-				(void)fprintf(stderr, "bench: %s setup failed on iter %d\n", c->name, it);
+				(void)fprintf(stderr, "bench: %s setup failed on iter %d\n",
+				              c->name, it);
 				setup_failed = 1;
 				break;
 			}
@@ -124,17 +125,17 @@ int editorBenchRun(const struct editorBenchCase *cases, int count,
 
 		if (json != NULL) {
 			(void)fprintf(json,
-			        "%s    {\n"
-			        "      \"name\": \"%s\",\n"
-			        "      \"samples\": %d,\n"
-			        "      \"inner_ops\": %d,\n"
-			        "      \"min_ns\": %.3f,\n"
-			        "      \"p50_ns\": %.3f,\n"
-			        "      \"p95_ns\": %.3f,\n"
-			        "      \"iqr_ns\": %.3f\n"
-			        "    }",
-			        ran > 0 ? ",\n" : "", c->name, sample_count, inner_ops, min, p50,
-			        p95, iqr);
+			              "%s    {\n"
+			              "      \"name\": \"%s\",\n"
+			              "      \"samples\": %d,\n"
+			              "      \"inner_ops\": %d,\n"
+			              "      \"min_ns\": %.3f,\n"
+			              "      \"p50_ns\": %.3f,\n"
+			              "      \"p95_ns\": %.3f,\n"
+			              "      \"iqr_ns\": %.3f\n"
+			              "    }",
+			              ran > 0 ? ",\n" : "", c->name, sample_count, inner_ops, min,
+			              p50, p95, iqr);
 		}
 		if (metrics_path != NULL && metrics_path[0] != '\0') {
 			struct editorMetricsField fields[] = {
@@ -148,8 +149,9 @@ int editorBenchRun(const struct editorBenchCase *cases, int count,
 			};
 			if (editorMetricsAppend(metrics_path, "bench", fields,
 			                        (int)(sizeof(fields) / sizeof(fields[0]))) != 0) {
-				(void)fprintf(stderr, "bench: warning: failed to append metrics to %s\n",
-				        metrics_path);
+				(void)fprintf(stderr,
+				              "bench: warning: failed to append metrics to %s\n",
+				              metrics_path);
 			}
 		}
 		ran++;

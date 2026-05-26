@@ -1,13 +1,13 @@
+#include "rotide.h"
 #include "workspace/drawer.h"
 #include "workspace/drawer_internal.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
 #include "workspace/project_search.h"
-#include "rotide.h"
 
+#include <limits.h>
 #include <stdio.h>
 #include <string.h>
-#include <limits.h>
 
 enum drawerModeGitGroup {
 	EDITOR_DRAWER_GIT_GROUP_STAGED = 0,
@@ -278,7 +278,7 @@ int editorDrawerGitVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 				status = '?';
 			}
 			(void)snprintf(git_name_buf, sizeof(git_name_buf), "%c %s", status,
-			         entry->rel_path);
+			               entry->rel_path);
 			view_out->name = git_name_buf;
 			view_out->depth = 2;
 			view_out->is_last_sibling = lookup.item_idx == lookup.item_count - 1;

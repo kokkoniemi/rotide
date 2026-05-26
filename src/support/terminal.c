@@ -21,11 +21,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
-#include <sys/wait.h>
-#include <unistd.h>
 #include <sys/types.h>
-#include <time.h>
+#include <sys/wait.h>
 #include <termios.h>
+#include <time.h>
+#include <unistd.h>
 
 /*** Terminal ***/
 
@@ -220,7 +220,8 @@ static int terminalDecodeSgrMousePayload(const char *payload, struct editorMouse
 	int cy = 0;
 	char suffix = '\0';
 	int consumed = 0;
-	if (sscanf(payload, "%d;%d;%d%c%n", &cb, &cx, &cy, &suffix, &consumed) != 4) { // NOLINT(cert-err34-c)
+	if (sscanf(payload, "%d;%d;%d%c%n", &cb, &cx, &cy, &suffix, &consumed) !=
+	    4) { // NOLINT(cert-err34-c)
 		return 0;
 	}
 	if (payload[consumed] != '\0') {

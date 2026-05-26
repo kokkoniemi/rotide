@@ -1,12 +1,12 @@
 #include "render/terminal_view.h"
 
+#include "config/theme_config.h"
 #include "render/ansi_style.h"
-#include "text/utf8.h"
-#include "vterm.h"
 #include "render/write_buf.h"
 #include "rotide.h"
-#include "config/theme_config.h"
 #include "terminal/terminal_pane.h"
+#include "text/utf8.h"
+#include "vterm.h"
 
 #include <stdio.h>
 #include <stdlib.h>

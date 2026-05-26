@@ -3,14 +3,14 @@
 #include "config/keymap.h"
 #include "rotide.h"
 #include "test_case.h"
+#include "test_helpers.h"
+#include "test_support.h"
 
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <sys/stat.h>
-#include "test_support.h"
-#include "test_helpers.h"
+#include <unistd.h>
 
 static int test_editor_keymap_load_valid_project_overrides_defaults(void) {
 	char dir_template[] = "/tmp/rotide-test-keymap-valid-XXXXXX";

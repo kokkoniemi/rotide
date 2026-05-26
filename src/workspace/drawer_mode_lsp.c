@@ -1,15 +1,15 @@
 #include "language/lsp.h"
 #include "language/syntax.h"
+#include "rotide.h"
 #include "workspace/drawer.h"
 #include "workspace/drawer_internal.h"
 #include "workspace/file_search.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
-#include "rotide.h"
 
+#include <limits.h>
 #include <stdio.h>
 #include <string.h>
-#include <limits.h>
 
 enum drawerModeLspGroup {
 	EDITOR_DRAWER_LSP_GROUP_PROBLEMS = 0,
@@ -337,7 +337,7 @@ int editorDrawerLspVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 		case EDITOR_DRAWER_LSP_ENTRY_GROUP:
 			if (lookup.group_idx == EDITOR_DRAWER_LSP_GROUP_PROBLEMS) {
 				(void)snprintf(lsp_name_buf, sizeof(lsp_name_buf), "Problems (%d)",
-				         lookup.item_count);
+				               lookup.item_count);
 				view_out->name = lsp_name_buf;
 			} else {
 				view_out->name = g_drawer_mode_lsp_group_names[lookup.group_idx];
@@ -365,8 +365,9 @@ int editorDrawerLspVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 				}
 			}
 			(void)snprintf(lsp_name_buf, sizeof(lsp_name_buf), "%s %s:%d:%d %s", kind,
-			         base != NULL && base[0] != '\0' ? base : "(untitled)",
-			         lookup.problem.line + 1, lookup.problem.character + 1, message);
+			               base != NULL && base[0] != '\0' ? base : "(untitled)",
+			               lookup.problem.line + 1, lookup.problem.character + 1,
+			               message);
 			view_out->name = lsp_name_buf;
 			view_out->path = lookup.problem.path;
 			view_out->depth = 2;
@@ -381,8 +382,8 @@ int editorDrawerLspVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 			                ? lookup.symbol.name
 			                : "(unnamed)";
 			(void)snprintf(lsp_name_buf, sizeof(lsp_name_buf), "%s %s:%d",
-			         editorLspSymbolKindLabel(lookup.symbol.kind), symbol_name,
-			         lookup.symbol.line + 1);
+			               editorLspSymbolKindLabel(lookup.symbol.kind), symbol_name,
+			               lookup.symbol.line + 1);
 			view_out->name = lsp_name_buf;
 			view_out->path = lookup.symbol.path;
 			view_out->line = lookup.symbol.line;

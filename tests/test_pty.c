@@ -6,10 +6,10 @@
 #include <poll.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
-#include <sys/types.h>
 
 static int pty_read_until(int fd, char *buf, size_t cap, const char *needle, int timeout_ms) {
 	size_t len = 0;

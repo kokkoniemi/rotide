@@ -21,7 +21,8 @@ void runnerOptionsInit(struct testRunnerOptions *opts) {
 }
 
 void runnerPrintUsage(void) {
-	(void)fprintf(stderr,
+	(void)fprintf(
+	        stderr,
 	        "Usage: rotide_tests [options]\n"
 	        "\n"
 	        "Selection:\n"
@@ -417,7 +418,8 @@ int quarantineListLoad(struct quarantineList *q, const char *path, char **error_
 		}
 		if (error_out != NULL) {
 			char buf[256];
-			(void)snprintf(buf, sizeof(buf), "failed to open %s: %s", path, strerror(errno));
+			(void)snprintf(buf, sizeof(buf), "failed to open %s: %s", path,
+			               strerror(errno));
 			*error_out = strdup(buf);
 		}
 		return -1;

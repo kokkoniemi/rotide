@@ -1,6 +1,6 @@
 #include "test_case.h"
-#include "test_support.h"
 #include "test_helpers.h"
+#include "test_support.h"
 
 static int find_drawer_entry_containing(const char *needle, int *idx_out,
                                         struct editorDrawerEntryView *view_out) {
@@ -1295,14 +1295,15 @@ const struct editorTestCase g_lsp_navigation_tests[] = {
 
 const int g_lsp_navigation_test_count =
         (int)(sizeof(g_lsp_navigation_tests) / sizeof(g_lsp_navigation_tests[0]));
+#include "editing/buffer_core.h"
 #include "editing/edit.h"
+#include "language/lsp.h"
 #include "language/syntax.h"
 #include "rotide.h"
-#include "editing/buffer_core.h"
-#include "language/lsp.h"
 #include "workspace/drawer.h"
 #include "workspace/tabs.h"
 #include "workspace/task.h"
+
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>

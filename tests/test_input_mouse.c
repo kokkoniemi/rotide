@@ -1,14 +1,14 @@
 #include "editing/selection.h"
+#include "input/mouse.h"
+#include "language/syntax.h"
+#include "rotide.h"
 #include "test_case.h"
+#include "test_helpers.h"
 #include "test_support.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
-#include "test_helpers.h"
 #include "workspace/layout.h"
 #include "workspace/tabs.h"
-#include "language/syntax.h"
-#include "rotide.h"
-#include "input/mouse.h"
 
 #include <stddef.h>
 #include <stdio.h>

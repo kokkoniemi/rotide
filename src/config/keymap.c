@@ -843,11 +843,12 @@ void editorKeymapBuildHelpStatus(const struct editorKeymap *keymap, char *buf, s
 		(void)snprintf(redo, sizeof(redo), "Redo");
 	}
 
-	(void)snprintf(buf, bufsize,
-	         "Help: %s save; %s quit; %s new; %s close; %s/%s tabs; %s drawer; %s file; %s "
-	         "text; %s find; %s goto",
-	         save, quit, new_tab, close_tab, prev_tab, next_tab, focus_drawer, find_file,
-	         project_search, find, go_to);
+	(void)snprintf(
+	        buf, bufsize,
+	        "Help: %s save; %s quit; %s new; %s close; %s/%s tabs; %s drawer; %s file; %s "
+	        "text; %s find; %s goto",
+	        save, quit, new_tab, close_tab, prev_tab, next_tab, focus_drawer, find_file,
+	        project_search, find, go_to);
 }
 
 enum editorKeymapLoadStatus editorKeymapLoadFromPaths(struct editorKeymap *keymap,

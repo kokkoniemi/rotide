@@ -122,7 +122,8 @@ static int compareBuffers(struct editorDocument *doc, struct refDoc *ref, uint64
                           const struct opLog *log) {
 	size_t doc_len = editorDocumentLength(doc);
 	if (doc_len != ref->len) {
-		(void)fprintf(stderr,
+		(void)fprintf(
+		        stderr,
 		        "text_invariants: length mismatch after op#%d kind=%u start=%zu old=%zu "
 		        "new=%zu: "
 		        "doc=%zu ref=%zu seed=0x%016llx\n",
@@ -136,12 +137,13 @@ static int compareBuffers(struct editorDocument *doc, struct refDoc *ref, uint64
 	char *dump = editorDocumentDupRange(doc, 0, ref->len, NULL);
 	if (dump == NULL) {
 		(void)fprintf(stderr, "text_invariants: dup failed (seed=0x%016llx)\n",
-		        (unsigned long long)seed);
+		              (unsigned long long)seed);
 		return -1;
 	}
 	size_t diff_at = 0;
 	if (dumpFirstDiff(dump, ref->buf, ref->len, &diff_at)) {
-		(void)fprintf(stderr,
+		(void)fprintf(
+		        stderr,
 		        "text_invariants: byte mismatch after op#%d kind=%u start=%zu old=%zu "
 		        "new=%zu: "
 		        "offset=%zu doc=0x%02x ref=0x%02x seed=0x%016llx\n",
@@ -163,14 +165,15 @@ static int checkPositionRoundtrip(struct editorDocument *doc, struct refDoc *ref
 		size_t column = 0;
 		if (!editorDocumentByteOffsetToPosition(doc, target, &line_idx, &column)) {
 			(void)fprintf(stderr,
-			        "text_invariants: byte->pos failed off=%zu after op#%d "
-			        "seed=0x%016llx\n",
-			        target, log->op_idx, (unsigned long long)seed);
+			              "text_invariants: byte->pos failed off=%zu after op#%d "
+			              "seed=0x%016llx\n",
+			              target, log->op_idx, (unsigned long long)seed);
 			return -1;
 		}
 		size_t back = 0;
 		if (!editorDocumentPositionToByteOffset(doc, line_idx, column, &back)) {
-			(void)fprintf(stderr,
+			(void)fprintf(
+			        stderr,
 			        "text_invariants: pos->byte failed line=%d col=%zu after op#%d "
 			        "seed=0x%016llx\n",
 			        line_idx, column, log->op_idx, (unsigned long long)seed);
@@ -178,11 +181,11 @@ static int checkPositionRoundtrip(struct editorDocument *doc, struct refDoc *ref
 		}
 		if (back != target) {
 			(void)fprintf(stderr,
-			        "text_invariants: roundtrip drift off=%zu -> pos=(%d,%zu) -> "
-			        "off=%zu "
-			        "after op#%d seed=0x%016llx\n",
-			        target, line_idx, column, back, log->op_idx,
-			        (unsigned long long)seed);
+			              "text_invariants: roundtrip drift off=%zu -> pos=(%d,%zu) -> "
+			              "off=%zu "
+			              "after op#%d seed=0x%016llx\n",
+			              target, line_idx, column, back, log->op_idx,
+			              (unsigned long long)seed);
 			return -1;
 		}
 	}
@@ -278,9 +281,9 @@ static int checkLineIndexInvariants(struct editorDocument *doc, struct refDoc *r
 		size_t ref_end = 0;
 		if (refLineForOffset(ref, target, &ref_line, &ref_start, &ref_end) != 0) {
 			(void)fprintf(stderr,
-			        "text_invariants: ref line lookup failed off=%zu after op#%d "
-			        "seed=0x%016llx\n",
-			        target, log->op_idx, (unsigned long long)seed);
+			              "text_invariants: ref line lookup failed off=%zu after op#%d "
+			              "seed=0x%016llx\n",
+			              target, log->op_idx, (unsigned long long)seed);
 			return -1;
 		}
 		size_t doc_len = editorDocumentLength(doc);
@@ -291,13 +294,14 @@ static int checkLineIndexInvariants(struct editorDocument *doc, struct refDoc *r
 		int line_idx = -1;
 		if (!editorDocumentLineIndexForByteOffset(doc, target, &line_idx)) {
 			(void)fprintf(stderr,
-			        "text_invariants: byte->line failed off=%zu after op#%d "
-			        "seed=0x%016llx\n",
-			        target, log->op_idx, (unsigned long long)seed);
+			              "text_invariants: byte->line failed off=%zu after op#%d "
+			              "seed=0x%016llx\n",
+			              target, log->op_idx, (unsigned long long)seed);
 			return -1;
 		}
 		if (line_idx != ref_line) {
-			(void)fprintf(stderr,
+			(void)fprintf(
+			        stderr,
 			        "text_invariants: line index drift off=%zu doc_line=%d ref_line=%d "
 			        "after op#%d seed=0x%016llx\n",
 			        target, line_idx, ref_line, log->op_idx, (unsigned long long)seed);
@@ -307,7 +311,8 @@ static int checkLineIndexInvariants(struct editorDocument *doc, struct refDoc *r
 		size_t end_byte = 0;
 		if (!editorDocumentLineStartByte(doc, line_idx, &start_byte) ||
 		    !editorDocumentLineEndByte(doc, line_idx, &end_byte)) {
-			(void)fprintf(stderr,
+			(void)fprintf(
+			        stderr,
 			        "text_invariants: line bounds lookup failed line=%d off=%zu after "
 			        "op#%d "
 			        "seed=0x%016llx\n",
@@ -315,7 +320,8 @@ static int checkLineIndexInvariants(struct editorDocument *doc, struct refDoc *r
 			return -1;
 		}
 		if (start_byte != ref_start || end_byte != ref_end) {
-			(void)fprintf(stderr,
+			(void)fprintf(
+			        stderr,
 			        "text_invariants: line bounds drift line=%d off=%zu doc=[%zu,%zu] "
 			        "ref=[%zu,%zu] after op#%d seed=0x%016llx\n",
 			        line_idx, target, start_byte, end_byte, ref_start, ref_end,
@@ -323,7 +329,8 @@ static int checkLineIndexInvariants(struct editorDocument *doc, struct refDoc *r
 			return -1;
 		}
 		if (!(start_byte <= target && target < end_byte + 1)) {
-			(void)fprintf(stderr,
+			(void)fprintf(
+			        stderr,
 			        "text_invariants: byte not inside line bounds off=%zu start=%zu "
 			        "end=%zu "
 			        "after op#%d seed=0x%016llx\n",
@@ -341,9 +348,9 @@ static int checkMaxLineBytesMatchesRef(struct editorDocument *doc, struct refDoc
 	size_t ref_max = refMaxLineBytes(ref);
 	if (doc_max != ref_max) {
 		(void)fprintf(stderr,
-		        "text_invariants: max line bytes drift doc=%zu ref=%zu after op#%d "
-		        "seed=0x%016llx\n",
-		        doc_max, ref_max, log->op_idx, (unsigned long long)seed);
+		              "text_invariants: max line bytes drift doc=%zu ref=%zu after op#%d "
+		              "seed=0x%016llx\n",
+		              doc_max, ref_max, log->op_idx, (unsigned long long)seed);
 		return -1;
 	}
 	return 0;
@@ -366,7 +373,8 @@ static int checkLineReadsMatch(struct editorDocument *doc, struct refDoc *ref, u
 		size_t end = 0;
 		if (!editorDocumentLineStartByte(doc, line_idx, &start) ||
 		    !editorDocumentLineEndByte(doc, line_idx, &end)) {
-			(void)fprintf(stderr,
+			(void)fprintf(
+			        stderr,
 			        "text_invariants: line bounds lookup failed line=%d after op#%d "
 			        "seed=0x%016llx\n",
 			        line_idx, log->op_idx, (unsigned long long)seed);
@@ -375,11 +383,12 @@ static int checkLineReadsMatch(struct editorDocument *doc, struct refDoc *ref, u
 		size_t expected_len = end - start;
 		if (editorDocumentLineLength(doc, line_idx) != expected_len) {
 			(void)fprintf(stderr,
-			        "text_invariants: line length mismatch line=%d expected=%zu "
-			        "got=%zu "
-			        "after op#%d seed=0x%016llx\n",
-			        line_idx, expected_len, editorDocumentLineLength(doc, line_idx),
-			        log->op_idx, (unsigned long long)seed);
+			              "text_invariants: line length mismatch line=%d expected=%zu "
+			              "got=%zu "
+			              "after op#%d seed=0x%016llx\n",
+			              line_idx, expected_len,
+			              editorDocumentLineLength(doc, line_idx), log->op_idx,
+			              (unsigned long long)seed);
 			return -1;
 		}
 		char *copy_buf = NULL;
@@ -389,7 +398,8 @@ static int checkLineReadsMatch(struct editorDocument *doc, struct refDoc *ref, u
 				return -1;
 			}
 			if (!editorDocumentCopyRange(doc, start, end, copy_buf)) {
-				(void)fprintf(stderr,
+				(void)fprintf(
+				        stderr,
 				        "text_invariants: CopyRange failed line=%d after op#%d "
 				        "seed=0x%016llx\n",
 				        line_idx, log->op_idx, (unsigned long long)seed);
@@ -402,15 +412,16 @@ static int checkLineReadsMatch(struct editorDocument *doc, struct refDoc *ref, u
 		char *dup = editorDocumentLineDup(doc, line_idx, &dup_len);
 		if (dup == NULL) {
 			(void)fprintf(stderr,
-			        "text_invariants: LineDup failed line=%d after op#%d "
-			        "seed=0x%016llx\n",
-			        line_idx, log->op_idx, (unsigned long long)seed);
+			              "text_invariants: LineDup failed line=%d after op#%d "
+			              "seed=0x%016llx\n",
+			              line_idx, log->op_idx, (unsigned long long)seed);
 			free(copy_buf);
 			return -1;
 		}
 		if (dup_len != expected_len ||
 		    (expected_len > 0 && memcmp(dup, copy_buf, expected_len) != 0)) {
-			(void)fprintf(stderr,
+			(void)fprintf(
+			        stderr,
 			        "text_invariants: LineDup bytes differ from CopyRange line=%d "
 			        "after op#%d seed=0x%016llx\n",
 			        line_idx, log->op_idx, (unsigned long long)seed);
@@ -422,9 +433,9 @@ static int checkLineReadsMatch(struct editorDocument *doc, struct refDoc *ref, u
 		struct editorLineView view = {0};
 		if (!editorDocumentLineView(doc, line_idx, &view)) {
 			(void)fprintf(stderr,
-			        "text_invariants: LineView failed line=%d after op#%d "
-			        "seed=0x%016llx\n",
-			        line_idx, log->op_idx, (unsigned long long)seed);
+			              "text_invariants: LineView failed line=%d after op#%d "
+			              "seed=0x%016llx\n",
+			              line_idx, log->op_idx, (unsigned long long)seed);
 			free(dup);
 			free(copy_buf);
 			return -1;
@@ -432,9 +443,9 @@ static int checkLineReadsMatch(struct editorDocument *doc, struct refDoc *ref, u
 		if ((size_t)view.size != expected_len ||
 		    (expected_len > 0 && memcmp(view.data, dup, expected_len) != 0)) {
 			(void)fprintf(stderr,
-			        "text_invariants: LineView bytes differ from LineDup line=%d "
-			        "after op#%d seed=0x%016llx\n",
-			        line_idx, log->op_idx, (unsigned long long)seed);
+			              "text_invariants: LineView bytes differ from LineDup line=%d "
+			              "after op#%d seed=0x%016llx\n",
+			              line_idx, log->op_idx, (unsigned long long)seed);
 			editorLineViewRelease(&view);
 			free(dup);
 			free(copy_buf);
@@ -447,7 +458,8 @@ static int checkLineReadsMatch(struct editorDocument *doc, struct refDoc *ref, u
 		if (bytes != NULL) {
 			if (bytes_len != expected_len ||
 			    (expected_len > 0 && memcmp(bytes, dup, expected_len) != 0)) {
-				(void)fprintf(stderr,
+				(void)fprintf(
+				        stderr,
 				        "text_invariants: LineBytes differ from LineDup line=%d "
 				        "after op#%d seed=0x%016llx\n",
 				        line_idx, log->op_idx, (unsigned long long)seed);
@@ -479,7 +491,8 @@ static int checkLineCountMatchesNewlines(struct editorDocument *doc, struct refD
 		expected = newlines + (ref->buf[ref->len - 1] == '\n' ? 0 : 1);
 	}
 	if (line_count != expected) {
-		(void)fprintf(stderr,
+		(void)fprintf(
+		        stderr,
 		        "text_invariants: line count mismatch after op#%d: doc=%d expected=%d "
 		        "newlines=%d trailing_nl=%d seed=0x%016llx\n",
 		        log->op_idx, line_count, expected, newlines,
@@ -517,7 +530,7 @@ static int runRandomOpsExtStride(uint64_t seed, int n_ops, size_t doc_cap, size_
 	}
 	if (!editorDocumentResetFromString(&doc, seed_text, seed_len)) {
 		(void)fprintf(stderr, "%s: reset failed seed=0x%016llx\n", test_name,
-		        (unsigned long long)seed);
+		              (unsigned long long)seed);
 		free(seed_text);
 		editorDocumentFree(&doc);
 		refDocFree(&ref);
@@ -574,7 +587,8 @@ static int runRandomOpsExtStride(uint64_t seed, int n_ops, size_t doc_cap, size_
 		int do_invariants = check_stride <= 1 || (i % check_stride) == 0 || i == n_ops - 1;
 
 		if (!editorDocumentReplaceRange(&doc, start, old_len, ins_buf, new_len)) {
-			(void)fprintf(stderr,
+			(void)fprintf(
+			        stderr,
 			        "%s: editorDocumentReplaceRange failed op#%d start=%zu old=%zu "
 			        "new=%zu "
 			        "cur=%zu seed=0x%016llx\n",
@@ -587,9 +601,9 @@ static int runRandomOpsExtStride(uint64_t seed, int n_ops, size_t doc_cap, size_
 		}
 		if (refDocReplace(&ref, start, old_len, ins_buf, new_len) != 0) {
 			(void)fprintf(stderr,
-			        "%s: ref replace failed op#%d (impossible; bug in test) "
-			        "seed=0x%016llx\n",
-			        test_name, i, (unsigned long long)seed);
+			              "%s: ref replace failed op#%d (impossible; bug in test) "
+			              "seed=0x%016llx\n",
+			              test_name, i, (unsigned long long)seed);
 			free(ins_buf);
 			editorDocumentFree(&doc);
 			refDocFree(&ref);
@@ -616,7 +630,8 @@ static int runRandomOpsExtStride(uint64_t seed, int n_ops, size_t doc_cap, size_
 
 	int tree_rebuilds = editorTextTreeStatsFullRebuildCount();
 	if (tree_rebuilds > 0) {
-		(void)fprintf(stderr,
+		(void)fprintf(
+		        stderr,
 		        "%s: storage layer rebuilt %d time(s) during random ops seed=0x%016llx\n",
 		        test_name, tree_rebuilds, (unsigned long long)seed);
 		free(ins_buf);
@@ -785,16 +800,16 @@ static int assertEditorMatchesRef(struct refDoc *ref, uint64_t seed, int op_idx)
 	size_t doc_len = editorDocumentLength(E.document);
 	if (doc_len != expected_total) {
 		(void)fprintf(stderr,
-		        "text_invariants pipeline: docLen=%zu != row-sum=%zu after op#%d "
-		        "seed=0x%016llx\n",
-		        doc_len, expected_total, op_idx, (unsigned long long)seed);
+		              "text_invariants pipeline: docLen=%zu != row-sum=%zu after op#%d "
+		              "seed=0x%016llx\n",
+		              doc_len, expected_total, op_idx, (unsigned long long)seed);
 		return -1;
 	}
 	if (doc_len != ref->len) {
 		(void)fprintf(stderr,
-		        "text_invariants pipeline: docLen=%zu != ref=%zu after op#%d "
-		        "seed=0x%016llx\n",
-		        doc_len, ref->len, op_idx, (unsigned long long)seed);
+		              "text_invariants pipeline: docLen=%zu != ref=%zu after op#%d "
+		              "seed=0x%016llx\n",
+		              doc_len, ref->len, op_idx, (unsigned long long)seed);
 		return -1;
 	}
 	char *dump = (char *)malloc(doc_len + 1);
@@ -803,7 +818,8 @@ static int assertEditorMatchesRef(struct refDoc *ref, uint64_t seed, int op_idx)
 	}
 	int dumped = dumpEditorRows(dump, doc_len + 1);
 	if (dumped < 0 || (size_t)dumped != doc_len) {
-		(void)fprintf(stderr,
+		(void)fprintf(
+		        stderr,
 		        "text_invariants pipeline: row dump produced %d bytes for doc=%zu after "
 		        "op#%d\n",
 		        dumped, doc_len, op_idx);
@@ -818,7 +834,8 @@ static int assertEditorMatchesRef(struct refDoc *ref, uint64_t seed, int op_idx)
 				break;
 			}
 		}
-		(void)fprintf(stderr,
+		(void)fprintf(
+		        stderr,
 		        "text_invariants pipeline: byte diff at %zu after op#%d: editor=0x%02x "
 		        "ref=0x%02x seed=0x%016llx\n",
 		        diff, op_idx, (unsigned char)dump[diff], (unsigned char)ref->buf[diff],
@@ -874,7 +891,7 @@ static int runPipelineOps(uint64_t seed, int n_ops, size_t doc_cap, size_t max_i
 	rngFillText(seed_text, seed_len);
 	if (!seedEditorBuffer(seed_text, seed_len)) {
 		(void)fprintf(stderr, "%s: seedEditorBuffer failed seed=0x%016llx\n", test_name,
-		        (unsigned long long)seed);
+		              (unsigned long long)seed);
 		refDocFree(&ref);
 		return 1;
 	}
@@ -922,10 +939,10 @@ static int runPipelineOps(uint64_t seed, int n_ops, size_t doc_cap, size_t max_i
 		editorHistoryBreakGroup();
 		if (applyPipelineOp(kind, start, old_len, ins, new_len) != 0) {
 			(void)fprintf(stderr,
-			        "%s: pipeline op#%d failed kind=%u start=%zu old=%zu new=%zu "
-			        "seed=0x%016llx\n",
-			        test_name, i, kind, start, old_len, new_len,
-			        (unsigned long long)seed);
+			              "%s: pipeline op#%d failed kind=%u start=%zu old=%zu new=%zu "
+			              "seed=0x%016llx\n",
+			              test_name, i, kind, start, old_len, new_len,
+			              (unsigned long long)seed);
 			refDocFree(&ref);
 			return 1;
 		}
@@ -944,14 +961,15 @@ static int runPipelineOps(uint64_t seed, int n_ops, size_t doc_cap, size_t max_i
 		int splices = editorRowCacheTestSpliceUpdateCount() - splice_before;
 		if (rebuilds > 0) {
 			(void)fprintf(stderr,
-			        "%s: %d full-rebuild(s) during small-edit run (splices=%d "
-			        "seed=0x%016llx)\n",
-			        test_name, rebuilds, splices, (unsigned long long)seed);
+			              "%s: %d full-rebuild(s) during small-edit run (splices=%d "
+			              "seed=0x%016llx)\n",
+			              test_name, rebuilds, splices, (unsigned long long)seed);
 			refDocFree(&ref);
 			return 1;
 		}
 		if (n_ops > 0 && splices == 0) {
-			(void)fprintf(stderr,
+			(void)fprintf(
+			        stderr,
 			        "%s: no splice updates despite %d small ops (seed=0x%016llx)\n",
 			        test_name, n_ops, (unsigned long long)seed);
 			refDocFree(&ref);
@@ -1051,9 +1069,9 @@ static int test_text_invariants_pipeline_undo_redo_snapshot(void) {
 	size_t after_len = editorDocumentLength(E.document);
 	if (after_len != snap_len) {
 		(void)fprintf(stderr,
-		        "pipeline_undo_redo: length after undo=%zu, snapshot=%zu (undos=%d, "
-		        "seed=0x%016llx)\n",
-		        after_len, snap_len, undo_calls, (unsigned long long)seed);
+		              "pipeline_undo_redo: length after undo=%zu, snapshot=%zu (undos=%d, "
+		              "seed=0x%016llx)\n",
+		              after_len, snap_len, undo_calls, (unsigned long long)seed);
 		free(snap);
 		refDocFree(&ref);
 		return 1;
@@ -1080,7 +1098,8 @@ static int test_text_invariants_pipeline_undo_redo_snapshot(void) {
 				break;
 			}
 		}
-		(void)fprintf(stderr,
+		(void)fprintf(
+		        stderr,
 		        "pipeline_undo_redo: byte diff at %zu (snap=0x%02x after=0x%02x undos=%d "
 		        "seed=0x%016llx)\n",
 		        diff, (unsigned char)snap[diff], (unsigned char)after[diff], undo_calls,

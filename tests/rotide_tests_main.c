@@ -162,7 +162,7 @@ int main(int argc, char **argv) {
 	runnerOptionsInit(&opts);
 	if (runnerOptionsParse(&opts, argc, argv) != 0) {
 		(void)fprintf(stderr, "rotide_tests: %s\n",
-		        opts.error_msg ? opts.error_msg : "argument parse error");
+		              opts.error_msg ? opts.error_msg : "argument parse error");
 		runnerPrintUsage();
 		return EXIT_FAILURE;
 	}
@@ -182,14 +182,15 @@ int main(int argc, char **argv) {
 		 * exists) — the actual write will surface a clearer error. */
 		(void)mkdir("tests/artifacts", 0755);
 		if (setenv("ROTIDE_UPDATE_GOLDEN_STASH", opts.update_golden_stash, 1) != 0) {
-			(void)fprintf(stderr,
+			(void)fprintf(
+			        stderr,
 			        "rotide_tests: failed to export ROTIDE_UPDATE_GOLDEN_STASH: %s\n",
 			        strerror(errno));
 			return EXIT_FAILURE;
 		}
 		(void)fprintf(stderr,
-		        "rotide_tests: --update-golden mode — grid mismatches stash to %s\n",
-		        opts.update_golden_stash);
+		              "rotide_tests: --update-golden mode — grid mismatches stash to %s\n",
+		              opts.update_golden_stash);
 	}
 
 	struct quarantineList quarantine;
@@ -198,7 +199,7 @@ int main(int argc, char **argv) {
 		char *err = NULL;
 		if (quarantineListLoad(&quarantine, opts.quarantine_path, &err) != 0) {
 			(void)fprintf(stderr, "rotide_tests: %s\n",
-			        err ? err : "failed to load quarantine list");
+			              err ? err : "failed to load quarantine list");
 			free(err);
 			quarantineListFree(&quarantine);
 			return EXIT_FAILURE;
@@ -322,7 +323,7 @@ int main(int argc, char **argv) {
 				                     (size_t)new_cap * sizeof(int));
 				if (grown == NULL) {
 					(void)fprintf(stderr,
-					        "rotide_tests: out of memory for batches\n");
+					              "rotide_tests: out of memory for batches\n");
 					for (int j = 0; j < batch_count; j++) {
 						free(batches[j].test_indices);
 					}
@@ -351,7 +352,8 @@ int main(int argc, char **argv) {
 				free(batches[b].output);
 			}
 			if (batches[b].crashed) {
-				(void)fprintf(stderr,
+				(void)fprintf(
+				        stderr,
 				        "CRASH suite=%s test=%s signal=%d artifact=%s "
 				        "seed=0x%016llx\n",
 				        k_suites[batches[b].suite_idx].name,
@@ -404,7 +406,8 @@ int main(int argc, char **argv) {
 				if (!rotideTestSnapshotMatchesEditor(snapshot, &diff_at)) {
 					reset_violations++;
 					const unsigned char *live = (const unsigned char *)&E;
-					(void)fprintf(stderr,
+					(void)fprintf(
+					        stderr,
 					        "RESET-DRIFT after %s (repeat %d/%d): offset=%zu "
 					        "snap=0x%02x live=0x%02x\n",
 					        tc->name, rep + 1, opts.repeat, diff_at,
@@ -503,8 +506,9 @@ done:
 		};
 		if (editorMetricsAppend(opts.metrics_out, "test_run", fields,
 		                        (int)(sizeof(fields) / sizeof(fields[0]))) != 0) {
-			(void)fprintf(stderr, "rotide_tests: warning: failed to append metrics to %s\n",
-			        opts.metrics_out);
+			(void)fprintf(stderr,
+			              "rotide_tests: warning: failed to append metrics to %s\n",
+			              opts.metrics_out);
 		}
 	}
 

@@ -11,10 +11,12 @@
 #include "editing/selection.h"
 #include "editor_test_api.h"
 #include "input/dispatch.h"
+#include "input/prompt.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
 #include "render/screen.h"
 #include "render/viewport.h"
+#include "rotide.h"
 #include "save_syscalls_test_hooks.h"
 #include "support/terminal.h"
 #include "text/document.h"
@@ -24,17 +26,15 @@
 #include "workspace/tabs.h"
 #include "workspace/watch.h"
 #include "workspace/workspace_state.h"
-#include "input/prompt.h"
-#include "rotide.h"
 
 #include <errno.h>
 #include <fcntl.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
-#include <unistd.h>
-#include <stdio.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 static char *g_test_repo_root = NULL;
 

@@ -4,9 +4,9 @@
 #include "editing/history.h"
 #include "input/prompt.h"
 #include "language/lsp.h"
-#include "workspace/task.h"
 #include "language/syntax.h"
 #include "rotide.h"
+#include "workspace/task.h"
 
 #include <string.h>
 

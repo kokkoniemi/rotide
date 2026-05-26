@@ -6,11 +6,11 @@
 #include "editing/selection.h"
 #include "editing/text_source.h"
 #include "language/autocomplete.h"
+#include "language/syntax.h"
+#include "rotide.h"
 #include "text/document.h"
 #include "text/row.h"
 #include "workspace/tabs.h"
-#include "rotide.h"
-#include "language/syntax.h"
 
 #include <ctype.h>
 #include <stdlib.h>

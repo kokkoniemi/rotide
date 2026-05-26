@@ -6,8 +6,8 @@
  * slots full" diagnostics. Pure state mutation; no Tree-sitter parsing
  * or query work happens here.
  */
-#include "language/syntax_internal.h"
 #include "language/syntax.h"
+#include "language/syntax_internal.h"
 #include "rotide.h"
 
 #include <stdlib.h>

@@ -58,7 +58,8 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 	if (skipped_parse > 0) {
-		(void)fprintf(stderr, "golden_apply: %d malformed stash row(s) skipped\n", skipped_parse);
+		(void)fprintf(stderr, "golden_apply: %d malformed stash row(s) skipped\n",
+		              skipped_parse);
 	}
 	if (count == 0) {
 		(void)fprintf(stdout, "golden_apply: stash is empty — nothing to do\n");
@@ -82,12 +83,13 @@ int main(int argc, char **argv) {
 		int skipped = 0;
 		if (editor_golden_rewrite_file(entries[i].file, &entries[i], j - i, &applied,
 		                               &skipped, stderr) != 0) {
-			(void)fprintf(stderr, "golden_apply: failed to rewrite %s — leaving untouched\n",
-			        entries[i].file);
+			(void)fprintf(stderr,
+			              "golden_apply: failed to rewrite %s — leaving untouched\n",
+			              entries[i].file);
 			file_failures++;
 		} else {
 			(void)fprintf(stdout, "golden_apply: %s — applied=%d skipped=%d\n",
-			        entries[i].file, applied, skipped);
+			              entries[i].file, applied, skipped);
 			total_applied += applied;
 			total_skipped += skipped;
 		}
@@ -96,8 +98,8 @@ int main(int argc, char **argv) {
 
 	editor_golden_free_entries(entries, count);
 
-	(void)fprintf(stdout, "golden_apply: total applied=%d skipped=%d file_errors=%d\n", total_applied,
-	        total_skipped, file_failures);
+	(void)fprintf(stdout, "golden_apply: total applied=%d skipped=%d file_errors=%d\n",
+	              total_applied, total_skipped, file_failures);
 	if (file_failures > 0) {
 		return 1;
 	}
