@@ -244,6 +244,11 @@ jobs:
       - fuzz-dap-smoke
       - fuzz-toml-theme-smoke
     runs-on: ubuntu-latest
+    # contents: write is needed to push SVG dashboards to the metrics-assets
+    # orphan branch. Fork PRs receive a read-only token regardless and skip
+    # the publish step by event-name guard below.
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -294,6 +299,101 @@ jobs:
 
       - name: Summary (this workflow)
         run: ./build/tests/metrics_summary summary --in tests/metrics.jsonl
+
+      - name: Render SVG dashboard
+        run: |
+          mkdir -p build/metrics/svg
+          ./build/tests/metrics_summary render-svg \
+            --in tests/metrics-history.jsonl \
+            --out-dir build/metrics/svg
+          ls -la build/metrics/svg/
+
+      # Push SVGs to the metrics-assets orphan branch so they have stable
+      # HTTPS URLs that GitHub markdown can embed via Camo. Two destinations:
+      #   runs/<sha>/   — immutable per-commit copy, used by this run's step
+      #                   summary so embeds never go stale.
+      #   latest/       — mutable pointer to the latest main run, embedded
+      #                   from docs/developer/testing.md for the dev dashboard.
+      # Fork PRs hold a read-only token and skip this step.
+      - name: Publish SVGs to metrics-assets branch
+        id: publish
+        if: |
+          github.event_name == 'push' ||
+          github.event_name == 'schedule' ||
+          github.event_name == 'workflow_dispatch' ||
+          (github.event_name == 'pull_request' &&
+           github.event.pull_request.head.repo.full_name == github.repository)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.sha }}
+          UPDATE_LATEST: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+        run: |
+          set -euo pipefail
+          if [ ! -d build/metrics/svg ] || ! compgen -G "build/metrics/svg/*.svg" > /dev/null; then
+            echo "No SVGs to publish; skipping."
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+          SRC="$GITHUB_WORKSPACE/build/metrics/svg"
+          WORK=$(mktemp -d)
+          cd "$WORK"
+          git init -q -b metrics-assets
+          git remote add origin "$REMOTE"
+          if git fetch --depth=1 origin metrics-assets 2>/dev/null; then
+            git reset --hard FETCH_HEAD
+          fi
+
+          mkdir -p "runs/${SHA}"
+          cp "$SRC"/*.svg "runs/${SHA}/"
+
+          if [ "$UPDATE_LATEST" = "true" ]; then
+            rm -rf latest
+            mkdir -p latest
+            cp "$SRC"/*.svg latest/
+          fi
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No SVG changes."
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m "metrics: dashboard SVGs for ${SHA}"
+            git push origin metrics-assets
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Append dashboard to step summary
+        env:
+          SHA: ${{ github.sha }}
+          PUBLISHED: ${{ steps.publish.outputs.published || 'false' }}
+        run: |
+          if [ ! -d build/metrics/svg ] || ! compgen -G "build/metrics/svg/*.svg" > /dev/null; then
+            echo "No SVG charts rendered (history likely empty); skipping summary section."
+            exit 0
+          fi
+          REPO="${{ github.repository }}"
+          if [ "$PUBLISHED" = "true" ]; then
+            BASE="runs/${SHA}"
+            CAPTION="Charts for this run (commit \`${SHA:0:7}\`)."
+          else
+            BASE="latest"
+            CAPTION="This run did not publish SVGs (fork PR or no new chart data). Showing latest main as baseline."
+          fi
+          {
+            echo "## CI metrics"
+            echo ""
+            echo "$CAPTION"
+            echo ""
+            for f in build/metrics/svg/*.svg; do
+              name=$(basename "$f")
+              echo "![${name%.svg}](https://raw.githubusercontent.com/${REPO}/metrics-assets/${BASE}/${name})"
+              echo ""
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload merged metrics (this workflow)
         uses: actions/upload-artifact@v7

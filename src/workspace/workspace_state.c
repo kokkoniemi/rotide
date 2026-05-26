@@ -485,7 +485,7 @@ static int workspaceStateParseTabLine(const char *value, int *cx_out, int *cy_ou
 	return 1;
 }
 
-int editorWorkspaceStateLoadAndApply(int total_cols) {
+int editorWorkspaceStateLoadAndApply(int total_cols, int reset_panes) {
 	if (E.workspace_state_path == NULL) {
 		return 0;
 	}
@@ -554,6 +554,9 @@ int editorWorkspaceStateLoadAndApply(int total_cols) {
 		} else if (strcmp(key, "recent_file") == 0) {
 			(void)workspaceStateAppendRecentFile(value);
 		} else if (strcmp(key, "tab") == 0) {
+			if (reset_panes) {
+				continue;
+			}
 			int tab_cx = 0;
 			int tab_cy = 0;
 			const char *tab_path = NULL;
@@ -561,6 +564,9 @@ int editorWorkspaceStateLoadAndApply(int total_cols) {
 				(void)workspaceStateAppendPendingTab(tab_cx, tab_cy, tab_path);
 			}
 		} else if (strcmp(key, "pane_tab") == 0) {
+			if (reset_panes) {
+				continue;
+			}
 			int pane_idx = -1;
 			int is_active = 0;
 			const char *pane_path = NULL;
@@ -570,11 +576,17 @@ int editorWorkspaceStateLoadAndApply(int total_cols) {
 				                                         pane_path);
 			}
 		} else if (strcmp(key, "focused_pane") == 0) {
+			if (reset_panes) {
+				continue;
+			}
 			int focused = -1;
 			if (workspaceStateParseInt(value, &focused) && focused >= 0) {
 				g_pending_focused_pane = focused;
 			}
 		} else if (strcmp(key, "layout") == 0) {
+			if (reset_panes) {
+				continue;
+			}
 			struct editorPaneNode *restored = editorLayoutDeserialize(value);
 			if (restored != NULL) {
 				editorPaneNodeFree(E.layout_root);

@@ -126,12 +126,63 @@ optional workflow metadata from `ROTIDE_METRICS_GIT_SHA`,
 ./build/tests/metrics_summary summary --in tests/metrics.jsonl
 ./build/tests/metrics_summary check-fuzz-stale --in tests/metrics-history.jsonl --window-hours 48
 ./build/tests/metrics_summary check-bench-regression --in tests/metrics-history.jsonl --factor 3
+./build/tests/metrics_summary render-svg --in tests/metrics-history.jsonl --out-dir build/metrics/svg
 ```
 
 CI uploads per-job metrics artifacts, merges them in a `metrics-summary` job,
 deduplicates the rolling history by `ci_run_id`, and saves it back through
 `actions/cache`. Nightly currently emits warning annotations for stale fuzz
 coverage and bench regressions; hard-fail only after the noise floor is known.
+
+### Visualization
+
+The `render-svg` subcommand writes one self-contained SVG line chart per
+series into `--out-dir`: `bench-<name>.svg` (p50 + p95 ns), and
+`fuzz-<target>-cov.svg` + `fuzz-<target>-corpus.svg` for each fuzz target.
+Date ticks on the x-axis are auto-thinned (max ~6 labels) so they stay
+legible regardless of how many points the history contains. Series with
+fewer than two points are skipped. Filters (`--target`, `--bench-name`,
+`--since-hours`) and `--points N` (default 30, max 60) work the same as the
+other subcommands.
+
+CI publishes the rendered SVGs to a `metrics-assets` orphan branch in this
+repo on every push it can write to:
+
+| Path | Updated by | URL pattern | Purpose |
+|---|---|---|---|
+| `runs/<sha>/*.svg` | every same-repo run | `…/metrics-assets/runs/<sha>/*.svg` | immutable per-commit copy embedded in that run's step summary |
+| `latest/*.svg` | main + scheduled runs | `…/metrics-assets/latest/*.svg` | mutable pointer used by this dev-docs dashboard |
+
+Fork PRs can't push (read-only `GITHUB_TOKEN`); their step summary falls
+back to embedding `latest/*.svg` as a baseline.
+
+#### Latest trends (auto-updated by CI)
+
+These embeds reference stable `latest/` URLs, so the dashboard below stays
+current across any branch or historical checkout of `testing.md`. There is
+some Camo image-proxy caching lag (typically minutes to a few hours).
+
+<!-- The chart set is dynamic; the inventory below shows the embeds we
+expect once each series has 2+ history rows. Missing images simply do not
+render until the underlying SVG is committed to the metrics-assets branch. -->
+
+![bench: screen_diff](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/bench-screen_diff.svg)
+
+![fuzz: lsp coverage](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-lsp-cov.svg)
+
+![fuzz: lsp corpus](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-lsp-corpus.svg)
+
+![fuzz: vterm coverage](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-vterm-cov.svg)
+
+![fuzz: vterm corpus](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-vterm-corpus.svg)
+
+![fuzz: dap coverage](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-dap-cov.svg)
+
+![fuzz: dap corpus](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-dap-corpus.svg)
+
+![fuzz: toml_theme coverage](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-toml_theme-cov.svg)
+
+![fuzz: toml_theme corpus](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-toml_theme-corpus.svg)
 
 Microbenches live in `tests/bench_microbenches.c` and run with `make bench`.
 Storage-specific throughput/RSS checks live in `tests/bench_text_storage.c`

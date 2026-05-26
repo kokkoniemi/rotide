@@ -133,7 +133,14 @@ make build/tests/metrics_summary
 ./build/tests/metrics_summary summary --in tests/metrics.jsonl
 ./build/tests/metrics_summary check-fuzz-stale --in tests/metrics-history.jsonl
 ./build/tests/metrics_summary check-bench-regression --in tests/metrics-history.jsonl
+./build/tests/metrics_summary render-svg --in tests/metrics-history.jsonl --out-dir build/metrics/svg
 ```
+
+The `render-svg` subcommand emits one SVG line chart per series (bench
+p50/p95, fuzz coverage edges, fuzz corpus bytes). CI publishes the SVGs to
+a `metrics-assets` orphan branch and embeds them in the run's step summary
+via stable raw.githubusercontent.com URLs; the same `latest/` copy backs
+the trend dashboard in [testing.md](testing.md#latest-trends-auto-updated-by-ci).
 
 ### Golden Snapshots
 

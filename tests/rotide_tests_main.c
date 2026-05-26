@@ -63,6 +63,7 @@ SUITE_EXTERN(grid_snapshot);
 SUITE_EXTERN(metrics_jsonl);
 SUITE_EXTERN(metrics_libfuzzer_parse);
 SUITE_EXTERN(metrics_summary);
+SUITE_EXTERN(metrics_render_svg);
 SUITE_EXTERN(golden_apply);
 
 #define SUITE(name_str, tags_str, prefix)                                                          \
@@ -112,6 +113,7 @@ static const struct editorTestSuite k_suites[] = {
         SUITE("metrics_jsonl", "runner", metrics_jsonl),
         SUITE("metrics_libfuzzer_parse", "runner", metrics_libfuzzer_parse),
         SUITE("metrics_summary", "runner", metrics_summary),
+        SUITE("metrics_render_svg", "runner", metrics_render_svg),
         SUITE("golden_apply", "runner", golden_apply),
 };
 
