@@ -218,7 +218,7 @@ static int test_cmd_render_writes_files_and_manifest(void) {
 	ASSERT_TRUE(dir[0] != '\0');
 
 	int n = editorMetricsCmdRenderSvg(rows, 5, &opts, 0, dir);
-	ASSERT_EQ_INT(3, n);
+	ASSERT_EQ_INT(4, n);
 
 	char p[256];
 	(void)snprintf(p, sizeof(p), "%s/bench-screen_diff.svg", dir);
@@ -226,6 +226,8 @@ static int test_cmd_render_writes_files_and_manifest(void) {
 	(void)snprintf(p, sizeof(p), "%s/fuzz-lsp-cov.svg", dir);
 	ASSERT_TRUE(file_exists(p));
 	(void)snprintf(p, sizeof(p), "%s/fuzz-lsp-corpus.svg", dir);
+	ASSERT_TRUE(file_exists(p));
+	(void)snprintf(p, sizeof(p), "%s/fuzz-lsp-throughput.svg", dir);
 	ASSERT_TRUE(file_exists(p));
 
 	char manifest[2048];
@@ -277,6 +279,107 @@ static int test_cmd_render_skips_single_point_series(void) {
 	return 0;
 }
 
+static void seed_test_run(struct editorMetricsRow *r, const char *iso_date, double wall_seconds,
+                          long long crashes, long long failed, long long flakes) {
+	editorMetricsRowInit(r);
+	r->kind = EDITOR_METRICS_KIND_TEST_RUN;
+	(void)snprintf(r->ts, sizeof(r->ts), "%sT12:00:00Z", iso_date);
+	r->ts_unix = iso_date_to_unix(iso_date);
+	r->wall_seconds = wall_seconds;
+	r->crashes = crashes;
+	r->failed_unique = failed;
+	r->flakes = flakes;
+}
+
+static int test_cmd_render_emits_test_run_charts(void) {
+	struct editorMetricsRow rows[3];
+	seed_test_run(&rows[0], "2026-05-24", 12.5, 0, 0, 1);
+	seed_test_run(&rows[1], "2026-05-25", 13.1, 0, 2, 0);
+	seed_test_run(&rows[2], "2026-05-26", 12.9, 1, 0, 3);
+
+	struct editorMetricsCmdOptions opts;
+	editorMetricsCmdOptionsInit(&opts);
+	char dir[64];
+	make_tmpdir(dir, sizeof(dir));
+
+	int n = editorMetricsCmdRenderSvg(rows, 3, &opts, 0, dir);
+	ASSERT_EQ_INT(2, n);
+
+	char p[256];
+	(void)snprintf(p, sizeof(p), "%s/test-wall-seconds.svg", dir);
+	ASSERT_TRUE(file_exists(p));
+	(void)snprintf(p, sizeof(p), "%s/test-stability.svg", dir);
+	ASSERT_TRUE(file_exists(p));
+
+	char body[4096];
+	ASSERT_TRUE(read_file_into(p, body, sizeof(body)));
+	/* Stability chart should label all three series. */
+	ASSERT_TRUE(strstr(body, ">crashes</text>") != NULL);
+	ASSERT_TRUE(strstr(body, ">failed</text>") != NULL);
+	ASSERT_TRUE(strstr(body, ">flakes</text>") != NULL);
+
+	(void)rmrf_dir(dir);
+	return 0;
+}
+
+static int test_cmd_render_bench_chart_has_min_series(void) {
+	struct editorMetricsRow rows[3];
+	seed_bench(&rows[0], "2026-05-24", "b", 100, 200);
+	seed_bench(&rows[1], "2026-05-25", "b", 110, 210);
+	seed_bench(&rows[2], "2026-05-26", "b", 120, 220);
+	rows[0].min_ns = 80;
+	rows[1].min_ns = 85;
+	rows[2].min_ns = 90;
+
+	struct editorMetricsCmdOptions opts;
+	editorMetricsCmdOptionsInit(&opts);
+	char dir[64];
+	make_tmpdir(dir, sizeof(dir));
+
+	int n = editorMetricsCmdRenderSvg(rows, 3, &opts, 0, dir);
+	ASSERT_EQ_INT(1, n);
+
+	char p[256];
+	(void)snprintf(p, sizeof(p), "%s/bench-b.svg", dir);
+	char body[8192];
+	ASSERT_TRUE(read_file_into(p, body, sizeof(body)));
+	ASSERT_TRUE(strstr(body, ">p50</text>") != NULL);
+	ASSERT_TRUE(strstr(body, ">p95</text>") != NULL);
+	ASSERT_TRUE(strstr(body, ">min</text>") != NULL);
+	/* All three legend colors must appear as polyline strokes. */
+	ASSERT_TRUE(strstr(body, "stroke=\"#1f77b4\"") != NULL);
+	ASSERT_TRUE(strstr(body, "stroke=\"#ff7f0e\"") != NULL);
+	ASSERT_TRUE(strstr(body, "stroke=\"#2ca02c\"") != NULL);
+
+	(void)rmrf_dir(dir);
+	return 0;
+}
+
+static int test_cmd_render_fuzz_throughput_zero_runtime_safe(void) {
+	struct editorMetricsRow rows[2];
+	seed_fuzz(&rows[0], "2026-05-25", "lsp", 50, 1000);
+	seed_fuzz(&rows[1], "2026-05-26", "lsp", 60, 1100);
+	rows[0].executed_units = 1000;
+	rows[0].runtime_seconds = 10; /* 100 exec/s */
+	rows[1].executed_units = 5000;
+	rows[1].runtime_seconds = 0; /* must not divide by zero */
+
+	struct editorMetricsCmdOptions opts;
+	editorMetricsCmdOptionsInit(&opts);
+	char dir[64];
+	make_tmpdir(dir, sizeof(dir));
+
+	int n = editorMetricsCmdRenderSvg(rows, 2, &opts, 0, dir);
+	ASSERT_EQ_INT(3, n);
+
+	char p[256];
+	(void)snprintf(p, sizeof(p), "%s/fuzz-lsp-throughput.svg", dir);
+	ASSERT_TRUE(file_exists(p));
+
+	(void)rmrf_dir(dir);
+	return 0;
+}
+
 static int test_cmd_render_kind_filter(void) {
 	struct editorMetricsRow rows[4];
 	seed_bench(&rows[0], "2026-05-25", "b", 100, 200);
@@ -311,6 +414,10 @@ const struct editorTestCase g_metrics_render_svg_tests[] = {
         {"metrics_svg_cmd_sanitizes_filenames", test_cmd_render_sanitizes_filenames},
         {"metrics_svg_cmd_skips_single_point_series", test_cmd_render_skips_single_point_series},
         {"metrics_svg_cmd_kind_filter", test_cmd_render_kind_filter},
+        {"metrics_svg_cmd_emits_test_run_charts", test_cmd_render_emits_test_run_charts},
+        {"metrics_svg_cmd_bench_chart_has_min_series", test_cmd_render_bench_chart_has_min_series},
+        {"metrics_svg_cmd_fuzz_throughput_zero_runtime_safe",
+         test_cmd_render_fuzz_throughput_zero_runtime_safe},
 };
 
 const int g_metrics_render_svg_test_count =

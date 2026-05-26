@@ -26,6 +26,7 @@
 
 #define COLOR_PRIMARY "#1f77b4"
 #define COLOR_SECONDARY "#ff7f0e"
+#define COLOR_TERTIARY "#2ca02c"
 #define COLOR_AXIS "#444"
 #define COLOR_GRID "#e6e6e6"
 #define COLOR_TEXT "#222"
@@ -301,12 +302,12 @@ void editorMetricsRenderSvgChart(FILE *out, const char *title, const char *y_uni
 		(void)fputs("</text>\n", out);
 	}
 
-	const char *fallback_colors[2] = {COLOR_PRIMARY, COLOR_SECONDARY};
+	const char *fallback_colors[3] = {COLOR_PRIMARY, COLOR_SECONDARY, COLOR_TERTIARY};
 	for (int s = 0; s < n_series; s++) {
 		const struct editorSvgSeries *ser = &series[s];
 		const char *color = ser->color;
 		if (color == NULL || color[0] == '\0') {
-			color = fallback_colors[s % 2];
+			color = fallback_colors[s % 3];
 		}
 		(void)fprintf(out,
 		              "<polyline fill=\"none\" stroke=\"%s\" stroke-width=\"2\" "
@@ -335,7 +336,7 @@ void editorMetricsRenderSvgChart(FILE *out, const char *title, const char *y_uni
 			const struct editorSvgSeries *ser = &series[s];
 			const char *color = ser->color;
 			if (color == NULL || color[0] == '\0') {
-				color = fallback_colors[s % 2];
+				color = fallback_colors[s % 3];
 			}
 			int row_y = legend_y + s * 16;
 			(void)fprintf(out,
@@ -505,8 +506,69 @@ int editorMetricsCmdRenderSvg(const struct editorMetricsRow *rows, int count,
 	}
 
 	int n_written = 0;
-	double buf_a[RENDER_MAX_POINTS];
-	double buf_b[RENDER_MAX_POINTS];
+	double bufs[3][RENDER_MAX_POINTS];
+
+	if (opts->kind_filter == EDITOR_METRICS_KIND_UNKNOWN ||
+	    opts->kind_filter == EDITOR_METRICS_KIND_TEST_RUN) {
+		struct editorMetricsRow **group = (struct editorMetricsRow **)malloc(
+		        (size_t)(count > 0 ? count : 1) * sizeof(struct editorMetricsRow *));
+		int gc = 0;
+		if (group != NULL) {
+			for (int i = 0; i < count; i++) {
+				const struct editorMetricsRow *r = &rows[i];
+				if (r->kind != EDITOR_METRICS_KIND_TEST_RUN ||
+				    !rowPassesFilters(r, opts)) {
+					continue;
+				}
+				group[gc++] = (struct editorMetricsRow *)r;
+			}
+			qsort(group, (size_t)gc, sizeof(struct editorMetricsRow *), compareByTsPtr);
+		}
+		if (gc >= 2) {
+			int start = gc > points_limit ? gc - points_limit : 0;
+			int n = gc - start;
+			char *label_buf = NULL;
+			const char **labels = buildDateLabels(&group[start], n, &label_buf);
+
+			for (int j = 0; j < n; j++) {
+				bufs[0][j] = group[start + j]->wall_seconds;
+			}
+			struct editorSvgSeries ser_wall;
+			ser_wall.values = bufs[0];
+			ser_wall.label = "wall";
+			ser_wall.color = COLOR_PRIMARY;
+			if (writeSvgFile(out_dir, "test-wall-seconds.svg", "Test runtime",
+			                 "seconds", labels, n, &ser_wall, 1) == 0) {
+				(void)fprintf(manifest, "test-wall-seconds.svg\n");
+				n_written++;
+			}
+
+			for (int j = 0; j < n; j++) {
+				bufs[0][j] = (double)group[start + j]->crashes;
+				bufs[1][j] = (double)group[start + j]->failed_unique;
+				bufs[2][j] = (double)group[start + j]->flakes;
+			}
+			struct editorSvgSeries ser_stab[3];
+			ser_stab[0].values = bufs[0];
+			ser_stab[0].label = "crashes";
+			ser_stab[0].color = COLOR_PRIMARY;
+			ser_stab[1].values = bufs[1];
+			ser_stab[1].label = "failed";
+			ser_stab[1].color = COLOR_SECONDARY;
+			ser_stab[2].values = bufs[2];
+			ser_stab[2].label = "flakes";
+			ser_stab[2].color = COLOR_TERTIARY;
+			if (writeSvgFile(out_dir, "test-stability.svg", "Test stability", "count",
+			                 labels, n, ser_stab, 3) == 0) {
+				(void)fprintf(manifest, "test-stability.svg\n");
+				n_written++;
+			}
+
+			free((void *)labels);
+			free(label_buf);
+		}
+		free(group);
+	}
 
 	if (opts->kind_filter == EDITOR_METRICS_KIND_UNKNOWN ||
 	    opts->kind_filter == EDITOR_METRICS_KIND_BENCH) {
@@ -524,26 +586,30 @@ int editorMetricsCmdRenderSvg(const struct editorMetricsRow *rows, int count,
 			int start = gc > points_limit ? gc - points_limit : 0;
 			int n = gc - start;
 			for (int j = 0; j < n; j++) {
-				buf_a[j] = group[start + j]->p50_ns;
-				buf_b[j] = group[start + j]->p95_ns;
+				bufs[0][j] = group[start + j]->p50_ns;
+				bufs[1][j] = group[start + j]->p95_ns;
+				bufs[2][j] = group[start + j]->min_ns;
 			}
 			char *label_buf = NULL;
 			const char **labels = buildDateLabels(&group[start], n, &label_buf);
-			struct editorSvgSeries ser[2];
-			ser[0].values = buf_a;
+			struct editorSvgSeries ser[3];
+			ser[0].values = bufs[0];
 			ser[0].label = "p50";
 			ser[0].color = COLOR_PRIMARY;
-			ser[1].values = buf_b;
+			ser[1].values = bufs[1];
 			ser[1].label = "p95";
 			ser[1].color = COLOR_SECONDARY;
+			ser[2].values = bufs[2];
+			ser[2].label = "min";
+			ser[2].color = COLOR_TERTIARY;
 
 			char title[256];
-			(void)snprintf(title, sizeof(title), "%s — p50 / p95", keys[i]);
+			(void)snprintf(title, sizeof(title), "%s — min / p50 / p95", keys[i]);
 			char safe[128];
 			sanitizeFilenameInto(keys[i], safe, sizeof(safe));
 			char fname[160];
 			(void)snprintf(fname, sizeof(fname), "bench-%s.svg", safe);
-			if (writeSvgFile(out_dir, fname, title, "ns", labels, n, ser, 2) == 0) {
+			if (writeSvgFile(out_dir, fname, title, "ns", labels, n, ser, 3) == 0) {
 				(void)fprintf(manifest, "%s\n", fname);
 				n_written++;
 			}
@@ -575,10 +641,10 @@ int editorMetricsCmdRenderSvg(const struct editorMetricsRow *rows, int count,
 			sanitizeFilenameInto(keys[i], safe, sizeof(safe));
 
 			for (int j = 0; j < n; j++) {
-				buf_a[j] = (double)group[start + j]->cov_edges;
+				bufs[0][j] = (double)group[start + j]->cov_edges;
 			}
 			struct editorSvgSeries ser_cov;
-			ser_cov.values = buf_a;
+			ser_cov.values = bufs[0];
 			ser_cov.label = "cov_edges";
 			ser_cov.color = COLOR_PRIMARY;
 			char title_cov[256];
@@ -593,10 +659,10 @@ int editorMetricsCmdRenderSvg(const struct editorMetricsRow *rows, int count,
 			}
 
 			for (int j = 0; j < n; j++) {
-				buf_b[j] = (double)group[start + j]->corpus_bytes;
+				bufs[0][j] = (double)group[start + j]->corpus_bytes;
 			}
 			struct editorSvgSeries ser_b;
-			ser_b.values = buf_b;
+			ser_b.values = bufs[0];
 			ser_b.label = "corpus_bytes";
 			ser_b.color = COLOR_PRIMARY;
 			char title_b[256];
@@ -606,6 +672,29 @@ int editorMetricsCmdRenderSvg(const struct editorMetricsRow *rows, int count,
 			if (writeSvgFile(out_dir, fname_b, title_b, "bytes", labels, n, &ser_b,
 			                 1) == 0) {
 				(void)fprintf(manifest, "%s\n", fname_b);
+				n_written++;
+			}
+
+			/* runtime_seconds==0 collapses to a 0 sample rather than NaN/skip
+			 * so the chart shape (n_points) matches the other fuzz charts. */
+			for (int j = 0; j < n; j++) {
+				const struct editorMetricsRow *r = group[start + j];
+				bufs[0][j] = (r->runtime_seconds > 0)
+				                     ? (double)r->executed_units /
+				                               (double)r->runtime_seconds
+				                     : 0.0;
+			}
+			struct editorSvgSeries ser_t;
+			ser_t.values = bufs[0];
+			ser_t.label = "exec/s";
+			ser_t.color = COLOR_PRIMARY;
+			char title_t[256];
+			(void)snprintf(title_t, sizeof(title_t), "%s — fuzz throughput", keys[i]);
+			char fname_t[160];
+			(void)snprintf(fname_t, sizeof(fname_t), "fuzz-%s-throughput.svg", safe);
+			if (writeSvgFile(out_dir, fname_t, title_t, "exec/s", labels, n, &ser_t,
+			                 1) == 0) {
+				(void)fprintf(manifest, "%s\n", fname_t);
 				n_written++;
 			}
 

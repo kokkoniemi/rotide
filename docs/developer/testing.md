@@ -162,27 +162,48 @@ These embeds reference stable `latest/` URLs, so the dashboard below stays
 current across any branch or historical checkout of `testing.md`. There is
 some Camo image-proxy caching lag (typically minutes to a few hours).
 
-<!-- The chart set is dynamic; the inventory below shows the embeds we
-expect once each series has 2+ history rows. Missing images simply do not
-render until the underlying SVG is committed to the metrics-assets branch. -->
+<!-- Filenames mirror bench_name / fuzz target slugs; missing images simply
+do not render until the underlying SVG is committed to metrics-assets. -->
 
-![bench: screen_diff](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/bench-screen_diff.svg)
+#### Test suite
 
-![fuzz: lsp coverage](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-lsp-cov.svg)
+| Wall time | Stability |
+|---|---|
+| ![test wall time](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/test-wall-seconds.svg) | ![test stability](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/test-stability.svg) |
 
-![fuzz: lsp corpus](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-lsp-corpus.svg)
+#### Benchmarks (min / p50 / p95)
 
-![fuzz: vterm coverage](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-vterm-cov.svg)
+| | |
+|---|---|
+| ![bench document_position_byte_roundtrip](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/bench-document_position_byte_roundtrip.svg) | ![bench row_cache_splice_small_edit](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/bench-row_cache_splice_small_edit.svg) |
+| ![bench wrap_recompute_1k_lines](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/bench-wrap_recompute_1k_lines.svg) | ![bench syntax_incremental_5k_lines_c](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/bench-syntax_incremental_5k_lines_c.svg) |
+| ![bench screen_diff_unchanged_frame](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/bench-screen_diff_unchanged_frame.svg) | ![bench screen_diff_one_row_changed](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/bench-screen_diff_one_row_changed.svg) |
 
-![fuzz: vterm corpus](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-vterm-corpus.svg)
+#### Fuzz targets
 
-![fuzz: dap coverage](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-dap-cov.svg)
+##### vterm
 
-![fuzz: dap corpus](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-dap-corpus.svg)
+| Coverage | Corpus | Throughput |
+|---|---|---|
+| ![fuzz vterm cov](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-vterm-cov.svg) | ![fuzz vterm corpus](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-vterm-corpus.svg) | ![fuzz vterm throughput](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-vterm-throughput.svg) |
 
-![fuzz: toml_theme coverage](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-toml_theme-cov.svg)
+##### lsp
 
-![fuzz: toml_theme corpus](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-toml_theme-corpus.svg)
+| Coverage | Corpus | Throughput |
+|---|---|---|
+| ![fuzz lsp cov](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-lsp-cov.svg) | ![fuzz lsp corpus](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-lsp-corpus.svg) | ![fuzz lsp throughput](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-lsp-throughput.svg) |
+
+##### dap
+
+| Coverage | Corpus | Throughput |
+|---|---|---|
+| ![fuzz dap cov](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-dap-cov.svg) | ![fuzz dap corpus](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-dap-corpus.svg) | ![fuzz dap throughput](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-dap-throughput.svg) |
+
+##### toml-theme
+
+| Coverage | Corpus | Throughput |
+|---|---|---|
+| ![fuzz toml-theme cov](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-toml-theme-cov.svg) | ![fuzz toml-theme corpus](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-toml-theme-corpus.svg) | ![fuzz toml-theme throughput](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/fuzz-toml-theme-throughput.svg) |
 
 Microbenches live in `tests/bench_microbenches.c` and run with `make bench`.
 Storage-specific throughput/RSS checks live in `tests/bench_text_storage.c`
