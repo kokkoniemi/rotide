@@ -12,6 +12,8 @@ For maintainers changing behavior. The root README is user-facing.
   fuzz/bench/golden commands, metrics, sanitizers, diagrams.
 - [Testing](testing.md): test model, validation layers, fuzzing, golden
   snapshots, metrics, and how to add coverage.
+- [Metrics dashboard](metrics-dashboard.md): live SVG trend charts for the
+  test suite, microbenches, and fuzz targets (auto-updated nightly).
 
 ## Diagrams
 
