@@ -131,7 +131,7 @@ static int test_chart_xml_escapes_title(void) {
 static int test_chart_thins_ticks_for_many_points(void) {
 	double v[30];
 	const char *labels[30];
-	char label_buf[30][16];
+	char label_buf[30][32];
 	for (int i = 0; i < 30; i++) {
 		v[i] = (double)i;
 		(void)snprintf(label_buf[i], sizeof(label_buf[i]), "2026-05-%02d", i + 1);
