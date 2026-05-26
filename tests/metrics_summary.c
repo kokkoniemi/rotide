@@ -2,6 +2,7 @@
  *   summary                    print recent rows grouped by kind/target/name
  *   check-fuzz-stale           exit 1 if any fuzz target gained zero edges in window
  *   check-bench-regression     exit 1 if any bench p50 moved > factor * prev_iqr
+ *   render-svg                 write one SVG line chart per bench/fuzz series
  *
  * Common options:
  *   --in PATH              input JSONL (default: tests/metrics.jsonl)
@@ -14,9 +15,12 @@
  *   --limit N              summary rows per group (default 5)
  *   --window-hours N       check-fuzz-stale window (default 48)
  *   --factor F             check-bench-regression threshold factor (default 3.0)
+ *   --out-dir DIR          render-svg output directory (required)
+ *   --points N             render points per series (default 30, max 60)
  */
 
 #include "metrics_jsonl_read.h"
+#include "metrics_render_svg.h"
 #include "metrics_summary_cmd.h"
 
 #include <errno.h>
@@ -27,12 +31,14 @@
 
 static void usage(FILE *out) {
 	(void)fprintf(out, "usage: metrics_summary <subcommand> [opts]\n"
-	                   "  Subcommands: summary | check-fuzz-stale | check-bench-regression\n"
+	                   "  Subcommands: summary | check-fuzz-stale | check-bench-regression "
+	                   "| render-svg\n"
 	                   "  Common: --in PATH --kind KIND --target NAME --bench-name NAME\n"
 	                   "          --since-hours N\n"
 	                   "  summary:                --limit N\n"
 	                   "  check-fuzz-stale:       --window-hours N\n"
-	                   "  check-bench-regression: --factor F\n");
+	                   "  check-bench-regression: --factor F\n"
+	                   "  render-svg:             --out-dir DIR --points N\n");
 }
 
 static int parse_kind(const char *s, enum editorMetricsKind *out) {
@@ -63,6 +69,8 @@ int main(int argc, char **argv) {
 	}
 
 	const char *in_path = "tests/metrics.jsonl";
+	const char *out_dir = NULL;
+	int render_points = 0;
 	struct editorMetricsCmdOptions opts;
 	editorMetricsCmdOptionsInit(&opts);
 	long long since_hours = 0;
@@ -128,6 +136,22 @@ int main(int argc, char **argv) {
 			i++;
 			continue;
 		}
+		if (strcmp(a, "--out-dir") == 0 && next) {
+			out_dir = next;
+			i++;
+			continue;
+		}
+		if (strcmp(a, "--points") == 0 && next) {
+			char *end = NULL;
+			long v = strtol(next, &end, 10);
+			if (end == NULL || *end != '\0' || v <= 0 || v > 1000) {
+				(void)fprintf(stderr, "metrics_summary: bad --points\n");
+				return 2;
+			}
+			render_points = (int)v;
+			i++;
+			continue;
+		}
 		(void)fprintf(stderr, "metrics_summary: unknown arg: %s\n", a);
 		usage(stderr);
 		return 2;
@@ -156,6 +180,22 @@ int main(int argc, char **argv) {
 		rc = editorMetricsCmdCheckFuzzStale(rows, count, &opts, stdout);
 	} else if (strcmp(sub, "check-bench-regression") == 0) {
 		rc = editorMetricsCmdCheckBenchRegression(rows, count, &opts, stdout);
+	} else if (strcmp(sub, "render-svg") == 0) {
+		if (out_dir == NULL) {
+			(void)fprintf(stderr,
+			              "metrics_summary: render-svg requires --out-dir DIR\n");
+			editorMetricsRowsFree(rows, count);
+			return 2;
+		}
+		int written = editorMetricsCmdRenderSvg(rows, count, &opts, render_points, out_dir);
+		if (written < 0) {
+			(void)fprintf(stderr, "metrics_summary: render-svg failed (out_dir=%s)\n",
+			              out_dir);
+			editorMetricsRowsFree(rows, count);
+			return 2;
+		}
+		(void)fprintf(stdout, "render-svg: wrote %d file(s) to %s\n", written, out_dir);
+		rc = 0;
 	} else {
 		(void)fprintf(stderr, "metrics_summary: unknown subcommand: %s\n", sub);
 		usage(stderr);

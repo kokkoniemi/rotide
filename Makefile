@@ -142,10 +142,11 @@ TEST_SRCS = $(addprefix tests/, \
 	test_metrics_jsonl.c \
 	test_metrics_libfuzzer_parse.c \
 	test_metrics_summary.c \
+	test_metrics_render_svg.c \
 	test_golden_apply.c \
 	runner_support.c seed.c parallel_runner.c editor_state_snapshot.c \
 	metrics_jsonl.c metrics_libfuzzer_parse.c \
-	metrics_jsonl_read.c metrics_summary_cmd.c \
+	metrics_jsonl_read.c metrics_summary_cmd.c metrics_render_svg.c \
 	grid_snapshot_update.c grid_snapshot_format.c golden_apply_lib.c \
 	test_grid_snapshot.c \
 	test_support.c test_helpers.c alloc_test_hooks.c save_syscalls_test_hooks.c)
@@ -194,7 +195,8 @@ METRICS_FUZZ_EMIT_OBJS = $(METRICS_FUZZ_EMIT_SRCS:%.c=$(BUILD_DIR)/%.o)
 # summary, check-fuzz-stale, check-bench-regression.
 METRICS_SUMMARY_BIN = $(BUILD_DIR)/tests/metrics_summary
 METRICS_SUMMARY_SRCS = tests/metrics_summary.c \
-	tests/metrics_jsonl_read.c tests/metrics_summary_cmd.c
+	tests/metrics_jsonl_read.c tests/metrics_summary_cmd.c \
+	tests/metrics_render_svg.c
 METRICS_SUMMARY_OBJS = $(METRICS_SUMMARY_SRCS:%.c=$(BUILD_DIR)/%.o)
 
 # Golden-snapshot apply / diff-preview tools. Consume the JSONL stash
