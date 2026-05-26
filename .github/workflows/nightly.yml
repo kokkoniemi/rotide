@@ -119,7 +119,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Build summarizer
-        run: make tests/metrics_summary
+        run: make build/tests/metrics_summary
 
       - name: Download nightly fuzz metrics
         uses: actions/download-artifact@v8
@@ -163,19 +163,19 @@ jobs:
           key: metrics-history-${{ github.run_id }}
 
       - name: Summary (rolling history)
-        run: ./tests/metrics_summary summary --in tests/metrics-history.jsonl
+        run: ./build/tests/metrics_summary summary --in tests/metrics-history.jsonl
 
       # Surface noisy-baseline alerts as GitHub annotations without failing
       # the nightly cron.
       - name: Check fuzz staleness (48h window)
         run: |
-          ./tests/metrics_summary check-fuzz-stale --in tests/metrics-history.jsonl \
+          ./build/tests/metrics_summary check-fuzz-stale --in tests/metrics-history.jsonl \
               --window-hours 48 \
             || echo "::warning::check-fuzz-stale flagged a target — see job log"
 
       - name: Check bench regressions (3× IQR)
         run: |
-          ./tests/metrics_summary check-bench-regression --in tests/metrics-history.jsonl \
+          ./build/tests/metrics_summary check-bench-regression --in tests/metrics-history.jsonl \
             || echo "::warning::check-bench-regression flagged a bench — see job log"
 
       - name: Upload merged metrics (this run)

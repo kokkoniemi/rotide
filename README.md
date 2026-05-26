@@ -36,7 +36,7 @@ Build and run:
 
 ```bash
 make
-./rotide README.md
+./build/rotide README.md
 ```
 
 Run tests:

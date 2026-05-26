@@ -10,6 +10,7 @@ CLANG_TIDY ?= clang-tidy
 # ============================================================================
 # Project layout
 # ============================================================================
+BUILD_DIR := build
 SRC_DIR := src
 VENDOR_DIR := vendor
 LIBVTERM_DIR := $(VENDOR_DIR)/libvterm
@@ -153,24 +154,24 @@ TEST_SRCS = $(addprefix tests/, \
 # Objects
 # ============================================================================
 SRCS = $(CORE_SRCS) $(TREE_SITTER_SRCS) $(LIBVTERM_SRCS)
-OBJS = $(SRCS:.c=.o)
-CORE_OBJS = $(CORE_SRCS:.c=.o)
-TREE_SITTER_OBJS = $(TREE_SITTER_SRCS:.c=.o)
-LIBVTERM_OBJS = $(LIBVTERM_SRCS:.c=.o)
-TEST_OBJS = $(TEST_SRCS:.c=.o)
+OBJS = $(SRCS:%.c=$(BUILD_DIR)/%.o)
+CORE_OBJS = $(CORE_SRCS:%.c=$(BUILD_DIR)/%.o)
+TREE_SITTER_OBJS = $(TREE_SITTER_SRCS:%.c=$(BUILD_DIR)/%.o)
+LIBVTERM_OBJS = $(LIBVTERM_SRCS:%.c=$(BUILD_DIR)/%.o)
+TEST_OBJS = $(TEST_SRCS:%.c=$(BUILD_DIR)/%.o)
 
 # Everything except the rotide entry-point TU, so the test binary can link
 # the editor without colliding on `main`.
-EDITOR_OBJS = $(filter-out $(SRC_DIR)/rotide.o,$(CORE_OBJS)) \
+EDITOR_OBJS = $(filter-out $(BUILD_DIR)/$(SRC_DIR)/rotide.o,$(CORE_OBJS)) \
 	$(TREE_SITTER_OBJS) $(LIBVTERM_OBJS)
 
 DEPFILES = $(OBJS:.o=.d) $(TEST_OBJS:.o=.d)
-TEST_BIN = tests/rotide_tests
-BENCH_BUFFER_BIN = tests/bench_text_storage
+TEST_BIN = $(BUILD_DIR)/tests/rotide_tests
+BENCH_BUFFER_BIN = $(BUILD_DIR)/tests/bench_text_storage
 BENCH_BUFFER_SRC = tests/bench_text_storage.c
-BENCH_BUFFER_OBJ = $(BENCH_BUFFER_SRC:.c=.o)
+BENCH_BUFFER_OBJ = $(BENCH_BUFFER_SRC:%.c=$(BUILD_DIR)/%.o)
 
-BENCH_MICRO_BIN = tests/rotide_bench
+BENCH_MICRO_BIN = $(BUILD_DIR)/tests/rotide_bench
 # bench_microbenches drives editorRefreshScreen for the screen-diff cases,
 # which needs reset_editor_state and friends. Pull in just the test helpers
 # the bench actually uses — alloc_test_hooks and save_syscalls_test_hooks are
@@ -179,34 +180,34 @@ BENCH_MICRO_SRCS = tests/bench_microbenches.c tests/bench_runner.c \
 	tests/metrics_jsonl.c \
 	tests/test_helpers.c tests/alloc_test_hooks.c \
 	tests/save_syscalls_test_hooks.c
-BENCH_MICRO_OBJS = $(BENCH_MICRO_SRCS:.c=.o)
+BENCH_MICRO_OBJS = $(BENCH_MICRO_SRCS:%.c=$(BUILD_DIR)/%.o)
 
 # Tiny standalone tool: parses captured libFuzzer stderr + corpus dir and
 # appends a kind=fuzz row to a metrics JSONL file. Lives next to the fuzz
 # infrastructure but builds with the normal C toolchain (no fuzz flags).
-METRICS_FUZZ_EMIT_BIN = tests/metrics_fuzz_emit
+METRICS_FUZZ_EMIT_BIN = $(BUILD_DIR)/tests/metrics_fuzz_emit
 METRICS_FUZZ_EMIT_SRCS = tests/metrics_fuzz_emit.c \
 	tests/metrics_libfuzzer_parse.c tests/metrics_jsonl.c
-METRICS_FUZZ_EMIT_OBJS = $(METRICS_FUZZ_EMIT_SRCS:.c=.o)
+METRICS_FUZZ_EMIT_OBJS = $(METRICS_FUZZ_EMIT_SRCS:%.c=$(BUILD_DIR)/%.o)
 
 # Reader / regression-detector for tests/metrics.jsonl. Subcommands:
 # summary, check-fuzz-stale, check-bench-regression.
-METRICS_SUMMARY_BIN = tests/metrics_summary
+METRICS_SUMMARY_BIN = $(BUILD_DIR)/tests/metrics_summary
 METRICS_SUMMARY_SRCS = tests/metrics_summary.c \
 	tests/metrics_jsonl_read.c tests/metrics_summary_cmd.c
-METRICS_SUMMARY_OBJS = $(METRICS_SUMMARY_SRCS:.c=.o)
+METRICS_SUMMARY_OBJS = $(METRICS_SUMMARY_SRCS:%.c=$(BUILD_DIR)/%.o)
 
 # Golden-snapshot apply / diff-preview tools. Consume the JSONL stash
 # emitted by `rotide_tests --update-golden`.
-GOLDEN_APPLY_BIN = tests/golden_apply
+GOLDEN_APPLY_BIN = $(BUILD_DIR)/tests/golden_apply
 GOLDEN_APPLY_SRCS = tests/golden_apply.c \
 	tests/golden_apply_lib.c tests/grid_snapshot_format.c
-GOLDEN_APPLY_OBJS = $(GOLDEN_APPLY_SRCS:.c=.o)
+GOLDEN_APPLY_OBJS = $(GOLDEN_APPLY_SRCS:%.c=$(BUILD_DIR)/%.o)
 
-GOLDEN_DIFF_REPORT_BIN = tests/golden_diff_report
+GOLDEN_DIFF_REPORT_BIN = $(BUILD_DIR)/tests/golden_diff_report
 GOLDEN_DIFF_REPORT_SRCS = tests/golden_diff_report.c \
 	tests/golden_apply_lib.c tests/grid_snapshot_format.c
-GOLDEN_DIFF_REPORT_OBJS = $(GOLDEN_DIFF_REPORT_SRCS:.c=.o)
+GOLDEN_DIFF_REPORT_OBJS = $(GOLDEN_DIFF_REPORT_SRCS:%.c=$(BUILD_DIR)/%.o)
 
 FUZZ_CC ?= clang
 # Nightly soak time per target (seconds). 30 minutes by default — matches
@@ -214,27 +215,27 @@ FUZZ_CC ?= clang
 # GitHub-hosted runner's job budget.
 FUZZ_NIGHTLY_TIME ?= 1800
 
-FUZZ_VTERM_BIN = tests/fuzz/vterm/fuzz_vterm
+FUZZ_VTERM_BIN = $(BUILD_DIR)/tests/fuzz/vterm/fuzz_vterm
 FUZZ_VTERM_HARNESS = tests/fuzz/vterm/fuzz_vterm.c
 FUZZ_VTERM_CORPUS = tests/fuzz/vterm/corpus
 FUZZ_VTERM_CORPUS_GROWN = tests/fuzz/vterm/corpus_grown
 FUZZ_VTERM_SMOKE_RUNS ?= 1000
 
-FUZZ_LSP_BIN = tests/fuzz/lsp/fuzz_lsp
+FUZZ_LSP_BIN = $(BUILD_DIR)/tests/fuzz/lsp/fuzz_lsp
 FUZZ_LSP_HARNESS = tests/fuzz/lsp/fuzz_lsp.c
 FUZZ_LSP_CORPUS = tests/fuzz/lsp/corpus
 FUZZ_LSP_CORPUS_GROWN = tests/fuzz/lsp/corpus_grown
 FUZZ_LSP_SMOKE_RUNS ?= 5000
 FUZZ_LSP_SRCS = $(SRC_DIR)/language/lsp_framing.c
 
-FUZZ_DAP_BIN = tests/fuzz/dap/fuzz_dap
+FUZZ_DAP_BIN = $(BUILD_DIR)/tests/fuzz/dap/fuzz_dap
 FUZZ_DAP_HARNESS = tests/fuzz/dap/fuzz_dap.c
 FUZZ_DAP_CORPUS = tests/fuzz/dap/corpus
 FUZZ_DAP_CORPUS_GROWN = tests/fuzz/dap/corpus_grown
 FUZZ_DAP_SMOKE_RUNS ?= 5000
 FUZZ_DAP_SRCS = $(SRC_DIR)/debug/dap_client.c
 
-FUZZ_TOML_THEME_BIN = tests/fuzz/toml/fuzz_toml_theme
+FUZZ_TOML_THEME_BIN = $(BUILD_DIR)/tests/fuzz/toml/fuzz_toml_theme
 FUZZ_TOML_THEME_HARNESS = tests/fuzz/toml/fuzz_toml_theme.c
 FUZZ_TOML_THEME_CORPUS = tests/fuzz/toml/corpus
 FUZZ_TOML_THEME_CORPUS_GROWN = tests/fuzz/toml/corpus_grown
@@ -287,7 +288,13 @@ endif
 # ============================================================================
 .DEFAULT_GOAL := rotide
 
-rotide: $(SRC_DIR)/rotide.o $(EDITOR_OBJS)
+# Convenience alias so `make rotide` still works after the binary moved
+# under $(BUILD_DIR)/.
+.PHONY: rotide
+rotide: $(BUILD_DIR)/rotide
+
+$(BUILD_DIR)/rotide: $(BUILD_DIR)/$(SRC_DIR)/rotide.o $(EDITOR_OBJS)
+	@mkdir -p $(dir $@)
 	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) $(OBJS) -lutil -o $@
 
 $(QUERIES_HEADER): $(QUERIES_MANIFEST) scripts/embed_queries.sh $(QUERIES_SCM)
@@ -296,44 +303,55 @@ $(QUERIES_HEADER): $(QUERIES_MANIFEST) scripts/embed_queries.sh $(QUERIES_SCM)
 $(DEFAULT_CONFIG_HEADER): $(DEFAULT_CONFIG_INPUT) scripts/embed_default_config.sh
 	$(call LOG,GEN,$@)scripts/embed_default_config.sh $(DEFAULT_CONFIG_INPUT) $@
 
-$(SRC_DIR)/config/common.o: $(DEFAULT_CONFIG_HEADER)
-$(SRC_DIR)/language/queries.o: $(QUERIES_HEADER)
-$(SRC_DIR)/language/languages.o: $(QUERIES_HEADER)
+$(BUILD_DIR)/$(SRC_DIR)/config/common.o: $(DEFAULT_CONFIG_HEADER)
+$(BUILD_DIR)/$(SRC_DIR)/language/queries.o: $(QUERIES_HEADER)
+$(BUILD_DIR)/$(SRC_DIR)/language/languages.o: $(QUERIES_HEADER)
 
-$(LIBVTERM_OBJS): %.o: %.c
+$(LIBVTERM_OBJS): $(BUILD_DIR)/%.o: %.c
+	@mkdir -p $(dir $@)
 	$(call LOG,CC,$<)$(CC) $(LIBVTERM_CPPFLAGS) $(LIBVTERM_CFLAGS) $(DEPFLAGS) -c $< -o $@
 
-$(TREE_SITTER_OBJS): %.o: %.c
+$(TREE_SITTER_OBJS): $(BUILD_DIR)/%.o: %.c
+	@mkdir -p $(dir $@)
 	$(call LOG,CC,$<)$(CC) $(TREE_SITTER_CPPFLAGS) $(TREE_SITTER_CFLAGS) $(DEPFLAGS) -c $< -o $@
 
-%.o: %.c
+$(BUILD_DIR)/%.o: %.c
+	@mkdir -p $(dir $@)
 	$(call LOG,CC,$<)$(CC) $(CPPFLAGS) $(CFLAGS) $(PTHREAD_FLAGS) $(DEPFLAGS) -c $< -o $@
 
 $(TEST_BIN): $(TEST_OBJS) $(EDITOR_OBJS)
+	@mkdir -p $(dir $@)
 	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) -rdynamic $^ -lutil -o $@
 
 $(BENCH_BUFFER_BIN): $(BENCH_BUFFER_OBJ) $(EDITOR_OBJS)
+	@mkdir -p $(dir $@)
 	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) $^ -lutil -o $@
 
 $(BENCH_MICRO_BIN): $(BENCH_MICRO_OBJS) $(EDITOR_OBJS)
+	@mkdir -p $(dir $@)
 	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $(PTHREAD_FLAGS) $^ -lutil -o $@
 
 $(METRICS_FUZZ_EMIT_BIN): $(METRICS_FUZZ_EMIT_OBJS)
+	@mkdir -p $(dir $@)
 	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $^ -o $@
 
 $(METRICS_SUMMARY_BIN): $(METRICS_SUMMARY_OBJS)
+	@mkdir -p $(dir $@)
 	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $^ -o $@
 
 $(GOLDEN_APPLY_BIN): $(GOLDEN_APPLY_OBJS)
+	@mkdir -p $(dir $@)
 	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $^ -o $@
 
 $(GOLDEN_DIFF_REPORT_BIN): $(GOLDEN_DIFF_REPORT_OBJS)
+	@mkdir -p $(dir $@)
 	$(call LOG,LD,$@)$(CC) $(LDFLAGS) $^ -o $@
 
 # Single-step compile-and-link so libvterm sources see FUZZ_FLAGS instead of
 # the standard build's flags. Don't reuse $(LIBVTERM_OBJS) — they would have
 # been built without the sanitizer coverage hooks libFuzzer needs.
 $(FUZZ_VTERM_BIN): $(FUZZ_VTERM_HARNESS) $(LIBVTERM_SRCS)
+	@mkdir -p $(dir $@)
 	$(call LOG,FUZZ_CC,$@)$(FUZZ_CC) $(FUZZ_FLAGS) $(LIBVTERM_CPPFLAGS) \
 		$(LIBVTERM_CFLAGS) $^ -o $@
 
@@ -341,10 +359,12 @@ $(FUZZ_VTERM_BIN): $(FUZZ_VTERM_HARNESS) $(LIBVTERM_SRCS)
 # header-only) so the fuzz binary doesn't have to drag in the rest of the
 # editor. CPPFLAGS picks up the -I$(SRC_DIR) needed for the include path.
 $(FUZZ_LSP_BIN): $(FUZZ_LSP_HARNESS) $(FUZZ_LSP_SRCS)
+	@mkdir -p $(dir $@)
 	$(call LOG,FUZZ_CC,$@)$(FUZZ_CC) $(FUZZ_FLAGS) $(CPPFLAGS) $^ -o $@
 
 # dap_client.c is similarly self-contained; same compile strategy.
 $(FUZZ_DAP_BIN): $(FUZZ_DAP_HARNESS) $(FUZZ_DAP_SRCS)
+	@mkdir -p $(dir $@)
 	$(call LOG,FUZZ_CC,$@)$(FUZZ_CC) $(FUZZ_FLAGS) $(CPPFLAGS) $^ -o $@
 
 # theme_parse.c needs theme_builtin.c (for editorThemeInitDefault et al.),
@@ -352,6 +372,7 @@ $(FUZZ_DAP_BIN): $(FUZZ_DAP_HARNESS) $(FUZZ_DAP_SRCS)
 # referenced via common.c). default_config_data.h is a generated header
 # pulled in by common.c, so depend on it explicitly.
 $(FUZZ_TOML_THEME_BIN): $(FUZZ_TOML_THEME_HARNESS) $(FUZZ_TOML_THEME_SRCS) $(GENERATED_HEADERS)
+	@mkdir -p $(dir $@)
 	$(call LOG,FUZZ_CC,$@)$(FUZZ_CC) $(FUZZ_FLAGS) $(CPPFLAGS) \
 		$(FUZZ_TOML_THEME_HARNESS) $(FUZZ_TOML_THEME_SRCS) -o $@
 
@@ -411,7 +432,7 @@ bench-render-once: rotide $(BENCH_RENDER_FIXTURE)
 	}
 	$(call LOG,HYPERFINE,bench-render-once)$(HYPERFINE) \
 		--warmup $(BENCH_RENDER_WARMUP) --runs $(BENCH_RENDER_RUNS) \
-		'./rotide --render-once $(BENCH_RENDER_FIXTURE) > /dev/null'
+		'./$(BUILD_DIR)/rotide --render-once $(BENCH_RENDER_FIXTURE) > /dev/null'
 
 # Convenience entry point for the --update-golden workflow. Default
 # behaviour is preview-only — captures the stash and runs
@@ -653,7 +674,7 @@ release:
 	$(call LOG,CLEAN,build)$(MAKE) clean
 	$(call LOG,MAKE,release)$(MAKE) CFLAGS="$(CFLAGS) $(RELEASE_CFLAGS)" \
 		LDFLAGS="$(LDFLAGS) $(RELEASE_LDFLAGS)" rotide
-	$(call LOG,STRIP,rotide)$(STRIP) $(STRIPFLAGS) rotide
+	$(call LOG,STRIP,$(BUILD_DIR)/rotide)$(STRIP) $(STRIPFLAGS) $(BUILD_DIR)/rotide
 
 docs-media:
 	$(call LOG,DOCS,media)python3 scripts/capture_docs_media.py $(DOCS_MEDIA_FLAGS)
@@ -666,5 +687,5 @@ docs-diagrams:
 .PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams bench-buffer bench bench-render-once format format-check lint lint-prefixes lint-check fuzz-vterm fuzz-vterm-smoke fuzz-vterm-nightly fuzz-lsp fuzz-lsp-smoke fuzz-lsp-nightly fuzz-dap fuzz-dap-smoke fuzz-dap-nightly fuzz-toml-theme fuzz-toml-theme-smoke fuzz-toml-theme-nightly update-goldens
 
 clean:
-	$(call LOG,CLEAN,objects)rm -f $(OBJS) $(TEST_OBJS) $(BENCH_BUFFER_OBJ) $(METRICS_FUZZ_EMIT_OBJS) $(METRICS_SUMMARY_OBJS) $(GOLDEN_APPLY_OBJS) $(GOLDEN_DIFF_REPORT_OBJS) $(DEPFILES) $(TEST_BIN) $(BENCH_BUFFER_BIN) $(METRICS_FUZZ_EMIT_BIN) $(METRICS_SUMMARY_BIN) $(GOLDEN_APPLY_BIN) $(GOLDEN_DIFF_REPORT_BIN) $(FUZZ_VTERM_BIN) $(FUZZ_LSP_BIN) $(FUZZ_DAP_BIN) $(FUZZ_TOML_THEME_BIN) rotide $(GENERATED_HEADERS)
-	$(call LOG,CLEAN,tree)find $(SRC_DIR) tests $(TS_DIR) -type f \( -name '*.o' -o -name '*.d' \) -delete
+	$(call LOG,CLEAN,$(BUILD_DIR))rm -rf $(BUILD_DIR)
+	$(call LOG,CLEAN,headers)rm -f $(GENERATED_HEADERS)

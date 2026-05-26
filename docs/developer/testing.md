@@ -1,6 +1,6 @@
 # Testing
 
-RotIDE uses one C test binary, `tests/rotide_tests`. Tests link the editor
+RotIDE uses one C test binary, `build/tests/rotide_tests`. Tests link the editor
 sources directly (minus `rotide.c`'s `main`) and drive real editor APIs. The
 suite covers unit-like helpers, full editor workflows, property tests,
 subprocess/PTY paths, fuzz harnesses, golden render snapshots, long-session
@@ -84,8 +84,8 @@ The first command captures mismatches to `tests/artifacts/goldens.jsonl` and
 prints a diff. `APPLY=1` rewrites the source between `/* golden-start */` and
 `/* golden-end */` markers, preserving indentation. The machinery lives in
 `tests/grid_snapshot_update.*`, `tests/grid_snapshot_format.*`,
-`tests/golden_apply_lib.*`, `tests/golden_apply`, and
-`tests/golden_diff_report`.
+`tests/golden_apply_lib.*`, `build/tests/golden_apply`, and
+`build/tests/golden_diff_report`.
 
 ## Fuzzing
 
@@ -120,12 +120,12 @@ optional workflow metadata from `ROTIDE_METRICS_GIT_SHA`,
 | `bench` | `rotide_bench --metrics-out` | name, samples, inner ops, min/p50/p95/IQR ns |
 | `fuzz` | `metrics_fuzz_emit` after fuzz smoke/nightly | target, coverage/features, corpus sizes, exec count, RSS, final-stats flags |
 
-`tests/metrics_summary` reads one file or CI's rolling history:
+`build/tests/metrics_summary` reads one file or CI's rolling history:
 
 ```bash
-./tests/metrics_summary summary --in tests/metrics.jsonl
-./tests/metrics_summary check-fuzz-stale --in tests/metrics-history.jsonl --window-hours 48
-./tests/metrics_summary check-bench-regression --in tests/metrics-history.jsonl --factor 3
+./build/tests/metrics_summary summary --in tests/metrics.jsonl
+./build/tests/metrics_summary check-fuzz-stale --in tests/metrics-history.jsonl --window-hours 48
+./build/tests/metrics_summary check-bench-regression --in tests/metrics-history.jsonl --factor 3
 ```
 
 CI uploads per-job metrics artifacts, merges them in a `metrics-summary` job,
@@ -136,7 +136,7 @@ coverage and bench regressions; hard-fail only after the noise floor is known.
 Microbenches live in `tests/bench_microbenches.c` and run with `make bench`.
 Storage-specific throughput/RSS checks live in `tests/bench_text_storage.c`
 and run with `make bench-buffer`. `make bench-render-once` uses `hyperfine` to
-time a real `./rotide --render-once <large fixture>` cold-open/render path.
+time a real `./build/rotide --render-once <large fixture>` cold-open/render path.
 
 ## Adding Coverage
 

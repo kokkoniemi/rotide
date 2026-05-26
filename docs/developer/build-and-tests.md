@@ -31,8 +31,8 @@ make docs-media
 make docs-diagrams
 ```
 
-- `make`: builds `rotide`.
-- `make test`: builds and runs `tests/rotide_tests` with
+- `make`: builds `build/rotide`.
+- `make test`: builds and runs `build/tests/rotide_tests` with
   `--validate-reset --jobs 4` by default.
 - `make test-sanitize`: cleans, rebuilds tests with AddressSanitizer and
   UndefinedBehaviorSanitizer, then runs them.
@@ -55,11 +55,11 @@ make docs-diagrams
   (`ROTIDE_QUARANTINE_MAX_AGE_DAYS`, default 30).
 - `make test-quarantine-passing`: runs the quarantined set with
   `--no-quarantine` and fails if any quarantined test now passes.
-- `make bench`: runs `tests/rotide_bench` microbenches and prints
+- `make bench`: runs `build/tests/rotide_bench` microbenches and prints
   min/p50/p95/IQR nanoseconds.
 - `make bench-buffer`: runs storage throughput/RSS checks.
 - `make bench-render-once`: uses `hyperfine` to time
-  `./rotide --render-once` on a generated large C fixture.
+  `./build/rotide --render-once` on a generated large C fixture.
 - `make update-goldens`: captures grid-snapshot diffs; add `APPLY=1` to
   rewrite `golden-start` / `golden-end` blocks.
 - `make fuzz-*-smoke`: builds the matching libFuzzer harness with
@@ -74,7 +74,7 @@ make docs-diagrams
 
 ### Runner flags
 
-`tests/rotide_tests` accepts the following flags; pass them via
+`build/tests/rotide_tests` accepts the following flags; pass them via
 `make test TEST_FLAGS="..."`:
 
 - `--filter <substr>`: run only tests whose name contains `<substr>`.
@@ -129,10 +129,10 @@ merged across jobs and deduplicated across workflow reruns.
 Summarize or check a merged file with:
 
 ```bash
-make tests/metrics_summary
-./tests/metrics_summary summary --in tests/metrics.jsonl
-./tests/metrics_summary check-fuzz-stale --in tests/metrics-history.jsonl
-./tests/metrics_summary check-bench-regression --in tests/metrics-history.jsonl
+make build/tests/metrics_summary
+./build/tests/metrics_summary summary --in tests/metrics.jsonl
+./build/tests/metrics_summary check-fuzz-stale --in tests/metrics-history.jsonl
+./build/tests/metrics_summary check-bench-regression --in tests/metrics-history.jsonl
 ```
 
 ### Golden Snapshots
