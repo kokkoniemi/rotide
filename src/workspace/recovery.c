@@ -14,6 +14,7 @@
 #include "workspace/workspace_state.h"
 #include "editing/document_position.h"
 #include "rotide.h"
+#include "editing/document_bridge.h"
 
 #include <errno.h>
 #include <fcntl.h>

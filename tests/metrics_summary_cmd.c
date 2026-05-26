@@ -1,6 +1,7 @@
 #define _DEFAULT_SOURCE
 
 #include "metrics_summary_cmd.h"
+#include "metrics_jsonl_read.h"
 
 #include <stdlib.h>
 #include <string.h>

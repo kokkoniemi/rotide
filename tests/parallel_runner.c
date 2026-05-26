@@ -8,6 +8,7 @@
 #include "rotide.h"
 #include "runner_support.h"
 #include "test_helpers.h"
+#include "test_case.h"
 
 #include <errno.h>
 #include <execinfo.h>

@@ -1,6 +1,7 @@
 #include "test_case.h"
 #include "test_support.h"
 #include "test_helpers.h"
+#include "editing/selection.h"
 
 static int assert_editor_syntax_parse_failed_event(int expected_detail) {
 	ASSERT_TRUE(E.syntax_state != NULL);

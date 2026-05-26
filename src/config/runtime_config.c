@@ -8,6 +8,7 @@
 #include "editing/edit.h"
 #include "language/lsp.h"
 #include "rotide.h"
+#include "config/common.h"
 
 #include <stddef.h>
 

@@ -27,6 +27,7 @@
 #include "language/syntax.h"
 #include "rotide.h"
 #include "config/theme_config.h"
+#include "render/viewport.h"
 
 #include <errno.h>
 #include <stdio.h>

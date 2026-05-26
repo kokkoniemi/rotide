@@ -14,6 +14,7 @@
 #include "language/syntax.h"
 #include "language/lsp_transport.h"
 #include "language/lsp_json.h"
+#include "language/lsp.h"
 
 #include <ctype.h>
 #include <stdint.h>

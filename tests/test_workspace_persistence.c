@@ -12,6 +12,8 @@
 #include "language/lsp.h"
 #include "workspace/drawer.h"
 #include "workspace/recovery.h"
+#include "editing/edit.h"
+#include "support/file_io.h"
 
 #include <stddef.h>
 #include <stdio.h>

@@ -515,6 +515,8 @@ const struct editorTestCase g_lsp_protocol_tests[] = {
 const int g_lsp_protocol_test_count =
         (int)(sizeof(g_lsp_protocol_tests) / sizeof(g_lsp_protocol_tests[0]));
 #include "language/lsp.h"
+#include "config/lsp_config.h"
+#include "language/lsp_responses.h"
 
 #include <limits.h>
 #include <stddef.h>

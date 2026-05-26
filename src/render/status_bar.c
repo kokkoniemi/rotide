@@ -6,6 +6,7 @@
 #include "workspace/git.h"
 #include "workspace/tabs.h"
 #include "render/write_buf.h"
+#include "config/theme_config.h"
 #include "rotide.h"
 
 #include <stdio.h>

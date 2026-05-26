@@ -8,6 +8,7 @@
 #include "workspace/tabs.h"
 #include "language/syntax.h"
 #include "rotide.h"
+#include "input/mouse.h"
 
 #include <stddef.h>
 #include <stdio.h>

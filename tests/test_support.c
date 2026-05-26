@@ -531,6 +531,7 @@ int setup_recovery_test_env(struct recoveryTestEnv *env) {
 #include "editing/text_source.h"
 #include "workspace/task.h"
 #include "language/syntax.h"
+#include "workspace/recovery.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -3,6 +3,7 @@
 #include "editing/document_bridge.h"
 #include "rotide.h"
 #include "text/text_tree.h"
+#include "text/text_summary.h"
 
 #include <stdlib.h>
 #include <string.h>

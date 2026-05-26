@@ -455,7 +455,7 @@ lint: $(GENERATED_HEADERS)
 		echo "$(CLANG_TIDY) not installed. Install clang-tidy 18+ or set CLANG_TIDY=..." >&2; \
 		exit 1; \
 	}
-	$(call LOG,LINT,clang-tidy)$(CLANG_TIDY) $(LINT_FILES) -- $(CPPFLAGS) $(CFLAGS) $(PTHREAD_FLAGS)
+	$(call LOG,LINT,clang-tidy)$(CLANG_TIDY) $(LINT_FILES) -- $(CPPFLAGS) $(CFLAGS) $(PTHREAD_FLAGS) 2>&1 | awk -f scripts/lint-filter.awk
 
 lint-prefixes:
 	$(call LOG,LINT,prefixes)tools/lint-prefixes.sh

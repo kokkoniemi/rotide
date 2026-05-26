@@ -1105,6 +1105,8 @@ const int g_save_recovery_test_count =
 #include "editing/edit.h"
 #include "workspace/tabs.h"
 #include "workspace/recovery.h"
+#include "rotide.h"
+#include "save_syscalls_test_hooks.h"
 #include "alloc_test_hooks.h"
 #include <limits.h>
 #include <stddef.h>

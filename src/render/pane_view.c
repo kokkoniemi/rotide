@@ -14,6 +14,7 @@
 #include "config/theme_config.h"
 #include "terminal/terminal_pane.h"
 #include "workspace/layout.h"
+#include "render/viewport.h"
 
 #include <stdio.h>
 #include <stdlib.h>

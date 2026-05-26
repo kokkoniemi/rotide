@@ -6,6 +6,7 @@
 #include "vterm.h"
 #include "vterm_keycodes.h"
 #include "workspace/layout.h"
+#include "terminal/pty.h"
 
 #include <errno.h>
 #include <stdlib.h>

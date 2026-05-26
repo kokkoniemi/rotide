@@ -11,6 +11,7 @@
 #include "config/theme_config.h"
 #include "language/syntax_visible_cache.h"
 #include "render/viewport.h"
+#include "render/screen.h"
 
 #include <time.h>
 #include <stdio.h>

@@ -5,6 +5,7 @@
 #include "terminal/terminal_pane.h"
 #include "workspace/layout.h"
 #include "debug/dap.h"
+#include "config/dap_config.h"
 
 #include <signal.h>
 #include <stdlib.h>

@@ -11,6 +11,7 @@
 #include "test_helpers.h"
 #include "rotide.h"
 #include "language/syntax.h"
+#include "input/actions_file_tab.h"
 
 #include <stddef.h>
 #include <stdlib.h>

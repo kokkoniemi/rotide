@@ -12,6 +12,8 @@
 #include "editing/buffer_core.h"
 #include "workspace/task.h"
 #include "support/terminal.h"
+#include "config/keymap.h"
+#include "input/dispatch.h"
 #include "editor_test_api.h"
 
 #include <stddef.h>

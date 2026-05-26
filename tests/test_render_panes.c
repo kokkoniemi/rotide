@@ -15,6 +15,7 @@
 #include "rotide.h"
 #include "editing/buffer_core.h"
 #include "render/viewport.h"
+#include "editing/text_source.h"
 
 #include <time.h>
 #include <stdio.h>

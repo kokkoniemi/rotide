@@ -9,6 +9,7 @@
 #include "text/document.h"
 #include "text/row.h"
 #include "language/syntax.h"
+#include "language/syntax_worker.h"
 
 #include <stdint.h>
 #include <stdlib.h>

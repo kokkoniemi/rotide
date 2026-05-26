@@ -423,5 +423,7 @@ const int g_lsp_completion_test_count =
 #include "editing/edit.h"
 #include "language/syntax.h"
 #include "language/lsp.h"
+#include "language/autocomplete.h"
+#include "render/popup.h"
 #include <stddef.h>
 #include <stdlib.h>

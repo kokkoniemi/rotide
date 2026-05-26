@@ -4,6 +4,7 @@
 #include "editing/text_source.h"
 #include "language/lsp.h"
 #include "rotide.h"
+#include "language/syntax.h"
 
 #include <stdlib.h>
 

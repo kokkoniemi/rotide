@@ -717,6 +717,8 @@ const int g_lsp_diagnostics_test_count =
 #include "language/lsp_transport.h"
 #include "editing/text_source.h"
 #include "text/document.h"
+#include "editing/selection.h"
+#include "language/lsp_protocol.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -1369,6 +1369,10 @@ const int g_document_text_editing_test_count =
 #include "text/text_tree.h"
 #include "editing/buffer_search.h"
 #include "text/document.h"
+#include "editing/selection.h"
+#include "language/syntax.h"
+#include "text/row.h"
+#include "text/utf8.h"
 #include "editor_test_api.h"
 #include <stddef.h>
 #include <stdint.h>

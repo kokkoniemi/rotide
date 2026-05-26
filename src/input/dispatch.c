@@ -28,6 +28,13 @@
 #include "editing/text_source.h"
 #include "render/viewport.h"
 #include "editing/buffer_search.h"
+#include "input/actions_edit.h"
+#include "input/actions_file_tab.h"
+#include "input/actions_language.h"
+#include "input/actions_terminal_debug.h"
+#include "input/actions_workspace.h"
+#include "input/mouse.h"
+#include "input/text_pairs.h"
 
 #include <ctype.h>
 #include <limits.h>
