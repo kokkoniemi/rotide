@@ -43,6 +43,27 @@ jobs:
       - name: Check no quarantined test now passes
         run: make test-quarantine-passing
 
+  bench:
+    # Microbenches run nightly only — the runner is quieter at 03:17 UTC so
+    # the p50/p95 history doesn't get drowned in contention noise. Both
+    # check-bench-regression and the SVG dashboard consume these rows.
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run microbenches
+        run: make bench METRICS_OUT=tests/metrics.jsonl
+
+      - name: Upload metrics row
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: metrics-bench-nightly
+          path: tests/metrics.jsonl
+          if-no-files-found: ignore
+
   fuzz-nightly:
     # 30-minute soak per target (FUZZ_NIGHTLY_TIME=1800 by default in the
     # Makefile). The corpus_grown directory is restored from cache, libFuzzer
@@ -112,8 +133,11 @@ jobs:
   metrics-summary:
     if: always()
     needs:
+      - bench
       - fuzz-nightly
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -121,10 +145,10 @@ jobs:
       - name: Build summarizer
         run: make build/tests/metrics_summary
 
-      - name: Download nightly fuzz metrics
+      - name: Download nightly metrics
         uses: actions/download-artifact@v8
         with:
-          pattern: metrics-fuzz-*-nightly
+          pattern: metrics-*-nightly
           path: ci-metrics
         continue-on-error: true
 
@@ -132,7 +156,8 @@ jobs:
         run: |
           mkdir -p tests
           : > tests/metrics.jsonl
-          for f in ci-metrics/metrics-fuzz-*-nightly/metrics.jsonl; do
+          for f in ci-metrics/metrics-fuzz-*-nightly/metrics.jsonl \
+                   ci-metrics/metrics-bench-nightly/metrics.jsonl; do
             [ -f "$f" ] && cat "$f" >> tests/metrics.jsonl
           done
 
@@ -177,6 +202,54 @@ jobs:
         run: |
           ./build/tests/metrics_summary check-bench-regression --in tests/metrics-history.jsonl \
             || echo "::warning::check-bench-regression flagged a bench — see job log"
+
+      - name: Render SVG dashboard
+        run: |
+          mkdir -p build/metrics/svg
+          ./build/tests/metrics_summary render-svg \
+            --in tests/metrics-history.jsonl \
+            --out-dir build/metrics/svg
+          ls -la build/metrics/svg/
+
+      # Nightly always publishes (scheduled + workflow_dispatch both run from
+      # the default branch with a writable token) and always updates latest/
+      # because nightly is the canonical source for the dev-docs dashboard.
+      - name: Publish SVGs to metrics-assets branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ ! -d build/metrics/svg ] || ! compgen -G "build/metrics/svg/*.svg" > /dev/null; then
+            echo "No SVGs to publish; skipping."
+            exit 0
+          fi
+
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+          SRC="$GITHUB_WORKSPACE/build/metrics/svg"
+          WORK=$(mktemp -d)
+          cd "$WORK"
+          git init -q -b metrics-assets
+          git remote add origin "$REMOTE"
+          if git fetch --depth=1 origin metrics-assets 2>/dev/null; then
+            git reset --hard FETCH_HEAD
+          fi
+
+          mkdir -p "runs/${SHA}"
+          cp "$SRC"/*.svg "runs/${SHA}/"
+          rm -rf latest
+          mkdir -p latest
+          cp "$SRC"/*.svg latest/
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No SVG changes."
+          else
+            git commit -m "metrics(nightly): dashboard SVGs for ${SHA}"
+            git push origin metrics-assets
+          fi
 
       - name: Upload merged metrics (this run)
         uses: actions/upload-artifact@v7
