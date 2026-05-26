@@ -8,6 +8,7 @@
 #include "rotide.h"
 #include "support/alloc.h"
 #include "support/file_io.h"
+#include "terminal/terminal_pane.h"
 #include "text/document.h"
 #include "text/row.h"
 #include "workspace/drawer.h"
@@ -31,7 +32,7 @@
 /* Bumped on incompatible file-format changes so an older binary reading a
  * newer state file can refuse rather than silently misinterpret unknown
  * keys. Unversioned files (pre-versioning) are treated as version 1. */
-#define ROTIDE_WORKSPACE_STATE_VERSION 1
+#define ROTIDE_WORKSPACE_STATE_VERSION 2
 
 struct workspaceStatePendingTab {
 	char *path;
@@ -578,8 +579,18 @@ int editorWorkspaceStateLoadAndApply(int total_cols) {
 			if (restored != NULL) {
 				editorPaneNodeFree(E.layout_root);
 				E.layout_root = restored;
-				E.focused_leaf = editorPaneNodeFirstLeaf(E.layout_root);
-				if (E.focused_leaf != NULL) {
+				/* Prefer the first editor leaf so the pre-hydrate
+				 * file-open loop doesn't park tabs in a terminal
+				 * placeholder, and we don't capture editor cursor
+				 * state into a terminal leaf's view. Fall back to
+				 * any leaf for a terminal-only workspace. */
+				E.focused_leaf = editorPaneNodeFirstLeafOfKind(
+				        E.layout_root, EDITOR_PANE_KIND_EDITOR);
+				if (E.focused_leaf == NULL) {
+					E.focused_leaf = editorPaneNodeFirstLeaf(E.layout_root);
+				}
+				if (E.focused_leaf != NULL &&
+				    E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_EDITOR) {
 					editorPaneViewCaptureFromState(
 					        &E.focused_leaf->as.leaf.view);
 				}
@@ -712,8 +723,13 @@ static void workspaceStateApplyPendingPaneAssignment(void) {
 
 	/* Visit each pane to copy its active tab's cursor/scroll into the view, so
 	 * later focus changes that call editorPaneViewLoadIntoState don't reset the
-	 * cursor to (0, 0). */
+	 * cursor to (0, 0). Terminal leaves carry no editor-tab state, so leave
+	 * them alone — driving the global tab switch from a terminal leaf would
+	 * desync E.active_tab. */
 	for (int i = 0; i < leaf_count; i++) {
+		if (leaves[i]->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
+			continue;
+		}
 		struct editorPaneView *v = &leaves[i]->as.leaf.view;
 		if (v->active_tab_idx < 0) {
 			continue;
@@ -729,8 +745,28 @@ static void workspaceStateApplyPendingPaneAssignment(void) {
 	}
 	struct editorPaneNode *target = leaves[focused];
 	E.focused_leaf = target;
-	if (target->as.leaf.view.active_tab_idx >= 0) {
+	if (target->as.leaf.kind == EDITOR_PANE_KIND_EDITOR &&
+	    target->as.leaf.view.active_tab_idx >= 0) {
 		(void)editorTabSwitchToIndex(target->as.leaf.view.active_tab_idx);
+	}
+}
+
+static void workspaceStateHydrateTerminalsIfAny(void) {
+	if (E.layout_root == NULL || !editorTerminalPaneTreeHasTerminal(E.layout_root)) {
+		return;
+	}
+	const char *shell = getenv("SHELL");
+	if (shell == NULL || shell[0] == '\0') {
+		shell = "/bin/sh";
+	}
+	int failures = editorTerminalPaneHydratePlaceholders(E.layout_root, shell);
+	/* Resize here is safe to run before pane-tab assignment because
+	 * assignment doesn't change leaf geometry — only pane-membership
+	 * and active_tab_idx. If that ever changes, this needs to move
+	 * after the assignment pass. */
+	editorTerminalPaneResizeAllToLayout(E.layout_root);
+	if (failures > 0) {
+		editorSetStatusMsg("Failed to restore %d terminal pane(s)", failures);
 	}
 }
 
@@ -738,6 +774,7 @@ int editorWorkspaceStateRestoreTabs(void) {
 	if (g_pending_tab_count <= 0) {
 		/* Symmetric cleanup so pending pane-tab state doesn't linger to the
 		 * next session shutdown when no tabs were queued for restore. */
+		workspaceStateHydrateTerminalsIfAny();
 		workspaceStateFreePendingPaneTabs();
 		return 0;
 	}
@@ -790,6 +827,9 @@ int editorWorkspaceStateRestoreTabs(void) {
 		editorViewportCenterCursor();
 	}
 	editorOpenSetDeferLsp(0);
+	/* Must precede pane assignment so it sees final leaf kinds and skips
+	 * the hydrated terminal leaves. */
+	workspaceStateHydrateTerminalsIfAny();
 	if (opened_any && g_pending_pane_tab_count > 0) {
 		/* Redistribute the opened tabs across the saved panes; this also
 		 * sets E.focused_leaf and switches to the focused pane's active tab. */
@@ -914,7 +954,8 @@ int editorWorkspaceStateSave(void) {
 			return 0;
 		}
 	}
-	if (E.layout_root != NULL && E.layout_root->is_split) {
+	if (E.layout_root != NULL &&
+	    (E.layout_root->is_split || E.layout_root->as.leaf.kind != EDITOR_PANE_KIND_EDITOR)) {
 		char layout_buf[2048];
 		if (editorLayoutSerialize(E.layout_root, layout_buf, sizeof(layout_buf)) > 0) {
 			if (!workspaceStateWriteAll(fd, "layout=", strlen("layout=")) ||

@@ -109,6 +109,9 @@ void editorPaneNodeFree(struct editorPaneNode *node);
 int editorPaneNodeIsLeaf(const struct editorPaneNode *node);
 
 struct editorPaneNode *editorPaneNodeFirstLeaf(struct editorPaneNode *node);
+/* Returns NULL if no leaf of `kind` exists in the tree. */
+struct editorPaneNode *editorPaneNodeFirstLeafOfKind(struct editorPaneNode *node,
+                                                     enum editorPaneKind kind);
 int editorPaneNodeContainsLeaf(const struct editorPaneNode *node,
                                const struct editorPaneNode *leaf);
 
@@ -296,11 +299,12 @@ void editorPaneAnnounceFocus(void);
 
 /*
  * Serialize the pane tree to a compact s-expression form for persistence.
- * Format: `leaf` for any leaf (kind is not preserved — terminals lapse to
- * editor leaves on restore), `(v <ratio> <left> <right>)` for vertical
- * splits, `(h <ratio> <top> <bottom>)` for horizontal splits. Returns the
- * number of bytes written to `out` (excluding the null terminator), or 0
- * if the buffer is too small.
+ * Format: `leaf` for an editor leaf, `term` for a terminal leaf,
+ * `(v <ratio> <left> <right>)` for vertical splits, `(h <ratio> <top>
+ * <bottom>)` for horizontal splits. Returns the number of bytes written
+ * to `out` (excluding the null terminator), or 0 if the buffer is too
+ * small. A deserialized `term` leaf comes back with kind_state == NULL —
+ * the caller is responsible for spawning the PTY.
  */
 size_t editorLayoutSerialize(const struct editorPaneNode *root, char *out, size_t out_size);
 

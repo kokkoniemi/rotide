@@ -3,6 +3,7 @@
 #include "language/lsp.h"
 #include "rotide.h"
 #include "support/file_io.h"
+#include "terminal/terminal_pane.h"
 #include "test_case.h"
 #include "test_helpers.h"
 #include "test_support.h"
@@ -1734,6 +1735,143 @@ static int test_editor_workspace_state_ignores_orphan_pane_tab_paths(void) {
 	return 0;
 }
 
+static char *read_whole_file(const char *path, size_t *len_out) {
+	FILE *fp = fopen(path, "r");
+	if (fp == NULL) {
+		return NULL;
+	}
+	if (fseek(fp, 0, SEEK_END) != 0) {
+		fclose(fp);
+		return NULL;
+	}
+	long sz = ftell(fp);
+	if (sz < 0) {
+		fclose(fp);
+		return NULL;
+	}
+	rewind(fp);
+	char *buf = malloc((size_t)sz + 1);
+	if (buf == NULL) {
+		fclose(fp);
+		return NULL;
+	}
+	size_t got = fread(buf, 1, (size_t)sz, fp);
+	fclose(fp);
+	buf[got] = '\0';
+	if (len_out != NULL) {
+		*len_out = got;
+	}
+	return buf;
+}
+
+static int test_editor_workspace_state_save_emits_term_token_and_version_two(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	E.window_cols = 100;
+	E.window_rows = 40;
+
+	/* Drive the production path: a horizontal terminal split off the
+	 * focused (editor) leaf produces exactly (h 0.5 leaf term). */
+	struct editorPaneNode *term_leaf =
+	        editorTerminalPaneOpenSplit("sleep 2", EDITOR_SPLIT_HORIZONTAL);
+	ASSERT_TRUE(term_leaf != NULL);
+
+	ASSERT_TRUE(editorWorkspaceStateSave());
+
+	size_t file_len = 0;
+	char *contents = read_whole_file(editorWorkspaceStatePath(), &file_len);
+	ASSERT_TRUE(contents != NULL);
+	int has_version = strstr(contents, "version=2\n") != NULL;
+	int has_term = strstr(contents, "layout=(h ") != NULL && strstr(contents, "term") != NULL;
+	free(contents);
+	ASSERT_TRUE(has_version);
+	ASSERT_TRUE(has_term);
+
+	editorTabsFreeAll();
+	editorWorkspaceStateShutdown();
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_workspace_state_restore_hydrates_terminal_placeholder(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char alpha_file[512];
+	ASSERT_TRUE(path_join(alpha_file, sizeof(alpha_file), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(write_text_file(alpha_file, "alpha\n"));
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	const char *state_path = editorWorkspaceStatePath();
+	ASSERT_TRUE(state_path != NULL);
+
+	char buf[1024];
+	int n = snprintf(buf, sizeof(buf),
+	                 "version=2\n"
+	                 "tab=0|0|%s\n"
+	                 "layout=(h 0.5 leaf term)\n"
+	                 "pane_tab=0|1|%s\n"
+	                 "focused_pane=0\n",
+	                 alpha_file, alpha_file);
+	ASSERT_TRUE(n > 0 && (size_t)n < sizeof(buf));
+	ASSERT_TRUE(write_text_file(state_path, buf));
+
+	E.window_cols = 100;
+	E.window_rows = 40;
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	ASSERT_TRUE(editorWorkspaceStateRestoreTabs());
+
+	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
+	ASSERT_TRUE(E.layout_root != NULL && E.layout_root->is_split);
+	struct editorPaneNode *term_leaf = E.layout_root->as.split.second;
+	ASSERT_TRUE(term_leaf != NULL && !term_leaf->is_split);
+	ASSERT_EQ_INT(EDITOR_PANE_KIND_TERMINAL, (int)term_leaf->as.leaf.kind);
+	ASSERT_TRUE(term_leaf->as.leaf.kind_state != NULL);
+	ASSERT_TRUE(term_leaf->as.leaf.kind_state_free == editorTerminalPaneFree);
+	/* Pumping a freshly hydrated terminal must not crash. */
+	(void)editorTerminalPanePumpAll(E.layout_root);
+
+	editorTabsFreeAll();
+	editorWorkspaceStateShutdown();
+	ASSERT_TRUE(unlink(alpha_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_workspace_state_restore_terminal_only_layout(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
+	const char *state_path = editorWorkspaceStatePath();
+	ASSERT_TRUE(state_path != NULL);
+	ASSERT_TRUE(write_text_file(state_path, "version=2\n"
+	                                        "layout=term\n"));
+
+	E.window_cols = 100;
+	E.window_rows = 40;
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorWorkspaceStateLoadAndApply(E.window_cols));
+	/* RestoreTabs returns opened_any; with zero tab= lines it returns 0 but
+	 * must still hydrate the terminal leaf via the early-return path. */
+	(void)editorWorkspaceStateRestoreTabs();
+
+	ASSERT_EQ_INT(1, editorPaneTreeLeafCount(E.layout_root));
+	ASSERT_TRUE(E.layout_root != NULL && !E.layout_root->is_split);
+	ASSERT_EQ_INT(EDITOR_PANE_KIND_TERMINAL, (int)E.layout_root->as.leaf.kind);
+	ASSERT_TRUE(E.layout_root->as.leaf.kind_state != NULL);
+
+	editorTabsFreeAll();
+	editorWorkspaceStateShutdown();
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 const struct editorTestCase g_workspace_persistence_tests[] = {
         {"editor_drawer_root_selection_modes", test_editor_drawer_root_selection_modes},
         {"editor_drawer_tree_lists_dotfiles_sorted_and_symlink_as_file",
@@ -1814,6 +1952,12 @@ const struct editorTestCase g_workspace_persistence_tests[] = {
          test_editor_workspace_state_clamps_focused_pane_out_of_range},
         {"editor_workspace_state_ignores_orphan_pane_tab_paths",
          test_editor_workspace_state_ignores_orphan_pane_tab_paths},
+        {"editor_workspace_state_save_emits_term_token_and_version_two",
+         test_editor_workspace_state_save_emits_term_token_and_version_two},
+        {"editor_workspace_state_restore_hydrates_terminal_placeholder",
+         test_editor_workspace_state_restore_hydrates_terminal_placeholder},
+        {"editor_workspace_state_restore_terminal_only_layout",
+         test_editor_workspace_state_restore_terminal_only_layout},
 };
 
 const int g_workspace_persistence_test_count =
