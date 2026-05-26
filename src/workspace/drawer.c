@@ -1,6 +1,7 @@
 #include "workspace/drawer.h"
 
 #include "editing/buffer_core.h"
+#include "rotide.h"
 #include "support/file_io.h"
 #include "workspace/drawer_internal.h"
 #include "workspace/file_search.h"

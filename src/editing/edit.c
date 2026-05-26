@@ -3,9 +3,13 @@
 #include "config/common.h"
 #include "config/runtime_config.h"
 #include "editing/buffer_core.h"
-#include "input/dispatch.h"
+#include "editing/document_position.h"
+#include "editing/edit_pipeline.h"
+#include "editing/text_source.h"
+#include "input/prompt.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
+#include "rotide.h"
 #include "support/alloc.h"
 #include "support/file_io.h"
 #include "support/save_syscalls.h"
@@ -24,6 +28,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -78,12 +83,12 @@ static int editCheckOpenFileStream(const char *filename, FILE **fp_out) {
 		return 0;
 	}
 	if (!editFileStreamLooksBinary(fp, &is_binary)) {
-		fclose(fp);
+		(void)fclose(fp);
 		editorSetStatusMsg("Unable to inspect file: %s", strerror(errno));
 		return 0;
 	}
 	if (is_binary) {
-		fclose(fp);
+		(void)fclose(fp);
 		editorSetStatusMsg("Binary files are not supported");
 		return 0;
 	}
@@ -101,10 +106,10 @@ int editorFilePathLooksBinary(const char *filename, int *binary_out) {
 		return 0;
 	}
 	if (!editFileStreamLooksBinary(fp, binary_out)) {
-		fclose(fp);
+		(void)fclose(fp);
 		return 0;
 	}
-	fclose(fp);
+	(void)fclose(fp);
 	return 1;
 }
 
@@ -113,7 +118,7 @@ int editorFileCanOpen(const char *filename) {
 	if (!editCheckOpenFileStream(filename, &fp)) {
 		return 0;
 	}
-	fclose(fp);
+	(void)fclose(fp);
 	return 1;
 }
 
@@ -199,7 +204,7 @@ int editorReadFileToText(const char *filename, char **text_out, size_t *len_out)
 		return 0;
 	}
 	ok = editReadNormalizedFileToText(fp, text_out, len_out);
-	fclose(fp);
+	(void)fclose(fp);
 	return ok;
 }
 
@@ -637,7 +642,7 @@ int editorOpen(const char *filename) {
 	if (!editReadNormalizedFileToText(fp, &text, &text_len)) {
 		goto cleanup;
 	}
-	fclose(fp);
+	(void)fclose(fp);
 	fp = NULL;
 
 	editorDocumentInit(&document);
@@ -671,7 +676,7 @@ int editorOpen(const char *filename) {
 
 cleanup:
 	if (fp != NULL) {
-		fclose(fp);
+		(void)fclose(fp);
 	}
 	if (document_inited) {
 		editorDocumentFree(&document);
@@ -684,7 +689,7 @@ cleanup:
 void editorSetStatusMsg(const char *fmt, ...) {
 	va_list ap;
 	va_start(ap, fmt);
-	vsnprintf(E.statusmsg, sizeof(E.statusmsg), fmt, ap);
+	(void)vsnprintf(E.statusmsg, sizeof(E.statusmsg), fmt, ap);
 	va_end(ap);
 	E.statusmsg_time = time(NULL);
 }

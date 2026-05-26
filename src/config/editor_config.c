@@ -1,6 +1,7 @@
 #include "config/editor_config.h"
 
 #include "config/common.h"
+#include "rotide.h"
 #include "terminal/terminal_pane.h"
 
 #include <errno.h>
@@ -74,7 +75,7 @@ configEditorCursorStyleApplyFile(enum editorCursorStyle *style_in_out, const cha
 	while (fgets(line, sizeof(line), fp) != NULL) {
 		size_t line_len = strlen(line);
 		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
-			fclose(fp);
+			(void)fclose(fp);
 			return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
 		}
 
@@ -88,7 +89,7 @@ configEditorCursorStyleApplyFile(enum editorCursorStyle *style_in_out, const cha
 		if (trimmed[0] == '[') {
 			char *close = strchr(trimmed, ']');
 			if (close == NULL) {
-				fclose(fp);
+				(void)fclose(fp);
 				return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
 			}
 			*close = '\0';
@@ -96,7 +97,7 @@ configEditorCursorStyleApplyFile(enum editorCursorStyle *style_in_out, const cha
 			editorConfigTrimRight(table);
 			char *tail = editorConfigTrimLeft(close + 1);
 			if (tail[0] != '\0') {
-				fclose(fp);
+				(void)fclose(fp);
 				return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
 			}
 
@@ -110,7 +111,7 @@ configEditorCursorStyleApplyFile(enum editorCursorStyle *style_in_out, const cha
 
 		char *eq = strchr(trimmed, '=');
 		if (eq == NULL) {
-			fclose(fp);
+			(void)fclose(fp);
 			return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
 		}
 
@@ -119,7 +120,7 @@ configEditorCursorStyleApplyFile(enum editorCursorStyle *style_in_out, const cha
 		editorConfigTrimRight(setting_name);
 		char *value = editorConfigTrimLeft(eq + 1);
 		if (setting_name[0] == '\0') {
-			fclose(fp);
+			(void)fclose(fp);
 			return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
 		}
 		if (strcmp(setting_name, "cursor_style") != 0) {
@@ -129,24 +130,24 @@ configEditorCursorStyleApplyFile(enum editorCursorStyle *style_in_out, const cha
 		char cursor_style_value[32];
 		if (!editorConfigParseQuotedValue(value, cursor_style_value,
 		                                  sizeof(cursor_style_value))) {
-			fclose(fp);
+			(void)fclose(fp);
 			return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
 		}
 
 		enum editorCursorStyle parsed = EDITOR_CURSOR_STYLE_BAR;
 		if (!configEditorParseCursorStyleValue(cursor_style_value, &parsed)) {
-			fclose(fp);
+			(void)fclose(fp);
 			return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
 		}
 		updated = parsed;
 	}
 
 	if (ferror(fp)) {
-		fclose(fp);
+		(void)fclose(fp);
 		return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
 	}
 
-	fclose(fp);
+	(void)fclose(fp);
 	*style_in_out = updated;
 	return CONFIG_EDITOR_CURSOR_STYLE_FILE_APPLIED;
 }
@@ -232,7 +233,7 @@ static enum configEditorLineWrapFileStatus configEditorLineWrapApplyFile(int *li
 	while (fgets(line, sizeof(line), fp) != NULL) {
 		size_t line_len = strlen(line);
 		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
-			fclose(fp);
+			(void)fclose(fp);
 			return CONFIG_EDITOR_LINE_WRAP_FILE_INVALID;
 		}
 
@@ -246,7 +247,7 @@ static enum configEditorLineWrapFileStatus configEditorLineWrapApplyFile(int *li
 		if (trimmed[0] == '[') {
 			char *close = strchr(trimmed, ']');
 			if (close == NULL) {
-				fclose(fp);
+				(void)fclose(fp);
 				return CONFIG_EDITOR_LINE_WRAP_FILE_INVALID;
 			}
 			*close = '\0';
@@ -254,7 +255,7 @@ static enum configEditorLineWrapFileStatus configEditorLineWrapApplyFile(int *li
 			editorConfigTrimRight(table);
 			char *tail = editorConfigTrimLeft(close + 1);
 			if (tail[0] != '\0') {
-				fclose(fp);
+				(void)fclose(fp);
 				return CONFIG_EDITOR_LINE_WRAP_FILE_INVALID;
 			}
 
@@ -268,7 +269,7 @@ static enum configEditorLineWrapFileStatus configEditorLineWrapApplyFile(int *li
 
 		char *eq = strchr(trimmed, '=');
 		if (eq == NULL) {
-			fclose(fp);
+			(void)fclose(fp);
 			return CONFIG_EDITOR_LINE_WRAP_FILE_INVALID;
 		}
 
@@ -278,7 +279,7 @@ static enum configEditorLineWrapFileStatus configEditorLineWrapApplyFile(int *li
 		char *value = editorConfigTrimLeft(eq + 1);
 		editorConfigTrimRight(value);
 		if (setting_name[0] == '\0') {
-			fclose(fp);
+			(void)fclose(fp);
 			return CONFIG_EDITOR_LINE_WRAP_FILE_INVALID;
 		}
 		if (strcmp(setting_name, "line_wrap") != 0) {
@@ -287,18 +288,18 @@ static enum configEditorLineWrapFileStatus configEditorLineWrapApplyFile(int *li
 
 		int parsed = 0;
 		if (!configEditorParseBoolValue(value, &parsed)) {
-			fclose(fp);
+			(void)fclose(fp);
 			return CONFIG_EDITOR_LINE_WRAP_FILE_INVALID;
 		}
 		updated = parsed;
 	}
 
 	if (ferror(fp)) {
-		fclose(fp);
+		(void)fclose(fp);
 		return CONFIG_EDITOR_LINE_WRAP_FILE_INVALID;
 	}
 
-	fclose(fp);
+	(void)fclose(fp);
 	*line_wrap_in_out = updated;
 	return CONFIG_EDITOR_LINE_WRAP_FILE_APPLIED;
 }
@@ -382,7 +383,7 @@ static enum configEditorBoolFileStatus configEditorBoolApplyFile(int *bool_in_ou
 	while (fgets(line, sizeof(line), fp) != NULL) {
 		size_t line_len = strlen(line);
 		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
-			fclose(fp);
+			(void)fclose(fp);
 			return CONFIG_EDITOR_BOOL_FILE_INVALID;
 		}
 
@@ -396,7 +397,7 @@ static enum configEditorBoolFileStatus configEditorBoolApplyFile(int *bool_in_ou
 		if (trimmed[0] == '[') {
 			char *close = strchr(trimmed, ']');
 			if (close == NULL) {
-				fclose(fp);
+				(void)fclose(fp);
 				return CONFIG_EDITOR_BOOL_FILE_INVALID;
 			}
 			*close = '\0';
@@ -404,7 +405,7 @@ static enum configEditorBoolFileStatus configEditorBoolApplyFile(int *bool_in_ou
 			editorConfigTrimRight(table);
 			char *tail = editorConfigTrimLeft(close + 1);
 			if (tail[0] != '\0') {
-				fclose(fp);
+				(void)fclose(fp);
 				return CONFIG_EDITOR_BOOL_FILE_INVALID;
 			}
 
@@ -418,7 +419,7 @@ static enum configEditorBoolFileStatus configEditorBoolApplyFile(int *bool_in_ou
 
 		char *eq = strchr(trimmed, '=');
 		if (eq == NULL) {
-			fclose(fp);
+			(void)fclose(fp);
 			return CONFIG_EDITOR_BOOL_FILE_INVALID;
 		}
 
@@ -428,7 +429,7 @@ static enum configEditorBoolFileStatus configEditorBoolApplyFile(int *bool_in_ou
 		char *value = editorConfigTrimLeft(eq + 1);
 		editorConfigTrimRight(value);
 		if (setting_name[0] == '\0') {
-			fclose(fp);
+			(void)fclose(fp);
 			return CONFIG_EDITOR_BOOL_FILE_INVALID;
 		}
 		if (strcmp(setting_name, target_setting_name) != 0) {
@@ -437,18 +438,18 @@ static enum configEditorBoolFileStatus configEditorBoolApplyFile(int *bool_in_ou
 
 		int parsed = 0;
 		if (!configEditorParseBoolValue(value, &parsed)) {
-			fclose(fp);
+			(void)fclose(fp);
 			return CONFIG_EDITOR_BOOL_FILE_INVALID;
 		}
 		updated = parsed;
 	}
 
 	if (ferror(fp)) {
-		fclose(fp);
+		(void)fclose(fp);
 		return CONFIG_EDITOR_BOOL_FILE_INVALID;
 	}
 
-	fclose(fp);
+	(void)fclose(fp);
 	*bool_in_out = updated;
 	return CONFIG_EDITOR_BOOL_FILE_APPLIED;
 }
@@ -781,7 +782,7 @@ static enum configEditorIndentFileStatus configEditorIndentApplyFile(int *auto_i
 	while (fgets(line, sizeof(line), fp) != NULL) {
 		size_t line_len = strlen(line);
 		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
-			fclose(fp);
+			(void)fclose(fp);
 			return CONFIG_EDITOR_INDENT_FILE_INVALID;
 		}
 
@@ -795,7 +796,7 @@ static enum configEditorIndentFileStatus configEditorIndentApplyFile(int *auto_i
 		if (trimmed[0] == '[') {
 			char *close = strchr(trimmed, ']');
 			if (close == NULL) {
-				fclose(fp);
+				(void)fclose(fp);
 				return CONFIG_EDITOR_INDENT_FILE_INVALID;
 			}
 			*close = '\0';
@@ -803,7 +804,7 @@ static enum configEditorIndentFileStatus configEditorIndentApplyFile(int *auto_i
 			editorConfigTrimRight(table);
 			char *tail = editorConfigTrimLeft(close + 1);
 			if (tail[0] != '\0') {
-				fclose(fp);
+				(void)fclose(fp);
 				return CONFIG_EDITOR_INDENT_FILE_INVALID;
 			}
 
@@ -817,7 +818,7 @@ static enum configEditorIndentFileStatus configEditorIndentApplyFile(int *auto_i
 
 		char *eq = strchr(trimmed, '=');
 		if (eq == NULL) {
-			fclose(fp);
+			(void)fclose(fp);
 			return CONFIG_EDITOR_INDENT_FILE_INVALID;
 		}
 
@@ -827,14 +828,14 @@ static enum configEditorIndentFileStatus configEditorIndentApplyFile(int *auto_i
 		char *value = editorConfigTrimLeft(eq + 1);
 		editorConfigTrimRight(value);
 		if (setting_name[0] == '\0') {
-			fclose(fp);
+			(void)fclose(fp);
 			return CONFIG_EDITOR_INDENT_FILE_INVALID;
 		}
 
 		if (strcmp(setting_name, "auto_indent") == 0) {
 			int parsed = 0;
 			if (!configEditorParseBoolValue(value, &parsed)) {
-				fclose(fp);
+				(void)fclose(fp);
 				return CONFIG_EDITOR_INDENT_FILE_INVALID;
 			}
 			updated_auto_indent = parsed;
@@ -846,7 +847,7 @@ static enum configEditorIndentFileStatus configEditorIndentApplyFile(int *auto_i
 			if (!editorConfigParseQuotedValue(value, style_value,
 			                                  sizeof(style_value)) ||
 			    !configEditorParseIndentStyleValue(style_value, &parsed)) {
-				fclose(fp);
+				(void)fclose(fp);
 				return CONFIG_EDITOR_INDENT_FILE_INVALID;
 			}
 			updated_indent_use_tabs = parsed;
@@ -855,7 +856,7 @@ static enum configEditorIndentFileStatus configEditorIndentApplyFile(int *auto_i
 		if (strcmp(setting_name, "indent_width") == 0) {
 			int parsed = 0;
 			if (!configEditorParseIndentWidthValue(value, &parsed)) {
-				fclose(fp);
+				(void)fclose(fp);
 				return CONFIG_EDITOR_INDENT_FILE_INVALID;
 			}
 			updated_indent_width = parsed;
@@ -863,11 +864,11 @@ static enum configEditorIndentFileStatus configEditorIndentApplyFile(int *auto_i
 	}
 
 	if (ferror(fp)) {
-		fclose(fp);
+		(void)fclose(fp);
 		return CONFIG_EDITOR_INDENT_FILE_INVALID;
 	}
 
-	fclose(fp);
+	(void)fclose(fp);
 	*auto_indent_in_out = updated_auto_indent;
 	*indent_use_tabs_in_out = updated_indent_use_tabs;
 	*indent_width_in_out = updated_indent_width;
@@ -1076,7 +1077,7 @@ configEditorColumnSelectDragModifierApplyFile(int *modifier_in_out, const char *
 	while (fgets(line, sizeof(line), fp) != NULL) {
 		size_t line_len = strlen(line);
 		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
-			fclose(fp);
+			(void)fclose(fp);
 			return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
 		}
 
@@ -1090,7 +1091,7 @@ configEditorColumnSelectDragModifierApplyFile(int *modifier_in_out, const char *
 		if (trimmed[0] == '[') {
 			char *close = strchr(trimmed, ']');
 			if (close == NULL) {
-				fclose(fp);
+				(void)fclose(fp);
 				return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
 			}
 			*close = '\0';
@@ -1098,7 +1099,7 @@ configEditorColumnSelectDragModifierApplyFile(int *modifier_in_out, const char *
 			editorConfigTrimRight(table);
 			char *tail = editorConfigTrimLeft(close + 1);
 			if (tail[0] != '\0') {
-				fclose(fp);
+				(void)fclose(fp);
 				return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
 			}
 			in_editor_table = strcmp(table, "editor") == 0;
@@ -1111,7 +1112,7 @@ configEditorColumnSelectDragModifierApplyFile(int *modifier_in_out, const char *
 
 		char *eq = strchr(trimmed, '=');
 		if (eq == NULL) {
-			fclose(fp);
+			(void)fclose(fp);
 			return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
 		}
 
@@ -1121,7 +1122,7 @@ configEditorColumnSelectDragModifierApplyFile(int *modifier_in_out, const char *
 		char *value = editorConfigTrimLeft(eq + 1);
 		editorConfigTrimRight(value);
 		if (setting_name[0] == '\0') {
-			fclose(fp);
+			(void)fclose(fp);
 			return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
 		}
 		if (strcmp(setting_name, "column_select_drag_modifier") != 0) {
@@ -1130,18 +1131,18 @@ configEditorColumnSelectDragModifierApplyFile(int *modifier_in_out, const char *
 
 		int parsed = 0;
 		if (!editorParseColumnSelectDragModifierValue(value, &parsed)) {
-			fclose(fp);
+			(void)fclose(fp);
 			return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
 		}
 		updated = parsed;
 	}
 
 	if (ferror(fp)) {
-		fclose(fp);
+		(void)fclose(fp);
 		return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
 	}
 
-	fclose(fp);
+	(void)fclose(fp);
 	*modifier_in_out = updated;
 	return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_APPLIED;
 }
@@ -1282,7 +1283,7 @@ static int configEditorParseTerminalScrollbackLines(const char *path, int *value
 		*value_out = (int)parsed;
 		found = 1;
 	}
-	fclose(fp);
+	(void)fclose(fp);
 	return found;
 }
 

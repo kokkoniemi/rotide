@@ -1,3 +1,4 @@
+#include "rotide.h"
 #include "support/file_io.h"
 #include "workspace/drawer.h"
 #include "workspace/drawer_internal.h"

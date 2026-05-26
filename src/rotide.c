@@ -194,7 +194,7 @@ static int rotideStripFlag(int *argc, char *argv[], const char *flag) {
 }
 
 int main(int argc, char *argv[]) {
-	setlocale(LC_CTYPE, "");
+	(void)setlocale(LC_CTYPE, "");
 
 	g_render_once = rotideStripFlag(&argc, argv, "--render-once");
 

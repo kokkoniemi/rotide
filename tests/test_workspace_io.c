@@ -1,18 +1,14 @@
+#include "alloc_test_hooks.h"
 #include "config/common.h"
-#include "config/dap_config.h"
-#include "config/editor_config.h"
-#include "config/keymap.h"
-#include "config/theme_config.h"
-#include "debug/dap.h"
-#include "input/dispatch.h"
+#include "rotide.h"
+#include "support/terminal.h"
 #include "test_case.h"
+#include "test_helpers.h"
 #include "test_support.h"
-#include "workspace/file_search.h"
-#include "workspace/git.h"
-#include "workspace/layout.h"
-#include "workspace/project_search.h"
-#include "workspace/tabs.h"
-#include "workspace/workspace_state.h"
+
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 static int test_editor_read_key_sequences(void) {
 	int key = 0;

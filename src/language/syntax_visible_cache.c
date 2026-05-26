@@ -3,6 +3,8 @@
 #include "editing/document_position.h"
 #include "editing/syntax_runtime.h"
 #include "editing/text_source.h"
+#include "language/syntax.h"
+#include "language/syntax_worker.h"
 #include "rotide.h"
 #include "support/alloc.h"
 #include "support/size_utils.h"

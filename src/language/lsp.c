@@ -1,24 +1,24 @@
 #include "language/lsp.h"
 
-#include "editing/buffer_core.h"
 #include "editing/edit.h"
-#include "language/autocomplete.h"
+#include "editing/text_source.h"
+#include "language/lsp_framing.h"
+#include "language/lsp_json.h"
 #include "language/lsp_mock.h"
 #include "language/lsp_protocol.h"
 #include "language/lsp_registry.h"
 #include "language/lsp_responses.h"
 #include "language/lsp_transport.h"
+#include "language/syntax.h"
+#include "rotide.h"
 #include "support/file_io.h"
 #include "workspace/tabs.h"
 
 #include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 #include <sys/types.h>
-#include <sys/wait.h>
 #include <unistd.h>
 
 static enum editorLspStartupFailureReason g_lsp_last_startup_failure_reason =

@@ -2,6 +2,7 @@
 #include "test_helpers.h"
 #include "text/text_tree.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,19 +20,19 @@ static int tree_byte_at(const struct editorTextTree *tree, size_t off, char *out
 static int tree_matches_string(const struct editorTextTree *tree, const char *expected,
                                size_t expected_len) {
 	if (editorTextTreeLength(tree) != expected_len) {
-		fprintf(stderr, "tree_len=%zu expected=%zu\n", editorTextTreeLength(tree),
-		        expected_len);
+		(void)fprintf(stderr, "tree_len=%zu expected=%zu\n", editorTextTreeLength(tree),
+		              expected_len);
 		return 0;
 	}
 	for (size_t i = 0; i < expected_len; i++) {
 		char b = 0;
 		if (!tree_byte_at(tree, i, &b)) {
-			fprintf(stderr, "tree_byte_at(%zu) failed\n", i);
+			(void)fprintf(stderr, "tree_byte_at(%zu) failed\n", i);
 			return 0;
 		}
 		if (b != expected[i]) {
-			fprintf(stderr, "byte diff at %zu: tree=0x%02x expected=0x%02x\n", i,
-			        (unsigned char)b, (unsigned char)expected[i]);
+			(void)fprintf(stderr, "byte diff at %zu: tree=0x%02x expected=0x%02x\n", i,
+			              (unsigned char)b, (unsigned char)expected[i]);
 			return 0;
 		}
 	}
@@ -54,6 +55,7 @@ static int test_text_tree_leaf_split_grows_tree(void) {
 
 	char expected[256];
 	memcpy(expected, seed, seed_len);
+	expected[seed_len] = '\0';
 	size_t cur_len = seed_len;
 
 	/* Insert into the middle 40 times — each mid-piece insert turns 1 piece

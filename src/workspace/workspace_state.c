@@ -1,10 +1,10 @@
 #include "workspace/workspace_state.h"
 
 #include "config/dap_config.h"
-#include "editing/buffer_core.h"
+#include "editing/document_position.h"
 #include "editing/edit.h"
 #include "language/lsp.h"
-#include "render/screen.h"
+#include "render/viewport.h"
 #include "rotide.h"
 #include "support/alloc.h"
 #include "support/file_io.h"
@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #define ROTIDE_WORKSPACE_RECENT_FILE_LIMIT 64
@@ -527,7 +528,7 @@ int editorWorkspaceStateLoadAndApply(int total_cols) {
 			    parsed_version > ROTIDE_WORKSPACE_STATE_VERSION) {
 				/* Newer-format file: bail rather than partially apply
 				 * settings whose semantics we don't understand. */
-				fclose(fp);
+				(void)fclose(fp);
 				workspaceStateFreePendingTabs();
 				workspaceStateFreePendingPaneTabs();
 				return 0;
@@ -586,7 +587,7 @@ int editorWorkspaceStateLoadAndApply(int total_cols) {
 		}
 		(void)parsed;
 	}
-	fclose(fp);
+	(void)fclose(fp);
 
 	if (width > 0 && total_cols > 0) {
 		(void)editorDrawerSetWidthForCols(width, total_cols);

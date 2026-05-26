@@ -1,5 +1,3 @@
-#define _DEFAULT_SOURCE
-
 /* Thin CLI over metrics_summary_cmd.c. Subcommands:
  *   summary                    print recent rows grouped by kind/target/name
  *   check-fuzz-stale           exit 1 if any fuzz target gained zero edges in window
@@ -28,13 +26,13 @@
 #include <time.h>
 
 static void usage(FILE *out) {
-	fprintf(out, "usage: metrics_summary <subcommand> [opts]\n"
-	             "  Subcommands: summary | check-fuzz-stale | check-bench-regression\n"
-	             "  Common: --in PATH --kind KIND --target NAME --bench-name NAME\n"
-	             "          --since-hours N\n"
-	             "  summary:                --limit N\n"
-	             "  check-fuzz-stale:       --window-hours N\n"
-	             "  check-bench-regression: --factor F\n");
+	(void)fprintf(out, "usage: metrics_summary <subcommand> [opts]\n"
+	                   "  Subcommands: summary | check-fuzz-stale | check-bench-regression\n"
+	                   "  Common: --in PATH --kind KIND --target NAME --bench-name NAME\n"
+	                   "          --since-hours N\n"
+	                   "  summary:                --limit N\n"
+	                   "  check-fuzz-stale:       --window-hours N\n"
+	                   "  check-bench-regression: --factor F\n");
 }
 
 static int parse_kind(const char *s, enum editorMetricsKind *out) {
@@ -79,7 +77,7 @@ int main(int argc, char **argv) {
 		}
 		if (strcmp(a, "--kind") == 0 && next) {
 			if (!parse_kind(next, &opts.kind_filter)) {
-				fprintf(stderr, "metrics_summary: bad --kind: %s\n", next);
+				(void)fprintf(stderr, "metrics_summary: bad --kind: %s\n", next);
 				return 2;
 			}
 			i++;
@@ -99,14 +97,14 @@ int main(int argc, char **argv) {
 			char *end = NULL;
 			since_hours = strtoll(next, &end, 10);
 			if (end == NULL || *end != '\0' || since_hours < 0) {
-				fprintf(stderr, "metrics_summary: bad --since-hours\n");
+				(void)fprintf(stderr, "metrics_summary: bad --since-hours\n");
 				return 2;
 			}
 			i++;
 			continue;
 		}
 		if (strcmp(a, "--limit") == 0 && next) {
-			opts.summary_limit = atoi(next);
+			opts.summary_limit = (int)strtol(next, NULL, 10);
 			i++;
 			continue;
 		}
@@ -114,7 +112,7 @@ int main(int argc, char **argv) {
 			char *end = NULL;
 			opts.window_hours = strtoll(next, &end, 10);
 			if (end == NULL || *end != '\0' || opts.window_hours <= 0) {
-				fprintf(stderr, "metrics_summary: bad --window-hours\n");
+				(void)fprintf(stderr, "metrics_summary: bad --window-hours\n");
 				return 2;
 			}
 			i++;
@@ -124,13 +122,13 @@ int main(int argc, char **argv) {
 			char *end = NULL;
 			opts.regression_factor = strtod(next, &end);
 			if (end == NULL || *end != '\0' || opts.regression_factor <= 0.0) {
-				fprintf(stderr, "metrics_summary: bad --factor\n");
+				(void)fprintf(stderr, "metrics_summary: bad --factor\n");
 				return 2;
 			}
 			i++;
 			continue;
 		}
-		fprintf(stderr, "metrics_summary: unknown arg: %s\n", a);
+		(void)fprintf(stderr, "metrics_summary: unknown arg: %s\n", a);
 		usage(stderr);
 		return 2;
 	}
@@ -143,11 +141,12 @@ int main(int argc, char **argv) {
 	int count = 0;
 	int skipped = 0;
 	if (editorMetricsRowsLoad(in_path, &rows, &count, &skipped) != 0) {
-		fprintf(stderr, "metrics_summary: cannot read %s: %s\n", in_path, strerror(errno));
+		(void)fprintf(stderr, "metrics_summary: cannot read %s: %s\n", in_path,
+		              strerror(errno));
 		return 2;
 	}
 	if (skipped > 0) {
-		fprintf(stderr, "metrics_summary: %d malformed line(s) skipped\n", skipped);
+		(void)fprintf(stderr, "metrics_summary: %d malformed line(s) skipped\n", skipped);
 	}
 
 	int rc = 0;
@@ -158,7 +157,7 @@ int main(int argc, char **argv) {
 	} else if (strcmp(sub, "check-bench-regression") == 0) {
 		rc = editorMetricsCmdCheckBenchRegression(rows, count, &opts, stdout);
 	} else {
-		fprintf(stderr, "metrics_summary: unknown subcommand: %s\n", sub);
+		(void)fprintf(stderr, "metrics_summary: unknown subcommand: %s\n", sub);
 		usage(stderr);
 		editorMetricsRowsFree(rows, count);
 		return 2;

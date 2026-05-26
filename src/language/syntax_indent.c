@@ -5,11 +5,12 @@
  * and how many additional levels to add. Used by the auto-indent action
  * when the language registers indent rules.
  */
-#include "language/languages.h"
+#include "language/syntax.h"
 #include "language/syntax_internal.h"
 #include "tree_sitter/api.h"
 
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 static int syntaxIndentTypeEqualsAny(const char *type, const char *const *types, size_t count) {

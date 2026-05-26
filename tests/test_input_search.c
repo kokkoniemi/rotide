@@ -1,11 +1,14 @@
-#include "editing/selection.h"
+#include "rotide.h"
 #include "test_case.h"
+#include "test_helpers.h"
 #include "test_support.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
-#include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
+
+#include <stddef.h>
+#include <unistd.h>
 
 static int test_editor_process_keypress_find_file_filters_previews_and_opens(void) {
 	struct recoveryTestEnv env;

@@ -1,18 +1,19 @@
 #include "config/common.h"
 #include "config/dap_config.h"
-#include "config/editor_config.h"
-#include "config/keymap.h"
-#include "config/theme_config.h"
 #include "debug/dap.h"
-#include "input/dispatch.h"
+#include "rotide.h"
 #include "test_case.h"
+#include "test_helpers.h"
 #include "test_support.h"
-#include "workspace/file_search.h"
-#include "workspace/git.h"
+#include "workspace/drawer.h"
 #include "workspace/layout.h"
-#include "workspace/project_search.h"
 #include "workspace/tabs.h"
-#include "workspace/workspace_state.h"
+
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 static int test_editor_dap_config_loads_global_defaults_and_project_launches(void) {
 	char dir_template[] = "/tmp/rotide-test-dap-config-XXXXXX";
@@ -66,8 +67,8 @@ static int test_editor_dap_config_loads_global_defaults_and_project_launches(voi
 	char *json = editorDapBuildLaunchRequestJson(4, &E.dap_launches[0], dir_path, active_file);
 	ASSERT_TRUE(json != NULL);
 	char expected_program[700];
-	snprintf(expected_program, sizeof(expected_program), "\"program\":\"%s/main.go\"",
-	         dir_path);
+	(void)snprintf(expected_program, sizeof(expected_program), "\"program\":\"%s/main.go\"",
+	               dir_path);
 	ASSERT_TRUE(strstr(json, expected_program) != NULL);
 	ASSERT_TRUE(strstr(json, "\"args\":[\"one\",\"main.go\"]") != NULL);
 	ASSERT_TRUE(strstr(json, "\"stopOnEntry\":true") != NULL);
@@ -161,9 +162,9 @@ static int test_editor_dap_prepare_terminal_console_sets_tty(void) {
 
 	struct editorDapLaunchConfig cfg;
 	memset(&cfg, 0, sizeof(cfg));
-	snprintf(cfg.id, sizeof(cfg.id), "%s", "go_app");
-	snprintf(cfg.adapter, sizeof(cfg.adapter), "%s", "go");
-	snprintf(cfg.request, sizeof(cfg.request), "%s", "launch");
+	(void)snprintf(cfg.id, sizeof(cfg.id), "%s", "go_app");
+	(void)snprintf(cfg.adapter, sizeof(cfg.adapter), "%s", "go");
+	(void)snprintf(cfg.request, sizeof(cfg.request), "%s", "launch");
 	ASSERT_TRUE(editorDapLaunchSetStringField(&cfg, "console", "terminal"));
 
 	int ok = editorDapPrepareTerminalConsole(&cfg);
@@ -192,7 +193,7 @@ static int test_editor_dap_prepare_terminal_console_sets_tty(void) {
 static int test_editor_dap_prepare_terminal_console_strips_non_terminal_value(void) {
 	struct editorDapLaunchConfig cfg;
 	memset(&cfg, 0, sizeof(cfg));
-	snprintf(cfg.id, sizeof(cfg.id), "%s", "test");
+	(void)snprintf(cfg.id, sizeof(cfg.id), "%s", "test");
 	ASSERT_TRUE(editorDapLaunchSetStringField(&cfg, "console", "internalConsole"));
 	ASSERT_TRUE(editorDapPrepareTerminalConsole(&cfg));
 	char value[ROTIDE_DAP_VALUE_MAX];
@@ -264,22 +265,23 @@ static int test_editor_dap_drawer_prompts_and_creates_project_config_from_defaul
 
 static int test_editor_dap_protocol_builds_initialize_and_launch_requests(void) {
 	struct editorDapLaunchConfig config = {0};
-	snprintf(config.id, sizeof(config.id), "%s", "go_app");
-	snprintf(config.name, sizeof(config.name), "%s", "Go app");
-	snprintf(config.adapter, sizeof(config.adapter), "%s", "go");
-	snprintf(config.request, sizeof(config.request), "%s", "launch");
+	(void)snprintf(config.id, sizeof(config.id), "%s", "go_app");
+	(void)snprintf(config.name, sizeof(config.name), "%s", "Go app");
+	(void)snprintf(config.adapter, sizeof(config.adapter), "%s", "go");
+	(void)snprintf(config.request, sizeof(config.request), "%s", "launch");
 	struct editorDapLaunchField *program = &config.fields[config.field_count++];
-	snprintf(program->key, sizeof(program->key), "%s", "program");
+	(void)snprintf(program->key, sizeof(program->key), "%s", "program");
 	program->kind = EDITOR_DAP_LAUNCH_VALUE_STRING;
-	snprintf(program->string_value, sizeof(program->string_value), "%s",
-	         "${workspaceFolder}/main.go");
+	(void)snprintf(program->string_value, sizeof(program->string_value), "%s",
+	               "${workspaceFolder}/main.go");
 	struct editorDapLaunchField *args = &config.fields[config.field_count++];
-	snprintf(args->key, sizeof(args->key), "%s", "args");
+	(void)snprintf(args->key, sizeof(args->key), "%s", "args");
 	args->kind = EDITOR_DAP_LAUNCH_VALUE_STRING_ARRAY;
 	args->array_count = 1;
 	args->array_values = calloc(ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS, sizeof(*args->array_values));
 	ASSERT_TRUE(args->array_values != NULL);
-	snprintf(args->array_values[0], sizeof(args->array_values[0]), "%s", "${fileBasename}");
+	(void)snprintf(args->array_values[0], sizeof(args->array_values[0]), "%s",
+	               "${fileBasename}");
 
 	char *init = editorDapBuildInitializeRequestJson(1, "go");
 	ASSERT_TRUE(init != NULL);
@@ -304,13 +306,13 @@ static int test_editor_dap_launch_field_array_values_lifecycle(void) {
 
 	/* Field 0: a STRING_ARRAY "args" populated directly. */
 	struct editorDapLaunchField *args = &config.fields[config.field_count++];
-	snprintf(args->key, sizeof(args->key), "%s", "args");
+	(void)snprintf(args->key, sizeof(args->key), "%s", "args");
 	args->kind = EDITOR_DAP_LAUNCH_VALUE_STRING_ARRAY;
 	args->array_values = calloc(ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS, sizeof(*args->array_values));
 	ASSERT_TRUE(args->array_values != NULL);
 	args->array_count = 2;
-	snprintf(args->array_values[0], sizeof(args->array_values[0]), "--foo");
-	snprintf(args->array_values[1], sizeof(args->array_values[1]), "--bar");
+	(void)snprintf(args->array_values[0], sizeof(args->array_values[0]), "--foo");
+	(void)snprintf(args->array_values[1], sizeof(args->array_values[1]), "--bar");
 
 	/* Transitioning the same field STRING_ARRAY -> STRING must drop the
 	 * heap block, not leak it. */
@@ -324,13 +326,13 @@ static int test_editor_dap_launch_field_array_values_lifecycle(void) {
 	 * memset NULLs the vacated tail so a subsequent deep-clear can't
 	 * double-free. */
 	struct editorDapLaunchField *extra = &config.fields[config.field_count++];
-	snprintf(extra->key, sizeof(extra->key), "%s", "extra_args");
+	(void)snprintf(extra->key, sizeof(extra->key), "%s", "extra_args");
 	extra->kind = EDITOR_DAP_LAUNCH_VALUE_STRING_ARRAY;
 	extra->array_values =
 	        calloc(ROTIDE_DAP_MAX_STRING_ARRAY_ITEMS, sizeof(*extra->array_values));
 	ASSERT_TRUE(extra->array_values != NULL);
 	extra->array_count = 1;
-	snprintf(extra->array_values[0], sizeof(extra->array_values[0]), "--baz");
+	(void)snprintf(extra->array_values[0], sizeof(extra->array_values[0]), "--baz");
 
 	int before_count = config.field_count;
 	editorDapLaunchRemoveField(&config, "extra_args");

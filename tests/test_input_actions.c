@@ -1,12 +1,27 @@
-#include "editing/selection.h"
+#include "config/keymap.h"
+#include "editing/buffer_core.h"
+#include "editor_test_api.h"
 #include "input/actions_workspace.h"
+#include "input/dispatch.h"
+#include "language/syntax.h"
+#include "rotide.h"
+#include "support/terminal.h"
 #include "test_case.h"
+#include "test_helpers.h"
 #include "test_support.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
+#include "workspace/task.h"
+
+#include <signal.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 static int test_editor_process_keypress_keymap_remap_changes_dispatch(void) {
 	char dir_template[] = "/tmp/rotide-test-keymap-dispatch-XXXXXX";

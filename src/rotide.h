@@ -1,16 +1,6 @@
 #ifndef ROTIDE_H
 #define ROTIDE_H
 
-#ifndef _DEFAULT_SOURCE
-#define _DEFAULT_SOURCE
-#endif
-#ifndef _BSD_SOURCE
-#define _BSD_SOURCE
-#endif
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
-
 #include "config/theme_config.h"
 #include "debug/dap.h"
 #include "language/syntax.h"

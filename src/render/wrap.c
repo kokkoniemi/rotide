@@ -1,7 +1,7 @@
 #include "render/wrap.h"
 
-#include "editing/buffer_core.h"
 #include "render/pane_view.h"
+#include "rotide.h"
 #include "text/utf8.h"
 #include "workspace/drawer.h"
 #include "workspace/layout.h"

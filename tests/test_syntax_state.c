@@ -1,4 +1,5 @@
 #include "test_case.h"
+#include "test_helpers.h"
 #include "test_support.h"
 
 static int test_editor_syntax_undo_redo_preserves_tree(void) {
@@ -224,3 +225,15 @@ const struct editorTestCase g_syntax_state_tests[] = {
 
 const int g_syntax_state_test_count =
         (int)(sizeof(g_syntax_state_tests) / sizeof(g_syntax_state_tests[0]));
+#include "editing/buffer_core.h"
+#include "editing/edit.h"
+#include "editing/history.h"
+#include "language/syntax.h"
+#include "rotide.h"
+#include "workspace/recovery.h"
+#include "workspace/tabs.h"
+
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>

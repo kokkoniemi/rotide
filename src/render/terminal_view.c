@@ -1,13 +1,17 @@
 #include "render/terminal_view.h"
 
+#include "config/theme_config.h"
 #include "render/ansi_style.h"
+#include "render/write_buf.h"
+#include "rotide.h"
+#include "terminal/terminal_pane.h"
 #include "text/utf8.h"
 #include "vterm.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
+#include <sys/wait.h> // NOLINT(misc-include-cleaner) — provides WIFEXITED/WEXITSTATUS/WTERMSIG, which clang-tidy maps to <bits/waitstatus.h>
 
 static int terminalViewAppendColorSgr(struct writeBuf *wb, const VTermColor *color, int is_fg) {
 	char esc[32];

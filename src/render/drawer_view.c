@@ -1,7 +1,10 @@
 #include "render/drawer_view.h"
 
+#include "config/theme_config.h"
 #include "render/ansi_style.h"
 #include "render/display_text.h"
+#include "render/write_buf.h"
+#include "rotide.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/project_search.h"
@@ -557,8 +560,8 @@ static int drawerViewBuildRowPlain(struct writeBuf *wb, int visible_idx) {
 	}
 
 	char entry_name_buf[PATH_MAX + 512];
-	snprintf(entry_name_buf, sizeof(entry_name_buf), "%s",
-	         entry.name != NULL ? entry.name : "");
+	(void)snprintf(entry_name_buf, sizeof(entry_name_buf), "%s",
+	               entry.name != NULL ? entry.name : "");
 
 	if (!entry.is_root && !wbAppend(wb, " ", 1)) {
 		return 0;
@@ -687,7 +690,7 @@ int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols) {
 	if (editorDrawerVisibleEntryView(visible_idx, &entry)) {
 		char entry_name_buf[PATH_MAX + 512];
 		const char *entry_name = entry.name != NULL ? entry.name : "";
-		snprintf(entry_name_buf, sizeof(entry_name_buf), "%s", entry_name);
+		(void)snprintf(entry_name_buf, sizeof(entry_name_buf), "%s", entry_name);
 		entry_name = entry_name_buf;
 		int selected_with_focus =
 		        entry.is_selected && E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER;

@@ -1,5 +1,3 @@
-#define _GNU_SOURCE
-
 #include "metrics_libfuzzer_parse.h"
 #include "test_case.h"
 #include "test_helpers.h"
@@ -9,7 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 /* Representative output from a `-runs=500 -print_final_stats=1` run of
@@ -153,7 +151,7 @@ static char *make_corpus_dir(void) {
 	if (path == NULL) {
 		return NULL;
 	}
-	snprintf(path, need, "%s/rotide-corpus-XXXXXX", tmpdir);
+	(void)snprintf(path, need, "%s/rotide-corpus-XXXXXX", tmpdir);
 	if (mkdtemp(path) == NULL) {
 		free(path);
 		return NULL;
@@ -187,7 +185,7 @@ static void rmdir_recursive_simple(const char *dir) {
 		if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) {
 			continue;
 		}
-		snprintf(path, sizeof(path), "%s/%s", dir, ent->d_name);
+		(void)snprintf(path, sizeof(path), "%s/%s", dir, ent->d_name);
 		(void)unlink(path);
 	}
 	(void)closedir(d);
@@ -203,7 +201,8 @@ static int test_scan_corpus_counts_files_and_bytes(void) {
 	/* Hidden file must be ignored. */
 	ASSERT_EQ_INT(0, write_file_bytes(dir, ".hidden", "xxx", 3));
 
-	long long count = -1, bytes = -1;
+	long long count = -1;
+	long long bytes = -1;
 	ASSERT_EQ_INT(0, editorLibFuzzerScanCorpus(dir, &count, &bytes));
 	ASSERT_EQ_INT(3, (int)count);
 	ASSERT_EQ_INT(8, (int)bytes);
@@ -214,7 +213,8 @@ static int test_scan_corpus_counts_files_and_bytes(void) {
 }
 
 static int test_scan_corpus_missing_dir_reports_error(void) {
-	long long count = 99, bytes = 99;
+	long long count = 99;
+	long long bytes = 99;
 	int rc = editorLibFuzzerScanCorpus("/nonexistent-rotide-corpus-xyz-1234", &count, &bytes);
 	ASSERT_TRUE(rc != 0);
 	/* Zeroed on failure for safe defaults. */

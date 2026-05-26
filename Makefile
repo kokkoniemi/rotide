@@ -36,7 +36,8 @@ DEPFLAGS = -MMD -MP
 CPPFLAGS ?= -I$(SRC_DIR) \
 	-I$(LIBVTERM_DIR)/include \
 	-I$(TS_DIR)/runtime/include -I$(TS_DIR)/runtime/src \
-	$(patsubst %,-I$(TS_GRAMMARS_DIR)/%/src,$(TS_GRAMMARS))
+	$(patsubst %,-I$(TS_GRAMMARS_DIR)/%/src,$(TS_GRAMMARS)) \
+	-D_DEFAULT_SOURCE -D_BSD_SOURCE -D_GNU_SOURCE
 
 RELEASE_CFLAGS ?= -Os -ffunction-sections -fdata-sections \
 	-fno-unwind-tables -fno-asynchronous-unwind-tables -fno-ident
@@ -58,12 +59,12 @@ TSAN_TEST_TAGS ?= threads lsp dap file_watch pty
 # our own code and silence the benign warnings these trees legitimately emit.
 VENDOR_CFLAGS = $(filter-out -Werror -Wundef -Wshadow -Wdouble-promotion -pedantic,$(CFLAGS))
 
-TREE_SITTER_CPPFLAGS = $(CPPFLAGS) -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_GNU_SOURCE
+TREE_SITTER_CPPFLAGS = $(CPPFLAGS)
 TREE_SITTER_CFLAGS = $(VENDOR_CFLAGS) \
 	-Wno-unused-parameter -Wno-unused-value -Wno-sign-compare \
 	-Wno-implicit-fallthrough -Wno-unused-but-set-variable
 
-LIBVTERM_CPPFLAGS = $(CPPFLAGS) -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_GNU_SOURCE \
+LIBVTERM_CPPFLAGS = $(CPPFLAGS) \
 	-I$(LIBVTERM_DIR)/include -I$(LIBVTERM_DIR)/src
 LIBVTERM_CFLAGS = $(VENDOR_CFLAGS) \
 	-Wno-unused-parameter -Wno-unused-value -Wno-sign-compare \
@@ -455,7 +456,7 @@ lint: $(GENERATED_HEADERS)
 		echo "$(CLANG_TIDY) not installed. Install clang-tidy 18+ or set CLANG_TIDY=..." >&2; \
 		exit 1; \
 	}
-	$(call LOG,LINT,clang-tidy)$(CLANG_TIDY) $(LINT_FILES) -- $(CPPFLAGS) $(CFLAGS) $(PTHREAD_FLAGS)
+	$(call LOG,LINT,clang-tidy)$(CLANG_TIDY) $(LINT_FILES) -- $(CPPFLAGS) $(CFLAGS) $(PTHREAD_FLAGS) 2>&1 | awk -f scripts/lint-filter.awk
 
 lint-prefixes:
 	$(call LOG,LINT,prefixes)tools/lint-prefixes.sh

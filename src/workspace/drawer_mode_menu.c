@@ -1,3 +1,4 @@
+#include "rotide.h"
 #include "workspace/drawer.h"
 #include "workspace/drawer_internal.h"
 #include "workspace/file_search.h"

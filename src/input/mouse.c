@@ -2,12 +2,13 @@
 
 #include "config/dap_config.h"
 #include "debug/dap.h"
-#include "editing/buffer_core.h"
+#include "editing/document_position.h"
 #include "editing/edit.h"
 #include "editing/selection.h"
 #include "input/actions_workspace.h"
 #include "language/lsp.h"
 #include "render/viewport.h"
+#include "rotide.h"
 #include "support/terminal.h"
 #include "terminal/terminal_pane.h"
 #include "text/document.h"
@@ -19,6 +20,8 @@
 #include "workspace/tabs.h"
 
 #include <ctype.h>
+#include <stddef.h>
+#include <time.h>
 
 enum {
 	MOUSE_WHEEL_SCROLL_LINES = 3,

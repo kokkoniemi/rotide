@@ -1,8 +1,12 @@
 #include "editing/selection.h"
 
 #include "editing/buffer_core.h"
+#include "editing/document_position.h"
 #include "editing/edit.h"
+#include "editing/edit_pipeline.h"
+#include "editing/text_source.h"
 #include "language/syntax.h"
+#include "rotide.h"
 #include "support/alloc.h"
 #include "support/size_utils.h"
 #include "text/document.h"

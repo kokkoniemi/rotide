@@ -1,7 +1,5 @@
 #include "save_syscalls.h"
 
-#include "rotide.h"
-
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>

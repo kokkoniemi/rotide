@@ -1,14 +1,23 @@
 #include "language/lsp_protocol.h"
 
-#include "editing/buffer_core.h"
+#include "editing/document_position.h"
 #include "editing/edit.h"
+#include "editing/edit_pipeline.h"
+#include "editing/text_source.h"
+#include "language/lsp.h"
+#include "language/lsp_framing.h"
+#include "language/lsp_json.h"
 #include "language/lsp_responses.h"
+#include "language/lsp_transport.h"
+#include "language/syntax.h"
+#include "rotide.h"
 #include "support/file_io.h"
 #include "support/size_utils.h"
 #include "text/utf8.h"
 #include "workspace/tabs.h"
 
 #include <ctype.h>
+#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>

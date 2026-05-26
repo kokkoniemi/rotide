@@ -1,7 +1,3 @@
-#define _DEFAULT_SOURCE
-#define _BSD_SOURCE
-#define _GNU_SOURCE
-
 #include "runner_support.h"
 
 #include <ctype.h>
@@ -21,7 +17,8 @@ void runnerOptionsInit(struct testRunnerOptions *opts) {
 }
 
 void runnerPrintUsage(void) {
-	fprintf(stderr,
+	(void)fprintf(
+	        stderr,
 	        "Usage: rotide_tests [options]\n"
 	        "\n"
 	        "Selection:\n"
@@ -417,7 +414,8 @@ int quarantineListLoad(struct quarantineList *q, const char *path, char **error_
 		}
 		if (error_out != NULL) {
 			char buf[256];
-			snprintf(buf, sizeof(buf), "failed to open %s: %s", path, strerror(errno));
+			(void)snprintf(buf, sizeof(buf), "failed to open %s: %s", path,
+			               strerror(errno));
 			*error_out = strdup(buf);
 		}
 		return -1;
@@ -471,11 +469,11 @@ int quarantineListLoad(struct quarantineList *q, const char *path, char **error_
 				*error_out = strdup("out of memory while loading quarantine list");
 			}
 			free(line);
-			fclose(f);
+			(void)fclose(f);
 			return -1;
 		}
 	}
 	free(line);
-	fclose(f);
+	(void)fclose(f);
 	return 0;
 }

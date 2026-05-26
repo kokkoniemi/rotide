@@ -2,14 +2,17 @@
 
 #include "editing/selection.h"
 #include "rotide.h"
+#include "terminal/pty.h"
 #include "text/utf8.h"
 #include "vterm.h"
 #include "vterm_keycodes.h"
 #include "workspace/layout.h"
 
 #include <errno.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #define TERMINAL_SCROLLBACK_DEFAULT 10000
@@ -616,8 +619,10 @@ int editorTerminalPaneGetLogRow(const struct editorTerminalPane *terminal, int r
  * left-to-right. */
 static void terminalPaneSelectionBounds(const struct editorTerminalPane *t, int *r0, int *c0,
                                         int *r1, int *c1) {
-	int ar = t->sel_anchor_row, ac = t->sel_anchor_col;
-	int br = t->sel_cursor_row, bc = t->sel_cursor_col;
+	int ar = t->sel_anchor_row;
+	int ac = t->sel_anchor_col;
+	int br = t->sel_cursor_row;
+	int bc = t->sel_cursor_col;
 	if (ar < br || (ar == br && ac <= bc)) {
 		*r0 = ar;
 		*c0 = ac;
@@ -668,7 +673,10 @@ int editorTerminalPaneSelectionContains(const struct editorTerminalPane *termina
 	if (terminal == NULL || !terminal->sel_active) {
 		return 0;
 	}
-	int r0, c0, r1, c1;
+	int r0;
+	int c0;
+	int r1;
+	int c1;
 	terminalPaneSelectionBounds(terminal, &r0, &c0, &r1, &c1);
 	if (r0 == r1) {
 		return row == r0 && col >= c0 && col < c1;
@@ -693,7 +701,10 @@ char *editorTerminalPaneSelectionExtract(const struct editorTerminalPane *termin
 	if (terminal == NULL || !terminal->sel_active || terminal->cols <= 0) {
 		return NULL;
 	}
-	int r0, c0, r1, c1;
+	int r0;
+	int c0;
+	int r1;
+	int c1;
 	terminalPaneSelectionBounds(terminal, &r0, &c0, &r1, &c1);
 	int cols = terminal->cols;
 	VTermScreenCell *row_cells = calloc((size_t)cols, sizeof(*row_cells));

@@ -1,6 +1,6 @@
-#include "text/utf8.h"
+#define _XOPEN_SOURCE 700
 
-#include "rotide.h"
+#include "text/utf8.h"
 
 #include <limits.h>
 #include <wchar.h>

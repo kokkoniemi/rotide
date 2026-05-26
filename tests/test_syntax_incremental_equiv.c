@@ -146,14 +146,15 @@ static const struct langCase k_lang_cases[] = {
 static int runIncrementalEquivTest(const struct langCase *lc, uint64_t seed) {
 	char *resolved = testResolveRepoPath(lc->fixture_path);
 	if (resolved == NULL) {
-		fprintf(stderr, "%s: failed to resolve %s\n", lc->suite_name, lc->fixture_path);
+		(void)fprintf(stderr, "%s: failed to resolve %s\n", lc->suite_name,
+		              lc->fixture_path);
 		return 1;
 	}
 	size_t initial_len = 0;
 	char *initial = read_file_contents(resolved, &initial_len);
 	free(resolved);
 	if (initial == NULL) {
-		fprintf(stderr, "%s: read failed %s\n", lc->suite_name, lc->fixture_path);
+		(void)fprintf(stderr, "%s: read failed %s\n", lc->suite_name, lc->fixture_path);
 		return 1;
 	}
 	if (initial_len > INC_MAX_TEXT_BYTES) {
@@ -170,14 +171,14 @@ static int runIncrementalEquivTest(const struct langCase *lc, uint64_t seed) {
 
 	struct editorSyntaxState *incremental = editorSyntaxStateCreate(lc->language);
 	if (incremental == NULL) {
-		fprintf(stderr, "%s: state create failed\n", lc->suite_name);
+		(void)fprintf(stderr, "%s: state create failed\n", lc->suite_name);
 		refBufFree(&buf);
 		return 1;
 	}
 	struct editorTextSource view = {0};
 	editorTextSourceInitString(&view, buf.bytes, buf.len);
 	if (!editorSyntaxStateParseFull(incremental, &view)) {
-		fprintf(stderr, "%s: initial parse failed\n", lc->suite_name);
+		(void)fprintf(stderr, "%s: initial parse failed\n", lc->suite_name);
 		editorSyntaxStateDestroy(incremental);
 		refBufFree(&buf);
 		return 1;
@@ -227,7 +228,8 @@ static int runIncrementalEquivTest(const struct langCase *lc, uint64_t seed) {
 		byteToPoint(buf.bytes, buf.len, start + old_len, &edit.old_end_point);
 
 		if (refBufReplace(&buf, start, old_len, ins, new_len) != 0) {
-			fprintf(stderr, "%s: refBufReplace failed at op %d\n", lc->suite_name, i);
+			(void)fprintf(stderr, "%s: refBufReplace failed at op %d\n", lc->suite_name,
+			              i);
 			editorSyntaxStateDestroy(incremental);
 			refBufFree(&buf);
 			return 1;
@@ -237,7 +239,8 @@ static int runIncrementalEquivTest(const struct langCase *lc, uint64_t seed) {
 		struct editorTextSource after_view = {0};
 		editorTextSourceInitString(&after_view, buf.bytes, buf.len);
 		if (!editorSyntaxStateApplyEditAndParse(incremental, &edit, &after_view)) {
-			fprintf(stderr,
+			(void)fprintf(
+			        stderr,
 			        "%s: ApplyEditAndParse failed op#%d start=%zu old=%zu new=%zu "
 			        "seed=0x%016llx\n",
 			        lc->suite_name, i, start, old_len, new_len,
@@ -262,7 +265,7 @@ static int runIncrementalEquivTest(const struct langCase *lc, uint64_t seed) {
 	int inc_count = 0;
 	if (!collectAndSortCaptures(incremental, buf.bytes, buf.len, inc_caps, INC_MAX_CAPTURES,
 	                            &inc_count)) {
-		fprintf(stderr, "%s: incremental capture collect failed\n", lc->suite_name);
+		(void)fprintf(stderr, "%s: incremental capture collect failed\n", lc->suite_name);
 		free(inc_caps);
 		free(full_caps);
 		editorSyntaxStateDestroy(incremental);
@@ -281,7 +284,7 @@ static int runIncrementalEquivTest(const struct langCase *lc, uint64_t seed) {
 	struct editorTextSource final_view = {0};
 	editorTextSourceInitString(&final_view, buf.bytes, buf.len);
 	if (!editorSyntaxStateParseFull(full, &final_view)) {
-		fprintf(stderr, "%s: full reparse failed\n", lc->suite_name);
+		(void)fprintf(stderr, "%s: full reparse failed\n", lc->suite_name);
 		editorSyntaxStateDestroy(full);
 		free(inc_caps);
 		free(full_caps);
@@ -292,7 +295,7 @@ static int runIncrementalEquivTest(const struct langCase *lc, uint64_t seed) {
 	int full_count = 0;
 	if (!collectAndSortCaptures(full, buf.bytes, buf.len, full_caps, INC_MAX_CAPTURES,
 	                            &full_count)) {
-		fprintf(stderr, "%s: full capture collect failed\n", lc->suite_name);
+		(void)fprintf(stderr, "%s: full capture collect failed\n", lc->suite_name);
 		editorSyntaxStateDestroy(full);
 		free(inc_caps);
 		free(full_caps);
@@ -303,14 +306,15 @@ static int runIncrementalEquivTest(const struct langCase *lc, uint64_t seed) {
 
 	int ok = 1;
 	if (inc_count != full_count) {
-		fprintf(stderr,
-		        "%s: capture count mismatch incremental=%d full=%d seed=0x%016llx\n",
-		        lc->suite_name, inc_count, full_count, (unsigned long long)seed);
+		(void)fprintf(stderr,
+		              "%s: capture count mismatch incremental=%d full=%d seed=0x%016llx\n",
+		              lc->suite_name, inc_count, full_count, (unsigned long long)seed);
 		ok = 0;
 	} else {
 		for (int i = 0; i < inc_count; i++) {
 			if (captureCompare(&inc_caps[i], &full_caps[i]) != 0) {
-				fprintf(stderr,
+				(void)fprintf(
+				        stderr,
 				        "%s: capture #%d differs: inc=[%u..%u cls=%d] full=[%u..%u "
 				        "cls=%d] seed=0x%016llx\n",
 				        lc->suite_name, i, inc_caps[i].start_byte,

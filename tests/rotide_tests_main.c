@@ -142,17 +142,17 @@ static int suitePassesTagFilter(const struct editorTestSuite *suite,
  * outside E (LSP mock, syntax-worker queue, alloc probes) aren't checked. */
 
 int main(int argc, char **argv) {
-	setlocale(LC_CTYPE, "");
+	(void)setlocale(LC_CTYPE, "");
 	/* Line-buffer stdout so PASS/FAIL lines flush at each newline. Without
 	 * this, captured output (the parallel-runner log file or CI stdout
 	 * redirection) is fully buffered, and unbuffered stderr writes from
 	 * ASSERT macros can split a half-flushed PASS/FAIL line mid-write. */
-	setvbuf(stdout, NULL, _IOLBF, 0);
+	(void)setvbuf(stdout, NULL, _IOLBF, 0);
 	struct timespec wall_start;
 	clock_gettime(CLOCK_MONOTONIC, &wall_start);
 	char *startup_cwd = getcwd(NULL, 0);
 	if (startup_cwd == NULL) {
-		fprintf(stderr, "Failed to capture startup cwd: %s\n", strerror(errno));
+		(void)fprintf(stderr, "Failed to capture startup cwd: %s\n", strerror(errno));
 		return EXIT_FAILURE;
 	}
 	testHelpersInitPaths(startup_cwd);
@@ -161,8 +161,8 @@ int main(int argc, char **argv) {
 	struct testRunnerOptions opts;
 	runnerOptionsInit(&opts);
 	if (runnerOptionsParse(&opts, argc, argv) != 0) {
-		fprintf(stderr, "rotide_tests: %s\n",
-		        opts.error_msg ? opts.error_msg : "argument parse error");
+		(void)fprintf(stderr, "rotide_tests: %s\n",
+		              opts.error_msg ? opts.error_msg : "argument parse error");
 		runnerPrintUsage();
 		return EXIT_FAILURE;
 	}
@@ -182,14 +182,15 @@ int main(int argc, char **argv) {
 		 * exists) — the actual write will surface a clearer error. */
 		(void)mkdir("tests/artifacts", 0755);
 		if (setenv("ROTIDE_UPDATE_GOLDEN_STASH", opts.update_golden_stash, 1) != 0) {
-			fprintf(stderr,
+			(void)fprintf(
+			        stderr,
 			        "rotide_tests: failed to export ROTIDE_UPDATE_GOLDEN_STASH: %s\n",
 			        strerror(errno));
 			return EXIT_FAILURE;
 		}
-		fprintf(stderr,
-		        "rotide_tests: --update-golden mode — grid mismatches stash to %s\n",
-		        opts.update_golden_stash);
+		(void)fprintf(stderr,
+		              "rotide_tests: --update-golden mode — grid mismatches stash to %s\n",
+		              opts.update_golden_stash);
 	}
 
 	struct quarantineList quarantine;
@@ -197,8 +198,8 @@ int main(int argc, char **argv) {
 	if (!opts.no_quarantine) {
 		char *err = NULL;
 		if (quarantineListLoad(&quarantine, opts.quarantine_path, &err) != 0) {
-			fprintf(stderr, "rotide_tests: %s\n",
-			        err ? err : "failed to load quarantine list");
+			(void)fprintf(stderr, "rotide_tests: %s\n",
+			              err ? err : "failed to load quarantine list");
 			free(err);
 			quarantineListFree(&quarantine);
 			return EXIT_FAILURE;
@@ -213,7 +214,7 @@ int main(int argc, char **argv) {
 	struct selectedTest *selected =
 	        calloc((size_t)(total_candidates > 0 ? total_candidates : 1), sizeof(*selected));
 	if (selected == NULL) {
-		fprintf(stderr, "rotide_tests: out of memory\n");
+		(void)fprintf(stderr, "rotide_tests: out of memory\n");
 		quarantineListFree(&quarantine);
 		return EXIT_FAILURE;
 	}
@@ -254,7 +255,7 @@ int main(int argc, char **argv) {
 
 	int *order = calloc((size_t)(selected_count > 0 ? selected_count : 1), sizeof(*order));
 	if (order == NULL) {
-		fprintf(stderr, "rotide_tests: out of memory\n");
+		(void)fprintf(stderr, "rotide_tests: out of memory\n");
 		free(selected);
 		quarantineListFree(&quarantine);
 		return EXIT_FAILURE;
@@ -283,7 +284,7 @@ int main(int argc, char **argv) {
 		int *per_suite_capacity = calloc((size_t)K_SUITE_COUNT, sizeof(int));
 		int batch_count = 0;
 		if (batches == NULL || per_suite_capacity == NULL) {
-			fprintf(stderr, "rotide_tests: out of memory for batches\n");
+			(void)fprintf(stderr, "rotide_tests: out of memory for batches\n");
 			free(batches);
 			free(per_suite_capacity);
 			free(order);
@@ -293,7 +294,7 @@ int main(int argc, char **argv) {
 		}
 		int *suite_to_batch = malloc((size_t)K_SUITE_COUNT * sizeof(int));
 		if (suite_to_batch == NULL) {
-			fprintf(stderr, "rotide_tests: out of memory for batches\n");
+			(void)fprintf(stderr, "rotide_tests: out of memory for batches\n");
 			free(batches);
 			free(per_suite_capacity);
 			free(order);
@@ -321,8 +322,8 @@ int main(int argc, char **argv) {
 				int *grown = realloc(batches[b].test_indices,
 				                     (size_t)new_cap * sizeof(int));
 				if (grown == NULL) {
-					fprintf(stderr,
-					        "rotide_tests: out of memory for batches\n");
+					(void)fprintf(stderr,
+					              "rotide_tests: out of memory for batches\n");
 					for (int j = 0; j < batch_count; j++) {
 						free(batches[j].test_indices);
 					}
@@ -347,11 +348,12 @@ int main(int argc, char **argv) {
 
 		for (int b = 0; b < batch_count; b++) {
 			if (batches[b].output != NULL) {
-				fwrite(batches[b].output, 1, batches[b].output_len, stdout);
+				(void)fwrite(batches[b].output, 1, batches[b].output_len, stdout);
 				free(batches[b].output);
 			}
 			if (batches[b].crashed) {
-				fprintf(stderr,
+				(void)fprintf(
+				        stderr,
 				        "CRASH suite=%s test=%s signal=%d artifact=%s "
 				        "seed=0x%016llx\n",
 				        k_suites[batches[b].suite_idx].name,
@@ -378,7 +380,7 @@ int main(int argc, char **argv) {
 	if (opts.validate_reset) {
 		snapshot = malloc(EDITOR_STATE_SNAPSHOT_SIZE);
 		if (snapshot == NULL) {
-			fprintf(stderr, "rotide_tests: out of memory for snapshot\n");
+			(void)fprintf(stderr, "rotide_tests: out of memory for snapshot\n");
 			free(order);
 			free(selected);
 			quarantineListFree(&quarantine);
@@ -404,7 +406,8 @@ int main(int argc, char **argv) {
 				if (!rotideTestSnapshotMatchesEditor(snapshot, &diff_at)) {
 					reset_violations++;
 					const unsigned char *live = (const unsigned char *)&E;
-					fprintf(stderr,
+					(void)fprintf(
+					        stderr,
 					        "RESET-DRIFT after %s (repeat %d/%d): offset=%zu "
 					        "snap=0x%02x live=0x%02x\n",
 					        tc->name, rep + 1, opts.repeat, diff_at,
@@ -503,8 +506,9 @@ done:
 		};
 		if (editorMetricsAppend(opts.metrics_out, "test_run", fields,
 		                        (int)(sizeof(fields) / sizeof(fields[0]))) != 0) {
-			fprintf(stderr, "rotide_tests: warning: failed to append metrics to %s\n",
-			        opts.metrics_out);
+			(void)fprintf(stderr,
+			              "rotide_tests: warning: failed to append metrics to %s\n",
+			              opts.metrics_out);
 		}
 	}
 

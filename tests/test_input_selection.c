@@ -1,11 +1,15 @@
+#include "alloc_test_hooks.h"
 #include "editing/selection.h"
+#include "input/prompt.h"
+#include "rotide.h"
+#include "support/terminal.h"
 #include "test_case.h"
+#include "test_helpers.h"
 #include "test_support.h"
-#include "workspace/drawer.h"
-#include "workspace/file_search.h"
-#include "workspace/layout.h"
-#include "workspace/project_search.h"
-#include "workspace/tabs.h"
+
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 static int test_editor_column_select_extends_rectangle_with_shift_alt_arrows(void) {
 	add_row("hello world");

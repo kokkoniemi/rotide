@@ -1,8 +1,11 @@
 #include "text/document.h"
 
 #include "editing/document_bridge.h"
-#include "support/alloc.h"
+#include "rotide.h"
+#include "text/text_summary.h"
+#include "text/text_tree.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 

@@ -2,16 +2,14 @@
 #include "rotide.h"
 #include "terminal/terminal_pane.h"
 #include "test_case.h"
-#include "test_helpers.h"
 #include "vterm.h"
 #include "workspace/layout.h"
 
-#include <errno.h>
 #include <poll.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <unistd.h>
 
 static int wait_for_text_in_screen(struct editorTerminalPane *t, const char *needle,
                                    int timeout_ms) {
@@ -82,7 +80,8 @@ static int test_terminal_pane_resize_updates_grid(void) {
 		editorTerminalPaneFree(t);
 		return 1;
 	}
-	int rows = 0, cols = 0;
+	int rows = 0;
+	int cols = 0;
 	vterm_get_size(t->vt, &rows, &cols);
 	int failed = t->cols != 100 || t->rows != 30 || cols != 100 || rows != 30;
 	editorTerminalPaneFree(t);

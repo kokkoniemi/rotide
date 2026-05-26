@@ -15,8 +15,6 @@
  * Build: see the `fuzz-dap` Makefile target. clang + libFuzzer required.
  */
 
-#define _GNU_SOURCE
-
 #include "debug/dap_client.h"
 
 #include <stddef.h>

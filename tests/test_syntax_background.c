@@ -1,4 +1,5 @@
 #include "test_case.h"
+#include "test_helpers.h"
 #include "test_support.h"
 
 static int test_editor_syntax_visible_cache_recomputes_only_changed_rows(void) {
@@ -224,3 +225,12 @@ const struct editorTestCase g_syntax_background_tests[] = {
 
 const int g_syntax_background_test_count =
         (int)(sizeof(g_syntax_background_tests) / sizeof(g_syntax_background_tests[0]));
+#include "editing/buffer_core.h"
+#include "editing/edit.h"
+#include "language/syntax.h"
+#include "language/syntax_visible_cache.h"
+#include "language/syntax_worker.h"
+#include "rotide.h"
+
+#include <stdint.h>
+#include <unistd.h>

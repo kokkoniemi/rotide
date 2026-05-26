@@ -7,7 +7,9 @@
  * vector lifetime; produces output that the visible-cache module
  * consumes.
  */
+#include "language/syntax.h"
 #include "language/syntax_internal.h"
+#include "rotide.h"
 #include "tree_sitter/api.h"
 
 #include <stdint.h>

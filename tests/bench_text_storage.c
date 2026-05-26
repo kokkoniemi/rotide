@@ -72,9 +72,9 @@ int main(int argc, char **argv) {
 		} else if (strcmp(argv[i], "--bytes") == 0) {
 			doc_bytes = (size_t)strtoull(argv[i + 1], NULL, 0);
 		} else if (strcmp(argv[i], "--ops") == 0) {
-			ops = atoi(argv[i + 1]);
+			ops = (int)strtol(argv[i + 1], NULL, 10);
 		} else {
-			fprintf(stderr, "unknown flag: %s\n", argv[i]);
+			(void)fprintf(stderr, "unknown flag: %s\n", argv[i]);
 			return 2;
 		}
 	}
@@ -82,7 +82,7 @@ int main(int argc, char **argv) {
 
 	char *seed_text = generate_seed_text(doc_bytes);
 	if (seed_text == NULL) {
-		fprintf(stderr, "bench: malloc(%zu) failed\n", doc_bytes);
+		(void)fprintf(stderr, "bench: malloc(%zu) failed\n", doc_bytes);
 		return 1;
 	}
 
@@ -91,7 +91,7 @@ int main(int argc, char **argv) {
 
 	double t0 = monotonic_seconds();
 	if (!editorDocumentResetFromString(&doc, seed_text, doc_bytes)) {
-		fprintf(stderr, "bench: reset failed\n");
+		(void)fprintf(stderr, "bench: reset failed\n");
 		free(seed_text);
 		editorDocumentFree(&doc);
 		return 1;
@@ -107,7 +107,7 @@ int main(int argc, char **argv) {
 		size_t at = cur == 0 ? 0 : (size_t)(bench_rng_next() % (cur + 1));
 		char ch = (char)('a' + (bench_rng_next() % 26));
 		if (!editorDocumentReplaceRange(&doc, at, 0, &ch, 1)) {
-			fprintf(stderr, "bench: insert op#%d failed\n", i);
+			(void)fprintf(stderr, "bench: insert op#%d failed\n", i);
 			editorDocumentFree(&doc);
 			return 1;
 		}
@@ -122,7 +122,7 @@ int main(int argc, char **argv) {
 		}
 		size_t at = (size_t)(bench_rng_next() % cur);
 		if (!editorDocumentReplaceRange(&doc, at, 1, NULL, 0)) {
-			fprintf(stderr, "bench: delete op#%d failed\n", i);
+			(void)fprintf(stderr, "bench: delete op#%d failed\n", i);
 			editorDocumentFree(&doc);
 			return 1;
 		}
@@ -138,7 +138,7 @@ int main(int argc, char **argv) {
 		size_t at = (size_t)(bench_rng_next() % cur);
 		char ch = (char)('a' + (bench_rng_next() % 26));
 		if (!editorDocumentReplaceRange(&doc, at, 1, &ch, 1)) {
-			fprintf(stderr, "bench: replace op#%d failed\n", i);
+			(void)fprintf(stderr, "bench: replace op#%d failed\n", i);
 			editorDocumentFree(&doc);
 			return 1;
 		}
@@ -152,7 +152,7 @@ int main(int argc, char **argv) {
 	struct editorRow *rows = NULL;
 	int numrows = 0;
 	if (!editorBuildFullRowsFromDocument(&doc, &rows, &numrows)) {
-		fprintf(stderr, "bench: row-cache build failed\n");
+		(void)fprintf(stderr, "bench: row-cache build failed\n");
 		editorDocumentFree(&doc);
 		return 1;
 	}

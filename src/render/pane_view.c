@@ -1,13 +1,19 @@
 #include "render/pane_view.h"
 
-#include "editing/buffer_core.h"
+#include "config/theme_config.h"
 #include "language/syntax.h"
+#include "language/syntax_visible_cache.h"
 #include "render/ansi_style.h"
 #include "render/drawer_view.h"
 #include "render/screen.h"
 #include "render/tab_bar.h"
 #include "render/terminal_view.h"
+#include "render/viewport.h"
+#include "render/write_buf.h"
+#include "rotide.h"
+#include "terminal/terminal_pane.h"
 #include "workspace/drawer.h"
+#include "workspace/layout.h"
 #include "workspace/tabs.h"
 
 #include <stdio.h>

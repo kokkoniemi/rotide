@@ -9,6 +9,7 @@
 #include "config/common.h"
 #include "config/theme_config.h"
 #include "config/theme_internal.h"
+#include "language/syntax.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -628,7 +629,7 @@ static enum themeParseFileStatus themeParseApplyFile(struct editorTheme *theme, 
 	}
 
 	enum themeParseFileStatus status = themeParseApplyStream(theme, fp, is_theme_file, ctx_out);
-	fclose(fp);
+	(void)fclose(fp);
 	return status;
 }
 

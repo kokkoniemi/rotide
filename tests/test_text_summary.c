@@ -4,7 +4,6 @@
 
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 static uint64_t g_rng;
@@ -39,8 +38,9 @@ static int summariesEqual(const struct editorTextSummary *a, const struct editor
 }
 
 static void printSummary(const char *label, const struct editorTextSummary *s) {
-	fprintf(stderr, "  %s: bytes=%zu newlines=%d first=%zu last=%zu max=%zu\n", label, s->bytes,
-	        s->newlines, s->first_line_bytes, s->last_line_bytes, s->max_line_bytes);
+	(void)fprintf(stderr, "  %s: bytes=%zu newlines=%d first=%zu last=%zu max=%zu\n", label,
+	              s->bytes, s->newlines, s->first_line_bytes, s->last_line_bytes,
+	              s->max_line_bytes);
 }
 
 static int expectEqualSummaries(const char *case_name, const struct editorTextSummary *got,
@@ -48,7 +48,7 @@ static int expectEqualSummaries(const char *case_name, const struct editorTextSu
 	if (summariesEqual(got, want)) {
 		return 0;
 	}
-	fprintf(stderr, "test_text_summary: %s mismatch\n", case_name);
+	(void)fprintf(stderr, "test_text_summary: %s mismatch\n", case_name);
 	printSummary("got ", got);
 	printSummary("want", want);
 	return -1;
@@ -129,8 +129,8 @@ static int test_text_summary_from_bytes_matches_naive(void) {
 		editorTextSummaryFromBytes(buf, len, &got);
 		naiveSummary(buf, len, &want);
 		if (expectEqualSummaries("FromBytes vs naive", &got, &want) != 0) {
-			fprintf(stderr, "  iter=%d len=%zu seed=0x%016llx\n", iter, len,
-			        (unsigned long long)rotide_test_seed());
+			(void)fprintf(stderr, "  iter=%d len=%zu seed=0x%016llx\n", iter, len,
+			              (unsigned long long)rotide_test_seed());
 			return 1;
 		}
 	}
@@ -143,12 +143,16 @@ static int test_text_summary_merge_associativity(void) {
 		size_t la = (size_t)(rngNext() % 128);
 		size_t lb = (size_t)(rngNext() % 128);
 		size_t lc = (size_t)(rngNext() % 128);
-		char a[128], b[128], c[128];
+		char a[128];
+		char b[128];
+		char c[128];
 		fillRandomText(a, la, 20);
 		fillRandomText(b, lb, 20);
 		fillRandomText(c, lc, 20);
 
-		struct editorTextSummary sa, sb, sc;
+		struct editorTextSummary sa;
+		struct editorTextSummary sb;
+		struct editorTextSummary sc;
 		editorTextSummaryFromBytes(a, la, &sa);
 		editorTextSummaryFromBytes(b, lb, &sb);
 		editorTextSummaryFromBytes(c, lc, &sc);
@@ -163,8 +167,8 @@ static int test_text_summary_merge_associativity(void) {
 		editorTextSummaryMerge(&sa, &sbc, &right_first);
 
 		if (expectEqualSummaries("merge associativity", &left_first, &right_first) != 0) {
-			fprintf(stderr, "  iter=%d la=%zu lb=%zu lc=%zu seed=0x%016llx\n", iter, la,
-			        lb, lc, (unsigned long long)rotide_test_seed());
+			(void)fprintf(stderr, "  iter=%d la=%zu lb=%zu lc=%zu seed=0x%016llx\n",
+			              iter, la, lb, lc, (unsigned long long)rotide_test_seed());
 			return 1;
 		}
 	}
@@ -202,8 +206,8 @@ static int test_text_summary_merge_matches_concat(void) {
 		}
 
 		if (expectEqualSummaries("merge of pieces == whole", &acc, &whole) != 0) {
-			fprintf(stderr, "  iter=%d total=%zu splits=%d seed=0x%016llx\n", iter,
-			        total, splits, (unsigned long long)rotide_test_seed());
+			(void)fprintf(stderr, "  iter=%d total=%zu splits=%d seed=0x%016llx\n",
+			              iter, total, splits, (unsigned long long)rotide_test_seed());
 			return 1;
 		}
 	}
@@ -237,7 +241,8 @@ static int test_text_summary_doc_level_longest_line(void) {
 			doc_longest = s.last_line_bytes;
 		}
 		if (doc_longest != cases[i].want_longest) {
-			fprintf(stderr,
+			(void)fprintf(
+			        stderr,
 			        "test_text_summary: doc-level longest mismatch for %s: got=%zu "
 			        "want=%zu\n",
 			        cases[i].text, doc_longest, cases[i].want_longest);

@@ -1,8 +1,9 @@
 #include "editing/history.h"
 
-#include "editing/buffer_core.h"
 #include "editing/edit.h"
+#include "editing/edit_pipeline.h"
 #include "editing/selection.h"
+#include "rotide.h"
 #include "support/alloc.h"
 #include "support/size_utils.h"
 

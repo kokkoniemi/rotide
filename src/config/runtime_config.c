@@ -1,5 +1,6 @@
 #include "config/runtime_config.h"
 
+#include "config/common.h"
 #include "config/dap_config.h"
 #include "config/editor_config.h"
 #include "config/keymap.h"
@@ -7,6 +8,9 @@
 #include "config/theme_config.h"
 #include "editing/edit.h"
 #include "language/lsp.h"
+#include "rotide.h"
+
+#include <stddef.h>
 
 struct runtimeConfigStatus {
 	enum editorConfigBootstrapStatus bootstrap_status;

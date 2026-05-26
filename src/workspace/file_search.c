@@ -1,6 +1,7 @@
 #include "workspace/file_search.h"
 
 #include "editing/buffer_core.h"
+#include "rotide.h"
 #include "support/alloc.h"
 #include "support/file_io.h"
 #include "support/size_utils.h"
@@ -11,6 +12,7 @@
 
 #include <ctype.h>
 #include <dirent.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>

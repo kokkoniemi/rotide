@@ -1,6 +1,3 @@
-#define _DEFAULT_SOURCE
-#define _GNU_SOURCE
-
 #include "golden_apply_lib.h"
 
 #include "grid_snapshot_format.h"
@@ -350,10 +347,10 @@ char *editor_golden_rewrite_text(const char *text, size_t text_len,
 			/* Already past this line (entries out of order or
 			 * overlapping); skip with a warning. */
 			if (log != NULL) {
-				fprintf(log,
-				        "golden_apply: %s:%d entry overlaps a previous one — "
-				        "skipped\n",
-				        ent->file, ent->line);
+				(void)fprintf(log,
+				              "golden_apply: %s:%d entry overlaps a previous one — "
+				              "skipped\n",
+				              ent->file, ent->line);
 			}
 			if (skipped_out != NULL) {
 				(*skipped_out)++;
@@ -367,7 +364,8 @@ char *editor_golden_rewrite_text(const char *text, size_t text_len,
 		                         &indent_len, &start_line_end);
 		if (start_pos == (size_t)-1) {
 			if (log != NULL) {
-				fprintf(log,
+				(void)fprintf(
+				        log,
 				        "golden_apply: %s:%d no /* golden-start */ marker after "
 				        "line — skipped\n",
 				        ent->file, ent->line);
@@ -382,7 +380,8 @@ char *editor_golden_rewrite_text(const char *text, size_t text_len,
 		                                  "/* golden-end */", NULL, &end_line_end);
 		if (end_pos == (size_t)-1) {
 			if (log != NULL) {
-				fprintf(log,
+				(void)fprintf(
+				        log,
 				        "golden_apply: %s:%d /* golden-start */ at offset %zu "
 				        "lacks closing /* golden-end */ — skipped\n",
 				        ent->file, ent->line, start_pos);

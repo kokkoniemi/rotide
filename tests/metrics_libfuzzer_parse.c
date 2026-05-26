@@ -1,6 +1,3 @@
-#define _DEFAULT_SOURCE
-#define _GNU_SOURCE
-
 #include "metrics_libfuzzer_parse.h"
 
 #include <ctype.h>
@@ -8,7 +5,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 
 void editorLibFuzzerStatsInit(struct editorLibFuzzerStats *out) {
 	if (out == NULL) {
@@ -105,7 +101,9 @@ static void parse_one_line(const char *line, struct editorLibFuzzerStats *out) {
 	const char *ft = strstr(line, "ft:");
 	const char *corp = strstr(line, "corp:");
 	if (cov != NULL && ft != NULL && corp != NULL) {
-		long long c = 0, f = 0, k = 0;
+		long long c = 0;
+		long long f = 0;
+		long long k = 0;
 		const char *after_cov = find_int_after(cov, "cov:", &c);
 		const char *after_ft = find_int_after(ft, "ft:", &f);
 		const char *after_corp = find_int_after(corp, "corp:", &k);

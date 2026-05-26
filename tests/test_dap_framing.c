@@ -5,16 +5,16 @@
  * Content-Length, overflow rejection, oversized payload rejection,
  * and multi-frame draining. */
 
-#define _GNU_SOURCE
-
 #include "debug/dap_client.h"
 #include "test_case.h"
 #include "test_helpers.h"
 
 #include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 static int memfd_with(const void *data, size_t size) {

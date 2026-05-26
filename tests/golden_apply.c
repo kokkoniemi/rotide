@@ -1,6 +1,3 @@
-#define _DEFAULT_SOURCE
-#define _GNU_SOURCE
-
 /* Read a JSONL stash produced by `rotide_tests --update-golden` and
  * rewrite each referenced source file's `/ * golden-start * / ... / *
  * golden-end * /` block with the captured grid.
@@ -39,14 +36,14 @@ int main(int argc, char **argv) {
 	const char *stash_path = "tests/artifacts/goldens.jsonl";
 	for (int i = 1; i < argc; i++) {
 		if ((strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)) {
-			fprintf(stdout, "usage: golden_apply [--stash PATH]\n");
+			(void)fprintf(stdout, "usage: golden_apply [--stash PATH]\n");
 			return 0;
 		}
 		if (strcmp(argv[i], "--stash") == 0 && i + 1 < argc) {
 			stash_path = argv[++i];
 			continue;
 		}
-		fprintf(stderr, "golden_apply: unknown arg: %s\n", argv[i]);
+		(void)fprintf(stderr, "golden_apply: unknown arg: %s\n", argv[i]);
 		return 2;
 	}
 
@@ -54,14 +51,15 @@ int main(int argc, char **argv) {
 	int count = 0;
 	int skipped_parse = 0;
 	if (editor_golden_load_stash(stash_path, &entries, &count, &skipped_parse) != 0) {
-		fprintf(stderr, "golden_apply: cannot read stash %s\n", stash_path);
+		(void)fprintf(stderr, "golden_apply: cannot read stash %s\n", stash_path);
 		return 1;
 	}
 	if (skipped_parse > 0) {
-		fprintf(stderr, "golden_apply: %d malformed stash row(s) skipped\n", skipped_parse);
+		(void)fprintf(stderr, "golden_apply: %d malformed stash row(s) skipped\n",
+		              skipped_parse);
 	}
 	if (count == 0) {
-		fprintf(stdout, "golden_apply: stash is empty — nothing to do\n");
+		(void)fprintf(stdout, "golden_apply: stash is empty — nothing to do\n");
 		editor_golden_free_entries(entries, count);
 		return 0;
 	}
@@ -82,12 +80,13 @@ int main(int argc, char **argv) {
 		int skipped = 0;
 		if (editor_golden_rewrite_file(entries[i].file, &entries[i], j - i, &applied,
 		                               &skipped, stderr) != 0) {
-			fprintf(stderr, "golden_apply: failed to rewrite %s — leaving untouched\n",
-			        entries[i].file);
+			(void)fprintf(stderr,
+			              "golden_apply: failed to rewrite %s — leaving untouched\n",
+			              entries[i].file);
 			file_failures++;
 		} else {
-			fprintf(stdout, "golden_apply: %s — applied=%d skipped=%d\n",
-			        entries[i].file, applied, skipped);
+			(void)fprintf(stdout, "golden_apply: %s — applied=%d skipped=%d\n",
+			              entries[i].file, applied, skipped);
 			total_applied += applied;
 			total_skipped += skipped;
 		}
@@ -96,8 +95,8 @@ int main(int argc, char **argv) {
 
 	editor_golden_free_entries(entries, count);
 
-	fprintf(stdout, "golden_apply: total applied=%d skipped=%d file_errors=%d\n", total_applied,
-	        total_skipped, file_failures);
+	(void)fprintf(stdout, "golden_apply: total applied=%d skipped=%d file_errors=%d\n",
+	              total_applied, total_skipped, file_failures);
 	if (file_failures > 0) {
 		return 1;
 	}

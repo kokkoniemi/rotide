@@ -1,11 +1,12 @@
-#include "editing/buffer_core.h"
-#include "editing/edit.h"
 #include "editing/text_source.h"
 #include "language/lsp.h"
+#include "language/lsp_framing.h"
 #include "language/lsp_json.h"
 #include "language/lsp_mock.h"
 #include "language/lsp_protocol.h"
 #include "language/lsp_transport.h"
+#include "language/syntax.h"
+#include "rotide.h"
 
 #include <stdio.h>
 #include <stdlib.h>

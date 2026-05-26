@@ -1,7 +1,10 @@
 #include "render/status_bar.h"
 
+#include "config/theme_config.h"
 #include "render/ansi_style.h"
 #include "render/display_text.h"
+#include "render/write_buf.h"
+#include "rotide.h"
 #include "workspace/drawer.h"
 #include "workspace/git.h"
 #include "workspace/tabs.h"

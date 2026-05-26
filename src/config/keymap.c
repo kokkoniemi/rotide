@@ -1,6 +1,7 @@
 #include "config/keymap.h"
 
 #include "config/common.h"
+#include "rotide.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -8,7 +9,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 
 struct keymapActionName {
 	const char *name;
@@ -477,7 +477,7 @@ static enum keymapFileStatus keymapApplyConfigFile(struct editorKeymap *keymap, 
 	while (fgets(line, sizeof(line), fp) != NULL) {
 		size_t line_len = strlen(line);
 		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
-			fclose(fp);
+			(void)fclose(fp);
 			return KEYMAP_FILE_INVALID;
 		}
 
@@ -491,7 +491,7 @@ static enum keymapFileStatus keymapApplyConfigFile(struct editorKeymap *keymap, 
 		if (trimmed[0] == '[') {
 			char *close = strchr(trimmed, ']');
 			if (close == NULL) {
-				fclose(fp);
+				(void)fclose(fp);
 				return KEYMAP_FILE_INVALID;
 			}
 			*close = '\0';
@@ -499,7 +499,7 @@ static enum keymapFileStatus keymapApplyConfigFile(struct editorKeymap *keymap, 
 			editorConfigTrimRight(table);
 			char *tail = editorConfigTrimLeft(close + 1);
 			if (tail[0] != '\0') {
-				fclose(fp);
+				(void)fclose(fp);
 				return KEYMAP_FILE_INVALID;
 			}
 
@@ -513,7 +513,7 @@ static enum keymapFileStatus keymapApplyConfigFile(struct editorKeymap *keymap, 
 
 		char *eq = strchr(trimmed, '=');
 		if (eq == NULL) {
-			fclose(fp);
+			(void)fclose(fp);
 			return KEYMAP_FILE_INVALID;
 		}
 
@@ -522,40 +522,40 @@ static enum keymapFileStatus keymapApplyConfigFile(struct editorKeymap *keymap, 
 		editorConfigTrimRight(action_name);
 		char *value = editorConfigTrimLeft(eq + 1);
 		if (action_name[0] == '\0') {
-			fclose(fp);
+			(void)fclose(fp);
 			return KEYMAP_FILE_INVALID;
 		}
 
 		enum editorAction action = EDITOR_ACTION_COUNT;
 		if (!keymapResolveActionName(action_name, &action)) {
-			fclose(fp);
+			(void)fclose(fp);
 			return KEYMAP_FILE_INVALID;
 		}
 
 		char key_spec[64];
 		if (!editorConfigParseQuotedValue(value, key_spec, sizeof(key_spec))) {
-			fclose(fp);
+			(void)fclose(fp);
 			return KEYMAP_FILE_INVALID;
 		}
 
 		int key = 0;
 		if (!keymapParseKeySpec(key_spec, &key)) {
-			fclose(fp);
+			(void)fclose(fp);
 			return KEYMAP_FILE_INVALID;
 		}
 
 		if (!keymapSetActionBinding(&updated, action, key)) {
-			fclose(fp);
+			(void)fclose(fp);
 			return KEYMAP_FILE_INVALID;
 		}
 	}
 
 	if (ferror(fp)) {
-		fclose(fp);
+		(void)fclose(fp);
 		return KEYMAP_FILE_INVALID;
 	}
 
-	fclose(fp);
+	(void)fclose(fp);
 	*keymap = updated;
 	return KEYMAP_FILE_APPLIED;
 }
@@ -781,73 +781,74 @@ void editorKeymapBuildHelpStatus(const struct editorKeymap *keymap, char *buf, s
 	char redo[24];
 
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_SAVE, save, sizeof(save))) {
-		snprintf(save, sizeof(save), "Save");
+		(void)snprintf(save, sizeof(save), "Save");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_QUIT, quit, sizeof(quit))) {
-		snprintf(quit, sizeof(quit), "Quit");
+		(void)snprintf(quit, sizeof(quit), "Quit");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_NEW_TAB, new_tab, sizeof(new_tab))) {
-		snprintf(new_tab, sizeof(new_tab), "NewTab");
+		(void)snprintf(new_tab, sizeof(new_tab), "NewTab");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_CLOSE_TAB, close_tab,
 	                               sizeof(close_tab))) {
-		snprintf(close_tab, sizeof(close_tab), "CloseTab");
+		(void)snprintf(close_tab, sizeof(close_tab), "CloseTab");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_NEXT_TAB, next_tab,
 	                               sizeof(next_tab))) {
-		snprintf(next_tab, sizeof(next_tab), "NextTab");
+		(void)snprintf(next_tab, sizeof(next_tab), "NextTab");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_PREV_TAB, prev_tab,
 	                               sizeof(prev_tab))) {
-		snprintf(prev_tab, sizeof(prev_tab), "PrevTab");
+		(void)snprintf(prev_tab, sizeof(prev_tab), "PrevTab");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_FOCUS_DRAWER, focus_drawer,
 	                               sizeof(focus_drawer))) {
-		snprintf(focus_drawer, sizeof(focus_drawer), "Drawer");
+		(void)snprintf(focus_drawer, sizeof(focus_drawer), "Drawer");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_FIND_FILE, find_file,
 	                               sizeof(find_file))) {
-		snprintf(find_file, sizeof(find_file), "File");
+		(void)snprintf(find_file, sizeof(find_file), "File");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_PROJECT_SEARCH, project_search,
 	                               sizeof(project_search))) {
-		snprintf(project_search, sizeof(project_search), "Text");
+		(void)snprintf(project_search, sizeof(project_search), "Text");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_FIND, find, sizeof(find))) {
-		snprintf(find, sizeof(find), "Find");
+		(void)snprintf(find, sizeof(find), "Find");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_GOTO_LINE, go_to, sizeof(go_to))) {
-		snprintf(go_to, sizeof(go_to), "Goto");
+		(void)snprintf(go_to, sizeof(go_to), "Goto");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_TOGGLE_SELECTION, select,
 	                               sizeof(select))) {
-		snprintf(select, sizeof(select), "Select");
+		(void)snprintf(select, sizeof(select), "Select");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_COPY_SELECTION, copy, sizeof(copy))) {
-		snprintf(copy, sizeof(copy), "Copy");
+		(void)snprintf(copy, sizeof(copy), "Copy");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_CUT_SELECTION, cut, sizeof(cut))) {
-		snprintf(cut, sizeof(cut), "Cut");
+		(void)snprintf(cut, sizeof(cut), "Cut");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_DELETE_SELECTION, delete_sel,
 	                               sizeof(delete_sel))) {
-		snprintf(delete_sel, sizeof(delete_sel), "Del");
+		(void)snprintf(delete_sel, sizeof(delete_sel), "Del");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_PASTE, paste, sizeof(paste))) {
-		snprintf(paste, sizeof(paste), "Paste");
+		(void)snprintf(paste, sizeof(paste), "Paste");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_UNDO, undo, sizeof(undo))) {
-		snprintf(undo, sizeof(undo), "Undo");
+		(void)snprintf(undo, sizeof(undo), "Undo");
 	}
 	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_REDO, redo, sizeof(redo))) {
-		snprintf(redo, sizeof(redo), "Redo");
+		(void)snprintf(redo, sizeof(redo), "Redo");
 	}
 
-	snprintf(buf, bufsize,
-	         "Help: %s save; %s quit; %s new; %s close; %s/%s tabs; %s drawer; %s file; %s "
-	         "text; %s find; %s goto",
-	         save, quit, new_tab, close_tab, prev_tab, next_tab, focus_drawer, find_file,
-	         project_search, find, go_to);
+	(void)snprintf(
+	        buf, bufsize,
+	        "Help: %s save; %s quit; %s new; %s close; %s/%s tabs; %s drawer; %s file; %s "
+	        "text; %s find; %s goto",
+	        save, quit, new_tab, close_tab, prev_tab, next_tab, focus_drawer, find_file,
+	        project_search, find, go_to);
 }
 
 enum editorKeymapLoadStatus editorKeymapLoadFromPaths(struct editorKeymap *keymap,

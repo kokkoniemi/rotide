@@ -1,4 +1,5 @@
 #include "test_case.h"
+#include "test_helpers.h"
 #include "test_support.h"
 
 static int test_editor_syntax_activation_for_c_and_h_files(void) {
@@ -1035,3 +1036,14 @@ const struct editorTestCase g_syntax_activation_tests[] = {
 
 const int g_syntax_activation_test_count =
         (int)(sizeof(g_syntax_activation_tests) / sizeof(g_syntax_activation_tests[0]));
+#include "editing/buffer_core.h"
+#include "editing/edit.h"
+#include "language/syntax.h"
+#include "rotide.h"
+#include "workspace/tabs.h"
+
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>

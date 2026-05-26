@@ -1,17 +1,10 @@
-#define _DEFAULT_SOURCE
-#define _GNU_SOURCE
-
 #include "metrics_jsonl_read.h"
 
-#include <ctype.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <time.h>
-#include <unistd.h>
 
 void editorMetricsRowInit(struct editorMetricsRow *row) {
 	if (row == NULL) {
@@ -149,6 +142,7 @@ static int parseIsoTs(const char *ts, time_t *out) {
 	/* Accept exactly the writer's format: YYYY-MM-DDTHH:MM:SSZ. */
 	struct tm tm;
 	memset(&tm, 0, sizeof(tm));
+	// NOLINTNEXTLINE(cert-err34-c)
 	if (sscanf(ts, "%4d-%2d-%2dT%2d:%2d:%2dZ", &tm.tm_year, &tm.tm_mon, &tm.tm_mday,
 	           &tm.tm_hour, &tm.tm_min, &tm.tm_sec) != 6) {
 		return 0;

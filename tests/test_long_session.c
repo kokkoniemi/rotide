@@ -1,14 +1,12 @@
 #include "editing/edit.h"
 #include "editing/history.h"
 #include "language/lsp.h"
-#include "language/syntax.h"
 #include "terminal/terminal_pane.h"
 #include "test_case.h"
 #include "test_helpers.h"
 #include "test_support.h"
 #include "workspace/tabs.h"
 
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -84,8 +82,8 @@ struct longSessionScenario {
 static int run_growth_scenario(const struct longSessionScenario *scenario) {
 	for (int i = 0; i < scenario->warmup_iterations; i++) {
 		if (scenario->step(scenario->ctx) != 0) {
-			fprintf(stderr, "long_session: %s warmup step %d failed\n", scenario->name,
-			        i);
+			(void)fprintf(stderr, "long_session: %s warmup step %d failed\n",
+			              scenario->name, i);
 			return 1;
 		}
 	}
@@ -95,8 +93,8 @@ static int run_growth_scenario(const struct longSessionScenario *scenario) {
 
 	for (int i = 0; i < scenario->measured_iterations; i++) {
 		if (scenario->step(scenario->ctx) != 0) {
-			fprintf(stderr, "long_session: %s measured step %d failed\n",
-			        scenario->name, i);
+			(void)fprintf(stderr, "long_session: %s measured step %d failed\n",
+			              scenario->name, i);
 			return 1;
 		}
 	}
@@ -108,29 +106,29 @@ static int run_growth_scenario(const struct longSessionScenario *scenario) {
 	long live_delta = (baseline_live >= 0 && final_live >= 0) ? final_live - baseline_live : 0;
 
 	if (getenv("ROTIDE_LONG_SESSION_REPORT") != NULL) {
-		fprintf(stderr,
-		        "long_session_report: scenario=%s iterations=%d "
-		        "rss_baseline=%ld KiB rss_final=%ld KiB rss_delta=%ld KiB "
-		        "live_baseline=%ld live_final=%ld live_delta=%ld\n",
-		        scenario->name, scenario->measured_iterations, baseline_rss, final_rss,
-		        rss_delta, baseline_live, final_live, live_delta);
+		(void)fprintf(stderr,
+		              "long_session_report: scenario=%s iterations=%d "
+		              "rss_baseline=%ld KiB rss_final=%ld KiB rss_delta=%ld KiB "
+		              "live_baseline=%ld live_final=%ld live_delta=%ld\n",
+		              scenario->name, scenario->measured_iterations, baseline_rss,
+		              final_rss, rss_delta, baseline_live, final_live, live_delta);
 	}
 
 	int failed = 0;
 	if (rss_delta > scenario->max_rss_growth_kib) {
-		fprintf(stderr,
-		        "long_session: %s RSS grew %ld KiB over %d iterations "
-		        "(baseline=%ld KiB final=%ld KiB max=%ld KiB)\n",
-		        scenario->name, rss_delta, scenario->measured_iterations, baseline_rss,
-		        final_rss, scenario->max_rss_growth_kib);
+		(void)fprintf(stderr,
+		              "long_session: %s RSS grew %ld KiB over %d iterations "
+		              "(baseline=%ld KiB final=%ld KiB max=%ld KiB)\n",
+		              scenario->name, rss_delta, scenario->measured_iterations,
+		              baseline_rss, final_rss, scenario->max_rss_growth_kib);
 		failed = 1;
 	}
 	if (baseline_live >= 0 && live_delta > scenario->max_live_growth_bytes) {
-		fprintf(stderr,
-		        "long_session: %s live alloc bytes grew %ld over %d iterations "
-		        "(baseline=%ld final=%ld max=%ld)\n",
-		        scenario->name, live_delta, scenario->measured_iterations, baseline_live,
-		        final_live, scenario->max_live_growth_bytes);
+		(void)fprintf(stderr,
+		              "long_session: %s live alloc bytes grew %ld over %d iterations "
+		              "(baseline=%ld final=%ld max=%ld)\n",
+		              scenario->name, live_delta, scenario->measured_iterations,
+		              baseline_live, final_live, scenario->max_live_growth_bytes);
 		failed = 1;
 	}
 	return failed;

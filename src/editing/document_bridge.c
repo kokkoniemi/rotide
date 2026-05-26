@@ -1,5 +1,6 @@
 #include "editing/document_bridge.h"
 
+#include "rotide.h"
 #include "support/alloc.h"
 #include "text/document.h"
 

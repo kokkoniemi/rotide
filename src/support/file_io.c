@@ -1,10 +1,3 @@
-#ifndef _DEFAULT_SOURCE
-#define _DEFAULT_SOURCE
-#endif
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
-
 #include "support/file_io.h"
 
 #include "support/alloc.h"
@@ -249,7 +242,8 @@ char *editorTempPathForTarget(const char *target) {
 		memcpy(tmp_path, target, dir_len);
 	}
 	memcpy(tmp_path + dir_len, basename, base_len);
-	memcpy(tmp_path + dir_len + base_len, suffix, sizeof(suffix));
+	memcpy(tmp_path + dir_len + base_len, suffix, sizeof(suffix) - 1);
+	tmp_path[dir_len + base_len + sizeof(suffix) - 1] = '\0';
 
 	return tmp_path;
 }

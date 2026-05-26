@@ -1,6 +1,6 @@
 #include "editing/buffer_core.h"
 #include "editing/edit.h"
-#include "support/alloc.h"
+#include "rotide.h"
 #include "support/file_io.h"
 #include "workspace/drawer.h"
 #include "workspace/drawer_internal.h"

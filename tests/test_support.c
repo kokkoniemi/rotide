@@ -1,5 +1,7 @@
 #include "test_support.h"
 
+#include "test_helpers.h"
+
 struct editorConfig E;
 
 int count_tmp_save_artifacts(const char *target_path) {
@@ -79,7 +81,7 @@ int remove_tmp_save_artifacts(const char *target_path) {
 			continue;
 		}
 
-		snprintf(full_path, path_len, "/tmp/%s", entry->d_name);
+		(void)snprintf(full_path, path_len, "/tmp/%s", entry->d_name);
 		if (unlink(full_path) == -1) {
 			failures++;
 		}
@@ -523,3 +525,24 @@ int setup_recovery_test_env(struct recoveryTestEnv *env) {
 	}
 	return 1;
 }
+#include "editing/buffer_core.h"
+#include "editing/document_position.h"
+#include "editing/text_source.h"
+#include "language/syntax.h"
+#include "rotide.h"
+#include "workspace/drawer.h"
+#include "workspace/recovery.h"
+#include "workspace/task.h"
+
+#include <dirent.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>

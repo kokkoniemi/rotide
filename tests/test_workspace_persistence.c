@@ -1,18 +1,30 @@
 #include "config/common.h"
-#include "config/dap_config.h"
-#include "config/editor_config.h"
-#include "config/keymap.h"
-#include "config/theme_config.h"
-#include "debug/dap.h"
-#include "input/dispatch.h"
+#include "editing/edit.h"
+#include "language/lsp.h"
+#include "rotide.h"
+#include "support/file_io.h"
 #include "test_case.h"
+#include "test_helpers.h"
 #include "test_support.h"
+#include "workspace/drawer.h"
 #include "workspace/file_search.h"
 #include "workspace/git.h"
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
+#include "workspace/recovery.h"
 #include "workspace/tabs.h"
 #include "workspace/workspace_state.h"
+
+#include <fcntl.h>
+#include <signal.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 static int find_drawer_entry_path(const char *path, int *idx_out,
                                   struct editorDrawerEntryView *view_out) {
@@ -1045,13 +1057,13 @@ static int test_editor_recovery_clean_quit_removes_snapshot(void) {
 	int result = 1;
 
 	if (!setup_recovery_test_env(&env)) {
-		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
-		        "setup_recovery_test_env(&env)");
+		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
+		              "setup_recovery_test_env(&env)");
 		goto cleanup;
 	}
 	if (!editorTabsInit()) {
-		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
-		        "editorTabsInit()");
+		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
+		              "editorTabsInit()");
 		goto cleanup;
 	}
 
@@ -1062,20 +1074,21 @@ static int test_editor_recovery_clean_quit_removes_snapshot(void) {
 
 	recovery_path = editorRecoveryPath();
 	if (recovery_path == NULL) {
-		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
-		        "recovery_path != NULL");
+		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
+		              "recovery_path != NULL");
 		goto cleanup;
 	}
 	if (access(recovery_path, F_OK) != 0) {
-		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
-		        "access(recovery_path, F_OK) == 0");
+		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
+		              "access(recovery_path, F_OK) == 0");
 		goto cleanup;
 	}
 
 	E.dirty = 0;
 	pid = fork();
 	if (pid == -1) {
-		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__, "pid != -1");
+		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
+		              "pid != -1");
 		goto cleanup;
 	}
 	if (pid == 0) {
@@ -1091,24 +1104,24 @@ static int test_editor_recovery_clean_quit_removes_snapshot(void) {
 	}
 
 	if (wait_for_child_exit_with_timeout(pid, 1500, &status) != 0) {
-		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
-		        "wait_for_child_exit_with_timeout(pid, 1500, &status) == 0");
+		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
+		              "wait_for_child_exit_with_timeout(pid, 1500, &status) == 0");
 		goto cleanup;
 	}
 	pid = -1;
 	if (!WIFEXITED(status)) {
-		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
-		        "WIFEXITED(status)");
+		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
+		              "WIFEXITED(status)");
 		goto cleanup;
 	}
 	if (WEXITSTATUS(status) != EXIT_SUCCESS) {
-		fprintf(stderr, "Assertion failed in %s:%d: expected %d, got %d\n", __func__,
-		        __LINE__, EXIT_SUCCESS, WEXITSTATUS(status));
+		(void)fprintf(stderr, "Assertion failed in %s:%d: expected %d, got %d\n", __func__,
+		              __LINE__, EXIT_SUCCESS, WEXITSTATUS(status));
 		goto cleanup;
 	}
 	if (access(recovery_path, F_OK) != -1) {
-		fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
-		        "access(recovery_path, F_OK) == -1");
+		(void)fprintf(stderr, "Assertion failed in %s:%d: %s\n", __func__, __LINE__,
+		              "access(recovery_path, F_OK) == -1");
 		goto cleanup;
 	}
 

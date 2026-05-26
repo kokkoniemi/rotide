@@ -7,6 +7,7 @@
 #include "editing/history.h"
 #include "language/lsp.h"
 #include "language/syntax_worker.h"
+#include "rotide.h"
 #include "support/terminal.h"
 #include "workspace/recovery.h"
 #include "workspace/tabs.h"

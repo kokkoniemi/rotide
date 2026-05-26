@@ -4,6 +4,7 @@
 #include "editing/edit.h"
 #include "language/lsp.h"
 #include "render/screen.h"
+#include "rotide.h"
 #include "support/alloc.h"
 #include "support/terminal.h"
 #include "text/utf8.h"

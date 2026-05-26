@@ -1,5 +1,6 @@
 #include "render/display_text.h"
 
+#include "render/write_buf.h"
 #include "rotide.h"
 #include "support/alloc.h"
 #include "support/size_utils.h"

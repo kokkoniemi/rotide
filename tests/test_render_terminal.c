@@ -1,15 +1,16 @@
-#include "render/popup.h"
+#include "rotide.h"
 #include "terminal/terminal_pane.h"
 #include "test_case.h"
+#include "test_helpers.h"
 #include "test_support.h"
 #include "vterm.h"
 #include "workspace/drawer.h"
-#include "workspace/file_search.h"
-#include "workspace/git.h"
 #include "workspace/layout.h"
-#include "workspace/project_search.h"
 #include "workspace/tabs.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 #define TEST_HEADER_BG "\x1b[48;5;236m"

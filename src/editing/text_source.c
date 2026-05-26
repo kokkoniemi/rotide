@@ -2,11 +2,13 @@
 
 #include "editing/document_bridge.h"
 #include "language/syntax.h"
+#include "rotide.h"
 #include "support/alloc.h"
 #include "support/size_utils.h"
 #include "text/document.h"
 
 #include <errno.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 static int g_text_source_active_build_count = 0;

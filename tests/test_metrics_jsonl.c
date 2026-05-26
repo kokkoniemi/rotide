@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <unistd.h>
 
 /* Treat a freshly-formatted row as a string. Frozen across tests to keep
@@ -185,7 +184,7 @@ static char *temp_metrics_path(void) {
 	if (path == NULL) {
 		return NULL;
 	}
-	snprintf(path, need, "%s/rotide-metrics-XXXXXX", tmpdir);
+	(void)snprintf(path, need, "%s/rotide-metrics-XXXXXX", tmpdir);
 	int fd = mkstemp(path);
 	if (fd < 0) {
 		free(path);

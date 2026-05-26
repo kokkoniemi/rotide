@@ -1,6 +1,3 @@
-#define _DEFAULT_SOURCE
-#define _GNU_SOURCE
-
 #include "metrics_jsonl.h"
 
 #include <errno.h>
@@ -169,7 +166,7 @@ int editorMetricsFormatRow(char *buf, size_t buf_size, const char *kind, long lo
 	struct tm tm;
 	gmtime_r(&t, &tm);
 	char ts[32];
-	strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", &tm);
+	(void)strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", &tm);
 	append_str(buf, buf_size, &off, ",\"ts\":", 6);
 	append_escaped_string_value(buf, buf_size, &off, ts);
 

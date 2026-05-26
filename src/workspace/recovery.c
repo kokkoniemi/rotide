@@ -1,9 +1,12 @@
 #include "workspace/recovery.h"
 
 #include "editing/buffer_core.h"
+#include "editing/document_bridge.h"
+#include "editing/document_position.h"
 #include "editing/edit.h"
 #include "language/syntax.h"
 #include "render/screen.h"
+#include "rotide.h"
 #include "support/alloc.h"
 #include "support/file_io.h"
 #include "support/size_utils.h"
@@ -20,6 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
 

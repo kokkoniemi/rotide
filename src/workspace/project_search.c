@@ -1,8 +1,10 @@
 #include "workspace/project_search.h"
 
 #include "editing/buffer_core.h"
+#include "editing/document_position.h"
 #include "editing/edit.h"
-#include "render/screen.h"
+#include "render/viewport.h"
+#include "rotide.h"
 #include "support/alloc.h"
 #include "support/file_io.h"
 #include "support/size_utils.h"
@@ -19,6 +21,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -140,8 +143,8 @@ static int projectSearchBuildDisplay(const char *path, int line, int col, const 
 	if (display == NULL) {
 		return 0;
 	}
-	snprintf(display, bytes, "%s:%d:%d: %s", display_path, line, col,
-	         line_text != NULL ? line_text : "");
+	(void)snprintf(display, bytes, "%s:%d:%d: %s", display_path, line, col,
+	               line_text != NULL ? line_text : "");
 	*display_out = display;
 	return 1;
 }

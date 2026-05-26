@@ -1,4 +1,5 @@
 #include "test_case.h"
+#include "test_helpers.h"
 #include "test_support.h"
 
 static int test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers(void) {
@@ -783,3 +784,15 @@ const struct editorTestCase g_lsp_lifecycle_tests[] = {
 
 const int g_lsp_lifecycle_test_count =
         (int)(sizeof(g_lsp_lifecycle_tests) / sizeof(g_lsp_lifecycle_tests[0]));
+#include "editing/buffer_core.h"
+#include "editing/edit.h"
+#include "language/lsp.h"
+#include "language/syntax.h"
+#include "language/syntax_worker.h"
+#include "rotide.h"
+#include "workspace/tabs.h"
+
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>

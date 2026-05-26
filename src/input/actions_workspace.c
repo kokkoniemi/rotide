@@ -5,6 +5,7 @@
 #include "editing/edit.h"
 #include "editing/history.h"
 #include "input/prompt.h"
+#include "rotide.h"
 #include "terminal/terminal_pane.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
@@ -155,7 +156,7 @@ int editorOpenSelectedGitDiff(void) {
 		return 0;
 	}
 	char title[PATH_MAX + 16];
-	snprintf(title, sizeof(title), "git diff: %s", entry->rel_path);
+	(void)snprintf(title, sizeof(title), "git diff: %s", entry->rel_path);
 	int ok = editorTabOpenGitDiff(title, diff_text);
 	free(diff_text);
 	return ok;

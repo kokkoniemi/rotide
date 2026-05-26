@@ -1,6 +1,8 @@
 #include "language/languages.h"
 
+#include "language/syntax.h"
 #include "language/syntax_query_data.h"
+#include "tree_sitter/api.h"
 
 #include <ctype.h>
 #include <stddef.h>

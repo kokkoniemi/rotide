@@ -1,9 +1,12 @@
 #include "editing/document_position.h"
 
 #include "editing/document_bridge.h"
+#include "rotide.h"
 #include "support/size_utils.h"
 #include "text/document.h"
 #include "text/row.h"
+
+#include <stddef.h>
 
 static int documentPositionEnsureActiveDocument(const struct editorDocument **document_out) {
 	if (document_out == NULL || !editorTabKindSupportsDocument(E.tab_kind) ||

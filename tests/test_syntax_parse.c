@@ -1,4 +1,6 @@
+#include "editing/selection.h"
 #include "test_case.h"
+#include "test_helpers.h"
 #include "test_support.h"
 
 static int assert_editor_syntax_parse_failed_event(int expected_detail) {
@@ -1044,3 +1046,13 @@ const struct editorTestCase g_syntax_parse_tests[] = {
 
 const int g_syntax_parse_test_count =
         (int)(sizeof(g_syntax_parse_tests) / sizeof(g_syntax_parse_tests[0]));
+#include "editing/buffer_core.h"
+#include "editing/edit.h"
+#include "language/syntax.h"
+#include "rotide.h"
+
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>

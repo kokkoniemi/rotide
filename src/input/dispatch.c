@@ -1,40 +1,46 @@
 #include "input/dispatch.h"
 
-#include "config/common.h"
-#include "config/dap_config.h"
 #include "config/keymap.h"
-#include "debug/dap.h"
 #include "editing/buffer_core.h"
+#include "editing/buffer_search.h"
+#include "editing/document_position.h"
 #include "editing/edit.h"
+#include "editing/edit_pipeline.h"
 #include "editing/history.h"
 #include "editing/selection.h"
+#include "editing/text_source.h"
+#include "input/actions_edit.h"
+#include "input/actions_file_tab.h"
+#include "input/actions_language.h"
+#include "input/actions_terminal_debug.h"
+#include "input/actions_workspace.h"
+#include "input/mouse.h"
+#include "input/prompt.h"
+#include "input/text_pairs.h"
 #include "language/autocomplete.h"
 #include "language/lsp.h"
-#include "language/syntax_worker.h"
+#include "language/syntax.h"
 #include "render/popup.h"
 #include "render/screen.h"
+#include "render/viewport.h"
+#include "rotide.h"
 #include "support/alloc.h"
 #include "support/terminal.h"
 #include "terminal/terminal_pane.h"
 #include "text/document.h"
 #include "text/row.h"
-#include "text/utf8.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
-#include "workspace/git.h"
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/recovery.h"
 #include "workspace/tabs.h"
-#include "workspace/task.h"
-#include "workspace/workspace_state.h"
 
 #include <ctype.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 
 /*** Input ***/
 
@@ -278,7 +284,8 @@ static int dispatchReplaceSelectionWithChar(int c) {
 		return 0;
 	}
 
-	size_t start_offset = 0, end_offset = 0;
+	size_t start_offset = 0;
+	size_t end_offset = 0;
 	if (!editorBufferPosToOffset(range.start_cy, range.start_cx, &start_offset) ||
 	    !editorBufferPosToOffset(range.end_cy, range.end_cx, &end_offset) ||
 	    end_offset < start_offset) {
@@ -322,8 +329,10 @@ static int dispatchIndentSelection(void) {
 		last_row--;
 	}
 
-	size_t first_start = 0, dummy_end = 0;
-	size_t dummy_start = 0, last_end = 0;
+	size_t first_start = 0;
+	size_t dummy_end = 0;
+	size_t dummy_start = 0;
+	size_t last_end = 0;
 	if (!editorBufferLineByteRange(range.start_cy, &first_start, &dummy_end) ||
 	    !editorBufferLineByteRange(last_row, &dummy_start, &last_end)) {
 		return 1;

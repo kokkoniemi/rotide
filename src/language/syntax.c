@@ -1,17 +1,14 @@
 #include "language/syntax.h"
 
-#include "language/languages.h"
 #include "language/syntax_internal.h"
 #include "tree_sitter/api.h"
 
-#include <ctype.h>
 #include <limits.h>
-#include <regex.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 #include <time.h>
 
 int g_editor_syntax_max_injection_depth = ROTIDE_SYNTAX_DEFAULT_MAX_INJECTION_DEPTH;
