@@ -1052,3 +1052,54 @@ struct editorPaneNode *editorTerminalPaneOpenSplit(const char *command, int orie
 	sibling->as.leaf.kind_state_free = editorTerminalPaneFree;
 	return sibling;
 }
+
+static int terminalPaneHydrateRecursive(struct editorPaneNode *root, struct editorPaneNode *node,
+                                        struct editorRect viewport, const char *command) {
+	if (node == NULL) {
+		return 0;
+	}
+	if (node->is_split) {
+		return terminalPaneHydrateRecursive(root, node->as.split.first, viewport, command) +
+		       terminalPaneHydrateRecursive(root, node->as.split.second, viewport, command);
+	}
+	if (node->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL || node->as.leaf.kind_state != NULL) {
+		return 0;
+	}
+	struct editorRect rect = {0};
+	int cols = 80;
+	int rows = 24;
+	if (editorLayoutLeafRectBordered(root, viewport, ROTIDE_PANE_BORDER_SIZE, node, &rect) &&
+	    rect.w > 0 && rect.h > 0) {
+		cols = rect.w;
+		rows = rect.h;
+	}
+	struct editorTerminalPane *terminal = editorTerminalPaneCreate(command, cols, rows);
+	if (terminal == NULL) {
+		node->as.leaf.kind = EDITOR_PANE_KIND_EDITOR;
+		node->as.leaf.kind_state = NULL;
+		node->as.leaf.kind_state_free = NULL;
+		return 1;
+	}
+	node->as.leaf.kind_state = terminal;
+	node->as.leaf.kind_state_free = editorTerminalPaneFree;
+	/* The file-open loop may have parked tabs in this view while the leaf
+	 * was still a placeholder; clear them so pane assignment sees an empty
+	 * terminal leaf. */
+	node->as.leaf.view.active_tab_idx = -1;
+	node->as.leaf.view.pane_tab_count = 0;
+	return 0;
+}
+
+int editorTerminalPaneHydratePlaceholders(struct editorPaneNode *root, const char *command) {
+	if (root == NULL || command == NULL) {
+		return 0;
+	}
+	struct editorRect viewport = {0};
+	if (!editorLayoutEditorViewport(&viewport)) {
+		viewport.x = 0;
+		viewport.y = 0;
+		viewport.w = 0;
+		viewport.h = 0;
+	}
+	return terminalPaneHydrateRecursive(root, root, viewport, command);
+}

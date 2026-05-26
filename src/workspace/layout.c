@@ -56,6 +56,21 @@ struct editorPaneNode *editorPaneNodeFirstLeaf(struct editorPaneNode *node) {
 	return node;
 }
 
+struct editorPaneNode *editorPaneNodeFirstLeafOfKind(struct editorPaneNode *node,
+                                                     enum editorPaneKind kind) {
+	if (node == NULL) {
+		return NULL;
+	}
+	if (!node->is_split) {
+		return node->as.leaf.kind == kind ? node : NULL;
+	}
+	struct editorPaneNode *found = editorPaneNodeFirstLeafOfKind(node->as.split.first, kind);
+	if (found != NULL) {
+		return found;
+	}
+	return editorPaneNodeFirstLeafOfKind(node->as.split.second, kind);
+}
+
 int editorPaneNodeContainsLeaf(const struct editorPaneNode *node,
                                const struct editorPaneNode *leaf) {
 	if (node == NULL || leaf == NULL) {
@@ -1067,7 +1082,9 @@ static size_t layoutSerializeRecursive(const struct editorPaneNode *node, char *
 		return 0;
 	}
 	if (!node->is_split) {
-		int n = snprintf(out + pos, out_size - pos, "leaf");
+		const char *token =
+		        node->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL ? "term" : "leaf";
+		int n = snprintf(out + pos, out_size - pos, "%s", token);
 		if (n < 0 || (size_t)n >= out_size - pos) {
 			return 0;
 		}
@@ -1126,6 +1143,10 @@ static struct editorPaneNode *layoutParse(const char **cursor) {
 	if (s[0] == 'l' && s[1] == 'e' && s[2] == 'a' && s[3] == 'f') {
 		*cursor = s + 4;
 		return editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
+	}
+	if (s[0] == 't' && s[1] == 'e' && s[2] == 'r' && s[3] == 'm') {
+		*cursor = s + 4;
+		return editorPaneNodeNewLeaf(EDITOR_PANE_KIND_TERMINAL);
 	}
 	if (*s != '(') {
 		return NULL;

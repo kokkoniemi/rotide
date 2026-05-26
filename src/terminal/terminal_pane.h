@@ -157,4 +157,10 @@ int editorTerminalPaneCloseExited(struct editorPaneNode **root_ptr,
 /* Split focused pane, replace new sibling with terminal pane, and focus it. */
 struct editorPaneNode *editorTerminalPaneOpenSplit(const char *command, int orientation);
 
+/* Walk `root` and instantiate a PTY for every leaf with
+ * kind == EDITOR_PANE_KIND_TERMINAL && kind_state == NULL. Every placeholder
+ * is spawned with the same `command`. Failed spawns demote the leaf back to
+ * EDITOR_PANE_KIND_EDITOR. Returns the number of failed spawns. */
+int editorTerminalPaneHydratePlaceholders(struct editorPaneNode *root, const char *command);
+
 #endif

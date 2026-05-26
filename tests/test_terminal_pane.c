@@ -671,6 +671,70 @@ static int test_terminal_pane_write_forwards_to_child(void) {
 	return failed;
 }
 
+static int test_terminal_pane_hydrate_placeholders_spawns_pty(void) {
+	struct editorPaneNode *prev_root = E.layout_root;
+	struct editorPaneNode *prev_focus = E.focused_leaf;
+	int prev_cols = E.window_cols;
+	int prev_rows = E.window_rows;
+	struct editorPaneNode *root = editorLayoutDeserialize("(h 0.5 leaf term)");
+	if (root == NULL) {
+		return 1;
+	}
+	E.layout_root = root;
+	E.focused_leaf = editorPaneNodeFirstLeaf(root);
+	E.window_cols = 80;
+	E.window_rows = 24;
+
+	int failures = editorTerminalPaneHydratePlaceholders(root, "sleep 2");
+	struct editorPaneNode *term_leaf = root->as.split.second;
+	int failed = failures != 0 || term_leaf->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
+	             term_leaf->as.leaf.kind_state == NULL ||
+	             term_leaf->as.leaf.kind_state_free != editorTerminalPaneFree ||
+	             term_leaf->as.leaf.view.active_tab_idx != -1 ||
+	             term_leaf->as.leaf.view.pane_tab_count != 0;
+	if (!failed) {
+		(void)editorTerminalPanePumpAll(root);
+	}
+
+	editorPaneNodeFree(root);
+	E.layout_root = prev_root;
+	E.focused_leaf = prev_focus;
+	E.window_cols = prev_cols;
+	E.window_rows = prev_rows;
+	return failed;
+}
+
+static int test_terminal_pane_hydrate_placeholders_skips_already_hydrated(void) {
+	struct editorPaneNode *prev_root = E.layout_root;
+	struct editorPaneNode *prev_focus = E.focused_leaf;
+	int prev_cols = E.window_cols;
+	int prev_rows = E.window_rows;
+	struct editorPaneNode *root = editorLayoutDeserialize("(h 0.5 leaf term)");
+	if (root == NULL) {
+		return 1;
+	}
+	E.layout_root = root;
+	E.focused_leaf = editorPaneNodeFirstLeaf(root);
+	E.window_cols = 80;
+	E.window_rows = 24;
+
+	int failures = editorTerminalPaneHydratePlaceholders(root, "sleep 2");
+	struct editorPaneNode *term_leaf = root->as.split.second;
+	void *first_state = term_leaf->as.leaf.kind_state;
+	int failed = failures != 0 || first_state == NULL;
+	if (!failed) {
+		failures = editorTerminalPaneHydratePlaceholders(root, "sleep 2");
+		failed = failures != 0 || term_leaf->as.leaf.kind_state != first_state;
+	}
+
+	editorPaneNodeFree(root);
+	E.layout_root = prev_root;
+	E.focused_leaf = prev_focus;
+	E.window_cols = prev_cols;
+	E.window_rows = prev_rows;
+	return failed;
+}
+
 const struct editorTestCase g_terminal_pane_tests[] = {
         {"terminal_pane_create_rejects_null_command",
          test_terminal_pane_create_rejects_null_command},
@@ -721,6 +785,10 @@ const struct editorTestCase g_terminal_pane_tests[] = {
          test_terminal_pane_selection_extract_returns_visible_text},
         {"terminal_pane_selection_contains_matches_bounds",
          test_terminal_pane_selection_contains_matches_bounds},
+        {"terminal_pane_hydrate_placeholders_spawns_pty",
+         test_terminal_pane_hydrate_placeholders_spawns_pty},
+        {"terminal_pane_hydrate_placeholders_skips_already_hydrated",
+         test_terminal_pane_hydrate_placeholders_skips_already_hydrated},
 };
 
 const int g_terminal_pane_test_count =

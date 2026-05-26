@@ -1216,6 +1216,52 @@ static int test_layout_serialize_deserialize_roundtrip(void) {
 	return leaf_count != 3;
 }
 
+static int test_layout_serialize_preserves_terminal_kind(void) {
+	struct editorPaneNode *root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_TERMINAL);
+	if (root == NULL) {
+		return 1;
+	}
+	char buf[64];
+	size_t n = editorLayoutSerialize(root, buf, sizeof(buf));
+	int failed = n == 0 || strcmp(buf, "term") != 0;
+	editorPaneNodeFree(root);
+	if (failed) {
+		return 1;
+	}
+
+	struct editorPaneNode *restored = editorLayoutDeserialize("term");
+	if (restored == NULL) {
+		return 1;
+	}
+	failed = restored->is_split || restored->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
+	         restored->as.leaf.kind_state != NULL || restored->as.leaf.kind_state_free != NULL;
+	editorPaneNodeFree(restored);
+	return failed;
+}
+
+static int test_layout_serialize_terminal_in_split_roundtrip(void) {
+	struct editorPaneNode *restored = editorLayoutDeserialize("(v 0.5 leaf term)");
+	if (restored == NULL) {
+		return 1;
+	}
+	int failed = !restored->is_split ||
+	             restored->as.split.orientation != EDITOR_SPLIT_VERTICAL ||
+	             restored->as.split.first == NULL || restored->as.split.first->is_split ||
+	             restored->as.split.first->as.leaf.kind != EDITOR_PANE_KIND_EDITOR ||
+	             restored->as.split.second == NULL || restored->as.split.second->is_split ||
+	             restored->as.split.second->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
+	             restored->as.split.second->as.leaf.kind_state != NULL;
+	if (failed) {
+		editorPaneNodeFree(restored);
+		return 1;
+	}
+	char buf[64];
+	size_t n = editorLayoutSerialize(restored, buf, sizeof(buf));
+	failed = n == 0 || strstr(buf, "term") == NULL || strstr(buf, "leaf") == NULL;
+	editorPaneNodeFree(restored);
+	return failed;
+}
+
 static int test_layout_deserialize_rejects_garbage(void) {
 	if (editorLayoutDeserialize("garbage") != NULL) {
 		return 1;
@@ -1491,6 +1537,9 @@ const struct editorTestCase g_layout_tests[] = {
          test_layout_split_focused_inherits_active_tab_only},
         {"layout_serialize_single_leaf", test_layout_serialize_single_leaf},
         {"layout_serialize_deserialize_roundtrip", test_layout_serialize_deserialize_roundtrip},
+        {"layout_serialize_preserves_terminal_kind", test_layout_serialize_preserves_terminal_kind},
+        {"layout_serialize_terminal_in_split_roundtrip",
+         test_layout_serialize_terminal_in_split_roundtrip},
         {"layout_deserialize_rejects_garbage", test_layout_deserialize_rejects_garbage},
         {"layout_find_neighbor_horizontal", test_layout_find_neighbor_horizontal},
         {"layout_find_neighbor_picks_nearest_among_many",
