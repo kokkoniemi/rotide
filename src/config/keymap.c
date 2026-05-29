@@ -59,6 +59,8 @@ static const struct keymapActionName g_keymap_action_names[] = {
         {"select_down", EDITOR_ACTION_SELECT_DOWN},
         {"select_word_left", EDITOR_ACTION_SELECT_WORD_LEFT},
         {"select_word_right", EDITOR_ACTION_SELECT_WORD_RIGHT},
+        {"select_home", EDITOR_ACTION_SELECT_HOME},
+        {"select_end", EDITOR_ACTION_SELECT_END},
         {"copy_selection", EDITOR_ACTION_COPY_SELECTION},
         {"cut_selection", EDITOR_ACTION_CUT_SELECTION},
         {"delete_selection", EDITOR_ACTION_DELETE_SELECTION},
@@ -480,6 +482,17 @@ static int keymapParseKeySpec(const char *spec, int *key_out) {
 		return 0;
 	}
 
+	if (modifiers == KEYMAP_MOD_SHIFT) {
+		if (strcmp(key_token, "home") == 0) {
+			*key_out = SHIFT_HOME_KEY;
+			return 1;
+		}
+		if (strcmp(key_token, "end") == 0) {
+			*key_out = SHIFT_END_KEY;
+			return 1;
+		}
+	}
+
 	char letter = '\0';
 	if (keymapParseLetterToken(key_token, &letter)) {
 		if (modifiers == KEYMAP_MOD_CTRL) {
@@ -689,6 +702,10 @@ static int keymapFormatKey(int key, char *buf, size_t bufsize) {
 			return snprintf(buf, bufsize, "Home") > 0;
 		case END_KEY:
 			return snprintf(buf, bufsize, "End") > 0;
+		case SHIFT_HOME_KEY:
+			return snprintf(buf, bufsize, "Shift-Home") > 0;
+		case SHIFT_END_KEY:
+			return snprintf(buf, bufsize, "Shift-End") > 0;
 		case PAGE_UP:
 			return snprintf(buf, bufsize, "PageUp") > 0;
 		case PAGE_DOWN:
@@ -759,6 +776,8 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 	(void)keymapAppendBinding(keymap, SHIFT_ARROW_DOWN, EDITOR_ACTION_SELECT_DOWN);
 	(void)keymapAppendBinding(keymap, CTRL_SHIFT_ARROW_LEFT, EDITOR_ACTION_SELECT_WORD_LEFT);
 	(void)keymapAppendBinding(keymap, CTRL_SHIFT_ARROW_RIGHT, EDITOR_ACTION_SELECT_WORD_RIGHT);
+	(void)keymapAppendBinding(keymap, SHIFT_HOME_KEY, EDITOR_ACTION_SELECT_HOME);
+	(void)keymapAppendBinding(keymap, SHIFT_END_KEY, EDITOR_ACTION_SELECT_END);
 	(void)keymapAppendBinding(keymap, CTRL_KEY('c'), EDITOR_ACTION_COPY_SELECTION);
 	(void)keymapAppendBinding(keymap, CTRL_KEY('x'), EDITOR_ACTION_CUT_SELECTION);
 	(void)keymapAppendBinding(keymap, CTRL_KEY('d'), EDITOR_ACTION_DELETE_SELECTION);

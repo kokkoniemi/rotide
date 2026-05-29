@@ -1124,6 +1124,10 @@ static int test_editor_keymap_defaults_include_shift_selection(void) {
 	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_WORD_LEFT, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_SHIFT_ARROW_RIGHT, &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_WORD_RIGHT, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, SHIFT_HOME_KEY, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_HOME, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, SHIFT_END_KEY, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_END, action);
 
 	char binding[24];
 	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_SELECT_LEFT, binding,
@@ -1132,6 +1136,9 @@ static int test_editor_keymap_defaults_include_shift_selection(void) {
 	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_SELECT_WORD_RIGHT, binding,
 	                                      sizeof(binding)));
 	ASSERT_EQ_STR("Ctrl-Shift-Right", binding);
+	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_SELECT_END, binding,
+	                                      sizeof(binding)));
+	ASSERT_EQ_STR("Shift-End", binding);
 	return 0;
 }
 
@@ -1144,7 +1151,8 @@ static int test_editor_keymap_load_accepts_remapped_shift_selection(void) {
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
 	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
 	                                          "select_left = \"SHIFT+left\"\n"
-	                                          "select_word_right = \"ctrl+shift+RIGHT\"\n"));
+	                                          "select_word_right = \"ctrl+shift+RIGHT\"\n"
+	                                          "select_end = \"shift+END\"\n"));
 
 	struct editorKeymap keymap;
 	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
@@ -1155,6 +1163,8 @@ static int test_editor_keymap_load_accepts_remapped_shift_selection(void) {
 	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_LEFT, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_SHIFT_ARROW_RIGHT, &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_WORD_RIGHT, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, SHIFT_END_KEY, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_END, action);
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(rmdir(dir_path) == 0);

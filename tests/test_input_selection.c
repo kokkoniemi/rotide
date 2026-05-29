@@ -323,6 +323,27 @@ static int test_editor_ctrl_shift_arrow_selects_by_word(void) {
 	return 0;
 }
 
+static int test_editor_shift_home_end_extend_selection(void) {
+	add_row("hello world");
+	E.cy = 0;
+	E.cx = 6; /* on 'w' */
+
+	char shift_end[] = "\x1b[1;2F";
+	ASSERT_TRUE(editor_process_keypress_with_input(shift_end, sizeof(shift_end) - 1) == 0);
+	struct editorSelectionRange range;
+	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
+	ASSERT_EQ_INT(6, range.start_cx);
+	ASSERT_EQ_INT(11, range.end_cx); /* end of line */
+
+	/* Anchor stays at 6; Shift+Home swings the cursor to the line start. */
+	char shift_home[] = "\x1b[1;2H";
+	ASSERT_TRUE(editor_process_keypress_with_input(shift_home, sizeof(shift_home) - 1) == 0);
+	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
+	ASSERT_EQ_INT(0, range.start_cx);
+	ASSERT_EQ_INT(6, range.end_cx);
+	return 0;
+}
+
 static int test_editor_process_keypress_ctrl_c_copies_single_line_selection(void) {
 	add_row("hello");
 	E.cy = 0;
@@ -841,6 +862,7 @@ const struct editorTestCase g_input_selection_tests[] = {
         {"editor_plain_arrow_collapses_shift_selection",
          test_editor_plain_arrow_collapses_shift_selection},
         {"editor_ctrl_shift_arrow_selects_by_word", test_editor_ctrl_shift_arrow_selects_by_word},
+        {"editor_shift_home_end_extend_selection", test_editor_shift_home_end_extend_selection},
         {"editor_process_keypress_ctrl_c_copies_single_line_selection",
          test_editor_process_keypress_ctrl_c_copies_single_line_selection},
         {"editor_process_keypress_ctrl_c_copies_multiline_selection",

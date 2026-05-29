@@ -1818,6 +1818,29 @@ static int dispatchHandleSelectionAction(enum editorAction action, int *effects)
 			}
 			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			return 1;
+		case EDITOR_ACTION_SELECT_HOME:
+			editorHistoryBreakGroup();
+			if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT) {
+				return 1;
+			}
+			dispatchBeginOrContinueSelection();
+			(void)dispatchSetCursorFromPosition(E.cy, 0);
+			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			return 1;
+		case EDITOR_ACTION_SELECT_END:
+			editorHistoryBreakGroup();
+			if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT) {
+				return 1;
+			}
+			dispatchBeginOrContinueSelection();
+			if (E.cy < E.numrows) {
+				(void)dispatchSetCursorFromPosition(
+				        E.cy, (int)editorDocumentLineLength(E.document, E.cy));
+			} else {
+				(void)dispatchSetCursorFromPosition(E.numrows, 0);
+			}
+			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			return 1;
 		default:
 			return 0;
 	}

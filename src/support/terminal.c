@@ -427,6 +427,12 @@ static int terminalReadCsiModifiedArrowKey(char second) {
 	if (second != '1') {
 		return '\x1b';
 	}
+	if (final == 'H' || final == 'F') {
+		if (modifier == '2') {
+			return final == 'H' ? SHIFT_HOME_KEY : SHIFT_END_KEY;
+		}
+		return '\x1b';
+	}
 	if (modifier == '2') {
 		return terminalArrowKeyFromFinal(final, SHIFT_ARROW_UP, SHIFT_ARROW_DOWN,
 		                                 SHIFT_ARROW_RIGHT, SHIFT_ARROW_LEFT);
