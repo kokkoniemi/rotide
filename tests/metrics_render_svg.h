@@ -23,6 +23,17 @@ void editorMetricsRenderSvgChart(FILE *out, const char *title, const char *y_uni
                                  const char *const *x_labels, int n_points,
                                  const struct editorSvgSeries *series, int n_series);
 
+/* Pass rate as a percentage: passed_runs / total_runs * 100. Normalizes the
+ * failure signal against suite size so it stays comparable as cases are added.
+ * Returns 100.0 when total_runs <= 0 (no runs means nothing failed). */
+double editorMetricsPassRate(long long passed_runs, long long total_runs);
+
+/* Centered rolling median used to damp runner jitter on the cost chart.
+ * `window` is clamped to odd and >= 1; near the edges the window shrinks to the
+ * available neighbours so the endpoints are preserved. Writes `n_points`
+ * medians to `out`, which must not alias `in`. Deterministic. */
+void editorMetricsRollingMedian(const double *in, int n_points, int window, double *out);
+
 /* High-level: scan rows for bench/fuzz series with >= 2 points, write one
  * SVG per chart into `out_dir` plus a tiny `index.txt` manifest listing
  * the files. Filenames:

@@ -116,7 +116,7 @@ optional workflow metadata from `ROTIDE_METRICS_GIT_SHA`,
 
 | Row kind | Producer | Main fields |
 |---|---|---|
-| `test_run` | `rotide_tests --metrics-out` | wall time, run counts, failures, crashes, reset drift, quarantine skips, seed, jobs |
+| `test_run` | `rotide_tests --metrics-out` | wall time, `exec_seconds_total` (summed per-test time, jobs-independent), run counts, failures, crashes, flakes, reset drift, quarantine skips, seed, jobs, repeat |
 | `bench` | `rotide_bench --metrics-out` | name, samples, inner ops, min/p50/p95/IQR ns |
 | `fuzz` | `metrics_fuzz_emit` after fuzz smoke/nightly | target, coverage/features, corpus sizes, exec count, RSS, final-stats flags |
 
@@ -137,13 +137,24 @@ coverage and bench regressions; hard-fail only after the noise floor is known.
 ### Visualization
 
 The `render-svg` subcommand writes one self-contained SVG line chart per
-series into `--out-dir`: `bench-<name>.svg` (p50 + p95 ns), and
-`fuzz-<target>-cov.svg` + `fuzz-<target>-corpus.svg` for each fuzz target.
-Date ticks on the x-axis are auto-thinned (max ~6 labels) so they stay
-legible regardless of how many points the history contains. Series with
-fewer than two points are skipped. Filters (`--target`, `--bench-name`,
-`--since-hours`) and `--points N` (default 30, max 60) work the same as the
-other subcommands.
+series into `--out-dir`. Date ticks on the x-axis are auto-thinned (max ~6
+labels) so they stay legible regardless of how many points the history
+contains. Series with fewer than two points are skipped. Filters (`--target`,
+`--bench-name`, `--since-hours`) and `--points N` (default 30, max 60) work the
+same as the other subcommands.
+
+Test-suite charts (from `test_run` rows):
+
+| File | Series | What it means / caveats |
+|---|---|---|
+| `test-wall-seconds.svg` | `exec total`, `wall` | Suite cost in seconds. `exec total` is the summed per-test time and is independent of `--jobs` and runner core count; `wall` is whole-suite wall clock and *does* move with `--jobs`. Both are smoothed with a rolling median (window 5) to damp runner jitter, and the title annotates the `jobs` value (or "jobs varies") so a config change is visible rather than silently stepping the trend. |
+| `test-pass-rate.svg` | `pass %` | `passed_runs / total_runs * 100`. Normalized so it stays comparable as the suite grows — "2 failed" reads differently against 50 vs 1500 cases. |
+| `test-stability.svg` | `crashes`, `failed` | Absolute counts per run. `crashes` is only ever non-zero under `--jobs > 1` (a crash is caught by the forked parallel runner; the single-process path can't survive one to record it). When the whole window is green both series sit on y=0 and overlap, so the title calls out the healthy streak ("no failures in N runs"). |
+| `test-flakes.svg` | `flakes` | Sourced **only** from `--repeat > 1` rows (the nightly flake-hunt soak). A flake is a test that both passes and fails across its repeats; per-commit rows run `--repeat 1` where that is structurally impossible, so they are excluded to avoid pinning the line to zero. Absent until a flake-hunt run with ≥2 history points exists. |
+
+Bench/fuzz charts: `bench-<name>.svg` (min/p50/p95 ns), and
+`fuzz-<target>-cov.svg` + `fuzz-<target>-corpus.svg` +
+`fuzz-<target>-throughput.svg` for each fuzz target.
 
 CI publishes the rendered SVGs to a `metrics-assets` orphan branch in this
 repo:
@@ -151,17 +162,20 @@ repo:
 | Path | Updated by | URL pattern | Purpose |
 |---|---|---|---|
 | `runs/<sha>/*.svg` | every same-repo CI run + nightly | `…/metrics-assets/runs/<sha>/*.svg` | immutable per-commit copy embedded in that run's step summary |
-| `latest/*.svg` | nightly (and `workflow_dispatch` of nightly) | `…/metrics-assets/latest/*.svg` | mutable pointer used by this dev-docs dashboard |
+| `latest/*.svg` | push to `main` + nightly (and either's `workflow_dispatch`) | `…/metrics-assets/latest/*.svg` | mutable pointer used by this dev-docs dashboard |
 
 Fork PRs can't push (read-only `GITHUB_TOKEN`); their step summary falls
 back to embedding `latest/*.svg` as a baseline.
 
-Bench rows come from `make bench`, which is only invoked from the nightly
-workflow ([.github/workflows/nightly.yml](../../.github/workflows/nightly.yml))
-to keep p50/p95 numbers off the noisy per-PR runner. Fuzz nightly soaks
-run there too. Together that means the dashboard refreshes **once per
-day** at 03:17 UTC (or on-demand via `workflow_dispatch`), with several
-minutes of additional Camo proxy caching lag.
+Refresh cadence differs by series. The **test-suite** charts re-render on every
+CI run — each push appends a `test_run` row to the rolling history, and a push
+to `main` updates `latest/`. The **bench** and **fuzz** charts (plus the
+**flakiness** chart from the `--repeat` soak) advance **once per day** at 03:17
+UTC, because their rows come only from the nightly workflow
+([.github/workflows/nightly.yml](../../.github/workflows/nightly.yml)) — bench
+runs there to keep p50/p95 off the noisy per-PR runner, and fuzz/flake-hunt are
+long soaks. Camo proxy caching adds several minutes of further lag on the
+embedded images.
 
 ➡ See the live charts in
 [metrics-dashboard.md](metrics-dashboard.md).

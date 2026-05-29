@@ -1,9 +1,16 @@
 # CI metrics dashboard
 
 Trend charts for the rotide test suite, microbenches, and fuzz targets,
-rendered as SVG by `metrics_summary render-svg` and refreshed nightly at
-03:17 UTC (or on-demand via the [nightly workflow's
-`workflow_dispatch`](../../.github/workflows/nightly.yml)).
+rendered as SVG by `metrics_summary render-svg`.
+
+Cadence differs by series. The **test-suite** charts advance on every CI run:
+each push appends a `test_run` row to the rolling history and re-renders the
+dashboard, and a push to `main` updates the embedded `latest/` copies
+([ci.yml](../../.github/workflows/ci.yml)). The **bench** and **fuzz** charts
+advance nightly at 03:17 UTC, when the [nightly
+workflow](../../.github/workflows/nightly.yml) adds those rows and re-renders
+(also on-demand via its `workflow_dispatch`). The nightly run also produces the
+flakiness row from the `--repeat` flake-hunt soak.
 
 The embeds below reference stable `latest/*.svg` URLs on the
 `metrics-assets` orphan branch, so this page stays current across any
@@ -17,9 +24,13 @@ For how the SVGs are produced and where they live, see
 
 ## Test suite
 
-| Wall time | Stability |
+| Runtime | Pass rate |
 |---|---|
-| ![test wall time](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/test-wall-seconds.svg) | ![test stability](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/test-stability.svg) |
+| ![test runtime](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/test-wall-seconds.svg) | ![test pass rate](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/test-pass-rate.svg) |
+
+| Stability | Flakiness |
+|---|---|
+| ![test stability](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/test-stability.svg) | ![test flakiness](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/test-flakes.svg) |
 
 ## Benchmarks (min / p50 / p95)
 

@@ -399,6 +399,21 @@ endif
 test: $(TEST_BIN)
 	$(call LOG,TEST,$(TEST_BIN))./$(TEST_BIN) $(TEST_FLAGS)
 
+# Flake-hunt soak: run every test --repeat N. The runner varies the test seed
+# per repeat (deterministically, from the one recorded base seed), so a test
+# that passes and fails across repeats is counted as a flake. Nightly-only (see
+# nightly.yml) so the per-commit wall-time series isn't inflated N×. With
+# METRICS_OUT set it emits a row carrying repeat>1, which the SVG dashboard
+# sources for the flakiness chart.
+FLAKE_HUNT_REPEAT ?= 20
+FLAKE_HUNT_FLAGS ?= --jobs 4 --repeat $(FLAKE_HUNT_REPEAT)
+ifneq ($(strip $(METRICS_OUT)),)
+FLAKE_HUNT_FLAGS += --metrics-out $(METRICS_OUT)
+endif
+
+test-flake-hunt: $(TEST_BIN)
+	$(call LOG,FLAKE,$(TEST_BIN))./$(TEST_BIN) $(FLAKE_HUNT_FLAGS)
+
 bench-buffer: $(BENCH_BUFFER_BIN)
 	$(call LOG,BENCH,$(BENCH_BUFFER_BIN))./$(BENCH_BUFFER_BIN) $(BENCH_BUFFER_FLAGS)
 

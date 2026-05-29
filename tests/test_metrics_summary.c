@@ -11,6 +11,7 @@
 static int test_parse_test_run_row(void) {
 	const char *line = "{\"kind\":\"test_run\",\"ts\":\"2026-05-19T13:35:42Z\","
 	                   "\"git_sha\":\"deadbee\",\"wall_seconds\":4.812,"
+	                   "\"exec_seconds_total\":15.5,"
 	                   "\"total_runs\":820,\"passed_runs\":820,\"failed_unique\":0,"
 	                   "\"crashes\":0,\"reset_violations\":0,\"flakes\":2,"
 	                   "\"property_ops\":50000,\"property_ops_seconds\":0.5,"
@@ -24,12 +25,15 @@ static int test_parse_test_run_row(void) {
 	ASSERT_TRUE(r.ts_unix > 0);
 	ASSERT_EQ_STR("deadbee", r.git_sha);
 	ASSERT_TRUE(r.wall_seconds > 4.811 && r.wall_seconds < 4.813);
+	ASSERT_TRUE(r.exec_seconds_total > 15.49 && r.exec_seconds_total < 15.51);
 	ASSERT_EQ_INT(820, (int)r.total_runs);
 	ASSERT_EQ_INT(820, (int)r.passed_runs);
 	ASSERT_EQ_INT(0, (int)r.failed_unique);
 	ASSERT_EQ_INT(2, (int)r.flakes);
 	ASSERT_EQ_INT(50000, (int)r.property_ops);
 	ASSERT_TRUE(r.property_ops_seconds > 0.49 && r.property_ops_seconds < 0.51);
+	ASSERT_EQ_INT(4, (int)r.jobs);
+	ASSERT_EQ_INT(1, (int)r.repeat);
 	ASSERT_EQ_INT(0, (int)r.exit_code);
 	return 0;
 }

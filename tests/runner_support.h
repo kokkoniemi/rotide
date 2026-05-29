@@ -53,6 +53,12 @@ unsigned long long runnerRngNext(unsigned long long *state);
 unsigned long long runnerSeedFromOsEntropy(void);
 void runnerShuffleIndices(int *indices, int count, unsigned long long seed);
 
+/* Deterministic per-repeat seed derived from the single recorded base seed.
+ * rep==0 returns base_seed unchanged so a --repeat 1 run is byte-identical to
+ * passing --seed directly; rep>0 advances runnerRngNext() rep times. Reproducible
+ * from the one base seed, so varying the seed per repeat keeps the run replayable. */
+unsigned long long runnerSeedForRepeat(unsigned long long base_seed, int rep);
+
 struct quarantineList {
 	char **names;
 	int count;

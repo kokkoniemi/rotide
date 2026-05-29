@@ -280,7 +280,7 @@ static int test_cmd_render_skips_single_point_series(void) {
 }
 
 static void seed_test_run(struct editorMetricsRow *r, const char *iso_date, double wall_seconds,
-                          long long crashes, long long failed, long long flakes) {
+                          long long crashes, long long failed, long long flakes, long long repeat) {
 	editorMetricsRowInit(r);
 	r->kind = EDITOR_METRICS_KIND_TEST_RUN;
 	(void)snprintf(r->ts, sizeof(r->ts), "%sT12:00:00Z", iso_date);
@@ -289,13 +289,130 @@ static void seed_test_run(struct editorMetricsRow *r, const char *iso_date, doub
 	r->crashes = crashes;
 	r->failed_unique = failed;
 	r->flakes = flakes;
+	r->repeat = repeat;
 }
 
 static int test_cmd_render_emits_test_run_charts(void) {
+	/* Per-commit rows: --repeat 1, so no flake chart is produced. */
 	struct editorMetricsRow rows[3];
-	seed_test_run(&rows[0], "2026-05-24", 12.5, 0, 0, 1);
-	seed_test_run(&rows[1], "2026-05-25", 13.1, 0, 2, 0);
-	seed_test_run(&rows[2], "2026-05-26", 12.9, 1, 0, 3);
+	seed_test_run(&rows[0], "2026-05-24", 12.5, 0, 0, 0, 1);
+	seed_test_run(&rows[1], "2026-05-25", 13.1, 0, 2, 0, 1);
+	seed_test_run(&rows[2], "2026-05-26", 12.9, 1, 0, 0, 1);
+
+	struct editorMetricsCmdOptions opts;
+	editorMetricsCmdOptionsInit(&opts);
+	char dir[64];
+	make_tmpdir(dir, sizeof(dir));
+
+	/* Per-commit rows produce wall, stability, and pass-rate charts. */
+	int n = editorMetricsCmdRenderSvg(rows, 3, &opts, 0, dir);
+	ASSERT_EQ_INT(3, n);
+
+	char p[256];
+	(void)snprintf(p, sizeof(p), "%s/test-wall-seconds.svg", dir);
+	ASSERT_TRUE(file_exists(p));
+	(void)snprintf(p, sizeof(p), "%s/test-pass-rate.svg", dir);
+	ASSERT_TRUE(file_exists(p));
+	(void)snprintf(p, sizeof(p), "%s/test-stability.svg", dir);
+	ASSERT_TRUE(file_exists(p));
+
+	char body[4096];
+	ASSERT_TRUE(read_file_into(p, body, sizeof(body)));
+	/* Stability chart carries crashes + failed (per-commit signal). Flakes
+	 * moved to their own chart sourced from --repeat>1 rows. */
+	ASSERT_TRUE(strstr(body, ">crashes</text>") != NULL);
+	ASSERT_TRUE(strstr(body, ">failed</text>") != NULL);
+	ASSERT_TRUE(strstr(body, ">flakes</text>") == NULL);
+
+	/* No repeat>1 rows here → no flake chart. */
+	(void)snprintf(p, sizeof(p), "%s/test-flakes.svg", dir);
+	ASSERT_TRUE(!file_exists(p));
+
+	(void)rmrf_dir(dir);
+	return 0;
+}
+
+static int test_cmd_render_flakes_chart_from_repeat_rows(void) {
+	/* Only --repeat>1 rows feed the flakiness chart. The lone repeat==1 row
+	 * is ignored there but still counts toward stability. */
+	struct editorMetricsRow rows[3];
+	seed_test_run(&rows[0], "2026-05-24", 12.5, 0, 0, 1, 20);
+	seed_test_run(&rows[1], "2026-05-25", 13.1, 0, 0, 0, 20);
+	seed_test_run(&rows[2], "2026-05-26", 12.9, 0, 0, 0, 1);
+
+	struct editorMetricsCmdOptions opts;
+	editorMetricsCmdOptionsInit(&opts);
+	char dir[64];
+	make_tmpdir(dir, sizeof(dir));
+
+	/* wall + stability + pass-rate + flakes. */
+	int n = editorMetricsCmdRenderSvg(rows, 3, &opts, 0, dir);
+	ASSERT_EQ_INT(4, n);
+
+	char p[256];
+	(void)snprintf(p, sizeof(p), "%s/test-flakes.svg", dir);
+	ASSERT_TRUE(file_exists(p));
+
+	/* Single-series chart: the legend (and its series label) is suppressed,
+	 * so identify the chart by its title text instead. */
+	char body[4096];
+	ASSERT_TRUE(read_file_into(p, body, sizeof(body)));
+	ASSERT_TRUE(strstr(body, "Test flakiness") != NULL);
+
+	(void)rmrf_dir(dir);
+	return 0;
+}
+
+static int test_rolling_median_known_series(void) {
+	/* A single spike at index 1 should be rejected by a centered window. */
+	double in[5] = {10.0, 100.0, 12.0, 11.0, 13.0};
+	double out[5];
+	editorMetricsRollingMedian(in, 5, 3, out);
+	/* i0 edge: median{10,100} = 55; interior points reject the spike. */
+	ASSERT_TRUE(out[0] > 54.9 && out[0] < 55.1);
+	ASSERT_TRUE(out[1] > 11.9 && out[1] < 12.1);
+	ASSERT_TRUE(out[2] > 11.9 && out[2] < 12.1);
+	ASSERT_TRUE(out[3] > 11.9 && out[3] < 12.1);
+	ASSERT_TRUE(out[4] > 11.9 && out[4] < 12.1);
+
+	/* Deterministic: same input → identical output. */
+	double out_again[5];
+	editorMetricsRollingMedian(in, 5, 3, out_again);
+	for (int i = 0; i < 5; i++) {
+		ASSERT_TRUE(out[i] == out_again[i]);
+	}
+
+	/* An even window is forced odd, so window 4 == window 5. */
+	double out_w4[5];
+	double out_w5[5];
+	editorMetricsRollingMedian(in, 5, 4, out_w4);
+	editorMetricsRollingMedian(in, 5, 5, out_w5);
+	for (int i = 0; i < 5; i++) {
+		ASSERT_TRUE(out_w4[i] == out_w5[i]);
+	}
+
+	/* window 1 is a no-op passthrough. */
+	double out_w1[5];
+	editorMetricsRollingMedian(in, 5, 1, out_w1);
+	for (int i = 0; i < 5; i++) {
+		ASSERT_TRUE(out_w1[i] == in[i]);
+	}
+	return 0;
+}
+
+static int test_cmd_render_cost_chart_selects_exec_and_annotates_jobs(void) {
+	/* exec_seconds_total is well above wall_seconds, so if the chart sourced
+	 * the wrong field the y-range (and thus the title's companion data) would
+	 * differ. We assert the legend carries both series and the title pins the
+	 * jobs count. */
+	struct editorMetricsRow rows[3];
+	seed_test_run(&rows[0], "2026-05-24", 12.5, 0, 0, 0, 1);
+	seed_test_run(&rows[1], "2026-05-25", 13.1, 0, 0, 0, 1);
+	seed_test_run(&rows[2], "2026-05-26", 12.9, 0, 0, 0, 1);
+	for (int i = 0; i < 3; i++) {
+		rows[i].exec_seconds_total = 48.0;
+		rows[i].jobs = 4;
+	}
 
 	struct editorMetricsCmdOptions opts;
 	editorMetricsCmdOptionsInit(&opts);
@@ -303,22 +420,134 @@ static int test_cmd_render_emits_test_run_charts(void) {
 	make_tmpdir(dir, sizeof(dir));
 
 	int n = editorMetricsCmdRenderSvg(rows, 3, &opts, 0, dir);
-	ASSERT_EQ_INT(2, n);
+	ASSERT_EQ_INT(3, n);
 
 	char p[256];
 	(void)snprintf(p, sizeof(p), "%s/test-wall-seconds.svg", dir);
 	ASSERT_TRUE(file_exists(p));
-	(void)snprintf(p, sizeof(p), "%s/test-stability.svg", dir);
-	ASSERT_TRUE(file_exists(p));
 
-	char body[4096];
+	char body[8192];
 	ASSERT_TRUE(read_file_into(p, body, sizeof(body)));
-	/* Stability chart should label all three series. */
-	ASSERT_TRUE(strstr(body, ">crashes</text>") != NULL);
-	ASSERT_TRUE(strstr(body, ">failed</text>") != NULL);
-	ASSERT_TRUE(strstr(body, ">flakes</text>") != NULL);
+	ASSERT_TRUE(strstr(body, "Test runtime (jobs=4, median)") != NULL);
+	ASSERT_TRUE(strstr(body, ">exec total</text>") != NULL);
+	ASSERT_TRUE(strstr(body, ">wall</text>") != NULL);
 
 	(void)rmrf_dir(dir);
+	return 0;
+}
+
+static int test_cmd_render_cost_chart_flags_jobs_change(void) {
+	struct editorMetricsRow rows[3];
+	seed_test_run(&rows[0], "2026-05-24", 12.5, 0, 0, 0, 1);
+	seed_test_run(&rows[1], "2026-05-25", 13.1, 0, 0, 0, 1);
+	seed_test_run(&rows[2], "2026-05-26", 12.9, 0, 0, 0, 1);
+	rows[0].jobs = 4;
+	rows[1].jobs = 4;
+	rows[2].jobs = 8; /* a config change mid-history */
+
+	struct editorMetricsCmdOptions opts;
+	editorMetricsCmdOptionsInit(&opts);
+	char dir[64];
+	make_tmpdir(dir, sizeof(dir));
+
+	ASSERT_EQ_INT(3, editorMetricsCmdRenderSvg(rows, 3, &opts, 0, dir));
+
+	char p[256];
+	(void)snprintf(p, sizeof(p), "%s/test-wall-seconds.svg", dir);
+	char body[8192];
+	ASSERT_TRUE(read_file_into(p, body, sizeof(body)));
+	ASSERT_TRUE(strstr(body, "jobs varies") != NULL);
+
+	(void)rmrf_dir(dir);
+	return 0;
+}
+
+static int test_pass_rate_computation(void) {
+	/* All green. */
+	ASSERT_TRUE(editorMetricsPassRate(100, 100) > 99.99 &&
+	            editorMetricsPassRate(100, 100) < 100.01);
+	/* All red. */
+	ASSERT_TRUE(editorMetricsPassRate(0, 100) < 0.01);
+	ASSERT_TRUE(editorMetricsPassRate(750, 1000) > 74.99 &&
+	            editorMetricsPassRate(750, 1000) < 75.01);
+	/* Normalization: 2 failures read very differently against suite size. */
+	double small = editorMetricsPassRate(48, 50);     /* 96% */
+	double large = editorMetricsPassRate(1498, 1500); /* ~99.87% */
+	ASSERT_TRUE(small > 95.99 && small < 96.01);
+	ASSERT_TRUE(large > 99.86 && large < 99.88);
+	ASSERT_TRUE(large > small);
+	/* No runs → treated as fully healthy, never a divide-by-zero. */
+	ASSERT_TRUE(editorMetricsPassRate(0, 0) > 99.99);
+	return 0;
+}
+
+static int test_cmd_render_pass_rate_chart(void) {
+	struct editorMetricsRow rows[3];
+	seed_test_run(&rows[0], "2026-05-24", 12.5, 0, 0, 0, 1);
+	seed_test_run(&rows[1], "2026-05-25", 13.1, 0, 0, 0, 1);
+	seed_test_run(&rows[2], "2026-05-26", 12.9, 0, 0, 0, 1);
+	/* Distinct pass rates so the chart isn't a flat line: 100%, 90%, 100%. */
+	rows[0].total_runs = 100;
+	rows[0].passed_runs = 100;
+	rows[1].total_runs = 100;
+	rows[1].passed_runs = 90;
+	rows[2].total_runs = 100;
+	rows[2].passed_runs = 100;
+
+	struct editorMetricsCmdOptions opts;
+	editorMetricsCmdOptionsInit(&opts);
+	char dir[64];
+	make_tmpdir(dir, sizeof(dir));
+
+	ASSERT_EQ_INT(3, editorMetricsCmdRenderSvg(rows, 3, &opts, 0, dir));
+
+	char p[256];
+	(void)snprintf(p, sizeof(p), "%s/test-pass-rate.svg", dir);
+	ASSERT_TRUE(file_exists(p));
+
+	char body[8192];
+	ASSERT_TRUE(read_file_into(p, body, sizeof(body)));
+	ASSERT_TRUE(strstr(body, "Test pass rate") != NULL);
+	/* y-axis unit label. */
+	ASSERT_TRUE(strstr(body, ">%</text>") != NULL);
+
+	(void)rmrf_dir(dir);
+	return 0;
+}
+
+static int test_cmd_render_stability_healthy_annotation(void) {
+	/* A fully green window: crashes and failed both sit on y=0 and overlap, so
+	 * the title must call out the healthy streak to disambiguate. */
+	struct editorMetricsRow green[3];
+	seed_test_run(&green[0], "2026-05-24", 12.5, 0, 0, 0, 1);
+	seed_test_run(&green[1], "2026-05-25", 13.1, 0, 0, 0, 1);
+	seed_test_run(&green[2], "2026-05-26", 12.9, 0, 0, 0, 1);
+
+	struct editorMetricsCmdOptions opts;
+	editorMetricsCmdOptionsInit(&opts);
+	char dir[64];
+	make_tmpdir(dir, sizeof(dir));
+	ASSERT_EQ_INT(3, editorMetricsCmdRenderSvg(green, 3, &opts, 0, dir));
+
+	char p[256];
+	(void)snprintf(p, sizeof(p), "%s/test-stability.svg", dir);
+	char body[8192];
+	ASSERT_TRUE(read_file_into(p, body, sizeof(body)));
+	ASSERT_TRUE(strstr(body, "no failures in 3 runs") != NULL);
+	(void)rmrf_dir(dir);
+
+	/* A window with any failure drops the annotation back to the plain title. */
+	struct editorMetricsRow red[3];
+	seed_test_run(&red[0], "2026-05-24", 12.5, 0, 0, 0, 1);
+	seed_test_run(&red[1], "2026-05-25", 13.1, 0, 1, 0, 1);
+	seed_test_run(&red[2], "2026-05-26", 12.9, 0, 0, 0, 1);
+	char dir2[64];
+	make_tmpdir(dir2, sizeof(dir2));
+	ASSERT_EQ_INT(3, editorMetricsCmdRenderSvg(red, 3, &opts, 0, dir2));
+	(void)snprintf(p, sizeof(p), "%s/test-stability.svg", dir2);
+	ASSERT_TRUE(read_file_into(p, body, sizeof(body)));
+	ASSERT_TRUE(strstr(body, "no failures") == NULL);
+	(void)rmrf_dir(dir2);
 	return 0;
 }
 
@@ -415,6 +644,17 @@ const struct editorTestCase g_metrics_render_svg_tests[] = {
         {"metrics_svg_cmd_skips_single_point_series", test_cmd_render_skips_single_point_series},
         {"metrics_svg_cmd_kind_filter", test_cmd_render_kind_filter},
         {"metrics_svg_cmd_emits_test_run_charts", test_cmd_render_emits_test_run_charts},
+        {"metrics_svg_cmd_flakes_chart_from_repeat_rows",
+         test_cmd_render_flakes_chart_from_repeat_rows},
+        {"metrics_svg_rolling_median_known_series", test_rolling_median_known_series},
+        {"metrics_svg_cmd_cost_chart_selects_exec_and_annotates_jobs",
+         test_cmd_render_cost_chart_selects_exec_and_annotates_jobs},
+        {"metrics_svg_cmd_cost_chart_flags_jobs_change",
+         test_cmd_render_cost_chart_flags_jobs_change},
+        {"metrics_svg_pass_rate_computation", test_pass_rate_computation},
+        {"metrics_svg_cmd_pass_rate_chart", test_cmd_render_pass_rate_chart},
+        {"metrics_svg_cmd_stability_healthy_annotation",
+         test_cmd_render_stability_healthy_annotation},
         {"metrics_svg_cmd_bench_chart_has_min_series", test_cmd_render_bench_chart_has_min_series},
         {"metrics_svg_cmd_fuzz_throughput_zero_runtime_safe",
          test_cmd_render_fuzz_throughput_zero_runtime_safe},

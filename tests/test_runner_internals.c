@@ -305,6 +305,61 @@ static int test_seed_setter_roundtrip(void) {
 	return 0;
 }
 
+static int test_seed_for_repeat_distinct_and_reproducible(void) {
+	/* rep 0 is the base seed unchanged, so a --repeat 1 run reproduces exactly
+	 * what passing --seed directly would. */
+	ASSERT_TRUE(runnerSeedForRepeat(0x1234ULL, 0) == 0x1234ULL);
+
+	unsigned long long seeds[8];
+	for (int rep = 0; rep < 8; rep++) {
+		seeds[rep] = runnerSeedForRepeat(0x1234ULL, rep);
+		/* Deterministic: same (base, rep) always yields the same seed. */
+		ASSERT_TRUE(runnerSeedForRepeat(0x1234ULL, rep) == seeds[rep]);
+	}
+	/* Distinct across repeats so successive runs actually vary the seed. */
+	for (int i = 0; i < 8; i++) {
+		for (int j = i + 1; j < 8; j++) {
+			ASSERT_TRUE(seeds[i] != seeds[j]);
+		}
+	}
+	/* A different base seed produces a different per-repeat sequence. */
+	ASSERT_TRUE(runnerSeedForRepeat(0x1234ULL, 3) != runnerSeedForRepeat(0x5678ULL, 3));
+	return 0;
+}
+
+/* A fixture whose outcome depends on the active test seed: it "fails"
+ * (returns nonzero) when the low bit of the seed is set. Stands in for a real
+ * seed-sensitive flake. */
+static int seed_sensitive_run(void) {
+	return (rotide_test_seed() & 1ULL) ? 1 : 0;
+}
+
+/* Mirror the runner's per-test repeat loop: vary the seed per repeat and apply
+ * the same pass-and-fail-in-one-run flake rule. Returns 1 if flagged a flake. */
+static int simulate_flake_detection(unsigned long long base_seed, int repeat) {
+	int local_passed = 0;
+	int local_failed = 0;
+	for (int rep = 0; rep < repeat; rep++) {
+		rotide_test_seed_set(runnerSeedForRepeat(base_seed, rep));
+		if (seed_sensitive_run() == 0) {
+			local_passed = 1;
+		} else {
+			local_failed = 1;
+		}
+	}
+	return (local_passed && local_failed) ? 1 : 0;
+}
+
+static int test_per_repeat_seeds_enable_flake_detection(void) {
+	unsigned long long prev = rotide_test_seed();
+	/* repeat==1 runs once, so a single outcome can never be a flake. */
+	ASSERT_EQ_INT(0, simulate_flake_detection(0xC0FFEEULL, 1));
+	/* repeat>1 varies the seed across runs, hitting both parities → flake. */
+	ASSERT_EQ_INT(1, simulate_flake_detection(0xC0FFEEULL, 20));
+	rotide_test_seed_set(prev);
+	return 0;
+}
+
 const struct editorTestCase g_runner_internals_tests[] = {
         {"runner_name_matches_substring", test_runner_name_matches_substring},
         {"runner_tags_have_exact_token", test_runner_tags_have_exact_token},
@@ -331,6 +386,10 @@ const struct editorTestCase g_runner_internals_tests[] = {
         {"snapshot_compare_exclude_at_buffer_tail", test_snapshot_compare_exclude_at_buffer_tail},
         {"snapshot_compare_multiple_excludes", test_snapshot_compare_multiple_excludes},
         {"runner_seed_setter_roundtrip", test_seed_setter_roundtrip},
+        {"runner_seed_for_repeat_distinct_and_reproducible",
+         test_seed_for_repeat_distinct_and_reproducible},
+        {"runner_per_repeat_seeds_enable_flake_detection",
+         test_per_repeat_seeds_enable_flake_detection},
 };
 
 const int g_runner_internals_test_count =

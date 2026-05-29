@@ -32,6 +32,53 @@
 #define COLOR_TEXT "#222"
 #define COLOR_BG "#ffffff"
 
+static int compareDouble(const void *a, const void *b) {
+	double da = *(const double *)a;
+	double db = *(const double *)b;
+	if (da < db) {
+		return -1;
+	}
+	if (da > db) {
+		return 1;
+	}
+	return 0;
+}
+
+double editorMetricsPassRate(long long passed_runs, long long total_runs) {
+	if (total_runs <= 0) {
+		return 100.0;
+	}
+	return (double)passed_runs / (double)total_runs * 100.0;
+}
+
+void editorMetricsRollingMedian(const double *in, int n_points, int window, double *out) {
+	if (in == NULL || out == NULL || n_points <= 0) {
+		return;
+	}
+	if (window < 1) {
+		window = 1;
+	}
+	if (window % 2 == 0) {
+		window += 1; /* odd window keeps the median centered on each point */
+	}
+	if (window > RENDER_MAX_POINTS) {
+		window = RENDER_MAX_POINTS - 1; /* RENDER_MAX_POINTS is even */
+	}
+	int half = window / 2;
+	double scratch[RENDER_MAX_POINTS];
+	for (int i = 0; i < n_points; i++) {
+		int lo = i - half < 0 ? 0 : i - half;
+		int hi = i + half >= n_points ? n_points - 1 : i + half;
+		int m = 0;
+		for (int j = lo; j <= hi; j++) {
+			scratch[m++] = in[j];
+		}
+		qsort(scratch, (size_t)m, sizeof(scratch[0]), compareDouble);
+		out[i] =
+		        (m % 2 == 1) ? scratch[m / 2] : (scratch[m / 2 - 1] + scratch[m / 2]) / 2.0;
+	}
+}
+
 static int rowPassesFilters(const struct editorMetricsRow *r,
                             const struct editorMetricsCmdOptions *opts) {
 	if (opts->kind_filter != EDITOR_METRICS_KIND_UNKNOWN && r->kind != opts->kind_filter) {
@@ -530,38 +577,138 @@ int editorMetricsCmdRenderSvg(const struct editorMetricsRow *rows, int count,
 			char *label_buf = NULL;
 			const char **labels = buildDateLabels(&group[start], n, &label_buf);
 
+			/* Cost chart. exec_seconds_total (summed per-test time) is the
+			 * primary series because, unlike whole-suite wall clock, it's
+			 * independent of --jobs and runner core count. A small rolling
+			 * median damps single-run jitter on shared CI runners. wall is
+			 * overlaid (also smoothed) for context. The title annotates jobs
+			 * so a --jobs config change is visible rather than silently
+			 * stepping the wall trend. */
 			for (int j = 0; j < n; j++) {
-				bufs[0][j] = group[start + j]->wall_seconds;
+				bufs[2][j] = group[start + j]->exec_seconds_total;
 			}
-			struct editorSvgSeries ser_wall;
-			ser_wall.values = bufs[0];
-			ser_wall.label = "wall";
-			ser_wall.color = COLOR_PRIMARY;
-			if (writeSvgFile(out_dir, "test-wall-seconds.svg", "Test runtime",
-			                 "seconds", labels, n, &ser_wall, 1) == 0) {
+			editorMetricsRollingMedian(bufs[2], n, 5, bufs[0]);
+			for (int j = 0; j < n; j++) {
+				bufs[2][j] = group[start + j]->wall_seconds;
+			}
+			editorMetricsRollingMedian(bufs[2], n, 5, bufs[1]);
+			struct editorSvgSeries ser_cost[2];
+			ser_cost[0].values = bufs[0];
+			ser_cost[0].label = "exec total";
+			ser_cost[0].color = COLOR_PRIMARY;
+			ser_cost[1].values = bufs[1];
+			ser_cost[1].label = "wall";
+			ser_cost[1].color = COLOR_SECONDARY;
+
+			long long jobs0 = group[start]->jobs;
+			int jobs_uniform = 1;
+			for (int j = 1; j < n; j++) {
+				if (group[start + j]->jobs != jobs0) {
+					jobs_uniform = 0;
+					break;
+				}
+			}
+			char cost_title[64];
+			if (!jobs_uniform) {
+				(void)snprintf(cost_title, sizeof(cost_title),
+				               "Test runtime (jobs varies, median)");
+			} else if (jobs0 > 0) {
+				(void)snprintf(cost_title, sizeof(cost_title),
+				               "Test runtime (jobs=%lld, median)", jobs0);
+			} else {
+				(void)snprintf(cost_title, sizeof(cost_title),
+				               "Test runtime (median)");
+			}
+			if (writeSvgFile(out_dir, "test-wall-seconds.svg", cost_title, "seconds",
+			                 labels, n, ser_cost, 2) == 0) {
 				(void)fprintf(manifest, "test-wall-seconds.svg\n");
 				n_written++;
 			}
 
+			int stab_all_zero = 1;
 			for (int j = 0; j < n; j++) {
 				bufs[0][j] = (double)group[start + j]->crashes;
 				bufs[1][j] = (double)group[start + j]->failed_unique;
-				bufs[2][j] = (double)group[start + j]->flakes;
+				if (group[start + j]->crashes != 0 ||
+				    group[start + j]->failed_unique != 0) {
+					stab_all_zero = 0;
+				}
 			}
-			struct editorSvgSeries ser_stab[3];
+			struct editorSvgSeries ser_stab[2];
 			ser_stab[0].values = bufs[0];
 			ser_stab[0].label = "crashes";
 			ser_stab[0].color = COLOR_PRIMARY;
 			ser_stab[1].values = bufs[1];
 			ser_stab[1].label = "failed";
 			ser_stab[1].color = COLOR_SECONDARY;
-			ser_stab[2].values = bufs[2];
-			ser_stab[2].label = "flakes";
-			ser_stab[2].color = COLOR_TERTIARY;
-			if (writeSvgFile(out_dir, "test-stability.svg", "Test stability", "count",
-			                 labels, n, ser_stab, 3) == 0) {
+			/* When the whole window is green, crashes and failed both sit on
+			 * y=0 and overlap indistinguishably. Say so in the title so a clean
+			 * history reads as healthy at a glance rather than looking empty. */
+			char stab_title[64];
+			if (stab_all_zero) {
+				(void)snprintf(stab_title, sizeof(stab_title),
+				               "Test stability (no failures in %d runs)", n);
+			} else {
+				(void)snprintf(stab_title, sizeof(stab_title), "Test stability");
+			}
+			if (writeSvgFile(out_dir, "test-stability.svg", stab_title, "count", labels,
+			                 n, ser_stab, 2) == 0) {
 				(void)fprintf(manifest, "test-stability.svg\n");
 				n_written++;
+			}
+
+			/* Pass rate normalizes failures against suite size so the trend
+			 * stays comparable as cases are added: 2 failures out of 50 reads
+			 * very differently from 2 out of 1500. */
+			for (int j = 0; j < n; j++) {
+				bufs[0][j] = editorMetricsPassRate(group[start + j]->passed_runs,
+				                                   group[start + j]->total_runs);
+			}
+			struct editorSvgSeries ser_pass;
+			ser_pass.values = bufs[0];
+			ser_pass.label = "pass %";
+			ser_pass.color = COLOR_PRIMARY;
+			if (writeSvgFile(out_dir, "test-pass-rate.svg", "Test pass rate", "%",
+			                 labels, n, &ser_pass, 1) == 0) {
+				(void)fprintf(manifest, "test-pass-rate.svg\n");
+				n_written++;
+			}
+
+			/* Flakiness lives on its own chart sourced from --repeat>1 rows
+			 * (the nightly flake-hunt lane). Per-commit rows run --repeat 1
+			 * where pass-and-fail-in-one-run is structurally impossible, so
+			 * mixing them in would pin the series to zero and break the
+			 * shared x-axis with the per-commit stability rows above. */
+			struct editorMetricsRow **flake_group = (struct editorMetricsRow **)malloc(
+			        (size_t)(n > 0 ? n : 1) * sizeof(struct editorMetricsRow *));
+			if (flake_group != NULL) {
+				int fc = 0;
+				for (int j = 0; j < n; j++) {
+					if (group[start + j]->repeat > 1) {
+						flake_group[fc++] = group[start + j];
+					}
+				}
+				if (fc >= 2) {
+					for (int j = 0; j < fc; j++) {
+						bufs[0][j] = (double)flake_group[j]->flakes;
+					}
+					char *flake_label_buf = NULL;
+					const char **flake_labels =
+					        buildDateLabels(flake_group, fc, &flake_label_buf);
+					struct editorSvgSeries ser_flake;
+					ser_flake.values = bufs[0];
+					ser_flake.label = "flakes";
+					ser_flake.color = COLOR_TERTIARY;
+					if (writeSvgFile(out_dir, "test-flakes.svg",
+					                 "Test flakiness (--repeat soak)", "count",
+					                 flake_labels, fc, &ser_flake, 1) == 0) {
+						(void)fprintf(manifest, "test-flakes.svg\n");
+						n_written++;
+					}
+					free((void *)flake_labels);
+					free(flake_label_buf);
+				}
+				free(flake_group);
 			}
 
 			free((void *)labels);
