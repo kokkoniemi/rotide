@@ -1563,6 +1563,32 @@ static int test_editor_process_keypress_page_up_down_scroll_viewport_without_mov
 	return 0;
 }
 
+static int test_editor_process_keypress_ctrl_arrow_up_down_scroll_viewport(void) {
+	for (int i = 0; i < 20; i++) {
+		add_row("line");
+	}
+	E.window_rows = 5;
+	E.window_cols = 20;
+	E.cy = 10;
+	E.cx = 2;
+	E.rowoff = 8;
+
+	const char ctrl_down[] = "\x1b[1;5B";
+	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_down, sizeof(ctrl_down) - 1) == 0);
+	ASSERT_EQ_INT(10, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_EQ_INT(9, E.rowoff);
+	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
+
+	const char ctrl_up[] = "\x1b[1;5A";
+	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_up, sizeof(ctrl_up) - 1) == 0);
+	ASSERT_EQ_INT(10, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_EQ_INT(8, E.rowoff);
+	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
+	return 0;
+}
+
 static int test_editor_process_keypress_ctrl_arrow_moves_by_word(void) {
 	add_row("alpha beta.gamma");
 	add_row("  delta");
@@ -2130,6 +2156,8 @@ const struct editorTestCase g_input_actions_tests[] = {
          test_editor_drawer_arrow_navigation_opens_preview_tab},
         {"editor_process_keypress_page_up_down_scroll_viewport_without_moving_cursor",
          test_editor_process_keypress_page_up_down_scroll_viewport_without_moving_cursor},
+        {"editor_process_keypress_ctrl_arrow_up_down_scroll_viewport",
+         test_editor_process_keypress_ctrl_arrow_up_down_scroll_viewport},
         {"editor_process_keypress_ctrl_arrow_moves_by_word",
          test_editor_process_keypress_ctrl_arrow_moves_by_word},
         {"editor_process_keypress_free_scroll_can_leave_cursor_offscreen",

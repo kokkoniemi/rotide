@@ -48,7 +48,8 @@ enum {
 	DRAWER_DOUBLE_CLICK_THRESHOLD_MS = 400,
 	TEXT_MULTI_CLICK_THRESHOLD_MS = 400,
 	DRAWER_RESIZE_STEP = 1,
-	KEYBOARD_SCROLL_COLS = 3
+	KEYBOARD_SCROLL_COLS = 3,
+	KEYBOARD_SCROLL_ROWS = 1
 };
 
 enum dispatchKeypressEffect {
@@ -1852,6 +1853,16 @@ static int dispatchHandleViewAction(enum editorAction action, int *effects) {
 		case EDITOR_ACTION_SCROLL_RIGHT:
 			editorHistoryBreakGroup();
 			editorViewportScrollByCols(KEYBOARD_SCROLL_COLS);
+			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
+			return 1;
+		case EDITOR_ACTION_SCROLL_UP:
+			editorHistoryBreakGroup();
+			editorViewportScrollByRows(-KEYBOARD_SCROLL_ROWS);
+			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
+			return 1;
+		case EDITOR_ACTION_SCROLL_DOWN:
+			editorHistoryBreakGroup();
+			editorViewportScrollByRows(KEYBOARD_SCROLL_ROWS);
 			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 			return 1;
 		default:

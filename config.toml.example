@@ -299,6 +299,8 @@ move_word_left = "ctrl+left"
 move_word_right = "ctrl+right"
 page_up = "page_up"
 page_down = "page_down"
+scroll_up = "ctrl+up"
+scroll_down = "ctrl+down"
 # Horizontal viewport scroll has no default binding; uncomment/remap if desired.
 # scroll_left = "ctrl+alt+left"
 # scroll_right = "ctrl+alt+right"
