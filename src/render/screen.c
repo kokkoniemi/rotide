@@ -47,6 +47,8 @@
 #define VT100_CURSOR_COLOR_WHITE "\x1b]12;white\a"
 #define VT100_ITALIC_ON_4 "\x1b[3m"
 #define VT100_ITALIC_OFF_5 "\x1b[23m"
+#define VT100_BOLD_ON_4 "\x1b[1m"
+#define VT100_BOLD_OFF_5 "\x1b[22m"
 #define VT100_UNDERLINE_ON_4 "\x1b[4m"
 #define VT100_UNDERLINE_OFF_5 "\x1b[24m"
 #define VT100_UNDERLINE_COLOR_RED_9 "\x1b[58;5;1m"
@@ -83,6 +85,7 @@ struct screenRenderSliceArgs {
 	int diagnostic_span_count;
 	int hover_render_start;
 	int hover_render_end;
+	int bracket_render_idx[2];
 };
 
 static struct screenFileRowFrameCache g_screen_file_row_frame_cache = {0};
@@ -455,6 +458,16 @@ static int screenAppendUnderlineColor(struct writeBuf *wb, int red) {
 	return wbAppend(wb, VT100_UNDERLINE_COLOR_DEFAULT_5, 5);
 }
 
+static int screenBracketBoldAtRenderIdx(const struct screenRenderSliceArgs *args, int pos) {
+	for (int i = 0; i < 2; i++) {
+		int b = args->bracket_render_idx[i];
+		if (b >= 0 && pos == b) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
 static int screenDrawRenderSliceWithSyntax(const struct screenRenderSliceArgs *args,
                                            int segment_start, int segment_end) {
 	if (segment_end <= segment_start) {
@@ -469,10 +482,11 @@ static int screenDrawRenderSliceWithSyntax(const struct screenRenderSliceArgs *a
 	int diagnostic_span_count = args->diagnostic_span_count;
 	int hover_render_start = args->hover_render_start;
 	int hover_render_end = args->hover_render_end;
+	int has_bracket = args->bracket_render_idx[0] >= 0 || args->bracket_render_idx[1] >= 0;
 
 	if ((spans == NULL || span_count <= 0 || E.syntax_state == NULL ||
 	     E.syntax_language == EDITOR_SYNTAX_NONE) &&
-	    (diagnostic_spans == NULL || diagnostic_span_count <= 0)) {
+	    (diagnostic_spans == NULL || diagnostic_span_count <= 0) && !has_bracket) {
 		return wbAppend(wb, &row->render[segment_start],
 		                (size_t)(segment_end - segment_start));
 	}
@@ -482,6 +496,7 @@ static int screenDrawRenderSliceWithSyntax(const struct screenRenderSliceArgs *a
 	int active_color_emitted = 0;
 	int underline_on = 0;
 	int underline_red = 0;
+	int bold_on = 0;
 	int has_hover = hover_render_end > hover_render_start;
 	int pos = segment_start;
 	while (pos < segment_end) {
@@ -519,6 +534,16 @@ static int screenDrawRenderSliceWithSyntax(const struct screenRenderSliceArgs *a
 			underline_red = next_red;
 		}
 
+		int next_bold = screenBracketBoldAtRenderIdx(args, pos);
+		if (next_bold != bold_on) {
+			if (!wbAppend(wb, next_bold ? VT100_BOLD_ON_4 : VT100_BOLD_OFF_5,
+			              next_bold ? sizeof(VT100_BOLD_ON_4) - 1
+			                        : sizeof(VT100_BOLD_OFF_5) - 1)) {
+				return 0;
+			}
+			bold_on = next_bold;
+		}
+
 		int next = segment_end;
 		for (int i = 0; i < span_count; i++) {
 			int span_start = spans[i].start_render_idx;
@@ -554,6 +579,18 @@ static int screenDrawRenderSliceWithSyntax(const struct screenRenderSliceArgs *a
 				next = hover_render_end;
 			}
 		}
+		for (int i = 0; i < 2; i++) {
+			int b = args->bracket_render_idx[i];
+			if (b < 0) {
+				continue;
+			}
+			if (b > pos && b < next) {
+				next = b;
+			}
+			if (b + 1 > pos && b + 1 < next) {
+				next = b + 1;
+			}
+		}
 		if (next <= pos) {
 			unsigned int cp = 0;
 			int step = editorUtf8DecodeCodepoint(&row->render[pos], segment_end - pos,
@@ -578,6 +615,9 @@ static int screenDrawRenderSliceWithSyntax(const struct screenRenderSliceArgs *a
 		return 0;
 	}
 	if (underline_red && !screenAppendUnderlineColor(wb, 0)) {
+		return 0;
+	}
+	if (bold_on && !wbAppend(wb, VT100_BOLD_OFF_5, sizeof(VT100_BOLD_OFF_5) - 1)) {
 		return 0;
 	}
 	if (active_color_emitted && !editorAppendThemeBaseForeground(wb)) {
@@ -652,6 +692,20 @@ static int screenDrawRenderSlice(struct writeBuf *wb, struct editorRow *row, int
 		}
 	}
 
+	int bracket_render_idx[2] = {-1, -1};
+	int bracket_cols[2] = {0, 0};
+	int bracket_count = 0;
+	if (have_row_line &&
+	    editorPaneActiveBracketColsForRow(row_idx, bracket_cols, &bracket_count)) {
+		for (int i = 0; i < bracket_count; i++) {
+			int cx = bracket_cols[i];
+			if (cx >= 0 && cx < row_size) {
+				bracket_render_idx[i] = editorBytesCxToRenderIdx(
+				        row_line.data, row_size, row->rsize, cx);
+			}
+		}
+	}
+
 	struct screenRenderSliceArgs slice = {
 	        .wb = wb,
 	        .row = row,
@@ -661,6 +715,7 @@ static int screenDrawRenderSlice(struct writeBuf *wb, struct editorRow *row, int
 	        .diagnostic_span_count = diagnostic_span_count,
 	        .hover_render_start = hover_render_start,
 	        .hover_render_end = hover_render_end,
+	        .bracket_render_idx = {bracket_render_idx[0], bracket_render_idx[1]},
 	};
 
 	if (highlight_len_chars <= 0) {
@@ -953,6 +1008,41 @@ int editorDrawFileRow(struct writeBuf *wb, size_t i, int text_cols) {
 	return screenDrawRenderSlice(wb, row, (int)i, E.coloff, text_cols);
 }
 
+/* Draws every screen row of the single-pane layout, repainting only rows whose
+ * bytes changed since the last frame. Returns the number of rows actually
+ * redrawn, or -1 on allocation/write failure. */
+static int screenDrawSinglePaneFileRows(struct writeBuf *wb, int drawer_cols, int separator_cols,
+                                        int text_cols, int force_full) {
+	int file_row_draw_count = 0;
+	for (int y = 0; y < E.window_rows; y++) {
+		struct writeBuf row_buf = WRITEBUF_INIT;
+		if (!editorBuildSinglePaneRowLine(&row_buf, y, drawer_cols, separator_cols,
+		                                  text_cols)) {
+			wbFree(&row_buf);
+			return -1;
+		}
+
+		int changed = force_full || y >= g_screen_file_row_frame_cache.row_count ||
+		              g_screen_file_row_frame_cache.rows[y] == NULL ||
+		              g_screen_file_row_frame_cache.row_lens[y] != row_buf.len ||
+		              (row_buf.len != 0 && memcmp(g_screen_file_row_frame_cache.rows[y],
+		                                          row_buf.b, row_buf.len) != 0);
+
+		if (changed) {
+			if (!editorAppendCursorMove(wb, y + 2, 1) ||
+			    !wbAppend(wb, row_buf.b, row_buf.len) ||
+			    !screenFileRowFrameCacheStoreRow(y, row_buf.b, row_buf.len)) {
+				wbFree(&row_buf);
+				return -1;
+			}
+			file_row_draw_count++;
+		}
+
+		wbFree(&row_buf);
+	}
+	return file_row_draw_count;
+}
+
 static int screenDrawRows(struct writeBuf *wb) {
 	editorDrawerClampViewport(E.window_rows);
 	(void)editorSyntaxPrepareVisibleRowSpans(E.rowoff, E.window_rows);
@@ -1006,7 +1096,6 @@ static int screenDrawRows(struct writeBuf *wb) {
 		}
 		return ok;
 	}
-	int file_row_draw_count = 0;
 	int force_full = 0;
 	if (!g_screen_file_row_frame_cache.valid ||
 	    g_screen_file_row_frame_cache.window_rows != E.window_rows ||
@@ -1039,39 +1128,12 @@ static int screenDrawRows(struct writeBuf *wb) {
 		}
 	}
 
-	for (int y = 0; y < E.window_rows; y++) {
-		struct writeBuf row_buf = WRITEBUF_INIT;
-		if (!editorBuildSinglePaneRowLine(&row_buf, y, drawer_cols, separator_cols,
-		                                  text_cols)) {
-			wbFree(&row_buf);
-			return 0;
-		}
-
-		int changed = force_full;
-		if (!changed && y < g_screen_file_row_frame_cache.row_count &&
-		    g_screen_file_row_frame_cache.rows[y] != NULL &&
-		    g_screen_file_row_frame_cache.row_lens[y] == row_buf.len &&
-		    (row_buf.len == 0 ||
-		     memcmp(g_screen_file_row_frame_cache.rows[y], row_buf.b, row_buf.len) == 0)) {
-			changed = 0;
-		} else {
-			changed = 1;
-		}
-
-		if (changed) {
-			if (!editorAppendCursorMove(wb, y + 2, 1) ||
-			    !wbAppend(wb, row_buf.b, row_buf.len)) {
-				wbFree(&row_buf);
-				return 0;
-			}
-			if (!screenFileRowFrameCacheStoreRow(y, row_buf.b, row_buf.len)) {
-				wbFree(&row_buf);
-				return 0;
-			}
-			file_row_draw_count++;
-		}
-
-		wbFree(&row_buf);
+	editorPaneSingleBracketMatchUpdate();
+	int file_row_draw_count = screenDrawSinglePaneFileRows(wb, drawer_cols, separator_cols,
+	                                                       text_cols, force_full);
+	editorPaneSingleBracketMatchClear();
+	if (file_row_draw_count < 0) {
+		return 0;
 	}
 
 	if (g_screen_file_row_frame_cache.row_count > E.window_rows) {

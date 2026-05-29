@@ -7,6 +7,7 @@
 #include "editing/text_source.h"
 #include "language/autocomplete.h"
 #include "language/syntax.h"
+#include "language/syntax_visible_cache.h"
 #include "rotide.h"
 #include "text/document.h"
 #include "text/row.h"
@@ -278,6 +279,108 @@ static int textPairsFindMatchingBracketOffset(const char *text, size_t len, size
 			break;
 		}
 		i--;
+	}
+	return 0;
+}
+
+enum { TEXT_PAIRS_MATCH_HIGHLIGHT_MAX_SCAN_BYTES = 200000 };
+
+/*
+ * Brackets that tree-sitter places inside comments or string literals are not
+ * structural, so highlighting their "match" would be misleading (e.g. the `(`
+ * in an OCaml `(* comment *)`). When syntax info is available, suppress the
+ * highlight for such positions. Languages without tree-sitter fall through and
+ * still get plain depth-matched highlighting.
+ */
+static int textPairsCursorBracketIsInCommentOrString(const struct editorLineView *cursor_line) {
+	if (E.syntax_state == NULL || E.syntax_language == EDITOR_SYNTAX_NONE || E.cy < 0 ||
+	    E.cy >= E.numrows) {
+		return 0;
+	}
+
+	struct editorRowSyntaxSpan spans[ROTIDE_MAX_SYNTAX_SPANS_PER_ROW];
+	int span_count = 0;
+	if (!editorSyntaxRowRenderSpans(E.cy, spans, ROTIDE_MAX_SYNTAX_SPANS_PER_ROW,
+	                                &span_count)) {
+		return 0;
+	}
+
+	int render_idx = editorBytesCxToRenderIdx(cursor_line->data, cursor_line->size,
+	                                          E.rows[E.cy].rsize, E.cx);
+	enum editorSyntaxHighlightClass cls = EDITOR_SYNTAX_HL_NONE;
+	for (int i = 0; i < span_count; i++) {
+		if (render_idx >= spans[i].start_render_idx &&
+		    render_idx < spans[i].end_render_idx) {
+			cls = spans[i].highlight_class;
+		}
+	}
+	return cls == EDITOR_SYNTAX_HL_COMMENT || cls == EDITOR_SYNTAX_HL_STRING;
+}
+
+int editorBracketMatchComputeForCursor(int out_rows[2], int out_cols[2]) {
+	if (out_rows == NULL || out_cols == NULL || E.document == NULL || E.cy < 0 ||
+	    E.cy >= E.numrows || E.cx < 0) {
+		return 0;
+	}
+
+	struct editorLineView cursor_line = {0};
+	if (!editorDocumentLineView(E.document, E.cy, &cursor_line)) {
+		return 0;
+	}
+	char open = '\0';
+	char close = '\0';
+	int forward = 1;
+	int on_bracket =
+	        E.cx < cursor_line.size &&
+	        textPairsBracketPairForByte(cursor_line.data[E.cx], &open, &close, &forward);
+	int suppressed = on_bracket && textPairsCursorBracketIsInCommentOrString(&cursor_line);
+	editorLineViewRelease(&cursor_line);
+	if (!on_bracket || suppressed) {
+		return 0;
+	}
+
+	int depth = 0;
+	size_t scanned = 0;
+	int row = E.cy;
+	while (row >= 0 && row < E.numrows) {
+		struct editorLineView line = {0};
+		if (!editorDocumentLineView(E.document, row, &line)) {
+			return 0;
+		}
+		int col = forward ? (row == E.cy ? E.cx : 0) : (row == E.cy ? E.cx : line.size - 1);
+		int matched = 0;
+		while (col >= 0 && col < line.size) {
+			char c = line.data[col];
+			if (forward) {
+				if (c == open) {
+					depth++;
+				} else if (c == close && --depth == 0) {
+					matched = 1;
+					break;
+				}
+			} else {
+				if (c == close) {
+					depth++;
+				} else if (c == open && --depth == 0) {
+					matched = 1;
+					break;
+				}
+			}
+			if (++scanned > TEXT_PAIRS_MATCH_HIGHLIGHT_MAX_SCAN_BYTES) {
+				editorLineViewRelease(&line);
+				return 0;
+			}
+			col += forward ? 1 : -1;
+		}
+		editorLineViewRelease(&line);
+		if (matched) {
+			out_rows[0] = E.cy;
+			out_cols[0] = E.cx;
+			out_rows[1] = row;
+			out_cols[1] = col;
+			return 1;
+		}
+		row += forward ? 1 : -1;
 	}
 	return 0;
 }

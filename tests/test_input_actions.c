@@ -3,6 +3,7 @@
 #include "editor_test_api.h"
 #include "input/actions_workspace.h"
 #include "input/dispatch.h"
+#include "input/text_pairs.h"
 #include "language/syntax.h"
 #include "rotide.h"
 #include "support/terminal.h"
@@ -1563,6 +1564,96 @@ static int test_editor_process_keypress_page_up_down_scroll_viewport_without_mov
 	return 0;
 }
 
+static int test_editor_bracket_match_same_line_forward(void) {
+	add_row("foo(a + b)bar");
+	E.cy = 0;
+	E.cx = 3; /* on '(' */
+
+	int rows[2] = {-1, -1};
+	int cols[2] = {-1, -1};
+	ASSERT_TRUE(editorBracketMatchComputeForCursor(rows, cols));
+	ASSERT_EQ_INT(0, rows[0]);
+	ASSERT_EQ_INT(3, cols[0]);
+	ASSERT_EQ_INT(0, rows[1]);
+	ASSERT_EQ_INT(9, cols[1]); /* the ')' */
+	return 0;
+}
+
+static int test_editor_bracket_match_same_line_backward(void) {
+	add_row("foo(a + b)bar");
+	E.cy = 0;
+	E.cx = 9; /* on ')' */
+
+	int rows[2] = {-1, -1};
+	int cols[2] = {-1, -1};
+	ASSERT_TRUE(editorBracketMatchComputeForCursor(rows, cols));
+	ASSERT_EQ_INT(0, rows[0]);
+	ASSERT_EQ_INT(9, cols[0]);
+	ASSERT_EQ_INT(0, rows[1]);
+	ASSERT_EQ_INT(3, cols[1]); /* the '(' */
+	return 0;
+}
+
+static int test_editor_bracket_match_nested_picks_correct_pair(void) {
+	add_row("((x))");
+	E.cy = 0;
+	E.cx = 0; /* outer '(' */
+
+	int rows[2] = {-1, -1};
+	int cols[2] = {-1, -1};
+	ASSERT_TRUE(editorBracketMatchComputeForCursor(rows, cols));
+	ASSERT_EQ_INT(0, cols[0]);
+	ASSERT_EQ_INT(4, cols[1]); /* outer ')' */
+
+	E.cx = 1; /* inner '(' */
+	ASSERT_TRUE(editorBracketMatchComputeForCursor(rows, cols));
+	ASSERT_EQ_INT(1, cols[0]);
+	ASSERT_EQ_INT(3, cols[1]); /* inner ')' */
+	return 0;
+}
+
+static int test_editor_bracket_match_across_lines(void) {
+	add_row("func() {");
+	add_row("    body();");
+	add_row("}");
+	E.cy = 0;
+	E.cx = 7; /* on '{' */
+
+	int rows[2] = {-1, -1};
+	int cols[2] = {-1, -1};
+	ASSERT_TRUE(editorBracketMatchComputeForCursor(rows, cols));
+	ASSERT_EQ_INT(0, rows[0]);
+	ASSERT_EQ_INT(7, cols[0]);
+	ASSERT_EQ_INT(2, rows[1]); /* '}' on third line */
+	ASSERT_EQ_INT(0, cols[1]);
+	return 0;
+}
+
+static int test_editor_bracket_match_inactive_when_not_on_bracket(void) {
+	add_row("foo(a + b)bar");
+	E.cy = 0;
+	E.cx = 0; /* on 'f' */
+
+	int rows[2] = {-1, -1};
+	int cols[2] = {-1, -1};
+	ASSERT_TRUE(!editorBracketMatchComputeForCursor(rows, cols));
+
+	E.cx = 13; /* end of line, no char under cursor */
+	ASSERT_TRUE(!editorBracketMatchComputeForCursor(rows, cols));
+	return 0;
+}
+
+static int test_editor_bracket_match_inactive_when_unbalanced(void) {
+	add_row("foo(a + b");
+	E.cy = 0;
+	E.cx = 3; /* on '(' with no closing */
+
+	int rows[2] = {-1, -1};
+	int cols[2] = {-1, -1};
+	ASSERT_TRUE(!editorBracketMatchComputeForCursor(rows, cols));
+	return 0;
+}
+
 static int test_editor_process_keypress_ctrl_arrow_up_down_scroll_viewport(void) {
 	for (int i = 0; i < 20; i++) {
 		add_row("line");
@@ -2156,6 +2247,15 @@ const struct editorTestCase g_input_actions_tests[] = {
          test_editor_drawer_arrow_navigation_opens_preview_tab},
         {"editor_process_keypress_page_up_down_scroll_viewport_without_moving_cursor",
          test_editor_process_keypress_page_up_down_scroll_viewport_without_moving_cursor},
+        {"editor_bracket_match_same_line_forward", test_editor_bracket_match_same_line_forward},
+        {"editor_bracket_match_same_line_backward", test_editor_bracket_match_same_line_backward},
+        {"editor_bracket_match_nested_picks_correct_pair",
+         test_editor_bracket_match_nested_picks_correct_pair},
+        {"editor_bracket_match_across_lines", test_editor_bracket_match_across_lines},
+        {"editor_bracket_match_inactive_when_not_on_bracket",
+         test_editor_bracket_match_inactive_when_not_on_bracket},
+        {"editor_bracket_match_inactive_when_unbalanced",
+         test_editor_bracket_match_inactive_when_unbalanced},
         {"editor_process_keypress_ctrl_arrow_up_down_scroll_viewport",
          test_editor_process_keypress_ctrl_arrow_up_down_scroll_viewport},
         {"editor_process_keypress_ctrl_arrow_moves_by_word",

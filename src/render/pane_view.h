@@ -25,6 +25,9 @@ struct editorViewSnapshot {
 
 int editorPaneSyntaxRowOverrideCopy(int row_idx, struct editorRowSyntaxSpan *spans, int max_spans,
                                     int *span_count_out);
+int editorPaneActiveBracketColsForRow(int row_idx, int out_cols[2], int *count_out);
+void editorPaneSingleBracketMatchUpdate(void);
+void editorPaneSingleBracketMatchClear(void);
 int editorPaneWrapBodyColsOverride(void);
 
 void editorViewSnapshotCapture(struct editorViewSnapshot *snap);
