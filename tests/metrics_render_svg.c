@@ -546,22 +546,55 @@ int editorMetricsCmdRenderSvg(const struct editorMetricsRow *rows, int count,
 			for (int j = 0; j < n; j++) {
 				bufs[0][j] = (double)group[start + j]->crashes;
 				bufs[1][j] = (double)group[start + j]->failed_unique;
-				bufs[2][j] = (double)group[start + j]->flakes;
 			}
-			struct editorSvgSeries ser_stab[3];
+			struct editorSvgSeries ser_stab[2];
 			ser_stab[0].values = bufs[0];
 			ser_stab[0].label = "crashes";
 			ser_stab[0].color = COLOR_PRIMARY;
 			ser_stab[1].values = bufs[1];
 			ser_stab[1].label = "failed";
 			ser_stab[1].color = COLOR_SECONDARY;
-			ser_stab[2].values = bufs[2];
-			ser_stab[2].label = "flakes";
-			ser_stab[2].color = COLOR_TERTIARY;
 			if (writeSvgFile(out_dir, "test-stability.svg", "Test stability", "count",
-			                 labels, n, ser_stab, 3) == 0) {
+			                 labels, n, ser_stab, 2) == 0) {
 				(void)fprintf(manifest, "test-stability.svg\n");
 				n_written++;
+			}
+
+			/* Flakiness lives on its own chart sourced from --repeat>1 rows
+			 * (the nightly flake-hunt lane). Per-commit rows run --repeat 1
+			 * where pass-and-fail-in-one-run is structurally impossible, so
+			 * mixing them in would pin the series to zero and break the
+			 * shared x-axis with the per-commit stability rows above. */
+			struct editorMetricsRow **flake_group = (struct editorMetricsRow **)malloc(
+			        (size_t)(n > 0 ? n : 1) * sizeof(struct editorMetricsRow *));
+			if (flake_group != NULL) {
+				int fc = 0;
+				for (int j = 0; j < n; j++) {
+					if (group[start + j]->repeat > 1) {
+						flake_group[fc++] = group[start + j];
+					}
+				}
+				if (fc >= 2) {
+					for (int j = 0; j < fc; j++) {
+						bufs[0][j] = (double)flake_group[j]->flakes;
+					}
+					char *flake_label_buf = NULL;
+					const char **flake_labels =
+					        buildDateLabels(flake_group, fc, &flake_label_buf);
+					struct editorSvgSeries ser_flake;
+					ser_flake.values = bufs[0];
+					ser_flake.label = "flakes";
+					ser_flake.color = COLOR_TERTIARY;
+					if (writeSvgFile(out_dir, "test-flakes.svg",
+					                 "Test flakiness (--repeat soak)", "count",
+					                 flake_labels, fc, &ser_flake, 1) == 0) {
+						(void)fprintf(manifest, "test-flakes.svg\n");
+						n_written++;
+					}
+					free((void *)flake_labels);
+					free(flake_label_buf);
+				}
+				free(flake_group);
 			}
 
 			free((void *)labels);

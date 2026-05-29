@@ -399,6 +399,7 @@ int main(int argc, char **argv) {
 		int local_passed = 0;
 		int local_failed = 0;
 		for (int rep = 0; rep < opts.repeat; rep++) {
+			rotide_test_seed_set(runnerSeedForRepeat(opts.seed, rep));
 			total_runs++;
 			reset_editor_state();
 			int failed = tc->run();

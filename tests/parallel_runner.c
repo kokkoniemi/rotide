@@ -3,6 +3,7 @@
 #include "editor_state_snapshot.h"
 #include "rotide.h"
 #include "runner_support.h"
+#include "seed.h"
 #include "test_case.h"
 #include "test_helpers.h"
 
@@ -282,6 +283,7 @@ int parallelChildRunBatch(const struct testRunnerOptions *opts, const struct edi
 		int local_passed = 0;
 		int local_failed = 0;
 		for (int rep = 0; rep < opts->repeat; rep++) {
+			rotide_test_seed_set(runnerSeedForRepeat(opts->seed, rep));
 			batch->total_runs++;
 			reset_editor_state();
 			int failed = tc->run();

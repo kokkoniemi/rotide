@@ -130,11 +130,46 @@ jobs:
           path: crash-*
           if-no-files-found: ignore
 
+  flake-hunt:
+    # Soak the suite under --repeat to surface nondeterministic tests. The
+    # runner varies the seed per repeat, so a test that both passes and fails
+    # across its repeats is counted as a flake. Kept off per-commit CI so the
+    # wall-time series stays clean; the emitted row carries repeat>1 and feeds
+    # the dashboard's flakiness chart. A flake makes the run exit non-zero, so
+    # the row is captured with `if: always()` and the step is non-fatal.
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run flake-hunt soak
+        run: |
+          make test-flake-hunt METRICS_OUT=tests/metrics.jsonl \
+            || echo "::warning::flake-hunt surfaced a failure or flake — see job log and the flakiness chart"
+
+      - name: Upload metrics row
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: metrics-flake-hunt-nightly
+          path: tests/metrics.jsonl
+          if-no-files-found: ignore
+
+      - name: Upload artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: flake-hunt-artifacts
+          path: tests/artifacts/
+          if-no-files-found: ignore
+
   metrics-summary:
     if: always()
     needs:
       - bench
       - fuzz-nightly
+      - flake-hunt
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -157,7 +192,8 @@ jobs:
           mkdir -p tests
           : > tests/metrics.jsonl
           for f in ci-metrics/metrics-fuzz-*-nightly/metrics.jsonl \
-                   ci-metrics/metrics-bench-nightly/metrics.jsonl; do
+                   ci-metrics/metrics-bench-nightly/metrics.jsonl \
+                   ci-metrics/metrics-flake-hunt-nightly/metrics.jsonl; do
             [ -f "$f" ] && cat "$f" >> tests/metrics.jsonl
           done
 

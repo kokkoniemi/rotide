@@ -340,6 +340,18 @@ int runnerSnapshotCompare(const unsigned char *a, const unsigned char *b, size_t
 	return 1;
 }
 
+unsigned long long runnerSeedForRepeat(unsigned long long base_seed, int rep) {
+	if (rep <= 0) {
+		return base_seed;
+	}
+	unsigned long long state = base_seed;
+	unsigned long long seed = base_seed;
+	for (int i = 0; i < rep; i++) {
+		seed = runnerRngNext(&state);
+	}
+	return seed;
+}
+
 void runnerShuffleIndices(int *indices, int count, unsigned long long seed) {
 	if (count <= 1) {
 		return;

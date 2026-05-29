@@ -36,6 +36,7 @@ struct editorMetricsRow {
 	long long flakes;
 	long long property_ops;
 	double property_ops_seconds;
+	long long repeat;
 	long long exit_code;
 
 	/* bench */

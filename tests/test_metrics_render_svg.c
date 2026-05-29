@@ -280,7 +280,7 @@ static int test_cmd_render_skips_single_point_series(void) {
 }
 
 static void seed_test_run(struct editorMetricsRow *r, const char *iso_date, double wall_seconds,
-                          long long crashes, long long failed, long long flakes) {
+                          long long crashes, long long failed, long long flakes, long long repeat) {
 	editorMetricsRowInit(r);
 	r->kind = EDITOR_METRICS_KIND_TEST_RUN;
 	(void)snprintf(r->ts, sizeof(r->ts), "%sT12:00:00Z", iso_date);
@@ -289,13 +289,15 @@ static void seed_test_run(struct editorMetricsRow *r, const char *iso_date, doub
 	r->crashes = crashes;
 	r->failed_unique = failed;
 	r->flakes = flakes;
+	r->repeat = repeat;
 }
 
 static int test_cmd_render_emits_test_run_charts(void) {
+	/* Per-commit rows: --repeat 1, so no flake chart is produced. */
 	struct editorMetricsRow rows[3];
-	seed_test_run(&rows[0], "2026-05-24", 12.5, 0, 0, 1);
-	seed_test_run(&rows[1], "2026-05-25", 13.1, 0, 2, 0);
-	seed_test_run(&rows[2], "2026-05-26", 12.9, 1, 0, 3);
+	seed_test_run(&rows[0], "2026-05-24", 12.5, 0, 0, 0, 1);
+	seed_test_run(&rows[1], "2026-05-25", 13.1, 0, 2, 0, 1);
+	seed_test_run(&rows[2], "2026-05-26", 12.9, 1, 0, 0, 1);
 
 	struct editorMetricsCmdOptions opts;
 	editorMetricsCmdOptionsInit(&opts);
@@ -313,10 +315,45 @@ static int test_cmd_render_emits_test_run_charts(void) {
 
 	char body[4096];
 	ASSERT_TRUE(read_file_into(p, body, sizeof(body)));
-	/* Stability chart should label all three series. */
+	/* Stability chart carries crashes + failed (per-commit signal). Flakes
+	 * moved to their own chart sourced from --repeat>1 rows. */
 	ASSERT_TRUE(strstr(body, ">crashes</text>") != NULL);
 	ASSERT_TRUE(strstr(body, ">failed</text>") != NULL);
-	ASSERT_TRUE(strstr(body, ">flakes</text>") != NULL);
+	ASSERT_TRUE(strstr(body, ">flakes</text>") == NULL);
+
+	/* No repeat>1 rows here → no flake chart. */
+	(void)snprintf(p, sizeof(p), "%s/test-flakes.svg", dir);
+	ASSERT_TRUE(!file_exists(p));
+
+	(void)rmrf_dir(dir);
+	return 0;
+}
+
+static int test_cmd_render_flakes_chart_from_repeat_rows(void) {
+	/* Only --repeat>1 rows feed the flakiness chart. The lone repeat==1 row
+	 * is ignored there but still counts toward stability. */
+	struct editorMetricsRow rows[3];
+	seed_test_run(&rows[0], "2026-05-24", 12.5, 0, 0, 1, 20);
+	seed_test_run(&rows[1], "2026-05-25", 13.1, 0, 0, 0, 20);
+	seed_test_run(&rows[2], "2026-05-26", 12.9, 0, 0, 0, 1);
+
+	struct editorMetricsCmdOptions opts;
+	editorMetricsCmdOptionsInit(&opts);
+	char dir[64];
+	make_tmpdir(dir, sizeof(dir));
+
+	int n = editorMetricsCmdRenderSvg(rows, 3, &opts, 0, dir);
+	ASSERT_EQ_INT(3, n);
+
+	char p[256];
+	(void)snprintf(p, sizeof(p), "%s/test-flakes.svg", dir);
+	ASSERT_TRUE(file_exists(p));
+
+	/* Single-series chart: the legend (and its series label) is suppressed,
+	 * so identify the chart by its title text instead. */
+	char body[4096];
+	ASSERT_TRUE(read_file_into(p, body, sizeof(body)));
+	ASSERT_TRUE(strstr(body, "Test flakiness") != NULL);
 
 	(void)rmrf_dir(dir);
 	return 0;
@@ -415,6 +452,8 @@ const struct editorTestCase g_metrics_render_svg_tests[] = {
         {"metrics_svg_cmd_skips_single_point_series", test_cmd_render_skips_single_point_series},
         {"metrics_svg_cmd_kind_filter", test_cmd_render_kind_filter},
         {"metrics_svg_cmd_emits_test_run_charts", test_cmd_render_emits_test_run_charts},
+        {"metrics_svg_cmd_flakes_chart_from_repeat_rows",
+         test_cmd_render_flakes_chart_from_repeat_rows},
         {"metrics_svg_cmd_bench_chart_has_min_series", test_cmd_render_bench_chart_has_min_series},
         {"metrics_svg_cmd_fuzz_throughput_zero_runtime_safe",
          test_cmd_render_fuzz_throughput_zero_runtime_safe},

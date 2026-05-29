@@ -30,6 +30,7 @@ static int test_parse_test_run_row(void) {
 	ASSERT_EQ_INT(2, (int)r.flakes);
 	ASSERT_EQ_INT(50000, (int)r.property_ops);
 	ASSERT_TRUE(r.property_ops_seconds > 0.49 && r.property_ops_seconds < 0.51);
+	ASSERT_EQ_INT(1, (int)r.repeat);
 	ASSERT_EQ_INT(0, (int)r.exit_code);
 	return 0;
 }

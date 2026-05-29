@@ -198,6 +198,7 @@ int editorMetricsRowParse(const char *line, struct editorMetricsRow *row) {
 			(void)getInt(line, "flakes", &row->flakes);
 			(void)getInt(line, "property_ops", &row->property_ops);
 			(void)getDouble(line, "property_ops_seconds", &row->property_ops_seconds);
+			(void)getInt(line, "repeat", &row->repeat);
 			(void)getInt(line, "exit_code", &row->exit_code);
 			break;
 		case EDITOR_METRICS_KIND_BENCH:
