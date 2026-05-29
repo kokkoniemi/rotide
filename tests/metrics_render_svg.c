@@ -44,6 +44,13 @@ static int compareDouble(const void *a, const void *b) {
 	return 0;
 }
 
+double editorMetricsPassRate(long long passed_runs, long long total_runs) {
+	if (total_runs <= 0) {
+		return 100.0;
+	}
+	return (double)passed_runs / (double)total_runs * 100.0;
+}
+
 void editorMetricsRollingMedian(const double *in, int n_points, int window, double *out) {
 	if (in == NULL || out == NULL || n_points <= 0) {
 		return;
@@ -618,9 +625,14 @@ int editorMetricsCmdRenderSvg(const struct editorMetricsRow *rows, int count,
 				n_written++;
 			}
 
+			int stab_all_zero = 1;
 			for (int j = 0; j < n; j++) {
 				bufs[0][j] = (double)group[start + j]->crashes;
 				bufs[1][j] = (double)group[start + j]->failed_unique;
+				if (group[start + j]->crashes != 0 ||
+				    group[start + j]->failed_unique != 0) {
+					stab_all_zero = 0;
+				}
 			}
 			struct editorSvgSeries ser_stab[2];
 			ser_stab[0].values = bufs[0];
@@ -629,9 +641,36 @@ int editorMetricsCmdRenderSvg(const struct editorMetricsRow *rows, int count,
 			ser_stab[1].values = bufs[1];
 			ser_stab[1].label = "failed";
 			ser_stab[1].color = COLOR_SECONDARY;
-			if (writeSvgFile(out_dir, "test-stability.svg", "Test stability", "count",
-			                 labels, n, ser_stab, 2) == 0) {
+			/* When the whole window is green, crashes and failed both sit on
+			 * y=0 and overlap indistinguishably. Say so in the title so a clean
+			 * history reads as healthy at a glance rather than looking empty. */
+			char stab_title[64];
+			if (stab_all_zero) {
+				(void)snprintf(stab_title, sizeof(stab_title),
+				               "Test stability (no failures in %d runs)", n);
+			} else {
+				(void)snprintf(stab_title, sizeof(stab_title), "Test stability");
+			}
+			if (writeSvgFile(out_dir, "test-stability.svg", stab_title, "count", labels,
+			                 n, ser_stab, 2) == 0) {
 				(void)fprintf(manifest, "test-stability.svg\n");
+				n_written++;
+			}
+
+			/* Pass rate normalizes failures against suite size so the trend
+			 * stays comparable as cases are added: 2 failures out of 50 reads
+			 * very differently from 2 out of 1500. */
+			for (int j = 0; j < n; j++) {
+				bufs[0][j] = editorMetricsPassRate(group[start + j]->passed_runs,
+				                                   group[start + j]->total_runs);
+			}
+			struct editorSvgSeries ser_pass;
+			ser_pass.values = bufs[0];
+			ser_pass.label = "pass %";
+			ser_pass.color = COLOR_PRIMARY;
+			if (writeSvgFile(out_dir, "test-pass-rate.svg", "Test pass rate", "%",
+			                 labels, n, &ser_pass, 1) == 0) {
+				(void)fprintf(manifest, "test-pass-rate.svg\n");
 				n_written++;
 			}
 
