@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="320" viewBox="0 0 720 320" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif" font-size="12">
+<rect width="720" height="320" fill="#ffffff"/>
+<text x="360" y="24" text-anchor="middle" font-size="14" font-weight="600" fill="#222">vterm — fuzz throughput</text>
+<line x1="72" y1="44.0" x2="696" y2="44.0" stroke="#e6e6e6" stroke-width="1"/>
+<text x="64" y="44.0" text-anchor="end" dominant-baseline="middle" fill="#222">1.2k</text>
+<line x1="72" y1="156.0" x2="696" y2="156.0" stroke="#e6e6e6" stroke-width="1"/>
+<text x="64" y="156.0" text-anchor="end" dominant-baseline="middle" fill="#222">588</text>
+<line x1="72" y1="268.0" x2="696" y2="268.0" stroke="#e6e6e6" stroke-width="1"/>
+<text x="64" y="268.0" text-anchor="end" dominant-baseline="middle" fill="#222">0</text>
+<text x="16" y="156" text-anchor="middle" fill="#222" transform="rotate(-90 16 156)">exec/s</text>
+<line x1="72" y1="44" x2="72" y2="268" stroke="#444" stroke-width="1"/>
+<line x1="72" y1="268" x2="696" y2="268" stroke="#444" stroke-width="1"/>
+<line x1="72.0" y1="268" x2="72.0" y2="272" stroke="#444" stroke-width="1"/>
+<text x="72.0" y="286" text-anchor="middle" fill="#222">2026-05-19</text>
+<line x1="187.6" y1="268" x2="187.6" y2="272" stroke="#444" stroke-width="1"/>
+<text x="187.6" y="286" text-anchor="middle" fill="#222">2026-05-21#4</text>
+<line x1="303.1" y1="268" x2="303.1" y2="272" stroke="#444" stroke-width="1"/>
+<text x="303.1" y="286" text-anchor="middle" fill="#222">2026-05-24#3</text>
+<line x1="418.7" y1="268" x2="418.7" y2="272" stroke="#444" stroke-width="1"/>
+<text x="418.7" y="286" text-anchor="middle" fill="#222">2026-05-25#5</text>
+<line x1="534.2" y1="268" x2="534.2" y2="272" stroke="#444" stroke-width="1"/>
+<text x="534.2" y="286" text-anchor="middle" fill="#222">2026-05-26#5</text>
+<line x1="649.8" y1="268" x2="649.8" y2="272" stroke="#444" stroke-width="1"/>
+<text x="649.8" y="286" text-anchor="middle" fill="#222">2026-05-29</text>
+<line x1="696.0" y1="268" x2="696.0" y2="272" stroke="#444" stroke-width="1"/>
+<text x="696.0" y="286" text-anchor="middle" fill="#222">2026-05-29#3</text>
+<polyline fill="none" stroke="#1f77b4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,77.6 95.1,267.3 118.2,267.9 141.3,77.6 164.4,77.6 187.6,77.6 210.7,264.0 233.8,266.6 256.9,266.0 280.0,77.6 303.1,77.6 326.2,148.9 349.3,77.6 372.4,268.0 395.6,77.6 418.7,77.6 441.8,64.4 464.9,77.6 488.0,77.6 511.1,77.6 534.2,77.6 557.3,77.6 580.4,77.6 603.6,112.2 626.7,104.0 649.8,109.9 672.9,77.6 696.0,268.0"/>
+<circle cx="696.0" cy="268.0" r="3" fill="#1f77b4"/>
+</svg>
