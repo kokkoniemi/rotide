@@ -1059,6 +1059,53 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_ruby_token
 	return 0;
 }
 
+static int test_editor_refresh_screen_bolds_matching_bracket_under_cursor(void) {
+	char path[] = "/tmp/rotide-test-bracket-highlight-XXXXXX.c";
+	int fd = mkstemps(path, 2);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(write_text_file(path, "int main(void) { return 0; }\n"));
+
+	editorOpen(path);
+	E.window_rows = 8;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 15; /* on the '{' */
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[1m{\x1b[22m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[1m}\x1b[22m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_editor_refresh_screen_no_bracket_bold_inside_comment(void) {
+	char path[] = "/tmp/rotide-test-bracket-comment-XXXXXX.c";
+	int fd = mkstemps(path, 2);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(close(fd) == 0);
+	ASSERT_TRUE(write_text_file(path, "int x; /* (a) */\n"));
+
+	editorOpen(path);
+	E.window_rows = 8;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 10; /* on the '(' inside the comment */
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[1m(\x1b[22m") == NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_ocaml_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-ocaml-XXXXXX.ml";
 	ASSERT_TRUE(
@@ -2370,6 +2417,10 @@ const struct editorTestCase g_render_frame_tests[] = {
          test_editor_refresh_screen_highlights_active_search_match},
         {"editor_refresh_screen_applies_syntax_highlighting_for_c_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_c_tokens},
+        {"editor_refresh_screen_bolds_matching_bracket_under_cursor",
+         test_editor_refresh_screen_bolds_matching_bracket_under_cursor},
+        {"editor_refresh_screen_no_bracket_bold_inside_comment",
+         test_editor_refresh_screen_no_bracket_bold_inside_comment},
         {"editor_refresh_screen_applies_modus_operandi_theme",
          test_editor_refresh_screen_applies_modus_operandi_theme},
         {"editor_refresh_screen_applies_github_light_theme",

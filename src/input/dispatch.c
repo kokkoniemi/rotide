@@ -48,7 +48,8 @@ enum {
 	DRAWER_DOUBLE_CLICK_THRESHOLD_MS = 400,
 	TEXT_MULTI_CLICK_THRESHOLD_MS = 400,
 	DRAWER_RESIZE_STEP = 1,
-	KEYBOARD_SCROLL_COLS = 3
+	KEYBOARD_SCROLL_COLS = 3,
+	KEYBOARD_SCROLL_ROWS = 1
 };
 
 enum dispatchKeypressEffect {
@@ -169,6 +170,18 @@ static void dispatchClearSelectionMode(void) {
 	E.selection_mode_active = 0;
 	E.selection_anchor_offset = 0;
 	editorColumnSelectionClear();
+}
+
+/* Anchors a linear selection at the cursor when none is active so that a
+ * subsequent cursor move extends it; leaves an in-progress selection alone so
+ * its anchor is preserved across repeated Shift+move keys. */
+static void dispatchBeginOrContinueSelection(void) {
+	if (!E.selection_mode_active) {
+		dispatchAlignCursorWithRowEnd();
+		editorColumnSelectionClear();
+		E.selection_mode_active = 1;
+		E.selection_anchor_offset = E.cursor_offset;
+	}
 }
 
 static void dispatchCtrlClickGoToDefinitionAction(void) {
@@ -1760,6 +1773,79 @@ static int dispatchHandleDelegatedAction(enum editorAction action, int *effects)
 	return 0;
 }
 
+static int dispatchHandleSelectionAction(enum editorAction action, int *effects) {
+	switch (action) {
+		case EDITOR_ACTION_SELECT_ALL:
+			editorHistoryBreakGroup();
+			if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT) {
+				return 1;
+			}
+			if (editorEditSelectAll()) {
+				editorViewportEnsureCursorVisible();
+				*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			}
+			return 1;
+		case EDITOR_ACTION_SELECT_LEFT:
+		case EDITOR_ACTION_SELECT_RIGHT:
+		case EDITOR_ACTION_SELECT_UP:
+		case EDITOR_ACTION_SELECT_DOWN:
+		case EDITOR_ACTION_SELECT_WORD_LEFT:
+		case EDITOR_ACTION_SELECT_WORD_RIGHT:
+			editorHistoryBreakGroup();
+			if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT) {
+				return 1;
+			}
+			dispatchBeginOrContinueSelection();
+			switch (action) {
+				case EDITOR_ACTION_SELECT_LEFT:
+					dispatchMoveCursor(ARROW_LEFT);
+					break;
+				case EDITOR_ACTION_SELECT_RIGHT:
+					dispatchMoveCursor(ARROW_RIGHT);
+					break;
+				case EDITOR_ACTION_SELECT_UP:
+					dispatchMoveCursor(ARROW_UP);
+					break;
+				case EDITOR_ACTION_SELECT_DOWN:
+					dispatchMoveCursor(ARROW_DOWN);
+					break;
+				case EDITOR_ACTION_SELECT_WORD_LEFT:
+					dispatchMoveCursorWordLeft();
+					break;
+				default:
+					dispatchMoveCursorWordRight();
+					break;
+			}
+			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			return 1;
+		case EDITOR_ACTION_SELECT_HOME:
+			editorHistoryBreakGroup();
+			if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT) {
+				return 1;
+			}
+			dispatchBeginOrContinueSelection();
+			(void)dispatchSetCursorFromPosition(E.cy, 0);
+			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			return 1;
+		case EDITOR_ACTION_SELECT_END:
+			editorHistoryBreakGroup();
+			if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT) {
+				return 1;
+			}
+			dispatchBeginOrContinueSelection();
+			if (E.cy < E.numrows) {
+				(void)dispatchSetCursorFromPosition(
+				        E.cy, (int)editorDocumentLineLength(E.document, E.cy));
+			} else {
+				(void)dispatchSetCursorFromPosition(E.numrows, 0);
+			}
+			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			return 1;
+		default:
+			return 0;
+	}
+}
+
 static int dispatchHandleColumnSelectionAction(enum editorAction action, int *effects) {
 	switch (action) {
 		case EDITOR_ACTION_COLUMN_SELECT_UP:
@@ -1854,6 +1940,16 @@ static int dispatchHandleViewAction(enum editorAction action, int *effects) {
 			editorViewportScrollByCols(KEYBOARD_SCROLL_COLS);
 			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 			return 1;
+		case EDITOR_ACTION_SCROLL_UP:
+			editorHistoryBreakGroup();
+			editorViewportScrollByRows(-KEYBOARD_SCROLL_ROWS);
+			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
+			return 1;
+		case EDITOR_ACTION_SCROLL_DOWN:
+			editorHistoryBreakGroup();
+			editorViewportScrollByRows(KEYBOARD_SCROLL_ROWS);
+			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
+			return 1;
 		default:
 			return 0;
 	}
@@ -1915,11 +2011,13 @@ static int dispatchHandleCursorAction(enum editorAction action, int *effects) {
 	switch (action) {
 		case EDITOR_ACTION_MOVE_HOME:
 			editorHistoryBreakGroup();
+			dispatchClearSelectionMode();
 			(void)dispatchSetCursorFromPosition(E.cy, 0);
 			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			return 1;
 		case EDITOR_ACTION_MOVE_END:
 			editorHistoryBreakGroup();
+			dispatchClearSelectionMode();
 			if (E.cy < E.numrows) {
 				(void)dispatchSetCursorFromPosition(
 				        E.cy, (int)editorDocumentLineLength(E.document, E.cy));
@@ -1930,37 +2028,37 @@ static int dispatchHandleCursorAction(enum editorAction action, int *effects) {
 			return 1;
 		case EDITOR_ACTION_MOVE_WORD_LEFT:
 			editorHistoryBreakGroup();
-			editorColumnSelectionClear();
+			dispatchClearSelectionMode();
 			dispatchMoveCursorWordLeft();
 			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			return 1;
 		case EDITOR_ACTION_MOVE_WORD_RIGHT:
 			editorHistoryBreakGroup();
-			editorColumnSelectionClear();
+			dispatchClearSelectionMode();
 			dispatchMoveCursorWordRight();
 			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			return 1;
 		case EDITOR_ACTION_MOVE_UP:
 			editorHistoryBreakGroup();
-			editorColumnSelectionClear();
+			dispatchClearSelectionMode();
 			dispatchMoveCursor(ARROW_UP);
 			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			return 1;
 		case EDITOR_ACTION_MOVE_DOWN:
 			editorHistoryBreakGroup();
-			editorColumnSelectionClear();
+			dispatchClearSelectionMode();
 			dispatchMoveCursor(ARROW_DOWN);
 			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			return 1;
 		case EDITOR_ACTION_MOVE_LEFT:
 			editorHistoryBreakGroup();
-			editorColumnSelectionClear();
+			dispatchClearSelectionMode();
 			dispatchMoveCursor(ARROW_LEFT);
 			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			return 1;
 		case EDITOR_ACTION_MOVE_RIGHT:
 			editorHistoryBreakGroup();
-			editorColumnSelectionClear();
+			dispatchClearSelectionMode();
 			dispatchMoveCursor(ARROW_RIGHT);
 			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			return 1;
@@ -1991,7 +2089,8 @@ static int dispatchHandleModeAction(enum editorAction action) {
 }
 
 static int dispatchHandleLocalAction(enum editorAction action, int *effects) {
-	return dispatchHandleColumnSelectionAction(action, effects) ||
+	return dispatchHandleSelectionAction(action, effects) ||
+	       dispatchHandleColumnSelectionAction(action, effects) ||
 	       dispatchHandleViewAction(action, effects) ||
 	       dispatchHandleSearchAction(action, effects) || dispatchHandleDrawerAction(action) ||
 	       dispatchHandleCursorAction(action, effects) || dispatchHandleModeAction(action);

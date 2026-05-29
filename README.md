@@ -92,9 +92,8 @@ Syntax fixture samples are stored in [`tests/syntax/`](tests/syntax/README.md).
 - `Alt-Right` / `Alt-Left`: next/previous tab
 - `Ctrl-Shift-Alt-Left` / `-Right` / `-Up` / `-Down`: move the active tab to the neighbouring pane
 - `Ctrl-E`: toggle focus between editor and drawer
-- `Ctrl-\`: collapse/expand drawer
+- `Ctrl-B`: toggle the drawer (collapse/expand the sidebar)
 - `Alt-M`: open the main menu in the drawer
-- `Alt-Shift-Left` / `Alt-Shift-Right`: resize drawer
 - `Ctrl-P`: search files in the drawer
 - `Ctrl-Alt-F`: search text across the project
 - `Ctrl-Alt-L`: show LSP Problems/Symbols drawer
@@ -105,14 +104,20 @@ Syntax fixture samples are stored in [`tests/syntax/`](tests/syntax/README.md).
 - `Alt-Z`: toggle soft line wrapping
 - `Alt-N`: toggle absolute line numbers
 - `Alt-H`: toggle current-line highlight
-- `Ctrl-B`: toggle selection
+- `Ctrl-A`: select all
+- `Shift-Arrow`: extend selection (a plain arrow collapses it); `Ctrl-Shift-Left`/`-Right` extend by word; `Shift-Home`/`Shift-End` extend to line start/end
+- `Alt-Shift-Arrow`: column (box) selection
 - `Ctrl-C` / `Ctrl-X` / `Ctrl-D` / `Ctrl-V`: copy/cut/delete/paste selection
 - `Ctrl-Z` / `Ctrl-Y`: undo/redo
 - `Ctrl-Left` / `Ctrl-Right`: move by word
+- `Ctrl-Up` / `Ctrl-Down`: scroll the viewport up/down without moving the cursor
 - arrows, home/end, page up/page down: movement and viewport navigation
 
-`eslint_fix`, `scroll_left`, and `scroll_right` are configurable actions without
-default bindings in the built-in keymap.
+`eslint_fix`, `scroll_left`, `scroll_right`, `toggle_selection` (modal keyboard
+selection, superseded by Shift+move), and `resize_drawer_narrow`/
+`resize_drawer_widen` are configurable actions without default bindings in the
+built-in keymap.
+
 
 ## Configuration
 

@@ -20,7 +20,7 @@ static int test_editor_keymap_load_valid_project_overrides_defaults(void) {
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
 	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
-	                                          "save = \"ctrl+a\"\n"
+	                                          "save = \"ctrl+u\"\n"
 	                                          "redraw = \"ctrl+s\"\n"));
 
 	struct editorKeymap keymap;
@@ -28,7 +28,7 @@ static int test_editor_keymap_load_valid_project_overrides_defaults(void) {
 	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
 
 	enum editorAction action = EDITOR_ACTION_COUNT;
-	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('a'), &action));
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('u'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_SAVE, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('s'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_REDRAW, action);
@@ -48,7 +48,7 @@ static int test_editor_keymap_load_unknown_action_falls_back_to_defaults(void) {
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
 	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
-	                                          "not_a_real_action = \"ctrl+a\"\n"));
+	                                          "not_a_real_action = \"ctrl+u\"\n"));
 
 	struct editorKeymap keymap;
 	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
@@ -57,7 +57,7 @@ static int test_editor_keymap_load_unknown_action_falls_back_to_defaults(void) {
 	enum editorAction action = EDITOR_ACTION_COUNT;
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('s'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_SAVE, action);
-	ASSERT_TRUE(!editorKeymapLookupAction(&keymap, CTRL_KEY('a'), &action));
+	ASSERT_TRUE(!editorKeymapLookupAction(&keymap, CTRL_KEY('u'), &action));
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(rmdir(dir_path) == 0);
@@ -81,7 +81,7 @@ static int test_editor_keymap_load_unknown_keyspec_falls_back_to_defaults(void) 
 	enum editorAction action = EDITOR_ACTION_COUNT;
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('s'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_SAVE, action);
-	ASSERT_TRUE(!editorKeymapLookupAction(&keymap, CTRL_KEY('a'), &action));
+	ASSERT_TRUE(!editorKeymapLookupAction(&keymap, CTRL_KEY('u'), &action));
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(rmdir(dir_path) == 0);
@@ -96,8 +96,8 @@ static int test_editor_keymap_load_duplicate_binding_falls_back_to_defaults(void
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
 	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
-	                                          "save = \"ctrl+a\"\n"
-	                                          "quit = \"ctrl+a\"\n"));
+	                                          "save = \"ctrl+u\"\n"
+	                                          "quit = \"ctrl+u\"\n"));
 
 	struct editorKeymap keymap;
 	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
@@ -122,7 +122,7 @@ static int test_editor_keymap_load_malformed_toml_falls_back_to_defaults(void) {
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
 	ASSERT_TRUE(write_text_file(project_path, "[keymap\n"
-	                                          "save = \"ctrl+a\"\n"));
+	                                          "save = \"ctrl+u\"\n"));
 
 	struct editorKeymap keymap;
 	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
@@ -131,7 +131,7 @@ static int test_editor_keymap_load_malformed_toml_falls_back_to_defaults(void) {
 	enum editorAction action = EDITOR_ACTION_COUNT;
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('s'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_SAVE, action);
-	ASSERT_TRUE(!editorKeymapLookupAction(&keymap, CTRL_KEY('a'), &action));
+	ASSERT_TRUE(!editorKeymapLookupAction(&keymap, CTRL_KEY('u'), &action));
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(rmdir(dir_path) == 0);
@@ -149,7 +149,7 @@ static int test_editor_keymap_global_then_project_precedence(void) {
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
 
 	ASSERT_TRUE(write_text_file(global_path, "[keymap]\n"
-	                                         "save = \"ctrl+a\"\n"));
+	                                         "save = \"ctrl+u\"\n"));
 	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
 	                                          "save = \"ctrl+t\"\n"));
 
@@ -161,7 +161,7 @@ static int test_editor_keymap_global_then_project_precedence(void) {
 	enum editorAction action = EDITOR_ACTION_COUNT;
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('t'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_SAVE, action);
-	if (editorKeymapLookupAction(&keymap, CTRL_KEY('a'), &action)) {
+	if (editorKeymapLookupAction(&keymap, CTRL_KEY('u'), &action)) {
 		ASSERT_TRUE(action != EDITOR_ACTION_SAVE);
 	}
 
@@ -182,7 +182,7 @@ static int test_editor_keymap_invalid_global_ignored_when_project_valid(void) {
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
 
 	ASSERT_TRUE(write_text_file(global_path, "[keymap\n"
-	                                         "save = \"ctrl+a\"\n"));
+	                                         "save = \"ctrl+u\"\n"));
 	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
 	                                          "save = \"ctrl+t\"\n"));
 
@@ -249,7 +249,7 @@ static int test_editor_keymap_load_configured_ignores_project(void) {
 		goto cleanup;
 	}
 	if (!write_text_file(project_path, "[keymap]\n"
-	                                   "save = \"ctrl+a\"\n")) {
+	                                   "save = \"ctrl+u\"\n")) {
 		goto cleanup;
 	}
 	if (setenv("HOME", home_dir, 1) != 0) {
@@ -270,7 +270,7 @@ static int test_editor_keymap_load_configured_ignores_project(void) {
 	    action != EDITOR_ACTION_SAVE) {
 		goto cleanup;
 	}
-	if (editorKeymapLookupAction(&keymap, CTRL_KEY('a'), &action) &&
+	if (editorKeymapLookupAction(&keymap, CTRL_KEY('u'), &action) &&
 	    action == EDITOR_ACTION_SAVE) {
 		goto cleanup;
 	}
@@ -515,7 +515,7 @@ static int test_editor_cursor_style_invalid_setting_does_not_break_keymap_loadin
 	ASSERT_TRUE(write_text_file(project_path, "[editor]\n"
 	                                          "cursor_style = \"nope\"\n"
 	                                          "[keymap]\n"
-	                                          "save = \"ctrl+a\"\n"));
+	                                          "save = \"ctrl+u\"\n"));
 
 	struct editorKeymap keymap;
 	enum editorKeymapLoadStatus keymap_status =
@@ -523,7 +523,7 @@ static int test_editor_cursor_style_invalid_setting_does_not_break_keymap_loadin
 	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, keymap_status);
 
 	enum editorAction action = EDITOR_ACTION_COUNT;
-	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('a'), &action));
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('u'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_SAVE, action);
 
 	enum editorCursorStyle style = EDITOR_CURSOR_STYLE_UNDERLINE;
@@ -666,7 +666,7 @@ static int test_editor_line_wrap_invalid_setting_does_not_break_keymap_loading(v
 	ASSERT_TRUE(write_text_file(project_path, "[editor]\n"
 	                                          "line_wrap = maybe\n"
 	                                          "[keymap]\n"
-	                                          "save = \"ctrl+a\"\n"));
+	                                          "save = \"ctrl+u\"\n"));
 
 	struct editorKeymap keymap;
 	enum editorKeymapLoadStatus keymap_status =
@@ -674,7 +674,7 @@ static int test_editor_line_wrap_invalid_setting_does_not_break_keymap_loading(v
 	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, keymap_status);
 
 	enum editorAction action = EDITOR_ACTION_COUNT;
-	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('a'), &action));
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('u'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_SAVE, action);
 
 	int line_wrap = 1;
@@ -898,6 +898,7 @@ static int test_editor_keymap_load_modifier_combo_specs_case_insensitive(void) {
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
 	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	                                          "scroll_up = \"ctrl+alt+up\"\n"
 	                                          "next_tab = \"CTRL+ALT+RIGHT\"\n"
 	                                          "prev_tab = \"ctrl+UP\"\n"
 	                                          "toggle_drawer = \"ctrl+alt+e\"\n"
@@ -1069,7 +1070,7 @@ static int test_editor_keymap_defaults_include_tab_actions(void) {
 	ASSERT_EQ_INT(EDITOR_ACTION_MOVE_TAB_DOWN_PANE, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('e'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_FOCUS_DRAWER, action);
-	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_CTRL_ALT_LETTER_KEY('e'), &action));
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('b'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_TOGGLE_DRAWER, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('m'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_MAIN_MENU, action);
@@ -1097,6 +1098,104 @@ static int test_editor_keymap_defaults_include_tab_actions(void) {
 	ASSERT_EQ_INT(EDITOR_ACTION_MOVE_WORD_LEFT, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_ARROW_RIGHT, &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_MOVE_WORD_RIGHT, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_ARROW_UP, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SCROLL_UP, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_ARROW_DOWN, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SCROLL_DOWN, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('a'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_ALL, action);
+	return 0;
+}
+
+static int test_editor_keymap_defaults_include_shift_selection(void) {
+	struct editorKeymap keymap;
+	editorKeymapInitDefaults(&keymap);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, SHIFT_ARROW_LEFT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_LEFT, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, SHIFT_ARROW_RIGHT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_RIGHT, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, SHIFT_ARROW_UP, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_UP, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, SHIFT_ARROW_DOWN, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_DOWN, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_SHIFT_ARROW_LEFT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_WORD_LEFT, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_SHIFT_ARROW_RIGHT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_WORD_RIGHT, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, SHIFT_HOME_KEY, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_HOME, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, SHIFT_END_KEY, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_END, action);
+
+	char binding[24];
+	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_SELECT_LEFT, binding,
+	                                      sizeof(binding)));
+	ASSERT_EQ_STR("Shift-Left", binding);
+	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_SELECT_WORD_RIGHT, binding,
+	                                      sizeof(binding)));
+	ASSERT_EQ_STR("Ctrl-Shift-Right", binding);
+	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_SELECT_END, binding,
+	                                      sizeof(binding)));
+	ASSERT_EQ_STR("Shift-End", binding);
+	return 0;
+}
+
+static int test_editor_keymap_load_accepts_remapped_shift_selection(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-shiftsel-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	                                          "select_left = \"SHIFT+left\"\n"
+	                                          "select_word_right = \"ctrl+shift+RIGHT\"\n"
+	                                          "select_end = \"shift+END\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, SHIFT_ARROW_LEFT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_LEFT, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_SHIFT_ARROW_RIGHT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_WORD_RIGHT, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, SHIFT_END_KEY, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_END, action);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_load_accepts_remapped_vertical_scroll(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-vscroll-remap-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	                                          "scroll_up = \"ctrl+alt+up\"\n"
+	                                          "scroll_down = \"ctrl+alt+down\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_ALT_ARROW_UP, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SCROLL_UP, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_ALT_ARROW_DOWN, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SCROLL_DOWN, action);
+	ASSERT_TRUE(!editorKeymapLookupAction(&keymap, CTRL_ARROW_UP, &action));
+	ASSERT_TRUE(!editorKeymapLookupAction(&keymap, CTRL_ARROW_DOWN, &action));
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
 	return 0;
 }
 
@@ -1428,6 +1527,12 @@ const struct editorTestCase g_workspace_keymap_view_tests[] = {
          test_editor_keymap_defaults_include_tab_actions},
         {"editor_keymap_load_accepts_remapped_horizontal_scroll",
          test_editor_keymap_load_accepts_remapped_horizontal_scroll},
+        {"editor_keymap_defaults_include_shift_selection",
+         test_editor_keymap_defaults_include_shift_selection},
+        {"editor_keymap_load_accepts_remapped_shift_selection",
+         test_editor_keymap_load_accepts_remapped_shift_selection},
+        {"editor_keymap_load_accepts_remapped_vertical_scroll",
+         test_editor_keymap_load_accepts_remapped_vertical_scroll},
         {"editor_keymap_load_accepts_toggle_line_wrap_alt_z",
          test_editor_keymap_load_accepts_toggle_line_wrap_alt_z},
         {"editor_keymap_load_accepts_line_number_highlight_toggles",

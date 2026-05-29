@@ -6,7 +6,7 @@ static int test_editor_process_keypress_ctrl_z_ctrl_y_roundtrip_after_cut(void) 
 	add_row("abcde");
 	E.cy = 0;
 	E.cx = 1;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 	E.cx = 3;
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('x')) == 0);
 	ASSERT_ROW_TEXT_EQ(0, "ade");

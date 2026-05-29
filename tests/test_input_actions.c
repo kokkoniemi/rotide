@@ -3,6 +3,7 @@
 #include "editor_test_api.h"
 #include "input/actions_workspace.h"
 #include "input/dispatch.h"
+#include "input/text_pairs.h"
 #include "language/syntax.h"
 #include "rotide.h"
 #include "support/terminal.h"
@@ -31,7 +32,7 @@ static int test_editor_process_keypress_keymap_remap_changes_dispatch(void) {
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
 	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
-	                                          "save = \"ctrl+a\"\n"
+	                                          "save = \"ctrl+u\"\n"
 	                                          "redraw = \"ctrl+s\"\n"));
 
 	enum editorKeymapLoadStatus status =
@@ -58,8 +59,8 @@ static int test_editor_process_keypress_keymap_remap_changes_dispatch(void) {
 	ASSERT_EQ_INT(0, first_read_len);
 	free(first_contents);
 
-	char ctrl_a[] = {CTRL_KEY('a')};
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_a, sizeof(ctrl_a)) == 0);
+	char ctrl_u[] = {CTRL_KEY('u')};
+	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_u, sizeof(ctrl_u)) == 0);
 	ASSERT_EQ_INT(0, E.dirty);
 
 	size_t second_read_len = 0;
@@ -455,7 +456,7 @@ static int test_editor_process_keypress_toggle_drawer_shortcut_collapses_and_exp
 	ASSERT_TRUE(setup_recovery_test_env(&env));
 	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
 
-	char toggle_drawer[] = {'\x1b', CTRL_KEY('e')};
+	char toggle_drawer[] = {CTRL_KEY('b')};
 	ASSERT_TRUE(editor_process_keypress_with_input(toggle_drawer, sizeof(toggle_drawer)) == 0);
 	ASSERT_TRUE(editorDrawerIsCollapsed());
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
@@ -494,7 +495,7 @@ static int test_editor_process_keypress_toggle_drawer_preserves_search_modes(voi
 	ASSERT_TRUE(editor_process_keypress_with_input(file_query, sizeof(file_query)) == 0);
 	ASSERT_EQ_STR("a", editorFileSearchQuery());
 
-	char toggle_drawer[] = {'\x1b', CTRL_KEY('e')};
+	char toggle_drawer[] = {CTRL_KEY('b')};
 	ASSERT_TRUE(editor_process_keypress_with_input(toggle_drawer, sizeof(toggle_drawer)) == 0);
 	ASSERT_TRUE(editorDrawerIsCollapsed());
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
@@ -1563,6 +1564,122 @@ static int test_editor_process_keypress_page_up_down_scroll_viewport_without_mov
 	return 0;
 }
 
+static int test_editor_bracket_match_same_line_forward(void) {
+	add_row("foo(a + b)bar");
+	E.cy = 0;
+	E.cx = 3; /* on '(' */
+
+	int rows[2] = {-1, -1};
+	int cols[2] = {-1, -1};
+	ASSERT_TRUE(editorBracketMatchComputeForCursor(rows, cols));
+	ASSERT_EQ_INT(0, rows[0]);
+	ASSERT_EQ_INT(3, cols[0]);
+	ASSERT_EQ_INT(0, rows[1]);
+	ASSERT_EQ_INT(9, cols[1]); /* the ')' */
+	return 0;
+}
+
+static int test_editor_bracket_match_same_line_backward(void) {
+	add_row("foo(a + b)bar");
+	E.cy = 0;
+	E.cx = 9; /* on ')' */
+
+	int rows[2] = {-1, -1};
+	int cols[2] = {-1, -1};
+	ASSERT_TRUE(editorBracketMatchComputeForCursor(rows, cols));
+	ASSERT_EQ_INT(0, rows[0]);
+	ASSERT_EQ_INT(9, cols[0]);
+	ASSERT_EQ_INT(0, rows[1]);
+	ASSERT_EQ_INT(3, cols[1]); /* the '(' */
+	return 0;
+}
+
+static int test_editor_bracket_match_nested_picks_correct_pair(void) {
+	add_row("((x))");
+	E.cy = 0;
+	E.cx = 0; /* outer '(' */
+
+	int rows[2] = {-1, -1};
+	int cols[2] = {-1, -1};
+	ASSERT_TRUE(editorBracketMatchComputeForCursor(rows, cols));
+	ASSERT_EQ_INT(0, cols[0]);
+	ASSERT_EQ_INT(4, cols[1]); /* outer ')' */
+
+	E.cx = 1; /* inner '(' */
+	ASSERT_TRUE(editorBracketMatchComputeForCursor(rows, cols));
+	ASSERT_EQ_INT(1, cols[0]);
+	ASSERT_EQ_INT(3, cols[1]); /* inner ')' */
+	return 0;
+}
+
+static int test_editor_bracket_match_across_lines(void) {
+	add_row("func() {");
+	add_row("    body();");
+	add_row("}");
+	E.cy = 0;
+	E.cx = 7; /* on '{' */
+
+	int rows[2] = {-1, -1};
+	int cols[2] = {-1, -1};
+	ASSERT_TRUE(editorBracketMatchComputeForCursor(rows, cols));
+	ASSERT_EQ_INT(0, rows[0]);
+	ASSERT_EQ_INT(7, cols[0]);
+	ASSERT_EQ_INT(2, rows[1]); /* '}' on third line */
+	ASSERT_EQ_INT(0, cols[1]);
+	return 0;
+}
+
+static int test_editor_bracket_match_inactive_when_not_on_bracket(void) {
+	add_row("foo(a + b)bar");
+	E.cy = 0;
+	E.cx = 0; /* on 'f' */
+
+	int rows[2] = {-1, -1};
+	int cols[2] = {-1, -1};
+	ASSERT_TRUE(!editorBracketMatchComputeForCursor(rows, cols));
+
+	E.cx = 13; /* end of line, no char under cursor */
+	ASSERT_TRUE(!editorBracketMatchComputeForCursor(rows, cols));
+	return 0;
+}
+
+static int test_editor_bracket_match_inactive_when_unbalanced(void) {
+	add_row("foo(a + b");
+	E.cy = 0;
+	E.cx = 3; /* on '(' with no closing */
+
+	int rows[2] = {-1, -1};
+	int cols[2] = {-1, -1};
+	ASSERT_TRUE(!editorBracketMatchComputeForCursor(rows, cols));
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_arrow_up_down_scroll_viewport(void) {
+	for (int i = 0; i < 20; i++) {
+		add_row("line");
+	}
+	E.window_rows = 5;
+	E.window_cols = 20;
+	E.cy = 10;
+	E.cx = 2;
+	E.rowoff = 8;
+
+	const char ctrl_down[] = "\x1b[1;5B";
+	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_down, sizeof(ctrl_down) - 1) == 0);
+	ASSERT_EQ_INT(10, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_EQ_INT(9, E.rowoff);
+	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
+
+	const char ctrl_up[] = "\x1b[1;5A";
+	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_up, sizeof(ctrl_up) - 1) == 0);
+	ASSERT_EQ_INT(10, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_EQ_INT(8, E.rowoff);
+	ASSERT_EQ_INT(EDITOR_VIEWPORT_FREE_SCROLL, E.viewport_mode);
+	return 0;
+}
+
 static int test_editor_process_keypress_ctrl_arrow_moves_by_word(void) {
 	add_row("alpha beta.gamma");
 	add_row("  delta");
@@ -2130,6 +2247,17 @@ const struct editorTestCase g_input_actions_tests[] = {
          test_editor_drawer_arrow_navigation_opens_preview_tab},
         {"editor_process_keypress_page_up_down_scroll_viewport_without_moving_cursor",
          test_editor_process_keypress_page_up_down_scroll_viewport_without_moving_cursor},
+        {"editor_bracket_match_same_line_forward", test_editor_bracket_match_same_line_forward},
+        {"editor_bracket_match_same_line_backward", test_editor_bracket_match_same_line_backward},
+        {"editor_bracket_match_nested_picks_correct_pair",
+         test_editor_bracket_match_nested_picks_correct_pair},
+        {"editor_bracket_match_across_lines", test_editor_bracket_match_across_lines},
+        {"editor_bracket_match_inactive_when_not_on_bracket",
+         test_editor_bracket_match_inactive_when_not_on_bracket},
+        {"editor_bracket_match_inactive_when_unbalanced",
+         test_editor_bracket_match_inactive_when_unbalanced},
+        {"editor_process_keypress_ctrl_arrow_up_down_scroll_viewport",
+         test_editor_process_keypress_ctrl_arrow_up_down_scroll_viewport},
         {"editor_process_keypress_ctrl_arrow_moves_by_word",
          test_editor_process_keypress_ctrl_arrow_moves_by_word},
         {"editor_process_keypress_free_scroll_can_leave_cursor_offscreen",

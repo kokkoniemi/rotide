@@ -1,6 +1,7 @@
 #include "render/pane_view.h"
 
 #include "config/theme_config.h"
+#include "input/text_pairs.h"
 #include "language/syntax.h"
 #include "language/syntax_visible_cache.h"
 #include "render/ansi_style.h"
@@ -40,6 +41,9 @@ struct paneViewSyntaxFrameEntry {
 	const struct editorPaneNode *leaf;
 	int body_rows;
 	struct paneViewSyntaxRowOverride *rows;
+	int bracket_match_active;
+	int bracket_match_rows[2];
+	int bracket_match_cols[2];
 };
 
 struct paneViewSyntaxFrame {
@@ -49,7 +53,27 @@ struct paneViewSyntaxFrame {
 
 static struct paneViewSyntaxFrame g_pane_view_syntax_frame = {0};
 static const struct paneViewSyntaxRowOverride *g_pane_view_active_row_syntax_override = NULL;
+static const struct paneViewSyntaxFrameEntry *g_pane_view_active_bracket_entry = NULL;
 static int g_pane_view_wrap_body_cols_override = 0;
+
+/*
+ * The single-pane render path does not build a per-pane syntax frame, so it
+ * stashes the focused buffer's matching-bracket pair here for the duration of
+ * one frame. The multi-pane path leaves this inactive and relies on the
+ * per-pane frame entry instead.
+ */
+static int g_pane_view_single_bracket_active = 0;
+static int g_pane_view_single_bracket_rows[2];
+static int g_pane_view_single_bracket_cols[2];
+
+void editorPaneSingleBracketMatchUpdate(void) {
+	g_pane_view_single_bracket_active = editorBracketMatchComputeForCursor(
+	        g_pane_view_single_bracket_rows, g_pane_view_single_bracket_cols);
+}
+
+void editorPaneSingleBracketMatchClear(void) {
+	g_pane_view_single_bracket_active = 0;
+}
 
 int editorPaneWrapBodyColsOverride(void) {
 	return g_pane_view_wrap_body_cols_override;
@@ -80,6 +104,37 @@ int editorPaneSyntaxRowOverrideCopy(int row_idx, struct editorRowSyntaxSpan *spa
 	}
 	*span_count_out = span_count;
 	return 1;
+}
+
+int editorPaneActiveBracketColsForRow(int row_idx, int out_cols[2], int *count_out) {
+	if (count_out != NULL) {
+		*count_out = 0;
+	}
+	if (out_cols == NULL || count_out == NULL) {
+		return 0;
+	}
+
+	const int *match_rows = NULL;
+	const int *match_cols = NULL;
+	if (g_pane_view_active_bracket_entry != NULL &&
+	    g_pane_view_active_bracket_entry->bracket_match_active) {
+		match_rows = g_pane_view_active_bracket_entry->bracket_match_rows;
+		match_cols = g_pane_view_active_bracket_entry->bracket_match_cols;
+	} else if (g_pane_view_single_bracket_active) {
+		match_rows = g_pane_view_single_bracket_rows;
+		match_cols = g_pane_view_single_bracket_cols;
+	} else {
+		return 0;
+	}
+
+	int count = 0;
+	for (int i = 0; i < 2; i++) {
+		if (match_rows[i] == row_idx) {
+			out_cols[count++] = match_cols[i];
+		}
+	}
+	*count_out = count;
+	return count > 0;
 }
 
 static int paneViewTextBodyViewportColsForWidth(int pane_cols) {
@@ -135,6 +190,7 @@ void editorPaneSyntaxFrameClear(void) {
 	g_pane_view_syntax_frame.entries = NULL;
 	g_pane_view_syntax_frame.count = 0;
 	g_pane_view_active_row_syntax_override = NULL;
+	g_pane_view_active_bracket_entry = NULL;
 }
 
 static int paneViewSyntaxFrameBuildEntry(struct paneViewSyntaxFrameEntry *entry, int pane_cols) {
@@ -250,6 +306,8 @@ int editorPaneSyntaxFrameBuild(const struct editorLeafLayout *layout) {
 			editorViewSnapshotFromPaneView(&leaf->as.leaf.view);
 		}
 		int ok = paneViewSyntaxFrameBuildEntry(entry, layout->rects[i].rect.w);
+		entry->bracket_match_active = editorBracketMatchComputeForCursor(
+		        entry->bracket_match_rows, entry->bracket_match_cols);
 
 		editorBufferAliasToActive(&buffer_snap);
 		E.active_tab = active_tab;
@@ -276,20 +334,26 @@ int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode 
 	int saved_wrap_body_cols_override = g_pane_view_wrap_body_cols_override;
 	const struct paneViewSyntaxRowOverride *saved_row_syntax_override =
 	        g_pane_view_active_row_syntax_override;
+	const struct paneViewSyntaxFrameEntry *saved_bracket_entry =
+	        g_pane_view_active_bracket_entry;
 	const struct paneViewSyntaxRowOverride *row_syntax_override = NULL;
+	const struct paneViewSyntaxFrameEntry *bracket_entry = NULL;
 	if (body_row_in_pane >= 0 && g_pane_view_syntax_frame.entries != NULL) {
 		for (int i = 0; i < g_pane_view_syntax_frame.count; i++) {
 			struct paneViewSyntaxFrameEntry *entry =
 			        &g_pane_view_syntax_frame.entries[i];
-			if (entry->leaf != leaf || entry->rows == NULL ||
-			    body_row_in_pane >= entry->body_rows) {
+			if (entry->leaf != leaf) {
 				continue;
 			}
-			row_syntax_override = &entry->rows[body_row_in_pane];
+			bracket_entry = entry;
+			if (entry->rows != NULL && body_row_in_pane < entry->body_rows) {
+				row_syntax_override = &entry->rows[body_row_in_pane];
+			}
 			break;
 		}
 	}
 	g_pane_view_active_row_syntax_override = row_syntax_override;
+	g_pane_view_active_bracket_entry = bracket_entry;
 	g_pane_view_wrap_body_cols_override = paneViewTextBodyViewportColsForWidth(slice_cols);
 
 	int y_offset = body_row_in_pane + E.rowoff;
@@ -339,6 +403,7 @@ int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode 
 	}
 	g_pane_view_wrap_body_cols_override = saved_wrap_body_cols_override;
 	g_pane_view_active_row_syntax_override = saved_row_syntax_override;
+	g_pane_view_active_bracket_entry = saved_bracket_entry;
 	return 1;
 
 fail:
@@ -346,6 +411,7 @@ fail:
 fail_reset:
 	g_pane_view_wrap_body_cols_override = saved_wrap_body_cols_override;
 	g_pane_view_active_row_syntax_override = saved_row_syntax_override;
+	g_pane_view_active_bracket_entry = saved_bracket_entry;
 	return 0;
 }
 

@@ -17,6 +17,7 @@ int editorHandleEditMappedAction(
         editorEditActionFn toggle_comment_lines, int *effects_io);
 void editorEditToggleSelectionMode(editorEditActionFn clear_selection_mode,
                                    editorEditActionFn align_cursor_with_row_end);
+int editorEditSelectAll(void);
 void editorEditCopySelection(editorEditActionFn clear_selection_mode);
 void editorEditCutSelection(editorEditActionFn clear_selection_mode);
 void editorEditDeleteSelection(editorEditActionFn clear_selection_mode);

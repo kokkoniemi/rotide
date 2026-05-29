@@ -44,7 +44,7 @@ static int test_editor_process_keypress_find_file_filters_previews_and_opens(voi
 	char enter_key[] = {'\r'};
 	ASSERT_TRUE(editor_process_keypress_with_input(enter_key, sizeof(enter_key)) == 0);
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, E.drawer_mode);
-	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
 	ASSERT_EQ_INT(0, editorActiveTabIsPreview());
 	ASSERT_TRUE(E.filename != NULL);
 	ASSERT_EQ_STR(beta_file, E.filename);

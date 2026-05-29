@@ -222,7 +222,7 @@ int editorHandleDrawerSearchMappedAction(enum editorAction action, int *cursor_o
 				break;
 			case EDITOR_ACTION_NEWLINE:
 				if (editorFileSearchOpenSelectedFileInTab()) {
-					E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+					E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 					cursor_or_edit = 1;
 				}
 				break;

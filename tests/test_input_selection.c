@@ -142,7 +142,9 @@ static int test_editor_column_select_toggling_linear_selection_clears_column_mod
 	                                               sizeof(alt_shift_down) - 1) == 0);
 	ASSERT_EQ_INT(1, E.column_select_active);
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	/* Starting a linear (Shift+move) selection clears the column selection. */
+	const char shift_right[] = "\x1b[1;2C";
+	ASSERT_TRUE(editor_process_keypress_with_input(shift_right, sizeof(shift_right) - 1) == 0);
 	ASSERT_EQ_INT(0, E.column_select_active);
 	ASSERT_EQ_INT(1, E.selection_mode_active);
 	return 0;
@@ -210,16 +212,48 @@ static int test_editor_prompt_ignores_resize_events(void) {
 	return 0;
 }
 
-static int test_editor_process_keypress_ctrl_b_toggles_selection_mode(void) {
+static int test_editor_process_keypress_ctrl_b_toggles_drawer(void) {
 	add_row("abcd");
 	E.cy = 0;
 	E.cx = 2;
+	ASSERT_EQ_INT(0, E.drawer_collapsed);
 
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	ASSERT_EQ_INT(1, E.drawer_collapsed);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	ASSERT_EQ_INT(0, E.drawer_collapsed);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_a_selects_whole_buffer(void) {
+	add_row("hello");
+	add_row("world!");
+	add_row("end");
+	E.cy = 1;
+	E.cx = 2;
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('a')) == 0);
 	ASSERT_EQ_INT(1, E.selection_mode_active);
-	ASSERT_EQ_INT(0, assert_selection_anchor(0, 2));
+	/* Cursor lands at the end of the buffer, anchor at the start. */
+	ASSERT_EQ_INT(2, E.cy);
+	ASSERT_EQ_INT(3, E.cx);
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	struct editorSelectionRange range;
+	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
+	ASSERT_EQ_INT(0, range.start_cy);
+	ASSERT_EQ_INT(0, range.start_cx);
+	ASSERT_EQ_INT(2, range.end_cy);
+	ASSERT_EQ_INT(3, range.end_cx);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_a_empty_buffer_is_noop(void) {
+	E.cy = 0;
+	E.cx = 0;
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('a')) == 0);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 
 	struct editorSelectionRange range;
@@ -227,14 +261,14 @@ static int test_editor_process_keypress_ctrl_b_toggles_selection_mode(void) {
 	return 0;
 }
 
-static int test_editor_selection_range_tracks_cursor_movement(void) {
+static int test_editor_selection_range_tracks_shift_arrow_movement(void) {
 	add_row("abcd");
 	E.cy = 0;
 	E.cx = 1;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
 
-	char arrow_right[] = "\x1b[C";
-	ASSERT_TRUE(editor_process_keypress_with_input(arrow_right, sizeof(arrow_right) - 1) == 0);
+	/* Shift+Right with no active selection anchors at the cursor, then extends. */
+	char shift_right[] = "\x1b[1;2C";
+	ASSERT_TRUE(editor_process_keypress_with_input(shift_right, sizeof(shift_right) - 1) == 0);
 
 	struct editorSelectionRange range;
 	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
@@ -243,14 +277,70 @@ static int test_editor_selection_range_tracks_cursor_movement(void) {
 	ASSERT_EQ_INT(0, range.end_cy);
 	ASSERT_EQ_INT(2, range.end_cx);
 
-	ASSERT_TRUE(editor_process_keypress_with_input(arrow_right, sizeof(arrow_right) - 1) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(shift_right, sizeof(shift_right) - 1) == 0);
 	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
 	ASSERT_EQ_INT(3, range.end_cx);
 
-	char arrow_left[] = "\x1b[D";
-	ASSERT_TRUE(editor_process_keypress_with_input(arrow_left, sizeof(arrow_left) - 1) == 0);
+	char shift_left[] = "\x1b[1;2D";
+	ASSERT_TRUE(editor_process_keypress_with_input(shift_left, sizeof(shift_left) - 1) == 0);
 	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
 	ASSERT_EQ_INT(2, range.end_cx);
+	return 0;
+}
+
+static int test_editor_plain_arrow_collapses_shift_selection(void) {
+	add_row("abcd");
+	E.cy = 0;
+	E.cx = 1;
+
+	char shift_right[] = "\x1b[1;2C";
+	ASSERT_TRUE(editor_process_keypress_with_input(shift_right, sizeof(shift_right) - 1) == 0);
+	ASSERT_EQ_INT(1, E.selection_mode_active);
+
+	/* A plain arrow drops the selection (CUA collapse) and just moves. */
+	char arrow_right[] = "\x1b[C";
+	ASSERT_TRUE(editor_process_keypress_with_input(arrow_right, sizeof(arrow_right) - 1) == 0);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+
+	struct editorSelectionRange range;
+	ASSERT_EQ_INT(0, editorGetSelectionRange(&range));
+	return 0;
+}
+
+static int test_editor_ctrl_shift_arrow_selects_by_word(void) {
+	add_row("alpha beta");
+	E.cy = 0;
+	E.cx = 0;
+
+	char ctrl_shift_right[] = "\x1b[1;6C";
+	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_shift_right,
+	                                               sizeof(ctrl_shift_right) - 1) == 0);
+
+	struct editorSelectionRange range;
+	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
+	ASSERT_EQ_INT(0, range.start_cx);
+	ASSERT_EQ_INT(5, range.end_cx); /* end of "alpha" */
+	return 0;
+}
+
+static int test_editor_shift_home_end_extend_selection(void) {
+	add_row("hello world");
+	E.cy = 0;
+	E.cx = 6; /* on 'w' */
+
+	char shift_end[] = "\x1b[1;2F";
+	ASSERT_TRUE(editor_process_keypress_with_input(shift_end, sizeof(shift_end) - 1) == 0);
+	struct editorSelectionRange range;
+	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
+	ASSERT_EQ_INT(6, range.start_cx);
+	ASSERT_EQ_INT(11, range.end_cx); /* end of line */
+
+	/* Anchor stays at 6; Shift+Home swings the cursor to the line start. */
+	char shift_home[] = "\x1b[1;2H";
+	ASSERT_TRUE(editor_process_keypress_with_input(shift_home, sizeof(shift_home) - 1) == 0);
+	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
+	ASSERT_EQ_INT(0, range.start_cx);
+	ASSERT_EQ_INT(6, range.end_cx);
 	return 0;
 }
 
@@ -258,7 +348,7 @@ static int test_editor_process_keypress_ctrl_c_copies_single_line_selection(void
 	add_row("hello");
 	E.cy = 0;
 	E.cx = 0;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 	E.cx = 5;
 	int dirty_before = E.dirty;
 
@@ -279,7 +369,7 @@ static int test_editor_process_keypress_ctrl_c_copies_multiline_selection(void) 
 	add_row("ghi");
 	E.cy = 0;
 	E.cx = 1;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 	E.cy = 2;
 	E.cx = 2;
 
@@ -298,7 +388,7 @@ static int test_editor_process_keypress_ctrl_x_cuts_selection_and_updates_clipbo
 	add_row("world");
 	E.cy = 0;
 	E.cx = 2;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 	E.cy = 1;
 	E.cx = 3;
 	int dirty_before = E.dirty;
@@ -327,7 +417,7 @@ test_editor_process_keypress_ctrl_d_deletes_selection_without_overwriting_clipbo
 	add_row("world");
 	E.cy = 0;
 	E.cx = 2;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 	E.cy = 1;
 	E.cx = 3;
 
@@ -597,7 +687,7 @@ static int test_editor_process_keypress_ctrl_v_clears_selection_mode(void) {
 	add_row("ab");
 	E.cy = 0;
 	E.cx = 1;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 	ASSERT_EQ_INT(1, E.selection_mode_active);
 
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('v')) == 0);
@@ -627,7 +717,7 @@ static int test_editor_process_keypress_selection_ops_noop_without_selection(voi
 	add_row("abc");
 	E.cy = 0;
 	E.cx = 1;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 	ASSERT_EQ_INT(1, E.selection_mode_active);
 
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('c')) == 0);
@@ -649,7 +739,7 @@ static int test_editor_process_keypress_escape_clears_selection_mode(void) {
 	add_row("abcd");
 	E.cy = 0;
 	E.cx = 1;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 	E.cx = 3;
 	ASSERT_EQ_INT(1, E.selection_mode_active);
 
@@ -667,7 +757,7 @@ static int test_editor_process_keypress_edit_ops_clear_selection_mode(void) {
 	add_row("ab");
 	E.cy = 0;
 	E.cx = 1;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 	ASSERT_TRUE(editor_process_single_key('Z') == 0);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 	ASSERT_ROW_TEXT_EQ(0, "aZb");
@@ -676,7 +766,7 @@ static int test_editor_process_keypress_edit_ops_clear_selection_mode(void) {
 	add_row("ab");
 	E.cy = 0;
 	E.cx = 2;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 	ASSERT_TRUE(editor_process_single_key(BACKSPACE) == 0);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 	ASSERT_ROW_TEXT_EQ(0, "a");
@@ -685,7 +775,7 @@ static int test_editor_process_keypress_edit_ops_clear_selection_mode(void) {
 	add_row("ab");
 	E.cy = 0;
 	E.cx = 1;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 	ASSERT_TRUE(editor_process_single_key('\r') == 0);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 	ASSERT_EQ_INT(2, E.numrows);
@@ -698,7 +788,7 @@ static int test_editor_process_keypress_ctrl_c_oom_preserves_buffer(void) {
 	add_row("hello");
 	E.cy = 0;
 	E.cx = 0;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 	E.cx = 5;
 
 	editorTestAllocFailAfter(0);
@@ -761,10 +851,18 @@ const struct editorTestCase g_input_selection_tests[] = {
         {"editor_process_keypress_typed_char_replaces_selection",
          test_editor_process_keypress_typed_char_replaces_selection},
         {"editor_prompt_ignores_resize_events", test_editor_prompt_ignores_resize_events},
-        {"editor_process_keypress_ctrl_b_toggles_selection_mode",
-         test_editor_process_keypress_ctrl_b_toggles_selection_mode},
-        {"editor_selection_range_tracks_cursor_movement",
-         test_editor_selection_range_tracks_cursor_movement},
+        {"editor_process_keypress_ctrl_b_toggles_drawer",
+         test_editor_process_keypress_ctrl_b_toggles_drawer},
+        {"editor_process_keypress_ctrl_a_selects_whole_buffer",
+         test_editor_process_keypress_ctrl_a_selects_whole_buffer},
+        {"editor_process_keypress_ctrl_a_empty_buffer_is_noop",
+         test_editor_process_keypress_ctrl_a_empty_buffer_is_noop},
+        {"editor_selection_range_tracks_shift_arrow_movement",
+         test_editor_selection_range_tracks_shift_arrow_movement},
+        {"editor_plain_arrow_collapses_shift_selection",
+         test_editor_plain_arrow_collapses_shift_selection},
+        {"editor_ctrl_shift_arrow_selects_by_word", test_editor_ctrl_shift_arrow_selects_by_word},
+        {"editor_shift_home_end_extend_selection", test_editor_shift_home_end_extend_selection},
         {"editor_process_keypress_ctrl_c_copies_single_line_selection",
          test_editor_process_keypress_ctrl_c_copies_single_line_selection},
         {"editor_process_keypress_ctrl_c_copies_multiline_selection",

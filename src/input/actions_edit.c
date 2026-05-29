@@ -32,6 +32,27 @@ void editorEditToggleSelectionMode(editorEditActionFn clear_selection_mode,
 	E.selection_anchor_offset = E.cursor_offset;
 }
 
+int editorEditSelectAll(void) {
+	if (E.numrows <= 0) {
+		return 0;
+	}
+
+	int last_row = E.numrows - 1;
+	int last_len = (int)editorDocumentLineLength(E.document, last_row);
+	size_t end_offset = 0;
+	if (!editorBufferPosToOffset(last_row, last_len, &end_offset)) {
+		return 0;
+	}
+
+	editorColumnSelectionClear();
+	E.selection_anchor_offset = 0;
+	E.cy = last_row;
+	E.cx = last_len;
+	E.cursor_offset = end_offset;
+	E.selection_mode_active = 1;
+	return 1;
+}
+
 static int actionsEditCopyRangeToClipboard(const struct editorSelectionRange *range,
                                            size_t *copied_len_out) {
 	char *copied = NULL;
