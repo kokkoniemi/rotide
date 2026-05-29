@@ -92,7 +92,7 @@ Syntax fixture samples are stored in [`tests/syntax/`](tests/syntax/README.md).
 - `Alt-Right` / `Alt-Left`: next/previous tab
 - `Ctrl-Shift-Alt-Left` / `-Right` / `-Up` / `-Down`: move the active tab to the neighbouring pane
 - `Ctrl-E`: toggle focus between editor and drawer
-- `Ctrl-\`: collapse/expand drawer
+- `Ctrl-B`: toggle the drawer (collapse/expand the sidebar)
 - `Alt-M`: open the main menu in the drawer
 - `Alt-Shift-Left` / `Alt-Shift-Right`: resize drawer
 - `Ctrl-P`: search files in the drawer
@@ -105,7 +105,6 @@ Syntax fixture samples are stored in [`tests/syntax/`](tests/syntax/README.md).
 - `Alt-Z`: toggle soft line wrapping
 - `Alt-N`: toggle absolute line numbers
 - `Alt-H`: toggle current-line highlight
-- `Ctrl-B`: toggle selection
 - `Ctrl-A`: select all
 - `Shift-Arrow`: extend selection (a plain arrow collapses it); `Ctrl-Shift-Left`/`-Right` extend by word; `Shift-Home`/`Shift-End` extend to line start/end
 - `Ctrl-C` / `Ctrl-X` / `Ctrl-D` / `Ctrl-V`: copy/cut/delete/paste selection

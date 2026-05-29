@@ -142,7 +142,9 @@ static int test_editor_column_select_toggling_linear_selection_clears_column_mod
 	                                               sizeof(alt_shift_down) - 1) == 0);
 	ASSERT_EQ_INT(1, E.column_select_active);
 
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	/* Starting a linear (Shift+move) selection clears the column selection. */
+	const char shift_right[] = "\x1b[1;2C";
+	ASSERT_TRUE(editor_process_keypress_with_input(shift_right, sizeof(shift_right) - 1) == 0);
 	ASSERT_EQ_INT(0, E.column_select_active);
 	ASSERT_EQ_INT(1, E.selection_mode_active);
 	return 0;
@@ -210,20 +212,18 @@ static int test_editor_prompt_ignores_resize_events(void) {
 	return 0;
 }
 
-static int test_editor_process_keypress_ctrl_b_toggles_selection_mode(void) {
+static int test_editor_process_keypress_ctrl_b_toggles_drawer(void) {
 	add_row("abcd");
 	E.cy = 0;
 	E.cx = 2;
+	ASSERT_EQ_INT(0, E.drawer_collapsed);
 
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
-	ASSERT_EQ_INT(1, E.selection_mode_active);
-	ASSERT_EQ_INT(0, assert_selection_anchor(0, 2));
-
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	ASSERT_EQ_INT(1, E.drawer_collapsed);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 
-	struct editorSelectionRange range;
-	ASSERT_EQ_INT(0, editorGetSelectionRange(&range));
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	ASSERT_EQ_INT(0, E.drawer_collapsed);
 	return 0;
 }
 
@@ -348,7 +348,7 @@ static int test_editor_process_keypress_ctrl_c_copies_single_line_selection(void
 	add_row("hello");
 	E.cy = 0;
 	E.cx = 0;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 	E.cx = 5;
 	int dirty_before = E.dirty;
 
@@ -369,7 +369,7 @@ static int test_editor_process_keypress_ctrl_c_copies_multiline_selection(void) 
 	add_row("ghi");
 	E.cy = 0;
 	E.cx = 1;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 	E.cy = 2;
 	E.cx = 2;
 
@@ -388,7 +388,7 @@ static int test_editor_process_keypress_ctrl_x_cuts_selection_and_updates_clipbo
 	add_row("world");
 	E.cy = 0;
 	E.cx = 2;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 	E.cy = 1;
 	E.cx = 3;
 	int dirty_before = E.dirty;
@@ -417,7 +417,7 @@ test_editor_process_keypress_ctrl_d_deletes_selection_without_overwriting_clipbo
 	add_row("world");
 	E.cy = 0;
 	E.cx = 2;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 	E.cy = 1;
 	E.cx = 3;
 
@@ -687,7 +687,7 @@ static int test_editor_process_keypress_ctrl_v_clears_selection_mode(void) {
 	add_row("ab");
 	E.cy = 0;
 	E.cx = 1;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 	ASSERT_EQ_INT(1, E.selection_mode_active);
 
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('v')) == 0);
@@ -717,7 +717,7 @@ static int test_editor_process_keypress_selection_ops_noop_without_selection(voi
 	add_row("abc");
 	E.cy = 0;
 	E.cx = 1;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 	ASSERT_EQ_INT(1, E.selection_mode_active);
 
 	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('c')) == 0);
@@ -739,7 +739,7 @@ static int test_editor_process_keypress_escape_clears_selection_mode(void) {
 	add_row("abcd");
 	E.cy = 0;
 	E.cx = 1;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 	E.cx = 3;
 	ASSERT_EQ_INT(1, E.selection_mode_active);
 
@@ -757,7 +757,7 @@ static int test_editor_process_keypress_edit_ops_clear_selection_mode(void) {
 	add_row("ab");
 	E.cy = 0;
 	E.cx = 1;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 	ASSERT_TRUE(editor_process_single_key('Z') == 0);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 	ASSERT_ROW_TEXT_EQ(0, "aZb");
@@ -766,7 +766,7 @@ static int test_editor_process_keypress_edit_ops_clear_selection_mode(void) {
 	add_row("ab");
 	E.cy = 0;
 	E.cx = 2;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 	ASSERT_TRUE(editor_process_single_key(BACKSPACE) == 0);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 	ASSERT_ROW_TEXT_EQ(0, "a");
@@ -775,7 +775,7 @@ static int test_editor_process_keypress_edit_ops_clear_selection_mode(void) {
 	add_row("ab");
 	E.cy = 0;
 	E.cx = 1;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 	ASSERT_TRUE(editor_process_single_key('\r') == 0);
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 	ASSERT_EQ_INT(2, E.numrows);
@@ -788,7 +788,7 @@ static int test_editor_process_keypress_ctrl_c_oom_preserves_buffer(void) {
 	add_row("hello");
 	E.cy = 0;
 	E.cx = 0;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 	E.cx = 5;
 
 	editorTestAllocFailAfter(0);
@@ -851,8 +851,8 @@ const struct editorTestCase g_input_selection_tests[] = {
         {"editor_process_keypress_typed_char_replaces_selection",
          test_editor_process_keypress_typed_char_replaces_selection},
         {"editor_prompt_ignores_resize_events", test_editor_prompt_ignores_resize_events},
-        {"editor_process_keypress_ctrl_b_toggles_selection_mode",
-         test_editor_process_keypress_ctrl_b_toggles_selection_mode},
+        {"editor_process_keypress_ctrl_b_toggles_drawer",
+         test_editor_process_keypress_ctrl_b_toggles_drawer},
         {"editor_process_keypress_ctrl_a_selects_whole_buffer",
          test_editor_process_keypress_ctrl_a_selects_whole_buffer},
         {"editor_process_keypress_ctrl_a_empty_buffer_is_noop",

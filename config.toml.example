@@ -268,7 +268,7 @@ close_tab = "ctrl+w"
 next_tab = "alt+right"
 prev_tab = "alt+left"
 focus_drawer = "ctrl+e"
-toggle_drawer = "ctrl+alt+e"
+toggle_drawer = "ctrl+b"
 main_menu = "alt+m"
 # resize_drawer_narrow and resize_drawer_widen have no default binding.
 # To enable them, comment out the conflicting column_select_left/right below.
@@ -285,8 +285,10 @@ goto_line = "ctrl+g"
 goto_matching_bracket = "ctrl+]"
 goto_definition = "ctrl+o"
 # eslint_fix has no default binding; uncomment to enable.
-# eslint_fix = "ctrl+alt+e"  # NOTE: conflicts with toggle_drawer above.
-toggle_selection = "ctrl+b"
+# eslint_fix = "ctrl+alt+e"
+# toggle_selection (modal keyboard selection) has no default binding; the
+# CUA Shift+move selection below supersedes it. Uncomment to use it.
+# toggle_selection = "ctrl+b"
 select_all = "ctrl+a"
 # Extend the selection with the cursor (CUA-style). A plain (unmodified) move
 # collapses the selection instead.

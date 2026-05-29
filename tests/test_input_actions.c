@@ -456,7 +456,7 @@ static int test_editor_process_keypress_toggle_drawer_shortcut_collapses_and_exp
 	ASSERT_TRUE(setup_recovery_test_env(&env));
 	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
 
-	char toggle_drawer[] = {'\x1b', CTRL_KEY('e')};
+	char toggle_drawer[] = {CTRL_KEY('b')};
 	ASSERT_TRUE(editor_process_keypress_with_input(toggle_drawer, sizeof(toggle_drawer)) == 0);
 	ASSERT_TRUE(editorDrawerIsCollapsed());
 	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
@@ -495,7 +495,7 @@ static int test_editor_process_keypress_toggle_drawer_preserves_search_modes(voi
 	ASSERT_TRUE(editor_process_keypress_with_input(file_query, sizeof(file_query)) == 0);
 	ASSERT_EQ_STR("a", editorFileSearchQuery());
 
-	char toggle_drawer[] = {'\x1b', CTRL_KEY('e')};
+	char toggle_drawer[] = {CTRL_KEY('b')};
 	ASSERT_TRUE(editor_process_keypress_with_input(toggle_drawer, sizeof(toggle_drawer)) == 0);
 	ASSERT_TRUE(editorDrawerIsCollapsed());
 	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);

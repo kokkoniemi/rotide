@@ -80,6 +80,7 @@ int set_active_search_match(int row, int col, int len);
 int assert_active_search_match(int row, int col, int len);
 int set_selection_anchor(int row, int col);
 int assert_selection_anchor(int row, int col);
+void begin_selection(void);
 int editor_process_keypress_with_input_silent(const char *input, size_t len);
 int wait_for_task_completion_with_timeout(int timeout_ms);
 int editor_process_single_key(int key);

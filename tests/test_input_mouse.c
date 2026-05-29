@@ -1638,7 +1638,7 @@ static int test_editor_process_keypress_mouse_click_clears_existing_selection(vo
 	E.window_cols = 20;
 	E.cy = 0;
 	E.cx = 1;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 
 	int text_start = editorTextBodyStartColForCols(E.window_cols);
 	char click[32];
@@ -1712,7 +1712,7 @@ static int test_editor_process_keypress_mouse_drag_resets_existing_selection_anc
 	E.window_cols = 20;
 	E.cy = 0;
 	E.cx = 1;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
+	begin_selection();
 	E.cx = 4;
 
 	int text_start = editorTextBodyStartColForCols(E.window_cols);

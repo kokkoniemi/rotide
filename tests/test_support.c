@@ -221,6 +221,11 @@ int set_selection_anchor(int row, int col) {
 	return editorBufferPosToOffset(row, col, &E.selection_anchor_offset);
 }
 
+void begin_selection(void) {
+	E.selection_mode_active = 1;
+	(void)editorBufferPosToOffset(E.cy, E.cx, &E.selection_anchor_offset);
+}
+
 int assert_selection_anchor(int row, int col) {
 	int anchor_row = -1;
 	int anchor_col = -1;

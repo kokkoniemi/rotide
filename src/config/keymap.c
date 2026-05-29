@@ -745,8 +745,7 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 	(void)keymapAppendBinding(keymap, CTRL_SHIFT_ALT_ARROW_DOWN,
 	                          EDITOR_ACTION_MOVE_TAB_DOWN_PANE);
 	(void)keymapAppendBinding(keymap, CTRL_KEY('e'), EDITOR_ACTION_FOCUS_DRAWER);
-	(void)keymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('e'),
-	                          EDITOR_ACTION_TOGGLE_DRAWER);
+	(void)keymapAppendBinding(keymap, CTRL_KEY('b'), EDITOR_ACTION_TOGGLE_DRAWER);
 	(void)keymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('m'), EDITOR_ACTION_MAIN_MENU);
 	(void)keymapAppendBinding(keymap, ALT_SHIFT_ARROW_LEFT, EDITOR_ACTION_COLUMN_SELECT_LEFT);
 	(void)keymapAppendBinding(keymap, ALT_SHIFT_ARROW_RIGHT, EDITOR_ACTION_COLUMN_SELECT_RIGHT);
@@ -768,7 +767,6 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 	(void)keymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('i'),
 	                          EDITOR_ACTION_GOTO_IMPLEMENTATION);
 	(void)keymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('s'), EDITOR_ACTION_GOTO_SYMBOL);
-	(void)keymapAppendBinding(keymap, CTRL_KEY('b'), EDITOR_ACTION_TOGGLE_SELECTION);
 	(void)keymapAppendBinding(keymap, CTRL_KEY('a'), EDITOR_ACTION_SELECT_ALL);
 	(void)keymapAppendBinding(keymap, SHIFT_ARROW_LEFT, EDITOR_ACTION_SELECT_LEFT);
 	(void)keymapAppendBinding(keymap, SHIFT_ARROW_RIGHT, EDITOR_ACTION_SELECT_RIGHT);
