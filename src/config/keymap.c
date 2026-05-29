@@ -52,6 +52,7 @@ static const struct keymapActionName g_keymap_action_names[] = {
         {"goto_symbol", EDITOR_ACTION_GOTO_SYMBOL},
         {"eslint_fix", EDITOR_ACTION_ESLINT_FIX},
         {"toggle_selection", EDITOR_ACTION_TOGGLE_SELECTION},
+        {"select_all", EDITOR_ACTION_SELECT_ALL},
         {"copy_selection", EDITOR_ACTION_COPY_SELECTION},
         {"cut_selection", EDITOR_ACTION_CUT_SELECTION},
         {"delete_selection", EDITOR_ACTION_DELETE_SELECTION},
@@ -695,6 +696,7 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 	                          EDITOR_ACTION_GOTO_IMPLEMENTATION);
 	(void)keymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('s'), EDITOR_ACTION_GOTO_SYMBOL);
 	(void)keymapAppendBinding(keymap, CTRL_KEY('b'), EDITOR_ACTION_TOGGLE_SELECTION);
+	(void)keymapAppendBinding(keymap, CTRL_KEY('a'), EDITOR_ACTION_SELECT_ALL);
 	(void)keymapAppendBinding(keymap, CTRL_KEY('c'), EDITOR_ACTION_COPY_SELECTION);
 	(void)keymapAppendBinding(keymap, CTRL_KEY('x'), EDITOR_ACTION_CUT_SELECTION);
 	(void)keymapAppendBinding(keymap, CTRL_KEY('d'), EDITOR_ACTION_DELETE_SELECTION);

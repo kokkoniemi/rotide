@@ -106,6 +106,7 @@ Syntax fixture samples are stored in [`tests/syntax/`](tests/syntax/README.md).
 - `Alt-N`: toggle absolute line numbers
 - `Alt-H`: toggle current-line highlight
 - `Ctrl-B`: toggle selection
+- `Ctrl-A`: select all
 - `Ctrl-C` / `Ctrl-X` / `Ctrl-D` / `Ctrl-V`: copy/cut/delete/paste selection
 - `Ctrl-Z` / `Ctrl-Y`: undo/redo
 - `Ctrl-Left` / `Ctrl-Right`: move by word

@@ -32,7 +32,7 @@ static int test_editor_process_keypress_keymap_remap_changes_dispatch(void) {
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
 	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
-	                                          "save = \"ctrl+a\"\n"
+	                                          "save = \"ctrl+u\"\n"
 	                                          "redraw = \"ctrl+s\"\n"));
 
 	enum editorKeymapLoadStatus status =
@@ -59,8 +59,8 @@ static int test_editor_process_keypress_keymap_remap_changes_dispatch(void) {
 	ASSERT_EQ_INT(0, first_read_len);
 	free(first_contents);
 
-	char ctrl_a[] = {CTRL_KEY('a')};
-	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_a, sizeof(ctrl_a)) == 0);
+	char ctrl_u[] = {CTRL_KEY('u')};
+	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_u, sizeof(ctrl_u)) == 0);
 	ASSERT_EQ_INT(0, E.dirty);
 
 	size_t second_read_len = 0;

@@ -227,6 +227,40 @@ static int test_editor_process_keypress_ctrl_b_toggles_selection_mode(void) {
 	return 0;
 }
 
+static int test_editor_process_keypress_ctrl_a_selects_whole_buffer(void) {
+	add_row("hello");
+	add_row("world!");
+	add_row("end");
+	E.cy = 1;
+	E.cx = 2;
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('a')) == 0);
+	ASSERT_EQ_INT(1, E.selection_mode_active);
+	/* Cursor lands at the end of the buffer, anchor at the start. */
+	ASSERT_EQ_INT(2, E.cy);
+	ASSERT_EQ_INT(3, E.cx);
+
+	struct editorSelectionRange range;
+	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
+	ASSERT_EQ_INT(0, range.start_cy);
+	ASSERT_EQ_INT(0, range.start_cx);
+	ASSERT_EQ_INT(2, range.end_cy);
+	ASSERT_EQ_INT(3, range.end_cx);
+	return 0;
+}
+
+static int test_editor_process_keypress_ctrl_a_empty_buffer_is_noop(void) {
+	E.cy = 0;
+	E.cx = 0;
+
+	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('a')) == 0);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+
+	struct editorSelectionRange range;
+	ASSERT_EQ_INT(0, editorGetSelectionRange(&range));
+	return 0;
+}
+
 static int test_editor_selection_range_tracks_cursor_movement(void) {
 	add_row("abcd");
 	E.cy = 0;
@@ -763,6 +797,10 @@ const struct editorTestCase g_input_selection_tests[] = {
         {"editor_prompt_ignores_resize_events", test_editor_prompt_ignores_resize_events},
         {"editor_process_keypress_ctrl_b_toggles_selection_mode",
          test_editor_process_keypress_ctrl_b_toggles_selection_mode},
+        {"editor_process_keypress_ctrl_a_selects_whole_buffer",
+         test_editor_process_keypress_ctrl_a_selects_whole_buffer},
+        {"editor_process_keypress_ctrl_a_empty_buffer_is_noop",
+         test_editor_process_keypress_ctrl_a_empty_buffer_is_noop},
         {"editor_selection_range_tracks_cursor_movement",
          test_editor_selection_range_tracks_cursor_movement},
         {"editor_process_keypress_ctrl_c_copies_single_line_selection",

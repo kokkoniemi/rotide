@@ -298,7 +298,7 @@ static int test_editor_theme_project_config_cannot_override_theme_colors(void) {
 	                                          "[theme.syntax]\n"
 	                                          "keyword = \"red\"\n"
 	                                          "[keymap]\n"
-	                                          "save = \"ctrl+a\"\n"));
+	                                          "save = \"ctrl+u\"\n"));
 
 	struct editorTheme theme;
 	enum editorThemeLoadStatus theme_status =
@@ -312,7 +312,7 @@ static int test_editor_theme_project_config_cannot_override_theme_colors(void) {
 	        editorKeymapLoadFromPaths(&keymap, NULL, project_path);
 	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, keymap_status);
 	enum editorAction action = EDITOR_ACTION_COUNT;
-	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('a'), &action));
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('u'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_SAVE, action);
 
 	ASSERT_TRUE(unlink(project_path) == 0);

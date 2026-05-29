@@ -287,6 +287,7 @@ goto_definition = "ctrl+o"
 # eslint_fix has no default binding; uncomment to enable.
 # eslint_fix = "ctrl+alt+e"  # NOTE: conflicts with toggle_drawer above.
 toggle_selection = "ctrl+b"
+select_all = "ctrl+a"
 copy_selection = "ctrl+c"
 cut_selection = "ctrl+x"
 delete_selection = "ctrl+d"

@@ -1761,6 +1761,23 @@ static int dispatchHandleDelegatedAction(enum editorAction action, int *effects)
 	return 0;
 }
 
+static int dispatchHandleSelectionAction(enum editorAction action, int *effects) {
+	switch (action) {
+		case EDITOR_ACTION_SELECT_ALL:
+			editorHistoryBreakGroup();
+			if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT) {
+				return 1;
+			}
+			if (editorEditSelectAll()) {
+				editorViewportEnsureCursorVisible();
+				*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+			}
+			return 1;
+		default:
+			return 0;
+	}
+}
+
 static int dispatchHandleColumnSelectionAction(enum editorAction action, int *effects) {
 	switch (action) {
 		case EDITOR_ACTION_COLUMN_SELECT_UP:
@@ -2002,7 +2019,8 @@ static int dispatchHandleModeAction(enum editorAction action) {
 }
 
 static int dispatchHandleLocalAction(enum editorAction action, int *effects) {
-	return dispatchHandleColumnSelectionAction(action, effects) ||
+	return dispatchHandleSelectionAction(action, effects) ||
+	       dispatchHandleColumnSelectionAction(action, effects) ||
 	       dispatchHandleViewAction(action, effects) ||
 	       dispatchHandleSearchAction(action, effects) || dispatchHandleDrawerAction(action) ||
 	       dispatchHandleCursorAction(action, effects) || dispatchHandleModeAction(action);
