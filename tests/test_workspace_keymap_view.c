@@ -1107,6 +1107,60 @@ static int test_editor_keymap_defaults_include_tab_actions(void) {
 	return 0;
 }
 
+static int test_editor_keymap_defaults_include_shift_selection(void) {
+	struct editorKeymap keymap;
+	editorKeymapInitDefaults(&keymap);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, SHIFT_ARROW_LEFT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_LEFT, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, SHIFT_ARROW_RIGHT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_RIGHT, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, SHIFT_ARROW_UP, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_UP, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, SHIFT_ARROW_DOWN, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_DOWN, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_SHIFT_ARROW_LEFT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_WORD_LEFT, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_SHIFT_ARROW_RIGHT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_WORD_RIGHT, action);
+
+	char binding[24];
+	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_SELECT_LEFT, binding,
+	                                      sizeof(binding)));
+	ASSERT_EQ_STR("Shift-Left", binding);
+	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_SELECT_WORD_RIGHT, binding,
+	                                      sizeof(binding)));
+	ASSERT_EQ_STR("Ctrl-Shift-Right", binding);
+	return 0;
+}
+
+static int test_editor_keymap_load_accepts_remapped_shift_selection(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-shiftsel-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	                                          "select_left = \"SHIFT+left\"\n"
+	                                          "select_word_right = \"ctrl+shift+RIGHT\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, SHIFT_ARROW_LEFT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_LEFT, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_SHIFT_ARROW_RIGHT, &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SELECT_WORD_RIGHT, action);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 static int test_editor_keymap_load_accepts_remapped_vertical_scroll(void) {
 	char dir_template[] = "/tmp/rotide-test-keymap-vscroll-remap-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -1463,6 +1517,10 @@ const struct editorTestCase g_workspace_keymap_view_tests[] = {
          test_editor_keymap_defaults_include_tab_actions},
         {"editor_keymap_load_accepts_remapped_horizontal_scroll",
          test_editor_keymap_load_accepts_remapped_horizontal_scroll},
+        {"editor_keymap_defaults_include_shift_selection",
+         test_editor_keymap_defaults_include_shift_selection},
+        {"editor_keymap_load_accepts_remapped_shift_selection",
+         test_editor_keymap_load_accepts_remapped_shift_selection},
         {"editor_keymap_load_accepts_remapped_vertical_scroll",
          test_editor_keymap_load_accepts_remapped_vertical_scroll},
         {"editor_keymap_load_accepts_toggle_line_wrap_alt_z",

@@ -261,14 +261,14 @@ static int test_editor_process_keypress_ctrl_a_empty_buffer_is_noop(void) {
 	return 0;
 }
 
-static int test_editor_selection_range_tracks_cursor_movement(void) {
+static int test_editor_selection_range_tracks_shift_arrow_movement(void) {
 	add_row("abcd");
 	E.cy = 0;
 	E.cx = 1;
-	ASSERT_TRUE(editor_process_single_key(CTRL_KEY('b')) == 0);
 
-	char arrow_right[] = "\x1b[C";
-	ASSERT_TRUE(editor_process_keypress_with_input(arrow_right, sizeof(arrow_right) - 1) == 0);
+	/* Shift+Right with no active selection anchors at the cursor, then extends. */
+	char shift_right[] = "\x1b[1;2C";
+	ASSERT_TRUE(editor_process_keypress_with_input(shift_right, sizeof(shift_right) - 1) == 0);
 
 	struct editorSelectionRange range;
 	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
@@ -277,14 +277,49 @@ static int test_editor_selection_range_tracks_cursor_movement(void) {
 	ASSERT_EQ_INT(0, range.end_cy);
 	ASSERT_EQ_INT(2, range.end_cx);
 
-	ASSERT_TRUE(editor_process_keypress_with_input(arrow_right, sizeof(arrow_right) - 1) == 0);
+	ASSERT_TRUE(editor_process_keypress_with_input(shift_right, sizeof(shift_right) - 1) == 0);
 	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
 	ASSERT_EQ_INT(3, range.end_cx);
 
-	char arrow_left[] = "\x1b[D";
-	ASSERT_TRUE(editor_process_keypress_with_input(arrow_left, sizeof(arrow_left) - 1) == 0);
+	char shift_left[] = "\x1b[1;2D";
+	ASSERT_TRUE(editor_process_keypress_with_input(shift_left, sizeof(shift_left) - 1) == 0);
 	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
 	ASSERT_EQ_INT(2, range.end_cx);
+	return 0;
+}
+
+static int test_editor_plain_arrow_collapses_shift_selection(void) {
+	add_row("abcd");
+	E.cy = 0;
+	E.cx = 1;
+
+	char shift_right[] = "\x1b[1;2C";
+	ASSERT_TRUE(editor_process_keypress_with_input(shift_right, sizeof(shift_right) - 1) == 0);
+	ASSERT_EQ_INT(1, E.selection_mode_active);
+
+	/* A plain arrow drops the selection (CUA collapse) and just moves. */
+	char arrow_right[] = "\x1b[C";
+	ASSERT_TRUE(editor_process_keypress_with_input(arrow_right, sizeof(arrow_right) - 1) == 0);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+
+	struct editorSelectionRange range;
+	ASSERT_EQ_INT(0, editorGetSelectionRange(&range));
+	return 0;
+}
+
+static int test_editor_ctrl_shift_arrow_selects_by_word(void) {
+	add_row("alpha beta");
+	E.cy = 0;
+	E.cx = 0;
+
+	char ctrl_shift_right[] = "\x1b[1;6C";
+	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_shift_right,
+	                                               sizeof(ctrl_shift_right) - 1) == 0);
+
+	struct editorSelectionRange range;
+	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
+	ASSERT_EQ_INT(0, range.start_cx);
+	ASSERT_EQ_INT(5, range.end_cx); /* end of "alpha" */
 	return 0;
 }
 
@@ -801,8 +836,11 @@ const struct editorTestCase g_input_selection_tests[] = {
          test_editor_process_keypress_ctrl_a_selects_whole_buffer},
         {"editor_process_keypress_ctrl_a_empty_buffer_is_noop",
          test_editor_process_keypress_ctrl_a_empty_buffer_is_noop},
-        {"editor_selection_range_tracks_cursor_movement",
-         test_editor_selection_range_tracks_cursor_movement},
+        {"editor_selection_range_tracks_shift_arrow_movement",
+         test_editor_selection_range_tracks_shift_arrow_movement},
+        {"editor_plain_arrow_collapses_shift_selection",
+         test_editor_plain_arrow_collapses_shift_selection},
+        {"editor_ctrl_shift_arrow_selects_by_word", test_editor_ctrl_shift_arrow_selects_by_word},
         {"editor_process_keypress_ctrl_c_copies_single_line_selection",
          test_editor_process_keypress_ctrl_c_copies_single_line_selection},
         {"editor_process_keypress_ctrl_c_copies_multiline_selection",

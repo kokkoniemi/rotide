@@ -53,6 +53,12 @@ static const struct keymapActionName g_keymap_action_names[] = {
         {"eslint_fix", EDITOR_ACTION_ESLINT_FIX},
         {"toggle_selection", EDITOR_ACTION_TOGGLE_SELECTION},
         {"select_all", EDITOR_ACTION_SELECT_ALL},
+        {"select_left", EDITOR_ACTION_SELECT_LEFT},
+        {"select_right", EDITOR_ACTION_SELECT_RIGHT},
+        {"select_up", EDITOR_ACTION_SELECT_UP},
+        {"select_down", EDITOR_ACTION_SELECT_DOWN},
+        {"select_word_left", EDITOR_ACTION_SELECT_WORD_LEFT},
+        {"select_word_right", EDITOR_ACTION_SELECT_WORD_RIGHT},
         {"copy_selection", EDITOR_ACTION_COPY_SELECTION},
         {"cut_selection", EDITOR_ACTION_CUT_SELECTION},
         {"delete_selection", EDITOR_ACTION_DELETE_SELECTION},
@@ -280,6 +286,40 @@ static int keymapParseArrowToken(const char *token, int *arrow_out) {
 
 static int keymapArrowWithModifiers(int arrow, int modifiers, int *key_out) {
 	switch (modifiers) {
+		case KEYMAP_MOD_SHIFT:
+			switch (arrow) {
+				case ARROW_LEFT:
+					*key_out = SHIFT_ARROW_LEFT;
+					return 1;
+				case ARROW_RIGHT:
+					*key_out = SHIFT_ARROW_RIGHT;
+					return 1;
+				case ARROW_DOWN:
+					*key_out = SHIFT_ARROW_DOWN;
+					return 1;
+				case ARROW_UP:
+					*key_out = SHIFT_ARROW_UP;
+					return 1;
+				default:
+					return 0;
+			}
+		case KEYMAP_MOD_CTRL | KEYMAP_MOD_SHIFT:
+			switch (arrow) {
+				case ARROW_LEFT:
+					*key_out = CTRL_SHIFT_ARROW_LEFT;
+					return 1;
+				case ARROW_RIGHT:
+					*key_out = CTRL_SHIFT_ARROW_RIGHT;
+					return 1;
+				case ARROW_DOWN:
+					*key_out = CTRL_SHIFT_ARROW_DOWN;
+					return 1;
+				case ARROW_UP:
+					*key_out = CTRL_SHIFT_ARROW_UP;
+					return 1;
+				default:
+					return 0;
+			}
 		case KEYMAP_MOD_ALT:
 			switch (arrow) {
 				case ARROW_LEFT:
@@ -605,6 +645,22 @@ static int keymapFormatKey(int key, char *buf, size_t bufsize) {
 			return snprintf(buf, bufsize, "Ctrl-Down") > 0;
 		case CTRL_ARROW_UP:
 			return snprintf(buf, bufsize, "Ctrl-Up") > 0;
+		case SHIFT_ARROW_LEFT:
+			return snprintf(buf, bufsize, "Shift-Left") > 0;
+		case SHIFT_ARROW_RIGHT:
+			return snprintf(buf, bufsize, "Shift-Right") > 0;
+		case SHIFT_ARROW_DOWN:
+			return snprintf(buf, bufsize, "Shift-Down") > 0;
+		case SHIFT_ARROW_UP:
+			return snprintf(buf, bufsize, "Shift-Up") > 0;
+		case CTRL_SHIFT_ARROW_LEFT:
+			return snprintf(buf, bufsize, "Ctrl-Shift-Left") > 0;
+		case CTRL_SHIFT_ARROW_RIGHT:
+			return snprintf(buf, bufsize, "Ctrl-Shift-Right") > 0;
+		case CTRL_SHIFT_ARROW_DOWN:
+			return snprintf(buf, bufsize, "Ctrl-Shift-Down") > 0;
+		case CTRL_SHIFT_ARROW_UP:
+			return snprintf(buf, bufsize, "Ctrl-Shift-Up") > 0;
 		case CTRL_ALT_ARROW_LEFT:
 			return snprintf(buf, bufsize, "Ctrl-Alt-Left") > 0;
 		case CTRL_ALT_ARROW_RIGHT:
@@ -697,6 +753,12 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 	(void)keymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('s'), EDITOR_ACTION_GOTO_SYMBOL);
 	(void)keymapAppendBinding(keymap, CTRL_KEY('b'), EDITOR_ACTION_TOGGLE_SELECTION);
 	(void)keymapAppendBinding(keymap, CTRL_KEY('a'), EDITOR_ACTION_SELECT_ALL);
+	(void)keymapAppendBinding(keymap, SHIFT_ARROW_LEFT, EDITOR_ACTION_SELECT_LEFT);
+	(void)keymapAppendBinding(keymap, SHIFT_ARROW_RIGHT, EDITOR_ACTION_SELECT_RIGHT);
+	(void)keymapAppendBinding(keymap, SHIFT_ARROW_UP, EDITOR_ACTION_SELECT_UP);
+	(void)keymapAppendBinding(keymap, SHIFT_ARROW_DOWN, EDITOR_ACTION_SELECT_DOWN);
+	(void)keymapAppendBinding(keymap, CTRL_SHIFT_ARROW_LEFT, EDITOR_ACTION_SELECT_WORD_LEFT);
+	(void)keymapAppendBinding(keymap, CTRL_SHIFT_ARROW_RIGHT, EDITOR_ACTION_SELECT_WORD_RIGHT);
 	(void)keymapAppendBinding(keymap, CTRL_KEY('c'), EDITOR_ACTION_COPY_SELECTION);
 	(void)keymapAppendBinding(keymap, CTRL_KEY('x'), EDITOR_ACTION_CUT_SELECTION);
 	(void)keymapAppendBinding(keymap, CTRL_KEY('d'), EDITOR_ACTION_DELETE_SELECTION);

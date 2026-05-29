@@ -288,6 +288,14 @@ goto_definition = "ctrl+o"
 # eslint_fix = "ctrl+alt+e"  # NOTE: conflicts with toggle_drawer above.
 toggle_selection = "ctrl+b"
 select_all = "ctrl+a"
+# Extend the selection with the cursor (CUA-style). A plain (unmodified) move
+# collapses the selection instead.
+select_left = "shift+left"
+select_right = "shift+right"
+select_up = "shift+up"
+select_down = "shift+down"
+select_word_left = "ctrl+shift+left"
+select_word_right = "ctrl+shift+right"
 copy_selection = "ctrl+c"
 cut_selection = "ctrl+x"
 delete_selection = "ctrl+d"

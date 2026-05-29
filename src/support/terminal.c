@@ -427,6 +427,10 @@ static int terminalReadCsiModifiedArrowKey(char second) {
 	if (second != '1') {
 		return '\x1b';
 	}
+	if (modifier == '2') {
+		return terminalArrowKeyFromFinal(final, SHIFT_ARROW_UP, SHIFT_ARROW_DOWN,
+		                                 SHIFT_ARROW_RIGHT, SHIFT_ARROW_LEFT);
+	}
 	if (modifier == '3') {
 		return terminalArrowKeyFromFinal(final, ALT_ARROW_UP, ALT_ARROW_DOWN,
 		                                 ALT_ARROW_RIGHT, ALT_ARROW_LEFT);
@@ -438,6 +442,10 @@ static int terminalReadCsiModifiedArrowKey(char second) {
 	if (modifier == '5') {
 		return terminalArrowKeyFromFinal(final, CTRL_ARROW_UP, CTRL_ARROW_DOWN,
 		                                 CTRL_ARROW_RIGHT, CTRL_ARROW_LEFT);
+	}
+	if (modifier == '6') {
+		return terminalArrowKeyFromFinal(final, CTRL_SHIFT_ARROW_UP, CTRL_SHIFT_ARROW_DOWN,
+		                                 CTRL_SHIFT_ARROW_RIGHT, CTRL_SHIFT_ARROW_LEFT);
 	}
 	if (modifier == '7') {
 		return terminalArrowKeyFromFinal(final, CTRL_ALT_ARROW_UP, CTRL_ALT_ARROW_DOWN,

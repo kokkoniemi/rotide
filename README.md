@@ -107,6 +107,7 @@ Syntax fixture samples are stored in [`tests/syntax/`](tests/syntax/README.md).
 - `Alt-H`: toggle current-line highlight
 - `Ctrl-B`: toggle selection
 - `Ctrl-A`: select all
+- `Shift-Arrow`: extend selection (a plain arrow collapses it); `Ctrl-Shift-Left`/`-Right` extend by word
 - `Ctrl-C` / `Ctrl-X` / `Ctrl-D` / `Ctrl-V`: copy/cut/delete/paste selection
 - `Ctrl-Z` / `Ctrl-Y`: undo/redo
 - `Ctrl-Left` / `Ctrl-Right`: move by word
