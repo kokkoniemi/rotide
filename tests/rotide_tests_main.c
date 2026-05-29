@@ -277,6 +277,7 @@ int main(int argc, char **argv) {
 	int flakes = 0;
 	long long property_ops = 0;
 	double property_ops_seconds = 0.0;
+	double exec_seconds_total = 0.0;
 
 	test_property_ops_reset();
 	unsigned char *snapshot = NULL;
@@ -375,6 +376,7 @@ int main(int argc, char **argv) {
 		flakes = result.flakes;
 		property_ops = result.property_ops;
 		property_ops_seconds = result.property_ops_seconds;
+		exec_seconds_total = result.exec_seconds_total;
 		crashes = result.crashes;
 		goto done;
 	}
@@ -402,7 +404,13 @@ int main(int argc, char **argv) {
 			rotide_test_seed_set(runnerSeedForRepeat(opts.seed, rep));
 			total_runs++;
 			reset_editor_state();
+			struct timespec run_start;
+			struct timespec run_end;
+			clock_gettime(CLOCK_MONOTONIC, &run_start);
 			int failed = tc->run();
+			clock_gettime(CLOCK_MONOTONIC, &run_end);
+			exec_seconds_total += (double)(run_end.tv_sec - run_start.tv_sec) +
+			                      (double)(run_end.tv_nsec - run_start.tv_nsec) / 1e9;
 			reset_editor_state();
 			if (opts.validate_reset) {
 				size_t diff_at = 0;
@@ -490,6 +498,7 @@ done:
 		                      (double)(wall_end.tv_nsec - wall_start.tv_nsec) / 1e9;
 		struct editorMetricsField fields[] = {
 		        {"wall_seconds", EDITOR_METRICS_DOUBLE, .v.d = wall_seconds},
+		        {"exec_seconds_total", EDITOR_METRICS_DOUBLE, .v.d = exec_seconds_total},
 		        {"total_runs", EDITOR_METRICS_INT, .v.i = total_runs},
 		        {"passed_runs", EDITOR_METRICS_INT, .v.i = passed_runs},
 		        {"failed_unique", EDITOR_METRICS_INT, .v.i = failed_unique},

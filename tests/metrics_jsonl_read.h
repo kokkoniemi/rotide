@@ -28,6 +28,7 @@ struct editorMetricsRow {
 
 	/* test_run */
 	double wall_seconds;
+	double exec_seconds_total;
 	long long total_runs;
 	long long passed_runs;
 	long long failed_unique;
@@ -36,6 +37,7 @@ struct editorMetricsRow {
 	long long flakes;
 	long long property_ops;
 	double property_ops_seconds;
+	long long jobs;
 	long long repeat;
 	long long exit_code;
 

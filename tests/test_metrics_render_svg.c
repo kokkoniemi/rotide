@@ -359,6 +359,105 @@ static int test_cmd_render_flakes_chart_from_repeat_rows(void) {
 	return 0;
 }
 
+static int test_rolling_median_known_series(void) {
+	/* A single spike at index 1 should be rejected by a centered window. */
+	double in[5] = {10.0, 100.0, 12.0, 11.0, 13.0};
+	double out[5];
+	editorMetricsRollingMedian(in, 5, 3, out);
+	/* i0 edge: median{10,100} = 55; interior points reject the spike. */
+	ASSERT_TRUE(out[0] > 54.9 && out[0] < 55.1);
+	ASSERT_TRUE(out[1] > 11.9 && out[1] < 12.1);
+	ASSERT_TRUE(out[2] > 11.9 && out[2] < 12.1);
+	ASSERT_TRUE(out[3] > 11.9 && out[3] < 12.1);
+	ASSERT_TRUE(out[4] > 11.9 && out[4] < 12.1);
+
+	/* Deterministic: same input → identical output. */
+	double out_again[5];
+	editorMetricsRollingMedian(in, 5, 3, out_again);
+	for (int i = 0; i < 5; i++) {
+		ASSERT_TRUE(out[i] == out_again[i]);
+	}
+
+	/* An even window is forced odd, so window 4 == window 5. */
+	double out_w4[5];
+	double out_w5[5];
+	editorMetricsRollingMedian(in, 5, 4, out_w4);
+	editorMetricsRollingMedian(in, 5, 5, out_w5);
+	for (int i = 0; i < 5; i++) {
+		ASSERT_TRUE(out_w4[i] == out_w5[i]);
+	}
+
+	/* window 1 is a no-op passthrough. */
+	double out_w1[5];
+	editorMetricsRollingMedian(in, 5, 1, out_w1);
+	for (int i = 0; i < 5; i++) {
+		ASSERT_TRUE(out_w1[i] == in[i]);
+	}
+	return 0;
+}
+
+static int test_cmd_render_cost_chart_selects_exec_and_annotates_jobs(void) {
+	/* exec_seconds_total is well above wall_seconds, so if the chart sourced
+	 * the wrong field the y-range (and thus the title's companion data) would
+	 * differ. We assert the legend carries both series and the title pins the
+	 * jobs count. */
+	struct editorMetricsRow rows[3];
+	seed_test_run(&rows[0], "2026-05-24", 12.5, 0, 0, 0, 1);
+	seed_test_run(&rows[1], "2026-05-25", 13.1, 0, 0, 0, 1);
+	seed_test_run(&rows[2], "2026-05-26", 12.9, 0, 0, 0, 1);
+	for (int i = 0; i < 3; i++) {
+		rows[i].exec_seconds_total = 48.0;
+		rows[i].jobs = 4;
+	}
+
+	struct editorMetricsCmdOptions opts;
+	editorMetricsCmdOptionsInit(&opts);
+	char dir[64];
+	make_tmpdir(dir, sizeof(dir));
+
+	int n = editorMetricsCmdRenderSvg(rows, 3, &opts, 0, dir);
+	ASSERT_EQ_INT(2, n);
+
+	char p[256];
+	(void)snprintf(p, sizeof(p), "%s/test-wall-seconds.svg", dir);
+	ASSERT_TRUE(file_exists(p));
+
+	char body[8192];
+	ASSERT_TRUE(read_file_into(p, body, sizeof(body)));
+	ASSERT_TRUE(strstr(body, "Test runtime (jobs=4, median)") != NULL);
+	ASSERT_TRUE(strstr(body, ">exec total</text>") != NULL);
+	ASSERT_TRUE(strstr(body, ">wall</text>") != NULL);
+
+	(void)rmrf_dir(dir);
+	return 0;
+}
+
+static int test_cmd_render_cost_chart_flags_jobs_change(void) {
+	struct editorMetricsRow rows[3];
+	seed_test_run(&rows[0], "2026-05-24", 12.5, 0, 0, 0, 1);
+	seed_test_run(&rows[1], "2026-05-25", 13.1, 0, 0, 0, 1);
+	seed_test_run(&rows[2], "2026-05-26", 12.9, 0, 0, 0, 1);
+	rows[0].jobs = 4;
+	rows[1].jobs = 4;
+	rows[2].jobs = 8; /* a config change mid-history */
+
+	struct editorMetricsCmdOptions opts;
+	editorMetricsCmdOptionsInit(&opts);
+	char dir[64];
+	make_tmpdir(dir, sizeof(dir));
+
+	ASSERT_EQ_INT(2, editorMetricsCmdRenderSvg(rows, 3, &opts, 0, dir));
+
+	char p[256];
+	(void)snprintf(p, sizeof(p), "%s/test-wall-seconds.svg", dir);
+	char body[8192];
+	ASSERT_TRUE(read_file_into(p, body, sizeof(body)));
+	ASSERT_TRUE(strstr(body, "jobs varies") != NULL);
+
+	(void)rmrf_dir(dir);
+	return 0;
+}
+
 static int test_cmd_render_bench_chart_has_min_series(void) {
 	struct editorMetricsRow rows[3];
 	seed_bench(&rows[0], "2026-05-24", "b", 100, 200);
@@ -454,6 +553,11 @@ const struct editorTestCase g_metrics_render_svg_tests[] = {
         {"metrics_svg_cmd_emits_test_run_charts", test_cmd_render_emits_test_run_charts},
         {"metrics_svg_cmd_flakes_chart_from_repeat_rows",
          test_cmd_render_flakes_chart_from_repeat_rows},
+        {"metrics_svg_rolling_median_known_series", test_rolling_median_known_series},
+        {"metrics_svg_cmd_cost_chart_selects_exec_and_annotates_jobs",
+         test_cmd_render_cost_chart_selects_exec_and_annotates_jobs},
+        {"metrics_svg_cmd_cost_chart_flags_jobs_change",
+         test_cmd_render_cost_chart_flags_jobs_change},
         {"metrics_svg_cmd_bench_chart_has_min_series", test_cmd_render_bench_chart_has_min_series},
         {"metrics_svg_cmd_fuzz_throughput_zero_runtime_safe",
          test_cmd_render_fuzz_throughput_zero_runtime_safe},

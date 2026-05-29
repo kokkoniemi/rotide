@@ -18,6 +18,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 
 #define ARTIFACT_ROOT "tests/artifacts"
@@ -286,7 +287,14 @@ int parallelChildRunBatch(const struct testRunnerOptions *opts, const struct edi
 			rotide_test_seed_set(runnerSeedForRepeat(opts->seed, rep));
 			batch->total_runs++;
 			reset_editor_state();
+			struct timespec run_start;
+			struct timespec run_end;
+			clock_gettime(CLOCK_MONOTONIC, &run_start);
 			int failed = tc->run();
+			clock_gettime(CLOCK_MONOTONIC, &run_end);
+			batch->exec_seconds_total +=
+			        (double)(run_end.tv_sec - run_start.tv_sec) +
+			        (double)(run_end.tv_nsec - run_start.tv_nsec) / 1e9;
 			reset_editor_state();
 			if (opts->validate_reset) {
 				size_t diff_at = 0;
@@ -337,9 +345,10 @@ int parallelChildRunBatch(const struct testRunnerOptions *opts, const struct edi
 	batch->property_ops_seconds = test_property_ops_elapsed_seconds();
 	free(snapshot);
 	printf("__CHILD_SUMMARY total=%d passed=%d failed=%d drift=%d flakes=%d "
-	       "property_ops=%lld property_ops_seconds=%.9f\n",
+	       "property_ops=%lld property_ops_seconds=%.9f exec_seconds_total=%.9f\n",
 	       batch->total_runs, batch->passed_runs, batch->failed_unique, batch->reset_violations,
-	       batch->flakes, batch->property_ops, batch->property_ops_seconds);
+	       batch->flakes, batch->property_ops, batch->property_ops_seconds,
+	       batch->exec_seconds_total);
 	return local_failed_unique > 0 ? EXIT_FAILURE : EXIT_SUCCESS;
 }
 
@@ -369,11 +378,12 @@ static void parse_child_summary(const char *out, size_t out_len, struct suiteBat
 	int flakes = 0;
 	long long property_ops = 0;
 	double property_ops_seconds = 0.0;
+	double exec_seconds_total = 0.0;
 	if (sscanf(start, // NOLINT(cert-err34-c)
 	           "__CHILD_SUMMARY total=%d passed=%d failed=%d drift=%d flakes=%d "
-	           "property_ops=%lld property_ops_seconds=%lf",
-	           &total, &passed, &failed, &drift, &flakes, &property_ops,
-	           &property_ops_seconds) == 7) {
+	           "property_ops=%lld property_ops_seconds=%lf exec_seconds_total=%lf",
+	           &total, &passed, &failed, &drift, &flakes, &property_ops, &property_ops_seconds,
+	           &exec_seconds_total) == 8) {
 		batch->total_runs = total;
 		batch->passed_runs = passed;
 		batch->failed_unique = failed;
@@ -381,6 +391,7 @@ static void parse_child_summary(const char *out, size_t out_len, struct suiteBat
 		batch->flakes = flakes;
 		batch->property_ops = property_ops;
 		batch->property_ops_seconds = property_ops_seconds;
+		batch->exec_seconds_total = exec_seconds_total;
 	}
 }
 
@@ -460,6 +471,7 @@ static int reap_one_child(struct suiteBatch *batches, int batch_count,
 	result_out->flakes += batch->flakes;
 	result_out->property_ops += batch->property_ops;
 	result_out->property_ops_seconds += batch->property_ops_seconds;
+	result_out->exec_seconds_total += batch->exec_seconds_total;
 	return 0;
 }
 

@@ -17,6 +17,7 @@ struct suiteBatch {
 	int flakes;
 	long long property_ops;
 	double property_ops_seconds;
+	double exec_seconds_total;
 	int skipped_remaining;
 
 	int crashed;
@@ -39,6 +40,7 @@ struct parallelRunResult {
 	int flakes;
 	long long property_ops;
 	double property_ops_seconds;
+	double exec_seconds_total;
 	int crashes;
 	int aborted_for_fail_fast;
 };

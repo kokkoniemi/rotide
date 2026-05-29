@@ -190,6 +190,7 @@ int editorMetricsRowParse(const char *line, struct editorMetricsRow *row) {
 	switch (row->kind) {
 		case EDITOR_METRICS_KIND_TEST_RUN:
 			(void)getDouble(line, "wall_seconds", &row->wall_seconds);
+			(void)getDouble(line, "exec_seconds_total", &row->exec_seconds_total);
 			(void)getInt(line, "total_runs", &row->total_runs);
 			(void)getInt(line, "passed_runs", &row->passed_runs);
 			(void)getInt(line, "failed_unique", &row->failed_unique);
@@ -198,6 +199,7 @@ int editorMetricsRowParse(const char *line, struct editorMetricsRow *row) {
 			(void)getInt(line, "flakes", &row->flakes);
 			(void)getInt(line, "property_ops", &row->property_ops);
 			(void)getDouble(line, "property_ops_seconds", &row->property_ops_seconds);
+			(void)getInt(line, "jobs", &row->jobs);
 			(void)getInt(line, "repeat", &row->repeat);
 			(void)getInt(line, "exit_code", &row->exit_code);
 			break;
