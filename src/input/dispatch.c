@@ -189,6 +189,19 @@ static void dispatchCtrlClickGoToDefinitionAction(void) {
 	dispatchGoToDefinition();
 }
 
+static void dispatchOpenContextMenu(void) {
+	if (E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
+		return;
+	}
+	int terminal_row = 0;
+	int terminal_col = 0;
+	if (!editorCursorTerminalPosition(&terminal_row, &terminal_col)) {
+		terminal_row = 1;
+		terminal_col = 1;
+	}
+	(void)editorOpenEditorContextMenuAt(terminal_row, terminal_col, 0, 0);
+}
+
 static void dispatchPinActivePreviewForEdit(void) {
 	if (E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER) {
 		editorTabPinActivePreview();
@@ -2069,6 +2082,10 @@ static int dispatchHandleCursorAction(enum editorAction action, int *effects) {
 
 static int dispatchHandleModeAction(enum editorAction action) {
 	switch (action) {
+		case EDITOR_ACTION_CONTEXT_MENU:
+			editorHistoryBreakGroup();
+			dispatchOpenContextMenu();
+			return 1;
 		case EDITOR_ACTION_ESCAPE:
 			// In normal editor mode Escape only clears transient selection state; quit
 			// is configurable.
@@ -2174,15 +2191,22 @@ void editorProcessKeypress(void) {
 		 * place, and for mouse events while the drawer menu is open. Otherwise
 		 * every cursor motion would dismiss the menu.
 		 */
-		int skip_popup_keys =
-		        editorAutocompleteWouldRefilter(c) ||
-		        (c == MOUSE_EVENT && E.popup.kind == EDITOR_POPUP_KIND_DRAWER_MENU);
+		int skip_popup_keys = editorAutocompleteWouldRefilter(c) ||
+		                      (c == MOUSE_EVENT && editorPopupKindIsMenu(E.popup.kind));
 		if (!skip_popup_keys) {
 			enum editorPopupKind popup_kind = E.popup.kind;
 			enum editorPopupKeyResult popup_result = editorPopupHandleKey(c);
 			if (popup_result == EDITOR_POPUP_KEY_ACCEPTED) {
 				if (popup_kind == EDITOR_POPUP_KIND_DRAWER_MENU) {
 					editorDrawerContextMenuActivate();
+				} else if (popup_kind == EDITOR_POPUP_KIND_EDITOR_CONTEXT_MENU) {
+					int mapped_effects = DISPATCH_KEYPRESS_EFFECT_NONE;
+					(void)editorEditorContextMenuActivate(
+					        dispatchProcessMappedAction, &mapped_effects);
+					if ((mapped_effects &
+					     DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT) != 0) {
+						editorViewportEnsureCursorVisible();
+					}
 				} else if (editorAutocompleteIsVisible()) {
 					dispatchPinActivePreviewForEdit();
 					editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);

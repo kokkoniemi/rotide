@@ -1607,6 +1607,31 @@ static int screenAppendCursorMoveAndShow(struct writeBuf *wb, int cursor_row, in
 	return wbAppend(wb, VT100_SHOW_CURSOR_6, 6);
 }
 
+int editorCursorTerminalPosition(int *terminal_row_out, int *terminal_col_out) {
+	struct editorTerminalPane *focused_terminal = screenFocusedTerminalPane();
+	if (focused_terminal != NULL) {
+		return 0;
+	}
+
+	struct editorRect cursor_focused_rect = {0};
+	int has_focus_rect = editorLayoutFocusedLeafRect(&cursor_focused_rect);
+	int cursor_pane_y = has_focus_rect ? cursor_focused_rect.y : 1;
+	int cursor_pane_text_start_col =
+	        screenCursorPaneTextStartCol(&cursor_focused_rect, has_focus_rect, NULL);
+	int screen_row = 0;
+	int screen_col = 0;
+	if (!screenCursorScreenPosition(&screen_row, &screen_col)) {
+		return 0;
+	}
+	if (terminal_row_out != NULL) {
+		*terminal_row_out = cursor_pane_y + screen_row + 1;
+	}
+	if (terminal_col_out != NULL) {
+		*terminal_col_out = cursor_pane_text_start_col + screen_col + 1;
+	}
+	return 1;
+}
+
 static int screenAppendFrameCursor(struct writeBuf *wb) {
 	struct editorTerminalPane *focused_terminal = screenFocusedTerminalPane();
 

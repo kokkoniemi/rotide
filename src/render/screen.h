@@ -12,6 +12,7 @@ int editorDrawLineNumberGutter(struct writeBuf *wb, int row_idx, int segment_col
                                int gutter_cols);
 int editorDrawFileRowWrapped(struct writeBuf *wb, size_t i, int text_cols, int segment_coloff);
 int editorDrawFileRow(struct writeBuf *wb, size_t i, int text_cols);
+int editorCursorTerminalPosition(int *terminal_row_out, int *terminal_col_out);
 void editorOutputTestResetFrameCache(void);
 int editorOutputTestLastRefreshFileRowDrawCount(void);
 

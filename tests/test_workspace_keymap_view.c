@@ -1074,6 +1074,8 @@ static int test_editor_keymap_defaults_include_tab_actions(void) {
 	ASSERT_EQ_INT(EDITOR_ACTION_TOGGLE_DRAWER, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('m'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_MAIN_MENU, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_CTRL_ALT_LETTER_KEY('m'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_CONTEXT_MENU, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_SHIFT_ARROW_LEFT, &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_COLUMN_SELECT_LEFT, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, ALT_SHIFT_ARROW_RIGHT, &action));
@@ -1420,6 +1422,7 @@ static int test_editor_keymap_load_accommodates_full_example_config_customizatio
 	                                          "split_horizontal = \"ctrl+alt+h\"\n"
 	                                          "split_vertical = \"ctrl+alt+v\"\n"
 	                                          "close_pane = \"ctrl+alt+q\"\n"
+	                                          "context_menu = \"ctrl+alt+e\"\n"
 	                                          "terminal_open = \"ctrl+alt+u\"\n"
 	                                          "terminal_open_vertical = \"ctrl+alt+j\"\n"));
 
@@ -1432,6 +1435,8 @@ static int test_editor_keymap_load_accommodates_full_example_config_customizatio
 	ASSERT_EQ_INT(EDITOR_ACTION_CLOSE_PANE, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_CTRL_ALT_LETTER_KEY('h'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_SPLIT_HORIZONTAL, action);
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_CTRL_ALT_LETTER_KEY('e'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_CONTEXT_MENU, action);
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(rmdir(dir_path) == 0);

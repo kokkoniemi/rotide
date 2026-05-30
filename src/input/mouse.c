@@ -750,14 +750,126 @@ static long long mouseMonotonicMillis(void) {
 	return (long long)ts.tv_sec * 1000LL + (long long)(ts.tv_nsec / 1000000L);
 }
 
-static int mouseHandleLeftPressOnDrawerMenu(const struct editorMouseEvent *event) {
-	if (!editorPopupIsVisible() || E.popup.kind != EDITOR_POPUP_KIND_DRAWER_MENU) {
+#define MOUSE_EDITOR_CONTEXT_MAX_ITEMS 7
+
+static enum editorAction g_mouse_editor_context_actions[MOUSE_EDITOR_CONTEXT_MAX_ITEMS];
+static int g_mouse_editor_context_action_count;
+static int g_mouse_editor_context_has_offset;
+static size_t g_mouse_editor_context_offset;
+
+static int mouseSetCursorFromOffset(size_t offset);
+static void mouseClearSelectionMode(void);
+
+static int mouseHasSelection(void) {
+	if (E.column_select_active) {
+		struct editorColumnSelectionRect rect;
+		return editorColumnSelectionGetRect(&rect);
+	}
+	struct editorSelectionRange range;
+	return editorGetSelectionRange(&range);
+}
+
+static void mouseAppendEditorContextItem(struct editorPopupItem *items, int *count_io,
+                                         const char *label, enum editorAction action) {
+	int idx = *count_io;
+	if (idx >= MOUSE_EDITOR_CONTEXT_MAX_ITEMS) {
+		return;
+	}
+	items[idx].label = (char *)label;
+	items[idx].detail = NULL;
+	g_mouse_editor_context_actions[idx] = action;
+	*count_io = idx + 1;
+}
+
+int editorOpenEditorContextMenuAt(int screen_row, int screen_col, int has_context_offset,
+                                  size_t context_offset) {
+	struct editorPopupItem items[MOUSE_EDITOR_CONTEXT_MAX_ITEMS];
+	int count = 0;
+	int has_selection = mouseHasSelection();
+	int writable = !editorActiveTabIsReadOnly();
+	size_t clip_len = 0;
+	(void)editorClipboardGet(&clip_len);
+
+	if (editorLspFileSupportsDefinition(E.filename, E.syntax_language)) {
+		mouseAppendEditorContextItem(items, &count, "Go to Definition",
+		                             EDITOR_ACTION_GOTO_DEFINITION);
+	}
+	if (has_selection) {
+		mouseAppendEditorContextItem(items, &count, "Copy", EDITOR_ACTION_COPY_SELECTION);
+		if (writable) {
+			mouseAppendEditorContextItem(items, &count, "Cut",
+			                             EDITOR_ACTION_CUT_SELECTION);
+		}
+	}
+	if (clip_len > 0 && writable) {
+		mouseAppendEditorContextItem(items, &count, "Paste", EDITOR_ACTION_PASTE);
+	}
+	mouseAppendEditorContextItem(items, &count, "Split Vertically",
+	                             EDITOR_ACTION_SPLIT_VERTICAL);
+	mouseAppendEditorContextItem(items, &count, "Split Horizontally",
+	                             EDITOR_ACTION_SPLIT_HORIZONTAL);
+	mouseAppendEditorContextItem(items, &count, "Open Terminal", EDITOR_ACTION_TERMINAL_OPEN);
+
+	g_mouse_editor_context_action_count = count;
+	g_mouse_editor_context_has_offset = has_context_offset;
+	g_mouse_editor_context_offset = context_offset;
+	if (!editorPopupOpenMenuKind(EDITOR_POPUP_KIND_EDITOR_CONTEXT_MENU, items, count,
+	                             screen_row, screen_col)) {
+		g_mouse_editor_context_action_count = 0;
+		g_mouse_editor_context_has_offset = 0;
+		g_mouse_editor_context_offset = 0;
+		return 0;
+	}
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+	return 1;
+}
+
+static int mouseEditorContextActionUsesOffset(enum editorAction action) {
+	return action == EDITOR_ACTION_GOTO_DEFINITION || action == EDITOR_ACTION_PASTE;
+}
+
+int editorEditorContextMenuActivate(editorProcessMappedActionFn process_mapped_action,
+                                    int *effects_out) {
+	int idx = editorPopupSelectedIndex();
+	int count = g_mouse_editor_context_action_count;
+	if (idx < 0 || idx >= count) {
+		editorPopupClose();
+		g_mouse_editor_context_action_count = 0;
+		return 0;
+	}
+	enum editorAction action = g_mouse_editor_context_actions[idx];
+	int has_context_offset = g_mouse_editor_context_has_offset;
+	size_t context_offset = g_mouse_editor_context_offset;
+	editorPopupClose();
+	g_mouse_editor_context_action_count = 0;
+	g_mouse_editor_context_has_offset = 0;
+	g_mouse_editor_context_offset = 0;
+	if (process_mapped_action == NULL) {
+		return 0;
+	}
+	if (has_context_offset && mouseEditorContextActionUsesOffset(action)) {
+		(void)mouseSetCursorFromOffset(context_offset);
+		mouseClearSelectionMode();
+	}
+	return process_mapped_action(action, effects_out);
+}
+
+static int mouseHandleLeftPressOnMenu(const struct editorMouseEvent *event,
+                                      editorProcessMappedActionFn process_mapped_action,
+                                      int *effects_out) {
+	if (!editorPopupIsVisible() || !editorPopupKindIsMenu(E.popup.kind)) {
 		return 0;
 	}
 	int item = -1;
 	if (editorPopupMenuHitTest(event->y, event->x, &item)) {
 		E.popup.selected_index = item;
-		editorDrawerContextMenuActivate();
+		if (E.popup.kind == EDITOR_POPUP_KIND_DRAWER_MENU) {
+			editorDrawerContextMenuActivate();
+		} else if (E.popup.kind == EDITOR_POPUP_KIND_EDITOR_CONTEXT_MENU) {
+			(void)editorEditorContextMenuActivate(process_mapped_action, effects_out);
+		} else {
+			editorPopupClose();
+		}
 	} else {
 		editorPopupClose();
 	}
@@ -766,14 +878,52 @@ static int mouseHandleLeftPressOnDrawerMenu(const struct editorMouseEvent *event
 	return 1;
 }
 
+static struct editorPaneNode *mouseEditorLeafAt(const struct editorMouseEvent *event) {
+	if (event == NULL || E.layout_root == NULL) {
+		return NULL;
+	}
+	struct editorRect viewport;
+	if (!editorLayoutEditorViewport(&viewport)) {
+		return NULL;
+	}
+	struct editorLeafLayout layout = {0};
+	if (!editorLayoutComputeBorderedInto(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE,
+	                                     &layout)) {
+		editorLeafLayoutFree(&layout);
+		return NULL;
+	}
+	struct editorPaneNode *leaf = editorLayoutLeafAt(&layout, event->x - 1, event->y - 1);
+	editorLeafLayoutFree(&layout);
+	if (leaf == NULL || leaf->is_split || leaf->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
+		return NULL;
+	}
+	return leaf;
+}
+
 static int mouseHandleRightPress(const struct editorMouseEvent *event) {
-	int popup_was_open =
-	        editorPopupIsVisible() && E.popup.kind == EDITOR_POPUP_KIND_DRAWER_MENU;
+	int popup_was_open = editorPopupIsVisible() && editorPopupKindIsMenu(E.popup.kind);
 	if (popup_was_open) {
 		editorPopupClose();
 	}
 	if (editorMouseIsOverDrawer(event)) {
 		if (editorDrawerOpenContextMenuAt(event, E.window_rows)) {
+			return 1;
+		}
+		return popup_was_open;
+	}
+
+	struct editorPaneNode *leaf = mouseEditorLeafAt(event);
+	if (leaf != NULL) {
+		struct editorPaneNode *prev_focus = E.focused_leaf;
+		if (!editorLayoutSetFocusedLeaf(leaf)) {
+			return popup_was_open;
+		}
+		if (E.focused_leaf != prev_focus) {
+			editorPaneAnnounceFocus();
+		}
+		size_t offset = 0;
+		if (editorResolveMouseToBufferOffset(event, 0, &offset) &&
+		    editorOpenEditorContextMenuAt(event->y, event->x, 1, offset)) {
 			return 1;
 		}
 	}
@@ -786,7 +936,11 @@ static int mouseHandleLeftPress(const struct editorMouseEvent *event,
                                 editorProcessMappedActionFn process_mapped_action,
                                 editorMouseJumpToPathFn jump_to_path,
                                 editorMouseActionFn goto_definition) {
-	if (mouseHandleLeftPressOnDrawerMenu(event)) {
+	int menu_effects = EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
+	if (mouseHandleLeftPressOnMenu(event, process_mapped_action, &menu_effects)) {
+		if ((menu_effects & EDITOR_MOUSE_DISPATCH_EFFECT_VIEWPORT_SCROLL) != 0) {
+			return EDITOR_MOUSE_DISPATCH_EFFECT_VIEWPORT_SCROLL;
+		}
 		return EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT;
 	}
 	long long now_ms = mouseMonotonicMillis();
