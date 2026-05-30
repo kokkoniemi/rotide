@@ -5,6 +5,7 @@
 #include "editing/edit.h"
 #include "editing/history.h"
 #include "input/prompt.h"
+#include "render/popup.h"
 #include "rotide.h"
 #include "terminal/terminal_pane.h"
 #include "workspace/drawer.h"
@@ -137,6 +138,112 @@ void editorDrawerPromptDelete(void) {
 	}
 	(void)editorDrawerDeleteSelection(E.window_rows);
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+}
+
+enum actionsWorkspaceCtxOp {
+	ACTIONS_WORKSPACE_CTX_RENAME,
+	ACTIONS_WORKSPACE_CTX_DELETE,
+	ACTIONS_WORKSPACE_CTX_NEW_FILE,
+	ACTIONS_WORKSPACE_CTX_NEW_FOLDER
+};
+
+#define ACTIONS_WORKSPACE_CTX_MAX_ITEMS 4
+
+static enum actionsWorkspaceCtxOp g_actionsWorkspace_ctx_ops[ACTIONS_WORKSPACE_CTX_MAX_ITEMS];
+static int g_actionsWorkspace_ctx_op_count;
+
+static void actionsWorkspaceCtxAppend(struct editorPopupItem *items, int *count_io,
+                                      const char *label, enum actionsWorkspaceCtxOp op) {
+	int idx = *count_io;
+	if (idx >= ACTIONS_WORKSPACE_CTX_MAX_ITEMS) {
+		return;
+	}
+	items[idx].label = (char *)label;
+	items[idx].detail = NULL;
+	g_actionsWorkspace_ctx_ops[idx] = op;
+	*count_io = idx + 1;
+}
+
+int editorDrawerOpenContextMenuAt(const struct editorMouseEvent *event, int viewport_rows) {
+	if (event == NULL) {
+		return 0;
+	}
+	if (editorDrawerIsCollapsed() || E.drawer_root == NULL) {
+		return 0;
+	}
+	if (E.drawer_mode != EDITOR_DRAWER_MODE_TREE) {
+		return 0;
+	}
+	if (editorFileSearchIsActive() || editorProjectSearchIsActive()) {
+		return 0;
+	}
+
+	int drawer_cols = editorDrawerWidthForCols(E.window_cols);
+	int mouse_col = event->x - 1;
+	int drawer_row = event->y - 1;
+	if (mouse_col < 0 || mouse_col >= drawer_cols) {
+		return 0;
+	}
+	/* Header row is reserved for mode-switch buttons; only entry rows open the menu. */
+	if (drawer_row < 1 || drawer_row >= viewport_rows + 1) {
+		return 0;
+	}
+	int visible_idx = E.drawer_rowoff + drawer_row - 1;
+	if (!editorDrawerSelectVisibleIndex(visible_idx, viewport_rows)) {
+		return 0;
+	}
+
+	struct editorPopupItem items[ACTIONS_WORKSPACE_CTX_MAX_ITEMS];
+	int count = 0;
+	int is_dir = editorDrawerSelectedIsDirectory();
+	int is_root = editorDrawerSelectedIsRoot();
+	if (is_dir) {
+		actionsWorkspaceCtxAppend(items, &count, "New File",
+		                          ACTIONS_WORKSPACE_CTX_NEW_FILE);
+		actionsWorkspaceCtxAppend(items, &count, "New Folder",
+		                          ACTIONS_WORKSPACE_CTX_NEW_FOLDER);
+	}
+	if (!is_root) {
+		actionsWorkspaceCtxAppend(items, &count, "Rename", ACTIONS_WORKSPACE_CTX_RENAME);
+		actionsWorkspaceCtxAppend(items, &count, "Delete", ACTIONS_WORKSPACE_CTX_DELETE);
+	}
+	if (count == 0) {
+		return 0;
+	}
+	g_actionsWorkspace_ctx_op_count = count;
+	if (!editorPopupOpenMenu(items, count, event->y, event->x)) {
+		g_actionsWorkspace_ctx_op_count = 0;
+		return 0;
+	}
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+	return 1;
+}
+
+void editorDrawerContextMenuActivate(void) {
+	int idx = editorPopupSelectedIndex();
+	int count = g_actionsWorkspace_ctx_op_count;
+	if (idx < 0 || idx >= count) {
+		editorPopupClose();
+		g_actionsWorkspace_ctx_op_count = 0;
+		return;
+	}
+	enum actionsWorkspaceCtxOp op = g_actionsWorkspace_ctx_ops[idx];
+	editorPopupClose();
+	g_actionsWorkspace_ctx_op_count = 0;
+	switch (op) {
+		case ACTIONS_WORKSPACE_CTX_RENAME:
+			editorDrawerPromptRename();
+			break;
+		case ACTIONS_WORKSPACE_CTX_DELETE:
+			editorDrawerPromptDelete();
+			break;
+		case ACTIONS_WORKSPACE_CTX_NEW_FILE:
+			editorDrawerPromptCreateFile();
+			break;
+		case ACTIONS_WORKSPACE_CTX_NEW_FOLDER:
+			editorDrawerPromptCreateFolder();
+			break;
+	}
 }
 
 int editorOpenSelectedGitDiff(void) {

@@ -1,6 +1,7 @@
 #include "editing/selection.h"
 #include "input/mouse.h"
 #include "language/syntax.h"
+#include "render/popup.h"
 #include "rotide.h"
 #include "test_case.h"
 #include "test_helpers.h"
@@ -1855,6 +1856,230 @@ static int test_editor_bracketed_paste_markers_toggle_paste_active(void) {
 	return 0;
 }
 
+static int test_editor_process_keypress_mouse_drawer_right_click_on_file_opens_menu(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char file_path[512];
+	ASSERT_TRUE(path_join(file_path, sizeof(file_path), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(write_text_file(file_path, "alpha\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+	int file_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("alpha.txt", &file_idx, NULL));
+
+	int row = file_idx - E.drawer_rowoff + 2;
+	char right[32];
+	ASSERT_TRUE(format_sgr_mouse_event(right, sizeof(right), 2, 2, row, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(right, strlen(right)) == 0);
+
+	ASSERT_TRUE(editorPopupIsVisible());
+	ASSERT_EQ_INT(EDITOR_POPUP_KIND_DRAWER_MENU, E.popup.kind);
+	ASSERT_EQ_INT(2, editorPopupItemCount());
+	ASSERT_EQ_STR("Rename", E.popup.items[0].label);
+	ASSERT_EQ_STR("Delete", E.popup.items[1].label);
+	ASSERT_EQ_INT(file_idx, E.drawer_selected_index);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+
+	ASSERT_TRUE(unlink(file_path) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drawer_right_click_on_folder_shows_full_menu(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char dir_path[512];
+	char child_path[512];
+	ASSERT_TRUE(path_join(dir_path, sizeof(dir_path), env.project_dir, "src"));
+	ASSERT_TRUE(path_join(child_path, sizeof(child_path), dir_path, "child.txt"));
+	ASSERT_TRUE(make_dir(dir_path));
+	ASSERT_TRUE(write_text_file(child_path, "c\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+	int dir_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("src", &dir_idx, NULL));
+
+	int row = dir_idx - E.drawer_rowoff + 2;
+	char right[32];
+	ASSERT_TRUE(format_sgr_mouse_event(right, sizeof(right), 2, 2, row, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(right, strlen(right)) == 0);
+
+	ASSERT_TRUE(editorPopupIsVisible());
+	ASSERT_EQ_INT(EDITOR_POPUP_KIND_DRAWER_MENU, E.popup.kind);
+	ASSERT_EQ_INT(4, editorPopupItemCount());
+	ASSERT_EQ_STR("New File", E.popup.items[0].label);
+	ASSERT_EQ_STR("New Folder", E.popup.items[1].label);
+	ASSERT_EQ_STR("Rename", E.popup.items[2].label);
+	ASSERT_EQ_STR("Delete", E.popup.items[3].label);
+	ASSERT_EQ_INT(dir_idx, E.drawer_selected_index);
+
+	ASSERT_TRUE(unlink(child_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drawer_right_click_on_root_omits_rename_delete(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	int root_row = 0 - E.drawer_rowoff + 2;
+	char right[32];
+	ASSERT_TRUE(format_sgr_mouse_event(right, sizeof(right), 2, 2, root_row, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(right, strlen(right)) == 0);
+
+	ASSERT_TRUE(editorPopupIsVisible());
+	ASSERT_EQ_INT(EDITOR_POPUP_KIND_DRAWER_MENU, E.popup.kind);
+	ASSERT_EQ_INT(2, editorPopupItemCount());
+	ASSERT_EQ_STR("New File", E.popup.items[0].label);
+	ASSERT_EQ_STR("New Folder", E.popup.items[1].label);
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_left_click_outside_popup_closes_it(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char file_path[512];
+	ASSERT_TRUE(path_join(file_path, sizeof(file_path), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(write_text_file(file_path, "alpha\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+	int file_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("alpha.txt", &file_idx, NULL));
+
+	int row = file_idx - E.drawer_rowoff + 2;
+	char right[32];
+	ASSERT_TRUE(format_sgr_mouse_event(right, sizeof(right), 2, 2, row, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(right, strlen(right)) == 0);
+	ASSERT_TRUE(editorPopupIsVisible());
+
+	/* Left click in the text area, away from the popup, should dismiss it. */
+	int text_start = editorTextBodyStartColForCols(E.window_cols);
+	char left[32];
+	ASSERT_TRUE(format_sgr_mouse_event(left, sizeof(left), 0, text_start + 4, E.window_rows + 1,
+	                                   'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(left, strlen(left)) == 0);
+	ASSERT_TRUE(!editorPopupIsVisible());
+
+	ASSERT_TRUE(unlink(file_path) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drawer_right_click_header_does_not_open_menu(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	/* Header row is screen row 1 (drawer_row 0). */
+	char right[32];
+	ASSERT_TRUE(format_sgr_mouse_event(right, sizeof(right), 2, 4, 1, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(right, strlen(right)) == 0);
+	ASSERT_TRUE(!editorPopupIsVisible());
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drawer_right_click_on_collapsed_drawer_ignored(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerSetCollapsed(1));
+
+	char right[32];
+	ASSERT_TRUE(format_sgr_mouse_event(right, sizeof(right), 2, 1, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(right, strlen(right)) == 0);
+	ASSERT_TRUE(!editorPopupIsVisible());
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_menu_popup_survives_mouse_motion(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char file_path[512];
+	ASSERT_TRUE(path_join(file_path, sizeof(file_path), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(write_text_file(file_path, "alpha\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+	int file_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("alpha.txt", &file_idx, NULL));
+
+	int row = file_idx - E.drawer_rowoff + 2;
+	char right[32];
+	ASSERT_TRUE(format_sgr_mouse_event(right, sizeof(right), 2, 2, row, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(right, strlen(right)) == 0);
+	ASSERT_TRUE(editorPopupIsVisible());
+
+	/* SGR motion with no button held (cb 32+3=35); the menu must survive. */
+	char motion[32];
+	ASSERT_TRUE(format_sgr_mouse_event(motion, sizeof(motion), 35, 10, row + 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(motion, strlen(motion)) == 0);
+	ASSERT_TRUE(editorPopupIsVisible());
+
+	ASSERT_TRUE(unlink(file_path) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_menu_popup_handles_arrow_and_escape_keys(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char dir_path[512];
+	char child_path[512];
+	ASSERT_TRUE(path_join(dir_path, sizeof(dir_path), env.project_dir, "src"));
+	ASSERT_TRUE(path_join(child_path, sizeof(child_path), dir_path, "child.txt"));
+	ASSERT_TRUE(make_dir(dir_path));
+	ASSERT_TRUE(write_text_file(child_path, "c\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+	int dir_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("src", &dir_idx, NULL));
+
+	int row = dir_idx - E.drawer_rowoff + 2;
+	char right[32];
+	ASSERT_TRUE(format_sgr_mouse_event(right, sizeof(right), 2, 2, row, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(right, strlen(right)) == 0);
+	ASSERT_TRUE(editorPopupIsVisible());
+	ASSERT_EQ_INT(0, editorPopupSelectedIndex());
+
+	ASSERT_EQ_INT(EDITOR_POPUP_KEY_CONSUMED, editorPopupHandleKey(ARROW_DOWN));
+	ASSERT_EQ_INT(1, editorPopupSelectedIndex());
+	ASSERT_EQ_INT(EDITOR_POPUP_KEY_CONSUMED, editorPopupHandleKey(ARROW_UP));
+	ASSERT_EQ_INT(0, editorPopupSelectedIndex());
+
+	ASSERT_EQ_INT(EDITOR_POPUP_KEY_CONSUMED, editorPopupHandleKey('\x1b'));
+	ASSERT_TRUE(!editorPopupIsVisible());
+
+	ASSERT_TRUE(unlink(child_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 const struct editorTestCase g_input_mouse_tests[] = {
         {"editor_column_select_alt_mouse_drag_starts_column_selection",
          test_editor_column_select_alt_mouse_drag_starts_column_selection},
@@ -1966,6 +2191,22 @@ const struct editorTestCase g_input_mouse_tests[] = {
         {"editor_prompt_ignores_mouse_events", test_editor_prompt_ignores_mouse_events},
         {"editor_bracketed_paste_markers_toggle_paste_active",
          test_editor_bracketed_paste_markers_toggle_paste_active},
+        {"editor_process_keypress_mouse_drawer_right_click_on_file_opens_menu",
+         test_editor_process_keypress_mouse_drawer_right_click_on_file_opens_menu},
+        {"editor_process_keypress_mouse_drawer_right_click_on_folder_shows_full_menu",
+         test_editor_process_keypress_mouse_drawer_right_click_on_folder_shows_full_menu},
+        {"editor_process_keypress_mouse_drawer_right_click_on_root_omits_rename_delete",
+         test_editor_process_keypress_mouse_drawer_right_click_on_root_omits_rename_delete},
+        {"editor_process_keypress_mouse_left_click_outside_popup_closes_it",
+         test_editor_process_keypress_mouse_left_click_outside_popup_closes_it},
+        {"editor_process_keypress_mouse_drawer_right_click_header_does_not_open_menu",
+         test_editor_process_keypress_mouse_drawer_right_click_header_does_not_open_menu},
+        {"editor_process_keypress_mouse_drawer_right_click_on_collapsed_drawer_ignored",
+         test_editor_process_keypress_mouse_drawer_right_click_on_collapsed_drawer_ignored},
+        {"editor_drawer_menu_popup_survives_mouse_motion",
+         test_editor_drawer_menu_popup_survives_mouse_motion},
+        {"editor_drawer_menu_popup_handles_arrow_and_escape_keys",
+         test_editor_drawer_menu_popup_handles_arrow_and_escape_keys},
 };
 
 const int g_input_mouse_test_count =

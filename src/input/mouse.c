@@ -7,6 +7,7 @@
 #include "editing/selection.h"
 #include "input/actions_workspace.h"
 #include "language/lsp.h"
+#include "render/popup.h"
 #include "render/viewport.h"
 #include "rotide.h"
 #include "support/terminal.h"
@@ -645,12 +646,45 @@ static long long mouseMonotonicMillis(void) {
 	return (long long)ts.tv_sec * 1000LL + (long long)(ts.tv_nsec / 1000000L);
 }
 
+static int mouseHandleLeftPressOnDrawerMenu(const struct editorMouseEvent *event) {
+	if (!editorPopupIsVisible() || E.popup.kind != EDITOR_POPUP_KIND_DRAWER_MENU) {
+		return 0;
+	}
+	int item = -1;
+	if (editorPopupMenuHitTest(event->y, event->x, &item)) {
+		E.popup.selected_index = item;
+		editorDrawerContextMenuActivate();
+	} else {
+		editorPopupClose();
+	}
+	E.mouse_left_button_down = 0;
+	E.mouse_drag_started = 0;
+	return 1;
+}
+
+static int mouseHandleRightPress(const struct editorMouseEvent *event) {
+	int popup_was_open =
+	        editorPopupIsVisible() && E.popup.kind == EDITOR_POPUP_KIND_DRAWER_MENU;
+	if (popup_was_open) {
+		editorPopupClose();
+	}
+	if (editorMouseIsOverDrawer(event)) {
+		if (editorDrawerOpenContextMenuAt(event, E.window_rows)) {
+			return 1;
+		}
+	}
+	return popup_was_open;
+}
+
 static int mouseHandleLeftPress(const struct editorMouseEvent *event,
                                 int drawer_double_click_threshold_ms,
                                 int text_multi_click_threshold_ms,
                                 editorProcessMappedActionFn process_mapped_action,
                                 editorMouseJumpToPathFn jump_to_path,
                                 editorMouseActionFn goto_definition) {
+	if (mouseHandleLeftPressOnDrawerMenu(event)) {
+		return EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT;
+	}
 	long long now_ms = mouseMonotonicMillis();
 	mouseClearTabDrag();
 	int drawer_effects = EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
@@ -705,6 +739,11 @@ int editorHandleMouseEventDispatch(int drawer_double_click_threshold_ms,
 			                               text_multi_click_threshold_ms,
 			                               process_mapped_action, jump_to_path,
 			                               goto_definition);
+			break;
+		case EDITOR_MOUSE_EVENT_RIGHT_PRESS:
+			effects = mouseHandleRightPress(&event)
+			                  ? EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT
+			                  : EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
 			break;
 		case EDITOR_MOUSE_EVENT_LEFT_DRAG:
 			effects = editorHandleMouseLeftDrag(&event)

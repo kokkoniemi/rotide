@@ -49,6 +49,7 @@ enum editorMouseEventKind {
 	EDITOR_MOUSE_EVENT_LEFT_PRESS,
 	EDITOR_MOUSE_EVENT_LEFT_DRAG,
 	EDITOR_MOUSE_EVENT_LEFT_RELEASE,
+	EDITOR_MOUSE_EVENT_RIGHT_PRESS,
 	EDITOR_MOUSE_EVENT_MOTION,
 	EDITOR_MOUSE_EVENT_WHEEL_UP,
 	EDITOR_MOUSE_EVENT_WHEEL_DOWN,
@@ -124,8 +125,11 @@ struct editorPopupItem {
 	char *detail;
 };
 
+enum editorPopupKind { EDITOR_POPUP_KIND_AUTOCOMPLETE = 0, EDITOR_POPUP_KIND_DRAWER_MENU };
+
 struct editorPopupState {
 	int visible;
+	enum editorPopupKind kind;
 	int anchor_row;
 	int anchor_col;
 	int selected_index;

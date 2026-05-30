@@ -17,6 +17,8 @@ void editorDrawerPromptCreateFile(void);
 void editorDrawerPromptCreateFolder(void);
 void editorDrawerPromptRename(void);
 void editorDrawerPromptDelete(void);
+int editorDrawerOpenContextMenuAt(const struct editorMouseEvent *event, int viewport_rows);
+void editorDrawerContextMenuActivate(void);
 int editorOpenSelectedGitDiff(void);
 int editorJumpToSelectedLspDrawerLocation(int preview, editorJumpToPathLocationFn jump_fn);
 int editorJumpToSelectedDapDrawerLocation(int preview, editorJumpToPathLocationFn jump_fn);
