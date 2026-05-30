@@ -2042,8 +2042,6 @@ static int test_editor_drawer_move_selection_to_dir_relocates_file(void) {
 	ASSERT_EQ_INT(-1, lstat(file_path, &st));
 	ASSERT_TRUE(find_drawer_entry("alpha.txt", NULL, NULL));
 
-	(void)unlink(moved_path);
-	(void)rmdir(dir_path);
 	cleanup_recovery_test_env(&env);
 	return 0;
 }
@@ -2075,9 +2073,6 @@ static int test_editor_drawer_move_selection_rejects_existing_destination(void) 
 	ASSERT_EQ_INT(0, lstat(src_path, &st));
 	ASSERT_EQ_INT(0, lstat(dest_existing, &st));
 
-	(void)unlink(src_path);
-	(void)unlink(dest_existing);
-	(void)rmdir(dir_path);
 	cleanup_recovery_test_env(&env);
 	return 0;
 }
@@ -2106,8 +2101,6 @@ static int test_editor_drawer_move_selection_rejects_folder_into_descendant(void
 	ASSERT_EQ_INT(0, lstat(outer, &st));
 	ASSERT_EQ_INT(0, lstat(inner, &st));
 
-	(void)rmdir(inner);
-	(void)rmdir(outer);
 	cleanup_recovery_test_env(&env);
 	return 0;
 }
@@ -2155,8 +2148,6 @@ static int test_editor_process_keypress_mouse_drag_file_into_folder_moves(void) 
 	ASSERT_EQ_INT(0, lstat(moved_path, &st));
 	ASSERT_EQ_INT(-1, lstat(file_path, &st));
 
-	(void)unlink(moved_path);
-	(void)rmdir(dir_path);
 	cleanup_recovery_test_env(&env);
 	return 0;
 }
@@ -2188,7 +2179,6 @@ static int test_editor_process_keypress_mouse_drag_without_motion_keeps_click_be
 	ASSERT_EQ_INT(0, lstat(file_path, &st));
 	ASSERT_TRUE(editorActiveTabIsPreview());
 
-	(void)unlink(file_path);
 	cleanup_recovery_test_env(&env);
 	return 0;
 }

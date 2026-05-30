@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 static int drawerFileOpsNameIsValid(const char *name) {
@@ -282,6 +283,36 @@ static int drawerFileOpsPathIsPrefixOf(const char *prefix, const char *path) {
 	return path[plen] == '\0' || path[plen] == '/';
 }
 
+static int drawerFileOpsSameOpenDir(int left_fd, int right_fd) {
+	struct stat left_st;
+	struct stat right_st;
+	if (fstat(left_fd, &left_st) != 0 || fstat(right_fd, &right_st) != 0) {
+		return 0;
+	}
+	return left_st.st_dev == right_st.st_dev && left_st.st_ino == right_st.st_ino;
+}
+
+static int drawerFileOpsRenameNoReplaceAt(int src_dir_fd, const char *src_name, int dest_dir_fd,
+                                          const char *dest_name) {
+#if defined(SYS_renameat2) && defined(RENAME_NOREPLACE)
+	if (syscall(SYS_renameat2, src_dir_fd, src_name, dest_dir_fd, dest_name,
+	            RENAME_NOREPLACE) == 0) {
+		return 1;
+	}
+	if (errno == ENOSYS) {
+		errno = ENOTSUP;
+	}
+	return 0;
+#else
+	(void)src_dir_fd;
+	(void)src_name;
+	(void)dest_dir_fd;
+	(void)dest_name;
+	errno = ENOTSUP;
+	return 0;
+#endif
+}
+
 static struct editorDrawerNode *drawerFileOpsResolveAbsPath(const char *abs_path) {
 	if (abs_path == NULL || E.drawer_root == NULL || E.drawer_root_path == NULL) {
 		return NULL;
@@ -345,19 +376,30 @@ int editorDrawerMoveSelectionToDir(const char *dest_dir_path, int viewport_rows)
 		editorSetAllocFailureStatus();
 		return 0;
 	}
-	struct stat st;
-	if (lstat(dest_abs, &st) != 0 || !S_ISDIR(st.st_mode)) {
+	int dest_fd = open(dest_abs, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+	if (dest_fd < 0) {
 		editorSetStatusMsg("Destination is not a folder");
 		free(dest_abs);
 		return 0;
 	}
-	if (strcmp(dest_abs, src_parent->path) == 0) {
+	int src_parent_fd = open(src_parent->path, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+	if (src_parent_fd < 0) {
+		editorSetStatusMsg("Move failed: %s", strerror(errno));
+		(void)close(dest_fd);
+		free(dest_abs);
+		return 0;
+	}
+	if (drawerFileOpsSameOpenDir(src_parent_fd, dest_fd)) {
 		editorSetStatusMsg("'%s' is already in that folder", selected->name);
+		(void)close(src_parent_fd);
+		(void)close(dest_fd);
 		free(dest_abs);
 		return 0;
 	}
 	if (selected->is_dir && drawerFileOpsPathIsPrefixOf(selected->path, dest_abs)) {
 		editorSetStatusMsg("Cannot move folder into itself");
+		(void)close(src_parent_fd);
+		(void)close(dest_fd);
 		free(dest_abs);
 		return 0;
 	}
@@ -365,12 +407,8 @@ int editorDrawerMoveSelectionToDir(const char *dest_dir_path, int viewport_rows)
 	char *new_path = editorPathJoin(dest_abs, selected->name);
 	if (new_path == NULL) {
 		editorSetAllocFailureStatus();
-		free(dest_abs);
-		return 0;
-	}
-	if (lstat(new_path, &st) == 0) {
-		editorSetStatusMsg("'%s' already exists in destination", selected->name);
-		free(new_path);
+		(void)close(src_parent_fd);
+		(void)close(dest_fd);
 		free(dest_abs);
 		return 0;
 	}
@@ -381,23 +419,34 @@ int editorDrawerMoveSelectionToDir(const char *dest_dir_path, int viewport_rows)
 		free(src_parent_path);
 		free(moved_name);
 		free(new_path);
+		(void)close(src_parent_fd);
+		(void)close(dest_fd);
 		free(dest_abs);
 		editorSetAllocFailureStatus();
 		return 0;
 	}
 
-	if (rename(selected->path, new_path) != 0) {
+	if (!drawerFileOpsRenameNoReplaceAt(src_parent_fd, selected->name, dest_fd,
+	                                    selected->name)) {
 		if (errno == EXDEV) {
 			editorSetStatusMsg("Cross-filesystem move not supported");
+		} else if (errno == EEXIST) {
+			editorSetStatusMsg("'%s' already exists in destination", selected->name);
+		} else if (errno == ENOTSUP) {
+			editorSetStatusMsg("Move without overwrite is not supported");
 		} else {
 			editorSetStatusMsg("Move failed: %s", strerror(errno));
 		}
 		free(src_parent_path);
 		free(moved_name);
 		free(new_path);
+		(void)close(src_parent_fd);
+		(void)close(dest_fd);
 		free(dest_abs);
 		return 0;
 	}
+	(void)close(src_parent_fd);
+	(void)close(dest_fd);
 
 	/*
 	 * Drop drawer-tree pointers now: invalidating an ancestor frees descendants,
