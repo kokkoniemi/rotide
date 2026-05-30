@@ -291,8 +291,7 @@ static void tabsLoadActiveTab(int tab_idx) {
 	 * membership list so the per-pane tab strip stays in sync regardless
 	 * of which API created/switched the tab. */
 	if (E.focused_leaf != NULL && !E.focused_leaf->is_split) {
-		(void)editorPaneViewAddTab(&E.focused_leaf->as.leaf.view, tab_idx);
-		E.focused_leaf->as.leaf.view.active_tab_idx = tab_idx;
+		(void)editorPaneViewActivateTab(&E.focused_leaf->as.leaf.view, tab_idx);
 	}
 	tabsStateLoadActive(&E.tabs[tab_idx]);
 	if (editorActiveTabIsReadOnly() && E.tab_kind != EDITOR_TAB_GIT_DIFF) {
@@ -425,12 +424,11 @@ int editorTabAppendEmptyForPane(struct editorPaneNode *pane) {
 	int new_idx = E.tab_count;
 	tabsStateInitEmpty(&E.tabs[new_idx]);
 	E.tab_count++;
-	if (!editorPaneViewAddTab(&pane->as.leaf.view, new_idx)) {
+	if (!editorPaneViewActivateTab(&pane->as.leaf.view, new_idx)) {
 		tabsStateFree(&E.tabs[new_idx]);
 		E.tab_count--;
 		return -1;
 	}
-	pane->as.leaf.view.active_tab_idx = new_idx;
 	return new_idx;
 }
 
@@ -473,7 +471,7 @@ int editorPaneMoveTab(struct editorPaneNode *source, struct editorPaneNode *targ
 		if (!editorPaneViewInsertTabAt(source_view, tab_idx, target_slot)) {
 			return 0;
 		}
-		source_view->active_tab_idx = tab_idx;
+		(void)editorPaneViewActivateTab(source_view, tab_idx);
 		return 1;
 	}
 
@@ -489,22 +487,30 @@ int editorPaneMoveTab(struct editorPaneNode *source, struct editorPaneNode *targ
 		editorPaneViewCaptureFromState(source_view);
 	}
 	editorPaneViewRemoveTab(source_view, tab_idx);
-	source_view->active_tab_idx = source_next_active;
+	if (source_next_active >= 0) {
+		(void)editorPaneViewActivateTab(source_view, source_next_active);
+	} else {
+		source_view->active_tab_idx = -1;
+	}
 	if (!editorPaneViewInsertTabAt(target_view, tab_idx, target_slot)) {
 		(void)editorPaneViewInsertTabAt(source_view, tab_idx, source_slot);
-		source_view->active_tab_idx = tab_idx;
+		(void)editorPaneViewActivateTab(source_view, tab_idx);
 		return 0;
 	}
-	target_view->active_tab_idx = tab_idx;
+	(void)editorPaneViewActivateTab(target_view, tab_idx);
 	if (!editorLayoutSetFocusedLeaf(target)) {
 		editorPaneViewRemoveTab(target_view, tab_idx);
 		(void)editorPaneViewInsertTabAt(source_view, tab_idx, source_slot);
-		source_view->active_tab_idx = tab_idx;
+		(void)editorPaneViewActivateTab(source_view, tab_idx);
 		return 0;
 	}
 	/* editorLayoutSetFocusedLeaf captured source's view from live E, clobbering
 	 * the active_tab_idx we just set. Re-apply. */
-	source_view->active_tab_idx = source_next_active;
+	if (source_next_active >= 0) {
+		(void)editorPaneViewActivateTab(source_view, source_next_active);
+	} else {
+		source_view->active_tab_idx = -1;
+	}
 	editorTabsEnsurePaneOccupancy();
 	return 1;
 }
@@ -779,8 +785,7 @@ static void tabsRegisterWithFocusedPane(int idx) {
 	if (idx < 0 || E.focused_leaf == NULL || E.focused_leaf->is_split) {
 		return;
 	}
-	(void)editorPaneViewAddTab(&E.focused_leaf->as.leaf.view, idx);
-	E.focused_leaf->as.leaf.view.active_tab_idx = idx;
+	(void)editorPaneViewActivateTab(&E.focused_leaf->as.leaf.view, idx);
 }
 
 int editorTabSwitchToIndex(int idx) {
@@ -891,7 +896,11 @@ int editorTabCloseActive(void) {
 	if (editorPaneTreeAnyPaneHasTab(E.layout_root, closing)) {
 		if (focused_is_editor) {
 			if (focused->as.leaf.view.pane_tab_count > 0) {
-				(void)editorTabSwitchToIndex(focused->as.leaf.view.pane_tabs[0]);
+				int next_idx = editorPaneViewMostRecentTab(&focused->as.leaf.view);
+				if (next_idx < 0) {
+					next_idx = focused->as.leaf.view.pane_tabs[0];
+				}
+				(void)editorTabSwitchToIndex(next_idx);
 			} else if (!tabsCloseFocusedPaneIfEmpty(0)) {
 				int new_idx = editorTabAppendEmptyForPane(focused);
 				if (new_idx >= 0) {
@@ -934,7 +943,10 @@ int editorTabCloseActive(void) {
 
 	int next_idx = -1;
 	if (focused_is_editor && focused->as.leaf.view.pane_tab_count > 0) {
-		next_idx = focused->as.leaf.view.pane_tabs[0];
+		next_idx = editorPaneViewMostRecentTab(&focused->as.leaf.view);
+		if (next_idx < 0) {
+			next_idx = focused->as.leaf.view.pane_tabs[0];
+		}
 	}
 	if (next_idx < 0 || next_idx >= E.tab_count) {
 		next_idx = closing < E.tab_count ? closing : E.tab_count - 1;

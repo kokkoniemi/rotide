@@ -1006,17 +1006,26 @@ static int test_layout_focus_switch_preserves_per_pane_cursor(void) {
 static int test_layout_pane_view_tab_membership_helpers(void) {
 	struct editorPaneView view;
 	editorPaneViewInit(&view);
-	if (view.pane_tab_count != 0) {
+	if (view.pane_tab_count != 0 || view.mru_tab_count != 0) {
 		return 1;
 	}
-	if (!editorPaneViewAddTab(&view, 3) || view.pane_tab_count != 1) {
+	if (!editorPaneViewAddTab(&view, 3) || view.pane_tab_count != 1 ||
+	    view.mru_tab_count != 1 || view.mru_tabs[0] != 3 ||
+	    editorPaneViewMostRecentTab(&view) != 3) {
 		return 1;
 	}
 	/* Adding the same tab again is a no-op. */
-	if (!editorPaneViewAddTab(&view, 3) || view.pane_tab_count != 1) {
+	if (!editorPaneViewAddTab(&view, 3) || view.pane_tab_count != 1 ||
+	    view.mru_tab_count != 1) {
 		return 1;
 	}
-	if (!editorPaneViewAddTab(&view, 5) || view.pane_tab_count != 2) {
+	if (!editorPaneViewAddTab(&view, 5) || view.pane_tab_count != 2 ||
+	    view.mru_tab_count != 2 || view.mru_tabs[1] != 5) {
+		return 1;
+	}
+	if (!editorPaneViewActivateTab(&view, 5) || view.active_tab_idx != 5 ||
+	    view.mru_tab_count != 2 || view.mru_tabs[0] != 5 || view.mru_tabs[1] != 3 ||
+	    editorPaneViewMostRecentTab(&view) != 5) {
 		return 1;
 	}
 	if (!editorPaneViewHasTab(&view, 3) || !editorPaneViewHasTab(&view, 5)) {
@@ -1030,12 +1039,17 @@ static int test_layout_pane_view_tab_membership_helpers(void) {
 		return 1;
 	}
 	editorPaneViewRemoveTab(&view, 3);
-	if (view.pane_tab_count != 1 || view.pane_tabs[0] != 5) {
+	if (view.pane_tab_count != 1 || view.pane_tabs[0] != 5 || view.mru_tab_count != 1 ||
+	    view.mru_tabs[0] != 5) {
 		return 1;
 	}
 	view.active_tab_idx = 5;
 	editorPaneViewShiftTabIndicesAfterClose(&view, 3);
-	if (view.pane_tabs[0] != 4 || view.active_tab_idx != 4) {
+	if (view.pane_tabs[0] != 4 || view.mru_tabs[0] != 4 || view.active_tab_idx != 4) {
+		return 1;
+	}
+	editorPaneViewClearTabs(&view);
+	if (view.pane_tab_count != 0 || view.mru_tab_count != 0 || view.active_tab_idx != -1) {
 		return 1;
 	}
 	return 0;

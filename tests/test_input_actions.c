@@ -610,6 +610,52 @@ static int test_editor_tabs_switch_restores_per_tab_state(void) {
 	return 0;
 }
 
+static int test_editor_tab_close_uses_pane_activation_history_repeatedly(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("tab-zero");
+	ASSERT_TRUE(editorTabNewEmpty());
+	add_row("tab-one");
+	ASSERT_TRUE(editorTabNewEmpty());
+	add_row("tab-two");
+	ASSERT_TRUE(editorTabNewEmpty());
+	add_row("tab-three");
+
+	ASSERT_TRUE(editorTabSwitchToIndex(1));
+	ASSERT_TRUE(editorTabSwitchToIndex(3));
+	ASSERT_TRUE(editorTabSwitchToIndex(2));
+
+	ASSERT_TRUE(editorTabCloseActive());
+	ASSERT_EQ_INT(3, editorTabCount());
+	ASSERT_EQ_INT(2, editorTabActiveIndex());
+	ASSERT_ROW_TEXT_EQ(0, "tab-three");
+
+	ASSERT_TRUE(editorTabCloseActive());
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_ROW_TEXT_EQ(0, "tab-one");
+	return 0;
+}
+
+static int test_editor_tab_close_mru_survives_global_index_shift(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("tab-zero");
+	ASSERT_TRUE(editorTabNewEmpty());
+	add_row("tab-one");
+	ASSERT_TRUE(editorTabNewEmpty());
+	add_row("tab-two");
+	ASSERT_TRUE(editorTabNewEmpty());
+	add_row("tab-three");
+
+	ASSERT_TRUE(editorTabSwitchToIndex(3));
+	ASSERT_TRUE(editorTabSwitchToIndex(1));
+
+	ASSERT_TRUE(editorTabCloseActive());
+	ASSERT_EQ_INT(3, editorTabCount());
+	ASSERT_EQ_INT(2, editorTabActiveIndex());
+	ASSERT_ROW_TEXT_EQ(0, "tab-three");
+	return 0;
+}
+
 static int test_editor_tab_close_last_tab_keeps_one_empty_tab(void) {
 	ASSERT_TRUE(editorTabsInit());
 	add_row("x");
@@ -2223,6 +2269,10 @@ const struct editorTestCase g_input_actions_tests[] = {
          test_editor_process_keypress_main_menu_runs_selected_action},
         {"editor_tabs_switch_restores_per_tab_state",
          test_editor_tabs_switch_restores_per_tab_state},
+        {"editor_tab_close_uses_pane_activation_history_repeatedly",
+         test_editor_tab_close_uses_pane_activation_history_repeatedly},
+        {"editor_tab_close_mru_survives_global_index_shift",
+         test_editor_tab_close_mru_survives_global_index_shift},
         {"editor_tab_close_last_tab_keeps_one_empty_tab",
          test_editor_tab_close_last_tab_keeps_one_empty_tab},
         {"editor_tab_close_last_in_pane_closes_pane_when_other_panes_exist",

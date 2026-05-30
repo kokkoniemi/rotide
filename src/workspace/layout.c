@@ -635,6 +635,7 @@ void editorPaneViewInit(struct editorPaneView *view) {
 	view->active_tab_idx = -1;
 	view->tab_view_start = 0;
 	view->pane_tab_count = 0;
+	view->mru_tab_count = 0;
 }
 
 void editorPaneViewClearTabs(struct editorPaneView *view) {
@@ -642,8 +643,49 @@ void editorPaneViewClearTabs(struct editorPaneView *view) {
 		return;
 	}
 	view->pane_tab_count = 0;
+	view->mru_tab_count = 0;
 	view->active_tab_idx = -1;
 	view->tab_view_start = 0;
+}
+
+static int layoutPaneViewMruIndexOfTab(const struct editorPaneView *view, int tab_idx) {
+	if (view == NULL) {
+		return -1;
+	}
+	for (int i = 0; i < view->mru_tab_count; i++) {
+		if (view->mru_tabs[i] == tab_idx) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+static int layoutPaneViewAppendMruTab(struct editorPaneView *view, int tab_idx) {
+	if (view == NULL || tab_idx < 0) {
+		return 0;
+	}
+	if (layoutPaneViewMruIndexOfTab(view, tab_idx) >= 0) {
+		return 1;
+	}
+	if (view->mru_tab_count >= ROTIDE_PANE_MAX_TABS) {
+		return 0;
+	}
+	view->mru_tabs[view->mru_tab_count++] = tab_idx;
+	return 1;
+}
+
+static void layoutPaneViewRemoveMruTab(struct editorPaneView *view, int tab_idx) {
+	if (view == NULL) {
+		return;
+	}
+	int idx = layoutPaneViewMruIndexOfTab(view, tab_idx);
+	if (idx < 0) {
+		return;
+	}
+	for (int i = idx; i < view->mru_tab_count - 1; i++) {
+		view->mru_tabs[i] = view->mru_tabs[i + 1];
+	}
+	view->mru_tab_count--;
 }
 
 int editorPaneViewAddTab(struct editorPaneView *view, int tab_idx) {
@@ -652,13 +694,15 @@ int editorPaneViewAddTab(struct editorPaneView *view, int tab_idx) {
 	}
 	for (int i = 0; i < view->pane_tab_count; i++) {
 		if (view->pane_tabs[i] == tab_idx) {
-			return 1;
+			return layoutPaneViewAppendMruTab(view, tab_idx);
 		}
 	}
-	if (view->pane_tab_count >= ROTIDE_PANE_MAX_TABS) {
+	if (view->pane_tab_count >= ROTIDE_PANE_MAX_TABS ||
+	    view->mru_tab_count >= ROTIDE_PANE_MAX_TABS) {
 		return 0;
 	}
 	view->pane_tabs[view->pane_tab_count++] = tab_idx;
+	view->mru_tabs[view->mru_tab_count++] = tab_idx;
 	return 1;
 }
 
@@ -667,11 +711,21 @@ int editorPaneViewInsertTabAt(struct editorPaneView *view, int tab_idx, int slot
 		return 0;
 	}
 	int existing = editorPaneViewIndexOfTab(view, tab_idx);
+	if (existing >= 0 && layoutPaneViewMruIndexOfTab(view, tab_idx) < 0 &&
+	    view->mru_tab_count >= ROTIDE_PANE_MAX_TABS) {
+		return 0;
+	}
+	if (existing < 0 && view->mru_tab_count >= ROTIDE_PANE_MAX_TABS) {
+		return 0;
+	}
 	if (existing >= 0) {
 		for (int i = existing; i < view->pane_tab_count - 1; i++) {
 			view->pane_tabs[i] = view->pane_tabs[i + 1];
 		}
 		view->pane_tab_count--;
+		if (!layoutPaneViewAppendMruTab(view, tab_idx)) {
+			return 0;
+		}
 	}
 	if (slot < 0) {
 		slot = 0;
@@ -687,13 +741,44 @@ int editorPaneViewInsertTabAt(struct editorPaneView *view, int tab_idx, int slot
 	}
 	view->pane_tabs[slot] = tab_idx;
 	view->pane_tab_count++;
+	if (existing < 0) {
+		view->mru_tabs[view->mru_tab_count++] = tab_idx;
+	}
 	return 1;
+}
+
+int editorPaneViewActivateTab(struct editorPaneView *view, int tab_idx) {
+	if (!editorPaneViewAddTab(view, tab_idx)) {
+		return 0;
+	}
+	layoutPaneViewRemoveMruTab(view, tab_idx);
+	for (int i = view->mru_tab_count; i > 0; i--) {
+		view->mru_tabs[i] = view->mru_tabs[i - 1];
+	}
+	view->mru_tabs[0] = tab_idx;
+	view->mru_tab_count++;
+	view->active_tab_idx = tab_idx;
+	return 1;
+}
+
+int editorPaneViewMostRecentTab(const struct editorPaneView *view) {
+	if (view == NULL) {
+		return -1;
+	}
+	for (int i = 0; i < view->mru_tab_count; i++) {
+		int tab_idx = view->mru_tabs[i];
+		if (editorPaneViewHasTab(view, tab_idx)) {
+			return tab_idx;
+		}
+	}
+	return -1;
 }
 
 void editorPaneViewRemoveTab(struct editorPaneView *view, int tab_idx) {
 	if (view == NULL) {
 		return;
 	}
+	layoutPaneViewRemoveMruTab(view, tab_idx);
 	for (int i = 0; i < view->pane_tab_count; i++) {
 		if (view->pane_tabs[i] != tab_idx) {
 			continue;
@@ -702,6 +787,9 @@ void editorPaneViewRemoveTab(struct editorPaneView *view, int tab_idx) {
 			view->pane_tabs[j] = view->pane_tabs[j + 1];
 		}
 		view->pane_tab_count--;
+		if (view->active_tab_idx == tab_idx) {
+			view->active_tab_idx = -1;
+		}
 		return;
 	}
 }
@@ -738,6 +826,22 @@ void editorPaneViewShiftTabIndicesAfterClose(struct editorPaneView *view, int re
 		if (view->pane_tabs[i] > removed_idx) {
 			view->pane_tabs[i]--;
 		}
+	}
+	for (int i = 0; i < view->mru_tab_count;) {
+		if (view->mru_tabs[i] == removed_idx) {
+			for (int j = i; j < view->mru_tab_count - 1; j++) {
+				view->mru_tabs[j] = view->mru_tabs[j + 1];
+			}
+			view->mru_tab_count--;
+			continue;
+		}
+		if (view->mru_tabs[i] > removed_idx) {
+			view->mru_tabs[i]--;
+		}
+		i++;
+	}
+	if (view->active_tab_idx == removed_idx) {
+		view->active_tab_idx = -1;
 	}
 	if (view->active_tab_idx > removed_idx) {
 		view->active_tab_idx--;
@@ -826,6 +930,8 @@ int editorLayoutSetFocusedLeaf(struct editorPaneNode *new_leaf) {
 	int target_tab = new_leaf->as.leaf.view.active_tab_idx;
 	if (target_tab >= 0 && target_tab != E.active_tab) {
 		(void)editorTabSwitchToIndex(target_tab);
+	} else if (target_tab >= 0) {
+		(void)editorPaneViewActivateTab(&new_leaf->as.leaf.view, target_tab);
 	}
 	(void)editorPaneViewLoadIntoState(&new_leaf->as.leaf.view);
 	return 1;
@@ -848,10 +954,10 @@ struct editorPaneNode *editorLayoutSplitFocused(enum editorSplitOrientation orie
 	 * ONLY the splitting pane's active tab. Reset the membership list
 	 * the sibling inherited and re-seed it with just that one tab. */
 	if (!sibling->is_split) {
-		sibling->as.leaf.view.pane_tab_count = 0;
 		int tab_idx = sibling->as.leaf.view.active_tab_idx;
+		editorPaneViewClearTabs(&sibling->as.leaf.view);
 		if (tab_idx >= 0) {
-			(void)editorPaneViewAddTab(&sibling->as.leaf.view, tab_idx);
+			(void)editorPaneViewActivateTab(&sibling->as.leaf.view, tab_idx);
 		}
 	}
 	E.focused_leaf = sibling;

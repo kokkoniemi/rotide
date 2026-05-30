@@ -27,8 +27,10 @@ enum editorSplitOrientation { EDITOR_SPLIT_HORIZONTAL = 0, EDITOR_SPLIT_VERTICAL
  *
  * `pane_tabs` / `pane_tab_count` are the pane's membership list of global
  * tab indices: the tab bar filters by this list, Ctrl+Tab cycles within
- * it, and a new split inherits only the splitting pane's active tab. Tabs
- * still live in the shared E.tabs[] array; the list is a view into it.
+ * it, and a new split inherits only the splitting pane's active tab.
+ * `mru_tabs` / `mru_tab_count` record activation order for close-tab
+ * fallback without changing the tab strip order. Tabs still live in the
+ * shared E.tabs[] array; these lists are views into it.
  *
  * Invariant: every editor leaf has pane_tab_count >= 1 in settled state.
  * See editorTabsEnsurePaneOccupancy in workspace/tabs.h.
@@ -56,6 +58,8 @@ struct editorPaneView {
 	int column_select_cursor_rx;
 	int pane_tabs[ROTIDE_PANE_MAX_TABS];
 	int pane_tab_count;
+	int mru_tabs[ROTIDE_PANE_MAX_TABS];
+	int mru_tab_count;
 };
 
 struct editorPane {
@@ -241,6 +245,8 @@ int editorLayoutSetFocusedLeaf(struct editorPaneNode *new_leaf);
  */
 int editorPaneViewAddTab(struct editorPaneView *view, int tab_idx);
 int editorPaneViewInsertTabAt(struct editorPaneView *view, int tab_idx, int slot);
+int editorPaneViewActivateTab(struct editorPaneView *view, int tab_idx);
+int editorPaneViewMostRecentTab(const struct editorPaneView *view);
 void editorPaneViewRemoveTab(struct editorPaneView *view, int tab_idx);
 void editorPaneViewClearTabs(struct editorPaneView *view);
 int editorPaneViewHasTab(const struct editorPaneView *view, int tab_idx);

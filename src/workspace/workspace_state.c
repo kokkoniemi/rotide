@@ -722,14 +722,14 @@ static void workspaceStateApplyPendingPaneAssignment(void) {
 			continue;
 		}
 		if (p->is_active) {
-			leaf->as.leaf.view.active_tab_idx = tab_idx;
+			(void)editorPaneViewActivateTab(&leaf->as.leaf.view, tab_idx);
 		}
 	}
 
 	for (int i = 0; i < leaf_count; i++) {
 		struct editorPaneView *v = &leaves[i]->as.leaf.view;
 		if (v->active_tab_idx < 0 && v->pane_tab_count > 0) {
-			v->active_tab_idx = v->pane_tabs[0];
+			(void)editorPaneViewActivateTab(v, v->pane_tabs[0]);
 		}
 	}
 
