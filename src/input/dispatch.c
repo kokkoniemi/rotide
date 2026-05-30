@@ -2207,6 +2207,10 @@ void editorProcessKeypress(void) {
 					     DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT) != 0) {
 						editorViewportEnsureCursorVisible();
 					}
+				} else if (popup_kind == EDITOR_POPUP_KIND_TAB_CONTEXT_MENU) {
+					int mapped_effects = DISPATCH_KEYPRESS_EFFECT_NONE;
+					(void)editorTabContextMenuActivate(
+					        dispatchProcessMappedAction, &mapped_effects);
 				} else if (editorAutocompleteIsVisible()) {
 					dispatchPinActivePreviewForEdit();
 					editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);

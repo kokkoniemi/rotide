@@ -32,6 +32,10 @@ int editorOpenEditorContextMenuAt(int screen_row, int screen_col, int has_contex
                                   size_t context_offset);
 int editorEditorContextMenuActivate(editorProcessMappedActionFn process_mapped_action,
                                     int *effects_out);
+int editorOpenTabContextMenuAt(int screen_row, int screen_col, struct editorPaneNode *leaf,
+                               int tab_idx);
+int editorTabContextMenuActivate(editorProcessMappedActionFn process_mapped_action,
+                                 int *effects_out);
 int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long long now_ms,
                                      int double_click_threshold_ms,
                                      editorProcessMappedActionFn process_mapped_action,

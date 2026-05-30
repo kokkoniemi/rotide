@@ -260,6 +260,42 @@ static int mouseResolvePaneTabStripCell(const struct editorMouseEvent *event,
 	return ok;
 }
 
+static int mouseResolvePaneTabStripTarget(const struct editorMouseEvent *event,
+                                          struct editorPaneNode **leaf_out, int *tab_idx_out) {
+	struct editorPaneNode *leaf = NULL;
+	int tab_col = 0;
+	int tab_cols = 0;
+	if (!mouseResolvePaneTabStripCell(event, &leaf, &tab_col, &tab_cols) || leaf == NULL ||
+	    leaf->is_split) {
+		return 0;
+	}
+
+	int mouse_col = event->x - 1;
+	int mouse_row = event->y - 1;
+	if (mouse_row == 0 && editorDrawerIsCollapsed() &&
+	    editorPaneTreeLeafCount(E.layout_root) <= 1) {
+		int toggle_cols = editorDrawerCollapsedToggleWidthForCols(E.window_cols);
+		if (mouse_col < toggle_cols) {
+			return 0;
+		}
+		tab_col = mouse_col - toggle_cols;
+		tab_cols = E.window_cols - toggle_cols;
+	}
+
+	struct editorPaneView *view = &leaf->as.leaf.view;
+	int tab_idx = editorTabOverflowHitTestColumnForPane(view, tab_col, tab_cols);
+	if (tab_idx < 0) {
+		tab_idx = editorTabHitTestColumnForPane(view, tab_col, tab_cols);
+	}
+	if (leaf_out != NULL) {
+		*leaf_out = leaf;
+	}
+	if (tab_idx_out != NULL) {
+		*tab_idx_out = tab_idx;
+	}
+	return 1;
+}
+
 static int mouseFinishTabDrag(const struct editorMouseEvent *event) {
 	struct editorPaneNode *source = E.tab_drag_source_leaf;
 	int tab_idx = E.tab_drag_source_tab_idx;
@@ -751,11 +787,16 @@ static long long mouseMonotonicMillis(void) {
 }
 
 #define MOUSE_EDITOR_CONTEXT_MAX_ITEMS 7
+#define MOUSE_TAB_CONTEXT_MAX_ITEMS 2
 
 static enum editorAction g_mouse_editor_context_actions[MOUSE_EDITOR_CONTEXT_MAX_ITEMS];
 static int g_mouse_editor_context_action_count;
 static int g_mouse_editor_context_has_offset;
 static size_t g_mouse_editor_context_offset;
+static enum editorAction g_mouse_tab_context_actions[MOUSE_TAB_CONTEXT_MAX_ITEMS];
+static int g_mouse_tab_context_action_count;
+static struct editorPaneNode *g_mouse_tab_context_leaf;
+static int g_mouse_tab_context_tab_idx;
 
 static int mouseSetCursorFromOffset(size_t offset);
 static void mouseClearSelectionMode(void);
@@ -854,6 +895,80 @@ int editorEditorContextMenuActivate(editorProcessMappedActionFn process_mapped_a
 	return process_mapped_action(action, effects_out);
 }
 
+static void mouseAppendTabContextItem(struct editorPopupItem *items, int *count_io,
+                                      const char *label, enum editorAction action) {
+	int idx = *count_io;
+	if (idx >= MOUSE_TAB_CONTEXT_MAX_ITEMS) {
+		return;
+	}
+	items[idx].label = (char *)label;
+	items[idx].detail = NULL;
+	g_mouse_tab_context_actions[idx] = action;
+	*count_io = idx + 1;
+}
+
+static void mouseClearTabContextState(void) {
+	g_mouse_tab_context_action_count = 0;
+	g_mouse_tab_context_leaf = NULL;
+	g_mouse_tab_context_tab_idx = -1;
+}
+
+int editorOpenTabContextMenuAt(int screen_row, int screen_col, struct editorPaneNode *leaf,
+                               int tab_idx) {
+	if (leaf == NULL || leaf->is_split || leaf->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
+		return 0;
+	}
+
+	struct editorPopupItem items[MOUSE_TAB_CONTEXT_MAX_ITEMS];
+	int count = 0;
+	if (tab_idx >= 0 && editorPaneViewHasTab(&leaf->as.leaf.view, tab_idx)) {
+		mouseAppendTabContextItem(items, &count, "Close Tab", EDITOR_ACTION_CLOSE_TAB);
+	}
+	mouseAppendTabContextItem(items, &count, "New Tab", EDITOR_ACTION_NEW_TAB);
+
+	g_mouse_tab_context_action_count = count;
+	g_mouse_tab_context_leaf = leaf;
+	g_mouse_tab_context_tab_idx = tab_idx;
+	if (!editorPopupOpenMenuKind(EDITOR_POPUP_KIND_TAB_CONTEXT_MENU, items, count, screen_row,
+	                             screen_col)) {
+		mouseClearTabContextState();
+		return 0;
+	}
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+	return 1;
+}
+
+int editorTabContextMenuActivate(editorProcessMappedActionFn process_mapped_action,
+                                 int *effects_out) {
+	int idx = editorPopupSelectedIndex();
+	int count = g_mouse_tab_context_action_count;
+	if (idx < 0 || idx >= count) {
+		editorPopupClose();
+		mouseClearTabContextState();
+		return 0;
+	}
+
+	enum editorAction action = g_mouse_tab_context_actions[idx];
+	struct editorPaneNode *leaf = g_mouse_tab_context_leaf;
+	int tab_idx = g_mouse_tab_context_tab_idx;
+	editorPopupClose();
+	mouseClearTabContextState();
+	if (process_mapped_action == NULL || leaf == NULL || leaf->is_split ||
+	    E.layout_root == NULL || !editorPaneNodeContainsLeaf(E.layout_root, leaf)) {
+		return 0;
+	}
+	if (!editorLayoutSetFocusedLeaf(leaf)) {
+		return 0;
+	}
+	if (action == EDITOR_ACTION_CLOSE_TAB) {
+		if (!editorPaneViewHasTab(&leaf->as.leaf.view, tab_idx) ||
+		    !editorTabSwitchToIndex(tab_idx)) {
+			return 0;
+		}
+	}
+	return process_mapped_action(action, effects_out);
+}
+
 static int mouseHandleLeftPressOnMenu(const struct editorMouseEvent *event,
                                       editorProcessMappedActionFn process_mapped_action,
                                       int *effects_out) {
@@ -867,6 +982,8 @@ static int mouseHandleLeftPressOnMenu(const struct editorMouseEvent *event,
 			editorDrawerContextMenuActivate();
 		} else if (E.popup.kind == EDITOR_POPUP_KIND_EDITOR_CONTEXT_MENU) {
 			(void)editorEditorContextMenuActivate(process_mapped_action, effects_out);
+		} else if (E.popup.kind == EDITOR_POPUP_KIND_TAB_CONTEXT_MENU) {
+			(void)editorTabContextMenuActivate(process_mapped_action, effects_out);
 		} else {
 			editorPopupClose();
 		}
@@ -907,6 +1024,22 @@ static int mouseHandleRightPress(const struct editorMouseEvent *event) {
 	}
 	if (editorMouseIsOverDrawer(event)) {
 		if (editorDrawerOpenContextMenuAt(event, E.window_rows)) {
+			return 1;
+		}
+		return popup_was_open;
+	}
+
+	struct editorPaneNode *tab_leaf = NULL;
+	int tab_idx = -1;
+	if (mouseResolvePaneTabStripTarget(event, &tab_leaf, &tab_idx)) {
+		struct editorPaneNode *prev_focus = E.focused_leaf;
+		if (!editorLayoutSetFocusedLeaf(tab_leaf)) {
+			return popup_was_open;
+		}
+		if (E.focused_leaf != prev_focus) {
+			editorPaneAnnounceFocus();
+		}
+		if (editorOpenTabContextMenuAt(event->y, event->x, tab_leaf, tab_idx)) {
 			return 1;
 		}
 		return popup_was_open;

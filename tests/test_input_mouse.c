@@ -730,6 +730,108 @@ static int test_editor_process_keypress_mouse_tab_bar_carets_switch_hidden_tabs(
 	return 0;
 }
 
+static int top_tab_sgr_point(int tab_idx, int *x_out, int *y_out) {
+	int text_cols = editorDrawerTextViewportCols(E.window_cols);
+	struct editorTabLayoutEntry layout[ROTIDE_MAX_TABS];
+	int layout_count = 0;
+	ASSERT_TRUE(
+	        editorTabBuildLayoutForWidth(text_cols, layout, ROTIDE_MAX_TABS, &layout_count));
+	for (int i = 0; i < layout_count; i++) {
+		if (layout[i].tab_idx != tab_idx) {
+			continue;
+		}
+		int local_col = layout[i].start_col;
+		if (layout[i].width_cols > 2) {
+			local_col++;
+		}
+		*x_out = editorDrawerTextStartColForCols(E.window_cols) + local_col + 1;
+		*y_out = 1;
+		return 0;
+	}
+	ASSERT_TRUE(0);
+	return 1;
+}
+
+static int test_editor_process_keypress_mouse_tab_bar_right_click_opens_menu(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("zero");
+	ASSERT_TRUE(editorTabNewEmpty());
+	add_row("one");
+	ASSERT_TRUE(editorTabNewEmpty());
+	add_row("two");
+	ASSERT_EQ_INT(2, editorTabActiveIndex());
+
+	E.window_cols = 80;
+	int x = 0;
+	int y = 0;
+	ASSERT_TRUE(top_tab_sgr_point(1, &x, &y) == 0);
+	char right[32];
+	ASSERT_TRUE(format_sgr_mouse_event(right, sizeof(right), 2, x, y, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(right, strlen(right)) == 0);
+
+	ASSERT_TRUE(editorPopupIsVisible());
+	ASSERT_EQ_INT(EDITOR_POPUP_KIND_TAB_CONTEXT_MENU, E.popup.kind);
+	ASSERT_EQ_INT(2, editorPopupItemCount());
+	ASSERT_EQ_STR("Close Tab", E.popup.items[0].label);
+	ASSERT_EQ_STR("New Tab", E.popup.items[1].label);
+	ASSERT_EQ_INT(2, editorTabActiveIndex());
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_tab_bar_context_close_closes_clicked_tab(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("zero");
+	ASSERT_TRUE(editorTabNewEmpty());
+	add_row("one");
+	ASSERT_TRUE(editorTabNewEmpty());
+	add_row("two");
+
+	E.window_cols = 80;
+	int x = 0;
+	int y = 0;
+	ASSERT_TRUE(top_tab_sgr_point(0, &x, &y) == 0);
+	char right[32];
+	ASSERT_TRUE(format_sgr_mouse_event(right, sizeof(right), 2, x, y, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(right, strlen(right)) == 0);
+	ASSERT_TRUE(editorPopupIsVisible());
+
+	char left[32];
+	ASSERT_TRUE(format_sgr_mouse_event(left, sizeof(left), 0, E.popup.anchor_col,
+	                                   E.popup.anchor_row + 1, 'M'));
+	E.close_confirmed = 1;
+	ASSERT_TRUE(editor_process_keypress_with_input(left, strlen(left)) == 0);
+
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	ASSERT_ROW_TEXT_EQ(0, "two");
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+	ASSERT_ROW_TEXT_EQ(0, "one");
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_tab_bar_blank_context_creates_tab(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("zero");
+
+	E.window_cols = 80;
+	char right[32];
+	ASSERT_TRUE(format_sgr_mouse_event(right, sizeof(right), 2, E.window_cols, 1, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(right, strlen(right)) == 0);
+	ASSERT_TRUE(editorPopupIsVisible());
+	ASSERT_EQ_INT(EDITOR_POPUP_KIND_TAB_CONTEXT_MENU, E.popup.kind);
+	ASSERT_EQ_INT(1, editorPopupItemCount());
+	ASSERT_EQ_STR("New Tab", E.popup.items[0].label);
+
+	char left[32];
+	ASSERT_TRUE(format_sgr_mouse_event(left, sizeof(left), 0, E.popup.anchor_col,
+	                                   E.popup.anchor_row + 1, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(left, strlen(left)) == 0);
+
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(1, editorTabActiveIndex());
+	return 0;
+}
+
 static int setup_four_tab_split(enum editorSplitOrientation orientation,
                                 struct editorPaneNode **first_out,
                                 struct editorPaneNode **second_out) {
@@ -835,6 +937,44 @@ static int test_editor_process_keypress_mouse_pane_strip_click_activates_pane_ta
 	ASSERT_EQ_INT(3, bottom->as.leaf.view.active_tab_idx);
 	ASSERT_EQ_INT(1, top->as.leaf.view.active_tab_idx);
 	ASSERT_EQ_INT(0, E.split_resize_active);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_pane_strip_context_close_targets_clicked_tab(void) {
+	struct editorPaneNode *top = NULL;
+	struct editorPaneNode *bottom = NULL;
+	ASSERT_TRUE(setup_four_tab_split(EDITOR_SPLIT_HORIZONTAL, &top, &bottom) == 0);
+	editorPaneViewRemoveTab(&bottom->as.leaf.view, 0);
+	ASSERT_TRUE(editorPaneViewActivateTab(&bottom->as.leaf.view, 2));
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(top));
+
+	int click_x = 0;
+	int click_y = 0;
+	ASSERT_TRUE(pane_tab_sgr_point(bottom, 3, &click_x, &click_y) == 0);
+	char right[32];
+	ASSERT_TRUE(format_sgr_mouse_event(right, sizeof(right), 2, click_x, click_y, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(right, strlen(right)) == 0);
+
+	ASSERT_TRUE(editorPopupIsVisible());
+	ASSERT_EQ_INT(EDITOR_POPUP_KIND_TAB_CONTEXT_MENU, E.popup.kind);
+	ASSERT_EQ_INT(2, editorPopupItemCount());
+	ASSERT_EQ_STR("Close Tab", E.popup.items[0].label);
+	ASSERT_EQ_STR("New Tab", E.popup.items[1].label);
+	ASSERT_TRUE(E.focused_leaf == bottom);
+	ASSERT_EQ_INT(2, editorTabActiveIndex());
+
+	char left[32];
+	ASSERT_TRUE(format_sgr_mouse_event(left, sizeof(left), 0, E.popup.anchor_col,
+	                                   E.popup.anchor_row + 1, 'M'));
+	E.close_confirmed = 1;
+	ASSERT_TRUE(editor_process_keypress_with_input(left, strlen(left)) == 0);
+
+	ASSERT_EQ_INT(3, editorTabCount());
+	ASSERT_TRUE(E.focused_leaf == bottom);
+	ASSERT_EQ_INT(2, editorTabActiveIndex());
+	ASSERT_EQ_INT(1, bottom->as.leaf.view.pane_tab_count);
+	ASSERT_EQ_INT(2, bottom->as.leaf.view.pane_tabs[0]);
+	ASSERT_EQ_INT(2, bottom->as.leaf.view.active_tab_idx);
 	return 0;
 }
 
@@ -2691,8 +2831,16 @@ const struct editorTestCase g_input_mouse_tests[] = {
          test_editor_process_keypress_mouse_top_row_click_uses_variable_tab_layout},
         {"editor_process_keypress_mouse_tab_bar_carets_switch_hidden_tabs",
          test_editor_process_keypress_mouse_tab_bar_carets_switch_hidden_tabs},
+        {"editor_process_keypress_mouse_tab_bar_right_click_opens_menu",
+         test_editor_process_keypress_mouse_tab_bar_right_click_opens_menu},
+        {"editor_process_keypress_mouse_tab_bar_context_close_closes_clicked_tab",
+         test_editor_process_keypress_mouse_tab_bar_context_close_closes_clicked_tab},
+        {"editor_process_keypress_mouse_tab_bar_blank_context_creates_tab",
+         test_editor_process_keypress_mouse_tab_bar_blank_context_creates_tab},
         {"editor_process_keypress_mouse_pane_strip_click_activates_pane_tab",
          test_editor_process_keypress_mouse_pane_strip_click_activates_pane_tab},
+        {"editor_process_keypress_mouse_pane_strip_context_close_targets_clicked_tab",
+         test_editor_process_keypress_mouse_pane_strip_context_close_targets_clicked_tab},
         {"editor_process_keypress_mouse_strip_blank_border_arms_resize",
          test_editor_process_keypress_mouse_strip_blank_border_arms_resize},
         {"editor_process_keypress_mouse_top_strip_vborder_arms_resize",
