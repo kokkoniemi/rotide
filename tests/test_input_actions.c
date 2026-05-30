@@ -626,6 +626,65 @@ static int test_editor_tab_close_last_tab_keeps_one_empty_tab(void) {
 	return 0;
 }
 
+static int test_editor_tab_close_last_in_pane_closes_pane_when_other_panes_exist(void) {
+	ASSERT_TRUE(editorTabsInit());
+	E.filename = strdup("/tmp/left.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	add_row("left content");
+	ASSERT_TRUE(editorTabNewEmpty());
+	E.filename = strdup("/tmp/right.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	add_row("right content");
+
+	/* Split the layout: each pane owns exactly one of the two tabs. */
+	struct editorPaneNode *left = E.focused_leaf;
+	struct editorPaneNode *right = editorLayoutSplitFocused(EDITOR_SPLIT_VERTICAL, 0.5);
+	ASSERT_TRUE(right != NULL);
+	left->as.leaf.view.pane_tab_count = 0;
+	ASSERT_TRUE(editorPaneViewAddTab(&left->as.leaf.view, 0));
+	left->as.leaf.view.active_tab_idx = 0;
+	right->as.leaf.view.pane_tab_count = 0;
+	ASSERT_TRUE(editorPaneViewAddTab(&right->as.leaf.view, 1));
+	right->as.leaf.view.active_tab_idx = 1;
+
+	ASSERT_TRUE(editorLayoutSetFocusedLeaf(left));
+	ASSERT_TRUE(editorTabSwitchToIndex(0));
+	ASSERT_EQ_INT(2, editorTabCount());
+	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
+
+	ASSERT_TRUE(editorTabCloseActive());
+
+	/* Layout collapsed to a single pane (right), which is now focused and
+	 * still shows its own tab. The closed tab was globally removed. */
+	ASSERT_EQ_INT(1, editorPaneTreeLeafCount(E.layout_root));
+	ASSERT_EQ_INT(1, editorTabCount());
+	ASSERT_TRUE(E.focused_leaf != NULL && !E.focused_leaf->is_split);
+	ASSERT_EQ_INT(1, E.focused_leaf->as.leaf.view.pane_tab_count);
+	int local_tab = E.focused_leaf->as.leaf.view.pane_tabs[0];
+	ASSERT_EQ_INT(local_tab, editorTabActiveIndex());
+	ASSERT_TRUE(editorTabFilenameAt(local_tab) != NULL);
+	ASSERT_EQ_STR("/tmp/right.txt", editorTabFilenameAt(local_tab));
+	return 0;
+}
+
+static int test_editor_tab_close_last_in_single_pane_keeps_empty_buffer(void) {
+	ASSERT_TRUE(editorTabsInit());
+	E.filename = strdup("/tmp/only.txt");
+	ASSERT_TRUE(E.filename != NULL);
+	add_row("only content");
+	ASSERT_EQ_INT(1, editorPaneTreeLeafCount(E.layout_root));
+
+	ASSERT_TRUE(editorTabCloseActive());
+
+	/* Single-pane layout cannot close the only pane; falls back to a fresh
+	 * empty buffer in place. */
+	ASSERT_EQ_INT(1, editorPaneTreeLeafCount(E.layout_root));
+	ASSERT_EQ_INT(1, editorTabCount());
+	ASSERT_EQ_INT(0, E.numrows);
+	ASSERT_TRUE(E.filename == NULL);
+	return 0;
+}
+
 static int test_editor_process_keypress_ctrl_w_dirty_requires_second_press(void) {
 	ASSERT_TRUE(editorTabsInit());
 	add_row("dirty");
@@ -2166,6 +2225,10 @@ const struct editorTestCase g_input_actions_tests[] = {
          test_editor_tabs_switch_restores_per_tab_state},
         {"editor_tab_close_last_tab_keeps_one_empty_tab",
          test_editor_tab_close_last_tab_keeps_one_empty_tab},
+        {"editor_tab_close_last_in_pane_closes_pane_when_other_panes_exist",
+         test_editor_tab_close_last_in_pane_closes_pane_when_other_panes_exist},
+        {"editor_tab_close_last_in_single_pane_keeps_empty_buffer",
+         test_editor_tab_close_last_in_single_pane_keeps_empty_buffer},
         {"editor_process_keypress_ctrl_w_dirty_requires_second_press",
          test_editor_process_keypress_ctrl_w_dirty_requires_second_press},
         {"editor_process_keypress_close_tab_confirmation_resets_on_other_action",

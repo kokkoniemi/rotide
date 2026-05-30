@@ -838,38 +838,67 @@ int editorTabSwitchByDelta(int delta) {
 	return editorTabSwitchToIndex(target);
 }
 
+/*
+ * skip_active_save=1: caller has freed or shifted E.tabs[E.active_tab], so
+ * editorTabSwitchToIndex must not save the now-stale globals back into that
+ * slot.
+ */
+static int tabsCloseFocusedPaneIfEmpty(int skip_active_save) {
+	struct editorPaneNode *focused = E.focused_leaf;
+	if (focused == NULL || focused->is_split ||
+	    focused->as.leaf.kind != EDITOR_PANE_KIND_EDITOR ||
+	    focused->as.leaf.view.pane_tab_count != 0) {
+		return 0;
+	}
+	if (E.layout_root == NULL || editorPaneTreeLeafCount(E.layout_root) <= 1) {
+		return 0;
+	}
+	E.split_resize_active = 0;
+	E.split_resize_node = NULL;
+	struct editorPaneNode *new_focus = editorPaneTreeCloseLeaf(&E.layout_root, focused);
+	if (new_focus == NULL) {
+		return 0;
+	}
+	E.focused_leaf = new_focus;
+	if (skip_active_save) {
+		E.active_tab = -1;
+	}
+	int target = new_focus->as.leaf.view.active_tab_idx;
+	if (target >= 0 && target < E.tab_count) {
+		(void)editorTabSwitchToIndex(target);
+	} else {
+		editorResetActiveBufferFields();
+	}
+	(void)editorPaneViewLoadIntoState(&new_focus->as.leaf.view);
+	return 1;
+}
+
 int editorTabCloseActive(void) {
 	if (E.tab_count <= 0 || E.tabs == NULL) {
 		return 0;
 	}
 
+	/* Pane invariant: a pane's view never shows a tab outside its own pane_tabs[] list. */
 	int closing = E.active_tab;
+	struct editorPaneNode *focused = E.focused_leaf;
+	int focused_is_editor = (focused != NULL && !focused->is_split &&
+	                         focused->as.leaf.kind == EDITOR_PANE_KIND_EDITOR);
 
-	/* Pane-scoped close: remove the tab from the focused pane's membership
-	 * list. If another pane still has the tab, the global tab survives;
-	 * just switch the focused pane to a remaining tab. Otherwise fall
-	 * through to the global removal path. */
-	if (E.focused_leaf != NULL && !E.focused_leaf->is_split) {
-		editorPaneViewRemoveTab(&E.focused_leaf->as.leaf.view, closing);
+	if (focused_is_editor) {
+		editorPaneViewRemoveTab(&focused->as.leaf.view, closing);
 	}
+
 	if (editorPaneTreeAnyPaneHasTab(E.layout_root, closing)) {
-		int next_local = -1;
-		if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
-		    E.focused_leaf->as.leaf.view.pane_tab_count > 0) {
-			next_local = E.focused_leaf->as.leaf.view.pane_tabs[0];
-		}
-		if (next_local < 0) {
-			for (int i = 0; i < E.tab_count; i++) {
-				if (i != closing) {
-					next_local = i;
-					break;
+		if (focused_is_editor) {
+			if (focused->as.leaf.view.pane_tab_count > 0) {
+				(void)editorTabSwitchToIndex(focused->as.leaf.view.pane_tabs[0]);
+			} else if (!tabsCloseFocusedPaneIfEmpty(0)) {
+				int new_idx = editorTabAppendEmptyForPane(focused);
+				if (new_idx >= 0) {
+					(void)editorTabSwitchToIndex(new_idx);
 				}
 			}
 		}
-		if (next_local < 0) {
-			next_local = closing;
-		}
-		(void)editorTabSwitchToIndex(next_local);
 		return 1;
 	}
 
@@ -890,10 +919,22 @@ int editorTabCloseActive(void) {
 	        sizeof(struct editorTabState) * (size_t)(E.tab_count - closing - 1));
 	E.tab_count--;
 	editorPaneTreeShiftTabIndicesAfterClose(E.layout_root, closing);
+
+	if (focused_is_editor && focused->as.leaf.view.pane_tab_count == 0) {
+		if (tabsCloseFocusedPaneIfEmpty(1)) {
+			return 1;
+		}
+		int new_idx = editorTabAppendEmptyForPane(focused);
+		if (new_idx >= 0) {
+			E.active_tab = new_idx;
+			tabsLoadActiveTab(new_idx);
+			return 1;
+		}
+	}
+
 	int next_idx = -1;
-	if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
-	    E.focused_leaf->as.leaf.view.pane_tab_count > 0) {
-		next_idx = E.focused_leaf->as.leaf.view.pane_tabs[0];
+	if (focused_is_editor && focused->as.leaf.view.pane_tab_count > 0) {
+		next_idx = focused->as.leaf.view.pane_tabs[0];
 	}
 	if (next_idx < 0 || next_idx >= E.tab_count) {
 		next_idx = closing < E.tab_count ? closing : E.tab_count - 1;
