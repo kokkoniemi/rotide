@@ -1,4 +1,5 @@
 #include "editing/selection.h"
+#include "editor_test_api.h"
 #include "input/mouse.h"
 #include "language/syntax.h"
 #include "render/popup.h"
@@ -2192,6 +2193,263 @@ static int test_editor_process_keypress_mouse_drag_without_motion_keeps_click_be
 	return 0;
 }
 
+static int test_editor_drawer_move_path_completion_unique_match_appends_slash(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char dir_path[512];
+	ASSERT_TRUE(path_join(dir_path, sizeof(dir_path), env.project_dir, "utilities"));
+	ASSERT_TRUE(make_dir(dir_path));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	char *completed = editorDrawerMovePathCompletionTest("uti", "uti", 0);
+	ASSERT_TRUE(completed != NULL);
+	ASSERT_EQ_STR("utilities/", completed);
+	free(completed);
+
+	(void)rmdir(dir_path);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_move_path_completion_common_prefix(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char a[512];
+	char b[512];
+	ASSERT_TRUE(path_join(a, sizeof(a), env.project_dir, "utilities"));
+	ASSERT_TRUE(path_join(b, sizeof(b), env.project_dir, "utopia"));
+	ASSERT_TRUE(make_dir(a));
+	ASSERT_TRUE(make_dir(b));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	char *completed = editorDrawerMovePathCompletionTest("u", "u", 0);
+	ASSERT_TRUE(completed != NULL);
+	ASSERT_EQ_STR("ut", completed);
+	free(completed);
+
+	(void)rmdir(a);
+	(void)rmdir(b);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_move_path_completion_ignores_files(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char file_path[512];
+	ASSERT_TRUE(path_join(file_path, sizeof(file_path), env.project_dir, "utilities.txt"));
+	ASSERT_TRUE(write_text_file(file_path, "x\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	char *completed = editorDrawerMovePathCompletionTest("uti", "uti", 0);
+	ASSERT_TRUE(completed == NULL);
+
+	(void)unlink(file_path);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_move_path_completion_nested(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char outer[512];
+	char inner[512];
+	ASSERT_TRUE(path_join(outer, sizeof(outer), env.project_dir, "src"));
+	ASSERT_TRUE(path_join(inner, sizeof(inner), outer, "utilities"));
+	ASSERT_TRUE(make_dir(outer));
+	ASSERT_TRUE(make_dir(inner));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	char *completed = editorDrawerMovePathCompletionTest("src/uti", "src/uti", 0);
+	ASSERT_TRUE(completed != NULL);
+	ASSERT_EQ_STR("src/utilities/", completed);
+	free(completed);
+
+	(void)rmdir(inner);
+	(void)rmdir(outer);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_move_path_completion_absolute_path(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char dir_path[512];
+	ASSERT_TRUE(path_join(dir_path, sizeof(dir_path), env.project_dir, "utilities"));
+	ASSERT_TRUE(make_dir(dir_path));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	char input[600];
+	ASSERT_TRUE((size_t)snprintf(input, sizeof(input), "%s/uti", env.project_dir) <
+	            sizeof(input));
+	char expected[600];
+	ASSERT_TRUE((size_t)snprintf(expected, sizeof(expected), "%s/utilities/", env.project_dir) <
+	            sizeof(expected));
+
+	char *completed = editorDrawerMovePathCompletionTest(input, input, 0);
+	ASSERT_TRUE(completed != NULL);
+	ASSERT_EQ_STR(expected, completed);
+	free(completed);
+
+	(void)rmdir(dir_path);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_move_path_completion_cycles_on_repeat_tab(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char a[512];
+	char b[512];
+	ASSERT_TRUE(path_join(a, sizeof(a), env.project_dir, "utilities"));
+	ASSERT_TRUE(path_join(b, sizeof(b), env.project_dir, "utopia"));
+	ASSERT_TRUE(make_dir(a));
+	ASSERT_TRUE(make_dir(b));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	/* Anchor is the buffer at the start of the cycle session ("u" throughout). */
+	const char *anchor = "u";
+
+	/* First Tab on "u" → common prefix "ut". */
+	char *first = editorDrawerMovePathCompletionTest("u", anchor, 0);
+	ASSERT_TRUE(first != NULL);
+	ASSERT_EQ_STR("ut", first);
+
+	/* Second Tab → cycle starts: first match alphabetically. */
+	char *second = editorDrawerMovePathCompletionTest(first, anchor, 1);
+	free(first);
+	ASSERT_TRUE(second != NULL);
+	ASSERT_EQ_STR("utilities/", second);
+
+	/* Third Tab → next match. */
+	char *third = editorDrawerMovePathCompletionTest(second, anchor, 2);
+	free(second);
+	ASSERT_TRUE(third != NULL);
+	ASSERT_EQ_STR("utopia/", third);
+
+	/* Fourth Tab → wraps around. */
+	char *fourth = editorDrawerMovePathCompletionTest(third, anchor, 3);
+	free(third);
+	ASSERT_TRUE(fourth != NULL);
+	ASSERT_EQ_STR("utilities/", fourth);
+	free(fourth);
+
+	(void)rmdir(a);
+	(void)rmdir(b);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_move_path_completion_descends_with_trailing_slash(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char src_dir[512];
+	char editing[512];
+	char debug[512];
+	ASSERT_TRUE(path_join(src_dir, sizeof(src_dir), env.project_dir, "src"));
+	ASSERT_TRUE(path_join(editing, sizeof(editing), src_dir, "editing"));
+	ASSERT_TRUE(path_join(debug, sizeof(debug), src_dir, "debug"));
+	ASSERT_TRUE(make_dir(src_dir));
+	ASSERT_TRUE(make_dir(editing));
+	ASSERT_TRUE(make_dir(debug));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	/* Typing "src/" + Tab should cycle src/ children, not src's siblings. */
+	const char *anchor = "src/";
+	char *first = editorDrawerMovePathCompletionTest("src/", anchor, 0);
+	/* Two children with no common prefix → no extension on first Tab. */
+	ASSERT_TRUE(first == NULL);
+
+	char *second = editorDrawerMovePathCompletionTest("src/", anchor, 1);
+	ASSERT_TRUE(second != NULL);
+	ASSERT_EQ_STR("src/debug/", second);
+
+	char *third = editorDrawerMovePathCompletionTest(second, anchor, 2);
+	free(second);
+	ASSERT_TRUE(third != NULL);
+	ASSERT_EQ_STR("src/editing/", third);
+	free(third);
+
+	(void)rmdir(editing);
+	(void)rmdir(debug);
+	(void)rmdir(src_dir);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_move_path_completion_cycle_respects_original_partial(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char src_dir[512];
+	char editing[512];
+	char edit_pipeline[512];
+	char debug[512];
+	ASSERT_TRUE(path_join(src_dir, sizeof(src_dir), env.project_dir, "src"));
+	ASSERT_TRUE(path_join(editing, sizeof(editing), src_dir, "editing"));
+	ASSERT_TRUE(path_join(edit_pipeline, sizeof(edit_pipeline), src_dir, "edit_pipeline"));
+	ASSERT_TRUE(path_join(debug, sizeof(debug), src_dir, "debug"));
+	ASSERT_TRUE(make_dir(src_dir));
+	ASSERT_TRUE(make_dir(editing));
+	ASSERT_TRUE(make_dir(edit_pipeline));
+	ASSERT_TRUE(make_dir(debug));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	/* "src/edi" + Tab should cycle only "edi*" entries — never "debug". */
+	const char *anchor = "src/edi";
+	char *first = editorDrawerMovePathCompletionTest("src/edi", anchor, 0);
+	ASSERT_TRUE(first != NULL);
+	ASSERT_EQ_STR("src/edit", first);
+
+	char *second = editorDrawerMovePathCompletionTest(first, anchor, 1);
+	free(first);
+	ASSERT_TRUE(second != NULL);
+	/* "edit_pipeline" sorts before "editing" because '_' (0x5F) < 'i' (0x69). */
+	ASSERT_EQ_STR("src/edit_pipeline/", second);
+
+	char *third = editorDrawerMovePathCompletionTest(second, anchor, 2);
+	free(second);
+	ASSERT_TRUE(third != NULL);
+	ASSERT_EQ_STR("src/editing/", third);
+
+	/* Wraps back to first edi* match; "debug" must never appear. */
+	char *fourth = editorDrawerMovePathCompletionTest(third, anchor, 3);
+	free(third);
+	ASSERT_TRUE(fourth != NULL);
+	ASSERT_EQ_STR("src/edit_pipeline/", fourth);
+	free(fourth);
+
+	(void)rmdir(editing);
+	(void)rmdir(edit_pipeline);
+	(void)rmdir(debug);
+	(void)rmdir(src_dir);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_drawer_menu_popup_survives_mouse_motion(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -2394,6 +2652,22 @@ const struct editorTestCase g_input_mouse_tests[] = {
          test_editor_process_keypress_mouse_drag_file_into_folder_moves},
         {"editor_process_keypress_mouse_drag_without_motion_keeps_click_behavior",
          test_editor_process_keypress_mouse_drag_without_motion_keeps_click_behavior},
+        {"editor_drawer_move_path_completion_unique_match_appends_slash",
+         test_editor_drawer_move_path_completion_unique_match_appends_slash},
+        {"editor_drawer_move_path_completion_common_prefix",
+         test_editor_drawer_move_path_completion_common_prefix},
+        {"editor_drawer_move_path_completion_ignores_files",
+         test_editor_drawer_move_path_completion_ignores_files},
+        {"editor_drawer_move_path_completion_nested",
+         test_editor_drawer_move_path_completion_nested},
+        {"editor_drawer_move_path_completion_absolute_path",
+         test_editor_drawer_move_path_completion_absolute_path},
+        {"editor_drawer_move_path_completion_cycles_on_repeat_tab",
+         test_editor_drawer_move_path_completion_cycles_on_repeat_tab},
+        {"editor_drawer_move_path_completion_descends_with_trailing_slash",
+         test_editor_drawer_move_path_completion_descends_with_trailing_slash},
+        {"editor_drawer_move_path_completion_cycle_respects_original_partial",
+         test_editor_drawer_move_path_completion_cycle_respects_original_partial},
         {"editor_drawer_menu_popup_survives_mouse_motion",
          test_editor_drawer_menu_popup_survives_mouse_motion},
         {"editor_drawer_menu_popup_handles_arrow_and_escape_keys",
