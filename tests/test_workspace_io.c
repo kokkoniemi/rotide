@@ -159,6 +159,7 @@ static int test_editor_read_key_sgr_mouse_events(void) {
 	char left_drag[] = "\x1b[<32;6;4M";
 	char left_release[] = "\x1b[<0;6;4m";
 	char left_release_alt_cb[] = "\x1b[<3;7;4m";
+	char right_click[] = "\x1b[<2;15;7M";
 	char wheel_up[] = "\x1b[<64;7;2M";
 	char wheel_down[] = "\x1b[<65;4;9M";
 	char wheel_left[] = "\x1b[<66;8;3M";
@@ -166,7 +167,7 @@ static int test_editor_read_key_sgr_mouse_events(void) {
 	char shift_wheel_up[] = "\x1b[<68;10;5M";
 	char shift_wheel_down[] = "\x1b[<69;11;5M";
 	char modifier_drag_then_plain[] = "\x1b[<36;1;1MZ";
-	char unsupported_then_plain[] = "\x1b[<2;1;1MY";
+	char unsupported_then_plain[] = "\x1b[<1;1;1MY";
 
 	ASSERT_TRUE(editor_read_key_with_input(left_click, sizeof(left_click) - 1, &key) == 0);
 	ASSERT_EQ_INT(MOUSE_EVENT, key);
@@ -209,6 +210,14 @@ static int test_editor_read_key_sgr_mouse_events(void) {
 	ASSERT_EQ_INT(EDITOR_MOUSE_EVENT_LEFT_RELEASE, event.kind);
 	ASSERT_EQ_INT(7, event.x);
 	ASSERT_EQ_INT(4, event.y);
+
+	ASSERT_TRUE(editor_read_key_with_input(right_click, sizeof(right_click) - 1, &key) == 0);
+	ASSERT_EQ_INT(MOUSE_EVENT, key);
+	ASSERT_TRUE(editorConsumeMouseEvent(&event) == 1);
+	ASSERT_EQ_INT(EDITOR_MOUSE_EVENT_RIGHT_PRESS, event.kind);
+	ASSERT_EQ_INT(15, event.x);
+	ASSERT_EQ_INT(7, event.y);
+	ASSERT_EQ_INT(EDITOR_MOUSE_MOD_NONE, event.modifiers);
 
 	ASSERT_TRUE(editor_read_key_with_input(wheel_up, sizeof(wheel_up) - 1, &key) == 0);
 	ASSERT_EQ_INT(MOUSE_EVENT, key);

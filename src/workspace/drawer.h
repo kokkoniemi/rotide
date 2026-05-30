@@ -43,6 +43,7 @@ const char *editorDrawerSelectedPath(void);
 int editorDrawerCreateFileAtSelection(const char *name, int viewport_rows);
 int editorDrawerCreateFolderAtSelection(const char *name, int viewport_rows);
 int editorDrawerRenameSelection(const char *new_name, int viewport_rows);
+int editorDrawerMoveSelectionToDir(const char *dest_dir_path, int viewport_rows);
 int editorDrawerDeleteSelection(int viewport_rows);
 int editorDrawerOpenSelectedFileInTab(void);
 int editorDrawerOpenSelectedFileInPreviewTab(void);

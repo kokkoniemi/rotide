@@ -304,6 +304,8 @@ static int terminalDecodeSgrMousePayload(const char *payload, struct editorMouse
 
 	if (button == 0) {
 		event_out->kind = EDITOR_MOUSE_EVENT_LEFT_PRESS;
+	} else if (button == 2) {
+		event_out->kind = EDITOR_MOUSE_EVENT_RIGHT_PRESS;
 	}
 	return 1;
 }

@@ -2169,15 +2169,21 @@ void editorProcessKeypress(void) {
 
 	if (editorPopupIsVisible()) {
 		/*
-		 * If the upcoming character would simply narrow the autocomplete popup, skip the
-		 * popup key handler entirely so the popup stays open across the keystroke. The
-		 * insertion flow below will call editorAutocompleteOnCharInserted which refilters
-		 * the visible items in place.
+		 * The popup key handler's default branch closes the popup on any unknown
+		 * key. Skip it for keystrokes that the autocomplete popup re-filters in
+		 * place, and for mouse events while the drawer menu is open. Otherwise
+		 * every cursor motion would dismiss the menu.
 		 */
-		if (!editorAutocompleteWouldRefilter(c)) {
+		int skip_popup_keys =
+		        editorAutocompleteWouldRefilter(c) ||
+		        (c == MOUSE_EVENT && E.popup.kind == EDITOR_POPUP_KIND_DRAWER_MENU);
+		if (!skip_popup_keys) {
+			enum editorPopupKind popup_kind = E.popup.kind;
 			enum editorPopupKeyResult popup_result = editorPopupHandleKey(c);
 			if (popup_result == EDITOR_POPUP_KEY_ACCEPTED) {
-				if (editorAutocompleteIsVisible()) {
+				if (popup_kind == EDITOR_POPUP_KIND_DRAWER_MENU) {
+					editorDrawerContextMenuActivate();
+				} else if (editorAutocompleteIsVisible()) {
 					dispatchPinActivePreviewForEdit();
 					editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
 					int dirty_before = E.dirty;

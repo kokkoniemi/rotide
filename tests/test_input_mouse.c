@@ -1,6 +1,8 @@
 #include "editing/selection.h"
+#include "editor_test_api.h"
 #include "input/mouse.h"
 #include "language/syntax.h"
+#include "render/popup.h"
 #include "rotide.h"
 #include "test_case.h"
 #include "test_helpers.h"
@@ -14,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 static int test_editor_column_select_alt_mouse_drag_starts_column_selection(void) {
@@ -1855,6 +1858,657 @@ static int test_editor_bracketed_paste_markers_toggle_paste_active(void) {
 	return 0;
 }
 
+static int test_editor_process_keypress_mouse_drawer_right_click_on_file_opens_menu(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char file_path[512];
+	ASSERT_TRUE(path_join(file_path, sizeof(file_path), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(write_text_file(file_path, "alpha\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+	int file_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("alpha.txt", &file_idx, NULL));
+
+	int row = file_idx - E.drawer_rowoff + 2;
+	char right[32];
+	ASSERT_TRUE(format_sgr_mouse_event(right, sizeof(right), 2, 2, row, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(right, strlen(right)) == 0);
+
+	ASSERT_TRUE(editorPopupIsVisible());
+	ASSERT_EQ_INT(EDITOR_POPUP_KIND_DRAWER_MENU, E.popup.kind);
+	ASSERT_EQ_INT(3, editorPopupItemCount());
+	ASSERT_EQ_STR("Rename", E.popup.items[0].label);
+	ASSERT_EQ_STR("Move", E.popup.items[1].label);
+	ASSERT_EQ_STR("Delete", E.popup.items[2].label);
+	ASSERT_EQ_INT(file_idx, E.drawer_selected_index);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_DRAWER, E.primary_focus);
+
+	ASSERT_TRUE(unlink(file_path) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drawer_right_click_on_folder_shows_full_menu(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char dir_path[512];
+	char child_path[512];
+	ASSERT_TRUE(path_join(dir_path, sizeof(dir_path), env.project_dir, "src"));
+	ASSERT_TRUE(path_join(child_path, sizeof(child_path), dir_path, "child.txt"));
+	ASSERT_TRUE(make_dir(dir_path));
+	ASSERT_TRUE(write_text_file(child_path, "c\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+	int dir_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("src", &dir_idx, NULL));
+
+	int row = dir_idx - E.drawer_rowoff + 2;
+	char right[32];
+	ASSERT_TRUE(format_sgr_mouse_event(right, sizeof(right), 2, 2, row, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(right, strlen(right)) == 0);
+
+	ASSERT_TRUE(editorPopupIsVisible());
+	ASSERT_EQ_INT(EDITOR_POPUP_KIND_DRAWER_MENU, E.popup.kind);
+	ASSERT_EQ_INT(5, editorPopupItemCount());
+	ASSERT_EQ_STR("New File", E.popup.items[0].label);
+	ASSERT_EQ_STR("New Folder", E.popup.items[1].label);
+	ASSERT_EQ_STR("Rename", E.popup.items[2].label);
+	ASSERT_EQ_STR("Move", E.popup.items[3].label);
+	ASSERT_EQ_STR("Delete", E.popup.items[4].label);
+	ASSERT_EQ_INT(dir_idx, E.drawer_selected_index);
+
+	ASSERT_TRUE(unlink(child_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drawer_right_click_on_root_omits_rename_delete(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	int root_row = 0 - E.drawer_rowoff + 2;
+	char right[32];
+	ASSERT_TRUE(format_sgr_mouse_event(right, sizeof(right), 2, 2, root_row, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(right, strlen(right)) == 0);
+
+	ASSERT_TRUE(editorPopupIsVisible());
+	ASSERT_EQ_INT(EDITOR_POPUP_KIND_DRAWER_MENU, E.popup.kind);
+	ASSERT_EQ_INT(2, editorPopupItemCount());
+	ASSERT_EQ_STR("New File", E.popup.items[0].label);
+	ASSERT_EQ_STR("New Folder", E.popup.items[1].label);
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_left_click_outside_popup_closes_it(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char file_path[512];
+	ASSERT_TRUE(path_join(file_path, sizeof(file_path), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(write_text_file(file_path, "alpha\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+	int file_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("alpha.txt", &file_idx, NULL));
+
+	int row = file_idx - E.drawer_rowoff + 2;
+	char right[32];
+	ASSERT_TRUE(format_sgr_mouse_event(right, sizeof(right), 2, 2, row, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(right, strlen(right)) == 0);
+	ASSERT_TRUE(editorPopupIsVisible());
+
+	/* Left click in the text area, away from the popup, should dismiss it. */
+	int text_start = editorTextBodyStartColForCols(E.window_cols);
+	char left[32];
+	ASSERT_TRUE(format_sgr_mouse_event(left, sizeof(left), 0, text_start + 4, E.window_rows + 1,
+	                                   'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(left, strlen(left)) == 0);
+	ASSERT_TRUE(!editorPopupIsVisible());
+
+	ASSERT_TRUE(unlink(file_path) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drawer_right_click_header_does_not_open_menu(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	/* Header row is screen row 1 (drawer_row 0). */
+	char right[32];
+	ASSERT_TRUE(format_sgr_mouse_event(right, sizeof(right), 2, 4, 1, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(right, strlen(right)) == 0);
+	ASSERT_TRUE(!editorPopupIsVisible());
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drawer_right_click_on_collapsed_drawer_ignored(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerSetCollapsed(1));
+
+	char right[32];
+	ASSERT_TRUE(format_sgr_mouse_event(right, sizeof(right), 2, 1, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(right, strlen(right)) == 0);
+	ASSERT_TRUE(!editorPopupIsVisible());
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_move_selection_to_dir_relocates_file(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char dir_path[512];
+	char file_path[512];
+	char moved_path[512];
+	ASSERT_TRUE(path_join(dir_path, sizeof(dir_path), env.project_dir, "src"));
+	ASSERT_TRUE(path_join(file_path, sizeof(file_path), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(path_join(moved_path, sizeof(moved_path), dir_path, "alpha.txt"));
+	ASSERT_TRUE(make_dir(dir_path));
+	ASSERT_TRUE(write_text_file(file_path, "alpha\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+	int file_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("alpha.txt", &file_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(file_idx, E.window_rows));
+
+	ASSERT_EQ_INT(1, editorDrawerMoveSelectionToDir(dir_path, E.window_rows));
+
+	struct stat st;
+	ASSERT_EQ_INT(0, lstat(moved_path, &st));
+	ASSERT_EQ_INT(-1, lstat(file_path, &st));
+	ASSERT_TRUE(find_drawer_entry("alpha.txt", NULL, NULL));
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_move_selection_rejects_existing_destination(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char dir_path[512];
+	char src_path[512];
+	char dest_existing[512];
+	ASSERT_TRUE(path_join(dir_path, sizeof(dir_path), env.project_dir, "src"));
+	ASSERT_TRUE(path_join(src_path, sizeof(src_path), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(path_join(dest_existing, sizeof(dest_existing), dir_path, "alpha.txt"));
+	ASSERT_TRUE(make_dir(dir_path));
+	ASSERT_TRUE(write_text_file(src_path, "outer\n"));
+	ASSERT_TRUE(write_text_file(dest_existing, "inner\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+	int src_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("alpha.txt", &src_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(src_idx, E.window_rows));
+
+	ASSERT_EQ_INT(0, editorDrawerMoveSelectionToDir(dir_path, E.window_rows));
+
+	struct stat st;
+	ASSERT_EQ_INT(0, lstat(src_path, &st));
+	ASSERT_EQ_INT(0, lstat(dest_existing, &st));
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_move_selection_rejects_folder_into_descendant(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char outer[512];
+	char inner[512];
+	ASSERT_TRUE(path_join(outer, sizeof(outer), env.project_dir, "outer"));
+	ASSERT_TRUE(path_join(inner, sizeof(inner), outer, "inner"));
+	ASSERT_TRUE(make_dir(outer));
+	ASSERT_TRUE(make_dir(inner));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+	int outer_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("outer", &outer_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(outer_idx, E.window_rows));
+
+	ASSERT_EQ_INT(0, editorDrawerMoveSelectionToDir(inner, E.window_rows));
+
+	struct stat st;
+	ASSERT_EQ_INT(0, lstat(outer, &st));
+	ASSERT_EQ_INT(0, lstat(inner, &st));
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drag_file_into_folder_moves(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char dir_path[512];
+	char file_path[512];
+	char moved_path[512];
+	ASSERT_TRUE(path_join(dir_path, sizeof(dir_path), env.project_dir, "src"));
+	ASSERT_TRUE(path_join(file_path, sizeof(file_path), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(path_join(moved_path, sizeof(moved_path), dir_path, "alpha.txt"));
+	ASSERT_TRUE(make_dir(dir_path));
+	ASSERT_TRUE(write_text_file(file_path, "alpha\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+	int file_idx = -1;
+	int dir_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("alpha.txt", &file_idx, NULL));
+	ASSERT_TRUE(find_drawer_entry("src", &dir_idx, NULL));
+	int file_row = file_idx - E.drawer_rowoff + 2;
+	int dir_row = dir_idx - E.drawer_rowoff + 2;
+	ASSERT_TRUE(file_row != dir_row);
+
+	char press[32];
+	char drag[32];
+	char release[32];
+	ASSERT_TRUE(format_sgr_mouse_event(press, sizeof(press), 0, 2, file_row, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
+	ASSERT_TRUE(E.drawer_drag_armed);
+
+	ASSERT_TRUE(format_sgr_mouse_event(drag, sizeof(drag), 32, 5, dir_row, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(drag, strlen(drag)) == 0);
+	ASSERT_TRUE(E.drawer_drag_active);
+
+	ASSERT_TRUE(format_sgr_mouse_event(release, sizeof(release), 0, 5, dir_row, 'm'));
+	ASSERT_TRUE(editor_process_keypress_with_input(release, strlen(release)) == 0);
+	ASSERT_TRUE(!E.drawer_drag_armed);
+
+	struct stat st;
+	ASSERT_EQ_INT(0, lstat(moved_path, &st));
+	ASSERT_EQ_INT(-1, lstat(file_path, &st));
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_drag_without_motion_keeps_click_behavior(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char file_path[512];
+	ASSERT_TRUE(path_join(file_path, sizeof(file_path), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(write_text_file(file_path, "alpha\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+	int file_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("alpha.txt", &file_idx, NULL));
+	int file_row = file_idx - E.drawer_rowoff + 2;
+
+	char press[32];
+	char release[32];
+	ASSERT_TRUE(format_sgr_mouse_event(press, sizeof(press), 0, 2, file_row, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(press, strlen(press)) == 0);
+	ASSERT_TRUE(editorActiveTabIsPreview());
+	ASSERT_TRUE(format_sgr_mouse_event(release, sizeof(release), 0, 2, file_row, 'm'));
+	ASSERT_TRUE(editor_process_keypress_with_input(release, strlen(release)) == 0);
+
+	struct stat st;
+	ASSERT_EQ_INT(0, lstat(file_path, &st));
+	ASSERT_TRUE(editorActiveTabIsPreview());
+
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_move_path_completion_unique_match_appends_slash(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char dir_path[512];
+	ASSERT_TRUE(path_join(dir_path, sizeof(dir_path), env.project_dir, "utilities"));
+	ASSERT_TRUE(make_dir(dir_path));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	char *completed = editorDrawerMovePathCompletionTest("uti", "uti", 0);
+	ASSERT_TRUE(completed != NULL);
+	ASSERT_EQ_STR("utilities/", completed);
+	free(completed);
+
+	(void)rmdir(dir_path);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_move_path_completion_common_prefix(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char a[512];
+	char b[512];
+	ASSERT_TRUE(path_join(a, sizeof(a), env.project_dir, "utilities"));
+	ASSERT_TRUE(path_join(b, sizeof(b), env.project_dir, "utopia"));
+	ASSERT_TRUE(make_dir(a));
+	ASSERT_TRUE(make_dir(b));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	char *completed = editorDrawerMovePathCompletionTest("u", "u", 0);
+	ASSERT_TRUE(completed != NULL);
+	ASSERT_EQ_STR("ut", completed);
+	free(completed);
+
+	(void)rmdir(a);
+	(void)rmdir(b);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_move_path_completion_ignores_files(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char file_path[512];
+	ASSERT_TRUE(path_join(file_path, sizeof(file_path), env.project_dir, "utilities.txt"));
+	ASSERT_TRUE(write_text_file(file_path, "x\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	char *completed = editorDrawerMovePathCompletionTest("uti", "uti", 0);
+	ASSERT_TRUE(completed == NULL);
+
+	(void)unlink(file_path);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_move_path_completion_nested(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char outer[512];
+	char inner[512];
+	ASSERT_TRUE(path_join(outer, sizeof(outer), env.project_dir, "src"));
+	ASSERT_TRUE(path_join(inner, sizeof(inner), outer, "utilities"));
+	ASSERT_TRUE(make_dir(outer));
+	ASSERT_TRUE(make_dir(inner));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	char *completed = editorDrawerMovePathCompletionTest("src/uti", "src/uti", 0);
+	ASSERT_TRUE(completed != NULL);
+	ASSERT_EQ_STR("src/utilities/", completed);
+	free(completed);
+
+	(void)rmdir(inner);
+	(void)rmdir(outer);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_move_path_completion_absolute_path(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char dir_path[512];
+	ASSERT_TRUE(path_join(dir_path, sizeof(dir_path), env.project_dir, "utilities"));
+	ASSERT_TRUE(make_dir(dir_path));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	char input[600];
+	ASSERT_TRUE((size_t)snprintf(input, sizeof(input), "%s/uti", env.project_dir) <
+	            sizeof(input));
+	char expected[600];
+	ASSERT_TRUE((size_t)snprintf(expected, sizeof(expected), "%s/utilities/", env.project_dir) <
+	            sizeof(expected));
+
+	char *completed = editorDrawerMovePathCompletionTest(input, input, 0);
+	ASSERT_TRUE(completed != NULL);
+	ASSERT_EQ_STR(expected, completed);
+	free(completed);
+
+	(void)rmdir(dir_path);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_move_path_completion_cycles_on_repeat_tab(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char a[512];
+	char b[512];
+	ASSERT_TRUE(path_join(a, sizeof(a), env.project_dir, "utilities"));
+	ASSERT_TRUE(path_join(b, sizeof(b), env.project_dir, "utopia"));
+	ASSERT_TRUE(make_dir(a));
+	ASSERT_TRUE(make_dir(b));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	/* Anchor is the buffer at the start of the cycle session ("u" throughout). */
+	const char *anchor = "u";
+
+	/* First Tab on "u" → common prefix "ut". */
+	char *first = editorDrawerMovePathCompletionTest("u", anchor, 0);
+	ASSERT_TRUE(first != NULL);
+	ASSERT_EQ_STR("ut", first);
+
+	/* Second Tab → cycle starts: first match alphabetically. */
+	char *second = editorDrawerMovePathCompletionTest(first, anchor, 1);
+	free(first);
+	ASSERT_TRUE(second != NULL);
+	ASSERT_EQ_STR("utilities/", second);
+
+	/* Third Tab → next match. */
+	char *third = editorDrawerMovePathCompletionTest(second, anchor, 2);
+	free(second);
+	ASSERT_TRUE(third != NULL);
+	ASSERT_EQ_STR("utopia/", third);
+
+	/* Fourth Tab → wraps around. */
+	char *fourth = editorDrawerMovePathCompletionTest(third, anchor, 3);
+	free(third);
+	ASSERT_TRUE(fourth != NULL);
+	ASSERT_EQ_STR("utilities/", fourth);
+	free(fourth);
+
+	(void)rmdir(a);
+	(void)rmdir(b);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_move_path_completion_descends_with_trailing_slash(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char src_dir[512];
+	char editing[512];
+	char debug[512];
+	ASSERT_TRUE(path_join(src_dir, sizeof(src_dir), env.project_dir, "src"));
+	ASSERT_TRUE(path_join(editing, sizeof(editing), src_dir, "editing"));
+	ASSERT_TRUE(path_join(debug, sizeof(debug), src_dir, "debug"));
+	ASSERT_TRUE(make_dir(src_dir));
+	ASSERT_TRUE(make_dir(editing));
+	ASSERT_TRUE(make_dir(debug));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	/* Typing "src/" + Tab should cycle src/ children, not src's siblings. */
+	const char *anchor = "src/";
+	char *first = editorDrawerMovePathCompletionTest("src/", anchor, 0);
+	/* Two children with no common prefix → no extension on first Tab. */
+	ASSERT_TRUE(first == NULL);
+
+	char *second = editorDrawerMovePathCompletionTest("src/", anchor, 1);
+	ASSERT_TRUE(second != NULL);
+	ASSERT_EQ_STR("src/debug/", second);
+
+	char *third = editorDrawerMovePathCompletionTest(second, anchor, 2);
+	free(second);
+	ASSERT_TRUE(third != NULL);
+	ASSERT_EQ_STR("src/editing/", third);
+	free(third);
+
+	(void)rmdir(editing);
+	(void)rmdir(debug);
+	(void)rmdir(src_dir);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_move_path_completion_cycle_respects_original_partial(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char src_dir[512];
+	char editing[512];
+	char edit_pipeline[512];
+	char debug[512];
+	ASSERT_TRUE(path_join(src_dir, sizeof(src_dir), env.project_dir, "src"));
+	ASSERT_TRUE(path_join(editing, sizeof(editing), src_dir, "editing"));
+	ASSERT_TRUE(path_join(edit_pipeline, sizeof(edit_pipeline), src_dir, "edit_pipeline"));
+	ASSERT_TRUE(path_join(debug, sizeof(debug), src_dir, "debug"));
+	ASSERT_TRUE(make_dir(src_dir));
+	ASSERT_TRUE(make_dir(editing));
+	ASSERT_TRUE(make_dir(edit_pipeline));
+	ASSERT_TRUE(make_dir(debug));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+
+	/* "src/edi" + Tab should cycle only "edi*" entries — never "debug". */
+	const char *anchor = "src/edi";
+	char *first = editorDrawerMovePathCompletionTest("src/edi", anchor, 0);
+	ASSERT_TRUE(first != NULL);
+	ASSERT_EQ_STR("src/edit", first);
+
+	char *second = editorDrawerMovePathCompletionTest(first, anchor, 1);
+	free(first);
+	ASSERT_TRUE(second != NULL);
+	/* "edit_pipeline" sorts before "editing" because '_' (0x5F) < 'i' (0x69). */
+	ASSERT_EQ_STR("src/edit_pipeline/", second);
+
+	char *third = editorDrawerMovePathCompletionTest(second, anchor, 2);
+	free(second);
+	ASSERT_TRUE(third != NULL);
+	ASSERT_EQ_STR("src/editing/", third);
+
+	/* Wraps back to first edi* match; "debug" must never appear. */
+	char *fourth = editorDrawerMovePathCompletionTest(third, anchor, 3);
+	free(third);
+	ASSERT_TRUE(fourth != NULL);
+	ASSERT_EQ_STR("src/edit_pipeline/", fourth);
+	free(fourth);
+
+	(void)rmdir(editing);
+	(void)rmdir(edit_pipeline);
+	(void)rmdir(debug);
+	(void)rmdir(src_dir);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_menu_popup_survives_mouse_motion(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char file_path[512];
+	ASSERT_TRUE(path_join(file_path, sizeof(file_path), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(write_text_file(file_path, "alpha\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+	int file_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("alpha.txt", &file_idx, NULL));
+
+	int row = file_idx - E.drawer_rowoff + 2;
+	char right[32];
+	ASSERT_TRUE(format_sgr_mouse_event(right, sizeof(right), 2, 2, row, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(right, strlen(right)) == 0);
+	ASSERT_TRUE(editorPopupIsVisible());
+
+	/* SGR motion with no button held (cb 32+3=35); the menu must survive. */
+	char motion[32];
+	ASSERT_TRUE(format_sgr_mouse_event(motion, sizeof(motion), 35, 10, row + 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(motion, strlen(motion)) == 0);
+	ASSERT_TRUE(editorPopupIsVisible());
+
+	ASSERT_TRUE(unlink(file_path) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_drawer_menu_popup_handles_arrow_and_escape_keys(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char dir_path[512];
+	char child_path[512];
+	ASSERT_TRUE(path_join(dir_path, sizeof(dir_path), env.project_dir, "src"));
+	ASSERT_TRUE(path_join(child_path, sizeof(child_path), dir_path, "child.txt"));
+	ASSERT_TRUE(make_dir(dir_path));
+	ASSERT_TRUE(write_text_file(child_path, "c\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows + 1));
+	int dir_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("src", &dir_idx, NULL));
+
+	int row = dir_idx - E.drawer_rowoff + 2;
+	char right[32];
+	ASSERT_TRUE(format_sgr_mouse_event(right, sizeof(right), 2, 2, row, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(right, strlen(right)) == 0);
+	ASSERT_TRUE(editorPopupIsVisible());
+	ASSERT_EQ_INT(0, editorPopupSelectedIndex());
+
+	ASSERT_EQ_INT(EDITOR_POPUP_KEY_CONSUMED, editorPopupHandleKey(ARROW_DOWN));
+	ASSERT_EQ_INT(1, editorPopupSelectedIndex());
+	ASSERT_EQ_INT(EDITOR_POPUP_KEY_CONSUMED, editorPopupHandleKey(ARROW_UP));
+	ASSERT_EQ_INT(0, editorPopupSelectedIndex());
+
+	ASSERT_EQ_INT(EDITOR_POPUP_KEY_CONSUMED, editorPopupHandleKey('\x1b'));
+	ASSERT_TRUE(!editorPopupIsVisible());
+
+	ASSERT_TRUE(unlink(child_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 const struct editorTestCase g_input_mouse_tests[] = {
         {"editor_column_select_alt_mouse_drag_starts_column_selection",
          test_editor_column_select_alt_mouse_drag_starts_column_selection},
@@ -1966,6 +2620,48 @@ const struct editorTestCase g_input_mouse_tests[] = {
         {"editor_prompt_ignores_mouse_events", test_editor_prompt_ignores_mouse_events},
         {"editor_bracketed_paste_markers_toggle_paste_active",
          test_editor_bracketed_paste_markers_toggle_paste_active},
+        {"editor_process_keypress_mouse_drawer_right_click_on_file_opens_menu",
+         test_editor_process_keypress_mouse_drawer_right_click_on_file_opens_menu},
+        {"editor_process_keypress_mouse_drawer_right_click_on_folder_shows_full_menu",
+         test_editor_process_keypress_mouse_drawer_right_click_on_folder_shows_full_menu},
+        {"editor_process_keypress_mouse_drawer_right_click_on_root_omits_rename_delete",
+         test_editor_process_keypress_mouse_drawer_right_click_on_root_omits_rename_delete},
+        {"editor_process_keypress_mouse_left_click_outside_popup_closes_it",
+         test_editor_process_keypress_mouse_left_click_outside_popup_closes_it},
+        {"editor_process_keypress_mouse_drawer_right_click_header_does_not_open_menu",
+         test_editor_process_keypress_mouse_drawer_right_click_header_does_not_open_menu},
+        {"editor_process_keypress_mouse_drawer_right_click_on_collapsed_drawer_ignored",
+         test_editor_process_keypress_mouse_drawer_right_click_on_collapsed_drawer_ignored},
+        {"editor_drawer_move_selection_to_dir_relocates_file",
+         test_editor_drawer_move_selection_to_dir_relocates_file},
+        {"editor_drawer_move_selection_rejects_existing_destination",
+         test_editor_drawer_move_selection_rejects_existing_destination},
+        {"editor_drawer_move_selection_rejects_folder_into_descendant",
+         test_editor_drawer_move_selection_rejects_folder_into_descendant},
+        {"editor_process_keypress_mouse_drag_file_into_folder_moves",
+         test_editor_process_keypress_mouse_drag_file_into_folder_moves},
+        {"editor_process_keypress_mouse_drag_without_motion_keeps_click_behavior",
+         test_editor_process_keypress_mouse_drag_without_motion_keeps_click_behavior},
+        {"editor_drawer_move_path_completion_unique_match_appends_slash",
+         test_editor_drawer_move_path_completion_unique_match_appends_slash},
+        {"editor_drawer_move_path_completion_common_prefix",
+         test_editor_drawer_move_path_completion_common_prefix},
+        {"editor_drawer_move_path_completion_ignores_files",
+         test_editor_drawer_move_path_completion_ignores_files},
+        {"editor_drawer_move_path_completion_nested",
+         test_editor_drawer_move_path_completion_nested},
+        {"editor_drawer_move_path_completion_absolute_path",
+         test_editor_drawer_move_path_completion_absolute_path},
+        {"editor_drawer_move_path_completion_cycles_on_repeat_tab",
+         test_editor_drawer_move_path_completion_cycles_on_repeat_tab},
+        {"editor_drawer_move_path_completion_descends_with_trailing_slash",
+         test_editor_drawer_move_path_completion_descends_with_trailing_slash},
+        {"editor_drawer_move_path_completion_cycle_respects_original_partial",
+         test_editor_drawer_move_path_completion_cycle_respects_original_partial},
+        {"editor_drawer_menu_popup_survives_mouse_motion",
+         test_editor_drawer_menu_popup_survives_mouse_motion},
+        {"editor_drawer_menu_popup_handles_arrow_and_escape_keys",
+         test_editor_drawer_menu_popup_handles_arrow_and_escape_keys},
 };
 
 const int g_input_mouse_test_count =

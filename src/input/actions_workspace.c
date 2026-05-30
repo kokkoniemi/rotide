@@ -2,10 +2,13 @@
 
 #include "config/dap_config.h"
 #include "debug/dap.h"
+#include "editing/buffer_core.h"
 #include "editing/edit.h"
 #include "editing/history.h"
 #include "input/prompt.h"
+#include "render/popup.h"
 #include "rotide.h"
+#include "support/file_io.h"
 #include "terminal/terminal_pane.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
@@ -14,9 +17,12 @@
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
 
+#include <dirent.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
 
 void editorSetDrawerCollapseStatus(int collapsed) {
 	editorSetStatusMsg(collapsed ? "Drawer collapsed" : "Drawer expanded");
@@ -137,6 +143,359 @@ void editorDrawerPromptDelete(void) {
 	}
 	(void)editorDrawerDeleteSelection(E.window_rows);
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+}
+
+static int actionsWorkspaceMatchCmp(const void *a, const void *b) {
+	const char *const *as = a;
+	const char *const *bs = b;
+	return strcmp(*as, *bs);
+}
+
+static char *actionsWorkspaceBuildCompletion(const char *user_prefix, const char *name,
+                                             int append_slash) {
+	size_t up_len = strlen(user_prefix);
+	size_t name_len = strlen(name);
+	size_t total = up_len + name_len + (append_slash ? 1 : 0) + 1;
+	char *result = malloc(total);
+	if (result == NULL) {
+		return NULL;
+	}
+	memcpy(result, user_prefix, up_len);
+	memcpy(result + up_len, name, name_len);
+	if (append_slash) {
+		result[up_len + name_len] = '/';
+		result[up_len + name_len + 1] = '\0';
+	} else {
+		result[up_len + name_len] = '\0';
+	}
+	return result;
+}
+
+/*
+ * Parse `input` into (abs_prefix, partial, user_prefix). `partial` points into
+ * `input`; the other two are freshly allocated.
+ */
+static int actionsWorkspaceSplitCompletionInput(const char *input, char **abs_prefix_out,
+                                                char **user_prefix_out, const char **partial_out) {
+	*abs_prefix_out = NULL;
+	*user_prefix_out = NULL;
+	*partial_out = NULL;
+	const char *last_slash = strrchr(input, '/');
+	if (last_slash == NULL) {
+		if (editorDrawerRootPath() == NULL) {
+			return 0;
+		}
+		*abs_prefix_out = strdup(editorDrawerRootPath());
+		*user_prefix_out = strdup("");
+		*partial_out = input;
+	} else {
+		size_t prefix_len = (size_t)(last_slash - input);
+		*partial_out = last_slash + 1;
+		*user_prefix_out = strndup(input, prefix_len + 1);
+		if (input[0] == '/') {
+			*abs_prefix_out =
+			        (prefix_len == 0) ? strdup("/") : strndup(input, prefix_len);
+		} else if (editorDrawerRootPath() != NULL) {
+			char *user_dir = strndup(input, prefix_len);
+			if (user_dir != NULL) {
+				*abs_prefix_out = editorPathJoin(editorDrawerRootPath(), user_dir);
+				free(user_dir);
+			}
+		}
+	}
+	if (*abs_prefix_out == NULL || *user_prefix_out == NULL) {
+		free(*abs_prefix_out);
+		free(*user_prefix_out);
+		*abs_prefix_out = NULL;
+		*user_prefix_out = NULL;
+		return 0;
+	}
+	return 1;
+}
+
+static char *actionsWorkspaceCompleteMovePath(const char *current, const char *anchor, void *ctx,
+                                              int tab_iteration) {
+	(void)ctx;
+	char *result = NULL;
+	char *abs_prefix = NULL;
+	char *user_prefix = NULL;
+	char **matches = NULL;
+	int match_count = 0;
+	int match_capacity = 0;
+	DIR *dir = NULL;
+	const char *partial = NULL;
+
+	if (current == NULL || anchor == NULL) {
+		goto cleanup;
+	}
+
+	/*
+	 * Anchor the match-set parsing to the buffer at the start of the Tab cycle;
+	 * subsequent Tabs preserve the original partial.
+	 */
+	if (!actionsWorkspaceSplitCompletionInput(anchor, &abs_prefix, &user_prefix, &partial)) {
+		goto cleanup;
+	}
+
+	dir = opendir(abs_prefix);
+	if (dir == NULL) {
+		goto cleanup;
+	}
+	size_t partial_len = strlen(partial);
+	struct dirent *entry;
+	while ((entry = readdir(dir)) != NULL) {
+		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+			continue;
+		}
+		if (strncmp(entry->d_name, partial, partial_len) != 0) {
+			continue;
+		}
+		char *child_path = editorPathJoin(abs_prefix, entry->d_name);
+		if (child_path == NULL) {
+			continue;
+		}
+		struct stat st;
+		int is_dir = (lstat(child_path, &st) == 0 && S_ISDIR(st.st_mode));
+		free(child_path);
+		if (!is_dir) {
+			continue;
+		}
+		if (match_count == match_capacity) {
+			int new_capacity = match_capacity == 0 ? 8 : match_capacity * 2;
+			char **grown = realloc(matches, (size_t)new_capacity * sizeof(*grown));
+			if (grown == NULL) {
+				goto cleanup;
+			}
+			matches = grown;
+			match_capacity = new_capacity;
+		}
+		matches[match_count] = strdup(entry->d_name);
+		if (matches[match_count] == NULL) {
+			goto cleanup;
+		}
+		match_count++;
+	}
+	(void)closedir(dir);
+	dir = NULL;
+
+	if (match_count == 0) {
+		goto cleanup;
+	}
+
+	qsort(matches, (size_t)match_count, sizeof(*matches), actionsWorkspaceMatchCmp);
+
+	/*
+	 * Repeated Tab: cycle through the anchored match set.
+	 */
+	if (tab_iteration > 0) {
+		int cycle_idx = -1;
+		size_t up_len = strlen(user_prefix);
+		if (strncmp(current, user_prefix, up_len) == 0) {
+			const char *suffix = current + up_len;
+			size_t slen = strlen(suffix);
+			for (int i = 0; i < match_count; i++) {
+				size_t mn = strlen(matches[i]);
+				if ((slen == mn && memcmp(suffix, matches[i], mn) == 0) ||
+				    (slen == mn + 1 && memcmp(suffix, matches[i], mn) == 0 &&
+				     suffix[mn] == '/')) {
+					cycle_idx = i;
+					break;
+				}
+			}
+		}
+		int next_idx = (cycle_idx >= 0) ? (cycle_idx + 1) % match_count : 0;
+		result = actionsWorkspaceBuildCompletion(user_prefix, matches[next_idx], 1);
+		goto cleanup;
+	}
+
+	if (match_count == 1) {
+		result = actionsWorkspaceBuildCompletion(user_prefix, matches[0], 1);
+		goto cleanup;
+	}
+
+	/* Multiple matches on first Tab: extend to the longest common prefix. */
+	size_t common_len = strlen(matches[0]);
+	for (int i = 1; i < match_count; i++) {
+		size_t j = 0;
+		while (j < common_len && matches[i][j] != '\0' && matches[0][j] == matches[i][j]) {
+			j++;
+		}
+		common_len = j;
+	}
+	if (common_len > partial_len) {
+		char saved = matches[0][common_len];
+		matches[0][common_len] = '\0';
+		result = actionsWorkspaceBuildCompletion(user_prefix, matches[0], 0);
+		matches[0][common_len] = saved;
+	}
+
+cleanup:
+	if (dir != NULL) {
+		(void)closedir(dir);
+	}
+	if (matches != NULL) {
+		for (int i = 0; i < match_count; i++) {
+			free(matches[i]);
+		}
+		free(matches);
+	}
+	free(abs_prefix);
+	free(user_prefix);
+	return result;
+}
+
+char *editorDrawerMovePathCompletionTest(const char *current, const char *anchor,
+                                         int tab_iteration) {
+	return actionsWorkspaceCompleteMovePath(current, anchor, NULL, tab_iteration);
+}
+
+void editorDrawerPromptMove(void) {
+	if (editorDrawerIsCollapsed() || E.drawer_root == NULL) {
+		editorSetStatusMsg("Drawer is not visible");
+		return;
+	}
+	if (editorDrawerSelectedIsRoot()) {
+		editorSetStatusMsg("Cannot move drawer root");
+		return;
+	}
+	const char *path = editorDrawerSelectedPath();
+	if (path == NULL) {
+		editorSetStatusMsg("Select an entry to move");
+		return;
+	}
+	char *dest = editorPromptWithCompletion("Move to folder: %s", 0,
+	                                        actionsWorkspaceCompleteMovePath, NULL);
+	if (dest == NULL) {
+		return;
+	}
+	/* Resolve relative paths against the drawer root so users can type "src/utils". */
+	char *dest_abs = NULL;
+	if (dest[0] == '/') {
+		dest_abs = strdup(dest);
+	} else if (editorDrawerRootPath() != NULL) {
+		dest_abs = editorPathJoin(editorDrawerRootPath(), dest);
+	} else {
+		dest_abs = strdup(dest);
+	}
+	free(dest);
+	if (dest_abs == NULL) {
+		editorSetAllocFailureStatus();
+		return;
+	}
+	(void)editorDrawerMoveSelectionToDir(dest_abs, E.window_rows);
+	free(dest_abs);
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+}
+
+enum actionsWorkspaceCtxOp {
+	ACTIONS_WORKSPACE_CTX_RENAME,
+	ACTIONS_WORKSPACE_CTX_MOVE,
+	ACTIONS_WORKSPACE_CTX_DELETE,
+	ACTIONS_WORKSPACE_CTX_NEW_FILE,
+	ACTIONS_WORKSPACE_CTX_NEW_FOLDER
+};
+
+#define ACTIONS_WORKSPACE_CTX_MAX_ITEMS 5
+
+static enum actionsWorkspaceCtxOp g_actionsWorkspace_ctx_ops[ACTIONS_WORKSPACE_CTX_MAX_ITEMS];
+static int g_actionsWorkspace_ctx_op_count;
+
+static void actionsWorkspaceCtxAppend(struct editorPopupItem *items, int *count_io,
+                                      const char *label, enum actionsWorkspaceCtxOp op) {
+	int idx = *count_io;
+	if (idx >= ACTIONS_WORKSPACE_CTX_MAX_ITEMS) {
+		return;
+	}
+	items[idx].label = (char *)label;
+	items[idx].detail = NULL;
+	g_actionsWorkspace_ctx_ops[idx] = op;
+	*count_io = idx + 1;
+}
+
+int editorDrawerOpenContextMenuAt(const struct editorMouseEvent *event, int viewport_rows) {
+	if (event == NULL) {
+		return 0;
+	}
+	if (editorDrawerIsCollapsed() || E.drawer_root == NULL) {
+		return 0;
+	}
+	if (E.drawer_mode != EDITOR_DRAWER_MODE_TREE) {
+		return 0;
+	}
+	if (editorFileSearchIsActive() || editorProjectSearchIsActive()) {
+		return 0;
+	}
+
+	int drawer_cols = editorDrawerWidthForCols(E.window_cols);
+	int mouse_col = event->x - 1;
+	int drawer_row = event->y - 1;
+	if (mouse_col < 0 || mouse_col >= drawer_cols) {
+		return 0;
+	}
+	/* Header row is reserved for mode-switch buttons; only entry rows open the menu. */
+	if (drawer_row < 1 || drawer_row >= viewport_rows + 1) {
+		return 0;
+	}
+	int visible_idx = E.drawer_rowoff + drawer_row - 1;
+	if (!editorDrawerSelectVisibleIndex(visible_idx, viewport_rows)) {
+		return 0;
+	}
+
+	struct editorPopupItem items[ACTIONS_WORKSPACE_CTX_MAX_ITEMS];
+	int count = 0;
+	int is_dir = editorDrawerSelectedIsDirectory();
+	int is_root = editorDrawerSelectedIsRoot();
+	if (is_dir) {
+		actionsWorkspaceCtxAppend(items, &count, "New File",
+		                          ACTIONS_WORKSPACE_CTX_NEW_FILE);
+		actionsWorkspaceCtxAppend(items, &count, "New Folder",
+		                          ACTIONS_WORKSPACE_CTX_NEW_FOLDER);
+	}
+	if (!is_root) {
+		actionsWorkspaceCtxAppend(items, &count, "Rename", ACTIONS_WORKSPACE_CTX_RENAME);
+		actionsWorkspaceCtxAppend(items, &count, "Move", ACTIONS_WORKSPACE_CTX_MOVE);
+		actionsWorkspaceCtxAppend(items, &count, "Delete", ACTIONS_WORKSPACE_CTX_DELETE);
+	}
+	if (count == 0) {
+		return 0;
+	}
+	g_actionsWorkspace_ctx_op_count = count;
+	if (!editorPopupOpenMenu(items, count, event->y, event->x)) {
+		g_actionsWorkspace_ctx_op_count = 0;
+		return 0;
+	}
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+	return 1;
+}
+
+void editorDrawerContextMenuActivate(void) {
+	int idx = editorPopupSelectedIndex();
+	int count = g_actionsWorkspace_ctx_op_count;
+	if (idx < 0 || idx >= count) {
+		editorPopupClose();
+		g_actionsWorkspace_ctx_op_count = 0;
+		return;
+	}
+	enum actionsWorkspaceCtxOp op = g_actionsWorkspace_ctx_ops[idx];
+	editorPopupClose();
+	g_actionsWorkspace_ctx_op_count = 0;
+	switch (op) {
+		case ACTIONS_WORKSPACE_CTX_RENAME:
+			editorDrawerPromptRename();
+			break;
+		case ACTIONS_WORKSPACE_CTX_MOVE:
+			editorDrawerPromptMove();
+			break;
+		case ACTIONS_WORKSPACE_CTX_DELETE:
+			editorDrawerPromptDelete();
+			break;
+		case ACTIONS_WORKSPACE_CTX_NEW_FILE:
+			editorDrawerPromptCreateFile();
+			break;
+		case ACTIONS_WORKSPACE_CTX_NEW_FOLDER:
+			editorDrawerPromptCreateFolder();
+			break;
+	}
 }
 
 int editorOpenSelectedGitDiff(void) {

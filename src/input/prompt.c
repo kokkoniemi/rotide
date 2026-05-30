@@ -13,6 +13,7 @@
 #include <ctype.h>
 #include <limits.h>
 #include <stdlib.h>
+#include <string.h>
 #include <strings.h>
 
 static size_t promptPrevDeleteIdx(const char *buf, size_t buflen) {
@@ -47,7 +48,8 @@ void editorExitOnInputShutdown(void) {
 	exit(EXIT_FAILURE);
 }
 
-char *editorPromptWithCallback(const char *prompt, int allow_empty, editorPromptCallback callback) {
+static char *promptRunLoop(const char *prompt, int allow_empty, editorPromptCallback callback,
+                           editorPromptCompleteFn complete_fn, void *complete_ctx) {
 	size_t bufmax = 128;
 	char *buf = editorMalloc(bufmax);
 	if (buf == NULL) {
@@ -57,6 +59,8 @@ char *editorPromptWithCallback(const char *prompt, int allow_empty, editorPrompt
 
 	size_t buflen = 0;
 	buf[0] = '\0';
+	int tab_iteration = 0;
+	char *tab_anchor = NULL;
 
 	while (1) {
 		editorSetStatusMsg(prompt, buf);
@@ -65,6 +69,7 @@ char *editorPromptWithCallback(const char *prompt, int allow_empty, editorPrompt
 		int c = editorReadKey();
 		if (c == INPUT_EOF_EVENT) {
 			free(buf);
+			free(tab_anchor);
 			editorExitOnInputShutdown();
 			return NULL;
 		}
@@ -79,6 +84,45 @@ char *editorPromptWithCallback(const char *prompt, int allow_empty, editorPrompt
 		if (c == MOUSE_EVENT) {
 			continue;
 		}
+		if (c == '\t' && complete_fn != NULL) {
+			if (tab_iteration == 0) {
+				free(tab_anchor);
+				tab_anchor = strdup(buf);
+			}
+			const char *anchor = tab_anchor != NULL ? tab_anchor : buf;
+			char *replacement = complete_fn(buf, anchor, complete_ctx, tab_iteration);
+			if (replacement != NULL) {
+				size_t new_len = strlen(replacement);
+				size_t needed = new_len + 1;
+				if (needed > bufmax) {
+					size_t new_max = bufmax;
+					while (new_max < needed) {
+						new_max *= 2;
+					}
+					char *new_buf = editorRealloc(buf, new_max);
+					if (new_buf == NULL) {
+						free(replacement);
+						free(tab_anchor);
+						free(buf);
+						editorSetStatusMsg("Out of memory");
+						return NULL;
+					}
+					buf = new_buf;
+					bufmax = new_max;
+				}
+				memcpy(buf, replacement, new_len + 1);
+				buflen = new_len;
+				free(replacement);
+			}
+			tab_iteration++;
+			if (callback != NULL) {
+				callback(buf, c);
+			}
+			continue;
+		}
+		tab_iteration = 0;
+		free(tab_anchor);
+		tab_anchor = NULL;
 		if (c == DEL_KEY || c == CTRL_KEY('h') || c == BACKSPACE) {
 			if (buflen != 0) {
 				buflen = promptPrevDeleteIdx(buf, buflen);
@@ -124,12 +168,21 @@ char *editorPromptWithCallback(const char *prompt, int allow_empty, editorPrompt
 	}
 }
 
+char *editorPromptWithCallback(const char *prompt, int allow_empty, editorPromptCallback callback) {
+	return promptRunLoop(prompt, allow_empty, callback, NULL, NULL);
+}
+
+char *editorPromptWithCompletion(const char *prompt, int allow_empty,
+                                 editorPromptCompleteFn complete_fn, void *complete_ctx) {
+	return promptRunLoop(prompt, allow_empty, NULL, complete_fn, complete_ctx);
+}
+
 char *editorPrompt(const char *prompt) {
-	return editorPromptWithCallback(prompt, 0, NULL);
+	return promptRunLoop(prompt, 0, NULL, NULL, NULL);
 }
 
 int editorPromptYesNo(const char *prompt) {
-	char *response = editorPromptWithCallback(prompt, 1, NULL);
+	char *response = promptRunLoop(prompt, 1, NULL, NULL, NULL);
 	int accepted = 0;
 	if (response == NULL) {
 		return 0;

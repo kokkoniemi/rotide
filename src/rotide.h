@@ -49,6 +49,7 @@ enum editorMouseEventKind {
 	EDITOR_MOUSE_EVENT_LEFT_PRESS,
 	EDITOR_MOUSE_EVENT_LEFT_DRAG,
 	EDITOR_MOUSE_EVENT_LEFT_RELEASE,
+	EDITOR_MOUSE_EVENT_RIGHT_PRESS,
 	EDITOR_MOUSE_EVENT_MOTION,
 	EDITOR_MOUSE_EVENT_WHEEL_UP,
 	EDITOR_MOUSE_EVENT_WHEEL_DOWN,
@@ -124,8 +125,11 @@ struct editorPopupItem {
 	char *detail;
 };
 
+enum editorPopupKind { EDITOR_POPUP_KIND_AUTOCOMPLETE = 0, EDITOR_POPUP_KIND_DRAWER_MENU };
+
 struct editorPopupState {
 	int visible;
+	enum editorPopupKind kind;
 	int anchor_row;
 	int anchor_col;
 	int selected_index;
@@ -587,6 +591,13 @@ struct editorConfig {
 	int tab_drag_source_tab_idx;
 	int tab_drag_start_x;
 	int tab_drag_start_y;
+	int drawer_drag_armed;
+	int drawer_drag_active;
+	int drawer_drag_source_visible_idx;
+	char *drawer_drag_source_path;
+	int drawer_drag_just_opened_preview;
+	int drawer_drag_start_x;
+	int drawer_drag_start_y;
 
 	/* --- Input transient: text/tab click tracking for multi-clicks --- */
 	int text_last_click_cy;

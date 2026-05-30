@@ -430,7 +430,13 @@ void remove_files_in_dir(const char *dir_path) {
 		if (!path_join(full_path, sizeof(full_path), dir_path, entry->d_name)) {
 			continue;
 		}
-		(void)unlink(full_path);
+		if (unlink(full_path) == 0) {
+			continue;
+		}
+		if (errno == EISDIR || errno == EPERM) {
+			remove_files_in_dir(full_path);
+			(void)rmdir(full_path);
+		}
 	}
 
 	closedir(dir);

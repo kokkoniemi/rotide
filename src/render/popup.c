@@ -22,6 +22,7 @@ static void popupReleaseItems(void) {
 void editorPopupClose(void) {
 	popupReleaseItems();
 	E.popup.visible = 0;
+	E.popup.kind = EDITOR_POPUP_KIND_AUTOCOMPLETE;
 	E.popup.anchor_row = 0;
 	E.popup.anchor_col = 0;
 	E.popup.selected_index = 0;
@@ -65,11 +66,21 @@ int editorPopupOpen(const struct editorPopupItem *items, int count, int anchor_r
 
 	E.popup.items = copy;
 	E.popup.item_count = count;
+	E.popup.kind = EDITOR_POPUP_KIND_AUTOCOMPLETE;
 	E.popup.anchor_row = anchor_row;
 	E.popup.anchor_col = anchor_col;
 	E.popup.selected_index = 0;
 	E.popup.row_offset = 0;
 	E.popup.visible = 1;
+	return 1;
+}
+
+int editorPopupOpenMenu(const struct editorPopupItem *items, int count, int screen_row,
+                        int screen_col) {
+	if (!editorPopupOpen(items, count, screen_row, screen_col)) {
+		return 0;
+	}
+	E.popup.kind = EDITOR_POPUP_KIND_DRAWER_MENU;
 	return 1;
 }
 
@@ -199,6 +210,49 @@ void editorPopupComputePlacement(int *terminal_row_out, int *terminal_col_out,
 	int cols = editorPopupContentColumns();
 	int place_above = 0;
 
+	if (E.popup.kind == EDITOR_POPUP_KIND_DRAWER_MENU) {
+		int anchor_row = E.popup.anchor_row;
+		int anchor_col = E.popup.anchor_col;
+		int max_row = E.window_rows + 1;
+		int top = anchor_row + 1;
+		if (rows > 0 && top + rows - 1 > max_row && anchor_row - rows >= 1) {
+			place_above = 1;
+			top = anchor_row - rows;
+		}
+		if (top < 1) {
+			top = 1;
+		}
+		if (rows > 0 && top + rows - 1 > max_row) {
+			rows = max_row - top + 1;
+			if (rows < 0) {
+				rows = 0;
+			}
+		}
+		int col = anchor_col;
+		if (cols > 0 && col + cols - 1 > E.window_cols) {
+			col = E.window_cols - cols + 1;
+		}
+		if (col < 1) {
+			col = 1;
+		}
+		if (terminal_row_out != NULL) {
+			*terminal_row_out = top;
+		}
+		if (terminal_col_out != NULL) {
+			*terminal_col_out = col;
+		}
+		if (visible_rows_out != NULL) {
+			*visible_rows_out = rows;
+		}
+		if (cols_out != NULL) {
+			*cols_out = cols;
+		}
+		if (place_above_out != NULL) {
+			*place_above_out = place_above;
+		}
+		return;
+	}
+
 	int anchor_screen_row = E.popup.anchor_row - E.rowoff;
 	int below_row = anchor_screen_row + 1;
 	int above_row_top = anchor_screen_row - rows;
@@ -249,4 +303,33 @@ void editorPopupComputePlacement(int *terminal_row_out, int *terminal_col_out,
 	if (place_above_out != NULL) {
 		*place_above_out = place_above;
 	}
+}
+
+int editorPopupMenuHitTest(int screen_row, int screen_col, int *item_index_out) {
+	if (!editorPopupIsVisible() || E.popup.kind != EDITOR_POPUP_KIND_DRAWER_MENU) {
+		return 0;
+	}
+	int terminal_row = 0;
+	int terminal_col = 0;
+	int rows = 0;
+	int cols = 0;
+	int place_above = 0;
+	editorPopupComputePlacement(&terminal_row, &terminal_col, &rows, &cols, &place_above);
+	if (rows <= 0 || cols <= 0) {
+		return 0;
+	}
+	if (screen_row < terminal_row || screen_row >= terminal_row + rows) {
+		return 0;
+	}
+	if (screen_col < terminal_col || screen_col >= terminal_col + cols) {
+		return 0;
+	}
+	int item = E.popup.row_offset + (screen_row - terminal_row);
+	if (item < 0 || item >= E.popup.item_count) {
+		return 0;
+	}
+	if (item_index_out != NULL) {
+		*item_index_out = item;
+	}
+	return 1;
 }
