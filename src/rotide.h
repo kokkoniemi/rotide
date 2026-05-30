@@ -591,6 +591,13 @@ struct editorConfig {
 	int tab_drag_source_tab_idx;
 	int tab_drag_start_x;
 	int tab_drag_start_y;
+	int drawer_drag_armed;
+	int drawer_drag_active;
+	int drawer_drag_source_visible_idx;
+	char *drawer_drag_source_path;
+	int drawer_drag_just_opened_preview;
+	int drawer_drag_start_x;
+	int drawer_drag_start_y;
 
 	/* --- Input transient: text/tab click tracking for multi-clicks --- */
 	int text_last_click_cy;

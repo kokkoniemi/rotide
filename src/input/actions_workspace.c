@@ -2,11 +2,13 @@
 
 #include "config/dap_config.h"
 #include "debug/dap.h"
+#include "editing/buffer_core.h"
 #include "editing/edit.h"
 #include "editing/history.h"
 #include "input/prompt.h"
 #include "render/popup.h"
 #include "rotide.h"
+#include "support/file_io.h"
 #include "terminal/terminal_pane.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
@@ -18,6 +20,7 @@
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 void editorSetDrawerCollapseStatus(int collapsed) {
 	editorSetStatusMsg(collapsed ? "Drawer collapsed" : "Drawer expanded");
@@ -140,14 +143,52 @@ void editorDrawerPromptDelete(void) {
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
 }
 
+void editorDrawerPromptMove(void) {
+	if (editorDrawerIsCollapsed() || E.drawer_root == NULL) {
+		editorSetStatusMsg("Drawer is not visible");
+		return;
+	}
+	if (editorDrawerSelectedIsRoot()) {
+		editorSetStatusMsg("Cannot move drawer root");
+		return;
+	}
+	const char *path = editorDrawerSelectedPath();
+	if (path == NULL) {
+		editorSetStatusMsg("Select an entry to move");
+		return;
+	}
+	char *dest = editorPrompt("Move to folder: %s");
+	if (dest == NULL) {
+		return;
+	}
+	/* Resolve relative paths against the drawer root so users can type "src/utils". */
+	char *dest_abs = NULL;
+	if (dest[0] == '/') {
+		dest_abs = strdup(dest);
+	} else if (editorDrawerRootPath() != NULL) {
+		dest_abs = editorPathJoin(editorDrawerRootPath(), dest);
+	} else {
+		dest_abs = strdup(dest);
+	}
+	free(dest);
+	if (dest_abs == NULL) {
+		editorSetAllocFailureStatus();
+		return;
+	}
+	(void)editorDrawerMoveSelectionToDir(dest_abs, E.window_rows);
+	free(dest_abs);
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+}
+
 enum actionsWorkspaceCtxOp {
 	ACTIONS_WORKSPACE_CTX_RENAME,
+	ACTIONS_WORKSPACE_CTX_MOVE,
 	ACTIONS_WORKSPACE_CTX_DELETE,
 	ACTIONS_WORKSPACE_CTX_NEW_FILE,
 	ACTIONS_WORKSPACE_CTX_NEW_FOLDER
 };
 
-#define ACTIONS_WORKSPACE_CTX_MAX_ITEMS 4
+#define ACTIONS_WORKSPACE_CTX_MAX_ITEMS 5
 
 static enum actionsWorkspaceCtxOp g_actionsWorkspace_ctx_ops[ACTIONS_WORKSPACE_CTX_MAX_ITEMS];
 static int g_actionsWorkspace_ctx_op_count;
@@ -205,6 +246,7 @@ int editorDrawerOpenContextMenuAt(const struct editorMouseEvent *event, int view
 	}
 	if (!is_root) {
 		actionsWorkspaceCtxAppend(items, &count, "Rename", ACTIONS_WORKSPACE_CTX_RENAME);
+		actionsWorkspaceCtxAppend(items, &count, "Move", ACTIONS_WORKSPACE_CTX_MOVE);
 		actionsWorkspaceCtxAppend(items, &count, "Delete", ACTIONS_WORKSPACE_CTX_DELETE);
 	}
 	if (count == 0) {
@@ -233,6 +275,9 @@ void editorDrawerContextMenuActivate(void) {
 	switch (op) {
 		case ACTIONS_WORKSPACE_CTX_RENAME:
 			editorDrawerPromptRename();
+			break;
+		case ACTIONS_WORKSPACE_CTX_MOVE:
+			editorDrawerPromptMove();
 			break;
 		case ACTIONS_WORKSPACE_CTX_DELETE:
 			editorDrawerPromptDelete();

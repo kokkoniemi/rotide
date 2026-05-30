@@ -271,6 +271,187 @@ int editorDrawerRenameSelection(const char *new_name, int viewport_rows) {
 	return 1;
 }
 
+static int drawerFileOpsPathIsPrefixOf(const char *prefix, const char *path) {
+	if (prefix == NULL || path == NULL) {
+		return 0;
+	}
+	size_t plen = strlen(prefix);
+	if (plen == 0 || strncmp(path, prefix, plen) != 0) {
+		return 0;
+	}
+	return path[plen] == '\0' || path[plen] == '/';
+}
+
+static struct editorDrawerNode *drawerFileOpsResolveAbsPath(const char *abs_path) {
+	if (abs_path == NULL || E.drawer_root == NULL || E.drawer_root_path == NULL) {
+		return NULL;
+	}
+	if (strcmp(abs_path, E.drawer_root_path) == 0) {
+		return E.drawer_root;
+	}
+	size_t root_len = strlen(E.drawer_root_path);
+	if (root_len == 0 || strncmp(abs_path, E.drawer_root_path, root_len) != 0 ||
+	    abs_path[root_len] != '/') {
+		return NULL;
+	}
+	struct editorDrawerNode *node = E.drawer_root;
+	const char *component = abs_path + root_len + 1;
+	while (component[0] != '\0') {
+		if (!node->is_dir) {
+			return NULL;
+		}
+		(void)editorDrawerEnsureScanned(node);
+		const char *slash = strchr(component, '/');
+		size_t comp_len = slash != NULL ? (size_t)(slash - component) : strlen(component);
+		if (comp_len == 0) {
+			return NULL;
+		}
+		struct editorDrawerNode *child =
+		        editorDrawerFindChildByName(node, component, comp_len);
+		if (child == NULL) {
+			return NULL;
+		}
+		node = child;
+		if (slash == NULL) {
+			break;
+		}
+		component = slash + 1;
+	}
+	return node;
+}
+
+int editorDrawerMoveSelectionToDir(const char *dest_dir_path, int viewport_rows) {
+	if (E.drawer_root == NULL) {
+		editorSetStatusMsg("No drawer open");
+		return 0;
+	}
+	struct editorDrawerNode *selected = editorDrawerSelectedTreeNode();
+	if (selected == NULL || selected == E.drawer_root) {
+		editorSetStatusMsg("Select an entry to move");
+		return 0;
+	}
+	struct editorDrawerNode *src_parent = selected->parent;
+	if (src_parent == NULL) {
+		editorSetStatusMsg("Cannot move root");
+		return 0;
+	}
+	if (dest_dir_path == NULL || dest_dir_path[0] == '\0') {
+		editorSetStatusMsg("Invalid destination");
+		return 0;
+	}
+
+	char *dest_abs = editorPathAbsoluteDup(dest_dir_path);
+	if (dest_abs == NULL) {
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+	struct stat st;
+	if (lstat(dest_abs, &st) != 0 || !S_ISDIR(st.st_mode)) {
+		editorSetStatusMsg("Destination is not a folder");
+		free(dest_abs);
+		return 0;
+	}
+	if (strcmp(dest_abs, src_parent->path) == 0) {
+		editorSetStatusMsg("'%s' is already in that folder", selected->name);
+		free(dest_abs);
+		return 0;
+	}
+	if (selected->is_dir && drawerFileOpsPathIsPrefixOf(selected->path, dest_abs)) {
+		editorSetStatusMsg("Cannot move folder into itself");
+		free(dest_abs);
+		return 0;
+	}
+
+	char *new_path = editorPathJoin(dest_abs, selected->name);
+	if (new_path == NULL) {
+		editorSetAllocFailureStatus();
+		free(dest_abs);
+		return 0;
+	}
+	if (lstat(new_path, &st) == 0) {
+		editorSetStatusMsg("'%s' already exists in destination", selected->name);
+		free(new_path);
+		free(dest_abs);
+		return 0;
+	}
+
+	char *src_parent_path = strdup(src_parent->path);
+	char *moved_name = strdup(selected->name);
+	if (src_parent_path == NULL || moved_name == NULL) {
+		free(src_parent_path);
+		free(moved_name);
+		free(new_path);
+		free(dest_abs);
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+
+	if (rename(selected->path, new_path) != 0) {
+		if (errno == EXDEV) {
+			editorSetStatusMsg("Cross-filesystem move not supported");
+		} else {
+			editorSetStatusMsg("Move failed: %s", strerror(errno));
+		}
+		free(src_parent_path);
+		free(moved_name);
+		free(new_path);
+		free(dest_abs);
+		return 0;
+	}
+
+	/*
+	 * Drop drawer-tree pointers now: invalidating an ancestor frees descendants,
+	 * so we must re-resolve every node by path after any invalidation.
+	 */
+	int src_is_anc = drawerFileOpsPathIsPrefixOf(src_parent_path, dest_abs);
+	int dest_is_anc = drawerFileOpsPathIsPrefixOf(dest_abs, src_parent_path);
+	if (src_is_anc) {
+		struct editorDrawerNode *n = drawerFileOpsResolveAbsPath(src_parent_path);
+		if (n != NULL) {
+			drawerFileOpsInvalidateScan(n);
+			(void)editorDrawerEnsureScanned(n);
+		}
+	} else if (dest_is_anc) {
+		struct editorDrawerNode *n = drawerFileOpsResolveAbsPath(dest_abs);
+		if (n != NULL) {
+			drawerFileOpsInvalidateScan(n);
+			(void)editorDrawerEnsureScanned(n);
+		}
+	} else {
+		struct editorDrawerNode *n1 = drawerFileOpsResolveAbsPath(src_parent_path);
+		if (n1 != NULL) {
+			drawerFileOpsInvalidateScan(n1);
+			(void)editorDrawerEnsureScanned(n1);
+		}
+		struct editorDrawerNode *n2 = drawerFileOpsResolveAbsPath(dest_abs);
+		if (n2 != NULL) {
+			drawerFileOpsInvalidateScan(n2);
+			(void)editorDrawerEnsureScanned(n2);
+		}
+	}
+
+	struct editorDrawerNode *dest_node = drawerFileOpsResolveAbsPath(dest_abs);
+	if (dest_node != NULL && dest_node->is_dir) {
+		for (struct editorDrawerNode *n = dest_node; n != NULL; n = n->parent) {
+			n->is_expanded = 1;
+		}
+		if (!drawerFileOpsSelectChildByName(dest_node, moved_name, viewport_rows)) {
+			E.drawer_selected_index = -1;
+			editorDrawerClampSelectionAndScroll(viewport_rows);
+		}
+	} else {
+		E.drawer_selected_index = -1;
+		editorDrawerClampSelectionAndScroll(viewport_rows);
+	}
+
+	editorSetStatusMsg("Moved %s", moved_name);
+	free(src_parent_path);
+	free(moved_name);
+	free(new_path);
+	free(dest_abs);
+	return 1;
+}
+
 int editorDrawerDeleteSelection(int viewport_rows) {
 	if (E.drawer_root == NULL) {
 		editorSetStatusMsg("No drawer open");

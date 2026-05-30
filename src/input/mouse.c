@@ -22,6 +22,8 @@
 
 #include <ctype.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 enum {
@@ -116,6 +118,105 @@ static void mouseArmTabDrag(struct editorPaneNode *leaf, int tab_idx,
 	E.tab_drag_source_tab_idx = tab_idx;
 	E.tab_drag_start_x = event->x - 1;
 	E.tab_drag_start_y = event->y - 1;
+}
+
+enum { MOUSE_DRAWER_DRAG_THRESHOLD_COLS = 2, MOUSE_DRAWER_DRAG_THRESHOLD_ROWS = 1 };
+
+static void mouseClearDrawerDrag(void) {
+	E.drawer_drag_armed = 0;
+	E.drawer_drag_active = 0;
+	E.drawer_drag_source_visible_idx = -1;
+	free(E.drawer_drag_source_path);
+	E.drawer_drag_source_path = NULL;
+	E.drawer_drag_just_opened_preview = 0;
+	E.drawer_drag_start_x = 0;
+	E.drawer_drag_start_y = 0;
+}
+
+static void mouseArmDrawerDrag(int visible_idx, int just_opened_preview,
+                               const struct editorMouseEvent *event) {
+	if (E.drawer_mode != EDITOR_DRAWER_MODE_TREE || editorFileSearchIsActive() ||
+	    editorProjectSearchIsActive() || editorDrawerSelectedIsRoot()) {
+		return;
+	}
+	const char *path = editorDrawerSelectedPath();
+	if (path == NULL || path[0] == '\0') {
+		return;
+	}
+	mouseClearDrawerDrag();
+	E.drawer_drag_armed = 1;
+	E.drawer_drag_source_visible_idx = visible_idx;
+	E.drawer_drag_source_path = strdup(path);
+	if (E.drawer_drag_source_path == NULL) {
+		mouseClearDrawerDrag();
+		return;
+	}
+	E.drawer_drag_just_opened_preview = just_opened_preview;
+	E.drawer_drag_start_x = event->x - 1;
+	E.drawer_drag_start_y = event->y - 1;
+}
+
+static int mouseResolveDrawerDropTargetDir(const struct editorMouseEvent *event, char **out_path) {
+	*out_path = NULL;
+	int mouse_col = event->x - 1;
+	int drawer_row = event->y - 1;
+	int drawer_cols = editorDrawerWidthForCols(E.window_cols);
+	int drawer_view_rows = E.window_rows;
+	if (mouse_col < 0 || mouse_col >= drawer_cols) {
+		return 0;
+	}
+	if (drawer_row < 1 || drawer_row > drawer_view_rows + 1) {
+		return 0;
+	}
+	int visible_idx = E.drawer_rowoff + drawer_row - 1;
+	struct editorDrawerEntryView view = {0};
+	if (!editorDrawerVisibleEntryView(visible_idx, &view) || view.path == NULL) {
+		return 0;
+	}
+	if (view.is_dir || view.is_root) {
+		*out_path = strdup(view.path);
+		return *out_path != NULL;
+	}
+	const char *slash = strrchr(view.path, '/');
+	if (slash == NULL || slash == view.path) {
+		if (E.drawer_root_path == NULL) {
+			return 0;
+		}
+		*out_path = strdup(E.drawer_root_path);
+		return *out_path != NULL;
+	}
+	size_t parent_len = (size_t)(slash - view.path);
+	*out_path = malloc(parent_len + 1);
+	if (*out_path == NULL) {
+		return 0;
+	}
+	memcpy(*out_path, view.path, parent_len);
+	(*out_path)[parent_len] = '\0';
+	return 1;
+}
+
+static int mouseFinishDrawerDrag(const struct editorMouseEvent *event) {
+	if (E.drawer_drag_source_path == NULL || E.drawer_drag_source_visible_idx < 0) {
+		return 0;
+	}
+	char *target_dir = NULL;
+	if (!mouseResolveDrawerDropTargetDir(event, &target_dir)) {
+		editorSetStatusMsg("Drop target is not a folder");
+		return 0;
+	}
+	/* Re-select the source row in case motion changed the cursor's hover. */
+	if (!editorDrawerSelectVisibleIndex(E.drawer_drag_source_visible_idx, E.window_rows)) {
+		free(target_dir);
+		return 0;
+	}
+	/* If this click opened a preview tab, close it: the drag overrode the click. */
+	if (E.drawer_drag_just_opened_preview && editorActiveTabIsPreview() && E.filename != NULL &&
+	    strcmp(E.filename, E.drawer_drag_source_path) == 0) {
+		(void)editorTabCloseActive();
+	}
+	int ok = editorDrawerMoveSelectionToDir(target_dir, E.window_rows);
+	free(target_dir);
+	return ok;
 }
 
 static int mousePaneTabSlotForColumn(struct editorPaneView *view, int col, int cols) {
@@ -353,6 +454,7 @@ int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long 
 		(void)editorDrawerToggleSelectionExpanded(drawer_view_rows);
 		editorResetDrawerClickTracking();
 		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+		mouseArmDrawerDrag(visible_idx, 0, event);
 		E.mouse_left_button_down = 0;
 		E.mouse_drag_started = 0;
 		if (effects_out != NULL) {
@@ -493,12 +595,14 @@ int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long 
 		}
 		editorResetDrawerClickTracking();
 	} else {
-		if (editorDrawerOpenSelectedFileInPreviewTab()) {
+		int opened_preview = editorDrawerOpenSelectedFileInPreviewTab();
+		if (opened_preview) {
 			editorSetStatusMsg("Preview tab opened. Double-click to keep it open");
 		}
 		E.drawer_last_click_visible_idx = visible_idx;
 		E.drawer_last_click_ms = now_ms;
 		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+		mouseArmDrawerDrag(visible_idx, opened_preview, event);
 	}
 	E.mouse_left_button_down = 0;
 	E.mouse_drag_started = 0;
@@ -687,6 +791,7 @@ static int mouseHandleLeftPress(const struct editorMouseEvent *event,
 	}
 	long long now_ms = mouseMonotonicMillis();
 	mouseClearTabDrag();
+	mouseClearDrawerDrag();
 	int drawer_effects = EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
 	if (editorHandleMouseDrawerLeftPress(event, now_ms, drawer_double_click_threshold_ms,
 	                                     process_mapped_action, jump_to_path,
@@ -1130,6 +1235,19 @@ int editorHandleMouseMotion(const struct editorMouseEvent *event) {
 }
 
 int editorHandleMouseLeftDrag(const struct editorMouseEvent *event) {
+	if (E.drawer_drag_armed) {
+		int dx = event->x - 1 - E.drawer_drag_start_x;
+		int dy = event->y - 1 - E.drawer_drag_start_y;
+		if (!E.drawer_drag_active && (dx > MOUSE_DRAWER_DRAG_THRESHOLD_COLS ||
+		                              dx < -MOUSE_DRAWER_DRAG_THRESHOLD_COLS ||
+		                              dy > MOUSE_DRAWER_DRAG_THRESHOLD_ROWS ||
+		                              dy < -MOUSE_DRAWER_DRAG_THRESHOLD_ROWS)) {
+			E.drawer_drag_active = 1;
+		}
+		if (E.drawer_drag_active) {
+			return 1;
+		}
+	}
 	if (E.tab_drag_armed) {
 		if (E.tab_drag_source_leaf == NULL || E.tab_drag_source_leaf->is_split ||
 		    E.layout_root == NULL ||
@@ -1268,6 +1386,18 @@ int editorHandleMouseLeftDrag(const struct editorMouseEvent *event) {
 
 int editorHandleMouseLeftRelease(const struct editorMouseEvent *event) {
 	int changed = 0;
+	if (E.drawer_drag_armed) {
+		if (E.drawer_drag_active) {
+			changed = mouseFinishDrawerDrag(event);
+		}
+		mouseClearDrawerDrag();
+		E.drawer_resize_active = 0;
+		E.split_resize_active = 0;
+		E.split_resize_node = NULL;
+		E.mouse_left_button_down = 0;
+		E.mouse_drag_started = 0;
+		return changed;
+	}
 	if (E.tab_drag_armed) {
 		if (E.tab_drag_active) {
 			changed = mouseFinishTabDrag(event);
