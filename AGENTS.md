@@ -2,7 +2,7 @@
 
 ## Project
 
-- `rotide` is a terminal text editor inspired by kilo.
+- `rotide` is a terminal text editor that began with kilo-style minimalism.
 - Priorities: deterministic behavior, readable control flow, and strong regression coverage.
 - Preserve user-visible behavior unless the task explicitly changes it.
 - Prefer repo-local skills over broad repo walks; use [`task-routing.md`](skills/rotide-maintainer/references/task-routing.md) for first-file guidance.
