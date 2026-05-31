@@ -155,7 +155,9 @@ void reset_editor_state(void) {
 	E.split_resize_active = 0;
 	E.split_resize_node = NULL;
 	E.drawer_search_active_tab_before = -1;
+	E.drawer_search_restore_collapsed = 0;
 	E.drawer_project_search_active_tab_before = -1;
+	E.drawer_project_search_restore_collapsed = 0;
 	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;
 	E.cursor_blink_enabled = 1;
 	E.line_wrap_enabled = 0;

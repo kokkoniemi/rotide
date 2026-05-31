@@ -625,6 +625,7 @@ struct editorConfig {
 	int drawer_search_filtered_capacity;
 	char *drawer_search_previewed_path;
 	int drawer_search_active_tab_before;
+	int drawer_search_restore_collapsed;
 	char **recent_file_paths;
 	int recent_file_count;
 	int recent_file_capacity;
@@ -639,6 +640,7 @@ struct editorConfig {
 	int drawer_project_search_previewed_line;
 	int drawer_project_search_previewed_col;
 	int drawer_project_search_active_tab_before;
+	int drawer_project_search_restore_collapsed;
 
 	/* --- Workspace: Git status snapshot --- */
 	char *git_repo_root;

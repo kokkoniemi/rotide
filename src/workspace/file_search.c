@@ -56,6 +56,7 @@ void editorFileSearchFree(void) {
 	free(E.drawer_search_previewed_path);
 	E.drawer_search_previewed_path = NULL;
 	E.drawer_search_active_tab_before = -1;
+	E.drawer_search_restore_collapsed = 0;
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_FILE_SEARCH) {
 		E.drawer_mode = EDITOR_DRAWER_MODE_TREE;
 	}
@@ -520,8 +521,12 @@ int editorFileSearchOpenSelectedFileInTab(void) {
 		free(path_copy);
 		return 0;
 	}
+	int restore_collapsed = E.drawer_search_restore_collapsed;
 	editorFileSearchExit(0);
 	(void)editorDrawerRevealPath(path_copy, E.window_rows);
+	if (restore_collapsed) {
+		(void)editorDrawerSetCollapsed(1);
+	}
 	free(path_copy);
 	return 1;
 }

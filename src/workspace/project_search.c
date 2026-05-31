@@ -80,6 +80,7 @@ void editorProjectSearchFree(void) {
 	E.drawer_project_search_query = NULL;
 	E.drawer_project_search_query_len = 0;
 	E.drawer_project_search_active_tab_before = -1;
+	E.drawer_project_search_restore_collapsed = 0;
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_PROJECT_SEARCH) {
 		E.drawer_mode = EDITOR_DRAWER_MODE_TREE;
 	}
@@ -712,8 +713,12 @@ int editorProjectSearchOpenSelectedFileInTab(void) {
 	selected.line = line;
 	selected.col = col;
 	(void)projectSearchApplySelectedLocation(&selected);
+	int restore_collapsed = E.drawer_project_search_restore_collapsed;
 	editorProjectSearchExit(0);
 	(void)editorDrawerRevealPath(path_copy, E.window_rows);
+	if (restore_collapsed) {
+		(void)editorDrawerSetCollapsed(1);
+	}
 	free(path_copy);
 	return 1;
 }
