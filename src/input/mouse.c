@@ -396,240 +396,152 @@ int editorHandleMousePaneTabStripClick(const struct editorMouseEvent *event, lon
 	return 1;
 }
 
-int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long long now_ms,
-                                     int double_click_threshold_ms,
-                                     editorProcessMappedActionFn process_mapped_action,
-                                     editorMouseJumpToPathFn jump_to_path, int *effects_out) {
-	int mouse_col = event->x - 1;
-	int drawer_cols = editorDrawerWidthForCols(E.window_cols);
-	int separator_cols = editorDrawerSeparatorWidthForCols(E.window_cols);
-	int collapsed_toggle_cols = editorDrawerIsCollapsed()
-	                                    ? editorDrawerCollapsedToggleWidthForCols(E.window_cols)
-	                                    : 0;
-	int drawer_view_rows = E.window_rows;
-	int drawer_row = event->y - 1;
-	int effects = 0;
-
-	if (editorDrawerIsCollapsed() && drawer_row == 0 && mouse_col >= 0 &&
-	    mouse_col < collapsed_toggle_cols) {
-		editorResetDrawerClickTracking();
-		editorExpandDrawerForFocus();
-		E.mouse_left_button_down = 0;
-		E.mouse_drag_started = 0;
-		if (effects_out != NULL) {
-			*effects_out = effects;
-		}
-		return 1;
+static void mouseDrawerFinishPress(int *effects_out, int effects) {
+	editorResetDrawerClickTracking();
+	E.mouse_left_button_down = 0;
+	E.mouse_drag_started = 0;
+	if (effects_out != NULL) {
+		*effects_out = effects;
 	}
+}
 
-	if (drawer_row >= 0 && drawer_row < drawer_view_rows + 1 && separator_cols == 1 &&
-	    mouse_col == drawer_cols) {
-		editorResetDrawerClickTracking();
-		E.drawer_resize_active = 1;
-		(void)editorDrawerSetWidthForCols(mouse_col, E.window_cols);
-		E.mouse_left_button_down = 0;
-		E.mouse_drag_started = 0;
-		if (effects_out != NULL) {
-			*effects_out = effects;
-		}
-		return 1;
+static void mouseDrawerRememberPreviewClick(int visible_idx, long long now_ms, int *effects_out) {
+	E.drawer_last_click_visible_idx = visible_idx;
+	E.drawer_last_click_ms = now_ms;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+	E.mouse_left_button_down = 0;
+	E.mouse_drag_started = 0;
+	if (effects_out != NULL) {
+		*effects_out = 1;
 	}
-	E.drawer_resize_active = 0;
+}
 
-	if (!(drawer_row >= 0 && drawer_row < drawer_view_rows + 1 && mouse_col >= 0 &&
-	      mouse_col < drawer_cols)) {
-		if (effects_out != NULL) {
-			*effects_out = effects;
-		}
-		return 0;
-	}
+static int mouseDrawerIsDoubleClickOnSame(int visible_idx, long long now_ms,
+                                          int double_click_threshold_ms) {
+	return E.drawer_last_click_visible_idx == visible_idx && E.drawer_last_click_ms > 0 &&
+	       now_ms > 0 && now_ms - E.drawer_last_click_ms <= double_click_threshold_ms;
+}
 
-	if (drawer_row == 0 && mouse_col < ROTIDE_DRAWER_COLLAPSED_WIDTH) {
-		editorResetDrawerClickTracking();
+static int mouseDrawerHandleHeaderRow(int mouse_col, int drawer_cols, int *effects_out) {
+	if (mouse_col < ROTIDE_DRAWER_COLLAPSED_WIDTH) {
 		if (editorDrawerSetCollapsed(1)) {
 			editorSetDrawerCollapseStatus(1);
 		}
-		E.mouse_left_button_down = 0;
-		E.mouse_drag_started = 0;
-		if (effects_out != NULL) {
-			*effects_out = effects;
-		}
+		mouseDrawerFinishPress(effects_out, 0);
 		return 1;
 	}
-	if (drawer_row == 0) {
-		enum editorDrawerMode header_mode;
-		if (editorDrawerHeaderModeForColumn(mouse_col, drawer_cols, &header_mode)) {
-			effects = editorSwitchDrawerHeaderMode(header_mode);
-			editorResetDrawerClickTracking();
-			E.mouse_left_button_down = 0;
-			E.mouse_drag_started = 0;
-			if (effects_out != NULL) {
-				*effects_out = effects;
-			}
-			return 1;
-		}
-		editorResetDrawerClickTracking();
-		E.mouse_left_button_down = 0;
-		E.mouse_drag_started = 0;
-		if (effects_out != NULL) {
-			*effects_out = effects;
-		}
-		return 1;
+	enum editorDrawerMode header_mode;
+	int effects = 0;
+	if (editorDrawerHeaderModeForColumn(mouse_col, drawer_cols, &header_mode)) {
+		effects = editorSwitchDrawerHeaderMode(header_mode);
 	}
+	mouseDrawerFinishPress(effects_out, effects);
+	return 1;
+}
 
-	int visible_idx = E.drawer_rowoff + drawer_row - 1;
-	if (!editorDrawerSelectVisibleIndex(visible_idx, drawer_view_rows)) {
-		editorResetDrawerClickTracking();
-		E.mouse_left_button_down = 0;
-		E.mouse_drag_started = 0;
-		if (effects_out != NULL) {
-			*effects_out = effects;
-		}
-		return 1;
+static int mouseDrawerHandleDirectoryToggle(int visible_idx, int drawer_view_rows,
+                                            const struct editorMouseEvent *event,
+                                            int *effects_out) {
+	(void)editorDrawerToggleSelectionExpanded(drawer_view_rows);
+	editorResetDrawerClickTracking();
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+	mouseArmDrawerDrag(visible_idx, 0, event);
+	E.mouse_left_button_down = 0;
+	E.mouse_drag_started = 0;
+	if (effects_out != NULL) {
+		*effects_out = 0;
 	}
-	if (editorDrawerSelectedIsDirectory()) {
-		(void)editorDrawerToggleSelectionExpanded(drawer_view_rows);
-		editorResetDrawerClickTracking();
-		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
-		mouseArmDrawerDrag(visible_idx, 0, event);
-		E.mouse_left_button_down = 0;
-		E.mouse_drag_started = 0;
-		if (effects_out != NULL) {
-			*effects_out = effects;
-		}
-		return 1;
-	}
+	return 1;
+}
 
+static int mouseDrawerHandleMenuAction(editorProcessMappedActionFn process_mapped_action,
+                                       int *effects_out) {
 	enum editorAction menu_action = EDITOR_ACTION_COUNT;
-	if (editorDrawerSelectedMenuAction(&menu_action)) {
-		int mapped_effects = 0;
-		editorResetDrawerClickTracking();
-		E.mouse_left_button_down = 0;
-		E.mouse_drag_started = 0;
-		if (process_mapped_action != NULL &&
-		    process_mapped_action(menu_action, &mapped_effects)) {
-			effects = mapped_effects;
-		} else {
-			effects = mapped_effects;
-		}
-		if (effects_out != NULL) {
-			*effects_out = effects;
-		}
-		return 1;
+	if (!editorDrawerSelectedMenuAction(&menu_action)) {
+		return 0;
 	}
+	int mapped_effects = 0;
+	if (process_mapped_action != NULL) {
+		(void)process_mapped_action(menu_action, &mapped_effects);
+	}
+	mouseDrawerFinishPress(effects_out, mapped_effects);
+	return 1;
+}
 
-	if (E.drawer_mode == EDITOR_DRAWER_MODE_GIT) {
-		if (editorOpenSelectedGitDiff()) {
-			E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
-		}
-		editorResetDrawerClickTracking();
-		E.mouse_left_button_down = 0;
-		E.mouse_drag_started = 0;
-		if (effects_out != NULL) {
-			*effects_out = 1;
-		}
-		return 1;
+static int mouseDrawerHandleGitMode(int *effects_out) {
+	if (editorOpenSelectedGitDiff()) {
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 	}
-	if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
-		int should_open_location =
-		        E.drawer_last_click_visible_idx == visible_idx &&
-		        E.drawer_last_click_ms > 0 && now_ms > 0 &&
-		        now_ms - E.drawer_last_click_ms <= double_click_threshold_ms;
-		if (should_open_location) {
-			if (editorJumpToSelectedLspDrawerLocation(0, jump_to_path)) {
-				E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
-			}
-			editorResetDrawerClickTracking();
-			E.mouse_left_button_down = 0;
-			E.mouse_drag_started = 0;
-			if (effects_out != NULL) {
-				*effects_out = 1;
-			}
-			return 1;
-		}
-		if (editorJumpToSelectedLspDrawerLocation(1, jump_to_path)) {
-			editorSetStatusMsg("LSP location previewed. Double-click to open");
-		}
-		E.drawer_last_click_visible_idx = visible_idx;
-		E.drawer_last_click_ms = now_ms;
-		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
-		E.mouse_left_button_down = 0;
-		E.mouse_drag_started = 0;
-		if (effects_out != NULL) {
-			*effects_out = 1;
-		}
-		return 1;
-	}
-	if (E.drawer_mode == EDITOR_DRAWER_MODE_DAP) {
-		int launch_idx = -1;
-		int default_idx = -1;
-		if (editorDrawerSelectedDapLaunch(&launch_idx)) {
-			E.dap_selected_launch = launch_idx;
-			(void)editorDapStartLaunch(launch_idx);
-			editorResetDrawerClickTracking();
-			E.mouse_left_button_down = 0;
-			E.mouse_drag_started = 0;
-			if (effects_out != NULL) {
-				*effects_out = 1;
-			}
-			return 1;
-		}
-		if (editorDrawerSelectedDapDefault(&default_idx)) {
-			(void)editorDapCreateProjectLaunchFromDefault(default_idx,
-			                                              E.drawer_root_path);
-			editorResetDrawerClickTracking();
-			E.mouse_left_button_down = 0;
-			E.mouse_drag_started = 0;
-			if (effects_out != NULL) {
-				*effects_out = 1;
-			}
-			return 1;
-		}
-		int should_open_location =
-		        E.drawer_last_click_visible_idx == visible_idx &&
-		        E.drawer_last_click_ms > 0 && now_ms > 0 &&
-		        now_ms - E.drawer_last_click_ms <= double_click_threshold_ms;
-		if (should_open_location) {
-			if (editorJumpToSelectedDapDrawerLocation(0, jump_to_path)) {
-				E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
-			}
-			editorResetDrawerClickTracking();
-			E.mouse_left_button_down = 0;
-			E.mouse_drag_started = 0;
-			if (effects_out != NULL) {
-				*effects_out = 1;
-			}
-			return 1;
-		}
-		if (editorJumpToSelectedDapDrawerLocation(1, jump_to_path)) {
-			editorSetStatusMsg("DAP location previewed. Double-click to open");
-		}
-		E.drawer_last_click_visible_idx = visible_idx;
-		E.drawer_last_click_ms = now_ms;
-		E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
-		E.mouse_left_button_down = 0;
-		E.mouse_drag_started = 0;
-		if (effects_out != NULL) {
-			*effects_out = 1;
-		}
-		return 1;
-	}
+	mouseDrawerFinishPress(effects_out, 1);
+	return 1;
+}
 
-	int should_open_file = E.drawer_last_click_visible_idx == visible_idx &&
-	                       E.drawer_last_click_ms > 0 && now_ms > 0 &&
-	                       now_ms - E.drawer_last_click_ms <= double_click_threshold_ms;
-	if (should_open_file) {
-		if (editorFileSearchIsActive() || editorProjectSearchIsActive()) {
-			if (editorDrawerOpenSelectedFileInTab()) {
-				E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
-			}
-		} else if (editorActiveTabIsPreview()) {
-			editorTabPinActivePreview();
-			editorSetStatusMsg("Tab kept open");
-			E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
-		} else if (editorDrawerOpenSelectedFileInTab()) {
+static int mouseDrawerHandleLspMode(int visible_idx, long long now_ms,
+                                    int double_click_threshold_ms,
+                                    editorMouseJumpToPathFn jump_to_path, int *effects_out) {
+	if (mouseDrawerIsDoubleClickOnSame(visible_idx, now_ms, double_click_threshold_ms)) {
+		if (editorJumpToSelectedLspDrawerLocation(0, jump_to_path)) {
 			E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 		}
+		mouseDrawerFinishPress(effects_out, 1);
+		return 1;
+	}
+	if (editorJumpToSelectedLspDrawerLocation(1, jump_to_path)) {
+		editorSetStatusMsg("LSP location previewed. Double-click to open");
+	}
+	mouseDrawerRememberPreviewClick(visible_idx, now_ms, effects_out);
+	return 1;
+}
+
+static int mouseDrawerHandleDapMode(int visible_idx, long long now_ms,
+                                    int double_click_threshold_ms,
+                                    editorMouseJumpToPathFn jump_to_path, int *effects_out) {
+	int launch_idx = -1;
+	int default_idx = -1;
+	if (editorDrawerSelectedDapLaunch(&launch_idx)) {
+		E.dap_selected_launch = launch_idx;
+		(void)editorDapStartLaunch(launch_idx);
+		mouseDrawerFinishPress(effects_out, 1);
+		return 1;
+	}
+	if (editorDrawerSelectedDapDefault(&default_idx)) {
+		(void)editorDapCreateProjectLaunchFromDefault(default_idx, E.drawer_root_path);
+		mouseDrawerFinishPress(effects_out, 1);
+		return 1;
+	}
+	if (mouseDrawerIsDoubleClickOnSame(visible_idx, now_ms, double_click_threshold_ms)) {
+		if (editorJumpToSelectedDapDrawerLocation(0, jump_to_path)) {
+			E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+		}
+		mouseDrawerFinishPress(effects_out, 1);
+		return 1;
+	}
+	if (editorJumpToSelectedDapDrawerLocation(1, jump_to_path)) {
+		editorSetStatusMsg("DAP location previewed. Double-click to open");
+	}
+	mouseDrawerRememberPreviewClick(visible_idx, now_ms, effects_out);
+	return 1;
+}
+
+static void mouseDrawerOpenFileOnDoubleClick(void) {
+	if (editorFileSearchIsActive() || editorProjectSearchIsActive()) {
+		if (editorDrawerOpenSelectedFileInTab()) {
+			E.primary_focus = EDITOR_PRIMARY_FOCUS_DRAWER;
+		}
+	} else if (editorActiveTabIsPreview()) {
+		editorTabPinActivePreview();
+		editorSetStatusMsg("Tab kept open");
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+	} else if (editorDrawerOpenSelectedFileInTab()) {
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+	}
+}
+
+static int mouseDrawerHandleFileMode(int visible_idx, long long now_ms,
+                                     int double_click_threshold_ms,
+                                     const struct editorMouseEvent *event, int *effects_out) {
+	if (mouseDrawerIsDoubleClickOnSame(visible_idx, now_ms, double_click_threshold_ms)) {
+		mouseDrawerOpenFileOnDoubleClick();
 		editorResetDrawerClickTracking();
 	} else {
 		int opened_preview = editorDrawerOpenSelectedFileInPreviewTab();
@@ -644,9 +556,77 @@ int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long 
 	E.mouse_left_button_down = 0;
 	E.mouse_drag_started = 0;
 	if (effects_out != NULL) {
-		*effects_out = effects;
+		*effects_out = 0;
 	}
 	return 1;
+}
+
+int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long long now_ms,
+                                     int double_click_threshold_ms,
+                                     editorProcessMappedActionFn process_mapped_action,
+                                     editorMouseJumpToPathFn jump_to_path, int *effects_out) {
+	int mouse_col = event->x - 1;
+	int drawer_cols = editorDrawerWidthForCols(E.window_cols);
+	int separator_cols = editorDrawerSeparatorWidthForCols(E.window_cols);
+	int collapsed_toggle_cols = editorDrawerIsCollapsed()
+	                                    ? editorDrawerCollapsedToggleWidthForCols(E.window_cols)
+	                                    : 0;
+	int drawer_view_rows = E.window_rows;
+	int drawer_row = event->y - 1;
+
+	if (editorDrawerIsCollapsed() && drawer_row == 0 && mouse_col >= 0 &&
+	    mouse_col < collapsed_toggle_cols) {
+		editorExpandDrawerForFocus();
+		mouseDrawerFinishPress(effects_out, 0);
+		return 1;
+	}
+
+	if (drawer_row >= 0 && drawer_row < drawer_view_rows + 1 && separator_cols == 1 &&
+	    mouse_col == drawer_cols) {
+		E.drawer_resize_active = 1;
+		(void)editorDrawerSetWidthForCols(mouse_col, E.window_cols);
+		mouseDrawerFinishPress(effects_out, 0);
+		return 1;
+	}
+	E.drawer_resize_active = 0;
+
+	if (!(drawer_row >= 0 && drawer_row < drawer_view_rows + 1 && mouse_col >= 0 &&
+	      mouse_col < drawer_cols)) {
+		if (effects_out != NULL) {
+			*effects_out = 0;
+		}
+		return 0;
+	}
+
+	if (drawer_row == 0) {
+		return mouseDrawerHandleHeaderRow(mouse_col, drawer_cols, effects_out);
+	}
+
+	int visible_idx = E.drawer_rowoff + drawer_row - 1;
+	if (!editorDrawerSelectVisibleIndex(visible_idx, drawer_view_rows)) {
+		mouseDrawerFinishPress(effects_out, 0);
+		return 1;
+	}
+	if (editorDrawerSelectedIsDirectory()) {
+		return mouseDrawerHandleDirectoryToggle(visible_idx, drawer_view_rows, event,
+		                                        effects_out);
+	}
+	if (mouseDrawerHandleMenuAction(process_mapped_action, effects_out)) {
+		return 1;
+	}
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_GIT) {
+		return mouseDrawerHandleGitMode(effects_out);
+	}
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_LSP) {
+		return mouseDrawerHandleLspMode(visible_idx, now_ms, double_click_threshold_ms,
+		                                jump_to_path, effects_out);
+	}
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_DAP) {
+		return mouseDrawerHandleDapMode(visible_idx, now_ms, double_click_threshold_ms,
+		                                jump_to_path, effects_out);
+	}
+	return mouseDrawerHandleFileMode(visible_idx, now_ms, double_click_threshold_ms, event,
+	                                 effects_out);
 }
 
 int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long long now_ms,

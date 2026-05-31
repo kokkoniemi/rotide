@@ -672,6 +672,247 @@ int editorDrawDrawerSeparatorCell(struct writeBuf *wb, int separator_cols) {
 	return wbAppend(wb, DRAWER_SPLITTER_UTF8, sizeof(DRAWER_SPLITTER_UTF8) - 1);
 }
 
+static int drawerViewRenderSearchHeaderRow(struct writeBuf *wb, const char *entry_name,
+                                           int drawer_cols, int *written_cols) {
+	if (*written_cols < drawer_cols) {
+		int wrote = 0;
+		const char *label = editorProjectSearchIsActive() ? editorProjectSearchHeaderLabel()
+		                                                  : editorFileSearchHeaderLabel();
+		if (!editorAppendSanitizedText(wb, label, drawer_cols - *written_cols, &wrote)) {
+			return 0;
+		}
+		*written_cols += wrote;
+	}
+	if (*written_cols < drawer_cols) {
+		int wrote = 0;
+		if (!editorAppendSanitizedText(wb, entry_name, drawer_cols - *written_cols,
+		                               &wrote)) {
+			return 0;
+		}
+		*written_cols += wrote;
+	}
+	return 1;
+}
+
+static int drawerViewRenderTreeGuides(struct writeBuf *wb,
+                                      const struct editorDrawerEntryView *entry,
+                                      int gray_connectors, int drawer_cols, int *written_cols) {
+	if (!drawerViewDrawAncestorGuides(wb, entry->parent_visible_idx, written_cols, drawer_cols,
+	                                  gray_connectors)) {
+		return 0;
+	}
+	const char *branch =
+	        entry->is_last_sibling ? DRAWER_TREE_BRANCH_LAST_UTF8 : DRAWER_TREE_BRANCH_MID_UTF8;
+	size_t branch_len = entry->is_last_sibling ? sizeof(DRAWER_TREE_BRANCH_LAST_UTF8) - 1
+	                                           : sizeof(DRAWER_TREE_BRANCH_MID_UTF8) - 1;
+	if (!drawerViewAppendConnectorCell(wb, branch, branch_len, written_cols, drawer_cols,
+	                                   gray_connectors)) {
+		return 0;
+	}
+	if (!drawerViewAppendConnectorCell(wb, DRAWER_TREE_HORIZONTAL_UTF8,
+	                                   sizeof(DRAWER_TREE_HORIZONTAL_UTF8) - 1, written_cols,
+	                                   drawer_cols, gray_connectors)) {
+		return 0;
+	}
+	return drawerViewAppendCell(wb, " ", 1, written_cols, drawer_cols);
+}
+
+static int drawerViewRenderDirIndicator(struct writeBuf *wb,
+                                        const struct editorDrawerEntryView *entry, int drawer_cols,
+                                        int *written_cols) {
+	if (entry->has_scan_error) {
+		if (!drawerViewAppendCell(wb, "!", 1, written_cols, drawer_cols)) {
+			return 0;
+		}
+	} else {
+		const char *caret = entry->is_expanded ? DRAWER_CARET_EXPANDED_UTF8
+		                                       : DRAWER_CARET_COLLAPSED_UTF8;
+		size_t caret_len = entry->is_expanded ? sizeof(DRAWER_CARET_EXPANDED_UTF8) - 1
+		                                      : sizeof(DRAWER_CARET_COLLAPSED_UTF8) - 1;
+		if (!drawerViewAppendCell(wb, caret, caret_len, written_cols, drawer_cols)) {
+			return 0;
+		}
+	}
+	return drawerViewAppendCell(wb, " ", 1, written_cols, drawer_cols);
+}
+
+static int drawerViewRenderEntryIcon(struct writeBuf *wb, const struct editorDrawerEntryView *entry,
+                                     const char *entry_name, int row_inverted, int drawer_cols,
+                                     int *written_cols) {
+	const char *icon = drawerViewNerdIconForEntry(entry, entry_name);
+	int icon_appended = 0;
+	if (!drawerViewAppendNerdIcon(wb, icon, row_inverted, written_cols, drawer_cols,
+	                              &icon_appended)) {
+		return 0;
+	}
+	if (icon_appended && !drawerViewAppendCell(wb, " ", 1, written_cols, drawer_cols)) {
+		return 0;
+	}
+	return 1;
+}
+
+static int drawerViewApplyGitColor(struct writeBuf *wb, const struct editorDrawerEntryView *entry,
+                                   int *git_color_out) {
+	*git_color_out = 0;
+	if (E.git_repo_root == NULL) {
+		return 1;
+	}
+	enum editorThemeUiRole role;
+	switch (entry->git_status) {
+		case EDITOR_GIT_STATUS_MODIFIED:
+			role = EDITOR_THEME_UI_GIT_MODIFIED;
+			break;
+		case EDITOR_GIT_STATUS_UNTRACKED:
+			role = EDITOR_THEME_UI_GIT_UNTRACKED;
+			break;
+		case EDITOR_GIT_STATUS_CONFLICT:
+			role = EDITOR_THEME_UI_GIT_CONFLICT;
+			break;
+		default:
+			return 1;
+	}
+	*git_color_out = 1;
+	return editorAppendThemeForegroundRole(wb, role);
+}
+
+static int drawerViewRenderEntryNameLsp(struct writeBuf *wb,
+                                        const struct editorDrawerEntryView *entry,
+                                        const char *entry_name, int remaining, int *wrote_out) {
+	struct editorThemeColor problem_color = {
+	        .kind = EDITOR_THEME_COLOR_ANSI,
+	        .value = entry->lsp_problem_severity == 1 ? EDITOR_THEME_ANSI_RED
+	                                                  : EDITOR_THEME_ANSI_YELLOW,
+	};
+	int prefix_budget = entry->lsp_problem_kind_len;
+	if (prefix_budget > remaining) {
+		prefix_budget = remaining;
+	}
+	int prefix_wrote = 0;
+	if (!editorAppendThemeForeground(wb, problem_color) ||
+	    !editorAppendSanitizedText(wb, entry_name, prefix_budget, &prefix_wrote) ||
+	    !editorAppendThemeBaseForeground(wb)) {
+		return 0;
+	}
+	*wrote_out = prefix_wrote;
+	if (*wrote_out < remaining && prefix_wrote >= entry->lsp_problem_kind_len) {
+		int rest_wrote = 0;
+		if (!editorAppendSanitizedText(wb, entry_name + entry->lsp_problem_kind_len,
+		                               remaining - *wrote_out, &rest_wrote)) {
+			return 0;
+		}
+		*wrote_out += rest_wrote;
+	}
+	return 1;
+}
+
+static int drawerViewRenderEntryNameStyled(struct writeBuf *wb,
+                                           const struct editorDrawerEntryView *entry,
+                                           const char *entry_name, int row_inverted, int remaining,
+                                           int *wrote_out) {
+	int root_bold = entry->is_root || (entry->is_dir && !row_inverted);
+	int root_color = entry->is_root;
+	int dir_color = entry->is_dir && !entry->is_root && !row_inverted;
+	int placeholder_color = entry->is_placeholder;
+	int lsp_problem_kind_color =
+	        !row_inverted && entry->lsp_problem_kind_len > 0 &&
+	        (entry->lsp_problem_severity == 1 || entry->lsp_problem_severity == 2);
+	int git_color = 0;
+	if (!row_inverted && !drawerViewApplyGitColor(wb, entry, &git_color)) {
+		return 0;
+	}
+	if (root_bold && !wbAppend(wb, VT100_BOLD_ON_4, 4)) {
+		return 0;
+	}
+	if (root_color && !editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_ROOT)) {
+		return 0;
+	}
+	if (dir_color && !editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_DIRECTORY)) {
+		return 0;
+	}
+	if (placeholder_color &&
+	    !editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_PLACEHOLDER)) {
+		return 0;
+	}
+	int wrote = 0;
+	if (lsp_problem_kind_color) {
+		if (!drawerViewRenderEntryNameLsp(wb, entry, entry_name, remaining, &wrote)) {
+			return 0;
+		}
+	} else if (!editorAppendSanitizedText(wb, entry_name, remaining, &wrote)) {
+		return 0;
+	}
+	if (placeholder_color && !editorAppendThemeBaseForeground(wb)) {
+		return 0;
+	}
+	if (dir_color && !editorAppendThemeBaseForeground(wb)) {
+		return 0;
+	}
+	if (root_color && !editorAppendThemeBaseForeground(wb)) {
+		return 0;
+	}
+	if (root_bold && !wbAppend(wb, VT100_BOLD_OFF_5, 5)) {
+		return 0;
+	}
+	if (git_color && !editorAppendThemeBaseForeground(wb)) {
+		return 0;
+	}
+	*wrote_out = wrote;
+	return 1;
+}
+
+static int drawerViewRenderEntryRow(struct writeBuf *wb, int visible_idx, int drawer_cols,
+                                    int *written_cols, int *row_inverted_out) {
+	*row_inverted_out = 0;
+	struct editorDrawerEntryView entry;
+	if (!editorDrawerVisibleEntryView(visible_idx, &entry)) {
+		return 1;
+	}
+
+	char entry_name_buf[PATH_MAX + 512];
+	(void)snprintf(entry_name_buf, sizeof(entry_name_buf), "%s",
+	               entry.name != NULL ? entry.name : "");
+	const char *entry_name = entry_name_buf;
+
+	int selected_with_focus =
+	        entry.is_selected && E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER;
+	int row_inverted = selected_with_focus || (entry.is_active_file && !entry.is_dir);
+	*row_inverted_out = row_inverted;
+	int gray_connectors = !row_inverted;
+	if (row_inverted && !editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_SELECTION)) {
+		return 0;
+	}
+
+	if (entry.is_search_header) {
+		return drawerViewRenderSearchHeaderRow(wb, entry_name, drawer_cols, written_cols);
+	}
+
+	if (!entry.is_root && !drawerViewAppendCell(wb, " ", 1, written_cols, drawer_cols)) {
+		return 0;
+	}
+	if (entry.depth > 1 &&
+	    !drawerViewRenderTreeGuides(wb, &entry, gray_connectors, drawer_cols, written_cols)) {
+		return 0;
+	}
+	if (entry.is_dir && !entry.is_root &&
+	    !drawerViewRenderDirIndicator(wb, &entry, drawer_cols, written_cols)) {
+		return 0;
+	}
+	if (!drawerViewRenderEntryIcon(wb, &entry, entry_name, row_inverted, drawer_cols,
+	                               written_cols)) {
+		return 0;
+	}
+	if (*written_cols < drawer_cols) {
+		int remaining = drawer_cols - *written_cols;
+		int wrote = 0;
+		if (!drawerViewRenderEntryNameStyled(wb, &entry, entry_name, row_inverted,
+		                                     remaining, &wrote)) {
+			return 0;
+		}
+		*written_cols += wrote;
+	}
+	return 1;
+}
+
 int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols) {
 	if (drawer_cols <= 0) {
 		return 1;
@@ -683,227 +924,20 @@ int editorDrawDrawerRow(struct writeBuf *wb, int row_idx, int drawer_cols) {
 		return drawerViewDrawExpandedHeaderRow(wb, drawer_cols);
 	}
 
-	struct editorDrawerEntryView entry;
 	int visible_idx = E.drawer_rowoff + row_idx - 1;
 	int written_cols = 0;
 	int row_inverted = 0;
-	if (editorDrawerVisibleEntryView(visible_idx, &entry)) {
-		char entry_name_buf[PATH_MAX + 512];
-		const char *entry_name = entry.name != NULL ? entry.name : "";
-		(void)snprintf(entry_name_buf, sizeof(entry_name_buf), "%s", entry_name);
-		entry_name = entry_name_buf;
-		int selected_with_focus =
-		        entry.is_selected && E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER;
-		row_inverted = selected_with_focus || (entry.is_active_file && !entry.is_dir);
-		int gray_connectors = !row_inverted;
-		if (row_inverted && !editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_SELECTION)) {
-			return 0;
-		}
-
-		if (entry.is_search_header) {
-			if (written_cols < drawer_cols) {
-				int wrote = 0;
-				const char *label = editorProjectSearchIsActive()
-				                            ? editorProjectSearchHeaderLabel()
-				                            : editorFileSearchHeaderLabel();
-				if (!editorAppendSanitizedText(
-				            wb, label, drawer_cols - written_cols, &wrote)) {
-					return 0;
-				}
-				written_cols += wrote;
-			}
-			if (written_cols < drawer_cols) {
-				int wrote = 0;
-				if (!editorAppendSanitizedText(
-				            wb, entry_name, drawer_cols - written_cols, &wrote)) {
-					return 0;
-				}
-				written_cols += wrote;
-			}
-			goto pad_drawer_row;
-		}
-
-		if (!entry.is_root &&
-		    !drawerViewAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
-			return 0;
-		}
-
-		if (entry.depth > 1) {
-			if (!drawerViewDrawAncestorGuides(wb, entry.parent_visible_idx,
-			                                  &written_cols, drawer_cols,
-			                                  gray_connectors)) {
-				return 0;
-			}
-			const char *branch = entry.is_last_sibling ? DRAWER_TREE_BRANCH_LAST_UTF8
-			                                           : DRAWER_TREE_BRANCH_MID_UTF8;
-			size_t branch_len = entry.is_last_sibling
-			                            ? sizeof(DRAWER_TREE_BRANCH_LAST_UTF8) - 1
-			                            : sizeof(DRAWER_TREE_BRANCH_MID_UTF8) - 1;
-			if (!drawerViewAppendConnectorCell(wb, branch, branch_len, &written_cols,
-			                                   drawer_cols, gray_connectors)) {
-				return 0;
-			}
-			if (!drawerViewAppendConnectorCell(wb, DRAWER_TREE_HORIZONTAL_UTF8,
-			                                   sizeof(DRAWER_TREE_HORIZONTAL_UTF8) - 1,
-			                                   &written_cols, drawer_cols,
-			                                   gray_connectors)) {
-				return 0;
-			}
-			if (!drawerViewAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
-				return 0;
-			}
-		}
-
-		if (entry.is_dir && !entry.is_root) {
-			if (entry.has_scan_error) {
-				if (!drawerViewAppendCell(wb, "!", 1, &written_cols, drawer_cols)) {
-					return 0;
-				}
-			} else if (entry.is_expanded) {
-				if (!drawerViewAppendCell(wb, DRAWER_CARET_EXPANDED_UTF8,
-				                          sizeof(DRAWER_CARET_EXPANDED_UTF8) - 1,
-				                          &written_cols, drawer_cols)) {
-					return 0;
-				}
-			} else if (!drawerViewAppendCell(wb, DRAWER_CARET_COLLAPSED_UTF8,
-			                                 sizeof(DRAWER_CARET_COLLAPSED_UTF8) - 1,
-			                                 &written_cols, drawer_cols)) {
-				return 0;
-			}
-			if (!drawerViewAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
-				return 0;
-			}
-		}
-
-		const char *icon = drawerViewNerdIconForEntry(&entry, entry_name);
-		int icon_appended = 0;
-		if (!drawerViewAppendNerdIcon(wb, icon, row_inverted, &written_cols, drawer_cols,
-		                              &icon_appended)) {
-			return 0;
-		}
-		if (icon_appended &&
-		    !drawerViewAppendCell(wb, " ", 1, &written_cols, drawer_cols)) {
-			return 0;
-		}
-
-		if (written_cols < drawer_cols) {
-			int remaining = drawer_cols - written_cols;
-			int wrote = 0;
-			int root_bold = entry.is_root || (entry.is_dir && !row_inverted);
-			int root_color = entry.is_root;
-			int dir_color = entry.is_dir && !entry.is_root && !row_inverted;
-			int placeholder_color = entry.is_placeholder;
-			int git_color = 0;
-			int lsp_problem_kind_color = !row_inverted &&
-			                             entry.lsp_problem_kind_len > 0 &&
-			                             (entry.lsp_problem_severity == 1 ||
-			                              entry.lsp_problem_severity == 2);
-			if (!row_inverted && E.git_repo_root != NULL) {
-				switch (entry.git_status) {
-					case EDITOR_GIT_STATUS_MODIFIED:
-						git_color = 1;
-						if (!editorAppendThemeForegroundRole(
-						            wb, EDITOR_THEME_UI_GIT_MODIFIED)) {
-							return 0;
-						}
-						break;
-					case EDITOR_GIT_STATUS_UNTRACKED:
-						git_color = 1;
-						if (!editorAppendThemeForegroundRole(
-						            wb, EDITOR_THEME_UI_GIT_UNTRACKED)) {
-							return 0;
-						}
-						break;
-					case EDITOR_GIT_STATUS_CONFLICT:
-						git_color = 1;
-						if (!editorAppendThemeForegroundRole(
-						            wb, EDITOR_THEME_UI_GIT_CONFLICT)) {
-							return 0;
-						}
-						break;
-					default:
-						break;
-				}
-			}
-			if (root_bold && !wbAppend(wb, VT100_BOLD_ON_4, 4)) {
-				return 0;
-			}
-			if (root_color &&
-			    !editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_ROOT)) {
-				return 0;
-			}
-			if (dir_color &&
-			    !editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_DIRECTORY)) {
-				return 0;
-			}
-			if (placeholder_color &&
-			    !editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_PLACEHOLDER)) {
-				return 0;
-			}
-			if (lsp_problem_kind_color) {
-				struct editorThemeColor problem_color = {
-				        .kind = EDITOR_THEME_COLOR_ANSI,
-				        .value = entry.lsp_problem_severity == 1
-				                         ? EDITOR_THEME_ANSI_RED
-				                         : EDITOR_THEME_ANSI_YELLOW,
-				};
-				int prefix_budget = entry.lsp_problem_kind_len;
-				if (prefix_budget > remaining) {
-					prefix_budget = remaining;
-				}
-				int prefix_wrote = 0;
-				if (!editorAppendThemeForeground(wb, problem_color) ||
-				    !editorAppendSanitizedText(wb, entry_name, prefix_budget,
-				                               &prefix_wrote) ||
-				    !editorAppendThemeBaseForeground(wb)) {
-					return 0;
-				}
-				wrote += prefix_wrote;
-				if (wrote < remaining &&
-				    prefix_wrote >= entry.lsp_problem_kind_len) {
-					int rest_wrote = 0;
-					if (!editorAppendSanitizedText(
-					            wb, entry_name + entry.lsp_problem_kind_len,
-					            remaining - wrote, &rest_wrote)) {
-						return 0;
-					}
-					wrote += rest_wrote;
-				}
-			} else {
-				if (!editorAppendSanitizedText(wb, entry_name, remaining, &wrote)) {
-					return 0;
-				}
-			}
-			if (placeholder_color && !editorAppendThemeBaseForeground(wb)) {
-				return 0;
-			}
-			if (dir_color && !editorAppendThemeBaseForeground(wb)) {
-				return 0;
-			}
-			if (root_color && !editorAppendThemeBaseForeground(wb)) {
-				return 0;
-			}
-			if (root_bold && !wbAppend(wb, VT100_BOLD_OFF_5, 5)) {
-				return 0;
-			}
-			if (git_color && !editorAppendThemeBaseForeground(wb)) {
-				return 0;
-			}
-			written_cols += wrote;
-		}
+	if (!drawerViewRenderEntryRow(wb, visible_idx, drawer_cols, &written_cols, &row_inverted)) {
+		return 0;
 	}
-
-pad_drawer_row:
 	while (written_cols < drawer_cols) {
 		if (!wbAppend(wb, " ", 1)) {
 			return 0;
 		}
 		written_cols++;
 	}
-
 	if (row_inverted && !editorAppendThemeReset(wb)) {
 		return 0;
 	}
-
 	return 1;
 }

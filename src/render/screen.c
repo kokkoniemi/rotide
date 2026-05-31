@@ -468,149 +468,119 @@ static int screenBracketBoldAtRenderIdx(const struct screenRenderSliceArgs *args
 	return 0;
 }
 
-static int screenDrawRenderSliceWithSyntax(const struct screenRenderSliceArgs *args,
-                                           int segment_start, int segment_end) {
-	if (segment_end <= segment_start) {
+static int screenSliceForegroundForPos(const struct screenRenderSliceArgs *args, int pos,
+                                       struct editorThemeColor base_color,
+                                       struct editorThemeColor *out_color) {
+	enum editorSyntaxHighlightClass highlight_class =
+	        screenSyntaxClassAtRenderIdx(args->syntax_spans, args->syntax_span_count, pos);
+	*out_color = base_color;
+	if (highlight_class > EDITOR_SYNTAX_HL_NONE &&
+	    highlight_class < EDITOR_SYNTAX_HL_CLASS_COUNT) {
+		*out_color = E.theme.syntax[highlight_class];
+	}
+	return 1;
+}
+
+static int screenSliceApplyForeground(struct writeBuf *wb, struct editorThemeColor next_color,
+                                      struct editorThemeColor *active_color,
+                                      int *active_color_emitted) {
+	if (editorThemeColorEquals(next_color, *active_color)) {
 		return 1;
 	}
-
-	struct writeBuf *wb = args->wb;
-	const struct editorRow *row = args->row;
-	const struct editorRowSyntaxSpan *spans = args->syntax_spans;
-	int span_count = args->syntax_span_count;
-	const struct editorRowSyntaxSpan *diagnostic_spans = args->diagnostic_spans;
-	int diagnostic_span_count = args->diagnostic_span_count;
-	int hover_render_start = args->hover_render_start;
-	int hover_render_end = args->hover_render_end;
-	int has_bracket = args->bracket_render_idx[0] >= 0 || args->bracket_render_idx[1] >= 0;
-
-	if ((spans == NULL || span_count <= 0 || E.syntax_state == NULL ||
-	     E.syntax_language == EDITOR_SYNTAX_NONE) &&
-	    (diagnostic_spans == NULL || diagnostic_span_count <= 0) && !has_bracket) {
-		return wbAppend(wb, &row->render[segment_start],
-		                (size_t)(segment_end - segment_start));
+	if (!editorAppendThemeForeground(wb, next_color)) {
+		return 0;
 	}
+	*active_color = next_color;
+	*active_color_emitted = 1;
+	return 1;
+}
 
-	struct editorThemeColor base_color = E.theme.ui[EDITOR_THEME_UI_FOREGROUND];
-	struct editorThemeColor active_color = base_color;
-	int active_color_emitted = 0;
-	int underline_on = 0;
-	int underline_red = 0;
-	int bold_on = 0;
-	int has_hover = hover_render_end > hover_render_start;
-	int pos = segment_start;
-	while (pos < segment_end) {
-		enum editorSyntaxHighlightClass highlight_class =
-		        screenSyntaxClassAtRenderIdx(spans, span_count, pos);
-		struct editorThemeColor next_color = base_color;
-		if (highlight_class > EDITOR_SYNTAX_HL_NONE &&
-		    highlight_class < EDITOR_SYNTAX_HL_CLASS_COUNT) {
-			next_color = E.theme.syntax[highlight_class];
-		}
-
-		if (!editorThemeColorEquals(next_color, active_color)) {
-			if (!editorAppendThemeForeground(wb, next_color)) {
-				return 0;
-			}
-			active_color = next_color;
-			active_color_emitted = 1;
-		}
-
-		int diag_here =
-		        screenDiagnosticAtRenderIdx(diagnostic_spans, diagnostic_span_count, pos);
-		int hover_here = has_hover && pos >= hover_render_start && pos < hover_render_end;
-		int next_on = diag_here || hover_here;
-		int next_red = diag_here;
-		if (next_on != underline_on) {
-			if (!screenAppendUnderlineToggle(wb, next_on)) {
-				return 0;
-			}
-			underline_on = next_on;
-		}
-		if (next_red != underline_red) {
-			if (!screenAppendUnderlineColor(wb, next_red)) {
-				return 0;
-			}
-			underline_red = next_red;
-		}
-
-		int next_bold = screenBracketBoldAtRenderIdx(args, pos);
-		if (next_bold != bold_on) {
-			if (!wbAppend(wb, next_bold ? VT100_BOLD_ON_4 : VT100_BOLD_OFF_5,
-			              next_bold ? sizeof(VT100_BOLD_ON_4) - 1
-			                        : sizeof(VT100_BOLD_OFF_5) - 1)) {
-				return 0;
-			}
-			bold_on = next_bold;
-		}
-
-		int next = segment_end;
-		for (int i = 0; i < span_count; i++) {
-			int span_start = spans[i].start_render_idx;
-			int span_end = spans[i].end_render_idx;
-			if (span_end <= span_start) {
-				continue;
-			}
-			if (span_start > pos && span_start < next) {
-				next = span_start;
-			}
-			if (span_end > pos && span_end < next) {
-				next = span_end;
-			}
-		}
-		for (int i = 0; i < diagnostic_span_count; i++) {
-			int span_start = diagnostic_spans[i].start_render_idx;
-			int span_end = diagnostic_spans[i].end_render_idx;
-			if (span_end <= span_start) {
-				continue;
-			}
-			if (span_start > pos && span_start < next) {
-				next = span_start;
-			}
-			if (span_end > pos && span_end < next) {
-				next = span_end;
-			}
-		}
-		if (has_hover) {
-			if (hover_render_start > pos && hover_render_start < next) {
-				next = hover_render_start;
-			}
-			if (hover_render_end > pos && hover_render_end < next) {
-				next = hover_render_end;
-			}
-		}
-		for (int i = 0; i < 2; i++) {
-			int b = args->bracket_render_idx[i];
-			if (b < 0) {
-				continue;
-			}
-			if (b > pos && b < next) {
-				next = b;
-			}
-			if (b + 1 > pos && b + 1 < next) {
-				next = b + 1;
-			}
-		}
-		if (next <= pos) {
-			unsigned int cp = 0;
-			int step = editorUtf8DecodeCodepoint(&row->render[pos], segment_end - pos,
-			                                     &cp);
-			(void)cp;
-			if (step <= 0) {
-				step = 1;
-			}
-			if (step > segment_end - pos) {
-				step = segment_end - pos;
-			}
-			next = pos + step;
-		}
-
-		if (!wbAppend(wb, &row->render[pos], (size_t)(next - pos))) {
+static int screenSliceApplyUnderline(struct writeBuf *wb, int next_on, int next_red,
+                                     int *underline_on, int *underline_red) {
+	if (next_on != *underline_on) {
+		if (!screenAppendUnderlineToggle(wb, next_on)) {
 			return 0;
 		}
-		pos = next;
+		*underline_on = next_on;
 	}
+	if (next_red != *underline_red) {
+		if (!screenAppendUnderlineColor(wb, next_red)) {
+			return 0;
+		}
+		*underline_red = next_red;
+	}
+	return 1;
+}
 
+static int screenSliceApplyBold(struct writeBuf *wb, int next_bold, int *bold_on) {
+	if (next_bold == *bold_on) {
+		return 1;
+	}
+	if (!wbAppend(wb, next_bold ? VT100_BOLD_ON_4 : VT100_BOLD_OFF_5,
+	              next_bold ? sizeof(VT100_BOLD_ON_4) - 1 : sizeof(VT100_BOLD_OFF_5) - 1)) {
+		return 0;
+	}
+	*bold_on = next_bold;
+	return 1;
+}
+
+static void screenSliceConsiderBoundary(int candidate, int pos, int *next) {
+	if (candidate > pos && candidate < *next) {
+		*next = candidate;
+	}
+}
+
+static int screenSliceNextSpanBoundary(const struct screenRenderSliceArgs *args, int pos,
+                                       int segment_end, int has_hover) {
+	int next = segment_end;
+	for (int i = 0; i < args->syntax_span_count; i++) {
+		int span_start = args->syntax_spans[i].start_render_idx;
+		int span_end = args->syntax_spans[i].end_render_idx;
+		if (span_end <= span_start) {
+			continue;
+		}
+		screenSliceConsiderBoundary(span_start, pos, &next);
+		screenSliceConsiderBoundary(span_end, pos, &next);
+	}
+	for (int i = 0; i < args->diagnostic_span_count; i++) {
+		int span_start = args->diagnostic_spans[i].start_render_idx;
+		int span_end = args->diagnostic_spans[i].end_render_idx;
+		if (span_end <= span_start) {
+			continue;
+		}
+		screenSliceConsiderBoundary(span_start, pos, &next);
+		screenSliceConsiderBoundary(span_end, pos, &next);
+	}
+	if (has_hover) {
+		screenSliceConsiderBoundary(args->hover_render_start, pos, &next);
+		screenSliceConsiderBoundary(args->hover_render_end, pos, &next);
+	}
+	for (int i = 0; i < 2; i++) {
+		int b = args->bracket_render_idx[i];
+		if (b < 0) {
+			continue;
+		}
+		screenSliceConsiderBoundary(b, pos, &next);
+		screenSliceConsiderBoundary(b + 1, pos, &next);
+	}
+	return next;
+}
+
+static int screenSliceNextCodepointBoundary(const struct editorRow *row, int pos, int segment_end) {
+	unsigned int cp = 0;
+	int step = editorUtf8DecodeCodepoint(&row->render[pos], segment_end - pos, &cp);
+	(void)cp;
+	if (step <= 0) {
+		step = 1;
+	}
+	if (step > segment_end - pos) {
+		step = segment_end - pos;
+	}
+	return pos + step;
+}
+
+static int screenSliceResetStyles(struct writeBuf *wb, int active_color_emitted, int underline_on,
+                                  int underline_red, int bold_on) {
 	if (underline_on && !screenAppendUnderlineToggle(wb, 0)) {
 		return 0;
 	}
@@ -624,6 +594,72 @@ static int screenDrawRenderSliceWithSyntax(const struct screenRenderSliceArgs *a
 		return 0;
 	}
 	return 1;
+}
+
+static int screenSliceSyntaxFastPathApplies(const struct screenRenderSliceArgs *args) {
+	int has_syntax = args->syntax_spans != NULL && args->syntax_span_count > 0 &&
+	                 E.syntax_state != NULL && E.syntax_language != EDITOR_SYNTAX_NONE;
+	int has_diag = args->diagnostic_spans != NULL && args->diagnostic_span_count > 0;
+	int has_bracket = args->bracket_render_idx[0] >= 0 || args->bracket_render_idx[1] >= 0;
+	return !has_syntax && !has_diag && !has_bracket;
+}
+
+static int screenDrawRenderSliceWithSyntax(const struct screenRenderSliceArgs *args,
+                                           int segment_start, int segment_end) {
+	if (segment_end <= segment_start) {
+		return 1;
+	}
+
+	struct writeBuf *wb = args->wb;
+	const struct editorRow *row = args->row;
+
+	if (screenSliceSyntaxFastPathApplies(args)) {
+		return wbAppend(wb, &row->render[segment_start],
+		                (size_t)(segment_end - segment_start));
+	}
+
+	struct editorThemeColor base_color = E.theme.ui[EDITOR_THEME_UI_FOREGROUND];
+	struct editorThemeColor active_color = base_color;
+	int active_color_emitted = 0;
+	int underline_on = 0;
+	int underline_red = 0;
+	int bold_on = 0;
+	int has_hover = args->hover_render_end > args->hover_render_start;
+	int pos = segment_start;
+	while (pos < segment_end) {
+		struct editorThemeColor next_color;
+		(void)screenSliceForegroundForPos(args, pos, base_color, &next_color);
+		if (!screenSliceApplyForeground(wb, next_color, &active_color,
+		                                &active_color_emitted)) {
+			return 0;
+		}
+
+		int diag_here = screenDiagnosticAtRenderIdx(args->diagnostic_spans,
+		                                            args->diagnostic_span_count, pos);
+		int hover_here = has_hover && pos >= args->hover_render_start &&
+		                 pos < args->hover_render_end;
+		if (!screenSliceApplyUnderline(wb, diag_here || hover_here, diag_here,
+		                               &underline_on, &underline_red)) {
+			return 0;
+		}
+
+		if (!screenSliceApplyBold(wb, screenBracketBoldAtRenderIdx(args, pos), &bold_on)) {
+			return 0;
+		}
+
+		int next = screenSliceNextSpanBoundary(args, pos, segment_end, has_hover);
+		if (next <= pos) {
+			next = screenSliceNextCodepointBoundary(row, pos, segment_end);
+		}
+
+		if (!wbAppend(wb, &row->render[pos], (size_t)(next - pos))) {
+			return 0;
+		}
+		pos = next;
+	}
+
+	return screenSliceResetStyles(wb, active_color_emitted, underline_on, underline_red,
+	                              bold_on);
 }
 
 static int screenDrawRenderSlice(struct writeBuf *wb, struct editorRow *row, int row_idx,

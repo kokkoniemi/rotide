@@ -209,53 +209,38 @@ static const char *actionsEditCommentPrefixForLanguage(enum editorSyntaxLanguage
 	}
 }
 
-void editorEditToggleCommentLines(editorEditActionFn clear_selection_mode,
-                                  editorEditActionFn pin_active_preview_for_edit) {
-	const char *prefix = actionsEditCommentPrefixForLanguage(E.syntax_language);
-	if (prefix == NULL) {
-		editorSetStatusMsg("No line comment for this language");
-		return;
+static int actionsEditCommentLeadingWhitespace(const char *chars, int size) {
+	int i = 0;
+	while (i < size && (chars[i] == ' ' || chars[i] == '\t')) {
+		i++;
 	}
-	int prefix_len = (int)strlen(prefix);
+	return i;
+}
 
-	struct editorSelectionRange range;
-	int had_selection = editorGetSelectionRange(&range);
-	if (!had_selection) {
-		if (E.cy < 0 || E.cy >= E.numrows) {
-			return;
-		}
-		range.start_cy = E.cy;
-		range.start_cx = 0;
-		range.end_cy = E.cy;
-		range.end_cx = (int)editorDocumentLineLength(E.document, E.cy);
+static int actionsEditCommentRemovalSkip(const char *chars, int size, int indent, int prefix_len) {
+	int skip = prefix_len;
+	if (indent + prefix_len < size && chars[indent + prefix_len] == ' ') {
+		skip++;
 	}
+	return skip;
+}
 
-	int last_row = range.end_cy;
-	if (had_selection && last_row > range.start_cy && range.end_cx == 0) {
-		last_row--;
-	}
-	if (range.start_cy < 0 || last_row >= E.numrows) {
-		return;
-	}
-
-	// Determine toggle direction: all non-empty lines commented -> remove, else add
+/* Returns 1 on success, 0 if a line view could not be obtained. */
+static int actionsEditDetectCommentDirection(int start_row, int last_row, const char *prefix,
+                                             int prefix_len, int *removing_out) {
 	int removing = 1;
-	for (int row = range.start_cy; row <= last_row; row++) {
+	for (int row = start_row; row <= last_row; row++) {
 		struct editorLineView line = {0};
 		if (!editorDocumentLineView(E.document, row, &line)) {
-			return;
+			return 0;
 		}
-		const char *chars = line.data;
-		int size = line.size;
-		if (size == 0) {
+		if (line.size == 0) {
 			editorLineViewRelease(&line);
 			continue;
 		}
-		int i = 0;
-		while (i < size && (chars[i] == ' ' || chars[i] == '\t')) {
-			i++;
-		}
-		if (i + prefix_len > size || strncmp(chars + i, prefix, (size_t)prefix_len) != 0) {
+		int indent = actionsEditCommentLeadingWhitespace(line.data, line.size);
+		if (indent + prefix_len > line.size ||
+		    strncmp(line.data + indent, prefix, (size_t)prefix_len) != 0) {
 			removing = 0;
 		}
 		editorLineViewRelease(&line);
@@ -263,66 +248,57 @@ void editorEditToggleCommentLines(editorEditActionFn clear_selection_mode,
 			break;
 		}
 	}
+	*removing_out = removing;
+	return 1;
+}
 
-	size_t first_start = 0;
-	size_t dummy = 0;
-	size_t last_end = 0;
-	if (!editorBufferLineByteRange(range.start_cy, &first_start, &dummy) ||
-	    !editorBufferLineByteRange(last_row, &dummy, &last_end)) {
-		return;
-	}
-	size_t old_len = last_end - first_start;
-
+/* Returns 1 on success, 0 if a line view could not be obtained. */
+static int actionsEditComputeToggledLen(int start_row, int last_row, int prefix_len, int removing,
+                                        size_t old_len, size_t *new_len_out) {
 	size_t new_len = old_len;
-	for (int row = range.start_cy; row <= last_row; row++) {
+	for (int row = start_row; row <= last_row; row++) {
 		struct editorLineView line = {0};
 		if (!editorDocumentLineView(E.document, row, &line)) {
-			return;
+			return 0;
 		}
-		const char *chars = line.data;
-		int size = line.size;
-		if (size == 0) {
+		if (line.size == 0) {
 			editorLineViewRelease(&line);
 			continue;
 		}
 		if (!removing) {
 			new_len += (size_t)prefix_len + 1;
 		} else {
-			int i = 0;
-			while (i < size && (chars[i] == ' ' || chars[i] == '\t')) {
-				i++;
-			}
-			int skip = prefix_len;
-			if (i + prefix_len < size && chars[i + prefix_len] == ' ') {
-				skip++;
-			}
+			int indent = actionsEditCommentLeadingWhitespace(line.data, line.size);
+			int skip = actionsEditCommentRemovalSkip(line.data, line.size, indent,
+			                                         prefix_len);
 			new_len -= (size_t)skip;
 		}
 		editorLineViewRelease(&line);
 	}
+	*new_len_out = new_len;
+	return 1;
+}
 
-	char *new_text = editorMalloc(new_len > 0 ? new_len : 1);
-	if (new_text == NULL) {
-		editorSetAllocFailureStatus();
-		return;
-	}
-
+/* Returns 1 on success, 0 if a line view could not be obtained. */
+static int actionsEditBuildToggledText(int start_row, int last_row, const char *prefix,
+                                       int prefix_len, int removing, char *new_text,
+                                       size_t first_start, size_t *cur_row_new_start_out,
+                                       size_t *cur_row_new_size_out) {
 	size_t out = 0;
 	size_t cur_row_new_start = first_start;
 	size_t cur_row_new_size = 0;
 
-	for (int row = range.start_cy; row <= last_row; row++) {
+	for (int row = start_row; row <= last_row; row++) {
 		struct editorLineView line = {0};
 		if (!editorDocumentLineView(E.document, row, &line)) {
-			free(new_text);
-			editorSetAllocFailureStatus();
-			return;
+			return 0;
 		}
 		const char *chars = line.data;
 		int size = line.size;
 		size_t out_before = out;
 
 		if (size == 0) {
+			/* empty line: emit nothing */
 		} else if (!removing) {
 			memcpy(new_text + out, prefix, (size_t)prefix_len);
 			out += (size_t)prefix_len;
@@ -330,19 +306,13 @@ void editorEditToggleCommentLines(editorEditActionFn clear_selection_mode,
 			memcpy(new_text + out, chars, (size_t)size);
 			out += (size_t)size;
 		} else {
-			int i = 0;
-			while (i < size && (chars[i] == ' ' || chars[i] == '\t')) {
-				i++;
-			}
-			memcpy(new_text + out, chars, (size_t)i);
-			out += (size_t)i;
-			int skip = prefix_len;
-			if (i + prefix_len < size && chars[i + prefix_len] == ' ') {
-				skip++;
-			}
-			int rest = size - i - skip;
+			int indent = actionsEditCommentLeadingWhitespace(chars, size);
+			memcpy(new_text + out, chars, (size_t)indent);
+			out += (size_t)indent;
+			int skip = actionsEditCommentRemovalSkip(chars, size, indent, prefix_len);
+			int rest = size - indent - skip;
 			if (rest > 0) {
-				memcpy(new_text + out, chars + i + skip, (size_t)rest);
+				memcpy(new_text + out, chars + indent + skip, (size_t)rest);
 				out += (size_t)rest;
 			}
 		}
@@ -358,48 +328,138 @@ void editorEditToggleCommentLines(editorEditActionFn clear_selection_mode,
 			new_text[out++] = '\n';
 		}
 	}
+	*cur_row_new_start_out = cur_row_new_start;
+	*cur_row_new_size_out = cur_row_new_size;
+	return 1;
+}
+
+/* Returns 1 on success, 0 if a line view could not be obtained. */
+static int actionsEditComputeAfterCursorOffset(const struct editorSelectionRange *range,
+                                               int last_row, int prefix_len, int removing,
+                                               size_t cur_row_new_start, size_t cur_row_new_size,
+                                               size_t before_offset, size_t old_len, size_t new_len,
+                                               size_t *after_offset_out) {
+	if (E.cy < range->start_cy || E.cy > last_row || E.cy >= E.numrows) {
+		ptrdiff_t net = (ptrdiff_t)new_len - (ptrdiff_t)old_len;
+		*after_offset_out = (size_t)((ptrdiff_t)before_offset + net);
+		return 1;
+	}
+
+	struct editorLineView line = {0};
+	if (!editorDocumentLineView(E.document, E.cy, &line)) {
+		return 0;
+	}
+	int size = line.size;
+	size_t new_cx = (size_t)E.cx;
+	if (size > 0) {
+		if (!removing) {
+			new_cx += (size_t)prefix_len + 1;
+		} else {
+			int indent = actionsEditCommentLeadingWhitespace(line.data, size);
+			int skip =
+			        actionsEditCommentRemovalSkip(line.data, size, indent, prefix_len);
+			if (new_cx > (size_t)indent + (size_t)skip) {
+				new_cx -= (size_t)skip;
+			} else {
+				new_cx = (size_t)indent;
+			}
+		}
+	}
+	editorLineViewRelease(&line);
+	if (new_cx > cur_row_new_size) {
+		new_cx = cur_row_new_size;
+	}
+	*after_offset_out = cur_row_new_start + new_cx;
+	return 1;
+}
+
+static int actionsEditResolveToggleRange(struct editorSelectionRange *range_out, int *last_row_out,
+                                         int *had_selection_out) {
+	int had_selection = editorGetSelectionRange(range_out);
+	*had_selection_out = had_selection;
+	if (!had_selection) {
+		if (E.cy < 0 || E.cy >= E.numrows) {
+			return 0;
+		}
+		range_out->start_cy = E.cy;
+		range_out->start_cx = 0;
+		range_out->end_cy = E.cy;
+		range_out->end_cx = (int)editorDocumentLineLength(E.document, E.cy);
+	}
+	int last_row = range_out->end_cy;
+	if (had_selection && last_row > range_out->start_cy && range_out->end_cx == 0) {
+		last_row--;
+	}
+	if (range_out->start_cy < 0 || last_row >= E.numrows) {
+		return 0;
+	}
+	*last_row_out = last_row;
+	return 1;
+}
+
+void editorEditToggleCommentLines(editorEditActionFn clear_selection_mode,
+                                  editorEditActionFn pin_active_preview_for_edit) {
+	const char *prefix = actionsEditCommentPrefixForLanguage(E.syntax_language);
+	if (prefix == NULL) {
+		editorSetStatusMsg("No line comment for this language");
+		return;
+	}
+	int prefix_len = (int)strlen(prefix);
+
+	struct editorSelectionRange range;
+	int last_row = 0;
+	int had_selection = 0;
+	if (!actionsEditResolveToggleRange(&range, &last_row, &had_selection)) {
+		return;
+	}
+
+	int removing = 0;
+	if (!actionsEditDetectCommentDirection(range.start_cy, last_row, prefix, prefix_len,
+	                                       &removing)) {
+		return;
+	}
+
+	size_t first_start = 0;
+	size_t dummy = 0;
+	size_t last_end = 0;
+	if (!editorBufferLineByteRange(range.start_cy, &first_start, &dummy) ||
+	    !editorBufferLineByteRange(last_row, &dummy, &last_end)) {
+		return;
+	}
+	size_t old_len = last_end - first_start;
+
+	size_t new_len = 0;
+	if (!actionsEditComputeToggledLen(range.start_cy, last_row, prefix_len, removing, old_len,
+	                                  &new_len)) {
+		return;
+	}
+
+	char *new_text = editorMalloc(new_len > 0 ? new_len : 1);
+	if (new_text == NULL) {
+		editorSetAllocFailureStatus();
+		return;
+	}
+
+	size_t cur_row_new_start = 0;
+	size_t cur_row_new_size = 0;
+	if (!actionsEditBuildToggledText(range.start_cy, last_row, prefix, prefix_len, removing,
+	                                 new_text, first_start, &cur_row_new_start,
+	                                 &cur_row_new_size)) {
+		free(new_text);
+		editorSetAllocFailureStatus();
+		return;
+	}
 
 	size_t before_offset = 0;
 	(void)editorBufferPosToOffset(E.cy, E.cx, &before_offset);
 
-	size_t after_offset;
-	if (E.cy >= range.start_cy && E.cy <= last_row && E.cy < E.numrows) {
-		struct editorLineView line = {0};
-		if (!editorDocumentLineView(E.document, E.cy, &line)) {
-			free(new_text);
-			editorSetAllocFailureStatus();
-			return;
-		}
-		int size = line.size;
-		size_t new_cx = (size_t)E.cx;
-		if (size > 0) {
-			if (!removing) {
-				new_cx += (size_t)prefix_len + 1;
-			} else {
-				const char *chars = line.data;
-				int i = 0;
-				while (i < size && (chars[i] == ' ' || chars[i] == '\t')) {
-					i++;
-				}
-				int skip = prefix_len;
-				if (i + prefix_len < size && chars[i + prefix_len] == ' ') {
-					skip++;
-				}
-				if (new_cx > (size_t)i + (size_t)skip) {
-					new_cx -= (size_t)skip;
-				} else {
-					new_cx = (size_t)i;
-				}
-			}
-		}
-		editorLineViewRelease(&line);
-		if (new_cx > cur_row_new_size) {
-			new_cx = cur_row_new_size;
-		}
-		after_offset = cur_row_new_start + new_cx;
-	} else {
-		ptrdiff_t net = (ptrdiff_t)new_len - (ptrdiff_t)old_len;
-		after_offset = (size_t)((ptrdiff_t)before_offset + net);
+	size_t after_offset = 0;
+	if (!actionsEditComputeAfterCursorOffset(&range, last_row, prefix_len, removing,
+	                                         cur_row_new_start, cur_row_new_size, before_offset,
+	                                         old_len, new_len, &after_offset)) {
+		free(new_text);
+		editorSetAllocFailureStatus();
+		return;
 	}
 
 	struct editorDocumentEdit edit = {
