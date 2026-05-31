@@ -377,7 +377,7 @@ static int terminalArrowKeyFromFinal(char final, int up_key, int down_key, int r
 	return '\x1b';
 }
 
-static int terminalReadBracketedPasteMarker(void) {
+static int terminalReadBracketedPasteSequence(void) {
 	char fourth = '\0';
 	enum terminalReadByteResult read_status = terminalReadSeqByte(&fourth);
 	if (read_status == TERMINAL_READ_EOF) {
@@ -397,7 +397,7 @@ static int terminalReadBracketedPasteMarker(void) {
 	return '\x1b';
 }
 
-static int terminalReadCsiMouseKey(void) {
+static int terminalReadSgrMouseSequence(void) {
 	struct editorMouseEvent event;
 	enum terminalReadByteResult mouse_status = terminalReadSgrMouseEvent(&event);
 	if (mouse_status == TERMINAL_READ_EOF) {
@@ -467,14 +467,14 @@ static int terminalReadCsiModifiedArrowKey(char second) {
 	return '\x1b';
 }
 
-static int terminalReadCsiNumericKey(char second) {
+static int terminalReadCsiNumericSequence(char second) {
 	char third = '\0';
 	int key = terminalReadSeqByteOrKey(&third, '\x1b');
 	if (key != 0) {
 		return key;
 	}
 	if (second == '2' && third == '0') {
-		return terminalReadBracketedPasteMarker();
+		return terminalReadBracketedPasteSequence();
 	}
 	if (third == '~') {
 		switch (second) {
@@ -500,7 +500,7 @@ static int terminalReadCsiNumericKey(char second) {
 	return '\x1b';
 }
 
-static int terminalReadCsiKey(void) {
+static int terminalReadCsiSequence(void) {
 	char second = '\0';
 	int key = terminalReadSeqByteOrKey(&second, '\x1b');
 	if (key != 0) {
@@ -508,10 +508,10 @@ static int terminalReadCsiKey(void) {
 	}
 
 	if (second == '<') {
-		return terminalReadCsiMouseKey();
+		return terminalReadSgrMouseSequence();
 	}
 	if (second >= '0' && second <= '9') {
-		return terminalReadCsiNumericKey(second);
+		return terminalReadCsiNumericSequence(second);
 	}
 	if (second == 'H') {
 		return HOME_KEY;
@@ -941,112 +941,146 @@ static void terminalCoalesceFloodFrame(void) {
 	(void)terminalPumpAllWithPerf();
 }
 
+static int terminalPollPendingEvent(void) {
+	if (editorSyntaxBackgroundPoll()) {
+		return SYNTAX_EVENT;
+	}
+	if (terminalTakeResizeEvent()) {
+		return RESIZE_EVENT;
+	}
+	if (editorTaskPoll()) {
+		return TASK_EVENT;
+	}
+	if (editorWatchPoll()) {
+		return WATCH_EVENT;
+	}
+	if (terminalPumpAllWithPerf() > 0) {
+		terminalCoalesceFloodFrame();
+		return TERMINAL_EVENT;
+	}
+	return 0;
+}
+
+static int terminalPollReadRetryEvent(void) {
+	if (terminalTakeResizeEvent()) {
+		return RESIZE_EVENT;
+	}
+	if (editorSyntaxBackgroundPoll()) {
+		return SYNTAX_EVENT;
+	}
+	if (editorTaskPoll()) {
+		return TASK_EVENT;
+	}
+	if (editorWatchPoll()) {
+		return WATCH_EVENT;
+	}
+	if (terminalPumpAllWithPerf() > 0) {
+		terminalCoalesceFloodFrame();
+		return TERMINAL_EVENT;
+	}
+	return 0;
+}
+
+static int terminalReadInputByteOrEvent(char *c_out) {
+	enum terminalReadByteResult read_status;
+	while ((read_status = terminalReadInputByte(c_out)) != TERMINAL_READ_BYTE) {
+		if (read_status == TERMINAL_READ_EOF) {
+			return INPUT_EOF_EVENT;
+		}
+		int event_key = terminalPollReadRetryEvent();
+		if (event_key != 0) {
+			return event_key;
+		}
+		terminalWaitForInput(TERMINAL_SOFT_WORK_POLL_MS);
+	}
+	return 0;
+}
+
+static int terminalReadAltArrowSequence(void) {
+	char second = '\0';
+	char third = '\0';
+	int key = terminalReadSeqByteOrKey(&second, '\x1b');
+	if (key != 0) {
+		return key;
+	}
+	if (second == '[') {
+		key = terminalReadSeqByteOrKey(&third, '\x1b');
+		if (key != 0) {
+			return key;
+		}
+		return terminalArrowKeyFromFinal(third, ALT_ARROW_UP, ALT_ARROW_DOWN,
+		                                 ALT_ARROW_RIGHT, ALT_ARROW_LEFT);
+	}
+	return '\x1b';
+}
+
+static int terminalReadSs3Sequence(void) {
+	char second = '\0';
+	int key = terminalReadSeqByteOrKey(&second, EDITOR_ALT_LETTER_KEY('o'));
+	if (key != 0) {
+		return key;
+	}
+	switch (second) {
+		case 'H':
+			return HOME_KEY;
+		case 'F':
+			return END_KEY;
+	}
+	return EDITOR_ALT_LETTER_KEY('o');
+}
+
+static int terminalAltKeyFromByte(char first) {
+	if (isalpha((unsigned char)first)) {
+		char lower = (char)tolower((unsigned char)first);
+		return EDITOR_ALT_LETTER_KEY(lower);
+	}
+	if (first >= 1 && first <= 26) {
+		char lower = (char)('a' + first - 1);
+		return EDITOR_CTRL_ALT_LETTER_KEY(lower);
+	}
+	return '\x1b';
+}
+
+static int terminalReadEscapeSequence(void) {
+	char first = '\0';
+	int key = terminalReadSeqByteOrKey(&first, '\x1b');
+	if (key != 0) {
+		return key;
+	}
+	if (first == '\x1b') {
+		return terminalReadAltArrowSequence();
+	}
+	if (first == '[') {
+		return terminalReadCsiSequence();
+	}
+	if (first == 'O') {
+		return terminalReadSs3Sequence();
+	}
+	return terminalAltKeyFromByte(first);
+}
+
 int editorReadKey(void) {
 	while (1) {
-		if (editorSyntaxBackgroundPoll()) {
-			return SYNTAX_EVENT;
-		}
-		if (terminalTakeResizeEvent()) {
-			return RESIZE_EVENT;
-		}
-		if (editorTaskPoll()) {
-			return TASK_EVENT;
-		}
-		if (editorWatchPoll()) {
-			return WATCH_EVENT;
-		}
-		if (terminalPumpAllWithPerf() > 0) {
-			terminalCoalesceFloodFrame();
-			return TERMINAL_EVENT;
+		int key = terminalPollPendingEvent();
+		if (key != 0) {
+			return key;
 		}
 
 		char c;
-		enum terminalReadByteResult read_status;
-		while ((read_status = terminalReadInputByte(&c)) != TERMINAL_READ_BYTE) {
-			if (read_status == TERMINAL_READ_EOF) {
-				return INPUT_EOF_EVENT;
-			}
-			if (terminalTakeResizeEvent()) {
-				return RESIZE_EVENT;
-			}
-			if (editorSyntaxBackgroundPoll()) {
-				return SYNTAX_EVENT;
-			}
-			if (editorTaskPoll()) {
-				return TASK_EVENT;
-			}
-			if (editorWatchPoll()) {
-				return WATCH_EVENT;
-			}
-			if (terminalPumpAllWithPerf() > 0) {
-				terminalCoalesceFloodFrame();
-				return TERMINAL_EVENT;
-			}
-			terminalWaitForInput(TERMINAL_SOFT_WORK_POLL_MS);
+		key = terminalReadInputByteOrEvent(&c);
+		if (key != 0) {
+			return key;
 		}
 
 		if (c != '\x1b') {
 			return c;
 		}
 
-		char first = '\0';
-		int key = terminalReadSeqByteOrKey(&first, '\x1b');
-		if (key != 0) {
-			return key;
+		key = terminalReadEscapeSequence();
+		if (key == TERMINAL_KEY_CONTINUE) {
+			continue;
 		}
-
-		if (first == '\x1b') {
-			char second = '\0';
-			char third = '\0';
-			key = terminalReadSeqByteOrKey(&second, '\x1b');
-			if (key != 0) {
-				return key;
-			}
-			if (second == '[') {
-				key = terminalReadSeqByteOrKey(&third, '\x1b');
-				if (key != 0) {
-					return key;
-				}
-				return terminalArrowKeyFromFinal(third, ALT_ARROW_UP,
-				                                 ALT_ARROW_DOWN, ALT_ARROW_RIGHT,
-				                                 ALT_ARROW_LEFT);
-			}
-			return '\x1b';
-		}
-
-		if (first == '[') {
-			key = terminalReadCsiKey();
-			if (key == TERMINAL_KEY_CONTINUE) {
-				continue;
-			}
-			return key;
-		}
-
-		if (first == 'O') {
-			char second = '\0';
-			key = terminalReadSeqByteOrKey(&second, EDITOR_ALT_LETTER_KEY('o'));
-			if (key != 0) {
-				return key;
-			}
-			switch (second) {
-				case 'H':
-					return HOME_KEY;
-				case 'F':
-					return END_KEY;
-			}
-			return EDITOR_ALT_LETTER_KEY('o');
-		}
-
-		if (isalpha((unsigned char)first)) {
-			char lower = (char)tolower((unsigned char)first);
-			return EDITOR_ALT_LETTER_KEY(lower);
-		}
-		if (first >= 1 && first <= 26) {
-			char lower = (char)('a' + first - 1);
-			return EDITOR_CTRL_ALT_LETTER_KEY(lower);
-		}
-
-		return '\x1b';
+		return key;
 	}
 }
 
