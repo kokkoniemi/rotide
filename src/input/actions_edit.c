@@ -279,16 +279,28 @@ static int actionsEditComputeToggledLen(int start_row, int last_row, int prefix_
 	return 1;
 }
 
+struct actionsEditToggleEditCtx {
+	const struct editorSelectionRange *range;
+	int last_row;
+	const char *prefix;
+	int prefix_len;
+	int removing;
+	char *new_text;
+	size_t first_start;
+	size_t old_len;
+	size_t new_len;
+	size_t before_offset;
+	size_t cur_row_new_start;
+	size_t cur_row_new_size;
+};
+
 /* Returns 1 on success, 0 if a line view could not be obtained. */
-static int actionsEditBuildToggledText(int start_row, int last_row, const char *prefix,
-                                       int prefix_len, int removing, char *new_text,
-                                       size_t first_start, size_t *cur_row_new_start_out,
-                                       size_t *cur_row_new_size_out) {
+static int actionsEditBuildToggledText(struct actionsEditToggleEditCtx *ctx) {
 	size_t out = 0;
-	size_t cur_row_new_start = first_start;
+	size_t cur_row_new_start = ctx->first_start;
 	size_t cur_row_new_size = 0;
 
-	for (int row = start_row; row <= last_row; row++) {
+	for (int row = ctx->range->start_cy; row <= ctx->last_row; row++) {
 		struct editorLineView line = {0};
 		if (!editorDocumentLineView(E.document, row, &line)) {
 			return 0;
@@ -299,20 +311,21 @@ static int actionsEditBuildToggledText(int start_row, int last_row, const char *
 
 		if (size == 0) {
 			/* empty line: emit nothing */
-		} else if (!removing) {
-			memcpy(new_text + out, prefix, (size_t)prefix_len);
-			out += (size_t)prefix_len;
-			new_text[out++] = ' ';
-			memcpy(new_text + out, chars, (size_t)size);
+		} else if (!ctx->removing) {
+			memcpy(ctx->new_text + out, ctx->prefix, (size_t)ctx->prefix_len);
+			out += (size_t)ctx->prefix_len;
+			ctx->new_text[out++] = ' ';
+			memcpy(ctx->new_text + out, chars, (size_t)size);
 			out += (size_t)size;
 		} else {
 			int indent = actionsEditCommentLeadingWhitespace(chars, size);
-			memcpy(new_text + out, chars, (size_t)indent);
+			memcpy(ctx->new_text + out, chars, (size_t)indent);
 			out += (size_t)indent;
-			int skip = actionsEditCommentRemovalSkip(chars, size, indent, prefix_len);
+			int skip =
+			        actionsEditCommentRemovalSkip(chars, size, indent, ctx->prefix_len);
 			int rest = size - indent - skip;
 			if (rest > 0) {
-				memcpy(new_text + out, chars + indent + skip, (size_t)rest);
+				memcpy(ctx->new_text + out, chars + indent + skip, (size_t)rest);
 				out += (size_t)rest;
 			}
 		}
@@ -324,24 +337,21 @@ static int actionsEditBuildToggledText(int start_row, int last_row, const char *
 			cur_row_new_size = out - out_before;
 		}
 
-		if (row < last_row) {
-			new_text[out++] = '\n';
+		if (row < ctx->last_row) {
+			ctx->new_text[out++] = '\n';
 		}
 	}
-	*cur_row_new_start_out = cur_row_new_start;
-	*cur_row_new_size_out = cur_row_new_size;
+	ctx->cur_row_new_start = cur_row_new_start;
+	ctx->cur_row_new_size = cur_row_new_size;
 	return 1;
 }
 
 /* Returns 1 on success, 0 if a line view could not be obtained. */
-static int actionsEditComputeAfterCursorOffset(const struct editorSelectionRange *range,
-                                               int last_row, int prefix_len, int removing,
-                                               size_t cur_row_new_start, size_t cur_row_new_size,
-                                               size_t before_offset, size_t old_len, size_t new_len,
+static int actionsEditComputeAfterCursorOffset(const struct actionsEditToggleEditCtx *ctx,
                                                size_t *after_offset_out) {
-	if (E.cy < range->start_cy || E.cy > last_row || E.cy >= E.numrows) {
-		ptrdiff_t net = (ptrdiff_t)new_len - (ptrdiff_t)old_len;
-		*after_offset_out = (size_t)((ptrdiff_t)before_offset + net);
+	if (E.cy < ctx->range->start_cy || E.cy > ctx->last_row || E.cy >= E.numrows) {
+		ptrdiff_t net = (ptrdiff_t)ctx->new_len - (ptrdiff_t)ctx->old_len;
+		*after_offset_out = (size_t)((ptrdiff_t)ctx->before_offset + net);
 		return 1;
 	}
 
@@ -352,12 +362,12 @@ static int actionsEditComputeAfterCursorOffset(const struct editorSelectionRange
 	int size = line.size;
 	size_t new_cx = (size_t)E.cx;
 	if (size > 0) {
-		if (!removing) {
-			new_cx += (size_t)prefix_len + 1;
+		if (!ctx->removing) {
+			new_cx += (size_t)ctx->prefix_len + 1;
 		} else {
 			int indent = actionsEditCommentLeadingWhitespace(line.data, size);
-			int skip =
-			        actionsEditCommentRemovalSkip(line.data, size, indent, prefix_len);
+			int skip = actionsEditCommentRemovalSkip(line.data, size, indent,
+			                                         ctx->prefix_len);
 			if (new_cx > (size_t)indent + (size_t)skip) {
 				new_cx -= (size_t)skip;
 			} else {
@@ -366,10 +376,10 @@ static int actionsEditComputeAfterCursorOffset(const struct editorSelectionRange
 		}
 	}
 	editorLineViewRelease(&line);
-	if (new_cx > cur_row_new_size) {
-		new_cx = cur_row_new_size;
+	if (new_cx > ctx->cur_row_new_size) {
+		new_cx = ctx->cur_row_new_size;
 	}
-	*after_offset_out = cur_row_new_start + new_cx;
+	*after_offset_out = ctx->cur_row_new_start + new_cx;
 	return 1;
 }
 
@@ -440,23 +450,29 @@ void editorEditToggleCommentLines(editorEditActionFn clear_selection_mode,
 		return;
 	}
 
-	size_t cur_row_new_start = 0;
-	size_t cur_row_new_size = 0;
-	if (!actionsEditBuildToggledText(range.start_cy, last_row, prefix, prefix_len, removing,
-	                                 new_text, first_start, &cur_row_new_start,
-	                                 &cur_row_new_size)) {
+	size_t before_offset = 0;
+	(void)editorBufferPosToOffset(E.cy, E.cx, &before_offset);
+
+	struct actionsEditToggleEditCtx edit_ctx = {
+	        .range = &range,
+	        .last_row = last_row,
+	        .prefix = prefix,
+	        .prefix_len = prefix_len,
+	        .removing = removing,
+	        .new_text = new_text,
+	        .first_start = first_start,
+	        .old_len = old_len,
+	        .new_len = new_len,
+	        .before_offset = before_offset,
+	};
+	if (!actionsEditBuildToggledText(&edit_ctx)) {
 		free(new_text);
 		editorSetAllocFailureStatus();
 		return;
 	}
 
-	size_t before_offset = 0;
-	(void)editorBufferPosToOffset(E.cy, E.cx, &before_offset);
-
 	size_t after_offset = 0;
-	if (!actionsEditComputeAfterCursorOffset(&range, last_row, prefix_len, removing,
-	                                         cur_row_new_start, cur_row_new_size, before_offset,
-	                                         old_len, new_len, &after_offset)) {
+	if (!actionsEditComputeAfterCursorOffset(&edit_ctx, &after_offset)) {
 		free(new_text);
 		editorSetAllocFailureStatus();
 		return;
