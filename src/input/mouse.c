@@ -1504,78 +1504,163 @@ int editorHandleMouseMotion(const struct editorMouseEvent *event) {
 	return 1;
 }
 
-int editorHandleMouseLeftDrag(const struct editorMouseEvent *event) {
-	if (E.drawer_drag_armed) {
-		int dx = event->x - 1 - E.drawer_drag_start_x;
-		int dy = event->y - 1 - E.drawer_drag_start_y;
-		if (!E.drawer_drag_active && (dx > MOUSE_DRAWER_DRAG_THRESHOLD_COLS ||
-		                              dx < -MOUSE_DRAWER_DRAG_THRESHOLD_COLS ||
-		                              dy > MOUSE_DRAWER_DRAG_THRESHOLD_ROWS ||
-		                              dy < -MOUSE_DRAWER_DRAG_THRESHOLD_ROWS)) {
-			E.drawer_drag_active = 1;
-		}
-		if (E.drawer_drag_active) {
-			return 1;
-		}
+/* Returns 1 if a drawer drag is in progress (handled). 0 to fall through. */
+static int mouseDragDrawerArmed(const struct editorMouseEvent *event) {
+	if (!E.drawer_drag_armed) {
+		return 0;
 	}
-	if (E.tab_drag_armed) {
-		if (E.tab_drag_source_leaf == NULL || E.tab_drag_source_leaf->is_split ||
-		    E.layout_root == NULL ||
-		    !editorPaneNodeContainsLeaf(E.layout_root, E.tab_drag_source_leaf)) {
-			mouseClearTabDrag();
+	int dx = event->x - 1 - E.drawer_drag_start_x;
+	int dy = event->y - 1 - E.drawer_drag_start_y;
+	if (!E.drawer_drag_active &&
+	    (dx > MOUSE_DRAWER_DRAG_THRESHOLD_COLS || dx < -MOUSE_DRAWER_DRAG_THRESHOLD_COLS ||
+	     dy > MOUSE_DRAWER_DRAG_THRESHOLD_ROWS || dy < -MOUSE_DRAWER_DRAG_THRESHOLD_ROWS)) {
+		E.drawer_drag_active = 1;
+	}
+	return E.drawer_drag_active ? 1 : 0;
+}
+
+/* Returns 1 if a tab drag was handled (or armed but not yet active), -1 if the
+ * tab drag was invalidated and cleared (caller should return 0). 0 to fall through. */
+static int mouseDragTabArmed(const struct editorMouseEvent *event) {
+	if (!E.tab_drag_armed) {
+		return 0;
+	}
+	if (E.tab_drag_source_leaf == NULL || E.tab_drag_source_leaf->is_split ||
+	    E.layout_root == NULL ||
+	    !editorPaneNodeContainsLeaf(E.layout_root, E.tab_drag_source_leaf)) {
+		mouseClearTabDrag();
+		return -1;
+	}
+	int dx = event->x - 1 - E.tab_drag_start_x;
+	int dy = event->y - 1 - E.tab_drag_start_y;
+	if (!E.tab_drag_active && (dx > MOUSE_TAB_DRAG_THRESHOLD_COLS ||
+	                           dx < -MOUSE_TAB_DRAG_THRESHOLD_COLS || dy != 0)) {
+		E.tab_drag_active = 1;
+	}
+	return E.tab_drag_active ? 1 : -1;
+}
+
+/* Returns 1 on successful resize, 0 if the resize could not be applied (no change
+ * or out-of-viewport). Caller treats both as "handled, nothing else to do". */
+static int mouseDragSplitResize(const struct editorMouseEvent *event) {
+	struct editorRect viewport = {0};
+	if (!editorLayoutEditorViewport(&viewport)) {
+		return 0;
+	}
+	struct editorRect node_rect = {0};
+	if (!editorLayoutSplitNodeRect(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE,
+	                               E.split_resize_node, &node_rect)) {
+		return 0;
+	}
+	double new_ratio;
+	if (E.split_resize_node->as.split.orientation == EDITOR_SPLIT_VERTICAL) {
+		int available = node_rect.w - ROTIDE_PANE_BORDER_SIZE;
+		if (available <= 0) {
 			return 0;
 		}
-		int dx = event->x - 1 - E.tab_drag_start_x;
-		int dy = event->y - 1 - E.tab_drag_start_y;
-		if (!E.tab_drag_active && (dx > MOUSE_TAB_DRAG_THRESHOLD_COLS ||
-		                           dx < -MOUSE_TAB_DRAG_THRESHOLD_COLS || dy != 0)) {
-			E.tab_drag_active = 1;
+		new_ratio = (double)(event->x - 1 - node_rect.x) / (double)available;
+	} else {
+		int available = node_rect.h - ROTIDE_PANE_BORDER_SIZE;
+		if (available <= 0) {
+			return 0;
 		}
-		return E.tab_drag_active ? 1 : 0;
+		new_ratio = (double)(event->y - 1 - node_rect.y) / (double)available;
+	}
+	double min_ratio = ROTIDE_PANE_MIN_RATIO;
+	double max_ratio = 1.0 - ROTIDE_PANE_MIN_RATIO;
+	if (new_ratio < min_ratio) {
+		new_ratio = min_ratio;
+	}
+	if (new_ratio > max_ratio) {
+		new_ratio = max_ratio;
+	}
+	if (new_ratio == E.split_resize_node->as.split.ratio) {
+		return 0;
+	}
+	E.split_resize_node->as.split.ratio = new_ratio;
+	/* Keep child vterm/pty sizes in sync with the new split ratio so terminal panes
+	 * don't render with stale dimensions (causes border artifacts and prevents
+	 * shrinking back down). */
+	editorTerminalPaneResizeAllToLayout(E.layout_root);
+	return 1;
+}
+
+static int mouseDragColumnSelectTargetRx(const struct editorMouseEvent *event) {
+	int mouse_col = event->x - 1;
+	struct editorRect focused_rect = {0};
+	int has_focused_rect = editorLayoutFocusedLeafRect(&focused_rect);
+	int pane_w =
+	        has_focused_rect ? focused_rect.w : editorDrawerTextViewportCols(E.window_cols);
+	int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);
+	if (gutter_cols > pane_w) {
+		gutter_cols = pane_w;
+	}
+	int text_cols = pane_w - gutter_cols;
+	int text_start = has_focused_rect
+	                         ? focused_rect.x + gutter_cols
+	                         : editorDrawerTextStartColForCols(E.window_cols) + gutter_cols;
+	if (text_cols < 1) {
+		text_cols = 1;
+	}
+	if (text_cols >= 3) {
+		text_start++;
+		text_cols -= 2;
+	}
+	int rel_col = mouse_col - text_start;
+	if (rel_col < 0) {
+		rel_col = 0;
+	}
+	if (rel_col > text_cols) {
+		rel_col = text_cols;
+	}
+	int target_rx = E.coloff + rel_col;
+	if (target_rx < 0) {
+		target_rx = 0;
+	}
+	return target_rx;
+}
+
+static void mouseDragColumnSelectAlignCursorToRx(int target_rx) {
+	if (E.cy >= E.numrows) {
+		return;
+	}
+	struct editorLineView line = {0};
+	if (!editorDocumentLineView(E.document, E.cy, &line)) {
+		return;
+	}
+	int new_cx = editorBytesRxToCx(line.data, line.size, target_rx);
+	if (new_cx > line.size) {
+		new_cx = line.size;
+	}
+	editorLineViewRelease(&line);
+	size_t off = 0;
+	if (editorBufferPosToOffset(E.cy, new_cx, &off)) {
+		(void)editorSyncCursorFromOffsetByteBoundary(off);
+	}
+}
+
+static int mouseDragColumnSelect(const struct editorMouseEvent *event) {
+	int target_rx = mouseDragColumnSelectTargetRx(event);
+	if (!editorMoveCursorToMouse(event, 1)) {
+		return 0;
+	}
+	E.column_select_cursor_rx = target_rx;
+	mouseDragColumnSelectAlignCursorToRx(target_rx);
+	E.mouse_drag_started = 1;
+	return 1;
+}
+
+int editorHandleMouseLeftDrag(const struct editorMouseEvent *event) {
+	int drawer_handled = mouseDragDrawerArmed(event);
+	if (drawer_handled) {
+		return 1;
+	}
+	int tab_handled = mouseDragTabArmed(event);
+	if (tab_handled != 0) {
+		return tab_handled > 0 ? 1 : 0;
 	}
 	if (E.split_resize_active && E.split_resize_node != NULL && E.split_resize_node->is_split) {
-		struct editorRect viewport = {0};
-		if (!editorLayoutEditorViewport(&viewport)) {
-			return 0;
-		}
-		struct editorRect node_rect = {0};
-		if (!editorLayoutSplitNodeRect(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE,
-		                               E.split_resize_node, &node_rect)) {
-			return 0;
-		}
-		double new_ratio;
-		if (E.split_resize_node->as.split.orientation == EDITOR_SPLIT_VERTICAL) {
-			int available = node_rect.w - ROTIDE_PANE_BORDER_SIZE;
-			if (available <= 0) {
-				return 0;
-			}
-			int rel = event->x - 1 - node_rect.x;
-			new_ratio = (double)rel / (double)available;
-		} else {
-			int available = node_rect.h - ROTIDE_PANE_BORDER_SIZE;
-			if (available <= 0) {
-				return 0;
-			}
-			int rel = event->y - 1 - node_rect.y;
-			new_ratio = (double)rel / (double)available;
-		}
-		double min_ratio = ROTIDE_PANE_MIN_RATIO;
-		double max_ratio = 1.0 - ROTIDE_PANE_MIN_RATIO;
-		if (new_ratio < min_ratio) {
-			new_ratio = min_ratio;
-		}
-		if (new_ratio > max_ratio) {
-			new_ratio = max_ratio;
-		}
-		if (new_ratio == E.split_resize_node->as.split.ratio) {
-			return 0;
-		}
-		E.split_resize_node->as.split.ratio = new_ratio;
-		/* Keep child vterm/pty sizes in sync with the new split ratio so
-		 * terminal panes don't render with stale dimensions (which causes
-		 * border artifacts and prevents shrinking back down). */
-		editorTerminalPaneResizeAllToLayout(E.layout_root);
-		return 1;
+		return mouseDragSplitResize(event);
 	}
 	if (E.drawer_resize_active) {
 		int mouse_col = event->x - 1;
@@ -1586,63 +1671,11 @@ int editorHandleMouseLeftDrag(const struct editorMouseEvent *event) {
 		return 0;
 	}
 	if (E.column_select_active) {
-		/* Resolve mouse to an rx/cy and extend the column selection there. */
-		int mouse_col = event->x - 1;
-		struct editorRect focused_rect = {0};
-		int has_focused_rect = editorLayoutFocusedLeafRect(&focused_rect);
-		int pane_w = has_focused_rect ? focused_rect.w
-		                              : editorDrawerTextViewportCols(E.window_cols);
-		int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);
-		if (gutter_cols > pane_w) {
-			gutter_cols = pane_w;
-		}
-		int text_cols = pane_w - gutter_cols;
-		int text_start = has_focused_rect ? focused_rect.x + gutter_cols
-		                                  : editorDrawerTextStartColForCols(E.window_cols) +
-		                                            gutter_cols;
-		if (text_cols < 1) {
-			text_cols = 1;
-		}
-		if (text_cols >= 3) {
-			text_start++;
-			text_cols -= 2;
-		}
-		int rel_col = mouse_col - text_start;
-		if (rel_col < 0) {
-			rel_col = 0;
-		}
-		if (rel_col > text_cols) {
-			rel_col = text_cols;
-		}
-		int target_rx = E.coloff + rel_col;
-		if (target_rx < 0) {
-			target_rx = 0;
-		}
-		if (!editorMoveCursorToMouse(event, 1)) {
-			return 0;
-		}
-		E.column_select_cursor_rx = target_rx;
-		if (E.cy < E.numrows) {
-			struct editorLineView line = {0};
-			if (editorDocumentLineView(E.document, E.cy, &line)) {
-				int new_cx = editorBytesRxToCx(line.data, line.size, target_rx);
-				if (new_cx > line.size) {
-					new_cx = line.size;
-				}
-				editorLineViewRelease(&line);
-				size_t off = 0;
-				if (editorBufferPosToOffset(E.cy, new_cx, &off)) {
-					(void)editorSyncCursorFromOffsetByteBoundary(off);
-				}
-			}
-		}
-		E.mouse_drag_started = 1;
-		return 1;
+		return mouseDragColumnSelect(event);
 	}
 	if (!editorMoveCursorToMouse(event, 1)) {
 		return 0;
 	}
-
 	if (!E.mouse_drag_started) {
 		/* A new drag always starts a fresh selection anchored at the initial press point.
 		 */

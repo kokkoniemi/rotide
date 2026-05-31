@@ -666,6 +666,44 @@ void editorEditPasteClipboard(editorEditActionFn clear_selection_mode) {
 	}
 }
 
+static void actionsEditCallIfPresent(editorEditActionFn fn) {
+	if (fn != NULL) {
+		fn();
+	}
+}
+
+static void actionsEditPinAndRun(editorEditActionFn pin_fn, editorEditActionFn action_fn) {
+	actionsEditCallIfPresent(pin_fn);
+	actionsEditCallIfPresent(action_fn);
+}
+
+static void actionsEditClearPinAndRun(editorEditActionFn clear_fn, editorEditActionFn pin_fn,
+                                      editorEditActionFn action_fn) {
+	actionsEditCallIfPresent(clear_fn);
+	actionsEditPinAndRun(pin_fn, action_fn);
+}
+
+static void actionsEditRunHistoryUndoRedo(int (*op)(void), editorEditActionFn pin_fn,
+                                          editorEditActionFn clear_search_fn,
+                                          int cursor_or_edit_effect_bit, int *effects) {
+	editorHistoryBreakGroup();
+	actionsEditCallIfPresent(pin_fn);
+	if (op() == 1) {
+		actionsEditCallIfPresent(clear_search_fn);
+		*effects |= cursor_or_edit_effect_bit;
+	}
+}
+
+static void actionsEditRunNewline(editorEditActionFn clear_selection_mode,
+                                  editorEditActionFn pin_active_preview_for_edit) {
+	actionsEditCallIfPresent(clear_selection_mode);
+	actionsEditCallIfPresent(pin_active_preview_for_edit);
+	editorHistoryBeginEdit(EDITOR_EDIT_NEWLINE);
+	int dirty_before = E.dirty;
+	editorInsertNewline();
+	editorHistoryCommitEdit(EDITOR_EDIT_NEWLINE, E.dirty != dirty_before);
+}
+
 int editorHandleEditMappedAction(
         enum editorAction action, int cursor_or_edit_effect_bit,
         editorEditActionFn clear_selection_mode, editorEditActionFn pin_active_preview_for_edit,
@@ -679,136 +717,62 @@ int editorHandleEditMappedAction(
 
 	switch (action) {
 		case EDITOR_ACTION_NEWLINE:
-			if (clear_selection_mode != NULL) {
-				clear_selection_mode();
-			}
-			if (pin_active_preview_for_edit != NULL) {
-				pin_active_preview_for_edit();
-			}
-			editorHistoryBeginEdit(EDITOR_EDIT_NEWLINE);
-			{
-				int dirty_before = E.dirty;
-				editorInsertNewline();
-				editorHistoryCommitEdit(EDITOR_EDIT_NEWLINE,
-				                        E.dirty != dirty_before);
-			}
+			actionsEditRunNewline(clear_selection_mode, pin_active_preview_for_edit);
 			effects |= cursor_or_edit_effect_bit;
 			break;
 		case EDITOR_ACTION_TOGGLE_SELECTION:
 			editorHistoryBreakGroup();
-			if (toggle_selection_mode != NULL) {
-				toggle_selection_mode();
-			}
+			actionsEditCallIfPresent(toggle_selection_mode);
 			break;
 		case EDITOR_ACTION_COPY_SELECTION:
 			editorHistoryBreakGroup();
-			if (copy_selection != NULL) {
-				copy_selection();
-			}
+			actionsEditCallIfPresent(copy_selection);
 			break;
 		case EDITOR_ACTION_CUT_SELECTION:
 			editorHistoryBreakGroup();
-			if (pin_active_preview_for_edit != NULL) {
-				pin_active_preview_for_edit();
-			}
-			if (cut_selection != NULL) {
-				cut_selection();
-			}
+			actionsEditPinAndRun(pin_active_preview_for_edit, cut_selection);
 			effects |= cursor_or_edit_effect_bit;
 			break;
 		case EDITOR_ACTION_DELETE_SELECTION:
 			editorHistoryBreakGroup();
-			if (pin_active_preview_for_edit != NULL) {
-				pin_active_preview_for_edit();
-			}
-			if (delete_selection != NULL) {
-				delete_selection();
-			}
+			actionsEditPinAndRun(pin_active_preview_for_edit, delete_selection);
 			effects |= cursor_or_edit_effect_bit;
 			break;
 		case EDITOR_ACTION_PASTE:
 			editorHistoryBreakGroup();
-			if (pin_active_preview_for_edit != NULL) {
-				pin_active_preview_for_edit();
-			}
-			if (paste_clipboard != NULL) {
-				paste_clipboard();
-			}
+			actionsEditPinAndRun(pin_active_preview_for_edit, paste_clipboard);
 			effects |= cursor_or_edit_effect_bit;
 			break;
 		case EDITOR_ACTION_UNDO:
-			editorHistoryBreakGroup();
-			if (pin_active_preview_for_edit != NULL) {
-				pin_active_preview_for_edit();
-			}
-			if (editorUndo() == 1) {
-				if (clear_search_state != NULL) {
-					clear_search_state();
-				}
-				effects |= cursor_or_edit_effect_bit;
-			}
+			actionsEditRunHistoryUndoRedo(editorUndo, pin_active_preview_for_edit,
+			                              clear_search_state, cursor_or_edit_effect_bit,
+			                              &effects);
 			break;
 		case EDITOR_ACTION_REDO:
-			editorHistoryBreakGroup();
-			if (pin_active_preview_for_edit != NULL) {
-				pin_active_preview_for_edit();
-			}
-			if (editorRedo() == 1) {
-				if (clear_search_state != NULL) {
-					clear_search_state();
-				}
-				effects |= cursor_or_edit_effect_bit;
-			}
+			actionsEditRunHistoryUndoRedo(editorRedo, pin_active_preview_for_edit,
+			                              clear_search_state, cursor_or_edit_effect_bit,
+			                              &effects);
 			break;
 		case EDITOR_ACTION_DELETE_CHAR:
-			if (pin_active_preview_for_edit != NULL) {
-				pin_active_preview_for_edit();
-			}
-			if (delete_char_action != NULL) {
-				delete_char_action();
-			}
+			actionsEditPinAndRun(pin_active_preview_for_edit, delete_char_action);
 			effects |= cursor_or_edit_effect_bit;
 			break;
 		case EDITOR_ACTION_BACKSPACE:
-			if (pin_active_preview_for_edit != NULL) {
-				pin_active_preview_for_edit();
-			}
-			if (backspace_action != NULL) {
-				backspace_action();
-			}
+			actionsEditPinAndRun(pin_active_preview_for_edit, backspace_action);
 			effects |= cursor_or_edit_effect_bit;
 			break;
 		case EDITOR_ACTION_MOVE_LINE_UP:
-			if (clear_selection_mode != NULL) {
-				clear_selection_mode();
-			}
-			if (pin_active_preview_for_edit != NULL) {
-				pin_active_preview_for_edit();
-			}
-			if (move_line_up != NULL) {
-				move_line_up();
-			}
+			actionsEditClearPinAndRun(clear_selection_mode, pin_active_preview_for_edit,
+			                          move_line_up);
 			effects |= cursor_or_edit_effect_bit;
 			break;
 		case EDITOR_ACTION_MOVE_LINE_DOWN:
-			if (clear_selection_mode != NULL) {
-				clear_selection_mode();
-			}
-			if (pin_active_preview_for_edit != NULL) {
-				pin_active_preview_for_edit();
-			}
-			if (move_line_down != NULL) {
-				move_line_down();
-			}
+			actionsEditClearPinAndRun(clear_selection_mode, pin_active_preview_for_edit,
+			                          move_line_down);
 			effects |= cursor_or_edit_effect_bit;
 			break;
 		case EDITOR_ACTION_TOGGLE_COMMENT:
-			if (pin_active_preview_for_edit != NULL) {
-				pin_active_preview_for_edit();
-			}
-			if (toggle_comment_lines != NULL) {
-				toggle_comment_lines();
-			}
+			actionsEditPinAndRun(pin_active_preview_for_edit, toggle_comment_lines);
 			effects |= cursor_or_edit_effect_bit;
 			break;
 		default:
