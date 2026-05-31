@@ -166,6 +166,46 @@ static int test_editor_syntax_background_viewport_schedule_preserves_cached_over
 	return 0;
 }
 
+static int test_editor_syntax_background_pending_edit_keeps_edited_row_spans(void) {
+	char path[] = "/tmp/rotide-test-syntax-background-edit-XXXXXX.c";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 2, "tests/syntax/supported/c/visible_cache.c"));
+
+	editorSyntaxBackgroundSetEnabledForTests(1);
+	editorOpen(path);
+	E.window_rows = 6;
+	E.window_cols = 100;
+	E.rowoff = 0;
+	E.coloff = 0;
+
+	ASSERT_TRUE(editorSyntaxPrepareVisibleRowSpans(E.rowoff, E.window_rows));
+	ASSERT_TRUE(editorSyntaxBackgroundFlushForTests());
+
+	struct editorRowSyntaxSpan before[ROTIDE_MAX_SYNTAX_SPANS_PER_ROW];
+	int before_count = 0;
+	ASSERT_TRUE(editorSyntaxRowRenderSpans(1, before, (int)(sizeof(before) / sizeof(before[0])),
+	                                       &before_count));
+	ASSERT_TRUE(before_count > 0);
+	uint64_t before_revision = E.syntax_revision;
+
+	E.cy = 1;
+	E.cx = 0;
+	editorInsertChar('x');
+	ASSERT_TRUE(E.syntax_background_pending);
+	ASSERT_TRUE(E.syntax_revision > before_revision);
+
+	struct editorRowSyntaxSpan during[ROTIDE_MAX_SYNTAX_SPANS_PER_ROW];
+	int during_count = 0;
+	ASSERT_TRUE(editorSyntaxRowRenderSpans(1, during, (int)(sizeof(during) / sizeof(during[0])),
+	                                       &during_count));
+	ASSERT_EQ_INT(before_count, during_count);
+	ASSERT_MEM_EQ(before, during, sizeof(before[0]) * (size_t)before_count);
+
+	editorSyntaxBackgroundSetEnabledForTests(0);
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_background_drops_stale_parse_results(void) {
 	char path[] = "/tmp/rotide-test-syntax-background-stale-XXXXXX.c";
 	ASSERT_TRUE(
@@ -217,6 +257,8 @@ const struct editorTestCase g_syntax_background_tests[] = {
          test_editor_syntax_background_poll_reports_committed_result},
         {"editor_syntax_background_viewport_schedule_preserves_cached_overlap",
          test_editor_syntax_background_viewport_schedule_preserves_cached_overlap},
+        {"editor_syntax_background_pending_edit_keeps_edited_row_spans",
+         test_editor_syntax_background_pending_edit_keeps_edited_row_spans},
         {"editor_syntax_background_drops_stale_parse_results",
          test_editor_syntax_background_drops_stale_parse_results},
         {"editor_syntax_background_unsupported_file_stays_plain",

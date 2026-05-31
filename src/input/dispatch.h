@@ -11,5 +11,6 @@
 #include "input/text_pairs.h"
 
 void editorProcessKeypress(void);
+int editorLspLocationMenuActivate(void);
 
 #endif

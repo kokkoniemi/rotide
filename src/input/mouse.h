@@ -28,6 +28,14 @@ int editorMoveCursorToMouse(const struct editorMouseEvent *event, int clamp_to_v
 int editorHandleMouseMotion(const struct editorMouseEvent *event);
 int editorHandleMouseLeftDrag(const struct editorMouseEvent *event);
 int editorHandleMouseLeftRelease(const struct editorMouseEvent *event);
+int editorOpenEditorContextMenuAt(int screen_row, int screen_col, int has_context_offset,
+                                  size_t context_offset);
+int editorEditorContextMenuActivate(editorProcessMappedActionFn process_mapped_action,
+                                    int *effects_out);
+int editorOpenTabContextMenuAt(int screen_row, int screen_col, struct editorPaneNode *leaf,
+                               int tab_idx);
+int editorTabContextMenuActivate(editorProcessMappedActionFn process_mapped_action,
+                                 int *effects_out);
 int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long long now_ms,
                                      int double_click_threshold_ms,
                                      editorProcessMappedActionFn process_mapped_action,

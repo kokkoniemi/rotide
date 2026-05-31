@@ -1,3 +1,4 @@
+#include "render/popup.h"
 #include "test_case.h"
 #include "test_helpers.h"
 #include "test_support.h"
@@ -672,6 +673,112 @@ static int test_editor_process_keypress_goto_definition_multi_picker_selects_cho
 	return 0;
 }
 
+static int test_editor_process_keypress_goto_definition_c_header_and_implementation_picker(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 1;
+	ASSERT_TRUE(editorTabsInit());
+
+	char dir_template[] = "/tmp/rotide-test-lsp-def-impl-picker-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char main_path[512];
+	char header_path[512];
+	char impl_path[512];
+	ASSERT_TRUE(path_join(main_path, sizeof(main_path), dir_path, "main.cpp"));
+	ASSERT_TRUE(path_join(header_path, sizeof(header_path), dir_path, "helper.hpp"));
+	ASSERT_TRUE(path_join(impl_path, sizeof(impl_path), dir_path, "helper.cpp"));
+	ASSERT_TRUE(
+	        write_text_file(main_path, "#include \"helper.hpp\"\nint main() { helper(); }\n"));
+	ASSERT_TRUE(write_text_file(header_path, "int helper();\n"));
+	ASSERT_TRUE(write_text_file(impl_path, "int helper() { return 42; }\n"));
+
+	editorOpen(main_path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CPP, editorSyntaxLanguageActive());
+	E.cy = 1;
+	E.cx = 13;
+
+	struct editorLspLocation definition = {.path = header_path, .line = 0, .character = 4};
+	struct editorLspLocation implementation = {.path = impl_path, .line = 0, .character = 4};
+	editorLspTestSetMockDefinitionResponse(1, &definition, 1);
+	editorLspTestSetMockImplementationResponse(1, &implementation, 1);
+
+	char goto_def[] = {CTRL_KEY('o')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	ASSERT_TRUE(editorPopupIsVisible());
+	ASSERT_EQ_INT(EDITOR_POPUP_KIND_LSP_LOCATION_MENU, E.popup.kind);
+	ASSERT_EQ_INT(2, editorPopupItemCount());
+	ASSERT_EQ_STR("Declaration helper.hpp:1", E.popup.items[0].label);
+	ASSERT_EQ_STR("Implementation helper.cpp:1", E.popup.items[1].label);
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.definition_count);
+	ASSERT_EQ_INT(1, stats.implementation_count);
+
+	char choose_second[] = {'2', '\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(choose_second,
+	                                                      sizeof(choose_second)) == 0);
+	ASSERT_TRUE(!editorPopupIsVisible());
+	ASSERT_EQ_STR(impl_path, E.filename);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(4, E.cx);
+	ASSERT_EQ_STR("Implementation: helper.cpp:1", E.statusmsg);
+
+	ASSERT_TRUE(unlink(main_path) == 0);
+	ASSERT_TRUE(unlink(header_path) == 0);
+	ASSERT_TRUE(unlink(impl_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_process_keypress_goto_definition_header_only_reports_declaration(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_gopls_enabled = 0;
+	E.lsp_clangd_enabled = 1;
+	ASSERT_TRUE(editorTabsInit());
+
+	char dir_template[] = "/tmp/rotide-test-lsp-header-only-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char main_path[512];
+	char header_path[512];
+	ASSERT_TRUE(path_join(main_path, sizeof(main_path), dir_path, "main.cpp"));
+	ASSERT_TRUE(path_join(header_path, sizeof(header_path), dir_path, "helper.hpp"));
+	ASSERT_TRUE(
+	        write_text_file(main_path, "#include \"helper.hpp\"\nint main() { helper(); }\n"));
+	ASSERT_TRUE(write_text_file(header_path, "int helper();\n"));
+
+	editorOpen(main_path);
+	ASSERT_EQ_INT(EDITOR_SYNTAX_CPP, editorSyntaxLanguageActive());
+	E.cy = 1;
+	E.cx = 13;
+
+	struct editorLspLocation definition = {.path = header_path, .line = 0, .character = 4};
+	editorLspTestSetMockDefinitionResponse(1, &definition, 1);
+	editorLspTestSetMockImplementationResponse(1, NULL, 0);
+
+	char goto_def[] = {CTRL_KEY('o')};
+	ASSERT_TRUE(editor_process_keypress_with_input_silent(goto_def, sizeof(goto_def)) == 0);
+	ASSERT_TRUE(!editorPopupIsVisible());
+	ASSERT_EQ_STR(header_path, E.filename);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(4, E.cx);
+	ASSERT_EQ_STR("Declaration: helper.hpp:1", E.statusmsg);
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.definition_count);
+	ASSERT_EQ_INT(1, stats.implementation_count);
+
+	ASSERT_TRUE(unlink(main_path) == 0);
+	ASSERT_TRUE(unlink(header_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 static int test_editor_process_keypress_mouse_ctrl_click_goto_definition_single_location(void) {
 	editorLspTestSetMockEnabled(1);
 	E.lsp_gopls_enabled = 1;
@@ -1253,6 +1360,10 @@ const struct editorTestCase g_lsp_navigation_tests[] = {
          test_editor_process_keypress_goto_definition_cross_file_cpp_fixture_reuses_tab},
         {"editor_process_keypress_goto_definition_multi_picker_selects_choice",
          test_editor_process_keypress_goto_definition_multi_picker_selects_choice},
+        {"editor_process_keypress_goto_definition_c_header_and_implementation_picker",
+         test_editor_process_keypress_goto_definition_c_header_and_implementation_picker},
+        {"editor_process_keypress_goto_definition_header_only_reports_declaration",
+         test_editor_process_keypress_goto_definition_header_only_reports_declaration},
         {"editor_process_keypress_mouse_ctrl_click_goto_definition_single_location",
          test_editor_process_keypress_mouse_ctrl_click_goto_definition_single_location},
         {"editor_process_keypress_mouse_ctrl_click_goto_definition_multi_picker_selects_choice",

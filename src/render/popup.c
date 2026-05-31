@@ -77,11 +77,27 @@ int editorPopupOpen(const struct editorPopupItem *items, int count, int anchor_r
 
 int editorPopupOpenMenu(const struct editorPopupItem *items, int count, int screen_row,
                         int screen_col) {
+	return editorPopupOpenMenuKind(EDITOR_POPUP_KIND_DRAWER_MENU, items, count, screen_row,
+	                               screen_col);
+}
+
+int editorPopupOpenMenuKind(enum editorPopupKind kind, const struct editorPopupItem *items,
+                            int count, int screen_row, int screen_col) {
+	if (!editorPopupKindIsMenu(kind)) {
+		return 0;
+	}
 	if (!editorPopupOpen(items, count, screen_row, screen_col)) {
 		return 0;
 	}
-	E.popup.kind = EDITOR_POPUP_KIND_DRAWER_MENU;
+	E.popup.kind = kind;
 	return 1;
+}
+
+int editorPopupKindIsMenu(enum editorPopupKind kind) {
+	return kind == EDITOR_POPUP_KIND_DRAWER_MENU ||
+	       kind == EDITOR_POPUP_KIND_EDITOR_CONTEXT_MENU ||
+	       kind == EDITOR_POPUP_KIND_TAB_CONTEXT_MENU ||
+	       kind == EDITOR_POPUP_KIND_LSP_LOCATION_MENU;
 }
 
 int editorPopupIsVisible(void) {
@@ -210,7 +226,7 @@ void editorPopupComputePlacement(int *terminal_row_out, int *terminal_col_out,
 	int cols = editorPopupContentColumns();
 	int place_above = 0;
 
-	if (E.popup.kind == EDITOR_POPUP_KIND_DRAWER_MENU) {
+	if (editorPopupKindIsMenu(E.popup.kind)) {
 		int anchor_row = E.popup.anchor_row;
 		int anchor_col = E.popup.anchor_col;
 		int max_row = E.window_rows + 1;
@@ -306,7 +322,7 @@ void editorPopupComputePlacement(int *terminal_row_out, int *terminal_col_out,
 }
 
 int editorPopupMenuHitTest(int screen_row, int screen_col, int *item_index_out) {
-	if (!editorPopupIsVisible() || E.popup.kind != EDITOR_POPUP_KIND_DRAWER_MENU) {
+	if (!editorPopupIsVisible() || !editorPopupKindIsMenu(E.popup.kind)) {
 		return 0;
 	}
 	int terminal_row = 0;

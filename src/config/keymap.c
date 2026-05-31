@@ -37,6 +37,7 @@ static const struct keymapActionName g_keymap_action_names[] = {
         {"focus_drawer", EDITOR_ACTION_FOCUS_DRAWER},
         {"toggle_drawer", EDITOR_ACTION_TOGGLE_DRAWER},
         {"main_menu", EDITOR_ACTION_MAIN_MENU},
+        {"context_menu", EDITOR_ACTION_CONTEXT_MENU},
         {"resize_drawer_narrow", EDITOR_ACTION_RESIZE_DRAWER_NARROW},
         {"resize_drawer_widen", EDITOR_ACTION_RESIZE_DRAWER_WIDEN},
         {"toggle_line_wrap", EDITOR_ACTION_TOGGLE_LINE_WRAP},
@@ -747,6 +748,8 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 	(void)keymapAppendBinding(keymap, CTRL_KEY('e'), EDITOR_ACTION_FOCUS_DRAWER);
 	(void)keymapAppendBinding(keymap, CTRL_KEY('b'), EDITOR_ACTION_TOGGLE_DRAWER);
 	(void)keymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('m'), EDITOR_ACTION_MAIN_MENU);
+	(void)keymapAppendBinding(keymap, EDITOR_CTRL_ALT_LETTER_KEY('m'),
+	                          EDITOR_ACTION_CONTEXT_MENU);
 	(void)keymapAppendBinding(keymap, ALT_SHIFT_ARROW_LEFT, EDITOR_ACTION_COLUMN_SELECT_LEFT);
 	(void)keymapAppendBinding(keymap, ALT_SHIFT_ARROW_RIGHT, EDITOR_ACTION_COLUMN_SELECT_RIGHT);
 	(void)keymapAppendBinding(keymap, ALT_SHIFT_ARROW_UP, EDITOR_ACTION_COLUMN_SELECT_UP);

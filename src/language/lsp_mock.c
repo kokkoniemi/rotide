@@ -39,6 +39,8 @@ void editorLspTestSetMockServerAlive(int alive) {
 void editorLspTestResetMock(void) {
 	editorLspFreeLocations(g_lsp_mock.definition_locations,
 	                       g_lsp_mock.definition_location_count);
+	editorLspFreeLocations(g_lsp_mock.implementation_locations,
+	                       g_lsp_mock.implementation_location_count);
 	editorLspFreeSymbols(g_lsp_mock.document_symbols, g_lsp_mock.document_symbol_count);
 	editorLspFreeDiagnostics(g_lsp_mock.diagnostics, g_lsp_mock.diagnostic_count);
 	editorLspFreePendingEdits(g_lsp_mock.code_action_edits, g_lsp_mock.code_action_edit_count);
@@ -46,6 +48,10 @@ void editorLspTestResetMock(void) {
 	g_lsp_mock.definition_locations = NULL;
 	g_lsp_mock.definition_location_count = 0;
 	g_lsp_mock.definition_result_code = 1;
+	g_lsp_mock.implementation_locations = NULL;
+	g_lsp_mock.implementation_location_count = 0;
+	g_lsp_mock.implementation_result_code = 1;
+	g_lsp_mock.implementation_response_configured = 0;
 	g_lsp_mock.document_symbols = NULL;
 	g_lsp_mock.document_symbol_count = 0;
 	g_lsp_mock.document_symbol_result_code = 1;
@@ -109,6 +115,23 @@ void editorLspTestSetMockDefinitionResponse(int result_code,
 	}
 	(void)editorLspCopyLocations(&g_lsp_mock.definition_locations,
 	                             &g_lsp_mock.definition_location_count, locations, count);
+}
+
+void editorLspTestSetMockImplementationResponse(int result_code,
+                                                const struct editorLspLocation *locations,
+                                                int count) {
+	editorLspFreeLocations(g_lsp_mock.implementation_locations,
+	                       g_lsp_mock.implementation_location_count);
+	g_lsp_mock.implementation_locations = NULL;
+	g_lsp_mock.implementation_location_count = 0;
+	g_lsp_mock.implementation_result_code = result_code;
+	g_lsp_mock.implementation_response_configured = 1;
+
+	if (locations == NULL || count <= 0) {
+		return;
+	}
+	(void)editorLspCopyLocations(&g_lsp_mock.implementation_locations,
+	                             &g_lsp_mock.implementation_location_count, locations, count);
 }
 
 void editorLspTestSetMockDocumentSymbolResponse(int result_code,

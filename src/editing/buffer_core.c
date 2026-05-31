@@ -357,6 +357,9 @@ int editorSyntaxApplyIncrementalEditActive(const struct editorSyntaxEdit *edit,
 	}
 
 	if (editorSyntaxBackgroundEnabled()) {
+		if (edit != NULL) {
+			editorSyntaxVisibleCacheInvalidateRowsForEdit(edit);
+		}
 		E.syntax_revision++;
 		return editorSyntaxVisibleCacheScheduleBackground(E.rowoff, E.window_rows);
 	}

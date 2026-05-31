@@ -5,6 +5,7 @@
 #include "input/dispatch.h"
 #include "input/text_pairs.h"
 #include "language/syntax.h"
+#include "render/popup.h"
 #include "rotide.h"
 #include "support/terminal.h"
 #include "test_case.h"
@@ -571,6 +572,29 @@ static int test_editor_process_keypress_main_menu_runs_selected_action(void) {
 	editorFileSearchExit(1);
 	ASSERT_TRUE(unlink(match_file) == 0);
 	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_context_menu_runs_split_action(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("abcdef");
+	E.window_rows = 6;
+	E.window_cols = 50;
+	E.cy = 0;
+	E.cx = 2;
+
+	char open_menu[] = {'\x1b', CTRL_KEY('m')};
+	ASSERT_TRUE(editor_process_keypress_with_input(open_menu, sizeof(open_menu)) == 0);
+	ASSERT_TRUE(editorPopupIsVisible());
+	ASSERT_EQ_INT(EDITOR_POPUP_KIND_EDITOR_CONTEXT_MENU, E.popup.kind);
+	ASSERT_EQ_STR("Split Vertically", E.popup.items[0].label);
+
+	char enter[] = {'\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input(enter, sizeof(enter)) == 0);
+	ASSERT_TRUE(!editorPopupIsVisible());
+	ASSERT_TRUE(E.layout_root != NULL);
+	ASSERT_TRUE(E.layout_root->is_split);
+	ASSERT_EQ_INT(EDITOR_SPLIT_VERTICAL, E.layout_root->as.split.orientation);
 	return 0;
 }
 
@@ -2267,6 +2291,8 @@ const struct editorTestCase g_input_actions_tests[] = {
          test_editor_process_keypress_toggle_drawer_preserves_search_modes},
         {"editor_process_keypress_main_menu_runs_selected_action",
          test_editor_process_keypress_main_menu_runs_selected_action},
+        {"editor_process_keypress_context_menu_runs_split_action",
+         test_editor_process_keypress_context_menu_runs_split_action},
         {"editor_tabs_switch_restores_per_tab_state",
          test_editor_tabs_switch_restores_per_tab_state},
         {"editor_tab_close_uses_pane_activation_history_repeatedly",
