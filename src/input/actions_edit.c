@@ -704,75 +704,83 @@ static void actionsEditRunNewline(editorEditActionFn clear_selection_mode,
 	editorHistoryCommitEdit(EDITOR_EDIT_NEWLINE, E.dirty != dirty_before);
 }
 
-int editorHandleEditMappedAction(
-        enum editorAction action, int cursor_or_edit_effect_bit,
-        editorEditActionFn clear_selection_mode, editorEditActionFn pin_active_preview_for_edit,
-        editorEditActionFn clear_search_state, editorEditActionFn toggle_selection_mode,
-        editorEditActionFn copy_selection, editorEditActionFn cut_selection,
-        editorEditActionFn delete_selection, editorEditActionFn paste_clipboard,
-        editorEditActionFn delete_char_action, editorEditActionFn backspace_action,
-        editorEditActionFn move_line_up, editorEditActionFn move_line_down,
-        editorEditActionFn toggle_comment_lines, int *effects_io) {
+int editorHandleEditMappedAction(enum editorAction action, int cursor_or_edit_effect_bit,
+                                 const struct editorEditMappedCallbacks *callbacks,
+                                 int *effects_io) {
+	const struct editorEditMappedCallbacks empty_callbacks = {0};
 	int effects = effects_io != NULL ? *effects_io : 0;
+
+	if (callbacks == NULL) {
+		callbacks = &empty_callbacks;
+	}
 
 	switch (action) {
 		case EDITOR_ACTION_NEWLINE:
-			actionsEditRunNewline(clear_selection_mode, pin_active_preview_for_edit);
+			actionsEditRunNewline(callbacks->clear_selection_mode,
+			                      callbacks->pin_active_preview_for_edit);
 			effects |= cursor_or_edit_effect_bit;
 			break;
 		case EDITOR_ACTION_TOGGLE_SELECTION:
 			editorHistoryBreakGroup();
-			actionsEditCallIfPresent(toggle_selection_mode);
+			actionsEditCallIfPresent(callbacks->toggle_selection_mode);
 			break;
 		case EDITOR_ACTION_COPY_SELECTION:
 			editorHistoryBreakGroup();
-			actionsEditCallIfPresent(copy_selection);
+			actionsEditCallIfPresent(callbacks->copy_selection);
 			break;
 		case EDITOR_ACTION_CUT_SELECTION:
 			editorHistoryBreakGroup();
-			actionsEditPinAndRun(pin_active_preview_for_edit, cut_selection);
+			actionsEditPinAndRun(callbacks->pin_active_preview_for_edit,
+			                     callbacks->cut_selection);
 			effects |= cursor_or_edit_effect_bit;
 			break;
 		case EDITOR_ACTION_DELETE_SELECTION:
 			editorHistoryBreakGroup();
-			actionsEditPinAndRun(pin_active_preview_for_edit, delete_selection);
+			actionsEditPinAndRun(callbacks->pin_active_preview_for_edit,
+			                     callbacks->delete_selection);
 			effects |= cursor_or_edit_effect_bit;
 			break;
 		case EDITOR_ACTION_PASTE:
 			editorHistoryBreakGroup();
-			actionsEditPinAndRun(pin_active_preview_for_edit, paste_clipboard);
+			actionsEditPinAndRun(callbacks->pin_active_preview_for_edit,
+			                     callbacks->paste_clipboard);
 			effects |= cursor_or_edit_effect_bit;
 			break;
 		case EDITOR_ACTION_UNDO:
-			actionsEditRunHistoryUndoRedo(editorUndo, pin_active_preview_for_edit,
-			                              clear_search_state, cursor_or_edit_effect_bit,
-			                              &effects);
+			actionsEditRunHistoryUndoRedo(
+			        editorUndo, callbacks->pin_active_preview_for_edit,
+			        callbacks->clear_search_state, cursor_or_edit_effect_bit, &effects);
 			break;
 		case EDITOR_ACTION_REDO:
-			actionsEditRunHistoryUndoRedo(editorRedo, pin_active_preview_for_edit,
-			                              clear_search_state, cursor_or_edit_effect_bit,
-			                              &effects);
+			actionsEditRunHistoryUndoRedo(
+			        editorRedo, callbacks->pin_active_preview_for_edit,
+			        callbacks->clear_search_state, cursor_or_edit_effect_bit, &effects);
 			break;
 		case EDITOR_ACTION_DELETE_CHAR:
-			actionsEditPinAndRun(pin_active_preview_for_edit, delete_char_action);
+			actionsEditPinAndRun(callbacks->pin_active_preview_for_edit,
+			                     callbacks->delete_char_action);
 			effects |= cursor_or_edit_effect_bit;
 			break;
 		case EDITOR_ACTION_BACKSPACE:
-			actionsEditPinAndRun(pin_active_preview_for_edit, backspace_action);
+			actionsEditPinAndRun(callbacks->pin_active_preview_for_edit,
+			                     callbacks->backspace_action);
 			effects |= cursor_or_edit_effect_bit;
 			break;
 		case EDITOR_ACTION_MOVE_LINE_UP:
-			actionsEditClearPinAndRun(clear_selection_mode, pin_active_preview_for_edit,
-			                          move_line_up);
+			actionsEditClearPinAndRun(callbacks->clear_selection_mode,
+			                          callbacks->pin_active_preview_for_edit,
+			                          callbacks->move_line_up);
 			effects |= cursor_or_edit_effect_bit;
 			break;
 		case EDITOR_ACTION_MOVE_LINE_DOWN:
-			actionsEditClearPinAndRun(clear_selection_mode, pin_active_preview_for_edit,
-			                          move_line_down);
+			actionsEditClearPinAndRun(callbacks->clear_selection_mode,
+			                          callbacks->pin_active_preview_for_edit,
+			                          callbacks->move_line_down);
 			effects |= cursor_or_edit_effect_bit;
 			break;
 		case EDITOR_ACTION_TOGGLE_COMMENT:
-			actionsEditPinAndRun(pin_active_preview_for_edit, toggle_comment_lines);
+			actionsEditPinAndRun(callbacks->pin_active_preview_for_edit,
+			                     callbacks->toggle_comment_lines);
 			effects |= cursor_or_edit_effect_bit;
 			break;
 		default:

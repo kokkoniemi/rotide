@@ -1794,11 +1794,11 @@ static void dispatchApplyEslintFixes(void) {
 		editorSetStatusMsg("ESLint fixes are available for JavaScript files only");
 		return;
 	}
-	if (!E.lsp_eslint_enabled) {
+	if (!E.lsp_config.eslint_enabled) {
 		editorSetStatusMsg("vscode-eslint-language-server is disabled in config");
 		return;
 	}
-	if (E.lsp_eslint_command[0] == '\0') {
+	if (E.lsp_config.eslint_command[0] == '\0') {
 		editorSetStatusMsg("LSP disabled: [lsp].eslint_command is empty");
 		return;
 	}
@@ -2125,6 +2125,22 @@ static int dispatchHandleReadOnlyAction(enum editorAction action) {
 }
 
 static int dispatchHandleDelegatedAction(enum editorAction action, int *effects) {
+	const struct editorEditMappedCallbacks edit_callbacks = {
+	        .clear_selection_mode = dispatchClearSelectionMode,
+	        .pin_active_preview_for_edit = dispatchPinActivePreviewForEdit,
+	        .clear_search_state = dispatchClearSearchState,
+	        .toggle_selection_mode = dispatchToggleSelectionMode,
+	        .copy_selection = dispatchCopySelection,
+	        .cut_selection = dispatchCutSelection,
+	        .delete_selection = dispatchDeleteSelection,
+	        .paste_clipboard = dispatchPasteClipboard,
+	        .delete_char_action = dispatchDeleteCharAction,
+	        .backspace_action = dispatchBackspaceAction,
+	        .move_line_up = dispatchMoveLineUpAction,
+	        .move_line_down = dispatchMoveLineDownAction,
+	        .toggle_comment_lines = dispatchToggleCommentLines,
+	};
+
 	if (editorHandleFileTabMappedAction(action)) {
 		return 1;
 	}
@@ -2143,13 +2159,8 @@ static int dispatchHandleDelegatedAction(enum editorAction action, int *effects)
 	                                     effects)) {
 		return 1;
 	}
-	if (editorHandleEditMappedAction(
-	            action, DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT, dispatchClearSelectionMode,
-	            dispatchPinActivePreviewForEdit, dispatchClearSearchState,
-	            dispatchToggleSelectionMode, dispatchCopySelection, dispatchCutSelection,
-	            dispatchDeleteSelection, dispatchPasteClipboard, dispatchDeleteCharAction,
-	            dispatchBackspaceAction, dispatchMoveLineUpAction, dispatchMoveLineDownAction,
-	            dispatchToggleCommentLines, effects)) {
+	if (editorHandleEditMappedAction(action, DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT,
+	                                 &edit_callbacks, effects)) {
 		return 1;
 	}
 	return 0;

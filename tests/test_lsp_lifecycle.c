@@ -4,8 +4,8 @@
 
 static int test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 0;
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 0;
 
 	char txt_path[64];
 	ASSERT_TRUE(write_temp_text_file(txt_path, sizeof(txt_path), "plain text\n"));
@@ -44,8 +44,8 @@ static int test_editor_lsp_lifecycle_lazy_start_and_non_go_buffers(void) {
 
 static int test_editor_lsp_lifecycle_restart_after_mock_crash(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 1;
 
 	char go_path[64];
 	ASSERT_TRUE(
@@ -73,9 +73,9 @@ static int test_editor_lsp_lifecycle_restart_after_mock_crash(void) {
 
 static int test_editor_lsp_lifecycle_restarts_when_switching_between_go_clangd_and_html(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 1;
-	E.lsp_html_enabled = 1;
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 1;
+	E.lsp_config.html_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	char go_path[64];
@@ -131,8 +131,8 @@ static int test_editor_lsp_lifecycle_restarts_when_switching_between_go_clangd_a
 
 static int test_editor_lsp_lifecycle_restarts_when_clangd_workspace_root_changes(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	char root_template[] = "/tmp/rotide-test-clangd-root-XXXXXX";
@@ -192,9 +192,9 @@ static int test_editor_lsp_lifecycle_restarts_when_clangd_workspace_root_changes
 
 static int test_editor_lsp_lifecycle_restarts_when_html_workspace_root_changes(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	char root_template[] = "/tmp/rotide-test-html-root-XXXXXX";
@@ -252,8 +252,8 @@ static int test_editor_lsp_lifecycle_restarts_when_html_workspace_root_changes(v
 
 static int test_editor_lsp_document_sync_for_go_edit_save_close(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 0;
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 0;
 	ASSERT_TRUE(editorTabsInit());
 
 	char go_path[64];
@@ -292,8 +292,8 @@ static int test_editor_lsp_document_sync_for_go_edit_save_close(void) {
 
 static int test_editor_lsp_document_sync_for_c_edit_save_close(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	char c_path[64];
@@ -332,8 +332,8 @@ static int test_editor_lsp_document_sync_for_c_edit_save_close(void) {
 
 static int test_editor_lsp_document_did_open_sent_on_file_open(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	char c_path[64];
@@ -355,8 +355,8 @@ static int test_editor_lsp_document_did_open_sent_on_file_open(void) {
 
 static int test_editor_lsp_did_change_without_syntax_edit_sends_full_buffer(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 0;
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 0;
 	ASSERT_TRUE(editorTabsInit());
 
 	char go_path[64];
@@ -388,9 +388,9 @@ static int test_editor_lsp_did_change_without_syntax_edit_sends_full_buffer(void
 
 static int test_editor_lsp_document_sync_for_html_edit_save_close(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	char html_path[64];
@@ -426,10 +426,10 @@ static int test_editor_lsp_document_sync_for_html_edit_save_close(void) {
 
 static int test_editor_lsp_document_sync_for_css_edit_save_close(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 0;
-	E.lsp_css_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 0;
+	E.lsp_config.css_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	char css_path[64];
@@ -466,11 +466,11 @@ static int test_editor_lsp_document_sync_for_css_edit_save_close(void) {
 
 static int test_editor_lsp_document_sync_for_javascript_edit_save_close(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 0;
-	E.lsp_javascript_enabled = 1;
-	E.lsp_eslint_enabled = 0;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 0;
+	E.lsp_config.javascript_enabled = 1;
+	E.lsp_config.eslint_enabled = 0;
 	ASSERT_TRUE(editorTabsInit());
 
 	char js_path[64];
@@ -507,8 +507,8 @@ static int test_editor_lsp_document_sync_for_javascript_edit_save_close(void) {
 
 static int test_editor_lsp_full_document_change_uses_active_source(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 1;
 
 	char go_path[64];
 	ASSERT_TRUE(
@@ -534,8 +534,8 @@ static int test_editor_lsp_full_document_change_uses_active_source(void) {
 
 static int test_editor_lsp_document_sync_ignores_non_go_buffers(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	char txt_path[64];
@@ -561,9 +561,9 @@ static int test_editor_lsp_document_sync_ignores_non_go_buffers(void) {
 
 static int test_editor_lsp_html_language_id_routing_for_supported_extensions(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 1;
 
 	char html_path[64];
 	char htm_path[64];
@@ -616,11 +616,11 @@ static int test_editor_lsp_html_language_id_routing_for_supported_extensions(voi
 
 static int test_editor_lsp_language_id_routing_for_css_scss_and_json(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 0;
-	E.lsp_css_enabled = 1;
-	E.lsp_json_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 0;
+	E.lsp_config.css_enabled = 1;
+	E.lsp_config.json_enabled = 1;
 
 	char css_path[64];
 	char scss_path[64];
@@ -675,10 +675,10 @@ static int test_editor_lsp_language_id_routing_for_css_scss_and_json(void) {
 
 static int test_editor_lsp_language_id_routing_for_javascript_extensions(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 0;
-	E.lsp_javascript_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 0;
+	E.lsp_config.javascript_enabled = 1;
 
 	char js_path[64];
 	char mjs_path[64];

@@ -215,7 +215,8 @@ static int autocompleteShouldFire(int ch, const char *trigger_chars, int *trigge
  * Returns 1 if the popup is still shown after filtering, 0 otherwise (no matches).
  */
 static int autocompleteRefreshFiltered(int anchor_row, int anchor_col) {
-	int max_items = E.lsp_autocomplete_max_items > 0 ? E.lsp_autocomplete_max_items : 100;
+	int max_items =
+	        E.lsp_config.autocomplete_max_items > 0 ? E.lsp_config.autocomplete_max_items : 100;
 
 	struct editorPopupItem *popup_items = NULL;
 	int *visible_indices = NULL;

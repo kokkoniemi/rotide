@@ -1414,7 +1414,7 @@ static int test_editor_workspace_state_restore_defers_lsp_for_inactive_tabs(void
 
 	editorLspTestResetMock();
 	editorLspTestSetMockEnabled(1);
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.clangd_enabled = 1;
 
 	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
 	ASSERT_TRUE(editorTabsInit());
@@ -1426,7 +1426,7 @@ static int test_editor_workspace_state_restore_defers_lsp_for_inactive_tabs(void
 	editorWorkspaceStateShutdown();
 	editorLspTestResetMock();
 	editorLspTestSetMockEnabled(1);
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.clangd_enabled = 1;
 
 	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
 	ASSERT_TRUE(editorTabsInit());

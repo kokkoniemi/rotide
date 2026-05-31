@@ -1,7 +1,7 @@
 #ifndef ROTIDE_CONFIG_LSP_CONFIG_H
 #define ROTIDE_CONFIG_LSP_CONFIG_H
 
-#include <stddef.h>
+#include <limits.h>
 
 enum editorLspConfigLoadStatus {
 	EDITOR_LSP_CONFIG_LOAD_OK = 0,
@@ -10,44 +10,32 @@ enum editorLspConfigLoadStatus {
 	EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY = 1 << 2
 };
 
-void editorLspConfigInitDefaults(
-        int *gopls_enabled_out, int *clangd_enabled_out, int *html_enabled_out,
-        int *css_enabled_out, int *json_enabled_out, int *javascript_enabled_out,
-        int *eslint_enabled_out, char *gopls_command_out, size_t gopls_command_out_size,
-        char *gopls_install_command_out, size_t gopls_install_command_out_size,
-        char *clangd_command_out, size_t clangd_command_out_size, char *html_command_out,
-        size_t html_command_out_size, char *css_command_out, size_t css_command_out_size,
-        char *json_command_out, size_t json_command_out_size, char *javascript_command_out,
-        size_t javascript_command_out_size, char *javascript_install_command_out,
-        size_t javascript_install_command_out_size, char *eslint_command_out,
-        size_t eslint_command_out_size, char *vscode_langservers_install_command_out,
-        size_t vscode_langservers_install_command_out_size, int *autocomplete_enabled_out,
-        int *autocomplete_max_items_out);
-enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(
-        int *gopls_enabled_out, int *clangd_enabled_out, int *html_enabled_out,
-        int *css_enabled_out, int *json_enabled_out, int *javascript_enabled_out,
-        int *eslint_enabled_out, char *gopls_command_out, size_t gopls_command_out_size,
-        char *gopls_install_command_out, size_t gopls_install_command_out_size,
-        char *clangd_command_out, size_t clangd_command_out_size, char *html_command_out,
-        size_t html_command_out_size, char *css_command_out, size_t css_command_out_size,
-        char *json_command_out, size_t json_command_out_size, char *javascript_command_out,
-        size_t javascript_command_out_size, char *javascript_install_command_out,
-        size_t javascript_install_command_out_size, char *eslint_command_out,
-        size_t eslint_command_out_size, char *vscode_langservers_install_command_out,
-        size_t vscode_langservers_install_command_out_size, int *autocomplete_enabled_out,
-        int *autocomplete_max_items_out, const char *global_path, const char *project_path);
-enum editorLspConfigLoadStatus editorLspConfigLoadConfigured(
-        int *gopls_enabled_out, int *clangd_enabled_out, int *html_enabled_out,
-        int *css_enabled_out, int *json_enabled_out, int *javascript_enabled_out,
-        int *eslint_enabled_out, char *gopls_command_out, size_t gopls_command_out_size,
-        char *gopls_install_command_out, size_t gopls_install_command_out_size,
-        char *clangd_command_out, size_t clangd_command_out_size, char *html_command_out,
-        size_t html_command_out_size, char *css_command_out, size_t css_command_out_size,
-        char *json_command_out, size_t json_command_out_size, char *javascript_command_out,
-        size_t javascript_command_out_size, char *javascript_install_command_out,
-        size_t javascript_install_command_out_size, char *eslint_command_out,
-        size_t eslint_command_out_size, char *vscode_langservers_install_command_out,
-        size_t vscode_langservers_install_command_out_size, int *autocomplete_enabled_out,
-        int *autocomplete_max_items_out);
+struct editorLspConfig {
+	int gopls_enabled;
+	int clangd_enabled;
+	int html_enabled;
+	int css_enabled;
+	int json_enabled;
+	int javascript_enabled;
+	int eslint_enabled;
+	char gopls_command[PATH_MAX];
+	char gopls_install_command[PATH_MAX];
+	char clangd_command[PATH_MAX];
+	char html_command[PATH_MAX];
+	char css_command[PATH_MAX];
+	char json_command[PATH_MAX];
+	char javascript_command[PATH_MAX];
+	char javascript_install_command[PATH_MAX];
+	char eslint_command[PATH_MAX];
+	char vscode_langservers_install_command[PATH_MAX];
+	int autocomplete_enabled;
+	int autocomplete_max_items;
+};
+
+void editorLspConfigInitDefaults(struct editorLspConfig *config);
+enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(struct editorLspConfig *config,
+                                                            const char *global_path,
+                                                            const char *project_path);
+enum editorLspConfigLoadStatus editorLspConfigLoadConfigured(struct editorLspConfig *config);
 
 #endif
