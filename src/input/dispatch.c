@@ -41,6 +41,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 /*** Input ***/
 
@@ -1184,6 +1185,228 @@ static int dispatchPromptLocationChoice(const char *kind_capitalized, int count,
 	return 1;
 }
 
+enum dispatchLocationRole {
+	DISPATCH_LOCATION_ROLE_DEFINITION = 0,
+	DISPATCH_LOCATION_ROLE_DECLARATION,
+	DISPATCH_LOCATION_ROLE_IMPLEMENTATION
+};
+
+struct dispatchLocationChoice {
+	const struct editorLspLocation *location;
+	enum dispatchLocationRole role;
+};
+
+static const char *dispatchLocationRoleLabel(enum dispatchLocationRole role) {
+	switch (role) {
+		case DISPATCH_LOCATION_ROLE_DECLARATION:
+			return "Declaration";
+		case DISPATCH_LOCATION_ROLE_IMPLEMENTATION:
+			return "Implementation";
+		case DISPATCH_LOCATION_ROLE_DEFINITION:
+		default:
+			return "Definition";
+	}
+}
+
+static int dispatchPathHasHeaderExtension(const char *path) {
+	const char *ext = path != NULL ? strrchr(path, '.') : NULL;
+	if (ext == NULL) {
+		return 0;
+	}
+	return strcasecmp(ext, ".h") == 0 || strcasecmp(ext, ".hh") == 0 ||
+	       strcasecmp(ext, ".hpp") == 0 || strcasecmp(ext, ".hxx") == 0;
+}
+
+static int dispatchLanguageUsesCStyleDeclarations(enum editorSyntaxLanguage language) {
+	return language == EDITOR_SYNTAX_C || language == EDITOR_SYNTAX_CPP;
+}
+
+static enum dispatchLocationRole
+dispatchDefinitionRoleForLocation(enum editorSyntaxLanguage language,
+                                  const struct editorLspLocation *location) {
+	if (dispatchLanguageUsesCStyleDeclarations(language) && location != NULL &&
+	    dispatchPathHasHeaderExtension(location->path)) {
+		return DISPATCH_LOCATION_ROLE_DECLARATION;
+	}
+	return DISPATCH_LOCATION_ROLE_DEFINITION;
+}
+
+static int dispatchLocationSame(const struct editorLspLocation *left,
+                                const struct editorLspLocation *right) {
+	if (left == NULL || right == NULL || left->path == NULL || right->path == NULL) {
+		return 0;
+	}
+	return left->line == right->line && left->character == right->character &&
+	       strcmp(left->path, right->path) == 0;
+}
+
+static int dispatchAppendLocationChoice(struct dispatchLocationChoice **choices_io, int *count_io,
+                                        int *cap_io, const struct editorLspLocation *location,
+                                        enum dispatchLocationRole role) {
+	if (choices_io == NULL || count_io == NULL || cap_io == NULL || location == NULL ||
+	    location->path == NULL) {
+		return 0;
+	}
+	for (int i = 0; i < *count_io; i++) {
+		if (dispatchLocationSame((*choices_io)[i].location, location)) {
+			return 1;
+		}
+	}
+	if (*count_io >= *cap_io) {
+		int new_cap = *cap_io > 0 ? *cap_io * 2 : 8;
+		struct dispatchLocationChoice *grown =
+		        realloc(*choices_io, sizeof(*grown) * (size_t)new_cap);
+		if (grown == NULL) {
+			return 0;
+		}
+		*choices_io = grown;
+		*cap_io = new_cap;
+	}
+	(*choices_io)[*count_io].location = location;
+	(*choices_io)[*count_io].role = role;
+	(*count_io)++;
+	return 1;
+}
+
+static char *dispatchBuildLocationDetail(const struct dispatchLocationChoice *choice) {
+	if (choice == NULL || choice->location == NULL || choice->location->path == NULL) {
+		return NULL;
+	}
+	int needed = snprintf(NULL, 0, "%d:%d:%d:%s", (int)choice->role, choice->location->line,
+	                      choice->location->character, choice->location->path);
+	if (needed < 0) {
+		return NULL;
+	}
+	char *detail = malloc((size_t)needed + 1);
+	if (detail == NULL) {
+		return NULL;
+	}
+	(void)snprintf(detail, (size_t)needed + 1, "%d:%d:%d:%s", (int)choice->role,
+	               choice->location->line, choice->location->character, choice->location->path);
+	return detail;
+}
+
+static char *dispatchBuildLocationLabel(const struct dispatchLocationChoice *choice) {
+	if (choice == NULL || choice->location == NULL) {
+		return NULL;
+	}
+	const char *role_label = dispatchLocationRoleLabel(choice->role);
+	const char *base = dispatchBasenameFromPath(choice->location->path);
+	int needed = snprintf(NULL, 0, "%s %s:%d", role_label, base, choice->location->line + 1);
+	if (needed < 0) {
+		return NULL;
+	}
+	char *label = malloc((size_t)needed + 1);
+	if (label == NULL) {
+		return NULL;
+	}
+	(void)snprintf(label, (size_t)needed + 1, "%s %s:%d", role_label, base,
+	               choice->location->line + 1);
+	return label;
+}
+
+static void dispatchFreePopupItems(struct editorPopupItem *items, int count) {
+	if (items == NULL) {
+		return;
+	}
+	for (int i = 0; i < count; i++) {
+		free(items[i].label);
+		free(items[i].detail);
+	}
+	free(items);
+}
+
+static int dispatchOpenLocationMenu(const struct dispatchLocationChoice *choices, int count) {
+	if (choices == NULL || count <= 0) {
+		return 0;
+	}
+	struct editorPopupItem *items = calloc((size_t)count, sizeof(*items));
+	if (items == NULL) {
+		return 0;
+	}
+	for (int i = 0; i < count; i++) {
+		items[i].label = dispatchBuildLocationLabel(&choices[i]);
+		items[i].detail = dispatchBuildLocationDetail(&choices[i]);
+		if (items[i].label == NULL || items[i].detail == NULL) {
+			dispatchFreePopupItems(items, count);
+			return 0;
+		}
+	}
+
+	int screen_row = 1;
+	int screen_col = 1;
+	(void)editorCursorTerminalPosition(&screen_row, &screen_col);
+	int opened = editorPopupOpenMenuKind(EDITOR_POPUP_KIND_LSP_LOCATION_MENU, items, count,
+	                                     screen_row, screen_col);
+	dispatchFreePopupItems(items, count);
+	return opened;
+}
+
+static int dispatchParseLocationDetail(const char *detail, enum dispatchLocationRole *role_out,
+                                       int *line_out, int *character_out, char **path_out) {
+	if (detail == NULL || role_out == NULL || line_out == NULL || character_out == NULL ||
+	    path_out == NULL) {
+		return 0;
+	}
+	char *end = NULL;
+	long role = strtol(detail, &end, 10);
+	if (end == detail || *end != ':') {
+		return 0;
+	}
+	const char *line_start = end + 1;
+	long line = strtol(line_start, &end, 10);
+	if (end == line_start || *end != ':') {
+		return 0;
+	}
+	const char *character_start = end + 1;
+	long character = strtol(character_start, &end, 10);
+	if (end == character_start || *end != ':') {
+		return 0;
+	}
+	char *path = strdup(end + 1);
+	if (path == NULL) {
+		return 0;
+	}
+	*role_out = (enum dispatchLocationRole)role;
+	*line_out = (int)line;
+	*character_out = (int)character;
+	*path_out = path;
+	return 1;
+}
+
+int editorLspLocationMenuActivate(void) {
+	if (!editorPopupIsVisible() || E.popup.kind != EDITOR_POPUP_KIND_LSP_LOCATION_MENU) {
+		return 0;
+	}
+	int idx = editorPopupSelectedIndex();
+	if (idx < 0 || idx >= E.popup.item_count) {
+		editorPopupClose();
+		return 0;
+	}
+
+	enum dispatchLocationRole role = DISPATCH_LOCATION_ROLE_DEFINITION;
+	int line = 0;
+	int character = 0;
+	char *path = NULL;
+	const char *detail = E.popup.items[idx].detail;
+	if (!dispatchParseLocationDetail(detail, &role, &line, &character, &path)) {
+		editorPopupClose();
+		editorSetStatusMsg("Invalid location choice");
+		return 0;
+	}
+	editorPopupClose();
+
+	if (!dispatchJumpToPathLocation(path, line, character, 0, 0)) {
+		editorSetStatusMsg("Unable to jump to %s", dispatchLocationRoleLabel(role));
+		free(path);
+		return 0;
+	}
+	editorSetStatusMsg("%s: %s:%d", dispatchLocationRoleLabel(role),
+	                   dispatchBasenameFromPath(path), line + 1);
+	free(path);
+	return 1;
+}
+
 typedef int (*dispatchLspLocationRequestFn)(const char *filename,
                                             enum editorSyntaxLanguage language, int line,
                                             int character, struct editorLspLocation **locations_out,
@@ -1280,24 +1503,85 @@ static void dispatchRunLocationLookup(const char *kind_lower, const char *kind_c
 		return;
 	}
 
-	int selected_index = 0;
-	if (count > 1) {
-		editorSetStatusMsg("Found %d %s; choose 1-%d", count, kind_plural, count);
-		if (!dispatchPromptLocationChoice(kind_capitalized, count, &selected_index)) {
+	struct dispatchLocationChoice *choices = NULL;
+	int choice_count = 0;
+	int choice_cap = 0;
+	int has_declaration = 0;
+	for (int i = 0; i < count; i++) {
+		enum dispatchLocationRole role =
+		        request_fn == editorLspRequestImplementation
+		                ? DISPATCH_LOCATION_ROLE_IMPLEMENTATION
+		                : dispatchDefinitionRoleForLocation(E.syntax_language,
+		                                                    &locations[i]);
+		if (role == DISPATCH_LOCATION_ROLE_DECLARATION) {
+			has_declaration = 1;
+		}
+		if (!dispatchAppendLocationChoice(&choices, &choice_count, &choice_cap,
+		                                  &locations[i], role)) {
+			free(choices);
 			editorLspFreeLocations(locations, count);
 			return;
 		}
 	}
 
-	const struct editorLspLocation *selected = &locations[selected_index];
-	if (!dispatchJumpToDefinitionLocation(selected)) {
-		editorSetStatusMsg("Unable to jump to %s", kind_lower);
+	struct editorLspLocation *implementation_locations = NULL;
+	int implementation_count = 0;
+	if (request_fn == editorLspRequestDefinition && has_declaration &&
+	    dispatchLanguageUsesCStyleDeclarations(E.syntax_language)) {
+		int implementation_timed_out = 0;
+		int implementation_result = editorLspRequestImplementation(
+		        E.filename, E.syntax_language, E.cy, E.cx, &implementation_locations,
+		        &implementation_count, &implementation_timed_out);
+		if (implementation_result > 0 && !implementation_timed_out) {
+			for (int i = 0; i < implementation_count; i++) {
+				if (!dispatchAppendLocationChoice(
+				            &choices, &choice_count, &choice_cap,
+				            &implementation_locations[i],
+				            DISPATCH_LOCATION_ROLE_IMPLEMENTATION)) {
+					free(choices);
+					editorLspFreeLocations(implementation_locations,
+					                       implementation_count);
+					editorLspFreeLocations(locations, count);
+					return;
+				}
+			}
+		}
+	}
+
+	if (choice_count <= 0) {
+		editorSetStatusMsg("%s not found", kind_capitalized);
+		free(choices);
+		editorLspFreeLocations(implementation_locations, implementation_count);
 		editorLspFreeLocations(locations, count);
 		return;
 	}
 
-	editorSetStatusMsg("%s: %s:%d", kind_capitalized, dispatchBasenameFromPath(selected->path),
-	                   selected->line + 1);
+	if (choice_count > 1) {
+		if (!dispatchOpenLocationMenu(choices, choice_count)) {
+			editorSetStatusMsg("Unable to show %s choices", kind_lower);
+		} else {
+			editorSetStatusMsg("Found %d %s", choice_count, kind_plural);
+		}
+		free(choices);
+		editorLspFreeLocations(implementation_locations, implementation_count);
+		editorLspFreeLocations(locations, count);
+		return;
+	}
+
+	const struct dispatchLocationChoice *selected = &choices[0];
+	if (!dispatchJumpToDefinitionLocation(selected->location)) {
+		editorSetStatusMsg("Unable to jump to %s", kind_lower);
+		free(choices);
+		editorLspFreeLocations(implementation_locations, implementation_count);
+		editorLspFreeLocations(locations, count);
+		return;
+	}
+
+	editorSetStatusMsg("%s: %s:%d", dispatchLocationRoleLabel(selected->role),
+	                   dispatchBasenameFromPath(selected->location->path),
+	                   selected->location->line + 1);
+	free(choices);
+	editorLspFreeLocations(implementation_locations, implementation_count);
 	editorLspFreeLocations(locations, count);
 }
 
@@ -2195,6 +2479,14 @@ void editorProcessKeypress(void) {
 		                      (c == MOUSE_EVENT && editorPopupKindIsMenu(E.popup.kind));
 		if (!skip_popup_keys) {
 			enum editorPopupKind popup_kind = E.popup.kind;
+			if (popup_kind == EDITOR_POPUP_KIND_LSP_LOCATION_MENU && c >= '1' &&
+			    c <= '9') {
+				int selected = c - '1';
+				if (selected < editorPopupItemCount()) {
+					E.popup.selected_index = selected;
+				}
+				return;
+			}
 			enum editorPopupKeyResult popup_result = editorPopupHandleKey(c);
 			if (popup_result == EDITOR_POPUP_KEY_ACCEPTED) {
 				if (popup_kind == EDITOR_POPUP_KIND_DRAWER_MENU) {
@@ -2211,6 +2503,8 @@ void editorProcessKeypress(void) {
 					int mapped_effects = DISPATCH_KEYPRESS_EFFECT_NONE;
 					(void)editorTabContextMenuActivate(
 					        dispatchProcessMappedAction, &mapped_effects);
+				} else if (popup_kind == EDITOR_POPUP_KIND_LSP_LOCATION_MENU) {
+					(void)editorLspLocationMenuActivate();
 				} else if (editorAutocompleteIsVisible()) {
 					dispatchPinActivePreviewForEdit();
 					editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);

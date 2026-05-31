@@ -6,6 +6,7 @@
 #include "editing/edit.h"
 #include "editing/selection.h"
 #include "input/actions_workspace.h"
+#include "input/dispatch.h"
 #include "language/lsp.h"
 #include "render/popup.h"
 #include "render/viewport.h"
@@ -984,6 +985,8 @@ static int mouseHandleLeftPressOnMenu(const struct editorMouseEvent *event,
 			(void)editorEditorContextMenuActivate(process_mapped_action, effects_out);
 		} else if (E.popup.kind == EDITOR_POPUP_KIND_TAB_CONTEXT_MENU) {
 			(void)editorTabContextMenuActivate(process_mapped_action, effects_out);
+		} else if (E.popup.kind == EDITOR_POPUP_KIND_LSP_LOCATION_MENU) {
+			(void)editorLspLocationMenuActivate();
 		} else {
 			editorPopupClose();
 		}

@@ -42,18 +42,26 @@ static int lspFeaturesRequestLocationsByMethod(const char *method, int *mock_cou
 		if (mock_counter != NULL) {
 			(*mock_counter)++;
 		}
-		if (g_lsp_mock.definition_result_code == -2) {
+		int is_implementation = strcmp(method, "textDocument/implementation") == 0;
+		int result_code = g_lsp_mock.definition_result_code;
+		struct editorLspLocation *mock_locations = g_lsp_mock.definition_locations;
+		int mock_location_count = g_lsp_mock.definition_location_count;
+		if (is_implementation && g_lsp_mock.implementation_response_configured) {
+			result_code = g_lsp_mock.implementation_result_code;
+			mock_locations = g_lsp_mock.implementation_locations;
+			mock_location_count = g_lsp_mock.implementation_location_count;
+		}
+		if (result_code == -2) {
 			if (timed_out_out != NULL) {
 				*timed_out_out = 1;
 			}
 			return -2;
 		}
-		if (g_lsp_mock.definition_result_code < 0) {
+		if (result_code < 0) {
 			return -1;
 		}
-		if (!editorLspCopyLocations(locations_out, count_out,
-		                            g_lsp_mock.definition_locations,
-		                            g_lsp_mock.definition_location_count)) {
+		if (!editorLspCopyLocations(locations_out, count_out, mock_locations,
+		                            mock_location_count)) {
 			return -1;
 		}
 		return 1;

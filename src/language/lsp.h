@@ -193,6 +193,9 @@ void editorLspTestGetLastChange(struct editorLspTestLastChange *out);
 void editorLspTestGetLastDidOpenLanguageId(char *out, size_t out_size);
 void editorLspTestSetMockDefinitionResponse(int result_code,
                                             const struct editorLspLocation *locations, int count);
+void editorLspTestSetMockImplementationResponse(int result_code,
+                                                const struct editorLspLocation *locations,
+                                                int count);
 void editorLspTestSetMockDocumentSymbolResponse(int result_code,
                                                 const struct editorLspSymbol *symbols, int count);
 void editorLspTestSetMockDiagnostics(const char *path,

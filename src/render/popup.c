@@ -96,7 +96,8 @@ int editorPopupOpenMenuKind(enum editorPopupKind kind, const struct editorPopupI
 int editorPopupKindIsMenu(enum editorPopupKind kind) {
 	return kind == EDITOR_POPUP_KIND_DRAWER_MENU ||
 	       kind == EDITOR_POPUP_KIND_EDITOR_CONTEXT_MENU ||
-	       kind == EDITOR_POPUP_KIND_TAB_CONTEXT_MENU;
+	       kind == EDITOR_POPUP_KIND_TAB_CONTEXT_MENU ||
+	       kind == EDITOR_POPUP_KIND_LSP_LOCATION_MENU;
 }
 
 int editorPopupIsVisible(void) {
