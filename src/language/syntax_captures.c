@@ -53,32 +53,38 @@ static void syntaxCapturesVecFree(struct editorSyntaxCaptureVec *vec) {
 	vec->cap = 0;
 }
 
-static int syntaxCapturesCollectFromTree(
-        struct editorSyntaxState *state, const TSTree *tree, enum editorSyntaxLanguage language,
-        const struct editorTextSource *source, uint32_t start_byte, uint32_t end_byte,
-        const struct editorSyntaxLocalsContext *locals, int skip_predicates,
-        struct editorSyntaxCaptureVec *captures_out, int *query_unavailable_out);
+struct syntaxCapturesCollectCtx {
+	struct editorSyntaxState *state;
+	const TSTree *tree;
+	enum editorSyntaxLanguage language;
+	const struct editorTextSource *source;
+	uint32_t start_byte;
+	uint32_t end_byte;
+	const struct editorSyntaxLocalsContext *locals;
+	int skip_predicates;
+	struct editorSyntaxCaptureVec *captures_out;
+	int *query_unavailable_out;
+};
 
-static int syntaxCapturesCollectFromTree(
-        struct editorSyntaxState *state, const TSTree *tree, enum editorSyntaxLanguage language,
-        const struct editorTextSource *source, uint32_t start_byte, uint32_t end_byte,
-        const struct editorSyntaxLocalsContext *locals, int skip_predicates,
-        struct editorSyntaxCaptureVec *captures_out, int *query_unavailable_out) {
-	if (query_unavailable_out != NULL) {
-		*query_unavailable_out = 0;
-	}
-	if (captures_out == NULL) {
+static int syntaxCapturesCollectFromTree(const struct syntaxCapturesCollectCtx *ctx) {
+	if (ctx == NULL) {
 		return 0;
 	}
-	if (tree == NULL || start_byte >= end_byte) {
+	if (ctx->query_unavailable_out != NULL) {
+		*ctx->query_unavailable_out = 0;
+	}
+	if (ctx->captures_out == NULL) {
+		return 0;
+	}
+	if (ctx->tree == NULL || ctx->start_byte >= ctx->end_byte) {
 		return 1;
 	}
 
 	const struct editorSyntaxQueryCacheEntry *cache =
-	        editorSyntaxHighlightQueryCachePtr(language);
+	        editorSyntaxHighlightQueryCachePtr(ctx->language);
 	if (cache == NULL) {
-		if (query_unavailable_out != NULL) {
-			*query_unavailable_out = 1;
+		if (ctx->query_unavailable_out != NULL) {
+			*ctx->query_unavailable_out = 1;
 		}
 		return 0;
 	}
@@ -88,10 +94,10 @@ static int syntaxCapturesCollectFromTree(
 		return 0;
 	}
 
-	TSNode root = ts_tree_root_node(tree);
-	ts_query_cursor_set_byte_range(cursor, start_byte, end_byte);
+	TSNode root = ts_tree_root_node(ctx->tree);
+	ts_query_cursor_set_byte_range(cursor, ctx->start_byte, ctx->end_byte);
 	struct editorSyntaxBudgetConfig budget = editorSyntaxBudgetConfigForMode(
-	        state != NULL ? state->perf_mode : EDITOR_SYNTAX_PERF_NORMAL);
+	        ctx->state != NULL ? ctx->state->perf_mode : EDITOR_SYNTAX_PERF_NORMAL);
 	if (budget.query_match_limit > 0) {
 		ts_query_cursor_set_match_limit(cursor, budget.query_match_limit);
 	}
@@ -107,12 +113,12 @@ static int syntaxCapturesCollectFromTree(
 	}
 
 	struct editorSyntaxPredicateContext predicate_ctx = {
-	        .state = state, .source = source, .locals = locals};
+	        .state = ctx->state, .source = ctx->source, .locals = ctx->locals};
 
 	TSQueryMatch match;
 	uint32_t capture_idx = 0;
 	while (ts_query_cursor_next_capture(cursor, &match, &capture_idx)) {
-		if (!skip_predicates &&
+		if (!ctx->skip_predicates &&
 		    !editorSyntaxMatchPassesPredicates(cache->query, match.pattern_index, &match,
 		                                       &predicate_ctx)) {
 			continue;
@@ -137,32 +143,32 @@ static int syntaxCapturesCollectFromTree(
 		if (capture_end <= capture_start) {
 			continue;
 		}
-		if (capture_end <= start_byte || capture_start >= end_byte) {
+		if (capture_end <= ctx->start_byte || capture_start >= ctx->end_byte) {
 			continue;
 		}
-		if (capture_start < start_byte) {
-			capture_start = start_byte;
+		if (capture_start < ctx->start_byte) {
+			capture_start = ctx->start_byte;
 		}
-		if (capture_end > end_byte) {
-			capture_end = end_byte;
+		if (capture_end > ctx->end_byte) {
+			capture_end = ctx->end_byte;
 		}
 		if (capture_end <= capture_start) {
 			continue;
 		}
 
-		if (!syntaxCapturesVecAppend(captures_out, capture_start, capture_end,
+		if (!syntaxCapturesVecAppend(ctx->captures_out, capture_start, capture_end,
 		                             highlight_class)) {
 			ts_query_cursor_delete(cursor);
 			return 0;
 		}
 	}
 
-	if (state != NULL) {
+	if (ctx->state != NULL) {
 		if (query_deadline.exceeded) {
-			state->budget_query_exceeded = 1;
+			ctx->state->budget_query_exceeded = 1;
 		}
 		if (ts_query_cursor_did_exceed_match_limit(cursor)) {
-			state->budget_query_exceeded = 1;
+			ctx->state->budget_query_exceeded = 1;
 		}
 	}
 
@@ -214,9 +220,19 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 	}
 
 	int query_unavailable = 0;
-	int ok = syntaxCapturesCollectFromTree(state, state->host.tree, state->language, source,
-	                                       start_byte, end_byte, host_locals, skip_predicates,
-	                                       &capture_vecs[0], &query_unavailable);
+	struct syntaxCapturesCollectCtx host_collect_ctx = {
+	        .state = state,
+	        .tree = state->host.tree,
+	        .language = state->language,
+	        .source = source,
+	        .start_byte = start_byte,
+	        .end_byte = end_byte,
+	        .locals = host_locals,
+	        .skip_predicates = skip_predicates,
+	        .captures_out = &capture_vecs[0],
+	        .query_unavailable_out = &query_unavailable,
+	};
+	int ok = syntaxCapturesCollectFromTree(&host_collect_ctx);
 	if (!ok) {
 		if (query_unavailable) {
 			editorSyntaxStateRecordQueryUnavailable(state, state->language,
@@ -248,10 +264,19 @@ int editorSyntaxStateCollectCapturesForRange(struct editorSyntaxState *state,
 			}
 			int vec_idx = capture_vec_count;
 			query_unavailable = 0;
-			if (!syntaxCapturesCollectFromTree(
-			            state, injection->parsed.tree, injection->parsed.language,
-			            source, start_byte, end_byte, injection_locals, skip_predicates,
-			            &capture_vecs[vec_idx], &query_unavailable)) {
+			struct syntaxCapturesCollectCtx injection_collect_ctx = {
+			        .state = state,
+			        .tree = injection->parsed.tree,
+			        .language = injection->parsed.language,
+			        .source = source,
+			        .start_byte = start_byte,
+			        .end_byte = end_byte,
+			        .locals = injection_locals,
+			        .skip_predicates = skip_predicates,
+			        .captures_out = &capture_vecs[vec_idx],
+			        .query_unavailable_out = &query_unavailable,
+			};
+			if (!syntaxCapturesCollectFromTree(&injection_collect_ctx)) {
 				if (query_unavailable) {
 					editorSyntaxStateRecordQueryUnavailable(
 					        state, injection->parsed.language,
