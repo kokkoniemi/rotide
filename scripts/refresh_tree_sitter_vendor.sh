@@ -212,6 +212,7 @@ YAML_GRAMMAR_SRC=""
 XML_GRAMMAR_SRC=""
 MAKE_GRAMMAR_SRC=""
 DIFF_GRAMMAR_SRC=""
+LATEX_GRAMMAR_SRC=""
 
 download_repo_tarball "tree-sitter/tree-sitter" "${TREE_SITTER_RUNTIME_REF}" RUNTIME_SRC
 download_repo_tarball "tree-sitter/tree-sitter-c" "${TREE_SITTER_C_GRAMMAR_REF}" C_GRAMMAR_SRC
@@ -242,6 +243,7 @@ download_repo_tarball "tree-sitter-grammars/tree-sitter-yaml" "${TREE_SITTER_YAM
 download_repo_tarball "tree-sitter-grammars/tree-sitter-xml" "${TREE_SITTER_XML_GRAMMAR_REF}" XML_GRAMMAR_SRC
 download_repo_tarball "tree-sitter-grammars/tree-sitter-make" "${TREE_SITTER_MAKE_GRAMMAR_REF}" MAKE_GRAMMAR_SRC
 download_repo_tarball "tree-sitter-grammars/tree-sitter-diff" "${TREE_SITTER_DIFF_GRAMMAR_REF}" DIFF_GRAMMAR_SRC
+download_repo_tarball "latex-lsp/tree-sitter-latex" "${TREE_SITTER_LATEX_GRAMMAR_REF}" LATEX_GRAMMAR_SRC
 
 if [[ ! -d "${RUNTIME_SRC}/lib/src" || ! -f "${RUNTIME_SRC}/lib/include/tree_sitter/api.h" ]]; then
 	echo "Runtime source layout not found in ${TREE_SITTER_RUNTIME_REF}" >&2
@@ -292,6 +294,7 @@ regenerate_parser "${YAML_GRAMMAR_SRC}" "YAML"
 regenerate_parser "${XML_GRAMMAR_SRC}/xml" "XML"
 regenerate_parser "${MAKE_GRAMMAR_SRC}" "Make"
 regenerate_parser "${DIFF_GRAMMAR_SRC}" "Diff"
+regenerate_parser "${LATEX_GRAMMAR_SRC}" "LaTeX"
 
 RUNTIME_VENDOR="${REPO_ROOT}/vendor/tree_sitter/runtime"
 mkdir -p "${RUNTIME_VENDOR}/include/tree_sitter" "${RUNTIME_VENDOR}/src"
@@ -395,6 +398,7 @@ git -C "${REPO_ROOT}" apply \
 	"${REPO_ROOT}/vendor/tree_sitter/patches/xml-scanner-serialize-preserve-tags.patch"
 sync_grammar_vendor "${MAKE_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/make"
 sync_grammar_vendor "${DIFF_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/diff"
+sync_grammar_vendor "${LATEX_GRAMMAR_SRC}" "${REPO_ROOT}/vendor/tree_sitter/grammars/latex"
 
 echo "Tree-sitter vendor refresh complete." >&2
 echo "If you changed refs/releases, update vendor/tree_sitter/VERSIONS.env and VERSIONS.md." >&2

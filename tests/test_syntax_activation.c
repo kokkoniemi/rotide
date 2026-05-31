@@ -705,6 +705,22 @@ static int test_editor_syntax_activation_for_regex_files(void) {
 	return 0;
 }
 
+static int test_editor_syntax_activation_for_latex_files(void) {
+	char tex_path[] = "/tmp/rotide-test-syntax-latex-XXXXXX.tex";
+	ASSERT_TRUE(write_fixture_to_temp_path(tex_path, 4,
+	                                       "tests/syntax/supported/latex/activation.tex"));
+
+	editorOpen(tex_path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_LATEX, editorSyntaxLanguageActive());
+	ASSERT_TRUE(editorSyntaxRootType() != NULL);
+	ASSERT_EQ_STR("source_file", editorSyntaxRootType());
+
+	ASSERT_TRUE(unlink(tex_path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_activation_for_go_and_mod_files(void) {
 	char go_path[] = "/tmp/rotide-test-syntax-go-XXXXXX.go";
 	ASSERT_TRUE(
@@ -1022,6 +1038,7 @@ const struct editorTestCase g_syntax_activation_tests[] = {
         {"editor_syntax_activation_for_ejs_files", test_editor_syntax_activation_for_ejs_files},
         {"editor_syntax_activation_for_erb_files", test_editor_syntax_activation_for_erb_files},
         {"editor_syntax_activation_for_regex_files", test_editor_syntax_activation_for_regex_files},
+        {"editor_syntax_activation_for_latex_files", test_editor_syntax_activation_for_latex_files},
         {"editor_syntax_activation_for_go_and_mod_files",
          test_editor_syntax_activation_for_go_and_mod_files},
         {"editor_syntax_disabled_for_non_c_or_shell_files",

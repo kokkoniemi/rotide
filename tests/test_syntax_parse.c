@@ -916,6 +916,32 @@ static int test_editor_syntax_incremental_edits_keep_regex_tree_valid(void) {
 	return 0;
 }
 
+static int test_editor_syntax_incremental_edits_keep_latex_tree_valid(void) {
+	char path[] = "/tmp/rotide-test-syntax-inc-latex-XXXXXX.tex";
+	ASSERT_TRUE(write_fixture_to_temp_path(path, 4,
+	                                       "tests/syntax/supported/latex/incremental.tex"));
+
+	editorOpen(path);
+	ASSERT_TRUE(editorSyntaxEnabled());
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	ASSERT_EQ_INT(EDITOR_SYNTAX_LATEX, editorSyntaxLanguageActive());
+
+	E.cy = 3;
+	E.cx = 10;
+	editorInsertChar('z');
+	ASSERT_TRUE(editorSyntaxTreeExists());
+	editorDelChar();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	E.cy = 0;
+	E.cx = editor_test_row_size(0);
+	editorInsertNewline();
+	ASSERT_TRUE(editorSyntaxTreeExists());
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_syntax_incremental_provider_parse_keeps_tree_valid(void) {
 	const char *before = "int value = 1;\n";
 	const char *after = "int xvalue = 1;\n";
@@ -1038,6 +1064,8 @@ const struct editorTestCase g_syntax_parse_tests[] = {
          test_editor_syntax_incremental_edits_keep_erb_tree_valid},
         {"editor_syntax_incremental_edits_keep_regex_tree_valid",
          test_editor_syntax_incremental_edits_keep_regex_tree_valid},
+        {"editor_syntax_incremental_edits_keep_latex_tree_valid",
+         test_editor_syntax_incremental_edits_keep_latex_tree_valid},
         {"editor_syntax_incremental_provider_parse_keeps_tree_valid",
          test_editor_syntax_incremental_provider_parse_keeps_tree_valid},
         {"editor_syntax_large_file_stays_enabled_in_degraded_mode",
