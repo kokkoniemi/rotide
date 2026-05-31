@@ -1,4 +1,5 @@
 #include "editing/document_position.h"
+#include "editing/edit.h"
 #include "editing/selection.h"
 #include "editor_test_api.h"
 #include "input/mouse.h"

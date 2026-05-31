@@ -546,6 +546,7 @@ int setup_recovery_test_env(struct recoveryTestEnv *env) {
 #include "workspace/task.h"
 
 #include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <stddef.h>
