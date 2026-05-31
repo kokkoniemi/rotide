@@ -476,70 +476,72 @@ int editorAutocompleteAcceptSelection(void) {
 	return ok;
 }
 
-void editorAutocompleteHandleCompletionResponse(int request_id, int document_version,
-                                                int request_cy, int request_cx, int prefix_start_cx,
-                                                const char *prefix, const char *filename,
-                                                struct editorLspCompletionItem *items, int count) {
-	if (filename == NULL || E.filename == NULL || strcmp(filename, E.filename) != 0) {
-		editorLspFreeCompletionItems(items, count);
+void editorAutocompleteHandleCompletionResponse(
+        const struct editorAutocompleteResponseSink *response) {
+	if (response == NULL) {
 		return;
 	}
-	if (document_version != E.lsp_doc_version) {
-		editorLspFreeCompletionItems(items, count);
+	if (response->filename == NULL || E.filename == NULL ||
+	    strcmp(response->filename, E.filename) != 0) {
+		editorLspFreeCompletionItems(response->items, response->count);
 		return;
 	}
-	if (E.cy != request_cy) {
-		editorLspFreeCompletionItems(items, count);
+	if (response->document_version != E.lsp_doc_version) {
+		editorLspFreeCompletionItems(response->items, response->count);
 		return;
 	}
-	if (E.cx < prefix_start_cx) {
-		editorLspFreeCompletionItems(items, count);
+	if (E.cy != response->request_cy) {
+		editorLspFreeCompletionItems(response->items, response->count);
+		return;
+	}
+	if (E.cx < response->prefix_start_cx) {
+		editorLspFreeCompletionItems(response->items, response->count);
 		return;
 	}
 
-	if (request_cy < 0 || request_cy >= E.numrows) {
-		editorLspFreeCompletionItems(items, count);
+	if (response->request_cy < 0 || response->request_cy >= E.numrows) {
+		editorLspFreeCompletionItems(response->items, response->count);
 		return;
 	}
 	struct editorLineView line = {0};
-	if (!editorDocumentLineView(E.document, request_cy, &line)) {
-		editorLspFreeCompletionItems(items, count);
+	if (!editorDocumentLineView(E.document, response->request_cy, &line)) {
+		editorLspFreeCompletionItems(response->items, response->count);
 		return;
 	}
 	int current_prefix_cx = E.cx;
-	if (current_prefix_cx < prefix_start_cx || current_prefix_cx > line.size) {
+	if (current_prefix_cx < response->prefix_start_cx || current_prefix_cx > line.size) {
 		editorLineViewRelease(&line);
-		editorLspFreeCompletionItems(items, count);
+		editorLspFreeCompletionItems(response->items, response->count);
 		return;
 	}
-	char *current_prefix = autocompleteCopyPrefixBytes(line.data, line.size, prefix_start_cx,
-	                                                   current_prefix_cx);
+	char *current_prefix = autocompleteCopyPrefixBytes(
+	        line.data, line.size, response->prefix_start_cx, current_prefix_cx);
 	editorLineViewRelease(&line);
 	if (current_prefix == NULL) {
-		editorLspFreeCompletionItems(items, count);
+		editorLspFreeCompletionItems(response->items, response->count);
 		return;
 	}
 
-	if (prefix != NULL && current_prefix[0] != '\0' &&
-	    strncmp(current_prefix, prefix, strlen(prefix)) != 0) {
+	if (response->prefix != NULL && current_prefix[0] != '\0' &&
+	    strncmp(current_prefix, response->prefix, strlen(response->prefix)) != 0) {
 		free(current_prefix);
-		editorLspFreeCompletionItems(items, count);
+		editorLspFreeCompletionItems(response->items, response->count);
 		return;
 	}
 
 	autocompleteReset();
 
-	g_autocomplete_state.items = items;
-	g_autocomplete_state.count = count;
-	g_autocomplete_state.request_id = request_id;
-	g_autocomplete_state.document_version = document_version;
-	g_autocomplete_state.request_cy = request_cy;
-	g_autocomplete_state.request_cx = request_cx;
-	g_autocomplete_state.prefix_start_cx = prefix_start_cx;
+	g_autocomplete_state.items = response->items;
+	g_autocomplete_state.count = response->count;
+	g_autocomplete_state.request_id = response->request_id;
+	g_autocomplete_state.document_version = response->document_version;
+	g_autocomplete_state.request_cy = response->request_cy;
+	g_autocomplete_state.request_cx = response->request_cx;
+	g_autocomplete_state.prefix_start_cx = response->prefix_start_cx;
 	g_autocomplete_state.prefix = current_prefix;
-	g_autocomplete_state.filename = strdup(filename);
+	g_autocomplete_state.filename = strdup(response->filename);
 
-	if (!autocompleteRefreshFiltered(request_cy, prefix_start_cx)) {
+	if (!autocompleteRefreshFiltered(response->request_cy, response->prefix_start_cx)) {
 		autocompleteReset();
 		return;
 	}
