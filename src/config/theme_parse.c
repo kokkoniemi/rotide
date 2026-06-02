@@ -36,6 +36,11 @@ struct themeParseContext {
 	int saw_theme_name;
 };
 
+struct themeParseDriver {
+	struct editorTheme *theme;
+	struct themeParseContext *ctx;
+};
+
 static int themeParseNormalizeToken(const char *token, char *out, size_t out_size) {
 	if (token == NULL || out == NULL || out_size == 0) {
 		return 0;
@@ -83,63 +88,35 @@ static int themeParseSyntaxHighlightClassName(const char *name,
 		return 0;
 	}
 
-	if (strcmp(normalized, "comment") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_COMMENT;
-		return 1;
-	}
-	if (strcmp(normalized, "keyword") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_KEYWORD;
-		return 1;
-	}
-	if (strcmp(normalized, "type") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_TYPE;
-		return 1;
-	}
-	if (strcmp(normalized, "function") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_FUNCTION;
-		return 1;
-	}
-	if (strcmp(normalized, "string") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_STRING;
-		return 1;
-	}
-	if (strcmp(normalized, "number") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_NUMBER;
-		return 1;
-	}
-	if (strcmp(normalized, "constant") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_CONSTANT;
-		return 1;
-	}
-	if (strcmp(normalized, "variable") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_VARIABLE;
-		return 1;
-	}
-	if (strcmp(normalized, "parameter") == 0 || strcmp(normalized, "variable_parameter") == 0 ||
-	    strcmp(normalized, "variable.parameter") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_PARAMETER;
-		return 1;
-	}
-	if (strcmp(normalized, "module") == 0 || strcmp(normalized, "namespace") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_MODULE;
-		return 1;
-	}
-	if (strcmp(normalized, "property") == 0 || strcmp(normalized, "variable_member") == 0 ||
-	    strcmp(normalized, "variable.member") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_PROPERTY;
-		return 1;
-	}
-	if (strcmp(normalized, "preprocessor") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_PREPROCESSOR;
-		return 1;
-	}
-	if (strcmp(normalized, "operator") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_OPERATOR;
-		return 1;
-	}
-	if (strcmp(normalized, "punctuation") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_PUNCTUATION;
-		return 1;
+	static const struct {
+		const char *name;
+		enum editorSyntaxHighlightClass highlight_class;
+	} class_names[] = {
+	        {"comment", EDITOR_SYNTAX_HL_COMMENT},
+	        {"keyword", EDITOR_SYNTAX_HL_KEYWORD},
+	        {"type", EDITOR_SYNTAX_HL_TYPE},
+	        {"function", EDITOR_SYNTAX_HL_FUNCTION},
+	        {"string", EDITOR_SYNTAX_HL_STRING},
+	        {"number", EDITOR_SYNTAX_HL_NUMBER},
+	        {"constant", EDITOR_SYNTAX_HL_CONSTANT},
+	        {"variable", EDITOR_SYNTAX_HL_VARIABLE},
+	        {"parameter", EDITOR_SYNTAX_HL_PARAMETER},
+	        {"variable_parameter", EDITOR_SYNTAX_HL_PARAMETER},
+	        {"variable.parameter", EDITOR_SYNTAX_HL_PARAMETER},
+	        {"module", EDITOR_SYNTAX_HL_MODULE},
+	        {"namespace", EDITOR_SYNTAX_HL_MODULE},
+	        {"property", EDITOR_SYNTAX_HL_PROPERTY},
+	        {"variable_member", EDITOR_SYNTAX_HL_PROPERTY},
+	        {"variable.member", EDITOR_SYNTAX_HL_PROPERTY},
+	        {"preprocessor", EDITOR_SYNTAX_HL_PREPROCESSOR},
+	        {"operator", EDITOR_SYNTAX_HL_OPERATOR},
+	        {"punctuation", EDITOR_SYNTAX_HL_PUNCTUATION},
+	};
+	for (size_t i = 0; i < sizeof(class_names) / sizeof(class_names[0]); i++) {
+		if (strcmp(normalized, class_names[i].name) == 0) {
+			*class_out = class_names[i].highlight_class;
+			return 1;
+		}
 	}
 
 	return 0;
@@ -285,64 +262,33 @@ static int themeParseUiRoleName(const char *name, enum editorThemeUiRole *role_o
 		*is_style_bg_out = 0;
 	}
 
-	if (strcmp(normalized, "foreground") == 0) {
-		*role_out = EDITOR_THEME_UI_FOREGROUND;
-		return 1;
-	}
-	if (strcmp(normalized, "background") == 0) {
-		*role_out = EDITOR_THEME_UI_BACKGROUND;
-		return 1;
-	}
-	if (strcmp(normalized, "line_number") == 0) {
-		*role_out = EDITOR_THEME_UI_LINE_NUMBER;
-		return 1;
-	}
-	if (strcmp(normalized, "drawer_connector") == 0) {
-		*role_out = EDITOR_THEME_UI_DRAWER_CONNECTOR;
-		return 1;
-	}
-	if (strcmp(normalized, "drawer_icon") == 0) {
-		*role_out = EDITOR_THEME_UI_DRAWER_ICON;
-		return 1;
-	}
-	if (strcmp(normalized, "placeholder") == 0) {
-		*role_out = EDITOR_THEME_UI_PLACEHOLDER;
-		return 1;
-	}
-	if (strcmp(normalized, "current_line_bg") == 0) {
-		*role_out = EDITOR_THEME_UI_CURRENT_LINE_BG;
-		return 1;
-	}
-	if (strcmp(normalized, "drawer_header_bg") == 0) {
-		*role_out = EDITOR_THEME_UI_DRAWER_HEADER_BG;
-		return 1;
-	}
-	if (strcmp(normalized, "directory") == 0) {
-		*role_out = EDITOR_THEME_UI_DIRECTORY;
-		return 1;
-	}
-	if (strcmp(normalized, "root") == 0) {
-		*role_out = EDITOR_THEME_UI_ROOT;
-		return 1;
-	}
-	if (strcmp(normalized, "git_modified") == 0) {
-		*role_out = EDITOR_THEME_UI_GIT_MODIFIED;
-		return 1;
-	}
-	if (strcmp(normalized, "git_untracked") == 0) {
-		*role_out = EDITOR_THEME_UI_GIT_UNTRACKED;
-		return 1;
-	}
-	if (strcmp(normalized, "git_conflict") == 0) {
-		*role_out = EDITOR_THEME_UI_GIT_CONFLICT;
-		return 1;
-	}
-	if (strcmp(normalized, "cursor") == 0) {
-		*role_out = EDITOR_THEME_UI_CURSOR;
-		return 1;
+	static const struct {
+		const char *name;
+		enum editorThemeUiRole role;
+	} role_names[] = {
+	        {"foreground", EDITOR_THEME_UI_FOREGROUND},
+	        {"background", EDITOR_THEME_UI_BACKGROUND},
+	        {"line_number", EDITOR_THEME_UI_LINE_NUMBER},
+	        {"drawer_connector", EDITOR_THEME_UI_DRAWER_CONNECTOR},
+	        {"drawer_icon", EDITOR_THEME_UI_DRAWER_ICON},
+	        {"placeholder", EDITOR_THEME_UI_PLACEHOLDER},
+	        {"current_line_bg", EDITOR_THEME_UI_CURRENT_LINE_BG},
+	        {"drawer_header_bg", EDITOR_THEME_UI_DRAWER_HEADER_BG},
+	        {"directory", EDITOR_THEME_UI_DIRECTORY},
+	        {"root", EDITOR_THEME_UI_ROOT},
+	        {"git_modified", EDITOR_THEME_UI_GIT_MODIFIED},
+	        {"git_untracked", EDITOR_THEME_UI_GIT_UNTRACKED},
+	        {"git_conflict", EDITOR_THEME_UI_GIT_CONFLICT},
+	        {"cursor", EDITOR_THEME_UI_CURSOR},
+	};
+	for (size_t i = 0; i < sizeof(role_names) / sizeof(role_names[0]); i++) {
+		if (strcmp(normalized, role_names[i].name) == 0) {
+			*role_out = role_names[i].role;
+			return 1;
+		}
 	}
 
-	struct {
+	static const struct {
 		const char *fg;
 		const char *bg;
 		enum editorThemeStyleRole role;
@@ -367,23 +313,6 @@ static int themeParseUiRoleName(const char *name, enum editorThemeUiRole *role_o
 	}
 
 	return 0;
-}
-
-static int themeParseKeyValue(char *trimmed, char **key_out, char **value_out) {
-	char *eq = strchr(trimmed, '=');
-	if (eq == NULL) {
-		return 0;
-	}
-	*eq = '\0';
-	char *key = editorConfigTrimLeft(trimmed);
-	editorConfigTrimRight(key);
-	char *value = editorConfigTrimLeft(eq + 1);
-	if (key[0] == '\0') {
-		return 0;
-	}
-	*key_out = key;
-	*value_out = value;
-	return 1;
 }
 
 static int themeParseAnsiSlotName(const char *name, enum editorThemeAnsiColor *slot_out) {
@@ -436,23 +365,15 @@ static void themeParseApplyStyleColor(struct editorTheme *theme, enum editorThem
 	theme->styles[role].reverse = 0;
 }
 
-static void themeParseEntry(struct editorTheme *theme, struct themeParseContext *ctx,
-                            char *trimmed) {
-	if (!ctx->is_theme_file && !ctx->in_theme_table) {
-		return;
-	}
-
-	char *key = NULL;
-	char *value = NULL;
-	if (!themeParseKeyValue(trimmed, &key, &value)) {
-		ctx->had_invalid = 1;
-		return;
-	}
+static int themeConfigOnEntry(void *vdriver, const char *key, char *value) {
+	struct themeParseDriver *driver = vdriver;
+	struct editorTheme *theme = driver->theme;
+	struct themeParseContext *ctx = driver->ctx;
 
 	char parsed[64];
 	if (!editorConfigParseQuotedValue(value, parsed, sizeof(parsed))) {
 		ctx->had_invalid = 1;
-		return;
+		return 1;
 	}
 
 	if (ctx->is_theme_file && !ctx->in_theme_syntax_table && !ctx->in_theme_ui_table &&
@@ -460,43 +381,43 @@ static void themeParseEntry(struct editorTheme *theme, struct themeParseContext 
 		if (strcmp(key, "name") == 0) {
 			if (!themeParseNameIsValid(parsed)) {
 				ctx->had_invalid = 1;
-				return;
+				return 1;
 			}
 			(void)snprintf(ctx->theme_name, sizeof(ctx->theme_name), "%s", parsed);
 			ctx->saw_theme_name = 1;
-			return;
+			return 1;
 		}
 		if (strcmp(key, "inherits") == 0) {
 			if (!themeParseNameIsValid(parsed)) {
 				ctx->had_invalid = 1;
-				return;
+				return 1;
 			}
 			(void)snprintf(ctx->inherits_name, sizeof(ctx->inherits_name), "%s",
 			               parsed);
-			return;
+			return 1;
 		}
 		ctx->had_invalid = 1;
-		return;
+		return 1;
 	}
 
 	if (!ctx->is_theme_file) {
 		if (strcmp(key, "name") == 0) {
 			if (!themeParseNameIsValid(parsed)) {
 				ctx->had_invalid = 1;
-				return;
+				return 1;
 			}
 			(void)snprintf(ctx->selected_name, sizeof(ctx->selected_name), "%s",
 			               parsed);
-			return;
+			return 1;
 		}
 		ctx->had_invalid = 1;
-		return;
+		return 1;
 	}
 
 	struct editorThemeColor color = editorThemeDefaultColor();
 	if (!themeParseColorValue(parsed, &color)) {
 		ctx->had_invalid = 1;
-		return;
+		return 1;
 	}
 
 	if (ctx->in_theme_syntax_table) {
@@ -504,10 +425,10 @@ static void themeParseEntry(struct editorTheme *theme, struct themeParseContext 
 		if (!themeParseSyntaxHighlightClassName(key, &highlight_class) ||
 		    highlight_class == EDITOR_SYNTAX_HL_NONE) {
 			ctx->had_invalid = 1;
-			return;
+			return 1;
 		}
 		theme->syntax[highlight_class] = color;
-		return;
+		return 1;
 	}
 
 	if (ctx->in_theme_ui_table) {
@@ -517,42 +438,32 @@ static void themeParseEntry(struct editorTheme *theme, struct themeParseContext 
 		int is_style_bg = 0;
 		if (!themeParseUiRoleName(key, &role, &style, &is_style_fg, &is_style_bg)) {
 			ctx->had_invalid = 1;
-			return;
+			return 1;
 		}
 		if (role < EDITOR_THEME_UI_ROLE_COUNT) {
 			theme->ui[role] = color;
 		} else if (style < EDITOR_THEME_STYLE_ROLE_COUNT) {
 			themeParseApplyStyleColor(theme, style, is_style_fg, color);
 		}
-		return;
+		return 1;
 	}
 
 	if (ctx->in_theme_ansi_table) {
 		enum editorThemeAnsiColor slot = EDITOR_THEME_ANSI_COUNT;
 		if (!themeParseAnsiSlotName(key, &slot) || slot >= EDITOR_THEME_ANSI_COUNT) {
 			ctx->had_invalid = 1;
-			return;
+			return 1;
 		}
 		theme->ansi[slot] = color;
-		return;
+		return 1;
 	}
 
 	ctx->had_invalid = 1;
+	return 1;
 }
 
-static int themeParseTable(struct themeParseContext *ctx, char *trimmed) {
-	char *close = strchr(trimmed, ']');
-	if (close == NULL) {
-		return 0;
-	}
-	*close = '\0';
-	char *table = editorConfigTrimLeft(trimmed + 1);
-	editorConfigTrimRight(table);
-	char *tail = editorConfigTrimLeft(close + 1);
-	if (tail[0] != '\0') {
-		return 0;
-	}
-
+static int themeConfigOnSection(void *vdriver, const char *table) {
+	struct themeParseContext *ctx = ((struct themeParseDriver *)vdriver)->ctx;
 	ctx->in_theme_table = strcmp(table, "theme") == 0;
 	ctx->in_theme_syntax_table = strcmp(table, "theme.syntax") == 0;
 	ctx->in_theme_ui_table = strcmp(table, "theme.ui") == 0;
@@ -561,7 +472,9 @@ static int themeParseTable(struct themeParseContext *ctx, char *trimmed) {
 	    (ctx->in_theme_syntax_table || ctx->in_theme_ui_table || ctx->in_theme_ansi_table)) {
 		ctx->had_invalid = 1;
 	}
-	return 1;
+	/* Theme files route every section's entries (top-level name/inherits and the
+	 * color sub-tables); config files only read the [theme] selector. */
+	return ctx->is_theme_file || ctx->in_theme_table;
 }
 
 /* Drain a theme TOML stream into `theme`. Caller owns `fp` (close it
@@ -577,34 +490,9 @@ static enum themeParseFileStatus themeParseApplyStream(struct editorTheme *theme
 	ctx.is_theme_file = is_theme_file;
 	(void)snprintf(ctx.inherits_name, sizeof(ctx.inherits_name), "%s", "terminal");
 
-	char line[1024];
-	while (fgets(line, sizeof(line), fp) != NULL) {
-		size_t line_len = strlen(line);
-		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
-			ctx.had_invalid = 1;
-			int ch = 0;
-			while ((ch = fgetc(fp)) != '\n' && ch != EOF) {
-				;
-			}
-			continue;
-		}
-
-		editorConfigStripInlineComment(line);
-		editorConfigTrimRight(line);
-		char *trimmed = editorConfigTrimLeft(line);
-		if (trimmed[0] == '\0') {
-			continue;
-		}
-		if (trimmed[0] == '[') {
-			if (!themeParseTable(&ctx, trimmed)) {
-				ctx.had_invalid = 1;
-			}
-			continue;
-		}
-		themeParseEntry(theme, &ctx, trimmed);
-	}
-
-	if (ferror(fp)) {
+	struct themeParseDriver driver = {.theme = theme, .ctx = &ctx};
+	struct editorConfigScanner scanner = {themeConfigOnSection, themeConfigOnEntry};
+	if (editorConfigScanStream(fp, &scanner, &driver) != EDITOR_CONFIG_SCAN_OK) {
 		ctx.had_invalid = 1;
 	}
 

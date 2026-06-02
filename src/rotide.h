@@ -1,6 +1,7 @@
 #ifndef ROTIDE_H
 #define ROTIDE_H
 
+#include "config/lsp_config.h"
 #include "config/theme_config.h"
 #include "debug/dap.h"
 #include "language/syntax.h"
@@ -503,25 +504,7 @@ struct editorConfig {
 	};
 
 	/* --- Config-derived: LSP --- */
-	int lsp_gopls_enabled;
-	int lsp_clangd_enabled;
-	int lsp_html_enabled;
-	int lsp_css_enabled;
-	int lsp_json_enabled;
-	int lsp_javascript_enabled;
-	int lsp_eslint_enabled;
-	char lsp_gopls_command[PATH_MAX];
-	char lsp_gopls_install_command[PATH_MAX];
-	char lsp_clangd_command[PATH_MAX];
-	char lsp_html_command[PATH_MAX];
-	char lsp_css_command[PATH_MAX];
-	char lsp_json_command[PATH_MAX];
-	char lsp_javascript_command[PATH_MAX];
-	char lsp_javascript_install_command[PATH_MAX];
-	char lsp_eslint_command[PATH_MAX];
-	char lsp_vscode_langservers_install_command[PATH_MAX];
-	int lsp_autocomplete_enabled;
-	int lsp_autocomplete_max_items;
+	struct editorLspConfig lsp_config;
 
 	/* --- Config-derived: DAP adapter and launch tables --- */
 	struct editorDapAdapterConfig dap_adapters[ROTIDE_DAP_MAX_ADAPTERS];
@@ -625,6 +608,7 @@ struct editorConfig {
 	int drawer_search_filtered_capacity;
 	char *drawer_search_previewed_path;
 	int drawer_search_active_tab_before;
+	int drawer_search_restore_collapsed;
 	char **recent_file_paths;
 	int recent_file_count;
 	int recent_file_capacity;
@@ -639,6 +623,7 @@ struct editorConfig {
 	int drawer_project_search_previewed_line;
 	int drawer_project_search_previewed_col;
 	int drawer_project_search_active_tab_before;
+	int drawer_project_search_restore_collapsed;
 
 	/* --- Workspace: Git status snapshot --- */
 	char *git_repo_root;

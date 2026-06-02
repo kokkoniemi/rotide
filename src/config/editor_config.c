@@ -5,7 +5,6 @@
 #include "terminal/terminal_pane.h"
 
 #include <errno.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -59,97 +58,38 @@ static int configEditorParseBoolValue(const char *value, int *bool_out) {
 	return 0;
 }
 
+static int configEditorOnEditorSection(void *ctx, const char *table) {
+	(void)ctx;
+	return strcmp(table, "editor") == 0;
+}
+
+static int configEditorCursorStyleOnEntry(void *ctx, const char *key, char *value) {
+	enum editorCursorStyle *style = ctx;
+	if (strcmp(key, "cursor_style") != 0) {
+		return 1;
+	}
+	char cursor_style_value[32];
+	if (!editorConfigParseQuotedValue(value, cursor_style_value, sizeof(cursor_style_value))) {
+		return 0;
+	}
+	return configEditorParseCursorStyleValue(cursor_style_value, style);
+}
+
 static enum configEditorCursorStyleFileStatus
 configEditorCursorStyleApplyFile(enum editorCursorStyle *style_in_out, const char *path) {
-	FILE *fp = fopen(path, "r");
-	if (fp == NULL) {
-		if (errno == ENOENT) {
-			return CONFIG_EDITOR_CURSOR_STYLE_FILE_MISSING;
-		}
-		return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
-	}
-
 	enum editorCursorStyle updated = *style_in_out;
-	int in_editor_table = 0;
-	char line[1024];
-	while (fgets(line, sizeof(line), fp) != NULL) {
-		size_t line_len = strlen(line);
-		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
-			(void)fclose(fp);
+	struct editorConfigScanner scanner = {configEditorOnEditorSection,
+	                                      configEditorCursorStyleOnEntry};
+
+	switch (editorConfigScanFile(path, &scanner, &updated)) {
+		case EDITOR_CONFIG_SCAN_MISSING:
+			return CONFIG_EDITOR_CURSOR_STYLE_FILE_MISSING;
+		case EDITOR_CONFIG_SCAN_OK:
+			*style_in_out = updated;
+			return CONFIG_EDITOR_CURSOR_STYLE_FILE_APPLIED;
+		default:
 			return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
-		}
-
-		editorConfigStripInlineComment(line);
-		editorConfigTrimRight(line);
-		char *trimmed = editorConfigTrimLeft(line);
-		if (trimmed[0] == '\0') {
-			continue;
-		}
-
-		if (trimmed[0] == '[') {
-			char *close = strchr(trimmed, ']');
-			if (close == NULL) {
-				(void)fclose(fp);
-				return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
-			}
-			*close = '\0';
-			char *table = editorConfigTrimLeft(trimmed + 1);
-			editorConfigTrimRight(table);
-			char *tail = editorConfigTrimLeft(close + 1);
-			if (tail[0] != '\0') {
-				(void)fclose(fp);
-				return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
-			}
-
-			in_editor_table = strcmp(table, "editor") == 0;
-			continue;
-		}
-
-		if (!in_editor_table) {
-			continue;
-		}
-
-		char *eq = strchr(trimmed, '=');
-		if (eq == NULL) {
-			(void)fclose(fp);
-			return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
-		}
-
-		*eq = '\0';
-		char *setting_name = editorConfigTrimLeft(trimmed);
-		editorConfigTrimRight(setting_name);
-		char *value = editorConfigTrimLeft(eq + 1);
-		if (setting_name[0] == '\0') {
-			(void)fclose(fp);
-			return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
-		}
-		if (strcmp(setting_name, "cursor_style") != 0) {
-			continue;
-		}
-
-		char cursor_style_value[32];
-		if (!editorConfigParseQuotedValue(value, cursor_style_value,
-		                                  sizeof(cursor_style_value))) {
-			(void)fclose(fp);
-			return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
-		}
-
-		enum editorCursorStyle parsed = EDITOR_CURSOR_STYLE_BAR;
-		if (!configEditorParseCursorStyleValue(cursor_style_value, &parsed)) {
-			(void)fclose(fp);
-			return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
-		}
-		updated = parsed;
 	}
-
-	if (ferror(fp)) {
-		(void)fclose(fp);
-		return CONFIG_EDITOR_CURSOR_STYLE_FILE_INVALID;
-	}
-
-	(void)fclose(fp);
-	*style_in_out = updated;
-	return CONFIG_EDITOR_CURSOR_STYLE_FILE_APPLIED;
 }
 
 enum editorCursorStyleLoadStatus editorCursorStyleLoadFromPaths(enum editorCursorStyle *style_out,
@@ -217,91 +157,29 @@ editorCursorStyleLoadConfigured(enum editorCursorStyle *style_out) {
 	return status;
 }
 
+static int configEditorLineWrapOnEntry(void *ctx, const char *key, char *value) {
+	int *line_wrap = ctx;
+	if (strcmp(key, "line_wrap") != 0) {
+		return 1;
+	}
+	return configEditorParseBoolValue(value, line_wrap);
+}
+
 static enum configEditorLineWrapFileStatus configEditorLineWrapApplyFile(int *line_wrap_in_out,
                                                                          const char *path) {
-	FILE *fp = fopen(path, "r");
-	if (fp == NULL) {
-		if (errno == ENOENT) {
-			return CONFIG_EDITOR_LINE_WRAP_FILE_MISSING;
-		}
-		return CONFIG_EDITOR_LINE_WRAP_FILE_INVALID;
-	}
-
 	int updated = *line_wrap_in_out;
-	int in_editor_table = 0;
-	char line[1024];
-	while (fgets(line, sizeof(line), fp) != NULL) {
-		size_t line_len = strlen(line);
-		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
-			(void)fclose(fp);
+	struct editorConfigScanner scanner = {configEditorOnEditorSection,
+	                                      configEditorLineWrapOnEntry};
+
+	switch (editorConfigScanFile(path, &scanner, &updated)) {
+		case EDITOR_CONFIG_SCAN_MISSING:
+			return CONFIG_EDITOR_LINE_WRAP_FILE_MISSING;
+		case EDITOR_CONFIG_SCAN_OK:
+			*line_wrap_in_out = updated;
+			return CONFIG_EDITOR_LINE_WRAP_FILE_APPLIED;
+		default:
 			return CONFIG_EDITOR_LINE_WRAP_FILE_INVALID;
-		}
-
-		editorConfigStripInlineComment(line);
-		editorConfigTrimRight(line);
-		char *trimmed = editorConfigTrimLeft(line);
-		if (trimmed[0] == '\0') {
-			continue;
-		}
-
-		if (trimmed[0] == '[') {
-			char *close = strchr(trimmed, ']');
-			if (close == NULL) {
-				(void)fclose(fp);
-				return CONFIG_EDITOR_LINE_WRAP_FILE_INVALID;
-			}
-			*close = '\0';
-			char *table = editorConfigTrimLeft(trimmed + 1);
-			editorConfigTrimRight(table);
-			char *tail = editorConfigTrimLeft(close + 1);
-			if (tail[0] != '\0') {
-				(void)fclose(fp);
-				return CONFIG_EDITOR_LINE_WRAP_FILE_INVALID;
-			}
-
-			in_editor_table = strcmp(table, "editor") == 0;
-			continue;
-		}
-
-		if (!in_editor_table) {
-			continue;
-		}
-
-		char *eq = strchr(trimmed, '=');
-		if (eq == NULL) {
-			(void)fclose(fp);
-			return CONFIG_EDITOR_LINE_WRAP_FILE_INVALID;
-		}
-
-		*eq = '\0';
-		char *setting_name = editorConfigTrimLeft(trimmed);
-		editorConfigTrimRight(setting_name);
-		char *value = editorConfigTrimLeft(eq + 1);
-		editorConfigTrimRight(value);
-		if (setting_name[0] == '\0') {
-			(void)fclose(fp);
-			return CONFIG_EDITOR_LINE_WRAP_FILE_INVALID;
-		}
-		if (strcmp(setting_name, "line_wrap") != 0) {
-			continue;
-		}
-
-		int parsed = 0;
-		if (!configEditorParseBoolValue(value, &parsed)) {
-			(void)fclose(fp);
-			return CONFIG_EDITOR_LINE_WRAP_FILE_INVALID;
-		}
-		updated = parsed;
 	}
-
-	if (ferror(fp)) {
-		(void)fclose(fp);
-		return CONFIG_EDITOR_LINE_WRAP_FILE_INVALID;
-	}
-
-	(void)fclose(fp);
-	*line_wrap_in_out = updated;
-	return CONFIG_EDITOR_LINE_WRAP_FILE_APPLIED;
 }
 
 enum editorLineWrapLoadStatus
@@ -367,91 +245,34 @@ enum editorLineWrapLoadStatus editorLineWrapLoadConfigured(int *line_wrap_out) {
 	return status;
 }
 
+struct configEditorBoolApplyContext {
+	const char *target;
+	int value;
+};
+
+static int configEditorBoolOnEntry(void *ctx, const char *key, char *value) {
+	struct configEditorBoolApplyContext *apply = ctx;
+	if (strcmp(key, apply->target) != 0) {
+		return 1;
+	}
+	return configEditorParseBoolValue(value, &apply->value);
+}
+
 static enum configEditorBoolFileStatus configEditorBoolApplyFile(int *bool_in_out, const char *path,
                                                                  const char *target_setting_name) {
-	FILE *fp = fopen(path, "r");
-	if (fp == NULL) {
-		if (errno == ENOENT) {
+	struct configEditorBoolApplyContext apply = {.target = target_setting_name,
+	                                             .value = *bool_in_out};
+	struct editorConfigScanner scanner = {configEditorOnEditorSection, configEditorBoolOnEntry};
+
+	switch (editorConfigScanFile(path, &scanner, &apply)) {
+		case EDITOR_CONFIG_SCAN_MISSING:
 			return CONFIG_EDITOR_BOOL_FILE_MISSING;
-		}
-		return CONFIG_EDITOR_BOOL_FILE_INVALID;
+		case EDITOR_CONFIG_SCAN_OK:
+			*bool_in_out = apply.value;
+			return CONFIG_EDITOR_BOOL_FILE_APPLIED;
+		default:
+			return CONFIG_EDITOR_BOOL_FILE_INVALID;
 	}
-
-	int updated = *bool_in_out;
-	int in_editor_table = 0;
-	char line[1024];
-	while (fgets(line, sizeof(line), fp) != NULL) {
-		size_t line_len = strlen(line);
-		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
-			(void)fclose(fp);
-			return CONFIG_EDITOR_BOOL_FILE_INVALID;
-		}
-
-		editorConfigStripInlineComment(line);
-		editorConfigTrimRight(line);
-		char *trimmed = editorConfigTrimLeft(line);
-		if (trimmed[0] == '\0') {
-			continue;
-		}
-
-		if (trimmed[0] == '[') {
-			char *close = strchr(trimmed, ']');
-			if (close == NULL) {
-				(void)fclose(fp);
-				return CONFIG_EDITOR_BOOL_FILE_INVALID;
-			}
-			*close = '\0';
-			char *table = editorConfigTrimLeft(trimmed + 1);
-			editorConfigTrimRight(table);
-			char *tail = editorConfigTrimLeft(close + 1);
-			if (tail[0] != '\0') {
-				(void)fclose(fp);
-				return CONFIG_EDITOR_BOOL_FILE_INVALID;
-			}
-
-			in_editor_table = strcmp(table, "editor") == 0;
-			continue;
-		}
-
-		if (!in_editor_table) {
-			continue;
-		}
-
-		char *eq = strchr(trimmed, '=');
-		if (eq == NULL) {
-			(void)fclose(fp);
-			return CONFIG_EDITOR_BOOL_FILE_INVALID;
-		}
-
-		*eq = '\0';
-		char *setting_name = editorConfigTrimLeft(trimmed);
-		editorConfigTrimRight(setting_name);
-		char *value = editorConfigTrimLeft(eq + 1);
-		editorConfigTrimRight(value);
-		if (setting_name[0] == '\0') {
-			(void)fclose(fp);
-			return CONFIG_EDITOR_BOOL_FILE_INVALID;
-		}
-		if (strcmp(setting_name, target_setting_name) != 0) {
-			continue;
-		}
-
-		int parsed = 0;
-		if (!configEditorParseBoolValue(value, &parsed)) {
-			(void)fclose(fp);
-			return CONFIG_EDITOR_BOOL_FILE_INVALID;
-		}
-		updated = parsed;
-	}
-
-	if (ferror(fp)) {
-		(void)fclose(fp);
-		return CONFIG_EDITOR_BOOL_FILE_INVALID;
-	}
-
-	(void)fclose(fp);
-	*bool_in_out = updated;
-	return CONFIG_EDITOR_BOOL_FILE_APPLIED;
 }
 
 enum editorCursorBlinkLoadStatus editorCursorBlinkLoadFromPaths(int *cursor_blink_out,
@@ -762,117 +583,54 @@ static int configEditorParseIndentWidthValue(const char *value, int *indent_widt
 	return 1;
 }
 
+struct configEditorIndentApplyContext {
+	int auto_indent;
+	int indent_use_tabs;
+	int indent_width;
+};
+
+static int configEditorIndentOnEntry(void *ctx, const char *key, char *value) {
+	struct configEditorIndentApplyContext *apply = ctx;
+	if (strcmp(key, "auto_indent") == 0) {
+		return configEditorParseBoolValue(value, &apply->auto_indent);
+	}
+	if (strcmp(key, "indent_style") == 0) {
+		char style_value[32];
+		int parsed = 0;
+		if (!editorConfigParseQuotedValue(value, style_value, sizeof(style_value)) ||
+		    !configEditorParseIndentStyleValue(style_value, &parsed)) {
+			return 0;
+		}
+		apply->indent_use_tabs = parsed;
+		return 1;
+	}
+	if (strcmp(key, "indent_width") == 0) {
+		return configEditorParseIndentWidthValue(value, &apply->indent_width);
+	}
+	return 1;
+}
+
 static enum configEditorIndentFileStatus configEditorIndentApplyFile(int *auto_indent_in_out,
                                                                      int *indent_use_tabs_in_out,
                                                                      int *indent_width_in_out,
                                                                      const char *path) {
-	FILE *fp = fopen(path, "r");
-	if (fp == NULL) {
-		if (errno == ENOENT) {
+	struct configEditorIndentApplyContext apply = {.auto_indent = *auto_indent_in_out,
+	                                               .indent_use_tabs = *indent_use_tabs_in_out,
+	                                               .indent_width = *indent_width_in_out};
+	struct editorConfigScanner scanner = {configEditorOnEditorSection,
+	                                      configEditorIndentOnEntry};
+
+	switch (editorConfigScanFile(path, &scanner, &apply)) {
+		case EDITOR_CONFIG_SCAN_MISSING:
 			return CONFIG_EDITOR_INDENT_FILE_MISSING;
-		}
-		return CONFIG_EDITOR_INDENT_FILE_INVALID;
-	}
-
-	int updated_auto_indent = *auto_indent_in_out;
-	int updated_indent_use_tabs = *indent_use_tabs_in_out;
-	int updated_indent_width = *indent_width_in_out;
-	int in_editor_table = 0;
-	char line[1024];
-	while (fgets(line, sizeof(line), fp) != NULL) {
-		size_t line_len = strlen(line);
-		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
-			(void)fclose(fp);
+		case EDITOR_CONFIG_SCAN_OK:
+			*auto_indent_in_out = apply.auto_indent;
+			*indent_use_tabs_in_out = apply.indent_use_tabs;
+			*indent_width_in_out = apply.indent_width;
+			return CONFIG_EDITOR_INDENT_FILE_APPLIED;
+		default:
 			return CONFIG_EDITOR_INDENT_FILE_INVALID;
-		}
-
-		editorConfigStripInlineComment(line);
-		editorConfigTrimRight(line);
-		char *trimmed = editorConfigTrimLeft(line);
-		if (trimmed[0] == '\0') {
-			continue;
-		}
-
-		if (trimmed[0] == '[') {
-			char *close = strchr(trimmed, ']');
-			if (close == NULL) {
-				(void)fclose(fp);
-				return CONFIG_EDITOR_INDENT_FILE_INVALID;
-			}
-			*close = '\0';
-			char *table = editorConfigTrimLeft(trimmed + 1);
-			editorConfigTrimRight(table);
-			char *tail = editorConfigTrimLeft(close + 1);
-			if (tail[0] != '\0') {
-				(void)fclose(fp);
-				return CONFIG_EDITOR_INDENT_FILE_INVALID;
-			}
-
-			in_editor_table = strcmp(table, "editor") == 0;
-			continue;
-		}
-
-		if (!in_editor_table) {
-			continue;
-		}
-
-		char *eq = strchr(trimmed, '=');
-		if (eq == NULL) {
-			(void)fclose(fp);
-			return CONFIG_EDITOR_INDENT_FILE_INVALID;
-		}
-
-		*eq = '\0';
-		char *setting_name = editorConfigTrimLeft(trimmed);
-		editorConfigTrimRight(setting_name);
-		char *value = editorConfigTrimLeft(eq + 1);
-		editorConfigTrimRight(value);
-		if (setting_name[0] == '\0') {
-			(void)fclose(fp);
-			return CONFIG_EDITOR_INDENT_FILE_INVALID;
-		}
-
-		if (strcmp(setting_name, "auto_indent") == 0) {
-			int parsed = 0;
-			if (!configEditorParseBoolValue(value, &parsed)) {
-				(void)fclose(fp);
-				return CONFIG_EDITOR_INDENT_FILE_INVALID;
-			}
-			updated_auto_indent = parsed;
-			continue;
-		}
-		if (strcmp(setting_name, "indent_style") == 0) {
-			char style_value[32];
-			int parsed = 0;
-			if (!editorConfigParseQuotedValue(value, style_value,
-			                                  sizeof(style_value)) ||
-			    !configEditorParseIndentStyleValue(style_value, &parsed)) {
-				(void)fclose(fp);
-				return CONFIG_EDITOR_INDENT_FILE_INVALID;
-			}
-			updated_indent_use_tabs = parsed;
-			continue;
-		}
-		if (strcmp(setting_name, "indent_width") == 0) {
-			int parsed = 0;
-			if (!configEditorParseIndentWidthValue(value, &parsed)) {
-				(void)fclose(fp);
-				return CONFIG_EDITOR_INDENT_FILE_INVALID;
-			}
-			updated_indent_width = parsed;
-		}
 	}
-
-	if (ferror(fp)) {
-		(void)fclose(fp);
-		return CONFIG_EDITOR_INDENT_FILE_INVALID;
-	}
-
-	(void)fclose(fp);
-	*auto_indent_in_out = updated_auto_indent;
-	*indent_use_tabs_in_out = updated_indent_use_tabs;
-	*indent_width_in_out = updated_indent_width;
-	return CONFIG_EDITOR_INDENT_FILE_APPLIED;
 }
 
 enum editorIndentConfigLoadStatus editorIndentConfigLoadFromPaths(int *auto_indent_out,
@@ -1061,90 +819,29 @@ enum configEditorColumnSelectDragModifierFileStatus {
 	CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_OUT_OF_MEMORY
 };
 
+static int configEditorColumnSelectDragModifierOnEntry(void *ctx, const char *key, char *value) {
+	int *modifier = ctx;
+	if (strcmp(key, "column_select_drag_modifier") != 0) {
+		return 1;
+	}
+	return editorParseColumnSelectDragModifierValue(value, modifier);
+}
+
 static enum configEditorColumnSelectDragModifierFileStatus
 configEditorColumnSelectDragModifierApplyFile(int *modifier_in_out, const char *path) {
-	FILE *fp = fopen(path, "r");
-	if (fp == NULL) {
-		if (errno == ENOENT) {
-			return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_MISSING;
-		}
-		return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
-	}
-
 	int updated = *modifier_in_out;
-	int in_editor_table = 0;
-	char line[1024];
-	while (fgets(line, sizeof(line), fp) != NULL) {
-		size_t line_len = strlen(line);
-		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
-			(void)fclose(fp);
+	struct editorConfigScanner scanner = {configEditorOnEditorSection,
+	                                      configEditorColumnSelectDragModifierOnEntry};
+
+	switch (editorConfigScanFile(path, &scanner, &updated)) {
+		case EDITOR_CONFIG_SCAN_MISSING:
+			return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_MISSING;
+		case EDITOR_CONFIG_SCAN_OK:
+			*modifier_in_out = updated;
+			return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_APPLIED;
+		default:
 			return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
-		}
-
-		editorConfigStripInlineComment(line);
-		editorConfigTrimRight(line);
-		char *trimmed = editorConfigTrimLeft(line);
-		if (trimmed[0] == '\0') {
-			continue;
-		}
-
-		if (trimmed[0] == '[') {
-			char *close = strchr(trimmed, ']');
-			if (close == NULL) {
-				(void)fclose(fp);
-				return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
-			}
-			*close = '\0';
-			char *table = editorConfigTrimLeft(trimmed + 1);
-			editorConfigTrimRight(table);
-			char *tail = editorConfigTrimLeft(close + 1);
-			if (tail[0] != '\0') {
-				(void)fclose(fp);
-				return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
-			}
-			in_editor_table = strcmp(table, "editor") == 0;
-			continue;
-		}
-
-		if (!in_editor_table) {
-			continue;
-		}
-
-		char *eq = strchr(trimmed, '=');
-		if (eq == NULL) {
-			(void)fclose(fp);
-			return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
-		}
-
-		*eq = '\0';
-		char *setting_name = editorConfigTrimLeft(trimmed);
-		editorConfigTrimRight(setting_name);
-		char *value = editorConfigTrimLeft(eq + 1);
-		editorConfigTrimRight(value);
-		if (setting_name[0] == '\0') {
-			(void)fclose(fp);
-			return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
-		}
-		if (strcmp(setting_name, "column_select_drag_modifier") != 0) {
-			continue;
-		}
-
-		int parsed = 0;
-		if (!editorParseColumnSelectDragModifierValue(value, &parsed)) {
-			(void)fclose(fp);
-			return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
-		}
-		updated = parsed;
 	}
-
-	if (ferror(fp)) {
-		(void)fclose(fp);
-		return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_INVALID;
-	}
-
-	(void)fclose(fp);
-	*modifier_in_out = updated;
-	return CONFIG_EDITOR_COLUMN_SELECT_DRAG_MODIFIER_FILE_APPLIED;
 }
 
 enum editorColumnSelectDragModifierLoadStatus
@@ -1211,80 +908,48 @@ editorColumnSelectDragModifierLoadConfigured(int *modifier_out) {
 	return status;
 }
 
-static int configEditorParseTerminalScrollbackLines(const char *path, int *value_out) {
-	FILE *fp = fopen(path, "r");
-	if (fp == NULL) {
+struct configEditorScrollbackContext {
+	int value;
+	int found;
+};
+
+static int configEditorOnTerminalSection(void *ctx, const char *table) {
+	(void)ctx;
+	return strcmp(table, "terminal") == 0;
+}
+
+static int configEditorScrollbackOnEntry(void *ctx, const char *key, char *value) {
+	struct configEditorScrollbackContext *apply = ctx;
+	if (strcmp(key, "scrollback_lines") != 0) {
+		return 1;
+	}
+	char *end = NULL;
+	errno = 0;
+	long parsed = strtol(value, &end, 10);
+	if (errno != 0 || end == value || *end != '\0') {
 		return 0;
 	}
-	int in_terminal_table = 0;
-	int found = 0;
-	char line[1024];
-	while (fgets(line, sizeof(line), fp) != NULL) {
-		/* Skip the rest of any over-long line so we don't half-parse a key
-		 * that spans more than the buffer. Matches the strictness of the
-		 * other [editor]/[lsp]/etc. loaders. */
-		size_t line_len = strlen(line);
-		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
-			int ch;
-			while ((ch = fgetc(fp)) != EOF && ch != '\n') {
-			}
-			continue;
-		}
-		editorConfigStripInlineComment(line);
-		editorConfigTrimRight(line);
-		char *trimmed = editorConfigTrimLeft(line);
-		if (trimmed[0] == 0) {
-			continue;
-		}
-		if (trimmed[0] == '[') {
-			char *close = strchr(trimmed, ']');
-			if (close == NULL) {
-				continue;
-			}
-			*close = '\0';
-			char *tail = editorConfigTrimLeft(close + 1);
-			if (tail[0] != '\0') {
-				/* `[terminal] junk` shouldn't activate the table. */
-				in_terminal_table = 0;
-				continue;
-			}
-			char *table = editorConfigTrimLeft(trimmed + 1);
-			editorConfigTrimRight(table);
-			in_terminal_table = strcmp(table, "terminal") == 0;
-			continue;
-		}
-		if (!in_terminal_table) {
-			continue;
-		}
-		char *eq = strchr(trimmed, '=');
-		if (eq == NULL) {
-			continue;
-		}
-		*eq = '\0';
-		char *name = editorConfigTrimLeft(trimmed);
-		editorConfigTrimRight(name);
-		char *value = editorConfigTrimLeft(eq + 1);
-		editorConfigTrimRight(value);
-		if (strcmp(name, "scrollback_lines") != 0) {
-			continue;
-		}
-		char *end = NULL;
-		errno = 0;
-		long parsed = strtol(value, &end, 10);
-		if (errno != 0 || end == value || (end != NULL && *end != '\0')) {
-			continue;
-		}
-		if (parsed < 0) {
-			parsed = 0;
-		}
-		if (parsed > 1000000) {
-			parsed = 1000000;
-		}
-		*value_out = (int)parsed;
-		found = 1;
+	if (parsed < 0) {
+		parsed = 0;
 	}
-	(void)fclose(fp);
-	return found;
+	if (parsed > 1000000) {
+		parsed = 1000000;
+	}
+	apply->value = (int)parsed;
+	apply->found = 1;
+	return 1;
+}
+
+static int configEditorParseTerminalScrollbackLines(const char *path, int *value_out) {
+	struct configEditorScrollbackContext apply = {.value = *value_out, .found = 0};
+	struct editorConfigScanner scanner = {configEditorOnTerminalSection,
+	                                      configEditorScrollbackOnEntry};
+
+	if (editorConfigScanFile(path, &scanner, &apply) != EDITOR_CONFIG_SCAN_OK || !apply.found) {
+		return 0;
+	}
+	*value_out = apply.value;
+	return 1;
 }
 
 void editorTerminalConfigLoadConfigured(void) {

@@ -80,10 +80,18 @@ int editorLspTryDrainIncoming(struct editorLspClient *client, int timeout_ms) {
 			if (!editorLspResponseHasError(message)) {
 				(void)editorLspParseCompletionResponse(message, &items, &count);
 			}
-			editorAutocompleteHandleCompletionResponse(
-			        pending.request_id, pending.document_version, pending.cy,
-			        pending.cx, pending.prefix_start_cx, pending.prefix,
-			        pending.filename, items, count);
+			struct editorAutocompleteResponseSink response = {
+			        .request_id = pending.request_id,
+			        .document_version = pending.document_version,
+			        .request_cy = pending.cy,
+			        .request_cx = pending.cx,
+			        .prefix_start_cx = pending.prefix_start_cx,
+			        .prefix = pending.prefix,
+			        .filename = pending.filename,
+			        .items = items,
+			        .count = count,
+			};
+			editorAutocompleteHandleCompletionResponse(&response);
 			free(pending.prefix);
 			free(pending.filename);
 		} else {
@@ -311,10 +319,18 @@ int editorLspWaitForResponseId(struct editorLspClient *client, int request_id, i
 			if (!editorLspResponseHasError(response)) {
 				(void)editorLspParseCompletionResponse(response, &items, &count);
 			}
-			editorAutocompleteHandleCompletionResponse(
-			        pending.request_id, pending.document_version, pending.cy,
-			        pending.cx, pending.prefix_start_cx, pending.prefix,
-			        pending.filename, items, count);
+			struct editorAutocompleteResponseSink completion_response = {
+			        .request_id = pending.request_id,
+			        .document_version = pending.document_version,
+			        .request_cy = pending.cy,
+			        .request_cx = pending.cx,
+			        .prefix_start_cx = pending.prefix_start_cx,
+			        .prefix = pending.prefix,
+			        .filename = pending.filename,
+			        .items = items,
+			        .count = count,
+			};
+			editorAutocompleteHandleCompletionResponse(&completion_response);
 			free(pending.prefix);
 			free(pending.filename);
 		} else {

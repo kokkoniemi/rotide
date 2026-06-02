@@ -793,6 +793,76 @@ static void editMaybePromptReloadSettingsAfterSave(const char *filename) {
 	editorSetStatusMsg("Settings reload skipped");
 }
 
+static int editSaveWriteToTempPath(const char *filename, char *tmp_path, const char *buf,
+                                   size_t len, mode_t mode, int *saved_errno_out,
+                                   int *cleanup_errno_out) {
+	int fd = -1;
+	int dir_fd = -1;
+	int tmp_created = 0;
+	int tmp_renamed = 0;
+
+	fd = mkstemp(tmp_path);
+	if (fd == -1) {
+		goto err;
+	}
+	tmp_created = 1;
+	if (fchmod(fd, mode) == -1) {
+		goto err;
+	}
+	if (editWriteAll(fd, buf, len) == -1) {
+		goto err;
+	}
+	if (editorSaveFsync(fd) == -1) {
+		goto err;
+	}
+	if (editorSaveClose(fd) == -1) {
+		fd = -1;
+		goto err;
+	}
+	fd = -1;
+	if (editorSaveRename(tmp_path, filename) == -1) {
+		goto err;
+	}
+	tmp_renamed = 1;
+
+	dir_fd = editorOpenParentDirForTarget(filename);
+	if (dir_fd == -1) {
+		goto err;
+	}
+	if (editorSaveFsync(dir_fd) == -1) {
+		goto err;
+	}
+	if (editorSaveClose(dir_fd) == -1) {
+		dir_fd = -1;
+		goto err;
+	}
+	return 1;
+
+err: {
+	int saved_errno = errno;
+	int cleanup_errno = 0;
+	(void)editSaveCleanupOnError(&fd, &dir_fd, tmp_path, tmp_created, tmp_renamed,
+	                             &cleanup_errno);
+	if (saved_errno_out != NULL) {
+		*saved_errno_out = saved_errno;
+	}
+	if (cleanup_errno_out != NULL) {
+		*cleanup_errno_out = cleanup_errno;
+	}
+	return 0;
+}
+}
+
+static void editSaveAfterCommit(const char *filename, size_t len) {
+	editorLspNotifyDidSaveActive();
+	editorGitRefresh();
+	if (editorConfigPathIsGlobalConfig(filename)) {
+		editMaybePromptReloadSettingsAfterSave(filename);
+	} else {
+		editorSetStatusMsg("%zu bytes written to disk", len);
+	}
+}
+
 void editorSave(void) {
 	if (editorActiveTabIsUnsupportedFile()) {
 		editorSetStatusMsg("Unsupported files cannot be saved");
@@ -822,10 +892,8 @@ void editorSave(void) {
 	errno = 0;
 	char *buf = editorDupActiveTextSource(&len);
 	char *tmp_path = editorTempPathForTarget(E.filename);
-	int fd = -1;
-	int dir_fd = -1;
-	int tmp_created = 0;
-	int tmp_renamed = 0;
+	int saved_errno = 0;
+	int cleanup_errno = 0;
 	mode_t mode = editDefaultCreateMode();
 	struct stat st;
 
@@ -849,65 +917,18 @@ void editorSave(void) {
 		return;
 	}
 
-	// Write to a sibling temp file and atomically replace the target on success.
-	// This avoids leaving a partially written file if the save path fails midway.
-	fd = mkstemp(tmp_path);
-	if (fd == -1) {
-		goto err;
+	if (!editSaveWriteToTempPath(E.filename, tmp_path, buf, len, mode, &saved_errno,
+	                             &cleanup_errno)) {
+		free(tmp_path);
+		free(buf);
+		editSetSaveFailureStatus(saved_errno, cleanup_errno);
+		return;
 	}
-	tmp_created = 1;
-	if (fchmod(fd, mode) == -1) {
-		goto err;
-	}
-	if (editWriteAll(fd, buf, len) == -1) {
-		goto err;
-	}
-	if (editorSaveFsync(fd) == -1) {
-		goto err;
-	}
-	if (editorSaveClose(fd) == -1) {
-		fd = -1;
-		goto err;
-	}
-	fd = -1;
-	if (editorSaveRename(tmp_path, E.filename) == -1) {
-		goto err;
-	}
-	tmp_renamed = 1;
-
-	dir_fd = editorOpenParentDirForTarget(E.filename);
-	if (dir_fd == -1) {
-		goto err;
-	}
-	if (editorSaveFsync(dir_fd) == -1) {
-		goto err;
-	}
-	if (editorSaveClose(dir_fd) == -1) {
-		dir_fd = -1;
-		goto err;
-	}
-	dir_fd = -1;
 
 	E.dirty = 0;
 	editorWatchRefreshActiveBaseline();
 	free(tmp_path);
 	free(buf);
-	editorLspNotifyDidSaveActive();
-	editorGitRefresh();
-	if (editorConfigPathIsGlobalConfig(E.filename)) {
-		editMaybePromptReloadSettingsAfterSave(E.filename);
-	} else {
-		editorSetStatusMsg("%zu bytes written to disk", len);
-	}
+	editSaveAfterCommit(E.filename, len);
 	return;
-
-err: {
-	int saved_errno = errno;
-	int cleanup_errno = 0;
-	(void)editSaveCleanupOnError(&fd, &dir_fd, tmp_path, tmp_created, tmp_renamed,
-	                             &cleanup_errno);
-	free(tmp_path);
-	free(buf);
-	editSetSaveFailureStatus(saved_errno, cleanup_errno);
-}
 }

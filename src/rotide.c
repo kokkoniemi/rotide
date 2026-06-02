@@ -40,19 +40,7 @@ static int g_render_once = 0;
 
 void editorInit(void) {
 	editorResetActiveBufferFields();
-	editorLspConfigInitDefaults(
-	        &E.lsp_gopls_enabled, &E.lsp_clangd_enabled, &E.lsp_html_enabled,
-	        &E.lsp_css_enabled, &E.lsp_json_enabled, &E.lsp_javascript_enabled,
-	        &E.lsp_eslint_enabled, E.lsp_gopls_command, sizeof(E.lsp_gopls_command),
-	        E.lsp_gopls_install_command, sizeof(E.lsp_gopls_install_command),
-	        E.lsp_clangd_command, sizeof(E.lsp_clangd_command), E.lsp_html_command,
-	        sizeof(E.lsp_html_command), E.lsp_css_command, sizeof(E.lsp_css_command),
-	        E.lsp_json_command, sizeof(E.lsp_json_command), E.lsp_javascript_command,
-	        sizeof(E.lsp_javascript_command), E.lsp_javascript_install_command,
-	        sizeof(E.lsp_javascript_install_command), E.lsp_eslint_command,
-	        sizeof(E.lsp_eslint_command), E.lsp_vscode_langservers_install_command,
-	        sizeof(E.lsp_vscode_langservers_install_command), &E.lsp_autocomplete_enabled,
-	        &E.lsp_autocomplete_max_items);
+	editorLspConfigInitDefaults(&E.lsp_config);
 	E.statusmsg[0] = '\0';
 	E.statusmsg_time = 0;
 	E.hover_link_active = 0;
@@ -112,6 +100,7 @@ void editorInit(void) {
 	E.drawer_search_filtered_capacity = 0;
 	E.drawer_search_previewed_path = NULL;
 	E.drawer_search_active_tab_before = -1;
+	E.drawer_search_restore_collapsed = 0;
 	E.recent_file_paths = NULL;
 	E.recent_file_count = 0;
 	E.recent_file_capacity = 0;
@@ -124,6 +113,7 @@ void editorInit(void) {
 	E.drawer_project_search_previewed_line = 0;
 	E.drawer_project_search_previewed_col = 0;
 	E.drawer_project_search_active_tab_before = -1;
+	E.drawer_project_search_restore_collapsed = 0;
 	E.git_repo_root = NULL;
 	E.git_branch = NULL;
 	E.git_entries = NULL;

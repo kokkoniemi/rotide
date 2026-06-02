@@ -26,8 +26,8 @@ static int find_drawer_entry_containing(const char *needle, int *idx_out,
 
 static int test_editor_lsp_drawer_lists_document_symbols_and_jumps_to_symbol(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 0;
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 0;
 	ASSERT_TRUE(editorTabsInit());
 
 	char go_path[64];
@@ -74,8 +74,8 @@ static int test_editor_lsp_drawer_lists_document_symbols_and_jumps_to_symbol(voi
 
 static int test_editor_lsp_drawer_arrow_previews_symbol_centered_away_from_drawer_cursor(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 0;
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 0;
 	ASSERT_TRUE(editorTabsInit());
 
 	char go_path[64];
@@ -134,8 +134,8 @@ static int test_editor_lsp_drawer_arrow_previews_symbol_centered_away_from_drawe
 
 static int test_editor_lsp_drawer_renders_nested_symbols_hierarchically(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	char c_path[64];
@@ -197,8 +197,8 @@ static int test_editor_lsp_drawer_renders_nested_symbols_hierarchically(void) {
 
 static int test_editor_process_keypress_ctrl_o_goto_definition_single_location(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 0;
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 0;
 
 	char go_path[64];
 	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
@@ -227,8 +227,8 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location(v
 
 static int test_editor_process_keypress_alt_i_goto_implementation_jumps_to_target(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 0;
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 0;
 	ASSERT_TRUE(editorTabsInit());
 
 	char go_path[64];
@@ -259,8 +259,8 @@ static int test_editor_process_keypress_alt_i_goto_implementation_jumps_to_targe
 
 static int test_editor_process_keypress_alt_s_goto_symbol_jumps_to_first_symbol(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 0;
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 0;
 	ASSERT_TRUE(editorTabsInit());
 
 	char go_path[64];
@@ -292,8 +292,8 @@ static int test_editor_process_keypress_alt_s_goto_symbol_jumps_to_first_symbol(
 
 static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_c_buffer(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 1;
 
 	char c_path[64];
 	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
@@ -323,8 +323,8 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_c
 
 static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_cpp_buffer(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 1;
 
 	char cpp_path[64];
 	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
@@ -354,9 +354,9 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_c
 
 static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_html_buffer(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 1;
 
 	char html_path[64];
 	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
@@ -390,10 +390,10 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_h
 
 static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_css_buffer(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 0;
-	E.lsp_css_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 0;
+	E.lsp_config.css_enabled = 1;
 
 	char css_path[64];
 	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
@@ -419,10 +419,10 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_c
 
 static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_json_buffer(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 0;
-	E.lsp_json_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 0;
+	E.lsp_config.json_enabled = 1;
 
 	char json_path[64];
 	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
@@ -449,10 +449,10 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_j
 static int
 test_editor_process_keypress_ctrl_o_goto_definition_single_location_javascript_buffer(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 0;
-	E.lsp_javascript_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 0;
+	E.lsp_config.javascript_enabled = 1;
 
 	char js_path[64];
 	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
@@ -478,10 +478,10 @@ test_editor_process_keypress_ctrl_o_goto_definition_single_location_javascript_b
 
 static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_jsx_buffer(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 0;
-	E.lsp_javascript_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 0;
+	E.lsp_config.javascript_enabled = 1;
 
 	char jsx_path[64];
 	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
@@ -507,8 +507,8 @@ static int test_editor_process_keypress_ctrl_o_goto_definition_single_location_j
 
 static int test_editor_process_keypress_goto_definition_cross_file_reuses_tab(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	char src_path[64];
@@ -547,10 +547,10 @@ static int test_editor_process_keypress_goto_definition_cross_file_reuses_tab(vo
 static int
 test_editor_process_keypress_goto_definition_cross_file_javascript_fixture_reuses_tab(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 0;
-	E.lsp_javascript_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 0;
+	E.lsp_config.javascript_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	char dir_template[] = "/tmp/rotide-test-javascript-lsp-cross-file-XXXXXX";
@@ -596,8 +596,8 @@ test_editor_process_keypress_goto_definition_cross_file_javascript_fixture_reuse
 
 static int test_editor_process_keypress_goto_definition_cross_file_cpp_fixture_reuses_tab(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	char dir_template[] = "/tmp/rotide-test-cpp-lsp-cross-file-XXXXXX";
@@ -647,8 +647,8 @@ static int test_editor_process_keypress_goto_definition_cross_file_cpp_fixture_r
 
 static int test_editor_process_keypress_goto_definition_multi_picker_selects_choice(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 1;
 
 	char go_path[64];
 	ASSERT_TRUE(write_temp_go_file(
@@ -675,8 +675,8 @@ static int test_editor_process_keypress_goto_definition_multi_picker_selects_cho
 
 static int test_editor_process_keypress_goto_definition_c_header_and_implementation_picker(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	char dir_template[] = "/tmp/rotide-test-lsp-def-impl-picker-XXXXXX";
@@ -735,8 +735,8 @@ static int test_editor_process_keypress_goto_definition_c_header_and_implementat
 
 static int test_editor_process_keypress_goto_definition_header_only_reports_declaration(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	char dir_template[] = "/tmp/rotide-test-lsp-header-only-XXXXXX";
@@ -781,8 +781,8 @@ static int test_editor_process_keypress_goto_definition_header_only_reports_decl
 
 static int test_editor_process_keypress_mouse_ctrl_click_goto_definition_single_location(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 1;
 
 	char go_path[64];
 	ASSERT_TRUE(
@@ -819,8 +819,8 @@ static int test_editor_process_keypress_mouse_ctrl_click_goto_definition_single_
 static int
 test_editor_process_keypress_mouse_ctrl_click_goto_definition_multi_picker_selects_choice(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 1;
 
 	char go_path[64];
 	ASSERT_TRUE(write_temp_go_file(
@@ -854,8 +854,8 @@ test_editor_process_keypress_mouse_ctrl_click_goto_definition_multi_picker_selec
 
 static int test_editor_process_keypress_goto_definition_timeout_error_and_no_result(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 1;
 
 	char go_path[64];
 	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
@@ -883,8 +883,8 @@ static int test_editor_process_keypress_goto_definition_timeout_error_and_no_res
 }
 
 static int test_editor_process_keypress_goto_definition_reports_lsp_disabled(void) {
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 1;
 
 	char go_path[64];
 	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
@@ -902,8 +902,8 @@ static int test_editor_process_keypress_goto_definition_reports_lsp_disabled(voi
 }
 
 static int test_editor_process_keypress_goto_definition_reports_lsp_disabled_for_c(void) {
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 0;
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 0;
 
 	char c_path[64];
 	ASSERT_TRUE(
@@ -921,9 +921,9 @@ static int test_editor_process_keypress_goto_definition_reports_lsp_disabled_for
 }
 
 static int test_editor_process_keypress_goto_definition_reports_lsp_disabled_for_html(void) {
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 1;
-	E.lsp_html_enabled = 0;
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 1;
+	E.lsp_config.html_enabled = 0;
 
 	char html_path[64];
 	ASSERT_TRUE(write_temp_html_file(html_path, sizeof(html_path),
@@ -942,8 +942,8 @@ static int test_editor_process_keypress_goto_definition_reports_lsp_disabled_for
 
 static int
 test_editor_process_keypress_mouse_ctrl_click_goto_definition_reports_lsp_disabled(void) {
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
 	add_row("plain text");
 	E.window_rows = 4;
 	E.window_cols = 40;
@@ -965,11 +965,11 @@ test_editor_process_keypress_mouse_ctrl_click_goto_definition_reports_lsp_disabl
 }
 
 static int test_editor_process_keypress_goto_definition_startup_failure_reports_reason(void) {
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 1;
 
-	strncpy(E.lsp_gopls_command, "true", sizeof(E.lsp_gopls_command) - 1);
-	E.lsp_gopls_command[sizeof(E.lsp_gopls_command) - 1] = '\0';
+	strncpy(E.lsp_config.gopls_command, "true", sizeof(E.lsp_config.gopls_command) - 1);
+	E.lsp_config.gopls_command[sizeof(E.lsp_config.gopls_command) - 1] = '\0';
 
 	char go_path[64];
 	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
@@ -1025,9 +1025,9 @@ static int test_editor_process_keypress_goto_definition_requires_saved_c_buffer(
 }
 
 static int test_editor_process_keypress_goto_definition_reports_empty_clangd_command(void) {
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 1;
-	E.lsp_clangd_command[0] = '\0';
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 1;
+	E.lsp_config.clangd_command[0] = '\0';
 
 	char c_path[64];
 	ASSERT_TRUE(
@@ -1045,10 +1045,10 @@ static int test_editor_process_keypress_goto_definition_reports_empty_clangd_com
 }
 
 static int test_editor_process_keypress_goto_definition_reports_empty_html_command(void) {
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 1;
-	E.lsp_html_enabled = 1;
-	E.lsp_html_command[0] = '\0';
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 1;
+	E.lsp_config.html_enabled = 1;
+	E.lsp_config.html_command[0] = '\0';
 
 	char html_path[64];
 	ASSERT_TRUE(write_temp_html_file(html_path, sizeof(html_path),
@@ -1066,17 +1066,17 @@ static int test_editor_process_keypress_goto_definition_reports_empty_html_comma
 }
 
 static int test_editor_process_keypress_goto_definition_missing_gopls_decline_install(void) {
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 0;
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 0;
 	ASSERT_TRUE(editorTabsInit());
 
-	strncpy(E.lsp_gopls_command,
+	strncpy(E.lsp_config.gopls_command,
 	        "exec >/dev/null; sleep 0.05; rotide_missing_gopls_decline_command",
-	        sizeof(E.lsp_gopls_command) - 1);
-	E.lsp_gopls_command[sizeof(E.lsp_gopls_command) - 1] = '\0';
-	strncpy(E.lsp_gopls_install_command, "printf 'install skipped\\n'",
-	        sizeof(E.lsp_gopls_install_command) - 1);
-	E.lsp_gopls_install_command[sizeof(E.lsp_gopls_install_command) - 1] = '\0';
+	        sizeof(E.lsp_config.gopls_command) - 1);
+	E.lsp_config.gopls_command[sizeof(E.lsp_config.gopls_command) - 1] = '\0';
+	strncpy(E.lsp_config.gopls_install_command, "printf 'install skipped\\n'",
+	        sizeof(E.lsp_config.gopls_install_command) - 1);
+	E.lsp_config.gopls_install_command[sizeof(E.lsp_config.gopls_install_command) - 1] = '\0';
 
 	char go_path[64];
 	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
@@ -1097,17 +1097,17 @@ static int test_editor_process_keypress_goto_definition_missing_gopls_decline_in
 }
 
 static int test_editor_process_keypress_goto_definition_missing_gopls_starts_install_task(void) {
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 0;
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 0;
 	ASSERT_TRUE(editorTabsInit());
 
-	strncpy(E.lsp_gopls_command,
+	strncpy(E.lsp_config.gopls_command,
 	        "exec >/dev/null; sleep 0.05; rotide_missing_gopls_install_command",
-	        sizeof(E.lsp_gopls_command) - 1);
-	E.lsp_gopls_command[sizeof(E.lsp_gopls_command) - 1] = '\0';
-	strncpy(E.lsp_gopls_install_command, "printf 'install ok\\n'",
-	        sizeof(E.lsp_gopls_install_command) - 1);
-	E.lsp_gopls_install_command[sizeof(E.lsp_gopls_install_command) - 1] = '\0';
+	        sizeof(E.lsp_config.gopls_command) - 1);
+	E.lsp_config.gopls_command[sizeof(E.lsp_config.gopls_command) - 1] = '\0';
+	strncpy(E.lsp_config.gopls_install_command, "printf 'install ok\\n'",
+	        sizeof(E.lsp_config.gopls_install_command) - 1);
+	E.lsp_config.gopls_install_command[sizeof(E.lsp_config.gopls_install_command) - 1] = '\0';
 
 	char go_path[64];
 	ASSERT_TRUE(write_temp_go_file(go_path, sizeof(go_path),
@@ -1136,13 +1136,14 @@ static int test_editor_process_keypress_goto_definition_missing_gopls_starts_ins
 }
 
 static int test_editor_process_keypress_goto_definition_missing_clangd_declines_instructions(void) {
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
-	strncpy(E.lsp_clangd_command, "exec >/dev/null; sleep 0.05; rotide_missing_clangd_command",
-	        sizeof(E.lsp_clangd_command) - 1);
-	E.lsp_clangd_command[sizeof(E.lsp_clangd_command) - 1] = '\0';
+	strncpy(E.lsp_config.clangd_command,
+	        "exec >/dev/null; sleep 0.05; rotide_missing_clangd_command",
+	        sizeof(E.lsp_config.clangd_command) - 1);
+	E.lsp_config.clangd_command[sizeof(E.lsp_config.clangd_command) - 1] = '\0';
 
 	char c_path[64];
 	ASSERT_TRUE(write_temp_c_file(
@@ -1165,13 +1166,14 @@ static int test_editor_process_keypress_goto_definition_missing_clangd_declines_
 
 static int
 test_editor_process_keypress_goto_definition_missing_clangd_shows_install_instructions(void) {
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
-	strncpy(E.lsp_clangd_command, "exec >/dev/null; sleep 0.05; rotide_missing_clangd_command",
-	        sizeof(E.lsp_clangd_command) - 1);
-	E.lsp_clangd_command[sizeof(E.lsp_clangd_command) - 1] = '\0';
+	strncpy(E.lsp_config.clangd_command,
+	        "exec >/dev/null; sleep 0.05; rotide_missing_clangd_command",
+	        sizeof(E.lsp_config.clangd_command) - 1);
+	E.lsp_config.clangd_command[sizeof(E.lsp_config.clangd_command) - 1] = '\0';
 
 	char c_path[64];
 	ASSERT_TRUE(write_temp_c_file(
@@ -1206,19 +1208,19 @@ test_editor_process_keypress_goto_definition_missing_clangd_shows_install_instru
 
 static int
 test_editor_process_keypress_goto_definition_missing_vscode_langservers_decline_install(void) {
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
-	strncpy(E.lsp_html_command,
+	strncpy(E.lsp_config.html_command,
 	        "exec >/dev/null; sleep 0.05; rotide_missing_vscode_langservers_command",
-	        sizeof(E.lsp_html_command) - 1);
-	E.lsp_html_command[sizeof(E.lsp_html_command) - 1] = '\0';
-	strncpy(E.lsp_vscode_langservers_install_command, "printf 'install skipped\\n'",
-	        sizeof(E.lsp_vscode_langservers_install_command) - 1);
-	E.lsp_vscode_langservers_install_command[sizeof(E.lsp_vscode_langservers_install_command) -
-	                                         1] = '\0';
+	        sizeof(E.lsp_config.html_command) - 1);
+	E.lsp_config.html_command[sizeof(E.lsp_config.html_command) - 1] = '\0';
+	strncpy(E.lsp_config.vscode_langservers_install_command, "printf 'install skipped\\n'",
+	        sizeof(E.lsp_config.vscode_langservers_install_command) - 1);
+	E.lsp_config.vscode_langservers_install_command
+	        [sizeof(E.lsp_config.vscode_langservers_install_command) - 1] = '\0';
 
 	char html_path[64];
 	ASSERT_TRUE(write_temp_html_file(html_path, sizeof(html_path),
@@ -1240,19 +1242,19 @@ test_editor_process_keypress_goto_definition_missing_vscode_langservers_decline_
 
 static int
 test_editor_process_keypress_goto_definition_missing_vscode_langservers_starts_install_task(void) {
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
-	strncpy(E.lsp_html_command,
+	strncpy(E.lsp_config.html_command,
 	        "exec >/dev/null; sleep 0.05; rotide_missing_vscode_langservers_install_command",
-	        sizeof(E.lsp_html_command) - 1);
-	E.lsp_html_command[sizeof(E.lsp_html_command) - 1] = '\0';
-	strncpy(E.lsp_vscode_langservers_install_command, "printf 'install ok\\n'",
-	        sizeof(E.lsp_vscode_langservers_install_command) - 1);
-	E.lsp_vscode_langservers_install_command[sizeof(E.lsp_vscode_langservers_install_command) -
-	                                         1] = '\0';
+	        sizeof(E.lsp_config.html_command) - 1);
+	E.lsp_config.html_command[sizeof(E.lsp_config.html_command) - 1] = '\0';
+	strncpy(E.lsp_config.vscode_langservers_install_command, "printf 'install ok\\n'",
+	        sizeof(E.lsp_config.vscode_langservers_install_command) - 1);
+	E.lsp_config.vscode_langservers_install_command
+	        [sizeof(E.lsp_config.vscode_langservers_install_command) - 1] = '\0';
 
 	char html_path[64];
 	ASSERT_TRUE(write_temp_html_file(html_path, sizeof(html_path),
@@ -1283,20 +1285,22 @@ test_editor_process_keypress_goto_definition_missing_vscode_langservers_starts_i
 
 static int
 test_editor_process_keypress_goto_definition_missing_javascript_server_starts_install_task(void) {
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 0;
-	E.lsp_javascript_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 0;
+	E.lsp_config.javascript_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
-	strncpy(E.lsp_javascript_command,
+	strncpy(E.lsp_config.javascript_command,
 	        "exec >/dev/null; sleep 0.05; "
 	        "rotide_missing_typescript_language_server_install_command",
-	        sizeof(E.lsp_javascript_command) - 1);
-	E.lsp_javascript_command[sizeof(E.lsp_javascript_command) - 1] = '\0';
-	strncpy(E.lsp_javascript_install_command, "printf 'install ok\\n'",
-	        sizeof(E.lsp_javascript_install_command) - 1);
-	E.lsp_javascript_install_command[sizeof(E.lsp_javascript_install_command) - 1] = '\0';
+	        sizeof(E.lsp_config.javascript_command) - 1);
+	E.lsp_config.javascript_command[sizeof(E.lsp_config.javascript_command) - 1] = '\0';
+	strncpy(E.lsp_config.javascript_install_command, "printf 'install ok\\n'",
+	        sizeof(E.lsp_config.javascript_install_command) - 1);
+	E.lsp_config
+	        .javascript_install_command[sizeof(E.lsp_config.javascript_install_command) - 1] =
+	        '\0';
 
 	char js_path[64];
 	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(

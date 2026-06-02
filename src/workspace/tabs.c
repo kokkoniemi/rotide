@@ -878,6 +878,76 @@ static int tabsCloseFocusedPaneIfEmpty(int skip_active_save) {
 	return 1;
 }
 
+static int tabsPaneMostRecentTab(const struct editorPaneView *view) {
+	if (view == NULL || view->pane_tab_count <= 0) {
+		return -1;
+	}
+	int next_idx = editorPaneViewMostRecentTab(view);
+	if (next_idx < 0) {
+		next_idx = view->pane_tabs[0];
+	}
+	return next_idx;
+}
+
+static void tabsFinishSharedTabCloseInFocusedPane(struct editorPaneNode *focused) {
+	if (focused == NULL || focused->is_split ||
+	    focused->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
+		return;
+	}
+
+	if (focused->as.leaf.view.pane_tab_count > 0) {
+		int next_idx = tabsPaneMostRecentTab(&focused->as.leaf.view);
+		if (next_idx >= 0) {
+			(void)editorTabSwitchToIndex(next_idx);
+		}
+		return;
+	}
+
+	if (!tabsCloseFocusedPaneIfEmpty(0)) {
+		int new_idx = editorTabAppendEmptyForPane(focused);
+		if (new_idx >= 0) {
+			(void)editorTabSwitchToIndex(new_idx);
+		}
+	}
+}
+
+static void tabsResetLastTabAfterClose(void) {
+	tabsStateInitEmpty(&E.tabs[0]);
+	E.active_tab = 0;
+	E.tab_count = 1;
+	tabsLoadActiveTab(0);
+	tabsRegisterWithFocusedPane(0);
+}
+
+static int tabsHandleEmptyFocusedPaneAfterGlobalClose(struct editorPaneNode *focused,
+                                                      int focused_is_editor) {
+	if (!focused_is_editor || focused->as.leaf.view.pane_tab_count != 0) {
+		return 0;
+	}
+	if (tabsCloseFocusedPaneIfEmpty(1)) {
+		return 1;
+	}
+	int new_idx = editorTabAppendEmptyForPane(focused);
+	if (new_idx >= 0) {
+		E.active_tab = new_idx;
+		tabsLoadActiveTab(new_idx);
+		return 1;
+	}
+	return 0;
+}
+
+static int tabsNextIndexAfterGlobalClose(int closing, struct editorPaneNode *focused,
+                                         int focused_is_editor) {
+	int next_idx = -1;
+	if (focused_is_editor && focused->as.leaf.view.pane_tab_count > 0) {
+		next_idx = tabsPaneMostRecentTab(&focused->as.leaf.view);
+	}
+	if (next_idx < 0 || next_idx >= E.tab_count) {
+		next_idx = closing < E.tab_count ? closing : E.tab_count - 1;
+	}
+	return next_idx;
+}
+
 int editorTabCloseActive(void) {
 	if (E.tab_count <= 0 || E.tabs == NULL) {
 		return 0;
@@ -895,18 +965,7 @@ int editorTabCloseActive(void) {
 
 	if (editorPaneTreeAnyPaneHasTab(E.layout_root, closing)) {
 		if (focused_is_editor) {
-			if (focused->as.leaf.view.pane_tab_count > 0) {
-				int next_idx = editorPaneViewMostRecentTab(&focused->as.leaf.view);
-				if (next_idx < 0) {
-					next_idx = focused->as.leaf.view.pane_tabs[0];
-				}
-				(void)editorTabSwitchToIndex(next_idx);
-			} else if (!tabsCloseFocusedPaneIfEmpty(0)) {
-				int new_idx = editorTabAppendEmptyForPane(focused);
-				if (new_idx >= 0) {
-					(void)editorTabSwitchToIndex(new_idx);
-				}
-			}
+			tabsFinishSharedTabCloseInFocusedPane(focused);
 		}
 		return 1;
 	}
@@ -916,11 +975,7 @@ int editorTabCloseActive(void) {
 	tabsStateFree(&E.tabs[closing]);
 
 	if (E.tab_count == 1) {
-		tabsStateInitEmpty(&E.tabs[0]);
-		E.active_tab = 0;
-		E.tab_count = 1;
-		tabsLoadActiveTab(0);
-		tabsRegisterWithFocusedPane(0);
+		tabsResetLastTabAfterClose();
 		return 1;
 	}
 
@@ -929,29 +984,11 @@ int editorTabCloseActive(void) {
 	E.tab_count--;
 	editorPaneTreeShiftTabIndicesAfterClose(E.layout_root, closing);
 
-	if (focused_is_editor && focused->as.leaf.view.pane_tab_count == 0) {
-		if (tabsCloseFocusedPaneIfEmpty(1)) {
-			return 1;
-		}
-		int new_idx = editorTabAppendEmptyForPane(focused);
-		if (new_idx >= 0) {
-			E.active_tab = new_idx;
-			tabsLoadActiveTab(new_idx);
-			return 1;
-		}
+	if (tabsHandleEmptyFocusedPaneAfterGlobalClose(focused, focused_is_editor)) {
+		return 1;
 	}
 
-	int next_idx = -1;
-	if (focused_is_editor && focused->as.leaf.view.pane_tab_count > 0) {
-		next_idx = editorPaneViewMostRecentTab(&focused->as.leaf.view);
-		if (next_idx < 0) {
-			next_idx = focused->as.leaf.view.pane_tabs[0];
-		}
-	}
-	if (next_idx < 0 || next_idx >= E.tab_count) {
-		next_idx = closing < E.tab_count ? closing : E.tab_count - 1;
-	}
-	E.active_tab = next_idx;
+	E.active_tab = tabsNextIndexAfterGlobalClose(closing, focused, focused_is_editor);
 	tabsLoadActiveTab(E.active_tab);
 	tabsRegisterWithFocusedPane(E.active_tab);
 	return 1;
@@ -1778,6 +1815,56 @@ static int tabsWrapperView(struct editorPaneView *scratch, struct editorPaneView
 	return 1;
 }
 
+enum tabsPlaceTabResult { TABS_PLACE_TAB_SKIP = 0, TABS_PLACE_TAB_PLACED, TABS_PLACE_TAB_STOP };
+
+static enum tabsPlaceTabResult tabsTryPlaceTab(struct editorPaneView *view, int slot, int cols,
+                                               struct editorTabLayoutEntry *entries,
+                                               int max_entries, int *used_cols_io, int *count_io,
+                                               int *first_visible_slot_io,
+                                               int *last_visible_slot_io) {
+	int count = *count_io;
+	int used_cols = *used_cols_io;
+
+	if (count >= max_entries) {
+		return TABS_PLACE_TAB_STOP;
+	}
+
+	int tab_idx = tabsPaneTabAt(view, slot);
+	if (tab_idx < 0 || tab_idx >= E.tab_count) {
+		return TABS_PLACE_TAB_SKIP;
+	}
+
+	int width_cols = tabsWidthColsAt(tab_idx);
+	if (width_cols < 1) {
+		width_cols = 1;
+	}
+	if (count == 0 && width_cols > cols) {
+		width_cols = cols;
+	}
+	if (count > 0 && used_cols + width_cols > cols) {
+		return TABS_PLACE_TAB_STOP;
+	}
+	if (width_cols <= 0) {
+		return TABS_PLACE_TAB_STOP;
+	}
+
+	struct editorTabLayoutEntry *entry = &entries[count];
+	entry->tab_idx = tab_idx;
+	entry->start_col = used_cols;
+	entry->width_cols = width_cols;
+	entry->show_left_overflow = 0;
+	entry->show_right_overflow = 0;
+	entry->is_active = tab_idx == view->active_tab_idx;
+
+	if (*first_visible_slot_io < 0) {
+		*first_visible_slot_io = slot;
+	}
+	*last_visible_slot_io = slot;
+	*used_cols_io = used_cols + width_cols;
+	*count_io = count + 1;
+	return TABS_PLACE_TAB_PLACED;
+}
+
 int editorTabBuildLayoutForPane(struct editorPaneView *view, int cols,
                                 struct editorTabLayoutEntry *entries, int max_entries,
                                 int *count_out) {
@@ -1813,42 +1900,12 @@ int editorTabBuildLayoutForPane(struct editorPaneView *view, int cols,
 	int first_visible_slot = -1;
 	int last_visible_slot = -1;
 	for (int slot = start_slot; slot < slot_count && used_cols < cols; slot++) {
-		if (count >= max_entries) {
+		enum tabsPlaceTabResult result =
+		        tabsTryPlaceTab(view, slot, cols, entries, max_entries, &used_cols, &count,
+		                        &first_visible_slot, &last_visible_slot);
+		if (result == TABS_PLACE_TAB_STOP) {
 			break;
 		}
-		int tab_idx = tabsPaneTabAt(view, slot);
-		if (tab_idx < 0 || tab_idx >= E.tab_count) {
-			continue;
-		}
-
-		int width_cols = tabsWidthColsAt(tab_idx);
-		if (width_cols < 1) {
-			width_cols = 1;
-		}
-		if (count == 0 && width_cols > cols) {
-			width_cols = cols;
-		}
-		if (count > 0 && used_cols + width_cols > cols) {
-			break;
-		}
-		if (width_cols <= 0) {
-			break;
-		}
-
-		struct editorTabLayoutEntry *entry = &entries[count];
-		entry->tab_idx = tab_idx;
-		entry->start_col = used_cols;
-		entry->width_cols = width_cols;
-		entry->show_left_overflow = 0;
-		entry->show_right_overflow = 0;
-		entry->is_active = tab_idx == view->active_tab_idx;
-
-		if (first_visible_slot < 0) {
-			first_visible_slot = slot;
-		}
-		last_visible_slot = slot;
-		used_cols += width_cols;
-		count++;
 	}
 
 	if (count == 0) {

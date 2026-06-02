@@ -58,6 +58,43 @@ static void workspaceStateFreeRecentFiles(void);
 static void workspaceStateFreePendingTabs(void);
 static void workspaceStateFreePendingPaneTabs(void);
 
+static void *workspaceStateEnsureArrayCapacity(void *items, int needed, int *capacity,
+                                               size_t elem_size, int limit, int initial_capacity) {
+	if (needed <= *capacity) {
+		return items;
+	}
+	if (needed > limit || elem_size == 0 || initial_capacity <= 0) {
+		return NULL;
+	}
+
+	int new_capacity = initial_capacity;
+	if (*capacity > 0) {
+		if (*capacity > INT32_MAX / 2) {
+			return NULL;
+		}
+		new_capacity = *capacity * 2;
+	}
+	while (new_capacity < needed && new_capacity < limit) {
+		if (new_capacity > INT32_MAX / 2) {
+			return NULL;
+		}
+		new_capacity *= 2;
+	}
+	if (new_capacity > limit) {
+		new_capacity = limit;
+	}
+	if (needed > new_capacity || (size_t)new_capacity > SIZE_MAX / elem_size) {
+		return NULL;
+	}
+
+	void *grown = editorRealloc(items, elem_size * (size_t)new_capacity);
+	if (grown == NULL) {
+		return NULL;
+	}
+	*capacity = new_capacity;
+	return grown;
+}
+
 static uint64_t workspaceStateHashPath(const char *path) {
 	uint64_t hash = UINT64_C(1469598103934665603);
 	const unsigned char *p = (const unsigned char *)path;
@@ -194,20 +231,13 @@ static int workspaceStateAppendPendingPaneTab(int pane_idx, int is_active, const
 	if (g_pending_pane_tab_count >= ROTIDE_WORKSPACE_PENDING_PANE_TAB_LIMIT) {
 		return 0;
 	}
-	if (g_pending_pane_tab_count >= g_pending_pane_tab_capacity) {
-		int new_cap =
-		        g_pending_pane_tab_capacity > 0 ? g_pending_pane_tab_capacity * 2 : 16;
-		if (new_cap > ROTIDE_WORKSPACE_PENDING_PANE_TAB_LIMIT) {
-			new_cap = ROTIDE_WORKSPACE_PENDING_PANE_TAB_LIMIT;
-		}
-		struct workspaceStatePendingPaneTab *grown = realloc(
-		        g_pending_pane_tabs, sizeof(*g_pending_pane_tabs) * (size_t)new_cap);
-		if (grown == NULL) {
-			return 0;
-		}
-		g_pending_pane_tabs = grown;
-		g_pending_pane_tab_capacity = new_cap;
+	struct workspaceStatePendingPaneTab *grown = workspaceStateEnsureArrayCapacity(
+	        g_pending_pane_tabs, g_pending_pane_tab_count + 1, &g_pending_pane_tab_capacity,
+	        sizeof(*g_pending_pane_tabs), ROTIDE_WORKSPACE_PENDING_PANE_TAB_LIMIT, 16);
+	if (grown == NULL) {
+		return 0;
 	}
+	g_pending_pane_tabs = grown;
 	char *copy = strdup(path);
 	if (copy == NULL) {
 		return 0;
@@ -226,19 +256,13 @@ static int workspaceStateAppendPendingTab(int cx, int cy, const char *path) {
 	if (g_pending_tab_count >= ROTIDE_WORKSPACE_PENDING_TAB_LIMIT) {
 		return 0;
 	}
-	if (g_pending_tab_count >= g_pending_tab_capacity) {
-		int new_cap = g_pending_tab_capacity > 0 ? g_pending_tab_capacity * 2 : 8;
-		if (new_cap > ROTIDE_WORKSPACE_PENDING_TAB_LIMIT) {
-			new_cap = ROTIDE_WORKSPACE_PENDING_TAB_LIMIT;
-		}
-		struct workspaceStatePendingTab *grown =
-		        realloc(g_pending_tabs, sizeof(*g_pending_tabs) * (size_t)new_cap);
-		if (grown == NULL) {
-			return 0;
-		}
-		g_pending_tabs = grown;
-		g_pending_tab_capacity = new_cap;
+	struct workspaceStatePendingTab *grown = workspaceStateEnsureArrayCapacity(
+	        g_pending_tabs, g_pending_tab_count + 1, &g_pending_tab_capacity,
+	        sizeof(*g_pending_tabs), ROTIDE_WORKSPACE_PENDING_TAB_LIMIT, 8);
+	if (grown == NULL) {
+		return 0;
 	}
+	g_pending_tabs = grown;
 	char *copy = strdup(path);
 	if (copy == NULL) {
 		return 0;
@@ -251,30 +275,13 @@ static int workspaceStateAppendPendingTab(int cx, int cy, const char *path) {
 }
 
 static int workspaceStateEnsureRecentFileCapacity(int needed) {
-	if (needed <= E.recent_file_capacity) {
-		return 1;
-	}
-	int new_capacity = E.recent_file_capacity > 0 ? E.recent_file_capacity * 2 : 16;
-	while (new_capacity < needed && new_capacity < ROTIDE_WORKSPACE_RECENT_FILE_LIMIT) {
-		if (new_capacity > INT32_MAX / 2) {
-			return 0;
-		}
-		new_capacity *= 2;
-	}
-	if (new_capacity > ROTIDE_WORKSPACE_RECENT_FILE_LIMIT) {
-		new_capacity = ROTIDE_WORKSPACE_RECENT_FILE_LIMIT;
-	}
-	if (needed > new_capacity) {
-		return 0;
-	}
-
-	char **paths = editorRealloc(E.recent_file_paths,
-	                             sizeof(*E.recent_file_paths) * (size_t)new_capacity);
+	char **paths = workspaceStateEnsureArrayCapacity(
+	        E.recent_file_paths, needed, &E.recent_file_capacity, sizeof(*E.recent_file_paths),
+	        ROTIDE_WORKSPACE_RECENT_FILE_LIMIT, 16);
 	if (paths == NULL) {
 		return 0;
 	}
 	E.recent_file_paths = paths;
-	E.recent_file_capacity = new_capacity;
 	return 1;
 }
 
@@ -485,6 +492,167 @@ static int workspaceStateParseTabLine(const char *value, int *cx_out, int *cy_ou
 	return 1;
 }
 
+struct workspaceStateParsedSettings {
+	int width;
+	int width_user_set;
+	int collapsed;
+	enum editorDrawerMode mode;
+	int saw_mode;
+	int menu_expanded;
+	int git_expanded;
+	int lsp_expanded;
+	int dap_expanded;
+};
+
+static void workspaceStateInitParsedSettings(struct workspaceStateParsedSettings *s) {
+	s->width = -1;
+	s->width_user_set = -1;
+	s->collapsed = -1;
+	s->mode = EDITOR_DRAWER_MODE_TREE;
+	s->saw_mode = 0;
+	s->menu_expanded = -1;
+	s->git_expanded = -1;
+	s->lsp_expanded = -1;
+	s->dap_expanded = -1;
+}
+
+static void workspaceStateLoadLayoutLine(const char *value) {
+	struct editorPaneNode *restored = editorLayoutDeserialize(value);
+	if (restored == NULL) {
+		return;
+	}
+	editorPaneNodeFree(E.layout_root);
+	E.layout_root = restored;
+	/* Prefer the first editor leaf so the pre-hydrate file-open loop doesn't park
+	 * tabs in a terminal placeholder, and we don't capture editor cursor state
+	 * into a terminal leaf's view. Fall back to any leaf for a terminal-only
+	 * workspace. */
+	E.focused_leaf = editorPaneNodeFirstLeafOfKind(E.layout_root, EDITOR_PANE_KIND_EDITOR);
+	if (E.focused_leaf == NULL) {
+		E.focused_leaf = editorPaneNodeFirstLeaf(E.layout_root);
+	}
+	if (E.focused_leaf != NULL && E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_EDITOR) {
+		editorPaneViewCaptureFromState(&E.focused_leaf->as.leaf.view);
+	}
+}
+
+static void workspaceStateLoadTabLine(const char *value) {
+	int tab_cx = 0;
+	int tab_cy = 0;
+	const char *tab_path = NULL;
+	if (workspaceStateParseTabLine(value, &tab_cx, &tab_cy, &tab_path)) {
+		(void)workspaceStateAppendPendingTab(tab_cx, tab_cy, tab_path);
+	}
+}
+
+static void workspaceStateLoadPaneTabLine(const char *value) {
+	int pane_idx = -1;
+	int is_active = 0;
+	const char *pane_path = NULL;
+	if (workspaceStateParsePaneTabLine(value, &pane_idx, &is_active, &pane_path)) {
+		(void)workspaceStateAppendPendingPaneTab(pane_idx, is_active, pane_path);
+	}
+}
+
+static void workspaceStateLoadFocusedPaneLine(const char *value) {
+	int focused = -1;
+	if (workspaceStateParseInt(value, &focused) && focused >= 0) {
+		g_pending_focused_pane = focused;
+	}
+}
+
+/* Returns 1 normally, 0 to abort the load (newer-format file). */
+static int workspaceStateProcessLine(const char *key, const char *value, int reset_panes,
+                                     struct workspaceStateParsedSettings *s) {
+	if (strcmp(key, "version") == 0) {
+		int parsed_version = 0;
+		if (workspaceStateParseInt(value, &parsed_version) &&
+		    parsed_version > ROTIDE_WORKSPACE_STATE_VERSION) {
+			return 0;
+		}
+		return 1;
+	}
+	if (strcmp(key, "drawer_width_cols") == 0) {
+		(void)workspaceStateParseInt(value, &s->width);
+	} else if (strcmp(key, "drawer_width_user_set") == 0) {
+		(void)workspaceStateParseInt(value, &s->width_user_set);
+	} else if (strcmp(key, "drawer_collapsed") == 0) {
+		(void)workspaceStateParseInt(value, &s->collapsed);
+	} else if (strcmp(key, "drawer_mode") == 0) {
+		s->mode = workspaceStateModeFromString(value);
+		s->saw_mode = 1;
+	} else if (strcmp(key, "drawer_menu_expanded") == 0) {
+		(void)workspaceStateParseInt(value, &s->menu_expanded);
+	} else if (strcmp(key, "drawer_git_expanded") == 0) {
+		(void)workspaceStateParseInt(value, &s->git_expanded);
+	} else if (strcmp(key, "drawer_lsp_expanded") == 0) {
+		(void)workspaceStateParseInt(value, &s->lsp_expanded);
+	} else if (strcmp(key, "drawer_dap_expanded") == 0) {
+		(void)workspaceStateParseInt(value, &s->dap_expanded);
+	} else if (strcmp(key, "recent_file") == 0) {
+		(void)workspaceStateAppendRecentFile(value);
+	} else if (!reset_panes) {
+		if (strcmp(key, "tab") == 0) {
+			workspaceStateLoadTabLine(value);
+		} else if (strcmp(key, "pane_tab") == 0) {
+			workspaceStateLoadPaneTabLine(value);
+		} else if (strcmp(key, "focused_pane") == 0) {
+			workspaceStateLoadFocusedPaneLine(value);
+		} else if (strcmp(key, "layout") == 0) {
+			workspaceStateLoadLayoutLine(value);
+		}
+	}
+	return 1;
+}
+
+/* Splits a single line (with trailing newline stripped) into key/value at '='.
+ * Returns 1 on success; 0 if the line is blank, a comment, or has no '='. */
+static int workspaceStateSplitKeyValue(char *line, const char **key_out, const char **value_out) {
+	size_t line_len = strlen(line);
+	while (line_len > 0 && (line[line_len - 1] == '\n' || line[line_len - 1] == '\r')) {
+		line[--line_len] = '\0';
+	}
+	if (line_len == 0 || line[0] == '#') {
+		return 0;
+	}
+	char *eq = strchr(line, '=');
+	if (eq == NULL) {
+		return 0;
+	}
+	*eq = '\0';
+	*key_out = line;
+	*value_out = eq + 1;
+	return 1;
+}
+
+static void workspaceStateApplyParsedSettings(const struct workspaceStateParsedSettings *s,
+                                              int total_cols) {
+	if (s->width > 0 && total_cols > 0) {
+		(void)editorDrawerSetWidthForCols(s->width, total_cols);
+		if (s->width_user_set == 0) {
+			E.drawer_width_user_set = 0;
+		}
+	}
+	if (s->collapsed >= 0) {
+		(void)editorDrawerSetCollapsed(s->collapsed != 0);
+	}
+	if (s->saw_mode) {
+		E.drawer_mode = s->mode;
+	}
+	if (s->menu_expanded >= 0) {
+		E.drawer_menu_expanded = (unsigned int)s->menu_expanded;
+	}
+	if (s->git_expanded >= 0) {
+		E.drawer_git_expanded = (unsigned int)s->git_expanded;
+	}
+	if (s->lsp_expanded >= 0) {
+		E.drawer_lsp_expanded = (unsigned int)s->lsp_expanded;
+	}
+	if (s->dap_expanded >= 0) {
+		E.drawer_dap_expanded = (unsigned int)s->dap_expanded;
+	}
+}
+
 int editorWorkspaceStateLoadAndApply(int total_cols, int reset_panes) {
 	if (E.workspace_state_path == NULL) {
 		return 0;
@@ -494,148 +662,28 @@ int editorWorkspaceStateLoadAndApply(int total_cols, int reset_panes) {
 		return 0;
 	}
 
-	int width = -1;
-	int width_user_set = -1;
-	int collapsed = -1;
-	enum editorDrawerMode mode = EDITOR_DRAWER_MODE_TREE;
-	int saw_mode = 0;
-	int menu_expanded = -1;
-	int git_expanded = -1;
-	int lsp_expanded = -1;
-	int dap_expanded = -1;
+	struct workspaceStateParsedSettings settings;
+	workspaceStateInitParsedSettings(&settings);
 	workspaceStateFreePendingTabs();
 	workspaceStateFreePendingPaneTabs();
 
 	char line[4096];
 	while (fgets(line, sizeof(line), fp) != NULL) {
-		size_t line_len = strlen(line);
-		while (line_len > 0 && (line[line_len - 1] == '\n' || line[line_len - 1] == '\r')) {
-			line[--line_len] = '\0';
-		}
-		if (line_len == 0 || line[0] == '#') {
+		const char *key = NULL;
+		const char *value = NULL;
+		if (!workspaceStateSplitKeyValue(line, &key, &value)) {
 			continue;
 		}
-		char *eq = strchr(line, '=');
-		if (eq == NULL) {
-			continue;
+		if (!workspaceStateProcessLine(key, value, reset_panes, &settings)) {
+			(void)fclose(fp);
+			workspaceStateFreePendingTabs();
+			workspaceStateFreePendingPaneTabs();
+			return 0;
 		}
-		*eq = '\0';
-		const char *key = line;
-		const char *value = eq + 1;
-		int parsed = 0;
-		if (strcmp(key, "version") == 0) {
-			int parsed_version = 0;
-			if (workspaceStateParseInt(value, &parsed_version) &&
-			    parsed_version > ROTIDE_WORKSPACE_STATE_VERSION) {
-				/* Newer-format file: bail rather than partially apply
-				 * settings whose semantics we don't understand. */
-				(void)fclose(fp);
-				workspaceStateFreePendingTabs();
-				workspaceStateFreePendingPaneTabs();
-				return 0;
-			}
-		} else if (strcmp(key, "drawer_width_cols") == 0) {
-			(void)workspaceStateParseInt(value, &width);
-		} else if (strcmp(key, "drawer_width_user_set") == 0) {
-			(void)workspaceStateParseInt(value, &width_user_set);
-		} else if (strcmp(key, "drawer_collapsed") == 0) {
-			(void)workspaceStateParseInt(value, &collapsed);
-		} else if (strcmp(key, "drawer_mode") == 0) {
-			mode = workspaceStateModeFromString(value);
-			saw_mode = 1;
-		} else if (strcmp(key, "drawer_menu_expanded") == 0) {
-			(void)workspaceStateParseInt(value, &menu_expanded);
-		} else if (strcmp(key, "drawer_git_expanded") == 0) {
-			(void)workspaceStateParseInt(value, &git_expanded);
-		} else if (strcmp(key, "drawer_lsp_expanded") == 0) {
-			(void)workspaceStateParseInt(value, &lsp_expanded);
-		} else if (strcmp(key, "drawer_dap_expanded") == 0) {
-			(void)workspaceStateParseInt(value, &dap_expanded);
-		} else if (strcmp(key, "recent_file") == 0) {
-			(void)workspaceStateAppendRecentFile(value);
-		} else if (strcmp(key, "tab") == 0) {
-			if (reset_panes) {
-				continue;
-			}
-			int tab_cx = 0;
-			int tab_cy = 0;
-			const char *tab_path = NULL;
-			if (workspaceStateParseTabLine(value, &tab_cx, &tab_cy, &tab_path)) {
-				(void)workspaceStateAppendPendingTab(tab_cx, tab_cy, tab_path);
-			}
-		} else if (strcmp(key, "pane_tab") == 0) {
-			if (reset_panes) {
-				continue;
-			}
-			int pane_idx = -1;
-			int is_active = 0;
-			const char *pane_path = NULL;
-			if (workspaceStateParsePaneTabLine(value, &pane_idx, &is_active,
-			                                   &pane_path)) {
-				(void)workspaceStateAppendPendingPaneTab(pane_idx, is_active,
-				                                         pane_path);
-			}
-		} else if (strcmp(key, "focused_pane") == 0) {
-			if (reset_panes) {
-				continue;
-			}
-			int focused = -1;
-			if (workspaceStateParseInt(value, &focused) && focused >= 0) {
-				g_pending_focused_pane = focused;
-			}
-		} else if (strcmp(key, "layout") == 0) {
-			if (reset_panes) {
-				continue;
-			}
-			struct editorPaneNode *restored = editorLayoutDeserialize(value);
-			if (restored != NULL) {
-				editorPaneNodeFree(E.layout_root);
-				E.layout_root = restored;
-				/* Prefer the first editor leaf so the pre-hydrate
-				 * file-open loop doesn't park tabs in a terminal
-				 * placeholder, and we don't capture editor cursor
-				 * state into a terminal leaf's view. Fall back to
-				 * any leaf for a terminal-only workspace. */
-				E.focused_leaf = editorPaneNodeFirstLeafOfKind(
-				        E.layout_root, EDITOR_PANE_KIND_EDITOR);
-				if (E.focused_leaf == NULL) {
-					E.focused_leaf = editorPaneNodeFirstLeaf(E.layout_root);
-				}
-				if (E.focused_leaf != NULL &&
-				    E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_EDITOR) {
-					editorPaneViewCaptureFromState(
-					        &E.focused_leaf->as.leaf.view);
-				}
-			}
-		}
-		(void)parsed;
 	}
 	(void)fclose(fp);
 
-	if (width > 0 && total_cols > 0) {
-		(void)editorDrawerSetWidthForCols(width, total_cols);
-		if (width_user_set == 0) {
-			E.drawer_width_user_set = 0;
-		}
-	}
-	if (collapsed >= 0) {
-		(void)editorDrawerSetCollapsed(collapsed != 0);
-	}
-	if (saw_mode) {
-		E.drawer_mode = mode;
-	}
-	if (menu_expanded >= 0) {
-		E.drawer_menu_expanded = (unsigned int)menu_expanded;
-	}
-	if (git_expanded >= 0) {
-		E.drawer_git_expanded = (unsigned int)git_expanded;
-	}
-	if (lsp_expanded >= 0) {
-		E.drawer_lsp_expanded = (unsigned int)lsp_expanded;
-	}
-	if (dap_expanded >= 0) {
-		E.drawer_dap_expanded = (unsigned int)dap_expanded;
-	}
+	workspaceStateApplyParsedSettings(&settings, total_cols);
 	return 1;
 }
 
@@ -889,24 +937,18 @@ static int workspaceStateWriteAll(int fd, const char *buf, size_t len) {
 	return 1;
 }
 
-int editorWorkspaceStateSave(void) {
-	if (E.workspace_state_path == NULL) {
-		return 0;
-	}
-
-	char *tmp_path = NULL;
-	int fd = editorAtomicOpenTemp(E.workspace_state_path, &tmp_path, 0600);
-	if (fd == -1) {
-		return 0;
-	}
-
+static enum editorDrawerMode workspaceStateNormalizedSaveMode(void) {
 	enum editorDrawerMode mode = E.drawer_mode;
 	if (mode != EDITOR_DRAWER_MODE_TREE && mode != EDITOR_DRAWER_MODE_MAIN_MENU &&
 	    mode != EDITOR_DRAWER_MODE_GIT && mode != EDITOR_DRAWER_MODE_LSP &&
 	    mode != EDITOR_DRAWER_MODE_DAP) {
 		mode = EDITOR_DRAWER_MODE_TREE;
 	}
+	return mode;
+}
 
+static int workspaceStateWriteHeader(int fd) {
+	enum editorDrawerMode mode = workspaceStateNormalizedSaveMode();
 	char buf[256];
 	int len = snprintf(buf, sizeof(buf),
 	                   "version=%d\n"
@@ -923,14 +965,12 @@ int editorWorkspaceStateSave(void) {
 	                   workspaceStateModeToString(mode), E.drawer_menu_expanded,
 	                   E.drawer_git_expanded, E.drawer_lsp_expanded, E.drawer_dap_expanded);
 	if (len <= 0 || (size_t)len >= sizeof(buf)) {
-		editorAtomicAbortTemp(fd, tmp_path);
 		return 0;
 	}
+	return workspaceStateWriteAll(fd, buf, (size_t)len);
+}
 
-	if (!workspaceStateWriteAll(fd, buf, (size_t)len)) {
-		editorAtomicAbortTemp(fd, tmp_path);
-		return 0;
-	}
+static int workspaceStateWriteRecentFiles(int fd) {
 	for (int i = 0; i < E.recent_file_count; i++) {
 		const char *path = E.recent_file_paths[i];
 		if (!workspaceStatePathCanWriteLine(path)) {
@@ -939,98 +979,135 @@ int editorWorkspaceStateSave(void) {
 		if (!workspaceStateWriteAll(fd, "recent_file=", strlen("recent_file=")) ||
 		    !workspaceStateWriteAll(fd, path, strlen(path)) ||
 		    !workspaceStateWriteAll(fd, "\n", 1)) {
-			editorAtomicAbortTemp(fd, tmp_path);
 			return 0;
 		}
 	}
+	return 1;
+}
 
+static int workspaceStateWriteTabs(int fd) {
 	for (int i = 0; i < E.tab_count; i++) {
 		const struct editorBuffer *tab = editorTabBufferHandleAt(i);
-		if (tab == NULL) {
-			continue;
-		}
-		if (tab->tab_kind != EDITOR_TAB_FILE || tab->is_preview ||
+		if (tab == NULL || tab->tab_kind != EDITOR_TAB_FILE || tab->is_preview ||
 		    !workspaceStatePathCanWriteLine(tab->filename)) {
 			continue;
 		}
 		char prefix[64];
 		int prefix_len = snprintf(prefix, sizeof(prefix), "tab=%d|%d|", tab->cx, tab->cy);
 		if (prefix_len <= 0 || (size_t)prefix_len >= sizeof(prefix)) {
-			editorAtomicAbortTemp(fd, tmp_path);
 			return 0;
 		}
 		if (!workspaceStateWriteAll(fd, prefix, (size_t)prefix_len) ||
 		    !workspaceStateWriteAll(fd, tab->filename, strlen(tab->filename)) ||
 		    !workspaceStateWriteAll(fd, "\n", 1)) {
-			editorAtomicAbortTemp(fd, tmp_path);
 			return 0;
 		}
 	}
-	if (E.layout_root != NULL &&
-	    (E.layout_root->is_split || E.layout_root->as.leaf.kind != EDITOR_PANE_KIND_EDITOR)) {
-		char layout_buf[2048];
-		if (editorLayoutSerialize(E.layout_root, layout_buf, sizeof(layout_buf)) > 0) {
-			if (!workspaceStateWriteAll(fd, "layout=", strlen("layout=")) ||
-			    !workspaceStateWriteAll(fd, layout_buf, strlen(layout_buf)) ||
-			    !workspaceStateWriteAll(fd, "\n", 1)) {
-				editorAtomicAbortTemp(fd, tmp_path);
-				return 0;
-			}
+	return 1;
+}
+
+static int workspaceStateWriteLayoutSerialization(int fd) {
+	if (E.layout_root == NULL ||
+	    (!E.layout_root->is_split && E.layout_root->as.leaf.kind == EDITOR_PANE_KIND_EDITOR)) {
+		return 1;
+	}
+	char layout_buf[2048];
+	if (editorLayoutSerialize(E.layout_root, layout_buf, sizeof(layout_buf)) <= 0) {
+		return 1;
+	}
+	if (!workspaceStateWriteAll(fd, "layout=", strlen("layout=")) ||
+	    !workspaceStateWriteAll(fd, layout_buf, strlen(layout_buf)) ||
+	    !workspaceStateWriteAll(fd, "\n", 1)) {
+		return 0;
+	}
+	return 1;
+}
+
+static int workspaceStateWritePaneTabLine(int fd, const struct editorBuffer *tab, int leaf_idx,
+                                          int is_active) {
+	char prefix[64];
+	int prefix_len = snprintf(prefix, sizeof(prefix), "pane_tab=%d|%d|", leaf_idx, is_active);
+	if (prefix_len <= 0 || (size_t)prefix_len >= sizeof(prefix)) {
+		return 0;
+	}
+	if (!workspaceStateWriteAll(fd, prefix, (size_t)prefix_len) ||
+	    !workspaceStateWriteAll(fd, tab->filename, strlen(tab->filename)) ||
+	    !workspaceStateWriteAll(fd, "\n", 1)) {
+		return 0;
+	}
+	return 1;
+}
+
+static int workspaceStateWritePaneTabsForLeaf(int fd, struct editorPaneNode *leaf, int leaf_idx) {
+	if (leaf->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
+		return 1;
+	}
+	const struct editorPaneView *view = &leaf->as.leaf.view;
+	for (int slot = 0; slot < view->pane_tab_count; slot++) {
+		int tab_idx = view->pane_tabs[slot];
+		if (tab_idx < 0 || tab_idx >= E.tab_count) {
+			continue;
+		}
+		const struct editorBuffer *tab = editorTabBufferHandleAt(tab_idx);
+		if (tab == NULL || tab->tab_kind != EDITOR_TAB_FILE || tab->is_preview ||
+		    !workspaceStatePathCanWriteLine(tab->filename)) {
+			continue;
+		}
+		int is_active = tab_idx == view->active_tab_idx ? 1 : 0;
+		if (!workspaceStateWritePaneTabLine(fd, tab, leaf_idx, is_active)) {
+			return 0;
 		}
 	}
-	if (E.layout_root != NULL) {
-		struct editorPaneNode *leaves[ROTIDE_WORKSPACE_MAX_LEAVES];
-		int leaf_count = workspaceStateCollectLeaves(E.layout_root, leaves,
-		                                             ROTIDE_WORKSPACE_MAX_LEAVES);
-		int focused_idx = -1;
-		for (int i = 0; i < leaf_count; i++) {
-			struct editorPaneNode *leaf = leaves[i];
-			if (leaf == E.focused_leaf) {
-				focused_idx = i;
-			}
-			if (leaf->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
-				continue;
-			}
-			const struct editorPaneView *view = &leaf->as.leaf.view;
-			for (int slot = 0; slot < view->pane_tab_count; slot++) {
-				int tab_idx = view->pane_tabs[slot];
-				if (tab_idx < 0 || tab_idx >= E.tab_count) {
-					continue;
-				}
-				const struct editorBuffer *tab = editorTabBufferHandleAt(tab_idx);
-				if (tab == NULL || tab->tab_kind != EDITOR_TAB_FILE ||
-				    tab->is_preview ||
-				    !workspaceStatePathCanWriteLine(tab->filename)) {
-					continue;
-				}
-				int is_active = tab_idx == view->active_tab_idx ? 1 : 0;
-				char prefix[64];
-				int prefix_len = snprintf(prefix, sizeof(prefix), "pane_tab=%d|%d|",
-				                          i, is_active);
-				if (prefix_len <= 0 || (size_t)prefix_len >= sizeof(prefix)) {
-					editorAtomicAbortTemp(fd, tmp_path);
-					return 0;
-				}
-				if (!workspaceStateWriteAll(fd, prefix, (size_t)prefix_len) ||
-				    !workspaceStateWriteAll(fd, tab->filename,
-				                            strlen(tab->filename)) ||
-				    !workspaceStateWriteAll(fd, "\n", 1)) {
-					editorAtomicAbortTemp(fd, tmp_path);
-					return 0;
-				}
-			}
+	return 1;
+}
+
+static int workspaceStateWriteFocusedPane(int fd, int focused_idx) {
+	if (focused_idx < 0) {
+		return 1;
+	}
+	char focus_buf[64];
+	int n = snprintf(focus_buf, sizeof(focus_buf), "focused_pane=%d\n", focused_idx);
+	if (n <= 0 || (size_t)n >= sizeof(focus_buf)) {
+		return 1;
+	}
+	return workspaceStateWriteAll(fd, focus_buf, (size_t)n);
+}
+
+static int workspaceStateWritePaneTabsAndFocus(int fd) {
+	if (E.layout_root == NULL) {
+		return 1;
+	}
+	struct editorPaneNode *leaves[ROTIDE_WORKSPACE_MAX_LEAVES];
+	int leaf_count =
+	        workspaceStateCollectLeaves(E.layout_root, leaves, ROTIDE_WORKSPACE_MAX_LEAVES);
+	int focused_idx = -1;
+	for (int i = 0; i < leaf_count; i++) {
+		if (leaves[i] == E.focused_leaf) {
+			focused_idx = i;
 		}
-		if (focused_idx >= 0) {
-			char focus_buf[64];
-			int n = snprintf(focus_buf, sizeof(focus_buf), "focused_pane=%d\n",
-			                 focused_idx);
-			if (n > 0 && (size_t)n < sizeof(focus_buf)) {
-				if (!workspaceStateWriteAll(fd, focus_buf, (size_t)n)) {
-					editorAtomicAbortTemp(fd, tmp_path);
-					return 0;
-				}
-			}
+		if (!workspaceStateWritePaneTabsForLeaf(fd, leaves[i], i)) {
+			return 0;
 		}
+	}
+	return workspaceStateWriteFocusedPane(fd, focused_idx);
+}
+
+int editorWorkspaceStateSave(void) {
+	if (E.workspace_state_path == NULL) {
+		return 0;
+	}
+
+	char *tmp_path = NULL;
+	int fd = editorAtomicOpenTemp(E.workspace_state_path, &tmp_path, 0600);
+	if (fd == -1) {
+		return 0;
+	}
+
+	if (!workspaceStateWriteHeader(fd) || !workspaceStateWriteRecentFiles(fd) ||
+	    !workspaceStateWriteTabs(fd) || !workspaceStateWriteLayoutSerialization(fd) ||
+	    !workspaceStateWritePaneTabsAndFocus(fd)) {
+		editorAtomicAbortTemp(fd, tmp_path);
+		return 0;
 	}
 	return editorAtomicCommitTemp(fd, tmp_path, E.workspace_state_path);
 }

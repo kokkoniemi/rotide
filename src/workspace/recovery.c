@@ -482,6 +482,159 @@ static int recoveryTabReadText(int fd, struct recoveryTab *tab) {
 	return EDITOR_READ_EXACT_OK;
 }
 
+static enum recoveryLoadStatus recoveryReadStatusToLoad(int read_status) {
+	return read_status == EDITOR_READ_EXACT_ERR ? EDITOR_RECOVERY_LOAD_IO
+	                                            : EDITOR_RECOVERY_LOAD_INVALID;
+}
+
+static enum recoveryLoadStatus recoveryReadAndVerifyMagic(int fd) {
+	char magic[ROTIDE_RECOVERY_MAGIC_LEN];
+	int read_status = recoveryReadExact(fd, magic, sizeof(magic));
+	if (read_status != EDITOR_READ_EXACT_OK) {
+		return recoveryReadStatusToLoad(read_status);
+	}
+	if (memcmp(magic, ROTIDE_RECOVERY_MAGIC, ROTIDE_RECOVERY_MAGIC_LEN) != 0) {
+		return EDITOR_RECOVERY_LOAD_INVALID;
+	}
+	return EDITOR_RECOVERY_LOAD_OK;
+}
+
+static enum recoveryLoadStatus recoveryReadAndVerifyHeader(int fd, uint32_t *version_out,
+                                                           uint32_t *tab_count_out,
+                                                           uint32_t *active_tab_out) {
+	if (recoveryReadU32(fd, version_out) != EDITOR_READ_EXACT_OK ||
+	    recoveryReadU32(fd, tab_count_out) != EDITOR_READ_EXACT_OK ||
+	    recoveryReadU32(fd, active_tab_out) != EDITOR_READ_EXACT_OK) {
+		return EDITOR_RECOVERY_LOAD_INVALID;
+	}
+	if (*version_out < ROTIDE_RECOVERY_MIN_VERSION || *version_out > ROTIDE_RECOVERY_VERSION ||
+	    *tab_count_out < 1 || *tab_count_out > ROTIDE_MAX_TABS ||
+	    *active_tab_out >= *tab_count_out) {
+		return EDITOR_RECOVERY_LOAD_INVALID;
+	}
+	return EDITOR_RECOVERY_LOAD_OK;
+}
+
+static enum recoveryLoadStatus recoveryAllocateTabs(struct recoverySession *session,
+                                                    uint32_t tab_count_u32,
+                                                    uint32_t active_tab_u32) {
+	session->tab_count = (int)tab_count_u32;
+	session->active_tab = (int)active_tab_u32;
+	size_t tabs_bytes = 0;
+	if (!editorSizeMul(sizeof(struct recoveryTab), (size_t)session->tab_count, &tabs_bytes)) {
+		return EDITOR_RECOVERY_LOAD_INVALID;
+	}
+	session->tabs = editorMalloc(tabs_bytes);
+	if (session->tabs == NULL) {
+		return EDITOR_RECOVERY_LOAD_OOM;
+	}
+	memset(session->tabs, 0, tabs_bytes);
+	return EDITOR_RECOVERY_LOAD_OK;
+}
+
+static enum recoveryLoadStatus recoveryReadTabCursor(int fd, struct recoveryTab *tab) {
+	int32_t cx = 0;
+	int32_t cy = 0;
+	int32_t rowoff = 0;
+	int32_t coloff = 0;
+	if (recoveryReadI32(fd, &cx) != EDITOR_READ_EXACT_OK ||
+	    recoveryReadI32(fd, &cy) != EDITOR_READ_EXACT_OK ||
+	    recoveryReadI32(fd, &rowoff) != EDITOR_READ_EXACT_OK ||
+	    recoveryReadI32(fd, &coloff) != EDITOR_READ_EXACT_OK) {
+		return EDITOR_RECOVERY_LOAD_INVALID;
+	}
+	tab->cx = (int)cx;
+	tab->cy = (int)cy;
+	tab->rowoff = (int)rowoff;
+	tab->coloff = (int)coloff;
+	tab->tab_kind = EDITOR_TAB_FILE;
+	tab->dirty = 1;
+	return EDITOR_RECOVERY_LOAD_OK;
+}
+
+static enum recoveryLoadStatus recoveryReadTabKindV3(int fd, struct recoveryTab *tab) {
+	int32_t tab_kind = 0;
+	int32_t dirty = 0;
+	if (recoveryReadI32(fd, &tab_kind) != EDITOR_READ_EXACT_OK ||
+	    recoveryReadI32(fd, &dirty) != EDITOR_READ_EXACT_OK) {
+		return EDITOR_RECOVERY_LOAD_INVALID;
+	}
+	if (!recoveryTabKindIsValid((int)tab_kind) || dirty < 0) {
+		return EDITOR_RECOVERY_LOAD_INVALID;
+	}
+	tab->tab_kind = (enum editorTabKind)tab_kind;
+	tab->dirty = dirty != 0;
+	return EDITOR_RECOVERY_LOAD_OK;
+}
+
+static enum recoveryLoadStatus recoveryReadTabFilename(int fd, struct recoveryTab *tab) {
+	uint32_t filename_len_u32 = 0;
+	if (recoveryReadU32(fd, &filename_len_u32) != EDITOR_READ_EXACT_OK) {
+		return EDITOR_RECOVERY_LOAD_INVALID;
+	}
+	if (filename_len_u32 > ROTIDE_RECOVERY_MAX_FILENAME_BYTES) {
+		return EDITOR_RECOVERY_LOAD_INVALID;
+	}
+	if (filename_len_u32 == 0) {
+		return EDITOR_RECOVERY_LOAD_OK;
+	}
+	size_t filename_len = (size_t)filename_len_u32;
+	size_t filename_alloc = 0;
+	if (!editorSizeAdd(filename_len, 1, &filename_alloc)) {
+		return EDITOR_RECOVERY_LOAD_INVALID;
+	}
+	tab->filename = editorMalloc(filename_alloc);
+	if (tab->filename == NULL) {
+		return EDITOR_RECOVERY_LOAD_OOM;
+	}
+	int read_status = recoveryReadExact(fd, tab->filename, filename_len);
+	if (read_status != EDITOR_READ_EXACT_OK) {
+		return recoveryReadStatusToLoad(read_status);
+	}
+	tab->filename[filename_len] = '\0';
+	return EDITOR_RECOVERY_LOAD_OK;
+}
+
+static enum recoveryLoadStatus recoveryReadTab(int fd, uint32_t version, struct recoveryTab *tab) {
+	enum recoveryLoadStatus s = recoveryReadTabCursor(fd, tab);
+	if (s != EDITOR_RECOVERY_LOAD_OK) {
+		return s;
+	}
+	if (version >= 3) {
+		s = recoveryReadTabKindV3(fd, tab);
+		if (s != EDITOR_RECOVERY_LOAD_OK) {
+			return s;
+		}
+	}
+	s = recoveryReadTabFilename(fd, tab);
+	if (s != EDITOR_RECOVERY_LOAD_OK) {
+		return s;
+	}
+	int read_status = recoveryTabReadText(fd, tab);
+	if (read_status != EDITOR_READ_EXACT_OK) {
+		if (read_status == EDITOR_READ_EXACT_ERR) {
+			return errno == ENOMEM ? EDITOR_RECOVERY_LOAD_OOM : EDITOR_RECOVERY_LOAD_IO;
+		}
+		return EDITOR_RECOVERY_LOAD_INVALID;
+	}
+	return EDITOR_RECOVERY_LOAD_OK;
+}
+
+static enum recoveryLoadStatus recoveryCheckNoTrailingBytes(int fd) {
+	char trailing = '\0';
+	ssize_t trailing_read;
+	do {
+		trailing_read = read(fd, &trailing, 1);
+	} while (trailing_read == -1 && errno == EINTR);
+	if (trailing_read == 1) {
+		return EDITOR_RECOVERY_LOAD_INVALID;
+	}
+	if (trailing_read == -1) {
+		return EDITOR_RECOVERY_LOAD_IO;
+	}
+	return EDITOR_RECOVERY_LOAD_OK;
+}
+
 static enum recoveryLoadStatus recoveryLoadSessionFromPath(const char *path,
                                                            struct recoverySession *session_out) {
 	memset(session_out, 0, sizeof(*session_out));
@@ -494,144 +647,32 @@ static enum recoveryLoadStatus recoveryLoadSessionFromPath(const char *path,
 		return EDITOR_RECOVERY_LOAD_IO;
 	}
 
-	enum recoveryLoadStatus status = EDITOR_RECOVERY_LOAD_INVALID;
-	char magic[ROTIDE_RECOVERY_MAGIC_LEN];
-	int read_status = recoveryReadExact(fd, magic, sizeof(magic));
-	if (read_status != EDITOR_READ_EXACT_OK) {
-		status = read_status == EDITOR_READ_EXACT_ERR ? EDITOR_RECOVERY_LOAD_IO
-		                                              : EDITOR_RECOVERY_LOAD_INVALID;
-		goto out;
-	}
-	if (memcmp(magic, ROTIDE_RECOVERY_MAGIC, ROTIDE_RECOVERY_MAGIC_LEN) != 0) {
-		status = EDITOR_RECOVERY_LOAD_INVALID;
+	enum recoveryLoadStatus status = recoveryReadAndVerifyMagic(fd);
+	if (status != EDITOR_RECOVERY_LOAD_OK) {
 		goto out;
 	}
 
 	uint32_t version = 0;
 	uint32_t tab_count_u32 = 0;
 	uint32_t active_tab_u32 = 0;
-	if (recoveryReadU32(fd, &version) != EDITOR_READ_EXACT_OK ||
-	    recoveryReadU32(fd, &tab_count_u32) != EDITOR_READ_EXACT_OK ||
-	    recoveryReadU32(fd, &active_tab_u32) != EDITOR_READ_EXACT_OK) {
-		status = EDITOR_RECOVERY_LOAD_INVALID;
-		goto out;
-	}
-	if (version < ROTIDE_RECOVERY_MIN_VERSION || version > ROTIDE_RECOVERY_VERSION ||
-	    tab_count_u32 < 1 || tab_count_u32 > ROTIDE_MAX_TABS ||
-	    active_tab_u32 >= tab_count_u32) {
-		status = EDITOR_RECOVERY_LOAD_INVALID;
+	status = recoveryReadAndVerifyHeader(fd, &version, &tab_count_u32, &active_tab_u32);
+	if (status != EDITOR_RECOVERY_LOAD_OK) {
 		goto out;
 	}
 
-	session_out->tab_count = (int)tab_count_u32;
-	session_out->active_tab = (int)active_tab_u32;
-	size_t tabs_bytes = 0;
-	if (!editorSizeMul(sizeof(struct recoveryTab), (size_t)session_out->tab_count,
-	                   &tabs_bytes)) {
-		status = EDITOR_RECOVERY_LOAD_INVALID;
+	status = recoveryAllocateTabs(session_out, tab_count_u32, active_tab_u32);
+	if (status != EDITOR_RECOVERY_LOAD_OK) {
 		goto out;
 	}
-	session_out->tabs = editorMalloc(tabs_bytes);
-	if (session_out->tabs == NULL) {
-		status = EDITOR_RECOVERY_LOAD_OOM;
-		goto out;
-	}
-	memset(session_out->tabs, 0, tabs_bytes);
 
 	for (int tab_idx = 0; tab_idx < session_out->tab_count; tab_idx++) {
-		struct recoveryTab *tab = &session_out->tabs[tab_idx];
-		int32_t cx = 0;
-		int32_t cy = 0;
-		int32_t rowoff = 0;
-		int32_t coloff = 0;
-		if (recoveryReadI32(fd, &cx) != EDITOR_READ_EXACT_OK ||
-		    recoveryReadI32(fd, &cy) != EDITOR_READ_EXACT_OK ||
-		    recoveryReadI32(fd, &rowoff) != EDITOR_READ_EXACT_OK ||
-		    recoveryReadI32(fd, &coloff) != EDITOR_READ_EXACT_OK) {
-			status = EDITOR_RECOVERY_LOAD_INVALID;
-			goto out;
-		}
-		tab->cx = (int)cx;
-		tab->cy = (int)cy;
-		tab->rowoff = (int)rowoff;
-		tab->coloff = (int)coloff;
-		tab->tab_kind = EDITOR_TAB_FILE;
-		tab->dirty = 1;
-
-		if (version >= 3) {
-			int32_t tab_kind = 0;
-			int32_t dirty = 0;
-			if (recoveryReadI32(fd, &tab_kind) != EDITOR_READ_EXACT_OK ||
-			    recoveryReadI32(fd, &dirty) != EDITOR_READ_EXACT_OK) {
-				status = EDITOR_RECOVERY_LOAD_INVALID;
-				goto out;
-			}
-			if (!recoveryTabKindIsValid((int)tab_kind) || dirty < 0) {
-				status = EDITOR_RECOVERY_LOAD_INVALID;
-				goto out;
-			}
-			tab->tab_kind = (enum editorTabKind)tab_kind;
-			tab->dirty = dirty != 0;
-		}
-
-		uint32_t filename_len_u32 = 0;
-		if (recoveryReadU32(fd, &filename_len_u32) != EDITOR_READ_EXACT_OK) {
-			status = EDITOR_RECOVERY_LOAD_INVALID;
-			goto out;
-		}
-		if (filename_len_u32 > ROTIDE_RECOVERY_MAX_FILENAME_BYTES) {
-			status = EDITOR_RECOVERY_LOAD_INVALID;
-			goto out;
-		}
-		if (filename_len_u32 > 0) {
-			size_t filename_len = (size_t)filename_len_u32;
-			size_t filename_alloc = 0;
-			if (!editorSizeAdd(filename_len, 1, &filename_alloc)) {
-				status = EDITOR_RECOVERY_LOAD_INVALID;
-				goto out;
-			}
-			tab->filename = editorMalloc(filename_alloc);
-			if (tab->filename == NULL) {
-				status = EDITOR_RECOVERY_LOAD_OOM;
-				goto out;
-			}
-			read_status = recoveryReadExact(fd, tab->filename, filename_len);
-			if (read_status != EDITOR_READ_EXACT_OK) {
-				status = read_status == EDITOR_READ_EXACT_ERR
-				                 ? EDITOR_RECOVERY_LOAD_IO
-				                 : EDITOR_RECOVERY_LOAD_INVALID;
-				goto out;
-			}
-			tab->filename[filename_len] = '\0';
-		}
-
-		read_status = recoveryTabReadText(fd, tab);
-		if (read_status != EDITOR_READ_EXACT_OK) {
-			if (read_status == EDITOR_READ_EXACT_ERR) {
-				status = errno == ENOMEM ? EDITOR_RECOVERY_LOAD_OOM
-				                         : EDITOR_RECOVERY_LOAD_IO;
-			} else {
-				status = EDITOR_RECOVERY_LOAD_INVALID;
-			}
+		status = recoveryReadTab(fd, version, &session_out->tabs[tab_idx]);
+		if (status != EDITOR_RECOVERY_LOAD_OK) {
 			goto out;
 		}
 	}
 
-	char trailing = '\0';
-	ssize_t trailing_read;
-	do {
-		trailing_read = read(fd, &trailing, 1);
-	} while (trailing_read == -1 && errno == EINTR);
-	if (trailing_read == 1) {
-		status = EDITOR_RECOVERY_LOAD_INVALID;
-		goto out;
-	}
-	if (trailing_read == -1) {
-		status = EDITOR_RECOVERY_LOAD_IO;
-		goto out;
-	}
-
-	status = EDITOR_RECOVERY_LOAD_OK;
+	status = recoveryCheckNoTrailingBytes(fd);
 
 out:
 	if (close(fd) == -1 && status == EDITOR_RECOVERY_LOAD_OK) {

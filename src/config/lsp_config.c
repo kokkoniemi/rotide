@@ -2,7 +2,6 @@
 
 #include "config/common.h"
 
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,100 +14,41 @@ enum lspConfigFileStatus {
 	LSP_CONFIG_FILE_OUT_OF_MEMORY
 };
 
-void editorLspConfigInitDefaults(
-        int *gopls_enabled_out, int *clangd_enabled_out, int *html_enabled_out,
-        int *css_enabled_out, int *json_enabled_out, int *javascript_enabled_out,
-        int *eslint_enabled_out, char *gopls_command_out, size_t gopls_command_out_size,
-        char *gopls_install_command_out, size_t gopls_install_command_out_size,
-        char *clangd_command_out, size_t clangd_command_out_size, char *html_command_out,
-        size_t html_command_out_size, char *css_command_out, size_t css_command_out_size,
-        char *json_command_out, size_t json_command_out_size, char *javascript_command_out,
-        size_t javascript_command_out_size, char *javascript_install_command_out,
-        size_t javascript_install_command_out_size, char *eslint_command_out,
-        size_t eslint_command_out_size, char *vscode_langservers_install_command_out,
-        size_t vscode_langservers_install_command_out_size, int *autocomplete_enabled_out,
-        int *autocomplete_max_items_out) {
-	if (autocomplete_enabled_out != NULL) {
-		*autocomplete_enabled_out = 1;
+void editorLspConfigInitDefaults(struct editorLspConfig *config) {
+	if (config == NULL) {
+		return;
 	}
-	if (autocomplete_max_items_out != NULL) {
-		*autocomplete_max_items_out = 100;
-	}
-	if (gopls_enabled_out != NULL) {
-		*gopls_enabled_out = 1;
-	}
-	if (clangd_enabled_out != NULL) {
-		*clangd_enabled_out = 1;
-	}
-	if (html_enabled_out != NULL) {
-		*html_enabled_out = 1;
-	}
-	if (css_enabled_out != NULL) {
-		*css_enabled_out = 1;
-	}
-	if (json_enabled_out != NULL) {
-		*json_enabled_out = 1;
-	}
-	if (javascript_enabled_out != NULL) {
-		*javascript_enabled_out = 1;
-	}
-	if (eslint_enabled_out != NULL) {
-		*eslint_enabled_out = 1;
-	}
-	if (gopls_command_out != NULL && gopls_command_out_size != 0) {
-		(void)snprintf(gopls_command_out, gopls_command_out_size, "%s", "gopls");
-		gopls_command_out[gopls_command_out_size - 1] = '\0';
-	}
-	if (gopls_install_command_out != NULL && gopls_install_command_out_size != 0) {
-		(void)snprintf(gopls_install_command_out, gopls_install_command_out_size, "%s",
-		               "go install golang.org/x/tools/gopls@latest");
-		gopls_install_command_out[gopls_install_command_out_size - 1] = '\0';
-	}
-	if (clangd_command_out != NULL && clangd_command_out_size != 0) {
-		(void)snprintf(clangd_command_out, clangd_command_out_size, "%s", "clangd");
-		clangd_command_out[clangd_command_out_size - 1] = '\0';
-	}
-	if (html_command_out != NULL && html_command_out_size != 0) {
-		(void)snprintf(html_command_out, html_command_out_size, "%s",
-		               "~/.local/bin/vscode-html-language-server --stdio");
-		html_command_out[html_command_out_size - 1] = '\0';
-	}
-	if (css_command_out != NULL && css_command_out_size != 0) {
-		(void)snprintf(css_command_out, css_command_out_size, "%s",
-		               "~/.local/bin/vscode-css-language-server --stdio");
-		css_command_out[css_command_out_size - 1] = '\0';
-	}
-	if (json_command_out != NULL && json_command_out_size != 0) {
-		(void)snprintf(json_command_out, json_command_out_size, "%s",
-		               "~/.local/bin/vscode-json-language-server --stdio");
-		json_command_out[json_command_out_size - 1] = '\0';
-	}
-	if (javascript_command_out != NULL && javascript_command_out_size != 0) {
-		(void)snprintf(javascript_command_out, javascript_command_out_size, "%s",
-		               "~/.local/bin/typescript-language-server --stdio");
-		javascript_command_out[javascript_command_out_size - 1] = '\0';
-	}
-	if (javascript_install_command_out != NULL && javascript_install_command_out_size != 0) {
-		(void)snprintf(javascript_install_command_out, javascript_install_command_out_size,
-		               "%s",
-		               "npm install --global --prefix ~/.local typescript "
-		               "typescript-language-server");
-		javascript_install_command_out[javascript_install_command_out_size - 1] = '\0';
-	}
-	if (eslint_command_out != NULL && eslint_command_out_size != 0) {
-		(void)snprintf(eslint_command_out, eslint_command_out_size, "%s",
-		               "~/.local/bin/vscode-eslint-language-server --stdio");
-		eslint_command_out[eslint_command_out_size - 1] = '\0';
-	}
-	if (vscode_langservers_install_command_out != NULL &&
-	    vscode_langservers_install_command_out_size != 0) {
-		(void)snprintf(
-		        vscode_langservers_install_command_out,
-		        vscode_langservers_install_command_out_size, "%s",
-		        "npm install --global --prefix ~/.local vscode-langservers-extracted");
-		vscode_langservers_install_command_out[vscode_langservers_install_command_out_size -
-		                                       1] = '\0';
-	}
+
+	config->autocomplete_enabled = 1;
+	config->autocomplete_max_items = 100;
+	config->gopls_enabled = 1;
+	config->clangd_enabled = 1;
+	config->html_enabled = 1;
+	config->css_enabled = 1;
+	config->json_enabled = 1;
+	config->javascript_enabled = 1;
+	config->eslint_enabled = 1;
+	(void)snprintf(config->gopls_command, sizeof(config->gopls_command), "%s", "gopls");
+	(void)snprintf(config->gopls_install_command, sizeof(config->gopls_install_command), "%s",
+	               "go install golang.org/x/tools/gopls@latest");
+	(void)snprintf(config->clangd_command, sizeof(config->clangd_command), "%s", "clangd");
+	(void)snprintf(config->html_command, sizeof(config->html_command), "%s",
+	               "~/.local/bin/vscode-html-language-server --stdio");
+	(void)snprintf(config->css_command, sizeof(config->css_command), "%s",
+	               "~/.local/bin/vscode-css-language-server --stdio");
+	(void)snprintf(config->json_command, sizeof(config->json_command), "%s",
+	               "~/.local/bin/vscode-json-language-server --stdio");
+	(void)snprintf(config->javascript_command, sizeof(config->javascript_command), "%s",
+	               "~/.local/bin/typescript-language-server --stdio");
+	(void)snprintf(config->javascript_install_command,
+	               sizeof(config->javascript_install_command), "%s",
+	               "npm install --global --prefix ~/.local typescript "
+	               "typescript-language-server");
+	(void)snprintf(config->eslint_command, sizeof(config->eslint_command), "%s",
+	               "~/.local/bin/vscode-eslint-language-server --stdio");
+	(void)snprintf(config->vscode_langservers_install_command,
+	               sizeof(config->vscode_langservers_install_command), "%s",
+	               "npm install --global --prefix ~/.local vscode-langservers-extracted");
 }
 
 static int lspConfigParseBooleanValue(const char *value, int *out) {
@@ -126,592 +66,194 @@ static int lspConfigParseBooleanValue(const char *value, int *out) {
 	return 0;
 }
 
-static enum lspConfigFileStatus lspConfigApplyFile(
-        int *gopls_enabled_in_out, int *clangd_enabled_in_out, int *html_enabled_in_out,
-        int *css_enabled_in_out, int *json_enabled_in_out, int *javascript_enabled_in_out,
-        int *eslint_enabled_in_out, char *gopls_command_in_out, size_t gopls_command_in_out_size,
-        char *gopls_install_command_in_out, size_t gopls_install_command_in_out_size,
-        char *clangd_command_in_out, size_t clangd_command_in_out_size, char *html_command_in_out,
-        size_t html_command_in_out_size, char *css_command_in_out, size_t css_command_in_out_size,
-        char *json_command_in_out, size_t json_command_in_out_size, char *javascript_command_in_out,
-        size_t javascript_command_in_out_size, char *javascript_install_command_in_out,
-        size_t javascript_install_command_in_out_size, char *eslint_command_in_out,
-        size_t eslint_command_in_out_size, char *vscode_langservers_install_command_in_out,
-        size_t vscode_langservers_install_command_in_out_size, int *autocomplete_enabled_in_out,
-        int *autocomplete_max_items_in_out, int allow_install_command_override, const char *path) {
-	if (gopls_enabled_in_out == NULL || clangd_enabled_in_out == NULL ||
-	    autocomplete_enabled_in_out == NULL || autocomplete_max_items_in_out == NULL ||
-	    html_enabled_in_out == NULL || css_enabled_in_out == NULL ||
-	    json_enabled_in_out == NULL || javascript_enabled_in_out == NULL ||
-	    eslint_enabled_in_out == NULL || gopls_command_in_out == NULL ||
-	    gopls_command_in_out_size == 0 || gopls_install_command_in_out == NULL ||
-	    gopls_install_command_in_out_size == 0 || clangd_command_in_out == NULL ||
-	    clangd_command_in_out_size == 0 || html_command_in_out == NULL ||
-	    html_command_in_out_size == 0 || css_command_in_out == NULL ||
-	    css_command_in_out_size == 0 || json_command_in_out == NULL ||
-	    json_command_in_out_size == 0 || javascript_command_in_out == NULL ||
-	    javascript_command_in_out_size == 0 || javascript_install_command_in_out == NULL ||
-	    javascript_install_command_in_out_size == 0 || eslint_command_in_out == NULL ||
-	    eslint_command_in_out_size == 0 || vscode_langservers_install_command_in_out == NULL ||
-	    vscode_langservers_install_command_in_out_size == 0) {
-		return LSP_CONFIG_FILE_OUT_OF_MEMORY;
-	}
+struct lspConfigApplyContext {
+	struct editorLspConfig *config;
+	int allow_install_command_override;
+};
 
-	FILE *fp = fopen(path, "r");
-	if (fp == NULL) {
-		if (errno == ENOENT) {
-			return LSP_CONFIG_FILE_MISSING;
-		}
-		return LSP_CONFIG_FILE_INVALID;
-	}
-
-	int gopls_enabled = *gopls_enabled_in_out;
-	int clangd_enabled = *clangd_enabled_in_out;
-	int html_enabled = *html_enabled_in_out;
-	int css_enabled = *css_enabled_in_out;
-	int json_enabled = *json_enabled_in_out;
-	int javascript_enabled = *javascript_enabled_in_out;
-	int eslint_enabled = *eslint_enabled_in_out;
-	int autocomplete_enabled = *autocomplete_enabled_in_out;
-	int autocomplete_max_items = *autocomplete_max_items_in_out;
-	char *gopls_command = malloc(gopls_command_in_out_size);
-	char *gopls_install_command = malloc(gopls_install_command_in_out_size);
-	char *clangd_command = malloc(clangd_command_in_out_size);
-	char *html_command = malloc(html_command_in_out_size);
-	char *css_command = malloc(css_command_in_out_size);
-	char *json_command = malloc(json_command_in_out_size);
-	char *javascript_command = malloc(javascript_command_in_out_size);
-	char *javascript_install_command = malloc(javascript_install_command_in_out_size);
-	char *eslint_command = malloc(eslint_command_in_out_size);
-	char *vscode_langservers_install_command =
-	        malloc(vscode_langservers_install_command_in_out_size);
-	if (gopls_command == NULL || gopls_install_command == NULL || clangd_command == NULL ||
-	    html_command == NULL || css_command == NULL || json_command == NULL ||
-	    javascript_command == NULL || javascript_install_command == NULL ||
-	    eslint_command == NULL || vscode_langservers_install_command == NULL) {
-		free(gopls_command);
-		free(gopls_install_command);
-		free(clangd_command);
-		free(html_command);
-		free(css_command);
-		free(json_command);
-		free(javascript_command);
-		free(javascript_install_command);
-		free(eslint_command);
-		free(vscode_langservers_install_command);
-		(void)fclose(fp);
-		return LSP_CONFIG_FILE_OUT_OF_MEMORY;
-	}
-	(void)snprintf(gopls_command, gopls_command_in_out_size, "%s", gopls_command_in_out);
-	gopls_command[gopls_command_in_out_size - 1] = '\0';
-	(void)snprintf(gopls_install_command, gopls_install_command_in_out_size, "%s",
-	               gopls_install_command_in_out);
-	gopls_install_command[gopls_install_command_in_out_size - 1] = '\0';
-	(void)snprintf(clangd_command, clangd_command_in_out_size, "%s", clangd_command_in_out);
-	clangd_command[clangd_command_in_out_size - 1] = '\0';
-	(void)snprintf(html_command, html_command_in_out_size, "%s", html_command_in_out);
-	html_command[html_command_in_out_size - 1] = '\0';
-	(void)snprintf(css_command, css_command_in_out_size, "%s", css_command_in_out);
-	css_command[css_command_in_out_size - 1] = '\0';
-	(void)snprintf(json_command, json_command_in_out_size, "%s", json_command_in_out);
-	json_command[json_command_in_out_size - 1] = '\0';
-	(void)snprintf(javascript_command, javascript_command_in_out_size, "%s",
-	               javascript_command_in_out);
-	javascript_command[javascript_command_in_out_size - 1] = '\0';
-	(void)snprintf(javascript_install_command, javascript_install_command_in_out_size, "%s",
-	               javascript_install_command_in_out);
-	javascript_install_command[javascript_install_command_in_out_size - 1] = '\0';
-	(void)snprintf(eslint_command, eslint_command_in_out_size, "%s", eslint_command_in_out);
-	eslint_command[eslint_command_in_out_size - 1] = '\0';
-	(void)snprintf(vscode_langservers_install_command,
-	               vscode_langservers_install_command_in_out_size, "%s",
-	               vscode_langservers_install_command_in_out);
-	vscode_langservers_install_command[vscode_langservers_install_command_in_out_size - 1] =
-	        '\0';
-
-#define LSP_CONFIG_FREE_LOCAL()                                                                    \
-	do {                                                                                       \
-		free(gopls_command);                                                               \
-		free(gopls_install_command);                                                       \
-		free(clangd_command);                                                              \
-		free(html_command);                                                                \
-		free(css_command);                                                                 \
-		free(json_command);                                                                \
-		free(javascript_command);                                                          \
-		free(javascript_install_command);                                                  \
-		free(eslint_command);                                                              \
-		free(vscode_langservers_install_command);                                          \
-	} while (0)
-
-	int in_lsp_table = 0;
-	char line[1024];
-	while (fgets(line, sizeof(line), fp) != NULL) {
-		size_t line_len = strlen(line);
-		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
-			LSP_CONFIG_FREE_LOCAL();
-			(void)fclose(fp);
-			return LSP_CONFIG_FILE_INVALID;
-		}
-
-		editorConfigStripInlineComment(line);
-		editorConfigTrimRight(line);
-		char *trimmed = editorConfigTrimLeft(line);
-		if (trimmed[0] == '\0') {
-			continue;
-		}
-
-		if (trimmed[0] == '[') {
-			char *close = strchr(trimmed, ']');
-			if (close == NULL) {
-				LSP_CONFIG_FREE_LOCAL();
-				(void)fclose(fp);
-				return LSP_CONFIG_FILE_INVALID;
-			}
-			*close = '\0';
-			char *table = editorConfigTrimLeft(trimmed + 1);
-			editorConfigTrimRight(table);
-			char *tail = editorConfigTrimLeft(close + 1);
-			if (tail[0] != '\0') {
-				LSP_CONFIG_FREE_LOCAL();
-				(void)fclose(fp);
-				return LSP_CONFIG_FILE_INVALID;
-			}
-
-			in_lsp_table = strcmp(table, "lsp") == 0;
-			continue;
-		}
-
-		if (!in_lsp_table) {
-			continue;
-		}
-
-		char *eq = strchr(trimmed, '=');
-		if (eq == NULL) {
-			LSP_CONFIG_FREE_LOCAL();
-			(void)fclose(fp);
-			return LSP_CONFIG_FILE_INVALID;
-		}
-
-		*eq = '\0';
-		char *setting_name = editorConfigTrimLeft(trimmed);
-		editorConfigTrimRight(setting_name);
-		char *value = editorConfigTrimLeft(eq + 1);
-		if (setting_name[0] == '\0') {
-			LSP_CONFIG_FREE_LOCAL();
-			(void)fclose(fp);
-			return LSP_CONFIG_FILE_INVALID;
-		}
-
-		if (strcmp(setting_name, "enabled") == 0) {
-			int parsed_enabled = 0;
-			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
-				LSP_CONFIG_FREE_LOCAL();
-				(void)fclose(fp);
-				return LSP_CONFIG_FILE_INVALID;
-			}
-			gopls_enabled = parsed_enabled;
-			clangd_enabled = parsed_enabled;
-			html_enabled = parsed_enabled;
-			css_enabled = parsed_enabled;
-			json_enabled = parsed_enabled;
-			javascript_enabled = parsed_enabled;
-			eslint_enabled = parsed_enabled;
-			continue;
-		}
-
-		if (strcmp(setting_name, "gopls_enabled") == 0) {
-			int parsed_enabled = 0;
-			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
-				LSP_CONFIG_FREE_LOCAL();
-				(void)fclose(fp);
-				return LSP_CONFIG_FILE_INVALID;
-			}
-			gopls_enabled = parsed_enabled;
-			continue;
-		}
-
-		if (strcmp(setting_name, "clangd_enabled") == 0) {
-			int parsed_enabled = 0;
-			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
-				LSP_CONFIG_FREE_LOCAL();
-				(void)fclose(fp);
-				return LSP_CONFIG_FILE_INVALID;
-			}
-			clangd_enabled = parsed_enabled;
-			continue;
-		}
-
-		if (strcmp(setting_name, "html_enabled") == 0) {
-			int parsed_enabled = 0;
-			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
-				LSP_CONFIG_FREE_LOCAL();
-				(void)fclose(fp);
-				return LSP_CONFIG_FILE_INVALID;
-			}
-			html_enabled = parsed_enabled;
-			continue;
-		}
-		if (strcmp(setting_name, "css_enabled") == 0) {
-			int parsed_enabled = 0;
-			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
-				LSP_CONFIG_FREE_LOCAL();
-				(void)fclose(fp);
-				return LSP_CONFIG_FILE_INVALID;
-			}
-			css_enabled = parsed_enabled;
-			continue;
-		}
-		if (strcmp(setting_name, "json_enabled") == 0) {
-			int parsed_enabled = 0;
-			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
-				LSP_CONFIG_FREE_LOCAL();
-				(void)fclose(fp);
-				return LSP_CONFIG_FILE_INVALID;
-			}
-			json_enabled = parsed_enabled;
-			continue;
-		}
-		if (strcmp(setting_name, "eslint_enabled") == 0) {
-			int parsed_enabled = 0;
-			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
-				LSP_CONFIG_FREE_LOCAL();
-				(void)fclose(fp);
-				return LSP_CONFIG_FILE_INVALID;
-			}
-			eslint_enabled = parsed_enabled;
-			continue;
-		}
-		if (strcmp(setting_name, "javascript_enabled") == 0) {
-			int parsed_enabled = 0;
-			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
-				LSP_CONFIG_FREE_LOCAL();
-				(void)fclose(fp);
-				return LSP_CONFIG_FILE_INVALID;
-			}
-			javascript_enabled = parsed_enabled;
-			continue;
-		}
-
-		if (strcmp(setting_name, "autocomplete") == 0) {
-			int parsed_enabled = 0;
-			if (!lspConfigParseBooleanValue(value, &parsed_enabled)) {
-				LSP_CONFIG_FREE_LOCAL();
-				(void)fclose(fp);
-				return LSP_CONFIG_FILE_INVALID;
-			}
-			autocomplete_enabled = parsed_enabled;
-			continue;
-		}
-
-		if (strcmp(setting_name, "autocomplete_max_items") == 0) {
-			char *endptr = NULL;
-			long parsed_long = strtol(value, &endptr, 10);
-			if (endptr == value || endptr == NULL || *endptr != '\0' ||
-			    parsed_long < 1 || parsed_long > 1000) {
-				LSP_CONFIG_FREE_LOCAL();
-				(void)fclose(fp);
-				return LSP_CONFIG_FILE_INVALID;
-			}
-			autocomplete_max_items = (int)parsed_long;
-			continue;
-		}
-
-		if (strcmp(setting_name, "gopls_command") == 0) {
-			if (!editorConfigParseQuotedValue(value, gopls_command,
-			                                  gopls_command_in_out_size) ||
-			    gopls_command[0] == '\0') {
-				LSP_CONFIG_FREE_LOCAL();
-				(void)fclose(fp);
-				return LSP_CONFIG_FILE_INVALID;
-			}
-			continue;
-		}
-
-		if (strcmp(setting_name, "gopls_install_command") == 0) {
-			if (!allow_install_command_override) {
-				continue;
-			}
-			if (!editorConfigParseQuotedValue(value, gopls_install_command,
-			                                  gopls_install_command_in_out_size) ||
-			    gopls_install_command[0] == '\0') {
-				LSP_CONFIG_FREE_LOCAL();
-				(void)fclose(fp);
-				return LSP_CONFIG_FILE_INVALID;
-			}
-			continue;
-		}
-		if (strcmp(setting_name, "clangd_command") == 0) {
-			if (!editorConfigParseQuotedValue(value, clangd_command,
-			                                  clangd_command_in_out_size) ||
-			    clangd_command[0] == '\0') {
-				LSP_CONFIG_FREE_LOCAL();
-				(void)fclose(fp);
-				return LSP_CONFIG_FILE_INVALID;
-			}
-			continue;
-		}
-		if (strcmp(setting_name, "html_command") == 0) {
-			if (!editorConfigParseQuotedValue(value, html_command,
-			                                  html_command_in_out_size) ||
-			    html_command[0] == '\0') {
-				LSP_CONFIG_FREE_LOCAL();
-				(void)fclose(fp);
-				return LSP_CONFIG_FILE_INVALID;
-			}
-			continue;
-		}
-		if (strcmp(setting_name, "css_command") == 0) {
-			if (!editorConfigParseQuotedValue(value, css_command,
-			                                  css_command_in_out_size) ||
-			    css_command[0] == '\0') {
-				LSP_CONFIG_FREE_LOCAL();
-				(void)fclose(fp);
-				return LSP_CONFIG_FILE_INVALID;
-			}
-			continue;
-		}
-		if (strcmp(setting_name, "json_command") == 0) {
-			if (!editorConfigParseQuotedValue(value, json_command,
-			                                  json_command_in_out_size) ||
-			    json_command[0] == '\0') {
-				LSP_CONFIG_FREE_LOCAL();
-				(void)fclose(fp);
-				return LSP_CONFIG_FILE_INVALID;
-			}
-			continue;
-		}
-		if (strcmp(setting_name, "eslint_command") == 0) {
-			if (!editorConfigParseQuotedValue(value, eslint_command,
-			                                  eslint_command_in_out_size) ||
-			    eslint_command[0] == '\0') {
-				LSP_CONFIG_FREE_LOCAL();
-				(void)fclose(fp);
-				return LSP_CONFIG_FILE_INVALID;
-			}
-			continue;
-		}
-		if (strcmp(setting_name, "javascript_command") == 0) {
-			if (!editorConfigParseQuotedValue(value, javascript_command,
-			                                  javascript_command_in_out_size) ||
-			    javascript_command[0] == '\0') {
-				LSP_CONFIG_FREE_LOCAL();
-				(void)fclose(fp);
-				return LSP_CONFIG_FILE_INVALID;
-			}
-			continue;
-		}
-		if (strcmp(setting_name, "javascript_install_command") == 0) {
-			if (!allow_install_command_override) {
-				continue;
-			}
-			if (!editorConfigParseQuotedValue(value, javascript_install_command,
-			                                  javascript_install_command_in_out_size) ||
-			    javascript_install_command[0] == '\0') {
-				LSP_CONFIG_FREE_LOCAL();
-				(void)fclose(fp);
-				return LSP_CONFIG_FILE_INVALID;
-			}
-			continue;
-		}
-		if (strcmp(setting_name, "vscode_langservers_install_command") == 0) {
-			if (!allow_install_command_override) {
-				continue;
-			}
-			if (!editorConfigParseQuotedValue(
-			            value, vscode_langservers_install_command,
-			            vscode_langservers_install_command_in_out_size) ||
-			    vscode_langservers_install_command[0] == '\0') {
-				LSP_CONFIG_FREE_LOCAL();
-				(void)fclose(fp);
-				return LSP_CONFIG_FILE_INVALID;
-			}
-			continue;
-		}
-	}
-
-	if (ferror(fp)) {
-		LSP_CONFIG_FREE_LOCAL();
-		(void)fclose(fp);
-		return LSP_CONFIG_FILE_INVALID;
-	}
-
-	(void)fclose(fp);
-	*gopls_enabled_in_out = gopls_enabled;
-	*clangd_enabled_in_out = clangd_enabled;
-	*html_enabled_in_out = html_enabled;
-	*css_enabled_in_out = css_enabled;
-	*json_enabled_in_out = json_enabled;
-	*javascript_enabled_in_out = javascript_enabled;
-	*eslint_enabled_in_out = eslint_enabled;
-	*autocomplete_enabled_in_out = autocomplete_enabled;
-	*autocomplete_max_items_in_out = autocomplete_max_items;
-	(void)snprintf(gopls_command_in_out, gopls_command_in_out_size, "%s", gopls_command);
-	gopls_command_in_out[gopls_command_in_out_size - 1] = '\0';
-	(void)snprintf(gopls_install_command_in_out, gopls_install_command_in_out_size, "%s",
-	               gopls_install_command);
-	gopls_install_command_in_out[gopls_install_command_in_out_size - 1] = '\0';
-	(void)snprintf(clangd_command_in_out, clangd_command_in_out_size, "%s", clangd_command);
-	clangd_command_in_out[clangd_command_in_out_size - 1] = '\0';
-	(void)snprintf(html_command_in_out, html_command_in_out_size, "%s", html_command);
-	html_command_in_out[html_command_in_out_size - 1] = '\0';
-	(void)snprintf(css_command_in_out, css_command_in_out_size, "%s", css_command);
-	css_command_in_out[css_command_in_out_size - 1] = '\0';
-	(void)snprintf(json_command_in_out, json_command_in_out_size, "%s", json_command);
-	json_command_in_out[json_command_in_out_size - 1] = '\0';
-	(void)snprintf(javascript_command_in_out, javascript_command_in_out_size, "%s",
-	               javascript_command);
-	javascript_command_in_out[javascript_command_in_out_size - 1] = '\0';
-	(void)snprintf(javascript_install_command_in_out, javascript_install_command_in_out_size,
-	               "%s", javascript_install_command);
-	javascript_install_command_in_out[javascript_install_command_in_out_size - 1] = '\0';
-	(void)snprintf(eslint_command_in_out, eslint_command_in_out_size, "%s", eslint_command);
-	eslint_command_in_out[eslint_command_in_out_size - 1] = '\0';
-	(void)snprintf(vscode_langservers_install_command_in_out,
-	               vscode_langservers_install_command_in_out_size, "%s",
-	               vscode_langservers_install_command);
-	vscode_langservers_install_command_in_out[vscode_langservers_install_command_in_out_size -
-	                                          1] = '\0';
-	LSP_CONFIG_FREE_LOCAL();
-#undef LSP_CONFIG_FREE_LOCAL
-	return LSP_CONFIG_FILE_APPLIED;
+static int lspConfigOnSection(void *ctx, const char *table) {
+	(void)ctx;
+	return strcmp(table, "lsp") == 0;
 }
 
-enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(
-        int *gopls_enabled_out, int *clangd_enabled_out, int *html_enabled_out,
-        int *css_enabled_out, int *json_enabled_out, int *javascript_enabled_out,
-        int *eslint_enabled_out, char *gopls_command_out, size_t gopls_command_out_size,
-        char *gopls_install_command_out, size_t gopls_install_command_out_size,
-        char *clangd_command_out, size_t clangd_command_out_size, char *html_command_out,
-        size_t html_command_out_size, char *css_command_out, size_t css_command_out_size,
-        char *json_command_out, size_t json_command_out_size, char *javascript_command_out,
-        size_t javascript_command_out_size, char *javascript_install_command_out,
-        size_t javascript_install_command_out_size, char *eslint_command_out,
-        size_t eslint_command_out_size, char *vscode_langservers_install_command_out,
-        size_t vscode_langservers_install_command_out_size, int *autocomplete_enabled_out,
-        int *autocomplete_max_items_out, const char *global_path, const char *project_path) {
-	if (gopls_enabled_out == NULL || clangd_enabled_out == NULL || html_enabled_out == NULL ||
-	    css_enabled_out == NULL || json_enabled_out == NULL || javascript_enabled_out == NULL ||
-	    eslint_enabled_out == NULL || autocomplete_enabled_out == NULL ||
-	    autocomplete_max_items_out == NULL || gopls_command_out == NULL ||
-	    gopls_command_out_size == 0 || gopls_install_command_out == NULL ||
-	    gopls_install_command_out_size == 0 || clangd_command_out == NULL ||
-	    clangd_command_out_size == 0 || html_command_out == NULL ||
-	    html_command_out_size == 0 || css_command_out == NULL || css_command_out_size == 0 ||
-	    json_command_out == NULL || json_command_out_size == 0 ||
-	    javascript_command_out == NULL || javascript_command_out_size == 0 ||
-	    javascript_install_command_out == NULL || javascript_install_command_out_size == 0 ||
-	    eslint_command_out == NULL || eslint_command_out_size == 0 ||
-	    vscode_langservers_install_command_out == NULL ||
-	    vscode_langservers_install_command_out_size == 0) {
+static int lspConfigParseCommandValue(char *value, char *dst, size_t dst_size) {
+	return editorConfigParseQuotedValue(value, dst, dst_size) && dst[0] != '\0';
+}
+
+static int lspConfigOnEntry(void *ctx, const char *key, char *value) {
+	struct lspConfigApplyContext *apply = ctx;
+	struct editorLspConfig *config = apply->config;
+
+	if (strcmp(key, "enabled") == 0) {
+		int enabled = 0;
+		if (!lspConfigParseBooleanValue(value, &enabled)) {
+			return 0;
+		}
+		config->gopls_enabled = enabled;
+		config->clangd_enabled = enabled;
+		config->html_enabled = enabled;
+		config->css_enabled = enabled;
+		config->json_enabled = enabled;
+		config->javascript_enabled = enabled;
+		config->eslint_enabled = enabled;
+		return 1;
+	}
+	if (strcmp(key, "gopls_enabled") == 0) {
+		return lspConfigParseBooleanValue(value, &config->gopls_enabled);
+	}
+	if (strcmp(key, "clangd_enabled") == 0) {
+		return lspConfigParseBooleanValue(value, &config->clangd_enabled);
+	}
+	if (strcmp(key, "html_enabled") == 0) {
+		return lspConfigParseBooleanValue(value, &config->html_enabled);
+	}
+	if (strcmp(key, "css_enabled") == 0) {
+		return lspConfigParseBooleanValue(value, &config->css_enabled);
+	}
+	if (strcmp(key, "json_enabled") == 0) {
+		return lspConfigParseBooleanValue(value, &config->json_enabled);
+	}
+	if (strcmp(key, "eslint_enabled") == 0) {
+		return lspConfigParseBooleanValue(value, &config->eslint_enabled);
+	}
+	if (strcmp(key, "javascript_enabled") == 0) {
+		return lspConfigParseBooleanValue(value, &config->javascript_enabled);
+	}
+	if (strcmp(key, "autocomplete") == 0) {
+		return lspConfigParseBooleanValue(value, &config->autocomplete_enabled);
+	}
+	if (strcmp(key, "autocomplete_max_items") == 0) {
+		char *endptr = NULL;
+		long parsed_long = strtol(value, &endptr, 10);
+		if (endptr == value || endptr == NULL || *endptr != '\0' || parsed_long < 1 ||
+		    parsed_long > 1000) {
+			return 0;
+		}
+		config->autocomplete_max_items = (int)parsed_long;
+		return 1;
+	}
+	if (strcmp(key, "gopls_command") == 0) {
+		return lspConfigParseCommandValue(value, config->gopls_command,
+		                                  sizeof(config->gopls_command));
+	}
+	if (strcmp(key, "gopls_install_command") == 0) {
+		if (!apply->allow_install_command_override) {
+			return 1;
+		}
+		return lspConfigParseCommandValue(value, config->gopls_install_command,
+		                                  sizeof(config->gopls_install_command));
+	}
+	if (strcmp(key, "clangd_command") == 0) {
+		return lspConfigParseCommandValue(value, config->clangd_command,
+		                                  sizeof(config->clangd_command));
+	}
+	if (strcmp(key, "html_command") == 0) {
+		return lspConfigParseCommandValue(value, config->html_command,
+		                                  sizeof(config->html_command));
+	}
+	if (strcmp(key, "css_command") == 0) {
+		return lspConfigParseCommandValue(value, config->css_command,
+		                                  sizeof(config->css_command));
+	}
+	if (strcmp(key, "json_command") == 0) {
+		return lspConfigParseCommandValue(value, config->json_command,
+		                                  sizeof(config->json_command));
+	}
+	if (strcmp(key, "eslint_command") == 0) {
+		return lspConfigParseCommandValue(value, config->eslint_command,
+		                                  sizeof(config->eslint_command));
+	}
+	if (strcmp(key, "javascript_command") == 0) {
+		return lspConfigParseCommandValue(value, config->javascript_command,
+		                                  sizeof(config->javascript_command));
+	}
+	if (strcmp(key, "javascript_install_command") == 0) {
+		if (!apply->allow_install_command_override) {
+			return 1;
+		}
+		return lspConfigParseCommandValue(value, config->javascript_install_command,
+		                                  sizeof(config->javascript_install_command));
+	}
+	if (strcmp(key, "vscode_langservers_install_command") == 0) {
+		if (!apply->allow_install_command_override) {
+			return 1;
+		}
+		return lspConfigParseCommandValue(
+		        value, config->vscode_langservers_install_command,
+		        sizeof(config->vscode_langservers_install_command));
+	}
+	return 1;
+}
+
+static enum lspConfigFileStatus lspConfigApplyFile(struct editorLspConfig *config,
+                                                   int allow_install_command_override,
+                                                   const char *path) {
+	if (config == NULL) {
+		return LSP_CONFIG_FILE_OUT_OF_MEMORY;
+	}
+
+	struct editorLspConfig *parsed = malloc(sizeof(*parsed));
+	if (parsed == NULL) {
+		return LSP_CONFIG_FILE_OUT_OF_MEMORY;
+	}
+	*parsed = *config;
+
+	struct lspConfigApplyContext apply = {
+	        .config = parsed,
+	        .allow_install_command_override = allow_install_command_override,
+	};
+	struct editorConfigScanner scanner = {lspConfigOnSection, lspConfigOnEntry};
+
+	enum lspConfigFileStatus result;
+	switch (editorConfigScanFile(path, &scanner, &apply)) {
+		case EDITOR_CONFIG_SCAN_MISSING:
+			result = LSP_CONFIG_FILE_MISSING;
+			break;
+		case EDITOR_CONFIG_SCAN_OK:
+			*config = *parsed;
+			result = LSP_CONFIG_FILE_APPLIED;
+			break;
+		default:
+			result = LSP_CONFIG_FILE_INVALID;
+			break;
+	}
+
+	free(parsed);
+	return result;
+}
+
+enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(struct editorLspConfig *config,
+                                                            const char *global_path,
+                                                            const char *project_path) {
+	if (config == NULL) {
 		return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
 	}
 
-	editorLspConfigInitDefaults(
-	        gopls_enabled_out, clangd_enabled_out, html_enabled_out, css_enabled_out,
-	        json_enabled_out, javascript_enabled_out, eslint_enabled_out, gopls_command_out,
-	        gopls_command_out_size, gopls_install_command_out, gopls_install_command_out_size,
-	        clangd_command_out, clangd_command_out_size, html_command_out,
-	        html_command_out_size, css_command_out, css_command_out_size, json_command_out,
-	        json_command_out_size, javascript_command_out, javascript_command_out_size,
-	        javascript_install_command_out, javascript_install_command_out_size,
-	        eslint_command_out, eslint_command_out_size, vscode_langservers_install_command_out,
-	        vscode_langservers_install_command_out_size, autocomplete_enabled_out,
-	        autocomplete_max_items_out);
+	editorLspConfigInitDefaults(config);
 	enum editorLspConfigLoadStatus status = EDITOR_LSP_CONFIG_LOAD_OK;
 
 	if (global_path != NULL) {
-		enum lspConfigFileStatus global_status = lspConfigApplyFile(
-		        gopls_enabled_out, clangd_enabled_out, html_enabled_out, css_enabled_out,
-		        json_enabled_out, javascript_enabled_out, eslint_enabled_out,
-		        gopls_command_out, gopls_command_out_size, gopls_install_command_out,
-		        gopls_install_command_out_size, clangd_command_out, clangd_command_out_size,
-		        html_command_out, html_command_out_size, css_command_out,
-		        css_command_out_size, json_command_out, json_command_out_size,
-		        javascript_command_out, javascript_command_out_size,
-		        javascript_install_command_out, javascript_install_command_out_size,
-		        eslint_command_out, eslint_command_out_size,
-		        vscode_langservers_install_command_out,
-		        vscode_langservers_install_command_out_size, autocomplete_enabled_out,
-		        autocomplete_max_items_out, 1, global_path);
+		enum lspConfigFileStatus global_status = lspConfigApplyFile(config, 1, global_path);
 		if (global_status == LSP_CONFIG_FILE_OUT_OF_MEMORY) {
-			editorLspConfigInitDefaults(
-			        gopls_enabled_out, clangd_enabled_out, html_enabled_out,
-			        css_enabled_out, json_enabled_out, javascript_enabled_out,
-			        eslint_enabled_out, gopls_command_out, gopls_command_out_size,
-			        gopls_install_command_out, gopls_install_command_out_size,
-			        clangd_command_out, clangd_command_out_size, html_command_out,
-			        html_command_out_size, css_command_out, css_command_out_size,
-			        json_command_out, json_command_out_size, javascript_command_out,
-			        javascript_command_out_size, javascript_install_command_out,
-			        javascript_install_command_out_size, eslint_command_out,
-			        eslint_command_out_size, vscode_langservers_install_command_out,
-			        vscode_langservers_install_command_out_size,
-			        autocomplete_enabled_out, autocomplete_max_items_out);
+			editorLspConfigInitDefaults(config);
 			return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
 		}
 		if (global_status == LSP_CONFIG_FILE_INVALID) {
-			editorLspConfigInitDefaults(
-			        gopls_enabled_out, clangd_enabled_out, html_enabled_out,
-			        css_enabled_out, json_enabled_out, javascript_enabled_out,
-			        eslint_enabled_out, gopls_command_out, gopls_command_out_size,
-			        gopls_install_command_out, gopls_install_command_out_size,
-			        clangd_command_out, clangd_command_out_size, html_command_out,
-			        html_command_out_size, css_command_out, css_command_out_size,
-			        json_command_out, json_command_out_size, javascript_command_out,
-			        javascript_command_out_size, javascript_install_command_out,
-			        javascript_install_command_out_size, eslint_command_out,
-			        eslint_command_out_size, vscode_langservers_install_command_out,
-			        vscode_langservers_install_command_out_size,
-			        autocomplete_enabled_out, autocomplete_max_items_out);
+			editorLspConfigInitDefaults(config);
 			status = (enum editorLspConfigLoadStatus)(
 			        status | EDITOR_LSP_CONFIG_LOAD_INVALID_GLOBAL);
 		}
 	}
 
 	if (project_path != NULL) {
-		enum lspConfigFileStatus project_status = lspConfigApplyFile(
-		        gopls_enabled_out, clangd_enabled_out, html_enabled_out, css_enabled_out,
-		        json_enabled_out, javascript_enabled_out, eslint_enabled_out,
-		        gopls_command_out, gopls_command_out_size, gopls_install_command_out,
-		        gopls_install_command_out_size, clangd_command_out, clangd_command_out_size,
-		        html_command_out, html_command_out_size, css_command_out,
-		        css_command_out_size, json_command_out, json_command_out_size,
-		        javascript_command_out, javascript_command_out_size,
-		        javascript_install_command_out, javascript_install_command_out_size,
-		        eslint_command_out, eslint_command_out_size,
-		        vscode_langservers_install_command_out,
-		        vscode_langservers_install_command_out_size, autocomplete_enabled_out,
-		        autocomplete_max_items_out, 0, project_path);
+		enum lspConfigFileStatus project_status =
+		        lspConfigApplyFile(config, 0, project_path);
 		if (project_status == LSP_CONFIG_FILE_OUT_OF_MEMORY) {
-			editorLspConfigInitDefaults(
-			        gopls_enabled_out, clangd_enabled_out, html_enabled_out,
-			        css_enabled_out, json_enabled_out, javascript_enabled_out,
-			        eslint_enabled_out, gopls_command_out, gopls_command_out_size,
-			        gopls_install_command_out, gopls_install_command_out_size,
-			        clangd_command_out, clangd_command_out_size, html_command_out,
-			        html_command_out_size, css_command_out, css_command_out_size,
-			        json_command_out, json_command_out_size, javascript_command_out,
-			        javascript_command_out_size, javascript_install_command_out,
-			        javascript_install_command_out_size, eslint_command_out,
-			        eslint_command_out_size, vscode_langservers_install_command_out,
-			        vscode_langservers_install_command_out_size,
-			        autocomplete_enabled_out, autocomplete_max_items_out);
+			editorLspConfigInitDefaults(config);
 			return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
 		}
 		if (project_status == LSP_CONFIG_FILE_INVALID) {
-			editorLspConfigInitDefaults(
-			        gopls_enabled_out, clangd_enabled_out, html_enabled_out,
-			        css_enabled_out, json_enabled_out, javascript_enabled_out,
-			        eslint_enabled_out, gopls_command_out, gopls_command_out_size,
-			        gopls_install_command_out, gopls_install_command_out_size,
-			        clangd_command_out, clangd_command_out_size, html_command_out,
-			        html_command_out_size, css_command_out, css_command_out_size,
-			        json_command_out, json_command_out_size, javascript_command_out,
-			        javascript_command_out_size, javascript_install_command_out,
-			        javascript_install_command_out_size, eslint_command_out,
-			        eslint_command_out_size, vscode_langservers_install_command_out,
-			        vscode_langservers_install_command_out_size,
-			        autocomplete_enabled_out, autocomplete_max_items_out);
+			editorLspConfigInitDefaults(config);
 			status = (enum editorLspConfigLoadStatus)(
 			        status | EDITOR_LSP_CONFIG_LOAD_INVALID_PROJECT);
 		}
@@ -720,82 +262,24 @@ enum editorLspConfigLoadStatus editorLspConfigLoadFromPaths(
 	return status;
 }
 
-enum editorLspConfigLoadStatus editorLspConfigLoadConfigured(
-        int *gopls_enabled_out, int *clangd_enabled_out, int *html_enabled_out,
-        int *css_enabled_out, int *json_enabled_out, int *javascript_enabled_out,
-        int *eslint_enabled_out, char *gopls_command_out, size_t gopls_command_out_size,
-        char *gopls_install_command_out, size_t gopls_install_command_out_size,
-        char *clangd_command_out, size_t clangd_command_out_size, char *html_command_out,
-        size_t html_command_out_size, char *css_command_out, size_t css_command_out_size,
-        char *json_command_out, size_t json_command_out_size, char *javascript_command_out,
-        size_t javascript_command_out_size, char *javascript_install_command_out,
-        size_t javascript_install_command_out_size, char *eslint_command_out,
-        size_t eslint_command_out_size, char *vscode_langservers_install_command_out,
-        size_t vscode_langservers_install_command_out_size, int *autocomplete_enabled_out,
-        int *autocomplete_max_items_out) {
-	if (gopls_enabled_out == NULL || clangd_enabled_out == NULL || html_enabled_out == NULL ||
-	    css_enabled_out == NULL || json_enabled_out == NULL || javascript_enabled_out == NULL ||
-	    eslint_enabled_out == NULL || autocomplete_enabled_out == NULL ||
-	    autocomplete_max_items_out == NULL || gopls_command_out == NULL ||
-	    gopls_command_out_size == 0 || gopls_install_command_out == NULL ||
-	    gopls_install_command_out_size == 0 || clangd_command_out == NULL ||
-	    clangd_command_out_size == 0 || html_command_out == NULL ||
-	    html_command_out_size == 0 || css_command_out == NULL || css_command_out_size == 0 ||
-	    json_command_out == NULL || json_command_out_size == 0 ||
-	    javascript_command_out == NULL || javascript_command_out_size == 0 ||
-	    javascript_install_command_out == NULL || javascript_install_command_out_size == 0 ||
-	    eslint_command_out == NULL || eslint_command_out_size == 0 ||
-	    vscode_langservers_install_command_out == NULL ||
-	    vscode_langservers_install_command_out_size == 0) {
+enum editorLspConfigLoadStatus editorLspConfigLoadConfigured(struct editorLspConfig *config) {
+	if (config == NULL) {
 		return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
 	}
 
 	const char *home = getenv("HOME");
 	if (home == NULL || home[0] == '\0') {
-		return editorLspConfigLoadFromPaths(
-		        gopls_enabled_out, clangd_enabled_out, html_enabled_out, css_enabled_out,
-		        json_enabled_out, javascript_enabled_out, eslint_enabled_out,
-		        gopls_command_out, gopls_command_out_size, gopls_install_command_out,
-		        gopls_install_command_out_size, clangd_command_out, clangd_command_out_size,
-		        html_command_out, html_command_out_size, css_command_out,
-		        css_command_out_size, json_command_out, json_command_out_size,
-		        javascript_command_out, javascript_command_out_size,
-		        javascript_install_command_out, javascript_install_command_out_size,
-		        eslint_command_out, eslint_command_out_size,
-		        vscode_langservers_install_command_out,
-		        vscode_langservers_install_command_out_size, autocomplete_enabled_out,
-		        autocomplete_max_items_out, NULL, NULL);
+		return editorLspConfigLoadFromPaths(config, NULL, NULL);
 	}
 
 	char *global_path = editorConfigBuildGlobalConfigPath();
 	if (global_path == NULL) {
-		editorLspConfigInitDefaults(
-		        gopls_enabled_out, clangd_enabled_out, html_enabled_out, css_enabled_out,
-		        json_enabled_out, javascript_enabled_out, eslint_enabled_out,
-		        gopls_command_out, gopls_command_out_size, gopls_install_command_out,
-		        gopls_install_command_out_size, clangd_command_out, clangd_command_out_size,
-		        html_command_out, html_command_out_size, css_command_out,
-		        css_command_out_size, json_command_out, json_command_out_size,
-		        javascript_command_out, javascript_command_out_size,
-		        javascript_install_command_out, javascript_install_command_out_size,
-		        eslint_command_out, eslint_command_out_size,
-		        vscode_langservers_install_command_out,
-		        vscode_langservers_install_command_out_size, autocomplete_enabled_out,
-		        autocomplete_max_items_out);
+		editorLspConfigInitDefaults(config);
 		return EDITOR_LSP_CONFIG_LOAD_OUT_OF_MEMORY;
 	}
 
-	enum editorLspConfigLoadStatus status = editorLspConfigLoadFromPaths(
-	        gopls_enabled_out, clangd_enabled_out, html_enabled_out, css_enabled_out,
-	        json_enabled_out, javascript_enabled_out, eslint_enabled_out, gopls_command_out,
-	        gopls_command_out_size, gopls_install_command_out, gopls_install_command_out_size,
-	        clangd_command_out, clangd_command_out_size, html_command_out,
-	        html_command_out_size, css_command_out, css_command_out_size, json_command_out,
-	        json_command_out_size, javascript_command_out, javascript_command_out_size,
-	        javascript_install_command_out, javascript_install_command_out_size,
-	        eslint_command_out, eslint_command_out_size, vscode_langservers_install_command_out,
-	        vscode_langservers_install_command_out_size, autocomplete_enabled_out,
-	        autocomplete_max_items_out, global_path, NULL);
+	enum editorLspConfigLoadStatus status =
+	        editorLspConfigLoadFromPaths(config, global_path, NULL);
 	free(global_path);
 	return status;
 }

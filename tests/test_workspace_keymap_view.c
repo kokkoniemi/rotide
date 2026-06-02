@@ -1109,6 +1109,20 @@ static int test_editor_keymap_defaults_include_tab_actions(void) {
 	return 0;
 }
 
+static int test_editor_keymap_default_help_status_is_stable(void) {
+	struct editorKeymap keymap;
+	editorKeymapInitDefaults(&keymap);
+
+	char help[256];
+	editorKeymapBuildHelpStatus(&keymap, help, sizeof(help));
+
+	ASSERT_EQ_STR("Help: Ctrl-S save; Ctrl-Q quit; Ctrl-N new; Ctrl-W close; "
+	              "Alt-Left/Alt-Right tabs; Ctrl-E drawer; Ctrl-P file; Ctrl-Alt-F text; "
+	              "Ctrl-F find; Ctrl-G goto",
+	              help);
+	return 0;
+}
+
 static int test_editor_keymap_defaults_include_shift_selection(void) {
 	struct editorKeymap keymap;
 	editorKeymapInitDefaults(&keymap);
@@ -1530,6 +1544,8 @@ const struct editorTestCase g_workspace_keymap_view_tests[] = {
          test_editor_column_select_drag_modifier_load_from_paths},
         {"editor_keymap_defaults_include_tab_actions",
          test_editor_keymap_defaults_include_tab_actions},
+        {"editor_keymap_default_help_status_is_stable",
+         test_editor_keymap_default_help_status_is_stable},
         {"editor_keymap_load_accepts_remapped_horizontal_scroll",
          test_editor_keymap_load_accepts_remapped_horizontal_scroll},
         {"editor_keymap_defaults_include_shift_selection",

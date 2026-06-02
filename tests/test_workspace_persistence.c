@@ -1414,7 +1414,7 @@ static int test_editor_workspace_state_restore_defers_lsp_for_inactive_tabs(void
 
 	editorLspTestResetMock();
 	editorLspTestSetMockEnabled(1);
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.clangd_enabled = 1;
 
 	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
 	ASSERT_TRUE(editorTabsInit());
@@ -1426,7 +1426,7 @@ static int test_editor_workspace_state_restore_defers_lsp_for_inactive_tabs(void
 	editorWorkspaceStateShutdown();
 	editorLspTestResetMock();
 	editorLspTestSetMockEnabled(1);
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.clangd_enabled = 1;
 
 	ASSERT_TRUE(editorWorkspaceStateInitForCurrentDir());
 	ASSERT_TRUE(editorTabsInit());
@@ -1741,22 +1741,22 @@ static char *read_whole_file(const char *path, size_t *len_out) {
 		return NULL;
 	}
 	if (fseek(fp, 0, SEEK_END) != 0) {
-		fclose(fp);
+		(void)fclose(fp);
 		return NULL;
 	}
 	long sz = ftell(fp);
 	if (sz < 0) {
-		fclose(fp);
+		(void)fclose(fp);
 		return NULL;
 	}
 	rewind(fp);
 	char *buf = malloc((size_t)sz + 1);
 	if (buf == NULL) {
-		fclose(fp);
+		(void)fclose(fp);
 		return NULL;
 	}
 	size_t got = fread(buf, 1, (size_t)sz, fp);
-	fclose(fp);
+	(void)fclose(fp);
 	buf[got] = '\0';
 	if (len_out != NULL) {
 		*len_out = got;

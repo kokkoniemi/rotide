@@ -65,6 +65,25 @@ static int gitEntryCompare(const void *a, const void *b) {
 	return strcmp(ea->rel_path, eb->rel_path);
 }
 
+struct gitEntryCache {
+	struct editorGitEntry *entries;
+	int count;
+	int capacity;
+};
+
+static void gitEntryCacheFree(struct gitEntryCache *cache) {
+	if (cache == NULL) {
+		return;
+	}
+	for (int i = 0; i < cache->count; i++) {
+		free(cache->entries[i].rel_path);
+	}
+	free(cache->entries);
+	cache->entries = NULL;
+	cache->count = 0;
+	cache->capacity = 0;
+}
+
 static enum editorGitStatus gitStatusFromXY(char x, char y) {
 	if (x == 'U' || y == 'U' || (x == 'A' && y == 'A') || (x == 'D' && y == 'D')) {
 		return EDITOR_GIT_STATUS_CONFLICT;
@@ -81,27 +100,27 @@ static enum editorGitStatus gitStatusFromXY(char x, char y) {
 	return EDITOR_GIT_STATUS_CLEAN;
 }
 
-static int gitAddEntry(const char *rel_path, enum editorGitStatus status, char index_status,
-                       char worktree_status) {
-	if (E.git_entry_count >= E.git_entry_capacity) {
-		int new_cap = E.git_entry_capacity == 0 ? 16 : E.git_entry_capacity * 2;
+static int gitEntryCacheAdd(struct gitEntryCache *cache, const char *rel_path,
+                            enum editorGitStatus status, char index_status, char worktree_status) {
+	if (cache->count >= cache->capacity) {
+		int new_cap = cache->capacity == 0 ? 16 : cache->capacity * 2;
 		struct editorGitEntry *new_entries = editorRealloc(
-		        E.git_entries, (size_t)new_cap * sizeof(struct editorGitEntry));
+		        cache->entries, (size_t)new_cap * sizeof(struct editorGitEntry));
 		if (new_entries == NULL) {
 			return 0;
 		}
-		E.git_entries = new_entries;
-		E.git_entry_capacity = new_cap;
+		cache->entries = new_entries;
+		cache->capacity = new_cap;
 	}
 	char *path_dup = strdup(rel_path);
 	if (path_dup == NULL) {
 		return 0;
 	}
-	E.git_entries[E.git_entry_count].rel_path = path_dup;
-	E.git_entries[E.git_entry_count].status = status;
-	E.git_entries[E.git_entry_count].index_status = index_status;
-	E.git_entries[E.git_entry_count].worktree_status = worktree_status;
-	E.git_entry_count++;
+	cache->entries[cache->count].rel_path = path_dup;
+	cache->entries[cache->count].status = status;
+	cache->entries[cache->count].index_status = index_status;
+	cache->entries[cache->count].worktree_status = worktree_status;
+	cache->count++;
 	return 1;
 }
 
@@ -127,60 +146,59 @@ int editorGitInit(void) {
 	return 1;
 }
 
-void editorGitRefresh(void) {
-	if (E.git_repo_root == NULL) {
-		return;
-	}
-
-	gitRefreshBranch();
-	gitFreeEntries();
-
-	// Single-quote-wrap the repo root so paths with spaces are handled safely.
-	// Any single quotes in the path itself are escaped as '\''.
-	char cmd[PATH_MAX * 2 + 64];
+static int gitRefreshBuildStatusCommand(char *cmd, size_t cmd_size) {
 	size_t pos = 0;
 	const char *prefix = "git -C '";
 	size_t prefix_len = strlen(prefix);
-	if (prefix_len >= sizeof(cmd)) {
-		return;
+	if (prefix_len >= cmd_size) {
+		return 0;
 	}
 	memcpy(cmd, prefix, prefix_len);
 	cmd[prefix_len] = '\0';
 	pos = prefix_len;
 	for (const char *p = E.git_repo_root; *p != '\0'; p++) {
 		if (*p == '\'') {
-			if (pos + 4 >= sizeof(cmd)) {
-				return;
+			if (pos + 4 >= cmd_size) {
+				return 0;
 			}
 			cmd[pos++] = '\'';
 			cmd[pos++] = '\\';
 			cmd[pos++] = '\'';
 			cmd[pos++] = '\'';
 		} else {
-			if (pos + 1 >= sizeof(cmd)) {
-				return;
+			if (pos + 1 >= cmd_size) {
+				return 0;
 			}
 			cmd[pos++] = *p;
 		}
 	}
 	const char *suffix = "' status --porcelain=v1 -z --untracked-files=normal 2>/dev/null";
 	size_t suffix_len = strlen(suffix);
-	if (pos + suffix_len + 1 >= sizeof(cmd)) {
-		return;
+	if (pos + suffix_len + 1 >= cmd_size) {
+		return 0;
 	}
 	memcpy(cmd + pos, suffix, suffix_len + 1);
+	return 1;
+}
 
-	FILE *fp = popen(cmd, "r");
-	if (fp == NULL) {
-		return;
+static FILE *gitRefreshSpawnStatus(void) {
+	char cmd[PATH_MAX * 2 + 64];
+	if (!gitRefreshBuildStatusCommand(cmd, sizeof(cmd))) {
+		return NULL;
 	}
+	FILE *fp = popen(cmd, "r");
+	return fp;
+}
 
+static char *gitRefreshReadStatus(FILE *fp, size_t *buf_len_out) {
+	if (buf_len_out != NULL) {
+		*buf_len_out = 0;
+	}
 	size_t buf_cap = 4096;
 	size_t buf_len = 0;
 	char *buf = editorMalloc(buf_cap);
 	if (buf == NULL) {
-		pclose(fp);
-		return;
+		return NULL;
 	}
 
 	while (!feof(fp)) {
@@ -199,9 +217,13 @@ void editorGitRefresh(void) {
 		}
 		buf_len += n_read;
 	}
-	pclose(fp);
+	if (buf_len_out != NULL) {
+		*buf_len_out = buf_len;
+	}
+	return buf;
+}
 
-	// Parse: each record is "XY <path>\0", renames add an extra "<orig>\0"
+static void gitRefreshParseStatus(char *buf, size_t buf_len, struct gitEntryCache *cache) {
 	size_t p = 0;
 	while (p < buf_len) {
 		if (p + 3 > buf_len) {
@@ -235,16 +257,54 @@ void editorGitRefresh(void) {
 
 		enum editorGitStatus status = gitStatusFromXY(x, y);
 		if (status != EDITOR_GIT_STATUS_CLEAN) {
-			(void)gitAddEntry(rel_path, status, x, y);
+			(void)gitEntryCacheAdd(cache, rel_path, status, x, y);
 		}
 	}
+}
 
-	free(buf);
-
-	if (E.git_entry_count > 1) {
-		qsort(E.git_entries, (size_t)E.git_entry_count, sizeof(struct editorGitEntry),
+static void gitRefreshSortCache(struct gitEntryCache *cache) {
+	if (cache->count > 1) {
+		qsort(cache->entries, (size_t)cache->count, sizeof(struct editorGitEntry),
 		      gitEntryCompare);
 	}
+}
+
+static void gitRefreshSwapCache(struct gitEntryCache *cache) {
+	gitFreeEntries();
+	E.git_entries = cache->entries;
+	E.git_entry_count = cache->count;
+	E.git_entry_capacity = cache->capacity;
+	cache->entries = NULL;
+	cache->count = 0;
+	cache->capacity = 0;
+}
+
+void editorGitRefresh(void) {
+	if (E.git_repo_root == NULL) {
+		return;
+	}
+
+	gitRefreshBranch();
+	gitFreeEntries();
+
+	FILE *fp = gitRefreshSpawnStatus();
+	if (fp == NULL) {
+		return;
+	}
+
+	size_t buf_len = 0;
+	char *buf = gitRefreshReadStatus(fp, &buf_len);
+	pclose(fp);
+	if (buf == NULL) {
+		return;
+	}
+
+	struct gitEntryCache cache = {0};
+	gitRefreshParseStatus(buf, buf_len, &cache);
+	free(buf);
+	gitRefreshSortCache(&cache);
+	gitRefreshSwapCache(&cache);
+	gitEntryCacheFree(&cache);
 }
 
 void editorGitFree(void) {

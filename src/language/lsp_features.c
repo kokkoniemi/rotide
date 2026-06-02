@@ -266,7 +266,7 @@ int editorLspRequestDocumentSymbols(const char *filename, enum editorSyntaxLangu
 }
 
 int editorLspCompletionEnabledForFile(const char *filename, enum editorSyntaxLanguage language) {
-	if (!E.lsp_autocomplete_enabled) {
+	if (!E.lsp_config.autocomplete_enabled) {
 		return 0;
 	}
 	if (!editorLspFileEnabled(filename, language)) {

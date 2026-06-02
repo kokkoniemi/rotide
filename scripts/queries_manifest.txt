@@ -54,3 +54,4 @@ yaml_highlight            vendor/tree_sitter/grammars/yaml/queries/highlights.sc
 xml_highlight             vendor/tree_sitter/grammars/xml/queries/highlights.scm
 make_highlight            vendor/tree_sitter/grammars/make/queries/highlights.scm
 diff_highlight            vendor/tree_sitter/grammars/diff/queries/highlights.scm
+latex_highlight           src/language/queries/latex/highlights.scm

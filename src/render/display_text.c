@@ -533,6 +533,69 @@ int editorAppendSanitizedMiddleTruncated(struct writeBuf *wb, const char *text, 
 	return 1;
 }
 
+static int displayTextAppendStatusBasename(struct writeBuf *wb, const char *sanitized_basename,
+                                           int max_cols, const char *marker, int marker_cols,
+                                           int *written_cols_out) {
+	if (written_cols_out != NULL) {
+		*written_cols_out = 0;
+	}
+
+	if (max_cols <= marker_cols) {
+		return editorAppendDisplayPrefix(wb, marker, max_cols, written_cols_out);
+	}
+
+	int suffix_written = 0;
+	if (!wbAppend(wb, marker, strlen(marker)) ||
+	    !editorAppendDisplaySuffix(wb, sanitized_basename, max_cols - marker_cols,
+	                               &suffix_written)) {
+		return 0;
+	}
+	if (written_cols_out != NULL) {
+		*written_cols_out = marker_cols + suffix_written;
+	}
+	return 1;
+}
+
+static int displayTextAppendStatusDirPrefix(struct writeBuf *wb, const char *path, int dir_len,
+                                            int prefix_budget, const char *marker, int marker_cols,
+                                            int *written_cols_out) {
+	if (written_cols_out != NULL) {
+		*written_cols_out = 0;
+	}
+	if (prefix_budget <= 0 || dir_len <= 0) {
+		return 1;
+	}
+
+	int dir_cols = 0;
+	char *sanitized_dir = editorSanitizeTextRangeDup(path, dir_len, &dir_cols);
+	if (sanitized_dir == NULL) {
+		return 0;
+	}
+
+	int prefix_written = 0;
+	int ok = 1;
+	if (dir_cols <= prefix_budget) {
+		ok = editorAppendDisplayPrefix(wb, sanitized_dir, prefix_budget, &prefix_written);
+	} else if (prefix_budget <= marker_cols) {
+		ok = editorAppendDisplaySuffix(wb, sanitized_dir, prefix_budget, &prefix_written);
+	} else {
+		int suffix_written = 0;
+		ok = wbAppend(wb, marker, strlen(marker)) &&
+		     editorAppendDisplaySuffix(wb, sanitized_dir, prefix_budget - marker_cols,
+		                               &suffix_written);
+		prefix_written = marker_cols + suffix_written;
+	}
+
+	free(sanitized_dir);
+	if (!ok) {
+		return 0;
+	}
+	if (written_cols_out != NULL) {
+		*written_cols_out = prefix_written;
+	}
+	return 1;
+}
+
 int editorAppendSanitizedStatusPath(struct writeBuf *wb, const char *path, int max_cols,
                                     int *written_cols_out) {
 	if (written_cols_out != NULL) {
@@ -583,66 +646,20 @@ int editorAppendSanitizedStatusPath(struct writeBuf *wb, const char *path, int m
 	int marker_cols = editorDisplayTextCols(marker);
 	int written_cols = 0;
 	if (basename_cols >= max_cols) {
-		if (max_cols <= marker_cols) {
-			if (!editorAppendDisplayPrefix(wb, marker, max_cols, &written_cols)) {
-				free(sanitized_basename);
-				free(sanitized_full);
-				return 0;
-			}
-		} else {
-			int suffix_written = 0;
-			if (!wbAppend(wb, marker, strlen(marker)) ||
-			    !editorAppendDisplaySuffix(wb, sanitized_basename,
-			                               max_cols - marker_cols, &suffix_written)) {
-				free(sanitized_basename);
-				free(sanitized_full);
-				return 0;
-			}
-			written_cols = marker_cols + suffix_written;
+		if (!displayTextAppendStatusBasename(wb, sanitized_basename, max_cols, marker,
+		                                     marker_cols, &written_cols)) {
+			free(sanitized_basename);
+			free(sanitized_full);
+			return 0;
 		}
 	} else {
 		int prefix_budget = max_cols - basename_cols;
 		int prefix_written = 0;
-		if (prefix_budget > 0 && dir_len > 0) {
-			int dir_cols = 0;
-			char *sanitized_dir = editorSanitizeTextRangeDup(path, dir_len, &dir_cols);
-			if (sanitized_dir == NULL) {
-				free(sanitized_basename);
-				free(sanitized_full);
-				return 0;
-			}
-
-			if (dir_cols <= prefix_budget) {
-				if (!editorAppendDisplayPrefix(wb, sanitized_dir, prefix_budget,
-				                               &prefix_written)) {
-					free(sanitized_dir);
-					free(sanitized_basename);
-					free(sanitized_full);
-					return 0;
-				}
-			} else if (prefix_budget <= marker_cols) {
-				if (!editorAppendDisplaySuffix(wb, sanitized_dir, prefix_budget,
-				                               &prefix_written)) {
-					free(sanitized_dir);
-					free(sanitized_basename);
-					free(sanitized_full);
-					return 0;
-				}
-			} else {
-				int suffix_written = 0;
-				if (!wbAppend(wb, marker, strlen(marker)) ||
-				    !editorAppendDisplaySuffix(wb, sanitized_dir,
-				                               prefix_budget - marker_cols,
-				                               &suffix_written)) {
-					free(sanitized_dir);
-					free(sanitized_basename);
-					free(sanitized_full);
-					return 0;
-				}
-				prefix_written = marker_cols + suffix_written;
-			}
-
-			free(sanitized_dir);
+		if (!displayTextAppendStatusDirPrefix(wb, path, dir_len, prefix_budget, marker,
+		                                      marker_cols, &prefix_written)) {
+			free(sanitized_basename);
+			free(sanitized_full);
+			return 0;
 		}
 
 		int basename_written = 0;

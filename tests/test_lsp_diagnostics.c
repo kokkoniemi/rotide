@@ -41,10 +41,10 @@ static int replace_active_text_for_lsp_drawer_test(const char *text) {
 
 static int test_editor_lsp_eslint_diagnostics_update_and_status_summary(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 0;
-	E.lsp_eslint_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 0;
+	E.lsp_config.eslint_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	char js_path[64];
@@ -183,10 +183,10 @@ static int test_editor_lsp_diagnostics_render_error_underline_and_cursor_popdown
 
 static int test_editor_lsp_eslint_diagnostics_persist_across_tab_switches(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 0;
-	E.lsp_eslint_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 0;
+	E.lsp_config.eslint_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	char js_path[64];
@@ -228,10 +228,10 @@ static int test_editor_lsp_eslint_diagnostics_persist_across_tab_switches(void) 
 
 static int test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 0;
-	E.lsp_eslint_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 0;
+	E.lsp_config.eslint_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	char js_path[64];
@@ -292,10 +292,10 @@ static int test_editor_lsp_drawer_lists_diagnostics_and_jumps_to_problem(void) {
 
 static int test_editor_lsp_drawer_colors_problem_severity_labels(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 0;
-	E.lsp_eslint_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 0;
+	E.lsp_config.eslint_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	char js_path[64];
@@ -342,10 +342,10 @@ static int test_editor_lsp_drawer_colors_problem_severity_labels(void) {
 
 static int test_editor_lsp_drawer_selected_problem_spills_into_text_area(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 0;
-	E.lsp_eslint_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 0;
+	E.lsp_config.eslint_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	char js_path[64];
@@ -450,11 +450,11 @@ static int test_editor_lsp_drawer_lists_syntax_parse_error(void) {
 
 static int test_editor_lsp_javascript_definition_coexists_with_eslint_sidecar(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 0;
-	E.lsp_javascript_enabled = 1;
-	E.lsp_eslint_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 0;
+	E.lsp_config.javascript_enabled = 1;
+	E.lsp_config.eslint_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	E.keymap.bindings[E.keymap.len].key = CTRL_KEY('t');
@@ -537,10 +537,10 @@ static int test_editor_lsp_javascript_definition_coexists_with_eslint_sidecar(vo
 
 static int test_editor_process_keypress_eslint_fix_action_applies_mock_edits(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 0;
-	E.lsp_eslint_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 0;
+	E.lsp_config.eslint_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	E.keymap.bindings[E.keymap.len].key = CTRL_KEY('t');
@@ -578,24 +578,24 @@ static int test_editor_process_keypress_eslint_fix_action_applies_mock_edits(voi
 
 static int
 test_editor_process_keypress_eslint_fix_missing_vscode_langservers_starts_install_task(void) {
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 0;
-	E.lsp_eslint_enabled = 1;
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 0;
+	E.lsp_config.eslint_enabled = 1;
 	ASSERT_TRUE(editorTabsInit());
 
 	E.keymap.bindings[E.keymap.len].key = CTRL_KEY('t');
 	E.keymap.bindings[E.keymap.len].action = EDITOR_ACTION_ESLINT_FIX;
 	E.keymap.len++;
 
-	strncpy(E.lsp_eslint_command,
+	strncpy(E.lsp_config.eslint_command,
 	        "exec >/dev/null; sleep 0.05; rotide_missing_vscode_langservers_install_command",
-	        sizeof(E.lsp_eslint_command) - 1);
-	E.lsp_eslint_command[sizeof(E.lsp_eslint_command) - 1] = '\0';
-	strncpy(E.lsp_vscode_langservers_install_command, "printf 'install ok\\n'",
-	        sizeof(E.lsp_vscode_langservers_install_command) - 1);
-	E.lsp_vscode_langservers_install_command[sizeof(E.lsp_vscode_langservers_install_command) -
-	                                         1] = '\0';
+	        sizeof(E.lsp_config.eslint_command) - 1);
+	E.lsp_config.eslint_command[sizeof(E.lsp_config.eslint_command) - 1] = '\0';
+	strncpy(E.lsp_config.vscode_langservers_install_command, "printf 'install ok\\n'",
+	        sizeof(E.lsp_config.vscode_langservers_install_command) - 1);
+	E.lsp_config.vscode_langservers_install_command
+	        [sizeof(E.lsp_config.vscode_langservers_install_command) - 1] = '\0';
 
 	char js_path[64];
 	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(

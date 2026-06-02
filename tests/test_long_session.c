@@ -264,7 +264,7 @@ static int step_lsp_open_close(void *ctx) {
 
 static int test_long_session_lsp_open_close_cycles_have_flat_memory(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_clangd_enabled = 1;
+	E.lsp_config.clangd_enabled = 1;
 
 	char path[64];
 	ASSERT_TRUE(write_temp_c_file(path, sizeof(path), k_session_fixture));

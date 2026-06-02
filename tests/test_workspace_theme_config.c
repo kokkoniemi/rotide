@@ -362,6 +362,118 @@ static int test_editor_theme_loads_custom_theme_from_home_themes(void) {
 	return 0;
 }
 
+static int test_editor_theme_custom_tables_cover_every_theme_role(void) {
+	char dir_template[] = "/tmp/rotide-test-theme-table-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char dot_rotide[512];
+	char themes_dir[512];
+	char theme_path[512];
+	char project_path[512];
+	ASSERT_TRUE(path_join(dot_rotide, sizeof(dot_rotide), dir_path, ".rotide"));
+	ASSERT_TRUE(path_join(themes_dir, sizeof(themes_dir), dot_rotide, "themes"));
+	ASSERT_TRUE(path_join(theme_path, sizeof(theme_path), themes_dir, "table-cover.toml"));
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
+	ASSERT_TRUE(make_dir(dot_rotide));
+	ASSERT_TRUE(make_dir(themes_dir));
+	ASSERT_TRUE(write_text_file(theme_path, "name = \"table-cover\"\n"
+	                                        "inherits = \"terminal\"\n"
+	                                        "[theme.syntax]\n"
+	                                        "comment = \"#010203\"\n"
+	                                        "keyword = \"#020304\"\n"
+	                                        "type = \"#030405\"\n"
+	                                        "function = \"#040506\"\n"
+	                                        "string = \"#050607\"\n"
+	                                        "number = \"#060708\"\n"
+	                                        "constant = \"#070809\"\n"
+	                                        "variable = \"#08090A\"\n"
+	                                        "variable.parameter = \"#090A0B\"\n"
+	                                        "namespace = \"#0A0B0C\"\n"
+	                                        "variable-member = \"#0B0C0D\"\n"
+	                                        "preprocessor = \"#0C0D0E\"\n"
+	                                        "operator = \"#0D0E0F\"\n"
+	                                        "punctuation = \"#0E0F10\"\n"
+	                                        "[theme.ui]\n"
+	                                        "foreground = \"#200001\"\n"
+	                                        "background = \"#200102\"\n"
+	                                        "line_number = \"#200203\"\n"
+	                                        "drawer_connector = \"#200304\"\n"
+	                                        "drawer_icon = \"#200405\"\n"
+	                                        "placeholder = \"#200506\"\n"
+	                                        "current_line_bg = \"#200607\"\n"
+	                                        "drawer_header_bg = \"#200708\"\n"
+	                                        "directory = \"#200809\"\n"
+	                                        "root = \"#20090A\"\n"
+	                                        "git_modified = \"#200A0B\"\n"
+	                                        "git_untracked = \"#200B0C\"\n"
+	                                        "git_conflict = \"#200C0D\"\n"
+	                                        "cursor = \"#200D0E\"\n"
+	                                        "selection_fg = \"#300001\"\n"
+	                                        "selection_bg = \"#300102\"\n"
+	                                        "status_fg = \"#300203\"\n"
+	                                        "status_bg = \"#300304\"\n"
+	                                        "tab_active_fg = \"#300405\"\n"
+	                                        "tab_active_bg = \"#300506\"\n"
+	                                        "drawer_header_active_fg = \"#300607\"\n"
+	                                        "drawer_header_active_bg = \"#300708\"\n"));
+	ASSERT_TRUE(write_text_file(project_path, "[theme]\n"
+	                                          "name = \"table-cover\"\n"));
+
+	struct editorTheme theme;
+	enum editorThemeLoadStatus status =
+	        editorThemeLoadFromPaths(&theme, NULL, project_path, dir_path);
+	ASSERT_EQ_INT(EDITOR_THEME_LOAD_OK, status);
+	ASSERT_EQ_STR("table-cover", theme.name);
+
+	struct {
+		enum editorSyntaxHighlightClass highlight_class;
+		unsigned char r;
+		unsigned char g;
+		unsigned char b;
+	} syntax_expected[] = {
+	        {EDITOR_SYNTAX_HL_COMMENT, 0x01, 0x02, 0x03},
+	        {EDITOR_SYNTAX_HL_KEYWORD, 0x02, 0x03, 0x04},
+	        {EDITOR_SYNTAX_HL_TYPE, 0x03, 0x04, 0x05},
+	        {EDITOR_SYNTAX_HL_FUNCTION, 0x04, 0x05, 0x06},
+	        {EDITOR_SYNTAX_HL_STRING, 0x05, 0x06, 0x07},
+	        {EDITOR_SYNTAX_HL_NUMBER, 0x06, 0x07, 0x08},
+	        {EDITOR_SYNTAX_HL_CONSTANT, 0x07, 0x08, 0x09},
+	        {EDITOR_SYNTAX_HL_VARIABLE, 0x08, 0x09, 0x0A},
+	        {EDITOR_SYNTAX_HL_PARAMETER, 0x09, 0x0A, 0x0B},
+	        {EDITOR_SYNTAX_HL_MODULE, 0x0A, 0x0B, 0x0C},
+	        {EDITOR_SYNTAX_HL_PROPERTY, 0x0B, 0x0C, 0x0D},
+	        {EDITOR_SYNTAX_HL_PREPROCESSOR, 0x0C, 0x0D, 0x0E},
+	        {EDITOR_SYNTAX_HL_OPERATOR, 0x0D, 0x0E, 0x0F},
+	        {EDITOR_SYNTAX_HL_PUNCTUATION, 0x0E, 0x0F, 0x10},
+	};
+	ASSERT_EQ_INT(EDITOR_SYNTAX_HL_CLASS_COUNT - 1,
+	              (int)(sizeof(syntax_expected) / sizeof(syntax_expected[0])));
+	for (size_t i = 0; i < sizeof(syntax_expected) / sizeof(syntax_expected[0]); i++) {
+		ASSERT_TRUE(theme_color_is_rgb(theme.syntax[syntax_expected[i].highlight_class],
+		                               syntax_expected[i].r, syntax_expected[i].g,
+		                               syntax_expected[i].b));
+	}
+
+	for (int i = 0; i < EDITOR_THEME_UI_ROLE_COUNT; i++) {
+		ASSERT_TRUE(theme_color_is_rgb(theme.ui[i], 0x20, (unsigned char)i,
+		                               (unsigned char)(i + 1)));
+	}
+	for (int i = 0; i < EDITOR_THEME_STYLE_ROLE_COUNT; i++) {
+		ASSERT_TRUE(theme_color_is_rgb(theme.styles[i].fg, 0x30, (unsigned char)(i * 2),
+		                               (unsigned char)(i * 2 + 1)));
+		ASSERT_TRUE(theme_color_is_rgb(theme.styles[i].bg, 0x30, (unsigned char)(i * 2 + 1),
+		                               (unsigned char)(i * 2 + 2)));
+	}
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(unlink(theme_path) == 0);
+	ASSERT_TRUE(rmdir(themes_dir) == 0);
+	ASSERT_TRUE(rmdir(dot_rotide) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 static int test_editor_theme_invalid_values_fall_back_to_terminal(void) {
 	char dir_template[] = "/tmp/rotide-test-theme-invalid-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -916,6 +1028,8 @@ const struct editorTestCase g_workspace_theme_config_tests[] = {
          test_editor_theme_project_config_cannot_override_theme_colors},
         {"editor_theme_loads_custom_theme_from_home_themes",
          test_editor_theme_loads_custom_theme_from_home_themes},
+        {"editor_theme_custom_tables_cover_every_theme_role",
+         test_editor_theme_custom_tables_cover_every_theme_role},
         {"editor_theme_invalid_values_fall_back_to_terminal",
          test_editor_theme_invalid_values_fall_back_to_terminal},
         {"editor_theme_builtin_kanagawa_wave_populates_ansi_palette",

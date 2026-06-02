@@ -1488,6 +1488,36 @@ static int test_editor_refresh_screen_applies_syntax_highlighting_for_regex_toke
 	return 0;
 }
 
+static int test_editor_refresh_screen_applies_syntax_highlighting_for_latex_tokens(void) {
+	char path[] = "/tmp/rotide-test-syntax-highlight-latex-XXXXXX.tex";
+	ASSERT_TRUE(
+	        write_fixture_to_temp_path(path, 4, "tests/syntax/supported/latex/highlight.tex"));
+
+	editorOpen(path);
+	E.window_rows = 10;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[90m% comment\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94m\\documentclass\x1b[32m{article}\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94m\\usepackage\x1b[32m{amsmath}\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94m\\section\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[93m\\label\x1b[95m{sec:intro}\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[93m\\ref\x1b[95m{sec:intro}\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[93m\\cite\x1b[95m{knuth84}\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94m\\begin\x1b[96m{equation}\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[94m\\end\x1b[96m{equation}\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(output, "\x1b[97m^\x1b[37m") != NULL);
+	free(output);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 static int test_editor_refresh_screen_applies_syntax_highlighting_for_css_tokens(void) {
 	char path[] = "/tmp/rotide-test-syntax-highlight-css-XXXXXX.css";
 	ASSERT_TRUE(
@@ -2512,6 +2542,8 @@ const struct editorTestCase g_render_frame_tests[] = {
          test_editor_refresh_screen_applies_syntax_highlighting_for_erb_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_regex_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_regex_tokens},
+        {"editor_refresh_screen_applies_syntax_highlighting_for_latex_tokens",
+         test_editor_refresh_screen_applies_syntax_highlighting_for_latex_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_css_tokens",
          test_editor_refresh_screen_applies_syntax_highlighting_for_css_tokens},
         {"editor_refresh_screen_applies_syntax_highlighting_for_go_tokens",

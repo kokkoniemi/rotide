@@ -23,7 +23,7 @@ TS_GRAMMARS_DIR := $(TS_DIR)/grammars
 TS_GRAMMARS := \
 	c cpp go bash html javascript jsdoc css json typescript tsx \
 	python php rust java regex csharp haskell ruby ocaml julia scala \
-	embedded_template markdown markdown_inline toml yaml xml make diff
+	embedded_template markdown markdown_inline toml yaml xml make diff latex
 
 # ============================================================================
 # Compiler flags
@@ -63,14 +63,15 @@ VENDOR_CFLAGS = $(filter-out -Werror -Wundef -Wshadow -Wdouble-promotion -pedant
 TREE_SITTER_CPPFLAGS = $(CPPFLAGS)
 TREE_SITTER_CFLAGS = $(VENDOR_CFLAGS) \
 	-Wno-unused-parameter -Wno-unused-value -Wno-sign-compare \
-	-Wno-implicit-fallthrough -Wno-unused-but-set-variable
+	-Wno-implicit-fallthrough -Wno-unused-but-set-variable -Wno-unused-label
 
 LIBVTERM_CPPFLAGS = $(CPPFLAGS) \
 	-I$(LIBVTERM_DIR)/include -I$(LIBVTERM_DIR)/src
 LIBVTERM_CFLAGS = $(VENDOR_CFLAGS) \
 	-Wno-unused-parameter -Wno-unused-value -Wno-sign-compare \
 	-Wno-implicit-fallthrough -Wno-unused-but-set-variable -Wno-cast-qual \
-	-Wno-missing-field-initializers -Wno-empty-body -Wno-old-style-declaration
+	-Wno-missing-field-initializers -Wno-empty-body -Wno-old-style-declaration \
+	-Wno-maybe-uninitialized -Wno-unknown-warning-option
 
 # ============================================================================
 # Sources
@@ -128,6 +129,7 @@ TEST_SRCS = $(addprefix tests/, \
 	test_syntax_state.c test_syntax_registry.c \
 	test_save_recovery.c test_workspace_persistence.c \
 	test_workspace_theme_config.c test_workspace_keymap_view.c \
+	test_config_scan.c \
 	test_workspace_io.c test_dap.c test_dap_framing.c test_file_watch.c \
 	test_lsp_framing.c test_lsp_protocol.c test_lsp_lifecycle.c \
 	test_lsp_completion.c test_lsp_diagnostics.c test_lsp_navigation.c \

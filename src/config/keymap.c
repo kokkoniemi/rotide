@@ -4,7 +4,6 @@
 #include "rotide.h"
 
 #include <ctype.h>
-#include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,7 +16,42 @@ struct keymapActionName {
 
 struct keymapNamedKey {
 	const char *name;
+	const char *display;
 	int key;
+};
+
+struct keymapArrowKey {
+	const char *name;
+	const char *display;
+	int key;
+};
+
+enum keymapModifierFlags {
+	KEYMAP_MOD_NONE = 0,
+	KEYMAP_MOD_CTRL = 1 << 0,
+	KEYMAP_MOD_ALT = 1 << 1,
+	KEYMAP_MOD_SHIFT = 1 << 2
+};
+
+struct keymapArrowModifierKeys {
+	int modifiers;
+	const char *display_prefix;
+	int left;
+	int right;
+	int down;
+	int up;
+};
+
+struct keymapModifiedNamedKey {
+	int modifiers;
+	const char *name;
+	const char *display;
+	int key;
+};
+
+struct keymapHelpStatusEntry {
+	enum editorAction action;
+	const char *fallback;
 };
 
 enum keymapFileStatus {
@@ -26,6 +60,9 @@ enum keymapFileStatus {
 	KEYMAP_FILE_INVALID,
 	KEYMAP_FILE_OUT_OF_MEMORY
 };
+
+#define KEYMAP_KEY_SPEC_MAX 64
+#define KEYMAP_HELP_STATUS_ITEM_MAX 24
 
 static const struct keymapActionName g_keymap_action_names[] = {
         {"quit", EDITOR_ACTION_QUIT},
@@ -130,10 +167,52 @@ static const struct keymapActionName g_keymap_action_names[] = {
 };
 
 static const struct keymapNamedKey g_keymap_named_keys[] = {
-        {"left", ARROW_LEFT}, {"right", ARROW_RIGHT},   {"up", ARROW_UP},
-        {"down", ARROW_DOWN}, {"home", HOME_KEY},       {"end", END_KEY},
-        {"page_up", PAGE_UP}, {"page_down", PAGE_DOWN}, {"enter", '\r'},
-        {"esc", '\x1b'},      {"backspace", BACKSPACE}, {"del", DEL_KEY},
+        {"home", "Home", HOME_KEY},
+        {"end", "End", END_KEY},
+        {"page_up", "PageUp", PAGE_UP},
+        {"page_down", "PageDown", PAGE_DOWN},
+        {"enter", "Enter", '\r'},
+        {"esc", "Esc", '\x1b'},
+        {"backspace", "Backspace", BACKSPACE},
+        {"del", "Del", DEL_KEY},
+};
+
+static const struct keymapArrowKey g_keymap_arrow_keys[] = {
+        {"left", "Left", ARROW_LEFT},
+        {"right", "Right", ARROW_RIGHT},
+        {"up", "Up", ARROW_UP},
+        {"down", "Down", ARROW_DOWN},
+};
+
+static const struct keymapArrowModifierKeys g_keymap_arrow_modifier_keys[] = {
+        {KEYMAP_MOD_SHIFT, "Shift", SHIFT_ARROW_LEFT, SHIFT_ARROW_RIGHT, SHIFT_ARROW_DOWN,
+         SHIFT_ARROW_UP},
+        {KEYMAP_MOD_CTRL | KEYMAP_MOD_SHIFT, "Ctrl-Shift", CTRL_SHIFT_ARROW_LEFT,
+         CTRL_SHIFT_ARROW_RIGHT, CTRL_SHIFT_ARROW_DOWN, CTRL_SHIFT_ARROW_UP},
+        {KEYMAP_MOD_ALT, "Alt", ALT_ARROW_LEFT, ALT_ARROW_RIGHT, ALT_ARROW_DOWN, ALT_ARROW_UP},
+        {KEYMAP_MOD_ALT | KEYMAP_MOD_SHIFT, "Alt-Shift", ALT_SHIFT_ARROW_LEFT,
+         ALT_SHIFT_ARROW_RIGHT, ALT_SHIFT_ARROW_DOWN, ALT_SHIFT_ARROW_UP},
+        {KEYMAP_MOD_CTRL, "Ctrl", CTRL_ARROW_LEFT, CTRL_ARROW_RIGHT, CTRL_ARROW_DOWN,
+         CTRL_ARROW_UP},
+        {KEYMAP_MOD_CTRL | KEYMAP_MOD_ALT, "Ctrl-Alt", CTRL_ALT_ARROW_LEFT, CTRL_ALT_ARROW_RIGHT,
+         CTRL_ALT_ARROW_DOWN, CTRL_ALT_ARROW_UP},
+        {KEYMAP_MOD_CTRL | KEYMAP_MOD_SHIFT | KEYMAP_MOD_ALT, "Ctrl-Shift-Alt",
+         CTRL_SHIFT_ALT_ARROW_LEFT, CTRL_SHIFT_ALT_ARROW_RIGHT, CTRL_SHIFT_ALT_ARROW_DOWN,
+         CTRL_SHIFT_ALT_ARROW_UP},
+};
+
+static const struct keymapModifiedNamedKey g_keymap_modified_named_keys[] = {
+        {KEYMAP_MOD_SHIFT, "home", "Shift-Home", SHIFT_HOME_KEY},
+        {KEYMAP_MOD_SHIFT, "end", "Shift-End", SHIFT_END_KEY},
+};
+
+static const struct keymapHelpStatusEntry g_keymap_help_status_entries[] = {
+        {EDITOR_ACTION_SAVE, "Save"},           {EDITOR_ACTION_QUIT, "Quit"},
+        {EDITOR_ACTION_NEW_TAB, "NewTab"},      {EDITOR_ACTION_CLOSE_TAB, "CloseTab"},
+        {EDITOR_ACTION_PREV_TAB, "PrevTab"},    {EDITOR_ACTION_NEXT_TAB, "NextTab"},
+        {EDITOR_ACTION_FOCUS_DRAWER, "Drawer"}, {EDITOR_ACTION_FIND_FILE, "File"},
+        {EDITOR_ACTION_PROJECT_SEARCH, "Text"}, {EDITOR_ACTION_FIND, "Find"},
+        {EDITOR_ACTION_GOTO_LINE, "Goto"},
 };
 
 static int keymapHasBindingForKey(const struct editorKeymap *keymap, int key) {
@@ -248,13 +327,6 @@ static int keymapParseCtrlKeySpec(const char *spec, int *key_out) {
 	}
 }
 
-enum keymapModifierFlags {
-	KEYMAP_MOD_NONE = 0,
-	KEYMAP_MOD_CTRL = 1 << 0,
-	KEYMAP_MOD_ALT = 1 << 1,
-	KEYMAP_MOD_SHIFT = 1 << 2
-};
-
 static int keymapParseLetterToken(const char *token, char *letter_out) {
 	if (token[0] == '\0' || token[1] != '\0') {
 		return 0;
@@ -268,149 +340,71 @@ static int keymapParseLetterToken(const char *token, char *letter_out) {
 }
 
 static int keymapParseArrowToken(const char *token, int *arrow_out) {
-	if (strcmp(token, "left") == 0) {
-		*arrow_out = ARROW_LEFT;
-		return 1;
-	}
-	if (strcmp(token, "right") == 0) {
-		*arrow_out = ARROW_RIGHT;
-		return 1;
-	}
-	if (strcmp(token, "up") == 0) {
-		*arrow_out = ARROW_UP;
-		return 1;
-	}
-	if (strcmp(token, "down") == 0) {
-		*arrow_out = ARROW_DOWN;
-		return 1;
+	for (size_t i = 0; i < sizeof(g_keymap_arrow_keys) / sizeof(g_keymap_arrow_keys[0]); i++) {
+		if (strcmp(g_keymap_arrow_keys[i].name, token) == 0) {
+			*arrow_out = g_keymap_arrow_keys[i].key;
+			return 1;
+		}
 	}
 	return 0;
 }
 
-static int keymapArrowWithModifiers(int arrow, int modifiers, int *key_out) {
-	switch (modifiers) {
-		case KEYMAP_MOD_SHIFT:
-			switch (arrow) {
-				case ARROW_LEFT:
-					*key_out = SHIFT_ARROW_LEFT;
-					return 1;
-				case ARROW_RIGHT:
-					*key_out = SHIFT_ARROW_RIGHT;
-					return 1;
-				case ARROW_DOWN:
-					*key_out = SHIFT_ARROW_DOWN;
-					return 1;
-				case ARROW_UP:
-					*key_out = SHIFT_ARROW_UP;
-					return 1;
-				default:
-					return 0;
-			}
-		case KEYMAP_MOD_CTRL | KEYMAP_MOD_SHIFT:
-			switch (arrow) {
-				case ARROW_LEFT:
-					*key_out = CTRL_SHIFT_ARROW_LEFT;
-					return 1;
-				case ARROW_RIGHT:
-					*key_out = CTRL_SHIFT_ARROW_RIGHT;
-					return 1;
-				case ARROW_DOWN:
-					*key_out = CTRL_SHIFT_ARROW_DOWN;
-					return 1;
-				case ARROW_UP:
-					*key_out = CTRL_SHIFT_ARROW_UP;
-					return 1;
-				default:
-					return 0;
-			}
-		case KEYMAP_MOD_ALT:
-			switch (arrow) {
-				case ARROW_LEFT:
-					*key_out = ALT_ARROW_LEFT;
-					return 1;
-				case ARROW_RIGHT:
-					*key_out = ALT_ARROW_RIGHT;
-					return 1;
-				case ARROW_DOWN:
-					*key_out = ALT_ARROW_DOWN;
-					return 1;
-				case ARROW_UP:
-					*key_out = ALT_ARROW_UP;
-					return 1;
-				default:
-					return 0;
-			}
-		case KEYMAP_MOD_ALT | KEYMAP_MOD_SHIFT:
-			switch (arrow) {
-				case ARROW_LEFT:
-					*key_out = ALT_SHIFT_ARROW_LEFT;
-					return 1;
-				case ARROW_RIGHT:
-					*key_out = ALT_SHIFT_ARROW_RIGHT;
-					return 1;
-				case ARROW_DOWN:
-					*key_out = ALT_SHIFT_ARROW_DOWN;
-					return 1;
-				case ARROW_UP:
-					*key_out = ALT_SHIFT_ARROW_UP;
-					return 1;
-				default:
-					return 0;
-			}
-		case KEYMAP_MOD_CTRL:
-			switch (arrow) {
-				case ARROW_LEFT:
-					*key_out = CTRL_ARROW_LEFT;
-					return 1;
-				case ARROW_RIGHT:
-					*key_out = CTRL_ARROW_RIGHT;
-					return 1;
-				case ARROW_DOWN:
-					*key_out = CTRL_ARROW_DOWN;
-					return 1;
-				case ARROW_UP:
-					*key_out = CTRL_ARROW_UP;
-					return 1;
-				default:
-					return 0;
-			}
-		case KEYMAP_MOD_CTRL | KEYMAP_MOD_ALT:
-			switch (arrow) {
-				case ARROW_LEFT:
-					*key_out = CTRL_ALT_ARROW_LEFT;
-					return 1;
-				case ARROW_RIGHT:
-					*key_out = CTRL_ALT_ARROW_RIGHT;
-					return 1;
-				case ARROW_DOWN:
-					*key_out = CTRL_ALT_ARROW_DOWN;
-					return 1;
-				case ARROW_UP:
-					*key_out = CTRL_ALT_ARROW_UP;
-					return 1;
-				default:
-					return 0;
-			}
-		case KEYMAP_MOD_CTRL | KEYMAP_MOD_SHIFT | KEYMAP_MOD_ALT:
-			switch (arrow) {
-				case ARROW_LEFT:
-					*key_out = CTRL_SHIFT_ALT_ARROW_LEFT;
-					return 1;
-				case ARROW_RIGHT:
-					*key_out = CTRL_SHIFT_ALT_ARROW_RIGHT;
-					return 1;
-				case ARROW_DOWN:
-					*key_out = CTRL_SHIFT_ALT_ARROW_DOWN;
-					return 1;
-				case ARROW_UP:
-					*key_out = CTRL_SHIFT_ALT_ARROW_UP;
-					return 1;
-				default:
-					return 0;
-			}
+static int keymapModifiedArrowKey(const struct keymapArrowModifierKeys *entry, int arrow,
+                                  int *key_out) {
+	switch (arrow) {
+		case ARROW_LEFT:
+			*key_out = entry->left;
+			return 1;
+		case ARROW_RIGHT:
+			*key_out = entry->right;
+			return 1;
+		case ARROW_DOWN:
+			*key_out = entry->down;
+			return 1;
+		case ARROW_UP:
+			*key_out = entry->up;
+			return 1;
 		default:
 			return 0;
 	}
+}
+
+static int keymapArrowWithModifiers(int arrow, int modifiers, int *key_out) {
+	for (size_t i = 0;
+	     i < sizeof(g_keymap_arrow_modifier_keys) / sizeof(g_keymap_arrow_modifier_keys[0]);
+	     i++) {
+		if (g_keymap_arrow_modifier_keys[i].modifiers == modifiers) {
+			return keymapModifiedArrowKey(&g_keymap_arrow_modifier_keys[i], arrow,
+			                              key_out);
+		}
+	}
+	return 0;
+}
+
+static int keymapParseNamedKeyToken(const char *token, int *key_out) {
+	if (keymapParseArrowToken(token, key_out)) {
+		return 1;
+	}
+	for (size_t i = 0; i < sizeof(g_keymap_named_keys) / sizeof(g_keymap_named_keys[0]); i++) {
+		if (strcmp(g_keymap_named_keys[i].name, token) == 0) {
+			*key_out = g_keymap_named_keys[i].key;
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static int keymapNamedKeyWithModifiers(const char *token, int modifiers, int *key_out) {
+	for (size_t i = 0;
+	     i < sizeof(g_keymap_modified_named_keys) / sizeof(g_keymap_modified_named_keys[0]);
+	     i++) {
+		if (g_keymap_modified_named_keys[i].modifiers == modifiers &&
+		    strcmp(g_keymap_modified_named_keys[i].name, token) == 0) {
+			*key_out = g_keymap_modified_named_keys[i].key;
+			return 1;
+		}
+	}
+	return 0;
 }
 
 static int keymapParseKeySpec(const char *spec, int *key_out) {
@@ -418,7 +412,7 @@ static int keymapParseKeySpec(const char *spec, int *key_out) {
 		return 1;
 	}
 
-	char normalized[64];
+	char normalized[KEYMAP_KEY_SPEC_MAX];
 	size_t spec_len = strlen(spec);
 	if (spec_len == 0 || spec_len >= sizeof(normalized)) {
 		return 0;
@@ -473,25 +467,11 @@ static int keymapParseKeySpec(const char *spec, int *key_out) {
 	}
 
 	if (modifiers == KEYMAP_MOD_NONE) {
-		for (size_t i = 0; i < sizeof(g_keymap_named_keys) / sizeof(g_keymap_named_keys[0]);
-		     i++) {
-			if (strcmp(g_keymap_named_keys[i].name, key_token) == 0) {
-				*key_out = g_keymap_named_keys[i].key;
-				return 1;
-			}
-		}
-		return 0;
+		return keymapParseNamedKeyToken(key_token, key_out);
 	}
 
-	if (modifiers == KEYMAP_MOD_SHIFT) {
-		if (strcmp(key_token, "home") == 0) {
-			*key_out = SHIFT_HOME_KEY;
-			return 1;
-		}
-		if (strcmp(key_token, "end") == 0) {
-			*key_out = SHIFT_END_KEY;
-			return 1;
-		}
+	if (keymapNamedKeyWithModifiers(key_token, modifiers, key_out)) {
+		return 1;
 	}
 
 	char letter = '\0';
@@ -519,102 +499,49 @@ static int keymapParseKeySpec(const char *spec, int *key_out) {
 	return 0;
 }
 
+static int keymapConfigOnSection(void *ctx, const char *table) {
+	(void)ctx;
+	return strcmp(table, "keymap") == 0;
+}
+
+static int keymapConfigOnEntry(void *ctx, const char *key, char *value) {
+	struct editorKeymap *keymap = ctx;
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	if (!keymapResolveActionName(key, &action)) {
+		return 0;
+	}
+
+	char key_spec[KEYMAP_KEY_SPEC_MAX];
+	if (!editorConfigParseQuotedValue(value, key_spec, sizeof(key_spec))) {
+		return 0;
+	}
+
+	int parsed_key = 0;
+	if (!keymapParseKeySpec(key_spec, &parsed_key)) {
+		return 0;
+	}
+
+	return keymapSetActionBinding(keymap, action, parsed_key);
+}
+
 static enum keymapFileStatus keymapApplyConfigFile(struct editorKeymap *keymap, const char *path) {
-	FILE *fp = fopen(path, "r");
-	if (fp == NULL) {
-		if (errno == ENOENT) {
-			return KEYMAP_FILE_MISSING;
-		}
-		return KEYMAP_FILE_INVALID;
-	}
-
 	struct editorKeymap updated = *keymap;
-	int in_keymap_table = 0;
-	char line[1024];
-	while (fgets(line, sizeof(line), fp) != NULL) {
-		size_t line_len = strlen(line);
-		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
-			(void)fclose(fp);
+	struct editorConfigScanner scanner = {
+	        .on_section = keymapConfigOnSection,
+	        .on_entry = keymapConfigOnEntry,
+	};
+
+	switch (editorConfigScanFile(path, &scanner, &updated)) {
+		case EDITOR_CONFIG_SCAN_MISSING:
+			return KEYMAP_FILE_MISSING;
+		case EDITOR_CONFIG_SCAN_OK:
+			*keymap = updated;
+			return KEYMAP_FILE_APPLIED;
+		case EDITOR_CONFIG_SCAN_MALFORMED:
+		default:
 			return KEYMAP_FILE_INVALID;
-		}
-
-		editorConfigStripInlineComment(line);
-		editorConfigTrimRight(line);
-		char *trimmed = editorConfigTrimLeft(line);
-		if (trimmed[0] == '\0') {
-			continue;
-		}
-
-		if (trimmed[0] == '[') {
-			char *close = strchr(trimmed, ']');
-			if (close == NULL) {
-				(void)fclose(fp);
-				return KEYMAP_FILE_INVALID;
-			}
-			*close = '\0';
-			char *table = editorConfigTrimLeft(trimmed + 1);
-			editorConfigTrimRight(table);
-			char *tail = editorConfigTrimLeft(close + 1);
-			if (tail[0] != '\0') {
-				(void)fclose(fp);
-				return KEYMAP_FILE_INVALID;
-			}
-
-			in_keymap_table = strcmp(table, "keymap") == 0;
-			continue;
-		}
-
-		if (!in_keymap_table) {
-			continue;
-		}
-
-		char *eq = strchr(trimmed, '=');
-		if (eq == NULL) {
-			(void)fclose(fp);
-			return KEYMAP_FILE_INVALID;
-		}
-
-		*eq = '\0';
-		char *action_name = editorConfigTrimLeft(trimmed);
-		editorConfigTrimRight(action_name);
-		char *value = editorConfigTrimLeft(eq + 1);
-		if (action_name[0] == '\0') {
-			(void)fclose(fp);
-			return KEYMAP_FILE_INVALID;
-		}
-
-		enum editorAction action = EDITOR_ACTION_COUNT;
-		if (!keymapResolveActionName(action_name, &action)) {
-			(void)fclose(fp);
-			return KEYMAP_FILE_INVALID;
-		}
-
-		char key_spec[64];
-		if (!editorConfigParseQuotedValue(value, key_spec, sizeof(key_spec))) {
-			(void)fclose(fp);
-			return KEYMAP_FILE_INVALID;
-		}
-
-		int key = 0;
-		if (!keymapParseKeySpec(key_spec, &key)) {
-			(void)fclose(fp);
-			return KEYMAP_FILE_INVALID;
-		}
-
-		if (!keymapSetActionBinding(&updated, action, key)) {
-			(void)fclose(fp);
-			return KEYMAP_FILE_INVALID;
-		}
 	}
-
-	if (ferror(fp)) {
-		(void)fclose(fp);
-		return KEYMAP_FILE_INVALID;
-	}
-
-	(void)fclose(fp);
-	*keymap = updated;
-	return KEYMAP_FILE_APPLIED;
 }
 
 static int keymapFormatKey(int key, char *buf, size_t bufsize) {
@@ -634,93 +561,38 @@ static int keymapFormatKey(int key, char *buf, size_t bufsize) {
 		                'A' + (int)(EDITOR_CTRL_ALT_LETTER_FROM_KEY(key) - 'a')) > 0;
 	}
 
-	switch (key) {
-		case ALT_ARROW_LEFT:
-			return snprintf(buf, bufsize, "Alt-Left") > 0;
-		case ALT_ARROW_RIGHT:
-			return snprintf(buf, bufsize, "Alt-Right") > 0;
-		case ALT_ARROW_DOWN:
-			return snprintf(buf, bufsize, "Alt-Down") > 0;
-		case ALT_ARROW_UP:
-			return snprintf(buf, bufsize, "Alt-Up") > 0;
-		case ALT_SHIFT_ARROW_LEFT:
-			return snprintf(buf, bufsize, "Alt-Shift-Left") > 0;
-		case ALT_SHIFT_ARROW_RIGHT:
-			return snprintf(buf, bufsize, "Alt-Shift-Right") > 0;
-		case ALT_SHIFT_ARROW_DOWN:
-			return snprintf(buf, bufsize, "Alt-Shift-Down") > 0;
-		case ALT_SHIFT_ARROW_UP:
-			return snprintf(buf, bufsize, "Alt-Shift-Up") > 0;
-		case CTRL_ARROW_LEFT:
-			return snprintf(buf, bufsize, "Ctrl-Left") > 0;
-		case CTRL_ARROW_RIGHT:
-			return snprintf(buf, bufsize, "Ctrl-Right") > 0;
-		case CTRL_ARROW_DOWN:
-			return snprintf(buf, bufsize, "Ctrl-Down") > 0;
-		case CTRL_ARROW_UP:
-			return snprintf(buf, bufsize, "Ctrl-Up") > 0;
-		case SHIFT_ARROW_LEFT:
-			return snprintf(buf, bufsize, "Shift-Left") > 0;
-		case SHIFT_ARROW_RIGHT:
-			return snprintf(buf, bufsize, "Shift-Right") > 0;
-		case SHIFT_ARROW_DOWN:
-			return snprintf(buf, bufsize, "Shift-Down") > 0;
-		case SHIFT_ARROW_UP:
-			return snprintf(buf, bufsize, "Shift-Up") > 0;
-		case CTRL_SHIFT_ARROW_LEFT:
-			return snprintf(buf, bufsize, "Ctrl-Shift-Left") > 0;
-		case CTRL_SHIFT_ARROW_RIGHT:
-			return snprintf(buf, bufsize, "Ctrl-Shift-Right") > 0;
-		case CTRL_SHIFT_ARROW_DOWN:
-			return snprintf(buf, bufsize, "Ctrl-Shift-Down") > 0;
-		case CTRL_SHIFT_ARROW_UP:
-			return snprintf(buf, bufsize, "Ctrl-Shift-Up") > 0;
-		case CTRL_ALT_ARROW_LEFT:
-			return snprintf(buf, bufsize, "Ctrl-Alt-Left") > 0;
-		case CTRL_ALT_ARROW_RIGHT:
-			return snprintf(buf, bufsize, "Ctrl-Alt-Right") > 0;
-		case CTRL_ALT_ARROW_DOWN:
-			return snprintf(buf, bufsize, "Ctrl-Alt-Down") > 0;
-		case CTRL_ALT_ARROW_UP:
-			return snprintf(buf, bufsize, "Ctrl-Alt-Up") > 0;
-		case CTRL_SHIFT_ALT_ARROW_LEFT:
-			return snprintf(buf, bufsize, "Ctrl-Shift-Alt-Left") > 0;
-		case CTRL_SHIFT_ALT_ARROW_RIGHT:
-			return snprintf(buf, bufsize, "Ctrl-Shift-Alt-Right") > 0;
-		case CTRL_SHIFT_ALT_ARROW_DOWN:
-			return snprintf(buf, bufsize, "Ctrl-Shift-Alt-Down") > 0;
-		case CTRL_SHIFT_ALT_ARROW_UP:
-			return snprintf(buf, bufsize, "Ctrl-Shift-Alt-Up") > 0;
-		case ARROW_LEFT:
-			return snprintf(buf, bufsize, "Left") > 0;
-		case ARROW_RIGHT:
-			return snprintf(buf, bufsize, "Right") > 0;
-		case ARROW_UP:
-			return snprintf(buf, bufsize, "Up") > 0;
-		case ARROW_DOWN:
-			return snprintf(buf, bufsize, "Down") > 0;
-		case HOME_KEY:
-			return snprintf(buf, bufsize, "Home") > 0;
-		case END_KEY:
-			return snprintf(buf, bufsize, "End") > 0;
-		case SHIFT_HOME_KEY:
-			return snprintf(buf, bufsize, "Shift-Home") > 0;
-		case SHIFT_END_KEY:
-			return snprintf(buf, bufsize, "Shift-End") > 0;
-		case PAGE_UP:
-			return snprintf(buf, bufsize, "PageUp") > 0;
-		case PAGE_DOWN:
-			return snprintf(buf, bufsize, "PageDown") > 0;
-		case DEL_KEY:
-			return snprintf(buf, bufsize, "Del") > 0;
-		case BACKSPACE:
-			return snprintf(buf, bufsize, "Backspace") > 0;
-		case '\r':
-			return snprintf(buf, bufsize, "Enter") > 0;
-		case '\x1b':
-			return snprintf(buf, bufsize, "Esc") > 0;
-		default:
-			break;
+	for (size_t i = 0;
+	     i < sizeof(g_keymap_arrow_modifier_keys) / sizeof(g_keymap_arrow_modifier_keys[0]);
+	     i++) {
+		const struct keymapArrowModifierKeys *modifier = &g_keymap_arrow_modifier_keys[i];
+		for (size_t j = 0; j < sizeof(g_keymap_arrow_keys) / sizeof(g_keymap_arrow_keys[0]);
+		     j++) {
+			int modified_key = 0;
+			if (keymapModifiedArrowKey(modifier, g_keymap_arrow_keys[j].key,
+			                           &modified_key) &&
+			    modified_key == key) {
+				return snprintf(buf, bufsize, "%s-%s", modifier->display_prefix,
+				                g_keymap_arrow_keys[j].display) > 0;
+			}
+		}
+	}
+	for (size_t i = 0; i < sizeof(g_keymap_arrow_keys) / sizeof(g_keymap_arrow_keys[0]); i++) {
+		if (g_keymap_arrow_keys[i].key == key) {
+			return snprintf(buf, bufsize, "%s", g_keymap_arrow_keys[i].display) > 0;
+		}
+	}
+	for (size_t i = 0; i < sizeof(g_keymap_named_keys) / sizeof(g_keymap_named_keys[0]); i++) {
+		if (g_keymap_named_keys[i].key == key) {
+			return snprintf(buf, bufsize, "%s", g_keymap_named_keys[i].display) > 0;
+		}
+	}
+	for (size_t i = 0;
+	     i < sizeof(g_keymap_modified_named_keys) / sizeof(g_keymap_modified_named_keys[0]);
+	     i++) {
+		if (g_keymap_modified_named_keys[i].key == key) {
+			return snprintf(buf, bufsize, "%s",
+			                g_keymap_modified_named_keys[i].display) > 0;
+		}
 	}
 
 	if (key >= CHAR_MIN && key <= CHAR_MAX && isprint((unsigned char)key)) {
@@ -848,95 +720,30 @@ int editorKeymapFormatBinding(const struct editorKeymap *keymap, enum editorActi
 	return 0;
 }
 
-void editorKeymapBuildHelpStatus(const struct editorKeymap *keymap, char *buf, size_t bufsize) {
-	char save[24];
-	char quit[24];
-	char new_tab[24];
-	char close_tab[24];
-	char next_tab[24];
-	char prev_tab[24];
-	char focus_drawer[24];
-	char find_file[24];
-	char project_search[24];
-	char find[24];
-	char go_to[24];
-	char select[24];
-	char copy[24];
-	char cut[24];
-	char delete_sel[24];
-	char paste[24];
-	char undo[24];
-	char redo[24];
+static void keymapFormatHelpStatusEntry(const struct editorKeymap *keymap,
+                                        const struct keymapHelpStatusEntry *entry, char *buf,
+                                        size_t bufsize) {
+	if (!editorKeymapFormatBinding(keymap, entry->action, buf, bufsize)) {
+		(void)snprintf(buf, bufsize, "%s", entry->fallback);
+	}
+}
 
-	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_SAVE, save, sizeof(save))) {
-		(void)snprintf(save, sizeof(save), "Save");
-	}
-	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_QUIT, quit, sizeof(quit))) {
-		(void)snprintf(quit, sizeof(quit), "Quit");
-	}
-	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_NEW_TAB, new_tab, sizeof(new_tab))) {
-		(void)snprintf(new_tab, sizeof(new_tab), "NewTab");
-	}
-	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_CLOSE_TAB, close_tab,
-	                               sizeof(close_tab))) {
-		(void)snprintf(close_tab, sizeof(close_tab), "CloseTab");
-	}
-	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_NEXT_TAB, next_tab,
-	                               sizeof(next_tab))) {
-		(void)snprintf(next_tab, sizeof(next_tab), "NextTab");
-	}
-	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_PREV_TAB, prev_tab,
-	                               sizeof(prev_tab))) {
-		(void)snprintf(prev_tab, sizeof(prev_tab), "PrevTab");
-	}
-	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_FOCUS_DRAWER, focus_drawer,
-	                               sizeof(focus_drawer))) {
-		(void)snprintf(focus_drawer, sizeof(focus_drawer), "Drawer");
-	}
-	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_FIND_FILE, find_file,
-	                               sizeof(find_file))) {
-		(void)snprintf(find_file, sizeof(find_file), "File");
-	}
-	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_PROJECT_SEARCH, project_search,
-	                               sizeof(project_search))) {
-		(void)snprintf(project_search, sizeof(project_search), "Text");
-	}
-	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_FIND, find, sizeof(find))) {
-		(void)snprintf(find, sizeof(find), "Find");
-	}
-	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_GOTO_LINE, go_to, sizeof(go_to))) {
-		(void)snprintf(go_to, sizeof(go_to), "Goto");
-	}
-	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_TOGGLE_SELECTION, select,
-	                               sizeof(select))) {
-		(void)snprintf(select, sizeof(select), "Select");
-	}
-	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_COPY_SELECTION, copy, sizeof(copy))) {
-		(void)snprintf(copy, sizeof(copy), "Copy");
-	}
-	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_CUT_SELECTION, cut, sizeof(cut))) {
-		(void)snprintf(cut, sizeof(cut), "Cut");
-	}
-	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_DELETE_SELECTION, delete_sel,
-	                               sizeof(delete_sel))) {
-		(void)snprintf(delete_sel, sizeof(delete_sel), "Del");
-	}
-	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_PASTE, paste, sizeof(paste))) {
-		(void)snprintf(paste, sizeof(paste), "Paste");
-	}
-	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_UNDO, undo, sizeof(undo))) {
-		(void)snprintf(undo, sizeof(undo), "Undo");
-	}
-	if (!editorKeymapFormatBinding(keymap, EDITOR_ACTION_REDO, redo, sizeof(redo))) {
-		(void)snprintf(redo, sizeof(redo), "Redo");
+void editorKeymapBuildHelpStatus(const struct editorKeymap *keymap, char *buf, size_t bufsize) {
+	char slots[sizeof(g_keymap_help_status_entries) / sizeof(g_keymap_help_status_entries[0])]
+	          [KEYMAP_HELP_STATUS_ITEM_MAX];
+	for (size_t i = 0;
+	     i < sizeof(g_keymap_help_status_entries) / sizeof(g_keymap_help_status_entries[0]);
+	     i++) {
+		keymapFormatHelpStatusEntry(keymap, &g_keymap_help_status_entries[i], slots[i],
+		                            sizeof(slots[i]));
 	}
 
 	(void)snprintf(
 	        buf, bufsize,
 	        "Help: %s save; %s quit; %s new; %s close; %s/%s tabs; %s drawer; %s file; %s "
 	        "text; %s find; %s goto",
-	        save, quit, new_tab, close_tab, prev_tab, next_tab, focus_drawer, find_file,
-	        project_search, find, go_to);
+	        slots[0], slots[1], slots[2], slots[3], slots[4], slots[5], slots[6], slots[7],
+	        slots[8], slots[9], slots[10]);
 }
 
 enum editorKeymapLoadStatus editorKeymapLoadFromPaths(struct editorKeymap *keymap,

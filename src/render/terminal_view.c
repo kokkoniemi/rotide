@@ -142,72 +142,94 @@ static int terminalViewDrawExitStatusRow(struct writeBuf *wb,
 	return editorAppendThemeReset(wb);
 }
 
-int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *terminal,
-                            int row_in_pane, int col_in_pane, int slice_cols) {
-	if (terminal == NULL || terminal->screen == NULL || slice_cols <= 0) {
+static int terminalViewTryAdvanceCleanRow(struct writeBuf *wb,
+                                          const struct editorTerminalPane *terminal,
+                                          int row_in_pane, int slice_cols, int *advanced_out) {
+	*advanced_out = 0;
+	if (terminal->row_dirty == NULL || row_in_pane < 0 ||
+	    row_in_pane >= terminal->row_dirty_cap || terminal->row_dirty[row_in_pane]) {
 		return 1;
-	}
-	if (terminal->exited && terminal->rows > 0 && row_in_pane == terminal->rows - 1) {
-		/* Exit banner is static once drawn — apply the same dirty-bit skip
-		 * as the live-cell path. */
-		if (terminal->row_dirty != NULL && row_in_pane < terminal->row_dirty_cap &&
-		    !terminal->row_dirty[row_in_pane]) {
-			if (!editorAppendThemeReset(wb)) {
-				return 0;
-			}
-			char esc[16];
-			int n = snprintf(esc, sizeof(esc), "\x1b[%dC", slice_cols);
-			if (n > 0 && n < (int)sizeof(esc)) {
-				return wbAppend(wb, esc, (size_t)n);
-			}
-		}
-		int ok = terminalViewDrawExitStatusRow(wb, terminal, col_in_pane, slice_cols);
-		if (ok && terminal->row_dirty != NULL && row_in_pane < terminal->row_dirty_cap) {
-			terminal->row_dirty[row_in_pane] = 0;
-		}
-		return ok;
-	}
-	/* If nothing damaged this row since the previous frame, advance the
-	 * cursor past it without re-emitting cells — the prior frame's output
-	 * is still on screen. */
-	if (terminal->row_dirty != NULL && row_in_pane >= 0 &&
-	    row_in_pane < terminal->row_dirty_cap && !terminal->row_dirty[row_in_pane]) {
-		if (!editorAppendThemeReset(wb)) {
-			return 0;
-		}
-		char esc[16];
-		int n = snprintf(esc, sizeof(esc), "\x1b[%dC", slice_cols);
-		if (n <= 0 || n >= (int)sizeof(esc)) {
-			/* Fall through to a full redraw rather than emit a bogus escape. */
-		} else {
-			return wbAppend(wb, esc, (size_t)n);
-		}
 	}
 	if (!editorAppendThemeReset(wb)) {
 		return 0;
 	}
+	char esc[16];
+	int n = snprintf(esc, sizeof(esc), "\x1b[%dC", slice_cols);
+	if (n <= 0 || n >= (int)sizeof(esc)) {
+		return 1;
+	}
+	if (!wbAppend(wb, esc, (size_t)n)) {
+		return 0;
+	}
+	*advanced_out = 1;
+	return 1;
+}
+
+static void terminalViewMarkRowClean(struct editorTerminalPane *terminal, int row_in_pane) {
 	if (terminal->row_dirty != NULL && row_in_pane >= 0 &&
 	    row_in_pane < terminal->row_dirty_cap) {
 		terminal->row_dirty[row_in_pane] = 0;
 	}
-	/* Translate pane-local row into the pane's log-row coordinate so we can
-	 * pull from scrollback when the user has scrolled up, and so selection
-	 * checks (which use log-row) line up. */
-	int log_row = row_in_pane - terminal->scroll_offset;
-	int row_cols = terminal->cols;
-	if (row_cols <= 0) {
-		row_cols = slice_cols;
+}
+
+struct terminalViewRowCtx {
+	int log_row;
+	int row_cols;
+	int have_row;
+	VTermScreenCell *row_buf;
+};
+
+static struct terminalViewRowCtx terminalViewBuildRowCtx(struct editorTerminalPane *terminal,
+                                                         int row_in_pane, int slice_cols) {
+	struct terminalViewRowCtx ctx = {
+	        .log_row = row_in_pane - terminal->scroll_offset,
+	        .row_cols = terminal->cols,
+	        .have_row = 0,
+	        .row_buf = NULL,
+	};
+	if (ctx.row_cols <= 0) {
+		ctx.row_cols = slice_cols;
 	}
-	VTermScreenCell *row_buf = NULL;
-	int have_row = 0;
-	if (row_cols > 0) {
-		/* Pane-scoped scratch — avoids a malloc/free per drawn row per frame. */
-		row_buf = editorTerminalPaneEnsureRenderRowScratch(terminal, row_cols);
-		if (row_buf != NULL) {
-			memset(row_buf, 0, (size_t)row_cols * sizeof(*row_buf));
-			have_row = editorTerminalPaneGetLogRow(terminal, log_row, row_buf);
+	if (ctx.row_cols <= 0) {
+		return ctx;
+	}
+	ctx.row_buf = editorTerminalPaneEnsureRenderRowScratch(terminal, ctx.row_cols);
+	if (ctx.row_buf == NULL) {
+		return ctx;
+	}
+	memset(ctx.row_buf, 0, (size_t)ctx.row_cols * sizeof(*ctx.row_buf));
+	ctx.have_row = editorTerminalPaneGetLogRow(terminal, ctx.log_row, ctx.row_buf);
+	return ctx;
+}
+
+static int terminalViewEmitSpacesToSlice(struct writeBuf *wb, int *emitted, int slice_cols) {
+	while (*emitted < slice_cols) {
+		if (!wbAppend(wb, " ", 1)) {
+			return 0;
+		}
+		(*emitted)++;
+	}
+	return 1;
+}
+
+static int terminalViewEmitCellText(struct writeBuf *wb, int in_bounds,
+                                    const VTermScreenCell *cell) {
+	if (!in_bounds || cell->chars[0] == 0) {
+		return wbAppend(wb, " ", 1);
+	}
+	for (int i = 0; i < VTERM_MAX_CHARS_PER_CELL && cell->chars[i] != 0; i++) {
+		char utf8[4];
+		int n = editorUtf8EncodeCodepoint(cell->chars[i], utf8);
+		if (n > 0 && !wbAppend(wb, utf8, (size_t)n)) {
+			return 0;
 		}
 	}
+	return 1;
+}
+
+static int terminalViewDrawRowCells(struct writeBuf *wb, struct editorTerminalPane *terminal,
+                                    const struct terminalViewRowCtx *ctx, int col_in_pane,
+                                    int slice_cols) {
 	int emitted = 0;
 	int col = col_in_pane;
 	int last_was_plain = 0;
@@ -215,27 +237,22 @@ int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *term
 	int last_was_selected = 0;
 	while (emitted < slice_cols) {
 		VTermScreenCell cell;
-		int in_bounds = have_row && col >= 0 && col < row_cols;
+		int in_bounds = ctx->have_row && col >= 0 && col < ctx->row_cols;
 		if (!in_bounds) {
 			memset(&cell, 0, sizeof(cell));
 		} else {
-			cell = row_buf[col];
+			cell = ctx->row_buf[col];
 		}
 		int cell_width = cell.width;
 		if (cell_width < 1) {
 			cell_width = 1;
 		}
 		if (emitted + cell_width > slice_cols) {
-			while (emitted < slice_cols) {
-				if (!wbAppend(wb, " ", 1)) {
-					return 0;
-				}
-				emitted++;
-			}
-			break;
+			return terminalViewEmitSpacesToSlice(wb, &emitted, slice_cols);
 		}
-		int selected =
-		        in_bounds && editorTerminalPaneSelectionContains(terminal, log_row, col);
+
+		int selected = in_bounds &&
+		               editorTerminalPaneSelectionContains(terminal, ctx->log_row, col);
 		int plain = terminalViewCellIsPlain(&cell);
 		if (plain) {
 			if ((any_styled_emitted && !last_was_plain) ||
@@ -257,21 +274,50 @@ int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *term
 		}
 		last_was_plain = plain && !selected;
 		last_was_selected = selected;
-		if (!in_bounds || cell.chars[0] == 0) {
-			if (!wbAppend(wb, " ", 1)) {
-				return 0;
-			}
-		} else {
-			for (int i = 0; i < VTERM_MAX_CHARS_PER_CELL && cell.chars[i] != 0; i++) {
-				char utf8[4];
-				int n = editorUtf8EncodeCodepoint(cell.chars[i], utf8);
-				if (n > 0 && !wbAppend(wb, utf8, (size_t)n)) {
-					return 0;
-				}
-			}
+		if (!terminalViewEmitCellText(wb, in_bounds, &cell)) {
+			return 0;
 		}
 		emitted += cell_width;
 		col += cell_width;
+	}
+	return 1;
+}
+
+int editorDrawTerminalCells(struct writeBuf *wb, struct editorTerminalPane *terminal,
+                            int row_in_pane, int col_in_pane, int slice_cols) {
+	if (terminal == NULL || terminal->screen == NULL || slice_cols <= 0) {
+		return 1;
+	}
+	if (terminal->exited && terminal->rows > 0 && row_in_pane == terminal->rows - 1) {
+		int advanced = 0;
+		if (!terminalViewTryAdvanceCleanRow(wb, terminal, row_in_pane, slice_cols,
+		                                    &advanced)) {
+			return 0;
+		}
+		if (advanced) {
+			return 1;
+		}
+		int ok = terminalViewDrawExitStatusRow(wb, terminal, col_in_pane, slice_cols);
+		if (ok) {
+			terminalViewMarkRowClean(terminal, row_in_pane);
+		}
+		return ok;
+	}
+	int advanced = 0;
+	if (!terminalViewTryAdvanceCleanRow(wb, terminal, row_in_pane, slice_cols, &advanced)) {
+		return 0;
+	}
+	if (advanced) {
+		return 1;
+	}
+	if (!editorAppendThemeReset(wb)) {
+		return 0;
+	}
+	terminalViewMarkRowClean(terminal, row_in_pane);
+	struct terminalViewRowCtx row_ctx =
+	        terminalViewBuildRowCtx(terminal, row_in_pane, slice_cols);
+	if (!terminalViewDrawRowCells(wb, terminal, &row_ctx, col_in_pane, slice_cols)) {
+		return 0;
 	}
 	if (!editorAppendThemeReset(wb)) {
 		return 0;

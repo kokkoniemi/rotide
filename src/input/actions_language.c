@@ -87,7 +87,7 @@ static void actionsLanguagePromptInstallJavascriptServer(void) {
 		return;
 	}
 	if (!editorTaskStart("Task: Install typescript-language-server",
-	                     E.lsp_javascript_install_command,
+	                     E.lsp_config.javascript_install_command,
 	                     "typescript-language-server installed. Retry Ctrl-O",
 	                     "typescript-language-server install failed; see task log")) {
 		if (E.statusmsg[0] == '\0') {
@@ -102,7 +102,7 @@ void editorLanguagePromptInstallSharedVscodeServers(void) {
 		return;
 	}
 	if (!editorTaskStart("Task: Install vscode-langservers-extracted",
-	                     E.lsp_vscode_langservers_install_command,
+	                     E.lsp_config.vscode_langservers_install_command,
 	                     "vscode-langservers-extracted installed. Retry Ctrl-O",
 	                     "vscode-langservers-extracted install failed; see task log")) {
 		if (E.statusmsg[0] == '\0') {
@@ -121,7 +121,8 @@ void editorLanguageMaybePromptInstallServer(void) {
 				editorSetStatusMsg("gopls not installed");
 				return;
 			}
-			if (!editorTaskStart("Task: Install gopls", E.lsp_gopls_install_command,
+			if (!editorTaskStart("Task: Install gopls",
+			                     E.lsp_config.gopls_install_command,
 			                     "gopls installed. Retry Ctrl-O",
 			                     "gopls install failed; see task log")) {
 				if (E.statusmsg[0] == '\0') {

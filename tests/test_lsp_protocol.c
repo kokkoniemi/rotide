@@ -3,57 +3,31 @@
 #include "test_support.h"
 
 static int test_editor_lsp_config_defaults_and_precedence(void) {
-	int gopls_enabled = 0;
-	int clangd_enabled = 0;
-	int html_enabled = 0;
-	int css_enabled = 0;
-	int json_enabled = 0;
-	int javascript_enabled = 0;
-	int eslint_enabled = 0;
-	char gopls_command[PATH_MAX];
-	char gopls_install_command[PATH_MAX];
-	char clangd_command[PATH_MAX];
-	char html_command[PATH_MAX];
-	char css_command[PATH_MAX];
-	char json_command[PATH_MAX];
-	char javascript_command[PATH_MAX];
-	char javascript_install_command[PATH_MAX];
-	char eslint_command[PATH_MAX];
-	char vscode_langservers_install_command[PATH_MAX];
-	int autocomplete_enabled = 0;
-	int autocomplete_max_items = 0;
+	struct editorLspConfig config = {0};
 
-	enum editorLspConfigLoadStatus defaults_status = editorLspConfigLoadFromPaths(
-	        &gopls_enabled, &clangd_enabled, &html_enabled, &css_enabled, &json_enabled,
-	        &javascript_enabled, &eslint_enabled, gopls_command, sizeof(gopls_command),
-	        gopls_install_command, sizeof(gopls_install_command), clangd_command,
-	        sizeof(clangd_command), html_command, sizeof(html_command), css_command,
-	        sizeof(css_command), json_command, sizeof(json_command), javascript_command,
-	        sizeof(javascript_command), javascript_install_command,
-	        sizeof(javascript_install_command), eslint_command, sizeof(eslint_command),
-	        vscode_langservers_install_command, sizeof(vscode_langservers_install_command),
-	        &autocomplete_enabled, &autocomplete_max_items, NULL, NULL);
+	enum editorLspConfigLoadStatus defaults_status =
+	        editorLspConfigLoadFromPaths(&config, NULL, NULL);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_OK, defaults_status);
-	ASSERT_EQ_INT(1, gopls_enabled);
-	ASSERT_EQ_INT(1, clangd_enabled);
-	ASSERT_EQ_INT(1, html_enabled);
-	ASSERT_EQ_INT(1, css_enabled);
-	ASSERT_EQ_INT(1, json_enabled);
-	ASSERT_EQ_INT(1, javascript_enabled);
-	ASSERT_EQ_INT(1, eslint_enabled);
-	ASSERT_EQ_STR("gopls", gopls_command);
-	ASSERT_EQ_STR("go install golang.org/x/tools/gopls@latest", gopls_install_command);
-	ASSERT_EQ_STR("clangd", clangd_command);
-	ASSERT_EQ_STR("~/.local/bin/vscode-html-language-server --stdio", html_command);
-	ASSERT_EQ_STR("~/.local/bin/vscode-css-language-server --stdio", css_command);
-	ASSERT_EQ_STR("~/.local/bin/vscode-json-language-server --stdio", json_command);
-	ASSERT_EQ_STR("~/.local/bin/typescript-language-server --stdio", javascript_command);
+	ASSERT_EQ_INT(1, config.gopls_enabled);
+	ASSERT_EQ_INT(1, config.clangd_enabled);
+	ASSERT_EQ_INT(1, config.html_enabled);
+	ASSERT_EQ_INT(1, config.css_enabled);
+	ASSERT_EQ_INT(1, config.json_enabled);
+	ASSERT_EQ_INT(1, config.javascript_enabled);
+	ASSERT_EQ_INT(1, config.eslint_enabled);
+	ASSERT_EQ_STR("gopls", config.gopls_command);
+	ASSERT_EQ_STR("go install golang.org/x/tools/gopls@latest", config.gopls_install_command);
+	ASSERT_EQ_STR("clangd", config.clangd_command);
+	ASSERT_EQ_STR("~/.local/bin/vscode-html-language-server --stdio", config.html_command);
+	ASSERT_EQ_STR("~/.local/bin/vscode-css-language-server --stdio", config.css_command);
+	ASSERT_EQ_STR("~/.local/bin/vscode-json-language-server --stdio", config.json_command);
+	ASSERT_EQ_STR("~/.local/bin/typescript-language-server --stdio", config.javascript_command);
 	ASSERT_EQ_STR(
 	        "npm install --global --prefix ~/.local typescript typescript-language-server",
-	        javascript_install_command);
-	ASSERT_EQ_STR("~/.local/bin/vscode-eslint-language-server --stdio", eslint_command);
+	        config.javascript_install_command);
+	ASSERT_EQ_STR("~/.local/bin/vscode-eslint-language-server --stdio", config.eslint_command);
 	ASSERT_EQ_STR("npm install --global --prefix ~/.local vscode-langservers-extracted",
-	              vscode_langservers_install_command);
+	              config.vscode_langservers_install_command);
 
 	char dir_template[] = "/tmp/rotide-test-lsp-config-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -102,34 +76,26 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 	                      "gopls_install_command = \"project-install\"\n"
 	                      "vscode_langservers_install_command = \"project-vscode-install\"\n"));
 
-	enum editorLspConfigLoadStatus status = editorLspConfigLoadFromPaths(
-	        &gopls_enabled, &clangd_enabled, &html_enabled, &css_enabled, &json_enabled,
-	        &javascript_enabled, &eslint_enabled, gopls_command, sizeof(gopls_command),
-	        gopls_install_command, sizeof(gopls_install_command), clangd_command,
-	        sizeof(clangd_command), html_command, sizeof(html_command), css_command,
-	        sizeof(css_command), json_command, sizeof(json_command), javascript_command,
-	        sizeof(javascript_command), javascript_install_command,
-	        sizeof(javascript_install_command), eslint_command, sizeof(eslint_command),
-	        vscode_langservers_install_command, sizeof(vscode_langservers_install_command),
-	        &autocomplete_enabled, &autocomplete_max_items, global_path, project_path);
+	enum editorLspConfigLoadStatus status =
+	        editorLspConfigLoadFromPaths(&config, global_path, project_path);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_OK, status);
-	ASSERT_EQ_INT(1, gopls_enabled);
-	ASSERT_EQ_INT(0, clangd_enabled);
-	ASSERT_EQ_INT(1, html_enabled);
-	ASSERT_EQ_INT(1, css_enabled);
-	ASSERT_EQ_INT(0, json_enabled);
-	ASSERT_EQ_INT(1, javascript_enabled);
-	ASSERT_EQ_INT(1, eslint_enabled);
-	ASSERT_EQ_STR("gopls-project", gopls_command);
-	ASSERT_EQ_STR("global-install", gopls_install_command);
-	ASSERT_EQ_STR("clangd-project", clangd_command);
-	ASSERT_EQ_STR("html-project --stdio", html_command);
-	ASSERT_EQ_STR("css-project --stdio", css_command);
-	ASSERT_EQ_STR("json-project --stdio", json_command);
-	ASSERT_EQ_STR("javascript-project --stdio", javascript_command);
-	ASSERT_EQ_STR("javascript-global-install", javascript_install_command);
-	ASSERT_EQ_STR("eslint-project --stdio", eslint_command);
-	ASSERT_EQ_STR("global-vscode-install", vscode_langservers_install_command);
+	ASSERT_EQ_INT(1, config.gopls_enabled);
+	ASSERT_EQ_INT(0, config.clangd_enabled);
+	ASSERT_EQ_INT(1, config.html_enabled);
+	ASSERT_EQ_INT(1, config.css_enabled);
+	ASSERT_EQ_INT(0, config.json_enabled);
+	ASSERT_EQ_INT(1, config.javascript_enabled);
+	ASSERT_EQ_INT(1, config.eslint_enabled);
+	ASSERT_EQ_STR("gopls-project", config.gopls_command);
+	ASSERT_EQ_STR("global-install", config.gopls_install_command);
+	ASSERT_EQ_STR("clangd-project", config.clangd_command);
+	ASSERT_EQ_STR("html-project --stdio", config.html_command);
+	ASSERT_EQ_STR("css-project --stdio", config.css_command);
+	ASSERT_EQ_STR("json-project --stdio", config.json_command);
+	ASSERT_EQ_STR("javascript-project --stdio", config.javascript_command);
+	ASSERT_EQ_STR("javascript-global-install", config.javascript_install_command);
+	ASSERT_EQ_STR("eslint-project --stdio", config.eslint_command);
+	ASSERT_EQ_STR("global-vscode-install", config.vscode_langservers_install_command);
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(unlink(global_path) == 0);
@@ -138,25 +104,7 @@ static int test_editor_lsp_config_defaults_and_precedence(void) {
 }
 
 static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
-	int gopls_enabled = 0;
-	int clangd_enabled = 0;
-	int html_enabled = 0;
-	int css_enabled = 0;
-	int json_enabled = 0;
-	int javascript_enabled = 0;
-	int eslint_enabled = 0;
-	char gopls_command[PATH_MAX];
-	char gopls_install_command[PATH_MAX];
-	char clangd_command[PATH_MAX];
-	char html_command[PATH_MAX];
-	char css_command[PATH_MAX];
-	char json_command[PATH_MAX];
-	char javascript_command[PATH_MAX];
-	char javascript_install_command[PATH_MAX];
-	char eslint_command[PATH_MAX];
-	char vscode_langservers_install_command[PATH_MAX];
-	int autocomplete_enabled = 0;
-	int autocomplete_max_items = 0;
+	struct editorLspConfig config = {0};
 
 	char dir_template[] = "/tmp/rotide-test-lsp-config-invalid-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -169,37 +117,29 @@ static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
 
 	ASSERT_TRUE(write_text_file(global_path, "[lsp]\n"
 	                                         "enabled = \"yes\"\n"));
-	enum editorLspConfigLoadStatus status = editorLspConfigLoadFromPaths(
-	        &gopls_enabled, &clangd_enabled, &html_enabled, &css_enabled, &json_enabled,
-	        &javascript_enabled, &eslint_enabled, gopls_command, sizeof(gopls_command),
-	        gopls_install_command, sizeof(gopls_install_command), clangd_command,
-	        sizeof(clangd_command), html_command, sizeof(html_command), css_command,
-	        sizeof(css_command), json_command, sizeof(json_command), javascript_command,
-	        sizeof(javascript_command), javascript_install_command,
-	        sizeof(javascript_install_command), eslint_command, sizeof(eslint_command),
-	        vscode_langservers_install_command, sizeof(vscode_langservers_install_command),
-	        &autocomplete_enabled, &autocomplete_max_items, global_path, NULL);
+	enum editorLspConfigLoadStatus status =
+	        editorLspConfigLoadFromPaths(&config, global_path, NULL);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_INVALID_GLOBAL, status);
-	ASSERT_EQ_INT(1, gopls_enabled);
-	ASSERT_EQ_INT(1, clangd_enabled);
-	ASSERT_EQ_INT(1, html_enabled);
-	ASSERT_EQ_INT(1, css_enabled);
-	ASSERT_EQ_INT(1, json_enabled);
-	ASSERT_EQ_INT(1, javascript_enabled);
-	ASSERT_EQ_INT(1, eslint_enabled);
-	ASSERT_EQ_STR("gopls", gopls_command);
-	ASSERT_EQ_STR("go install golang.org/x/tools/gopls@latest", gopls_install_command);
-	ASSERT_EQ_STR("clangd", clangd_command);
-	ASSERT_EQ_STR("~/.local/bin/vscode-html-language-server --stdio", html_command);
-	ASSERT_EQ_STR("~/.local/bin/vscode-css-language-server --stdio", css_command);
-	ASSERT_EQ_STR("~/.local/bin/vscode-json-language-server --stdio", json_command);
-	ASSERT_EQ_STR("~/.local/bin/typescript-language-server --stdio", javascript_command);
+	ASSERT_EQ_INT(1, config.gopls_enabled);
+	ASSERT_EQ_INT(1, config.clangd_enabled);
+	ASSERT_EQ_INT(1, config.html_enabled);
+	ASSERT_EQ_INT(1, config.css_enabled);
+	ASSERT_EQ_INT(1, config.json_enabled);
+	ASSERT_EQ_INT(1, config.javascript_enabled);
+	ASSERT_EQ_INT(1, config.eslint_enabled);
+	ASSERT_EQ_STR("gopls", config.gopls_command);
+	ASSERT_EQ_STR("go install golang.org/x/tools/gopls@latest", config.gopls_install_command);
+	ASSERT_EQ_STR("clangd", config.clangd_command);
+	ASSERT_EQ_STR("~/.local/bin/vscode-html-language-server --stdio", config.html_command);
+	ASSERT_EQ_STR("~/.local/bin/vscode-css-language-server --stdio", config.css_command);
+	ASSERT_EQ_STR("~/.local/bin/vscode-json-language-server --stdio", config.json_command);
+	ASSERT_EQ_STR("~/.local/bin/typescript-language-server --stdio", config.javascript_command);
 	ASSERT_EQ_STR(
 	        "npm install --global --prefix ~/.local typescript typescript-language-server",
-	        javascript_install_command);
-	ASSERT_EQ_STR("~/.local/bin/vscode-eslint-language-server --stdio", eslint_command);
+	        config.javascript_install_command);
+	ASSERT_EQ_STR("~/.local/bin/vscode-eslint-language-server --stdio", config.eslint_command);
 	ASSERT_EQ_STR("npm install --global --prefix ~/.local vscode-langservers-extracted",
-	              vscode_langservers_install_command);
+	              config.vscode_langservers_install_command);
 
 	ASSERT_TRUE(write_text_file(global_path, "[lsp]\n"
 	                                         "clangd_enabled = false\n"
@@ -207,37 +147,28 @@ static int test_editor_lsp_config_invalid_values_fallback_defaults(void) {
 	                                         "css_enabled = false\n"));
 	ASSERT_TRUE(write_text_file(project_path, "[lsp]\n"
 	                                          "html_command = \"\"\n"));
-	status = editorLspConfigLoadFromPaths(
-	        &gopls_enabled, &clangd_enabled, &html_enabled, &css_enabled, &json_enabled,
-	        &javascript_enabled, &eslint_enabled, gopls_command, sizeof(gopls_command),
-	        gopls_install_command, sizeof(gopls_install_command), clangd_command,
-	        sizeof(clangd_command), html_command, sizeof(html_command), css_command,
-	        sizeof(css_command), json_command, sizeof(json_command), javascript_command,
-	        sizeof(javascript_command), javascript_install_command,
-	        sizeof(javascript_install_command), eslint_command, sizeof(eslint_command),
-	        vscode_langservers_install_command, sizeof(vscode_langservers_install_command),
-	        &autocomplete_enabled, &autocomplete_max_items, global_path, project_path);
+	status = editorLspConfigLoadFromPaths(&config, global_path, project_path);
 	ASSERT_EQ_INT(EDITOR_LSP_CONFIG_LOAD_INVALID_PROJECT, status);
-	ASSERT_EQ_INT(1, gopls_enabled);
-	ASSERT_EQ_INT(1, clangd_enabled);
-	ASSERT_EQ_INT(1, html_enabled);
-	ASSERT_EQ_INT(1, css_enabled);
-	ASSERT_EQ_INT(1, json_enabled);
-	ASSERT_EQ_INT(1, javascript_enabled);
-	ASSERT_EQ_INT(1, eslint_enabled);
-	ASSERT_EQ_STR("gopls", gopls_command);
-	ASSERT_EQ_STR("go install golang.org/x/tools/gopls@latest", gopls_install_command);
-	ASSERT_EQ_STR("clangd", clangd_command);
-	ASSERT_EQ_STR("~/.local/bin/vscode-html-language-server --stdio", html_command);
-	ASSERT_EQ_STR("~/.local/bin/vscode-css-language-server --stdio", css_command);
-	ASSERT_EQ_STR("~/.local/bin/vscode-json-language-server --stdio", json_command);
-	ASSERT_EQ_STR("~/.local/bin/typescript-language-server --stdio", javascript_command);
+	ASSERT_EQ_INT(1, config.gopls_enabled);
+	ASSERT_EQ_INT(1, config.clangd_enabled);
+	ASSERT_EQ_INT(1, config.html_enabled);
+	ASSERT_EQ_INT(1, config.css_enabled);
+	ASSERT_EQ_INT(1, config.json_enabled);
+	ASSERT_EQ_INT(1, config.javascript_enabled);
+	ASSERT_EQ_INT(1, config.eslint_enabled);
+	ASSERT_EQ_STR("gopls", config.gopls_command);
+	ASSERT_EQ_STR("go install golang.org/x/tools/gopls@latest", config.gopls_install_command);
+	ASSERT_EQ_STR("clangd", config.clangd_command);
+	ASSERT_EQ_STR("~/.local/bin/vscode-html-language-server --stdio", config.html_command);
+	ASSERT_EQ_STR("~/.local/bin/vscode-css-language-server --stdio", config.css_command);
+	ASSERT_EQ_STR("~/.local/bin/vscode-json-language-server --stdio", config.json_command);
+	ASSERT_EQ_STR("~/.local/bin/typescript-language-server --stdio", config.javascript_command);
 	ASSERT_EQ_STR(
 	        "npm install --global --prefix ~/.local typescript typescript-language-server",
-	        javascript_install_command);
-	ASSERT_EQ_STR("~/.local/bin/vscode-eslint-language-server --stdio", eslint_command);
+	        config.javascript_install_command);
+	ASSERT_EQ_STR("~/.local/bin/vscode-eslint-language-server --stdio", config.eslint_command);
 	ASSERT_EQ_STR("npm install --global --prefix ~/.local vscode-langservers-extracted",
-	              vscode_langservers_install_command);
+	              config.vscode_langservers_install_command);
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(unlink(global_path) == 0);

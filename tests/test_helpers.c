@@ -105,28 +105,16 @@ void reset_editor_state(void) {
 	E.syntax_pending_revision = 0;
 	E.syntax_pending_first_row = 0;
 	E.syntax_pending_row_count = 0;
-	editorLspConfigInitDefaults(
-	        &E.lsp_gopls_enabled, &E.lsp_clangd_enabled, &E.lsp_html_enabled,
-	        &E.lsp_css_enabled, &E.lsp_json_enabled, &E.lsp_javascript_enabled,
-	        &E.lsp_eslint_enabled, E.lsp_gopls_command, sizeof(E.lsp_gopls_command),
-	        E.lsp_gopls_install_command, sizeof(E.lsp_gopls_install_command),
-	        E.lsp_clangd_command, sizeof(E.lsp_clangd_command), E.lsp_html_command,
-	        sizeof(E.lsp_html_command), E.lsp_css_command, sizeof(E.lsp_css_command),
-	        E.lsp_json_command, sizeof(E.lsp_json_command), E.lsp_javascript_command,
-	        sizeof(E.lsp_javascript_command), E.lsp_javascript_install_command,
-	        sizeof(E.lsp_javascript_install_command), E.lsp_eslint_command,
-	        sizeof(E.lsp_eslint_command), E.lsp_vscode_langservers_install_command,
-	        sizeof(E.lsp_vscode_langservers_install_command), &E.lsp_autocomplete_enabled,
-	        &E.lsp_autocomplete_max_items);
-	E.lsp_gopls_enabled = 0;
-	E.lsp_clangd_enabled = 0;
-	E.lsp_html_enabled = 0;
-	E.lsp_css_enabled = 0;
-	E.lsp_json_enabled = 0;
-	E.lsp_javascript_enabled = 0;
-	E.lsp_eslint_enabled = 0;
-	E.lsp_autocomplete_enabled = 0;
-	E.lsp_autocomplete_max_items = 50;
+	editorLspConfigInitDefaults(&E.lsp_config);
+	E.lsp_config.gopls_enabled = 0;
+	E.lsp_config.clangd_enabled = 0;
+	E.lsp_config.html_enabled = 0;
+	E.lsp_config.css_enabled = 0;
+	E.lsp_config.json_enabled = 0;
+	E.lsp_config.javascript_enabled = 0;
+	E.lsp_config.eslint_enabled = 0;
+	E.lsp_config.autocomplete_enabled = 0;
+	E.lsp_config.autocomplete_max_items = 50;
 	editorDapConfigInitDefaults();
 	E.lsp_doc_open = 0;
 	E.lsp_doc_version = 0;
@@ -155,7 +143,9 @@ void reset_editor_state(void) {
 	E.split_resize_active = 0;
 	E.split_resize_node = NULL;
 	E.drawer_search_active_tab_before = -1;
+	E.drawer_search_restore_collapsed = 0;
 	E.drawer_project_search_active_tab_before = -1;
+	E.drawer_project_search_restore_collapsed = 0;
 	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;
 	E.cursor_blink_enabled = 1;
 	E.line_wrap_enabled = 0;

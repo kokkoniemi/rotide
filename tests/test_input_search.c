@@ -65,6 +65,40 @@ static int test_editor_process_keypress_find_file_filters_previews_and_opens(voi
 	return 0;
 }
 
+static int test_editor_process_keypress_find_file_recovers_collapsed_drawer_on_open(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char beta_file[512];
+	ASSERT_TRUE(path_join(beta_file, sizeof(beta_file), env.project_dir, "beta.txt"));
+	ASSERT_TRUE(write_text_file(beta_file, "beta\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("base");
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerSetCollapsed(1));
+
+	char ctrl_p[] = {CTRL_KEY('p')};
+	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_p, sizeof(ctrl_p)) == 0);
+	ASSERT_EQ_INT(0, E.drawer_collapsed);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
+
+	char filter[] = {'b'};
+	ASSERT_TRUE(editor_process_keypress_with_input(filter, sizeof(filter)) == 0);
+
+	char enter_key[] = {'\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input(enter_key, sizeof(enter_key)) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, E.drawer_mode);
+	ASSERT_EQ_INT(1, E.drawer_collapsed);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_EQ_STR(beta_file, E.filename);
+
+	ASSERT_TRUE(unlink(beta_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 static int test_editor_process_keypress_project_search_filters_previews_and_opens(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -102,6 +136,42 @@ static int test_editor_process_keypress_project_search_filters_previews_and_open
 	ASSERT_EQ_STR(alpha_file, E.filename);
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(0, E.cx);
+
+	ASSERT_TRUE(unlink(alpha_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_project_search_recovers_collapsed_drawer_on_open(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char alpha_file[512];
+	ASSERT_TRUE(path_join(alpha_file, sizeof(alpha_file), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(write_text_file(alpha_file, "before\nneedle here\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("base");
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorDrawerSetCollapsed(1));
+
+	char ctrl_alt_f[] = {'\x1b', CTRL_KEY('f')};
+	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_alt_f, sizeof(ctrl_alt_f)) == 0);
+	ASSERT_EQ_INT(0, E.drawer_collapsed);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_PROJECT_SEARCH, E.drawer_mode);
+
+	const char *query = "needle";
+	for (size_t i = 0; query[i] != '\0'; i++) {
+		ASSERT_TRUE(editor_process_keypress_with_input(&query[i], 1) == 0);
+	}
+
+	char enter_key[] = {'\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input(enter_key, sizeof(enter_key)) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, E.drawer_mode);
+	ASSERT_EQ_INT(1, E.drawer_collapsed);
+	ASSERT_EQ_INT(EDITOR_PRIMARY_FOCUS_TEXT, E.primary_focus);
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_EQ_STR(alpha_file, E.filename);
 
 	ASSERT_TRUE(unlink(alpha_file) == 0);
 	cleanup_recovery_test_env(&env);
@@ -199,8 +269,12 @@ static int test_editor_process_keypress_ctrl_f_no_match_preserves_cursor_and_set
 const struct editorTestCase g_input_search_tests[] = {
         {"editor_process_keypress_find_file_filters_previews_and_opens",
          test_editor_process_keypress_find_file_filters_previews_and_opens},
+        {"editor_process_keypress_find_file_recovers_collapsed_drawer_on_open",
+         test_editor_process_keypress_find_file_recovers_collapsed_drawer_on_open},
         {"editor_process_keypress_project_search_filters_previews_and_opens",
          test_editor_process_keypress_project_search_filters_previews_and_opens},
+        {"editor_process_keypress_project_search_recovers_collapsed_drawer_on_open",
+         test_editor_process_keypress_project_search_recovers_collapsed_drawer_on_open},
         {"editor_process_keypress_ctrl_f_incremental_find_first_match",
          test_editor_process_keypress_ctrl_f_incremental_find_first_match},
         {"editor_process_keypress_ctrl_f_arrow_navigation_wraps",

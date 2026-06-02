@@ -161,19 +161,19 @@ enum editorLspServerKind editorLspServerKindForFile(const char *filename,
 static const char *lspCommandForServerKind(enum editorLspServerKind server_kind) {
 	switch (server_kind) {
 		case EDITOR_LSP_SERVER_GOPLS:
-			return E.lsp_gopls_command;
+			return E.lsp_config.gopls_command;
 		case EDITOR_LSP_SERVER_CLANGD:
-			return E.lsp_clangd_command;
+			return E.lsp_config.clangd_command;
 		case EDITOR_LSP_SERVER_HTML:
-			return E.lsp_html_command;
+			return E.lsp_config.html_command;
 		case EDITOR_LSP_SERVER_CSS:
-			return E.lsp_css_command;
+			return E.lsp_config.css_command;
 		case EDITOR_LSP_SERVER_JSON:
-			return E.lsp_json_command;
+			return E.lsp_config.json_command;
 		case EDITOR_LSP_SERVER_JAVASCRIPT:
-			return E.lsp_javascript_command;
+			return E.lsp_config.javascript_command;
 		case EDITOR_LSP_SERVER_ESLINT:
-			return E.lsp_eslint_command;
+			return E.lsp_config.eslint_command;
 		default:
 			return NULL;
 	}
@@ -245,19 +245,19 @@ static const char *lspLanguageLabelForServerKind(enum editorLspServerKind server
 static int lspServerKindEnabled(enum editorLspServerKind server_kind) {
 	switch (server_kind) {
 		case EDITOR_LSP_SERVER_GOPLS:
-			return E.lsp_gopls_enabled;
+			return E.lsp_config.gopls_enabled;
 		case EDITOR_LSP_SERVER_CLANGD:
-			return E.lsp_clangd_enabled;
+			return E.lsp_config.clangd_enabled;
 		case EDITOR_LSP_SERVER_HTML:
-			return E.lsp_html_enabled;
+			return E.lsp_config.html_enabled;
 		case EDITOR_LSP_SERVER_CSS:
-			return E.lsp_css_enabled;
+			return E.lsp_config.css_enabled;
 		case EDITOR_LSP_SERVER_JSON:
-			return E.lsp_json_enabled;
+			return E.lsp_config.json_enabled;
 		case EDITOR_LSP_SERVER_JAVASCRIPT:
-			return E.lsp_javascript_enabled;
+			return E.lsp_config.javascript_enabled;
 		case EDITOR_LSP_SERVER_ESLINT:
-			return E.lsp_eslint_enabled;
+			return E.lsp_config.eslint_enabled;
 		default:
 			return 0;
 	}
@@ -272,7 +272,7 @@ int editorLspFileUsesEslint(const char *filename, enum editorSyntaxLanguage lang
 }
 
 int editorLspEslintEnabledForFile(const char *filename, enum editorSyntaxLanguage language) {
-	return editorLspFileUsesEslint(filename, language) && E.lsp_eslint_enabled;
+	return editorLspFileUsesEslint(filename, language) && E.lsp_config.eslint_enabled;
 }
 
 static int lspServerKindSupportsDefinition(enum editorLspServerKind server_kind) {

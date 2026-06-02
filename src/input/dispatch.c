@@ -653,6 +653,250 @@ static int dispatchReplaceNavigateNext(const char *query, int query_len) {
 	return 1;
 }
 
+static int dispatchProjectReplaceFileAlreadyListed(const struct dispatchFileEntry *files, int count,
+                                                   const char *path) {
+	for (int i = 0; i < count; i++) {
+		if (strcmp(files[i].path, path) == 0) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+/* Returns 0 on success, -1 on alloc failure. On failure, ownership of any partial
+ * allocations is released and *files_out is left NULL. */
+static int dispatchProjectReplaceCollectFiles(struct dispatchFileEntry **files_out,
+                                              int *count_out) {
+	struct dispatchFileEntry *files = NULL;
+	int count = 0;
+	int cap = 0;
+	int result_count = E.drawer_project_search_result_count;
+	for (int i = 0; i < result_count; i++) {
+		const struct editorProjectSearchResult *r = &E.drawer_project_search_results[i];
+		if (r->path == NULL || r->path[0] == '\0') {
+			continue;
+		}
+		if (dispatchProjectReplaceFileAlreadyListed(files, count, r->path)) {
+			continue;
+		}
+		if (count == cap) {
+			int new_cap = cap == 0 ? 8 : cap * 2;
+			struct dispatchFileEntry *grown =
+			        editorRealloc(files, (size_t)new_cap * sizeof(*files));
+			if (grown == NULL) {
+				goto fail;
+			}
+			files = grown;
+			cap = new_cap;
+		}
+		char *path_copy = strdup(r->path);
+		if (path_copy == NULL) {
+			goto fail;
+		}
+		files[count].path = path_copy;
+		files[count].start_row = r->line > 0 ? r->line - 1 : 0;
+		count++;
+	}
+	*files_out = files;
+	*count_out = count;
+	return 0;
+fail:
+	for (int i = 0; i < count; i++) {
+		free(files[i].path);
+	}
+	free(files);
+	*files_out = NULL;
+	*count_out = 0;
+	return -1;
+}
+
+/* Seeks the first match in the current buffer starting from start_row, wrapping
+ * to 0 if the initial find returned an earlier row. Returns 1 on success. */
+static int dispatchProjectReplaceSeekFirstMatch(int start_row, int find_len) {
+	int match_row = -1;
+	int match_col = -1;
+	if (!editorBufferFindForward(E.search_query, start_row, -1, &match_row, &match_col)) {
+		return 0;
+	}
+	if (match_row < start_row) {
+		if (!editorBufferFindForward(E.search_query, 0, -1, &match_row, &match_col)) {
+			return 0;
+		}
+	}
+	dispatchMoveCursorToSearchMatch(match_row, match_col, find_len);
+	editorViewportEnsureCursorVisible();
+	return 1;
+}
+
+struct dispatchProjectReplaceFileCtx {
+	const char *basename;
+	const char *replace_query;
+	size_t find_len;
+	size_t replace_len;
+	size_t file_start_offset;
+	int total_replaced_before;
+	int file_replaced;
+	int aborted;
+	int replace_all_remaining;
+};
+
+static int dispatchProjectReplaceAdvanceOrFinish(const struct dispatchProjectReplaceFileCtx *s) {
+	if (!dispatchReplaceNavigateNext(E.search_query, (int)s->find_len) ||
+	    E.search_match_offset <= s->file_start_offset) {
+		dispatchClearActiveSearchMatch();
+		return 1;
+	}
+	return 0;
+}
+
+static void dispatchProjectReplaceHandleConfirm(struct dispatchProjectReplaceFileCtx *s,
+                                                int *done) {
+	if (E.search_match_len > 0) {
+		size_t offset = E.search_match_offset;
+		editorHistoryBreakGroup();
+		if (dispatchReplaceAtOffset(offset, s->find_len, s->replace_query,
+		                            s->replace_len)) {
+			s->file_replaced++;
+		}
+	}
+	if (dispatchProjectReplaceAdvanceOrFinish(s)) {
+		*done = 1;
+	}
+}
+
+static void dispatchProjectReplaceHandleReplaceAll(struct dispatchProjectReplaceFileCtx *s,
+                                                   int *done) {
+	int count = dispatchReplaceAllInBuffer(E.search_query, s->find_len, s->replace_query,
+	                                       s->replace_len);
+	if (count > 0) {
+		s->file_replaced += count;
+	}
+	*done = 1;
+	s->replace_all_remaining = 1;
+}
+
+static void dispatchProjectReplaceInteractiveLoop(struct dispatchProjectReplaceFileCtx *s) {
+	int done = 0;
+	while (!done) {
+		editorSetStatusMsg("[%s] Replace? Enter=this Tab=skip Ctrl+A=all Esc=done "
+		                   "(%d replaced)",
+		                   s->basename, s->total_replaced_before + s->file_replaced);
+		editorRefreshScreen();
+
+		int c = editorReadKey();
+		if (c == INPUT_EOF_EVENT) {
+			s->aborted = 1;
+			done = 1;
+			editorExitOnInputShutdown();
+		}
+		if (c == RESIZE_EVENT) {
+			(void)editorRefreshWindowSize();
+			continue;
+		}
+		if (c == SYNTAX_EVENT || c == TASK_EVENT || c == WATCH_EVENT || c == MOUSE_EVENT) {
+			continue;
+		}
+
+		if (c == '\x1b') {
+			s->aborted = 1;
+			done = 1;
+		} else if (c == '\r') {
+			dispatchProjectReplaceHandleConfirm(s, &done);
+		} else if (c == '\t') {
+			if (dispatchProjectReplaceAdvanceOrFinish(s)) {
+				done = 1;
+			}
+		} else if (c == CTRL_KEY('a')) {
+			dispatchProjectReplaceHandleReplaceAll(s, &done);
+		}
+	}
+}
+
+/* Runs one project-replace file pass (interactive or automatic). Returns 1 if
+ * processing should continue with the next file, 0 to stop the outer loop. */
+static int dispatchProjectReplaceRunFile(const struct dispatchFileEntry *file,
+                                         const char *find_copy, size_t find_len,
+                                         const char *replace_query, size_t replace_len,
+                                         int *total_replaced, int *total_files,
+                                         int *replace_all_remaining, int *aborted) {
+	if (!editorTabOpenOrSwitchToFile(file->path)) {
+		return 1;
+	}
+	editorHistoryBreakGroup();
+	free(E.search_query);
+	E.search_query = strdup(find_copy);
+	if (E.search_query == NULL) {
+		*aborted = 1;
+		return 0;
+	}
+
+	if (*replace_all_remaining) {
+		int count = dispatchReplaceAllInBuffer(E.search_query, find_len, replace_query,
+		                                       replace_len);
+		if (count > 0) {
+			*total_replaced += count;
+			(*total_files)++;
+		}
+		return 1;
+	}
+
+	int start_row = file->start_row;
+	if (start_row >= E.numrows) {
+		start_row = 0;
+	}
+	if (!dispatchProjectReplaceSeekFirstMatch(start_row, (int)find_len)) {
+		return 1;
+	}
+
+	const char *sep = strrchr(file->path, '/');
+	struct dispatchProjectReplaceFileCtx ctx = {
+	        .basename = sep != NULL ? sep + 1 : file->path,
+	        .replace_query = replace_query,
+	        .find_len = find_len,
+	        .replace_len = replace_len,
+	        .file_start_offset = E.search_match_offset,
+	        .total_replaced_before = *total_replaced,
+	        .file_replaced = 0,
+	        .aborted = 0,
+	        .replace_all_remaining = 0,
+	};
+	dispatchProjectReplaceInteractiveLoop(&ctx);
+
+	if (ctx.file_replaced > 0) {
+		*total_replaced += ctx.file_replaced;
+		(*total_files)++;
+	}
+	if (ctx.replace_all_remaining) {
+		*replace_all_remaining = 1;
+	}
+	if (ctx.aborted) {
+		*aborted = 1;
+		return 0;
+	}
+	return 1;
+}
+
+static void dispatchProjectReplaceReportStatus(int alloc_failed, int replacement_started,
+                                               int saved_active_tab, int aborted,
+                                               int total_replaced, int total_files) {
+	if (alloc_failed) {
+		editorSetAllocFailureStatus();
+		return;
+	}
+	if (!replacement_started) {
+		return;
+	}
+	if (!aborted && saved_active_tab < 0) {
+		(void)editorTabSwitchToIndex(0);
+	}
+	if (total_replaced > 0 || aborted) {
+		editorSetStatusMsg("Replaced %d occurrence(s) across %d file(s)%s", total_replaced,
+		                   total_files, aborted ? " (stopped)" : "");
+	} else {
+		editorSetStatusMsg("No replacements made");
+	}
+}
+
 static void dispatchProjectReplaceFromSearch(void) {
 	const char *find = editorProjectSearchQuery();
 	if (find == NULL || find[0] == '\0') {
@@ -670,15 +914,12 @@ static void dispatchProjectReplaceFromSearch(void) {
 	if (pn < 0 || pn >= (int)sizeof(prompt_buf)) {
 		prompt_buf[sizeof(prompt_buf) - 1] = '\0';
 	}
+
 	char *replace_query = NULL;
 	char *find_copy = NULL;
 	struct dispatchFileEntry *files = NULL;
 	int file_count = 0;
-	int file_cap = 0;
-	int result_count = 0;
 	int saved_active_tab = -1;
-	size_t find_len = 0;
-	size_t replace_len = 0;
 	int total_replaced = 0;
 	int total_files = 0;
 	int aborted = 0;
@@ -697,42 +938,9 @@ static void dispatchProjectReplaceFromSearch(void) {
 		goto cleanup;
 	}
 
-	result_count = E.drawer_project_search_result_count;
-
-	for (int i = 0; i < result_count; i++) {
-		const struct editorProjectSearchResult *r = &E.drawer_project_search_results[i];
-		if (r->path == NULL || r->path[0] == '\0') {
-			continue;
-		}
-		int already = 0;
-		for (int j = 0; j < file_count; j++) {
-			if (strcmp(files[j].path, r->path) == 0) {
-				already = 1;
-				break;
-			}
-		}
-		if (already) {
-			continue;
-		}
-		if (file_count == file_cap) {
-			int new_cap = file_cap == 0 ? 8 : file_cap * 2;
-			struct dispatchFileEntry *grown =
-			        editorRealloc(files, (size_t)new_cap * sizeof(*files));
-			if (grown == NULL) {
-				alloc_failed = 1;
-				goto cleanup;
-			}
-			files = grown;
-			file_cap = new_cap;
-		}
-		char *path_copy = strdup(r->path);
-		if (path_copy == NULL) {
-			alloc_failed = 1;
-			goto cleanup;
-		}
-		files[file_count].path = path_copy;
-		files[file_count].start_row = r->line > 0 ? r->line - 1 : 0;
-		file_count++;
+	if (dispatchProjectReplaceCollectFiles(&files, &file_count) != 0) {
+		alloc_failed = 1;
+		goto cleanup;
 	}
 
 	saved_active_tab = editorTabActiveIndex();
@@ -740,121 +948,13 @@ static void dispatchProjectReplaceFromSearch(void) {
 	replacement_started = 1;
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 
-	find_len = strlen(find_copy);
-	replace_len = strlen(replace_query);
+	size_t find_len = strlen(find_copy);
+	size_t replace_len = strlen(replace_query);
 
 	for (int fi = 0; fi < file_count; fi++) {
-		if (!editorTabOpenOrSwitchToFile(files[fi].path)) {
-			continue;
-		}
-		editorHistoryBreakGroup();
-		free(E.search_query);
-		E.search_query = strdup(find_copy);
-		if (E.search_query == NULL) {
-			aborted = 1;
-			break;
-		}
-
-		if (replace_all_remaining) {
-			int count = dispatchReplaceAllInBuffer(E.search_query, find_len,
-			                                       replace_query, replace_len);
-			if (count > 0) {
-				total_replaced += count;
-				total_files++;
-			}
-			continue;
-		}
-
-		int start_row = files[fi].start_row;
-		if (start_row >= E.numrows) {
-			start_row = 0;
-		}
-		int match_row = -1;
-		int match_col = -1;
-		if (!editorBufferFindForward(E.search_query, start_row, -1, &match_row,
-		                             &match_col)) {
-			continue;
-		}
-		if (match_row < start_row) {
-			if (!editorBufferFindForward(E.search_query, 0, -1, &match_row,
-			                             &match_col)) {
-				continue;
-			}
-		}
-
-		dispatchMoveCursorToSearchMatch(match_row, match_col, (int)find_len);
-		editorViewportEnsureCursorVisible();
-
-		size_t file_start_offset = E.search_match_offset;
-		const char *sep = strrchr(files[fi].path, '/');
-		const char *basename = sep != NULL ? sep + 1 : files[fi].path;
-		int file_replaced = 0;
-		int done_with_file = 0;
-
-		while (!done_with_file) {
-			editorSetStatusMsg("[%s] Replace? Enter=this Tab=skip Ctrl+A=all Esc=done "
-			                   "(%d replaced)",
-			                   basename, total_replaced + file_replaced);
-			editorRefreshScreen();
-
-			int c = editorReadKey();
-			if (c == INPUT_EOF_EVENT) {
-				aborted = 1;
-				done_with_file = 1;
-				fi = file_count;
-				editorExitOnInputShutdown();
-			}
-			if (c == RESIZE_EVENT) {
-				(void)editorRefreshWindowSize();
-				continue;
-			}
-			if (c == SYNTAX_EVENT || c == TASK_EVENT || c == WATCH_EVENT) {
-				continue;
-			}
-			if (c == MOUSE_EVENT) {
-				continue;
-			}
-
-			if (c == '\x1b') {
-				aborted = 1;
-				done_with_file = 1;
-			} else if (c == '\r') {
-				if (E.search_match_len > 0) {
-					size_t offset = E.search_match_offset;
-					editorHistoryBreakGroup();
-					if (dispatchReplaceAtOffset(offset, find_len, replace_query,
-					                            replace_len)) {
-						file_replaced++;
-					}
-				}
-				if (!dispatchReplaceNavigateNext(E.search_query, (int)find_len) ||
-				    E.search_match_offset <= file_start_offset) {
-					dispatchClearActiveSearchMatch();
-					done_with_file = 1;
-				}
-			} else if (c == '\t') {
-				if (!dispatchReplaceNavigateNext(E.search_query, (int)find_len) ||
-				    E.search_match_offset <= file_start_offset) {
-					dispatchClearActiveSearchMatch();
-					done_with_file = 1;
-				}
-			} else if (c == CTRL_KEY('a')) {
-				int count = dispatchReplaceAllInBuffer(E.search_query, find_len,
-				                                       replace_query, replace_len);
-				if (count > 0) {
-					file_replaced += count;
-				}
-				done_with_file = 1;
-				replace_all_remaining = 1;
-			}
-		}
-
-		if (file_replaced > 0) {
-			total_replaced += file_replaced;
-			total_files++;
-		}
-
-		if (aborted) {
+		if (!dispatchProjectReplaceRunFile(&files[fi], find_copy, find_len, replace_query,
+		                                   replace_len, &total_replaced, &total_files,
+		                                   &replace_all_remaining, &aborted)) {
 			break;
 		}
 	}
@@ -867,23 +967,8 @@ cleanup:
 	}
 	free(files);
 
-	if (alloc_failed) {
-		editorSetAllocFailureStatus();
-		return;
-	}
-	if (!replacement_started) {
-		return;
-	}
-	if (!aborted && saved_active_tab < 0) {
-		(void)editorTabSwitchToIndex(0);
-	}
-
-	if (total_replaced > 0 || aborted) {
-		editorSetStatusMsg("Replaced %d occurrence(s) across %d file(s)%s", total_replaced,
-		                   total_files, aborted ? " (stopped)" : "");
-	} else {
-		editorSetStatusMsg("No replacements made");
-	}
+	dispatchProjectReplaceReportStatus(alloc_failed, replacement_started, saved_active_tab,
+	                                   aborted, total_replaced, total_files);
 }
 
 static void dispatchFindReplace(void) {
@@ -1415,6 +1500,13 @@ typedef int (*dispatchLspLocationRequestFn)(const char *filename,
 static void dispatchRunLocationLookup(const char *kind_lower, const char *kind_capitalized,
                                       const char *kind_plural,
                                       dispatchLspLocationRequestFn request_fn) {
+	char *full_text = NULL;
+	struct editorLspLocation *locations = NULL;
+	int count = 0;
+	struct editorLspLocation *implementation_locations = NULL;
+	int implementation_count = 0;
+	struct dispatchLocationChoice *choices = NULL;
+
 	if (!editorLanguageGoToSupported(E.syntax_language)) {
 		editorSetStatusMsg("Go to %s is available for Go, C, C++, HTML, CSS/SCSS, JSON, "
 		                   "and JavaScript files only",
@@ -1456,54 +1548,49 @@ static void dispatchRunLocationLookup(const char *kind_lower, const char *kind_c
 		editorSetStatusMsg("File too large");
 		return;
 	}
-	char *full_text = editorTextSourceDupRange(&source, 0, source.length, &full_text_len);
+	full_text = editorTextSourceDupRange(&source, 0, source.length, &full_text_len);
 	if (full_text == NULL) {
 		if (source.length > ROTIDE_MAX_TEXT_BYTES) {
 			editorSetStatusMsg("File too large");
 		} else {
 			editorSetStatusMsg("Out of memory");
 		}
-		return;
+		goto cleanup;
 	}
 
 	int ready = editorLspEnsureDocumentOpen(E.filename, E.syntax_language, &E.lsp_doc_open,
 	                                        &E.lsp_doc_version,
 	                                        full_text != NULL ? full_text : "", full_text_len);
 	free(full_text);
+	full_text = NULL;
 	if (!ready) {
 		if (editorLspLastStartupFailureReason() ==
 		    EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
 			editorLanguageMaybePromptInstallServer();
-			return;
+			goto cleanup;
 		}
 		if (strncmp(E.statusmsg, "LSP ", strlen("LSP ")) != 0) {
 			editorSetStatusMsg("LSP unavailable for this file");
 		}
-		return;
+		goto cleanup;
 	}
 
-	struct editorLspLocation *locations = NULL;
-	int count = 0;
 	int timed_out = 0;
 	int request_result = request_fn(E.filename, E.syntax_language, E.cy, E.cx, &locations,
 	                                &count, &timed_out);
 	if (request_result == -2 || timed_out) {
 		editorSetStatusMsg("Go to %s timed out", kind_lower);
-		editorLspFreeLocations(locations, count);
-		return;
+		goto cleanup;
 	}
 	if (request_result <= 0) {
 		editorSetStatusMsg("Go to %s failed", kind_lower);
-		editorLspFreeLocations(locations, count);
-		return;
+		goto cleanup;
 	}
 	if (count <= 0) {
 		editorSetStatusMsg("%s not found", kind_capitalized);
-		editorLspFreeLocations(locations, count);
-		return;
+		goto cleanup;
 	}
 
-	struct dispatchLocationChoice *choices = NULL;
 	int choice_count = 0;
 	int choice_cap = 0;
 	int has_declaration = 0;
@@ -1518,14 +1605,10 @@ static void dispatchRunLocationLookup(const char *kind_lower, const char *kind_c
 		}
 		if (!dispatchAppendLocationChoice(&choices, &choice_count, &choice_cap,
 		                                  &locations[i], role)) {
-			free(choices);
-			editorLspFreeLocations(locations, count);
-			return;
+			goto cleanup;
 		}
 	}
 
-	struct editorLspLocation *implementation_locations = NULL;
-	int implementation_count = 0;
 	if (request_fn == editorLspRequestDefinition && has_declaration &&
 	    dispatchLanguageUsesCStyleDeclarations(E.syntax_language)) {
 		int implementation_timed_out = 0;
@@ -1538,11 +1621,7 @@ static void dispatchRunLocationLookup(const char *kind_lower, const char *kind_c
 				            &choices, &choice_count, &choice_cap,
 				            &implementation_locations[i],
 				            DISPATCH_LOCATION_ROLE_IMPLEMENTATION)) {
-					free(choices);
-					editorLspFreeLocations(implementation_locations,
-					                       implementation_count);
-					editorLspFreeLocations(locations, count);
-					return;
+					goto cleanup;
 				}
 			}
 		}
@@ -1550,10 +1629,7 @@ static void dispatchRunLocationLookup(const char *kind_lower, const char *kind_c
 
 	if (choice_count <= 0) {
 		editorSetStatusMsg("%s not found", kind_capitalized);
-		free(choices);
-		editorLspFreeLocations(implementation_locations, implementation_count);
-		editorLspFreeLocations(locations, count);
-		return;
+		goto cleanup;
 	}
 
 	if (choice_count > 1) {
@@ -1562,24 +1638,21 @@ static void dispatchRunLocationLookup(const char *kind_lower, const char *kind_c
 		} else {
 			editorSetStatusMsg("Found %d %s", choice_count, kind_plural);
 		}
-		free(choices);
-		editorLspFreeLocations(implementation_locations, implementation_count);
-		editorLspFreeLocations(locations, count);
-		return;
+		goto cleanup;
 	}
 
 	const struct dispatchLocationChoice *selected = &choices[0];
 	if (!dispatchJumpToDefinitionLocation(selected->location)) {
 		editorSetStatusMsg("Unable to jump to %s", kind_lower);
-		free(choices);
-		editorLspFreeLocations(implementation_locations, implementation_count);
-		editorLspFreeLocations(locations, count);
-		return;
+		goto cleanup;
 	}
 
 	editorSetStatusMsg("%s: %s:%d", dispatchLocationRoleLabel(selected->role),
 	                   dispatchBasenameFromPath(selected->location->path),
 	                   selected->location->line + 1);
+
+cleanup:
+	free(full_text);
 	free(choices);
 	editorLspFreeLocations(implementation_locations, implementation_count);
 	editorLspFreeLocations(locations, count);
@@ -1709,11 +1782,11 @@ static void dispatchApplyEslintFixes(void) {
 		editorSetStatusMsg("ESLint fixes are available for JavaScript files only");
 		return;
 	}
-	if (!E.lsp_eslint_enabled) {
+	if (!E.lsp_config.eslint_enabled) {
 		editorSetStatusMsg("vscode-eslint-language-server is disabled in config");
 		return;
 	}
-	if (E.lsp_eslint_command[0] == '\0') {
+	if (E.lsp_config.eslint_command[0] == '\0') {
 		editorSetStatusMsg("LSP disabled: [lsp].eslint_command is empty");
 		return;
 	}
@@ -2040,6 +2113,22 @@ static int dispatchHandleReadOnlyAction(enum editorAction action) {
 }
 
 static int dispatchHandleDelegatedAction(enum editorAction action, int *effects) {
+	const struct editorEditMappedCallbacks edit_callbacks = {
+	        .clear_selection_mode = dispatchClearSelectionMode,
+	        .pin_active_preview_for_edit = dispatchPinActivePreviewForEdit,
+	        .clear_search_state = dispatchClearSearchState,
+	        .toggle_selection_mode = dispatchToggleSelectionMode,
+	        .copy_selection = dispatchCopySelection,
+	        .cut_selection = dispatchCutSelection,
+	        .delete_selection = dispatchDeleteSelection,
+	        .paste_clipboard = dispatchPasteClipboard,
+	        .delete_char_action = dispatchDeleteCharAction,
+	        .backspace_action = dispatchBackspaceAction,
+	        .move_line_up = dispatchMoveLineUpAction,
+	        .move_line_down = dispatchMoveLineDownAction,
+	        .toggle_comment_lines = dispatchToggleCommentLines,
+	};
+
 	if (editorHandleFileTabMappedAction(action)) {
 		return 1;
 	}
@@ -2058,25 +2147,41 @@ static int dispatchHandleDelegatedAction(enum editorAction action, int *effects)
 	                                     effects)) {
 		return 1;
 	}
-	if (editorHandleEditMappedAction(
-	            action, DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT, dispatchClearSelectionMode,
-	            dispatchPinActivePreviewForEdit, dispatchClearSearchState,
-	            dispatchToggleSelectionMode, dispatchCopySelection, dispatchCutSelection,
-	            dispatchDeleteSelection, dispatchPasteClipboard, dispatchDeleteCharAction,
-	            dispatchBackspaceAction, dispatchMoveLineUpAction, dispatchMoveLineDownAction,
-	            dispatchToggleCommentLines, effects)) {
+	if (editorHandleEditMappedAction(action, DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT,
+	                                 &edit_callbacks, effects)) {
 		return 1;
 	}
 	return 0;
 }
 
-static int dispatchHandleSelectionAction(enum editorAction action, int *effects) {
+static int dispatchIsSelectionAction(enum editorAction action) {
 	switch (action) {
 		case EDITOR_ACTION_SELECT_ALL:
-			editorHistoryBreakGroup();
-			if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT) {
-				return 1;
-			}
+		case EDITOR_ACTION_SELECT_LEFT:
+		case EDITOR_ACTION_SELECT_RIGHT:
+		case EDITOR_ACTION_SELECT_UP:
+		case EDITOR_ACTION_SELECT_DOWN:
+		case EDITOR_ACTION_SELECT_WORD_LEFT:
+		case EDITOR_ACTION_SELECT_WORD_RIGHT:
+		case EDITOR_ACTION_SELECT_HOME:
+		case EDITOR_ACTION_SELECT_END:
+			return 1;
+		default:
+			return 0;
+	}
+}
+
+static int dispatchHandleSelectionAction(enum editorAction action, int *effects) {
+	if (!dispatchIsSelectionAction(action)) {
+		return 0;
+	}
+	editorHistoryBreakGroup();
+	if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT) {
+		return 1;
+	}
+
+	switch (action) {
+		case EDITOR_ACTION_SELECT_ALL:
 			if (editorEditSelectAll()) {
 				editorViewportEnsureCursorVisible();
 				*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
@@ -2088,10 +2193,6 @@ static int dispatchHandleSelectionAction(enum editorAction action, int *effects)
 		case EDITOR_ACTION_SELECT_DOWN:
 		case EDITOR_ACTION_SELECT_WORD_LEFT:
 		case EDITOR_ACTION_SELECT_WORD_RIGHT:
-			editorHistoryBreakGroup();
-			if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT) {
-				return 1;
-			}
 			dispatchBeginOrContinueSelection();
 			switch (action) {
 				case EDITOR_ACTION_SELECT_LEFT:
@@ -2116,19 +2217,11 @@ static int dispatchHandleSelectionAction(enum editorAction action, int *effects)
 			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			return 1;
 		case EDITOR_ACTION_SELECT_HOME:
-			editorHistoryBreakGroup();
-			if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT) {
-				return 1;
-			}
 			dispatchBeginOrContinueSelection();
 			(void)dispatchSetCursorFromPosition(E.cy, 0);
 			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			return 1;
 		case EDITOR_ACTION_SELECT_END:
-			editorHistoryBreakGroup();
-			if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT) {
-				return 1;
-			}
 			dispatchBeginOrContinueSelection();
 			if (E.cy < E.numrows) {
 				(void)dispatchSetCursorFromPosition(
@@ -2143,10 +2236,26 @@ static int dispatchHandleSelectionAction(enum editorAction action, int *effects)
 	}
 }
 
-static int dispatchHandleColumnSelectionAction(enum editorAction action, int *effects) {
+static int dispatchIsColumnSelectionAction(enum editorAction action) {
 	switch (action) {
 		case EDITOR_ACTION_COLUMN_SELECT_UP:
-			editorHistoryBreakGroup();
+		case EDITOR_ACTION_COLUMN_SELECT_DOWN:
+		case EDITOR_ACTION_COLUMN_SELECT_LEFT:
+		case EDITOR_ACTION_COLUMN_SELECT_RIGHT:
+			return 1;
+		default:
+			return 0;
+	}
+}
+
+static int dispatchHandleColumnSelectionAction(enum editorAction action, int *effects) {
+	if (!dispatchIsColumnSelectionAction(action)) {
+		return 0;
+	}
+	editorHistoryBreakGroup();
+
+	switch (action) {
+		case EDITOR_ACTION_COLUMN_SELECT_UP:
 			if (E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
 				return 1;
 			}
@@ -2154,7 +2263,6 @@ static int dispatchHandleColumnSelectionAction(enum editorAction action, int *ef
 			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			return 1;
 		case EDITOR_ACTION_COLUMN_SELECT_DOWN:
-			editorHistoryBreakGroup();
 			if (E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
 				return 1;
 			}
@@ -2162,12 +2270,10 @@ static int dispatchHandleColumnSelectionAction(enum editorAction action, int *ef
 			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			return 1;
 		case EDITOR_ACTION_COLUMN_SELECT_LEFT:
-			editorHistoryBreakGroup();
 			dispatchColumnSelectionMove(0, -1);
 			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			return 1;
 		case EDITOR_ACTION_COLUMN_SELECT_RIGHT:
-			editorHistoryBreakGroup();
 			dispatchColumnSelectionMove(0, 1);
 			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			return 1;
@@ -2176,10 +2282,31 @@ static int dispatchHandleColumnSelectionAction(enum editorAction action, int *ef
 	}
 }
 
-static int dispatchHandleViewAction(enum editorAction action, int *effects) {
+static int dispatchIsViewAction(enum editorAction action) {
 	switch (action) {
 		case EDITOR_ACTION_TOGGLE_LINE_WRAP:
-			editorHistoryBreakGroup();
+		case EDITOR_ACTION_TOGGLE_LINE_NUMBERS:
+		case EDITOR_ACTION_TOGGLE_CURRENT_LINE_HIGHLIGHT:
+		case EDITOR_ACTION_PAGE_UP:
+		case EDITOR_ACTION_PAGE_DOWN:
+		case EDITOR_ACTION_SCROLL_LEFT:
+		case EDITOR_ACTION_SCROLL_RIGHT:
+		case EDITOR_ACTION_SCROLL_UP:
+		case EDITOR_ACTION_SCROLL_DOWN:
+			return 1;
+		default:
+			return 0;
+	}
+}
+
+static int dispatchHandleViewAction(enum editorAction action, int *effects) {
+	if (!dispatchIsViewAction(action)) {
+		return 0;
+	}
+	editorHistoryBreakGroup();
+
+	switch (action) {
+		case EDITOR_ACTION_TOGGLE_LINE_WRAP:
 			E.line_wrap_enabled = !E.line_wrap_enabled;
 			if (E.line_wrap_enabled) {
 				E.coloff = 0;
@@ -2192,7 +2319,6 @@ static int dispatchHandleViewAction(enum editorAction action, int *effects) {
 			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 			return 1;
 		case EDITOR_ACTION_TOGGLE_LINE_NUMBERS:
-			editorHistoryBreakGroup();
 			E.line_numbers_enabled = !E.line_numbers_enabled;
 			editorViewportEnsureCursorVisible();
 			editorSetStatusMsg("Line numbers %s",
@@ -2200,7 +2326,6 @@ static int dispatchHandleViewAction(enum editorAction action, int *effects) {
 			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 			return 1;
 		case EDITOR_ACTION_TOGGLE_CURRENT_LINE_HIGHLIGHT:
-			editorHistoryBreakGroup();
 			E.current_line_highlight_enabled = !E.current_line_highlight_enabled;
 			editorSetStatusMsg("Current-line highlight %s",
 			                   E.current_line_highlight_enabled ? "enabled"
@@ -2208,7 +2333,6 @@ static int dispatchHandleViewAction(enum editorAction action, int *effects) {
 			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 			return 1;
 		case EDITOR_ACTION_PAGE_UP: {
-			editorHistoryBreakGroup();
 			int page_rows = E.window_rows;
 			if (page_rows < 1) {
 				page_rows = 1;
@@ -2218,7 +2342,6 @@ static int dispatchHandleViewAction(enum editorAction action, int *effects) {
 			return 1;
 		}
 		case EDITOR_ACTION_PAGE_DOWN: {
-			editorHistoryBreakGroup();
 			int page_rows = E.window_rows;
 			if (page_rows < 1) {
 				page_rows = 1;
@@ -2228,22 +2351,18 @@ static int dispatchHandleViewAction(enum editorAction action, int *effects) {
 			return 1;
 		}
 		case EDITOR_ACTION_SCROLL_LEFT:
-			editorHistoryBreakGroup();
 			editorViewportScrollByCols(-KEYBOARD_SCROLL_COLS);
 			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 			return 1;
 		case EDITOR_ACTION_SCROLL_RIGHT:
-			editorHistoryBreakGroup();
 			editorViewportScrollByCols(KEYBOARD_SCROLL_COLS);
 			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 			return 1;
 		case EDITOR_ACTION_SCROLL_UP:
-			editorHistoryBreakGroup();
 			editorViewportScrollByRows(-KEYBOARD_SCROLL_ROWS);
 			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 			return 1;
 		case EDITOR_ACTION_SCROLL_DOWN:
-			editorHistoryBreakGroup();
 			editorViewportScrollByRows(KEYBOARD_SCROLL_ROWS);
 			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 			return 1;
@@ -2413,220 +2532,269 @@ static int dispatchProcessMappedAction(enum editorAction action, int *effects_ou
 	return dispatchFinishMappedAction(0, effects, effects_out);
 }
 
+static int dispatchHandleInputEvent(int c) {
+	switch (c) {
+		case INPUT_EOF_EVENT:
+			editorExitOnInputShutdown();
+			return 1;
+		case RESIZE_EVENT:
+			(void)editorRefreshWindowSize();
+			editorTerminalPaneResizeAllToLayout(E.layout_root);
+			return 1;
+		case TASK_EVENT:
+		case SYNTAX_EVENT:
+		case WATCH_EVENT:
+			return 1;
+		case TERMINAL_EVENT: {
+			struct editorPaneNode *prev_focus = E.focused_leaf;
+			int closed = editorTerminalPaneCloseExited(&E.layout_root, &E.focused_leaf,
+			                                           &E.dap_terminal_leaf);
+			if (closed > 0 && E.focused_leaf != NULL && E.focused_leaf != prev_focus) {
+				(void)editorPaneViewLoadIntoState(&E.focused_leaf->as.leaf.view);
+			}
+			return 1;
+		}
+		case BRACKETED_PASTE_START_EVENT:
+			E.paste_active = 1;
+			if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
+			    E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
+			    E.focused_leaf->as.leaf.kind_state != NULL) {
+				(void)editorTerminalPaneSendPasteStart(
+				        (struct editorTerminalPane *)
+				                E.focused_leaf->as.leaf.kind_state);
+			}
+			return 1;
+		case BRACKETED_PASTE_END_EVENT:
+			E.paste_active = 0;
+			if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
+			    E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
+			    E.focused_leaf->as.leaf.kind_state != NULL) {
+				(void)editorTerminalPaneSendPasteEnd(
+				        (struct editorTerminalPane *)
+				                E.focused_leaf->as.leaf.kind_state);
+			}
+			return 1;
+		default:
+			return 0;
+	}
+}
+
+static void dispatchActivateAcceptedPopup(enum editorPopupKind popup_kind) {
+	if (popup_kind == EDITOR_POPUP_KIND_DRAWER_MENU) {
+		editorDrawerContextMenuActivate();
+		return;
+	}
+	if (popup_kind == EDITOR_POPUP_KIND_EDITOR_CONTEXT_MENU) {
+		int mapped_effects = DISPATCH_KEYPRESS_EFFECT_NONE;
+		(void)editorEditorContextMenuActivate(dispatchProcessMappedAction, &mapped_effects);
+		if ((mapped_effects & DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT) != 0) {
+			editorViewportEnsureCursorVisible();
+		}
+		return;
+	}
+	if (popup_kind == EDITOR_POPUP_KIND_TAB_CONTEXT_MENU) {
+		int mapped_effects = DISPATCH_KEYPRESS_EFFECT_NONE;
+		(void)editorTabContextMenuActivate(dispatchProcessMappedAction, &mapped_effects);
+		return;
+	}
+	if (popup_kind == EDITOR_POPUP_KIND_LSP_LOCATION_MENU) {
+		(void)editorLspLocationMenuActivate();
+		return;
+	}
+	if (editorAutocompleteIsVisible()) {
+		dispatchPinActivePreviewForEdit();
+		editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+		int dirty_before = E.dirty;
+		int applied = editorAutocompleteAcceptSelection();
+		editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+		if (applied) {
+			editorViewportEnsureCursorVisible();
+		}
+		return;
+	}
+	editorPopupClose();
+}
+
+/*
+ * The popup key handler's default branch closes the popup on any unknown
+ * key. Skip it for keystrokes that the autocomplete popup re-filters in
+ * place, and for mouse events while the drawer menu is open. Otherwise
+ * every cursor motion would dismiss the menu.
+ */
+static int dispatchHandlePopupKey(int c) {
+	if (!editorPopupIsVisible()) {
+		return 0;
+	}
+	int skip_popup_keys = editorAutocompleteWouldRefilter(c) ||
+	                      (c == MOUSE_EVENT && editorPopupKindIsMenu(E.popup.kind));
+	if (skip_popup_keys) {
+		return 0;
+	}
+	enum editorPopupKind popup_kind = E.popup.kind;
+	if (popup_kind == EDITOR_POPUP_KIND_LSP_LOCATION_MENU && c >= '1' && c <= '9') {
+		int selected = c - '1';
+		if (selected < editorPopupItemCount()) {
+			E.popup.selected_index = selected;
+		}
+		return 1;
+	}
+	enum editorPopupKeyResult popup_result = editorPopupHandleKey(c);
+	if (popup_result == EDITOR_POPUP_KEY_ACCEPTED) {
+		dispatchActivateAcceptedPopup(popup_kind);
+		return 1;
+	}
+	if (popup_result == EDITOR_POPUP_KEY_CONSUMED) {
+		return 1;
+	}
+	if (editorAutocompleteIsVisible()) {
+		editorAutocompleteCancel();
+	}
+	return 0;
+}
+
+static void dispatchHandleMouseEvent(int *effects) {
+	editorHistoryBreakGroup();
+	int mouse_effects = EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
+	(void)editorHandleMouseEventDispatch(
+	        DRAWER_DOUBLE_CLICK_THRESHOLD_MS, TEXT_MULTI_CLICK_THRESHOLD_MS,
+	        dispatchProcessMappedAction, dispatchJumpToPathLocation,
+	        dispatchCtrlClickGoToDefinitionAction, &mouse_effects);
+	if ((mouse_effects & EDITOR_MOUSE_DISPATCH_EFFECT_VIEWPORT_SCROLL) != 0) {
+		*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
+	}
+	if ((mouse_effects & EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT) != 0) {
+		*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+	}
+}
+
+/* Returns 1 when the key was forwarded to the terminal pane (caller must return). */
+static int dispatchTryTerminalPaneKey(int c) {
+	if (E.focused_leaf == NULL || E.focused_leaf->is_split ||
+	    E.focused_leaf->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
+	    E.focused_leaf->as.leaf.kind_state == NULL ||
+	    E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
+		return 0;
+	}
+	if (E.terminal_prefix_armed) {
+		E.terminal_prefix_armed = 0;
+		return 0;
+	}
+	enum editorAction terminal_action = EDITOR_ACTION_COUNT;
+	if (editorKeymapLookupAction(&E.keymap, c, &terminal_action) &&
+	    terminal_action == EDITOR_ACTION_TERMINAL_PREFIX) {
+		E.terminal_prefix_armed = 1;
+		editorSetStatusMsg("Terminal prefix armed: next key is rotide");
+		return 1;
+	}
+	struct editorTerminalPane *terminal =
+	        (struct editorTerminalPane *)E.focused_leaf->as.leaf.kind_state;
+	(void)editorTerminalPaneSendKey(terminal, c);
+	return 1;
+}
+
+static void dispatchInsertTextByte(int c, int *effects) {
+	if (E.column_select_active && c >= 0x20 && c < 0x7f) {
+		dispatchPinActivePreviewForEdit();
+		editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+		int dirty_before = E.dirty;
+		editorColumnSelectionInsertChar(c);
+		editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+		*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+		return;
+	}
+	if (c == '\t' && dispatchIndentSelection()) {
+		*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+		return;
+	}
+	if (dispatchReplaceSelectionWithChar(c)) {
+		*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+		return;
+	}
+	if (editorTrySkipOverClosingPair(c)) {
+		*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+		return;
+	}
+	if (editorTryAutoClosePair(c)) {
+		*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+		return;
+	}
+	dispatchClearSelectionMode();
+	dispatchPinActivePreviewForEdit();
+	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+	int dirty_before = E.dirty;
+	editorInsertChar(c);
+	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+	editorAutocompleteOnCharInserted(c);
+	*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+}
+
+static void dispatchHandleTextByte(int c, int *effects) {
+	if (!editorDrawerIsCollapsed() && editorFileSearchIsActive()) {
+		if (editorFileSearchAppendByte(c)) {
+			(void)editorFileSearchPreviewSelection();
+		}
+		return;
+	}
+	if (!editorDrawerIsCollapsed() && editorProjectSearchIsActive()) {
+		if (editorProjectSearchAppendByte(c)) {
+			(void)editorProjectSearchPreviewSelection();
+		}
+		return;
+	}
+	if (E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
+		return;
+	}
+	if (editorActiveTabIsReadOnly()) {
+		editorSetStatusMsg(editorActiveTabIsUnsupportedFile() ? "File is unsupported"
+		                                                      : "Task log is read-only");
+		return;
+	}
+	dispatchInsertTextByte(c, effects);
+}
+
+/* Returns 1 when the key was fully handled and caller must return immediately. */
+static int dispatchHandleKeyboardKey(int c, enum editorAction *action_out, int *mapped_action_out,
+                                     int *effects) {
+	if (editorClearHoverLinkState()) {
+		*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+	}
+	if (dispatchTryTerminalPaneKey(c)) {
+		return 1;
+	}
+	if (editorKeymapLookupAction(&E.keymap, c, action_out)) {
+		int mapped_effects = DISPATCH_KEYPRESS_EFFECT_NONE;
+		*mapped_action_out = 1;
+		if (dispatchProcessMappedAction(*action_out, &mapped_effects)) {
+			return 1;
+		}
+		*effects |= mapped_effects;
+		return 0;
+	}
+	if (editorByteShouldInsertAsText(c)) {
+		dispatchHandleTextByte(c, effects);
+	}
+	return 0;
+}
+
 void editorProcessKeypress(void) {
 	int c = editorReadKey();
 	enum editorAction action = EDITOR_ACTION_COUNT;
 	int mapped_action = 0;
 	int effects = DISPATCH_KEYPRESS_EFFECT_NONE;
 
-	if (c == INPUT_EOF_EVENT) {
-		editorExitOnInputShutdown();
+	if (dispatchHandleInputEvent(c)) {
 		return;
 	}
-	if (c == RESIZE_EVENT) {
-		(void)editorRefreshWindowSize();
-		editorTerminalPaneResizeAllToLayout(E.layout_root);
+	if (dispatchHandlePopupKey(c)) {
 		return;
-	}
-	if (c == TASK_EVENT) {
-		return;
-	}
-	if (c == SYNTAX_EVENT) {
-		return;
-	}
-	if (c == WATCH_EVENT) {
-		return;
-	}
-	if (c == TERMINAL_EVENT) {
-		struct editorPaneNode *prev_focus = E.focused_leaf;
-		int closed = editorTerminalPaneCloseExited(&E.layout_root, &E.focused_leaf,
-		                                           &E.dap_terminal_leaf);
-		if (closed > 0 && E.focused_leaf != NULL && E.focused_leaf != prev_focus) {
-			(void)editorPaneViewLoadIntoState(&E.focused_leaf->as.leaf.view);
-		}
-		/* Pump already happened in editorReadKey. */
-		return;
-	}
-	if (c == BRACKETED_PASTE_START_EVENT) {
-		E.paste_active = 1;
-		if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
-		    E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
-		    E.focused_leaf->as.leaf.kind_state != NULL) {
-			(void)editorTerminalPaneSendPasteStart(
-			        (struct editorTerminalPane *)E.focused_leaf->as.leaf.kind_state);
-		}
-		return;
-	}
-	if (c == BRACKETED_PASTE_END_EVENT) {
-		E.paste_active = 0;
-		if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
-		    E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
-		    E.focused_leaf->as.leaf.kind_state != NULL) {
-			(void)editorTerminalPaneSendPasteEnd(
-			        (struct editorTerminalPane *)E.focused_leaf->as.leaf.kind_state);
-		}
-		return;
-	}
-
-	if (editorPopupIsVisible()) {
-		/*
-		 * The popup key handler's default branch closes the popup on any unknown
-		 * key. Skip it for keystrokes that the autocomplete popup re-filters in
-		 * place, and for mouse events while the drawer menu is open. Otherwise
-		 * every cursor motion would dismiss the menu.
-		 */
-		int skip_popup_keys = editorAutocompleteWouldRefilter(c) ||
-		                      (c == MOUSE_EVENT && editorPopupKindIsMenu(E.popup.kind));
-		if (!skip_popup_keys) {
-			enum editorPopupKind popup_kind = E.popup.kind;
-			if (popup_kind == EDITOR_POPUP_KIND_LSP_LOCATION_MENU && c >= '1' &&
-			    c <= '9') {
-				int selected = c - '1';
-				if (selected < editorPopupItemCount()) {
-					E.popup.selected_index = selected;
-				}
-				return;
-			}
-			enum editorPopupKeyResult popup_result = editorPopupHandleKey(c);
-			if (popup_result == EDITOR_POPUP_KEY_ACCEPTED) {
-				if (popup_kind == EDITOR_POPUP_KIND_DRAWER_MENU) {
-					editorDrawerContextMenuActivate();
-				} else if (popup_kind == EDITOR_POPUP_KIND_EDITOR_CONTEXT_MENU) {
-					int mapped_effects = DISPATCH_KEYPRESS_EFFECT_NONE;
-					(void)editorEditorContextMenuActivate(
-					        dispatchProcessMappedAction, &mapped_effects);
-					if ((mapped_effects &
-					     DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT) != 0) {
-						editorViewportEnsureCursorVisible();
-					}
-				} else if (popup_kind == EDITOR_POPUP_KIND_TAB_CONTEXT_MENU) {
-					int mapped_effects = DISPATCH_KEYPRESS_EFFECT_NONE;
-					(void)editorTabContextMenuActivate(
-					        dispatchProcessMappedAction, &mapped_effects);
-				} else if (popup_kind == EDITOR_POPUP_KIND_LSP_LOCATION_MENU) {
-					(void)editorLspLocationMenuActivate();
-				} else if (editorAutocompleteIsVisible()) {
-					dispatchPinActivePreviewForEdit();
-					editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
-					int dirty_before = E.dirty;
-					int applied = editorAutocompleteAcceptSelection();
-					editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT,
-					                        E.dirty != dirty_before);
-					if (applied) {
-						editorViewportEnsureCursorVisible();
-					}
-				} else {
-					editorPopupClose();
-				}
-				return;
-			}
-			if (popup_result == EDITOR_POPUP_KEY_CONSUMED) {
-				return;
-			}
-			if (editorAutocompleteIsVisible()) {
-				editorAutocompleteCancel();
-			}
-		}
 	}
 
 	if (c == MOUSE_EVENT) {
-		// Mouse input can move cursor/selection, but it should not create edit history
-		// entries.
-		editorHistoryBreakGroup();
-		int mouse_effects = EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
-		(void)editorHandleMouseEventDispatch(
-		        DRAWER_DOUBLE_CLICK_THRESHOLD_MS, TEXT_MULTI_CLICK_THRESHOLD_MS,
-		        dispatchProcessMappedAction, dispatchJumpToPathLocation,
-		        dispatchCtrlClickGoToDefinitionAction, &mouse_effects);
-		if ((mouse_effects & EDITOR_MOUSE_DISPATCH_EFFECT_VIEWPORT_SCROLL) != 0) {
-			effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
-		}
-		if ((mouse_effects & EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT) != 0) {
-			effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-		}
-	} else {
-		if (editorClearHoverLinkState()) {
-			effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-		}
-		/* In focused terminal panes keys go to PTY, except terminal_prefix. */
-		if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
-		    E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
-		    E.focused_leaf->as.leaf.kind_state != NULL &&
-		    E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER) {
-			if (E.terminal_prefix_armed) {
-				E.terminal_prefix_armed = 0;
-				/* Fall through to keymap lookup below. */
-			} else {
-				enum editorAction terminal_action = EDITOR_ACTION_COUNT;
-				if (editorKeymapLookupAction(&E.keymap, c, &terminal_action) &&
-				    terminal_action == EDITOR_ACTION_TERMINAL_PREFIX) {
-					E.terminal_prefix_armed = 1;
-					editorSetStatusMsg(
-					        "Terminal prefix armed: next key is rotide");
-					return;
-				}
-				struct editorTerminalPane *terminal =
-				        (struct editorTerminalPane *)
-				                E.focused_leaf->as.leaf.kind_state;
-				(void)editorTerminalPaneSendKey(terminal, c);
-				return;
-			}
-		}
-		if (editorKeymapLookupAction(&E.keymap, c, &action)) {
-			int mapped_effects = DISPATCH_KEYPRESS_EFFECT_NONE;
-			mapped_action = 1;
-			if (dispatchProcessMappedAction(action, &mapped_effects)) {
-				return;
-			}
-			effects |= mapped_effects;
-		} else if (editorByteShouldInsertAsText(c)) {
-			if (!editorDrawerIsCollapsed() && editorFileSearchIsActive()) {
-				if (editorFileSearchAppendByte(c)) {
-					(void)editorFileSearchPreviewSelection();
-				}
-			} else if (!editorDrawerIsCollapsed() && editorProjectSearchIsActive()) {
-				if (editorProjectSearchAppendByte(c)) {
-					(void)editorProjectSearchPreviewSelection();
-				}
-			} else if (E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER) {
-				if (editorActiveTabIsReadOnly()) {
-					editorSetStatusMsg(editorActiveTabIsUnsupportedFile()
-					                           ? "File is unsupported"
-					                           : "Task log is read-only");
-					goto done;
-				}
-				if (E.column_select_active && c >= 0x20 && c < 0x7f) {
-					dispatchPinActivePreviewForEdit();
-					editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
-					int dirty_before = E.dirty;
-					editorColumnSelectionInsertChar(c);
-					editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT,
-					                        E.dirty != dirty_before);
-					effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-				} else if (c == '\t' && dispatchIndentSelection()) {
-					effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-				} else if (dispatchReplaceSelectionWithChar(c)) {
-					effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-				} else if (editorTrySkipOverClosingPair(c)) {
-					effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-				} else if (editorTryAutoClosePair(c)) {
-					effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-				} else {
-					dispatchClearSelectionMode();
-					dispatchPinActivePreviewForEdit();
-					editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
-					int dirty_before = E.dirty;
-					editorInsertChar(c);
-					editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT,
-					                        E.dirty != dirty_before);
-					editorAutocompleteOnCharInserted(c);
-					effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
-				}
-			}
-		}
+		dispatchHandleMouseEvent(&effects);
+	} else if (dispatchHandleKeyboardKey(c, &action, &mapped_action, &effects)) {
+		return;
 	}
 
-done:
 	editorFileTabActionsAfterKeypress(mapped_action, action);
 	if ((effects & DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT) != 0) {
 		editorViewportEnsureCursorVisible();

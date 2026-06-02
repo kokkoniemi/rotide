@@ -251,9 +251,18 @@ void editorLspTestDeliverPendingCompletion(void) {
 	editorLspCompletionPendingClear(pending);
 	g_lsp_mock.completion_pending_request_id = 0;
 
-	editorAutocompleteHandleCompletionResponse(request_id, document_version, request_cy,
-	                                           request_cx, prefix_start_cx, prefix, filename,
-	                                           items, count);
+	struct editorAutocompleteResponseSink response = {
+	        .request_id = request_id,
+	        .document_version = document_version,
+	        .request_cy = request_cy,
+	        .request_cx = request_cx,
+	        .prefix_start_cx = prefix_start_cx,
+	        .prefix = prefix,
+	        .filename = filename,
+	        .items = items,
+	        .count = count,
+	};
+	editorAutocompleteHandleCompletionResponse(&response);
 	free(prefix);
 	free(filename);
 }

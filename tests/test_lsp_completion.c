@@ -5,8 +5,8 @@
 static int test_editor_lsp_autocomplete_disabled_by_config_does_not_trigger(void) {
 	editorLspTestResetMock();
 	editorLspTestSetMockEnabled(1);
-	E.lsp_clangd_enabled = 1;
-	E.lsp_autocomplete_enabled = 0;
+	E.lsp_config.clangd_enabled = 1;
+	E.lsp_config.autocomplete_enabled = 0;
 	free(E.filename);
 	E.filename = strdup("/tmp/auto.c");
 	ASSERT_TRUE(E.filename != NULL);
@@ -30,9 +30,9 @@ static int test_editor_lsp_autocomplete_disabled_by_config_does_not_trigger(void
 static int test_editor_lsp_autocomplete_identifier_trigger_opens_popup(void) {
 	editorLspTestResetMock();
 	editorLspTestSetMockEnabled(1);
-	E.lsp_clangd_enabled = 1;
-	E.lsp_autocomplete_enabled = 1;
-	E.lsp_autocomplete_max_items = 50;
+	E.lsp_config.clangd_enabled = 1;
+	E.lsp_config.autocomplete_enabled = 1;
+	E.lsp_config.autocomplete_max_items = 50;
 	free(E.filename);
 	E.filename = strdup("/tmp/auto.c");
 	ASSERT_TRUE(E.filename != NULL);
@@ -67,9 +67,9 @@ static int test_editor_lsp_autocomplete_identifier_trigger_opens_popup(void) {
 static int test_editor_lsp_autocomplete_stale_response_after_cursor_move_is_ignored(void) {
 	editorLspTestResetMock();
 	editorLspTestSetMockEnabled(1);
-	E.lsp_clangd_enabled = 1;
-	E.lsp_autocomplete_enabled = 1;
-	E.lsp_autocomplete_max_items = 50;
+	E.lsp_config.clangd_enabled = 1;
+	E.lsp_config.autocomplete_enabled = 1;
+	E.lsp_config.autocomplete_max_items = 50;
 	free(E.filename);
 	E.filename = strdup("/tmp/auto.c");
 	ASSERT_TRUE(E.filename != NULL);
@@ -102,9 +102,9 @@ static int test_editor_lsp_autocomplete_stale_response_after_cursor_move_is_igno
 static int test_editor_lsp_autocomplete_accept_inserts_label(void) {
 	editorLspTestResetMock();
 	editorLspTestSetMockEnabled(1);
-	E.lsp_clangd_enabled = 1;
-	E.lsp_autocomplete_enabled = 1;
-	E.lsp_autocomplete_max_items = 50;
+	E.lsp_config.clangd_enabled = 1;
+	E.lsp_config.autocomplete_enabled = 1;
+	E.lsp_config.autocomplete_max_items = 50;
 	free(E.filename);
 	E.filename = strdup("/tmp/auto.c");
 	ASSERT_TRUE(E.filename != NULL);
@@ -134,9 +134,9 @@ static int test_editor_lsp_autocomplete_accept_inserts_label(void) {
 static int test_editor_lsp_autocomplete_accept_uses_insert_text(void) {
 	editorLspTestResetMock();
 	editorLspTestSetMockEnabled(1);
-	E.lsp_clangd_enabled = 1;
-	E.lsp_autocomplete_enabled = 1;
-	E.lsp_autocomplete_max_items = 50;
+	E.lsp_config.clangd_enabled = 1;
+	E.lsp_config.autocomplete_enabled = 1;
+	E.lsp_config.autocomplete_max_items = 50;
 	free(E.filename);
 	E.filename = strdup("/tmp/auto.c");
 	ASSERT_TRUE(E.filename != NULL);
@@ -163,9 +163,9 @@ static int test_editor_lsp_autocomplete_accept_uses_insert_text(void) {
 static int test_editor_lsp_autocomplete_typing_narrows_popup_without_response(void) {
 	editorLspTestResetMock();
 	editorLspTestSetMockEnabled(1);
-	E.lsp_clangd_enabled = 1;
-	E.lsp_autocomplete_enabled = 1;
-	E.lsp_autocomplete_max_items = 100;
+	E.lsp_config.clangd_enabled = 1;
+	E.lsp_config.autocomplete_enabled = 1;
+	E.lsp_config.autocomplete_max_items = 100;
 	free(E.filename);
 	E.filename = strdup("/tmp/auto.c");
 	ASSERT_TRUE(E.filename != NULL);
@@ -200,9 +200,9 @@ static int test_editor_lsp_autocomplete_typing_narrows_popup_without_response(vo
 static int test_editor_lsp_autocomplete_typing_narrows_popup_keeps_accept_correct(void) {
 	editorLspTestResetMock();
 	editorLspTestSetMockEnabled(1);
-	E.lsp_clangd_enabled = 1;
-	E.lsp_autocomplete_enabled = 1;
-	E.lsp_autocomplete_max_items = 100;
+	E.lsp_config.clangd_enabled = 1;
+	E.lsp_config.autocomplete_enabled = 1;
+	E.lsp_config.autocomplete_max_items = 100;
 	free(E.filename);
 	E.filename = strdup("/tmp/auto.c");
 	ASSERT_TRUE(E.filename != NULL);
@@ -237,9 +237,9 @@ static int test_editor_lsp_autocomplete_typing_narrows_popup_keeps_accept_correc
 static int test_editor_lsp_autocomplete_dispatch_typing_keeps_popup_open(void) {
 	editorLspTestResetMock();
 	editorLspTestSetMockEnabled(1);
-	E.lsp_clangd_enabled = 1;
-	E.lsp_autocomplete_enabled = 1;
-	E.lsp_autocomplete_max_items = 100;
+	E.lsp_config.clangd_enabled = 1;
+	E.lsp_config.autocomplete_enabled = 1;
+	E.lsp_config.autocomplete_max_items = 100;
 	free(E.filename);
 	E.filename = strdup("/tmp/auto.c");
 	ASSERT_TRUE(E.filename != NULL);
@@ -282,9 +282,9 @@ static int test_editor_lsp_autocomplete_dispatch_typing_keeps_popup_open(void) {
 static int test_editor_lsp_autocomplete_filters_clangd_decorated_labels(void) {
 	editorLspTestResetMock();
 	editorLspTestSetMockEnabled(1);
-	E.lsp_clangd_enabled = 1;
-	E.lsp_autocomplete_enabled = 1;
-	E.lsp_autocomplete_max_items = 100;
+	E.lsp_config.clangd_enabled = 1;
+	E.lsp_config.autocomplete_enabled = 1;
+	E.lsp_config.autocomplete_max_items = 100;
 	free(E.filename);
 	E.filename = strdup("/tmp/auto.c");
 	ASSERT_TRUE(E.filename != NULL);
@@ -327,9 +327,9 @@ static int test_editor_lsp_autocomplete_filters_clangd_decorated_labels(void) {
 static int test_editor_lsp_autocomplete_accept_uses_filter_text_when_label_decorated(void) {
 	editorLspTestResetMock();
 	editorLspTestSetMockEnabled(1);
-	E.lsp_clangd_enabled = 1;
-	E.lsp_autocomplete_enabled = 1;
-	E.lsp_autocomplete_max_items = 100;
+	E.lsp_config.clangd_enabled = 1;
+	E.lsp_config.autocomplete_enabled = 1;
+	E.lsp_config.autocomplete_max_items = 100;
 	free(E.filename);
 	E.filename = strdup("/tmp/auto.c");
 	ASSERT_TRUE(E.filename != NULL);
@@ -358,9 +358,9 @@ static int test_editor_lsp_autocomplete_accept_uses_filter_text_when_label_decor
 static int test_editor_lsp_autocomplete_dispatch_typing_after_trigger_char_keeps_popup(void) {
 	editorLspTestResetMock();
 	editorLspTestSetMockEnabled(1);
-	E.lsp_clangd_enabled = 1;
-	E.lsp_autocomplete_enabled = 1;
-	E.lsp_autocomplete_max_items = 100;
+	E.lsp_config.clangd_enabled = 1;
+	E.lsp_config.autocomplete_enabled = 1;
+	E.lsp_config.autocomplete_max_items = 100;
 	free(E.filename);
 	E.filename = strdup("/tmp/auto.c");
 	ASSERT_TRUE(E.filename != NULL);

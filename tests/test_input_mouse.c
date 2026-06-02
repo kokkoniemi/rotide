@@ -1,4 +1,5 @@
 #include "editing/document_position.h"
+#include "editing/edit.h"
 #include "editing/selection.h"
 #include "editor_test_api.h"
 #include "input/mouse.h"
@@ -185,8 +186,8 @@ static int test_editor_process_keypress_mouse_ctrl_hover_marks_word_as_hover_lin
 	E.rowoff = 0;
 	E.coloff = 0;
 	E.syntax_language = EDITOR_SYNTAX_C;
-	E.lsp_clangd_enabled = 1;
-	(void)snprintf(E.lsp_clangd_command, sizeof(E.lsp_clangd_command), "clangd");
+	E.lsp_config.clangd_enabled = 1;
+	(void)snprintf(E.lsp_config.clangd_command, sizeof(E.lsp_config.clangd_command), "clangd");
 	E.filename = strdup("/tmp/hover.c");
 	ASSERT_TRUE(E.filename != NULL);
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
@@ -210,8 +211,8 @@ static int test_editor_process_keypress_mouse_motion_without_ctrl_does_not_mark_
 	E.window_rows = 4;
 	E.window_cols = 20;
 	E.syntax_language = EDITOR_SYNTAX_C;
-	E.lsp_clangd_enabled = 1;
-	(void)snprintf(E.lsp_clangd_command, sizeof(E.lsp_clangd_command), "clangd");
+	E.lsp_config.clangd_enabled = 1;
+	(void)snprintf(E.lsp_config.clangd_command, sizeof(E.lsp_config.clangd_command), "clangd");
 	E.filename = strdup("/tmp/hover.c");
 	ASSERT_TRUE(E.filename != NULL);
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
@@ -2098,8 +2099,8 @@ static int test_editor_context_menu_mouse_paste_uses_clicked_location(void) {
 
 static int test_editor_context_menu_go_to_definition_uses_clicked_location(void) {
 	editorLspTestSetMockEnabled(1);
-	E.lsp_gopls_enabled = 1;
-	E.lsp_clangd_enabled = 0;
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 0;
 	ASSERT_TRUE(editorTabsInit());
 
 	char go_path[64];

@@ -3,8 +3,7 @@
 `tests/syntax/` stores sample files used by RotIDE's syntax tests.
 
 - `supported/` contains real fixtures for syntaxes the editor supports today.
-- `planned/` is reserved scaffolding for future language onboarding; it is
-  currently empty.
+- `planned/` is reserved scaffolding for future language onboarding.
 
 Current fixture-to-editor mapping (`enum editorSyntaxLanguage` in
 [`src/rotide.h`](../../src/rotide.h)):
@@ -24,6 +23,7 @@ Current fixture-to-editor mapping (`enum editorSyntaxLanguage` in
 - `supported/javascript/` maps to `EDITOR_SYNTAX_JAVASCRIPT`
 - `supported/json/` maps to `EDITOR_SYNTAX_JSON`
 - `supported/julia/` maps to `EDITOR_SYNTAX_JULIA`
+- `supported/latex/` maps to `EDITOR_SYNTAX_LATEX`
 - `supported/make/` maps to `EDITOR_SYNTAX_MAKE`
 - `supported/markdown/` maps to `EDITOR_SYNTAX_MARKDOWN`
 - `supported/ocaml/` maps to `EDITOR_SYNTAX_OCAML`
