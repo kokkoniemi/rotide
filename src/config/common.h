@@ -18,9 +18,10 @@ enum editorConfigScanStatus {
 
 /*
  * Drives config parsing through caller callbacks. `on_section` opts into a
- * `[table]`'s entries by returning non-zero; those `key = value` lines then go
- * to `on_entry`, which returns zero to reject one and abort the scan. `value`
- * is mutable and points into a reused line buffer. Either callback may be NULL.
+ * `[table]`'s entries by returning non-zero (and is called once with "" for the
+ * region before the first header); those `key = value` lines then go to
+ * `on_entry`, which returns zero to reject one and abort the scan. `value` is
+ * mutable and points into a reused line buffer. Either callback may be NULL.
  * Returns MISSING only when the file is absent; any other open/read error, bad
  * line, or rejected entry is MALFORMED.
  */

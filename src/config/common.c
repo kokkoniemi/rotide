@@ -94,7 +94,7 @@ editorConfigScanFile(const char *path, const struct editorConfigScanner *scanner
 		return errno == ENOENT ? EDITOR_CONFIG_SCAN_MISSING : EDITOR_CONFIG_SCAN_MALFORMED;
 	}
 
-	int in_selected_table = 0;
+	int in_selected_table = scanner->on_section != NULL && scanner->on_section(ctx, "");
 	char line[CONFIG_SCAN_LINE_MAX];
 	while (fgets(line, sizeof(line), fp) != NULL) {
 		size_t line_len = strlen(line);

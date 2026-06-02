@@ -20,8 +20,10 @@ struct scanRecorder {
 
 static int recorderOnSection(void *ctx, const char *table) {
 	struct scanRecorder *rec = ctx;
-	rec->section_count++;
-	(void)snprintf(rec->last_table, sizeof(rec->last_table), "%s", table);
+	if (table[0] != '\0') { /* "" is the implicit pre-section region, not a real header */
+		rec->section_count++;
+		(void)snprintf(rec->last_table, sizeof(rec->last_table), "%s", table);
+	}
 	return rec->select_table != NULL && strcmp(table, rec->select_table) == 0;
 }
 
@@ -190,6 +192,29 @@ static int test_config_scan_overlong_line_is_malformed(void) {
 	return 0;
 }
 
+static int test_config_scan_delivers_top_of_file_entries_when_selected(void) {
+	struct scanRecorder rec = {0};
+	rec.select_table = ""; /* opt into the pre-section region */
+	struct editorConfigScanner scanner = {recorderOnSection, recorderOnEntry};
+	int status = scan_text("top = \"1\"\n[other]\nx = \"2\"\n", &scanner, &rec);
+	ASSERT_EQ_INT(EDITOR_CONFIG_SCAN_OK, status);
+	ASSERT_EQ_INT(1, rec.entry_count);
+	ASSERT_EQ_STR("top", rec.keys[0]);
+	ASSERT_EQ_STR("\"1\"", rec.values[0]);
+	return 0;
+}
+
+static int test_config_scan_skips_top_of_file_entries_when_not_selected(void) {
+	struct scanRecorder rec = {0};
+	rec.select_table = "keymap";
+	struct editorConfigScanner scanner = {recorderOnSection, recorderOnEntry};
+	int status = scan_text("pre = \"1\"\n[keymap]\nsave = \"ctrl+s\"\n", &scanner, &rec);
+	ASSERT_EQ_INT(EDITOR_CONFIG_SCAN_OK, status);
+	ASSERT_EQ_INT(1, rec.entry_count);
+	ASSERT_EQ_STR("save", rec.keys[0]);
+	return 0;
+}
+
 static int test_config_scan_null_on_section_selects_nothing(void) {
 	struct scanRecorder rec = {0};
 	struct editorConfigScanner scanner = {NULL, recorderOnEntry};
@@ -229,6 +254,10 @@ const struct editorTestCase g_config_scan_tests[] = {
         {"config_scan_entry_callback_rejection_is_malformed",
          test_config_scan_entry_callback_rejection_is_malformed},
         {"config_scan_overlong_line_is_malformed", test_config_scan_overlong_line_is_malformed},
+        {"config_scan_delivers_top_of_file_entries_when_selected",
+         test_config_scan_delivers_top_of_file_entries_when_selected},
+        {"config_scan_skips_top_of_file_entries_when_not_selected",
+         test_config_scan_skips_top_of_file_entries_when_not_selected},
         {"config_scan_null_on_section_selects_nothing",
          test_config_scan_null_on_section_selects_nothing},
         {"config_scan_null_on_entry_accepts_well_formed_lines",
