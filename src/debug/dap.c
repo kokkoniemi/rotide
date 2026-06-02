@@ -43,6 +43,9 @@ struct dapClient {
 	int next_seq;
 	int initialized;
 	enum dapSessionState state;
+	/* Thread reported by the most recent `stopped` event; the stack trace and
+	 * variable queries that follow a stop are scoped to it. */
+	int stopped_thread_id;
 	/* `launch` request JSON, built at start time but not sent until the
 	 * `initialize` response arrives. Owned here; freed when sent or on reset. */
 	char *pending_launch_json;
@@ -66,6 +69,7 @@ static void dapClientReset(void) {
 	g_dap_client.next_seq = 1;
 	g_dap_client.initialized = 0;
 	g_dap_client.state = DAP_SESSION_IDLE;
+	g_dap_client.stopped_thread_id = 0;
 	g_dap_client.pending_launch_json = NULL;
 	E.dap_running = 0;
 	E.dap_stopped = 0;
@@ -395,6 +399,309 @@ static void dapSendAllBreakpoints(void) {
 	}
 }
 
+static char *dapBuildIntArgRequestJson(int seq, const char *command, const char *arg_key,
+                                       int arg_value) {
+	struct editorLspString sb = {0};
+	if (!editorLspStringAppendf(&sb,
+	                            "{\"seq\":%d,\"type\":\"request\",\"command\":\"%s\","
+	                            "\"arguments\":{\"%s\":%d}}",
+	                            seq, command, arg_key, arg_value)) {
+		free(sb.buf);
+		return NULL;
+	}
+	return sb.buf;
+}
+
+/* Reads an integer value for `quoted_key` at the top level of [start, end). */
+static int dapObjectIntField(const char *start, const char *end, const char *quoted_key,
+                             int *out) {
+	const char *key = editorLspFindTopLevelKey(start, end, quoted_key);
+	if (key == NULL) {
+		return 0;
+	}
+	const char *colon = strchr(key, ':');
+	if (colon == NULL || colon >= end) {
+		return 0;
+	}
+	return editorLspParseJsonInt(editorLspSkipWs(colon + 1), out, NULL);
+}
+
+/* Copies the (unescaped) string value for `quoted_key` at the top level of
+ * [start, end) into `buf`. Returns 1 on success. */
+static int dapObjectStringField(const char *start, const char *end, const char *quoted_key,
+                                char *buf, size_t bufsize) {
+	const char *key = editorLspFindTopLevelKey(start, end, quoted_key);
+	if (key == NULL) {
+		return 0;
+	}
+	const char *colon = strchr(key, ':');
+	if (colon == NULL || colon >= end) {
+		return 0;
+	}
+	char *value = NULL;
+	if (!editorLspParseJsonString(editorLspSkipWs(colon + 1), &value, NULL) || value == NULL) {
+		return 0;
+	}
+	int ok = strlen(value) < bufsize;
+	if (ok) {
+		memcpy(buf, value, strlen(value) + 1);
+	}
+	free(value);
+	return ok;
+}
+
+/* Locates the immediate child object stored under `quoted_key` within
+ * [start, end). Writes the object's bounds and returns 1 on success. */
+static int dapObjectChildObject(const char *start, const char *end, const char *quoted_key,
+                                const char **child_start, const char **child_end) {
+	const char *key = editorLspFindTopLevelKey(start, end, quoted_key);
+	if (key == NULL) {
+		return 0;
+	}
+	const char *colon = strchr(key, ':');
+	if (colon == NULL || colon >= end) {
+		return 0;
+	}
+	const char *child = editorLspSkipWs(colon + 1);
+	if (child == NULL || child[0] != '{') {
+		return 0;
+	}
+	const char *child_obj_end = editorLspFindJsonObjectEnd(child);
+	if (child_obj_end == NULL) {
+		return 0;
+	}
+	*child_start = child;
+	*child_end = child_obj_end;
+	return 1;
+}
+
+/* Locates the array stored under body.<quoted_key>, e.g. body."threads".
+ * Writes the array bounds (`[` .. `]`) and returns 1 on success. */
+static int dapFindBodyArray(const char *message, const char *quoted_key, const char **array_start,
+                            const char **array_end) {
+	const char *start = editorLspSkipWs(message);
+	if (start == NULL || start[0] != '{') {
+		return 0;
+	}
+	const char *body_start = NULL;
+	const char *body_end = NULL;
+	if (!dapObjectChildObject(start, editorLspFindJsonObjectEnd(start), "\"body\"", &body_start,
+	                          &body_end)) {
+		return 0;
+	}
+	const char *key = editorLspFindTopLevelKey(body_start, body_end, quoted_key);
+	if (key == NULL) {
+		return 0;
+	}
+	const char *colon = strchr(key, ':');
+	if (colon == NULL || colon >= body_end) {
+		return 0;
+	}
+	const char *arr = editorLspSkipWs(colon + 1);
+	if (arr == NULL || arr[0] != '[') {
+		return 0;
+	}
+	const char *arr_end = editorLspFindJsonArrayEnd(arr);
+	if (arr_end == NULL) {
+		return 0;
+	}
+	*array_start = arr;
+	*array_end = arr_end;
+	return 1;
+}
+
+/* Reads body.<quoted_key> as an integer. Returns 1 on success. */
+static int dapBodyIntField(const char *message, const char *quoted_key, int *out) {
+	const char *start = editorLspSkipWs(message);
+	const char *body_start = NULL;
+	const char *body_end = NULL;
+	if (start == NULL || start[0] != '{' ||
+	    !dapObjectChildObject(start, editorLspFindJsonObjectEnd(start), "\"body\"", &body_start,
+	                          &body_end)) {
+		return 0;
+	}
+	return dapObjectIntField(body_start, body_end, quoted_key, out);
+}
+
+/* Copies the (unescaped) body.<quoted_key> string into `buf`. Returns 1 on success. */
+static int dapBodyStringField(const char *message, const char *quoted_key, char *buf,
+                              size_t bufsize) {
+	const char *start = editorLspSkipWs(message);
+	const char *body_start = NULL;
+	const char *body_end = NULL;
+	if (start == NULL || start[0] != '{' ||
+	    !dapObjectChildObject(start, editorLspFindJsonObjectEnd(start), "\"body\"", &body_start,
+	                          &body_end)) {
+		return 0;
+	}
+	return dapObjectStringField(body_start, body_end, quoted_key, buf, bufsize);
+}
+
+static void dapClearInspectionState(void) {
+	E.dap_thread_count = 0;
+	E.dap_stack_frame_count = 0;
+	E.dap_scope_count = 0;
+	E.dap_variable_count = 0;
+}
+
+/*
+ * Iterates the objects of a body array via dapFindBodyArray. For each `{...}`
+ * element the callback receives the object bounds; it returns 1 to keep the
+ * element. Stops when the callback declines (array full) or the array ends.
+ */
+typedef int (*dapArrayElementFn)(const char *obj_start, const char *obj_end);
+
+static void dapForEachBodyArrayElement(const char *message, const char *quoted_key,
+                                       dapArrayElementFn on_element) {
+	const char *array_start = NULL;
+	const char *array_end = NULL;
+	if (!dapFindBodyArray(message, quoted_key, &array_start, &array_end)) {
+		return;
+	}
+	const char *scan = array_start + 1;
+	while (scan < array_end) {
+		const char *obj_start = strchr(scan, '{');
+		if (obj_start == NULL || obj_start >= array_end) {
+			break;
+		}
+		const char *obj_end = editorLspFindJsonObjectEnd(obj_start);
+		if (obj_end == NULL || obj_end > array_end) {
+			break;
+		}
+		if (!on_element(obj_start, obj_end)) {
+			break;
+		}
+		scan = obj_end + 1;
+	}
+}
+
+static int dapCollectThread(const char *obj_start, const char *obj_end) {
+	if (E.dap_thread_count >= ROTIDE_DAP_MAX_THREADS) {
+		return 0;
+	}
+	int id = 0;
+	if (!dapObjectIntField(obj_start, obj_end, "\"id\"", &id)) {
+		return 1; /* skip malformed element, keep scanning */
+	}
+	struct editorDapThread *thread = &E.dap_threads[E.dap_thread_count];
+	memset(thread, 0, sizeof(*thread));
+	thread->id = id;
+	(void)dapObjectStringField(obj_start, obj_end, "\"name\"", thread->name,
+	                           sizeof(thread->name));
+	E.dap_thread_count++;
+	return 1;
+}
+
+static int dapCollectStackFrame(const char *obj_start, const char *obj_end) {
+	if (E.dap_stack_frame_count >= ROTIDE_DAP_MAX_STACK_FRAMES) {
+		return 0;
+	}
+	int id = 0;
+	if (!dapObjectIntField(obj_start, obj_end, "\"id\"", &id)) {
+		return 1;
+	}
+	struct editorDapStackFrame *frame = &E.dap_stack_frames[E.dap_stack_frame_count];
+	memset(frame, 0, sizeof(*frame));
+	frame->id = id;
+	(void)dapObjectStringField(obj_start, obj_end, "\"name\"", frame->name,
+	                           sizeof(frame->name));
+	(void)dapObjectIntField(obj_start, obj_end, "\"line\"", &frame->line);
+	(void)dapObjectIntField(obj_start, obj_end, "\"column\"", &frame->column);
+	const char *source_start = NULL;
+	const char *source_end = NULL;
+	if (dapObjectChildObject(obj_start, obj_end, "\"source\"", &source_start, &source_end)) {
+		(void)dapObjectStringField(source_start, source_end, "\"path\"", frame->path,
+		                           sizeof(frame->path));
+	}
+	E.dap_stack_frame_count++;
+	return 1;
+}
+
+static int dapCollectScope(const char *obj_start, const char *obj_end) {
+	if (E.dap_scope_count >= ROTIDE_DAP_MAX_SCOPES) {
+		return 0;
+	}
+	struct editorDapScope *scope = &E.dap_scopes[E.dap_scope_count];
+	memset(scope, 0, sizeof(*scope));
+	(void)dapObjectStringField(obj_start, obj_end, "\"name\"", scope->name,
+	                           sizeof(scope->name));
+	(void)dapObjectIntField(obj_start, obj_end, "\"variablesReference\"",
+	                        &scope->variables_reference);
+	E.dap_scope_count++;
+	return 1;
+}
+
+static int dapCollectVariable(const char *obj_start, const char *obj_end) {
+	if (E.dap_variable_count >= ROTIDE_DAP_MAX_VARIABLES) {
+		return 0;
+	}
+	struct editorDapVariable *var = &E.dap_variables[E.dap_variable_count];
+	memset(var, 0, sizeof(*var));
+	if (!dapObjectStringField(obj_start, obj_end, "\"name\"", var->name, sizeof(var->name))) {
+		return 1;
+	}
+	(void)dapObjectStringField(obj_start, obj_end, "\"value\"", var->value,
+	                           sizeof(var->value));
+	(void)dapObjectIntField(obj_start, obj_end, "\"variablesReference\"",
+	                        &var->variables_reference);
+	E.dap_variable_count++;
+	return 1;
+}
+
+/*
+ * After a stop, the variable/stack views are rebuilt by chaining requests:
+ * stackTrace (for the stopped thread) -> scopes (for the top frame) ->
+ * variables (for each scope). Each response handler parses its payload and
+ * issues the next request.
+ */
+static void dapRequestStackTrace(void) {
+	int thread_id = g_dap_client.stopped_thread_id;
+	if (thread_id == 0 && E.dap_thread_count > 0) {
+		thread_id = E.dap_threads[0].id;
+	}
+	if (thread_id == 0) {
+		return;
+	}
+	(void)dapSendRequest(dapBuildIntArgRequestJson(g_dap_client.next_seq++, "stackTrace",
+	                                               "threadId", thread_id));
+}
+
+static void dapHandleThreadsResponse(const char *message) {
+	E.dap_thread_count = 0;
+	dapForEachBodyArrayElement(message, "\"threads\"", dapCollectThread);
+	dapRequestStackTrace();
+}
+
+static void dapHandleStackTraceResponse(const char *message) {
+	E.dap_stack_frame_count = 0;
+	dapForEachBodyArrayElement(message, "\"stackFrames\"", dapCollectStackFrame);
+	if (E.dap_stack_frame_count > 0) {
+		(void)dapSendRequest(dapBuildIntArgRequestJson(g_dap_client.next_seq++, "scopes",
+		                                               "frameId",
+		                                               E.dap_stack_frames[0].id));
+	}
+}
+
+static void dapHandleScopesResponse(const char *message) {
+	E.dap_scope_count = 0;
+	E.dap_variable_count = 0;
+	dapForEachBodyArrayElement(message, "\"scopes\"", dapCollectScope);
+	for (int i = 0; i < E.dap_scope_count; i++) {
+		if (E.dap_scopes[i].variables_reference <= 0) {
+			continue;
+		}
+		(void)dapSendRequest(dapBuildIntArgRequestJson(g_dap_client.next_seq++, "variables",
+		                                               "variablesReference",
+		                                               E.dap_scopes[i].variables_reference));
+	}
+}
+
+static void dapHandleVariablesResponse(const char *message) {
+	/* Variables from every scope share one flat list (matching the drawer);
+	 * responses append in arrival order. */
+	dapForEachBodyArrayElement(message, "\"variables\"", dapCollectVariable);
+}
+
 /*
  * Sends the queued `launch` request once `initialize` has been acknowledged.
  * Consumes pending_launch_json (sent or freed).
@@ -439,6 +746,10 @@ int editorDapProcessIncomingMessage(const char *message) {
 		}
 		if (strcmp(event, "stopped") == 0) {
 			E.dap_stopped = 1;
+			g_dap_client.stopped_thread_id = 0;
+			(void)dapBodyIntField(message, "\"threadId\"",
+			                      &g_dap_client.stopped_thread_id);
+			dapClearInspectionState();
 			editorSetStatusMsg("DAP stopped");
 			(void)dapSendRequest(editorDapBuildSimpleCommandRequestJson(
 			        g_dap_client.next_seq++, "threads"));
@@ -446,19 +757,21 @@ int editorDapProcessIncomingMessage(const char *message) {
 		}
 		if (strcmp(event, "continued") == 0) {
 			E.dap_stopped = 0;
+			dapClearInspectionState();
 			editorSetStatusMsg("DAP continued");
 			return 1;
 		}
 		if (strcmp(event, "terminated") == 0 || strcmp(event, "exited") == 0) {
 			E.dap_running = 0;
 			E.dap_stopped = 0;
+			dapClearInspectionState();
 			editorDapConsoleCloseOwnedTerminalPane();
 			editorSetStatusMsg("DAP session ended");
 			return 1;
 		}
 		if (strcmp(event, "output") == 0) {
 			char output[ROTIDE_DAP_VALUE_MAX];
-			if (dapJsonStringField(message, "output", output, sizeof(output))) {
+			if (dapBodyStringField(message, "\"output\"", output, sizeof(output))) {
 				dapAppendOutput(output);
 			}
 			return 1;
@@ -482,6 +795,18 @@ int editorDapProcessIncomingMessage(const char *message) {
 			editorSetStatusMsg("DAP launch failed");
 			editorDapShutdown();
 			return 1;
+		}
+		if (!dapJsonResponseSucceeded(message)) {
+			return 1; /* tolerate per-request failures (e.g. configurationDone) */
+		}
+		if (strcmp(command, "threads") == 0) {
+			dapHandleThreadsResponse(message);
+		} else if (strcmp(command, "stackTrace") == 0) {
+			dapHandleStackTraceResponse(message);
+		} else if (strcmp(command, "scopes") == 0) {
+			dapHandleScopesResponse(message);
+		} else if (strcmp(command, "variables") == 0) {
+			dapHandleVariablesResponse(message);
 		}
 		return 1;
 	}

@@ -81,6 +81,8 @@ static int test_editor_dap_config_loads_global_defaults_and_project_launches(voi
 	ASSERT_TRUE(unlink(global_path) == 0);
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(rmdir(dir_path) == 0);
+	/* Frees the string-array fields (e.g. `args`) loaded into the globals. */
+	editorDapConfigInitDefaults();
 	return 0;
 }
 
@@ -423,6 +425,142 @@ static int test_editor_dap_handshake_initialize_failure_aborts(void) {
 	return 0;
 }
 
+static int test_editor_dap_stopped_chain_populates_state(void) {
+	int fds[2];
+	ASSERT_TRUE(pipe(fds) == 0);
+	int flags = fcntl(fds[0], F_GETFL, 0);
+	ASSERT_TRUE(flags != -1 && fcntl(fds[0], F_SETFL, flags | O_NONBLOCK) != -1);
+	editorDapBeginSessionForTest(fds[1], strdup("{}"));
+	char buf[8192];
+
+	/* stopped event captures the thread, clears stale state, asks for threads. */
+	E.dap_thread_count = 5;
+	(void)editorDapProcessIncomingMessage("{\"type\":\"event\",\"event\":\"stopped\","
+	                                      "\"body\":{\"reason\":\"breakpoint\",\"threadId\":1}}");
+	ASSERT_EQ_INT(1, E.dap_stopped);
+	ASSERT_EQ_INT(0, E.dap_thread_count);
+	ASSERT_TRUE(dap_drain_fd(fds[0], buf, sizeof(buf)) > 0);
+	ASSERT_TRUE(strstr(buf, "\"command\":\"threads\"") != NULL);
+
+	/* threads response populates threads and asks for the stopped thread's stack. */
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"response\",\"command\":\"threads\",\"success\":true,"
+	        "\"body\":{\"threads\":[{\"id\":1,\"name\":\"dap_sample.out\"}]}}");
+	ASSERT_EQ_INT(1, E.dap_thread_count);
+	ASSERT_EQ_INT(1, E.dap_threads[0].id);
+	ASSERT_EQ_STR("dap_sample.out", E.dap_threads[0].name);
+	ASSERT_TRUE(dap_drain_fd(fds[0], buf, sizeof(buf)) > 0);
+	ASSERT_TRUE(strstr(buf, "\"command\":\"stackTrace\"") != NULL);
+	ASSERT_TRUE(strstr(buf, "\"threadId\":1") != NULL);
+
+	/* stackTrace response populates frames (incl. nested source.path) and asks
+	 * for the top frame's scopes. */
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"response\",\"command\":\"stackTrace\",\"success\":true,"
+	        "\"body\":{\"stackFrames\":["
+	        "{\"id\":0,\"line\":61,\"column\":0,\"name\":\"parse_mode\","
+	        "\"source\":{\"name\":\"dap_sample.c\",\"path\":\"/x/dap_sample.c\"}},"
+	        "{\"id\":1,\"line\":186,\"name\":\"main\","
+	        "\"source\":{\"path\":\"/x/dap_sample.c\"}}]}}");
+	ASSERT_EQ_INT(2, E.dap_stack_frame_count);
+	ASSERT_EQ_STR("parse_mode", E.dap_stack_frames[0].name);
+	ASSERT_EQ_INT(61, E.dap_stack_frames[0].line);
+	ASSERT_EQ_STR("/x/dap_sample.c", E.dap_stack_frames[0].path);
+	ASSERT_EQ_STR("main", E.dap_stack_frames[1].name);
+	ASSERT_TRUE(dap_drain_fd(fds[0], buf, sizeof(buf)) > 0);
+	ASSERT_TRUE(strstr(buf, "\"command\":\"scopes\"") != NULL);
+	ASSERT_TRUE(strstr(buf, "\"frameId\":0") != NULL);
+
+	/* scopes response populates scopes and asks for variables of each ref. */
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"response\",\"command\":\"scopes\",\"success\":true,"
+	        "\"body\":{\"scopes\":[{\"variablesReference\":1,\"name\":\"Arguments\"},"
+	        "{\"variablesReference\":2,\"name\":\"Registers\"}]}}");
+	ASSERT_EQ_INT(2, E.dap_scope_count);
+	ASSERT_EQ_STR("Arguments", E.dap_scopes[0].name);
+	ASSERT_EQ_INT(1, E.dap_scopes[0].variables_reference);
+	ASSERT_EQ_INT(0, E.dap_variable_count);
+	ASSERT_TRUE(dap_drain_fd(fds[0], buf, sizeof(buf)) > 0);
+	ASSERT_TRUE(strstr(buf, "\"command\":\"variables\"") != NULL);
+	ASSERT_TRUE(strstr(buf, "\"variablesReference\":1") != NULL);
+	ASSERT_TRUE(strstr(buf, "\"variablesReference\":2") != NULL);
+
+	/* variables responses append into one flat list across scopes. */
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"response\",\"command\":\"variables\",\"success\":true,"
+	        "\"body\":{\"variables\":[{\"variablesReference\":0,\"name\":\"arg\","
+	        "\"value\":\"0x1 \\\"hi\\\"\"}]}}");
+	ASSERT_EQ_INT(1, E.dap_variable_count);
+	ASSERT_EQ_STR("arg", E.dap_variables[0].name);
+	ASSERT_TRUE(strstr(E.dap_variables[0].value, "hi") != NULL);
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"response\",\"command\":\"variables\",\"success\":true,"
+	        "\"body\":{\"variables\":[{\"variablesReference\":0,\"name\":\"argc\","
+	        "\"value\":\"1\"}]}}");
+	ASSERT_EQ_INT(2, E.dap_variable_count);
+	ASSERT_EQ_STR("argc", E.dap_variables[1].name);
+
+	editorDapEndSessionForTest();
+	(void)close(fds[0]);
+	(void)close(fds[1]);
+	return 0;
+}
+
+static int test_editor_dap_output_event_reads_body_output(void) {
+	E.dap_output_len = 0;
+	E.dap_output[0] = '\0';
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"event\",\"event\":\"output\","
+	        "\"body\":{\"category\":\"stdout\",\"output\":\"hello\\nworld\"}}");
+	ASSERT_TRUE(strstr(E.dap_output, "hello\nworld") != NULL);
+	E.dap_output_len = 0;
+	E.dap_output[0] = '\0';
+	return 0;
+}
+
+static int test_editor_dap_continued_clears_inspection_state(void) {
+	E.dap_stopped = 1;
+	E.dap_thread_count = 3;
+	E.dap_stack_frame_count = 2;
+	E.dap_scope_count = 1;
+	E.dap_variable_count = 4;
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"event\",\"event\":\"continued\",\"body\":{\"threadId\":1}}");
+	ASSERT_EQ_INT(0, E.dap_stopped);
+	ASSERT_EQ_INT(0, E.dap_thread_count);
+	ASSERT_EQ_INT(0, E.dap_stack_frame_count);
+	ASSERT_EQ_INT(0, E.dap_scope_count);
+	ASSERT_EQ_INT(0, E.dap_variable_count);
+	return 0;
+}
+
+static int test_editor_dap_response_parsing_tolerates_malformed(void) {
+	/* Truncated/garbage payloads must not crash the parsers or leave state
+	 * populated from a half-read body. */
+	static const char *const messages[] = {
+	        "",
+	        "{",
+	        "{\"type\":\"response\",\"command\":\"threads\",\"success\":true,\"body\":{",
+	        "{\"type\":\"response\",\"command\":\"stackTrace\",\"success\":true,"
+	        "\"body\":{\"stackFrames\":[{\"id\":0,\"source\":{\"path\":",
+	        "{\"type\":\"response\",\"command\":\"scopes\",\"success\":true,"
+	        "\"body\":{\"scopes\":[{}]}}",
+	        "{\"type\":\"event\",\"event\":\"output\",\"body\":{\"output\":}",
+	        "{\"type\":\"response\",\"command\":\"variables\",\"success\":true,\"body\":{}}",
+	};
+	E.dap_thread_count = 0;
+	E.dap_stack_frame_count = 0;
+	E.dap_scope_count = 0;
+	E.dap_variable_count = 0;
+	for (size_t i = 0; i < sizeof(messages) / sizeof(messages[0]); i++) {
+		(void)editorDapProcessIncomingMessage(messages[i]);
+	}
+	ASSERT_EQ_INT(0, E.dap_thread_count);
+	ASSERT_EQ_INT(0, E.dap_stack_frame_count);
+	ASSERT_EQ_INT(0, E.dap_variable_count);
+	return 0;
+}
+
 const struct editorTestCase g_dap_tests[] = {
         {"editor_dap_config_loads_global_defaults_and_project_launches",
          test_editor_dap_config_loads_global_defaults_and_project_launches},
@@ -443,6 +581,14 @@ const struct editorTestCase g_dap_tests[] = {
          test_editor_dap_handshake_sends_launch_after_initialize_response},
         {"editor_dap_handshake_initialize_failure_aborts",
          test_editor_dap_handshake_initialize_failure_aborts},
+        {"editor_dap_stopped_chain_populates_state",
+         test_editor_dap_stopped_chain_populates_state},
+        {"editor_dap_output_event_reads_body_output",
+         test_editor_dap_output_event_reads_body_output},
+        {"editor_dap_continued_clears_inspection_state",
+         test_editor_dap_continued_clears_inspection_state},
+        {"editor_dap_response_parsing_tolerates_malformed",
+         test_editor_dap_response_parsing_tolerates_malformed},
 };
 
 const int g_dap_test_count = (int)(sizeof(g_dap_tests) / sizeof(g_dap_tests[0]));
