@@ -104,7 +104,11 @@ int editorDapStepOver(void);
 int editorDapStepInto(void);
 int editorDapStepOut(void);
 int editorDapToggleBreakpointAtCursor(void);
+int editorDapToggleBreakpointAtLine(int line);
 int editorDapHasBreakpoint(const char *path, int line);
+/* Returns 1 if the debuggee is stopped at `line` (0-based) of `path` — i.e. the
+ * top stack frame resolves to the same file and line. */
+int editorDapIsStoppedLine(const char *path, int line);
 
 char *editorDapBuildInitializeRequestJson(int seq, const char *adapter_id);
 char *editorDapBuildSimpleCommandRequestJson(int seq, const char *command);

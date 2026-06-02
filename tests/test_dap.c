@@ -1,6 +1,8 @@
 #include "config/common.h"
 #include "config/dap_config.h"
 #include "debug/dap.h"
+#include "render/screen.h"
+#include "render/write_buf.h"
 #include "rotide.h"
 #include "test_case.h"
 #include "test_helpers.h"
@@ -561,6 +563,98 @@ static int test_editor_dap_response_parsing_tolerates_malformed(void) {
 	return 0;
 }
 
+static int dap_bytes_contain(const char *hay, size_t n, const char *needle) {
+	size_t m = strlen(needle);
+	if (m == 0 || n < m) {
+		return 0;
+	}
+	for (size_t i = 0; i + m <= n; i++) {
+		if (memcmp(hay + i, needle, m) == 0) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static int test_editor_dap_breakpoint_toggle_at_line_and_stopped_predicate(void) {
+	char *saved_file = E.filename;
+	E.filename = "/tmp/rotide-bp-test.c";
+	E.dap_running = 0;
+	E.dap_breakpoint_count = 0;
+
+	ASSERT_TRUE(editorDapToggleBreakpointAtLine(10));
+	ASSERT_EQ_INT(1, E.dap_breakpoint_count);
+	ASSERT_TRUE(editorDapHasBreakpoint(E.filename, 10) >= 0);
+	ASSERT_TRUE(editorDapToggleBreakpointAtLine(10)); /* toggles back off */
+	ASSERT_EQ_INT(0, E.dap_breakpoint_count);
+	ASSERT_EQ_INT(0, editorDapToggleBreakpointAtLine(-1)); /* invalid line ignored */
+
+	/* Stopped-line predicate: top frame's path+line (1-based) vs 0-based row. */
+	E.dap_stopped = 0;
+	E.dap_stack_frame_count = 0;
+	ASSERT_EQ_INT(0, editorDapIsStoppedLine(E.filename, 4));
+	E.dap_stopped = 1;
+	E.dap_stack_frame_count = 1;
+	(void)snprintf(E.dap_stack_frames[0].path, sizeof(E.dap_stack_frames[0].path), "%s",
+	               E.filename);
+	E.dap_stack_frames[0].line = 5;
+	ASSERT_TRUE(editorDapIsStoppedLine(E.filename, 4));
+	ASSERT_EQ_INT(0, editorDapIsStoppedLine(E.filename, 3));
+	ASSERT_EQ_INT(0, editorDapIsStoppedLine("/some/other.c", 4));
+
+	E.dap_stopped = 0;
+	E.dap_stack_frame_count = 0;
+	E.dap_breakpoint_count = 0;
+	E.filename = saved_file;
+	return 0;
+}
+
+static int test_editor_dap_gutter_renders_markers(void) {
+	static const char breakpoint_glyph[] = "\xE2\x97\x8F";
+	static const char stopped_glyph[] = "\xE2\x96\xB6";
+	int saved_numrows = E.numrows;
+	char *saved_file = E.filename;
+	E.numrows = 20;
+	E.filename = "/tmp/rotide-gutter.c";
+	E.dap_running = 0;
+	E.dap_stopped = 0;
+	E.dap_stack_frame_count = 0;
+	E.dap_breakpoint_count = 1;
+	(void)snprintf(E.dap_breakpoints[0].path, sizeof(E.dap_breakpoints[0].path), "%s",
+	               E.filename);
+	E.dap_breakpoints[0].line = 3;
+
+	/* The breakpoint row shows the marker; a plain row does not. */
+	struct writeBuf wb = WRITEBUF_INIT;
+	ASSERT_TRUE(editorDrawLineNumberGutter(&wb, 3, 0, 6));
+	ASSERT_TRUE(dap_bytes_contain(wb.b, wb.len, breakpoint_glyph));
+	wbFree(&wb);
+
+	struct writeBuf wb_plain = WRITEBUF_INIT;
+	ASSERT_TRUE(editorDrawLineNumberGutter(&wb_plain, 4, 0, 6));
+	ASSERT_TRUE(!dap_bytes_contain(wb_plain.b, wb_plain.len, breakpoint_glyph));
+	wbFree(&wb_plain);
+
+	/* When stopped on that row, the stopped marker wins over the breakpoint. */
+	E.dap_stopped = 1;
+	E.dap_stack_frame_count = 1;
+	(void)snprintf(E.dap_stack_frames[0].path, sizeof(E.dap_stack_frames[0].path), "%s",
+	               E.filename);
+	E.dap_stack_frames[0].line = 4;
+	struct writeBuf wb_stopped = WRITEBUF_INIT;
+	ASSERT_TRUE(editorDrawLineNumberGutter(&wb_stopped, 3, 0, 6));
+	ASSERT_TRUE(dap_bytes_contain(wb_stopped.b, wb_stopped.len, stopped_glyph));
+	ASSERT_TRUE(!dap_bytes_contain(wb_stopped.b, wb_stopped.len, breakpoint_glyph));
+	wbFree(&wb_stopped);
+
+	E.dap_stopped = 0;
+	E.dap_stack_frame_count = 0;
+	E.dap_breakpoint_count = 0;
+	E.numrows = saved_numrows;
+	E.filename = saved_file;
+	return 0;
+}
+
 const struct editorTestCase g_dap_tests[] = {
         {"editor_dap_config_loads_global_defaults_and_project_launches",
          test_editor_dap_config_loads_global_defaults_and_project_launches},
@@ -589,6 +683,9 @@ const struct editorTestCase g_dap_tests[] = {
          test_editor_dap_continued_clears_inspection_state},
         {"editor_dap_response_parsing_tolerates_malformed",
          test_editor_dap_response_parsing_tolerates_malformed},
+        {"editor_dap_breakpoint_toggle_at_line_and_stopped_predicate",
+         test_editor_dap_breakpoint_toggle_at_line_and_stopped_predicate},
+        {"editor_dap_gutter_renders_markers", test_editor_dap_gutter_renders_markers},
 };
 
 const int g_dap_test_count = (int)(sizeof(g_dap_tests) / sizeof(g_dap_tests[0]));

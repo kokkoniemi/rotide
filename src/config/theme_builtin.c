@@ -1052,6 +1052,16 @@ static void themeBuiltinFinalize(struct editorTheme *theme) {
 		theme->ui[EDITOR_THEME_UI_DRAWER_ICON] =
 		        theme->ui[EDITOR_THEME_UI_DRAWER_CONNECTOR];
 	}
+	/* Debug markers reuse each theme's existing accent colors unless themed
+	 * explicitly: breakpoints borrow the conflict (red) hue, the stopped line
+	 * the modified (often amber) hue. */
+	if (theme->ui[EDITOR_THEME_UI_BREAKPOINT].kind == EDITOR_THEME_COLOR_DEFAULT) {
+		theme->ui[EDITOR_THEME_UI_BREAKPOINT] = theme->ui[EDITOR_THEME_UI_GIT_CONFLICT];
+	}
+	if (theme->ui[EDITOR_THEME_UI_DEBUG_STOPPED_LINE].kind == EDITOR_THEME_COLOR_DEFAULT) {
+		theme->ui[EDITOR_THEME_UI_DEBUG_STOPPED_LINE] =
+		        theme->ui[EDITOR_THEME_UI_GIT_MODIFIED];
+	}
 }
 
 int editorThemeInitBuiltin(struct editorTheme *theme_out, const char *name) {

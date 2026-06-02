@@ -351,16 +351,23 @@ char *editorDapBuildLaunchRequestJson(int seq, const struct editorDapLaunchConfi
 }
 
 static char *dapBuildSetBreakpointsRequestJson(int seq, const char *path) {
+	/* Adapters resolve breakpoints against absolute debug-info paths; send an
+	 * absolute source path even when the buffer was opened by a relative one. */
+	char *absolute = editorPathAbsoluteDup(path);
+	const char *source_path = absolute != NULL ? absolute : path;
 	struct editorLspString sb = {0};
 	if (!editorLspStringAppendf(
 	            &sb,
 	            "{\"seq\":%d,\"type\":\"request\",\"command\":\"setBreakpoints\","
 	            "\"arguments\":{\"source\":{\"path\":",
 	            seq) ||
-	    !dapAppendJsonString(&sb, path) || !editorLspStringAppend(&sb, "},\"breakpoints\":[")) {
+	    !dapAppendJsonString(&sb, source_path) ||
+	    !editorLspStringAppend(&sb, "},\"breakpoints\":[")) {
+		free(absolute);
 		free(sb.buf);
 		return NULL;
 	}
+	free(absolute);
 	int wrote = 0;
 	for (int i = 0; i < E.dap_breakpoint_count; i++) {
 		if (strcmp(E.dap_breakpoints[i].path, path) != 0) {
@@ -984,12 +991,27 @@ int editorDapHasBreakpoint(const char *path, int line) {
 	return -1;
 }
 
-int editorDapToggleBreakpointAtCursor(void) {
+int editorDapIsStoppedLine(const char *path, int line) {
+	if (!E.dap_stopped || E.dap_stack_frame_count <= 0 || path == NULL || path[0] == '\0') {
+		return 0;
+	}
+	const struct editorDapStackFrame *frame = &E.dap_stack_frames[0];
+	/* Cheap line check first; the path comparison may hit the filesystem. */
+	if (frame->line - 1 != line || frame->path[0] == '\0') {
+		return 0;
+	}
+	return editorPathsReferToSameFile(frame->path, path);
+}
+
+int editorDapToggleBreakpointAtLine(int line) {
 	if (E.filename == NULL || E.filename[0] == '\0') {
 		editorSetStatusMsg("Save the file before setting a breakpoint");
 		return 0;
 	}
-	int idx = editorDapHasBreakpoint(E.filename, E.cy);
+	if (line < 0) {
+		return 0;
+	}
+	int idx = editorDapHasBreakpoint(E.filename, line);
 	if (idx >= 0) {
 		for (int i = idx; i + 1 < E.dap_breakpoint_count; i++) {
 			E.dap_breakpoints[i] = E.dap_breakpoints[i + 1];
@@ -1004,7 +1026,7 @@ int editorDapToggleBreakpointAtCursor(void) {
 		}
 		struct editorDapBreakpoint *bp = &E.dap_breakpoints[E.dap_breakpoint_count++];
 		(void)snprintf(bp->path, sizeof(bp->path), "%s", E.filename);
-		bp->line = E.cy;
+		bp->line = line;
 		editorSetStatusMsg("Breakpoint set");
 	}
 	if (E.dap_running) {
@@ -1012,6 +1034,10 @@ int editorDapToggleBreakpointAtCursor(void) {
 		        dapBuildSetBreakpointsRequestJson(g_dap_client.next_seq++, E.filename));
 	}
 	return 1;
+}
+
+int editorDapToggleBreakpointAtCursor(void) {
+	return editorDapToggleBreakpointAtLine(E.cy);
 }
 
 void editorDapShutdown(void) {

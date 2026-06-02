@@ -1,6 +1,7 @@
 #include "render/screen.h"
 
 #include "config/theme_config.h"
+#include "debug/dap.h"
 #include "editing/document_position.h"
 #include "editing/edit.h"
 #include "editing/selection.h"
@@ -58,6 +59,8 @@
 #define TEXT_OVERFLOW_LEFT_UTF8 "\xE2\x86\x90"
 #define TEXT_OVERFLOW_RIGHT_UTF8 "\xE2\x86\x92"
 #define TEXT_WRAP_CONTINUATION_UTF8 "\xE2\x86\xB3"
+#define TEXT_DAP_BREAKPOINT_UTF8 "\xE2\x97\x8F"     /* U+25CF BLACK CIRCLE */
+#define TEXT_DAP_STOPPED_LINE_UTF8 "\xE2\x96\xB6"   /* U+25B6 BLACK RIGHT-POINTING TRIANGLE */
 
 int editorAppendGrayBytes(struct writeBuf *wb, const char *text, size_t len) {
 	return editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_PLACEHOLDER) &&
@@ -968,8 +971,27 @@ int editorDrawLineNumberGutter(struct writeBuf *wb, int row_idx, int segment_col
 		if (len > 0 && !wbAppend(wb, visible_number, (size_t)len)) {
 			return 0;
 		}
-		if (gutter_cols > 1 && !wbAppend(wb, " ", 1)) {
-			return 0;
+		/* The trailing separator column doubles as the debug marker slot, so a
+		 * breakpoint/stopped indicator never widens the gutter. Stopped line
+		 * takes precedence over a breakpoint on the same row. */
+		if (gutter_cols > 1) {
+			if (editorDapIsStoppedLine(E.filename, row_idx)) {
+				if (!editorAppendThemeForegroundRole(
+				            wb, EDITOR_THEME_UI_DEBUG_STOPPED_LINE) ||
+				    !wbAppend(wb, TEXT_DAP_STOPPED_LINE_UTF8,
+				              sizeof(TEXT_DAP_STOPPED_LINE_UTF8) - 1)) {
+					return 0;
+				}
+			} else if (editorDapHasBreakpoint(E.filename, row_idx) >= 0) {
+				if (!editorAppendThemeForegroundRole(wb,
+				                                     EDITOR_THEME_UI_BREAKPOINT) ||
+				    !wbAppend(wb, TEXT_DAP_BREAKPOINT_UTF8,
+				              sizeof(TEXT_DAP_BREAKPOINT_UTF8) - 1)) {
+					return 0;
+				}
+			} else if (!wbAppend(wb, " ", 1)) {
+				return 0;
+			}
 		}
 		return editorAppendThemeBaseForeground(wb);
 	}
