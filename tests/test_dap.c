@@ -655,6 +655,54 @@ static int test_editor_dap_gutter_renders_markers(void) {
 	return 0;
 }
 
+static int test_editor_dap_control_requests_include_thread_id(void) {
+	int fds[2];
+	ASSERT_TRUE(pipe(fds) == 0);
+	int flags = fcntl(fds[0], F_GETFL, 0);
+	ASSERT_TRUE(flags != -1 && fcntl(fds[0], F_SETFL, flags | O_NONBLOCK) != -1);
+	editorDapBeginSessionForTest(fds[1], strdup("{}"));
+	char buf[4096];
+
+	/* With no stop yet, control falls back to the main thread (1). */
+	ASSERT_TRUE(editorDapStepOver());
+	ASSERT_TRUE(dap_drain_fd(fds[0], buf, sizeof(buf)) > 0);
+	ASSERT_TRUE(strstr(buf, "\"command\":\"next\"") != NULL);
+	ASSERT_TRUE(strstr(buf, "\"threadId\":1") != NULL);
+
+	/* After stopping on thread 7, controls target thread 7. */
+	(void)editorDapProcessIncomingMessage("{\"type\":\"event\",\"event\":\"stopped\","
+	                                      "\"body\":{\"reason\":\"breakpoint\",\"threadId\":7}}");
+	(void)dap_drain_fd(fds[0], buf, sizeof(buf)); /* discard the auto threads request */
+
+	ASSERT_TRUE(editorDapStepInto());
+	ASSERT_TRUE(dap_drain_fd(fds[0], buf, sizeof(buf)) > 0);
+	ASSERT_TRUE(strstr(buf, "\"command\":\"stepIn\"") != NULL);
+	ASSERT_TRUE(strstr(buf, "\"threadId\":7") != NULL);
+
+	ASSERT_TRUE(editorDapStepOut());
+	ASSERT_TRUE(dap_drain_fd(fds[0], buf, sizeof(buf)) > 0);
+	ASSERT_TRUE(strstr(buf, "\"command\":\"stepOut\"") != NULL);
+	ASSERT_TRUE(strstr(buf, "\"threadId\":7") != NULL);
+
+	/* continue clears the stopped flag and targets the stopped thread. */
+	E.dap_stopped = 1;
+	ASSERT_TRUE(editorDapContinue());
+	ASSERT_EQ_INT(0, E.dap_stopped);
+	ASSERT_TRUE(dap_drain_fd(fds[0], buf, sizeof(buf)) > 0);
+	ASSERT_TRUE(strstr(buf, "\"command\":\"continue\"") != NULL);
+	ASSERT_TRUE(strstr(buf, "\"threadId\":7") != NULL);
+
+	ASSERT_TRUE(editorDapPause());
+	ASSERT_TRUE(dap_drain_fd(fds[0], buf, sizeof(buf)) > 0);
+	ASSERT_TRUE(strstr(buf, "\"command\":\"pause\"") != NULL);
+	ASSERT_TRUE(strstr(buf, "\"threadId\":7") != NULL);
+
+	editorDapEndSessionForTest();
+	(void)close(fds[0]);
+	(void)close(fds[1]);
+	return 0;
+}
+
 const struct editorTestCase g_dap_tests[] = {
         {"editor_dap_config_loads_global_defaults_and_project_launches",
          test_editor_dap_config_loads_global_defaults_and_project_launches},
@@ -686,6 +734,8 @@ const struct editorTestCase g_dap_tests[] = {
         {"editor_dap_breakpoint_toggle_at_line_and_stopped_predicate",
          test_editor_dap_breakpoint_toggle_at_line_and_stopped_predicate},
         {"editor_dap_gutter_renders_markers", test_editor_dap_gutter_renders_markers},
+        {"editor_dap_control_requests_include_thread_id",
+         test_editor_dap_control_requests_include_thread_id},
 };
 
 const int g_dap_test_count = (int)(sizeof(g_dap_tests) / sizeof(g_dap_tests[0]));

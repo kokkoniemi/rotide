@@ -946,25 +946,52 @@ static int dapSendControl(const char *command) {
 	return 1;
 }
 
+/* Best-effort current thread for execution-control requests: the thread of the
+ * most recent stop, else the first known thread, else the main thread (1). */
+static int dapCurrentThreadId(void) {
+	if (g_dap_client.stopped_thread_id > 0) {
+		return g_dap_client.stopped_thread_id;
+	}
+	if (E.dap_thread_count > 0 && E.dap_threads[0].id > 0) {
+		return E.dap_threads[0].id;
+	}
+	return 1;
+}
+
+/* continue/next/stepIn/stepOut/pause are thread-scoped; adapters require a
+ * threadId and silently no-op (or error) without one. */
+static int dapSendThreadControl(const char *command) {
+	if (!E.dap_running || g_dap_client.to_adapter_fd == -1) {
+		editorSetStatusMsg("No DAP session running");
+		return 0;
+	}
+	if (!dapSendRequest(dapBuildIntArgRequestJson(g_dap_client.next_seq++, command, "threadId",
+	                                              dapCurrentThreadId()))) {
+		editorSetStatusMsg("DAP command failed");
+		return 0;
+	}
+	return 1;
+}
+
 int editorDapContinue(void) {
 	E.dap_stopped = 0;
-	return dapSendControl("continue");
+	return dapSendThreadControl("continue");
 }
 
 int editorDapPause(void) {
-	return dapSendControl("pause");
+	return dapSendThreadControl("pause");
 }
 
 int editorDapStepOver(void) {
-	return dapSendControl("next");
+	return dapSendThreadControl("next");
 }
 
 int editorDapStepInto(void) {
-	return dapSendControl("stepIn");
+	return dapSendThreadControl("stepIn");
 }
 
 int editorDapStepOut(void) {
-	return dapSendControl("stepOut");
+	return dapSendThreadControl("stepOut");
 }
 
 int editorDapStop(void) {
