@@ -346,6 +346,49 @@ int editorSyntaxParseFullActive(void) {
 	return 1;
 }
 
+enum bufferCoreIncrementalReparseResult {
+	BUFFER_CORE_INCREMENTAL_REPARSE_FALL_THROUGH = 0,
+	BUFFER_CORE_INCREMENTAL_REPARSE_DONE,
+	BUFFER_CORE_INCREMENTAL_REPARSE_ERROR
+};
+
+static enum bufferCoreIncrementalReparseResult
+bufferCoreTryIncrementalReparse(const struct editorSyntaxEdit *edit, size_t inserted_len) {
+	if (E.syntax_parse_failures != 0 || edit == NULL ||
+	    !editorSyntaxStateHasTree(E.syntax_state)) {
+		return BUFFER_CORE_INCREMENTAL_REPARSE_FALL_THROUGH;
+	}
+
+	size_t old_len = editorSyntaxStateSourceLength(E.syntax_state);
+	if (edit->old_end_byte < edit->start_byte || (size_t)edit->old_end_byte > old_len) {
+		return BUFFER_CORE_INCREMENTAL_REPARSE_FALL_THROUGH;
+	}
+
+	size_t removed_len = (size_t)(edit->old_end_byte - edit->start_byte);
+	if (removed_len > old_len) {
+		return BUFFER_CORE_INCREMENTAL_REPARSE_FALL_THROUGH;
+	}
+
+	size_t new_len = old_len - removed_len + inserted_len;
+	if (!bufferCoreConfigureSyntaxPerformanceForLength(new_len, 1)) {
+		return BUFFER_CORE_INCREMENTAL_REPARSE_ERROR;
+	}
+
+	struct editorTextSource source = {0};
+	if (editorBuildActiveTextSource(&source) &&
+	    editorSyntaxStateApplyEditAndParse(E.syntax_state, edit, &source)) {
+		bufferCoreResetSyntaxParseFailures();
+		editorSyntaxVisibleCacheInvalidateRowsForEdit(edit);
+		if (!editorSyntaxVisibleCacheInvalidateChangedRowsFromState()) {
+			editorSyntaxVisibleCacheInvalidate();
+		}
+		bufferCoreReportSyntaxStatusIfNeeded();
+		return BUFFER_CORE_INCREMENTAL_REPARSE_DONE;
+	}
+
+	return BUFFER_CORE_INCREMENTAL_REPARSE_FALL_THROUGH;
+}
+
 int editorSyntaxApplyIncrementalEditActive(const struct editorSyntaxEdit *edit,
                                            const char *inserted_text, size_t inserted_len) {
 	if (E.syntax_language == EDITOR_SYNTAX_NONE) {
@@ -368,31 +411,13 @@ int editorSyntaxApplyIncrementalEditActive(const struct editorSyntaxEdit *edit,
 		return 1;
 	}
 
-	if (E.syntax_parse_failures == 0 && edit != NULL &&
-	    editorSyntaxStateHasTree(E.syntax_state)) {
-		size_t old_len = editorSyntaxStateSourceLength(E.syntax_state);
-		if (edit->old_end_byte >= edit->start_byte &&
-		    (size_t)edit->old_end_byte <= old_len) {
-			size_t removed_len = (size_t)(edit->old_end_byte - edit->start_byte);
-			if (removed_len <= old_len) {
-				size_t new_len = old_len - removed_len + inserted_len;
-				if (!bufferCoreConfigureSyntaxPerformanceForLength(new_len, 1)) {
-					return 0;
-				}
-				struct editorTextSource source = {0};
-				if (editorBuildActiveTextSource(&source) &&
-				    editorSyntaxStateApplyEditAndParse(E.syntax_state, edit,
-				                                       &source)) {
-					bufferCoreResetSyntaxParseFailures();
-					editorSyntaxVisibleCacheInvalidateRowsForEdit(edit);
-					if (!editorSyntaxVisibleCacheInvalidateChangedRowsFromState()) {
-						editorSyntaxVisibleCacheInvalidate();
-					}
-					bufferCoreReportSyntaxStatusIfNeeded();
-					return 1;
-				}
-			}
-		}
+	enum bufferCoreIncrementalReparseResult incremental_result =
+	        bufferCoreTryIncrementalReparse(edit, inserted_len);
+	if (incremental_result == BUFFER_CORE_INCREMENTAL_REPARSE_DONE) {
+		return 1;
+	}
+	if (incremental_result == BUFFER_CORE_INCREMENTAL_REPARSE_ERROR) {
+		return 0;
 	}
 
 	struct editorTextSource source = {0};

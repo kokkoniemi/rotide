@@ -1500,6 +1500,13 @@ typedef int (*dispatchLspLocationRequestFn)(const char *filename,
 static void dispatchRunLocationLookup(const char *kind_lower, const char *kind_capitalized,
                                       const char *kind_plural,
                                       dispatchLspLocationRequestFn request_fn) {
+	char *full_text = NULL;
+	struct editorLspLocation *locations = NULL;
+	int count = 0;
+	struct editorLspLocation *implementation_locations = NULL;
+	int implementation_count = 0;
+	struct dispatchLocationChoice *choices = NULL;
+
 	if (!editorLanguageGoToSupported(E.syntax_language)) {
 		editorSetStatusMsg("Go to %s is available for Go, C, C++, HTML, CSS/SCSS, JSON, "
 		                   "and JavaScript files only",
@@ -1541,54 +1548,49 @@ static void dispatchRunLocationLookup(const char *kind_lower, const char *kind_c
 		editorSetStatusMsg("File too large");
 		return;
 	}
-	char *full_text = editorTextSourceDupRange(&source, 0, source.length, &full_text_len);
+	full_text = editorTextSourceDupRange(&source, 0, source.length, &full_text_len);
 	if (full_text == NULL) {
 		if (source.length > ROTIDE_MAX_TEXT_BYTES) {
 			editorSetStatusMsg("File too large");
 		} else {
 			editorSetStatusMsg("Out of memory");
 		}
-		return;
+		goto cleanup;
 	}
 
 	int ready = editorLspEnsureDocumentOpen(E.filename, E.syntax_language, &E.lsp_doc_open,
 	                                        &E.lsp_doc_version,
 	                                        full_text != NULL ? full_text : "", full_text_len);
 	free(full_text);
+	full_text = NULL;
 	if (!ready) {
 		if (editorLspLastStartupFailureReason() ==
 		    EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
 			editorLanguageMaybePromptInstallServer();
-			return;
+			goto cleanup;
 		}
 		if (strncmp(E.statusmsg, "LSP ", strlen("LSP ")) != 0) {
 			editorSetStatusMsg("LSP unavailable for this file");
 		}
-		return;
+		goto cleanup;
 	}
 
-	struct editorLspLocation *locations = NULL;
-	int count = 0;
 	int timed_out = 0;
 	int request_result = request_fn(E.filename, E.syntax_language, E.cy, E.cx, &locations,
 	                                &count, &timed_out);
 	if (request_result == -2 || timed_out) {
 		editorSetStatusMsg("Go to %s timed out", kind_lower);
-		editorLspFreeLocations(locations, count);
-		return;
+		goto cleanup;
 	}
 	if (request_result <= 0) {
 		editorSetStatusMsg("Go to %s failed", kind_lower);
-		editorLspFreeLocations(locations, count);
-		return;
+		goto cleanup;
 	}
 	if (count <= 0) {
 		editorSetStatusMsg("%s not found", kind_capitalized);
-		editorLspFreeLocations(locations, count);
-		return;
+		goto cleanup;
 	}
 
-	struct dispatchLocationChoice *choices = NULL;
 	int choice_count = 0;
 	int choice_cap = 0;
 	int has_declaration = 0;
@@ -1603,14 +1605,10 @@ static void dispatchRunLocationLookup(const char *kind_lower, const char *kind_c
 		}
 		if (!dispatchAppendLocationChoice(&choices, &choice_count, &choice_cap,
 		                                  &locations[i], role)) {
-			free(choices);
-			editorLspFreeLocations(locations, count);
-			return;
+			goto cleanup;
 		}
 	}
 
-	struct editorLspLocation *implementation_locations = NULL;
-	int implementation_count = 0;
 	if (request_fn == editorLspRequestDefinition && has_declaration &&
 	    dispatchLanguageUsesCStyleDeclarations(E.syntax_language)) {
 		int implementation_timed_out = 0;
@@ -1623,11 +1621,7 @@ static void dispatchRunLocationLookup(const char *kind_lower, const char *kind_c
 				            &choices, &choice_count, &choice_cap,
 				            &implementation_locations[i],
 				            DISPATCH_LOCATION_ROLE_IMPLEMENTATION)) {
-					free(choices);
-					editorLspFreeLocations(implementation_locations,
-					                       implementation_count);
-					editorLspFreeLocations(locations, count);
-					return;
+					goto cleanup;
 				}
 			}
 		}
@@ -1635,10 +1629,7 @@ static void dispatchRunLocationLookup(const char *kind_lower, const char *kind_c
 
 	if (choice_count <= 0) {
 		editorSetStatusMsg("%s not found", kind_capitalized);
-		free(choices);
-		editorLspFreeLocations(implementation_locations, implementation_count);
-		editorLspFreeLocations(locations, count);
-		return;
+		goto cleanup;
 	}
 
 	if (choice_count > 1) {
@@ -1647,24 +1638,21 @@ static void dispatchRunLocationLookup(const char *kind_lower, const char *kind_c
 		} else {
 			editorSetStatusMsg("Found %d %s", choice_count, kind_plural);
 		}
-		free(choices);
-		editorLspFreeLocations(implementation_locations, implementation_count);
-		editorLspFreeLocations(locations, count);
-		return;
+		goto cleanup;
 	}
 
 	const struct dispatchLocationChoice *selected = &choices[0];
 	if (!dispatchJumpToDefinitionLocation(selected->location)) {
 		editorSetStatusMsg("Unable to jump to %s", kind_lower);
-		free(choices);
-		editorLspFreeLocations(implementation_locations, implementation_count);
-		editorLspFreeLocations(locations, count);
-		return;
+		goto cleanup;
 	}
 
 	editorSetStatusMsg("%s: %s:%d", dispatchLocationRoleLabel(selected->role),
 	                   dispatchBasenameFromPath(selected->location->path),
 	                   selected->location->line + 1);
+
+cleanup:
+	free(full_text);
 	free(choices);
 	editorLspFreeLocations(implementation_locations, implementation_count);
 	editorLspFreeLocations(locations, count);
@@ -2166,13 +2154,34 @@ static int dispatchHandleDelegatedAction(enum editorAction action, int *effects)
 	return 0;
 }
 
-static int dispatchHandleSelectionAction(enum editorAction action, int *effects) {
+static int dispatchIsSelectionAction(enum editorAction action) {
 	switch (action) {
 		case EDITOR_ACTION_SELECT_ALL:
-			editorHistoryBreakGroup();
-			if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT) {
-				return 1;
-			}
+		case EDITOR_ACTION_SELECT_LEFT:
+		case EDITOR_ACTION_SELECT_RIGHT:
+		case EDITOR_ACTION_SELECT_UP:
+		case EDITOR_ACTION_SELECT_DOWN:
+		case EDITOR_ACTION_SELECT_WORD_LEFT:
+		case EDITOR_ACTION_SELECT_WORD_RIGHT:
+		case EDITOR_ACTION_SELECT_HOME:
+		case EDITOR_ACTION_SELECT_END:
+			return 1;
+		default:
+			return 0;
+	}
+}
+
+static int dispatchHandleSelectionAction(enum editorAction action, int *effects) {
+	if (!dispatchIsSelectionAction(action)) {
+		return 0;
+	}
+	editorHistoryBreakGroup();
+	if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT) {
+		return 1;
+	}
+
+	switch (action) {
+		case EDITOR_ACTION_SELECT_ALL:
 			if (editorEditSelectAll()) {
 				editorViewportEnsureCursorVisible();
 				*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
@@ -2184,10 +2193,6 @@ static int dispatchHandleSelectionAction(enum editorAction action, int *effects)
 		case EDITOR_ACTION_SELECT_DOWN:
 		case EDITOR_ACTION_SELECT_WORD_LEFT:
 		case EDITOR_ACTION_SELECT_WORD_RIGHT:
-			editorHistoryBreakGroup();
-			if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT) {
-				return 1;
-			}
 			dispatchBeginOrContinueSelection();
 			switch (action) {
 				case EDITOR_ACTION_SELECT_LEFT:
@@ -2212,19 +2217,11 @@ static int dispatchHandleSelectionAction(enum editorAction action, int *effects)
 			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			return 1;
 		case EDITOR_ACTION_SELECT_HOME:
-			editorHistoryBreakGroup();
-			if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT) {
-				return 1;
-			}
 			dispatchBeginOrContinueSelection();
 			(void)dispatchSetCursorFromPosition(E.cy, 0);
 			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			return 1;
 		case EDITOR_ACTION_SELECT_END:
-			editorHistoryBreakGroup();
-			if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT) {
-				return 1;
-			}
 			dispatchBeginOrContinueSelection();
 			if (E.cy < E.numrows) {
 				(void)dispatchSetCursorFromPosition(
@@ -2239,10 +2236,26 @@ static int dispatchHandleSelectionAction(enum editorAction action, int *effects)
 	}
 }
 
-static int dispatchHandleColumnSelectionAction(enum editorAction action, int *effects) {
+static int dispatchIsColumnSelectionAction(enum editorAction action) {
 	switch (action) {
 		case EDITOR_ACTION_COLUMN_SELECT_UP:
-			editorHistoryBreakGroup();
+		case EDITOR_ACTION_COLUMN_SELECT_DOWN:
+		case EDITOR_ACTION_COLUMN_SELECT_LEFT:
+		case EDITOR_ACTION_COLUMN_SELECT_RIGHT:
+			return 1;
+		default:
+			return 0;
+	}
+}
+
+static int dispatchHandleColumnSelectionAction(enum editorAction action, int *effects) {
+	if (!dispatchIsColumnSelectionAction(action)) {
+		return 0;
+	}
+	editorHistoryBreakGroup();
+
+	switch (action) {
+		case EDITOR_ACTION_COLUMN_SELECT_UP:
 			if (E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
 				return 1;
 			}
@@ -2250,7 +2263,6 @@ static int dispatchHandleColumnSelectionAction(enum editorAction action, int *ef
 			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			return 1;
 		case EDITOR_ACTION_COLUMN_SELECT_DOWN:
-			editorHistoryBreakGroup();
 			if (E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
 				return 1;
 			}
@@ -2258,12 +2270,10 @@ static int dispatchHandleColumnSelectionAction(enum editorAction action, int *ef
 			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			return 1;
 		case EDITOR_ACTION_COLUMN_SELECT_LEFT:
-			editorHistoryBreakGroup();
 			dispatchColumnSelectionMove(0, -1);
 			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			return 1;
 		case EDITOR_ACTION_COLUMN_SELECT_RIGHT:
-			editorHistoryBreakGroup();
 			dispatchColumnSelectionMove(0, 1);
 			*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 			return 1;
@@ -2272,10 +2282,31 @@ static int dispatchHandleColumnSelectionAction(enum editorAction action, int *ef
 	}
 }
 
-static int dispatchHandleViewAction(enum editorAction action, int *effects) {
+static int dispatchIsViewAction(enum editorAction action) {
 	switch (action) {
 		case EDITOR_ACTION_TOGGLE_LINE_WRAP:
-			editorHistoryBreakGroup();
+		case EDITOR_ACTION_TOGGLE_LINE_NUMBERS:
+		case EDITOR_ACTION_TOGGLE_CURRENT_LINE_HIGHLIGHT:
+		case EDITOR_ACTION_PAGE_UP:
+		case EDITOR_ACTION_PAGE_DOWN:
+		case EDITOR_ACTION_SCROLL_LEFT:
+		case EDITOR_ACTION_SCROLL_RIGHT:
+		case EDITOR_ACTION_SCROLL_UP:
+		case EDITOR_ACTION_SCROLL_DOWN:
+			return 1;
+		default:
+			return 0;
+	}
+}
+
+static int dispatchHandleViewAction(enum editorAction action, int *effects) {
+	if (!dispatchIsViewAction(action)) {
+		return 0;
+	}
+	editorHistoryBreakGroup();
+
+	switch (action) {
+		case EDITOR_ACTION_TOGGLE_LINE_WRAP:
 			E.line_wrap_enabled = !E.line_wrap_enabled;
 			if (E.line_wrap_enabled) {
 				E.coloff = 0;
@@ -2288,7 +2319,6 @@ static int dispatchHandleViewAction(enum editorAction action, int *effects) {
 			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 			return 1;
 		case EDITOR_ACTION_TOGGLE_LINE_NUMBERS:
-			editorHistoryBreakGroup();
 			E.line_numbers_enabled = !E.line_numbers_enabled;
 			editorViewportEnsureCursorVisible();
 			editorSetStatusMsg("Line numbers %s",
@@ -2296,7 +2326,6 @@ static int dispatchHandleViewAction(enum editorAction action, int *effects) {
 			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 			return 1;
 		case EDITOR_ACTION_TOGGLE_CURRENT_LINE_HIGHLIGHT:
-			editorHistoryBreakGroup();
 			E.current_line_highlight_enabled = !E.current_line_highlight_enabled;
 			editorSetStatusMsg("Current-line highlight %s",
 			                   E.current_line_highlight_enabled ? "enabled"
@@ -2304,7 +2333,6 @@ static int dispatchHandleViewAction(enum editorAction action, int *effects) {
 			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 			return 1;
 		case EDITOR_ACTION_PAGE_UP: {
-			editorHistoryBreakGroup();
 			int page_rows = E.window_rows;
 			if (page_rows < 1) {
 				page_rows = 1;
@@ -2314,7 +2342,6 @@ static int dispatchHandleViewAction(enum editorAction action, int *effects) {
 			return 1;
 		}
 		case EDITOR_ACTION_PAGE_DOWN: {
-			editorHistoryBreakGroup();
 			int page_rows = E.window_rows;
 			if (page_rows < 1) {
 				page_rows = 1;
@@ -2324,22 +2351,18 @@ static int dispatchHandleViewAction(enum editorAction action, int *effects) {
 			return 1;
 		}
 		case EDITOR_ACTION_SCROLL_LEFT:
-			editorHistoryBreakGroup();
 			editorViewportScrollByCols(-KEYBOARD_SCROLL_COLS);
 			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 			return 1;
 		case EDITOR_ACTION_SCROLL_RIGHT:
-			editorHistoryBreakGroup();
 			editorViewportScrollByCols(KEYBOARD_SCROLL_COLS);
 			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 			return 1;
 		case EDITOR_ACTION_SCROLL_UP:
-			editorHistoryBreakGroup();
 			editorViewportScrollByRows(-KEYBOARD_SCROLL_ROWS);
 			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 			return 1;
 		case EDITOR_ACTION_SCROLL_DOWN:
-			editorHistoryBreakGroup();
 			editorViewportScrollByRows(KEYBOARD_SCROLL_ROWS);
 			*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
 			return 1;

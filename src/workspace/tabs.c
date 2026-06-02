@@ -1815,6 +1815,56 @@ static int tabsWrapperView(struct editorPaneView *scratch, struct editorPaneView
 	return 1;
 }
 
+enum tabsPlaceTabResult { TABS_PLACE_TAB_SKIP = 0, TABS_PLACE_TAB_PLACED, TABS_PLACE_TAB_STOP };
+
+static enum tabsPlaceTabResult tabsTryPlaceTab(struct editorPaneView *view, int slot, int cols,
+                                               struct editorTabLayoutEntry *entries,
+                                               int max_entries, int *used_cols_io, int *count_io,
+                                               int *first_visible_slot_io,
+                                               int *last_visible_slot_io) {
+	int count = *count_io;
+	int used_cols = *used_cols_io;
+
+	if (count >= max_entries) {
+		return TABS_PLACE_TAB_STOP;
+	}
+
+	int tab_idx = tabsPaneTabAt(view, slot);
+	if (tab_idx < 0 || tab_idx >= E.tab_count) {
+		return TABS_PLACE_TAB_SKIP;
+	}
+
+	int width_cols = tabsWidthColsAt(tab_idx);
+	if (width_cols < 1) {
+		width_cols = 1;
+	}
+	if (count == 0 && width_cols > cols) {
+		width_cols = cols;
+	}
+	if (count > 0 && used_cols + width_cols > cols) {
+		return TABS_PLACE_TAB_STOP;
+	}
+	if (width_cols <= 0) {
+		return TABS_PLACE_TAB_STOP;
+	}
+
+	struct editorTabLayoutEntry *entry = &entries[count];
+	entry->tab_idx = tab_idx;
+	entry->start_col = used_cols;
+	entry->width_cols = width_cols;
+	entry->show_left_overflow = 0;
+	entry->show_right_overflow = 0;
+	entry->is_active = tab_idx == view->active_tab_idx;
+
+	if (*first_visible_slot_io < 0) {
+		*first_visible_slot_io = slot;
+	}
+	*last_visible_slot_io = slot;
+	*used_cols_io = used_cols + width_cols;
+	*count_io = count + 1;
+	return TABS_PLACE_TAB_PLACED;
+}
+
 int editorTabBuildLayoutForPane(struct editorPaneView *view, int cols,
                                 struct editorTabLayoutEntry *entries, int max_entries,
                                 int *count_out) {
@@ -1850,42 +1900,12 @@ int editorTabBuildLayoutForPane(struct editorPaneView *view, int cols,
 	int first_visible_slot = -1;
 	int last_visible_slot = -1;
 	for (int slot = start_slot; slot < slot_count && used_cols < cols; slot++) {
-		if (count >= max_entries) {
+		enum tabsPlaceTabResult result =
+		        tabsTryPlaceTab(view, slot, cols, entries, max_entries, &used_cols, &count,
+		                        &first_visible_slot, &last_visible_slot);
+		if (result == TABS_PLACE_TAB_STOP) {
 			break;
 		}
-		int tab_idx = tabsPaneTabAt(view, slot);
-		if (tab_idx < 0 || tab_idx >= E.tab_count) {
-			continue;
-		}
-
-		int width_cols = tabsWidthColsAt(tab_idx);
-		if (width_cols < 1) {
-			width_cols = 1;
-		}
-		if (count == 0 && width_cols > cols) {
-			width_cols = cols;
-		}
-		if (count > 0 && used_cols + width_cols > cols) {
-			break;
-		}
-		if (width_cols <= 0) {
-			break;
-		}
-
-		struct editorTabLayoutEntry *entry = &entries[count];
-		entry->tab_idx = tab_idx;
-		entry->start_col = used_cols;
-		entry->width_cols = width_cols;
-		entry->show_left_overflow = 0;
-		entry->show_right_overflow = 0;
-		entry->is_active = tab_idx == view->active_tab_idx;
-
-		if (first_visible_slot < 0) {
-			first_visible_slot = slot;
-		}
-		last_visible_slot = slot;
-		used_cols += width_cols;
-		count++;
 	}
 
 	if (count == 0) {

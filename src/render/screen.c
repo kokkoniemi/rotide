@@ -662,6 +662,104 @@ static int screenDrawRenderSliceWithSyntax(const struct screenRenderSliceArgs *a
 	                              bold_on);
 }
 
+static void screenResolveHighlightSpan(int row_idx, int *highlight_start_chars_out,
+                                       int *highlight_len_chars_out) {
+	int highlight_start_chars = -1;
+	int highlight_len_chars = 0;
+	int selection_start = 0;
+	int selection_end = 0;
+
+	if (screenSelectionSpanForRow(row_idx, &selection_start, &selection_end)) {
+		highlight_start_chars = selection_start;
+		highlight_len_chars = selection_end - selection_start;
+	} else if (screenSearchSpanForRow(row_idx, &selection_start, &selection_end)) {
+		highlight_start_chars = selection_start;
+		highlight_len_chars = selection_end - selection_start;
+	}
+
+	*highlight_start_chars_out = highlight_start_chars;
+	*highlight_len_chars_out = highlight_len_chars;
+}
+
+static void screenGatherHoverRange(int row_idx, const struct editorRow *row,
+                                   const struct editorLineView *row_line, int row_size,
+                                   int have_row_line, int *hover_render_start_out,
+                                   int *hover_render_end_out) {
+	int hover_render_start = -1;
+	int hover_render_end = -1;
+	if (have_row_line && E.hover_link_active && E.hover_link_row == row_idx &&
+	    E.hover_link_cx_end > E.hover_link_cx_start) {
+		int hov_start_clamped = E.hover_link_cx_start;
+		int hov_end_clamped = E.hover_link_cx_end;
+		if (hov_start_clamped < 0) {
+			hov_start_clamped = 0;
+		}
+		if (hov_end_clamped > row_size) {
+			hov_end_clamped = row_size;
+		}
+		if (hov_end_clamped > hov_start_clamped) {
+			hover_render_start = editorBytesCxToRenderIdx(
+			        row_line->data, row_size, row->rsize, hov_start_clamped);
+			hover_render_end = editorBytesCxToRenderIdx(row_line->data, row_size,
+			                                            row->rsize, hov_end_clamped);
+		}
+	}
+
+	*hover_render_start_out = hover_render_start;
+	*hover_render_end_out = hover_render_end;
+}
+
+static void screenGatherBracketIndices(int row_idx, const struct editorRow *row,
+                                       const struct editorLineView *row_line, int row_size,
+                                       int have_row_line, int bracket_render_idx[2]) {
+	bracket_render_idx[0] = -1;
+	bracket_render_idx[1] = -1;
+
+	int bracket_cols[2] = {0, 0};
+	int bracket_count = 0;
+	if (have_row_line &&
+	    editorPaneActiveBracketColsForRow(row_idx, bracket_cols, &bracket_count)) {
+		for (int i = 0; i < bracket_count; i++) {
+			int cx = bracket_cols[i];
+			if (cx >= 0 && cx < row_size) {
+				bracket_render_idx[i] = editorBytesCxToRenderIdx(
+				        row_line->data, row_size, row->rsize, cx);
+			}
+		}
+	}
+}
+
+static void screenResolveHighlightRenderRange(const struct editorRow *row,
+                                              const struct editorLineView *row_line, int row_size,
+                                              int have_row_line, int highlight_start_chars,
+                                              int highlight_len_chars, int *match_render_start_out,
+                                              int *match_render_end_out) {
+	int match_start_chars = highlight_start_chars;
+	if (match_start_chars < 0) {
+		match_start_chars = 0;
+	}
+	if (match_start_chars > row_size) {
+		match_start_chars = row_size;
+	}
+	long long match_end_ll = (long long)match_start_chars + (long long)highlight_len_chars;
+	if (match_end_ll < match_start_chars) {
+		match_end_ll = match_start_chars;
+	}
+	if (match_end_ll > row_size) {
+		match_end_ll = row_size;
+	}
+	int match_end_chars = (int)match_end_ll;
+
+	*match_render_start_out = have_row_line
+	                                  ? editorBytesCxToRenderIdx(row_line->data, row_size,
+	                                                             row->rsize, match_start_chars)
+	                                  : 0;
+	*match_render_end_out = have_row_line
+	                                ? editorBytesCxToRenderIdx(row_line->data, row_size,
+	                                                           row->rsize, match_end_chars)
+	                                : 0;
+}
+
 static int screenDrawRenderSlice(struct writeBuf *wb, struct editorRow *row, int row_idx,
                                  int coloff, int cols) {
 	if (cols <= 0 || coloff < 0 || row->rsize <= 0) {
@@ -677,16 +775,7 @@ static int screenDrawRenderSlice(struct writeBuf *wb, struct editorRow *row, int
 
 	int highlight_start_chars = -1;
 	int highlight_len_chars = 0;
-
-	int selection_start = 0;
-	int selection_end = 0;
-	if (screenSelectionSpanForRow(row_idx, &selection_start, &selection_end)) {
-		highlight_start_chars = selection_start;
-		highlight_len_chars = selection_end - selection_start;
-	} else if (screenSearchSpanForRow(row_idx, &selection_start, &selection_end)) {
-		highlight_start_chars = selection_start;
-		highlight_len_chars = selection_end - selection_start;
-	}
+	screenResolveHighlightSpan(row_idx, &highlight_start_chars, &highlight_len_chars);
 
 	struct editorRowSyntaxSpan syntax_spans[ROTIDE_MAX_SYNTAX_SPANS_PER_ROW];
 	int syntax_span_count = 0;
@@ -710,37 +799,12 @@ static int screenDrawRenderSlice(struct writeBuf *wb, struct editorRow *row, int
 
 	int hover_render_start = -1;
 	int hover_render_end = -1;
-	if (have_row_line && E.hover_link_active && E.hover_link_row == row_idx &&
-	    E.hover_link_cx_end > E.hover_link_cx_start) {
-		int hov_start_clamped = E.hover_link_cx_start;
-		int hov_end_clamped = E.hover_link_cx_end;
-		if (hov_start_clamped < 0) {
-			hov_start_clamped = 0;
-		}
-		if (hov_end_clamped > row_size) {
-			hov_end_clamped = row_size;
-		}
-		if (hov_end_clamped > hov_start_clamped) {
-			hover_render_start = editorBytesCxToRenderIdx(
-			        row_line.data, row_size, row->rsize, hov_start_clamped);
-			hover_render_end = editorBytesCxToRenderIdx(row_line.data, row_size,
-			                                            row->rsize, hov_end_clamped);
-		}
-	}
+	screenGatherHoverRange(row_idx, row, &row_line, row_size, have_row_line,
+	                       &hover_render_start, &hover_render_end);
 
 	int bracket_render_idx[2] = {-1, -1};
-	int bracket_cols[2] = {0, 0};
-	int bracket_count = 0;
-	if (have_row_line &&
-	    editorPaneActiveBracketColsForRow(row_idx, bracket_cols, &bracket_count)) {
-		for (int i = 0; i < bracket_count; i++) {
-			int cx = bracket_cols[i];
-			if (cx >= 0 && cx < row_size) {
-				bracket_render_idx[i] = editorBytesCxToRenderIdx(
-				        row_line.data, row_size, row->rsize, cx);
-			}
-		}
-	}
+	screenGatherBracketIndices(row_idx, row, &row_line, row_size, have_row_line,
+	                           bracket_render_idx);
 
 	struct screenRenderSliceArgs slice = {
 	        .wb = wb,
@@ -759,31 +823,11 @@ static int screenDrawRenderSlice(struct writeBuf *wb, struct editorRow *row, int
 		return screenDrawRenderSliceWithSyntax(&slice, start, end);
 	}
 
-	int match_start_chars = highlight_start_chars;
-	if (match_start_chars < 0) {
-		match_start_chars = 0;
-	}
-	if (match_start_chars > row_size) {
-		match_start_chars = row_size;
-	}
-	long long match_end_ll = (long long)match_start_chars + (long long)highlight_len_chars;
-	if (match_end_ll < match_start_chars) {
-		match_end_ll = match_start_chars;
-	}
-	if (match_end_ll > row_size) {
-		match_end_ll = row_size;
-	}
-	int match_end_chars = (int)match_end_ll;
-
-	// Convert char-space selection/search boundaries into render byte indices
-	// with the same mapper used by row rendering and cursor calculations.
-	int match_render_start = have_row_line
-	                                 ? editorBytesCxToRenderIdx(row_line.data, row_size,
-	                                                            row->rsize, match_start_chars)
-	                                 : 0;
-	int match_render_end = have_row_line ? editorBytesCxToRenderIdx(row_line.data, row_size,
-	                                                                row->rsize, match_end_chars)
-	                                     : 0;
+	int match_render_start = 0;
+	int match_render_end = 0;
+	screenResolveHighlightRenderRange(row, &row_line, row_size, have_row_line,
+	                                  highlight_start_chars, highlight_len_chars,
+	                                  &match_render_start, &match_render_end);
 	editorLineViewRelease(&row_line);
 	if (match_render_end <= match_render_start) {
 		return screenDrawRenderSliceWithSyntax(&slice, start, end);

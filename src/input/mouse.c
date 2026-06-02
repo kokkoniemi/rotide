@@ -634,12 +634,15 @@ int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long lo
                                    editorMouseActionFn goto_definition, int *effects_out) {
 	int mouse_col = event->x - 1;
 	int effects = 0;
+	int apply_mouse_state = 0;
+	int left_button_down = 0;
+	int drag_started = 0;
+	int set_drag_anchor = 0;
+	int reset_click_tracking = 0;
+	int run_goto_definition = 0;
 
 	if (editorHandleMousePaneTabStripClick(event, now_ms)) {
-		if (effects_out != NULL) {
-			*effects_out = effects;
-		}
-		return 1;
+		goto out;
 	}
 
 	/* Border-press arms a drag-resize; mirrors the drawer-separator path. */
@@ -653,13 +656,11 @@ int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long lo
 			                         &border_orientation)) {
 				E.split_resize_active = 1;
 				E.split_resize_node = border_node;
-				E.mouse_left_button_down = 0;
-				E.mouse_drag_started = 0;
-				editorResetTextClickTracking();
-				if (effects_out != NULL) {
-					*effects_out = effects;
-				}
-				return 1;
+				apply_mouse_state = 1;
+				left_button_down = 0;
+				drag_started = 0;
+				reset_click_tracking = 1;
+				goto out;
 			}
 		}
 	}
@@ -669,28 +670,23 @@ int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long lo
 	}
 
 	if (!editorMoveCursorToMouse(event, 0)) {
-		E.mouse_left_button_down = 0;
-		E.mouse_drag_started = 0;
-		editorResetTextClickTracking();
-		if (effects_out != NULL) {
-			*effects_out = effects;
-		}
-		return 1;
+		apply_mouse_state = 1;
+		left_button_down = 0;
+		drag_started = 0;
+		reset_click_tracking = 1;
+		goto out;
 	}
 
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 	mouseClearSelectionMode();
 	if (event->modifiers == EDITOR_MOUSE_MOD_CTRL) {
-		E.mouse_left_button_down = 0;
-		E.mouse_drag_started = 0;
-		editorResetTextClickTracking();
-		if (goto_definition != NULL) {
-			goto_definition();
-		}
-		if (effects_out != NULL) {
-			*effects_out = 1;
-		}
-		return 1;
+		apply_mouse_state = 1;
+		left_button_down = 0;
+		drag_started = 0;
+		reset_click_tracking = 1;
+		run_goto_definition = 1;
+		effects = 1;
+		goto out;
 	}
 
 	int column_modifier = E.column_select_drag_modifier;
@@ -707,14 +703,13 @@ int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long lo
 			}
 		}
 		E.column_select_cursor_rx = E.column_select_anchor_rx;
-		editorResetTextClickTracking();
-		E.mouse_left_button_down = 1;
-		E.mouse_drag_anchor_offset = E.cursor_offset;
-		E.mouse_drag_started = 0;
-		if (effects_out != NULL) {
-			*effects_out = 1;
-		}
-		return 1;
+		apply_mouse_state = 1;
+		left_button_down = 1;
+		drag_started = 0;
+		set_drag_anchor = 1;
+		reset_click_tracking = 1;
+		effects = 1;
+		goto out;
 	}
 
 	int click_count = 1;
@@ -733,28 +728,43 @@ int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long lo
 
 	if (click_count == 2) {
 		mouseSelectWordAtCursor();
-		E.mouse_left_button_down = 0;
-		E.mouse_drag_started = 0;
-		if (effects_out != NULL) {
-			*effects_out = 1;
-		}
-		return 1;
+		apply_mouse_state = 1;
+		left_button_down = 0;
+		drag_started = 0;
+		effects = 1;
+		goto out;
 	}
 	if (click_count == 3) {
 		mouseSelectLineAtCursor();
-		E.mouse_left_button_down = 0;
-		E.mouse_drag_started = 0;
-		if (effects_out != NULL) {
-			*effects_out = 1;
-		}
-		return 1;
+		apply_mouse_state = 1;
+		left_button_down = 0;
+		drag_started = 0;
+		effects = 1;
+		goto out;
 	}
 
-	E.mouse_left_button_down = 1;
-	E.mouse_drag_anchor_offset = E.cursor_offset;
-	E.mouse_drag_started = 0;
+	apply_mouse_state = 1;
+	left_button_down = 1;
+	drag_started = 0;
+	set_drag_anchor = 1;
+	effects = 1;
+
+out:
+	if (apply_mouse_state) {
+		E.mouse_left_button_down = left_button_down;
+		if (set_drag_anchor) {
+			E.mouse_drag_anchor_offset = E.cursor_offset;
+		}
+		E.mouse_drag_started = drag_started;
+	}
+	if (reset_click_tracking) {
+		editorResetTextClickTracking();
+	}
+	if (run_goto_definition && goto_definition != NULL) {
+		goto_definition();
+	}
 	if (effects_out != NULL) {
-		*effects_out = 1;
+		*effects_out = effects;
 	}
 	return 1;
 }
