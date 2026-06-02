@@ -878,6 +878,76 @@ static int tabsCloseFocusedPaneIfEmpty(int skip_active_save) {
 	return 1;
 }
 
+static int tabsPaneMostRecentTab(const struct editorPaneView *view) {
+	if (view == NULL || view->pane_tab_count <= 0) {
+		return -1;
+	}
+	int next_idx = editorPaneViewMostRecentTab(view);
+	if (next_idx < 0) {
+		next_idx = view->pane_tabs[0];
+	}
+	return next_idx;
+}
+
+static void tabsFinishSharedTabCloseInFocusedPane(struct editorPaneNode *focused) {
+	if (focused == NULL || focused->is_split ||
+	    focused->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
+		return;
+	}
+
+	if (focused->as.leaf.view.pane_tab_count > 0) {
+		int next_idx = tabsPaneMostRecentTab(&focused->as.leaf.view);
+		if (next_idx >= 0) {
+			(void)editorTabSwitchToIndex(next_idx);
+		}
+		return;
+	}
+
+	if (!tabsCloseFocusedPaneIfEmpty(0)) {
+		int new_idx = editorTabAppendEmptyForPane(focused);
+		if (new_idx >= 0) {
+			(void)editorTabSwitchToIndex(new_idx);
+		}
+	}
+}
+
+static void tabsResetLastTabAfterClose(void) {
+	tabsStateInitEmpty(&E.tabs[0]);
+	E.active_tab = 0;
+	E.tab_count = 1;
+	tabsLoadActiveTab(0);
+	tabsRegisterWithFocusedPane(0);
+}
+
+static int tabsHandleEmptyFocusedPaneAfterGlobalClose(struct editorPaneNode *focused,
+                                                      int focused_is_editor) {
+	if (!focused_is_editor || focused->as.leaf.view.pane_tab_count != 0) {
+		return 0;
+	}
+	if (tabsCloseFocusedPaneIfEmpty(1)) {
+		return 1;
+	}
+	int new_idx = editorTabAppendEmptyForPane(focused);
+	if (new_idx >= 0) {
+		E.active_tab = new_idx;
+		tabsLoadActiveTab(new_idx);
+		return 1;
+	}
+	return 0;
+}
+
+static int tabsNextIndexAfterGlobalClose(int closing, struct editorPaneNode *focused,
+                                         int focused_is_editor) {
+	int next_idx = -1;
+	if (focused_is_editor && focused->as.leaf.view.pane_tab_count > 0) {
+		next_idx = tabsPaneMostRecentTab(&focused->as.leaf.view);
+	}
+	if (next_idx < 0 || next_idx >= E.tab_count) {
+		next_idx = closing < E.tab_count ? closing : E.tab_count - 1;
+	}
+	return next_idx;
+}
+
 int editorTabCloseActive(void) {
 	if (E.tab_count <= 0 || E.tabs == NULL) {
 		return 0;
@@ -895,18 +965,7 @@ int editorTabCloseActive(void) {
 
 	if (editorPaneTreeAnyPaneHasTab(E.layout_root, closing)) {
 		if (focused_is_editor) {
-			if (focused->as.leaf.view.pane_tab_count > 0) {
-				int next_idx = editorPaneViewMostRecentTab(&focused->as.leaf.view);
-				if (next_idx < 0) {
-					next_idx = focused->as.leaf.view.pane_tabs[0];
-				}
-				(void)editorTabSwitchToIndex(next_idx);
-			} else if (!tabsCloseFocusedPaneIfEmpty(0)) {
-				int new_idx = editorTabAppendEmptyForPane(focused);
-				if (new_idx >= 0) {
-					(void)editorTabSwitchToIndex(new_idx);
-				}
-			}
+			tabsFinishSharedTabCloseInFocusedPane(focused);
 		}
 		return 1;
 	}
@@ -916,11 +975,7 @@ int editorTabCloseActive(void) {
 	tabsStateFree(&E.tabs[closing]);
 
 	if (E.tab_count == 1) {
-		tabsStateInitEmpty(&E.tabs[0]);
-		E.active_tab = 0;
-		E.tab_count = 1;
-		tabsLoadActiveTab(0);
-		tabsRegisterWithFocusedPane(0);
+		tabsResetLastTabAfterClose();
 		return 1;
 	}
 
@@ -929,29 +984,11 @@ int editorTabCloseActive(void) {
 	E.tab_count--;
 	editorPaneTreeShiftTabIndicesAfterClose(E.layout_root, closing);
 
-	if (focused_is_editor && focused->as.leaf.view.pane_tab_count == 0) {
-		if (tabsCloseFocusedPaneIfEmpty(1)) {
-			return 1;
-		}
-		int new_idx = editorTabAppendEmptyForPane(focused);
-		if (new_idx >= 0) {
-			E.active_tab = new_idx;
-			tabsLoadActiveTab(new_idx);
-			return 1;
-		}
+	if (tabsHandleEmptyFocusedPaneAfterGlobalClose(focused, focused_is_editor)) {
+		return 1;
 	}
 
-	int next_idx = -1;
-	if (focused_is_editor && focused->as.leaf.view.pane_tab_count > 0) {
-		next_idx = editorPaneViewMostRecentTab(&focused->as.leaf.view);
-		if (next_idx < 0) {
-			next_idx = focused->as.leaf.view.pane_tabs[0];
-		}
-	}
-	if (next_idx < 0 || next_idx >= E.tab_count) {
-		next_idx = closing < E.tab_count ? closing : E.tab_count - 1;
-	}
-	E.active_tab = next_idx;
+	E.active_tab = tabsNextIndexAfterGlobalClose(closing, focused, focused_is_editor);
 	tabsLoadActiveTab(E.active_tab);
 	tabsRegisterWithFocusedPane(E.active_tab);
 	return 1;
