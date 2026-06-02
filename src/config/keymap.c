@@ -288,129 +288,49 @@ static int keymapParseArrowToken(const char *token, int *arrow_out) {
 }
 
 static int keymapArrowWithModifiers(int arrow, int modifiers, int *key_out) {
-	switch (modifiers) {
-		case KEYMAP_MOD_SHIFT:
-			switch (arrow) {
-				case ARROW_LEFT:
-					*key_out = SHIFT_ARROW_LEFT;
-					return 1;
-				case ARROW_RIGHT:
-					*key_out = SHIFT_ARROW_RIGHT;
-					return 1;
-				case ARROW_DOWN:
-					*key_out = SHIFT_ARROW_DOWN;
-					return 1;
-				case ARROW_UP:
-					*key_out = SHIFT_ARROW_UP;
-					return 1;
-				default:
-					return 0;
-			}
-		case KEYMAP_MOD_CTRL | KEYMAP_MOD_SHIFT:
-			switch (arrow) {
-				case ARROW_LEFT:
-					*key_out = CTRL_SHIFT_ARROW_LEFT;
-					return 1;
-				case ARROW_RIGHT:
-					*key_out = CTRL_SHIFT_ARROW_RIGHT;
-					return 1;
-				case ARROW_DOWN:
-					*key_out = CTRL_SHIFT_ARROW_DOWN;
-					return 1;
-				case ARROW_UP:
-					*key_out = CTRL_SHIFT_ARROW_UP;
-					return 1;
-				default:
-					return 0;
-			}
-		case KEYMAP_MOD_ALT:
-			switch (arrow) {
-				case ARROW_LEFT:
-					*key_out = ALT_ARROW_LEFT;
-					return 1;
-				case ARROW_RIGHT:
-					*key_out = ALT_ARROW_RIGHT;
-					return 1;
-				case ARROW_DOWN:
-					*key_out = ALT_ARROW_DOWN;
-					return 1;
-				case ARROW_UP:
-					*key_out = ALT_ARROW_UP;
-					return 1;
-				default:
-					return 0;
-			}
-		case KEYMAP_MOD_ALT | KEYMAP_MOD_SHIFT:
-			switch (arrow) {
-				case ARROW_LEFT:
-					*key_out = ALT_SHIFT_ARROW_LEFT;
-					return 1;
-				case ARROW_RIGHT:
-					*key_out = ALT_SHIFT_ARROW_RIGHT;
-					return 1;
-				case ARROW_DOWN:
-					*key_out = ALT_SHIFT_ARROW_DOWN;
-					return 1;
-				case ARROW_UP:
-					*key_out = ALT_SHIFT_ARROW_UP;
-					return 1;
-				default:
-					return 0;
-			}
-		case KEYMAP_MOD_CTRL:
-			switch (arrow) {
-				case ARROW_LEFT:
-					*key_out = CTRL_ARROW_LEFT;
-					return 1;
-				case ARROW_RIGHT:
-					*key_out = CTRL_ARROW_RIGHT;
-					return 1;
-				case ARROW_DOWN:
-					*key_out = CTRL_ARROW_DOWN;
-					return 1;
-				case ARROW_UP:
-					*key_out = CTRL_ARROW_UP;
-					return 1;
-				default:
-					return 0;
-			}
-		case KEYMAP_MOD_CTRL | KEYMAP_MOD_ALT:
-			switch (arrow) {
-				case ARROW_LEFT:
-					*key_out = CTRL_ALT_ARROW_LEFT;
-					return 1;
-				case ARROW_RIGHT:
-					*key_out = CTRL_ALT_ARROW_RIGHT;
-					return 1;
-				case ARROW_DOWN:
-					*key_out = CTRL_ALT_ARROW_DOWN;
-					return 1;
-				case ARROW_UP:
-					*key_out = CTRL_ALT_ARROW_UP;
-					return 1;
-				default:
-					return 0;
-			}
-		case KEYMAP_MOD_CTRL | KEYMAP_MOD_SHIFT | KEYMAP_MOD_ALT:
-			switch (arrow) {
-				case ARROW_LEFT:
-					*key_out = CTRL_SHIFT_ALT_ARROW_LEFT;
-					return 1;
-				case ARROW_RIGHT:
-					*key_out = CTRL_SHIFT_ALT_ARROW_RIGHT;
-					return 1;
-				case ARROW_DOWN:
-					*key_out = CTRL_SHIFT_ALT_ARROW_DOWN;
-					return 1;
-				case ARROW_UP:
-					*key_out = CTRL_SHIFT_ALT_ARROW_UP;
-					return 1;
-				default:
-					return 0;
-			}
-		default:
-			return 0;
+	static const struct {
+		int modifiers;
+		int left;
+		int right;
+		int down;
+		int up;
+	} arrow_keys[] = {
+	        {KEYMAP_MOD_SHIFT, SHIFT_ARROW_LEFT, SHIFT_ARROW_RIGHT, SHIFT_ARROW_DOWN,
+	         SHIFT_ARROW_UP},
+	        {KEYMAP_MOD_CTRL | KEYMAP_MOD_SHIFT, CTRL_SHIFT_ARROW_LEFT, CTRL_SHIFT_ARROW_RIGHT,
+	         CTRL_SHIFT_ARROW_DOWN, CTRL_SHIFT_ARROW_UP},
+	        {KEYMAP_MOD_ALT, ALT_ARROW_LEFT, ALT_ARROW_RIGHT, ALT_ARROW_DOWN, ALT_ARROW_UP},
+	        {KEYMAP_MOD_ALT | KEYMAP_MOD_SHIFT, ALT_SHIFT_ARROW_LEFT, ALT_SHIFT_ARROW_RIGHT,
+	         ALT_SHIFT_ARROW_DOWN, ALT_SHIFT_ARROW_UP},
+	        {KEYMAP_MOD_CTRL, CTRL_ARROW_LEFT, CTRL_ARROW_RIGHT, CTRL_ARROW_DOWN,
+	         CTRL_ARROW_UP},
+	        {KEYMAP_MOD_CTRL | KEYMAP_MOD_ALT, CTRL_ALT_ARROW_LEFT, CTRL_ALT_ARROW_RIGHT,
+	         CTRL_ALT_ARROW_DOWN, CTRL_ALT_ARROW_UP},
+	        {KEYMAP_MOD_CTRL | KEYMAP_MOD_SHIFT | KEYMAP_MOD_ALT, CTRL_SHIFT_ALT_ARROW_LEFT,
+	         CTRL_SHIFT_ALT_ARROW_RIGHT, CTRL_SHIFT_ALT_ARROW_DOWN, CTRL_SHIFT_ALT_ARROW_UP},
+	};
+	for (size_t i = 0; i < sizeof(arrow_keys) / sizeof(arrow_keys[0]); i++) {
+		if (arrow_keys[i].modifiers != modifiers) {
+			continue;
+		}
+		switch (arrow) {
+			case ARROW_LEFT:
+				*key_out = arrow_keys[i].left;
+				return 1;
+			case ARROW_RIGHT:
+				*key_out = arrow_keys[i].right;
+				return 1;
+			case ARROW_DOWN:
+				*key_out = arrow_keys[i].down;
+				return 1;
+			case ARROW_UP:
+				*key_out = arrow_keys[i].up;
+				return 1;
+			default:
+				return 0;
+		}
 	}
+	return 0;
 }
 
 static int keymapParseKeySpec(const char *spec, int *key_out) {
