@@ -88,18 +88,12 @@ int editorConfigParseQuotedValue(const char *value, char *buf, size_t bufsize) {
 enum { CONFIG_SCAN_LINE_MAX = 1024 };
 
 enum editorConfigScanStatus
-editorConfigScanFile(const char *path, const struct editorConfigScanner *scanner, void *ctx) {
-	FILE *fp = fopen(path, "r");
-	if (fp == NULL) {
-		return errno == ENOENT ? EDITOR_CONFIG_SCAN_MISSING : EDITOR_CONFIG_SCAN_MALFORMED;
-	}
-
+editorConfigScanStream(FILE *fp, const struct editorConfigScanner *scanner, void *ctx) {
 	int in_selected_table = scanner->on_section != NULL && scanner->on_section(ctx, "");
 	char line[CONFIG_SCAN_LINE_MAX];
 	while (fgets(line, sizeof(line), fp) != NULL) {
 		size_t line_len = strlen(line);
 		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
-			(void)fclose(fp);
 			return EDITOR_CONFIG_SCAN_MALFORMED;
 		}
 
@@ -113,7 +107,6 @@ editorConfigScanFile(const char *path, const struct editorConfigScanner *scanner
 		if (trimmed[0] == '[') {
 			char *close = strchr(trimmed, ']');
 			if (close == NULL) {
-				(void)fclose(fp);
 				return EDITOR_CONFIG_SCAN_MALFORMED;
 			}
 			*close = '\0';
@@ -121,7 +114,6 @@ editorConfigScanFile(const char *path, const struct editorConfigScanner *scanner
 			editorConfigTrimRight(table);
 			char *tail = editorConfigTrimLeft(close + 1);
 			if (tail[0] != '\0') {
-				(void)fclose(fp);
 				return EDITOR_CONFIG_SCAN_MALFORMED;
 			}
 			in_selected_table =
@@ -135,7 +127,6 @@ editorConfigScanFile(const char *path, const struct editorConfigScanner *scanner
 
 		char *eq = strchr(trimmed, '=');
 		if (eq == NULL) {
-			(void)fclose(fp);
 			return EDITOR_CONFIG_SCAN_MALFORMED;
 		}
 		*eq = '\0';
@@ -143,22 +134,26 @@ editorConfigScanFile(const char *path, const struct editorConfigScanner *scanner
 		editorConfigTrimRight(key);
 		char *value = editorConfigTrimLeft(eq + 1);
 		if (key[0] == '\0') {
-			(void)fclose(fp);
 			return EDITOR_CONFIG_SCAN_MALFORMED;
 		}
 		if (scanner->on_entry != NULL && !scanner->on_entry(ctx, key, value)) {
-			(void)fclose(fp);
 			return EDITOR_CONFIG_SCAN_MALFORMED;
 		}
 	}
 
-	if (ferror(fp)) {
-		(void)fclose(fp);
-		return EDITOR_CONFIG_SCAN_MALFORMED;
+	return ferror(fp) ? EDITOR_CONFIG_SCAN_MALFORMED : EDITOR_CONFIG_SCAN_OK;
+}
+
+enum editorConfigScanStatus
+editorConfigScanFile(const char *path, const struct editorConfigScanner *scanner, void *ctx) {
+	FILE *fp = fopen(path, "r");
+	if (fp == NULL) {
+		return errno == ENOENT ? EDITOR_CONFIG_SCAN_MISSING : EDITOR_CONFIG_SCAN_MALFORMED;
 	}
 
+	enum editorConfigScanStatus status = editorConfigScanStream(fp, scanner, ctx);
 	(void)fclose(fp);
-	return EDITOR_CONFIG_SCAN_OK;
+	return status;
 }
 
 char *editorConfigBuildGlobalConfigPath(void) {

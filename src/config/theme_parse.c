@@ -36,6 +36,11 @@ struct themeParseContext {
 	int saw_theme_name;
 };
 
+struct themeParseDriver {
+	struct editorTheme *theme;
+	struct themeParseContext *ctx;
+};
+
 static int themeParseNormalizeToken(const char *token, char *out, size_t out_size) {
 	if (token == NULL || out == NULL || out_size == 0) {
 		return 0;
@@ -310,23 +315,6 @@ static int themeParseUiRoleName(const char *name, enum editorThemeUiRole *role_o
 	return 0;
 }
 
-static int themeParseKeyValue(char *trimmed, char **key_out, char **value_out) {
-	char *eq = strchr(trimmed, '=');
-	if (eq == NULL) {
-		return 0;
-	}
-	*eq = '\0';
-	char *key = editorConfigTrimLeft(trimmed);
-	editorConfigTrimRight(key);
-	char *value = editorConfigTrimLeft(eq + 1);
-	if (key[0] == '\0') {
-		return 0;
-	}
-	*key_out = key;
-	*value_out = value;
-	return 1;
-}
-
 static int themeParseAnsiSlotName(const char *name, enum editorThemeAnsiColor *slot_out) {
 	char normalized[64];
 	if (!themeParseNormalizeToken(name, normalized, sizeof(normalized))) {
@@ -377,23 +365,15 @@ static void themeParseApplyStyleColor(struct editorTheme *theme, enum editorThem
 	theme->styles[role].reverse = 0;
 }
 
-static void themeParseEntry(struct editorTheme *theme, struct themeParseContext *ctx,
-                            char *trimmed) {
-	if (!ctx->is_theme_file && !ctx->in_theme_table) {
-		return;
-	}
-
-	char *key = NULL;
-	char *value = NULL;
-	if (!themeParseKeyValue(trimmed, &key, &value)) {
-		ctx->had_invalid = 1;
-		return;
-	}
+static int themeConfigOnEntry(void *vdriver, const char *key, char *value) {
+	struct themeParseDriver *driver = vdriver;
+	struct editorTheme *theme = driver->theme;
+	struct themeParseContext *ctx = driver->ctx;
 
 	char parsed[64];
 	if (!editorConfigParseQuotedValue(value, parsed, sizeof(parsed))) {
 		ctx->had_invalid = 1;
-		return;
+		return 1;
 	}
 
 	if (ctx->is_theme_file && !ctx->in_theme_syntax_table && !ctx->in_theme_ui_table &&
@@ -401,43 +381,43 @@ static void themeParseEntry(struct editorTheme *theme, struct themeParseContext 
 		if (strcmp(key, "name") == 0) {
 			if (!themeParseNameIsValid(parsed)) {
 				ctx->had_invalid = 1;
-				return;
+				return 1;
 			}
 			(void)snprintf(ctx->theme_name, sizeof(ctx->theme_name), "%s", parsed);
 			ctx->saw_theme_name = 1;
-			return;
+			return 1;
 		}
 		if (strcmp(key, "inherits") == 0) {
 			if (!themeParseNameIsValid(parsed)) {
 				ctx->had_invalid = 1;
-				return;
+				return 1;
 			}
 			(void)snprintf(ctx->inherits_name, sizeof(ctx->inherits_name), "%s",
 			               parsed);
-			return;
+			return 1;
 		}
 		ctx->had_invalid = 1;
-		return;
+		return 1;
 	}
 
 	if (!ctx->is_theme_file) {
 		if (strcmp(key, "name") == 0) {
 			if (!themeParseNameIsValid(parsed)) {
 				ctx->had_invalid = 1;
-				return;
+				return 1;
 			}
 			(void)snprintf(ctx->selected_name, sizeof(ctx->selected_name), "%s",
 			               parsed);
-			return;
+			return 1;
 		}
 		ctx->had_invalid = 1;
-		return;
+		return 1;
 	}
 
 	struct editorThemeColor color = editorThemeDefaultColor();
 	if (!themeParseColorValue(parsed, &color)) {
 		ctx->had_invalid = 1;
-		return;
+		return 1;
 	}
 
 	if (ctx->in_theme_syntax_table) {
@@ -445,10 +425,10 @@ static void themeParseEntry(struct editorTheme *theme, struct themeParseContext 
 		if (!themeParseSyntaxHighlightClassName(key, &highlight_class) ||
 		    highlight_class == EDITOR_SYNTAX_HL_NONE) {
 			ctx->had_invalid = 1;
-			return;
+			return 1;
 		}
 		theme->syntax[highlight_class] = color;
-		return;
+		return 1;
 	}
 
 	if (ctx->in_theme_ui_table) {
@@ -458,42 +438,32 @@ static void themeParseEntry(struct editorTheme *theme, struct themeParseContext 
 		int is_style_bg = 0;
 		if (!themeParseUiRoleName(key, &role, &style, &is_style_fg, &is_style_bg)) {
 			ctx->had_invalid = 1;
-			return;
+			return 1;
 		}
 		if (role < EDITOR_THEME_UI_ROLE_COUNT) {
 			theme->ui[role] = color;
 		} else if (style < EDITOR_THEME_STYLE_ROLE_COUNT) {
 			themeParseApplyStyleColor(theme, style, is_style_fg, color);
 		}
-		return;
+		return 1;
 	}
 
 	if (ctx->in_theme_ansi_table) {
 		enum editorThemeAnsiColor slot = EDITOR_THEME_ANSI_COUNT;
 		if (!themeParseAnsiSlotName(key, &slot) || slot >= EDITOR_THEME_ANSI_COUNT) {
 			ctx->had_invalid = 1;
-			return;
+			return 1;
 		}
 		theme->ansi[slot] = color;
-		return;
+		return 1;
 	}
 
 	ctx->had_invalid = 1;
+	return 1;
 }
 
-static int themeParseTable(struct themeParseContext *ctx, char *trimmed) {
-	char *close = strchr(trimmed, ']');
-	if (close == NULL) {
-		return 0;
-	}
-	*close = '\0';
-	char *table = editorConfigTrimLeft(trimmed + 1);
-	editorConfigTrimRight(table);
-	char *tail = editorConfigTrimLeft(close + 1);
-	if (tail[0] != '\0') {
-		return 0;
-	}
-
+static int themeConfigOnSection(void *vdriver, const char *table) {
+	struct themeParseContext *ctx = ((struct themeParseDriver *)vdriver)->ctx;
 	ctx->in_theme_table = strcmp(table, "theme") == 0;
 	ctx->in_theme_syntax_table = strcmp(table, "theme.syntax") == 0;
 	ctx->in_theme_ui_table = strcmp(table, "theme.ui") == 0;
@@ -502,7 +472,9 @@ static int themeParseTable(struct themeParseContext *ctx, char *trimmed) {
 	    (ctx->in_theme_syntax_table || ctx->in_theme_ui_table || ctx->in_theme_ansi_table)) {
 		ctx->had_invalid = 1;
 	}
-	return 1;
+	/* Theme files route every section's entries (top-level name/inherits and the
+	 * color sub-tables); config files only read the [theme] selector. */
+	return ctx->is_theme_file || ctx->in_theme_table;
 }
 
 /* Drain a theme TOML stream into `theme`. Caller owns `fp` (close it
@@ -518,34 +490,9 @@ static enum themeParseFileStatus themeParseApplyStream(struct editorTheme *theme
 	ctx.is_theme_file = is_theme_file;
 	(void)snprintf(ctx.inherits_name, sizeof(ctx.inherits_name), "%s", "terminal");
 
-	char line[1024];
-	while (fgets(line, sizeof(line), fp) != NULL) {
-		size_t line_len = strlen(line);
-		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
-			ctx.had_invalid = 1;
-			int ch = 0;
-			while ((ch = fgetc(fp)) != '\n' && ch != EOF) {
-				;
-			}
-			continue;
-		}
-
-		editorConfigStripInlineComment(line);
-		editorConfigTrimRight(line);
-		char *trimmed = editorConfigTrimLeft(line);
-		if (trimmed[0] == '\0') {
-			continue;
-		}
-		if (trimmed[0] == '[') {
-			if (!themeParseTable(&ctx, trimmed)) {
-				ctx.had_invalid = 1;
-			}
-			continue;
-		}
-		themeParseEntry(theme, &ctx, trimmed);
-	}
-
-	if (ferror(fp)) {
+	struct themeParseDriver driver = {.theme = theme, .ctx = &ctx};
+	struct editorConfigScanner scanner = {themeConfigOnSection, themeConfigOnEntry};
+	if (editorConfigScanStream(fp, &scanner, &driver) != EDITOR_CONFIG_SCAN_OK) {
 		ctx.had_invalid = 1;
 	}
 

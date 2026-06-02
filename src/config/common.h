@@ -2,6 +2,7 @@
 #define ROTIDE_CONFIG_COMMON_H
 
 #include <stddef.h>
+#include <stdio.h>
 
 char *editorConfigTrimLeft(char *s);
 void editorConfigTrimRight(char *s);
@@ -32,6 +33,11 @@ struct editorConfigScanner {
 
 enum editorConfigScanStatus
 editorConfigScanFile(const char *path, const struct editorConfigScanner *scanner, void *ctx);
+
+/* As above, but scans an already-open stream the caller owns (never returns
+ * MISSING). Lets callers with a FILE * — e.g. a fuzz harness — reuse the scan. */
+enum editorConfigScanStatus
+editorConfigScanStream(FILE *fp, const struct editorConfigScanner *scanner, void *ctx);
 
 enum editorConfigBootstrapStatus {
 	EDITOR_CONFIG_BOOTSTRAP_OK = 0,
