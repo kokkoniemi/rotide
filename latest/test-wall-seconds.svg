@@ -3,9 +3,9 @@
 <rect width="720" height="320" fill="#ffffff"/>
 <text x="360" y="24" text-anchor="middle" font-size="14" font-weight="600" fill="#222">Test runtime (jobs=4, median)</text>
 <line x1="72" y1="44.0" x2="696" y2="44.0" stroke="#e6e6e6" stroke-width="1"/>
-<text x="64" y="44.0" text-anchor="end" dominant-baseline="middle" fill="#222">444</text>
+<text x="64" y="44.0" text-anchor="end" dominant-baseline="middle" fill="#222">449</text>
 <line x1="72" y1="156.0" x2="696" y2="156.0" stroke="#e6e6e6" stroke-width="1"/>
-<text x="64" y="156.0" text-anchor="end" dominant-baseline="middle" fill="#222">222</text>
+<text x="64" y="156.0" text-anchor="end" dominant-baseline="middle" fill="#222">224</text>
 <line x1="72" y1="268.0" x2="696" y2="268.0" stroke="#e6e6e6" stroke-width="1"/>
 <text x="64" y="268.0" text-anchor="end" dominant-baseline="middle" fill="#222">0</text>
 <text x="16" y="156" text-anchor="middle" fill="#222" transform="rotate(-90 16 156)">seconds</text>
@@ -13,22 +13,22 @@
 <line x1="72" y1="268" x2="696" y2="268" stroke="#444" stroke-width="1"/>
 <line x1="72.0" y1="268" x2="72.0" y2="272" stroke="#444" stroke-width="1"/>
 <text x="72.0" y="286" text-anchor="middle" fill="#222">2026-05-19</text>
-<line x1="185.5" y1="268" x2="185.5" y2="272" stroke="#444" stroke-width="1"/>
-<text x="185.5" y="286" text-anchor="middle" fill="#222">2026-05-24</text>
-<line x1="298.9" y1="268" x2="298.9" y2="272" stroke="#444" stroke-width="1"/>
-<text x="298.9" y="286" text-anchor="middle" fill="#222">2026-05-25#3</text>
-<line x1="412.4" y1="268" x2="412.4" y2="272" stroke="#444" stroke-width="1"/>
-<text x="412.4" y="286" text-anchor="middle" fill="#222">2026-05-26#3</text>
-<line x1="525.8" y1="268" x2="525.8" y2="272" stroke="#444" stroke-width="1"/>
-<text x="525.8" y="286" text-anchor="middle" fill="#222">2026-05-29</text>
-<line x1="639.3" y1="268" x2="639.3" y2="272" stroke="#444" stroke-width="1"/>
-<text x="639.3" y="286" text-anchor="middle" fill="#222">2026-05-31</text>
+<line x1="180.5" y1="268" x2="180.5" y2="272" stroke="#444" stroke-width="1"/>
+<text x="180.5" y="286" text-anchor="middle" fill="#222">2026-05-24</text>
+<line x1="289.0" y1="268" x2="289.0" y2="272" stroke="#444" stroke-width="1"/>
+<text x="289.0" y="286" text-anchor="middle" fill="#222">2026-05-25#3</text>
+<line x1="397.6" y1="268" x2="397.6" y2="272" stroke="#444" stroke-width="1"/>
+<text x="397.6" y="286" text-anchor="middle" fill="#222">2026-05-26#3</text>
+<line x1="506.1" y1="268" x2="506.1" y2="272" stroke="#444" stroke-width="1"/>
+<text x="506.1" y="286" text-anchor="middle" fill="#222">2026-05-29</text>
+<line x1="614.6" y1="268" x2="614.6" y2="272" stroke="#444" stroke-width="1"/>
+<text x="614.6" y="286" text-anchor="middle" fill="#222">2026-05-31</text>
 <line x1="696.0" y1="268" x2="696.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="696.0" y="286" text-anchor="middle" fill="#222">2026-06-01</text>
-<polyline fill="none" stroke="#1f77b4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 100.4,268.0 128.7,268.0 157.1,268.0 185.5,268.0 213.8,268.0 242.2,268.0 270.5,268.0 298.9,268.0 327.3,268.0 355.6,268.0 384.0,268.0 412.4,268.0 440.7,268.0 469.1,268.0 497.5,268.0 525.8,257.7 554.2,257.3 582.5,256.9 610.9,256.9 639.3,107.7 667.6,160.6 696.0,64.4"/>
-<circle cx="696.0" cy="64.4" r="3" fill="#1f77b4"/>
-<polyline fill="none" stroke="#ff7f0e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,264.0 100.4,264.0 128.7,264.0 157.1,263.9 185.5,263.9 213.8,263.9 242.2,263.9 270.5,263.9 298.9,263.9 327.3,264.0 355.6,264.1 384.0,264.1 412.4,264.0 440.7,264.0 469.1,264.1 497.5,264.1 525.8,263.9 554.2,264.1 582.5,264.1 610.9,264.0 639.3,209.4 667.6,228.4 696.0,192.9"/>
-<circle cx="696.0" cy="192.9" r="3" fill="#ff7f0e"/>
+<text x="696.0" y="286" text-anchor="middle" fill="#222">2026-06-02</text>
+<polyline fill="none" stroke="#1f77b4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 99.1,268.0 126.3,268.0 153.4,268.0 180.5,268.0 207.7,268.0 234.8,268.0 261.9,268.0 289.0,268.0 316.2,268.0 343.3,268.0 370.4,268.0 397.6,268.0 424.7,268.0 451.8,268.0 479.0,268.0 506.1,257.8 533.2,257.4 560.3,257.0 587.5,257.0 614.6,109.5 641.7,66.7 668.9,64.4 696.0,66.7"/>
+<circle cx="696.0" cy="66.7" r="3" fill="#1f77b4"/>
+<polyline fill="none" stroke="#ff7f0e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,264.1 99.1,264.0 126.3,264.1 153.4,263.9 180.5,264.0 207.7,263.9 234.8,264.0 261.9,264.0 289.0,264.0 316.2,264.1 343.3,264.1 370.4,264.1 397.6,264.1 424.7,264.1 451.8,264.1 479.0,264.1 506.1,263.9 533.2,264.1 560.3,264.1 587.5,264.0 614.6,210.1 641.7,193.8 668.9,192.6 696.0,193.8"/>
+<circle cx="696.0" cy="193.8" r="3" fill="#ff7f0e"/>
 <line x1="586" y1="50" x2="604" y2="50" stroke="#1f77b4" stroke-width="2"/>
 <text x="610" y="50" dominant-baseline="middle" fill="#222">exec total</text>
 <line x1="586" y1="66" x2="604" y2="66" stroke="#ff7f0e" stroke-width="2"/>
