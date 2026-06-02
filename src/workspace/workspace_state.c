@@ -58,6 +58,43 @@ static void workspaceStateFreeRecentFiles(void);
 static void workspaceStateFreePendingTabs(void);
 static void workspaceStateFreePendingPaneTabs(void);
 
+static void *workspaceStateEnsureArrayCapacity(void *items, int needed, int *capacity,
+                                               size_t elem_size, int limit, int initial_capacity) {
+	if (needed <= *capacity) {
+		return items;
+	}
+	if (needed > limit || elem_size == 0 || initial_capacity <= 0) {
+		return NULL;
+	}
+
+	int new_capacity = initial_capacity;
+	if (*capacity > 0) {
+		if (*capacity > INT32_MAX / 2) {
+			return NULL;
+		}
+		new_capacity = *capacity * 2;
+	}
+	while (new_capacity < needed && new_capacity < limit) {
+		if (new_capacity > INT32_MAX / 2) {
+			return NULL;
+		}
+		new_capacity *= 2;
+	}
+	if (new_capacity > limit) {
+		new_capacity = limit;
+	}
+	if (needed > new_capacity || (size_t)new_capacity > SIZE_MAX / elem_size) {
+		return NULL;
+	}
+
+	void *grown = editorRealloc(items, elem_size * (size_t)new_capacity);
+	if (grown == NULL) {
+		return NULL;
+	}
+	*capacity = new_capacity;
+	return grown;
+}
+
 static uint64_t workspaceStateHashPath(const char *path) {
 	uint64_t hash = UINT64_C(1469598103934665603);
 	const unsigned char *p = (const unsigned char *)path;
@@ -194,20 +231,13 @@ static int workspaceStateAppendPendingPaneTab(int pane_idx, int is_active, const
 	if (g_pending_pane_tab_count >= ROTIDE_WORKSPACE_PENDING_PANE_TAB_LIMIT) {
 		return 0;
 	}
-	if (g_pending_pane_tab_count >= g_pending_pane_tab_capacity) {
-		int new_cap =
-		        g_pending_pane_tab_capacity > 0 ? g_pending_pane_tab_capacity * 2 : 16;
-		if (new_cap > ROTIDE_WORKSPACE_PENDING_PANE_TAB_LIMIT) {
-			new_cap = ROTIDE_WORKSPACE_PENDING_PANE_TAB_LIMIT;
-		}
-		struct workspaceStatePendingPaneTab *grown = realloc(
-		        g_pending_pane_tabs, sizeof(*g_pending_pane_tabs) * (size_t)new_cap);
-		if (grown == NULL) {
-			return 0;
-		}
-		g_pending_pane_tabs = grown;
-		g_pending_pane_tab_capacity = new_cap;
+	struct workspaceStatePendingPaneTab *grown = workspaceStateEnsureArrayCapacity(
+	        g_pending_pane_tabs, g_pending_pane_tab_count + 1, &g_pending_pane_tab_capacity,
+	        sizeof(*g_pending_pane_tabs), ROTIDE_WORKSPACE_PENDING_PANE_TAB_LIMIT, 16);
+	if (grown == NULL) {
+		return 0;
 	}
+	g_pending_pane_tabs = grown;
 	char *copy = strdup(path);
 	if (copy == NULL) {
 		return 0;
@@ -226,19 +256,13 @@ static int workspaceStateAppendPendingTab(int cx, int cy, const char *path) {
 	if (g_pending_tab_count >= ROTIDE_WORKSPACE_PENDING_TAB_LIMIT) {
 		return 0;
 	}
-	if (g_pending_tab_count >= g_pending_tab_capacity) {
-		int new_cap = g_pending_tab_capacity > 0 ? g_pending_tab_capacity * 2 : 8;
-		if (new_cap > ROTIDE_WORKSPACE_PENDING_TAB_LIMIT) {
-			new_cap = ROTIDE_WORKSPACE_PENDING_TAB_LIMIT;
-		}
-		struct workspaceStatePendingTab *grown =
-		        realloc(g_pending_tabs, sizeof(*g_pending_tabs) * (size_t)new_cap);
-		if (grown == NULL) {
-			return 0;
-		}
-		g_pending_tabs = grown;
-		g_pending_tab_capacity = new_cap;
+	struct workspaceStatePendingTab *grown = workspaceStateEnsureArrayCapacity(
+	        g_pending_tabs, g_pending_tab_count + 1, &g_pending_tab_capacity,
+	        sizeof(*g_pending_tabs), ROTIDE_WORKSPACE_PENDING_TAB_LIMIT, 8);
+	if (grown == NULL) {
+		return 0;
 	}
+	g_pending_tabs = grown;
 	char *copy = strdup(path);
 	if (copy == NULL) {
 		return 0;
@@ -251,30 +275,13 @@ static int workspaceStateAppendPendingTab(int cx, int cy, const char *path) {
 }
 
 static int workspaceStateEnsureRecentFileCapacity(int needed) {
-	if (needed <= E.recent_file_capacity) {
-		return 1;
-	}
-	int new_capacity = E.recent_file_capacity > 0 ? E.recent_file_capacity * 2 : 16;
-	while (new_capacity < needed && new_capacity < ROTIDE_WORKSPACE_RECENT_FILE_LIMIT) {
-		if (new_capacity > INT32_MAX / 2) {
-			return 0;
-		}
-		new_capacity *= 2;
-	}
-	if (new_capacity > ROTIDE_WORKSPACE_RECENT_FILE_LIMIT) {
-		new_capacity = ROTIDE_WORKSPACE_RECENT_FILE_LIMIT;
-	}
-	if (needed > new_capacity) {
-		return 0;
-	}
-
-	char **paths = editorRealloc(E.recent_file_paths,
-	                             sizeof(*E.recent_file_paths) * (size_t)new_capacity);
+	char **paths = workspaceStateEnsureArrayCapacity(
+	        E.recent_file_paths, needed, &E.recent_file_capacity, sizeof(*E.recent_file_paths),
+	        ROTIDE_WORKSPACE_RECENT_FILE_LIMIT, 16);
 	if (paths == NULL) {
 		return 0;
 	}
 	E.recent_file_paths = paths;
-	E.recent_file_capacity = new_capacity;
 	return 1;
 }
 
