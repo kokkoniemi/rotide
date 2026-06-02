@@ -9,6 +9,7 @@
 #include "workspace/layout.h"
 #include "workspace/tabs.h"
 
+#include <fcntl.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -344,6 +345,84 @@ static int test_editor_dap_launch_field_array_values_lifecycle(void) {
 	return 0;
 }
 
+static size_t dap_drain_fd(int fd, char *buf, size_t cap) {
+	size_t total = 0;
+	while (total + 1 < cap) {
+		ssize_t n = read(fd, buf + total, cap - 1 - total);
+		if (n <= 0) {
+			break;
+		}
+		total += (size_t)n;
+	}
+	buf[total] = '\0';
+	return total;
+}
+
+static int test_editor_dap_handshake_sends_launch_after_initialize_response(void) {
+	int fds[2];
+	ASSERT_TRUE(pipe(fds) == 0);
+	int flags = fcntl(fds[0], F_GETFL, 0);
+	ASSERT_TRUE(flags != -1 && fcntl(fds[0], F_SETFL, flags | O_NONBLOCK) != -1);
+
+	E.dap_breakpoint_count = 0;
+	char *launch =
+	        strdup("{\"seq\":2,\"type\":\"request\",\"command\":\"launch\",\"arguments\":{}}");
+	ASSERT_TRUE(launch != NULL);
+	editorDapBeginSessionForTest(fds[1], launch);
+	ASSERT_EQ_INT(1, editorDapSessionStateForTest());
+
+	/* Nothing is sent until the initialize response arrives. */
+	char buf[4096];
+	ASSERT_EQ_INT(0, (int)dap_drain_fd(fds[0], buf, sizeof(buf)));
+
+	(void)editorDapProcessIncomingMessage("{\"type\":\"response\",\"command\":\"initialize\","
+	                                      "\"success\":true,\"request_seq\":1}");
+	ASSERT_EQ_INT(2, editorDapSessionStateForTest());
+	ASSERT_TRUE(dap_drain_fd(fds[0], buf, sizeof(buf)) > 0);
+	ASSERT_TRUE(strstr(buf, "\"command\":\"launch\"") != NULL);
+
+	/* The initialized event registers breakpoints, then configurationDone. */
+	E.dap_breakpoint_count = 1;
+	(void)snprintf(E.dap_breakpoints[0].path, sizeof(E.dap_breakpoints[0].path), "%s",
+	               "/tmp/x.c");
+	E.dap_breakpoints[0].line = 10;
+	(void)editorDapProcessIncomingMessage("{\"type\":\"event\",\"event\":\"initialized\"}");
+	ASSERT_EQ_INT(3, editorDapSessionStateForTest());
+	ASSERT_TRUE(dap_drain_fd(fds[0], buf, sizeof(buf)) > 0);
+	ASSERT_TRUE(strstr(buf, "\"command\":\"setBreakpoints\"") != NULL);
+	ASSERT_TRUE(strstr(buf, "/tmp/x.c") != NULL);
+	ASSERT_TRUE(strstr(buf, "\"line\":11") != NULL);
+	ASSERT_TRUE(strstr(buf, "\"command\":\"configurationDone\"") != NULL);
+
+	/* A duplicate initialized event must not re-send configuration. */
+	(void)editorDapProcessIncomingMessage("{\"type\":\"event\",\"event\":\"initialized\"}");
+	ASSERT_EQ_INT(0, (int)dap_drain_fd(fds[0], buf, sizeof(buf)));
+
+	editorDapEndSessionForTest();
+	E.dap_breakpoint_count = 0;
+	(void)close(fds[0]);
+	(void)close(fds[1]);
+	return 0;
+}
+
+static int test_editor_dap_handshake_initialize_failure_aborts(void) {
+	int fds[2];
+	ASSERT_TRUE(pipe(fds) == 0);
+	char *launch =
+	        strdup("{\"seq\":2,\"type\":\"request\",\"command\":\"launch\",\"arguments\":{}}");
+	ASSERT_TRUE(launch != NULL);
+	editorDapBeginSessionForTest(fds[1], launch);
+
+	/* A failed initialize aborts the session (shutdown closes the write fd). */
+	(void)editorDapProcessIncomingMessage("{\"type\":\"response\",\"command\":\"initialize\","
+	                                      "\"success\":false,\"message\":\"boom\"}");
+	ASSERT_EQ_INT(0, editorDapSessionStateForTest());
+	ASSERT_EQ_INT(0, E.dap_running);
+
+	(void)close(fds[0]);
+	return 0;
+}
+
 const struct editorTestCase g_dap_tests[] = {
         {"editor_dap_config_loads_global_defaults_and_project_launches",
          test_editor_dap_config_loads_global_defaults_and_project_launches},
@@ -360,6 +439,10 @@ const struct editorTestCase g_dap_tests[] = {
          test_editor_dap_protocol_builds_initialize_and_launch_requests},
         {"editor_dap_launch_field_array_values_lifecycle",
          test_editor_dap_launch_field_array_values_lifecycle},
+        {"editor_dap_handshake_sends_launch_after_initialize_response",
+         test_editor_dap_handshake_sends_launch_after_initialize_response},
+        {"editor_dap_handshake_initialize_failure_aborts",
+         test_editor_dap_handshake_initialize_failure_aborts},
 };
 
 const int g_dap_test_count = (int)(sizeof(g_dap_tests) / sizeof(g_dap_tests[0]));

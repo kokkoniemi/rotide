@@ -22,12 +22,30 @@
 
 #define ROTIDE_DAP_IO_TIMEOUT_MS 2500
 
+/*
+ * DAP launch handshake state. Ordering is load-bearing: `launch` must follow
+ * the `initialize` *response*, and breakpoints + `configurationDone` must follow
+ * the `initialized` *event*. Adapters may start the debuggee on `launch`, so
+ * sending it before configuration loses breakpoints and the program runs to
+ * exit.
+ */
+enum dapSessionState {
+	DAP_SESSION_IDLE = 0,
+	DAP_SESSION_AWAIT_INITIALIZE_RESPONSE,
+	DAP_SESSION_AWAIT_INITIALIZED_EVENT,
+	DAP_SESSION_RUNNING,
+};
+
 struct dapClient {
 	pid_t pid;
 	int to_adapter_fd;
 	int from_adapter_fd;
 	int next_seq;
 	int initialized;
+	enum dapSessionState state;
+	/* `launch` request JSON, built at start time but not sent until the
+	 * `initialize` response arrives. Owned here; freed when sent or on reset. */
+	char *pending_launch_json;
 };
 
 static struct dapClient g_dap_client = {
@@ -36,14 +54,19 @@ static struct dapClient g_dap_client = {
         .from_adapter_fd = -1,
         .next_seq = 1,
         .initialized = 0,
+        .state = DAP_SESSION_IDLE,
+        .pending_launch_json = NULL,
 };
 
 static void dapClientReset(void) {
+	free(g_dap_client.pending_launch_json);
 	g_dap_client.pid = 0;
 	g_dap_client.to_adapter_fd = -1;
 	g_dap_client.from_adapter_fd = -1;
 	g_dap_client.next_seq = 1;
 	g_dap_client.initialized = 0;
+	g_dap_client.state = DAP_SESSION_IDLE;
+	g_dap_client.pending_launch_json = NULL;
 	E.dap_running = 0;
 	E.dap_stopped = 0;
 	E.dap_thread_count = 0;
@@ -134,6 +157,28 @@ static int dapJsonStringField(const char *json, const char *field, char *buf, si
 	int ok = snprintf(buf, bufsize, "%s", value) >= 0 && strlen(value) < bufsize;
 	free(value);
 	return ok;
+}
+
+/*
+ * Reads a response's top-level `success` boolean. DAP requires it on every
+ * response; treat its absence as success so a terse adapter isn't misread as a
+ * failure. Returns 1 unless `success` is explicitly `false`.
+ */
+static int dapJsonResponseSucceeded(const char *json) {
+	const char *start = editorLspSkipWs(json);
+	if (start == NULL || *start != '{') {
+		return 1;
+	}
+	const char *obj_end = editorLspFindJsonObjectEnd(start);
+	const char *key = editorLspFindTopLevelKey(start, obj_end, "\"success\"");
+	if (key == NULL) {
+		return 1;
+	}
+	const char *colon = strchr(key, ':');
+	if (colon == NULL) {
+		return 1;
+	}
+	return strncmp(editorLspSkipWs(colon + 1), "false", 5) != 0;
 }
 
 char *editorDapBuildInitializeRequestJson(int seq, const char *adapter_id) {
@@ -350,6 +395,35 @@ static void dapSendAllBreakpoints(void) {
 	}
 }
 
+/*
+ * Sends the queued `launch` request once `initialize` has been acknowledged.
+ * Consumes pending_launch_json (sent or freed).
+ */
+static void dapFlushPendingLaunch(void) {
+	char *launch_json = g_dap_client.pending_launch_json;
+	g_dap_client.pending_launch_json = NULL;
+	if (launch_json == NULL) {
+		return;
+	}
+	g_dap_client.state = DAP_SESSION_AWAIT_INITIALIZED_EVENT;
+	(void)dapSendRequest(launch_json);
+}
+
+/*
+ * On the `initialized` event, register breakpoints and signal that
+ * configuration is complete. Guarded so it only runs once per session.
+ */
+static void dapHandleInitializedEvent(void) {
+	if (g_dap_client.initialized) {
+		return;
+	}
+	g_dap_client.initialized = 1;
+	g_dap_client.state = DAP_SESSION_RUNNING;
+	dapSendAllBreakpoints();
+	(void)dapSendRequest(
+	        editorDapBuildSimpleCommandRequestJson(g_dap_client.next_seq++, "configurationDone"));
+}
+
 int editorDapProcessIncomingMessage(const char *message) {
 	if (message == NULL) {
 		return 0;
@@ -360,10 +434,7 @@ int editorDapProcessIncomingMessage(const char *message) {
 	if (dapJsonStringField(message, "type", type, sizeof(type)) && strcmp(type, "event") == 0 &&
 	    dapJsonStringField(message, "event", event, sizeof(event))) {
 		if (strcmp(event, "initialized") == 0) {
-			g_dap_client.initialized = 1;
-			dapSendAllBreakpoints();
-			(void)dapSendRequest(editorDapBuildSimpleCommandRequestJson(
-			        g_dap_client.next_seq++, "configurationDone"));
+			dapHandleInitializedEvent();
 			return 1;
 		}
 		if (strcmp(event, "stopped") == 0) {
@@ -395,12 +466,24 @@ int editorDapProcessIncomingMessage(const char *message) {
 		return 1;
 	}
 
-	if (dapJsonStringField(message, "command", command, sizeof(command))) {
-		if (strcmp(command, "threads") == 0) {
-			/* v1 keeps response parsing intentionally conservative; output/state still
-			 * update. */
+	if (dapJsonStringField(message, "type", type, sizeof(type)) &&
+	    strcmp(type, "response") == 0 &&
+	    dapJsonStringField(message, "command", command, sizeof(command))) {
+		if (strcmp(command, "initialize") == 0) {
+			if (!dapJsonResponseSucceeded(message)) {
+				editorSetStatusMsg("DAP initialize failed");
+				editorDapShutdown();
+				return 1;
+			}
+			dapFlushPendingLaunch();
 			return 1;
 		}
+		if (strcmp(command, "launch") == 0 && !dapJsonResponseSucceeded(message)) {
+			editorSetStatusMsg("DAP launch failed");
+			editorDapShutdown();
+			return 1;
+		}
+		return 1;
 	}
 	return 1;
 }
@@ -471,6 +554,8 @@ int editorDapStartLaunch(int launch_idx) {
 	g_dap_client.to_adapter_fd = to_fd;
 	g_dap_client.from_adapter_fd = from_fd;
 	g_dap_client.next_seq = 1;
+	g_dap_client.initialized = 0;
+	g_dap_client.state = DAP_SESSION_AWAIT_INITIALIZE_RESPONSE;
 	E.dap_selected_launch = launch_idx;
 	E.dap_running = 1;
 	E.dap_stopped = 0;
@@ -481,10 +566,24 @@ int editorDapStartLaunch(int launch_idx) {
 	if (workspace_root == NULL) {
 		workspace_root = ".";
 	}
-	if (!dapSendRequest(editorDapBuildInitializeRequestJson(g_dap_client.next_seq++,
-	                                                        launch_copy.adapter)) ||
-	    !dapSendRequest(editorDapBuildLaunchRequestJson(g_dap_client.next_seq++, &launch_copy,
-	                                                    workspace_root, E.filename))) {
+	/*
+	 * Build both requests up front so a build failure aborts cleanly, but send
+	 * only `initialize` now; `launch` is queued for dapFlushPendingLaunch (see
+	 * the handshake-ordering note on enum dapSessionState).
+	 */
+	char *init_json =
+	        editorDapBuildInitializeRequestJson(g_dap_client.next_seq++, launch_copy.adapter);
+	char *launch_json = editorDapBuildLaunchRequestJson(g_dap_client.next_seq++, &launch_copy,
+	                                                    workspace_root, E.filename);
+	if (init_json == NULL || launch_json == NULL) {
+		free(init_json);
+		free(launch_json);
+		editorDapShutdown();
+		editorSetStatusMsg("DAP launch request failed");
+		return 0;
+	}
+	g_dap_client.pending_launch_json = launch_json;
+	if (!dapSendRequest(init_json)) {
 		editorDapShutdown();
 		editorSetStatusMsg("DAP launch request failed");
 		return 0;
@@ -607,4 +706,25 @@ void editorDapShutdown(void) {
 	}
 	dapClientReset();
 	editorDapConsoleCloseOwnedTerminalPane();
+}
+
+int editorDapSessionStateForTest(void) {
+	return (int)g_dap_client.state;
+}
+
+void editorDapBeginSessionForTest(int to_adapter_fd, char *launch_json) {
+	free(g_dap_client.pending_launch_json);
+	g_dap_client.pid = 0;
+	g_dap_client.to_adapter_fd = to_adapter_fd;
+	g_dap_client.from_adapter_fd = -1;
+	g_dap_client.next_seq = 2; /* initialize already "sent" as seq 1 */
+	g_dap_client.initialized = 0;
+	g_dap_client.state = DAP_SESSION_AWAIT_INITIALIZE_RESPONSE;
+	g_dap_client.pending_launch_json = launch_json;
+	E.dap_running = 1;
+	E.dap_stopped = 0;
+}
+
+void editorDapEndSessionForTest(void) {
+	dapClientReset();
 }
