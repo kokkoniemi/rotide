@@ -5,7 +5,6 @@
 #include "terminal/terminal_pane.h"
 
 #include <errno.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -909,80 +908,48 @@ editorColumnSelectDragModifierLoadConfigured(int *modifier_out) {
 	return status;
 }
 
-static int configEditorParseTerminalScrollbackLines(const char *path, int *value_out) {
-	FILE *fp = fopen(path, "r");
-	if (fp == NULL) {
+struct configEditorScrollbackContext {
+	int value;
+	int found;
+};
+
+static int configEditorOnTerminalSection(void *ctx, const char *table) {
+	(void)ctx;
+	return strcmp(table, "terminal") == 0;
+}
+
+static int configEditorScrollbackOnEntry(void *ctx, const char *key, char *value) {
+	struct configEditorScrollbackContext *apply = ctx;
+	if (strcmp(key, "scrollback_lines") != 0) {
+		return 1;
+	}
+	char *end = NULL;
+	errno = 0;
+	long parsed = strtol(value, &end, 10);
+	if (errno != 0 || end == value || *end != '\0') {
 		return 0;
 	}
-	int in_terminal_table = 0;
-	int found = 0;
-	char line[1024];
-	while (fgets(line, sizeof(line), fp) != NULL) {
-		/* Skip the rest of any over-long line so we don't half-parse a key
-		 * that spans more than the buffer. Matches the strictness of the
-		 * other [editor]/[lsp]/etc. loaders. */
-		size_t line_len = strlen(line);
-		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
-			int ch;
-			while ((ch = fgetc(fp)) != EOF && ch != '\n') {
-			}
-			continue;
-		}
-		editorConfigStripInlineComment(line);
-		editorConfigTrimRight(line);
-		char *trimmed = editorConfigTrimLeft(line);
-		if (trimmed[0] == 0) {
-			continue;
-		}
-		if (trimmed[0] == '[') {
-			char *close = strchr(trimmed, ']');
-			if (close == NULL) {
-				continue;
-			}
-			*close = '\0';
-			char *tail = editorConfigTrimLeft(close + 1);
-			if (tail[0] != '\0') {
-				/* `[terminal] junk` shouldn't activate the table. */
-				in_terminal_table = 0;
-				continue;
-			}
-			char *table = editorConfigTrimLeft(trimmed + 1);
-			editorConfigTrimRight(table);
-			in_terminal_table = strcmp(table, "terminal") == 0;
-			continue;
-		}
-		if (!in_terminal_table) {
-			continue;
-		}
-		char *eq = strchr(trimmed, '=');
-		if (eq == NULL) {
-			continue;
-		}
-		*eq = '\0';
-		char *name = editorConfigTrimLeft(trimmed);
-		editorConfigTrimRight(name);
-		char *value = editorConfigTrimLeft(eq + 1);
-		editorConfigTrimRight(value);
-		if (strcmp(name, "scrollback_lines") != 0) {
-			continue;
-		}
-		char *end = NULL;
-		errno = 0;
-		long parsed = strtol(value, &end, 10);
-		if (errno != 0 || end == value || (end != NULL && *end != '\0')) {
-			continue;
-		}
-		if (parsed < 0) {
-			parsed = 0;
-		}
-		if (parsed > 1000000) {
-			parsed = 1000000;
-		}
-		*value_out = (int)parsed;
-		found = 1;
+	if (parsed < 0) {
+		parsed = 0;
 	}
-	(void)fclose(fp);
-	return found;
+	if (parsed > 1000000) {
+		parsed = 1000000;
+	}
+	apply->value = (int)parsed;
+	apply->found = 1;
+	return 1;
+}
+
+static int configEditorParseTerminalScrollbackLines(const char *path, int *value_out) {
+	struct configEditorScrollbackContext apply = {.value = *value_out, .found = 0};
+	struct editorConfigScanner scanner = {configEditorOnTerminalSection,
+	                                      configEditorScrollbackOnEntry};
+
+	if (editorConfigScanFile(path, &scanner, &apply) != EDITOR_CONFIG_SCAN_OK || !apply.found) {
+		return 0;
+	}
+	*value_out = apply.value;
+	return 1;
 }
 
 void editorTerminalConfigLoadConfigured(void) {
