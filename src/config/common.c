@@ -85,6 +85,82 @@ int editorConfigParseQuotedValue(const char *value, char *buf, size_t bufsize) {
 	return tail[0] == '\0';
 }
 
+enum { CONFIG_SCAN_LINE_MAX = 1024 };
+
+enum editorConfigScanStatus
+editorConfigScanFile(const char *path, const struct editorConfigScanner *scanner, void *ctx) {
+	FILE *fp = fopen(path, "r");
+	if (fp == NULL) {
+		return errno == ENOENT ? EDITOR_CONFIG_SCAN_MISSING : EDITOR_CONFIG_SCAN_MALFORMED;
+	}
+
+	int in_selected_table = 0;
+	char line[CONFIG_SCAN_LINE_MAX];
+	while (fgets(line, sizeof(line), fp) != NULL) {
+		size_t line_len = strlen(line);
+		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
+			(void)fclose(fp);
+			return EDITOR_CONFIG_SCAN_MALFORMED;
+		}
+
+		editorConfigStripInlineComment(line);
+		editorConfigTrimRight(line);
+		char *trimmed = editorConfigTrimLeft(line);
+		if (trimmed[0] == '\0') {
+			continue;
+		}
+
+		if (trimmed[0] == '[') {
+			char *close = strchr(trimmed, ']');
+			if (close == NULL) {
+				(void)fclose(fp);
+				return EDITOR_CONFIG_SCAN_MALFORMED;
+			}
+			*close = '\0';
+			char *table = editorConfigTrimLeft(trimmed + 1);
+			editorConfigTrimRight(table);
+			char *tail = editorConfigTrimLeft(close + 1);
+			if (tail[0] != '\0') {
+				(void)fclose(fp);
+				return EDITOR_CONFIG_SCAN_MALFORMED;
+			}
+			in_selected_table =
+			        scanner->on_section != NULL && scanner->on_section(ctx, table);
+			continue;
+		}
+
+		if (!in_selected_table) {
+			continue;
+		}
+
+		char *eq = strchr(trimmed, '=');
+		if (eq == NULL) {
+			(void)fclose(fp);
+			return EDITOR_CONFIG_SCAN_MALFORMED;
+		}
+		*eq = '\0';
+		char *key = editorConfigTrimLeft(trimmed);
+		editorConfigTrimRight(key);
+		char *value = editorConfigTrimLeft(eq + 1);
+		if (key[0] == '\0') {
+			(void)fclose(fp);
+			return EDITOR_CONFIG_SCAN_MALFORMED;
+		}
+		if (scanner->on_entry != NULL && !scanner->on_entry(ctx, key, value)) {
+			(void)fclose(fp);
+			return EDITOR_CONFIG_SCAN_MALFORMED;
+		}
+	}
+
+	if (ferror(fp)) {
+		(void)fclose(fp);
+		return EDITOR_CONFIG_SCAN_MALFORMED;
+	}
+
+	(void)fclose(fp);
+	return EDITOR_CONFIG_SCAN_OK;
+}
+
 char *editorConfigBuildGlobalConfigPath(void) {
 	const char *home = getenv("HOME");
 	if (home == NULL || home[0] == '\0') {

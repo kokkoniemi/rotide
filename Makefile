@@ -129,6 +129,7 @@ TEST_SRCS = $(addprefix tests/, \
 	test_syntax_state.c test_syntax_registry.c \
 	test_save_recovery.c test_workspace_persistence.c \
 	test_workspace_theme_config.c test_workspace_keymap_view.c \
+	test_config_scan.c \
 	test_workspace_io.c test_dap.c test_dap_framing.c test_file_watch.c \
 	test_lsp_framing.c test_lsp_protocol.c test_lsp_lifecycle.c \
 	test_lsp_completion.c test_lsp_diagnostics.c test_lsp_navigation.c \

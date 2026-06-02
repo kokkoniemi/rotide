@@ -4,7 +4,6 @@
 #include "rotide.h"
 
 #include <ctype.h>
-#include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -439,102 +438,49 @@ static int keymapParseKeySpec(const char *spec, int *key_out) {
 	return 0;
 }
 
+static int keymapConfigOnSection(void *ctx, const char *table) {
+	(void)ctx;
+	return strcmp(table, "keymap") == 0;
+}
+
+static int keymapConfigOnEntry(void *ctx, const char *key, char *value) {
+	struct editorKeymap *keymap = ctx;
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	if (!keymapResolveActionName(key, &action)) {
+		return 0;
+	}
+
+	char key_spec[64];
+	if (!editorConfigParseQuotedValue(value, key_spec, sizeof(key_spec))) {
+		return 0;
+	}
+
+	int parsed_key = 0;
+	if (!keymapParseKeySpec(key_spec, &parsed_key)) {
+		return 0;
+	}
+
+	return keymapSetActionBinding(keymap, action, parsed_key);
+}
+
 static enum keymapFileStatus keymapApplyConfigFile(struct editorKeymap *keymap, const char *path) {
-	FILE *fp = fopen(path, "r");
-	if (fp == NULL) {
-		if (errno == ENOENT) {
-			return KEYMAP_FILE_MISSING;
-		}
-		return KEYMAP_FILE_INVALID;
-	}
-
 	struct editorKeymap updated = *keymap;
-	int in_keymap_table = 0;
-	char line[1024];
-	while (fgets(line, sizeof(line), fp) != NULL) {
-		size_t line_len = strlen(line);
-		if (line_len == sizeof(line) - 1 && line[line_len - 1] != '\n') {
-			(void)fclose(fp);
+	struct editorConfigScanner scanner = {
+	        .on_section = keymapConfigOnSection,
+	        .on_entry = keymapConfigOnEntry,
+	};
+
+	switch (editorConfigScanFile(path, &scanner, &updated)) {
+		case EDITOR_CONFIG_SCAN_MISSING:
+			return KEYMAP_FILE_MISSING;
+		case EDITOR_CONFIG_SCAN_OK:
+			*keymap = updated;
+			return KEYMAP_FILE_APPLIED;
+		case EDITOR_CONFIG_SCAN_MALFORMED:
+		default:
 			return KEYMAP_FILE_INVALID;
-		}
-
-		editorConfigStripInlineComment(line);
-		editorConfigTrimRight(line);
-		char *trimmed = editorConfigTrimLeft(line);
-		if (trimmed[0] == '\0') {
-			continue;
-		}
-
-		if (trimmed[0] == '[') {
-			char *close = strchr(trimmed, ']');
-			if (close == NULL) {
-				(void)fclose(fp);
-				return KEYMAP_FILE_INVALID;
-			}
-			*close = '\0';
-			char *table = editorConfigTrimLeft(trimmed + 1);
-			editorConfigTrimRight(table);
-			char *tail = editorConfigTrimLeft(close + 1);
-			if (tail[0] != '\0') {
-				(void)fclose(fp);
-				return KEYMAP_FILE_INVALID;
-			}
-
-			in_keymap_table = strcmp(table, "keymap") == 0;
-			continue;
-		}
-
-		if (!in_keymap_table) {
-			continue;
-		}
-
-		char *eq = strchr(trimmed, '=');
-		if (eq == NULL) {
-			(void)fclose(fp);
-			return KEYMAP_FILE_INVALID;
-		}
-
-		*eq = '\0';
-		char *action_name = editorConfigTrimLeft(trimmed);
-		editorConfigTrimRight(action_name);
-		char *value = editorConfigTrimLeft(eq + 1);
-		if (action_name[0] == '\0') {
-			(void)fclose(fp);
-			return KEYMAP_FILE_INVALID;
-		}
-
-		enum editorAction action = EDITOR_ACTION_COUNT;
-		if (!keymapResolveActionName(action_name, &action)) {
-			(void)fclose(fp);
-			return KEYMAP_FILE_INVALID;
-		}
-
-		char key_spec[64];
-		if (!editorConfigParseQuotedValue(value, key_spec, sizeof(key_spec))) {
-			(void)fclose(fp);
-			return KEYMAP_FILE_INVALID;
-		}
-
-		int key = 0;
-		if (!keymapParseKeySpec(key_spec, &key)) {
-			(void)fclose(fp);
-			return KEYMAP_FILE_INVALID;
-		}
-
-		if (!keymapSetActionBinding(&updated, action, key)) {
-			(void)fclose(fp);
-			return KEYMAP_FILE_INVALID;
-		}
 	}
-
-	if (ferror(fp)) {
-		(void)fclose(fp);
-		return KEYMAP_FILE_INVALID;
-	}
-
-	(void)fclose(fp);
-	*keymap = updated;
-	return KEYMAP_FILE_APPLIED;
 }
 
 static int keymapFormatKey(int key, char *buf, size_t bufsize) {
