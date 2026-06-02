@@ -83,63 +83,35 @@ static int themeParseSyntaxHighlightClassName(const char *name,
 		return 0;
 	}
 
-	if (strcmp(normalized, "comment") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_COMMENT;
-		return 1;
-	}
-	if (strcmp(normalized, "keyword") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_KEYWORD;
-		return 1;
-	}
-	if (strcmp(normalized, "type") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_TYPE;
-		return 1;
-	}
-	if (strcmp(normalized, "function") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_FUNCTION;
-		return 1;
-	}
-	if (strcmp(normalized, "string") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_STRING;
-		return 1;
-	}
-	if (strcmp(normalized, "number") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_NUMBER;
-		return 1;
-	}
-	if (strcmp(normalized, "constant") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_CONSTANT;
-		return 1;
-	}
-	if (strcmp(normalized, "variable") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_VARIABLE;
-		return 1;
-	}
-	if (strcmp(normalized, "parameter") == 0 || strcmp(normalized, "variable_parameter") == 0 ||
-	    strcmp(normalized, "variable.parameter") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_PARAMETER;
-		return 1;
-	}
-	if (strcmp(normalized, "module") == 0 || strcmp(normalized, "namespace") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_MODULE;
-		return 1;
-	}
-	if (strcmp(normalized, "property") == 0 || strcmp(normalized, "variable_member") == 0 ||
-	    strcmp(normalized, "variable.member") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_PROPERTY;
-		return 1;
-	}
-	if (strcmp(normalized, "preprocessor") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_PREPROCESSOR;
-		return 1;
-	}
-	if (strcmp(normalized, "operator") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_OPERATOR;
-		return 1;
-	}
-	if (strcmp(normalized, "punctuation") == 0) {
-		*class_out = EDITOR_SYNTAX_HL_PUNCTUATION;
-		return 1;
+	static const struct {
+		const char *name;
+		enum editorSyntaxHighlightClass highlight_class;
+	} class_names[] = {
+	        {"comment", EDITOR_SYNTAX_HL_COMMENT},
+	        {"keyword", EDITOR_SYNTAX_HL_KEYWORD},
+	        {"type", EDITOR_SYNTAX_HL_TYPE},
+	        {"function", EDITOR_SYNTAX_HL_FUNCTION},
+	        {"string", EDITOR_SYNTAX_HL_STRING},
+	        {"number", EDITOR_SYNTAX_HL_NUMBER},
+	        {"constant", EDITOR_SYNTAX_HL_CONSTANT},
+	        {"variable", EDITOR_SYNTAX_HL_VARIABLE},
+	        {"parameter", EDITOR_SYNTAX_HL_PARAMETER},
+	        {"variable_parameter", EDITOR_SYNTAX_HL_PARAMETER},
+	        {"variable.parameter", EDITOR_SYNTAX_HL_PARAMETER},
+	        {"module", EDITOR_SYNTAX_HL_MODULE},
+	        {"namespace", EDITOR_SYNTAX_HL_MODULE},
+	        {"property", EDITOR_SYNTAX_HL_PROPERTY},
+	        {"variable_member", EDITOR_SYNTAX_HL_PROPERTY},
+	        {"variable.member", EDITOR_SYNTAX_HL_PROPERTY},
+	        {"preprocessor", EDITOR_SYNTAX_HL_PREPROCESSOR},
+	        {"operator", EDITOR_SYNTAX_HL_OPERATOR},
+	        {"punctuation", EDITOR_SYNTAX_HL_PUNCTUATION},
+	};
+	for (size_t i = 0; i < sizeof(class_names) / sizeof(class_names[0]); i++) {
+		if (strcmp(normalized, class_names[i].name) == 0) {
+			*class_out = class_names[i].highlight_class;
+			return 1;
+		}
 	}
 
 	return 0;
@@ -285,64 +257,33 @@ static int themeParseUiRoleName(const char *name, enum editorThemeUiRole *role_o
 		*is_style_bg_out = 0;
 	}
 
-	if (strcmp(normalized, "foreground") == 0) {
-		*role_out = EDITOR_THEME_UI_FOREGROUND;
-		return 1;
-	}
-	if (strcmp(normalized, "background") == 0) {
-		*role_out = EDITOR_THEME_UI_BACKGROUND;
-		return 1;
-	}
-	if (strcmp(normalized, "line_number") == 0) {
-		*role_out = EDITOR_THEME_UI_LINE_NUMBER;
-		return 1;
-	}
-	if (strcmp(normalized, "drawer_connector") == 0) {
-		*role_out = EDITOR_THEME_UI_DRAWER_CONNECTOR;
-		return 1;
-	}
-	if (strcmp(normalized, "drawer_icon") == 0) {
-		*role_out = EDITOR_THEME_UI_DRAWER_ICON;
-		return 1;
-	}
-	if (strcmp(normalized, "placeholder") == 0) {
-		*role_out = EDITOR_THEME_UI_PLACEHOLDER;
-		return 1;
-	}
-	if (strcmp(normalized, "current_line_bg") == 0) {
-		*role_out = EDITOR_THEME_UI_CURRENT_LINE_BG;
-		return 1;
-	}
-	if (strcmp(normalized, "drawer_header_bg") == 0) {
-		*role_out = EDITOR_THEME_UI_DRAWER_HEADER_BG;
-		return 1;
-	}
-	if (strcmp(normalized, "directory") == 0) {
-		*role_out = EDITOR_THEME_UI_DIRECTORY;
-		return 1;
-	}
-	if (strcmp(normalized, "root") == 0) {
-		*role_out = EDITOR_THEME_UI_ROOT;
-		return 1;
-	}
-	if (strcmp(normalized, "git_modified") == 0) {
-		*role_out = EDITOR_THEME_UI_GIT_MODIFIED;
-		return 1;
-	}
-	if (strcmp(normalized, "git_untracked") == 0) {
-		*role_out = EDITOR_THEME_UI_GIT_UNTRACKED;
-		return 1;
-	}
-	if (strcmp(normalized, "git_conflict") == 0) {
-		*role_out = EDITOR_THEME_UI_GIT_CONFLICT;
-		return 1;
-	}
-	if (strcmp(normalized, "cursor") == 0) {
-		*role_out = EDITOR_THEME_UI_CURSOR;
-		return 1;
+	static const struct {
+		const char *name;
+		enum editorThemeUiRole role;
+	} role_names[] = {
+	        {"foreground", EDITOR_THEME_UI_FOREGROUND},
+	        {"background", EDITOR_THEME_UI_BACKGROUND},
+	        {"line_number", EDITOR_THEME_UI_LINE_NUMBER},
+	        {"drawer_connector", EDITOR_THEME_UI_DRAWER_CONNECTOR},
+	        {"drawer_icon", EDITOR_THEME_UI_DRAWER_ICON},
+	        {"placeholder", EDITOR_THEME_UI_PLACEHOLDER},
+	        {"current_line_bg", EDITOR_THEME_UI_CURRENT_LINE_BG},
+	        {"drawer_header_bg", EDITOR_THEME_UI_DRAWER_HEADER_BG},
+	        {"directory", EDITOR_THEME_UI_DIRECTORY},
+	        {"root", EDITOR_THEME_UI_ROOT},
+	        {"git_modified", EDITOR_THEME_UI_GIT_MODIFIED},
+	        {"git_untracked", EDITOR_THEME_UI_GIT_UNTRACKED},
+	        {"git_conflict", EDITOR_THEME_UI_GIT_CONFLICT},
+	        {"cursor", EDITOR_THEME_UI_CURSOR},
+	};
+	for (size_t i = 0; i < sizeof(role_names) / sizeof(role_names[0]); i++) {
+		if (strcmp(normalized, role_names[i].name) == 0) {
+			*role_out = role_names[i].role;
+			return 1;
+		}
 	}
 
-	struct {
+	static const struct {
 		const char *fg;
 		const char *bg;
 		enum editorThemeStyleRole role;
