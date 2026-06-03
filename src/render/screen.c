@@ -59,8 +59,8 @@
 #define TEXT_OVERFLOW_LEFT_UTF8 "\xE2\x86\x90"
 #define TEXT_OVERFLOW_RIGHT_UTF8 "\xE2\x86\x92"
 #define TEXT_WRAP_CONTINUATION_UTF8 "\xE2\x86\xB3"
-#define TEXT_DAP_BREAKPOINT_UTF8 "\xE2\x97\x8F"     /* U+25CF BLACK CIRCLE */
-#define TEXT_DAP_STOPPED_LINE_UTF8 "\xE2\x96\xB6"   /* U+25B6 BLACK RIGHT-POINTING TRIANGLE */
+#define TEXT_DAP_BREAKPOINT_UTF8 "\xE2\x97\x8F"   /* U+25CF BLACK CIRCLE */
+#define TEXT_DAP_STOPPED_LINE_UTF8 "\xE2\x96\xB6" /* U+25B6 BLACK RIGHT-POINTING TRIANGLE */
 
 int editorAppendGrayBytes(struct writeBuf *wb, const char *text, size_t len) {
 	return editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_PLACEHOLDER) &&

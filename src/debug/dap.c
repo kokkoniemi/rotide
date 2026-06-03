@@ -216,8 +216,9 @@ char *editorDapBuildEvaluateRequestJson(int seq, const char *expr, int frame_id,
                                         const char *context) {
 	struct editorLspString sb = {0};
 	if (!editorLspStringAppendf(
-	            &sb, "{\"seq\":%d,\"type\":\"request\",\"command\":\"evaluate\",\"arguments\":{"
-	                 "\"expression\":",
+	            &sb,
+	            "{\"seq\":%d,\"type\":\"request\",\"command\":\"evaluate\",\"arguments\":{"
+	            "\"expression\":",
 	            seq) ||
 	    !dapAppendJsonString(&sb, expr) || !editorLspStringAppend(&sb, ",\"context\":") ||
 	    !dapAppendJsonString(&sb, context != NULL ? context : "repl")) {
@@ -465,8 +466,7 @@ static char *dapBuildIntArgRequestJson(int seq, const char *command, const char 
 }
 
 /* Reads an integer value for `quoted_key` at the top level of [start, end). */
-static int dapObjectIntField(const char *start, const char *end, const char *quoted_key,
-                             int *out) {
+static int dapObjectIntField(const char *start, const char *end, const char *quoted_key, int *out) {
 	const char *key = editorLspFindTopLevelKey(start, end, quoted_key);
 	if (key == NULL) {
 		return 0;
@@ -692,8 +692,7 @@ static int dapCollectVariable(const char *obj_start, const char *obj_end) {
 	if (!dapObjectStringField(obj_start, obj_end, "\"name\"", var->name, sizeof(var->name))) {
 		return 1;
 	}
-	(void)dapObjectStringField(obj_start, obj_end, "\"value\"", var->value,
-	                           sizeof(var->value));
+	(void)dapObjectStringField(obj_start, obj_end, "\"value\"", var->value, sizeof(var->value));
 	(void)dapObjectIntField(obj_start, obj_end, "\"variablesReference\"",
 	                        &var->variables_reference);
 	E.dap_variable_count++;
@@ -728,9 +727,8 @@ static void dapHandleStackTraceResponse(const char *message) {
 	E.dap_stack_frame_count = 0;
 	dapForEachBodyArrayElement(message, "\"stackFrames\"", dapCollectStackFrame);
 	if (E.dap_stack_frame_count > 0) {
-		(void)dapSendRequest(dapBuildIntArgRequestJson(g_dap_client.next_seq++, "scopes",
-		                                               "frameId",
-		                                               E.dap_stack_frames[0].id));
+		(void)dapSendRequest(dapBuildIntArgRequestJson(
+		        g_dap_client.next_seq++, "scopes", "frameId", E.dap_stack_frames[0].id));
 	}
 }
 
@@ -742,9 +740,9 @@ static void dapHandleScopesResponse(const char *message) {
 		if (E.dap_scopes[i].variables_reference <= 0) {
 			continue;
 		}
-		(void)dapSendRequest(dapBuildIntArgRequestJson(g_dap_client.next_seq++, "variables",
-		                                               "variablesReference",
-		                                               E.dap_scopes[i].variables_reference));
+		(void)dapSendRequest(dapBuildIntArgRequestJson(
+		        g_dap_client.next_seq++, "variables", "variablesReference",
+		        E.dap_scopes[i].variables_reference));
 	}
 }
 
@@ -815,8 +813,8 @@ static void dapHandleInitializedEvent(void) {
 	g_dap_client.initialized = 1;
 	g_dap_client.state = DAP_SESSION_RUNNING;
 	dapSendAllBreakpoints();
-	(void)dapSendRequest(
-	        editorDapBuildSimpleCommandRequestJson(g_dap_client.next_seq++, "configurationDone"));
+	(void)dapSendRequest(editorDapBuildSimpleCommandRequestJson(g_dap_client.next_seq++,
+	                                                            "configurationDone"));
 }
 
 int editorDapProcessIncomingMessage(const char *message) {
@@ -877,7 +875,8 @@ int editorDapProcessIncomingMessage(const char *message) {
 		int has_errmsg = dapExtractErrorMessage(message, errmsg, sizeof(errmsg));
 		if (strcmp(command, "initialize") == 0) {
 			if (!dapJsonResponseSucceeded(message)) {
-				editorSetStatusMsg("DAP initialize failed%s%s", has_errmsg ? ": " : "",
+				editorSetStatusMsg("DAP initialize failed%s%s",
+				                   has_errmsg ? ": " : "",
 				                   has_errmsg ? errmsg : "");
 				editorDapShutdown();
 				return 1;
@@ -896,7 +895,8 @@ int editorDapProcessIncomingMessage(const char *message) {
 			 * program is already running; don't nag. Surface other failures with
 			 * the adapter's message in the status bar and the console output. */
 			if (strcmp(command, "configurationDone") != 0) {
-				editorSetStatusMsg("DAP %s failed%s%s", command, has_errmsg ? ": " : "",
+				editorSetStatusMsg("DAP %s failed%s%s", command,
+				                   has_errmsg ? ": " : "",
 				                   has_errmsg ? errmsg : "");
 				dapAppendOutput("[dap] ");
 				dapAppendOutput(command);
@@ -1129,13 +1129,13 @@ int editorDapEvaluate(const char *expr) {
 		return 0;
 	}
 	/* Scope the evaluation to the top frame when stopped; global otherwise. */
-	int frame_id = (E.dap_stopped && E.dap_stack_frame_count > 0) ? E.dap_stack_frames[0].id : 0;
+	int frame_id =
+	        (E.dap_stopped && E.dap_stack_frame_count > 0) ? E.dap_stack_frames[0].id : 0;
 	dapAppendOutput("> ");
 	dapAppendOutput(expr);
 	dapAppendOutput("\n");
-	if (!dapSendRequest(
-	            editorDapBuildEvaluateRequestJson(g_dap_client.next_seq++, expr, frame_id,
-	                                              "repl"))) {
+	if (!dapSendRequest(editorDapBuildEvaluateRequestJson(g_dap_client.next_seq++, expr,
+	                                                      frame_id, "repl"))) {
 		editorSetStatusMsg("DAP evaluate failed");
 		return 0;
 	}

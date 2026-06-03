@@ -89,10 +89,9 @@ int editorDapPrepareTerminalConsole(struct editorDapLaunchConfig *config, char *
 		tty_out[0] = '\0';
 	}
 	char console_value[ROTIDE_DAP_VALUE_MAX];
-	int wants_terminal =
-	        editorDapLaunchGetStringField(config, "console", console_value,
-	                                      sizeof(console_value)) &&
-	        strcmp(console_value, "terminal") == 0;
+	int wants_terminal = editorDapLaunchGetStringField(config, "console", console_value,
+	                                                   sizeof(console_value)) &&
+	                     strcmp(console_value, "terminal") == 0;
 	/* The `console` field is rotide-specific; never forward it to the adapter. */
 	editorDapLaunchRemoveField(config, "console");
 
@@ -123,8 +122,8 @@ int editorDapPrepareTerminalConsole(struct editorDapLaunchConfig *config, char *
 			rows = rect.h - 1; /* the tab strip occupies one row */
 		}
 		char slave_path[PATH_MAX];
-		struct editorTerminalPane *term =
-		        editorTerminalPaneCreateDetached(cols, rows, slave_path, sizeof(slave_path));
+		struct editorTerminalPane *term = editorTerminalPaneCreateDetached(
+		        cols, rows, slave_path, sizeof(slave_path));
 		if (term == NULL || !editorDapLaunchSetStringField(config, "tty", slave_path)) {
 			if (term != NULL) {
 				editorTerminalPaneFree(term);

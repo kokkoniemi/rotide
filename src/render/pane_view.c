@@ -893,10 +893,9 @@ static int paneViewDrawDapConsoleSlice(struct writeBuf *wb, struct editorPaneNod
 			paneViewDapConsoleStripCell(term != NULL, col_in_pane + i, &ch, &cell_tab);
 			int want_active = cell_tab == tab && cell_tab != -1;
 			if (want_active != styled) {
-				int ok = want_active
-				                 ? editorAppendThemeStyle(wb,
-				                                          EDITOR_THEME_STYLE_TAB_ACTIVE)
-				                 : editorAppendThemeReset(wb);
+				int ok = want_active ? editorAppendThemeStyle(
+				                               wb, EDITOR_THEME_STYLE_TAB_ACTIVE)
+				                     : editorAppendThemeReset(wb);
 				if (!ok) {
 					return 0;
 				}
@@ -935,7 +934,8 @@ static int paneViewDrawDapConsoleSlice(struct writeBuf *wb, struct editorPaneNod
 				ch = '?';
 			}
 			int is_cursor = focused && c == ilen;
-			if (is_cursor && !editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_SELECTION)) {
+			if (is_cursor &&
+			    !editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_SELECTION)) {
 				return 0;
 			}
 			if (!wbAppend(wb, &ch, 1)) {
@@ -1070,10 +1070,9 @@ int editorDrawMultiPaneRows(struct writeBuf *wb, const struct editorLeafLayout *
 				}
 			} else if (leaf_node != NULL &&
 			           leaf_node->as.leaf.kind == EDITOR_PANE_KIND_DEBUG_CONSOLE) {
-				if (!paneViewDrawDapConsoleSlice(wb, leaf_node,
-				                                 screen_y - leaf_rect.y,
-				                                 x - leaf_rect.x, slice_cols,
-				                                 &leaf_rect)) {
+				if (!paneViewDrawDapConsoleSlice(
+				            wb, leaf_node, screen_y - leaf_rect.y, x - leaf_rect.x,
+				            slice_cols, &leaf_rect)) {
 					goto cleanup;
 				}
 			} else {

@@ -497,8 +497,9 @@ static int test_editor_dap_stopped_chain_populates_state(void) {
 
 	/* stopped event captures the thread, clears stale state, asks for threads. */
 	E.dap_thread_count = 5;
-	(void)editorDapProcessIncomingMessage("{\"type\":\"event\",\"event\":\"stopped\","
-	                                      "\"body\":{\"reason\":\"breakpoint\",\"threadId\":1}}");
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"event\",\"event\":\"stopped\","
+	        "\"body\":{\"reason\":\"breakpoint\",\"threadId\":1}}");
 	ASSERT_EQ_INT(1, E.dap_stopped);
 	ASSERT_EQ_INT(0, E.dap_thread_count);
 	ASSERT_TRUE(dap_drain_fd(fds[0], buf, sizeof(buf)) > 0);
@@ -730,8 +731,9 @@ static int test_editor_dap_control_requests_include_thread_id(void) {
 	ASSERT_TRUE(strstr(buf, "\"threadId\":1") != NULL);
 
 	/* After stopping on thread 7, controls target thread 7. */
-	(void)editorDapProcessIncomingMessage("{\"type\":\"event\",\"event\":\"stopped\","
-	                                      "\"body\":{\"reason\":\"breakpoint\",\"threadId\":7}}");
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"event\",\"event\":\"stopped\","
+	        "\"body\":{\"reason\":\"breakpoint\",\"threadId\":7}}");
 	(void)dap_drain_fd(fds[0], buf, sizeof(buf)); /* discard the auto threads request */
 
 	ASSERT_TRUE(editorDapStepInto());
@@ -996,8 +998,7 @@ const struct editorTestCase g_dap_tests[] = {
          test_editor_dap_failed_response_surfaces_message},
         {"editor_dap_configuration_done_failure_is_benign",
          test_editor_dap_configuration_done_failure_is_benign},
-        {"editor_dap_stopped_chain_populates_state",
-         test_editor_dap_stopped_chain_populates_state},
+        {"editor_dap_stopped_chain_populates_state", test_editor_dap_stopped_chain_populates_state},
         {"editor_dap_output_event_reads_body_output",
          test_editor_dap_output_event_reads_body_output},
         {"editor_dap_continued_clears_inspection_state",
