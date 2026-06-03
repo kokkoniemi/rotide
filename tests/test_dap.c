@@ -417,13 +417,50 @@ static int test_editor_dap_handshake_initialize_failure_aborts(void) {
 	ASSERT_TRUE(launch != NULL);
 	editorDapBeginSessionForTest(fds[1], launch);
 
-	/* A failed initialize aborts the session (shutdown closes the write fd). */
+	/* A failed initialize aborts the session (shutdown closes the write fd) and
+	 * surfaces the adapter's message. */
+	E.statusmsg[0] = '\0';
 	(void)editorDapProcessIncomingMessage("{\"type\":\"response\",\"command\":\"initialize\","
 	                                      "\"success\":false,\"message\":\"boom\"}");
 	ASSERT_EQ_INT(0, editorDapSessionStateForTest());
 	ASSERT_EQ_INT(0, E.dap_running);
+	ASSERT_TRUE(strstr(E.statusmsg, "boom") != NULL);
 
 	(void)close(fds[0]);
+	return 0;
+}
+
+static int test_editor_dap_failed_response_surfaces_message(void) {
+	E.statusmsg[0] = '\0';
+	E.dap_output_len = 0;
+	E.dap_output[0] = '\0';
+	/* A failed request prefers the detailed body.error.format over `message`,
+	 * shown in the status bar and appended to the console output. */
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"response\",\"command\":\"stackTrace\",\"success\":false,"
+	        "\"message\":\"cannotInspect\","
+	        "\"body\":{\"error\":{\"format\":\"Cannot inspect while running\"}}}");
+	ASSERT_TRUE(strstr(E.statusmsg, "stackTrace") != NULL);
+	ASSERT_TRUE(strstr(E.statusmsg, "Cannot inspect while running") != NULL);
+	ASSERT_TRUE(strstr(E.dap_output, "Cannot inspect while running") != NULL);
+	E.statusmsg[0] = '\0';
+	E.dap_output_len = 0;
+	E.dap_output[0] = '\0';
+	return 0;
+}
+
+static int test_editor_dap_configuration_done_failure_is_benign(void) {
+	/* gdb answers configurationDone with notStopped once the program is already
+	 * running; that must not nag the user or end the session. */
+	E.dap_running = 1;
+	(void)snprintf(E.statusmsg, sizeof(E.statusmsg), "%s", "SENTINEL");
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"response\",\"command\":\"configurationDone\",\"success\":false,"
+	        "\"message\":\"notStopped\"}");
+	ASSERT_EQ_STR("SENTINEL", E.statusmsg);
+	ASSERT_EQ_INT(1, E.dap_running);
+	E.dap_running = 0;
+	E.statusmsg[0] = '\0';
 	return 0;
 }
 
@@ -723,6 +760,10 @@ const struct editorTestCase g_dap_tests[] = {
          test_editor_dap_handshake_sends_launch_after_initialize_response},
         {"editor_dap_handshake_initialize_failure_aborts",
          test_editor_dap_handshake_initialize_failure_aborts},
+        {"editor_dap_failed_response_surfaces_message",
+         test_editor_dap_failed_response_surfaces_message},
+        {"editor_dap_configuration_done_failure_is_benign",
+         test_editor_dap_configuration_done_failure_is_benign},
         {"editor_dap_stopped_chain_populates_state",
          test_editor_dap_stopped_chain_populates_state},
         {"editor_dap_output_event_reads_body_output",

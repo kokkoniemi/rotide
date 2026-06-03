@@ -710,6 +710,29 @@ static void dapHandleVariablesResponse(const char *message) {
 }
 
 /*
+ * Best human-readable message from a failed response: the detailed
+ * `body.error.format` if present, else the short top-level `message`. Returns 1
+ * and fills `buf` on success, 0 if the response carries no message text.
+ */
+static int dapExtractErrorMessage(const char *message, char *buf, size_t bufsize) {
+	const char *start = editorLspSkipWs(message);
+	const char *body_start = NULL;
+	const char *body_end = NULL;
+	if (start != NULL && start[0] == '{' &&
+	    dapObjectChildObject(start, editorLspFindJsonObjectEnd(start), "\"body\"", &body_start,
+	                         &body_end)) {
+		const char *error_start = NULL;
+		const char *error_end = NULL;
+		if (dapObjectChildObject(body_start, body_end, "\"error\"", &error_start,
+		                         &error_end) &&
+		    dapObjectStringField(error_start, error_end, "\"format\"", buf, bufsize)) {
+			return 1;
+		}
+	}
+	return dapJsonStringField(message, "message", buf, bufsize);
+}
+
+/*
  * Sends the queued `launch` request once `initialize` has been acknowledged.
  * Consumes pending_launch_json (sent or freed).
  */
@@ -789,9 +812,12 @@ int editorDapProcessIncomingMessage(const char *message) {
 	if (dapJsonStringField(message, "type", type, sizeof(type)) &&
 	    strcmp(type, "response") == 0 &&
 	    dapJsonStringField(message, "command", command, sizeof(command))) {
+		char errmsg[ROTIDE_DAP_VALUE_MAX];
+		int has_errmsg = dapExtractErrorMessage(message, errmsg, sizeof(errmsg));
 		if (strcmp(command, "initialize") == 0) {
 			if (!dapJsonResponseSucceeded(message)) {
-				editorSetStatusMsg("DAP initialize failed");
+				editorSetStatusMsg("DAP initialize failed%s%s", has_errmsg ? ": " : "",
+				                   has_errmsg ? errmsg : "");
 				editorDapShutdown();
 				return 1;
 			}
@@ -799,12 +825,27 @@ int editorDapProcessIncomingMessage(const char *message) {
 			return 1;
 		}
 		if (strcmp(command, "launch") == 0 && !dapJsonResponseSucceeded(message)) {
-			editorSetStatusMsg("DAP launch failed");
+			editorSetStatusMsg("DAP launch failed%s%s", has_errmsg ? ": " : "",
+			                   has_errmsg ? errmsg : "");
 			editorDapShutdown();
 			return 1;
 		}
 		if (!dapJsonResponseSucceeded(message)) {
-			return 1; /* tolerate per-request failures (e.g. configurationDone) */
+			/* `configurationDone` answering `notStopped` is expected once the
+			 * program is already running; don't nag. Surface other failures with
+			 * the adapter's message in the status bar and the console output. */
+			if (strcmp(command, "configurationDone") != 0) {
+				editorSetStatusMsg("DAP %s failed%s%s", command, has_errmsg ? ": " : "",
+				                   has_errmsg ? errmsg : "");
+				dapAppendOutput("[dap] ");
+				dapAppendOutput(command);
+				dapAppendOutput(has_errmsg ? " failed: " : " failed");
+				if (has_errmsg) {
+					dapAppendOutput(errmsg);
+				}
+				dapAppendOutput("\n");
+			}
+			return 1;
 		}
 		if (strcmp(command, "threads") == 0) {
 			dapHandleThreadsResponse(message);
@@ -861,7 +902,8 @@ int editorDapStartLaunch(int launch_idx) {
 	}
 	const struct editorDapLaunchConfig *config = &E.dap_launches[launch_idx];
 	if (strcmp(config->request, "launch") != 0) {
-		editorSetStatusMsg("DAP request '%s' is not supported yet", config->request);
+		editorSetStatusMsg("DAP: only 'launch' is supported yet (config requests '%s')",
+		                   config->request);
 		return 0;
 	}
 	const struct editorDapAdapterConfig *adapter = editorDapAdapterById(config->adapter);
