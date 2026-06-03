@@ -2673,59 +2673,41 @@ static void dispatchHandleMouseEvent(int *effects) {
  * key the console consumed; other keys fall through to normal handling so global
  * keybindings (evaluate, toggle, quit) still work while the console is focused. */
 static int dispatchTryDapConsoleKey(int c) {
-	if (E.focused_leaf == NULL || E.focused_leaf->is_split ||
-	    E.focused_leaf->as.leaf.kind != EDITOR_PANE_KIND_DEBUG_CONSOLE ||
-	    E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
+	/* Only the DEBUG_CONSOLE tab's REPL lands here; the debuggee TERMINAL tab is
+	 * a normal terminal tab handled by dispatchTryTerminalPaneKey. */
+	struct editorDapConsolePane *console = editorDapConsoleForPane(E.focused_leaf);
+	if (console == NULL || E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
 		return 0;
 	}
-	struct editorTerminalPane *term =
-	        (struct editorTerminalPane *)E.focused_leaf->as.leaf.kind_state;
-	if (E.dap_panel_tab == 0 && term != NULL) {
-		/* Terminal tab: forward to the debuggee tty (terminal-prefix escapes to
-		 * rotide for one key, mirroring standalone terminal panes). */
-		if (E.terminal_prefix_armed) {
-			E.terminal_prefix_armed = 0;
-			return 0;
-		}
-		enum editorAction action = EDITOR_ACTION_COUNT;
-		if (editorKeymapLookupAction(&E.keymap, c, &action) &&
-		    action == EDITOR_ACTION_TERMINAL_PREFIX) {
-			E.terminal_prefix_armed = 1;
-			editorSetStatusMsg("Terminal prefix armed: next key is rotide");
-			return 1;
-		}
-		(void)editorTerminalPaneSendKey(term, c);
-		return 1;
-	}
-	/* Debug Console tab: an inline REPL. Printable bytes edit the input line,
-	 * Enter evaluates, Backspace deletes; paging scrolls the transcript. Other
-	 * keys fall through so global bindings (quit, etc.) still work. */
+	/* Inline REPL: printable bytes edit the input line, Enter evaluates, Backspace
+	 * deletes; paging scrolls the transcript. Other keys fall through so global
+	 * bindings (quit, etc.) still work. */
 	switch (c) {
 		case PAGE_UP:
-			editorDapConsoleScroll(5);
+			editorDapConsoleScroll(console, 5);
 			return 1;
 		case PAGE_DOWN:
-			editorDapConsoleScroll(-5);
+			editorDapConsoleScroll(console, -5);
 			return 1;
 		case '\r':
-			if (E.dap_console_input_len > 0) {
-				E.dap_console_input[E.dap_console_input_len] = '\0';
-				(void)editorDapEvaluate(E.dap_console_input);
-				E.dap_console_input_len = 0;
-				E.dap_console_input[0] = '\0';
-				E.dap_console_scroll = 0; /* jump to the freshest output */
+			if (console->input_len > 0) {
+				console->input[console->input_len] = '\0';
+				(void)editorDapEvaluate(console->input);
+				console->input_len = 0;
+				console->input[0] = '\0';
+				console->scroll = 0; /* jump to the freshest output */
 			}
 			return 1;
 		case BACKSPACE:
-			if (E.dap_console_input_len > 0) {
-				E.dap_console_input[--E.dap_console_input_len] = '\0';
+			if (console->input_len > 0) {
+				console->input[--console->input_len] = '\0';
 			}
 			return 1;
 		default:
 			if (c >= 0x20 && c < 0x7f &&
-			    E.dap_console_input_len + 1 < (int)sizeof(E.dap_console_input)) {
-				E.dap_console_input[E.dap_console_input_len++] = (char)c;
-				E.dap_console_input[E.dap_console_input_len] = '\0';
+			    console->input_len + 1 < (int)sizeof(console->input)) {
+				console->input[console->input_len++] = (char)c;
+				console->input[console->input_len] = '\0';
 				return 1;
 			}
 			return 0;

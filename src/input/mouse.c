@@ -1137,23 +1137,6 @@ static int mouseHandleLeftPressOnStatusBar(const struct editorMouseEvent *event,
 	return 1;
 }
 
-/* A left-press on a Debug Console panel tab switches the active tab and focuses
- * the panel. Returns 1 if the press hit a tab. */
-static int mouseHandleLeftPressOnDapPanelTab(const struct editorMouseEvent *event) {
-	int tab = 0;
-	if (!editorDapPanelTabAt(event->x - 1, event->y - 1, &tab)) {
-		return 0;
-	}
-	E.dap_panel_tab = tab;
-	if (E.dap_console_leaf != NULL && E.layout_root != NULL &&
-	    editorPaneNodeContainsLeaf(E.layout_root, E.dap_console_leaf)) {
-		(void)editorLayoutSetFocusedLeaf(E.dap_console_leaf);
-	}
-	E.mouse_left_button_down = 0;
-	E.mouse_drag_started = 0;
-	return 1;
-}
-
 static int mouseHandleLeftPress(const struct editorMouseEvent *event,
                                 int drawer_double_click_threshold_ms,
                                 int text_multi_click_threshold_ms,
@@ -1168,9 +1151,6 @@ static int mouseHandleLeftPress(const struct editorMouseEvent *event,
 		return EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT;
 	}
 	if (mouseHandleLeftPressOnStatusBar(event, process_mapped_action)) {
-		return EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT;
-	}
-	if (mouseHandleLeftPressOnDapPanelTab(event)) {
 		return EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT;
 	}
 	long long now_ms = mouseMonotonicMillis();

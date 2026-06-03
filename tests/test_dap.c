@@ -6,6 +6,7 @@
 #include "render/status_bar.h"
 #include "render/write_buf.h"
 #include "rotide.h"
+#include "terminal/terminal_pane.h"
 #include "test_case.h"
 #include "test_helpers.h"
 #include "test_support.h"
@@ -165,8 +166,8 @@ static int test_editor_dap_prepare_terminal_console_sets_tty(void) {
 	}
 	E.window_cols = 80;
 	E.window_rows = 24;
+	ASSERT_TRUE(editorTabsInit());
 	E.dap_console_leaf = NULL;
-	E.dap_panel_tab = 0;
 
 	struct editorDapLaunchConfig cfg;
 	memset(&cfg, 0, sizeof(cfg));
@@ -178,12 +179,12 @@ static int test_editor_dap_prepare_terminal_console_sets_tty(void) {
 	char tty[256] = "";
 	int ok = editorDapPrepareTerminalConsole(&cfg, tty, sizeof(tty));
 	ASSERT_TRUE(ok);
-	/* The panel is a Debug Console leaf that owns the debuggee terminal, with the
-	 * Terminal tab active. */
+	/* The panel is a normal pane hosting a Terminal tab (active) and a Debug
+	 * Console tab. */
 	ASSERT_TRUE(E.dap_console_leaf != NULL);
-	ASSERT_TRUE(E.dap_console_leaf->as.leaf.kind == EDITOR_PANE_KIND_DEBUG_CONSOLE);
-	ASSERT_TRUE(E.dap_console_leaf->as.leaf.kind_state != NULL);
-	ASSERT_EQ_INT(0, E.dap_panel_tab);
+	ASSERT_EQ_INT(2, E.dap_console_leaf->as.leaf.view.pane_tab_count);
+	ASSERT_TRUE(editorPaneActiveKind(E.dap_console_leaf) == EDITOR_PANE_KIND_TERMINAL);
+	ASSERT_TRUE(editorTerminalPaneForPane(E.dap_console_leaf) != NULL);
 
 	/* The console field is gone, replaced by a real tty path reported back. */
 	char value[ROTIDE_DAP_VALUE_MAX];
@@ -192,19 +193,13 @@ static int test_editor_dap_prepare_terminal_console_sets_tty(void) {
 	ASSERT_TRUE(strstr(value, "/dev/pts/") != NULL || strstr(value, "/dev/tty") != NULL);
 	ASSERT_TRUE(strstr(tty, "/dev/pts/") != NULL || strstr(tty, "/dev/tty") != NULL);
 
-	/* Cleanup: close the owned panel (frees the embedded terminal). */
-	struct editorPaneNode *leaf = E.dap_console_leaf;
-	E.dap_console_leaf = NULL;
-	if (editorPaneNodeContainsLeaf(E.layout_root, leaf)) {
-		(void)editorPaneTreeCloseLeaf(&E.layout_root, leaf);
-		if (E.focused_leaf == leaf || E.layout_root != NULL) {
-			E.focused_leaf = E.layout_root;
-		}
-	}
+	/* Cleanup: close the owned panel (frees the debuggee terminal + console). */
+	editorDapConsoleCloseOwnedTerminalPane();
 	return 0;
 }
 
 static int test_editor_dap_prepare_terminal_console_strips_non_terminal_value(void) {
+	ASSERT_TRUE(editorTabsInit());
 	struct editorDapLaunchConfig cfg;
 	memset(&cfg, 0, sizeof(cfg));
 	(void)snprintf(cfg.id, sizeof(cfg.id), "%s", "test");
@@ -217,15 +212,11 @@ static int test_editor_dap_prepare_terminal_console_strips_non_terminal_value(vo
 	ASSERT_TRUE(editorDapLaunchGetStringField(&cfg, "tty", value, sizeof(value)) == 0);
 	ASSERT_EQ_STR("", tty);
 	if (E.dap_console_leaf != NULL) {
-		ASSERT_TRUE(E.dap_console_leaf->as.leaf.kind_state == NULL);
-		struct editorPaneNode *leaf = E.dap_console_leaf;
-		E.dap_console_leaf = NULL;
-		if (E.layout_root != NULL && editorPaneNodeContainsLeaf(E.layout_root, leaf)) {
-			(void)editorPaneTreeCloseLeaf(&E.layout_root, leaf);
-			if (E.layout_root != NULL) {
-				E.focused_leaf = E.layout_root;
-			}
-		}
+		/* Console-only panel: a single Debug Console tab, no terminal tab. */
+		ASSERT_EQ_INT(1, E.dap_console_leaf->as.leaf.view.pane_tab_count);
+		ASSERT_TRUE(editorPaneActiveKind(E.dap_console_leaf) ==
+		            EDITOR_PANE_KIND_DEBUG_CONSOLE);
+		editorDapConsoleCloseOwnedTerminalPane();
 	}
 	return 0;
 }
@@ -894,20 +885,21 @@ static int test_editor_dap_console_pane_renders_and_toggles(void) {
 	E.cy = 0;
 	E.cx = 0;
 	E.dap_console_leaf = NULL;
-	E.dap_console_scroll = 0;
 	const char *transcript = "line-one\nline-two\nline-three\n";
 	size_t tlen = strlen(transcript);
 	memcpy(E.dap_output, transcript, tlen);
 	E.dap_output_len = tlen;
 	E.dap_output[tlen] = '\0';
 
-	/* Toggle opens a console-only panel (bottom split), focused, Console tab. */
+	/* Toggle opens a console-only panel (bottom split), focused, Debug Console
+	 * tab active. */
 	ASSERT_TRUE(editorDapConsoleToggle());
 	ASSERT_TRUE(E.dap_console_leaf != NULL);
-	ASSERT_TRUE(E.dap_console_leaf->as.leaf.kind == EDITOR_PANE_KIND_DEBUG_CONSOLE);
-	ASSERT_TRUE(E.dap_console_leaf->as.leaf.kind_state == NULL); /* no terminal */
+	ASSERT_TRUE(editorPaneActiveKind(E.dap_console_leaf) == EDITOR_PANE_KIND_DEBUG_CONSOLE);
+	ASSERT_EQ_INT(1, E.dap_console_leaf->as.leaf.view.pane_tab_count); /* console only */
 	ASSERT_TRUE(E.focused_leaf == E.dap_console_leaf);
-	ASSERT_EQ_INT(1, E.dap_panel_tab);
+	struct editorDapConsolePane *console = editorDapConsoleForPane(E.dap_console_leaf);
+	ASSERT_TRUE(console != NULL);
 
 	size_t n = 0;
 	char *out = refresh_screen_and_capture(&n);
@@ -917,25 +909,18 @@ static int test_editor_dap_console_pane_renders_and_toggles(void) {
 	free(out);
 
 	/* Scroll clamps to [0, line count]. */
-	editorDapConsoleScroll(100);
-	ASSERT_TRUE(E.dap_console_scroll > 0 && E.dap_console_scroll <= 3);
-	editorDapConsoleScroll(-100);
-	ASSERT_EQ_INT(0, E.dap_console_scroll);
+	editorDapConsoleScroll(console, 100);
+	ASSERT_TRUE(console->scroll > 0 && console->scroll <= 3);
+	editorDapConsoleScroll(console, -100);
+	ASSERT_EQ_INT(0, console->scroll);
 
 	/* A second toggle keeps the panel open and focused on the Console tab. */
 	ASSERT_TRUE(editorDapConsoleToggle());
 	ASSERT_TRUE(E.dap_console_leaf != NULL);
-	ASSERT_EQ_INT(1, E.dap_panel_tab);
+	ASSERT_TRUE(editorPaneActiveKind(E.dap_console_leaf) == EDITOR_PANE_KIND_DEBUG_CONSOLE);
 
 	/* Cleanup: close the panel. */
-	struct editorPaneNode *leaf = E.dap_console_leaf;
-	E.dap_console_leaf = NULL;
-	if (E.layout_root != NULL && editorPaneNodeContainsLeaf(E.layout_root, leaf)) {
-		(void)editorPaneTreeCloseLeaf(&E.layout_root, leaf);
-		if (E.layout_root != NULL) {
-			E.focused_leaf = E.layout_root;
-		}
-	}
+	editorDapConsoleCloseOwnedTerminalPane();
 	E.dap_output_len = 0;
 	E.dap_output[0] = '\0';
 	return 0;
@@ -974,7 +959,50 @@ static int test_editor_dap_output_events_go_to_console(void) {
 	return 0;
 }
 
+static int test_editor_dap_console_panel_switches_terminal_and_console_tabs(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	E.window_cols = 80;
+	E.window_rows = 24;
+	ASSERT_TRUE(editorTabsInit());
+	E.dap_console_leaf = NULL;
+
+	struct editorDapLaunchConfig cfg;
+	memset(&cfg, 0, sizeof(cfg));
+	(void)snprintf(cfg.id, sizeof(cfg.id), "%s", "go_app");
+	(void)snprintf(cfg.adapter, sizeof(cfg.adapter), "%s", "go");
+	(void)snprintf(cfg.request, sizeof(cfg.request), "%s", "launch");
+	ASSERT_TRUE(editorDapLaunchSetStringField(&cfg, "console", "terminal"));
+	char tty[256] = "";
+	ASSERT_TRUE(editorDapPrepareTerminalConsole(&cfg, tty, sizeof(tty)));
+	ASSERT_TRUE(E.dap_console_leaf != NULL);
+
+	struct editorPaneView *v = &E.dap_console_leaf->as.leaf.view;
+	ASSERT_EQ_INT(2, v->pane_tab_count);
+	/* Terminal tab is active on launch. */
+	ASSERT_TRUE(editorPaneActiveKind(E.dap_console_leaf) == EDITOR_PANE_KIND_TERMINAL);
+
+	/* Switching to the Debug Console tab uses the normal tab path (no bespoke
+	 * dap_panel_tab); the active kind flips and the console payload is reachable. */
+	int console_tab = -1;
+	for (int i = 0; i < v->pane_tab_count; i++) {
+		if (editorTabKindAt(v->pane_tabs[i]) == EDITOR_PANE_KIND_DEBUG_CONSOLE) {
+			console_tab = v->pane_tabs[i];
+		}
+	}
+	ASSERT_TRUE(console_tab >= 0);
+	ASSERT_TRUE(editorTabSwitchToIndex(console_tab));
+	ASSERT_TRUE(editorPaneActiveKind(E.dap_console_leaf) == EDITOR_PANE_KIND_DEBUG_CONSOLE);
+	ASSERT_TRUE(editorDapConsoleForPane(E.dap_console_leaf) != NULL);
+
+	editorDapConsoleCloseOwnedTerminalPane();
+	return 0;
+}
+
 const struct editorTestCase g_dap_tests[] = {
+        {"editor_dap_console_panel_switches_terminal_and_console_tabs",
+         test_editor_dap_console_panel_switches_terminal_and_console_tabs},
         {"editor_dap_config_loads_global_defaults_and_project_launches",
          test_editor_dap_config_loads_global_defaults_and_project_launches},
         {"editor_dap_config_rejects_missing_adapter_and_attach",

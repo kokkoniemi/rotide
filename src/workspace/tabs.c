@@ -1159,6 +1159,9 @@ const char *editorTabDisplayNameAt(int idx) {
 	if (E.tabs[idx].kind == EDITOR_PANE_KIND_TERMINAL) {
 		return "Terminal";
 	}
+	if (E.tabs[idx].kind == EDITOR_PANE_KIND_DEBUG_CONSOLE) {
+		return "Debug Console";
+	}
 	if (idx == E.active_tab) {
 		if ((E.tab_kind == EDITOR_TAB_TASK_LOG || E.tab_kind == EDITOR_TAB_GIT_DIFF) &&
 		    E.tab_title != NULL && E.tab_title[0] != '\0') {

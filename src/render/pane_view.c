@@ -1,6 +1,7 @@
 #include "render/pane_view.h"
 
 #include "config/theme_config.h"
+#include "debug/dap_console.h"
 #include "input/text_pairs.h"
 #include "language/syntax.h"
 #include "language/syntax_visible_cache.h"
@@ -805,123 +806,25 @@ static int paneViewDapConsoleEmitSlice(struct writeBuf *wb, const char *text, in
 	return 1;
 }
 
-/* Clickable tab spans on the Debug Console panel's strip row, in absolute screen
- * coordinates, recorded at render time for the mouse layer. -1 = absent. */
-static int g_dap_panel_strip_row = -1;
-static int g_dap_panel_term_tab_start = -1;
-static int g_dap_panel_term_tab_end = -1;
-static int g_dap_panel_console_tab_start = -1;
-static int g_dap_panel_console_tab_end = -1;
-
-int editorDapPanelTabAt(int screen_col, int screen_row, int *tab_out) {
-	if (screen_row != g_dap_panel_strip_row) {
-		return 0;
-	}
-	if (screen_col >= g_dap_panel_term_tab_start && screen_col < g_dap_panel_term_tab_end) {
-		if (tab_out != NULL) {
-			*tab_out = 0;
-		}
-		return 1;
-	}
-	if (screen_col >= g_dap_panel_console_tab_start &&
-	    screen_col < g_dap_panel_console_tab_end) {
-		if (tab_out != NULL) {
-			*tab_out = 1;
-		}
-		return 1;
-	}
-	return 0;
-}
-
-#define DAP_STRIP_TERM_LABEL " Terminal "
-#define DAP_STRIP_CONSOLE_LABEL " Debug Console "
-
-/* Character and owning tab (0 = Terminal, 1 = Debug Console, -1 = filler) at
- * pane-relative column `col` of the tab strip. */
-static void paneViewDapConsoleStripCell(int has_term, int col, char *ch_out, int *tab_out) {
-	int term_len = (int)sizeof(DAP_STRIP_TERM_LABEL) - 1;
-	int con_len = (int)sizeof(DAP_STRIP_CONSOLE_LABEL) - 1;
-	int con_start = has_term ? term_len + 1 : 0;
-	*ch_out = ' ';
-	*tab_out = -1;
-	if (has_term && col >= 0 && col < term_len) {
-		*ch_out = DAP_STRIP_TERM_LABEL[col];
-		*tab_out = 0;
-	} else if (col >= con_start && col < con_start + con_len) {
-		*ch_out = DAP_STRIP_CONSOLE_LABEL[col - con_start];
-		*tab_out = 1;
-	}
-}
-
-/* Records the absolute column spans of each tab label for mouse hit-testing. */
-static void paneViewDapConsoleRecordTabSpans(int has_term, int origin_col, int origin_row) {
-	int term_len = (int)sizeof(DAP_STRIP_TERM_LABEL) - 1;
-	int con_len = (int)sizeof(DAP_STRIP_CONSOLE_LABEL) - 1;
-	int con_start = has_term ? term_len + 1 : 0;
-	g_dap_panel_strip_row = origin_row;
-	g_dap_panel_term_tab_start = has_term ? origin_col : -1;
-	g_dap_panel_term_tab_end = has_term ? origin_col + term_len : -1;
-	g_dap_panel_console_tab_start = origin_col + con_start;
-	g_dap_panel_console_tab_end = origin_col + con_start + con_len;
-}
-
-/* Renders one horizontal slice of the Debug Console panel. Row 0 is a tab strip
- * ([Terminal][Debug Console]); the rest show either the owned terminal (Terminal
- * tab) or the DAP output transcript (Debug Console tab). Emits exactly slice_cols
- * columns. */
+/* Renders one horizontal slice of the Debug Console tab body: the inline REPL
+ * input occupies the last row, the dap_output transcript fills the rows above.
+ * The pane's Terminal / Debug Console tab strip is drawn by the normal
+ * separator-row renderer, not here. Emits exactly slice_cols columns. */
 static int paneViewDrawDapConsoleSlice(struct writeBuf *wb, struct editorPaneNode *leaf,
                                        int row_in_pane, int col_in_pane, int slice_cols,
                                        const struct editorRect *rect) {
 	if (slice_cols <= 0) {
 		return 1;
 	}
-	struct editorTerminalPane *term =
-	        leaf != NULL ? (struct editorTerminalPane *)leaf->as.leaf.kind_state : NULL;
-	int tab = term != NULL ? E.dap_panel_tab : 1; /* no terminal -> console only */
-
-	if (row_in_pane == 0) {
-		/* Tab strip styled like normal pane tabs: the active tab uses the
-		 * TAB_ACTIVE theme style, inactive tabs/filler are plain. */
-		paneViewDapConsoleRecordTabSpans(term != NULL, rect->x, rect->y);
-		if (!editorAppendThemeReset(wb)) {
-			return 0;
-		}
-		int styled = -1;
-		for (int i = 0; i < slice_cols; i++) {
-			char ch = ' ';
-			int cell_tab = -1;
-			paneViewDapConsoleStripCell(term != NULL, col_in_pane + i, &ch, &cell_tab);
-			int want_active = cell_tab == tab && cell_tab != -1;
-			if (want_active != styled) {
-				int ok = want_active ? editorAppendThemeStyle(
-				                               wb, EDITOR_THEME_STYLE_TAB_ACTIVE)
-				                     : editorAppendThemeReset(wb);
-				if (!ok) {
-					return 0;
-				}
-				styled = want_active;
-			}
-			if (!wbAppend(wb, &ch, 1)) {
-				return 0;
-			}
-		}
-		return editorAppendThemeReset(wb);
-	}
-
-	if (tab == 0 && term != NULL) {
-		/* Terminal tab: the owned terminal occupies rows below the strip. */
-		return editorDrawTerminalCells(wb, term, row_in_pane - 1, col_in_pane, slice_cols);
-	}
-
+	struct editorDapConsolePane *console = editorDapConsoleForPane(leaf);
 	if (!editorAppendThemeReset(wb)) {
 		return 0;
 	}
-	/* Last row is the inline REPL input line; transcript fills the rows between
-	 * the tab strip (row 0) and it. */
 	int input_row = rect->h - 1;
-	if (row_in_pane == input_row && input_row >= 1) {
-		char inbuf[(int)sizeof(E.dap_console_input) + 4];
-		int ilen = snprintf(inbuf, sizeof(inbuf), "> %s", E.dap_console_input);
+	if (row_in_pane == input_row && input_row >= 0) {
+		const char *input_text = console != NULL ? console->input : "";
+		char inbuf[(int)sizeof(console->input) + 4];
+		int ilen = snprintf(inbuf, sizeof(inbuf), "> %s", input_text);
 		if (ilen < 0) {
 			ilen = 0;
 		}
@@ -948,12 +851,12 @@ static int paneViewDrawDapConsoleSlice(struct writeBuf *wb, struct editorPaneNod
 		return 1;
 	}
 
-	int body_rows = rect->h - 2;
+	int body_rows = rect->h - 1; /* transcript rows above the input line */
 	if (body_rows < 1) {
 		body_rows = 1;
 	}
 	int total = paneViewDapConsoleLineCount();
-	int scroll = E.dap_console_scroll;
+	int scroll = console != NULL ? console->scroll : 0;
 	int max_scroll = total - body_rows < 0 ? 0 : total - body_rows;
 	if (scroll > max_scroll) {
 		scroll = max_scroll;
@@ -963,14 +866,13 @@ static int paneViewDrawDapConsoleSlice(struct writeBuf *wb, struct editorPaneNod
 	}
 	const char *line = NULL;
 	int len = 0;
-	int body_idx = row_in_pane - 1;
 	if (total == 0) {
-		if (body_idx == 0) {
+		if (row_in_pane == 0) {
 			line = "(no debug output)";
 			len = (int)strlen(line);
 		}
 	} else {
-		paneViewDapConsoleLine(total - body_rows + body_idx - scroll, &line, &len);
+		paneViewDapConsoleLine(total - body_rows + row_in_pane - scroll, &line, &len);
 	}
 	return paneViewDapConsoleEmitSlice(wb, line, len, col_in_pane, slice_cols);
 }
@@ -1068,8 +970,8 @@ int editorDrawMultiPaneRows(struct writeBuf *wb, const struct editorLeafLayout *
 				                             x - leaf_rect.x, slice_cols)) {
 					goto cleanup;
 				}
-			} else if (leaf_node != NULL &&
-			           leaf_node->as.leaf.kind == EDITOR_PANE_KIND_DEBUG_CONSOLE) {
+			} else if (editorPaneActiveKind(leaf_node) ==
+			           EDITOR_PANE_KIND_DEBUG_CONSOLE) {
 				if (!paneViewDrawDapConsoleSlice(
 				            wb, leaf_node, screen_y - leaf_rect.y, x - leaf_rect.x,
 				            slice_cols, &leaf_rect)) {
