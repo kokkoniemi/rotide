@@ -17,6 +17,16 @@ const struct editorBuffer *editorActiveBufferHandleConst(void);
 struct editorBuffer *editorTabBufferHandleAtMutable(int idx);
 const struct editorBuffer *editorTabBufferHandleAt(int idx);
 
+/*
+ * Pane-tab kind accessors. editorTabKindAt/editorTabActiveKind read the global
+ * tab list; editorPaneActiveKind reports a pane's active-tab kind, bridging the
+ * legacy leaf kind during the leaf-kind -> tab-kind migration. All return
+ * EDITOR_PANE_KIND_EDITOR for out-of-range / split / NULL inputs.
+ */
+enum editorPaneKind editorTabKindAt(int idx);
+enum editorPaneKind editorTabActiveKind(void);
+enum editorPaneKind editorPaneActiveKind(const struct editorPaneNode *pane);
+
 /* Render-time active buffer aliasing (buffer-level API). */
 void editorBufferAliasSnapshot(struct editorBuffer *snap);
 void editorBufferAliasToActive(const struct editorBuffer *buffer);

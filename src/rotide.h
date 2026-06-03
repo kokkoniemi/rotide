@@ -164,6 +164,18 @@ enum editorTabKind {
 	EDITOR_TAB_GIT_DIFF
 };
 
+/*
+ * Kind of a pane tab's payload. EDITOR tabs own an editorBuffer (the inline
+ * union in editorTabState); TERMINAL / DEBUG_CONSOLE tabs own their state via
+ * the tab's payload pointer. Also still carried on a pane leaf during the
+ * leaf-kind -> tab-kind migration (see PLAN-unified-tabs.md).
+ */
+enum editorPaneKind {
+	EDITOR_PANE_KIND_EDITOR = 0,
+	EDITOR_PANE_KIND_TERMINAL,
+	EDITOR_PANE_KIND_DEBUG_CONSOLE
+};
+
 enum editorGitStatus {
 	EDITOR_GIT_STATUS_CLEAN = 0,
 	EDITOR_GIT_STATUS_MODIFIED,
@@ -469,6 +481,13 @@ struct editorTabState {
 			EDITOR_ACTIVE_BUFFER_FIELDS(EDITOR_DECLARE_FIELD)
 		};
 	};
+	/*
+	 * Tab payload kind. Lives outside the buffer union so it survives the
+	 * move-based active-buffer alias (tabsBufferMove copies/zeroes only the
+	 * buffer). EDITOR tabs use the inline buffer above; non-editor kinds own
+	 * payload/payload_free.
+	 */
+	enum editorPaneKind kind;
 };
 
 /*

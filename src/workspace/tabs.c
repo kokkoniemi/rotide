@@ -134,6 +134,7 @@ static void tabsBufferClearOwnedState(struct editorBuffer *buffer) {
 
 static void tabsStateInitEmpty(struct editorTabState *tab) {
 	tabsBufferInitEmpty(&tab->buffer);
+	tab->kind = EDITOR_PANE_KIND_EDITOR;
 }
 
 void editorResetActiveBufferFields(void) {
@@ -163,6 +164,33 @@ struct editorBuffer *editorTabBufferHandleAtMutable(int idx) {
 
 const struct editorBuffer *editorTabBufferHandleAt(int idx) {
 	return editorTabBufferHandleAtMutable(idx);
+}
+
+enum editorPaneKind editorTabKindAt(int idx) {
+	if (E.tabs == NULL || idx < 0 || idx >= E.tab_count) {
+		return EDITOR_PANE_KIND_EDITOR;
+	}
+	return E.tabs[idx].kind;
+}
+
+enum editorPaneKind editorTabActiveKind(void) {
+	return editorTabKindAt(E.active_tab);
+}
+
+enum editorPaneKind editorPaneActiveKind(const struct editorPaneNode *pane) {
+	if (pane == NULL || pane->is_split) {
+		return EDITOR_PANE_KIND_EDITOR;
+	}
+	/*
+	 * Transition bridge: terminal and debug-console panes still carry their
+	 * kind on the leaf. Until they become tab kinds (later phases) the leaf
+	 * kind wins; afterwards this arm is removed and the active tab's kind is
+	 * authoritative for every pane.
+	 */
+	if (pane->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
+		return pane->as.leaf.kind;
+	}
+	return editorTabKindAt(pane->as.leaf.view.active_tab_idx);
 }
 
 void editorBufferAliasSnapshot(struct editorBuffer *snap) {

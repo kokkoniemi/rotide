@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 
+#include "rotide.h" /* enum editorPaneKind */
+
 /*
  * Pane tree for the editor area.
  *
@@ -11,12 +13,6 @@
  * panes. Leaves carry editor or terminal content; interior nodes hold a
  * split orientation, a ratio, and two children.
  */
-
-enum editorPaneKind {
-	EDITOR_PANE_KIND_EDITOR = 0,
-	EDITOR_PANE_KIND_TERMINAL,
-	EDITOR_PANE_KIND_DEBUG_CONSOLE
-};
 
 enum editorSplitOrientation { EDITOR_SPLIT_HORIZONTAL = 0, EDITOR_SPLIT_VERTICAL };
 

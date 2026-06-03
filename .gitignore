@@ -65,7 +65,7 @@ tests/fuzz/*/corpus_grown/
 tests/metrics.jsonl
 tests/artifacts/goldens.jsonl
 
-PLAN.md
+PLAN*.md
 
 .codex
 .cache
