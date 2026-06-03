@@ -7,11 +7,9 @@
 #include "terminal/terminal_pane.h"
 #include "workspace/layout.h"
 
-#include <signal.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
-#include <sys/wait.h>
 
 void editorDapConsoleCloseOwnedTerminalPane(void) {
 	if (E.dap_terminal_leaf == NULL) {
@@ -40,21 +38,23 @@ int editorDapPrepareTerminalConsole(struct editorDapLaunchConfig *config) {
 		editorDapLaunchRemoveField(config, "console");
 		return 1;
 	}
-	struct editorPaneNode *terminal_leaf =
-	        editorTerminalPaneOpenSplit("sleep infinity", EDITOR_SPLIT_HORIZONTAL);
+	/*
+	 * Host the debuggee's tty in a terminal pane backed by a childless PTY. We
+	 * deliberately do NOT fork a placeholder process to mint the PTY: rotide
+	 * runs a background worker thread, and a fork+exec that touches an inherited
+	 * lock before exec can deadlock the child, hanging the editor. The adapter
+	 * opens the slave by path; rotide reads the master.
+	 */
+	char slave_path[PATH_MAX];
+	struct editorPaneNode *terminal_leaf = editorTerminalPaneOpenSplitDetached(
+	        EDITOR_SPLIT_HORIZONTAL, slave_path, sizeof(slave_path));
 	if (terminal_leaf == NULL) {
 		editorSetStatusMsg("Could not open terminal pane for DAP console");
 		editorDapLaunchRemoveField(config, "console");
 		return 0;
 	}
-	struct editorTerminalPane *tp =
-	        (struct editorTerminalPane *)terminal_leaf->as.leaf.kind_state;
-	const char *slave_path = NULL;
-	if (tp != NULL && tp->child.master_fd >= 0) {
-		slave_path = ptsname(tp->child.master_fd);
-	}
-	if (slave_path == NULL || !editorDapLaunchSetStringField(config, "tty", slave_path)) {
-		editorSetStatusMsg("Failed to resolve terminal pane tty");
+	if (!editorDapLaunchSetStringField(config, "tty", slave_path)) {
+		editorSetStatusMsg("Failed to set DAP console tty");
 		(void)editorPaneTreeCloseLeaf(&E.layout_root, terminal_leaf);
 		if (E.focused_leaf != NULL) {
 			(void)editorPaneViewLoadIntoState(&E.focused_leaf->as.leaf.view);
@@ -63,13 +63,6 @@ int editorDapPrepareTerminalConsole(struct editorDapLaunchConfig *config) {
 		return 0;
 	}
 	E.dap_terminal_leaf = terminal_leaf;
-	/* For DAP terminal hosting keep only the PTY; stop placeholder child. */
-	if (tp != NULL && tp->child.pid > 0) {
-		pid_t pid = tp->child.pid;
-		(void)kill(pid, SIGTERM);
-		(void)waitpid(pid, NULL, 0);
-		tp->child.pid = -1;
-	}
 	editorDapLaunchRemoveField(config, "console");
 	return 1;
 }

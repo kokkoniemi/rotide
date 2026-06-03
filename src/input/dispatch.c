@@ -793,7 +793,8 @@ static void dispatchProjectReplaceInteractiveLoop(struct dispatchProjectReplaceF
 			(void)editorRefreshWindowSize();
 			continue;
 		}
-		if (c == SYNTAX_EVENT || c == TASK_EVENT || c == WATCH_EVENT || c == MOUSE_EVENT) {
+		if (c == SYNTAX_EVENT || c == TASK_EVENT || c == WATCH_EVENT || c == DAP_EVENT ||
+		    c == MOUSE_EVENT) {
 			continue;
 		}
 
@@ -1025,7 +1026,7 @@ static void dispatchFindReplace(void) {
 			(void)editorRefreshWindowSize();
 			continue;
 		}
-		if (c == SYNTAX_EVENT || c == TASK_EVENT || c == WATCH_EVENT) {
+		if (c == SYNTAX_EVENT || c == TASK_EVENT || c == WATCH_EVENT || c == DAP_EVENT) {
 			continue;
 		}
 		if (c == MOUSE_EVENT) {
@@ -2544,6 +2545,7 @@ static int dispatchHandleInputEvent(int c) {
 		case TASK_EVENT:
 		case SYNTAX_EVENT:
 		case WATCH_EVENT:
+		case DAP_EVENT:
 			return 1;
 		case TERMINAL_EVENT: {
 			struct editorPaneNode *prev_focus = E.focused_leaf;

@@ -1,6 +1,7 @@
 #ifndef ROTIDE_TERMINAL_PTY_H
 #define ROTIDE_TERMINAL_PTY_H
 
+#include <stddef.h>
 #include <sys/types.h>
 
 /*
@@ -32,6 +33,16 @@ void editorPtyChildInit(struct editorPtyChild *child);
  * (errno set; nothing is left allocated).
  */
 int editorPtySpawn(const char *command, int cols, int rows, struct editorPtyChild *out);
+
+/*
+ * Allocate a PTY sized (cols, rows) WITHOUT forking a child: `out->pid` is set
+ * to -1 (no owned process), the master fd is non-blocking, and the slave device
+ * path is written to `slave_path`. Lets an external process (handed the slave
+ * path) own the tty while rotide reads the master. Returns 1 on success, 0 on
+ * failure (errno set; nothing left allocated).
+ */
+int editorPtyOpenWithoutChild(int cols, int rows, struct editorPtyChild *out, char *slave_path,
+                              size_t slave_path_size);
 
 /*
  * Push a new window size to the child via ioctl(TIOCSWINSZ). The child gets

@@ -202,6 +202,13 @@ static void terminalWaitForInput(int timeout_ms) {
 		pfds[nfds].revents = 0;
 		nfds++;
 	}
+	int dap_fd = editorDapAdapterReadFd();
+	if (dap_fd >= 0 && nfds < TERMINAL_POLL_FDS_CAP) {
+		pfds[nfds].fd = dap_fd;
+		pfds[nfds].events = POLLIN;
+		pfds[nfds].revents = 0;
+		nfds++;
+	}
 	int r;
 	do {
 		r = poll(pfds, nfds, timeout_ms);
@@ -941,6 +948,23 @@ static void terminalCoalesceFloodFrame(void) {
 	(void)terminalPumpAllWithPerf();
 }
 
+/* Drains the DAP adapter when it has traffic so the async handshake (and later
+ * events) progress while the editor is otherwise idle. Pumping here, rather than
+ * only returning a wake, keeps the fd from re-firing before it is serviced.
+ * Returns 1 if the adapter was ready. */
+static int terminalServiceDapEvent(void) {
+	int fd = editorDapAdapterReadFd();
+	if (fd < 0) {
+		return 0;
+	}
+	struct pollfd pfd = {.fd = fd, .events = POLLIN, .revents = 0};
+	if (poll(&pfd, 1, 0) <= 0) {
+		return 0;
+	}
+	editorDapPumpNotifications();
+	return 1;
+}
+
 static int terminalPollPendingEvent(void) {
 	if (editorSyntaxBackgroundPoll()) {
 		return SYNTAX_EVENT;
@@ -953,6 +977,9 @@ static int terminalPollPendingEvent(void) {
 	}
 	if (editorWatchPoll()) {
 		return WATCH_EVENT;
+	}
+	if (terminalServiceDapEvent()) {
+		return DAP_EVENT;
 	}
 	if (terminalPumpAllWithPerf() > 0) {
 		terminalCoalesceFloodFrame();
@@ -973,6 +1000,9 @@ static int terminalPollReadRetryEvent(void) {
 	}
 	if (editorWatchPoll()) {
 		return WATCH_EVENT;
+	}
+	if (terminalServiceDapEvent()) {
+		return DAP_EVENT;
 	}
 	if (terminalPumpAllWithPerf() > 0) {
 		terminalCoalesceFloodFrame();

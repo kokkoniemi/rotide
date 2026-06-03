@@ -143,12 +143,68 @@ static int test_pty_close_is_idempotent(void) {
 	return 0;
 }
 
+static int test_pty_open_without_child_round_trip(void) {
+	struct editorPtyChild child;
+	char slave_path[256];
+	if (!editorPtyOpenWithoutChild(40, 8, &child, slave_path, sizeof(slave_path))) {
+		return 1;
+	}
+	/* No owned process; master is a usable non-blocking fd, slave path resolved. */
+	if (child.pid != -1 || child.master_fd < 0 || child.width != 40 || child.height != 8) {
+		editorPtyClose(&child);
+		return 1;
+	}
+	int flags = fcntl(child.master_fd, F_GETFL, 0);
+	if (flags == -1 || (flags & O_NONBLOCK) == 0 || slave_path[0] != '/') {
+		editorPtyClose(&child);
+		return 1;
+	}
+	/* The adapter opens the slave by path; what it writes surfaces on the master. */
+	int slave = open(slave_path, O_RDWR | O_NOCTTY);
+	if (slave < 0) {
+		editorPtyClose(&child);
+		return 1;
+	}
+	ssize_t w = write(slave, "ping\n", 5);
+	char buf[64];
+	int n = (w == 5) ? pty_read_until(child.master_fd, buf, sizeof(buf), "ping", 2000) : -1;
+	int ok = n > 0 && strstr(buf, "ping") != NULL;
+	close(slave);
+	editorPtyClose(&child);
+	/* Closing a childless PTY must not block or fail. */
+	return (ok && child.master_fd == -1 && child.pid == -1) ? 0 : 1;
+}
+
+static int test_pty_open_without_child_rejects_invalid_args(void) {
+	struct editorPtyChild child;
+	char slave_path[256];
+	if (editorPtyOpenWithoutChild(0, 8, &child, slave_path, sizeof(slave_path)) != 0) {
+		return 1;
+	}
+	if (editorPtyOpenWithoutChild(40, 0, &child, slave_path, sizeof(slave_path)) != 0) {
+		return 1;
+	}
+	if (editorPtyOpenWithoutChild(40, 8, NULL, slave_path, sizeof(slave_path)) != 0) {
+		return 1;
+	}
+	if (editorPtyOpenWithoutChild(40, 8, &child, NULL, sizeof(slave_path)) != 0) {
+		return 1;
+	}
+	if (editorPtyOpenWithoutChild(40, 8, &child, slave_path, 0) != 0) {
+		return 1;
+	}
+	return 0;
+}
+
 const struct editorTestCase g_pty_tests[] = {
         {"pty_spawn_rejects_invalid_args", test_pty_spawn_rejects_invalid_args},
         {"pty_spawn_echo_round_trip", test_pty_spawn_echo_round_trip},
         {"pty_resize_updates_dimensions", test_pty_resize_updates_dimensions},
         {"pty_try_reap_detects_exit", test_pty_try_reap_detects_exit},
         {"pty_close_is_idempotent", test_pty_close_is_idempotent},
+        {"pty_open_without_child_round_trip", test_pty_open_without_child_round_trip},
+        {"pty_open_without_child_rejects_invalid_args",
+         test_pty_open_without_child_rejects_invalid_args},
 };
 
 const int g_pty_test_count = (int)(sizeof(g_pty_tests) / sizeof(g_pty_tests[0]));

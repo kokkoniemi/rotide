@@ -77,7 +77,7 @@ static char *promptRunLoop(const char *prompt, int allow_empty, editorPromptCall
 			(void)editorRefreshWindowSize();
 			continue;
 		}
-		if (c == SYNTAX_EVENT || c == TASK_EVENT || c == WATCH_EVENT) {
+		if (c == SYNTAX_EVENT || c == TASK_EVENT || c == WATCH_EVENT || c == DAP_EVENT) {
 			continue;
 		}
 		/* Prompt editing is keyboard-only; ignore mouse packets. */

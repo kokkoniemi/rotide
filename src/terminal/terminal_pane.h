@@ -65,6 +65,12 @@ struct editorTerminalPane {
 /* Spawn command in PTY + vterm. Caller owns returned pane. */
 struct editorTerminalPane *editorTerminalPaneCreate(const char *command, int cols, int rows);
 
+/* Create a pane around a childless PTY (vterm + master fd, pid = -1) and write
+ * the slave device path to `slave_path`. For hosting an external process's tty
+ * (e.g. a debuggee) without forking a placeholder. Caller owns the pane. */
+struct editorTerminalPane *editorTerminalPaneCreateDetached(int cols, int rows, char *slave_path,
+                                                            size_t slave_path_size);
+
 /* Release pane resources and terminate child if needed. Safe on NULL. */
 void editorTerminalPaneFree(void *pane);
 
@@ -156,6 +162,12 @@ int editorTerminalPaneCloseExited(struct editorPaneNode **root_ptr,
 
 /* Split focused pane, replace new sibling with terminal pane, and focus it. */
 struct editorPaneNode *editorTerminalPaneOpenSplit(const char *command, int orientation);
+
+/* Like editorTerminalPaneOpenSplit but hosts a childless PTY (see
+ * editorTerminalPaneCreateDetached); writes the slave device path to
+ * `slave_path`. */
+struct editorPaneNode *editorTerminalPaneOpenSplitDetached(int orientation, char *slave_path,
+                                                           size_t slave_path_size);
 
 /* Walk `root` and instantiate a PTY for every leaf with
  * kind == EDITOR_PANE_KIND_TERMINAL && kind_state == NULL. Every placeholder

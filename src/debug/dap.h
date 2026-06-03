@@ -94,6 +94,10 @@ void editorDapLaunchConfigsClear(struct editorDapLaunchConfig *configs, int coun
 
 void editorDapShutdown(void);
 void editorDapPumpNotifications(void);
+/* Read end of the adapter pipe, or -1 when no session is running. The input
+ * loop polls this so adapter traffic (e.g. the async `initialized` event) wakes
+ * the editor instead of waiting for an unrelated event. */
+int editorDapAdapterReadFd(void);
 
 int editorDapStartSelectedLaunch(void);
 int editorDapStartLaunch(int launch_idx);

@@ -253,11 +253,10 @@ static const VTermScreenCallbacks g_terminal_pane_screen_callbacks = {
         .sb_clear = terminalPaneSbClear,
 };
 
-struct editorTerminalPane *editorTerminalPaneCreate(const char *command, int cols, int rows) {
-	if (command == NULL) {
-		errno = EINVAL;
-		return NULL;
-	}
+/* Allocates and initializes a terminal pane (vterm + scrollback + dirty rows)
+ * with no PTY attached yet. The caller attaches a PTY via editorPtySpawn or
+ * editorPtyOpenWithoutChild. On failure returns NULL with errno set. */
+static struct editorTerminalPane *terminalPaneAlloc(int cols, int rows) {
 	cols = terminalPaneClampDim(cols);
 	rows = terminalPaneClampDim(rows);
 
@@ -284,28 +283,51 @@ struct editorTerminalPane *editorTerminalPaneCreate(const char *command, int col
 
 	t->vt = vterm_new(rows, cols);
 	if (t->vt == NULL) {
-		free(t);
+		editorTerminalPaneFree(t);
 		return NULL;
 	}
 	vterm_set_utf8(t->vt, 1);
 	vterm_output_set_callback(t->vt, terminalPaneOutputCallback, t);
 	t->screen = vterm_obtain_screen(t->vt);
 	if (t->screen == NULL) {
-		vterm_free(t->vt);
-		free(t);
+		editorTerminalPaneFree(t);
 		return NULL;
 	}
 	vterm_screen_set_callbacks(t->screen, &g_terminal_pane_screen_callbacks, t);
 	vterm_screen_reset(t->screen, 1);
+	return t;
+}
 
-	if (!editorPtySpawn(command, cols, rows, &t->child)) {
+struct editorTerminalPane *editorTerminalPaneCreate(const char *command, int cols, int rows) {
+	if (command == NULL) {
+		errno = EINVAL;
+		return NULL;
+	}
+	struct editorTerminalPane *t = terminalPaneAlloc(cols, rows);
+	if (t == NULL) {
+		return NULL;
+	}
+	if (!editorPtySpawn(command, t->cols, t->rows, &t->child)) {
 		int saved = errno;
-		vterm_free(t->vt);
-		free(t);
+		editorTerminalPaneFree(t);
 		errno = saved;
 		return NULL;
 	}
+	return t;
+}
 
+struct editorTerminalPane *editorTerminalPaneCreateDetached(int cols, int rows, char *slave_path,
+                                                            size_t slave_path_size) {
+	struct editorTerminalPane *t = terminalPaneAlloc(cols, rows);
+	if (t == NULL) {
+		return NULL;
+	}
+	if (!editorPtyOpenWithoutChild(t->cols, t->rows, &t->child, slave_path, slave_path_size)) {
+		int saved = errno;
+		editorTerminalPaneFree(t);
+		errno = saved;
+		return NULL;
+	}
 	return t;
 }
 
@@ -1044,6 +1066,31 @@ struct editorPaneNode *editorTerminalPaneOpenSplit(const char *command, int orie
 		rows = rect.h;
 	}
 	struct editorTerminalPane *terminal = editorTerminalPaneCreate(command, cols, rows);
+	if (terminal == NULL) {
+		return NULL;
+	}
+	sibling->as.leaf.kind = EDITOR_PANE_KIND_TERMINAL;
+	sibling->as.leaf.kind_state = terminal;
+	sibling->as.leaf.kind_state_free = editorTerminalPaneFree;
+	return sibling;
+}
+
+struct editorPaneNode *editorTerminalPaneOpenSplitDetached(int orientation, char *slave_path,
+                                                           size_t slave_path_size) {
+	struct editorPaneNode *sibling =
+	        editorLayoutSplitFocused((enum editorSplitOrientation)orientation, 0.5);
+	if (sibling == NULL) {
+		return NULL;
+	}
+	struct editorRect rect = {0};
+	int cols = 80;
+	int rows = 24;
+	if (editorLayoutFocusedLeafRect(&rect) && rect.w > 0 && rect.h > 0) {
+		cols = rect.w;
+		rows = rect.h;
+	}
+	struct editorTerminalPane *terminal =
+	        editorTerminalPaneCreateDetached(cols, rows, slave_path, slave_path_size);
 	if (terminal == NULL) {
 		return NULL;
 	}

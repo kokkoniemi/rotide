@@ -820,6 +820,10 @@ int editorDapProcessIncomingMessage(const char *message) {
 	return 1;
 }
 
+int editorDapAdapterReadFd(void) {
+	return g_dap_client.from_adapter_fd;
+}
+
 void editorDapPumpNotifications(void) {
 	if (g_dap_client.from_adapter_fd == -1) {
 		return;
