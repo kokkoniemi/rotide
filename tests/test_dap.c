@@ -2,6 +2,7 @@
 #include "config/dap_config.h"
 #include "debug/dap.h"
 #include "render/screen.h"
+#include "render/status_bar.h"
 #include "render/write_buf.h"
 #include "rotide.h"
 #include "test_case.h"
@@ -740,6 +741,68 @@ static int test_editor_dap_control_requests_include_thread_id(void) {
 	return 0;
 }
 
+#define DAP_BTN_BIT(a) (1u << (unsigned int)((a) - EDITOR_ACTION_DAP_DRAWER))
+
+static unsigned int dap_status_button_actions(int window_cols) {
+	unsigned int mask = 0;
+	for (int c = 0; c < window_cols; c++) {
+		int action = 0;
+		if (editorStatusBarDebugButtonAt(c, &action)) {
+			mask |= DAP_BTN_BIT(action);
+		}
+	}
+	return mask;
+}
+
+static int test_editor_dap_status_bar_controls(void) {
+	ASSERT_TRUE(editorTabsInit());
+	E.window_rows = 6;
+	E.window_cols = 120;
+	E.cy = 0;
+	E.cx = 0;
+	size_t n = 0;
+
+	/* Stopped: PAUSED badge + full step controls; clickable spans resolve. */
+	E.dap_running = 1;
+	E.dap_stopped = 1;
+	char *out = refresh_screen_and_capture(&n);
+	ASSERT_TRUE(out != NULL);
+	ASSERT_TRUE(strstr(out, "PAUSED") != NULL);
+	ASSERT_TRUE(strstr(out, "Cont") != NULL && strstr(out, "Over") != NULL &&
+	            strstr(out, "Stop") != NULL);
+	ASSERT_TRUE(strstr(out, "RUNNING") == NULL);
+	free(out);
+	ASSERT_EQ_INT((int)(DAP_BTN_BIT(EDITOR_ACTION_DAP_CONTINUE) |
+	                    DAP_BTN_BIT(EDITOR_ACTION_DAP_STEP_OVER) |
+	                    DAP_BTN_BIT(EDITOR_ACTION_DAP_STEP_INTO) |
+	                    DAP_BTN_BIT(EDITOR_ACTION_DAP_STEP_OUT) |
+	                    DAP_BTN_BIT(EDITOR_ACTION_DAP_RESTART) |
+	                    DAP_BTN_BIT(EDITOR_ACTION_DAP_STOP)),
+	              (int)dap_status_button_actions(E.window_cols));
+
+	/* Running: RUNNING badge + Pause/Restart/Stop; no step controls. */
+	E.dap_stopped = 0;
+	out = refresh_screen_and_capture(&n);
+	ASSERT_TRUE(out != NULL);
+	ASSERT_TRUE(strstr(out, "RUNNING") != NULL && strstr(out, "Pause") != NULL);
+	ASSERT_TRUE(strstr(out, "Cont") == NULL && strstr(out, "Over") == NULL);
+	free(out);
+	ASSERT_EQ_INT((int)(DAP_BTN_BIT(EDITOR_ACTION_DAP_PAUSE) |
+	                    DAP_BTN_BIT(EDITOR_ACTION_DAP_RESTART) |
+	                    DAP_BTN_BIT(EDITOR_ACTION_DAP_STOP)),
+	              (int)dap_status_button_actions(E.window_cols));
+
+	/* No session: no debug segment, no clickable buttons. */
+	E.dap_running = 0;
+	E.dap_stopped = 0;
+	out = refresh_screen_and_capture(&n);
+	ASSERT_TRUE(out != NULL);
+	ASSERT_TRUE(strstr(out, "PAUSED") == NULL && strstr(out, "RUNNING") == NULL);
+	free(out);
+	ASSERT_EQ_INT(0, (int)dap_status_button_actions(E.window_cols));
+	return 0;
+}
+
 const struct editorTestCase g_dap_tests[] = {
         {"editor_dap_config_loads_global_defaults_and_project_launches",
          test_editor_dap_config_loads_global_defaults_and_project_launches},
@@ -777,6 +840,7 @@ const struct editorTestCase g_dap_tests[] = {
         {"editor_dap_gutter_renders_markers", test_editor_dap_gutter_renders_markers},
         {"editor_dap_control_requests_include_thread_id",
          test_editor_dap_control_requests_include_thread_id},
+        {"editor_dap_status_bar_controls", test_editor_dap_status_bar_controls},
 };
 
 const int g_dap_test_count = (int)(sizeof(g_dap_tests) / sizeof(g_dap_tests[0]));

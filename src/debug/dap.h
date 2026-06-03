@@ -102,6 +102,7 @@ int editorDapAdapterReadFd(void);
 int editorDapStartSelectedLaunch(void);
 int editorDapStartLaunch(int launch_idx);
 int editorDapStop(void);
+int editorDapRestart(void);
 int editorDapContinue(void);
 int editorDapPause(void);
 int editorDapStepOver(void);

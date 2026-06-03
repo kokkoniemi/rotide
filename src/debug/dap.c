@@ -1051,6 +1051,24 @@ int editorDapStop(void) {
 	return 1;
 }
 
+int editorDapRestart(void) {
+	/* Tear down the current session (if any) and relaunch the selected config.
+	 * editorDapStartLaunch already shuts down any prior session, so a stop here
+	 * is only to give a clean "stopped" state if no launch is selected. */
+	int launch_idx = E.dap_selected_launch;
+	if (launch_idx < 0 && E.dap_launch_count > 0) {
+		launch_idx = 0;
+	}
+	if (launch_idx < 0) {
+		if (E.dap_running) {
+			(void)editorDapStop();
+		}
+		editorSetStatusMsg("No DAP launch config selected");
+		return 0;
+	}
+	return editorDapStartLaunch(launch_idx);
+}
+
 int editorDapHasBreakpoint(const char *path, int line) {
 	if (path == NULL || path[0] == '\0') {
 		return -1;

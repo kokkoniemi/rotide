@@ -9,6 +9,7 @@
 #include "input/dispatch.h"
 #include "language/lsp.h"
 #include "render/popup.h"
+#include "render/status_bar.h"
 #include "render/viewport.h"
 #include "rotide.h"
 #include "support/terminal.h"
@@ -1116,6 +1117,25 @@ static int mouseHandleRightPress(const struct editorMouseEvent *event) {
 	return popup_was_open;
 }
 
+/* A left-press on a status-bar debug-control button dispatches its DAP action.
+ * The status bar is the row just below the text area (E.window_rows + 2,
+ * 1-based). Returns 1 if the press hit a button. */
+static int mouseHandleLeftPressOnStatusBar(const struct editorMouseEvent *event,
+                                           editorProcessMappedActionFn process_mapped_action) {
+	if (event->y != E.window_rows + 2) {
+		return 0;
+	}
+	int action = 0;
+	if (!editorStatusBarDebugButtonAt(event->x - 1, &action)) {
+		return 0;
+	}
+	int effects = EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
+	(void)process_mapped_action((enum editorAction)action, &effects);
+	E.mouse_left_button_down = 0;
+	E.mouse_drag_started = 0;
+	return 1;
+}
+
 static int mouseHandleLeftPress(const struct editorMouseEvent *event,
                                 int drawer_double_click_threshold_ms,
                                 int text_multi_click_threshold_ms,
@@ -1127,6 +1147,9 @@ static int mouseHandleLeftPress(const struct editorMouseEvent *event,
 		if ((menu_effects & EDITOR_MOUSE_DISPATCH_EFFECT_VIEWPORT_SCROLL) != 0) {
 			return EDITOR_MOUSE_DISPATCH_EFFECT_VIEWPORT_SCROLL;
 		}
+		return EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT;
+	}
+	if (mouseHandleLeftPressOnStatusBar(event, process_mapped_action)) {
 		return EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT;
 	}
 	long long now_ms = mouseMonotonicMillis();

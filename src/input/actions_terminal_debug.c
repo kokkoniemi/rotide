@@ -34,6 +34,10 @@ int editorHandleTerminalDebugMappedAction(enum editorAction action) {
 			editorHistoryBreakGroup();
 			(void)editorDapStop();
 			return 1;
+		case EDITOR_ACTION_DAP_RESTART:
+			editorHistoryBreakGroup();
+			(void)editorDapRestart();
+			return 1;
 		case EDITOR_ACTION_DAP_CONTINUE:
 			editorHistoryBreakGroup();
 			(void)editorDapContinue();

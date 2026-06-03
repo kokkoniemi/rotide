@@ -146,6 +146,7 @@ static const struct keymapActionName g_keymap_action_names[] = {
         {"dap_step_over", EDITOR_ACTION_DAP_STEP_OVER},
         {"dap_step_into", EDITOR_ACTION_DAP_STEP_INTO},
         {"dap_step_out", EDITOR_ACTION_DAP_STEP_OUT},
+        {"dap_restart", EDITOR_ACTION_DAP_RESTART},
         {"dap_toggle_breakpoint", EDITOR_ACTION_DAP_TOGGLE_BREAKPOINT},
         {"split_horizontal", EDITOR_ACTION_SPLIT_HORIZONTAL},
         {"split_vertical", EDITOR_ACTION_SPLIT_VERTICAL},
