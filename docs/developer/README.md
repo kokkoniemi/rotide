@@ -7,6 +7,8 @@ For maintainers changing behavior. The root README is user-facing.
 - [Architecture](architecture.md): containers, ownership, design rules.
 - [Workflows](workflows.md): sequenced runtime paths.
 - [Concurrency](concurrency.md): the syntax worker protocol.
+- [Debugging (DAP)](debugging.md): adapter boundary, launch lifecycle,
+  breakpoints, console, and configuration.
 - [Error handling](error_handling.md): OOM and validation policy.
 - [Build and tests](build-and-tests.md): make targets, runner flags,
   fuzz/bench/golden commands, metrics, sanitizers, diagrams.

@@ -8,11 +8,9 @@ start
 :shut down previous DAP session;
 :copy launch config for mutation;
 if (console == "terminal"?) then (yes)
-  :open terminal pane with placeholder
-  ("sleep infinity");
-  :resolve slave tty via ptsname;
-  :stop placeholder child;
-  :set launch.tty = "/dev/pts/N";
+  :open terminal pane around a
+  childless PTY (no fork);
+  :set launch.tty = slave path;
   :remember owned pane;
 else (no)
   :continue without terminal pane;
@@ -20,12 +18,28 @@ endif
 :strip rotide-only console field;
 :spawn adapter over stdio;
 :send initialize;
-:send launch;
+:queue launch (not sent yet);
+
+partition "handshake (event-driven)" {
+  :initialize response;
+  :send queued launch;
+  :initialized event;
+  :send setBreakpoints (per source);
+  :send configurationDone;
+}
 
 partition "session" {
   repeat
     :pump adapter notifications;
-    :update DAP state / drawer / UI;
+    if (stopped event?) then (yes)
+      :threads;
+      :stackTrace (stopped thread);
+      :scopes (top frame);
+      :variables (each scope);
+      :update drawer + stopped marker;
+    else (no)
+      :output / continued / state update;
+    endif
   repeat while (running?) is (yes)
   ->no;
 }
