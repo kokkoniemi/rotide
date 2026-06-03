@@ -803,6 +803,66 @@ static int test_editor_dap_status_bar_controls(void) {
 	return 0;
 }
 
+static int test_editor_dap_evaluate_request_builder(void) {
+	char *scoped = editorDapBuildEvaluateRequestJson(9, "argc + 1", 3, "repl");
+	ASSERT_TRUE(scoped != NULL);
+	ASSERT_TRUE(strstr(scoped, "\"command\":\"evaluate\"") != NULL);
+	ASSERT_TRUE(strstr(scoped, "\"expression\":\"argc + 1\"") != NULL);
+	ASSERT_TRUE(strstr(scoped, "\"context\":\"repl\"") != NULL);
+	ASSERT_TRUE(strstr(scoped, "\"frameId\":3") != NULL);
+	free(scoped);
+	char *global = editorDapBuildEvaluateRequestJson(10, "x", 0, "repl");
+	ASSERT_TRUE(global != NULL);
+	ASSERT_TRUE(strstr(global, "\"frameId\"") == NULL); /* omitted with no frame */
+	free(global);
+	return 0;
+}
+
+static int test_editor_dap_evaluate_repl_flow(void) {
+	int fds[2];
+	ASSERT_TRUE(pipe(fds) == 0);
+	int flags = fcntl(fds[0], F_GETFL, 0);
+	ASSERT_TRUE(flags != -1 && fcntl(fds[0], F_SETFL, flags | O_NONBLOCK) != -1);
+	editorDapBeginSessionForTest(fds[1], strdup("{}"));
+	E.dap_stopped = 1;
+	E.dap_stack_frame_count = 1;
+	E.dap_stack_frames[0].id = 3;
+	E.dap_output_len = 0;
+	E.dap_output[0] = '\0';
+
+	/* Evaluate echoes the expression to the console and scopes to the top frame. */
+	ASSERT_TRUE(editorDapEvaluate("argc + 1"));
+	char buf[2048];
+	ASSERT_TRUE(dap_drain_fd(fds[0], buf, sizeof(buf)) > 0);
+	ASSERT_TRUE(strstr(buf, "\"command\":\"evaluate\"") != NULL);
+	ASSERT_TRUE(strstr(buf, "\"expression\":\"argc + 1\"") != NULL);
+	ASSERT_TRUE(strstr(buf, "\"frameId\":3") != NULL);
+	ASSERT_TRUE(strstr(buf, "\"context\":\"repl\"") != NULL);
+	ASSERT_TRUE(strstr(E.dap_output, "> argc + 1") != NULL);
+
+	/* The result is appended to the console and surfaced in the status bar. */
+	E.statusmsg[0] = '\0';
+	(void)editorDapProcessIncomingMessage("{\"type\":\"response\",\"command\":\"evaluate\","
+	                                      "\"success\":true,\"body\":{\"result\":\"2\"}}");
+	ASSERT_TRUE(strstr(E.dap_output, "= 2") != NULL);
+	ASSERT_TRUE(strstr(E.statusmsg, "2") != NULL);
+
+	editorDapEndSessionForTest();
+	E.dap_stopped = 0;
+	E.dap_stack_frame_count = 0;
+	E.dap_output_len = 0;
+	E.dap_output[0] = '\0';
+	(void)close(fds[0]);
+	(void)close(fds[1]);
+
+	/* No session: evaluate is rejected with a clear status. */
+	E.dap_running = 0;
+	E.statusmsg[0] = '\0';
+	ASSERT_EQ_INT(0, editorDapEvaluate("x"));
+	ASSERT_TRUE(strstr(E.statusmsg, "No DAP session") != NULL);
+	return 0;
+}
+
 const struct editorTestCase g_dap_tests[] = {
         {"editor_dap_config_loads_global_defaults_and_project_launches",
          test_editor_dap_config_loads_global_defaults_and_project_launches},
@@ -841,6 +901,8 @@ const struct editorTestCase g_dap_tests[] = {
         {"editor_dap_control_requests_include_thread_id",
          test_editor_dap_control_requests_include_thread_id},
         {"editor_dap_status_bar_controls", test_editor_dap_status_bar_controls},
+        {"editor_dap_evaluate_request_builder", test_editor_dap_evaluate_request_builder},
+        {"editor_dap_evaluate_repl_flow", test_editor_dap_evaluate_repl_flow},
 };
 
 const int g_dap_test_count = (int)(sizeof(g_dap_tests) / sizeof(g_dap_tests[0]));

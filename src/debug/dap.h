@@ -103,6 +103,10 @@ int editorDapStartSelectedLaunch(void);
 int editorDapStartLaunch(int launch_idx);
 int editorDapStop(void);
 int editorDapRestart(void);
+/* Sends a REPL `evaluate` request for `expr`, scoped to the top stack frame when
+ * stopped. The expression echo and result are appended to the DAP output stream.
+ * Returns 1 if the request was sent. */
+int editorDapEvaluate(const char *expr);
 int editorDapContinue(void);
 int editorDapPause(void);
 int editorDapStepOver(void);
@@ -117,6 +121,8 @@ int editorDapIsStoppedLine(const char *path, int line);
 
 char *editorDapBuildInitializeRequestJson(int seq, const char *adapter_id);
 char *editorDapBuildSimpleCommandRequestJson(int seq, const char *command);
+char *editorDapBuildEvaluateRequestJson(int seq, const char *expr, int frame_id,
+                                        const char *context);
 char *editorDapBuildLaunchRequestJson(int seq, const struct editorDapLaunchConfig *config,
                                       const char *workspace_root, const char *active_file);
 int editorDapProcessIncomingMessage(const char *message);

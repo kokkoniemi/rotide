@@ -212,6 +212,31 @@ char *editorDapBuildSimpleCommandRequestJson(int seq, const char *command) {
 	return sb.buf;
 }
 
+char *editorDapBuildEvaluateRequestJson(int seq, const char *expr, int frame_id,
+                                        const char *context) {
+	struct editorLspString sb = {0};
+	if (!editorLspStringAppendf(
+	            &sb, "{\"seq\":%d,\"type\":\"request\",\"command\":\"evaluate\",\"arguments\":{"
+	                 "\"expression\":",
+	            seq) ||
+	    !dapAppendJsonString(&sb, expr) || !editorLspStringAppend(&sb, ",\"context\":") ||
+	    !dapAppendJsonString(&sb, context != NULL ? context : "repl")) {
+		free(sb.buf);
+		return NULL;
+	}
+	/* frameId scopes the evaluation to a stack frame; omit it (global context)
+	 * when there is no current frame. */
+	if (frame_id > 0 && !editorLspStringAppendf(&sb, ",\"frameId\":%d", frame_id)) {
+		free(sb.buf);
+		return NULL;
+	}
+	if (!editorLspStringAppend(&sb, "}}")) {
+		free(sb.buf);
+		return NULL;
+	}
+	return sb.buf;
+}
+
 static int dapAppendSubstitutedString(struct editorLspString *sb, const char *value,
                                       const char *workspace_root, const char *active_file) {
 	char *file_dir = active_file != NULL ? editorPathDirnameDup(active_file) : NULL;
@@ -709,6 +734,19 @@ static void dapHandleVariablesResponse(const char *message) {
 	dapForEachBodyArrayElement(message, "\"variables\"", dapCollectVariable);
 }
 
+/* A successful REPL evaluate: echo the result into the console output stream and
+ * the status bar. Failures fall through the generic failed-response path. */
+static void dapHandleEvaluateResponse(const char *message) {
+	char result[ROTIDE_DAP_VALUE_MAX];
+	if (!dapBodyStringField(message, "\"result\"", result, sizeof(result))) {
+		return;
+	}
+	dapAppendOutput("= ");
+	dapAppendOutput(result);
+	dapAppendOutput("\n");
+	editorSetStatusMsg("DAP eval: %s", result);
+}
+
 /*
  * Best human-readable message from a failed response: the detailed
  * `body.error.format` if present, else the short top-level `message`. Returns 1
@@ -855,6 +893,8 @@ int editorDapProcessIncomingMessage(const char *message) {
 			dapHandleScopesResponse(message);
 		} else if (strcmp(command, "variables") == 0) {
 			dapHandleVariablesResponse(message);
+		} else if (strcmp(command, "evaluate") == 0) {
+			dapHandleEvaluateResponse(message);
 		}
 		return 1;
 	}
@@ -1048,6 +1088,28 @@ int editorDapStop(void) {
 	(void)dapSendControl("disconnect");
 	editorDapShutdown();
 	editorSetStatusMsg("DAP stopped");
+	return 1;
+}
+
+int editorDapEvaluate(const char *expr) {
+	if (expr == NULL || expr[0] == '\0') {
+		return 0;
+	}
+	if (!E.dap_running || g_dap_client.to_adapter_fd == -1) {
+		editorSetStatusMsg("No DAP session running");
+		return 0;
+	}
+	/* Scope the evaluation to the top frame when stopped; global otherwise. */
+	int frame_id = (E.dap_stopped && E.dap_stack_frame_count > 0) ? E.dap_stack_frames[0].id : 0;
+	dapAppendOutput("> ");
+	dapAppendOutput(expr);
+	dapAppendOutput("\n");
+	if (!dapSendRequest(
+	            editorDapBuildEvaluateRequestJson(g_dap_client.next_seq++, expr, frame_id,
+	                                              "repl"))) {
+		editorSetStatusMsg("DAP evaluate failed");
+		return 0;
+	}
 	return 1;
 }
 
