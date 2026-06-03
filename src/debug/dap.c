@@ -237,6 +237,26 @@ char *editorDapBuildEvaluateRequestJson(int seq, const char *expr, int frame_id,
 	return sb.buf;
 }
 
+void editorDapBuildAdapterCommand(const char *base, const char *tty_path, char *out,
+                                  size_t out_size) {
+	if (out == NULL || out_size == 0) {
+		return;
+	}
+	/*
+	 * gdb routes the debuggee's stdio to a real tty via the `--tty` startup flag,
+	 * which keeps program output off the DAP stream (it instead reaches the
+	 * Terminal tab's pts). gdb ignores the DAP `tty` launch argument, so the flag
+	 * is the only way to get the split. Other adapters honour the launch argument
+	 * and would choke on `--tty`, so it is appended only for gdb commands.
+	 */
+	if (tty_path != NULL && tty_path[0] != '\0' && base != NULL &&
+	    strstr(base, "gdb") != NULL) {
+		(void)snprintf(out, out_size, "%s --tty=%s", base, tty_path);
+	} else {
+		(void)snprintf(out, out_size, "%s", base != NULL ? base : "");
+	}
+}
+
 static int dapAppendSubstitutedString(struct editorLspString *sb, const char *value,
                                       const char *workspace_root, const char *active_file) {
 	char *file_dir = active_file != NULL ? editorPathDirnameDup(active_file) : NULL;
@@ -838,6 +858,9 @@ int editorDapProcessIncomingMessage(const char *message) {
 			return 1;
 		}
 		if (strcmp(event, "output") == 0) {
+			/* All adapter `output` events go to the Debug Console transcript.
+			 * The debuggee's own stdout/stderr does not arrive here — it is
+			 * routed to the Terminal tab's real tty via the adapter's --tty. */
 			char output[ROTIDE_DAP_VALUE_MAX];
 			if (dapBodyStringField(message, "\"output\"", output, sizeof(output))) {
 				dapAppendOutput(output);
@@ -956,14 +979,20 @@ int editorDapStartLaunch(int launch_idx) {
 
 	/* Keep launch config immutable while applying spawn-time fields (e.g. tty). */
 	struct editorDapLaunchConfig launch_copy = *config;
-	if (!editorDapPrepareTerminalConsole(&launch_copy)) {
+	char tty_path[PATH_MAX] = "";
+	if (!editorDapPrepareTerminalConsole(&launch_copy, tty_path, sizeof(tty_path))) {
 		return 0;
 	}
+
+	/* gdb takes the debuggee tty via --tty so program output bypasses the DAP
+	 * stream and lands in the Terminal tab. */
+	char command[PATH_MAX + 64];
+	editorDapBuildAdapterCommand(adapter->command, tty_path, command, sizeof(command));
 
 	pid_t pid = 0;
 	int to_fd = -1;
 	int from_fd = -1;
-	if (!editorLspSpawnProcess(adapter->command, &pid, &to_fd, &from_fd)) {
+	if (!editorLspSpawnProcess(command, &pid, &to_fd, &from_fd)) {
 		editorSetStatusMsg("Could not start DAP adapter");
 		editorDapShutdown();
 		return 0;

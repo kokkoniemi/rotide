@@ -662,6 +662,13 @@ struct editorConfig {
 	 * dap_console_scroll is the line offset from the bottom of the transcript. */
 	struct editorPaneNode *dap_console_leaf;
 	int dap_console_scroll;
+	/* Inline REPL input for the Debug Console tab (evaluated on Enter). */
+	char dap_console_input[256];
+	int dap_console_input_len;
+	/* Active tab in the Debug Console panel: 0 = Terminal (the debuggee tty,
+	 * present only when the leaf owns a terminal kind_state), 1 = Debug Console
+	 * (the dap_output transcript). */
+	int dap_panel_tab;
 
 	/* --- Config-derived: editor preferences --- */
 	enum editorCursorStyle cursor_style;

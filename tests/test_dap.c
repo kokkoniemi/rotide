@@ -165,7 +165,8 @@ static int test_editor_dap_prepare_terminal_console_sets_tty(void) {
 	}
 	E.window_cols = 80;
 	E.window_rows = 24;
-	E.dap_terminal_leaf = NULL;
+	E.dap_console_leaf = NULL;
+	E.dap_panel_tab = 0;
 
 	struct editorDapLaunchConfig cfg;
 	memset(&cfg, 0, sizeof(cfg));
@@ -174,20 +175,26 @@ static int test_editor_dap_prepare_terminal_console_sets_tty(void) {
 	(void)snprintf(cfg.request, sizeof(cfg.request), "%s", "launch");
 	ASSERT_TRUE(editorDapLaunchSetStringField(&cfg, "console", "terminal"));
 
-	int ok = editorDapPrepareTerminalConsole(&cfg);
+	char tty[256] = "";
+	int ok = editorDapPrepareTerminalConsole(&cfg, tty, sizeof(tty));
 	ASSERT_TRUE(ok);
-	ASSERT_TRUE(E.dap_terminal_leaf != NULL);
-	ASSERT_TRUE(E.dap_terminal_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL);
+	/* The panel is a Debug Console leaf that owns the debuggee terminal, with the
+	 * Terminal tab active. */
+	ASSERT_TRUE(E.dap_console_leaf != NULL);
+	ASSERT_TRUE(E.dap_console_leaf->as.leaf.kind == EDITOR_PANE_KIND_DEBUG_CONSOLE);
+	ASSERT_TRUE(E.dap_console_leaf->as.leaf.kind_state != NULL);
+	ASSERT_EQ_INT(0, E.dap_panel_tab);
 
-	/* The console field is gone, replaced by a real tty path. */
+	/* The console field is gone, replaced by a real tty path reported back. */
 	char value[ROTIDE_DAP_VALUE_MAX];
 	ASSERT_TRUE(editorDapLaunchGetStringField(&cfg, "console", value, sizeof(value)) == 0);
 	ASSERT_TRUE(editorDapLaunchGetStringField(&cfg, "tty", value, sizeof(value)));
 	ASSERT_TRUE(strstr(value, "/dev/pts/") != NULL || strstr(value, "/dev/tty") != NULL);
+	ASSERT_TRUE(strstr(tty, "/dev/pts/") != NULL || strstr(tty, "/dev/tty") != NULL);
 
-	/* Cleanup: close the owned terminal pane. */
-	struct editorPaneNode *leaf = E.dap_terminal_leaf;
-	E.dap_terminal_leaf = NULL;
+	/* Cleanup: close the owned panel (frees the embedded terminal). */
+	struct editorPaneNode *leaf = E.dap_console_leaf;
+	E.dap_console_leaf = NULL;
 	if (editorPaneNodeContainsLeaf(E.layout_root, leaf)) {
 		(void)editorPaneTreeCloseLeaf(&E.layout_root, leaf);
 		if (E.focused_leaf == leaf || E.layout_root != NULL) {
@@ -202,10 +209,24 @@ static int test_editor_dap_prepare_terminal_console_strips_non_terminal_value(vo
 	memset(&cfg, 0, sizeof(cfg));
 	(void)snprintf(cfg.id, sizeof(cfg.id), "%s", "test");
 	ASSERT_TRUE(editorDapLaunchSetStringField(&cfg, "console", "internalConsole"));
-	ASSERT_TRUE(editorDapPrepareTerminalConsole(&cfg));
+	char tty[256] = "x";
+	ASSERT_TRUE(editorDapPrepareTerminalConsole(&cfg, tty, sizeof(tty)));
 	char value[ROTIDE_DAP_VALUE_MAX];
+	/* A non-"terminal" console value is stripped and hosts no debuggee tty. */
 	ASSERT_TRUE(editorDapLaunchGetStringField(&cfg, "console", value, sizeof(value)) == 0);
-	ASSERT_TRUE(E.dap_terminal_leaf == NULL);
+	ASSERT_TRUE(editorDapLaunchGetStringField(&cfg, "tty", value, sizeof(value)) == 0);
+	ASSERT_EQ_STR("", tty);
+	if (E.dap_console_leaf != NULL) {
+		ASSERT_TRUE(E.dap_console_leaf->as.leaf.kind_state == NULL);
+		struct editorPaneNode *leaf = E.dap_console_leaf;
+		E.dap_console_leaf = NULL;
+		if (E.layout_root != NULL && editorPaneNodeContainsLeaf(E.layout_root, leaf)) {
+			(void)editorPaneTreeCloseLeaf(&E.layout_root, leaf);
+			if (E.layout_root != NULL) {
+				E.focused_leaf = E.layout_root;
+			}
+		}
+	}
 	return 0;
 }
 
@@ -878,17 +899,19 @@ static int test_editor_dap_console_pane_renders_and_toggles(void) {
 	E.dap_output_len = tlen;
 	E.dap_output[tlen] = '\0';
 
-	/* Toggle opens a console pane (bottom split), focused. */
+	/* Toggle opens a console-only panel (bottom split), focused, Console tab. */
 	ASSERT_TRUE(editorDapConsoleToggle());
 	ASSERT_TRUE(E.dap_console_leaf != NULL);
 	ASSERT_TRUE(E.dap_console_leaf->as.leaf.kind == EDITOR_PANE_KIND_DEBUG_CONSOLE);
+	ASSERT_TRUE(E.dap_console_leaf->as.leaf.kind_state == NULL); /* no terminal */
 	ASSERT_TRUE(E.focused_leaf == E.dap_console_leaf);
+	ASSERT_EQ_INT(1, E.dap_panel_tab);
 
 	size_t n = 0;
 	char *out = refresh_screen_and_capture(&n);
 	ASSERT_TRUE(out != NULL);
-	ASSERT_TRUE(strstr(out, "Debug Console") != NULL);
-	ASSERT_TRUE(strstr(out, "line-three") != NULL); /* tail of transcript visible */
+	ASSERT_TRUE(strstr(out, "Debug Console") != NULL); /* tab strip label */
+	ASSERT_TRUE(strstr(out, "line-three") != NULL);    /* tail of transcript visible */
 	free(out);
 
 	/* Scroll clamps to [0, line count]. */
@@ -897,10 +920,53 @@ static int test_editor_dap_console_pane_renders_and_toggles(void) {
 	editorDapConsoleScroll(-100);
 	ASSERT_EQ_INT(0, E.dap_console_scroll);
 
-	/* Toggle again (console focused) closes it. */
+	/* A second toggle keeps the panel open and focused on the Console tab. */
 	ASSERT_TRUE(editorDapConsoleToggle());
-	ASSERT_TRUE(E.dap_console_leaf == NULL);
+	ASSERT_TRUE(E.dap_console_leaf != NULL);
+	ASSERT_EQ_INT(1, E.dap_panel_tab);
 
+	/* Cleanup: close the panel. */
+	struct editorPaneNode *leaf = E.dap_console_leaf;
+	E.dap_console_leaf = NULL;
+	if (E.layout_root != NULL && editorPaneNodeContainsLeaf(E.layout_root, leaf)) {
+		(void)editorPaneTreeCloseLeaf(&E.layout_root, leaf);
+		if (E.layout_root != NULL) {
+			E.focused_leaf = E.layout_root;
+		}
+	}
+	E.dap_output_len = 0;
+	E.dap_output[0] = '\0';
+	return 0;
+}
+
+static int test_editor_dap_adapter_command_tty(void) {
+	char out[256];
+	/* gdb gets --tty appended when a debuggee tty is in use. */
+	editorDapBuildAdapterCommand("gdb -i dap", "/dev/pts/7", out, sizeof(out));
+	ASSERT_EQ_STR("gdb -i dap --tty=/dev/pts/7", out);
+	/* No tty -> unchanged. */
+	editorDapBuildAdapterCommand("gdb -i dap", "", out, sizeof(out));
+	ASSERT_EQ_STR("gdb -i dap", out);
+	/* Non-gdb adapters are left alone (they use the launch `tty` argument). */
+	editorDapBuildAdapterCommand("lldb-dap", "/dev/pts/7", out, sizeof(out));
+	ASSERT_EQ_STR("lldb-dap", out);
+	return 0;
+}
+
+static int test_editor_dap_output_events_go_to_console(void) {
+	/* Adapter output events (any category) land in the Debug Console transcript;
+	 * the debuggee's own stdout reaches the Terminal tab via the real tty, not
+	 * through output events. */
+	E.dap_output_len = 0;
+	E.dap_output[0] = '\0';
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"event\",\"event\":\"output\","
+	        "\"body\":{\"category\":\"stdout\",\"output\":\"GNU gdb banner\\n\"}}");
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"event\",\"event\":\"output\","
+	        "\"body\":{\"category\":\"console\",\"output\":\"adapter note\\n\"}}");
+	ASSERT_TRUE(strstr(E.dap_output, "GNU gdb banner") != NULL);
+	ASSERT_TRUE(strstr(E.dap_output, "adapter note") != NULL);
 	E.dap_output_len = 0;
 	E.dap_output[0] = '\0';
 	return 0;
@@ -948,6 +1014,8 @@ const struct editorTestCase g_dap_tests[] = {
         {"editor_dap_evaluate_repl_flow", test_editor_dap_evaluate_repl_flow},
         {"editor_dap_console_pane_renders_and_toggles",
          test_editor_dap_console_pane_renders_and_toggles},
+        {"editor_dap_adapter_command_tty", test_editor_dap_adapter_command_tty},
+        {"editor_dap_output_events_go_to_console", test_editor_dap_output_events_go_to_console},
 };
 
 const int g_dap_test_count = (int)(sizeof(g_dap_tests) / sizeof(g_dap_tests[0]));

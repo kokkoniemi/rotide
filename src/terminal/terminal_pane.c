@@ -882,7 +882,9 @@ int editorTerminalPanePumpAll(struct editorPaneNode *root) {
 		return editorTerminalPanePumpAll(root->as.split.first) +
 		       editorTerminalPanePumpAll(root->as.split.second);
 	}
-	if (root->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL && root->as.leaf.kind_state != NULL) {
+	if ((root->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL ||
+	     root->as.leaf.kind == EDITOR_PANE_KIND_DEBUG_CONSOLE) &&
+	    root->as.leaf.kind_state != NULL) {
 		return editorTerminalPanePump(
 		        (struct editorTerminalPane *)root->as.leaf.kind_state);
 	}
@@ -906,7 +908,11 @@ int editorTerminalPaneCollectMasterFds(struct editorPaneNode *root, int *fds_out
 		                                                next_cap);
 		return first + second;
 	}
-	if (root->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL || root->as.leaf.kind_state == NULL) {
+	/* The Debug Console panel owns a terminal too; its master fd must be polled
+	 * so the debuggee's output wakes the editor. */
+	if ((root->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL &&
+	     root->as.leaf.kind != EDITOR_PANE_KIND_DEBUG_CONSOLE) ||
+	    root->as.leaf.kind_state == NULL) {
 		return 0;
 	}
 	struct editorTerminalPane *t = (struct editorTerminalPane *)root->as.leaf.kind_state;
@@ -930,6 +936,12 @@ static void terminalPaneResizeRecursive(struct editorPaneNode *node, struct edit
 			(void)editorTerminalPaneResize(
 			        (struct editorTerminalPane *)node->as.leaf.kind_state, rect.w,
 			        rect.h);
+		} else if (node->as.leaf.kind == EDITOR_PANE_KIND_DEBUG_CONSOLE &&
+		           node->as.leaf.kind_state != NULL && rect.w > 0 && rect.h > 1) {
+			/* The console panel's owned terminal sits below a one-row tab strip. */
+			(void)editorTerminalPaneResize(
+			        (struct editorTerminalPane *)node->as.leaf.kind_state, rect.w,
+			        rect.h - 1);
 		}
 		return;
 	}

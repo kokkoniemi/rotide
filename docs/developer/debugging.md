@@ -91,15 +91,27 @@ Stop, running shows Pause/Restart/Stop. The buttons are clickable independent of
 which pane has focus, so execution can be driven even when the console/terminal
 pane holds keyboard focus.
 
-A REPL is available via `dap_evaluate`: it prompts for an expression, evaluates
-it (`evaluate`, scoped to the top frame when stopped), and echoes `> expr` and
-`= result` into the output transcript.
+On launch a **Debug Console panel** opens as a bottom split, with a
+`Terminal | Debug Console` tab strip styled like normal pane tabs (active tab in
+the tab-active theme style). When the launch config sets `console = "terminal"`
+the panel also owns the debuggee's tty terminal:
 
-`dap_console` toggles a **Debug Console** pane — a scrollable view of the output
-transcript (adapter `output` events, lifecycle lines, and the REPL echoes),
-opened as a bottom split. PgUp/PgDn/↑/↓ scroll it while focused. It is
-display-only (input goes through the `dap_evaluate` prompt) and transient (not
-persisted across restarts).
+- **Terminal tab** — the debuggee's stdout/stderr on a real tty. gdb ignores the
+  DAP `tty` launch arg but honours the `--tty` startup flag (the same mechanism
+  VS Code's cppdbg uses), so rotide appends `--tty=<pts>` to gdb-family adapter
+  commands when `console = "terminal"`; program output then flows straight to the
+  pts and the tab renders it. Non-gdb adapters instead receive the launch `tty`
+  argument.
+- **Debug Console tab** — a scrollable transcript of all adapter `output` events
+  (gdb banner, notifications) plus lifecycle lines and REPL echoes, with an
+  **inline REPL input line** at the bottom: focus the panel, type an expression,
+  Enter evaluates it (`evaluate`, scoped to the top frame when stopped) and prints
+  `> expr` / `= result`. `dap_evaluate` also opens a one-line prompt for the same.
+  Because the debuggee has its own tty, its output never appears here — matching
+  the VS Code Terminal/Debug Console split.
+
+Click a tab to switch; PgUp/PgDn scroll the console tab. The panel is transient
+(not persisted across restarts).
 
 ## Console output
 

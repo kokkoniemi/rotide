@@ -42,4 +42,9 @@ int editorDrawMultiPaneTabStripRow(struct writeBuf *wb);
 int editorDrawMultiPaneRows(struct writeBuf *wb, const struct editorLeafLayout *layout,
                             const struct editorBorderList *borders, struct editorRect focused_rect);
 
+/* If (screen_col, screen_row) lands on a Debug Console panel tab recorded by the
+ * last render, writes the tab index (0 = Terminal, 1 = Debug Console) to
+ * *tab_out and returns 1; otherwise returns 0. */
+int editorDapPanelTabAt(int screen_col, int screen_row, int *tab_out);
+
 #endif

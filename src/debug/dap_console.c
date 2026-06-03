@@ -8,15 +8,20 @@
 #include "workspace/layout.h"
 
 #include <limits.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 void editorDapConsoleCloseOwnedTerminalPane(void) {
-	if (E.dap_terminal_leaf == NULL) {
+	E.dap_terminal_leaf = NULL;
+	struct editorPaneNode *leaf = E.dap_console_leaf;
+	if (leaf == NULL) {
 		return;
 	}
-	struct editorPaneNode *leaf = E.dap_terminal_leaf;
-	E.dap_terminal_leaf = NULL;
+	E.dap_console_leaf = NULL;
+	E.dap_panel_tab = 0;
+	E.dap_console_input_len = 0;
+	E.dap_console_input[0] = '\0';
 	if (E.layout_root == NULL || !editorPaneNodeContainsLeaf(E.layout_root, leaf)) {
 		return; /* User already closed it. */
 	}
@@ -33,19 +38,9 @@ int editorDapConsoleToggle(void) {
 	}
 	if (E.dap_console_leaf != NULL &&
 	    editorPaneNodeContainsLeaf(E.layout_root, E.dap_console_leaf)) {
-		struct editorPaneNode *leaf = E.dap_console_leaf;
-		if (E.focused_leaf == leaf) {
-			/* Toggle off: close the console pane. */
-			E.dap_console_leaf = NULL;
-			struct editorPaneNode *new_focus =
-			        editorPaneTreeCloseLeaf(&E.layout_root, leaf);
-			if (new_focus != NULL) {
-				E.focused_leaf = new_focus;
-				(void)editorPaneViewLoadIntoState(&new_focus->as.leaf.view);
-			}
-			return 1;
-		}
-		(void)editorLayoutSetFocusedLeaf(leaf);
+		/* Panel already open: focus it and show the Debug Console tab. */
+		(void)editorLayoutSetFocusedLeaf(E.dap_console_leaf);
+		E.dap_panel_tab = 1;
 		return 1;
 	}
 	struct editorPaneNode *sibling = editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
@@ -61,6 +56,7 @@ int editorDapConsoleToggle(void) {
 	sibling->as.leaf.view.active_tab_idx = -1;
 	E.dap_console_leaf = sibling;
 	E.dap_console_scroll = 0;
+	E.dap_panel_tab = 1;
 	editorPaneAnnounceFocus();
 	return 1;
 }
@@ -87,42 +83,68 @@ void editorDapConsoleScroll(int delta) {
 	E.dap_console_scroll = scroll;
 }
 
-int editorDapPrepareTerminalConsole(struct editorDapLaunchConfig *config) {
+int editorDapPrepareTerminalConsole(struct editorDapLaunchConfig *config, char *tty_out,
+                                    size_t tty_out_size) {
+	if (tty_out != NULL && tty_out_size > 0) {
+		tty_out[0] = '\0';
+	}
 	char console_value[ROTIDE_DAP_VALUE_MAX];
-	if (!editorDapLaunchGetStringField(config, "console", console_value,
-	                                   sizeof(console_value))) {
-		return 1;
-	}
-	if (strcmp(console_value, "terminal") != 0) {
-		/* Strip unsupported console values before forwarding to adapters. */
-		editorDapLaunchRemoveField(config, "console");
-		return 1;
-	}
-	/*
-	 * Host the debuggee's tty in a terminal pane backed by a childless PTY. We
-	 * deliberately do NOT fork a placeholder process to mint the PTY: rotide
-	 * runs a background worker thread, and a fork+exec that touches an inherited
-	 * lock before exec can deadlock the child, hanging the editor. The adapter
-	 * opens the slave by path; rotide reads the master.
-	 */
-	char slave_path[PATH_MAX];
-	struct editorPaneNode *terminal_leaf = editorTerminalPaneOpenSplitDetached(
-	        EDITOR_SPLIT_HORIZONTAL, slave_path, sizeof(slave_path));
-	if (terminal_leaf == NULL) {
-		editorSetStatusMsg("Could not open terminal pane for DAP console");
-		editorDapLaunchRemoveField(config, "console");
-		return 0;
-	}
-	if (!editorDapLaunchSetStringField(config, "tty", slave_path)) {
-		editorSetStatusMsg("Failed to set DAP console tty");
-		(void)editorPaneTreeCloseLeaf(&E.layout_root, terminal_leaf);
-		if (E.focused_leaf != NULL) {
-			(void)editorPaneViewLoadIntoState(&E.focused_leaf->as.leaf.view);
-		}
-		editorDapLaunchRemoveField(config, "console");
-		return 0;
-	}
-	E.dap_terminal_leaf = terminal_leaf;
+	int wants_terminal =
+	        editorDapLaunchGetStringField(config, "console", console_value,
+	                                      sizeof(console_value)) &&
+	        strcmp(console_value, "terminal") == 0;
+	/* The `console` field is rotide-specific; never forward it to the adapter. */
 	editorDapLaunchRemoveField(config, "console");
+
+	/*
+	 * Open the Debug Console panel as a bottom split. When console = "terminal"
+	 * the panel also owns a childless-PTY terminal (the debuggee's tty) shown on
+	 * a "Terminal" tab; the "Debug Console" tab shows the dap_output transcript.
+	 * The PTY is minted without forking a placeholder — rotide runs a worker
+	 * thread and a fork that touches an inherited lock before exec can deadlock.
+	 */
+	struct editorPaneNode *sibling = editorLayoutSplitFocused(EDITOR_SPLIT_HORIZONTAL, 0.5);
+	if (sibling == NULL) {
+		/* Without a panel the session can still run; only a tty is unavailable. */
+		editorSetStatusMsg("Could not open Debug Console");
+		return wants_terminal ? 0 : 1;
+	}
+	sibling->as.leaf.kind = EDITOR_PANE_KIND_DEBUG_CONSOLE;
+	sibling->as.leaf.kind_state = NULL;
+	sibling->as.leaf.kind_state_free = NULL;
+	sibling->as.leaf.view.active_tab_idx = -1;
+
+	if (wants_terminal) {
+		struct editorRect rect = {0};
+		int cols = 80;
+		int rows = 24;
+		if (editorLayoutFocusedLeafRect(&rect) && rect.w > 0 && rect.h > 1) {
+			cols = rect.w;
+			rows = rect.h - 1; /* the tab strip occupies one row */
+		}
+		char slave_path[PATH_MAX];
+		struct editorTerminalPane *term =
+		        editorTerminalPaneCreateDetached(cols, rows, slave_path, sizeof(slave_path));
+		if (term == NULL || !editorDapLaunchSetStringField(config, "tty", slave_path)) {
+			if (term != NULL) {
+				editorTerminalPaneFree(term);
+			}
+			editorSetStatusMsg("Failed to set DAP console tty");
+			(void)editorPaneTreeCloseLeaf(&E.layout_root, sibling);
+			if (E.focused_leaf != NULL) {
+				(void)editorPaneViewLoadIntoState(&E.focused_leaf->as.leaf.view);
+			}
+			return 0;
+		}
+		sibling->as.leaf.kind_state = term;
+		sibling->as.leaf.kind_state_free = editorTerminalPaneFree;
+		if (tty_out != NULL && tty_out_size > 0) {
+			(void)snprintf(tty_out, tty_out_size, "%s", slave_path);
+		}
+	}
+
+	E.dap_console_leaf = sibling;
+	E.dap_console_scroll = 0;
+	E.dap_panel_tab = wants_terminal ? 0 : 1;
 	return 1;
 }

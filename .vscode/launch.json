@@ -1,0 +1,52 @@
+{
+    // Mirrors the [dap.launch.*] entries in .rotide.toml so the same targets can
+    // be debugged in VS Code (via the Microsoft C/C++ extension, gdb backend).
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "C DAP Fixture",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/tests/dap/supported/c/dap_sample.out",
+            "args": [
+                "${workspaceFolder}/tests/dap/supported/c/dap_sample.c"
+            ],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "externalConsole": false,
+            "preLaunchTask": "build c fixture",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "RotIDE",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/rotide",
+            "args": [
+                "${workspaceFolder}/src/rotide.c"
+            ],
+            "cwd": "${workspaceFolder}",
+            "stopAtEntry": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "externalConsole": false,
+            "preLaunchTask": "build rotide",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        }
+    ]
+}

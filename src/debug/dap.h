@@ -2,6 +2,7 @@
 #define ROTIDE_DEBUG_DAP_H
 
 #include <limits.h>
+#include <stddef.h>
 
 #define ROTIDE_DAP_MAX_ADAPTERS 16
 #define ROTIDE_DAP_MAX_CONFIGS 16
@@ -121,25 +122,18 @@ int editorDapIsStoppedLine(const char *path, int line);
 
 char *editorDapBuildInitializeRequestJson(int seq, const char *adapter_id);
 char *editorDapBuildSimpleCommandRequestJson(int seq, const char *command);
+/* Builds the adapter spawn command, appending `--tty=<tty_path>` for gdb-family
+ * adapters when a debuggee tty is in use (program output then bypasses the DAP
+ * stream). Other adapters / no tty get the base command unchanged. */
+void editorDapBuildAdapterCommand(const char *base, const char *tty_path, char *out,
+                                  size_t out_size);
 char *editorDapBuildEvaluateRequestJson(int seq, const char *expr, int frame_id,
                                         const char *context);
 char *editorDapBuildLaunchRequestJson(int seq, const struct editorDapLaunchConfig *config,
                                       const char *workspace_root, const char *active_file);
 int editorDapProcessIncomingMessage(const char *message);
 
-/*
- * Inspects `config` for the rotide-specific `console` field. If the value
- * is "terminal", opens a terminal pane via the layout, resolves its slave
- * tty, sets `tty` in `config`, and records the pane in E.dap_terminal_leaf
- * so it can be closed when the DAP session ends. The `console` key is
- * always stripped from `config` so it doesn't reach the adapter. Returns
- * 1 on success (including when no console field is present), 0 if the
- * caller should abort the launch (terminal pane creation failed).
- *
- * Exposed primarily for tests and for any future "start launch" trigger
- * that wants the terminal-pane setup without spawning the adapter.
- */
-int editorDapPrepareTerminalConsole(struct editorDapLaunchConfig *config);
+/* editorDapPrepareTerminalConsole is declared in debug/dap_console.h. */
 
 /*
  * Test-only handshake introspection/setup. Values returned by
