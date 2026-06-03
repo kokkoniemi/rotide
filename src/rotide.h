@@ -303,6 +303,7 @@ enum editorAction {
 	EDITOR_ACTION_DAP_STEP_OUT,
 	EDITOR_ACTION_DAP_RESTART,
 	EDITOR_ACTION_DAP_EVALUATE,
+	EDITOR_ACTION_DAP_CONSOLE,
 	EDITOR_ACTION_DAP_TOGGLE_BREAKPOINT,
 	EDITOR_ACTION_SPLIT_HORIZONTAL,
 	EDITOR_ACTION_SPLIT_VERTICAL,
@@ -657,6 +658,10 @@ struct editorConfig {
 	 * focused the pane and is interacting with it.
 	 */
 	struct editorPaneNode *dap_terminal_leaf;
+	/* The owned Debug Console pane (scrollable view of dap_output), or NULL.
+	 * dap_console_scroll is the line offset from the bottom of the transcript. */
+	struct editorPaneNode *dap_console_leaf;
+	int dap_console_scroll;
 
 	/* --- Config-derived: editor preferences --- */
 	enum editorCursorStyle cursor_style;

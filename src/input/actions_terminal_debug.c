@@ -1,6 +1,7 @@
 #include "input/actions_terminal_debug.h"
 
 #include "debug/dap.h"
+#include "debug/dap_console.h"
 #include "editing/edit.h"
 #include "editing/history.h"
 #include "input/prompt.h"
@@ -48,6 +49,10 @@ int editorHandleTerminalDebugMappedAction(enum editorAction action) {
 			}
 			return 1;
 		}
+		case EDITOR_ACTION_DAP_CONSOLE:
+			editorHistoryBreakGroup();
+			(void)editorDapConsoleToggle();
+			return 1;
 		case EDITOR_ACTION_DAP_CONTINUE:
 			editorHistoryBreakGroup();
 			(void)editorDapContinue();

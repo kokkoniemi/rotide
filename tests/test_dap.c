@@ -1,6 +1,7 @@
 #include "config/common.h"
 #include "config/dap_config.h"
 #include "debug/dap.h"
+#include "debug/dap_console.h"
 #include "render/screen.h"
 #include "render/status_bar.h"
 #include "render/write_buf.h"
@@ -863,6 +864,48 @@ static int test_editor_dap_evaluate_repl_flow(void) {
 	return 0;
 }
 
+static int test_editor_dap_console_pane_renders_and_toggles(void) {
+	ASSERT_TRUE(editorTabsInit());
+	E.window_rows = 12;
+	E.window_cols = 80;
+	E.cy = 0;
+	E.cx = 0;
+	E.dap_console_leaf = NULL;
+	E.dap_console_scroll = 0;
+	const char *transcript = "line-one\nline-two\nline-three\n";
+	size_t tlen = strlen(transcript);
+	memcpy(E.dap_output, transcript, tlen);
+	E.dap_output_len = tlen;
+	E.dap_output[tlen] = '\0';
+
+	/* Toggle opens a console pane (bottom split), focused. */
+	ASSERT_TRUE(editorDapConsoleToggle());
+	ASSERT_TRUE(E.dap_console_leaf != NULL);
+	ASSERT_TRUE(E.dap_console_leaf->as.leaf.kind == EDITOR_PANE_KIND_DEBUG_CONSOLE);
+	ASSERT_TRUE(E.focused_leaf == E.dap_console_leaf);
+
+	size_t n = 0;
+	char *out = refresh_screen_and_capture(&n);
+	ASSERT_TRUE(out != NULL);
+	ASSERT_TRUE(strstr(out, "Debug Console") != NULL);
+	ASSERT_TRUE(strstr(out, "line-three") != NULL); /* tail of transcript visible */
+	free(out);
+
+	/* Scroll clamps to [0, line count]. */
+	editorDapConsoleScroll(100);
+	ASSERT_TRUE(E.dap_console_scroll > 0 && E.dap_console_scroll <= 3);
+	editorDapConsoleScroll(-100);
+	ASSERT_EQ_INT(0, E.dap_console_scroll);
+
+	/* Toggle again (console focused) closes it. */
+	ASSERT_TRUE(editorDapConsoleToggle());
+	ASSERT_TRUE(E.dap_console_leaf == NULL);
+
+	E.dap_output_len = 0;
+	E.dap_output[0] = '\0';
+	return 0;
+}
+
 const struct editorTestCase g_dap_tests[] = {
         {"editor_dap_config_loads_global_defaults_and_project_launches",
          test_editor_dap_config_loads_global_defaults_and_project_launches},
@@ -903,6 +946,8 @@ const struct editorTestCase g_dap_tests[] = {
         {"editor_dap_status_bar_controls", test_editor_dap_status_bar_controls},
         {"editor_dap_evaluate_request_builder", test_editor_dap_evaluate_request_builder},
         {"editor_dap_evaluate_repl_flow", test_editor_dap_evaluate_repl_flow},
+        {"editor_dap_console_pane_renders_and_toggles",
+         test_editor_dap_console_pane_renders_and_toggles},
 };
 
 const int g_dap_test_count = (int)(sizeof(g_dap_tests) / sizeof(g_dap_tests[0]));

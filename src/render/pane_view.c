@@ -742,6 +742,116 @@ cleanup:
 	return ok;
 }
 
+/* Count of logical lines in the DAP output transcript; a trailing newline does
+ * not add an empty line. */
+static int paneViewDapConsoleLineCount(void) {
+	size_t len = E.dap_output_len;
+	if (len == 0) {
+		return 0;
+	}
+	int count = 0;
+	for (size_t i = 0; i < len; i++) {
+		if (E.dap_output[i] == '\n') {
+			count++;
+		}
+	}
+	if (E.dap_output[len - 1] != '\n') {
+		count++;
+	}
+	return count;
+}
+
+/* Bounds of logical line `index` of the transcript; *len_out is 0 when out of
+ * range. */
+static void paneViewDapConsoleLine(int index, const char **out, int *len_out) {
+	*out = NULL;
+	*len_out = 0;
+	if (index < 0) {
+		return;
+	}
+	int cur = 0;
+	size_t start = 0;
+	for (size_t i = 0; i <= E.dap_output_len; i++) {
+		if (i == E.dap_output_len || E.dap_output[i] == '\n') {
+			if (i == E.dap_output_len && start == i) {
+				break; /* empty trailing segment after the final newline */
+			}
+			if (cur == index) {
+				*out = &E.dap_output[start];
+				*len_out = (int)(i - start);
+				return;
+			}
+			cur++;
+			start = i + 1;
+		}
+	}
+}
+
+/* Emits display columns [col, col+slice_cols) of `text` (1 byte/col,
+ * non-printable -> '?'), padding short lines with spaces. */
+static int paneViewDapConsoleEmitSlice(struct writeBuf *wb, const char *text, int text_len, int col,
+                                       int slice_cols) {
+	for (int i = 0; i < slice_cols; i++) {
+		int c = col + i;
+		char ch = ' ';
+		if (text != NULL && c >= 0 && c < text_len) {
+			unsigned char b = (unsigned char)text[c];
+			ch = (b >= 0x20 && b < 0x7f) ? (char)b : '?';
+		}
+		if (!wbAppend(wb, &ch, 1)) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+/* Renders one horizontal slice of the Debug Console pane: row 0 is a header, the
+ * rest show the tail of the DAP output transcript scrolled by
+ * E.dap_console_scroll. Emits exactly slice_cols columns. */
+static int paneViewDrawDapConsoleSlice(struct writeBuf *wb, int row_in_pane, int col_in_pane,
+                                       int slice_cols, int pane_rows) {
+	if (slice_cols <= 0) {
+		return 1;
+	}
+	if (!editorAppendThemeReset(wb)) {
+		return 0;
+	}
+	if (row_in_pane == 0) {
+		static const char header[] = "Debug Console";
+		if (!wbAppend(wb, "\x1b[1m", 4) ||
+		    !paneViewDapConsoleEmitSlice(wb, header, (int)sizeof(header) - 1, col_in_pane,
+		                                 slice_cols)) {
+			return 0;
+		}
+		return editorAppendThemeReset(wb);
+	}
+	int body_rows = pane_rows - 1;
+	if (body_rows < 1) {
+		body_rows = 1;
+	}
+	int total = paneViewDapConsoleLineCount();
+	int scroll = E.dap_console_scroll;
+	int max_scroll = total - body_rows < 0 ? 0 : total - body_rows;
+	if (scroll > max_scroll) {
+		scroll = max_scroll;
+	}
+	if (scroll < 0) {
+		scroll = 0;
+	}
+	const char *line = NULL;
+	int len = 0;
+	int body_idx = row_in_pane - 1;
+	if (total == 0) {
+		if (body_idx == 0) {
+			line = "(no debug output)";
+			len = (int)strlen(line);
+		}
+	} else {
+		paneViewDapConsoleLine(total - body_rows + body_idx - scroll, &line, &len);
+	}
+	return paneViewDapConsoleEmitSlice(wb, line, len, col_in_pane, slice_cols);
+}
+
 int editorDrawMultiPaneRows(struct writeBuf *wb, const struct editorLeafLayout *layout,
                             const struct editorBorderList *borders,
                             struct editorRect focused_rect) {
@@ -825,6 +935,13 @@ int editorDrawMultiPaneRows(struct writeBuf *wb, const struct editorLeafLayout *
 				                                     leaf_node->as.leaf.kind_state,
 				                             row_in_pane, col_in_pane,
 				                             slice_cols)) {
+					goto cleanup;
+				}
+			} else if (leaf_node != NULL &&
+			           leaf_node->as.leaf.kind == EDITOR_PANE_KIND_DEBUG_CONSOLE) {
+				if (!paneViewDrawDapConsoleSlice(wb, screen_y - leaf_rect.y,
+				                                 x - leaf_rect.x, slice_cols,
+				                                 leaf_rect.h)) {
 					goto cleanup;
 				}
 			} else {

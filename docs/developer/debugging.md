@@ -83,6 +83,24 @@ thread of the most recent stop (falling back to the first known thread, then the
 main thread). Stop disconnects and tears the session down. After every stop the
 stack/scopes/variables fan-out re-runs, so the views reflect the new location.
 
+## Debug UI
+
+While a session is active the status bar becomes a control bar: a `PAUSED` /
+`RUNNING` badge followed by buttons — stopped shows Cont/Over/Into/Out/Restart/
+Stop, running shows Pause/Restart/Stop. The buttons are clickable independent of
+which pane has focus, so execution can be driven even when the console/terminal
+pane holds keyboard focus.
+
+A REPL is available via `dap_evaluate`: it prompts for an expression, evaluates
+it (`evaluate`, scoped to the top frame when stopped), and echoes `> expr` and
+`= result` into the output transcript.
+
+`dap_console` toggles a **Debug Console** pane — a scrollable view of the output
+transcript (adapter `output` events, lifecycle lines, and the REPL echoes),
+opened as a bottom split. PgUp/PgDn/↑/↓ scroll it while focused. It is
+display-only (input goes through the `dap_evaluate` prompt) and transient (not
+persisted across restarts).
+
 ## Console output
 
 `console = "terminal"` hosts the debuggee's tty in a terminal pane. The PTY is

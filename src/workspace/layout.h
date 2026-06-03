@@ -12,7 +12,11 @@
  * split orientation, a ratio, and two children.
  */
 
-enum editorPaneKind { EDITOR_PANE_KIND_EDITOR = 0, EDITOR_PANE_KIND_TERMINAL };
+enum editorPaneKind {
+	EDITOR_PANE_KIND_EDITOR = 0,
+	EDITOR_PANE_KIND_TERMINAL,
+	EDITOR_PANE_KIND_DEBUG_CONSOLE
+};
 
 enum editorSplitOrientation { EDITOR_SPLIT_HORIZONTAL = 0, EDITOR_SPLIT_VERTICAL };
 

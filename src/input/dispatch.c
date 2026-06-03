@@ -1,6 +1,7 @@
 #include "input/dispatch.h"
 
 #include "config/keymap.h"
+#include "debug/dap_console.h"
 #include "editing/buffer_core.h"
 #include "editing/buffer_search.h"
 #include "editing/document_position.h"
@@ -2669,6 +2670,33 @@ static void dispatchHandleMouseEvent(int *effects) {
 	}
 }
 
+/* Scrolls the focused Debug Console pane. Returns 1 when the key was a scroll
+ * key the console consumed; other keys fall through to normal handling so global
+ * keybindings (evaluate, toggle, quit) still work while the console is focused. */
+static int dispatchTryDapConsoleKey(int c) {
+	if (E.focused_leaf == NULL || E.focused_leaf->is_split ||
+	    E.focused_leaf->as.leaf.kind != EDITOR_PANE_KIND_DEBUG_CONSOLE ||
+	    E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
+		return 0;
+	}
+	switch (c) {
+		case PAGE_UP:
+			editorDapConsoleScroll(5);
+			return 1;
+		case PAGE_DOWN:
+			editorDapConsoleScroll(-5);
+			return 1;
+		case ARROW_UP:
+			editorDapConsoleScroll(1);
+			return 1;
+		case ARROW_DOWN:
+			editorDapConsoleScroll(-1);
+			return 1;
+		default:
+			return 0;
+	}
+}
+
 /* Returns 1 when the key was forwarded to the terminal pane (caller must return). */
 static int dispatchTryTerminalPaneKey(int c) {
 	if (E.focused_leaf == NULL || E.focused_leaf->is_split ||
@@ -2759,6 +2787,9 @@ static int dispatchHandleKeyboardKey(int c, enum editorAction *action_out, int *
                                      int *effects) {
 	if (editorClearHoverLinkState()) {
 		*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+	}
+	if (dispatchTryDapConsoleKey(c)) {
+		return 1;
 	}
 	if (dispatchTryTerminalPaneKey(c)) {
 		return 1;
