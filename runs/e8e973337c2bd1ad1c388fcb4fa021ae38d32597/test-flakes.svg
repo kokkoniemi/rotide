@@ -13,12 +13,14 @@
 <line x1="72" y1="268" x2="696" y2="268" stroke="#444" stroke-width="1"/>
 <line x1="72.0" y1="268" x2="72.0" y2="272" stroke="#444" stroke-width="1"/>
 <text x="72.0" y="286" text-anchor="middle" fill="#222">2026-05-30</text>
-<line x1="280.0" y1="268" x2="280.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="280.0" y="286" text-anchor="middle" fill="#222">2026-05-31</text>
-<line x1="488.0" y1="268" x2="488.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="488.0" y="286" text-anchor="middle" fill="#222">2026-06-01</text>
+<line x1="228.0" y1="268" x2="228.0" y2="272" stroke="#444" stroke-width="1"/>
+<text x="228.0" y="286" text-anchor="middle" fill="#222">2026-05-31</text>
+<line x1="384.0" y1="268" x2="384.0" y2="272" stroke="#444" stroke-width="1"/>
+<text x="384.0" y="286" text-anchor="middle" fill="#222">2026-06-01</text>
+<line x1="540.0" y1="268" x2="540.0" y2="272" stroke="#444" stroke-width="1"/>
+<text x="540.0" y="286" text-anchor="middle" fill="#222">2026-06-02</text>
 <line x1="696.0" y1="268" x2="696.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="696.0" y="286" text-anchor="middle" fill="#222">2026-06-02</text>
-<polyline fill="none" stroke="#2ca02c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 280.0,268.0 488.0,268.0 696.0,268.0"/>
+<text x="696.0" y="286" text-anchor="middle" fill="#222">2026-06-03</text>
+<polyline fill="none" stroke="#2ca02c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,268.0 228.0,268.0 384.0,268.0 540.0,268.0 696.0,268.0"/>
 <circle cx="696.0" cy="268.0" r="3" fill="#2ca02c"/>
 </svg>
