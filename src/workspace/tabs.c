@@ -135,6 +135,8 @@ static void tabsBufferClearOwnedState(struct editorBuffer *buffer) {
 static void tabsStateInitEmpty(struct editorTabState *tab) {
 	tabsBufferInitEmpty(&tab->buffer);
 	tab->kind = EDITOR_PANE_KIND_EDITOR;
+	tab->payload = NULL;
+	tab->payload_free = NULL;
 }
 
 void editorResetActiveBufferFields(void) {
@@ -171,6 +173,13 @@ enum editorPaneKind editorTabKindAt(int idx) {
 		return EDITOR_PANE_KIND_EDITOR;
 	}
 	return E.tabs[idx].kind;
+}
+
+void *editorTabPayloadAt(int idx) {
+	if (E.tabs == NULL || idx < 0 || idx >= E.tab_count) {
+		return NULL;
+	}
+	return E.tabs[idx].payload;
 }
 
 enum editorPaneKind editorTabActiveKind(void) {
@@ -212,6 +221,11 @@ static void tabsFreeTabRows(struct editorTabState *tab) {
 }
 
 static void tabsStateFree(struct editorTabState *tab) {
+	if (tab->payload != NULL && tab->payload_free != NULL) {
+		tab->payload_free(tab->payload);
+	}
+	tab->payload = NULL;
+	tab->payload_free = NULL;
 	tabsBufferClearOwnedState(&tab->buffer);
 }
 
@@ -303,6 +317,11 @@ static void tabsStoreActiveTab(void) {
 	if (E.tabs == NULL || E.tab_count <= 0 || E.active_tab < 0 || E.active_tab >= E.tab_count) {
 		return;
 	}
+	/* Non-editor tabs hold no editable buffer (E.active_buffer is detached), so
+	 * there is nothing to capture back into the slot. */
+	if (E.tabs[E.active_tab].kind != EDITOR_PANE_KIND_EDITOR) {
+		return;
+	}
 	if (E.is_preview && E.dirty != 0) {
 		E.is_preview = 0;
 	}
@@ -320,6 +339,13 @@ static void tabsLoadActiveTab(int tab_idx) {
 	 * of which API created/switched the tab. */
 	if (E.focused_leaf != NULL && !E.focused_leaf->is_split) {
 		(void)editorPaneViewActivateTab(&E.focused_leaf->as.leaf.view, tab_idx);
+	}
+	/* Non-editor active tab: E.active_buffer stays detached/empty and no editor
+	 * (syntax/LSP/document) setup runs. The payload owns the tab's real state. */
+	if (E.tabs[tab_idx].kind != EDITOR_PANE_KIND_EDITOR) {
+		editorResetActiveBufferFields();
+		editorViewportSetMode(EDITOR_VIEWPORT_FOLLOW_CURSOR);
+		return;
 	}
 	tabsStateLoadActive(&E.tabs[tab_idx]);
 	if (editorActiveTabIsReadOnly() && E.tab_kind != EDITOR_TAB_GIT_DIFF) {
@@ -458,6 +484,74 @@ int editorTabAppendEmptyForPane(struct editorPaneNode *pane) {
 		return -1;
 	}
 	return new_idx;
+}
+
+int editorTabCreateWidget(enum editorPaneKind kind, void *payload, void (*payload_free)(void *)) {
+	if (kind == EDITOR_PANE_KIND_EDITOR) {
+		return -1;
+	}
+	if (E.tab_count >= ROTIDE_MAX_TABS || !tabsEnsureTabCapacity(E.tab_count + 1)) {
+		return -1;
+	}
+	int new_idx = E.tab_count;
+	tabsStateInitEmpty(&E.tabs[new_idx]);
+	E.tabs[new_idx].kind = kind;
+	E.tabs[new_idx].payload = payload;
+	E.tabs[new_idx].payload_free = payload_free;
+	E.tab_count++;
+	return new_idx;
+}
+
+int editorTabAdoptInPane(struct editorPaneNode *pane, enum editorPaneKind kind, void *payload,
+                         void (*payload_free)(void *)) {
+	if (pane == NULL || pane->is_split || pane->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
+		return -1;
+	}
+	/* Save the outgoing editor tab before the active buffer is detached. */
+	tabsStoreActiveTab();
+	int new_idx = editorTabCreateWidget(kind, payload, payload_free);
+	if (new_idx < 0) {
+		return -1;
+	}
+	/* The widget becomes the pane's sole tab (mirrors today's dedicated
+	 * terminal/console pane), then the global active tab. Callers use this when
+	 * `pane` is (or will be) the focused leaf. */
+	editorPaneViewClearTabs(&pane->as.leaf.view);
+	if (!editorPaneViewActivateTab(&pane->as.leaf.view, new_idx)) {
+		E.tab_count--;
+		tabsStateFree(&E.tabs[new_idx]);
+		return -1;
+	}
+	E.active_tab = new_idx;
+	tabsLoadActiveTab(new_idx);
+	return new_idx;
+}
+
+static struct editorPaneNode *tabsFindLeafWithTab(struct editorPaneNode *node, int idx) {
+	if (node == NULL) {
+		return NULL;
+	}
+	if (node->is_split) {
+		struct editorPaneNode *found = tabsFindLeafWithTab(node->as.split.first, idx);
+		return found != NULL ? found : tabsFindLeafWithTab(node->as.split.second, idx);
+	}
+	return editorPaneViewHasTab(&node->as.leaf.view, idx) ? node : NULL;
+}
+
+int editorTabCloseAt(int idx) {
+	if (E.tabs == NULL || idx < 0 || idx >= E.tab_count) {
+		return 0;
+	}
+	/* Route the close through the pane that hosts the tab so the existing
+	 * focused-pane close machinery (membership, fallback, payload free) runs. */
+	struct editorPaneNode *host = tabsFindLeafWithTab(E.layout_root, idx);
+	if (host != NULL && host != E.focused_leaf) {
+		(void)editorLayoutSetFocusedLeaf(host);
+	}
+	if (E.active_tab != idx) {
+		(void)editorTabSwitchToIndex(idx);
+	}
+	return editorTabCloseActive();
 }
 
 static void tabsEnsurePaneOccupancyRecursive(struct editorPaneNode *node) {
@@ -1061,6 +1155,9 @@ const char *editorTabFilenameAt(int idx) {
 const char *editorTabDisplayNameAt(int idx) {
 	if (idx < 0 || idx >= E.tab_count) {
 		return "[No Name]";
+	}
+	if (E.tabs[idx].kind == EDITOR_PANE_KIND_TERMINAL) {
+		return "Terminal";
 	}
 	if (idx == E.active_tab) {
 		if ((E.tab_kind == EDITOR_TAB_TASK_LOG || E.tab_kind == EDITOR_TAB_GIT_DIFF) &&

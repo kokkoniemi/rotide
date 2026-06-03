@@ -1830,9 +1830,9 @@ static int test_editor_workspace_state_restore_hydrates_terminal_placeholder(voi
 	ASSERT_TRUE(E.layout_root != NULL && E.layout_root->is_split);
 	struct editorPaneNode *term_leaf = E.layout_root->as.split.second;
 	ASSERT_TRUE(term_leaf != NULL && !term_leaf->is_split);
-	ASSERT_EQ_INT(EDITOR_PANE_KIND_TERMINAL, (int)term_leaf->as.leaf.kind);
-	ASSERT_TRUE(term_leaf->as.leaf.kind_state != NULL);
-	ASSERT_TRUE(term_leaf->as.leaf.kind_state_free == editorTerminalPaneFree);
+	/* A `term` token restores as an editor leaf hosting a TERMINAL tab. */
+	ASSERT_EQ_INT(EDITOR_PANE_KIND_TERMINAL, (int)editorPaneActiveKind(term_leaf));
+	ASSERT_TRUE(editorTerminalPaneForPane(term_leaf) != NULL);
 	/* Pumping a freshly hydrated terminal must not crash. */
 	(void)editorTerminalPanePumpAll(E.layout_root);
 
@@ -1863,8 +1863,8 @@ static int test_editor_workspace_state_restore_terminal_only_layout(void) {
 
 	ASSERT_EQ_INT(1, editorPaneTreeLeafCount(E.layout_root));
 	ASSERT_TRUE(E.layout_root != NULL && !E.layout_root->is_split);
-	ASSERT_EQ_INT(EDITOR_PANE_KIND_TERMINAL, (int)E.layout_root->as.leaf.kind);
-	ASSERT_TRUE(E.layout_root->as.leaf.kind_state != NULL);
+	ASSERT_EQ_INT(EDITOR_PANE_KIND_TERMINAL, (int)editorPaneActiveKind(E.layout_root));
+	ASSERT_TRUE(editorTerminalPaneForPane(E.layout_root) != NULL);
 
 	editorTabsFreeAll();
 	editorWorkspaceStateShutdown();

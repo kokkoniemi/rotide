@@ -140,8 +140,17 @@ VTermScreenCell *editorTerminalPaneEnsureRenderRowScratch(struct editorTerminalP
 struct editorPaneNode;
 struct editorPaneNode *editorPaneNodeNewTerminalLeaf(const char *command, int cols, int rows);
 
-/* Pump all terminal leaves; returns total bytes/activity count. */
+/* The active terminal of `pane`: the payload of its active tab when that tab is
+ * a TERMINAL tab, else NULL. (Does not cover the legacy DEBUG_CONSOLE leaf, whose
+ * terminal is its kind_state.) */
+struct editorTerminalPane *editorTerminalPaneForPane(const struct editorPaneNode *pane);
+
+/* Pump every live terminal (TERMINAL tabs and terminal-bearing leaves); returns
+ * total bytes/activity count. */
 int editorTerminalPanePumpAll(struct editorPaneNode *root);
+
+/* Close TERMINAL tabs whose child has exited. Returns the number closed. */
+int editorTerminalPaneCloseExitedTabs(void);
 
 /* Append every terminal pane's master_fd (only those >= 0) into fds_out[],
  * writing at most `capacity` entries. Returns the number of fds that would

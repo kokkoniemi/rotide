@@ -1861,11 +1861,10 @@ int editorHandleMouseEventInTerminalPane(const struct editorMouseEvent *event) {
 	int sy = event->y - 1;
 	struct editorPaneNode *leaf = editorLayoutLeafAt(&layout, sx, sy);
 	editorLeafLayoutFree(&layout);
-	if (leaf == NULL || leaf->is_split || leaf->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
-	    leaf->as.leaf.kind_state == NULL) {
+	struct editorTerminalPane *terminal = editorTerminalPaneForPane(leaf);
+	if (terminal == NULL) {
 		return 0;
 	}
-	struct editorTerminalPane *terminal = (struct editorTerminalPane *)leaf->as.leaf.kind_state;
 	struct editorRect leaf_rect = {0};
 	if (!editorLayoutLeafRectBordered(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE, leaf,
 	                                  &leaf_rect)) {

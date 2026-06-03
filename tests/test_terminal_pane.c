@@ -4,6 +4,7 @@
 #include "test_case.h"
 #include "vterm.h"
 #include "workspace/layout.h"
+#include "workspace/tabs.h"
 
 #include <poll.h>
 #include <stdio.h>
@@ -94,13 +95,18 @@ static int test_terminal_pane_resize_all_to_layout_updates_grids(void) {
 	}
 	E.window_cols = 120;
 	E.window_rows = 40;
+	if (!editorTabsInit()) {
+		return 1;
+	}
 	struct editorPaneNode *terminal_leaf =
 	        editorTerminalPaneOpenSplit("sleep 5", EDITOR_SPLIT_HORIZONTAL);
 	if (terminal_leaf == NULL) {
 		return 1;
 	}
-	struct editorTerminalPane *t =
-	        (struct editorTerminalPane *)terminal_leaf->as.leaf.kind_state;
+	struct editorTerminalPane *t = editorTerminalPaneForPane(terminal_leaf);
+	if (t == NULL) {
+		return 1;
+	}
 	int before_rows = t->rows;
 	int before_cols = t->cols;
 
@@ -118,13 +124,18 @@ static int test_terminal_pane_mouse_drag_resizes_terminal_pane(void) {
 	}
 	E.window_cols = 120;
 	E.window_rows = 40;
+	if (!editorTabsInit()) {
+		return 1;
+	}
 	struct editorPaneNode *terminal_leaf =
 	        editorTerminalPaneOpenSplit("sleep 5", EDITOR_SPLIT_VERTICAL);
 	if (terminal_leaf == NULL) {
 		return 1;
 	}
-	struct editorTerminalPane *t =
-	        (struct editorTerminalPane *)terminal_leaf->as.leaf.kind_state;
+	struct editorTerminalPane *t = editorTerminalPaneForPane(terminal_leaf);
+	if (t == NULL) {
+		return 1;
+	}
 	int before_cols = t->cols;
 	int before_rows = t->rows;
 
@@ -164,13 +175,18 @@ static int test_terminal_pane_mouse_drag_shrinks_terminal_pane(void) {
 	}
 	E.window_cols = 120;
 	E.window_rows = 40;
+	if (!editorTabsInit()) {
+		return 1;
+	}
 	struct editorPaneNode *terminal_leaf =
 	        editorTerminalPaneOpenSplit("sleep 5", EDITOR_SPLIT_VERTICAL);
 	if (terminal_leaf == NULL) {
 		return 1;
 	}
-	struct editorTerminalPane *t =
-	        (struct editorTerminalPane *)terminal_leaf->as.leaf.kind_state;
+	struct editorTerminalPane *t = editorTerminalPaneForPane(terminal_leaf);
+	if (t == NULL) {
+		return 1;
+	}
 	if (E.layout_root == NULL || !E.layout_root->is_split) {
 		return 1;
 	}
@@ -218,6 +234,9 @@ static int test_terminal_pane_open_split_replaces_sibling_kind(void) {
 	}
 	E.window_cols = 80;
 	E.window_rows = 24;
+	if (!editorTabsInit()) {
+		return 1;
+	}
 	struct editorPaneNode *original = E.focused_leaf;
 	struct editorPaneNode *terminal_leaf =
 	        editorTerminalPaneOpenSplit("sleep 2", EDITOR_SPLIT_HORIZONTAL);
@@ -225,9 +244,8 @@ static int test_terminal_pane_open_split_replaces_sibling_kind(void) {
 		return 1;
 	}
 	int failed = E.focused_leaf != terminal_leaf ||
-	             terminal_leaf->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
-	             terminal_leaf->as.leaf.kind_state == NULL ||
-	             terminal_leaf->as.leaf.kind_state_free != editorTerminalPaneFree ||
+	             editorPaneActiveKind(terminal_leaf) != EDITOR_PANE_KIND_TERMINAL ||
+	             editorTerminalPaneForPane(terminal_leaf) == NULL ||
 	             editorPaneTreeLeafCount(E.layout_root) != 2 ||
 	             !editorPaneNodeContainsLeaf(E.layout_root, original);
 	return failed;
@@ -239,6 +257,9 @@ static int test_terminal_pane_open_vertical_split_replaces_sibling_kind(void) {
 	}
 	E.window_cols = 80;
 	E.window_rows = 24;
+	if (!editorTabsInit()) {
+		return 1;
+	}
 	struct editorPaneNode *original = E.focused_leaf;
 	struct editorPaneNode *terminal_leaf =
 	        editorTerminalPaneOpenSplit("sleep 2", EDITOR_SPLIT_VERTICAL);
@@ -246,9 +267,8 @@ static int test_terminal_pane_open_vertical_split_replaces_sibling_kind(void) {
 		return 1;
 	}
 	int failed = E.focused_leaf != terminal_leaf ||
-	             terminal_leaf->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
-	             terminal_leaf->as.leaf.kind_state == NULL ||
-	             terminal_leaf->as.leaf.kind_state_free != editorTerminalPaneFree ||
+	             editorPaneActiveKind(terminal_leaf) != EDITOR_PANE_KIND_TERMINAL ||
+	             editorTerminalPaneForPane(terminal_leaf) == NULL ||
 	             editorPaneTreeLeafCount(E.layout_root) != 2 ||
 	             !editorPaneNodeContainsLeaf(E.layout_root, original);
 	return failed;
@@ -258,16 +278,18 @@ static int test_terminal_pane_close_exited_removes_leaf_and_restores_focus(void)
 	if (E.layout_root == NULL || E.focused_leaf == NULL) {
 		return 1;
 	}
-	struct editorPaneNode *original = E.focused_leaf;
 	E.window_cols = 80;
 	E.window_rows = 24;
+	if (!editorTabsInit()) {
+		return 1;
+	}
+	struct editorPaneNode *original = E.focused_leaf;
 	struct editorPaneNode *terminal_leaf =
 	        editorTerminalPaneOpenSplit("true", EDITOR_SPLIT_HORIZONTAL);
 	if (terminal_leaf == NULL) {
 		return 1;
 	}
-	struct editorTerminalPane *t =
-	        (struct editorTerminalPane *)terminal_leaf->as.leaf.kind_state;
+	struct editorTerminalPane *t = editorTerminalPaneForPane(terminal_leaf);
 	if (t == NULL) {
 		return 1;
 	}
@@ -281,11 +303,12 @@ static int test_terminal_pane_close_exited_removes_leaf_and_restores_focus(void)
 	if (!t->exited) {
 		return 1;
 	}
-	struct editorPaneNode *focus = E.focused_leaf;
-	int closed = editorTerminalPaneCloseExited(&E.layout_root, &focus, NULL);
+	/* An exited TERMINAL tab is closed; its now-empty split pane collapses and
+	 * focus returns to the original editor pane. */
+	int closed = editorTerminalPaneCloseExitedTabs();
 	int failed = closed != 1 || editorPaneTreeLeafCount(E.layout_root) != 1 ||
-	             focus != original || !editorPaneNodeContainsLeaf(E.layout_root, original);
-	E.focused_leaf = focus;
+	             E.focused_leaf != original ||
+	             !editorPaneNodeContainsLeaf(E.layout_root, original);
 	return failed;
 }
 
@@ -687,11 +710,11 @@ static int test_terminal_pane_hydrate_placeholders_spawns_pty(void) {
 
 	int failures = editorTerminalPaneHydratePlaceholders(root, "sleep 2");
 	struct editorPaneNode *term_leaf = root->as.split.second;
-	int failed = failures != 0 || term_leaf->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
-	             term_leaf->as.leaf.kind_state == NULL ||
-	             term_leaf->as.leaf.kind_state_free != editorTerminalPaneFree ||
-	             term_leaf->as.leaf.view.active_tab_idx != -1 ||
-	             term_leaf->as.leaf.view.pane_tab_count != 0;
+	/* Hydration restores a `term` placeholder as an editor leaf hosting a
+	 * TERMINAL tab. */
+	int failed = failures != 0 ||
+	             editorPaneActiveKind(term_leaf) != EDITOR_PANE_KIND_TERMINAL ||
+	             editorTerminalPaneForPane(term_leaf) == NULL;
 	if (!failed) {
 		(void)editorTerminalPanePumpAll(root);
 	}
@@ -720,11 +743,13 @@ static int test_terminal_pane_hydrate_placeholders_skips_already_hydrated(void) 
 
 	int failures = editorTerminalPaneHydratePlaceholders(root, "sleep 2");
 	struct editorPaneNode *term_leaf = root->as.split.second;
-	void *first_state = term_leaf->as.leaf.kind_state;
-	int failed = failures != 0 || first_state == NULL;
+	struct editorTerminalPane *first_term = editorTerminalPaneForPane(term_leaf);
+	int failed = failures != 0 || first_term == NULL;
 	if (!failed) {
+		/* A second pass is a no-op: the leaf is now an editor leaf, not a
+		 * `term` placeholder, so the terminal tab is left untouched. */
 		failures = editorTerminalPaneHydratePlaceholders(root, "sleep 2");
-		failed = failures != 0 || term_leaf->as.leaf.kind_state != first_state;
+		failed = failures != 0 || editorTerminalPaneForPane(term_leaf) != first_term;
 	}
 
 	editorPaneNodeFree(root);
@@ -735,7 +760,34 @@ static int test_terminal_pane_hydrate_placeholders_skips_already_hydrated(void) 
 	return failed;
 }
 
+static int test_terminal_pane_open_split_creates_labeled_terminal_tab(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	E.window_cols = 80;
+	E.window_rows = 24;
+	if (!editorTabsInit()) {
+		return 1;
+	}
+	struct editorPaneNode *sibling =
+	        editorTerminalPaneOpenSplit("sleep 5", EDITOR_SPLIT_HORIZONTAL);
+	if (sibling == NULL) {
+		return 1;
+	}
+	int term_idx = sibling->as.leaf.view.active_tab_idx;
+	/* The hosting leaf stays an editor leaf; the terminal lives on the tab,
+	 * which is labeled "Terminal" in the strip. */
+	int failed = sibling->as.leaf.kind != EDITOR_PANE_KIND_EDITOR ||
+	             sibling->as.leaf.kind_state != NULL ||
+	             sibling->as.leaf.view.pane_tab_count != 1 ||
+	             editorTabKindAt(term_idx) != EDITOR_PANE_KIND_TERMINAL ||
+	             strcmp(editorTabDisplayNameAt(term_idx), "Terminal") != 0;
+	return failed;
+}
+
 const struct editorTestCase g_terminal_pane_tests[] = {
+        {"terminal_pane_open_split_creates_labeled_terminal_tab",
+         test_terminal_pane_open_split_creates_labeled_terminal_tab},
         {"terminal_pane_create_rejects_null_command",
          test_terminal_pane_create_rejects_null_command},
         {"terminal_pane_pump_captures_child_output", test_terminal_pane_pump_captures_child_output},

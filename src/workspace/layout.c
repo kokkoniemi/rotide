@@ -1188,8 +1188,10 @@ static size_t layoutSerializeRecursive(const struct editorPaneNode *node, char *
 		return 0;
 	}
 	if (!node->is_split) {
+		/* A pane whose active tab is a terminal (tab kind) serializes the same
+		 * as a legacy terminal leaf, so terminals persist across restore. */
 		const char *token =
-		        node->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL ? "term" : "leaf";
+		        editorPaneActiveKind(node) == EDITOR_PANE_KIND_TERMINAL ? "term" : "leaf";
 		int n = snprintf(out + pos, out_size - pos, "%s", token);
 		if (n < 0 || (size_t)n >= out_size - pos) {
 			return 0;

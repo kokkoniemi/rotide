@@ -155,6 +155,9 @@ static int test_editor_refresh_screen_terminal_exit_overlay(void) {
 static int test_editor_refresh_screen_closes_exited_terminal_without_keypress(void) {
 	E.window_rows = 8;
 	E.window_cols = 60;
+	/* Production always has an editor tab open; the terminal split then hosts a
+	 * TERMINAL tab whose close lets the now-empty split pane collapse. */
+	ASSERT_TRUE(editorTabsInit());
 	add_row("after-terminal");
 
 	struct editorPaneNode *original = E.focused_leaf;
@@ -163,8 +166,8 @@ static int test_editor_refresh_screen_closes_exited_terminal_without_keypress(vo
 	ASSERT_TRUE(terminal_leaf != NULL);
 	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
 
-	struct editorTerminalPane *t =
-	        (struct editorTerminalPane *)terminal_leaf->as.leaf.kind_state;
+	/* The terminal is a TERMINAL tab in the split pane, not a leaf kind_state. */
+	struct editorTerminalPane *t = editorTerminalPaneForPane(terminal_leaf);
 	ASSERT_TRUE(t != NULL);
 	int waited = 0;
 	while (waited < 2000 && !t->exited) {

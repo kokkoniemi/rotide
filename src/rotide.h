@@ -488,6 +488,14 @@ struct editorTabState {
 	 * payload/payload_free.
 	 */
 	enum editorPaneKind kind;
+	/*
+	 * Owned payload for non-editor kinds (e.g. an editorTerminalPane for a
+	 * TERMINAL tab). NULL for EDITOR tabs, whose payload is the inline buffer.
+	 * payload_free releases it when the tab is freed. Mirrors the pane leaf's
+	 * kind_state / kind_state_free.
+	 */
+	void *payload;
+	void (*payload_free)(void *payload);
 };
 
 /*

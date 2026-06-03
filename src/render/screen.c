@@ -1155,6 +1155,7 @@ static int screenDrawRows(struct writeBuf *wb) {
 		(void)editorTerminalPanePumpAll(E.layout_root);
 		int closed = editorTerminalPaneCloseExited(&E.layout_root, &E.focused_leaf,
 		                                           &E.dap_terminal_leaf);
+		closed += editorTerminalPaneCloseExitedTabs();
 		if (closed > 0 && E.focused_leaf != NULL && E.focused_leaf != prev_focus) {
 			(void)editorPaneViewLoadIntoState(&E.focused_leaf->as.leaf.view);
 		}
@@ -1340,12 +1341,7 @@ static enum editorCursorStyle screenCursorStyleFromVtermShape(int vterm_shape) {
 }
 
 static struct editorTerminalPane *screenFocusedTerminalPane(void) {
-	if (E.focused_leaf == NULL || E.focused_leaf->is_split ||
-	    E.focused_leaf->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
-	    E.focused_leaf->as.leaf.kind_state == NULL) {
-		return NULL;
-	}
-	return (struct editorTerminalPane *)E.focused_leaf->as.leaf.kind_state;
+	return editorTerminalPaneForPane(E.focused_leaf);
 }
 
 static const struct editorLspDiagnostic *screenDiagnosticAtCursor(void) {

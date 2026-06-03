@@ -26,6 +26,18 @@ const struct editorBuffer *editorTabBufferHandleAt(int idx);
 enum editorPaneKind editorTabKindAt(int idx);
 enum editorPaneKind editorTabActiveKind(void);
 enum editorPaneKind editorPaneActiveKind(const struct editorPaneNode *pane);
+void *editorTabPayloadAt(int idx);
+
+/*
+ * Create a non-editor tab (kind != EDITOR) owning `payload` and make it the sole
+ * active tab of `pane` (an editor leaf). `payload_free` releases it on close.
+ * Returns the new tab index or -1. editorTabCloseAt closes any tab by global
+ * index, routing through its host pane's close path. */
+int editorTabCreateWidget(enum editorPaneKind kind, void *payload,
+                          void (*payload_free)(void *payload));
+int editorTabAdoptInPane(struct editorPaneNode *pane, enum editorPaneKind kind, void *payload,
+                         void (*payload_free)(void *payload));
+int editorTabCloseAt(int idx);
 
 /* Render-time active buffer aliasing (buffer-level API). */
 void editorBufferAliasSnapshot(struct editorBuffer *snap);

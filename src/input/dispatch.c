@@ -2552,31 +2552,30 @@ static int dispatchHandleInputEvent(int c) {
 			struct editorPaneNode *prev_focus = E.focused_leaf;
 			int closed = editorTerminalPaneCloseExited(&E.layout_root, &E.focused_leaf,
 			                                           &E.dap_terminal_leaf);
+			closed += editorTerminalPaneCloseExitedTabs();
 			if (closed > 0 && E.focused_leaf != NULL && E.focused_leaf != prev_focus) {
 				(void)editorPaneViewLoadIntoState(&E.focused_leaf->as.leaf.view);
 			}
 			return 1;
 		}
-		case BRACKETED_PASTE_START_EVENT:
+		case BRACKETED_PASTE_START_EVENT: {
 			E.paste_active = 1;
-			if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
-			    E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
-			    E.focused_leaf->as.leaf.kind_state != NULL) {
-				(void)editorTerminalPaneSendPasteStart(
-				        (struct editorTerminalPane *)
-				                E.focused_leaf->as.leaf.kind_state);
+			struct editorTerminalPane *paste_term =
+			        editorTerminalPaneForPane(E.focused_leaf);
+			if (paste_term != NULL) {
+				(void)editorTerminalPaneSendPasteStart(paste_term);
 			}
 			return 1;
-		case BRACKETED_PASTE_END_EVENT:
+		}
+		case BRACKETED_PASTE_END_EVENT: {
 			E.paste_active = 0;
-			if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
-			    E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
-			    E.focused_leaf->as.leaf.kind_state != NULL) {
-				(void)editorTerminalPaneSendPasteEnd(
-				        (struct editorTerminalPane *)
-				                E.focused_leaf->as.leaf.kind_state);
+			struct editorTerminalPane *paste_term =
+			        editorTerminalPaneForPane(E.focused_leaf);
+			if (paste_term != NULL) {
+				(void)editorTerminalPaneSendPasteEnd(paste_term);
 			}
 			return 1;
+		}
 		default:
 			return 0;
 	}
@@ -2735,10 +2734,8 @@ static int dispatchTryDapConsoleKey(int c) {
 
 /* Returns 1 when the key was forwarded to the terminal pane (caller must return). */
 static int dispatchTryTerminalPaneKey(int c) {
-	if (E.focused_leaf == NULL || E.focused_leaf->is_split ||
-	    E.focused_leaf->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
-	    E.focused_leaf->as.leaf.kind_state == NULL ||
-	    E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
+	struct editorTerminalPane *terminal = editorTerminalPaneForPane(E.focused_leaf);
+	if (terminal == NULL || E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
 		return 0;
 	}
 	if (E.terminal_prefix_armed) {
@@ -2752,8 +2749,6 @@ static int dispatchTryTerminalPaneKey(int c) {
 		editorSetStatusMsg("Terminal prefix armed: next key is rotide");
 		return 1;
 	}
-	struct editorTerminalPane *terminal =
-	        (struct editorTerminalPane *)E.focused_leaf->as.leaf.kind_state;
 	(void)editorTerminalPaneSendKey(terminal, c);
 	return 1;
 }

@@ -1,9 +1,9 @@
 #ifndef ROTIDE_WORKSPACE_LAYOUT_H
 #define ROTIDE_WORKSPACE_LAYOUT_H
 
-#include <stddef.h>
-
 #include "rotide.h" /* enum editorPaneKind */
+
+#include <stddef.h>
 
 /*
  * Pane tree for the editor area.
