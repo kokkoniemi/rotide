@@ -100,6 +100,7 @@ struct editorDapVariable {
 	char name[ROTIDE_DAP_NAME_MAX];
 	char type[ROTIDE_DAP_VALUE_MAX];
 	char value[ROTIDE_DAP_VALUE_MAX];
+	char preview[ROTIDE_DAP_VALUE_MAX];
 	char memory_reference[ROTIDE_DAP_VALUE_MAX];
 };
 

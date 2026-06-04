@@ -457,6 +457,7 @@ int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 			view_out->name = var->name;
 			view_out->detail_type = var->type;
 			view_out->detail_value = var->value;
+			view_out->detail_preview = var->preview;
 			view_out->detail_address = var->memory_reference;
 			view_out->variable_reference = var->variables_reference;
 			view_out->depth = 3;

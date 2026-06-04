@@ -311,6 +311,9 @@ static int test_editor_dap_protocol_builds_initialize_and_launch_requests(void) 
 	ASSERT_TRUE(init != NULL);
 	ASSERT_TRUE(strstr(init, "\"command\":\"initialize\"") != NULL);
 	ASSERT_TRUE(strstr(init, "\"adapterID\":\"go\"") != NULL);
+	ASSERT_TRUE(strstr(init, "\"supportsVariableType\":true") != NULL);
+	ASSERT_TRUE(strstr(init, "\"supportsMemoryReferences\":true") != NULL);
+	ASSERT_TRUE(strstr(init, "\"supportsVariablePaging\":true") != NULL);
 	free(init);
 
 	char *launch =
@@ -558,6 +561,80 @@ static int test_editor_dap_stopped_chain_populates_state(void) {
 	        "\"value\":\"1\"}]}}");
 	ASSERT_EQ_INT(2, E.dap_variable_count);
 	ASSERT_EQ_STR("argc", E.dap_variables[1].name);
+
+	editorDapEndSessionForTest();
+	(void)close(fds[0]);
+	(void)close(fds[1]);
+	return 0;
+}
+
+static int test_editor_dap_variable_child_preview_populates_arrays(void) {
+	int fds[2];
+	ASSERT_TRUE(pipe(fds) == 0);
+	int flags = fcntl(fds[0], F_GETFL, 0);
+	ASSERT_TRUE(flags != -1 && fcntl(fds[0], F_SETFL, flags | O_NONBLOCK) != -1);
+	editorDapBeginSessionForTest(fds[1], strdup("{}"));
+	char buf[8192];
+
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"response\",\"command\":\"scopes\",\"success\":true,"
+	        "\"body\":{\"scopes\":[{\"variablesReference\":1,\"name\":\"Arguments\"},"
+	        "{\"variablesReference\":2,\"name\":\"Locals\"},"
+	        "{\"variablesReference\":3,\"name\":\"Registers\"}]}}");
+	ASSERT_TRUE(dap_drain_fd(fds[0], buf, sizeof(buf)) > 0);
+	ASSERT_TRUE(strstr(buf, "\"variablesReference\":1") != NULL);
+	ASSERT_TRUE(strstr(buf, "\"variablesReference\":2") != NULL);
+	ASSERT_TRUE(strstr(buf, "\"variablesReference\":3") != NULL);
+
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"response\",\"command\":\"variables\",\"success\":true,"
+	        "\"request_seq\":3,\"body\":{\"variables\":[{\"name\":\"numbers\","
+	        "\"value\":\"0x7ffd5c2a10\",\"type\":\"int [6]\","
+	        "\"variablesReference\":44,\"indexedVariables\":6},{\"name\":\"items\","
+	        "\"value\":\"0x555555\",\"type\":\"struct item *\","
+	        "\"variablesReference\":45,\"namedVariables\":2},{\"name\":\"broken\","
+	        "\"value\":\"<optimized out>\",\"variablesReference\":46,"
+	        "\"namedVariables\":1}]}}");
+	ASSERT_EQ_INT(3, E.dap_variable_count);
+	ASSERT_EQ_STR("numbers", E.dap_variables[0].name);
+	ASSERT_EQ_STR("int [6]", E.dap_variables[0].type);
+	ASSERT_TRUE(dap_drain_fd(fds[0], buf, sizeof(buf)) > 0);
+	ASSERT_TRUE(strstr(buf, "\"variablesReference\":44") != NULL);
+	ASSERT_TRUE(strstr(buf, "\"count\":6") != NULL);
+	ASSERT_TRUE(strstr(buf, "\"variablesReference\":45") != NULL);
+	ASSERT_TRUE(strstr(buf, "\"count\":2") != NULL);
+	ASSERT_TRUE(strstr(buf, "\"variablesReference\":46") != NULL);
+	ASSERT_TRUE(strstr(buf, "\"count\":1") != NULL);
+
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"response\",\"command\":\"variables\",\"success\":true,"
+	        "\"request_seq\":5,\"body\":{\"variables\":["
+	        "{\"name\":\"[0]\",\"value\":\"3\"},{\"name\":\"[1]\",\"value\":\"5\"},"
+	        "{\"name\":\"[2]\",\"value\":\"8\"},{\"name\":\"[3]\",\"value\":\"13\"},"
+	        "{\"name\":\"[4]\",\"value\":\"21\"},{\"name\":\"[5]\",\"value\":\"34\"}]}}");
+	ASSERT_EQ_INT(3, E.dap_variable_count);
+	ASSERT_EQ_STR("{3,5,8,13,21,34}", E.dap_variables[0].preview);
+
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"response\",\"command\":\"variables\",\"success\":true,"
+	        "\"request_seq\":6,\"body\":{\"variables\":["
+	        "{\"name\":\"score\",\"value\":\"3\"},{\"name\":\"next\",\"value\":\"0x0\"}]}}");
+	ASSERT_EQ_INT(3, E.dap_variable_count);
+	ASSERT_EQ_STR("{score=3,next=0x0}", E.dap_variables[1].preview);
+
+	E.dap_output_len = 0;
+	E.dap_output[0] = '\0';
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"response\",\"command\":\"variables\",\"success\":false,"
+	        "\"request_seq\":7,\"message\":\"list index is out of range\"}");
+	ASSERT_EQ_INT(3, E.dap_variable_count);
+	ASSERT_TRUE(strstr(E.dap_output, "list index is out of range") == NULL);
+
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"response\",\"command\":\"variables\",\"success\":true,"
+	        "\"request_seq\":999,\"body\":{\"variables\":[{\"name\":\"stale\","
+	        "\"value\":\"should not append\"}]}}");
+	ASSERT_EQ_INT(3, E.dap_variable_count);
 
 	editorDapEndSessionForTest();
 	(void)close(fds[0]);
@@ -1354,6 +1431,8 @@ static void dap_seed_semantic_drawer_state(void) {
 	(void)snprintf(E.dap_variables[3].name, sizeof(E.dap_variables[3].name), "%s", "numbers");
 	(void)snprintf(E.dap_variables[3].type, sizeof(E.dap_variables[3].type), "%s", "int[6]");
 	(void)snprintf(E.dap_variables[3].value, sizeof(E.dap_variables[3].value), "%s",
+	               "0x7ffd5c2a10");
+	(void)snprintf(E.dap_variables[3].preview, sizeof(E.dap_variables[3].preview), "%s",
 	               "{3,5,...}");
 	(void)snprintf(E.dap_variables[3].memory_reference,
 	               sizeof(E.dap_variables[3].memory_reference), "%s", "0x7ffd5c2a10");
@@ -1446,6 +1525,11 @@ static int test_editor_dap_drawer_entry_view_semantics(void) {
 	ASSERT_EQ_STR("int", view.detail_type);
 	ASSERT_EQ_STR("1", view.detail_value);
 	ASSERT_EQ_STR("0x1", view.detail_address);
+
+	ASSERT_TRUE(find_drawer_entry("numbers", NULL, &view));
+	ASSERT_EQ_STR("int[6]", view.detail_type);
+	ASSERT_EQ_STR("{3,5,...}", view.detail_preview);
+	ASSERT_EQ_STR("0x7ffd5c2a10", view.detail_value);
 	return 0;
 }
 
@@ -1499,6 +1583,12 @@ static int test_editor_dap_drawer_renders_semantic_decorations(void) {
 	ASSERT_TRUE(strstr(row, "\x1b[38;2;3;4;5mint") != NULL);
 	ASSERT_TRUE(strstr(row, "\x1b[38;2;6;7;8m1") != NULL);
 	ASSERT_TRUE(strstr(row, "0x1") != NULL);
+	free(row);
+
+	ASSERT_TRUE(dap_render_drawer_entry("numbers", &row));
+	ASSERT_TRUE(strstr(row, "\x1b[38;2;3;4;5mint[6]") != NULL);
+	ASSERT_TRUE(strstr(row, "{3,5,...}") != NULL);
+	ASSERT_TRUE(strstr(row, "0x7ffd5c2a10") != NULL);
 	free(row);
 	return 0;
 }
@@ -1689,6 +1779,8 @@ const struct editorTestCase g_dap_tests[] = {
         {"editor_dap_configuration_done_failure_is_benign",
          test_editor_dap_configuration_done_failure_is_benign},
         {"editor_dap_stopped_chain_populates_state", test_editor_dap_stopped_chain_populates_state},
+        {"editor_dap_variable_child_preview_populates_arrays",
+         test_editor_dap_variable_child_preview_populates_arrays},
         {"editor_dap_output_event_reads_body_output",
          test_editor_dap_output_event_reads_body_output},
         {"editor_dap_continued_clears_inspection_state",

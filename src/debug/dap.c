@@ -27,6 +27,7 @@
 #include <unistd.h>
 
 #define ROTIDE_DAP_IO_TIMEOUT_MS 2500
+#define ROTIDE_DAP_VARIABLE_PREVIEW_CHILDREN 6
 
 /*
  * DAP launch handshake state. Ordering is load-bearing: `launch` must follow
@@ -61,6 +62,9 @@ struct dapClient {
 	int pending_var_seq[ROTIDE_DAP_MAX_SCOPES];
 	int pending_var_scope[ROTIDE_DAP_MAX_SCOPES];
 	int pending_var_count;
+	int pending_var_preview_seq[ROTIDE_DAP_MAX_VARIABLES];
+	int pending_var_preview_index[ROTIDE_DAP_MAX_VARIABLES];
+	int pending_var_preview_count;
 	/* Scopes whose variables have already been received this stop, used as an
 	 * in-order fallback when a response carries no `request_seq`. */
 	unsigned long long var_scopes_received;
@@ -89,6 +93,7 @@ static void dapClientReset(void) {
 	g_dap_client.stopped_thread_id = 0;
 	g_dap_client.pending_launch_json = NULL;
 	g_dap_client.pending_var_count = 0;
+	g_dap_client.pending_var_preview_count = 0;
 	g_dap_client.var_scopes_received = 0;
 	g_dap_client.register_collapse_applied = 0;
 	E.dap_running = 0;
@@ -216,7 +221,10 @@ char *editorDapBuildInitializeRequestJson(int seq, const char *adapter_id) {
 	            seq) ||
 	    !dapAppendJsonString(&sb, adapter_id) ||
 	    !editorLspStringAppend(&sb, ",\"pathFormat\":\"path\",\"linesStartAt1\":true,"
-	                                "\"columnsStartAt1\":true}}")) {
+	                                "\"columnsStartAt1\":true,"
+	                                "\"supportsVariableType\":true,"
+	                                "\"supportsMemoryReferences\":true,"
+	                                "\"supportsVariablePaging\":true}}")) {
 		free(sb.buf);
 		return NULL;
 	}
@@ -486,6 +494,30 @@ static char *dapBuildIntArgRequestJson(int seq, const char *command, const char 
 	return sb.buf;
 }
 
+static char *dapBuildVariablesRequestJson(int seq, int variables_reference, int start, int count) {
+	struct editorLspString sb = {0};
+	if (!editorLspStringAppendf(&sb,
+	                            "{\"seq\":%d,\"type\":\"request\",\"command\":\"variables\","
+	                            "\"arguments\":{\"variablesReference\":%d",
+	                            seq, variables_reference)) {
+		free(sb.buf);
+		return NULL;
+	}
+	if (start > 0 && !editorLspStringAppendf(&sb, ",\"start\":%d", start)) {
+		free(sb.buf);
+		return NULL;
+	}
+	if (count > 0 && !editorLspStringAppendf(&sb, ",\"count\":%d", count)) {
+		free(sb.buf);
+		return NULL;
+	}
+	if (!editorLspStringAppend(&sb, "}}")) {
+		free(sb.buf);
+		return NULL;
+	}
+	return sb.buf;
+}
+
 /* Reads an integer value for `quoted_key` at the top level of [start, end). */
 static int dapObjectIntField(const char *start, const char *end, const char *quoted_key, int *out) {
 	const char *key = editorLspFindTopLevelKey(start, end, quoted_key);
@@ -642,6 +674,9 @@ static void dapClearInspectionState(void) {
 	E.dap_stack_frame_count = 0;
 	E.dap_scope_count = 0;
 	E.dap_variable_count = 0;
+	g_dap_client.pending_var_count = 0;
+	g_dap_client.pending_var_preview_count = 0;
+	g_dap_client.var_scopes_received = 0;
 }
 
 /*
@@ -734,6 +769,136 @@ static int dapCollectScope(const char *obj_start, const char *obj_end) {
 /* Scope index that the variables currently being parsed belong to; set by
  * dapHandleVariablesResponse before walking the array. */
 static int g_dap_collect_scope_index = 0;
+static int g_dap_preview_parent_index = -1;
+static int g_dap_preview_child_count = 0;
+
+static int dapVariableScopeCanPreview(int scope_index) {
+	if (scope_index < 0 || scope_index >= E.dap_scope_count) {
+		return 0;
+	}
+	return !dapScopeNameLooksLikeRegisters(E.dap_scopes[scope_index].name);
+}
+
+static int dapVariablePreviewChildCount(const struct editorDapVariable *var) {
+	int child_count =
+	        var->indexed_variables > 0 ? var->indexed_variables : var->named_variables;
+	if (child_count <= 0) {
+		return 0;
+	}
+	return child_count < ROTIDE_DAP_VARIABLE_PREVIEW_CHILDREN
+	               ? child_count
+	               : ROTIDE_DAP_VARIABLE_PREVIEW_CHILDREN;
+}
+
+static void dapQueueVariablePreviewRequest(int variable_index) {
+	if (g_dap_client.to_adapter_fd == -1 || variable_index < 0 ||
+	    variable_index >= E.dap_variable_count ||
+	    g_dap_client.pending_var_preview_count >= ROTIDE_DAP_MAX_VARIABLES) {
+		return;
+	}
+	const struct editorDapVariable *var = &E.dap_variables[variable_index];
+	if (var->variables_reference <= 0 || !dapVariableScopeCanPreview(var->scope_index)) {
+		return;
+	}
+	int child_count = dapVariablePreviewChildCount(var);
+	if (child_count <= 0) {
+		return;
+	}
+	int seq = g_dap_client.next_seq++;
+	g_dap_client.pending_var_preview_seq[g_dap_client.pending_var_preview_count] = seq;
+	g_dap_client.pending_var_preview_index[g_dap_client.pending_var_preview_count] =
+	        variable_index;
+	g_dap_client.pending_var_preview_count++;
+	(void)dapSendRequest(
+	        dapBuildVariablesRequestJson(seq, var->variables_reference, 0, child_count));
+}
+
+static int dapPreviewAppendText(struct editorDapVariable *var, const char *text) {
+	if (var == NULL || text == NULL || text[0] == '\0') {
+		return 1;
+	}
+	size_t len = strlen(var->preview);
+	size_t avail = sizeof(var->preview) - len;
+	if (avail <= 1) {
+		return 0;
+	}
+	int written = snprintf(var->preview + len, avail, "%s", text);
+	return written >= 0 && (size_t)written < avail;
+}
+
+static int dapCollectVariablePreviewChild(const char *obj_start, const char *obj_end) {
+	if (g_dap_preview_parent_index < 0 || g_dap_preview_parent_index >= E.dap_variable_count) {
+		return 0;
+	}
+	struct editorDapVariable *parent = &E.dap_variables[g_dap_preview_parent_index];
+	char name[ROTIDE_DAP_NAME_MAX] = "";
+	char value[ROTIDE_DAP_VALUE_MAX] = "";
+	(void)dapObjectStringField(obj_start, obj_end, "\"name\"", name, sizeof(name));
+	(void)dapObjectStringField(obj_start, obj_end, "\"value\"", value, sizeof(value));
+	if (value[0] == '\0' && name[0] == '\0') {
+		return 1;
+	}
+	int array_like = parent->indexed_variables > 0 && parent->named_variables == 0;
+	if (g_dap_preview_child_count > 0 && !dapPreviewAppendText(parent, ",")) {
+		return 0;
+	}
+	if (!array_like && name[0] != '\0') {
+		if (!dapPreviewAppendText(parent, name) || !dapPreviewAppendText(parent, "=")) {
+			return 0;
+		}
+	}
+	if (!dapPreviewAppendText(parent, value[0] != '\0' ? value : name)) {
+		return 0;
+	}
+	g_dap_preview_child_count++;
+	return 1;
+}
+
+static int dapResolveVariablePreviewParent(const char *message) {
+	int request_seq = 0;
+	if (!dapTopLevelIntField(message, "\"request_seq\"", &request_seq)) {
+		return -1;
+	}
+	for (int i = 0; i < g_dap_client.pending_var_preview_count; i++) {
+		if (g_dap_client.pending_var_preview_seq[i] == request_seq) {
+			int parent_index = g_dap_client.pending_var_preview_index[i];
+			for (int j = i; j + 1 < g_dap_client.pending_var_preview_count; j++) {
+				g_dap_client.pending_var_preview_seq[j] =
+				        g_dap_client.pending_var_preview_seq[j + 1];
+				g_dap_client.pending_var_preview_index[j] =
+				        g_dap_client.pending_var_preview_index[j + 1];
+			}
+			g_dap_client.pending_var_preview_count--;
+			return parent_index;
+		}
+	}
+	return -1;
+}
+
+static void dapHandleVariablePreviewResponse(const char *message, int parent_index) {
+	if (parent_index < 0 || parent_index >= E.dap_variable_count) {
+		return;
+	}
+	struct editorDapVariable *parent = &E.dap_variables[parent_index];
+	parent->preview[0] = '\0';
+	if (!dapPreviewAppendText(parent, "{")) {
+		return;
+	}
+	g_dap_preview_parent_index = parent_index;
+	g_dap_preview_child_count = 0;
+	dapForEachBodyArrayElement(message, "\"variables\"", dapCollectVariablePreviewChild);
+	g_dap_preview_parent_index = -1;
+	if (g_dap_preview_child_count == 0) {
+		parent->preview[0] = '\0';
+		return;
+	}
+	int total_children =
+	        parent->indexed_variables > 0 ? parent->indexed_variables : parent->named_variables;
+	if (total_children > g_dap_preview_child_count) {
+		(void)dapPreviewAppendText(parent, ",...");
+	}
+	(void)dapPreviewAppendText(parent, "}");
+}
 
 static int dapCollectVariable(const char *obj_start, const char *obj_end) {
 	if (E.dap_variable_count >= ROTIDE_DAP_MAX_VARIABLES) {
@@ -755,6 +920,7 @@ static int dapCollectVariable(const char *obj_start, const char *obj_end) {
 	                           sizeof(var->memory_reference));
 	var->scope_index = g_dap_collect_scope_index;
 	E.dap_variable_count++;
+	dapQueueVariablePreviewRequest(E.dap_variable_count - 1);
 	return 1;
 }
 
@@ -854,6 +1020,7 @@ static void dapHandleScopesResponse(const char *message) {
 	E.dap_scope_count = 0;
 	E.dap_variable_count = 0;
 	g_dap_client.pending_var_count = 0;
+	g_dap_client.pending_var_preview_count = 0;
 	g_dap_client.var_scopes_received = 0;
 	dapForEachBodyArrayElement(message, "\"scopes\"", dapCollectScope);
 
@@ -879,9 +1046,8 @@ static void dapHandleScopesResponse(const char *message) {
 			g_dap_client.pending_var_scope[g_dap_client.pending_var_count] = i;
 			g_dap_client.pending_var_count++;
 		}
-		(void)dapSendRequest(
-		        dapBuildIntArgRequestJson(seq, "variables", "variablesReference",
-		                                  E.dap_scopes[i].variables_reference));
+		(void)dapSendRequest(dapBuildVariablesRequestJson(
+		        seq, E.dap_scopes[i].variables_reference, 0, 0));
 	}
 }
 
@@ -896,6 +1062,7 @@ static int dapResolveVariablesScope(const char *message) {
 				return g_dap_client.pending_var_scope[i];
 			}
 		}
+		return -1;
 	}
 	for (int s = 0; s < E.dap_scope_count && s < 64; s++) {
 		if ((g_dap_client.var_scopes_received & (1ull << (unsigned int)s)) == 0) {
@@ -906,9 +1073,17 @@ static int dapResolveVariablesScope(const char *message) {
 }
 
 static void dapHandleVariablesResponse(const char *message) {
+	int parent_index = dapResolveVariablePreviewParent(message);
+	if (parent_index >= 0) {
+		dapHandleVariablePreviewResponse(message, parent_index);
+		return;
+	}
 	/* Variables share one flat list but each is tagged with its scope so the
 	 * drawer can group them under Arguments / Locals / Registers. */
 	int scope_index = dapResolveVariablesScope(message);
+	if (scope_index < 0) {
+		return;
+	}
 	g_dap_collect_scope_index = scope_index;
 	dapForEachBodyArrayElement(message, "\"variables\"", dapCollectVariable);
 	if (scope_index >= 0 && scope_index < 64) {
@@ -1055,6 +1230,10 @@ int editorDapProcessIncomingMessage(const char *message) {
 			return 1;
 		}
 		if (!dapJsonResponseSucceeded(message)) {
+			if (strcmp(command, "variables") == 0 &&
+			    dapResolveVariablePreviewParent(message) >= 0) {
+				return 1;
+			}
 			/* `configurationDone` answering `notStopped` is expected once the
 			 * program is already running; don't nag. Surface other failures with
 			 * the adapter's message in the status bar and the console output. */
@@ -1168,6 +1347,7 @@ int editorDapStartLaunch(int launch_idx) {
 	g_dap_client.initialized = 0;
 	g_dap_client.state = DAP_SESSION_AWAIT_INITIALIZE_RESPONSE;
 	g_dap_client.pending_var_count = 0;
+	g_dap_client.pending_var_preview_count = 0;
 	g_dap_client.var_scopes_received = 0;
 	g_dap_client.register_collapse_applied = 0;
 	E.dap_selected_launch = launch_idx;
@@ -1425,6 +1605,7 @@ void editorDapBeginSessionForTest(int to_adapter_fd, char *launch_json) {
 	g_dap_client.state = DAP_SESSION_AWAIT_INITIALIZE_RESPONSE;
 	g_dap_client.pending_launch_json = launch_json;
 	g_dap_client.pending_var_count = 0;
+	g_dap_client.pending_var_preview_count = 0;
 	g_dap_client.var_scopes_received = 0;
 	g_dap_client.register_collapse_applied = 0;
 	E.dap_running = 1;

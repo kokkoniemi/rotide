@@ -657,6 +657,27 @@ static int drawerViewLooksLikeHexAddress(const char *value) {
 	       value[2] != '\0';
 }
 
+static void drawerViewResolveVariableValueAddress(const struct editorDrawerEntryView *entry,
+                                                  const char **shown_value,
+                                                  const char **shown_address) {
+	const char *value = entry->detail_value;
+	const char *address = entry->detail_address;
+	int has_preview = entry->detail_preview != NULL && entry->detail_preview[0] != '\0';
+	int pointer_address = drawerViewLooksLikePointerType(entry->detail_type) &&
+	                      drawerViewLooksLikeHexAddress(value);
+	*shown_value = pointer_address ? "->" : value;
+	*shown_address = pointer_address ? value : address;
+	if (has_preview && value != NULL && strcmp(entry->detail_preview, value) == 0) {
+		*shown_value = NULL;
+	}
+	if (has_preview && !pointer_address && drawerViewLooksLikeHexAddress(value)) {
+		*shown_value = NULL;
+		if (address == NULL || address[0] == '\0') {
+			*shown_address = value;
+		}
+	}
+}
+
 static int drawerViewAppendPlainPrefix(struct writeBuf *wb, const char *prefix) {
 	if (prefix == NULL || prefix[0] == '\0') {
 		return 1;
@@ -669,12 +690,9 @@ static int drawerViewAppendPlainVariableDetails(struct writeBuf *wb,
 	if (!drawerViewEntryHasVariableDetails(entry)) {
 		return 1;
 	}
-	const char *value = entry->detail_value;
-	const char *address = entry->detail_address;
-	int pointer_address = drawerViewLooksLikePointerType(entry->detail_type) &&
-	                      drawerViewLooksLikeHexAddress(value);
-	const char *shown_value = pointer_address ? "->" : value;
-	const char *shown_address = pointer_address ? value : address;
+	const char *shown_value = NULL;
+	const char *shown_address = NULL;
+	drawerViewResolveVariableValueAddress(entry, &shown_value, &shown_address);
 	if ((entry->detail_type != NULL && entry->detail_type[0] != '\0' &&
 	     (!wbAppend(wb, "  ", 2) ||
 	      !wbAppend(wb, entry->detail_type, strlen(entry->detail_type)))) ||
@@ -939,12 +957,9 @@ static int drawerViewRenderVariableDetails(struct writeBuf *wb,
 	if (!drawerViewEntryHasVariableDetails(entry)) {
 		return 1;
 	}
-	const char *value = entry->detail_value;
-	const char *address = entry->detail_address;
-	int pointer_address = drawerViewLooksLikePointerType(entry->detail_type) &&
-	                      drawerViewLooksLikeHexAddress(value);
-	const char *shown_value = pointer_address ? "->" : value;
-	const char *shown_address = pointer_address ? value : address;
+	const char *shown_value = NULL;
+	const char *shown_address = NULL;
+	drawerViewResolveVariableValueAddress(entry, &shown_value, &shown_address);
 	struct editorThemeColor type_color = E.theme.syntax[EDITOR_SYNTAX_HL_TYPE];
 	struct editorThemeColor preview_color = E.theme.syntax[EDITOR_SYNTAX_HL_CONSTANT];
 	struct editorThemeColor value_color = E.theme.syntax[EDITOR_SYNTAX_HL_NUMBER];
