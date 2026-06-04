@@ -784,7 +784,47 @@ static int test_terminal_pane_open_split_creates_labeled_terminal_tab(void) {
 	return failed;
 }
 
+static int test_terminal_pane_tab_switch_marks_terminal_dirty(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	E.window_cols = 60;
+	E.window_rows = 10;
+	if (!editorTabsInit()) {
+		return 1;
+	}
+	struct editorTerminalPane *t = editorTerminalPaneCreate("sleep 5", 40, 8);
+	if (t == NULL) {
+		return 1;
+	}
+	int term_idx = editorTabCreateWidget(EDITOR_PANE_KIND_TERMINAL, t, editorTerminalPaneFree);
+	if (term_idx < 0) {
+		editorTerminalPaneFree(t);
+		return 1;
+	}
+	if (!editorPaneViewAddTab(&E.layout_root->as.leaf.view, term_idx) ||
+	    !editorTabSwitchToIndex(term_idx) || t->row_dirty == NULL) {
+		return 1;
+	}
+	/* Pretend the terminal is fully painted, then switch away (the editor tab
+	 * paints over it) and back. The re-shown terminal must be marked dirty so it
+	 * repaints over the editor content instead of leaving it on screen. */
+	memset(t->row_dirty, 0, (size_t)t->row_dirty_cap);
+	(void)editorTabSwitchToIndex(0);
+	(void)editorTabSwitchToIndex(term_idx);
+	int any_dirty = 0;
+	for (int i = 0; i < t->row_dirty_cap; i++) {
+		if (t->row_dirty[i]) {
+			any_dirty = 1;
+			break;
+		}
+	}
+	return any_dirty ? 0 : 1;
+}
+
 const struct editorTestCase g_terminal_pane_tests[] = {
+        {"terminal_pane_tab_switch_marks_terminal_dirty",
+         test_terminal_pane_tab_switch_marks_terminal_dirty},
         {"terminal_pane_open_split_creates_labeled_terminal_tab",
          test_terminal_pane_open_split_creates_labeled_terminal_tab},
         {"terminal_pane_create_rejects_null_command",

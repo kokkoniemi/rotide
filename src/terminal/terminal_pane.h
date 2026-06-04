@@ -142,6 +142,11 @@ struct editorPaneNode;
  * a TERMINAL tab, else NULL. */
 struct editorTerminalPane *editorTerminalPaneForPane(const struct editorPaneNode *pane);
 
+/* Force a full repaint of `terminal` on the next frame. Needed when a terminal
+ * tab becomes visible again: its rows are otherwise "clean" and the partial-
+ * repaint path would leave whatever the previously-active tab painted. */
+void editorTerminalPaneMarkDirty(struct editorTerminalPane *terminal);
+
 /* Pump every live terminal (the TERMINAL tabs in E.tabs); returns total
  * bytes/activity count. `root` is unused, kept for call-site symmetry. */
 int editorTerminalPanePumpAll(struct editorPaneNode *root);

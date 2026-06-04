@@ -1020,6 +1020,10 @@ struct editorTerminalPane *editorTerminalPaneForPane(const struct editorPaneNode
 	return (struct editorTerminalPane *)editorTabPayloadAt(pane->as.leaf.view.active_tab_idx);
 }
 
+void editorTerminalPaneMarkDirty(struct editorTerminalPane *terminal) {
+	terminalPaneMarkAllRowsDirty(terminal);
+}
+
 struct editorPaneNode *editorTerminalPaneOpenSplit(const char *command, int orientation) {
 	if (command == NULL) {
 		errno = EINVAL;
