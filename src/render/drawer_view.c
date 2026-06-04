@@ -305,6 +305,9 @@ static const char *drawerViewNerdIconForMenuLabel(const char *label) {
 	if (strcmp(label, "LSP") == 0) {
 		return DRAWER_NERD_TERMINAL_UTF8;
 	}
+	if (strcmp(label, "Debugger") == 0) {
+		return DRAWER_NERD_BUG_UTF8;
+	}
 	if (strcmp(label, "Undo") == 0) {
 		return DRAWER_NERD_UNDO_UTF8;
 	}

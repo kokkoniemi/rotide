@@ -332,7 +332,7 @@ int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 	view_out->parent_visible_idx = lookup.parent_visible_idx;
 	switch (lookup.kind) {
 		case EDITOR_DRAWER_DAP_ENTRY_ROOT:
-			(void)snprintf(dap_name_buf, sizeof(dap_name_buf), "DAP%s%s",
+			(void)snprintf(dap_name_buf, sizeof(dap_name_buf), "Debugger%s%s",
 			               E.dap_running ? " - running" : "",
 			               E.dap_stopped ? " (stopped)" : "");
 			view_out->name = dap_name_buf;

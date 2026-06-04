@@ -1493,6 +1493,9 @@ static int test_editor_dap_drawer_entry_view_semantics(void) {
 	dap_seed_semantic_drawer_state();
 
 	struct editorDrawerEntryView view;
+	ASSERT_TRUE(editorDrawerVisibleEntryView(0, &view));
+	ASSERT_EQ_STR("Debugger", view.name);
+
 	ASSERT_TRUE(find_drawer_entry("Launch sample", NULL, &view));
 	ASSERT_EQ_INT((int)EDITOR_DRAWER_ENTRY_ICON_DAP_START, (int)view.icon_kind);
 	ASSERT_EQ_INT((int)EDITOR_DRAWER_ENTRY_ICON_COLOR_DAP_START, (int)view.icon_color);
