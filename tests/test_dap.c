@@ -926,6 +926,42 @@ static int test_editor_dap_console_pane_renders_and_toggles(void) {
 	return 0;
 }
 
+static int test_editor_dap_console_cursor_sits_on_input_line(void) {
+	ASSERT_TRUE(editorTabsInit());
+	E.window_rows = 12;
+	E.window_cols = 80;
+	E.dap_console_leaf = NULL;
+
+	ASSERT_TRUE(editorDapConsoleToggle());
+	struct editorDapConsolePane *console = editorDapConsoleForPane(E.dap_console_leaf);
+	ASSERT_TRUE(console != NULL);
+	const char *typed = "abc";
+	memcpy(console->input, typed, 3);
+	console->input[3] = '\0';
+	console->input_len = 3;
+
+	/* The single hardware cursor is placed on the "> abc" input line (last pane
+	 * row), after the typed text — no separate painted caret. */
+	struct editorRect rect = {0};
+	ASSERT_TRUE(editorLayoutFocusedLeafRect(&rect));
+	char expected[32];
+	int n = snprintf(expected, sizeof(expected), "\x1b[%d;%dH", rect.y + rect.h,
+	                 rect.x + 2 + console->input_len + 1);
+	ASSERT_TRUE(n > 0 && n < (int)sizeof(expected));
+
+	size_t out_len = 0;
+	char *out = refresh_screen_and_capture(&out_len);
+	ASSERT_TRUE(out != NULL);
+	int found = strstr(out, expected) != NULL;
+	int has_input = strstr(out, "> abc") != NULL;
+	free(out);
+	ASSERT_TRUE(found);
+	ASSERT_TRUE(has_input);
+
+	editorDapConsoleCloseOwnedTerminalPane();
+	return 0;
+}
+
 static int test_editor_dap_adapter_command_tty(void) {
 	char out[256];
 	/* gdb gets --tty appended when a debuggee tty is in use. */
@@ -1043,6 +1079,8 @@ const struct editorTestCase g_dap_tests[] = {
         {"editor_dap_evaluate_repl_flow", test_editor_dap_evaluate_repl_flow},
         {"editor_dap_console_pane_renders_and_toggles",
          test_editor_dap_console_pane_renders_and_toggles},
+        {"editor_dap_console_cursor_sits_on_input_line",
+         test_editor_dap_console_cursor_sits_on_input_line},
         {"editor_dap_adapter_command_tty", test_editor_dap_adapter_command_tty},
         {"editor_dap_output_events_go_to_console", test_editor_dap_output_events_go_to_console},
 };

@@ -2,6 +2,7 @@
 
 #include "config/theme_config.h"
 #include "debug/dap.h"
+#include "debug/dap_console.h"
 #include "editing/document_position.h"
 #include "editing/edit.h"
 #include "editing/selection.h"
@@ -1733,6 +1734,24 @@ static int screenAppendFrameCursor(struct writeBuf *wb) {
 
 	struct editorRect cursor_focused_rect = {0};
 	int has_focus_rect = editorLayoutFocusedLeafRect(&cursor_focused_rect);
+
+	/* Debug Console REPL: render a single cursor at the inline input line ("> "
+	 * plus the typed text), like a terminal, rather than the editor cursor at an
+	 * empty buffer position (which would double up with the input row). */
+	if (focused_terminal == NULL && has_focus_rect &&
+	    E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER) {
+		struct editorDapConsolePane *console = editorDapConsoleForPane(E.focused_leaf);
+		if (console != NULL) {
+			int row = cursor_focused_rect.y + cursor_focused_rect.h;
+			int col = cursor_focused_rect.x + 2 + console->input_len + 1;
+			int max_col = cursor_focused_rect.x + cursor_focused_rect.w;
+			if (col > max_col) {
+				col = max_col;
+			}
+			return screenAppendCursorMoveAndShow(wb, row, col);
+		}
+	}
+
 	int cursor_pane_y = has_focus_rect ? cursor_focused_rect.y : 1;
 	int cursor_pane_text_start_col = screenCursorPaneTextStartCol(
 	        &cursor_focused_rect, has_focus_rect, focused_terminal);

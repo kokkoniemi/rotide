@@ -822,33 +822,15 @@ static int paneViewDrawDapConsoleSlice(struct writeBuf *wb, struct editorPaneNod
 	}
 	int input_row = rect->h - 1;
 	if (row_in_pane == input_row && input_row >= 0) {
+		/* The caret is drawn by the hardware cursor (placed on this line when the
+		 * console is focused), so the input line is just plain text. */
 		const char *input_text = console != NULL ? console->input : "";
 		char inbuf[(int)sizeof(console->input) + 4];
 		int ilen = snprintf(inbuf, sizeof(inbuf), "> %s", input_text);
 		if (ilen < 0) {
 			ilen = 0;
 		}
-		int focused = leaf == E.focused_leaf;
-		for (int i = 0; i < slice_cols; i++) {
-			int c = col_in_pane + i;
-			char ch = (c >= 0 && c < ilen) ? inbuf[c] : ' ';
-			unsigned char b = (unsigned char)ch;
-			if (b < 0x20 || b >= 0x7f) {
-				ch = '?';
-			}
-			int is_cursor = focused && c == ilen;
-			if (is_cursor &&
-			    !editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_SELECTION)) {
-				return 0;
-			}
-			if (!wbAppend(wb, &ch, 1)) {
-				return 0;
-			}
-			if (is_cursor && !editorAppendThemeReset(wb)) {
-				return 0;
-			}
-		}
-		return 1;
+		return paneViewDapConsoleEmitSlice(wb, inbuf, ilen, col_in_pane, slice_cols);
 	}
 
 	int body_rows = rect->h - 1; /* transcript rows above the input line */
