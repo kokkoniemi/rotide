@@ -1829,6 +1829,12 @@ int editorHandleMouseEventInTerminalPane(const struct editorMouseEvent *event) {
 	if (E.layout_root == NULL) {
 		return 0;
 	}
+	/* An open menu overlays the panes; let its click handler run instead of
+	 * forwarding the click to a terminal it happens to sit over (otherwise a
+	 * tab context menu on a terminal pane could never be activated). */
+	if (editorPopupIsVisible() && editorPopupKindIsMenu(E.popup.kind)) {
+		return 0;
+	}
 	/* Defer to the normal mouse handlers while a split-border drag is in
 	 * progress; otherwise, when the user drags toward a terminal pane the
 	 * drag event lands inside the terminal's leaf rect and gets hijacked

@@ -2,11 +2,13 @@
 #include "editing/edit.h"
 #include "editing/selection.h"
 #include "editor_test_api.h"
+#include "input/actions_file_tab.h"
 #include "input/mouse.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
 #include "render/popup.h"
 #include "rotide.h"
+#include "terminal/terminal_pane.h"
 #include "test_case.h"
 #include "test_helpers.h"
 #include "test_support.h"
@@ -2819,7 +2821,79 @@ static int test_editor_process_keypress_gutter_click_moves_cursor_to_breakpoint_
 	return 0;
 }
 
+static int mouseTestCloseOrNewTab(enum editorAction action, int *effects) {
+	(void)effects;
+	if (action == EDITOR_ACTION_CLOSE_TAB) {
+		editorActionCloseTab();
+		return 1;
+	}
+	if (action == EDITOR_ACTION_NEW_TAB) {
+		(void)editorTabNewEmpty();
+		return 1;
+	}
+	return 0;
+}
+
+static int test_editor_terminal_tab_context_menu_close_closes_terminal(void) {
+	ASSERT_TRUE(editorTabsInit());
+	E.window_cols = 80;
+	E.window_rows = 24;
+	struct editorPaneNode *sibling =
+	        editorTerminalPaneOpenSplit("sleep 5", EDITOR_SPLIT_VERTICAL);
+	ASSERT_TRUE(sibling != NULL);
+	ASSERT_EQ_INT(2, editorPaneTreeLeafCount(E.layout_root));
+	int term_idx = sibling->as.leaf.view.active_tab_idx;
+	ASSERT_TRUE(editorPaneActiveKind(sibling) == EDITOR_PANE_KIND_TERMINAL);
+
+	ASSERT_TRUE(editorOpenTabContextMenuAt(1, 1, sibling, term_idx));
+	ASSERT_EQ_INT(EDITOR_POPUP_KIND_TAB_CONTEXT_MENU, E.popup.kind);
+	ASSERT_EQ_INT(2, editorPopupItemCount()); /* Close Tab + New Tab */
+	ASSERT_EQ_INT(0, editorPopupSelectedIndex());
+
+	int effects = 0;
+	ASSERT_TRUE(editorTabContextMenuActivate(mouseTestCloseOrNewTab, &effects));
+	/* Closing the terminal tab collapses its split pane. */
+	ASSERT_EQ_INT(1, editorPaneTreeLeafCount(E.layout_root));
+	return 0;
+}
+
+static int test_editor_terminal_mouse_defers_to_open_menu(void) {
+	ASSERT_TRUE(editorTabsInit());
+	E.window_cols = 80;
+	E.window_rows = 24;
+	struct editorPaneNode *sibling =
+	        editorTerminalPaneOpenSplit("sleep 5", EDITOR_SPLIT_VERTICAL);
+	ASSERT_TRUE(sibling != NULL);
+	ASSERT_TRUE(editorPaneActiveKind(sibling) == EDITOR_PANE_KIND_TERMINAL);
+
+	/* Open a tab context menu over the terminal pane. */
+	ASSERT_TRUE(
+	        editorOpenTabContextMenuAt(1, 1, sibling, sibling->as.leaf.view.active_tab_idx));
+	ASSERT_TRUE(editorPopupIsVisible());
+
+	/* A click inside the terminal's rect must defer to the open menu (so the menu
+	 * item can activate) rather than being forwarded to the terminal. */
+	struct editorRect viewport = {0};
+	struct editorRect rect = {0};
+	ASSERT_TRUE(editorLayoutEditorViewport(&viewport));
+	ASSERT_TRUE(editorLayoutLeafRectBordered(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE,
+	                                         sibling, &rect));
+	struct editorMouseEvent event = {
+	        .kind = EDITOR_MOUSE_EVENT_LEFT_PRESS,
+	        .x = rect.x + 2,
+	        .y = rect.y + 2,
+	        .modifiers = 0,
+	};
+	ASSERT_EQ_INT(0, editorHandleMouseEventInTerminalPane(&event));
+	editorPopupClose();
+	return 0;
+}
+
 const struct editorTestCase g_input_mouse_tests[] = {
+        {"editor_terminal_tab_context_menu_close_closes_terminal",
+         test_editor_terminal_tab_context_menu_close_closes_terminal},
+        {"editor_terminal_mouse_defers_to_open_menu",
+         test_editor_terminal_mouse_defers_to_open_menu},
         {"editor_process_keypress_gutter_click_moves_cursor_to_breakpoint_row",
          test_editor_process_keypress_gutter_click_moves_cursor_to_breakpoint_row},
         {"editor_column_select_alt_mouse_drag_starts_column_selection",
