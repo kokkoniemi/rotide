@@ -1,10 +1,14 @@
 #include "config/common.h"
 #include "config/dap_config.h"
+#include "config/theme_config.h"
 #include "debug/dap.h"
 #include "debug/dap_console.h"
 #include "input/mouse.h"
+#include "language/syntax.h"
+#include "render/drawer_view.h"
 #include "render/screen.h"
 #include "render/status_bar.h"
+#include "render/viewport.h"
 #include "render/write_buf.h"
 #include "rotide.h"
 #include "terminal/terminal_pane.h"
@@ -1263,6 +1267,242 @@ static int dap_var_scope_by_name(const char *name) {
 	return -1;
 }
 
+static int dap_var_index_by_name(const char *name) {
+	for (int i = 0; i < E.dap_variable_count; i++) {
+		if (strcmp(E.dap_variables[i].name, name) == 0) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+static void dap_seed_semantic_drawer_state(void) {
+	E.drawer_mode = EDITOR_DRAWER_MODE_DAP;
+	E.drawer_dap_expanded = 0xFFFFFFFFu;
+	E.drawer_dap_scope_collapsed = 0;
+	E.window_rows = 40;
+	E.window_cols = 120;
+	E.drawer_width_cols = 90;
+
+	E.dap_adapter_count = 1;
+	(void)snprintf(E.dap_adapters[0].id, sizeof(E.dap_adapters[0].id), "%s", "mock");
+	(void)snprintf(E.dap_adapters[0].command, sizeof(E.dap_adapters[0].command), "%s",
+	               "mock-dap");
+	E.dap_launch_count = 1;
+	(void)snprintf(E.dap_launches[0].id, sizeof(E.dap_launches[0].id), "%s", "sample");
+	(void)snprintf(E.dap_launches[0].name, sizeof(E.dap_launches[0].name), "%s",
+	               "Launch sample");
+	(void)snprintf(E.dap_launches[0].adapter, sizeof(E.dap_launches[0].adapter), "%s", "mock");
+	(void)snprintf(E.dap_launches[0].request, sizeof(E.dap_launches[0].request), "%s",
+	               "launch");
+
+	E.dap_breakpoint_count = 2;
+	memset(&E.dap_breakpoints[0], 0, sizeof(E.dap_breakpoints[0]));
+	E.dap_breakpoints[0].kind = EDITOR_DAP_BREAKPOINT_LINE;
+	(void)snprintf(E.dap_breakpoints[0].path, sizeof(E.dap_breakpoints[0].path), "%s",
+	               "/tmp/main.c");
+	E.dap_breakpoints[0].line = 3;
+	memset(&E.dap_breakpoints[1], 0, sizeof(E.dap_breakpoints[1]));
+	E.dap_breakpoints[1].kind = EDITOR_DAP_BREAKPOINT_CONDITIONAL;
+	(void)snprintf(E.dap_breakpoints[1].path, sizeof(E.dap_breakpoints[1].path), "%s",
+	               "/tmp/branch.c");
+	E.dap_breakpoints[1].line = 7;
+
+	E.dap_stack_frame_count = 1;
+	memset(&E.dap_stack_frames[0], 0, sizeof(E.dap_stack_frames[0]));
+	E.dap_stack_frames[0].id = 22;
+	(void)snprintf(E.dap_stack_frames[0].name, sizeof(E.dap_stack_frames[0].name), "%s",
+	               "main");
+	(void)snprintf(E.dap_stack_frames[0].path, sizeof(E.dap_stack_frames[0].path), "%s",
+	               "/tmp/main.c");
+	E.dap_stack_frames[0].line = 12;
+	E.dap_stack_frames[0].column = 5;
+
+	E.dap_thread_count = 1;
+	E.dap_threads[0].id = 2;
+	(void)snprintf(E.dap_threads[0].name, sizeof(E.dap_threads[0].name), "%s",
+	               "dap_sample.out");
+
+	E.dap_scope_count = 2;
+	(void)snprintf(E.dap_scopes[0].name, sizeof(E.dap_scopes[0].name), "%s", "Arguments");
+	E.dap_scopes[0].variables_reference = 10;
+	(void)snprintf(E.dap_scopes[1].name, sizeof(E.dap_scopes[1].name), "%s", "Locals");
+	E.dap_scopes[1].variables_reference = 11;
+
+	E.dap_variable_count = 5;
+	memset(E.dap_variables, 0, sizeof(*E.dap_variables) * (size_t)E.dap_variable_count);
+	E.dap_variables[0].scope_index = 0;
+	E.dap_variables[0].variables_reference = 0;
+	(void)snprintf(E.dap_variables[0].name, sizeof(E.dap_variables[0].name), "%s", "argc");
+	(void)snprintf(E.dap_variables[0].type, sizeof(E.dap_variables[0].type), "%s", "int");
+	(void)snprintf(E.dap_variables[0].value, sizeof(E.dap_variables[0].value), "%s", "1");
+	(void)snprintf(E.dap_variables[0].memory_reference,
+	               sizeof(E.dap_variables[0].memory_reference), "%s", "0x1");
+	E.dap_variables[1].scope_index = 0;
+	E.dap_variables[1].variables_reference = 42;
+	(void)snprintf(E.dap_variables[1].name, sizeof(E.dap_variables[1].name), "%s", "argv");
+	(void)snprintf(E.dap_variables[1].type, sizeof(E.dap_variables[1].type), "%s", "char**");
+	(void)snprintf(E.dap_variables[1].value, sizeof(E.dap_variables[1].value), "%s",
+	               "0x7ffd5c2a30");
+	E.dap_variables[2].scope_index = 1;
+	(void)snprintf(E.dap_variables[2].name, sizeof(E.dap_variables[2].name), "%s", "mode");
+	(void)snprintf(E.dap_variables[2].type, sizeof(E.dap_variables[2].type), "%s", "enum");
+	(void)snprintf(E.dap_variables[2].value, sizeof(E.dap_variables[2].value), "%s", "NORMAL");
+	(void)snprintf(E.dap_variables[2].memory_reference,
+	               sizeof(E.dap_variables[2].memory_reference), "%s", "0x0");
+	E.dap_variables[3].scope_index = 1;
+	(void)snprintf(E.dap_variables[3].name, sizeof(E.dap_variables[3].name), "%s", "numbers");
+	(void)snprintf(E.dap_variables[3].type, sizeof(E.dap_variables[3].type), "%s", "int[6]");
+	(void)snprintf(E.dap_variables[3].value, sizeof(E.dap_variables[3].value), "%s",
+	               "{3,5,...}");
+	(void)snprintf(E.dap_variables[3].memory_reference,
+	               sizeof(E.dap_variables[3].memory_reference), "%s", "0x7ffd5c2a10");
+	E.dap_variables[4].scope_index = 1;
+	(void)snprintf(E.dap_variables[4].name, sizeof(E.dap_variables[4].name), "%s", "items");
+	(void)snprintf(E.dap_variables[4].type, sizeof(E.dap_variables[4].type), "%s", "item*");
+	(void)snprintf(E.dap_variables[4].value, sizeof(E.dap_variables[4].value), "%s", "NULL");
+	(void)snprintf(E.dap_variables[4].memory_reference,
+	               sizeof(E.dap_variables[4].memory_reference), "%s", "0x0");
+}
+
+static int dap_render_drawer_entry(const char *name, char **row_out) {
+	if (row_out == NULL) {
+		return 0;
+	}
+	*row_out = NULL;
+	int idx = -1;
+	if (!find_drawer_entry(name, &idx, NULL)) {
+		return 0;
+	}
+	struct writeBuf wb = WRITEBUF_INIT;
+	if (!editorDrawDrawerRow(&wb, idx + 1, 90) || !wbAppend(&wb, "\0", 1)) {
+		wbFree(&wb);
+		return 0;
+	}
+	*row_out = wb.b;
+	return 1;
+}
+
+static int test_editor_dap_drawer_top_level_order_and_collapse_semantics(void) {
+	ASSERT_TRUE(editorTabsInit());
+	dap_seed_semantic_drawer_state();
+	E.drawer_dap_expanded = 0;
+
+	const char *expected[] = {
+	        "Configurations (1)", "Breakpoints (2)", "Variables", "Stack", "Threads", "Output"};
+	ASSERT_EQ_INT(7, editorDrawerVisibleCount());
+	for (int i = 0; i < 6; i++) {
+		struct editorDrawerEntryView view;
+		ASSERT_TRUE(editorDrawerVisibleEntryView(i + 1, &view));
+		ASSERT_EQ_STR(expected[i], view.name);
+	}
+
+	E.drawer_dap_expanded = 0xFFFFFFFFu;
+	int threads_idx = -1;
+	ASSERT_TRUE(find_drawer_entry("Threads", &threads_idx, NULL));
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(threads_idx, E.window_rows));
+	ASSERT_TRUE(editorDrawerCollapseSelection(E.window_rows));
+	ASSERT_TRUE(!find_drawer_entry("dap_sample.out", NULL, NULL));
+	ASSERT_TRUE(find_drawer_entry("main:12", NULL, NULL));
+	ASSERT_TRUE(editorDrawerExpandSelection(E.window_rows));
+	ASSERT_TRUE(find_drawer_entry("dap_sample.out", NULL, NULL));
+	return 0;
+}
+
+static int test_editor_dap_drawer_entry_view_semantics(void) {
+	ASSERT_TRUE(editorTabsInit());
+	dap_seed_semantic_drawer_state();
+
+	struct editorDrawerEntryView view;
+	ASSERT_TRUE(find_drawer_entry("Launch sample", NULL, &view));
+	ASSERT_EQ_INT((int)EDITOR_DRAWER_ENTRY_ICON_DAP_START, (int)view.icon_kind);
+	ASSERT_EQ_INT((int)EDITOR_DRAWER_ENTRY_ICON_COLOR_DAP_START, (int)view.icon_color);
+
+	ASSERT_TRUE(find_drawer_entry("main.c:4", NULL, &view));
+	ASSERT_EQ_INT((int)EDITOR_DRAWER_ENTRY_ICON_DAP_BREAKPOINT, (int)view.icon_kind);
+	ASSERT_EQ_INT((int)EDITOR_DAP_BREAKPOINT_LINE, (int)view.dap_breakpoint_kind);
+	ASSERT_TRUE(view.path != NULL && strcmp(view.path, "/tmp/main.c") == 0);
+
+	ASSERT_TRUE(find_drawer_entry("branch.c:8", NULL, &view));
+	ASSERT_EQ_INT((int)EDITOR_DAP_BREAKPOINT_CONDITIONAL, (int)view.dap_breakpoint_kind);
+
+	ASSERT_TRUE(find_drawer_entry("main:12", NULL, &view));
+	ASSERT_EQ_INT((int)EDITOR_DRAWER_ENTRY_ICON_NONE, (int)view.icon_kind);
+	ASSERT_TRUE(view.path != NULL && strcmp(view.path, "/tmp/main.c") == 0);
+
+	ASSERT_TRUE(find_drawer_entry("dap_sample.out", NULL, &view));
+	ASSERT_EQ_STR("dap_sample.out", view.name);
+	ASSERT_EQ_STR("#2", view.prefix);
+	ASSERT_TRUE(view.prefix_muted);
+	ASSERT_EQ_INT((int)EDITOR_DRAWER_ENTRY_ICON_NONE, (int)view.icon_kind);
+
+	ASSERT_TRUE(find_drawer_entry("argv", NULL, &view));
+	ASSERT_EQ_INT((int)EDITOR_DRAWER_ENTRY_ICON_NONE, (int)view.icon_kind);
+	ASSERT_EQ_STR("char**", view.detail_type);
+	ASSERT_EQ_STR("0x7ffd5c2a30", view.detail_value);
+	ASSERT_EQ_INT(42, view.variable_reference);
+
+	ASSERT_TRUE(find_drawer_entry("argc", NULL, &view));
+	ASSERT_EQ_STR("int", view.detail_type);
+	ASSERT_EQ_STR("1", view.detail_value);
+	ASSERT_EQ_STR("0x1", view.detail_address);
+	return 0;
+}
+
+static int test_editor_dap_drawer_renders_semantic_decorations(void) {
+	ASSERT_TRUE(editorTabsInit());
+	dap_seed_semantic_drawer_state();
+	E.nerd_fonts_enabled = 1;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+	E.theme.ansi[EDITOR_THEME_ANSI_GREEN] =
+	        (struct editorThemeColor){.kind = EDITOR_THEME_COLOR_RGB, .r = 1, .g = 180, .b = 2};
+	E.theme.ui[EDITOR_THEME_UI_BREAKPOINT] = (struct editorThemeColor){
+	        .kind = EDITOR_THEME_COLOR_RGB, .r = 200, .g = 10, .b = 30};
+	E.theme.ui[EDITOR_THEME_UI_DRAWER_CONNECTOR] =
+	        (struct editorThemeColor){.kind = EDITOR_THEME_COLOR_RGB, .r = 9, .g = 8, .b = 7};
+	E.theme.syntax[EDITOR_SYNTAX_HL_TYPE] =
+	        (struct editorThemeColor){.kind = EDITOR_THEME_COLOR_RGB, .r = 3, .g = 4, .b = 5};
+	E.theme.syntax[EDITOR_SYNTAX_HL_NUMBER] =
+	        (struct editorThemeColor){.kind = EDITOR_THEME_COLOR_RGB, .r = 6, .g = 7, .b = 8};
+
+	char *row = NULL;
+	ASSERT_TRUE(dap_render_drawer_entry("Launch sample", &row));
+	ASSERT_TRUE(strstr(row, "\x1b[38;2;1;180;2m") != NULL);
+	ASSERT_TRUE(strstr(row, "\xEF\x81\x8B") != NULL);
+	free(row);
+
+	ASSERT_TRUE(dap_render_drawer_entry("main.c:4", &row));
+	ASSERT_TRUE(strstr(row, "\x1b[38;2;200;10;30m") != NULL);
+	ASSERT_TRUE(strstr(row, "\xE2\x97\x8F") != NULL);
+	ASSERT_TRUE(strstr(row, "\xEF\x87\x89") == NULL);
+	free(row);
+
+	ASSERT_TRUE(dap_render_drawer_entry("main:12", &row));
+	ASSERT_TRUE(strstr(row, "\xEF\x87\x89") == NULL);
+	ASSERT_TRUE(strstr(row, "\xEF\x85\x9B") == NULL);
+	free(row);
+
+	ASSERT_TRUE(dap_render_drawer_entry("dap_sample.out", &row));
+	ASSERT_TRUE(strstr(row, "\x1b[38;2;9;8;7m#2\x1b[39m") != NULL);
+	ASSERT_TRUE(strstr(row, "2 dap_sample.out") == NULL);
+	free(row);
+
+	ASSERT_TRUE(dap_render_drawer_entry("argv", &row));
+	ASSERT_TRUE(strstr(row, "\xEF\x87\x89") == NULL);
+	ASSERT_TRUE(strstr(row, "\xEF\x85\x9B") == NULL);
+	ASSERT_TRUE(strstr(row, "\x1b[38;2;3;4;5mchar**") != NULL);
+	ASSERT_TRUE(strstr(row, "->") != NULL);
+	ASSERT_TRUE(strstr(row, "0x7ffd5c2a30") != NULL);
+	free(row);
+
+	ASSERT_TRUE(dap_render_drawer_entry("argc", &row));
+	ASSERT_TRUE(strstr(row, "\x1b[38;2;3;4;5mint") != NULL);
+	ASSERT_TRUE(strstr(row, "\x1b[38;2;6;7;8m1") != NULL);
+	ASSERT_TRUE(strstr(row, "0x1") != NULL);
+	free(row);
+	return 0;
+}
+
 static int test_editor_dap_drawer_groups_variables_by_scope(void) {
 	/* Variables must be tagged with (and rendered under) their scope, so the
 	 * drawer shows Arguments / Locals / Registers as separate collapsible
@@ -1289,8 +1529,8 @@ static int test_editor_dap_drawer_groups_variables_by_scope(void) {
 	        "{\"name\":\"rbx\",\"value\":\"0\"}]}}");
 	(void)editorDapProcessIncomingMessage(
 	        "{\"type\":\"response\",\"command\":\"variables\",\"success\":true,"
-	        "\"request_seq\":2,\"body\":{\"variables\":[{\"name\":\"argc\",\"value\":\"1\"}]}"
-	        "}");
+	        "\"request_seq\":2,\"body\":{\"variables\":[{\"name\":\"argc\",\"value\":\"1\","
+	        "\"type\":\"int\",\"memoryReference\":\"0x1\"}]}}");
 	(void)editorDapProcessIncomingMessage(
 	        "{\"type\":\"response\",\"command\":\"variables\",\"success\":true,"
 	        "\"request_seq\":3,\"body\":{\"variables\":[{\"name\":\"total\",\"value\":\"84\"},"
@@ -1302,6 +1542,10 @@ static int test_editor_dap_drawer_groups_variables_by_scope(void) {
 	ASSERT_EQ_INT(0, dap_var_scope_by_name("argc"));
 	ASSERT_EQ_INT(1, dap_var_scope_by_name("total"));
 	ASSERT_EQ_INT(1, dap_var_scope_by_name("fib"));
+	int argc_idx = dap_var_index_by_name("argc");
+	ASSERT_TRUE(argc_idx >= 0);
+	ASSERT_EQ_STR("int", E.dap_variables[argc_idx].type);
+	ASSERT_EQ_STR("0x1", E.dap_variables[argc_idx].memory_reference);
 
 	/* Register scope auto-collapses once; Arguments/Locals stay expanded. */
 	ASSERT_TRUE((E.drawer_dap_scope_collapsed & (1ull << 2)) != 0);
@@ -1312,9 +1556,14 @@ static int test_editor_dap_drawer_groups_variables_by_scope(void) {
 	E.drawer_dap_expanded = 0xFFFFFFFFu; /* expand every top-level group */
 	E.window_rows = 40;
 
-	int saw_args = 0, saw_locals = 0, saw_regs = 0;
-	int saw_argc = 0, saw_total = 0, saw_rax = 0;
-	int args_depth = -1, argc_depth = -1;
+	int saw_args = 0;
+	int saw_locals = 0;
+	int saw_regs = 0;
+	int saw_argc = 0;
+	int saw_total = 0;
+	int saw_rax = 0;
+	int args_depth = -1;
+	int argc_depth = -1;
 	int visible = editorDrawerVisibleCount();
 	for (int i = 0; i < visible; i++) {
 		struct editorDrawerEntryView view;
@@ -1328,12 +1577,14 @@ static int test_editor_dap_drawer_groups_variables_by_scope(void) {
 		} else if (strcmp(view.name, "Registers (2)") == 0) {
 			saw_regs = 1;
 			ASSERT_TRUE(view.is_dir && !view.is_expanded);
-		} else if (strcmp(view.name, "argc = 1") == 0) {
+		} else if (strcmp(view.name, "argc") == 0) {
 			saw_argc = 1;
 			argc_depth = view.depth;
-		} else if (strcmp(view.name, "total = 84") == 0) {
+			ASSERT_EQ_STR("1", view.detail_value);
+			ASSERT_EQ_STR("int", view.detail_type);
+		} else if (strcmp(view.name, "total") == 0) {
 			saw_total = 1;
-		} else if (strcmp(view.name, "rax = 0") == 0) {
+		} else if (strcmp(view.name, "rax") == 0) {
 			saw_rax = 1;
 		}
 	}
@@ -1349,7 +1600,7 @@ static int test_editor_dap_drawer_groups_variables_by_scope(void) {
 	for (int i = 0; i < visible; i++) {
 		struct editorDrawerEntryView view;
 		ASSERT_TRUE(editorDrawerVisibleEntryView(i, &view));
-		if (strcmp(view.name, "rax = 0") == 0) {
+		if (strcmp(view.name, "rax") == 0) {
 			saw_rax = 1;
 		}
 	}
@@ -1457,6 +1708,11 @@ const struct editorTestCase g_dap_tests[] = {
          test_editor_dap_stop_centers_viewport_on_current_line},
         {"editor_dap_stop_in_missing_source_does_not_error",
          test_editor_dap_stop_in_missing_source_does_not_error},
+        {"editor_dap_drawer_top_level_order_and_collapse_semantics",
+         test_editor_dap_drawer_top_level_order_and_collapse_semantics},
+        {"editor_dap_drawer_entry_view_semantics", test_editor_dap_drawer_entry_view_semantics},
+        {"editor_dap_drawer_renders_semantic_decorations",
+         test_editor_dap_drawer_renders_semantic_decorations},
         {"editor_dap_drawer_groups_variables_by_scope",
          test_editor_dap_drawer_groups_variables_by_scope},
         {"editor_dap_drawer_scope_toggle_collapses", test_editor_dap_drawer_scope_toggle_collapses},

@@ -60,7 +60,16 @@ struct editorDapLaunchConfig {
 	int env_count;
 };
 
+enum editorDapBreakpointKind {
+	EDITOR_DAP_BREAKPOINT_LINE = 0,
+	EDITOR_DAP_BREAKPOINT_CONDITIONAL,
+	EDITOR_DAP_BREAKPOINT_LOGPOINT,
+	EDITOR_DAP_BREAKPOINT_FUNCTION,
+	EDITOR_DAP_BREAKPOINT_DATA
+};
+
 struct editorDapBreakpoint {
+	enum editorDapBreakpointKind kind;
 	char path[PATH_MAX];
 	int line;
 };
@@ -85,9 +94,13 @@ struct editorDapScope {
 
 struct editorDapVariable {
 	int variables_reference;
+	int named_variables;
+	int indexed_variables;
 	int scope_index; /* index into E.dap_scopes[] that this variable belongs to */
 	char name[ROTIDE_DAP_NAME_MAX];
+	char type[ROTIDE_DAP_VALUE_MAX];
 	char value[ROTIDE_DAP_VALUE_MAX];
+	char memory_reference[ROTIDE_DAP_VALUE_MAX];
 };
 
 void editorDapLaunchFieldClear(struct editorDapLaunchField *field);

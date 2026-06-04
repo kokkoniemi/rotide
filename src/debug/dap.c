@@ -745,8 +745,14 @@ static int dapCollectVariable(const char *obj_start, const char *obj_end) {
 		return 1;
 	}
 	(void)dapObjectStringField(obj_start, obj_end, "\"value\"", var->value, sizeof(var->value));
+	(void)dapObjectStringField(obj_start, obj_end, "\"type\"", var->type, sizeof(var->type));
 	(void)dapObjectIntField(obj_start, obj_end, "\"variablesReference\"",
 	                        &var->variables_reference);
+	(void)dapObjectIntField(obj_start, obj_end, "\"namedVariables\"", &var->named_variables);
+	(void)dapObjectIntField(obj_start, obj_end, "\"indexedVariables\"",
+	                        &var->indexed_variables);
+	(void)dapObjectStringField(obj_start, obj_end, "\"memoryReference\"", var->memory_reference,
+	                           sizeof(var->memory_reference));
 	var->scope_index = g_dap_collect_scope_index;
 	E.dap_variable_count++;
 	return 1;
@@ -1369,6 +1375,8 @@ int editorDapToggleBreakpointAtLine(int line) {
 			return 0;
 		}
 		struct editorDapBreakpoint *bp = &E.dap_breakpoints[E.dap_breakpoint_count++];
+		memset(bp, 0, sizeof(*bp));
+		bp->kind = EDITOR_DAP_BREAKPOINT_LINE;
 		(void)snprintf(bp->path, sizeof(bp->path), "%s", E.filename);
 		bp->line = line;
 		editorSetStatusMsg("Breakpoint set");

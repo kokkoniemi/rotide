@@ -183,9 +183,28 @@ enum editorGitStatus {
 	EDITOR_GIT_STATUS_CONFLICT
 };
 
+enum editorDrawerEntryIconKind {
+	EDITOR_DRAWER_ENTRY_ICON_INFER = 0,
+	EDITOR_DRAWER_ENTRY_ICON_NONE,
+	EDITOR_DRAWER_ENTRY_ICON_DAP_START,
+	EDITOR_DRAWER_ENTRY_ICON_DAP_BREAKPOINT
+};
+
+enum editorDrawerEntryIconColor {
+	EDITOR_DRAWER_ENTRY_ICON_COLOR_DEFAULT = 0,
+	EDITOR_DRAWER_ENTRY_ICON_COLOR_DAP_START,
+	EDITOR_DRAWER_ENTRY_ICON_COLOR_DAP_BREAKPOINT
+};
+
 struct editorDrawerEntryView {
 	const char *name;
 	const char *path;
+	const char *prefix;
+	const char *detail_type;
+	const char *detail_value;
+	const char *detail_reference;
+	const char *detail_address;
+	const char *detail_preview;
 	int depth;
 	int is_dir;
 	int is_expanded;
@@ -202,6 +221,11 @@ struct editorDrawerEntryView {
 	int character;
 	int lsp_problem_severity;
 	int lsp_problem_kind_len;
+	int prefix_muted;
+	int variable_reference;
+	enum editorDapBreakpointKind dap_breakpoint_kind;
+	enum editorDrawerEntryIconKind icon_kind;
+	enum editorDrawerEntryIconColor icon_color;
 };
 
 struct editorProjectSearchResult {

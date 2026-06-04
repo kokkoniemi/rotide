@@ -43,10 +43,16 @@ struct drawerModeDapLookup {
 	int visible_idx;
 	int parent_visible_idx;
 	int group_visible_idx;
+	int group_display_idx;
 };
 
 static const char *g_drawer_mode_dap_group_names[EDITOR_DRAWER_DAP_GROUP_COUNT] = {
         "Configurations", "Breakpoints", "Threads", "Stack", "Variables", "Output"};
+
+static const int g_drawer_mode_dap_display_groups[EDITOR_DRAWER_DAP_GROUP_COUNT] = {
+        EDITOR_DRAWER_DAP_GROUP_CONFIGURATIONS, EDITOR_DRAWER_DAP_GROUP_BREAKPOINTS,
+        EDITOR_DRAWER_DAP_GROUP_VARIABLES,      EDITOR_DRAWER_DAP_GROUP_STACK,
+        EDITOR_DRAWER_DAP_GROUP_THREADS,        EDITOR_DRAWER_DAP_GROUP_OUTPUT};
 
 static unsigned int drawerModeDapAllGroupsMask(void) {
 	unsigned int mask = 0;
@@ -142,7 +148,8 @@ static int drawerModeDapGroupItemCount(int group_idx) {
 
 int editorDrawerDapVisibleCount(void) {
 	int count = 1;
-	for (int group_idx = 0; group_idx < EDITOR_DRAWER_DAP_GROUP_COUNT; group_idx++) {
+	for (int display_idx = 0; display_idx < EDITOR_DRAWER_DAP_GROUP_COUNT; display_idx++) {
+		int group_idx = g_drawer_mode_dap_display_groups[display_idx];
 		count++;
 		if (!drawerModeDapGroupExpanded(group_idx)) {
 			continue;
@@ -193,6 +200,7 @@ static int drawerModeDapLookupByVisibleIndex(int visible_idx,
 	lookup_out->item_idx = -1;
 	lookup_out->parent_visible_idx = -1;
 	lookup_out->group_visible_idx = -1;
+	lookup_out->group_display_idx = -1;
 
 	if (visible_idx == 0) {
 		lookup_out->kind = EDITOR_DRAWER_DAP_ENTRY_ROOT;
@@ -200,12 +208,14 @@ static int drawerModeDapLookupByVisibleIndex(int visible_idx,
 	}
 
 	int cursor = 1;
-	for (int group_idx = 0; group_idx < EDITOR_DRAWER_DAP_GROUP_COUNT; group_idx++) {
+	for (int display_idx = 0; display_idx < EDITOR_DRAWER_DAP_GROUP_COUNT; display_idx++) {
+		int group_idx = g_drawer_mode_dap_display_groups[display_idx];
 		int group_visible_idx = cursor;
 		int item_count = drawerModeDapGroupItemCount(group_idx);
 		if (visible_idx == group_visible_idx) {
 			lookup_out->kind = EDITOR_DRAWER_DAP_ENTRY_GROUP;
 			lookup_out->group_idx = group_idx;
+			lookup_out->group_display_idx = display_idx;
 			lookup_out->item_count = item_count;
 			lookup_out->parent_visible_idx = 0;
 			lookup_out->group_visible_idx = group_visible_idx;
@@ -219,6 +229,7 @@ static int drawerModeDapLookupByVisibleIndex(int visible_idx,
 			if (visible_idx == cursor) {
 				lookup_out->kind = EDITOR_DRAWER_DAP_ENTRY_PLACEHOLDER;
 				lookup_out->group_idx = group_idx;
+				lookup_out->group_display_idx = display_idx;
 				lookup_out->parent_visible_idx = group_visible_idx;
 				lookup_out->group_visible_idx = group_visible_idx;
 				return 1;
@@ -232,6 +243,7 @@ static int drawerModeDapLookupByVisibleIndex(int visible_idx,
 				continue;
 			}
 			lookup_out->group_idx = group_idx;
+			lookup_out->group_display_idx = display_idx;
 			lookup_out->item_idx = item_idx;
 			lookup_out->item_count = item_count;
 			lookup_out->parent_visible_idx = group_visible_idx;
@@ -309,6 +321,7 @@ int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 	}
 
 	static char dap_name_buf[PATH_MAX + 128];
+	static char dap_prefix_buf[32];
 	struct drawerModeDapLookup lookup;
 	if (!drawerModeDapLookupByVisibleIndex(visible_idx, &lookup)) {
 		return 0;
@@ -345,7 +358,7 @@ int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 			view_out->is_dir = 1;
 			view_out->is_expanded = drawerModeDapGroupExpanded(lookup.group_idx);
 			view_out->is_last_sibling =
-			        lookup.group_idx == EDITOR_DRAWER_DAP_GROUP_COUNT - 1;
+			        lookup.group_display_idx == EDITOR_DRAWER_DAP_GROUP_COUNT - 1;
 			return 1;
 		case EDITOR_DRAWER_DAP_ENTRY_LAUNCH: {
 			const struct editorDapLaunchConfig *config =
@@ -359,11 +372,14 @@ int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 			view_out->name = dap_name_buf;
 			view_out->depth = 2;
 			view_out->is_last_sibling = lookup.item_idx == lookup.item_count - 1;
+			view_out->icon_kind = EDITOR_DRAWER_ENTRY_ICON_DAP_START;
+			view_out->icon_color = EDITOR_DRAWER_ENTRY_ICON_COLOR_DAP_START;
 			return 1;
 		}
 		case EDITOR_DRAWER_DAP_ENTRY_CREATE_PROMPT:
 			view_out->name = "Create debug config from default";
 			view_out->depth = 2;
+			view_out->icon_kind = EDITOR_DRAWER_ENTRY_ICON_NONE;
 			return 1;
 		case EDITOR_DRAWER_DAP_ENTRY_DEFAULT: {
 			const struct editorDapLaunchConfig *config =
@@ -373,6 +389,8 @@ int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 			view_out->name = dap_name_buf;
 			view_out->depth = 3;
 			view_out->is_last_sibling = lookup.item_idx == E.dap_default_count - 1;
+			view_out->icon_kind = EDITOR_DRAWER_ENTRY_ICON_DAP_START;
+			view_out->icon_color = EDITOR_DRAWER_ENTRY_ICON_COLOR_DAP_START;
 			return 1;
 		}
 		case EDITOR_DRAWER_DAP_ENTRY_BREAKPOINT: {
@@ -386,15 +404,22 @@ int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 			view_out->line = bp->line;
 			view_out->depth = 2;
 			view_out->is_last_sibling = lookup.item_idx == lookup.item_count - 1;
+			view_out->dap_breakpoint_kind = bp->kind;
+			view_out->icon_kind = EDITOR_DRAWER_ENTRY_ICON_DAP_BREAKPOINT;
+			view_out->icon_color = EDITOR_DRAWER_ENTRY_ICON_COLOR_DAP_BREAKPOINT;
 			return 1;
 		}
 		case EDITOR_DRAWER_DAP_ENTRY_THREAD:
-			(void)snprintf(dap_name_buf, sizeof(dap_name_buf), "%d %s",
-			               E.dap_threads[lookup.item_idx].id,
-			               E.dap_threads[lookup.item_idx].name);
-			view_out->name = dap_name_buf;
+			(void)snprintf(dap_prefix_buf, sizeof(dap_prefix_buf), "#%d",
+			               E.dap_threads[lookup.item_idx].id);
+			view_out->prefix = dap_prefix_buf;
+			view_out->prefix_muted = 1;
+			view_out->name = E.dap_threads[lookup.item_idx].name[0] != '\0'
+			                         ? E.dap_threads[lookup.item_idx].name
+			                         : "(thread)";
 			view_out->depth = 2;
 			view_out->is_last_sibling = lookup.item_idx == lookup.item_count - 1;
+			view_out->icon_kind = EDITOR_DRAWER_ENTRY_ICON_NONE;
 			return 1;
 		case EDITOR_DRAWER_DAP_ENTRY_STACK_FRAME: {
 			const struct editorDapStackFrame *frame =
@@ -408,6 +433,7 @@ int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 			view_out->character = frame->column > 0 ? frame->column - 1 : 0;
 			view_out->depth = 2;
 			view_out->is_last_sibling = lookup.item_idx == lookup.item_count - 1;
+			view_out->icon_kind = EDITOR_DRAWER_ENTRY_ICON_NONE;
 			return 1;
 		}
 		case EDITOR_DRAWER_DAP_ENTRY_SCOPE:
@@ -428,10 +454,13 @@ int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 				return 1;
 			}
 			const struct editorDapVariable *var = &E.dap_variables[lookup.item_idx];
-			(void)snprintf(dap_name_buf, sizeof(dap_name_buf), "%s = %s", var->name,
-			               var->value);
-			view_out->name = dap_name_buf;
+			view_out->name = var->name;
+			view_out->detail_type = var->type;
+			view_out->detail_value = var->value;
+			view_out->detail_address = var->memory_reference;
+			view_out->variable_reference = var->variables_reference;
 			view_out->depth = 3;
+			view_out->icon_kind = EDITOR_DRAWER_ENTRY_ICON_NONE;
 			int is_last = 1;
 			for (int i = lookup.item_idx + 1; i < E.dap_variable_count; i++) {
 				if (E.dap_variables[i].scope_index == var->scope_index) {
