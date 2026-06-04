@@ -279,14 +279,7 @@ static int test_editor_process_keypress_mouse_left_click_ignores_indicator_paddi
 	int text_start = editorDrawerTextStartColForCols(E.window_cols);
 	int text_cols = editorDrawerTextViewportCols(E.window_cols);
 
-	char click_left_padding[32];
-	ASSERT_TRUE(format_sgr_mouse_event(click_left_padding, sizeof(click_left_padding), 0,
-	                                   text_start + 1, 2, 'M'));
-	ASSERT_TRUE(editor_process_keypress_with_input(click_left_padding,
-	                                               strlen(click_left_padding)) == 0);
-	ASSERT_EQ_INT(0, E.cy);
-	ASSERT_EQ_INT(3, E.cx);
-
+	/* The right padding column past the text body is ignored: the cursor stays. */
 	char click_right_padding[32];
 	ASSERT_TRUE(format_sgr_mouse_event(click_right_padding, sizeof(click_right_padding), 0,
 	                                   text_start + text_cols, 2, 'M'));
@@ -294,6 +287,16 @@ static int test_editor_process_keypress_mouse_left_click_ignores_indicator_paddi
 	                                               strlen(click_right_padding)) == 0);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(3, E.cx);
+
+	/* A click in the line-number gutter toggles a breakpoint and moves the cursor
+	 * to the start of that row (so the cursor follows the breakpoint line rather
+	 * than the viewport snapping back to the old cursor). */
+	char click_gutter[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click_gutter, sizeof(click_gutter), 0, text_start + 1, 2,
+	                                   'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click_gutter, strlen(click_gutter)) == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(0, E.cx);
 	return 0;
 }
 
@@ -2790,7 +2793,35 @@ static int test_editor_drawer_menu_popup_handles_arrow_and_escape_keys(void) {
 	return 0;
 }
 
+static int test_editor_process_keypress_gutter_click_moves_cursor_to_breakpoint_row(void) {
+	for (int i = 0; i < 12; i++) {
+		add_row("line-content");
+	}
+	E.window_rows = 5;
+	E.window_cols = 40;
+	E.line_numbers_enabled = 1;
+	E.rowoff = 6; /* scrolled down: the cursor at row 0 is off-screen above */
+	E.coloff = 0;
+	E.cy = 0;
+	E.cx = 0;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+
+	/* Click the line-number gutter on the second visible row (buffer row 7).
+	 * The cursor should move there instead of the viewport snapping back to the
+	 * off-screen cursor. */
+	int text_start = editorTextBodyStartColForCols(E.window_cols);
+	char click[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click, sizeof(click), 0, text_start - 1, 3, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click, strlen(click)) == 0);
+
+	ASSERT_EQ_INT(7, E.cy);
+	ASSERT_EQ_INT(0, E.cx);
+	return 0;
+}
+
 const struct editorTestCase g_input_mouse_tests[] = {
+        {"editor_process_keypress_gutter_click_moves_cursor_to_breakpoint_row",
+         test_editor_process_keypress_gutter_click_moves_cursor_to_breakpoint_row},
         {"editor_column_select_alt_mouse_drag_starts_column_selection",
          test_editor_column_select_alt_mouse_drag_starts_column_selection},
         {"editor_process_keypress_mouse_left_click_places_cursor_with_offsets",

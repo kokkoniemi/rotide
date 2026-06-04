@@ -717,6 +717,16 @@ int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long lo
 	int gutter_row = 0;
 	if (event->modifiers == EDITOR_MOUSE_MOD_NONE && mouseGutterRowAt(event, &gutter_row)) {
 		(void)editorDapToggleBreakpointAtLine(gutter_row);
+		/* Move the cursor to the start of the toggled row so the follow-cursor
+		 * viewport settles on the (visible) breakpoint line instead of snapping
+		 * back to the previous, possibly off-screen, cursor. */
+		size_t bp_offset = 0;
+		if (editorBufferPosToOffset(gutter_row, 0, &bp_offset)) {
+			mouseClearSelectionMode();
+			E.cursor_offset = bp_offset;
+			E.cy = gutter_row;
+			E.cx = 0;
+		}
 		E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 		apply_mouse_state = 1;
 		left_button_down = 0;
