@@ -85,6 +85,7 @@ struct editorDapScope {
 
 struct editorDapVariable {
 	int variables_reference;
+	int scope_index; /* index into E.dap_scopes[] that this variable belongs to */
 	char name[ROTIDE_DAP_NAME_MAX];
 	char value[ROTIDE_DAP_VALUE_MAX];
 };

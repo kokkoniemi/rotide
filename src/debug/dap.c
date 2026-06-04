@@ -14,6 +14,7 @@
 #include "workspace/layout.h"
 #include "workspace/tabs.h"
 
+#include <ctype.h>
 #include <limits.h>
 #include <poll.h>
 #include <signal.h>
@@ -54,6 +55,17 @@ struct dapClient {
 	/* `launch` request JSON, built at start time but not sent until the
 	 * `initialize` response arrives. Owned here; freed when sent or on reset. */
 	char *pending_launch_json;
+	/* Correlates `variables` responses back to the scope they were requested
+	 * for: when scopes arrive we fire one request per scope and remember each
+	 * request seq -> scope index here. Rebuilt on every scopes response. */
+	int pending_var_seq[ROTIDE_DAP_MAX_SCOPES];
+	int pending_var_scope[ROTIDE_DAP_MAX_SCOPES];
+	int pending_var_count;
+	/* Scopes whose variables have already been received this stop, used as an
+	 * in-order fallback when a response carries no `request_seq`. */
+	unsigned long long var_scopes_received;
+	/* Whether the once-per-session default collapse of register scopes ran. */
+	int register_collapse_applied;
 };
 
 static struct dapClient g_dap_client = {
@@ -76,12 +88,16 @@ static void dapClientReset(void) {
 	g_dap_client.state = DAP_SESSION_IDLE;
 	g_dap_client.stopped_thread_id = 0;
 	g_dap_client.pending_launch_json = NULL;
+	g_dap_client.pending_var_count = 0;
+	g_dap_client.var_scopes_received = 0;
+	g_dap_client.register_collapse_applied = 0;
 	E.dap_running = 0;
 	E.dap_stopped = 0;
 	E.dap_thread_count = 0;
 	E.dap_stack_frame_count = 0;
 	E.dap_scope_count = 0;
 	E.dap_variable_count = 0;
+	E.drawer_dap_scope_collapsed = 0;
 }
 
 static void dapAppendOutput(const char *text) {
@@ -580,6 +596,33 @@ static int dapBodyIntField(const char *message, const char *quoted_key, int *out
 	return dapObjectIntField(body_start, body_end, quoted_key, out);
 }
 
+/* Reads a top-level (non-body) integer field, e.g. a response's request_seq. */
+static int dapTopLevelIntField(const char *message, const char *quoted_key, int *out) {
+	const char *start = editorLspSkipWs(message);
+	if (start == NULL || start[0] != '{') {
+		return 0;
+	}
+	return dapObjectIntField(start, editorLspFindJsonObjectEnd(start), quoted_key, out);
+}
+
+/* Case-insensitive substring test for "register", used to default-collapse the
+ * register scope (which most adapters name "Registers" / "CPU Registers"). */
+static int dapScopeNameLooksLikeRegisters(const char *name) {
+	static const char needle[] = "register";
+	size_t needle_len = sizeof(needle) - 1;
+	for (const char *p = name; *p != '\0'; p++) {
+		size_t i = 0;
+		while (i < needle_len && p[i] != '\0' &&
+		       (char)tolower((unsigned char)p[i]) == needle[i]) {
+			i++;
+		}
+		if (i == needle_len) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
 /* Copies the (unescaped) body.<quoted_key> string into `buf`. Returns 1 on success. */
 static int dapBodyStringField(const char *message, const char *quoted_key, char *buf,
                               size_t bufsize) {
@@ -688,6 +731,10 @@ static int dapCollectScope(const char *obj_start, const char *obj_end) {
 	return 1;
 }
 
+/* Scope index that the variables currently being parsed belong to; set by
+ * dapHandleVariablesResponse before walking the array. */
+static int g_dap_collect_scope_index = 0;
+
 static int dapCollectVariable(const char *obj_start, const char *obj_end) {
 	if (E.dap_variable_count >= ROTIDE_DAP_MAX_VARIABLES) {
 		return 0;
@@ -700,6 +747,7 @@ static int dapCollectVariable(const char *obj_start, const char *obj_end) {
 	(void)dapObjectStringField(obj_start, obj_end, "\"value\"", var->value, sizeof(var->value));
 	(void)dapObjectIntField(obj_start, obj_end, "\"variablesReference\"",
 	                        &var->variables_reference);
+	var->scope_index = g_dap_collect_scope_index;
 	E.dap_variable_count++;
 	return 1;
 }
@@ -799,21 +847,67 @@ static void dapHandleStackTraceResponse(const char *message) {
 static void dapHandleScopesResponse(const char *message) {
 	E.dap_scope_count = 0;
 	E.dap_variable_count = 0;
+	g_dap_client.pending_var_count = 0;
+	g_dap_client.var_scopes_received = 0;
 	dapForEachBodyArrayElement(message, "\"scopes\"", dapCollectScope);
+
+	/* Default the register scope(s) to collapsed once per session so the
+	 * Variables view is not buried under the register dump; the user's own
+	 * toggles afterward persist across steps. */
+	if (!g_dap_client.register_collapse_applied) {
+		for (int i = 0; i < E.dap_scope_count && i < 64; i++) {
+			if (dapScopeNameLooksLikeRegisters(E.dap_scopes[i].name)) {
+				E.drawer_dap_scope_collapsed |= 1ull << (unsigned int)i;
+			}
+		}
+		g_dap_client.register_collapse_applied = 1;
+	}
+
 	for (int i = 0; i < E.dap_scope_count; i++) {
 		if (E.dap_scopes[i].variables_reference <= 0) {
 			continue;
 		}
-		(void)dapSendRequest(dapBuildIntArgRequestJson(
-		        g_dap_client.next_seq++, "variables", "variablesReference",
-		        E.dap_scopes[i].variables_reference));
+		int seq = g_dap_client.next_seq++;
+		if (g_dap_client.pending_var_count < ROTIDE_DAP_MAX_SCOPES) {
+			g_dap_client.pending_var_seq[g_dap_client.pending_var_count] = seq;
+			g_dap_client.pending_var_scope[g_dap_client.pending_var_count] = i;
+			g_dap_client.pending_var_count++;
+		}
+		(void)dapSendRequest(
+		        dapBuildIntArgRequestJson(seq, "variables", "variablesReference",
+		                                  E.dap_scopes[i].variables_reference));
 	}
 }
 
+/* Determines which scope a `variables` response belongs to: prefer the
+ * response's request_seq matched against the pending requests, else fall back
+ * to the first scope that has not yet received its variables this stop. */
+static int dapResolveVariablesScope(const char *message) {
+	int request_seq = 0;
+	if (dapTopLevelIntField(message, "\"request_seq\"", &request_seq)) {
+		for (int i = 0; i < g_dap_client.pending_var_count; i++) {
+			if (g_dap_client.pending_var_seq[i] == request_seq) {
+				return g_dap_client.pending_var_scope[i];
+			}
+		}
+	}
+	for (int s = 0; s < E.dap_scope_count && s < 64; s++) {
+		if ((g_dap_client.var_scopes_received & (1ull << (unsigned int)s)) == 0) {
+			return s;
+		}
+	}
+	return 0;
+}
+
 static void dapHandleVariablesResponse(const char *message) {
-	/* Variables from every scope share one flat list (matching the drawer);
-	 * responses append in arrival order. */
+	/* Variables share one flat list but each is tagged with its scope so the
+	 * drawer can group them under Arguments / Locals / Registers. */
+	int scope_index = dapResolveVariablesScope(message);
+	g_dap_collect_scope_index = scope_index;
 	dapForEachBodyArrayElement(message, "\"variables\"", dapCollectVariable);
+	if (scope_index >= 0 && scope_index < 64) {
+		g_dap_client.var_scopes_received |= 1ull << (unsigned int)scope_index;
+	}
 }
 
 /* A successful REPL evaluate: echo the result into the console output stream and
@@ -1067,11 +1161,15 @@ int editorDapStartLaunch(int launch_idx) {
 	g_dap_client.next_seq = 1;
 	g_dap_client.initialized = 0;
 	g_dap_client.state = DAP_SESSION_AWAIT_INITIALIZE_RESPONSE;
+	g_dap_client.pending_var_count = 0;
+	g_dap_client.var_scopes_received = 0;
+	g_dap_client.register_collapse_applied = 0;
 	E.dap_selected_launch = launch_idx;
 	E.dap_running = 1;
 	E.dap_stopped = 0;
 	E.dap_output_len = 0;
 	E.dap_output[0] = '\0';
+	E.drawer_dap_scope_collapsed = 0;
 
 	const char *workspace_root = editorDrawerRootPath();
 	if (workspace_root == NULL) {
@@ -1318,8 +1416,12 @@ void editorDapBeginSessionForTest(int to_adapter_fd, char *launch_json) {
 	g_dap_client.initialized = 0;
 	g_dap_client.state = DAP_SESSION_AWAIT_INITIALIZE_RESPONSE;
 	g_dap_client.pending_launch_json = launch_json;
+	g_dap_client.pending_var_count = 0;
+	g_dap_client.var_scopes_received = 0;
+	g_dap_client.register_collapse_applied = 0;
 	E.dap_running = 1;
 	E.dap_stopped = 0;
+	E.drawer_dap_scope_collapsed = 0;
 }
 
 void editorDapEndSessionForTest(void) {

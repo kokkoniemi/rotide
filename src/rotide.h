@@ -589,6 +589,9 @@ struct editorConfig {
 	unsigned int drawer_git_expanded;
 	unsigned int drawer_lsp_expanded;
 	unsigned int drawer_dap_expanded;
+	/* Per-scope collapse bits for the DAP Variables group, indexed by scope
+	 * (Arguments/Locals/Registers/...). Bit set = collapsed; default expanded. */
+	unsigned long long drawer_dap_scope_collapsed;
 	int drawer_selected_index;
 	int drawer_rowoff;
 	int drawer_last_click_visible_idx;

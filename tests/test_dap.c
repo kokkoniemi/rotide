@@ -1254,6 +1254,163 @@ static int test_editor_dap_stop_in_missing_source_does_not_error(void) {
 	return 0;
 }
 
+static int dap_var_scope_by_name(const char *name) {
+	for (int i = 0; i < E.dap_variable_count; i++) {
+		if (strcmp(E.dap_variables[i].name, name) == 0) {
+			return E.dap_variables[i].scope_index;
+		}
+	}
+	return -1;
+}
+
+static int test_editor_dap_drawer_groups_variables_by_scope(void) {
+	/* Variables must be tagged with (and rendered under) their scope, so the
+	 * drawer shows Arguments / Locals / Registers as separate collapsible
+	 * categories rather than one flat dump with registers mixed in. */
+	ASSERT_TRUE(editorTabsInit());
+
+	int fds[2];
+	ASSERT_TRUE(pipe(fds) == 0);
+	editorDapBeginSessionForTest(fds[1], strdup("{}"));
+
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"response\",\"command\":\"scopes\",\"success\":true,"
+	        "\"body\":{\"scopes\":[{\"variablesReference\":1,\"name\":\"Arguments\"},"
+	        "{\"variablesReference\":2,\"name\":\"Locals\"},"
+	        "{\"variablesReference\":3,\"name\":\"Registers\"}]}}");
+	ASSERT_EQ_INT(3, E.dap_scope_count);
+
+	/* begin-for-test starts next_seq at 2, so the three variables requests use
+	 * seq 2 (Arguments), 3 (Locals), 4 (Registers). Replies arrive out of order
+	 * but request_seq keeps each variable under the right scope. */
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"response\",\"command\":\"variables\",\"success\":true,"
+	        "\"request_seq\":4,\"body\":{\"variables\":[{\"name\":\"rax\",\"value\":\"0\"},"
+	        "{\"name\":\"rbx\",\"value\":\"0\"}]}}");
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"response\",\"command\":\"variables\",\"success\":true,"
+	        "\"request_seq\":2,\"body\":{\"variables\":[{\"name\":\"argc\",\"value\":\"1\"}]}"
+	        "}");
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"response\",\"command\":\"variables\",\"success\":true,"
+	        "\"request_seq\":3,\"body\":{\"variables\":[{\"name\":\"total\",\"value\":\"84\"},"
+	        "{\"name\":\"fib\",\"value\":\"144\"}]}}");
+	ASSERT_EQ_INT(5, E.dap_variable_count);
+
+	ASSERT_EQ_INT(2, dap_var_scope_by_name("rax"));
+	ASSERT_EQ_INT(2, dap_var_scope_by_name("rbx"));
+	ASSERT_EQ_INT(0, dap_var_scope_by_name("argc"));
+	ASSERT_EQ_INT(1, dap_var_scope_by_name("total"));
+	ASSERT_EQ_INT(1, dap_var_scope_by_name("fib"));
+
+	/* Register scope auto-collapses once; Arguments/Locals stay expanded. */
+	ASSERT_TRUE((E.drawer_dap_scope_collapsed & (1ull << 2)) != 0);
+	ASSERT_TRUE((E.drawer_dap_scope_collapsed & (1ull << 0)) == 0);
+	ASSERT_TRUE((E.drawer_dap_scope_collapsed & (1ull << 1)) == 0);
+
+	E.drawer_mode = EDITOR_DRAWER_MODE_DAP;
+	E.drawer_dap_expanded = 0xFFFFFFFFu; /* expand every top-level group */
+	E.window_rows = 40;
+
+	int saw_args = 0, saw_locals = 0, saw_regs = 0;
+	int saw_argc = 0, saw_total = 0, saw_rax = 0;
+	int args_depth = -1, argc_depth = -1;
+	int visible = editorDrawerVisibleCount();
+	for (int i = 0; i < visible; i++) {
+		struct editorDrawerEntryView view;
+		ASSERT_TRUE(editorDrawerVisibleEntryView(i, &view));
+		if (strcmp(view.name, "Arguments (1)") == 0) {
+			saw_args = 1;
+			args_depth = view.depth;
+			ASSERT_TRUE(view.is_dir && view.is_expanded);
+		} else if (strcmp(view.name, "Locals (2)") == 0) {
+			saw_locals = 1;
+		} else if (strcmp(view.name, "Registers (2)") == 0) {
+			saw_regs = 1;
+			ASSERT_TRUE(view.is_dir && !view.is_expanded);
+		} else if (strcmp(view.name, "argc = 1") == 0) {
+			saw_argc = 1;
+			argc_depth = view.depth;
+		} else if (strcmp(view.name, "total = 84") == 0) {
+			saw_total = 1;
+		} else if (strcmp(view.name, "rax = 0") == 0) {
+			saw_rax = 1;
+		}
+	}
+	ASSERT_TRUE(saw_args && saw_locals && saw_regs);
+	ASSERT_TRUE(saw_argc && saw_total);
+	ASSERT_EQ_INT(0, saw_rax); /* collapsed Registers hides its variables */
+	ASSERT_EQ_INT(args_depth + 1, argc_depth);
+
+	/* Expanding Registers reveals its variables. */
+	E.drawer_dap_scope_collapsed &= ~(1ull << 2);
+	saw_rax = 0;
+	visible = editorDrawerVisibleCount();
+	for (int i = 0; i < visible; i++) {
+		struct editorDrawerEntryView view;
+		ASSERT_TRUE(editorDrawerVisibleEntryView(i, &view));
+		if (strcmp(view.name, "rax = 0") == 0) {
+			saw_rax = 1;
+		}
+	}
+	ASSERT_TRUE(saw_rax);
+
+	editorDapEndSessionForTest();
+	(void)close(fds[0]);
+	(void)close(fds[1]);
+	return 0;
+}
+
+static int test_editor_dap_drawer_scope_toggle_collapses(void) {
+	/* A scope header behaves like a collapsible directory for the shared
+	 * keyboard/mouse toggle path. */
+	ASSERT_TRUE(editorTabsInit());
+	E.dap_running = 1;
+	E.dap_stopped = 1;
+	E.dap_scope_count = 2;
+	memset(E.dap_scopes, 0, sizeof(*E.dap_scopes) * 2);
+	(void)snprintf(E.dap_scopes[0].name, sizeof(E.dap_scopes[0].name), "%s", "Arguments");
+	(void)snprintf(E.dap_scopes[1].name, sizeof(E.dap_scopes[1].name), "%s", "Locals");
+	E.dap_variable_count = 2;
+	memset(&E.dap_variables[0], 0, sizeof(E.dap_variables[0]));
+	memset(&E.dap_variables[1], 0, sizeof(E.dap_variables[1]));
+	(void)snprintf(E.dap_variables[0].name, sizeof(E.dap_variables[0].name), "%s", "argc");
+	E.dap_variables[0].scope_index = 0;
+	(void)snprintf(E.dap_variables[1].name, sizeof(E.dap_variables[1].name), "%s", "x");
+	E.dap_variables[1].scope_index = 1;
+	E.drawer_dap_scope_collapsed = 0;
+	E.drawer_mode = EDITOR_DRAWER_MODE_DAP;
+	E.drawer_dap_expanded = 0xFFFFFFFFu;
+	E.window_rows = 40;
+
+	int locals_idx = -1;
+	int visible = editorDrawerVisibleCount();
+	for (int i = 0; i < visible; i++) {
+		struct editorDrawerEntryView view;
+		ASSERT_TRUE(editorDrawerVisibleEntryView(i, &view));
+		if (strcmp(view.name, "Locals (1)") == 0) {
+			locals_idx = i;
+		}
+	}
+	ASSERT_TRUE(locals_idx >= 0);
+	ASSERT_TRUE(editorDrawerSelectVisibleIndex(locals_idx, E.window_rows));
+	ASSERT_TRUE(editorDrawerSelectedIsDirectory());
+
+	ASSERT_TRUE(editorDrawerToggleSelectionExpanded(E.window_rows));
+	ASSERT_TRUE((E.drawer_dap_scope_collapsed & (1ull << 1)) != 0); /* Locals collapsed */
+	ASSERT_TRUE((E.drawer_dap_scope_collapsed & (1ull << 0)) == 0); /* Arguments untouched */
+
+	ASSERT_TRUE(editorDrawerToggleSelectionExpanded(E.window_rows));
+	ASSERT_TRUE((E.drawer_dap_scope_collapsed & (1ull << 1)) == 0); /* expanded again */
+
+	E.dap_running = 0;
+	E.dap_stopped = 0;
+	E.dap_scope_count = 0;
+	E.dap_variable_count = 0;
+	E.drawer_dap_scope_collapsed = 0;
+	return 0;
+}
+
 const struct editorTestCase g_dap_tests[] = {
         {"editor_dap_console_panel_switches_terminal_and_console_tabs",
          test_editor_dap_console_panel_switches_terminal_and_console_tabs},
@@ -1300,6 +1457,9 @@ const struct editorTestCase g_dap_tests[] = {
          test_editor_dap_stop_centers_viewport_on_current_line},
         {"editor_dap_stop_in_missing_source_does_not_error",
          test_editor_dap_stop_in_missing_source_does_not_error},
+        {"editor_dap_drawer_groups_variables_by_scope",
+         test_editor_dap_drawer_groups_variables_by_scope},
+        {"editor_dap_drawer_scope_toggle_collapses", test_editor_dap_drawer_scope_toggle_collapses},
         {"editor_dap_evaluate_request_builder", test_editor_dap_evaluate_request_builder},
         {"editor_dap_evaluate_repl_flow", test_editor_dap_evaluate_repl_flow},
         {"editor_dap_console_pane_renders_and_toggles",
