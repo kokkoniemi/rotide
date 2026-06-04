@@ -2,6 +2,7 @@
 
 #include "config/dap_config.h"
 #include "debug/dap.h"
+#include "debug/dap_console.h"
 #include "editing/document_position.h"
 #include "editing/edit.h"
 #include "editing/selection.h"
@@ -1276,6 +1277,10 @@ int editorMouseIsOverDrawer(const struct editorMouseEvent *event) {
 
 int editorHandleMouseWheel(const struct editorMouseEvent *event) {
 	int over_drawer = editorMouseIsOverDrawer(event);
+	/* Over a Debug Console pane the wheel scrolls the transcript, not the (empty)
+	 * editor buffer. Terminal panes are handled earlier in the dispatch. */
+	struct editorDapConsolePane *console =
+	        over_drawer ? NULL : editorDapConsoleForPane(mouseEditorLeafAt(event));
 
 	switch (event->kind) {
 		case EDITOR_MOUSE_EVENT_WHEEL_UP:
@@ -1284,11 +1289,19 @@ int editorHandleMouseWheel(const struct editorMouseEvent *event) {
 				                           E.window_rows);
 				break;
 			}
+			if (console != NULL) {
+				editorDapConsoleScroll(console, MOUSE_WHEEL_SCROLL_LINES);
+				break;
+			}
 			editorViewportScrollByRows(-MOUSE_WHEEL_SCROLL_LINES);
 			break;
 		case EDITOR_MOUSE_EVENT_WHEEL_DOWN:
 			if (over_drawer) {
 				(void)editorDrawerScrollBy(MOUSE_WHEEL_SCROLL_LINES, E.window_rows);
+				break;
+			}
+			if (console != NULL) {
+				editorDapConsoleScroll(console, -MOUSE_WHEEL_SCROLL_LINES);
 				break;
 			}
 			editorViewportScrollByRows(MOUSE_WHEEL_SCROLL_LINES);

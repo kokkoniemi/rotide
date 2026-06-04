@@ -2,6 +2,7 @@
 #include "config/dap_config.h"
 #include "debug/dap.h"
 #include "debug/dap_console.h"
+#include "input/mouse.h"
 #include "render/screen.h"
 #include "render/status_bar.h"
 #include "render/write_buf.h"
@@ -926,6 +927,47 @@ static int test_editor_dap_console_pane_renders_and_toggles(void) {
 	return 0;
 }
 
+static int test_editor_dap_console_wheel_scrolls_transcript(void) {
+	ASSERT_TRUE(editorTabsInit());
+	E.window_rows = 10;
+	E.window_cols = 80;
+	char transcript[256];
+	int len = 0;
+	for (int i = 0; i < 20; i++) {
+		len += snprintf(transcript + len, sizeof(transcript) - (size_t)len, "line-%d\n", i);
+	}
+	memcpy(E.dap_output, transcript, (size_t)len);
+	E.dap_output_len = (size_t)len;
+	E.dap_output[len] = '\0';
+
+	E.dap_console_leaf = NULL;
+	ASSERT_TRUE(editorDapConsoleToggle());
+	struct editorDapConsolePane *console = editorDapConsoleForPane(E.dap_console_leaf);
+	ASSERT_TRUE(console != NULL);
+	ASSERT_EQ_INT(0, console->scroll);
+
+	struct editorRect rect = {0};
+	ASSERT_TRUE(editorLayoutFocusedLeafRect(&rect));
+	struct editorMouseEvent wheel = {
+	        .kind = EDITOR_MOUSE_EVENT_WHEEL_UP,
+	        .x = rect.x + 2,
+	        .y = rect.y + 2,
+	        .modifiers = 0,
+	};
+	ASSERT_TRUE(editorHandleMouseWheel(&wheel));
+	ASSERT_TRUE(console->scroll > 0); /* wheel-up scrolls toward older output */
+	int scrolled = console->scroll;
+
+	wheel.kind = EDITOR_MOUSE_EVENT_WHEEL_DOWN;
+	ASSERT_TRUE(editorHandleMouseWheel(&wheel));
+	ASSERT_TRUE(console->scroll < scrolled);
+
+	editorDapConsoleCloseOwnedTerminalPane();
+	E.dap_output_len = 0;
+	E.dap_output[0] = '\0';
+	return 0;
+}
+
 static int test_editor_dap_console_cursor_sits_on_input_line(void) {
 	ASSERT_TRUE(editorTabsInit());
 	E.window_rows = 12;
@@ -1079,6 +1121,8 @@ const struct editorTestCase g_dap_tests[] = {
         {"editor_dap_evaluate_repl_flow", test_editor_dap_evaluate_repl_flow},
         {"editor_dap_console_pane_renders_and_toggles",
          test_editor_dap_console_pane_renders_and_toggles},
+        {"editor_dap_console_wheel_scrolls_transcript",
+         test_editor_dap_console_wheel_scrolls_transcript},
         {"editor_dap_console_cursor_sits_on_input_line",
          test_editor_dap_console_cursor_sits_on_input_line},
         {"editor_dap_adapter_command_tty", test_editor_dap_adapter_command_tty},
