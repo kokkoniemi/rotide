@@ -282,6 +282,7 @@ static int themeParseUiRoleName(const char *name, enum editorThemeUiRole *role_o
 	        {"cursor", EDITOR_THEME_UI_CURSOR},
 	        {"breakpoint", EDITOR_THEME_UI_BREAKPOINT},
 	        {"debug_stopped_line", EDITOR_THEME_UI_DEBUG_STOPPED_LINE},
+	        {"debug_stopped_line_bg", EDITOR_THEME_UI_DEBUG_STOPPED_LINE_BG},
 	};
 	for (size_t i = 0; i < sizeof(role_names) / sizeof(role_names[0]); i++) {
 		if (strcmp(normalized, role_names[i].name) == 0) {

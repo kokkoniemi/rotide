@@ -1078,6 +1078,43 @@ static int test_editor_dap_console_panel_switches_terminal_and_console_tabs(void
 	return 0;
 }
 
+static int test_editor_dap_stopped_line_highlighted(void) {
+	ASSERT_TRUE(editorTabsInit());
+	E.window_rows = 6;
+	E.window_cols = 40;
+	add_row("line zero");
+	add_row("line one");
+	add_row("line two");
+	E.filename = strdup("/tmp/rotide-stopped-line-xyz.c");
+	ASSERT_TRUE(E.filename != NULL);
+	E.cy = 0;
+	E.cx = 0;
+	E.rowoff = 0;
+	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+
+	/* A distinct stopped-line tint so we can spot it in the frame. */
+	struct editorThemeColor tint = {.kind = EDITOR_THEME_COLOR_RGB, .r = 60, .g = 50, .b = 10};
+	E.theme.ui[EDITOR_THEME_UI_DEBUG_STOPPED_LINE_BG] = tint;
+
+	/* Stop on the second line (1-based frame line 2 -> buffer row 1). */
+	E.dap_running = 1;
+	E.dap_stopped = 1;
+	E.dap_stack_frame_count = 1;
+	(void)snprintf(E.dap_stack_frames[0].path, sizeof(E.dap_stack_frames[0].path), "%s",
+	               E.filename);
+	E.dap_stack_frames[0].line = 2;
+
+	ASSERT_TRUE(editorDebugStoppedLineHighlightApplies(1));
+	ASSERT_TRUE(!editorDebugStoppedLineHighlightApplies(0));
+
+	size_t n = 0;
+	char *out = refresh_screen_and_capture(&n);
+	ASSERT_TRUE(out != NULL);
+	ASSERT_TRUE(strstr(out, "\x1b[48;2;60;50;10m") != NULL); /* stopped-line bg tint */
+	free(out);
+	return 0;
+}
+
 static int test_editor_dap_status_bar_controls_nerd_icons(void) {
 	ASSERT_TRUE(editorTabsInit());
 	E.window_rows = 6;
@@ -1165,6 +1202,7 @@ const struct editorTestCase g_dap_tests[] = {
         {"editor_dap_status_bar_controls", test_editor_dap_status_bar_controls},
         {"editor_dap_status_bar_controls_nerd_icons",
          test_editor_dap_status_bar_controls_nerd_icons},
+        {"editor_dap_stopped_line_highlighted", test_editor_dap_stopped_line_highlighted},
         {"editor_dap_evaluate_request_builder", test_editor_dap_evaluate_request_builder},
         {"editor_dap_evaluate_repl_flow", test_editor_dap_evaluate_repl_flow},
         {"editor_dap_console_pane_renders_and_toggles",

@@ -37,6 +37,20 @@ struct editorThemeColor editorThemeRgbColor(unsigned char r, unsigned char g, un
 	return color;
 }
 
+/* Mixes `accent_pct`% of `accent` into `base`, both RGB. Used to derive a subtle
+ * tinted background from an accent color and the editor background. Falls back to
+ * a dim 256 yellow when either input is not RGB. */
+static struct editorThemeColor themeBlendRgb(struct editorThemeColor accent,
+                                             struct editorThemeColor base, int accent_pct) {
+	if (accent.kind != EDITOR_THEME_COLOR_RGB || base.kind != EDITOR_THEME_COLOR_RGB) {
+		return editorTheme256Color(58);
+	}
+	int b = 100 - accent_pct;
+	return editorThemeRgbColor((unsigned char)((accent.r * accent_pct + base.r * b) / 100),
+	                           (unsigned char)((accent.g * accent_pct + base.g * b) / 100),
+	                           (unsigned char)((accent.b * accent_pct + base.b * b) / 100));
+}
+
 static struct editorThemeStyle themeBuiltinStyleDefault(void) {
 	struct editorThemeStyle style;
 	style.fg = editorThemeDefaultColor();
@@ -1061,6 +1075,13 @@ static void themeBuiltinFinalize(struct editorTheme *theme) {
 	if (theme->ui[EDITOR_THEME_UI_DEBUG_STOPPED_LINE].kind == EDITOR_THEME_COLOR_DEFAULT) {
 		theme->ui[EDITOR_THEME_UI_DEBUG_STOPPED_LINE] =
 		        theme->ui[EDITOR_THEME_UI_GIT_MODIFIED];
+	}
+	/* The stopped-line highlight is a subtle tint of the stopped-line accent over
+	 * the editor background (like the current-line highlight, but amber). */
+	if (theme->ui[EDITOR_THEME_UI_DEBUG_STOPPED_LINE_BG].kind == EDITOR_THEME_COLOR_DEFAULT) {
+		theme->ui[EDITOR_THEME_UI_DEBUG_STOPPED_LINE_BG] =
+		        themeBlendRgb(theme->ui[EDITOR_THEME_UI_DEBUG_STOPPED_LINE],
+		                      theme->ui[EDITOR_THEME_UI_BACKGROUND], 30);
 	}
 }
 

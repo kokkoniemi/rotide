@@ -95,6 +95,7 @@ struct screenRenderSliceArgs {
 static struct screenFileRowFrameCache g_screen_file_row_frame_cache = {0};
 static int g_screen_last_refresh_file_row_draw_count = 0;
 int g_screen_drawing_current_line_highlight = 0;
+int g_screen_drawing_stopped_line_highlight = 0;
 static int g_screen_popup_prev_screen_top = 0;
 static int g_screen_popup_prev_row_count = 0;
 
@@ -128,6 +129,10 @@ static void screenFileRowFrameCacheReset(void) {
 static int screenAppendTextRowReset(struct writeBuf *wb) {
 	if (!editorAppendThemeReset(wb)) {
 		return 0;
+	}
+	/* The debug stopped-line tint takes precedence over the cursor-line tint. */
+	if (g_screen_drawing_stopped_line_highlight) {
+		return editorAppendThemeBackgroundRole(wb, EDITOR_THEME_UI_DEBUG_STOPPED_LINE_BG);
 	}
 	if (g_screen_drawing_current_line_highlight &&
 	    !editorAppendThemeBackgroundRole(wb, EDITOR_THEME_UI_CURRENT_LINE_BG)) {
@@ -932,6 +937,10 @@ int editorCurrentLineHighlightApplies(int row_idx, int segment_coloff) {
 	editorWrapSegmentInfo(&E.rows[row_idx], cursor_segment, body_cols, &cursor_segment_coloff,
 	                      NULL, NULL);
 	return segment_coloff == cursor_segment_coloff;
+}
+
+int editorDebugStoppedLineHighlightApplies(int row_idx) {
+	return row_idx >= 0 && row_idx < E.numrows && editorDapIsStoppedLine(E.filename, row_idx);
 }
 
 int editorDrawLineNumberGutter(struct writeBuf *wb, int row_idx, int segment_coloff,
