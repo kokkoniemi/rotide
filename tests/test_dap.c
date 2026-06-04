@@ -1161,6 +1161,60 @@ static int test_editor_dap_status_bar_controls_nerd_icons(void) {
 	return 0;
 }
 
+static int test_editor_dap_stop_centers_viewport_on_current_line(void) {
+	/* On a stop, the stackTrace response reveals the top frame's line in a
+	 * source pane: it opens the file, moves the cursor onto the line, and
+	 * centers the viewport so the line sits mid-buffer, not pinned to an edge. */
+	ASSERT_TRUE(editorTabsInit());
+
+	/* 40 numbered lines give a mid-file stop room above and below. */
+	char src[1024];
+	src[0] = '\0';
+	for (int i = 1; i <= 40; i++) {
+		char line[32];
+		(void)snprintf(line, sizeof(line), "line %d\n", i);
+		(void)strncat(src, line, sizeof(src) - strlen(src) - 1);
+	}
+	char path[64];
+	ASSERT_TRUE(write_temp_c_file(path, sizeof(path), src));
+	ASSERT_TRUE(editorTabOpenOrSwitchToFile(path));
+	ASSERT_EQ_INT(EDITOR_PANE_KIND_EDITOR, editorPaneActiveKind(E.focused_leaf));
+
+	E.window_rows = 21;
+	E.window_cols = 80;
+	E.cy = 0;
+	E.cx = 0;
+	E.rowoff = 0;
+
+	int fds[2];
+	ASSERT_TRUE(pipe(fds) == 0);
+	editorDapBeginSessionForTest(fds[1], strdup("{}"));
+
+	/* Stop with the top frame on (1-based) line 20 of the open file. */
+	char msg[512];
+	(void)snprintf(msg, sizeof(msg),
+	               "{\"type\":\"response\",\"command\":\"stackTrace\",\"success\":true,"
+	               "\"body\":{\"stackFrames\":[{\"id\":0,\"line\":20,\"column\":0,"
+	               "\"name\":\"main\",\"source\":{\"path\":\"%s\"}}]}}",
+	               path);
+	(void)editorDapProcessIncomingMessage(msg);
+
+	/* Cursor lands on the stopped line (0-based 19); the line is centered in
+	 * the body, not at the top edge or the last row. */
+	ASSERT_EQ_INT(EDITOR_PANE_KIND_EDITOR, editorPaneActiveKind(E.focused_leaf));
+	ASSERT_EQ_INT(19, E.cy);
+	int body_rows = editorViewportFocusedPaneBodyRows();
+	int center = body_rows > 0 ? body_rows / 2 : 0;
+	ASSERT_EQ_INT(center, E.cy - E.rowoff);
+	ASSERT_TRUE(E.rowoff > 0);
+
+	editorDapEndSessionForTest();
+	(void)close(fds[0]);
+	(void)close(fds[1]);
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 const struct editorTestCase g_dap_tests[] = {
         {"editor_dap_console_panel_switches_terminal_and_console_tabs",
          test_editor_dap_console_panel_switches_terminal_and_console_tabs},
@@ -1203,6 +1257,8 @@ const struct editorTestCase g_dap_tests[] = {
         {"editor_dap_status_bar_controls_nerd_icons",
          test_editor_dap_status_bar_controls_nerd_icons},
         {"editor_dap_stopped_line_highlighted", test_editor_dap_stopped_line_highlighted},
+        {"editor_dap_stop_centers_viewport_on_current_line",
+         test_editor_dap_stop_centers_viewport_on_current_line},
         {"editor_dap_evaluate_request_builder", test_editor_dap_evaluate_request_builder},
         {"editor_dap_evaluate_repl_flow", test_editor_dap_evaluate_repl_flow},
         {"editor_dap_console_pane_renders_and_toggles",

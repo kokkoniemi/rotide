@@ -3,12 +3,16 @@
 #include "config/dap_config.h"
 #include "debug/dap_client.h"
 #include "debug/dap_console.h"
+#include "editing/document_position.h"
 #include "editing/edit.h"
 #include "language/lsp_json.h"
 #include "language/lsp_transport.h"
+#include "render/viewport.h"
 #include "rotide.h"
 #include "support/file_io.h"
 #include "workspace/drawer.h"
+#include "workspace/layout.h"
+#include "workspace/tabs.h"
 
 #include <limits.h>
 #include <poll.h>
@@ -723,10 +727,59 @@ static void dapHandleThreadsResponse(const char *message) {
 	dapRequestStackTrace();
 }
 
+/* First leaf whose active tab is an editor (i.e. shows source, not the debug
+ * console or a terminal), preferring `preferred` when it qualifies. */
+static struct editorPaneNode *dapFindSourceLeaf(struct editorPaneNode *node) {
+	if (node == NULL) {
+		return NULL;
+	}
+	if (node->is_split) {
+		struct editorPaneNode *first = dapFindSourceLeaf(node->as.split.first);
+		return first != NULL ? first : dapFindSourceLeaf(node->as.split.second);
+	}
+	return editorPaneActiveKind(node) == EDITOR_PANE_KIND_EDITOR ? node : NULL;
+}
+
+/* On a stop, reveal the top frame's line in a source pane: focus a source pane
+ * (not the console), switch to the file, and center the viewport on the line.
+ * The cursor lands on the line so the centered view stays put under
+ * follow-cursor. */
+static void dapRevealStoppedFrame(const struct editorDapStackFrame *frame) {
+	if (frame->path[0] == '\0' || frame->line <= 0 || E.layout_root == NULL) {
+		return;
+	}
+	struct editorPaneNode *src = E.focused_leaf;
+	if (src == NULL || src->is_split || editorPaneActiveKind(src) != EDITOR_PANE_KIND_EDITOR) {
+		src = dapFindSourceLeaf(E.layout_root);
+	}
+	if (src == NULL) {
+		return;
+	}
+	if (src != E.focused_leaf) {
+		(void)editorLayoutSetFocusedLeaf(src);
+	}
+	if (!editorTabOpenOrSwitchToFile(frame->path)) {
+		return;
+	}
+	int line = frame->line - 1;
+	if (line < 0) {
+		line = 0;
+	}
+	if (line >= E.numrows) {
+		line = E.numrows > 0 ? E.numrows - 1 : 0;
+	}
+	size_t offset = 0;
+	if (editorBufferPosToOffset(line, 0, &offset)) {
+		(void)editorSyncCursorFromOffset(offset);
+	}
+	editorViewportCenterCursor();
+}
+
 static void dapHandleStackTraceResponse(const char *message) {
 	E.dap_stack_frame_count = 0;
 	dapForEachBodyArrayElement(message, "\"stackFrames\"", dapCollectStackFrame);
 	if (E.dap_stack_frame_count > 0) {
+		dapRevealStoppedFrame(&E.dap_stack_frames[0]);
 		(void)dapSendRequest(dapBuildIntArgRequestJson(
 		        g_dap_client.next_seq++, "scopes", "frameId", E.dap_stack_frames[0].id));
 	}
