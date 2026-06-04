@@ -14,6 +14,6 @@ adapter = "c"
 request = "launch"
 program = "${workspaceFolder}/tests/dap/supported/c/dap_sample.out"
 cwd = "${workspaceFolder}"
-args = ["${workspaceFolder}/tests/dap/supported/c/dap_sample.c"]
+args = ["branch-a"]
 stopOnEntry = false
 console = "terminal"

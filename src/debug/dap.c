@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -744,8 +745,18 @@ static struct editorPaneNode *dapFindSourceLeaf(struct editorPaneNode *node) {
  * (not the console), switch to the file, and center the viewport on the line.
  * The cursor lands on the line so the centered view stays put under
  * follow-cursor. */
+/* A stopped frame is navigable only when its source is a regular file present
+ * on disk. Frames in libc, inlined code, or units built without debug info
+ * report a path that does not resolve locally (e.g. stepping into printf lands
+ * in glibc source that is not installed) -- those must be skipped silently
+ * rather than surfacing an "Unable to open file" error. */
+static int dapFrameSourceIsOpenable(const struct editorDapStackFrame *frame) {
+	struct stat st;
+	return frame->path[0] != '\0' && stat(frame->path, &st) == 0 && S_ISREG(st.st_mode);
+}
+
 static void dapRevealStoppedFrame(const struct editorDapStackFrame *frame) {
-	if (frame->path[0] == '\0' || frame->line <= 0 || E.layout_root == NULL) {
+	if (frame->line <= 0 || E.layout_root == NULL || !dapFrameSourceIsOpenable(frame)) {
 		return;
 	}
 	struct editorPaneNode *src = E.focused_leaf;

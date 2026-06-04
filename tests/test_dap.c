@@ -1215,6 +1215,45 @@ static int test_editor_dap_stop_centers_viewport_on_current_line(void) {
 	return 0;
 }
 
+static int test_editor_dap_stop_in_missing_source_does_not_error(void) {
+	/* Stepping into a frame with no local source (e.g. printf landing in glibc
+	 * that is not installed) must not pop an "Unable to open file" error and
+	 * must leave the current buffer/cursor untouched. */
+	ASSERT_TRUE(editorTabsInit());
+
+	char path[64];
+	ASSERT_TRUE(write_temp_c_file(path, sizeof(path), "int main(void) { return 0; }\n"));
+	ASSERT_TRUE(editorTabOpenOrSwitchToFile(path));
+	char *open_file = E.filename;
+	int saved_cy = E.cy;
+
+	E.window_rows = 21;
+	E.window_cols = 80;
+	(void)snprintf(E.statusmsg, sizeof(E.statusmsg), "%s", "SENTINEL");
+
+	int fds[2];
+	ASSERT_TRUE(pipe(fds) == 0);
+	editorDapBeginSessionForTest(fds[1], strdup("{}"));
+
+	/* Top frame points at a libc source path that does not exist on disk. */
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"response\",\"command\":\"stackTrace\",\"success\":true,"
+	        "\"body\":{\"stackFrames\":[{\"id\":0,\"line\":42,\"column\":0,\"name\":\"printf\","
+	        "\"source\":{\"name\":\"printf.c\",\"path\":\"/nonexistent/glibc/printf.c\"}}]}}");
+
+	/* The frame is recorded, but no navigation and no error happened. */
+	ASSERT_EQ_INT(1, E.dap_stack_frame_count);
+	ASSERT_EQ_STR("SENTINEL", E.statusmsg);
+	ASSERT_TRUE(E.filename == open_file);
+	ASSERT_EQ_INT(saved_cy, E.cy);
+
+	editorDapEndSessionForTest();
+	(void)close(fds[0]);
+	(void)close(fds[1]);
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
 const struct editorTestCase g_dap_tests[] = {
         {"editor_dap_console_panel_switches_terminal_and_console_tabs",
          test_editor_dap_console_panel_switches_terminal_and_console_tabs},
@@ -1259,6 +1298,8 @@ const struct editorTestCase g_dap_tests[] = {
         {"editor_dap_stopped_line_highlighted", test_editor_dap_stopped_line_highlighted},
         {"editor_dap_stop_centers_viewport_on_current_line",
          test_editor_dap_stop_centers_viewport_on_current_line},
+        {"editor_dap_stop_in_missing_source_does_not_error",
+         test_editor_dap_stop_in_missing_source_does_not_error},
         {"editor_dap_evaluate_request_builder", test_editor_dap_evaluate_request_builder},
         {"editor_dap_evaluate_repl_flow", test_editor_dap_evaluate_repl_flow},
         {"editor_dap_console_pane_renders_and_toggles",
