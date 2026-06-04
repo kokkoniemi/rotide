@@ -490,9 +490,9 @@ struct editorTabState {
 	enum editorPaneKind kind;
 	/*
 	 * Owned payload for non-editor kinds (e.g. an editorTerminalPane for a
-	 * TERMINAL tab). NULL for EDITOR tabs, whose payload is the inline buffer.
-	 * payload_free releases it when the tab is freed. Mirrors the pane leaf's
-	 * kind_state / kind_state_free.
+	 * TERMINAL tab, or an editorDapConsolePane for a DEBUG_CONSOLE tab). NULL for
+	 * EDITOR tabs, whose payload is the inline buffer. payload_free releases it
+	 * when the tab is freed.
 	 */
 	void *payload;
 	void (*payload_free)(void *payload);
@@ -678,13 +678,6 @@ struct editorConfig {
 	int dap_running;
 	int dap_stopped;
 	int dap_selected_launch;
-	/*
-	 * If non-NULL, points at a terminal pane leaf that the DAP launch
-	 * opened (via console="terminal") to host the inferior's tty. The
-	 * pane is closed when the DAP session ends, unless the user has
-	 * focused the pane and is interacting with it.
-	 */
-	struct editorPaneNode *dap_terminal_leaf;
 	/* The pane hosting the Debug Console panel (a DEBUG_CONSOLE tab plus, when
 	 * launched with console="terminal", a TERMINAL tab), or NULL. The console's
 	 * scroll + REPL input live on the DEBUG_CONSOLE tab payload; the transcript

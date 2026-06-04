@@ -62,29 +62,40 @@
 #define TEST_DRAWER_ACTIVE_MAIN_MENU_CELL                                                          \
 	TEST_HEADER_ACTIVE " " TEST_DRAWER_MAIN_MENU_SYMBOL " " TEST_HEADER_RESET
 
+/* Replaces the root pane's tabs with a single active TERMINAL tab and returns the
+ * terminal so the test can drive it (terminals are tabs, not leaf kinds). */
+static struct editorTerminalPane *open_terminal_tab_in_root(const char *command) {
+	if (!editorTabsInit() || E.layout_root == NULL || E.layout_root->is_split) {
+		return NULL;
+	}
+	int cols = editorDrawerTextViewportCols(E.window_cols);
+	if (cols < 1) {
+		cols = 1;
+	}
+	struct editorTerminalPane *t = editorTerminalPaneCreate(command, cols, E.window_rows);
+	if (t == NULL) {
+		return NULL;
+	}
+	int idx = editorTabCreateWidget(EDITOR_PANE_KIND_TERMINAL, t, editorTerminalPaneFree);
+	if (idx < 0) {
+		editorTerminalPaneFree(t);
+		return NULL;
+	}
+	editorPaneViewClearTabs(&E.layout_root->as.leaf.view);
+	(void)editorPaneViewActivateTab(&E.layout_root->as.leaf.view, idx);
+	E.active_tab = idx;
+	return t;
+}
+
 static int test_editor_refresh_screen_renders_terminal_pane(void) {
 	E.window_rows = 8;
 	E.window_cols = 60;
 
-	struct editorPaneNode *leaf = E.layout_root;
-	if (leaf == NULL || leaf->is_split) {
-		return 1;
-	}
-	int viewport_cols = editorDrawerTextViewportCols(E.window_cols);
-	if (viewport_cols < 10) {
-		return 1;
-	}
-	struct editorPaneNode *terminal_leaf = editorPaneNodeNewTerminalLeaf(
-	        "printf 'rotide-screen-marker\\n'; sleep 2", viewport_cols, E.window_rows);
-	if (terminal_leaf == NULL) {
-		return 1;
-	}
-	editorPaneNodeFree(E.layout_root);
-	E.layout_root = terminal_leaf;
-	E.focused_leaf = terminal_leaf;
-
 	struct editorTerminalPane *t =
-	        (struct editorTerminalPane *)terminal_leaf->as.leaf.kind_state;
+	        open_terminal_tab_in_root("printf 'rotide-screen-marker\\n'; sleep 2");
+	if (t == NULL) {
+		return 1;
+	}
 	int waited = 0;
 	int saw_marker = 0;
 	while (waited < 2000 && !saw_marker) {
@@ -121,18 +132,10 @@ static int test_editor_refresh_screen_terminal_exit_overlay(void) {
 	E.window_rows = 8;
 	E.window_cols = 60;
 
-	int viewport_cols = editorDrawerTextViewportCols(E.window_cols);
-	struct editorPaneNode *terminal_leaf =
-	        editorPaneNodeNewTerminalLeaf("true", viewport_cols, E.window_rows);
-	if (terminal_leaf == NULL) {
+	struct editorTerminalPane *t = open_terminal_tab_in_root("true");
+	if (t == NULL) {
 		return 1;
 	}
-	editorPaneNodeFree(E.layout_root);
-	E.layout_root = terminal_leaf;
-	E.focused_leaf = terminal_leaf;
-
-	struct editorTerminalPane *t =
-	        (struct editorTerminalPane *)terminal_leaf->as.leaf.kind_state;
 	int waited = 0;
 	while (waited < 2000 && !t->exited) {
 		(void)editorTerminalPanePump(t);
@@ -195,15 +198,9 @@ static int test_editor_refresh_screen_terminal_cursor_uses_pane_origin(void) {
 	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;
 	E.cursor_blink_enabled = 1;
 
-	int viewport_cols = editorDrawerTextViewportCols(E.window_cols);
-	struct editorPaneNode *terminal_leaf =
-	        editorPaneNodeNewTerminalLeaf("sleep 2", viewport_cols, E.window_rows);
-	if (terminal_leaf == NULL) {
+	if (open_terminal_tab_in_root("sleep 2") == NULL) {
 		return 1;
 	}
-	editorPaneNodeFree(E.layout_root);
-	E.layout_root = terminal_leaf;
-	E.focused_leaf = terminal_leaf;
 	E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
 
 	struct editorRect rect = {0};
@@ -226,18 +223,7 @@ static int test_editor_refresh_screen_terminal_uses_terminal_cursor_style(void) 
 	E.cursor_style = EDITOR_CURSOR_STYLE_BAR;
 	E.cursor_blink_enabled = 1;
 
-	int viewport_cols = editorDrawerTextViewportCols(E.window_cols);
-	struct editorPaneNode *terminal_leaf =
-	        editorPaneNodeNewTerminalLeaf("sleep 2", viewport_cols, E.window_rows);
-	if (terminal_leaf == NULL) {
-		return 1;
-	}
-	editorPaneNodeFree(E.layout_root);
-	E.layout_root = terminal_leaf;
-	E.focused_leaf = terminal_leaf;
-
-	struct editorTerminalPane *t =
-	        (struct editorTerminalPane *)terminal_leaf->as.leaf.kind_state;
+	struct editorTerminalPane *t = open_terminal_tab_in_root("sleep 2");
 	if (t == NULL || t->vt == NULL) {
 		return 1;
 	}

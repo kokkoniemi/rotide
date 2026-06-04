@@ -2550,9 +2550,7 @@ static int dispatchHandleInputEvent(int c) {
 			return 1;
 		case TERMINAL_EVENT: {
 			struct editorPaneNode *prev_focus = E.focused_leaf;
-			int closed = editorTerminalPaneCloseExited(&E.layout_root, &E.focused_leaf,
-			                                           &E.dap_terminal_leaf);
-			closed += editorTerminalPaneCloseExitedTabs();
+			int closed = editorTerminalPaneCloseExitedTabs();
 			if (closed > 0 && E.focused_leaf != NULL && E.focused_leaf != prev_focus) {
 				(void)editorPaneViewLoadIntoState(&E.focused_leaf->as.leaf.view);
 			}

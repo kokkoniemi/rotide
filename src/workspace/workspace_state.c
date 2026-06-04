@@ -812,13 +812,15 @@ static void workspaceStateApplyPendingPaneAssignment(void) {
 }
 
 static void workspaceStateHydrateTerminalsIfAny(void) {
-	if (E.layout_root == NULL || !editorTerminalPaneTreeHasTerminal(E.layout_root)) {
+	if (E.layout_root == NULL) {
 		return;
 	}
 	const char *shell = getenv("SHELL");
 	if (shell == NULL || shell[0] == '\0') {
 		shell = "/bin/sh";
 	}
+	/* HydratePlaceholders walks the tree for `term` placeholder leaves and is a
+	 * no-op when there are none, so no separate gate is needed. */
 	int failures = editorTerminalPaneHydratePlaceholders(E.layout_root, shell);
 	/* Resize here is safe to run before pane-tab assignment because
 	 * assignment doesn't change leaf geometry — only pane-membership

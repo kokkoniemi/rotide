@@ -63,17 +63,15 @@ struct editorPaneView {
 };
 
 struct editorPane {
+	/*
+	 * Leaf kind. Live leaves are always EDITOR; terminals and the debug console
+	 * are tab kinds, not leaf kinds. The one exception is a transient
+	 * deserialized `term` placeholder (kind == TERMINAL) that
+	 * editorTerminalPaneHydratePlaceholders converts back to an editor leaf
+	 * hosting a TERMINAL tab during workspace restore.
+	 */
 	enum editorPaneKind kind;
 	struct editorPaneView view;
-	/*
-	 * Kind-specific payload. Editor leaves leave this NULL; terminal
-	 * leaves point at a heap-allocated `editorTerminalPane` (or whatever
-	 * future kind owns). `kind_state_free` is invoked by
-	 * `editorPaneNodeFree` so leaf-specific resources release when the
-	 * pane is closed, without layout.c needing to know about every kind.
-	 */
-	void *kind_state;
-	void (*kind_state_free)(void *state);
 };
 
 struct editorPaneNode {
@@ -305,12 +303,12 @@ void editorPaneAnnounceFocus(void);
 
 /*
  * Serialize the pane tree to a compact s-expression form for persistence.
- * Format: `leaf` for an editor leaf, `term` for a terminal leaf,
- * `(v <ratio> <left> <right>)` for vertical splits, `(h <ratio> <top>
- * <bottom>)` for horizontal splits. Returns the number of bytes written
- * to `out` (excluding the null terminator), or 0 if the buffer is too
- * small. A deserialized `term` leaf comes back with kind_state == NULL —
- * the caller is responsible for spawning the PTY.
+ * Format: `leaf` for an editor leaf, `term` for a pane whose active tab is a
+ * terminal, `(v <ratio> <left> <right>)` for vertical splits, `(h <ratio> <top>
+ * <bottom>)` for horizontal splits. Returns the number of bytes written to `out`
+ * (excluding the null terminator), or 0 if the buffer is too small. A
+ * deserialized `term` token comes back as a kind == TERMINAL placeholder leaf;
+ * editorTerminalPaneHydratePlaceholders spawns the PTY and converts it to a tab.
  */
 size_t editorLayoutSerialize(const struct editorPaneNode *root, char *out, size_t out_size);
 

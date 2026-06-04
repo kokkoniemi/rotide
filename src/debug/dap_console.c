@@ -61,7 +61,6 @@ static int dapConsolePaneFindWidgetTab(const struct editorPaneNode *pane) {
 }
 
 void editorDapConsoleCloseOwnedTerminalPane(void) {
-	E.dap_terminal_leaf = NULL;
 	struct editorPaneNode *leaf = E.dap_console_leaf;
 	E.dap_console_leaf = NULL;
 	if (leaf == NULL || E.layout_root == NULL) {

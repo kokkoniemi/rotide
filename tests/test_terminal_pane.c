@@ -778,7 +778,6 @@ static int test_terminal_pane_open_split_creates_labeled_terminal_tab(void) {
 	/* The hosting leaf stays an editor leaf; the terminal lives on the tab,
 	 * which is labeled "Terminal" in the strip. */
 	int failed = sibling->as.leaf.kind != EDITOR_PANE_KIND_EDITOR ||
-	             sibling->as.leaf.kind_state != NULL ||
 	             sibling->as.leaf.view.pane_tab_count != 1 ||
 	             editorTabKindAt(term_idx) != EDITOR_PANE_KIND_TERMINAL ||
 	             strcmp(editorTabDisplayNameAt(term_idx), "Terminal") != 0;

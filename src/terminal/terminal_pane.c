@@ -858,45 +858,9 @@ int editorTerminalPaneCopySelection(struct editorTerminalPane *terminal) {
 	return ok;
 }
 
-struct editorPaneNode *editorPaneNodeNewTerminalLeaf(const char *command, int cols, int rows) {
-	struct editorTerminalPane *terminal = editorTerminalPaneCreate(command, cols, rows);
-	if (terminal == NULL) {
-		return NULL;
-	}
-	struct editorPaneNode *node = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_TERMINAL);
-	if (node == NULL) {
-		int saved = errno;
-		editorTerminalPaneFree(terminal);
-		errno = saved;
-		return NULL;
-	}
-	node->as.leaf.kind_state = terminal;
-	node->as.leaf.kind_state_free = editorTerminalPaneFree;
-	return node;
-}
-
-/* Pump terminal-bearing leaves (legacy standalone terminals and the DEBUG_CONSOLE
- * panel's owned debuggee tty). Standalone user terminals are TERMINAL tabs now,
- * pumped by the E.tabs loop in editorTerminalPanePumpAll. */
-static int terminalPanePumpTree(struct editorPaneNode *root) {
-	if (root == NULL) {
-		return 0;
-	}
-	if (root->is_split) {
-		return terminalPanePumpTree(root->as.split.first) +
-		       terminalPanePumpTree(root->as.split.second);
-	}
-	if ((root->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL ||
-	     root->as.leaf.kind == EDITOR_PANE_KIND_DEBUG_CONSOLE) &&
-	    root->as.leaf.kind_state != NULL) {
-		return editorTerminalPanePump(
-		        (struct editorTerminalPane *)root->as.leaf.kind_state);
-	}
-	return 0;
-}
-
 int editorTerminalPanePumpAll(struct editorPaneNode *root) {
-	int n = terminalPanePumpTree(root);
+	(void)root;
+	int n = 0;
 	for (int i = 0; i < E.tab_count; i++) {
 		if (editorTabKindAt(i) != EDITOR_PANE_KIND_TERMINAL) {
 			continue;
@@ -920,34 +884,9 @@ static int terminalPaneAppendFd(struct editorTerminalPane *t, int *fds_out, int 
 	return 1;
 }
 
-static int terminalPaneCollectTreeFds(struct editorPaneNode *root, int *fds_out, int capacity) {
-	if (root == NULL) {
-		return 0;
-	}
-	if (root->is_split) {
-		int first = terminalPaneCollectTreeFds(root->as.split.first, fds_out, capacity);
-		int *next_out = NULL;
-		int next_cap = 0;
-		if (first < capacity && fds_out != NULL) {
-			next_out = fds_out + first;
-			next_cap = capacity - first;
-		}
-		int second = terminalPaneCollectTreeFds(root->as.split.second, next_out, next_cap);
-		return first + second;
-	}
-	/* The Debug Console panel owns a terminal too; its master fd must be polled
-	 * so the debuggee's output wakes the editor. */
-	if ((root->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL &&
-	     root->as.leaf.kind != EDITOR_PANE_KIND_DEBUG_CONSOLE) ||
-	    root->as.leaf.kind_state == NULL) {
-		return 0;
-	}
-	return terminalPaneAppendFd((struct editorTerminalPane *)root->as.leaf.kind_state, fds_out,
-	                            capacity);
-}
-
 int editorTerminalPaneCollectMasterFds(struct editorPaneNode *root, int *fds_out, int capacity) {
-	int count = terminalPaneCollectTreeFds(root, fds_out, capacity);
+	(void)root;
+	int count = 0;
 	for (int i = 0; i < E.tab_count; i++) {
 		if (editorTabKindAt(i) != EDITOR_PANE_KIND_TERMINAL) {
 			continue;
@@ -970,21 +909,10 @@ static void terminalPaneResizeRecursive(struct editorPaneNode *node, struct edit
 		return;
 	}
 	if (!node->is_split) {
+		/* A pane's active TERMINAL tab sizes to the full content rect; its tab
+		 * strip lives in the border row above. */
 		struct editorTerminalPane *tab_term = editorTerminalPaneForPane(node);
-		if (node->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
-		    node->as.leaf.kind_state != NULL && rect.w > 0 && rect.h > 0) {
-			(void)editorTerminalPaneResize(
-			        (struct editorTerminalPane *)node->as.leaf.kind_state, rect.w,
-			        rect.h);
-		} else if (node->as.leaf.kind == EDITOR_PANE_KIND_DEBUG_CONSOLE &&
-		           node->as.leaf.kind_state != NULL && rect.w > 0 && rect.h > 1) {
-			/* The console panel's owned terminal sits below a one-row tab strip. */
-			(void)editorTerminalPaneResize(
-			        (struct editorTerminalPane *)node->as.leaf.kind_state, rect.w,
-			        rect.h - 1);
-		} else if (tab_term != NULL && rect.w > 0 && rect.h > 0) {
-			/* TERMINAL tab in an editor pane: its tab strip lives in the border
-			 * row above, so the content rect is the full terminal size. */
+		if (tab_term != NULL && rect.w > 0 && rect.h > 0) {
 			(void)editorTerminalPaneResize(tab_term, rect.w, rect.h);
 		}
 		return;
@@ -1044,24 +972,8 @@ void editorTerminalPaneResizeAllToLayout(struct editorPaneNode *root) {
 	terminalPaneResizeRecursive(root, viewport, ROTIDE_PANE_BORDER_SIZE);
 }
 
-static int terminalPaneTreeHasTerminalLeaf(const struct editorPaneNode *root) {
-	if (root == NULL) {
-		return 0;
-	}
-	if (root->is_split) {
-		return terminalPaneTreeHasTerminalLeaf(root->as.split.first) ||
-		       terminalPaneTreeHasTerminalLeaf(root->as.split.second);
-	}
-	/* A DEBUG_CONSOLE leaf only bears a terminal when console="terminal". */
-	return root->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL ||
-	       (root->as.leaf.kind == EDITOR_PANE_KIND_DEBUG_CONSOLE &&
-	        root->as.leaf.kind_state != NULL);
-}
-
 int editorTerminalPaneTreeHasTerminal(const struct editorPaneNode *root) {
-	if (terminalPaneTreeHasTerminalLeaf(root)) {
-		return 1;
-	}
+	(void)root;
 	for (int i = 0; i < E.tab_count; i++) {
 		if (editorTabKindAt(i) == EDITOR_PANE_KIND_TERMINAL) {
 			return 1;
@@ -1070,58 +982,16 @@ int editorTerminalPaneTreeHasTerminal(const struct editorPaneNode *root) {
 	return 0;
 }
 
-static struct editorPaneNode *terminalPaneFindFirstExitedLeaf(struct editorPaneNode *root) {
-	if (root == NULL) {
-		return NULL;
-	}
-	if (root->is_split) {
-		struct editorPaneNode *found =
-		        terminalPaneFindFirstExitedLeaf(root->as.split.first);
-		if (found != NULL) {
-			return found;
-		}
-		return terminalPaneFindFirstExitedLeaf(root->as.split.second);
-	}
-	if (root->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL || root->as.leaf.kind_state == NULL) {
-		return NULL;
-	}
-	struct editorTerminalPane *terminal = (struct editorTerminalPane *)root->as.leaf.kind_state;
-	return terminal->exited ? root : NULL;
-}
-
-int editorTerminalPaneCloseExited(struct editorPaneNode **root_ptr,
-                                  struct editorPaneNode **focused_leaf_ptr,
-                                  struct editorPaneNode **tracked_leaf_ptr) {
-	if (root_ptr == NULL || *root_ptr == NULL) {
-		return 0;
-	}
-	int closed = 0;
-	for (;;) {
-		struct editorPaneNode *exited_leaf = terminalPaneFindFirstExitedLeaf(*root_ptr);
-		if (exited_leaf == NULL) {
-			break;
-		}
-		if (tracked_leaf_ptr != NULL && *tracked_leaf_ptr == exited_leaf) {
-			*tracked_leaf_ptr = NULL;
-		}
-		struct editorPaneNode *new_focus = editorPaneTreeCloseLeaf(root_ptr, exited_leaf);
-		if (new_focus == NULL) {
-			/* Single-root leaf cannot be removed. */
-			break;
-		}
-		if (focused_leaf_ptr != NULL &&
-		    (*focused_leaf_ptr == NULL || *focused_leaf_ptr == exited_leaf ||
-		     !editorPaneNodeContainsLeaf(*root_ptr, *focused_leaf_ptr))) {
-			*focused_leaf_ptr = new_focus;
-		}
-		closed++;
-	}
-	return closed;
-}
-
 int editorTerminalPaneCloseExitedTabs(void) {
 	int closed = 0;
 	for (;;) {
+		/* In a single-pane layout an exited terminal tab cannot collapse a pane;
+		 * closing it would just replace it with an empty editor and hide the
+		 * "[exited]" status. Leave it for the user to close (mirrors how the old
+		 * sole terminal leaf could not be auto-closed). */
+		if (editorPaneTreeLeafCount(E.layout_root) <= 1) {
+			break;
+		}
 		int exited_idx = -1;
 		for (int i = 0; i < E.tab_count; i++) {
 			if (editorTabKindAt(i) != EDITOR_PANE_KIND_TERMINAL) {
@@ -1143,14 +1013,8 @@ int editorTerminalPaneCloseExitedTabs(void) {
 }
 
 struct editorTerminalPane *editorTerminalPaneForPane(const struct editorPaneNode *pane) {
-	if (pane == NULL || pane->is_split) {
-		return NULL;
-	}
-	/* Legacy standalone terminal leaf (tests, deserialized layouts). */
-	if (pane->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL) {
-		return (struct editorTerminalPane *)pane->as.leaf.kind_state;
-	}
-	if (editorPaneActiveKind(pane) != EDITOR_PANE_KIND_TERMINAL) {
+	if (pane == NULL || pane->is_split ||
+	    editorPaneActiveKind(pane) != EDITOR_PANE_KIND_TERMINAL) {
 		return NULL;
 	}
 	return (struct editorTerminalPane *)editorTabPayloadAt(pane->as.leaf.view.active_tab_idx);
@@ -1187,31 +1051,6 @@ struct editorPaneNode *editorTerminalPaneOpenSplit(const char *command, int orie
 	return sibling;
 }
 
-struct editorPaneNode *editorTerminalPaneOpenSplitDetached(int orientation, char *slave_path,
-                                                           size_t slave_path_size) {
-	struct editorPaneNode *sibling =
-	        editorLayoutSplitFocused((enum editorSplitOrientation)orientation, 0.5);
-	if (sibling == NULL) {
-		return NULL;
-	}
-	struct editorRect rect = {0};
-	int cols = 80;
-	int rows = 24;
-	if (editorLayoutFocusedLeafRect(&rect) && rect.w > 0 && rect.h > 0) {
-		cols = rect.w;
-		rows = rect.h;
-	}
-	struct editorTerminalPane *terminal =
-	        editorTerminalPaneCreateDetached(cols, rows, slave_path, slave_path_size);
-	if (terminal == NULL) {
-		return NULL;
-	}
-	sibling->as.leaf.kind = EDITOR_PANE_KIND_TERMINAL;
-	sibling->as.leaf.kind_state = terminal;
-	sibling->as.leaf.kind_state_free = editorTerminalPaneFree;
-	return sibling;
-}
-
 static int terminalPaneHydrateRecursive(struct editorPaneNode *root, struct editorPaneNode *node,
                                         struct editorRect viewport, const char *command) {
 	if (node == NULL) {
@@ -1221,7 +1060,9 @@ static int terminalPaneHydrateRecursive(struct editorPaneNode *root, struct edit
 		return terminalPaneHydrateRecursive(root, node->as.split.first, viewport, command) +
 		       terminalPaneHydrateRecursive(root, node->as.split.second, viewport, command);
 	}
-	if (node->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL || node->as.leaf.kind_state != NULL) {
+	/* `term` deserializes to a kind == TERMINAL placeholder leaf; everything else
+	 * (including already-hydrated editor leaves) is left alone. */
+	if (node->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL) {
 		return 0;
 	}
 	struct editorRect rect = {0};
@@ -1235,16 +1076,12 @@ static int terminalPaneHydrateRecursive(struct editorPaneNode *root, struct edit
 	struct editorTerminalPane *terminal = editorTerminalPaneCreate(command, cols, rows);
 	if (terminal == NULL) {
 		node->as.leaf.kind = EDITOR_PANE_KIND_EDITOR;
-		node->as.leaf.kind_state = NULL;
-		node->as.leaf.kind_state_free = NULL;
 		return 1;
 	}
 	/* Restore as an editor leaf hosting a TERMINAL tab (the live model), not a
 	 * terminal leaf kind. The file-open loop may have parked tabs in this view
 	 * while the leaf was a placeholder; clear them first. */
 	node->as.leaf.kind = EDITOR_PANE_KIND_EDITOR;
-	node->as.leaf.kind_state = NULL;
-	node->as.leaf.kind_state_free = NULL;
 	node->as.leaf.view.active_tab_idx = -1;
 	node->as.leaf.view.pane_tab_count = 0;
 	int tab_idx =

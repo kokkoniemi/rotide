@@ -952,20 +952,9 @@ int editorDrawMultiPaneRows(struct writeBuf *wb, const struct editorLeafLayout *
 			}
 			struct editorPaneNode *leaf_node = layout->rects[leaf_idx].node;
 			struct editorTerminalPane *tab_term = editorTerminalPaneForPane(leaf_node);
-			if (leaf_node != NULL &&
-			    leaf_node->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL) {
-				int row_in_pane = screen_y - leaf_rect.y;
-				int col_in_pane = x - leaf_rect.x;
-				if (!editorDrawTerminalCells(wb,
-				                             (struct editorTerminalPane *)
-				                                     leaf_node->as.leaf.kind_state,
-				                             row_in_pane, col_in_pane,
-				                             slice_cols)) {
-					goto cleanup;
-				}
-			} else if (tab_term != NULL) {
-				/* TERMINAL tab in an editor pane: the tab strip is in the
-				 * border row above, so content starts at the pane's top row. */
+			if (tab_term != NULL) {
+				/* Active TERMINAL tab: the tab strip is in the border row
+				 * above, so content starts at the pane's top row. */
 				if (!editorDrawTerminalCells(wb, tab_term, screen_y - leaf_rect.y,
 				                             x - leaf_rect.x, slice_cols)) {
 					goto cleanup;

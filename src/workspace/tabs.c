@@ -190,15 +190,8 @@ enum editorPaneKind editorPaneActiveKind(const struct editorPaneNode *pane) {
 	if (pane == NULL || pane->is_split) {
 		return EDITOR_PANE_KIND_EDITOR;
 	}
-	/*
-	 * Transition bridge: terminal and debug-console panes still carry their
-	 * kind on the leaf. Until they become tab kinds (later phases) the leaf
-	 * kind wins; afterwards this arm is removed and the active tab's kind is
-	 * authoritative for every pane.
-	 */
-	if (pane->as.leaf.kind != EDITOR_PANE_KIND_EDITOR) {
-		return pane->as.leaf.kind;
-	}
+	/* A pane's kind is its active tab's kind; leaves no longer carry a kind for
+	 * terminals/consoles (those are tabs). */
 	return editorTabKindAt(pane->as.leaf.view.active_tab_idx);
 }
 
