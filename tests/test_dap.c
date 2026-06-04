@@ -1078,6 +1078,52 @@ static int test_editor_dap_console_panel_switches_terminal_and_console_tabs(void
 	return 0;
 }
 
+static int test_editor_dap_status_bar_controls_nerd_icons(void) {
+	ASSERT_TRUE(editorTabsInit());
+	E.window_rows = 6;
+	E.window_cols = 120;
+	E.cy = 0;
+	E.cx = 0;
+	E.nerd_fonts_enabled = 1;
+	E.dap_running = 1;
+	E.dap_stopped = 1;
+	/* Accent icons draw from the theme's ANSI palette (green/yellow/red slots). */
+	struct editorThemeColor green = {
+	        .kind = EDITOR_THEME_COLOR_RGB, .r = 10, .g = 200, .b = 20};
+	struct editorThemeColor yellow = {
+	        .kind = EDITOR_THEME_COLOR_RGB, .r = 230, .g = 150, .b = 0};
+	struct editorThemeColor red = {.kind = EDITOR_THEME_COLOR_RGB, .r = 220, .g = 30, .b = 30};
+	E.theme.ansi[EDITOR_THEME_ANSI_GREEN] = green;
+	E.theme.ansi[EDITOR_THEME_ANSI_YELLOW] = yellow;
+	E.theme.ansi[EDITOR_THEME_ANSI_RED] = red;
+
+	size_t n = 0;
+	char *out = refresh_screen_and_capture(&n);
+	ASSERT_TRUE(out != NULL);
+	/* Step controls keep their text beside an icon; restart/stop are icon-only. */
+	ASSERT_TRUE(strstr(out, "Cont") != NULL && strstr(out, "Over") != NULL &&
+	            strstr(out, "Into") != NULL && strstr(out, "Out") != NULL);
+	ASSERT_TRUE(strstr(out, "Restart") == NULL && strstr(out, "Stop") == NULL);
+	/* The restart glyph (U+F021) is emitted. */
+	ASSERT_TRUE(strstr(out, "\xEF\x80\xA1") != NULL);
+	/* Accent colors resolve from the theme palette: green continue, yellow
+	 * restart, red stop. */
+	ASSERT_TRUE(strstr(out, "\x1b[38;2;10;200;20m") != NULL);
+	ASSERT_TRUE(strstr(out, "\x1b[38;2;230;150;0m") != NULL);
+	ASSERT_TRUE(strstr(out, "\x1b[38;2;220;30;30m") != NULL);
+	free(out);
+
+	/* All six controls remain clickable — the icon columns map to actions. */
+	ASSERT_EQ_INT((int)(DAP_BTN_BIT(EDITOR_ACTION_DAP_CONTINUE) |
+	                    DAP_BTN_BIT(EDITOR_ACTION_DAP_STEP_OVER) |
+	                    DAP_BTN_BIT(EDITOR_ACTION_DAP_STEP_INTO) |
+	                    DAP_BTN_BIT(EDITOR_ACTION_DAP_STEP_OUT) |
+	                    DAP_BTN_BIT(EDITOR_ACTION_DAP_RESTART) |
+	                    DAP_BTN_BIT(EDITOR_ACTION_DAP_STOP)),
+	              (int)dap_status_button_actions(E.window_cols));
+	return 0;
+}
+
 const struct editorTestCase g_dap_tests[] = {
         {"editor_dap_console_panel_switches_terminal_and_console_tabs",
          test_editor_dap_console_panel_switches_terminal_and_console_tabs},
@@ -1117,6 +1163,8 @@ const struct editorTestCase g_dap_tests[] = {
         {"editor_dap_control_requests_include_thread_id",
          test_editor_dap_control_requests_include_thread_id},
         {"editor_dap_status_bar_controls", test_editor_dap_status_bar_controls},
+        {"editor_dap_status_bar_controls_nerd_icons",
+         test_editor_dap_status_bar_controls_nerd_icons},
         {"editor_dap_evaluate_request_builder", test_editor_dap_evaluate_request_builder},
         {"editor_dap_evaluate_repl_flow", test_editor_dap_evaluate_repl_flow},
         {"editor_dap_console_pane_renders_and_toggles",
