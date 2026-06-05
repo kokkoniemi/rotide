@@ -548,14 +548,23 @@ static int test_editor_dap_stopped_chain_populates_state(void) {
 	ASSERT_TRUE(strstr(buf, "\"variablesReference\":1") != NULL);
 	ASSERT_TRUE(strstr(buf, "\"variablesReference\":2") != NULL);
 
-	/* variables responses append into one flat list across scopes. */
+	/* Missing request_seq is ambiguous while several scope requests are pending. */
 	(void)editorDapProcessIncomingMessage(
 	        "{\"type\":\"response\",\"command\":\"variables\",\"success\":true,"
 	        "\"body\":{\"variables\":[{\"variablesReference\":0,\"name\":\"arg\","
 	        "\"value\":\"0x1 \\\"hi\\\"\"}]}}");
+	ASSERT_EQ_INT(0, E.dap_variable_count);
+
+	/* variables responses append into one flat list across scopes. */
+	(void)editorDapProcessIncomingMessage(
+	        "{\"type\":\"response\",\"command\":\"variables\",\"success\":true,"
+	        "\"request_seq\":5,\"body\":{\"variables\":[{\"variablesReference\":0,"
+	        "\"name\":\"arg\",\"value\":\"0x1 \\\"hi\\\"\"}]}}");
 	ASSERT_EQ_INT(1, E.dap_variable_count);
 	ASSERT_EQ_STR("arg", E.dap_variables[0].name);
 	ASSERT_TRUE(strstr(E.dap_variables[0].value, "hi") != NULL);
+
+	/* Once only one scope remains, tolerate adapters that omit request_seq. */
 	(void)editorDapProcessIncomingMessage(
 	        "{\"type\":\"response\",\"command\":\"variables\",\"success\":true,"
 	        "\"body\":{\"variables\":[{\"variablesReference\":0,\"name\":\"argc\","
@@ -1497,11 +1506,15 @@ static int test_editor_dap_drawer_entry_view_semantics(void) {
 	ASSERT_TRUE(editorDrawerVisibleEntryView(0, &view));
 	ASSERT_EQ_STR("Debugger", view.name);
 
+	struct editorDrawerEntryView retained_group;
+	ASSERT_TRUE(find_drawer_entry("Breakpoints (2)", NULL, &retained_group));
+
 	ASSERT_TRUE(find_drawer_entry("Launch sample", NULL, &view));
 	ASSERT_EQ_INT((int)EDITOR_DRAWER_ENTRY_ICON_DAP_START, (int)view.icon_kind);
 	ASSERT_EQ_INT((int)EDITOR_DRAWER_ENTRY_ICON_COLOR_DAP_START, (int)view.icon_color);
 
 	ASSERT_TRUE(find_drawer_entry("main.c:4", NULL, &view));
+	ASSERT_EQ_STR("Breakpoints (2)", retained_group.name);
 	ASSERT_EQ_INT((int)EDITOR_DRAWER_ENTRY_ICON_DAP_BREAKPOINT, (int)view.icon_kind);
 	ASSERT_EQ_INT((int)EDITOR_DAP_BREAKPOINT_LINE, (int)view.dap_breakpoint_kind);
 	ASSERT_TRUE(view.path != NULL && strcmp(view.path, "/tmp/main.c") == 0);
@@ -1513,13 +1526,15 @@ static int test_editor_dap_drawer_entry_view_semantics(void) {
 	ASSERT_EQ_INT((int)EDITOR_DRAWER_ENTRY_ICON_NONE, (int)view.icon_kind);
 	ASSERT_TRUE(view.path != NULL && strcmp(view.path, "/tmp/main.c") == 0);
 
-	ASSERT_TRUE(find_drawer_entry("dap_sample.out", NULL, &view));
-	ASSERT_EQ_STR("dap_sample.out", view.name);
-	ASSERT_EQ_STR("#2", view.prefix);
-	ASSERT_TRUE(view.prefix_muted);
-	ASSERT_EQ_INT((int)EDITOR_DRAWER_ENTRY_ICON_NONE, (int)view.icon_kind);
+	struct editorDrawerEntryView retained_thread;
+	ASSERT_TRUE(find_drawer_entry("dap_sample.out", NULL, &retained_thread));
+	ASSERT_EQ_STR("dap_sample.out", retained_thread.name);
+	ASSERT_EQ_STR("#2", retained_thread.prefix);
+	ASSERT_TRUE(retained_thread.prefix_muted);
+	ASSERT_EQ_INT((int)EDITOR_DRAWER_ENTRY_ICON_NONE, (int)retained_thread.icon_kind);
 
 	ASSERT_TRUE(find_drawer_entry("argv", NULL, &view));
+	ASSERT_EQ_STR("#2", retained_thread.prefix);
 	ASSERT_EQ_INT((int)EDITOR_DRAWER_ENTRY_ICON_NONE, (int)view.icon_kind);
 	ASSERT_EQ_STR("char**", view.detail_type);
 	ASSERT_EQ_STR("0x7ffd5c2a30", view.detail_value);

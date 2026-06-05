@@ -320,8 +320,6 @@ int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 		return 0;
 	}
 
-	static char dap_name_buf[PATH_MAX + 128];
-	static char dap_prefix_buf[32];
 	struct drawerModeDapLookup lookup;
 	if (!drawerModeDapLookupByVisibleIndex(visible_idx, &lookup)) {
 		return 0;
@@ -332,10 +330,10 @@ int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 	view_out->parent_visible_idx = lookup.parent_visible_idx;
 	switch (lookup.kind) {
 		case EDITOR_DRAWER_DAP_ENTRY_ROOT:
-			(void)snprintf(dap_name_buf, sizeof(dap_name_buf), "Debugger%s%s",
-			               E.dap_running ? " - running" : "",
+			(void)snprintf(view_out->name_buf, sizeof(view_out->name_buf),
+			               "Debugger%s%s", E.dap_running ? " - running" : "",
 			               E.dap_stopped ? " (stopped)" : "");
-			view_out->name = dap_name_buf;
+			view_out->name = view_out->name_buf;
 			view_out->depth = 0;
 			view_out->is_dir = 1;
 			view_out->is_expanded = 1;
@@ -344,13 +342,13 @@ int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 			return 1;
 		case EDITOR_DRAWER_DAP_ENTRY_GROUP:
 			if (lookup.group_idx == EDITOR_DRAWER_DAP_GROUP_CONFIGURATIONS) {
-				(void)snprintf(dap_name_buf, sizeof(dap_name_buf),
+				(void)snprintf(view_out->name_buf, sizeof(view_out->name_buf),
 				               "Configurations (%d)", E.dap_launch_count);
-				view_out->name = dap_name_buf;
+				view_out->name = view_out->name_buf;
 			} else if (lookup.group_idx == EDITOR_DRAWER_DAP_GROUP_BREAKPOINTS) {
-				(void)snprintf(dap_name_buf, sizeof(dap_name_buf),
+				(void)snprintf(view_out->name_buf, sizeof(view_out->name_buf),
 				               "Breakpoints (%d)", E.dap_breakpoint_count);
-				view_out->name = dap_name_buf;
+				view_out->name = view_out->name_buf;
 			} else {
 				view_out->name = g_drawer_mode_dap_group_names[lookup.group_idx];
 			}
@@ -363,13 +361,13 @@ int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 		case EDITOR_DRAWER_DAP_ENTRY_LAUNCH: {
 			const struct editorDapLaunchConfig *config =
 			        &E.dap_launches[lookup.item_idx];
-			(void)snprintf(dap_name_buf, sizeof(dap_name_buf), "%s%s%s",
+			(void)snprintf(view_out->name_buf, sizeof(view_out->name_buf), "%s%s%s",
 			               lookup.item_idx == E.dap_selected_launch ? "* " : "",
 			               config->name[0] != '\0' ? config->name : config->id,
 			               editorDapAdapterById(config->adapter) != NULL
 			                       ? ""
 			                       : " (missing adapter)");
-			view_out->name = dap_name_buf;
+			view_out->name = view_out->name_buf;
 			view_out->depth = 2;
 			view_out->is_last_sibling = lookup.item_idx == lookup.item_count - 1;
 			view_out->icon_kind = EDITOR_DRAWER_ENTRY_ICON_DAP_START;
@@ -384,9 +382,9 @@ int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 		case EDITOR_DRAWER_DAP_ENTRY_DEFAULT: {
 			const struct editorDapLaunchConfig *config =
 			        &E.dap_defaults[lookup.item_idx];
-			(void)snprintf(dap_name_buf, sizeof(dap_name_buf), "+ %s",
+			(void)snprintf(view_out->name_buf, sizeof(view_out->name_buf), "+ %s",
 			               config->name[0] != '\0' ? config->name : config->id);
-			view_out->name = dap_name_buf;
+			view_out->name = view_out->name_buf;
 			view_out->depth = 3;
 			view_out->is_last_sibling = lookup.item_idx == E.dap_default_count - 1;
 			view_out->icon_kind = EDITOR_DRAWER_ENTRY_ICON_DAP_START;
@@ -397,9 +395,9 @@ int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 			const struct editorDapBreakpoint *bp = &E.dap_breakpoints[lookup.item_idx];
 			const char *slash = strrchr(bp->path, '/');
 			const char *base = slash != NULL ? slash + 1 : bp->path;
-			(void)snprintf(dap_name_buf, sizeof(dap_name_buf), "%s:%d", base,
-			               bp->line + 1);
-			view_out->name = dap_name_buf;
+			(void)snprintf(view_out->name_buf, sizeof(view_out->name_buf), "%s:%d",
+			               base, bp->line + 1);
+			view_out->name = view_out->name_buf;
 			view_out->path = bp->path;
 			view_out->line = bp->line;
 			view_out->depth = 2;
@@ -410,9 +408,9 @@ int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 			return 1;
 		}
 		case EDITOR_DRAWER_DAP_ENTRY_THREAD:
-			(void)snprintf(dap_prefix_buf, sizeof(dap_prefix_buf), "#%d",
+			(void)snprintf(view_out->prefix_buf, sizeof(view_out->prefix_buf), "#%d",
 			               E.dap_threads[lookup.item_idx].id);
-			view_out->prefix = dap_prefix_buf;
+			view_out->prefix = view_out->prefix_buf;
 			view_out->prefix_muted = 1;
 			view_out->name = E.dap_threads[lookup.item_idx].name[0] != '\0'
 			                         ? E.dap_threads[lookup.item_idx].name
@@ -424,10 +422,10 @@ int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 		case EDITOR_DRAWER_DAP_ENTRY_STACK_FRAME: {
 			const struct editorDapStackFrame *frame =
 			        &E.dap_stack_frames[lookup.item_idx];
-			(void)snprintf(dap_name_buf, sizeof(dap_name_buf), "%s:%d",
+			(void)snprintf(view_out->name_buf, sizeof(view_out->name_buf), "%s:%d",
 			               frame->name[0] != '\0' ? frame->name : "(frame)",
 			               frame->line);
-			view_out->name = dap_name_buf;
+			view_out->name = view_out->name_buf;
 			view_out->path = frame->path;
 			view_out->line = frame->line > 0 ? frame->line - 1 : 0;
 			view_out->character = frame->column > 0 ? frame->column - 1 : 0;
@@ -437,10 +435,10 @@ int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 			return 1;
 		}
 		case EDITOR_DRAWER_DAP_ENTRY_SCOPE:
-			(void)snprintf(dap_name_buf, sizeof(dap_name_buf), "%s (%d)",
+			(void)snprintf(view_out->name_buf, sizeof(view_out->name_buf), "%s (%d)",
 			               E.dap_scopes[lookup.item_idx].name,
 			               drawerModeDapScopeVarCount(lookup.item_idx));
-			view_out->name = dap_name_buf;
+			view_out->name = view_out->name_buf;
 			view_out->depth = 2;
 			view_out->is_dir = 1;
 			view_out->is_expanded = drawerModeDapScopeExpanded(lookup.item_idx);
@@ -473,8 +471,9 @@ int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 			return 1;
 		}
 		case EDITOR_DRAWER_DAP_ENTRY_OUTPUT:
-			(void)snprintf(dap_name_buf, sizeof(dap_name_buf), "%.120s", E.dap_output);
-			view_out->name = dap_name_buf;
+			(void)snprintf(view_out->name_buf, sizeof(view_out->name_buf), "%.120s",
+			               E.dap_output);
+			view_out->name = view_out->name_buf;
 			view_out->depth = 2;
 			return 1;
 		case EDITOR_DRAWER_DAP_ENTRY_PLACEHOLDER:

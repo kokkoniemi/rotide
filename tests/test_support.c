@@ -408,6 +408,12 @@ int find_drawer_entry(const char *name, int *idx_out, struct editorDrawerEntryVi
 			}
 			if (view_out != NULL) {
 				*view_out = view;
+				if (view.name == view.name_buf) {
+					view_out->name = view_out->name_buf;
+				}
+				if (view.prefix == view.prefix_buf) {
+					view_out->prefix = view_out->prefix_buf;
+				}
 			}
 			return 1;
 		}

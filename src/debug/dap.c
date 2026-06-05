@@ -920,7 +920,6 @@ static int dapCollectVariable(const char *obj_start, const char *obj_end) {
 	                           sizeof(var->memory_reference));
 	var->scope_index = g_dap_collect_scope_index;
 	E.dap_variable_count++;
-	dapQueueVariablePreviewRequest(E.dap_variable_count - 1);
 	return 1;
 }
 
@@ -1051,9 +1050,26 @@ static void dapHandleScopesResponse(const char *message) {
 	}
 }
 
-/* Determines which scope a `variables` response belongs to: prefer the
- * response's request_seq matched against the pending requests, else fall back
- * to the first scope that has not yet received its variables this stop. */
+static int dapOnlyUnreceivedVariablesScope(void) {
+	int found_scope = -1;
+	for (int i = 0; i < g_dap_client.pending_var_count; i++) {
+		int scope_index = g_dap_client.pending_var_scope[i];
+		if (scope_index < 0 || scope_index >= 64) {
+			return -1;
+		}
+		if ((g_dap_client.var_scopes_received & (1ull << (unsigned int)scope_index)) != 0) {
+			continue;
+		}
+		if (found_scope >= 0) {
+			return -1;
+		}
+		found_scope = scope_index;
+	}
+	return found_scope;
+}
+
+/* Determines which scope a `variables` response belongs to. DAP responses should
+ * carry request_seq; tolerate its absence only when one pending scope remains. */
 static int dapResolveVariablesScope(const char *message) {
 	int request_seq = 0;
 	if (dapTopLevelIntField(message, "\"request_seq\"", &request_seq)) {
@@ -1064,12 +1080,7 @@ static int dapResolveVariablesScope(const char *message) {
 		}
 		return -1;
 	}
-	for (int s = 0; s < E.dap_scope_count && s < 64; s++) {
-		if ((g_dap_client.var_scopes_received & (1ull << (unsigned int)s)) == 0) {
-			return s;
-		}
-	}
-	return 0;
+	return dapOnlyUnreceivedVariablesScope();
 }
 
 static void dapHandleVariablesResponse(const char *message) {
@@ -1084,10 +1095,14 @@ static void dapHandleVariablesResponse(const char *message) {
 	if (scope_index < 0) {
 		return;
 	}
+	int first_variable_index = E.dap_variable_count;
 	g_dap_collect_scope_index = scope_index;
 	dapForEachBodyArrayElement(message, "\"variables\"", dapCollectVariable);
 	if (scope_index >= 0 && scope_index < 64) {
 		g_dap_client.var_scopes_received |= 1ull << (unsigned int)scope_index;
+	}
+	for (int i = first_variable_index; i < E.dap_variable_count; i++) {
+		dapQueueVariablePreviewRequest(i);
 	}
 }
 

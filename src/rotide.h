@@ -226,6 +226,8 @@ struct editorDrawerEntryView {
 	enum editorDapBreakpointKind dap_breakpoint_kind;
 	enum editorDrawerEntryIconKind icon_kind;
 	enum editorDrawerEntryIconColor icon_color;
+	char name_buf[PATH_MAX + 128];
+	char prefix_buf[32];
 };
 
 struct editorProjectSearchResult {
