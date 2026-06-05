@@ -27,31 +27,13 @@
 #define ROTIDE_DAP_IO_TIMEOUT_MS 2500
 #define ROTIDE_DAP_VARIABLE_PREVIEW_CHILDREN 6
 
-/*
- * DAP launch handshake state. Ordering is load-bearing: `launch` must follow
- * the `initialize` *response*, and breakpoints + `configurationDone` must follow
- * the `initialized` *event*. Adapters may start the debuggee on `launch`, so
- * sending it before configuration loses breakpoints and the program runs to
- * exit.
- */
-enum dapSessionState {
-	DAP_SESSION_IDLE = 0,
-	DAP_SESSION_AWAIT_INITIALIZE_RESPONSE,
-	DAP_SESSION_AWAIT_INITIALIZED_EVENT,
-	DAP_SESSION_RUNNING,
-};
-
 struct dapClient {
 	struct editorDapSessionProcess process;
+	struct editorDapSessionHandshake handshake;
 	int next_seq;
-	int initialized;
-	enum dapSessionState state;
 	/* Thread reported by the most recent `stopped` event; the stack trace and
 	 * variable queries that follow a stop are scoped to it. */
 	int stopped_thread_id;
-	/* `launch` request JSON, built at start time but not sent until the
-	 * `initialize` response arrives. Owned here; freed when sent or on reset. */
-	char *pending_launch_json;
 	/* Correlates `variables` responses back to the scope they were requested
 	 * for: when scopes arrive we fire one request per scope and remember each
 	 * request seq -> scope index here. Rebuilt on every scopes response. */
@@ -70,20 +52,17 @@ struct dapClient {
 
 static struct dapClient g_dap_client = {
         .process = {.pid = 0, .to_adapter_fd = -1, .from_adapter_fd = -1},
+        .handshake = {.initialized = 0,
+                      .state = EDITOR_DAP_SESSION_IDLE,
+                      .pending_launch_json = NULL},
         .next_seq = 1,
-        .initialized = 0,
-        .state = DAP_SESSION_IDLE,
-        .pending_launch_json = NULL,
 };
 
 static void dapClientReset(void) {
-	free(g_dap_client.pending_launch_json);
+	editorDapSessionHandshakeReset(&g_dap_client.handshake);
 	editorDapSessionProcessReset(&g_dap_client.process);
 	g_dap_client.next_seq = 1;
-	g_dap_client.initialized = 0;
-	g_dap_client.state = DAP_SESSION_IDLE;
 	g_dap_client.stopped_thread_id = 0;
-	g_dap_client.pending_launch_json = NULL;
 	g_dap_client.pending_var_count = 0;
 	g_dap_client.pending_var_preview_count = 0;
 	g_dap_client.var_scopes_received = 0;
@@ -370,15 +349,13 @@ static int dapExtractErrorMessage(const char *message, char *buf, size_t bufsize
 
 /*
  * Sends the queued `launch` request once `initialize` has been acknowledged.
- * Consumes pending_launch_json (sent or freed).
+ * Consumes the queued JSON whether sending succeeds or fails.
  */
 static void dapFlushPendingLaunch(void) {
-	char *launch_json = g_dap_client.pending_launch_json;
-	g_dap_client.pending_launch_json = NULL;
+	char *launch_json = editorDapSessionHandshakeConsumeLaunch(&g_dap_client.handshake);
 	if (launch_json == NULL) {
 		return;
 	}
-	g_dap_client.state = DAP_SESSION_AWAIT_INITIALIZED_EVENT;
 	(void)dapSendRequest(launch_json);
 }
 
@@ -387,11 +364,9 @@ static void dapFlushPendingLaunch(void) {
  * configuration is complete. Guarded so it only runs once per session.
  */
 static void dapHandleInitializedEvent(void) {
-	if (g_dap_client.initialized) {
+	if (!editorDapSessionHandshakeMarkInitialized(&g_dap_client.handshake)) {
 		return;
 	}
-	g_dap_client.initialized = 1;
-	g_dap_client.state = DAP_SESSION_RUNNING;
 	dapSendAllBreakpoints();
 	(void)dapSendRequest(editorDapBuildSimpleCommandRequestJson(g_dap_client.next_seq++,
 	                                                            "configurationDone"));
@@ -581,8 +556,6 @@ int editorDapStartLaunch(int launch_idx) {
 		return 0;
 	}
 	g_dap_client.next_seq = 1;
-	g_dap_client.initialized = 0;
-	g_dap_client.state = DAP_SESSION_AWAIT_INITIALIZE_RESPONSE;
 	g_dap_client.pending_var_count = 0;
 	g_dap_client.pending_var_preview_count = 0;
 	g_dap_client.var_scopes_received = 0;
@@ -599,8 +572,7 @@ int editorDapStartLaunch(int launch_idx) {
 	}
 	/*
 	 * Build both requests up front so a build failure aborts cleanly, but send
-	 * only `initialize` now; `launch` is queued for dapFlushPendingLaunch (see
-	 * the handshake-ordering note on enum dapSessionState).
+	 * only `initialize` now; `launch` is queued for dapFlushPendingLaunch.
 	 */
 	char *init_json =
 	        editorDapBuildInitializeRequestJson(g_dap_client.next_seq++, launch_copy.adapter);
@@ -613,7 +585,7 @@ int editorDapStartLaunch(int launch_idx) {
 		editorSetStatusMsg("DAP launch request failed");
 		return 0;
 	}
-	g_dap_client.pending_launch_json = launch_json;
+	editorDapSessionHandshakeAwaitInitialize(&g_dap_client.handshake, launch_json);
 	if (!dapSendRequest(init_json)) {
 		editorDapShutdown();
 		editorSetStatusMsg("DAP launch request failed");
@@ -765,17 +737,14 @@ void editorDapShutdown(void) {
 }
 
 int editorDapSessionStateForTest(void) {
-	return (int)g_dap_client.state;
+	return (int)g_dap_client.handshake.state;
 }
 
 void editorDapBeginSessionForTest(int to_adapter_fd, char *launch_json) {
-	free(g_dap_client.pending_launch_json);
 	editorDapSessionProcessReset(&g_dap_client.process);
 	g_dap_client.process.to_adapter_fd = to_adapter_fd;
 	g_dap_client.next_seq = 2; /* initialize already "sent" as seq 1 */
-	g_dap_client.initialized = 0;
-	g_dap_client.state = DAP_SESSION_AWAIT_INITIALIZE_RESPONSE;
-	g_dap_client.pending_launch_json = launch_json;
+	editorDapSessionHandshakeAwaitInitialize(&g_dap_client.handshake, launch_json);
 	g_dap_client.pending_var_count = 0;
 	g_dap_client.pending_var_preview_count = 0;
 	g_dap_client.var_scopes_received = 0;
