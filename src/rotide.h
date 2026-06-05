@@ -479,6 +479,8 @@ struct editorHistory {
 	X(size_t, mouse_drag_anchor_offset)                                                        \
 	X(int, mouse_drag_started)
 
+#define EDITOR_ACTIVE_BUFFER_INPUT_FIELDS(X) X(int, input_vim_mode)
+
 #define EDITOR_ACTIVE_BUFFER_EDIT_FIELDS(X)                                                        \
 	X(struct editorHistory, undo_history)                                                      \
 	X(struct editorHistory, redo_history)                                                      \
@@ -492,6 +494,7 @@ struct editorHistory {
 	EDITOR_ACTIVE_BUFFER_CORE_FIELDS(X)                                                        \
 	EDITOR_ACTIVE_BUFFER_LSP_FIELDS(X)                                                         \
 	EDITOR_ACTIVE_BUFFER_SEARCH_FIELDS(X)                                                      \
+	EDITOR_ACTIVE_BUFFER_INPUT_FIELDS(X)                                                       \
 	EDITOR_ACTIVE_BUFFER_EDIT_FIELDS(X)
 
 #define EDITOR_DECLARE_FIELD(type, name) type name;

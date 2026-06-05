@@ -13,6 +13,7 @@ int editorActiveTextSourceBuildTestCount(void);
 void editorActiveTextSourceDupTestResetCount(void);
 int editorActiveTextSourceDupTestCount(void);
 const char *editorInputSystemActiveId(void);
+const char *editorVimModeLabel(void);
 
 char *editorDrawerMovePathCompletionTest(const char *current, const char *anchor,
                                          int tab_iteration);

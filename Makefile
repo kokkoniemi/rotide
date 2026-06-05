@@ -134,7 +134,7 @@ TEST_SRCS = $(addprefix tests/, \
 	test_workspace_io.c test_dap.c test_dap_framing.c test_file_watch.c \
 	test_lsp_framing.c test_lsp_protocol.c test_lsp_lifecycle.c \
 	test_lsp_completion.c test_lsp_diagnostics.c test_lsp_navigation.c \
-	test_input_system.c test_input_actions.c test_input_selection.c test_input_mouse.c \
+	test_input_system.c test_input_vim.c test_input_actions.c test_input_selection.c test_input_mouse.c \
 	test_input_search.c test_input_undo.c \
 	test_render_frame.c test_render_chrome.c test_render_panes.c \
 	test_render_terminal.c test_layout.c test_pty.c \

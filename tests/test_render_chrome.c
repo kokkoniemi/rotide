@@ -1191,7 +1191,7 @@ static int test_editor_refresh_screen_status_bar_input_segment(void) {
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, " VIM 1,1    100%") != NULL);
+	ASSERT_TRUE(strstr(output, " -- NORMAL -- 1,1    100%") != NULL);
 	free(output);
 	ASSERT_TRUE(editorInputSystemActivate("cua"));
 	return 0;
@@ -1210,8 +1210,8 @@ static int test_editor_refresh_screen_status_bar_input_segment_truncates(void) {
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
-	ASSERT_TRUE(strstr(output, " V 1,1    100%") != NULL);
-	ASSERT_TRUE(strstr(output, "VIM") == NULL);
+	ASSERT_TRUE(strstr(output, " - 1,1    100%") != NULL);
+	ASSERT_TRUE(strstr(output, "-- NORMAL --") == NULL);
 	free(output);
 	ASSERT_TRUE(editorInputSystemActivate("cua"));
 	return 0;
