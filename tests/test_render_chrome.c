@@ -1,3 +1,4 @@
+#include "input/input_system.h"
 #include "render/tab_bar.h"
 #include "render/viewport.h"
 #include "render/write_buf.h"
@@ -1177,6 +1178,45 @@ static int test_editor_refresh_screen_status_bar_truncates_prefix_keeps_basename
 	return 0;
 }
 
+static int test_editor_refresh_screen_status_bar_input_segment(void) {
+	add_row("line");
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	E.window_rows = 3;
+	E.window_cols = 30;
+	E.cy = 0;
+	E.cx = 0;
+	E.filename = strdup("input.txt");
+	ASSERT_TRUE(E.filename != NULL);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, " VIM 1,1    100%") != NULL);
+	free(output);
+	ASSERT_TRUE(editorInputSystemActivate("cua"));
+	return 0;
+}
+
+static int test_editor_refresh_screen_status_bar_input_segment_truncates(void) {
+	add_row("line");
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	E.window_rows = 3;
+	E.window_cols = 14;
+	E.cy = 0;
+	E.cx = 0;
+	E.filename = strdup("input.txt");
+	ASSERT_TRUE(E.filename != NULL);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, " V 1,1    100%") != NULL);
+	ASSERT_TRUE(strstr(output, "VIM") == NULL);
+	free(output);
+	ASSERT_TRUE(editorInputSystemActivate("cua"));
+	return 0;
+}
+
 static int test_editor_refresh_screen_tab_labels_middle_truncate_at_25_cols(void) {
 	ASSERT_TRUE(editorTabsInit());
 	E.filename = strdup("/tmp/aaaaaaaaaaabbbbbbbbbbbccccccccccc");
@@ -1254,6 +1294,10 @@ const struct editorTestCase g_render_chrome_tests[] = {
          test_editor_refresh_screen_status_bar_shows_full_path_when_space_allows},
         {"editor_refresh_screen_status_bar_truncates_prefix_keeps_basename_visible",
          test_editor_refresh_screen_status_bar_truncates_prefix_keeps_basename_visible},
+        {"editor_refresh_screen_status_bar_input_segment",
+         test_editor_refresh_screen_status_bar_input_segment},
+        {"editor_refresh_screen_status_bar_input_segment_truncates",
+         test_editor_refresh_screen_status_bar_input_segment_truncates},
         {"editor_refresh_screen_tab_labels_middle_truncate_at_25_cols",
          test_editor_refresh_screen_tab_labels_middle_truncate_at_25_cols},
 };

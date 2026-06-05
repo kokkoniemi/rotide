@@ -4,6 +4,7 @@
 #include "input/text_pairs.h"
 #include "rotide.h"
 
+#include <stdio.h>
 #include <string.h>
 
 static int vimSystemHandleKey(int c, int *effects_out) {
@@ -50,7 +51,7 @@ static int vimSystemBindKey(const char *mode, const char *name, int key) {
 
 static void vimSystemStatusSegment(char *buf, size_t bufsize) {
 	if (bufsize != 0) {
-		buf[0] = '\0';
+		(void)snprintf(buf, bufsize, "VIM");
 	}
 }
 

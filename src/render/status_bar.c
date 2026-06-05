@@ -2,6 +2,7 @@
 
 #include "config/theme_config.h"
 #include "debug/dap.h"
+#include "input/input_system.h"
 #include "render/ansi_style.h"
 #include "render/display_text.h"
 #include "render/write_buf.h"
@@ -28,6 +29,8 @@
 #define STATUS_DAP_ICON_PAUSE "\xEF\x81\x8C"   /* U+F04C pause */
 #define STATUS_DAP_ICON_RESTART "\xEF\x80\xA1" /* U+F021 refresh */
 #define STATUS_DAP_ICON_STOP "\xEF\x81\x8D"    /* U+F04D stop */
+
+#define STATUS_INPUT_SEGMENT_MAX_COLS 24
 
 /*
  * Clickable debug-control buttons recorded during the most recent status-bar
@@ -177,6 +180,70 @@ int editorStatusBarDebugButtonAt(int col, int *action_out) {
 	return 0;
 }
 
+static int statusBarPrepareInputSegment(char **text_out, int *content_cols_out, int *total_cols_out,
+                                        int available_cols) {
+	if (text_out != NULL) {
+		*text_out = NULL;
+	}
+	if (content_cols_out != NULL) {
+		*content_cols_out = 0;
+	}
+	if (total_cols_out != NULL) {
+		*total_cols_out = 0;
+	}
+	if (available_cols <= 2) {
+		return 1;
+	}
+
+	const struct editorInputSystem *system = editorInputSystemActive();
+	if (system == NULL || system->status_segment == NULL) {
+		return 1;
+	}
+
+	char segment[64];
+	segment[0] = '\0';
+	system->status_segment(segment, sizeof(segment));
+	segment[sizeof(segment) - 1] = '\0';
+	if (segment[0] == '\0') {
+		return 1;
+	}
+
+	int sanitized_cols = 0;
+	char *sanitized = editorSanitizeTextDup(segment, &sanitized_cols);
+	if (sanitized == NULL) {
+		return 0;
+	}
+	if (sanitized_cols <= 0) {
+		free(sanitized);
+		return 1;
+	}
+
+	int content_cols = available_cols - 2;
+	if (content_cols > STATUS_INPUT_SEGMENT_MAX_COLS) {
+		content_cols = STATUS_INPUT_SEGMENT_MAX_COLS;
+	}
+	if (content_cols > sanitized_cols) {
+		content_cols = sanitized_cols;
+	}
+	if (content_cols <= 0) {
+		free(sanitized);
+		return 1;
+	}
+
+	if (text_out != NULL) {
+		*text_out = sanitized;
+	} else {
+		free(sanitized);
+	}
+	if (content_cols_out != NULL) {
+		*content_cols_out = content_cols;
+	}
+	if (total_cols_out != NULL) {
+		*total_cols_out = content_cols + 2;
+	}
+	return 1;
+}
+
 int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 	if (!editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_STATUS)) {
 		return 0;
@@ -236,9 +303,19 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 		statusDebugButtonsReset();
 	}
 
+	char *input_segment = NULL;
+	int input_segment_cols = 0;
+	int input_segment_total_cols = 0;
+	if (!statusBarPrepareInputSegment(&input_segment, &input_segment_cols,
+	                                  &input_segment_total_cols,
+	                                  right_start_col - debug_cols)) {
+		return 0;
+	}
+
+	int ok = 0;
 	int dirty_cols = (int)strlen(dirtyflag);
 	int diag_cols = (int)strlen(diagbuf);
-	int left_budget = right_start_col - debug_cols;
+	int left_budget = right_start_col - debug_cols - input_segment_total_cols;
 	if (left_budget < 0) {
 		left_budget = 0;
 	}
@@ -263,12 +340,12 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 
 	int left_cols = 0;
 	if (!editorAppendSanitizedStatusPath(wb, filename, path_budget, &left_cols)) {
-		return 0;
+		goto cleanup;
 	}
 	if (diagbuf[0] != '\0' && left_cols < left_budget) {
 		int appended = 0;
 		if (!editorAppendSanitizedText(wb, diagbuf, left_budget - left_cols, &appended)) {
-			return 0;
+			goto cleanup;
 		}
 		left_cols += appended;
 	}
@@ -276,14 +353,14 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 	if (reserved_for_dirty > 0) {
 		if (include_dirty_sep && left_cols < left_budget) {
 			if (!wbAppend(wb, " ", 1)) {
-				return 0;
+				goto cleanup;
 			}
 			left_cols++;
 		}
 
 		for (int i = 0; dirtyflag[i] != '\0' && left_cols < left_budget; i++) {
 			if (!wbAppend(wb, &dirtyflag[i], 1)) {
-				return 0;
+				goto cleanup;
 			}
 			left_cols++;
 		}
@@ -291,17 +368,40 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 
 	for (; left_cols < left_budget; left_cols++) {
 		if (!wbAppend(wb, " ", 1)) {
-			return 0;
+			goto cleanup;
+		}
+	}
+
+	if (input_segment_total_cols > 0) {
+		if (!wbAppend(wb, " ", 1)) {
+			goto cleanup;
+		}
+		int segment_written = 0;
+		if (!editorAppendDisplayPrefix(wb, input_segment, input_segment_cols,
+		                               &segment_written)) {
+			goto cleanup;
+		}
+		for (; segment_written < input_segment_cols; segment_written++) {
+			if (!wbAppend(wb, " ", 1)) {
+				goto cleanup;
+			}
+		}
+		if (!wbAppend(wb, " ", 1)) {
+			goto cleanup;
 		}
 	}
 
 	if (rlen > 0 && !wbAppend(wb, rightbuf, (size_t)rlen)) {
-		return 0;
+		goto cleanup;
 	}
 	if (!editorAppendThemeReset(wb)) {
-		return 0;
+		goto cleanup;
 	}
-	return wbAppend(wb, "\r\n", 2);
+	ok = wbAppend(wb, "\r\n", 2);
+
+cleanup:
+	free(input_segment);
+	return ok;
 }
 
 int editorDrawMessageBar(struct writeBuf *wb) {

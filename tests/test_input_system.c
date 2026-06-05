@@ -126,6 +126,70 @@ static int test_input_config_invalid_falls_back_to_cua(void) {
 	return 0;
 }
 
+static int test_input_config_malformed_project_reports_and_defaults(void) {
+	char dir_template[] = "/tmp/rotide-test-input-config-malformed-project-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char global_path[512];
+	char project_path[512];
+	ASSERT_TRUE(path_join(global_path, sizeof(global_path), dir_path, "global.toml"));
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
+	ASSERT_TRUE(write_text_file(global_path, "[input]\n"
+	                                         "system = \"vim\"\n"));
+	ASSERT_TRUE(write_text_file(project_path, "[input\n"
+	                                          "system = \"cua\"\n"));
+
+	char system[32];
+	enum editorInputConfigLoadStatus status =
+	        editorInputConfigLoadFromPaths(system, sizeof(system), global_path, project_path);
+	ASSERT_TRUE((status & EDITOR_INPUT_CONFIG_LOAD_INVALID_PROJECT) != 0);
+	ASSERT_TRUE((status & EDITOR_INPUT_CONFIG_LOAD_INVALID_GLOBAL) == 0);
+	ASSERT_EQ_STR("cua", system);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(unlink(global_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_input_config_malformed_global_reports_but_project_wins(void) {
+	char dir_template[] = "/tmp/rotide-test-input-config-malformed-global-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char global_path[512];
+	char project_path[512];
+	ASSERT_TRUE(path_join(global_path, sizeof(global_path), dir_path, "global.toml"));
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
+	ASSERT_TRUE(write_text_file(global_path, "[input\n"
+	                                         "system = \"cua\"\n"));
+	ASSERT_TRUE(write_text_file(project_path, "[input]\n"
+	                                          "system = \"vim\"\n"));
+
+	char system[32];
+	enum editorInputConfigLoadStatus status =
+	        editorInputConfigLoadFromPaths(system, sizeof(system), global_path, project_path);
+	ASSERT_TRUE((status & EDITOR_INPUT_CONFIG_LOAD_INVALID_GLOBAL) != 0);
+	ASSERT_TRUE((status & EDITOR_INPUT_CONFIG_LOAD_INVALID_PROJECT) == 0);
+	ASSERT_EQ_STR("vim", system);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(unlink(global_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_input_config_too_small_output_reports_oom(void) {
+	char system[1] = {'x'};
+	enum editorInputConfigLoadStatus status =
+	        editorInputConfigLoadFromPaths(system, sizeof(system), NULL, NULL);
+
+	ASSERT_EQ_INT(EDITOR_INPUT_CONFIG_LOAD_OUT_OF_MEMORY, status);
+	ASSERT_EQ_INT('\0', system[0]);
+	return 0;
+}
+
 static int test_input_config_reload_activates_configured_system(void) {
 	int failed = 1;
 	struct envVarBackup home_backup;
@@ -214,6 +278,12 @@ const struct editorTestCase g_input_system_tests[] = {
         {"input_config_loads_vim_system", test_input_config_loads_vim_system},
         {"input_config_project_overrides_global", test_input_config_project_overrides_global},
         {"input_config_invalid_falls_back_to_cua", test_input_config_invalid_falls_back_to_cua},
+        {"input_config_malformed_project_reports_and_defaults",
+         test_input_config_malformed_project_reports_and_defaults},
+        {"input_config_malformed_global_reports_but_project_wins",
+         test_input_config_malformed_global_reports_but_project_wins},
+        {"input_config_too_small_output_reports_oom",
+         test_input_config_too_small_output_reports_oom},
         {"input_config_reload_activates_configured_system",
          test_input_config_reload_activates_configured_system},
 };
