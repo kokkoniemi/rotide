@@ -8,6 +8,7 @@
 #include "language/lsp_transport.h"
 #include "language/syntax.h"
 #include "rotide.h"
+#include "support/json.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -80,7 +81,7 @@ static int lspFeaturesRequestLocationsByMethod(const char *method, int *mock_cou
 	int protocol_character = editorLspProtocolCharacterFromBufferColumn(line, character);
 
 	int request_id = client->next_request_id++;
-	struct editorLspString payload = {0};
+	struct editorJsonString payload = {0};
 	int built = editorLspStringAppendf(
 	        &payload,
 	        "{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":\"%s\",\"params\":{"
@@ -208,7 +209,7 @@ int editorLspRequestDocumentSymbols(const char *filename, enum editorSyntaxLangu
 	}
 
 	int request_id = client->next_request_id++;
-	struct editorLspString payload = {0};
+	struct editorJsonString payload = {0};
 	int built = editorLspStringAppendf(&payload,
 	                                   "{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":"
 	                                   "\"textDocument/documentSymbol\",\"params\":{"
@@ -355,7 +356,7 @@ int editorLspRequestCompletionAsync(const char *filename, enum editorSyntaxLangu
 
 	int protocol_character = editorLspProtocolCharacterFromBufferColumn(line, character);
 	int request_id = client->next_request_id++;
-	struct editorLspString payload = {0};
+	struct editorJsonString payload = {0};
 	int built = editorLspStringAppendf(
 	        &payload,
 	        "{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":\"textDocument/completion\",\"params\":{"
@@ -460,7 +461,7 @@ int editorLspRequestCodeActionFixes(const char *filename, enum editorSyntaxLangu
 	}
 
 	int request_id = client->next_request_id++;
-	struct editorLspString payload = {0};
+	struct editorJsonString payload = {0};
 	int built = editorLspStringAppendf(
 	        &payload,
 	        "{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":\"textDocument/codeAction\",\"params\":{"

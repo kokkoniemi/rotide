@@ -5,11 +5,11 @@
 #include "debug/dap_console.h"
 #include "editing/document_position.h"
 #include "editing/edit.h"
-#include "language/lsp_json.h"
 #include "language/lsp_transport.h"
 #include "render/viewport.h"
 #include "rotide.h"
 #include "support/file_io.h"
+#include "support/json.h"
 #include "workspace/drawer.h"
 #include "workspace/layout.h"
 #include "workspace/tabs.h"
@@ -129,42 +129,42 @@ static int dapSendRequest(char *json) {
 	return editorDapClientSendRequest(g_dap_client.to_adapter_fd, json);
 }
 
-static int dapAppendJsonEscapedRaw(struct editorLspString *sb, const char *text, size_t len) {
+static int dapAppendJsonEscapedRaw(struct editorJsonString *sb, const char *text, size_t len) {
 	for (size_t i = 0; i < len; i++) {
 		unsigned char ch = (unsigned char)text[i];
 		switch (ch) {
 			case '"':
-				if (!editorLspStringAppend(sb, "\\\"")) {
+				if (!editorJsonStringAppend(sb, "\\\"")) {
 					return 0;
 				}
 				break;
 			case '\\':
-				if (!editorLspStringAppend(sb, "\\\\")) {
+				if (!editorJsonStringAppend(sb, "\\\\")) {
 					return 0;
 				}
 				break;
 			case '\n':
-				if (!editorLspStringAppend(sb, "\\n")) {
+				if (!editorJsonStringAppend(sb, "\\n")) {
 					return 0;
 				}
 				break;
 			case '\r':
-				if (!editorLspStringAppend(sb, "\\r")) {
+				if (!editorJsonStringAppend(sb, "\\r")) {
 					return 0;
 				}
 				break;
 			case '\t':
-				if (!editorLspStringAppend(sb, "\\t")) {
+				if (!editorJsonStringAppend(sb, "\\t")) {
 					return 0;
 				}
 				break;
 			default:
 				if (ch < 0x20) {
-					if (!editorLspStringAppendf(sb, "\\u%04x",
-					                            (unsigned int)ch)) {
+					if (!editorJsonStringAppendf(sb, "\\u%04x",
+					                             (unsigned int)ch)) {
 						return 0;
 					}
-				} else if (!editorLspStringAppendf(sb, "%c", ch)) {
+				} else if (!editorJsonStringAppendf(sb, "%c", ch)) {
 					return 0;
 				}
 				break;
@@ -173,15 +173,15 @@ static int dapAppendJsonEscapedRaw(struct editorLspString *sb, const char *text,
 	return 1;
 }
 
-static int dapAppendJsonString(struct editorLspString *sb, const char *text) {
+static int dapAppendJsonString(struct editorJsonString *sb, const char *text) {
 	const char *safe = text != NULL ? text : "";
-	return editorLspStringAppend(sb, "\"") && dapAppendJsonEscapedRaw(sb, safe, strlen(safe)) &&
-	       editorLspStringAppend(sb, "\"");
+	return editorJsonStringAppend(sb, "\"") &&
+	       dapAppendJsonEscapedRaw(sb, safe, strlen(safe)) && editorJsonStringAppend(sb, "\"");
 }
 
 static int dapJsonStringField(const char *json, const char *field, char *buf, size_t bufsize) {
 	char *value = NULL;
-	if (!editorLspFindStringField(json, field, &value) || value == NULL) {
+	if (!editorJsonFindStringField(json, field, &value) || value == NULL) {
 		return 0;
 	}
 	int ok = snprintf(buf, bufsize, "%s", value) >= 0 && strlen(value) < bufsize;
@@ -195,12 +195,12 @@ static int dapJsonStringField(const char *json, const char *field, char *buf, si
  * failure. Returns 1 unless `success` is explicitly `false`.
  */
 static int dapJsonResponseSucceeded(const char *json) {
-	const char *start = editorLspSkipWs(json);
+	const char *start = editorJsonSkipWs(json);
 	if (start == NULL || *start != '{') {
 		return 1;
 	}
-	const char *obj_end = editorLspFindJsonObjectEnd(start);
-	const char *key = editorLspFindTopLevelKey(start, obj_end, "\"success\"");
+	const char *obj_end = editorJsonFindObjectEnd(start);
+	const char *key = editorJsonFindTopLevelKey(start, obj_end, "\"success\"");
 	if (key == NULL) {
 		return 1;
 	}
@@ -208,23 +208,23 @@ static int dapJsonResponseSucceeded(const char *json) {
 	if (colon == NULL) {
 		return 1;
 	}
-	return strncmp(editorLspSkipWs(colon + 1), "false", 5) != 0;
+	return strncmp(editorJsonSkipWs(colon + 1), "false", 5) != 0;
 }
 
 char *editorDapBuildInitializeRequestJson(int seq, const char *adapter_id) {
-	struct editorLspString sb = {0};
-	if (!editorLspStringAppendf(
+	struct editorJsonString sb = {0};
+	if (!editorJsonStringAppendf(
 	            &sb,
 	            "{\"seq\":%d,\"type\":\"request\",\"command\":\"initialize\","
 	            "\"arguments\":{\"clientID\":\"rotide\",\"clientName\":\"RotIDE\","
 	            "\"adapterID\":",
 	            seq) ||
 	    !dapAppendJsonString(&sb, adapter_id) ||
-	    !editorLspStringAppend(&sb, ",\"pathFormat\":\"path\",\"linesStartAt1\":true,"
-	                                "\"columnsStartAt1\":true,"
-	                                "\"supportsVariableType\":true,"
-	                                "\"supportsMemoryReferences\":true,"
-	                                "\"supportsVariablePaging\":true}}")) {
+	    !editorJsonStringAppend(&sb, ",\"pathFormat\":\"path\",\"linesStartAt1\":true,"
+	                                 "\"columnsStartAt1\":true,"
+	                                 "\"supportsVariableType\":true,"
+	                                 "\"supportsMemoryReferences\":true,"
+	                                 "\"supportsVariablePaging\":true}}")) {
 		free(sb.buf);
 		return NULL;
 	}
@@ -232,9 +232,9 @@ char *editorDapBuildInitializeRequestJson(int seq, const char *adapter_id) {
 }
 
 char *editorDapBuildSimpleCommandRequestJson(int seq, const char *command) {
-	struct editorLspString sb = {0};
-	if (!editorLspStringAppendf(&sb, "{\"seq\":%d,\"type\":\"request\",\"command\":", seq) ||
-	    !dapAppendJsonString(&sb, command) || !editorLspStringAppend(&sb, "}")) {
+	struct editorJsonString sb = {0};
+	if (!editorJsonStringAppendf(&sb, "{\"seq\":%d,\"type\":\"request\",\"command\":", seq) ||
+	    !dapAppendJsonString(&sb, command) || !editorJsonStringAppend(&sb, "}")) {
 		free(sb.buf);
 		return NULL;
 	}
@@ -243,24 +243,24 @@ char *editorDapBuildSimpleCommandRequestJson(int seq, const char *command) {
 
 char *editorDapBuildEvaluateRequestJson(int seq, const char *expr, int frame_id,
                                         const char *context) {
-	struct editorLspString sb = {0};
-	if (!editorLspStringAppendf(
+	struct editorJsonString sb = {0};
+	if (!editorJsonStringAppendf(
 	            &sb,
 	            "{\"seq\":%d,\"type\":\"request\",\"command\":\"evaluate\",\"arguments\":{"
 	            "\"expression\":",
 	            seq) ||
-	    !dapAppendJsonString(&sb, expr) || !editorLspStringAppend(&sb, ",\"context\":") ||
+	    !dapAppendJsonString(&sb, expr) || !editorJsonStringAppend(&sb, ",\"context\":") ||
 	    !dapAppendJsonString(&sb, context != NULL ? context : "repl")) {
 		free(sb.buf);
 		return NULL;
 	}
 	/* frameId scopes the evaluation to a stack frame; omit it (global context)
 	 * when there is no current frame. */
-	if (frame_id > 0 && !editorLspStringAppendf(&sb, ",\"frameId\":%d", frame_id)) {
+	if (frame_id > 0 && !editorJsonStringAppendf(&sb, ",\"frameId\":%d", frame_id)) {
 		free(sb.buf);
 		return NULL;
 	}
-	if (!editorLspStringAppend(&sb, "}}")) {
+	if (!editorJsonStringAppend(&sb, "}}")) {
 		free(sb.buf);
 		return NULL;
 	}
@@ -287,7 +287,7 @@ void editorDapBuildAdapterCommand(const char *base, const char *tty_path, char *
 	}
 }
 
-static int dapAppendSubstitutedString(struct editorLspString *sb, const char *value,
+static int dapAppendSubstitutedString(struct editorJsonString *sb, const char *value,
                                       const char *workspace_root, const char *active_file) {
 	char *file_dir = active_file != NULL ? editorPathDirnameDup(active_file) : NULL;
 	char *file_base = active_file != NULL ? editorPathBasenameDup(active_file) : NULL;
@@ -329,38 +329,38 @@ static int dapAppendSubstitutedString(struct editorLspString *sb, const char *va
 	return 1;
 }
 
-static int dapAppendLaunchFieldJson(struct editorLspString *sb,
+static int dapAppendLaunchFieldJson(struct editorJsonString *sb,
                                     const struct editorDapLaunchField *field,
                                     const char *workspace_root, const char *active_file) {
-	if (!dapAppendJsonString(sb, field->key) || !editorLspStringAppend(sb, ":")) {
+	if (!dapAppendJsonString(sb, field->key) || !editorJsonStringAppend(sb, ":")) {
 		return 0;
 	}
 	switch (field->kind) {
 		case EDITOR_DAP_LAUNCH_VALUE_STRING:
-			return editorLspStringAppend(sb, "\"") &&
+			return editorJsonStringAppend(sb, "\"") &&
 			       dapAppendSubstitutedString(sb, field->string_value, workspace_root,
 			                                  active_file) &&
-			       editorLspStringAppend(sb, "\"");
+			       editorJsonStringAppend(sb, "\"");
 		case EDITOR_DAP_LAUNCH_VALUE_BOOL:
-			return editorLspStringAppend(sb, field->bool_value ? "true" : "false");
+			return editorJsonStringAppend(sb, field->bool_value ? "true" : "false");
 		case EDITOR_DAP_LAUNCH_VALUE_INT:
-			return editorLspStringAppendf(sb, "%d", field->int_value);
+			return editorJsonStringAppendf(sb, "%d", field->int_value);
 		case EDITOR_DAP_LAUNCH_VALUE_STRING_ARRAY:
-			if (!editorLspStringAppend(sb, "[")) {
+			if (!editorJsonStringAppend(sb, "[")) {
 				return 0;
 			}
 			for (int i = 0; i < field->array_count; i++) {
-				if (i > 0 && !editorLspStringAppend(sb, ",")) {
+				if (i > 0 && !editorJsonStringAppend(sb, ",")) {
 					return 0;
 				}
-				if (!editorLspStringAppend(sb, "\"") ||
+				if (!editorJsonStringAppend(sb, "\"") ||
 				    !dapAppendSubstitutedString(sb, field->array_values[i],
 				                                workspace_root, active_file) ||
-				    !editorLspStringAppend(sb, "\"")) {
+				    !editorJsonStringAppend(sb, "\"")) {
 					return 0;
 				}
 			}
-			return editorLspStringAppend(sb, "]");
+			return editorJsonStringAppend(sb, "]");
 	}
 	return 0;
 }
@@ -370,8 +370,8 @@ char *editorDapBuildLaunchRequestJson(int seq, const struct editorDapLaunchConfi
 	if (config == NULL) {
 		return NULL;
 	}
-	struct editorLspString sb = {0};
-	if (!editorLspStringAppendf(
+	struct editorJsonString sb = {0};
+	if (!editorJsonStringAppendf(
 	            &sb, "{\"seq\":%d,\"type\":\"request\",\"command\":\"%s\",\"arguments\":{", seq,
 	            config->request[0] != '\0' ? config->request : "launch")) {
 		free(sb.buf);
@@ -379,7 +379,7 @@ char *editorDapBuildLaunchRequestJson(int seq, const struct editorDapLaunchConfi
 	}
 	int wrote_any = 0;
 	for (int i = 0; i < config->field_count; i++) {
-		if (wrote_any && !editorLspStringAppend(&sb, ",")) {
+		if (wrote_any && !editorJsonStringAppend(&sb, ",")) {
 			free(sb.buf);
 			return NULL;
 		}
@@ -391,34 +391,34 @@ char *editorDapBuildLaunchRequestJson(int seq, const struct editorDapLaunchConfi
 		wrote_any = 1;
 	}
 	if (config->env_count > 0) {
-		if (wrote_any && !editorLspStringAppend(&sb, ",")) {
+		if (wrote_any && !editorJsonStringAppend(&sb, ",")) {
 			free(sb.buf);
 			return NULL;
 		}
-		if (!editorLspStringAppend(&sb, "\"env\":{")) {
+		if (!editorJsonStringAppend(&sb, "\"env\":{")) {
 			free(sb.buf);
 			return NULL;
 		}
 		for (int i = 0; i < config->env_count; i++) {
-			if (i > 0 && !editorLspStringAppend(&sb, ",")) {
+			if (i > 0 && !editorJsonStringAppend(&sb, ",")) {
 				free(sb.buf);
 				return NULL;
 			}
 			if (!dapAppendJsonString(&sb, config->env[i].key) ||
-			    !editorLspStringAppend(&sb, ":\"") ||
+			    !editorJsonStringAppend(&sb, ":\"") ||
 			    !dapAppendSubstitutedString(&sb, config->env[i].value, workspace_root,
 			                                active_file) ||
-			    !editorLspStringAppend(&sb, "\"")) {
+			    !editorJsonStringAppend(&sb, "\"")) {
 				free(sb.buf);
 				return NULL;
 			}
 		}
-		if (!editorLspStringAppend(&sb, "}")) {
+		if (!editorJsonStringAppend(&sb, "}")) {
 			free(sb.buf);
 			return NULL;
 		}
 	}
-	if (!editorLspStringAppend(&sb, "}}")) {
+	if (!editorJsonStringAppend(&sb, "}}")) {
 		free(sb.buf);
 		return NULL;
 	}
@@ -430,14 +430,14 @@ static char *dapBuildSetBreakpointsRequestJson(int seq, const char *path) {
 	 * absolute source path even when the buffer was opened by a relative one. */
 	char *absolute = editorPathAbsoluteDup(path);
 	const char *source_path = absolute != NULL ? absolute : path;
-	struct editorLspString sb = {0};
-	if (!editorLspStringAppendf(
+	struct editorJsonString sb = {0};
+	if (!editorJsonStringAppendf(
 	            &sb,
 	            "{\"seq\":%d,\"type\":\"request\",\"command\":\"setBreakpoints\","
 	            "\"arguments\":{\"source\":{\"path\":",
 	            seq) ||
 	    !dapAppendJsonString(&sb, source_path) ||
-	    !editorLspStringAppend(&sb, "},\"breakpoints\":[")) {
+	    !editorJsonStringAppend(&sb, "},\"breakpoints\":[")) {
 		free(absolute);
 		free(sb.buf);
 		return NULL;
@@ -448,17 +448,17 @@ static char *dapBuildSetBreakpointsRequestJson(int seq, const char *path) {
 		if (strcmp(E.dap_breakpoints[i].path, path) != 0) {
 			continue;
 		}
-		if (wrote && !editorLspStringAppend(&sb, ",")) {
+		if (wrote && !editorJsonStringAppend(&sb, ",")) {
 			free(sb.buf);
 			return NULL;
 		}
-		if (!editorLspStringAppendf(&sb, "{\"line\":%d}", E.dap_breakpoints[i].line + 1)) {
+		if (!editorJsonStringAppendf(&sb, "{\"line\":%d}", E.dap_breakpoints[i].line + 1)) {
 			free(sb.buf);
 			return NULL;
 		}
 		wrote = 1;
 	}
-	if (!editorLspStringAppend(&sb, "]}}")) {
+	if (!editorJsonStringAppend(&sb, "]}}")) {
 		free(sb.buf);
 		return NULL;
 	}
@@ -483,11 +483,11 @@ static void dapSendAllBreakpoints(void) {
 
 static char *dapBuildIntArgRequestJson(int seq, const char *command, const char *arg_key,
                                        int arg_value) {
-	struct editorLspString sb = {0};
-	if (!editorLspStringAppendf(&sb,
-	                            "{\"seq\":%d,\"type\":\"request\",\"command\":\"%s\","
-	                            "\"arguments\":{\"%s\":%d}}",
-	                            seq, command, arg_key, arg_value)) {
+	struct editorJsonString sb = {0};
+	if (!editorJsonStringAppendf(&sb,
+	                             "{\"seq\":%d,\"type\":\"request\",\"command\":\"%s\","
+	                             "\"arguments\":{\"%s\":%d}}",
+	                             seq, command, arg_key, arg_value)) {
 		free(sb.buf);
 		return NULL;
 	}
@@ -495,23 +495,23 @@ static char *dapBuildIntArgRequestJson(int seq, const char *command, const char 
 }
 
 static char *dapBuildVariablesRequestJson(int seq, int variables_reference, int start, int count) {
-	struct editorLspString sb = {0};
-	if (!editorLspStringAppendf(&sb,
-	                            "{\"seq\":%d,\"type\":\"request\",\"command\":\"variables\","
-	                            "\"arguments\":{\"variablesReference\":%d",
-	                            seq, variables_reference)) {
+	struct editorJsonString sb = {0};
+	if (!editorJsonStringAppendf(&sb,
+	                             "{\"seq\":%d,\"type\":\"request\",\"command\":\"variables\","
+	                             "\"arguments\":{\"variablesReference\":%d",
+	                             seq, variables_reference)) {
 		free(sb.buf);
 		return NULL;
 	}
-	if (start > 0 && !editorLspStringAppendf(&sb, ",\"start\":%d", start)) {
+	if (start > 0 && !editorJsonStringAppendf(&sb, ",\"start\":%d", start)) {
 		free(sb.buf);
 		return NULL;
 	}
-	if (count > 0 && !editorLspStringAppendf(&sb, ",\"count\":%d", count)) {
+	if (count > 0 && !editorJsonStringAppendf(&sb, ",\"count\":%d", count)) {
 		free(sb.buf);
 		return NULL;
 	}
-	if (!editorLspStringAppend(&sb, "}}")) {
+	if (!editorJsonStringAppend(&sb, "}}")) {
 		free(sb.buf);
 		return NULL;
 	}
@@ -520,7 +520,7 @@ static char *dapBuildVariablesRequestJson(int seq, int variables_reference, int 
 
 /* Reads an integer value for `quoted_key` at the top level of [start, end). */
 static int dapObjectIntField(const char *start, const char *end, const char *quoted_key, int *out) {
-	const char *key = editorLspFindTopLevelKey(start, end, quoted_key);
+	const char *key = editorJsonFindTopLevelKey(start, end, quoted_key);
 	if (key == NULL) {
 		return 0;
 	}
@@ -528,14 +528,14 @@ static int dapObjectIntField(const char *start, const char *end, const char *quo
 	if (colon == NULL || colon >= end) {
 		return 0;
 	}
-	return editorLspParseJsonInt(editorLspSkipWs(colon + 1), out, NULL);
+	return editorJsonParseInt(editorJsonSkipWs(colon + 1), out, NULL);
 }
 
 /* Copies the (unescaped) string value for `quoted_key` at the top level of
  * [start, end) into `buf`. Returns 1 on success. */
 static int dapObjectStringField(const char *start, const char *end, const char *quoted_key,
                                 char *buf, size_t bufsize) {
-	const char *key = editorLspFindTopLevelKey(start, end, quoted_key);
+	const char *key = editorJsonFindTopLevelKey(start, end, quoted_key);
 	if (key == NULL) {
 		return 0;
 	}
@@ -544,7 +544,7 @@ static int dapObjectStringField(const char *start, const char *end, const char *
 		return 0;
 	}
 	char *value = NULL;
-	if (!editorLspParseJsonString(editorLspSkipWs(colon + 1), &value, NULL) || value == NULL) {
+	if (!editorJsonParseString(editorJsonSkipWs(colon + 1), &value, NULL) || value == NULL) {
 		return 0;
 	}
 	int ok = strlen(value) < bufsize;
@@ -559,7 +559,7 @@ static int dapObjectStringField(const char *start, const char *end, const char *
  * [start, end). Writes the object's bounds and returns 1 on success. */
 static int dapObjectChildObject(const char *start, const char *end, const char *quoted_key,
                                 const char **child_start, const char **child_end) {
-	const char *key = editorLspFindTopLevelKey(start, end, quoted_key);
+	const char *key = editorJsonFindTopLevelKey(start, end, quoted_key);
 	if (key == NULL) {
 		return 0;
 	}
@@ -567,11 +567,11 @@ static int dapObjectChildObject(const char *start, const char *end, const char *
 	if (colon == NULL || colon >= end) {
 		return 0;
 	}
-	const char *child = editorLspSkipWs(colon + 1);
+	const char *child = editorJsonSkipWs(colon + 1);
 	if (child == NULL || child[0] != '{') {
 		return 0;
 	}
-	const char *child_obj_end = editorLspFindJsonObjectEnd(child);
+	const char *child_obj_end = editorJsonFindObjectEnd(child);
 	if (child_obj_end == NULL) {
 		return 0;
 	}
@@ -584,17 +584,17 @@ static int dapObjectChildObject(const char *start, const char *end, const char *
  * Writes the array bounds (`[` .. `]`) and returns 1 on success. */
 static int dapFindBodyArray(const char *message, const char *quoted_key, const char **array_start,
                             const char **array_end) {
-	const char *start = editorLspSkipWs(message);
+	const char *start = editorJsonSkipWs(message);
 	if (start == NULL || start[0] != '{') {
 		return 0;
 	}
 	const char *body_start = NULL;
 	const char *body_end = NULL;
-	if (!dapObjectChildObject(start, editorLspFindJsonObjectEnd(start), "\"body\"", &body_start,
+	if (!dapObjectChildObject(start, editorJsonFindObjectEnd(start), "\"body\"", &body_start,
 	                          &body_end)) {
 		return 0;
 	}
-	const char *key = editorLspFindTopLevelKey(body_start, body_end, quoted_key);
+	const char *key = editorJsonFindTopLevelKey(body_start, body_end, quoted_key);
 	if (key == NULL) {
 		return 0;
 	}
@@ -602,11 +602,11 @@ static int dapFindBodyArray(const char *message, const char *quoted_key, const c
 	if (colon == NULL || colon >= body_end) {
 		return 0;
 	}
-	const char *arr = editorLspSkipWs(colon + 1);
+	const char *arr = editorJsonSkipWs(colon + 1);
 	if (arr == NULL || arr[0] != '[') {
 		return 0;
 	}
-	const char *arr_end = editorLspFindJsonArrayEnd(arr);
+	const char *arr_end = editorJsonFindArrayEnd(arr);
 	if (arr_end == NULL) {
 		return 0;
 	}
@@ -617,11 +617,11 @@ static int dapFindBodyArray(const char *message, const char *quoted_key, const c
 
 /* Reads body.<quoted_key> as an integer. Returns 1 on success. */
 static int dapBodyIntField(const char *message, const char *quoted_key, int *out) {
-	const char *start = editorLspSkipWs(message);
+	const char *start = editorJsonSkipWs(message);
 	const char *body_start = NULL;
 	const char *body_end = NULL;
 	if (start == NULL || start[0] != '{' ||
-	    !dapObjectChildObject(start, editorLspFindJsonObjectEnd(start), "\"body\"", &body_start,
+	    !dapObjectChildObject(start, editorJsonFindObjectEnd(start), "\"body\"", &body_start,
 	                          &body_end)) {
 		return 0;
 	}
@@ -630,11 +630,11 @@ static int dapBodyIntField(const char *message, const char *quoted_key, int *out
 
 /* Reads a top-level (non-body) integer field, e.g. a response's request_seq. */
 static int dapTopLevelIntField(const char *message, const char *quoted_key, int *out) {
-	const char *start = editorLspSkipWs(message);
+	const char *start = editorJsonSkipWs(message);
 	if (start == NULL || start[0] != '{') {
 		return 0;
 	}
-	return dapObjectIntField(start, editorLspFindJsonObjectEnd(start), quoted_key, out);
+	return dapObjectIntField(start, editorJsonFindObjectEnd(start), quoted_key, out);
 }
 
 /* Case-insensitive substring test for "register", used to default-collapse the
@@ -658,11 +658,11 @@ static int dapScopeNameLooksLikeRegisters(const char *name) {
 /* Copies the (unescaped) body.<quoted_key> string into `buf`. Returns 1 on success. */
 static int dapBodyStringField(const char *message, const char *quoted_key, char *buf,
                               size_t bufsize) {
-	const char *start = editorLspSkipWs(message);
+	const char *start = editorJsonSkipWs(message);
 	const char *body_start = NULL;
 	const char *body_end = NULL;
 	if (start == NULL || start[0] != '{' ||
-	    !dapObjectChildObject(start, editorLspFindJsonObjectEnd(start), "\"body\"", &body_start,
+	    !dapObjectChildObject(start, editorJsonFindObjectEnd(start), "\"body\"", &body_start,
 	                          &body_end)) {
 		return 0;
 	}
@@ -699,7 +699,7 @@ static void dapForEachBodyArrayElement(const char *message, const char *quoted_k
 		if (obj_start == NULL || obj_start >= array_end) {
 			break;
 		}
-		const char *obj_end = editorLspFindJsonObjectEnd(obj_start);
+		const char *obj_end = editorJsonFindObjectEnd(obj_start);
 		if (obj_end == NULL || obj_end > array_end) {
 			break;
 		}
@@ -1110,11 +1110,11 @@ static void dapHandleEvaluateResponse(const char *message) {
  * and fills `buf` on success, 0 if the response carries no message text.
  */
 static int dapExtractErrorMessage(const char *message, char *buf, size_t bufsize) {
-	const char *start = editorLspSkipWs(message);
+	const char *start = editorJsonSkipWs(message);
 	const char *body_start = NULL;
 	const char *body_end = NULL;
 	if (start != NULL && start[0] == '{' &&
-	    dapObjectChildObject(start, editorLspFindJsonObjectEnd(start), "\"body\"", &body_start,
+	    dapObjectChildObject(start, editorJsonFindObjectEnd(start), "\"body\"", &body_start,
 	                         &body_end)) {
 		const char *error_start = NULL;
 		const char *error_end = NULL;

@@ -1,19 +1,15 @@
 #ifndef ROTIDE_LANGUAGE_LSP_JSON_H
 #define ROTIDE_LANGUAGE_LSP_JSON_H
 
+#include "support/json.h"
+
 #include <stddef.h>
 
-struct editorLspString {
-	char *buf;
-	size_t len;
-	size_t cap;
-};
-
-int editorLspStringAppend(struct editorLspString *sb, const char *text);
-int editorLspStringAppendBytes(struct editorLspString *sb, const char *bytes, size_t len);
-int editorLspStringAppendf(struct editorLspString *sb, const char *fmt, ...)
+int editorLspStringAppend(struct editorJsonString *sb, const char *text);
+int editorLspStringAppendBytes(struct editorJsonString *sb, const char *bytes, size_t len);
+int editorLspStringAppendf(struct editorJsonString *sb, const char *fmt, ...)
         __attribute__((format(printf, 2, 3)));
-int editorLspStringAppendJsonEscaped(struct editorLspString *sb, const char *text, size_t len);
+int editorLspStringAppendJsonEscaped(struct editorJsonString *sb, const char *text, size_t len);
 
 const char *editorLspSkipWs(const char *p);
 int editorLspParseJsonString(const char *json, char **value_out, const char **after_out);

@@ -38,13 +38,13 @@ Two layers, both TOML:
   request = "launch"
   program = "${workspaceFolder}/tests/dap/supported/c/dap_sample.out"
   cwd = "${workspaceFolder}"
-  args = ["${workspaceFolder}/tests/dap/supported/c/dap_sample.c"]
+  args = ["branch-a"]
   stopOnEntry = false
   console = "terminal"
   ```
 
 `[dap.defaults.<id>]` templates in the global config can be copied into a
-project's `.rotide.toml` from the DAP drawer.
+project's `.rotide.toml` from the Debugger drawer.
 
 ## Launch lifecycle
 
@@ -67,8 +67,8 @@ running/stopped indicators.
 
 Breakpoints are editor state, set before or during a session. They can be
 toggled from the line-number gutter (left-click), the editor right-click menu,
-the `dap_toggle_breakpoint` keybinding, and are listed in the DAP drawer. A set
-breakpoint shows a marker in the gutter's separator column (no gutter widening);
+the `dap_toggle_breakpoint` keybinding, and are listed in the Debugger drawer.
+A set breakpoint shows a marker in the gutter's separator column (no gutter widening);
 the current stopped line shows a distinct marker that takes precedence.
 
 Breakpoints are sent to the adapter with **absolute** source paths so they match
@@ -82,6 +82,19 @@ Continue, step over/into/out, and pause are thread-scoped: each carries the
 thread of the most recent stop (falling back to the first known thread, then the
 main thread). Stop disconnects and tears the session down. After every stop the
 stack/scopes/variables fan-out re-runs, so the views reflect the new location.
+
+## Variables
+
+RotIDE requests richer variable metadata from adapters during `initialize`,
+including variable types, memory references, and variable paging support. The
+Debugger drawer uses that data when available to render locals and arguments with
+compact type/value/address information, and it opportunistically asks for a small
+preview of child variables so arrays and structs can show useful contents instead
+of only an address.
+
+These capabilities are requested, not required. Adapters that omit type,
+memory-reference, or child-preview data still populate the drawer with the base
+DAP `name`, `value`, and `variablesReference` fields.
 
 ## Debug UI
 
@@ -138,13 +151,16 @@ treated as benign.
 - `stopOnEntry` depends on the adapter (gdb's DAP does not honor it — use a
   breakpoint to stop early).
 - While a focused terminal/console pane has input focus, control keybindings go
-  to that pane; focus an editor pane to use them (status-bar debug controls that
-  work regardless of focus are planned).
-- Adapter capabilities from the `initialize` response are not yet used to gate
-  unsupported features.
+  to that pane; use the clickable status-bar debug controls when focus should
+  stay in the panel.
+- Adapter capabilities from the `initialize` response are still only partially
+  modeled. RotIDE requests richer variable metadata and renders it when present,
+  but most debugger actions are not yet gated by advertised capabilities.
 
 ## Fixture
 
-`tests/dap/supported/c/` holds a self-contained C program (`dap_sample.c`, built
-to `dap_sample.out` with debug info via its `Makefile`) used as the
-`c_dap_fixture` launch target for manual end-to-end checks.
+`tests/dap/supported/c/` holds a self-contained multi-file C program built to
+`dap_sample.out` with debug info via its `Makefile`. The fixture is split across
+`main.c`, `items.c`, `numeric.c`, `runmode.c`, and `worker.c` so manual
+end-to-end checks can cover cross-file stepping, breakpoints, stack frames,
+threads, and rich locals/arguments.

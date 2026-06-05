@@ -9,7 +9,6 @@
 #include "input/actions_workspace.h"
 #include "input/dispatch.h"
 #include "language/lsp.h"
-#include "render/pane_view.h"
 #include "render/popup.h"
 #include "render/status_bar.h"
 #include "render/viewport.h"

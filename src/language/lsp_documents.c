@@ -7,6 +7,7 @@
 #include "language/lsp_transport.h"
 #include "language/syntax.h"
 #include "rotide.h"
+#include "support/json.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -80,7 +81,7 @@ int editorLspEnsureDocumentOpen(const char *filename, enum editorSyntaxLanguage 
 		return 0;
 	}
 
-	struct editorLspString payload = {0};
+	struct editorJsonString payload = {0};
 	int built = editorLspStringAppend(
 	        &payload, "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{"
 	                  "\"textDocument\":{\"uri\":");
@@ -222,7 +223,7 @@ static int lspDocumentsResolveChangeText(int position_encoding_utf16,
 	return 1;
 }
 
-static int lspDocumentsAppendDidChangeRange(struct editorLspString *payload,
+static int lspDocumentsAppendDidChangeRange(struct editorJsonString *payload,
                                             struct editorLspClient *client,
                                             const struct editorSyntaxEdit *edit,
                                             lspDocumentsProtocolColumnFn protocol_column_fn) {
@@ -241,7 +242,7 @@ static int lspDocumentsAppendDidChangeRange(struct editorLspString *payload,
 	                              edit->old_end_point.row, end_character);
 }
 
-static int lspDocumentsBuildDidChangePayload(struct editorLspString *payload,
+static int lspDocumentsBuildDidChangePayload(struct editorJsonString *payload,
                                              struct editorLspClient *client, const char *uri,
                                              int next_version, int send_range,
                                              const struct editorSyntaxEdit *edit,
@@ -280,7 +281,7 @@ static int lspDocumentsBuildDidChangePayload(struct editorLspString *payload,
 /* Sends the built payload and cleans up on send failure. Returns 1 on success.
  * Frees uri, owned_full_text, and payload->buf unconditionally. */
 static int lspDocumentsSendDidChangePayload(struct editorLspClient *client, char *uri,
-                                            char *owned_full_text, struct editorLspString *payload,
+                                            char *owned_full_text, struct editorJsonString *payload,
                                             int built) {
 	free(uri);
 	free(owned_full_text);
@@ -318,7 +319,7 @@ static int lspDocumentsSendDidChangeForClient(struct editorLspClient *client, co
 		return 0;
 	}
 
-	struct editorLspString payload = {0};
+	struct editorJsonString payload = {0};
 	int built = lspDocumentsBuildDidChangePayload(&payload, client, uri, next_version,
 	                                              send_range, edit, change_text,
 	                                              change_text_len, protocol_column_fn);
@@ -392,7 +393,7 @@ int editorLspNotifyDidSave(const char *filename, enum editorSyntaxLanguage langu
 		return 0;
 	}
 
-	struct editorLspString payload = {0};
+	struct editorJsonString payload = {0};
 	int built = editorLspStringAppend(
 	        &payload, "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didSave\",\"params\":{"
 	                  "\"textDocument\":{\"uri\":");
@@ -437,7 +438,7 @@ void editorLspNotifyDidClose(const char *filename, enum editorSyntaxLanguage lan
 	if (client != NULL) {
 		char *uri = NULL;
 		if (editorLspBuildFileUri(filename, &uri)) {
-			struct editorLspString payload = {0};
+			struct editorJsonString payload = {0};
 			int built = editorLspStringAppend(&payload,
 			                                  "{\"jsonrpc\":\"2.0\",\"method\":"
 			                                  "\"textDocument/didClose\",\"params\":{"
@@ -508,7 +509,7 @@ int editorLspEnsureEslintDocumentOpen(const char *filename, enum editorSyntaxLan
 		return 0;
 	}
 
-	struct editorLspString payload = {0};
+	struct editorJsonString payload = {0};
 	int built = editorLspStringAppend(
 	        &payload, "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{"
 	                  "\"textDocument\":{\"uri\":");
@@ -608,7 +609,7 @@ int editorLspNotifyEslintDidSave(const char *filename, enum editorSyntaxLanguage
 		return 0;
 	}
 
-	struct editorLspString payload = {0};
+	struct editorJsonString payload = {0};
 	int built = editorLspStringAppend(
 	        &payload, "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didSave\",\"params\":{"
 	                  "\"textDocument\":{\"uri\":");
@@ -653,7 +654,7 @@ void editorLspNotifyEslintDidClose(const char *filename, enum editorSyntaxLangua
 	if (client != NULL) {
 		char *uri = NULL;
 		if (editorLspBuildFileUri(filename, &uri)) {
-			struct editorLspString payload = {0};
+			struct editorJsonString payload = {0};
 			int built = editorLspStringAppend(&payload,
 			                                  "{\"jsonrpc\":\"2.0\",\"method\":"
 			                                  "\"textDocument/didClose\",\"params\":{"

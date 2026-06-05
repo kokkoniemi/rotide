@@ -1,6 +1,7 @@
 #include "input/dispatch.h"
 
 #include "config/keymap.h"
+#include "debug/dap.h"
 #include "debug/dap_console.h"
 #include "editing/buffer_core.h"
 #include "editing/buffer_search.h"

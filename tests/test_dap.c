@@ -3,6 +3,7 @@
 #include "config/theme_config.h"
 #include "debug/dap.h"
 #include "debug/dap_console.h"
+#include "editor_dap_test_api.h"
 #include "input/mouse.h"
 #include "language/syntax.h"
 #include "render/drawer_view.h"
