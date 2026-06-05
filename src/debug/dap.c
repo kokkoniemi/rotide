@@ -5,6 +5,7 @@
 #include "debug/dap_client.h"
 #include "debug/dap_console.h"
 #include "debug/dap_inspection.h"
+#include "debug/dap_output.h"
 #include "debug/dap_protocol.h"
 #include "debug/dap_session.h"
 #include "editing/document_position.h"
@@ -93,26 +94,6 @@ static void dapClientReset(void) {
 	E.dap_scope_count = 0;
 	E.dap_variable_count = 0;
 	E.drawer_dap_scope_collapsed = 0;
-}
-
-static void dapAppendOutput(const char *text) {
-	if (text == NULL || text[0] == '\0') {
-		return;
-	}
-	size_t len = strlen(text);
-	if (len >= sizeof(E.dap_output)) {
-		text += len - (sizeof(E.dap_output) - 1);
-		len = strlen(text);
-		E.dap_output_len = 0;
-	}
-	if (E.dap_output_len + len >= sizeof(E.dap_output)) {
-		size_t remove = E.dap_output_len + len - (sizeof(E.dap_output) - 1);
-		memmove(E.dap_output, E.dap_output + remove, E.dap_output_len - remove);
-		E.dap_output_len -= remove;
-	}
-	memcpy(E.dap_output + E.dap_output_len, text, len);
-	E.dap_output_len += len;
-	E.dap_output[E.dap_output_len] = '\0';
 }
 
 static int dapSendRequest(char *json) {
@@ -365,9 +346,9 @@ static void dapHandleEvaluateResponse(const char *message) {
 	if (!editorDapJsonBodyStringField(message, "\"result\"", result, sizeof(result))) {
 		return;
 	}
-	dapAppendOutput("= ");
-	dapAppendOutput(result);
-	dapAppendOutput("\n");
+	editorDapOutputAppend("= ");
+	editorDapOutputAppend(result);
+	editorDapOutputAppend("\n");
 	editorSetStatusMsg("DAP eval: %s", result);
 }
 
@@ -461,7 +442,7 @@ int editorDapProcessIncomingMessage(const char *message) {
 			char output[ROTIDE_DAP_VALUE_MAX];
 			if (editorDapJsonBodyStringField(message, "\"output\"", output,
 			                                 sizeof(output))) {
-				dapAppendOutput(output);
+				editorDapOutputAppend(output);
 			}
 			return 1;
 		}
@@ -502,13 +483,13 @@ int editorDapProcessIncomingMessage(const char *message) {
 				editorSetStatusMsg("DAP %s failed%s%s", command,
 				                   has_errmsg ? ": " : "",
 				                   has_errmsg ? errmsg : "");
-				dapAppendOutput("[dap] ");
-				dapAppendOutput(command);
-				dapAppendOutput(has_errmsg ? " failed: " : " failed");
+				editorDapOutputAppend("[dap] ");
+				editorDapOutputAppend(command);
+				editorDapOutputAppend(has_errmsg ? " failed: " : " failed");
 				if (has_errmsg) {
-					dapAppendOutput(errmsg);
+					editorDapOutputAppend(errmsg);
 				}
-				dapAppendOutput("\n");
+				editorDapOutputAppend("\n");
 			}
 			return 1;
 		}
@@ -608,8 +589,7 @@ int editorDapStartLaunch(int launch_idx) {
 	E.dap_selected_launch = launch_idx;
 	E.dap_running = 1;
 	E.dap_stopped = 0;
-	E.dap_output_len = 0;
-	E.dap_output[0] = '\0';
+	editorDapOutputClear();
 	E.drawer_dap_scope_collapsed = 0;
 
 	const char *workspace_root = editorDrawerRootPath();
@@ -734,9 +714,9 @@ int editorDapEvaluate(const char *expr) {
 	/* Scope the evaluation to the top frame when stopped; global otherwise. */
 	int frame_id =
 	        (E.dap_stopped && E.dap_stack_frame_count > 0) ? E.dap_stack_frames[0].id : 0;
-	dapAppendOutput("> ");
-	dapAppendOutput(expr);
-	dapAppendOutput("\n");
+	editorDapOutputAppend("> ");
+	editorDapOutputAppend(expr);
+	editorDapOutputAppend("\n");
 	if (!dapSendRequest(editorDapBuildEvaluateRequestJson(g_dap_client.next_seq++, expr,
 	                                                      frame_id, "repl"))) {
 		editorSetStatusMsg("DAP evaluate failed");
