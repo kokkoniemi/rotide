@@ -13,6 +13,7 @@ src/debug/dap_client.c	dapClient
 src/debug/dap_console.c	dapConsole
 src/debug/dap_inspection.c	dapInspection
 src/debug/dap_protocol.c	dapProtocol
+src/debug/dap_session.c	dapSession
 src/editing/buffer_core.c	bufferCore
 src/editing/buffer_search.c	bufferSearch
 src/editing/document_bridge.c	documentBridge

@@ -6,9 +6,9 @@
 #include "debug/dap_console.h"
 #include "debug/dap_inspection.h"
 #include "debug/dap_protocol.h"
+#include "debug/dap_session.h"
 #include "editing/document_position.h"
 #include "editing/edit.h"
-#include "language/lsp_transport.h"
 #include "render/viewport.h"
 #include "rotide.h"
 #include "support/file_io.h"
@@ -18,14 +18,9 @@
 
 #include <limits.h>
 #include <poll.h>
-#include <signal.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
 
 #define ROTIDE_DAP_IO_TIMEOUT_MS 2500
 #define ROTIDE_DAP_VARIABLE_PREVIEW_CHILDREN 6
@@ -45,9 +40,7 @@ enum dapSessionState {
 };
 
 struct dapClient {
-	pid_t pid;
-	int to_adapter_fd;
-	int from_adapter_fd;
+	struct editorDapSessionProcess process;
 	int next_seq;
 	int initialized;
 	enum dapSessionState state;
@@ -74,9 +67,7 @@ struct dapClient {
 };
 
 static struct dapClient g_dap_client = {
-        .pid = 0,
-        .to_adapter_fd = -1,
-        .from_adapter_fd = -1,
+        .process = {.pid = 0, .to_adapter_fd = -1, .from_adapter_fd = -1},
         .next_seq = 1,
         .initialized = 0,
         .state = DAP_SESSION_IDLE,
@@ -85,9 +76,7 @@ static struct dapClient g_dap_client = {
 
 static void dapClientReset(void) {
 	free(g_dap_client.pending_launch_json);
-	g_dap_client.pid = 0;
-	g_dap_client.to_adapter_fd = -1;
-	g_dap_client.from_adapter_fd = -1;
+	editorDapSessionProcessReset(&g_dap_client.process);
 	g_dap_client.next_seq = 1;
 	g_dap_client.initialized = 0;
 	g_dap_client.state = DAP_SESSION_IDLE;
@@ -127,7 +116,7 @@ static void dapAppendOutput(const char *text) {
 }
 
 static int dapSendRequest(char *json) {
-	return editorDapClientSendRequest(g_dap_client.to_adapter_fd, json);
+	return editorDapClientSendRequest(g_dap_client.process.to_adapter_fd, json);
 }
 
 static void dapSendAllBreakpoints(void) {
@@ -147,7 +136,7 @@ static void dapClearInspectionState(void) {
 }
 
 static void dapQueueVariablePreviewRequest(int variable_index) {
-	if (g_dap_client.to_adapter_fd == -1 || variable_index < 0 ||
+	if (g_dap_client.process.to_adapter_fd == -1 || variable_index < 0 ||
 	    variable_index >= E.dap_variable_count ||
 	    g_dap_client.pending_var_preview_count >= ROTIDE_DAP_MAX_VARIABLES) {
 		return;
@@ -540,16 +529,16 @@ int editorDapProcessIncomingMessage(const char *message) {
 }
 
 int editorDapAdapterReadFd(void) {
-	return g_dap_client.from_adapter_fd;
+	return g_dap_client.process.from_adapter_fd;
 }
 
 void editorDapPumpNotifications(void) {
-	if (g_dap_client.from_adapter_fd == -1) {
+	if (g_dap_client.process.from_adapter_fd == -1) {
 		return;
 	}
 	for (;;) {
 		struct pollfd pfd = {
-		        .fd = g_dap_client.from_adapter_fd,
+		        .fd = g_dap_client.process.from_adapter_fd,
 		        .events = POLLIN,
 		        .revents = 0,
 		};
@@ -562,7 +551,7 @@ void editorDapPumpNotifications(void) {
 			editorSetStatusMsg("DAP adapter exited");
 			return;
 		}
-		char *message = editorDapClientReadFrame(g_dap_client.from_adapter_fd);
+		char *message = editorDapClientReadFrame(g_dap_client.process.from_adapter_fd);
 		if (message == NULL) {
 			editorDapShutdown();
 			editorSetStatusMsg("DAP adapter read failed");
@@ -604,17 +593,11 @@ int editorDapStartLaunch(int launch_idx) {
 	char command[PATH_MAX + 64];
 	editorDapBuildAdapterCommand(adapter->command, tty_path, command, sizeof(command));
 
-	pid_t pid = 0;
-	int to_fd = -1;
-	int from_fd = -1;
-	if (!editorLspSpawnProcess(command, &pid, &to_fd, &from_fd)) {
+	if (!editorDapSessionProcessStart(&g_dap_client.process, command)) {
 		editorSetStatusMsg("Could not start DAP adapter");
 		editorDapShutdown();
 		return 0;
 	}
-	g_dap_client.pid = pid;
-	g_dap_client.to_adapter_fd = to_fd;
-	g_dap_client.from_adapter_fd = from_fd;
 	g_dap_client.next_seq = 1;
 	g_dap_client.initialized = 0;
 	g_dap_client.state = DAP_SESSION_AWAIT_INITIALIZE_RESPONSE;
@@ -669,7 +652,7 @@ int editorDapStartSelectedLaunch(void) {
 }
 
 static int dapSendControl(const char *command) {
-	if (!E.dap_running || g_dap_client.to_adapter_fd == -1) {
+	if (!E.dap_running || g_dap_client.process.to_adapter_fd == -1) {
 		editorSetStatusMsg("No DAP session running");
 		return 0;
 	}
@@ -696,7 +679,7 @@ static int dapCurrentThreadId(void) {
 /* continue/next/stepIn/stepOut/pause are thread-scoped; adapters require a
  * threadId and silently no-op (or error) without one. */
 static int dapSendThreadControl(const char *command) {
-	if (!E.dap_running || g_dap_client.to_adapter_fd == -1) {
+	if (!E.dap_running || g_dap_client.process.to_adapter_fd == -1) {
 		editorSetStatusMsg("No DAP session running");
 		return 0;
 	}
@@ -744,7 +727,7 @@ int editorDapEvaluate(const char *expr) {
 	if (expr == NULL || expr[0] == '\0') {
 		return 0;
 	}
-	if (!E.dap_running || g_dap_client.to_adapter_fd == -1) {
+	if (!E.dap_running || g_dap_client.process.to_adapter_fd == -1) {
 		editorSetStatusMsg("No DAP session running");
 		return 0;
 	}
@@ -824,20 +807,7 @@ int editorDapToggleBreakpointAtCursor(void) {
 }
 
 void editorDapShutdown(void) {
-	if (g_dap_client.to_adapter_fd != -1) {
-		close(g_dap_client.to_adapter_fd);
-	}
-	if (g_dap_client.from_adapter_fd != -1) {
-		close(g_dap_client.from_adapter_fd);
-	}
-	if (g_dap_client.pid > 0) {
-		int status = 0;
-		pid_t waited = waitpid(g_dap_client.pid, &status, WNOHANG);
-		if (waited == 0) {
-			(void)kill(g_dap_client.pid, SIGTERM);
-			(void)waitpid(g_dap_client.pid, &status, 0);
-		}
-	}
+	editorDapSessionProcessShutdown(&g_dap_client.process);
 	dapClientReset();
 	editorDapConsoleCloseOwnedTerminalPane();
 }
@@ -848,9 +818,8 @@ int editorDapSessionStateForTest(void) {
 
 void editorDapBeginSessionForTest(int to_adapter_fd, char *launch_json) {
 	free(g_dap_client.pending_launch_json);
-	g_dap_client.pid = 0;
-	g_dap_client.to_adapter_fd = to_adapter_fd;
-	g_dap_client.from_adapter_fd = -1;
+	editorDapSessionProcessReset(&g_dap_client.process);
+	g_dap_client.process.to_adapter_fd = to_adapter_fd;
 	g_dap_client.next_seq = 2; /* initialize already "sent" as seq 1 */
 	g_dap_client.initialized = 0;
 	g_dap_client.state = DAP_SESSION_AWAIT_INITIALIZE_RESPONSE;
