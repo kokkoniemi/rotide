@@ -11,6 +11,7 @@ src/debug/dap.c	dap
 src/debug/dap_breakpoints.c	dapBreakpoints
 src/debug/dap_client.c	dapClient
 src/debug/dap_console.c	dapConsole
+src/debug/dap_control.c	dapControl
 src/debug/dap_inspection.c	dapInspection
 src/debug/dap_output.c	dapOutput
 src/debug/dap_protocol.c	dapProtocol

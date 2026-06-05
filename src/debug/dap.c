@@ -4,6 +4,7 @@
 #include "debug/dap_breakpoints.h"
 #include "debug/dap_client.h"
 #include "debug/dap_console.h"
+#include "debug/dap_control.h"
 #include "debug/dap_inspection.h"
 #include "debug/dap_output.h"
 #include "debug/dap_protocol.h"
@@ -631,44 +632,15 @@ int editorDapStartSelectedLaunch(void) {
 	return editorDapStartLaunch(launch_idx);
 }
 
-static int dapSendControl(const char *command) {
-	if (!E.dap_running || g_dap_client.process.to_adapter_fd == -1) {
-		editorSetStatusMsg("No DAP session running");
-		return 0;
-	}
-	if (!dapSendRequest(
-	            editorDapBuildSimpleCommandRequestJson(g_dap_client.next_seq++, command))) {
-		editorSetStatusMsg("DAP command failed");
-		return 0;
-	}
-	return 1;
-}
-
-/* Best-effort current thread for execution-control requests: the thread of the
- * most recent stop, else the first known thread, else the main thread (1). */
-static int dapCurrentThreadId(void) {
-	if (g_dap_client.stopped_thread_id > 0) {
-		return g_dap_client.stopped_thread_id;
-	}
-	if (E.dap_thread_count > 0 && E.dap_threads[0].id > 0) {
-		return E.dap_threads[0].id;
-	}
-	return 1;
-}
-
-/* continue/next/stepIn/stepOut/pause are thread-scoped; adapters require a
- * threadId and silently no-op (or error) without one. */
 static int dapSendThreadControl(const char *command) {
-	if (!E.dap_running || g_dap_client.process.to_adapter_fd == -1) {
-		editorSetStatusMsg("No DAP session running");
-		return 0;
-	}
-	if (!dapSendRequest(editorDapBuildIntArgRequestJson(g_dap_client.next_seq++, command,
-	                                                    "threadId", dapCurrentThreadId()))) {
-		editorSetStatusMsg("DAP command failed");
-		return 0;
-	}
-	return 1;
+	return editorDapControlSendThread(g_dap_client.process.to_adapter_fd,
+	                                  &g_dap_client.next_seq, command,
+	                                  g_dap_client.stopped_thread_id);
+}
+
+static int dapSendSimpleControl(const char *command) {
+	return editorDapControlSendSimple(g_dap_client.process.to_adapter_fd,
+	                                  &g_dap_client.next_seq, command);
 }
 
 int editorDapContinue(void) {
@@ -697,7 +669,7 @@ int editorDapStop(void) {
 		editorSetStatusMsg("No DAP session running");
 		return 0;
 	}
-	(void)dapSendControl("disconnect");
+	(void)dapSendSimpleControl("disconnect");
 	editorDapShutdown();
 	editorSetStatusMsg("DAP stopped");
 	return 1;
