@@ -3,6 +3,7 @@
 #include "config/theme_config.h"
 #include "debug/dap.h"
 #include "debug/dap_console.h"
+#include "debug/dap_output.h"
 #include "editor_dap_test_api.h"
 #include "input/mouse.h"
 #include "language/syntax.h"
@@ -455,8 +456,7 @@ static int test_editor_dap_handshake_initialize_failure_aborts(void) {
 
 static int test_editor_dap_failed_response_surfaces_message(void) {
 	E.statusmsg[0] = '\0';
-	E.dap_output_len = 0;
-	E.dap_output[0] = '\0';
+	editorDapOutputClear();
 	/* A failed request prefers the detailed body.error.format over `message`,
 	 * shown in the status bar and appended to the console output. */
 	(void)editorDapProcessIncomingMessage(
@@ -467,8 +467,7 @@ static int test_editor_dap_failed_response_surfaces_message(void) {
 	ASSERT_TRUE(strstr(E.statusmsg, "Cannot inspect while running") != NULL);
 	ASSERT_TRUE(strstr(E.dap_output, "Cannot inspect while running") != NULL);
 	E.statusmsg[0] = '\0';
-	E.dap_output_len = 0;
-	E.dap_output[0] = '\0';
+	editorDapOutputClear();
 	return 0;
 }
 
@@ -624,6 +623,14 @@ static int test_editor_dap_variable_child_preview_populates_arrays(void) {
 	        "{\"name\":\"[4]\",\"value\":\"21\"},{\"name\":\"[5]\",\"value\":\"34\"}]}}");
 	ASSERT_EQ_INT(3, E.dap_variable_count);
 	ASSERT_EQ_STR("{3,5,8,13,21,34}", E.dap_variables[0].preview);
+	ASSERT_TRUE(E.dap_variables[0].preview_is_indexed);
+	ASSERT_EQ_INT(6, E.dap_variables[0].preview_child_total);
+	ASSERT_EQ_INT(6, E.dap_variables[0].preview_child_count);
+	ASSERT_EQ_INT(0, E.dap_variables[0].preview_children_truncated);
+	ASSERT_EQ_STR("[0]", E.dap_variables[0].preview_children[0].name);
+	ASSERT_EQ_STR("3", E.dap_variables[0].preview_children[0].value);
+	ASSERT_EQ_STR("[5]", E.dap_variables[0].preview_children[5].name);
+	ASSERT_EQ_STR("34", E.dap_variables[0].preview_children[5].value);
 
 	(void)editorDapProcessIncomingMessage(
 	        "{\"type\":\"response\",\"command\":\"variables\",\"success\":true,"
@@ -631,9 +638,15 @@ static int test_editor_dap_variable_child_preview_populates_arrays(void) {
 	        "{\"name\":\"score\",\"value\":\"3\"},{\"name\":\"next\",\"value\":\"0x0\"}]}}");
 	ASSERT_EQ_INT(3, E.dap_variable_count);
 	ASSERT_EQ_STR("{score=3,next=0x0}", E.dap_variables[1].preview);
+	ASSERT_TRUE(!E.dap_variables[1].preview_is_indexed);
+	ASSERT_EQ_INT(2, E.dap_variables[1].preview_child_total);
+	ASSERT_EQ_INT(2, E.dap_variables[1].preview_child_count);
+	ASSERT_EQ_STR("score", E.dap_variables[1].preview_children[0].name);
+	ASSERT_EQ_STR("3", E.dap_variables[1].preview_children[0].value);
+	ASSERT_EQ_STR("next", E.dap_variables[1].preview_children[1].name);
+	ASSERT_EQ_STR("0x0", E.dap_variables[1].preview_children[1].value);
 
-	E.dap_output_len = 0;
-	E.dap_output[0] = '\0';
+	editorDapOutputClear();
 	(void)editorDapProcessIncomingMessage(
 	        "{\"type\":\"response\",\"command\":\"variables\",\"success\":false,"
 	        "\"request_seq\":7,\"message\":\"list index is out of range\"}");
@@ -653,14 +666,23 @@ static int test_editor_dap_variable_child_preview_populates_arrays(void) {
 }
 
 static int test_editor_dap_output_event_reads_body_output(void) {
-	E.dap_output_len = 0;
-	E.dap_output[0] = '\0';
+	editorDapOutputClear();
 	(void)editorDapProcessIncomingMessage(
 	        "{\"type\":\"event\",\"event\":\"output\","
 	        "\"body\":{\"category\":\"stdout\",\"output\":\"hello\\nworld\"}}");
 	ASSERT_TRUE(strstr(E.dap_output, "hello\nworld") != NULL);
-	E.dap_output_len = 0;
-	E.dap_output[0] = '\0';
+	ASSERT_EQ_INT(2, editorDapOutputLineCount());
+	const char *line = NULL;
+	int line_len = 0;
+	ASSERT_TRUE(editorDapOutputLine(0, &line, &line_len));
+	ASSERT_EQ_INT(5, line_len);
+	ASSERT_TRUE(strncmp(line, "hello", (size_t)line_len) == 0);
+	ASSERT_TRUE(editorDapOutputLine(1, &line, &line_len));
+	ASSERT_EQ_INT(5, line_len);
+	ASSERT_TRUE(strncmp(line, "world", (size_t)line_len) == 0);
+	editorDapOutputAppend("\n");
+	ASSERT_EQ_INT(2, editorDapOutputLineCount());
+	editorDapOutputClear();
 	return 0;
 }
 
@@ -934,8 +956,7 @@ static int test_editor_dap_evaluate_repl_flow(void) {
 	E.dap_stopped = 1;
 	E.dap_stack_frame_count = 1;
 	E.dap_stack_frames[0].id = 3;
-	E.dap_output_len = 0;
-	E.dap_output[0] = '\0';
+	editorDapOutputClear();
 
 	/* Evaluate echoes the expression to the console and scopes to the top frame. */
 	ASSERT_TRUE(editorDapEvaluate("argc + 1"));
@@ -957,8 +978,7 @@ static int test_editor_dap_evaluate_repl_flow(void) {
 	editorDapEndSessionForTest();
 	E.dap_stopped = 0;
 	E.dap_stack_frame_count = 0;
-	E.dap_output_len = 0;
-	E.dap_output[0] = '\0';
+	editorDapOutputClear();
 	(void)close(fds[0]);
 	(void)close(fds[1]);
 
@@ -978,10 +998,8 @@ static int test_editor_dap_console_pane_renders_and_toggles(void) {
 	E.cx = 0;
 	E.dap_console_leaf = NULL;
 	const char *transcript = "line-one\nline-two\nline-three\n";
-	size_t tlen = strlen(transcript);
-	memcpy(E.dap_output, transcript, tlen);
-	E.dap_output_len = tlen;
-	E.dap_output[tlen] = '\0';
+	editorDapOutputClear();
+	editorDapOutputAppend(transcript);
 
 	/* Toggle opens a console-only panel (bottom split), focused, Debug Console
 	 * tab active. */
@@ -1013,8 +1031,7 @@ static int test_editor_dap_console_pane_renders_and_toggles(void) {
 
 	/* Cleanup: close the panel. */
 	editorDapConsoleCloseOwnedTerminalPane();
-	E.dap_output_len = 0;
-	E.dap_output[0] = '\0';
+	editorDapOutputClear();
 	return 0;
 }
 
@@ -1027,9 +1044,8 @@ static int test_editor_dap_console_wheel_scrolls_transcript(void) {
 	for (int i = 0; i < 20; i++) {
 		len += snprintf(transcript + len, sizeof(transcript) - (size_t)len, "line-%d\n", i);
 	}
-	memcpy(E.dap_output, transcript, (size_t)len);
-	E.dap_output_len = (size_t)len;
-	E.dap_output[len] = '\0';
+	editorDapOutputClear();
+	editorDapOutputAppend(transcript);
 
 	E.dap_console_leaf = NULL;
 	ASSERT_TRUE(editorDapConsoleToggle());
@@ -1054,8 +1070,7 @@ static int test_editor_dap_console_wheel_scrolls_transcript(void) {
 	ASSERT_TRUE(console->scroll < scrolled);
 
 	editorDapConsoleCloseOwnedTerminalPane();
-	E.dap_output_len = 0;
-	E.dap_output[0] = '\0';
+	editorDapOutputClear();
 	return 0;
 }
 
@@ -1113,8 +1128,7 @@ static int test_editor_dap_output_events_go_to_console(void) {
 	/* Adapter output events (any category) land in the Debug Console transcript;
 	 * the debuggee's own stdout reaches the Terminal tab via the real tty, not
 	 * through output events. */
-	E.dap_output_len = 0;
-	E.dap_output[0] = '\0';
+	editorDapOutputClear();
 	(void)editorDapProcessIncomingMessage(
 	        "{\"type\":\"event\",\"event\":\"output\","
 	        "\"body\":{\"category\":\"stdout\",\"output\":\"GNU gdb banner\\n\"}}");
@@ -1123,8 +1137,7 @@ static int test_editor_dap_output_events_go_to_console(void) {
 	        "\"body\":{\"category\":\"console\",\"output\":\"adapter note\\n\"}}");
 	ASSERT_TRUE(strstr(E.dap_output, "GNU gdb banner") != NULL);
 	ASSERT_TRUE(strstr(E.dap_output, "adapter note") != NULL);
-	E.dap_output_len = 0;
-	E.dap_output[0] = '\0';
+	editorDapOutputClear();
 	return 0;
 }
 

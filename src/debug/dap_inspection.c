@@ -52,6 +52,14 @@ const struct editorDapVariable *editorDapInspectionVariableAt(int idx) {
 	return &E.dap_variables[idx];
 }
 
+const struct editorDapVariablePreviewChild *
+editorDapInspectionVariablePreviewChildAt(const struct editorDapVariable *var, int idx) {
+	if (var == NULL || idx < 0 || idx >= var->preview_child_count) {
+		return NULL;
+	}
+	return &var->preview_children[idx];
+}
+
 int editorDapInspectionScopeVariableCount(int scope_idx) {
 	int count = 0;
 	for (int i = 0; i < E.dap_variable_count; i++) {
@@ -260,6 +268,15 @@ static int dapInspectionCollectVariablePreviewChild(const char *obj_start, const
 		return 1;
 	}
 	int array_like = parent->indexed_variables > 0 && parent->named_variables == 0;
+	if (parent->preview_child_count < ROTIDE_DAP_VARIABLE_PREVIEW_MAX_CHILDREN) {
+		struct editorDapVariablePreviewChild *child =
+		        &parent->preview_children[parent->preview_child_count];
+		(void)snprintf(child->name, sizeof(child->name), "%.*s",
+		               (int)sizeof(child->name) - 1, name);
+		(void)snprintf(child->value, sizeof(child->value), "%.*s",
+		               (int)sizeof(child->value) - 1, value[0] != '\0' ? value : name);
+		parent->preview_child_count++;
+	}
 	if (g_dap_inspection_preview_child_count > 0 &&
 	    !dapInspectionPreviewAppendText(parent, ",")) {
 		return 0;
@@ -283,6 +300,12 @@ void editorDapInspectionApplyVariablePreviewResponse(const char *message, int pa
 	}
 	struct editorDapVariable *parent = &E.dap_variables[parent_index];
 	parent->preview[0] = '\0';
+	parent->preview_child_count = 0;
+	parent->preview_child_total =
+	        parent->indexed_variables > 0 ? parent->indexed_variables : parent->named_variables;
+	parent->preview_children_truncated = 0;
+	parent->preview_is_indexed = parent->indexed_variables > 0 && parent->named_variables == 0;
+	memset(parent->preview_children, 0, sizeof(parent->preview_children));
 	if (!dapInspectionPreviewAppendText(parent, "{")) {
 		return;
 	}
@@ -298,6 +321,7 @@ void editorDapInspectionApplyVariablePreviewResponse(const char *message, int pa
 	int total_children =
 	        parent->indexed_variables > 0 ? parent->indexed_variables : parent->named_variables;
 	if (total_children > g_dap_inspection_preview_child_count) {
+		parent->preview_children_truncated = 1;
 		(void)dapInspectionPreviewAppendText(parent, ",...");
 	}
 	(void)dapInspectionPreviewAppendText(parent, "}");

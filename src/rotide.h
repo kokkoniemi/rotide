@@ -704,6 +704,8 @@ struct editorConfig {
 	int dap_variable_count;
 	char dap_output[ROTIDE_DAP_OUTPUT_MAX];
 	size_t dap_output_len;
+	size_t dap_output_line_start[ROTIDE_DAP_OUTPUT_MAX_LINES];
+	int dap_output_line_count;
 	int dap_running;
 	int dap_stopped;
 	int dap_selected_launch;

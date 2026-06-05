@@ -760,54 +760,6 @@ cleanup:
 	return ok;
 }
 
-/* Count of logical lines in the DAP output transcript; a trailing newline does
- * not add an empty line. */
-static int paneViewDapConsoleLineCount(void) {
-	const char *output = editorDapOutputText();
-	size_t len = editorDapOutputLength();
-	if (len == 0) {
-		return 0;
-	}
-	int count = 0;
-	for (size_t i = 0; i < len; i++) {
-		if (output[i] == '\n') {
-			count++;
-		}
-	}
-	if (output[len - 1] != '\n') {
-		count++;
-	}
-	return count;
-}
-
-/* Bounds of logical line `index` of the transcript; *len_out is 0 when out of
- * range. */
-static void paneViewDapConsoleLine(int index, const char **out, int *len_out) {
-	*out = NULL;
-	*len_out = 0;
-	if (index < 0) {
-		return;
-	}
-	const char *output = editorDapOutputText();
-	size_t output_len = editorDapOutputLength();
-	int cur = 0;
-	size_t start = 0;
-	for (size_t i = 0; i <= output_len; i++) {
-		if (i == output_len || output[i] == '\n') {
-			if (i == output_len && start == i) {
-				break; /* empty trailing segment after the final newline */
-			}
-			if (cur == index) {
-				*out = &output[start];
-				*len_out = (int)(i - start);
-				return;
-			}
-			cur++;
-			start = i + 1;
-		}
-	}
-}
-
 /* Emits display columns [col, col+slice_cols) of `text` (1 byte/col,
  * non-printable -> '?'), padding short lines with spaces. */
 static int paneViewDapConsoleEmitSlice(struct writeBuf *wb, const char *text, int text_len, int col,
@@ -857,7 +809,7 @@ static int paneViewDrawDapConsoleSlice(struct writeBuf *wb, struct editorPaneNod
 	if (body_rows < 1) {
 		body_rows = 1;
 	}
-	int total = paneViewDapConsoleLineCount();
+	int total = editorDapOutputLineCount();
 	int scroll = console != NULL ? console->scroll : 0;
 	int max_scroll = total - body_rows < 0 ? 0 : total - body_rows;
 	if (scroll > max_scroll) {
@@ -874,7 +826,7 @@ static int paneViewDrawDapConsoleSlice(struct writeBuf *wb, struct editorPaneNod
 			len = (int)strlen(line);
 		}
 	} else {
-		paneViewDapConsoleLine(total - body_rows + row_in_pane - scroll, &line, &len);
+		(void)editorDapOutputLine(total - body_rows + row_in_pane - scroll, &line, &len);
 	}
 	return paneViewDapConsoleEmitSlice(wb, line, len, col_in_pane, slice_cols);
 }

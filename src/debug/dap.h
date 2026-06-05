@@ -14,11 +14,15 @@
 #define ROTIDE_DAP_KEY_MAX 64
 #define ROTIDE_DAP_VALUE_MAX 1024
 #define ROTIDE_DAP_OUTPUT_MAX 4096
+#define ROTIDE_DAP_OUTPUT_MAX_LINES ROTIDE_DAP_OUTPUT_MAX
 #define ROTIDE_DAP_MAX_BREAKPOINTS 128
 #define ROTIDE_DAP_MAX_THREADS 32
 #define ROTIDE_DAP_MAX_STACK_FRAMES 128
 #define ROTIDE_DAP_MAX_SCOPES 64
 #define ROTIDE_DAP_MAX_VARIABLES 256
+#define ROTIDE_DAP_VARIABLE_PREVIEW_MAX_CHILDREN 6
+#define ROTIDE_DAP_VARIABLE_PREVIEW_CHILD_NAME_MAX 64
+#define ROTIDE_DAP_VARIABLE_PREVIEW_CHILD_VALUE_MAX 256
 
 enum editorDapLaunchValueKind {
 	EDITOR_DAP_LAUNCH_VALUE_STRING = 0,
@@ -92,16 +96,27 @@ struct editorDapScope {
 	char name[ROTIDE_DAP_NAME_MAX];
 };
 
+struct editorDapVariablePreviewChild {
+	char name[ROTIDE_DAP_VARIABLE_PREVIEW_CHILD_NAME_MAX];
+	char value[ROTIDE_DAP_VARIABLE_PREVIEW_CHILD_VALUE_MAX];
+};
+
 struct editorDapVariable {
 	int variables_reference;
 	int named_variables;
 	int indexed_variables;
 	int scope_index; /* index into E.dap_scopes[] that this variable belongs to */
+	int preview_child_count;
+	int preview_child_total;
+	int preview_children_truncated;
+	int preview_is_indexed;
 	char name[ROTIDE_DAP_NAME_MAX];
 	char type[ROTIDE_DAP_VALUE_MAX];
 	char value[ROTIDE_DAP_VALUE_MAX];
 	char preview[ROTIDE_DAP_VALUE_MAX];
 	char memory_reference[ROTIDE_DAP_VALUE_MAX];
+	struct editorDapVariablePreviewChild
+	        preview_children[ROTIDE_DAP_VARIABLE_PREVIEW_MAX_CHILDREN];
 };
 
 void editorDapLaunchFieldClear(struct editorDapLaunchField *field);

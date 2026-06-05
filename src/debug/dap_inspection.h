@@ -11,6 +11,8 @@ int editorDapInspectionScopeCount(void);
 const struct editorDapScope *editorDapInspectionScopeAt(int idx);
 int editorDapInspectionVariableCount(void);
 const struct editorDapVariable *editorDapInspectionVariableAt(int idx);
+const struct editorDapVariablePreviewChild *
+editorDapInspectionVariablePreviewChildAt(const struct editorDapVariable *var, int idx);
 int editorDapInspectionScopeVariableCount(int scope_idx);
 int editorDapInspectionScopeVariableIndex(int scope_idx, int nth);
 void editorDapInspectionClearState(void);
