@@ -604,6 +604,14 @@ int editorDapStartSelectedLaunch(void) {
 	return editorDapStartLaunch(launch_idx);
 }
 
+int editorDapIsRunning(void) {
+	return E.dap_running;
+}
+
+int editorDapIsStopped(void) {
+	return E.dap_stopped;
+}
+
 static int dapSendThreadControl(const char *command) {
 	return editorDapControlSendThread(g_dap_client.process.to_adapter_fd,
 	                                  &g_dap_client.next_seq, command,

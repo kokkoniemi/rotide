@@ -8,6 +8,74 @@
 #include <stdio.h>
 #include <string.h>
 
+int editorDapInspectionThreadCount(void) {
+	return E.dap_thread_count;
+}
+
+const struct editorDapThread *editorDapInspectionThreadAt(int idx) {
+	if (idx < 0 || idx >= E.dap_thread_count) {
+		return NULL;
+	}
+	return &E.dap_threads[idx];
+}
+
+int editorDapInspectionStackFrameCount(void) {
+	return E.dap_stack_frame_count;
+}
+
+const struct editorDapStackFrame *editorDapInspectionStackFrameAt(int idx) {
+	if (idx < 0 || idx >= E.dap_stack_frame_count) {
+		return NULL;
+	}
+	return &E.dap_stack_frames[idx];
+}
+
+int editorDapInspectionScopeCount(void) {
+	return E.dap_scope_count;
+}
+
+const struct editorDapScope *editorDapInspectionScopeAt(int idx) {
+	if (idx < 0 || idx >= E.dap_scope_count) {
+		return NULL;
+	}
+	return &E.dap_scopes[idx];
+}
+
+int editorDapInspectionVariableCount(void) {
+	return E.dap_variable_count;
+}
+
+const struct editorDapVariable *editorDapInspectionVariableAt(int idx) {
+	if (idx < 0 || idx >= E.dap_variable_count) {
+		return NULL;
+	}
+	return &E.dap_variables[idx];
+}
+
+int editorDapInspectionScopeVariableCount(int scope_idx) {
+	int count = 0;
+	for (int i = 0; i < E.dap_variable_count; i++) {
+		if (E.dap_variables[i].scope_index == scope_idx) {
+			count++;
+		}
+	}
+	return count;
+}
+
+int editorDapInspectionScopeVariableIndex(int scope_idx, int nth) {
+	int seen = 0;
+	for (int i = 0; i < E.dap_variable_count; i++) {
+		if (E.dap_variables[i].scope_index != scope_idx) {
+			continue;
+		}
+		if (seen == nth) {
+			return i;
+		}
+		seen++;
+	}
+	return -1;
+}
+
 void editorDapInspectionClearState(void) {
 	E.dap_thread_count = 0;
 	E.dap_stack_frame_count = 0;

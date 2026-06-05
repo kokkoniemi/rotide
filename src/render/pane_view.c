@@ -2,6 +2,7 @@
 
 #include "config/theme_config.h"
 #include "debug/dap_console.h"
+#include "debug/dap_output.h"
 #include "input/text_pairs.h"
 #include "language/syntax.h"
 #include "language/syntax_visible_cache.h"
@@ -762,17 +763,18 @@ cleanup:
 /* Count of logical lines in the DAP output transcript; a trailing newline does
  * not add an empty line. */
 static int paneViewDapConsoleLineCount(void) {
-	size_t len = E.dap_output_len;
+	const char *output = editorDapOutputText();
+	size_t len = editorDapOutputLength();
 	if (len == 0) {
 		return 0;
 	}
 	int count = 0;
 	for (size_t i = 0; i < len; i++) {
-		if (E.dap_output[i] == '\n') {
+		if (output[i] == '\n') {
 			count++;
 		}
 	}
-	if (E.dap_output[len - 1] != '\n') {
+	if (output[len - 1] != '\n') {
 		count++;
 	}
 	return count;
@@ -786,15 +788,17 @@ static void paneViewDapConsoleLine(int index, const char **out, int *len_out) {
 	if (index < 0) {
 		return;
 	}
+	const char *output = editorDapOutputText();
+	size_t output_len = editorDapOutputLength();
 	int cur = 0;
 	size_t start = 0;
-	for (size_t i = 0; i <= E.dap_output_len; i++) {
-		if (i == E.dap_output_len || E.dap_output[i] == '\n') {
-			if (i == E.dap_output_len && start == i) {
+	for (size_t i = 0; i <= output_len; i++) {
+		if (i == output_len || output[i] == '\n') {
+			if (i == output_len && start == i) {
 				break; /* empty trailing segment after the final newline */
 			}
 			if (cur == index) {
-				*out = &E.dap_output[start];
+				*out = &output[start];
 				*len_out = (int)(i - start);
 				return;
 			}

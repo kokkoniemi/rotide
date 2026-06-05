@@ -3,6 +3,16 @@
 
 #include "debug/dap.h"
 
+int editorDapInspectionThreadCount(void);
+const struct editorDapThread *editorDapInspectionThreadAt(int idx);
+int editorDapInspectionStackFrameCount(void);
+const struct editorDapStackFrame *editorDapInspectionStackFrameAt(int idx);
+int editorDapInspectionScopeCount(void);
+const struct editorDapScope *editorDapInspectionScopeAt(int idx);
+int editorDapInspectionVariableCount(void);
+const struct editorDapVariable *editorDapInspectionVariableAt(int idx);
+int editorDapInspectionScopeVariableCount(int scope_idx);
+int editorDapInspectionScopeVariableIndex(int scope_idx, int nth);
 void editorDapInspectionClearState(void);
 void editorDapInspectionApplyThreadsResponse(const char *message);
 void editorDapInspectionApplyStackTraceResponse(const char *message);

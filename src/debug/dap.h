@@ -119,6 +119,8 @@ int editorDapStartSelectedLaunch(void);
 int editorDapStartLaunch(int launch_idx);
 int editorDapStop(void);
 int editorDapRestart(void);
+int editorDapIsRunning(void);
+int editorDapIsStopped(void);
 /* Sends a REPL `evaluate` request for `expr`, scoped to the top stack frame when
  * stopped. The expression echo and result are appended to the DAP output stream.
  * Returns 1 if the request was sent. */

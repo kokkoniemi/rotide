@@ -709,8 +709,7 @@ struct editorConfig {
 	int dap_selected_launch;
 	/* The pane hosting the Debug Console panel (a DEBUG_CONSOLE tab plus, when
 	 * launched with console="terminal", a TERMINAL tab), or NULL. The console's
-	 * scroll + REPL input live on the DEBUG_CONSOLE tab payload; the transcript
-	 * is the shared E.dap_output. */
+	 * scroll + REPL input live on the DEBUG_CONSOLE tab payload. */
 	struct editorPaneNode *dap_console_leaf;
 
 	/* --- Config-derived: editor preferences --- */

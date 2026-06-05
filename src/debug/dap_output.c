@@ -28,3 +28,11 @@ void editorDapOutputAppend(const char *text) {
 	E.dap_output_len += len;
 	E.dap_output[E.dap_output_len] = '\0';
 }
+
+const char *editorDapOutputText(void) {
+	return E.dap_output;
+}
+
+size_t editorDapOutputLength(void) {
+	return E.dap_output_len;
+}

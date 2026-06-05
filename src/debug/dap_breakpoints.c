@@ -8,6 +8,17 @@
 #include <stdio.h>
 #include <string.h>
 
+int editorDapBreakpointsCount(void) {
+	return E.dap_breakpoint_count;
+}
+
+const struct editorDapBreakpoint *editorDapBreakpointsAt(int idx) {
+	if (idx < 0 || idx >= E.dap_breakpoint_count) {
+		return NULL;
+	}
+	return &E.dap_breakpoints[idx];
+}
+
 int editorDapHasBreakpoint(const char *path, int line) {
 	if (path == NULL || path[0] == '\0') {
 		return -1;

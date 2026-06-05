@@ -1,6 +1,7 @@
 #include "render/status_bar.h"
 
 #include "config/theme_config.h"
+#include "debug/dap.h"
 #include "render/ansi_style.h"
 #include "render/display_text.h"
 #include "render/write_buf.h"
@@ -113,7 +114,7 @@ static int statusBarAppendDebugSegment(struct writeBuf *wb, int max_col, int *co
 	}
 	col += (col + 1 <= max_col) ? 1 : 0;
 
-	const char *badge = E.dap_stopped ? "PAUSED" : "RUNNING";
+	const char *badge = editorDapIsStopped() ? "PAUSED" : "RUNNING";
 	int blen = (int)strlen(badge);
 	if (col + blen <= max_col) {
 		if (!wbAppend(wb, VT100_BOLD_ON, (int)strlen(VT100_BOLD_ON)) ||
@@ -136,7 +137,7 @@ static int statusBarAppendDebugSegment(struct writeBuf *wb, int max_col, int *co
 	struct editorThemeColor color_stop = editorThemeResolveAnsi(EDITOR_THEME_ANSI_RED, 1);
 
 	int nerd = E.nerd_fonts_enabled;
-	if (E.dap_stopped) {
+	if (editorDapIsStopped()) {
 		if (!statusDebugButton(wb, &col, max_col, nerd ? STATUS_DAP_ICON_CONT : NULL,
 		                       &color_cont, "Cont", EDITOR_ACTION_DAP_CONTINUE) ||
 		    !statusDebugButton(wb, &col, max_col, nerd ? STATUS_DAP_ICON_OVER : NULL, NULL,
@@ -227,7 +228,7 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 	/* Debug control segment occupies the far left while a session is active;
 	 * the path/diagnostics region renders into whatever space remains. */
 	int debug_cols = 0;
-	if (E.dap_running) {
+	if (editorDapIsRunning()) {
 		if (!statusBarAppendDebugSegment(wb, right_start_col, &debug_cols)) {
 			return 0;
 		}
