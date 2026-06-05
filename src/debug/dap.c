@@ -1,6 +1,7 @@
 #include "debug/dap.h"
 
 #include "config/dap_config.h"
+#include "debug/dap_breakpoints.h"
 #include "debug/dap_client.h"
 #include "debug/dap_console.h"
 #include "debug/dap_inspection.h"
@@ -131,17 +132,9 @@ static int dapSendRequest(char *json) {
 
 static void dapSendAllBreakpoints(void) {
 	for (int i = 0; i < E.dap_breakpoint_count; i++) {
-		int seen = 0;
-		for (int j = 0; j < i; j++) {
-			if (strcmp(E.dap_breakpoints[i].path, E.dap_breakpoints[j].path) == 0) {
-				seen = 1;
-				break;
-			}
-		}
-		if (!seen) {
-			(void)dapSendRequest(editorDapBuildSetBreakpointsRequestJson(
-			        g_dap_client.next_seq++, E.dap_breakpoints[i].path,
-			        E.dap_breakpoints, E.dap_breakpoint_count));
+		if (!editorDapBreakpointsPathWasSeenBefore(i)) {
+			(void)dapSendRequest(editorDapBreakpointsBuildSetRequestJson(
+			        g_dap_client.next_seq++, E.dap_breakpoints[i].path));
 		}
 	}
 }
@@ -787,19 +780,6 @@ int editorDapRestart(void) {
 	return editorDapStartLaunch(launch_idx);
 }
 
-int editorDapHasBreakpoint(const char *path, int line) {
-	if (path == NULL || path[0] == '\0') {
-		return -1;
-	}
-	for (int i = 0; i < E.dap_breakpoint_count; i++) {
-		if (E.dap_breakpoints[i].line == line &&
-		    strcmp(E.dap_breakpoints[i].path, path) == 0) {
-			return i;
-		}
-	}
-	return -1;
-}
-
 int editorDapIsStoppedLine(const char *path, int line) {
 	if (!E.dap_stopped || E.dap_stack_frame_count <= 0 || path == NULL || path[0] == '\0') {
 		return 0;
@@ -817,33 +797,24 @@ int editorDapToggleBreakpointAtLine(int line) {
 		editorSetStatusMsg("Save the file before setting a breakpoint");
 		return 0;
 	}
-	if (line < 0) {
-		return 0;
-	}
-	int idx = editorDapHasBreakpoint(E.filename, line);
-	if (idx >= 0) {
-		for (int i = idx; i + 1 < E.dap_breakpoint_count; i++) {
-			E.dap_breakpoints[i] = E.dap_breakpoints[i + 1];
-		}
-		E.dap_breakpoint_count--;
-		editorSetStatusMsg("Breakpoint removed");
-	} else {
-		if (E.dap_breakpoint_count >= ROTIDE_DAP_MAX_BREAKPOINTS ||
-		    strlen(E.filename) >= PATH_MAX) {
+	enum editorDapBreakpointToggleResult result =
+	        editorDapBreakpointsTogglePathLine(E.filename, line);
+	switch (result) {
+		case EDITOR_DAP_BREAKPOINT_TOGGLE_SET:
+			editorSetStatusMsg("Breakpoint set");
+			break;
+		case EDITOR_DAP_BREAKPOINT_TOGGLE_REMOVED:
+			editorSetStatusMsg("Breakpoint removed");
+			break;
+		case EDITOR_DAP_BREAKPOINT_TOGGLE_TOO_MANY:
 			editorSetStatusMsg("Too many DAP breakpoints");
 			return 0;
-		}
-		struct editorDapBreakpoint *bp = &E.dap_breakpoints[E.dap_breakpoint_count++];
-		memset(bp, 0, sizeof(*bp));
-		bp->kind = EDITOR_DAP_BREAKPOINT_LINE;
-		(void)snprintf(bp->path, sizeof(bp->path), "%s", E.filename);
-		bp->line = line;
-		editorSetStatusMsg("Breakpoint set");
+		case EDITOR_DAP_BREAKPOINT_TOGGLE_INVALID:
+			return 0;
 	}
 	if (E.dap_running) {
-		(void)dapSendRequest(editorDapBuildSetBreakpointsRequestJson(
-		        g_dap_client.next_seq++, E.filename, E.dap_breakpoints,
-		        E.dap_breakpoint_count));
+		(void)dapSendRequest(editorDapBreakpointsBuildSetRequestJson(
+		        g_dap_client.next_seq++, E.filename));
 	}
 	return 1;
 }

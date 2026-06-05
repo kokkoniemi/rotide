@@ -8,6 +8,7 @@ src/config/runtime_config.c	runtimeConfig
 src/config/theme_builtin.c	themeBuiltin
 src/config/theme_parse.c	themeParse
 src/debug/dap.c	dap
+src/debug/dap_breakpoints.c	dapBreakpoints
 src/debug/dap_client.c	dapClient
 src/debug/dap_console.c	dapConsole
 src/debug/dap_inspection.c	dapInspection
