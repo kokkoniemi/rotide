@@ -1,6 +1,8 @@
 #include "render/pane_view.h"
 
 #include "config/theme_config.h"
+#include "debug/dap_console.h"
+#include "debug/dap_output.h"
 #include "input/text_pairs.h"
 #include "language/syntax.h"
 #include "language/syntax_visible_cache.h"
@@ -29,6 +31,7 @@
 
 int editorAppendCursorMove(struct writeBuf *wb, int row, int col);
 extern int g_screen_drawing_current_line_highlight;
+extern int g_screen_drawing_stopped_line_highlight;
 
 struct paneViewSyntaxRowOverride {
 	int valid;
@@ -366,13 +369,19 @@ int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode 
 		}
 	}
 
-	int highlight_row =
-	        y_offset < E.numrows && editorCurrentLineHighlightApplies(y_offset, segment_coloff);
+	int stopped_row = y_offset < E.numrows && editorDebugStoppedLineHighlightApplies(y_offset);
+	int highlight_row = !stopped_row && y_offset < E.numrows &&
+	                    editorCurrentLineHighlightApplies(y_offset, segment_coloff);
+	if (stopped_row &&
+	    !editorAppendThemeBackgroundRole(wb, EDITOR_THEME_UI_DEBUG_STOPPED_LINE_BG)) {
+		goto fail;
+	}
 	if (highlight_row &&
 	    !editorAppendThemeBackgroundRole(wb, EDITOR_THEME_UI_CURRENT_LINE_BG)) {
 		goto fail;
 	}
 	g_screen_drawing_current_line_highlight = highlight_row;
+	g_screen_drawing_stopped_line_highlight = stopped_row;
 	if (!editorDrawLineNumberGutter(wb, y_offset, segment_coloff, gutter_cols)) {
 		goto fail;
 	}
@@ -398,7 +407,8 @@ int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode 
 		}
 	}
 	g_screen_drawing_current_line_highlight = 0;
-	if (highlight_row && !editorAppendThemeReset(wb)) {
+	g_screen_drawing_stopped_line_highlight = 0;
+	if ((highlight_row || stopped_row) && !editorAppendThemeReset(wb)) {
 		goto fail_reset;
 	}
 	g_pane_view_wrap_body_cols_override = saved_wrap_body_cols_override;
@@ -408,6 +418,7 @@ int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode 
 
 fail:
 	g_screen_drawing_current_line_highlight = 0;
+	g_screen_drawing_stopped_line_highlight = 0;
 fail_reset:
 	g_pane_view_wrap_body_cols_override = saved_wrap_body_cols_override;
 	g_pane_view_active_row_syntax_override = saved_row_syntax_override;
@@ -563,39 +574,41 @@ int editorBuildSinglePaneRowLine(struct writeBuf *wb, int y, int drawer_cols, in
 	if (file_cols < 1) {
 		file_cols = 1;
 	}
-	int highlight_row =
-	        y_offset < E.numrows && editorCurrentLineHighlightApplies(y_offset, segment_coloff);
+	int stopped_row = y_offset < E.numrows && editorDebugStoppedLineHighlightApplies(y_offset);
+	int highlight_row = !stopped_row && y_offset < E.numrows &&
+	                    editorCurrentLineHighlightApplies(y_offset, segment_coloff);
+	if (stopped_row &&
+	    !editorAppendThemeBackgroundRole(wb, EDITOR_THEME_UI_DEBUG_STOPPED_LINE_BG)) {
+		return 0;
+	}
 	if (highlight_row &&
 	    !editorAppendThemeBackgroundRole(wb, EDITOR_THEME_UI_CURRENT_LINE_BG)) {
 		return 0;
 	}
 	g_screen_drawing_current_line_highlight = highlight_row;
+	g_screen_drawing_stopped_line_highlight = stopped_row;
 	if (!editorDrawLineNumberGutter(wb, y_offset, segment_coloff, gutter_cols)) {
-		g_screen_drawing_current_line_highlight = 0;
-		return 0;
+		goto clear_highlight;
 	}
 	if (y_offset < E.numrows) {
 		if (E.line_wrap_enabled) {
 			if (!editorDrawFileRowWrapped(wb, (size_t)y_offset, file_cols,
 			                              segment_coloff)) {
-				g_screen_drawing_current_line_highlight = 0;
-				return 0;
+				goto clear_highlight;
 			}
 		} else if (!editorDrawFileRow(wb, (size_t)y_offset, file_cols)) {
-			g_screen_drawing_current_line_highlight = 0;
-			return 0;
+			goto clear_highlight;
 		}
 	} else if (E.numrows == 0 && y == E.window_rows / 3) {
 		if (!paneViewDrawGreeting(wb, file_cols)) {
-			g_screen_drawing_current_line_highlight = 0;
-			return 0;
+			goto clear_highlight;
 		}
 	} else if (!editorAppendGrayBytes(wb, "~", 1)) {
-		g_screen_drawing_current_line_highlight = 0;
-		return 0;
+		goto clear_highlight;
 	}
 	g_screen_drawing_current_line_highlight = 0;
-	if (highlight_row && !editorAppendThemeReset(wb)) {
+	g_screen_drawing_stopped_line_highlight = 0;
+	if ((highlight_row || stopped_row) && !editorAppendThemeReset(wb)) {
 		return 0;
 	}
 
@@ -608,6 +621,11 @@ int editorBuildSinglePaneRowLine(struct writeBuf *wb, int y, int drawer_cols, in
 	}
 
 	return 1;
+
+clear_highlight:
+	g_screen_drawing_current_line_highlight = 0;
+	g_screen_drawing_stopped_line_highlight = 0;
+	return 0;
 }
 
 static int paneViewLeafAt(const struct editorLeafLayout *layout, int x, int y,
@@ -742,6 +760,77 @@ cleanup:
 	return ok;
 }
 
+/* Emits display columns [col, col+slice_cols) of `text` (1 byte/col,
+ * non-printable -> '?'), padding short lines with spaces. */
+static int paneViewDapConsoleEmitSlice(struct writeBuf *wb, const char *text, int text_len, int col,
+                                       int slice_cols) {
+	for (int i = 0; i < slice_cols; i++) {
+		int c = col + i;
+		char ch = ' ';
+		if (text != NULL && c >= 0 && c < text_len) {
+			unsigned char b = (unsigned char)text[c];
+			ch = (b >= 0x20 && b < 0x7f) ? (char)b : '?';
+		}
+		if (!wbAppend(wb, &ch, 1)) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+/* Renders one horizontal slice of the Debug Console tab body: the inline REPL
+ * input occupies the last row, the dap_output transcript fills the rows above.
+ * The pane's Terminal / Debug Console tab strip is drawn by the normal
+ * separator-row renderer, not here. Emits exactly slice_cols columns. */
+static int paneViewDrawDapConsoleSlice(struct writeBuf *wb, struct editorPaneNode *leaf,
+                                       int row_in_pane, int col_in_pane, int slice_cols,
+                                       const struct editorRect *rect) {
+	if (slice_cols <= 0) {
+		return 1;
+	}
+	struct editorDapConsolePane *console = editorDapConsoleForPane(leaf);
+	if (!editorAppendThemeReset(wb)) {
+		return 0;
+	}
+	int input_row = rect->h - 1;
+	if (row_in_pane == input_row && input_row >= 0) {
+		/* The caret is drawn by the hardware cursor (placed on this line when the
+		 * console is focused), so the input line is just plain text. */
+		const char *input_text = console != NULL ? console->input : "";
+		char inbuf[(int)sizeof(console->input) + 4];
+		int ilen = snprintf(inbuf, sizeof(inbuf), "> %s", input_text);
+		if (ilen < 0) {
+			ilen = 0;
+		}
+		return paneViewDapConsoleEmitSlice(wb, inbuf, ilen, col_in_pane, slice_cols);
+	}
+
+	int body_rows = rect->h - 1; /* transcript rows above the input line */
+	if (body_rows < 1) {
+		body_rows = 1;
+	}
+	int total = editorDapOutputLineCount();
+	int scroll = console != NULL ? console->scroll : 0;
+	int max_scroll = total - body_rows < 0 ? 0 : total - body_rows;
+	if (scroll > max_scroll) {
+		scroll = max_scroll;
+	}
+	if (scroll < 0) {
+		scroll = 0;
+	}
+	const char *line = NULL;
+	int len = 0;
+	if (total == 0) {
+		if (row_in_pane == 0) {
+			line = "(no debug output)";
+			len = (int)strlen(line);
+		}
+	} else {
+		(void)editorDapOutputLine(total - body_rows + row_in_pane - scroll, &line, &len);
+	}
+	return paneViewDapConsoleEmitSlice(wb, line, len, col_in_pane, slice_cols);
+}
+
 int editorDrawMultiPaneRows(struct writeBuf *wb, const struct editorLeafLayout *layout,
                             const struct editorBorderList *borders,
                             struct editorRect focused_rect) {
@@ -816,15 +905,19 @@ int editorDrawMultiPaneRows(struct writeBuf *wb, const struct editorLeafLayout *
 				slice_cols = 1;
 			}
 			struct editorPaneNode *leaf_node = layout->rects[leaf_idx].node;
-			if (leaf_node != NULL &&
-			    leaf_node->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL) {
-				int row_in_pane = screen_y - leaf_rect.y;
-				int col_in_pane = x - leaf_rect.x;
-				if (!editorDrawTerminalCells(wb,
-				                             (struct editorTerminalPane *)
-				                                     leaf_node->as.leaf.kind_state,
-				                             row_in_pane, col_in_pane,
-				                             slice_cols)) {
+			struct editorTerminalPane *tab_term = editorTerminalPaneForPane(leaf_node);
+			if (tab_term != NULL) {
+				/* Active TERMINAL tab: the tab strip is in the border row
+				 * above, so content starts at the pane's top row. */
+				if (!editorDrawTerminalCells(wb, tab_term, screen_y - leaf_rect.y,
+				                             x - leaf_rect.x, slice_cols)) {
+					goto cleanup;
+				}
+			} else if (editorPaneActiveKind(leaf_node) ==
+			           EDITOR_PANE_KIND_DEBUG_CONSOLE) {
+				if (!paneViewDrawDapConsoleSlice(
+				            wb, leaf_node, screen_y - leaf_rect.y, x - leaf_rect.x,
+				            slice_cols, &leaf_rect)) {
 					goto cleanup;
 				}
 			} else {

@@ -1,8 +1,10 @@
 #include "input/actions_terminal_debug.h"
 
 #include "debug/dap.h"
+#include "debug/dap_console.h"
 #include "editing/edit.h"
 #include "editing/history.h"
+#include "input/prompt.h"
 #include "rotide.h"
 #include "terminal/terminal_pane.h"
 #include "workspace/layout.h"
@@ -33,6 +35,23 @@ int editorHandleTerminalDebugMappedAction(enum editorAction action) {
 		case EDITOR_ACTION_DAP_STOP:
 			editorHistoryBreakGroup();
 			(void)editorDapStop();
+			return 1;
+		case EDITOR_ACTION_DAP_RESTART:
+			editorHistoryBreakGroup();
+			(void)editorDapRestart();
+			return 1;
+		case EDITOR_ACTION_DAP_EVALUATE: {
+			editorHistoryBreakGroup();
+			char *expr = editorPrompt("DAP eval: %s");
+			if (expr != NULL) {
+				(void)editorDapEvaluate(expr);
+				free(expr);
+			}
+			return 1;
+		}
+		case EDITOR_ACTION_DAP_CONSOLE:
+			editorHistoryBreakGroup();
+			(void)editorDapConsoleToggle();
 			return 1;
 		case EDITOR_ACTION_DAP_CONTINUE:
 			editorHistoryBreakGroup();

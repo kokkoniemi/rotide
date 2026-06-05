@@ -65,6 +65,12 @@ struct editorTerminalPane {
 /* Spawn command in PTY + vterm. Caller owns returned pane. */
 struct editorTerminalPane *editorTerminalPaneCreate(const char *command, int cols, int rows);
 
+/* Create a pane around a childless PTY (vterm + master fd, pid = -1) and write
+ * the slave device path to `slave_path`. For hosting an external process's tty
+ * (e.g. a debuggee) without forking a placeholder. Caller owns the pane. */
+struct editorTerminalPane *editorTerminalPaneCreateDetached(int cols, int rows, char *slave_path,
+                                                            size_t slave_path_size);
+
 /* Release pane resources and terminate child if needed. Safe on NULL. */
 void editorTerminalPaneFree(void *pane);
 
@@ -130,12 +136,23 @@ int editorTerminalPaneGetDefaultScrollbackLines(void);
 VTermScreenCell *editorTerminalPaneEnsureRenderRowScratch(struct editorTerminalPane *terminal,
                                                           int cells);
 
-/* Build a TERMINAL leaf node with owned terminal pane state. */
 struct editorPaneNode;
-struct editorPaneNode *editorPaneNodeNewTerminalLeaf(const char *command, int cols, int rows);
 
-/* Pump all terminal leaves; returns total bytes/activity count. */
+/* The active terminal of `pane`: the payload of its active tab when that tab is
+ * a TERMINAL tab, else NULL. */
+struct editorTerminalPane *editorTerminalPaneForPane(const struct editorPaneNode *pane);
+
+/* Force a full repaint of `terminal` on the next frame. Needed when a terminal
+ * tab becomes visible again: its rows are otherwise "clean" and the partial-
+ * repaint path would leave whatever the previously-active tab painted. */
+void editorTerminalPaneMarkDirty(struct editorTerminalPane *terminal);
+
+/* Pump every live terminal (the TERMINAL tabs in E.tabs); returns total
+ * bytes/activity count. `root` is unused, kept for call-site symmetry. */
 int editorTerminalPanePumpAll(struct editorPaneNode *root);
+
+/* Close TERMINAL tabs whose child has exited. Returns the number closed. */
+int editorTerminalPaneCloseExitedTabs(void);
 
 /* Append every terminal pane's master_fd (only those >= 0) into fds_out[],
  * writing at most `capacity` entries. Returns the number of fds that would
@@ -143,24 +160,19 @@ int editorTerminalPanePumpAll(struct editorPaneNode *root);
  * against `capacity`. */
 int editorTerminalPaneCollectMasterFds(struct editorPaneNode *root, int *fds_out, int capacity);
 
-/* Resize all terminal leaves to current layout rects. */
+/* Resize each pane's active TERMINAL tab to its current layout rect. */
 void editorTerminalPaneResizeAllToLayout(struct editorPaneNode *root);
 
-/* Returns 1 when pane tree contains at least one terminal leaf. */
+/* Returns 1 when at least one TERMINAL tab exists. */
 int editorTerminalPaneTreeHasTerminal(const struct editorPaneNode *root);
 
-/* Close terminal leaves with exited child; updates focus/tracked leaf refs. */
-int editorTerminalPaneCloseExited(struct editorPaneNode **root_ptr,
-                                  struct editorPaneNode **focused_leaf_ptr,
-                                  struct editorPaneNode **tracked_leaf_ptr);
-
-/* Split focused pane, replace new sibling with terminal pane, and focus it. */
+/* Split focused pane and host a terminal as a TERMINAL tab in the new pane. */
 struct editorPaneNode *editorTerminalPaneOpenSplit(const char *command, int orientation);
 
-/* Walk `root` and instantiate a PTY for every leaf with
- * kind == EDITOR_PANE_KIND_TERMINAL && kind_state == NULL. Every placeholder
- * is spawned with the same `command`. Failed spawns demote the leaf back to
- * EDITOR_PANE_KIND_EDITOR. Returns the number of failed spawns. */
+/* Walk `root` and, for every kind == EDITOR_PANE_KIND_TERMINAL placeholder leaf
+ * (produced by deserializing a `term` token), spawn a PTY with `command` and
+ * convert the leaf to an editor leaf hosting a TERMINAL tab. Failed spawns demote
+ * the leaf back to EDITOR_PANE_KIND_EDITOR. Returns the number of failed spawns. */
 int editorTerminalPaneHydratePlaceholders(struct editorPaneNode *root, const char *command);
 
 #endif

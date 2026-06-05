@@ -1,6 +1,8 @@
 #include "render/screen.h"
 
 #include "config/theme_config.h"
+#include "debug/dap.h"
+#include "debug/dap_console.h"
 #include "editing/document_position.h"
 #include "editing/edit.h"
 #include "editing/selection.h"
@@ -58,6 +60,8 @@
 #define TEXT_OVERFLOW_LEFT_UTF8 "\xE2\x86\x90"
 #define TEXT_OVERFLOW_RIGHT_UTF8 "\xE2\x86\x92"
 #define TEXT_WRAP_CONTINUATION_UTF8 "\xE2\x86\xB3"
+#define TEXT_DAP_BREAKPOINT_UTF8 "\xE2\x97\x8F"   /* U+25CF BLACK CIRCLE */
+#define TEXT_DAP_STOPPED_LINE_UTF8 "\xE2\x96\xB6" /* U+25B6 BLACK RIGHT-POINTING TRIANGLE */
 
 int editorAppendGrayBytes(struct writeBuf *wb, const char *text, size_t len) {
 	return editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_PLACEHOLDER) &&
@@ -91,6 +95,7 @@ struct screenRenderSliceArgs {
 static struct screenFileRowFrameCache g_screen_file_row_frame_cache = {0};
 static int g_screen_last_refresh_file_row_draw_count = 0;
 int g_screen_drawing_current_line_highlight = 0;
+int g_screen_drawing_stopped_line_highlight = 0;
 static int g_screen_popup_prev_screen_top = 0;
 static int g_screen_popup_prev_row_count = 0;
 
@@ -124,6 +129,10 @@ static void screenFileRowFrameCacheReset(void) {
 static int screenAppendTextRowReset(struct writeBuf *wb) {
 	if (!editorAppendThemeReset(wb)) {
 		return 0;
+	}
+	/* The debug stopped-line tint takes precedence over the cursor-line tint. */
+	if (g_screen_drawing_stopped_line_highlight) {
+		return editorAppendThemeBackgroundRole(wb, EDITOR_THEME_UI_DEBUG_STOPPED_LINE_BG);
 	}
 	if (g_screen_drawing_current_line_highlight &&
 	    !editorAppendThemeBackgroundRole(wb, EDITOR_THEME_UI_CURRENT_LINE_BG)) {
@@ -930,6 +939,10 @@ int editorCurrentLineHighlightApplies(int row_idx, int segment_coloff) {
 	return segment_coloff == cursor_segment_coloff;
 }
 
+int editorDebugStoppedLineHighlightApplies(int row_idx) {
+	return row_idx >= 0 && row_idx < E.numrows && editorDapIsStoppedLine(E.filename, row_idx);
+}
+
 int editorDrawLineNumberGutter(struct writeBuf *wb, int row_idx, int segment_coloff,
                                int gutter_cols) {
 	if (gutter_cols <= 0) {
@@ -968,8 +981,27 @@ int editorDrawLineNumberGutter(struct writeBuf *wb, int row_idx, int segment_col
 		if (len > 0 && !wbAppend(wb, visible_number, (size_t)len)) {
 			return 0;
 		}
-		if (gutter_cols > 1 && !wbAppend(wb, " ", 1)) {
-			return 0;
+		/* The trailing separator column doubles as the debug marker slot, so a
+		 * breakpoint/stopped indicator never widens the gutter. Stopped line
+		 * takes precedence over a breakpoint on the same row. */
+		if (gutter_cols > 1) {
+			if (editorDapIsStoppedLine(E.filename, row_idx)) {
+				if (!editorAppendThemeForegroundRole(
+				            wb, EDITOR_THEME_UI_DEBUG_STOPPED_LINE) ||
+				    !wbAppend(wb, TEXT_DAP_STOPPED_LINE_UTF8,
+				              sizeof(TEXT_DAP_STOPPED_LINE_UTF8) - 1)) {
+					return 0;
+				}
+			} else if (editorDapHasBreakpoint(E.filename, row_idx) >= 0) {
+				if (!editorAppendThemeForegroundRole(wb,
+				                                     EDITOR_THEME_UI_BREAKPOINT) ||
+				    !wbAppend(wb, TEXT_DAP_BREAKPOINT_UTF8,
+				              sizeof(TEXT_DAP_BREAKPOINT_UTF8) - 1)) {
+					return 0;
+				}
+			} else if (!wbAppend(wb, " ", 1)) {
+				return 0;
+			}
 		}
 		return editorAppendThemeBaseForeground(wb);
 	}
@@ -1131,8 +1163,7 @@ static int screenDrawRows(struct writeBuf *wb) {
 	if (had_terminal) {
 		struct editorPaneNode *prev_focus = E.focused_leaf;
 		(void)editorTerminalPanePumpAll(E.layout_root);
-		int closed = editorTerminalPaneCloseExited(&E.layout_root, &E.focused_leaf,
-		                                           &E.dap_terminal_leaf);
+		int closed = editorTerminalPaneCloseExitedTabs();
 		if (closed > 0 && E.focused_leaf != NULL && E.focused_leaf != prev_focus) {
 			(void)editorPaneViewLoadIntoState(&E.focused_leaf->as.leaf.view);
 		}
@@ -1318,12 +1349,7 @@ static enum editorCursorStyle screenCursorStyleFromVtermShape(int vterm_shape) {
 }
 
 static struct editorTerminalPane *screenFocusedTerminalPane(void) {
-	if (E.focused_leaf == NULL || E.focused_leaf->is_split ||
-	    E.focused_leaf->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
-	    E.focused_leaf->as.leaf.kind_state == NULL) {
-		return NULL;
-	}
-	return (struct editorTerminalPane *)E.focused_leaf->as.leaf.kind_state;
+	return editorTerminalPaneForPane(E.focused_leaf);
 }
 
 static const struct editorLspDiagnostic *screenDiagnosticAtCursor(void) {
@@ -1717,6 +1743,24 @@ static int screenAppendFrameCursor(struct writeBuf *wb) {
 
 	struct editorRect cursor_focused_rect = {0};
 	int has_focus_rect = editorLayoutFocusedLeafRect(&cursor_focused_rect);
+
+	/* Debug Console REPL: render a single cursor at the inline input line ("> "
+	 * plus the typed text), like a terminal, rather than the editor cursor at an
+	 * empty buffer position (which would double up with the input row). */
+	if (focused_terminal == NULL && has_focus_rect &&
+	    E.primary_focus != EDITOR_PRIMARY_FOCUS_DRAWER) {
+		struct editorDapConsolePane *console = editorDapConsoleForPane(E.focused_leaf);
+		if (console != NULL) {
+			int row = cursor_focused_rect.y + cursor_focused_rect.h;
+			int col = cursor_focused_rect.x + 2 + console->input_len + 1;
+			int max_col = cursor_focused_rect.x + cursor_focused_rect.w;
+			if (col > max_col) {
+				col = max_col;
+			}
+			return screenAppendCursorMoveAndShow(wb, row, col);
+		}
+	}
+
 	int cursor_pane_y = has_focus_rect ? cursor_focused_rect.y : 1;
 	int cursor_pane_text_start_col = screenCursorPaneTextStartCol(
 	        &cursor_focused_rect, has_focus_rect, focused_terminal);

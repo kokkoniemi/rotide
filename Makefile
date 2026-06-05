@@ -86,7 +86,7 @@ TREE_SITTER_SRCS = $(TS_DIR)/runtime/src/lib.c \
 
 CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(addprefix $(SRC_DIR)/support/, \
-		terminal.c alloc.c save_syscalls.c file_io.c perf_trace.c) \
+		terminal.c alloc.c save_syscalls.c file_io.c perf_trace.c json.c) \
 	$(addprefix $(SRC_DIR)/text/, \
 		document.c text_buffer.c text_summary.c text_tree.c utf8.c row.c) \
 	$(addprefix $(SRC_DIR)/editing/, \
@@ -118,7 +118,8 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 		lsp_features.c lsp_framing.c lsp_json.c lsp_mock.c lsp_protocol.c \
 		lsp_registry.c lsp_responses.c lsp_transport.c autocomplete.c) \
 	$(addprefix $(SRC_DIR)/debug/, \
-		dap_client.c dap_console.c dap.c) \
+		dap_breakpoints.c dap_client.c dap_console.c dap_control.c \
+		dap_inspection.c dap_output.c dap_protocol.c dap_session.c dap.c) \
 	$(addprefix $(SRC_DIR)/terminal/, \
 		pty.c terminal_pane.c)
 

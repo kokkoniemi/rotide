@@ -16,8 +16,6 @@ struct editorPaneNode *editorPaneNodeNewLeaf(enum editorPaneKind kind) {
 	memset(node, 0, sizeof(*node));
 	node->is_split = 0;
 	node->as.leaf.kind = kind;
-	node->as.leaf.kind_state = NULL;
-	node->as.leaf.kind_state_free = NULL;
 	editorPaneViewInit(&node->as.leaf.view);
 	return node;
 }
@@ -29,12 +27,6 @@ void editorPaneNodeFree(struct editorPaneNode *node) {
 	if (node->is_split) {
 		editorPaneNodeFree(node->as.split.first);
 		editorPaneNodeFree(node->as.split.second);
-	} else {
-		if (node->as.leaf.kind_state_free != NULL && node->as.leaf.kind_state != NULL) {
-			node->as.leaf.kind_state_free(node->as.leaf.kind_state);
-		}
-		node->as.leaf.kind_state = NULL;
-		node->as.leaf.kind_state_free = NULL;
 	}
 	free(node);
 }
@@ -1188,8 +1180,12 @@ static size_t layoutSerializeRecursive(const struct editorPaneNode *node, char *
 		return 0;
 	}
 	if (!node->is_split) {
-		const char *token =
-		        node->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL ? "term" : "leaf";
+		/* `term` when the pane's active tab is a terminal, so terminals persist
+		 * across restore; also for an unhydrated `term` placeholder leaf (kind
+		 * TERMINAL), so a save mid-restore round-trips. */
+		int is_terminal = node->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL ||
+		                  editorPaneActiveKind(node) == EDITOR_PANE_KIND_TERMINAL;
+		const char *token = is_terminal ? "term" : "leaf";
 		int n = snprintf(out + pos, out_size - pos, "%s", token);
 		if (n < 0 || (size_t)n >= out_size - pos) {
 			return 0;

@@ -2,6 +2,7 @@
 
 #include "config/dap_config.h"
 #include "debug/dap.h"
+#include "debug/dap_console.h"
 #include "editing/document_position.h"
 #include "editing/edit.h"
 #include "editing/selection.h"
@@ -9,6 +10,7 @@
 #include "input/dispatch.h"
 #include "language/lsp.h"
 #include "render/popup.h"
+#include "render/status_bar.h"
 #include "render/viewport.h"
 #include "rotide.h"
 #include "support/terminal.h"
@@ -629,6 +631,49 @@ int editorHandleMouseDrawerLeftPress(const struct editorMouseEvent *event, long 
 	                                 effects_out);
 }
 
+/*
+ * Maps a press to the buffer row whose line-number gutter it lands on, or
+ * returns 0 if the press is outside the focused pane's gutter columns. Used so
+ * a gutter click toggles a breakpoint instead of moving the cursor.
+ */
+static int mouseGutterRowAt(const struct editorMouseEvent *event, int *row_out) {
+	if (event == NULL || row_out == NULL || E.numrows == 0) {
+		return 0;
+	}
+	int raw_col = event->x - 1;
+	int raw_row = event->y - 1;
+	struct editorRect rect = {0};
+	int has_rect = editorLayoutFocusedLeafRect(&rect);
+	int pane_x = has_rect ? rect.x : editorDrawerTextStartColForCols(E.window_cols);
+	int pane_y = has_rect ? rect.y : 1;
+	int pane_w = has_rect ? rect.w : editorDrawerTextViewportCols(E.window_cols);
+	int pane_rows = has_rect ? rect.h : E.window_rows;
+	int gutter_cols = editorLineNumberGutterColsForCols(E.window_cols);
+	if (gutter_cols > pane_w) {
+		gutter_cols = pane_w;
+	}
+	if (gutter_cols <= 0 || raw_col < pane_x || raw_col >= pane_x + gutter_cols) {
+		return 0;
+	}
+	int mouse_row = raw_row - pane_y;
+	if (mouse_row < 0 || mouse_row >= pane_rows) {
+		return 0;
+	}
+	int row_idx = E.rowoff + mouse_row;
+	int segment_coloff = E.coloff;
+	int segment_indent_cols = 0;
+	if (E.line_wrap_enabled &&
+	    !editorViewportTextScreenRowToBufferPosition(mouse_row, &row_idx, &segment_coloff,
+	                                                 &segment_indent_cols)) {
+		return 0;
+	}
+	if (row_idx < 0 || row_idx >= E.numrows) {
+		return 0;
+	}
+	*row_out = row_idx;
+	return 1;
+}
+
 int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long long now_ms,
                                    int multi_click_threshold_ms,
                                    editorMouseActionFn goto_definition, int *effects_out) {
@@ -667,6 +712,28 @@ int editorHandleMouseTextLeftPress(const struct editorMouseEvent *event, long lo
 
 	if (editorLayoutFocusLeafAt(mouse_col, event->y - 1)) {
 		editorPaneAnnounceFocus();
+	}
+
+	int gutter_row = 0;
+	if (event->modifiers == EDITOR_MOUSE_MOD_NONE && mouseGutterRowAt(event, &gutter_row)) {
+		(void)editorDapToggleBreakpointAtLine(gutter_row);
+		/* Move the cursor to the start of the toggled row so the follow-cursor
+		 * viewport settles on the (visible) breakpoint line instead of snapping
+		 * back to the previous, possibly off-screen, cursor. */
+		size_t bp_offset = 0;
+		if (editorBufferPosToOffset(gutter_row, 0, &bp_offset)) {
+			mouseClearSelectionMode();
+			E.cursor_offset = bp_offset;
+			E.cy = gutter_row;
+			E.cx = 0;
+		}
+		E.primary_focus = EDITOR_PRIMARY_FOCUS_TEXT;
+		apply_mouse_state = 1;
+		left_button_down = 0;
+		drag_started = 0;
+		reset_click_tracking = 1;
+		effects = 1;
+		goto out;
 	}
 
 	if (!editorMoveCursorToMouse(event, 0)) {
@@ -777,7 +844,7 @@ static long long mouseMonotonicMillis(void) {
 	return (long long)ts.tv_sec * 1000LL + (long long)(ts.tv_nsec / 1000000L);
 }
 
-#define MOUSE_EDITOR_CONTEXT_MAX_ITEMS 7
+#define MOUSE_EDITOR_CONTEXT_MAX_ITEMS 8
 #define MOUSE_TAB_CONTEXT_MAX_ITEMS 2
 
 static enum editorAction g_mouse_editor_context_actions[MOUSE_EDITOR_CONTEXT_MAX_ITEMS];
@@ -841,6 +908,10 @@ int editorOpenEditorContextMenuAt(int screen_row, int screen_col, int has_contex
 	mouseAppendEditorContextItem(items, &count, "Split Horizontally",
 	                             EDITOR_ACTION_SPLIT_HORIZONTAL);
 	mouseAppendEditorContextItem(items, &count, "Open Terminal", EDITOR_ACTION_TERMINAL_OPEN);
+	if (E.filename != NULL && E.filename[0] != '\0') {
+		mouseAppendEditorContextItem(items, &count, "Toggle Breakpoint",
+		                             EDITOR_ACTION_DAP_TOGGLE_BREAKPOINT);
+	}
 
 	g_mouse_editor_context_action_count = count;
 	g_mouse_editor_context_has_offset = has_context_offset;
@@ -857,7 +928,8 @@ int editorOpenEditorContextMenuAt(int screen_row, int screen_col, int has_contex
 }
 
 static int mouseEditorContextActionUsesOffset(enum editorAction action) {
-	return action == EDITOR_ACTION_GOTO_DEFINITION || action == EDITOR_ACTION_PASTE;
+	return action == EDITOR_ACTION_GOTO_DEFINITION || action == EDITOR_ACTION_PASTE ||
+	       action == EDITOR_ACTION_DAP_TOGGLE_BREAKPOINT;
 }
 
 int editorEditorContextMenuActivate(editorProcessMappedActionFn process_mapped_action,
@@ -1056,6 +1128,25 @@ static int mouseHandleRightPress(const struct editorMouseEvent *event) {
 	return popup_was_open;
 }
 
+/* A left-press on a status-bar debug-control button dispatches its DAP action.
+ * The status bar is the row just below the text area (E.window_rows + 2,
+ * 1-based). Returns 1 if the press hit a button. */
+static int mouseHandleLeftPressOnStatusBar(const struct editorMouseEvent *event,
+                                           editorProcessMappedActionFn process_mapped_action) {
+	if (event->y != E.window_rows + 2) {
+		return 0;
+	}
+	int action = 0;
+	if (!editorStatusBarDebugButtonAt(event->x - 1, &action)) {
+		return 0;
+	}
+	int effects = EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
+	(void)process_mapped_action((enum editorAction)action, &effects);
+	E.mouse_left_button_down = 0;
+	E.mouse_drag_started = 0;
+	return 1;
+}
+
 static int mouseHandleLeftPress(const struct editorMouseEvent *event,
                                 int drawer_double_click_threshold_ms,
                                 int text_multi_click_threshold_ms,
@@ -1067,6 +1158,9 @@ static int mouseHandleLeftPress(const struct editorMouseEvent *event,
 		if ((menu_effects & EDITOR_MOUSE_DISPATCH_EFFECT_VIEWPORT_SCROLL) != 0) {
 			return EDITOR_MOUSE_DISPATCH_EFFECT_VIEWPORT_SCROLL;
 		}
+		return EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT;
+	}
+	if (mouseHandleLeftPressOnStatusBar(event, process_mapped_action)) {
 		return EDITOR_MOUSE_DISPATCH_EFFECT_CURSOR_OR_EDIT;
 	}
 	long long now_ms = mouseMonotonicMillis();
@@ -1182,6 +1276,10 @@ int editorMouseIsOverDrawer(const struct editorMouseEvent *event) {
 
 int editorHandleMouseWheel(const struct editorMouseEvent *event) {
 	int over_drawer = editorMouseIsOverDrawer(event);
+	/* Over a Debug Console pane the wheel scrolls the transcript, not the (empty)
+	 * editor buffer. Terminal panes are handled earlier in the dispatch. */
+	struct editorDapConsolePane *console =
+	        over_drawer ? NULL : editorDapConsoleForPane(mouseEditorLeafAt(event));
 
 	switch (event->kind) {
 		case EDITOR_MOUSE_EVENT_WHEEL_UP:
@@ -1190,11 +1288,19 @@ int editorHandleMouseWheel(const struct editorMouseEvent *event) {
 				                           E.window_rows);
 				break;
 			}
+			if (console != NULL) {
+				editorDapConsoleScroll(console, MOUSE_WHEEL_SCROLL_LINES);
+				break;
+			}
 			editorViewportScrollByRows(-MOUSE_WHEEL_SCROLL_LINES);
 			break;
 		case EDITOR_MOUSE_EVENT_WHEEL_DOWN:
 			if (over_drawer) {
 				(void)editorDrawerScrollBy(MOUSE_WHEEL_SCROLL_LINES, E.window_rows);
+				break;
+			}
+			if (console != NULL) {
+				editorDapConsoleScroll(console, -MOUSE_WHEEL_SCROLL_LINES);
 				break;
 			}
 			editorViewportScrollByRows(MOUSE_WHEEL_SCROLL_LINES);
@@ -1735,6 +1841,12 @@ int editorHandleMouseEventInTerminalPane(const struct editorMouseEvent *event) {
 	if (E.layout_root == NULL) {
 		return 0;
 	}
+	/* An open menu overlays the panes; let its click handler run instead of
+	 * forwarding the click to a terminal it happens to sit over (otherwise a
+	 * tab context menu on a terminal pane could never be activated). */
+	if (editorPopupIsVisible() && editorPopupKindIsMenu(E.popup.kind)) {
+		return 0;
+	}
 	/* Defer to the normal mouse handlers while a split-border drag is in
 	 * progress; otherwise, when the user drags toward a terminal pane the
 	 * drag event lands inside the terminal's leaf rect and gets hijacked
@@ -1757,11 +1869,10 @@ int editorHandleMouseEventInTerminalPane(const struct editorMouseEvent *event) {
 	int sy = event->y - 1;
 	struct editorPaneNode *leaf = editorLayoutLeafAt(&layout, sx, sy);
 	editorLeafLayoutFree(&layout);
-	if (leaf == NULL || leaf->is_split || leaf->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
-	    leaf->as.leaf.kind_state == NULL) {
+	struct editorTerminalPane *terminal = editorTerminalPaneForPane(leaf);
+	if (terminal == NULL) {
 		return 0;
 	}
-	struct editorTerminalPane *terminal = (struct editorTerminalPane *)leaf->as.leaf.kind_state;
 	struct editorRect leaf_rect = {0};
 	if (!editorLayoutLeafRectBordered(E.layout_root, viewport, ROTIDE_PANE_BORDER_SIZE, leaf,
 	                                  &leaf_rect)) {

@@ -5,6 +5,7 @@
 #include "language/lsp_protocol.h"
 #include "rotide.h"
 #include "support/file_io.h"
+#include "support/json.h"
 #include "support/size_utils.h"
 
 #include <stdio.h>
@@ -59,7 +60,7 @@ int editorLspParseCompletionProviderInResponse(const char *response_json, int *s
 	if (array_start == NULL || array_start >= provider_end || array_start[0] != '[') {
 		return 1;
 	}
-	struct editorLspString chars = {0};
+	struct editorJsonString chars = {0};
 	const char *scan = array_start + 1;
 	while (scan < provider_end) {
 		while (scan < provider_end && (*scan == ' ' || *scan == '\t' || *scan == '\n' ||

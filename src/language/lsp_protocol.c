@@ -12,6 +12,7 @@
 #include "language/syntax.h"
 #include "rotide.h"
 #include "support/file_io.h"
+#include "support/json.h"
 #include "support/size_utils.h"
 #include "text/utf8.h"
 #include "workspace/tabs.h"
@@ -29,7 +30,7 @@ char *editorLspBuildInitializeRequestJson(int request_id, const char *root_uri, 
 		return NULL;
 	}
 
-	struct editorLspString init = {0};
+	struct editorJsonString init = {0};
 	int built = editorLspStringAppendf(
 	        &init,
 	        "{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":\"initialize\",\"params\":{"
@@ -69,7 +70,7 @@ int editorLspBuildFileUri(const char *path, char **uri_out) {
 		return 0;
 	}
 
-	struct editorLspString sb = {0};
+	struct editorJsonString sb = {0};
 	if (!editorLspStringAppend(&sb, "file://")) {
 		free(absolute_path);
 		free(sb.buf);
@@ -575,7 +576,7 @@ int editorLspApplyPendingEdits(const struct editorLspPendingEdit *edits, int cou
 
 static int lspProtocolRespondToRequest(struct editorLspClient *client, int request_id,
                                        const char *result_json) {
-	struct editorLspString payload = {0};
+	struct editorJsonString payload = {0};
 	int built = editorLspStringAppendf(
 	        &payload, "{\"jsonrpc\":\"2.0\",\"id\":%d,\"result\":", request_id);
 	if (built) {

@@ -8,8 +8,14 @@ src/config/runtime_config.c	runtimeConfig
 src/config/theme_builtin.c	themeBuiltin
 src/config/theme_parse.c	themeParse
 src/debug/dap.c	dap
+src/debug/dap_breakpoints.c	dapBreakpoints
 src/debug/dap_client.c	dapClient
 src/debug/dap_console.c	dapConsole
+src/debug/dap_control.c	dapControl
+src/debug/dap_inspection.c	dapInspection
+src/debug/dap_output.c	dapOutput
+src/debug/dap_protocol.c	dapProtocol
+src/debug/dap_session.c	dapSession
 src/editing/buffer_core.c	bufferCore
 src/editing/buffer_search.c	bufferSearch
 src/editing/document_bridge.c	documentBridge
@@ -68,6 +74,7 @@ src/render/write_buf.c	wb
 src/rotide.c	rotide
 src/support/alloc.c	alloc
 src/support/file_io.c	fileIo
+src/support/json.c	json
 src/support/perf_trace.c	perf
 src/support/save_syscalls.c	saveSyscalls
 src/support/terminal.c	terminal

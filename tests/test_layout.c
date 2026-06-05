@@ -1188,6 +1188,54 @@ static int test_layout_split_focused_inherits_active_tab_only(void) {
 	return 0;
 }
 
+static int test_layout_active_kind_defaults_to_editor(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_EQ_INT(EDITOR_PANE_KIND_EDITOR, editorTabActiveKind());
+	ASSERT_EQ_INT(EDITOR_PANE_KIND_EDITOR, editorTabKindAt(0));
+	/* Out-of-range / NULL / split inputs are EDITOR, not garbage. */
+	ASSERT_EQ_INT(EDITOR_PANE_KIND_EDITOR, editorTabKindAt(-1));
+	ASSERT_EQ_INT(EDITOR_PANE_KIND_EDITOR, editorTabKindAt(999));
+	ASSERT_EQ_INT(EDITOR_PANE_KIND_EDITOR, editorPaneActiveKind(NULL));
+	ASSERT_EQ_INT(EDITOR_PANE_KIND_EDITOR, editorPaneActiveKind(E.focused_leaf));
+	return 0;
+}
+
+static int test_layout_pane_active_kind_ignores_placeholder_leaf_kind(void) {
+	/* A bare (tab-less) leaf reports EDITOR regardless of its legacy kind:
+	 * terminals/consoles are tab kinds now, so the active kind comes from the
+	 * active tab. A `term` placeholder's TERMINAL kind only matters to hydration,
+	 * not to the active-kind query. */
+	struct editorPaneNode *term = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_TERMINAL);
+	if (term == NULL) {
+		return 1;
+	}
+	int failed = editorPaneActiveKind(term) != EDITOR_PANE_KIND_EDITOR;
+	editorPaneNodeFree(term);
+	return failed;
+}
+
+static int test_layout_active_kind_survives_tab_switch(void) {
+	if (E.layout_root == NULL || E.focused_leaf == NULL) {
+		return 1;
+	}
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTabNewEmpty());
+	if (E.tab_count != 2) {
+		return 1;
+	}
+	/* The active tab's buffer is moved into E.active_buffer, but kind lives
+	 * outside the buffer union and stays correct across switches. */
+	(void)editorTabSwitchToIndex(0);
+	ASSERT_EQ_INT(EDITOR_PANE_KIND_EDITOR, editorTabActiveKind());
+	(void)editorTabSwitchToIndex(1);
+	ASSERT_EQ_INT(EDITOR_PANE_KIND_EDITOR, editorTabActiveKind());
+	ASSERT_EQ_INT(EDITOR_PANE_KIND_EDITOR, editorPaneActiveKind(E.focused_leaf));
+	return 0;
+}
+
 static int test_layout_serialize_single_leaf(void) {
 	struct editorPaneNode *root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
 	if (root == NULL) {
@@ -1247,8 +1295,7 @@ static int test_layout_serialize_preserves_terminal_kind(void) {
 	if (restored == NULL) {
 		return 1;
 	}
-	failed = restored->is_split || restored->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
-	         restored->as.leaf.kind_state != NULL || restored->as.leaf.kind_state_free != NULL;
+	failed = restored->is_split || restored->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL;
 	editorPaneNodeFree(restored);
 	return failed;
 }
@@ -1263,8 +1310,7 @@ static int test_layout_serialize_terminal_in_split_roundtrip(void) {
 	             restored->as.split.first == NULL || restored->as.split.first->is_split ||
 	             restored->as.split.first->as.leaf.kind != EDITOR_PANE_KIND_EDITOR ||
 	             restored->as.split.second == NULL || restored->as.split.second->is_split ||
-	             restored->as.split.second->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
-	             restored->as.split.second->as.leaf.kind_state != NULL;
+	             restored->as.split.second->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL;
 	if (failed) {
 		editorPaneNodeFree(restored);
 		return 1;
@@ -1549,6 +1595,10 @@ const struct editorTestCase g_layout_tests[] = {
          test_layout_tab_hit_test_for_pane_returns_member_tab},
         {"layout_split_focused_inherits_active_tab_only",
          test_layout_split_focused_inherits_active_tab_only},
+        {"layout_active_kind_defaults_to_editor", test_layout_active_kind_defaults_to_editor},
+        {"layout_pane_active_kind_ignores_placeholder_leaf_kind",
+         test_layout_pane_active_kind_ignores_placeholder_leaf_kind},
+        {"layout_active_kind_survives_tab_switch", test_layout_active_kind_survives_tab_switch},
         {"layout_serialize_single_leaf", test_layout_serialize_single_leaf},
         {"layout_serialize_deserialize_roundtrip", test_layout_serialize_deserialize_roundtrip},
         {"layout_serialize_preserves_terminal_kind", test_layout_serialize_preserves_terminal_kind},

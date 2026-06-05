@@ -1,6 +1,8 @@
 #include "render/drawer_view.h"
 
 #include "config/theme_config.h"
+#include "debug/dap.h"
+#include "language/syntax.h"
 #include "render/ansi_style.h"
 #include "render/display_text.h"
 #include "render/write_buf.h"
@@ -61,6 +63,8 @@
 #define DRAWER_NERD_ARROW_LEFT_UTF8 "\xEF\x81\xA0"
 #define DRAWER_NERD_EYE_UTF8 "\xEF\x81\xAE"
 #define DRAWER_NERD_LINE_CHART_UTF8 "\xEF\x88\x81"
+#define DRAWER_NERD_PLAY_UTF8 "\xEF\x81\x8B"
+#define DRAWER_DAP_BREAKPOINT_UTF8 "\xE2\x97\x8F"
 #define DRAWER_HEADER_MODE_BUTTON_COLS 3
 #define DRAWER_HEADER_MODE_BUTTON_COUNT 7
 #define DRAWER_HEADER_MODE_BUTTONS_MIN_COLS                                                        \
@@ -301,6 +305,9 @@ static const char *drawerViewNerdIconForMenuLabel(const char *label) {
 	if (strcmp(label, "LSP") == 0) {
 		return DRAWER_NERD_TERMINAL_UTF8;
 	}
+	if (strcmp(label, "Debugger") == 0) {
+		return DRAWER_NERD_BUG_UTF8;
+	}
 	if (strcmp(label, "Undo") == 0) {
 		return DRAWER_NERD_UNDO_UTF8;
 	}
@@ -405,8 +412,22 @@ static const char *drawerViewNerdIconForFileName(const char *name) {
 
 static const char *drawerViewNerdIconForEntry(const struct editorDrawerEntryView *entry,
                                               const char *entry_name) {
-	if (!E.nerd_fonts_enabled || entry == NULL || entry->is_search_header ||
-	    entry->is_placeholder) {
+	if (entry == NULL || entry->is_search_header || entry->is_placeholder ||
+	    entry->icon_kind == EDITOR_DRAWER_ENTRY_ICON_NONE) {
+		return NULL;
+	}
+	if (!E.nerd_fonts_enabled) {
+		return NULL;
+	}
+	switch (entry->icon_kind) {
+		case EDITOR_DRAWER_ENTRY_ICON_DAP_START:
+			return DRAWER_NERD_PLAY_UTF8;
+		case EDITOR_DRAWER_ENTRY_ICON_DAP_BREAKPOINT:
+			return DRAWER_DAP_BREAKPOINT_UTF8;
+		default:
+			break;
+	}
+	if (E.drawer_mode == EDITOR_DRAWER_MODE_DAP) {
 		return NULL;
 	}
 	if (E.drawer_mode == EDITOR_DRAWER_MODE_MAIN_MENU) {
@@ -424,8 +445,45 @@ static const char *drawerViewNerdIconForEntry(const struct editorDrawerEntryView
 	return drawerViewNerdIconForFileName(drawerViewNameForFileIcon(entry, entry_name));
 }
 
+static int drawerViewIconColorForEntry(const struct editorDrawerEntryView *entry,
+                                       struct editorThemeColor *color_out) {
+	if (entry == NULL || color_out == NULL) {
+		return 0;
+	}
+	switch (entry->icon_color) {
+		case EDITOR_DRAWER_ENTRY_ICON_COLOR_DAP_START:
+			*color_out = editorThemeResolveAnsi(EDITOR_THEME_ANSI_GREEN, 1);
+			return 1;
+		case EDITOR_DRAWER_ENTRY_ICON_COLOR_DAP_BREAKPOINT:
+			switch (entry->dap_breakpoint_kind) {
+				case EDITOR_DAP_BREAKPOINT_CONDITIONAL:
+					*color_out =
+					        editorThemeResolveAnsi(EDITOR_THEME_ANSI_YELLOW, 1);
+					return 1;
+				case EDITOR_DAP_BREAKPOINT_LOGPOINT:
+					*color_out =
+					        editorThemeResolveAnsi(EDITOR_THEME_ANSI_CYAN, 1);
+					return 1;
+				case EDITOR_DAP_BREAKPOINT_FUNCTION:
+					*color_out = editorThemeResolveAnsi(
+					        EDITOR_THEME_ANSI_MAGENTA, 1);
+					return 1;
+				case EDITOR_DAP_BREAKPOINT_DATA:
+					*color_out =
+					        editorThemeResolveAnsi(EDITOR_THEME_ANSI_BLUE, 1);
+					return 1;
+				default:
+					*color_out = E.theme.ui[EDITOR_THEME_UI_BREAKPOINT];
+					return 1;
+			}
+		default:
+			return 0;
+	}
+}
+
 static int drawerViewAppendNerdIcon(struct writeBuf *wb, const char *icon, int row_inverted,
-                                    int *written_cols, int drawer_cols, int *appended_out) {
+                                    const struct editorThemeColor *color, int *written_cols,
+                                    int drawer_cols, int *appended_out) {
 	if (appended_out != NULL) {
 		*appended_out = 0;
 	}
@@ -439,8 +497,14 @@ static int drawerViewAppendNerdIcon(struct writeBuf *wb, const char *icon, int r
 	if (*written_cols + icon_cols > drawer_cols) {
 		return 1;
 	}
-	if (!row_inverted && !editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_DRAWER_ICON)) {
-		return 0;
+	if (!row_inverted) {
+		if (color != NULL) {
+			if (!editorAppendThemeForeground(wb, *color)) {
+				return 0;
+			}
+		} else if (!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_DRAWER_ICON)) {
+			return 0;
+		}
 	}
 	if (!wbAppend(wb, icon, strlen(icon))) {
 		return 0;
@@ -464,6 +528,27 @@ static int drawerViewAppendCell(struct writeBuf *wb, const char *text, size_t le
 		return 0;
 	}
 	(*written_cols)++;
+	return 1;
+}
+
+static int drawerViewAppendSanitizedSpan(struct writeBuf *wb, const char *text, int row_inverted,
+                                         const struct editorThemeColor *color, int *written_cols,
+                                         int drawer_cols) {
+	if (text == NULL || text[0] == '\0' || written_cols == NULL ||
+	    *written_cols >= drawer_cols) {
+		return 1;
+	}
+	if (!row_inverted && color != NULL && !editorAppendThemeForeground(wb, *color)) {
+		return 0;
+	}
+	int wrote = 0;
+	if (!editorAppendSanitizedText(wb, text, drawer_cols - *written_cols, &wrote)) {
+		return 0;
+	}
+	if (!row_inverted && color != NULL && !editorAppendThemeBaseForeground(wb)) {
+		return 0;
+	}
+	*written_cols += wrote;
 	return 1;
 }
 
@@ -553,6 +638,82 @@ static int drawerViewBuildAncestorGuidesPlain(struct writeBuf *wb, int parent_vi
 	return 1;
 }
 
+static int drawerViewEntryHasPrefix(const struct editorDrawerEntryView *entry) {
+	return entry != NULL && entry->prefix != NULL && entry->prefix[0] != '\0';
+}
+
+static int drawerViewEntryHasVariableDetails(const struct editorDrawerEntryView *entry) {
+	return entry != NULL &&
+	       ((entry->detail_type != NULL && entry->detail_type[0] != '\0') ||
+	        (entry->detail_value != NULL && entry->detail_value[0] != '\0') ||
+	        (entry->detail_reference != NULL && entry->detail_reference[0] != '\0') ||
+	        (entry->detail_address != NULL && entry->detail_address[0] != '\0') ||
+	        (entry->detail_preview != NULL && entry->detail_preview[0] != '\0'));
+}
+
+static int drawerViewLooksLikePointerType(const char *type) {
+	return type != NULL && strchr(type, '*') != NULL;
+}
+
+static int drawerViewLooksLikeHexAddress(const char *value) {
+	return value != NULL && value[0] == '0' && (value[1] == 'x' || value[1] == 'X') &&
+	       value[2] != '\0';
+}
+
+static void drawerViewResolveVariableValueAddress(const struct editorDrawerEntryView *entry,
+                                                  const char **shown_value,
+                                                  const char **shown_address) {
+	const char *value = entry->detail_value;
+	const char *address = entry->detail_address;
+	int has_preview = entry->detail_preview != NULL && entry->detail_preview[0] != '\0';
+	int pointer_address = drawerViewLooksLikePointerType(entry->detail_type) &&
+	                      drawerViewLooksLikeHexAddress(value);
+	*shown_value = pointer_address ? "->" : value;
+	*shown_address = pointer_address ? value : address;
+	if (has_preview && value != NULL && strcmp(entry->detail_preview, value) == 0) {
+		*shown_value = NULL;
+	}
+	if (has_preview && !pointer_address && drawerViewLooksLikeHexAddress(value)) {
+		*shown_value = NULL;
+		if (address == NULL || address[0] == '\0') {
+			*shown_address = value;
+		}
+	}
+}
+
+static int drawerViewAppendPlainPrefix(struct writeBuf *wb, const char *prefix) {
+	if (prefix == NULL || prefix[0] == '\0') {
+		return 1;
+	}
+	return wbAppend(wb, prefix, strlen(prefix)) && wbAppend(wb, " ", 1);
+}
+
+static int drawerViewAppendPlainVariableDetails(struct writeBuf *wb,
+                                                const struct editorDrawerEntryView *entry) {
+	if (!drawerViewEntryHasVariableDetails(entry)) {
+		return 1;
+	}
+	const char *shown_value = NULL;
+	const char *shown_address = NULL;
+	drawerViewResolveVariableValueAddress(entry, &shown_value, &shown_address);
+	if ((entry->detail_type != NULL && entry->detail_type[0] != '\0' &&
+	     (!wbAppend(wb, "  ", 2) ||
+	      !wbAppend(wb, entry->detail_type, strlen(entry->detail_type)))) ||
+	    (entry->detail_preview != NULL && entry->detail_preview[0] != '\0' &&
+	     (!wbAppend(wb, "  ", 2) ||
+	      !wbAppend(wb, entry->detail_preview, strlen(entry->detail_preview)))) ||
+	    (shown_value != NULL && shown_value[0] != '\0' &&
+	     (!wbAppend(wb, "  ", 2) || !wbAppend(wb, shown_value, strlen(shown_value)))) ||
+	    (entry->detail_reference != NULL && entry->detail_reference[0] != '\0' &&
+	     (!wbAppend(wb, "  ", 2) ||
+	      !wbAppend(wb, entry->detail_reference, strlen(entry->detail_reference)))) ||
+	    (shown_address != NULL && shown_address[0] != '\0' &&
+	     (!wbAppend(wb, "  ", 2) || !wbAppend(wb, shown_address, strlen(shown_address))))) {
+		return 0;
+	}
+	return 1;
+}
+
 static int drawerViewBuildRowPlain(struct writeBuf *wb, int visible_idx) {
 	struct editorDrawerEntryView entry;
 	if (!editorDrawerVisibleEntryView(visible_idx, &entry)) {
@@ -562,6 +723,9 @@ static int drawerViewBuildRowPlain(struct writeBuf *wb, int visible_idx) {
 	char entry_name_buf[PATH_MAX + 512];
 	(void)snprintf(entry_name_buf, sizeof(entry_name_buf), "%s",
 	               entry.name != NULL ? entry.name : "");
+	char prefix_buf[64];
+	(void)snprintf(prefix_buf, sizeof(prefix_buf), "%s",
+	               drawerViewEntryHasPrefix(&entry) ? entry.prefix : "");
 
 	if (!entry.is_root && !wbAppend(wb, " ", 1)) {
 		return 0;
@@ -602,7 +766,12 @@ static int drawerViewBuildRowPlain(struct writeBuf *wb, int visible_idx) {
 		return 0;
 	}
 
-	return editorAppendSanitizedText(wb, entry_name_buf, -1, NULL);
+	if (!drawerViewAppendPlainPrefix(wb, prefix_buf) ||
+	    !editorAppendSanitizedText(wb, entry_name_buf, -1, NULL) ||
+	    !drawerViewAppendPlainVariableDetails(wb, &entry)) {
+		return 0;
+	}
+	return 1;
 }
 
 int editorDrawDrawerSelectionOverflow(struct writeBuf *wb, int row_idx, int drawer_cols,
@@ -740,12 +909,74 @@ static int drawerViewRenderEntryIcon(struct writeBuf *wb, const struct editorDra
                                      const char *entry_name, int row_inverted, int drawer_cols,
                                      int *written_cols) {
 	const char *icon = drawerViewNerdIconForEntry(entry, entry_name);
+	struct editorThemeColor icon_color;
+	struct editorThemeColor *icon_color_ptr =
+	        drawerViewIconColorForEntry(entry, &icon_color) ? &icon_color : NULL;
 	int icon_appended = 0;
-	if (!drawerViewAppendNerdIcon(wb, icon, row_inverted, written_cols, drawer_cols,
-	                              &icon_appended)) {
+	if (!drawerViewAppendNerdIcon(wb, icon, row_inverted, icon_color_ptr, written_cols,
+	                              drawer_cols, &icon_appended)) {
 		return 0;
 	}
 	if (icon_appended && !drawerViewAppendCell(wb, " ", 1, written_cols, drawer_cols)) {
+		return 0;
+	}
+	return 1;
+}
+
+static int drawerViewRenderEntryPrefix(struct writeBuf *wb,
+                                       const struct editorDrawerEntryView *entry,
+                                       const char *prefix, int row_inverted, int drawer_cols,
+                                       int *written_cols) {
+	if (prefix == NULL || prefix[0] == '\0') {
+		return 1;
+	}
+	struct editorThemeColor color = E.theme.ui[EDITOR_THEME_UI_DRAWER_CONNECTOR];
+	const struct editorThemeColor *color_ptr =
+	        !row_inverted && entry->prefix_muted ? &color : NULL;
+	if (!drawerViewAppendSanitizedSpan(wb, prefix, row_inverted, color_ptr, written_cols,
+	                                   drawer_cols)) {
+		return 0;
+	}
+	return drawerViewAppendCell(wb, " ", 1, written_cols, drawer_cols);
+}
+
+static int drawerViewRenderVariableDetailToken(struct writeBuf *wb, const char *text,
+                                               int row_inverted, struct editorThemeColor color,
+                                               int drawer_cols, int *written_cols) {
+	if (text == NULL || text[0] == '\0' || *written_cols >= drawer_cols) {
+		return 1;
+	}
+	if (!drawerViewAppendSanitizedSpan(wb, "  ", row_inverted, NULL, written_cols,
+	                                   drawer_cols)) {
+		return 0;
+	}
+	return drawerViewAppendSanitizedSpan(wb, text, row_inverted, row_inverted ? NULL : &color,
+	                                     written_cols, drawer_cols);
+}
+
+static int drawerViewRenderVariableDetails(struct writeBuf *wb,
+                                           const struct editorDrawerEntryView *entry,
+                                           int row_inverted, int drawer_cols, int *written_cols) {
+	if (!drawerViewEntryHasVariableDetails(entry)) {
+		return 1;
+	}
+	const char *shown_value = NULL;
+	const char *shown_address = NULL;
+	drawerViewResolveVariableValueAddress(entry, &shown_value, &shown_address);
+	struct editorThemeColor type_color = E.theme.syntax[EDITOR_SYNTAX_HL_TYPE];
+	struct editorThemeColor preview_color = E.theme.syntax[EDITOR_SYNTAX_HL_CONSTANT];
+	struct editorThemeColor value_color = E.theme.syntax[EDITOR_SYNTAX_HL_NUMBER];
+	struct editorThemeColor reference_color = E.theme.ui[EDITOR_THEME_UI_DRAWER_CONNECTOR];
+	if (!drawerViewRenderVariableDetailToken(wb, entry->detail_type, row_inverted, type_color,
+	                                         drawer_cols, written_cols) ||
+	    !drawerViewRenderVariableDetailToken(wb, entry->detail_preview, row_inverted,
+	                                         preview_color, drawer_cols, written_cols) ||
+	    !drawerViewRenderVariableDetailToken(wb, shown_value, row_inverted, value_color,
+	                                         drawer_cols, written_cols) ||
+	    !drawerViewRenderVariableDetailToken(wb, entry->detail_reference, row_inverted,
+	                                         reference_color, drawer_cols, written_cols) ||
+	    !drawerViewRenderVariableDetailToken(wb, shown_address, row_inverted, reference_color,
+	                                         drawer_cols, written_cols)) {
 		return 0;
 	}
 	return 1;
@@ -872,6 +1103,9 @@ static int drawerViewRenderEntryRow(struct writeBuf *wb, int visible_idx, int dr
 	(void)snprintf(entry_name_buf, sizeof(entry_name_buf), "%s",
 	               entry.name != NULL ? entry.name : "");
 	const char *entry_name = entry_name_buf;
+	char prefix_buf[64];
+	(void)snprintf(prefix_buf, sizeof(prefix_buf), "%s",
+	               drawerViewEntryHasPrefix(&entry) ? entry.prefix : "");
 
 	int selected_with_focus =
 	        entry.is_selected && E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER;
@@ -901,6 +1135,10 @@ static int drawerViewRenderEntryRow(struct writeBuf *wb, int visible_idx, int dr
 	                               written_cols)) {
 		return 0;
 	}
+	if (!drawerViewRenderEntryPrefix(wb, &entry, prefix_buf, row_inverted, drawer_cols,
+	                                 written_cols)) {
+		return 0;
+	}
 	if (*written_cols < drawer_cols) {
 		int remaining = drawer_cols - *written_cols;
 		int wrote = 0;
@@ -909,6 +1147,10 @@ static int drawerViewRenderEntryRow(struct writeBuf *wb, int visible_idx, int dr
 			return 0;
 		}
 		*written_cols += wrote;
+	}
+	if (*written_cols < drawer_cols &&
+	    !drawerViewRenderVariableDetails(wb, &entry, row_inverted, drawer_cols, written_cols)) {
+		return 0;
 	}
 	return 1;
 }

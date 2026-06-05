@@ -2,6 +2,7 @@
 #define ROTIDE_DEBUG_DAP_H
 
 #include <limits.h>
+#include <stddef.h>
 
 #define ROTIDE_DAP_MAX_ADAPTERS 16
 #define ROTIDE_DAP_MAX_CONFIGS 16
@@ -13,11 +14,15 @@
 #define ROTIDE_DAP_KEY_MAX 64
 #define ROTIDE_DAP_VALUE_MAX 1024
 #define ROTIDE_DAP_OUTPUT_MAX 4096
+#define ROTIDE_DAP_OUTPUT_MAX_LINES ROTIDE_DAP_OUTPUT_MAX
 #define ROTIDE_DAP_MAX_BREAKPOINTS 128
 #define ROTIDE_DAP_MAX_THREADS 32
 #define ROTIDE_DAP_MAX_STACK_FRAMES 128
 #define ROTIDE_DAP_MAX_SCOPES 64
 #define ROTIDE_DAP_MAX_VARIABLES 256
+#define ROTIDE_DAP_VARIABLE_PREVIEW_MAX_CHILDREN 6
+#define ROTIDE_DAP_VARIABLE_PREVIEW_CHILD_NAME_MAX 64
+#define ROTIDE_DAP_VARIABLE_PREVIEW_CHILD_VALUE_MAX 256
 
 enum editorDapLaunchValueKind {
 	EDITOR_DAP_LAUNCH_VALUE_STRING = 0,
@@ -59,7 +64,16 @@ struct editorDapLaunchConfig {
 	int env_count;
 };
 
+enum editorDapBreakpointKind {
+	EDITOR_DAP_BREAKPOINT_LINE = 0,
+	EDITOR_DAP_BREAKPOINT_CONDITIONAL,
+	EDITOR_DAP_BREAKPOINT_LOGPOINT,
+	EDITOR_DAP_BREAKPOINT_FUNCTION,
+	EDITOR_DAP_BREAKPOINT_DATA
+};
+
 struct editorDapBreakpoint {
+	enum editorDapBreakpointKind kind;
 	char path[PATH_MAX];
 	int line;
 };
@@ -82,10 +96,27 @@ struct editorDapScope {
 	char name[ROTIDE_DAP_NAME_MAX];
 };
 
+struct editorDapVariablePreviewChild {
+	char name[ROTIDE_DAP_VARIABLE_PREVIEW_CHILD_NAME_MAX];
+	char value[ROTIDE_DAP_VARIABLE_PREVIEW_CHILD_VALUE_MAX];
+};
+
 struct editorDapVariable {
 	int variables_reference;
+	int named_variables;
+	int indexed_variables;
+	int scope_index; /* index into E.dap_scopes[] that this variable belongs to */
+	int preview_child_count;
+	int preview_child_total;
+	int preview_children_truncated;
+	int preview_is_indexed;
 	char name[ROTIDE_DAP_NAME_MAX];
+	char type[ROTIDE_DAP_VALUE_MAX];
 	char value[ROTIDE_DAP_VALUE_MAX];
+	char preview[ROTIDE_DAP_VALUE_MAX];
+	char memory_reference[ROTIDE_DAP_VALUE_MAX];
+	struct editorDapVariablePreviewChild
+	        preview_children[ROTIDE_DAP_VARIABLE_PREVIEW_MAX_CHILDREN];
 };
 
 void editorDapLaunchFieldClear(struct editorDapLaunchField *field);
@@ -94,36 +125,46 @@ void editorDapLaunchConfigsClear(struct editorDapLaunchConfig *configs, int coun
 
 void editorDapShutdown(void);
 void editorDapPumpNotifications(void);
+/* Read end of the adapter pipe, or -1 when no session is running. The input
+ * loop polls this so adapter traffic (e.g. the async `initialized` event) wakes
+ * the editor instead of waiting for an unrelated event. */
+int editorDapAdapterReadFd(void);
 
 int editorDapStartSelectedLaunch(void);
 int editorDapStartLaunch(int launch_idx);
 int editorDapStop(void);
+int editorDapRestart(void);
+int editorDapIsRunning(void);
+int editorDapIsStopped(void);
+/* Sends a REPL `evaluate` request for `expr`, scoped to the top stack frame when
+ * stopped. The expression echo and result are appended to the DAP output stream.
+ * Returns 1 if the request was sent. */
+int editorDapEvaluate(const char *expr);
 int editorDapContinue(void);
 int editorDapPause(void);
 int editorDapStepOver(void);
 int editorDapStepInto(void);
 int editorDapStepOut(void);
 int editorDapToggleBreakpointAtCursor(void);
+int editorDapToggleBreakpointAtLine(int line);
 int editorDapHasBreakpoint(const char *path, int line);
+/* Returns 1 if the debuggee is stopped at `line` (0-based) of `path` — i.e. the
+ * top stack frame resolves to the same file and line. */
+int editorDapIsStoppedLine(const char *path, int line);
 
 char *editorDapBuildInitializeRequestJson(int seq, const char *adapter_id);
 char *editorDapBuildSimpleCommandRequestJson(int seq, const char *command);
+/* Builds the adapter spawn command, appending `--tty=<tty_path>` for gdb-family
+ * adapters when a debuggee tty is in use (program output then bypasses the DAP
+ * stream). Other adapters / no tty get the base command unchanged. */
+void editorDapBuildAdapterCommand(const char *base, const char *tty_path, char *out,
+                                  size_t out_size);
+char *editorDapBuildEvaluateRequestJson(int seq, const char *expr, int frame_id,
+                                        const char *context);
 char *editorDapBuildLaunchRequestJson(int seq, const struct editorDapLaunchConfig *config,
                                       const char *workspace_root, const char *active_file);
 int editorDapProcessIncomingMessage(const char *message);
 
-/*
- * Inspects `config` for the rotide-specific `console` field. If the value
- * is "terminal", opens a terminal pane via the layout, resolves its slave
- * tty, sets `tty` in `config`, and records the pane in E.dap_terminal_leaf
- * so it can be closed when the DAP session ends. The `console` key is
- * always stripped from `config` so it doesn't reach the adapter. Returns
- * 1 on success (including when no console field is present), 0 if the
- * caller should abort the launch (terminal pane creation failed).
- *
- * Exposed primarily for tests and for any future "start launch" trigger
- * that wants the terminal-pane setup without spawning the adapter.
- */
-int editorDapPrepareTerminalConsole(struct editorDapLaunchConfig *config);
+/* editorDapPrepareTerminalConsole is declared in debug/dap_console.h. */
 
 #endif

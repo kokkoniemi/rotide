@@ -5,6 +5,7 @@
 #include <pty.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -57,6 +58,54 @@ int editorPtySpawn(const char *command, int cols, int rows, struct editorPtyChil
 
 	out->master_fd = master;
 	out->pid = pid;
+	out->width = cols;
+	out->height = rows;
+	return 1;
+}
+
+int editorPtyOpenWithoutChild(int cols, int rows, struct editorPtyChild *out, char *slave_path,
+                              size_t slave_path_size) {
+	if (out == NULL || slave_path == NULL || slave_path_size == 0 || cols <= 0 || rows <= 0) {
+		errno = EINVAL;
+		return 0;
+	}
+	editorPtyChildInit(out);
+
+	int master = posix_openpt(O_RDWR | O_NOCTTY);
+	if (master < 0) {
+		return 0;
+	}
+	if (grantpt(master) != 0 || unlockpt(master) != 0) {
+		int saved = errno;
+		close(master);
+		errno = saved;
+		return 0;
+	}
+	const char *slave = ptsname(master);
+	if (slave == NULL || strlen(slave) >= slave_path_size) {
+		int saved = (slave == NULL) ? errno : ENAMETOOLONG;
+		close(master);
+		errno = saved;
+		return 0;
+	}
+	memcpy(slave_path, slave, strlen(slave) + 1);
+
+	struct winsize ws = {0};
+	ws.ws_col = (unsigned short)cols;
+	ws.ws_row = (unsigned short)rows;
+	(void)ioctl(master, TIOCSWINSZ, &ws);
+
+	int flags = fcntl(master, F_GETFL, 0);
+	if (flags == -1 || fcntl(master, F_SETFL, flags | O_NONBLOCK) == -1) {
+		int saved = errno;
+		close(master);
+		errno = saved;
+		return 0;
+	}
+	(void)fcntl(master, F_SETFD, FD_CLOEXEC);
+
+	out->master_fd = master;
+	out->pid = -1;
 	out->width = cols;
 	out->height = rows;
 	return 1;

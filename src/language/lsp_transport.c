@@ -7,6 +7,7 @@
 #include "language/lsp_protocol.h"
 #include "language/lsp_responses.h"
 #include "support/file_io.h"
+#include "support/json.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -193,7 +194,7 @@ void editorLspClientCleanup(struct editorLspClient *client, int graceful_shutdow
 	if (graceful_shutdown && client->initialized && client->to_server_fd != -1 &&
 	    client->from_server_fd != -1) {
 		int shutdown_id = client->next_request_id++;
-		struct editorLspString shutdown = {0};
+		struct editorJsonString shutdown = {0};
 		if (editorLspStringAppendf(&shutdown,
 		                           "{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":\"shutdown\","
 		                           "\"params\":null}",

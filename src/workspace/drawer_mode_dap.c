@@ -1,5 +1,8 @@
 #include "config/dap_config.h"
 #include "debug/dap.h"
+#include "debug/dap_breakpoints.h"
+#include "debug/dap_inspection.h"
+#include "debug/dap_output.h"
 #include "rotide.h"
 #include "workspace/drawer.h"
 #include "workspace/drawer_internal.h"
@@ -43,10 +46,16 @@ struct drawerModeDapLookup {
 	int visible_idx;
 	int parent_visible_idx;
 	int group_visible_idx;
+	int group_display_idx;
 };
 
 static const char *g_drawer_mode_dap_group_names[EDITOR_DRAWER_DAP_GROUP_COUNT] = {
         "Configurations", "Breakpoints", "Threads", "Stack", "Variables", "Output"};
+
+static const int g_drawer_mode_dap_display_groups[EDITOR_DRAWER_DAP_GROUP_COUNT] = {
+        EDITOR_DRAWER_DAP_GROUP_CONFIGURATIONS, EDITOR_DRAWER_DAP_GROUP_BREAKPOINTS,
+        EDITOR_DRAWER_DAP_GROUP_VARIABLES,      EDITOR_DRAWER_DAP_GROUP_STACK,
+        EDITOR_DRAWER_DAP_GROUP_THREADS,        EDITOR_DRAWER_DAP_GROUP_OUTPUT};
 
 static unsigned int drawerModeDapAllGroupsMask(void) {
 	unsigned int mask = 0;
@@ -67,6 +76,38 @@ static void drawerModeDapEnsureDefaultExpanded(void) {
 	E.drawer_dap_expanded = drawerModeDapAllGroupsMask();
 }
 
+static int drawerModeDapScopeExpanded(int scope_idx) {
+	if (scope_idx < 0 || scope_idx >= 64) {
+		return 1;
+	}
+	return (E.drawer_dap_scope_collapsed & (1ull << (unsigned int)scope_idx)) == 0;
+}
+
+/* Number of collected variables tagged as belonging to scope `scope_idx`. */
+static int drawerModeDapScopeVarCount(int scope_idx) {
+	return editorDapInspectionScopeVariableCount(scope_idx);
+}
+
+/* Flat debugger variable index of the `nth` (0-based) variable in scope
+ * `scope_idx`, or -1 if there is none. */
+static int drawerModeDapScopeVarIndex(int scope_idx, int nth) {
+	return editorDapInspectionScopeVariableIndex(scope_idx, nth);
+}
+
+/* Visible rows in the expanded Variables group body: one header per scope, plus
+ * the variables of each expanded scope. Zero when there are no scopes (the
+ * caller then renders a "(none)" placeholder). */
+static int drawerModeDapVariablesRowCount(void) {
+	int rows = 0;
+	for (int s = 0; s < editorDapInspectionScopeCount(); s++) {
+		rows++;
+		if (drawerModeDapScopeExpanded(s)) {
+			rows += drawerModeDapScopeVarCount(s);
+		}
+	}
+	return rows;
+}
+
 static int drawerModeDapGroupItemCount(int group_idx) {
 	switch (group_idx) {
 		case EDITOR_DRAWER_DAP_GROUP_CONFIGURATIONS:
@@ -78,15 +119,15 @@ static int drawerModeDapGroupItemCount(int group_idx) {
 			}
 			return 1;
 		case EDITOR_DRAWER_DAP_GROUP_BREAKPOINTS:
-			return E.dap_breakpoint_count;
+			return editorDapBreakpointsCount();
 		case EDITOR_DRAWER_DAP_GROUP_THREADS:
-			return E.dap_thread_count;
+			return editorDapInspectionThreadCount();
 		case EDITOR_DRAWER_DAP_GROUP_STACK:
-			return E.dap_stack_frame_count;
+			return editorDapInspectionStackFrameCount();
 		case EDITOR_DRAWER_DAP_GROUP_VARIABLES:
-			return E.dap_scope_count + E.dap_variable_count;
+			return drawerModeDapVariablesRowCount();
 		case EDITOR_DRAWER_DAP_GROUP_OUTPUT:
-			return E.dap_output_len > 0 ? 1 : 0;
+			return editorDapOutputLength() > 0 ? 1 : 0;
 		default:
 			return 0;
 	}
@@ -94,7 +135,8 @@ static int drawerModeDapGroupItemCount(int group_idx) {
 
 int editorDrawerDapVisibleCount(void) {
 	int count = 1;
-	for (int group_idx = 0; group_idx < EDITOR_DRAWER_DAP_GROUP_COUNT; group_idx++) {
+	for (int display_idx = 0; display_idx < EDITOR_DRAWER_DAP_GROUP_COUNT; display_idx++) {
+		int group_idx = g_drawer_mode_dap_display_groups[display_idx];
 		count++;
 		if (!drawerModeDapGroupExpanded(group_idx)) {
 			continue;
@@ -103,6 +145,35 @@ int editorDrawerDapVisibleCount(void) {
 		count += item_count > 0 ? item_count : 1;
 	}
 	return count;
+}
+
+/* Decode a 0-based row offset within the expanded Variables group body into a
+ * scope header or a variable, filling kind/item_idx/parent on `out`.
+ * `group_visible_idx` is the visible index of the Variables group header.
+ * For a scope, item_idx is the scope index; for a variable it is the flat
+ * debugger variable index. Returns 1 on success. */
+static int drawerModeDapDecodeVariableRow(int row_offset, int group_visible_idx,
+                                          struct drawerModeDapLookup *out) {
+	int consumed = 0;
+	for (int s = 0; s < editorDapInspectionScopeCount(); s++) {
+		int header_body_offset = consumed;
+		if (row_offset == header_body_offset) {
+			out->kind = EDITOR_DRAWER_DAP_ENTRY_SCOPE;
+			out->item_idx = s;
+			out->parent_visible_idx = group_visible_idx;
+			return 1;
+		}
+		consumed++; /* scope header */
+		int var_count = drawerModeDapScopeExpanded(s) ? drawerModeDapScopeVarCount(s) : 0;
+		if (row_offset < consumed + var_count) {
+			out->kind = EDITOR_DRAWER_DAP_ENTRY_VARIABLE;
+			out->item_idx = drawerModeDapScopeVarIndex(s, row_offset - consumed);
+			out->parent_visible_idx = group_visible_idx + 1 + header_body_offset;
+			return 1;
+		}
+		consumed += var_count;
+	}
+	return 0;
 }
 
 static int drawerModeDapLookupByVisibleIndex(int visible_idx,
@@ -116,6 +187,7 @@ static int drawerModeDapLookupByVisibleIndex(int visible_idx,
 	lookup_out->item_idx = -1;
 	lookup_out->parent_visible_idx = -1;
 	lookup_out->group_visible_idx = -1;
+	lookup_out->group_display_idx = -1;
 
 	if (visible_idx == 0) {
 		lookup_out->kind = EDITOR_DRAWER_DAP_ENTRY_ROOT;
@@ -123,12 +195,14 @@ static int drawerModeDapLookupByVisibleIndex(int visible_idx,
 	}
 
 	int cursor = 1;
-	for (int group_idx = 0; group_idx < EDITOR_DRAWER_DAP_GROUP_COUNT; group_idx++) {
+	for (int display_idx = 0; display_idx < EDITOR_DRAWER_DAP_GROUP_COUNT; display_idx++) {
+		int group_idx = g_drawer_mode_dap_display_groups[display_idx];
 		int group_visible_idx = cursor;
 		int item_count = drawerModeDapGroupItemCount(group_idx);
 		if (visible_idx == group_visible_idx) {
 			lookup_out->kind = EDITOR_DRAWER_DAP_ENTRY_GROUP;
 			lookup_out->group_idx = group_idx;
+			lookup_out->group_display_idx = display_idx;
 			lookup_out->item_count = item_count;
 			lookup_out->parent_visible_idx = 0;
 			lookup_out->group_visible_idx = group_visible_idx;
@@ -142,6 +216,7 @@ static int drawerModeDapLookupByVisibleIndex(int visible_idx,
 			if (visible_idx == cursor) {
 				lookup_out->kind = EDITOR_DRAWER_DAP_ENTRY_PLACEHOLDER;
 				lookup_out->group_idx = group_idx;
+				lookup_out->group_display_idx = display_idx;
 				lookup_out->parent_visible_idx = group_visible_idx;
 				lookup_out->group_visible_idx = group_visible_idx;
 				return 1;
@@ -155,6 +230,7 @@ static int drawerModeDapLookupByVisibleIndex(int visible_idx,
 				continue;
 			}
 			lookup_out->group_idx = group_idx;
+			lookup_out->group_display_idx = display_idx;
 			lookup_out->item_idx = item_idx;
 			lookup_out->item_count = item_count;
 			lookup_out->parent_visible_idx = group_visible_idx;
@@ -185,12 +261,8 @@ static int drawerModeDapLookupByVisibleIndex(int visible_idx,
 				return 1;
 			}
 			if (group_idx == EDITOR_DRAWER_DAP_GROUP_VARIABLES) {
-				if (item_idx < E.dap_scope_count) {
-					lookup_out->kind = EDITOR_DRAWER_DAP_ENTRY_SCOPE;
-				} else {
-					lookup_out->kind = EDITOR_DRAWER_DAP_ENTRY_VARIABLE;
-					lookup_out->item_idx = item_idx - E.dap_scope_count;
-				}
+				(void)drawerModeDapDecodeVariableRow(item_idx, group_visible_idx,
+				                                     lookup_out);
 				return 1;
 			}
 			if (group_idx == EDITOR_DRAWER_DAP_GROUP_OUTPUT) {
@@ -235,7 +307,6 @@ int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 		return 0;
 	}
 
-	static char dap_name_buf[PATH_MAX + 128];
 	struct drawerModeDapLookup lookup;
 	if (!drawerModeDapLookupByVisibleIndex(visible_idx, &lookup)) {
 		return 0;
@@ -246,10 +317,10 @@ int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 	view_out->parent_visible_idx = lookup.parent_visible_idx;
 	switch (lookup.kind) {
 		case EDITOR_DRAWER_DAP_ENTRY_ROOT:
-			(void)snprintf(dap_name_buf, sizeof(dap_name_buf), "DAP%s%s",
-			               E.dap_running ? " - running" : "",
-			               E.dap_stopped ? " (stopped)" : "");
-			view_out->name = dap_name_buf;
+			(void)snprintf(view_out->name_buf, sizeof(view_out->name_buf),
+			               "Debugger%s%s", editorDapIsRunning() ? " - running" : "",
+			               editorDapIsStopped() ? " (stopped)" : "");
+			view_out->name = view_out->name_buf;
 			view_out->depth = 0;
 			view_out->is_dir = 1;
 			view_out->is_expanded = 1;
@@ -258,13 +329,13 @@ int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 			return 1;
 		case EDITOR_DRAWER_DAP_ENTRY_GROUP:
 			if (lookup.group_idx == EDITOR_DRAWER_DAP_GROUP_CONFIGURATIONS) {
-				(void)snprintf(dap_name_buf, sizeof(dap_name_buf),
+				(void)snprintf(view_out->name_buf, sizeof(view_out->name_buf),
 				               "Configurations (%d)", E.dap_launch_count);
-				view_out->name = dap_name_buf;
+				view_out->name = view_out->name_buf;
 			} else if (lookup.group_idx == EDITOR_DRAWER_DAP_GROUP_BREAKPOINTS) {
-				(void)snprintf(dap_name_buf, sizeof(dap_name_buf),
-				               "Breakpoints (%d)", E.dap_breakpoint_count);
-				view_out->name = dap_name_buf;
+				(void)snprintf(view_out->name_buf, sizeof(view_out->name_buf),
+				               "Breakpoints (%d)", editorDapBreakpointsCount());
+				view_out->name = view_out->name_buf;
 			} else {
 				view_out->name = g_drawer_mode_dap_group_names[lookup.group_idx];
 			}
@@ -272,85 +343,145 @@ int editorDrawerDapVisibleEntryView(int visible_idx, struct editorDrawerEntryVie
 			view_out->is_dir = 1;
 			view_out->is_expanded = drawerModeDapGroupExpanded(lookup.group_idx);
 			view_out->is_last_sibling =
-			        lookup.group_idx == EDITOR_DRAWER_DAP_GROUP_COUNT - 1;
+			        lookup.group_display_idx == EDITOR_DRAWER_DAP_GROUP_COUNT - 1;
 			return 1;
 		case EDITOR_DRAWER_DAP_ENTRY_LAUNCH: {
 			const struct editorDapLaunchConfig *config =
 			        &E.dap_launches[lookup.item_idx];
-			(void)snprintf(dap_name_buf, sizeof(dap_name_buf), "%s%s%s",
+			(void)snprintf(view_out->name_buf, sizeof(view_out->name_buf), "%s%s%s",
 			               lookup.item_idx == E.dap_selected_launch ? "* " : "",
 			               config->name[0] != '\0' ? config->name : config->id,
 			               editorDapAdapterById(config->adapter) != NULL
 			                       ? ""
 			                       : " (missing adapter)");
-			view_out->name = dap_name_buf;
+			view_out->name = view_out->name_buf;
 			view_out->depth = 2;
 			view_out->is_last_sibling = lookup.item_idx == lookup.item_count - 1;
+			view_out->icon_kind = EDITOR_DRAWER_ENTRY_ICON_DAP_START;
+			view_out->icon_color = EDITOR_DRAWER_ENTRY_ICON_COLOR_DAP_START;
 			return 1;
 		}
 		case EDITOR_DRAWER_DAP_ENTRY_CREATE_PROMPT:
 			view_out->name = "Create debug config from default";
 			view_out->depth = 2;
+			view_out->icon_kind = EDITOR_DRAWER_ENTRY_ICON_NONE;
 			return 1;
 		case EDITOR_DRAWER_DAP_ENTRY_DEFAULT: {
 			const struct editorDapLaunchConfig *config =
 			        &E.dap_defaults[lookup.item_idx];
-			(void)snprintf(dap_name_buf, sizeof(dap_name_buf), "+ %s",
+			(void)snprintf(view_out->name_buf, sizeof(view_out->name_buf), "+ %s",
 			               config->name[0] != '\0' ? config->name : config->id);
-			view_out->name = dap_name_buf;
+			view_out->name = view_out->name_buf;
 			view_out->depth = 3;
 			view_out->is_last_sibling = lookup.item_idx == E.dap_default_count - 1;
+			view_out->icon_kind = EDITOR_DRAWER_ENTRY_ICON_DAP_START;
+			view_out->icon_color = EDITOR_DRAWER_ENTRY_ICON_COLOR_DAP_START;
 			return 1;
 		}
 		case EDITOR_DRAWER_DAP_ENTRY_BREAKPOINT: {
-			const struct editorDapBreakpoint *bp = &E.dap_breakpoints[lookup.item_idx];
+			const struct editorDapBreakpoint *bp =
+			        editorDapBreakpointsAt(lookup.item_idx);
+			if (bp == NULL) {
+				return 0;
+			}
 			const char *slash = strrchr(bp->path, '/');
 			const char *base = slash != NULL ? slash + 1 : bp->path;
-			(void)snprintf(dap_name_buf, sizeof(dap_name_buf), "%s:%d", base,
-			               bp->line + 1);
-			view_out->name = dap_name_buf;
+			(void)snprintf(view_out->name_buf, sizeof(view_out->name_buf), "%s:%d",
+			               base, bp->line + 1);
+			view_out->name = view_out->name_buf;
 			view_out->path = bp->path;
 			view_out->line = bp->line;
 			view_out->depth = 2;
 			view_out->is_last_sibling = lookup.item_idx == lookup.item_count - 1;
+			view_out->dap_breakpoint_kind = bp->kind;
+			view_out->icon_kind = EDITOR_DRAWER_ENTRY_ICON_DAP_BREAKPOINT;
+			view_out->icon_color = EDITOR_DRAWER_ENTRY_ICON_COLOR_DAP_BREAKPOINT;
 			return 1;
 		}
-		case EDITOR_DRAWER_DAP_ENTRY_THREAD:
-			(void)snprintf(dap_name_buf, sizeof(dap_name_buf), "%d %s",
-			               E.dap_threads[lookup.item_idx].id,
-			               E.dap_threads[lookup.item_idx].name);
-			view_out->name = dap_name_buf;
+		case EDITOR_DRAWER_DAP_ENTRY_THREAD: {
+			const struct editorDapThread *thread =
+			        editorDapInspectionThreadAt(lookup.item_idx);
+			if (thread == NULL) {
+				return 0;
+			}
+			(void)snprintf(view_out->prefix_buf, sizeof(view_out->prefix_buf), "#%d",
+			               thread->id);
+			view_out->prefix = view_out->prefix_buf;
+			view_out->prefix_muted = 1;
+			view_out->name = thread->name[0] != '\0' ? thread->name : "(thread)";
 			view_out->depth = 2;
 			view_out->is_last_sibling = lookup.item_idx == lookup.item_count - 1;
+			view_out->icon_kind = EDITOR_DRAWER_ENTRY_ICON_NONE;
 			return 1;
+		}
 		case EDITOR_DRAWER_DAP_ENTRY_STACK_FRAME: {
 			const struct editorDapStackFrame *frame =
-			        &E.dap_stack_frames[lookup.item_idx];
-			(void)snprintf(dap_name_buf, sizeof(dap_name_buf), "%s:%d",
+			        editorDapInspectionStackFrameAt(lookup.item_idx);
+			if (frame == NULL) {
+				return 0;
+			}
+			(void)snprintf(view_out->name_buf, sizeof(view_out->name_buf), "%s:%d",
 			               frame->name[0] != '\0' ? frame->name : "(frame)",
 			               frame->line);
-			view_out->name = dap_name_buf;
+			view_out->name = view_out->name_buf;
 			view_out->path = frame->path;
 			view_out->line = frame->line > 0 ? frame->line - 1 : 0;
 			view_out->character = frame->column > 0 ? frame->column - 1 : 0;
 			view_out->depth = 2;
 			view_out->is_last_sibling = lookup.item_idx == lookup.item_count - 1;
+			view_out->icon_kind = EDITOR_DRAWER_ENTRY_ICON_NONE;
 			return 1;
 		}
-		case EDITOR_DRAWER_DAP_ENTRY_SCOPE:
-			view_out->name = E.dap_scopes[lookup.item_idx].name;
+		case EDITOR_DRAWER_DAP_ENTRY_SCOPE: {
+			const struct editorDapScope *scope =
+			        editorDapInspectionScopeAt(lookup.item_idx);
+			if (scope == NULL) {
+				return 0;
+			}
+			(void)snprintf(view_out->name_buf, sizeof(view_out->name_buf), "%s (%d)",
+			               scope->name, drawerModeDapScopeVarCount(lookup.item_idx));
+			view_out->name = view_out->name_buf;
 			view_out->depth = 2;
+			view_out->is_dir = 1;
+			view_out->is_expanded = drawerModeDapScopeExpanded(lookup.item_idx);
+			view_out->is_last_sibling =
+			        lookup.item_idx == editorDapInspectionScopeCount() - 1;
 			return 1;
-		case EDITOR_DRAWER_DAP_ENTRY_VARIABLE:
-			(void)snprintf(dap_name_buf, sizeof(dap_name_buf), "%s = %s",
-			               E.dap_variables[lookup.item_idx].name,
-			               E.dap_variables[lookup.item_idx].value);
-			view_out->name = dap_name_buf;
+		}
+		case EDITOR_DRAWER_DAP_ENTRY_VARIABLE: {
+			const struct editorDapVariable *var =
+			        editorDapInspectionVariableAt(lookup.item_idx);
+			if (var == NULL) {
+				view_out->name = "(none)";
+				view_out->depth = 3;
+				view_out->is_placeholder = 1;
+				return 1;
+			}
+			view_out->name = var->name;
+			view_out->detail_type = var->type;
+			view_out->detail_value = var->value;
+			view_out->detail_preview = var->preview;
+			view_out->detail_address = var->memory_reference;
+			view_out->variable_reference = var->variables_reference;
 			view_out->depth = 3;
+			view_out->icon_kind = EDITOR_DRAWER_ENTRY_ICON_NONE;
+			int is_last = 1;
+			for (int i = lookup.item_idx + 1; i < editorDapInspectionVariableCount();
+			     i++) {
+				const struct editorDapVariable *next =
+				        editorDapInspectionVariableAt(i);
+				if (next != NULL && next->scope_index == var->scope_index) {
+					is_last = 0;
+					break;
+				}
+			}
+			view_out->is_last_sibling = is_last;
 			return 1;
+		}
 		case EDITOR_DRAWER_DAP_ENTRY_OUTPUT:
-			(void)snprintf(dap_name_buf, sizeof(dap_name_buf), "%.120s", E.dap_output);
-			view_out->name = dap_name_buf;
+			(void)snprintf(view_out->name_buf, sizeof(view_out->name_buf), "%.120s",
+			               editorDapOutputText());
+			view_out->name = view_out->name_buf;
 			view_out->depth = 2;
 			return 1;
 		case EDITOR_DRAWER_DAP_ENTRY_PLACEHOLDER:
@@ -380,6 +511,14 @@ int editorDrawerDapExpandSelection(int viewport_rows) {
 		editorDrawerClampSelectionAndScroll(viewport_rows);
 		return 0;
 	}
+	if (lookup.kind == EDITOR_DRAWER_DAP_ENTRY_SCOPE) {
+		if (drawerModeDapScopeExpanded(lookup.item_idx) || lookup.item_idx >= 64) {
+			return 0;
+		}
+		E.drawer_dap_scope_collapsed &= ~(1ull << (unsigned int)lookup.item_idx);
+		editorDrawerClampSelectionAndScroll(viewport_rows);
+		return 1;
+	}
 	if (lookup.kind != EDITOR_DRAWER_DAP_ENTRY_GROUP ||
 	    drawerModeDapGroupExpanded(lookup.group_idx)) {
 		return 0;
@@ -406,7 +545,14 @@ int editorDrawerDapCollapseSelection(int viewport_rows) {
 		editorDrawerClampSelectionAndScroll(viewport_rows);
 		return 1;
 	}
-	E.drawer_selected_index = lookup.group_visible_idx;
+	if (lookup.kind == EDITOR_DRAWER_DAP_ENTRY_SCOPE &&
+	    drawerModeDapScopeExpanded(lookup.item_idx) && lookup.item_idx < 64) {
+		E.drawer_dap_scope_collapsed |= 1ull << (unsigned int)lookup.item_idx;
+		editorDrawerClampSelectionAndScroll(viewport_rows);
+		return 1;
+	}
+	E.drawer_selected_index = lookup.parent_visible_idx >= 0 ? lookup.parent_visible_idx
+	                                                         : lookup.group_visible_idx;
 	editorDrawerClampSelectionAndScroll(viewport_rows);
 	return 1;
 }
@@ -415,6 +561,11 @@ int editorDrawerDapToggleSelectionExpanded(int viewport_rows) {
 	struct drawerModeDapLookup lookup;
 	if (!drawerModeDapLookupByVisibleIndex(E.drawer_selected_index, &lookup)) {
 		return 0;
+	}
+	if (lookup.kind == EDITOR_DRAWER_DAP_ENTRY_SCOPE && lookup.item_idx < 64) {
+		E.drawer_dap_scope_collapsed ^= 1ull << (unsigned int)lookup.item_idx;
+		editorDrawerClampSelectionAndScroll(viewport_rows);
+		return 1;
 	}
 	if (lookup.kind != EDITOR_DRAWER_DAP_ENTRY_GROUP) {
 		return 0;
@@ -430,7 +581,8 @@ int editorDrawerDapSelectedIsDirectory(void) {
 		return 0;
 	}
 	return lookup.kind == EDITOR_DRAWER_DAP_ENTRY_ROOT ||
-	       lookup.kind == EDITOR_DRAWER_DAP_ENTRY_GROUP;
+	       lookup.kind == EDITOR_DRAWER_DAP_ENTRY_GROUP ||
+	       lookup.kind == EDITOR_DRAWER_DAP_ENTRY_SCOPE;
 }
 
 int editorDrawerSelectedDapLaunch(int *launch_idx_out) {
@@ -469,14 +621,21 @@ int editorDrawerSelectedDapLocation(const char **path_out, int *line_out, int *c
 		return 0;
 	}
 	if (lookup.kind == EDITOR_DRAWER_DAP_ENTRY_BREAKPOINT) {
-		const struct editorDapBreakpoint *bp = &E.dap_breakpoints[lookup.item_idx];
+		const struct editorDapBreakpoint *bp = editorDapBreakpointsAt(lookup.item_idx);
+		if (bp == NULL) {
+			return 0;
+		}
 		*path_out = bp->path;
 		*line_out = bp->line;
 		*character_out = 0;
 		return 1;
 	}
 	if (lookup.kind == EDITOR_DRAWER_DAP_ENTRY_STACK_FRAME) {
-		const struct editorDapStackFrame *frame = &E.dap_stack_frames[lookup.item_idx];
+		const struct editorDapStackFrame *frame =
+		        editorDapInspectionStackFrameAt(lookup.item_idx);
+		if (frame == NULL) {
+			return 0;
+		}
 		if (frame->path[0] == '\0') {
 			return 0;
 		}

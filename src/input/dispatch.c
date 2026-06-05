@@ -1,6 +1,8 @@
 #include "input/dispatch.h"
 
 #include "config/keymap.h"
+#include "debug/dap.h"
+#include "debug/dap_console.h"
 #include "editing/buffer_core.h"
 #include "editing/buffer_search.h"
 #include "editing/document_position.h"
@@ -793,7 +795,8 @@ static void dispatchProjectReplaceInteractiveLoop(struct dispatchProjectReplaceF
 			(void)editorRefreshWindowSize();
 			continue;
 		}
-		if (c == SYNTAX_EVENT || c == TASK_EVENT || c == WATCH_EVENT || c == MOUSE_EVENT) {
+		if (c == SYNTAX_EVENT || c == TASK_EVENT || c == WATCH_EVENT || c == DAP_EVENT ||
+		    c == MOUSE_EVENT) {
 			continue;
 		}
 
@@ -1025,7 +1028,7 @@ static void dispatchFindReplace(void) {
 			(void)editorRefreshWindowSize();
 			continue;
 		}
-		if (c == SYNTAX_EVENT || c == TASK_EVENT || c == WATCH_EVENT) {
+		if (c == SYNTAX_EVENT || c == TASK_EVENT || c == WATCH_EVENT || c == DAP_EVENT) {
 			continue;
 		}
 		if (c == MOUSE_EVENT) {
@@ -2544,36 +2547,34 @@ static int dispatchHandleInputEvent(int c) {
 		case TASK_EVENT:
 		case SYNTAX_EVENT:
 		case WATCH_EVENT:
+		case DAP_EVENT:
 			return 1;
 		case TERMINAL_EVENT: {
 			struct editorPaneNode *prev_focus = E.focused_leaf;
-			int closed = editorTerminalPaneCloseExited(&E.layout_root, &E.focused_leaf,
-			                                           &E.dap_terminal_leaf);
+			int closed = editorTerminalPaneCloseExitedTabs();
 			if (closed > 0 && E.focused_leaf != NULL && E.focused_leaf != prev_focus) {
 				(void)editorPaneViewLoadIntoState(&E.focused_leaf->as.leaf.view);
 			}
 			return 1;
 		}
-		case BRACKETED_PASTE_START_EVENT:
+		case BRACKETED_PASTE_START_EVENT: {
 			E.paste_active = 1;
-			if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
-			    E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
-			    E.focused_leaf->as.leaf.kind_state != NULL) {
-				(void)editorTerminalPaneSendPasteStart(
-				        (struct editorTerminalPane *)
-				                E.focused_leaf->as.leaf.kind_state);
+			struct editorTerminalPane *paste_term =
+			        editorTerminalPaneForPane(E.focused_leaf);
+			if (paste_term != NULL) {
+				(void)editorTerminalPaneSendPasteStart(paste_term);
 			}
 			return 1;
-		case BRACKETED_PASTE_END_EVENT:
+		}
+		case BRACKETED_PASTE_END_EVENT: {
 			E.paste_active = 0;
-			if (E.focused_leaf != NULL && !E.focused_leaf->is_split &&
-			    E.focused_leaf->as.leaf.kind == EDITOR_PANE_KIND_TERMINAL &&
-			    E.focused_leaf->as.leaf.kind_state != NULL) {
-				(void)editorTerminalPaneSendPasteEnd(
-				        (struct editorTerminalPane *)
-				                E.focused_leaf->as.leaf.kind_state);
+			struct editorTerminalPane *paste_term =
+			        editorTerminalPaneForPane(E.focused_leaf);
+			if (paste_term != NULL) {
+				(void)editorTerminalPaneSendPasteEnd(paste_term);
 			}
 			return 1;
+		}
 		default:
 			return 0;
 	}
@@ -2667,12 +2668,55 @@ static void dispatchHandleMouseEvent(int *effects) {
 	}
 }
 
+/* Scrolls the focused Debug Console pane. Returns 1 when the key was a scroll
+ * key the console consumed; other keys fall through to normal handling so global
+ * keybindings (evaluate, toggle, quit) still work while the console is focused. */
+static int dispatchTryDapConsoleKey(int c) {
+	/* Only the DEBUG_CONSOLE tab's REPL lands here; the debuggee TERMINAL tab is
+	 * a normal terminal tab handled by dispatchTryTerminalPaneKey. */
+	struct editorDapConsolePane *console = editorDapConsoleForPane(E.focused_leaf);
+	if (console == NULL || E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
+		return 0;
+	}
+	/* Inline REPL: printable bytes edit the input line, Enter evaluates, Backspace
+	 * deletes; paging scrolls the transcript. Other keys fall through so global
+	 * bindings (quit, etc.) still work. */
+	switch (c) {
+		case PAGE_UP:
+			editorDapConsoleScroll(console, 5);
+			return 1;
+		case PAGE_DOWN:
+			editorDapConsoleScroll(console, -5);
+			return 1;
+		case '\r':
+			if (console->input_len > 0) {
+				console->input[console->input_len] = '\0';
+				(void)editorDapEvaluate(console->input);
+				console->input_len = 0;
+				console->input[0] = '\0';
+				console->scroll = 0; /* jump to the freshest output */
+			}
+			return 1;
+		case BACKSPACE:
+			if (console->input_len > 0) {
+				console->input[--console->input_len] = '\0';
+			}
+			return 1;
+		default:
+			if (c >= 0x20 && c < 0x7f &&
+			    console->input_len + 1 < (int)sizeof(console->input)) {
+				console->input[console->input_len++] = (char)c;
+				console->input[console->input_len] = '\0';
+				return 1;
+			}
+			return 0;
+	}
+}
+
 /* Returns 1 when the key was forwarded to the terminal pane (caller must return). */
 static int dispatchTryTerminalPaneKey(int c) {
-	if (E.focused_leaf == NULL || E.focused_leaf->is_split ||
-	    E.focused_leaf->as.leaf.kind != EDITOR_PANE_KIND_TERMINAL ||
-	    E.focused_leaf->as.leaf.kind_state == NULL ||
-	    E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
+	struct editorTerminalPane *terminal = editorTerminalPaneForPane(E.focused_leaf);
+	if (terminal == NULL || E.primary_focus == EDITOR_PRIMARY_FOCUS_DRAWER) {
 		return 0;
 	}
 	if (E.terminal_prefix_armed) {
@@ -2686,8 +2730,6 @@ static int dispatchTryTerminalPaneKey(int c) {
 		editorSetStatusMsg("Terminal prefix armed: next key is rotide");
 		return 1;
 	}
-	struct editorTerminalPane *terminal =
-	        (struct editorTerminalPane *)E.focused_leaf->as.leaf.kind_state;
 	(void)editorTerminalPaneSendKey(terminal, c);
 	return 1;
 }
@@ -2757,6 +2799,9 @@ static int dispatchHandleKeyboardKey(int c, enum editorAction *action_out, int *
                                      int *effects) {
 	if (editorClearHoverLinkState()) {
 		*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
+	}
+	if (dispatchTryDapConsoleKey(c)) {
+		return 1;
 	}
 	if (dispatchTryTerminalPaneKey(c)) {
 		return 1;

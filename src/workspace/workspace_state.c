@@ -812,13 +812,15 @@ static void workspaceStateApplyPendingPaneAssignment(void) {
 }
 
 static void workspaceStateHydrateTerminalsIfAny(void) {
-	if (E.layout_root == NULL || !editorTerminalPaneTreeHasTerminal(E.layout_root)) {
+	if (E.layout_root == NULL) {
 		return;
 	}
 	const char *shell = getenv("SHELL");
 	if (shell == NULL || shell[0] == '\0') {
 		shell = "/bin/sh";
 	}
+	/* HydratePlaceholders walks the tree for `term` placeholder leaves and is a
+	 * no-op when there are none, so no separate gate is needed. */
 	int failures = editorTerminalPaneHydratePlaceholders(E.layout_root, shell);
 	/* Resize here is safe to run before pane-tab assignment because
 	 * assignment doesn't change leaf geometry — only pane-membership
@@ -887,14 +889,16 @@ int editorWorkspaceStateRestoreTabs(void) {
 		editorViewportCenterCursor();
 	}
 	editorOpenSetDeferLsp(0);
-	/* Must precede pane assignment so it sees final leaf kinds and skips
-	 * the hydrated terminal leaves. */
-	workspaceStateHydrateTerminalsIfAny();
 	if (opened_any && g_pending_pane_tab_count > 0) {
 		/* Redistribute the opened tabs across the saved panes; this also
 		 * sets E.focused_leaf and switches to the focused pane's active tab. */
 		workspaceStateApplyPendingPaneAssignment();
 	}
+	/* Hydrate AFTER pane assignment: assignment wipes and repopulates each
+	 * editor leaf's membership, so a terminal placeholder must still be a
+	 * TERMINAL leaf during assignment (it skips non-editor leaves). Hydration
+	 * then demotes the placeholder to an editor leaf hosting a TERMINAL tab. */
+	workspaceStateHydrateTerminalsIfAny();
 	/*
 	 * When the active path is the last tab we opened, editorTabSwitchToIndex returns early
 	 * without calling editorLoadActiveTab, so the LSP didOpen never runs. Force it here.

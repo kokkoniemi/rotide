@@ -164,6 +164,18 @@ enum editorTabKind {
 	EDITOR_TAB_GIT_DIFF
 };
 
+/*
+ * Kind of a pane tab's payload. EDITOR tabs own an editorBuffer (the inline
+ * union in editorTabState); TERMINAL / DEBUG_CONSOLE tabs own their state via
+ * the tab's payload pointer. Also still carried on a pane leaf during the
+ * leaf-kind -> tab-kind migration (see PLAN-unified-tabs.md).
+ */
+enum editorPaneKind {
+	EDITOR_PANE_KIND_EDITOR = 0,
+	EDITOR_PANE_KIND_TERMINAL,
+	EDITOR_PANE_KIND_DEBUG_CONSOLE
+};
+
 enum editorGitStatus {
 	EDITOR_GIT_STATUS_CLEAN = 0,
 	EDITOR_GIT_STATUS_MODIFIED,
@@ -171,9 +183,28 @@ enum editorGitStatus {
 	EDITOR_GIT_STATUS_CONFLICT
 };
 
+enum editorDrawerEntryIconKind {
+	EDITOR_DRAWER_ENTRY_ICON_INFER = 0,
+	EDITOR_DRAWER_ENTRY_ICON_NONE,
+	EDITOR_DRAWER_ENTRY_ICON_DAP_START,
+	EDITOR_DRAWER_ENTRY_ICON_DAP_BREAKPOINT
+};
+
+enum editorDrawerEntryIconColor {
+	EDITOR_DRAWER_ENTRY_ICON_COLOR_DEFAULT = 0,
+	EDITOR_DRAWER_ENTRY_ICON_COLOR_DAP_START,
+	EDITOR_DRAWER_ENTRY_ICON_COLOR_DAP_BREAKPOINT
+};
+
 struct editorDrawerEntryView {
 	const char *name;
 	const char *path;
+	const char *prefix;
+	const char *detail_type;
+	const char *detail_value;
+	const char *detail_reference;
+	const char *detail_address;
+	const char *detail_preview;
 	int depth;
 	int is_dir;
 	int is_expanded;
@@ -190,6 +221,13 @@ struct editorDrawerEntryView {
 	int character;
 	int lsp_problem_severity;
 	int lsp_problem_kind_len;
+	int prefix_muted;
+	int variable_reference;
+	enum editorDapBreakpointKind dap_breakpoint_kind;
+	enum editorDrawerEntryIconKind icon_kind;
+	enum editorDrawerEntryIconColor icon_color;
+	char name_buf[PATH_MAX + 128];
+	char prefix_buf[32];
 };
 
 struct editorProjectSearchResult {
@@ -301,6 +339,9 @@ enum editorAction {
 	EDITOR_ACTION_DAP_STEP_OVER,
 	EDITOR_ACTION_DAP_STEP_INTO,
 	EDITOR_ACTION_DAP_STEP_OUT,
+	EDITOR_ACTION_DAP_RESTART,
+	EDITOR_ACTION_DAP_EVALUATE,
+	EDITOR_ACTION_DAP_CONSOLE,
 	EDITOR_ACTION_DAP_TOGGLE_BREAKPOINT,
 	EDITOR_ACTION_SPLIT_HORIZONTAL,
 	EDITOR_ACTION_SPLIT_VERTICAL,
@@ -466,6 +507,21 @@ struct editorTabState {
 			EDITOR_ACTIVE_BUFFER_FIELDS(EDITOR_DECLARE_FIELD)
 		};
 	};
+	/*
+	 * Tab payload kind. Lives outside the buffer union so it survives the
+	 * move-based active-buffer alias (tabsBufferMove copies/zeroes only the
+	 * buffer). EDITOR tabs use the inline buffer above; non-editor kinds own
+	 * payload/payload_free.
+	 */
+	enum editorPaneKind kind;
+	/*
+	 * Owned payload for non-editor kinds (e.g. an editorTerminalPane for a
+	 * TERMINAL tab, or an editorDapConsolePane for a DEBUG_CONSOLE tab). NULL for
+	 * EDITOR tabs, whose payload is the inline buffer. payload_free releases it
+	 * when the tab is freed.
+	 */
+	void *payload;
+	void (*payload_free)(void *payload);
 };
 
 /*
@@ -559,6 +615,9 @@ struct editorConfig {
 	unsigned int drawer_git_expanded;
 	unsigned int drawer_lsp_expanded;
 	unsigned int drawer_dap_expanded;
+	/* Per-scope collapse bits for the DAP Variables group, indexed by scope
+	 * (Arguments/Locals/Registers/...). Bit set = collapsed; default expanded. */
+	unsigned long long drawer_dap_scope_collapsed;
 	int drawer_selected_index;
 	int drawer_rowoff;
 	int drawer_last_click_visible_idx;
@@ -645,16 +704,15 @@ struct editorConfig {
 	int dap_variable_count;
 	char dap_output[ROTIDE_DAP_OUTPUT_MAX];
 	size_t dap_output_len;
+	size_t dap_output_line_start[ROTIDE_DAP_OUTPUT_MAX_LINES];
+	int dap_output_line_count;
 	int dap_running;
 	int dap_stopped;
 	int dap_selected_launch;
-	/*
-	 * If non-NULL, points at a terminal pane leaf that the DAP launch
-	 * opened (via console="terminal") to host the inferior's tty. The
-	 * pane is closed when the DAP session ends, unless the user has
-	 * focused the pane and is interacting with it.
-	 */
-	struct editorPaneNode *dap_terminal_leaf;
+	/* The pane hosting the Debug Console panel (a DEBUG_CONSOLE tab plus, when
+	 * launched with console="terminal", a TERMINAL tab), or NULL. The console's
+	 * scroll + REPL input live on the DEBUG_CONSOLE tab payload. */
+	struct editorPaneNode *dap_console_leaf;
 
 	/* --- Config-derived: editor preferences --- */
 	enum editorCursorStyle cursor_style;
@@ -748,6 +806,7 @@ enum editorKey {
 	TASK_EVENT,
 	SYNTAX_EVENT,
 	WATCH_EVENT,
+	DAP_EVENT,
 	TERMINAL_EVENT,
 	BRACKETED_PASTE_START_EVENT,
 	BRACKETED_PASTE_END_EVENT
