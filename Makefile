@@ -102,14 +102,14 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 	$(addprefix $(SRC_DIR)/input/, \
 		actions_edit.c actions_file_tab.c actions_language.c \
 		actions_terminal_debug.c actions_workspace.c mouse.c \
-		prompt.c text_pairs.c input_system.c system_cua.c dispatch.c) \
+		prompt.c text_pairs.c input_system.c system_cua.c system_vim.c dispatch.c) \
 	$(addprefix $(SRC_DIR)/render/, \
 		write_buf.c ansi_style.c display_text.c drawer_view.c \
 		pane_view.c status_bar.c tab_bar.c terminal_view.c \
 		wrap.c viewport.c screen.c popup.c) \
 	$(addprefix $(SRC_DIR)/config/, \
 		common.c keymap.c runtime_config.c editor_config.c \
-		theme_builtin.c theme_parse.c lsp_config.c dap_config.c) \
+		input_config.c theme_builtin.c theme_parse.c lsp_config.c dap_config.c) \
 	$(addprefix $(SRC_DIR)/language/, \
 		syntax.c queries.c syntax_budget.c syntax_captures.c \
 		syntax_detect.c syntax_indent.c syntax_injections.c \

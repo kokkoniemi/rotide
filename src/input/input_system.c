@@ -4,6 +4,7 @@
 
 static const struct editorInputSystem *const g_inputSystem_systems[] = {
         &editorCuaInputSystem,
+        &editorVimInputSystem,
 };
 
 static const struct editorInputSystem *g_inputSystem_active = &editorCuaInputSystem;

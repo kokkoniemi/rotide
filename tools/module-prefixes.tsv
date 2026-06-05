@@ -2,6 +2,7 @@
 src/config/common.c	common
 src/config/dap_config.c	dapConfig
 src/config/editor_config.c	configEditor
+src/config/input_config.c	inputConfig
 src/config/keymap.c	keymap
 src/config/lsp_config.c	lspConfig
 src/config/runtime_config.c	runtimeConfig
@@ -37,6 +38,7 @@ src/input/input_system.c	inputSystem
 src/input/mouse.c	mouse
 src/input/prompt.c	prompt
 src/input/system_cua.c	cuaSystem
+src/input/system_vim.c	vimSystem
 src/input/text_pairs.c	textPairs
 src/language/autocomplete.c	autocomplete
 src/language/languages.c	languages

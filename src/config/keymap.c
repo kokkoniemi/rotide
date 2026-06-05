@@ -54,6 +54,11 @@ struct keymapHelpStatusEntry {
 	const char *fallback;
 };
 
+struct keymapConfigContext {
+	struct editorKeymap *keymap;
+	const char *table;
+};
+
 enum keymapFileStatus {
 	KEYMAP_FILE_APPLIED = 0,
 	KEYMAP_FILE_MISSING,
@@ -511,12 +516,13 @@ static int keymapParseKeySpec(const char *spec, int *key_out) {
 }
 
 static int keymapConfigOnSection(void *ctx, const char *table) {
-	(void)ctx;
-	return strcmp(table, "keymap") == 0;
+	struct keymapConfigContext *config = ctx;
+	return config != NULL && config->table != NULL && strcmp(table, config->table) == 0;
 }
 
 static int keymapConfigOnEntry(void *ctx, const char *key, char *value) {
-	struct editorKeymap *keymap = ctx;
+	struct keymapConfigContext *config = ctx;
+	struct editorKeymap *keymap = config->keymap;
 
 	enum editorAction action = EDITOR_ACTION_COUNT;
 	if (!keymapResolveActionName(key, &action)) {
@@ -536,14 +542,16 @@ static int keymapConfigOnEntry(void *ctx, const char *key, char *value) {
 	return keymapSetActionBinding(keymap, action, parsed_key);
 }
 
-static enum keymapFileStatus keymapApplyConfigFile(struct editorKeymap *keymap, const char *path) {
+static enum keymapFileStatus keymapApplyConfigTable(struct editorKeymap *keymap, const char *path,
+                                                    const char *table) {
 	struct editorKeymap updated = *keymap;
-	struct editorConfigScanner scanner = {
-	        .on_section = keymapConfigOnSection,
-	        .on_entry = keymapConfigOnEntry,
+	struct keymapConfigContext ctx = {
+	        .keymap = &updated,
+	        .table = table,
 	};
+	struct editorConfigScanner scanner = {keymapConfigOnSection, keymapConfigOnEntry};
 
-	switch (editorConfigScanFile(path, &scanner, &updated)) {
+	switch (editorConfigScanFile(path, &scanner, &ctx)) {
 		case EDITOR_CONFIG_SCAN_MISSING:
 			return KEYMAP_FILE_MISSING;
 		case EDITOR_CONFIG_SCAN_OK:
@@ -553,6 +561,29 @@ static enum keymapFileStatus keymapApplyConfigFile(struct editorKeymap *keymap, 
 		default:
 			return KEYMAP_FILE_INVALID;
 	}
+}
+
+static enum keymapFileStatus keymapMergeFileStatus(enum keymapFileStatus left,
+                                                   enum keymapFileStatus right) {
+	if (left == KEYMAP_FILE_INVALID || right == KEYMAP_FILE_INVALID) {
+		return KEYMAP_FILE_INVALID;
+	}
+	if (left == KEYMAP_FILE_OUT_OF_MEMORY || right == KEYMAP_FILE_OUT_OF_MEMORY) {
+		return KEYMAP_FILE_OUT_OF_MEMORY;
+	}
+	if (left == KEYMAP_FILE_APPLIED || right == KEYMAP_FILE_APPLIED) {
+		return KEYMAP_FILE_APPLIED;
+	}
+	return KEYMAP_FILE_MISSING;
+}
+
+static enum keymapFileStatus keymapApplyConfigFile(struct editorKeymap *keymap, const char *path) {
+	enum keymapFileStatus alias_status = keymapApplyConfigTable(keymap, path, "keymap");
+	if (alias_status == KEYMAP_FILE_INVALID || alias_status == KEYMAP_FILE_OUT_OF_MEMORY) {
+		return alias_status;
+	}
+	enum keymapFileStatus explicit_status = keymapApplyConfigTable(keymap, path, "keymap.cua");
+	return keymapMergeFileStatus(alias_status, explicit_status);
 }
 
 static int keymapFormatKey(int key, char *buf, size_t bufsize) {
@@ -799,18 +830,15 @@ enum editorKeymapLoadStatus editorKeymapLoadConfigured(struct editorKeymap *keym
 		return EDITOR_KEYMAP_LOAD_OUT_OF_MEMORY;
 	}
 
-	const char *home = getenv("HOME");
-	if (home == NULL || home[0] == '\0') {
-		return editorKeymapLoadFromPaths(keymap, NULL, NULL);
-	}
-
-	char *global_path = editorConfigBuildGlobalConfigPath();
-	if (global_path == NULL) {
+	char project_path[PATH_MAX];
+	if (!editorConfigBuildProjectConfigPath(NULL, project_path, sizeof(project_path))) {
 		editorKeymapInitDefaults(keymap);
 		return EDITOR_KEYMAP_LOAD_OUT_OF_MEMORY;
 	}
 
-	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(keymap, global_path, NULL);
+	char *global_path = editorConfigBuildGlobalConfigPath();
+	enum editorKeymapLoadStatus status =
+	        editorKeymapLoadFromPaths(keymap, global_path, project_path);
 	free(global_path);
 	return status;
 }

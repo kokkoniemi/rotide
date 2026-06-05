@@ -171,6 +171,58 @@ static int test_editor_keymap_global_then_project_precedence(void) {
 	return 0;
 }
 
+static int test_editor_keymap_cua_table_overrides_defaults(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-cua-table-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
+	                                          "save = \"ctrl+u\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('u'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SAVE, action);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_cua_table_overrides_legacy_alias(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-cua-alias-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
+	                                          "save = \"ctrl+t\"\n"
+	                                          "\n"
+	                                          "[keymap]\n"
+	                                          "save = \"ctrl+u\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('t'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SAVE, action);
+	if (editorKeymapLookupAction(&keymap, CTRL_KEY('u'), &action)) {
+		ASSERT_TRUE(action != EDITOR_ACTION_SAVE);
+	}
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 static int test_editor_keymap_invalid_global_ignored_when_project_valid(void) {
 	char dir_template[] = "/tmp/rotide-test-keymap-invalid-global-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -201,7 +253,7 @@ static int test_editor_keymap_invalid_global_ignored_when_project_valid(void) {
 	return 0;
 }
 
-static int test_editor_keymap_load_configured_ignores_project(void) {
+static int test_editor_keymap_load_configured_project_overrides_global(void) {
 	int failed = 1;
 	struct envVarBackup home_backup;
 	char *original_cwd = NULL;
@@ -266,11 +318,11 @@ static int test_editor_keymap_load_configured_ignores_project(void) {
 	}
 
 	enum editorAction action = EDITOR_ACTION_COUNT;
-	if (!editorKeymapLookupAction(&keymap, CTRL_KEY('t'), &action) ||
+	if (!editorKeymapLookupAction(&keymap, CTRL_KEY('u'), &action) ||
 	    action != EDITOR_ACTION_SAVE) {
 		goto cleanup;
 	}
-	if (editorKeymapLookupAction(&keymap, CTRL_KEY('u'), &action) &&
+	if (editorKeymapLookupAction(&keymap, CTRL_KEY('t'), &action) &&
 	    action == EDITOR_ACTION_SAVE) {
 		goto cleanup;
 	}
@@ -1501,10 +1553,14 @@ const struct editorTestCase g_workspace_keymap_view_tests[] = {
          test_editor_keymap_load_malformed_toml_falls_back_to_defaults},
         {"editor_keymap_global_then_project_precedence",
          test_editor_keymap_global_then_project_precedence},
+        {"editor_keymap_cua_table_overrides_defaults",
+         test_editor_keymap_cua_table_overrides_defaults},
+        {"editor_keymap_cua_table_overrides_legacy_alias",
+         test_editor_keymap_cua_table_overrides_legacy_alias},
         {"editor_keymap_invalid_global_ignored_when_project_valid",
          test_editor_keymap_invalid_global_ignored_when_project_valid},
-        {"editor_keymap_load_configured_ignores_project",
-         test_editor_keymap_load_configured_ignores_project},
+        {"editor_keymap_load_configured_project_overrides_global",
+         test_editor_keymap_load_configured_project_overrides_global},
         {"editor_cursor_style_load_valid_values_case_insensitive",
          test_editor_cursor_style_load_valid_values_case_insensitive},
         {"editor_cursor_style_global_then_project_precedence",

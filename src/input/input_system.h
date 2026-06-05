@@ -21,6 +21,7 @@ struct editorInputSystem {
 };
 
 extern const struct editorInputSystem editorCuaInputSystem;
+extern const struct editorInputSystem editorVimInputSystem;
 
 int editorInputSystemActivate(const char *id);
 const struct editorInputSystem *editorInputSystemActive(void);
