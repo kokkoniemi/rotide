@@ -3,6 +3,7 @@
 #include "config/dap_config.h"
 #include "debug/dap_client.h"
 #include "debug/dap_console.h"
+#include "debug/dap_inspection.h"
 #include "debug/dap_protocol.h"
 #include "editing/document_position.h"
 #include "editing/edit.h"
@@ -10,12 +11,10 @@
 #include "render/viewport.h"
 #include "rotide.h"
 #include "support/file_io.h"
-#include "support/json.h"
 #include "workspace/drawer.h"
 #include "workspace/layout.h"
 #include "workspace/tabs.h"
 
-#include <ctype.h>
 #include <limits.h>
 #include <poll.h>
 #include <signal.h>
@@ -130,38 +129,6 @@ static int dapSendRequest(char *json) {
 	return editorDapClientSendRequest(g_dap_client.to_adapter_fd, json);
 }
 
-static int dapJsonStringField(const char *json, const char *field, char *buf, size_t bufsize) {
-	char *value = NULL;
-	if (!editorJsonFindStringField(json, field, &value) || value == NULL) {
-		return 0;
-	}
-	int ok = snprintf(buf, bufsize, "%s", value) >= 0 && strlen(value) < bufsize;
-	free(value);
-	return ok;
-}
-
-/*
- * Reads a response's top-level `success` boolean. DAP requires it on every
- * response; treat its absence as success so a terse adapter isn't misread as a
- * failure. Returns 1 unless `success` is explicitly `false`.
- */
-static int dapJsonResponseSucceeded(const char *json) {
-	const char *start = editorJsonSkipWs(json);
-	if (start == NULL || *start != '{') {
-		return 1;
-	}
-	const char *obj_end = editorJsonFindObjectEnd(start);
-	const char *key = editorJsonFindTopLevelKey(start, obj_end, "\"success\"");
-	if (key == NULL) {
-		return 1;
-	}
-	const char *colon = strchr(key, ':');
-	if (colon == NULL) {
-		return 1;
-	}
-	return strncmp(editorJsonSkipWs(colon + 1), "false", 5) != 0;
-}
-
 static void dapSendAllBreakpoints(void) {
 	for (int i = 0; i < E.dap_breakpoint_count; i++) {
 		int seen = 0;
@@ -179,276 +146,11 @@ static void dapSendAllBreakpoints(void) {
 	}
 }
 
-/* Reads an integer value for `quoted_key` at the top level of [start, end). */
-static int dapObjectIntField(const char *start, const char *end, const char *quoted_key, int *out) {
-	const char *key = editorJsonFindTopLevelKey(start, end, quoted_key);
-	if (key == NULL) {
-		return 0;
-	}
-	const char *colon = strchr(key, ':');
-	if (colon == NULL || colon >= end) {
-		return 0;
-	}
-	return editorJsonParseInt(editorJsonSkipWs(colon + 1), out, NULL);
-}
-
-/* Copies the (unescaped) string value for `quoted_key` at the top level of
- * [start, end) into `buf`. Returns 1 on success. */
-static int dapObjectStringField(const char *start, const char *end, const char *quoted_key,
-                                char *buf, size_t bufsize) {
-	const char *key = editorJsonFindTopLevelKey(start, end, quoted_key);
-	if (key == NULL) {
-		return 0;
-	}
-	const char *colon = strchr(key, ':');
-	if (colon == NULL || colon >= end) {
-		return 0;
-	}
-	char *value = NULL;
-	if (!editorJsonParseString(editorJsonSkipWs(colon + 1), &value, NULL) || value == NULL) {
-		return 0;
-	}
-	int ok = strlen(value) < bufsize;
-	if (ok) {
-		memcpy(buf, value, strlen(value) + 1);
-	}
-	free(value);
-	return ok;
-}
-
-/* Locates the immediate child object stored under `quoted_key` within
- * [start, end). Writes the object's bounds and returns 1 on success. */
-static int dapObjectChildObject(const char *start, const char *end, const char *quoted_key,
-                                const char **child_start, const char **child_end) {
-	const char *key = editorJsonFindTopLevelKey(start, end, quoted_key);
-	if (key == NULL) {
-		return 0;
-	}
-	const char *colon = strchr(key, ':');
-	if (colon == NULL || colon >= end) {
-		return 0;
-	}
-	const char *child = editorJsonSkipWs(colon + 1);
-	if (child == NULL || child[0] != '{') {
-		return 0;
-	}
-	const char *child_obj_end = editorJsonFindObjectEnd(child);
-	if (child_obj_end == NULL) {
-		return 0;
-	}
-	*child_start = child;
-	*child_end = child_obj_end;
-	return 1;
-}
-
-/* Locates the array stored under body.<quoted_key>, e.g. body."threads".
- * Writes the array bounds (`[` .. `]`) and returns 1 on success. */
-static int dapFindBodyArray(const char *message, const char *quoted_key, const char **array_start,
-                            const char **array_end) {
-	const char *start = editorJsonSkipWs(message);
-	if (start == NULL || start[0] != '{') {
-		return 0;
-	}
-	const char *body_start = NULL;
-	const char *body_end = NULL;
-	if (!dapObjectChildObject(start, editorJsonFindObjectEnd(start), "\"body\"", &body_start,
-	                          &body_end)) {
-		return 0;
-	}
-	const char *key = editorJsonFindTopLevelKey(body_start, body_end, quoted_key);
-	if (key == NULL) {
-		return 0;
-	}
-	const char *colon = strchr(key, ':');
-	if (colon == NULL || colon >= body_end) {
-		return 0;
-	}
-	const char *arr = editorJsonSkipWs(colon + 1);
-	if (arr == NULL || arr[0] != '[') {
-		return 0;
-	}
-	const char *arr_end = editorJsonFindArrayEnd(arr);
-	if (arr_end == NULL) {
-		return 0;
-	}
-	*array_start = arr;
-	*array_end = arr_end;
-	return 1;
-}
-
-/* Reads body.<quoted_key> as an integer. Returns 1 on success. */
-static int dapBodyIntField(const char *message, const char *quoted_key, int *out) {
-	const char *start = editorJsonSkipWs(message);
-	const char *body_start = NULL;
-	const char *body_end = NULL;
-	if (start == NULL || start[0] != '{' ||
-	    !dapObjectChildObject(start, editorJsonFindObjectEnd(start), "\"body\"", &body_start,
-	                          &body_end)) {
-		return 0;
-	}
-	return dapObjectIntField(body_start, body_end, quoted_key, out);
-}
-
-/* Reads a top-level (non-body) integer field, e.g. a response's request_seq. */
-static int dapTopLevelIntField(const char *message, const char *quoted_key, int *out) {
-	const char *start = editorJsonSkipWs(message);
-	if (start == NULL || start[0] != '{') {
-		return 0;
-	}
-	return dapObjectIntField(start, editorJsonFindObjectEnd(start), quoted_key, out);
-}
-
-/* Case-insensitive substring test for "register", used to default-collapse the
- * register scope (which most adapters name "Registers" / "CPU Registers"). */
-static int dapScopeNameLooksLikeRegisters(const char *name) {
-	static const char needle[] = "register";
-	size_t needle_len = sizeof(needle) - 1;
-	for (const char *p = name; *p != '\0'; p++) {
-		size_t i = 0;
-		while (i < needle_len && p[i] != '\0' &&
-		       (char)tolower((unsigned char)p[i]) == needle[i]) {
-			i++;
-		}
-		if (i == needle_len) {
-			return 1;
-		}
-	}
-	return 0;
-}
-
-/* Copies the (unescaped) body.<quoted_key> string into `buf`. Returns 1 on success. */
-static int dapBodyStringField(const char *message, const char *quoted_key, char *buf,
-                              size_t bufsize) {
-	const char *start = editorJsonSkipWs(message);
-	const char *body_start = NULL;
-	const char *body_end = NULL;
-	if (start == NULL || start[0] != '{' ||
-	    !dapObjectChildObject(start, editorJsonFindObjectEnd(start), "\"body\"", &body_start,
-	                          &body_end)) {
-		return 0;
-	}
-	return dapObjectStringField(body_start, body_end, quoted_key, buf, bufsize);
-}
-
 static void dapClearInspectionState(void) {
-	E.dap_thread_count = 0;
-	E.dap_stack_frame_count = 0;
-	E.dap_scope_count = 0;
-	E.dap_variable_count = 0;
+	editorDapInspectionClearState();
 	g_dap_client.pending_var_count = 0;
 	g_dap_client.pending_var_preview_count = 0;
 	g_dap_client.var_scopes_received = 0;
-}
-
-/*
- * Iterates the objects of a body array via dapFindBodyArray. For each `{...}`
- * element the callback receives the object bounds; it returns 1 to keep the
- * element. Stops when the callback declines (array full) or the array ends.
- */
-typedef int (*dapArrayElementFn)(const char *obj_start, const char *obj_end);
-
-static void dapForEachBodyArrayElement(const char *message, const char *quoted_key,
-                                       dapArrayElementFn on_element) {
-	const char *array_start = NULL;
-	const char *array_end = NULL;
-	if (!dapFindBodyArray(message, quoted_key, &array_start, &array_end)) {
-		return;
-	}
-	const char *scan = array_start + 1;
-	while (scan < array_end) {
-		const char *obj_start = strchr(scan, '{');
-		if (obj_start == NULL || obj_start >= array_end) {
-			break;
-		}
-		const char *obj_end = editorJsonFindObjectEnd(obj_start);
-		if (obj_end == NULL || obj_end > array_end) {
-			break;
-		}
-		if (!on_element(obj_start, obj_end)) {
-			break;
-		}
-		scan = obj_end + 1;
-	}
-}
-
-static int dapCollectThread(const char *obj_start, const char *obj_end) {
-	if (E.dap_thread_count >= ROTIDE_DAP_MAX_THREADS) {
-		return 0;
-	}
-	int id = 0;
-	if (!dapObjectIntField(obj_start, obj_end, "\"id\"", &id)) {
-		return 1; /* skip malformed element, keep scanning */
-	}
-	struct editorDapThread *thread = &E.dap_threads[E.dap_thread_count];
-	memset(thread, 0, sizeof(*thread));
-	thread->id = id;
-	(void)dapObjectStringField(obj_start, obj_end, "\"name\"", thread->name,
-	                           sizeof(thread->name));
-	E.dap_thread_count++;
-	return 1;
-}
-
-static int dapCollectStackFrame(const char *obj_start, const char *obj_end) {
-	if (E.dap_stack_frame_count >= ROTIDE_DAP_MAX_STACK_FRAMES) {
-		return 0;
-	}
-	int id = 0;
-	if (!dapObjectIntField(obj_start, obj_end, "\"id\"", &id)) {
-		return 1;
-	}
-	struct editorDapStackFrame *frame = &E.dap_stack_frames[E.dap_stack_frame_count];
-	memset(frame, 0, sizeof(*frame));
-	frame->id = id;
-	(void)dapObjectStringField(obj_start, obj_end, "\"name\"", frame->name,
-	                           sizeof(frame->name));
-	(void)dapObjectIntField(obj_start, obj_end, "\"line\"", &frame->line);
-	(void)dapObjectIntField(obj_start, obj_end, "\"column\"", &frame->column);
-	const char *source_start = NULL;
-	const char *source_end = NULL;
-	if (dapObjectChildObject(obj_start, obj_end, "\"source\"", &source_start, &source_end)) {
-		(void)dapObjectStringField(source_start, source_end, "\"path\"", frame->path,
-		                           sizeof(frame->path));
-	}
-	E.dap_stack_frame_count++;
-	return 1;
-}
-
-static int dapCollectScope(const char *obj_start, const char *obj_end) {
-	if (E.dap_scope_count >= ROTIDE_DAP_MAX_SCOPES) {
-		return 0;
-	}
-	struct editorDapScope *scope = &E.dap_scopes[E.dap_scope_count];
-	memset(scope, 0, sizeof(*scope));
-	(void)dapObjectStringField(obj_start, obj_end, "\"name\"", scope->name,
-	                           sizeof(scope->name));
-	(void)dapObjectIntField(obj_start, obj_end, "\"variablesReference\"",
-	                        &scope->variables_reference);
-	E.dap_scope_count++;
-	return 1;
-}
-
-/* Scope index that the variables currently being parsed belong to; set by
- * dapHandleVariablesResponse before walking the array. */
-static int g_dap_collect_scope_index = 0;
-static int g_dap_preview_parent_index = -1;
-static int g_dap_preview_child_count = 0;
-
-static int dapVariableScopeCanPreview(int scope_index) {
-	if (scope_index < 0 || scope_index >= E.dap_scope_count) {
-		return 0;
-	}
-	return !dapScopeNameLooksLikeRegisters(E.dap_scopes[scope_index].name);
-}
-
-static int dapVariablePreviewChildCount(const struct editorDapVariable *var) {
-	int child_count =
-	        var->indexed_variables > 0 ? var->indexed_variables : var->named_variables;
-	if (child_count <= 0) {
-		return 0;
-	}
-	return child_count < ROTIDE_DAP_VARIABLE_PREVIEW_CHILDREN
-	               ? child_count
-	               : ROTIDE_DAP_VARIABLE_PREVIEW_CHILDREN;
 }
 
 static void dapQueueVariablePreviewRequest(int variable_index) {
@@ -458,10 +160,11 @@ static void dapQueueVariablePreviewRequest(int variable_index) {
 		return;
 	}
 	const struct editorDapVariable *var = &E.dap_variables[variable_index];
-	if (var->variables_reference <= 0 || !dapVariableScopeCanPreview(var->scope_index)) {
+	if (!editorDapInspectionVariableCanPreview(var)) {
 		return;
 	}
-	int child_count = dapVariablePreviewChildCount(var);
+	int child_count = editorDapInspectionVariablePreviewChildCount(
+	        var, ROTIDE_DAP_VARIABLE_PREVIEW_CHILDREN);
 	if (child_count <= 0) {
 		return;
 	}
@@ -474,50 +177,9 @@ static void dapQueueVariablePreviewRequest(int variable_index) {
 	        editorDapBuildVariablesRequestJson(seq, var->variables_reference, 0, child_count));
 }
 
-static int dapPreviewAppendText(struct editorDapVariable *var, const char *text) {
-	if (var == NULL || text == NULL || text[0] == '\0') {
-		return 1;
-	}
-	size_t len = strlen(var->preview);
-	size_t avail = sizeof(var->preview) - len;
-	if (avail <= 1) {
-		return 0;
-	}
-	int written = snprintf(var->preview + len, avail, "%s", text);
-	return written >= 0 && (size_t)written < avail;
-}
-
-static int dapCollectVariablePreviewChild(const char *obj_start, const char *obj_end) {
-	if (g_dap_preview_parent_index < 0 || g_dap_preview_parent_index >= E.dap_variable_count) {
-		return 0;
-	}
-	struct editorDapVariable *parent = &E.dap_variables[g_dap_preview_parent_index];
-	char name[ROTIDE_DAP_NAME_MAX] = "";
-	char value[ROTIDE_DAP_VALUE_MAX] = "";
-	(void)dapObjectStringField(obj_start, obj_end, "\"name\"", name, sizeof(name));
-	(void)dapObjectStringField(obj_start, obj_end, "\"value\"", value, sizeof(value));
-	if (value[0] == '\0' && name[0] == '\0') {
-		return 1;
-	}
-	int array_like = parent->indexed_variables > 0 && parent->named_variables == 0;
-	if (g_dap_preview_child_count > 0 && !dapPreviewAppendText(parent, ",")) {
-		return 0;
-	}
-	if (!array_like && name[0] != '\0') {
-		if (!dapPreviewAppendText(parent, name) || !dapPreviewAppendText(parent, "=")) {
-			return 0;
-		}
-	}
-	if (!dapPreviewAppendText(parent, value[0] != '\0' ? value : name)) {
-		return 0;
-	}
-	g_dap_preview_child_count++;
-	return 1;
-}
-
 static int dapResolveVariablePreviewParent(const char *message) {
 	int request_seq = 0;
-	if (!dapTopLevelIntField(message, "\"request_seq\"", &request_seq)) {
+	if (!editorDapJsonTopLevelIntField(message, "\"request_seq\"", &request_seq)) {
 		return -1;
 	}
 	for (int i = 0; i < g_dap_client.pending_var_preview_count; i++) {
@@ -534,54 +196,6 @@ static int dapResolveVariablePreviewParent(const char *message) {
 		}
 	}
 	return -1;
-}
-
-static void dapHandleVariablePreviewResponse(const char *message, int parent_index) {
-	if (parent_index < 0 || parent_index >= E.dap_variable_count) {
-		return;
-	}
-	struct editorDapVariable *parent = &E.dap_variables[parent_index];
-	parent->preview[0] = '\0';
-	if (!dapPreviewAppendText(parent, "{")) {
-		return;
-	}
-	g_dap_preview_parent_index = parent_index;
-	g_dap_preview_child_count = 0;
-	dapForEachBodyArrayElement(message, "\"variables\"", dapCollectVariablePreviewChild);
-	g_dap_preview_parent_index = -1;
-	if (g_dap_preview_child_count == 0) {
-		parent->preview[0] = '\0';
-		return;
-	}
-	int total_children =
-	        parent->indexed_variables > 0 ? parent->indexed_variables : parent->named_variables;
-	if (total_children > g_dap_preview_child_count) {
-		(void)dapPreviewAppendText(parent, ",...");
-	}
-	(void)dapPreviewAppendText(parent, "}");
-}
-
-static int dapCollectVariable(const char *obj_start, const char *obj_end) {
-	if (E.dap_variable_count >= ROTIDE_DAP_MAX_VARIABLES) {
-		return 0;
-	}
-	struct editorDapVariable *var = &E.dap_variables[E.dap_variable_count];
-	memset(var, 0, sizeof(*var));
-	if (!dapObjectStringField(obj_start, obj_end, "\"name\"", var->name, sizeof(var->name))) {
-		return 1;
-	}
-	(void)dapObjectStringField(obj_start, obj_end, "\"value\"", var->value, sizeof(var->value));
-	(void)dapObjectStringField(obj_start, obj_end, "\"type\"", var->type, sizeof(var->type));
-	(void)dapObjectIntField(obj_start, obj_end, "\"variablesReference\"",
-	                        &var->variables_reference);
-	(void)dapObjectIntField(obj_start, obj_end, "\"namedVariables\"", &var->named_variables);
-	(void)dapObjectIntField(obj_start, obj_end, "\"indexedVariables\"",
-	                        &var->indexed_variables);
-	(void)dapObjectStringField(obj_start, obj_end, "\"memoryReference\"", var->memory_reference,
-	                           sizeof(var->memory_reference));
-	var->scope_index = g_dap_collect_scope_index;
-	E.dap_variable_count++;
-	return 1;
 }
 
 /*
@@ -603,8 +217,7 @@ static void dapRequestStackTrace(void) {
 }
 
 static void dapHandleThreadsResponse(const char *message) {
-	E.dap_thread_count = 0;
-	dapForEachBodyArrayElement(message, "\"threads\"", dapCollectThread);
+	editorDapInspectionApplyThreadsResponse(message);
 	dapRequestStackTrace();
 }
 
@@ -667,8 +280,7 @@ static void dapRevealStoppedFrame(const struct editorDapStackFrame *frame) {
 }
 
 static void dapHandleStackTraceResponse(const char *message) {
-	E.dap_stack_frame_count = 0;
-	dapForEachBodyArrayElement(message, "\"stackFrames\"", dapCollectStackFrame);
+	editorDapInspectionApplyStackTraceResponse(message);
 	if (E.dap_stack_frame_count > 0) {
 		dapRevealStoppedFrame(&E.dap_stack_frames[0]);
 		(void)dapSendRequest(editorDapBuildIntArgRequestJson(
@@ -677,19 +289,17 @@ static void dapHandleStackTraceResponse(const char *message) {
 }
 
 static void dapHandleScopesResponse(const char *message) {
-	E.dap_scope_count = 0;
-	E.dap_variable_count = 0;
+	editorDapInspectionApplyScopesResponse(message);
 	g_dap_client.pending_var_count = 0;
 	g_dap_client.pending_var_preview_count = 0;
 	g_dap_client.var_scopes_received = 0;
-	dapForEachBodyArrayElement(message, "\"scopes\"", dapCollectScope);
 
 	/* Default the register scope(s) to collapsed once per session so the
 	 * Variables view is not buried under the register dump; the user's own
 	 * toggles afterward persist across steps. */
 	if (!g_dap_client.register_collapse_applied) {
 		for (int i = 0; i < E.dap_scope_count && i < 64; i++) {
-			if (dapScopeNameLooksLikeRegisters(E.dap_scopes[i].name)) {
+			if (editorDapInspectionScopeNameLooksLikeRegisters(E.dap_scopes[i].name)) {
 				E.drawer_dap_scope_collapsed |= 1ull << (unsigned int)i;
 			}
 		}
@@ -733,7 +343,7 @@ static int dapOnlyUnreceivedVariablesScope(void) {
  * carry request_seq; tolerate its absence only when one pending scope remains. */
 static int dapResolveVariablesScope(const char *message) {
 	int request_seq = 0;
-	if (dapTopLevelIntField(message, "\"request_seq\"", &request_seq)) {
+	if (editorDapJsonTopLevelIntField(message, "\"request_seq\"", &request_seq)) {
 		for (int i = 0; i < g_dap_client.pending_var_count; i++) {
 			if (g_dap_client.pending_var_seq[i] == request_seq) {
 				return g_dap_client.pending_var_scope[i];
@@ -747,7 +357,7 @@ static int dapResolveVariablesScope(const char *message) {
 static void dapHandleVariablesResponse(const char *message) {
 	int parent_index = dapResolveVariablePreviewParent(message);
 	if (parent_index >= 0) {
-		dapHandleVariablePreviewResponse(message, parent_index);
+		editorDapInspectionApplyVariablePreviewResponse(message, parent_index);
 		return;
 	}
 	/* Variables share one flat list but each is tagged with its scope so the
@@ -757,8 +367,7 @@ static void dapHandleVariablesResponse(const char *message) {
 		return;
 	}
 	int first_variable_index = E.dap_variable_count;
-	g_dap_collect_scope_index = scope_index;
-	dapForEachBodyArrayElement(message, "\"variables\"", dapCollectVariable);
+	editorDapInspectionApplyVariablesResponse(message, scope_index, &first_variable_index);
 	if (scope_index >= 0 && scope_index < 64) {
 		g_dap_client.var_scopes_received |= 1ull << (unsigned int)scope_index;
 	}
@@ -771,7 +380,7 @@ static void dapHandleVariablesResponse(const char *message) {
  * the status bar. Failures fall through the generic failed-response path. */
 static void dapHandleEvaluateResponse(const char *message) {
 	char result[ROTIDE_DAP_VALUE_MAX];
-	if (!dapBodyStringField(message, "\"result\"", result, sizeof(result))) {
+	if (!editorDapJsonBodyStringField(message, "\"result\"", result, sizeof(result))) {
 		return;
 	}
 	dapAppendOutput("= ");
@@ -786,21 +395,13 @@ static void dapHandleEvaluateResponse(const char *message) {
  * and fills `buf` on success, 0 if the response carries no message text.
  */
 static int dapExtractErrorMessage(const char *message, char *buf, size_t bufsize) {
-	const char *start = editorJsonSkipWs(message);
-	const char *body_start = NULL;
-	const char *body_end = NULL;
-	if (start != NULL && start[0] == '{' &&
-	    dapObjectChildObject(start, editorJsonFindObjectEnd(start), "\"body\"", &body_start,
-	                         &body_end)) {
-		const char *error_start = NULL;
-		const char *error_end = NULL;
-		if (dapObjectChildObject(body_start, body_end, "\"error\"", &error_start,
-		                         &error_end) &&
-		    dapObjectStringField(error_start, error_end, "\"format\"", buf, bufsize)) {
-			return 1;
-		}
+	const char *error_start = NULL;
+	const char *error_end = NULL;
+	if (editorDapJsonBodyChildObject(message, "\"error\"", &error_start, &error_end) &&
+	    editorDapJsonObjectStringField(error_start, error_end, "\"format\"", buf, bufsize)) {
+		return 1;
 	}
-	return dapJsonStringField(message, "message", buf, bufsize);
+	return editorDapJsonStringField(message, "message", buf, bufsize);
 }
 
 /*
@@ -839,8 +440,9 @@ int editorDapProcessIncomingMessage(const char *message) {
 	char type[32];
 	char event[64];
 	char command[64];
-	if (dapJsonStringField(message, "type", type, sizeof(type)) && strcmp(type, "event") == 0 &&
-	    dapJsonStringField(message, "event", event, sizeof(event))) {
+	if (editorDapJsonStringField(message, "type", type, sizeof(type)) &&
+	    strcmp(type, "event") == 0 &&
+	    editorDapJsonStringField(message, "event", event, sizeof(event))) {
 		if (strcmp(event, "initialized") == 0) {
 			dapHandleInitializedEvent();
 			return 1;
@@ -848,8 +450,8 @@ int editorDapProcessIncomingMessage(const char *message) {
 		if (strcmp(event, "stopped") == 0) {
 			E.dap_stopped = 1;
 			g_dap_client.stopped_thread_id = 0;
-			(void)dapBodyIntField(message, "\"threadId\"",
-			                      &g_dap_client.stopped_thread_id);
+			(void)editorDapJsonBodyIntField(message, "\"threadId\"",
+			                                &g_dap_client.stopped_thread_id);
 			dapClearInspectionState();
 			editorSetStatusMsg("DAP stopped");
 			(void)dapSendRequest(editorDapBuildSimpleCommandRequestJson(
@@ -875,7 +477,8 @@ int editorDapProcessIncomingMessage(const char *message) {
 			 * The debuggee's own stdout/stderr does not arrive here — it is
 			 * routed to the Terminal tab's real tty via the adapter's --tty. */
 			char output[ROTIDE_DAP_VALUE_MAX];
-			if (dapBodyStringField(message, "\"output\"", output, sizeof(output))) {
+			if (editorDapJsonBodyStringField(message, "\"output\"", output,
+			                                 sizeof(output))) {
 				dapAppendOutput(output);
 			}
 			return 1;
@@ -883,13 +486,13 @@ int editorDapProcessIncomingMessage(const char *message) {
 		return 1;
 	}
 
-	if (dapJsonStringField(message, "type", type, sizeof(type)) &&
+	if (editorDapJsonStringField(message, "type", type, sizeof(type)) &&
 	    strcmp(type, "response") == 0 &&
-	    dapJsonStringField(message, "command", command, sizeof(command))) {
+	    editorDapJsonStringField(message, "command", command, sizeof(command))) {
 		char errmsg[ROTIDE_DAP_VALUE_MAX];
 		int has_errmsg = dapExtractErrorMessage(message, errmsg, sizeof(errmsg));
 		if (strcmp(command, "initialize") == 0) {
-			if (!dapJsonResponseSucceeded(message)) {
+			if (!editorDapJsonResponseSucceeded(message)) {
 				editorSetStatusMsg("DAP initialize failed%s%s",
 				                   has_errmsg ? ": " : "",
 				                   has_errmsg ? errmsg : "");
@@ -899,13 +502,13 @@ int editorDapProcessIncomingMessage(const char *message) {
 			dapFlushPendingLaunch();
 			return 1;
 		}
-		if (strcmp(command, "launch") == 0 && !dapJsonResponseSucceeded(message)) {
+		if (strcmp(command, "launch") == 0 && !editorDapJsonResponseSucceeded(message)) {
 			editorSetStatusMsg("DAP launch failed%s%s", has_errmsg ? ": " : "",
 			                   has_errmsg ? errmsg : "");
 			editorDapShutdown();
 			return 1;
 		}
-		if (!dapJsonResponseSucceeded(message)) {
+		if (!editorDapJsonResponseSucceeded(message)) {
 			if (strcmp(command, "variables") == 0 &&
 			    dapResolveVariablePreviewParent(message) >= 0) {
 				return 1;

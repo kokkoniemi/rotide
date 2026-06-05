@@ -118,7 +118,7 @@ CORE_SRCS = $(SRC_DIR)/rotide.c \
 		lsp_features.c lsp_framing.c lsp_json.c lsp_mock.c lsp_protocol.c \
 		lsp_registry.c lsp_responses.c lsp_transport.c autocomplete.c) \
 	$(addprefix $(SRC_DIR)/debug/, \
-		dap_client.c dap_console.c dap_protocol.c dap.c) \
+		dap_client.c dap_console.c dap_inspection.c dap_protocol.c dap.c) \
 	$(addprefix $(SRC_DIR)/terminal/, \
 		pty.c terminal_pane.c)
 

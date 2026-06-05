@@ -10,6 +10,7 @@ src/config/theme_parse.c	themeParse
 src/debug/dap.c	dap
 src/debug/dap_client.c	dapClient
 src/debug/dap_console.c	dapConsole
+src/debug/dap_inspection.c	dapInspection
 src/debug/dap_protocol.c	dapProtocol
 src/editing/buffer_core.c	bufferCore
 src/editing/buffer_search.c	bufferSearch

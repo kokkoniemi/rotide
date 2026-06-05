@@ -344,3 +344,192 @@ char *editorDapBuildVariablesRequestJson(int seq, int variables_reference, int s
 	}
 	return sb.buf;
 }
+
+int editorDapJsonStringField(const char *json, const char *field, char *buf, size_t bufsize) {
+	char *value = NULL;
+	if (!editorJsonFindStringField(json, field, &value) || value == NULL) {
+		return 0;
+	}
+	int ok = snprintf(buf, bufsize, "%s", value) >= 0 && strlen(value) < bufsize;
+	free(value);
+	return ok;
+}
+
+int editorDapJsonResponseSucceeded(const char *json) {
+	const char *start = editorJsonSkipWs(json);
+	if (start == NULL || *start != '{') {
+		return 1;
+	}
+	const char *obj_end = editorJsonFindObjectEnd(start);
+	const char *key = editorJsonFindTopLevelKey(start, obj_end, "\"success\"");
+	if (key == NULL) {
+		return 1;
+	}
+	const char *colon = strchr(key, ':');
+	if (colon == NULL) {
+		return 1;
+	}
+	return strncmp(editorJsonSkipWs(colon + 1), "false", 5) != 0;
+}
+
+int editorDapJsonObjectIntField(const char *start, const char *end, const char *quoted_key,
+                                int *out) {
+	const char *key = editorJsonFindTopLevelKey(start, end, quoted_key);
+	if (key == NULL) {
+		return 0;
+	}
+	const char *colon = strchr(key, ':');
+	if (colon == NULL || colon >= end) {
+		return 0;
+	}
+	return editorJsonParseInt(editorJsonSkipWs(colon + 1), out, NULL);
+}
+
+int editorDapJsonObjectStringField(const char *start, const char *end, const char *quoted_key,
+                                   char *buf, size_t bufsize) {
+	const char *key = editorJsonFindTopLevelKey(start, end, quoted_key);
+	if (key == NULL) {
+		return 0;
+	}
+	const char *colon = strchr(key, ':');
+	if (colon == NULL || colon >= end) {
+		return 0;
+	}
+	char *value = NULL;
+	if (!editorJsonParseString(editorJsonSkipWs(colon + 1), &value, NULL) || value == NULL) {
+		return 0;
+	}
+	int ok = strlen(value) < bufsize;
+	if (ok) {
+		memcpy(buf, value, strlen(value) + 1);
+	}
+	free(value);
+	return ok;
+}
+
+int editorDapJsonObjectChildObject(const char *start, const char *end, const char *quoted_key,
+                                   const char **child_start, const char **child_end) {
+	const char *key = editorJsonFindTopLevelKey(start, end, quoted_key);
+	if (key == NULL) {
+		return 0;
+	}
+	const char *colon = strchr(key, ':');
+	if (colon == NULL || colon >= end) {
+		return 0;
+	}
+	const char *child = editorJsonSkipWs(colon + 1);
+	if (child == NULL || child[0] != '{') {
+		return 0;
+	}
+	const char *child_obj_end = editorJsonFindObjectEnd(child);
+	if (child_obj_end == NULL) {
+		return 0;
+	}
+	*child_start = child;
+	*child_end = child_obj_end;
+	return 1;
+}
+
+int editorDapJsonBodyChildObject(const char *message, const char *quoted_key,
+                                 const char **child_start, const char **child_end) {
+	const char *start = editorJsonSkipWs(message);
+	const char *body_start = NULL;
+	const char *body_end = NULL;
+	if (start == NULL || start[0] != '{' ||
+	    !editorDapJsonObjectChildObject(start, editorJsonFindObjectEnd(start), "\"body\"",
+	                                    &body_start, &body_end)) {
+		return 0;
+	}
+	return editorDapJsonObjectChildObject(body_start, body_end, quoted_key, child_start,
+	                                      child_end);
+}
+
+static int dapProtocolFindBodyArray(const char *message, const char *quoted_key,
+                                    const char **array_start, const char **array_end) {
+	const char *start = editorJsonSkipWs(message);
+	if (start == NULL || start[0] != '{') {
+		return 0;
+	}
+	const char *body_start = NULL;
+	const char *body_end = NULL;
+	if (!editorDapJsonObjectChildObject(start, editorJsonFindObjectEnd(start), "\"body\"",
+	                                    &body_start, &body_end)) {
+		return 0;
+	}
+	const char *key = editorJsonFindTopLevelKey(body_start, body_end, quoted_key);
+	if (key == NULL) {
+		return 0;
+	}
+	const char *colon = strchr(key, ':');
+	if (colon == NULL || colon >= body_end) {
+		return 0;
+	}
+	const char *arr = editorJsonSkipWs(colon + 1);
+	if (arr == NULL || arr[0] != '[') {
+		return 0;
+	}
+	const char *arr_end = editorJsonFindArrayEnd(arr);
+	if (arr_end == NULL) {
+		return 0;
+	}
+	*array_start = arr;
+	*array_end = arr_end;
+	return 1;
+}
+
+int editorDapJsonBodyIntField(const char *message, const char *quoted_key, int *out) {
+	const char *start = editorJsonSkipWs(message);
+	const char *body_start = NULL;
+	const char *body_end = NULL;
+	if (start == NULL || start[0] != '{' ||
+	    !editorDapJsonObjectChildObject(start, editorJsonFindObjectEnd(start), "\"body\"",
+	                                    &body_start, &body_end)) {
+		return 0;
+	}
+	return editorDapJsonObjectIntField(body_start, body_end, quoted_key, out);
+}
+
+int editorDapJsonTopLevelIntField(const char *message, const char *quoted_key, int *out) {
+	const char *start = editorJsonSkipWs(message);
+	if (start == NULL || start[0] != '{') {
+		return 0;
+	}
+	return editorDapJsonObjectIntField(start, editorJsonFindObjectEnd(start), quoted_key, out);
+}
+
+int editorDapJsonBodyStringField(const char *message, const char *quoted_key, char *buf,
+                                 size_t bufsize) {
+	const char *start = editorJsonSkipWs(message);
+	const char *body_start = NULL;
+	const char *body_end = NULL;
+	if (start == NULL || start[0] != '{' ||
+	    !editorDapJsonObjectChildObject(start, editorJsonFindObjectEnd(start), "\"body\"",
+	                                    &body_start, &body_end)) {
+		return 0;
+	}
+	return editorDapJsonObjectStringField(body_start, body_end, quoted_key, buf, bufsize);
+}
+
+void editorDapJsonForEachBodyArrayElement(const char *message, const char *quoted_key,
+                                          editorDapJsonArrayElementFn on_element) {
+	const char *array_start = NULL;
+	const char *array_end = NULL;
+	if (!dapProtocolFindBodyArray(message, quoted_key, &array_start, &array_end)) {
+		return;
+	}
+	const char *scan = array_start + 1;
+	while (scan < array_end) {
+		const char *obj_start = strchr(scan, '{');
+		if (obj_start == NULL || obj_start >= array_end) {
+			break;
+		}
+		const char *obj_end = editorJsonFindObjectEnd(obj_start);
+		if (obj_end == NULL || obj_end > array_end) {
+			break;
+		}
+		if (!on_element(obj_start, obj_end)) {
+			break;
+		}
+		scan = obj_end + 1;
+	}
+}
