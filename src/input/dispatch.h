@@ -10,6 +10,8 @@
 #include "input/prompt.h"
 #include "input/text_pairs.h"
 
+int editorDispatchProcessMappedAction(enum editorAction action, int *effects_out);
+void editorDispatchHandleTextByte(int c, int *effects_out);
 void editorProcessKeypress(void);
 int editorLspLocationMenuActivate(void);
 

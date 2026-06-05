@@ -16,6 +16,7 @@
 #include "input/actions_language.h"
 #include "input/actions_terminal_debug.h"
 #include "input/actions_workspace.h"
+#include "input/input_system.h"
 #include "input/mouse.h"
 #include "input/prompt.h"
 #include "input/text_pairs.h"
@@ -56,9 +57,9 @@ enum {
 };
 
 enum dispatchKeypressEffect {
-	DISPATCH_KEYPRESS_EFFECT_NONE = 0,
-	DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL = 1 << 0,
-	DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT = 1 << 1
+	DISPATCH_KEYPRESS_EFFECT_NONE = EDITOR_INPUT_KEY_EFFECT_NONE,
+	DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL = EDITOR_INPUT_KEY_EFFECT_VIEWPORT_SCROLL,
+	DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT = EDITOR_INPUT_KEY_EFFECT_CURSOR_OR_EDIT
 };
 
 struct dispatchFileEntry {
@@ -69,7 +70,9 @@ struct dispatchFileEntry {
 static void dispatchGoToDefinition(void);
 static void dispatchMoveCursor(int k);
 static void dispatchMoveCurrentLine(int direction);
-static int dispatchProcessMappedAction(enum editorAction action, int *effects_out);
+
+static enum editorAction g_dispatch_mapped_action = EDITOR_ACTION_COUNT;
+static int g_dispatch_has_mapped_action = 0;
 
 static int dispatchIsWordByte(unsigned char b) {
 	return isalnum(b) || b == '_' || b >= 0x80;
@@ -2139,7 +2142,7 @@ static int dispatchHandleDelegatedAction(enum editorAction action, int *effects)
 		return 1;
 	}
 	if (editorHandleWorkspaceMappedAction(action, DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT,
-	                                      dispatchProcessMappedAction,
+	                                      editorDispatchProcessMappedAction,
 	                                      dispatchJumpToPathLocation, effects)) {
 		return 1;
 	}
@@ -2519,8 +2522,13 @@ static int dispatchHandleLocalAction(enum editorAction action, int *effects) {
 	       dispatchHandleCursorAction(action, effects) || dispatchHandleModeAction(action);
 }
 
-static int dispatchProcessMappedAction(enum editorAction action, int *effects_out) {
+int editorDispatchProcessMappedAction(enum editorAction action, int *effects_out) {
 	int effects = DISPATCH_KEYPRESS_EFFECT_NONE;
+
+	if (!g_dispatch_has_mapped_action) {
+		g_dispatch_has_mapped_action = 1;
+		g_dispatch_mapped_action = action;
+	}
 
 	if (dispatchHandleDrawerSearchAction(action, &effects)) {
 		return dispatchFinishMappedAction(0, effects, effects_out);
@@ -2587,7 +2595,8 @@ static void dispatchActivateAcceptedPopup(enum editorPopupKind popup_kind) {
 	}
 	if (popup_kind == EDITOR_POPUP_KIND_EDITOR_CONTEXT_MENU) {
 		int mapped_effects = DISPATCH_KEYPRESS_EFFECT_NONE;
-		(void)editorEditorContextMenuActivate(dispatchProcessMappedAction, &mapped_effects);
+		(void)editorEditorContextMenuActivate(editorDispatchProcessMappedAction,
+		                                      &mapped_effects);
 		if ((mapped_effects & DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT) != 0) {
 			editorViewportEnsureCursorVisible();
 		}
@@ -2595,7 +2604,8 @@ static void dispatchActivateAcceptedPopup(enum editorPopupKind popup_kind) {
 	}
 	if (popup_kind == EDITOR_POPUP_KIND_TAB_CONTEXT_MENU) {
 		int mapped_effects = DISPATCH_KEYPRESS_EFFECT_NONE;
-		(void)editorTabContextMenuActivate(dispatchProcessMappedAction, &mapped_effects);
+		(void)editorTabContextMenuActivate(editorDispatchProcessMappedAction,
+		                                   &mapped_effects);
 		return;
 	}
 	if (popup_kind == EDITOR_POPUP_KIND_LSP_LOCATION_MENU) {
@@ -2658,7 +2668,7 @@ static void dispatchHandleMouseEvent(int *effects) {
 	int mouse_effects = EDITOR_MOUSE_DISPATCH_EFFECT_NONE;
 	(void)editorHandleMouseEventDispatch(
 	        DRAWER_DOUBLE_CLICK_THRESHOLD_MS, TEXT_MULTI_CLICK_THRESHOLD_MS,
-	        dispatchProcessMappedAction, dispatchJumpToPathLocation,
+	        editorDispatchProcessMappedAction, dispatchJumpToPathLocation,
 	        dispatchCtrlClickGoToDefinitionAction, &mouse_effects);
 	if ((mouse_effects & EDITOR_MOUSE_DISPATCH_EFFECT_VIEWPORT_SCROLL) != 0) {
 		*effects |= DISPATCH_KEYPRESS_EFFECT_VIEWPORT_SCROLL;
@@ -2770,7 +2780,7 @@ static void dispatchInsertTextByte(int c, int *effects) {
 	*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 }
 
-static void dispatchHandleTextByte(int c, int *effects) {
+void editorDispatchHandleTextByte(int c, int *effects) {
 	if (!editorDrawerIsCollapsed() && editorFileSearchIsActive()) {
 		if (editorFileSearchAppendByte(c)) {
 			(void)editorFileSearchPreviewSelection();
@@ -2795,8 +2805,7 @@ static void dispatchHandleTextByte(int c, int *effects) {
 }
 
 /* Returns 1 when the key was fully handled and caller must return immediately. */
-static int dispatchHandleKeyboardKey(int c, enum editorAction *action_out, int *mapped_action_out,
-                                     int *effects) {
+static int dispatchHandleKeyboardKey(int c, int *effects) {
 	if (editorClearHoverLinkState()) {
 		*effects |= DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT;
 	}
@@ -2806,25 +2815,15 @@ static int dispatchHandleKeyboardKey(int c, enum editorAction *action_out, int *
 	if (dispatchTryTerminalPaneKey(c)) {
 		return 1;
 	}
-	if (editorKeymapLookupAction(&E.keymap, c, action_out)) {
-		int mapped_effects = DISPATCH_KEYPRESS_EFFECT_NONE;
-		*mapped_action_out = 1;
-		if (dispatchProcessMappedAction(*action_out, &mapped_effects)) {
-			return 1;
-		}
-		*effects |= mapped_effects;
-		return 0;
-	}
-	if (editorByteShouldInsertAsText(c)) {
-		dispatchHandleTextByte(c, effects);
+	const struct editorInputSystem *system = editorInputSystemActive();
+	if (system != NULL && system->handle_key != NULL) {
+		return system->handle_key(c, effects);
 	}
 	return 0;
 }
 
 void editorProcessKeypress(void) {
 	int c = editorReadKey();
-	enum editorAction action = EDITOR_ACTION_COUNT;
-	int mapped_action = 0;
 	int effects = DISPATCH_KEYPRESS_EFFECT_NONE;
 
 	if (dispatchHandleInputEvent(c)) {
@@ -2834,13 +2833,16 @@ void editorProcessKeypress(void) {
 		return;
 	}
 
+	g_dispatch_has_mapped_action = 0;
+	g_dispatch_mapped_action = EDITOR_ACTION_COUNT;
+
 	if (c == MOUSE_EVENT) {
 		dispatchHandleMouseEvent(&effects);
-	} else if (dispatchHandleKeyboardKey(c, &action, &mapped_action, &effects)) {
+	} else if (dispatchHandleKeyboardKey(c, &effects)) {
 		return;
 	}
 
-	editorFileTabActionsAfterKeypress(mapped_action, action);
+	editorFileTabActionsAfterKeypress(g_dispatch_has_mapped_action, g_dispatch_mapped_action);
 	if ((effects & DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT) != 0) {
 		editorViewportEnsureCursorVisible();
 	}

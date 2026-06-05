@@ -11,6 +11,8 @@ enum editorKeymapLoadStatus {
 };
 
 void editorKeymapInitDefaults(struct editorKeymap *keymap);
+int editorKeymapResolveActionName(const char *name, enum editorAction *action_out);
+int editorKeymapBindAction(struct editorKeymap *keymap, enum editorAction action, int key);
 int editorKeymapLookupAction(const struct editorKeymap *keymap, int key,
                              enum editorAction *action_out);
 int editorKeymapFormatBinding(const struct editorKeymap *keymap, enum editorAction action,

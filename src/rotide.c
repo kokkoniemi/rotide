@@ -9,6 +9,7 @@
 #include "editing/edit.h"
 #include "editing/selection.h"
 #include "input/dispatch.h"
+#include "input/input_system.h"
 #include "language/lsp.h"
 #include "language/syntax_worker.h"
 #include "render/screen.h"
@@ -139,6 +140,10 @@ void editorInit(void) {
 	}
 	E.focused_leaf = E.layout_root;
 	editorKeymapInitDefaults(&E.keymap);
+	if (!editorInputSystemActivate("cua")) {
+		errno = EINVAL;
+		editorPanic("editorInputSystemActivate");
+	}
 	editorClipboardSetExternalSink(editorClipboardSyncAll);
 	if (!editorTabsInit()) {
 		errno = ENOMEM;

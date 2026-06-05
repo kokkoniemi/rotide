@@ -33,8 +33,10 @@ src/input/actions_language.c	actionsLanguage
 src/input/actions_terminal_debug.c	actionsTerminalDebug
 src/input/actions_workspace.c	actionsWorkspace
 src/input/dispatch.c	dispatch
+src/input/input_system.c	inputSystem
 src/input/mouse.c	mouse
 src/input/prompt.c	prompt
+src/input/system_cua.c	cuaSystem
 src/input/text_pairs.c	textPairs
 src/language/autocomplete.c	autocomplete
 src/language/languages.c	languages

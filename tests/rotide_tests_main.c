@@ -42,6 +42,7 @@ SUITE_EXTERN(lsp_lifecycle);
 SUITE_EXTERN(lsp_completion);
 SUITE_EXTERN(lsp_diagnostics);
 SUITE_EXTERN(lsp_navigation);
+SUITE_EXTERN(input_system);
 SUITE_EXTERN(input_actions);
 SUITE_EXTERN(input_selection);
 SUITE_EXTERN(input_mouse);
@@ -93,6 +94,7 @@ static const struct editorTestSuite k_suites[] = {
         SUITE("lsp_completion", "lsp", lsp_completion),
         SUITE("lsp_diagnostics", "lsp", lsp_diagnostics),
         SUITE("lsp_navigation", "lsp", lsp_navigation),
+        SUITE("input_system", "input", input_system),
         SUITE("input_actions", "input", input_actions),
         SUITE("input_selection", "input", input_selection),
         SUITE("input_mouse", "input", input_mouse),

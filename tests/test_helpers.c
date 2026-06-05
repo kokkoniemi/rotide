@@ -11,6 +11,7 @@
 #include "editing/selection.h"
 #include "editor_test_api.h"
 #include "input/dispatch.h"
+#include "input/input_system.h"
 #include "input/prompt.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
@@ -162,6 +163,7 @@ void reset_editor_state(void) {
 	editorSyntaxTestResetParseFailureCountdowns();
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
 	editorKeymapInitDefaults(&E.keymap);
+	(void)editorInputSystemActivate("cua");
 	E.layout_root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
 	E.focused_leaf = E.layout_root;
 }

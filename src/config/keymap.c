@@ -301,6 +301,14 @@ static int keymapResolveActionName(const char *name, enum editorAction *action_o
 	return 0;
 }
 
+int editorKeymapResolveActionName(const char *name, enum editorAction *action_out) {
+	return keymapResolveActionName(name, action_out);
+}
+
+int editorKeymapBindAction(struct editorKeymap *keymap, enum editorAction action, int key) {
+	return keymapSetActionBinding(keymap, action, key);
+}
+
 static int keymapParseCtrlKeySpec(const char *spec, int *key_out) {
 	if (strncmp(spec, "ctrl+", 5) != 0 || spec[5] == '\0' || spec[6] != '\0') {
 		return 0;
