@@ -1040,9 +1040,13 @@ static int test_editor_dap_console_wheel_scrolls_transcript(void) {
 	E.window_rows = 10;
 	E.window_cols = 80;
 	char transcript[256];
-	int len = 0;
+	size_t len = 0;
 	for (int i = 0; i < 20; i++) {
-		len += snprintf(transcript + len, sizeof(transcript) - (size_t)len, "line-%d\n", i);
+		int n = snprintf(transcript + len, sizeof(transcript) - len, "line-%d\n", i);
+		if (n < 0 || (size_t)n >= sizeof(transcript) - len) {
+			break;
+		}
+		len += (size_t)n;
 	}
 	editorDapOutputClear();
 	editorDapOutputAppend(transcript);
