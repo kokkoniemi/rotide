@@ -13,26 +13,22 @@
 <line x1="72" y1="268" x2="696" y2="268" stroke="#444" stroke-width="1"/>
 <line x1="72.0" y1="268" x2="72.0" y2="272" stroke="#444" stroke-width="1"/>
 <text x="72.0" y="286" text-anchor="middle" fill="#222">2026-05-27</text>
-<line x1="141.3" y1="268" x2="141.3" y2="272" stroke="#444" stroke-width="1"/>
-<text x="141.3" y="286" text-anchor="middle" fill="#222">2026-05-28</text>
-<line x1="210.7" y1="268" x2="210.7" y2="272" stroke="#444" stroke-width="1"/>
-<text x="210.7" y="286" text-anchor="middle" fill="#222">2026-05-29</text>
-<line x1="280.0" y1="268" x2="280.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="280.0" y="286" text-anchor="middle" fill="#222">2026-05-30</text>
-<line x1="349.3" y1="268" x2="349.3" y2="272" stroke="#444" stroke-width="1"/>
-<text x="349.3" y="286" text-anchor="middle" fill="#222">2026-05-31</text>
-<line x1="418.7" y1="268" x2="418.7" y2="272" stroke="#444" stroke-width="1"/>
-<text x="418.7" y="286" text-anchor="middle" fill="#222">2026-06-01</text>
-<line x1="488.0" y1="268" x2="488.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="488.0" y="286" text-anchor="middle" fill="#222">2026-06-02</text>
+<line x1="196.8" y1="268" x2="196.8" y2="272" stroke="#444" stroke-width="1"/>
+<text x="196.8" y="286" text-anchor="middle" fill="#222">2026-05-29</text>
+<line x1="321.6" y1="268" x2="321.6" y2="272" stroke="#444" stroke-width="1"/>
+<text x="321.6" y="286" text-anchor="middle" fill="#222">2026-05-31</text>
+<line x1="446.4" y1="268" x2="446.4" y2="272" stroke="#444" stroke-width="1"/>
+<text x="446.4" y="286" text-anchor="middle" fill="#222">2026-06-02</text>
+<line x1="571.2" y1="268" x2="571.2" y2="272" stroke="#444" stroke-width="1"/>
+<text x="571.2" y="286" text-anchor="middle" fill="#222">2026-06-04</text>
 <line x1="696.0" y1="268" x2="696.0" y2="272" stroke="#444" stroke-width="1"/>
-<text x="696.0" y="286" text-anchor="middle" fill="#222">2026-06-05</text>
-<polyline fill="none" stroke="#1f77b4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,175.3 141.3,180.4 210.7,174.8 280.0,181.6 349.3,184.1 418.7,161.9 488.0,176.0 557.3,174.2 626.7,174.3 696.0,199.8"/>
-<circle cx="696.0" cy="199.8" r="3" fill="#1f77b4"/>
-<polyline fill="none" stroke="#ff7f0e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,69.3 141.3,76.1 210.7,67.4 280.0,83.0 349.3,78.6 418.7,79.4 488.0,68.0 557.3,80.4 626.7,62.7 696.0,116.6"/>
-<circle cx="696.0" cy="116.6" r="3" fill="#ff7f0e"/>
-<polyline fill="none" stroke="#2ca02c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,238.4 141.3,241.6 210.7,237.6 280.0,238.5 349.3,241.9 418.7,212.5 488.0,237.1 557.3,234.8 626.7,236.9 696.0,249.3"/>
-<circle cx="696.0" cy="249.3" r="3" fill="#2ca02c"/>
+<text x="696.0" y="286" text-anchor="middle" fill="#222">2026-06-06</text>
+<polyline fill="none" stroke="#1f77b4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,175.3 134.4,180.4 196.8,174.8 259.2,181.6 321.6,184.1 384.0,161.9 446.4,176.0 508.8,174.2 571.2,174.3 633.6,199.8 696.0,184.0"/>
+<circle cx="696.0" cy="184.0" r="3" fill="#1f77b4"/>
+<polyline fill="none" stroke="#ff7f0e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,69.3 134.4,76.1 196.8,67.4 259.2,83.0 321.6,78.6 384.0,79.4 446.4,68.0 508.8,80.4 571.2,62.7 633.6,116.6 696.0,79.6"/>
+<circle cx="696.0" cy="79.6" r="3" fill="#ff7f0e"/>
+<polyline fill="none" stroke="#2ca02c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="72.0,238.4 134.4,241.6 196.8,237.6 259.2,238.5 321.6,241.9 384.0,212.5 446.4,237.1 508.8,234.8 571.2,236.9 633.6,249.3 696.0,242.7"/>
+<circle cx="696.0" cy="242.7" r="3" fill="#2ca02c"/>
 <line x1="586" y1="50" x2="604" y2="50" stroke="#1f77b4" stroke-width="2"/>
 <text x="610" y="50" dominant-baseline="middle" fill="#222">p50</text>
 <line x1="586" y1="66" x2="604" y2="66" stroke="#ff7f0e" stroke-width="2"/>
