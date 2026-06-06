@@ -479,7 +479,9 @@ struct editorHistory {
 	X(size_t, mouse_drag_anchor_offset)                                                        \
 	X(int, mouse_drag_started)
 
-#define EDITOR_ACTIVE_BUFFER_INPUT_FIELDS(X) X(int, input_vim_mode)
+#define EDITOR_ACTIVE_BUFFER_INPUT_FIELDS(X)                                                       \
+	X(int, input_vim_mode)                                                                     \
+	X(int, input_vim_pending_g)
 
 #define EDITOR_ACTIVE_BUFFER_EDIT_FIELDS(X)                                                        \
 	X(struct editorHistory, undo_history)                                                      \

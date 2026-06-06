@@ -1,4 +1,5 @@
 #include "config/keymap.h"
+#include "editing/selection.h"
 #include "editor_test_api.h"
 #include "input/input_system.h"
 #include "rotide.h"
@@ -20,6 +21,29 @@ static int vim_test_key(int key) {
 	ASSERT_TRUE(system != NULL);
 	ASSERT_TRUE(system->handle_key != NULL);
 	return system->handle_key(key, &effects);
+}
+
+static int vim_test_visual_motion(int start_cy, int start_cx, int first_key, int second_key,
+                                  int end_cy, int end_cx, int range_start_cy, int range_start_cx,
+                                  int range_end_cy, int range_end_cx) {
+	struct editorSelectionRange range = {0};
+
+	E.cy = start_cy;
+	E.cx = start_cx;
+	ASSERT_TRUE(vim_test_key('v') == 0);
+	ASSERT_TRUE(vim_test_key(first_key) == 0);
+	if (second_key != 0) {
+		ASSERT_TRUE(vim_test_key(second_key) == 0);
+	}
+	ASSERT_EQ_INT(end_cy, E.cy);
+	ASSERT_EQ_INT(end_cx, E.cx);
+	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
+	ASSERT_EQ_INT(range_start_cy, range.start_cy);
+	ASSERT_EQ_INT(range_start_cx, range.start_cx);
+	ASSERT_EQ_INT(range_end_cy, range.end_cy);
+	ASSERT_EQ_INT(range_end_cx, range.end_cx);
+	ASSERT_TRUE(vim_test_key('\x1b') == 0);
+	return 0;
 }
 
 static int test_input_vim_activation_starts_normal(void) {
@@ -151,6 +175,145 @@ static int test_input_vim_visual_modes_set_selection_and_escape_clears(void) {
 	return 0;
 }
 
+static int test_input_vim_normal_character_line_and_document_motions(void) {
+	add_row("  alpha, beta");
+	add_row("xy");
+	add_row("  last");
+	int dirty_before = E.dirty;
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 2;
+	ASSERT_TRUE(vim_test_key('l') == 0);
+	ASSERT_EQ_INT(3, E.cx);
+	ASSERT_TRUE(vim_test_key('h') == 0);
+	ASSERT_EQ_INT(2, E.cx);
+
+	E.cx = 9;
+	ASSERT_TRUE(vim_test_key('0') == 0);
+	ASSERT_EQ_INT(0, E.cx);
+	ASSERT_TRUE(vim_test_key('^') == 0);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_TRUE(vim_test_key('$') == 0);
+	ASSERT_EQ_INT(12, E.cx);
+	ASSERT_TRUE(vim_test_key('l') == 0);
+	ASSERT_EQ_INT(12, E.cx);
+
+	E.cy = 0;
+	E.cx = 4;
+	ASSERT_TRUE(vim_test_key('j') == 0);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(1, E.cx);
+	ASSERT_TRUE(vim_test_key('k') == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(1, E.cx);
+
+	E.cy = 2;
+	E.cx = 4;
+	ASSERT_TRUE(vim_test_key('g') == 0);
+	ASSERT_TRUE(vim_test_key('g') == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_TRUE(vim_test_key('G') == 0);
+	ASSERT_EQ_INT(2, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_EQ_INT(dirty_before, E.dirty);
+	return 0;
+}
+
+static int test_input_vim_normal_word_motions_use_vim_boundaries(void) {
+	add_row("alpha, beta");
+	add_row("  gamma");
+	int dirty_before = E.dirty;
+
+	ASSERT_TRUE(vim_test_activate());
+	ASSERT_TRUE(vim_test_key('w') == 0);
+	ASSERT_EQ_INT(5, E.cx);
+	ASSERT_TRUE(vim_test_key('w') == 0);
+	ASSERT_EQ_INT(7, E.cx);
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('e') == 0);
+	ASSERT_EQ_INT(4, E.cx);
+	E.cy = 1;
+	E.cx = 6;
+	ASSERT_TRUE(vim_test_key('b') == 0);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_TRUE(vim_test_key('b') == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(7, E.cx);
+	ASSERT_EQ_INT(dirty_before, E.dirty);
+	return 0;
+}
+
+static int test_input_vim_motion_boundaries_and_multibyte_clusters(void) {
+	static const char cluster_text[] = "e\xCC\x81x";
+
+	add_row("a");
+	add_row(cluster_text);
+	int dirty_before = E.dirty;
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('h') == 0);
+	ASSERT_TRUE(vim_test_key('k') == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(0, E.cx);
+	ASSERT_TRUE(vim_test_key('l') == 0);
+	ASSERT_EQ_INT(0, E.cx);
+
+	E.cy = 1;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('l') == 0);
+	ASSERT_EQ_INT(3, E.cx);
+	ASSERT_TRUE(vim_test_key('h') == 0);
+	ASSERT_EQ_INT(0, E.cx);
+	ASSERT_TRUE(vim_test_key('e') == 0);
+	ASSERT_EQ_INT(3, E.cx);
+	ASSERT_TRUE(vim_test_key('$') == 0);
+	ASSERT_EQ_INT(3, E.cx);
+	ASSERT_TRUE(vim_test_key('j') == 0);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(3, E.cx);
+	ASSERT_EQ_INT(dirty_before, E.dirty);
+	return 0;
+}
+
+static int test_input_vim_blank_line_nonblank_motion_uses_column_zero(void) {
+	add_row("   ");
+	ASSERT_TRUE(vim_test_activate());
+	E.cx = 2;
+	ASSERT_TRUE(vim_test_key('^') == 0);
+	ASSERT_EQ_INT(0, E.cx);
+	ASSERT_TRUE(vim_test_key('G') == 0);
+	ASSERT_EQ_INT(0, E.cx);
+	return 0;
+}
+
+static int test_input_vim_visual_motions_preserve_anchor(void) {
+	add_row("  alpha, beta");
+	add_row("xy");
+	add_row("  last");
+	int dirty_before = E.dirty;
+
+	ASSERT_TRUE(vim_test_activate());
+	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 3, 'h', 0, 0, 2, 0, 2, 0, 3));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 2, 'l', 0, 0, 3, 0, 2, 0, 3));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 2, 'w', 0, 0, 7, 0, 2, 0, 7));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 9, 'b', 0, 0, 7, 0, 7, 0, 9));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 2, 'e', 0, 0, 6, 0, 2, 0, 6));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 6, '0', 0, 0, 0, 0, 0, 0, 6));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 2, '$', 0, 0, 12, 0, 2, 0, 12));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 6, '^', 0, 0, 2, 0, 2, 0, 6));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 3, 'j', 0, 1, 1, 0, 3, 1, 1));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(1, 1, 'k', 0, 0, 1, 0, 1, 1, 1));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(2, 4, 'g', 'g', 0, 2, 0, 2, 2, 4));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 4, 'G', 0, 2, 2, 0, 4, 2, 2));
+	ASSERT_EQ_INT(dirty_before, E.dirty);
+	return 0;
+}
+
 static int test_input_vim_mode_is_tab_local(void) {
 	ASSERT_TRUE(editorTabsInit());
 	ASSERT_TRUE(vim_test_activate());
@@ -181,6 +344,15 @@ const struct editorTestCase g_input_vim_tests[] = {
          test_input_vim_open_line_entries_switch_to_insert},
         {"input_vim_visual_modes_set_selection_and_escape_clears",
          test_input_vim_visual_modes_set_selection_and_escape_clears},
+        {"input_vim_normal_character_line_and_document_motions",
+         test_input_vim_normal_character_line_and_document_motions},
+        {"input_vim_normal_word_motions_use_vim_boundaries",
+         test_input_vim_normal_word_motions_use_vim_boundaries},
+        {"input_vim_motion_boundaries_and_multibyte_clusters",
+         test_input_vim_motion_boundaries_and_multibyte_clusters},
+        {"input_vim_blank_line_nonblank_motion_uses_column_zero",
+         test_input_vim_blank_line_nonblank_motion_uses_column_zero},
+        {"input_vim_visual_motions_preserve_anchor", test_input_vim_visual_motions_preserve_anchor},
         {"input_vim_mode_is_tab_local", test_input_vim_mode_is_tab_local},
 };
 
