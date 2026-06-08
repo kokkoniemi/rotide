@@ -1,6 +1,7 @@
 #include "config/common.h"
 #include "config/editor_config.h"
 #include "config/keymap.h"
+#include "input/input_system.h"
 #include "rotide.h"
 #include "test_case.h"
 #include "test_helpers.h"
@@ -1538,6 +1539,179 @@ static int test_editor_keymap_load_accepts_reserved_terminal_aliases_for_matchin
 	return 0;
 }
 
+static int keymap_vim_send_key(int key) {
+	const struct editorInputSystem *system = editorInputSystemActive();
+	int effects = 0;
+
+	if (system == NULL || system->handle_key == NULL) {
+		return -1;
+	}
+	return system->handle_key(key, &effects);
+}
+
+static int test_editor_keymap_vim_binding_overrides_default(void) {
+	char dir_template[] = "/tmp/rotide-test-vimkeymap-override-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	char project_path[512];
+	enum editorKeymapLoadStatus status = EDITOR_KEYMAP_LOAD_OK;
+
+	ASSERT_TRUE(dir_path != NULL);
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "normal.move_right = \";\"\n"));
+
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	status = editorKeymapLoadVimBindings(NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
+
+	add_row("abcdef");
+	E.cy = 0;
+	E.cx = 0;
+	/* The rebound key moves right. */
+	ASSERT_EQ_INT(0, keymap_vim_send_key(';'));
+	ASSERT_EQ_INT(1, E.cx);
+	/* The relocated default is disabled. */
+	E.cx = 0;
+	ASSERT_EQ_INT(0, keymap_vim_send_key('l'));
+	ASSERT_EQ_INT(0, E.cx);
+	/* An untouched default still works. */
+	E.cx = 2;
+	ASSERT_EQ_INT(0, keymap_vim_send_key('h'));
+	ASSERT_EQ_INT(1, E.cx);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_vim_per_mode_binding(void) {
+	char dir_template[] = "/tmp/rotide-test-vimkeymap-mode-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	char project_path[512];
+
+	ASSERT_TRUE(dir_path != NULL);
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "visual.move_right = \";\"\n"));
+
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, editorKeymapLoadVimBindings(NULL, project_path));
+
+	add_row("abcdef");
+	E.cy = 0;
+	E.cx = 0;
+	/* The visual-mode binding does not affect normal mode. */
+	ASSERT_EQ_INT(0, keymap_vim_send_key(';'));
+	ASSERT_EQ_INT(0, E.cx);
+	/* In visual mode the rebound key extends right. */
+	ASSERT_EQ_INT(0, keymap_vim_send_key('v'));
+	ASSERT_EQ_INT(0, keymap_vim_send_key(';'));
+	ASSERT_EQ_INT(1, E.cx);
+	ASSERT_EQ_INT(0, keymap_vim_send_key('\x1b'));
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_vim_unknown_command_is_rejected(void) {
+	char dir_template[] = "/tmp/rotide-test-vimkeymap-bad-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	char project_path[512];
+
+	ASSERT_TRUE(dir_path != NULL);
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "normal.not_a_command = \"x\"\n"));
+
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_INVALID_PROJECT,
+	              editorKeymapLoadVimBindings(NULL, project_path));
+
+	/* Defaults remain intact after the rejected file. */
+	add_row("abc");
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_EQ_INT(0, keymap_vim_send_key('l'));
+	ASSERT_EQ_INT(1, E.cx);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_vim_unknown_mode_is_rejected(void) {
+	char dir_template[] = "/tmp/rotide-test-vimkeymap-badmode-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	char project_path[512];
+
+	ASSERT_TRUE(dir_path != NULL);
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "elsewhere.move_left = \";\"\n"));
+
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_INVALID_PROJECT,
+	              editorKeymapLoadVimBindings(NULL, project_path));
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_vim_project_overrides_global(void) {
+	char dir_template[] = "/tmp/rotide-test-vimkeymap-precedence-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	char global_path[512];
+	char project_path[512];
+
+	ASSERT_TRUE(dir_path != NULL);
+	ASSERT_TRUE(path_join(global_path, sizeof(global_path), dir_path, "global.toml"));
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
+	ASSERT_TRUE(write_text_file(global_path, "[keymap.vim]\n"
+	                                         "normal.move_right = \";\"\n"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "normal.move_right = \",\"\n"));
+
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK,
+	              editorKeymapLoadVimBindings(global_path, project_path));
+
+	add_row("abcdef");
+	E.cy = 0;
+	E.cx = 0;
+	/* The project binding wins. */
+	ASSERT_EQ_INT(0, keymap_vim_send_key(','));
+	ASSERT_EQ_INT(1, E.cx);
+	/* The global binding no longer applies. */
+	E.cx = 0;
+	ASSERT_EQ_INT(0, keymap_vim_send_key(';'));
+	ASSERT_EQ_INT(0, E.cx);
+
+	ASSERT_TRUE(unlink(global_path) == 0);
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_vim_bindings_ignored_when_cua_active(void) {
+	char dir_template[] = "/tmp/rotide-test-vimkeymap-cua-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	char project_path[512];
+
+	ASSERT_TRUE(dir_path != NULL);
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "normal.move_right = \";\"\n"));
+
+	ASSERT_TRUE(editorInputSystemActivate("cua"));
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, editorKeymapLoadVimBindings(NULL, project_path));
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 const struct editorTestCase g_workspace_keymap_view_tests[] = {
         {"editor_keymap_load_valid_project_overrides_defaults",
          test_editor_keymap_load_valid_project_overrides_defaults},
@@ -1626,6 +1800,17 @@ const struct editorTestCase g_workspace_keymap_view_tests[] = {
          test_editor_keymap_load_rejects_reserved_terminal_aliases_for_other_actions},
         {"editor_keymap_load_accepts_reserved_terminal_aliases_for_matching_actions",
          test_editor_keymap_load_accepts_reserved_terminal_aliases_for_matching_actions},
+        {"editor_keymap_vim_binding_overrides_default",
+         test_editor_keymap_vim_binding_overrides_default},
+        {"editor_keymap_vim_per_mode_binding", test_editor_keymap_vim_per_mode_binding},
+        {"editor_keymap_vim_unknown_command_is_rejected",
+         test_editor_keymap_vim_unknown_command_is_rejected},
+        {"editor_keymap_vim_unknown_mode_is_rejected",
+         test_editor_keymap_vim_unknown_mode_is_rejected},
+        {"editor_keymap_vim_project_overrides_global",
+         test_editor_keymap_vim_project_overrides_global},
+        {"editor_keymap_vim_bindings_ignored_when_cua_active",
+         test_editor_keymap_vim_bindings_ignored_when_cua_active},
 };
 
 const int g_workspace_keymap_view_test_count =

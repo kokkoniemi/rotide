@@ -64,6 +64,7 @@ void clear_editor_state(void) {
 	editorOutputTestResetFrameCache();
 	editorClipboardClear();
 	editorVimRegistersClear();
+	editorVimKeymapResetDefaults();
 	editorPaneNodeFree(E.layout_root);
 	E.layout_root = NULL;
 	E.focused_leaf = NULL;

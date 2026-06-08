@@ -1,6 +1,7 @@
 #include "config/keymap.h"
 
 #include "config/common.h"
+#include "input/input_system.h"
 #include "rotide.h"
 
 #include <ctype.h>
@@ -584,6 +585,114 @@ static enum keymapFileStatus keymapApplyConfigFile(struct editorKeymap *keymap, 
 	}
 	enum keymapFileStatus explicit_status = keymapApplyConfigTable(keymap, path, "keymap.cua");
 	return keymapMergeFileStatus(alias_status, explicit_status);
+}
+
+struct keymapVimContext {
+	const struct editorInputSystem *system;
+};
+
+static int keymapVimOnSection(void *ctx, const char *table) {
+	(void)ctx;
+	return strcmp(table, "keymap.vim") == 0;
+}
+
+/* Vim bindings are usually single, case-sensitive printable characters (`h`,
+ * `V`, `$`, `;`), which keymapParseKeySpec rejects and case-folds. Accept those
+ * verbatim and fall back to the shared parser for named keys (`esc`, `ctrl+c`). */
+static int keymapVimParseKeySpec(const char *spec, int *key_out) {
+	if (spec[0] != '\0' && spec[1] == '\0') {
+		unsigned char ch = (unsigned char)spec[0];
+		if (isprint(ch)) {
+			*key_out = (int)ch;
+			return 1;
+		}
+	}
+	return keymapParseKeySpec(spec, key_out);
+}
+
+static int keymapVimOnEntry(void *ctx, const char *key, char *value) {
+	struct keymapVimContext *config = ctx;
+	const char *dot = strchr(key, '.');
+	char mode[16];
+	char key_spec[KEYMAP_KEY_SPEC_MAX];
+	int parsed_key = 0;
+	size_t mode_len = 0;
+
+	if (dot == NULL) {
+		return 0;
+	}
+	mode_len = (size_t)(dot - key);
+	if (mode_len == 0 || mode_len >= sizeof(mode)) {
+		return 0;
+	}
+	memcpy(mode, key, mode_len);
+	mode[mode_len] = '\0';
+	if (dot[1] == '\0') {
+		return 0;
+	}
+	if (!editorConfigParseQuotedValue(value, key_spec, sizeof(key_spec))) {
+		return 0;
+	}
+	if (!keymapVimParseKeySpec(key_spec, &parsed_key)) {
+		return 0;
+	}
+	if (config->system == NULL || config->system->bind_key == NULL) {
+		return 0;
+	}
+	return config->system->bind_key(mode, dot + 1, parsed_key);
+}
+
+static enum keymapFileStatus keymapApplyVimConfigFile(const struct editorInputSystem *system,
+                                                      const char *path) {
+	struct keymapVimContext ctx = {.system = system};
+	struct editorConfigScanner scanner = {keymapVimOnSection, keymapVimOnEntry};
+
+	switch (editorConfigScanFile(path, &scanner, &ctx)) {
+		case EDITOR_CONFIG_SCAN_MISSING:
+			return KEYMAP_FILE_MISSING;
+		case EDITOR_CONFIG_SCAN_OK:
+			return KEYMAP_FILE_APPLIED;
+		case EDITOR_CONFIG_SCAN_MALFORMED:
+		default:
+			return KEYMAP_FILE_INVALID;
+	}
+}
+
+enum editorKeymapLoadStatus editorKeymapLoadVimBindings(const char *global_path,
+                                                        const char *project_path) {
+	const struct editorInputSystem *system = editorInputSystemActive();
+	enum editorKeymapLoadStatus status = EDITOR_KEYMAP_LOAD_OK;
+
+	if (system == NULL || system->id == NULL || strcmp(system->id, "vim") != 0) {
+		return EDITOR_KEYMAP_LOAD_OK;
+	}
+	editorVimKeymapResetDefaults();
+
+	if (global_path != NULL &&
+	    keymapApplyVimConfigFile(system, global_path) == KEYMAP_FILE_INVALID) {
+		editorVimKeymapResetDefaults();
+		status = EDITOR_KEYMAP_LOAD_INVALID_GLOBAL;
+	}
+	if (project_path != NULL &&
+	    keymapApplyVimConfigFile(system, project_path) == KEYMAP_FILE_INVALID) {
+		editorVimKeymapResetDefaults();
+		return EDITOR_KEYMAP_LOAD_INVALID_PROJECT;
+	}
+	return status;
+}
+
+enum editorKeymapLoadStatus editorKeymapLoadVimBindingsConfigured(void) {
+	char project_path[PATH_MAX];
+	char *global_path = NULL;
+	enum editorKeymapLoadStatus status = EDITOR_KEYMAP_LOAD_OK;
+
+	if (!editorConfigBuildProjectConfigPath(NULL, project_path, sizeof(project_path))) {
+		return EDITOR_KEYMAP_LOAD_OK;
+	}
+	global_path = editorConfigBuildGlobalConfigPath();
+	status = editorKeymapLoadVimBindings(global_path, project_path);
+	free(global_path);
+	return status;
 }
 
 static int keymapFormatKey(int key, char *buf, size_t bufsize) {

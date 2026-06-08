@@ -18,6 +18,7 @@ struct runtimeConfigStatus {
 	enum editorConfigBootstrapStatus bootstrap_status;
 	enum editorInputConfigLoadStatus input_config_status;
 	enum editorKeymapLoadStatus keymap_status;
+	enum editorKeymapLoadStatus keymap_vim_status;
 	enum editorCursorStyleLoadStatus cursor_style_status;
 	enum editorCursorBlinkLoadStatus cursor_blink_status;
 	enum editorLineWrapLoadStatus line_wrap_status;
@@ -44,6 +45,7 @@ static void runtimeConfigLoadSettings(struct runtimeConfigStatus *status) {
 		        status->input_config_status | EDITOR_INPUT_CONFIG_LOAD_INVALID_PROJECT);
 	}
 	status->keymap_status = editorKeymapLoadConfigured(&E.keymap);
+	status->keymap_vim_status = editorKeymapLoadVimBindingsConfigured();
 	status->cursor_style_status = editorCursorStyleLoadConfigured(&E.cursor_style);
 	status->cursor_blink_status = editorCursorBlinkLoadConfigured(&E.cursor_blink_enabled);
 	status->line_wrap_status = editorLineWrapLoadConfigured(&E.line_wrap_enabled);
@@ -77,6 +79,14 @@ static int runtimeConfigSetStatus(const struct runtimeConfigStatus *status,
 	}
 	if (status->keymap_status == EDITOR_KEYMAP_LOAD_INVALID_GLOBAL) {
 		editorSetStatusMsg("Invalid global keymap config, ignoring ~/.rotide/config.toml");
+		return 1;
+	}
+	if (status->keymap_vim_status == EDITOR_KEYMAP_LOAD_INVALID_PROJECT) {
+		editorSetStatusMsg("Invalid [keymap.vim] in ./.rotide.toml, using defaults");
+		return 1;
+	}
+	if (status->keymap_vim_status == EDITOR_KEYMAP_LOAD_INVALID_GLOBAL) {
+		editorSetStatusMsg("Invalid [keymap.vim] in ~/.rotide/config.toml, using defaults");
 		return 1;
 	}
 	if ((status->input_config_status & EDITOR_INPUT_CONFIG_LOAD_OUT_OF_MEMORY) != 0 ||

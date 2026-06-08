@@ -69,6 +69,109 @@ static enum vimSystemMode vimSystemMode(void) {
 	}
 }
 
+/* Per-mode bindable commands. Each command has a fixed canonical key (the key
+ * the handlers switch on) and a mutable bound key resolved from `[keymap.vim]`.
+ * Rebinding relocates a command's single key: the new key triggers it and the
+ * canonical default is disabled unless it is itself a binding for another
+ * command. Structural keys (digits, `"`, register letters) are never bound. */
+struct vimBindableCommand {
+	const char *name;
+	enum vimSystemMode mode;
+	int canonical_key;
+	int bound_key;
+};
+
+static struct vimBindableCommand g_vim_commands[] = {
+        {"move_left", VIM_SYSTEM_MODE_NORMAL, 'h', 'h'},
+        {"move_down", VIM_SYSTEM_MODE_NORMAL, 'j', 'j'},
+        {"move_up", VIM_SYSTEM_MODE_NORMAL, 'k', 'k'},
+        {"move_right", VIM_SYSTEM_MODE_NORMAL, 'l', 'l'},
+        {"word_forward", VIM_SYSTEM_MODE_NORMAL, 'w', 'w'},
+        {"word_backward", VIM_SYSTEM_MODE_NORMAL, 'b', 'b'},
+        {"word_end", VIM_SYSTEM_MODE_NORMAL, 'e', 'e'},
+        {"line_start", VIM_SYSTEM_MODE_NORMAL, '0', '0'},
+        {"line_end", VIM_SYSTEM_MODE_NORMAL, '$', '$'},
+        {"first_nonblank", VIM_SYSTEM_MODE_NORMAL, '^', '^'},
+        {"last_line", VIM_SYSTEM_MODE_NORMAL, 'G', 'G'},
+        {"insert", VIM_SYSTEM_MODE_NORMAL, 'i', 'i'},
+        {"append", VIM_SYSTEM_MODE_NORMAL, 'a', 'a'},
+        {"insert_line_start", VIM_SYSTEM_MODE_NORMAL, 'I', 'I'},
+        {"append_line_end", VIM_SYSTEM_MODE_NORMAL, 'A', 'A'},
+        {"open_below", VIM_SYSTEM_MODE_NORMAL, 'o', 'o'},
+        {"open_above", VIM_SYSTEM_MODE_NORMAL, 'O', 'O'},
+        {"delete_char", VIM_SYSTEM_MODE_NORMAL, 'x', 'x'},
+        {"delete", VIM_SYSTEM_MODE_NORMAL, 'd', 'd'},
+        {"change", VIM_SYSTEM_MODE_NORMAL, 'c', 'c'},
+        {"yank", VIM_SYSTEM_MODE_NORMAL, 'y', 'y'},
+        {"delete_to_eol", VIM_SYSTEM_MODE_NORMAL, 'D', 'D'},
+        {"change_to_eol", VIM_SYSTEM_MODE_NORMAL, 'C', 'C'},
+        {"yank_line", VIM_SYSTEM_MODE_NORMAL, 'Y', 'Y'},
+        {"paste_after", VIM_SYSTEM_MODE_NORMAL, 'p', 'p'},
+        {"paste_before", VIM_SYSTEM_MODE_NORMAL, 'P', 'P'},
+        {"search_forward", VIM_SYSTEM_MODE_NORMAL, '/', '/'},
+        {"search_backward", VIM_SYSTEM_MODE_NORMAL, '?', '?'},
+        {"search_next", VIM_SYSTEM_MODE_NORMAL, 'n', 'n'},
+        {"search_prev", VIM_SYSTEM_MODE_NORMAL, 'N', 'N'},
+        {"ex_command", VIM_SYSTEM_MODE_NORMAL, ':', ':'},
+        {"visual", VIM_SYSTEM_MODE_NORMAL, 'v', 'v'},
+        {"visual_line", VIM_SYSTEM_MODE_NORMAL, 'V', 'V'},
+        {"move_left", VIM_SYSTEM_MODE_VISUAL, 'h', 'h'},
+        {"move_down", VIM_SYSTEM_MODE_VISUAL, 'j', 'j'},
+        {"move_up", VIM_SYSTEM_MODE_VISUAL, 'k', 'k'},
+        {"move_right", VIM_SYSTEM_MODE_VISUAL, 'l', 'l'},
+        {"word_forward", VIM_SYSTEM_MODE_VISUAL, 'w', 'w'},
+        {"word_backward", VIM_SYSTEM_MODE_VISUAL, 'b', 'b'},
+        {"word_end", VIM_SYSTEM_MODE_VISUAL, 'e', 'e'},
+        {"line_start", VIM_SYSTEM_MODE_VISUAL, '0', '0'},
+        {"line_end", VIM_SYSTEM_MODE_VISUAL, '$', '$'},
+        {"first_nonblank", VIM_SYSTEM_MODE_VISUAL, '^', '^'},
+        {"last_line", VIM_SYSTEM_MODE_VISUAL, 'G', 'G'},
+        {"delete", VIM_SYSTEM_MODE_VISUAL, 'd', 'd'},
+        {"change", VIM_SYSTEM_MODE_VISUAL, 'c', 'c'},
+        {"yank", VIM_SYSTEM_MODE_VISUAL, 'y', 'y'},
+        {"delete_char", VIM_SYSTEM_MODE_VISUAL, 'x', 'x'},
+        {"paste", VIM_SYSTEM_MODE_VISUAL, 'p', 'p'},
+        {"normal_mode", VIM_SYSTEM_MODE_INSERT, '\x1b', '\x1b'},
+};
+
+static const size_t g_vim_command_count = sizeof(g_vim_commands) / sizeof(g_vim_commands[0]);
+
+void editorVimKeymapResetDefaults(void) {
+	for (size_t i = 0; i < g_vim_command_count; i++) {
+		g_vim_commands[i].bound_key = g_vim_commands[i].canonical_key;
+	}
+}
+
+static enum vimSystemMode vimSystemRemapLookupMode(enum vimSystemMode mode) {
+	return mode == VIM_SYSTEM_MODE_VISUAL_LINE ? VIM_SYSTEM_MODE_VISUAL : mode;
+}
+
+/* Translate an input key into the canonical key the handlers expect. When the
+ * key is a canonical default whose command was rebound to another key, it is
+ * reported as disabled so the caller can ignore it. */
+static int vimSystemRemapKey(enum vimSystemMode mode, int c, int *disabled_out) {
+	enum vimSystemMode lookup = vimSystemRemapLookupMode(mode);
+
+	if (disabled_out != NULL) {
+		*disabled_out = 0;
+	}
+	for (size_t i = 0; i < g_vim_command_count; i++) {
+		if (g_vim_commands[i].mode == lookup && g_vim_commands[i].bound_key == c) {
+			return g_vim_commands[i].canonical_key;
+		}
+	}
+	for (size_t i = 0; i < g_vim_command_count; i++) {
+		if (g_vim_commands[i].mode == lookup && g_vim_commands[i].canonical_key == c &&
+		    g_vim_commands[i].bound_key != c) {
+			if (disabled_out != NULL) {
+				*disabled_out = 1;
+			}
+			return c;
+		}
+	}
+	return c;
+}
+
 static void vimSystemResetPending(void) {
 	E.input_vim_pending_g = 0;
 	E.input_vim_pending_operator = VIM_SYSTEM_OPERATOR_NONE;
@@ -1209,6 +1312,7 @@ static int vimSystemEnterInsertWithAction(enum editorAction action, int *effects
 }
 
 static int vimSystemHandleInsertKey(int c, int *effects_out) {
+	c = vimSystemRemapKey(VIM_SYSTEM_MODE_INSERT, c, NULL);
 	if (c == '\x1b') {
 		vimSystemSetMode(VIM_SYSTEM_MODE_NORMAL);
 		return 0;
@@ -1468,6 +1572,7 @@ static int vimSystemExCommandLine(int *effects_out) {
 static int vimSystemHandleNormalKey(int c, int *effects_out) {
 	int motion_count = 0;
 	int motion_result = 0;
+	int disabled = 0;
 
 	if (E.input_vim_pending_register) {
 		E.input_vim_pending_register = 0;
@@ -1476,6 +1581,10 @@ static int vimSystemHandleNormalKey(int c, int *effects_out) {
 		} else if (c >= 'A' && c <= 'Z') {
 			E.input_vim_active_register = c - 'A' + 'a';
 		}
+		return 0;
+	}
+	c = vimSystemRemapKey(VIM_SYSTEM_MODE_NORMAL, c, &disabled);
+	if (disabled) {
 		return 0;
 	}
 	if (E.input_vim_pending_operator != VIM_SYSTEM_OPERATOR_NONE) {
@@ -1645,6 +1754,7 @@ static int vimSystemVisualSelectObject(int inner, int object_key, int *effects_o
 static int vimSystemHandleVisualKey(int c, int *effects_out) {
 	int motion_count = 0;
 	int motion_result = 0;
+	int disabled = 0;
 
 	if (E.input_vim_pending_register) {
 		E.input_vim_pending_register = 0;
@@ -1659,6 +1769,10 @@ static int vimSystemHandleVisualKey(int c, int *effects_out) {
 		int inner = E.input_vim_pending_text_object == 'i';
 		E.input_vim_pending_text_object = 0;
 		(void)vimSystemVisualSelectObject(inner, c, effects_out);
+		return 0;
+	}
+	c = vimSystemRemapKey(vimSystemMode(), c, &disabled);
+	if (disabled) {
 		return 0;
 	}
 	if (c == '\x1b') {
@@ -1756,26 +1870,65 @@ static int vimSystemHandleKey(int c, int *effects_out) {
 }
 
 static int vimSystemResolveCommand(const char *name, int *command_id_out) {
-	enum editorAction action = EDITOR_ACTION_COUNT;
-	if (!editorKeymapResolveActionName(name, &action)) {
+	if (name == NULL) {
 		return 0;
 	}
-	if (command_id_out != NULL) {
-		*command_id_out = action;
+	for (size_t i = 0; i < g_vim_command_count; i++) {
+		if (strcmp(g_vim_commands[i].name, name) == 0) {
+			if (command_id_out != NULL) {
+				*command_id_out = g_vim_commands[i].canonical_key;
+			}
+			return 1;
+		}
 	}
-	return 1;
+	return 0;
+}
+
+static int vimSystemModeFromName(const char *mode, enum vimSystemMode *mode_out) {
+	if (mode == NULL) {
+		return 0;
+	}
+	if (strcmp(mode, "normal") == 0) {
+		*mode_out = VIM_SYSTEM_MODE_NORMAL;
+		return 1;
+	}
+	if (strcmp(mode, "insert") == 0) {
+		*mode_out = VIM_SYSTEM_MODE_INSERT;
+		return 1;
+	}
+	if (strcmp(mode, "visual") == 0) {
+		*mode_out = VIM_SYSTEM_MODE_VISUAL;
+		return 1;
+	}
+	return 0;
 }
 
 static int vimSystemBindKey(const char *mode, const char *name, int key) {
-	enum editorAction action = EDITOR_ACTION_COUNT;
+	enum vimSystemMode target_mode = VIM_SYSTEM_MODE_NORMAL;
+	struct vimBindableCommand *target = NULL;
 
-	if (mode != NULL && mode[0] != '\0' && strcmp(mode, "default") != 0) {
+	if (!vimSystemModeFromName(mode, &target_mode) || name == NULL) {
 		return 0;
 	}
-	if (!editorKeymapResolveActionName(name, &action)) {
+	for (size_t i = 0; i < g_vim_command_count; i++) {
+		if (g_vim_commands[i].mode == target_mode &&
+		    strcmp(g_vim_commands[i].name, name) == 0) {
+			target = &g_vim_commands[i];
+			break;
+		}
+	}
+	if (target == NULL) {
 		return 0;
 	}
-	return editorKeymapBindAction(&E.keymap, action, key);
+	/* A key triggers one command per mode: release it from any other command. */
+	for (size_t i = 0; i < g_vim_command_count; i++) {
+		if (&g_vim_commands[i] != target && g_vim_commands[i].mode == target_mode &&
+		    g_vim_commands[i].bound_key == key) {
+			g_vim_commands[i].bound_key = -1;
+		}
+	}
+	target->bound_key = key;
+	return 1;
 }
 
 static void vimSystemStatusSegment(char *buf, size_t bufsize) {
@@ -1785,6 +1938,7 @@ static void vimSystemStatusSegment(char *buf, size_t bufsize) {
 }
 
 static int vimSystemOnActivate(void) {
+	editorVimKeymapResetDefaults();
 	vimSystemSetMode(VIM_SYSTEM_MODE_NORMAL);
 	return 1;
 }

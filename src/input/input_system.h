@@ -27,4 +27,8 @@ int editorInputSystemActivate(const char *id);
 const struct editorInputSystem *editorInputSystemActive(void);
 const struct editorInputSystem *editorInputSystemById(const char *id);
 
+/* Reset the Vim per-mode key bindings to their built-in defaults. Called before
+ * (re)applying `[keymap.vim]` config so reloads do not accumulate bindings. */
+void editorVimKeymapResetDefaults(void);
+
 #endif
