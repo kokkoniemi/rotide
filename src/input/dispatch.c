@@ -637,6 +637,62 @@ static int dispatchReplaceAllInBuffer(const char *query, size_t query_len, const
 	return replaced;
 }
 
+int editorDispatchSubstituteInBuffer(const char *query, const char *replacement, int global) {
+	size_t query_len = query != NULL ? strlen(query) : 0;
+	size_t replacement_len = replacement != NULL ? strlen(replacement) : 0;
+	size_t *offsets = NULL;
+	int count = 0;
+	int filtered = 0;
+	int last_row = -1;
+	int replaced = 0;
+	size_t first_offset = 0;
+
+	if (query_len == 0 || E.numrows == 0) {
+		return 0;
+	}
+	if (global) {
+		return dispatchReplaceAllInBuffer(query, query_len, replacement, replacement_len);
+	}
+
+	count = dispatchCollectMatchOffsets(query, query_len, &offsets);
+	if (count <= 0) {
+		return count;
+	}
+
+	/* Keep only the first match on each line for non-global `:s`. */
+	for (int i = 0; i < count; i++) {
+		int row = 0;
+		int col = 0;
+		if (!editorBufferOffsetToPos(offsets[i], &row, &col) || row == last_row) {
+			continue;
+		}
+		last_row = row;
+		offsets[filtered++] = offsets[i];
+	}
+	if (filtered == 0) {
+		free(offsets);
+		return 0;
+	}
+	first_offset = offsets[0];
+
+	for (int i = filtered - 1; i >= 0; i--) {
+		editorHistoryBreakGroup();
+		if (dispatchReplaceAtOffset(offsets[i], query_len, replacement, replacement_len)) {
+			replaced++;
+		}
+	}
+	free(offsets);
+
+	if (replaced > 0) {
+		(void)editorSyncCursorFromOffset(first_offset + replacement_len);
+		editorViewportEnsureCursorVisible();
+		free(E.search_query);
+		E.search_query = NULL;
+		dispatchClearActiveSearchMatch();
+	}
+	return replaced;
+}
+
 static int dispatchReplaceNavigateNext(const char *query, int query_len) {
 	int match_row = -1;
 	int match_col = -1;

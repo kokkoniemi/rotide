@@ -1334,6 +1334,137 @@ static int vimSystemSearchRepeat(int direction_sign, int count, int *effects_out
 	return vimSystemSearchExecute(E.input_vim_search_query, direction, count, effects_out);
 }
 
+static int vimSystemStringIsAllDigits(const char *s) {
+	if (s == NULL || *s == '\0') {
+		return 0;
+	}
+	for (; *s != '\0'; s++) {
+		if (!isdigit((unsigned char)*s)) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+static void vimSystemGotoLine(long line_no, int *effects_out) {
+	int target = 0;
+
+	if (E.numrows == 0) {
+		return;
+	}
+	if (line_no < 1) {
+		line_no = 1;
+	}
+	if (line_no > E.numrows) {
+		line_no = E.numrows;
+	}
+	target = (int)(line_no - 1);
+	(void)vimSystemSetCursor(target, vimSystemLineFirstNonblank(target), effects_out);
+}
+
+/* Parse and apply `:[%]s/pattern/replacement/[flags]`. `args` points just past
+ * the `s` and is mutated in place to terminate the pattern/replacement fields. */
+static void vimSystemExSubstitute(char *args, int *effects_out) {
+	char delimiter = 0;
+	char *pattern = NULL;
+	char *replacement = NULL;
+	char *pattern_end = NULL;
+	char *replacement_end = NULL;
+	const char *flags = "";
+	int global = 0;
+	int replaced = 0;
+
+	if (args == NULL || args[0] == '\0' || args[0] == ' ') {
+		editorSetStatusMsg("E486: Pattern delimiter expected");
+		return;
+	}
+	delimiter = args[0];
+	pattern = args + 1;
+	pattern_end = strchr(pattern, delimiter);
+	if (pattern_end == NULL) {
+		editorSetStatusMsg("Invalid substitute command");
+		return;
+	}
+	*pattern_end = '\0';
+	replacement = pattern_end + 1;
+	replacement_end = strchr(replacement, delimiter);
+	if (replacement_end != NULL) {
+		*replacement_end = '\0';
+		flags = replacement_end + 1;
+	}
+	if (pattern[0] == '\0') {
+		editorSetStatusMsg("Empty search pattern");
+		return;
+	}
+	global = strchr(flags, 'g') != NULL;
+
+	replaced = editorDispatchSubstituteInBuffer(pattern, replacement, global);
+	if (replaced > 0) {
+		vimSystemAddEditEffect(effects_out);
+		editorSetStatusMsg("%d substitution(s)", replaced);
+	} else if (replaced == 0) {
+		editorSetStatusMsg("Pattern not found: %s", pattern);
+	}
+}
+
+static void vimSystemRunExCommand(char *line, int *effects_out) {
+	char *cmd = line;
+	size_t len = 0;
+
+	while (*cmd == ' ' || *cmd == '\t' || *cmd == ':') {
+		cmd++;
+	}
+	len = strlen(cmd);
+	while (len > 0 && (cmd[len - 1] == ' ' || cmd[len - 1] == '\t')) {
+		cmd[--len] = '\0';
+	}
+	if (*cmd == '\0') {
+		return;
+	}
+
+	if (vimSystemStringIsAllDigits(cmd)) {
+		vimSystemGotoLine(strtol(cmd, NULL, 10), effects_out);
+		return;
+	}
+	if (strcmp(cmd, "w") == 0) {
+		editorSave();
+		return;
+	}
+	if (strcmp(cmd, "q") == 0) {
+		if (E.dirty) {
+			editorSetStatusMsg("No write since last change (add ! to override)");
+			return;
+		}
+		editorActionQuit();
+		return;
+	}
+	if (strcmp(cmd, "q!") == 0) {
+		editorActionQuitForce();
+		return;
+	}
+	if (strcmp(cmd, "wq") == 0 || strcmp(cmd, "x") == 0) {
+		editorSave();
+		editorActionQuit();
+		return;
+	}
+	if (cmd[0] == '%' && cmd[1] == 's') {
+		vimSystemExSubstitute(cmd + 2, effects_out);
+		return;
+	}
+	editorSetStatusMsg("Not an editor command: %s", cmd);
+}
+
+static int vimSystemExCommandLine(int *effects_out) {
+	char *line = editorPromptWithCallback(":%s", 1, NULL);
+
+	if (line == NULL) {
+		return 0;
+	}
+	vimSystemRunExCommand(line, effects_out);
+	free(line);
+	return 1;
+}
+
 static int vimSystemHandleNormalKey(int c, int *effects_out) {
 	int motion_count = 0;
 	int motion_result = 0;
@@ -1437,6 +1568,10 @@ static int vimSystemHandleNormalKey(int c, int *effects_out) {
 			return 0;
 		case 'N':
 			(void)vimSystemSearchRepeat(-1, motion_count, effects_out);
+			vimSystemResetPending();
+			return 0;
+		case ':':
+			(void)vimSystemExCommandLine(effects_out);
 			vimSystemResetPending();
 			return 0;
 		case 'v':

@@ -4,6 +4,7 @@
 #include "rotide.h"
 
 void editorActionQuit(void);
+void editorActionQuitForce(void);
 void editorActionCloseTab(void);
 void editorOpenSettings(void);
 int editorHandleFileTabMappedAction(enum editorAction action);

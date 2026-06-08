@@ -9,7 +9,9 @@
 #include "test_support.h"
 #include "workspace/tabs.h"
 
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 static int vim_test_activate(void) {
 	return editorInputSystemActivate("vim");
@@ -703,6 +705,111 @@ static int test_input_vim_search_prompt_escape_restores_cursor(void) {
 	return 0;
 }
 
+static int test_input_vim_ex_write_saves_buffer(void) {
+	char path[] = "/tmp/rotide-test-vim-ex-XXXXXX";
+	char cmd[] = {':', 'w', '\r'};
+	int fd = mkstemp(path);
+	size_t content_len = 0;
+	char *contents = NULL;
+
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(close(fd) == 0);
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("hello");
+	add_row("world");
+	E.dirty = 5;
+	E.filename = strdup(path);
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_TRUE(vim_test_activate());
+
+	ASSERT_TRUE(editor_process_keypress_with_input(cmd, sizeof(cmd)) == 0);
+	ASSERT_EQ_INT(0, E.dirty);
+
+	contents = read_file_contents(path, &content_len);
+	ASSERT_TRUE(contents != NULL);
+	ASSERT_MEM_EQ("hello\nworld\n", contents, content_len);
+	free(contents);
+	unlink(path);
+	return 0;
+}
+
+static int test_input_vim_ex_goto_line(void) {
+	char cmd[] = {':', '3', '\r'};
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("one");
+	add_row("two");
+	add_row("  three");
+	add_row("four");
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 0;
+
+	ASSERT_TRUE(editor_process_keypress_with_input(cmd, sizeof(cmd)) == 0);
+	ASSERT_EQ_INT(2, E.cy);
+	ASSERT_EQ_INT(2, E.cx);
+	return 0;
+}
+
+static int test_input_vim_ex_substitute_global(void) {
+	char cmd[] = {':', '%', 's', '/', 'o', '/', '0', '/', 'g', '\r'};
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("foo boo");
+	add_row("zoo");
+	ASSERT_TRUE(vim_test_activate());
+
+	ASSERT_TRUE(editor_process_keypress_with_input(cmd, sizeof(cmd)) == 0);
+	ASSERT_ROW_TEXT_EQ(0, "f00 b00");
+	ASSERT_ROW_TEXT_EQ(1, "z00");
+	return 0;
+}
+
+static int test_input_vim_ex_substitute_first_per_line(void) {
+	char cmd[] = {':', '%', 's', '/', 'o', '/', '0', '/', '\r'};
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("foo boo");
+	add_row("zoo");
+	ASSERT_TRUE(vim_test_activate());
+
+	ASSERT_TRUE(editor_process_keypress_with_input(cmd, sizeof(cmd)) == 0);
+	ASSERT_ROW_TEXT_EQ(0, "f0o boo");
+	ASSERT_ROW_TEXT_EQ(1, "z0o");
+	return 0;
+}
+
+static int test_input_vim_ex_invalid_command_is_messaged(void) {
+	char cmd[] = {':', 'f', 'o', 'o', 'b', 'a', 'r', '\r'};
+	int dirty_before = 0;
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("unchanged");
+	dirty_before = E.dirty;
+	ASSERT_TRUE(vim_test_activate());
+
+	ASSERT_TRUE(editor_process_keypress_with_input(cmd, sizeof(cmd)) == 0);
+	ASSERT_ROW_TEXT_EQ(0, "unchanged");
+	ASSERT_EQ_INT(dirty_before, E.dirty);
+	ASSERT_TRUE(strstr(E.statusmsg, "Not an editor command") != NULL);
+	return 0;
+}
+
+static int test_input_vim_ex_quit_dirty_is_refused(void) {
+	char cmd[] = {':', 'q', '\r'};
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("data");
+	E.dirty = 1;
+	ASSERT_TRUE(vim_test_activate());
+
+	ASSERT_TRUE(editor_process_keypress_with_input(cmd, sizeof(cmd)) == 0);
+	ASSERT_TRUE(strstr(E.statusmsg, "No write since last change") != NULL);
+	ASSERT_EQ_INT(1, E.dirty);
+	return 0;
+}
+
 const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_activation_starts_normal", test_input_vim_activation_starts_normal},
         {"input_vim_reset_returns_to_normal", test_input_vim_reset_returns_to_normal},
@@ -748,6 +855,12 @@ const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_search_prompt_jumps_to_match", test_input_vim_search_prompt_jumps_to_match},
         {"input_vim_search_prompt_escape_restores_cursor",
          test_input_vim_search_prompt_escape_restores_cursor},
+        {"input_vim_ex_write_saves_buffer", test_input_vim_ex_write_saves_buffer},
+        {"input_vim_ex_goto_line", test_input_vim_ex_goto_line},
+        {"input_vim_ex_substitute_global", test_input_vim_ex_substitute_global},
+        {"input_vim_ex_substitute_first_per_line", test_input_vim_ex_substitute_first_per_line},
+        {"input_vim_ex_invalid_command_is_messaged", test_input_vim_ex_invalid_command_is_messaged},
+        {"input_vim_ex_quit_dirty_is_refused", test_input_vim_ex_quit_dirty_is_refused},
 };
 
 const int g_input_vim_test_count = (int)(sizeof(g_input_vim_tests) / sizeof(g_input_vim_tests[0]));
