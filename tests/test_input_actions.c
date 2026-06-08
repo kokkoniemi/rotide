@@ -32,7 +32,7 @@ static int test_editor_process_keypress_keymap_remap_changes_dispatch(void) {
 
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
-	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
 	                                          "save = \"ctrl+u\"\n"
 	                                          "redraw = \"ctrl+s\"\n"));
 
@@ -83,7 +83,7 @@ static int test_editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped
 
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
-	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
 	                                          "new_tab = \"ctrl+alt+a\"\n"));
 
 	enum editorKeymapLoadStatus status =
@@ -219,7 +219,7 @@ static int test_editor_process_keypress_pane_grow_shrink_via_custom_keymap(void)
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
 	/* keymapParseLetterToken accepts only [A-Za-z], so non-letter tokens
 	 * like ctrl+alt+= silently fail to bind. */
-	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
 	                                          "pane_grow = \"ctrl+alt+y\"\n"
 	                                          "pane_shrink = \"ctrl+alt+u\"\n"));
 

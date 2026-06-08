@@ -2,6 +2,7 @@
 
 #include "config/default_config_data.h"
 #include "support/alloc.h"
+#include "support/file_io.h"
 #include "support/size_utils.h"
 
 #include <ctype.h>
@@ -178,6 +179,24 @@ char *editorConfigBuildGlobalConfigPath(void) {
 		return NULL;
 	}
 	return path;
+}
+
+int editorConfigBuildProjectConfigPath(const char *project_root, char *buf, size_t bufsize) {
+	if (buf == NULL || bufsize == 0) {
+		return 0;
+	}
+	char *root = NULL;
+	if (project_root != NULL && project_root[0] != '\0') {
+		root = strdup(project_root);
+	} else {
+		root = editorPathCwdDup();
+	}
+	if (root == NULL) {
+		return 0;
+	}
+	int written = snprintf(buf, bufsize, "%s/.rotide.toml", root);
+	free(root);
+	return written >= 0 && (size_t)written < bufsize;
 }
 
 int editorConfigPathIsGlobalConfig(const char *path) {

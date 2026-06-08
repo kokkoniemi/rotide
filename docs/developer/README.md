@@ -9,6 +9,8 @@ For maintainers changing behavior. The root README is user-facing.
 - [Concurrency](concurrency.md): the syntax worker protocol.
 - [Debugging (DAP)](debugging.md): adapter boundary, launch lifecycle,
   breakpoints, console, and configuration.
+- [Input systems](input-systems.md): CUA/Vim input-system interface,
+  command resolution, and keymap configuration schema.
 - [Error handling](error_handling.md): OOM and validation policy.
 - [Build and tests](build-and-tests.md): make targets, runner flags,
   fuzz/bench/golden commands, metrics, sanitizers, diagrams.

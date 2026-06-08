@@ -126,6 +126,8 @@ static void tabsBufferClearOwnedState(struct editorBuffer *buffer) {
 	buffer->syntax_language = EDITOR_SYNTAX_NONE;
 	free(buffer->search_query);
 	buffer->search_query = NULL;
+	free(buffer->input_vim_search_query);
+	buffer->input_vim_search_query = NULL;
 	editorHistoryClear(&buffer->undo_history);
 	editorHistoryClear(&buffer->redo_history);
 	editorHistoryEntryFree(&buffer->edit_pending_entry);

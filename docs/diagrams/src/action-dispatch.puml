@@ -43,7 +43,16 @@ if (focused leaf is terminal pane
   endif
 else (no)
 endif
-:keymap lookup -> editorAction;
+:delegate to active input system
+ (editorInputSystemActive()->handle_key);
+if (system == vim?) then (yes)
+  :modal state machine resolves key
+   (mode, counts, operators, registers,
+    motions, text objects, search, ex line);
+else (cua)
+  :keymap lookup -> editorAction;
+endif
+:resolved editorAction / command;
 if (action mutates text?) then (yes)
   :apply edit through edit pipeline;
 else (no)

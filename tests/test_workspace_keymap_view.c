@@ -1,6 +1,7 @@
 #include "config/common.h"
 #include "config/editor_config.h"
 #include "config/keymap.h"
+#include "input/input_system.h"
 #include "rotide.h"
 #include "test_case.h"
 #include "test_helpers.h"
@@ -19,7 +20,7 @@ static int test_editor_keymap_load_valid_project_overrides_defaults(void) {
 
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
-	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
 	                                          "save = \"ctrl+u\"\n"
 	                                          "redraw = \"ctrl+s\"\n"));
 
@@ -47,7 +48,7 @@ static int test_editor_keymap_load_unknown_action_falls_back_to_defaults(void) {
 
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
-	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
 	                                          "not_a_real_action = \"ctrl+u\"\n"));
 
 	struct editorKeymap keymap;
@@ -71,7 +72,7 @@ static int test_editor_keymap_load_unknown_keyspec_falls_back_to_defaults(void) 
 
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
-	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
 	                                          "save = \"meta+s\"\n"));
 
 	struct editorKeymap keymap;
@@ -95,7 +96,7 @@ static int test_editor_keymap_load_duplicate_binding_falls_back_to_defaults(void
 
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
-	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
 	                                          "save = \"ctrl+u\"\n"
 	                                          "quit = \"ctrl+u\"\n"));
 
@@ -148,9 +149,9 @@ static int test_editor_keymap_global_then_project_precedence(void) {
 	ASSERT_TRUE(path_join(global_path, sizeof(global_path), dir_path, "global.toml"));
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
 
-	ASSERT_TRUE(write_text_file(global_path, "[keymap]\n"
+	ASSERT_TRUE(write_text_file(global_path, "[keymap.cua]\n"
 	                                         "save = \"ctrl+u\"\n"));
-	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
 	                                          "save = \"ctrl+t\"\n"));
 
 	struct editorKeymap keymap;
@@ -171,6 +172,55 @@ static int test_editor_keymap_global_then_project_precedence(void) {
 	return 0;
 }
 
+static int test_editor_keymap_cua_table_overrides_defaults(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-cua-table-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
+	                                          "save = \"ctrl+u\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('u'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SAVE, action);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_bare_keymap_table_is_ignored(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-bare-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	/* The bare [keymap] table is not a CUA alias; only [keymap.cua] applies. */
+	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	                                          "save = \"ctrl+u\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	/* ctrl+u was not bound; the default ctrl+s still saves. */
+	ASSERT_TRUE(!editorKeymapLookupAction(&keymap, CTRL_KEY('u'), &action));
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, CTRL_KEY('s'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_SAVE, action);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 static int test_editor_keymap_invalid_global_ignored_when_project_valid(void) {
 	char dir_template[] = "/tmp/rotide-test-keymap-invalid-global-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -183,7 +233,7 @@ static int test_editor_keymap_invalid_global_ignored_when_project_valid(void) {
 
 	ASSERT_TRUE(write_text_file(global_path, "[keymap\n"
 	                                         "save = \"ctrl+u\"\n"));
-	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
 	                                          "save = \"ctrl+t\"\n"));
 
 	struct editorKeymap keymap;
@@ -201,7 +251,7 @@ static int test_editor_keymap_invalid_global_ignored_when_project_valid(void) {
 	return 0;
 }
 
-static int test_editor_keymap_load_configured_ignores_project(void) {
+static int test_editor_keymap_load_configured_project_overrides_global(void) {
 	int failed = 1;
 	struct envVarBackup home_backup;
 	char *original_cwd = NULL;
@@ -244,11 +294,11 @@ static int test_editor_keymap_load_configured_ignores_project(void) {
 	if (!path_join(project_path, sizeof(project_path), root_path, ".rotide.toml")) {
 		goto cleanup;
 	}
-	if (!write_text_file(global_path, "[keymap]\n"
+	if (!write_text_file(global_path, "[keymap.cua]\n"
 	                                  "save = \"ctrl+t\"\n")) {
 		goto cleanup;
 	}
-	if (!write_text_file(project_path, "[keymap]\n"
+	if (!write_text_file(project_path, "[keymap.cua]\n"
 	                                   "save = \"ctrl+u\"\n")) {
 		goto cleanup;
 	}
@@ -266,11 +316,11 @@ static int test_editor_keymap_load_configured_ignores_project(void) {
 	}
 
 	enum editorAction action = EDITOR_ACTION_COUNT;
-	if (!editorKeymapLookupAction(&keymap, CTRL_KEY('t'), &action) ||
+	if (!editorKeymapLookupAction(&keymap, CTRL_KEY('u'), &action) ||
 	    action != EDITOR_ACTION_SAVE) {
 		goto cleanup;
 	}
-	if (editorKeymapLookupAction(&keymap, CTRL_KEY('u'), &action) &&
+	if (editorKeymapLookupAction(&keymap, CTRL_KEY('t'), &action) &&
 	    action == EDITOR_ACTION_SAVE) {
 		goto cleanup;
 	}
@@ -514,7 +564,7 @@ static int test_editor_cursor_style_invalid_setting_does_not_break_keymap_loadin
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
 	ASSERT_TRUE(write_text_file(project_path, "[editor]\n"
 	                                          "cursor_style = \"nope\"\n"
-	                                          "[keymap]\n"
+	                                          "[keymap.cua]\n"
 	                                          "save = \"ctrl+u\"\n"));
 
 	struct editorKeymap keymap;
@@ -665,7 +715,7 @@ static int test_editor_line_wrap_invalid_setting_does_not_break_keymap_loading(v
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
 	ASSERT_TRUE(write_text_file(project_path, "[editor]\n"
 	                                          "line_wrap = maybe\n"
-	                                          "[keymap]\n"
+	                                          "[keymap.cua]\n"
 	                                          "save = \"ctrl+u\"\n"));
 
 	struct editorKeymap keymap;
@@ -850,7 +900,7 @@ static int test_editor_view_bool_invalid_settings_do_not_break_keymap_loading(vo
 	                                          "current_line_highlight = maybe\n"
 	                                          "cursor_blink = maybe\n"
 	                                          "cursor_style = \"bar\"\n"
-	                                          "[keymap]\n"
+	                                          "[keymap.cua]\n"
 	                                          "toggle_line_numbers = \"alt+n\"\n"
 	                                          "toggle_current_line_highlight = \"alt+h\"\n"));
 
@@ -897,7 +947,7 @@ static int test_editor_keymap_load_modifier_combo_specs_case_insensitive(void) {
 
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
-	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
 	                                          "scroll_up = \"ctrl+alt+up\"\n"
 	                                          "next_tab = \"CTRL+ALT+RIGHT\"\n"
 	                                          "prev_tab = \"ctrl+UP\"\n"
@@ -977,7 +1027,8 @@ static int test_editor_keymap_load_invalid_modifier_combos_fall_back_to_defaults
 	};
 	for (size_t i = 0; i < sizeof(invalid_lines) / sizeof(invalid_lines[0]); i++) {
 		char content[256];
-		int written = snprintf(content, sizeof(content), "[keymap]\n%s", invalid_lines[i]);
+		int written =
+		        snprintf(content, sizeof(content), "[keymap.cua]\n%s", invalid_lines[i]);
 		ASSERT_TRUE(written > 0 && (size_t)written < sizeof(content));
 		ASSERT_TRUE(write_text_file(project_path, content));
 
@@ -1165,7 +1216,7 @@ static int test_editor_keymap_load_accepts_remapped_shift_selection(void) {
 
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
-	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
 	                                          "select_left = \"SHIFT+left\"\n"
 	                                          "select_word_right = \"ctrl+shift+RIGHT\"\n"
 	                                          "select_end = \"shift+END\"\n"));
@@ -1194,7 +1245,7 @@ static int test_editor_keymap_load_accepts_remapped_vertical_scroll(void) {
 
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
-	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
 	                                          "scroll_up = \"ctrl+alt+up\"\n"
 	                                          "scroll_down = \"ctrl+alt+down\"\n"));
 
@@ -1222,7 +1273,7 @@ static int test_editor_keymap_load_accepts_remapped_horizontal_scroll(void) {
 
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
-	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
 	                                          "scroll_left = \"ctrl+alt+left\"\n"
 	                                          "scroll_right = \"ctrl+alt+right\"\n"));
 
@@ -1252,7 +1303,7 @@ static int test_editor_keymap_load_accepts_toggle_line_wrap_alt_z(void) {
 
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
-	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
 	                                          "toggle_line_wrap = \"alt+z\"\n"));
 
 	struct editorKeymap keymap;
@@ -1275,7 +1326,7 @@ static int test_editor_keymap_load_accepts_line_number_highlight_toggles(void) {
 
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
-	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
 	                                          "toggle_line_numbers = \"alt+a\"\n"
 	                                          "toggle_current_line_highlight = \"alt+b\"\n"));
 
@@ -1316,7 +1367,7 @@ static int test_editor_keymap_load_accepts_goto_definition_ctrl_o(void) {
 
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
-	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
 	                                          "goto_definition = \"ctrl+o\"\n"));
 
 	struct editorKeymap keymap;
@@ -1339,7 +1390,7 @@ static int test_editor_keymap_load_accepts_goto_matching_bracket_ctrl_bracket(vo
 
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
-	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
 	                                          "goto_matching_bracket = \"ctrl+]\"\n"));
 
 	struct editorKeymap keymap;
@@ -1362,7 +1413,7 @@ static int test_editor_keymap_load_rejects_ctrl_i_binding_that_conflicts_with_ta
 
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
-	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
 	                                          "goto_definition = \"ctrl+i\"\n"));
 
 	struct editorKeymap keymap;
@@ -1399,7 +1450,7 @@ static int test_editor_keymap_load_rejects_reserved_terminal_aliases_for_other_a
 
 	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
 		char content[128];
-		int written = snprintf(content, sizeof(content), "[keymap]\n%s", cases[i].line);
+		int written = snprintf(content, sizeof(content), "[keymap.cua]\n%s", cases[i].line);
 		ASSERT_TRUE(written > 0 && (size_t)written < sizeof(content));
 		ASSERT_TRUE(write_text_file(project_path, content));
 
@@ -1425,7 +1476,7 @@ static int test_editor_keymap_load_accommodates_full_example_config_customizatio
 
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
-	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
 	                                          "dap_start = \"ctrl+alt+s\"\n"
 	                                          "dap_stop = \"ctrl+alt+x\"\n"
 	                                          "dap_continue = \"ctrl+alt+c\"\n"
@@ -1464,7 +1515,7 @@ static int test_editor_keymap_load_accepts_reserved_terminal_aliases_for_matchin
 
 	char project_path[512];
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
-	ASSERT_TRUE(write_text_file(project_path, "[keymap]\n"
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
 	                                          "newline = \"ctrl+m\"\n"
 	                                          "escape = \"ctrl+[\"\n"
 	                                          "backspace = \"ctrl+h\"\n"));
@@ -1486,6 +1537,244 @@ static int test_editor_keymap_load_accepts_reserved_terminal_aliases_for_matchin
 	return 0;
 }
 
+static int keymap_vim_send_key(int key) {
+	const struct editorInputSystem *system = editorInputSystemActive();
+	int effects = 0;
+
+	if (system == NULL || system->handle_key == NULL) {
+		return -1;
+	}
+	return system->handle_key(key, &effects);
+}
+
+static int test_editor_keymap_vim_binding_overrides_default(void) {
+	char dir_template[] = "/tmp/rotide-test-vimkeymap-override-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	char project_path[512];
+	enum editorKeymapLoadStatus status = EDITOR_KEYMAP_LOAD_OK;
+
+	ASSERT_TRUE(dir_path != NULL);
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "normal.move_right = \";\"\n"));
+
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	status = editorKeymapLoadVimBindings(NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
+
+	add_row("abcdef");
+	E.cy = 0;
+	E.cx = 0;
+	/* The rebound key moves right. */
+	ASSERT_EQ_INT(0, keymap_vim_send_key(';'));
+	ASSERT_EQ_INT(1, E.cx);
+	/* The relocated default is disabled. */
+	E.cx = 0;
+	ASSERT_EQ_INT(0, keymap_vim_send_key('l'));
+	ASSERT_EQ_INT(0, E.cx);
+	/* An untouched default still works. */
+	E.cx = 2;
+	ASSERT_EQ_INT(0, keymap_vim_send_key('h'));
+	ASSERT_EQ_INT(1, E.cx);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_vim_per_mode_binding(void) {
+	char dir_template[] = "/tmp/rotide-test-vimkeymap-mode-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	char project_path[512];
+
+	ASSERT_TRUE(dir_path != NULL);
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "visual.move_right = \";\"\n"));
+
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, editorKeymapLoadVimBindings(NULL, project_path));
+
+	add_row("abcdef");
+	E.cy = 0;
+	E.cx = 0;
+	/* The visual-mode binding does not affect normal mode. */
+	ASSERT_EQ_INT(0, keymap_vim_send_key(';'));
+	ASSERT_EQ_INT(0, E.cx);
+	/* In visual mode the rebound key extends right. */
+	ASSERT_EQ_INT(0, keymap_vim_send_key('v'));
+	ASSERT_EQ_INT(0, keymap_vim_send_key(';'));
+	ASSERT_EQ_INT(1, E.cx);
+	ASSERT_EQ_INT(0, keymap_vim_send_key('\x1b'));
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_vim_unknown_command_is_rejected(void) {
+	char dir_template[] = "/tmp/rotide-test-vimkeymap-bad-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	char project_path[512];
+
+	ASSERT_TRUE(dir_path != NULL);
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "normal.not_a_command = \"x\"\n"));
+
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_INVALID_PROJECT,
+	              editorKeymapLoadVimBindings(NULL, project_path));
+
+	/* Defaults remain intact after the rejected file. */
+	add_row("abc");
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_EQ_INT(0, keymap_vim_send_key('l'));
+	ASSERT_EQ_INT(1, E.cx);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_vim_unknown_mode_is_rejected(void) {
+	char dir_template[] = "/tmp/rotide-test-vimkeymap-badmode-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	char project_path[512];
+
+	ASSERT_TRUE(dir_path != NULL);
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "elsewhere.move_left = \";\"\n"));
+
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_INVALID_PROJECT,
+	              editorKeymapLoadVimBindings(NULL, project_path));
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_vim_structural_key_is_rejected(void) {
+	char dir_template[] = "/tmp/rotide-test-vimkeymap-structural-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	char project_path[512];
+
+	ASSERT_TRUE(dir_path != NULL);
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "normal.search_forward = \"q\"\n"));
+
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_INVALID_PROJECT,
+	              editorKeymapLoadVimBindings(NULL, project_path));
+
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "normal.move_left = \"3\"\n"));
+
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_INVALID_PROJECT,
+	              editorKeymapLoadVimBindings(NULL, project_path));
+
+	add_row("abcdef");
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_EQ_INT(0, keymap_vim_send_key('3'));
+	ASSERT_EQ_INT(0, keymap_vim_send_key('l'));
+	ASSERT_EQ_INT(3, E.cx);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_vim_rebindings_preserve_structural_grammar(void) {
+	char dir_template[] = "/tmp/rotide-test-vimkeymap-grammar-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	char project_path[512];
+
+	ASSERT_TRUE(dir_path != NULL);
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "normal.line_start = \"q\"\n"
+	                                          "normal.insert = \"z\"\n"));
+
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, editorKeymapLoadVimBindings(NULL, project_path));
+
+	add_row("alpha beta gamma zzz");
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_EQ_INT(0, keymap_vim_send_key('1'));
+	ASSERT_EQ_INT(0, keymap_vim_send_key('0'));
+	ASSERT_EQ_INT(0, keymap_vim_send_key('l'));
+	ASSERT_EQ_INT(10, E.cx);
+
+	E.cx = 6;
+	ASSERT_EQ_INT(0, keymap_vim_send_key('d'));
+	ASSERT_EQ_INT(0, keymap_vim_send_key('i'));
+	ASSERT_EQ_INT(0, keymap_vim_send_key('w'));
+	ASSERT_ROW_TEXT_EQ(0, "alpha  gamma zzz");
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_vim_project_overrides_global(void) {
+	char dir_template[] = "/tmp/rotide-test-vimkeymap-precedence-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	char global_path[512];
+	char project_path[512];
+
+	ASSERT_TRUE(dir_path != NULL);
+	ASSERT_TRUE(path_join(global_path, sizeof(global_path), dir_path, "global.toml"));
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
+	ASSERT_TRUE(write_text_file(global_path, "[keymap.vim]\n"
+	                                         "normal.move_right = \";\"\n"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "normal.move_right = \",\"\n"));
+
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK,
+	              editorKeymapLoadVimBindings(global_path, project_path));
+
+	add_row("abcdef");
+	E.cy = 0;
+	E.cx = 0;
+	/* The project binding wins. */
+	ASSERT_EQ_INT(0, keymap_vim_send_key(','));
+	ASSERT_EQ_INT(1, E.cx);
+	/* The global binding no longer applies. */
+	E.cx = 0;
+	ASSERT_EQ_INT(0, keymap_vim_send_key(';'));
+	ASSERT_EQ_INT(0, E.cx);
+
+	ASSERT_TRUE(unlink(global_path) == 0);
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_vim_bindings_ignored_when_cua_active(void) {
+	char dir_template[] = "/tmp/rotide-test-vimkeymap-cua-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	char project_path[512];
+
+	ASSERT_TRUE(dir_path != NULL);
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "normal.move_right = \";\"\n"));
+
+	ASSERT_TRUE(editorInputSystemActivate("cua"));
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, editorKeymapLoadVimBindings(NULL, project_path));
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 const struct editorTestCase g_workspace_keymap_view_tests[] = {
         {"editor_keymap_load_valid_project_overrides_defaults",
          test_editor_keymap_load_valid_project_overrides_defaults},
@@ -1501,10 +1790,14 @@ const struct editorTestCase g_workspace_keymap_view_tests[] = {
          test_editor_keymap_load_malformed_toml_falls_back_to_defaults},
         {"editor_keymap_global_then_project_precedence",
          test_editor_keymap_global_then_project_precedence},
+        {"editor_keymap_cua_table_overrides_defaults",
+         test_editor_keymap_cua_table_overrides_defaults},
+        {"editor_keymap_bare_keymap_table_is_ignored",
+         test_editor_keymap_bare_keymap_table_is_ignored},
         {"editor_keymap_invalid_global_ignored_when_project_valid",
          test_editor_keymap_invalid_global_ignored_when_project_valid},
-        {"editor_keymap_load_configured_ignores_project",
-         test_editor_keymap_load_configured_ignores_project},
+        {"editor_keymap_load_configured_project_overrides_global",
+         test_editor_keymap_load_configured_project_overrides_global},
         {"editor_cursor_style_load_valid_values_case_insensitive",
          test_editor_cursor_style_load_valid_values_case_insensitive},
         {"editor_cursor_style_global_then_project_precedence",
@@ -1570,6 +1863,21 @@ const struct editorTestCase g_workspace_keymap_view_tests[] = {
          test_editor_keymap_load_rejects_reserved_terminal_aliases_for_other_actions},
         {"editor_keymap_load_accepts_reserved_terminal_aliases_for_matching_actions",
          test_editor_keymap_load_accepts_reserved_terminal_aliases_for_matching_actions},
+        {"editor_keymap_vim_binding_overrides_default",
+         test_editor_keymap_vim_binding_overrides_default},
+        {"editor_keymap_vim_per_mode_binding", test_editor_keymap_vim_per_mode_binding},
+        {"editor_keymap_vim_unknown_command_is_rejected",
+         test_editor_keymap_vim_unknown_command_is_rejected},
+        {"editor_keymap_vim_unknown_mode_is_rejected",
+         test_editor_keymap_vim_unknown_mode_is_rejected},
+        {"editor_keymap_vim_structural_key_is_rejected",
+         test_editor_keymap_vim_structural_key_is_rejected},
+        {"editor_keymap_vim_rebindings_preserve_structural_grammar",
+         test_editor_keymap_vim_rebindings_preserve_structural_grammar},
+        {"editor_keymap_vim_project_overrides_global",
+         test_editor_keymap_vim_project_overrides_global},
+        {"editor_keymap_vim_bindings_ignored_when_cua_active",
+         test_editor_keymap_vim_bindings_ignored_when_cua_active},
 };
 
 const int g_workspace_keymap_view_test_count =

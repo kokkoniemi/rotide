@@ -10,7 +10,15 @@
 #include "input/prompt.h"
 #include "input/text_pairs.h"
 
+int editorDispatchProcessMappedAction(enum editorAction action, int *effects_out);
+void editorDispatchHandleTextByte(int c, int *effects_out);
 void editorProcessKeypress(void);
 int editorLspLocationMenuActivate(void);
+
+/* Replace occurrences of `query` with `replacement` across the active buffer.
+ * When `global` is zero, only the first match on each line is replaced (Vim
+ * `:s` semantics); otherwise every match is replaced (`:s//g`). Returns the
+ * number of replacements, or -1 on allocation failure. */
+int editorDispatchSubstituteInBuffer(const char *query, const char *replacement, int global);
 
 #endif

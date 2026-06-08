@@ -479,6 +479,20 @@ struct editorHistory {
 	X(size_t, mouse_drag_anchor_offset)                                                        \
 	X(int, mouse_drag_started)
 
+#define EDITOR_ACTIVE_BUFFER_INPUT_FIELDS(X)                                                       \
+	X(int, input_vim_mode)                                                                     \
+	X(int, input_vim_pending_g)                                                                \
+	X(int, input_vim_pending_operator)                                                         \
+	X(int, input_vim_pending_operator_g)                                                       \
+	X(int, input_vim_count)                                                                    \
+	X(int, input_vim_operator_count)                                                           \
+	X(int, input_vim_active_register)                                                          \
+	X(int, input_vim_pending_register)                                                         \
+	X(int, input_vim_pending_text_object)                                                      \
+	X(int, input_vim_visual_selection_half_open)                                               \
+	X(char *, input_vim_search_query)                                                          \
+	X(int, input_vim_search_direction)
+
 #define EDITOR_ACTIVE_BUFFER_EDIT_FIELDS(X)                                                        \
 	X(struct editorHistory, undo_history)                                                      \
 	X(struct editorHistory, redo_history)                                                      \
@@ -492,6 +506,7 @@ struct editorHistory {
 	EDITOR_ACTIVE_BUFFER_CORE_FIELDS(X)                                                        \
 	EDITOR_ACTIVE_BUFFER_LSP_FIELDS(X)                                                         \
 	EDITOR_ACTIVE_BUFFER_SEARCH_FIELDS(X)                                                      \
+	EDITOR_ACTIVE_BUFFER_INPUT_FIELDS(X)                                                       \
 	EDITOR_ACTIVE_BUFFER_EDIT_FIELDS(X)
 
 #define EDITOR_DECLARE_FIELD(type, name) type name;
@@ -583,6 +598,14 @@ struct editorConfig {
 	char *clipboard_text;
 	size_t clipboard_textlen;
 	editorClipboardExternalSink clipboard_external_sink;
+
+	/* --- Input: Vim named registers a-z (global, persist across buffers) --- */
+	struct editorVimRegister {
+		char *text;
+		size_t len;
+		int linewise;
+	} vim_registers[26];
+	int vim_default_register_linewise;
 
 	/* --- Workspace: tabs --- */
 	struct editorTabState *tabs;

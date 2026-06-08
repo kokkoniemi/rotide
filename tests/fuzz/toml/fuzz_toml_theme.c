@@ -3,7 +3,7 @@
  *
  * The theme parser is a hand-rolled line-based TOML subset: tables,
  * `key = "value"`, `#` comments, hex colors, ANSI color names. Real
- * input comes from `~/.rotide/themes/*.toml` plus a tiny `[theme]`
+ * input comes from custom theme files plus a tiny `[theme]`
  * stanza in the main config. Untrusted in the sense that a typo or a
  * shared theme file from the internet shouldn't crash the editor.
  *

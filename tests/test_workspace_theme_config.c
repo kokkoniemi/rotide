@@ -79,7 +79,7 @@ static int test_editor_theme_load_ignores_non_theme_sections(void) {
 	                                         "[lsp]\n"
 	                                         "gopls_command = \"gopls\"\n"
 	                                         "\n"
-	                                         "[keymap]\n"
+	                                         "[keymap.cua]\n"
 	                                         "save = \"ctrl+s\"\n"));
 
 	struct editorTheme theme;
@@ -297,7 +297,7 @@ static int test_editor_theme_project_config_cannot_override_theme_colors(void) {
 	                                          "name = \"a11y-light\"\n"
 	                                          "[theme.syntax]\n"
 	                                          "keyword = \"red\"\n"
-	                                          "[keymap]\n"
+	                                          "[keymap.cua]\n"
 	                                          "save = \"ctrl+u\"\n"));
 
 	struct editorTheme theme;

@@ -11,6 +11,7 @@
 #include "editing/selection.h"
 #include "editor_test_api.h"
 #include "input/dispatch.h"
+#include "input/input_system.h"
 #include "input/prompt.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
@@ -62,6 +63,8 @@ void clear_editor_state(void) {
 	editorWatchTestReset();
 	editorOutputTestResetFrameCache();
 	editorClipboardClear();
+	editorVimRegistersClear();
+	editorVimKeymapResetDefaults();
 	editorPaneNodeFree(E.layout_root);
 	E.layout_root = NULL;
 	E.focused_leaf = NULL;
@@ -162,6 +165,7 @@ void reset_editor_state(void) {
 	editorSyntaxTestResetParseFailureCountdowns();
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;
 	editorKeymapInitDefaults(&E.keymap);
+	(void)editorInputSystemActivate("cua");
 	E.layout_root = editorPaneNodeNewLeaf(EDITOR_PANE_KIND_EDITOR);
 	E.focused_leaf = E.layout_root;
 }

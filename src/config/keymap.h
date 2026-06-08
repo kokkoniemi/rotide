@@ -11,6 +11,8 @@ enum editorKeymapLoadStatus {
 };
 
 void editorKeymapInitDefaults(struct editorKeymap *keymap);
+int editorKeymapResolveActionName(const char *name, enum editorAction *action_out);
+int editorKeymapBindAction(struct editorKeymap *keymap, enum editorAction action, int key);
 int editorKeymapLookupAction(const struct editorKeymap *keymap, int key,
                              enum editorAction *action_out);
 int editorKeymapFormatBinding(const struct editorKeymap *keymap, enum editorAction action,
@@ -21,5 +23,11 @@ enum editorKeymapLoadStatus editorKeymapLoadFromPaths(struct editorKeymap *keyma
                                                       const char *global_path,
                                                       const char *project_path);
 enum editorKeymapLoadStatus editorKeymapLoadConfigured(struct editorKeymap *keymap);
+
+/* Apply `[keymap.vim]` mode-qualified bindings to the active input system when
+ * it is Vim. Resets Vim bindings to defaults first, then global then project. */
+enum editorKeymapLoadStatus editorKeymapLoadVimBindings(const char *global_path,
+                                                        const char *project_path);
+enum editorKeymapLoadStatus editorKeymapLoadVimBindingsConfigured(void);
 
 #endif

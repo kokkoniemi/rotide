@@ -67,6 +67,19 @@ static void actionsFileTabSetCloseTaskConfirmStatus(void) {
 	        "Task is still running. Press close key again to terminate it and close tab");
 }
 
+static void actionsFileTabPerformQuit(void) {
+	(void)editorWorkspaceStateSave();
+	editorDapShutdown();
+	editorLspShutdown();
+	editorSyntaxBackgroundStop();
+	editorRecoveryCleanupOnCleanExit();
+	editorRestoreTerminal();
+	editorClearScreen();
+	editorResetCursorPos();
+
+	exit(EXIT_SUCCESS);
+}
+
 void editorActionQuit(void) {
 	if (editorTaskIsRunning() && !g_actions_file_tab_quit_task_confirmed) {
 		actionsFileTabSetQuitTaskConfirmStatus();
@@ -84,16 +97,17 @@ void editorActionQuit(void) {
 		return;
 	}
 
-	(void)editorWorkspaceStateSave();
-	editorDapShutdown();
-	editorLspShutdown();
-	editorSyntaxBackgroundStop();
-	editorRecoveryCleanupOnCleanExit();
-	editorRestoreTerminal();
-	editorClearScreen();
-	editorResetCursorPos();
+	actionsFileTabPerformQuit();
+}
 
-	exit(EXIT_SUCCESS);
+/* Unconditional quit (Vim `:q!`): discard unsaved changes and terminate any
+ * running task without the confirmation prompts editorActionQuit applies. */
+void editorActionQuitForce(void) {
+	if (editorTaskIsRunning()) {
+		(void)editorTaskTerminate();
+		g_actions_file_tab_quit_task_confirmed = 0;
+	}
+	actionsFileTabPerformQuit();
 }
 
 void editorOpenSettings(void) {
