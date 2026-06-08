@@ -69,7 +69,11 @@ Use `make V=1` to print full compiler and linker commands.
   search, Git changes, and LSP Problems/Symbols views.
 - Search, go to line, matching bracket jump, selection/copy/cut/paste.
 - Undo/redo with edit grouping.
-- Configurable keymap and editor settings.
+- Selectable editing-input systems via `[input] system`: CUA (default) or Vim
+  (modal editing with motions, operators, counts, registers, search, text
+  objects, and an ex command line; the current mode shows in the status bar).
+- Configurable keymap and editor settings (per-system `[keymap.cua]` /
+  `[keymap.vim]`).
 - Atomic save flow and crash recovery snapshots.
 - Optional OSC52 clipboard sync.
 - Built-in themes plus custom TOML themes.
@@ -137,7 +141,10 @@ Common sections:
 - `[theme]`: built-in or custom theme selection.
 - `[lsp]`: language-server enable flags, commands, install commands, and
   autocomplete settings.
-- `[keymap]`: action bindings.
+- `[input]`: active editing-input system (`cua` or `vim`).
+- `[keymap]` / `[keymap.cua]`: CUA action bindings (`[keymap]` is the alias).
+- `[keymap.vim]`: mode-qualified Vim bindings (`normal.*`, `insert.*`,
+  `visual.*`).
 
 Built-in themes include `terminal`, `a11y-dark`, `a11y-light`, `acme`,
 `silentium`, `256noir`, `github-light`, `github-dark`, `modus-operandi`,

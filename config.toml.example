@@ -241,6 +241,16 @@ console = "terminal"
 # args = []
 # stopOnEntry = false
 
+# --- [input] ------------------------------------------------------------------
+# Selects the active editing-input system. "cua" (the default) keeps the
+# standard desktop-editor key behavior documented under [keymap] below. "vim"
+# enables modal editing (Normal/Insert/Visual/Visual-Line) with motions,
+# operators, counts, registers, in-buffer search (/ ? n N), text objects, and an
+# ex command line (:w :q :%s ...). The active Vim mode is shown in the status bar.
+# Missing or invalid values fall back to "cua". Project config overrides global.
+# [input]
+# system = "cua"
+
 # --- [keymap] -----------------------------------------------------------------
 # Key spec format:
 #   "ctrl+<a-z>", "alt+<a-z>", "ctrl+alt+<a-z>", "ctrl+]"
@@ -260,6 +270,10 @@ console = "terminal"
 # Tab stays reserved for literal text insertion.
 # In drawer focus, enter toggles directories and opens files in tabs (reusing
 # an already-open tab when possible).
+#
+# This [keymap] table configures the CUA system. It is an alias for [keymap.cua]:
+# either name works, and when both appear in the same file [keymap.cua] wins.
+# Project scope overrides global scope.
 [keymap]
 quit = "ctrl+q"
 save = "ctrl+s"
@@ -393,3 +407,28 @@ move_tab_down_pane = "ctrl+shift+alt+down"
 # terminal_prefix = "ctrl+alt+a"
 # open_settings has no default binding; the File > Settings menu item opens it.
 # open_settings = "ctrl+alt+s"
+
+# --- [keymap.vim] -------------------------------------------------------------
+# Per-mode Vim key bindings (only used when [input] system = "vim"). Entry keys
+# are "<mode>.<command>" where <mode> is normal, insert, or visual (visual also
+# covers visual-line). Values are usually a single, case-sensitive printable
+# character (e.g. "h", "G", "$", ";"); named keys like "esc" and "ctrl+c" also
+# work. Each command takes one key per mode: rebinding relocates it, so the
+# built-in default key stops triggering that command unless it is itself bound to
+# another command. Unset commands keep their built-in defaults; counts ("3dd"),
+# registers ('"a'), search, text objects, and ":" are built-in and not rebindable.
+#
+# Normal-mode commands: move_left move_down move_up move_right; word_forward
+#   word_backward word_end; line_start line_end first_nonblank last_line;
+#   insert append insert_line_start append_line_end open_below open_above;
+#   delete_char delete change yank delete_to_eol change_to_eol yank_line;
+#   paste_after paste_before; search_forward search_backward search_next
+#   search_prev; ex_command; visual visual_line.
+# Visual-mode commands: the motions above plus delete change yank delete_char paste.
+# Insert-mode commands: normal_mode (leave Insert; default "esc").
+#
+# [keymap.vim]
+# normal.move_left = "h"
+# normal.delete = "d"
+# visual.yank = "y"
+# insert.normal_mode = "esc"

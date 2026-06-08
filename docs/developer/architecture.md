@@ -87,9 +87,17 @@ workspace state file; per-pane kind-state is session-bound.
 
 **Input** decodes keys, mice, and synthetic events. It is a chain of
 gates (synthetic events, prompts, mouse hit-testing, terminal-pane
-forwarding) before the configured keymap maps a key to an
-`editorAction`. The dispatch path is the only entry point to editor
-behavior; mouse, drawer, and DAP commands take the same route.
+forwarding); at the key→action seam it delegates to the active
+**input system** (`editorInputSystemActive()->handle_key`). Input systems
+are a compiled-in registry behind `struct editorInputSystem`: CUA (the
+default) maps keys straight to `editorAction`s via the configured keymap,
+while Vim adds modal state, motions, operators, counts, registers,
+in-buffer search, text objects, and an ex command line. Either way keys
+resolve to actions/commands — systems do not bypass dispatch, which stays
+the only entry point to editor behavior; mouse, drawer, and DAP commands
+take the same route. The active system is chosen by `[input] system` and
+may contribute a status-bar segment (Vim shows its mode). See
+[input-systems.md](input-systems.md).
 
 **Text engine** owns documents, edits, history, selection, and the edit
 pipeline. The pipeline receives a descriptor, prepares row-cache and

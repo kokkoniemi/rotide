@@ -67,17 +67,29 @@ save = "ctrl-s"
 save = "ctrl-shift-s"
 ```
 
-Vim bindings live under `[keymap.vim]` and are mode-qualified:
+Vim bindings live under `[keymap.vim]` and are mode-qualified
+(`<mode>.<command>`):
 
 ```toml
 [keymap.vim]
-normal.save = "ctrl-s"
-insert.escape = "esc"
+normal.move_left = "h"
+normal.delete = "d"
 visual.yank = "y"
+insert.normal_mode = "esc"
 ```
 
-Mode names are system-defined. The initial Vim modes are `normal`, `insert`,
-`visual`, and `visual_line`.
+Bindable mode names are `normal`, `insert`, and `visual` (the `visual` table also
+applies to Visual-Line). Values are usually a single, case-sensitive printable
+character; named keys such as `esc` and `ctrl+c` are also accepted. Each command
+takes one key per mode — rebinding relocates it, so the built-in default key
+stops triggering that command unless it is itself bound to another command.
+Commands left unset keep their built-in defaults.
+
+Counts (`3dd`), registers (`"a`), in-buffer search (`/ ? n N`), text objects
+(`iw aw ip ap`), and the ex command line (`:`) are structural built-ins and are
+not rebindable. Loading resets Vim bindings to defaults first, then applies the
+global file, then the project file; an invalid entry reverts that scope to
+defaults and reports a status message.
 
 ## Lifecycle
 
@@ -90,14 +102,25 @@ after activation.
 CUA has no visible status segment. Vim uses the status hook for mode labels such
 as `-- NORMAL --` and `-- INSERT --`.
 
+## Vim Internals
+
+`system_vim.c` keeps modal state per buffer (`E.input_vim_*` fields) so each tab
+remembers its mode, pending operator, count, and active register. Named registers
+`a`–`z` are global (`E.vim_registers`), with the system clipboard as the default
+register. The handlers switch on canonical keys; a per-mode remap table
+(`g_vim_commands`) translates configured keys to those canonical keys before
+dispatch, which is why `[keymap.vim]` can rebind keys without touching the
+handlers. `[keymap.vim]` parsing lives in `keymap.c` and routes each entry through
+the active system's `bind_key`.
+
 ## File Layout
 
-The planned source layout is:
+The source layout is:
 
 - `src/input/input_system.{c,h}` with prefix `inputSystem`
 - `src/input/system_cua.c` with prefix `cuaSystem`
-- `src/input/system_vim.c` and related Vim files with `vimSystem`, `vimNormal`,
-  `vimOperator`, `vimExline`, and `vimState` prefixes
+- `src/input/system_vim.c` with prefix `vimSystem`
 - `src/config/input_config.{c,h}` with prefix `inputConfig`
 
-New `.c` files must be added to `tools/module-prefixes.tsv`.
+New `.c` files must be added to `docs/module-prefixes.md` and
+`tools/module-prefixes.tsv`.
