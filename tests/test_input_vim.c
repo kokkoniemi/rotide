@@ -1,4 +1,5 @@
 #include "config/keymap.h"
+#include "editing/history.h"
 #include "editing/selection.h"
 #include "editor_test_api.h"
 #include "input/input_system.h"
@@ -43,6 +44,16 @@ static int vim_test_visual_motion(int start_cy, int start_cx, int first_key, int
 	ASSERT_EQ_INT(range_end_cy, range.end_cy);
 	ASSERT_EQ_INT(range_end_cx, range.end_cx);
 	ASSERT_TRUE(vim_test_key('\x1b') == 0);
+	return 0;
+}
+
+static int vim_test_clipboard_eq(const char *expected) {
+	size_t len = 0;
+	const char *text = editorClipboardGet(&len);
+
+	ASSERT_TRUE(text != NULL);
+	ASSERT_EQ_INT((int)strlen(expected), (int)len);
+	ASSERT_TRUE(memcmp(text, expected, len) == 0);
 	return 0;
 }
 
@@ -328,6 +339,135 @@ static int test_input_vim_mode_is_tab_local(void) {
 	return 0;
 }
 
+static int test_input_vim_normal_delete_and_change_operators(void) {
+	add_row("abcdef");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 2;
+	ASSERT_TRUE(vim_test_key('x') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "abdef");
+	ASSERT_EQ_INT(2, E.cx);
+	ASSERT_EQ_INT(0, vim_test_clipboard_eq("c"));
+	ASSERT_EQ_INT(1, editorUndo());
+	ASSERT_ROW_TEXT_EQ(0, "abcdef");
+
+	E.cx = 2;
+	ASSERT_TRUE(vim_test_key('D') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "ab");
+	ASSERT_EQ_INT(0, vim_test_clipboard_eq("cdef"));
+	ASSERT_EQ_INT(1, editorUndo());
+	ASSERT_ROW_TEXT_EQ(0, "abcdef");
+
+	E.cx = 1;
+	ASSERT_TRUE(vim_test_key('C') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "a");
+	ASSERT_EQ_STR("-- INSERT --", editorVimModeLabel());
+	ASSERT_TRUE(vim_test_key('\x1b') == 0);
+	ASSERT_EQ_INT(1, editorUndo());
+	ASSERT_ROW_TEXT_EQ(0, "abcdef");
+	return 0;
+}
+
+static int test_input_vim_operator_motion_delete_yank_and_change(void) {
+	add_row("alpha beta gamma");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('d') == 0);
+	ASSERT_TRUE(vim_test_key('w') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "beta gamma");
+	ASSERT_EQ_INT(0, vim_test_clipboard_eq("alpha "));
+	ASSERT_EQ_INT(1, editorUndo());
+	ASSERT_ROW_TEXT_EQ(0, "alpha beta gamma");
+
+	E.cx = 6;
+	ASSERT_TRUE(vim_test_key('y') == 0);
+	ASSERT_TRUE(vim_test_key('$') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "alpha beta gamma");
+	ASSERT_EQ_INT(0, vim_test_clipboard_eq("beta gamma"));
+
+	E.cx = 6;
+	ASSERT_TRUE(vim_test_key('c') == 0);
+	ASSERT_TRUE(vim_test_key('e') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "alpha  gamma");
+	ASSERT_EQ_STR("-- INSERT --", editorVimModeLabel());
+	ASSERT_TRUE(vim_test_key('\x1b') == 0);
+	ASSERT_EQ_INT(1, editorUndo());
+	ASSERT_ROW_TEXT_EQ(0, "alpha beta gamma");
+	return 0;
+}
+
+static int test_input_vim_linewise_operators_and_paste(void) {
+	add_row("one");
+	add_row("two");
+	add_row("three");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 1;
+	E.cx = 0;
+	int dirty_before_yank = E.dirty;
+	ASSERT_TRUE(vim_test_key('y') == 0);
+	ASSERT_TRUE(vim_test_key('y') == 0);
+	ASSERT_EQ_INT(0, vim_test_clipboard_eq("two\n"));
+	ASSERT_EQ_INT(dirty_before_yank, E.dirty);
+
+	ASSERT_TRUE(vim_test_key('p') == 0);
+	ASSERT_EQ_INT(4, E.numrows);
+	ASSERT_ROW_TEXT_EQ(0, "one");
+	ASSERT_ROW_TEXT_EQ(1, "two");
+	ASSERT_ROW_TEXT_EQ(2, "two");
+	ASSERT_ROW_TEXT_EQ(3, "three");
+	ASSERT_EQ_INT(1, editorUndo());
+	ASSERT_EQ_INT(3, E.numrows);
+	ASSERT_ROW_TEXT_EQ(1, "two");
+	ASSERT_ROW_TEXT_EQ(2, "three");
+
+	E.cy = 1;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('d') == 0);
+	ASSERT_TRUE(vim_test_key('d') == 0);
+	ASSERT_EQ_INT(2, E.numrows);
+	ASSERT_ROW_TEXT_EQ(0, "one");
+	ASSERT_ROW_TEXT_EQ(1, "three");
+	ASSERT_EQ_INT(0, vim_test_clipboard_eq("two\n"));
+	ASSERT_EQ_INT(1, editorUndo());
+	ASSERT_EQ_INT(3, E.numrows);
+	ASSERT_ROW_TEXT_EQ(1, "two");
+
+	E.cy = 1;
+	E.cx = 1;
+	ASSERT_TRUE(vim_test_key('c') == 0);
+	ASSERT_TRUE(vim_test_key('c') == 0);
+	ASSERT_ROW_TEXT_EQ(1, "");
+	ASSERT_EQ_STR("-- INSERT --", editorVimModeLabel());
+	ASSERT_TRUE(vim_test_key('\x1b') == 0);
+	ASSERT_EQ_INT(1, editorUndo());
+	ASSERT_ROW_TEXT_EQ(1, "two");
+	return 0;
+}
+
+static int test_input_vim_charwise_paste_and_redo(void) {
+	add_row("abc");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 1;
+	ASSERT_TRUE(vim_test_key('y') == 0);
+	ASSERT_TRUE(vim_test_key('$') == 0);
+	ASSERT_EQ_INT(0, vim_test_clipboard_eq("bc"));
+
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('P') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "bcabc");
+	ASSERT_EQ_INT(1, editorUndo());
+	ASSERT_ROW_TEXT_EQ(0, "abc");
+	ASSERT_EQ_INT(1, editorRedo());
+	ASSERT_ROW_TEXT_EQ(0, "bcabc");
+	return 0;
+}
+
 const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_activation_starts_normal", test_input_vim_activation_starts_normal},
         {"input_vim_reset_returns_to_normal", test_input_vim_reset_returns_to_normal},
@@ -354,6 +494,12 @@ const struct editorTestCase g_input_vim_tests[] = {
          test_input_vim_blank_line_nonblank_motion_uses_column_zero},
         {"input_vim_visual_motions_preserve_anchor", test_input_vim_visual_motions_preserve_anchor},
         {"input_vim_mode_is_tab_local", test_input_vim_mode_is_tab_local},
+        {"input_vim_normal_delete_and_change_operators",
+         test_input_vim_normal_delete_and_change_operators},
+        {"input_vim_operator_motion_delete_yank_and_change",
+         test_input_vim_operator_motion_delete_yank_and_change},
+        {"input_vim_linewise_operators_and_paste", test_input_vim_linewise_operators_and_paste},
+        {"input_vim_charwise_paste_and_redo", test_input_vim_charwise_paste_and_redo},
 };
 
 const int g_input_vim_test_count = (int)(sizeof(g_input_vim_tests) / sizeof(g_input_vim_tests[0]));

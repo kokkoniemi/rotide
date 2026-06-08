@@ -1,16 +1,20 @@
 #include "config/keymap.h"
+#include "editing/buffer_core.h"
 #include "editing/document_position.h"
+#include "editing/edit.h"
 #include "editing/history.h"
 #include "editing/selection.h"
 #include "input/dispatch.h"
 #include "input/input_system.h"
 #include "input/text_pairs.h"
 #include "rotide.h"
+#include "support/alloc.h"
 #include "text/document.h"
 #include "text/row.h"
 
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 enum vimSystemMode {
@@ -28,10 +32,24 @@ enum vimSystemMotion {
 	VIM_SYSTEM_MOTION_WORD_FORWARD,
 	VIM_SYSTEM_MOTION_WORD_BACKWARD,
 	VIM_SYSTEM_MOTION_WORD_END,
+	VIM_SYSTEM_MOTION_LINE_START,
 	VIM_SYSTEM_MOTION_LINE_END,
 	VIM_SYSTEM_MOTION_FIRST_NONBLANK,
 	VIM_SYSTEM_MOTION_FIRST_LINE,
 	VIM_SYSTEM_MOTION_LAST_LINE
+};
+
+enum vimSystemMotionParse {
+	VIM_SYSTEM_MOTION_PARSE_NONE = 0,
+	VIM_SYSTEM_MOTION_PARSE_PENDING,
+	VIM_SYSTEM_MOTION_PARSE_FOUND
+};
+
+enum vimSystemOperator {
+	VIM_SYSTEM_OPERATOR_NONE = 0,
+	VIM_SYSTEM_OPERATOR_DELETE = 'd',
+	VIM_SYSTEM_OPERATOR_CHANGE = 'c',
+	VIM_SYSTEM_OPERATOR_YANK = 'y'
 };
 
 enum vimSystemCharClass { VIM_SYSTEM_CHAR_SPACE = 0, VIM_SYSTEM_CHAR_WORD, VIM_SYSTEM_CHAR_PUNCT };
@@ -52,6 +70,8 @@ static enum vimSystemMode vimSystemMode(void) {
 static void vimSystemSetMode(enum vimSystemMode mode) {
 	E.input_vim_mode = mode;
 	E.input_vim_pending_g = 0;
+	E.input_vim_pending_operator = VIM_SYSTEM_OPERATOR_NONE;
+	E.input_vim_pending_operator_g = 0;
 }
 
 const char *editorVimModeLabel(void) {
@@ -121,6 +141,21 @@ static int vimSystemLineLastCluster(int cy) {
 	}
 	editorLineViewRelease(&line);
 	return cx;
+}
+
+static int vimSystemLineEndCx(int cy) {
+	return (int)editorDocumentLineLength(E.document, cy);
+}
+
+static void vimSystemClearPendingOperator(void) {
+	E.input_vim_pending_operator = VIM_SYSTEM_OPERATOR_NONE;
+	E.input_vim_pending_operator_g = 0;
+}
+
+static void vimSystemAddEditEffect(int *effects_out) {
+	if (effects_out != NULL) {
+		*effects_out |= EDITOR_INPUT_KEY_EFFECT_CURSOR_OR_EDIT;
+	}
 }
 
 static int vimSystemSetCursor(int cy, int cx, int *effects_out) {
@@ -354,6 +389,9 @@ static int vimSystemMotionTarget(enum vimSystemMotion motion, int *cy_out, int *
 			return vimSystemWordBackwardTarget(cy_out, cx_out);
 		case VIM_SYSTEM_MOTION_WORD_END:
 			return vimSystemWordEndTarget(cy_out, cx_out);
+		case VIM_SYSTEM_MOTION_LINE_START:
+			cx = 0;
+			break;
 		case VIM_SYSTEM_MOTION_LINE_END:
 			cx = vimSystemLineLastCluster(cy);
 			break;
@@ -375,6 +413,146 @@ static int vimSystemMotionTarget(enum vimSystemMotion motion, int *cy_out, int *
 	return 1;
 }
 
+static int vimSystemMotionIsLinewise(enum vimSystemMotion motion) {
+	return motion == VIM_SYSTEM_MOTION_DOWN || motion == VIM_SYSTEM_MOTION_UP ||
+	       motion == VIM_SYSTEM_MOTION_FIRST_LINE || motion == VIM_SYSTEM_MOTION_LAST_LINE;
+}
+
+static int vimSystemMotionIsInclusive(enum vimSystemMotion motion) {
+	return motion == VIM_SYSTEM_MOTION_WORD_END || motion == VIM_SYSTEM_MOTION_LINE_END;
+}
+
+static int vimSystemPositionComesBefore(int left_cy, int left_cx, int right_cy, int right_cx) {
+	if (left_cy != right_cy) {
+		return left_cy < right_cy;
+	}
+	return left_cx < right_cx;
+}
+
+static int vimSystemPositionAfterCluster(int cy, int cx, int *cy_out, int *cx_out) {
+	struct editorLineView line = {0};
+	int next = cx;
+
+	if (!editorDocumentLineView(E.document, cy, &line)) {
+		return 0;
+	}
+	if (cx < 0 || cx >= line.size) {
+		editorLineViewRelease(&line);
+		return 0;
+	}
+	next = editorBytesNextClusterIdx(line.data, line.size, cx);
+	if (next <= cx || next > line.size) {
+		editorLineViewRelease(&line);
+		return 0;
+	}
+	editorLineViewRelease(&line);
+	*cy_out = cy;
+	*cx_out = next;
+	return 1;
+}
+
+static void vimSystemClampNormalCursor(void) {
+	struct editorLineView line = {0};
+	int cx = E.cx;
+
+	if (!vimSystemSyncCursor() || E.cy < 0 || E.cy >= E.numrows ||
+	    !editorDocumentLineView(E.document, E.cy, &line)) {
+		return;
+	}
+	if (line.size > 0 && cx >= line.size) {
+		cx = editorBytesPrevClusterIdx(line.data, line.size, line.size);
+	}
+	editorLineViewRelease(&line);
+	(void)vimSystemSetCursor(E.cy, cx, NULL);
+}
+
+static int vimSystemMakeRange(int start_cy, int start_cx, int end_cy, int end_cx,
+                              struct editorSelectionRange *range_out) {
+	if (range_out == NULL) {
+		return 0;
+	}
+	if (start_cy == end_cy && start_cx == end_cx) {
+		return 0;
+	}
+	if (vimSystemPositionComesBefore(end_cy, end_cx, start_cy, start_cx)) {
+		range_out->start_cy = end_cy;
+		range_out->start_cx = end_cx;
+		range_out->end_cy = start_cy;
+		range_out->end_cx = start_cx;
+		return 1;
+	}
+	range_out->start_cy = start_cy;
+	range_out->start_cx = start_cx;
+	range_out->end_cy = end_cy;
+	range_out->end_cx = end_cx;
+	return 1;
+}
+
+static int vimSystemLineRange(int start_cy, int end_cy, struct editorSelectionRange *range_out) {
+	if (range_out == NULL || E.numrows <= 0) {
+		return 0;
+	}
+	if (start_cy > end_cy) {
+		int tmp = start_cy;
+		start_cy = end_cy;
+		end_cy = tmp;
+	}
+	if (start_cy < 0) {
+		start_cy = 0;
+	}
+	if (end_cy >= E.numrows) {
+		end_cy = E.numrows - 1;
+	}
+	range_out->start_cy = start_cy;
+	range_out->start_cx = 0;
+	if (end_cy + 1 < E.numrows) {
+		range_out->end_cy = end_cy + 1;
+		range_out->end_cx = 0;
+	} else {
+		range_out->end_cy = end_cy;
+		range_out->end_cx = vimSystemLineEndCx(end_cy);
+	}
+	return range_out->start_cy != range_out->end_cy || range_out->start_cx != range_out->end_cx;
+}
+
+static int vimSystemLineRangeLastRow(const struct editorSelectionRange *range) {
+	if (range == NULL) {
+		return 0;
+	}
+	if (range->end_cx == 0 && range->end_cy > range->start_cy) {
+		return range->end_cy - 1;
+	}
+	return range->end_cy;
+}
+
+static int vimSystemMotionRange(enum vimSystemMotion motion, struct editorSelectionRange *range_out,
+                                int *linewise_out) {
+	int start_cy = E.cy;
+	int start_cx = E.cx;
+	int target_cy = E.cy;
+	int target_cx = E.cx;
+
+	if (linewise_out != NULL) {
+		*linewise_out = 0;
+	}
+	if (!vimSystemMotionTarget(motion, &target_cy, &target_cx)) {
+		return 0;
+	}
+	if (vimSystemMotionIsLinewise(motion)) {
+		if (linewise_out != NULL) {
+			*linewise_out = 1;
+		}
+		return vimSystemLineRange(start_cy, target_cy, range_out);
+	}
+	if (vimSystemMotionIsInclusive(motion) &&
+	    !vimSystemPositionComesBefore(target_cy, target_cx, start_cy, start_cx)) {
+		if (!vimSystemPositionAfterCluster(target_cy, target_cx, &target_cy, &target_cx)) {
+			return 0;
+		}
+	}
+	return vimSystemMakeRange(start_cy, start_cx, target_cy, target_cx, range_out);
+}
+
 static int vimSystemApplyMotion(enum vimSystemMotion motion, int *effects_out) {
 	int cy = E.cy;
 	int cx = E.cx;
@@ -386,14 +564,17 @@ static int vimSystemApplyMotion(enum vimSystemMotion motion, int *effects_out) {
 	return 1;
 }
 
-static int vimSystemTryMotionKey(int c, int *effects_out) {
+static enum vimSystemMotionParse vimSystemParseMotionKey(int c, int *pending_g,
+                                                         enum vimSystemMotion *motion_out) {
 	enum vimSystemMotion motion;
 
-	if (E.input_vim_pending_g) {
-		E.input_vim_pending_g = 0;
+	if (pending_g != NULL && *pending_g) {
+		*pending_g = 0;
 		if (c == 'g') {
-			return vimSystemApplyMotion(VIM_SYSTEM_MOTION_FIRST_LINE, effects_out);
+			*motion_out = VIM_SYSTEM_MOTION_FIRST_LINE;
+			return VIM_SYSTEM_MOTION_PARSE_FOUND;
 		}
+		return VIM_SYSTEM_MOTION_PARSE_NONE;
 	}
 
 	switch (c) {
@@ -418,17 +599,9 @@ static int vimSystemTryMotionKey(int c, int *effects_out) {
 		case 'e':
 			motion = VIM_SYSTEM_MOTION_WORD_END;
 			break;
-		case '0': {
-			int mapped_effects = EDITOR_INPUT_KEY_EFFECT_NONE;
-			enum editorAction action = vimSystemMode() == VIM_SYSTEM_MODE_NORMAL
-			                                   ? EDITOR_ACTION_MOVE_HOME
-			                                   : EDITOR_ACTION_SELECT_HOME;
-			(void)editorDispatchProcessMappedAction(action, &mapped_effects);
-			if (effects_out != NULL) {
-				*effects_out |= mapped_effects;
-			}
-			return 1;
-		}
+		case '0':
+			motion = VIM_SYSTEM_MOTION_LINE_START;
+			break;
 		case '$':
 			motion = VIM_SYSTEM_MOTION_LINE_END;
 			break;
@@ -439,12 +612,301 @@ static int vimSystemTryMotionKey(int c, int *effects_out) {
 			motion = VIM_SYSTEM_MOTION_LAST_LINE;
 			break;
 		case 'g':
-			E.input_vim_pending_g = 1;
-			return 1;
+			if (pending_g != NULL) {
+				*pending_g = 1;
+			}
+			return VIM_SYSTEM_MOTION_PARSE_PENDING;
 		default:
-			return 0;
+			return VIM_SYSTEM_MOTION_PARSE_NONE;
+	}
+	*motion_out = motion;
+	return VIM_SYSTEM_MOTION_PARSE_FOUND;
+}
+
+static int vimSystemTryMotionKey(int c, int *effects_out) {
+	enum vimSystemMotion motion;
+	enum vimSystemMotionParse parsed =
+	        vimSystemParseMotionKey(c, &E.input_vim_pending_g, &motion);
+
+	if (parsed == VIM_SYSTEM_MOTION_PARSE_PENDING) {
+		return 1;
+	}
+	if (parsed != VIM_SYSTEM_MOTION_PARSE_FOUND) {
+		return 0;
 	}
 	return vimSystemApplyMotion(motion, effects_out);
+}
+
+static int vimSystemYankRange(const struct editorSelectionRange *range, int linewise) {
+	char *text = NULL;
+	size_t len = 0;
+	int extracted = editorExtractRangeText(range, &text, &len);
+
+	if (extracted <= 0) {
+		return extracted;
+	}
+	if (!editorClipboardSet(text, len)) {
+		free(text);
+		return -1;
+	}
+	free(text);
+	E.input_vim_register_linewise = linewise ? 1 : 0;
+	return 1;
+}
+
+static int vimSystemYankLines(int start_cy, int end_cy) {
+	size_t total = 0;
+	char *text = NULL;
+	size_t pos = 0;
+
+	if (E.numrows <= 0) {
+		return 0;
+	}
+	if (start_cy > end_cy) {
+		int tmp = start_cy;
+		start_cy = end_cy;
+		end_cy = tmp;
+	}
+	if (start_cy < 0) {
+		start_cy = 0;
+	}
+	if (end_cy >= E.numrows) {
+		end_cy = E.numrows - 1;
+	}
+	for (int cy = start_cy; cy <= end_cy; cy++) {
+		size_t line_len = editorDocumentLineLength(E.document, cy);
+		if (total > ROTIDE_MAX_TEXT_BYTES || line_len > ROTIDE_MAX_TEXT_BYTES - total - 1) {
+			editorSetOperationTooLargeStatus();
+			return -1;
+		}
+		total += line_len + 1;
+	}
+	text = editorMalloc(total + 1);
+	if (text == NULL) {
+		editorSetAllocFailureStatus();
+		return -1;
+	}
+	for (int cy = start_cy; cy <= end_cy; cy++) {
+		struct editorLineView line = {0};
+		if (!editorDocumentLineView(E.document, cy, &line)) {
+			free(text);
+			return -1;
+		}
+		if (line.size > 0) {
+			memcpy(text + pos, line.data, (size_t)line.size);
+			pos += (size_t)line.size;
+		}
+		text[pos++] = '\n';
+		editorLineViewRelease(&line);
+	}
+	text[pos] = '\0';
+	if (!editorClipboardSet(text, pos)) {
+		free(text);
+		return -1;
+	}
+	free(text);
+	E.input_vim_register_linewise = 1;
+	return 1;
+}
+
+static int vimSystemChangeLineRange(int start_cy, int end_cy, int *effects_out) {
+	struct editorSelectionRange range;
+	int dirty_before = E.dirty;
+	int changed = 0;
+
+	if (start_cy > end_cy) {
+		int tmp = start_cy;
+		start_cy = end_cy;
+		end_cy = tmp;
+	}
+	if (!vimSystemYankLines(start_cy, end_cy)) {
+		return 0;
+	}
+	range.start_cy = start_cy;
+	range.start_cx = 0;
+	range.end_cy = end_cy;
+	range.end_cx = vimSystemLineEndCx(end_cy);
+	editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
+	changed = editorDeleteRange(&range);
+	editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+	editorClearSelectionState();
+	if (changed > 0) {
+		(void)vimSystemSetCursor(start_cy, 0, effects_out);
+		vimSystemSetMode(VIM_SYSTEM_MODE_INSERT);
+		vimSystemAddEditEffect(effects_out);
+	}
+	return changed > 0;
+}
+
+static int vimSystemApplyOperatorToRange(enum vimSystemOperator op,
+                                         const struct editorSelectionRange *range, int linewise,
+                                         int *effects_out) {
+	int dirty_before = E.dirty;
+	int changed = 0;
+
+	if (op == VIM_SYSTEM_OPERATOR_YANK) {
+		if (linewise) {
+			return vimSystemYankLines(range->start_cy,
+			                          vimSystemLineRangeLastRow(range)) > 0;
+		}
+		return vimSystemYankRange(range, 0) > 0;
+	}
+	if (linewise && !vimSystemYankLines(range->start_cy, vimSystemLineRangeLastRow(range))) {
+		return 0;
+	}
+	if (!linewise && !vimSystemYankRange(range, 0)) {
+		return 0;
+	}
+
+	editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
+	changed = editorDeleteRange(range);
+	editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+	editorClearSelectionState();
+	if (changed > 0) {
+		vimSystemAddEditEffect(effects_out);
+		if (op == VIM_SYSTEM_OPERATOR_CHANGE) {
+			vimSystemSetMode(VIM_SYSTEM_MODE_INSERT);
+		} else {
+			vimSystemSetMode(VIM_SYSTEM_MODE_NORMAL);
+			vimSystemClampNormalCursor();
+		}
+	}
+	return changed > 0;
+}
+
+static int vimSystemApplyOperatorMotion(enum vimSystemOperator op, enum vimSystemMotion motion,
+                                        int *effects_out) {
+	struct editorSelectionRange range;
+	int linewise = 0;
+
+	if (!vimSystemMotionRange(motion, &range, &linewise)) {
+		return 0;
+	}
+	return vimSystemApplyOperatorToRange(op, &range, linewise, effects_out);
+}
+
+static int vimSystemApplyLineOperator(enum vimSystemOperator op, int *effects_out) {
+	struct editorSelectionRange range;
+
+	if (op == VIM_SYSTEM_OPERATOR_CHANGE) {
+		return vimSystemChangeLineRange(E.cy, E.cy, effects_out);
+	}
+	if (op == VIM_SYSTEM_OPERATOR_YANK) {
+		return vimSystemYankLines(E.cy, E.cy) > 0;
+	}
+	if (!vimSystemLineRange(E.cy, E.cy, &range)) {
+		return 0;
+	}
+	return vimSystemApplyOperatorToRange(op, &range, 1, effects_out);
+}
+
+static int vimSystemHandlePendingOperatorKey(int c, int *effects_out) {
+	enum vimSystemOperator op = (enum vimSystemOperator)E.input_vim_pending_operator;
+	enum vimSystemMotion motion;
+	enum vimSystemMotionParse parsed;
+
+	if (c == '\x1b') {
+		vimSystemClearPendingOperator();
+		return 0;
+	}
+	if (c == E.input_vim_pending_operator) {
+		vimSystemClearPendingOperator();
+		(void)vimSystemApplyLineOperator(op, effects_out);
+		return 0;
+	}
+
+	parsed = vimSystemParseMotionKey(c, &E.input_vim_pending_operator_g, &motion);
+	if (parsed == VIM_SYSTEM_MOTION_PARSE_PENDING) {
+		return 0;
+	}
+	vimSystemClearPendingOperator();
+	if (parsed == VIM_SYSTEM_MOTION_PARSE_FOUND) {
+		(void)vimSystemApplyOperatorMotion(op, motion, effects_out);
+	}
+	return 0;
+}
+
+static int vimSystemDeleteUnderCursor(int *effects_out) {
+	struct editorSelectionRange range;
+	int end_cy = E.cy;
+	int end_cx = E.cx;
+
+	if (E.numrows <= 0 || !vimSystemPositionAfterCluster(E.cy, E.cx, &end_cy, &end_cx)) {
+		return 0;
+	}
+	if (!vimSystemMakeRange(E.cy, E.cx, end_cy, end_cx, &range)) {
+		return 0;
+	}
+	return vimSystemApplyOperatorToRange(VIM_SYSTEM_OPERATOR_DELETE, &range, 0, effects_out);
+}
+
+static int vimSystemDeleteToLineEnd(enum vimSystemOperator op, int *effects_out) {
+	struct editorSelectionRange range;
+	int end_cx = vimSystemLineEndCx(E.cy);
+
+	if (!vimSystemMakeRange(E.cy, E.cx, E.cy, end_cx, &range)) {
+		return 0;
+	}
+	return vimSystemApplyOperatorToRange(op, &range, 0, effects_out);
+}
+
+static int vimSystemPasteDefaultRegister(int after, int *effects_out) {
+	size_t clip_len = 0;
+	const char *clip = editorClipboardGet(&clip_len);
+	const char *paste_text = clip;
+	size_t paste_len = clip_len;
+	char *owned_text = NULL;
+	int dirty_before = E.dirty;
+	int pasted = 0;
+
+	if (clip == NULL || clip_len == 0) {
+		editorSetStatusMsg("Clipboard is empty");
+		return 0;
+	}
+
+	if (E.input_vim_register_linewise) {
+		int insert_cy = after ? E.cy + 1 : E.cy;
+		if (insert_cy < E.numrows) {
+			(void)vimSystemSetCursor(insert_cy, 0, NULL);
+		} else if (E.numrows > 0) {
+			size_t body_len = clip_len;
+			if (body_len > 0 && clip[body_len - 1] == '\n') {
+				body_len--;
+			}
+			owned_text = editorMalloc(body_len + 2);
+			if (owned_text == NULL) {
+				editorSetAllocFailureStatus();
+				return 0;
+			}
+			owned_text[0] = '\n';
+			if (body_len > 0) {
+				memcpy(owned_text + 1, clip, body_len);
+			}
+			owned_text[body_len + 1] = '\0';
+			paste_text = owned_text;
+			paste_len = body_len + 1;
+			(void)vimSystemSetCursor(E.numrows - 1, vimSystemLineEndCx(E.numrows - 1),
+			                         NULL);
+		}
+	} else if (after) {
+		int end_cy = E.cy;
+		int end_cx = E.cx;
+		if (vimSystemPositionAfterCluster(E.cy, E.cx, &end_cy, &end_cx)) {
+			(void)vimSystemSetCursor(end_cy, end_cx, NULL);
+		}
+	}
+
+	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+	pasted = editorInsertText(paste_text, paste_len);
+	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+	editorHistoryBreakGroup();
+	free(owned_text);
+	if (pasted) {
+		vimSystemAddEditEffect(effects_out);
+		vimSystemSetMode(VIM_SYSTEM_MODE_NORMAL);
+		vimSystemClampNormalCursor();
+	}
+	return pasted;
 }
 
 static int vimSystemTryMappedActionKey(int c, int *effects_out, int *return_now_out) {
@@ -495,6 +957,9 @@ static int vimSystemHandleInsertKey(int c, int *effects_out) {
 }
 
 static int vimSystemHandleNormalKey(int c, int *effects_out) {
+	if (E.input_vim_pending_operator != VIM_SYSTEM_OPERATOR_NONE) {
+		return vimSystemHandlePendingOperatorKey(c, effects_out);
+	}
 	if (vimSystemTryMotionKey(c, effects_out)) {
 		return 0;
 	}
@@ -519,6 +984,30 @@ static int vimSystemHandleNormalKey(int c, int *effects_out) {
 			(void)vimSystemEnterInsertWithAction(EDITOR_ACTION_MOVE_HOME, effects_out);
 			(void)vimSystemEnterInsertWithAction(EDITOR_ACTION_NEWLINE, effects_out);
 			return vimSystemEnterInsertWithAction(EDITOR_ACTION_MOVE_UP, effects_out);
+		case 'x':
+			(void)vimSystemDeleteUnderCursor(effects_out);
+			return 0;
+		case 'd':
+		case 'c':
+		case 'y':
+			E.input_vim_pending_operator = c;
+			E.input_vim_pending_operator_g = 0;
+			return 0;
+		case 'D':
+			(void)vimSystemDeleteToLineEnd(VIM_SYSTEM_OPERATOR_DELETE, effects_out);
+			return 0;
+		case 'C':
+			(void)vimSystemDeleteToLineEnd(VIM_SYSTEM_OPERATOR_CHANGE, effects_out);
+			return 0;
+		case 'Y':
+			(void)vimSystemYankLines(E.cy, E.cy);
+			return 0;
+		case 'p':
+			(void)vimSystemPasteDefaultRegister(1, effects_out);
+			return 0;
+		case 'P':
+			(void)vimSystemPasteDefaultRegister(0, effects_out);
+			return 0;
 		case 'v':
 			vimSystemBeginVisual(VIM_SYSTEM_MODE_VISUAL);
 			return 0;
@@ -534,11 +1023,25 @@ static int vimSystemHandleNormalKey(int c, int *effects_out) {
 	}
 }
 
+static int vimSystemVisualRange(struct editorSelectionRange *range_out, int *linewise_out) {
+	if (linewise_out != NULL) {
+		*linewise_out = vimSystemMode() == VIM_SYSTEM_MODE_VISUAL_LINE;
+	}
+	if (vimSystemMode() == VIM_SYSTEM_MODE_VISUAL_LINE) {
+		int anchor_cy = 0;
+		int anchor_cx = 0;
+		if (!editorBufferOffsetToPos(E.selection_anchor_offset, &anchor_cy, &anchor_cx)) {
+			return 0;
+		}
+		(void)anchor_cx;
+		return vimSystemLineRange(anchor_cy, E.cy, range_out);
+	}
+	return editorGetSelectionRange(range_out);
+}
+
 static int vimSystemHandleVisualKey(int c, int *effects_out) {
 	if (c == '\x1b') {
-		E.selection_mode_active = 0;
-		E.selection_anchor_offset = 0;
-		editorColumnSelectionClear();
+		editorClearSelectionState();
 		vimSystemSetMode(VIM_SYSTEM_MODE_NORMAL);
 		return 0;
 	}
@@ -551,6 +1054,41 @@ static int vimSystemHandleVisualKey(int c, int *effects_out) {
 		return 0;
 	}
 	if (vimSystemTryMotionKey(c, effects_out)) {
+		return 0;
+	}
+	if (c == 'd' || c == 'c' || c == 'y') {
+		struct editorSelectionRange range;
+		int linewise = 0;
+		if (vimSystemVisualRange(&range, &linewise)) {
+			(void)vimSystemApplyOperatorToRange((enum vimSystemOperator)c, &range,
+			                                    linewise, effects_out);
+		}
+		editorClearSelectionState();
+		if (c != 'c') {
+			vimSystemSetMode(VIM_SYSTEM_MODE_NORMAL);
+		}
+		return 0;
+	}
+	if (c == 'p' || c == 'P') {
+		struct editorSelectionRange range;
+		if (vimSystemVisualRange(&range, NULL)) {
+			editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+			int dirty_before = E.dirty;
+			size_t clip_len = 0;
+			const char *clip = editorClipboardGet(&clip_len);
+			int pasted = 0;
+			if (clip != NULL && clip_len > 0) {
+				pasted = editorReplaceRange(&range, clip, clip_len) > 0;
+			}
+			editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+			editorHistoryBreakGroup();
+			if (pasted) {
+				vimSystemAddEditEffect(effects_out);
+				vimSystemClampNormalCursor();
+			}
+		}
+		editorClearSelectionState();
+		vimSystemSetMode(VIM_SYSTEM_MODE_NORMAL);
 		return 0;
 	}
 	int return_now = 0;

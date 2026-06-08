@@ -481,7 +481,10 @@ struct editorHistory {
 
 #define EDITOR_ACTIVE_BUFFER_INPUT_FIELDS(X)                                                       \
 	X(int, input_vim_mode)                                                                     \
-	X(int, input_vim_pending_g)
+	X(int, input_vim_pending_g)                                                                \
+	X(int, input_vim_pending_operator)                                                         \
+	X(int, input_vim_pending_operator_g)                                                       \
+	X(int, input_vim_register_linewise)
 
 #define EDITOR_ACTIVE_BUFFER_EDIT_FIELDS(X)                                                        \
 	X(struct editorHistory, undo_history)                                                      \
