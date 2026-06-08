@@ -468,6 +468,241 @@ static int test_input_vim_charwise_paste_and_redo(void) {
 	return 0;
 }
 
+static int test_input_vim_count_prefixes_motions(void) {
+	add_row("alpha beta gamma delta");
+	add_row("second line here");
+	add_row("third row text");
+	int dirty_before = E.dirty;
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('3') == 0);
+	ASSERT_TRUE(vim_test_key('l') == 0);
+	ASSERT_EQ_INT(3, E.cx);
+
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('2') == 0);
+	ASSERT_TRUE(vim_test_key('w') == 0);
+	ASSERT_EQ_INT(11, E.cx);
+
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('2') == 0);
+	ASSERT_TRUE(vim_test_key('j') == 0);
+	ASSERT_EQ_INT(2, E.cy);
+	ASSERT_EQ_INT(0, E.cx);
+
+	/* Count resets after the command: a bare motion moves once. */
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('l') == 0);
+	ASSERT_EQ_INT(1, E.cx);
+	ASSERT_EQ_INT(dirty_before, E.dirty);
+	return 0;
+}
+
+static int test_input_vim_count_line_operator(void) {
+	add_row("one");
+	add_row("two");
+	add_row("three");
+	add_row("four");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('2') == 0);
+	ASSERT_TRUE(vim_test_key('d') == 0);
+	ASSERT_TRUE(vim_test_key('d') == 0);
+	ASSERT_EQ_INT(2, E.numrows);
+	ASSERT_ROW_TEXT_EQ(0, "three");
+	ASSERT_ROW_TEXT_EQ(1, "four");
+	ASSERT_EQ_INT(0, vim_test_clipboard_eq("one\ntwo\n"));
+	ASSERT_EQ_INT(1, editorUndo());
+	ASSERT_EQ_INT(4, E.numrows);
+	ASSERT_ROW_TEXT_EQ(0, "one");
+	return 0;
+}
+
+static int test_input_vim_count_operator_motion_and_delete(void) {
+	add_row("alpha beta gamma delta");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('d') == 0);
+	ASSERT_TRUE(vim_test_key('2') == 0);
+	ASSERT_TRUE(vim_test_key('w') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "gamma delta");
+	ASSERT_EQ_INT(0, vim_test_clipboard_eq("alpha beta "));
+	ASSERT_EQ_INT(1, editorUndo());
+	ASSERT_ROW_TEXT_EQ(0, "alpha beta gamma delta");
+
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('3') == 0);
+	ASSERT_TRUE(vim_test_key('x') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "ha beta gamma delta");
+	ASSERT_EQ_INT(0, vim_test_clipboard_eq("alp"));
+	return 0;
+}
+
+static int test_input_vim_named_registers(void) {
+	add_row("apple");
+	add_row("banana");
+	add_row("cherry");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('"') == 0);
+	ASSERT_TRUE(vim_test_key('a') == 0);
+	ASSERT_TRUE(vim_test_key('y') == 0);
+	ASSERT_TRUE(vim_test_key('y') == 0);
+
+	/* The default register is independent from register a. */
+	E.cy = 1;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('y') == 0);
+	ASSERT_TRUE(vim_test_key('y') == 0);
+	ASSERT_EQ_INT(0, vim_test_clipboard_eq("banana\n"));
+
+	E.cy = 2;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('"') == 0);
+	ASSERT_TRUE(vim_test_key('a') == 0);
+	ASSERT_TRUE(vim_test_key('p') == 0);
+	ASSERT_EQ_INT(4, E.numrows);
+	ASSERT_ROW_TEXT_EQ(3, "apple");
+
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('p') == 0);
+	ASSERT_ROW_TEXT_EQ(1, "banana");
+	return 0;
+}
+
+static int test_input_vim_text_object_inner_and_a_word(void) {
+	add_row("alpha beta gamma");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 7;
+	ASSERT_TRUE(vim_test_key('d') == 0);
+	ASSERT_TRUE(vim_test_key('i') == 0);
+	ASSERT_TRUE(vim_test_key('w') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "alpha  gamma");
+	ASSERT_EQ_INT(0, vim_test_clipboard_eq("beta"));
+	ASSERT_EQ_INT(1, editorUndo());
+	ASSERT_ROW_TEXT_EQ(0, "alpha beta gamma");
+
+	E.cx = 7;
+	ASSERT_TRUE(vim_test_key('d') == 0);
+	ASSERT_TRUE(vim_test_key('a') == 0);
+	ASSERT_TRUE(vim_test_key('w') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "alpha gamma");
+	ASSERT_EQ_INT(0, vim_test_clipboard_eq("beta "));
+	ASSERT_EQ_INT(1, editorUndo());
+	ASSERT_ROW_TEXT_EQ(0, "alpha beta gamma");
+	return 0;
+}
+
+static int test_input_vim_text_object_paragraph(void) {
+	add_row("line one");
+	add_row("line two");
+	add_row("");
+	add_row("line four");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('d') == 0);
+	ASSERT_TRUE(vim_test_key('i') == 0);
+	ASSERT_TRUE(vim_test_key('p') == 0);
+	ASSERT_EQ_INT(2, E.numrows);
+	ASSERT_ROW_TEXT_EQ(0, "");
+	ASSERT_ROW_TEXT_EQ(1, "line four");
+	return 0;
+}
+
+static int test_input_vim_visual_text_object_selects_word(void) {
+	struct editorSelectionRange range = {0};
+
+	add_row("alpha beta gamma");
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 7;
+	ASSERT_TRUE(vim_test_key('v') == 0);
+	ASSERT_TRUE(vim_test_key('i') == 0);
+	ASSERT_TRUE(vim_test_key('w') == 0);
+	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
+	ASSERT_EQ_INT(0, range.start_cy);
+	ASSERT_EQ_INT(6, range.start_cx);
+	ASSERT_EQ_INT(0, range.end_cy);
+	ASSERT_EQ_INT(10, range.end_cx);
+	ASSERT_TRUE(vim_test_key('\x1b') == 0);
+	return 0;
+}
+
+static int test_input_vim_search_next_and_prev(void) {
+	add_row("foo bar foo baz foo");
+	int dirty_before = E.dirty;
+
+	ASSERT_TRUE(vim_test_activate());
+	E.input_vim_search_query = strdup("foo");
+	ASSERT_TRUE(E.input_vim_search_query != NULL);
+	E.input_vim_search_direction = 1;
+	E.cy = 0;
+	E.cx = 0;
+
+	ASSERT_TRUE(vim_test_key('n') == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(8, E.cx);
+	ASSERT_TRUE(vim_test_key('n') == 0);
+	ASSERT_EQ_INT(16, E.cx);
+	ASSERT_TRUE(vim_test_key('N') == 0);
+	ASSERT_EQ_INT(8, E.cx);
+
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('2') == 0);
+	ASSERT_TRUE(vim_test_key('n') == 0);
+	ASSERT_EQ_INT(16, E.cx);
+	ASSERT_EQ_INT(dirty_before, E.dirty);
+	return 0;
+}
+
+static int test_input_vim_search_prompt_jumps_to_match(void) {
+	char search[] = {'/', 'f', 'o', 'o', '\r'};
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("foo bar");
+	add_row("baz foo");
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 0;
+
+	ASSERT_TRUE(editor_process_keypress_with_input(search, sizeof(search)) == 0);
+	ASSERT_TRUE(E.input_vim_search_query != NULL);
+	ASSERT_EQ_STR("foo", E.input_vim_search_query);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_EQ_INT(4, E.cx);
+	return 0;
+}
+
+static int test_input_vim_search_prompt_escape_restores_cursor(void) {
+	char search[] = {'/', 'b', 'a', 'z', '\x1b'};
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("foo bar");
+	add_row("baz here");
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 0;
+
+	ASSERT_TRUE(editor_process_keypress_with_input(search, sizeof(search)) == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(0, E.cx);
+	return 0;
+}
+
 const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_activation_starts_normal", test_input_vim_activation_starts_normal},
         {"input_vim_reset_returns_to_normal", test_input_vim_reset_returns_to_normal},
@@ -500,6 +735,19 @@ const struct editorTestCase g_input_vim_tests[] = {
          test_input_vim_operator_motion_delete_yank_and_change},
         {"input_vim_linewise_operators_and_paste", test_input_vim_linewise_operators_and_paste},
         {"input_vim_charwise_paste_and_redo", test_input_vim_charwise_paste_and_redo},
+        {"input_vim_count_prefixes_motions", test_input_vim_count_prefixes_motions},
+        {"input_vim_count_line_operator", test_input_vim_count_line_operator},
+        {"input_vim_count_operator_motion_and_delete",
+         test_input_vim_count_operator_motion_and_delete},
+        {"input_vim_named_registers", test_input_vim_named_registers},
+        {"input_vim_text_object_inner_and_a_word", test_input_vim_text_object_inner_and_a_word},
+        {"input_vim_text_object_paragraph", test_input_vim_text_object_paragraph},
+        {"input_vim_visual_text_object_selects_word",
+         test_input_vim_visual_text_object_selects_word},
+        {"input_vim_search_next_and_prev", test_input_vim_search_next_and_prev},
+        {"input_vim_search_prompt_jumps_to_match", test_input_vim_search_prompt_jumps_to_match},
+        {"input_vim_search_prompt_escape_restores_cursor",
+         test_input_vim_search_prompt_escape_restores_cursor},
 };
 
 const int g_input_vim_test_count = (int)(sizeof(g_input_vim_tests) / sizeof(g_input_vim_tests[0]));

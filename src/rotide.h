@@ -484,7 +484,14 @@ struct editorHistory {
 	X(int, input_vim_pending_g)                                                                \
 	X(int, input_vim_pending_operator)                                                         \
 	X(int, input_vim_pending_operator_g)                                                       \
-	X(int, input_vim_register_linewise)
+	X(int, input_vim_register_linewise)                                                        \
+	X(int, input_vim_count)                                                                    \
+	X(int, input_vim_operator_count)                                                           \
+	X(int, input_vim_active_register)                                                          \
+	X(int, input_vim_pending_register)                                                         \
+	X(int, input_vim_pending_text_object)                                                      \
+	X(char *, input_vim_search_query)                                                          \
+	X(int, input_vim_search_direction)
 
 #define EDITOR_ACTIVE_BUFFER_EDIT_FIELDS(X)                                                        \
 	X(struct editorHistory, undo_history)                                                      \
@@ -591,6 +598,13 @@ struct editorConfig {
 	char *clipboard_text;
 	size_t clipboard_textlen;
 	editorClipboardExternalSink clipboard_external_sink;
+
+	/* --- Input: Vim named registers a-z (global, persist across buffers) --- */
+	struct editorVimRegister {
+		char *text;
+		size_t len;
+		int linewise;
+	} vim_registers[26];
 
 	/* --- Workspace: tabs --- */
 	struct editorTabState *tabs;
