@@ -61,7 +61,7 @@ static int vim_test_clipboard_eq(const char *expected) {
 
 static int test_input_vim_activation_starts_normal(void) {
 	ASSERT_TRUE(vim_test_activate());
-	ASSERT_EQ_STR("-- NORMAL --", editorVimModeLabel());
+	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
 	return 0;
 }
 
@@ -70,13 +70,13 @@ static int test_input_vim_reset_returns_to_normal(void) {
 
 	ASSERT_TRUE(vim_test_activate());
 	ASSERT_TRUE(vim_test_key('i') == 0);
-	ASSERT_EQ_STR("-- INSERT --", editorVimModeLabel());
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
 
 	system = editorInputSystemActive();
 	ASSERT_TRUE(system != NULL);
 	ASSERT_TRUE(system->reset != NULL);
 	system->reset();
-	ASSERT_EQ_STR("-- NORMAL --", editorVimModeLabel());
+	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
 	return 0;
 }
 
@@ -84,21 +84,21 @@ static int test_input_vim_normal_text_does_not_insert(void) {
 	ASSERT_TRUE(vim_test_activate());
 	ASSERT_TRUE(vim_test_key('x') == 0);
 	ASSERT_EQ_INT(0, E.numrows);
-	ASSERT_EQ_STR("-- NORMAL --", editorVimModeLabel());
+	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
 	return 0;
 }
 
 static int test_input_vim_insert_mode_inserts_until_escape(void) {
 	ASSERT_TRUE(vim_test_activate());
 	ASSERT_TRUE(vim_test_key('i') == 0);
-	ASSERT_EQ_STR("-- INSERT --", editorVimModeLabel());
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
 
 	ASSERT_TRUE(vim_test_key('x') == 0);
 	ASSERT_EQ_INT(1, E.numrows);
 	ASSERT_ROW_TEXT_EQ(0, "x");
 
 	ASSERT_TRUE(vim_test_key('\x1b') == 0);
-	ASSERT_EQ_STR("-- NORMAL --", editorVimModeLabel());
+	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
 	ASSERT_TRUE(vim_test_key('y') == 0);
 	ASSERT_ROW_TEXT_EQ(0, "x");
 	return 0;
@@ -108,7 +108,7 @@ static int test_input_vim_insert_mode_mapped_printable_does_not_insert(void) {
 	ASSERT_TRUE(editorKeymapBindAction(&E.keymap, EDITOR_ACTION_REDRAW, 'x'));
 	ASSERT_TRUE(vim_test_activate());
 	ASSERT_TRUE(vim_test_key('i') == 0);
-	ASSERT_EQ_STR("-- INSERT --", editorVimModeLabel());
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
 
 	ASSERT_TRUE(vim_test_key('x') == 0);
 	ASSERT_EQ_INT(0, E.numrows);
@@ -122,7 +122,7 @@ static int test_input_vim_append_entry_moves_then_inserts(void) {
 
 	ASSERT_TRUE(vim_test_activate());
 	ASSERT_TRUE(vim_test_key('a') == 0);
-	ASSERT_EQ_STR("-- INSERT --", editorVimModeLabel());
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
 	ASSERT_TRUE(vim_test_key('x') == 0);
 	ASSERT_ROW_TEXT_EQ(0, "axb");
 	return 0;
@@ -135,14 +135,14 @@ static int test_input_vim_line_insert_entries_switch_to_insert(void) {
 	E.cy = 0;
 	E.cx = 1;
 	ASSERT_TRUE(vim_test_key('I') == 0);
-	ASSERT_EQ_STR("-- INSERT --", editorVimModeLabel());
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
 	ASSERT_EQ_INT(0, E.cx);
 
 	ASSERT_TRUE(vim_test_key('\x1b') == 0);
 	E.cy = 0;
 	E.cx = 0;
 	ASSERT_TRUE(vim_test_key('A') == 0);
-	ASSERT_EQ_STR("-- INSERT --", editorVimModeLabel());
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
 	ASSERT_EQ_INT(2, E.cx);
 	return 0;
 }
@@ -154,7 +154,7 @@ static int test_input_vim_open_line_entries_switch_to_insert(void) {
 	E.cy = 0;
 	E.cx = 0;
 	ASSERT_TRUE(vim_test_key('o') == 0);
-	ASSERT_EQ_STR("-- INSERT --", editorVimModeLabel());
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(0, E.cx);
 
@@ -162,7 +162,7 @@ static int test_input_vim_open_line_entries_switch_to_insert(void) {
 	E.cy = 1;
 	E.cx = 0;
 	ASSERT_TRUE(vim_test_key('O') == 0);
-	ASSERT_EQ_STR("-- INSERT --", editorVimModeLabel());
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
 	ASSERT_EQ_INT(1, E.cy);
 	ASSERT_EQ_INT(0, E.cx);
 	return 0;
@@ -175,15 +175,15 @@ static int test_input_vim_visual_modes_set_selection_and_escape_clears(void) {
 
 	ASSERT_TRUE(vim_test_activate());
 	ASSERT_TRUE(vim_test_key('v') == 0);
-	ASSERT_EQ_STR("-- VISUAL --", editorVimModeLabel());
+	ASSERT_EQ_STR("VISUAL", editorVimModeLabel());
 	ASSERT_EQ_INT(1, E.selection_mode_active);
 
 	ASSERT_TRUE(vim_test_key('\x1b') == 0);
-	ASSERT_EQ_STR("-- NORMAL --", editorVimModeLabel());
+	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
 	ASSERT_EQ_INT(0, E.selection_mode_active);
 
 	ASSERT_TRUE(vim_test_key('V') == 0);
-	ASSERT_EQ_STR("-- VISUAL LINE --", editorVimModeLabel());
+	ASSERT_EQ_STR("VISUAL LINE", editorVimModeLabel());
 	ASSERT_EQ_INT(1, E.selection_mode_active);
 	return 0;
 }
@@ -331,13 +331,13 @@ static int test_input_vim_mode_is_tab_local(void) {
 	ASSERT_TRUE(editorTabsInit());
 	ASSERT_TRUE(vim_test_activate());
 	ASSERT_TRUE(vim_test_key('i') == 0);
-	ASSERT_EQ_STR("-- INSERT --", editorVimModeLabel());
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
 
 	ASSERT_TRUE(editorTabNewEmpty());
-	ASSERT_EQ_STR("-- NORMAL --", editorVimModeLabel());
+	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
 
 	ASSERT_TRUE(editorTabSwitchToIndex(0));
-	ASSERT_EQ_STR("-- INSERT --", editorVimModeLabel());
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
 	return 0;
 }
 
@@ -364,7 +364,7 @@ static int test_input_vim_normal_delete_and_change_operators(void) {
 	E.cx = 1;
 	ASSERT_TRUE(vim_test_key('C') == 0);
 	ASSERT_ROW_TEXT_EQ(0, "a");
-	ASSERT_EQ_STR("-- INSERT --", editorVimModeLabel());
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
 	ASSERT_TRUE(vim_test_key('\x1b') == 0);
 	ASSERT_EQ_INT(1, editorUndo());
 	ASSERT_ROW_TEXT_EQ(0, "abcdef");
@@ -394,7 +394,7 @@ static int test_input_vim_operator_motion_delete_yank_and_change(void) {
 	ASSERT_TRUE(vim_test_key('c') == 0);
 	ASSERT_TRUE(vim_test_key('e') == 0);
 	ASSERT_ROW_TEXT_EQ(0, "alpha  gamma");
-	ASSERT_EQ_STR("-- INSERT --", editorVimModeLabel());
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
 	ASSERT_TRUE(vim_test_key('\x1b') == 0);
 	ASSERT_EQ_INT(1, editorUndo());
 	ASSERT_ROW_TEXT_EQ(0, "alpha beta gamma");
@@ -443,7 +443,7 @@ static int test_input_vim_linewise_operators_and_paste(void) {
 	ASSERT_TRUE(vim_test_key('c') == 0);
 	ASSERT_TRUE(vim_test_key('c') == 0);
 	ASSERT_ROW_TEXT_EQ(1, "");
-	ASSERT_EQ_STR("-- INSERT --", editorVimModeLabel());
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
 	ASSERT_TRUE(vim_test_key('\x1b') == 0);
 	ASSERT_EQ_INT(1, editorUndo());
 	ASSERT_ROW_TEXT_EQ(1, "two");

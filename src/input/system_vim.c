@@ -1,4 +1,5 @@
 #include "config/keymap.h"
+#include "config/theme_config.h"
 #include "editing/buffer_core.h"
 #include "editing/document_position.h"
 #include "editing/edit.h"
@@ -226,7 +227,7 @@ static int vimSystemRegisterStore(const char *text, size_t len, int linewise) {
 	return 1;
 }
 
-/* Fetch the text for the active register; returns NULL when empty. */
+/* Returns NULL when the active register is empty. */
 static const char *vimSystemRegisterFetch(size_t *len_out, int *linewise_out) {
 	int reg = E.input_vim_active_register;
 
@@ -259,13 +260,27 @@ static int vimSystemOperatorTotalCount(void) {
 const char *editorVimModeLabel(void) {
 	switch (vimSystemMode()) {
 		case VIM_SYSTEM_MODE_INSERT:
-			return "-- INSERT --";
+			return "INSERT";
 		case VIM_SYSTEM_MODE_VISUAL:
-			return "-- VISUAL --";
+			return "VISUAL";
 		case VIM_SYSTEM_MODE_VISUAL_LINE:
-			return "-- VISUAL LINE --";
+			return "VISUAL LINE";
 		default:
-			return "-- NORMAL --";
+			return "NORMAL";
+	}
+}
+
+/* Theme ANSI palette index for the current mode's status-segment background,
+ * echoing the conventional Vim/lualine mode colors. */
+static int vimSystemStatusColor(void) {
+	switch (vimSystemMode()) {
+		case VIM_SYSTEM_MODE_INSERT:
+			return EDITOR_THEME_ANSI_GREEN;
+		case VIM_SYSTEM_MODE_VISUAL:
+		case VIM_SYSTEM_MODE_VISUAL_LINE:
+			return EDITOR_THEME_ANSI_MAGENTA;
+		default:
+			return EDITOR_THEME_ANSI_BLUE;
 	}
 }
 
@@ -1023,7 +1038,7 @@ static int vimSystemLineIsBlank(int cy) {
 	return editorDocumentLineLength(E.document, cy) == 0;
 }
 
-/* Inner/`a` word text object on the current line. End column is exclusive. */
+/* `iw`/`aw` range on the current line; end column is exclusive. */
 static int vimSystemWordObjectRange(int inner, struct editorSelectionRange *range_out) {
 	struct editorLineView line = {0};
 	int cy = E.cy;
@@ -1091,7 +1106,6 @@ static int vimSystemWordObjectRange(int inner, struct editorSelectionRange *rang
 	return start != end_excl;
 }
 
-/* Inner/`a` paragraph text object (linewise) around the current line. */
 static int vimSystemParagraphObjectRange(int inner, struct editorSelectionRange *range_out) {
 	int blank = 0;
 	int start = E.cy;
@@ -1373,8 +1387,7 @@ static int vimSystemSearchSetQuery(const char *query) {
 	return 1;
 }
 
-/* Move the cursor to the next match of `query` in `direction`, repeated `count`
- * times. Returns 1 if at least one match was found. */
+/* Repeats the search `count` times; returns 1 if any match was found. */
 static int vimSystemSearchExecute(const char *query, int direction, int count, int *effects_out) {
 	int found_any = 0;
 
@@ -1955,5 +1968,6 @@ const struct editorInputSystem editorVimInputSystem = {
         .resolve_command = vimSystemResolveCommand,
         .bind_key = vimSystemBindKey,
         .status_segment = vimSystemStatusSegment,
+        .status_segment_color = vimSystemStatusColor,
         .reset = vimSystemReset,
 };

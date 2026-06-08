@@ -17,6 +17,10 @@ struct editorInputSystem {
 	int (*resolve_command)(const char *name, int *command_id_out);
 	int (*bind_key)(const char *mode, const char *name, int key);
 	void (*status_segment)(char *buf, size_t bufsize);
+	/* Optional: theme ANSI palette index (0-15) for the status segment's
+	 * background, or a negative value for none. Lets a system color-code its
+	 * status block (e.g. Vim's mode indicator). */
+	int (*status_segment_color)(void);
 	void (*reset)(void);
 };
 

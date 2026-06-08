@@ -218,14 +218,12 @@ static int statusBarPrepareInputSegment(char **text_out, int *content_cols_out, 
 		return 1;
 	}
 
-	int content_cols = available_cols - 2;
+	int content_cols = sanitized_cols;
 	if (content_cols > STATUS_INPUT_SEGMENT_MAX_COLS) {
 		content_cols = STATUS_INPUT_SEGMENT_MAX_COLS;
 	}
-	if (content_cols > sanitized_cols) {
-		content_cols = sanitized_cols;
-	}
-	if (content_cols <= 0) {
+	/* Drop the block entirely rather than show a half-truncated mode label. */
+	if (content_cols <= 0 || content_cols + 2 > available_cols) {
 		free(sanitized);
 		return 1;
 	}
@@ -303,6 +301,7 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 		statusDebugButtonsReset();
 	}
 
+	const struct editorInputSystem *active_system = editorInputSystemActive();
 	char *input_segment = NULL;
 	int input_segment_cols = 0;
 	int input_segment_total_cols = 0;
@@ -338,6 +337,45 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 		path_budget -= diag_cols;
 	}
 
+	if (input_segment_total_cols > 0) {
+		int color_idx = -1;
+		int colored = 0;
+		if (active_system != NULL && active_system->status_segment_color != NULL) {
+			color_idx = active_system->status_segment_color();
+		}
+		colored = color_idx >= 0 && color_idx < EDITOR_THEME_ANSI_COUNT;
+		if (colored) {
+			struct editorThemeColor bg = editorThemeResolveAnsi((unsigned)color_idx, 0);
+			struct editorThemeColor fg = E.theme.styles[EDITOR_THEME_STYLE_STATUS].bg;
+			if (editorThemeColorIsDefault(fg)) {
+				fg = editorThemeResolveAnsi(EDITOR_THEME_ANSI_BRIGHT_WHITE, 1);
+			}
+			if (!editorAppendThemeBackground(wb, bg) ||
+			    !editorAppendThemeForeground(wb, fg) ||
+			    !wbAppend(wb, VT100_BOLD_ON, (int)strlen(VT100_BOLD_ON))) {
+				goto cleanup;
+			}
+		}
+		int segment_written = 0;
+		if (!wbAppend(wb, " ", 1) ||
+		    !editorAppendDisplayPrefix(wb, input_segment, input_segment_cols,
+		                               &segment_written)) {
+			goto cleanup;
+		}
+		for (; segment_written < input_segment_cols; segment_written++) {
+			if (!wbAppend(wb, " ", 1)) {
+				goto cleanup;
+			}
+		}
+		if (!wbAppend(wb, " ", 1)) {
+			goto cleanup;
+		}
+		if (colored && (!wbAppend(wb, VT100_BOLD_OFF, (int)strlen(VT100_BOLD_OFF)) ||
+		                !editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_STATUS))) {
+			goto cleanup;
+		}
+	}
+
 	int left_cols = 0;
 	if (!editorAppendSanitizedStatusPath(wb, filename, path_budget, &left_cols)) {
 		goto cleanup;
@@ -367,25 +405,6 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 	}
 
 	for (; left_cols < left_budget; left_cols++) {
-		if (!wbAppend(wb, " ", 1)) {
-			goto cleanup;
-		}
-	}
-
-	if (input_segment_total_cols > 0) {
-		if (!wbAppend(wb, " ", 1)) {
-			goto cleanup;
-		}
-		int segment_written = 0;
-		if (!editorAppendDisplayPrefix(wb, input_segment, input_segment_cols,
-		                               &segment_written)) {
-			goto cleanup;
-		}
-		for (; segment_written < input_segment_cols; segment_written++) {
-			if (!wbAppend(wb, " ", 1)) {
-				goto cleanup;
-			}
-		}
 		if (!wbAppend(wb, " ", 1)) {
 			goto cleanup;
 		}
