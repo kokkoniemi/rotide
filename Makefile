@@ -248,7 +248,9 @@ FUZZ_TOML_THEME_SMOKE_RUNS ?= 5000
 FUZZ_TOML_THEME_SRCS = $(SRC_DIR)/config/theme_parse.c \
 	$(SRC_DIR)/config/theme_builtin.c \
 	$(SRC_DIR)/config/common.c \
-	$(SRC_DIR)/support/alloc.c
+	$(SRC_DIR)/support/alloc.c \
+	$(SRC_DIR)/support/file_io.c \
+	$(SRC_DIR)/support/save_syscalls.c
 # libFuzzer ships its own coverage instrumentation under -fsanitize=fuzzer;
 # explicit -fsanitize-coverage=trace-pc-guard conflicts with that on modern
 # clang. -Wno-unknown-warning-option swallows the gcc-only flags inside
@@ -372,10 +374,11 @@ $(FUZZ_DAP_BIN): $(FUZZ_DAP_HARNESS) $(FUZZ_DAP_SRCS)
 	@mkdir -p $(dir $@)
 	$(call LOG,FUZZ_CC,$@)$(FUZZ_CC) $(FUZZ_FLAGS) $(CPPFLAGS) $^ -o $@
 
-# theme_parse.c needs theme_builtin.c (for editorThemeInitDefault et al.),
-# common.c (trim/comment-strip/quoted-value helpers), and alloc.c (transitively
-# referenced via common.c). default_config_data.h is a generated header
-# pulled in by common.c, so depend on it explicitly.
+# theme_parse.c needs theme_builtin.c (for editorThemeInitDefault et al.) and
+# common.c (trim/comment-strip/quoted-value helpers). common.c also references
+# support allocation/path/save helpers, so keep those TUs linked into the
+# standalone fuzz binary. default_config_data.h is a generated header pulled in
+# by common.c, so depend on it explicitly.
 $(FUZZ_TOML_THEME_BIN): $(FUZZ_TOML_THEME_HARNESS) $(FUZZ_TOML_THEME_SRCS) $(GENERATED_HEADERS)
 	@mkdir -p $(dir $@)
 	$(call LOG,FUZZ_CC,$@)$(FUZZ_CC) $(FUZZ_FLAGS) $(CPPFLAGS) \
