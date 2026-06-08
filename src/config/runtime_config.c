@@ -66,11 +66,11 @@ static void runtimeConfigLoadSettings(struct runtimeConfigStatus *status) {
 static int runtimeConfigSetStatus(const struct runtimeConfigStatus *status,
                                   const char *success_status) {
 	if ((status->input_config_status & EDITOR_INPUT_CONFIG_LOAD_INVALID_PROJECT) != 0) {
-		editorSetStatusMsg("Invalid [input] in ./.rotide.toml, using CUA");
+		editorSetStatusMsg("Invalid [input] in ./.rotide.toml, using Vim");
 		return 1;
 	}
 	if ((status->input_config_status & EDITOR_INPUT_CONFIG_LOAD_INVALID_GLOBAL) != 0) {
-		editorSetStatusMsg("Invalid [input] in ~/.rotide/config.toml, using CUA");
+		editorSetStatusMsg("Invalid [input] in ~/.rotide/config.toml, using Vim");
 		return 1;
 	}
 	if (status->keymap_status == EDITOR_KEYMAP_LOAD_INVALID_PROJECT) {

@@ -25,7 +25,7 @@ static int inputConfigCopySystem(char *system_out, size_t system_size, const cha
 }
 
 void editorInputConfigInitDefaults(char *system_out, size_t system_size) {
-	(void)inputConfigCopySystem(system_out, system_size, "cua");
+	(void)inputConfigCopySystem(system_out, system_size, "vim");
 }
 
 static int inputConfigOnSection(void *ctx, const char *table) {

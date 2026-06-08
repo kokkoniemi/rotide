@@ -564,27 +564,10 @@ static enum keymapFileStatus keymapApplyConfigTable(struct editorKeymap *keymap,
 	}
 }
 
-static enum keymapFileStatus keymapMergeFileStatus(enum keymapFileStatus left,
-                                                   enum keymapFileStatus right) {
-	if (left == KEYMAP_FILE_INVALID || right == KEYMAP_FILE_INVALID) {
-		return KEYMAP_FILE_INVALID;
-	}
-	if (left == KEYMAP_FILE_OUT_OF_MEMORY || right == KEYMAP_FILE_OUT_OF_MEMORY) {
-		return KEYMAP_FILE_OUT_OF_MEMORY;
-	}
-	if (left == KEYMAP_FILE_APPLIED || right == KEYMAP_FILE_APPLIED) {
-		return KEYMAP_FILE_APPLIED;
-	}
-	return KEYMAP_FILE_MISSING;
-}
-
+/* CUA bindings live in [keymap.cua]. There is no bare [keymap] alias: the CUA
+ * and Vim systems are configured symmetrically under [keymap.cua] / [keymap.vim]. */
 static enum keymapFileStatus keymapApplyConfigFile(struct editorKeymap *keymap, const char *path) {
-	enum keymapFileStatus alias_status = keymapApplyConfigTable(keymap, path, "keymap");
-	if (alias_status == KEYMAP_FILE_INVALID || alias_status == KEYMAP_FILE_OUT_OF_MEMORY) {
-		return alias_status;
-	}
-	enum keymapFileStatus explicit_status = keymapApplyConfigTable(keymap, path, "keymap.cua");
-	return keymapMergeFileStatus(alias_status, explicit_status);
+	return keymapApplyConfigTable(keymap, path, "keymap.cua");
 }
 
 struct keymapVimContext {

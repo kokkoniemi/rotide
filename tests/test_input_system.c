@@ -105,7 +105,7 @@ static int test_input_config_project_overrides_global(void) {
 	return 0;
 }
 
-static int test_input_config_invalid_falls_back_to_cua(void) {
+static int test_input_config_invalid_falls_back_to_default(void) {
 	char dir_template[] = "/tmp/rotide-test-input-config-invalid-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
 	ASSERT_TRUE(dir_path != NULL);
@@ -119,7 +119,7 @@ static int test_input_config_invalid_falls_back_to_cua(void) {
 	enum editorInputConfigLoadStatus status =
 	        editorInputConfigLoadFromPaths(system, sizeof(system), NULL, config_path);
 	ASSERT_TRUE((status & EDITOR_INPUT_CONFIG_LOAD_INVALID_PROJECT) != 0);
-	ASSERT_EQ_STR("cua", system);
+	ASSERT_EQ_STR("vim", system);
 
 	ASSERT_TRUE(unlink(config_path) == 0);
 	ASSERT_TRUE(rmdir(dir_path) == 0);
@@ -136,16 +136,16 @@ static int test_input_config_malformed_project_reports_and_defaults(void) {
 	ASSERT_TRUE(path_join(global_path, sizeof(global_path), dir_path, "global.toml"));
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, "project.toml"));
 	ASSERT_TRUE(write_text_file(global_path, "[input]\n"
-	                                         "system = \"vim\"\n"));
+	                                         "system = \"cua\"\n"));
 	ASSERT_TRUE(write_text_file(project_path, "[input\n"
-	                                          "system = \"cua\"\n"));
+	                                          "system = \"vim\"\n"));
 
 	char system[32];
 	enum editorInputConfigLoadStatus status =
 	        editorInputConfigLoadFromPaths(system, sizeof(system), global_path, project_path);
 	ASSERT_TRUE((status & EDITOR_INPUT_CONFIG_LOAD_INVALID_PROJECT) != 0);
 	ASSERT_TRUE((status & EDITOR_INPUT_CONFIG_LOAD_INVALID_GLOBAL) == 0);
-	ASSERT_EQ_STR("cua", system);
+	ASSERT_EQ_STR("vim", system);
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(unlink(global_path) == 0);
@@ -277,7 +277,8 @@ const struct editorTestCase g_input_system_tests[] = {
         {"input_system_cua_bind_key_uses_keymap", test_input_system_cua_bind_key_uses_keymap},
         {"input_config_loads_vim_system", test_input_config_loads_vim_system},
         {"input_config_project_overrides_global", test_input_config_project_overrides_global},
-        {"input_config_invalid_falls_back_to_cua", test_input_config_invalid_falls_back_to_cua},
+        {"input_config_invalid_falls_back_to_default",
+         test_input_config_invalid_falls_back_to_default},
         {"input_config_malformed_project_reports_and_defaults",
          test_input_config_malformed_project_reports_and_defaults},
         {"input_config_malformed_global_reports_but_project_wins",

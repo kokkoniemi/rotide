@@ -89,9 +89,9 @@ workspace state file; per-pane kind-state is session-bound.
 gates (synthetic events, prompts, mouse hit-testing, terminal-pane
 forwarding); at the key→action seam it delegates to the active
 **input system** (`editorInputSystemActive()->handle_key`). Input systems
-are a compiled-in registry behind `struct editorInputSystem`: CUA (the
-default) maps keys straight to `editorAction`s via the configured keymap,
-while Vim adds modal state, motions, operators, counts, registers,
+are a compiled-in registry behind `struct editorInputSystem`: CUA maps
+keys straight to `editorAction`s via the configured keymap, while Vim (the
+default) adds modal state, motions, operators, counts, registers,
 in-buffer search, text objects, and an ex command line. Either way keys
 resolve to actions/commands — systems do not bypass dispatch, which stays
 the only entry point to editor behavior; mouse, drawer, and DAP commands

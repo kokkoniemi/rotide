@@ -242,16 +242,16 @@ console = "terminal"
 # stopOnEntry = false
 
 # --- [input] ------------------------------------------------------------------
-# Selects the active editing-input system. "cua" (the default) keeps the
-# standard desktop-editor key behavior documented under [keymap] below. "vim"
-# enables modal editing (Normal/Insert/Visual/Visual-Line) with motions,
-# operators, counts, registers, in-buffer search (/ ? n N), text objects, and an
-# ex command line (:w :q :%s ...). The active Vim mode is shown in the status bar.
-# Missing or invalid values fall back to "cua". Project config overrides global.
-# [input]
-# system = "cua"
+# Selects the active editing-input system. "vim" (the default) enables modal
+# editing (Normal/Insert/Visual/Visual-Line) with motions, operators, counts,
+# registers, in-buffer search (/ ? n N), text objects, and an ex command line
+# (:w :q :%s ...); the active Vim mode is shown in the status bar. "cua" keeps
+# the standard desktop-editor key behavior documented under [keymap.cua] below.
+# Missing or invalid values fall back to "vim". Project config overrides global.
+[input]
+system = "vim"
 
-# --- [keymap] -----------------------------------------------------------------
+# --- [keymap.cua] -------------------------------------------------------------
 # Key spec format:
 #   "ctrl+<a-z>", "alt+<a-z>", "ctrl+alt+<a-z>", "ctrl+]"
 #   "ctrl+left/right/up/down", "alt+left/right/up/down",
@@ -271,10 +271,11 @@ console = "terminal"
 # In drawer focus, enter toggles directories and opens files in tabs (reusing
 # an already-open tab when possible).
 #
-# This [keymap] table configures the CUA system. It is an alias for [keymap.cua]:
-# either name works, and when both appear in the same file [keymap.cua] wins.
+# This [keymap.cua] table configures the CUA system (used when [input] system =
+# "cua"). It and the Vim system's [keymap.vim] table (at the end of this file)
+# are the two first-class keymap tables — there is no bare [keymap] alias.
 # Project scope overrides global scope.
-[keymap]
+[keymap.cua]
 quit = "ctrl+q"
 save = "ctrl+s"
 new_tab = "ctrl+n"
@@ -409,14 +410,15 @@ move_tab_down_pane = "ctrl+shift+alt+down"
 # open_settings = "ctrl+alt+s"
 
 # --- [keymap.vim] -------------------------------------------------------------
-# Per-mode Vim key bindings (only used when [input] system = "vim"). Entry keys
-# are "<mode>.<command>" where <mode> is normal, insert, or visual (visual also
-# covers visual-line). Values are usually a single, case-sensitive printable
-# character (e.g. "h", "G", "$", ";"); named keys like "esc" and "ctrl+c" also
-# work. Each command takes one key per mode: rebinding relocates it, so the
-# built-in default key stops triggering that command unless it is itself bound to
-# another command. Unset commands keep their built-in defaults; counts ("3dd"),
-# registers ('"a'), search, text objects, and ":" are built-in and not rebindable.
+# Per-mode Vim key bindings (used when [input] system = "vim", the default).
+# Entry keys are "<mode>.<command>" where <mode> is normal, insert, or visual
+# (visual also covers visual-line). Values are usually a single, case-sensitive
+# printable character (e.g. "h", "G", "$", ";"); named keys like "esc" and
+# "ctrl+c" also work. Each command takes one key per mode: rebinding relocates it,
+# so the built-in default key stops triggering that command unless it is itself
+# bound to another command. Unset commands keep their built-in defaults; counts
+# ("3dd"), registers ('"a'), search, text objects, and ":" are built-in and not
+# rebindable.
 #
 # Normal-mode commands: move_left move_down move_up move_right; word_forward
 #   word_backward word_end; line_start line_end first_nonblank last_line;

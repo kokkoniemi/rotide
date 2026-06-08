@@ -7,7 +7,7 @@ static const struct editorInputSystem *const g_inputSystem_systems[] = {
         &editorVimInputSystem,
 };
 
-static const struct editorInputSystem *g_inputSystem_active = &editorCuaInputSystem;
+static const struct editorInputSystem *g_inputSystem_active = &editorVimInputSystem;
 
 const struct editorInputSystem *editorInputSystemById(const char *id) {
 	if (id == NULL) {
