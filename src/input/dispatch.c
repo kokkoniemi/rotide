@@ -2872,6 +2872,13 @@ static int dispatchHandleKeyboardKey(int c, int *effects) {
 		return 1;
 	}
 	const struct editorInputSystem *system = editorInputSystemActive();
+	/* The find-file / project-search drawer fields are plain text inputs: route
+	 * keys through CUA so typing filters regardless of a modal system's state
+	 * (e.g. Vim Normal mode would otherwise treat the keys as commands). */
+	if (!editorDrawerIsCollapsed() &&
+	    (editorFileSearchIsActive() || editorProjectSearchIsActive())) {
+		system = &editorCuaInputSystem;
+	}
 	if (system != NULL && system->handle_key != NULL) {
 		return system->handle_key(c, effects);
 	}

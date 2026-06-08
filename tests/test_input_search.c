@@ -1,3 +1,4 @@
+#include "input/input_system.h"
 #include "rotide.h"
 #include "test_case.h"
 #include "test_helpers.h"
@@ -266,7 +267,69 @@ static int test_editor_process_keypress_ctrl_f_no_match_preserves_cursor_and_set
 	return 0;
 }
 
+static int test_editor_process_keypress_find_file_filters_in_vim_normal_mode(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char beta_file[512];
+	ASSERT_TRUE(path_join(beta_file, sizeof(beta_file), env.project_dir, "beta.txt"));
+	ASSERT_TRUE(write_text_file(beta_file, "beta\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("base");
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+
+	/* Ctrl-P opens find-file from Vim Normal mode (falls through to the action). */
+	char ctrl_p[] = {CTRL_KEY('p')};
+	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_p, sizeof(ctrl_p)) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
+
+	/* 'b' is a Vim motion in Normal mode, but here it must filter the field. */
+	char filter[] = {'b'};
+	ASSERT_TRUE(editor_process_keypress_with_input(filter, sizeof(filter)) == 0);
+	ASSERT_EQ_STR("b", editorFileSearchQuery());
+
+	ASSERT_TRUE(editorInputSystemActivate("cua"));
+	ASSERT_TRUE(unlink(beta_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_process_keypress_project_search_filters_in_vim_normal_mode(void) {
+	struct recoveryTestEnv env;
+	ASSERT_TRUE(setup_recovery_test_env(&env));
+
+	char alpha_file[512];
+	ASSERT_TRUE(path_join(alpha_file, sizeof(alpha_file), env.project_dir, "alpha.txt"));
+	ASSERT_TRUE(write_text_file(alpha_file, "before\nneedle here\n"));
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("base");
+	ASSERT_TRUE(editorDrawerInitForStartup(1, NULL, 0));
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+
+	char ctrl_alt_f[] = {'\x1b', CTRL_KEY('f')};
+	ASSERT_TRUE(editor_process_keypress_with_input(ctrl_alt_f, sizeof(ctrl_alt_f)) == 0);
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_PROJECT_SEARCH, E.drawer_mode);
+
+	const char *query = "needle";
+	for (size_t i = 0; query[i] != '\0'; i++) {
+		ASSERT_TRUE(editor_process_keypress_with_input(&query[i], 1) == 0);
+	}
+	ASSERT_EQ_STR("needle", editorProjectSearchQuery());
+
+	ASSERT_TRUE(editorInputSystemActivate("cua"));
+	ASSERT_TRUE(unlink(alpha_file) == 0);
+	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
 const struct editorTestCase g_input_search_tests[] = {
+        {"editor_process_keypress_find_file_filters_in_vim_normal_mode",
+         test_editor_process_keypress_find_file_filters_in_vim_normal_mode},
+        {"editor_process_keypress_project_search_filters_in_vim_normal_mode",
+         test_editor_process_keypress_project_search_filters_in_vim_normal_mode},
         {"editor_process_keypress_find_file_filters_previews_and_opens",
          test_editor_process_keypress_find_file_filters_previews_and_opens},
         {"editor_process_keypress_find_file_recovers_collapsed_drawer_on_open",
