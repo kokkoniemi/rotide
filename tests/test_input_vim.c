@@ -450,6 +450,96 @@ static int test_input_vim_linewise_operators_and_paste(void) {
 	return 0;
 }
 
+static int test_input_vim_read_only_tab_rejects_vim_mutations(void) {
+	char path[] = "/tmp/rotide-test-vim-read-only-XXXXXX";
+	const char bytes[] = {'r', 'o', 't', 'i', 'd', 'e', '\0', 'b', 'i', 'n'};
+	int fd = mkstemp(path);
+	ASSERT_TRUE(fd != -1);
+	ASSERT_TRUE(write_all(fd, bytes, sizeof(bytes)) == 0);
+	ASSERT_TRUE(close(fd) == 0);
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(editorTabOpenOrSwitchToPreviewFile(path));
+	ASSERT_TRUE(editorActiveTabIsUnsupportedFile());
+	ASSERT_TRUE(editorActiveTabIsReadOnly());
+	ASSERT_ROW_TEXT_EQ(0, "File is unsupported");
+	int dirty_before = E.dirty;
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('x') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "File is unsupported");
+	ASSERT_EQ_INT(dirty_before, E.dirty);
+	ASSERT_EQ_STR("File is unsupported", E.statusmsg);
+
+	ASSERT_TRUE(vim_test_key('d') == 0);
+	ASSERT_TRUE(vim_test_key('d') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "File is unsupported");
+	ASSERT_EQ_INT(dirty_before, E.dirty);
+
+	ASSERT_TRUE(editorClipboardSet("paste", 5));
+	ASSERT_TRUE(vim_test_key('p') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "File is unsupported");
+	ASSERT_EQ_INT(dirty_before, E.dirty);
+
+	char substitute[] = {':', '%', 's', '/', 'F', '/', 'X', '/', '\r'};
+	ASSERT_TRUE(editor_process_keypress_with_input(substitute, sizeof(substitute)) == 0);
+	ASSERT_ROW_TEXT_EQ(0, "File is unsupported");
+	ASSERT_EQ_INT(dirty_before, E.dirty);
+	ASSERT_EQ_STR("File is unsupported", E.statusmsg);
+
+	ASSERT_TRUE(unlink(path) == 0);
+	return 0;
+}
+
+static int test_input_vim_visual_charwise_operations_include_cursor(void) {
+	add_row("abcd");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 1;
+	ASSERT_TRUE(vim_test_key('v') == 0);
+	ASSERT_TRUE(vim_test_key('l') == 0);
+	ASSERT_TRUE(vim_test_key('d') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "ad");
+	ASSERT_EQ_INT(0, vim_test_clipboard_eq("bc"));
+	ASSERT_EQ_INT(1, editorUndo());
+	ASSERT_ROW_TEXT_EQ(0, "abcd");
+
+	E.cy = 0;
+	E.cx = 2;
+	ASSERT_TRUE(vim_test_key('v') == 0);
+	ASSERT_TRUE(vim_test_key('h') == 0);
+	ASSERT_TRUE(vim_test_key('y') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "abcd");
+	ASSERT_EQ_INT(0, vim_test_clipboard_eq("bc"));
+
+	E.cy = 0;
+	E.cx = 1;
+	ASSERT_TRUE(vim_test_key('v') == 0);
+	ASSERT_TRUE(vim_test_key('d') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "acd");
+	ASSERT_EQ_INT(0, vim_test_clipboard_eq("b"));
+	return 0;
+}
+
+static int test_input_vim_visual_single_cluster_delete_handles_multibyte(void) {
+	static const char cluster_text[] = "e\xCC\x81x";
+	static const char cluster_only[] = "e\xCC\x81";
+
+	add_row(cluster_text);
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('v') == 0);
+	ASSERT_TRUE(vim_test_key('d') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "x");
+	ASSERT_EQ_INT(0, vim_test_clipboard_eq(cluster_only));
+	return 0;
+}
+
 static int test_input_vim_charwise_paste_and_redo(void) {
 	add_row("abc");
 
@@ -467,6 +557,29 @@ static int test_input_vim_charwise_paste_and_redo(void) {
 	ASSERT_ROW_TEXT_EQ(0, "abc");
 	ASSERT_EQ_INT(1, editorRedo());
 	ASSERT_ROW_TEXT_EQ(0, "bcabc");
+	return 0;
+}
+
+static int test_input_vim_default_register_linewise_persists_across_tabs(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("one");
+	add_row("two");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('y') == 0);
+	ASSERT_TRUE(vim_test_key('y') == 0);
+	ASSERT_EQ_INT(0, vim_test_clipboard_eq("one\n"));
+
+	ASSERT_TRUE(editorTabNewEmpty());
+	add_row("target");
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('p') == 0);
+	ASSERT_EQ_INT(2, E.numrows);
+	ASSERT_ROW_TEXT_EQ(0, "target");
+	ASSERT_ROW_TEXT_EQ(1, "one");
 	return 0;
 }
 
@@ -841,7 +954,15 @@ const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_operator_motion_delete_yank_and_change",
          test_input_vim_operator_motion_delete_yank_and_change},
         {"input_vim_linewise_operators_and_paste", test_input_vim_linewise_operators_and_paste},
+        {"input_vim_read_only_tab_rejects_vim_mutations",
+         test_input_vim_read_only_tab_rejects_vim_mutations},
+        {"input_vim_visual_charwise_operations_include_cursor",
+         test_input_vim_visual_charwise_operations_include_cursor},
+        {"input_vim_visual_single_cluster_delete_handles_multibyte",
+         test_input_vim_visual_single_cluster_delete_handles_multibyte},
         {"input_vim_charwise_paste_and_redo", test_input_vim_charwise_paste_and_redo},
+        {"input_vim_default_register_linewise_persists_across_tabs",
+         test_input_vim_default_register_linewise_persists_across_tabs},
         {"input_vim_count_prefixes_motions", test_input_vim_count_prefixes_motions},
         {"input_vim_count_line_operator", test_input_vim_count_line_operator},
         {"input_vim_count_operator_motion_and_delete",

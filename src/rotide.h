@@ -484,12 +484,12 @@ struct editorHistory {
 	X(int, input_vim_pending_g)                                                                \
 	X(int, input_vim_pending_operator)                                                         \
 	X(int, input_vim_pending_operator_g)                                                       \
-	X(int, input_vim_register_linewise)                                                        \
 	X(int, input_vim_count)                                                                    \
 	X(int, input_vim_operator_count)                                                           \
 	X(int, input_vim_active_register)                                                          \
 	X(int, input_vim_pending_register)                                                         \
 	X(int, input_vim_pending_text_object)                                                      \
+	X(int, input_vim_visual_selection_half_open)                                               \
 	X(char *, input_vim_search_query)                                                          \
 	X(int, input_vim_search_direction)
 
@@ -605,6 +605,7 @@ struct editorConfig {
 		size_t len;
 		int linewise;
 	} vim_registers[26];
+	int vim_default_register_linewise;
 
 	/* --- Workspace: tabs --- */
 	struct editorTabState *tabs;

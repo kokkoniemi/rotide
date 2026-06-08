@@ -650,6 +650,11 @@ int editorDispatchSubstituteInBuffer(const char *query, const char *replacement,
 	if (query_len == 0 || E.numrows == 0) {
 		return 0;
 	}
+	if (editorActiveTabIsReadOnly()) {
+		editorSetStatusMsg(editorActiveTabIsUnsupportedFile() ? "File is unsupported"
+		                                                      : "Task log is read-only");
+		return 0;
+	}
 	if (global) {
 		return dispatchReplaceAllInBuffer(query, query_len, replacement, replacement_len);
 	}

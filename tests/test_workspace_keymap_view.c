@@ -1657,6 +1657,71 @@ static int test_editor_keymap_vim_unknown_mode_is_rejected(void) {
 	return 0;
 }
 
+static int test_editor_keymap_vim_structural_key_is_rejected(void) {
+	char dir_template[] = "/tmp/rotide-test-vimkeymap-structural-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	char project_path[512];
+
+	ASSERT_TRUE(dir_path != NULL);
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "normal.search_forward = \"q\"\n"));
+
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_INVALID_PROJECT,
+	              editorKeymapLoadVimBindings(NULL, project_path));
+
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "normal.move_left = \"3\"\n"));
+
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_INVALID_PROJECT,
+	              editorKeymapLoadVimBindings(NULL, project_path));
+
+	add_row("abcdef");
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_EQ_INT(0, keymap_vim_send_key('3'));
+	ASSERT_EQ_INT(0, keymap_vim_send_key('l'));
+	ASSERT_EQ_INT(3, E.cx);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_vim_rebindings_preserve_structural_grammar(void) {
+	char dir_template[] = "/tmp/rotide-test-vimkeymap-grammar-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	char project_path[512];
+
+	ASSERT_TRUE(dir_path != NULL);
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "normal.line_start = \"q\"\n"
+	                                          "normal.insert = \"z\"\n"));
+
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, editorKeymapLoadVimBindings(NULL, project_path));
+
+	add_row("alpha beta gamma zzz");
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_EQ_INT(0, keymap_vim_send_key('1'));
+	ASSERT_EQ_INT(0, keymap_vim_send_key('0'));
+	ASSERT_EQ_INT(0, keymap_vim_send_key('l'));
+	ASSERT_EQ_INT(10, E.cx);
+
+	E.cx = 6;
+	ASSERT_EQ_INT(0, keymap_vim_send_key('d'));
+	ASSERT_EQ_INT(0, keymap_vim_send_key('i'));
+	ASSERT_EQ_INT(0, keymap_vim_send_key('w'));
+	ASSERT_ROW_TEXT_EQ(0, "alpha  gamma zzz");
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 static int test_editor_keymap_vim_project_overrides_global(void) {
 	char dir_template[] = "/tmp/rotide-test-vimkeymap-precedence-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -1805,6 +1870,10 @@ const struct editorTestCase g_workspace_keymap_view_tests[] = {
          test_editor_keymap_vim_unknown_command_is_rejected},
         {"editor_keymap_vim_unknown_mode_is_rejected",
          test_editor_keymap_vim_unknown_mode_is_rejected},
+        {"editor_keymap_vim_structural_key_is_rejected",
+         test_editor_keymap_vim_structural_key_is_rejected},
+        {"editor_keymap_vim_rebindings_preserve_structural_grammar",
+         test_editor_keymap_vim_rebindings_preserve_structural_grammar},
         {"editor_keymap_vim_project_overrides_global",
          test_editor_keymap_vim_project_overrides_global},
         {"editor_keymap_vim_bindings_ignored_when_cua_active",
