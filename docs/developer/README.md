@@ -1,6 +1,7 @@
 # RotIDE Developer Documentation
 
-For maintainers changing behavior. The root README is user-facing.
+For maintainers changing behavior. The root README is user-facing; day-to-day
+usage lives in the [user guide](../user/README.md).
 
 ## Start here
 
@@ -17,7 +18,8 @@ For maintainers changing behavior. The root README is user-facing.
 - [Testing](testing.md): test model, validation layers, fuzzing, golden
   snapshots, metrics, and how to add coverage.
 - [Metrics dashboard](metrics-dashboard.md): live SVG trend charts for the
-  test suite, microbenches, and fuzz targets (auto-updated nightly).
+  test suite, microbenches, fuzz targets, and lines of code (test/bench/fuzz
+  series update nightly; the lines-of-code series updates per push to `main`).
 
 ## Diagrams
 

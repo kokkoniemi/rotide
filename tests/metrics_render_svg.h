@@ -40,6 +40,8 @@ void editorMetricsRollingMedian(const double *in, int n_points, int window, doub
  *   bench-<sanitized_name>.svg
  *   fuzz-<target>-cov.svg
  *   fuzz-<target>-corpus.svg
+ *   loc-first-party-by-domain.svg / loc-first-party-total.svg
+ *   loc-churn-by-domain.svg / loc-vendor.svg / loc-tests.svg
  * `points_limit` caps points-per-series (<=0 → 30, hard cap 60). Filter
  * fields on `opts` are honored. Returns the number of SVG files written,
  * or -1 on I/O failure. */

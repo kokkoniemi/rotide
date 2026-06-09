@@ -120,7 +120,13 @@ Any target that runs tests, benches, or fuzz smoke can append metrics:
 make test METRICS_OUT=tests/metrics.jsonl
 make bench METRICS_OUT=tests/metrics.jsonl
 make fuzz-lsp-smoke METRICS_OUT=tests/metrics.jsonl
+make loc METRICS_OUT=tests/metrics.jsonl
 ```
+
+`make loc` emits one `loc` row per scope/domain (first-party subsystem, tests,
+each vendored library) for the lines-of-code trend. It skips emission when no
+tracked source changed since the previous sample; `ROTIDE_LOC_FORCE=1` overrides
+for a manual run.
 
 Rows are JSON Lines. CI sets `ROTIDE_METRICS_GIT_SHA`,
 `ROTIDE_METRICS_GIT_REF`, and `ROTIDE_METRICS_CI_RUN_ID` so rows can be
@@ -137,7 +143,8 @@ make build/tests/metrics_summary
 ```
 
 The `render-svg` subcommand emits one SVG line chart per series (bench
-p50/p95, fuzz coverage edges, fuzz corpus bytes). CI publishes the SVGs to
+p50/p95, fuzz coverage edges, fuzz corpus bytes, lines of code by domain /
+total / churn, with vendored code on a separate chart). CI publishes the SVGs to
 a `metrics-assets` orphan branch and embeds them in the run's step summary
 via stable raw.githubusercontent.com URLs; the same `latest/` copy backs
 the trend dashboard in [testing.md](testing.md#latest-trends-auto-updated-by-ci).

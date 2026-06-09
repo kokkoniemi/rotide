@@ -705,9 +705,18 @@ docs-media:
 docs-diagrams:
 	$(call LOG,DOCS,diagrams)scripts/render_docs_diagrams.sh
 
+# Lines-of-code metrics. Emits one kind="loc" row per scope/domain (first-party
+# subsystem, tests, and each vendored library, kept separate). With METRICS_OUT
+# set the rows append there for the SVG dashboard, exactly like `make bench`:
+#   make loc METRICS_OUT=tests/metrics.jsonl
+# Skips emission when no tracked source changed since the previous sample (see
+# scripts/count_loc.sh); ROTIDE_LOC_FORCE=1 overrides for a manual run.
+loc:
+	$(call LOG,LOC,count)METRICS_OUT="$(METRICS_OUT)" scripts/count_loc.sh
+
 -include $(DEPFILES)
 
-.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams bench-buffer bench bench-render-once format format-check lint lint-prefixes lint-check fuzz-vterm fuzz-vterm-smoke fuzz-vterm-nightly fuzz-lsp fuzz-lsp-smoke fuzz-lsp-nightly fuzz-dap fuzz-dap-smoke fuzz-dap-nightly fuzz-toml-theme fuzz-toml-theme-smoke fuzz-toml-theme-nightly update-goldens
+.PHONY: clean test test-sanitize test-text-tree-deep-check test-determinism test-tsan test-crash-handler test-quarantine-age test-quarantine-passing release docs-media docs-diagrams loc bench-buffer bench bench-render-once format format-check lint lint-prefixes lint-check fuzz-vterm fuzz-vterm-smoke fuzz-vterm-nightly fuzz-lsp fuzz-lsp-smoke fuzz-lsp-nightly fuzz-dap fuzz-dap-smoke fuzz-dap-nightly fuzz-toml-theme fuzz-toml-theme-smoke fuzz-toml-theme-nightly update-goldens
 
 clean:
 	$(call LOG,CLEAN,$(BUILD_DIR))rm -rf $(BUILD_DIR)
