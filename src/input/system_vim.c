@@ -140,10 +140,43 @@ static struct vimBindableCommand g_vim_commands[] = {
 
 static const size_t g_vim_command_count = sizeof(g_vim_commands) / sizeof(g_vim_commands[0]);
 
+/* Leader sequences: `<leader>` followed by one key dispatches an editor action.
+ * Leader is space by default; the second key indexes this table. */
+#define VIM_SYSTEM_LEADER_DEFAULT ' '
+
+struct vimLeaderBinding {
+	int key;
+	enum editorAction action;
+};
+
+static const struct vimLeaderBinding g_vim_leader_map[] = {
+        {'p', EDITOR_ACTION_FIND_FILE},
+        {'f', EDITOR_ACTION_PROJECT_SEARCH},
+        {'e', EDITOR_ACTION_TOGGLE_DRAWER},
+        {'m', EDITOR_ACTION_MAIN_MENU},
+};
+
+static const size_t g_vim_leader_count = sizeof(g_vim_leader_map) / sizeof(g_vim_leader_map[0]);
+
+static int g_vim_leader_key = VIM_SYSTEM_LEADER_DEFAULT;
+
 void editorVimKeymapResetDefaults(void) {
 	for (size_t i = 0; i < g_vim_command_count; i++) {
 		g_vim_commands[i].bound_key = g_vim_commands[i].canonical_key;
 	}
+	g_vim_leader_key = VIM_SYSTEM_LEADER_DEFAULT;
+}
+
+static int vimSystemLeaderLookup(int c, enum editorAction *action_out) {
+	for (size_t i = 0; i < g_vim_leader_count; i++) {
+		if (g_vim_leader_map[i].key == c) {
+			if (action_out != NULL) {
+				*action_out = g_vim_leader_map[i].action;
+			}
+			return 1;
+		}
+	}
+	return 0;
 }
 
 static enum vimSystemMode vimSystemRemapLookupMode(enum vimSystemMode mode) {
@@ -185,6 +218,7 @@ static void vimSystemResetPending(void) {
 	E.input_vim_active_register = 0;
 	E.input_vim_pending_register = 0;
 	E.input_vim_pending_text_object = 0;
+	E.input_vim_pending_leader = 0;
 	E.input_vim_visual_selection_half_open = 0;
 }
 
@@ -1634,6 +1668,19 @@ static int vimSystemHandleNormalKey(int c, int *effects_out) {
 		}
 		return 0;
 	}
+	if (E.input_vim_pending_leader) {
+		enum editorAction action = EDITOR_ACTION_COUNT;
+		int return_now = 0;
+		vimSystemResetPending();
+		if (c != '\x1b' && vimSystemLeaderLookup(c, &action)) {
+			int mapped_effects = EDITOR_INPUT_KEY_EFFECT_NONE;
+			return_now = editorDispatchProcessMappedAction(action, &mapped_effects);
+			if (effects_out != NULL) {
+				*effects_out |= mapped_effects;
+			}
+		}
+		return return_now;
+	}
 	if (E.input_vim_pending_operator != VIM_SYSTEM_OPERATOR_NONE &&
 	    vimSystemPendingOperatorKeyIsStructural(c)) {
 		return vimSystemHandlePendingOperatorKey(c, effects_out);
@@ -1650,6 +1697,11 @@ static int vimSystemHandleNormalKey(int c, int *effects_out) {
 	}
 	if (c == '"') {
 		E.input_vim_pending_register = 1;
+		return 0;
+	}
+	if (c == g_vim_leader_key) {
+		vimSystemResetPending();
+		E.input_vim_pending_leader = 1;
 		return 0;
 	}
 

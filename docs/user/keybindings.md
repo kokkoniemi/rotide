@@ -33,6 +33,16 @@ many of these chords (save/quit/tabs/drawer/panes) still apply in Vim too.
 - `Ctrl-Up` / `Ctrl-Down`: scroll the viewport up/down without moving the cursor
 - arrows, home/end, page up/page down: movement and viewport navigation
 
+## Vim leader bindings
+
+In the Vim system, Normal mode supports a leader key (Space by default) followed
+by one key:
+
+- `<leader>p`: search files by name
+- `<leader>f`: search text across the project
+- `<leader>e`: toggle the drawer (explorer)
+- `<leader>m`: open the main menu
+
 `eslint_fix`, `scroll_left`, `scroll_right`, `toggle_selection` (modal keyboard
 selection, superseded by Shift+move), and `resize_drawer_narrow`/
 `resize_drawer_widen` are configurable actions without default bindings in the

@@ -489,6 +489,7 @@ struct editorHistory {
 	X(int, input_vim_active_register)                                                          \
 	X(int, input_vim_pending_register)                                                         \
 	X(int, input_vim_pending_text_object)                                                      \
+	X(int, input_vim_pending_leader)                                                           \
 	X(int, input_vim_visual_selection_half_open)                                               \
 	X(char *, input_vim_search_query)                                                          \
 	X(int, input_vim_search_direction)
