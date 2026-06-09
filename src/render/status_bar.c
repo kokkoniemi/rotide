@@ -345,7 +345,10 @@ int editorDrawStatusBar(struct writeBuf *wb, int scroll_progress_percent) {
 		}
 		colored = color_idx >= 0 && color_idx < EDITOR_THEME_ANSI_COUNT;
 		if (colored) {
-			struct editorThemeColor bg = editorThemeResolveAnsi((unsigned)color_idx, 0);
+			struct editorThemeColor bg = E.theme.status_segment_bg[color_idx];
+			if (editorThemeColorIsDefault(bg)) {
+				bg = editorThemeResolveAnsi((unsigned)color_idx, 0);
+			}
 			struct editorThemeColor fg = E.theme.styles[EDITOR_THEME_STYLE_STATUS].bg;
 			if (editorThemeColorIsDefault(fg)) {
 				fg = editorThemeResolveAnsi(EDITOR_THEME_ANSI_BRIGHT_WHITE, 1);
