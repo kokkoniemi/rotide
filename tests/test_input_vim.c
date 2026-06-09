@@ -1009,6 +1009,69 @@ static int test_input_vim_leader_subkey_inert_without_leader(void) {
 	return 0;
 }
 
+static int test_input_vim_g_prefix_lsp_drawer(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("hello");
+	ASSERT_TRUE(vim_test_activate());
+
+	ASSERT_TRUE(vim_test_key('g') == 0);
+	(void)vim_test_key('S');
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_LSP, E.drawer_mode);
+	return 0;
+}
+
+static int test_input_vim_gg_goes_to_first_line(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("one");
+	add_row("two");
+	add_row("three");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 2;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('g') == 0);
+	ASSERT_TRUE(vim_test_key('g') == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	return 0;
+}
+
+/* `gd` dispatches go-to-definition; it must not be read as `g` then a `d`
+ * delete operator (which would leave a pending operator / mutate the buffer). */
+static int test_input_vim_gd_does_not_start_operator(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("abc");
+	add_row("def");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('g') == 0);
+	(void)vim_test_key('d');
+	/* No pending operator: VIM_SYSTEM_OPERATOR_NONE is 0 (file-local enum). */
+	ASSERT_EQ_INT(0, E.input_vim_pending_operator);
+	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
+	ASSERT_ROW_TEXT_EQ(0, "abc");
+	ASSERT_ROW_TEXT_EQ(1, "def");
+	return 0;
+}
+
+static int test_input_vim_operator_gg_still_deletes_to_top(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("one");
+	add_row("two");
+	add_row("three");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 1;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('d') == 0);
+	ASSERT_TRUE(vim_test_key('g') == 0);
+	ASSERT_TRUE(vim_test_key('g') == 0);
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_ROW_TEXT_EQ(0, "three");
+	return 0;
+}
+
 const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_activation_starts_normal", test_input_vim_activation_starts_normal},
         {"input_vim_reset_returns_to_normal", test_input_vim_reset_returns_to_normal},
@@ -1020,6 +1083,11 @@ const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_leader_escape_cancels", test_input_vim_leader_escape_cancels},
         {"input_vim_leader_subkey_inert_without_leader",
          test_input_vim_leader_subkey_inert_without_leader},
+        {"input_vim_g_prefix_lsp_drawer", test_input_vim_g_prefix_lsp_drawer},
+        {"input_vim_gg_goes_to_first_line", test_input_vim_gg_goes_to_first_line},
+        {"input_vim_gd_does_not_start_operator", test_input_vim_gd_does_not_start_operator},
+        {"input_vim_operator_gg_still_deletes_to_top",
+         test_input_vim_operator_gg_still_deletes_to_top},
         {"input_vim_normal_text_does_not_insert", test_input_vim_normal_text_does_not_insert},
         {"input_vim_insert_mode_inserts_until_escape",
          test_input_vim_insert_mode_inserts_until_escape},

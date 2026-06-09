@@ -46,6 +46,17 @@ by one key:
 The leader key (`normal.leader`) and each sub-key (`leader.<command>`) are
 configurable under `[keymap.vim]`; see `config.toml.example`.
 
+## Vim `g`-prefix navigation
+
+In Normal mode, `g` followed by a second key runs LSP navigation (where the
+buffer's language server provides it):
+
+- `gd`: go to definition
+- `gi`: go to implementation
+- `gs`: go to symbol
+- `gS`: show the LSP Problems/Symbols drawer
+- `gg`: go to the first line (unchanged)
+
 `eslint_fix`, `scroll_left`, `scroll_right`, `toggle_selection` (modal keyboard
 selection, superseded by Shift+move), and `resize_drawer_narrow`/
 `resize_drawer_widen` are configurable actions without default bindings in the

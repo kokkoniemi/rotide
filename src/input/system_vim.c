@@ -185,6 +185,34 @@ static int vimSystemLeaderLookup(int c, enum editorAction *action_out) {
 	return 0;
 }
 
+/* `g`-prefixed LSP navigation: the second key of a `g` sequence that maps to an
+ * editor action (`gd`, `gi`, `gs`, `gS`). `gg` and any other key fall through to
+ * the motion parser. */
+static int vimSystemGPrefixAction(int c, enum editorAction *action_out) {
+	enum editorAction action;
+
+	switch (c) {
+		case 'd':
+			action = EDITOR_ACTION_GOTO_DEFINITION;
+			break;
+		case 'i':
+			action = EDITOR_ACTION_GOTO_IMPLEMENTATION;
+			break;
+		case 's':
+			action = EDITOR_ACTION_GOTO_SYMBOL;
+			break;
+		case 'S':
+			action = EDITOR_ACTION_LSP_DRAWER;
+			break;
+		default:
+			return 0;
+	}
+	if (action_out != NULL) {
+		*action_out = action;
+	}
+	return 1;
+}
+
 static enum vimSystemMode vimSystemRemapLookupMode(enum vimSystemMode mode) {
 	return mode == VIM_SYSTEM_MODE_VISUAL_LINE ? VIM_SYSTEM_MODE_VISUAL : mode;
 }
@@ -1686,6 +1714,19 @@ static int vimSystemHandleNormalKey(int c, int *effects_out) {
 			}
 		}
 		return return_now;
+	}
+	if (E.input_vim_pending_g) {
+		enum editorAction action = EDITOR_ACTION_COUNT;
+		if (vimSystemGPrefixAction(c, &action)) {
+			int mapped_effects = EDITOR_INPUT_KEY_EFFECT_NONE;
+			int return_now = 0;
+			vimSystemResetPending();
+			return_now = editorDispatchProcessMappedAction(action, &mapped_effects);
+			if (effects_out != NULL) {
+				*effects_out |= mapped_effects;
+			}
+			return return_now;
+		}
 	}
 	if (E.input_vim_pending_operator != VIM_SYSTEM_OPERATOR_NONE &&
 	    vimSystemPendingOperatorKeyIsStructural(c)) {
