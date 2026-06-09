@@ -1,3 +1,4 @@
+#include "config/common.h"
 #include "config/input_config.h"
 #include "config/keymap.h"
 #include "config/runtime_config.h"
@@ -8,6 +9,7 @@
 #include "test_helpers.h"
 #include "test_support.h"
 
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
