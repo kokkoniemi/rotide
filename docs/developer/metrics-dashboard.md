@@ -3,11 +3,11 @@
 Trend charts for the rotide test suite, microbenches, and fuzz targets,
 rendered as SVG by `metrics_summary render-svg`.
 
-Cadence differs by series. The **test-suite** charts advance on every CI run:
-each push appends a `test_run` row to the rolling history and re-renders the
-dashboard, and a push to `main` updates the embedded `latest/` copies
-([ci.yml](../../.github/workflows/ci.yml)). The **bench** and **fuzz** charts
-advance nightly at 03:17 UTC, when the [nightly
+Cadence differs by series. The **test-suite** and **lines-of-code** charts
+advance on every CI run: each push appends `test_run` / `loc` rows to the
+rolling history and re-renders the dashboard, and a push to `main` updates the
+embedded `latest/` copies ([ci.yml](../../.github/workflows/ci.yml)). The
+**bench** and **fuzz** charts advance nightly at 03:17 UTC, when the [nightly
 workflow](../../.github/workflows/nightly.yml) adds those rows and re-renders
 (also on-demand via its `workflow_dispatch`). The nightly run also produces the
 flakiness row from the `--repeat` flake-hunt soak.
@@ -31,6 +31,29 @@ For how the SVGs are produced and where they live, see
 | Stability | Flakiness |
 |---|---|
 | ![test stability](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/test-stability.svg) | ![test flakiness](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/test-flakes.svg) |
+
+## Lines of code
+
+Sampled per push to `main` (via [`make loc`](../../scripts/count_loc.sh)), so an
+idle period adds no points and the line only moves when code actually changes.
+First-party and vendored code are on separate charts/scales — `vendor/tree_sitter`
+alone is ~8.5M lines of generated parser tables and would otherwise crush the
+first-party scale. The **by-domain** chart shows which subsystems are large and
+how each evolves; the **churn** chart (added + deleted per domain) stays nonzero
+whenever work happens, so it surfaces activity the size chart flattens (e.g. an
+equal create+delete within one domain).
+
+| First-party by domain | First-party total |
+|---|---|
+| ![loc first-party by domain](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/loc-first-party-by-domain.svg) | ![loc first-party total](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/loc-first-party-total.svg) |
+
+| Churn by domain (added + deleted) | Test suite |
+|---|---|
+| ![loc churn by domain](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/loc-churn-by-domain.svg) | ![loc tests](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/loc-tests.svg) |
+
+| Vendored (separate scale) | |
+|---|---|
+| ![loc vendored](https://raw.githubusercontent.com/kokkoniemi/rotide/metrics-assets/latest/loc-vendor.svg) | |
 
 ## Benchmarks (min / p50 / p95)
 

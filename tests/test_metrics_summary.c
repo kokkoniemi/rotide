@@ -78,6 +78,26 @@ static int test_parse_fuzz_row(void) {
 	return 0;
 }
 
+static int test_parse_loc_row(void) {
+	const char *line = "{\"kind\":\"loc\",\"ts\":\"2026-06-08T12:00:00Z\","
+	                   "\"scope\":\"first_party\",\"domain\":\"language\","
+	                   "\"code_lines\":13500,\"comment_lines\":1200,"
+	                   "\"blank_lines\":900,\"files\":42,"
+	                   "\"lines_added\":500,\"lines_deleted\":40}";
+	struct editorMetricsRow r;
+	ASSERT_EQ_INT(1, editorMetricsRowParse(line, &r));
+	ASSERT_TRUE(r.kind == EDITOR_METRICS_KIND_LOC);
+	ASSERT_EQ_STR("first_party", r.loc_scope);
+	ASSERT_EQ_STR("language", r.loc_domain);
+	ASSERT_EQ_INT(13500, (int)r.code_lines);
+	ASSERT_EQ_INT(1200, (int)r.comment_lines);
+	ASSERT_EQ_INT(900, (int)r.blank_lines);
+	ASSERT_EQ_INT(42, (int)r.loc_files);
+	ASSERT_EQ_INT(500, (int)r.lines_added);
+	ASSERT_EQ_INT(40, (int)r.lines_deleted);
+	return 0;
+}
+
 static int test_parse_rejects_missing_kind(void) {
 	const char *line = "{\"ts\":\"2026-05-19T13:00:00Z\",\"x\":1}";
 	struct editorMetricsRow r;
@@ -477,6 +497,7 @@ const struct editorTestCase g_metrics_summary_tests[] = {
         {"metrics_parse_test_run_row", test_parse_test_run_row},
         {"metrics_parse_bench_row", test_parse_bench_row},
         {"metrics_parse_fuzz_row", test_parse_fuzz_row},
+        {"metrics_parse_loc_row", test_parse_loc_row},
         {"metrics_parse_rejects_missing_kind", test_parse_rejects_missing_kind},
         {"metrics_parse_rejects_missing_ts", test_parse_rejects_missing_ts},
         {"metrics_parse_unknown_kind_keeps_ts", test_parse_unknown_kind_keeps_ts},

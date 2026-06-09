@@ -6,7 +6,7 @@
  *
  * Common options:
  *   --in PATH              input JSONL (default: tests/metrics.jsonl)
- *   --kind KIND            filter to one kind (test_run|bench|fuzz)
+ *   --kind KIND            filter to one kind (test_run|bench|fuzz|loc)
  *   --target NAME          filter fuzz rows
  *   --bench-name NAME      filter bench rows
  *   --since-hours N        only consider rows newer than N hours ago
@@ -52,6 +52,10 @@ static int parse_kind(const char *s, enum editorMetricsKind *out) {
 	}
 	if (strcmp(s, "fuzz") == 0) {
 		*out = EDITOR_METRICS_KIND_FUZZ;
+		return 1;
+	}
+	if (strcmp(s, "loc") == 0) {
+		*out = EDITOR_METRICS_KIND_LOC;
 		return 1;
 	}
 	return 0;

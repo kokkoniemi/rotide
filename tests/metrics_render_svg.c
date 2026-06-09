@@ -523,6 +523,220 @@ static int writeSvgFile(const char *out_dir, const char *filename, const char *t
 	return 0;
 }
 
+/* LOC charts differ from bench/fuzz: a single chart carries one line per
+ * domain sharing a common x-axis (the sample timeline), rather than one
+ * chart per key. The timeline is the set of distinct sample timestamps for
+ * a scope; each domain's code_lines/churn is aligned onto it (carry-forward
+ * fills a sample where a domain emitted no row). Vendored and first-party
+ * are separate scopes so they never share a chart or y-scale. */
+#define LOC_MAX_DOMAINS 32
+
+static const char *const LOC_PALETTE[] = {
+        "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b",
+        "#e377c2", "#7f7f7f", "#bcbd22", "#17becf", "#393b79", "#637939",
+};
+#define LOC_PALETTE_N ((int)(sizeof(LOC_PALETTE) / sizeof(LOC_PALETTE[0])))
+
+struct locTimeline {
+	int n_samples;
+	int n_domains;
+	char domains[LOC_MAX_DOMAINS][64];
+	struct editorMetricsRow *rep[RENDER_MAX_POINTS]; /* one row per sample, for labels */
+	double code[LOC_MAX_DOMAINS][RENDER_MAX_POINTS];
+	double churn[LOC_MAX_DOMAINS][RENDER_MAX_POINTS];
+};
+
+/* Build the per-scope timeline. Returns NULL (and writes nothing) when the
+ * scope has no rows. Caller frees with free(). */
+static struct locTimeline *locTimelineBuild(const struct editorMetricsRow *rows, int count,
+                                            const struct editorMetricsCmdOptions *opts,
+                                            const char *scope, int points_limit) {
+	struct editorMetricsRow **g = (struct editorMetricsRow **)malloc(
+	        (size_t)(count > 0 ? count : 1) * sizeof(struct editorMetricsRow *));
+	if (g == NULL) {
+		return NULL;
+	}
+	int gc = 0;
+	for (int i = 0; i < count; i++) {
+		const struct editorMetricsRow *r = &rows[i];
+		if (r->kind != EDITOR_METRICS_KIND_LOC || !rowPassesFilters(r, opts)) {
+			continue;
+		}
+		if (strcmp(r->loc_scope, scope) != 0 || r->loc_domain[0] == '\0') {
+			continue;
+		}
+		g[gc++] = (struct editorMetricsRow *)r;
+	}
+	if (gc == 0) {
+		free(g);
+		return NULL;
+	}
+	qsort(g, (size_t)gc, sizeof(struct editorMetricsRow *), compareByTsPtr);
+
+	struct locTimeline *tl = (struct locTimeline *)calloc(1, sizeof(*tl));
+	long long *dts = (long long *)malloc((size_t)gc * sizeof(*dts));
+	struct editorMetricsRow **drep =
+	        (struct editorMetricsRow **)malloc((size_t)gc * sizeof(struct editorMetricsRow *));
+	if (tl == NULL || dts == NULL || drep == NULL) {
+		free(tl);
+		free(dts);
+		free(drep);
+		free(g);
+		return NULL;
+	}
+
+	/* Distinct domains, then sorted for a stable legend and color mapping. */
+	for (int i = 0; i < gc; i++) {
+		const char *d = g[i]->loc_domain;
+		int seen = 0;
+		for (int j = 0; j < tl->n_domains; j++) {
+			if (strcmp(tl->domains[j], d) == 0) {
+				seen = 1;
+				break;
+			}
+		}
+		if (!seen && tl->n_domains < LOC_MAX_DOMAINS) {
+			(void)snprintf(tl->domains[tl->n_domains], sizeof(tl->domains[0]), "%s", d);
+			tl->n_domains++;
+		}
+	}
+	for (int a = 1; a < tl->n_domains; a++) {
+		char tmp[64];
+		memcpy(tmp, tl->domains[a], sizeof(tmp));
+		int b = a - 1;
+		while (b >= 0 && strcmp(tl->domains[b], tmp) > 0) {
+			memmove(tl->domains[b + 1], tl->domains[b], sizeof(tl->domains[0]));
+			b--;
+		}
+		memcpy(tl->domains[b + 1], tmp, sizeof(tl->domains[0]));
+	}
+
+	/* Distinct samples by timestamp (rows are ts-sorted, so equal ts are
+	 * adjacent), then window to the most recent points_limit. */
+	int nd = 0;
+	for (int i = 0; i < gc; i++) {
+		if (nd == 0 || g[i]->ts_unix != dts[nd - 1]) {
+			dts[nd] = g[i]->ts_unix;
+			drep[nd] = g[i];
+			nd++;
+		}
+	}
+	int start = nd > points_limit ? nd - points_limit : 0;
+	tl->n_samples = nd - start;
+	for (int s = 0; s < tl->n_samples; s++) {
+		tl->rep[s] = drep[start + s];
+	}
+
+	char touched[LOC_MAX_DOMAINS][RENDER_MAX_POINTS];
+	memset(touched, 0, sizeof(touched));
+	for (int i = 0; i < gc; i++) {
+		if (g[i]->ts_unix < dts[start]) {
+			continue;
+		}
+		int di = -1;
+		for (int j = 0; j < tl->n_domains; j++) {
+			if (strcmp(tl->domains[j], g[i]->loc_domain) == 0) {
+				di = j;
+				break;
+			}
+		}
+		int si = -1;
+		for (int s = 0; s < tl->n_samples; s++) {
+			if (tl->rep[s]->ts_unix == g[i]->ts_unix) {
+				si = s;
+				break;
+			}
+		}
+		if (di < 0 || si < 0) {
+			continue;
+		}
+		tl->code[di][si] = (double)g[i]->code_lines;
+		tl->churn[di][si] = (double)(g[i]->lines_added + g[i]->lines_deleted);
+		touched[di][si] = 1;
+	}
+	/* Carry forward the last known size into samples a domain skipped, so the
+	 * line stays at its real level rather than dropping to zero. Churn left at
+	 * 0 for a skipped sample is correct (no change recorded). */
+	for (int d = 0; d < tl->n_domains; d++) {
+		double last = 0;
+		int have = 0;
+		for (int s = 0; s < tl->n_samples; s++) {
+			if (touched[d][s]) {
+				last = tl->code[d][s];
+				have = 1;
+			} else if (have) {
+				tl->code[d][s] = last;
+			}
+		}
+	}
+
+	free(dts);
+	free(drep);
+	free(g);
+	return tl;
+}
+
+/* One line per domain (code_lines, or added+deleted churn when `churn`). */
+static void locWriteByDomain(const struct locTimeline *tl, const char *out_dir, FILE *manifest,
+                             const char *fname, const char *title, int churn, int *n_written) {
+	if (tl->n_samples < 2 || tl->n_domains < 1) {
+		return;
+	}
+	char *label_buf = NULL;
+	const char **labels =
+	        buildDateLabels((struct editorMetricsRow **)tl->rep, tl->n_samples, &label_buf);
+	struct editorSvgSeries *ser =
+	        (struct editorSvgSeries *)malloc((size_t)tl->n_domains * sizeof(*ser));
+	if (labels == NULL || ser == NULL) {
+		free(ser);
+		free((void *)labels);
+		free(label_buf);
+		return;
+	}
+	for (int d = 0; d < tl->n_domains; d++) {
+		ser[d].values = churn ? tl->churn[d] : tl->code[d];
+		ser[d].label = tl->domains[d];
+		ser[d].color = LOC_PALETTE[d % LOC_PALETTE_N];
+	}
+	if (writeSvgFile(out_dir, fname, title, "lines", labels, tl->n_samples, ser,
+	                 tl->n_domains) == 0) {
+		(void)fprintf(manifest, "%s\n", fname);
+		(*n_written)++;
+	}
+	free(ser);
+	free((void *)labels);
+	free(label_buf);
+}
+
+/* Single line summing code_lines across all of a scope's domains. */
+static void locWriteTotal(const struct locTimeline *tl, const char *out_dir, FILE *manifest,
+                          const char *fname, const char *title, double *scratch, int *n_written) {
+	if (tl->n_samples < 2) {
+		return;
+	}
+	for (int s = 0; s < tl->n_samples; s++) {
+		double sum = 0;
+		for (int d = 0; d < tl->n_domains; d++) {
+			sum += tl->code[d][s];
+		}
+		scratch[s] = sum;
+	}
+	char *label_buf = NULL;
+	const char **labels =
+	        buildDateLabels((struct editorMetricsRow **)tl->rep, tl->n_samples, &label_buf);
+	if (labels == NULL) {
+		free(label_buf);
+		return;
+	}
+	struct editorSvgSeries ser = {scratch, "code lines", COLOR_PRIMARY};
+	if (writeSvgFile(out_dir, fname, title, "lines", labels, tl->n_samples, &ser, 1) == 0) {
+		(void)fprintf(manifest, "%s\n", fname);
+		(*n_written)++;
+	}
+	free((void *)labels);
+	free(label_buf);
+}
+
 int editorMetricsCmdRenderSvg(const struct editorMetricsRow *rows, int count,
                               const struct editorMetricsCmdOptions *opts, int points_limit,
                               const char *out_dir) {
@@ -850,6 +1064,36 @@ int editorMetricsCmdRenderSvg(const struct editorMetricsRow *rows, int count,
 			free(label_buf);
 		}
 		free(keys);
+	}
+
+	if (opts->kind_filter == EDITOR_METRICS_KIND_UNKNOWN ||
+	    opts->kind_filter == EDITOR_METRICS_KIND_LOC) {
+		struct locTimeline *fp =
+		        locTimelineBuild(rows, count, opts, "first_party", points_limit);
+		if (fp != NULL) {
+			locWriteByDomain(fp, out_dir, manifest, "loc-first-party-by-domain.svg",
+			                 "First-party lines by domain", 0, &n_written);
+			locWriteTotal(fp, out_dir, manifest, "loc-first-party-total.svg",
+			              "First-party lines (total)", bufs[0], &n_written);
+			locWriteByDomain(fp, out_dir, manifest, "loc-churn-by-domain.svg",
+			                 "Churn by domain (added + deleted)", 1, &n_written);
+			free(fp);
+		}
+		/* Vendored code on its own chart/scale — tree_sitter alone dwarfs all
+		 * first-party domains, so it must never share a y-axis with them. */
+		struct locTimeline *vn =
+		        locTimelineBuild(rows, count, opts, "vendor", points_limit);
+		if (vn != NULL) {
+			locWriteByDomain(vn, out_dir, manifest, "loc-vendor.svg",
+			                 "Vendored lines by library", 0, &n_written);
+			free(vn);
+		}
+		struct locTimeline *ts = locTimelineBuild(rows, count, opts, "tests", points_limit);
+		if (ts != NULL) {
+			locWriteTotal(ts, out_dir, manifest, "loc-tests.svg",
+			              "Test suite lines (total)", bufs[0], &n_written);
+			free(ts);
+		}
 	}
 
 	(void)fclose(manifest);

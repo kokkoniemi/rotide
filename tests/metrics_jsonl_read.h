@@ -14,6 +14,7 @@ enum editorMetricsKind {
 	EDITOR_METRICS_KIND_TEST_RUN,
 	EDITOR_METRICS_KIND_BENCH,
 	EDITOR_METRICS_KIND_FUZZ,
+	EDITOR_METRICS_KIND_LOC,
 };
 
 struct editorMetricsRow {
@@ -61,6 +62,20 @@ struct editorMetricsRow {
 	long long executed_units;
 	long long new_units_added;
 	long long runtime_seconds;
+
+	/* loc — one row per scope/domain pair. `loc_scope` separates vendored
+	 * code from first-party so the two never sum together; `loc_domain` is
+	 * the subsystem (e.g. "input", "language") or vendored library. The
+	 * churn fields are insertions/deletions since the previous sample, so
+	 * activity stays visible even when code_lines nets flat. */
+	char loc_scope[16];  /* "first_party" | "vendor" | "tests" */
+	char loc_domain[64]; /* "input", "language", "tree_sitter", ... */
+	long long code_lines;
+	long long comment_lines;
+	long long blank_lines;
+	long long loc_files;
+	long long lines_added;
+	long long lines_deleted;
 };
 
 void editorMetricsRowInit(struct editorMetricsRow *row);

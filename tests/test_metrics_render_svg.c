@@ -633,6 +633,94 @@ static int test_cmd_render_kind_filter(void) {
 	return 0;
 }
 
+static void seed_loc(struct editorMetricsRow *r, const char *iso_date, const char *scope,
+                     const char *domain, long long code, long long added, long long deleted) {
+	editorMetricsRowInit(r);
+	r->kind = EDITOR_METRICS_KIND_LOC;
+	(void)snprintf(r->ts, sizeof(r->ts), "%sT12:00:00Z", iso_date);
+	r->ts_unix = iso_date_to_unix(iso_date);
+	(void)snprintf(r->loc_scope, sizeof(r->loc_scope), "%s", scope);
+	(void)snprintf(r->loc_domain, sizeof(r->loc_domain), "%s", domain);
+	r->code_lines = code;
+	r->lines_added = added;
+	r->lines_deleted = deleted;
+}
+
+static int test_cmd_render_loc_charts_separate_vendor(void) {
+	const char *dates[3] = {"2026-06-01", "2026-06-05", "2026-06-08"};
+	struct editorMetricsRow rows[15];
+	int k = 0;
+	for (int i = 0; i < 3; i++) {
+		/* Intra-domain create==delete on "language": code_lines stays flat
+		 * while churn (added+deleted) is nonzero — the case the size chart
+		 * flattens and the churn chart must still surface. */
+		seed_loc(&rows[k++], dates[i], "first_party", "input", 10000 + i * 50, 50, 0);
+		seed_loc(&rows[k++], dates[i], "first_party", "language", 13000, 40, 40);
+		seed_loc(&rows[k++], dates[i], "vendor", "tree_sitter", 8555000, 0, 0);
+		seed_loc(&rows[k++], dates[i], "vendor", "libvterm", 7004, 0, 0);
+		seed_loc(&rows[k++], dates[i], "tests", "tests", 48000 + i * 100, 100, 0);
+	}
+
+	struct editorMetricsCmdOptions opts;
+	editorMetricsCmdOptionsInit(&opts);
+	char dir[64];
+	make_tmpdir(dir, sizeof(dir));
+
+	/* by-domain + total + churn (first_party) + vendor + tests = 5. */
+	int n = editorMetricsCmdRenderSvg(rows, k, &opts, 0, dir);
+	ASSERT_EQ_INT(5, n);
+
+	char p[256];
+	static char body[16384];
+	(void)snprintf(p, sizeof(p), "%s/loc-first-party-by-domain.svg", dir);
+	ASSERT_TRUE(read_file_into(p, body, sizeof(body)));
+	ASSERT_TRUE(strstr(body, ">input</text>") != NULL);
+	ASSERT_TRUE(strstr(body, ">language</text>") != NULL);
+	/* Vendored code lives on its own chart/scale and must never appear here. */
+	ASSERT_TRUE(strstr(body, ">tree_sitter</text>") == NULL);
+
+	(void)snprintf(p, sizeof(p), "%s/loc-vendor.svg", dir);
+	ASSERT_TRUE(read_file_into(p, body, sizeof(body)));
+	ASSERT_TRUE(strstr(body, ">tree_sitter</text>") != NULL);
+	ASSERT_TRUE(strstr(body, ">libvterm</text>") != NULL);
+
+	(void)snprintf(p, sizeof(p), "%s/loc-first-party-total.svg", dir);
+	ASSERT_TRUE(file_exists(p));
+	(void)snprintf(p, sizeof(p), "%s/loc-churn-by-domain.svg", dir);
+	ASSERT_TRUE(file_exists(p));
+	(void)snprintf(p, sizeof(p), "%s/loc-tests.svg", dir);
+	ASSERT_TRUE(file_exists(p));
+
+	(void)rmrf_dir(dir);
+	return 0;
+}
+
+static int test_cmd_render_loc_kind_filter_excludes_others(void) {
+	struct editorMetricsRow rows[4];
+	seed_bench(&rows[0], "2026-06-01", "b", 100, 200);
+	seed_bench(&rows[1], "2026-06-02", "b", 110, 210);
+	seed_loc(&rows[2], "2026-06-01", "first_party", "input", 10000, 0, 0);
+	seed_loc(&rows[3], "2026-06-02", "first_party", "input", 10100, 100, 0);
+
+	struct editorMetricsCmdOptions opts;
+	editorMetricsCmdOptionsInit(&opts);
+	opts.kind_filter = EDITOR_METRICS_KIND_LOC;
+	char dir[64];
+	make_tmpdir(dir, sizeof(dir));
+
+	/* Only loc charts for a single first-party domain: by-domain + total +
+	 * churn. The bench rows are excluded by the kind filter. */
+	int n = editorMetricsCmdRenderSvg(rows, 4, &opts, 0, dir);
+	ASSERT_EQ_INT(3, n);
+	char p[256];
+	(void)snprintf(p, sizeof(p), "%s/loc-first-party-by-domain.svg", dir);
+	ASSERT_TRUE(file_exists(p));
+	(void)snprintf(p, sizeof(p), "%s/bench-b.svg", dir);
+	ASSERT_TRUE(!file_exists(p));
+	(void)rmrf_dir(dir);
+	return 0;
+}
+
 const struct editorTestCase g_metrics_render_svg_tests[] = {
         {"metrics_svg_chart_emits_header_and_polyline", test_chart_emits_svg_header_and_polyline},
         {"metrics_svg_chart_xml_escapes_title", test_chart_xml_escapes_title},
@@ -658,6 +746,9 @@ const struct editorTestCase g_metrics_render_svg_tests[] = {
         {"metrics_svg_cmd_bench_chart_has_min_series", test_cmd_render_bench_chart_has_min_series},
         {"metrics_svg_cmd_fuzz_throughput_zero_runtime_safe",
          test_cmd_render_fuzz_throughput_zero_runtime_safe},
+        {"metrics_svg_cmd_loc_charts_separate_vendor", test_cmd_render_loc_charts_separate_vendor},
+        {"metrics_svg_cmd_loc_kind_filter_excludes_others",
+         test_cmd_render_loc_kind_filter_excludes_others},
 };
 
 const int g_metrics_render_svg_test_count =

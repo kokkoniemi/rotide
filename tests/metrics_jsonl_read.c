@@ -21,6 +21,8 @@ const char *editorMetricsKindName(enum editorMetricsKind k) {
 			return "bench";
 		case EDITOR_METRICS_KIND_FUZZ:
 			return "fuzz";
+		case EDITOR_METRICS_KIND_LOC:
+			return "loc";
 		case EDITOR_METRICS_KIND_UNKNOWN:
 		default:
 			return "unknown";
@@ -174,6 +176,8 @@ int editorMetricsRowParse(const char *line, struct editorMetricsRow *row) {
 		row->kind = EDITOR_METRICS_KIND_BENCH;
 	} else if (strcmp(kind_buf, "fuzz") == 0) {
 		row->kind = EDITOR_METRICS_KIND_FUZZ;
+	} else if (strcmp(kind_buf, "loc") == 0) {
+		row->kind = EDITOR_METRICS_KIND_LOC;
 	} else {
 		row->kind = EDITOR_METRICS_KIND_UNKNOWN;
 	}
@@ -223,6 +227,16 @@ int editorMetricsRowParse(const char *line, struct editorMetricsRow *row) {
 			(void)getInt(line, "executed_units", &row->executed_units);
 			(void)getInt(line, "new_units_added", &row->new_units_added);
 			(void)getInt(line, "runtime_seconds", &row->runtime_seconds);
+			break;
+		case EDITOR_METRICS_KIND_LOC:
+			(void)getString(line, "scope", row->loc_scope, sizeof(row->loc_scope));
+			(void)getString(line, "domain", row->loc_domain, sizeof(row->loc_domain));
+			(void)getInt(line, "code_lines", &row->code_lines);
+			(void)getInt(line, "comment_lines", &row->comment_lines);
+			(void)getInt(line, "blank_lines", &row->blank_lines);
+			(void)getInt(line, "files", &row->loc_files);
+			(void)getInt(line, "lines_added", &row->lines_added);
+			(void)getInt(line, "lines_deleted", &row->lines_deleted);
 			break;
 		default:
 			break;

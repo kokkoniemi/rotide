@@ -235,6 +235,40 @@ jobs:
           path: crash-*
           if-no-files-found: ignore
 
+  loc:
+    # Lines-of-code trend, sampled per push to main only (event-driven, not
+    # nightly) so an idle period adds no points and never paints a flat line.
+    # PRs and other branches are excluded so the trend tracks the mainline
+    # history, not in-flight work. count_loc.sh skips emission when no tracked
+    # source changed since the previous sample.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          # Full history so churn/dedup can diff HEAD against the push's base.
+          fetch-depth: 0
+
+      - name: Install cloc
+        run: sudo apt-get update && sudo apt-get install -y cloc
+
+      - name: Count lines of code
+        run: make loc METRICS_OUT=tests/metrics.jsonl
+        env:
+          # The SHA before this push; absent on PRs, where the script falls
+          # back to HEAD~1. Blank/zero (new branch) → first sample, zero churn.
+          ROTIDE_LOC_BASE_SHA: ${{ github.event.before }}
+
+      - name: Upload metrics row
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: metrics-loc
+          path: tests/metrics.jsonl
+          if-no-files-found: ignore
+
   metrics-summary:
     if: always()
     needs:
@@ -243,6 +277,7 @@ jobs:
       - fuzz-lsp-smoke
       - fuzz-dap-smoke
       - fuzz-toml-theme-smoke
+      - loc
     runs-on: ubuntu-latest
     # contents: write is needed to push SVG dashboards to the metrics-assets
     # orphan branch. Fork PRs receive a read-only token regardless and skip
