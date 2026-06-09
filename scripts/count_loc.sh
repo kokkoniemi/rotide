@@ -11,6 +11,7 @@
 #   scope=vendor      : each vendored library (kept on its own chart/scale)
 # Only git-tracked .c/.h/.cc/.cpp/.hpp files are counted, so generated blobs
 # (e.g. src/rotide.h.gch) never inflate the totals.
+# Requires cloc; missing or unparseable cloc output fails before emitting rows.
 #
 # Per-domain churn (lines added + deleted) since the previous sample is also
 # emitted, so activity stays visible even when code_lines nets flat (e.g. an
@@ -104,32 +105,29 @@ churn_lookup() {  # $1=scope $2=domain → "added deleted" (0 0 if none)
 		"$work/churn"
 }
 
-have_cloc=0
-if command -v cloc >/dev/null 2>&1; then
-	have_cloc=1
+if ! command -v cloc >/dev/null 2>&1; then
+	echo "count_loc: cloc is required" >&2
+	exit 1
 fi
 
 # Count code/comment/blank/files for a bucket's file list ($1). Prints
-# "code comment blank files". Uses cloc when available for the comment/blank
-# split, else falls back to wc (all non-empty content counted as code).
+# "code comment blank files".
 count_bucket() {
 	list="$1"
 	if [ ! -s "$list" ]; then
 		echo "0 0 0 0"
 		return
 	fi
-	files=$(wc -l < "$list" | tr -d ' ')
-	if [ "$have_cloc" -eq 1 ]; then
-		# cloc --csv emits a trailing "SUM,files,blank,comment,code" line.
-		cloc --quiet --csv --list-file="$list" 2>/dev/null \
-			| awk -F, '/^SUM,/ { print $5, $4, $3, $2; found=1 }
-			           END { if (!found) print 0, 0, 0, 0 }'
-		return
-	fi
-	# No comment/blank split without cloc: count every line as code. Summing
-	# via `cat | wc -l` avoids wc's per-file/total ambiguity.
-	code=$(xargs cat < "$list" 2>/dev/null | wc -l | tr -d ' ')
-	echo "$code 0 0 $files"
+	# cloc CSV SUM row: files,SUM,blank,comment,code.
+	counts=$(
+		cloc --quiet --csv --list-file="$list" \
+			| awk -F, '$2=="SUM" { print $5, $4, $3, $1; found=1 }
+			           END { if (!found) exit 1 }'
+	) || {
+		echo "count_loc: could not read cloc SUM for $list" >&2
+		return 1
+	}
+	echo "$counts"
 }
 
 emit() {  # writes one JSONL row to stdout
@@ -157,9 +155,19 @@ emit() {  # writes one JSONL row to stdout
 				grep -E "^vendor/$domain/" "$work/files" > "$work/list" || true ;;
 			*) : > "$work/list" ;;
 		esac
-		set -- $(count_bucket "$work/list")
+		counts=$(count_bucket "$work/list") || exit 1
+		set -- $counts
+		if [ "$#" -ne 4 ]; then
+			echo "count_loc: invalid count output for $scope/$domain: $counts" >&2
+			exit 1
+		fi
 		code="$1"; comment="$2"; blank="$3"; files="$4"
-		set -- $(churn_lookup "$scope" "$domain")
+		churn=$(churn_lookup "$scope" "$domain") || exit 1
+		set -- $churn
+		if [ "$#" -ne 2 ]; then
+			echo "count_loc: invalid churn output for $scope/$domain: $churn" >&2
+			exit 1
+		fi
 		added="$1"; deleted="$2"
 		emit "$scope" "$domain" "$code" "$comment" "$blank" "$files" "$added" "$deleted"
 	done < "$work/buckets"
