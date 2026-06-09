@@ -590,6 +590,10 @@ static int keymapVimParseKeySpec(const char *spec, int *key_out) {
 			return 1;
 		}
 	}
+	if (strcmp(spec, "space") == 0) {
+		*key_out = ' ';
+		return 1;
+	}
 	return keymapParseKeySpec(spec, key_out);
 }
 

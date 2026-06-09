@@ -141,19 +141,22 @@ static struct vimBindableCommand g_vim_commands[] = {
 static const size_t g_vim_command_count = sizeof(g_vim_commands) / sizeof(g_vim_commands[0]);
 
 /* Leader sequences: `<leader>` followed by one key dispatches an editor action.
- * Leader is space by default; the second key indexes this table. */
+ * Leader is space by default. Both the leader key and each sub-key are bindable
+ * via `[keymap.vim]` (`normal.leader` and `leader.<command>`). */
 #define VIM_SYSTEM_LEADER_DEFAULT ' '
 
 struct vimLeaderBinding {
-	int key;
+	const char *name;
 	enum editorAction action;
+	int canonical_key;
+	int bound_key;
 };
 
-static const struct vimLeaderBinding g_vim_leader_map[] = {
-        {'p', EDITOR_ACTION_FIND_FILE},
-        {'f', EDITOR_ACTION_PROJECT_SEARCH},
-        {'e', EDITOR_ACTION_TOGGLE_DRAWER},
-        {'m', EDITOR_ACTION_MAIN_MENU},
+static struct vimLeaderBinding g_vim_leader_map[] = {
+        {"find_file", EDITOR_ACTION_FIND_FILE, 'p', 'p'},
+        {"project_search", EDITOR_ACTION_PROJECT_SEARCH, 'f', 'f'},
+        {"toggle_drawer", EDITOR_ACTION_TOGGLE_DRAWER, 'e', 'e'},
+        {"main_menu", EDITOR_ACTION_MAIN_MENU, 'm', 'm'},
 };
 
 static const size_t g_vim_leader_count = sizeof(g_vim_leader_map) / sizeof(g_vim_leader_map[0]);
@@ -164,12 +167,15 @@ void editorVimKeymapResetDefaults(void) {
 	for (size_t i = 0; i < g_vim_command_count; i++) {
 		g_vim_commands[i].bound_key = g_vim_commands[i].canonical_key;
 	}
+	for (size_t i = 0; i < g_vim_leader_count; i++) {
+		g_vim_leader_map[i].bound_key = g_vim_leader_map[i].canonical_key;
+	}
 	g_vim_leader_key = VIM_SYSTEM_LEADER_DEFAULT;
 }
 
 static int vimSystemLeaderLookup(int c, enum editorAction *action_out) {
 	for (size_t i = 0; i < g_vim_leader_count; i++) {
-		if (g_vim_leader_map[i].key == c) {
+		if (g_vim_leader_map[i].bound_key == c) {
 			if (action_out != NULL) {
 				*action_out = g_vim_leader_map[i].action;
 			}
@@ -2065,11 +2071,58 @@ static int vimSystemKeyIsStructural(enum vimSystemMode mode, int key) {
 	return key == 'i' || key == 'a' || key == 'g';
 }
 
+/* Leader key and sub-keys must be plain printable characters: control keys
+ * (Esc cancels a pending leader) and the leader key itself are rejected. */
+static int vimSystemLeaderKeyIsBindable(int key) {
+	return key >= 0x20 && key <= 0x7e;
+}
+
+static int vimSystemSetLeaderKey(int key) {
+	if (!vimSystemLeaderKeyIsBindable(key)) {
+		return 0;
+	}
+	g_vim_leader_key = key;
+	return 1;
+}
+
+static int vimSystemBindLeaderAction(const char *name, int key) {
+	struct vimLeaderBinding *target = NULL;
+
+	if (name == NULL || !vimSystemLeaderKeyIsBindable(key)) {
+		return 0;
+	}
+	for (size_t i = 0; i < g_vim_leader_count; i++) {
+		if (strcmp(g_vim_leader_map[i].name, name) == 0) {
+			target = &g_vim_leader_map[i];
+			break;
+		}
+	}
+	if (target == NULL) {
+		return 0;
+	}
+	for (size_t i = 0; i < g_vim_leader_count; i++) {
+		if (&g_vim_leader_map[i] != target && g_vim_leader_map[i].bound_key == key) {
+			g_vim_leader_map[i].bound_key = -1;
+		}
+	}
+	target->bound_key = key;
+	return 1;
+}
+
 static int vimSystemBindKey(const char *mode, const char *name, int key) {
 	enum vimSystemMode target_mode = VIM_SYSTEM_MODE_NORMAL;
 	struct vimBindableCommand *target = NULL;
 
-	if (!vimSystemModeFromName(mode, &target_mode) || name == NULL) {
+	if (mode == NULL || name == NULL) {
+		return 0;
+	}
+	if (strcmp(mode, "leader") == 0) {
+		return vimSystemBindLeaderAction(name, key);
+	}
+	if (strcmp(mode, "normal") == 0 && strcmp(name, "leader") == 0) {
+		return vimSystemSetLeaderKey(key);
+	}
+	if (!vimSystemModeFromName(mode, &target_mode)) {
 		return 0;
 	}
 	if (vimSystemCommandIsStructural(target_mode, name) ||

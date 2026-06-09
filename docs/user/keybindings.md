@@ -43,6 +43,9 @@ by one key:
 - `<leader>e`: toggle the drawer (explorer)
 - `<leader>m`: open the main menu
 
+The leader key (`normal.leader`) and each sub-key (`leader.<command>`) are
+configurable under `[keymap.vim]`; see `config.toml.example`.
+
 `eslint_fix`, `scroll_left`, `scroll_right`, `toggle_selection` (modal keyboard
 selection, superseded by Shift+move), and `resize_drawer_narrow`/
 `resize_drawer_widen` are configurable actions without default bindings in the

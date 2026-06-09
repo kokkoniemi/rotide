@@ -429,8 +429,17 @@ move_tab_down_pane = "ctrl+shift+alt+down"
 # Visual-mode commands: the motions above plus delete change yank delete_char paste.
 # Insert-mode commands: normal_mode (leave Insert; default "esc").
 #
+# Leader sequences (Normal mode): "<leader>" then one key runs an editor action.
+# Set the leader key with "normal.leader" (default "space"; "space" and a literal
+# " " both work). Bind sub-keys with "leader.<command>". Built-in leader commands:
+#   find_file (default "p"), project_search ("f"), toggle_drawer ("e"),
+#   main_menu ("m"). Sub-keys relocate like other commands.
+#
 # [keymap.vim]
 # normal.move_left = "h"
 # normal.delete = "d"
 # visual.yank = "y"
 # insert.normal_mode = "esc"
+# normal.leader = "space"
+# leader.find_file = "p"
+# leader.project_search = "f"

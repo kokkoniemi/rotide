@@ -83,6 +83,24 @@ takes one key per mode — rebinding relocates it, so the built-in default key
 stops triggering that command unless it is itself bound to another command.
 Commands left unset keep their built-in defaults.
 
+Normal mode also supports a **leader** key: `<leader>` followed by one key
+dispatches an editor action. The leader key is set with `normal.leader` (default
+`space`; `"space"` and a literal `" "` both resolve to Space) and sub-keys are
+bound under a synthetic `leader` table:
+
+```toml
+[keymap.vim]
+normal.leader = "space"
+leader.find_file = "p"
+leader.project_search = "f"
+leader.toggle_drawer = "e"
+leader.main_menu = "m"
+```
+
+Leader sub-key names are editor-action names backed by `g_vim_leader_map`; the
+leader trigger sits after count/operator gating so it cannot fire mid-sequence.
+Leader and sub-keys must be plain printable characters.
+
 Counts (`3dd`), registers (`"a`), in-buffer search (`/ ? n N`), text objects
 (`iw aw ip ap`), and the ex command line (`:`) are structural built-ins and are
 not rebindable. Loading resets Vim bindings to defaults first, then applies the
