@@ -102,7 +102,9 @@ leader trigger sits after count/operator gating so it cannot fire mid-sequence.
 Leader and sub-keys must be plain printable characters.
 
 Counts (`3dd`), registers (`"a`), in-buffer search (`/ ? n N`), text objects
-(`iw aw ip ap`), and the ex command line (`:`) are structural built-ins and are
+(`iw aw ip ap`, bracket/quote pairs `i( a( i{ i[ i< i" i' i\``), find-char
+motions (`f F t T ; ,`), and the ex command line (`:`) are structural built-ins
+and are
 not rebindable. Loading resets Vim bindings to defaults first, then applies the
 global file, then the project file; an invalid entry reverts that scope to
 defaults and reports a status message.

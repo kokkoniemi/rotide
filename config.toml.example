@@ -417,8 +417,9 @@ move_tab_down_pane = "ctrl+shift+alt+down"
 # "ctrl+c" also work. Each command takes one key per mode: rebinding relocates it,
 # so the built-in default key stops triggering that command unless it is itself
 # bound to another command. Unset commands keep their built-in defaults; counts
-# ("3dd"), registers ('"a'), search, text objects, and ":" are built-in and not
-# rebindable.
+# ("3dd"), registers ('"a'), search, text objects (iw aw ip ap and bracket/quote
+# pairs like i( a{ i" i'), find-char motions (f F t T ; ,), and ":" are built-in
+# and not rebindable.
 #
 # Normal-mode commands: move_left move_down move_up move_right; word_forward
 #   word_backward word_end; line_start line_end first_nonblank last_line;

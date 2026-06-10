@@ -1072,6 +1072,237 @@ static int test_input_vim_operator_gg_still_deletes_to_top(void) {
 	return 0;
 }
 
+static int test_input_vim_delete_inner_paren(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("foo(bar)baz");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 0;
+	E.cx = 5; /* on 'a' inside (bar) */
+	(void)vim_test_key('d');
+	(void)vim_test_key('i');
+	(void)vim_test_key('(');
+	ASSERT_ROW_TEXT_EQ(0, "foo()baz");
+	return 0;
+}
+
+static int test_input_vim_delete_around_paren(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("foo(bar)baz");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 0;
+	E.cx = 5;
+	(void)vim_test_key('d');
+	(void)vim_test_key('a');
+	(void)vim_test_key('(');
+	ASSERT_ROW_TEXT_EQ(0, "foobaz");
+	return 0;
+}
+
+static int test_input_vim_change_inner_brace_enters_insert(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("x{a}y");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 0;
+	E.cx = 2; /* on 'a' */
+	(void)vim_test_key('c');
+	(void)vim_test_key('i');
+	(void)vim_test_key('{');
+	ASSERT_ROW_TEXT_EQ(0, "x{}y");
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
+	return 0;
+}
+
+static int test_input_vim_delete_inner_quote(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("say \"hi\" now");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 0;
+	E.cx = 5; /* on 'h' inside the quotes */
+	(void)vim_test_key('d');
+	(void)vim_test_key('i');
+	(void)vim_test_key('"');
+	ASSERT_ROW_TEXT_EQ(0, "say \"\" now");
+	return 0;
+}
+
+static int test_input_vim_delete_inner_paren_on_open_bracket(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("(ab)cd");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 0;
+	E.cx = 0; /* on the opening '(' */
+	(void)vim_test_key('d');
+	(void)vim_test_key('i');
+	(void)vim_test_key('(');
+	ASSERT_ROW_TEXT_EQ(0, "()cd");
+	return 0;
+}
+
+static int test_input_vim_visual_inner_paren_selects(void) {
+	struct editorSelectionRange range = {0};
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("ab(cd)ef");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 0;
+	E.cx = 3; /* on 'c' inside (cd) */
+	ASSERT_TRUE(vim_test_key('v') == 0);
+	ASSERT_TRUE(vim_test_key('i') == 0);
+	ASSERT_TRUE(vim_test_key('(') == 0);
+	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
+	ASSERT_EQ_INT(0, range.start_cy);
+	ASSERT_EQ_INT(3, range.start_cx);
+	ASSERT_EQ_INT(0, range.end_cy);
+	ASSERT_EQ_INT(5, range.end_cx);
+	ASSERT_TRUE(vim_test_key('\x1b') == 0);
+	return 0;
+}
+
+static int test_input_vim_find_char_forward(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("alpha beta gamma");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('f') == 0);
+	ASSERT_TRUE(vim_test_key('b') == 0);
+	ASSERT_EQ_INT(6, E.cx); /* on the 'b' of beta */
+	return 0;
+}
+
+static int test_input_vim_find_char_count_and_repeat(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("a.b.c.d");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 0;
+	E.cx = 0;
+	/* 2f. lands on the second dot. */
+	ASSERT_TRUE(vim_test_key('2') == 0);
+	ASSERT_TRUE(vim_test_key('f') == 0);
+	ASSERT_TRUE(vim_test_key('.') == 0);
+	ASSERT_EQ_INT(3, E.cx);
+	/* ; repeats to the next dot. */
+	ASSERT_TRUE(vim_test_key(';') == 0);
+	ASSERT_EQ_INT(5, E.cx);
+	/* , reverses to the previous dot. */
+	ASSERT_TRUE(vim_test_key(',') == 0);
+	ASSERT_EQ_INT(3, E.cx);
+	return 0;
+}
+
+static int test_input_vim_till_char_forward(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("alpha beta");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('t') == 0);
+	ASSERT_TRUE(vim_test_key('b') == 0);
+	ASSERT_EQ_INT(5, E.cx); /* the space just before 'b' */
+	return 0;
+}
+
+static int test_input_vim_find_backward(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("abcabc");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 0;
+	E.cx = 5; /* last 'c' */
+	ASSERT_TRUE(vim_test_key('F') == 0);
+	ASSERT_TRUE(vim_test_key('a') == 0);
+	ASSERT_EQ_INT(3, E.cx); /* the second 'a' */
+	return 0;
+}
+
+static int test_input_vim_delete_to_find_char_inclusive(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("hello, world");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 0;
+	E.cx = 0;
+	/* df, deletes through the comma (inclusive). */
+	ASSERT_TRUE(vim_test_key('d') == 0);
+	(void)vim_test_key('f');
+	(void)vim_test_key(',');
+	ASSERT_ROW_TEXT_EQ(0, " world");
+	return 0;
+}
+
+static int test_input_vim_delete_till_char(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("hello, world");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 0;
+	E.cx = 0;
+	/* dt, deletes up to but not including the comma. */
+	ASSERT_TRUE(vim_test_key('d') == 0);
+	(void)vim_test_key('t');
+	(void)vim_test_key(',');
+	ASSERT_ROW_TEXT_EQ(0, ", world");
+	return 0;
+}
+
+static int test_input_vim_paragraph_forward(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("a");
+	add_row("b");
+	add_row("");
+	add_row("c");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('}') == 0);
+	ASSERT_EQ_INT(2, E.cy); /* the blank line */
+	ASSERT_EQ_INT(0, E.cx);
+	return 0;
+}
+
+static int test_input_vim_paragraph_backward(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("a");
+	add_row("");
+	add_row("b");
+	add_row("c");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 3;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('{') == 0);
+	ASSERT_EQ_INT(1, E.cy); /* the blank line above */
+	return 0;
+}
+
+static int test_input_vim_delete_paragraph_forward(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("a");
+	add_row("b");
+	add_row("");
+	add_row("c");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('d') == 0);
+	(void)vim_test_key('}');
+	ASSERT_EQ_INT(2, E.numrows);
+	ASSERT_ROW_TEXT_EQ(0, "");
+	ASSERT_ROW_TEXT_EQ(1, "c");
+	return 0;
+}
+
 const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_activation_starts_normal", test_input_vim_activation_starts_normal},
         {"input_vim_reset_returns_to_normal", test_input_vim_reset_returns_to_normal},
@@ -1088,6 +1319,23 @@ const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_gd_does_not_start_operator", test_input_vim_gd_does_not_start_operator},
         {"input_vim_operator_gg_still_deletes_to_top",
          test_input_vim_operator_gg_still_deletes_to_top},
+        {"input_vim_delete_inner_paren", test_input_vim_delete_inner_paren},
+        {"input_vim_delete_around_paren", test_input_vim_delete_around_paren},
+        {"input_vim_change_inner_brace_enters_insert",
+         test_input_vim_change_inner_brace_enters_insert},
+        {"input_vim_delete_inner_quote", test_input_vim_delete_inner_quote},
+        {"input_vim_delete_inner_paren_on_open_bracket",
+         test_input_vim_delete_inner_paren_on_open_bracket},
+        {"input_vim_visual_inner_paren_selects", test_input_vim_visual_inner_paren_selects},
+        {"input_vim_find_char_forward", test_input_vim_find_char_forward},
+        {"input_vim_find_char_count_and_repeat", test_input_vim_find_char_count_and_repeat},
+        {"input_vim_till_char_forward", test_input_vim_till_char_forward},
+        {"input_vim_find_backward", test_input_vim_find_backward},
+        {"input_vim_delete_to_find_char_inclusive", test_input_vim_delete_to_find_char_inclusive},
+        {"input_vim_delete_till_char", test_input_vim_delete_till_char},
+        {"input_vim_paragraph_forward", test_input_vim_paragraph_forward},
+        {"input_vim_paragraph_backward", test_input_vim_paragraph_backward},
+        {"input_vim_delete_paragraph_forward", test_input_vim_delete_paragraph_forward},
         {"input_vim_normal_text_does_not_insert", test_input_vim_normal_text_does_not_insert},
         {"input_vim_insert_mode_inserts_until_escape",
          test_input_vim_insert_mode_inserts_until_escape},

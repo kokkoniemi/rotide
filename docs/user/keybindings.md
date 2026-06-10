@@ -46,6 +46,31 @@ by one key:
 The leader key (`normal.leader`) and each sub-key (`leader.<command>`) are
 configurable under `[keymap.vim]`; see `config.toml.example`.
 
+## Vim find-char motions
+
+In Normal and Visual mode, and after an operator:
+
+- `f<char>` / `F<char>`: move to the next/previous `<char>` on the line
+- `t<char>` / `T<char>`: move just before/after the next/previous `<char>`
+- `;` / `,`: repeat the last find in the same / opposite direction
+
+These compose with counts and operators, e.g. `df,` deletes through the next
+comma and `2fx` jumps to the second `x`.
+
+`{` and `}` jump to the previous/next blank line (paragraph boundary) and also
+compose with operators (`d}`).
+
+## Vim text objects
+
+Operators and Visual mode accept text objects via `i` (inner) / `a` (around):
+
+- `iw` / `aw`: word; `ip` / `ap`: paragraph
+- `i(` `i)` `ib`, `i{` `i}` `iB`, `i[` `i]`, `i<` `i>`: bracket pairs
+- `i"` `i'` `` i` ``: quoted spans
+
+For example `ci(` changes inside the parentheses, `da{` deletes a brace block
+(including the braces), and `vi"` visually selects a quoted string.
+
 ## Vim `g`-prefix navigation
 
 In Normal mode, `g` followed by a second key runs LSP navigation (where the
