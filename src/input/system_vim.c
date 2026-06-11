@@ -3001,6 +3001,17 @@ static int vimSystemHandleNormalKey(int c, int *effects_out) {
 			(void)vimSystemJoinLines(motion_count, effects_out);
 			vimSystemResetPending();
 			return 0;
+		case 'K': {
+			int mapped_effects = EDITOR_INPUT_KEY_EFFECT_NONE;
+			int return_now = 0;
+			vimSystemResetPending();
+			return_now = editorDispatchProcessMappedAction(EDITOR_ACTION_HOVER,
+			                                               &mapped_effects);
+			if (effects_out != NULL) {
+				*effects_out |= mapped_effects;
+			}
+			return return_now;
+		}
 		case 'Z':
 			E.input_vim_pending_z = 1;
 			return 0;

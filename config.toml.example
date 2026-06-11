@@ -299,6 +299,8 @@ find_replace = "ctrl+r"
 goto_line = "ctrl+g"
 goto_matching_bracket = "ctrl+]"
 goto_definition = "ctrl+o"
+# hover has no CUA default binding; Vim Normal mode binds it to "K".
+# hover = "alt+k"
 # eslint_fix has no default binding; uncomment to enable.
 # eslint_fix = "ctrl+alt+e"
 # toggle_selection (modal keyboard selection) has no default binding; the

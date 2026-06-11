@@ -1402,11 +1402,76 @@ static int test_editor_vim_gr_goto_references_multiple_opens_menu(void) {
 	return 0;
 }
 
+static int test_editor_vim_k_hover_opens_popup(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 0;
+	ASSERT_TRUE(editorTabsInit());
+
+	char go_path[64];
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
+	        go_path, sizeof(go_path), "rotide-test-go-lsp-hover-", ".go",
+	        "tests/lsp/supported/go/single_file_definition.go"));
+	editorOpen(go_path);
+	E.cy = 5;
+	E.cx = 5;
+
+	editorLspTestSetMockHoverResponse(1, "func helper()\n\nHelper docs");
+
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	(void)lsp_nav_vim_key('K');
+	ASSERT_TRUE(editorPopupIsVisible());
+	ASSERT_EQ_INT(EDITOR_POPUP_KIND_LSP_HOVER, E.popup.kind);
+	ASSERT_EQ_INT(3, editorPopupItemCount());
+	ASSERT_EQ_STR("func helper()", E.popup.items[0].label);
+	ASSERT_EQ_STR("", E.popup.items[1].label);
+	ASSERT_EQ_STR("Helper docs", E.popup.items[2].label);
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.hover_count);
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
+static int test_editor_vim_k_hover_empty_reports_not_found(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 0;
+	ASSERT_TRUE(editorTabsInit());
+
+	char go_path[64];
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
+	        go_path, sizeof(go_path), "rotide-test-go-lsp-hover-empty-", ".go",
+	        "tests/lsp/supported/go/single_file_definition.go"));
+	editorOpen(go_path);
+	E.cy = 5;
+	E.cx = 5;
+
+	editorLspTestSetMockHoverResponse(1, NULL);
+
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	(void)lsp_nav_vim_key('K');
+	ASSERT_TRUE(!editorPopupIsVisible());
+	ASSERT_EQ_STR("Hover not found", E.statusmsg);
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.hover_count);
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
 const struct editorTestCase g_lsp_navigation_tests[] = {
         {"editor_vim_gr_goto_references_single_jumps",
          test_editor_vim_gr_goto_references_single_jumps},
         {"editor_vim_gr_goto_references_multiple_opens_menu",
          test_editor_vim_gr_goto_references_multiple_opens_menu},
+        {"editor_vim_k_hover_opens_popup", test_editor_vim_k_hover_opens_popup},
+        {"editor_vim_k_hover_empty_reports_not_found",
+         test_editor_vim_k_hover_empty_reports_not_found},
         {"editor_lsp_drawer_lists_document_symbols_and_jumps_to_symbol",
          test_editor_lsp_drawer_lists_document_symbols_and_jumps_to_symbol},
         {"editor_lsp_drawer_arrow_previews_symbol_centered_away_from_drawer_cursor",

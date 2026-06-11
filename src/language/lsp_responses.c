@@ -681,6 +681,165 @@ int editorLspCopyLocations(struct editorLspLocation **out_locations, int *out_co
 	return 1;
 }
 
+static int lspResponsesParseStringFieldFromObject(const char *object_start, const char *object_end,
+                                                  const char *quoted_key, char **value_out) {
+	if (value_out == NULL) {
+		return 0;
+	}
+	*value_out = NULL;
+	const char *key = editorLspFindTopLevelKey(object_start, object_end, quoted_key);
+	if (key == NULL) {
+		return 0;
+	}
+	const char *colon = strchr(key, ':');
+	if (colon == NULL || colon >= object_end) {
+		return 0;
+	}
+	const char *value = editorLspSkipWs(colon + 1);
+	if (value == NULL || value >= object_end || value[0] != '"') {
+		return 0;
+	}
+	return editorLspParseJsonString(value, value_out, NULL);
+}
+
+static int lspResponsesAppendHoverPart(struct editorJsonString *text, char *part) {
+	if (part == NULL) {
+		return 1;
+	}
+	int ok = 1;
+	if (text->len > 0) {
+		ok = editorLspStringAppend(text, "\n\n");
+	}
+	if (ok) {
+		ok = editorLspStringAppend(text, part);
+	}
+	free(part);
+	return ok;
+}
+
+static int lspResponsesAppendHoverObject(struct editorJsonString *text, const char *object_start,
+                                         const char *object_end) {
+	char *value = NULL;
+	if (!lspResponsesParseStringFieldFromObject(object_start, object_end, "\"value\"",
+	                                            &value)) {
+		return 0;
+	}
+	return lspResponsesAppendHoverPart(text, value);
+}
+
+static int lspResponsesAppendHoverValue(struct editorJsonString *text, const char *value,
+                                        const char *limit) {
+	value = editorLspSkipWs(value);
+	if (value == NULL || (limit != NULL && value >= limit)) {
+		return 0;
+	}
+
+	if (value[0] == '"') {
+		char *part = NULL;
+		if (!editorLspParseJsonString(value, &part, NULL)) {
+			return 0;
+		}
+		return lspResponsesAppendHoverPart(text, part);
+	}
+	if (value[0] == '{') {
+		const char *object_end = editorLspFindJsonObjectEnd(value);
+		if (object_end == NULL || (limit != NULL && object_end > limit)) {
+			return 0;
+		}
+		return lspResponsesAppendHoverObject(text, value, object_end);
+	}
+	if (value[0] == '[') {
+		const char *array_end = editorLspFindJsonArrayEnd(value);
+		if (array_end == NULL || (limit != NULL && array_end > limit)) {
+			return 0;
+		}
+		const char *scan = value + 1;
+		while (scan < array_end) {
+			scan = editorLspSkipWs(scan);
+			if (scan == NULL || scan >= array_end || scan[0] == ']') {
+				break;
+			}
+			if (scan[0] == ',') {
+				scan++;
+				continue;
+			}
+			if (scan[0] == '"') {
+				char *part = NULL;
+				const char *after = NULL;
+				if (!editorLspParseJsonString(scan, &part, &after)) {
+					return 0;
+				}
+				if (!lspResponsesAppendHoverPart(text, part)) {
+					return 0;
+				}
+				scan = after != NULL ? after : array_end;
+				continue;
+			}
+			if (scan[0] == '{') {
+				const char *object_end = editorLspFindJsonObjectEnd(scan);
+				if (object_end == NULL || object_end > array_end ||
+				    !lspResponsesAppendHoverObject(text, scan, object_end)) {
+					return 0;
+				}
+				scan = object_end;
+				continue;
+			}
+			return 0;
+		}
+		return 1;
+	}
+	return 0;
+}
+
+int editorLspParseHoverText(const char *response_json, char **text_out) {
+	if (text_out == NULL) {
+		return 0;
+	}
+	*text_out = NULL;
+	if (response_json == NULL) {
+		return 0;
+	}
+
+	const char *result_key = strstr(response_json, "\"result\"");
+	if (result_key == NULL) {
+		return 0;
+	}
+	const char *result_colon = strchr(result_key, ':');
+	if (result_colon == NULL) {
+		return 0;
+	}
+	const char *result = editorLspSkipWs(result_colon + 1);
+	if (result == NULL) {
+		return 0;
+	}
+	if (strncmp(result, "null", 4) == 0) {
+		return 1;
+	}
+	if (result[0] != '{') {
+		return 0;
+	}
+	const char *result_end = editorLspFindJsonObjectEnd(result);
+	if (result_end == NULL) {
+		return 0;
+	}
+	const char *contents_key = editorLspFindTopLevelKey(result, result_end, "\"contents\"");
+	if (contents_key == NULL) {
+		return 0;
+	}
+	const char *contents_colon = strchr(contents_key, ':');
+	if (contents_colon == NULL || contents_colon >= result_end) {
+		return 0;
+	}
+
+	struct editorJsonString text = {0};
+	if (!lspResponsesAppendHoverValue(&text, contents_colon + 1, result_end)) {
+		free(text.buf);
+		return 0;
+	}
+	*text_out = text.buf != NULL ? text.buf : strdup("");
+	return *text_out != NULL;
+}
+
 void editorLspFreeSymbols(struct editorLspSymbol *symbols, int count) {
 	if (symbols == NULL) {
 		return;

@@ -94,6 +94,7 @@ static const struct keymapActionName g_keymap_action_names[] = {
         {"goto_definition", EDITOR_ACTION_GOTO_DEFINITION},
         {"goto_implementation", EDITOR_ACTION_GOTO_IMPLEMENTATION},
         {"goto_references", EDITOR_ACTION_GOTO_REFERENCES},
+        {"hover", EDITOR_ACTION_HOVER},
         {"goto_symbol", EDITOR_ACTION_GOTO_SYMBOL},
         {"diagnostic_next", EDITOR_ACTION_DIAGNOSTIC_NEXT},
         {"diagnostic_prev", EDITOR_ACTION_DIAGNOSTIC_PREV},

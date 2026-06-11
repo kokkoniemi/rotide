@@ -53,7 +53,8 @@ enum {
 	TEXT_MULTI_CLICK_THRESHOLD_MS = 400,
 	DRAWER_RESIZE_STEP = 1,
 	KEYBOARD_SCROLL_COLS = 3,
-	KEYBOARD_SCROLL_ROWS = 1
+	KEYBOARD_SCROLL_ROWS = 1,
+	DISPATCH_HOVER_MAX_LINES = 128
 };
 
 enum dispatchKeypressEffect {
@@ -1740,6 +1741,175 @@ static void dispatchGoToReferences(void) {
 	                          editorLspRequestReferences);
 }
 
+static void dispatchFreeHoverItems(struct editorPopupItem *items, int count) {
+	if (items == NULL) {
+		return;
+	}
+	for (int i = 0; i < count; i++) {
+		free(items[i].label);
+	}
+	free(items);
+}
+
+static int dispatchAppendHoverLine(struct editorPopupItem **items_io, int *count_io, int *cap_io,
+                                   const char *line, size_t len) {
+	if (*count_io >= DISPATCH_HOVER_MAX_LINES) {
+		return 1;
+	}
+	if (len > 0 && line[len - 1] == '\r') {
+		len--;
+	}
+	if (*count_io >= *cap_io) {
+		int new_cap = *cap_io > 0 ? *cap_io * 2 : 8;
+		if (new_cap > DISPATCH_HOVER_MAX_LINES) {
+			new_cap = DISPATCH_HOVER_MAX_LINES;
+		}
+		struct editorPopupItem *grown =
+		        realloc(*items_io, sizeof(**items_io) * (size_t)new_cap);
+		if (grown == NULL) {
+			return 0;
+		}
+		*items_io = grown;
+		*cap_io = new_cap;
+	}
+	char *label = malloc(len + 1);
+	if (label == NULL) {
+		return 0;
+	}
+	memcpy(label, line, len);
+	label[len] = '\0';
+	(*items_io)[*count_io].label = label;
+	(*items_io)[*count_io].detail = NULL;
+	(*count_io)++;
+	return 1;
+}
+
+static int dispatchOpenHoverPopup(const char *text) {
+	if (text == NULL || text[0] == '\0') {
+		return 0;
+	}
+	struct editorPopupItem *items = NULL;
+	int count = 0;
+	int cap = 0;
+	const char *line = text;
+	for (const char *scan = text;; scan++) {
+		if (*scan == '\n' || *scan == '\0') {
+			if (!dispatchAppendHoverLine(&items, &count, &cap, line,
+			                             (size_t)(scan - line))) {
+				dispatchFreeHoverItems(items, count);
+				return 0;
+			}
+			if (*scan == '\0') {
+				break;
+			}
+			line = scan + 1;
+		}
+	}
+	if (count <= 0) {
+		dispatchFreeHoverItems(items, count);
+		return 0;
+	}
+	int opened = editorPopupOpenKind(EDITOR_POPUP_KIND_LSP_HOVER, items, count, E.cy, E.rx);
+	dispatchFreeHoverItems(items, count);
+	return opened;
+}
+
+static void dispatchShowHover(void) {
+	char *full_text = NULL;
+	char *hover_text = NULL;
+
+	if (!editorLanguageGoToSupported(E.syntax_language)) {
+		editorSetStatusMsg("Hover is available for Go, C, C++, HTML, CSS/SCSS, JSON, "
+		                   "and JavaScript files only");
+		return;
+	}
+	if (E.filename == NULL || E.filename[0] == '\0') {
+		const char *language_label = editorLanguageGoToLabel();
+		if (language_label == NULL) {
+			language_label = "source";
+		}
+		editorSetStatusMsg("Save this %s buffer before using hover", language_label);
+		return;
+	}
+	if (!editorLanguageGoToEnabled()) {
+		editorSetStatusMsg("%s is disabled in config", editorLanguageGoToServerName());
+		return;
+	}
+	const char *command = editorLanguageGoToCommand();
+	const char *command_setting = editorLanguageGoToCommandSettingName();
+	if (command == NULL || command_setting == NULL) {
+		editorSetStatusMsg("LSP unavailable for this file");
+		return;
+	}
+	if (command[0] == '\0') {
+		editorSetStatusMsg("LSP disabled: [lsp].%s is empty", command_setting);
+		return;
+	}
+	dispatchAlignCursorWithRowEnd();
+	if (E.cy < 0 || E.cy >= E.numrows) {
+		editorSetStatusMsg("Cursor is not on a source line");
+		return;
+	}
+
+	size_t full_text_len = 0;
+	struct editorTextSource source = {0};
+	if (!editorBuildActiveTextSource(&source)) {
+		editorSetStatusMsg("File too large");
+		return;
+	}
+	full_text = editorTextSourceDupRange(&source, 0, source.length, &full_text_len);
+	if (full_text == NULL) {
+		if (source.length > ROTIDE_MAX_TEXT_BYTES) {
+			editorSetStatusMsg("File too large");
+		} else {
+			editorSetStatusMsg("Out of memory");
+		}
+		goto cleanup;
+	}
+
+	int ready = editorLspEnsureDocumentOpen(E.filename, E.syntax_language, &E.lsp_doc_open,
+	                                        &E.lsp_doc_version,
+	                                        full_text != NULL ? full_text : "", full_text_len);
+	free(full_text);
+	full_text = NULL;
+	if (!ready) {
+		if (editorLspLastStartupFailureReason() ==
+		    EDITOR_LSP_STARTUP_FAILURE_COMMAND_NOT_FOUND) {
+			editorLanguageMaybePromptInstallServer();
+			goto cleanup;
+		}
+		if (strncmp(E.statusmsg, "LSP ", strlen("LSP ")) != 0) {
+			editorSetStatusMsg("LSP unavailable for this file");
+		}
+		goto cleanup;
+	}
+
+	int timed_out = 0;
+	int request_result = editorLspRequestHover(E.filename, E.syntax_language, E.cy, E.cx,
+	                                           &hover_text, &timed_out);
+	if (request_result == -2 || timed_out) {
+		editorSetStatusMsg("Hover timed out");
+		goto cleanup;
+	}
+	if (request_result <= 0) {
+		editorSetStatusMsg("Hover failed");
+		goto cleanup;
+	}
+	if (hover_text == NULL || hover_text[0] == '\0') {
+		editorSetStatusMsg("Hover not found");
+		goto cleanup;
+	}
+	if (!dispatchOpenHoverPopup(hover_text)) {
+		editorSetStatusMsg("Unable to show hover");
+		goto cleanup;
+	}
+	editorSetStatusMsg("Hover");
+
+cleanup:
+	free(full_text);
+	free(hover_text);
+}
+
 static void dispatchGoToSymbol(void) {
 	if (!editorLanguageGoToSupported(E.syntax_language)) {
 		editorSetStatusMsg("Go to symbol is available for Go, C, C++, HTML, CSS/SCSS, "
@@ -2212,11 +2382,11 @@ static int dispatchHandleDelegatedAction(enum editorAction action, int *effects)
 	                                      dispatchJumpToPathLocation, effects)) {
 		return 1;
 	}
-	if (editorHandleLanguageMappedAction(action, DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT,
-	                                     dispatchPinActivePreviewForEdit,
-	                                     dispatchGoToDefinition, dispatchGoToImplementation,
-	                                     dispatchGoToReferences, dispatchGoToSymbol,
-	                                     dispatchApplyEslintFixes, effects)) {
+	if (editorHandleLanguageMappedAction(
+	            action, DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT,
+	            dispatchPinActivePreviewForEdit, dispatchGoToDefinition,
+	            dispatchGoToImplementation, dispatchGoToReferences, dispatchShowHover,
+	            dispatchGoToSymbol, dispatchApplyEslintFixes, effects)) {
 		return 1;
 	}
 	if (editorHandleEditMappedAction(action, DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT,

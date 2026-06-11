@@ -88,14 +88,15 @@ Operators and Visual mode accept text objects via `i` (inner) / `a` (around):
 For example `ci(` changes inside the parentheses, `da{` deletes a brace block
 (including the braces), and `vi"` visually selects a quoted string.
 
-## Vim `g`-prefix navigation
+## Vim LSP navigation
 
-In Normal mode, `g` followed by a second key runs LSP navigation (where the
-buffer's language server provides it):
+In Normal mode, these keys run LSP navigation where the buffer's language server
+provides it:
 
 - `gd`: go to definition
 - `gi`: go to implementation
 - `gr`: list references (jumps when there's one, otherwise opens a chooser)
+- `K`: show hover documentation at the cursor
 - `gs`: go to symbol
 - `gS`: show the LSP Problems/Symbols drawer
 - `gg`: go to the first line (unchanged)
@@ -105,6 +106,6 @@ buffer's language server provides it):
 
 `eslint_fix`, `scroll_left`, `scroll_right`, `toggle_selection` (modal keyboard
 selection, superseded by Shift+move), `diagnostic_next`/`diagnostic_prev` (bound
-to `]g`/`[g` in Vim), `goto_references` (bound to `gr` in Vim), and
-`resize_drawer_narrow`/`resize_drawer_widen` are configurable actions without
-default bindings in the built-in keymap.
+to `]g`/`[g` in Vim), `goto_references` (bound to `gr` in Vim), `hover` (bound
+to `K` in Vim), and `resize_drawer_narrow`/`resize_drawer_widen` are
+configurable actions without default bindings in the built-in CUA keymap.

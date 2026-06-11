@@ -103,8 +103,10 @@ Leader and sub-keys must be plain printable characters.
 
 `g`-prefixed keys (`gd gi gr gs gS gg`) and `[`/`]` prefixes (`]g`/`[g` for next/
 previous diagnostic) are handled by dedicated pending-state branches in the
-Normal handler. `gr` lists references via the shared location-menu UI. The diagnostic jumps dispatch the `diagnostic_next` /
-`diagnostic_prev` editor actions, which navigate `E.lsp_diagnostics` directly.
+Normal handler. `gr` lists references via the shared location-menu UI. `K`
+dispatches the `hover` action and opens an LSP hover popup. The diagnostic jumps
+dispatch the `diagnostic_next` / `diagnostic_prev` editor actions, which
+navigate `E.lsp_diagnostics` directly.
 
 `gq` starts a reflow operator (`VIM_SYSTEM_OPERATOR_REFLOW`): `gq` after the `g`
 prefix sets the pending operator, so `gqq`, `gqap`, and `gq{motion}` flow through

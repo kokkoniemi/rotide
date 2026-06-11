@@ -1474,7 +1474,8 @@ static int screenDrawPopupOverlay(struct writeBuf *wb) {
 		if (!wbAppend(wb, move_buf, (size_t)move_len)) {
 			return 0;
 		}
-		int is_selected = item_idx == selected_idx;
+		int is_selected =
+		        E.popup.kind != EDITOR_POPUP_KIND_LSP_HOVER && item_idx == selected_idx;
 		if (is_selected) {
 			if (!editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_SELECTION)) {
 				return 0;

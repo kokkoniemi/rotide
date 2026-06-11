@@ -306,6 +306,38 @@ static int test_editor_lsp_parse_completion_response_handles_null(void) {
 	return 0;
 }
 
+static int test_editor_lsp_parse_hover_response_handles_markup_content(void) {
+	const char *response =
+	        "{\"jsonrpc\":\"2.0\",\"id\":4,\"result\":{\"contents\":{\"kind\":\"markdown\","
+	        "\"value\":\"```c\\nint helper(void)\\n```\\nDocs\"}}}";
+	char *text = NULL;
+	ASSERT_TRUE(editorLspTestParseHoverResponse(response, &text));
+	ASSERT_TRUE(text != NULL);
+	ASSERT_EQ_STR("```c\nint helper(void)\n```\nDocs", text);
+	free(text);
+	return 0;
+}
+
+static int test_editor_lsp_parse_hover_response_handles_marked_string_array(void) {
+	const char *response = "{\"jsonrpc\":\"2.0\",\"id\":4,\"result\":{\"contents\":["
+	                       "{\"language\":\"c\",\"value\":\"int helper(void)\"},\"Docs\"]}}";
+	char *text = NULL;
+	ASSERT_TRUE(editorLspTestParseHoverResponse(response, &text));
+	ASSERT_TRUE(text != NULL);
+	ASSERT_EQ_STR("int helper(void)\n\nDocs", text);
+	free(text);
+	return 0;
+}
+
+static int test_editor_lsp_parse_hover_response_handles_null(void) {
+	char *text = (char *)1;
+	ASSERT_TRUE(editorLspTestParseHoverResponse("{\"jsonrpc\":\"2.0\",\"id\":4,"
+	                                            "\"result\":null}",
+	                                            &text));
+	ASSERT_TRUE(text == NULL);
+	return 0;
+}
+
 static int test_editor_lsp_parse_document_symbols_handles_document_symbol_array(void) {
 	const char *response = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":["
 	                       "{\"name\":\"main\",\"kind\":12,"
@@ -433,6 +465,12 @@ const struct editorTestCase g_lsp_protocol_tests[] = {
          test_editor_lsp_parse_completion_response_handles_plain_array},
         {"editor_lsp_parse_completion_response_handles_null",
          test_editor_lsp_parse_completion_response_handles_null},
+        {"editor_lsp_parse_hover_response_handles_markup_content",
+         test_editor_lsp_parse_hover_response_handles_markup_content},
+        {"editor_lsp_parse_hover_response_handles_marked_string_array",
+         test_editor_lsp_parse_hover_response_handles_marked_string_array},
+        {"editor_lsp_parse_hover_response_handles_null",
+         test_editor_lsp_parse_hover_response_handles_null},
         {"editor_lsp_parse_document_symbols_handles_document_symbol_array",
          test_editor_lsp_parse_document_symbols_handles_document_symbol_array},
         {"editor_lsp_parse_document_symbols_handles_symbol_information_array",
