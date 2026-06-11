@@ -14,7 +14,7 @@
 #include <time.h>
 
 #define CTRL_KEY(k) ((k) & 0x1f)
-#define ROTIDE_VERSION "0.0.1"
+#define ROTIDE_VERSION "0.1.0"
 #define ROTIDE_TAB_WIDTH 8
 #define ROTIDE_INDENT_WIDTH_DEFAULT 4
 #define ROTIDE_INDENT_WIDTH_MAX 16
