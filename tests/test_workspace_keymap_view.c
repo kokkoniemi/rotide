@@ -1383,6 +1383,29 @@ static int test_editor_keymap_load_accepts_goto_definition_ctrl_o(void) {
 	return 0;
 }
 
+static int test_editor_keymap_load_accepts_hover_action(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-hover-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
+	                                          "hover = \"alt+k\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('k'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_HOVER, action);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 static int test_editor_keymap_load_accepts_goto_matching_bracket_ctrl_bracket(void) {
 	char dir_template[] = "/tmp/rotide-test-keymap-matchbracket-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -1638,6 +1661,111 @@ static int test_editor_keymap_vim_unknown_command_is_rejected(void) {
 	return 0;
 }
 
+static int test_editor_keymap_vim_leader_key_rebind(void) {
+	char dir_template[] = "/tmp/rotide-test-vimkeymap-leaderkey-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	char project_path[512];
+
+	ASSERT_TRUE(dir_path != NULL);
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "normal.leader = \",\"\n"));
+
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, editorKeymapLoadVimBindings(NULL, project_path));
+
+	add_row("abc");
+	E.cy = 0;
+	E.cx = 0;
+	/* The rebound leader opens the file search drawer. */
+	ASSERT_EQ_INT(0, keymap_vim_send_key(','));
+	(void)keymap_vim_send_key('p');
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
+	/* Space is no longer the leader, so it does not start a sequence. */
+	E.drawer_mode = EDITOR_DRAWER_MODE_TREE;
+	ASSERT_EQ_INT(0, keymap_vim_send_key(' '));
+	ASSERT_EQ_INT(0, E.input_vim_pending_leader);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_vim_leader_space_alias(void) {
+	char dir_template[] = "/tmp/rotide-test-vimkeymap-leaderspace-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	char project_path[512];
+
+	ASSERT_TRUE(dir_path != NULL);
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "normal.leader = \"space\"\n"));
+
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, editorKeymapLoadVimBindings(NULL, project_path));
+
+	add_row("abc");
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_EQ_INT(0, keymap_vim_send_key(' '));
+	(void)keymap_vim_send_key('m');
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_MAIN_MENU, E.drawer_mode);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_vim_leader_subkey_rebind(void) {
+	char dir_template[] = "/tmp/rotide-test-vimkeymap-leadersub-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	char project_path[512];
+
+	ASSERT_TRUE(dir_path != NULL);
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "leader.find_file = \"o\"\n"));
+
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, editorKeymapLoadVimBindings(NULL, project_path));
+
+	add_row("abc");
+	E.cy = 0;
+	E.cx = 0;
+	/* The rebound sub-key reaches file search. */
+	ASSERT_EQ_INT(0, keymap_vim_send_key(' '));
+	(void)keymap_vim_send_key('o');
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_FILE_SEARCH, E.drawer_mode);
+	/* The default sub-key was relocated and no longer triggers it. */
+	E.drawer_mode = EDITOR_DRAWER_MODE_TREE;
+	ASSERT_EQ_INT(0, keymap_vim_send_key(' '));
+	(void)keymap_vim_send_key('p');
+	ASSERT_EQ_INT(EDITOR_DRAWER_MODE_TREE, E.drawer_mode);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_vim_leader_unknown_action_is_rejected(void) {
+	char dir_template[] = "/tmp/rotide-test-vimkeymap-leaderbad-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	char project_path[512];
+
+	ASSERT_TRUE(dir_path != NULL);
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "leader.not_an_action = \"x\"\n"));
+
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_INVALID_PROJECT,
+	              editorKeymapLoadVimBindings(NULL, project_path));
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 static int test_editor_keymap_vim_unknown_mode_is_rejected(void) {
 	char dir_template[] = "/tmp/rotide-test-vimkeymap-badmode-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -1855,6 +1983,7 @@ const struct editorTestCase g_workspace_keymap_view_tests[] = {
          test_editor_keymap_defaults_include_goto_definition_action},
         {"editor_keymap_load_accepts_goto_definition_ctrl_o",
          test_editor_keymap_load_accepts_goto_definition_ctrl_o},
+        {"editor_keymap_load_accepts_hover_action", test_editor_keymap_load_accepts_hover_action},
         {"editor_keymap_load_accepts_goto_matching_bracket_ctrl_bracket",
          test_editor_keymap_load_accepts_goto_matching_bracket_ctrl_bracket},
         {"editor_keymap_load_rejects_ctrl_i_binding_that_conflicts_with_tab_input",
@@ -1868,6 +1997,11 @@ const struct editorTestCase g_workspace_keymap_view_tests[] = {
         {"editor_keymap_vim_per_mode_binding", test_editor_keymap_vim_per_mode_binding},
         {"editor_keymap_vim_unknown_command_is_rejected",
          test_editor_keymap_vim_unknown_command_is_rejected},
+        {"editor_keymap_vim_leader_key_rebind", test_editor_keymap_vim_leader_key_rebind},
+        {"editor_keymap_vim_leader_space_alias", test_editor_keymap_vim_leader_space_alias},
+        {"editor_keymap_vim_leader_subkey_rebind", test_editor_keymap_vim_leader_subkey_rebind},
+        {"editor_keymap_vim_leader_unknown_action_is_rejected",
+         test_editor_keymap_vim_leader_unknown_action_is_rejected},
         {"editor_keymap_vim_unknown_mode_is_rejected",
          test_editor_keymap_vim_unknown_mode_is_rejected},
         {"editor_keymap_vim_structural_key_is_rejected",

@@ -14,10 +14,11 @@
 #include <time.h>
 
 #define CTRL_KEY(k) ((k) & 0x1f)
-#define ROTIDE_VERSION "0.0.1"
+#define ROTIDE_VERSION "0.1.0"
 #define ROTIDE_TAB_WIDTH 8
 #define ROTIDE_INDENT_WIDTH_DEFAULT 4
 #define ROTIDE_INDENT_WIDTH_MAX 16
+#define ROTIDE_TEXT_WIDTH_DEFAULT 80
 #define ROTIDE_UNDO_HISTORY_LIMIT 200
 #define ROTIDE_OSC52_MAX_COPY_BYTES ((size_t)100000)
 #define ROTIDE_MAX_TEXT_BYTES ((size_t)INT_MAX)
@@ -131,7 +132,8 @@ enum editorPopupKind {
 	EDITOR_POPUP_KIND_DRAWER_MENU,
 	EDITOR_POPUP_KIND_EDITOR_CONTEXT_MENU,
 	EDITOR_POPUP_KIND_TAB_CONTEXT_MENU,
-	EDITOR_POPUP_KIND_LSP_LOCATION_MENU
+	EDITOR_POPUP_KIND_LSP_LOCATION_MENU,
+	EDITOR_POPUP_KIND_LSP_HOVER
 };
 
 struct editorPopupState {
@@ -280,7 +282,11 @@ enum editorAction {
 	EDITOR_ACTION_GOTO_MATCHING_BRACKET,
 	EDITOR_ACTION_GOTO_DEFINITION,
 	EDITOR_ACTION_GOTO_IMPLEMENTATION,
+	EDITOR_ACTION_GOTO_REFERENCES,
+	EDITOR_ACTION_HOVER,
 	EDITOR_ACTION_GOTO_SYMBOL,
+	EDITOR_ACTION_DIAGNOSTIC_NEXT,
+	EDITOR_ACTION_DIAGNOSTIC_PREV,
 	EDITOR_ACTION_ESLINT_FIX,
 	EDITOR_ACTION_TOGGLE_SELECTION,
 	EDITOR_ACTION_SELECT_ALL,
@@ -489,6 +495,14 @@ struct editorHistory {
 	X(int, input_vim_active_register)                                                          \
 	X(int, input_vim_pending_register)                                                         \
 	X(int, input_vim_pending_text_object)                                                      \
+	X(int, input_vim_pending_leader)                                                           \
+	X(int, input_vim_pending_find)                                                             \
+	X(int, input_vim_last_find_cmd)                                                            \
+	X(int, input_vim_last_find_char)                                                           \
+	X(int, input_vim_pending_replace)                                                          \
+	X(int, input_vim_pending_z)                                                                \
+	X(int, input_vim_pending_mark)                                                             \
+	X(int, input_vim_pending_bracket)                                                          \
 	X(int, input_vim_visual_selection_half_open)                                               \
 	X(char *, input_vim_search_query)                                                          \
 	X(int, input_vim_search_direction)
@@ -606,6 +620,13 @@ struct editorConfig {
 		int linewise;
 	} vim_registers[26];
 	int vim_default_register_linewise;
+
+	/* --- Input: Vim marks a-z (set via `m`, jumped via `` ` `` / `'`) --- */
+	struct editorVimMark {
+		int set;
+		int cy;
+		int cx;
+	} vim_marks[26];
 
 	/* --- Workspace: tabs --- */
 	struct editorTabState *tabs;
@@ -747,6 +768,7 @@ struct editorConfig {
 	int auto_indent_enabled;
 	int indent_use_tabs;
 	int indent_width;
+	int text_width;
 	int column_select_drag_modifier;
 
 	/* --- Environment: theme, viewport, primary focus, layout root --- */

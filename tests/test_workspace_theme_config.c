@@ -111,6 +111,18 @@ static int test_editor_theme_loads_modus_builtins(void) {
 	ASSERT_TRUE(theme_color_is_rgb(theme.ui[EDITOR_THEME_UI_CURSOR], 0xD0, 0x00, 0x00));
 	ASSERT_TRUE(theme_color_is_rgb(theme.styles[EDITOR_THEME_STYLE_TAB_ACTIVE].bg, 0xCA, 0xB9,
 	                               0xB2));
+	/* Tinted mode-indicator overrides must not leak into the shared ANSI palette. */
+	ASSERT_TRUE(theme_color_is_rgb(theme.status_segment_bg[EDITOR_THEME_ANSI_BLUE], 0x3A, 0x46,
+	                               0x68));
+	ASSERT_TRUE(theme_color_is_rgb(theme.status_segment_bg[EDITOR_THEME_ANSI_GREEN], 0x35, 0x55,
+	                               0x3A));
+	ASSERT_TRUE(theme_color_is_rgb(theme.status_segment_bg[EDITOR_THEME_ANSI_MAGENTA], 0x5E,
+	                               0x3D, 0x5C));
+	ASSERT_TRUE(theme_color_is_rgb(theme.ansi[EDITOR_THEME_ANSI_BLUE], 0x00, 0x31, 0xA9));
+
+	/* Untinted themes leave the override unset (falls back to the ANSI accent). */
+	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "modus-operandi"));
+	ASSERT_TRUE(editorThemeColorIsDefault(theme.status_segment_bg[EDITOR_THEME_ANSI_BLUE]));
 
 	ASSERT_TRUE(editorThemeInitBuiltin(&theme, "modus-vivendi"));
 	ASSERT_EQ_STR("modus-vivendi", theme.name);

@@ -776,6 +776,10 @@ static void themeBuiltinInitModusOperandiTinted(struct editorTheme *theme) {
 	                       .ansi_bright_white = editorThemeRgbColor(0xDF, 0xD9, 0xCF),
 	               });
 	theme->ui[EDITOR_THEME_UI_DRAWER_ICON] = editorThemeRgbColor(0x40, 0x3D, 0x38);
+	/* Tinted darks in the mode line's rose family, not the raw saturated accents. */
+	theme->status_segment_bg[EDITOR_THEME_ANSI_BLUE] = editorThemeRgbColor(0x3A, 0x46, 0x68);
+	theme->status_segment_bg[EDITOR_THEME_ANSI_GREEN] = editorThemeRgbColor(0x35, 0x55, 0x3A);
+	theme->status_segment_bg[EDITOR_THEME_ANSI_MAGENTA] = editorThemeRgbColor(0x5E, 0x3D, 0x5C);
 }
 
 static void themeBuiltinInitModusVivendi(struct editorTheme *theme) {

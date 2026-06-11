@@ -1,3 +1,4 @@
+#include "input/input_system.h"
 #include "test_case.h"
 #include "test_helpers.h"
 #include "test_support.h"
@@ -673,6 +674,63 @@ static int test_editor_task_log_read_only_search_and_copy(void) {
 	return 0;
 }
 
+static int lsp_diag_vim_key(int key) {
+	const struct editorInputSystem *system = editorInputSystemActive();
+	int effects = 0;
+
+	if (system == NULL || system->handle_key == NULL) {
+		return -1;
+	}
+	return system->handle_key(key, &effects);
+}
+
+static int test_editor_lsp_diagnostic_navigation(void) {
+	char js_path[64];
+	struct editorLspDiagnostic diagnostics[2] = {
+	        {.start_line = 1,
+	         .start_character = 0,
+	         .end_line = 1,
+	         .end_character = 1,
+	         .severity = 1,
+	         .message = "first"},
+	        {.start_line = 3,
+	         .start_character = 0,
+	         .end_line = 3,
+	         .end_character = 1,
+	         .severity = 1,
+	         .message = "second"},
+	};
+
+	ASSERT_TRUE(editorTabsInit());
+	ASSERT_TRUE(write_temp_file_with_suffix(
+	        js_path, sizeof(js_path), "rotide-test-lsp-diag-nav-", ".js", "a\nb\nc\nd\n"));
+	editorOpen(js_path);
+	editorLspSetDiagnosticsForPath(js_path, diagnostics, 2);
+	ASSERT_EQ_INT(2, E.lsp_diagnostic_count);
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+
+	E.cy = 0;
+	E.cx = 0;
+	/* ]g jumps to the next diagnostic. */
+	(void)lsp_diag_vim_key(']');
+	(void)lsp_diag_vim_key('g');
+	ASSERT_EQ_INT(1, E.cy);
+	(void)lsp_diag_vim_key(']');
+	(void)lsp_diag_vim_key('g');
+	ASSERT_EQ_INT(3, E.cy);
+	/* ]g past the last diagnostic wraps to the first. */
+	(void)lsp_diag_vim_key(']');
+	(void)lsp_diag_vim_key('g');
+	ASSERT_EQ_INT(1, E.cy);
+	/* [g before the first wraps to the last. */
+	(void)lsp_diag_vim_key('[');
+	(void)lsp_diag_vim_key('g');
+	ASSERT_EQ_INT(3, E.cy);
+
+	ASSERT_TRUE(unlink(js_path) == 0);
+	return 0;
+}
+
 const struct editorTestCase g_lsp_diagnostics_tests[] = {
         {"editor_lsp_eslint_diagnostics_update_and_status_summary",
          test_editor_lsp_eslint_diagnostics_update_and_status_summary},
@@ -700,6 +758,7 @@ const struct editorTestCase g_lsp_diagnostics_tests[] = {
          test_editor_process_keypress_eslint_fix_missing_vscode_langservers_starts_install_task},
         {"editor_task_log_read_only_search_and_copy",
          test_editor_task_log_read_only_search_and_copy},
+        {"editor_lsp_diagnostic_navigation", test_editor_lsp_diagnostic_navigation},
 };
 
 const int g_lsp_diagnostics_test_count =

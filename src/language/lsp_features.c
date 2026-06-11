@@ -157,6 +157,229 @@ int editorLspRequestImplementation(const char *filename, enum editorSyntaxLangua
 	        language, line, character, locations_out, count_out, timed_out_out);
 }
 
+/* `textDocument/references` returns `Location[]` like definition, but its params
+ * carry a `context.includeDeclaration`, so it builds its own request rather than
+ * reusing the shared locations helper. */
+int editorLspRequestReferences(const char *filename, enum editorSyntaxLanguage language, int line,
+                               int character, struct editorLspLocation **locations_out,
+                               int *count_out, int *timed_out_out) {
+	if (locations_out == NULL || count_out == NULL) {
+		return -1;
+	}
+	*locations_out = NULL;
+	*count_out = 0;
+	if (timed_out_out != NULL) {
+		*timed_out_out = 0;
+	}
+
+	if (!editorLspFileEnabled(filename, language)) {
+		return 0;
+	}
+	if (filename == NULL || filename[0] == '\0' || line < 0 || character < 0 ||
+	    !editorLspFileSupportsDefinition(filename, language)) {
+		return -1;
+	}
+
+	if (g_lsp_mock.enabled) {
+		if (!editorLspEnsureRunningForFile(filename, language)) {
+			return -1;
+		}
+		g_lsp_mock.stats.references_count++;
+		if (g_lsp_mock.references_result_code == -2) {
+			if (timed_out_out != NULL) {
+				*timed_out_out = 1;
+			}
+			return -2;
+		}
+		if (g_lsp_mock.references_result_code < 0) {
+			return -1;
+		}
+		if (!editorLspCopyLocations(locations_out, count_out,
+		                            g_lsp_mock.references_locations,
+		                            g_lsp_mock.references_location_count)) {
+			return -1;
+		}
+		return 1;
+	}
+
+	struct editorLspClient *client = editorLspEnsureClientForFile(filename, language);
+	if (client == NULL) {
+		return -1;
+	}
+
+	char *uri = NULL;
+	if (!editorLspBuildFileUri(filename, &uri)) {
+		return -1;
+	}
+
+	int protocol_character = editorLspProtocolCharacterFromBufferColumn(line, character);
+	int request_id = client->next_request_id++;
+	struct editorJsonString payload = {0};
+	int built = editorLspStringAppendf(
+	        &payload,
+	        "{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":\"textDocument/references\",\"params\":{"
+	        "\"textDocument\":{\"uri\":",
+	        request_id);
+	if (built) {
+		built = editorLspStringAppendJsonEscaped(&payload, uri, strlen(uri));
+	}
+	if (built) {
+		built = editorLspStringAppendf(&payload,
+		                               "},\"position\":{\"line\":%d,\"character\":%d},"
+		                               "\"context\":{\"includeDeclaration\":true}}}",
+		                               line, protocol_character);
+	}
+	free(uri);
+	if (!built) {
+		free(payload.buf);
+		return -1;
+	}
+
+	if (!editorLspSendRawJsonToFd(client->to_server_fd, payload.buf)) {
+		free(payload.buf);
+		editorLspClientCleanup(client, 0);
+		return -1;
+	}
+	free(payload.buf);
+
+	char *response = NULL;
+	int timed_out = 0;
+	if (!editorLspWaitForResponseId(client, request_id, ROTIDE_LSP_IO_TIMEOUT_MS, &response,
+	                                &timed_out)) {
+		editorLspClientCleanup(client, 0);
+		if (timed_out) {
+			if (timed_out_out != NULL) {
+				*timed_out_out = 1;
+			}
+			return -2;
+		}
+		return -1;
+	}
+	if (editorLspResponseHasError(response)) {
+		free(response);
+		return -1;
+	}
+
+	struct editorLspLocation *locations = NULL;
+	int count = 0;
+	if (!editorLspParseDefinitionLocations(response, &locations, &count)) {
+		free(response);
+		return -1;
+	}
+	free(response);
+	*locations_out = locations;
+	*count_out = count;
+	return 1;
+}
+
+int editorLspRequestHover(const char *filename, enum editorSyntaxLanguage language, int line,
+                          int character, char **text_out, int *timed_out_out) {
+	if (text_out == NULL) {
+		return -1;
+	}
+	*text_out = NULL;
+	if (timed_out_out != NULL) {
+		*timed_out_out = 0;
+	}
+
+	if (!editorLspFileEnabled(filename, language)) {
+		return 0;
+	}
+	if (filename == NULL || filename[0] == '\0' || line < 0 || character < 0 ||
+	    !editorLspFileSupportsDefinition(filename, language)) {
+		return -1;
+	}
+
+	if (g_lsp_mock.enabled) {
+		if (!editorLspEnsureRunningForFile(filename, language)) {
+			return -1;
+		}
+		g_lsp_mock.stats.hover_count++;
+		if (g_lsp_mock.hover_result_code == -2) {
+			if (timed_out_out != NULL) {
+				*timed_out_out = 1;
+			}
+			return -2;
+		}
+		if (g_lsp_mock.hover_result_code < 0) {
+			return -1;
+		}
+		if (g_lsp_mock.hover_text != NULL) {
+			*text_out = strdup(g_lsp_mock.hover_text);
+			if (*text_out == NULL) {
+				return -1;
+			}
+		}
+		return 1;
+	}
+
+	struct editorLspClient *client = editorLspEnsureClientForFile(filename, language);
+	if (client == NULL) {
+		return -1;
+	}
+
+	char *uri = NULL;
+	if (!editorLspBuildFileUri(filename, &uri)) {
+		return -1;
+	}
+
+	int protocol_character = editorLspProtocolCharacterFromBufferColumn(line, character);
+	int request_id = client->next_request_id++;
+	struct editorJsonString payload = {0};
+	int built = editorLspStringAppendf(
+	        &payload,
+	        "{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":\"textDocument/hover\",\"params\":{"
+	        "\"textDocument\":{\"uri\":",
+	        request_id);
+	if (built) {
+		built = editorLspStringAppendJsonEscaped(&payload, uri, strlen(uri));
+	}
+	if (built) {
+		built = editorLspStringAppendf(&payload,
+		                               "},\"position\":{\"line\":%d,\"character\":%d}}}",
+		                               line, protocol_character);
+	}
+	free(uri);
+	if (!built) {
+		free(payload.buf);
+		return -1;
+	}
+
+	if (!editorLspSendRawJsonToFd(client->to_server_fd, payload.buf)) {
+		free(payload.buf);
+		editorLspClientCleanup(client, 0);
+		return -1;
+	}
+	free(payload.buf);
+
+	char *response = NULL;
+	int timed_out = 0;
+	if (!editorLspWaitForResponseId(client, request_id, ROTIDE_LSP_IO_TIMEOUT_MS, &response,
+	                                &timed_out)) {
+		editorLspClientCleanup(client, 0);
+		if (timed_out) {
+			if (timed_out_out != NULL) {
+				*timed_out_out = 1;
+			}
+			return -2;
+		}
+		return -1;
+	}
+	if (editorLspResponseHasError(response)) {
+		free(response);
+		return -1;
+	}
+
+	char *text = NULL;
+	if (!editorLspParseHoverText(response, &text)) {
+		free(response);
+		return -1;
+	}
+	free(response);
+	*text_out = text;
+	return 1;
+}
+
 int editorLspRequestDocumentSymbols(const char *filename, enum editorSyntaxLanguage language,
                                     struct editorLspSymbol **symbols_out, int *count_out,
                                     int *timed_out_out) {

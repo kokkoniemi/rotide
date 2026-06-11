@@ -28,6 +28,7 @@ int editorLspParseDefinitionLocations(const char *response_json,
                                       struct editorLspLocation **locations_out, int *count_out);
 int editorLspCopyLocations(struct editorLspLocation **out_locations, int *out_count,
                            const struct editorLspLocation *locations, int count);
+int editorLspParseHoverText(const char *response_json, char **text_out);
 
 int editorLspParseDocumentSymbols(const char *response_json, struct editorLspSymbol **symbols_out,
                                   int *count_out);

@@ -48,6 +48,8 @@ struct editorLspTestStats {
 	int did_close_count;
 	int definition_count;
 	int implementation_count;
+	int references_count;
+	int hover_count;
 	int document_symbol_count;
 	int code_action_count;
 	int completion_count;
@@ -116,6 +118,11 @@ int editorLspRequestImplementation(const char *filename, enum editorSyntaxLangua
                                    int line, int character,
                                    struct editorLspLocation **locations_out, int *count_out,
                                    int *timed_out_out);
+int editorLspRequestReferences(const char *filename, enum editorSyntaxLanguage language, int line,
+                               int character, struct editorLspLocation **locations_out,
+                               int *count_out, int *timed_out_out);
+int editorLspRequestHover(const char *filename, enum editorSyntaxLanguage language, int line,
+                          int character, char **text_out, int *timed_out_out);
 int editorLspRequestDocumentSymbols(const char *filename, enum editorSyntaxLanguage language,
                                     struct editorLspSymbol **symbols_out, int *count_out,
                                     int *timed_out_out);
@@ -196,6 +203,9 @@ void editorLspTestSetMockDefinitionResponse(int result_code,
 void editorLspTestSetMockImplementationResponse(int result_code,
                                                 const struct editorLspLocation *locations,
                                                 int count);
+void editorLspTestSetMockReferencesResponse(int result_code,
+                                            const struct editorLspLocation *locations, int count);
+void editorLspTestSetMockHoverResponse(int result_code, const char *text);
 void editorLspTestSetMockDocumentSymbolResponse(int result_code,
                                                 const struct editorLspSymbol *symbols, int count);
 void editorLspTestSetMockDiagnostics(const char *path,
@@ -205,6 +215,7 @@ void editorLspTestSetMockCodeActionResult(int result_code, const struct editorLs
 void editorLspTestSetMockCompletionResponse(const struct editorLspCompletionItem *items, int count);
 int editorLspTestParseDefinitionResponse(const char *response_json,
                                          struct editorLspLocation **locations_out, int *count_out);
+int editorLspTestParseHoverResponse(const char *response_json, char **text_out);
 int editorLspTestParseDocumentSymbolResponse(const char *response_json,
                                              struct editorLspSymbol **symbols_out, int *count_out);
 int editorLspTestParseCompletionResponse(const char *response_json,

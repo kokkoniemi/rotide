@@ -41,6 +41,9 @@ void editorLspTestResetMock(void) {
 	                       g_lsp_mock.definition_location_count);
 	editorLspFreeLocations(g_lsp_mock.implementation_locations,
 	                       g_lsp_mock.implementation_location_count);
+	editorLspFreeLocations(g_lsp_mock.references_locations,
+	                       g_lsp_mock.references_location_count);
+	free(g_lsp_mock.hover_text);
 	editorLspFreeSymbols(g_lsp_mock.document_symbols, g_lsp_mock.document_symbol_count);
 	editorLspFreeDiagnostics(g_lsp_mock.diagnostics, g_lsp_mock.diagnostic_count);
 	editorLspFreePendingEdits(g_lsp_mock.code_action_edits, g_lsp_mock.code_action_edit_count);
@@ -52,6 +55,13 @@ void editorLspTestResetMock(void) {
 	g_lsp_mock.implementation_location_count = 0;
 	g_lsp_mock.implementation_result_code = 1;
 	g_lsp_mock.implementation_response_configured = 0;
+	g_lsp_mock.references_locations = NULL;
+	g_lsp_mock.references_location_count = 0;
+	g_lsp_mock.references_result_code = 1;
+	g_lsp_mock.references_response_configured = 0;
+	g_lsp_mock.hover_text = NULL;
+	g_lsp_mock.hover_result_code = 1;
+	g_lsp_mock.hover_response_configured = 0;
 	g_lsp_mock.document_symbols = NULL;
 	g_lsp_mock.document_symbol_count = 0;
 	g_lsp_mock.document_symbol_result_code = 1;
@@ -134,6 +144,36 @@ void editorLspTestSetMockImplementationResponse(int result_code,
 	                             &g_lsp_mock.implementation_location_count, locations, count);
 }
 
+void editorLspTestSetMockReferencesResponse(int result_code,
+                                            const struct editorLspLocation *locations, int count) {
+	editorLspFreeLocations(g_lsp_mock.references_locations,
+	                       g_lsp_mock.references_location_count);
+	g_lsp_mock.references_locations = NULL;
+	g_lsp_mock.references_location_count = 0;
+	g_lsp_mock.references_result_code = result_code;
+	g_lsp_mock.references_response_configured = 1;
+
+	if (locations == NULL || count <= 0) {
+		return;
+	}
+	(void)editorLspCopyLocations(&g_lsp_mock.references_locations,
+	                             &g_lsp_mock.references_location_count, locations, count);
+}
+
+void editorLspTestSetMockHoverResponse(int result_code, const char *text) {
+	free(g_lsp_mock.hover_text);
+	g_lsp_mock.hover_text = NULL;
+	g_lsp_mock.hover_result_code = result_code;
+	g_lsp_mock.hover_response_configured = 1;
+	if (text == NULL) {
+		return;
+	}
+	g_lsp_mock.hover_text = strdup(text);
+	if (g_lsp_mock.hover_text == NULL) {
+		g_lsp_mock.hover_result_code = -1;
+	}
+}
+
 void editorLspTestSetMockDocumentSymbolResponse(int result_code,
                                                 const struct editorLspSymbol *symbols, int count) {
 	editorLspFreeSymbols(g_lsp_mock.document_symbols, g_lsp_mock.document_symbol_count);
@@ -198,6 +238,13 @@ int editorLspTestParseDefinitionResponse(const char *response_json,
 		return 0;
 	}
 	return editorLspParseDefinitionLocations(response_json, locations_out, count_out);
+}
+
+int editorLspTestParseHoverResponse(const char *response_json, char **text_out) {
+	if (response_json == NULL) {
+		return 0;
+	}
+	return editorLspParseHoverText(response_json, text_out);
 }
 
 int editorLspTestParseDocumentSymbolResponse(const char *response_json,

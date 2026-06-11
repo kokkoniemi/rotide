@@ -83,8 +83,42 @@ takes one key per mode — rebinding relocates it, so the built-in default key
 stops triggering that command unless it is itself bound to another command.
 Commands left unset keep their built-in defaults.
 
+Normal mode also supports a **leader** key: `<leader>` followed by one key
+dispatches an editor action. The leader key is set with `normal.leader` (default
+`space`; `"space"` and a literal `" "` both resolve to Space) and sub-keys are
+bound under a synthetic `leader` table:
+
+```toml
+[keymap.vim]
+normal.leader = "space"
+leader.find_file = "p"
+leader.project_search = "f"
+leader.toggle_drawer = "e"
+leader.main_menu = "m"
+```
+
+Leader sub-key names are editor-action names backed by `g_vim_leader_map`; the
+leader trigger sits after count/operator gating so it cannot fire mid-sequence.
+Leader and sub-keys must be plain printable characters.
+
+`g`-prefixed keys (`gd gi gr gs gS gg`) and `[`/`]` prefixes (`]g`/`[g` for next/
+previous diagnostic) are handled by dedicated pending-state branches in the
+Normal handler. `gr` lists references via the shared location-menu UI. `K`
+dispatches the `hover` action and opens an LSP hover popup. The diagnostic jumps
+dispatch the `diagnostic_next` / `diagnostic_prev` editor actions, which
+navigate `E.lsp_diagnostics` directly.
+
+`gq` starts a reflow operator (`VIM_SYSTEM_OPERATOR_REFLOW`): `gq` after the `g`
+prefix sets the pending operator, so `gqq`, `gqap`, and `gq{motion}` flow through
+the normal operator machinery, while Visual `gq` reflows the selection.
+`vimSystemReflowLines` word-wraps to `E.text_width` (default
+`ROTIDE_TEXT_WIDTH_DEFAULT`), preserving the first line's indent.
+
 Counts (`3dd`), registers (`"a`), in-buffer search (`/ ? n N`), text objects
-(`iw aw ip ap`), and the ex command line (`:`) are structural built-ins and are
+(`iw aw ip ap`, bracket/quote pairs `i( a( i{ i[ i< i" i' i\``, tags `it`/`at`),
+find-char motions (`f F t T ; ,`), marks (`m` `` ` `` `'`), `%`, `H`/`M`/`L`,
+`*`/`#`, `r`/`~`/`J`, `>>`/`<<`, the `.` repeat, and the ex command line (`:`)
+are structural built-ins and are
 not rebindable. Loading resets Vim bindings to defaults first, then applies the
 global file, then the project file; an invalid entry reverts that scope to
 defaults and reports a status message.

@@ -14,6 +14,8 @@ enum editorPopupKeyResult {
 };
 
 int editorPopupOpen(const struct editorPopupItem *items, int count, int anchor_row, int anchor_col);
+int editorPopupOpenKind(enum editorPopupKind kind, const struct editorPopupItem *items, int count,
+                        int anchor_row, int anchor_col);
 int editorPopupOpenMenuKind(enum editorPopupKind kind, const struct editorPopupItem *items,
                             int count, int screen_row, int screen_col);
 int editorPopupOpenMenu(const struct editorPopupItem *items, int count, int screen_row,

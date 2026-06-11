@@ -79,6 +79,10 @@ struct editorTheme {
 	struct editorThemeColor ui[EDITOR_THEME_UI_ROLE_COUNT];
 	struct editorThemeStyle styles[EDITOR_THEME_STYLE_ROLE_COUNT];
 	struct editorThemeColor ansi[EDITOR_THEME_ANSI_COUNT];
+	/* Per-accent override for the input-mode status segment, indexed by ANSI
+	 * accent. Default-kind entries fall back to the ANSI palette, letting a theme
+	 * tint the mode indicator without recoloring shared terminal/git colors. */
+	struct editorThemeColor status_segment_bg[EDITOR_THEME_ANSI_COUNT];
 };
 
 enum editorThemeLoadStatus {

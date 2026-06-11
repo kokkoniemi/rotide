@@ -31,6 +31,12 @@ void editorPopupClose(void) {
 
 int editorPopupOpen(const struct editorPopupItem *items, int count, int anchor_row,
                     int anchor_col) {
+	return editorPopupOpenKind(EDITOR_POPUP_KIND_AUTOCOMPLETE, items, count, anchor_row,
+	                           anchor_col);
+}
+
+int editorPopupOpenKind(enum editorPopupKind kind, const struct editorPopupItem *items, int count,
+                        int anchor_row, int anchor_col) {
 	editorPopupClose();
 	if (items == NULL || count <= 0) {
 		return 0;
@@ -66,7 +72,7 @@ int editorPopupOpen(const struct editorPopupItem *items, int count, int anchor_r
 
 	E.popup.items = copy;
 	E.popup.item_count = count;
-	E.popup.kind = EDITOR_POPUP_KIND_AUTOCOMPLETE;
+	E.popup.kind = kind;
 	E.popup.anchor_row = anchor_row;
 	E.popup.anchor_col = anchor_col;
 	E.popup.selected_index = 0;
@@ -86,10 +92,9 @@ int editorPopupOpenMenuKind(enum editorPopupKind kind, const struct editorPopupI
 	if (!editorPopupKindIsMenu(kind)) {
 		return 0;
 	}
-	if (!editorPopupOpen(items, count, screen_row, screen_col)) {
+	if (!editorPopupOpenKind(kind, items, count, screen_row, screen_col)) {
 		return 0;
 	}
-	E.popup.kind = kind;
 	return 1;
 }
 
@@ -191,9 +196,51 @@ static void popupClampScroll(void) {
 	}
 }
 
+static void popupClampTextScroll(void) {
+	int rows = editorPopupVisibleRowCount();
+	if (rows <= 0 || E.popup.item_count <= rows) {
+		E.popup.row_offset = 0;
+		return;
+	}
+	int max_offset = E.popup.item_count - rows;
+	if (E.popup.row_offset < 0) {
+		E.popup.row_offset = 0;
+	}
+	if (E.popup.row_offset > max_offset) {
+		E.popup.row_offset = max_offset;
+	}
+}
+
 enum editorPopupKeyResult editorPopupHandleKey(int key) {
 	if (!editorPopupIsVisible()) {
 		return EDITOR_POPUP_KEY_IGNORED;
+	}
+
+	if (E.popup.kind == EDITOR_POPUP_KIND_LSP_HOVER) {
+		switch (key) {
+			case ARROW_UP:
+				E.popup.row_offset--;
+				popupClampTextScroll();
+				return EDITOR_POPUP_KEY_CONSUMED;
+			case ARROW_DOWN:
+				E.popup.row_offset++;
+				popupClampTextScroll();
+				return EDITOR_POPUP_KEY_CONSUMED;
+			case PAGE_UP:
+				E.popup.row_offset -= EDITOR_POPUP_MAX_VISIBLE_ROWS;
+				popupClampTextScroll();
+				return EDITOR_POPUP_KEY_CONSUMED;
+			case PAGE_DOWN:
+				E.popup.row_offset += EDITOR_POPUP_MAX_VISIBLE_ROWS;
+				popupClampTextScroll();
+				return EDITOR_POPUP_KEY_CONSUMED;
+			case '\x1b':
+				editorPopupClose();
+				return EDITOR_POPUP_KEY_CONSUMED;
+			default:
+				editorPopupClose();
+				return EDITOR_POPUP_KEY_DISMISSED_PASS_THROUGH;
+		}
 	}
 
 	switch (key) {
