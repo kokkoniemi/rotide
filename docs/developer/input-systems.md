@@ -106,6 +106,12 @@ previous diagnostic) are handled by dedicated pending-state branches in the
 Normal handler. The diagnostic jumps dispatch the `diagnostic_next` /
 `diagnostic_prev` editor actions, which navigate `E.lsp_diagnostics` directly.
 
+`gq` starts a reflow operator (`VIM_SYSTEM_OPERATOR_REFLOW`): `gq` after the `g`
+prefix sets the pending operator, so `gqq`, `gqap`, and `gq{motion}` flow through
+the normal operator machinery, while Visual `gq` reflows the selection.
+`vimSystemReflowLines` word-wraps to `E.text_width` (default
+`ROTIDE_TEXT_WIDTH_DEFAULT`), preserving the first line's indent.
+
 Counts (`3dd`), registers (`"a`), in-buffer search (`/ ? n N`), text objects
 (`iw aw ip ap`, bracket/quote pairs `i( a( i{ i[ i< i" i' i\``, tags `it`/`at`),
 find-char motions (`f F t T ; ,`), marks (`m` `` ` `` `'`), `%`, `H`/`M`/`L`,

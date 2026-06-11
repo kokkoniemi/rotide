@@ -72,6 +72,9 @@ cursor forwards / backwards (and prime `n`/`N`).
   work over a Visual selection
 - `m<a-z>` sets a mark; `` `<a-z> `` jumps to it, `'<a-z>` to its line
 - `.` repeats the last change; `ZZ` saves and quits, `ZQ` quits without saving
+- `gq` re-wraps text to the text width: `gqq` the current line, `gqap` a
+  paragraph, `gq{motion}`, or `gq` over a Visual selection (default width 80;
+  the first line's indent is preserved)
 
 ## Vim text objects
 

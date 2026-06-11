@@ -129,6 +129,7 @@ void editorInit(void) {
 	E.auto_indent_enabled = 0;
 	E.indent_use_tabs = 0;
 	E.indent_width = ROTIDE_INDENT_WIDTH_DEFAULT;
+	E.text_width = ROTIDE_TEXT_WIDTH_DEFAULT;
 	E.column_select_drag_modifier = EDITOR_MOUSE_MOD_ALT;
 	editorThemeInitDefault(&E.theme);
 	E.viewport_mode = EDITOR_VIEWPORT_FOLLOW_CURSOR;

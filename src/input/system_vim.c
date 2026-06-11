@@ -67,7 +67,8 @@ enum vimSystemOperator {
 	VIM_SYSTEM_OPERATOR_CHANGE = 'c',
 	VIM_SYSTEM_OPERATOR_YANK = 'y',
 	VIM_SYSTEM_OPERATOR_INDENT = '>',
-	VIM_SYSTEM_OPERATOR_DEDENT = '<'
+	VIM_SYSTEM_OPERATOR_DEDENT = '<',
+	VIM_SYSTEM_OPERATOR_REFLOW = 'q'
 };
 
 enum vimSystemCharClass { VIM_SYSTEM_CHAR_SPACE = 0, VIM_SYSTEM_CHAR_WORD, VIM_SYSTEM_CHAR_PUNCT };
@@ -1407,6 +1408,177 @@ static int vimSystemIndentLines(int start_cy, int end_cy, int dedent, int *effec
 	return changed;
 }
 
+/* Display width of a byte span: tabs expand to the tab stop, other bytes count
+ * one column per UTF-8 lead byte (a reasonable proxy for non-CJK text). */
+static int vimSystemDisplayWidth(const char *s, int len) {
+	int w = 0;
+
+	for (int i = 0; i < len; i++) {
+		unsigned char b = (unsigned char)s[i];
+		if (b == '\t') {
+			w += ROTIDE_TAB_WIDTH;
+		} else if ((b & 0xC0) != 0x80) {
+			w++;
+		}
+	}
+	return w;
+}
+
+/* `gq`: re-wrap lines [start_cy, end_cy] to `E.text_width`, packing whitespace-
+ * separated words and preserving the first line's leading indent. One edit. */
+static int vimSystemReflowLines(int start_cy, int end_cy, int *effects_out) {
+	struct editorLineView line0 = {0};
+	char *indent = NULL;
+	int indent_len = 0;
+	int indent_w = 0;
+	size_t total_word_bytes = 0;
+	size_t num_words = 0;
+	char *out = NULL;
+	size_t out_len = 0;
+	size_t cap = 0;
+	int cur_w = 0;
+	int line_has_word = 0;
+	struct editorSelectionRange range;
+	int dirty_before = E.dirty;
+	int width = E.text_width > 0 ? E.text_width : ROTIDE_TEXT_WIDTH_DEFAULT;
+	int replaced = 0;
+
+	if (vimSystemRejectReadOnlyMutation() || E.numrows <= 0) {
+		return 0;
+	}
+	if (start_cy > end_cy) {
+		int tmp = start_cy;
+		start_cy = end_cy;
+		end_cy = tmp;
+	}
+	if (start_cy < 0) {
+		start_cy = 0;
+	}
+	if (end_cy >= E.numrows) {
+		end_cy = E.numrows - 1;
+	}
+
+	if (editorDocumentLineView(E.document, start_cy, &line0)) {
+		while (indent_len < line0.size &&
+		       (line0.data[indent_len] == ' ' || line0.data[indent_len] == '\t')) {
+			indent_len++;
+		}
+		indent = editorMalloc((size_t)indent_len + 1);
+		if (indent == NULL) {
+			editorLineViewRelease(&line0);
+			editorSetAllocFailureStatus();
+			return 0;
+		}
+		memcpy(indent, line0.data, (size_t)indent_len);
+		indent[indent_len] = '\0';
+		indent_w = vimSystemDisplayWidth(indent, indent_len);
+		editorLineViewRelease(&line0);
+	}
+
+	for (int cy = start_cy; cy <= end_cy; cy++) {
+		struct editorLineView line = {0};
+		if (!editorDocumentLineView(E.document, cy, &line)) {
+			continue;
+		}
+		for (int i = 0; i < line.size;) {
+			int start;
+			while (i < line.size && (line.data[i] == ' ' || line.data[i] == '\t')) {
+				i++;
+			}
+			start = i;
+			while (i < line.size && line.data[i] != ' ' && line.data[i] != '\t') {
+				i++;
+			}
+			if (i > start) {
+				num_words++;
+				total_word_bytes += (size_t)(i - start);
+			}
+		}
+		editorLineViewRelease(&line);
+	}
+	if (num_words == 0) {
+		free(indent);
+		return 0;
+	}
+
+	cap = total_word_bytes + num_words * (size_t)(indent_len + 1) + (size_t)indent_len + 2;
+	if (cap > ROTIDE_MAX_TEXT_BYTES) {
+		free(indent);
+		editorSetOperationTooLargeStatus();
+		return 0;
+	}
+	out = editorMalloc(cap);
+	if (out == NULL) {
+		free(indent);
+		editorSetAllocFailureStatus();
+		return 0;
+	}
+
+	memcpy(out, indent, (size_t)indent_len);
+	out_len = (size_t)indent_len;
+	cur_w = indent_w;
+	for (int cy = start_cy; cy <= end_cy; cy++) {
+		struct editorLineView line = {0};
+		if (!editorDocumentLineView(E.document, cy, &line)) {
+			continue;
+		}
+		for (int i = 0; i < line.size;) {
+			int start;
+			int wl;
+			int ww;
+			while (i < line.size && (line.data[i] == ' ' || line.data[i] == '\t')) {
+				i++;
+			}
+			start = i;
+			while (i < line.size && line.data[i] != ' ' && line.data[i] != '\t') {
+				i++;
+			}
+			wl = i - start;
+			if (wl == 0) {
+				continue;
+			}
+			ww = vimSystemDisplayWidth(line.data + start, wl);
+			if (!line_has_word) {
+				memcpy(out + out_len, line.data + start, (size_t)wl);
+				out_len += (size_t)wl;
+				cur_w += ww;
+				line_has_word = 1;
+			} else if (cur_w + 1 + ww <= width) {
+				out[out_len++] = ' ';
+				memcpy(out + out_len, line.data + start, (size_t)wl);
+				out_len += (size_t)wl;
+				cur_w += 1 + ww;
+			} else {
+				out[out_len++] = '\n';
+				memcpy(out + out_len, indent, (size_t)indent_len);
+				out_len += (size_t)indent_len;
+				memcpy(out + out_len, line.data + start, (size_t)wl);
+				out_len += (size_t)wl;
+				cur_w = indent_w + ww;
+			}
+		}
+		editorLineViewRelease(&line);
+	}
+
+	range.start_cy = start_cy;
+	range.start_cx = 0;
+	range.end_cy = end_cy;
+	range.end_cx = vimSystemLineEndCx(end_cy);
+	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+	replaced = editorReplaceRange(&range, out, out_len);
+	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+	editorHistoryBreakGroup();
+	free(indent);
+	free(out);
+	editorClearSelectionState();
+	if (replaced > 0) {
+		vimSystemAddEditEffect(effects_out);
+	}
+	vimSystemSetMode(VIM_SYSTEM_MODE_NORMAL);
+	vimSystemClampNormalCursor();
+	return replaced > 0;
+}
+
 static int vimSystemApplyOperatorToRange(enum vimSystemOperator op,
                                          const struct editorSelectionRange *range, int linewise,
                                          int *effects_out) {
@@ -1417,6 +1589,10 @@ static int vimSystemApplyOperatorToRange(enum vimSystemOperator op,
 		int last = linewise ? vimSystemLineRangeLastRow(range) : range->end_cy;
 		return vimSystemIndentLines(range->start_cy, last, op == VIM_SYSTEM_OPERATOR_DEDENT,
 		                            effects_out);
+	}
+	if (op == VIM_SYSTEM_OPERATOR_REFLOW) {
+		int last = linewise ? vimSystemLineRangeLastRow(range) : range->end_cy;
+		return vimSystemReflowLines(range->start_cy, last, effects_out);
 	}
 	if (op == VIM_SYSTEM_OPERATOR_YANK) {
 		if (linewise) {
@@ -1472,6 +1648,9 @@ static int vimSystemApplyLineOperator(enum vimSystemOperator op, int count, int 
 	if (op == VIM_SYSTEM_OPERATOR_INDENT || op == VIM_SYSTEM_OPERATOR_DEDENT) {
 		return vimSystemIndentLines(E.cy, end_cy, op == VIM_SYSTEM_OPERATOR_DEDENT,
 		                            effects_out);
+	}
+	if (op == VIM_SYSTEM_OPERATOR_REFLOW) {
+		return vimSystemReflowLines(E.cy, end_cy, effects_out);
 	}
 	if (op == VIM_SYSTEM_OPERATOR_CHANGE) {
 		return vimSystemChangeLineRange(E.cy, end_cy, effects_out);
@@ -2703,6 +2882,16 @@ static int vimSystemHandleNormalKey(int c, int *effects_out) {
 	}
 	if (E.input_vim_pending_g) {
 		enum editorAction action = EDITOR_ACTION_COUNT;
+		if (c == 'q') {
+			/* `gq` becomes a reflow operator; the next motion (or `q` for the
+			 * current line) supplies the range. */
+			E.input_vim_pending_g = 0;
+			E.input_vim_pending_operator = VIM_SYSTEM_OPERATOR_REFLOW;
+			E.input_vim_pending_operator_g = 0;
+			E.input_vim_operator_count = E.input_vim_count;
+			E.input_vim_count = 0;
+			return 0;
+		}
 		if (vimSystemGPrefixAction(c, &action)) {
 			int mapped_effects = EDITOR_INPUT_KEY_EFFECT_NONE;
 			int return_now = 0;
@@ -2985,6 +3174,17 @@ static int vimSystemHandleVisualKey(int c, int *effects_out) {
 		int inner = E.input_vim_pending_text_object == 'i';
 		E.input_vim_pending_text_object = 0;
 		(void)vimSystemVisualSelectObject(inner, c, effects_out);
+		return 0;
+	}
+	if (E.input_vim_pending_g && c == 'q') {
+		struct editorSelectionRange range;
+		E.input_vim_pending_g = 0;
+		if (vimSystemVisualRange(&range, NULL)) {
+			(void)vimSystemReflowLines(range.start_cy,
+			                           vimSystemLineRangeLastRow(&range), effects_out);
+		}
+		editorClearSelectionState();
+		vimSystemSetMode(VIM_SYSTEM_MODE_NORMAL);
 		return 0;
 	}
 	if (vimSystemConsumeCountKey(c)) {

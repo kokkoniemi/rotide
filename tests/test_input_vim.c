@@ -1416,6 +1416,81 @@ static int test_input_vim_inner_tag_nested(void) {
 	return 0;
 }
 
+static int test_input_vim_reflow_line(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("aaa bbb ccc ddd eee fff");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.text_width = 20;
+	E.cy = 0;
+	E.cx = 0;
+	/* gqq re-wraps the current line at text_width. */
+	(void)vim_test_key('g');
+	(void)vim_test_key('q');
+	(void)vim_test_key('q');
+	ASSERT_EQ_INT(2, E.numrows);
+	ASSERT_ROW_TEXT_EQ(0, "aaa bbb ccc ddd eee");
+	ASSERT_ROW_TEXT_EQ(1, "fff");
+	return 0;
+}
+
+static int test_input_vim_reflow_joins_paragraph(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("hello");
+	add_row("world");
+	add_row("foo");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.text_width = 80;
+	E.cy = 0;
+	E.cx = 0;
+	/* gqip joins the paragraph's short lines (well under text_width). */
+	(void)vim_test_key('g');
+	(void)vim_test_key('q');
+	(void)vim_test_key('i');
+	(void)vim_test_key('p');
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_ROW_TEXT_EQ(0, "hello world foo");
+	return 0;
+}
+
+static int test_input_vim_reflow_preserves_indent(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("  alpha beta gamma delta");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.text_width = 12;
+	E.cy = 0;
+	E.cx = 0;
+	(void)vim_test_key('g');
+	(void)vim_test_key('q');
+	(void)vim_test_key('q');
+	ASSERT_EQ_INT(3, E.numrows);
+	ASSERT_ROW_TEXT_EQ(0, "  alpha beta");
+	ASSERT_ROW_TEXT_EQ(1, "  gamma");
+	ASSERT_ROW_TEXT_EQ(2, "  delta");
+	return 0;
+}
+
+static int test_input_vim_visual_reflow(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("one two");
+	add_row("three four");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.text_width = 80;
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('V') == 0);
+	ASSERT_TRUE(vim_test_key('j') == 0);
+	(void)vim_test_key('g');
+	(void)vim_test_key('q');
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_ROW_TEXT_EQ(0, "one two three four");
+	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
+	return 0;
+}
+
 static int test_input_vim_bracket_prefix_diagnostic(void) {
 	ASSERT_TRUE(editorTabsInit());
 	add_row("hello");
@@ -1693,6 +1768,10 @@ const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_delete_inner_tag", test_input_vim_delete_inner_tag},
         {"input_vim_delete_around_tag", test_input_vim_delete_around_tag},
         {"input_vim_inner_tag_nested", test_input_vim_inner_tag_nested},
+        {"input_vim_reflow_line", test_input_vim_reflow_line},
+        {"input_vim_reflow_joins_paragraph", test_input_vim_reflow_joins_paragraph},
+        {"input_vim_reflow_preserves_indent", test_input_vim_reflow_preserves_indent},
+        {"input_vim_visual_reflow", test_input_vim_visual_reflow},
         {"input_vim_bracket_prefix_diagnostic", test_input_vim_bracket_prefix_diagnostic},
         {"input_vim_mark_set_and_jump", test_input_vim_mark_set_and_jump},
         {"input_vim_indent_line", test_input_vim_indent_line},
