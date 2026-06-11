@@ -60,6 +60,19 @@ comma and `2fx` jumps to the second `x`.
 `{` and `}` jump to the previous/next blank line (paragraph boundary) and also
 compose with operators (`d}`).
 
+`%` jumps to the matching bracket (operator-compatible, `d%`). `H`/`M`/`L` move
+to the top/middle/bottom of the screen. `*` / `#` search for the word under the
+cursor forwards / backwards (and prime `n`/`N`).
+
+## Vim editing and marks
+
+- `r<char>`: replace the character(s) under the cursor (`3rx`)
+- `~`: toggle case and advance; `J`: join the current line with the next
+- `>>` / `<<`: indent / dedent the line(s); `>`/`<` also take motions (`>ip`) and
+  work over a Visual selection
+- `m<a-z>` sets a mark; `` `<a-z> `` jumps to it, `'<a-z>` to its line
+- `.` repeats the last change; `ZZ` saves and quits, `ZQ` quits without saving
+
 ## Vim text objects
 
 Operators and Visual mode accept text objects via `i` (inner) / `a` (around):
@@ -67,6 +80,7 @@ Operators and Visual mode accept text objects via `i` (inner) / `a` (around):
 - `iw` / `aw`: word; `ip` / `ap`: paragraph
 - `i(` `i)` `ib`, `i{` `i}` `iB`, `i[` `i]`, `i<` `i>`: bracket pairs
 - `i"` `i'` `` i` ``: quoted spans
+- `it` / `at`: inner / around the enclosing `<tag>…</tag>`
 
 For example `ci(` changes inside the parentheses, `da{` deletes a brace block
 (including the braces), and `vi"` visually selects a quoted string.

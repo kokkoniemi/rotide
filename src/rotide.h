@@ -493,6 +493,9 @@ struct editorHistory {
 	X(int, input_vim_pending_find)                                                             \
 	X(int, input_vim_last_find_cmd)                                                            \
 	X(int, input_vim_last_find_char)                                                           \
+	X(int, input_vim_pending_replace)                                                          \
+	X(int, input_vim_pending_z)                                                                \
+	X(int, input_vim_pending_mark)                                                             \
 	X(int, input_vim_visual_selection_half_open)                                               \
 	X(char *, input_vim_search_query)                                                          \
 	X(int, input_vim_search_direction)
@@ -610,6 +613,13 @@ struct editorConfig {
 		int linewise;
 	} vim_registers[26];
 	int vim_default_register_linewise;
+
+	/* --- Input: Vim marks a-z (set via `m`, jumped via `` ` `` / `'`) --- */
+	struct editorVimMark {
+		int set;
+		int cy;
+		int cx;
+	} vim_marks[26];
 
 	/* --- Workspace: tabs --- */
 	struct editorTabState *tabs;

@@ -48,7 +48,11 @@ enum vimSystemMotion {
 	VIM_SYSTEM_MOTION_TILL_FORWARD,
 	VIM_SYSTEM_MOTION_TILL_BACKWARD,
 	VIM_SYSTEM_MOTION_PARAGRAPH_FORWARD,
-	VIM_SYSTEM_MOTION_PARAGRAPH_BACKWARD
+	VIM_SYSTEM_MOTION_PARAGRAPH_BACKWARD,
+	VIM_SYSTEM_MOTION_MATCH_BRACKET,
+	VIM_SYSTEM_MOTION_SCREEN_TOP,
+	VIM_SYSTEM_MOTION_SCREEN_MIDDLE,
+	VIM_SYSTEM_MOTION_SCREEN_BOTTOM
 };
 
 enum vimSystemMotionParse {
@@ -61,7 +65,9 @@ enum vimSystemOperator {
 	VIM_SYSTEM_OPERATOR_NONE = 0,
 	VIM_SYSTEM_OPERATOR_DELETE = 'd',
 	VIM_SYSTEM_OPERATOR_CHANGE = 'c',
-	VIM_SYSTEM_OPERATOR_YANK = 'y'
+	VIM_SYSTEM_OPERATOR_YANK = 'y',
+	VIM_SYSTEM_OPERATOR_INDENT = '>',
+	VIM_SYSTEM_OPERATOR_DEDENT = '<'
 };
 
 enum vimSystemCharClass { VIM_SYSTEM_CHAR_SPACE = 0, VIM_SYSTEM_CHAR_WORD, VIM_SYSTEM_CHAR_PUNCT };
@@ -260,6 +266,9 @@ static void vimSystemResetPending(void) {
 	E.input_vim_pending_text_object = 0;
 	E.input_vim_pending_leader = 0;
 	E.input_vim_pending_find = 0;
+	E.input_vim_pending_replace = 0;
+	E.input_vim_pending_z = 0;
+	E.input_vim_pending_mark = 0;
 	E.input_vim_visual_selection_half_open = 0;
 }
 
@@ -673,6 +682,72 @@ static int vimSystemFindMotionTarget(enum vimSystemMotion motion, int cy, int cx
 	return 1;
 }
 
+/* `%`: from the first bracket at/after the cursor on the line, jump to its match.
+ * Reuses the bracket-match highlight scanner (cursor-on-bracket based). */
+static int vimSystemMatchBracketTarget(int *cy_out, int *cx_out) {
+	struct editorLineView line = {0};
+	int bcol = -1;
+	int rows[2];
+	int cols[2];
+	int saved_cx;
+	int ok;
+
+	if (!editorDocumentLineView(E.document, E.cy, &line)) {
+		return 0;
+	}
+	for (int i = E.cx; i < line.size; i++) {
+		char ch = line.data[i];
+		if (ch == '(' || ch == ')' || ch == '[' || ch == ']' || ch == '{' || ch == '}') {
+			bcol = i;
+			break;
+		}
+	}
+	editorLineViewRelease(&line);
+	if (bcol < 0) {
+		return 0;
+	}
+	saved_cx = E.cx;
+	E.cx = bcol;
+	ok = editorBracketMatchComputeForCursor(rows, cols);
+	E.cx = saved_cx;
+	if (!ok) {
+		return 0;
+	}
+	*cy_out = rows[1];
+	*cx_out = cols[1];
+	return 1;
+}
+
+/* `H`/`M`/`L`: top/middle/bottom visible buffer row of the focused pane. */
+static int vimSystemScreenMotionTarget(enum vimSystemMotion motion) {
+	int body = editorViewportFocusedPaneBodyRows();
+	int top = E.rowoff < 0 ? 0 : E.rowoff;
+	int last_visible;
+	int target;
+
+	if (body < 1) {
+		body = 1;
+	}
+	last_visible = top + body - 1;
+	if (last_visible > E.numrows - 1) {
+		last_visible = E.numrows - 1;
+	}
+	if (motion == VIM_SYSTEM_MOTION_SCREEN_TOP) {
+		target = top;
+	} else if (motion == VIM_SYSTEM_MOTION_SCREEN_BOTTOM) {
+		target = last_visible;
+	} else {
+		target = top + (last_visible - top) / 2;
+	}
+	if (target < 0) {
+		target = 0;
+	}
+	if (target > E.numrows - 1) {
+		target = E.numrows - 1;
+	}
+	return target;
+}
+
 static int vimSystemMotionTarget(enum vimSystemMotion motion, int *cy_out, int *cx_out) {
 	int cy = E.cy;
 	int cx = E.cx;
@@ -790,6 +865,21 @@ static int vimSystemMotionTarget(enum vimSystemMotion motion, int *cy_out, int *
 			cx = 0;
 			break;
 		}
+		case VIM_SYSTEM_MOTION_MATCH_BRACKET: {
+			int tcy = cy;
+			int tcx = cx;
+			if (vimSystemMatchBracketTarget(&tcy, &tcx)) {
+				cy = tcy;
+				cx = tcx;
+			}
+			break;
+		}
+		case VIM_SYSTEM_MOTION_SCREEN_TOP:
+		case VIM_SYSTEM_MOTION_SCREEN_MIDDLE:
+		case VIM_SYSTEM_MOTION_SCREEN_BOTTOM:
+			cy = vimSystemScreenMotionTarget(motion);
+			cx = vimSystemLineFirstNonblank(cy);
+			break;
 	}
 
 	*cy_out = cy;
@@ -799,12 +889,17 @@ static int vimSystemMotionTarget(enum vimSystemMotion motion, int *cy_out, int *
 
 static int vimSystemMotionIsLinewise(enum vimSystemMotion motion) {
 	return motion == VIM_SYSTEM_MOTION_DOWN || motion == VIM_SYSTEM_MOTION_UP ||
-	       motion == VIM_SYSTEM_MOTION_FIRST_LINE || motion == VIM_SYSTEM_MOTION_LAST_LINE;
+	       motion == VIM_SYSTEM_MOTION_FIRST_LINE || motion == VIM_SYSTEM_MOTION_LAST_LINE ||
+	       motion == VIM_SYSTEM_MOTION_SCREEN_TOP ||
+	       motion == VIM_SYSTEM_MOTION_SCREEN_MIDDLE ||
+	       motion == VIM_SYSTEM_MOTION_SCREEN_BOTTOM;
 }
 
 static int vimSystemMotionIsInclusive(enum vimSystemMotion motion) {
 	return motion == VIM_SYSTEM_MOTION_WORD_END || motion == VIM_SYSTEM_MOTION_LINE_END ||
-	       motion == VIM_SYSTEM_MOTION_FIND_FORWARD || motion == VIM_SYSTEM_MOTION_TILL_FORWARD;
+	       motion == VIM_SYSTEM_MOTION_FIND_FORWARD ||
+	       motion == VIM_SYSTEM_MOTION_TILL_FORWARD ||
+	       motion == VIM_SYSTEM_MOTION_MATCH_BRACKET;
 }
 
 static int vimSystemPositionComesBefore(int left_cy, int left_cx, int right_cy, int right_cx) {
@@ -1081,6 +1176,18 @@ static enum vimSystemMotionParse vimSystemParseMotionKey(int c, int *pending_g,
 		case '{':
 			motion = VIM_SYSTEM_MOTION_PARAGRAPH_BACKWARD;
 			break;
+		case '%':
+			motion = VIM_SYSTEM_MOTION_MATCH_BRACKET;
+			break;
+		case 'H':
+			motion = VIM_SYSTEM_MOTION_SCREEN_TOP;
+			break;
+		case 'M':
+			motion = VIM_SYSTEM_MOTION_SCREEN_MIDDLE;
+			break;
+		case 'L':
+			motion = VIM_SYSTEM_MOTION_SCREEN_BOTTOM;
+			break;
 		case 'g':
 			if (pending_g != NULL) {
 				*pending_g = 1;
@@ -1219,12 +1326,97 @@ static int vimSystemChangeLineRange(int start_cy, int end_cy, int *effects_out) 
 	return changed > 0;
 }
 
+/* `>`/`<`: add or remove one indent level on each line in [start_cy, end_cy].
+ * Indent unit follows the editor's tab/width settings; blank lines are skipped. */
+static int vimSystemIndentLines(int start_cy, int end_cy, int dedent, int *effects_out) {
+	int dirty_before = E.dirty;
+	int changed = 0;
+	int width = E.indent_width > 0 ? E.indent_width : ROTIDE_INDENT_WIDTH_DEFAULT;
+	char indent[16];
+	int indent_len;
+
+	if (vimSystemRejectReadOnlyMutation() || E.numrows <= 0) {
+		return 0;
+	}
+	if (start_cy > end_cy) {
+		int tmp = start_cy;
+		start_cy = end_cy;
+		end_cy = tmp;
+	}
+	if (start_cy < 0) {
+		start_cy = 0;
+	}
+	if (end_cy >= E.numrows) {
+		end_cy = E.numrows - 1;
+	}
+	if (width > (int)sizeof(indent)) {
+		width = (int)sizeof(indent);
+	}
+	if (E.indent_use_tabs) {
+		indent[0] = '\t';
+		indent_len = 1;
+	} else {
+		for (int i = 0; i < width; i++) {
+			indent[i] = ' ';
+		}
+		indent_len = width;
+	}
+
+	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+	for (int cy = start_cy; cy <= end_cy; cy++) {
+		struct editorSelectionRange range;
+		range.start_cy = cy;
+		range.start_cx = 0;
+		range.end_cy = cy;
+		if (dedent) {
+			struct editorLineView line = {0};
+			int remove = 0;
+			if (editorDocumentLineView(E.document, cy, &line)) {
+				if (line.size > 0 && line.data[0] == '\t') {
+					remove = 1;
+				} else {
+					while (remove < width && remove < line.size &&
+					       line.data[remove] == ' ') {
+						remove++;
+					}
+				}
+				editorLineViewRelease(&line);
+			}
+			if (remove > 0) {
+				range.end_cx = remove;
+				if (editorDeleteRange(&range) > 0) {
+					changed = 1;
+				}
+			}
+		} else if (editorDocumentLineLength(E.document, cy) > 0) {
+			range.end_cx = 0;
+			if (editorReplaceRange(&range, indent, (size_t)indent_len) > 0) {
+				changed = 1;
+			}
+		}
+	}
+	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+	editorHistoryBreakGroup();
+	editorClearSelectionState();
+	if (changed) {
+		vimSystemAddEditEffect(effects_out);
+	}
+	vimSystemSetMode(VIM_SYSTEM_MODE_NORMAL);
+	(void)vimSystemSetCursor(start_cy, vimSystemLineFirstNonblank(start_cy), effects_out);
+	return changed;
+}
+
 static int vimSystemApplyOperatorToRange(enum vimSystemOperator op,
                                          const struct editorSelectionRange *range, int linewise,
                                          int *effects_out) {
 	int dirty_before = E.dirty;
 	int changed = 0;
 
+	if (op == VIM_SYSTEM_OPERATOR_INDENT || op == VIM_SYSTEM_OPERATOR_DEDENT) {
+		int last = linewise ? vimSystemLineRangeLastRow(range) : range->end_cy;
+		return vimSystemIndentLines(range->start_cy, last, op == VIM_SYSTEM_OPERATOR_DEDENT,
+		                            effects_out);
+	}
 	if (op == VIM_SYSTEM_OPERATOR_YANK) {
 		if (linewise) {
 			return vimSystemYankLines(range->start_cy,
@@ -1275,6 +1467,10 @@ static int vimSystemApplyLineOperator(enum vimSystemOperator op, int count, int 
 
 	if (end_cy >= E.numrows) {
 		end_cy = E.numrows - 1;
+	}
+	if (op == VIM_SYSTEM_OPERATOR_INDENT || op == VIM_SYSTEM_OPERATOR_DEDENT) {
+		return vimSystemIndentLines(E.cy, end_cy, op == VIM_SYSTEM_OPERATOR_DEDENT,
+		                            effects_out);
 	}
 	if (op == VIM_SYSTEM_OPERATOR_CHANGE) {
 		return vimSystemChangeLineRange(E.cy, end_cy, effects_out);
@@ -1551,6 +1747,142 @@ static int vimSystemQuoteObjectRange(int inner, char quote,
 	return range_out->start_cx != range_out->end_cx;
 }
 
+enum { VIM_TAG_NAME_MAX = 32, VIM_TAG_TOKEN_MAX = 512 };
+
+struct vimTagToken {
+	char name[VIM_TAG_NAME_MAX];
+	int closing;
+	int self_close;
+	int start_cy;
+	int start_cx;
+	int after_cy;
+	int after_cx;
+};
+
+/* Collect single-line `<...>` tags across the document (tags that don't close on
+ * their start line are skipped). Returns the token count. */
+static int vimSystemCollectTags(struct vimTagToken *toks, int max) {
+	int n = 0;
+
+	for (int cy = 0; cy < E.numrows && n < max; cy++) {
+		struct editorLineView line = {0};
+		if (!editorDocumentLineView(E.document, cy, &line)) {
+			break;
+		}
+		for (int i = 0; i < line.size && n < max; i++) {
+			int j;
+			int closing = 0;
+			int nl = 0;
+			int gt = -1;
+			struct vimTagToken *tok;
+			if (line.data[i] != '<') {
+				continue;
+			}
+			j = i + 1;
+			if (j < line.size && line.data[j] == '/') {
+				closing = 1;
+				j++;
+			}
+			tok = &toks[n];
+			while (j < line.size && nl < VIM_TAG_NAME_MAX - 1) {
+				char ch = line.data[j];
+				if (isalnum((unsigned char)ch) || ch == '-' || ch == '_' ||
+				    ch == ':') {
+					tok->name[nl++] = ch;
+					j++;
+				} else {
+					break;
+				}
+			}
+			tok->name[nl] = '\0';
+			if (nl == 0) {
+				continue;
+			}
+			for (int k = j; k < line.size; k++) {
+				if (line.data[k] == '>') {
+					gt = k;
+					break;
+				}
+			}
+			if (gt < 0) {
+				continue;
+			}
+			tok->closing = closing;
+			tok->self_close = gt > 0 && line.data[gt - 1] == '/';
+			tok->start_cy = cy;
+			tok->start_cx = i;
+			tok->after_cy = cy;
+			tok->after_cx = gt + 1;
+			n++;
+			i = gt;
+		}
+		editorLineViewRelease(&line);
+	}
+	return n;
+}
+
+/* `it`/`at`: the innermost `<tag>...</tag>` pair enclosing the cursor. */
+static int vimSystemTagObjectRange(int inner, struct editorSelectionRange *range_out) {
+	struct vimTagToken toks[VIM_TAG_TOKEN_MAX];
+	int stack[VIM_TAG_TOKEN_MAX];
+	int sp = 0;
+	int count = vimSystemCollectTags(toks, VIM_TAG_TOKEN_MAX);
+	size_t cursor_off = 0;
+	int best_open = -1;
+	int best_close = -1;
+	size_t best_open_off = 0;
+
+	if (count <= 0 || !editorBufferPosToOffset(E.cy, E.cx, &cursor_off)) {
+		return 0;
+	}
+	for (int t = 0; t < count; t++) {
+		size_t open_start = 0;
+		size_t close_after = 0;
+		int open_t;
+		if (toks[t].self_close) {
+			continue;
+		}
+		if (!toks[t].closing) {
+			stack[sp++] = t;
+			continue;
+		}
+		while (sp > 0 && strcmp(toks[stack[sp - 1]].name, toks[t].name) != 0) {
+			sp--;
+		}
+		if (sp == 0) {
+			continue;
+		}
+		open_t = stack[--sp];
+		if (!editorBufferPosToOffset(toks[open_t].start_cy, toks[open_t].start_cx,
+		                             &open_start) ||
+		    !editorBufferPosToOffset(toks[t].after_cy, toks[t].after_cx, &close_after)) {
+			continue;
+		}
+		if (cursor_off >= open_start && cursor_off < close_after &&
+		    (best_open < 0 || open_start > best_open_off)) {
+			best_open = open_t;
+			best_close = t;
+			best_open_off = open_start;
+		}
+	}
+	if (best_open < 0) {
+		return 0;
+	}
+	if (inner) {
+		range_out->start_cy = toks[best_open].after_cy;
+		range_out->start_cx = toks[best_open].after_cx;
+		range_out->end_cy = toks[best_close].start_cy;
+		range_out->end_cx = toks[best_close].start_cx;
+	} else {
+		range_out->start_cy = toks[best_open].start_cy;
+		range_out->start_cx = toks[best_open].start_cx;
+		range_out->end_cy = toks[best_close].after_cy;
+		range_out->end_cx = toks[best_close].after_cx;
+	}
+	return !(range_out->start_cy == range_out->end_cy &&
+	         range_out->start_cx == range_out->end_cx);
+}
+
 static int vimSystemTextObjectRange(int inner, int object_key,
                                     struct editorSelectionRange *range_out, int *linewise_out) {
 	if (linewise_out != NULL) {
@@ -1584,6 +1916,8 @@ static int vimSystemTextObjectRange(int inner, int object_key,
 			return vimSystemQuoteObjectRange(inner, '\'', range_out);
 		case '`':
 			return vimSystemQuoteObjectRange(inner, '`', range_out);
+		case 't':
+			return vimSystemTagObjectRange(inner, range_out);
 		default:
 			return 0;
 	}
@@ -1745,6 +2079,158 @@ static int vimSystemPasteDefaultRegister(int after, int *effects_out) {
 	return pasted;
 }
 
+/* `r<char>`: overwrite `count` clusters under the cursor with `replacement`.
+ * No-op (like Vim's beep) if fewer than `count` clusters remain on the line. */
+static int vimSystemReplaceChar(int replacement, int count, int *effects_out) {
+	struct editorLineView line = {0};
+	struct editorSelectionRange range;
+	char buf[8];
+	int end_cx;
+	int dirty_before = E.dirty;
+	int last_cx;
+
+	if (replacement == '\x1b' || replacement == '\r') {
+		return 0;
+	}
+	if (vimSystemRejectReadOnlyMutation() || count < 1) {
+		return 0;
+	}
+	if (!editorDocumentLineView(E.document, E.cy, &line)) {
+		return 0;
+	}
+	end_cx = E.cx;
+	for (int i = 0; i < count; i++) {
+		int next = editorBytesNextClusterIdx(line.data, line.size, end_cx);
+		if (next <= end_cx || end_cx >= line.size) {
+			editorLineViewRelease(&line);
+			return 0;
+		}
+		end_cx = next;
+	}
+	last_cx = editorBytesPrevClusterIdx(line.data, line.size, end_cx);
+	editorLineViewRelease(&line);
+
+	for (int i = 0; i < count && i < (int)sizeof(buf); i++) {
+		buf[i] = (char)replacement;
+	}
+	range.start_cy = E.cy;
+	range.start_cx = E.cx;
+	range.end_cy = E.cy;
+	range.end_cx = end_cx;
+	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+	(void)editorReplaceRange(&range, buf, (size_t)count);
+	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+	editorHistoryBreakGroup();
+	vimSystemAddEditEffect(effects_out);
+	(void)vimSystemSetCursor(E.cy, last_cx, effects_out);
+	return 1;
+}
+
+/* `~`: toggle case of `count` clusters and advance the cursor past them. */
+static int vimSystemToggleCase(int count, int *effects_out) {
+	struct editorLineView line = {0};
+	char buf[64];
+	int n = 0;
+	int start_cx = E.cx;
+	int cx;
+	int dirty_before = E.dirty;
+	struct editorSelectionRange range;
+
+	if (vimSystemRejectReadOnlyMutation() || count < 1) {
+		return 0;
+	}
+	if (!editorDocumentLineView(E.document, E.cy, &line)) {
+		return 0;
+	}
+	cx = E.cx;
+	for (int i = 0; i < count && cx < line.size && n < (int)sizeof(buf); i++) {
+		int next = editorBytesNextClusterIdx(line.data, line.size, cx);
+		if (next <= cx) {
+			break;
+		}
+		for (int b = cx; b < next && n < (int)sizeof(buf); b++) {
+			unsigned char ch = (unsigned char)line.data[b];
+			if (ch >= 'a' && ch <= 'z') {
+				ch = (unsigned char)(ch - 'a' + 'A');
+			} else if (ch >= 'A' && ch <= 'Z') {
+				ch = (unsigned char)(ch - 'A' + 'a');
+			}
+			buf[n++] = (char)ch;
+		}
+		cx = next;
+	}
+	editorLineViewRelease(&line);
+	if (n == 0 || cx == start_cx) {
+		return 0;
+	}
+	range.start_cy = E.cy;
+	range.start_cx = start_cx;
+	range.end_cy = E.cy;
+	range.end_cx = cx;
+	editorHistoryBeginEdit(EDITOR_EDIT_INSERT_TEXT);
+	(void)editorReplaceRange(&range, buf, (size_t)n);
+	editorHistoryCommitEdit(EDITOR_EDIT_INSERT_TEXT, E.dirty != dirty_before);
+	editorHistoryBreakGroup();
+	vimSystemAddEditEffect(effects_out);
+	(void)vimSystemSetCursor(E.cy, cx < vimSystemLineEndCx(E.cy) ? cx : start_cx, effects_out);
+	return 1;
+}
+
+/* `J`: join the current line with the following one(s), collapsing the next
+ * line's leading whitespace to a single space (none if it would be redundant). */
+static int vimSystemJoinLines(int count, int *effects_out) {
+	int joins = count > 1 ? count - 1 : 1;
+	int dirty_before = E.dirty;
+	int any = 0;
+
+	if (vimSystemRejectReadOnlyMutation()) {
+		return 0;
+	}
+	editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
+	for (int k = 0; k < joins; k++) {
+		struct editorLineView cur = {0};
+		struct editorLineView nxt = {0};
+		struct editorSelectionRange range;
+		int cur_len;
+		int skip = 0;
+		int sep_space;
+
+		if (E.cy + 1 >= E.numrows) {
+			break;
+		}
+		if (!editorDocumentLineView(E.document, E.cy, &cur)) {
+			break;
+		}
+		cur_len = cur.size;
+		int cur_blank = cur.size == 0;
+		int cur_ends_space = cur.size > 0 && (cur.data[cur.size - 1] == ' ' ||
+		                                      cur.data[cur.size - 1] == '\t');
+		editorLineViewRelease(&cur);
+		if (editorDocumentLineView(E.document, E.cy + 1, &nxt)) {
+			while (skip < nxt.size &&
+			       (nxt.data[skip] == ' ' || nxt.data[skip] == '\t')) {
+				skip++;
+			}
+			editorLineViewRelease(&nxt);
+		}
+		sep_space = !cur_blank && !cur_ends_space &&
+		            editorDocumentLineLength(E.document, E.cy + 1) > (size_t)skip;
+		range.start_cy = E.cy;
+		range.start_cx = cur_len;
+		range.end_cy = E.cy + 1;
+		range.end_cx = skip;
+		(void)editorReplaceRange(&range, sep_space ? " " : "", sep_space ? 1 : 0);
+		(void)vimSystemSetCursor(E.cy, cur_len, effects_out);
+		any = 1;
+	}
+	editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+	editorHistoryBreakGroup();
+	if (any) {
+		vimSystemAddEditEffect(effects_out);
+	}
+	return any;
+}
+
 static int vimSystemTryMappedActionKey(int c, int *effects_out, int *return_now_out) {
 	enum editorAction action = EDITOR_ACTION_COUNT;
 
@@ -1901,6 +2387,68 @@ static int vimSystemSearchRepeat(int direction_sign, int count, int *effects_out
 	}
 	direction = E.input_vim_search_direction * direction_sign;
 	return vimSystemSearchExecute(E.input_vim_search_query, direction, count, effects_out);
+}
+
+/* The keyword run at/after the cursor on the current line, as an owned string.
+ * Substring-based (no word-boundary anchoring); caller frees. */
+static char *vimSystemWordUnderCursor(void) {
+	struct editorLineView line = {0};
+	int wcol = -1;
+	int saved_cx;
+	struct editorSelectionRange range;
+	char *text = NULL;
+	size_t len = 0;
+	int extracted = 0;
+
+	if (!editorDocumentLineView(E.document, E.cy, &line)) {
+		return NULL;
+	}
+	for (int i = E.cx; i < line.size;) {
+		unsigned char b = (unsigned char)line.data[i];
+		if (isalnum(b) || b == '_' || b >= 0x80) {
+			wcol = i;
+			break;
+		}
+		int n = editorBytesNextClusterIdx(line.data, line.size, i);
+		if (n <= i) {
+			break;
+		}
+		i = n;
+	}
+	editorLineViewRelease(&line);
+	if (wcol < 0) {
+		return NULL;
+	}
+	saved_cx = E.cx;
+	E.cx = wcol;
+	if (vimSystemWordObjectRange(1, &range)) {
+		extracted = editorExtractRangeText(&range, &text, &len);
+	}
+	E.cx = saved_cx;
+	if (extracted <= 0) {
+		free(text);
+		return NULL;
+	}
+	return text;
+}
+
+/* `*` / `#`: search for the word under the cursor; also primes `n`/`N`. */
+static int vimSystemSearchWordUnderCursor(int direction, int count, int *effects_out) {
+	char *word = vimSystemWordUnderCursor();
+
+	if (word == NULL || word[0] == '\0') {
+		free(word);
+		editorSetStatusMsg("No word under cursor");
+		return 0;
+	}
+	if (!vimSystemSearchSetQuery(word)) {
+		free(word);
+		return 0;
+	}
+	E.input_vim_search_direction = direction;
+	(void)vimSystemSearchExecute(word, direction, count, effects_out);
+	free(word);
+	return 1;
 }
 
 static int vimSystemStringIsAllDigits(const char *s) {
@@ -2070,6 +2618,50 @@ static int vimSystemHandleNormalKey(int c, int *effects_out) {
 	if (E.input_vim_pending_find) {
 		return vimSystemResolveFind(c, effects_out);
 	}
+	if (E.input_vim_pending_replace) {
+		int count = vimSystemEffectiveCount();
+		E.input_vim_pending_replace = 0;
+		if (c != '\x1b') {
+			(void)vimSystemReplaceChar(c, count, effects_out);
+		}
+		vimSystemResetPending();
+		return 0;
+	}
+	if (E.input_vim_pending_z) {
+		E.input_vim_pending_z = 0;
+		vimSystemResetPending();
+		if (c == 'Z') {
+			editorSave();
+			editorActionQuit();
+		} else if (c == 'Q') {
+			editorActionQuitForce();
+		}
+		return 0;
+	}
+	if (E.input_vim_pending_mark) {
+		int cmd = E.input_vim_pending_mark;
+		E.input_vim_pending_mark = 0;
+		if (c >= 'a' && c <= 'z') {
+			struct editorVimMark *mark = &E.vim_marks[c - 'a'];
+			if (cmd == 'm') {
+				mark->set = 1;
+				mark->cy = E.cy;
+				mark->cx = E.cx;
+			} else if (mark->set) {
+				int tcy = mark->cy;
+				if (tcy >= E.numrows) {
+					tcy = E.numrows - 1;
+				}
+				if (tcy < 0) {
+					tcy = 0;
+				}
+				int tcx = cmd == '`' ? mark->cx : vimSystemLineFirstNonblank(tcy);
+				(void)vimSystemSetCursor(tcy, tcx, effects_out);
+			}
+		}
+		vimSystemResetPending();
+		return 0;
+	}
 	if (E.input_vim_pending_register) {
 		E.input_vim_pending_register = 0;
 		if (c >= 'a' && c <= 'z') {
@@ -2171,6 +2763,8 @@ static int vimSystemHandleNormalKey(int c, int *effects_out) {
 		case 'd':
 		case 'c':
 		case 'y':
+		case '>':
+		case '<':
 			E.input_vim_pending_operator = c;
 			E.input_vim_pending_operator_g = 0;
 			E.input_vim_operator_count = E.input_vim_count;
@@ -2186,6 +2780,25 @@ static int vimSystemHandleNormalKey(int c, int *effects_out) {
 		case 'Y':
 			(void)vimSystemYankLines(E.cy, E.cy);
 			vimSystemResetPending();
+			return 0;
+		case 'r':
+			E.input_vim_pending_replace = 1;
+			return 0;
+		case '~':
+			(void)vimSystemToggleCase(motion_count, effects_out);
+			vimSystemResetPending();
+			return 0;
+		case 'J':
+			(void)vimSystemJoinLines(motion_count, effects_out);
+			vimSystemResetPending();
+			return 0;
+		case 'Z':
+			E.input_vim_pending_z = 1;
+			return 0;
+		case 'm':
+		case '`':
+		case '\'':
+			E.input_vim_pending_mark = c;
 			return 0;
 		case 'p':
 			(void)vimSystemPasteDefaultRegister(1, effects_out);
@@ -2209,6 +2822,14 @@ static int vimSystemHandleNormalKey(int c, int *effects_out) {
 			return 0;
 		case 'N':
 			(void)vimSystemSearchRepeat(-1, motion_count, effects_out);
+			vimSystemResetPending();
+			return 0;
+		case '*':
+			(void)vimSystemSearchWordUnderCursor(1, motion_count, effects_out);
+			vimSystemResetPending();
+			return 0;
+		case '#':
+			(void)vimSystemSearchWordUnderCursor(-1, motion_count, effects_out);
 			vimSystemResetPending();
 			return 0;
 		case ':':
@@ -2388,6 +3009,17 @@ static int vimSystemHandleVisualKey(int c, int *effects_out) {
 	if (motion_result == 1) {
 		return 0;
 	}
+	if (c == '>' || c == '<') {
+		struct editorSelectionRange range;
+		if (vimSystemVisualRange(&range, NULL)) {
+			(void)vimSystemIndentLines(range.start_cy,
+			                           vimSystemLineRangeLastRow(&range), c == '<',
+			                           effects_out);
+		}
+		editorClearSelectionState();
+		vimSystemSetMode(VIM_SYSTEM_MODE_NORMAL);
+		return 0;
+	}
 	if (c == 'd' || c == 'c' || c == 'y' || c == 'x') {
 		enum vimSystemOperator op =
 		        c == 'x' ? VIM_SYSTEM_OPERATOR_DELETE : (enum vimSystemOperator)c;
@@ -2438,7 +3070,7 @@ static int vimSystemHandleVisualKey(int c, int *effects_out) {
 	return 0;
 }
 
-static int vimSystemHandleKey(int c, int *effects_out) {
+static int vimSystemDispatchByMode(int c, int *effects_out) {
 	switch (vimSystemMode()) {
 		case VIM_SYSTEM_MODE_INSERT:
 			return vimSystemHandleInsertKey(c, effects_out);
@@ -2448,6 +3080,81 @@ static int vimSystemHandleKey(int c, int *effects_out) {
 		default:
 			return vimSystemHandleNormalKey(c, effects_out);
 	}
+}
+
+/* Dot-repeat: keys of the last buffer-changing command are recorded from one
+ * idle-Normal boundary to the next and replayed verbatim by `.`. */
+enum { VIM_DOT_BUF_MAX = 1024 };
+
+static char g_vim_dot_record[VIM_DOT_BUF_MAX];
+static int g_vim_dot_record_len;
+static int g_vim_dot_record_dirty;
+static int g_vim_dot_record_overflow;
+static char g_vim_dot_command[VIM_DOT_BUF_MAX];
+static int g_vim_dot_command_len;
+static int g_vim_dot_replaying;
+
+static void vimSystemDotRepeatReset(void) {
+	g_vim_dot_record_len = 0;
+	g_vim_dot_record_overflow = 0;
+	g_vim_dot_command_len = 0;
+	g_vim_dot_replaying = 0;
+}
+
+static int vimSystemIsIdleNormal(void) {
+	return vimSystemMode() == VIM_SYSTEM_MODE_NORMAL && E.input_vim_pending_operator == 0 &&
+	       E.input_vim_pending_g == 0 && E.input_vim_pending_find == 0 &&
+	       E.input_vim_pending_replace == 0 && E.input_vim_pending_z == 0 &&
+	       E.input_vim_pending_mark == 0 && E.input_vim_pending_register == 0 &&
+	       E.input_vim_pending_text_object == 0 && E.input_vim_pending_leader == 0 &&
+	       E.input_vim_count == 0;
+}
+
+static int vimSystemDotReplay(int *effects_out) {
+	int last = 0;
+
+	if (g_vim_dot_command_len <= 0 || g_vim_dot_replaying) {
+		return 0;
+	}
+	g_vim_dot_replaying = 1;
+	for (int i = 0; i < g_vim_dot_command_len; i++) {
+		last = vimSystemDispatchByMode((unsigned char)g_vim_dot_command[i], effects_out);
+	}
+	g_vim_dot_replaying = 0;
+	return last;
+}
+
+static int vimSystemHandleKey(int c, int *effects_out) {
+	int result;
+
+	if (g_vim_dot_replaying) {
+		return vimSystemDispatchByMode(c, effects_out);
+	}
+	if (c == '.' && vimSystemIsIdleNormal()) {
+		return vimSystemDotReplay(effects_out);
+	}
+	if (vimSystemIsIdleNormal()) {
+		g_vim_dot_record_len = 0;
+		g_vim_dot_record_overflow = 0;
+		g_vim_dot_record_dirty = E.dirty;
+	}
+	if (g_vim_dot_record_len < VIM_DOT_BUF_MAX) {
+		g_vim_dot_record[g_vim_dot_record_len++] = (char)c;
+	} else {
+		g_vim_dot_record_overflow = 1;
+	}
+
+	result = vimSystemDispatchByMode(c, effects_out);
+
+	if (vimSystemIsIdleNormal() && g_vim_dot_record_len > 0) {
+		if (!g_vim_dot_record_overflow && E.dirty != g_vim_dot_record_dirty) {
+			memcpy(g_vim_dot_command, g_vim_dot_record, (size_t)g_vim_dot_record_len);
+			g_vim_dot_command_len = g_vim_dot_record_len;
+		}
+		g_vim_dot_record_len = 0;
+		g_vim_dot_record_overflow = 0;
+	}
+	return result;
 }
 
 static int vimSystemResolveCommand(const char *name, int *command_id_out) {
@@ -2597,11 +3304,13 @@ static void vimSystemStatusSegment(char *buf, size_t bufsize) {
 
 static int vimSystemOnActivate(void) {
 	editorVimKeymapResetDefaults();
+	vimSystemDotRepeatReset();
 	vimSystemSetMode(VIM_SYSTEM_MODE_NORMAL);
 	return 1;
 }
 
 static void vimSystemReset(void) {
+	vimSystemDotRepeatReset();
 	vimSystemSetMode(VIM_SYSTEM_MODE_NORMAL);
 }
 
