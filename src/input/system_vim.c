@@ -269,6 +269,7 @@ static void vimSystemResetPending(void) {
 	E.input_vim_pending_replace = 0;
 	E.input_vim_pending_z = 0;
 	E.input_vim_pending_mark = 0;
+	E.input_vim_pending_bracket = 0;
 	E.input_vim_visual_selection_half_open = 0;
 }
 
@@ -2638,6 +2639,22 @@ static int vimSystemHandleNormalKey(int c, int *effects_out) {
 		}
 		return 0;
 	}
+	if (E.input_vim_pending_bracket) {
+		int bracket = E.input_vim_pending_bracket;
+		E.input_vim_pending_bracket = 0;
+		vimSystemResetPending();
+		if (c == 'g') {
+			enum editorAction action = bracket == ']' ? EDITOR_ACTION_DIAGNOSTIC_NEXT
+			                                          : EDITOR_ACTION_DIAGNOSTIC_PREV;
+			int mapped_effects = EDITOR_INPUT_KEY_EFFECT_NONE;
+			int return_now = editorDispatchProcessMappedAction(action, &mapped_effects);
+			if (effects_out != NULL) {
+				*effects_out |= mapped_effects;
+			}
+			return return_now;
+		}
+		return 0;
+	}
 	if (E.input_vim_pending_mark) {
 		int cmd = E.input_vim_pending_mark;
 		E.input_vim_pending_mark = 0;
@@ -2799,6 +2816,10 @@ static int vimSystemHandleNormalKey(int c, int *effects_out) {
 		case '`':
 		case '\'':
 			E.input_vim_pending_mark = c;
+			return 0;
+		case '[':
+		case ']':
+			E.input_vim_pending_bracket = c;
 			return 0;
 		case 'p':
 			(void)vimSystemPasteDefaultRegister(1, effects_out);
@@ -3107,7 +3128,7 @@ static int vimSystemIsIdleNormal(void) {
 	       E.input_vim_pending_replace == 0 && E.input_vim_pending_z == 0 &&
 	       E.input_vim_pending_mark == 0 && E.input_vim_pending_register == 0 &&
 	       E.input_vim_pending_text_object == 0 && E.input_vim_pending_leader == 0 &&
-	       E.input_vim_count == 0;
+	       E.input_vim_pending_bracket == 0 && E.input_vim_count == 0;
 }
 
 static int vimSystemDotReplay(int *effects_out) {

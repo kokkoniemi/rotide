@@ -1416,6 +1416,24 @@ static int test_input_vim_inner_tag_nested(void) {
 	return 0;
 }
 
+static int test_input_vim_bracket_prefix_diagnostic(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("hello");
+	ASSERT_TRUE(vim_test_activate());
+
+	/* `]` arms the bracket prefix; `g` consumes it (no diagnostics -> message). */
+	ASSERT_TRUE(vim_test_key(']') == 0);
+	ASSERT_EQ_INT(']', E.input_vim_pending_bracket);
+	(void)vim_test_key('g');
+	ASSERT_EQ_INT(0, E.input_vim_pending_bracket);
+	ASSERT_TRUE(strstr(E.statusmsg, "No diagnostics") != NULL);
+	/* A non-`g` second key cancels the prefix without acting. */
+	ASSERT_TRUE(vim_test_key('[') == 0);
+	ASSERT_TRUE(vim_test_key('x') == 0);
+	ASSERT_EQ_INT(0, E.input_vim_pending_bracket);
+	return 0;
+}
+
 static int test_input_vim_mark_set_and_jump(void) {
 	ASSERT_TRUE(editorTabsInit());
 	add_row("first line");
@@ -1675,6 +1693,7 @@ const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_delete_inner_tag", test_input_vim_delete_inner_tag},
         {"input_vim_delete_around_tag", test_input_vim_delete_around_tag},
         {"input_vim_inner_tag_nested", test_input_vim_inner_tag_nested},
+        {"input_vim_bracket_prefix_diagnostic", test_input_vim_bracket_prefix_diagnostic},
         {"input_vim_mark_set_and_jump", test_input_vim_mark_set_and_jump},
         {"input_vim_indent_line", test_input_vim_indent_line},
         {"input_vim_indent_count", test_input_vim_indent_count},

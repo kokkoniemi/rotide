@@ -96,7 +96,10 @@ buffer's language server provides it):
 - `gS`: show the LSP Problems/Symbols drawer
 - `gg`: go to the first line (unchanged)
 
+`]g` / `[g` jump to the next / previous diagnostic in the current buffer
+(wrapping around).
+
 `eslint_fix`, `scroll_left`, `scroll_right`, `toggle_selection` (modal keyboard
-selection, superseded by Shift+move), and `resize_drawer_narrow`/
-`resize_drawer_widen` are configurable actions without default bindings in the
-built-in keymap.
+selection, superseded by Shift+move), `diagnostic_next`/`diagnostic_prev` (bound
+to `]g`/`[g` in Vim), and `resize_drawer_narrow`/`resize_drawer_widen` are
+configurable actions without default bindings in the built-in keymap.

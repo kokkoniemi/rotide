@@ -281,6 +281,8 @@ enum editorAction {
 	EDITOR_ACTION_GOTO_DEFINITION,
 	EDITOR_ACTION_GOTO_IMPLEMENTATION,
 	EDITOR_ACTION_GOTO_SYMBOL,
+	EDITOR_ACTION_DIAGNOSTIC_NEXT,
+	EDITOR_ACTION_DIAGNOSTIC_PREV,
 	EDITOR_ACTION_ESLINT_FIX,
 	EDITOR_ACTION_TOGGLE_SELECTION,
 	EDITOR_ACTION_SELECT_ALL,
@@ -496,6 +498,7 @@ struct editorHistory {
 	X(int, input_vim_pending_replace)                                                          \
 	X(int, input_vim_pending_z)                                                                \
 	X(int, input_vim_pending_mark)                                                             \
+	X(int, input_vim_pending_bracket)                                                          \
 	X(int, input_vim_visual_selection_half_open)                                               \
 	X(char *, input_vim_search_query)                                                          \
 	X(int, input_vim_search_direction)
