@@ -48,6 +48,7 @@ struct editorLspTestStats {
 	int did_close_count;
 	int definition_count;
 	int implementation_count;
+	int references_count;
 	int document_symbol_count;
 	int code_action_count;
 	int completion_count;
@@ -116,6 +117,9 @@ int editorLspRequestImplementation(const char *filename, enum editorSyntaxLangua
                                    int line, int character,
                                    struct editorLspLocation **locations_out, int *count_out,
                                    int *timed_out_out);
+int editorLspRequestReferences(const char *filename, enum editorSyntaxLanguage language, int line,
+                               int character, struct editorLspLocation **locations_out,
+                               int *count_out, int *timed_out_out);
 int editorLspRequestDocumentSymbols(const char *filename, enum editorSyntaxLanguage language,
                                     struct editorLspSymbol **symbols_out, int *count_out,
                                     int *timed_out_out);
@@ -196,6 +200,8 @@ void editorLspTestSetMockDefinitionResponse(int result_code,
 void editorLspTestSetMockImplementationResponse(int result_code,
                                                 const struct editorLspLocation *locations,
                                                 int count);
+void editorLspTestSetMockReferencesResponse(int result_code,
+                                            const struct editorLspLocation *locations, int count);
 void editorLspTestSetMockDocumentSymbolResponse(int result_code,
                                                 const struct editorLspSymbol *symbols, int count);
 void editorLspTestSetMockDiagnostics(const char *path,

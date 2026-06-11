@@ -34,6 +34,10 @@ struct editorLspMockState {
 	int implementation_response_configured;
 	struct editorLspLocation *implementation_locations;
 	int implementation_location_count;
+	int references_result_code;
+	int references_response_configured;
+	struct editorLspLocation *references_locations;
+	int references_location_count;
 	int document_symbol_result_code;
 	struct editorLspSymbol *document_symbols;
 	int document_symbol_count;

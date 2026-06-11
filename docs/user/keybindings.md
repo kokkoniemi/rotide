@@ -95,6 +95,7 @@ buffer's language server provides it):
 
 - `gd`: go to definition
 - `gi`: go to implementation
+- `gr`: list references (jumps when there's one, otherwise opens a chooser)
 - `gs`: go to symbol
 - `gS`: show the LSP Problems/Symbols drawer
 - `gg`: go to the first line (unchanged)
@@ -104,5 +105,6 @@ buffer's language server provides it):
 
 `eslint_fix`, `scroll_left`, `scroll_right`, `toggle_selection` (modal keyboard
 selection, superseded by Shift+move), `diagnostic_next`/`diagnostic_prev` (bound
-to `]g`/`[g` in Vim), and `resize_drawer_narrow`/`resize_drawer_widen` are
-configurable actions without default bindings in the built-in keymap.
+to `]g`/`[g` in Vim), `goto_references` (bound to `gr` in Vim), and
+`resize_drawer_narrow`/`resize_drawer_widen` are configurable actions without
+default bindings in the built-in keymap.

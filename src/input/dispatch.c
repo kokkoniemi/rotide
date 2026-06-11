@@ -1735,6 +1735,11 @@ static void dispatchGoToImplementation(void) {
 	                          editorLspRequestImplementation);
 }
 
+static void dispatchGoToReferences(void) {
+	dispatchRunLocationLookup("references", "References", "references",
+	                          editorLspRequestReferences);
+}
+
 static void dispatchGoToSymbol(void) {
 	if (!editorLanguageGoToSupported(E.syntax_language)) {
 		editorSetStatusMsg("Go to symbol is available for Go, C, C++, HTML, CSS/SCSS, "
@@ -2210,8 +2215,8 @@ static int dispatchHandleDelegatedAction(enum editorAction action, int *effects)
 	if (editorHandleLanguageMappedAction(action, DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT,
 	                                     dispatchPinActivePreviewForEdit,
 	                                     dispatchGoToDefinition, dispatchGoToImplementation,
-	                                     dispatchGoToSymbol, dispatchApplyEslintFixes,
-	                                     effects)) {
+	                                     dispatchGoToReferences, dispatchGoToSymbol,
+	                                     dispatchApplyEslintFixes, effects)) {
 		return 1;
 	}
 	if (editorHandleEditMappedAction(action, DISPATCH_KEYPRESS_EFFECT_CURSOR_OR_EDIT,

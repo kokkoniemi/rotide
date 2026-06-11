@@ -270,6 +270,7 @@ int editorHandleLanguageMappedAction(enum editorAction action, int cursor_or_edi
                                      void (*pin_active_preview_for_edit)(void),
                                      editorLanguageActionFn goto_definition,
                                      editorLanguageActionFn goto_implementation,
+                                     editorLanguageActionFn goto_references,
                                      editorLanguageActionFn goto_symbol,
                                      editorLanguageActionFn apply_eslint_fixes, int *effects_io) {
 	int effects = effects_io != NULL ? *effects_io : 0;
@@ -286,6 +287,13 @@ int editorHandleLanguageMappedAction(enum editorAction action, int cursor_or_edi
 			editorHistoryBreakGroup();
 			if (goto_implementation != NULL) {
 				goto_implementation();
+			}
+			effects |= cursor_or_edit_effect_bit;
+			break;
+		case EDITOR_ACTION_GOTO_REFERENCES:
+			editorHistoryBreakGroup();
+			if (goto_references != NULL) {
+				goto_references();
 			}
 			effects |= cursor_or_edit_effect_bit;
 			break;

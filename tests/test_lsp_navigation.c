@@ -1,3 +1,4 @@
+#include "input/input_system.h"
 #include "render/popup.h"
 #include "test_case.h"
 #include "test_helpers.h"
@@ -1329,7 +1330,83 @@ test_editor_process_keypress_goto_definition_missing_javascript_server_starts_in
 	return 0;
 }
 
+static int lsp_nav_vim_key(int key) {
+	const struct editorInputSystem *system = editorInputSystemActive();
+	int effects = 0;
+
+	if (system == NULL || system->handle_key == NULL) {
+		return -1;
+	}
+	return system->handle_key(key, &effects);
+}
+
+static int test_editor_vim_gr_goto_references_single_jumps(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 0;
+	ASSERT_TRUE(editorTabsInit());
+
+	char go_path[64];
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
+	        go_path, sizeof(go_path), "rotide-test-go-lsp-refs-", ".go",
+	        "tests/lsp/supported/go/single_file_definition.go"));
+	editorOpen(go_path);
+	E.cy = 5;
+	E.cx = 5;
+
+	struct editorLspLocation target = {.path = go_path, .line = 2, .character = 5};
+	editorLspTestSetMockReferencesResponse(1, &target, 1);
+
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	(void)lsp_nav_vim_key('g');
+	(void)lsp_nav_vim_key('r');
+	ASSERT_EQ_INT(2, E.cy);
+	ASSERT_EQ_INT(5, E.cx);
+
+	struct editorLspTestStats stats = {0};
+	editorLspTestGetStats(&stats);
+	ASSERT_EQ_INT(1, stats.references_count);
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
+static int test_editor_vim_gr_goto_references_multiple_opens_menu(void) {
+	editorLspTestSetMockEnabled(1);
+	E.lsp_config.gopls_enabled = 1;
+	E.lsp_config.clangd_enabled = 0;
+	ASSERT_TRUE(editorTabsInit());
+
+	char go_path[64];
+	ASSERT_TRUE(copy_fixture_to_temp_file_with_suffix(
+	        go_path, sizeof(go_path), "rotide-test-go-lsp-refs-multi-", ".go",
+	        "tests/lsp/supported/go/single_file_definition.go"));
+	editorOpen(go_path);
+	E.cy = 5;
+	E.cx = 5;
+
+	struct editorLspLocation targets[2] = {
+	        {.path = go_path, .line = 2, .character = 5},
+	        {.path = go_path, .line = 6, .character = 5},
+	};
+	editorLspTestSetMockReferencesResponse(1, targets, 2);
+
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	(void)lsp_nav_vim_key('g');
+	(void)lsp_nav_vim_key('r');
+	ASSERT_TRUE(editorPopupIsVisible());
+	ASSERT_EQ_INT(EDITOR_POPUP_KIND_LSP_LOCATION_MENU, E.popup.kind);
+	ASSERT_EQ_INT(2, editorPopupItemCount());
+
+	ASSERT_TRUE(unlink(go_path) == 0);
+	return 0;
+}
+
 const struct editorTestCase g_lsp_navigation_tests[] = {
+        {"editor_vim_gr_goto_references_single_jumps",
+         test_editor_vim_gr_goto_references_single_jumps},
+        {"editor_vim_gr_goto_references_multiple_opens_menu",
+         test_editor_vim_gr_goto_references_multiple_opens_menu},
         {"editor_lsp_drawer_lists_document_symbols_and_jumps_to_symbol",
          test_editor_lsp_drawer_lists_document_symbols_and_jumps_to_symbol},
         {"editor_lsp_drawer_arrow_previews_symbol_centered_away_from_drawer_cursor",

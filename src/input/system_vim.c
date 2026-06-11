@@ -211,6 +211,9 @@ static int vimSystemGPrefixAction(int c, enum editorAction *action_out) {
 		case 'i':
 			action = EDITOR_ACTION_GOTO_IMPLEMENTATION;
 			break;
+		case 'r':
+			action = EDITOR_ACTION_GOTO_REFERENCES;
+			break;
 		case 's':
 			action = EDITOR_ACTION_GOTO_SYMBOL;
 			break;

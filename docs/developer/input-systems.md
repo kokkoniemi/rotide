@@ -101,9 +101,9 @@ Leader sub-key names are editor-action names backed by `g_vim_leader_map`; the
 leader trigger sits after count/operator gating so it cannot fire mid-sequence.
 Leader and sub-keys must be plain printable characters.
 
-`g`-prefixed keys (`gd gi gs gS gg`) and `[`/`]` prefixes (`]g`/`[g` for next/
+`g`-prefixed keys (`gd gi gr gs gS gg`) and `[`/`]` prefixes (`]g`/`[g` for next/
 previous diagnostic) are handled by dedicated pending-state branches in the
-Normal handler. The diagnostic jumps dispatch the `diagnostic_next` /
+Normal handler. `gr` lists references via the shared location-menu UI. The diagnostic jumps dispatch the `diagnostic_next` /
 `diagnostic_prev` editor actions, which navigate `E.lsp_diagnostics` directly.
 
 `gq` starts a reflow operator (`VIM_SYSTEM_OPERATOR_REFLOW`): `gq` after the `g`
