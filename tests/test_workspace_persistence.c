@@ -25,6 +25,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 
 static int find_drawer_entry_path(const char *path, int *idx_out,
@@ -296,6 +297,94 @@ static int test_editor_git_file_status_returns_clean_outside_repo(void) {
 
 	editorGitFree();
 	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_git_parse_blame_porcelain_extracts_commit_details(void) {
+	const char blame[] = "abcdef1234567890abcdef1234567890abcdef12 7 9 1\n"
+	                     "author Ada Lovelace\n"
+	                     "author-mail <ada@example.test>\n"
+	                     "author-time 1700000000\n"
+	                     "author-tz +0200\n"
+	                     "committer Grace Hopper\n"
+	                     "committer-mail <grace@example.test>\n"
+	                     "committer-time 1700000300\n"
+	                     "summary Add analytical engine notes\n"
+	                     "previous 1111111111111111111111111111111111111111 old/name.c\n"
+	                     "filename src/name.c\n"
+	                     "\tint answer = 42;\n";
+	struct editorGitBlameLine line = {0};
+
+	ASSERT_TRUE(editorGitParseBlamePorcelain(blame, sizeof(blame) - 1, &line));
+	ASSERT_EQ_STR("abcdef1234567890abcdef1234567890abcdef12", line.commit_sha);
+	ASSERT_EQ_STR("abcdef123456", line.short_sha);
+	ASSERT_EQ_STR("Ada Lovelace", line.author_name);
+	ASSERT_EQ_STR("ada@example.test", line.author_email);
+	ASSERT_EQ_INT(1700000000, (int)line.author_time);
+	ASSERT_EQ_STR("Grace Hopper", line.committer_name);
+	ASSERT_EQ_INT(1700000300, (int)line.committer_time);
+	ASSERT_EQ_STR("Add analytical engine notes", line.summary);
+	ASSERT_EQ_STR("src/name.c", line.filename);
+	ASSERT_EQ_STR("old/name.c", line.original_path);
+	ASSERT_EQ_INT(7, line.original_line);
+	ASSERT_EQ_INT(9, line.final_line);
+
+	editorGitBlameLineFree(&line);
+	return 0;
+}
+
+static int test_editor_git_parse_blame_porcelain_omits_uncommitted_lines(void) {
+	const char blame[] = "0000000000000000000000000000000000000000 0 4 1\n"
+	                     "author Not Committed Yet\n"
+	                     "author-mail <not.committed.yet>\n"
+	                     "author-time 0\n"
+	                     "summary Version of file in working tree\n"
+	                     "filename src/new.c\n"
+	                     "\tnew line\n";
+	struct editorGitBlameLine line = {0};
+
+	ASSERT_TRUE(!editorGitParseBlamePorcelain(blame, sizeof(blame) - 1, &line));
+	ASSERT_TRUE(line.commit_sha == NULL);
+	ASSERT_TRUE(line.author_name == NULL);
+
+	editorGitBlameLineFree(&line);
+	return 0;
+}
+
+static int test_editor_git_format_relative_time_labels(void) {
+	char buf[64];
+	time_t now = 2000000000;
+
+	ASSERT_TRUE(editorGitFormatRelativeTime(now, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("just now", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now + 120, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("just now", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now - 60, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("1 minute ago", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now - 120, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("2 minutes ago", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now - 3600, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("1 hour ago", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now - 7200, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("2 hours ago", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now - 86400, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("yesterday", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now - 172800, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("2 days ago", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now - 604800, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("1 week ago", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now - 1209600, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("2 weeks ago", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now - 2592000, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("1 month ago", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now - 5184000, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("2 months ago", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now - 31536000, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("1 year ago", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now - 63072000, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("2 years ago", buf);
+
+	ASSERT_TRUE(!editorGitFormatRelativeTime(now - 60, now, buf, 4));
 	return 0;
 }
 
@@ -1933,6 +2022,11 @@ const struct editorTestCase g_workspace_persistence_tests[] = {
          test_editor_git_dir_status_aggregates_worst_descendant},
         {"editor_git_file_status_returns_clean_outside_repo",
          test_editor_git_file_status_returns_clean_outside_repo},
+        {"editor_git_parse_blame_porcelain_extracts_commit_details",
+         test_editor_git_parse_blame_porcelain_extracts_commit_details},
+        {"editor_git_parse_blame_porcelain_omits_uncommitted_lines",
+         test_editor_git_parse_blame_porcelain_omits_uncommitted_lines},
+        {"editor_git_format_relative_time_labels", test_editor_git_format_relative_time_labels},
         {"editor_drawer_git_mode_groups_entries_by_status",
          test_editor_drawer_git_mode_groups_entries_by_status},
         {"editor_drawer_git_mode_collapses_group", test_editor_drawer_git_mode_collapses_group},

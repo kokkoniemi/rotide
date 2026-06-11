@@ -4,10 +4,18 @@
 #include "support/alloc.h"
 #include "support/file_io.h"
 
+#include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+enum {
+	GIT_BLAME_MAX_OUTPUT_BYTES = 65536,
+	GIT_BLAME_MAX_FIELD_BYTES = 4096,
+	GIT_BLAME_SHORT_SHA_BYTES = 12
+};
 
 static void gitFreeEntries(void) {
 	for (int i = 0; i < E.git_entry_count; i++) {
@@ -393,6 +401,378 @@ static int gitAppendLiteral(char *cmd, size_t cmd_size, size_t *pos, const char 
 	*pos += literal_len;
 	cmd[*pos] = '\0';
 	return 1;
+}
+
+static void gitBlameLineClear(struct editorGitBlameLine *line) {
+	if (line == NULL) {
+		return;
+	}
+	free(line->commit_sha);
+	free(line->short_sha);
+	free(line->author_name);
+	free(line->author_email);
+	free(line->committer_name);
+	free(line->summary);
+	free(line->filename);
+	free(line->original_path);
+	memset(line, 0, sizeof(*line));
+}
+
+void editorGitBlameLineFree(struct editorGitBlameLine *line) {
+	gitBlameLineClear(line);
+}
+
+static int gitShaIsAllZero(const char *sha) {
+	if (sha == NULL || *sha == '\0') {
+		return 0;
+	}
+	for (const char *p = sha; *p != '\0'; p++) {
+		if (*p != '0') {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+static char *gitDupLimited(const char *data, size_t len) {
+	if (len > GIT_BLAME_MAX_FIELD_BYTES) {
+		len = GIT_BLAME_MAX_FIELD_BYTES;
+	}
+	char *dup = editorMalloc(len + 1);
+	if (dup == NULL) {
+		return NULL;
+	}
+	memcpy(dup, data, len);
+	dup[len] = '\0';
+	return dup;
+}
+
+static char *gitDupStringLimited(const char *s) {
+	if (s == NULL) {
+		return NULL;
+	}
+	return gitDupLimited(s, strlen(s));
+}
+
+static int gitReplaceString(char **slot, const char *value) {
+	char *dup = gitDupStringLimited(value);
+	if (dup == NULL) {
+		return 0;
+	}
+	free(*slot);
+	*slot = dup;
+	return 1;
+}
+
+static int gitParseIntField(const char *value, int *out) {
+	if (value == NULL || out == NULL) {
+		return 0;
+	}
+	errno = 0;
+	char *end = NULL;
+	long parsed = strtol(value, &end, 10);
+	if (errno != 0 || end == value || parsed < 0 || parsed > INT_MAX) {
+		return 0;
+	}
+	*out = (int)parsed;
+	return 1;
+}
+
+static int gitParseTimeField(const char *value, time_t *out) {
+	if (value == NULL || out == NULL) {
+		return 0;
+	}
+	errno = 0;
+	char *end = NULL;
+	long long parsed = strtoll(value, &end, 10);
+	if (errno != 0 || end == value || parsed < 0) {
+		return 0;
+	}
+	*out = (time_t)parsed;
+	return 1;
+}
+
+static int gitBlameParseHeader(char *line, struct editorGitBlameLine *out) {
+	char *save = NULL;
+	char *sha = strtok_r(line, " ", &save);
+	char *original = strtok_r(NULL, " ", &save);
+	char *final = strtok_r(NULL, " ", &save);
+	if (sha == NULL || original == NULL || final == NULL) {
+		return 0;
+	}
+	if (sha[0] == '^') {
+		sha++;
+	}
+	if (gitShaIsAllZero(sha)) {
+		return 0;
+	}
+	if (!gitReplaceString(&out->commit_sha, sha)) {
+		return 0;
+	}
+	size_t sha_len = strlen(sha);
+	size_t short_len =
+	        sha_len < GIT_BLAME_SHORT_SHA_BYTES ? sha_len : GIT_BLAME_SHORT_SHA_BYTES;
+	char *short_sha = gitDupLimited(sha, short_len);
+	if (short_sha == NULL) {
+		return 0;
+	}
+	free(out->short_sha);
+	out->short_sha = short_sha;
+	(void)gitParseIntField(original, &out->original_line);
+	(void)gitParseIntField(final, &out->final_line);
+	return 1;
+}
+
+static char *gitBlameNormalizeEmail(const char *value) {
+	if (value == NULL) {
+		return NULL;
+	}
+	size_t len = strlen(value);
+	if (len >= 2 && value[0] == '<' && value[len - 1] == '>') {
+		return gitDupLimited(value + 1, len - 2);
+	}
+	return gitDupStringLimited(value);
+}
+
+static int gitBlameSetEmail(char **slot, const char *value) {
+	char *dup = gitBlameNormalizeEmail(value);
+	if (dup == NULL) {
+		return 0;
+	}
+	free(*slot);
+	*slot = dup;
+	return 1;
+}
+
+static int gitBlameParsePrevious(const char *value, struct editorGitBlameLine *out) {
+	if (value == NULL) {
+		return 1;
+	}
+	const char *space = strchr(value, ' ');
+	if (space == NULL || space[1] == '\0') {
+		return 1;
+	}
+	return gitReplaceString(&out->original_path, space + 1);
+}
+
+static int gitBlameParseField(char *line, struct editorGitBlameLine *out) {
+	if (strncmp(line, "author ", 7) == 0) {
+		return gitReplaceString(&out->author_name, line + 7);
+	}
+	if (strncmp(line, "author-mail ", 12) == 0) {
+		return gitBlameSetEmail(&out->author_email, line + 12);
+	}
+	if (strncmp(line, "author-time ", 12) == 0) {
+		(void)gitParseTimeField(line + 12, &out->author_time);
+		return 1;
+	}
+	if (strncmp(line, "committer ", 10) == 0) {
+		return gitReplaceString(&out->committer_name, line + 10);
+	}
+	if (strncmp(line, "committer-time ", 15) == 0) {
+		(void)gitParseTimeField(line + 15, &out->committer_time);
+		return 1;
+	}
+	if (strncmp(line, "summary ", 8) == 0) {
+		return gitReplaceString(&out->summary, line + 8);
+	}
+	if (strncmp(line, "filename ", 9) == 0) {
+		return gitReplaceString(&out->filename, line + 9);
+	}
+	if (strncmp(line, "previous ", 9) == 0) {
+		return gitBlameParsePrevious(line + 9, out);
+	}
+	return 1;
+}
+
+int editorGitParseBlamePorcelain(const char *data, size_t len, struct editorGitBlameLine *out) {
+	if (out == NULL) {
+		return 0;
+	}
+	gitBlameLineClear(out);
+	if (data == NULL || len == 0 || len > GIT_BLAME_MAX_OUTPUT_BYTES) {
+		return 0;
+	}
+
+	char *buf = editorMalloc(len + 1);
+	if (buf == NULL) {
+		return 0;
+	}
+	memcpy(buf, data, len);
+	buf[len] = '\0';
+
+	int ok = 0;
+	int saw_header = 0;
+	char *line = buf;
+	while (line != NULL) {
+		char *next = strchr(line, '\n');
+		if (next != NULL) {
+			*next++ = '\0';
+		}
+		size_t line_len = strlen(line);
+		if (line_len > 0 && line[line_len - 1] == '\r') {
+			line[line_len - 1] = '\0';
+		}
+		if (!saw_header) {
+			if (!gitBlameParseHeader(line, out)) {
+				goto cleanup;
+			}
+			saw_header = 1;
+		} else if (!gitBlameParseField(line, out)) {
+			goto cleanup;
+		}
+		line = next;
+	}
+
+	ok = saw_header && out->commit_sha != NULL;
+
+cleanup:
+	free(buf);
+	if (!ok) {
+		gitBlameLineClear(out);
+	}
+	return ok;
+}
+
+static char *gitRelativePathDup(const char *abs_path) {
+	if (E.git_repo_root == NULL || abs_path == NULL) {
+		return NULL;
+	}
+	size_t root_len = strlen(E.git_repo_root);
+	if (strncmp(abs_path, E.git_repo_root, root_len) != 0) {
+		return NULL;
+	}
+	const char *rel = abs_path + root_len;
+	if (*rel == '/') {
+		rel++;
+	} else if (*rel != '\0') {
+		return NULL;
+	}
+	if (*rel == '\0') {
+		return NULL;
+	}
+	return gitDupStringLimited(rel);
+}
+
+static char *gitReadCappedCommandOutput(FILE *fp, size_t max_len, size_t *len_out) {
+	if (len_out != NULL) {
+		*len_out = 0;
+	}
+	char *buf = editorMalloc(max_len + 1);
+	if (buf == NULL) {
+		return NULL;
+	}
+	size_t len = 0;
+	while (len < max_len) {
+		size_t n = fread(buf + len, 1, max_len - len, fp);
+		if (n == 0) {
+			break;
+		}
+		len += n;
+	}
+	if (!feof(fp)) {
+		free(buf);
+		return NULL;
+	}
+	buf[len] = '\0';
+	if (len_out != NULL) {
+		*len_out = len;
+	}
+	return buf;
+}
+
+int editorGitLoadBlameLine(const char *abs_path, int one_based_line,
+                           struct editorGitBlameLine *out) {
+	if (out != NULL) {
+		gitBlameLineClear(out);
+	}
+	if (out == NULL || abs_path == NULL || one_based_line <= 0 || E.git_repo_root == NULL) {
+		return 0;
+	}
+
+	char *rel_path = gitRelativePathDup(abs_path);
+	if (rel_path == NULL) {
+		return 0;
+	}
+
+	char line_arg[64];
+	int line_len =
+	        snprintf(line_arg, sizeof(line_arg), "%d,%d", one_based_line, one_based_line);
+	if (line_len <= 0 || line_len >= (int)sizeof(line_arg)) {
+		free(rel_path);
+		return 0;
+	}
+
+	char cmd[PATH_MAX * 4 + 256];
+	size_t pos = 0;
+	if (!gitAppendLiteral(cmd, sizeof(cmd), &pos, "git -C ") ||
+	    !gitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, E.git_repo_root) ||
+	    !gitAppendLiteral(cmd, sizeof(cmd), &pos, " --no-pager blame --line-porcelain -L ") ||
+	    !gitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, line_arg) ||
+	    !gitAppendLiteral(cmd, sizeof(cmd), &pos, " -- ") ||
+	    !gitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, rel_path) ||
+	    !gitAppendLiteral(cmd, sizeof(cmd), &pos, " 2>/dev/null")) {
+		free(rel_path);
+		return 0;
+	}
+	free(rel_path);
+
+	FILE *fp = popen(cmd, "r");
+	if (fp == NULL) {
+		return 0;
+	}
+	size_t buf_len = 0;
+	char *buf = gitReadCappedCommandOutput(fp, GIT_BLAME_MAX_OUTPUT_BYTES, &buf_len);
+	int status = pclose(fp);
+	if (buf == NULL || status == -1 || buf_len == 0) {
+		free(buf);
+		return 0;
+	}
+
+	int ok = editorGitParseBlamePorcelain(buf, buf_len, out);
+	free(buf);
+	return ok;
+}
+
+static int gitFormatRelativeUnit(long long value, const char *singular, const char *plural,
+                                 char *buf, size_t buf_size) {
+	const char *unit = value == 1 ? singular : plural;
+	int n = snprintf(buf, buf_size, "%lld %s ago", value, unit);
+	return n > 0 && (size_t)n < buf_size;
+}
+
+int editorGitFormatRelativeTime(time_t then, time_t now, char *buf, size_t buf_size) {
+	if (buf == NULL || buf_size == 0) {
+		return 0;
+	}
+	long long diff = 0;
+	if (now > then) {
+		diff = (long long)(now - then);
+	}
+	if (diff < 60) {
+		int n = snprintf(buf, buf_size, "just now");
+		return n > 0 && (size_t)n < buf_size;
+	}
+	if (diff < 3600) {
+		return gitFormatRelativeUnit(diff / 60, "minute", "minutes", buf, buf_size);
+	}
+	if (diff < 86400) {
+		return gitFormatRelativeUnit(diff / 3600, "hour", "hours", buf, buf_size);
+	}
+	if (diff < 172800) {
+		int n = snprintf(buf, buf_size, "yesterday");
+		return n > 0 && (size_t)n < buf_size;
+	}
+	if (diff < 604800) {
+		return gitFormatRelativeUnit(diff / 86400, "day", "days", buf, buf_size);
+	}
+	if (diff < 2592000) {
+		return gitFormatRelativeUnit(diff / 604800, "week", "weeks", buf, buf_size);
+	}
+	if (diff < 31536000) {
+		return gitFormatRelativeUnit(diff / 2592000, "month", "months", buf, buf_size);
+	}
+	return gitFormatRelativeUnit(diff / 31536000, "year", "years", buf, buf_size);
 }
 
 char *editorGitGenerateDiff(const char *rel_path, char index_status, char worktree_status,

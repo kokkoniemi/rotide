@@ -955,7 +955,7 @@ static int test_editor_keymap_load_modifier_combo_specs_case_insensitive(void) {
 	                                          "column_select_left = \"SHIFT+ALT+LEFT\"\n"
 	                                          "column_select_right = \"aLt+ShIfT+RiGhT\"\n"
 	                                          "move_tab_right_pane = \"ctrl+SHIFT+alt+RIGHT\"\n"
-	                                          "move_left = \"AlT+b\"\n"
+	                                          "move_left = \"AlT+u\"\n"
 	                                          "move_right = \"cTrL+aLt+z\"\n"));
 
 	struct editorKeymap keymap;
@@ -970,7 +970,7 @@ static int test_editor_keymap_load_modifier_combo_specs_case_insensitive(void) {
 	ASSERT_EQ_INT(EDITOR_ACTION_PREV_TAB, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_CTRL_ALT_LETTER_KEY('e'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_TOGGLE_DRAWER, action);
-	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('b'), &action));
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('u'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_MOVE_LEFT, action);
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_CTRL_ALT_LETTER_KEY('z'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_MOVE_RIGHT, action);
@@ -984,7 +984,7 @@ static int test_editor_keymap_load_modifier_combo_specs_case_insensitive(void) {
 	char binding[24];
 	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_MOVE_LEFT, binding,
 	                                      sizeof(binding)));
-	ASSERT_EQ_STR("Alt-B", binding);
+	ASSERT_EQ_STR("Alt-U", binding);
 	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_MOVE_RIGHT, binding,
 	                                      sizeof(binding)));
 	ASSERT_EQ_STR("Ctrl-Alt-Z", binding);
@@ -1328,7 +1328,7 @@ static int test_editor_keymap_load_accepts_line_number_highlight_toggles(void) {
 	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
 	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
 	                                          "toggle_line_numbers = \"alt+a\"\n"
-	                                          "toggle_current_line_highlight = \"alt+b\"\n"));
+	                                          "toggle_current_line_highlight = \"alt+d\"\n"));
 
 	struct editorKeymap keymap;
 	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
@@ -1337,7 +1337,7 @@ static int test_editor_keymap_load_accepts_line_number_highlight_toggles(void) {
 	enum editorAction action = EDITOR_ACTION_COUNT;
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('a'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_TOGGLE_LINE_NUMBERS, action);
-	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('b'), &action));
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('d'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_TOGGLE_CURRENT_LINE_HIGHLIGHT, action);
 
 	ASSERT_TRUE(unlink(project_path) == 0);
@@ -1400,6 +1400,44 @@ static int test_editor_keymap_load_accepts_hover_action(void) {
 	enum editorAction action = EDITOR_ACTION_COUNT;
 	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('k'), &action));
 	ASSERT_EQ_INT(EDITOR_ACTION_HOVER, action);
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
+static int test_editor_keymap_defaults_include_git_blame_details_action(void) {
+	struct editorKeymap keymap;
+	editorKeymapInitDefaults(&keymap);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('b'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_GIT_BLAME_DETAILS, action);
+
+	char binding[24];
+	ASSERT_TRUE(editorKeymapFormatBinding(&keymap, EDITOR_ACTION_GIT_BLAME_DETAILS, binding,
+	                                      sizeof(binding)));
+	ASSERT_EQ_STR("Alt-B", binding);
+	return 0;
+}
+
+static int test_editor_keymap_load_accepts_git_blame_details_action(void) {
+	char dir_template[] = "/tmp/rotide-test-keymap-gitblame-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	ASSERT_TRUE(dir_path != NULL);
+
+	char project_path[512];
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.cua]\n"
+	                                          "git_blame_details = \"alt+k\"\n"));
+
+	struct editorKeymap keymap;
+	enum editorKeymapLoadStatus status = editorKeymapLoadFromPaths(&keymap, NULL, project_path);
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, status);
+
+	enum editorAction action = EDITOR_ACTION_COUNT;
+	ASSERT_TRUE(editorKeymapLookupAction(&keymap, EDITOR_ALT_LETTER_KEY('k'), &action));
+	ASSERT_EQ_INT(EDITOR_ACTION_GIT_BLAME_DETAILS, action);
 
 	ASSERT_TRUE(unlink(project_path) == 0);
 	ASSERT_TRUE(rmdir(dir_path) == 0);
@@ -1984,6 +2022,10 @@ const struct editorTestCase g_workspace_keymap_view_tests[] = {
         {"editor_keymap_load_accepts_goto_definition_ctrl_o",
          test_editor_keymap_load_accepts_goto_definition_ctrl_o},
         {"editor_keymap_load_accepts_hover_action", test_editor_keymap_load_accepts_hover_action},
+        {"editor_keymap_defaults_include_git_blame_details_action",
+         test_editor_keymap_defaults_include_git_blame_details_action},
+        {"editor_keymap_load_accepts_git_blame_details_action",
+         test_editor_keymap_load_accepts_git_blame_details_action},
         {"editor_keymap_load_accepts_goto_matching_bracket_ctrl_bracket",
          test_editor_keymap_load_accepts_goto_matching_bracket_ctrl_bracket},
         {"editor_keymap_load_rejects_ctrl_i_binding_that_conflicts_with_tab_input",

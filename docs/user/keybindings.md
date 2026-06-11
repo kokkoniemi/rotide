@@ -21,6 +21,7 @@ many of these chords (save/quit/tabs/drawer/panes) still apply in Vim too.
 - `Ctrl-G`: go to line
 - `Ctrl-]`: jump to matching bracket
 - `Ctrl-O` / `Ctrl + left click`: go to definition for supported source buffers
+- `Alt-B`: show Git blame details for the current line
 - `Alt-Z`: toggle soft line wrapping
 - `Alt-N`: toggle absolute line numbers
 - `Alt-H`: toggle current-line highlight
@@ -109,3 +110,7 @@ selection, superseded by Shift+move), `diagnostic_next`/`diagnostic_prev` (bound
 to `]g`/`[g` in Vim), `goto_references` (bound to `gr` in Vim), `hover` (bound
 to `K` in Vim), and `resize_drawer_narrow`/`resize_drawer_widen` are
 configurable actions without default bindings in the built-in CUA keymap.
+
+## Vim Git
+
+- `gb`: show Git blame details for the current line

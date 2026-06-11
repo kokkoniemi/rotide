@@ -299,6 +299,8 @@ find_replace = "ctrl+r"
 goto_line = "ctrl+g"
 goto_matching_bracket = "ctrl+]"
 goto_definition = "ctrl+o"
+# Shows blame details for committed lines in saved files inside a Git worktree.
+git_blame_details = "alt+b"
 # hover has no CUA default binding; Vim Normal mode binds it to "K".
 # hover = "alt+k"
 # eslint_fix has no default binding; uncomment to enable.

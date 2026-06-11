@@ -95,6 +95,7 @@ static const struct keymapActionName g_keymap_action_names[] = {
         {"goto_implementation", EDITOR_ACTION_GOTO_IMPLEMENTATION},
         {"goto_references", EDITOR_ACTION_GOTO_REFERENCES},
         {"hover", EDITOR_ACTION_HOVER},
+        {"git_blame_details", EDITOR_ACTION_GIT_BLAME_DETAILS},
         {"goto_symbol", EDITOR_ACTION_GOTO_SYMBOL},
         {"diagnostic_next", EDITOR_ACTION_DIAGNOSTIC_NEXT},
         {"diagnostic_prev", EDITOR_ACTION_DIAGNOSTIC_PREV},
@@ -781,6 +782,8 @@ void editorKeymapInitDefaults(struct editorKeymap *keymap) {
 	(void)keymapAppendBinding(keymap, CTRL_KEY('g'), EDITOR_ACTION_GOTO_LINE);
 	(void)keymapAppendBinding(keymap, CTRL_KEY(']'), EDITOR_ACTION_GOTO_MATCHING_BRACKET);
 	(void)keymapAppendBinding(keymap, CTRL_KEY('o'), EDITOR_ACTION_GOTO_DEFINITION);
+	(void)keymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('b'),
+	                          EDITOR_ACTION_GIT_BLAME_DETAILS);
 	(void)keymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('i'),
 	                          EDITOR_ACTION_GOTO_IMPLEMENTATION);
 	(void)keymapAppendBinding(keymap, EDITOR_ALT_LETTER_KEY('s'), EDITOR_ACTION_GOTO_SYMBOL);
