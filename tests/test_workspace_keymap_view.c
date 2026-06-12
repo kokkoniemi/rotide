@@ -2,10 +2,12 @@
 #include "config/editor_config.h"
 #include "config/keymap.h"
 #include "input/input_system.h"
+#include "render/popup.h"
 #include "rotide.h"
 #include "test_case.h"
 #include "test_helpers.h"
 #include "test_support.h"
+#include "workspace/tabs.h"
 
 #include <stddef.h>
 #include <stdio.h>

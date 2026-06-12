@@ -36,6 +36,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define VT100_CLEAR_ROW_3 "\x1b[K"
 #define VT100_RESET_CURSOR_POS_3 "\x1b[H"
