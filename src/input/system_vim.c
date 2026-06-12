@@ -170,6 +170,7 @@ static struct vimLeaderBinding g_vim_leader_map[] = {
         {"project_search", EDITOR_ACTION_PROJECT_SEARCH, 'f', 'f'},
         {"toggle_drawer", EDITOR_ACTION_TOGGLE_DRAWER, 'e', 'e'},
         {"main_menu", EDITOR_ACTION_MAIN_MENU, 'm', 'm'},
+        {"git_blame_details", EDITOR_ACTION_GIT_BLAME_DETAILS, -1, -1},
 };
 
 static const size_t g_vim_leader_count = sizeof(g_vim_leader_map) / sizeof(g_vim_leader_map[0]);

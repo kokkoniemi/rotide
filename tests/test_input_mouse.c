@@ -3,10 +3,12 @@
 #include "editing/selection.h"
 #include "editor_test_api.h"
 #include "input/actions_file_tab.h"
+#include "input/input_system.h"
 #include "input/mouse.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
 #include "render/popup.h"
+#include "render/screen.h"
 #include "rotide.h"
 #include "terminal/terminal_pane.h"
 #include "test_case.h"
@@ -52,10 +54,15 @@ static int mouse_seed_git_blame_cache(int one_based_line, const char *author,
 	E.git_blame_filename = strdup(E.filename);
 	E.git_blame_repo_root = strdup(E.git_repo_root);
 	E.git_blame_branch = E.git_branch != NULL ? strdup(E.git_branch) : NULL;
+	E.git_blame_head = E.git_head != NULL ? strdup(E.git_head) : NULL;
+	E.git_blame_disk_state = E.disk_state;
 	ASSERT_TRUE(E.git_blame_filename != NULL);
 	ASSERT_TRUE(E.git_blame_repo_root != NULL);
 	if (E.git_branch != NULL) {
 		ASSERT_TRUE(E.git_blame_branch != NULL);
+	}
+	if (E.git_head != NULL) {
+		ASSERT_TRUE(E.git_blame_head != NULL);
 	}
 	return 0;
 }
@@ -244,6 +251,7 @@ static int test_editor_process_keypress_mouse_ctrl_hover_marks_word_as_hover_lin
 }
 
 static int test_editor_process_keypress_mouse_hover_git_blame_indicator_opens_popup(void) {
+	ASSERT_TRUE(editorInputSystemActivate("cua"));
 	ASSERT_TRUE(editorTabsInit());
 	add_row("alpha");
 	E.window_rows = 6;
@@ -259,20 +267,31 @@ static int test_editor_process_keypress_mouse_hover_git_blame_indicator_opens_po
 	ASSERT_TRUE(E.git_repo_root != NULL);
 	ASSERT_TRUE(E.git_branch != NULL);
 	ASSERT_TRUE(mouse_seed_git_blame_cache(1, "Alice", time(NULL) - 14 * 86400) == 0);
+	ASSERT_TRUE(editorGitBlameActiveLine(1) != NULL);
 
 	size_t output_len = 0;
 	char *output = refresh_screen_and_capture(&output_len);
 	ASSERT_TRUE(output != NULL);
 	ASSERT_TRUE(strstr(output, "Alice 2 weeks ago") != NULL);
 	free(output);
+	ASSERT_TRUE(editorGitBlameActiveLine(1) != NULL);
 
 	int file_origin = editorTextBodyStartColForCols(E.window_cols) +
 	                  editorLineNumberGutterColsForCols(E.window_cols);
 	int indicator_start = file_origin + 1 + 5;
-	char motion[32];
-	ASSERT_TRUE(format_sgr_mouse_event(motion, sizeof(motion), 35, indicator_start + 3, 2,
-	                                   'M'));
-	ASSERT_TRUE(editor_process_keypress_with_input(motion, strlen(motion)) == 0);
+	int blame_row = -1;
+	int blame_anchor_col = -1;
+	ASSERT_TRUE(editorGitBlameIndicatorHitTest(1, indicator_start + 2, &blame_row,
+	                                           &blame_anchor_col));
+	ASSERT_EQ_INT(0, blame_row);
+	ASSERT_EQ_INT(5, blame_anchor_col);
+	struct editorMouseEvent motion = {
+	        .kind = EDITOR_MOUSE_EVENT_MOTION,
+	        .x = indicator_start + 3,
+	        .y = 2,
+	        .modifiers = EDITOR_MOUSE_MOD_NONE,
+	};
+	ASSERT_TRUE(editorHandleMouseMotion(&motion));
 	ASSERT_TRUE(editorPopupIsVisible());
 	ASSERT_EQ_INT(EDITOR_POPUP_KIND_GIT_BLAME, E.popup.kind);
 	ASSERT_EQ_INT(0, E.popup.anchor_row);

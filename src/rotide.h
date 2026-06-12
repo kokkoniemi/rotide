@@ -454,6 +454,8 @@ struct editorHistory {
 	X(char *, git_blame_filename)                                                              \
 	X(char *, git_blame_repo_root)                                                             \
 	X(char *, git_blame_branch)                                                                \
+	X(char *, git_blame_head)                                                                  \
+	X(struct editorFileDiskState, git_blame_disk_state)                                        \
 	X(struct editorFileDiskState, disk_state)                                                  \
 	X(int, disk_conflict)                                                                      \
 	X(enum editorSyntaxLanguage, syntax_language)                                              \
@@ -740,6 +742,7 @@ struct editorConfig {
 	/* --- Workspace: Git status snapshot --- */
 	char *git_repo_root;
 	char *git_branch;
+	char *git_head;
 	struct editorGitEntry *git_entries;
 	int git_entry_count;
 	int git_entry_capacity;

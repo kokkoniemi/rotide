@@ -1300,6 +1300,81 @@ static int test_editor_recovery_autosave_persists_workspace_state(void) {
 	return 0;
 }
 
+static int workspace_seed_git_blame_cache(int one_based_line, const char *author) {
+	editorGitBlameCacheClear(&E.active_buffer);
+	E.git_blame_line = malloc(sizeof(*E.git_blame_line));
+	ASSERT_TRUE(E.git_blame_line != NULL);
+	memset(E.git_blame_line, 0, sizeof(*E.git_blame_line));
+	E.git_blame_line->commit_sha =
+	        strdup("abcdef1234567890abcdef1234567890abcdef12");
+	E.git_blame_line->short_sha = strdup("abcdef123456");
+	E.git_blame_line->author_name = strdup(author);
+	E.git_blame_line->author_email = strdup("alice@example.com");
+	E.git_blame_line->author_time = 1700000000;
+	E.git_blame_line->summary = strdup("Cached blame");
+	E.git_blame_line->filename = strdup("tracked.txt");
+	ASSERT_TRUE(E.git_blame_line->commit_sha != NULL);
+	ASSERT_TRUE(E.git_blame_line->short_sha != NULL);
+	ASSERT_TRUE(E.git_blame_line->author_name != NULL);
+	ASSERT_TRUE(E.git_blame_line->author_email != NULL);
+	ASSERT_TRUE(E.git_blame_line->summary != NULL);
+	ASSERT_TRUE(E.git_blame_line->filename != NULL);
+	E.git_blame_line_number = one_based_line;
+	E.git_blame_line_miss = 0;
+	E.git_blame_filename = strdup(E.filename);
+	E.git_blame_repo_root = strdup(E.git_repo_root);
+	E.git_blame_branch = E.git_branch != NULL ? strdup(E.git_branch) : NULL;
+	E.git_blame_head = E.git_head != NULL ? strdup(E.git_head) : NULL;
+	E.git_blame_disk_state = E.disk_state;
+	ASSERT_TRUE(E.git_blame_filename != NULL);
+	ASSERT_TRUE(E.git_blame_repo_root != NULL);
+	if (E.git_branch != NULL) {
+		ASSERT_TRUE(E.git_blame_branch != NULL);
+	}
+	if (E.git_head != NULL) {
+		ASSERT_TRUE(E.git_blame_head != NULL);
+	}
+	return 0;
+}
+
+static int test_editor_git_blame_cache_key_includes_head_and_disk_state(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("alpha");
+	E.dirty = 0;
+	E.filename = strdup("/tmp/rotide-blame-cache/tracked.txt");
+	E.git_repo_root = strdup("/tmp/rotide-blame-cache");
+	E.git_branch = strdup("main");
+	E.git_head = strdup("1111111111111111111111111111111111111111");
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_TRUE(E.git_repo_root != NULL);
+	ASSERT_TRUE(E.git_branch != NULL);
+	ASSERT_TRUE(E.git_head != NULL);
+	E.disk_state.known = 1;
+	E.disk_state.exists = 1;
+	E.disk_state.dev = 10;
+	E.disk_state.ino = 20;
+	E.disk_state.size = 5;
+	E.disk_state.mtime.tv_sec = 100;
+	E.disk_state.ctime.tv_sec = 200;
+
+	ASSERT_TRUE(workspace_seed_git_blame_cache(1, "Alice") == 0);
+	const struct editorGitBlameLine *line = editorGitBlameActiveLine(1);
+	ASSERT_TRUE(line != NULL);
+	ASSERT_EQ_STR("Alice", line->author_name);
+
+	E.disk_state.ctime.tv_sec++;
+	ASSERT_TRUE(editorGitBlameActiveLine(1) == NULL);
+
+	ASSERT_TRUE(workspace_seed_git_blame_cache(1, "Bob") == 0);
+	free(E.git_head);
+	E.git_head = strdup("2222222222222222222222222222222222222222");
+	ASSERT_TRUE(E.git_head != NULL);
+	ASSERT_TRUE(editorGitBlameActiveLine(1) == NULL);
+
+	editorGitFree();
+	return 0;
+}
+
 static int test_editor_workspace_state_persists_drawer_state(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -2027,6 +2102,8 @@ const struct editorTestCase g_workspace_persistence_tests[] = {
         {"editor_git_parse_blame_porcelain_omits_uncommitted_lines",
          test_editor_git_parse_blame_porcelain_omits_uncommitted_lines},
         {"editor_git_format_relative_time_labels", test_editor_git_format_relative_time_labels},
+        {"editor_git_blame_cache_key_includes_head_and_disk_state",
+         test_editor_git_blame_cache_key_includes_head_and_disk_state},
         {"editor_drawer_git_mode_groups_entries_by_status",
          test_editor_drawer_git_mode_groups_entries_by_status},
         {"editor_drawer_git_mode_collapses_group", test_editor_drawer_git_mode_collapses_group},

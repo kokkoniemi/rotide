@@ -17,6 +17,9 @@ enum {
 	GIT_BLAME_SHORT_SHA_BYTES = 12
 };
 
+static int gitAppendShellQuotedArg(char *cmd, size_t cmd_size, size_t *pos, const char *value);
+static int gitAppendLiteral(char *cmd, size_t cmd_size, size_t *pos, const char *literal);
+
 static void gitFreeEntries(void) {
 	for (int i = 0; i < E.git_entry_count; i++) {
 		free(E.git_entries[i].rel_path);
@@ -33,6 +36,8 @@ static void gitRefreshBranch(void) {
 
 	free(E.git_branch);
 	E.git_branch = NULL;
+	free(E.git_head);
+	E.git_head = NULL;
 	if (E.git_repo_root == NULL) {
 		return;
 	}
@@ -65,6 +70,38 @@ static void gitRefreshBranch(void) {
 		}
 	}
 	(void)fclose(f);
+}
+
+static void gitRefreshHead(void) {
+	if (E.git_repo_root == NULL) {
+		return;
+	}
+
+	char cmd[PATH_MAX + 128];
+	size_t pos = 0;
+	if (!gitAppendLiteral(cmd, sizeof(cmd), &pos, "git -C ") ||
+	    !gitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, E.git_repo_root) ||
+	    !gitAppendLiteral(cmd, sizeof(cmd), &pos,
+	                      " rev-parse --verify HEAD 2>/dev/null")) {
+		return;
+	}
+
+	FILE *fp = popen(cmd, "r");
+	if (fp == NULL) {
+		return;
+	}
+
+	char line[64];
+	if (fgets(line, sizeof(line), fp) != NULL) {
+		size_t len = strlen(line);
+		while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r')) {
+			line[--len] = '\0';
+		}
+		if (len > 0) {
+			E.git_head = strdup(line);
+		}
+	}
+	(void)pclose(fp);
 }
 
 static int gitEntryCompare(const void *a, const void *b) {
@@ -294,6 +331,7 @@ void editorGitRefresh(void) {
 
 	editorGitBlameCacheClearAll();
 	gitRefreshBranch();
+	gitRefreshHead();
 	gitFreeEntries();
 
 	FILE *fp = gitRefreshSpawnStatus();
@@ -322,6 +360,8 @@ void editorGitFree(void) {
 	E.git_repo_root = NULL;
 	free(E.git_branch);
 	E.git_branch = NULL;
+	free(E.git_head);
+	E.git_head = NULL;
 	gitFreeEntries();
 }
 
@@ -436,9 +476,12 @@ void editorGitBlameCacheClear(struct editorBuffer *buffer) {
 	free(buffer->git_blame_filename);
 	free(buffer->git_blame_repo_root);
 	free(buffer->git_blame_branch);
+	free(buffer->git_blame_head);
 	buffer->git_blame_filename = NULL;
 	buffer->git_blame_repo_root = NULL;
 	buffer->git_blame_branch = NULL;
+	buffer->git_blame_head = NULL;
+	memset(&buffer->git_blame_disk_state, 0, sizeof(buffer->git_blame_disk_state));
 	buffer->git_blame_line_number = 0;
 	buffer->git_blame_line_miss = 0;
 }
@@ -463,11 +506,33 @@ static int gitBlameCacheStringEqual(const char *a, const char *b) {
 	return strcmp(a, b) == 0;
 }
 
+static int gitBlameTimeEqual(struct timespec left, struct timespec right) {
+	return left.tv_sec == right.tv_sec && left.tv_nsec == right.tv_nsec;
+}
+
+static int gitBlameDiskStateEqual(const struct editorFileDiskState *left,
+                                  const struct editorFileDiskState *right) {
+	if (left == NULL || right == NULL) {
+		return 0;
+	}
+	if (left->known != right->known || left->exists != right->exists) {
+		return 0;
+	}
+	if (!left->known || !left->exists) {
+		return 1;
+	}
+	return left->dev == right->dev && left->ino == right->ino && left->size == right->size &&
+	       gitBlameTimeEqual(left->mtime, right->mtime) &&
+	       gitBlameTimeEqual(left->ctime, right->ctime);
+}
+
 static int gitBlameActiveCacheMatches(int one_based_line) {
 	return E.git_blame_line_number == one_based_line &&
 	       gitBlameCacheStringEqual(E.git_blame_filename, E.filename) &&
 	       gitBlameCacheStringEqual(E.git_blame_repo_root, E.git_repo_root) &&
-	       gitBlameCacheStringEqual(E.git_blame_branch, E.git_branch);
+	       gitBlameCacheStringEqual(E.git_blame_branch, E.git_branch) &&
+	       gitBlameCacheStringEqual(E.git_blame_head, E.git_head) &&
+	       gitBlameDiskStateEqual(&E.git_blame_disk_state, &E.disk_state);
 }
 
 static int gitBlameStoreActiveCacheKey(int one_based_line) {
@@ -475,9 +540,12 @@ static int gitBlameStoreActiveCacheKey(int one_based_line) {
 	E.git_blame_filename = E.filename != NULL ? strdup(E.filename) : NULL;
 	E.git_blame_repo_root = E.git_repo_root != NULL ? strdup(E.git_repo_root) : NULL;
 	E.git_blame_branch = E.git_branch != NULL ? strdup(E.git_branch) : NULL;
+	E.git_blame_head = E.git_head != NULL ? strdup(E.git_head) : NULL;
+	E.git_blame_disk_state = E.disk_state;
 	if ((E.filename != NULL && E.git_blame_filename == NULL) ||
 	    (E.git_repo_root != NULL && E.git_blame_repo_root == NULL) ||
-	    (E.git_branch != NULL && E.git_blame_branch == NULL)) {
+	    (E.git_branch != NULL && E.git_blame_branch == NULL) ||
+	    (E.git_head != NULL && E.git_blame_head == NULL)) {
 		editorGitBlameCacheClear(&E.active_buffer);
 		return 0;
 	}

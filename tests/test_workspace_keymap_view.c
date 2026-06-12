@@ -1673,6 +1673,34 @@ static int test_editor_keymap_vim_per_mode_binding(void) {
 	return 0;
 }
 
+static int test_editor_keymap_vim_accepts_git_blame_details_binding(void) {
+	char dir_template[] = "/tmp/rotide-test-vimkeymap-gitblame-XXXXXX";
+	char *dir_path = mkdtemp(dir_template);
+	char project_path[512];
+
+	ASSERT_TRUE(dir_path != NULL);
+	ASSERT_TRUE(path_join(project_path, sizeof(project_path), dir_path, ".rotide.toml"));
+	ASSERT_TRUE(write_text_file(project_path, "[keymap.vim]\n"
+	                                          "leader.git_blame_details = \";\"\n"));
+
+	ASSERT_TRUE(editorInputSystemActivate("vim"));
+	ASSERT_EQ_INT(EDITOR_KEYMAP_LOAD_OK, editorKeymapLoadVimBindings(NULL, project_path));
+
+	ASSERT_TRUE(editorTabsInit());
+	add_row("abcdef");
+	E.filename = strdup("/tmp/rotide-vim-keymap-gitblame.c");
+	ASSERT_TRUE(E.filename != NULL);
+	E.dirty = 0;
+	ASSERT_EQ_INT(0, keymap_vim_send_key(' '));
+	ASSERT_TRUE(keymap_vim_send_key(';') >= 0);
+	ASSERT_EQ_STR("No Git repository", E.statusmsg);
+	ASSERT_TRUE(!editorPopupIsVisible());
+
+	ASSERT_TRUE(unlink(project_path) == 0);
+	ASSERT_TRUE(rmdir(dir_path) == 0);
+	return 0;
+}
+
 static int test_editor_keymap_vim_unknown_command_is_rejected(void) {
 	char dir_template[] = "/tmp/rotide-test-vimkeymap-bad-XXXXXX";
 	char *dir_path = mkdtemp(dir_template);
@@ -2037,6 +2065,8 @@ const struct editorTestCase g_workspace_keymap_view_tests[] = {
         {"editor_keymap_vim_binding_overrides_default",
          test_editor_keymap_vim_binding_overrides_default},
         {"editor_keymap_vim_per_mode_binding", test_editor_keymap_vim_per_mode_binding},
+        {"editor_keymap_vim_accepts_git_blame_details_binding",
+         test_editor_keymap_vim_accepts_git_blame_details_binding},
         {"editor_keymap_vim_unknown_command_is_rejected",
          test_editor_keymap_vim_unknown_command_is_rejected},
         {"editor_keymap_vim_leader_key_rebind", test_editor_keymap_vim_leader_key_rebind},

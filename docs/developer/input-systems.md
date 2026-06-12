@@ -95,6 +95,8 @@ leader.find_file = "p"
 leader.project_search = "f"
 leader.toggle_drawer = "e"
 leader.main_menu = "m"
+# Unbound by default; Normal mode keeps `gb`.
+leader.git_blame_details = "b"
 ```
 
 Leader sub-key names are editor-action names backed by `g_vim_leader_map`; the

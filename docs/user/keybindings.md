@@ -43,6 +43,8 @@ by one key:
 - `<leader>f`: search text across the project
 - `<leader>e`: toggle the drawer (explorer)
 - `<leader>m`: open the main menu
+- `leader.git_blame_details`: configurable Git blame details action; unbound by
+  default because Normal mode already uses `gb`
 
 The leader key (`normal.leader`) and each sub-key (`leader.<command>`) are
 configurable under `[keymap.vim]`; see `config.toml.example`.
