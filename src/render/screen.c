@@ -27,6 +27,7 @@
 #include "vterm.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
+#include "workspace/git.h"
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
@@ -35,6 +36,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define VT100_CLEAR_ROW_3 "\x1b[K"
 #define VT100_RESET_CURSOR_POS_3 "\x1b[H"
@@ -96,8 +98,22 @@ static struct screenFileRowFrameCache g_screen_file_row_frame_cache = {0};
 static int g_screen_last_refresh_file_row_draw_count = 0;
 int g_screen_drawing_current_line_highlight = 0;
 int g_screen_drawing_stopped_line_highlight = 0;
+int g_screen_drawing_focused_editor_pane = 0;
+int g_screen_drawing_file_row_origin_col = -1;
+int g_screen_drawing_file_row_screen_y = -1;
 static int g_screen_popup_prev_screen_top = 0;
 static int g_screen_popup_prev_row_count = 0;
+
+struct screenGitBlameIndicatorHit {
+	int active;
+	int screen_y;
+	int start_col;
+	int end_col;
+	int row_idx;
+	int anchor_col;
+};
+
+static struct screenGitBlameIndicatorHit g_screen_git_blame_indicator_hit = {0};
 
 static void screenFileRowFrameCacheClearRowsFrom(int start_row) {
 	if (start_row < 0) {
@@ -908,6 +924,86 @@ static int screenAppendGrayGlyph(struct writeBuf *wb, const char *glyph, size_t 
 	return editorAppendGrayBytes(wb, glyph, glyph_len);
 }
 
+static void screenGitBlameIndicatorHitClear(void) {
+	memset(&g_screen_git_blame_indicator_hit, 0, sizeof(g_screen_git_blame_indicator_hit));
+}
+
+static void screenGitBlameIndicatorHitRecord(int row_idx, int start_col, int written_cols,
+                                             int anchor_col) {
+	if (written_cols <= 0 || g_screen_drawing_file_row_screen_y < 0 || start_col < 0) {
+		return;
+	}
+	g_screen_git_blame_indicator_hit.active = 1;
+	g_screen_git_blame_indicator_hit.screen_y = g_screen_drawing_file_row_screen_y;
+	g_screen_git_blame_indicator_hit.start_col = start_col;
+	g_screen_git_blame_indicator_hit.end_col = start_col + written_cols;
+	g_screen_git_blame_indicator_hit.row_idx = row_idx;
+	g_screen_git_blame_indicator_hit.anchor_col = anchor_col;
+}
+
+int editorGitBlameIndicatorHitTest(int screen_row, int screen_col, int *row_out,
+                                   int *anchor_col_out) {
+	if (!g_screen_git_blame_indicator_hit.active ||
+	    screen_row != g_screen_git_blame_indicator_hit.screen_y ||
+	    screen_col < g_screen_git_blame_indicator_hit.start_col ||
+	    screen_col >= g_screen_git_blame_indicator_hit.end_col) {
+		return 0;
+	}
+	if (row_out != NULL) {
+		*row_out = g_screen_git_blame_indicator_hit.row_idx;
+	}
+	if (anchor_col_out != NULL) {
+		*anchor_col_out = g_screen_git_blame_indicator_hit.anchor_col;
+	}
+	return 1;
+}
+
+static int screenGitBlameIndicatorApplies(int row_idx, int segment_coloff) {
+	if (!g_screen_drawing_focused_editor_pane || E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT ||
+	    row_idx != E.cy) {
+		return 0;
+	}
+	if (!E.line_wrap_enabled) {
+		return 1;
+	}
+	if (row_idx < 0 || row_idx >= E.numrows) {
+		return 0;
+	}
+	int body_cols = editorWrapBodyCols();
+	int cursor_segment = editorWrapCursorSegmentForRx(&E.rows[row_idx], E.rx, body_cols);
+	int cursor_segment_coloff = 0;
+	editorWrapSegmentInfo(&E.rows[row_idx], cursor_segment, body_cols, &cursor_segment_coloff,
+	                      NULL, NULL);
+	return segment_coloff == cursor_segment_coloff;
+}
+
+static int screenAppendGitBlameIndicator(struct writeBuf *wb, int row_idx, int segment_coloff,
+                                         int indicator_col, int anchor_col, int available_cols,
+                                         int *written_cols_out) {
+	if (written_cols_out != NULL) {
+		*written_cols_out = 0;
+	}
+	if (available_cols <= 2 || !screenGitBlameIndicatorApplies(row_idx, segment_coloff)) {
+		return 1;
+	}
+
+	char label[256];
+	if (!editorGitBlameActiveInlineLabel(row_idx + 1, time(NULL), label, sizeof(label))) {
+		return 1;
+	}
+	int written_cols = 0;
+	if (!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_PLACEHOLDER) ||
+	    !editorAppendSanitizedText(wb, label, available_cols, &written_cols) ||
+	    !editorAppendThemeBaseForeground(wb)) {
+		return 0;
+	}
+	screenGitBlameIndicatorHitRecord(row_idx, indicator_col, written_cols, anchor_col);
+	if (written_cols_out != NULL) {
+		*written_cols_out = written_cols;
+	}
+	return 1;
+}
+
 int editorCurrentLineHighlightApplies(int row_idx, int segment_coloff) {
 	if (!E.current_line_highlight_enabled || row_idx != E.cy) {
 		return 0;
@@ -1060,7 +1156,17 @@ int editorDrawFileRowWrapped(struct writeBuf *wb, size_t i, int text_cols, int s
 			return 0;
 		}
 
-		for (int pad = indent_cols + rendered_cols; pad < body_cols; pad++) {
+		int blame_cols = 0;
+		int indicator_col =
+		        g_screen_drawing_file_row_origin_col + 1 + indent_cols + rendered_cols;
+		int anchor_col = segment_coloff + indent_cols + rendered_cols;
+		if (!screenAppendGitBlameIndicator(
+		            wb, (int)i, segment_coloff, indicator_col, anchor_col,
+		            body_cols - indent_cols - rendered_cols, &blame_cols)) {
+			return 0;
+		}
+
+		for (int pad = indent_cols + rendered_cols + blame_cols; pad < body_cols; pad++) {
 			if (!wbAppend(wb, " ", 1)) {
 				return 0;
 			}
@@ -1100,7 +1206,15 @@ int editorDrawFileRow(struct writeBuf *wb, size_t i, int text_cols) {
 			return 0;
 		}
 
-		for (int pad = rendered_cols; pad < body_cols; pad++) {
+		int blame_cols = 0;
+		int indicator_col = g_screen_drawing_file_row_origin_col + 1 + rendered_cols;
+		int anchor_col = E.coloff + rendered_cols;
+		if (!screenAppendGitBlameIndicator(wb, (int)i, E.coloff, indicator_col, anchor_col,
+		                                   body_cols - rendered_cols, &blame_cols)) {
+			return 0;
+		}
+
+		for (int pad = rendered_cols + blame_cols; pad < body_cols; pad++) {
 			if (!wbAppend(wb, " ", 1)) {
 				return 0;
 			}
@@ -1156,6 +1270,7 @@ static int screenDrawSinglePaneFileRows(struct writeBuf *wb, int drawer_cols, in
 }
 
 static int screenDrawRows(struct writeBuf *wb) {
+	screenGitBlameIndicatorHitClear();
 	editorDrawerClampViewport(E.window_rows);
 	(void)editorSyntaxPrepareVisibleRowSpans(E.rowoff, E.window_rows);
 
@@ -1474,8 +1589,9 @@ static int screenDrawPopupOverlay(struct writeBuf *wb) {
 		if (!wbAppend(wb, move_buf, (size_t)move_len)) {
 			return 0;
 		}
-		int is_selected =
-		        E.popup.kind != EDITOR_POPUP_KIND_LSP_HOVER && item_idx == selected_idx;
+		int is_selected = E.popup.kind != EDITOR_POPUP_KIND_LSP_HOVER &&
+		                  E.popup.kind != EDITOR_POPUP_KIND_GIT_BLAME &&
+		                  item_idx == selected_idx;
 		if (is_selected) {
 			if (!editorAppendThemeStyle(wb, EDITOR_THEME_STYLE_SELECTION)) {
 				return 0;

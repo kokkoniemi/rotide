@@ -25,6 +25,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 
 static int find_drawer_entry_path(const char *path, int *idx_out,
@@ -296,6 +297,94 @@ static int test_editor_git_file_status_returns_clean_outside_repo(void) {
 
 	editorGitFree();
 	cleanup_recovery_test_env(&env);
+	return 0;
+}
+
+static int test_editor_git_parse_blame_porcelain_extracts_commit_details(void) {
+	const char blame[] = "abcdef1234567890abcdef1234567890abcdef12 7 9 1\n"
+	                     "author Ada Lovelace\n"
+	                     "author-mail <ada@example.test>\n"
+	                     "author-time 1700000000\n"
+	                     "author-tz +0200\n"
+	                     "committer Grace Hopper\n"
+	                     "committer-mail <grace@example.test>\n"
+	                     "committer-time 1700000300\n"
+	                     "summary Add analytical engine notes\n"
+	                     "previous 1111111111111111111111111111111111111111 old/name.c\n"
+	                     "filename src/name.c\n"
+	                     "\tint answer = 42;\n";
+	struct editorGitBlameLine line = {0};
+
+	ASSERT_TRUE(editorGitParseBlamePorcelain(blame, sizeof(blame) - 1, &line));
+	ASSERT_EQ_STR("abcdef1234567890abcdef1234567890abcdef12", line.commit_sha);
+	ASSERT_EQ_STR("abcdef123456", line.short_sha);
+	ASSERT_EQ_STR("Ada Lovelace", line.author_name);
+	ASSERT_EQ_STR("ada@example.test", line.author_email);
+	ASSERT_EQ_INT(1700000000, (int)line.author_time);
+	ASSERT_EQ_STR("Grace Hopper", line.committer_name);
+	ASSERT_EQ_INT(1700000300, (int)line.committer_time);
+	ASSERT_EQ_STR("Add analytical engine notes", line.summary);
+	ASSERT_EQ_STR("src/name.c", line.filename);
+	ASSERT_EQ_STR("old/name.c", line.original_path);
+	ASSERT_EQ_INT(7, line.original_line);
+	ASSERT_EQ_INT(9, line.final_line);
+
+	editorGitBlameLineFree(&line);
+	return 0;
+}
+
+static int test_editor_git_parse_blame_porcelain_omits_uncommitted_lines(void) {
+	const char blame[] = "0000000000000000000000000000000000000000 0 4 1\n"
+	                     "author Not Committed Yet\n"
+	                     "author-mail <not.committed.yet>\n"
+	                     "author-time 0\n"
+	                     "summary Version of file in working tree\n"
+	                     "filename src/new.c\n"
+	                     "\tnew line\n";
+	struct editorGitBlameLine line = {0};
+
+	ASSERT_TRUE(!editorGitParseBlamePorcelain(blame, sizeof(blame) - 1, &line));
+	ASSERT_TRUE(line.commit_sha == NULL);
+	ASSERT_TRUE(line.author_name == NULL);
+
+	editorGitBlameLineFree(&line);
+	return 0;
+}
+
+static int test_editor_git_format_relative_time_labels(void) {
+	char buf[64];
+	time_t now = 2000000000;
+
+	ASSERT_TRUE(editorGitFormatRelativeTime(now, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("just now", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now + 120, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("just now", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now - 60, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("1 minute ago", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now - 120, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("2 minutes ago", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now - 3600, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("1 hour ago", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now - 7200, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("2 hours ago", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now - 86400, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("yesterday", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now - 172800, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("2 days ago", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now - 604800, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("1 week ago", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now - 1209600, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("2 weeks ago", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now - 2592000, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("1 month ago", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now - 5184000, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("2 months ago", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now - 31536000, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("1 year ago", buf);
+	ASSERT_TRUE(editorGitFormatRelativeTime(now - 63072000, now, buf, sizeof(buf)));
+	ASSERT_EQ_STR("2 years ago", buf);
+
+	ASSERT_TRUE(!editorGitFormatRelativeTime(now - 60, now, buf, 4));
 	return 0;
 }
 
@@ -1211,6 +1300,80 @@ static int test_editor_recovery_autosave_persists_workspace_state(void) {
 	return 0;
 }
 
+static int workspace_seed_git_blame_cache(int one_based_line, const char *author) {
+	editorGitBlameCacheClear(&E.active_buffer);
+	E.git_blame_line = malloc(sizeof(*E.git_blame_line));
+	ASSERT_TRUE(E.git_blame_line != NULL);
+	memset(E.git_blame_line, 0, sizeof(*E.git_blame_line));
+	E.git_blame_line->commit_sha = strdup("abcdef1234567890abcdef1234567890abcdef12");
+	E.git_blame_line->short_sha = strdup("abcdef123456");
+	E.git_blame_line->author_name = strdup(author);
+	E.git_blame_line->author_email = strdup("alice@example.com");
+	E.git_blame_line->author_time = 1700000000;
+	E.git_blame_line->summary = strdup("Cached blame");
+	E.git_blame_line->filename = strdup("tracked.txt");
+	ASSERT_TRUE(E.git_blame_line->commit_sha != NULL);
+	ASSERT_TRUE(E.git_blame_line->short_sha != NULL);
+	ASSERT_TRUE(E.git_blame_line->author_name != NULL);
+	ASSERT_TRUE(E.git_blame_line->author_email != NULL);
+	ASSERT_TRUE(E.git_blame_line->summary != NULL);
+	ASSERT_TRUE(E.git_blame_line->filename != NULL);
+	E.git_blame_line_number = one_based_line;
+	E.git_blame_line_miss = 0;
+	E.git_blame_filename = strdup(E.filename);
+	E.git_blame_repo_root = strdup(E.git_repo_root);
+	E.git_blame_branch = E.git_branch != NULL ? strdup(E.git_branch) : NULL;
+	E.git_blame_head = E.git_head != NULL ? strdup(E.git_head) : NULL;
+	E.git_blame_disk_state = E.disk_state;
+	ASSERT_TRUE(E.git_blame_filename != NULL);
+	ASSERT_TRUE(E.git_blame_repo_root != NULL);
+	if (E.git_branch != NULL) {
+		ASSERT_TRUE(E.git_blame_branch != NULL);
+	}
+	if (E.git_head != NULL) {
+		ASSERT_TRUE(E.git_blame_head != NULL);
+	}
+	return 0;
+}
+
+static int test_editor_git_blame_cache_key_includes_head_and_disk_state(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("alpha");
+	E.dirty = 0;
+	E.filename = strdup("/tmp/rotide-blame-cache/tracked.txt");
+	E.git_repo_root = strdup("/tmp/rotide-blame-cache");
+	E.git_branch = strdup("main");
+	E.git_head = strdup("1111111111111111111111111111111111111111");
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_TRUE(E.git_repo_root != NULL);
+	ASSERT_TRUE(E.git_branch != NULL);
+	ASSERT_TRUE(E.git_head != NULL);
+	E.disk_state.known = 1;
+	E.disk_state.exists = 1;
+	E.disk_state.dev = 10;
+	E.disk_state.ino = 20;
+	E.disk_state.size = 5;
+	E.disk_state.mtime.tv_sec = 100;
+	E.disk_state.ctime.tv_sec = 200;
+
+	ASSERT_TRUE(workspace_seed_git_blame_cache(1, "Alice") == 0);
+	const struct editorGitBlameLine *line = editorGitBlameActiveLine(1);
+	ASSERT_TRUE(line != NULL);
+	ASSERT_EQ_STR("Alice", line->author_name);
+
+	E.disk_state.ctime.tv_sec++;
+	ASSERT_TRUE(editorGitBlameActiveLine(1) == NULL);
+
+	ASSERT_TRUE(workspace_seed_git_blame_cache(1, "Bob") == 0);
+	free(E.git_head);
+	E.git_head = strdup("2222222222222222222222222222222222222222");
+	ASSERT_TRUE(E.git_head != NULL);
+	ASSERT_TRUE(editorGitBlameActiveLine(1) == NULL);
+
+	editorGitFree();
+	return 0;
+}
+
 static int test_editor_workspace_state_persists_drawer_state(void) {
 	struct recoveryTestEnv env;
 	ASSERT_TRUE(setup_recovery_test_env(&env));
@@ -1933,6 +2096,13 @@ const struct editorTestCase g_workspace_persistence_tests[] = {
          test_editor_git_dir_status_aggregates_worst_descendant},
         {"editor_git_file_status_returns_clean_outside_repo",
          test_editor_git_file_status_returns_clean_outside_repo},
+        {"editor_git_parse_blame_porcelain_extracts_commit_details",
+         test_editor_git_parse_blame_porcelain_extracts_commit_details},
+        {"editor_git_parse_blame_porcelain_omits_uncommitted_lines",
+         test_editor_git_parse_blame_porcelain_omits_uncommitted_lines},
+        {"editor_git_format_relative_time_labels", test_editor_git_format_relative_time_labels},
+        {"editor_git_blame_cache_key_includes_head_and_disk_state",
+         test_editor_git_blame_cache_key_includes_head_and_disk_state},
         {"editor_drawer_git_mode_groups_entries_by_status",
          test_editor_drawer_git_mode_groups_entries_by_status},
         {"editor_drawer_git_mode_collapses_group", test_editor_drawer_git_mode_collapses_group},

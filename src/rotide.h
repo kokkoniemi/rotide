@@ -121,6 +121,7 @@ struct editorDrawerNode;
 struct editorSyntaxState;
 struct editorDocument;
 struct editorLspSymbol;
+struct editorGitBlameLine;
 
 struct editorPopupItem {
 	char *label;
@@ -133,7 +134,8 @@ enum editorPopupKind {
 	EDITOR_POPUP_KIND_EDITOR_CONTEXT_MENU,
 	EDITOR_POPUP_KIND_TAB_CONTEXT_MENU,
 	EDITOR_POPUP_KIND_LSP_LOCATION_MENU,
-	EDITOR_POPUP_KIND_LSP_HOVER
+	EDITOR_POPUP_KIND_LSP_HOVER,
+	EDITOR_POPUP_KIND_GIT_BLAME
 };
 
 struct editorPopupState {
@@ -284,6 +286,7 @@ enum editorAction {
 	EDITOR_ACTION_GOTO_IMPLEMENTATION,
 	EDITOR_ACTION_GOTO_REFERENCES,
 	EDITOR_ACTION_HOVER,
+	EDITOR_ACTION_GIT_BLAME_DETAILS,
 	EDITOR_ACTION_GOTO_SYMBOL,
 	EDITOR_ACTION_DIAGNOSTIC_NEXT,
 	EDITOR_ACTION_DIAGNOSTIC_PREV,
@@ -445,6 +448,14 @@ struct editorHistory {
 	X(struct editorDocument *, document)                                                       \
 	X(int, dirty)                                                                              \
 	X(char *, filename)                                                                        \
+	X(struct editorGitBlameLine *, git_blame_line)                                             \
+	X(int, git_blame_line_number)                                                              \
+	X(int, git_blame_line_miss)                                                                \
+	X(char *, git_blame_filename)                                                              \
+	X(char *, git_blame_repo_root)                                                             \
+	X(char *, git_blame_branch)                                                                \
+	X(char *, git_blame_head)                                                                  \
+	X(struct editorFileDiskState, git_blame_disk_state)                                        \
 	X(struct editorFileDiskState, disk_state)                                                  \
 	X(int, disk_conflict)                                                                      \
 	X(enum editorSyntaxLanguage, syntax_language)                                              \
@@ -731,6 +742,7 @@ struct editorConfig {
 	/* --- Workspace: Git status snapshot --- */
 	char *git_repo_root;
 	char *git_branch;
+	char *git_head;
 	struct editorGitEntry *git_entries;
 	int git_entry_count;
 	int git_entry_capacity;

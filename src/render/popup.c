@@ -216,7 +216,8 @@ enum editorPopupKeyResult editorPopupHandleKey(int key) {
 		return EDITOR_POPUP_KEY_IGNORED;
 	}
 
-	if (E.popup.kind == EDITOR_POPUP_KIND_LSP_HOVER) {
+	if (E.popup.kind == EDITOR_POPUP_KIND_LSP_HOVER ||
+	    E.popup.kind == EDITOR_POPUP_KIND_GIT_BLAME) {
 		switch (key) {
 			case ARROW_UP:
 				E.popup.row_offset--;

@@ -1,8 +1,6 @@
 # RotIDE
 
-RotIDE is a terminal text editor that began with kilo-style minimalism and now
-focuses on predictable behavior, explicit data flow, and strong regression
-coverage. Its earliest shape was inspired by antirez's
+RotIDE is a terminal text editor focuses on predictable behavior, explicit data flow, and strong regression coverage. Its earliest shape was inspired by antirez's
 [kilo](https://github.com/antirez/kilo).
 
 RotIDE is under active development. Core editing, multi-tab workflow, a project

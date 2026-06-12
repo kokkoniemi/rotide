@@ -5,6 +5,7 @@
 #include "test_support.h"
 #include "vterm.h"
 #include "workspace/drawer.h"
+#include "workspace/git.h"
 #include "workspace/layout.h"
 #include "workspace/tabs.h"
 
@@ -85,6 +86,214 @@ static struct editorTerminalPane *open_terminal_tab_in_root(const char *command)
 	(void)editorPaneViewActivateTab(&E.layout_root->as.leaf.view, idx);
 	E.active_tab = idx;
 	return t;
+}
+
+static int count_substrings(const char *haystack, const char *needle) {
+	int count = 0;
+	size_t needle_len = strlen(needle);
+	const char *cursor = haystack;
+
+	if (needle_len == 0) {
+		return 0;
+	}
+	while ((cursor = strstr(cursor, needle)) != NULL) {
+		count++;
+		cursor += needle_len;
+	}
+	return count;
+}
+
+static int render_test_seed_blame_cache(int one_based_line, const char *author,
+                                        time_t author_time) {
+	editorGitBlameCacheClear(&E.active_buffer);
+	E.git_blame_line = malloc(sizeof(*E.git_blame_line));
+	ASSERT_TRUE(E.git_blame_line != NULL);
+	memset(E.git_blame_line, 0, sizeof(*E.git_blame_line));
+	E.git_blame_line->commit_sha = strdup("abcdef1234567890abcdef1234567890abcdef12");
+	E.git_blame_line->short_sha = strdup("abcdef123456");
+	E.git_blame_line->author_name = strdup(author);
+	E.git_blame_line->author_email = strdup("alice@example.com");
+	E.git_blame_line->author_time = author_time;
+	E.git_blame_line->summary = strdup("Test commit");
+	E.git_blame_line->filename = strdup("tracked.txt");
+	ASSERT_TRUE(E.git_blame_line->commit_sha != NULL);
+	ASSERT_TRUE(E.git_blame_line->short_sha != NULL);
+	ASSERT_TRUE(E.git_blame_line->author_name != NULL);
+	ASSERT_TRUE(E.git_blame_line->author_email != NULL);
+	ASSERT_TRUE(E.git_blame_line->summary != NULL);
+	ASSERT_TRUE(E.git_blame_line->filename != NULL);
+	E.git_blame_line_number = one_based_line;
+	E.git_blame_line_miss = 0;
+	E.git_blame_filename = strdup(E.filename);
+	E.git_blame_repo_root = strdup(E.git_repo_root);
+	E.git_blame_branch = E.git_branch != NULL ? strdup(E.git_branch) : NULL;
+	E.git_blame_head = E.git_head != NULL ? strdup(E.git_head) : NULL;
+	E.git_blame_disk_state = E.disk_state;
+	ASSERT_TRUE(E.git_blame_filename != NULL);
+	ASSERT_TRUE(E.git_blame_repo_root != NULL);
+	if (E.git_branch != NULL) {
+		ASSERT_TRUE(E.git_blame_branch != NULL);
+	}
+	if (E.git_head != NULL) {
+		ASSERT_TRUE(E.git_blame_head != NULL);
+	}
+	return 0;
+}
+
+static int render_test_setup_blame_file(void) {
+	ASSERT_TRUE(editorTabsInit());
+	E.filename = strdup("/tmp/rotide-blame/tracked.txt");
+	E.git_repo_root = strdup("/tmp/rotide-blame");
+	E.git_branch = strdup("main");
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_TRUE(E.git_repo_root != NULL);
+	ASSERT_TRUE(E.git_branch != NULL);
+	return 0;
+}
+
+static int test_editor_refresh_screen_renders_current_line_git_blame_indicator(void) {
+	E.window_rows = 6;
+	E.window_cols = 100;
+	ASSERT_TRUE(render_test_setup_blame_file() == 0);
+	add_row("alpha");
+	add_row("beta");
+	E.dirty = 0;
+	E.cy = 0;
+	E.cx = 0;
+	E.rx = 0;
+	ASSERT_TRUE(render_test_seed_blame_cache(1, "Alice", time(NULL) - 14 * 86400) == 0);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "Alice 2 weeks ago") != NULL);
+	ASSERT_ROW_TEXT_EQ(0, "alpha");
+	ASSERT_ROW_TEXT_EQ(1, "beta");
+	ASSERT_EQ_INT(0, E.dirty);
+	free(output);
+	editorGitFree();
+	return 0;
+}
+
+static int test_editor_refresh_screen_renders_git_blame_indicator_only_on_current_line(void) {
+	E.window_rows = 6;
+	E.window_cols = 100;
+	ASSERT_TRUE(render_test_setup_blame_file() == 0);
+	add_row("alpha");
+	add_row("beta");
+	E.dirty = 0;
+	E.cy = 1;
+	E.cx = 0;
+	E.rx = 0;
+	ASSERT_TRUE(render_test_seed_blame_cache(2, "Bob", time(NULL) - 2 * 86400) == 0);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_EQ_INT(1, count_substrings(output, "Bob 2 days ago"));
+	ASSERT_TRUE(strstr(output, "Alice") == NULL);
+	ASSERT_ROW_TEXT_EQ(0, "alpha");
+	ASSERT_ROW_TEXT_EQ(1, "beta");
+	ASSERT_EQ_INT(0, E.dirty);
+	free(output);
+	editorGitFree();
+	return 0;
+}
+
+static int test_editor_refresh_screen_git_blame_indicator_truncates_in_narrow_viewport(void) {
+	E.window_rows = 6;
+	E.window_cols = 40;
+	ASSERT_TRUE(render_test_setup_blame_file() == 0);
+	add_row("alpha");
+	E.dirty = 0;
+	E.cy = 0;
+	E.cx = 0;
+	E.rx = 0;
+	ASSERT_TRUE(render_test_seed_blame_cache(1, "Alice", time(NULL) - 14 * 86400) == 0);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "Alice") != NULL);
+	ASSERT_TRUE(strstr(output, "Alice 2 weeks ago") == NULL);
+	ASSERT_ROW_TEXT_EQ(0, "alpha");
+	ASSERT_EQ_INT(0, E.dirty);
+	free(output);
+	editorGitFree();
+	return 0;
+}
+
+static int test_editor_refresh_screen_git_blame_indicator_respects_horizontal_scroll(void) {
+	E.window_rows = 6;
+	E.window_cols = 100;
+	ASSERT_TRUE(render_test_setup_blame_file() == 0);
+	add_row("prefix-alpha");
+	E.dirty = 0;
+	E.cy = 0;
+	E.cx = 7;
+	E.rx = 7;
+	E.coloff = 7;
+	ASSERT_TRUE(render_test_seed_blame_cache(1, "Alice", time(NULL) - 14 * 86400) == 0);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "alpha") != NULL);
+	ASSERT_TRUE(strstr(output, "Alice 2 weeks ago") != NULL);
+	ASSERT_ROW_TEXT_EQ(0, "prefix-alpha");
+	ASSERT_EQ_INT(7, E.coloff);
+	ASSERT_EQ_INT(7, E.cx);
+	ASSERT_EQ_INT(0, E.dirty);
+	free(output);
+	editorGitFree();
+	return 0;
+}
+
+static int test_editor_refresh_screen_git_blame_indicator_respects_soft_wrap(void) {
+	E.window_rows = 6;
+	E.window_cols = 50;
+	E.line_wrap_enabled = 1;
+	ASSERT_TRUE(render_test_setup_blame_file() == 0);
+	add_row("alpha beta gamma delta");
+	E.dirty = 0;
+	E.cy = 0;
+	E.cx = 18;
+	E.rx = 18;
+	ASSERT_TRUE(render_test_seed_blame_cache(1, "Alice", time(NULL) - 14 * 86400) == 0);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "Alice") != NULL);
+	ASSERT_ROW_TEXT_EQ(0, "alpha beta gamma delta");
+	ASSERT_EQ_INT(18, E.cx);
+	ASSERT_EQ_INT(0, E.dirty);
+	free(output);
+	editorGitFree();
+	return 0;
+}
+
+static int test_editor_refresh_screen_hides_git_blame_indicator_for_dirty_buffer(void) {
+	E.window_rows = 6;
+	E.window_cols = 100;
+	ASSERT_TRUE(render_test_setup_blame_file() == 0);
+	add_row("alpha");
+	E.dirty = 1;
+	E.cy = 0;
+	E.cx = 0;
+	E.rx = 0;
+	ASSERT_TRUE(render_test_seed_blame_cache(1, "Alice", time(NULL) - 14 * 86400) == 0);
+	E.dirty = 1;
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "Alice 2 weeks ago") == NULL);
+	ASSERT_ROW_TEXT_EQ(0, "alpha");
+	ASSERT_EQ_INT(1, E.dirty);
+	free(output);
+	editorGitFree();
+	return 0;
 }
 
 static int test_editor_refresh_screen_renders_terminal_pane(void) {
@@ -267,6 +476,18 @@ static int test_vterm_rep_without_preceding_char_does_not_hang(void) {
 }
 
 const struct editorTestCase g_render_terminal_tests[] = {
+        {"editor_refresh_screen_renders_current_line_git_blame_indicator",
+         test_editor_refresh_screen_renders_current_line_git_blame_indicator},
+        {"editor_refresh_screen_renders_git_blame_indicator_only_on_current_line",
+         test_editor_refresh_screen_renders_git_blame_indicator_only_on_current_line},
+        {"editor_refresh_screen_git_blame_indicator_truncates_in_narrow_viewport",
+         test_editor_refresh_screen_git_blame_indicator_truncates_in_narrow_viewport},
+        {"editor_refresh_screen_git_blame_indicator_respects_horizontal_scroll",
+         test_editor_refresh_screen_git_blame_indicator_respects_horizontal_scroll},
+        {"editor_refresh_screen_git_blame_indicator_respects_soft_wrap",
+         test_editor_refresh_screen_git_blame_indicator_respects_soft_wrap},
+        {"editor_refresh_screen_hides_git_blame_indicator_for_dirty_buffer",
+         test_editor_refresh_screen_hides_git_blame_indicator_for_dirty_buffer},
         {"editor_refresh_screen_renders_terminal_pane",
          test_editor_refresh_screen_renders_terminal_pane},
         {"editor_refresh_screen_terminal_exit_overlay",

@@ -3,6 +3,7 @@
 #include "editing/selection.h"
 #include "editor_test_api.h"
 #include "input/input_system.h"
+#include "render/popup.h"
 #include "rotide.h"
 #include "test_case.h"
 #include "test_helpers.h"
@@ -1509,6 +1510,23 @@ static int test_input_vim_bracket_prefix_diagnostic(void) {
 	return 0;
 }
 
+static int test_input_vim_gb_git_blame_details_reports_no_repo(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("hello");
+	E.filename = strdup("/tmp/rotide-vim-gb.c");
+	ASSERT_TRUE(E.filename != NULL);
+	E.dirty = 0;
+	ASSERT_TRUE(vim_test_activate());
+
+	ASSERT_TRUE(vim_test_key('g') == 0);
+	ASSERT_EQ_INT(1, E.input_vim_pending_g);
+	ASSERT_TRUE(vim_test_key('b') == 0);
+	ASSERT_EQ_INT(0, E.input_vim_pending_g);
+	ASSERT_EQ_STR("No Git repository", E.statusmsg);
+	ASSERT_TRUE(!editorPopupIsVisible());
+	return 0;
+}
+
 static int test_input_vim_mark_set_and_jump(void) {
 	ASSERT_TRUE(editorTabsInit());
 	add_row("first line");
@@ -1773,6 +1791,8 @@ const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_reflow_preserves_indent", test_input_vim_reflow_preserves_indent},
         {"input_vim_visual_reflow", test_input_vim_visual_reflow},
         {"input_vim_bracket_prefix_diagnostic", test_input_vim_bracket_prefix_diagnostic},
+        {"input_vim_gb_git_blame_details_reports_no_repo",
+         test_input_vim_gb_git_blame_details_reports_no_repo},
         {"input_vim_mark_set_and_jump", test_input_vim_mark_set_and_jump},
         {"input_vim_indent_line", test_input_vim_indent_line},
         {"input_vim_indent_count", test_input_vim_indent_count},

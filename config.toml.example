@@ -299,6 +299,8 @@ find_replace = "ctrl+r"
 goto_line = "ctrl+g"
 goto_matching_bracket = "ctrl+]"
 goto_definition = "ctrl+o"
+# Shows blame details for committed lines in saved files inside a Git worktree.
+git_blame_details = "alt+b"
 # hover has no CUA default binding; Vim Normal mode binds it to "K".
 # hover = "alt+k"
 # eslint_fix has no default binding; uncomment to enable.
@@ -437,7 +439,8 @@ move_tab_down_pane = "ctrl+shift+alt+down"
 # Set the leader key with "normal.leader" (default "space"; "space" and a literal
 # " " both work). Bind sub-keys with "leader.<command>". Built-in leader commands:
 #   find_file (default "p"), project_search ("f"), toggle_drawer ("e"),
-#   main_menu ("m"). Sub-keys relocate like other commands.
+#   main_menu ("m"), git_blame_details (unbound by default; Normal mode uses
+#   "gb"). Sub-keys relocate like other commands.
 #
 # [keymap.vim]
 # normal.move_left = "h"
@@ -447,3 +450,4 @@ move_tab_down_pane = "ctrl+shift+alt+down"
 # normal.leader = "space"
 # leader.find_file = "p"
 # leader.project_search = "f"
+# leader.git_blame_details = "b"

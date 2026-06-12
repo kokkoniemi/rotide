@@ -3,10 +3,12 @@
 #include "editing/selection.h"
 #include "editor_test_api.h"
 #include "input/actions_file_tab.h"
+#include "input/input_system.h"
 #include "input/mouse.h"
 #include "language/lsp.h"
 #include "language/syntax.h"
 #include "render/popup.h"
+#include "render/screen.h"
 #include "rotide.h"
 #include "terminal/terminal_pane.h"
 #include "test_case.h"
@@ -15,6 +17,7 @@
 #include "text/document.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
+#include "workspace/git.h"
 #include "workspace/layout.h"
 #include "workspace/tabs.h"
 
@@ -23,7 +26,44 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
+
+static int mouse_seed_git_blame_cache(int one_based_line, const char *author, time_t author_time) {
+	editorGitBlameCacheClear(&E.active_buffer);
+	E.git_blame_line = malloc(sizeof(*E.git_blame_line));
+	ASSERT_TRUE(E.git_blame_line != NULL);
+	memset(E.git_blame_line, 0, sizeof(*E.git_blame_line));
+	E.git_blame_line->commit_sha = strdup("abcdef1234567890abcdef1234567890abcdef12");
+	E.git_blame_line->short_sha = strdup("abcdef123456");
+	E.git_blame_line->author_name = strdup(author);
+	E.git_blame_line->author_email = strdup("alice@example.com");
+	E.git_blame_line->author_time = author_time;
+	E.git_blame_line->summary = strdup("Mouse blame");
+	E.git_blame_line->filename = strdup("tracked.txt");
+	ASSERT_TRUE(E.git_blame_line->commit_sha != NULL);
+	ASSERT_TRUE(E.git_blame_line->short_sha != NULL);
+	ASSERT_TRUE(E.git_blame_line->author_name != NULL);
+	ASSERT_TRUE(E.git_blame_line->author_email != NULL);
+	ASSERT_TRUE(E.git_blame_line->summary != NULL);
+	ASSERT_TRUE(E.git_blame_line->filename != NULL);
+	E.git_blame_line_number = one_based_line;
+	E.git_blame_line_miss = 0;
+	E.git_blame_filename = strdup(E.filename);
+	E.git_blame_repo_root = strdup(E.git_repo_root);
+	E.git_blame_branch = E.git_branch != NULL ? strdup(E.git_branch) : NULL;
+	E.git_blame_head = E.git_head != NULL ? strdup(E.git_head) : NULL;
+	E.git_blame_disk_state = E.disk_state;
+	ASSERT_TRUE(E.git_blame_filename != NULL);
+	ASSERT_TRUE(E.git_blame_repo_root != NULL);
+	if (E.git_branch != NULL) {
+		ASSERT_TRUE(E.git_blame_branch != NULL);
+	}
+	if (E.git_head != NULL) {
+		ASSERT_TRUE(E.git_blame_head != NULL);
+	}
+	return 0;
+}
 
 static int test_editor_column_select_alt_mouse_drag_starts_column_selection(void) {
 	add_row("abcdef");
@@ -205,6 +245,66 @@ static int test_editor_process_keypress_mouse_ctrl_hover_marks_word_as_hover_lin
 	ASSERT_EQ_INT(0, E.hover_link_row);
 	ASSERT_EQ_INT(0, E.hover_link_cx_start);
 	ASSERT_EQ_INT(5, E.hover_link_cx_end);
+	return 0;
+}
+
+static int test_editor_process_keypress_mouse_hover_git_blame_indicator_opens_popup(void) {
+	ASSERT_TRUE(editorInputSystemActivate("cua"));
+	ASSERT_TRUE(editorTabsInit());
+	add_row("alpha");
+	E.window_rows = 6;
+	E.window_cols = 100;
+	E.cy = 0;
+	E.cx = 0;
+	E.rx = 0;
+	E.dirty = 0;
+	E.filename = strdup("/tmp/rotide-blame/tracked.txt");
+	E.git_repo_root = strdup("/tmp/rotide-blame");
+	E.git_branch = strdup("main");
+	ASSERT_TRUE(E.filename != NULL);
+	ASSERT_TRUE(E.git_repo_root != NULL);
+	ASSERT_TRUE(E.git_branch != NULL);
+	ASSERT_TRUE(mouse_seed_git_blame_cache(1, "Alice", time(NULL) - 14 * 86400) == 0);
+	ASSERT_TRUE(editorGitBlameActiveLine(1) != NULL);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "Alice 2 weeks ago") != NULL);
+	free(output);
+	ASSERT_TRUE(editorGitBlameActiveLine(1) != NULL);
+
+	int file_origin = editorTextBodyStartColForCols(E.window_cols) +
+	                  editorLineNumberGutterColsForCols(E.window_cols);
+	int indicator_start = file_origin + 1 + 5;
+	int blame_row = -1;
+	int blame_anchor_col = -1;
+	ASSERT_TRUE(editorGitBlameIndicatorHitTest(1, indicator_start + 2, &blame_row,
+	                                           &blame_anchor_col));
+	ASSERT_EQ_INT(0, blame_row);
+	ASSERT_EQ_INT(5, blame_anchor_col);
+	struct editorMouseEvent motion = {
+	        .kind = EDITOR_MOUSE_EVENT_MOTION,
+	        .x = indicator_start + 3,
+	        .y = 2,
+	        .modifiers = EDITOR_MOUSE_MOD_NONE,
+	};
+	ASSERT_TRUE(editorHandleMouseMotion(&motion));
+	ASSERT_TRUE(editorPopupIsVisible());
+	ASSERT_EQ_INT(EDITOR_POPUP_KIND_GIT_BLAME, E.popup.kind);
+	ASSERT_EQ_INT(0, E.popup.anchor_row);
+	ASSERT_EQ_INT(5, E.popup.anchor_col);
+	ASSERT_TRUE(strstr(E.popup.items[0].label, "commit abcdef") != NULL);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(0, E.cx);
+	ASSERT_EQ_INT(0, E.dirty);
+
+	char click[32];
+	ASSERT_TRUE(format_sgr_mouse_event(click, sizeof(click), 0, file_origin + 2, 2, 'M'));
+	ASSERT_TRUE(editor_process_keypress_with_input(click, strlen(click)) == 0);
+	ASSERT_TRUE(!editorPopupIsVisible());
+
+	editorGitFree();
 	return 0;
 }
 
@@ -2910,6 +3010,8 @@ const struct editorTestCase g_input_mouse_tests[] = {
          test_editor_process_keypress_mouse_ctrl_click_does_not_start_drag_selection},
         {"editor_process_keypress_mouse_ctrl_hover_marks_word_as_hover_link",
          test_editor_process_keypress_mouse_ctrl_hover_marks_word_as_hover_link},
+        {"editor_process_keypress_mouse_hover_git_blame_indicator_opens_popup",
+         test_editor_process_keypress_mouse_hover_git_blame_indicator_opens_popup},
         {"editor_process_keypress_mouse_motion_without_ctrl_does_not_mark_hover",
          test_editor_process_keypress_mouse_motion_without_ctrl_does_not_mark_hover},
         {"editor_keypress_clears_hover_link", test_editor_keypress_clears_hover_link},

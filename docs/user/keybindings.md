@@ -21,6 +21,7 @@ many of these chords (save/quit/tabs/drawer/panes) still apply in Vim too.
 - `Ctrl-G`: go to line
 - `Ctrl-]`: jump to matching bracket
 - `Ctrl-O` / `Ctrl + left click`: go to definition for supported source buffers
+- `Alt-B`: show Git blame details for the current line
 - `Alt-Z`: toggle soft line wrapping
 - `Alt-N`: toggle absolute line numbers
 - `Alt-H`: toggle current-line highlight
@@ -42,6 +43,8 @@ by one key:
 - `<leader>f`: search text across the project
 - `<leader>e`: toggle the drawer (explorer)
 - `<leader>m`: open the main menu
+- `leader.git_blame_details`: configurable Git blame details action; unbound by
+  default because Normal mode already uses `gb`
 
 The leader key (`normal.leader`) and each sub-key (`leader.<command>`) are
 configurable under `[keymap.vim]`; see `config.toml.example`.
@@ -109,3 +112,7 @@ selection, superseded by Shift+move), `diagnostic_next`/`diagnostic_prev` (bound
 to `]g`/`[g` in Vim), `goto_references` (bound to `gr` in Vim), `hover` (bound
 to `K` in Vim), and `resize_drawer_narrow`/`resize_drawer_widen` are
 configurable actions without default bindings in the built-in CUA keymap.
+
+## Vim Git
+
+- `gb`: show Git blame details for the current line

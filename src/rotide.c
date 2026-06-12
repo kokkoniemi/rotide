@@ -117,6 +117,7 @@ void editorInit(void) {
 	E.drawer_project_search_restore_collapsed = 0;
 	E.git_repo_root = NULL;
 	E.git_branch = NULL;
+	E.git_head = NULL;
 	E.git_entries = NULL;
 	E.git_entry_count = 0;
 	E.git_entry_capacity = 0;

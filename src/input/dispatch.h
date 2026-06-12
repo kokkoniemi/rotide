@@ -12,6 +12,7 @@
 
 int editorDispatchProcessMappedAction(enum editorAction action, int *effects_out);
 void editorDispatchHandleTextByte(int c, int *effects_out);
+int editorDispatchOpenGitBlameDetailsAt(int row_idx, int anchor_col, int report_status);
 void editorProcessKeypress(void);
 int editorLspLocationMenuActivate(void);
 

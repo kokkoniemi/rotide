@@ -170,6 +170,7 @@ static struct vimLeaderBinding g_vim_leader_map[] = {
         {"project_search", EDITOR_ACTION_PROJECT_SEARCH, 'f', 'f'},
         {"toggle_drawer", EDITOR_ACTION_TOGGLE_DRAWER, 'e', 'e'},
         {"main_menu", EDITOR_ACTION_MAIN_MENU, 'm', 'm'},
+        {"git_blame_details", EDITOR_ACTION_GIT_BLAME_DETAILS, -1, -1},
 };
 
 static const size_t g_vim_leader_count = sizeof(g_vim_leader_map) / sizeof(g_vim_leader_map[0]);
@@ -198,13 +199,15 @@ static int vimSystemLeaderLookup(int c, enum editorAction *action_out) {
 	return 0;
 }
 
-/* `g`-prefixed LSP navigation: the second key of a `g` sequence that maps to an
- * editor action (`gd`, `gi`, `gs`, `gS`). `gg` and any other key fall through to
- * the motion parser. */
+/* `g`-prefixed navigation: the second key of a `g` sequence that maps to an
+ * editor action. `gg` and any other key fall through to the motion parser. */
 static int vimSystemGPrefixAction(int c, enum editorAction *action_out) {
 	enum editorAction action;
 
 	switch (c) {
+		case 'b':
+			action = EDITOR_ACTION_GIT_BLAME_DETAILS;
+			break;
 		case 'd':
 			action = EDITOR_ACTION_GOTO_DEFINITION;
 			break;

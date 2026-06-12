@@ -12,6 +12,7 @@
 #include "rotide.h"
 #include "support/size_utils.h"
 #include "text/document.h"
+#include "workspace/git.h"
 
 #include <limits.h>
 #include <stdint.h>
@@ -212,6 +213,7 @@ int editorApplyDocumentEdit(const struct editorDocumentEdit *edit) {
 		return 0;
 	}
 	E.dirty = edit->after_dirty;
+	editorGitBlameCacheClear(&E.active_buffer);
 	if ((E.syntax_state == NULL && !editorSyntaxBackgroundEnabled()) ||
 	    E.syntax_language == EDITOR_SYNTAX_NONE) {
 		editorSyntaxVisibleCacheInvalidate();

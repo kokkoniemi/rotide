@@ -34,6 +34,7 @@
 #include "text/row.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
+#include "workspace/git.h"
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/recovery.h"
@@ -41,10 +42,12 @@
 
 #include <ctype.h>
 #include <limits.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <time.h>
 
 /*** Input ***/
 
@@ -1784,7 +1787,8 @@ static int dispatchAppendHoverLine(struct editorPopupItem **items_io, int *count
 	return 1;
 }
 
-static int dispatchOpenHoverPopup(const char *text) {
+static int dispatchOpenTextPopup(enum editorPopupKind kind, const char *text, int anchor_row,
+                                 int anchor_col) {
 	if (text == NULL || text[0] == '\0') {
 		return 0;
 	}
@@ -1809,9 +1813,172 @@ static int dispatchOpenHoverPopup(const char *text) {
 		dispatchFreeHoverItems(items, count);
 		return 0;
 	}
-	int opened = editorPopupOpenKind(EDITOR_POPUP_KIND_LSP_HOVER, items, count, E.cy, E.rx);
+	int opened = editorPopupOpenKind(kind, items, count, anchor_row, anchor_col);
 	dispatchFreeHoverItems(items, count);
 	return opened;
+}
+
+static int dispatchOpenHoverPopup(const char *text) {
+	return dispatchOpenTextPopup(EDITOR_POPUP_KIND_LSP_HOVER, text, E.cy, E.rx);
+}
+
+static int dispatchAppendFormat(char *buf, size_t buf_size, size_t *pos, const char *fmt, ...) {
+	if (buf == NULL || pos == NULL || *pos >= buf_size) {
+		return 0;
+	}
+	va_list ap;
+	va_start(ap, fmt);
+	int n = vsnprintf(buf + *pos, buf_size - *pos, fmt, ap);
+	va_end(ap);
+	if (n < 0 || (size_t)n >= buf_size - *pos) {
+		return 0;
+	}
+	*pos += (size_t)n;
+	return 1;
+}
+
+static int dispatchFormatGitTime(time_t ts, char *buf, size_t buf_size) {
+	if (buf == NULL || buf_size == 0 || ts <= 0) {
+		return 0;
+	}
+	struct tm tm_buf;
+	if (gmtime_r(&ts, &tm_buf) == NULL) {
+		return 0;
+	}
+	return strftime(buf, buf_size, "%Y-%m-%d %H:%M:%S UTC", &tm_buf) > 0;
+}
+
+static int dispatchBuildGitBlameDetails(const struct editorGitBlameLine *line, char *buf,
+                                        size_t buf_size) {
+	if (line == NULL || buf == NULL || buf_size == 0) {
+		return 0;
+	}
+	char author_time[64] = "";
+	char author_relative[64] = "";
+	char committer_time[64] = "";
+	size_t pos = 0;
+
+	(void)dispatchFormatGitTime(line->author_time, author_time, sizeof(author_time));
+	(void)editorGitFormatRelativeTime(line->author_time, time(NULL), author_relative,
+	                                  sizeof(author_relative));
+	if (line->committer_time > 0 && line->committer_time != line->author_time) {
+		(void)dispatchFormatGitTime(line->committer_time, committer_time,
+		                            sizeof(committer_time));
+	}
+
+	if (!dispatchAppendFormat(buf, buf_size, &pos, "commit %s\n",
+	                          line->commit_sha != NULL ? line->commit_sha : "")) {
+		return 0;
+	}
+	if (line->summary != NULL && line->summary[0] != '\0' &&
+	    !dispatchAppendFormat(buf, buf_size, &pos, "%s\n\n", line->summary)) {
+		return 0;
+	}
+	if (!dispatchAppendFormat(buf, buf_size, &pos, "Author: %s",
+	                          line->author_name != NULL ? line->author_name : "Unknown")) {
+		return 0;
+	}
+	if (line->author_email != NULL && line->author_email[0] != '\0' &&
+	    !dispatchAppendFormat(buf, buf_size, &pos, " <%s>", line->author_email)) {
+		return 0;
+	}
+	if (!dispatchAppendFormat(buf, buf_size, &pos, "\n")) {
+		return 0;
+	}
+	if (author_time[0] != '\0' &&
+	    !dispatchAppendFormat(buf, buf_size, &pos, "Author date: %s (%s)\n", author_time,
+	                          author_relative[0] != '\0' ? author_relative : "just now")) {
+		return 0;
+	}
+	if (line->committer_name != NULL && line->committer_name[0] != '\0' &&
+	    !dispatchAppendFormat(buf, buf_size, &pos, "Committer: %s\n", line->committer_name)) {
+		return 0;
+	}
+	if (committer_time[0] != '\0' &&
+	    !dispatchAppendFormat(buf, buf_size, &pos, "Committer date: %s\n", committer_time)) {
+		return 0;
+	}
+	if (line->filename != NULL && line->filename[0] != '\0' &&
+	    !dispatchAppendFormat(buf, buf_size, &pos, "File: %s", line->filename)) {
+		return 0;
+	}
+	if (line->final_line > 0 &&
+	    !dispatchAppendFormat(buf, buf_size, &pos, ":%d", line->final_line)) {
+		return 0;
+	}
+	if (line->filename != NULL && line->filename[0] != '\0' &&
+	    !dispatchAppendFormat(buf, buf_size, &pos, "\n")) {
+		return 0;
+	}
+	if (line->original_path != NULL && line->original_path[0] != '\0' &&
+	    !dispatchAppendFormat(buf, buf_size, &pos, "Original: %s", line->original_path)) {
+		return 0;
+	}
+	if (line->original_path != NULL && line->original_path[0] != '\0' &&
+	    line->original_line > 0 &&
+	    !dispatchAppendFormat(buf, buf_size, &pos, ":%d", line->original_line)) {
+		return 0;
+	}
+	if (line->original_path != NULL && line->original_path[0] != '\0' &&
+	    !dispatchAppendFormat(buf, buf_size, &pos, "\n")) {
+		return 0;
+	}
+	return pos > 0;
+}
+
+int editorDispatchOpenGitBlameDetailsAt(int row_idx, int anchor_col, int report_status) {
+	if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT || E.tab_kind != EDITOR_TAB_FILE) {
+		return 0;
+	}
+	if (E.filename == NULL || E.filename[0] == '\0') {
+		if (report_status) {
+			editorSetStatusMsg("Save this file before showing blame");
+		}
+		return 0;
+	}
+	if (E.dirty) {
+		if (report_status) {
+			editorSetStatusMsg("Save this file before showing blame");
+		}
+		return 0;
+	}
+	if (row_idx < 0 || row_idx >= E.numrows) {
+		if (report_status) {
+			editorSetStatusMsg("No blame information for this line");
+		}
+		return 0;
+	}
+	if (E.git_repo_root == NULL) {
+		if (report_status) {
+			editorSetStatusMsg("No Git repository");
+		}
+		return 0;
+	}
+
+	const struct editorGitBlameLine *line = editorGitBlameActiveLine(row_idx + 1);
+	if (line == NULL) {
+		if (report_status) {
+			editorSetStatusMsg("No blame information for this line");
+		}
+		return 0;
+	}
+
+	char details[2048];
+	if (!dispatchBuildGitBlameDetails(line, details, sizeof(details)) ||
+	    !dispatchOpenTextPopup(EDITOR_POPUP_KIND_GIT_BLAME, details, row_idx, anchor_col)) {
+		if (report_status) {
+			editorSetStatusMsg("Unable to show blame details");
+		}
+		return 0;
+	}
+	if (report_status) {
+		editorSetStatusMsg("Git blame");
+	}
+	return 1;
+}
+
+static void dispatchShowGitBlameDetails(void) {
+	(void)editorDispatchOpenGitBlameDetailsAt(E.cy, E.rx, 1);
 }
 
 static void dispatchShowHover(void) {
@@ -2727,6 +2894,10 @@ static int dispatchHandleCursorAction(enum editorAction action, int *effects) {
 
 static int dispatchHandleModeAction(enum editorAction action) {
 	switch (action) {
+		case EDITOR_ACTION_GIT_BLAME_DETAILS:
+			editorHistoryBreakGroup();
+			dispatchShowGitBlameDetails();
+			return 1;
 		case EDITOR_ACTION_CONTEXT_MENU:
 			editorHistoryBreakGroup();
 			dispatchOpenContextMenu();
