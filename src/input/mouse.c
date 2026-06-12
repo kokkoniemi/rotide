@@ -10,6 +10,7 @@
 #include "input/dispatch.h"
 #include "language/lsp.h"
 #include "render/popup.h"
+#include "render/screen.h"
 #include "render/status_bar.h"
 #include "render/viewport.h"
 #include "rotide.h"
@@ -1204,6 +1205,11 @@ int editorHandleMouseEventDispatch(int drawer_double_click_threshold_ms,
 	if (event.kind != EDITOR_MOUSE_EVENT_MOTION && editorClearHoverLinkState()) {
 		// Fall through and dispatch; render will pick up the cleared hover state.
 	}
+	if ((event.kind == EDITOR_MOUSE_EVENT_LEFT_PRESS ||
+	     event.kind == EDITOR_MOUSE_EVENT_RIGHT_PRESS) &&
+	    editorPopupIsVisible() && !editorPopupKindIsMenu(E.popup.kind)) {
+		editorPopupClose();
+	}
 
 	if (editorHandleMouseEventInTerminalPane(&event)) {
 		if (effects_out != NULL) {
@@ -1592,6 +1598,20 @@ int editorHandleMouseMotion(const struct editorMouseEvent *event) {
 	int new_row = -1;
 	int new_start = 0;
 	int new_end = 0;
+	int blame_row = -1;
+	int blame_anchor_col = 0;
+
+	if (event->modifiers == EDITOR_MOUSE_MOD_NONE &&
+	    editorGitBlameIndicatorHitTest(event->y - 1, event->x - 1, &blame_row,
+	                                   &blame_anchor_col)) {
+		int changed = editorClearHoverLinkState();
+		if (editorPopupIsVisible() && E.popup.kind == EDITOR_POPUP_KIND_GIT_BLAME &&
+		    E.popup.anchor_row == blame_row && E.popup.anchor_col == blame_anchor_col) {
+			return changed;
+		}
+		return editorDispatchOpenGitBlameDetailsAt(blame_row, blame_anchor_col, 0) ||
+		       changed;
+	}
 
 	if ((event->modifiers & EDITOR_MOUSE_MOD_CTRL) != 0 &&
 	    E.primary_focus == EDITOR_PRIMARY_FOCUS_TEXT &&

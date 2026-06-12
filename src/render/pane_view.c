@@ -33,6 +33,8 @@ int editorAppendCursorMove(struct writeBuf *wb, int row, int col);
 extern int g_screen_drawing_current_line_highlight;
 extern int g_screen_drawing_stopped_line_highlight;
 extern int g_screen_drawing_focused_editor_pane;
+extern int g_screen_drawing_file_row_origin_col;
+extern int g_screen_drawing_file_row_screen_y;
 
 struct paneViewSyntaxRowOverride {
 	int valid;
@@ -384,6 +386,9 @@ int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode 
 	g_screen_drawing_current_line_highlight = highlight_row;
 	g_screen_drawing_stopped_line_highlight = stopped_row;
 	g_screen_drawing_focused_editor_pane = leaf == E.focused_leaf;
+	if (g_screen_drawing_file_row_origin_col >= 0) {
+		g_screen_drawing_file_row_origin_col += gutter_cols;
+	}
 	if (!editorDrawLineNumberGutter(wb, y_offset, segment_coloff, gutter_cols)) {
 		goto fail;
 	}
@@ -411,6 +416,8 @@ int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode 
 	g_screen_drawing_current_line_highlight = 0;
 	g_screen_drawing_stopped_line_highlight = 0;
 	g_screen_drawing_focused_editor_pane = 0;
+	g_screen_drawing_file_row_origin_col = -1;
+	g_screen_drawing_file_row_screen_y = -1;
 	if ((highlight_row || stopped_row) && !editorAppendThemeReset(wb)) {
 		goto fail_reset;
 	}
@@ -423,6 +430,8 @@ fail:
 	g_screen_drawing_current_line_highlight = 0;
 	g_screen_drawing_stopped_line_highlight = 0;
 	g_screen_drawing_focused_editor_pane = 0;
+	g_screen_drawing_file_row_origin_col = -1;
+	g_screen_drawing_file_row_screen_y = -1;
 fail_reset:
 	g_pane_view_wrap_body_cols_override = saved_wrap_body_cols_override;
 	g_pane_view_active_row_syntax_override = saved_row_syntax_override;
@@ -592,6 +601,8 @@ int editorBuildSinglePaneRowLine(struct writeBuf *wb, int y, int drawer_cols, in
 	g_screen_drawing_current_line_highlight = highlight_row;
 	g_screen_drawing_stopped_line_highlight = stopped_row;
 	g_screen_drawing_focused_editor_pane = 1;
+	g_screen_drawing_file_row_origin_col = drawer_cols + separator_cols + gutter_cols;
+	g_screen_drawing_file_row_screen_y = y + 1;
 	if (!editorDrawLineNumberGutter(wb, y_offset, segment_coloff, gutter_cols)) {
 		goto clear_highlight;
 	}
@@ -614,6 +625,8 @@ int editorBuildSinglePaneRowLine(struct writeBuf *wb, int y, int drawer_cols, in
 	g_screen_drawing_current_line_highlight = 0;
 	g_screen_drawing_stopped_line_highlight = 0;
 	g_screen_drawing_focused_editor_pane = 0;
+	g_screen_drawing_file_row_origin_col = -1;
+	g_screen_drawing_file_row_screen_y = -1;
 	if ((highlight_row || stopped_row) && !editorAppendThemeReset(wb)) {
 		return 0;
 	}
@@ -632,6 +645,8 @@ clear_highlight:
 	g_screen_drawing_current_line_highlight = 0;
 	g_screen_drawing_stopped_line_highlight = 0;
 	g_screen_drawing_focused_editor_pane = 0;
+	g_screen_drawing_file_row_origin_col = -1;
+	g_screen_drawing_file_row_screen_y = -1;
 	return 0;
 }
 
@@ -932,6 +947,8 @@ int editorDrawMultiPaneRows(struct writeBuf *wb, const struct editorLeafLayout *
 				        focused_intersects && leaf_node == E.focused_leaf;
 				if (is_focused_slice) {
 					int body_row_in_pane = screen_y - focused_rect.y;
+					g_screen_drawing_file_row_origin_col = x;
+					g_screen_drawing_file_row_screen_y = screen_y;
 					if (!editorDrawFocusedPaneSlice(
 					            wb, leaf_node, body_row_in_pane, slice_cols)) {
 						goto cleanup;

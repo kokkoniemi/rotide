@@ -1926,40 +1926,59 @@ static int dispatchBuildGitBlameDetails(const struct editorGitBlameLine *line, c
 	return pos > 0;
 }
 
-static void dispatchShowGitBlameDetails(void) {
+int editorDispatchOpenGitBlameDetailsAt(int row_idx, int anchor_col, int report_status) {
 	if (E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT || E.tab_kind != EDITOR_TAB_FILE) {
-		return;
+		return 0;
 	}
 	if (E.filename == NULL || E.filename[0] == '\0') {
-		editorSetStatusMsg("Save this file before showing blame");
-		return;
+		if (report_status) {
+			editorSetStatusMsg("Save this file before showing blame");
+		}
+		return 0;
 	}
 	if (E.dirty) {
-		editorSetStatusMsg("Save this file before showing blame");
-		return;
+		if (report_status) {
+			editorSetStatusMsg("Save this file before showing blame");
+		}
+		return 0;
 	}
-	if (E.cy < 0 || E.cy >= E.numrows) {
-		editorSetStatusMsg("No blame information for this line");
-		return;
+	if (row_idx < 0 || row_idx >= E.numrows) {
+		if (report_status) {
+			editorSetStatusMsg("No blame information for this line");
+		}
+		return 0;
 	}
 	if (E.git_repo_root == NULL) {
-		editorSetStatusMsg("No Git repository");
-		return;
+		if (report_status) {
+			editorSetStatusMsg("No Git repository");
+		}
+		return 0;
 	}
 
-	const struct editorGitBlameLine *line = editorGitBlameActiveLine(E.cy + 1);
+	const struct editorGitBlameLine *line = editorGitBlameActiveLine(row_idx + 1);
 	if (line == NULL) {
-		editorSetStatusMsg("No blame information for this line");
-		return;
+		if (report_status) {
+			editorSetStatusMsg("No blame information for this line");
+		}
+		return 0;
 	}
 
 	char details[2048];
 	if (!dispatchBuildGitBlameDetails(line, details, sizeof(details)) ||
-	    !dispatchOpenTextPopup(EDITOR_POPUP_KIND_GIT_BLAME, details, E.cy, E.rx)) {
-		editorSetStatusMsg("Unable to show blame details");
-		return;
+	    !dispatchOpenTextPopup(EDITOR_POPUP_KIND_GIT_BLAME, details, row_idx, anchor_col)) {
+		if (report_status) {
+			editorSetStatusMsg("Unable to show blame details");
+		}
+		return 0;
 	}
-	editorSetStatusMsg("Git blame");
+	if (report_status) {
+		editorSetStatusMsg("Git blame");
+	}
+	return 1;
+}
+
+static void dispatchShowGitBlameDetails(void) {
+	(void)editorDispatchOpenGitBlameDetailsAt(E.cy, E.rx, 1);
 }
 
 static void dispatchShowHover(void) {
