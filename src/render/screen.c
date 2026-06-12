@@ -27,6 +27,7 @@
 #include "vterm.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
+#include "workspace/git.h"
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
@@ -96,6 +97,7 @@ static struct screenFileRowFrameCache g_screen_file_row_frame_cache = {0};
 static int g_screen_last_refresh_file_row_draw_count = 0;
 int g_screen_drawing_current_line_highlight = 0;
 int g_screen_drawing_stopped_line_highlight = 0;
+int g_screen_drawing_focused_editor_pane = 0;
 static int g_screen_popup_prev_screen_top = 0;
 static int g_screen_popup_prev_row_count = 0;
 
@@ -908,6 +910,50 @@ static int screenAppendGrayGlyph(struct writeBuf *wb, const char *glyph, size_t 
 	return editorAppendGrayBytes(wb, glyph, glyph_len);
 }
 
+static int screenGitBlameIndicatorApplies(int row_idx, int segment_coloff) {
+	if (!g_screen_drawing_focused_editor_pane || E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT ||
+	    row_idx != E.cy) {
+		return 0;
+	}
+	if (!E.line_wrap_enabled) {
+		return 1;
+	}
+	if (row_idx < 0 || row_idx >= E.numrows) {
+		return 0;
+	}
+	int body_cols = editorWrapBodyCols();
+	int cursor_segment = editorWrapCursorSegmentForRx(&E.rows[row_idx], E.rx, body_cols);
+	int cursor_segment_coloff = 0;
+	editorWrapSegmentInfo(&E.rows[row_idx], cursor_segment, body_cols, &cursor_segment_coloff,
+	                      NULL, NULL);
+	return segment_coloff == cursor_segment_coloff;
+}
+
+static int screenAppendGitBlameIndicator(struct writeBuf *wb, int row_idx, int segment_coloff,
+                                         int available_cols, int *written_cols_out) {
+	if (written_cols_out != NULL) {
+		*written_cols_out = 0;
+	}
+	if (available_cols <= 2 || !screenGitBlameIndicatorApplies(row_idx, segment_coloff)) {
+		return 1;
+	}
+
+	char label[256];
+	if (!editorGitBlameActiveInlineLabel(row_idx + 1, time(NULL), label, sizeof(label))) {
+		return 1;
+	}
+	int written_cols = 0;
+	if (!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_PLACEHOLDER) ||
+	    !editorAppendSanitizedText(wb, label, available_cols, &written_cols) ||
+	    !editorAppendThemeBaseForeground(wb)) {
+		return 0;
+	}
+	if (written_cols_out != NULL) {
+		*written_cols_out = written_cols;
+	}
+	return 1;
+}
+
 int editorCurrentLineHighlightApplies(int row_idx, int segment_coloff) {
 	if (!E.current_line_highlight_enabled || row_idx != E.cy) {
 		return 0;
@@ -1060,7 +1106,15 @@ int editorDrawFileRowWrapped(struct writeBuf *wb, size_t i, int text_cols, int s
 			return 0;
 		}
 
-		for (int pad = indent_cols + rendered_cols; pad < body_cols; pad++) {
+		int blame_cols = 0;
+		if (!screenAppendGitBlameIndicator(wb, (int)i, segment_coloff,
+		                                   body_cols - indent_cols - rendered_cols,
+		                                   &blame_cols)) {
+			return 0;
+		}
+
+		for (int pad = indent_cols + rendered_cols + blame_cols; pad < body_cols;
+		     pad++) {
 			if (!wbAppend(wb, " ", 1)) {
 				return 0;
 			}
@@ -1100,7 +1154,13 @@ int editorDrawFileRow(struct writeBuf *wb, size_t i, int text_cols) {
 			return 0;
 		}
 
-		for (int pad = rendered_cols; pad < body_cols; pad++) {
+		int blame_cols = 0;
+		if (!screenAppendGitBlameIndicator(wb, (int)i, E.coloff,
+		                                   body_cols - rendered_cols, &blame_cols)) {
+			return 0;
+		}
+
+		for (int pad = rendered_cols + blame_cols; pad < body_cols; pad++) {
 			if (!wbAppend(wb, " ", 1)) {
 				return 0;
 			}

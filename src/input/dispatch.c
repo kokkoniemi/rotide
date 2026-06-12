@@ -1947,21 +1947,19 @@ static void dispatchShowGitBlameDetails(void) {
 		return;
 	}
 
-	struct editorGitBlameLine line = {0};
-	if (!editorGitLoadBlameLine(E.filename, E.cy + 1, &line)) {
+	const struct editorGitBlameLine *line = editorGitBlameActiveLine(E.cy + 1);
+	if (line == NULL) {
 		editorSetStatusMsg("No blame information for this line");
 		return;
 	}
 
 	char details[2048];
-	if (!dispatchBuildGitBlameDetails(&line, details, sizeof(details)) ||
+	if (!dispatchBuildGitBlameDetails(line, details, sizeof(details)) ||
 	    !dispatchOpenTextPopup(EDITOR_POPUP_KIND_GIT_BLAME, details, E.cy, E.rx)) {
 		editorSetStatusMsg("Unable to show blame details");
-		editorGitBlameLineFree(&line);
 		return;
 	}
 	editorSetStatusMsg("Git blame");
-	editorGitBlameLineFree(&line);
 }
 
 static void dispatchShowHover(void) {

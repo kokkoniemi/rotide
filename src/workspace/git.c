@@ -292,6 +292,7 @@ void editorGitRefresh(void) {
 		return;
 	}
 
+	editorGitBlameCacheClearAll();
 	gitRefreshBranch();
 	gitFreeEntries();
 
@@ -316,6 +317,7 @@ void editorGitRefresh(void) {
 }
 
 void editorGitFree(void) {
+	editorGitBlameCacheClearAll();
 	free(E.git_repo_root);
 	E.git_repo_root = NULL;
 	free(E.git_branch);
@@ -420,6 +422,116 @@ static void gitBlameLineClear(struct editorGitBlameLine *line) {
 
 void editorGitBlameLineFree(struct editorGitBlameLine *line) {
 	gitBlameLineClear(line);
+}
+
+void editorGitBlameCacheClear(struct editorBuffer *buffer) {
+	if (buffer == NULL) {
+		return;
+	}
+	if (buffer->git_blame_line != NULL) {
+		editorGitBlameLineFree(buffer->git_blame_line);
+		free(buffer->git_blame_line);
+		buffer->git_blame_line = NULL;
+	}
+	free(buffer->git_blame_filename);
+	free(buffer->git_blame_repo_root);
+	free(buffer->git_blame_branch);
+	buffer->git_blame_filename = NULL;
+	buffer->git_blame_repo_root = NULL;
+	buffer->git_blame_branch = NULL;
+	buffer->git_blame_line_number = 0;
+	buffer->git_blame_line_miss = 0;
+}
+
+void editorGitBlameCacheClearAll(void) {
+	editorGitBlameCacheClear(&E.active_buffer);
+	if (E.tabs == NULL) {
+		return;
+	}
+	for (int i = 0; i < E.tab_count; i++) {
+		if (i == E.active_tab) {
+			continue;
+		}
+		editorGitBlameCacheClear(&E.tabs[i].buffer);
+	}
+}
+
+static int gitBlameCacheStringEqual(const char *a, const char *b) {
+	if (a == NULL || b == NULL) {
+		return a == b;
+	}
+	return strcmp(a, b) == 0;
+}
+
+static int gitBlameActiveCacheMatches(int one_based_line) {
+	return E.git_blame_line_number == one_based_line &&
+	       gitBlameCacheStringEqual(E.git_blame_filename, E.filename) &&
+	       gitBlameCacheStringEqual(E.git_blame_repo_root, E.git_repo_root) &&
+	       gitBlameCacheStringEqual(E.git_blame_branch, E.git_branch);
+}
+
+static int gitBlameStoreActiveCacheKey(int one_based_line) {
+	E.git_blame_line_number = one_based_line;
+	E.git_blame_filename = E.filename != NULL ? strdup(E.filename) : NULL;
+	E.git_blame_repo_root = E.git_repo_root != NULL ? strdup(E.git_repo_root) : NULL;
+	E.git_blame_branch = E.git_branch != NULL ? strdup(E.git_branch) : NULL;
+	if ((E.filename != NULL && E.git_blame_filename == NULL) ||
+	    (E.git_repo_root != NULL && E.git_blame_repo_root == NULL) ||
+	    (E.git_branch != NULL && E.git_blame_branch == NULL)) {
+		editorGitBlameCacheClear(&E.active_buffer);
+		return 0;
+	}
+	return 1;
+}
+
+const struct editorGitBlameLine *editorGitBlameActiveLine(int one_based_line) {
+	if (one_based_line <= 0 || E.tab_kind != EDITOR_TAB_FILE || E.filename == NULL ||
+	    E.filename[0] == '\0' || E.dirty != 0 || E.git_repo_root == NULL) {
+		return NULL;
+	}
+	if (gitBlameActiveCacheMatches(one_based_line)) {
+		return E.git_blame_line_miss ? NULL : E.git_blame_line;
+	}
+
+	editorGitBlameCacheClear(&E.active_buffer);
+	if (!gitBlameStoreActiveCacheKey(one_based_line)) {
+		return NULL;
+	}
+
+	struct editorGitBlameLine *line = editorMalloc(sizeof(*line));
+	if (line == NULL) {
+		editorGitBlameCacheClear(&E.active_buffer);
+		return NULL;
+	}
+	memset(line, 0, sizeof(*line));
+	if (!editorGitLoadBlameLine(E.filename, one_based_line, line)) {
+		editorGitBlameLineFree(line);
+		free(line);
+		E.git_blame_line_miss = 1;
+		return NULL;
+	}
+	E.git_blame_line = line;
+	E.git_blame_line_miss = 0;
+	return E.git_blame_line;
+}
+
+int editorGitBlameActiveInlineLabel(int one_based_line, time_t now, char *buf, size_t buf_size) {
+	if (buf == NULL || buf_size == 0) {
+		return 0;
+	}
+	const struct editorGitBlameLine *line = editorGitBlameActiveLine(one_based_line);
+	if (line == NULL) {
+		return 0;
+	}
+	char relative[64];
+	if (!editorGitFormatRelativeTime(line->author_time, now, relative, sizeof(relative))) {
+		return 0;
+	}
+	const char *author = line->author_name != NULL && line->author_name[0] != '\0'
+	                             ? line->author_name
+	                             : "Unknown";
+	int n = snprintf(buf, buf_size, "  %s %s", author, relative);
+	return n > 0 && (size_t)n < buf_size;
 }
 
 static int gitShaIsAllZero(const char *sha) {

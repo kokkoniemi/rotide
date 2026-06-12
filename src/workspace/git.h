@@ -27,9 +27,13 @@ enum editorGitStatus editorGitDirStatus(const char *abs_path);
 char *editorGitGenerateDiff(const char *rel_path, char index_status, char worktree_status,
                             size_t *len_out);
 void editorGitBlameLineFree(struct editorGitBlameLine *line);
+void editorGitBlameCacheClear(struct editorBuffer *buffer);
+void editorGitBlameCacheClearAll(void);
 int editorGitParseBlamePorcelain(const char *data, size_t len, struct editorGitBlameLine *out);
 int editorGitLoadBlameLine(const char *abs_path, int one_based_line,
                            struct editorGitBlameLine *out);
+const struct editorGitBlameLine *editorGitBlameActiveLine(int one_based_line);
+int editorGitBlameActiveInlineLabel(int one_based_line, time_t now, char *buf, size_t buf_size);
 int editorGitFormatRelativeTime(time_t then, time_t now, char *buf, size_t buf_size);
 
 #endif

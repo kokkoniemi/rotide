@@ -121,6 +121,7 @@ struct editorDrawerNode;
 struct editorSyntaxState;
 struct editorDocument;
 struct editorLspSymbol;
+struct editorGitBlameLine;
 
 struct editorPopupItem {
 	char *label;
@@ -447,6 +448,12 @@ struct editorHistory {
 	X(struct editorDocument *, document)                                                       \
 	X(int, dirty)                                                                              \
 	X(char *, filename)                                                                        \
+	X(struct editorGitBlameLine *, git_blame_line)                                             \
+	X(int, git_blame_line_number)                                                              \
+	X(int, git_blame_line_miss)                                                                \
+	X(char *, git_blame_filename)                                                              \
+	X(char *, git_blame_repo_root)                                                             \
+	X(char *, git_blame_branch)                                                                \
 	X(struct editorFileDiskState, disk_state)                                                  \
 	X(int, disk_conflict)                                                                      \
 	X(enum editorSyntaxLanguage, syntax_language)                                              \

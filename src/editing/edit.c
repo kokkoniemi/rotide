@@ -926,6 +926,7 @@ void editorSave(void) {
 	}
 
 	E.dirty = 0;
+	editorGitBlameCacheClear(&E.active_buffer);
 	editorWatchRefreshActiveBaseline();
 	free(tmp_path);
 	free(buf);

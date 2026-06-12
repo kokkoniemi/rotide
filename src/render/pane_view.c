@@ -32,6 +32,7 @@
 int editorAppendCursorMove(struct writeBuf *wb, int row, int col);
 extern int g_screen_drawing_current_line_highlight;
 extern int g_screen_drawing_stopped_line_highlight;
+extern int g_screen_drawing_focused_editor_pane;
 
 struct paneViewSyntaxRowOverride {
 	int valid;
@@ -382,6 +383,7 @@ int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode 
 	}
 	g_screen_drawing_current_line_highlight = highlight_row;
 	g_screen_drawing_stopped_line_highlight = stopped_row;
+	g_screen_drawing_focused_editor_pane = leaf == E.focused_leaf;
 	if (!editorDrawLineNumberGutter(wb, y_offset, segment_coloff, gutter_cols)) {
 		goto fail;
 	}
@@ -408,6 +410,7 @@ int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode 
 	}
 	g_screen_drawing_current_line_highlight = 0;
 	g_screen_drawing_stopped_line_highlight = 0;
+	g_screen_drawing_focused_editor_pane = 0;
 	if ((highlight_row || stopped_row) && !editorAppendThemeReset(wb)) {
 		goto fail_reset;
 	}
@@ -419,6 +422,7 @@ int editorDrawFocusedPaneSlice(struct writeBuf *wb, const struct editorPaneNode 
 fail:
 	g_screen_drawing_current_line_highlight = 0;
 	g_screen_drawing_stopped_line_highlight = 0;
+	g_screen_drawing_focused_editor_pane = 0;
 fail_reset:
 	g_pane_view_wrap_body_cols_override = saved_wrap_body_cols_override;
 	g_pane_view_active_row_syntax_override = saved_row_syntax_override;
@@ -587,6 +591,7 @@ int editorBuildSinglePaneRowLine(struct writeBuf *wb, int y, int drawer_cols, in
 	}
 	g_screen_drawing_current_line_highlight = highlight_row;
 	g_screen_drawing_stopped_line_highlight = stopped_row;
+	g_screen_drawing_focused_editor_pane = 1;
 	if (!editorDrawLineNumberGutter(wb, y_offset, segment_coloff, gutter_cols)) {
 		goto clear_highlight;
 	}
@@ -608,6 +613,7 @@ int editorBuildSinglePaneRowLine(struct writeBuf *wb, int y, int drawer_cols, in
 	}
 	g_screen_drawing_current_line_highlight = 0;
 	g_screen_drawing_stopped_line_highlight = 0;
+	g_screen_drawing_focused_editor_pane = 0;
 	if ((highlight_row || stopped_row) && !editorAppendThemeReset(wb)) {
 		return 0;
 	}
@@ -625,6 +631,7 @@ int editorBuildSinglePaneRowLine(struct writeBuf *wb, int y, int drawer_cols, in
 clear_highlight:
 	g_screen_drawing_current_line_highlight = 0;
 	g_screen_drawing_stopped_line_highlight = 0;
+	g_screen_drawing_focused_editor_pane = 0;
 	return 0;
 }
 

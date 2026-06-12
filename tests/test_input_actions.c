@@ -102,6 +102,20 @@ static int test_editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped
 	return 0;
 }
 
+static int test_editor_process_keypress_alt_b_git_blame_details_reports_no_repo(void) {
+	ASSERT_TRUE(editorTabsInit());
+	add_row("hello");
+	E.filename = strdup("/tmp/rotide-cua-git-blame.c");
+	ASSERT_TRUE(E.filename != NULL);
+	E.dirty = 0;
+
+	const char alt_b[] = {'\x1b', 'b'};
+	ASSERT_TRUE(editor_process_keypress_with_input(alt_b, sizeof(alt_b)) == 0);
+	ASSERT_EQ_STR("No Git repository", E.statusmsg);
+	ASSERT_TRUE(!editorPopupIsVisible());
+	return 0;
+}
+
 static int test_editor_task_log_document_stays_authoritative(void) {
 	ASSERT_TRUE(editorTabsInit());
 	ASSERT_TRUE(editorTaskStart("Task: Echo", "printf 'alpha\\nbeta\\n'", NULL, NULL));
@@ -2257,6 +2271,8 @@ const struct editorTestCase g_input_actions_tests[] = {
          test_editor_process_keypress_keymap_remap_changes_dispatch},
         {"editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped_action",
          test_editor_process_keypress_keymap_ctrl_alt_letter_dispatches_mapped_action},
+        {"editor_process_keypress_alt_b_git_blame_details_reports_no_repo",
+         test_editor_process_keypress_alt_b_git_blame_details_reports_no_repo},
         {"editor_task_log_document_stays_authoritative",
          test_editor_task_log_document_stays_authoritative},
         {"editor_task_log_streams_output_while_inactive",

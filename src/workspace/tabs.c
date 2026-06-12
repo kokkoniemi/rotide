@@ -119,6 +119,7 @@ static void tabsBufferClearOwnedState(struct editorBuffer *buffer) {
 	editorDocumentFreePtr(&buffer->document);
 	free(buffer->filename);
 	buffer->filename = NULL;
+	editorGitBlameCacheClear(buffer);
 	free(buffer->tab_title);
 	buffer->tab_title = NULL;
 	editorSyntaxStateDestroy(buffer->syntax_state);
