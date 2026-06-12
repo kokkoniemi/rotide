@@ -276,24 +276,34 @@ static int test_editor_process_keypress_mouse_hover_git_blame_indicator_opens_po
 
 	int file_origin = editorTextBodyStartColForCols(E.window_cols) +
 	                  editorLineNumberGutterColsForCols(E.window_cols);
-	int indicator_start = file_origin + 1 + 5;
+	/* The label is right-aligned to the text body edge, so query its rendered range
+	 * rather than assuming it sits immediately after the line text. */
+	int indicator_screen_y = -1;
+	int indicator_start = -1;
+	int indicator_end = -1;
+	int indicator_anchor = -1;
+	ASSERT_TRUE(editorGitBlameIndicatorTestRange(&indicator_screen_y, &indicator_start,
+	                                             &indicator_end, &indicator_anchor));
+	/* Right-aligned: the label starts well past the 5-column "alpha" line. */
+	ASSERT_TRUE(indicator_start > file_origin + 1 + 5);
+	int probe_col = indicator_start + (indicator_end - indicator_start) / 2;
 	int blame_row = -1;
 	int blame_anchor_col = -1;
-	ASSERT_TRUE(editorGitBlameIndicatorHitTest(1, indicator_start + 2, &blame_row,
+	ASSERT_TRUE(editorGitBlameIndicatorHitTest(indicator_screen_y, probe_col, &blame_row,
 	                                           &blame_anchor_col));
 	ASSERT_EQ_INT(0, blame_row);
-	ASSERT_EQ_INT(5, blame_anchor_col);
+	ASSERT_EQ_INT(indicator_anchor, blame_anchor_col);
 	struct editorMouseEvent motion = {
 	        .kind = EDITOR_MOUSE_EVENT_MOTION,
-	        .x = indicator_start + 3,
-	        .y = 2,
+	        .x = probe_col,
+	        .y = indicator_screen_y + 1,
 	        .modifiers = EDITOR_MOUSE_MOD_NONE,
 	};
 	ASSERT_TRUE(editorHandleMouseMotion(&motion));
 	ASSERT_TRUE(editorPopupIsVisible());
 	ASSERT_EQ_INT(EDITOR_POPUP_KIND_GIT_BLAME, E.popup.kind);
 	ASSERT_EQ_INT(0, E.popup.anchor_row);
-	ASSERT_EQ_INT(5, E.popup.anchor_col);
+	ASSERT_EQ_INT(indicator_anchor, E.popup.anchor_col);
 	ASSERT_TRUE(strstr(E.popup.items[0].label, "commit abcdef") != NULL);
 	ASSERT_EQ_INT(0, E.cy);
 	ASSERT_EQ_INT(0, E.cx);

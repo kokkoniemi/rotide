@@ -958,6 +958,26 @@ int editorGitBlameIndicatorHitTest(int screen_row, int screen_col, int *row_out,
 	return 1;
 }
 
+int editorGitBlameIndicatorTestRange(int *screen_y_out, int *start_col_out, int *end_col_out,
+                                     int *anchor_col_out) {
+	if (!g_screen_git_blame_indicator_hit.active) {
+		return 0;
+	}
+	if (screen_y_out != NULL) {
+		*screen_y_out = g_screen_git_blame_indicator_hit.screen_y;
+	}
+	if (start_col_out != NULL) {
+		*start_col_out = g_screen_git_blame_indicator_hit.start_col;
+	}
+	if (end_col_out != NULL) {
+		*end_col_out = g_screen_git_blame_indicator_hit.end_col;
+	}
+	if (anchor_col_out != NULL) {
+		*anchor_col_out = g_screen_git_blame_indicator_hit.anchor_col;
+	}
+	return 1;
+}
+
 static int screenGitBlameIndicatorApplies(int row_idx, int segment_coloff) {
 	if (!g_screen_drawing_focused_editor_pane || E.primary_focus != EDITOR_PRIMARY_FOCUS_TEXT ||
 	    row_idx != E.cy) {
@@ -991,15 +1011,38 @@ static int screenAppendGitBlameIndicator(struct writeBuf *wb, int row_idx, int s
 	if (!editorGitBlameActiveInlineLabel(row_idx + 1, time(NULL), label, sizeof(label))) {
 		return 1;
 	}
+
+	/* Right-align the blame label to the right edge of the text body so it reads as part
+	 * of the current-line indicator rather than as buffer content. When the line is long
+	 * enough that a right-aligned label would overlap the text, fall back to placing it
+	 * immediately after the line end (it may then run off the viewport). */
+	int label_cols = 0;
+	char *measured = editorSanitizeTextDup(label, &label_cols);
+	if (measured == NULL) {
+		return 0;
+	}
+	free(measured);
+
+	int leading_pad = available_cols - label_cols;
+	if (leading_pad < 0) {
+		leading_pad = 0;
+	}
+	for (int pad = 0; pad < leading_pad; pad++) {
+		if (!wbAppend(wb, " ", 1)) {
+			return 0;
+		}
+	}
+
 	int written_cols = 0;
 	if (!editorAppendThemeForegroundRole(wb, EDITOR_THEME_UI_PLACEHOLDER) ||
-	    !editorAppendSanitizedText(wb, label, available_cols, &written_cols) ||
+	    !editorAppendSanitizedText(wb, label, available_cols - leading_pad, &written_cols) ||
 	    !editorAppendThemeBaseForeground(wb)) {
 		return 0;
 	}
-	screenGitBlameIndicatorHitRecord(row_idx, indicator_col, written_cols, anchor_col);
+	screenGitBlameIndicatorHitRecord(row_idx, indicator_col + leading_pad, written_cols,
+	                                 anchor_col + leading_pad);
 	if (written_cols_out != NULL) {
-		*written_cols_out = written_cols;
+		*written_cols_out = leading_pad + written_cols;
 	}
 	return 1;
 }
