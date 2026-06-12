@@ -1,3 +1,4 @@
+#include "render/screen.h"
 #include "rotide.h"
 #include "terminal/terminal_pane.h"
 #include "test_case.h"
@@ -194,6 +195,38 @@ static int test_editor_refresh_screen_renders_git_blame_indicator_only_on_curren
 	ASSERT_TRUE(strstr(output, "Alice") == NULL);
 	ASSERT_ROW_TEXT_EQ(0, "alpha");
 	ASSERT_ROW_TEXT_EQ(1, "beta");
+	ASSERT_EQ_INT(0, E.dirty);
+	free(output);
+	editorGitFree();
+	return 0;
+}
+
+static int test_editor_refresh_screen_git_blame_indicator_right_aligns_to_body_edge(void) {
+	E.window_rows = 6;
+	E.window_cols = 100;
+	ASSERT_TRUE(render_test_setup_blame_file() == 0);
+	add_row("alpha");
+	E.dirty = 0;
+	E.cy = 0;
+	E.cx = 0;
+	E.rx = 0;
+	ASSERT_TRUE(render_test_seed_blame_cache(1, "Alice", time(NULL) - 14 * 86400) == 0);
+
+	size_t output_len = 0;
+	char *output = refresh_screen_and_capture(&output_len);
+	ASSERT_TRUE(output != NULL);
+	ASSERT_TRUE(strstr(output, "Alice 2 weeks ago") != NULL);
+
+	int file_origin = editorTextBodyStartColForCols(E.window_cols) +
+	                  editorLineNumberGutterColsForCols(E.window_cols);
+	int start_col = -1;
+	int end_col = -1;
+	ASSERT_TRUE(editorGitBlameIndicatorTestRange(NULL, &start_col, &end_col, NULL));
+	/* The label is pushed well past the 5-column "alpha" line, not rendered
+	 * immediately after it. */
+	ASSERT_TRUE(start_col > file_origin + 1 + 5);
+	ASSERT_TRUE(end_col > start_col);
+	ASSERT_ROW_TEXT_EQ(0, "alpha");
 	ASSERT_EQ_INT(0, E.dirty);
 	free(output);
 	editorGitFree();
@@ -480,6 +513,8 @@ const struct editorTestCase g_render_terminal_tests[] = {
          test_editor_refresh_screen_renders_current_line_git_blame_indicator},
         {"editor_refresh_screen_renders_git_blame_indicator_only_on_current_line",
          test_editor_refresh_screen_renders_git_blame_indicator_only_on_current_line},
+        {"editor_refresh_screen_git_blame_indicator_right_aligns_to_body_edge",
+         test_editor_refresh_screen_git_blame_indicator_right_aligns_to_body_edge},
         {"editor_refresh_screen_git_blame_indicator_truncates_in_narrow_viewport",
          test_editor_refresh_screen_git_blame_indicator_truncates_in_narrow_viewport},
         {"editor_refresh_screen_git_blame_indicator_respects_horizontal_scroll",
