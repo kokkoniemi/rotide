@@ -14,11 +14,11 @@
 #include "test_support.h"
 #include "workspace/drawer.h"
 #include "workspace/file_search.h"
+#include "workspace/git.h"
 #include "workspace/layout.h"
 #include "workspace/project_search.h"
 #include "workspace/tabs.h"
 #include "workspace/task.h"
-#include "workspace/git.h"
 
 #include <signal.h>
 #include <stddef.h>
@@ -126,8 +126,7 @@ static int input_actions_seed_git_blame_cache(int one_based_line, const char *au
 	E.git_blame_line = malloc(sizeof(*E.git_blame_line));
 	ASSERT_TRUE(E.git_blame_line != NULL);
 	memset(E.git_blame_line, 0, sizeof(*E.git_blame_line));
-	E.git_blame_line->commit_sha =
-	        strdup("abcdef1234567890abcdef1234567890abcdef12");
+	E.git_blame_line->commit_sha = strdup("abcdef1234567890abcdef1234567890abcdef12");
 	E.git_blame_line->short_sha = strdup("abcdef123456");
 	E.git_blame_line->author_name = strdup(author);
 	E.git_blame_line->author_email = strdup("alice@example.com");

@@ -1159,15 +1159,13 @@ int editorDrawFileRowWrapped(struct writeBuf *wb, size_t i, int text_cols, int s
 		int indicator_col =
 		        g_screen_drawing_file_row_origin_col + 1 + indent_cols + rendered_cols;
 		int anchor_col = segment_coloff + indent_cols + rendered_cols;
-		if (!screenAppendGitBlameIndicator(wb, (int)i, segment_coloff,
-		                                   indicator_col, anchor_col,
-		                                   body_cols - indent_cols - rendered_cols,
-		                                   &blame_cols)) {
+		if (!screenAppendGitBlameIndicator(
+		            wb, (int)i, segment_coloff, indicator_col, anchor_col,
+		            body_cols - indent_cols - rendered_cols, &blame_cols)) {
 			return 0;
 		}
 
-		for (int pad = indent_cols + rendered_cols + blame_cols; pad < body_cols;
-		     pad++) {
+		for (int pad = indent_cols + rendered_cols + blame_cols; pad < body_cols; pad++) {
 			if (!wbAppend(wb, " ", 1)) {
 				return 0;
 			}
@@ -1210,8 +1208,7 @@ int editorDrawFileRow(struct writeBuf *wb, size_t i, int text_cols) {
 		int blame_cols = 0;
 		int indicator_col = g_screen_drawing_file_row_origin_col + 1 + rendered_cols;
 		int anchor_col = E.coloff + rendered_cols;
-		if (!screenAppendGitBlameIndicator(wb, (int)i, E.coloff,
-		                                   indicator_col, anchor_col,
+		if (!screenAppendGitBlameIndicator(wb, (int)i, E.coloff, indicator_col, anchor_col,
 		                                   body_cols - rendered_cols, &blame_cols)) {
 			return 0;
 		}

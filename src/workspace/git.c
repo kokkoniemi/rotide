@@ -81,8 +81,7 @@ static void gitRefreshHead(void) {
 	size_t pos = 0;
 	if (!gitAppendLiteral(cmd, sizeof(cmd), &pos, "git -C ") ||
 	    !gitAppendShellQuotedArg(cmd, sizeof(cmd), &pos, E.git_repo_root) ||
-	    !gitAppendLiteral(cmd, sizeof(cmd), &pos,
-	                      " rev-parse --verify HEAD 2>/dev/null")) {
+	    !gitAppendLiteral(cmd, sizeof(cmd), &pos, " rev-parse --verify HEAD 2>/dev/null")) {
 		return;
 	}
 

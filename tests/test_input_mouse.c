@@ -29,14 +29,12 @@
 #include <time.h>
 #include <unistd.h>
 
-static int mouse_seed_git_blame_cache(int one_based_line, const char *author,
-                                      time_t author_time) {
+static int mouse_seed_git_blame_cache(int one_based_line, const char *author, time_t author_time) {
 	editorGitBlameCacheClear(&E.active_buffer);
 	E.git_blame_line = malloc(sizeof(*E.git_blame_line));
 	ASSERT_TRUE(E.git_blame_line != NULL);
 	memset(E.git_blame_line, 0, sizeof(*E.git_blame_line));
-	E.git_blame_line->commit_sha =
-	        strdup("abcdef1234567890abcdef1234567890abcdef12");
+	E.git_blame_line->commit_sha = strdup("abcdef1234567890abcdef1234567890abcdef12");
 	E.git_blame_line->short_sha = strdup("abcdef123456");
 	E.git_blame_line->author_name = strdup(author);
 	E.git_blame_line->author_email = strdup("alice@example.com");
