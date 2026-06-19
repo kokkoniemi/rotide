@@ -20,6 +20,8 @@
 void editorClearSelectionState(void) {
 	E.selection_mode_active = 0;
 	E.selection_anchor_offset = 0;
+	E.selection_inclusive = 0;
+	E.selection_linewise = 0;
 	editorColumnSelectionClear();
 }
 
@@ -93,6 +95,66 @@ static int selectionNormalizeRange(const struct editorSelectionRange *range,
 	return 1;
 }
 
+/* Full-line span between two rows, used for a linewise (Vim Visual-Line)
+ * selection so the highlight covers whole lines regardless of cursor column. */
+static int selectionLinewiseRange(int a_cy, int b_cy, struct editorSelectionRange *out) {
+	int start_cy = a_cy < b_cy ? a_cy : b_cy;
+	int end_cy = a_cy < b_cy ? b_cy : a_cy;
+
+	if (E.numrows <= 0) {
+		return 0;
+	}
+	if (start_cy < 0) {
+		start_cy = 0;
+	}
+	if (end_cy > E.numrows - 1) {
+		end_cy = E.numrows - 1;
+	}
+	out->start_cy = start_cy;
+	out->start_cx = 0;
+	out->end_cy = end_cy;
+	out->end_cx = (int)editorDocumentLineLength(E.document, end_cy);
+	return out->start_cy != out->end_cy || out->start_cx != out->end_cx;
+}
+
+/* Normalize ordering and extend the trailing end by one cluster so the cell
+ * under the cursor is part of the range (Vim charwise Visual is inclusive). */
+static int selectionInclusiveRange(const struct editorSelectionRange *range,
+                                   struct editorSelectionRange *out) {
+	int start_cy = range->start_cy;
+	int start_cx = range->start_cx;
+	int end_cy = range->end_cy;
+	int end_cx = range->end_cx;
+
+	selectionClampPositionToBuffer(&start_cy, &start_cx);
+	selectionClampPositionToBuffer(&end_cy, &end_cx);
+	if (selectionPosComesBefore(end_cy, end_cx, start_cy, start_cx)) {
+		int tmp_cy = start_cy;
+		int tmp_cx = start_cx;
+		start_cy = end_cy;
+		start_cx = end_cx;
+		end_cy = tmp_cy;
+		end_cx = tmp_cx;
+	}
+
+	struct editorLineView line = {0};
+	if (editorDocumentLineView(E.document, end_cy, &line)) {
+		if (end_cx < line.size) {
+			int next = editorBytesNextClusterIdx(line.data, line.size, end_cx);
+			if (next > end_cx) {
+				end_cx = next;
+			}
+		}
+		editorLineViewRelease(&line);
+	}
+
+	out->start_cy = start_cy;
+	out->start_cx = start_cx;
+	out->end_cy = end_cy;
+	out->end_cx = end_cx;
+	return out->start_cy != out->end_cy || out->start_cx != out->end_cx;
+}
+
 int editorGetSelectionRange(struct editorSelectionRange *range_out) {
 	if (range_out == NULL || !E.selection_mode_active) {
 		return 0;
@@ -104,8 +166,15 @@ int editorGetSelectionRange(struct editorSelectionRange *range_out) {
 		return 0;
 	}
 
+	if (E.selection_linewise) {
+		return selectionLinewiseRange(anchor_cy, E.cy, range_out);
+	}
+
 	struct editorSelectionRange range = {
 	        .start_cy = anchor_cy, .start_cx = anchor_cx, .end_cy = E.cy, .end_cx = E.cx};
+	if (E.selection_inclusive) {
+		return selectionInclusiveRange(&range, range_out);
+	}
 	if (!selectionNormalizeRange(&range, range_out)) {
 		return 0;
 	}

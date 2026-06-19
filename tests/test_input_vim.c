@@ -312,18 +312,20 @@ static int test_input_vim_visual_motions_preserve_anchor(void) {
 	int dirty_before = E.dirty;
 
 	ASSERT_TRUE(vim_test_activate());
-	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 3, 'h', 0, 0, 2, 0, 2, 0, 3));
-	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 2, 'l', 0, 0, 3, 0, 2, 0, 3));
-	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 2, 'w', 0, 0, 7, 0, 2, 0, 7));
-	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 9, 'b', 0, 0, 7, 0, 7, 0, 9));
-	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 2, 'e', 0, 0, 6, 0, 2, 0, 6));
-	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 6, '0', 0, 0, 0, 0, 0, 0, 6));
-	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 2, '$', 0, 0, 12, 0, 2, 0, 12));
-	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 6, '^', 0, 0, 2, 0, 2, 0, 6));
-	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 3, 'j', 0, 1, 1, 0, 3, 1, 1));
-	ASSERT_EQ_INT(0, vim_test_visual_motion(1, 1, 'k', 0, 0, 1, 0, 1, 1, 1));
-	ASSERT_EQ_INT(0, vim_test_visual_motion(2, 4, 'g', 'g', 0, 2, 0, 2, 2, 4));
-	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 4, 'G', 0, 2, 2, 0, 4, 2, 2));
+	/* Charwise Visual selects inclusively, so the rendered range extends one
+	 * cluster past the later of anchor/cursor. */
+	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 3, 'h', 0, 0, 2, 0, 2, 0, 4));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 2, 'l', 0, 0, 3, 0, 2, 0, 4));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 2, 'w', 0, 0, 7, 0, 2, 0, 8));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 9, 'b', 0, 0, 7, 0, 7, 0, 10));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 2, 'e', 0, 0, 6, 0, 2, 0, 7));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 6, '0', 0, 0, 0, 0, 0, 0, 7));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 2, '$', 0, 0, 12, 0, 2, 0, 13));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 6, '^', 0, 0, 2, 0, 2, 0, 7));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 3, 'j', 0, 1, 1, 0, 3, 1, 2));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(1, 1, 'k', 0, 0, 1, 0, 1, 1, 2));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(2, 4, 'g', 'g', 0, 2, 0, 2, 2, 5));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 4, 'G', 0, 2, 2, 0, 4, 2, 3));
 	ASSERT_EQ_INT(dirty_before, E.dirty);
 	return 0;
 }
@@ -1746,7 +1748,262 @@ static int test_input_vim_join_lines(void) {
 	return 0;
 }
 
+static int test_input_vim_normal_u_undoes_and_ctrl_r_redoes(void) {
+	add_row("abc");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('x') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "bc");
+
+	ASSERT_TRUE(vim_test_key('u') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "abc");
+	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
+
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('r')) == 0);
+	ASSERT_ROW_TEXT_EQ(0, "bc");
+	return 0;
+}
+
+static int test_input_vim_undo_is_not_dot_repeatable(void) {
+	add_row("abcd");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('x') == 0); /* delete 'a' -> "bcd" */
+	ASSERT_ROW_TEXT_EQ(0, "bcd");
+	ASSERT_TRUE(vim_test_key('u') == 0); /* undo -> "abcd" */
+	ASSERT_ROW_TEXT_EQ(0, "abcd");
+
+	/* `.` must repeat the last change (x), not the undo. */
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('.') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "bcd");
+	return 0;
+}
+
+static int test_input_vim_ctrl_keys_do_not_trigger_cua(void) {
+	/* Ctrl-Y is CUA redo; in Vim mode it must not redo (it scrolls instead). */
+	add_row("abc");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('x') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "bc");
+	ASSERT_TRUE(vim_test_key('u') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "abc");
+
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('y')) == 0);
+	ASSERT_ROW_TEXT_EQ(0, "abc"); /* not redone by CUA Ctrl-Y */
+	return 0;
+}
+
+static int test_input_vim_visual_linewise_selection_spans_full_lines(void) {
+	struct editorSelectionRange range = {0};
+
+	add_row("  alpha");
+	add_row("beta");
+	add_row("gamma");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 4;
+	ASSERT_TRUE(vim_test_key('V') == 0);
+	ASSERT_TRUE(vim_test_key('j') == 0);
+	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
+	ASSERT_EQ_INT(0, range.start_cy);
+	ASSERT_EQ_INT(0, range.start_cx);
+	ASSERT_EQ_INT(1, range.end_cy);
+	ASSERT_EQ_INT(4, range.end_cx); /* full second line ("beta") */
+	ASSERT_TRUE(vim_test_key('\x1b') == 0);
+	ASSERT_EQ_INT(0, E.selection_mode_active);
+	return 0;
+}
+
+static int test_input_vim_visual_charwise_single_cell_is_selected(void) {
+	struct editorSelectionRange range = {0};
+
+	add_row("abc");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 1;
+	ASSERT_TRUE(vim_test_key('v') == 0);
+	/* With no motion the cell under the cursor is already selected. */
+	ASSERT_EQ_INT(1, editorGetSelectionRange(&range));
+	ASSERT_EQ_INT(0, range.start_cy);
+	ASSERT_EQ_INT(1, range.start_cx);
+	ASSERT_EQ_INT(0, range.end_cy);
+	ASSERT_EQ_INT(2, range.end_cx);
+	ASSERT_TRUE(vim_test_key('\x1b') == 0);
+	return 0;
+}
+
+static int test_input_vim_insert_ctrl_w_deletes_word(void) {
+	add_row("foo bar");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 7; /* end of "foo bar" */
+	ASSERT_TRUE(vim_test_key('i') == 0);
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
+	ASSERT_ROW_TEXT_EQ(0, "foo ");
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('w')) == 0);
+	ASSERT_ROW_TEXT_EQ(0, "");
+	return 0;
+}
+
+static int test_input_vim_insert_ctrl_u_deletes_to_line_start(void) {
+	add_row("  hello world");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 13; /* end of line */
+	ASSERT_TRUE(vim_test_key('i') == 0);
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('u')) == 0);
+	/* First Ctrl-U deletes back to the first non-blank. */
+	ASSERT_ROW_TEXT_EQ(0, "  ");
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('u')) == 0);
+	/* Second Ctrl-U deletes the remaining indent. */
+	ASSERT_ROW_TEXT_EQ(0, "");
+	return 0;
+}
+
+static int test_input_vim_insert_ctrl_c_returns_to_normal(void) {
+	add_row("ab");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('i') == 0);
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('c')) == 0);
+	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
+	return 0;
+}
+
+static int test_input_vim_insert_ctrl_key_does_not_insert_or_trigger_cua(void) {
+	add_row("");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('i') == 0);
+	/* Ctrl-P is CUA find-file; in Insert mode it is swallowed, not inserted. */
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('p')) == 0);
+	ASSERT_ROW_TEXT_EQ(0, "");
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
+	return 0;
+}
+
+static int test_input_vim_ctrl_d_moves_cursor_down(void) {
+	for (int i = 0; i < 40; i++) {
+		add_row("line");
+	}
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('d')) == 0);
+	ASSERT_TRUE(E.cy > 0);
+	int after_down = E.cy;
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('u')) == 0);
+	ASSERT_TRUE(E.cy < after_down);
+	return 0;
+}
+
+static int test_input_vim_visual_block_delete(void) {
+	add_row("hello");
+	add_row("world");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 1;
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('v')) == 0);
+	ASSERT_EQ_STR("VISUAL BLOCK", editorVimModeLabel());
+	ASSERT_TRUE(vim_test_key('j') == 0);
+	ASSERT_TRUE(vim_test_key('l') == 0);
+	ASSERT_TRUE(vim_test_key('d') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "hlo");
+	ASSERT_ROW_TEXT_EQ(1, "wld");
+	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
+	ASSERT_EQ_INT(0, E.column_select_active);
+	return 0;
+}
+
+static int test_input_vim_visual_block_yank(void) {
+	add_row("hello");
+	add_row("world");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 1;
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('v')) == 0);
+	ASSERT_TRUE(vim_test_key('j') == 0);
+	ASSERT_TRUE(vim_test_key('l') == 0);
+	ASSERT_TRUE(vim_test_key('y') == 0);
+	ASSERT_EQ_INT(0, vim_test_clipboard_eq("el\nor"));
+	ASSERT_ROW_TEXT_EQ(0, "hello");
+	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
+	return 0;
+}
+
+static int test_input_vim_visual_block_change_enters_insert(void) {
+	add_row("hello");
+	add_row("world");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 1;
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('v')) == 0);
+	ASSERT_TRUE(vim_test_key('j') == 0);
+	ASSERT_TRUE(vim_test_key('c') == 0);
+	ASSERT_ROW_TEXT_EQ(0, "hllo");
+	ASSERT_ROW_TEXT_EQ(1, "wrld");
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
+	return 0;
+}
+
+static int test_input_vim_visual_block_escape_clears(void) {
+	add_row("hello");
+	add_row("world");
+
+	ASSERT_TRUE(vim_test_activate());
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key(CTRL_KEY('v')) == 0);
+	ASSERT_EQ_INT(1, E.column_select_active);
+	ASSERT_TRUE(vim_test_key('\x1b') == 0);
+	ASSERT_EQ_INT(0, E.column_select_active);
+	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
+	return 0;
+}
+
 const struct editorTestCase g_input_vim_tests[] = {
+        {"input_vim_visual_block_delete", test_input_vim_visual_block_delete},
+        {"input_vim_visual_block_yank", test_input_vim_visual_block_yank},
+        {"input_vim_visual_block_change_enters_insert",
+         test_input_vim_visual_block_change_enters_insert},
+        {"input_vim_visual_block_escape_clears", test_input_vim_visual_block_escape_clears},
+        {"input_vim_normal_u_undoes_and_ctrl_r_redoes",
+         test_input_vim_normal_u_undoes_and_ctrl_r_redoes},
+        {"input_vim_undo_is_not_dot_repeatable", test_input_vim_undo_is_not_dot_repeatable},
+        {"input_vim_ctrl_keys_do_not_trigger_cua", test_input_vim_ctrl_keys_do_not_trigger_cua},
+        {"input_vim_visual_linewise_selection_spans_full_lines",
+         test_input_vim_visual_linewise_selection_spans_full_lines},
+        {"input_vim_visual_charwise_single_cell_is_selected",
+         test_input_vim_visual_charwise_single_cell_is_selected},
+        {"input_vim_insert_ctrl_w_deletes_word", test_input_vim_insert_ctrl_w_deletes_word},
+        {"input_vim_insert_ctrl_u_deletes_to_line_start",
+         test_input_vim_insert_ctrl_u_deletes_to_line_start},
+        {"input_vim_insert_ctrl_c_returns_to_normal",
+         test_input_vim_insert_ctrl_c_returns_to_normal},
+        {"input_vim_insert_ctrl_key_does_not_insert_or_trigger_cua",
+         test_input_vim_insert_ctrl_key_does_not_insert_or_trigger_cua},
+        {"input_vim_ctrl_d_moves_cursor_down", test_input_vim_ctrl_d_moves_cursor_down},
         {"input_vim_activation_starts_normal", test_input_vim_activation_starts_normal},
         {"input_vim_reset_returns_to_normal", test_input_vim_reset_returns_to_normal},
         {"input_vim_leader_find_file", test_input_vim_leader_find_file},

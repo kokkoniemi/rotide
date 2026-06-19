@@ -27,7 +27,8 @@ enum vimSystemMode {
 	VIM_SYSTEM_MODE_NORMAL = 0,
 	VIM_SYSTEM_MODE_INSERT,
 	VIM_SYSTEM_MODE_VISUAL,
-	VIM_SYSTEM_MODE_VISUAL_LINE
+	VIM_SYSTEM_MODE_VISUAL_LINE,
+	VIM_SYSTEM_MODE_VISUAL_BLOCK
 };
 
 enum vimSystemMotion {
@@ -81,6 +82,8 @@ static enum vimSystemMode vimSystemMode(void) {
 			return VIM_SYSTEM_MODE_VISUAL;
 		case VIM_SYSTEM_MODE_VISUAL_LINE:
 			return VIM_SYSTEM_MODE_VISUAL_LINE;
+		case VIM_SYSTEM_MODE_VISUAL_BLOCK:
+			return VIM_SYSTEM_MODE_VISUAL_BLOCK;
 		default:
 			return VIM_SYSTEM_MODE_NORMAL;
 	}
@@ -381,6 +384,8 @@ const char *editorVimModeLabel(void) {
 			return "VISUAL";
 		case VIM_SYSTEM_MODE_VISUAL_LINE:
 			return "VISUAL LINE";
+		case VIM_SYSTEM_MODE_VISUAL_BLOCK:
+			return "VISUAL BLOCK";
 		default:
 			return "NORMAL";
 	}
@@ -394,10 +399,36 @@ static int vimSystemStatusColor(void) {
 			return EDITOR_THEME_ANSI_GREEN;
 		case VIM_SYSTEM_MODE_VISUAL:
 		case VIM_SYSTEM_MODE_VISUAL_LINE:
+		case VIM_SYSTEM_MODE_VISUAL_BLOCK:
 			return EDITOR_THEME_ANSI_MAGENTA;
 		default:
 			return EDITOR_THEME_ANSI_BLUE;
 	}
+}
+
+/* Keep the renderer's inclusive/linewise selection flags in step with the Vim
+ * visual state: charwise Visual is cursor-inclusive unless an explicit
+ * (half-open) range was set; Visual-Line spans whole lines. */
+static void vimSystemSyncVisualSelectionFlags(void) {
+	switch (vimSystemMode()) {
+		case VIM_SYSTEM_MODE_VISUAL:
+			E.selection_inclusive = E.input_vim_visual_selection_half_open ? 0 : 1;
+			E.selection_linewise = 0;
+			break;
+		case VIM_SYSTEM_MODE_VISUAL_LINE:
+			E.selection_inclusive = 0;
+			E.selection_linewise = 1;
+			break;
+		default:
+			E.selection_inclusive = 0;
+			E.selection_linewise = 0;
+			break;
+	}
+}
+
+static void vimSystemSetVisualHalfOpen(int half_open) {
+	E.input_vim_visual_selection_half_open = half_open ? 1 : 0;
+	vimSystemSyncVisualSelectionFlags();
 }
 
 static void vimSystemBeginVisual(enum vimSystemMode mode) {
@@ -407,6 +438,65 @@ static void vimSystemBeginVisual(enum vimSystemMode mode) {
 	E.selection_mode_active = 1;
 	E.selection_anchor_offset = cursor_offset;
 	vimSystemSetMode(mode);
+	vimSystemSyncVisualSelectionFlags();
+}
+
+static int vimSystemRxAt(int cy, int cx) {
+	struct editorLineView line = {0};
+	int rx = 0;
+
+	if (cy < 0 || cy >= E.numrows || !editorDocumentLineView(E.document, cy, &line)) {
+		return 0;
+	}
+	rx = editorBytesCxToRx(line.data, line.size, cx);
+	editorLineViewRelease(&line);
+	return rx;
+}
+
+static int vimSystemNextClusterCx(int cy, int cx) {
+	struct editorLineView line = {0};
+	int next = cx;
+
+	if (cy < 0 || cy >= E.numrows || !editorDocumentLineView(E.document, cy, &line)) {
+		return cx;
+	}
+	next = cx < line.size ? editorBytesNextClusterIdx(line.data, line.size, cx) : line.size;
+	editorLineViewRelease(&line);
+	return next;
+}
+
+/* Recompute the column-selection rect from the block's fixed anchor cell and the
+ * live cursor cell, keeping both columns inclusive whichever side leads. */
+static void vimSystemBlockSync(void) {
+	int anchor_cy = E.column_select_anchor_cy;
+	int anchor_cx = E.input_vim_block_anchor_cx;
+	int anchor_l = vimSystemRxAt(anchor_cy, anchor_cx);
+	int anchor_r = vimSystemRxAt(anchor_cy, vimSystemNextClusterCx(anchor_cy, anchor_cx));
+	int cur_l = vimSystemRxAt(E.cy, E.cx);
+	int cur_r = vimSystemRxAt(E.cy, vimSystemNextClusterCx(E.cy, E.cx));
+
+	if (cur_l >= anchor_l) {
+		E.column_select_anchor_rx = anchor_l;
+		E.column_select_cursor_rx = cur_r;
+	} else {
+		E.column_select_anchor_rx = anchor_r;
+		E.column_select_cursor_rx = cur_l;
+	}
+}
+
+static void vimSystemBeginVisualBlock(void) {
+	editorClearSelectionState();
+	vimSystemSetMode(VIM_SYSTEM_MODE_VISUAL_BLOCK);
+	E.selection_mode_active = 0;
+	E.column_select_active = 1;
+	E.column_select_anchor_cy = E.cy;
+	E.input_vim_block_anchor_cx = E.cx;
+	vimSystemBlockSync();
+}
+
+static void vimSystemExitVisualBlock(void) {
+	editorColumnSelectionClear();
+	vimSystemSetMode(VIM_SYSTEM_MODE_NORMAL);
 }
 
 static enum vimSystemCharClass vimSystemClassAt(const struct editorLineView *line, int cx) {
@@ -2449,11 +2539,99 @@ static int vimSystemEnterInsertWithAction(enum editorAction action, int *effects
 	return 0;
 }
 
+/* Vim owns the C0 control range: it runs its own ctrl bindings and swallows the
+ * rest so CUA keymap shortcuts (Ctrl-P, Ctrl-Y, ...) never fire in Vim mode.
+ * Tab, Enter, and Esc are left to the text/mode paths. */
+static int vimSystemIsControlKey(int c) {
+	return c > 0 && c < 32 && c != '\t' && c != '\r' && c != '\n' && c != '\x1b';
+}
+
+/* Column on `cy` that Insert-mode Ctrl-W deletes back to: skip whitespace
+ * immediately before the cursor, then one run of like-classed characters. */
+static int vimSystemInsertWordBackCx(int cy, int cx) {
+	struct editorLineView line = {0};
+	int i = cx;
+
+	if (!editorDocumentLineView(E.document, cy, &line)) {
+		return cx;
+	}
+	while (i > 0) {
+		int p = editorBytesPrevClusterIdx(line.data, line.size, i);
+		if (p >= i || !isspace((unsigned char)line.data[p])) {
+			break;
+		}
+		i = p;
+	}
+	if (i > 0) {
+		int p = editorBytesPrevClusterIdx(line.data, line.size, i);
+		enum vimSystemCharClass cls = vimSystemClassAt(&line, p);
+		while (i > 0) {
+			int q = editorBytesPrevClusterIdx(line.data, line.size, i);
+			if (q >= i || vimSystemClassAt(&line, q) != cls) {
+				break;
+			}
+			i = q;
+		}
+	}
+	editorLineViewRelease(&line);
+	return i;
+}
+
+/* Delete from `target_cx` up to the cursor on the current line (Insert Ctrl-W /
+ * Ctrl-U). editorDeleteRange leaves the cursor at the range start. */
+static int vimSystemInsertDeleteBackTo(int target_cx, int *effects_out) {
+	struct editorSelectionRange range = {
+	        .start_cy = E.cy, .start_cx = target_cx, .end_cy = E.cy, .end_cx = E.cx};
+	int dirty_before;
+	int deleted;
+
+	if (target_cx >= E.cx || vimSystemRejectReadOnlyMutation()) {
+		return 0;
+	}
+	editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
+	dirty_before = E.dirty;
+	deleted = editorDeleteRange(&range);
+	editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+	if (deleted > 0) {
+		vimSystemAddEditEffect(effects_out);
+	}
+	return deleted > 0;
+}
+
 static int vimSystemHandleInsertKey(int c, int *effects_out) {
 	c = vimSystemRemapKey(VIM_SYSTEM_MODE_INSERT, c, NULL);
 	if (c == '\x1b') {
 		vimSystemSetMode(VIM_SYSTEM_MODE_NORMAL);
 		return 0;
+	}
+	if (vimSystemIsControlKey(c)) {
+		switch (c) {
+			case CTRL_KEY('c'):
+				vimSystemSetMode(VIM_SYSTEM_MODE_NORMAL);
+				return 0;
+			case CTRL_KEY('h'): {
+				int mapped = EDITOR_INPUT_KEY_EFFECT_NONE;
+				(void)editorDispatchProcessMappedAction(EDITOR_ACTION_BACKSPACE,
+				                                        &mapped);
+				if (effects_out != NULL) {
+					*effects_out |= mapped;
+				}
+				return 0;
+			}
+			case CTRL_KEY('w'):
+				(void)vimSystemInsertDeleteBackTo(
+				        vimSystemInsertWordBackCx(E.cy, E.cx), effects_out);
+				return 0;
+			case CTRL_KEY('u'): {
+				int fnb = vimSystemLineFirstNonblank(E.cy);
+				int target = E.cx > fnb ? fnb : 0;
+				(void)vimSystemInsertDeleteBackTo(target, effects_out);
+				return 0;
+			}
+			default:
+				/* Swallow other control keys so CUA bindings stay inert. */
+				return 0;
+		}
 	}
 	int return_now = 0;
 	if (vimSystemTryMappedActionKey(c, effects_out, &return_now)) {
@@ -2796,10 +2974,139 @@ static int vimSystemResolveFind(int target, int *effects_out) {
 	return 0;
 }
 
+static void vimSystemDotRepeatSuppress(void);
+
+/* Move the cursor and viewport together by `delta` rows (Ctrl-D/U/F/B). Moving
+ * the cursor is what keeps the scroll from snapping back when the frame
+ * re-runs cursor-visibility. */
+static int vimSystemScrollAndMove(int delta, int *effects_out) {
+	int target;
+
+	if (E.numrows == 0) {
+		return 0;
+	}
+	editorViewportScrollByRows(delta);
+	target = E.cy + delta;
+	if (target < 0) {
+		target = 0;
+	}
+	if (target > E.numrows - 1) {
+		target = E.numrows - 1;
+	}
+	E.cy = target;
+	vimSystemClampNormalCursor();
+	if (effects_out != NULL) {
+		*effects_out |= EDITOR_INPUT_KEY_EFFECT_VIEWPORT_SCROLL |
+		                EDITOR_INPUT_KEY_EFFECT_CURSOR_OR_EDIT;
+	}
+	return 0;
+}
+
+/* Scroll the viewport by `delta` rows (Ctrl-E/Y), pulling the cursor only as far
+ * as needed to keep it on screen. */
+static int vimSystemScrollView(int delta, int *effects_out) {
+	int body;
+	int top;
+
+	if (E.numrows == 0) {
+		return 0;
+	}
+	editorViewportScrollByRows(delta);
+	body = editorViewportFocusedPaneBodyRows();
+	if (body < 1) {
+		body = 1;
+	}
+	top = E.rowoff < 0 ? 0 : E.rowoff;
+	if (E.cy < top) {
+		E.cy = top;
+	} else if (E.cy > top + body - 1) {
+		E.cy = top + body - 1;
+	}
+	if (E.cy > E.numrows - 1) {
+		E.cy = E.numrows - 1;
+	}
+	vimSystemClampNormalCursor();
+	if (effects_out != NULL) {
+		*effects_out |= EDITOR_INPUT_KEY_EFFECT_VIEWPORT_SCROLL |
+		                EDITOR_INPUT_KEY_EFFECT_CURSOR_OR_EDIT;
+	}
+	return 0;
+}
+
+/* Control-key bindings shared by Normal and Visual mode. Returns 1 when the key
+ * was a control key (handled or deliberately swallowed), 0 otherwise. */
+static int vimSystemHandleSharedControlKey(int c, int *effects_out, int *result_out) {
+	int body = editorViewportFocusedPaneBodyRows();
+	int half;
+	int page;
+
+	if (!vimSystemIsControlKey(c)) {
+		return 0;
+	}
+	if (body < 1) {
+		body = 1;
+	}
+	half = body / 2 < 1 ? 1 : body / 2;
+	page = body > 1 ? body - 1 : 1;
+	*result_out = 0;
+	switch (c) {
+		case CTRL_KEY('d'):
+			*result_out = vimSystemScrollAndMove(half, effects_out);
+			break;
+		case CTRL_KEY('u'):
+			*result_out = vimSystemScrollAndMove(-half, effects_out);
+			break;
+		case CTRL_KEY('f'):
+			*result_out = vimSystemScrollAndMove(page, effects_out);
+			break;
+		case CTRL_KEY('b'):
+			*result_out = vimSystemScrollAndMove(-page, effects_out);
+			break;
+		case CTRL_KEY('e'):
+			*result_out = vimSystemScrollView(1, effects_out);
+			break;
+		case CTRL_KEY('y'):
+			*result_out = vimSystemScrollView(-1, effects_out);
+			break;
+		default:
+			break;
+	}
+	return 1;
+}
+
 static int vimSystemHandleNormalKey(int c, int *effects_out) {
 	int motion_count = 0;
 	int motion_result = 0;
 	int disabled = 0;
+	int shared_result = 0;
+
+	if (vimSystemIsControlKey(c)) {
+		switch (c) {
+			case CTRL_KEY('r'): {
+				int mapped = EDITOR_INPUT_KEY_EFFECT_NONE;
+				(void)editorDispatchProcessMappedAction(EDITOR_ACTION_REDO,
+				                                        &mapped);
+				vimSystemClampNormalCursor();
+				vimSystemDotRepeatSuppress();
+				if (effects_out != NULL) {
+					*effects_out |= mapped;
+				}
+				vimSystemResetPending();
+				return 0;
+			}
+			case CTRL_KEY('c'):
+				vimSystemResetPending();
+				return 0;
+			case CTRL_KEY('v'):
+				vimSystemResetPending();
+				vimSystemBeginVisualBlock();
+				return 0;
+			default:
+				break;
+		}
+		(void)vimSystemHandleSharedControlKey(c, effects_out, &shared_result);
+		return shared_result;
+	}
 
 	if (E.input_vim_pending_find) {
 		return vimSystemResolveFind(c, effects_out);
@@ -2996,6 +3303,17 @@ static int vimSystemHandleNormalKey(int c, int *effects_out) {
 		case 'r':
 			E.input_vim_pending_replace = 1;
 			return 0;
+		case 'u': {
+			int mapped = EDITOR_INPUT_KEY_EFFECT_NONE;
+			(void)editorDispatchProcessMappedAction(EDITOR_ACTION_UNDO, &mapped);
+			vimSystemClampNormalCursor();
+			vimSystemDotRepeatSuppress();
+			if (effects_out != NULL) {
+				*effects_out |= mapped;
+			}
+			vimSystemResetPending();
+			return 0;
+		}
 		case '~':
 			(void)vimSystemToggleCase(motion_count, effects_out);
 			vimSystemResetPending();
@@ -3143,7 +3461,7 @@ static int vimSystemVisualSelectObject(int inner, int object_key, int *effects_o
 		E.selection_mode_active = 1;
 		E.selection_anchor_offset = anchor_offset;
 		E.input_vim_mode = VIM_SYSTEM_MODE_VISUAL_LINE;
-		E.input_vim_visual_selection_half_open = 0;
+		vimSystemSetVisualHalfOpen(0);
 		(void)vimSystemSetCursor(last_row, vimSystemLineFirstNonblank(last_row),
 		                         effects_out);
 		return 1;
@@ -3155,7 +3473,7 @@ static int vimSystemVisualSelectObject(int inner, int object_key, int *effects_o
 	}
 	E.selection_mode_active = 1;
 	E.selection_anchor_offset = anchor_offset;
-	E.input_vim_visual_selection_half_open = 1;
+	vimSystemSetVisualHalfOpen(1);
 	(void)vimSystemSetCursor(cursor_cy, cursor_cx, effects_out);
 	return 1;
 }
@@ -3164,6 +3482,31 @@ static int vimSystemHandleVisualKey(int c, int *effects_out) {
 	int motion_count = 0;
 	int motion_result = 0;
 	int disabled = 0;
+	int shared_result = 0;
+
+	if (vimSystemIsControlKey(c)) {
+		if (c == CTRL_KEY('c')) {
+			editorClearSelectionState();
+			vimSystemSetMode(VIM_SYSTEM_MODE_NORMAL);
+			return 0;
+		}
+		if (c == CTRL_KEY('v')) {
+			int anchor_cy = E.cy;
+			int anchor_cx = E.cx;
+			(void)editorBufferOffsetToPos(E.selection_anchor_offset, &anchor_cy,
+			                              &anchor_cx);
+			editorClearSelectionState();
+			vimSystemSetMode(VIM_SYSTEM_MODE_VISUAL_BLOCK);
+			E.selection_mode_active = 0;
+			E.column_select_active = 1;
+			E.column_select_anchor_cy = anchor_cy;
+			E.input_vim_block_anchor_cx = anchor_cx;
+			vimSystemBlockSync();
+			return 0;
+		}
+		(void)vimSystemHandleSharedControlKey(c, effects_out, &shared_result);
+		return shared_result;
+	}
 
 	if (E.input_vim_pending_find) {
 		int cmd = E.input_vim_pending_find;
@@ -3173,7 +3516,7 @@ static int vimSystemHandleVisualKey(int c, int *effects_out) {
 			E.input_vim_last_find_char = c;
 			(void)vimSystemApplyMotion(vimSystemFindMotionForCmd(cmd),
 			                           vimSystemEffectiveCount(), effects_out);
-			E.input_vim_visual_selection_half_open = 0;
+			vimSystemSetVisualHalfOpen(0);
 		}
 		E.input_vim_count = 0;
 		return 0;
@@ -3240,7 +3583,7 @@ static int vimSystemHandleVisualKey(int c, int *effects_out) {
 	motion_count = vimSystemEffectiveCount();
 	motion_result = vimSystemTryMotionKey(c, motion_count, effects_out);
 	if (motion_result == 2) {
-		E.input_vim_visual_selection_half_open = 0;
+		vimSystemSetVisualHalfOpen(0);
 		E.input_vim_count = 0;
 		return 0;
 	}
@@ -3308,6 +3651,113 @@ static int vimSystemHandleVisualKey(int c, int *effects_out) {
 	return 0;
 }
 
+/* Move the cursor to the top-left cell of the current column-selection rect,
+ * where the cursor lands after a block operator (matching Vim). */
+static void vimSystemBlockCursorToTopLeft(const struct editorColumnSelectionRect *rect,
+                                          int *effects_out) {
+	struct editorLineView line = {0};
+	int cx = 0;
+
+	if (rect->top_cy < E.numrows && editorDocumentLineView(E.document, rect->top_cy, &line)) {
+		cx = editorBytesRxToCx(line.data, line.size, rect->left_rx);
+		editorLineViewRelease(&line);
+	}
+	(void)vimSystemSetCursor(rect->top_cy, cx, effects_out);
+}
+
+static int vimSystemBlockOperate(int c, int *effects_out) {
+	struct editorColumnSelectionRect rect;
+
+	if (!editorColumnSelectionGetRect(&rect)) {
+		vimSystemExitVisualBlock();
+		return 0;
+	}
+	if (c == 'y') {
+		char *text = NULL;
+		size_t len = 0;
+		if (editorColumnSelectionExtractText(&text, &len) > 0) {
+			(void)vimSystemRegisterStore(text, len, 0);
+			free(text);
+		}
+		vimSystemBlockCursorToTopLeft(&rect, effects_out);
+		vimSystemExitVisualBlock();
+		return 0;
+	}
+	if (vimSystemRejectReadOnlyMutation()) {
+		vimSystemExitVisualBlock();
+		return 0;
+	}
+	/* d / x / c all remove the block; c then enters Insert at the top-left. */
+	editorHistoryBeginEdit(EDITOR_EDIT_DELETE_TEXT);
+	int dirty_before = E.dirty;
+	int deleted = editorColumnSelectionDelete();
+	editorHistoryCommitEdit(EDITOR_EDIT_DELETE_TEXT, E.dirty != dirty_before);
+	editorHistoryBreakGroup();
+	if (deleted > 0) {
+		vimSystemAddEditEffect(effects_out);
+	}
+	vimSystemBlockCursorToTopLeft(&rect, effects_out);
+	if (c == 'c') {
+		vimSystemSetMode(VIM_SYSTEM_MODE_INSERT);
+	} else {
+		vimSystemExitVisualBlock();
+	}
+	return 0;
+}
+
+static int vimSystemHandleVisualBlockKey(int c, int *effects_out) {
+	int shared_result = 0;
+	int motion_count = 0;
+	int motion_result = 0;
+
+	if (vimSystemIsControlKey(c)) {
+		if (c == CTRL_KEY('c') || c == CTRL_KEY('v')) {
+			vimSystemExitVisualBlock();
+			return 0;
+		}
+		(void)vimSystemHandleSharedControlKey(c, effects_out, &shared_result);
+		if (vimSystemMode() == VIM_SYSTEM_MODE_VISUAL_BLOCK) {
+			vimSystemBlockSync();
+		}
+		return shared_result;
+	}
+	if (vimSystemConsumeCountKey(c)) {
+		return 0;
+	}
+	if (c == '\x1b') {
+		vimSystemExitVisualBlock();
+		return 0;
+	}
+	if (c == 'v') {
+		vimSystemBeginVisual(VIM_SYSTEM_MODE_VISUAL);
+		return 0;
+	}
+	if (c == 'V') {
+		vimSystemBeginVisual(VIM_SYSTEM_MODE_VISUAL_LINE);
+		return 0;
+	}
+	if (c == '"') {
+		E.input_vim_pending_register = 1;
+		return 0;
+	}
+
+	motion_count = vimSystemEffectiveCount();
+	motion_result = vimSystemTryMotionKey(c, motion_count, effects_out);
+	if (motion_result == 2) {
+		vimSystemBlockSync();
+		E.input_vim_count = 0;
+		return 0;
+	}
+	if (motion_result == 1) {
+		return 0;
+	}
+	if (c == 'd' || c == 'x' || c == 'c' || c == 'y') {
+		return vimSystemBlockOperate(c, effects_out);
+	}
+	E.input_vim_count = 0;
+	return 0;
+}
+
 static int vimSystemDispatchByMode(int c, int *effects_out) {
 	switch (vimSystemMode()) {
 		case VIM_SYSTEM_MODE_INSERT:
@@ -3315,6 +3765,8 @@ static int vimSystemDispatchByMode(int c, int *effects_out) {
 		case VIM_SYSTEM_MODE_VISUAL:
 		case VIM_SYSTEM_MODE_VISUAL_LINE:
 			return vimSystemHandleVisualKey(c, effects_out);
+		case VIM_SYSTEM_MODE_VISUAL_BLOCK:
+			return vimSystemHandleVisualBlockKey(c, effects_out);
 		default:
 			return vimSystemHandleNormalKey(c, effects_out);
 	}
@@ -3328,6 +3780,7 @@ static char g_vim_dot_record[VIM_DOT_BUF_MAX];
 static int g_vim_dot_record_len;
 static int g_vim_dot_record_dirty;
 static int g_vim_dot_record_overflow;
+static int g_vim_dot_record_suppress;
 static char g_vim_dot_command[VIM_DOT_BUF_MAX];
 static int g_vim_dot_command_len;
 static int g_vim_dot_replaying;
@@ -3335,8 +3788,15 @@ static int g_vim_dot_replaying;
 static void vimSystemDotRepeatReset(void) {
 	g_vim_dot_record_len = 0;
 	g_vim_dot_record_overflow = 0;
+	g_vim_dot_record_suppress = 0;
 	g_vim_dot_command_len = 0;
 	g_vim_dot_replaying = 0;
+}
+
+/* Mark the in-flight key sequence as not a repeatable change so `.` ignores it
+ * even though it altered the buffer (undo/redo are not Vim "changes"). */
+static void vimSystemDotRepeatSuppress(void) {
+	g_vim_dot_record_suppress = 1;
 }
 
 static int vimSystemIsIdleNormal(void) {
@@ -3374,6 +3834,7 @@ static int vimSystemHandleKey(int c, int *effects_out) {
 	if (vimSystemIsIdleNormal()) {
 		g_vim_dot_record_len = 0;
 		g_vim_dot_record_overflow = 0;
+		g_vim_dot_record_suppress = 0;
 		g_vim_dot_record_dirty = E.dirty;
 	}
 	if (g_vim_dot_record_len < VIM_DOT_BUF_MAX) {
@@ -3385,7 +3846,8 @@ static int vimSystemHandleKey(int c, int *effects_out) {
 	result = vimSystemDispatchByMode(c, effects_out);
 
 	if (vimSystemIsIdleNormal() && g_vim_dot_record_len > 0) {
-		if (!g_vim_dot_record_overflow && E.dirty != g_vim_dot_record_dirty) {
+		if (!g_vim_dot_record_overflow && !g_vim_dot_record_suppress &&
+		    E.dirty != g_vim_dot_record_dirty) {
 			memcpy(g_vim_dot_command, g_vim_dot_record, (size_t)g_vim_dot_record_len);
 			g_vim_dot_command_len = g_vim_dot_record_len;
 		}

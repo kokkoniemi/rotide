@@ -137,6 +137,47 @@ after activation.
 CUA has no visible status segment. Vim uses the status hook for mode labels such
 as `-- NORMAL --` and `-- INSERT --`.
 
+## Control keys
+
+In Vim mode the system owns the C0 control range: it runs its own control
+bindings and swallows the rest, so CUA `[keymap.cua]` shortcuts (Ctrl-P, Ctrl-Y,
+…) never fire while editing. Tab, Enter, and Esc are left to the text/mode paths,
+and the non-control navigation key codes (arrows, Home/End, Page Up/Down, Delete,
+Backspace) still fall through to their CUA actions so they keep working.
+`vimSystemIsControlKey` defines the captured range.
+
+Built-in control bindings:
+
+- Normal: `Ctrl-R` redo, `Ctrl-C` cancels any pending sequence, `Ctrl-V` starts
+  Visual-Block.
+- Normal/Visual/Visual-Block: `Ctrl-D`/`Ctrl-U` half-page, `Ctrl-F`/`Ctrl-B`
+  page (all move the cursor so the scroll sticks), `Ctrl-E`/`Ctrl-Y` scroll one
+  line and pull the cursor only as far as needed to stay on screen.
+- Visual/Visual-Block: `Ctrl-C` leaves to Normal; `Ctrl-V` toggles to/from
+  Visual-Block, preserving the anchor.
+- Insert: `Ctrl-C` returns to Normal, `Ctrl-H` backspace, `Ctrl-W` delete the
+  word before the cursor, `Ctrl-U` delete to the first non-blank (then to column
+  zero). Other Insert control keys are swallowed.
+
+`u` undoes and `Ctrl-R` redoes through the shared `EDITOR_ACTION_UNDO`/`REDO`
+paths; both suppress dot-repeat recording so `.` never replays an undo/redo.
+
+## Visual selection rendering
+
+Charwise Visual is cursor-inclusive and Visual-Line spans whole lines, which the
+generic stream-selection renderer (anchor→cursor, exclusive) does not express on
+its own. Two buffer flags bridge this: `E.selection_inclusive` extends the
+rendered range one cluster past the trailing end, and `E.selection_linewise`
+makes it cover full lines. `editorGetSelectionRange` honors both; CUA leaves them
+zero. `vimSystemSyncVisualSelectionFlags` keeps them in step with the Vim visual
+state (an explicit half-open range from a text object clears `inclusive`).
+
+Visual-Block reuses the column-selection machinery (`editorColumnSelection*`):
+`Ctrl-V` activates it, `hjkl` extend the rect (`vimSystemBlockSync` recomputes
+the inclusive `rx` span from the fixed anchor cell and the live cursor), and
+`d`/`x`/`y`/`c` operate on the block. It renders for free because the screen
+already draws `E.column_select_active`.
+
 ## Vim Internals
 
 `system_vim.c` keeps modal state per buffer (`E.input_vim_*` fields) so each tab
