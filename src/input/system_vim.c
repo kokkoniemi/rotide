@@ -406,6 +406,23 @@ static int vimSystemStatusColor(void) {
 	}
 }
 
+/* Terminal cursor shape for the current mode: a block in Normal/Visual (so the
+ * block sits on the cluster the inclusive selection ends on, instead of a bar
+ * drawn at its left edge that looks one cell short) and the configured style in
+ * Insert (negative = no override). */
+static int vimSystemCursorStyle(void) {
+	switch (vimSystemMode()) {
+		case VIM_SYSTEM_MODE_INSERT:
+			return -1;
+		case VIM_SYSTEM_MODE_VISUAL:
+		case VIM_SYSTEM_MODE_VISUAL_LINE:
+		case VIM_SYSTEM_MODE_VISUAL_BLOCK:
+		case VIM_SYSTEM_MODE_NORMAL:
+		default:
+			return EDITOR_CURSOR_STYLE_BLOCK;
+	}
+}
+
 /* Keep the renderer's inclusive/linewise selection flags in step with the Vim
  * visual state: charwise Visual is cursor-inclusive unless an explicit
  * (half-open) range was set; Visual-Line spans whole lines. */
@@ -1262,15 +1279,19 @@ static enum vimSystemMotionParse vimSystemParseMotionKey(int c, int *pending_g,
 
 	switch (c) {
 		case 'h':
+		case ARROW_LEFT:
 			motion = VIM_SYSTEM_MOTION_LEFT;
 			break;
 		case 'j':
+		case ARROW_DOWN:
 			motion = VIM_SYSTEM_MOTION_DOWN;
 			break;
 		case 'k':
+		case ARROW_UP:
 			motion = VIM_SYSTEM_MOTION_UP;
 			break;
 		case 'l':
+		case ARROW_RIGHT:
 			motion = VIM_SYSTEM_MOTION_RIGHT;
 			break;
 		case 'w':
@@ -4049,5 +4070,6 @@ const struct editorInputSystem editorVimInputSystem = {
         .bind_key = vimSystemBindKey,
         .status_segment = vimSystemStatusSegment,
         .status_segment_color = vimSystemStatusColor,
+        .cursor_style = vimSystemCursorStyle,
         .reset = vimSystemReset,
 };

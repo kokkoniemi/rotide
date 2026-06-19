@@ -81,6 +81,35 @@ static int test_input_vim_reset_returns_to_normal(void) {
 	return 0;
 }
 
+/* Normal and Visual modes request a block cursor so it sits on the cluster the
+ * inclusive selection ends on; Insert defers to the configured style (-1). */
+static int test_input_vim_cursor_style_is_block_outside_insert(void) {
+	const struct editorInputSystem *system = NULL;
+
+	add_row("alpha");
+	ASSERT_TRUE(vim_test_activate());
+	system = editorInputSystemActive();
+	ASSERT_TRUE(system != NULL);
+	ASSERT_TRUE(system->cursor_style != NULL);
+
+	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
+	ASSERT_EQ_INT(EDITOR_CURSOR_STYLE_BLOCK, system->cursor_style());
+
+	ASSERT_TRUE(vim_test_key('v') == 0);
+	ASSERT_EQ_STR("VISUAL", editorVimModeLabel());
+	ASSERT_EQ_INT(EDITOR_CURSOR_STYLE_BLOCK, system->cursor_style());
+
+	ASSERT_TRUE(vim_test_key('\x1b') == 0);
+	ASSERT_TRUE(vim_test_key('i') == 0);
+	ASSERT_EQ_STR("INSERT", editorVimModeLabel());
+	ASSERT_TRUE(system->cursor_style() < 0);
+
+	ASSERT_TRUE(vim_test_key('\x1b') == 0);
+	ASSERT_EQ_STR("NORMAL", editorVimModeLabel());
+	ASSERT_EQ_INT(EDITOR_CURSOR_STYLE_BLOCK, system->cursor_style());
+	return 0;
+}
+
 static int test_input_vim_normal_text_does_not_insert(void) {
 	ASSERT_TRUE(vim_test_activate());
 	ASSERT_TRUE(vim_test_key('x') == 0);
@@ -327,6 +356,63 @@ static int test_input_vim_visual_motions_preserve_anchor(void) {
 	ASSERT_EQ_INT(0, vim_test_visual_motion(2, 4, 'g', 'g', 0, 2, 0, 2, 2, 5));
 	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 4, 'G', 0, 2, 2, 0, 4, 2, 3));
 	ASSERT_EQ_INT(dirty_before, E.dirty);
+	return 0;
+}
+
+/* Arrow keys must act as motions in Visual mode (like h/j/k/l): move the cursor
+ * and extend the selection from the anchor. Previously they were routed through
+ * the CUA MOVE actions, which clear selection mode, so the selection collapsed. */
+static int test_input_vim_visual_arrow_keys_grow_selection(void) {
+	add_row("  alpha, beta");
+	add_row("xy");
+	add_row("  last");
+	int dirty_before = E.dirty;
+
+	ASSERT_TRUE(vim_test_activate());
+	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 3, ARROW_LEFT, 0, 0, 2, 0, 2, 0, 4));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 2, ARROW_RIGHT, 0, 0, 3, 0, 2, 0, 4));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(0, 3, ARROW_DOWN, 0, 1, 1, 0, 3, 1, 2));
+	ASSERT_EQ_INT(0, vim_test_visual_motion(1, 1, ARROW_UP, 0, 0, 1, 0, 1, 1, 2));
+	ASSERT_EQ_INT(dirty_before, E.dirty);
+	return 0;
+}
+
+/* Arrow keys move the cursor as Normal-mode motions, equivalent to h/j/k/l. */
+static int test_input_vim_normal_arrow_keys_move_as_motions(void) {
+	add_row("alpha");
+	add_row("beta");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key(ARROW_RIGHT) == 0);
+	ASSERT_EQ_INT(1, E.cx);
+	ASSERT_TRUE(vim_test_key(ARROW_DOWN) == 0);
+	ASSERT_EQ_INT(1, E.cy);
+	ASSERT_TRUE(vim_test_key(ARROW_UP) == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_TRUE(vim_test_key(ARROW_LEFT) == 0);
+	ASSERT_EQ_INT(0, E.cx);
+	/* h/l do not wrap across line boundaries: left at column 0 stays put. */
+	ASSERT_TRUE(vim_test_key(ARROW_LEFT) == 0);
+	ASSERT_EQ_INT(0, E.cy);
+	ASSERT_EQ_INT(0, E.cx);
+	return 0;
+}
+
+/* `d<Down>` deletes linewise across the arrow motion, like `dj`. */
+static int test_input_vim_operator_arrow_down_deletes_lines(void) {
+	add_row("one");
+	add_row("two");
+	add_row("three");
+	ASSERT_TRUE(vim_test_activate());
+
+	E.cy = 0;
+	E.cx = 0;
+	ASSERT_TRUE(vim_test_key('d') == 0);
+	ASSERT_TRUE(vim_test_key(ARROW_DOWN) == 0);
+	ASSERT_EQ_INT(1, E.numrows);
+	ASSERT_ROW_TEXT_EQ(0, "three");
 	return 0;
 }
 
@@ -2099,6 +2185,8 @@ const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_ctrl_d_moves_cursor_down", test_input_vim_ctrl_d_moves_cursor_down},
         {"input_vim_activation_starts_normal", test_input_vim_activation_starts_normal},
         {"input_vim_reset_returns_to_normal", test_input_vim_reset_returns_to_normal},
+        {"input_vim_cursor_style_is_block_outside_insert",
+         test_input_vim_cursor_style_is_block_outside_insert},
         {"input_vim_leader_find_file", test_input_vim_leader_find_file},
         {"input_vim_leader_project_search", test_input_vim_leader_project_search},
         {"input_vim_leader_toggle_drawer", test_input_vim_leader_toggle_drawer},
@@ -2187,6 +2275,12 @@ const struct editorTestCase g_input_vim_tests[] = {
         {"input_vim_blank_line_nonblank_motion_uses_column_zero",
          test_input_vim_blank_line_nonblank_motion_uses_column_zero},
         {"input_vim_visual_motions_preserve_anchor", test_input_vim_visual_motions_preserve_anchor},
+        {"input_vim_visual_arrow_keys_grow_selection",
+         test_input_vim_visual_arrow_keys_grow_selection},
+        {"input_vim_normal_arrow_keys_move_as_motions",
+         test_input_vim_normal_arrow_keys_move_as_motions},
+        {"input_vim_operator_arrow_down_deletes_lines",
+         test_input_vim_operator_arrow_down_deletes_lines},
         {"input_vim_mode_is_tab_local", test_input_vim_mode_is_tab_local},
         {"input_vim_normal_delete_and_change_operators",
          test_input_vim_normal_delete_and_change_operators},
